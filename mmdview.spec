@@ -1,0 +1,75 @@
+# -*- mode: python ; coding: utf-8 -*-
+
+block_cipher = None
+
+a = Analysis(
+    ['backend/app.py'],
+    pathex=[],
+    binaries=[],
+    datas=[
+        ('backend/templates', 'backend/templates'),
+        ('static', 'static'),
+    ],
+    hiddenimports=[
+        'backend.routers.html',
+        'backend.routers.events',
+        'backend.services.event_bus',
+        'backend.services.watch_service',
+        'backend.paths',
+        'uvicorn.logging',
+        'uvicorn.loops',
+        'uvicorn.loops.auto',
+        'uvicorn.protocols',
+        'uvicorn.protocols.http',
+        'uvicorn.protocols.http.auto',
+        'uvicorn.protocols.websockets',
+        'uvicorn.protocols.websockets.auto',
+        'uvicorn.lifespan',
+        'uvicorn.lifespan.on',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name='mmdview',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=False,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='mmdview',
+)
+
+app = BUNDLE(
+    coll,
+    name='mmdview.app',
+    icon=None,
+    bundle_identifier='com.degino.mmdview',
+    info_plist={
+        'NSHighResolutionCapable': True,
+        'CFBundleShortVersionString': '0.1.0',
+    },
+)
