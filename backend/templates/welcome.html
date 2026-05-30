@@ -1,1 +1,9 @@
-{% extends "base.html" %}{% block content %}<button>ファイルを開く</button>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<div class="welcome">
+  <p class="welcome-message">Mermaid ファイル (.mmd / .md) を開いてください</p>
+  <button hx-post="/open-file" hx-swap="none">
+    ファイルを開く
+  </button>
+</div>
+{% endblock %}

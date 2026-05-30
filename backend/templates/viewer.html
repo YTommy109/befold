@@ -1,1 +1,21 @@
-{% extends "base.html" %}{% block content %}<span>{{ filename }}</span><pre class="mermaid">{{ content }}</pre>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<div class="toolbar">
+  <span class="filepath" title="{{ filepath }}">{{ filename }}</span>
+  <button hx-post="/open-file" hx-swap="none">
+    別のファイルを開く
+  </button>
+</div>
+<div class="viewer">
+  <pre class="mermaid">{{ content }}</pre>
+</div>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'default' });
+
+  const evtSource = new EventSource('/events');
+  evtSource.onmessage = (e) => {
+    if (e.data === 'reload') window.location.reload();
+  };
+</script>
+{% endblock %}
