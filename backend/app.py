@@ -5,6 +5,8 @@ import time
 
 import uvicorn
 import webview
+from webview import FileDialog
+from webview.menu import Menu, MenuAction, MenuSeparator
 
 from backend.main import app
 from backend.paths import WINDOW_STATE_FILE
@@ -56,7 +58,7 @@ def _wait_for_server(port: int, timeout: float = 5.0) -> None:
 
 def _open_file_from_menu(window: webview.Window) -> None:
     result = window.create_file_dialog(
-        webview.OPEN_DIALOG,  # type: ignore[arg-type]
+        FileDialog.OPEN,
         allow_multiple=False,
         file_types=("Mermaid files (*.mmd;*.md)", "All files (*.*)"),
     )
@@ -99,12 +101,12 @@ def main() -> None:
     window.events.resized += lambda width, height: _schedule_save()
 
     menu = [
-        webview.Menu(
+        Menu(
             "File",
             [
-                webview.MenuAction("Open...", lambda: _open_file_from_menu(window)),
-                webview.MenuSeparator(),
-                webview.MenuAction("Close", window.destroy),
+                MenuAction("Open...", lambda: _open_file_from_menu(window)),
+                MenuSeparator(),
+                MenuAction("Close", window.destroy),
             ],
         )
     ]

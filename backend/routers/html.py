@@ -11,9 +11,10 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 def _pick_file() -> str | None:
     import webview
+    from webview import FileDialog
 
     result = webview.windows[0].create_file_dialog(
-        webview.OPEN_DIALOG,
+        FileDialog.OPEN,
         allow_multiple=False,
         file_types=("Mermaid files (*.mmd;*.md)", "All files (*.*)"),
     )
