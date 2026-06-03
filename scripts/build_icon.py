@@ -72,6 +72,7 @@ def build() -> None:
         sys.exit(1)
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
+        shutil.rmtree(ICONSET)
         sys.exit(1)
 
     shutil.rmtree(ICONSET)
