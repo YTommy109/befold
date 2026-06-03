@@ -1,6 +1,17 @@
 #!/usr/bin/env python3
 """SVG → PNG → .icns 変換スクリプト（macOS 専用）"""
 
+import os
+import platform
+import subprocess as _sp
+
+if platform.system() == "Darwin":
+    try:
+        _prefix = _sp.check_output(["brew", "--prefix"], text=True).strip()
+        os.environ.setdefault("DYLD_LIBRARY_PATH", f"{_prefix}/lib")
+    except (FileNotFoundError, _sp.CalledProcessError):
+        pass
+
 import shutil
 import subprocess
 import sys
@@ -35,6 +46,10 @@ ICONSET_SIZES = [
 
 
 def build() -> None:
+    if not SVG.exists():
+        print(f"Error: SVG not found: {SVG}", file=sys.stderr)
+        sys.exit(1)
+
     if ICONSET.exists():
         shutil.rmtree(ICONSET)
     ICONSET.mkdir(parents=True)
@@ -45,11 +60,16 @@ def build() -> None:
         png = cairosvg.svg2png(bytestring=svg_data, output_width=size, output_height=size)
         (ICONSET / filename).write_bytes(png)
 
-    result = subprocess.run(
-        ["iconutil", "-c", "icns", str(ICONSET), "-o", str(ICNS)],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["iconutil", "-c", "icns", str(ICONSET), "-o", str(ICNS)],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        print("Error: iconutil not found — this script requires macOS", file=sys.stderr)
+        shutil.rmtree(ICONSET)
+        sys.exit(1)
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
         sys.exit(1)
