@@ -22,13 +22,16 @@ dev = [
     "pyinstaller>=6.20",
     "taskipy>=1.13",
     "bump-my-version",
+    "cairosvg>=2.9.0",
 ]
 
 [tool.taskipy.tasks]
 dev          = "python -m backend.app"
 server       = "uvicorn backend.main:app --reload --port 8000"
 test         = "pytest -v --cov --cov-report=term-missing"
+pre_build    = "python scripts/build_icon.py"
 build        = "pyinstaller mmdview.spec"
+icon         = "python scripts/build_icon.py"
 lint         = "ruff check ."
 format       = "ruff format ."
 typecheck    = "ty check"

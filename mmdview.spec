@@ -61,7 +61,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='mmdview.app',
-    icon=None,
+    icon='static/icons/icon.icns',
     bundle_identifier='com.degino.mmdview',
     info_plist={
         'NSHighResolutionCapable': True,

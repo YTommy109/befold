@@ -9,3 +9,5 @@ build/
 *.spec.bak
 .superpowers/
 .claude/
+static/icons/*.icns
+static/icons/*.iconset
