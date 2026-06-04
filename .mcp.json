@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "dagayn": {
+      "command": "dagayn",
+      "args": [
+        "serve"
+      ],
+      "type": "stdio"
+    }
+  }
+}
