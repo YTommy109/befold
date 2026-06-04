@@ -65,6 +65,6 @@ app = BUNDLE(
     bundle_identifier='com.degino.mmdview',
     info_plist={
         'NSHighResolutionCapable': True,
-        "CFBundleShortVersionString": "0.2.1",
+        "CFBundleShortVersionString": "0.2.2",
     },
 )
