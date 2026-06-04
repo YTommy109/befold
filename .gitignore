@@ -11,3 +11,6 @@ build/
 .claude/
 static/icons/*.icns
 static/icons/*.iconset
+.worktrees/
+# Added by dagayn
+.dagayn/
