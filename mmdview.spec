@@ -66,7 +66,7 @@ app = BUNDLE(
     bundle_identifier='com.degino.mmdview',
     info_plist={
         'NSHighResolutionCapable': True,
-        "CFBundleShortVersionString": "0.2.3",
+        "CFBundleShortVersionString": "0.2.4",
         'CFBundleDocumentTypes': [
             {
                 'CFBundleTypeName': 'Mermaid Diagram',
