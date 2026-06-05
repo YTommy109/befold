@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from backend.paths import TEMPLATES_DIR
+from backend.services.recent_files_service import recent_files_service
 from backend.services.watch_service import watch_service
 
 router = APIRouter()
@@ -16,7 +17,7 @@ def _pick_file() -> str | None:
     result = webview.windows[0].create_file_dialog(
         FileDialog.OPEN,
         allow_multiple=False,
-        file_types=("Mermaid files (*.mmd;*.md)", "All files (*.*)"),
+        file_types=("Mermaid files (*.mmd;*.mermaid)", "All files (*.*)"),
     )
     return result[0] if result else None
 
@@ -42,5 +43,6 @@ async def index(request: Request) -> HTMLResponse:
 async def open_file() -> Response:
     path = _pick_file()
     if path:
+        recent_files_service.add(path)
         watch_service.set_file(path)
     return Response(headers={"HX-Redirect": "/"})
