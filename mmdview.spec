@@ -9,6 +9,7 @@ a = Analysis(
         ('static', 'static'),
     ],
     hiddenimports=[
+        'backend.apple_events',
         'backend.routers.html',
         'backend.routers.events',
         'backend.services.event_bus',
@@ -66,5 +67,13 @@ app = BUNDLE(
     info_plist={
         'NSHighResolutionCapable': True,
         "CFBundleShortVersionString": "0.2.2",
+        'CFBundleDocumentTypes': [
+            {
+                'CFBundleTypeName': 'Mermaid Diagram',
+                'CFBundleTypeExtensions': ['mmd', 'mermaid'],
+                'CFBundleTypeRole': 'Viewer',
+                'LSHandlerRank': 'Owner',
+            }
+        ],
     },
 )

@@ -60,7 +60,7 @@ def _open_file_from_menu(window: webview.Window) -> None:
     result = window.create_file_dialog(
         FileDialog.OPEN,
         allow_multiple=False,
-        file_types=("Mermaid files (*.mmd;*.md)", "All files (*.*)"),
+        file_types=("Mermaid files (*.mmd;*.mermaid)", "All files (*.*)"),
     )
     if result:
         watch_service.set_file(result[0])
@@ -68,15 +68,27 @@ def _open_file_from_menu(window: webview.Window) -> None:
 
 
 def main() -> None:
+    import sys
+
     port = _find_free_port()
     state = _load_window_state()
 
-    if state.get("last_file"):
-        watch_service.set_file(state["last_file"])
+    initial_file = (sys.argv[1] if len(sys.argv) > 1 else None) or state.get("last_file")
+    if initial_file:
+        watch_service.set_file(initial_file)
 
     server_thread = threading.Thread(target=_start_server, args=(port,), daemon=True)
     server_thread.start()
     _wait_for_server(port)
+
+    from backend.apple_events import register_open_file_handler
+
+    def _on_open_file(path: str) -> None:
+        watch_service.set_file(path)
+        for win in webview.windows:
+            win.evaluate_js("window.location.reload()")
+
+    register_open_file_handler(_on_open_file)
 
     window = webview.create_window(
         "mmdview",
