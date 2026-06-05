@@ -23,7 +23,7 @@ def _load_window_state() -> dict:
     if WINDOW_STATE_FILE.exists():
         try:
             return json.loads(WINDOW_STATE_FILE.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError, OSError):
             pass
     return _DEFAULT_STATE.copy()
 
@@ -81,9 +81,7 @@ def _build_open_recent_menu(window: webview.Window) -> Menu:
         window.evaluate_js("window.location.reload()")
 
     if recent:
-        items: list = [
-            MenuAction(p, lambda p=p: _open_recent(p)) for p in recent
-        ]
+        items: list = [MenuAction(p, lambda p=p: _open_recent(p)) for p in recent]
         items += [MenuSeparator(), MenuAction("Clear Menu", recent_files_service.clear)]
     else:
         items = [MenuAction("No Recent Files", lambda: None)]
