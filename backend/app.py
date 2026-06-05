@@ -23,7 +23,7 @@ def _load_window_state() -> dict:
     if WINDOW_STATE_FILE.exists():
         try:
             return json.loads(WINDOW_STATE_FILE.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError, OSError):
             pass
     return _DEFAULT_STATE.copy()
 
@@ -60,6 +60,12 @@ def _wait_for_server(port: int, timeout: float = 5.0) -> None:
     raise RuntimeError(f"Server did not start on port {port} within {timeout}s")
 
 
+def _activate_file(path: str, window: webview.Window) -> None:
+    recent_files_service.add(path)
+    watch_service.set_file(path)
+    window.evaluate_js("window.location.reload()")
+
+
 def _open_file_from_menu(window: webview.Window) -> None:
     result = window.create_file_dialog(
         FileDialog.OPEN,
@@ -67,23 +73,17 @@ def _open_file_from_menu(window: webview.Window) -> None:
         file_types=("Mermaid files (*.mmd;*.mermaid)", "All files (*.*)"),
     )
     if result:
-        recent_files_service.add(result[0])
-        watch_service.set_file(result[0])
-        window.evaluate_js("window.location.reload()")
+        _activate_file(result[0], window)
 
 
 def _build_open_recent_menu(window: webview.Window) -> Menu:
     recent = recent_files_service.get()
 
     def _open_recent(path: str) -> None:
-        recent_files_service.add(path)
-        watch_service.set_file(path)
-        window.evaluate_js("window.location.reload()")
+        _activate_file(path, window)
 
     if recent:
-        items: list = [
-            MenuAction(p, lambda p=p: _open_recent(p)) for p in recent
-        ]
+        items: list = [MenuAction(p, lambda p=p: _open_recent(p)) for p in recent]
         items += [MenuSeparator(), MenuAction("Clear Menu", recent_files_service.clear)]
     else:
         items = [MenuAction("No Recent Files", lambda: None)]
@@ -119,6 +119,7 @@ def main() -> None:
 
     initial_file = (sys.argv[1] if len(sys.argv) > 1 else None) or state.get("last_file")
     if initial_file:
+        recent_files_service.add(initial_file)
         watch_service.set_file(initial_file)
 
     server_thread = threading.Thread(target=_start_server, args=(port,), daemon=True)

@@ -1,4 +1,6 @@
-from unittest.mock import MagicMock
+import threading
+import time
+from unittest.mock import MagicMock, patch
 
 from backend.update_window import _reposition_file_menu
 
@@ -53,3 +55,34 @@ def test_file_menu_at_index_2_moved_to_1():
 
     menu.removeItem_.assert_called_once_with(file_item)
     menu.insertItem_atIndex_.assert_called_once_with(file_item, 1)
+
+
+def test_open_update_dialog_concurrent_calls_create_one_window():
+    """複数スレッドが同時に open_update_dialog() を呼んでも
+    webview.create_window() は 1 回しか呼ばれない。"""
+    import backend.update_window as uw
+
+    uw._update_win = None  # 状態リセット
+    create_calls = []
+
+    def fake_create_window(**kwargs):
+        time.sleep(0.05)  # race window を広げる
+        win = MagicMock()
+        win.events = MagicMock()
+        create_calls.append(win)
+        return win
+
+    try:
+        with patch("backend.update_window.webview.create_window", side_effect=fake_create_window):
+            with patch("backend.update_window.update_service.invalidate_cache"):
+                threads = [
+                    threading.Thread(target=uw.open_update_dialog, args=(8000,)) for _ in range(3)
+                ]
+                for t in threads:
+                    t.start()
+                for t in threads:
+                    t.join(timeout=2.0)
+
+        assert len(create_calls) == 1, f"Expected 1 window, got {len(create_calls)}"
+    finally:
+        uw._update_win = None  # 確実にクリーンアップ
