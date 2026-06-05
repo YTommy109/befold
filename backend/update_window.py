@@ -15,6 +15,7 @@ _logger = logging.getLogger(__name__)
 HOST = "127.0.0.1"
 
 _update_win: webview.Window | None = None
+_update_win_lock = threading.Lock()
 _menu_target: object | None = None  # NSObject の GC 防止のためモジュールスコープで保持
 
 try:
@@ -80,26 +81,28 @@ def _reposition_file_menu(main_menu: object) -> None:
 def open_update_dialog(port: int) -> None:
     """更新確認ダイアログを開く。すでに開いていれば何もしない。"""
     global _update_win
-    if _update_win is not None:
-        return
-    update_service.invalidate_cache()
-    url = f"http://{HOST}:{port}/api/update/dialog"
-    win = webview.create_window(
-        title="アップデート確認",
-        url=url,
-        width=400,
-        height=260,
-        resizable=False,
-    )
-    if win is None:
-        return
+    with _update_win_lock:
+        if _update_win is not None:
+            return
+        update_service.invalidate_cache()
+        url = f"http://{HOST}:{port}/api/update/dialog"
+        win = webview.create_window(
+            title="アップデート確認",
+            url=url,
+            width=400,
+            height=260,
+            resizable=False,
+        )
+        if win is None:
+            return
 
-    def _on_closed() -> None:
-        global _update_win
-        _update_win = None
+        def _on_closed() -> None:
+            global _update_win
+            with _update_win_lock:
+                _update_win = None
 
-    win.events.closed += _on_closed
-    _update_win = win
+        win.events.closed += _on_closed
+        _update_win = win
 
 
 def setup_app_menu(port: int) -> None:
