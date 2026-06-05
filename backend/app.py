@@ -81,14 +81,14 @@ def main() -> None:
     server_thread.start()
     _wait_for_server(port)
 
-    from backend.apple_events import register_open_file_handler
-
     def _on_open_file(path: str) -> None:
         watch_service.set_file(path)
-        for win in webview.windows:
-            win.evaluate_js("window.location.reload()")
 
-    register_open_file_handler(_on_open_file)
+        def _reload() -> None:
+            for win in webview.windows:
+                win.evaluate_js("window.location.reload()")
+
+        threading.Thread(target=_reload, daemon=True).start()
 
     window = webview.create_window(
         "mmdview",
@@ -125,7 +125,13 @@ def main() -> None:
 
     from backend.update_window import setup_app_menu
 
-    webview.start(menu=menu, func=lambda: setup_app_menu(port))
+    def _on_webview_ready() -> None:
+        from backend.apple_events import register_open_file_handler
+
+        register_open_file_handler(_on_open_file)
+        setup_app_menu(port)
+
+    webview.start(menu=menu, func=_on_webview_ready)
     watch_service.stop()
 
 
