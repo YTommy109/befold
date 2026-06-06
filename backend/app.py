@@ -111,9 +111,16 @@ def _create_window(
 ) -> tuple[str, webview.Window]:
     """新しいウィンドウを作成し、registry と _windows に登録して返す。"""
     window_id = str(uuid4())
+    logger.info("_create_window: file_path=%s window_id=%s", file_path, window_id)
     window_registry.create(window_id, file_path)
 
     title = Path(file_path).name if file_path else "mmdview"
+    logger.info(
+        "_create_window: calling webview.create_window title=%r window_id=%s thread=%s",
+        title,
+        window_id,
+        threading.current_thread().name,
+    )
     try:
         window = webview.create_window(
             title,
@@ -131,6 +138,7 @@ def _create_window(
         window_registry.remove(window_id)
         raise RuntimeError(f"webview.create_window returned None for window_id={window_id}")
 
+    logger.info("_create_window: window created successfully window_id=%s", window_id)
     _windows[window_id] = window
 
     # 各ウィンドウが自分用の debounce タイマーを持つ
@@ -164,6 +172,11 @@ def _open_file(path: str, port: int) -> None:
             logger.info("_open_file: already open, focusing: %s", path)
             _focus_window(win)
             return
+        logger.warning(
+            "_open_file: registry has window_id=%s but not in _windows, opening new window: %s",
+            existing_id,
+            path,
+        )
     logger.info("_open_file: opening new window: %s", path)
     _create_window(port, file_path=path)
 
@@ -208,11 +221,15 @@ def _patch_app_delegate_for_open_file(callback: Callable[[str], None]) -> None:
         from backend.apple_events import register_open_file_handler
 
         def _did_finish_launching(self: object, notification: object) -> None:
+            logger.info("_did_finish_launching fired: re-registering odoc handler")
             register_open_file_handler(callback)
 
         _cocoa.BrowserView.AppDelegate.applicationDidFinishLaunching_ = _did_finish_launching
+        logger.info("applicationDidFinishLaunching_ patch applied successfully")
     except Exception:
-        logger.warning("applicationDidFinishLaunching_ パッチに失敗しました")
+        logger.warning(
+            "applicationDidFinishLaunching_ パッチに失敗しました\n%s", traceback.format_exc()
+        )
 
 
 def main() -> None:
