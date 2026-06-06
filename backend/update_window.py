@@ -8,7 +8,7 @@ import threading
 
 import webview
 
-from backend.services import update_service
+from backend.services.update_service import update_service
 
 _logger = logging.getLogger(__name__)
 

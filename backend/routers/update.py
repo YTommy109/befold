@@ -9,8 +9,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from backend.paths import TEMPLATES_DIR
-from backend.services import update_service
 from backend.services.update_installer import install_update
+from backend.services.update_service import update_service
 from backend.version import __version__ as _CURRENT_VERSION
 
 router = APIRouter(prefix="/api/update", tags=["update"])
@@ -71,7 +71,7 @@ def get_progress(request: Request) -> HTMLResponse:
 def do_install(request: Request) -> HTMLResponse:
     result = install_update()
     if result == "not_frozen":
-        return HTMLResponse(content="")
+        return templates.TemplateResponse(request, "partials/update_idle.html", {})
     state = {"percent": 100, "status": f"install_error:{result}"}
     return templates.TemplateResponse(
         request,
