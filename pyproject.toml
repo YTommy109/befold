@@ -30,6 +30,7 @@ dev = [
 dev          = "python -m backend.app"
 server       = "uvicorn backend.main:app --reload --port 8000"
 test         = "pytest -v --cov --cov-report=term-missing"
+download_js  = "python scripts/download_js.py"
 pre_build    = "python scripts/build_icon.py"
 build        = "pyinstaller -y mmdview.spec"
 icon         = "python scripts/build_icon.py"
