@@ -4,6 +4,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 import uvicorn
 import webview
@@ -63,7 +64,18 @@ def _wait_for_server(port: int, timeout: float = 5.0) -> None:
 def _activate_file(path: str, window: webview.Window) -> None:
     recent_files_service.add(path)
     watch_service.set_file(path)
+    window.title = Path(path).name
     window.evaluate_js("window.location.reload()")
+
+
+def _reload_view() -> None:
+    try:
+        for win in webview.windows:
+            win.evaluate_js("window.location.reload()")
+    except Exception:
+        import traceback
+
+        logger.error("_reload_view failed:\n%s", traceback.format_exc())
 
 
 def _open_file_from_menu(window: webview.Window) -> None:
@@ -137,19 +149,13 @@ def main() -> None:
             logger.error("watch_service.set_file failed: path=%s\n%s", path, traceback.format_exc())
             return
 
-        def _reload() -> None:
-            try:
-                for win in webview.windows:
-                    win.evaluate_js("window.location.reload()")
-            except Exception:
-                import traceback
+        for win in webview.windows:
+            win.title = Path(path).name
 
-                logger.error("_reload failed:\n%s", traceback.format_exc())
-
-        threading.Thread(target=_reload, daemon=True).start()
+        threading.Thread(target=_reload_view, daemon=True).start()
 
     window = webview.create_window(
-        "mmdview",
+        Path(initial_file).name if initial_file else "mmdview",
         f"http://127.0.0.1:{port}/",
         x=state.get("x", 100),
         y=state.get("y", 100),
