@@ -1,25 +1,12 @@
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from backend.paths import TEMPLATES_DIR
-from backend.services.recent_files_service import recent_files_service
 from backend.services.watch_service import watch_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-
-
-def _pick_file() -> str | None:
-    import webview
-    from webview import FileDialog
-
-    result = webview.windows[0].create_file_dialog(
-        FileDialog.OPEN,
-        allow_multiple=False,
-        file_types=("Mermaid files (*.mmd;*.mermaid)", "All files (*.*)"),
-    )
-    return result[0] if result else None
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -31,18 +18,5 @@ async def index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "viewer.html",
-        {
-            "content": content,
-            "filename": path.name,
-            "filepath": str(path),
-        },
+        {"content": content},
     )
-
-
-@router.post("/open-file")
-async def open_file() -> Response:
-    path = _pick_file()
-    if path:
-        recent_files_service.add(path)
-        watch_service.set_file(path)
-    return Response(headers={"HX-Redirect": "/"})

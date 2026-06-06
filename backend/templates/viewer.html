@@ -1,11 +1,5 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="toolbar">
-  <span class="filepath" title="{{ filepath }}">{{ filename }}</span>
-  <button hx-post="/open-file" hx-swap="none">
-    別のファイルを開く
-  </button>
-</div>
 <div class="viewer">
   <pre class="mermaid">{{ content }}</pre>
 </div>

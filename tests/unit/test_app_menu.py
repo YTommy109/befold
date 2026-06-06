@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from webview.menu import Menu, MenuAction, MenuSeparator
 
-from backend.app import _build_open_recent_menu, _open_file_from_menu
+from backend.app import _activate_file, _build_open_recent_menu, _open_file_from_menu
 
 
 def _action_titles(menu: Menu) -> list[str]:
@@ -111,3 +111,24 @@ def test_open_file_cancelled_does_nothing(mock_recent_svc, mock_watch_svc):
     mock_recent_svc.add.assert_not_called()
     mock_watch_svc.set_file.assert_not_called()
     window.evaluate_js.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _activate_file
+# ---------------------------------------------------------------------------
+
+
+@patch("backend.app.watch_service")
+@patch("backend.app.recent_files_service")
+def test_activate_file_sets_window_title(mock_recent_svc, mock_watch_svc):
+    window = MagicMock()
+    _activate_file("/some/dir/diagram.mmd", window)
+    assert window.title == "diagram.mmd"
+
+
+@patch("backend.app.watch_service")
+@patch("backend.app.recent_files_service")
+def test_activate_file_sets_title_to_filename_only(mock_recent_svc, mock_watch_svc):
+    window = MagicMock()
+    _activate_file("/Users/alice/projects/sequence.mmd", window)
+    assert window.title == "sequence.mmd"
