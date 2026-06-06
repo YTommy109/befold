@@ -3,7 +3,9 @@ import json
 import socket
 import sys
 import threading
+import time
 import traceback
+from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
 
@@ -77,8 +79,6 @@ def _start_server(port: int) -> None:
 
 
 def _wait_for_server(port: int, timeout: float = 5.0) -> None:
-    import time
-
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
@@ -114,15 +114,23 @@ def _create_window(
     window_registry.create(window_id, file_path)
 
     title = Path(file_path).name if file_path else "mmdview"
-    window = webview.create_window(
-        title,
-        f"http://127.0.0.1:{port}/?window_id={window_id}",
-        x=x,
-        y=y,
-        width=width,
-        height=height,
-    )
-    assert window is not None
+    try:
+        window = webview.create_window(
+            title,
+            f"http://127.0.0.1:{port}/?window_id={window_id}",
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+        )
+    except Exception:
+        window_registry.remove(window_id)
+        raise
+
+    if window is None:
+        window_registry.remove(window_id)
+        raise RuntimeError(f"webview.create_window returned None for window_id={window_id}")
+
     _windows[window_id] = window
 
     # 各ウィンドウが自分用の debounce タイマーを持つ
@@ -150,10 +158,12 @@ def _create_window(
 def _open_file(path: str, port: int) -> None:
     """ファイルを開く。既に開いていれば既存ウィンドウをフォーカスし、なければ新規作成。"""
     existing_id = window_registry.find_by_path(path)
-    if existing_id and existing_id in _windows:
-        logger.info("_open_file: already open, focusing: %s", path)
-        _focus_window(_windows[existing_id])
-        return
+    if existing_id:
+        win = _windows.get(existing_id)
+        if win is not None:
+            logger.info("_open_file: already open, focusing: %s", path)
+            _focus_window(win)
+            return
     logger.info("_open_file: opening new window: %s", path)
     _create_window(port, file_path=path)
 
@@ -187,7 +197,7 @@ def _build_open_recent_menu(port: int) -> Menu:
     return Menu("Open Recent...", items)
 
 
-def _patch_app_delegate_for_open_file(callback) -> None:
+def _patch_app_delegate_for_open_file(callback: Callable[[str], None]) -> None:
     """NSApp.finishLaunching() が odoc ハンドラを上書きするため、
     applicationDidFinishLaunching_ で再登録するようにパッチを当てる。"""
     if sys.platform != "darwin":
