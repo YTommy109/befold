@@ -10,8 +10,8 @@ import sys
 from pathlib import Path
 from typing import Literal
 
-from backend.services import update_service
 from backend.services.update_mount import mount_dmg
+from backend.services.update_service import update_service
 
 _SCRIPT_PATH = Path("/tmp/mmdview-updater.sh")
 _logger = logging.getLogger(__name__)
