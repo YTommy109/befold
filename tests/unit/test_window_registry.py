@@ -75,3 +75,11 @@ def test_set_path_updates_find_by_path(tmp_path):
     assert r.find_by_path(str(f2)) == "w1"
     assert r.find_by_path(str(f1)) is None
     r.remove("w1")
+
+
+def test_set_path_raises_for_unknown_window_id():
+    import pytest
+
+    r = _make_registry()
+    with pytest.raises(KeyError):
+        r.set_path("nonexistent", "/some/path.mmd")
