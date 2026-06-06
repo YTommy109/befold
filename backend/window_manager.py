@@ -17,7 +17,7 @@ _windows: dict[str, webview.Window] = {}
 
 
 def get_windows() -> dict[str, webview.Window]:
-    return _windows
+    return dict(_windows)
 
 
 def focus_window(window: webview.Window) -> None:

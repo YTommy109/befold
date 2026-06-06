@@ -2,6 +2,7 @@
 import socket
 import threading
 import time
+from typing import Any
 
 import uvicorn
 
@@ -12,7 +13,7 @@ def find_free_port() -> int:
         return s.getsockname()[1]
 
 
-def start_server(app, port: int) -> None:
+def start_server(app: Any, port: int) -> None:
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="error")
 
 
@@ -27,7 +28,7 @@ def wait_for_server(port: int, timeout: float = 5.0) -> None:
     raise RuntimeError(f"Server did not start on port {port} within {timeout}s")
 
 
-def start_server_thread(app, port: int) -> threading.Thread:
+def start_server_thread(app: Any, port: int) -> threading.Thread:
     t = threading.Thread(target=start_server, args=(app, port), daemon=True)
     t.start()
     return t
