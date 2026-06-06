@@ -15,7 +15,7 @@ def reset_watch_service():
 def test_index_shows_welcome_when_no_file(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert "ファイルを開く" in response.text
+    assert "File → Open..." in response.text
 
 
 def test_index_shows_viewer_when_file_set(client, tmp_path):
