@@ -27,6 +27,7 @@ dev = [
 ]
 
 [tool.taskipy.tasks]
+setup        = "pre-commit install --hook-type pre-commit --hook-type post-checkout"
 dev          = "python -m backend.app"
 server       = "uvicorn backend.main:app --reload --port 8000"
 test         = "pytest -v --cov --cov-report=term-missing"
