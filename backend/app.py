@@ -72,10 +72,10 @@ def main() -> None:
                 window_manager.create_window(
                     port,
                     file_path=s.get("file"),
-                    x=s.get("x", 100),
-                    y=s.get("y", 100),
-                    width=s.get("width", 1024),
-                    height=s.get("height", 768),
+                    x=s.get("x") or 100,
+                    y=s.get("y") or 100,
+                    width=s.get("width") or 1024,
+                    height=s.get("height") or 768,
                 )
         else:
             wid, _ = window_manager.create_window(port)

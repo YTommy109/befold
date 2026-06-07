@@ -33,18 +33,24 @@ def load_window_states() -> list[dict]:
     return []
 
 
-def save_all_states(windows: dict[str, Any]) -> None:
-    """全ウィンドウの状態を JSON リストとして保存する。"""
+def save_all_states(windows: dict[str, Any], state_cache: dict | None = None) -> None:
+    """全ウィンドウの状態を JSON リストとして保存する。
+
+    state_cache: window_id → {x, y, width, height} のキャッシュ。
+    win.x 等が None（破棄済みウィンドウ）のときフォールバックとして使う。
+    """
     states = []
+    cached_all = state_cache or {}
     for wid, win in list(windows.items()):
         watch = window_registry.get_watch(wid)
         path = watch.get_path() if watch else None
+        cached = cached_all.get(wid, {})
         states.append(
             {
-                "x": win.x,
-                "y": win.y,
-                "width": win.width,
-                "height": win.height,
+                "x": win.x if win.x is not None else cached.get("x", 100),
+                "y": win.y if win.y is not None else cached.get("y", 100),
+                "width": win.width if win.width is not None else cached.get("width", 1024),
+                "height": win.height if win.height is not None else cached.get("height", 768),
                 "file": str(path) if path else None,
             }
         )
