@@ -14,6 +14,7 @@ from backend.services.recent_files_service import recent_files_service
 from backend.services.window_registry import window_registry
 
 _windows: dict[str, webview.Window] = {}
+_state_cache: dict[str, dict] = {}  # window_id → {x, y, width, height} の最終既知状態
 
 
 def get_windows() -> dict[str, webview.Window]:
@@ -64,6 +65,7 @@ def create_window(
         raise RuntimeError(f"webview.create_window returned None for window_id={window_id}")
 
     _windows[window_id] = window
+    _state_cache[window_id] = {"x": x, "y": y, "width": width, "height": height}
 
     _save_timer: threading.Timer | None = None
 
@@ -71,16 +73,25 @@ def create_window(
         nonlocal _save_timer
         if _save_timer:
             _save_timer.cancel()
-        _save_timer = threading.Timer(0.5, lambda: state_store.save_all_states(_windows))
+        _state_cache[window_id] = {
+            "x": window.x,
+            "y": window.y,
+            "width": window.width,
+            "height": window.height,
+        }
+        _save_timer = threading.Timer(
+            0.5, lambda: state_store.save_all_states(_windows, _state_cache)
+        )
         _save_timer.start()
 
     window.events.moved += lambda x, y: _schedule_save()
     window.events.resized += lambda width, height: _schedule_save()
 
     def _on_closed() -> None:
-        state_store.save_all_states(_windows)
+        state_store.save_all_states(_windows, _state_cache)
         _windows.pop(window_id, None)
         window_registry.remove(window_id)
+        _state_cache.pop(window_id, None)
 
     window.events.closed += _on_closed
     return window_id, window
