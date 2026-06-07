@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f \".pre-commit-config.yaml\" ] && ! [ -f \"$(git rev-parse --git-common-dir)/hooks/pre-commit\" ]; then uv run pre-commit install; fi",
+            "command": "if [ -f \".pre-commit-config.yaml\" ] && ! [ -f \"$(git rev-parse --git-common-dir)/hooks/pre-commit\" ]; then uv run pre-commit install --hook-type pre-commit --hook-type post-checkout; fi",
             "statusMessage": "pre-commit フックをインストール中..."
           }
         ]
