@@ -42,3 +42,23 @@ jobs:
 
       - name: 単体・統合テストを実行する
         run: uv run task test
+
+  test-e2e:
+    needs: lint-typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: 依存パッケージをインストールする
+        run: uv sync --group dev --frozen
+
+      - name: Playwright ブラウザをインストールする
+        run: uv run playwright install --with-deps chromium
+
+      - name: E2E テストを実行する
+        run: uv run task test:e2e
