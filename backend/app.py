@@ -17,7 +17,8 @@ from backend.services.window_registry import window_registry
 
 def _patch_app_delegate_for_open_file(callback) -> None:
     """NSApp.finishLaunching() が odoc ハンドラを上書きするため、
-    applicationDidFinishLaunching_ で再登録するようにパッチを当てる。"""
+    applicationDidFinishLaunching_ で再登録するようにパッチを当てる。
+    また application:openFile: を実装して起動時のエラーダイアログを抑止する。"""
     if sys.platform != "darwin":
         return
     try:
@@ -29,12 +30,18 @@ def _patch_app_delegate_for_open_file(callback) -> None:
             logger.info("_did_finish_launching fired: re-registering odoc handler")
             register_open_file_handler(callback)
 
+        def _application_open_file(self: object, app: object, filename: str) -> bool:
+            # macOS が kAEOpenDocuments を application:openFile: 経由で届ける場合に呼ばれる。
+            # YES を返してエラーダイアログを抑止し、コールバックでファイルを開く。
+            logger.info("application_openFile_ called: %s", filename)
+            callback(str(filename))
+            return True
+
         _cocoa.BrowserView.AppDelegate.applicationDidFinishLaunching_ = _did_finish_launching
-        logger.info("applicationDidFinishLaunching_ patch applied successfully")
+        _cocoa.BrowserView.AppDelegate.application_openFile_ = _application_open_file
+        logger.info("AppDelegate patches applied successfully")
     except Exception:
-        logger.warning(
-            "applicationDidFinishLaunching_ パッチに失敗しました\n%s", traceback.format_exc()
-        )
+        logger.warning("AppDelegate パッチに失敗しました\n%s", traceback.format_exc())
 
 
 def main() -> None:
