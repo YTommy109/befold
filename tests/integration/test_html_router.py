@@ -71,7 +71,7 @@ def test_viewer_has_sse_connect_with_window_id(client, tmp_path):
 
     response = client.get("/?window_id=w-sse-check")
     assert response.status_code == 200
-    assert 'sse-connect="/events?window_id=w-sse-check"' in response.text
+    assert "new EventSource('/events?window_id=w-sse-check')" in response.text
 
 
 def test_viewer_has_zoom_controller_and_no_viewer_js(client, tmp_path):
