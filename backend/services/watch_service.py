@@ -46,8 +46,7 @@ class _ChangeHandler(FileSystemEventHandler):
             self._timer.start()
 
     def _fire(self) -> None:
-        if self._target.exists():
-            self._bus.notify()
+        self._bus.notify("reload" if self._target.exists() else "deleted")
 
     def cancel(self) -> None:
         with self._lock:

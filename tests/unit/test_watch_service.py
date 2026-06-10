@@ -161,3 +161,11 @@ def test_stop_cancels_pending_notify(tmp_mmd):
     svc.stop()
     time.sleep(1.2)
     assert bus.notified == []
+
+
+def test_fire_notifies_deleted_when_file_missing(tmp_mmd):
+    bus = _TrackingBus()
+    handler = _ChangeHandler(tmp_mmd, bus, debounce=0.01)
+    tmp_mmd.unlink()
+    handler._fire()
+    assert bus.notified == ["deleted"]
