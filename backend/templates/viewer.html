@@ -44,21 +44,15 @@ end
   </div>
 </div>
 
+<div id="mmd-deleted-banner" class="mmd-deleted-banner">deleted</div>
+
 <div class="zoom-controls" _="install ZoomController">
   <button id="zoom-out" title="縮小 (Cmd −)">−</button>
   <span id="zoom-label" title="クリックでリセット">100%</span>
   <button id="zoom-in" title="拡大 (Cmd +)">+</button>
 </div>
 
-<div hx-ext="sse"
-     sse-connect="/events?window_id={{ window_id }}"
-     _="on sse:message
-          if event.detail.data is 'reload'
-            call location.reload()">
-</div>
-
 <script src="/static/js/mermaid.min.js"></script>
-<script src="/static/js/htmx-ext-sse.js"></script>
 <script>
 var _mmdZoom = 1;
 var _mmdBaseScale = 0.75;
@@ -114,5 +108,17 @@ mermaid.parseError = function(err) {
 };
 
 mermaid.run({ querySelector: '.mermaid' });
+
+(function() {
+  var es = new EventSource('/events?window_id={{ window_id }}');
+  es.onmessage = function(e) {
+    if (e.data === 'reload') {
+      location.reload();
+    } else if (e.data === 'deleted') {
+      document.getElementById('mmd-deleted-banner').style.display = 'block';
+      document.body.style.background = '#e8e8e8';
+    }
+  };
+})();
 </script>
 {% endblock %}

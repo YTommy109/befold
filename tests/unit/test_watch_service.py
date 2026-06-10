@@ -2,7 +2,7 @@ import os
 import time
 
 import pytest
-from watchdog.events import FileCreatedEvent, FileMovedEvent
+from watchdog.events import FileCreatedEvent, FileDeletedEvent, FileMovedEvent
 
 from backend.services.event_bus import EventBus
 from backend.services.watch_service import WatchService, _ChangeHandler
@@ -161,3 +161,30 @@ def test_stop_cancels_pending_notify(tmp_mmd):
     svc.stop()
     time.sleep(1.2)
     assert bus.notified == []
+
+
+def test_fire_notifies_deleted_when_file_missing(tmp_mmd):
+    bus = _TrackingBus()
+    handler = _ChangeHandler(tmp_mmd, bus, debounce=0.01)
+    tmp_mmd.unlink()
+    handler._fire()
+    assert bus.notified == ["deleted"]
+
+
+def test_handler_on_deleted_target_notifies_deleted(tmp_mmd):
+    bus = _TrackingBus()
+    handler = _ChangeHandler(tmp_mmd, bus, debounce=0.01)
+    tmp_mmd.unlink()
+    handler.on_deleted(FileDeletedEvent(str(tmp_mmd)))
+    assert _wait_for_notify(bus)
+    assert bus.notified == ["deleted"]
+
+
+def test_handler_on_moved_away_notifies_deleted(tmp_mmd, tmp_path):
+    bus = _TrackingBus()
+    handler = _ChangeHandler(tmp_mmd, bus, debounce=0.01)
+    new_path = tmp_path / "renamed.mmd"
+    tmp_mmd.rename(new_path)
+    handler.on_moved(FileMovedEvent(str(tmp_mmd), str(new_path)))
+    assert _wait_for_notify(bus)
+    assert bus.notified == ["deleted"]

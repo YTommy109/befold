@@ -71,7 +71,7 @@ def test_viewer_has_sse_connect_with_window_id(client, tmp_path):
 
     response = client.get("/?window_id=w-sse-check")
     assert response.status_code == 200
-    assert 'sse-connect="/events?window_id=w-sse-check"' in response.text
+    assert "new EventSource('/events?window_id=w-sse-check')" in response.text
 
 
 def test_viewer_has_zoom_controller_and_no_viewer_js(client, tmp_path):
@@ -85,3 +85,15 @@ def test_viewer_has_zoom_controller_and_no_viewer_js(client, tmp_path):
     assert response.status_code == 200
     assert "install ZoomController" in response.text
     assert "viewer.js" not in response.text
+
+
+def test_viewer_has_deleted_sse_handler(client, tmp_path):
+    f = tmp_path / "test.mmd"
+    f.write_text("graph TD\n    A --> B", encoding="utf-8")
+    from backend.services.window_registry import window_registry
+
+    window_registry.create("w-del-handler", str(f))
+    response = client.get("/?window_id=w-del-handler")
+    assert response.status_code == 200
+    assert 'id="mmd-deleted-banner"' in response.text
+    assert "#e8e8e8" in response.text
