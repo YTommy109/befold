@@ -2,16 +2,16 @@
 MmdviewApp/.build/
 MmdviewApp/build/
 MmdviewApp/DerivedData/
-MmdviewApp/mmdview.xcodeproj/xcuserdata/
-MmdviewApp/mmdview.xcodeproj/project.xcworkspace/xcuserdata/
+MmdviewApp/mmdview.xcodeproj/
 *.xcuserstate
-*.profraw
 
-# Tools
+# Minified JS (no structural info for the graph)
+*.min.js
+
+# Tools / editor
 .superpowers/
 .worktrees/
 *.swp
-.dagayn
 .dagayn/
 
 # Config

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# worktree 作成時にメインリポジトリのファイル・ディレクトリへシンボリックリンクを張り、
-# 依存パッケージを同期する。post-checkout フックから呼び出す。
+# worktree 作成時にメインリポジトリのファイル・ディレクトリへシンボリックリンクを張る。
+# post-checkout フックから呼び出す。
 export PATH="$HOME/.nix-profile/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 GIT_DIR=$(git rev-parse --git-dir)
@@ -20,5 +20,4 @@ for name in .envrc .claude; do
   fi
 done
 
-uv sync
 dagayn build --skip-flows
