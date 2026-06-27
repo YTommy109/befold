@@ -1,0 +1,33 @@
+# Python
+.coverage
+htmlcov/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+build/
+*.spec.bak
+
+# Swift / Xcode
+MmdviewApp/.build/
+MmdviewApp/build/
+MmdviewApp/DerivedData/
+MmdviewApp/mmdview.xcodeproj/
+*.xcuserstate
+
+# Minified JS (no structural info for the graph)
+*.min.js
+
+# Tools / editor
+.superpowers/
+.worktrees/
+*.swp
+.dagayn/
+
+# Config
+.claude/settings.local.json
+.claude/settings.json.bak
+static/icons/*.icns
+static/icons/*.iconset
+uv.lock

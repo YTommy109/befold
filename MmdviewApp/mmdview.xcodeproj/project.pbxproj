@@ -1,0 +1,493 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		06E587F21050CC0026582675 /* FileType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECEA97141C132039BFA0E11 /* FileType.swift */; };
+		1E981BD656C7CA2465CF7021 /* ViewerWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54693EA14F015883DCEC29FD /* ViewerWebView.swift */; };
+		2D4751CCF1DAAE5CC9602525 /* style.css in Resources */ = {isa = PBXBuildFile; fileRef = 0F2FB3A844F85A5A7A9C9BE7 /* style.css */; };
+		36410EB189A636CB114AB035 /* Debouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90428A14BC6B74D345E8B0E /* Debouncer.swift */; };
+		3B0CE1667AAFBC00C64F6BAE /* ViewerStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C98C3D1E3365899076811A /* ViewerStoreTests.swift */; };
+		4BA39DCAE8426E953E75D405 /* FileWatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86682A8334DB68ED618DAF38 /* FileWatcherTests.swift */; };
+		71FFCEC9DCB3C2F13BA40694 /* mermaid.min.js in Resources */ = {isa = PBXBuildFile; fileRef = BD8262375D18C5C3E2CDCD36 /* mermaid.min.js */; };
+		7F34BEA2BA11C76334E83D38 /* viewer.html in Resources */ = {isa = PBXBuildFile; fileRef = 60F322A444F3D6FB750846A1 /* viewer.html */; };
+		8171003C841BC08EE7A80EF6 /* DebouncerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EBF2FE8DFF2683C0B4DD45A /* DebouncerTests.swift */; };
+		8B5C7958B33BF2CF6B749029 /* markdown-it.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 2E3E95DB93DBE435422D5498 /* markdown-it.min.js */; };
+		9468E715957FEF5E8C470ABC /* ViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A56A418883D17999644B3943 /* ViewerContentView.swift */; };
+		A8C09933B33AEEA06F2C8B72 /* ViewerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E77F6F5678A696DACE24C69A /* ViewerWindowController.swift */; };
+		AA05608A2E2E687D06789544 /* DocumentController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16FDE84CBC9A6A566C50FF7 /* DocumentController.swift */; };
+		AA569204B8CF7AF8D7F13A24 /* ViewerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F26364FB0B39B66447B691BD /* ViewerStore.swift */; };
+		CF28501A98287BB51CE13377 /* FileWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E5A40BED6330AE1B10E274 /* FileWatcher.swift */; };
+		D56C453FC1B5F7E2E2735873 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F13505DE7B96C02F2847E874 /* AppDelegate.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		1180FCEF0A81430ACF2D0E4A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A3A5F634A91C58FF33626730 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9A430B89D9F50B695CD05F70;
+			remoteInfo = mmdview;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0F2FB3A844F85A5A7A9C9BE7 /* style.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = style.css; sourceTree = "<group>"; };
+		1EBF2FE8DFF2683C0B4DD45A /* DebouncerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncerTests.swift; sourceTree = "<group>"; };
+		2E3E95DB93DBE435422D5498 /* markdown-it.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "markdown-it.min.js"; sourceTree = "<group>"; };
+		54693EA14F015883DCEC29FD /* ViewerWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerWebView.swift; sourceTree = "<group>"; };
+		60F322A444F3D6FB750846A1 /* viewer.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = viewer.html; sourceTree = "<group>"; };
+		61C98C3D1E3365899076811A /* ViewerStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerStoreTests.swift; sourceTree = "<group>"; };
+		65CBDAFE9109D3DBE6F05BCE /* mmdview.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = mmdview.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6ECEA97141C132039BFA0E11 /* FileType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileType.swift; sourceTree = "<group>"; };
+		77E5A40BED6330AE1B10E274 /* FileWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcher.swift; sourceTree = "<group>"; };
+		84AFAE682C5982C47A53B3DE /* mmdviewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = mmdviewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		86682A8334DB68ED618DAF38 /* FileWatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcherTests.swift; sourceTree = "<group>"; };
+		A56A418883D17999644B3943 /* ViewerContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerContentView.swift; sourceTree = "<group>"; };
+		BD8262375D18C5C3E2CDCD36 /* mermaid.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = mermaid.min.js; sourceTree = "<group>"; };
+		C16FDE84CBC9A6A566C50FF7 /* DocumentController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentController.swift; sourceTree = "<group>"; };
+		C90428A14BC6B74D345E8B0E /* Debouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debouncer.swift; sourceTree = "<group>"; };
+		E77F6F5678A696DACE24C69A /* ViewerWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerWindowController.swift; sourceTree = "<group>"; };
+		F13505DE7B96C02F2847E874 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		F26364FB0B39B66447B691BD /* ViewerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerStore.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0A9A8979E5CAACCF8C05A68F /* Viewer */ = {
+			isa = PBXGroup;
+			children = (
+				6ECEA97141C132039BFA0E11 /* FileType.swift */,
+				A56A418883D17999644B3943 /* ViewerContentView.swift */,
+				F26364FB0B39B66447B691BD /* ViewerStore.swift */,
+				54693EA14F015883DCEC29FD /* ViewerWebView.swift */,
+			);
+			path = Viewer;
+			sourceTree = "<group>";
+		};
+		4B6EFDCCEDE237B841C81DA1 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				65CBDAFE9109D3DBE6F05BCE /* mmdview.app */,
+				84AFAE682C5982C47A53B3DE /* mmdviewTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		78F1E0AFEDC93FF308A2A98A /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				2E3E95DB93DBE435422D5498 /* markdown-it.min.js */,
+				BD8262375D18C5C3E2CDCD36 /* mermaid.min.js */,
+				0F2FB3A844F85A5A7A9C9BE7 /* style.css */,
+				60F322A444F3D6FB750846A1 /* viewer.html */,
+			);
+			name = Resources;
+			path = mmdview/Resources;
+			sourceTree = "<group>";
+		};
+		926C2109B36C11A1B58859B7 /* mmdview */ = {
+			isa = PBXGroup;
+			children = (
+				B9C1C32708753F8021B9F2B3 /* App */,
+				B1C7E9010E932A6D7C3BEB5F /* FileWatching */,
+				0A9A8979E5CAACCF8C05A68F /* Viewer */,
+			);
+			path = mmdview;
+			sourceTree = "<group>";
+		};
+		B1C7E9010E932A6D7C3BEB5F /* FileWatching */ = {
+			isa = PBXGroup;
+			children = (
+				C90428A14BC6B74D345E8B0E /* Debouncer.swift */,
+				77E5A40BED6330AE1B10E274 /* FileWatcher.swift */,
+			);
+			path = FileWatching;
+			sourceTree = "<group>";
+		};
+		B9C1C32708753F8021B9F2B3 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				F13505DE7B96C02F2847E874 /* AppDelegate.swift */,
+				C16FDE84CBC9A6A566C50FF7 /* DocumentController.swift */,
+				E77F6F5678A696DACE24C69A /* ViewerWindowController.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		E4BC06B0AF8ACC788F9C50B6 /* mmdviewTests */ = {
+			isa = PBXGroup;
+			children = (
+				1EBF2FE8DFF2683C0B4DD45A /* DebouncerTests.swift */,
+				86682A8334DB68ED618DAF38 /* FileWatcherTests.swift */,
+				61C98C3D1E3365899076811A /* ViewerStoreTests.swift */,
+			);
+			path = mmdviewTests;
+			sourceTree = "<group>";
+		};
+		FBCD057F0771B3E2C4425797 = {
+			isa = PBXGroup;
+			children = (
+				926C2109B36C11A1B58859B7 /* mmdview */,
+				E4BC06B0AF8ACC788F9C50B6 /* mmdviewTests */,
+				78F1E0AFEDC93FF308A2A98A /* Resources */,
+				4B6EFDCCEDE237B841C81DA1 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		9A430B89D9F50B695CD05F70 /* mmdview */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9412A1E1AF60CCFD5CCBDC32 /* Build configuration list for PBXNativeTarget "mmdview" */;
+			buildPhases = (
+				636BEC27A9C044F4F1244935 /* Sources */,
+				4AFC9A0262D9DB583042C46B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = mmdview;
+			packageProductDependencies = (
+			);
+			productName = mmdview;
+			productReference = 65CBDAFE9109D3DBE6F05BCE /* mmdview.app */;
+			productType = "com.apple.product-type.application";
+		};
+		FF498564A381E8C5FA193366 /* mmdviewTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 56F47931F172FCF9FAD68E56 /* Build configuration list for PBXNativeTarget "mmdviewTests" */;
+			buildPhases = (
+				AB39FC652AD20EB0C93C05B4 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				300FF06C92514EC14C80A56C /* PBXTargetDependency */,
+			);
+			name = mmdviewTests;
+			packageProductDependencies = (
+			);
+			productName = mmdviewTests;
+			productReference = 84AFAE682C5982C47A53B3DE /* mmdviewTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A3A5F634A91C58FF33626730 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 328B5BC9ACFEE972F214E444 /* Build configuration list for PBXProject "mmdview" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = FBCD057F0771B3E2C4425797;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 4B6EFDCCEDE237B841C81DA1 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9A430B89D9F50B695CD05F70 /* mmdview */,
+				FF498564A381E8C5FA193366 /* mmdviewTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4AFC9A0262D9DB583042C46B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8B5C7958B33BF2CF6B749029 /* markdown-it.min.js in Resources */,
+				71FFCEC9DCB3C2F13BA40694 /* mermaid.min.js in Resources */,
+				2D4751CCF1DAAE5CC9602525 /* style.css in Resources */,
+				7F34BEA2BA11C76334E83D38 /* viewer.html in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		636BEC27A9C044F4F1244935 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D56C453FC1B5F7E2E2735873 /* AppDelegate.swift in Sources */,
+				36410EB189A636CB114AB035 /* Debouncer.swift in Sources */,
+				AA05608A2E2E687D06789544 /* DocumentController.swift in Sources */,
+				06E587F21050CC0026582675 /* FileType.swift in Sources */,
+				CF28501A98287BB51CE13377 /* FileWatcher.swift in Sources */,
+				9468E715957FEF5E8C470ABC /* ViewerContentView.swift in Sources */,
+				AA569204B8CF7AF8D7F13A24 /* ViewerStore.swift in Sources */,
+				1E981BD656C7CA2465CF7021 /* ViewerWebView.swift in Sources */,
+				A8C09933B33AEEA06F2C8B72 /* ViewerWindowController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB39FC652AD20EB0C93C05B4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8171003C841BC08EE7A80EF6 /* DebouncerTests.swift in Sources */,
+				4BA39DCAE8426E953E75D405 /* FileWatcherTests.swift in Sources */,
+				3B0CE1667AAFBC00C64F6BAE /* ViewerStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		300FF06C92514EC14C80A56C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9A430B89D9F50B695CD05F70 /* mmdview */;
+			targetProxy = 1180FCEF0A81430ACF2D0E4A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		4DFF66FF976AF99E31C96025 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = mmdview/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
+				PRODUCT_NAME = mmdview;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		5069ED685153C66BDDD2DCBF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		56EEB2A527C883C633D4548F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdviewTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/mmdview.app/Contents/MacOS/mmdview";
+			};
+			name = Release;
+		};
+		64741A8CB36374C468269985 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		91E82A4E918594C2409F57FB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = mmdview/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
+				PRODUCT_NAME = mmdview;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		B3FAF4BE10D66DC6D7346990 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdviewTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/mmdview.app/Contents/MacOS/mmdview";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		328B5BC9ACFEE972F214E444 /* Build configuration list for PBXProject "mmdview" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64741A8CB36374C468269985 /* Debug */,
+				5069ED685153C66BDDD2DCBF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		56F47931F172FCF9FAD68E56 /* Build configuration list for PBXNativeTarget "mmdviewTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B3FAF4BE10D66DC6D7346990 /* Debug */,
+				56EEB2A527C883C633D4548F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9412A1E1AF60CCFD5CCBDC32 /* Build configuration list for PBXNativeTarget "mmdview" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4DFF66FF976AF99E31C96025 /* Debug */,
+				91E82A4E918594C2409F57FB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A3A5F634A91C58FF33626730 /* Project object */;
+}

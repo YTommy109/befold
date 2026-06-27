@@ -6,65 +6,72 @@ macOS 向け Mermaid ダイアグラム・ビューアアプリ。
 ## アーキテクチャ
 
 ```
-mmdview.app (PyInstaller バンドル)
-  ├── FastAPI サーバー（別スレッド、ランダムポート）
-  └── WKWebView ウィンドウ（pywebview）
-       └── http://127.0.0.1:{PORT}/ を表示
+mmdview.app (Swift / AppKit + SwiftUI)
+  ├── AppDelegate        # ライフサイクル・メニュー・ウィンドウ管理
+  ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
+  ├── ViewerStore        # @Observable 表示状態（content / error / deleted）
+  └── ViewerWebView      # WKWebView（NSViewRepresentable）
+        ├── 同梱アセット（viewer.html / mermaid.min.js / markdown-it.min.js / style.css）
+        └── JS ブリッジ: evaluateJavaScript("render(content, type)")
 ```
 
-通信はすべてローカルホスト HTTP。watchdog が変更を検知し SSE 経由でブラウザに通知、
-mermaid.js が SVG をレンダリングする。
+HTTP・SSE・ポート管理は不要。ファイル変更は
+`FileWatcher → ViewerStore → evaluateJavaScript` の同一プロセス内伝搬で反映する。
 
 ## 技術スタック
 
-- Python 3.12+ / FastAPI + uvicorn（ASGI サーバー）
-- pywebview 6.x（macOS WKWebView ラッパー）
-- watchdog（ファイル監視）
-- sse-starlette（Server-Sent Events）
-- Jinja2（HTML テンプレート）
-- htmx + mermaid.js（CDN）
-- uv（パッケージ管理）/ PyInstaller（`.app` バンドル）
+- Swift 6 / AppKit + SwiftUI（macOS 14+）
+- WKWebView（mermaid.js / markdown-it.js レンダリング）
+- DispatchSource（ファイル監視）
+- XcodeGen（プロジェクト生成）/ Swift Package Manager（ビルド）
+
+## プロジェクト構成
+
+```
+MmdviewApp/
+├── project.yml              # XcodeGen 定義
+├── Package.swift            # SPM ビルド用
+├── mmdview/
+│   ├── App/                 # AppDelegate, DocumentController, ViewerWindowController
+│   ├── Viewer/              # ViewerStore, ViewerWebView, ViewerContentView, FileType
+│   ├── FileWatching/        # FileWatcher, Debouncer
+│   └── Resources/           # viewer.html, style.css, mermaid.min.js, markdown-it.min.js
+└── mmdviewTests/            # Swift Testing テスト
+```
 
 ## コマンド
 
 ```bash
-uv run task dev        # pywebview アプリを起動
-uv run task server     # FastAPI サーバーのみ起動（ブラウザ確認用）
-uv run task test       # テスト + カバレッジ
-uv run task lint       # Ruff チェック
-uv run task format     # Ruff フォーマット
-uv run task typecheck  # ty 型チェック
-uv run task build      # .app バンドルビルド
+# Swift ネイティブアプリ（MmdviewApp/）
+cd MmdviewApp
+swift build                  # ビルド
+swift test                   # テスト（要 Xcode.app）
+xcodegen generate            # .xcodeproj を再生成
+xcodebuild build -scheme mmdview  # Xcode ビルド（要 Xcode.app）
 ```
 
-## コード品質
+```bash
+# Python 版（レガシー、backend/）
+uv run task dev              # pywebview アプリを起動
+uv run task test             # テスト + カバレッジ
+uv run task lint             # Ruff チェック
+uv run task format           # Ruff フォーマット
+uv run task typecheck        # ty 型チェック
+```
 
-- **行長**: 100 文字以内（Ruff 強制）
-- **複雑度**: 認知的複雑度 ≤ 10（Ruff C901 強制）
-- **import 順序**: Ruff I（isort 互換）で自動整理
-- **型チェック**: ty（pre-commit フック）
-- **テストカバレッジ**: 80% 以上（`fail_under = 80`）
+## Swift コーディング規約
 
-## Python コーディング規約
-
-- 型アノテーションを必ず付ける（引数・戻り値）
-- モジュールレベルのシングルトン（`watch_service`, `event_bus`）はテスト時に差し替え可能にする
-- `import webview` は関数内でのみ行う（テスト時に pywebview が起動しないよう分離）
-- ファイルパスは `backend/paths.py` の定数を使う（`BASE_DIR` / `TEMPLATES_DIR` / `STATIC_DIR`）
+- Swift 6 strict concurrency（`SWIFT_STRICT_CONCURRENCY: complete`）
+- `@MainActor @Observable` を ViewerStore に使用
+- FileWatcher は `@unchecked Sendable`（内部 GCD キューでスレッド安全性を保証）
+- UI コンポーネントは SwiftUI、ウィンドウ管理は AppKit（NSWindowController）
 
 ## テスト規約
 
-- **ユニットテスト**: `tests/unit/` — pytest AAA スタイル、外部依存なし
-- **インテグレーションテスト**: `tests/integration/` — FastAPI `TestClient` 使用
-- SSE エンドポイントのテストは `TestClient` の制限からルート登録確認のみ行う
-- `uv run pytest tests/unit -q` は 60 秒以内に完了すること
-
-## テンプレートレスポンス
-
-```python
-# 正しい（Starlette 1.x 以降）
-templates.TemplateResponse(request, "template.html", {"key": "value"})
-```
+- **ユニットテスト**: `mmdviewTests/` — Swift Testing フレームワーク
+- FileWatcher: 一時ファイルによる実ファイルシステムテスト
+- ViewerStore: `@MainActor` テスト（状態遷移検証）
+- WebView/GUI 層: 自動テスト対象外（リリース前手動チェック）
 
 ## コミット規約
 
@@ -73,5 +80,5 @@ Conventional Commits + 日本語:
 ```
 feat: Mermaid ビューア画面を追加する
 fix: ファイル変更検知が2回通知される問題を修正する
-chore: PyInstaller スペックを更新する
+chore: XcodeGen 設定を更新する
 ```

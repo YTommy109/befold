@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mmdview</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="viewer">
+    <div id="mmd-error" class="mmd-error-panel"></div>
+    <div id="diagram-wrap"></div>
+  </div>
+
+  <div id="mmd-deleted-banner" class="mmd-deleted-banner">deleted</div>
+
+  <div class="zoom-controls">
+    <button id="zoom-out" title="縮小 (Cmd −)" onclick="_mmdZoomOut()">−</button>
+    <span id="zoom-label" title="クリックでリセット" onclick="_mmdZoomReset()">100%</span>
+    <button id="zoom-in" title="拡大 (Cmd +)" onclick="_mmdZoomIn()">+</button>
+  </div>
+
+  <script src="mermaid.min.js"></script>
+  <script src="markdown-it.min.js"></script>
+  <script>
+  // --- Zoom ---
+  var _mmdZoom = 1;
+  var _mmdBaseScale = 0.75;
+
+  function _mmdInitZoom() {
+    var z = parseFloat(localStorage.getItem('mmdview.viewer.zoom'));
+    _mmdZoom = isNaN(z) ? 1 : z;
+    _mmdApplyZoom();
+  }
+
+  function _mmdApplyZoom() {
+    if (_mmdZoom < 0.5) _mmdZoom = 0.5;
+    if (_mmdZoom > 2.0) _mmdZoom = 2.0;
+    document.getElementById('diagram-wrap').style.zoom = _mmdZoom * _mmdBaseScale;
+    document.getElementById('zoom-label').textContent = Math.round(_mmdZoom * 100) + '%';
+    document.getElementById('zoom-in').disabled = _mmdZoom >= 2.0;
+    document.getElementById('zoom-out').disabled = _mmdZoom <= 0.5;
+    localStorage.setItem('mmdview.viewer.zoom', _mmdZoom);
+  }
+
+  function _mmdZoomIn() {
+    _mmdZoom = Math.round((_mmdZoom + 0.25) * 100) / 100;
+    _mmdApplyZoom();
+  }
+
+  function _mmdZoomOut() {
+    _mmdZoom = Math.round((_mmdZoom - 0.25) * 100) / 100;
+    _mmdApplyZoom();
+  }
+
+  function _mmdZoomReset() {
+    _mmdZoom = 1;
+    _mmdApplyZoom();
+  }
+
+  function _mmdWheelZoom(deltaY) {
+    _mmdZoom = Math.round((_mmdZoom - deltaY * 0.01) * 1000) / 1000;
+    _mmdApplyZoom();
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.metaKey) {
+      if (e.key === '-') { e.preventDefault(); _mmdZoomOut(); }
+      else if (e.key === '=' || e.key === '+') { e.preventDefault(); _mmdZoomIn(); }
+    }
+  });
+
+  document.addEventListener('wheel', function(e) {
+    if (e.ctrlKey) { e.preventDefault(); _mmdWheelZoom(e.deltaY); }
+  }, { passive: false });
+
+  // --- Mermaid ---
+  var _currentType = 'mmd';
+
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'default',
+    sequence:  { useMaxWidth: false },
+    er:        { useMaxWidth: false },
+    flowchart: { useMaxWidth: false },
+    gantt:     { useMaxWidth: false },
+    journey:   { useMaxWidth: false },
+    pie:       { useMaxWidth: false },
+    state:     { useMaxWidth: false },
+    class:     { useMaxWidth: false },
+  });
+
+  mermaid.parseError = function(err) {
+    var msg = (err && (err.message || err.str)) || String(err);
+    var panel = document.getElementById('mmd-error');
+    panel.textContent = msg;
+    panel.style.display = 'block';
+    if (_currentType === 'mmd') {
+      document.getElementById('diagram-wrap').style.display = 'none';
+    }
+  };
+
+  // --- Markdown-it ---
+  var md;
+  if (typeof markdownit !== 'undefined') {
+    md = markdownit({ html: true, linkify: true, typographer: true });
+    var defaultFence = md.renderer.rules.fence;
+    md.renderer.rules.fence = function(tokens, idx, options, env, self) {
+      var token = tokens[idx];
+      if (token.info.trim() === 'mermaid') {
+        return '<pre class="mermaid">' + md.utils.escapeHtml(token.content) + '</pre>';
+      }
+      if (defaultFence) {
+        return defaultFence(tokens, idx, options, env, self);
+      }
+      return '<pre><code>' + md.utils.escapeHtml(token.content) + '</code></pre>';
+    };
+  }
+
+  // --- Render ---
+  function _escapeHtml(text) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(text));
+    return div.innerHTML;
+  }
+
+  async function render(content, type) {
+    _currentType = type;
+    hideDeletedBanner();
+
+    var errorPanel = document.getElementById('mmd-error');
+    errorPanel.style.display = 'none';
+    errorPanel.textContent = '';
+    var diagramWrap = document.getElementById('diagram-wrap');
+    diagramWrap.style.display = 'block';
+
+    if (type === 'mmd') {
+      diagramWrap.innerHTML = '<pre class="mermaid">' + _escapeHtml(content) + '</pre>';
+    } else {
+      if (md) {
+        diagramWrap.innerHTML = md.render(content);
+      } else {
+        diagramWrap.innerHTML = '<p>markdown-it not loaded</p>';
+        return;
+      }
+    }
+
+    var mermaidElements = diagramWrap.querySelectorAll('.mermaid');
+    if (mermaidElements.length > 0) {
+      mermaidElements.forEach(function(el, i) {
+        el.removeAttribute('data-processed');
+        el.id = 'mmd-' + i + '-' + Date.now();
+      });
+      try {
+        await mermaid.run({ nodes: Array.from(mermaidElements) });
+      } catch(e) {
+        // parseError callback handles display
+      }
+    }
+
+    _mmdApplyZoom();
+  }
+
+  // --- Deleted Banner ---
+  function showDeletedBanner() {
+    document.getElementById('mmd-deleted-banner').style.display = 'block';
+    document.body.style.background = '#e8e8e8';
+  }
+
+  function hideDeletedBanner() {
+    document.getElementById('mmd-deleted-banner').style.display = 'none';
+    document.body.style.background = '#fff';
+  }
+
+  _mmdInitZoom();
+  </script>
+</body>
+</html>

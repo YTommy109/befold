@@ -13,6 +13,16 @@ build/
 static/icons/*.icns
 static/icons/*.iconset
 .worktrees/
+
+# Swift / Xcode
+MmdviewApp/.build/
+MmdviewApp/build/
+MmdviewApp/DerivedData/
+MmdviewApp/mmdview.xcodeproj/xcuserdata/
+MmdviewApp/mmdview.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+*.swp
+*.profraw
 # Added by dagayn
 .dagayn
 .dagayn/
