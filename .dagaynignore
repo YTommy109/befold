@@ -1,14 +1,3 @@
-# Python
-.coverage
-htmlcov/
-.pytest_cache/
-__pycache__/
-*.py[cod]
-.venv/
-dist/
-build/
-*.spec.bak
-
 # Swift / Xcode
 MmdviewApp/.build/
 MmdviewApp/build/
@@ -28,6 +17,3 @@ MmdviewApp/mmdview.xcodeproj/
 # Config
 .claude/settings.local.json
 .claude/settings.json.bak
-static/icons/*.icns
-static/icons/*.iconset
-uv.lock

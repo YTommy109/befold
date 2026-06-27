@@ -50,15 +50,6 @@ xcodegen generate            # .xcodeproj を再生成
 xcodebuild build -scheme mmdview  # Xcode ビルド（要 Xcode.app）
 ```
 
-```bash
-# Python 版（レガシー、backend/）
-uv run task dev              # pywebview アプリを起動
-uv run task test             # テスト + カバレッジ
-uv run task lint             # Ruff チェック
-uv run task format           # Ruff フォーマット
-uv run task typecheck        # ty 型チェック
-```
-
 ## Swift コーディング規約
 
 - Swift 6 strict concurrency（`SWIFT_STRICT_CONCURRENCY: complete`）
