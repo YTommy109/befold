@@ -1,5 +1,6 @@
 import AppKit
 
+/// Recent Documents メニューからのファイルオープンを AppDelegate に委譲する。
 final class DocumentController: NSDocumentController {
     override func openDocument(
         withContentsOf url: URL,

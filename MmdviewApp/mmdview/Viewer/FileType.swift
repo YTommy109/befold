@@ -1,5 +1,6 @@
 import Foundation
 
+/// ビューアが対応するファイル種別。拡張子から判定する。
 enum FileType: Sendable {
     case mmd
     case markdown
