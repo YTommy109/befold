@@ -4,6 +4,10 @@ import PackageDescription
 let package = Package(
     name: "mmdview",
     platforms: [.macOS(.v14)],
+    dependencies: [
+        .package(url: "https://github.com/SimplyDanny/SwiftLintPlugins", from: "0.58.0"),
+        .package(url: "https://github.com/nicklockwood/SwiftFormat", from: "0.55.0"),
+    ],
     targets: [
         .executableTarget(
             name: "mmdview",
@@ -14,12 +18,18 @@ let package = Package(
                 .copy("Resources/style.css"),
                 .copy("Resources/mermaid.min.js"),
                 .copy("Resources/markdown-it.min.js"),
+            ],
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
             ]
         ),
         .testTarget(
             name: "mmdviewTests",
             dependencies: ["mmdview"],
-            path: "mmdviewTests"
+            path: "mmdviewTests",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
+            ]
         ),
     ]
 )
