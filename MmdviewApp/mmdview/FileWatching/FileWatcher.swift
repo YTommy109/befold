@@ -1,5 +1,8 @@
 import Foundation
 
+/// ファイル変更を DispatchSource で監視し、変更時にコールバックを呼ぶ。
+/// ファイル削除後の再作成（アトミック保存）にも対応するため、
+/// ファイル本体とディレクトリの両方を監視する。
 final class FileWatcher: @unchecked Sendable {
     private let resolvedPath: URL
     private var fileSource: DispatchSourceFileSystemObject?
@@ -21,6 +24,10 @@ final class FileWatcher: @unchecked Sendable {
         startFileMonitor()
     }
 
+    // MARK: - File Monitoring
+
+    /// ファイルの書き込み・削除・リネームを監視する。
+    /// 削除時はソースを解放し、ディレクトリ監視側で再作成を検知する。
     private func startFileMonitor() {
         fileSource?.cancel()
         fileSource = nil
@@ -52,6 +59,9 @@ final class FileWatcher: @unchecked Sendable {
         self.fileSource = source
     }
 
+    // MARK: - Directory Monitoring
+
+    /// 親ディレクトリの変更を監視し、ファイルが再作成された場合にファイル監視を再開する。
     private func startDirectoryMonitor() {
         let dirPath = resolvedPath.deletingLastPathComponent().path
         let fd = open(dirPath, O_EVTONLY)
@@ -79,6 +89,8 @@ final class FileWatcher: @unchecked Sendable {
         self.dirSource = source
     }
 
+    // MARK: - Notification
+
     private func scheduleNotify() {
         let onChange = self.onChange
         debouncer.schedule {
@@ -88,6 +100,9 @@ final class FileWatcher: @unchecked Sendable {
         }
     }
 
+    // MARK: - Lifecycle
+
+    /// 全監視を停止しリソースを解放する。
     func stop() {
         fileSource?.cancel()
         dirSource?.cancel()

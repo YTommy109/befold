@@ -48,6 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Window Management
 
+    /// 指定 URL のファイルをビューアウィンドウで開く。
+    /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
     func openViewer(for url: URL) {
         let key = url.resolvingSymlinksInPath().path
         if let existing = windowControllers[key] {
@@ -64,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
     }
 
+    /// ファイル選択パネルを表示し、選択されたファイルをビューアで開く。
     @objc func showOpenPanel() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = Self.supportedContentTypes
@@ -90,87 +93,93 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupMainMenu() {
         let mainMenu = NSMenu()
+        mainMenu.addItem(makeAppMenuItem())
+        mainMenu.addItem(makeFileMenuItem())
+        mainMenu.addItem(makeWindowMenuItem())
+        NSApp.mainMenu = mainMenu
+    }
 
-        // App menu
-        let appMenuItem = NSMenuItem()
-        mainMenu.addItem(appMenuItem)
-        let appMenu = NSMenu()
-        appMenuItem.submenu = appMenu
-        appMenu.addItem(
+    private func makeAppMenuItem() -> NSMenuItem {
+        let item = NSMenuItem()
+        let menu = NSMenu()
+        item.submenu = menu
+        menu.addItem(
             withTitle: "About mmdview",
             action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
             keyEquivalent: "")
-        appMenu.addItem(.separator())
+        menu.addItem(.separator())
         let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
         servicesItem.submenu = NSMenu(title: "Services")
         NSApp.servicesMenu = servicesItem.submenu
-        appMenu.addItem(servicesItem)
-        appMenu.addItem(.separator())
-        appMenu.addItem(
+        menu.addItem(servicesItem)
+        menu.addItem(.separator())
+        menu.addItem(
             withTitle: "Hide mmdview",
             action: #selector(NSApplication.hide(_:)),
             keyEquivalent: "h")
-        let hideOthers = appMenu.addItem(
+        let hideOthers = menu.addItem(
             withTitle: "Hide Others",
             action: #selector(NSApplication.hideOtherApplications(_:)),
             keyEquivalent: "h")
         hideOthers.keyEquivalentModifierMask = [.command, .option]
-        appMenu.addItem(
+        menu.addItem(
             withTitle: "Show All",
             action: #selector(NSApplication.unhideAllApplications(_:)),
             keyEquivalent: "")
-        appMenu.addItem(.separator())
-        appMenu.addItem(
+        menu.addItem(.separator())
+        menu.addItem(
             withTitle: "Quit mmdview",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q")
+        return item
+    }
 
-        // File menu
-        let fileMenuItem = NSMenuItem()
-        mainMenu.addItem(fileMenuItem)
-        let fileMenu = NSMenu(title: "File")
-        fileMenuItem.submenu = fileMenu
-        fileMenu.addItem(
+    private func makeFileMenuItem() -> NSMenuItem {
+        let item = NSMenuItem()
+        let menu = NSMenu(title: "File")
+        item.submenu = menu
+        menu.addItem(
             withTitle: "Open…",
             action: #selector(showOpenPanel),
             keyEquivalent: "o")
 
         let recentItem = NSMenuItem(title: "Open Recent", action: nil, keyEquivalent: "")
         let recentMenu = NSMenu(title: "Open Recent")
+        // AppKit が Recent Documents メニューを認識するには非公開 API でメニュー名を登録する必要がある
         recentMenu.perform(NSSelectorFromString("_setMenuName:"), with: "NSRecentDocumentsMenu")
         recentMenu.addItem(
             withTitle: "Clear Menu",
             action: #selector(NSDocumentController.clearRecentDocuments(_:)),
             keyEquivalent: "")
         recentItem.submenu = recentMenu
-        fileMenu.addItem(recentItem)
+        menu.addItem(recentItem)
 
-        fileMenu.addItem(.separator())
-        fileMenu.addItem(
+        menu.addItem(.separator())
+        menu.addItem(
             withTitle: "Close",
             action: #selector(NSWindow.performClose(_:)),
             keyEquivalent: "w")
+        return item
+    }
 
-        // Window menu
-        let windowMenuItem = NSMenuItem()
-        mainMenu.addItem(windowMenuItem)
-        let windowMenu = NSMenu(title: "Window")
-        windowMenuItem.submenu = windowMenu
-        windowMenu.addItem(
+    private func makeWindowMenuItem() -> NSMenuItem {
+        let item = NSMenuItem()
+        let menu = NSMenu(title: "Window")
+        item.submenu = menu
+        menu.addItem(
             withTitle: "Minimize",
             action: #selector(NSWindow.performMiniaturize(_:)),
             keyEquivalent: "m")
-        windowMenu.addItem(
+        menu.addItem(
             withTitle: "Zoom",
             action: #selector(NSWindow.performZoom(_:)),
             keyEquivalent: "")
-        windowMenu.addItem(.separator())
-        windowMenu.addItem(
+        menu.addItem(.separator())
+        menu.addItem(
             withTitle: "Bring All to Front",
             action: #selector(NSApplication.arrangeInFront(_:)),
             keyEquivalent: "")
-        NSApp.windowsMenu = windowMenu
-
-        NSApp.mainMenu = mainMenu
+        NSApp.windowsMenu = menu
+        return item
     }
 }

@@ -1,5 +1,7 @@
 import Foundation
 
+/// 短時間に連続する呼び出しを合一し、最後の呼び出しから一定時間後に 1 回だけ実行する。
+/// NSLock で排他制御し、スレッド安全性を保証する。
 final class Debouncer: @unchecked Sendable {
     private let delay: TimeInterval
     private let queue: DispatchQueue
@@ -11,6 +13,7 @@ final class Debouncer: @unchecked Sendable {
         self.queue = queue
     }
 
+    /// アクションをスケジュールする。既にスケジュール済みのアクションがあればキャンセルして置き換える。
     func schedule(action: @escaping @Sendable () -> Void) {
         lock.lock()
         workItem?.cancel()
@@ -20,6 +23,7 @@ final class Debouncer: @unchecked Sendable {
         queue.asyncAfter(deadline: .now() + delay, execute: item)
     }
 
+    /// スケジュール済みのアクションをキャンセルする。
     func cancel() {
         lock.lock()
         workItem?.cancel()

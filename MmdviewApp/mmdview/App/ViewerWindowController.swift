@@ -1,9 +1,14 @@
 import AppKit
 import SwiftUI
 
+/// 1 ファイルに対応する 1 ウィンドウを管理する NSWindowController。
+/// SwiftUI の ViewerContentView を NSHostingView 経由で表示する。
 final class ViewerWindowController: NSWindowController, NSWindowDelegate {
-    let store: ViewerStore
+    private let store: ViewerStore
+    /// ウィンドウが閉じられたときに呼ばれるコールバック。AppDelegate がウィンドウ管理辞書から除去するために使用する。
     var onClose: (() -> Void)?
+
+    // MARK: - Initialization
 
     init(fileURL: URL) {
         store = ViewerStore()
@@ -34,6 +39,8 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     required init?(coder: NSCoder) {
         fatalError()
     }
+
+    // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
         store.close()

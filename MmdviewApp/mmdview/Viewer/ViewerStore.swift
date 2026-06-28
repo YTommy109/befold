@@ -1,5 +1,7 @@
 import Foundation
 
+/// ビューアの表示状態を管理する。
+/// ファイルの読み込み・監視・削除検知を行い、UI にバインドされるプロパティを更新する。
 @MainActor
 @Observable
 final class ViewerStore {
@@ -10,6 +12,8 @@ final class ViewerStore {
 
     private var fileWatcher: FileWatcher?
 
+    /// 指定 URL のファイルを開き、ファイル監視を開始する。
+    /// 既に別のファイルを開いている場合は、先に監視を停止してから切り替える。
     func openFile(_ url: URL) {
         fileWatcher?.stop()
         filePath = url
@@ -32,6 +36,7 @@ final class ViewerStore {
         }
     }
 
+    /// ファイル監視を停止し、リソースを解放する。
     func close() {
         fileWatcher?.stop()
         fileWatcher = nil

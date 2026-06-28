@@ -1,10 +1,14 @@
 import SwiftUI
 import WebKit
 
+/// WKWebView で Mermaid / Markdown コンテンツをレンダリングする NSViewRepresentable。
+/// Coordinator パターンで WKNavigationDelegate を処理する。
 struct ViewerWebView: NSViewRepresentable {
     let content: String
     let fileType: FileType
     let isDeleted: Bool
+
+    // MARK: - NSViewRepresentable
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -12,6 +16,7 @@ struct ViewerWebView: NSViewRepresentable {
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
+        // WKWebView の背景を透明にする（公開 API がないため KVC を使用）
         webView.setValue(false, forKey: "drawsBackground")
         context.coordinator.webView = webView
 
@@ -31,6 +36,9 @@ struct ViewerWebView: NSViewRepresentable {
         Coordinator()
     }
 
+    // MARK: - Coordinator
+
+    /// HTML ロード完了の検知と、コンテンツ差分に基づく再描画制御を行う。
     final class Coordinator: NSObject, WKNavigationDelegate {
         var webView: WKWebView?
         private var isReady = false
@@ -63,6 +71,7 @@ struct ViewerWebView: NSViewRepresentable {
                 self.lastWasDeleted = false
                 self.lastRenderedContent = content
 
+                // JSONEncoder でエスケープし、JS インジェクションを防ぐ
                 guard let jsonData = try? JSONEncoder().encode(content),
                       let jsonString = String(data: jsonData, encoding: .utf8) else { return }
                 let js = "render(\(jsonString), '\(fileType.jsValue)')"
