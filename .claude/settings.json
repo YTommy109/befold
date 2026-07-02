@@ -32,6 +32,10 @@
           {
             "type": "command",
             "command": "if echo \"$TOOL_INPUT\" | grep -qE 'viewer\\.(js|html)'; then cd MmdviewApp && npx jest --silent 2>&1; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$TOOL_INPUT\" | grep -qE '\\.github/workflows/.*\\.ya?ml'; then command -v actionlint >/dev/null || { echo 'actionlint 未インストール: brew install actionlint'; exit 0; }; out=$(actionlint 2>&1) || { echo \"$out\" >&2; exit 2; }; fi"
           }
         ]
       }
