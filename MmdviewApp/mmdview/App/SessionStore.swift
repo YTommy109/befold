@@ -21,7 +21,7 @@ final class SessionStore {
 
     /// ファイルが開かれたことを記録する。既に記録済みの場合は順序を維持したまま何もしない。
     func noteOpened(_ url: URL) {
-        let path = Self.normalize(url)
+        let path = url.normalizedPathKey
         var paths = savedPaths()
         guard !paths.contains(path) else { return }
         paths.append(path)
@@ -31,7 +31,7 @@ final class SessionStore {
     /// ファイルが閉じられたことを記録する。freeze 後は無視する。
     func noteClosed(_ url: URL) {
         guard !isFrozen else { return }
-        let path = Self.normalize(url)
+        let path = url.normalizedPathKey
         let paths = savedPaths().filter { $0 != path }
         defaults.set(paths, forKey: Self.defaultsKey)
     }
@@ -43,9 +43,5 @@ final class SessionStore {
 
     private func savedPaths() -> [String] {
         defaults.stringArray(forKey: Self.defaultsKey) ?? []
-    }
-
-    private static func normalize(_ url: URL) -> String {
-        url.resolvingSymlinksInPath().path
     }
 }

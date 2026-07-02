@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 @main
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    static private(set) var shared: AppDelegate?
+    private(set) static var shared: AppDelegate?
     private var windowControllers: [String: ViewerWindowController] = [:]
     private let sessionStore = SessionStore()
     private let zoomStore = ZoomStore()
@@ -90,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 指定 URL のファイルをビューアウィンドウで開く。
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
     func openViewer(for url: URL) {
-        let key = url.resolvingSymlinksInPath().path
+        let key = url.normalizedPathKey
         if let existing = windowControllers[key] {
             existing.window?.makeKeyAndOrderFront(nil)
             return
@@ -158,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var types: [UTType] = []
         if let mmd = UTType(filenameExtension: "mmd") { types.append(mmd) }
         if let mermaid = UTType(filenameExtension: "mermaid") { types.append(mermaid) }
-        if let md = UTType(filenameExtension: "md") { types.append(md) }
+        if let markdown = UTType(filenameExtension: "md") { types.append(markdown) }
         return types
     }()
 

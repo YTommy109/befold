@@ -16,7 +16,11 @@ struct ViewerWebView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
+        #if DEBUG
+        // Web インスペクタを有効化する（公開 API がないため KVC を使用）。
+        // 開発ビルドのみで有効にし、リリースビルドには含めない
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        #endif
 
         let zoomScript = WKUserScript(
             source: "window._mmdInitialZoom = \(initialZoom);",
@@ -128,8 +132,8 @@ struct ViewerWebView: NSViewRepresentable {
                 // JSONEncoder でエスケープし、JS インジェクションを防ぐ
                 guard let jsonData = try? JSONEncoder().encode(content),
                       let jsonString = String(data: jsonData, encoding: .utf8) else { return }
-                let js = "render(\(jsonString), '\(fileType.jsValue)')"
-                webView.evaluateJavaScript(js)
+                let script = "render(\(jsonString), '\(fileType.jsValue)')"
+                webView.evaluateJavaScript(script)
             }
 
             if isReady {

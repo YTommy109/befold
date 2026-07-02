@@ -18,7 +18,7 @@ final class ZoomStore {
 
     /// 指定ファイルの保存済み倍率を返す。保存がなければデフォルト、範囲外は clamp する。
     func zoom(for url: URL) -> Double {
-        guard let zoom = savedZooms()[Self.normalize(url)] else { return Self.defaultZoom }
+        guard let zoom = savedZooms()[url.normalizedPathKey] else { return Self.defaultZoom }
         return min(Self.maxZoom, max(Self.minZoom, zoom))
     }
 
@@ -26,15 +26,11 @@ final class ZoomStore {
     /// clamp は読み取り時（zoom(for:)）に行うため、書き込み時はそのまま保存する。
     func setZoom(_ zoom: Double, for url: URL) {
         var zooms = savedZooms()
-        zooms[Self.normalize(url)] = zoom
+        zooms[url.normalizedPathKey] = zoom
         defaults.set(zooms, forKey: Self.defaultsKey)
     }
 
     private func savedZooms() -> [String: Double] {
         defaults.dictionary(forKey: Self.defaultsKey) as? [String: Double] ?? [:]
-    }
-
-    private static func normalize(_ url: URL) -> String {
-        url.resolvingSymlinksInPath().path
     }
 }
