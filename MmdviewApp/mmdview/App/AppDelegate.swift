@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static private(set) var shared: AppDelegate?
     private var windowControllers: [String: ViewerWindowController] = [:]
     private let sessionStore = SessionStore()
+    private let zoomStore = ZoomStore()
     /// 前回セッションで開いていたファイル。起動イベントで開かれるファイルの記録と混ざらないよう
     /// applicationWillFinishLaunching で読み取り、applicationDidFinishLaunching で復元する。
     private var urlsToRestore: [URL] = []
@@ -95,7 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let controller = ViewerWindowController(fileURL: url)
+        let controller = ViewerWindowController(fileURL: url, zoomStore: zoomStore)
         windowControllers[key] = controller
         controller.onClose = { [weak self] in
             self?.windowControllers.removeValue(forKey: key)
