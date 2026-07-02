@@ -60,6 +60,8 @@ xcodebuild build -scheme mmdview  # Xcode ビルド（要 Xcode.app）
 ## テスト規約
 
 - **ユニットテスト**: `mmdviewTests/` — Swift Testing フレームワーク
+- テスト関数名は英語 camelCase（SwiftLint の `identifier_name` が非 ASCII 開始の名前を弾く）。
+  日本語の説明が必要なら `@Test("日本語の説明")` の表示名で付ける
 - FileWatcher: 一時ファイルによる実ファイルシステムテスト
 - ViewerStore: `@MainActor` テスト（状態遷移検証）
 - WebView/GUI 層: 自動テスト対象外（リリース前手動チェック）

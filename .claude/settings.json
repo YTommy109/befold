@@ -1,5 +1,14 @@
 {
   "enabledMcpjsonServers": ["dagayn"],
+  "permissions": {
+    "allow": [
+      "Bash(open:*)",
+      "Bash(pkill -x mmdview)",
+      "Bash(log show:*)",
+      "Bash(xcodegen generate)",
+      "Bash(xcodebuild:*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -13,6 +22,16 @@
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) if ! grep -qF \"$(basename \"$f\")\" MmdviewApp/mmdview.xcodeproj/project.pbxproj; then cd MmdviewApp && xcodegen generate 2>&1 | tail -1; fi;; esac",
+            "statusMessage": "xcodegen generate (新規 Swift ファイル検出)"
+          }
+        ]
+      },
       {
         "matcher": "Edit|Write",
         "hooks": [
