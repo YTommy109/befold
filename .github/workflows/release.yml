@@ -41,6 +41,9 @@ jobs:
         run: |
           create-dmg \
             --volname "mmdview" \
+            --window-size 600 400 \
+            --icon "mmdview.app" 150 200 \
+            --app-drop-link 450 200 \
             "../$DMG_NAME" \
             "build/Build/Products/Release/mmdview.app"
 
