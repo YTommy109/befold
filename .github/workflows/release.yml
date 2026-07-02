@@ -38,14 +38,7 @@ jobs:
         run: brew install create-dmg
 
       - name: DMG を作成する
-        run: |
-          create-dmg \
-            --volname "mmdview" \
-            --window-size 600 400 \
-            --icon "mmdview.app" 150 200 \
-            --app-drop-link 450 200 \
-            "../$DMG_NAME" \
-            "build/Build/Products/Release/mmdview.app"
+        run: ../scripts/create-dmg.sh "build/Build/Products/Release/mmdview.app" "../$DMG_NAME"
 
       - name: GitHub Release を作成して DMG を添付する
         uses: softprops/action-gh-release@v2
