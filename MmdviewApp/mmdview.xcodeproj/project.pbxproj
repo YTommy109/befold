@@ -30,6 +30,7 @@
 		7F34BEA2BA11C76334E83D38 /* viewer.html in Resources */ = {isa = PBXBuildFile; fileRef = 60F322A444F3D6FB750846A1 /* viewer.html */; };
 		8171003C841BC08EE7A80EF6 /* DebouncerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EBF2FE8DFF2683C0B4DD45A /* DebouncerTests.swift */; };
 		85E8C3C60864A4F891A8B9C5 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 943DBC47DB4399D9F1B98A4E /* AppIcon.icns */; };
+		871FDAD6A6BAF5EB6E8DDE6F /* RecentDocumentsMenuControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D7659D207564ED4B36156D /* RecentDocumentsMenuControllerTests.swift */; };
 		8B5C7958B33BF2CF6B749029 /* markdown-it.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 2E3E95DB93DBE435422D5498 /* markdown-it.min.js */; };
 		9468E715957FEF5E8C470ABC /* ViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A56A418883D17999644B3943 /* ViewerContentView.swift */; };
 		A8C09933B33AEEA06F2C8B72 /* ViewerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E77F6F5678A696DACE24C69A /* ViewerWindowController.swift */; };
@@ -43,6 +44,7 @@
 		DAB7D4BFB4E753470A60ECC0 /* ReleaseFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AD32561C247E79E37DE8C55 /* ReleaseFetcher.swift */; };
 		E1A2A8F13D65154FDB68217F /* UpdateDownloaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79681416CDCE2995E83C922 /* UpdateDownloaderTests.swift */; };
 		E681D1FA507CD5E30EC22F24 /* AppVersionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F47EFA0F3366C197B489AD /* AppVersionTests.swift */; };
+		E8C61F32B1DD04C62B6A7391 /* RecentDocumentsMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4DE8ACA0FA5DB354712BAF /* RecentDocumentsMenuController.swift */; };
 		FAA1CB1497CB9E665DA57562 /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = B67D480E47AA2A7FFB917EB3 /* AppVersion.swift */; };
 /* End PBXBuildFile section */
 
@@ -67,6 +69,7 @@
 		42F9265BDBB499C97DB26700 /* GitHubRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubRelease.swift; sourceTree = "<group>"; };
 		4338866FF99239C07662F3BB /* FileTypeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTypeTests.swift; sourceTree = "<group>"; };
 		54693EA14F015883DCEC29FD /* ViewerWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerWebView.swift; sourceTree = "<group>"; };
+		57D7659D207564ED4B36156D /* RecentDocumentsMenuControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentDocumentsMenuControllerTests.swift; sourceTree = "<group>"; };
 		60413BD3666D541567D20669 /* GitHubReleaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubReleaseTests.swift; sourceTree = "<group>"; };
 		60F322A444F3D6FB750846A1 /* viewer.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = viewer.html; sourceTree = "<group>"; };
 		61C98C3D1E3365899076811A /* ViewerStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerStoreTests.swift; sourceTree = "<group>"; };
@@ -90,6 +93,7 @@
 		C1A4FD04BB212DE75D79FDA2 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		C90428A14BC6B74D345E8B0E /* Debouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debouncer.swift; sourceTree = "<group>"; };
 		CA3066C3D2D86F6EB8ED13BE /* DMGMounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMGMounter.swift; sourceTree = "<group>"; };
+		DF4DE8ACA0FA5DB354712BAF /* RecentDocumentsMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentDocumentsMenuController.swift; sourceTree = "<group>"; };
 		E77F6F5678A696DACE24C69A /* ViewerWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerWindowController.swift; sourceTree = "<group>"; };
 		E79681416CDCE2995E83C922 /* UpdateDownloaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateDownloaderTests.swift; sourceTree = "<group>"; };
 		F13505DE7B96C02F2847E874 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -176,6 +180,7 @@
 				F13505DE7B96C02F2847E874 /* AppDelegate.swift */,
 				C16FDE84CBC9A6A566C50FF7 /* DocumentController.swift */,
 				175269206331476DA6AD97CC /* MainMenuBuilder.swift */,
+				DF4DE8ACA0FA5DB354712BAF /* RecentDocumentsMenuController.swift */,
 				E77F6F5678A696DACE24C69A /* ViewerWindowController.swift */,
 			);
 			path = App;
@@ -190,6 +195,7 @@
 				4338866FF99239C07662F3BB /* FileTypeTests.swift */,
 				86682A8334DB68ED618DAF38 /* FileWatcherTests.swift */,
 				60413BD3666D541567D20669 /* GitHubReleaseTests.swift */,
+				57D7659D207564ED4B36156D /* RecentDocumentsMenuControllerTests.swift */,
 				9266F8E5D50483CC0035A6CF /* UpdateCheckerTests.swift */,
 				E79681416CDCE2995E83C922 /* UpdateDownloaderTests.swift */,
 				A03DE19C6B812B0D6B7CF13F /* UpdateInstallerTests.swift */,
@@ -256,10 +262,9 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = 328B5BC9ACFEE972F214E444 /* Build configuration list for PBXProject "mmdview" */;
+			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -269,7 +274,6 @@
 			mainGroup = FBCD057F0771B3E2C4425797;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 4B6EFDCCEDE237B841C81DA1 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -310,6 +314,7 @@
 				CF28501A98287BB51CE13377 /* FileWatcher.swift in Sources */,
 				755B17B06E3CE6B779F9C9E3 /* GitHubRelease.swift in Sources */,
 				255172CBE191903A95E686F5 /* MainMenuBuilder.swift in Sources */,
+				E8C61F32B1DD04C62B6A7391 /* RecentDocumentsMenuController.swift in Sources */,
 				DAB7D4BFB4E753470A60ECC0 /* ReleaseFetcher.swift in Sources */,
 				BF7DDCD30E7C2282D3310FBB /* UpdateChecker.swift in Sources */,
 				116078E627BC1DC1CC156EF8 /* UpdateDownloader.swift in Sources */,
@@ -333,6 +338,7 @@
 				30E33E98B447B23C39AD2CE5 /* FileTypeTests.swift in Sources */,
 				4BA39DCAE8426E953E75D405 /* FileWatcherTests.swift in Sources */,
 				5ABFB6867517729D43A50E55 /* GitHubReleaseTests.swift in Sources */,
+				871FDAD6A6BAF5EB6E8DDE6F /* RecentDocumentsMenuControllerTests.swift in Sources */,
 				7D595E52A36D469272682A9A /* UpdateCheckerTests.swift in Sources */,
 				E1A2A8F13D65154FDB68217F /* UpdateDownloaderTests.swift in Sources */,
 				74C3C5E539068B3029F6E097 /* UpdateInstallerTests.swift in Sources */,
@@ -366,7 +372,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
@@ -525,7 +531,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;

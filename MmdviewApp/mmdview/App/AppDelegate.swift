@@ -10,6 +10,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updateFlow = UpdateFlowController()
     /// 自動チェックで通知済みの最新バージョン(セッション中の再通知を抑止する)。
     private var announcedVersion: String?
+    private lazy var recentDocumentsMenuController = RecentDocumentsMenuController { [weak self] url in
+        self?.openViewer(for: url)
+    }
 
     nonisolated static func main() {
         MainActor.assumeIsolated {
@@ -29,7 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.mainMenu = MainMenuBuilder.build(openAction: #selector(showOpenPanel))
+        NSApp.mainMenu = MainMenuBuilder.build(
+            openAction: #selector(showOpenPanel),
+            recentMenuDelegate: recentDocumentsMenuController)
         NSApp.activate()
         runUpdateCheck(userInitiated: false)
     }
