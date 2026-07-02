@@ -2,6 +2,15 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <!--
+    信頼できない .md / .mmd を開くビューアのため、CSP で外部通信・リモート読み込みを遮断する。
+    connect-src 'none' と img-src を自分自身+data: に限定することで、
+    レンダリング経路（markdown-it の html:true 等）に XSS が混入しても
+    fetch / beacon / 外部画像による情報流出を防ぐ。
+    インライン <script> と onclick、mermaid が注入するインライン <style> のため
+    script-src / style-src には 'unsafe-inline' を付与する。
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>mmdview</title>
   <link rel="stylesheet" href="style.css">
@@ -85,6 +94,8 @@
   mermaid.initialize({
     startOnLoad: false,
     theme: 'default',
+    // 図ラベル内の生 HTML をサニタイズする（デフォルトだが将来の既定変更に備えて明示）
+    securityLevel: 'strict',
     sequence:  { useMaxWidth: false },
     er:        { useMaxWidth: false },
     flowchart: { useMaxWidth: false },
