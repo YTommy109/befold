@@ -2,10 +2,10 @@ import AppKit
 
 @MainActor
 enum MainMenuBuilder {
-    static func build(openAction: Selector) -> NSMenu {
+    static func build(openAction: Selector, recentMenuDelegate: NSMenuDelegate) -> NSMenu {
         let mainMenu = NSMenu()
         mainMenu.addItem(makeAppMenuItem())
-        mainMenu.addItem(makeFileMenuItem(openAction: openAction))
+        mainMenu.addItem(makeFileMenuItem(openAction: openAction, recentMenuDelegate: recentMenuDelegate))
         mainMenu.addItem(makeWindowMenuItem())
         return mainMenu
     }
@@ -49,7 +49,7 @@ enum MainMenuBuilder {
         return item
     }
 
-    private static func makeFileMenuItem(openAction: Selector) -> NSMenuItem {
+    private static func makeFileMenuItem(openAction: Selector, recentMenuDelegate: NSMenuDelegate) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: "File")
         item.submenu = menu
@@ -60,11 +60,7 @@ enum MainMenuBuilder {
 
         let recentItem = NSMenuItem(title: "Open Recent", action: nil, keyEquivalent: "")
         let recentMenu = NSMenu(title: "Open Recent")
-        recentMenu.perform(NSSelectorFromString("_setMenuName:"), with: "NSRecentDocumentsMenu")
-        recentMenu.addItem(
-            withTitle: "Clear Menu",
-            action: #selector(NSDocumentController.clearRecentDocuments(_:)),
-            keyEquivalent: "")
+        recentMenu.delegate = recentMenuDelegate
         recentItem.submenu = recentMenu
         menu.addItem(recentItem)
 
