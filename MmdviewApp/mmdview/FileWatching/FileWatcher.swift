@@ -20,7 +20,11 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         self.queue = DispatchQueue(label: "com.degino.mmdview.filewatcher", qos: .utility)
         self.debouncer = Debouncer(delay: 0.2, queue: queue)
         self.onChange = onChange
-        startMonitors()
+        // fileSource / dirSource はイベントハンドラ（監視キュー上）でも
+        // 解放・再割り当てされるため、初期化時の書き込みも同じ監視キューに
+        // 直列化して競合を防ぐ。init は queue が空の状態で呼ばれるので
+        // queue.sync でデッドロックせず、戻り時点で監視が有効になる。
+        queue.sync { startMonitors() }
     }
 
     private func startMonitors() {
@@ -108,9 +112,16 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
 
     /// 全監視を停止しリソースを解放する。
     func stop() {
-        fileSource?.cancel()
-        dirSource?.cancel()
-        debouncer.cancel()
+        // fileSource / dirSource へのアクセスをイベントハンドラと同じ監視キューに
+        // 直列化する。stop() は MainActor（windowWillClose）または deinit からのみ
+        // 呼ばれ、監視キュー上からは呼ばれないため queue.sync でデッドロックしない。
+        queue.sync {
+            fileSource?.cancel()
+            fileSource = nil
+            dirSource?.cancel()
+            dirSource = nil
+            debouncer.cancel()
+        }
     }
 
     deinit {
