@@ -50,7 +50,7 @@ private func makeRelease(tag: String) throws -> GitHubRelease {
 @Suite
 @MainActor
 struct UpdateCheckerTests {
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func newerRemoteVersionIsReportedAsAvailable() async throws {
         let release = try makeRelease(tag: "v1.2.0")
         let checker = UpdateChecker(
@@ -62,7 +62,7 @@ struct UpdateCheckerTests {
             current: "1.1.1", latest: "v1.2.0", downloadURL: release.downloadURL))
     }
 
-    @Test(arguments: ["v1.1.1", "v1.0.0", "not-a-version"])
+    @Test(.timeLimit(.minutes(1)), arguments: ["v1.1.1", "v1.0.0", "not-a-version"])
     func sameOlderOrUnparsableRemoteIsUpToDate(tag: String) async throws {
         let checker = UpdateChecker(
             fetcher: MockFetcher(result: .success(try makeRelease(tag: tag))),
@@ -73,7 +73,19 @@ struct UpdateCheckerTests {
         #expect(result == .upToDate(current: "1.1.1"))
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)))
+    func unparsableCurrentVersionIsUpToDate() async throws {
+        // 自バージョンがパースできない場合、リモートが新しくても更新扱いにしない
+        let checker = UpdateChecker(
+            fetcher: MockFetcher(result: .success(try makeRelease(tag: "v1.2.0"))),
+            currentVersion: "not-a-version")
+
+        let result = await checker.check(bypassCache: false)
+
+        #expect(result == .upToDate(current: "not-a-version"))
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func fetchErrorReturnsFailed() async {
         let checker = UpdateChecker(
             fetcher: MockFetcher(result: .failure(DummyError())), currentVersion: "1.1.1")
@@ -83,7 +95,7 @@ struct UpdateCheckerTests {
         #expect(result == .failed)
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func successfulResultIsCachedWithinTTL() async throws {
         let fetcher = MockFetcher(result: .success(try makeRelease(tag: "v1.2.0")))
         let clock = FakeClock()
@@ -97,7 +109,7 @@ struct UpdateCheckerTests {
         #expect(fetcher.callCount == 1)
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func cacheExpiresAfterTTL() async throws {
         let fetcher = MockFetcher(result: .success(try makeRelease(tag: "v1.2.0")))
         let clock = FakeClock()
@@ -111,7 +123,7 @@ struct UpdateCheckerTests {
         #expect(fetcher.callCount == 2)
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func bypassCacheAlwaysFetches() async throws {
         let fetcher = MockFetcher(result: .success(try makeRelease(tag: "v1.2.0")))
         let checker = UpdateChecker(fetcher: fetcher, currentVersion: "1.1.1")
@@ -122,7 +134,7 @@ struct UpdateCheckerTests {
         #expect(fetcher.callCount == 2)
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func failedResultIsNotCached() async {
         let fetcher = MockFetcher(result: .failure(DummyError()))
         let checker = UpdateChecker(fetcher: fetcher, currentVersion: "1.1.1")
