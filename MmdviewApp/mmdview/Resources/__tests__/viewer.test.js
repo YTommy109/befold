@@ -139,6 +139,11 @@ describe('parseStoredZoom', () => {
     expect(parseStoredZoom('0.1')).toBe(0.1);
     expect(parseStoredZoom('5.0')).toBe(5.0);
   });
+
+  test('parses injected numeric value', () => {
+    expect(parseStoredZoom(1.25)).toBe(1.25);
+    expect(parseStoredZoom(1)).toBe(1);
+  });
 });
 
 describe('constants', () => {

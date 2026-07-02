@@ -28,7 +28,7 @@
   var _mmdZoom = ZOOM_DEFAULT;
 
   function _mmdInitZoom() {
-    _mmdZoom = parseStoredZoom(localStorage.getItem('mmdview.viewer.zoom'));
+    _mmdZoom = parseStoredZoom(window._mmdInitialZoom);
     _mmdApplyZoom();
   }
 
@@ -38,7 +38,9 @@
     document.getElementById('zoom-label').textContent = zoomLabel(_mmdZoom);
     document.getElementById('zoom-in').disabled = _mmdZoom >= ZOOM_MAX;
     document.getElementById('zoom-out').disabled = _mmdZoom <= ZOOM_MIN;
-    localStorage.setItem('mmdview.viewer.zoom', _mmdZoom);
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.zoomChanged) {
+      window.webkit.messageHandlers.zoomChanged.postMessage(_mmdZoom);
+    }
   }
 
   function _mmdZoomIn() {
