@@ -34,6 +34,29 @@ struct ViewerStoreIntegrationTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func reflectsFileEditAfterDebounce() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let file = tempDir.appendingPathComponent("test.mmd")
+        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+
+        let store = ViewerStore()
+        store.openFile(file)
+        #expect(store.content == "graph TD; A-->B")
+
+        // 監視の初期化完了を待つ
+        try await Task.sleep(for: .seconds(0.3))
+
+        // 実ファイルを編集 → デバウンス(0.2s)後に content が更新される
+        try "graph TD; X-->Y".write(to: file, atomically: true, encoding: .utf8)
+
+        try await Task.sleep(for: .seconds(3))
+        #expect(store.content == "graph TD; X-->Y")
+
+        store.close()
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func closeStopsWatching() async throws {
         let tempDir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tempDir) }
