@@ -17,6 +17,24 @@ macOS 向け Mermaid ダイアグラム・ビューアアプリ。
 
 - macOS 14 (Sonoma) 以降
 
+## インストール
+
+1. [GitHub Releases](https://github.com/YTommy109/mmdview/releases/latest) から `mmdview-vX.Y.Z.dmg` をダウンロードする
+2. DMG を開き、`mmdview.app` を `/Applications` にコピーする
+3. ターミナルで次のコマンドを実行してから起動する:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/mmdview.app
+```
+
+> [!IMPORTANT]
+> 配布している DMG はコード署名・公証（notarization）を行っていないため、
+> そのまま開こうとすると macOS の Gatekeeper に
+> 「"mmdview" は壊れているため開けません」とブロックされます
+> （新しい macOS ではシステム設定の「プライバシーとセキュリティ」からも許可できません）。
+> 上記コマンドで quarantine 属性を除去すると起動できます。
+> 一度起動すれば、アプリ内の「Check for Updates」による更新ではこの操作は不要です。
+
 ## インストール（開発環境）
 
 ```bash
