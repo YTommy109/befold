@@ -6,6 +6,10 @@ import UniformTypeIdentifiers
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static private(set) var shared: AppDelegate?
     private var windowControllers: [String: ViewerWindowController] = [:]
+    private let sessionStore = SessionStore()
+    /// 前回セッションで開いていたファイル。起動イベントで開かれるファイルの記録と混ざらないよう
+    /// applicationWillFinishLaunching で読み取り、applicationDidFinishLaunching で復元する。
+    private var urlsToRestore: [URL] = []
     private let updateChecker = UpdateChecker()
     private let updateFlow = UpdateFlowController()
     /// 自動チェックで通知済みの最新バージョン(セッション中の再通知を抑止する)。
@@ -29,12 +33,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         _ = DocumentController()
+        urlsToRestore = sessionStore.savedURLs()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenuBuilder.build(
             openAction: #selector(showOpenPanel),
             recentMenuDelegate: recentDocumentsMenuController)
+        restoreLastSession()
         NSApp.activate()
         runUpdateCheck(userInitiated: false)
     }
@@ -60,7 +66,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // 終了処理中のウィンドウクローズで復元リストが空にならないよう記録を止める
+        sessionStore.freeze()
+        return .terminateNow
+    }
+
     // MARK: - Window Management
+
+    /// 前回セッションで開いていたファイルを再オープンする。存在しなくなったファイルは記録からも取り除く。
+    private func restoreLastSession() {
+        for url in urlsToRestore {
+            if FileManager.default.fileExists(atPath: url.path) {
+                openViewer(for: url)
+            } else {
+                sessionStore.noteClosed(url)
+            }
+        }
+        urlsToRestore = []
+    }
 
     /// 指定 URL のファイルをビューアウィンドウで開く。
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
@@ -75,8 +99,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowControllers[key] = controller
         controller.onClose = { [weak self] in
             self?.windowControllers.removeValue(forKey: key)
+            self?.sessionStore.noteClosed(url)
         }
         controller.showWindow(nil)
+        sessionStore.noteOpened(url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
     }
 

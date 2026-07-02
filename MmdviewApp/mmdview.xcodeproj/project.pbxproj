@@ -32,7 +32,9 @@
 		85E8C3C60864A4F891A8B9C5 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 943DBC47DB4399D9F1B98A4E /* AppIcon.icns */; };
 		871FDAD6A6BAF5EB6E8DDE6F /* RecentDocumentsMenuControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D7659D207564ED4B36156D /* RecentDocumentsMenuControllerTests.swift */; };
 		8B5C7958B33BF2CF6B749029 /* markdown-it.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 2E3E95DB93DBE435422D5498 /* markdown-it.min.js */; };
+		8C71B3642B37EAF9D8E7CA9D /* SessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C4626D6A812BAD27799AD40 /* SessionStoreTests.swift */; };
 		9468E715957FEF5E8C470ABC /* ViewerContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A56A418883D17999644B3943 /* ViewerContentView.swift */; };
+		980A3DACFB111D274CA32504 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF91FFFD0A6C9C2189A38AE /* SessionStore.swift */; };
 		A8C09933B33AEEA06F2C8B72 /* ViewerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E77F6F5678A696DACE24C69A /* ViewerWindowController.swift */; };
 		AA05608A2E2E687D06789544 /* DocumentController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16FDE84CBC9A6A566C50FF7 /* DocumentController.swift */; };
 		AA569204B8CF7AF8D7F13A24 /* ViewerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F26364FB0B39B66447B691BD /* ViewerStore.swift */; };
@@ -63,6 +65,7 @@
 		0F2FB3A844F85A5A7A9C9BE7 /* style.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = style.css; sourceTree = "<group>"; };
 		175269206331476DA6AD97CC /* MainMenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuBuilder.swift; sourceTree = "<group>"; };
 		18F47EFA0F3366C197B489AD /* AppVersionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionTests.swift; sourceTree = "<group>"; };
+		1AF91FFFD0A6C9C2189A38AE /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		1EBF2FE8DFF2683C0B4DD45A /* DebouncerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncerTests.swift; sourceTree = "<group>"; };
 		2E3E95DB93DBE435422D5498 /* markdown-it.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "markdown-it.min.js"; sourceTree = "<group>"; };
 		3568ACA550694E8924FE44A3 /* UpdateDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateDownloader.swift; sourceTree = "<group>"; };
@@ -79,6 +82,7 @@
 		77E5A40BED6330AE1B10E274 /* FileWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcher.swift; sourceTree = "<group>"; };
 		84AFAE682C5982C47A53B3DE /* mmdviewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = mmdviewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		86682A8334DB68ED618DAF38 /* FileWatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcherTests.swift; sourceTree = "<group>"; };
+		8C4626D6A812BAD27799AD40 /* SessionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStoreTests.swift; sourceTree = "<group>"; };
 		9266F8E5D50483CC0035A6CF /* UpdateCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckerTests.swift; sourceTree = "<group>"; };
 		943DBC47DB4399D9F1B98A4E /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		9AD32561C247E79E37DE8C55 /* ReleaseFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseFetcher.swift; sourceTree = "<group>"; };
@@ -181,6 +185,7 @@
 				C16FDE84CBC9A6A566C50FF7 /* DocumentController.swift */,
 				175269206331476DA6AD97CC /* MainMenuBuilder.swift */,
 				DF4DE8ACA0FA5DB354712BAF /* RecentDocumentsMenuController.swift */,
+				1AF91FFFD0A6C9C2189A38AE /* SessionStore.swift */,
 				E77F6F5678A696DACE24C69A /* ViewerWindowController.swift */,
 			);
 			path = App;
@@ -196,6 +201,7 @@
 				86682A8334DB68ED618DAF38 /* FileWatcherTests.swift */,
 				60413BD3666D541567D20669 /* GitHubReleaseTests.swift */,
 				57D7659D207564ED4B36156D /* RecentDocumentsMenuControllerTests.swift */,
+				8C4626D6A812BAD27799AD40 /* SessionStoreTests.swift */,
 				9266F8E5D50483CC0035A6CF /* UpdateCheckerTests.swift */,
 				E79681416CDCE2995E83C922 /* UpdateDownloaderTests.swift */,
 				A03DE19C6B812B0D6B7CF13F /* UpdateInstallerTests.swift */,
@@ -316,6 +322,7 @@
 				255172CBE191903A95E686F5 /* MainMenuBuilder.swift in Sources */,
 				E8C61F32B1DD04C62B6A7391 /* RecentDocumentsMenuController.swift in Sources */,
 				DAB7D4BFB4E753470A60ECC0 /* ReleaseFetcher.swift in Sources */,
+				980A3DACFB111D274CA32504 /* SessionStore.swift in Sources */,
 				BF7DDCD30E7C2282D3310FBB /* UpdateChecker.swift in Sources */,
 				116078E627BC1DC1CC156EF8 /* UpdateDownloader.swift in Sources */,
 				D29A0D1CD368201E93F85745 /* UpdateFlowController.swift in Sources */,
@@ -339,6 +346,7 @@
 				4BA39DCAE8426E953E75D405 /* FileWatcherTests.swift in Sources */,
 				5ABFB6867517729D43A50E55 /* GitHubReleaseTests.swift in Sources */,
 				871FDAD6A6BAF5EB6E8DDE6F /* RecentDocumentsMenuControllerTests.swift in Sources */,
+				8C71B3642B37EAF9D8E7CA9D /* SessionStoreTests.swift in Sources */,
 				7D595E52A36D469272682A9A /* UpdateCheckerTests.swift in Sources */,
 				E1A2A8F13D65154FDB68217F /* UpdateDownloaderTests.swift in Sources */,
 				74C3C5E539068B3029F6E097 /* UpdateInstallerTests.swift in Sources */,
@@ -364,7 +372,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 131;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -372,7 +380,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
@@ -523,7 +531,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 131;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -531,7 +539,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
