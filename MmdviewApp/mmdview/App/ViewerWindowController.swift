@@ -10,7 +10,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Initialization
 
-    init(fileURL: URL) {
+    init(fileURL: URL, zoomStore: ZoomStore) {
         store = ViewerStore()
 
         let window = NSWindow(
@@ -28,7 +28,11 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
         window.delegate = self
 
-        let contentView = ViewerContentView(store: store)
+        let contentView = ViewerContentView(
+            store: store,
+            initialZoom: zoomStore.zoom(for: fileURL),
+            onZoomChanged: { zoom in zoomStore.setZoom(zoom, for: fileURL) }
+        )
         window.contentView = NSHostingView(rootView: contentView)
         window.center()
 

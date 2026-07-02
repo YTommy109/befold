@@ -7,12 +7,25 @@ struct ViewerWebView: NSViewRepresentable {
     let content: String
     let fileType: FileType
     let isDeleted: Bool
+    /// ロード時に JS へ注入するファイル毎の初期倍率。
+    let initialZoom: Double
+    /// JS 側で倍率が変わったときに呼ばれる。
+    let onZoomChanged: @MainActor (Double) -> Void
 
     // MARK: - NSViewRepresentable
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+
+        let zoomScript = WKUserScript(
+            source: "window._mmdInitialZoom = \(initialZoom);",
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(zoomScript)
+        config.userContentController.add(context.coordinator, name: "zoomChanged")
+        context.coordinator.onZoomChanged = onZoomChanged
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -36,15 +49,32 @@ struct ViewerWebView: NSViewRepresentable {
         Coordinator()
     }
 
+    static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
+        nsView.configuration.userContentController.removeScriptMessageHandler(forName: "zoomChanged")
+    }
+
     // MARK: - Coordinator
 
     /// HTML ロード完了の検知と、コンテンツ差分に基づく再描画制御を行う。
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var webView: WKWebView?
+        var onZoomChanged: (@MainActor (Double) -> Void)?
         private var isReady = false
         private var pendingUpdate: (() -> Void)?
         private var lastRenderedContent: String?
         private var lastWasDeleted: Bool?
+
+        // MARK: - WKScriptMessageHandler
+
+        @MainActor
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            guard message.name == "zoomChanged",
+                  let zoom = (message.body as? NSNumber)?.doubleValue else { return }
+            onZoomChanged?(zoom)
+        }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             isReady = true
