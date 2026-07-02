@@ -11,8 +11,9 @@
 
 Python 版に存在した「Check for Updates...」メニューを Swift 版 mmdview に復元する。
 GitHub Releases API で最新バージョンを確認し、新バージョンがあれば NSAlert で通知して
-ブラウザでダウンロードページ(DMG)を開く。**アプリ内での自動インストールは行わない**
-(スコープ外。将来の拡張点として設計上は分離しておく)。
+DMG をダウンロード・インストール・再起動まで自動で行う(Python 版同等)。
+開発ビルド(`.app` バンドル外での実行)では自動インストールできないため、
+ブラウザでダウンロードページを開くフォールバックにする(Python 版の `not_frozen` 相当)。
 
 チェックのトリガーは 4 つ:
 
@@ -36,11 +37,16 @@ GitHub Releases API で最新バージョンを確認し、新バージョンが
 
 ```
 MmdviewApp/mmdview/Updates/
-├── AppVersion.swift          # セマンティックバージョンのパースと比較
-├── GitHubRelease.swift       # Releases API レスポンスの Decodable + DMG URL 抽出
-├── ReleaseFetcher.swift      # ReleaseFetching プロトコル + URLSession 実装
-├── UpdateChecker.swift       # TTL キャッシュ・in-flight 合流・判定ロジック
-└── UpdateUI.swift            # NSAlert 表示 + ブラウザ起動(GUI 層)
+├── AppVersion.swift              # セマンティックバージョンのパースと比較
+├── GitHubRelease.swift           # Releases API レスポンスの Decodable + DMG URL 抽出
+├── ReleaseFetcher.swift          # ReleaseFetching プロトコル + URLSession 実装
+├── UpdateChecker.swift           # TTL キャッシュ・in-flight 合流・判定ロジック
+├── UpdateDownloader.swift        # DMG のストリーミングダウンロード(進捗コールバック)
+├── DMGMounter.swift              # hdiutil attach/detach + plist パース + quarantine 除去
+├── UpdateInstaller.swift         # インストール先判定・.app 検出・updater スクリプト生成
+├── UpdateFlowController.swift    # ダウンロード→確認→インストールのオーケストレーション
+├── DownloadProgressWindow.swift  # 進捗ウィンドウ(GUI 層)
+└── UpdateUI.swift                # NSAlert 表示(GUI 層)
 ```
 
 ### AppVersion
@@ -93,14 +99,70 @@ func check(bypassCache: Bool) async -> UpdateCheckResult
   (起動時は `didFinishLaunching` と `didBecomeActive` が連続発火するため必須)
 - **fail-safe**: 例外はすべて `.failed` に変換。クラッシュ・throw させない
 
+### UpdateDownloader
+
+`URLSession.bytes(from:)` で DMG を一時ディレクトリ
+(`FileManager.default.temporaryDirectory/mmdview-update.dmg`)へストリーミング保存する。
+64KB ごとに書き出し、`expectedContentLength` が分かる場合は 0.0–1.0 の進捗を
+コールバックで通知する。HTTP エラーは throw(呼び出し側でアラート表示)。
+`file://` URL でも動作するため、実ファイルを使ったユニットテストが可能。
+
+### DMGMounter
+
+`hdiutil` のラッパー(Python 版 `update_mount.py` 相当):
+
+1. `xattr -d com.apple.quarantine <dmg>` で検疫属性を除去(失敗は無視)
+2. `hdiutil attach <dmg> -nobrowse -plist` を実行
+3. plist 出力の `system-entities[].mount-point` からマウントポイントを返す
+
+plist パース(`mountPoint(fromPlist:)`)は純粋関数としてユニットテストする。
+`Process` 実行はブロッキングのため、呼び出し側で `Task.detached` に載せる。
+
+### UpdateInstaller
+
+インストールの純粋ロジック(Python 版 `update_installer.py` 相当)。すべて static でテスト可能:
+
+- `installedAppURL(bundleURL:)`: 実行中バンドルが `.app` ならその URL、
+  それ以外(開発ビルド)は `nil`
+- `findApp(inMountPoint:)`: マウントポイント直下の `.app` を探す
+- `updaterScript(appInDMG:installedApp:mountPoint:dmgPath:pid:)`: 差し替えスクリプト生成
+
+**updater スクリプトの処理**(`/tmp` 配下に書き出し、`/bin/bash` で起動後 `exit(0)`):
+
+1. 元プロセスの終了を PID ポーリングで待つ(Python 版の固定 3 秒待ちを改善)
+2. 旧 `.app` を `rm -rf`、DMG 内の `.app` を `cp -R`
+3. `hdiutil detach -force` → DMG 削除 → 新アプリの quarantine 除去 → `open` で再起動
+4. スクリプト自身を削除
+
+### UpdateFlowController(GUI 層・自動テスト対象外)
+
+`@MainActor final class`。更新あり時のフロー全体を持ち、`isRunning` で多重起動を防ぐ:
+
+```
+askInstall(「ダウンロードしてインストール」/「後で」)
+  → 開発ビルドなら: ブラウザで downloadURL を開いて終了
+  → DownloadProgressWindow を表示して UpdateDownloader.download
+  → askRelaunch(「インストールして再起動」/「後で」)
+  → UpdateInstaller で DMG マウント→スクリプト起動→ exit(0)
+  → 失敗時: エラーアラート(マウント済みなら detach してから)
+```
+
+### DownloadProgressWindow(GUI 層・自動テスト対象外)
+
+`NSPanel` + 確定的 `NSProgressIndicator` の小ウィンドウ(タイトル
+「アップデートをダウンロード中…」)。クローズ不可(進捗表示専用)。
+
 ### UpdateUI(GUI 層・自動テスト対象外)
 
-`@MainActor` の enum。`UpdateCheckResult` を受け取り NSAlert を表示する:
+`@MainActor` の enum。NSAlert を表示する:
 
-- `.updateAvailable`: 「mmdview v{latest} が利用可能です(現在 v{current})」
-  ボタン: 「ダウンロード」(=`NSWorkspace.shared.open(downloadURL)`)/「後で」
-- `.upToDate`: 「最新バージョンです(v{current})」(手動チェックのみ)
-- `.failed`: 「アップデートの確認に失敗しました。」(手動チェックのみ)
+- `askInstall(current:latest:) -> Bool`: 「mmdview v{latest} が利用可能です」
+  ボタン: 「ダウンロードしてインストール」/「後で」
+- `askRelaunch(latest:) -> Bool`: 「ダウンロードが完了しました」
+  ボタン: 「インストールして再起動」/「後で」
+- `presentUpToDate` / `presentFailed`(手動チェックのみ)/ `presentInstallFailed`
+- 開発ビルドフォールバック: 「開発ビルドのため自動インストールできません。
+  ダウンロードページを開きます」→ `NSWorkspace.shared.open(downloadURL)`
 
 ---
 
@@ -141,6 +203,10 @@ AppDelegate のセレクタに届く(target 未設定)。
 - ネットワーク・JSON・HTTP エラー: `.failed`。自動チェックではサイレント、手動では通知
 - GitHub API レート制限(403/429): 同上(未認証 60 req/h だが TTL 1h で実質問題なし)
 - tag のパース不能: `.upToDate` 扱い(誤通知しない方向に倒す)
+- ダウンロード・マウント・`.app` 検出の失敗: 進捗ウィンドウを閉じて
+  「アップデートのインストールに失敗しました。」を表示(マウント済みなら detach)
+- サンドボックス: entitlements は空(非サンドボックス)のため `/Applications` の
+  差し替えと `/bin/bash` 起動が可能であることを確認済み
 
 ---
 
@@ -152,14 +218,18 @@ AppDelegate のセレクタに届く(target 未設定)。
 - `GitHubReleaseTests`: 実 API 形状の JSON デコード・DMG アセット抽出・フォールバック
 - `UpdateCheckerTests`: 更新あり/なし判定、TTL キャッシュ(クロック注入)、
   bypassCache、in-flight 合流、fetcher 例外 → `.failed`
-- `UpdateUI` / AppDelegate 統合: 自動テスト対象外(リリース前手動チェック)
+- `UpdateDownloaderTests`: `file://` URL からの実ダウンロード(内容一致・進捗が 1.0 に到達)
+- `DMGMounterTests`: `hdiutil -plist` 出力サンプルのマウントポイント抽出・不正 plist で nil
+- `UpdateInstallerTests`: インストール先判定(`.app`/開発ビルド)、一時ディレクトリでの
+  `.app` 検出、updater スクリプトの内容(PID 待ち・rm/cp/detach/open・自己削除)
+- `UpdateUI` / `UpdateFlowController` / `DownloadProgressWindow` / AppDelegate 統合:
+  自動テスト対象外(リリース前手動チェック)
 
 ---
 
 ## スコープ外
 
-- DMG の自動ダウンロード・インストール・再起動(Python 版にあった機能。将来
-  `UpdateCheckResult.updateAvailable` を起点に追加できる)
 - Sparkle 導入(appcast ホスティングと EdDSA 署名のリリースフロー変更が必要)
 - 「このバージョンをスキップ」等の抑止設定(UserDefaults 不使用)
 - 定期タイマーによるバックグラウンドチェック
+- デルタアップデート・コード署名・公証(Notarization)
