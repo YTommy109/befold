@@ -20,7 +20,9 @@
 		41A6A1C3F58EC79D8C945780 /* DMGMounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3066C3D2D86F6EB8ED13BE /* DMGMounter.swift */; };
 		4BA39DCAE8426E953E75D405 /* FileWatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86682A8334DB68ED618DAF38 /* FileWatcherTests.swift */; };
 		51AC897ACB3C5B66D48F866C /* DownloadProgressWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3DFAA41E6DC6D95314FC6B6 /* DownloadProgressWindow.swift */; };
+		5A35E9262222A7CF1656C234 /* ZoomStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02D8A275A5AFF8E4C965BC1B /* ZoomStoreTests.swift */; };
 		5ABFB6867517729D43A50E55 /* GitHubReleaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60413BD3666D541567D20669 /* GitHubReleaseTests.swift */; };
+		606C6768F96704F19589C0C3 /* ZoomStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866654CDD1FCD5353E218F49 /* ZoomStore.swift */; };
 		718553371869DDA83634B996 /* UpdateUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A709772FCFC4C93752545083 /* UpdateUI.swift */; };
 		71FFCEC9DCB3C2F13BA40694 /* mermaid.min.js in Resources */ = {isa = PBXBuildFile; fileRef = BD8262375D18C5C3E2CDCD36 /* mermaid.min.js */; };
 		74C3C5E539068B3029F6E097 /* UpdateInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A03DE19C6B812B0D6B7CF13F /* UpdateInstallerTests.swift */; };
@@ -61,6 +63,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		02D8A275A5AFF8E4C965BC1B /* ZoomStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomStoreTests.swift; sourceTree = "<group>"; };
 		0E0CFAB7880DC7F5CF518526 /* DMGMounterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMGMounterTests.swift; sourceTree = "<group>"; };
 		0F2FB3A844F85A5A7A9C9BE7 /* style.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = style.css; sourceTree = "<group>"; };
 		175269206331476DA6AD97CC /* MainMenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuBuilder.swift; sourceTree = "<group>"; };
@@ -81,6 +84,7 @@
 		75ED74BD6A05AC4DA2B49774 /* ViewerStoreIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerStoreIntegrationTests.swift; sourceTree = "<group>"; };
 		77E5A40BED6330AE1B10E274 /* FileWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcher.swift; sourceTree = "<group>"; };
 		84AFAE682C5982C47A53B3DE /* mmdviewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = mmdviewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		866654CDD1FCD5353E218F49 /* ZoomStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomStore.swift; sourceTree = "<group>"; };
 		86682A8334DB68ED618DAF38 /* FileWatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcherTests.swift; sourceTree = "<group>"; };
 		8C4626D6A812BAD27799AD40 /* SessionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStoreTests.swift; sourceTree = "<group>"; };
 		9266F8E5D50483CC0035A6CF /* UpdateCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckerTests.swift; sourceTree = "<group>"; };
@@ -187,6 +191,7 @@
 				DF4DE8ACA0FA5DB354712BAF /* RecentDocumentsMenuController.swift */,
 				1AF91FFFD0A6C9C2189A38AE /* SessionStore.swift */,
 				E77F6F5678A696DACE24C69A /* ViewerWindowController.swift */,
+				866654CDD1FCD5353E218F49 /* ZoomStore.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -207,6 +212,7 @@
 				A03DE19C6B812B0D6B7CF13F /* UpdateInstallerTests.swift */,
 				75ED74BD6A05AC4DA2B49774 /* ViewerStoreIntegrationTests.swift */,
 				61C98C3D1E3365899076811A /* ViewerStoreTests.swift */,
+				02D8A275A5AFF8E4C965BC1B /* ZoomStoreTests.swift */,
 			);
 			path = mmdviewTests;
 			sourceTree = "<group>";
@@ -332,6 +338,7 @@
 				AA569204B8CF7AF8D7F13A24 /* ViewerStore.swift in Sources */,
 				1E981BD656C7CA2465CF7021 /* ViewerWebView.swift in Sources */,
 				A8C09933B33AEEA06F2C8B72 /* ViewerWindowController.swift in Sources */,
+				606C6768F96704F19589C0C3 /* ZoomStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -352,6 +359,7 @@
 				74C3C5E539068B3029F6E097 /* UpdateInstallerTests.swift in Sources */,
 				B63A5D1E812D091AA50D4F86 /* ViewerStoreIntegrationTests.swift in Sources */,
 				3B0CE1667AAFBC00C64F6BAE /* ViewerStoreTests.swift in Sources */,
+				5A35E9262222A7CF1656C234 /* ZoomStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -372,7 +380,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 131;
+				CURRENT_PROJECT_VERSION = 133;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -380,7 +388,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.4;
+				MARKETING_VERSION = 1.1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
@@ -531,7 +539,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 131;
+				CURRENT_PROJECT_VERSION = 133;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -539,7 +547,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.4;
+				MARKETING_VERSION = 1.1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
