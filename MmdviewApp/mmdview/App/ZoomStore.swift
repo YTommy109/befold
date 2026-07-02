@@ -23,6 +23,7 @@ final class ZoomStore {
     }
 
     /// 指定ファイルの倍率を保存する。
+    /// clamp は読み取り時（zoom(for:)）に行うため、書き込み時はそのまま保存する。
     func setZoom(_ zoom: Double, for url: URL) {
         var zooms = savedZooms()
         zooms[Self.normalize(url)] = zoom

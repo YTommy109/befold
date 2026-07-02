@@ -26,6 +26,9 @@
   <script>
   // --- Zoom ---
   var _mmdZoom = ZOOM_DEFAULT;
+  // 直近で postMessage した倍率。init 時点の値で初期化し、実際に変化した時だけ通知する
+  // （ページ初期化や render() のたびに UserDefaults へ書き込まれるのを防ぐ）。
+  var _mmdLastPostedZoom = parseStoredZoom(window._mmdInitialZoom);
 
   function _mmdInitZoom() {
     _mmdZoom = parseStoredZoom(window._mmdInitialZoom);
@@ -38,8 +41,10 @@
     document.getElementById('zoom-label').textContent = zoomLabel(_mmdZoom);
     document.getElementById('zoom-in').disabled = _mmdZoom >= ZOOM_MAX;
     document.getElementById('zoom-out').disabled = _mmdZoom <= ZOOM_MIN;
-    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.zoomChanged) {
+    if (_mmdZoom !== _mmdLastPostedZoom &&
+        window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.zoomChanged) {
       window.webkit.messageHandlers.zoomChanged.postMessage(_mmdZoom);
+      _mmdLastPostedZoom = _mmdZoom;
     }
   }
 

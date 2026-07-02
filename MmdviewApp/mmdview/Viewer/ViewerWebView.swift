@@ -24,7 +24,10 @@ struct ViewerWebView: NSViewRepresentable {
             forMainFrameOnly: true
         )
         config.userContentController.addUserScript(zoomScript)
-        config.userContentController.add(context.coordinator, name: "zoomChanged")
+        config.userContentController.add(
+            WeakScriptMessageHandler(delegate: context.coordinator),
+            name: "zoomChanged"
+        )
         context.coordinator.onZoomChanged = onZoomChanged
 
         let webView = WKWebView(frame: .zero, configuration: config)
@@ -42,6 +45,7 @@ struct ViewerWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        context.coordinator.onZoomChanged = onZoomChanged
         context.coordinator.updateContent(content, fileType: fileType, isDeleted: isDeleted)
     }
 
@@ -51,6 +55,26 @@ struct ViewerWebView: NSViewRepresentable {
 
     static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
         nsView.configuration.userContentController.removeScriptMessageHandler(forName: "zoomChanged")
+    }
+
+    // MARK: - WeakScriptMessageHandler
+
+    /// WKUserContentController はハンドラを強参照するため、Coordinator への参照を弱めて
+    /// dismantleNSView の呼び出しに依存せずリークを防ぐプロキシ。
+    private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+        private weak var delegate: WKScriptMessageHandler?
+
+        init(delegate: WKScriptMessageHandler) {
+            self.delegate = delegate
+        }
+
+        @MainActor
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            delegate?.userContentController(userContentController, didReceive: message)
+        }
     }
 
     // MARK: - Coordinator
