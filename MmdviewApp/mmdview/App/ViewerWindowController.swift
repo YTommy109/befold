@@ -22,7 +22,10 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         window.minSize = NSSize(width: 400, height: 300)
         window.title = fileURL.lastPathComponent
         let safeName = fileURL.path.replacingOccurrences(of: "/", with: "_")
-        window.setFrameAutosaveName("Viewer-\(safeName)")
+        let autosaveName = "Viewer-\(safeName)"
+        // 保存済みフレームがあれば復元し、なければ後段で中央配置する
+        let hasSavedFrame = window.setFrameUsingName(autosaveName)
+        window.setFrameAutosaveName(autosaveName)
         window.isReleasedWhenClosed = false
 
         super.init(window: window)
@@ -34,7 +37,9 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             onZoomChanged: { zoom in zoomStore.setZoom(zoom, for: fileURL) }
         )
         window.contentView = NSHostingView(rootView: contentView)
-        window.center()
+        if !hasSavedFrame {
+            window.center()
+        }
 
         store.openFile(fileURL)
     }
