@@ -13,7 +13,7 @@ fi
 
 ROOT="$(dirname "$COMMON_DIR")"
 
-for name in .envrc .claude; do
+for name in .claude; do
   TARGET="$(pwd)/$name"
   if [ ! -e "$TARGET" ]; then
     ln -sfn "$ROOT/$name" "$TARGET"
