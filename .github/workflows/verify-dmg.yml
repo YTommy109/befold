@@ -1,0 +1,43 @@
+name: Verify DMG
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - '.github/workflows/verify-dmg.yml'
+      - 'scripts/create-dmg.sh'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: create-dmg をインストールする
+        run: brew install create-dmg
+
+      - name: ダミーの mmdview.app を作成する
+        run: |
+          mkdir -p dist/mmdview.app/Contents/MacOS
+          printf '#!/bin/sh\ntrue\n' > dist/mmdview.app/Contents/MacOS/mmdview
+          chmod +x dist/mmdview.app/Contents/MacOS/mmdview
+          cat > dist/mmdview.app/Contents/Info.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>mmdview</string>
+            <key>CFBundleExecutable</key><string>mmdview</string>
+          </dict></plist>
+          EOF
+
+      - name: DMG を作成する
+        run: scripts/create-dmg.sh dist/mmdview.app verify.dmg
+
+      - name: DMG の内容を検証する
+        run: |
+          mount_point=$(mktemp -d)
+          hdiutil attach verify.dmg -nobrowse -readonly -mountpoint "$mount_point"
+          trap 'hdiutil detach "$mount_point" -quiet' EXIT
+          test -d "$mount_point/mmdview.app"
+          test "$(readlink "$mount_point/Applications")" = "/Applications"
