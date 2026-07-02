@@ -1,5 +1,5 @@
-import Testing
 @testable import mmdview
+import Testing
 
 @Suite
 struct AppVersionTests {

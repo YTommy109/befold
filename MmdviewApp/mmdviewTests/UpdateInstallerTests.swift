@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import mmdview
+import Testing
 
 @Suite
 struct UpdateInstallerTests {
@@ -23,7 +23,8 @@ struct UpdateInstallerTests {
             installedApp: "/Applications/mmdview.app",
             mountPoint: "/Volumes/mmdview v1.2.0",
             dmgPath: "/tmp/mmdview-update.dmg",
-            pid: 12345)
+            pid: 12345
+        )
 
         #expect(script.hasPrefix("#!/bin/bash"))
         #expect(script.contains("kill -0 12345"))
@@ -46,7 +47,8 @@ struct UpdateInstallerTests {
             installedApp: evil,
             mountPoint: evil,
             dmgPath: evil,
-            pid: 12345)
+            pid: 12345
+        )
 
         // パス全体がシングルクォートで囲まれ、内部の特殊文字はそのまま残る。
         #expect(script.contains(#"'/Volumes/we"ir$d`whoami`/mmdview.app'"#))
@@ -64,7 +66,8 @@ struct UpdateInstallerTests {
             installedApp: path,
             mountPoint: path,
             dmgPath: path,
-            pid: 12345)
+            pid: 12345
+        )
 
         #expect(script.contains(#"'/Volumes/it'\''s mine/mmdview.app'"#))
     }

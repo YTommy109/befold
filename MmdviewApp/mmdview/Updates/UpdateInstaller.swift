@@ -16,7 +16,8 @@ enum UpdateInstaller {
     /// マウントポイント直下の `.app` バンドルを探す。
     static func findApp(inMountPoint mountPoint: URL) -> URL? {
         let contents = (try? FileManager.default.contentsOfDirectory(
-            at: mountPoint, includingPropertiesForKeys: nil)) ?? []
+            at: mountPoint, includingPropertiesForKeys: nil
+        )) ?? []
         return contents.first { $0.pathExtension == "app" }
     }
 

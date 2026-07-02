@@ -7,3 +7,6 @@
 --wrapparameters before-first
 --wrapcollections before-first
 --exclude .build,mmdview/Resources
+# プロジェクト規約（coding_rule.md）が @Suite と Sendable の明示を要求するため、
+# それらを冗長として除去するルールは無効化する
+--disable redundantSwiftTestingSuite,redundantSendable

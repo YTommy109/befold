@@ -17,9 +17,9 @@ struct ViewerWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         #if DEBUG
-        // Web インスペクタを有効化する（公開 API がないため KVC を使用）。
-        // 開発ビルドのみで有効にし、リリースビルドには含めない
-        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+            // Web インスペクタを有効化する（公開 API がないため KVC を使用）。
+            // 開発ビルドのみで有効にし、リリースビルドには含めない
+            config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         #endif
 
         let zoomScript = WKUserScript(
@@ -112,22 +112,22 @@ struct ViewerWebView: NSViewRepresentable {
 
         func updateContent(_ content: String, fileType: FileType, isDeleted: Bool) {
             let doUpdate = { [weak self] in
-                guard let self, let webView = self.webView else { return }
+                guard let self, let webView else { return }
 
                 if isDeleted {
-                    if self.lastWasDeleted != true {
+                    if lastWasDeleted != true {
                         webView.evaluateJavaScript("showDeletedBanner()")
-                        self.lastWasDeleted = true
+                        lastWasDeleted = true
                     }
                     return
                 }
 
-                guard content != self.lastRenderedContent || self.lastWasDeleted == true else {
+                guard content != lastRenderedContent || lastWasDeleted == true else {
                     return
                 }
 
-                self.lastWasDeleted = false
-                self.lastRenderedContent = content
+                lastWasDeleted = false
+                lastRenderedContent = content
 
                 // JSONEncoder でエスケープし、JS インジェクションを防ぐ
                 guard let jsonData = try? JSONEncoder().encode(content),

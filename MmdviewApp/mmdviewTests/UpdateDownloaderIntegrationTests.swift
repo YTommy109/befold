@@ -1,11 +1,14 @@
 import Foundation
-import Testing
 @testable import mmdview
+import Testing
 
 private final class ProgressRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var values: [Double] = []
-    var last: Double? { lock.withLock { values.last } }
+    var last: Double? {
+        lock.withLock { values.last }
+    }
+
     func record(_ value: Double) {
         lock.withLock { values.append(value) }
     }
@@ -14,16 +17,23 @@ private final class ProgressRecorder: @unchecked Sendable {
 /// HTTP エラー応答を再現する URLProtocol スタブ。
 /// 状態を持たず scheme で判定するため、他テストの file:// ダウンロードには干渉しない。
 private final class HTTP404URLProtocol: URLProtocol {
+    // URLProtocol の class func オーバーライドは static に変更できない
+    // swiftlint:disable static_over_final_class
     override class func canInit(with request: URLRequest) -> Bool {
         request.url?.scheme == "https"
     }
 
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    // swiftlint:enable static_over_final_class
 
     override func startLoading() {
         guard let url = request.url,
               let response = HTTPURLResponse(
-                  url: url, statusCode: 404, httpVersion: nil, headerFields: nil)
+                  url: url, statusCode: 404, httpVersion: nil, headerFields: nil
+              )
         else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return
@@ -49,7 +59,7 @@ struct UpdateDownloaderIntegrationTests {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let source = dir.appendingPathComponent("source.bin")
-        let content = Data((0..<200_000).map { UInt8($0 % 256) })
+        let content = Data((0 ..< 200_000).map { UInt8($0 % 256) })
         try content.write(to: source)
         let destination = dir.appendingPathComponent("dest.bin")
 

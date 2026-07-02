@@ -20,7 +20,7 @@ struct AppVersion: Comparable, Sendable {
 
     static func < (lhs: AppVersion, rhs: AppVersion) -> Bool {
         let count = max(lhs.components.count, rhs.components.count)
-        for index in 0..<count {
+        for index in 0 ..< count {
             let left = index < lhs.components.count ? lhs.components[index] : 0
             let right = index < rhs.components.count ? rhs.components[index] : 0
             if left != right {

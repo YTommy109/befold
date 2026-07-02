@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import mmdview
+import Testing
 
 private final class MockFetcher: ReleaseFetching, @unchecked Sendable {
     private let lock = NSLock()
@@ -8,7 +8,9 @@ private final class MockFetcher: ReleaseFetching, @unchecked Sendable {
     private let result: Result<GitHubRelease, Error>
     private let delayNanos: UInt64
 
-    var callCount: Int { lock.withLock { count } }
+    var callCount: Int {
+        lock.withLock { count }
+    }
 
     init(result: Result<GitHubRelease, Error>, delayNanos: UInt64 = 0) {
         self.result = result
@@ -29,22 +31,28 @@ private struct DummyError: Error {}
 private final class FakeClock: @unchecked Sendable {
     private let lock = NSLock()
     private var time = Date(timeIntervalSince1970: 0)
-    var current: Date { lock.withLock { time } }
+    var current: Date {
+        lock.withLock { time }
+    }
+
     func advance(by interval: TimeInterval) {
         lock.withLock { time = time.addingTimeInterval(interval) }
     }
 }
 
 private func makeRelease(tag: String) throws -> GitHubRelease {
-    GitHubRelease(
+    try GitHubRelease(
         tagName: tag,
-        htmlURL: try #require(URL(string: "https://github.com/YTommy109/mmdview/releases/tag/\(tag)")),
+        htmlURL: #require(URL(string: "https://github.com/YTommy109/mmdview/releases/tag/\(tag)")),
         assets: [
             GitHubRelease.Asset(
                 name: "mmdview-\(tag).dmg",
-                browserDownloadURL: try #require(
-                    URL(string: "https://github.com/YTommy109/mmdview/releases/download/\(tag)/mmdview-\(tag).dmg"))),
-        ])
+                browserDownloadURL: #require(
+                    URL(string: "https://github.com/YTommy109/mmdview/releases/download/\(tag)/mmdview-\(tag).dmg")
+                )
+            ),
+        ]
+    )
 }
 
 @Suite
@@ -54,19 +62,22 @@ struct UpdateCheckerTests {
     func newerRemoteVersionIsReportedAsAvailable() async throws {
         let release = try makeRelease(tag: "v1.2.0")
         let checker = UpdateChecker(
-            fetcher: MockFetcher(result: .success(release)), currentVersion: "1.1.1")
+            fetcher: MockFetcher(result: .success(release)), currentVersion: "1.1.1"
+        )
 
         let result = await checker.check(bypassCache: false)
 
         #expect(result == .updateAvailable(
-            current: "1.1.1", latest: "v1.2.0", downloadURL: release.downloadURL))
+            current: "1.1.1", latest: "v1.2.0", downloadURL: release.downloadURL
+        ))
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: ["v1.1.1", "v1.0.0", "not-a-version"])
     func sameOlderOrUnparsableRemoteIsUpToDate(tag: String) async throws {
-        let checker = UpdateChecker(
-            fetcher: MockFetcher(result: .success(try makeRelease(tag: tag))),
-            currentVersion: "1.1.1")
+        let checker = try UpdateChecker(
+            fetcher: MockFetcher(result: .success(makeRelease(tag: tag))),
+            currentVersion: "1.1.1"
+        )
 
         let result = await checker.check(bypassCache: false)
 
@@ -76,9 +87,10 @@ struct UpdateCheckerTests {
     @Test(.timeLimit(.minutes(1)))
     func unparsableCurrentVersionIsUpToDate() async throws {
         // 自バージョンがパースできない場合、リモートが新しくても更新扱いにしない
-        let checker = UpdateChecker(
-            fetcher: MockFetcher(result: .success(try makeRelease(tag: "v1.2.0"))),
-            currentVersion: "not-a-version")
+        let checker = try UpdateChecker(
+            fetcher: MockFetcher(result: .success(makeRelease(tag: "v1.2.0"))),
+            currentVersion: "not-a-version"
+        )
 
         let result = await checker.check(bypassCache: false)
 
@@ -88,7 +100,8 @@ struct UpdateCheckerTests {
     @Test(.timeLimit(.minutes(1)))
     func fetchErrorReturnsFailed() async {
         let checker = UpdateChecker(
-            fetcher: MockFetcher(result: .failure(DummyError())), currentVersion: "1.1.1")
+            fetcher: MockFetcher(result: .failure(DummyError())), currentVersion: "1.1.1"
+        )
 
         let result = await checker.check(bypassCache: false)
 
@@ -97,10 +110,11 @@ struct UpdateCheckerTests {
 
     @Test(.timeLimit(.minutes(1)))
     func successfulResultIsCachedWithinTTL() async throws {
-        let fetcher = MockFetcher(result: .success(try makeRelease(tag: "v1.2.0")))
+        let fetcher = try MockFetcher(result: .success(makeRelease(tag: "v1.2.0")))
         let clock = FakeClock()
         let checker = UpdateChecker(
-            fetcher: fetcher, currentVersion: "1.1.1", now: { clock.current })
+            fetcher: fetcher, currentVersion: "1.1.1", now: { clock.current }
+        )
 
         _ = await checker.check(bypassCache: false)
         clock.advance(by: 3599)
@@ -111,10 +125,11 @@ struct UpdateCheckerTests {
 
     @Test(.timeLimit(.minutes(1)))
     func cacheExpiresAfterTTL() async throws {
-        let fetcher = MockFetcher(result: .success(try makeRelease(tag: "v1.2.0")))
+        let fetcher = try MockFetcher(result: .success(makeRelease(tag: "v1.2.0")))
         let clock = FakeClock()
         let checker = UpdateChecker(
-            fetcher: fetcher, currentVersion: "1.1.1", now: { clock.current })
+            fetcher: fetcher, currentVersion: "1.1.1", now: { clock.current }
+        )
 
         _ = await checker.check(bypassCache: false)
         clock.advance(by: 3601)
@@ -125,7 +140,7 @@ struct UpdateCheckerTests {
 
     @Test(.timeLimit(.minutes(1)))
     func bypassCacheAlwaysFetches() async throws {
-        let fetcher = MockFetcher(result: .success(try makeRelease(tag: "v1.2.0")))
+        let fetcher = try MockFetcher(result: .success(makeRelease(tag: "v1.2.0")))
         let checker = UpdateChecker(fetcher: fetcher, currentVersion: "1.1.1")
 
         _ = await checker.check(bypassCache: false)
@@ -147,8 +162,9 @@ struct UpdateCheckerTests {
 
     @Test(.timeLimit(.minutes(1)))
     func concurrentChecksShareOneFetch() async throws {
-        let fetcher = MockFetcher(
-            result: .success(try makeRelease(tag: "v1.2.0")), delayNanos: 50_000_000)
+        let fetcher = try MockFetcher(
+            result: .success(makeRelease(tag: "v1.2.0")), delayNanos: 50_000_000
+        )
         let checker = UpdateChecker(fetcher: fetcher, currentVersion: "1.1.1")
 
         async let first = checker.check(bypassCache: false)

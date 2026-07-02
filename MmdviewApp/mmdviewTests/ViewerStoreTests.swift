@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import mmdview
+import Testing
 
 private struct MockFileWatcher: FileWatching {
     func stop() {}
@@ -173,5 +173,7 @@ struct ViewerStoreTests {
 
 private struct StopCountingWatcher: FileWatching {
     let onStop: @Sendable () -> Void
-    func stop() { onStop() }
+    func stop() {
+        onStop()
+    }
 }

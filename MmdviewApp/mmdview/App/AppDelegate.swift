@@ -40,7 +40,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenuBuilder.build(
             openAction: #selector(showOpenPanel),
-            recentMenuDelegate: recentDocumentsMenuController)
+            recentMenuDelegate: recentDocumentsMenuController
+        )
         restoreLastSession()
         NSApp.activate()
         runUpdateCheck(userInitiated: false)
@@ -140,11 +141,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard !updateFlow.isRunning else { return }
             let result = await updateChecker.check(bypassCache: userInitiated)
             switch result {
-            case .updateAvailable(let current, let latest, let downloadURL):
+            case let .updateAvailable(current, latest, downloadURL):
                 if !userInitiated, latest == announcedVersion { return }
                 announcedVersion = latest
                 await updateFlow.run(current: current, latest: latest, downloadURL: downloadURL)
-            case .upToDate(let current):
+            case let .upToDate(current):
                 if userInitiated { UpdateUI.presentUpToDate(current: current) }
             case .failed:
                 if userInitiated { UpdateUI.presentCheckFailed() }
@@ -161,5 +162,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let markdown = UTType(filenameExtension: "md") { types.append(markdown) }
         return types
     }()
-
 }

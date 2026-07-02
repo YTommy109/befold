@@ -17,11 +17,13 @@ enum MainMenuBuilder {
         menu.addItem(
             withTitle: "About mmdview",
             action: #selector(AppDelegate.showAbout(_:)),
-            keyEquivalent: "")
+            keyEquivalent: ""
+        )
         menu.addItem(
             withTitle: "Check for Updates…",
             action: #selector(AppDelegate.checkForUpdates(_:)),
-            keyEquivalent: "")
+            keyEquivalent: ""
+        )
         menu.addItem(.separator())
         let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
         servicesItem.submenu = NSMenu(title: "Services")
@@ -31,21 +33,25 @@ enum MainMenuBuilder {
         menu.addItem(
             withTitle: "Hide mmdview",
             action: #selector(NSApplication.hide(_:)),
-            keyEquivalent: "h")
+            keyEquivalent: "h"
+        )
         let hideOthers = menu.addItem(
             withTitle: "Hide Others",
             action: #selector(NSApplication.hideOtherApplications(_:)),
-            keyEquivalent: "h")
+            keyEquivalent: "h"
+        )
         hideOthers.keyEquivalentModifierMask = [.command, .option]
         menu.addItem(
             withTitle: "Show All",
             action: #selector(NSApplication.unhideAllApplications(_:)),
-            keyEquivalent: "")
+            keyEquivalent: ""
+        )
         menu.addItem(.separator())
         menu.addItem(
             withTitle: "Quit mmdview",
             action: #selector(NSApplication.terminate(_:)),
-            keyEquivalent: "q")
+            keyEquivalent: "q"
+        )
         return item
     }
 
@@ -56,7 +62,8 @@ enum MainMenuBuilder {
         menu.addItem(
             withTitle: "Open…",
             action: openAction,
-            keyEquivalent: "o")
+            keyEquivalent: "o"
+        )
 
         let recentItem = NSMenuItem(title: "Open Recent", action: nil, keyEquivalent: "")
         let recentMenu = NSMenu(title: "Open Recent")
@@ -68,7 +75,8 @@ enum MainMenuBuilder {
         menu.addItem(
             withTitle: "Close",
             action: #selector(NSWindow.performClose(_:)),
-            keyEquivalent: "w")
+            keyEquivalent: "w"
+        )
         return item
     }
 
@@ -79,16 +87,19 @@ enum MainMenuBuilder {
         menu.addItem(
             withTitle: "Minimize",
             action: #selector(NSWindow.performMiniaturize(_:)),
-            keyEquivalent: "m")
+            keyEquivalent: "m"
+        )
         menu.addItem(
             withTitle: "Zoom",
             action: #selector(NSWindow.performZoom(_:)),
-            keyEquivalent: "")
+            keyEquivalent: ""
+        )
         menu.addItem(.separator())
         menu.addItem(
             withTitle: "Bring All to Front",
             action: #selector(NSApplication.arrangeInFront(_:)),
-            keyEquivalent: "")
+            keyEquivalent: ""
+        )
         NSApp.windowsMenu = menu
         return item
     }

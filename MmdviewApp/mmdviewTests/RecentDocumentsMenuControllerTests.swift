@@ -1,6 +1,6 @@
 import AppKit
-import Testing
 @testable import mmdview
+import Testing
 
 @Suite
 @MainActor
@@ -16,7 +16,7 @@ struct RecentDocumentsMenuControllerTests {
     func populatesMenuItemsFromRecentURLs() {
         let urls = [
             URL(fileURLWithPath: "/tmp/diagram.mmd"),
-            URL(fileURLWithPath: "/tmp/note.md")
+            URL(fileURLWithPath: "/tmp/note.md"),
         ]
         let controller = makeController(urls: urls)
         let menu = NSMenu(title: "Open Recent")

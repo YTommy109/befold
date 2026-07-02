@@ -16,7 +16,7 @@ final class ViewerStore {
     private let makeWatcher: WatcherFactory
 
     init(watcherFactory: WatcherFactory? = nil) {
-        self.makeWatcher = watcherFactory ?? { url, onChange in FileWatcher(path: url, onChange: onChange) }
+        makeWatcher = watcherFactory ?? { url, onChange in FileWatcher(path: url, onChange: onChange) }
     }
 
     /// 指定 URL のファイルを開き、ファイル監視を開始する。

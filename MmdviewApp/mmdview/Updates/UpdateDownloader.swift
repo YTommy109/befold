@@ -9,7 +9,7 @@ struct UpdateDownloader: Sendable {
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
         let (bytes, response) = try await URLSession.shared.bytes(from: url)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+        if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
             throw URLError(.badServerResponse)
         }
         let expected = response.expectedContentLength

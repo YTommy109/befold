@@ -16,9 +16,9 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     private let queue: DispatchQueue
 
     init(path: URL, onChange: @escaping @MainActor @Sendable () -> Void) {
-        self.resolvedPath = path.resolvingSymlinksInPath()
-        self.queue = DispatchQueue(label: "com.degino.mmdview.filewatcher", qos: .utility)
-        self.debouncer = Debouncer(delay: 0.2, queue: queue)
+        resolvedPath = path.resolvingSymlinksInPath()
+        queue = DispatchQueue(label: "com.degino.mmdview.filewatcher", qos: .utility)
+        debouncer = Debouncer(delay: 0.2, queue: queue)
         self.onChange = onChange
         // fileSource / dirSource はイベントハンドラ（監視キュー上）でも
         // 解放・再割り当てされるため、初期化時の書き込みも同じ監視キューに
@@ -54,9 +54,9 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
             let flags = source.data
             if flags.contains(.delete) || flags.contains(.rename) {
                 source.cancel()
-                self.fileSource = nil
+                fileSource = nil
             }
-            self.scheduleNotify()
+            scheduleNotify()
         }
 
         source.setCancelHandler {
@@ -64,7 +64,7 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         }
 
         source.resume()
-        self.fileSource = source
+        fileSource = source
     }
 
     // MARK: - Directory Monitoring
@@ -83,10 +83,10 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
 
         source.setEventHandler { [weak self] in
             guard let self else { return }
-            if self.fileSource == nil {
-                self.startFileMonitor()
+            if fileSource == nil {
+                startFileMonitor()
             }
-            self.scheduleNotify()
+            scheduleNotify()
         }
 
         source.setCancelHandler {
@@ -94,13 +94,13 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         }
 
         source.resume()
-        self.dirSource = source
+        dirSource = source
     }
 
     // MARK: - Notification
 
     private func scheduleNotify() {
-        let onChange = self.onChange
+        let onChange = onChange
         debouncer.schedule {
             Task { @MainActor in
                 onChange()

@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import mmdview
+import Testing
 
 @Suite
 struct GitHubReleaseTests {
@@ -56,10 +56,11 @@ struct GitHubReleaseTests {
 
     @Test
     func downloadURLFallsBackToReleasePage() throws {
-        let release = GitHubRelease(
+        let release = try GitHubRelease(
             tagName: "v1.2.0",
-            htmlURL: try #require(URL(string: "https://github.com/YTommy109/mmdview/releases/tag/v1.2.0")),
-            assets: [])
+            htmlURL: #require(URL(string: "https://github.com/YTommy109/mmdview/releases/tag/v1.2.0")),
+            assets: []
+        )
         #expect(release.downloadURL == release.htmlURL)
     }
 }

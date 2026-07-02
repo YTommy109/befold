@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import mmdview
+import Testing
 
 /// 実ファイルシステム（一時ディレクトリ）を使う UpdateInstaller の結合テスト。
 @Suite

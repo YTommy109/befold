@@ -23,7 +23,8 @@ final class RecentDocumentsMenuController: NSObject, NSMenuDelegate {
             let item = NSMenuItem(
                 title: url.lastPathComponent,
                 action: #selector(openRecentDocument(_:)),
-                keyEquivalent: "")
+                keyEquivalent: ""
+            )
             item.target = self
             item.representedObject = url
             let icon = NSWorkspace.shared.icon(forFile: url.path)
@@ -37,7 +38,8 @@ final class RecentDocumentsMenuController: NSObject, NSMenuDelegate {
         let clearItem = NSMenuItem(
             title: "Clear Menu",
             action: #selector(NSDocumentController.clearRecentDocuments(_:)),
-            keyEquivalent: "")
+            keyEquivalent: ""
+        )
         clearItem.target = NSDocumentController.shared
         menu.addItem(clearItem)
     }
