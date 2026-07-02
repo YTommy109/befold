@@ -1,9 +1,11 @@
+# NOTE: dagayn の ignore は gitignore 形式ではなく fnmatch によるフルパス一致。
+# ディレクトリは末尾スラッシュではなく "dir/**" 形式で書くこと
+# （単一セグメントの "dir/**" は任意の深さの dir にマッチする）。
+
 # Swift / Xcode
-MmdviewApp/.build/
-MmdviewApp/build/
-MmdviewApp/DerivedData/
-MmdviewApp/mmdview.xcodeproj/
-**/.build/
+.build/**
+DerivedData/**
+MmdviewApp/mmdview.xcodeproj/**
 *.xcuserstate
 *.pcm.lock*
 
@@ -11,10 +13,10 @@ MmdviewApp/mmdview.xcodeproj/
 *.min.js
 
 # Tools / editor
-.superpowers/
-.worktrees/
+.superpowers/**
+.worktrees/**
 *.swp
-.dagayn/
+.dagayn/**
 
 # Config
 .claude/settings.local.json
