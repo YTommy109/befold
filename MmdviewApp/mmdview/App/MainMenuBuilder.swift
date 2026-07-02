@@ -16,7 +16,11 @@ enum MainMenuBuilder {
         item.submenu = menu
         menu.addItem(
             withTitle: "About mmdview",
-            action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            action: #selector(AppDelegate.showAbout(_:)),
+            keyEquivalent: "")
+        menu.addItem(
+            withTitle: "Check for Updates…",
+            action: #selector(AppDelegate.checkForUpdates(_:)),
             keyEquivalent: "")
         menu.addItem(.separator())
         let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
