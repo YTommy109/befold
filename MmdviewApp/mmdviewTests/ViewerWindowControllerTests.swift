@@ -57,4 +57,18 @@ struct ViewerWindowControllerTests {
         let expected = "Viewer-" + real.normalizedPathKey.replacingOccurrences(of: "/", with: "_")
         #expect(controller.windowFrameAutosaveName == expected)
     }
+
+    @Test("windowDidBecomeKey で onBecomeKey コールバックが呼ばれる")
+    func windowDidBecomeKeyInvokesCallback() throws {
+        let (dir, file) = try makeTempFile(named: "diagram.mmd")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let controller = ViewerWindowController(fileURL: file, zoomStore: ZoomStore(defaults: makeDefaults()))
+        defer { controller.close() }
+        var becameKey = false
+        controller.onBecomeKey = { becameKey = true }
+
+        controller.windowDidBecomeKey(Notification(name: NSWindow.didBecomeKeyNotification))
+
+        #expect(becameKey)
+    }
 }
