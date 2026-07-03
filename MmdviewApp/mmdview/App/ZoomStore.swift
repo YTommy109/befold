@@ -30,6 +30,18 @@ final class ZoomStore {
         defaults.set(zooms, forKey: Self.defaultsKey)
     }
 
+    /// ファイルの rename / move に伴い、旧パスの倍率を新パスへ引き継ぐ。
+    /// 旧パスに保存値がなければ何もしない。移行後は旧キーを削除する。
+    func migrateZoom(from oldURL: URL, to newURL: URL) {
+        let oldKey = oldURL.normalizedPathKey
+        let newKey = newURL.normalizedPathKey
+        guard oldKey != newKey else { return }
+        var zooms = savedZooms()
+        guard let zoom = zooms.removeValue(forKey: oldKey) else { return }
+        zooms[newKey] = zoom
+        defaults.set(zooms, forKey: Self.defaultsKey)
+    }
+
     private func savedZooms() -> [String: Double] {
         defaults.dictionary(forKey: Self.defaultsKey) as? [String: Double] ?? [:]
     }

@@ -6,15 +6,20 @@ import WebKit
 /// SwiftUI の ViewerContentView を NSHostingView 経由で表示する。
 final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private let store: ViewerStore
+    private let zoomStore: ZoomStore
     private let webViewProxy = WebViewProxy()
     private(set) var fileURL: URL
     /// ウィンドウが閉じられたときに呼ばれるコールバック。AppDelegate がウィンドウ管理辞書から除去するために使用する。
     var onClose: (() -> Void)?
+    /// 開いているファイルが rename / move されたときに旧 URL・新 URL を通知するコールバック。
+    /// AppDelegate がウィンドウ管理辞書のキー付け替えとセッション記録の更新に使用する。
+    var onRename: ((_ old: URL, _ new: URL) -> Void)?
 
     // MARK: - Initialization
 
     init(fileURL: URL, zoomStore: ZoomStore) {
         self.fileURL = fileURL
+        self.zoomStore = zoomStore
         store = ViewerStore()
 
         let window = NSWindow(
@@ -30,8 +35,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         window.representedURL = fileURL
         window.tabbingIdentifier = "ViewerWindow"
         window.collectionBehavior.insert(.fullScreenPrimary)
-        let safeName = fileURL.path.replacingOccurrences(of: "/", with: "_")
-        let autosaveName = "Viewer-\(safeName)"
+        let autosaveName = Self.autosaveName(for: fileURL)
         // 保存済みフレームがあれば復元し、なければ後段で中央配置する
         let hasSavedFrame = window.setFrameUsingName(autosaveName)
         window.setFrameAutosaveName(autosaveName)
@@ -43,7 +47,11 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         let contentView = ViewerContentView(
             store: store,
             initialZoom: zoomStore.zoom(for: fileURL),
-            onZoomChanged: { zoom in zoomStore.setZoom(zoom, for: fileURL) },
+            // 現在の fileURL は rename で書き換わるため、旧値を捕捉せず self 経由で参照する
+            onZoomChanged: { [weak self] zoom in
+                guard let self else { return }
+                zoomStore.setZoom(zoom, for: self.fileURL)
+            },
             webViewProxy: webViewProxy
         )
         window.contentView = NSHostingView(rootView: contentView)
@@ -51,7 +59,39 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             window.center()
         }
 
+        store.onFileRenamed = { [weak self] newURL in
+            self?.handleRename(to: newURL)
+        }
         store.openFile(fileURL)
+    }
+
+    /// フレーム autosave 名を URL から生成する。パス区切りをキーに使えない文字へ置換する。
+    private static func autosaveName(for url: URL) -> String {
+        let safeName = url.path.replacingOccurrences(of: "/", with: "_")
+        return "Viewer-\(safeName)"
+    }
+
+    /// ファイルの rename / move をウィンドウに反映する。
+    /// タイトル・representedURL・フレーム autosave 名・ズーム倍率キーを新パスへ移し、
+    /// AppDelegate へ旧 URL・新 URL を通知する。
+    private func handleRename(to newURL: URL) {
+        let oldURL = fileURL
+        guard newURL != oldURL else { return }
+        fileURL = newURL
+
+        if let window {
+            window.title = newURL.lastPathComponent
+            window.representedURL = newURL
+            let oldAutosaveName = Self.autosaveName(for: oldURL)
+            let newAutosaveName = Self.autosaveName(for: newURL)
+            // 現在のフレームを新しい名前で保存し直し、旧名のエントリは破棄する
+            window.saveFrame(usingName: newAutosaveName)
+            window.setFrameAutosaveName(newAutosaveName)
+            NSWindow.removeFrame(usingName: oldAutosaveName)
+        }
+
+        zoomStore.migrateZoom(from: oldURL, to: newURL)
+        onRename?(oldURL, newURL)
     }
 
     @available(*, unavailable)

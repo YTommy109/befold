@@ -5,18 +5,28 @@ import Foundation
 @MainActor
 @Observable
 final class ViewerStore {
-    typealias WatcherFactory = @MainActor @Sendable (URL, @escaping @MainActor @Sendable () -> Void) -> FileWatching
+    typealias WatcherFactory = @MainActor @Sendable (
+        URL,
+        @escaping @MainActor @Sendable () -> Void,
+        (@MainActor @Sendable (URL) -> Void)?
+    ) -> FileWatching
 
     private(set) var content: String = ""
     private(set) var fileType: FileType = .mmd
     private(set) var isDeleted: Bool = false
     private(set) var filePath: URL?
 
+    /// 開いているファイルが rename / move されたときに新 URL を通知する。
+    /// ウィンドウ側がタイトル・representedURL・セッション記録を更新するために使う。
+    var onFileRenamed: ((URL) -> Void)?
+
     private var fileWatcher: FileWatching?
     private let makeWatcher: WatcherFactory
 
     init(watcherFactory: WatcherFactory? = nil) {
-        makeWatcher = watcherFactory ?? { url, onChange in FileWatcher(path: url, onChange: onChange) }
+        makeWatcher = watcherFactory ?? { url, onChange, onRename in
+            FileWatcher(path: url, onChange: onChange, onRename: onRename)
+        }
     }
 
     /// 指定 URL のファイルを開き、ファイル監視を開始する。
@@ -27,9 +37,20 @@ final class ViewerStore {
         fileType = FileType(url: url)
         loadContent()
 
-        fileWatcher = makeWatcher(url) { [weak self] in
+        fileWatcher = makeWatcher(url, { [weak self] in
             self?.loadContent()
-        }
+        }, { [weak self] newURL in
+            self?.handleRename(to: newURL)
+        })
+    }
+
+    /// 監視対象ファイルの rename / move を反映する。
+    /// filePath / fileType を新 URL に更新し、コンテンツを再読込したうえでウィンドウ側へ通知する。
+    private func handleRename(to newURL: URL) {
+        filePath = newURL
+        fileType = FileType(url: newURL)
+        loadContent()
+        onFileRenamed?(newURL)
     }
 
     private func loadContent() {
