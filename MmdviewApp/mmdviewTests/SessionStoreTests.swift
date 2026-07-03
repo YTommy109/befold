@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import mmdview
+import Testing
 
 @Suite
 @MainActor
@@ -46,7 +46,7 @@ struct SessionStoreTests {
     }
 
     @Test
-    func noteClosedRemovesURL()  {
+    func noteClosedRemovesURL() {
         let defaults = makeDefaults()
         let first = URL(fileURLWithPath: "/tmp/first.mmd")
         let second = URL(fileURLWithPath: "/tmp/second.md")

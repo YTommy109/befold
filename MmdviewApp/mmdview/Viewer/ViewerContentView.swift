@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ViewerContentView: View {
-    var store: ViewerStore
+    let store: ViewerStore
     let initialZoom: Double
     let onZoomChanged: @MainActor (Double) -> Void
 

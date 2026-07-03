@@ -72,7 +72,8 @@ final class UpdateChecker {
             return .updateAvailable(
                 current: currentVersion,
                 latest: release.tagName,
-                downloadURL: release.downloadURL)
+                downloadURL: release.downloadURL
+            )
         } catch {
             return .failed
         }

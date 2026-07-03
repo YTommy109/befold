@@ -1,9 +1,9 @@
-import Testing
 import Foundation
 @testable import mmdview
+import Testing
 
 @Suite
-struct FileWatcherTests {
+struct FileWatcherIntegrationTests {
     private func makeTempDir() throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("mmdview-test-\(UUID().uuidString)")
@@ -85,6 +85,54 @@ struct FileWatcherTests {
         }
     }
 
+    /// 削除 → 同名再作成後の変更でもコールバックが発火することを検証する。
+    /// ディレクトリ監視がファイルの再作成を検知してファイル監視を再開する経路の回帰テスト。
+    @Test(.timeLimit(.minutes(1)))
+    func detectsChangeAfterRecreation() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let file = tempDir.appendingPathComponent("test.mmd")
+        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+
+        // 再作成後の変更で発火した最初のコールバックだけを検証対象にする。
+        // 発火は 1 回以上あり得るため fired ガードで confirm() を 1 回に抑える
+        // （範囲指定の expectedCount は Swift 6.0 の Swift Testing に無いため使わない）。
+        // armed / fired は @Sendable クロージャに捕捉された後に書き換えるため、
+        // 参照型（TestFlag）に包んで「captured var の後続変更」警告を避ける。
+        await confirmation { confirm in
+            let armed = TestFlag()
+            let fired = TestFlag()
+            let watcher = FileWatcher(path: file) {
+                if armed.isSet, !fired.isSet {
+                    fired.isSet = true
+                    confirm()
+                }
+            }
+
+            // 初期化完了を待つ
+            try? await Task.sleep(for: .seconds(0.3))
+
+            // ファイルを削除（ファイル監視ソースが解放される）
+            try? FileManager.default.removeItem(at: file)
+            try? await Task.sleep(for: .seconds(0.5))
+
+            // 同名で再作成（ディレクトリ監視が検知してファイル監視を再開する）
+            try? "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+            // 監視再開と、再作成に伴う先行コールバックの消化を待つ
+            try? await Task.sleep(for: .seconds(0.5))
+
+            // ここから先のコールバックのみを検証対象にする
+            armed.isSet = true
+
+            // 再作成後の変更 → 監視が再開していればコールバックが発火する
+            try? "graph TD; A-->C".write(to: file, atomically: false, encoding: .utf8)
+
+            // コールバック発火を待つ
+            try? await Task.sleep(for: .seconds(3))
+            watcher.stop()
+        }
+    }
+
     /// 存在しないファイルで初期化してもクラッシュせず、stop() も安全に呼べること
     @Test
     func watchingNonexistentFileDoesNotCrash() {
@@ -121,4 +169,11 @@ struct FileWatcherTests {
         try? await Task.sleep(for: .seconds(1))
         #expect(!callbackFired)
     }
+}
+
+/// テスト内で @Sendable クロージャに捕捉された後に安全に書き換えるための可変フラグ。
+/// 参照型にすることで捕捉した参照自体は不変のまま中身だけを更新でき、
+/// 「sendable closure に捕捉した var の後続変更」警告を避ける。
+private final class TestFlag: @unchecked Sendable {
+    var isSet = false
 }

@@ -4,6 +4,7 @@
     "test": "jest"
   },
   "devDependencies": {
-    "jest": "^29.7.0"
+    "jest": "^29.7.0",
+    "markdown-it": "14.2.0"
   }
 }

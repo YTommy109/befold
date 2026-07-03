@@ -1,7 +1,8 @@
 import Foundation
-import Testing
 @testable import mmdview
+import Testing
 
+@Suite
 struct GitHubReleaseTests {
     private let apiJSON = Data("""
     {
@@ -32,11 +33,34 @@ struct GitHubReleaseTests {
     }
 
     @Test
+    func downloadURLSkipsNonDmgAssetsAndPicksDmg() throws {
+        let json = Data("""
+        {
+          "tag_name": "v1.2.0",
+          "html_url": "https://github.com/YTommy109/mmdview/releases/tag/v1.2.0",
+          "assets": [
+            {
+              "name": "mmdview-v1.2.0.zip",
+              "browser_download_url": "https://github.com/YTommy109/mmdview/releases/download/v1.2.0/mmdview-v1.2.0.zip"
+            },
+            {
+              "name": "mmdview-v1.2.0.dmg",
+              "browser_download_url": "https://github.com/YTommy109/mmdview/releases/download/v1.2.0/mmdview-v1.2.0.dmg"
+            }
+          ]
+        }
+        """.utf8)
+        let release = try JSONDecoder().decode(GitHubRelease.self, from: json)
+        #expect(release.downloadURL.absoluteString.hasSuffix("mmdview-v1.2.0.dmg"))
+    }
+
+    @Test
     func downloadURLFallsBackToReleasePage() throws {
-        let release = GitHubRelease(
+        let release = try GitHubRelease(
             tagName: "v1.2.0",
-            htmlURL: try #require(URL(string: "https://github.com/YTommy109/mmdview/releases/tag/v1.2.0")),
-            assets: [])
+            htmlURL: #require(URL(string: "https://github.com/YTommy109/mmdview/releases/tag/v1.2.0")),
+            assets: []
+        )
         #expect(release.downloadURL == release.htmlURL)
     }
 }

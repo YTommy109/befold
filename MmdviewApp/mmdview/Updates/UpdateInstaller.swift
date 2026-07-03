@@ -4,8 +4,6 @@ import Foundation
 /// 実際のマウント・スクリプト起動は UpdateFlowController が行う。
 enum UpdateInstaller {
     enum InstallError: Error {
-        /// `.app` バンドル外(開発ビルド)から実行されている。
-        case notInstalledApp
         /// DMG 内に `.app` が見つからない。
         case appNotFoundInDMG
     }
@@ -18,7 +16,8 @@ enum UpdateInstaller {
     /// マウントポイント直下の `.app` バンドルを探す。
     static func findApp(inMountPoint mountPoint: URL) -> URL? {
         let contents = (try? FileManager.default.contentsOfDirectory(
-            at: mountPoint, includingPropertiesForKeys: nil)) ?? []
+            at: mountPoint, includingPropertiesForKeys: nil
+        )) ?? []
         return contents.first { $0.pathExtension == "app" }
     }
 
@@ -31,16 +30,32 @@ enum UpdateInstaller {
         dmgPath: String,
         pid: Int32
     ) -> String {
-        """
+        // パスはすべて shellQuoted でシングルクォート化してから埋め込む。
+        // ダブルクォートだと `"` `$` バッククォートを含むパスでスクリプトが破損・
+        // インジェクションされる余地があるため。
+        let installedApp = shellQuoted(installedApp)
+        let appInDMG = shellQuoted(appInDMG)
+        let mountPoint = shellQuoted(mountPoint)
+        let dmgPath = shellQuoted(dmgPath)
+        return """
         #!/bin/bash
         while /bin/kill -0 \(pid) 2>/dev/null; do /bin/sleep 0.2; done
-        /bin/rm -rf "\(installedApp)"
-        /bin/cp -R "\(appInDMG)" "\(installedApp)"
-        /usr/bin/hdiutil detach "\(mountPoint)" -force
-        /bin/rm -f "\(dmgPath)"
-        /usr/bin/xattr -dr com.apple.quarantine "\(installedApp)" 2>/dev/null
-        /usr/bin/open "\(installedApp)"
+        /bin/rm -rf \(installedApp)
+        /bin/cp -R \(appInDMG) \(installedApp)
+        /usr/bin/hdiutil detach \(mountPoint) -force
+        /bin/rm -f \(dmgPath)
+        /usr/bin/xattr -dr com.apple.quarantine \(installedApp) 2>/dev/null
+        /usr/bin/open \(installedApp)
         /bin/rm -f "$0"
         """
+    }
+
+    /// パスをシングルクォートで囲み、シェルによる解釈を無効化する。
+    /// シングルクォート内では `'` 以外のすべての文字（`"` `$` バッククォート `\` など）が
+    /// リテラルとして扱われる。唯一の例外である `'` は、いったんクォートを閉じて
+    /// エスケープ済みの `'`（`\'`）を置き、再度クォートを開く `'\''` に置換する。
+    /// これにより任意の文字列を安全に単一の引数として埋め込める。
+    private static func shellQuoted(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }

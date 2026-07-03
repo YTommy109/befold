@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import mmdview
+import Testing
 
 @Suite
 @MainActor
@@ -44,18 +44,21 @@ struct ZoomStoreTests {
         #expect(store.zoom(for: second) == 2.0)
     }
 
-    @Test("範囲外の保存値は読み取り時に 0.5〜2.0 に丸められる")
-    func outOfRangeZoomIsClampedOnRead() {
+    /// 保存値は読み取り時に 0.5〜2.0 に clamp され、境界値ちょうどはそのまま保持される。
+    @Test(arguments: [
+        (5.0, 2.0),
+        (0.1, 0.5),
+        (2.0, 2.0),
+        (0.5, 0.5),
+    ])
+    func zoomIsClampedToRangeOnRead(saved: Double, expected: Double) {
         let defaults = makeDefaults()
-        let tooBig = URL(fileURLWithPath: "/tmp/big.mmd")
-        let tooSmall = URL(fileURLWithPath: "/tmp/small.mmd")
+        let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
         let store = ZoomStore(defaults: defaults)
 
-        store.setZoom(5.0, for: tooBig)
-        store.setZoom(0.1, for: tooSmall)
+        store.setZoom(saved, for: url)
 
-        #expect(store.zoom(for: tooBig) == 2.0)
-        #expect(store.zoom(for: tooSmall) == 0.5)
+        #expect(store.zoom(for: url) == expected)
     }
 
     @Test("シンボリックリンク経由でも同一ファイルとして扱う")

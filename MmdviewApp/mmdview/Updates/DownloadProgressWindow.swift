@@ -10,7 +10,8 @@ final class DownloadProgressWindowController: NSWindowController {
             contentRect: NSRect(x: 0, y: 0, width: 320, height: 72),
             styleMask: [.titled],
             backing: .buffered,
-            defer: false)
+            defer: false
+        )
         window.title = "アップデートをダウンロード中…"
         window.center()
         super.init(window: window)

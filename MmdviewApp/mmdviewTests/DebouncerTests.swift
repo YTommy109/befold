@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import mmdview
+import Testing
 
 @Suite
 struct DebouncerTests {

@@ -12,7 +12,7 @@ struct GitHubReleaseFetcher: ReleaseFetching {
         var request = URLRequest(url: url, timeoutInterval: 5)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
         return try JSONDecoder().decode(GitHubRelease.self, from: data)

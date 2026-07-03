@@ -1,6 +1,6 @@
-import Testing
 import Foundation
 @testable import mmdview
+import Testing
 
 private struct MockFileWatcher: FileWatching {
     func stop() {}
@@ -94,6 +94,60 @@ struct ViewerStoreTests {
     }
 
     @Test
+    func watcherCallbackReloadsContent() throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let file = tempDir.appendingPathComponent("test.mmd")
+        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+
+        // factory に渡された onChange を保持する
+        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
+        let store = ViewerStore { _, callback in
+            onChange = callback
+            return MockFileWatcher()
+        }
+        store.openFile(file)
+        #expect(store.content == "graph TD; A-->B")
+
+        // ファイル内容を書き換えてから監視コールバックを発火する
+        try "graph TD; X-->Y".write(to: file, atomically: true, encoding: .utf8)
+        onChange?()
+
+        #expect(store.content == "graph TD; X-->Y")
+
+        store.close()
+    }
+
+    @Test
+    func watcherCallbackTracksDeletionAndRecreation() throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let file = tempDir.appendingPathComponent("test.mmd")
+        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+
+        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
+        let store = ViewerStore { _, callback in
+            onChange = callback
+            return MockFileWatcher()
+        }
+        store.openFile(file)
+        #expect(!store.isDeleted)
+
+        // ファイル削除 → コールバック発火で isDeleted が立つ
+        try FileManager.default.removeItem(at: file)
+        onChange?()
+        #expect(store.isDeleted)
+
+        // 再作成 → コールバック発火で isDeleted が戻り、新しい内容が読める
+        try "graph TD; C-->D".write(to: file, atomically: true, encoding: .utf8)
+        onChange?()
+        #expect(!store.isDeleted)
+        #expect(store.content == "graph TD; C-->D")
+
+        store.close()
+    }
+
+    @Test
     func openFileStopsPreviousWatcher() throws {
         let tempDir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tempDir) }
@@ -119,5 +173,7 @@ struct ViewerStoreTests {
 
 private struct StopCountingWatcher: FileWatching {
     let onStop: @Sendable () -> Void
-    func stop() { onStop() }
+    func stop() {
+        onStop()
+    }
 }

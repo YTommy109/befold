@@ -7,7 +7,9 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    # CI と同じランナー・Xcode に固定し、CI が通ったコミットが
+    # リリースだけランナー更新で壊れる事故を防ぐ
+    runs-on: macos-15
     permissions:
       contents: write
     env:
@@ -18,6 +20,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.2'
 
       - name: xcodegen をインストールする
         run: brew install xcodegen
@@ -39,6 +45,16 @@ jobs:
 
       - name: DMG を作成する
         run: ../scripts/create-dmg.sh "build/Build/Products/Release/mmdview.app" "../$DMG_NAME"
+
+      # 公開前に実際に配布する DMG をマウントして中身を検証する
+      # （verify-dmg.yml はダミー app のみ検証するため、本番成果物はここで担保する）
+      - name: DMG の内容を検証する
+        run: |
+          mount_point=$(mktemp -d)
+          hdiutil attach "../$DMG_NAME" -nobrowse -readonly -mountpoint "$mount_point"
+          trap 'hdiutil detach "$mount_point" -quiet' EXIT
+          test -x "$mount_point/mmdview.app/Contents/MacOS/mmdview"
+          test "$(readlink "$mount_point/Applications")" = "/Applications"
 
       - name: GitHub Release を作成して DMG を添付する
         uses: softprops/action-gh-release@v2
