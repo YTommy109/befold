@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenuBuilder.build(
             openAction: #selector(showOpenPanel),
+            helpAction: #selector(openHelp(_:)),
             recentMenuDelegate: recentDocumentsMenuController
         )
         restoreLastSession()
@@ -119,6 +120,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.openViewer(for: url)
             }
         }
+    }
+
+    // MARK: - Help
+
+    /// Help > mmdview Help。GitHub の README をブラウザで開く。
+    @objc func openHelp(_ sender: Any?) {
+        guard let url = URL(string: "https://github.com/YTommy109/mmdview#readme") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     // MARK: - Update Check
