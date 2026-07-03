@@ -78,7 +78,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         // ウィンドウが閉じられる前に、現在のタブ構成とアクティブファイルを確定値で保存する
         if let keyWindow = NSApp.keyWindow,
-           let controller = keyWindow.windowController as? ViewerWindowController {
+           let controller = keyWindow.windowController as? ViewerWindowController
+        {
             sessionStore.noteActivated(controller.fileURL)
         }
         sessionStore.saveLayout(currentSessionLayout())
@@ -161,7 +162,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // 前回アクティブだったファイルをキーウィンドウにする(開けていなければ成り行きのまま)
         if let activePath = activePathToRestore,
-           let window = windowControllers[activePath]?.window {
+           let window = windowControllers[activePath]?.window
+        {
             window.makeKeyAndOrderFront(nil)
         }
         activePathToRestore = nil
@@ -179,7 +181,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             previousWindow = window
         }
         if let selectedPath = group.selectedPath,
-           let selectedWindow = windowControllers[selectedPath]?.window {
+           let selectedWindow = windowControllers[selectedPath]?.window
+        {
             selectedWindow.tabGroup?.selectedWindow = selectedWindow
         }
     }
