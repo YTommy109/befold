@@ -94,13 +94,19 @@ struct FileWatcherIntegrationTests {
         let file = tempDir.appendingPathComponent("test.mmd")
         try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
 
-        // 再作成後の変更で発火したコールバックのみを検証対象にする（1 回以上）。
-        // armed は @Sendable クロージャに捕捉された後に書き換えるため、
+        // 再作成後の変更で発火した最初のコールバックだけを検証対象にする。
+        // 発火は 1 回以上あり得るため fired ガードで confirm() を 1 回に抑える
+        // （範囲指定の expectedCount は Swift 6.0 の Swift Testing に無いため使わない）。
+        // armed / fired は @Sendable クロージャに捕捉された後に書き換えるため、
         // 参照型（TestFlag）に包んで「captured var の後続変更」警告を避ける。
-        await confirmation(expectedCount: 1...) { confirm in
+        await confirmation { confirm in
             let armed = TestFlag()
+            let fired = TestFlag()
             let watcher = FileWatcher(path: file) {
-                if armed.isSet { confirm() }
+                if armed.isSet, !fired.isSet {
+                    fired.isSet = true
+                    confirm()
+                }
             }
 
             // 初期化完了を待つ
