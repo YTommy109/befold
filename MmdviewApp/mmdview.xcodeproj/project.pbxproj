@@ -11,6 +11,7 @@
 		07E52E20D48F476966CC215E /* UpdateInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC317B0727785B0F9F1A6E92 /* UpdateInstaller.swift */; };
 		0A0FFB0E484C19F648CE07F4 /* viewer.js in Resources */ = {isa = PBXBuildFile; fileRef = F776E25D17B9E87D102CA2B7 /* viewer.js */; };
 		116078E627BC1DC1CC156EF8 /* UpdateDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3568ACA550694E8924FE44A3 /* UpdateDownloader.swift */; };
+		1A60AB767C153D5D63D56D19 /* ViewerWindowControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA710571156DECEA2F4ADA7B /* ViewerWindowControllerTests.swift */; };
 		1E981BD656C7CA2465CF7021 /* ViewerWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54693EA14F015883DCEC29FD /* ViewerWebView.swift */; };
 		255172CBE191903A95E686F5 /* MainMenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 175269206331476DA6AD97CC /* MainMenuBuilder.swift */; };
 		2D4751CCF1DAAE5CC9602525 /* style.css in Resources */ = {isa = PBXBuildFile; fileRef = 0F2FB3A844F85A5A7A9C9BE7 /* style.css */; };
@@ -101,6 +102,7 @@
 		A709772FCFC4C93752545083 /* UpdateUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateUI.swift; sourceTree = "<group>"; };
 		B3DFAA41E6DC6D95314FC6B6 /* DownloadProgressWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadProgressWindow.swift; sourceTree = "<group>"; };
 		B67D480E47AA2A7FFB917EB3 /* AppVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersion.swift; sourceTree = "<group>"; };
+		BA710571156DECEA2F4ADA7B /* ViewerWindowControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerWindowControllerTests.swift; sourceTree = "<group>"; };
 		BC317B0727785B0F9F1A6E92 /* UpdateInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstaller.swift; sourceTree = "<group>"; };
 		BD8262375D18C5C3E2CDCD36 /* mermaid.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = mermaid.min.js; sourceTree = "<group>"; };
 		C16FDE84CBC9A6A566C50FF7 /* DocumentController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentController.swift; sourceTree = "<group>"; };
@@ -224,6 +226,7 @@
 				A03DE19C6B812B0D6B7CF13F /* UpdateInstallerTests.swift */,
 				75ED74BD6A05AC4DA2B49774 /* ViewerStoreIntegrationTests.swift */,
 				61C98C3D1E3365899076811A /* ViewerStoreTests.swift */,
+				BA710571156DECEA2F4ADA7B /* ViewerWindowControllerTests.swift */,
 				02D8A275A5AFF8E4C965BC1B /* ZoomStoreTests.swift */,
 			);
 			path = mmdviewTests;
@@ -375,6 +378,7 @@
 				74C3C5E539068B3029F6E097 /* UpdateInstallerTests.swift in Sources */,
 				B63A5D1E812D091AA50D4F86 /* ViewerStoreIntegrationTests.swift in Sources */,
 				3B0CE1667AAFBC00C64F6BAE /* ViewerStoreTests.swift in Sources */,
+				1A60AB767C153D5D63D56D19 /* ViewerWindowControllerTests.swift in Sources */,
 				5A35E9262222A7CF1656C234 /* ZoomStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -396,7 +400,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 133;
+				CURRENT_PROJECT_VERSION = 137;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -404,7 +408,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.5;
+				MARKETING_VERSION = 1.1.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
@@ -555,7 +559,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 133;
+				CURRENT_PROJECT_VERSION = 137;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -563,7 +567,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.5;
+				MARKETING_VERSION = 1.1.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;

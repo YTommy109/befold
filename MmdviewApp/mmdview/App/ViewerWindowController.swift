@@ -38,10 +38,13 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         let autosaveName = Self.autosaveName(for: fileURL)
         // 保存済みフレームがあれば復元し、なければ後段で中央配置する
         let hasSavedFrame = window.setFrameUsingName(autosaveName)
-        window.setFrameAutosaveName(autosaveName)
         window.isReleasedWhenClosed = false
 
         super.init(window: window)
+        // NSWindowController.init(window:) はウィンドウ側の frameAutosaveName を
+        // コントローラの windowFrameAutosaveName（既定は空文字）で上書きするため、
+        // autosave 名は super.init 後にコントローラ側プロパティへ設定する必要がある
+        windowFrameAutosaveName = autosaveName
         window.delegate = self
 
         let contentView = ViewerContentView(
@@ -66,8 +69,10 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// フレーム autosave 名を URL から生成する。パス区切りをキーに使えない文字へ置換する。
+    /// ZoomStore と同じ正規化パス（シンボリックリンク解決済み）を基準にし、
+    /// 同一ファイルを指す別表記の URL を同じキーに集約する。
     private static func autosaveName(for url: URL) -> String {
-        let safeName = url.path.replacingOccurrences(of: "/", with: "_")
+        let safeName = url.normalizedPathKey.replacingOccurrences(of: "/", with: "_")
         return "Viewer-\(safeName)"
     }
 
@@ -84,10 +89,13 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             window.representedURL = newURL
             let oldAutosaveName = Self.autosaveName(for: oldURL)
             let newAutosaveName = Self.autosaveName(for: newURL)
-            // 現在のフレームを新しい名前で保存し直し、旧名のエントリは破棄する
-            window.saveFrame(usingName: newAutosaveName)
-            window.setFrameAutosaveName(newAutosaveName)
+            // 旧名のエントリを破棄してから、現在のフレームを新しい名前で保存し直す。
+            // この順序なら旧新の正規化キーが一致する rename でも保存済みフレームが消えない。
+            // autosave 名はコントローラ側プロパティ経由で変更しないと
+            // windowFrameAutosaveName が旧名のままウィンドウ側と食い違う
             NSWindow.removeFrame(usingName: oldAutosaveName)
+            window.saveFrame(usingName: newAutosaveName)
+            windowFrameAutosaveName = newAutosaveName
         }
 
         zoomStore.migrateZoom(from: oldURL, to: newURL)
