@@ -30,3 +30,20 @@ jobs:
 
       - name: テストを実行する
         run: swift test
+
+  thread-sanitizer:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: MmdviewApp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.2'
+
+      # FileWatcher / Debouncer は GCD/DispatchSource でスレッド安全性を保証しており、
+      # データ競合の回帰を ThreadSanitizer で検出する。
+      - name: ThreadSanitizer 付きでテストを実行する
+        run: swift test --sanitize=thread
