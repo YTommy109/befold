@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenuBuilder.build(
             openAction: #selector(showOpenPanel),
+            helpAction: #selector(openHelp(_:)),
             recentMenuDelegate: recentDocumentsMenuController
         )
         restoreLastSession()
@@ -99,13 +100,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let controller = ViewerWindowController(fileURL: url, zoomStore: zoomStore)
         windowControllers[key] = controller
-        controller.onClose = { [weak self] in
-            self?.windowControllers.removeValue(forKey: key)
-            self?.sessionStore.noteClosed(url)
-        }
+        bindCallbacks(for: controller, key: key, url: url)
         controller.showWindow(nil)
         sessionStore.noteOpened(url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
+    }
+
+    /// ウィンドウ管理辞書のキー付け替えとセッション記録更新のため、
+    /// コントローラの onClose / onRename を現在の key / url で束ね直す。
+    /// rename 時は新しい key / url で再束縛し、onClose が古い値を捕捉し続けないようにする。
+    private func bindCallbacks(for controller: ViewerWindowController, key: String, url: URL) {
+        controller.onClose = { [weak self, weak controller] in
+            guard let self else { return }
+            // 付け替え後に別コントローラが同じキーを使っている可能性を避け、
+            // 自分が登録されている場合のみ除去する
+            if let controller, windowControllers[key] === controller {
+                windowControllers.removeValue(forKey: key)
+            }
+            sessionStore.noteClosed(url)
+        }
+        controller.onRename = { [weak self, weak controller] oldURL, newURL in
+            guard let self, let controller else { return }
+            let oldKey = oldURL.normalizedPathKey
+            let newKey = newURL.normalizedPathKey
+            if windowControllers[oldKey] === controller {
+                windowControllers.removeValue(forKey: oldKey)
+            }
+            windowControllers[newKey] = controller
+            sessionStore.noteClosed(oldURL)
+            sessionStore.noteOpened(newURL)
+            NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
+            bindCallbacks(for: controller, key: newKey, url: newURL)
+        }
     }
 
     /// ファイル選択パネルを表示し、選択されたファイルをビューアで開く。
@@ -119,6 +145,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.openViewer(for: url)
             }
         }
+    }
+
+    // MARK: - Help
+
+    /// Help > mmdview Help。GitHub の README をブラウザで開く。
+    @objc func openHelp(_ sender: Any?) {
+        guard let url = URL(string: "https://github.com/YTommy109/mmdview#readme") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     // MARK: - Update Check

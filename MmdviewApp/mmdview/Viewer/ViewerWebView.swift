@@ -11,6 +11,8 @@ struct ViewerWebView: NSViewRepresentable {
     let initialZoom: Double
     /// JS 側で倍率が変わったときに呼ばれる。
     let onZoomChanged: @MainActor (Double) -> Void
+    /// AppKit 側（メニューアクション）へ WKWebView を公開するプロキシ。
+    let webViewProxy: WebViewProxy
 
     // MARK: - NSViewRepresentable
 
@@ -39,6 +41,7 @@ struct ViewerWebView: NSViewRepresentable {
         // WKWebView の背景を透明にする（公開 API がないため KVC を使用）
         webView.setValue(false, forKey: "drawsBackground")
         context.coordinator.webView = webView
+        webViewProxy.webView = webView
 
         if let htmlURL = Bundle.main.url(forResource: "viewer", withExtension: "html") {
             let resourceDir = htmlURL.deletingLastPathComponent()

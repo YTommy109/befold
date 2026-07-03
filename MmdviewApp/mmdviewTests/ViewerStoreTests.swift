@@ -17,7 +17,7 @@ struct ViewerStoreTests {
     }
 
     private func makeStore() -> ViewerStore {
-        ViewerStore { _, _ in MockFileWatcher() }
+        ViewerStore { _, _, _ in MockFileWatcher() }
     }
 
     @Test(arguments: [
@@ -102,7 +102,7 @@ struct ViewerStoreTests {
 
         // factory に渡された onChange を保持する
         nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
-        let store = ViewerStore { _, callback in
+        let store = ViewerStore { _, callback, _ in
             onChange = callback
             return MockFileWatcher()
         }
@@ -126,7 +126,7 @@ struct ViewerStoreTests {
         try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
 
         nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
-        let store = ViewerStore { _, callback in
+        let store = ViewerStore { _, callback, _ in
             onChange = callback
             return MockFileWatcher()
         }
@@ -148,12 +148,45 @@ struct ViewerStoreTests {
     }
 
     @Test
+    func watcherRenameUpdatesPathAndReloadsContent() throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let oldFile = tempDir.appendingPathComponent("old.mmd")
+        try "graph TD; A-->B".write(to: oldFile, atomically: true, encoding: .utf8)
+
+        // factory に渡された onRename を保持する
+        nonisolated(unsafe) var onRename: (@MainActor @Sendable (URL) -> Void)?
+        let store = ViewerStore { _, _, rename in
+            onRename = rename
+            return MockFileWatcher()
+        }
+        store.openFile(oldFile)
+        #expect(store.filePath == oldFile)
+
+        // 別名 + 別内容 + 別タイプへ移動したことを通知する
+        let newFile = tempDir.appendingPathComponent("renamed.md")
+        try "# Renamed".write(to: newFile, atomically: true, encoding: .utf8)
+
+        nonisolated(unsafe) var renamedTo: URL?
+        store.onFileRenamed = { renamedTo = $0 }
+        onRename?(newFile)
+
+        #expect(store.filePath == newFile)
+        #expect(store.fileType == .markdown)
+        #expect(store.content == "# Renamed")
+        #expect(!store.isDeleted)
+        #expect(renamedTo == newFile)
+
+        store.close()
+    }
+
+    @Test
     func openFileStopsPreviousWatcher() throws {
         let tempDir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
         nonisolated(unsafe) var stopCount = 0
-        let store = ViewerStore { _, _ in
+        let store = ViewerStore { _, _, _ in
             StopCountingWatcher { stopCount += 1 }
         }
 

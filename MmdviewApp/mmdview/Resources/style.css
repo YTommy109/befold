@@ -1,3 +1,64 @@
+/*
+  配色は CSS カスタムプロパティに集約し、:root にライト値、
+  @media (prefers-color-scheme: dark) でダーク値を上書きする。
+  color-scheme を宣言してスクロールバー等のネイティブ UI も追従させる。
+*/
+:root {
+  color-scheme: light dark;
+
+  --bg: #fff;
+  --bg-deleted: #e8e8e8;
+  --fg: #1a1a1a;
+  --fg-muted: #555;
+  --accent: #007aff;
+
+  --panel-bg: rgba(255, 255, 255, 0.92);
+  --panel-border: rgba(0, 0, 0, 0.12);
+  --panel-shadow: rgba(0, 0, 0, 0.1);
+  --btn-fg: #333;
+  --btn-hover-bg: rgba(0, 0, 0, 0.07);
+  --btn-disabled-fg: #bbb;
+
+  --banner-fg: #888;
+
+  --error-bg: #fff5f5;
+  --error-border: #e53e3e;
+  --error-fg: #c53030;
+
+  --code-bg: #f4f4f4;
+  --border-subtle: #ddd;
+  --table-border: #ccc;
+  --link: #007aff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --bg-deleted: #2a2a2a;
+    --fg: #e4e4e4;
+    --fg-muted: #aaa;
+    --accent: #4aa3ff;
+
+    --panel-bg: rgba(44, 44, 44, 0.92);
+    --panel-border: rgba(255, 255, 255, 0.14);
+    --panel-shadow: rgba(0, 0, 0, 0.4);
+    --btn-fg: #ddd;
+    --btn-hover-bg: rgba(255, 255, 255, 0.1);
+    --btn-disabled-fg: #666;
+
+    --banner-fg: #999;
+
+    --error-bg: #3a1f1f;
+    --error-border: #f56565;
+    --error-fg: #feb2b2;
+
+    --code-bg: #2d2d2d;
+    --border-subtle: #444;
+    --table-border: #4a4a4a;
+    --link: #4aa3ff;
+  }
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -9,7 +70,13 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+/* ファイル削除中は body に .mmd-deleted を付け、背景色で状態を示す */
+body.mmd-deleted {
+  background: var(--bg-deleted);
 }
 
 .viewer {
@@ -32,13 +99,13 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--panel-bg);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 4px 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px var(--panel-shadow);
   z-index: 1000;
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   font-size: 13px;
@@ -52,7 +119,7 @@ body {
   background: none;
   cursor: pointer;
   font-size: 16px;
-  color: #333;
+  color: var(--btn-fg);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -61,11 +128,11 @@ body {
 }
 
 .zoom-controls button:hover {
-  background: rgba(0, 0, 0, 0.07);
+  background: var(--btn-hover-bg);
 }
 
 .zoom-controls button:disabled {
-  color: #bbb;
+  color: var(--btn-disabled-fg);
   cursor: default;
 }
 
@@ -76,12 +143,12 @@ body {
 #zoom-label {
   min-width: 40px;
   text-align: center;
-  color: #555;
+  color: var(--fg-muted);
   cursor: pointer;
 }
 
 #zoom-label:hover {
-  color: #007aff;
+  color: var(--accent);
 }
 
 .mmd-deleted-banner {
@@ -89,18 +156,18 @@ body {
   position: fixed;
   top: 12px;
   left: 12px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--panel-bg);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 4px 12px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px var(--panel-shadow);
   z-index: 1000;
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   font-size: 13px;
   font-style: italic;
-  color: #888;
+  color: var(--banner-fg);
   user-select: none;
 }
 
@@ -108,14 +175,65 @@ body {
   display: none;
   width: 100%;
   max-width: 800px;
-  background: #fff5f5;
-  border-left: 4px solid #e53e3e;
+  background: var(--error-bg);
+  border-left: 4px solid var(--error-border);
   border-radius: 4px;
   padding: 16px 20px;
   font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
   font-size: 13px;
   line-height: 1.6;
-  color: #c53030;
+  color: var(--error-fg);
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/*
+  Markdown 表示の最小限のダーク対応。markdown-it が出す標準的な HTML に
+  カラースキーム追従色を付ける。mermaid 図（pre.mermaid）には適用しない。
+*/
+#diagram-wrap a {
+  color: var(--link);
+}
+
+#diagram-wrap code {
+  background: var(--code-bg);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+  font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  font-size: 0.9em;
+}
+
+#diagram-wrap pre:not(.mermaid) {
+  background: var(--code-bg);
+  border-radius: 6px;
+  padding: 12px 16px;
+  overflow-x: auto;
+}
+
+#diagram-wrap pre:not(.mermaid) code {
+  background: none;
+  padding: 0;
+}
+
+#diagram-wrap blockquote {
+  border-left: 3px solid var(--border-subtle);
+  color: var(--fg-muted);
+  padding-left: 12px;
+  margin: 8px 0;
+}
+
+#diagram-wrap hr {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 16px 0;
+}
+
+#diagram-wrap table {
+  border-collapse: collapse;
+}
+
+#diagram-wrap th,
+#diagram-wrap td {
+  border: 1px solid var(--table-border);
+  padding: 6px 12px;
 }

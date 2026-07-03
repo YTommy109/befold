@@ -4,6 +4,7 @@ struct ViewerContentView: View {
     let store: ViewerStore
     let initialZoom: Double
     let onZoomChanged: @MainActor (Double) -> Void
+    let webViewProxy: WebViewProxy
 
     var body: some View {
         ViewerWebView(
@@ -11,7 +12,8 @@ struct ViewerContentView: View {
             fileType: store.fileType,
             isDeleted: store.isDeleted,
             initialZoom: initialZoom,
-            onZoomChanged: onZoomChanged
+            onZoomChanged: onZoomChanged,
+            webViewProxy: webViewProxy
         )
     }
 }

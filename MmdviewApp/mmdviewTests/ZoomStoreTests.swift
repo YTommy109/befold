@@ -61,6 +61,35 @@ struct ZoomStoreTests {
         #expect(store.zoom(for: url) == expected)
     }
 
+    @Test("rename で旧パスの倍率が新パスへ引き継がれ旧キーは消える")
+    func migrateZoomMovesValueToNewKey() {
+        let defaults = makeDefaults()
+        let old = URL(fileURLWithPath: "/tmp/old.mmd")
+        let new = URL(fileURLWithPath: "/tmp/new.mmd")
+        let store = ZoomStore(defaults: defaults)
+        store.setZoom(1.75, for: old)
+
+        store.migrateZoom(from: old, to: new)
+
+        #expect(store.zoom(for: new) == 1.75)
+        // 旧キーは削除され、既定値に戻る
+        #expect(store.zoom(for: old) == ZoomStore.defaultZoom)
+    }
+
+    @Test("保存値のないファイルの migrate は新パスに影響しない")
+    func migrateZoomWithoutSavedValueIsNoop() {
+        let defaults = makeDefaults()
+        let old = URL(fileURLWithPath: "/tmp/old.mmd")
+        let new = URL(fileURLWithPath: "/tmp/new.mmd")
+        let store = ZoomStore(defaults: defaults)
+        store.setZoom(1.5, for: new)
+
+        store.migrateZoom(from: old, to: new)
+
+        // 旧パスに保存値がないため、新パスの既存倍率は上書きされない
+        #expect(store.zoom(for: new) == 1.5)
+    }
+
     @Test("シンボリックリンク経由でも同一ファイルとして扱う")
     func symlinkResolvesToSamePath() throws {
         let defaults = makeDefaults()

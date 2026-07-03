@@ -10,6 +10,7 @@ const {
   zoomLabel,
   effectiveZoom,
   parseStoredZoom,
+  mermaidTheme,
 } = require('../viewer');
 
 describe('clampZoom', () => {
@@ -143,6 +144,16 @@ describe('parseStoredZoom', () => {
   test('parses injected numeric value', () => {
     expect(parseStoredZoom(1.25)).toBe(1.25);
     expect(parseStoredZoom(1)).toBe(1);
+  });
+});
+
+describe('mermaidTheme', () => {
+  test('returns dark theme when prefers-color-scheme is dark', () => {
+    expect(mermaidTheme(true)).toBe('dark');
+  });
+
+  test('returns default theme when prefers-color-scheme is light', () => {
+    expect(mermaidTheme(false)).toBe('default');
   });
 });
 

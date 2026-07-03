@@ -31,6 +31,12 @@ function parseStoredZoom(raw) {
   return isNaN(z) ? ZOOM_DEFAULT : z;
 }
 
+// OS のカラースキームに対応する mermaid テーマ名を返す。
+// prefers-color-scheme: dark のとき 'dark'、それ以外は 'default'。
+function mermaidTheme(prefersDark) {
+  return prefersDark ? 'dark' : 'default';
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     ZOOM_MIN: ZOOM_MIN,
@@ -44,5 +50,6 @@ if (typeof module !== 'undefined' && module.exports) {
     zoomLabel: zoomLabel,
     effectiveZoom: effectiveZoom,
     parseStoredZoom: parseStoredZoom,
+    mermaidTheme: mermaidTheme,
   };
 }
