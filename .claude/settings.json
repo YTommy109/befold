@@ -1,5 +1,7 @@
 {
-  "enabledMcpjsonServers": ["dagayn"],
+  "enabledMcpjsonServers": [
+    "dagayn"
+  ],
   "permissions": {
     "allow": [
       "Bash(open:*)",
@@ -16,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$TOOL_INPUT\" | grep -qE 'Package\\.resolved|\\.swiftlint\\.yml|\\.swiftformat'; then echo 'BLOCK: このファイルはユーザーの明示的な指示なしに編集しないでください' >&2; exit 2; fi"
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *Package.resolved|*.swiftlint.yml|*.swiftformat) echo 'BLOCK: このファイルはユーザーの明示的な指示なしに編集しないでください' >&2; exit 2;; esac"
           }
         ]
       }
@@ -37,24 +39,32 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$TOOL_INPUT\" | grep -q '\\.swift'; then cd MmdviewApp && swift package plugin --allow-writing-to-package-directory swiftformat 2>&1 | tail -3; fi"
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) cd \"${CLAUDE_PROJECT_DIR:-.}/MmdviewApp\" && { out=$(swift package plugin --allow-writing-to-package-directory swiftformat -- --lint 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "statusMessage": "swiftformat lint",
+            "timeout": 300
           },
           {
             "type": "command",
-            "command": "if echo \"$TOOL_INPUT\" | grep -q '\\.swift'; then cd MmdviewApp && swift build 2>&1 | tail -5; fi"
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) cd \"${CLAUDE_PROJECT_DIR:-.}/MmdviewApp\" && { out=$(swift build 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "statusMessage": "swift build",
+            "timeout": 300
           },
           {
             "type": "command",
-            "command": "if echo \"$TOOL_INPUT\" | grep -q '\\.swift'; then cd MmdviewApp && swift test --skip Integration --skip FileWatcherTests 2>&1 | tail -5; fi",
-            "timeout": 30
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) cd \"${CLAUDE_PROJECT_DIR:-.}/MmdviewApp\" && { out=$(swift test --skip Integration --skip FileWatcherTests 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "statusMessage": "swift test (unit)",
+            "timeout": 120
           },
           {
             "type": "command",
-            "command": "if echo \"$TOOL_INPUT\" | grep -qE 'viewer\\.(js|html)'; then cd MmdviewApp && npx jest --silent 2>&1; fi"
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *viewer.js|*viewer.html) cd \"${CLAUDE_PROJECT_DIR:-.}/MmdviewApp\" && { out=$(npx jest --silent 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "statusMessage": "jest (viewer)",
+            "timeout": 120
           },
           {
             "type": "command",
-            "command": "if echo \"$TOOL_INPUT\" | grep -qE '\\.github/workflows/.*\\.ya?ml'; then command -v actionlint >/dev/null || { echo 'actionlint 未インストール: brew install actionlint'; exit 0; }; out=$(actionlint 2>&1) || { echo \"$out\" >&2; exit 2; }; fi"
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.github/workflows/*.yml|*.github/workflows/*.yaml) cd \"${CLAUDE_PROJECT_DIR:-.}\"; command -v actionlint >/dev/null || { echo 'actionlint 未インストール: brew install actionlint'; exit 0; }; { out=$(actionlint 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "statusMessage": "actionlint"
           }
         ]
       }
