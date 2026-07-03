@@ -90,20 +90,37 @@
 
   // --- Mermaid ---
   var _currentType = 'mmd';
+  var _mmdDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'default',
-    // 図ラベル内の生 HTML をサニタイズする（デフォルトだが将来の既定変更に備えて明示）
-    securityLevel: 'strict',
-    sequence:  { useMaxWidth: false },
-    er:        { useMaxWidth: false },
-    flowchart: { useMaxWidth: false },
-    gantt:     { useMaxWidth: false },
-    journey:   { useMaxWidth: false },
-    pie:       { useMaxWidth: false },
-    state:     { useMaxWidth: false },
-    class:     { useMaxWidth: false },
+  // theme 以外の設定は固定。カラースキームに応じて theme だけ差し替える。
+  function _mmdMermaidConfig() {
+    return {
+      startOnLoad: false,
+      theme: mermaidTheme(_mmdDarkQuery.matches),
+      // 図ラベル内の生 HTML をサニタイズする（デフォルトだが将来の既定変更に備えて明示）
+      securityLevel: 'strict',
+      sequence:  { useMaxWidth: false },
+      er:        { useMaxWidth: false },
+      flowchart: { useMaxWidth: false },
+      gantt:     { useMaxWidth: false },
+      journey:   { useMaxWidth: false },
+      pie:       { useMaxWidth: false },
+      state:     { useMaxWidth: false },
+      class:     { useMaxWidth: false },
+    };
+  }
+
+  mermaid.initialize(_mmdMermaidConfig());
+
+  // カラースキームが切り替わったら mermaid を再初期化し、直近の内容を再描画する。
+  _mmdDarkQuery.addEventListener('change', function() {
+    mermaid.initialize(_mmdMermaidConfig());
+    if (_lastContent !== null) {
+      var wasDeleted = document.body.classList.contains('mmd-deleted');
+      render(_lastContent, _lastType);
+      // render() は先頭で hideDeletedBanner() を呼ぶため、削除状態を復元する。
+      if (wasDeleted) { showDeletedBanner(); }
+    }
   });
 
   mermaid.parseError = function(err) {
@@ -140,8 +157,14 @@
     return div.innerHTML;
   }
 
+  // カラースキーム変更時に再描画するため、直近の内容を保持する。
+  var _lastContent = null;
+  var _lastType = null;
+
   async function render(content, type) {
     _currentType = type;
+    _lastContent = content;
+    _lastType = type;
     hideDeletedBanner();
 
     var errorPanel = document.getElementById('mmd-error');
@@ -180,12 +203,12 @@
   // --- Deleted Banner ---
   function showDeletedBanner() {
     document.getElementById('mmd-deleted-banner').style.display = 'block';
-    document.body.style.background = '#e8e8e8';
+    document.body.classList.add('mmd-deleted');
   }
 
   function hideDeletedBanner() {
     document.getElementById('mmd-deleted-banner').style.display = 'none';
-    document.body.style.background = '#fff';
+    document.body.classList.remove('mmd-deleted');
   }
 
   _mmdInitZoom();
