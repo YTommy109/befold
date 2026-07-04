@@ -25,14 +25,14 @@ struct ViewerWebView: NSViewRepresentable {
         #endif
 
         let zoomScript = WKUserScript(
-            source: "window._mmdInitialZoom = \(initialZoom);",
+            source: ViewerBridge.initialZoomScript(initialZoom),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
         config.userContentController.addUserScript(zoomScript)
         config.userContentController.add(
             WeakScriptMessageHandler(delegate: context.coordinator),
-            name: "zoomChanged"
+            name: ViewerBridge.zoomChangedMessageName
         )
         context.coordinator.onZoomChanged = onZoomChanged
 
@@ -61,7 +61,8 @@ struct ViewerWebView: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
-        nsView.configuration.userContentController.removeScriptMessageHandler(forName: "zoomChanged")
+        nsView.configuration.userContentController
+            .removeScriptMessageHandler(forName: ViewerBridge.zoomChangedMessageName)
     }
 
     // MARK: - WeakScriptMessageHandler
@@ -102,7 +103,7 @@ struct ViewerWebView: NSViewRepresentable {
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
         ) {
-            guard message.name == "zoomChanged",
+            guard message.name == ViewerBridge.zoomChangedMessageName,
                   let zoom = (message.body as? NSNumber)?.doubleValue else { return }
             onZoomChanged?(zoom)
         }
@@ -119,7 +120,7 @@ struct ViewerWebView: NSViewRepresentable {
 
                 if isDeleted {
                     if lastWasDeleted != true {
-                        webView.evaluateJavaScript("showDeletedBanner()")
+                        webView.evaluateJavaScript(ViewerBridge.showDeletedBannerScript)
                         lastWasDeleted = true
                     }
                     return
@@ -133,9 +134,8 @@ struct ViewerWebView: NSViewRepresentable {
                 lastRenderedContent = content
 
                 // JSONEncoder でエスケープし、JS インジェクションを防ぐ
-                guard let jsonData = try? JSONEncoder().encode(content),
-                      let jsonString = String(data: jsonData, encoding: .utf8) else { return }
-                let script = "render(\(jsonString), '\(fileType.jsValue)')"
+                guard let script = ViewerBridge.renderScript(content: content, fileType: fileType)
+                else { return }
                 webView.evaluateJavaScript(script)
             }
 

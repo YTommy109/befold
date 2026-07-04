@@ -298,7 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// net.daringfireball.markdown ではなく com.unknown.md に解決される環境がある）ため、
     /// 拡張子からの解決結果と既知の UTI の両方を許可する。
     private static let supportedContentTypes: [UTType] = {
-        let extensions = ["mmd", "mermaid", "md", "markdown"]
+        let extensions = FileType.allExtensions
         let identifiers = [
             "com.degino.mmdview.mermaid-diagram",
             "net.daringfireball.markdown",

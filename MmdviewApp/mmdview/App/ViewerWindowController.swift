@@ -106,17 +106,17 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     /// View > Zoom In。WebView 内の JS ズーム実装を呼び出す。
     @objc func zoomIn(_ sender: Any?) {
-        webViewProxy.webView?.evaluateJavaScript("_mmdZoomIn()")
+        webViewProxy.webView?.evaluateJavaScript(ViewerBridge.zoomInScript)
     }
 
     /// View > Zoom Out。
     @objc func zoomOut(_ sender: Any?) {
-        webViewProxy.webView?.evaluateJavaScript("_mmdZoomOut()")
+        webViewProxy.webView?.evaluateJavaScript(ViewerBridge.zoomOutScript)
     }
 
     /// View > Actual Size。倍率を 100% に戻す。
     @objc func resetZoom(_ sender: Any?) {
-        webViewProxy.webView?.evaluateJavaScript("_mmdZoomReset()")
+        webViewProxy.webView?.evaluateJavaScript(ViewerBridge.zoomResetScript)
     }
 
     /// File > Print…。WebView の描画内容を印刷する。
