@@ -7,13 +7,16 @@ import AppKit
 final class RecentDocumentsMenuController: NSObject, NSMenuDelegate {
     private let recentURLs: () -> [URL]
     private let openHandler: (URL) -> Void
+    private let clearHandler: () -> Void
 
     init(
         recentURLs: @escaping () -> [URL] = { NSDocumentController.shared.recentDocumentURLs },
-        openHandler: @escaping (URL) -> Void
+        openHandler: @escaping (URL) -> Void,
+        clearHandler: @escaping () -> Void = { NSDocumentController.shared.clearRecentDocuments(nil) }
     ) {
         self.recentURLs = recentURLs
         self.openHandler = openHandler
+        self.clearHandler = clearHandler
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -37,15 +40,19 @@ final class RecentDocumentsMenuController: NSObject, NSMenuDelegate {
         }
         let clearItem = NSMenuItem(
             title: String(localized: "menu.file.clearMenu", bundle: .l10n),
-            action: #selector(NSDocumentController.clearRecentDocuments(_:)),
+            action: #selector(clearRecentDocuments(_:)),
             keyEquivalent: ""
         )
-        clearItem.target = NSDocumentController.shared
+        clearItem.target = self
         menu.addItem(clearItem)
     }
 
     @objc private func openRecentDocument(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
         openHandler(url)
+    }
+
+    @objc private func clearRecentDocuments(_ sender: Any?) {
+        clearHandler()
     }
 }

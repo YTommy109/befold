@@ -7,9 +7,12 @@ import Testing
 struct RecentDocumentsMenuControllerTests {
     private func makeController(
         urls: [URL],
-        onOpen: @escaping (URL) -> Void = { _ in }
+        onOpen: @escaping (URL) -> Void = { _ in },
+        onClear: @escaping () -> Void = {}
     ) -> RecentDocumentsMenuController {
-        RecentDocumentsMenuController(recentURLs: { urls }, openHandler: onOpen)
+        RecentDocumentsMenuController(
+            recentURLs: { urls }, openHandler: onOpen, clearHandler: onClear
+        )
     }
 
     @Test
@@ -30,7 +33,20 @@ struct RecentDocumentsMenuControllerTests {
         #expect(menu.items[0].image != nil)
         #expect(menu.items[2].isSeparatorItem)
         #expect(menu.items[3].title == String(localized: "menu.file.clearMenu", bundle: .l10n))
-        #expect(menu.items[3].action == #selector(NSDocumentController.clearRecentDocuments(_:)))
+        #expect(menu.items[3].target === controller)
+    }
+
+    @Test("Clear Menu 選択でクリアハンドラが呼ばれる")
+    func invokesClearHandlerWhenClearMenuSelected() {
+        var cleared = false
+        let controller = makeController(urls: [], onClear: { cleared = true })
+        let menu = NSMenu(title: "Open Recent")
+
+        controller.menuNeedsUpdate(menu)
+        let item = menu.items[0]
+        _ = item.target?.perform(item.action, with: item)
+
+        #expect(cleared)
     }
 
     @Test

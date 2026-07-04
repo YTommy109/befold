@@ -9,15 +9,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windowManager: ViewerWindowManager
     private let sessionRestorer: SessionRestorer
     private let updateCoordinator = UpdateCheckCoordinator()
-    private lazy var recentDocumentsMenuController = RecentDocumentsMenuController { [weak self] url in
-        self?.openViewer(for: url)
-    }
+    private let recentDocumentsStore: RecentDocumentsStore
+    private lazy var recentDocumentsMenuController = RecentDocumentsMenuController(
+        recentURLs: { [weak self] in self?.recentDocumentsStore.recentURLs() ?? [] },
+        openHandler: { [weak self] url in self?.openViewer(for: url) },
+        clearHandler: { [weak self] in
+            self?.recentDocumentsStore.clear()
+            NSDocumentController.shared.clearRecentDocuments(nil)
+        }
+    )
 
     override init() {
         let sessionStore = SessionStore()
         let zoomStore = ZoomStore()
-        let windowManager = ViewerWindowManager(sessionStore: sessionStore, zoomStore: zoomStore)
+        let recentDocumentsStore = RecentDocumentsStore()
+        let windowManager = ViewerWindowManager(
+            sessionStore: sessionStore,
+            zoomStore: zoomStore,
+            recentDocumentsStore: recentDocumentsStore
+        )
         self.sessionStore = sessionStore
+        self.recentDocumentsStore = recentDocumentsStore
         self.windowManager = windowManager
         sessionRestorer = SessionRestorer(sessionStore: sessionStore, windowManager: windowManager)
         super.init()
@@ -42,6 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // 初回のみシステム管理の Recent Documents を取り込む(以降はアプリ側の記録が正)
+        recentDocumentsStore.seedIfNeeded(with: NSDocumentController.shared.recentDocumentURLs)
         NSApp.mainMenu = MainMenuBuilder.build(
             openAction: #selector(showOpenPanel),
             helpAction: #selector(openHelp(_:)),
