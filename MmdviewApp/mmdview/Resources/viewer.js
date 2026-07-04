@@ -37,6 +37,30 @@ function mermaidTheme(prefersDark) {
   return prefersDark ? 'dark' : 'default';
 }
 
+// class 属性に埋め込める文字(英数字・_・+・-)だけを残す。
+// hljs.getLanguage() を通過した言語名しか来ないはずだが、防御的に二重チェックする。
+function sanitizeLang(lang) {
+  return String(lang).replace(/[^\w+-]/g, '');
+}
+
+// Markdown コードブロックのシンタックスハイライト。
+// markdown-it の highlight オプションから呼ばれる。hljs は依存注入
+// (viewer.html ではグローバル hljs、テストでは npm の highlight.js)。
+// 返り値が '<pre' で始まる場合 markdown-it はそれをそのまま採用し、
+// '' の場合はデフォルトのエスケープ済み <pre><code> にフォールバックする。
+function highlightCode(hljs, str, lang) {
+  if (hljs && lang && hljs.getLanguage(lang)) {
+    try {
+      var result = hljs.highlight(str, { language: lang, ignoreIllegals: true });
+      return '<pre><code class="hljs language-' + sanitizeLang(lang) + '">'
+        + result.value + '</code></pre>';
+    } catch (e) {
+      // フォールバックへ
+    }
+  }
+  return '';
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     ZOOM_MIN: ZOOM_MIN,
@@ -51,5 +75,7 @@ if (typeof module !== 'undefined' && module.exports) {
     effectiveZoom: effectiveZoom,
     parseStoredZoom: parseStoredZoom,
     mermaidTheme: mermaidTheme,
+    sanitizeLang: sanitizeLang,
+    highlightCode: highlightCode,
   };
 }

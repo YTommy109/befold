@@ -14,6 +14,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>mmdview</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="github.css" media="(prefers-color-scheme: light)">
+  <link rel="stylesheet" href="github-dark.css" media="(prefers-color-scheme: dark)">
 </head>
 <body>
   <div class="viewer">
@@ -32,6 +34,7 @@
   <script src="viewer.js"></script>
   <script src="mermaid.min.js"></script>
   <script src="markdown-it.min.js"></script>
+  <script src="highlight.min.js"></script>
   <script>
   // --- Zoom ---
   var _mmdZoom = ZOOM_DEFAULT;
@@ -136,7 +139,16 @@
   // --- Markdown-it ---
   var md;
   if (typeof markdownit !== 'undefined') {
-    md = markdownit({ html: true, linkify: true, typographer: true });
+    md = markdownit({
+      html: true,
+      linkify: true,
+      typographer: true,
+      // highlight.min.js の読み込み失敗時は hljs 未定義 → highlightCode が '' を
+      // 返し、ハイライトなしの従来表示に縮退する。
+      highlight: function(str, lang) {
+        return highlightCode(typeof hljs !== 'undefined' ? hljs : null, str, lang);
+      },
+    });
     var defaultFence = md.renderer.rules.fence;
     md.renderer.rules.fence = function(tokens, idx, options, env, self) {
       var token = tokens[idx];

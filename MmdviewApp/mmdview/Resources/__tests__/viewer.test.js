@@ -11,6 +11,8 @@ const {
   effectiveZoom,
   parseStoredZoom,
   mermaidTheme,
+  sanitizeLang,
+  highlightCode,
 } = require('../viewer');
 
 describe('clampZoom', () => {
@@ -168,5 +170,89 @@ describe('constants', () => {
     const stepsDown = (ZOOM_DEFAULT - ZOOM_MIN) / ZOOM_STEP;
     expect(Number.isInteger(stepsUp)).toBe(true);
     expect(Number.isInteger(stepsDown)).toBe(true);
+  });
+});
+
+describe('sanitizeLang', () => {
+  test('passes through normal language names', () => {
+    expect(sanitizeLang('javascript')).toBe('javascript');
+    expect(sanitizeLang('c++')).toBe('c++');
+    expect(sanitizeLang('objective-c')).toBe('objective-c');
+  });
+
+  test('strips characters not allowed in a class attribute', () => {
+    expect(sanitizeLang('js" onload="x')).toBe('jsonloadx');
+    expect(sanitizeLang('a<b>')).toBe('ab');
+  });
+
+  test('stringifies non-string input', () => {
+    expect(sanitizeLang(null)).toBe('null');
+  });
+});
+
+describe('highlightCode', () => {
+  const hljs = require('highlight.js');
+
+  test('wraps known-language code in pre/code with hljs classes', () => {
+    const result = highlightCode(hljs, 'const x = 1;', 'javascript');
+    expect(result.startsWith('<pre><code class="hljs language-javascript">')).toBe(true);
+    expect(result.endsWith('</code></pre>')).toBe(true);
+    expect(result).toContain('<span class="hljs-');
+  });
+
+  test('highlights swift keywords', () => {
+    const result = highlightCode(hljs, 'let x = 1', 'swift');
+    expect(result).toContain('hljs-keyword');
+  });
+
+  test('returns empty string for unsupported language', () => {
+    expect(highlightCode(hljs, 'foo', 'no-such-lang-xyz')).toBe('');
+  });
+
+  test('returns empty string when language is missing', () => {
+    expect(highlightCode(hljs, 'foo', '')).toBe('');
+    expect(highlightCode(hljs, 'foo', undefined)).toBe('');
+  });
+
+  test('returns empty string when hljs is unavailable', () => {
+    expect(highlightCode(null, 'const x = 1;', 'javascript')).toBe('');
+  });
+
+  test('escapes HTML inside code content', () => {
+    const result = highlightCode(hljs, 'var s = "<script>alert(1)</script>";', 'javascript');
+    expect(result).not.toContain('<script>');
+    expect(result).toContain('&lt;script&gt;');
+  });
+});
+
+describe('markdown-it integration with highlightCode', () => {
+  const hljs = require('highlight.js');
+  const markdownit = require('markdown-it');
+  // viewer.html の markdownit 初期化と同じ配線
+  const md = markdownit({
+    html: true,
+    linkify: true,
+    typographer: true,
+    highlight: function(str, lang) {
+      return highlightCode(hljs, str, lang);
+    },
+  });
+
+  test('fenced block with language gets hljs markup as-is', () => {
+    const html = md.render('```javascript\nconst x = 1;\n```\n');
+    expect(html).toContain('<pre><code class="hljs language-javascript">');
+    expect(html).toContain('<span class="hljs-');
+  });
+
+  test('fenced block without language falls back to escaped plain block', () => {
+    const html = md.render('```\n<b>raw</b>\n```\n');
+    expect(html).toContain('&lt;b&gt;raw&lt;/b&gt;');
+    expect(html).not.toContain('hljs');
+  });
+
+  test('fenced block with unsupported language falls back to escaped plain block', () => {
+    const html = md.render('```no-such-lang-xyz\n<b>raw</b>\n```\n');
+    expect(html).toContain('&lt;b&gt;raw&lt;/b&gt;');
+    expect(html).not.toContain('<span class="hljs-');
   });
 });

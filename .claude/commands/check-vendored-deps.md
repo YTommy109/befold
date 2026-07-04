@@ -1,6 +1,6 @@
 # /check-vendored-deps — 同梱 JS ライブラリの棚卸し
 
-`mermaid.min.js` / `markdown-it.min.js` は手動ベンダリングで Dependabot の監視外。
+`mermaid.min.js` / `markdown-it.min.js` / `highlight.min.js`(+ テーマ CSS `github.css` / `github-dark.css`)は手動ベンダリングで Dependabot の監視外。
 版ずれと既知脆弱性を確認する。詳細な監査が必要なら `vendored-deps-auditor`
 サブエージェントに委譲してよい。
 
@@ -9,7 +9,8 @@
 ```bash
 head -1 MmdviewApp/mmdview/Resources/markdown-it.min.js
 grep -o '"version":"[0-9.]*"' MmdviewApp/mmdview/Resources/mermaid.min.js | head -1
-grep -E 'markdown-it|mermaid' MmdviewApp/package.json
+grep -o 'versionString="[0-9.]*"' MmdviewApp/mmdview/Resources/highlight.min.js | head -1
+grep -E 'markdown-it|mermaid|highlight' MmdviewApp/package.json
 ```
 
 `package.json` の記録と同梱ファイルの実バージョンが一致するか確認する。
