@@ -61,3 +61,36 @@ final class ViewerStore {
 
 > ファイル変更は `FileWatcher → ViewerStore → evaluateJavaScript` の
 > 同一プロセス内伝搬で反映する。
+
+## コードブロック
+
+言語指定付きはシンタックスハイライトされる:
+
+```swift
+import Foundation
+
+@MainActor @Observable
+final class ViewerStore {
+    private(set) var content: String = ""
+
+    func update(content: String) {
+        self.content = content
+    }
+}
+```
+
+```javascript
+function highlightCode(hljs, str, lang) {
+  if (hljs && lang && hljs.getLanguage(lang)) {
+    return hljs.highlight(str, { language: lang }).value;
+  }
+  return '';
+}
+```
+
+言語指定なしはプレーン表示のまま:
+
+```
+plain text block
+no highlighting here
+```
