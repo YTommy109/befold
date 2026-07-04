@@ -55,6 +55,7 @@
 		DAB7D4BFB4E753470A60ECC0 /* ReleaseFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AD32561C247E79E37DE8C55 /* ReleaseFetcher.swift */; };
 		E681D1FA507CD5E30EC22F24 /* AppVersionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F47EFA0F3366C197B489AD /* AppVersionTests.swift */; };
 		E8C61F32B1DD04C62B6A7391 /* RecentDocumentsMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4DE8ACA0FA5DB354712BAF /* RecentDocumentsMenuController.swift */; };
+		E90D00137071BA1DA780DD2C /* InfoPlistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15D1C99513110DFD4A06A552 /* InfoPlistTests.swift */; };
 		FAA1CB1497CB9E665DA57562 /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = B67D480E47AA2A7FFB917EB3 /* AppVersion.swift */; };
 /* End PBXBuildFile section */
 
@@ -73,6 +74,7 @@
 		0E0CFAB7880DC7F5CF518526 /* DMGMounterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMGMounterTests.swift; sourceTree = "<group>"; };
 		0E7FA7E244C62160E923A45D /* MainMenuBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuBuilderTests.swift; sourceTree = "<group>"; };
 		0F2FB3A844F85A5A7A9C9BE7 /* style.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = style.css; sourceTree = "<group>"; };
+		15D1C99513110DFD4A06A552 /* InfoPlistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPlistTests.swift; sourceTree = "<group>"; };
 		175269206331476DA6AD97CC /* MainMenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuBuilder.swift; sourceTree = "<group>"; };
 		18F47EFA0F3366C197B489AD /* AppVersionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionTests.swift; sourceTree = "<group>"; };
 		1AF91FFFD0A6C9C2189A38AE /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
@@ -219,6 +221,7 @@
 				4338866FF99239C07662F3BB /* FileTypeTests.swift */,
 				FE036BBE17300C0C4178B549 /* FileWatcherIntegrationTests.swift */,
 				60413BD3666D541567D20669 /* GitHubReleaseTests.swift */,
+				15D1C99513110DFD4A06A552 /* InfoPlistTests.swift */,
 				0E7FA7E244C62160E923A45D /* MainMenuBuilderTests.swift */,
 				57D7659D207564ED4B36156D /* RecentDocumentsMenuControllerTests.swift */,
 				66B6E2CE9714F7EFDD314D88 /* SessionLayoutTests.swift */,
@@ -372,6 +375,7 @@
 				30E33E98B447B23C39AD2CE5 /* FileTypeTests.swift in Sources */,
 				76A142086A0B91790C7FF3CB /* FileWatcherIntegrationTests.swift in Sources */,
 				5ABFB6867517729D43A50E55 /* GitHubReleaseTests.swift in Sources */,
+				E90D00137071BA1DA780DD2C /* InfoPlistTests.swift in Sources */,
 				52A26961B4F61F5F58AE7638 /* MainMenuBuilderTests.swift in Sources */,
 				871FDAD6A6BAF5EB6E8DDE6F /* RecentDocumentsMenuControllerTests.swift in Sources */,
 				29102B3D288B1666072E98DD /* SessionLayoutTests.swift in Sources */,
@@ -404,7 +408,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 140;
+				CURRENT_PROJECT_VERSION = 142;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -412,7 +416,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.7;
+				MARKETING_VERSION = 1.1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
@@ -563,7 +567,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 140;
+				CURRENT_PROJECT_VERSION = 142;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -571,7 +575,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.7;
+				MARKETING_VERSION = 1.1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;

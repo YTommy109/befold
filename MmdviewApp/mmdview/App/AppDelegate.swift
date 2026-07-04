@@ -293,11 +293,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Supported Types
 
+    /// オープンパネルで許可するファイル種別。
+    /// 拡張子→UTI のバインディングは他アプリの宣言で変わる（.md が
+    /// net.daringfireball.markdown ではなく com.unknown.md に解決される環境がある）ため、
+    /// 拡張子からの解決結果と既知の UTI の両方を許可する。
     private static let supportedContentTypes: [UTType] = {
+        let extensions = ["mmd", "mermaid", "md", "markdown"]
+        let identifiers = [
+            "com.degino.mmdview.mermaid-diagram",
+            "net.daringfireball.markdown",
+            "net.ia.markdown",
+            "com.unknown.md",
+        ]
+        let resolved = extensions.compactMap { UTType(filenameExtension: $0) }
+            + identifiers.compactMap { UTType($0) }
         var types: [UTType] = []
-        if let mmd = UTType(filenameExtension: "mmd") { types.append(mmd) }
-        if let mermaid = UTType(filenameExtension: "mermaid") { types.append(mermaid) }
-        if let markdown = UTType(filenameExtension: "md") { types.append(markdown) }
+        for type in resolved where !types.contains(type) {
+            types.append(type)
+        }
         return types
     }()
 }
