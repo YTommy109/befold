@@ -50,11 +50,28 @@ description: テストコードを coding_rule.md に基づいてレビューす
   - 複数の無効入力に対して同じエラーを期待する
   - 境界値テスト
 
-#### ファイルシステムテスト
+#### Unit / Integration の分類
 
-- [ ] 一時ディレクトリを `UUID` 付きで作成しているか（テスト間の独立性）
-- [ ] `defer` でクリーンアップしているか
-- [ ] `FileManager.default.temporaryDirectory` を使っているか（固定パス不可）
+- [ ] 実ファイルシステム・実 FileWatcher・実 WKWebView に触れるテストは
+      ファイル名が `〜IntegrationTests.swift` になっているか
+- [ ] `〜IntegrationTests` サフィックスのないテストが実ディスク I/O をしていないか
+      （ファイル読込は `InMemoryFileReader`、watcher は `FileWatching` モックで置き換える）
+- [ ] 実ネットワークに到達するテストがないか（`URLProtocol` スタブかモック Fetcher を使う）
+
+#### 共有テストヘルパー（TestSupport.swift）
+
+判定基準: これらの関心はヘルパー経由で満たされていれば合格。
+テストファイル内に同等処理を自作していたら違反（重複）として指摘する。
+
+- [ ] 一時ディレクトリは `TempDir` を使っているか
+      （`temporaryDirectory` + `UUID` + `defer` 削除の自作は違反。
+      `TempDir` が UUID 付与と deinit 削除を担う）
+- [ ] `TempDir` を使う非同期テストに `defer { withExtendedLifetime(tmp) {} }` の
+      ライフタイム固定があるか（無いと deinit の削除が使用中に走り得る）
+- [ ] 独立した UserDefaults は `makeIsolatedDefaults(prefix:)` を使っているか
+      （suiteName + removePersistentDomain の自作は違反）
+- [ ] `Sendable` クロージャからの記録・カウントは `LockedBox` を使っているか
+      （`NSLock` + `@unchecked Sendable` のボックス自作は違反）
 
 #### 非同期テスト
 
@@ -81,7 +98,8 @@ description: テストコードを coding_rule.md に基づいてレビューす
 
 - [ ] テストコードの行長が 120 文字以下か
 - [ ] テスト関数が肥大化していないか（目安: 30 行以内）
-- [ ] テスト間で共通のセットアップが `private func` に抽出されているか
+- [ ] 共通セットアップはまず TestSupport の共有ヘルパーで賄い、
+      スイート固有のものだけ `private func` に抽出されているか
 
 ### 出力フォーマット
 
