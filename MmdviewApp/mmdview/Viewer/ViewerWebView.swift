@@ -30,6 +30,16 @@ struct ViewerWebView: NSViewRepresentable {
             forMainFrameOnly: true
         )
         config.userContentController.addUserScript(zoomScript)
+        // Markdown 本文をシステム設定のテキストサイズに合わせる。
+        // preferredFont(.body) はアクセシビリティのテキストサイズ変更に追従する(既定 13pt)。
+        let fontSizeScript = WKUserScript(
+            source: ViewerBridge.systemFontSizeScript(
+                NSFont.preferredFont(forTextStyle: .body).pointSize
+            ),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(fontSizeScript)
         config.userContentController.add(
             WeakScriptMessageHandler(delegate: context.coordinator),
             name: ViewerBridge.zoomChangedMessageName

@@ -17,6 +17,12 @@ enum ViewerBridge {
         "window._mmdInitialZoom = \(zoom);"
     }
 
+    /// ロード時にシステム本文フォントサイズ(pt)を注入するスクリプト。
+    /// viewer.html 側は _mmdInitFontSize() が読んで CSS 変数へ反映する。
+    static func systemFontSizeScript(_ size: Double) -> String {
+        "window._mmdSystemFontSize = \(size);"
+    }
+
     /// render(content, type) 呼び出しを組み立てる。
     /// content は JSONEncoder でエスケープし、JS インジェクションを防ぐ。
     /// エンコードに失敗した場合は nil(呼び出し側は何もしない)。

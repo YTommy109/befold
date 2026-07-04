@@ -136,6 +136,24 @@ body.mmd-deleted {
   --bgColor-default: var(--bg);
   width: 100%;
   max-width: 980px;
+  /* システム本文フォントサイズ(viewer.html が設定)。
+     既定(13pt)では Web 標準の 16px、システム設定に比例して変動 */
+  font-size: var(--mmd-markdown-font-size, 16px);
+}
+
+/* ベンダー CSS の固定 12px(基準 16px の 0.75 倍)を em にし、本文サイズに追従させる */
+#diagram-wrap.markdown-body tt,
+#diagram-wrap.markdown-body code,
+#diagram-wrap.markdown-body samp,
+#diagram-wrap.markdown-body pre {
+  font-size: 0.75em;
+}
+
+/* pre 内の code が 0.75em × 0.75em と二重に縮まないよう
+   ベンダーの .markdown-body pre code { font-size: 100% } を ID 詳細度で再現する */
+#diagram-wrap.markdown-body pre code,
+#diagram-wrap.markdown-body pre tt {
+  font-size: 100%;
 }
 
 /* Markdown 内の mermaid 図(pre.mermaid)にはコードブロック背景を付けない */

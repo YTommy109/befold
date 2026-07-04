@@ -15,6 +15,7 @@ const {
   sanitizeLang,
   highlightCode,
   diagramScrollHeight,
+  markdownFontSize,
 } = require('../viewer');
 
 describe('clampZoom', () => {
@@ -110,9 +111,9 @@ describe('zoomLabel', () => {
 });
 
 describe('effectiveZoom', () => {
-  test('multiplies zoom by BASE_SCALE', () => {
-    expect(effectiveZoom(1.0)).toBe(BASE_SCALE);
-    expect(effectiveZoom(2.0)).toBe(2.0 * BASE_SCALE);
+  test('returns zoom as-is (BASE_SCALE is applied per-diagram, not globally)', () => {
+    expect(effectiveZoom(1.0)).toBe(1.0);
+    expect(effectiveZoom(2.0)).toBe(2.0);
   });
 
   test('returns 0 for zoom 0', () => {
@@ -321,28 +322,53 @@ describe('wheelZoom with custom max', () => {
 
 describe('diagramScrollHeight', () => {
   // 枠(.diagram-zoom-scroll)の高さ: ズーム後の実寸とビューポート上限の小さい方。
-  // ビューポート上限 = (viewportHeight - .viewer の上下 padding 64px) / effectiveZoom(globalZoom)
+  // ズーム後の実寸 = naturalHeight * diagramZoom * BASE_SCALE
+  // ビューポート上限 = (viewportHeight - 64) / globalZoom
 
-  test('returns natural height at 100% when it fits the viewport', () => {
-    expect(diagramScrollHeight(300, 1, 800, 1)).toBe(300);
+  test('returns BASE_SCALE-adjusted height at 100% when it fits the viewport', () => {
+    expect(diagramScrollHeight(300, 1, 800, 1)).toBe(300 * BASE_SCALE);
   });
 
   test('grows with diagram zoom while under the viewport cap', () => {
-    expect(diagramScrollHeight(300, 2, 800, 1)).toBe(600);
+    expect(diagramScrollHeight(300, 2, 800, 1)).toBe(300 * 2 * BASE_SCALE);
   });
 
   test('caps at viewport height when zoomed content exceeds it', () => {
-    const cap = (800 - 64) / effectiveZoom(1);
+    const cap = (800 - 64) / 1;
     expect(diagramScrollHeight(600, 3, 800, 1)).toBeCloseTo(cap, 5);
   });
 
   test('global zoom shrinks the cap (layout px vs real px)', () => {
-    const cap = (800 - 64) / effectiveZoom(2);
+    const cap = (800 - 64) / 2;
     expect(diagramScrollHeight(400, 2, 800, 2)).toBeCloseTo(cap, 5);
   });
 
   test('taller viewport raises the cap', () => {
-    const cap = (1200 - 64) / effectiveZoom(1);
+    const cap = (1200 - 64) / 1;
     expect(diagramScrollHeight(600, 3, 1200, 1)).toBeCloseTo(cap, 5);
+  });
+});
+
+describe('markdownFontSize', () => {
+  var MACOS_DEFAULT_BODY = 13;
+
+  test('at default system size (13pt) returns web-standard 16px', () => {
+    expect(markdownFontSize(13)).toBe(16);
+  });
+
+  test('scales proportionally to system text size', () => {
+    expect(markdownFontSize(16)).toBeCloseTo(16 * (16 / MACOS_DEFAULT_BODY));
+    expect(markdownFontSize(11)).toBeCloseTo(16 * (11 / MACOS_DEFAULT_BODY));
+  });
+
+  test('accepts numeric strings', () => {
+    expect(markdownFontSize('13')).toBe(16);
+  });
+
+  test('falls back to 16 (web-standard baseline) for invalid input', () => {
+    expect(markdownFontSize(undefined)).toBe(16);
+    expect(markdownFontSize('abc')).toBe(16);
+    expect(markdownFontSize(0)).toBe(16);
+    expect(markdownFontSize(-3)).toBe(16);
   });
 });
