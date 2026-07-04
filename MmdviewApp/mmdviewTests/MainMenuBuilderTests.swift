@@ -18,8 +18,15 @@ struct MainMenuBuilderTests {
         )
     }
 
-    private func submenu(titled title: String, in mainMenu: NSMenu) -> NSMenu? {
-        mainMenu.items.first { $0.submenu?.title == title }?.submenu
+    /// メニュータイトルは実行環境の言語で解決されるため、
+    /// テストも Localizable.xcstrings 経由で期待値を得る。
+    private func localizedTitle(_ key: String.LocalizationValue) -> String {
+        String(localized: key, bundle: .l10n)
+    }
+
+    private func submenu(titledKey key: String.LocalizationValue, in mainMenu: NSMenu) -> NSMenu? {
+        let title = localizedTitle(key)
+        return mainMenu.items.first { $0.submenu?.title == title }?.submenu
     }
 
     @Test("トップレベルは App/File/Edit/View/Window/Help の 6 メニュー")
@@ -28,17 +35,17 @@ struct MainMenuBuilderTests {
 
         #expect(mainMenu.items.count == 6)
         let titles = mainMenu.items.compactMap(\.submenu?.title)
-        #expect(titles.contains("File"))
-        #expect(titles.contains("Edit"))
-        #expect(titles.contains("View"))
-        #expect(titles.contains("Window"))
-        #expect(titles.contains("Help"))
+        #expect(titles.contains(localizedTitle("menu.file.title")))
+        #expect(titles.contains(localizedTitle("menu.edit.title")))
+        #expect(titles.contains(localizedTitle("menu.view.title")))
+        #expect(titles.contains(localizedTitle("menu.window.title")))
+        #expect(titles.contains(localizedTitle("menu.help.title")))
     }
 
     @Test("Edit メニューに Copy(⌘C) と Select All(⌘A) がある")
     func editMenuEnablesCopyAndSelectAll() throws {
         let mainMenu = buildMenu()
-        let edit = try #require(submenu(titled: "Edit", in: mainMenu))
+        let edit = try #require(submenu(titledKey: "menu.edit.title", in: mainMenu))
 
         let copy = try #require(edit.items.first { $0.action == #selector(NSText.copy(_:)) })
         #expect(copy.keyEquivalent == "c")
@@ -49,7 +56,7 @@ struct MainMenuBuilderTests {
     @Test("View メニューにズームとフルスクリーンがある")
     func viewMenuHasZoomAndFullScreen() throws {
         let mainMenu = buildMenu()
-        let view = try #require(submenu(titled: "View", in: mainMenu))
+        let view = try #require(submenu(titledKey: "menu.view.title", in: mainMenu))
 
         #expect(view.items.contains { $0.action == #selector(ViewerWindowController.zoomIn(_:)) })
         #expect(view.items.contains { $0.action == #selector(ViewerWindowController.zoomOut(_:)) })
@@ -63,7 +70,7 @@ struct MainMenuBuilderTests {
     @Test("File メニューに Print(⌘P) がある")
     func fileMenuHasPrint() throws {
         let mainMenu = buildMenu()
-        let file = try #require(submenu(titled: "File", in: mainMenu))
+        let file = try #require(submenu(titledKey: "menu.file.title", in: mainMenu))
 
         let print = try #require(
             file.items.first { $0.action == #selector(ViewerWindowController.printDocument(_:)) }
@@ -74,7 +81,7 @@ struct MainMenuBuilderTests {
     @Test("Window メニューにタブ操作項目がある")
     func windowMenuHasTabItems() throws {
         let mainMenu = buildMenu()
-        let window = try #require(submenu(titled: "Window", in: mainMenu))
+        let window = try #require(submenu(titledKey: "menu.window.title", in: mainMenu))
 
         #expect(window.items.contains { $0.action == #selector(NSWindow.selectNextTab(_:)) })
         #expect(window.items.contains { $0.action == #selector(NSWindow.selectPreviousTab(_:)) })
@@ -85,7 +92,7 @@ struct MainMenuBuilderTests {
     @Test("Help メニューが NSApp.helpMenu に登録される")
     func helpMenuIsRegistered() throws {
         let mainMenu = buildMenu()
-        let help = try #require(submenu(titled: "Help", in: mainMenu))
+        let help = try #require(submenu(titledKey: "menu.help.title", in: mainMenu))
 
         #expect(NSApp.helpMenu === help)
         #expect(help.items.contains { $0.action == #selector(AppDelegate.openHelp(_:)) })

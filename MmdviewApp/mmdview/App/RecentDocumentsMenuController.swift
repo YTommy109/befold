@@ -36,7 +36,7 @@ final class RecentDocumentsMenuController: NSObject, NSMenuDelegate {
             menu.addItem(.separator())
         }
         let clearItem = NSMenuItem(
-            title: "Clear Menu",
+            title: String(localized: "menu.file.clearMenu", bundle: .l10n),
             action: #selector(NSDocumentController.clearRecentDocuments(_:)),
             keyEquivalent: ""
         )

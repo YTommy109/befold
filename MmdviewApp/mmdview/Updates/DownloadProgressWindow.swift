@@ -12,7 +12,7 @@ final class DownloadProgressWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "アップデートをダウンロード中…"
+        window.title = String(localized: "update.downloading", bundle: .l10n)
         window.center()
         super.init(window: window)
 

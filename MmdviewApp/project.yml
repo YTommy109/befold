@@ -1,6 +1,7 @@
 name: mmdview
 options:
   bundleIdPrefix: com.degino
+  developmentLanguage: en
   deploymentTarget:
     macOS: "14.0"
   xcodeVersion: "16.0"
