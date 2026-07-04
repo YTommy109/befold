@@ -20,8 +20,32 @@ struct FileTypeTests {
         #expect(FileType(url: url) == expected)
     }
 
+    /// コード拡張子が .code(language:) にマッピングされること（代表例＋大文字）
+    @Test(arguments: [
+        ("swift", "swift"),
+        ("py", "python"),
+        ("go", "go"),
+        ("rs", "rust"),
+        ("mjs", "javascript"),
+        ("tsx", "typescript"),
+        ("kt", "kotlin"),
+        ("hpp", "cpp"),
+        ("zsh", "bash"),
+        ("toml", "ini"),
+        ("json", "json"),
+        ("jsonc", "json"),
+        ("yml", "yaml"),
+        ("plist", "xml"),
+        ("PY", "python"),
+        ("Swift", "swift"),
+    ])
+    func codeExtensionsMapToLanguage(ext: String, language: String) {
+        let url = URL(fileURLWithPath: "/a/b.\(ext)")
+        #expect(FileType(url: url) == .code(language: language))
+    }
+
     /// 未知の拡張子は markdown にフォールバックすること
-    @Test(arguments: ["txt", "html", "json", ""])
+    @Test(arguments: ["txt", "html", ""])
     func unknownExtensionsFallbackToMarkdown(ext: String) {
         let path = ext.isEmpty ? "/a/b" : "/a/b.\(ext)"
         let url = URL(fileURLWithPath: path)
@@ -32,8 +56,32 @@ struct FileTypeTests {
     @Test(arguments: [
         (FileType.mmd, "mmd"),
         (FileType.markdown, "md"),
+        (FileType.code(language: "swift"), "code"),
     ])
     func jsValueMapping(fileType: FileType, expected: String) {
         #expect(fileType.jsValue == expected)
+    }
+
+    /// codeLanguage は .code のときだけ言語名を返すこと
+    @Test
+    func codeLanguageOnlyForCode() {
+        #expect(FileType.code(language: "python").codeLanguage == "python")
+        #expect(FileType.mmd.codeLanguage == nil)
+        #expect(FileType.markdown.codeLanguage == nil)
+    }
+
+    /// 全拡張子リストに重複がないこと（対応表と mermaid/markdown の衝突検知）
+    @Test
+    func allExtensionsHasNoDuplicates() {
+        let all = FileType.allExtensions
+        #expect(Set(all).count == all.count)
+    }
+
+    /// 対応表のキーがすべて小文字であること（判定は lowercased() で行うため）
+    @Test
+    func codeExtensionKeysAreLowercase() {
+        for key in FileType.codeExtensionLanguages.keys {
+            #expect(key == key.lowercased())
+        }
     }
 }

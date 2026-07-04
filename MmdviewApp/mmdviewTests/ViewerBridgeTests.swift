@@ -24,6 +24,24 @@ struct ViewerBridgeTests {
         #expect(script.hasSuffix("\", 'md')"))
     }
 
+    @Test("code タイプは第 3 引数に言語名を渡す")
+    func renderScriptAppendsLanguageForCode() throws {
+        let script = try #require(
+            ViewerBridge.renderScript(content: "let x = 1", fileType: .code(language: "swift"))
+        )
+
+        #expect(script.hasSuffix("\", 'code', 'swift')"))
+    }
+
+    @Test("mmd / md は従来どおり 2 引数のまま（言語引数を付けない）")
+    func renderScriptOmitsLanguageForNonCode() throws {
+        let mmd = try #require(ViewerBridge.renderScript(content: "graph TD", fileType: .mmd))
+        let md = try #require(ViewerBridge.renderScript(content: "# Hi", fileType: .markdown))
+
+        #expect(mmd.hasSuffix("\", 'mmd')"))
+        #expect(md.hasSuffix("\", 'md')"))
+    }
+
     @Test
     func initialZoomScriptEmbedsValue() {
         #expect(ViewerBridge.initialZoomScript(1.5) == "window._mmdInitialZoom = 1.5;")
@@ -40,7 +58,7 @@ struct ViewerBridgeTests {
     func bridgeFunctionsExistInViewerHTML() throws {
         let html = try String(contentsOf: resourceURL("viewer.html"), encoding: .utf8)
 
-        #expect(html.contains("async function render(content, type)"))
+        #expect(html.contains("async function render(content, type, lang)"))
         #expect(html.contains("function showDeletedBanner()"))
         #expect(html.contains("function _mmdZoomIn()"))
         #expect(html.contains("function _mmdZoomOut()"))

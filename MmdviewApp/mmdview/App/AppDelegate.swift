@@ -155,6 +155,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "net.daringfireball.markdown",
             "net.ia.markdown",
             "com.unknown.md",
+            "com.degino.mmdview.source-code",
+            "public.source-code",
+            "public.json",
+            "public.yaml",
+            "public.xml",
         ]
         let resolved = extensions.compactMap { UTType(filenameExtension: $0) }
             + identifiers.compactMap { UTType($0) }

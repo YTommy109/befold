@@ -67,4 +67,34 @@ struct InfoPlistTests {
         )
         #expect(mermaid["LSHandlerRank"] as? String == "Owner")
     }
+
+    /// コード全拡張子が mmdview 自身の source-code UTI 宣言に含まれていること。
+    /// FileType.codeExtensionLanguages と Info.plist のドリフトを検知する。
+    @Test("All code extensions are declared in source-code UTI")
+    func importsSourceCodeTypeCoveringAllCodeExtensions() throws {
+        let source = try #require(
+            importedTypes.first {
+                ($0["UTTypeIdentifier"] as? String) == "com.degino.mmdview.source-code"
+            }
+        )
+        let tags = try #require(source["UTTypeTagSpecification"] as? [String: Any])
+        let extensions = try #require(tags["public.filename-extension"] as? [String])
+        for ext in FileType.codeExtensions {
+            #expect(extensions.contains(ext), "\(ext) が Info.plist に宣言されていない")
+        }
+        let conforms = try #require(source["UTTypeConformsTo"] as? [String])
+        #expect(conforms.contains("public.source-code"))
+    }
+
+    /// Source Code のドキュメントタイプが自前 UTI と実勢システム UTI を claim していること。
+    @Test("Source code document type claims required UTIs")
+    func claimsSourceCodeContentTypes() {
+        let claimed = claimedContentTypes()
+        #expect(claimed.contains("com.degino.mmdview.source-code"))
+        #expect(claimed.contains("public.source-code"))
+        #expect(claimed.contains("public.swift-source"))
+        #expect(claimed.contains("public.json"))
+        #expect(claimed.contains("public.yaml"))
+        #expect(claimed.contains("public.xml"))
+    }
 }

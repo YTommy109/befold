@@ -236,7 +236,7 @@
     mermaid.initialize(_mmdMermaidConfig());
     if (_lastContent !== null) {
       var wasDeleted = document.body.classList.contains('mmd-deleted');
-      render(_lastContent, _lastType);
+      render(_lastContent, _lastType, _lastLang);
       // render() は先頭で hideDeletedBanner() を呼ぶため、削除状態を復元する。
       if (wasDeleted) { showDeletedBanner(); }
     }
@@ -288,11 +288,13 @@
   // カラースキーム変更時に再描画するため、直近の内容を保持する。
   var _lastContent = null;
   var _lastType = null;
+  var _lastLang = null;
 
-  async function render(content, type) {
+  async function render(content, type, lang) {
     _currentType = type;
     _lastContent = content;
     _lastType = type;
+    _lastLang = lang;
     hideDeletedBanner();
 
     var errorPanel = document.getElementById('mmd-error');
@@ -303,10 +305,18 @@
 
     if (type === 'mmd') {
       diagramWrap.classList.remove('markdown-body');
+      diagramWrap.classList.remove('code-body');
       diagramWrap.innerHTML = '<pre class="mermaid">' + _escapeHtml(content) + '</pre>';
+    } else if (type === 'code') {
+      // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
+      // レイアウトは style.css の .code-body が担う。
+      diagramWrap.classList.remove('markdown-body');
+      diagramWrap.classList.add('code-body');
+      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang);
     } else {
       // github-markdown-css は .markdown-body プレフィックス前提のため
       // Markdown レンダリング時のみ付与する
+      diagramWrap.classList.remove('code-body');
       diagramWrap.classList.add('markdown-body');
       if (md) {
         diagramWrap.innerHTML = md.render(content);

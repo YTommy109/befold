@@ -82,6 +82,25 @@ function highlightCode(hljs, str, lang) {
   return '';
 }
 
+// HTML 特殊文字をエスケープする(DOM 非依存の純粋関数)。
+// viewer.html の _escapeHtml は DOM を使うため Node テストできない。
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// 単一コードファイル全文のハイライト HTML を組み立てる。
+// highlightCode() を再利用し、未対応言語・hljs 不在・例外時は
+// エスケープ済みプレーン <pre><code> にフォールバックする。
+function renderCodeHtml(hljs, str, lang) {
+  var highlighted = highlightCode(hljs, str, lang);
+  if (highlighted) { return highlighted; }
+  return '<pre><code>' + escapeHtml(str) + '</code></pre>';
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     ZOOM_MIN: ZOOM_MIN,
@@ -103,5 +122,7 @@ if (typeof module !== 'undefined' && module.exports) {
     highlightCode: highlightCode,
     diagramScrollHeight: diagramScrollHeight,
     markdownFontSize: markdownFontSize,
+    escapeHtml: escapeHtml,
+    renderCodeHtml: renderCodeHtml,
   };
 }

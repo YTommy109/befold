@@ -169,6 +169,35 @@ body.mmd-deleted {
 }
 
 /*
+  単一コードファイル表示(.code-body)。トークン色と背景は
+  github.css / github-dark.css(.hljs)が担い、ここではレイアウトのみ整える。
+  フォントサイズは Markdown のコードブロック(本文 × 0.75em)と揃える。
+*/
+#diagram-wrap.code-body {
+  width: 100%;
+  max-width: 980px;
+}
+
+#diagram-wrap.code-body pre {
+  margin: 0;
+}
+
+#diagram-wrap.code-body pre code {
+  display: block;
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: calc(var(--mmd-markdown-font-size, 16px) * 0.75);
+  line-height: 1.45;
+}
+
+/* ハイライト失敗時のフォールバック(<pre><code> に .hljs が付かない)にも
+   最低限の背景を与える */
+#diagram-wrap.code-body pre code:not(.hljs) {
+  background: rgba(128, 128, 128, 0.08);
+}
+
+/*
   ダイアグラム個別ズーム。
   .diagram-zoom-wrap が position:relative でコントロールの位置基準を持ち、
   .diagram-zoom-scroll（overflow:auto、高さは JS がズーム後の実寸と
