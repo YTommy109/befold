@@ -20,6 +20,9 @@ let package = Package(
                 .copy("Resources/style.css"),
                 .copy("Resources/mermaid.min.js"),
                 .copy("Resources/markdown-it.min.js"),
+                .copy("Resources/highlight.min.js"),
+                .copy("Resources/github.css"),
+                .copy("Resources/github-dark.css"),
             ],
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
