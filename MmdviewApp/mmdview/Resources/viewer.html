@@ -46,6 +46,8 @@
   function _mmdApplyZoom() {
     _mmdZoom = clampZoom(_mmdZoom);
     document.getElementById('diagram-wrap').style.zoom = effectiveZoom(_mmdZoom);
+    // 枠高さの上限は全体ズームに依存する（レイアウト px への割り戻し）ため再計算する。
+    _mmdUpdateAllDiagramScrollHeights();
     if (_mmdZoom !== _mmdLastPostedZoom &&
         window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.zoomChanged) {
       window.webkit.messageHandlers.zoomChanged.postMessage(_mmdZoom);
@@ -104,10 +106,29 @@
     return _diagramZooms.has(index) ? _diagramZooms.get(index) : ZOOM_DEFAULT;
   }
 
+  function _mmdUpdateAllDiagramScrollHeights() {
+    document.querySelectorAll('.diagram-zoom-wrap').forEach(function(wrap) {
+      _mmdUpdateDiagramScrollHeight(wrap);
+    });
+  }
+
+  // ウィンドウリサイズで枠高さの上限(ビューポート高)が変わるため追従させる。
+  window.addEventListener('resize', _mmdUpdateAllDiagramScrollHeights);
+
+  // 枠(.diagram-zoom-scroll)の高さをズーム倍率とウィンドウ高に追従させる。
+  // 拡大時は枠がウィンドウ高まで伸び、収まらない分は枠内の縦スクロールで見る。
+  function _mmdUpdateDiagramScrollHeight(wrap) {
+    var zoom = _mmdDiagramZoomValue(Number(wrap.dataset.diagramIndex));
+    var naturalHeight = Number(wrap.dataset.naturalHeight);
+    wrap.querySelector('.diagram-zoom-scroll').style.height =
+      diagramScrollHeight(naturalHeight, zoom, window.innerHeight, _mmdZoom) + 'px';
+  }
+
   function _mmdApplyDiagramZoom(wrap) {
     var index = Number(wrap.dataset.diagramIndex);
     var zoom = _mmdDiagramZoomValue(index);
     wrap.querySelector('.diagram-zoom-inner').style.zoom = zoom;
+    _mmdUpdateDiagramScrollHeight(wrap);
     wrap.querySelector('.diagram-zoom-label').textContent = zoomLabel(zoom);
     wrap.querySelector('.diagram-zoom-in').disabled = zoom >= DIAGRAM_ZOOM_MAX;
     wrap.querySelector('.diagram-zoom-out').disabled = zoom <= ZOOM_MIN;
@@ -170,13 +191,9 @@
       scroll.appendChild(inner);
       wrap.appendChild(scroll);
       wrap.appendChild(_mmdBuildDiagramControls(wrap));
-      // 枠を 100% 時の高さで固定し、拡大時は枠内スクロールにする。
-      // ビューポート高（.viewer の上下 padding 32px×2 を差し引き）を上限とする。
-      // offsetHeight はレイアウト px（祖先の CSS zoom の影響を受けない）なので、
-      // 実ピクセルの window.innerHeight は全体ズームぶんを割り戻して比較する。
-      var naturalHeight = inner.offsetHeight;
-      var viewportCap = (window.innerHeight - 64) / effectiveZoom(_mmdZoom);
-      scroll.style.height = Math.min(naturalHeight, viewportCap) + 'px';
+      // 100% 時の自然高を記録し、枠高さの計算(_mmdUpdateDiagramScrollHeight)に使う。
+      // この時点では inner にまだ zoom が適用されていないため素の実測値になる。
+      wrap.dataset.naturalHeight = inner.offsetHeight;
       _mmdApplyDiagramZoom(wrap);
     });
   }

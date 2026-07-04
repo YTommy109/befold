@@ -29,6 +29,15 @@ function effectiveZoom(zoom) {
   return zoom * BASE_SCALE;
 }
 
+// .diagram-zoom-scroll(枠)の高さ。ズーム後の実寸とビューポート上限の小さい方。
+// naturalHeight は 100% 時のレイアウト px。上限は .viewer の上下 padding(32px×2)を
+// 差し引いたビューポート高で、レイアウト px は祖先の CSS zoom の影響を受けないため
+// 実ピクセルの viewportHeight を全体ズームぶん割り戻して比較する。
+function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZoom) {
+  var viewportCap = (viewportHeight - 64) / effectiveZoom(globalZoom);
+  return Math.min(naturalHeight * diagramZoom, viewportCap);
+}
+
 function parseStoredZoom(raw) {
   var z = parseFloat(raw);
   return isNaN(z) ? ZOOM_DEFAULT : z;
@@ -81,5 +90,6 @@ if (typeof module !== 'undefined' && module.exports) {
     mermaidTheme: mermaidTheme,
     sanitizeLang: sanitizeLang,
     highlightCode: highlightCode,
+    diagramScrollHeight: diagramScrollHeight,
   };
 }

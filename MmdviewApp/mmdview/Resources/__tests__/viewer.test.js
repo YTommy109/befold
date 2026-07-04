@@ -14,6 +14,7 @@ const {
   mermaidTheme,
   sanitizeLang,
   highlightCode,
+  diagramScrollHeight,
 } = require('../viewer');
 
 describe('clampZoom', () => {
@@ -315,5 +316,33 @@ describe('wheelZoom with custom max', () => {
 
   test('defaults to ZOOM_MAX when max is omitted (existing behavior)', () => {
     expect(wheelZoom(2.0, -100)).toBe(ZOOM_MAX);
+  });
+});
+
+describe('diagramScrollHeight', () => {
+  // 枠(.diagram-zoom-scroll)の高さ: ズーム後の実寸とビューポート上限の小さい方。
+  // ビューポート上限 = (viewportHeight - .viewer の上下 padding 64px) / effectiveZoom(globalZoom)
+
+  test('returns natural height at 100% when it fits the viewport', () => {
+    expect(diagramScrollHeight(300, 1, 800, 1)).toBe(300);
+  });
+
+  test('grows with diagram zoom while under the viewport cap', () => {
+    expect(diagramScrollHeight(300, 2, 800, 1)).toBe(600);
+  });
+
+  test('caps at viewport height when zoomed content exceeds it', () => {
+    const cap = (800 - 64) / effectiveZoom(1);
+    expect(diagramScrollHeight(600, 3, 800, 1)).toBeCloseTo(cap, 5);
+  });
+
+  test('global zoom shrinks the cap (layout px vs real px)', () => {
+    const cap = (800 - 64) / effectiveZoom(2);
+    expect(diagramScrollHeight(400, 2, 800, 2)).toBeCloseTo(cap, 5);
+  });
+
+  test('taller viewport raises the cap', () => {
+    const cap = (1200 - 64) / effectiveZoom(1);
+    expect(diagramScrollHeight(600, 3, 1200, 1)).toBeCloseTo(cap, 5);
   });
 });
