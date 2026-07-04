@@ -25,8 +25,8 @@ targets:
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.mmdview
       PRODUCT_NAME: mmdview
-      MARKETING_VERSION: "1.1.10"
-      CURRENT_PROJECT_VERSION: "147"
+      MARKETING_VERSION: "1.1.11"
+      CURRENT_PROJECT_VERSION: "150"
       INFOPLIST_FILE: mmdview/Info.plist
       CODE_SIGN_ENTITLEMENTS: mmdview/mmdview.entitlements
       ENABLE_HARDENED_RUNTIME: true
