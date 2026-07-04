@@ -24,11 +24,6 @@
   --error-bg: #fff5f5;
   --error-border: #e53e3e;
   --error-fg: #c53030;
-
-  --code-bg: #f4f4f4;
-  --border-subtle: #ddd;
-  --table-border: #ccc;
-  --link: #007aff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -51,11 +46,6 @@
     --error-bg: #3a1f1f;
     --error-border: #f56565;
     --error-fg: #feb2b2;
-
-    --code-bg: #2d2d2d;
-    --border-subtle: #444;
-    --table-border: #4a4a4a;
-    --link: #4aa3ff;
   }
 }
 
@@ -188,52 +178,26 @@ body.mmd-deleted {
 }
 
 /*
-  Markdown 表示の最小限のダーク対応。markdown-it が出す標準的な HTML に
-  カラースキーム追従色を付ける。mermaid 図（pre.mermaid）には適用しない。
+  Markdown 本文のスタイルは github-markdown-css(.markdown-body)が担う。
+  render() が Markdown レンダリング時のみ #diagram-wrap に markdown-body を
+  付与する。ここでは背景色のアプリ現行色への差し替えと、mermaid 図・
+  hljs テーマとの競合解消だけを上書きする。
 */
-#diagram-wrap a {
-  color: var(--link);
+#diagram-wrap.markdown-body {
+  /* 背景は github-markdown-css の GitHub 色ではなくアプリ現行色を使う */
+  --bgColor-default: var(--bg);
+  width: 100%;
+  max-width: 980px;
 }
 
-#diagram-wrap code {
-  background: var(--code-bg);
-  border-radius: 3px;
-  padding: 0.1em 0.35em;
-  font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
-  font-size: 0.9em;
-}
-
-#diagram-wrap pre:not(.mermaid) {
-  background: var(--code-bg);
-  border-radius: 6px;
-  padding: 12px 16px;
-  overflow-x: auto;
-}
-
-#diagram-wrap pre:not(.mermaid) code {
+/* Markdown 内の mermaid 図(pre.mermaid)にはコードブロック背景を付けない */
+#diagram-wrap.markdown-body pre.mermaid {
   background: none;
   padding: 0;
 }
 
-#diagram-wrap blockquote {
-  border-left: 3px solid var(--border-subtle);
-  color: var(--fg-muted);
-  padding-left: 12px;
-  margin: 8px 0;
-}
-
-#diagram-wrap hr {
-  border: none;
-  border-top: 1px solid var(--border-subtle);
-  margin: 16px 0;
-}
-
-#diagram-wrap table {
-  border-collapse: collapse;
-}
-
-#diagram-wrap th,
-#diagram-wrap td {
-  border: 1px solid var(--table-border);
-  padding: 6px 12px;
+/* hljs テーマ(.hljs)の背景と padding を無効化し、GitHub と同じ pre の見た目に揃える */
+#diagram-wrap.markdown-body code.hljs {
+  background: transparent;
+  padding: 0;
 }
