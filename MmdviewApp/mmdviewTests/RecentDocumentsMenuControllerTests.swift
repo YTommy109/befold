@@ -32,7 +32,7 @@ struct RecentDocumentsMenuControllerTests {
         #expect(menu.items[0].representedObject as? URL == urls[0])
         #expect(menu.items[0].image != nil)
         #expect(menu.items[2].isSeparatorItem)
-        #expect(menu.items[3].title == "Clear Menu")
+        #expect(menu.items[3].title == String(localized: "menu.file.clearMenu", bundle: .l10n))
         #expect(menu.items[3].target === controller)
     }
 
@@ -57,7 +57,7 @@ struct RecentDocumentsMenuControllerTests {
         controller.menuNeedsUpdate(menu)
 
         #expect(menu.items.count == 1)
-        #expect(menu.items[0].title == "Clear Menu")
+        #expect(menu.items[0].title == String(localized: "menu.file.clearMenu", bundle: .l10n))
     }
 
     @Test

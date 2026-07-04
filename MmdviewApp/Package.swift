@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "mmdview",
+    defaultLocalization: "en",
     platforms: [.macOS(.v14)],
     dependencies: [
         .package(url: "https://github.com/SimplyDanny/SwiftLintPlugins", from: "0.58.0"),
@@ -14,6 +15,7 @@ let package = Package(
             path: "mmdview",
             exclude: ["Info.plist", "mmdview.entitlements", "Resources/__tests__"],
             resources: [
+                .process("Resources/Localizable.xcstrings"),
                 .copy("Resources/AppIcon.icns"),
                 .copy("Resources/viewer.html"),
                 .copy("Resources/viewer.js"),
