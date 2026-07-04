@@ -15,6 +15,7 @@
 		180A48E5349EA2A3F43B5EF0 /* github-dark.css in Resources */ = {isa = PBXBuildFile; fileRef = 5D468459C4D53976FE497885 /* github-dark.css */; };
 		1A60AB767C153D5D63D56D19 /* ViewerWindowControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA710571156DECEA2F4ADA7B /* ViewerWindowControllerTests.swift */; };
 		1E981BD656C7CA2465CF7021 /* ViewerWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54693EA14F015883DCEC29FD /* ViewerWebView.swift */; };
+		23AF71BE47D2BD01F733922F /* ViewerTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C6904036B005695DFB53D48 /* ViewerTheme.swift */; };
 		248BD00D834059EB00D511DF /* ViewerBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36C3FD47E5A29120F61360E7 /* ViewerBridge.swift */; };
 		255172CBE191903A95E686F5 /* MainMenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 175269206331476DA6AD97CC /* MainMenuBuilder.swift */; };
 		29102B3D288B1666072E98DD /* SessionLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66B6E2CE9714F7EFDD314D88 /* SessionLayoutTests.swift */; };
@@ -134,6 +135,7 @@
 		9266F8E5D50483CC0035A6CF /* UpdateCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckerTests.swift; sourceTree = "<group>"; };
 		943DBC47DB4399D9F1B98A4E /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		9AD32561C247E79E37DE8C55 /* ReleaseFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseFetcher.swift; sourceTree = "<group>"; };
+		9C6904036B005695DFB53D48 /* ViewerTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerTheme.swift; sourceTree = "<group>"; };
 		A03DE19C6B812B0D6B7CF13F /* UpdateInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstallerTests.swift; sourceTree = "<group>"; };
 		A0FEFA68BB80A98CF725B1E7 /* RecentDocumentsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentDocumentsStoreTests.swift; sourceTree = "<group>"; };
 		A1888082395C6FB1C5797487 /* UpdateDownloaderIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateDownloaderIntegrationTests.swift; sourceTree = "<group>"; };
@@ -177,6 +179,7 @@
 				36C3FD47E5A29120F61360E7 /* ViewerBridge.swift */,
 				A56A418883D17999644B3943 /* ViewerContentView.swift */,
 				F26364FB0B39B66447B691BD /* ViewerStore.swift */,
+				9C6904036B005695DFB53D48 /* ViewerTheme.swift */,
 				54693EA14F015883DCEC29FD /* ViewerWebView.swift */,
 				C35713FCFB2671442896437A /* WebViewProxy.swift */,
 			);
@@ -438,6 +441,7 @@
 				248BD00D834059EB00D511DF /* ViewerBridge.swift in Sources */,
 				9468E715957FEF5E8C470ABC /* ViewerContentView.swift in Sources */,
 				AA569204B8CF7AF8D7F13A24 /* ViewerStore.swift in Sources */,
+				23AF71BE47D2BD01F733922F /* ViewerTheme.swift in Sources */,
 				1E981BD656C7CA2465CF7021 /* ViewerWebView.swift in Sources */,
 				A8C09933B33AEEA06F2C8B72 /* ViewerWindowController.swift in Sources */,
 				5023F8047A848D4D7C35F757 /* ViewerWindowManager.swift in Sources */,
@@ -497,7 +501,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 154;
+				CURRENT_PROJECT_VERSION = 159;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -505,7 +509,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.12;
+				MARKETING_VERSION = 1.1.14;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
@@ -656,7 +660,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 154;
+				CURRENT_PROJECT_VERSION = 159;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -664,7 +668,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.12;
+				MARKETING_VERSION = 1.1.14;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
