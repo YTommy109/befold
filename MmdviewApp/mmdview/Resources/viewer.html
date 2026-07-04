@@ -27,12 +27,6 @@
 
   <div id="mmd-deleted-banner" class="mmd-deleted-banner">deleted</div>
 
-  <div class="zoom-controls">
-    <button id="zoom-out" title="縮小 (Cmd −)" onclick="_mmdZoomOut()">−</button>
-    <span id="zoom-label" title="クリックでリセット" onclick="_mmdZoomReset()">100%</span>
-    <button id="zoom-in" title="拡大 (Cmd +)" onclick="_mmdZoomIn()">+</button>
-  </div>
-
   <script src="viewer.js"></script>
   <script src="mermaid.min.js"></script>
   <script src="markdown-it.min.js"></script>
@@ -52,9 +46,6 @@
   function _mmdApplyZoom() {
     _mmdZoom = clampZoom(_mmdZoom);
     document.getElementById('diagram-wrap').style.zoom = effectiveZoom(_mmdZoom);
-    document.getElementById('zoom-label').textContent = zoomLabel(_mmdZoom);
-    document.getElementById('zoom-in').disabled = _mmdZoom >= ZOOM_MAX;
-    document.getElementById('zoom-out').disabled = _mmdZoom <= ZOOM_MIN;
     if (_mmdZoom !== _mmdLastPostedZoom &&
         window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.zoomChanged) {
       window.webkit.messageHandlers.zoomChanged.postMessage(_mmdZoom);
@@ -89,9 +80,106 @@
     }
   });
 
+  // Ctrl+ホイール（トラックパッドのピンチ含む）はポインタ位置で振り分ける:
+  // ダイアグラム上ならそのダイアグラムの個別ズーム、それ以外は全体ズーム。
   document.addEventListener('wheel', function(e) {
-    if (e.ctrlKey) { e.preventDefault(); _mmdWheelZoom(e.deltaY); }
+    if (!e.ctrlKey) { return; }
+    e.preventDefault();
+    var wrap = e.target instanceof Element ? e.target.closest('.diagram-zoom-wrap') : null;
+    if (wrap) {
+      _mmdDiagramWheelZoom(wrap, e.deltaY);
+    } else {
+      _mmdWheelZoom(e.deltaY);
+    }
   }, { passive: false });
+
+  // --- Diagram Zoom（ダイアグラム個別ズーム）---
+  // ブロック順インデックス → ズーム倍率。セッション内のみ保持し、再レンダリング
+  // をまたいで維持する（永続化はしない。ウィンドウを閉じるとリセット）。
+  // markdown 編集でブロックの順番が変わるとズームが別のダイアグラムに付くが、
+  // 影響がセッション内に限られるため許容する（設計書参照）。
+  var _diagramZooms = new Map();
+
+  function _mmdDiagramZoomValue(index) {
+    return _diagramZooms.has(index) ? _diagramZooms.get(index) : ZOOM_DEFAULT;
+  }
+
+  function _mmdApplyDiagramZoom(wrap) {
+    var index = Number(wrap.dataset.diagramIndex);
+    var zoom = _mmdDiagramZoomValue(index);
+    wrap.querySelector('.diagram-zoom-inner').style.zoom = zoom;
+    wrap.querySelector('.diagram-zoom-label').textContent = zoomLabel(zoom);
+    wrap.querySelector('.diagram-zoom-in').disabled = zoom >= DIAGRAM_ZOOM_MAX;
+    wrap.querySelector('.diagram-zoom-out').disabled = zoom <= ZOOM_MIN;
+  }
+
+  function _mmdDiagramZoomStep(wrap, delta) {
+    var index = Number(wrap.dataset.diagramIndex);
+    _diagramZooms.set(index, stepZoom(_mmdDiagramZoomValue(index), delta, DIAGRAM_ZOOM_MAX));
+    _mmdApplyDiagramZoom(wrap);
+  }
+
+  function _mmdDiagramZoomReset(wrap) {
+    _diagramZooms.set(Number(wrap.dataset.diagramIndex), ZOOM_DEFAULT);
+    _mmdApplyDiagramZoom(wrap);
+  }
+
+  function _mmdDiagramWheelZoom(wrap, deltaY) {
+    var index = Number(wrap.dataset.diagramIndex);
+    _diagramZooms.set(index, wheelZoom(_mmdDiagramZoomValue(index), deltaY, DIAGRAM_ZOOM_MAX));
+    _mmdApplyDiagramZoom(wrap);
+  }
+
+  // CSP により動的生成要素へ onclick 属性は使わず addEventListener で配線する。
+  function _mmdBuildDiagramControls(wrap) {
+    var controls = document.createElement('div');
+    controls.className = 'diagram-zoom-controls';
+    var zoomOut = document.createElement('button');
+    zoomOut.className = 'diagram-zoom-out';
+    zoomOut.title = '縮小';
+    zoomOut.textContent = '−';
+    zoomOut.addEventListener('click', function() { _mmdDiagramZoomStep(wrap, -ZOOM_STEP); });
+    var label = document.createElement('span');
+    label.className = 'diagram-zoom-label';
+    label.title = 'クリックでリセット';
+    label.addEventListener('click', function() { _mmdDiagramZoomReset(wrap); });
+    var zoomIn = document.createElement('button');
+    zoomIn.className = 'diagram-zoom-in';
+    zoomIn.title = '拡大';
+    zoomIn.textContent = '+';
+    zoomIn.addEventListener('click', function() { _mmdDiagramZoomStep(wrap, ZOOM_STEP); });
+    controls.appendChild(zoomOut);
+    controls.appendChild(label);
+    controls.appendChild(zoomIn);
+    return controls;
+  }
+
+  // 各 .mermaid 要素をズーム用ラッパーで包む。SVG サイズ確定後
+  // （mermaid.run() 完了後）に呼ぶこと。
+  function _mmdWrapDiagrams(diagramWrap) {
+    diagramWrap.querySelectorAll('.mermaid').forEach(function(el, i) {
+      var wrap = document.createElement('div');
+      wrap.className = 'diagram-zoom-wrap';
+      wrap.dataset.diagramIndex = i;
+      var scroll = document.createElement('div');
+      scroll.className = 'diagram-zoom-scroll';
+      var inner = document.createElement('div');
+      inner.className = 'diagram-zoom-inner';
+      el.parentNode.insertBefore(wrap, el);
+      inner.appendChild(el);
+      scroll.appendChild(inner);
+      wrap.appendChild(scroll);
+      wrap.appendChild(_mmdBuildDiagramControls(wrap));
+      // 枠を 100% 時の高さで固定し、拡大時は枠内スクロールにする。
+      // ビューポート高（.viewer の上下 padding 32px×2 を差し引き）を上限とする。
+      // offsetHeight はレイアウト px（祖先の CSS zoom の影響を受けない）なので、
+      // 実ピクセルの window.innerHeight は全体ズームぶんを割り戻して比較する。
+      var naturalHeight = inner.offsetHeight;
+      var viewportCap = (window.innerHeight - 64) / effectiveZoom(_mmdZoom);
+      scroll.style.height = Math.min(naturalHeight, viewportCap) + 'px';
+      _mmdApplyDiagramZoom(wrap);
+    });
+  }
 
   // --- Mermaid ---
   var _currentType = 'mmd';
@@ -213,6 +301,7 @@
       } catch(e) {
         // parseError callback handles display
       }
+      _mmdWrapDiagrams(diagramWrap);
     }
 
     _mmdApplyZoom();

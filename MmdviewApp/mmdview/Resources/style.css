@@ -78,67 +78,15 @@ body.mmd-deleted {
   justify-content: center;
 }
 
+/*
+  幅は内容に依存させず常にビューア幅いっぱいに固定する。
+  内容幅に縮ませると .mmd でダイアグラムのズームのたびに wrap 幅が変わり、
+  右上のズームコントロールが左右に動いてしまう（.markdown-body は
+  width:100% を持つため .md では元々固定）。
+*/
 #diagram-wrap {
+  width: 100%;
   max-width: 100%;
-}
-
-.zoom-controls {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--panel-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  padding: 4px 8px;
-  box-shadow: 0 1px 4px var(--panel-shadow);
-  z-index: 1000;
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-  font-size: 13px;
-  user-select: none;
-}
-
-.zoom-controls button {
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 16px;
-  color: var(--btn-fg);
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-
-.zoom-controls button:hover {
-  background: var(--btn-hover-bg);
-}
-
-.zoom-controls button:disabled {
-  color: var(--btn-disabled-fg);
-  cursor: default;
-}
-
-.zoom-controls button:disabled:hover {
-  background: none;
-}
-
-#zoom-label {
-  min-width: 40px;
-  text-align: center;
-  color: var(--fg-muted);
-  cursor: pointer;
-}
-
-#zoom-label:hover {
-  color: var(--accent);
 }
 
 .mmd-deleted-banner {
@@ -200,4 +148,108 @@ body.mmd-deleted {
 #diagram-wrap.markdown-body code.hljs {
   background: transparent;
   padding: 0;
+}
+
+/*
+  ダイアグラム個別ズーム。
+  .diagram-zoom-wrap が position:relative でコントロールの位置基準を持ち、
+  .diagram-zoom-scroll（overflow:auto、高さは JS が 100% 時の実測値で固定）の
+  外にコントロールを置くことで、枠内スクロールに追従せず右上に留まる。
+*/
+.diagram-zoom-wrap {
+  position: relative;
+  max-width: 100%;
+}
+
+.diagram-zoom-scroll {
+  overflow: auto;
+}
+
+/* CSS zoom の適用対象。max-content で拡大後の実寸が scroll のスクロール領域になる */
+.diagram-zoom-inner {
+  width: max-content;
+}
+
+/*
+  .mmd（markdown-body なし）ではダイアグラムを従来どおり中央寄せにする。
+  枠より広く拡大されたときは margin auto が 0 になり、枠内スクロールで
+  左端から見られる。.md 内のダイアグラムは GitHub 同様の左寄せのまま。
+*/
+#diagram-wrap:not(.markdown-body) .diagram-zoom-inner {
+  margin: 0 auto;
+}
+
+/* 枠の高さ実測(offsetHeight)に pre の margin が入らないため 0 にする */
+.diagram-zoom-inner pre.mermaid {
+  margin: 0;
+}
+
+/* markdown 本文中では通常の pre と同じ下マージンをラッパー側に持たせる */
+.markdown-body .diagram-zoom-wrap {
+  margin-bottom: 16px;
+}
+
+.diagram-zoom-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  box-shadow: 0 1px 4px var(--panel-shadow);
+  font-size: 13px;
+  user-select: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.diagram-zoom-wrap:hover .diagram-zoom-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.diagram-zoom-controls button {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--btn-fg);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.diagram-zoom-controls button:hover {
+  background: var(--btn-hover-bg);
+}
+
+.diagram-zoom-controls button:disabled {
+  color: var(--btn-disabled-fg);
+  cursor: default;
+}
+
+.diagram-zoom-controls button:disabled:hover {
+  background: none;
+}
+
+.diagram-zoom-label {
+  min-width: 40px;
+  text-align: center;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.diagram-zoom-label:hover {
+  color: var(--accent);
 }

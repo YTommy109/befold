@@ -18,6 +18,16 @@ sequenceDiagram
     V-->>U: プレビュー更新
 ```
 
+ファイル変更は同一プロセス内で伝搬する。全体の流れは次のとおり。
+
+```mermaid
+flowchart LR
+    A[ファイル保存] --> B[FileWatcher]
+    B --> C[0.2s デバウンス]
+    C --> D[ViewerStore]
+    D --> E[WKWebView 再描画]
+```
+
 ## Swift コード
 
 ```swift
