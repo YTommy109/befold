@@ -78,7 +78,14 @@ body.mmd-deleted {
   justify-content: center;
 }
 
+/*
+  幅は内容に依存させず常にビューア幅いっぱいに固定する。
+  内容幅に縮ませると .mmd でダイアグラムのズームのたびに wrap 幅が変わり、
+  右上のズームコントロールが左右に動いてしまう（.markdown-body は
+  width:100% を持つため .md では元々固定）。
+*/
 #diagram-wrap {
+  width: 100%;
   max-width: 100%;
 }
 
@@ -161,6 +168,15 @@ body.mmd-deleted {
 /* CSS zoom の適用対象。max-content で拡大後の実寸が scroll のスクロール領域になる */
 .diagram-zoom-inner {
   width: max-content;
+}
+
+/*
+  .mmd（markdown-body なし）ではダイアグラムを従来どおり中央寄せにする。
+  枠より広く拡大されたときは margin auto が 0 になり、枠内スクロールで
+  左端から見られる。.md 内のダイアグラムは GitHub 同様の左寄せのまま。
+*/
+#diagram-wrap:not(.markdown-body) .diagram-zoom-inner {
+  margin: 0 auto;
 }
 
 /* 枠の高さ実測(offsetHeight)に pre の margin が入らないため 0 にする */
