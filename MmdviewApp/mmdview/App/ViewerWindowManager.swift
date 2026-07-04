@@ -7,10 +7,12 @@ final class ViewerWindowManager {
     private(set) var controllers: [String: ViewerWindowController] = [:]
     private let sessionStore: SessionStore
     private let zoomStore: ZoomStore
+    private let recentDocumentsStore: RecentDocumentsStore
 
-    init(sessionStore: SessionStore, zoomStore: ZoomStore) {
+    init(sessionStore: SessionStore, zoomStore: ZoomStore, recentDocumentsStore: RecentDocumentsStore) {
         self.sessionStore = sessionStore
         self.zoomStore = zoomStore
+        self.recentDocumentsStore = recentDocumentsStore
     }
 
     /// 指定 URL のファイルをビューアウィンドウで開く。
@@ -27,6 +29,7 @@ final class ViewerWindowManager {
         bindCallbacks(for: controller, key: key, url: url)
         controller.showWindow(nil)
         sessionStore.noteOpened(url)
+        recentDocumentsStore.noteOpened(url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
     }
 
@@ -89,6 +92,7 @@ final class ViewerWindowManager {
             sessionStore.noteRenamed(from: oldURL, to: newURL)
             sessionStore.noteClosed(oldURL)
             sessionStore.noteOpened(newURL)
+            recentDocumentsStore.noteRenamed(from: oldURL, to: newURL)
             NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
             bindCallbacks(for: controller, key: newKey, url: newURL)
         }
