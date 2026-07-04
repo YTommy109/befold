@@ -23,6 +23,7 @@ let package = Package(
                 .copy("Resources/highlight.min.js"),
                 .copy("Resources/github.css"),
                 .copy("Resources/github-dark.css"),
+                .copy("Resources/github-markdown.css"),
             ],
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
