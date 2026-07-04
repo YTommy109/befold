@@ -5,17 +5,20 @@ var ZOOM_MAX = 2.0;
 var ZOOM_STEP = 0.25;
 var ZOOM_DEFAULT = 1;
 var BASE_SCALE = 0.75;
+// ダイアグラム個別ズームの上限。全体ズーム(ZOOM_MAX)より広く取り、細部の確認に使う。
+var DIAGRAM_ZOOM_MAX = 3.0;
 
-function clampZoom(z) {
-  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+function clampZoom(z, max) {
+  if (max === undefined) { max = ZOOM_MAX; }
+  return Math.max(ZOOM_MIN, Math.min(max, z));
 }
 
-function stepZoom(current, delta) {
-  return clampZoom(Math.round((current + delta) * 100) / 100);
+function stepZoom(current, delta, max) {
+  return clampZoom(Math.round((current + delta) * 100) / 100, max);
 }
 
-function wheelZoom(current, deltaY) {
-  return clampZoom(Math.round((current - deltaY * 0.01) * 1000) / 1000);
+function wheelZoom(current, deltaY, max) {
+  return clampZoom(Math.round((current - deltaY * 0.01) * 1000) / 1000, max);
 }
 
 function zoomLabel(zoom) {
@@ -68,6 +71,7 @@ if (typeof module !== 'undefined' && module.exports) {
     ZOOM_STEP: ZOOM_STEP,
     ZOOM_DEFAULT: ZOOM_DEFAULT,
     BASE_SCALE: BASE_SCALE,
+    DIAGRAM_ZOOM_MAX: DIAGRAM_ZOOM_MAX,
     clampZoom: clampZoom,
     stepZoom: stepZoom,
     wheelZoom: wheelZoom,

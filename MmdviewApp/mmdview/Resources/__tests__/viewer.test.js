@@ -4,6 +4,7 @@ const {
   ZOOM_STEP,
   ZOOM_DEFAULT,
   BASE_SCALE,
+  DIAGRAM_ZOOM_MAX,
   clampZoom,
   stepZoom,
   wheelZoom,
@@ -254,5 +255,65 @@ describe('markdown-it integration with highlightCode', () => {
     const html = md.render('```no-such-lang-xyz\n<b>raw</b>\n```\n');
     expect(html).toContain('&lt;b&gt;raw&lt;/b&gt;');
     expect(html).not.toContain('<span class="hljs-');
+  });
+});
+
+describe('DIAGRAM_ZOOM_MAX', () => {
+  test('is 3.0 and above ZOOM_MAX', () => {
+    expect(DIAGRAM_ZOOM_MAX).toBe(3.0);
+    expect(DIAGRAM_ZOOM_MAX).toBeGreaterThan(ZOOM_MAX);
+  });
+
+  test('ZOOM_STEP divides diagram range evenly from default', () => {
+    const stepsUp = (DIAGRAM_ZOOM_MAX - ZOOM_DEFAULT) / ZOOM_STEP;
+    expect(Number.isInteger(stepsUp)).toBe(true);
+  });
+});
+
+describe('clampZoom with custom max', () => {
+  test('allows values above ZOOM_MAX up to the given max', () => {
+    expect(clampZoom(2.5, DIAGRAM_ZOOM_MAX)).toBe(2.5);
+    expect(clampZoom(3.0, DIAGRAM_ZOOM_MAX)).toBe(3.0);
+  });
+
+  test('clamps above the given max', () => {
+    expect(clampZoom(3.5, DIAGRAM_ZOOM_MAX)).toBe(DIAGRAM_ZOOM_MAX);
+  });
+
+  test('still clamps at ZOOM_MIN', () => {
+    expect(clampZoom(0.1, DIAGRAM_ZOOM_MAX)).toBe(ZOOM_MIN);
+  });
+
+  test('defaults to ZOOM_MAX when max is omitted (existing behavior)', () => {
+    expect(clampZoom(2.5)).toBe(ZOOM_MAX);
+  });
+});
+
+describe('stepZoom with custom max', () => {
+  test('steps beyond 200% up to 300%', () => {
+    expect(stepZoom(2.0, ZOOM_STEP, DIAGRAM_ZOOM_MAX)).toBe(2.25);
+    expect(stepZoom(2.75, ZOOM_STEP, DIAGRAM_ZOOM_MAX)).toBe(3.0);
+  });
+
+  test('clamps at the given max', () => {
+    expect(stepZoom(3.0, ZOOM_STEP, DIAGRAM_ZOOM_MAX)).toBe(DIAGRAM_ZOOM_MAX);
+  });
+
+  test('defaults to ZOOM_MAX when max is omitted (existing behavior)', () => {
+    expect(stepZoom(2.0, ZOOM_STEP)).toBe(ZOOM_MAX);
+  });
+});
+
+describe('wheelZoom with custom max', () => {
+  test('zooms in beyond 200% with custom max', () => {
+    expect(wheelZoom(2.0, -25, DIAGRAM_ZOOM_MAX)).toBe(2.25);
+  });
+
+  test('clamps at the given max', () => {
+    expect(wheelZoom(3.0, -100, DIAGRAM_ZOOM_MAX)).toBe(DIAGRAM_ZOOM_MAX);
+  });
+
+  test('defaults to ZOOM_MAX when max is omitted (existing behavior)', () => {
+    expect(wheelZoom(2.0, -100)).toBe(ZOOM_MAX);
   });
 });
