@@ -224,3 +224,35 @@ describe('highlightCode', () => {
     expect(result).toContain('&lt;script&gt;');
   });
 });
+
+describe('markdown-it integration with highlightCode', () => {
+  const hljs = require('highlight.js');
+  const markdownit = require('markdown-it');
+  // viewer.html の markdownit 初期化と同じ配線
+  const md = markdownit({
+    html: true,
+    linkify: true,
+    typographer: true,
+    highlight: function(str, lang) {
+      return highlightCode(hljs, str, lang);
+    },
+  });
+
+  test('fenced block with language gets hljs markup as-is', () => {
+    const html = md.render('```javascript\nconst x = 1;\n```\n');
+    expect(html).toContain('<pre><code class="hljs language-javascript">');
+    expect(html).toContain('<span class="hljs-');
+  });
+
+  test('fenced block without language falls back to escaped plain block', () => {
+    const html = md.render('```\n<b>raw</b>\n```\n');
+    expect(html).toContain('&lt;b&gt;raw&lt;/b&gt;');
+    expect(html).not.toContain('hljs');
+  });
+
+  test('fenced block with unsupported language falls back to escaped plain block', () => {
+    const html = md.render('```no-such-lang-xyz\n<b>raw</b>\n```\n');
+    expect(html).toContain('&lt;b&gt;raw&lt;/b&gt;');
+    expect(html).not.toContain('<span class="hljs-');
+  });
+});
