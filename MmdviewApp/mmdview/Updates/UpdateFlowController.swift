@@ -62,12 +62,15 @@ final class UpdateFlowController {
             throw UpdateInstaller.InstallError.appNotFoundInDMG
         }
 
+        let logURL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Logs/mmdview-updater.log")
         let script = UpdateInstaller.updaterScript(
             appInDMG: appInDMG.path,
             installedApp: installedApp.path,
             mountPoint: mountPoint.path,
             dmgPath: dmgURL.path,
-            pid: ProcessInfo.processInfo.processIdentifier
+            pid: ProcessInfo.processInfo.processIdentifier,
+            logPath: logURL.path
         )
         let scriptURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("mmdview-updater.sh")

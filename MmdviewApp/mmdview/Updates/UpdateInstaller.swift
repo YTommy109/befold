@@ -23,29 +23,45 @@ enum UpdateInstaller {
 
     /// アプリ終了後に差し替え・再起動を行うシェルスクリプトを生成する。
     /// 元プロセスの終了は PID ポーリングで待つ。
+    /// 新アプリはまずステージング(`<installedApp>.update`)へコピーし、
+    /// 成功した場合のみ旧アプリを削除して入れ替える(コピー失敗でアプリが消滅しないように)。
+    /// 全出力は logPath へ追記し、失敗を事後調査できるようにする。
     static func updaterScript(
         appInDMG: String,
         installedApp: String,
         mountPoint: String,
         dmgPath: String,
-        pid: Int32
+        pid: Int32,
+        logPath: String
     ) -> String {
         // パスはすべて shellQuoted でシングルクォート化してから埋め込む。
         // ダブルクォートだと `"` `$` バッククォートを含むパスでスクリプトが破損・
         // インジェクションされる余地があるため。
+        let staging = shellQuoted(installedApp + ".update")
         let installedApp = shellQuoted(installedApp)
         let appInDMG = shellQuoted(appInDMG)
         let mountPoint = shellQuoted(mountPoint)
         let dmgPath = shellQuoted(dmgPath)
+        let logPath = shellQuoted(logPath)
         return """
         #!/bin/bash
+        exec >> \(logPath) 2>&1
+        echo "=== $(/bin/date '+%Y-%m-%dT%H:%M:%S%z') updater start (waiting for pid \(pid))"
         while /bin/kill -0 \(pid) 2>/dev/null; do /bin/sleep 0.2; done
-        /bin/rm -rf \(installedApp)
-        /bin/cp -R \(appInDMG) \(installedApp)
+        /bin/rm -rf \(staging)
+        if /bin/cp -R \(appInDMG) \(staging); then
+            /bin/rm -rf \(installedApp)
+            /bin/mv \(staging) \(installedApp)
+            echo "install ok"
+        else
+            echo "ERROR: copy failed; keeping installed app"
+            /bin/rm -rf \(staging)
+        fi
         /usr/bin/hdiutil detach \(mountPoint) -force
         /bin/rm -f \(dmgPath)
-        /usr/bin/xattr -dr com.apple.quarantine \(installedApp) 2>/dev/null
+        /usr/bin/xattr -dr com.apple.quarantine \(installedApp)
         /usr/bin/open \(installedApp)
+        echo "=== $(/bin/date '+%Y-%m-%dT%H:%M:%S%z') updater done"
         /bin/rm -f "$0"
         """
     }
