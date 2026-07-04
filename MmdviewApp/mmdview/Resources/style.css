@@ -1,13 +1,48 @@
 /*
+  ── 背景色の設計 ──
+  面(キャンバス)の色はネイティブのウィンドウ背景(ViewerTheme.canvas)が
+  唯一の定義。WKWebView は透過(drawsBackground=false)で、CSS は地の色を
+  塗らない(body は透明)。これによりタイトルバー等のネイティブ部分と
+  WebView 部分が構成上必ず同色になる。状態表示の背景は不透明色でなく
+  半透明ティントで重ねる。ここにキャンバス色(#fff / #1e1e1e 等)を
+  書かないこと。
+
+  ── レイヤー構成(弱い順に reset → vendor → 無レイヤー) ──
+  ベンダー CSS はページ全体の所有を前提に地の色を持つため vendor レイヤーに
+  取り込み、直後の「ベンダーリセット」でページ背景系だけを無効化する。
+  アプリ側スタイルは無レイヤー(常に vendor レイヤーより優先)なので、
+  上書きに詳細度や読み込み順の工夫は不要。グローバルリセットは vendor より
+  さらに弱い reset レイヤーに置く(従来の「詳細度 0 でベンダーの classed
+  ルールに負ける」関係をレイヤー順で保つ)。
+
   配色は CSS カスタムプロパティに集約し、:root にライト値、
   @media (prefers-color-scheme: dark) でダーク値を上書きする。
   color-scheme を宣言してスクロールバー等のネイティブ UI も追従させる。
 */
+@layer reset, vendor;
+
+@import url("github-markdown.css") layer(vendor);
+@import url("github.css") layer(vendor) (prefers-color-scheme: light);
+@import url("github-dark.css") layer(vendor) (prefers-color-scheme: dark);
+
+/* ── ベンダーリセット ── */
+
+/* GitHub のページ背景(#ffffff / #0d1117)は使わない。--bgColor-default 由来の
+   面(本文背景・テーブル行)は透明になり、キャンバスが透ける */
+.markdown-body {
+  --bgColor-default: transparent;
+}
+
+/* hljs テーマ(.hljs)のコード背景も GitHub のページ背景色のため使わない */
+.hljs {
+  background: transparent;
+}
+
 :root {
   color-scheme: light dark;
 
-  --bg: #fff;
-  --bg-deleted: #e8e8e8;
+  /* 削除状態でキャンバスに重ねるティント(白地で #e8e8e8 相当) */
+  --bg-deleted-tint: rgba(0, 0, 0, 0.09);
   --fg: #1a1a1a;
   --fg-muted: #555;
   --accent: #007aff;
@@ -28,8 +63,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1e1e1e;
-    --bg-deleted: #2a2a2a;
+    /* #1e1e1e 地で #2a2a2a 相当 */
+    --bg-deleted-tint: rgba(255, 255, 255, 0.053);
     --fg: #e4e4e4;
     --fg-muted: #aaa;
     --accent: #4aa3ff;
@@ -49,10 +84,12 @@
   }
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer reset {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 body {
@@ -60,13 +97,15 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  /* 地の色は塗らない(冒頭「背景色の設計」参照)。ウィンドウ背景が透ける */
+  background: transparent;
   color: var(--fg);
 }
 
-/* ファイル削除中は body に .mmd-deleted を付け、背景色で状態を示す */
+/* ファイル削除中は body に .mmd-deleted を付け、キャンバスに半透明ティントを
+   重ねて状態を示す(キャンバス色を知らなくても成立する) */
 body.mmd-deleted {
-  background: var(--bg-deleted);
+  background: var(--bg-deleted-tint);
 }
 
 .viewer {
@@ -128,12 +167,10 @@ body.mmd-deleted {
 /*
   Markdown 本文のスタイルは github-markdown-css(.markdown-body)が担う。
   render() が Markdown レンダリング時のみ #diagram-wrap に markdown-body を
-  付与する。ここでは背景色のアプリ現行色への差し替えと、mermaid 図・
-  hljs テーマとの競合解消だけを上書きする。
+  付与する。ページ背景はベンダーリセットで無効化済み。ここでは mermaid 図・
+  hljs テーマとの競合解消とサイズ調整だけを上書きする。
 */
 #diagram-wrap.markdown-body {
-  /* 背景は github-markdown-css の GitHub 色ではなくアプリ現行色を使う */
-  --bgColor-default: var(--bg);
   width: 100%;
   max-width: 980px;
   /* システム本文フォントサイズ(viewer.html が設定)。
@@ -162,10 +199,42 @@ body.mmd-deleted {
   padding: 0;
 }
 
-/* hljs テーマ(.hljs)の背景と padding を無効化し、GitHub と同じ pre の見た目に揃える */
+/* hljs テーマ(.hljs)の padding を無効化し、GitHub と同じ pre の見た目に揃える
+   (背景はベンダーリセットで透明化済み) */
 #diagram-wrap.markdown-body code.hljs {
-  background: transparent;
   padding: 0;
+}
+
+/*
+  単一コードファイル表示(.code-body)。トークン色は
+  github.css / github-dark.css(.hljs)が担う(背景はベンダーリセットで
+  透明化済みのため、body ごとキャンバスに溶け込む)。
+  フォントサイズは Markdown のコードブロック(本文 × 0.75em)と揃える。
+  スクロールしても四辺に余白が残るよう、コードブロック自体をスクロール
+  コンテナにし、ビューポートから 8px(約 1 文字分)内側に固定配置する。
+  CSS の padding は内容と一緒にスクロールして消えるため、この方式を採る。
+*/
+.viewer:has(> #diagram-wrap.code-body) {
+  padding: 8px;
+  align-items: stretch;
+}
+
+#diagram-wrap.code-body,
+#diagram-wrap.code-body pre {
+  height: 100%;
+}
+
+#diagram-wrap.code-body pre {
+  margin: 0;
+}
+
+#diagram-wrap.code-body pre code {
+  display: block;
+  height: 100%;
+  overflow: auto;
+  padding: 0.25em 0.5ch;
+  font-size: calc(var(--mmd-markdown-font-size, 16px) * 0.75);
+  line-height: 1.45;
 }
 
 /*

@@ -13,10 +13,9 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>mmdview</title>
-  <link rel="stylesheet" href="github-markdown.css">
-  <link rel="stylesheet" href="github.css" media="(prefers-color-scheme: light)">
-  <link rel="stylesheet" href="github-dark.css" media="(prefers-color-scheme: dark)">
-  <!-- style.css は最後に読み込み、上書きを後勝ちにする(#diagram-wrap 系の上書きは ID 詳細度にも依存) -->
+  <!-- ベンダー CSS(github-markdown / github / github-dark)は style.css が
+       @import layer(vendor) で取り込む。アプリ側スタイルは無レイヤーのため
+       読み込み順や詳細度に関係なく常にベンダーより優先される -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -236,7 +235,7 @@
     mermaid.initialize(_mmdMermaidConfig());
     if (_lastContent !== null) {
       var wasDeleted = document.body.classList.contains('mmd-deleted');
-      render(_lastContent, _lastType);
+      render(_lastContent, _lastType, _lastLang);
       // render() は先頭で hideDeletedBanner() を呼ぶため、削除状態を復元する。
       if (wasDeleted) { showDeletedBanner(); }
     }
@@ -288,11 +287,13 @@
   // カラースキーム変更時に再描画するため、直近の内容を保持する。
   var _lastContent = null;
   var _lastType = null;
+  var _lastLang = null;
 
-  async function render(content, type) {
+  async function render(content, type, lang) {
     _currentType = type;
     _lastContent = content;
     _lastType = type;
+    _lastLang = lang;
     hideDeletedBanner();
 
     var errorPanel = document.getElementById('mmd-error');
@@ -303,10 +304,18 @@
 
     if (type === 'mmd') {
       diagramWrap.classList.remove('markdown-body');
+      diagramWrap.classList.remove('code-body');
       diagramWrap.innerHTML = '<pre class="mermaid">' + _escapeHtml(content) + '</pre>';
+    } else if (type === 'code') {
+      // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
+      // レイアウトは style.css の .code-body が担う。
+      diagramWrap.classList.remove('markdown-body');
+      diagramWrap.classList.add('code-body');
+      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang);
     } else {
       // github-markdown-css は .markdown-body プレフィックス前提のため
       // Markdown レンダリング時のみ付与する
+      diagramWrap.classList.remove('code-body');
       diagramWrap.classList.add('markdown-body');
       if (md) {
         diagramWrap.innerHTML = md.render(content);

@@ -32,6 +32,14 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             defer: false
         )
         window.minSize = NSSize(width: 400, height: 300)
+        // コンテンツの地の色はウィンドウ背景が唯一の定義(ViewerTheme.canvas)。
+        // WebView は透過(drawsBackground=false)のためこの色が透けて見える
+        window.backgroundColor = ViewerTheme.canvas
+        // 標準タイトルバーは背景色の上にマテリアルを重ねるため、背景色を
+        // 揃えてもわずかに明るく描かれる。透過させて背景色を直接見せ、
+        // 区切り線も消してコンテンツと完全に地続きにする
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
         window.title = fileURL.lastPathComponent
         // タイトルバーにプロキシアイコンを表示し、Cmd+クリックのパス表示・
         // タイトルバーからのドラッグを有効にする

@@ -16,6 +16,8 @@ const {
   highlightCode,
   diagramScrollHeight,
   markdownFontSize,
+  escapeHtml,
+  renderCodeHtml,
 } = require('../viewer');
 
 describe('clampZoom', () => {
@@ -370,5 +372,64 @@ describe('markdownFontSize', () => {
     expect(markdownFontSize('abc')).toBe(16);
     expect(markdownFontSize(0)).toBe(16);
     expect(markdownFontSize(-3)).toBe(16);
+  });
+});
+
+describe('escapeHtml', () => {
+  test('escapes HTML special characters', () => {
+    expect(escapeHtml('<b a="c">&</b>')).toBe('&lt;b a=&quot;c&quot;&gt;&amp;&lt;/b&gt;');
+  });
+
+  test('passes plain text through', () => {
+    expect(escapeHtml('let x = 1')).toBe('let x = 1');
+  });
+
+  test('stringifies non-string input', () => {
+    expect(escapeHtml(null)).toBe('null');
+  });
+});
+
+describe('renderCodeHtml', () => {
+  const hljs = require('highlight.js');
+
+  test('known language produces full-page hljs markup', () => {
+    const result = renderCodeHtml(hljs, 'let x = 1', 'swift');
+    expect(result.startsWith('<pre><code class="hljs language-swift">')).toBe(true);
+    expect(result).toContain('hljs-keyword');
+    expect(result.endsWith('</code></pre>')).toBe(true);
+  });
+
+  test('unsupported language falls back to escaped plain block', () => {
+    const result = renderCodeHtml(hljs, '<b>raw</b>', 'no-such-lang-xyz');
+    expect(result).toBe('<pre><code>&lt;b&gt;raw&lt;/b&gt;</code></pre>');
+  });
+
+  test('missing hljs falls back to escaped plain block', () => {
+    const result = renderCodeHtml(null, 'const x = 1;', 'javascript');
+    expect(result).toBe('<pre><code>const x = 1;</code></pre>');
+  });
+
+  test('escapes HTML in fallback path (XSS)', () => {
+    const result = renderCodeHtml(null, '<script>alert(1)</script>', 'javascript');
+    expect(result).not.toContain('<script>');
+    expect(result).toContain('&lt;script&gt;');
+  });
+});
+
+describe('FileType.swift の言語名契約', () => {
+  // FileType.codeExtensionLanguages(FileType.swift)の値と同期させること。
+  // npm の highlight.js ではなく同梱の highlight.min.js に対して検証する
+  // (同梱ビルドは言語のサブセットのため、npm 版では偽陽性になる)。
+  const bundledHljs = require('../highlight.min.js');
+  const LANGUAGES = [
+    'swift', 'python', 'go', 'rust', 'javascript', 'typescript',
+    'java', 'kotlin', 'c', 'cpp', 'csharp', 'objectivec',
+    'ruby', 'php', 'perl', 'lua', 'r', 'sql', 'bash',
+    'graphql', 'css', 'scss', 'less', 'ini', 'diff', 'makefile',
+    'json', 'yaml', 'xml', 'vbnet',
+  ];
+
+  test.each(LANGUAGES)('%s is available in the bundled highlight.min.js', (lang) => {
+    expect(bundledHljs.getLanguage(lang)).toBeTruthy();
   });
 });
