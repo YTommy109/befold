@@ -7,12 +7,15 @@ macOS 向け Mermaid ダイアグラム・ビューアアプリ。
 
 ```
 mmdview.app (Swift / AppKit + SwiftUI)
-  ├── AppDelegate        # ライフサイクル・メニュー・ウィンドウ管理
+  ├── AppDelegate            # ライフサイクル・メニュー・各コーディネータの束ね
+  │     ├── ViewerWindowManager    # ウィンドウ生成・管理とセッション記録の更新
+  │     ├── SessionRestorer        # 前回セッションのタブ構成の保存/復元
+  │     └── UpdateCheckCoordinator # 更新チェックの実行と表示ポリシー
   ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
-  ├── ViewerStore        # @Observable 表示状態（content / error / deleted）
+  ├── ViewerStore        # @Observable 表示状態（content / error / deleted、FileReading で読込を抽象化）
   └── ViewerWebView      # WKWebView（NSViewRepresentable）
         ├── 同梱アセット（viewer.html / mermaid.min.js / markdown-it.min.js / style.css）
-        └── JS ブリッジ: evaluateJavaScript("render(content, type)")
+        └── JS ブリッジ: ViewerBridge 経由で evaluateJavaScript("render(content, type)")
 ```
 
 ファイル変更は `FileWatcher → ViewerStore → evaluateJavaScript` の
