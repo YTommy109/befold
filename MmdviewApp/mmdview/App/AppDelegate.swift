@@ -49,6 +49,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         sessionRestorer.restoreLastSession()
         NSApp.activate()
+        // アップデータによる再起動直後は、復元したウィンドウが WindowServer の遷移状態により
+        // どの Space にも属さず不可視になることがあるため、少し待ってから載せ直す
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [windowManager] in
+            windowManager.rescueWindowsDetachedFromSpace()
+        }
         updateCoordinator.run(userInitiated: false)
     }
 

@@ -30,6 +30,26 @@ final class ViewerWindowManager {
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
     }
 
+    /// ウィンドウが「表示中のはずなのにアクティブ Space に居ない」状態かを判定する。
+    static func isDetachedFromSpace(isVisible: Bool, isOnActiveSpace: Bool) -> Bool {
+        isVisible && !isOnActiveSpace
+    }
+
+    /// Space に載れなかった可視ウィンドウを現在の Space に載せ直す。
+    /// アップデータによる再起動では、旧プロセス終了直後の WindowServer 遷移状態で
+    /// 復元ウィンドウがどの Space にも属さず不可視になることがある(再 orderFront で復旧する)。
+    /// 起動直後にのみ呼ぶこと(ユーザーが他 Space に移した後のウィンドウに触れないように)。
+    func rescueWindowsDetachedFromSpace() {
+        for controller in controllers.values {
+            guard let window = controller.window,
+                  Self.isDetachedFromSpace(
+                      isVisible: window.isVisible, isOnActiveSpace: window.isOnActiveSpace
+                  )
+            else { continue }
+            window.orderFront(nil)
+        }
+    }
+
     /// 指定の正規化パスに対応する開状態のウィンドウを返す。
     func window(forPath path: String) -> NSWindow? {
         controllers[path]?.window

@@ -48,6 +48,14 @@ struct ViewerWindowManagerTests {
         #expect(sessionStore.savedURLs().isEmpty)
     }
 
+    @Test("可視なのにアクティブ Space に居ないウィンドウだけが救出対象と判定される")
+    func isDetachedFromSpaceRequiresVisibleAndOffActiveSpace() {
+        #expect(ViewerWindowManager.isDetachedFromSpace(isVisible: true, isOnActiveSpace: false))
+        #expect(!ViewerWindowManager.isDetachedFromSpace(isVisible: true, isOnActiveSpace: true))
+        #expect(!ViewerWindowManager.isDetachedFromSpace(isVisible: false, isOnActiveSpace: false))
+        #expect(!ViewerWindowManager.isDetachedFromSpace(isVisible: false, isOnActiveSpace: true))
+    }
+
     @Test("window(forPath:) が開いたウィンドウを返す")
     func windowForPathReturnsOpenWindow() throws {
         let tmp = try TempDir()
