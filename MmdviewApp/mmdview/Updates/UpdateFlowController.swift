@@ -4,6 +4,21 @@ import AppKit
 @MainActor
 final class UpdateFlowController {
     private(set) var isRunning = false
+    private let downloader: any UpdateDownloading
+    private let mounter: DMGMounter
+    private let makeProgressWindow: @MainActor () -> DownloadProgressWindowController
+
+    init(
+        downloader: any UpdateDownloading = UpdateDownloader(),
+        mounter: DMGMounter = DMGMounter(),
+        makeProgressWindow: @escaping @MainActor () -> DownloadProgressWindowController = {
+            DownloadProgressWindowController()
+        }
+    ) {
+        self.downloader = downloader
+        self.mounter = mounter
+        self.makeProgressWindow = makeProgressWindow
+    }
 
     /// 更新フローを開始する。多重起動は無視する。
     func run(current: String, latest: String, downloadURL: URL) async {
@@ -20,10 +35,10 @@ final class UpdateFlowController {
 
         let dmgURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("mmdview-update.dmg")
-        let progressWindow = DownloadProgressWindowController()
+        let progressWindow = makeProgressWindow()
         progressWindow.showWindow(nil)
         do {
-            try await UpdateDownloader().download(from: downloadURL, to: dmgURL) { value in
+            try await downloader.download(from: downloadURL, to: dmgURL) { value in
                 Task { @MainActor in
                     progressWindow.setProgress(value)
                 }
@@ -40,7 +55,7 @@ final class UpdateFlowController {
     /// DMG をマウントしてアップデータスクリプトを起動し、アプリを終了する。
     /// 成功時はプロセスが終了するため戻らない。
     private func installAndRelaunch(dmgAt dmgURL: URL, installedApp: URL) async throws {
-        let mounter = DMGMounter()
+        let mounter = mounter
         let mountPoint = try await Task.detached { try mounter.mount(dmgAt: dmgURL) }.value
         guard let appInDMG = UpdateInstaller.findApp(inMountPoint: mountPoint) else {
             await Task.detached { mounter.detach(mountPoint: mountPoint) }.value
