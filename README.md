@@ -71,8 +71,8 @@ mmdview.app (Swift / AppKit + SwiftUI)
         └── JS ブリッジ: evaluateJavaScript("render(content, type)")
 ```
 
-HTTP・SSE・ポート管理は不要。ファイル変更は
-`FileWatcher → ViewerStore → evaluateJavaScript` の同一プロセス内伝搬で反映する。
+ファイル変更は `FileWatcher → ViewerStore → evaluateJavaScript` の
+同一プロセス内伝搬で反映する。
 
 ## 技術スタック
 
