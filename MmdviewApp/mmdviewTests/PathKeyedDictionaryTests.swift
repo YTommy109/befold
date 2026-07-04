@@ -4,24 +4,22 @@ import Testing
 
 @Suite
 struct PathKeyedDictionaryTests {
-    /// テストごとに独立した UserDefaults スイートを用意する。
-    private func makeDefaults() -> UserDefaults {
-        let suiteName = "PathKeyedDictionaryTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return defaults
-    }
-
     @Test
     func valueIsNilWhenUnsaved() {
-        let dict = PathKeyedDictionary<Double>(defaults: makeDefaults(), key: "Test")
+        let dict = PathKeyedDictionary<Double>(
+            defaults: makeIsolatedDefaults(prefix: "PathKeyedDictionaryTests"),
+            key: "Test"
+        )
 
         #expect(dict.value(for: URL(fileURLWithPath: "/files/a.mmd")) == nil)
     }
 
     @Test
     func setValueRoundTrips() {
-        let dict = PathKeyedDictionary<Double>(defaults: makeDefaults(), key: "Test")
+        let dict = PathKeyedDictionary<Double>(
+            defaults: makeIsolatedDefaults(prefix: "PathKeyedDictionaryTests"),
+            key: "Test"
+        )
         let url = URL(fileURLWithPath: "/files/a.mmd")
 
         dict.setValue(1.5, for: url)
@@ -31,7 +29,10 @@ struct PathKeyedDictionaryTests {
 
     @Test("rename で旧キーの値が新キーへ移り旧キーは消える")
     func migrateValueMovesValueToNewKey() {
-        let dict = PathKeyedDictionary<Double>(defaults: makeDefaults(), key: "Test")
+        let dict = PathKeyedDictionary<Double>(
+            defaults: makeIsolatedDefaults(prefix: "PathKeyedDictionaryTests"),
+            key: "Test"
+        )
         let old = URL(fileURLWithPath: "/files/old.mmd")
         let new = URL(fileURLWithPath: "/files/new.mmd")
         dict.setValue(1.75, for: old)
@@ -44,7 +45,10 @@ struct PathKeyedDictionaryTests {
 
     @Test("旧キーに保存値がない migrate は新キーの既存値を上書きしない")
     func migrateValueWithoutSavedValueIsNoop() {
-        let dict = PathKeyedDictionary<Double>(defaults: makeDefaults(), key: "Test")
+        let dict = PathKeyedDictionary<Double>(
+            defaults: makeIsolatedDefaults(prefix: "PathKeyedDictionaryTests"),
+            key: "Test"
+        )
         let old = URL(fileURLWithPath: "/files/old.mmd")
         let new = URL(fileURLWithPath: "/files/new.mmd")
         dict.setValue(1.5, for: new)

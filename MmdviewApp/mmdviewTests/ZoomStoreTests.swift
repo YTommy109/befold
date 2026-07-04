@@ -5,24 +5,16 @@ import Testing
 @Suite
 @MainActor
 struct ZoomStoreTests {
-    /// テストごとに独立した UserDefaults スイートを用意する。
-    private func makeDefaults() -> UserDefaults {
-        let suiteName = "ZoomStoreTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return defaults
-    }
-
     @Test
     func zoomIsDefaultWhenUnsaved() {
-        let store = ZoomStore(defaults: makeDefaults())
+        let store = ZoomStore(defaults: makeIsolatedDefaults(prefix: "ZoomStoreTests"))
 
         #expect(store.zoom(for: URL(fileURLWithPath: "/tmp/diagram.mmd")) == 1.0)
     }
 
     @Test
     func setZoomPersistsPerFileAcrossInstances() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "ZoomStoreTests")
         let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
 
         ZoomStore(defaults: defaults).setZoom(1.5, for: url)
@@ -32,7 +24,7 @@ struct ZoomStoreTests {
 
     @Test
     func zoomsAreIndependentPerFile() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "ZoomStoreTests")
         let first = URL(fileURLWithPath: "/tmp/first.mmd")
         let second = URL(fileURLWithPath: "/tmp/second.md")
         let store = ZoomStore(defaults: defaults)
@@ -52,7 +44,7 @@ struct ZoomStoreTests {
         (0.5, 0.5),
     ])
     func zoomIsClampedToRangeOnRead(saved: Double, expected: Double) {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "ZoomStoreTests")
         let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
         let store = ZoomStore(defaults: defaults)
 
@@ -63,7 +55,7 @@ struct ZoomStoreTests {
 
     @Test("rename で旧パスの倍率が新パスへ引き継がれ旧キーは消える")
     func migrateZoomMovesValueToNewKey() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "ZoomStoreTests")
         let old = URL(fileURLWithPath: "/tmp/old.mmd")
         let new = URL(fileURLWithPath: "/tmp/new.mmd")
         let store = ZoomStore(defaults: defaults)
@@ -78,7 +70,7 @@ struct ZoomStoreTests {
 
     @Test("保存値のないファイルの migrate は新パスに影響しない")
     func migrateZoomWithoutSavedValueIsNoop() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "ZoomStoreTests")
         let old = URL(fileURLWithPath: "/tmp/old.mmd")
         let new = URL(fileURLWithPath: "/tmp/new.mmd")
         let store = ZoomStore(defaults: defaults)
@@ -92,14 +84,11 @@ struct ZoomStoreTests {
 
     @Test("シンボリックリンク経由でも同一ファイルとして扱う")
     func symlinkResolvesToSamePath() throws {
-        let defaults = makeDefaults()
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ZoomStoreTests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let real = dir.appendingPathComponent("real.mmd")
+        let defaults = makeIsolatedDefaults(prefix: "ZoomStoreTests")
+        let tmp = try TempDir(prefix: "ZoomStoreTests")
+        let real = tmp.url.appendingPathComponent("real.mmd")
         try Data().write(to: real)
-        let link = dir.appendingPathComponent("link.mmd")
+        let link = tmp.url.appendingPathComponent("link.mmd")
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
         let store = ZoomStore(defaults: defaults)
 
