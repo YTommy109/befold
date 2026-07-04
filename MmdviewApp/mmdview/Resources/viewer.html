@@ -80,8 +80,17 @@
     }
   });
 
+  // Ctrl+ホイール（トラックパッドのピンチ含む）はポインタ位置で振り分ける:
+  // ダイアグラム上ならそのダイアグラムの個別ズーム、それ以外は全体ズーム。
   document.addEventListener('wheel', function(e) {
-    if (e.ctrlKey) { e.preventDefault(); _mmdWheelZoom(e.deltaY); }
+    if (!e.ctrlKey) { return; }
+    e.preventDefault();
+    var wrap = e.target instanceof Element ? e.target.closest('.diagram-zoom-wrap') : null;
+    if (wrap) {
+      _mmdDiagramWheelZoom(wrap, e.deltaY);
+    } else {
+      _mmdWheelZoom(e.deltaY);
+    }
   }, { passive: false });
 
   // --- Diagram Zoom（ダイアグラム個別ズーム）---
