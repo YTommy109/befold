@@ -5,24 +5,16 @@ import Testing
 @Suite
 @MainActor
 struct SessionStoreTests {
-    /// テストごとに独立した UserDefaults スイートを用意する。
-    private func makeDefaults() -> UserDefaults {
-        let suiteName = "SessionStoreTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return defaults
-    }
-
     @Test
     func savedURLsIsEmptyInitially() {
-        let store = SessionStore(defaults: makeDefaults())
+        let store = SessionStore(defaults: makeIsolatedDefaults(prefix: "SessionStoreTests"))
 
         #expect(store.savedURLs().isEmpty)
     }
 
     @Test
     func noteOpenedPersistsURLAcrossInstances() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
 
         SessionStore(defaults: defaults).noteOpened(url)
@@ -33,7 +25,7 @@ struct SessionStoreTests {
 
     @Test
     func noteOpenedPreservesOrderWithoutDuplicates() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let first = URL(fileURLWithPath: "/tmp/first.mmd")
         let second = URL(fileURLWithPath: "/tmp/second.md")
         let store = SessionStore(defaults: defaults)
@@ -47,7 +39,7 @@ struct SessionStoreTests {
 
     @Test
     func noteClosedRemovesURL() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let first = URL(fileURLWithPath: "/tmp/first.mmd")
         let second = URL(fileURLWithPath: "/tmp/second.md")
         let store = SessionStore(defaults: defaults)
@@ -61,7 +53,7 @@ struct SessionStoreTests {
 
     @Test("freeze 後の noteClosed は無視される(アプリ終了時にリストが空にならない)")
     func noteClosedAfterFreezeIsIgnored() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
         let store = SessionStore(defaults: defaults)
         store.noteOpened(url)
@@ -74,14 +66,14 @@ struct SessionStoreTests {
 
     @Test
     func savedLayoutIsNilInitially() {
-        let store = SessionStore(defaults: makeDefaults())
+        let store = SessionStore(defaults: makeIsolatedDefaults(prefix: "SessionStoreTests"))
 
         #expect(store.savedLayout() == nil)
     }
 
     @Test
     func saveLayoutRoundTripsAcrossInstances() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let layout = SessionLayout(groups: [
             SessionLayout.TabGroup(paths: ["/tmp/a.mmd", "/tmp/b.md"], selectedPath: "/tmp/b.md"),
             SessionLayout.TabGroup(paths: ["/tmp/c.mmd"], selectedPath: "/tmp/c.mmd"),
@@ -94,7 +86,7 @@ struct SessionStoreTests {
 
     @Test("壊れた JSON は nil を返しフォールバックに切り替わる")
     func savedLayoutReturnsNilForCorruptData() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         defaults.set(Data("not json".utf8), forKey: "SessionLayout")
 
         #expect(SessionStore(defaults: defaults).savedLayout() == nil)
@@ -102,7 +94,7 @@ struct SessionStoreTests {
 
     @Test("空のレイアウトは nil 扱いでフォールバックに切り替わる")
     func savedLayoutReturnsNilForEmptyGroups() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         SessionStore(defaults: defaults).saveLayout(SessionLayout(groups: []))
 
         #expect(SessionStore(defaults: defaults).savedLayout() == nil)
@@ -110,7 +102,7 @@ struct SessionStoreTests {
 
     @Test
     func noteActivatedPersistsAcrossInstances() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let url = URL(fileURLWithPath: "/tmp/active.mmd")
 
         SessionStore(defaults: defaults).noteActivated(url)
@@ -120,7 +112,7 @@ struct SessionStoreTests {
 
     @Test("アクティブファイルを閉じたら記録もクリアされる")
     func noteClosedClearsMatchingActivePath() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let url = URL(fileURLWithPath: "/tmp/active.mmd")
         let store = SessionStore(defaults: defaults)
         store.noteOpened(url)
@@ -133,7 +125,7 @@ struct SessionStoreTests {
 
     @Test("別ファイルを閉じてもアクティブ記録は残る")
     func noteClosedKeepsUnrelatedActivePath() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let active = URL(fileURLWithPath: "/tmp/active.mmd")
         let other = URL(fileURLWithPath: "/tmp/other.md")
         let store = SessionStore(defaults: defaults)
@@ -148,7 +140,7 @@ struct SessionStoreTests {
 
     @Test("freeze 後の noteClosed はアクティブ記録もクリアしない")
     func noteClosedAfterFreezeKeepsActivePath() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let url = URL(fileURLWithPath: "/tmp/active.mmd")
         let store = SessionStore(defaults: defaults)
         store.noteOpened(url)
@@ -162,7 +154,7 @@ struct SessionStoreTests {
 
     @Test("freeze 後の noteActivated は無視される(終了処理中のキー変更で確定値が上書きされない)")
     func noteActivatedAfterFreezeIsIgnored() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let active = URL(fileURLWithPath: "/tmp/active.mmd")
         let other = URL(fileURLWithPath: "/tmp/other.md")
         let store = SessionStore(defaults: defaults)
@@ -176,7 +168,7 @@ struct SessionStoreTests {
 
     @Test("rename でアクティブ記録が新パスに移る")
     func noteRenamedMigratesActivePath() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let old = URL(fileURLWithPath: "/tmp/old.mmd")
         let new = URL(fileURLWithPath: "/tmp/new.mmd")
         let store = SessionStore(defaults: defaults)
@@ -189,7 +181,7 @@ struct SessionStoreTests {
 
     @Test("無関係なアクティブ記録は rename で変わらない")
     func noteRenamedKeepsUnrelatedActivePath() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let active = URL(fileURLWithPath: "/tmp/active.mmd")
         let old = URL(fileURLWithPath: "/tmp/old.mmd")
         let new = URL(fileURLWithPath: "/tmp/new.mmd")
@@ -203,7 +195,7 @@ struct SessionStoreTests {
 
     @Test("rename で保存済みレイアウト内のパスと選択タブが書き換わる")
     func noteRenamedRewritesLayoutPaths() {
-        let defaults = makeDefaults()
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let old = URL(fileURLWithPath: "/tmp/old.mmd")
         let new = URL(fileURLWithPath: "/tmp/new.mmd")
         let other = "/tmp/other.md"

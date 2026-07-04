@@ -3,13 +3,12 @@ import Foundation
 import Testing
 
 private final class MockFetcher: ReleaseFetching, @unchecked Sendable {
-    private let lock = NSLock()
-    private var count = 0
+    private let count = LockedBox(0)
     private let result: Result<GitHubRelease, Error>
     private let delayNanos: UInt64
 
     var callCount: Int {
-        lock.withLock { count }
+        count.get()
     }
 
     init(result: Result<GitHubRelease, Error>, delayNanos: UInt64 = 0) {
@@ -18,7 +17,7 @@ private final class MockFetcher: ReleaseFetching, @unchecked Sendable {
     }
 
     func fetchLatest() async throws -> GitHubRelease {
-        lock.withLock { count += 1 }
+        count.update { $0 += 1 }
         if delayNanos > 0 {
             try await Task.sleep(nanoseconds: delayNanos)
         }
@@ -28,15 +27,14 @@ private final class MockFetcher: ReleaseFetching, @unchecked Sendable {
 
 private struct DummyError: Error {}
 
-private final class FakeClock: @unchecked Sendable {
-    private let lock = NSLock()
-    private var time = Date(timeIntervalSince1970: 0)
+private final class FakeClock: Sendable {
+    private let time = LockedBox(Date(timeIntervalSince1970: 0))
     var current: Date {
-        lock.withLock { time }
+        time.get()
     }
 
     func advance(by interval: TimeInterval) {
-        lock.withLock { time = time.addingTimeInterval(interval) }
+        time.update { $0 = $0.addingTimeInterval(interval) }
     }
 }
 

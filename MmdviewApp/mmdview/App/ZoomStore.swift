@@ -8,41 +8,27 @@ final class ZoomStore {
     /// viewer.js の ZOOM_MIN / ZOOM_MAX と同値。
     static let minZoom = 0.5
     static let maxZoom = 2.0
-    private static let defaultsKey = "ViewerZoomLevels"
 
-    private let defaults: UserDefaults
+    private let zooms: PathKeyedDictionary<Double>
 
     init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
+        zooms = PathKeyedDictionary(defaults: defaults, key: "ViewerZoomLevels")
     }
 
     /// 指定ファイルの保存済み倍率を返す。保存がなければデフォルト、範囲外は clamp する。
     func zoom(for url: URL) -> Double {
-        guard let zoom = savedZooms()[url.normalizedPathKey] else { return Self.defaultZoom }
+        guard let zoom = zooms.value(for: url) else { return Self.defaultZoom }
         return min(Self.maxZoom, max(Self.minZoom, zoom))
     }
 
     /// 指定ファイルの倍率を保存する。
-    /// clamp は読み取り時（zoom(for:)）に行うため、書き込み時はそのまま保存する。
+    /// clamp は読み取り時(zoom(for:))に行うため、書き込み時はそのまま保存する。
     func setZoom(_ zoom: Double, for url: URL) {
-        var zooms = savedZooms()
-        zooms[url.normalizedPathKey] = zoom
-        defaults.set(zooms, forKey: Self.defaultsKey)
+        zooms.setValue(zoom, for: url)
     }
 
     /// ファイルの rename / move に伴い、旧パスの倍率を新パスへ引き継ぐ。
-    /// 旧パスに保存値がなければ何もしない。移行後は旧キーを削除する。
     func migrateZoom(from oldURL: URL, to newURL: URL) {
-        let oldKey = oldURL.normalizedPathKey
-        let newKey = newURL.normalizedPathKey
-        guard oldKey != newKey else { return }
-        var zooms = savedZooms()
-        guard let zoom = zooms.removeValue(forKey: oldKey) else { return }
-        zooms[newKey] = zoom
-        defaults.set(zooms, forKey: Self.defaultsKey)
-    }
-
-    private func savedZooms() -> [String: Double] {
-        defaults.dictionary(forKey: Self.defaultsKey) as? [String: Double] ?? [:]
+        zooms.migrateValue(from: oldURL, to: newURL)
     }
 }

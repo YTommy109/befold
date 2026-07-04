@@ -4,19 +4,11 @@ import Testing
 
 @Suite
 struct FileWatcherIntegrationTests {
-    private func makeTempDir() throws -> URL {
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mmdview-test-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }
-
     @Test(.timeLimit(.minutes(1)))
     func detectsFileModification() async throws {
-        let tempDir = try makeTempDir()
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-        let file = tempDir.appendingPathComponent("test.mmd")
-        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
         await confirmation { confirm in
             let watcher = FileWatcher(path: file) {
@@ -37,10 +29,9 @@ struct FileWatcherIntegrationTests {
 
     @Test(.timeLimit(.minutes(1)))
     func detectsFileDeletion() async throws {
-        let tempDir = try makeTempDir()
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-        let file = tempDir.appendingPathComponent("test.mmd")
-        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
         await confirmation { confirm in
             let watcher = FileWatcher(path: file) {
@@ -61,10 +52,9 @@ struct FileWatcherIntegrationTests {
 
     @Test(.timeLimit(.minutes(1)))
     func detectsAtomicSave() async throws {
-        let tempDir = try makeTempDir()
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-        let file = tempDir.appendingPathComponent("test.mmd")
-        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
         await confirmation { confirm in
             let watcher = FileWatcher(path: file) {
@@ -75,7 +65,7 @@ struct FileWatcherIntegrationTests {
             try? await Task.sleep(for: .seconds(0.3))
 
             // アトミック保存（一時ファイル → rename）をシミュレート
-            let tmpFile = tempDir.appendingPathComponent(".test.mmd.tmp")
+            let tmpFile = tmp.url.appendingPathComponent(".test.mmd.tmp")
             try? "graph TD; X-->Y".write(to: tmpFile, atomically: false, encoding: .utf8)
             _ = try? FileManager.default.replaceItemAt(file, withItemAt: tmpFile)
 
@@ -89,10 +79,9 @@ struct FileWatcherIntegrationTests {
     /// ディレクトリ監視がファイルの再作成を検知してファイル監視を再開する経路の回帰テスト。
     @Test(.timeLimit(.minutes(1)))
     func detectsChangeAfterRecreation() async throws {
-        let tempDir = try makeTempDir()
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-        let file = tempDir.appendingPathComponent("test.mmd")
-        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
         // 再作成後の変更で発火した最初のコールバックだけを検証対象にする。
         // 発火は 1 回以上あり得るため fired ガードで confirm() を 1 回に抑える
@@ -137,10 +126,9 @@ struct FileWatcherIntegrationTests {
     /// 追従後の変更も検知できることを検証する。
     @Test(.timeLimit(.minutes(1)))
     func detectsRenameWithinSameDirectory() async throws {
-        let tempDir = try makeTempDir()
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-        let file = tempDir.appendingPathComponent("test.mmd")
-        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
         let renamed = RenamedBox()
         let armed = TestFlag()
@@ -155,7 +143,7 @@ struct FileWatcherIntegrationTests {
         try? await Task.sleep(for: .seconds(0.3))
 
         // 同一ディレクトリ内で別名へ rename
-        let newFile = tempDir.appendingPathComponent("renamed.mmd")
+        let newFile = tmp.url.appendingPathComponent("renamed.mmd")
         try FileManager.default.moveItem(at: file, to: newFile)
 
         // rename 通知を待つ
@@ -176,10 +164,10 @@ struct FileWatcherIntegrationTests {
     /// 移動後の変更も検知できることを検証する。
     @Test(.timeLimit(.minutes(1)))
     func detectsMoveToAnotherDirectory() async throws {
-        let tempDir = try makeTempDir()
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-        let srcDir = tempDir.appendingPathComponent("src")
-        let dstDir = tempDir.appendingPathComponent("dst")
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let srcDir = tmp.url.appendingPathComponent("src")
+        let dstDir = tmp.url.appendingPathComponent("dst")
         try FileManager.default.createDirectory(at: srcDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: dstDir, withIntermediateDirectories: true)
         let file = srcDir.appendingPathComponent("test.mmd")
@@ -218,10 +206,9 @@ struct FileWatcherIntegrationTests {
     /// rename 扱いにならず、変更として通知されることを検証する。
     @Test(.timeLimit(.minutes(1)))
     func saveByRenameIsTreatedAsChangeNotRename() async throws {
-        let tempDir = try makeTempDir()
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-        let file = tempDir.appendingPathComponent("test.mmd")
-        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
         let renamed = RenamedBox()
         let armed = TestFlag()
@@ -238,7 +225,7 @@ struct FileWatcherIntegrationTests {
 
         // save-by-rename をシミュレート: 監視中のファイルをバックアップへ rename し、
         // 同じパスに新しい内容のファイルを作る。元パスに新ファイルが存在するため rename 扱いにしない。
-        let backup = tempDir.appendingPathComponent("test.mmd.bak")
+        let backup = tmp.url.appendingPathComponent("test.mmd.bak")
         try FileManager.default.moveItem(at: file, to: backup)
         try "graph TD; X-->Y".write(to: file, atomically: false, encoding: .utf8)
 
@@ -265,10 +252,9 @@ struct FileWatcherIntegrationTests {
 
     @Test(.timeLimit(.minutes(1)))
     func stopPreventsCallback() async throws {
-        let tempDir = try makeTempDir()
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-        let file = tempDir.appendingPathComponent("test.mmd")
-        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
         nonisolated(unsafe) var callbackFired = false
 

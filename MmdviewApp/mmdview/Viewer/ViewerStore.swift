@@ -22,11 +22,13 @@ final class ViewerStore {
 
     private var fileWatcher: FileWatching?
     private let makeWatcher: WatcherFactory
+    private let fileReader: any FileReading
 
-    init(watcherFactory: WatcherFactory? = nil) {
+    init(watcherFactory: WatcherFactory? = nil, fileReader: any FileReading = DefaultFileReader()) {
         makeWatcher = watcherFactory ?? { url, onChange, onRename in
             FileWatcher(path: url, onChange: onChange, onRename: onRename)
         }
+        self.fileReader = fileReader
     }
 
     /// 指定 URL のファイルを開き、ファイル監視を開始する。
@@ -56,8 +58,8 @@ final class ViewerStore {
     private func loadContent() {
         guard let filePath else { return }
         let resolved = filePath.resolvingSymlinksInPath()
-        if FileManager.default.fileExists(atPath: resolved.path) {
-            content = (try? String(contentsOf: resolved, encoding: .utf8)) ?? ""
+        if fileReader.fileExists(at: resolved) {
+            content = (try? fileReader.readString(from: resolved)) ?? ""
             isDeleted = false
         } else {
             isDeleted = true
