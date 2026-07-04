@@ -14,6 +14,7 @@ struct ViewerWindowControllerTests {
     @Test("フレーム autosave 名が init 完了後もファイル毎の名前で維持される")
     func frameAutosaveNameSurvivesInit() throws {
         let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
 
         let controller = ViewerWindowController(
@@ -32,6 +33,7 @@ struct ViewerWindowControllerTests {
     @Test("シンボリックリンク経由で開いてもフレーム autosave 名は実体パス基準になる")
     func frameAutosaveNameResolvesSymlinks() throws {
         let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
         let real = try tmp.file(named: "real.mmd", contents: "graph TD;")
         let link = tmp.url.appendingPathComponent("link.mmd")
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
@@ -49,6 +51,7 @@ struct ViewerWindowControllerTests {
     @Test("windowDidBecomeKey で onBecomeKey コールバックが呼ばれる")
     func windowDidBecomeKeyInvokesCallback() throws {
         let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         let controller = ViewerWindowController(
             fileURL: file,

@@ -9,13 +9,13 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private let zoomStore: ZoomStore
     private let webViewProxy = WebViewProxy()
     private(set) var fileURL: URL
-    /// ウィンドウが閉じられたときに呼ばれるコールバック。AppDelegate がウィンドウ管理辞書から除去するために使用する。
+    /// ウィンドウが閉じられたときに呼ばれるコールバック。ViewerWindowManager がウィンドウ管理辞書から除去するために使用する。
     var onClose: (() -> Void)?
     /// 開いているファイルが rename / move されたときに旧 URL・新 URL を通知するコールバック。
-    /// AppDelegate がウィンドウ管理辞書のキー付け替えとセッション記録の更新に使用する。
+    /// ViewerWindowManager がウィンドウ管理辞書のキー付け替えとセッション記録の更新に使用する。
     var onRename: ((_ old: URL, _ new: URL) -> Void)?
     /// ウィンドウがキーウィンドウになったときに呼ばれるコールバック。
-    /// AppDelegate がアクティブファイルのセッション記録の更新に使用する。
+    /// ViewerWindowManager がアクティブファイルのセッション記録の更新に使用する。
     var onBecomeKey: (() -> Void)?
 
     // MARK: - Initialization
@@ -73,7 +73,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     /// ファイルの rename / move をウィンドウに反映する。
     /// タイトル・representedURL・フレーム autosave 名・ズーム倍率キーを新パスへ移し、
-    /// AppDelegate へ旧 URL・新 URL を通知する。
+    /// ViewerWindowManager へ旧 URL・新 URL を通知する。
     private func handleRename(to newURL: URL) {
         let oldURL = fileURL
         guard newURL != oldURL else { return }

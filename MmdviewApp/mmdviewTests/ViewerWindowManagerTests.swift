@@ -17,6 +17,7 @@ struct ViewerWindowManagerTests {
     @Test("同じファイルを二度開いてもウィンドウは 1 つに集約される")
     func openViewerReusesControllerForSamePath() throws {
         let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         let manager = makeManager()
 
@@ -30,6 +31,7 @@ struct ViewerWindowManagerTests {
     @Test("ウィンドウクローズで管理辞書から除去されセッション記録も閉じられる")
     func closingWindowRemovesControllerAndNotesClosed() throws {
         let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
         let sessionStore = SessionStore(defaults: defaults)
@@ -49,6 +51,7 @@ struct ViewerWindowManagerTests {
     @Test("window(forPath:) が開いたウィンドウを返す")
     func windowForPathReturnsOpenWindow() throws {
         let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         let manager = makeManager()
 

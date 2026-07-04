@@ -6,7 +6,6 @@ import UniformTypeIdentifiers
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) static var shared: AppDelegate?
     private let sessionStore: SessionStore
-    private let zoomStore: ZoomStore
     private let windowManager: ViewerWindowManager
     private let sessionRestorer: SessionRestorer
     private let updateCoordinator = UpdateCheckCoordinator()
@@ -19,7 +18,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let zoomStore = ZoomStore()
         let windowManager = ViewerWindowManager(sessionStore: sessionStore, zoomStore: zoomStore)
         self.sessionStore = sessionStore
-        self.zoomStore = zoomStore
         self.windowManager = windowManager
         sessionRestorer = SessionRestorer(sessionStore: sessionStore, windowManager: windowManager)
         super.init()
