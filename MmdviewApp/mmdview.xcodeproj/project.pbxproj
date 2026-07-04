@@ -476,7 +476,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 147;
+				CURRENT_PROJECT_VERSION = 150;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -484,7 +484,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.10;
+				MARKETING_VERSION = 1.1.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
@@ -635,7 +635,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 147;
+				CURRENT_PROJECT_VERSION = 150;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -643,7 +643,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.10;
+				MARKETING_VERSION = 1.1.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
