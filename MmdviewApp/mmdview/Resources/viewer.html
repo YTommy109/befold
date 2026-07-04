@@ -27,12 +27,6 @@
 
   <div id="mmd-deleted-banner" class="mmd-deleted-banner">deleted</div>
 
-  <div class="zoom-controls">
-    <button id="zoom-out" title="縮小 (Cmd −)" onclick="_mmdZoomOut()">−</button>
-    <span id="zoom-label" title="クリックでリセット" onclick="_mmdZoomReset()">100%</span>
-    <button id="zoom-in" title="拡大 (Cmd +)" onclick="_mmdZoomIn()">+</button>
-  </div>
-
   <script src="viewer.js"></script>
   <script src="mermaid.min.js"></script>
   <script src="markdown-it.min.js"></script>
@@ -52,9 +46,6 @@
   function _mmdApplyZoom() {
     _mmdZoom = clampZoom(_mmdZoom);
     document.getElementById('diagram-wrap').style.zoom = effectiveZoom(_mmdZoom);
-    document.getElementById('zoom-label').textContent = zoomLabel(_mmdZoom);
-    document.getElementById('zoom-in').disabled = _mmdZoom >= ZOOM_MAX;
-    document.getElementById('zoom-out').disabled = _mmdZoom <= ZOOM_MIN;
     if (_mmdZoom !== _mmdLastPostedZoom &&
         window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.zoomChanged) {
       window.webkit.messageHandlers.zoomChanged.postMessage(_mmdZoom);
