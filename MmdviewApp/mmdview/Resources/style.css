@@ -153,8 +153,9 @@ body.mmd-deleted {
 /*
   ダイアグラム個別ズーム。
   .diagram-zoom-wrap が position:relative でコントロールの位置基準を持ち、
-  .diagram-zoom-scroll（overflow:auto、高さは JS が 100% 時の実測値で固定）の
-  外にコントロールを置くことで、枠内スクロールに追従せず右上に留まる。
+  .diagram-zoom-scroll（overflow:auto、高さは JS がズーム後の実寸と
+  ビューポート高の小さい方に追従させる）の外にコントロールを置くことで、
+  枠内スクロールに追従せず右上に留まる。
 */
 .diagram-zoom-wrap {
   position: relative;
