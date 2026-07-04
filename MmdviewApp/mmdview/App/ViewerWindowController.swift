@@ -38,7 +38,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         window.representedURL = fileURL
         window.tabbingIdentifier = "ViewerWindow"
         window.collectionBehavior.insert(.fullScreenPrimary)
-        let autosaveName = Self.autosaveName(for: fileURL)
+        let autosaveName = fileURL.viewerFrameAutosaveName
         // 保存済みフレームがあれば復元し、なければ後段で中央配置する
         let hasSavedFrame = window.setFrameUsingName(autosaveName)
         window.isReleasedWhenClosed = false
@@ -71,14 +71,6 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         store.openFile(fileURL)
     }
 
-    /// フレーム autosave 名を URL から生成する。パス区切りをキーに使えない文字へ置換する。
-    /// ZoomStore と同じ正規化パス（シンボリックリンク解決済み）を基準にし、
-    /// 同一ファイルを指す別表記の URL を同じキーに集約する。
-    private static func autosaveName(for url: URL) -> String {
-        let safeName = url.normalizedPathKey.replacingOccurrences(of: "/", with: "_")
-        return "Viewer-\(safeName)"
-    }
-
     /// ファイルの rename / move をウィンドウに反映する。
     /// タイトル・representedURL・フレーム autosave 名・ズーム倍率キーを新パスへ移し、
     /// AppDelegate へ旧 URL・新 URL を通知する。
@@ -90,8 +82,8 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         if let window {
             window.title = newURL.lastPathComponent
             window.representedURL = newURL
-            let oldAutosaveName = Self.autosaveName(for: oldURL)
-            let newAutosaveName = Self.autosaveName(for: newURL)
+            let oldAutosaveName = oldURL.viewerFrameAutosaveName
+            let newAutosaveName = newURL.viewerFrameAutosaveName
             // 旧名のエントリを破棄してから、現在のフレームを新しい名前で保存し直す。
             // この順序なら旧新の正規化キーが一致する rename でも保存済みフレームが消えない。
             // autosave 名はコントローラ側プロパティ経由で変更しないと

@@ -7,4 +7,10 @@ extension URL {
     var normalizedPathKey: String {
         resolvingSymlinksInPath().path
     }
+
+    /// ウィンドウフレームの autosave 名。normalizedPathKey と同じ正規化基準を使い、
+    /// パス区切りをキーに使えない文字へ置換する。
+    var viewerFrameAutosaveName: String {
+        "Viewer-" + normalizedPathKey.replacingOccurrences(of: "/", with: "_")
+    }
 }
