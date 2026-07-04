@@ -26,7 +26,7 @@ function zoomLabel(zoom) {
 }
 
 function effectiveZoom(zoom) {
-  return zoom * BASE_SCALE;
+  return zoom;
 }
 
 // .diagram-zoom-scroll(枠)の高さ。ズーム後の実寸とビューポート上限の小さい方。
@@ -35,12 +35,21 @@ function effectiveZoom(zoom) {
 // 実ピクセルの viewportHeight を全体ズームぶん割り戻して比較する。
 function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZoom) {
   var viewportCap = (viewportHeight - 64) / effectiveZoom(globalZoom);
-  return Math.min(naturalHeight * diagramZoom, viewportCap);
+  return Math.min(naturalHeight * diagramZoom * BASE_SCALE, viewportCap);
 }
 
 function parseStoredZoom(raw) {
   var z = parseFloat(raw);
   return isNaN(z) ? ZOOM_DEFAULT : z;
+}
+
+var MACOS_DEFAULT_BODY = 13;
+var WEB_BASELINE = 16;
+
+function markdownFontSize(raw) {
+  var s = parseFloat(raw);
+  if (isNaN(s) || s <= 0) { return WEB_BASELINE; }
+  return WEB_BASELINE * (s / MACOS_DEFAULT_BODY);
 }
 
 // OS のカラースキームに対応する mermaid テーマ名を返す。
@@ -81,6 +90,8 @@ if (typeof module !== 'undefined' && module.exports) {
     ZOOM_DEFAULT: ZOOM_DEFAULT,
     BASE_SCALE: BASE_SCALE,
     DIAGRAM_ZOOM_MAX: DIAGRAM_ZOOM_MAX,
+    MACOS_DEFAULT_BODY: MACOS_DEFAULT_BODY,
+    WEB_BASELINE: WEB_BASELINE,
     clampZoom: clampZoom,
     stepZoom: stepZoom,
     wheelZoom: wheelZoom,
@@ -91,5 +102,6 @@ if (typeof module !== 'undefined' && module.exports) {
     sanitizeLang: sanitizeLang,
     highlightCode: highlightCode,
     diagramScrollHeight: diagramScrollHeight,
+    markdownFontSize: markdownFontSize,
   };
 }

@@ -1,137 +1,106 @@
 # Markdown 本文フォントサイズのシステム設定連動 設計
 
+<!-- supersedes ./2026-07-04-system-font-size-design-v1.md -->
+
 ## 背景
 
-Markdown プレビューの本文フォントが他アプリより小さく見える。原因は 2 つの掛け合わせ:
+Markdown プレビューの本文フォントが他アプリ(GitHub.com、VSCode プレビュー等)より
+小さく見える。根本原因:
 
-1. 同梱の `github-markdown.css` が `.markdown-body { font-size: 16px }` を指定(141 行)
-2. 全体ズームが `#diagram-wrap` の CSS `zoom` に `ユーザー倍率 × BASE_SCALE(0.75)` を
-   適用するため、ズーム 100% 時の実効サイズは **16 × 0.75 = 12px**
+- `BASE_SCALE = 0.75` は元々「図のデフォルト表示を自然サイズの 75% にする」ために
+  導入された(#37, commit `9a175f1`)
+- その後 Markdown 本文が同じ `#diagram-wrap` に相乗りし、図専用のはずの 75% 縮小が
+  本文にも意図せず波及していた
+- 結果: `github-markdown.css` の 16px × 0.75 = **実効 12px** で表示
 
-macOS の標準本文サイズ(13pt)より小さい。要件は「Mac のシステム設定から取得した
-フォントサイズに合わせる」こと。
+## 方針（理想解）
 
-## 方針
+BASE_SCALE を `#diagram-wrap` 全体のズームから外し、図の個別ズーム側に移す。
 
-Swift 側で `NSFont.preferredFont(forTextStyle: .body).pointSize` を取得し
-(既定 13pt。システム設定 > アクセシビリティ > ディスプレイ > テキストサイズの
-変更に追従する API)、既存の `_mmdInitialZoom` と同じ
-`.atDocumentStart` の `WKUserScript` で `window._mmdSystemFontSize` として注入する。
+- **変更前**: `#diagram-wrap.style.zoom = userZoom × 0.75`（本文も図も一律 75% 縮小）
+- **変更後**: `#diagram-wrap.style.zoom = userZoom`（本文は等倍基準）、
+  `.diagram-zoom-inner.style.zoom = perDiagramZoom × 0.75`（図は従来通り 75% 基準）
 
-JS 側は **`システムサイズ ÷ BASE_SCALE`** を `.markdown-body` の font-size に
-CSS 変数経由で適用し、ズーム 100% 時の実効表示サイズがシステムサイズと一致するよう
-BASE_SCALE を補正する。見出し等は github-markdown-css が em / % で相対指定して
-いるため自動で比例スケールする。
+Markdown 本文のフォントサイズは macOS システム設定に比例させる:
 
-- 適用対象は Markdown 表示(`.markdown-body` 付与時)のみ。`.mmd`(Mermaid 単体)は不変
-- 取得タイミングは WebView 生成時。実行中ウィンドウへのライブ反映は対象外
-  (OS 設定変更後に開いたウィンドウから反映)
-- WKWebView では CSS px = pt(バッキングスケールは WebKit が処理)のため単位変換は不要
+```
+markdownFontSize = 16px × (systemBodyPt / 13)
+```
 
-### 検討した代替案
+- 既定(13pt): **16px**（Web 標準、GitHub/VSCode と同等）
+- テキストサイズ拡大時: 比例して大きくなる
+- 未注入・不正値: 16px にフォールバック
 
-- **BASE_SCALE を markdown では外す**: ズームの意味が変わり保存済みズーム値と
-  非互換になるため不採用
-- **`webView.pageZoom` で 13/16 倍**: mermaid ダイアグラムまで縮小されるため不採用
+### 数式的な回帰なし証明
+
+図の視覚サイズ:
+- 旧: `naturalHeight × diagramZoom × globalZoom × BASE_SCALE`
+- 新: `naturalHeight × (diagramZoom × BASE_SCALE) × globalZoom`
+- 両者は乗算の順序が異なるだけで同値
 
 ## 変更内容
 
-### 1. `Viewer/ViewerBridge.swift`
-
-```swift
-/// ロード時にシステム本文フォントサイズ(pt)を注入するスクリプト。
-static func systemFontSizeScript(_ size: Double) -> String {
-    "window._mmdSystemFontSize = \(size);"
-}
-```
-
-### 2. `Viewer/ViewerWebView.swift`
-
-`makeNSView` で `NSFont.preferredFont(forTextStyle: .body).pointSize` を読み、
-`zoomScript` と同様の `WKUserScript`(`.atDocumentStart`, `forMainFrameOnly: true`)
-として追加する。
-
-### 3. `Resources/viewer.js` — 純粋関数を追加
+### 1. `Resources/viewer.js`
 
 ```js
-// システム本文フォントサイズ(pt)を、BASE_SCALE 込みの実効表示がその
-// サイズになる CSS px に変換する。未注入・不正値は従来表示(実効 12px)に縮退。
+// effectiveZoom: BASE_SCALE を外す（図側に移動したため）
+function effectiveZoom(zoom) { return zoom; }
+
+// diagramScrollHeight: 図の実寸に BASE_SCALE を掛ける
+function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZoom) {
+  var viewportCap = (viewportHeight - 64) / effectiveZoom(globalZoom);
+  return Math.min(naturalHeight * diagramZoom * BASE_SCALE, viewportCap);
+}
+
+// markdownFontSize: Web 標準 16px × システム設定比率
+var MACOS_DEFAULT_BODY = 13;
+var WEB_BASELINE = 16;
 function markdownFontSize(raw) {
   var s = parseFloat(raw);
-  if (isNaN(s) || s <= 0) { s = 16 * BASE_SCALE; }
-  return s / BASE_SCALE;
+  if (isNaN(s) || s <= 0) { return WEB_BASELINE; }
+  return WEB_BASELINE * (s / MACOS_DEFAULT_BODY);
 }
 ```
 
-`module.exports` にも追加する。
+### 2. `Resources/viewer.html`
 
-### 4. `Resources/viewer.html` — 初期化で CSS 変数を設定
+Per-diagram zoom に BASE_SCALE を掛ける:
 
 ```js
-function _mmdInitFontSize() {
-  document.documentElement.style.setProperty(
-    '--mmd-markdown-font-size',
-    markdownFontSize(window._mmdSystemFontSize) + 'px'
-  );
-}
+// _mmdApplyDiagramZoom 内
+wrap.querySelector('.diagram-zoom-inner').style.zoom = zoom * BASE_SCALE;
 ```
 
-末尾の `_mmdInitZoom();` と並べて `_mmdInitFontSize();` を呼ぶ。
+`_mmdInitFontSize()` と Swift 注入(`_mmdSystemFontSize`)は既存のまま。
 
-### 5. `Resources/style.css`
+### 3. `Viewer/ViewerBridge.swift` / `ViewerWebView.swift`
 
-既存の `#diagram-wrap.markdown-body` ブロックに font-size を追加し、
-ベンダー CSS の固定 px(code/pre の 12px)を相対値に置き換える:
+変更なし。既存の `systemFontSizeScript` と `WKUserScript` 注入をそのまま使用。
 
-```css
-#diagram-wrap.markdown-body {
-  --bgColor-default: var(--bg);
-  width: 100%;
-  max-width: 980px;
-  /* システム本文フォントサイズ(BASE_SCALE 補正済み)。未設定時はベンダー既定と同じ 16px */
-  font-size: var(--mmd-markdown-font-size, 16px);
-}
+### 4. `Resources/style.css`
 
-/* ベンダー CSS の固定 12px(基準 16px の 0.75 倍)を em にし、本文サイズに追従させる */
-#diagram-wrap.markdown-body tt,
-#diagram-wrap.markdown-body code,
-#diagram-wrap.markdown-body samp,
-#diagram-wrap.markdown-body pre {
-  font-size: 0.75em;
-}
-
-/* pre 内の code が 0.75em × 0.75em と二重に縮まないようベンダーの pre code { 100% } を
-   ID 詳細度で再現する */
-#diagram-wrap.markdown-body pre code,
-#diagram-wrap.markdown-body pre tt {
-  font-size: 100%;
-}
-```
-
-ベンダー CSS 内のその他の固定 12px(`.csv-data`、`.footnotes`)は markdown-it の
-出力に現れないクラスのため対象外。
+変更なし。既存の CSS 変数 `--mmd-markdown-font-size` と `font-size: var(...)` をそのまま使用。
+コード等の相対サイズ指定(`0.75em`)もそのまま正しく機能する。
 
 ## エラーハンドリング・エッジケース
 
-- **`_mmdSystemFontSize` 未注入・不正値**(将来のリグレッションや手動でファイルを
-  開いた場合): `markdownFontSize` が 12(実効)にフォールバックし従来表示と同一になる
-- **`.mmd` ファイル**: `markdown-body` クラスが付かないため影響なし
-- **Markdown 内の mermaid 図**: `pre.mermaid` に 0.75em が掛かるが、mermaid の
-  テキストはテーマ設定の明示 px が基本のため影響は軽微。手動確認項目に含める
-- **ズームとの独立性**: font-size は静的な CSS 変数、ズームは `style.zoom` で別軸。
-  既存のズーム保存値・挙動は不変
+- **`_mmdSystemFontSize` 未注入・不正値**: `markdownFontSize` が 16px を返し、
+  Web 標準と同じ表示になる
+- **`.mmd` ファイル**: `markdown-body` クラスが付かないため影響なし。図の
+  `.diagram-zoom-inner` に `× BASE_SCALE` が掛かるため表示は従来と同一
+- **保存済みズーム値**: ユーザーズーム値の意味は変わらない（1.0 = 100%）。
+  実効 CSS zoom が変わるため「100% での見た目」は大きくなるが、これが本来の
+  意図（100% = 等倍）であり修正
+- **ズームとの独立性**: font-size は静的な CSS 変数、ズームは `style.zoom` で別軸
 
 ## テスト
 
-- **ViewerBridgeTests**(契約テスト):
-  - `systemFontSizeScript(13.0)` が `"window._mmdSystemFontSize = 13.0;"` を返す
-  - `bridgeFunctionsExistInViewerHTML` に `window._mmdSystemFontSize` の存在チェックを追加
-- **Jest**(`__tests__/viewer.test.js`): `markdownFontSize` のテストを追加
-  - `markdownFontSize(13)` ≈ 17.333(13 ÷ 0.75)
-  - `undefined` / `'abc'` / `0` / 負値 → 16(従来表示への縮退)
+- **Jest**: `effectiveZoom`、`diagramScrollHeight`、`markdownFontSize` のテストを
+  新しいセマンティクスに更新
+- **ViewerBridgeTests**: 変更なし（注入スクリプトのフォーマットは不変）
 - **手動確認**: `/run` でサンプル Markdown を開き、
-  1. 本文がシステムのテキストサイズ(既定 13pt)相当で表示される
-  2. システム設定 > アクセシビリティ > テキストサイズを変更 → 新規ウィンドウで追従
-  3. コードブロック・インラインコードが本文に比例したサイズ
-  4. Markdown 内 mermaid 図と `.mmd` 単体表示が従来どおり
-  5. ズーム(Cmd +/−、リセット)の挙動が従来どおり
+  1. 本文が 16px 相当で表示される（従来の 12px より明確に大きい）
+  2. コードブロック・インラインコードが本文に比例したサイズ
+  3. Markdown 内 mermaid 図と `.mmd` 単体表示が従来どおり
+  4. ズーム(Cmd +/−、リセット)の挙動が従来どおり
+  5. ダイアグラム個別ズームの挙動が従来どおり

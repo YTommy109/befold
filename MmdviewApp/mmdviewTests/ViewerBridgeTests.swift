@@ -29,6 +29,11 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.initialZoomScript(1.5) == "window._mmdInitialZoom = 1.5;")
     }
 
+    @Test
+    func systemFontSizeScriptEmbedsValue() {
+        #expect(ViewerBridge.systemFontSizeScript(13.0) == "window._mmdSystemFontSize = 13.0;")
+    }
+
     /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html に実在することを
     /// リポジトリ内のソースを読んで検証する(ブリッジ契約のドリフト検知)。
     @Test("ViewerBridge の関数名が viewer.html に定義されている")
@@ -42,6 +47,7 @@ struct ViewerBridgeTests {
         #expect(html.contains("function _mmdZoomReset()"))
         #expect(html.contains("messageHandlers.\(ViewerBridge.zoomChangedMessageName)"))
         #expect(html.contains("window._mmdInitialZoom"))
+        #expect(html.contains("window._mmdSystemFontSize"))
     }
 
     @Test("viewer.js の ZOOM_MIN / ZOOM_MAX が ZoomStore の範囲と一致する")
