@@ -6,11 +6,13 @@ import Testing
 @Suite
 @MainActor
 struct ViewerWindowManagerTests {
-    private func makeManager() -> ViewerWindowManager {
-        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
-        return ViewerWindowManager(
+    private func makeManager(
+        defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
+    ) -> ViewerWindowManager {
+        ViewerWindowManager(
             sessionStore: SessionStore(defaults: defaults),
-            zoomStore: ZoomStore(defaults: defaults)
+            zoomStore: ZoomStore(defaults: defaults),
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults)
         )
     }
 
@@ -36,7 +38,9 @@ struct ViewerWindowManagerTests {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
         let sessionStore = SessionStore(defaults: defaults)
         let manager = ViewerWindowManager(
-            sessionStore: sessionStore, zoomStore: ZoomStore(defaults: defaults)
+            sessionStore: sessionStore,
+            zoomStore: ZoomStore(defaults: defaults),
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults)
         )
 
         manager.openViewer(for: file)
@@ -54,6 +58,38 @@ struct ViewerWindowManagerTests {
         #expect(!ViewerWindowManager.isDetachedFromSpace(isVisible: true, isOnActiveSpace: true))
         #expect(!ViewerWindowManager.isDetachedFromSpace(isVisible: false, isOnActiveSpace: false))
         #expect(!ViewerWindowManager.isDetachedFromSpace(isVisible: false, isOnActiveSpace: true))
+    }
+
+    @Test("ファイルを開くと Open Recent 履歴に記録される")
+    func openViewerRecordsRecentDocument() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
+        let recentStore = RecentDocumentsStore(defaults: defaults)
+        let manager = makeManager(defaults: defaults)
+
+        manager.openViewer(for: file)
+
+        #expect(recentStore.recentURLs().map(\.path) == [file.normalizedPathKey])
+        manager.controllers.values.forEach { $0.close() }
+    }
+
+    @Test("rename が Open Recent 履歴に反映される")
+    func renameUpdatesRecentDocuments() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "old.mmd", contents: "graph TD;")
+        let renamed = try tmp.file(named: "new.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
+        let recentStore = RecentDocumentsStore(defaults: defaults)
+        let manager = makeManager(defaults: defaults)
+        manager.openViewer(for: file)
+
+        manager.controllers[file.normalizedPathKey]?.onRename?(file, renamed)
+
+        #expect(recentStore.recentURLs().map(\.path) == [renamed.normalizedPathKey])
+        manager.controllers.values.forEach { $0.close() }
     }
 
     @Test("window(forPath:) が開いたウィンドウを返す")
