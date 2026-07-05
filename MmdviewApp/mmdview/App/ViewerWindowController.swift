@@ -5,6 +5,11 @@ import WebKit
 /// 1 ファイルに対応する 1 ウィンドウを管理する NSWindowController。
 /// SwiftUI の ViewerContentView を NSHostingView 経由で表示する。
 final class ViewerWindowController: NSWindowController, NSWindowDelegate {
+    /// 最後に調整したウィンドウフレーム（位置＋サイズ）の保存キー。全ウィンドウで共有する。
+    private static let lastWindowFrameKey = "LastWindowFrame"
+    private static let defaultContentSize = NSSize(width: 1100, height: 850)
+
+    private let defaults: UserDefaults
     private let store: ViewerStore
     private let zoomStore: ZoomStore
     private let webViewProxy = WebViewProxy()
@@ -22,13 +27,16 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Initialization
 
-    init(fileURL: URL, zoomStore: ZoomStore) {
+    init(fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard) {
         self.fileURL = fileURL
         self.zoomStore = zoomStore
+        self.defaults = defaults
         store = ViewerStore()
 
+        // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
+        // ここでの contentRect はプレースホルダ
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+            contentRect: .zero,
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
@@ -48,17 +56,9 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         window.representedURL = fileURL
         window.tabbingIdentifier = "ViewerWindow"
         window.collectionBehavior.insert(.fullScreenPrimary)
-        let autosaveName = fileURL.viewerFrameAutosaveName
-        // 保存済みフレームがあれば復元し、なければ後段で中央配置する
-        let hasSavedFrame = window.setFrameUsingName(autosaveName)
         window.isReleasedWhenClosed = false
 
         super.init(window: window)
-        // NSWindowController.init(window:) はウィンドウ側の frameAutosaveName を
-        // コントローラの windowFrameAutosaveName（既定は空文字）で上書きするため、
-        // autosave 名は super.init 後にコントローラ側プロパティへ設定する必要がある
-        windowFrameAutosaveName = autosaveName
-        window.delegate = self
 
         let contentView = ViewerContentView(
             store: store,
@@ -77,10 +77,22 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             onSelect: { [weak self] url in self?.switchFile(to: url) }
         )
         let splitVC = ViewerSplitViewController(sidebar: fileListView, content: contentView)
+        // contentViewController の設定でウィンドウがビューのフィッティングサイズに
+        // リサイズされるため、フレームの確定はその後に行う。
+        // frameDescriptor はフレーム座標系で保存・復元されるため、
+        // タイトルバー高さの混入によるサイズのずれは起きない
         window.contentViewController = splitVC
-        if !hasSavedFrame {
+        if let descriptor = defaults.string(forKey: Self.lastWindowFrameKey) {
+            window.setFrame(from: descriptor)
+        } else {
+            window.setContentSize(Self.defaultContentSize)
             window.center()
         }
+
+        // delegate の設定はフレーム確定後にする。init 中のリサイズ
+        // (contentViewController 設定によるフィッティングサイズ化など)が
+        // windowDidResize 経由で保存されるのを防ぐ
+        window.delegate = self
 
         store.onFileRenamed = { [weak self] newURL in
             self?.handleRename(to: newURL)
@@ -89,8 +101,6 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// ファイルの rename / move をウィンドウに反映する。
-    /// タイトル・representedURL・フレーム autosave 名・ズーム倍率キーを新パスへ移し、
-    /// ViewerWindowManager へ旧 URL・新 URL を通知する。
     private func handleRename(to newURL: URL) {
         let oldURL = fileURL
         guard newURL != oldURL else { return }
@@ -99,15 +109,6 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         if let window {
             window.title = newURL.lastPathComponent
             window.representedURL = newURL
-            let oldAutosaveName = oldURL.viewerFrameAutosaveName
-            let newAutosaveName = newURL.viewerFrameAutosaveName
-            // 旧名のエントリを破棄してから、現在のフレームを新しい名前で保存し直す。
-            // この順序なら旧新の正規化キーが一致する rename でも保存済みフレームが消えない。
-            // autosave 名はコントローラ側プロパティ経由で変更しないと
-            // windowFrameAutosaveName が旧名のままウィンドウ側と食い違う
-            NSWindow.removeFrame(usingName: oldAutosaveName)
-            window.saveFrame(usingName: newAutosaveName)
-            windowFrameAutosaveName = newAutosaveName
         }
 
         zoomStore.migrateZoom(from: oldURL, to: newURL)
@@ -115,8 +116,6 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// サイドバーで別ファイルが選択されたときにウィンドウの表示対象を切り替える。
-    /// タイトル・representedURL・フレーム autosave 名・ズーム倍率キーを新パスへ移し、
-    /// ViewerWindowManager へ旧 URL・新 URL を通知する。
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
         guard newURL != oldURL else { return }
@@ -126,11 +125,6 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         if let window {
             window.title = newURL.lastPathComponent
             window.representedURL = newURL
-            let oldAutosaveName = oldURL.viewerFrameAutosaveName
-            let newAutosaveName = newURL.viewerFrameAutosaveName
-            NSWindow.removeFrame(usingName: oldAutosaveName)
-            window.saveFrame(usingName: newAutosaveName)
-            windowFrameAutosaveName = newAutosaveName
         }
 
         zoomStore.migrateZoom(from: oldURL, to: newURL)
@@ -140,6 +134,15 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError()
+    }
+
+    // MARK: - Frame Persistence
+
+    /// 現在のウィンドウフレーム（位置＋サイズ）を保存する。
+    /// フルスクリーン中のフレームは通常ウィンドウの寸法として無意味なため保存しない。
+    private func saveWindowFrame() {
+        guard let window, !window.styleMask.contains(.fullScreen) else { return }
+        defaults.set(window.frameDescriptor, forKey: Self.lastWindowFrameKey)
     }
 
     // MARK: - Menu Actions
@@ -177,11 +180,23 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
+        saveWindowFrame()
         store.close()
         onClose?()
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
         onBecomeKey?()
+    }
+
+    /// ライブリサイズだけでなく、ズーム(タイトルバーのダブルクリック等)・
+    /// 画面タイリング・プログラムからの変更も含めて捕捉するため、
+    /// didResize / didMove の両方で保存する。
+    func windowDidResize(_ notification: Notification) {
+        saveWindowFrame()
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        saveWindowFrame()
     }
 }

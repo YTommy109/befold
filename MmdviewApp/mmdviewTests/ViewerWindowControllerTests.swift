@@ -6,46 +6,83 @@ import Testing
 @Suite
 @MainActor
 struct ViewerWindowControllerTests {
-    /// NSWindowController.init(window:) はウィンドウの frameAutosaveName を
-    /// コントローラ側の windowFrameAutosaveName（既定は空）で上書きするため、
-    /// init 完了後もファイル毎の autosave 名が残っていることを検証する。
-    /// これが空だと AppKit の frame autosave が一切動かず、
-    /// ウィンドウ位置・サイズがファイル毎に保存されない。
-    @Test("フレーム autosave 名が init 完了後もファイル毎の名前で維持される")
-    func frameAutosaveNameSurvivesInit() throws {
+    @Test("ファイル別の frameAutosaveName は設定されない")
+    func noPerFileFrameAutosave() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
 
         let controller = ViewerWindowController(
             fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+            zoomStore: ZoomStore(
+                defaults: makeIsolatedDefaults(
+                    prefix: "ViewerWindowControllerTests"
+                )
+            )
         )
         defer { controller.close() }
 
-        let expected = "Viewer-" + file.normalizedPathKey.replacingOccurrences(of: "/", with: "_")
-        #expect(controller.window?.frameAutosaveName == expected)
-        #expect(controller.windowFrameAutosaveName == expected)
+        #expect(controller.windowFrameAutosaveName == "")
     }
 
-    /// フレーム autosave 名も ZoomStore と同じ正規化パス基準を使い、
-    /// シンボリックリンク経由で開いても実体パスと同じキーに集約されることを検証する。
-    @Test("シンボリックリンク経由で開いてもフレーム autosave 名は実体パス基準になる")
-    func frameAutosaveNameResolvesSymlinks() throws {
+    @Test("保存されたフレームがなければデフォルトのコンテンツサイズで開く")
+    func windowOpensAtDefaultSizeWithoutSavedFrame() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
-        let real = try tmp.file(named: "real.mmd", contents: "graph TD;")
-        let link = tmp.url.appendingPathComponent("link.mmd")
-        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
 
         let controller = ViewerWindowController(
-            fileURL: link,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: defaults),
+            defaults: defaults
         )
         defer { controller.close() }
 
-        let expected = "Viewer-" + real.normalizedPathKey.replacingOccurrences(of: "/", with: "_")
-        #expect(controller.windowFrameAutosaveName == expected)
+        let contentSize = controller.window.map {
+            $0.contentRect(forFrameRect: $0.frame).size
+        } ?? .zero
+        #expect(contentSize == NSSize(width: 1100, height: 850))
+    }
+
+    @Test("ウィンドウフレーム(位置とサイズ)が次のウィンドウに引き継がれる")
+    func windowFrameIsPersistedAcrossControllers() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
+        let zoomStore = ZoomStore(defaults: defaults)
+
+        let first = ViewerWindowController(fileURL: file, zoomStore: zoomStore, defaults: defaults)
+        defer { first.close() }
+        let frame = NSRect(x: 120, y: 140, width: 900, height: 700)
+        first.window?.setFrame(frame, display: false)
+        first.windowDidResize(Notification(name: NSWindow.didResizeNotification))
+
+        let second = ViewerWindowController(fileURL: file, zoomStore: zoomStore, defaults: defaults)
+        defer { second.close() }
+
+        #expect(second.window?.frame == frame)
+    }
+
+    @Test("ウィンドウを閉じたときにもフレームが保存される")
+    func windowFrameIsSavedOnClose() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
+        let zoomStore = ZoomStore(defaults: defaults)
+
+        let first = ViewerWindowController(fileURL: file, zoomStore: zoomStore, defaults: defaults)
+        let frame = NSRect(x: 160, y: 180, width: 800, height: 650)
+        first.window?.setFrame(frame, display: false)
+        first.windowWillClose(Notification(name: NSWindow.willCloseNotification))
+        first.close()
+
+        let second = ViewerWindowController(fileURL: file, zoomStore: zoomStore, defaults: defaults)
+        defer { second.close() }
+
+        #expect(second.window?.frame == frame)
     }
 
     @Test("windowDidBecomeKey で onBecomeKey コールバックが呼ばれる")
