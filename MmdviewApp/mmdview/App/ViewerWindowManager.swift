@@ -96,5 +96,19 @@ final class ViewerWindowManager {
             NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
             bindCallbacks(for: controller, key: newKey, url: newURL)
         }
+        controller.onSwitchFile = { [weak self, weak controller] oldURL, newURL in
+            guard let self, let controller else { return }
+            let oldKey = oldURL.normalizedPathKey
+            let newKey = newURL.normalizedPathKey
+            if controllers[oldKey] === controller {
+                controllers.removeValue(forKey: oldKey)
+            }
+            controllers[newKey] = controller
+            sessionStore.noteClosed(oldURL)
+            sessionStore.noteOpened(newURL)
+            recentDocumentsStore.noteOpened(newURL)
+            NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
+            bindCallbacks(for: controller, key: newKey, url: newURL)
+        }
     }
 }
