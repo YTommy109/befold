@@ -86,11 +86,6 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.viewModeScript(.rendered) == "setViewMode('rendered')")
     }
 
-    @Test("getViewModeScript が正しい JS を返す")
-    func getViewModeScriptValue() {
-        #expect(ViewerBridge.getViewModeScript == "getViewMode()")
-    }
-
     /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html に実在することを
     /// リポジトリ内のソースを読んで検証する(ブリッジ契約のドリフト検知)。
     @Test("ViewerBridge の関数名が viewer.html に定義されている")

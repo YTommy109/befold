@@ -52,7 +52,4 @@ enum ViewerBridge {
     static func viewModeScript(_ mode: ViewMode) -> String {
         "setViewMode('\(mode.rawValue)')"
     }
-
-    /// 現在の表示モードを取得するスクリプト。
-    static let getViewModeScript = "getViewMode()"
 }
