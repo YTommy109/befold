@@ -8,10 +8,10 @@ struct DirectoryListerTests {
     func listFilesReturnsAllFilesRegardlessOfExtension() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
-        let mmd = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
-        let md = try tmp.file(named: "readme.md", contents: "# Hi")
-        let png = try tmp.file(named: "photo.png", contents: "binary")
-        let csv = try tmp.file(named: "data.csv", contents: "a,b")
+        _ = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        _ = try tmp.file(named: "readme.md", contents: "# Hi")
+        _ = try tmp.file(named: "photo.png", contents: "binary")
+        _ = try tmp.file(named: "data.csv", contents: "a,b")
 
         let result = DirectoryLister.listFiles(in: tmp.url)
 
