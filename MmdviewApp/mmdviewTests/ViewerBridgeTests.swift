@@ -33,6 +33,22 @@ struct ViewerBridgeTests {
         #expect(script.hasSuffix("\", 'code', 'swift')"))
     }
 
+    @Test("csv タイプは第 3 引数に delimiter を渡す")
+    func renderScriptAppendsDelimiterForCsv() throws {
+        let script = try #require(
+            ViewerBridge.renderScript(content: "a,b\n1,2", fileType: .csv(delimiter: ","))
+        )
+        #expect(script.hasSuffix("\", 'csv', ',')"))
+    }
+
+    @Test("tsv タイプは第 3 引数にタブ delimiter を渡す")
+    func renderScriptAppendsTabDelimiterForTsv() throws {
+        let script = try #require(
+            ViewerBridge.renderScript(content: "a\tb\n1\t2", fileType: .csv(delimiter: "\t"))
+        )
+        #expect(script.hasSuffix("\", 'csv', '\\t')"))
+    }
+
     @Test("mmd / md は従来どおり 2 引数のまま（言語引数を付けない）")
     func renderScriptOmitsLanguageForNonCode() throws {
         let mmd = try #require(ViewerBridge.renderScript(content: "graph TD", fileType: .mmd))

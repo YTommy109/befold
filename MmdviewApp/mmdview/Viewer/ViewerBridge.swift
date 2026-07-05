@@ -34,6 +34,10 @@ enum ViewerBridge {
         if let language = fileType.codeLanguage {
             return "render(\(jsonString), '\(fileType.jsValue)', '\(language)')"
         }
+        if let delimiter = fileType.csvDelimiter {
+            let escaped = delimiter == "\t" ? "\\t" : delimiter
+            return "render(\(jsonString), '\(fileType.jsValue)', '\(escaped)')"
+        }
         return "render(\(jsonString), '\(fileType.jsValue)')"
     }
 
