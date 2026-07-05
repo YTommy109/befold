@@ -10,7 +10,7 @@
     インライン <script> と onclick、mermaid が注入するインライン <style> のため
     script-src / style-src には 'unsafe-inline' を付与する。
   -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; frame-src blob:; connect-src 'none'; base-uri 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>mmdview</title>
   <!-- ベンダー CSS(github-markdown / github / github-dark)は style.css が
@@ -306,6 +306,52 @@
       diagramWrap.classList.remove('markdown-body');
       diagramWrap.classList.remove('code-body');
       diagramWrap.innerHTML = '<pre class="mermaid">' + _escapeHtml(content) + '</pre>';
+    } else if (type === 'svg') {
+      diagramWrap.classList.remove('markdown-body');
+      diagramWrap.classList.remove('code-body');
+      var svgImg = document.createElement('img');
+      svgImg.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(content)));
+      svgImg.style.maxWidth = '100%';
+      svgImg.alt = 'SVG';
+      // mermaid ダイアグラムと同じズーム用ラッパーで包む
+      var svgWrap = document.createElement('div');
+      svgWrap.className = 'diagram-zoom-wrap';
+      svgWrap.dataset.diagramIndex = '0';
+      var svgScroll = document.createElement('div');
+      svgScroll.className = 'diagram-zoom-scroll';
+      var svgInner = document.createElement('div');
+      svgInner.className = 'diagram-zoom-inner';
+      svgInner.appendChild(svgImg);
+      svgScroll.appendChild(svgInner);
+      svgWrap.appendChild(svgScroll);
+      svgWrap.appendChild(_mmdBuildDiagramControls(svgWrap));
+      diagramWrap.innerHTML = '';
+      diagramWrap.appendChild(svgWrap);
+      svgImg.onload = function() {
+        svgWrap.dataset.naturalHeight = svgInner.offsetHeight;
+        _mmdApplyDiagramZoom(svgWrap);
+      };
+    } else if (type === 'html') {
+      diagramWrap.classList.remove('markdown-body');
+      diagramWrap.classList.remove('code-body');
+      diagramWrap.classList.add('html-body');
+      var iframe = document.createElement('iframe');
+      iframe.sandbox = '';
+      iframe.srcdoc = content;
+      iframe.style.width = '100%';
+      iframe.style.border = 'none';
+      // iframe の高さをコンテンツに合わせる
+      iframe.onload = function() {
+        try {
+          var h = iframe.contentDocument.documentElement.scrollHeight;
+          iframe.style.height = h + 'px';
+        } catch(e) {
+          iframe.style.height = '80vh';
+        }
+      };
+      iframe.style.height = '80vh';
+      diagramWrap.innerHTML = '';
+      diagramWrap.appendChild(iframe);
     } else if (type === 'code') {
       // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
       // レイアウトは style.css の .code-body が担う。
