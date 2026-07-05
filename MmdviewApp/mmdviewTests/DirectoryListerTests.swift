@@ -4,22 +4,37 @@ import Testing
 
 @Suite
 struct DirectoryListerTests {
-    @Test("対応拡張子のファイルだけが返される")
-    func listFilesFiltersByExtension() throws {
+    @Test("拡張子によらず全ファイルが返される")
+    func listFilesReturnsAllFilesRegardlessOfExtension() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let mmd = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         let md = try tmp.file(named: "readme.md", contents: "# Hi")
-        _ = try tmp.file(named: "photo.png", contents: "binary")
-        _ = try tmp.file(named: "data.csv", contents: "a,b")
+        let png = try tmp.file(named: "photo.png", contents: "binary")
+        let csv = try tmp.file(named: "data.csv", contents: "a,b")
 
         let result = DirectoryLister.listFiles(in: tmp.url)
 
         let names = result.map(\.lastPathComponent)
         #expect(names.contains("diagram.mmd"))
         #expect(names.contains("readme.md"))
-        #expect(!names.contains("photo.png"))
-        #expect(!names.contains("data.csv"))
+        #expect(names.contains("photo.png"))
+        #expect(names.contains("data.csv"))
+    }
+
+    @Test("サブディレクトリは一覧から除外される")
+    func listFilesExcludesDirectories() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: "visible.mmd", contents: "")
+        try FileManager.default.createDirectory(
+            at: tmp.url.appendingPathComponent("subdir"),
+            withIntermediateDirectories: true
+        )
+
+        let result = DirectoryLister.listFiles(in: tmp.url)
+
+        #expect(result.map(\.lastPathComponent) == ["visible.mmd"])
     }
 
     @Test("結果がファイル名でローカライズソートされる")
