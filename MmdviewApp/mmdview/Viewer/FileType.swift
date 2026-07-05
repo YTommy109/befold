@@ -46,8 +46,10 @@ enum FileType: Sendable, Equatable {
             self = .mmd
         } else if let language = Self.codeExtensionLanguages[ext] {
             self = .code(language: language)
-        } else {
+        } else if Self.markdownExtensions.contains(ext) {
             self = .markdown
+        } else {
+            self = .code(language: "plaintext")
         }
     }
 

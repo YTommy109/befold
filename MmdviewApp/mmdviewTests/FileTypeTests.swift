@@ -44,12 +44,12 @@ struct FileTypeTests {
         #expect(FileType(url: url) == .code(language: language))
     }
 
-    /// 未知の拡張子は markdown にフォールバックすること
+    /// 未知の拡張子は plaintext(等幅プレーンテキスト表示)にフォールバックすること
     @Test(arguments: ["txt", "html", ""])
-    func unknownExtensionsFallbackToMarkdown(ext: String) {
+    func unknownExtensionsFallbackToPlaintext(ext: String) {
         let path = ext.isEmpty ? "/a/b" : "/a/b.\(ext)"
         let url = URL(fileURLWithPath: path)
-        #expect(FileType(url: url) == .markdown)
+        #expect(FileType(url: url) == .code(language: "plaintext"))
     }
 
     /// jsValue が JavaScript 側の期待する文字列を返すこと
