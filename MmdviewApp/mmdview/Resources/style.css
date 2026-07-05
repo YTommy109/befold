@@ -235,6 +235,8 @@ body.mmd-deleted {
   padding: 0.25em 0.5ch;
   font-size: calc(var(--mmd-markdown-font-size, 16px) * 0.75);
   line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /*

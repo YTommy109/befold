@@ -4,12 +4,18 @@ import Foundation
 enum FileType: Sendable, Equatable {
     case mmd
     case markdown
+    case svg
+    case html
     case code(language: String)
 
     /// mermaid ダイアグラムとして扱う拡張子。
     static let mermaidExtensions = ["mmd", "mermaid"]
     /// markdown として扱う拡張子。
     static let markdownExtensions = ["md", "markdown"]
+    /// SVG として扱う拡張子。
+    static let svgExtensions = ["svg"]
+    /// HTML として扱う拡張子。
+    static let htmlExtensions = ["html", "htm"]
     /// コードとして扱う拡張子 → highlight.js の言語名。
     /// 同梱 highlight.min.js が対応する言語のみを載せる
     /// (整合性は viewer.test.js が同梱ビルドの言語リストと突き合わせて検証する)。
@@ -31,7 +37,7 @@ enum FileType: Sendable, Equatable {
         "mk": "makefile",
         "json": "json", "jsonc": "json",
         "yaml": "yaml", "yml": "yaml",
-        "xml": "xml", "plist": "xml", "svg": "xml",
+        "xml": "xml", "plist": "xml",
         "vb": "vbnet",
     ]
     /// コードとして扱う拡張子。
@@ -41,6 +47,10 @@ enum FileType: Sendable, Equatable {
         let ext = url.pathExtension.lowercased()
         if Self.mermaidExtensions.contains(ext) {
             self = .mmd
+        } else if Self.svgExtensions.contains(ext) {
+            self = .svg
+        } else if Self.htmlExtensions.contains(ext) {
+            self = .html
         } else if let language = Self.codeExtensionLanguages[ext] {
             self = .code(language: language)
         } else if Self.markdownExtensions.contains(ext) {
@@ -54,6 +64,8 @@ enum FileType: Sendable, Equatable {
         switch self {
         case .mmd: "mmd"
         case .markdown: "md"
+        case .svg: "svg"
+        case .html: "html"
         case .code: "code"
         }
     }
@@ -62,5 +74,13 @@ enum FileType: Sendable, Equatable {
     var codeLanguage: String? {
         if case let .code(language) = self { return language }
         return nil
+    }
+
+    /// レンダリング表示が可能な種別かどうか。false ならソース表示のみ。
+    var isRenderable: Bool {
+        switch self {
+        case .mmd, .markdown, .svg, .html: true
+        case .code: false
+        }
     }
 }

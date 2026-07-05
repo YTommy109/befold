@@ -162,6 +162,12 @@ enum MainMenuBuilder {
             keyEquivalent: "-"
         )
         menu.addItem(.separator())
+        menu.addItem(
+            withTitle: String(localized: "menu.view.toggleSource", bundle: .l10n),
+            action: #selector(ViewerWindowController.toggleSourceView(_:)),
+            keyEquivalent: "u"
+        )
+        menu.addItem(.separator())
         let toggleSidebar = menu.addItem(
             withTitle: String(localized: "menu.view.toggleSidebar", bundle: .l10n),
             action: #selector(NSSplitViewController.toggleSidebar(_:)),

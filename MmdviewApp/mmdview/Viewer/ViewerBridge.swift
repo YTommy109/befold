@@ -36,4 +36,18 @@ enum ViewerBridge {
         }
         return "render(\(jsonString), '\(fileType.jsValue)')"
     }
+
+    /// レンダリング表示とソース表示の切り替えモード。
+    enum ViewMode: String {
+        case rendered
+        case source
+    }
+
+    /// setViewMode(mode) 呼び出しを組み立てる。
+    static func viewModeScript(_ mode: ViewMode) -> String {
+        "setViewMode('\(mode.rawValue)')"
+    }
+
+    /// 現在の表示モードを取得するスクリプト。
+    static let getViewModeScript = "getViewMode()"
 }
