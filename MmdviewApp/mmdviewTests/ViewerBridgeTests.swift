@@ -68,6 +68,11 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.systemFontSizeScript(13.0) == "window._mmdSystemFontSize = 13.0;")
     }
 
+    @Test("applyZoomScript は倍率注入と _mmdInitZoom() 呼び出しを組み合わせる")
+    func applyZoomScriptInjectsValueAndInvokesInit() {
+        #expect(ViewerBridge.applyZoomScript(1.5) == "window._mmdInitialZoom = 1.5; _mmdInitZoom();")
+    }
+
     @Test("svg タイプは 2 引数のまま（言語引数を付けない）")
     func renderScriptOmitsLanguageForSvg() throws {
         let script = try #require(ViewerBridge.renderScript(content: "<svg></svg>", fileType: .svg))

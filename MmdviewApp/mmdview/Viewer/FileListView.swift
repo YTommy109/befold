@@ -1,18 +1,26 @@
 import SwiftUI
 
+/// サイドバーのファイル一覧と選択状態を保持する監視可能モデル。
+/// リネームやディレクトリの変化に追従して一覧・選択を更新できるよう、
+/// ウィンドウ側(ViewerWindowController)が参照型で保持して書き換える。
+@MainActor
+@Observable
+final class FileListModel {
+    var files: [URL]
+    var selection: URL?
+
+    init(files: [URL], selection: URL?) {
+        self.files = files
+        self.selection = selection
+    }
+}
+
 struct FileListView: View {
-    let files: [URL]
-    @State private var selection: URL?
+    @Bindable var model: FileListModel
     let onSelect: (URL) -> Void
 
-    init(files: [URL], initialSelection: URL, onSelect: @escaping (URL) -> Void) {
-        self.files = files
-        _selection = State(initialValue: initialSelection)
-        self.onSelect = onSelect
-    }
-
     var body: some View {
-        List(files, id: \.self, selection: $selection) { file in
+        List(model.files, id: \.self, selection: $model.selection) { file in
             Label {
                 Text(file.lastPathComponent)
                     .lineLimit(1)
@@ -23,7 +31,7 @@ struct FileListView: View {
                     .frame(width: 16, height: 16)
             }
         }
-        .onChange(of: selection) { _, newValue in
+        .onChange(of: model.selection) { _, newValue in
             if let url = newValue {
                 onSelect(url)
             }

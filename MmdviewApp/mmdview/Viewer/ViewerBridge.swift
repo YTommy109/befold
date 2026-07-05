@@ -17,6 +17,12 @@ enum ViewerBridge {
         "window._mmdInitialZoom = \(zoom);"
     }
 
+    /// 表示中ファイルの切り替え時などに、保存済み倍率を注入し直して即時反映する
+    /// スクリプト。viewer.html 側は _mmdInitZoom() が _mmdInitialZoom を読んで適用する。
+    static func applyZoomScript(_ zoom: Double) -> String {
+        initialZoomScript(zoom) + " _mmdInitZoom();"
+    }
+
     /// ロード時にシステム本文フォントサイズ(pt)を注入するスクリプト。
     /// viewer.html 側は _mmdInitFontSize() が読んで CSS 変数へ反映する。
     static func systemFontSizeScript(_ size: Double) -> String {

@@ -134,4 +134,24 @@ struct ViewerWindowManagerTests {
         #expect(!savedPaths.contains(file1.normalizedPathKey))
         manager.controllers.values.forEach { $0.close() }
     }
+
+    @Test("別ウィンドウで開いているファイルへの切替は中止され重複ウィンドウを作らない")
+    func switchToFileOpenInAnotherWindowIsRejected() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
+        let file2 = try tmp.file(named: "second.mmd", contents: "graph LR;")
+        let manager = makeManager()
+        manager.openViewer(for: file1)
+        manager.openViewer(for: file2)
+        let first = try #require(manager.controllers[file1.normalizedPathKey])
+
+        // file2 は別ウィンドウで開いているため、切替は中止され file1 のまま残る。
+        first.switchFile(to: file2)
+
+        #expect(manager.controllers.count == 2)
+        #expect(manager.controllers[file1.normalizedPathKey] === first)
+        #expect(first.fileURL == file1)
+        manager.controllers.values.forEach { $0.close() }
+    }
 }

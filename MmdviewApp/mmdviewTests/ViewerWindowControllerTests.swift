@@ -57,7 +57,7 @@ struct ViewerWindowControllerTests {
         defer { first.close() }
         let frame = NSRect(x: 120, y: 140, width: 900, height: 700)
         first.window?.setFrame(frame, display: false)
-        first.windowDidResize(Notification(name: NSWindow.didResizeNotification))
+        first.windowDidEndLiveResize(Notification(name: NSWindow.didEndLiveResizeNotification))
 
         let second = ViewerWindowController(fileURL: file, zoomStore: zoomStore, defaults: defaults)
         defer { second.close() }
@@ -158,5 +158,94 @@ struct ViewerWindowControllerTests {
         controller.switchFile(to: file)
 
         #expect(!called)
+    }
+
+    @Test("switchFile は旧・新ファイルの保存済み倍率を破壊しない")
+    func switchFilePreservesSavedZoomForBothFiles() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
+        let file2 = try tmp.file(named: "second.mmd", contents: "graph LR;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
+        let zoomStore = ZoomStore(defaults: defaults)
+        zoomStore.setZoom(2.0, for: file1)
+        zoomStore.setZoom(0.75, for: file2)
+        let controller = ViewerWindowController(fileURL: file1, zoomStore: zoomStore, defaults: defaults)
+        defer { controller.close() }
+
+        controller.switchFile(to: file2)
+
+        // 切替はリネームではないため、双方の保存倍率が独立して保たれる。
+        #expect(zoomStore.zoom(for: file1) == 2.0)
+        #expect(zoomStore.zoom(for: file2) == 0.75)
+    }
+
+    @Test("rename でサイドバーの一覧が再取得され新名が選択される")
+    func renameRefreshesSidebarListAndSelection() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "old.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: defaults),
+            defaults: defaults
+        )
+        defer { controller.close() }
+        let renamed = tmp.url.appendingPathComponent("new.mmd")
+        try FileManager.default.moveItem(at: file, to: renamed)
+
+        controller.handleRename(to: renamed)
+
+        // ディレクトリ列挙は /private シンボリックリンクを解決するため、名前で照合する。
+        let names = controller.fileListModel.files.map(\.lastPathComponent)
+        #expect(controller.fileListModel.selection?.lastPathComponent == "new.mmd")
+        #expect(names.contains("new.mmd"))
+        #expect(!names.contains("old.mmd"))
+    }
+
+    @Test("対応形式への rename ではソース表示が維持される")
+    func renameToRenderableKeepsSourceMode() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "note.md", contents: "# hi")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: defaults),
+            defaults: defaults
+        )
+        defer { controller.close() }
+        controller.toggleSourceView(nil)
+        #expect(controller.isSourceMode)
+        let renamed = tmp.url.appendingPathComponent("note.markdown")
+        try FileManager.default.moveItem(at: file, to: renamed)
+
+        controller.handleRename(to: renamed)
+
+        #expect(controller.isSourceMode)
+    }
+
+    @Test("非対応形式への rename ではソース表示が解除される")
+    func renameToNonRenderableResetsSourceMode() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "note.md", contents: "# hi")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: defaults),
+            defaults: defaults
+        )
+        defer { controller.close() }
+        controller.toggleSourceView(nil)
+        #expect(controller.isSourceMode)
+        let renamed = tmp.url.appendingPathComponent("note.swift")
+        try FileManager.default.moveItem(at: file, to: renamed)
+
+        controller.handleRename(to: renamed)
+
+        // .swift は isRenderable == false のため、ソース表示トグルが成立せずリセットする。
+        #expect(!controller.isSourceMode)
     }
 }
