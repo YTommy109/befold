@@ -18,6 +18,10 @@ const {
   markdownFontSize,
   escapeHtml,
   renderCodeHtml,
+  parseCsv,
+  buildTableHtml,
+  renderCsvSourceHtml,
+  CSV_COL_COUNT,
 } = require('../viewer');
 
 describe('clampZoom', () => {
@@ -431,5 +435,135 @@ describe('FileType.swift の言語名契約', () => {
 
   test.each(LANGUAGES)('%s is available in the bundled highlight.min.js', (lang) => {
     expect(bundledHljs.getLanguage(lang)).toBeTruthy();
+  });
+});
+
+describe('parseCsv', () => {
+  test('parses simple comma-separated rows', () => {
+    expect(parseCsv('a,b,c\n1,2,3', ',')).toEqual([['a','b','c'],['1','2','3']]);
+  });
+
+  test('parses tab-separated rows', () => {
+    expect(parseCsv('a\tb\tc\n1\t2\t3', '\t')).toEqual([['a','b','c'],['1','2','3']]);
+  });
+
+  test('handles quoted fields with commas', () => {
+    expect(parseCsv('"a,b",c\n1,2', ',')).toEqual([['a,b','c'],['1','2']]);
+  });
+
+  test('handles escaped quotes inside quoted fields', () => {
+    expect(parseCsv('"say ""hello""",b\n1,2', ',')).toEqual([['say "hello"','b'],['1','2']]);
+  });
+
+  test('handles newlines inside quoted fields', () => {
+    expect(parseCsv('"line1\nline2",b\n1,2', ',')).toEqual([['line1\nline2','b'],['1','2']]);
+  });
+
+  test('handles empty fields', () => {
+    expect(parseCsv(',b,\n1,,3', ',')).toEqual([['','b',''],['1','','3']]);
+  });
+
+  test('handles single row without trailing newline', () => {
+    expect(parseCsv('a,b,c', ',')).toEqual([['a','b','c']]);
+  });
+
+  test('handles trailing newline', () => {
+    expect(parseCsv('a,b\n1,2\n', ',')).toEqual([['a','b'],['1','2']]);
+  });
+
+  test('handles CRLF line endings', () => {
+    expect(parseCsv('a,b\r\n1,2', ',')).toEqual([['a','b'],['1','2']]);
+  });
+
+  test('returns empty array for empty string', () => {
+    expect(parseCsv('', ',')).toEqual([]);
+  });
+
+  test('handles single field', () => {
+    expect(parseCsv('a', ',')).toEqual([['a']]);
+  });
+});
+
+describe('buildTableHtml', () => {
+  test('builds table with thead and tbody', () => {
+    const html = buildTableHtml([['Name','Age'],['Alice','30'],['Bob','25']]);
+    expect(html).toContain('<table>');
+    expect(html).toContain('<thead>');
+    expect(html).toContain('<th>Name</th>');
+    expect(html).toContain('<th>Age</th>');
+    expect(html).toContain('<tbody>');
+    expect(html).toContain('<td>Alice</td>');
+    expect(html).toContain('<td>30</td>');
+    expect(html).toContain('</table>');
+  });
+
+  test('header-only table has empty tbody', () => {
+    const html = buildTableHtml([['A','B']]);
+    expect(html).toContain('<thead>');
+    expect(html).toContain('<tbody></tbody>');
+  });
+
+  test('empty rows returns empty string', () => {
+    expect(buildTableHtml([])).toBe('');
+  });
+
+  test('escapes HTML in cell values', () => {
+    const html = buildTableHtml([['<script>'],['&"']]);
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('&amp;&quot;');
+  });
+
+  test('pads short rows with empty cells', () => {
+    const html = buildTableHtml([['A','B','C'],['1']]);
+    const tdCount = (html.match(/<td>/g) || []).length + (html.match(/<td>[^<]*<\/td>/g) || []).length;
+    // 1行目は th×3、2行目は td が 3 つ(うち 2 つは空)
+    expect(html).toContain('<td>1</td>');
+    expect(html.match(/<td><\/td>/g).length).toBe(2);
+  });
+});
+
+describe('renderCsvSourceHtml', () => {
+  test('wraps output in pre/code', () => {
+    const html = renderCsvSourceHtml('a,b\n1,2', ',');
+    expect(html.startsWith('<pre><code class="csv-source">')).toBe(true);
+    expect(html.endsWith('</code></pre>')).toBe(true);
+  });
+
+  test('applies rotating colors to columns', () => {
+    const html = renderCsvSourceHtml('a,b,c', ',');
+    // 各列が異なる色の span で囲まれている
+    expect(html).toContain('<span class="csv-col-0">');
+    expect(html).toContain('<span class="csv-col-1">');
+    expect(html).toContain('<span class="csv-col-2">');
+  });
+
+  test('delimiter is not wrapped in a color span', () => {
+    const html = renderCsvSourceHtml('a,b', ',');
+    // delimiter はそのまま表示される
+    expect(html).toContain('</span>,<span');
+  });
+
+  test('escapes HTML in field values', () => {
+    const html = renderCsvSourceHtml('<b>,&', ',');
+    expect(html).toContain('&lt;b&gt;');
+    expect(html).toContain('&amp;');
+  });
+
+  test('handles tab delimiter', () => {
+    const html = renderCsvSourceHtml('a\tb', '\t');
+    expect(html).toContain('</span>\t<span');
+  });
+
+  test('returns empty pre/code for empty string', () => {
+    const html = renderCsvSourceHtml('', ',');
+    expect(html).toBe('<pre><code class="csv-source"></code></pre>');
+  });
+
+  test('handles quoted fields preserving quotes in source view', () => {
+    const html = renderCsvSourceHtml('"a,b",c', ',');
+    // ソース表示ではクオート付きフィールドを1つの色で表示する
+    expect(html).toContain('<span class="csv-col-0">&quot;a,b&quot;</span>');
+    expect(html).toContain('<span class="csv-col-1">c</span>');
   });
 });

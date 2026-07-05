@@ -101,6 +101,152 @@ function renderCodeHtml(hljs, str, lang) {
   return '<pre><code>' + escapeHtml(str) + '</code></pre>';
 }
 
+// RFC 4180 準拠の状態マシンベース CSV/TSV パーサー。
+// クオート内のデリミタ・改行・エスケープされたクオート("")を正しく扱う。
+function parseCsv(content, delimiter) {
+  if (!content) { return []; }
+  var rows = [];
+  var row = [];
+  var field = '';
+  var inQuotes = false;
+  var i = 0;
+  while (i < content.length) {
+    var ch = content[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < content.length && content[i + 1] === '"') {
+          field += '"';
+          i += 2;
+        } else {
+          inQuotes = false;
+          i++;
+        }
+      } else {
+        field += ch;
+        i++;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+        i++;
+      } else if (ch === delimiter) {
+        row.push(field);
+        field = '';
+        i++;
+      } else if (ch === '\r') {
+        row.push(field);
+        field = '';
+        rows.push(row);
+        row = [];
+        i++;
+        if (i < content.length && content[i] === '\n') { i++; }
+      } else if (ch === '\n') {
+        row.push(field);
+        field = '';
+        rows.push(row);
+        row = [];
+        i++;
+      } else {
+        field += ch;
+        i++;
+      }
+    }
+  }
+  if (field !== '' || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+// CSV 行の配列から HTML テーブル文字列を組み立てる。1行目を <thead>、残りを <tbody> にする。
+// 列数が揃っていない行は空セルでパディングする。
+function buildTableHtml(rows) {
+  if (rows.length === 0) { return ''; }
+  var maxCols = 0;
+  for (var r = 0; r < rows.length; r++) {
+    if (rows[r].length > maxCols) { maxCols = rows[r].length; }
+  }
+  var html = '<table><thead><tr>';
+  for (var c = 0; c < maxCols; c++) {
+    html += '<th>' + escapeHtml(c < rows[0].length ? rows[0][c] : '') + '</th>';
+  }
+  html += '</tr></thead><tbody>';
+  for (r = 1; r < rows.length; r++) {
+    html += '<tr>';
+    for (c = 0; c < maxCols; c++) {
+      html += '<td>' + escapeHtml(c < rows[r].length ? rows[r][c] : '') + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+var CSV_COL_COUNT = 8;
+
+// 1 行を delimiter で分割する。parseCsv と異なりクオート文字自体を結果に残し、
+// ソース表示(Rainbow 着色)で生テキストの見た目を保つ。
+function splitCsvSourceLine(line, delimiter) {
+  var parts = [];
+  var current = '';
+  var inQuotes = false;
+  var i = 0;
+  while (i < line.length) {
+    var ch = line[i];
+    if (inQuotes) {
+      current += ch;
+      if (ch === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i += 2;
+        } else {
+          inQuotes = false;
+          i++;
+        }
+      } else {
+        i++;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+        current += ch;
+        i++;
+      } else if (ch === delimiter) {
+        parts.push(current);
+        current = '';
+        i++;
+      } else {
+        current += ch;
+        i++;
+      }
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
+// CSV/TSV のソース表示用 HTML。行ごとに列を Rainbow カラーで着色し、
+// delimiter 自体は着色せずそのまま残す(クオート内の delimiter は列区切りとしない)。
+function renderCsvSourceHtml(content, delimiter) {
+  if (!content) { return '<pre><code class="csv-source"></code></pre>'; }
+  var lines = content.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') { lines.pop(); }
+  var htmlLines = [];
+  for (var l = 0; l < lines.length; l++) {
+    var line = lines[l];
+    if (line.charAt(line.length - 1) === '\r') { line = line.slice(0, -1); }
+    var parts = splitCsvSourceLine(line, delimiter);
+    var htmlParts = [];
+    for (var c = 0; c < parts.length; c++) {
+      var cls = 'csv-col-' + (c % CSV_COL_COUNT);
+      htmlParts.push('<span class="' + cls + '">' + escapeHtml(parts[c]) + '</span>');
+    }
+    htmlLines.push(htmlParts.join(delimiter));
+  }
+  return '<pre><code class="csv-source">' + htmlLines.join('\n') + '</code></pre>';
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     ZOOM_MIN: ZOOM_MIN,
@@ -124,5 +270,9 @@ if (typeof module !== 'undefined' && module.exports) {
     markdownFontSize: markdownFontSize,
     escapeHtml: escapeHtml,
     renderCodeHtml: renderCodeHtml,
+    parseCsv: parseCsv,
+    buildTableHtml: buildTableHtml,
+    renderCsvSourceHtml: renderCsvSourceHtml,
+    CSV_COL_COUNT: CSV_COL_COUNT,
   };
 }
