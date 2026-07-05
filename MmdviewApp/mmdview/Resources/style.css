@@ -344,6 +344,16 @@ body.mmd-deleted {
   color: var(--accent);
 }
 
+/* ── CSV テーブル表示 ── */
+.markdown-body table {
+  max-width: none;
+}
+
+.markdown-body table th,
+.markdown-body table td {
+  white-space: pre-line;
+}
+
 /* ── CSV Rainbow ソース表示 ── */
 .csv-col-0 { color: #c00; }
 .csv-col-1 { color: #080; }
