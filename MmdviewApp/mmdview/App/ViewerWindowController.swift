@@ -8,11 +8,13 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     /// 最後に調整したウィンドウフレーム（位置＋サイズ）の保存キー。全ウィンドウで共有する。
     private static let lastWindowFrameKey = "LastWindowFrame"
     private static let defaultContentSize = NSSize(width: 1100, height: 850)
+    private static let sourceToggleItemIdentifier = NSToolbarItem.Identifier("sourceToggle")
 
     private let defaults: UserDefaults
     private let store: ViewerStore
     private let zoomStore: ZoomStore
     private let webViewProxy = WebViewProxy()
+    private var isSourceMode = false
     private(set) var fileURL: URL
     /// ウィンドウが閉じられたときに呼ばれるコールバック。ViewerWindowManager がウィンドウ管理辞書から除去するために使用する。
     var onClose: (() -> Void)?
@@ -57,6 +59,10 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         window.tabbingIdentifier = "ViewerWindow"
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.isReleasedWhenClosed = false
+        // ツールバーはコンテンツサイズの計算に影響するため、フレーム確定より前に設定する
+        let toolbar = NSToolbar(identifier: "ViewerToolbar")
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
 
         super.init(window: window)
 
@@ -93,11 +99,13 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         // (contentViewController 設定によるフィッティングサイズ化など)が
         // windowDidResize 経由で保存されるのを防ぐ
         window.delegate = self
+        toolbar.delegate = self
 
         store.onFileRenamed = { [weak self] newURL in
             self?.handleRename(to: newURL)
         }
         store.openFile(fileURL)
+        updateToolbarVisibility()
     }
 
     /// ファイルの rename / move をウィンドウに反映する。
@@ -128,6 +136,8 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         }
 
         zoomStore.migrateZoom(from: oldURL, to: newURL)
+        resetSourceMode()
+        updateToolbarVisibility()
         onSwitchFile?(oldURL, newURL)
     }
 
@@ -177,6 +187,45 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
 
+    /// Toolbar > ソース表示トグル。レンダリング表示とソース表示を切り替える。
+    @objc func toggleSourceView(_ sender: Any?) {
+        isSourceMode.toggle()
+        let mode: ViewerBridge.ViewMode = isSourceMode ? .source : .rendered
+        webViewProxy.webView?.evaluateJavaScript(ViewerBridge.viewModeScript(mode))
+        updateSourceToggleAppearance()
+    }
+
+    /// トグルボタンの見た目(アイコン・ツールチップ)を現在のモードに合わせて更新する。
+    private func updateSourceToggleAppearance() {
+        guard let toolbar = window?.toolbar,
+              let item = toolbar.items.first(where: { $0.itemIdentifier == Self.sourceToggleItemIdentifier })
+        else { return }
+        if isSourceMode {
+            item.image = NSImage(systemSymbolName: "doc.richtext", accessibilityDescription: "Rendered")
+            item.toolTip = "Toggle rendered view"
+        } else {
+            item.image = NSImage(
+                systemSymbolName: "chevron.left.forwardslash.chevron.right",
+                accessibilityDescription: "Source"
+            )
+            item.toolTip = "Toggle source view"
+        }
+    }
+
+    /// ファイル切り替え時にソース表示状態をレンダリング表示にリセットする。
+    private func resetSourceMode() {
+        isSourceMode = false
+        updateSourceToggleAppearance()
+    }
+
+    /// レンダリング不可なファイルではトグルボタンを無効化する。
+    private func updateToolbarVisibility() {
+        guard let toolbar = window?.toolbar,
+              let item = toolbar.items.first(where: { $0.itemIdentifier == Self.sourceToggleItemIdentifier })
+        else { return }
+        item.isEnabled = store.fileType.isRenderable
+    }
+
     // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
@@ -198,5 +247,36 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     func windowDidMove(_ notification: Notification) {
         saveWindowFrame()
+    }
+}
+
+// MARK: - NSToolbarDelegate
+
+extension ViewerWindowController: NSToolbarDelegate {
+    func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        guard itemIdentifier == Self.sourceToggleItemIdentifier else { return nil }
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+        item.label = "Source"
+        item.toolTip = "Toggle source view"
+        item.isBordered = true
+        item.image = NSImage(
+            systemSymbolName: "chevron.left.forwardslash.chevron.right",
+            accessibilityDescription: "Source"
+        )
+        item.target = self
+        item.action = #selector(toggleSourceView(_:))
+        return item
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.flexibleSpace, Self.sourceToggleItemIdentifier]
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [Self.sourceToggleItemIdentifier, .flexibleSpace, .space]
     }
 }
