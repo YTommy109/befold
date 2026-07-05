@@ -70,10 +70,10 @@ struct FileTypeTests {
         #expect(FileType.markdown.codeLanguage == nil)
     }
 
-    /// 全拡張子リストに重複がないこと（対応表と mermaid/markdown の衝突検知）
+    /// 拡張子リストに重複がないこと（対応表と mermaid/markdown の衝突検知）
     @Test
-    func allExtensionsHasNoDuplicates() {
-        let all = FileType.allExtensions
+    func extensionListsHaveNoDuplicates() {
+        let all = FileType.mermaidExtensions + FileType.markdownExtensions + FileType.codeExtensions
         #expect(Set(all).count == all.count)
     }
 

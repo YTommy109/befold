@@ -1,5 +1,4 @@
 import AppKit
-import UniformTypeIdentifiers
 
 @main
 @MainActor
@@ -115,7 +114,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// ファイル選択パネルを表示し、選択されたファイルをビューアで開く。
     @objc func showOpenPanel() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = Self.supportedContentTypes
         panel.allowsMultipleSelection = true
         panel.begin { [weak self] response in
             guard response == .OK else { return }
@@ -141,32 +139,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func checkForUpdates(_ sender: Any?) {
         updateCoordinator.run(userInitiated: true)
     }
-
-    // MARK: - Supported Types
-
-    /// オープンパネルで許可するファイル種別。
-    /// 拡張子→UTI のバインディングは他アプリの宣言で変わる（.md が
-    /// net.daringfireball.markdown ではなく com.unknown.md に解決される環境がある）ため、
-    /// 拡張子からの解決結果と既知の UTI の両方を許可する。
-    private static let supportedContentTypes: [UTType] = {
-        let extensions = FileType.allExtensions
-        let identifiers = [
-            "com.degino.mmdview.mermaid-diagram",
-            "net.daringfireball.markdown",
-            "net.ia.markdown",
-            "com.unknown.md",
-            "com.degino.mmdview.source-code",
-            "public.source-code",
-            "public.json",
-            "public.yaml",
-            "public.xml",
-        ]
-        let resolved = extensions.compactMap { UTType(filenameExtension: $0) }
-            + identifiers.compactMap { UTType($0) }
-        var types: [UTType] = []
-        for type in resolved where !types.contains(type) {
-            types.append(type)
-        }
-        return types
-    }()
 }

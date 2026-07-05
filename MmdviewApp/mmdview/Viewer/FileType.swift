@@ -1,7 +1,6 @@
 import Foundation
 
 /// ビューアが対応するファイル種別。拡張子から判定する。
-/// 対応拡張子の一覧はここが単一情報源(オープンパネルの許可種別もここから解決する)。
 enum FileType: Sendable, Equatable {
     case mmd
     case markdown
@@ -37,8 +36,6 @@ enum FileType: Sendable, Equatable {
     ]
     /// コードとして扱う拡張子。
     static let codeExtensions = [String](codeExtensionLanguages.keys)
-    /// アプリが対応する全拡張子。
-    static let allExtensions = mermaidExtensions + markdownExtensions + codeExtensions
 
     init(url: URL) {
         let ext = url.pathExtension.lowercased()
