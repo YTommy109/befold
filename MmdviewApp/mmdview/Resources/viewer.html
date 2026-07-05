@@ -10,7 +10,7 @@
     インライン <script> と onclick、mermaid が注入するインライン <style> のため
     script-src / style-src には 'unsafe-inline' を付与する。
   -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; frame-src blob:; connect-src 'none'; base-uri 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>mmdview</title>
   <!-- ベンダー CSS(github-markdown / github / github-dark)は style.css が
@@ -311,10 +311,12 @@
     if (type === 'mmd') {
       diagramWrap.classList.remove('markdown-body');
       diagramWrap.classList.remove('code-body');
+      diagramWrap.classList.remove('html-body');
       diagramWrap.innerHTML = '<pre class="mermaid">' + _escapeHtml(content) + '</pre>';
     } else if (type === 'svg') {
       diagramWrap.classList.remove('markdown-body');
       diagramWrap.classList.remove('code-body');
+      diagramWrap.classList.remove('html-body');
       var svgImg = document.createElement('img');
       svgImg.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(content)));
       svgImg.style.maxWidth = '100%';
@@ -362,12 +364,14 @@
       // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
       // レイアウトは style.css の .code-body が担う。
       diagramWrap.classList.remove('markdown-body');
+      diagramWrap.classList.remove('html-body');
       diagramWrap.classList.add('code-body');
       diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang);
     } else {
       // github-markdown-css は .markdown-body プレフィックス前提のため
       // Markdown レンダリング時のみ付与する
       diagramWrap.classList.remove('code-body');
+      diagramWrap.classList.remove('html-body');
       diagramWrap.classList.add('markdown-body');
       if (md) {
         diagramWrap.innerHTML = md.render(content);

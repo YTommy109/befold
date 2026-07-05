@@ -89,16 +89,6 @@ struct FileTypeTests {
         #expect(FileType.code(language: "swift").isRenderable == false)
     }
 
-    /// sourceLanguage はソース表示時の highlight.js 言語名を返すこと
-    @Test
-    func sourceLanguage() {
-        #expect(FileType.svg.sourceLanguage == "xml")
-        #expect(FileType.html.sourceLanguage == "xml")
-        #expect(FileType.markdown.sourceLanguage == "markdown")
-        #expect(FileType.mmd.sourceLanguage == nil)
-        #expect(FileType.code(language: "swift").sourceLanguage == nil)
-    }
-
     /// 拡張子リストに重複がないこと（対応表と mermaid/markdown/svg/html の衝突検知）
     @Test
     func extensionListsHaveNoDuplicates() {

@@ -123,6 +123,8 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         }
 
         zoomStore.migrateZoom(from: oldURL, to: newURL)
+        resetSourceMode()
+        updateToolbarVisibility()
         onRename?(oldURL, newURL)
     }
 
@@ -199,10 +201,10 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// トグルボタンの見た目(アイコン・ツールチップ)を現在のモードに合わせて更新する。
-    private func updateSourceToggleAppearance() {
-        guard let toolbar = window?.toolbar,
-              let item = toolbar.items.first(where: { $0.itemIdentifier == Self.sourceToggleItemIdentifier })
-        else { return }
+    private func updateSourceToggleAppearance(_ item: NSToolbarItem? = nil) {
+        guard let item = item ?? window?.toolbar?.items.first(where: {
+            $0.itemIdentifier == Self.sourceToggleItemIdentifier
+        }) else { return }
         if isSourceMode {
             item.image = NSImage(systemSymbolName: "doc.richtext", accessibilityDescription: "Rendered")
             item.toolTip = "Toggle rendered view"
@@ -217,7 +219,9 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     /// ファイル切り替え時にソース表示状態をレンダリング表示にリセットする。
     private func resetSourceMode() {
+        guard isSourceMode else { return }
         isSourceMode = false
+        webViewProxy.webView?.evaluateJavaScript(ViewerBridge.viewModeScript(.rendered))
         updateSourceToggleAppearance()
     }
 
@@ -276,14 +280,10 @@ extension ViewerWindowController: NSToolbarDelegate {
         guard itemIdentifier == Self.sourceToggleItemIdentifier else { return nil }
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
         item.label = "Source"
-        item.toolTip = "Toggle source view"
         item.isBordered = true
-        item.image = NSImage(
-            systemSymbolName: "chevron.left.forwardslash.chevron.right",
-            accessibilityDescription: "Source"
-        )
         item.target = self
         item.action = #selector(toggleSourceView(_:))
+        updateSourceToggleAppearance(item)
         return item
     }
 

@@ -83,13 +83,4 @@ enum FileType: Sendable, Equatable {
         case .code: false
         }
     }
-
-    /// ソース表示時に使う highlight.js の言語名。対象外の種別は nil。
-    var sourceLanguage: String? {
-        switch self {
-        case .svg, .html: "xml"
-        case .markdown: "markdown"
-        case .mmd, .code: nil
-        }
-    }
 }
