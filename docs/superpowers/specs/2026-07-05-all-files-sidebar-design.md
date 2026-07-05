@@ -162,6 +162,30 @@ var body: some View {
 
 - サブディレクトリの一覧表示・再帰（既存設計と同様に対象外）
 - Shift-JIS 等 UTF-8 以外のテキストエンコーディング対応
-- `NSOpenPanel` / `Info.plist` の許可ファイル種別の変更
+- `Info.plist` の宣言（Finder の「このアプリケーションで開く」候補・ダブルクリック関連付け）の変更
 - 巨大バイナリファイルのサムネイル/プレビュー生成
 - ファイル種別が変化した場合（例: 監視中にテキスト→バイナリへ書き換わる）の遷移アニメーション等の演出
+
+## Addendum: Open パネルの全ファイル選択対応
+
+手動確認の過程で、サイドバーは全ファイルを表示するようになった一方、
+`File > Open`（`AppDelegate.showOpenPanel()`）は `FileType.allExtensions`
+ベースの `NSOpenPanel.allowedContentTypes` で対応拡張子のみに制限されたままで、
+`.lock` 等の非対応ファイルを Open ダイアログから直接選択できないという非対称が
+見つかった。ユーザー確認の結果、Open パネルも全ファイル選択可能にする方針とする
+（`Info.plist` の宣言・ダブルクリック関連付けは対象外のまま）。
+
+### 変更
+
+`MmdviewApp/mmdview/App/AppDelegate.swift`
+
+- `showOpenPanel()` で `panel.allowedContentTypes = Self.supportedContentTypes` を
+  撤去する（`allowedContentTypes` を設定しない、または空配列のままにすることで
+  NSOpenPanel の制限なし＝全ファイル選択可能になる）
+- `supportedContentTypes` 定数自体は他に用途がないため削除する
+  （`Info.plist` の宣言には別途 `CFBundleDocumentTypes` があり、これは変更しない）
+
+この変更で選択された非対応ファイルは、既存の `ViewerStore`/`FileType`/
+`UnsupportedFileView` の経路（本設計の本文参照）でそのまま処理される
+（テキストなら plaintext 表示、バイナリなら中央プレースホルダー表示）ため、
+`ViewerWindowController`/`ViewerStore` 側の追加変更は不要。
