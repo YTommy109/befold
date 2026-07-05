@@ -6,6 +6,7 @@ enum FileType: Sendable, Equatable {
     case markdown
     case svg
     case html
+    case csv(delimiter: String)
     case code(language: String)
 
     /// mermaid ダイアグラムとして扱う拡張子。
@@ -16,6 +17,10 @@ enum FileType: Sendable, Equatable {
     static let svgExtensions = ["svg"]
     /// HTML として扱う拡張子。
     static let htmlExtensions = ["html", "htm"]
+    /// CSV として扱う拡張子。
+    static let csvExtensions = ["csv"]
+    /// TSV として扱う拡張子。
+    static let tsvExtensions = ["tsv"]
     /// コードとして扱う拡張子 → highlight.js の言語名。
     /// 同梱 highlight.min.js が対応する言語のみを載せる
     /// (整合性は viewer.test.js が同梱ビルドの言語リストと突き合わせて検証する)。
@@ -51,6 +56,10 @@ enum FileType: Sendable, Equatable {
             self = .svg
         } else if Self.htmlExtensions.contains(ext) {
             self = .html
+        } else if Self.csvExtensions.contains(ext) {
+            self = .csv(delimiter: ",")
+        } else if Self.tsvExtensions.contains(ext) {
+            self = .csv(delimiter: "\t")
         } else if let language = Self.codeExtensionLanguages[ext] {
             self = .code(language: language)
         } else if Self.markdownExtensions.contains(ext) {
@@ -66,6 +75,7 @@ enum FileType: Sendable, Equatable {
         case .markdown: "md"
         case .svg: "svg"
         case .html: "html"
+        case .csv: "csv"
         case .code: "code"
         }
     }
@@ -76,10 +86,16 @@ enum FileType: Sendable, Equatable {
         return nil
     }
 
+    /// .csv の区切り文字。他の種別は nil。
+    var csvDelimiter: String? {
+        if case let .csv(delimiter) = self { return delimiter }
+        return nil
+    }
+
     /// レンダリング表示が可能な種別かどうか。false ならソース表示のみ。
     var isRenderable: Bool {
         switch self {
-        case .mmd, .markdown, .svg, .html: true
+        case .mmd, .markdown, .svg, .html, .csv: true
         case .code: false
         }
     }
