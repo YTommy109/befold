@@ -14,6 +14,9 @@ final class ViewerStore {
     private(set) var content: String = ""
     private(set) var fileType: FileType = .mmd
     private(set) var isDeleted: Bool = false
+    /// 開いたファイルがバイナリなど非対応内容と判定された場合に true になる。
+    /// true の間 content は更新されない(バイナリを丸ごと文字列化しない)。
+    private(set) var isUnsupported: Bool = false
     private(set) var filePath: URL?
 
     /// 開いているファイルが rename / move されたときに新 URL を通知する。
@@ -58,12 +61,20 @@ final class ViewerStore {
     private func loadContent() {
         guard let filePath else { return }
         let resolved = filePath.resolvingSymlinksInPath()
-        if fileReader.fileExists(at: resolved) {
-            content = (try? fileReader.readString(from: resolved)) ?? ""
-            isDeleted = false
-        } else {
+        guard fileReader.fileExists(at: resolved) else {
             isDeleted = true
+            isUnsupported = false
+            return
         }
+        isDeleted = false
+
+        guard !fileReader.isBinary(at: resolved) else {
+            isUnsupported = true
+            content = ""
+            return
+        }
+        isUnsupported = false
+        content = (try? fileReader.readString(from: resolved)) ?? ""
     }
 
     /// ファイル監視を停止し、リソースを解放する。

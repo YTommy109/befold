@@ -7,13 +7,17 @@ struct ViewerContentView: View {
     let webViewProxy: WebViewProxy
 
     var body: some View {
-        ViewerWebView(
-            content: store.content,
-            fileType: store.fileType,
-            isDeleted: store.isDeleted,
-            initialZoom: initialZoom,
-            onZoomChanged: onZoomChanged,
-            webViewProxy: webViewProxy
-        )
+        if store.isUnsupported {
+            UnsupportedFileView(fileURL: store.filePath)
+        } else {
+            ViewerWebView(
+                content: store.content,
+                fileType: store.fileType,
+                isDeleted: store.isDeleted,
+                initialZoom: initialZoom,
+                onZoomChanged: onZoomChanged,
+                webViewProxy: webViewProxy
+            )
+        }
     }
 }

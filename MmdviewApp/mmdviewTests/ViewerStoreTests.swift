@@ -82,6 +82,59 @@ struct ViewerStoreTests {
     }
 
     @Test
+    func openBinaryFileMarksUnsupported() {
+        let file = URL(fileURLWithPath: "/files/photo.png")
+        let reader = InMemoryFileReader()
+        reader.setFile("binary-ish", at: file)
+        reader.setBinary(true, at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+
+        #expect(store.isUnsupported)
+        #expect(store.content == "")
+        #expect(!store.isDeleted)
+
+        store.close()
+    }
+
+    @Test
+    func openTextFileWithUnknownExtensionIsNotUnsupported() {
+        let file = URL(fileURLWithPath: "/files/notes.txt")
+        let reader = InMemoryFileReader()
+        reader.setFile("hello", at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+
+        #expect(!store.isUnsupported)
+        #expect(store.content == "hello")
+        #expect(store.fileType == .code(language: "plaintext"))
+
+        store.close()
+    }
+
+    @Test
+    func switchingFromBinaryToTextResetsUnsupported() {
+        let binaryFile = URL(fileURLWithPath: "/files/photo.png")
+        let textFile = URL(fileURLWithPath: "/files/readme.md")
+        let reader = InMemoryFileReader()
+        reader.setFile("binary-ish", at: binaryFile)
+        reader.setBinary(true, at: binaryFile)
+        reader.setFile("# Hello", at: textFile)
+
+        let store = makeStore(reader: reader)
+        store.openFile(binaryFile)
+        #expect(store.isUnsupported)
+
+        store.openFile(textFile)
+        #expect(!store.isUnsupported)
+        #expect(store.content == "# Hello")
+
+        store.close()
+    }
+
+    @Test
     func watcherCallbackReloadsContent() {
         let file = URL(fileURLWithPath: "/files/test.mmd")
         let reader = InMemoryFileReader()
