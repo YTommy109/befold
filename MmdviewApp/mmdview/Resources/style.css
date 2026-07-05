@@ -59,6 +59,11 @@
   --error-bg: #fff5f5;
   --error-border: #e53e3e;
   --error-fg: #c53030;
+
+  /* CSV テーブルのヘッダー行(darkblue/silver の生値をやめ、他パネル同様の
+     半透明ティントに合わせる) */
+  --csv-th-bg: rgba(0, 0, 0, 0.06);
+  --csv-th-fg: var(--fg);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -81,6 +86,9 @@
     --error-bg: #3a1f1f;
     --error-border: #f56565;
     --error-fg: #feb2b2;
+
+    --csv-th-bg: rgba(255, 255, 255, 0.08);
+    --csv-th-fg: var(--fg);
   }
 }
 
@@ -345,26 +353,30 @@ body.mmd-deleted {
 }
 
 /* ── CSV テーブル表示 ──
+   CSV 表示時は #diagram-wrap に markdown-body(github-markdown-css の土台)と
+   csv-body(CSV 専用の上書き)を両方付与する。CSV 専用スタイルをここに
+   スコープすることで、通常の Markdown テーブルは github-markdown-css 本来の
+   見た目のまま保たれる。
    table 自体が github-markdown-css で display:block; overflow:auto の
    スクロールコンテナになっている(flex コンテナ経由ではない)ため、
    その table 自身に padding-right を持たせれば、右端までスクロールしても
    トレーリング側の余白が(WebKit のフレックス経由スクロールで起きがちな
    ように)欠落しない。 */
-.markdown-body table {
+#diagram-wrap.csv-body table {
   max-width: none;
   /* Markdown 本文サイズ × 0.75(ソースコード表示と同程度) */
   font-size: 0.75em;
   padding-right: 32px;
 }
 
-.markdown-body table th,
-.markdown-body table td {
+#diagram-wrap.csv-body table th,
+#diagram-wrap.csv-body table td {
   white-space: pre-line;
 }
 
-.markdown-body table th {
-  background-color: darkblue;
-  color: silver;
+#diagram-wrap.csv-body table th {
+  background-color: var(--csv-th-bg);
+  color: var(--csv-th-fg);
 }
 
 /* ── CSV Rainbow ソース表示 ── */

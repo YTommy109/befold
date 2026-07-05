@@ -4,30 +4,138 @@ import Foundation
 protocol FileReading: Sendable {
     func fileExists(at url: URL) -> Bool
     func readString(from url: URL) throws -> String
-    /// 先頭数KBにNULバイトが含まれるかでバイナリかどうかを判定する。
+    /// テキストとして扱えない内容(バイナリ)かどうかを判定する。
     func isBinary(at url: URL) -> Bool
+    /// ファイルのバイトサイズ。取得できない場合は nil。
+    func fileSize(at url: URL) -> Int?
 }
 
 /// FileManager / String(contentsOf:) による標準実装。
 struct DefaultFileReader: FileReading {
-    /// バイナリ判定に読む先頭バイト数。
+    /// バイナリ判定・エンコーディング判定に見る先頭バイト数。
     private static let binarySniffLength = 8192
+
+    /// BOM なし UTF-16 とみなす NUL パリティ偏りの許容比。
+    /// 少数側 / 多数側の NUL 数がこの比未満なら、NUL が偶数位置か奇数位置の
+    /// 一方にほぼ揃っており UTF-16 テキストと判断する
+    /// (実バイナリは NUL が散在し、この比は大きくなる)。
+    private static let utf16NulParitySkewRatio = 0.1
 
     func fileExists(at url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.path)
     }
 
-    func readString(from url: URL) throws -> String {
-        try String(contentsOf: url, encoding: .utf8)
+    func fileSize(at url: URL) -> Int? {
+        (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
     }
 
-    /// 先頭 8KB を読み、NULバイト(0x00)が1つでも含まれればバイナリと判定する。
+    func readString(from url: URL) throws -> String {
+        let data = try Data(contentsOf: url)
+        // BOM 付き UTF-8 / UTF-16 / UTF-32 と、BOM なし UTF-16 を判定して復号する。
+        // String(contentsOf:usedEncoding:) は BOM なし UTF-16 を誤ったエンコーディングで
+        // 復号して文字化けした文字列を返す(エラーを投げない)ため、自前で判定する。
+        if let decoded = Self.decodeUnicodeText(data) {
+            return decoded
+        }
+        // 判定できなければ UTF-8 として読み、エラーは呼び出し側へ伝える。
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// 先頭 8KB を読み、テキストとして解釈できない内容ならバイナリと判定する。
+    /// NUL バイトを含んでいても、UTF-16 / UTF-32 の BOM があるか、NUL が
+    /// 片側の位置に規則的に並ぶ場合は UTF-16 テキストとみなしてテキスト扱いにする。
     /// ファイルを開けない場合はテキスト扱い(false)とし、readString 側の
     /// エラー処理に委ねる。
     func isBinary(at url: URL) -> Bool {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
         defer { try? handle.close() }
         guard let data = try? handle.read(upToCount: Self.binarySniffLength) else { return false }
-        return data.contains(0)
+        // NUL を含まなければテキスト(UTF-8 など)。
+        guard data.contains(0) else { return false }
+        // UTF-16 / UTF-32 の BOM があればテキスト。
+        if Self.hasUnicodeBOM(data) { return false }
+        // BOM なしでも NUL が片側の位置に偏っていれば UTF-16 テキストとみなす。
+        if Self.looksLikeUTF16(data) { return false }
+        return true
+    }
+
+    /// BOM 付き UTF-8 / UTF-16 / UTF-32、および BOM なし UTF-16 を判定して復号する。
+    /// いずれの復号にも失敗した場合は nil を返す。
+    private static func decodeUnicodeText(_ data: Data) -> String? {
+        let bytes = [UInt8](data.prefix(4))
+        // UTF-32 の BOM(4 バイト)は UTF-16 LE と先頭が同じなので先に判定する。
+        if bytes.count >= 4 {
+            if bytes[0] == 0x00, bytes[1] == 0x00, bytes[2] == 0xFE, bytes[3] == 0xFF {
+                return String(data: data.dropFirst(4), encoding: .utf32BigEndian)
+            }
+            if bytes[0] == 0xFF, bytes[1] == 0xFE, bytes[2] == 0x00, bytes[3] == 0x00 {
+                return String(data: data.dropFirst(4), encoding: .utf32LittleEndian)
+            }
+        }
+        if bytes.count >= 2 {
+            if bytes[0] == 0xFE, bytes[1] == 0xFF {
+                return String(data: data.dropFirst(2), encoding: .utf16BigEndian)
+            }
+            if bytes[0] == 0xFF, bytes[1] == 0xFE {
+                return String(data: data.dropFirst(2), encoding: .utf16LittleEndian)
+            }
+        }
+        if bytes.count >= 3, bytes[0] == 0xEF, bytes[1] == 0xBB, bytes[2] == 0xBF {
+            return String(data: data.dropFirst(3), encoding: .utf8)
+        }
+        // BOM なしで NUL を含めば UTF-16 とみなし、NUL の位置から endian を推定する。
+        // NUL の有無は isBinary と同じ先頭 8KB 窓で判定し、判定窓のずれによる
+        // 誤復号(先頭は純テキストで後方に NUL を含む UTF-8 の UTF-16 誤解釈)を防ぐ。
+        if data.prefix(binarySniffLength).contains(0) {
+            let encoding: String.Encoding = looksLittleEndianUTF16(data)
+                ? .utf16LittleEndian
+                : .utf16BigEndian
+            return String(data: data, encoding: encoding)
+        }
+        // BOM なし・NUL なしは UTF-8 として復号する。
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// UTF-8 / UTF-16 / UTF-32 の BOM を検出する。
+    private static func hasUnicodeBOM(_ data: Data) -> Bool {
+        let bytes = [UInt8](data.prefix(4))
+        // UTF-32 の BOM は UTF-16 LE と先頭 2 バイトが同じなので先に判定する。
+        if bytes.count >= 4 {
+            if bytes[0] == 0x00, bytes[1] == 0x00, bytes[2] == 0xFE, bytes[3] == 0xFF { return true }
+            if bytes[0] == 0xFF, bytes[1] == 0xFE, bytes[2] == 0x00, bytes[3] == 0x00 { return true }
+        }
+        if bytes.count >= 2 {
+            if bytes[0] == 0xFE, bytes[1] == 0xFF { return true } // UTF-16 BE
+            if bytes[0] == 0xFF, bytes[1] == 0xFE { return true } // UTF-16 LE
+        }
+        if bytes.count >= 3, bytes[0] == 0xEF, bytes[1] == 0xBB, bytes[2] == 0xBF { return true } // UTF-8
+        return false
+    }
+
+    /// NUL バイトが偶数位置・奇数位置のどちらか一方にほぼ偏っていれば
+    /// BOM なし UTF-16 テキストとみなす(実バイナリは NUL が散在する)。
+    private static func looksLikeUTF16(_ data: Data) -> Bool {
+        let (evenNul, oddNul) = nulCountsByParity(data)
+        let majority = max(evenNul, oddNul)
+        guard majority > 0 else { return false }
+        let minority = min(evenNul, oddNul)
+        return Double(minority) / Double(majority) < utf16NulParitySkewRatio
+    }
+
+    /// BOM なし UTF-16 の endian を NUL の位置から推定する
+    /// (LE は奇数位置、BE は偶数位置に NUL が並ぶ)。
+    private static func looksLittleEndianUTF16(_ data: Data) -> Bool {
+        let (evenNul, oddNul) = nulCountsByParity(data.prefix(binarySniffLength))
+        return oddNul >= evenNul
+    }
+
+    /// 偶数位置・奇数位置それぞれの NUL バイト数を数える。
+    private static func nulCountsByParity(_ data: some Sequence<UInt8>) -> (even: Int, odd: Int) {
+        var evenNul = 0
+        var oddNul = 0
+        for (index, byte) in data.enumerated() where byte == 0 {
+            if index.isMultiple(of: 2) { evenNul += 1 } else { oddNul += 1 }
+        }
+        return (evenNul, oddNul)
     }
 }

@@ -6,10 +6,12 @@ import Foundation
 final class InMemoryFileReader: FileReading, Sendable {
     private let files: LockedBox<[String: String]>
     private let binaryPaths: LockedBox<Set<String>>
+    private let sizeOverrides: LockedBox<[String: Int]>
 
     init(files: [String: String] = [:]) {
         self.files = LockedBox(files)
         binaryPaths = LockedBox([])
+        sizeOverrides = LockedBox([:])
     }
 
     /// ファイルを作成/上書きする。nil を渡すと削除する。
@@ -28,6 +30,12 @@ final class InMemoryFileReader: FileReading, Sendable {
         }
     }
 
+    /// このパスの報告サイズ(バイト)を上書きする。nil で上書きを解除する
+    /// (未設定なら内容の UTF-8 バイト数を返す)。
+    func setSize(_ size: Int?, at url: URL) {
+        sizeOverrides.update { $0[url.path] = size }
+    }
+
     func fileExists(at url: URL) -> Bool {
         files.get()[url.path] != nil
     }
@@ -41,5 +49,10 @@ final class InMemoryFileReader: FileReading, Sendable {
 
     func isBinary(at url: URL) -> Bool {
         binaryPaths.get().contains(url.path)
+    }
+
+    func fileSize(at url: URL) -> Int? {
+        if let override = sizeOverrides.get()[url.path] { return override }
+        return files.get()[url.path].map(\.utf8.count)
     }
 }

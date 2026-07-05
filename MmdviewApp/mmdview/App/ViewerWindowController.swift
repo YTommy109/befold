@@ -14,8 +14,10 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private let store: ViewerStore
     private let zoomStore: ZoomStore
     private let webViewProxy = WebViewProxy()
-    private var isSourceMode = false
+    private(set) var isSourceMode = false
     private(set) var fileURL: URL
+    /// サイドバーのファイル一覧と選択状態。リネームやキーウィンドウ化に合わせて更新する。
+    let fileListModel: FileListModel
     /// ウィンドウが閉じられたときに呼ばれるコールバック。ViewerWindowManager がウィンドウ管理辞書から除去するために使用する。
     var onClose: (() -> Void)?
     /// 開いているファイルが rename / move されたときに旧 URL・新 URL を通知するコールバック。
@@ -26,6 +28,9 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     var onBecomeKey: (() -> Void)?
     /// switchFile(to:) でファイルを切り替えたときに旧 URL・新 URL を通知するコールバック。
     var onSwitchFile: ((_ old: URL, _ new: URL) -> Void)?
+    /// 切替先ファイルが自分以外のウィンドウで既に開かれているかを問い合わせるコールバック。
+    /// true(マネージャが既存ウィンドウを前面化済み)なら switchFile は切替を中止する。
+    var isFileOpenInAnotherWindow: ((_ url: URL) -> Bool)?
 
     // MARK: - Initialization
 
@@ -34,6 +39,11 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         self.zoomStore = zoomStore
         self.defaults = defaults
         store = ViewerStore()
+        let files = DirectoryLister.listFiles(in: fileURL.deletingLastPathComponent())
+        fileListModel = FileListModel(
+            files: files,
+            selection: Self.listEntry(for: fileURL, in: files)
+        )
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
         // ここでの contentRect はプレースホルダ
@@ -70,30 +80,16 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         toolbar.delegate = self
         window.toolbar = toolbar
 
-        let contentView = ViewerContentView(
-            store: store,
-            initialZoom: zoomStore.zoom(for: fileURL),
-            // 現在の fileURL は rename で書き換わるため、旧値を捕捉せず self 経由で参照する
-            onZoomChanged: { [weak self] zoom in
-                guard let self else { return }
-                zoomStore.setZoom(zoom, for: self.fileURL)
-            },
-            webViewProxy: webViewProxy
-        )
-        let files = DirectoryLister.listFiles(in: fileURL.deletingLastPathComponent())
-        let fileListView = FileListView(
-            files: files,
-            initialSelection: fileURL,
-            onSelect: { [weak self] url in self?.switchFile(to: url) }
-        )
-        let splitVC = ViewerSplitViewController(sidebar: fileListView, content: contentView)
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
         // リサイズされるため、フレームの確定はその後に行う。
         // frameDescriptor はフレーム座標系で保存・復元されるため、
         // タイトルバー高さの混入によるサイズのずれは起きない
-        window.contentViewController = splitVC
+        window.contentViewController = makeSplitViewController()
         if let descriptor = defaults.string(forKey: Self.lastWindowFrameKey) {
             window.setFrame(from: descriptor)
+            // 共有フレームをそのまま使うと復元・複数同時オープンでウィンドウが
+            // 完全に重なるため、既存ウィンドウと位置が一致する場合だけずらす。
+            offsetFrameToAvoidOverlap(window)
         } else {
             window.setContentSize(Self.defaultContentSize)
             window.center()
@@ -111,20 +107,42 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         updateToolbarVisibility()
     }
 
+    /// サイドバー(ファイル一覧)とコンテンツ(WebView)を並べる split view controller を組み立てる。
+    private func makeSplitViewController() -> NSViewController {
+        let contentView = ViewerContentView(
+            store: store,
+            initialZoom: zoomStore.zoom(for: fileURL),
+            // 現在の fileURL は rename で書き換わるため、旧値を捕捉せず self 経由で参照する
+            onZoomChanged: { [weak self] zoom in
+                guard let self else { return }
+                zoomStore.setZoom(zoom, for: fileURL)
+            },
+            webViewProxy: webViewProxy
+        )
+        let fileListView = FileListView(
+            model: fileListModel,
+            onSelect: { [weak self] url in self?.switchFile(to: url) }
+        )
+        return ViewerSplitViewController(sidebar: fileListView, content: contentView)
+    }
+
     /// ファイルの rename / move をウィンドウに反映する。
-    private func handleRename(to newURL: URL) {
+    /// リネームは同一ファイルの改名であり、内容・表示倍率・ビューモードは原則保持する。
+    func handleRename(to newURL: URL) {
         let oldURL = fileURL
         guard newURL != oldURL else { return }
-        fileURL = newURL
+        applyURLToWindow(newURL)
 
-        if let window {
-            window.title = newURL.lastPathComponent
-            window.representedURL = newURL
-        }
-
+        // 実体は同じファイルなので旧パスの倍率を新パスへ引き継ぐ(旧パスはもう存在しない)。
         zoomStore.migrateZoom(from: oldURL, to: newURL)
-        resetSourceMode()
+        // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
+        // (例: .md → .swift)ソース表示トグルが成立しなくなる場合のみリセットする。
+        if isSourceMode, !FileType(url: newURL).isRenderable {
+            resetSourceMode()
+        }
         updateToolbarVisibility()
+        // init 時のスナップショットのままだとサイドバーに旧名が残るため、再取得して選択し直す。
+        refreshFileList()
         onRename?(oldURL, newURL)
     }
 
@@ -132,18 +150,77 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
         guard newURL != oldURL else { return }
-        fileURL = newURL
-        store.openFile(newURL)
-
-        if let window {
-            window.title = newURL.lastPathComponent
-            window.representedURL = newURL
+        // 「1 ファイル 1 ウィンドウ」不変条件: 切替先が別ウィンドウで開かれている場合は
+        // そのウィンドウを前面化(マネージャ側)して切替を中止し、サイドバー選択を元へ戻す。
+        if isFileOpenInAnotherWindow?(newURL) == true {
+            fileListModel.selection = oldURL
+            return
         }
-
-        zoomStore.migrateZoom(from: oldURL, to: newURL)
+        // 内容差し替え前にビューモードをレンダリング表示へ戻し、旧内容の無駄な再描画を避ける。
         resetSourceMode()
+        applyURLToWindow(newURL)
+        store.openFile(newURL)
         updateToolbarVisibility()
+        // 切替はリネームではない。旧ファイルの倍率は保存済みのまま保持し、
+        // 新ファイルは自身の保存倍率(なければデフォルト)で表示する。
+        applyStoredZoomToWebView()
+        fileListModel.selection = newURL
         onSwitchFile?(oldURL, newURL)
+    }
+
+    /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
+    /// handleRename / switchFile 共通の表示更新。
+    private func applyURLToWindow(_ newURL: URL) {
+        fileURL = newURL
+        guard let window else { return }
+        window.title = newURL.lastPathComponent
+        window.representedURL = newURL
+    }
+
+    /// 現在のファイルの保存倍率を WebView に適用する。
+    /// 初期ロード時の倍率注入(ViewerBridge.initialZoomScript)と同じ経路で
+    /// window._mmdInitialZoom を書き換え、viewer.html の初期化関数で反映させる。
+    private func applyStoredZoomToWebView() {
+        guard let webView = webViewProxy.webView else { return }
+        webView.evaluateJavaScript(ViewerBridge.applyZoomScript(zoomStore.zoom(for: fileURL)))
+    }
+
+    /// サイドバーのファイル一覧を現在のディレクトリで取り直し、現在ファイルを選択する。
+    private func refreshFileList() {
+        let files = DirectoryLister.listFiles(in: fileURL.deletingLastPathComponent())
+        fileListModel.files = files
+        let selected = Self.listEntry(for: fileURL, in: files)
+        if fileListModel.selection != selected {
+            fileListModel.selection = selected
+        }
+    }
+
+    /// 一覧内で url と同じファイルを指す URL を返す。List の選択一致は URL の
+    /// 同値性に依存するため、シンボリックリンク解決の有無で表記が揺れても
+    /// 一致するよう正規化キーで照合する。見つからなければ url をそのまま返す。
+    private static func listEntry(for url: URL, in files: [URL]) -> URL {
+        let key = url.normalizedPathKey
+        return files.first { $0.normalizedPathKey == key } ?? url
+    }
+
+    /// 既存のビューアウィンドウと位置が完全に一致する場合だけ、標準のカスケード量ずらす。
+    /// cascadeTopLeft(from:) は移動先を戻り値で返すため、戻り値を自分に適用する。
+    /// ずらした先が別ウィンドウと一致することがあるので、重ならなくなるまで繰り返す。
+    private func offsetFrameToAvoidOverlap(_ window: NSWindow) {
+        func overlapsExisting() -> Bool {
+            NSApp.windows.contains { other in
+                other !== window
+                    && other.isVisible
+                    && other.windowController is ViewerWindowController
+                    && other.frame.origin == window.frame.origin
+            }
+        }
+        var attempts = 0
+        while overlapsExisting(), attempts < 20 {
+            let shifted = window.cascadeTopLeft(from: NSPoint(x: window.frame.minX, y: window.frame.maxY))
+            window.setFrameTopLeftPoint(shifted)
+            attempts += 1
+        }
     }
 
     @available(*, unavailable)
@@ -205,16 +282,15 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         guard let item = item ?? window?.toolbar?.items.first(where: {
             $0.itemIdentifier == Self.sourceToggleItemIdentifier
         }) else { return }
-        if isSourceMode {
-            item.image = NSImage(systemSymbolName: "doc.richtext", accessibilityDescription: "Rendered")
-            item.toolTip = "Toggle rendered view"
-        } else {
-            item.image = NSImage(
-                systemSymbolName: "chevron.left.forwardslash.chevron.right",
-                accessibilityDescription: "Source"
-            )
-            item.toolTip = "Toggle source view"
-        }
+        // ソース表示中はレンダリング表示へ戻すボタン、レンダリング表示中はソースを表示するボタン。
+        // ラベルはメニュー項目と同じローカライズ文字列を共有する。
+        let symbolName = isSourceMode ? "doc.richtext" : "chevron.left.forwardslash.chevron.right"
+        let label = isSourceMode
+            ? String(localized: "menu.view.showRendered", bundle: .l10n)
+            : String(localized: "menu.view.toggleSource", bundle: .l10n)
+        item.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: label)
+        item.label = label
+        item.toolTip = label
     }
 
     /// ファイル切り替え時にソース表示状態をレンダリング表示にリセットする。
@@ -233,12 +309,18 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Menu Validation
 
+    /// ソース表示トグルを有効にできるか。レンダリング可能な形式でも、
+    /// サイズ超過などで非対応表示になっている間は切り替え先が不可視なため無効にする。
+    var canToggleSourceMode: Bool {
+        store.fileType.isRenderable && !store.isUnsupported
+    }
+
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleSourceView(_:)) {
             menuItem.title = isSourceMode
                 ? String(localized: "menu.view.showRendered", bundle: .l10n)
                 : String(localized: "menu.view.toggleSource", bundle: .l10n)
-            return store.fileType.isRenderable
+            return canToggleSourceMode
         }
         return true
     }
@@ -252,17 +334,16 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
+        // ディレクトリ監視はしていないため、キーになったタイミングで一覧を取り直し、
+        // 他所で作成/削除されたファイルをサイドバーへ反映する。
+        refreshFileList()
         onBecomeKey?()
     }
 
-    /// ライブリサイズだけでなく、ズーム(タイトルバーのダブルクリック等)・
-    /// 画面タイリング・プログラムからの変更も含めて捕捉するため、
-    /// didResize / didMove の両方で保存する。
-    func windowDidResize(_ notification: Notification) {
-        saveWindowFrame()
-    }
-
-    func windowDidMove(_ notification: Notification) {
+    /// リサイズ完了時にのみ保存する。ライブリサイズ中は windowDidResize が毎フレーム
+    /// 飛ぶため、そこでは保存せず UserDefaults への連打を避ける。
+    /// ドラッグ移動やタイリングでの位置変更は windowWillClose 時にまとめて保存される。
+    func windowDidEndLiveResize(_ notification: Notification) {
         saveWindowFrame()
     }
 }
@@ -277,7 +358,7 @@ extension ViewerWindowController: NSToolbarDelegate {
     ) -> NSToolbarItem? {
         guard itemIdentifier == Self.sourceToggleItemIdentifier else { return nil }
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-        item.label = "Source"
+        item.label = String(localized: "menu.view.toggleSource", bundle: .l10n)
         item.isBordered = true
         item.target = self
         item.action = #selector(toggleSourceView(_:))
@@ -302,6 +383,6 @@ extension ViewerWindowController: NSToolbarItemValidation {
     /// 唯一有効な制御点であるこのメソッドでファイル種別から enabled を決める。
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
         guard item.itemIdentifier == Self.sourceToggleItemIdentifier else { return true }
-        return store.fileType.isRenderable
+        return canToggleSourceMode
     }
 }

@@ -81,34 +81,57 @@ final class ViewerWindowManager {
             }
             sessionStore.noteClosed(url)
         }
+        controller.isFileOpenInAnotherWindow = { [weak self, weak controller] targetURL in
+            guard let self, let controller else { return false }
+            return focusExistingWindowIfOpen(targetURL, excluding: controller)
+        }
         controller.onRename = { [weak self, weak controller] oldURL, newURL in
             guard let self, let controller else { return }
-            let oldKey = oldURL.normalizedPathKey
-            let newKey = newURL.normalizedPathKey
-            if controllers[oldKey] === controller {
-                controllers.removeValue(forKey: oldKey)
-            }
-            controllers[newKey] = controller
-            sessionStore.noteRenamed(from: oldURL, to: newURL)
-            sessionStore.noteClosed(oldURL)
-            sessionStore.noteOpened(newURL)
-            recentDocumentsStore.noteRenamed(from: oldURL, to: newURL)
-            NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
-            bindCallbacks(for: controller, key: newKey, url: newURL)
+            remapController(controller, from: oldURL, to: newURL, isRename: true)
         }
         controller.onSwitchFile = { [weak self, weak controller] oldURL, newURL in
             guard let self, let controller else { return }
-            let oldKey = oldURL.normalizedPathKey
-            let newKey = newURL.normalizedPathKey
-            if controllers[oldKey] === controller {
-                controllers.removeValue(forKey: oldKey)
-            }
-            controllers[newKey] = controller
-            sessionStore.noteClosed(oldURL)
-            sessionStore.noteOpened(newURL)
-            recentDocumentsStore.noteOpened(newURL)
-            NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
-            bindCallbacks(for: controller, key: newKey, url: newURL)
+            remapController(controller, from: oldURL, to: newURL, isRename: false)
         }
+    }
+
+    /// targetURL が controller 以外のウィンドウで既に開かれていれば、そのウィンドウを
+    /// 前面化して true を返す。switchFile の可否判断(1 ファイル 1 ウィンドウ)に使う。
+    private func focusExistingWindowIfOpen(
+        _ targetURL: URL, excluding controller: ViewerWindowController
+    ) -> Bool {
+        let key = targetURL.normalizedPathKey
+        guard let existing = controllers[key], existing !== controller else { return false }
+        existing.window?.makeKeyAndOrderFront(nil)
+        return true
+    }
+
+    /// rename / switch に伴うウィンドウ管理辞書のキー付け替えとセッション・履歴の更新。
+    /// 差分は「リネームか(レイアウトの付け替え・履歴の旧パス除去)、単なる切替か
+    /// (履歴は新規オープン扱い)」のみで、それ以外の付け替え手順は共通。
+    private func remapController(
+        _ controller: ViewerWindowController,
+        from oldURL: URL,
+        to newURL: URL,
+        isRename: Bool
+    ) {
+        let oldKey = oldURL.normalizedPathKey
+        let newKey = newURL.normalizedPathKey
+        if controllers[oldKey] === controller {
+            controllers.removeValue(forKey: oldKey)
+        }
+        controllers[newKey] = controller
+        if isRename {
+            sessionStore.noteRenamed(from: oldURL, to: newURL)
+        }
+        sessionStore.noteClosed(oldURL)
+        sessionStore.noteOpened(newURL)
+        if isRename {
+            recentDocumentsStore.noteRenamed(from: oldURL, to: newURL)
+        } else {
+            recentDocumentsStore.noteOpened(newURL)
+        }
+        NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
+        bindCallbacks(for: controller, key: newKey, url: newURL)
     }
 }

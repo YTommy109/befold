@@ -11,6 +11,10 @@ final class ViewerStore {
         (@MainActor @Sendable (URL) -> Void)?
     ) -> FileWatching
 
+    /// メインアクター上で同期読み込みを許容する最大ファイルサイズ(10MB)。
+    /// これを超えるファイルは読み込まず、非対応扱いにしてビーチボール化を防ぐ。
+    static let maxFileSizeBytes = 10 * 1024 * 1024
+
     private(set) var content: String = ""
     private(set) var fileType: FileType = .mmd
     private(set) var isDeleted: Bool = false
@@ -67,6 +71,14 @@ final class ViewerStore {
             return
         }
         isDeleted = false
+
+        // 上限を超える巨大ファイルは同期読み込みでメインスレッドをブロックするため
+        // 読み込まず、非対応扱いにする。
+        if let size = fileReader.fileSize(at: resolved), size > Self.maxFileSizeBytes {
+            isUnsupported = true
+            content = ""
+            return
+        }
 
         guard !fileReader.isBinary(at: resolved) else {
             isUnsupported = true

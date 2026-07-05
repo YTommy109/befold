@@ -7,9 +7,10 @@ struct ViewerContentView: View {
     let webViewProxy: WebViewProxy
 
     var body: some View {
-        if store.isUnsupported {
-            UnsupportedFileView(fileURL: store.filePath)
-        } else {
+        // ViewerWebView は常に生かしておき(ビュー同一性を維持)、非対応時は
+        // 上に UnsupportedFileView を重ねる。テキスト↔バイナリの切替で WKWebView が
+        // 破棄・再生成されて白フラッシュや stale な initialZoom が起きるのを防ぐ。
+        ZStack {
             ViewerWebView(
                 content: store.content,
                 fileType: store.fileType,
@@ -18,6 +19,11 @@ struct ViewerContentView: View {
                 onZoomChanged: onZoomChanged,
                 webViewProxy: webViewProxy
             )
+            .opacity(store.isUnsupported ? 0 : 1)
+
+            if store.isUnsupported {
+                UnsupportedFileView(fileURL: store.filePath)
+            }
         }
     }
 }

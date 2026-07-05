@@ -104,6 +104,7 @@ struct ViewerWebView: NSViewRepresentable {
         private var isReady = false
         private var pendingUpdate: (() -> Void)?
         private var lastRenderedContent: String?
+        private var lastRenderedFileType: FileType?
         private var lastWasDeleted: Bool?
 
         // MARK: - WKScriptMessageHandler
@@ -136,12 +137,16 @@ struct ViewerWebView: NSViewRepresentable {
                     return
                 }
 
-                guard content != lastRenderedContent || lastWasDeleted == true else {
-                    return
-                }
+                // content だけでなく fileType の変化でも再描画する。
+                // (例: notes.md → notes.txt のように内容が同じでも種別が変わる切替)
+                let needsRender = content != lastRenderedContent
+                    || fileType != lastRenderedFileType
+                    || lastWasDeleted == true
+                guard needsRender else { return }
 
                 lastWasDeleted = false
                 lastRenderedContent = content
+                lastRenderedFileType = fileType
 
                 // JSONEncoder でエスケープし、JS インジェクションを防ぐ
                 guard let script = ViewerBridge.renderScript(content: content, fileType: fileType)
