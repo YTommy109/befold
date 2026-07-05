@@ -30,6 +30,13 @@ final class TempDir: Sendable {
         try contents.write(to: file, atomically: true, encoding: .utf8)
         return file
     }
+
+    /// ディレクトリ内にバイト列でファイルを作成して URL を返す。
+    func file(named name: String, data: Data) throws -> URL {
+        let file = url.appendingPathComponent(name)
+        try data.write(to: file)
+        return file
+    }
 }
 
 /// NSLock で保護したスレッドセーフな可変ボックス。

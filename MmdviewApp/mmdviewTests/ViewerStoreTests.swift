@@ -115,6 +115,59 @@ struct ViewerStoreTests {
     }
 
     @Test
+    func openOversizedFileMarksUnsupportedWithoutLoading() {
+        let file = URL(fileURLWithPath: "/files/huge.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("col1,col2\n1,2", at: file)
+        reader.setSize(ViewerStore.maxFileSizeBytes + 1, at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+
+        #expect(store.isUnsupported)
+        #expect(store.content == "")
+        #expect(!store.isDeleted)
+
+        store.close()
+    }
+
+    @Test
+    func openFileAtSizeLimitLoadsContent() {
+        let file = URL(fileURLWithPath: "/files/ok.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("col1,col2\n1,2", at: file)
+        reader.setSize(ViewerStore.maxFileSizeBytes, at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+
+        #expect(!store.isUnsupported)
+        #expect(store.content == "col1,col2\n1,2")
+
+        store.close()
+    }
+
+    @Test
+    func switchingFromOversizedToNormalResetsUnsupported() {
+        let hugeFile = URL(fileURLWithPath: "/files/huge.log")
+        let normalFile = URL(fileURLWithPath: "/files/readme.md")
+        let reader = InMemoryFileReader()
+        reader.setFile("x", at: hugeFile)
+        reader.setSize(ViewerStore.maxFileSizeBytes + 1, at: hugeFile)
+        reader.setFile("# Hello", at: normalFile)
+
+        let store = makeStore(reader: reader)
+        store.openFile(hugeFile)
+        #expect(store.isUnsupported)
+
+        store.openFile(normalFile)
+        #expect(!store.isUnsupported)
+        #expect(store.content == "# Hello")
+
+        store.close()
+    }
+
+    @Test
     func switchingFromBinaryToTextResetsUnsupported() {
         let binaryFile = URL(fileURLWithPath: "/files/photo.png")
         let textFile = URL(fileURLWithPath: "/files/readme.md")
