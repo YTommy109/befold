@@ -106,7 +106,7 @@ struct ViewerBridgeTests {
         #expect(html.contains("window._mmdInitialZoom"))
         #expect(html.contains("window._mmdSystemFontSize"))
         #expect(html.contains("function setViewMode(mode)"))
-        #expect(html.contains("function getViewMode()"))
+        #expect(html.contains("function _mmdInitZoom()"))
     }
 
     @Test("viewer.js の ZOOM_MIN / ZOOM_MAX が ZoomStore の範囲と一致する")
