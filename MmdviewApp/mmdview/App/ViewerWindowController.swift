@@ -136,8 +136,9 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         // 実体は同じファイルなので旧パスの倍率を新パスへ引き継ぐ(旧パスはもう存在しない)。
         zoomStore.migrateZoom(from: oldURL, to: newURL)
         // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
-        // (例: .md → .swift)ソース表示トグルが成立しなくなる場合のみリセットする。
-        if isSourceMode, !FileType(url: newURL).isRenderable {
+        // (例: .md → .swift、.md → .png)ソース表示トグルが成立しなくなる
+        // 場合のみリセットする。
+        if isSourceMode, !FileType(url: newURL).supportsSourceMode {
             resetSourceMode()
         }
         updateToolbarVisibility()
@@ -312,7 +313,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     /// ソース表示トグルを有効にできるか。レンダリング可能な形式でも、
     /// サイズ超過などで非対応表示になっている間は切り替え先が不可視なため無効にする。
     var canToggleSourceMode: Bool {
-        store.fileType.isRenderable && !store.isUnsupported
+        store.fileType.supportsSourceMode && !store.isUnsupported
     }
 
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {

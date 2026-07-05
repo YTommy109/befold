@@ -124,7 +124,46 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
             if (r as? String) == "LOADED" {
                 self.fail("外部画像がロードされた（img-src が効いていない）")
             }
-            print("PASS: CSP 下で全スクリプト稼働・mmd/md 描画・外部画像ブロックを確認")
+            self.checkDataFrameBlocked()
+        }
+    }
+
+    // 5. Markdown 内に静的に書かれた data: iframe が CSP(frame-src) でブロックされるか
+    //    (frame-src は blob: のみ許可。PDF 表示はスクリプト生成の blob URL を使う)
+    func checkDataFrameBlocked() {
+        let payload = "<iframe src=\"data:text/html;base64,PGgxPng8L2gxPg==\"></iframe>"
+        let doc = "before\n\n\(payload)\n\nafter"
+        asyncJS(
+            "window.__frameViolation = null; "
+                + "document.addEventListener('securitypolicyviolation', "
+                + "function(e) { window.__frameViolation = e.violatedDirective; }); "
+                + "await render(\(jsString(doc)), 'md'); "
+                + "await new Promise(r => setTimeout(r, 800)); return window.__frameViolation;",
+            "data-frame"
+        ) { r in
+            print("data: iframe violation: \(String(describing: r))")
+            guard let directive = r as? String,
+                  directive.hasPrefix("frame-src") || directive.hasPrefix("child-src") else {
+                self.fail("data: iframe が CSP でブロックされなかった")
+            }
+            self.checkPdfBlobRenders()
+        }
+    }
+
+    // 6. PDF が blob: URL の iframe として生成されるか
+    func checkPdfBlobRenders() {
+        let pdfBase64 = Data("%PDF-1.4\n%%EOF".utf8).base64EncodedString()
+        asyncJS(
+            "await render(\(jsString(pdfBase64)), 'pdf'); "
+                + "var f = document.querySelector('#diagram-wrap iframe'); "
+                + "return f ? f.src.slice(0, 5) : 'noframe';",
+            "pdf-render"
+        ) { r in
+            print("pdf iframe src scheme: \(String(describing: r))")
+            if (r as? String) != "blob:" {
+                self.fail("PDF iframe が blob: URL で生成されなかった")
+            }
+            print("PASS: CSP 下で全スクリプト稼働・mmd/md 描画・外部画像/data: iframe ブロック・PDF blob 表示を確認")
             exit(0)
         }
     }

@@ -247,6 +247,52 @@ body.mmd-deleted {
   word-break: break-all;
 }
 
+/* 画像表示。ナチュラルサイズで上下左右中央寄せ、はみ出しはスクロール。
+   justify-content: center のままだと内容がビューポートより大きいときに
+   左端がスクロール到達不能になるため flex-start + margin: auto で寄せる。 */
+.viewer:has(> #diagram-wrap.image-body) {
+  padding: 16px;
+  justify-content: flex-start;
+}
+
+#diagram-wrap.image-body {
+  width: max-content;
+  max-width: none;
+  margin: auto;
+}
+
+#diagram-wrap.image-body img {
+  display: block;
+}
+
+/* PDF 表示。画像と同じ 16px の均等パディングで iframe を囲む。
+   ズームは _mmdApplyZoom() が wrap の width/height を倍率で変えて実現する
+   (iframe 内の PDF プラグイン描画には CSS zoom が効かないため)。
+   拡大時のはみ出しはスクロール、縮小時は margin で中央寄せする。 */
+.viewer:has(> #diagram-wrap.pdf-body) {
+  padding: 16px;
+  overflow: auto;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+/* render() が #diagram-wrap にインラインで display:block を設定するため、
+   flex には頼らず iframe 自身を親いっぱいに広げる。 */
+#diagram-wrap.pdf-body {
+  height: 100%;
+  max-width: none;
+  /* 拡大時に flex コンテナ幅へ縮められないようにする */
+  flex-shrink: 0;
+  margin: auto;
+}
+
+#diagram-wrap.pdf-body iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
 /*
   ダイアグラム個別ズーム。
   .diagram-zoom-wrap が position:relative でコントロールの位置基準を持ち、
