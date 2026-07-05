@@ -344,14 +344,27 @@ body.mmd-deleted {
   color: var(--accent);
 }
 
-/* ── CSV テーブル表示 ── */
+/* ── CSV テーブル表示 ──
+   table 自体が github-markdown-css で display:block; overflow:auto の
+   スクロールコンテナになっている(flex コンテナ経由ではない)ため、
+   その table 自身に padding-right を持たせれば、右端までスクロールしても
+   トレーリング側の余白が(WebKit のフレックス経由スクロールで起きがちな
+   ように)欠落しない。 */
 .markdown-body table {
   max-width: none;
+  /* Markdown 本文サイズ × 0.75(ソースコード表示と同程度) */
+  font-size: 0.75em;
+  padding-right: 32px;
 }
 
 .markdown-body table th,
 .markdown-body table td {
   white-space: pre-line;
+}
+
+.markdown-body table th {
+  background-color: darkblue;
+  color: silver;
 }
 
 /* ── CSV Rainbow ソース表示 ── */
