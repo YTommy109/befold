@@ -65,4 +65,61 @@ struct ViewerWindowControllerTests {
 
         #expect(becameKey)
     }
+
+    @Test("switchFile でファイル URL とウィンドウタイトルが更新される")
+    func switchFileUpdatesFileURLAndTitle() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
+        let file2 = try tmp.file(named: "second.mmd", contents: "graph LR;")
+        let controller = ViewerWindowController(
+            fileURL: file1,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+        )
+        defer { controller.close() }
+
+        controller.switchFile(to: file2)
+
+        #expect(controller.fileURL == file2)
+        #expect(controller.window?.title == "second.mmd")
+        #expect(controller.window?.representedURL == file2)
+    }
+
+    @Test("switchFile で onSwitchFile コールバックが旧・新 URL で呼ばれる")
+    func switchFileInvokesCallback() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
+        let file2 = try tmp.file(named: "second.mmd", contents: "graph LR;")
+        let controller = ViewerWindowController(
+            fileURL: file1,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+        )
+        defer { controller.close() }
+        var callbackArgs: (old: URL, new: URL)?
+        controller.onSwitchFile = { old, new in callbackArgs = (old, new) }
+
+        controller.switchFile(to: file2)
+
+        #expect(callbackArgs?.old == file1)
+        #expect(callbackArgs?.new == file2)
+    }
+
+    @Test("switchFile で同じファイルを選んでも何も起きない")
+    func switchFileIgnoresSameFile() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+        )
+        defer { controller.close() }
+        var called = false
+        controller.onSwitchFile = { _, _ in called = true }
+
+        controller.switchFile(to: file)
+
+        #expect(!called)
+    }
 }

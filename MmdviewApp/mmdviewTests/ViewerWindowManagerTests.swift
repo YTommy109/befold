@@ -107,4 +107,31 @@ struct ViewerWindowManagerTests {
         #expect(manager.viewerPath(of: unwrappedWindow) == file.normalizedPathKey)
         manager.controllers.values.forEach { $0.close() }
     }
+
+    @Test("switchFile で管理辞書のキーが付け替わりセッション記録が更新される")
+    func switchFileUpdatesControllerKeyAndSession() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
+        let file2 = try tmp.file(named: "second.mmd", contents: "graph LR;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
+        let sessionStore = SessionStore(defaults: defaults)
+        let manager = ViewerWindowManager(
+            sessionStore: sessionStore,
+            zoomStore: ZoomStore(defaults: defaults),
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults)
+        )
+
+        manager.openViewer(for: file1)
+        #expect(manager.controllers[file1.normalizedPathKey] != nil)
+
+        manager.controllers[file1.normalizedPathKey]?.onSwitchFile?(file1, file2)
+
+        #expect(manager.controllers[file1.normalizedPathKey] == nil)
+        #expect(manager.controllers[file2.normalizedPathKey] != nil)
+        let savedPaths = sessionStore.savedURLs().map(\.normalizedPathKey)
+        #expect(savedPaths.contains(file2.normalizedPathKey))
+        #expect(!savedPaths.contains(file1.normalizedPathKey))
+        manager.controllers.values.forEach { $0.close() }
+    }
 }

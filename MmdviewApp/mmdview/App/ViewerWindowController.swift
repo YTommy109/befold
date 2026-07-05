@@ -17,6 +17,8 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     /// ウィンドウがキーウィンドウになったときに呼ばれるコールバック。
     /// ViewerWindowManager がアクティブファイルのセッション記録の更新に使用する。
     var onBecomeKey: (() -> Void)?
+    /// switchFile(to:) でファイルを切り替えたときに旧 URL・新 URL を通知するコールバック。
+    var onSwitchFile: ((_ old: URL, _ new: URL) -> Void)?
 
     // MARK: - Initialization
 
@@ -68,7 +70,14 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             },
             webViewProxy: webViewProxy
         )
-        window.contentView = NSHostingView(rootView: contentView)
+        let files = DirectoryLister.listFiles(in: fileURL.deletingLastPathComponent())
+        let fileListView = FileListView(
+            files: files,
+            initialSelection: fileURL,
+            onSelect: { [weak self] url in self?.switchFile(to: url) }
+        )
+        let splitVC = ViewerSplitViewController(sidebar: fileListView, content: contentView)
+        window.contentViewController = splitVC
         if !hasSavedFrame {
             window.center()
         }
@@ -103,6 +112,29 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
         zoomStore.migrateZoom(from: oldURL, to: newURL)
         onRename?(oldURL, newURL)
+    }
+
+    /// サイドバーで別ファイルが選択されたときにウィンドウの表示対象を切り替える。
+    /// タイトル・representedURL・フレーム autosave 名・ズーム倍率キーを新パスへ移し、
+    /// ViewerWindowManager へ旧 URL・新 URL を通知する。
+    func switchFile(to newURL: URL) {
+        let oldURL = fileURL
+        guard newURL != oldURL else { return }
+        fileURL = newURL
+        store.openFile(newURL)
+
+        if let window {
+            window.title = newURL.lastPathComponent
+            window.representedURL = newURL
+            let oldAutosaveName = oldURL.viewerFrameAutosaveName
+            let newAutosaveName = newURL.viewerFrameAutosaveName
+            NSWindow.removeFrame(usingName: oldAutosaveName)
+            window.saveFrame(usingName: newAutosaveName)
+            windowFrameAutosaveName = newAutosaveName
+        }
+
+        zoomStore.migrateZoom(from: oldURL, to: newURL)
+        onSwitchFile?(oldURL, newURL)
     }
 
     @available(*, unavailable)

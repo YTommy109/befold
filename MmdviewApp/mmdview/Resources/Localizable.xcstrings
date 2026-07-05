@@ -176,6 +176,13 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "縮小" } }
       }
     },
+    "menu.view.toggleSidebar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Toggle Sidebar" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サイドバーを表示/非表示" } }
+      }
+    },
     "menu.view.enterFullScreen" : {
       "extractionState" : "manual",
       "localizations" : {

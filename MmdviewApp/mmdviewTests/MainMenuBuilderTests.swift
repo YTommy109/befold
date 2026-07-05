@@ -67,6 +67,18 @@ struct MainMenuBuilderTests {
         #expect(fullScreen.keyEquivalentModifierMask == [.control, .command])
     }
 
+    @Test("View メニューに Toggle Sidebar(⌘⌥S) がある")
+    func viewMenuHasToggleSidebar() throws {
+        let mainMenu = buildMenu()
+        let view = try #require(submenu(titledKey: "menu.view.title", in: mainMenu))
+
+        let toggleSidebar = try #require(
+            view.items.first { $0.action == #selector(NSSplitViewController.toggleSidebar(_:)) }
+        )
+        #expect(toggleSidebar.keyEquivalent == "s")
+        #expect(toggleSidebar.keyEquivalentModifierMask == [.command, .option])
+    }
+
     @Test("File メニューに Print(⌘P) がある")
     func fileMenuHasPrint() throws {
         let mainMenu = buildMenu()
