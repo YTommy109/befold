@@ -52,6 +52,29 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.systemFontSizeScript(13.0) == "window._mmdSystemFontSize = 13.0;")
     }
 
+    @Test("svg タイプは 2 引数のまま（言語引数を付けない）")
+    func renderScriptOmitsLanguageForSvg() throws {
+        let script = try #require(ViewerBridge.renderScript(content: "<svg></svg>", fileType: .svg))
+        #expect(script.hasSuffix("\", 'svg')"))
+    }
+
+    @Test("html タイプは 2 引数のまま（言語引数を付けない）")
+    func renderScriptOmitsLanguageForHtml() throws {
+        let script = try #require(ViewerBridge.renderScript(content: "<html></html>", fileType: .html))
+        #expect(script.hasSuffix("\", 'html')"))
+    }
+
+    @Test("viewModeScript がモード文字列を埋め込む")
+    func viewModeScriptEmbedsMode() {
+        #expect(ViewerBridge.viewModeScript(.source) == "setViewMode('source')")
+        #expect(ViewerBridge.viewModeScript(.rendered) == "setViewMode('rendered')")
+    }
+
+    @Test("getViewModeScript が正しい JS を返す")
+    func getViewModeScriptValue() {
+        #expect(ViewerBridge.getViewModeScript == "getViewMode()")
+    }
+
     /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html に実在することを
     /// リポジトリ内のソースを読んで検証する(ブリッジ契約のドリフト検知)。
     @Test("ViewerBridge の関数名が viewer.html に定義されている")
@@ -66,6 +89,8 @@ struct ViewerBridgeTests {
         #expect(html.contains("messageHandlers.\(ViewerBridge.zoomChangedMessageName)"))
         #expect(html.contains("window._mmdInitialZoom"))
         #expect(html.contains("window._mmdSystemFontSize"))
+        #expect(html.contains("function setViewMode(mode)"))
+        #expect(html.contains("function getViewMode()"))
     }
 
     @Test("viewer.js の ZOOM_MIN / ZOOM_MAX が ZoomStore の範囲と一致する")

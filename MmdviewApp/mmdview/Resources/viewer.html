@@ -288,6 +288,7 @@
   var _lastContent = null;
   var _lastType = null;
   var _lastLang = null;
+  var _viewMode = 'rendered';
 
   async function render(content, type, lang) {
     _currentType = type;
@@ -295,6 +296,11 @@
     _lastType = type;
     _lastLang = lang;
     hideDeletedBanner();
+
+    if (_viewMode === 'source' && type !== 'code') {
+      _renderSource(content, type, lang);
+      return;
+    }
 
     var errorPanel = document.getElementById('mmd-error');
     errorPanel.style.display = 'none';
@@ -386,6 +392,31 @@
     }
 
     _mmdApplyZoom();
+  }
+
+  function _renderSource(content, type, lang) {
+    var diagramWrap = document.getElementById('diagram-wrap');
+    diagramWrap.classList.remove('markdown-body');
+    diagramWrap.classList.remove('html-body');
+    diagramWrap.classList.add('code-body');
+    var sourceLang = (type === 'svg' || type === 'html') ? 'xml'
+                   : (type === 'md') ? 'markdown'
+                   : lang || 'plaintext';
+    diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang);
+    _mmdApplyZoom();
+  }
+
+  function setViewMode(mode) {
+    if (mode !== 'rendered' && mode !== 'source') return;
+    if (mode === _viewMode) return;
+    _viewMode = mode;
+    if (_lastContent !== null) {
+      render(_lastContent, _lastType, _lastLang);
+    }
+  }
+
+  function getViewMode() {
+    return _viewMode;
   }
 
   // --- Deleted Banner ---
