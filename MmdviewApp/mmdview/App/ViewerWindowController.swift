@@ -226,6 +226,18 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         item.isEnabled = store.fileType.isRenderable
     }
 
+    // MARK: - Menu Validation
+
+    @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(toggleSourceView(_:)) {
+            menuItem.title = isSourceMode
+                ? String(localized: "menu.view.showRendered", bundle: .l10n)
+                : String(localized: "menu.view.toggleSource", bundle: .l10n)
+            return store.fileType.isRenderable
+        }
+        return true
+    }
+
     // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
