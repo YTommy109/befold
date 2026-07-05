@@ -309,12 +309,18 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Menu Validation
 
+    /// ソース表示トグルを有効にできるか。レンダリング可能な形式でも、
+    /// サイズ超過などで非対応表示になっている間は切り替え先が不可視なため無効にする。
+    var canToggleSourceMode: Bool {
+        store.fileType.isRenderable && !store.isUnsupported
+    }
+
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleSourceView(_:)) {
             menuItem.title = isSourceMode
                 ? String(localized: "menu.view.showRendered", bundle: .l10n)
                 : String(localized: "menu.view.toggleSource", bundle: .l10n)
-            return store.fileType.isRenderable
+            return canToggleSourceMode
         }
         return true
     }
@@ -377,6 +383,6 @@ extension ViewerWindowController: NSToolbarItemValidation {
     /// 唯一有効な制御点であるこのメソッドでファイル種別から enabled を決める。
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
         guard item.itemIdentifier == Self.sourceToggleItemIdentifier else { return true }
-        return store.fileType.isRenderable
+        return canToggleSourceMode
     }
 }
