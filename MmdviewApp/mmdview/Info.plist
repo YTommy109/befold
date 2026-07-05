@@ -206,6 +206,17 @@
 				<string>public.css</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>CSV / TSV</string>
+			<key>CFBundleTypeRole</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.comma-separated-values-text</string>
+				<string>public.tab-separated-values-text</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

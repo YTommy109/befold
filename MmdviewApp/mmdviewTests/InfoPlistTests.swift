@@ -97,4 +97,17 @@ struct InfoPlistTests {
         #expect(claimed.contains("public.yaml"))
         #expect(claimed.contains("public.xml"))
     }
+
+    /// CSV/TSV のドキュメントタイプが宣言されていること。
+    @Test("CSV/TSV のドキュメントタイプが宣言されている")
+    func claimsCsvTsvContentTypes() {
+        let expectedUTIs: Set = [
+            "public.comma-separated-values-text",
+            "public.tab-separated-values-text",
+        ]
+        let claimed = claimedContentTypes()
+        for uti in expectedUTIs {
+            #expect(claimed.contains(uti), "Missing UTI: \(uti)")
+        }
+    }
 }

@@ -25,14 +25,19 @@ enum ViewerBridge {
 
     /// render(content, type[, lang]) 呼び出しを組み立てる。
     /// content は JSONEncoder でエスケープし、JS インジェクションを防ぐ。
-    /// .code の場合のみ第 3 引数で highlight.js の言語名を渡す
-    /// (言語名は FileType の対応表由来の固定文字列のみで、ユーザー入力は混入しない)。
+    /// .code の場合は第 3 引数で highlight.js の言語名を、
+    /// .csv の場合は区切り文字（","／"\t"）を渡す
+    /// (いずれも FileType の対応表由来の固定文字列のみで、ユーザー入力は混入しない)。
     /// エンコードに失敗した場合は nil(呼び出し側は何もしない)。
     static func renderScript(content: String, fileType: FileType) -> String? {
         guard let jsonData = try? JSONEncoder().encode(content),
               let jsonString = String(data: jsonData, encoding: .utf8) else { return nil }
         if let language = fileType.codeLanguage {
             return "render(\(jsonString), '\(fileType.jsValue)', '\(language)')"
+        }
+        if let delimiter = fileType.csvDelimiter {
+            let escaped = delimiter == "\t" ? "\\t" : delimiter
+            return "render(\(jsonString), '\(fileType.jsValue)', '\(escaped)')"
         }
         return "render(\(jsonString), '\(fileType.jsValue)')"
     }

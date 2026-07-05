@@ -19,6 +19,10 @@ struct FileTypeTests {
         ("html", FileType.html),
         ("htm", FileType.html),
         ("HTML", FileType.html),
+        ("csv", FileType.csv(delimiter: ",")),
+        ("tsv", FileType.csv(delimiter: "\t")),
+        ("CSV", FileType.csv(delimiter: ",")),
+        ("TSV", FileType.csv(delimiter: "\t")),
     ])
     func knownExtensions(ext: String, expected: FileType) {
         let url = URL(fileURLWithPath: "/a/b.\(ext)")
@@ -64,6 +68,7 @@ struct FileTypeTests {
         (FileType.svg, "svg"),
         (FileType.html, "html"),
         (FileType.code(language: "swift"), "code"),
+        (FileType.csv(delimiter: ","), "csv"),
     ])
     func jsValueMapping(fileType: FileType, expected: String) {
         #expect(fileType.jsValue == expected)
@@ -77,6 +82,17 @@ struct FileTypeTests {
         #expect(FileType.markdown.codeLanguage == nil)
         #expect(FileType.svg.codeLanguage == nil)
         #expect(FileType.html.codeLanguage == nil)
+        #expect(FileType.csv(delimiter: ",").codeLanguage == nil)
+    }
+
+    /// csvDelimiter は .csv のときだけ区切り文字を返すこと
+    @Test
+    func csvDelimiterOnlyForCsv() {
+        #expect(FileType.csv(delimiter: ",").csvDelimiter == ",")
+        #expect(FileType.csv(delimiter: "\t").csvDelimiter == "\t")
+        #expect(FileType.mmd.csvDelimiter == nil)
+        #expect(FileType.markdown.csvDelimiter == nil)
+        #expect(FileType.code(language: "swift").csvDelimiter == nil)
     }
 
     /// isRenderable は mmd/markdown/svg/html のときだけ true を返すこと
@@ -86,6 +102,7 @@ struct FileTypeTests {
         #expect(FileType.markdown.isRenderable == true)
         #expect(FileType.svg.isRenderable == true)
         #expect(FileType.html.isRenderable == true)
+        #expect(FileType.csv(delimiter: ",").isRenderable == true)
         #expect(FileType.code(language: "swift").isRenderable == false)
     }
 
@@ -94,6 +111,7 @@ struct FileTypeTests {
     func extensionListsHaveNoDuplicates() {
         let all = FileType.mermaidExtensions + FileType.markdownExtensions + FileType.codeExtensions
             + FileType.svgExtensions + FileType.htmlExtensions
+            + FileType.csvExtensions + FileType.tsvExtensions
         #expect(Set(all).count == all.count)
     }
 
