@@ -14,6 +14,11 @@ struct FileTypeTests {
         ("markdown", FileType.markdown),
         ("MD", FileType.markdown),
         ("MARKDOWN", FileType.markdown),
+        ("svg", FileType.svg),
+        ("SVG", FileType.svg),
+        ("html", FileType.html),
+        ("htm", FileType.html),
+        ("HTML", FileType.html),
     ])
     func knownExtensions(ext: String, expected: FileType) {
         let url = URL(fileURLWithPath: "/a/b.\(ext)")
@@ -45,7 +50,7 @@ struct FileTypeTests {
     }
 
     /// 未知の拡張子は plaintext(等幅プレーンテキスト表示)にフォールバックすること
-    @Test(arguments: ["txt", "html", ""])
+    @Test(arguments: ["txt", ""])
     func unknownExtensionsFallbackToPlaintext(ext: String) {
         let path = ext.isEmpty ? "/a/b" : "/a/b.\(ext)"
         let url = URL(fileURLWithPath: path)
@@ -56,6 +61,8 @@ struct FileTypeTests {
     @Test(arguments: [
         (FileType.mmd, "mmd"),
         (FileType.markdown, "md"),
+        (FileType.svg, "svg"),
+        (FileType.html, "html"),
         (FileType.code(language: "swift"), "code"),
     ])
     func jsValueMapping(fileType: FileType, expected: String) {
@@ -68,12 +75,35 @@ struct FileTypeTests {
         #expect(FileType.code(language: "python").codeLanguage == "python")
         #expect(FileType.mmd.codeLanguage == nil)
         #expect(FileType.markdown.codeLanguage == nil)
+        #expect(FileType.svg.codeLanguage == nil)
+        #expect(FileType.html.codeLanguage == nil)
     }
 
-    /// 拡張子リストに重複がないこと（対応表と mermaid/markdown の衝突検知）
+    /// isRenderable は mmd/markdown/svg/html のときだけ true を返すこと
+    @Test
+    func isRenderable() {
+        #expect(FileType.mmd.isRenderable == true)
+        #expect(FileType.markdown.isRenderable == true)
+        #expect(FileType.svg.isRenderable == true)
+        #expect(FileType.html.isRenderable == true)
+        #expect(FileType.code(language: "swift").isRenderable == false)
+    }
+
+    /// sourceLanguage はソース表示時の highlight.js 言語名を返すこと
+    @Test
+    func sourceLanguage() {
+        #expect(FileType.svg.sourceLanguage == "xml")
+        #expect(FileType.html.sourceLanguage == "xml")
+        #expect(FileType.markdown.sourceLanguage == "markdown")
+        #expect(FileType.mmd.sourceLanguage == nil)
+        #expect(FileType.code(language: "swift").sourceLanguage == nil)
+    }
+
+    /// 拡張子リストに重複がないこと（対応表と mermaid/markdown/svg/html の衝突検知）
     @Test
     func extensionListsHaveNoDuplicates() {
         let all = FileType.mermaidExtensions + FileType.markdownExtensions + FileType.codeExtensions
+            + FileType.svgExtensions + FileType.htmlExtensions
         #expect(Set(all).count == all.count)
     }
 
