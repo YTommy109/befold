@@ -2,8 +2,14 @@ import SwiftUI
 
 struct FileListView: View {
     let files: [URL]
-    @Binding var selection: URL?
+    @State private var selection: URL?
     let onSelect: (URL) -> Void
+
+    init(files: [URL], initialSelection: URL, onSelect: @escaping (URL) -> Void) {
+        self.files = files
+        _selection = State(initialValue: initialSelection)
+        self.onSelect = onSelect
+    }
 
     var body: some View {
         List(files, id: \.self, selection: $selection) { file in

@@ -71,15 +71,12 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             webViewProxy: webViewProxy
         )
         let files = DirectoryLister.listFiles(in: fileURL.deletingLastPathComponent())
-        let sidebarView = NSHostingView(
-            rootView: FileListView(
-                files: files,
-                selection: .constant(fileURL),
-                onSelect: { [weak self] url in self?.switchFile(to: url) }
-            )
+        let fileListView = FileListView(
+            files: files,
+            initialSelection: fileURL,
+            onSelect: { [weak self] url in self?.switchFile(to: url) }
         )
-        let mainView = NSHostingView(rootView: contentView)
-        let splitVC = ViewerSplitViewController(sidebarView: sidebarView, mainView: mainView)
+        let splitVC = ViewerSplitViewController(sidebar: fileListView, content: contentView)
         window.contentViewController = splitVC
         if !hasSavedFrame {
             window.center()

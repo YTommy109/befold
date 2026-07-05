@@ -1,19 +1,17 @@
 import AppKit
 import SwiftUI
 
-final class ViewerSplitViewController: NSSplitViewController {
-    init(sidebarView: NSView, mainView: NSView) {
+final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitViewController {
+    init(sidebar: Sidebar, content: Content) {
         super.init(nibName: nil, bundle: nil)
 
-        let sidebarItem = NSSplitViewItem(sidebarWithViewController: NSViewController())
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: NSHostingController(rootView: sidebar))
         sidebarItem.minimumThickness = 150
         sidebarItem.maximumThickness = 300
         sidebarItem.canCollapse = true
         sidebarItem.isCollapsed = true
-        sidebarItem.viewController.view = sidebarView
 
-        let contentItem = NSSplitViewItem(viewController: NSViewController())
-        contentItem.viewController.view = mainView
+        let contentItem = NSSplitViewItem(viewController: NSHostingController(rootView: content))
 
         addSplitViewItem(sidebarItem)
         addSplitViewItem(contentItem)

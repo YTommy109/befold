@@ -53,7 +53,7 @@ struct ViewerWebView: NSViewRepresentable {
         context.coordinator.webView = webView
         webViewProxy.webView = webView
 
-        if let htmlURL = Bundle.main.url(forResource: "viewer", withExtension: "html") {
+        if let htmlURL = Bundle.l10n.url(forResource: "viewer", withExtension: "html") {
             let resourceDir = htmlURL.deletingLastPathComponent()
             webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
         }
