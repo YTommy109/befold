@@ -1,4 +1,4 @@
-# /release — DMG ビルド & GitHub リリース一括作成
+# /release — バージョン bump & GitHub リリース作成
 
 引数: $ARGUMENTS（patch | minor | major）
 
@@ -17,34 +17,18 @@ scripts/bump.sh $ARGUMENTS
 ### 2. リリースノートの生成
 
 `/release-notes` スキルの手順に従い、最新タグと前回タグ間のコミットから
-リリースノートを Markdown で生成する。生成結果はユーザーに表示し、
-GitHub リリースの body として使う。
+リリースノートを Markdown で生成する。生成結果はユーザーに表示する。
 
-### 3. DMG ビルド
+### 3. GitHub リリース作成
 
-```bash
-cd MmdviewApp && xcodebuild build -scheme mmdview -configuration Release -derivedDataPath .build
-```
-
-ビルド成功後:
+最新タグ（`git describe --tags --abbrev=0`）を使い、リリースノートを body にして
+GitHub リリースを作成する:
 
 ```bash
-scripts/create-dmg.sh MmdviewApp/.build/Build/Products/Release/mmdview.app mmdview.dmg
+gh release create <タグ> --title "<タグ>" --notes "<リリースノート>"
 ```
 
-### 4. GitHub リリース作成
-
-最新タグ（`git describe --tags --abbrev=0`）を使って GitHub リリースを作成する:
-
-```bash
-gh release create <タグ> mmdview.dmg --title "<タグ>" --notes "<リリースノート>"
-```
-
-### 5. クリーンアップ
-
-```bash
-rm -f mmdview.dmg
-rm -rf MmdviewApp/.build
-```
+DMG のビルドと添付は GitHub Actions（release.yml）が自動で行うため、
+ローカルでのビルド・DMG 作成は不要。
 
 各ステップの結果をユーザーに報告する。
