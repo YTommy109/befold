@@ -297,16 +297,16 @@
     _lastLang = lang;
     hideDeletedBanner();
 
-    if (_viewMode === 'source' && type !== 'code') {
-      _renderSource(content, type, lang);
-      return;
-    }
-
     var errorPanel = document.getElementById('mmd-error');
     errorPanel.style.display = 'none';
     errorPanel.textContent = '';
     var diagramWrap = document.getElementById('diagram-wrap');
     diagramWrap.style.display = 'block';
+
+    if (_viewMode === 'source' && type !== 'code') {
+      _renderSource(content, type, lang);
+      return;
+    }
 
     if (type === 'mmd') {
       diagramWrap.classList.remove('markdown-body');
@@ -342,7 +342,7 @@
       diagramWrap.classList.remove('code-body');
       diagramWrap.classList.add('html-body');
       var iframe = document.createElement('iframe');
-      iframe.sandbox = '';
+      iframe.sandbox = 'allow-same-origin';
       iframe.srcdoc = content;
       iframe.style.width = '100%';
       iframe.style.border = 'none';
