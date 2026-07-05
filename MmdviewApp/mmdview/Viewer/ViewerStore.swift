@@ -15,6 +15,12 @@ final class ViewerStore {
     /// これを超えるファイルは読み込まず、非対応扱いにしてビーチボール化を防ぐ。
     static let maxFileSizeBytes = 10 * 1024 * 1024
 
+    /// 画像・PDF(バイナリ表示対象)の最大ファイルサイズ(50MB)。
+    /// スキャン PDF や高解像度写真は 10MB を超えることが珍しくないため
+    /// テキストより緩くする。base64 化で約 1.33 倍に膨らんで
+    /// evaluateJavaScript を通るため、無制限にはしない。
+    static let maxBinaryFileSizeBytes = 50 * 1024 * 1024
+
     private(set) var content: String = ""
     private(set) var fileType: FileType = .mmd
     private(set) var isDeleted: Bool = false
@@ -74,9 +80,23 @@ final class ViewerStore {
 
         // 上限を超える巨大ファイルは同期読み込みでメインスレッドをブロックするため
         // 読み込まず、非対応扱いにする。
-        if let size = fileReader.fileSize(at: resolved), size > Self.maxFileSizeBytes {
+        let sizeLimit = fileType.isBinaryContent ? Self.maxBinaryFileSizeBytes : Self.maxFileSizeBytes
+        if let size = fileReader.fileSize(at: resolved), size > sizeLimit {
             isUnsupported = true
             content = ""
+            return
+        }
+
+        if fileType.isBinaryContent {
+            if let data = try? fileReader.readData(from: resolved) {
+                isUnsupported = false
+                content = data.base64EncodedString()
+            } else {
+                // 読めないバイナリは非対応表示にする(壊れた画像アイコンや
+                // 空の PDF を無言で出さない)。
+                isUnsupported = true
+                content = ""
+            }
             return
         }
 

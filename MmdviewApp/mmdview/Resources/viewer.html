@@ -10,7 +10,7 @@
     インライン <script> と onclick、mermaid が注入するインライン <style> のため
     script-src / style-src には 'unsafe-inline' を付与する。
   -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; frame-src blob:; connect-src 'none'; base-uri 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>mmdview</title>
   <!-- ベンダー CSS(github-markdown / github / github-dark)は style.css が
@@ -53,7 +53,19 @@
 
   function _mmdApplyZoom() {
     _mmdZoom = clampZoom(_mmdZoom);
-    document.getElementById('diagram-wrap').style.zoom = effectiveZoom(_mmdZoom);
+    var wrap = document.getElementById('diagram-wrap');
+    if (wrap.classList.contains('pdf-body')) {
+      // iframe 内の PDF プラグイン描画には CSS zoom が効かないため、
+      // iframe(=wrap)の寸法自体を倍率で変える。PDF は幅フィットで
+      // 描画されるので、幅が広がるほど拡大表示になる。
+      wrap.style.zoom = 1;
+      wrap.style.width = (effectiveZoom(_mmdZoom) * 100) + '%';
+      wrap.style.height = (effectiveZoom(_mmdZoom) * 100) + '%';
+    } else {
+      wrap.style.width = '';
+      wrap.style.height = '';
+      wrap.style.zoom = effectiveZoom(_mmdZoom);
+    }
     // 枠高さの上限は全体ズームに依存する（レイアウト px への割り戻し）ため再計算する。
     _mmdUpdateAllDiagramScrollHeights();
     if (_mmdZoom !== _mmdLastPostedZoom &&
@@ -289,6 +301,8 @@
   var _lastType = null;
   var _lastLang = null;
   var _viewMode = 'rendered';
+  // PDF 表示用に生成した blob URL。再描画のたびに revoke してリークを防ぐ。
+  var _pdfBlobUrl = null;
 
   async function render(content, type, lang) {
     _currentType = type;
@@ -303,13 +317,19 @@
     var diagramWrap = document.getElementById('diagram-wrap');
     diagramWrap.style.display = 'block';
 
-    if (_viewMode === 'source' && type !== 'code') {
+    if (_viewMode === 'source' && type !== 'code' && type !== 'image' && type !== 'pdf') {
       _renderSource(content, type, lang);
       return;
     }
 
     // 分岐前に一括で外し、各分岐は自分のクラスを add するだけにする。
-    diagramWrap.classList.remove('markdown-body', 'code-body', 'html-body', 'csv-body');
+    diagramWrap.classList.remove('markdown-body', 'code-body', 'html-body', 'csv-body', 'image-body', 'pdf-body');
+
+    // 前回の PDF 表示で生成した blob URL を解放する(PDF 以外への切替も含む)。
+    if (_pdfBlobUrl) {
+      URL.revokeObjectURL(_pdfBlobUrl);
+      _pdfBlobUrl = null;
+    }
 
     if (type === 'mmd') {
       diagramWrap.innerHTML = '<pre class="mermaid">' + _escapeHtml(content) + '</pre>';
@@ -362,6 +382,28 @@
       diagramWrap.classList.add('markdown-body', 'csv-body');
       var rows = parseCsv(content, lang || ',');
       diagramWrap.innerHTML = buildTableHtml(rows);
+    } else if (type === 'image') {
+      // ナチュラルサイズで表示し、ウィンドウサイズには追従させない。
+      // 拡大縮小は #diagram-wrap への全体ズーム(⌘+/-)が担う。
+      diagramWrap.classList.add('image-body');
+      var img = document.createElement('img');
+      img.src = 'data:' + (lang || 'image/png') + ';base64,' + content;
+      img.alt = 'Image';
+      diagramWrap.innerHTML = '';
+      diagramWrap.appendChild(img);
+    } else if (type === 'pdf') {
+      // data: URI ではなく blob: URL を使う。CSP の frame-src は blob: のみを
+      // 許可しており、blob URL はこのスクリプトが生成した推測不能なものに
+      // 限られるため、Markdown 内に静的に書かれた iframe はロードできない。
+      diagramWrap.classList.add('pdf-body');
+      var pdfBytes = atob(content);
+      var pdfBuf = new Uint8Array(pdfBytes.length);
+      for (var bi = 0; bi < pdfBytes.length; bi++) { pdfBuf[bi] = pdfBytes.charCodeAt(bi); }
+      _pdfBlobUrl = URL.createObjectURL(new Blob([pdfBuf], { type: 'application/pdf' }));
+      var iframe = document.createElement('iframe');
+      iframe.src = _pdfBlobUrl;
+      diagramWrap.innerHTML = '';
+      diagramWrap.appendChild(iframe);
     } else if (type === 'code') {
       // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
       // レイアウトは style.css の .code-body が担う。
@@ -398,7 +440,7 @@
 
   function _renderSource(content, type, lang) {
     var diagramWrap = document.getElementById('diagram-wrap');
-    diagramWrap.classList.remove('markdown-body', 'html-body', 'csv-body');
+    diagramWrap.classList.remove('markdown-body', 'html-body', 'csv-body', 'image-body', 'pdf-body');
     diagramWrap.classList.add('code-body');
     if (type === 'csv') {
       diagramWrap.innerHTML = renderCsvSourceHtml(content, lang || ',');

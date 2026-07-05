@@ -4,6 +4,7 @@ import Foundation
 protocol FileReading: Sendable {
     func fileExists(at url: URL) -> Bool
     func readString(from url: URL) throws -> String
+    func readData(from url: URL) throws -> Data
     /// テキストとして扱えない内容(バイナリ)かどうかを判定する。
     func isBinary(at url: URL) -> Bool
     /// ファイルのバイトサイズ。取得できない場合は nil。
@@ -27,6 +28,10 @@ struct DefaultFileReader: FileReading {
 
     func fileSize(at url: URL) -> Int? {
         (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+    }
+
+    func readData(from url: URL) throws -> Data {
+        try Data(contentsOf: url)
     }
 
     func readString(from url: URL) throws -> String {

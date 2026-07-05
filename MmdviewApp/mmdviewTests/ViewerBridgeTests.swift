@@ -85,6 +85,22 @@ struct ViewerBridgeTests {
         #expect(script.hasSuffix("\", 'html')"))
     }
 
+    @Test("image タイプは第 3 引数に MIME タイプを渡す")
+    func renderScriptAppendsMimeTypeForImage() throws {
+        let script = try #require(
+            ViewerBridge.renderScript(content: "base64data", fileType: .image(mimeType: "image/png"))
+        )
+        #expect(script.hasSuffix("\", 'image', 'image/png')"))
+    }
+
+    @Test("pdf タイプは 2 引数のまま")
+    func renderScriptOmitsLangForPdf() throws {
+        let script = try #require(
+            ViewerBridge.renderScript(content: "base64data", fileType: .pdf)
+        )
+        #expect(script.hasSuffix("\", 'pdf')"))
+    }
+
     @Test("viewModeScript がモード文字列を埋め込む")
     func viewModeScriptEmbedsMode() {
         #expect(ViewerBridge.viewModeScript(.source) == "setViewMode('source')")

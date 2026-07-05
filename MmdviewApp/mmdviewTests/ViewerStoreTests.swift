@@ -83,7 +83,7 @@ struct ViewerStoreTests {
 
     @Test
     func openBinaryFileMarksUnsupported() {
-        let file = URL(fileURLWithPath: "/files/photo.png")
+        let file = URL(fileURLWithPath: "/files/data.bin")
         let reader = InMemoryFileReader()
         reader.setFile("binary-ish", at: file)
         reader.setBinary(true, at: file)
@@ -169,7 +169,7 @@ struct ViewerStoreTests {
 
     @Test
     func switchingFromBinaryToTextResetsUnsupported() {
-        let binaryFile = URL(fileURLWithPath: "/files/photo.png")
+        let binaryFile = URL(fileURLWithPath: "/files/data.bin")
         let textFile = URL(fileURLWithPath: "/files/readme.md")
         let reader = InMemoryFileReader()
         reader.setFile("binary-ish", at: binaryFile)
@@ -267,6 +267,126 @@ struct ViewerStoreTests {
         #expect(store.content == "# Renamed")
         #expect(!store.isDeleted)
         #expect(renamedTo == newFile)
+
+        store.close()
+    }
+
+    /// 実際の画像ファイルは isBinary 判定が true になるため、テストでも
+    /// setBinary(true) を付けて「バイナリ判定より先に画像として読む」順序を検証する。
+    @Test
+    func openImageFileLoadsBase64Content() {
+        let file = URL(fileURLWithPath: "/files/photo.png")
+        let imageData = Data([0x89, 0x50, 0x4E, 0x47])
+        let reader = InMemoryFileReader()
+        reader.setDataFile(imageData, at: file)
+        reader.setBinary(true, at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+
+        #expect(!store.isUnsupported)
+        #expect(!store.isDeleted)
+        #expect(store.fileType == .image(mimeType: "image/png"))
+        #expect(store.content == imageData.base64EncodedString())
+
+        store.close()
+    }
+
+    @Test
+    func openPdfFileLoadsBase64Content() {
+        let file = URL(fileURLWithPath: "/files/doc.pdf")
+        let pdfData = Data("%PDF-1.4".utf8)
+        let reader = InMemoryFileReader()
+        reader.setDataFile(pdfData, at: file)
+        reader.setBinary(true, at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+
+        #expect(!store.isUnsupported)
+        #expect(!store.isDeleted)
+        #expect(store.fileType == .pdf)
+        #expect(store.content == pdfData.base64EncodedString())
+
+        store.close()
+    }
+
+    @Test
+    func imageFileWatcherCallbackReloadsContent() {
+        let file = URL(fileURLWithPath: "/files/photo.png")
+        let data1 = Data([0x89, 0x50, 0x4E, 0x47])
+        let data2 = Data([0x89, 0x50, 0x4E, 0x47, 0x0D])
+        let reader = InMemoryFileReader()
+        reader.setDataFile(data1, at: file)
+        reader.setBinary(true, at: file)
+
+        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
+        let store = ViewerStore(watcherFactory: { _, callback, _ in
+            onChange = callback
+            return MockFileWatcher()
+        }, fileReader: reader)
+        store.openFile(file)
+        #expect(store.content == data1.base64EncodedString())
+
+        reader.setDataFile(data2, at: file)
+        onChange?()
+
+        #expect(store.content == data2.base64EncodedString())
+
+        store.close()
+    }
+
+    /// 画像・PDF はテキストの 10MB 制限ではなく緩い 50MB 制限が適用される。
+    @Test
+    func imageOverTextSizeLimitStillLoads() {
+        let file = URL(fileURLWithPath: "/files/scan.png")
+        let imageData = Data([0x89, 0x50, 0x4E, 0x47])
+        let reader = InMemoryFileReader()
+        reader.setDataFile(imageData, at: file)
+        reader.setBinary(true, at: file)
+        reader.setSize(ViewerStore.maxFileSizeBytes + 1, at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+
+        #expect(!store.isUnsupported)
+        #expect(store.content == imageData.base64EncodedString())
+
+        store.close()
+    }
+
+    @Test
+    func imageOverBinarySizeLimitMarksUnsupported() {
+        let file = URL(fileURLWithPath: "/files/huge.png")
+        let reader = InMemoryFileReader()
+        reader.setDataFile(Data([0x89]), at: file)
+        reader.setBinary(true, at: file)
+        reader.setSize(ViewerStore.maxBinaryFileSizeBytes + 1, at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+
+        #expect(store.isUnsupported)
+        #expect(store.content == "")
+
+        store.close()
+    }
+
+    /// 画像・PDF の読み込み失敗は無表示ではなく非対応表示にする。
+    @Test
+    func imageReadFailureMarksUnsupported() {
+        let file = URL(fileURLWithPath: "/files/locked.png")
+        let reader = InMemoryFileReader()
+        reader.setDataFile(Data([0x89]), at: file)
+        reader.setBinary(true, at: file)
+        reader.setReadError(true, at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+
+        #expect(store.isUnsupported)
+        #expect(store.content == "")
+        #expect(!store.isDeleted)
 
         store.close()
     }
