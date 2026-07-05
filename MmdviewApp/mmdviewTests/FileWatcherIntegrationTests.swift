@@ -147,14 +147,14 @@ struct FileWatcherIntegrationTests {
         try FileManager.default.moveItem(at: file, to: newFile)
 
         // rename 通知を待つ
-        try? await Task.sleep(for: .seconds(1))
+        await waitUntil { renamed.url != nil }
         #expect(renamed.url?.lastPathComponent == "renamed.mmd")
 
         // ここから先の onChange のみ検証対象にする
         armed.isSet = true
         // 追従後の新パスへの変更が検知される
         try "graph TD; A-->C".write(to: newFile, atomically: false, encoding: .utf8)
-        try? await Task.sleep(for: .seconds(1))
+        await waitUntil { changed.isSet }
         #expect(changed.isSet)
 
         watcher.stop()
@@ -190,13 +190,13 @@ struct FileWatcherIntegrationTests {
         try FileManager.default.moveItem(at: file, to: moved)
 
         // rename 通知を待つ
-        try? await Task.sleep(for: .seconds(1))
+        await waitUntil { renamed.url != nil }
         #expect(renamed.url?.path == moved.resolvingSymlinksInPath().path)
 
         // 新しい親ディレクトリ基準で監視が張り直され、移動後の変更も検知される
         armed.isSet = true
         try "graph TD; A-->C".write(to: moved, atomically: false, encoding: .utf8)
-        try? await Task.sleep(for: .seconds(1))
+        await waitUntil { changed.isSet }
         #expect(changed.isSet)
 
         watcher.stop()
@@ -229,7 +229,8 @@ struct FileWatcherIntegrationTests {
         try FileManager.default.moveItem(at: file, to: backup)
         try "graph TD; X-->Y".write(to: file, atomically: false, encoding: .utf8)
 
-        try? await Task.sleep(for: .seconds(1.5))
+        // 変更として通知されるまで待つ
+        await waitUntil { changed.isSet }
         // rename としては通知されない
         #expect(renamed.url == nil)
         // 変更としては通知される
@@ -285,4 +286,15 @@ private final class TestFlag: @unchecked Sendable {
 /// rename コールバックで受け取った URL を @Sendable クロージャ越しに保持するための可変ボックス。
 private final class RenamedBox: @unchecked Sendable {
     var url: URL?
+}
+
+/// 条件が true になるまでポーリングで待機する。CI 環境での DispatchSource イベント遅延に対応。
+private func waitUntil(
+    timeout: TimeInterval = 5,
+    _ condition: @escaping @Sendable () -> Bool
+) async {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !condition(), Date() < deadline {
+        try? await Task.sleep(for: .seconds(0.05))
+    }
 }

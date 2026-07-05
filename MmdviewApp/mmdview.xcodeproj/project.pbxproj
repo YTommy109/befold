@@ -39,6 +39,7 @@
 		5F8E740861314742A229128E /* RecentDocumentsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECED05D038D2BAA7D80C1728 /* RecentDocumentsStore.swift */; };
 		606C6768F96704F19589C0C3 /* ZoomStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866654CDD1FCD5353E218F49 /* ZoomStore.swift */; };
 		6152F1B4A2724D6830625A8A /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81D98651D7A81173281B3ABD /* LocalizationTests.swift */; };
+		628F08B1748710B6BA99B4FE /* ViewerSplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAD5024177AA41AACDA5DB18 /* ViewerSplitViewController.swift */; };
 		718553371869DDA83634B996 /* UpdateUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A709772FCFC4C93752545083 /* UpdateUI.swift */; };
 		71FFCEC9DCB3C2F13BA40694 /* mermaid.min.js in Resources */ = {isa = PBXBuildFile; fileRef = BD8262375D18C5C3E2CDCD36 /* mermaid.min.js */; };
 		74C3C5E539068B3029F6E097 /* UpdateInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A03DE19C6B812B0D6B7CF13F /* UpdateInstallerTests.swift */; };
@@ -69,6 +70,7 @@
 		BF7DDCD30E7C2282D3310FBB /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A4FD04BB212DE75D79FDA2 /* UpdateChecker.swift */; };
 		C1D3F647F8F1DCECFEA841AC /* FileReading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683DA10A1D83B41B3BD41A98 /* FileReading.swift */; };
 		CA303D3C8A597D1329A40380 /* highlight.min.js in Resources */ = {isa = PBXBuildFile; fileRef = DA43337910A3C5650B3B5D7A /* highlight.min.js */; };
+		CD80E7F57BEB5C1C5643642D /* FileListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002466F8CD03F9EE69F737FA /* FileListView.swift */; };
 		CE9F2B998F6D9F62D2C3BEDD /* RecentDocumentsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0FEFA68BB80A98CF725B1E7 /* RecentDocumentsStoreTests.swift */; };
 		CF28501A98287BB51CE13377 /* FileWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E5A40BED6330AE1B10E274 /* FileWatcher.swift */; };
 		D29A0D1CD368201E93F85745 /* UpdateFlowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30AFB9B55C083343AD6B9D1 /* UpdateFlowController.swift */; };
@@ -95,6 +97,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		002466F8CD03F9EE69F737FA /* FileListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileListView.swift; sourceTree = "<group>"; };
 		02D8A275A5AFF8E4C965BC1B /* ZoomStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomStoreTests.swift; sourceTree = "<group>"; };
 		0E0CFAB7880DC7F5CF518526 /* DMGMounterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMGMounterTests.swift; sourceTree = "<group>"; };
 		0E7FA7E244C62160E923A45D /* MainMenuBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuBuilderTests.swift; sourceTree = "<group>"; };
@@ -162,6 +165,7 @@
 		CE05C4BBE9AD6D41318EEA20 /* DirectoryListerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryListerTests.swift; sourceTree = "<group>"; };
 		D0982A5D8D54B43C1333C430 /* UpdateCheckCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckCoordinator.swift; sourceTree = "<group>"; };
 		DA43337910A3C5650B3B5D7A /* highlight.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = highlight.min.js; sourceTree = "<group>"; };
+		DAD5024177AA41AACDA5DB18 /* ViewerSplitViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerSplitViewController.swift; sourceTree = "<group>"; };
 		DDCA920BE1F93CB8637E83D8 /* PathKeyedDictionary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathKeyedDictionary.swift; sourceTree = "<group>"; };
 		DF4DE8ACA0FA5DB354712BAF /* RecentDocumentsMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentDocumentsMenuController.swift; sourceTree = "<group>"; };
 		E0311DC381F57D3B40C4F2F4 /* UpdateInstallerIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstallerIntegrationTests.swift; sourceTree = "<group>"; };
@@ -179,6 +183,7 @@
 			isa = PBXGroup;
 			children = (
 				5101598261892201B0E3E348 /* DirectoryLister.swift */,
+				002466F8CD03F9EE69F737FA /* FileListView.swift */,
 				683DA10A1D83B41B3BD41A98 /* FileReading.swift */,
 				6ECEA97141C132039BFA0E11 /* FileType.swift */,
 				36C3FD47E5A29120F61360E7 /* ViewerBridge.swift */,
@@ -271,6 +276,7 @@
 				1AF91FFFD0A6C9C2189A38AE /* SessionStore.swift */,
 				D0982A5D8D54B43C1333C430 /* UpdateCheckCoordinator.swift */,
 				A68CF0C23E08434DE5D6366F /* URL+PathKey.swift */,
+				DAD5024177AA41AACDA5DB18 /* ViewerSplitViewController.swift */,
 				E77F6F5678A696DACE24C69A /* ViewerWindowController.swift */,
 				3E8C343478A6D92709C87FB7 /* ViewerWindowManager.swift */,
 				866654CDD1FCD5353E218F49 /* ZoomStore.swift */,
@@ -425,6 +431,7 @@
 				A09E2FC9033CE7C02EA677E7 /* DirectoryLister.swift in Sources */,
 				AA05608A2E2E687D06789544 /* DocumentController.swift in Sources */,
 				51AC897ACB3C5B66D48F866C /* DownloadProgressWindow.swift in Sources */,
+				CD80E7F57BEB5C1C5643642D /* FileListView.swift in Sources */,
 				C1D3F647F8F1DCECFEA841AC /* FileReading.swift in Sources */,
 				06E587F21050CC0026582675 /* FileType.swift in Sources */,
 				CF28501A98287BB51CE13377 /* FileWatcher.swift in Sources */,
@@ -447,6 +454,7 @@
 				718553371869DDA83634B996 /* UpdateUI.swift in Sources */,
 				248BD00D834059EB00D511DF /* ViewerBridge.swift in Sources */,
 				9468E715957FEF5E8C470ABC /* ViewerContentView.swift in Sources */,
+				628F08B1748710B6BA99B4FE /* ViewerSplitViewController.swift in Sources */,
 				AA569204B8CF7AF8D7F13A24 /* ViewerStore.swift in Sources */,
 				23AF71BE47D2BD01F733922F /* ViewerTheme.swift in Sources */,
 				1E981BD656C7CA2465CF7021 /* ViewerWebView.swift in Sources */,
@@ -509,7 +517,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 161;
+				CURRENT_PROJECT_VERSION = 165;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -517,7 +525,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
@@ -668,7 +676,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = mmdview/mmdview.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 161;
+				CURRENT_PROJECT_VERSION = 165;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = mmdview/Info.plist;
@@ -676,7 +684,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.mmdview;
 				PRODUCT_NAME = mmdview;
 				SDKROOT = macosx;
