@@ -360,6 +360,12 @@
       iframe.style.height = '80vh';
       diagramWrap.innerHTML = '';
       diagramWrap.appendChild(iframe);
+    } else if (type === 'csv') {
+      diagramWrap.classList.remove('code-body');
+      diagramWrap.classList.remove('html-body');
+      diagramWrap.classList.add('markdown-body');
+      var rows = parseCsv(content, lang || ',');
+      diagramWrap.innerHTML = buildTableHtml(rows);
     } else if (type === 'code') {
       // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
       // レイアウトは style.css の .code-body が担う。
@@ -403,10 +409,14 @@
     diagramWrap.classList.remove('markdown-body');
     diagramWrap.classList.remove('html-body');
     diagramWrap.classList.add('code-body');
-    var sourceLang = (type === 'svg' || type === 'html') ? 'xml'
-                   : (type === 'md') ? 'markdown'
-                   : lang || 'plaintext';
-    diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang);
+    if (type === 'csv') {
+      diagramWrap.innerHTML = renderCsvSourceHtml(content, lang || ',');
+    } else {
+      var sourceLang = (type === 'svg' || type === 'html') ? 'xml'
+                     : (type === 'md') ? 'markdown'
+                     : lang || 'plaintext';
+      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang);
+    }
     _mmdApplyZoom();
   }
 

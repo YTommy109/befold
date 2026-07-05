@@ -343,3 +343,24 @@ body.mmd-deleted {
 .diagram-zoom-label:hover {
   color: var(--accent);
 }
+
+/* ── CSV Rainbow ソース表示 ── */
+.csv-col-0 { color: #c00; }
+.csv-col-1 { color: #080; }
+.csv-col-2 { color: #00c; }
+.csv-col-3 { color: #c80; }
+.csv-col-4 { color: #808; }
+.csv-col-5 { color: #088; }
+.csv-col-6 { color: #c44; }
+.csv-col-7 { color: #448; }
+
+@media (prefers-color-scheme: dark) {
+  .csv-col-0 { color: #f88; }
+  .csv-col-1 { color: #8f8; }
+  .csv-col-2 { color: #8af; }
+  .csv-col-3 { color: #fd8; }
+  .csv-col-4 { color: #f8f; }
+  .csv-col-5 { color: #8ff; }
+  .csv-col-6 { color: #fa8; }
+  .csv-col-7 { color: #8cf; }
+}
