@@ -59,12 +59,16 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         window.tabbingIdentifier = "ViewerWindow"
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.isReleasedWhenClosed = false
-        // ツールバーはコンテンツサイズの計算に影響するため、フレーム確定より前に設定する
         let toolbar = NSToolbar(identifier: "ViewerToolbar")
         toolbar.displayMode = .iconOnly
-        window.toolbar = toolbar
+        window.toolbarStyle = .unified
 
         super.init(window: window)
+
+        // toolbar.delegate は self を使うため super.init の後に設定する。
+        // window.toolbar もデリゲート設定後に代入しないとアイテムが空になる。
+        toolbar.delegate = self
+        window.toolbar = toolbar
 
         let contentView = ViewerContentView(
             store: store,
@@ -99,7 +103,6 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         // (contentViewController 設定によるフィッティングサイズ化など)が
         // windowDidResize 経由で保存されるのを防ぐ
         window.delegate = self
-        toolbar.delegate = self
 
         store.onFileRenamed = { [weak self] newURL in
             self?.handleRename(to: newURL)
