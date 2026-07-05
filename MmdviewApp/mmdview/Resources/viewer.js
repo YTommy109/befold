@@ -101,59 +101,85 @@ function renderCodeHtml(hljs, str, lang) {
   return '<pre><code>' + escapeHtml(str) + '</code></pre>';
 }
 
-// RFC 4180 準拠の状態マシンベース CSV/TSV パーサー。
+// RFC 4180 準拠の状態マシンベース CSV/TSV トークナイザー。
 // クオート内のデリミタ・改行・エスケープされたクオート("")を正しく扱う。
-function parseCsv(content, delimiter) {
+// 各セルについて、デコード済みの値(value)とソース上の生テキスト(raw、
+// クオート・エスケープされたクオートを含み、クオート内の改行もそのまま残る)
+// の両方を返す。parseCsv(データ用)と renderCsvSourceHtml(ソース表示用)は
+// この 1 本のトークナイザーを共有し、行またぎのクオートでも同じ列境界になる。
+function tokenizeCsvRows(content, delimiter) {
   if (!content) { return []; }
   var rows = [];
   var row = [];
-  var field = '';
+  var value = '';
+  var raw = '';
   var inQuotes = false;
   var i = 0;
+  function pushField() {
+    row.push({ value: value, raw: raw });
+    value = '';
+    raw = '';
+  }
+  function pushRow() {
+    pushField();
+    rows.push(row);
+    row = [];
+  }
   while (i < content.length) {
     var ch = content[i];
     if (inQuotes) {
       if (ch === '"') {
         if (i + 1 < content.length && content[i + 1] === '"') {
-          field += '"';
+          value += '"';
+          raw += '""';
           i += 2;
         } else {
+          raw += ch;
           inQuotes = false;
           i++;
         }
       } else {
-        field += ch;
+        value += ch;
+        raw += ch;
         i++;
       }
     } else {
       if (ch === '"') {
         inQuotes = true;
+        raw += ch;
         i++;
       } else if (ch === delimiter) {
-        row.push(field);
-        field = '';
+        pushField();
         i++;
       } else if (ch === '\r') {
-        row.push(field);
-        field = '';
-        rows.push(row);
-        row = [];
+        pushRow();
         i++;
         if (i < content.length && content[i] === '\n') { i++; }
       } else if (ch === '\n') {
-        row.push(field);
-        field = '';
-        rows.push(row);
-        row = [];
+        pushRow();
         i++;
       } else {
-        field += ch;
+        value += ch;
+        raw += ch;
         i++;
       }
     }
   }
-  if (field !== '' || row.length > 0) {
-    row.push(field);
+  if (value !== '' || raw !== '' || row.length > 0) {
+    pushRow();
+  }
+  return rows;
+}
+
+// tokenizeCsvRows のセルから value だけを取り出した、データ用の行配列。
+function parseCsv(content, delimiter) {
+  var tokenRows = tokenizeCsvRows(content, delimiter);
+  var rows = [];
+  for (var r = 0; r < tokenRows.length; r++) {
+    var row = [];
+    for (var c = 0; c < tokenRows[r].length; c++) {
+      row.push(tokenRows[r][c].value);
+    }
     rows.push(row);
   }
   return rows;
@@ -185,62 +211,21 @@ function buildTableHtml(rows) {
 
 var CSV_COL_COUNT = 8;
 
-// 1 行を delimiter で分割する。parseCsv と異なりクオート文字自体を結果に残し、
-// ソース表示(Rainbow 着色)で生テキストの見た目を保つ。
-function splitCsvSourceLine(line, delimiter) {
-  var parts = [];
-  var current = '';
-  var inQuotes = false;
-  var i = 0;
-  while (i < line.length) {
-    var ch = line[i];
-    if (inQuotes) {
-      current += ch;
-      if (ch === '"') {
-        if (i + 1 < line.length && line[i + 1] === '"') {
-          current += '"';
-          i += 2;
-        } else {
-          inQuotes = false;
-          i++;
-        }
-      } else {
-        i++;
-      }
-    } else {
-      if (ch === '"') {
-        inQuotes = true;
-        current += ch;
-        i++;
-      } else if (ch === delimiter) {
-        parts.push(current);
-        current = '';
-        i++;
-      } else {
-        current += ch;
-        i++;
-      }
-    }
-  }
-  parts.push(current);
-  return parts;
-}
-
-// CSV/TSV のソース表示用 HTML。行ごとに列を Rainbow カラーで着色し、
-// delimiter 自体は着色せずそのまま残す(クオート内の delimiter は列区切りとしない)。
+// CSV/TSV のソース表示用 HTML。tokenizeCsvRows(parseCsv と共通のトークナイザー)
+// が返す raw(クオート・エスケープされたクオートを含む生テキスト)を列ごとに
+// Rainbow カラーで着色する。delimiter 自体は着色せずそのまま残す(クオート内の
+// delimiter は列区切りとしない)。クオート内改行を含むセルも 1 つの span に
+// まとまるため、テーブル表示(parseCsv)と同じ列割りで色が付く。
 function renderCsvSourceHtml(content, delimiter) {
   if (!content) { return '<pre><code class="csv-source"></code></pre>'; }
-  var lines = content.split('\n');
-  if (lines.length > 0 && lines[lines.length - 1] === '') { lines.pop(); }
+  var tokenRows = tokenizeCsvRows(content, delimiter);
   var htmlLines = [];
-  for (var l = 0; l < lines.length; l++) {
-    var line = lines[l];
-    if (line.charAt(line.length - 1) === '\r') { line = line.slice(0, -1); }
-    var parts = splitCsvSourceLine(line, delimiter);
+  for (var r = 0; r < tokenRows.length; r++) {
+    var cells = tokenRows[r];
     var htmlParts = [];
-    for (var c = 0; c < parts.length; c++) {
+    for (var c = 0; c < cells.length; c++) {
       var cls = 'csv-col-' + (c % CSV_COL_COUNT);
-      htmlParts.push('<span class="' + cls + '">' + escapeHtml(parts[c]) + '</span>');
+      htmlParts.push('<span class="' + cls + '">' + escapeHtml(cells[c].raw) + '</span>');
     }
     htmlLines.push(htmlParts.join(delimiter));
   }
@@ -270,6 +255,7 @@ if (typeof module !== 'undefined' && module.exports) {
     markdownFontSize: markdownFontSize,
     escapeHtml: escapeHtml,
     renderCodeHtml: renderCodeHtml,
+    tokenizeCsvRows: tokenizeCsvRows,
     parseCsv: parseCsv,
     buildTableHtml: buildTableHtml,
     renderCsvSourceHtml: renderCsvSourceHtml,

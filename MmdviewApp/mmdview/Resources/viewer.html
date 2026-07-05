@@ -308,15 +308,12 @@
       return;
     }
 
+    // 分岐前に一括で外し、各分岐は自分のクラスを add するだけにする。
+    diagramWrap.classList.remove('markdown-body', 'code-body', 'html-body', 'csv-body');
+
     if (type === 'mmd') {
-      diagramWrap.classList.remove('markdown-body');
-      diagramWrap.classList.remove('code-body');
-      diagramWrap.classList.remove('html-body');
       diagramWrap.innerHTML = '<pre class="mermaid">' + _escapeHtml(content) + '</pre>';
     } else if (type === 'svg') {
-      diagramWrap.classList.remove('markdown-body');
-      diagramWrap.classList.remove('code-body');
-      diagramWrap.classList.remove('html-body');
       var svgImg = document.createElement('img');
       svgImg.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(content)));
       svgImg.style.maxWidth = '100%';
@@ -340,8 +337,6 @@
         _mmdApplyDiagramZoom(svgWrap);
       };
     } else if (type === 'html') {
-      diagramWrap.classList.remove('markdown-body');
-      diagramWrap.classList.remove('code-body');
       diagramWrap.classList.add('html-body');
       var iframe = document.createElement('iframe');
       iframe.sandbox = 'allow-same-origin';
@@ -361,23 +356,20 @@
       diagramWrap.innerHTML = '';
       diagramWrap.appendChild(iframe);
     } else if (type === 'csv') {
-      diagramWrap.classList.remove('code-body');
-      diagramWrap.classList.remove('html-body');
-      diagramWrap.classList.add('markdown-body');
+      // github-markdown-css のテーブル装飾(markdown-body)を土台にしつつ、
+      // CSV 専用の上書き(style.css の csv-body)をそこにだけ効かせる。
+      // 通常の Markdown テーブルは markdown-body のみを付与するため影響しない。
+      diagramWrap.classList.add('markdown-body', 'csv-body');
       var rows = parseCsv(content, lang || ',');
       diagramWrap.innerHTML = buildTableHtml(rows);
     } else if (type === 'code') {
       // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
       // レイアウトは style.css の .code-body が担う。
-      diagramWrap.classList.remove('markdown-body');
-      diagramWrap.classList.remove('html-body');
       diagramWrap.classList.add('code-body');
       diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang);
     } else {
       // github-markdown-css は .markdown-body プレフィックス前提のため
       // Markdown レンダリング時のみ付与する
-      diagramWrap.classList.remove('code-body');
-      diagramWrap.classList.remove('html-body');
       diagramWrap.classList.add('markdown-body');
       if (md) {
         diagramWrap.innerHTML = md.render(content);
@@ -406,8 +398,7 @@
 
   function _renderSource(content, type, lang) {
     var diagramWrap = document.getElementById('diagram-wrap');
-    diagramWrap.classList.remove('markdown-body');
-    diagramWrap.classList.remove('html-body');
+    diagramWrap.classList.remove('markdown-body', 'html-body', 'csv-body');
     diagramWrap.classList.add('code-body');
     if (type === 'csv') {
       diagramWrap.innerHTML = renderCsvSourceHtml(content, lang || ',');
