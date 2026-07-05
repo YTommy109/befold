@@ -225,12 +225,10 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         updateSourceToggleAppearance()
     }
 
-    /// レンダリング不可なファイルではトグルボタンを無効化する。
+    /// ツールバーの再バリデーションを要求する。トグルボタンの enabled 状態は
+    /// validateToolbarItem(_:) が現在のファイル種別から決める。
     private func updateToolbarVisibility() {
-        guard let toolbar = window?.toolbar,
-              let item = toolbar.items.first(where: { $0.itemIdentifier == Self.sourceToggleItemIdentifier })
-        else { return }
-        item.isEnabled = store.fileType.isRenderable
+        window?.toolbar?.validateVisibleItems()
     }
 
     // MARK: - Menu Validation
@@ -293,5 +291,17 @@ extension ViewerWindowController: NSToolbarDelegate {
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [Self.sourceToggleItemIdentifier, .flexibleSpace, .space]
+    }
+}
+
+// MARK: - NSToolbarItemValidation
+
+extension ViewerWindowController: NSToolbarItemValidation {
+    /// NSToolbar の自動バリデーションはターゲットがアクションに応答する限り
+    /// isEnabled を true に戻すため、手動で isEnabled を設定しても維持されない。
+    /// 唯一有効な制御点であるこのメソッドでファイル種別から enabled を決める。
+    func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        guard item.itemIdentifier == Self.sourceToggleItemIdentifier else { return true }
+        return store.fileType.isRenderable
     }
 }
