@@ -109,11 +109,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 指定 URL のファイルをビューアウィンドウで開く(DocumentController・Recent メニューからも呼ばれる)。
     /// ディレクトリが渡された場合は、フォルダー内最初の対応ファイルを開く(CLI シム経由の想定)。
     func openViewer(for url: URL) {
+        let isDirectory = DirectoryLister.isDirectory(url)
         guard let target = DirectoryLister.resolveFileToOpen(at: url) else {
             presentNoSupportedFileAlert()
             return
         }
-        windowManager.openViewer(for: target)
+        windowManager.openViewer(for: target, forceSidebarVisible: isDirectory)
     }
 
     private func presentNoSupportedFileAlert() {

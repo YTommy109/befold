@@ -200,4 +200,23 @@ struct DirectoryListerTests {
 
         #expect(result == missing)
     }
+
+    @Test("isDirectory は既存ディレクトリで true を返す")
+    func isDirectoryReturnsTrueForExistingDirectory() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+
+        #expect(DirectoryLister.isDirectory(tmp.url))
+    }
+
+    @Test("isDirectory はファイル・存在しないパスで false を返す")
+    func isDirectoryReturnsFalseForFileOrMissingPath() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let missing = URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)")
+
+        #expect(!DirectoryLister.isDirectory(file))
+        #expect(!DirectoryLister.isDirectory(missing))
+    }
 }
