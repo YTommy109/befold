@@ -2,10 +2,18 @@ import SwiftUI
 
 struct ViewerContentView: View {
     let store: ViewerStore
-    let initialZoom: Double
+    let zoomStore: ZoomStore
     let onZoomChanged: @MainActor (Double) -> Void
     let onOpenReference: @MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void
     let webViewProxy: WebViewProxy
+
+    /// 表示中ファイルの保存倍率。ファイル切替(store.filePath 変化)で再評価され、
+    /// 切替先ファイルの倍率が ViewerWebView の coordinator へ渡る。
+    /// これがないと初回ファイルの倍率がウィンドウ生存中ずっと固定されてしまう。
+    private var currentZoom: Double {
+        guard let url = store.filePath else { return ZoomStore.defaultZoom }
+        return zoomStore.zoom(for: url)
+    }
 
     var body: some View {
         // ViewerWebView は常に生かしておき(ビュー同一性を維持)、非対応時は
@@ -16,7 +24,9 @@ struct ViewerContentView: View {
                 content: store.content,
                 fileType: store.fileType,
                 isDeleted: store.isDeleted,
-                initialZoom: initialZoom,
+                filePath: store.filePath,
+                isSourceMode: store.isSourceMode,
+                initialZoom: currentZoom,
                 onZoomChanged: onZoomChanged,
                 onOpenReference: onOpenReference,
                 webViewProxy: webViewProxy
