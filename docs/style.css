@@ -118,6 +118,24 @@ main {
   background: var(--color-accent-hover);
 }
 
+.philosophy {
+  text-align: center;
+  padding: 2rem 0 3rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.philosophy-lead {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.philosophy-body {
+  font-size: 1.125rem;
+  line-height: 2;
+  color: var(--color-text-secondary);
+}
+
 .screenshot {
   text-align: center;
   padding: 2rem 0;

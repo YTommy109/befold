@@ -1,17 +1,19 @@
 # befold
 
-macOS 向け Mermaid ダイアグラム・ビューアアプリ。
-`.mmd` / `.md` ファイルを監視し、mermaid.js でリアルタイムにプレビューする。
+macOS 向けファイルビューアアプリ。
+多彩なフォーマットを開くだけで即座にレンダリング・プレビューする。
+
+📖 **[紹介ページ（GitHub Pages）](https://ytommy109.github.io/befold/)**
 
 ## 機能
 
-- ファイルを開いて Mermaid 図を即座にレンダリング
-- Markdown 内の Mermaid コードブロックにも対応
-- ファイルを保存すると自動でプレビューを更新（0.2s デバウンス）
-- 複数ウィンドウで同時に異なるファイルを表示
-- Open Recent メニューで最近開いたファイルに素早くアクセス
-- `⌘+` / `⌘-` / `⌘0` でズーム操作
-- ファイル削除時にバナーで通知、再作成で自動復帰
+- **対応フォーマット**: Mermaid (.mmd) / Markdown (.md) / SVG / HTML / CSV / TSV のレンダリング表示、PNG / JPG / GIF / WebP / PDF の画像表示、50以上の言語のソースコード表示
+- **レンダリング / ソース切替**: ⌘U でレンダリングとシンタックスハイライト付きソース表示を切替
+- **ライブリロード**: ファイル保存で自動プレビュー更新（0.2s デバウンス）
+- **タブ & セッション復元**: macOS ネイティブタブ対応、前回のタブ構成を自動復元
+- **ズーム**: ⌘+ / ⌘- / ⌘0
+- **アプリ内アップデート**: 新バージョン通知とワンクリック更新
+- **ファイル参照ジャンプ**: ⌘+クリックでリンクや参照先ファイルを開く
 
 ## 動作要件
 
@@ -19,9 +21,9 @@ macOS 向け Mermaid ダイアグラム・ビューアアプリ。
 
 ## インストール
 
-1. [GitHub Releases](https://github.com/YTommy109/befold/releases/latest) から `befold-vX.Y.Z.dmg` をダウンロードする
-2. DMG を開き、`befold.app` を `/Applications` にコピーする
-3. ターミナルで次のコマンドを実行してから起動する:
+1. [GitHub Releases](https://github.com/YTommy109/befold/releases/latest) から `befold-vX.Y.Z.dmg` をダウンロード
+2. DMG を開き、`befold.app` を `/Applications` にコピー
+3. ターミナルで次のコマンドを実行してから起動:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/befold.app
@@ -29,57 +31,13 @@ xattr -dr com.apple.quarantine /Applications/befold.app
 
 > [!IMPORTANT]
 > 配布している DMG はコード署名・公証（notarization）を行っていないため、
-> そのまま開こうとすると macOS の Gatekeeper に
-> 「"befold" は壊れているため開けません」とブロックされます
-> （新しい macOS ではシステム設定の「プライバシーとセキュリティ」からも許可できません）。
+> そのまま開こうとすると macOS の Gatekeeper にブロックされます。
 > 上記コマンドで quarantine 属性を除去すると起動できます。
-> 一度起動すれば、アプリ内の「Check for Updates」による更新ではこの操作は不要です。
-
-## インストール（開発環境）
-
-```bash
-cd BefoldApp
-swift build
-```
-
-## ビルド（Xcode）
-
-```bash
-cd BefoldApp
-xcodegen generate            # .xcodeproj を生成
-xcodebuild build -scheme befold
-```
+> 一度起動すれば、アプリ内アップデートではこの操作は不要です。
 
 ## 開発
 
-```bash
-cd BefoldApp
-swift build                  # ビルド
-swift test                   # テスト
-xcodegen generate            # .xcodeproj を再生成
-```
-
-## アーキテクチャ
-
-```
-befold.app (Swift / AppKit + SwiftUI)
-  ├── AppDelegate        # ライフサイクル・メニュー・ウィンドウ管理
-  ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
-  ├── ViewerStore        # @Observable 表示状態（content / error / deleted）
-  └── ViewerWebView      # WKWebView（NSViewRepresentable）
-        ├── 同梱アセット（viewer.html / mermaid.min.js / markdown-it.min.js / style.css）
-        └── JS ブリッジ: evaluateJavaScript("render(content, type)")
-```
-
-ファイル変更は `FileWatcher → ViewerStore → evaluateJavaScript` の
-同一プロセス内伝搬で反映する。
-
-## 技術スタック
-
-- Swift 6 / AppKit + SwiftUI（macOS 14+）
-- WKWebView（mermaid.js / markdown-it.js レンダリング）
-- DispatchSource（ファイル監視）
-- XcodeGen（プロジェクト生成）/ Swift Package Manager（ビルド）
+開発者向けのビルド手順・アーキテクチャ・技術スタックについては [開発ガイド](docs/dev/development.md) を参照してください。
 
 ## ライセンス
 
