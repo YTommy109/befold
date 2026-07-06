@@ -1,6 +1,6 @@
 excluded:
   - .build
-  - mmdview/Resources
+  - befold/Resources
 
 cyclomatic_complexity:
   warning: 10
