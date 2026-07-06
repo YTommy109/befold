@@ -157,4 +157,66 @@ struct DirectoryListerTests {
 
         #expect(!entries.contains { $0.kind == .parentNavigation })
     }
+
+    @Test("resolveFileToOpen はディレクトリを渡すと最初の対応ファイルを返す")
+    func resolveFileToOpenReturnsFirstSupportedFileForDirectory() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: "b.mmd", contents: "graph TD;")
+        _ = try tmp.file(named: "a.mmd", contents: "graph TD;")
+
+        let result = DirectoryLister.resolveFileToOpen(at: tmp.url)
+
+        #expect(result?.lastPathComponent == "a.mmd")
+    }
+
+    @Test("resolveFileToOpen は対応ファイルのないディレクトリで nil を返す")
+    func resolveFileToOpenReturnsNilForEmptyDirectory() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: "unsupported.xyz", contents: "skip me")
+
+        let result = DirectoryLister.resolveFileToOpen(at: tmp.url)
+
+        #expect(result == nil)
+    }
+
+    @Test("resolveFileToOpen はファイルパスをそのまま返す")
+    func resolveFileToOpenReturnsFileUnchanged() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+
+        let result = DirectoryLister.resolveFileToOpen(at: file)
+
+        #expect(result == file)
+    }
+
+    @Test("resolveFileToOpen は存在しないパスをそのまま返す")
+    func resolveFileToOpenReturnsMissingPathUnchanged() {
+        let missing = URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)")
+
+        let result = DirectoryLister.resolveFileToOpen(at: missing)
+
+        #expect(result == missing)
+    }
+
+    @Test("isDirectory は既存ディレクトリで true を返す")
+    func isDirectoryReturnsTrueForExistingDirectory() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+
+        #expect(DirectoryLister.isDirectory(tmp.url))
+    }
+
+    @Test("isDirectory はファイル・存在しないパスで false を返す")
+    func isDirectoryReturnsFalseForFileOrMissingPath() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let missing = URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)")
+
+        #expect(!DirectoryLister.isDirectory(file))
+        #expect(!DirectoryLister.isDirectory(missing))
+    }
 }

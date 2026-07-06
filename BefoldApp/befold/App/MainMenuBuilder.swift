@@ -31,6 +31,11 @@ enum MainMenuBuilder {
             action: #selector(AppDelegate.checkForUpdates(_:)),
             keyEquivalent: ""
         )
+        menu.addItem(
+            withTitle: String(localized: "menu.app.installCLI", bundle: .l10n),
+            action: #selector(AppDelegate.installCLI(_:)),
+            keyEquivalent: ""
+        )
         menu.addItem(.separator())
         let servicesTitle = String(localized: "menu.app.services", bundle: .l10n)
         let servicesItem = NSMenuItem(title: servicesTitle, action: nil, keyEquivalent: "")

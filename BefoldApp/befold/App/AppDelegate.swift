@@ -107,8 +107,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Actions
 
     /// 指定 URL のファイルをビューアウィンドウで開く(DocumentController・Recent メニューからも呼ばれる)。
+    /// ディレクトリが渡された場合は、フォルダー内最初の対応ファイルを開く(CLI シム経由の想定)。
     func openViewer(for url: URL) {
-        windowManager.openViewer(for: url)
+        let isDirectory = DirectoryLister.isDirectory(url)
+        guard let target = DirectoryLister.resolveFileToOpen(at: url) else {
+            presentNoSupportedFileAlert()
+            return
+        }
+        windowManager.openViewer(for: target, forceSidebarVisible: isDirectory)
+    }
+
+    private func presentNoSupportedFileAlert() {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "cli.folder.noSupportedFile", bundle: .l10n)
+        alert.runModal()
     }
 
     /// ファイル選択パネルを表示し、選択されたファイルをビューアで開く。
@@ -131,12 +143,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// About パネルを表示し、あわせて更新を自動チェックする。
     @objc func showAbout(_ sender: Any?) {
-        NSApp.orderFrontStandardAboutPanel(sender)
+        NSApp.orderFrontStandardAboutPanel(options: aboutPanelOptions)
         updateCoordinator.run(userInitiated: false)
+    }
+
+    private var aboutPanelOptions: [NSApplication.AboutPanelOptionKey: Any] {
+        let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let credits = NSMutableAttributedString()
+        credits.append(NSAttributedString(
+            string: "befold",
+            attributes: [.link: URL(string: "https://ytommy109.github.io/befold/") as Any, .font: font]
+        ))
+        credits.append(NSAttributedString(string: "\nCopyright © 2026 ", attributes: [.font: font]))
+        credits.append(NSAttributedString(
+            string: "Degino Inc.",
+            attributes: [.link: URL(string: "https://www.degino.com/") as Any, .font: font]
+        ))
+        credits.setAlignment(.center, range: NSRange(location: 0, length: credits.length))
+        return [.credits: credits]
     }
 
     /// メニューの「Check for Updates…」。キャッシュを無視して確認し、結果を必ず表示する。
     @objc func checkForUpdates(_ sender: Any?) {
         updateCoordinator.run(userInitiated: true)
+    }
+
+    /// メニューの「Install 'befold' command in PATH」。/usr/local/bin にシムスクリプトを設置する。
+    @objc func installCLI(_ sender: Any?) {
+        let installPath = URL(fileURLWithPath: "/usr/local/bin/befold")
+        let result = CLIInstaller.install(bundlePath: Bundle.main.bundlePath, installPath: installPath)
+        switch result {
+        case .success:
+            CLIInstallUI.presentInstallSucceeded()
+        case .failure:
+            CLIInstallUI.presentInstallFailed()
+        }
     }
 }

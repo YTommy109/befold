@@ -4,7 +4,7 @@ import WebKit
 
 /// 1 ファイルに対応する 1 ウィンドウを管理する NSWindowController。
 /// SwiftUI の ViewerContentView を NSHostingView 経由で表示する。
-final class ViewerWindowController: NSWindowController, NSWindowDelegate {
+final class ViewerWindowController: NSWindowController {
     /// 最後に調整したウィンドウフレーム（位置＋サイズ）の保存キー。全ウィンドウで共有する。
     private static let lastWindowFrameKey = "LastWindowFrame"
     private static let defaultContentSize = NSSize(width: 1100, height: 850)
@@ -13,6 +13,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private let defaults: UserDefaults
     private let store: ViewerStore
     private let zoomStore: ZoomStore
+    private let forceSidebarVisible: Bool
     private let webViewProxy = WebViewProxy()
     private(set) var isSourceMode = false
     private(set) var fileURL: URL
@@ -34,10 +35,11 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Initialization
 
-    init(fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard) {
+    init(fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard, forceSidebarVisible: Bool = false) {
         self.fileURL = fileURL
         self.zoomStore = zoomStore
         self.defaults = defaults
+        self.forceSidebarVisible = forceSidebarVisible
         store = ViewerStore()
         let parentDir = fileURL.deletingLastPathComponent()
         let entries = DirectoryLister.listEntries(in: parentDir, sortOrder: .foldersFirst)
@@ -137,7 +139,11 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
                 AppDelegate.shared?.openViewer(for: url)
             }
         )
-        return ViewerSplitViewController(sidebar: fileListView, content: contentView)
+        return ViewerSplitViewController(
+            sidebar: fileListView,
+            content: contentView,
+            forceSidebarVisible: forceSidebarVisible
+        )
     }
 
     /// cmd+click によるリンク/パス参照のアクティベーションを処理する。
@@ -338,17 +344,17 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     required init?(coder: NSCoder) {
         fatalError()
     }
+}
 
-    // MARK: - Frame Persistence
+// MARK: - Menu Actions / Validation / NSWindowDelegate
 
+extension ViewerWindowController: NSWindowDelegate {
     /// 現在のウィンドウフレーム（位置＋サイズ）を保存する。
     /// フルスクリーン中のフレームは通常ウィンドウの寸法として無意味なため保存しない。
     private func saveWindowFrame() {
         guard let window, !window.styleMask.contains(.fullScreen) else { return }
         defaults.set(window.frameDescriptor, forKey: Self.lastWindowFrameKey)
     }
-
-    // MARK: - Menu Actions
 
     /// View > Zoom In。HTML 直接ロード時は WKWebView の pageZoom を、それ以外は JS ズーム実装を使う。
     @objc func zoomIn(_ sender: Any?) {
@@ -451,8 +457,6 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         window?.toolbar?.validateVisibleItems()
     }
 
-    // MARK: - Menu Validation
-
     /// ソース表示トグルを有効にできるか。レンダリング可能な形式でも、
     /// サイズ超過などで非対応表示になっている間は切り替え先が不可視なため無効にする。
     var canToggleSourceMode: Bool {
@@ -468,8 +472,6 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         }
         return true
     }
-
-    // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
         saveWindowFrame()
