@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# AppIcon/icon.svg から mmdview/Resources/AppIcon.icns を生成する。
+# AppIcon/icon.svg から befold/Resources/AppIcon.icns を生成する。
 # macOS 標準ツールのみ使用（rsvg-convert があればそちらを優先）。
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 SVG="AppIcon/icon.svg"
-ICNS="mmdview/Resources/AppIcon.icns"
+ICNS="befold/Resources/AppIcon.icns"
 WORK="$(mktemp -d)"
 ICONSET="$WORK/AppIcon.iconset"
 mkdir -p "$ICONSET"
