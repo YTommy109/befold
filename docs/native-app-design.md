@@ -7,7 +7,7 @@
 
 本ドキュメントは **macOS ネイティブアプリ（Swift）** のアーキテクチャ設計書である。
 
-- 現行 befold（Python + FastAPI + pywebview）と**同等の機能**を Swift で再実装する
+- 現行 mmdview（Python + FastAPI + pywebview）と**同等の機能**を Swift で再実装する
 - `.mmd` / `.md` ファイルを監視し、mermaid.js でリアルタイムプレビューする
 - Python 版の「ローカル HTTP サーバー + WKWebView」構成は捨て、
   **プロセス内完結**のネイティブ構成にする
@@ -18,7 +18,7 @@
 
 現行実装済み仕様と Swift 版での置き換え方針。
 
-| 現行 befold（Python） | Swift 版での実現方法 |
+| 現行 mmdview（Python） | Swift 版での実現方法 |
 |---|---|
 | FastAPI + uvicorn（ローカル HTTP） | **廃止**。`WKWebView` に直接 HTML を供給 |
 | pywebview ウィンドウ | SwiftUI + `NSWindow`（複数ウィンドウ） |
@@ -28,7 +28,7 @@
 | 最近開いたファイル（自前 JSON・最大 10 件） | `NSDocumentController` 標準機能 |
 | ウィンドウ状態復元（window_state.json） | macOS 標準の State Restoration |
 | 自動アップデート（GitHub Releases 自前実装） | **Sparkle 2** を採用 |
-| ファイル関連付け（Info.plist / UTType） | 現行 `befold.spec` の宣言を Info.plist に移植 |
+| ファイル関連付け（Info.plist / UTType） | 現行 `mmdview.spec` の宣言を Info.plist に移植 |
 | ズーム（0.5〜2.0、localStorage） | 現行 JS 実装を移植（`UserDefaults` 永続化に変更） |
 | Mermaid エラーパネル・削除バナー | 現行 HTML/CSS/JS を移植 |
 | PyInstaller バンドル | Xcode ビルド ＋ codesign / notarization |
@@ -111,7 +111,7 @@ befold/
   `application(_:open:)` で受ける。現行の Apple Events 自前パッチ
   （`_patch_app_delegate_for_open_file` / `_StartupFileGate`）で解決していた
   起動順序問題は、AppKit 標準のイベント配送に乗ることで解消される
-- ファイル関連付けは現行 `befold.spec` の宣言（`com.degino.befold.mermaid-diagram`、
+- ファイル関連付けは現行 `mmdview.spec` の宣言（`com.degino.befold.mermaid-diagram`、
   拡張子 `mmd` / `mermaid`、`LSHandlerRank` Owner ＋ markdown Alternate）を
   Info.plist にそのまま移植する
 - ウィンドウ位置・サイズ・開いていたファイルの復元は macOS 標準の
