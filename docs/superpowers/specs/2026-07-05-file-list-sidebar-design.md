@@ -10,7 +10,7 @@
 
 - 開いたファイルの親ディレクトリ直下の対応ファイル（`FileType.allExtensions`）をフラットに一覧表示する
 - サイドバーの幅はドラッグでリサイズ可能（最小 150pt / 最大 300pt / デフォルト 200pt）
-- サイドバーの開閉トグル（View メニュー + `Cmd+Opt+S`）
+- サイドバーの開閉トグル（View メニュー + `Cmd+B`）
 - サイドバーの初期状態は閉じた状態（既存の単一ファイル体験を維持）
 - ファイルクリックで同じウィンドウ内の表示を切り替える（`ViewerStore.openFile()`）
 - 切り替え時にウィンドウのタイトル・`representedURL`・管理辞書キーも更新する
@@ -81,7 +81,7 @@ SwiftUI `List` でファイル名を表示する View。
 
 - View メニューに「Toggle Sidebar」項目を追加
 - action: `#selector(NSSplitViewController.toggleSidebar(_:))`
-- キーボードショートカット: `Cmd+Opt+S`
+- キーボードショートカット: `Cmd+B`
 
 ### `ViewerWindowManager.swift`
 
