@@ -110,4 +110,10 @@ struct InfoPlistTests {
             #expect(claimed.contains(uti), "Missing UTI: \(uti)")
         }
     }
+
+    @Test("HTML のドキュメントタイプが宣言されている")
+    func claimsHtmlContentType() {
+        let claimed = claimedContentTypes()
+        #expect(claimed.contains("public.html"))
+    }
 }
