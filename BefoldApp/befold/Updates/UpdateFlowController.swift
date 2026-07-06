@@ -34,7 +34,7 @@ final class UpdateFlowController {
         }
 
         let dmgURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mmdview-update.dmg")
+            .appendingPathComponent("befold-update.dmg")
         let progressWindow = makeProgressWindow()
         progressWindow.showWindow(nil)
         do {
@@ -63,7 +63,7 @@ final class UpdateFlowController {
         }
 
         let logURL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Logs/mmdview-updater.log")
+            .appendingPathComponent("Logs/befold-updater.log")
         let script = UpdateInstaller.updaterScript(
             appInDMG: appInDMG.path,
             installedApp: installedApp.path,
@@ -73,7 +73,7 @@ final class UpdateFlowController {
             logPath: logURL.path
         )
         let scriptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mmdview-updater.sh")
+            .appendingPathComponent("befold-updater.sh")
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o755], ofItemAtPath: scriptURL.path

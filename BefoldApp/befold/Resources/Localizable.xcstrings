@@ -4,8 +4,8 @@
     "menu.app.about" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "About mmdview" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "mmdview について" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "About befold" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "befold について" } }
       }
     },
     "menu.app.checkForUpdates" : {
@@ -25,8 +25,8 @@
     "menu.app.hide" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide mmdview" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "mmdview を隠す" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide befold" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "befold を隠す" } }
       }
     },
     "menu.app.hideOthers" : {
@@ -46,8 +46,8 @@
     "menu.app.quit" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quit mmdview" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "mmdview を終了" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quit befold" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "befold を終了" } }
       }
     },
     "menu.file.title" : {
@@ -270,15 +270,15 @@
     "menu.help.appHelp" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "mmdview Help" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "mmdview ヘルプ" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "befold Help" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "befold ヘルプ" } }
       }
     },
     "update.available.title" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "mmdview %@ is available" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "mmdview %@ が利用可能です" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "befold %@ is available" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "befold %@ が利用可能です" } }
       }
     },
     "update.available.message" : {

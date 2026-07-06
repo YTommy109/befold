@@ -3,7 +3,7 @@ import Foundation
 /// GitHub Releases API から最新リリースを取得する。
 struct GitHubReleaseFetcher: ReleaseFetching {
     private static let endpoint =
-        "https://api.github.com/repos/YTommy109/mmdview/releases/latest"
+        "https://api.github.com/repos/YTommy109/befold/releases/latest"
 
     func fetchLatest() async throws -> GitHubRelease {
         guard let url = URL(string: Self.endpoint) else {

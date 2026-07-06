@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>mmdview</string>
+	<string>befold</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleExecutable</key>
@@ -30,7 +30,7 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.degino.mmdview.mermaid-diagram</string>
+			<string>com.degino.befold.mermaid-diagram</string>
 			<key>UTTypeDescription</key>
 			<string>Mermaid Diagram</string>
 			<key>UTTypeConformsTo</key>
@@ -73,7 +73,7 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.degino.mmdview.source-code</string>
+			<string>com.degino.befold.source-code</string>
 			<key>UTTypeDescription</key>
 			<string>Source Code</string>
 			<key>UTTypeConformsTo</key>
@@ -149,7 +149,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.degino.mmdview.mermaid-diagram</string>
+				<string>com.degino.befold.mermaid-diagram</string>
 			</array>
 		</dict>
 		<dict>
@@ -186,7 +186,7 @@
 			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.degino.mmdview.source-code</string>
+				<string>com.degino.befold.source-code</string>
 				<string>public.source-code</string>
 				<string>public.swift-source</string>
 				<string>public.python-script</string>

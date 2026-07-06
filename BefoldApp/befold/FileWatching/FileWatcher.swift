@@ -32,7 +32,7 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         onRename: (@MainActor @Sendable (URL) -> Void)? = nil
     ) {
         resolvedPath = path.resolvingSymlinksInPath()
-        queue = DispatchQueue(label: "com.degino.mmdview.filewatcher", qos: .utility)
+        queue = DispatchQueue(label: "com.degino.befold.filewatcher", qos: .utility)
         debouncer = Debouncer(delay: 0.2, queue: queue)
         self.onChange = onChange
         self.onRename = onRename
