@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>befold — File Viewer for macOS</title>
+  <meta name="description" content="befold is a lightweight file viewer for macOS that renders Mermaid diagrams, Markdown, SVG, HTML, CSV, and more with live reload.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>befold</h1>
+  <div class="lang-switcher">
+    <button class="lang-btn active" onclick="switchLang('ja')">🇯🇵</button>
+    <button class="lang-btn" onclick="switchLang('en')">EN</button>
+  </div>
+</header>
+
+<main>
+  <!-- Hero -->
+  <section class="hero">
+    <div lang="ja">
+      <h2>ファイルを開くだけ。即レンダリング。</h2>
+      <p>Mermaid・Markdown・SVG・HTML・CSV など多彩なフォーマットをリアルタイムにプレビュー</p>
+    </div>
+    <div lang="en" hidden>
+      <h2>Open a file. Instant rendering.</h2>
+      <p>Live preview for Mermaid, Markdown, SVG, HTML, CSV, and many more formats</p>
+    </div>
+    <a href="https://github.com/YTommy109/befold/releases/latest" class="btn-primary">
+      <span lang="ja">ダウンロード</span>
+      <span lang="en" hidden>Download</span>
+    </a>
+  </section>
+
+  <!-- Philosophy -->
+  <section class="philosophy">
+    <div lang="ja">
+      <p class="philosophy-lead">AI がコードを書く時代。</p>
+      <p class="philosophy-body">開発者に必要なのは、もう一つのエディタではない。<br>読むことに集中できる、静かで快適なビューア。<br>befold はコードレビューを心地よくするために作られた。</p>
+    </div>
+    <div lang="en" hidden>
+      <p class="philosophy-lead">In the age of AI-written code.</p>
+      <p class="philosophy-body">What developers need isn't another editor.<br>It's a quiet, comfortable viewer for focused reading.<br>befold is built to make code review a pleasure.</p>
+    </div>
+  </section>
+
+  <!-- Screenshot -->
+  <section class="screenshot">
+    <div class="screenshot-placeholder">
+      <span lang="ja">スクリーンショット（後日追加）</span>
+      <span lang="en" hidden>Screenshot (coming soon)</span>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features">
+    <div lang="ja">
+      <h3>機能</h3>
+    </div>
+    <div lang="en" hidden>
+      <h3>Features</h3>
+    </div>
+    <div class="feature-grid">
+
+      <div class="feature-card">
+        <h4 lang="ja">多彩なフォーマット対応</h4>
+        <h4 lang="en" hidden>Wide Format Support</h4>
+        <p lang="ja">.mmd, .md, .svg, .html, .csv, .tsv のレンダリング表示に加え、.png, .jpg, .gif, .webp, .pdf, ソースコード（50以上の言語）にも対応</p>
+        <p lang="en" hidden>Renders .mmd, .md, .svg, .html, .csv, .tsv — plus displays .png, .jpg, .gif, .webp, .pdf, and source code in 50+ languages</p>
+      </div>
+
+      <div class="feature-card">
+        <h4 lang="ja">レンダリング / ソース切替</h4>
+        <h4 lang="en" hidden>Rendered / Source Toggle</h4>
+        <p lang="ja">⌘U でレンダリング表示とソース表示をワンタッチ切替。ソースはシンタックスハイライト付き</p>
+        <p lang="en" hidden>Toggle between rendered and source view with ⌘U. Source view includes syntax highlighting</p>
+      </div>
+
+      <div class="feature-card">
+        <h4 lang="ja">ライブリロード</h4>
+        <h4 lang="en" hidden>Live Reload</h4>
+        <p lang="ja">ファイルを保存すると自動でプレビューを更新。エディタとの並行作業に最適</p>
+        <p lang="en" hidden>Preview updates automatically on file save. Perfect for side-by-side editing</p>
+      </div>
+
+      <div class="feature-card">
+        <h4 lang="ja">タブ & セッション復元</h4>
+        <h4 lang="en" hidden>Tabs & Session Restore</h4>
+        <p lang="ja">macOS ネイティブのタブ対応。前回のタブ構成は次回起動時に自動復元</p>
+        <p lang="en" hidden>Native macOS tab support. Previous tab layout is automatically restored on next launch</p>
+      </div>
+
+      <div class="feature-card">
+        <h4 lang="ja">ズーム & ダークモード</h4>
+        <h4 lang="en" hidden>Zoom & Dark Mode</h4>
+        <p lang="ja">⌘+/⌘-/⌘0 でズーム操作。macOS のダークモードに自動追従</p>
+        <p lang="en" hidden>Zoom with ⌘+/⌘-/⌘0. Automatically follows macOS dark mode</p>
+      </div>
+
+      <div class="feature-card">
+        <h4 lang="ja">アプリ内アップデート</h4>
+        <h4 lang="en" hidden>In-App Updates</h4>
+        <p lang="ja">新しいバージョンが利用可能になると通知。ワンクリックで更新</p>
+        <p lang="en" hidden>Notifies when a new version is available. One-click update</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Requirements -->
+  <section class="requirements">
+    <div lang="ja">
+      <h3>動作要件</h3>
+      <p>macOS 14 (Sonoma) 以降</p>
+    </div>
+    <div lang="en" hidden>
+      <h3>Requirements</h3>
+      <p>macOS 14 (Sonoma) or later</p>
+    </div>
+  </section>
+
+  <!-- Install -->
+  <section class="install">
+    <div lang="ja">
+      <h3>インストール</h3>
+      <ol>
+        <li><a href="https://github.com/YTommy109/befold/releases/latest">GitHub Releases</a> から <code>befold-vX.Y.Z.dmg</code> をダウンロード</li>
+        <li>DMG を開き、<code>befold.app</code> を <code>/Applications</code> にコピー</li>
+        <li>ターミナルで以下を実行してから起動:</li>
+      </ol>
+      <code>xattr -dr com.apple.quarantine /Applications/befold.app</code>
+      <div class="note">
+        配布している DMG はコード署名・公証を行っていないため、そのまま開こうとすると Gatekeeper にブロックされます。上記コマンドで quarantine 属性を除去すると起動できます。一度起動すれば、アプリ内アップデートではこの操作は不要です。
+      </div>
+    </div>
+    <div lang="en" hidden>
+      <h3>Installation</h3>
+      <ol>
+        <li>Download <code>befold-vX.Y.Z.dmg</code> from <a href="https://github.com/YTommy109/befold/releases/latest">GitHub Releases</a></li>
+        <li>Open the DMG and copy <code>befold.app</code> to <code>/Applications</code></li>
+        <li>Run the following command in Terminal before launching:</li>
+      </ol>
+      <code>xattr -dr com.apple.quarantine /Applications/befold.app</code>
+      <div class="note">
+        The distributed DMG is not code-signed or notarized, so macOS Gatekeeper will block it from opening. The command above removes the quarantine attribute. Once launched, in-app updates don't require this step again.
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>
+    <a href="https://github.com/YTommy109/befold">GitHub</a> · MIT License
+  </p>
+</footer>
+
+<script>
+function switchLang(lang) {
+  document.querySelectorAll('[lang]').forEach(function(el) {
+    if (el.tagName === 'HTML') return;
+    el.hidden = el.getAttribute('lang') !== lang;
+  });
+  document.querySelectorAll('.lang-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.textContent.trim() === (lang === 'ja' ? '🇯🇵' : 'EN'));
+  });
+  document.documentElement.lang = lang;
+  localStorage.setItem('befold-lang', lang);
+}
+
+(function() {
+  var saved = localStorage.getItem('befold-lang');
+  if (saved && saved !== 'ja') {
+    switchLang(saved);
+  }
+})();
+</script>
+
+</body>
+</html>
