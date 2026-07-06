@@ -39,10 +39,12 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         self.zoomStore = zoomStore
         self.defaults = defaults
         store = ViewerStore()
-        let files = DirectoryLister.listFiles(in: fileURL.deletingLastPathComponent())
+        let parentDir = fileURL.deletingLastPathComponent()
+        let entries = DirectoryLister.listEntries(in: parentDir, sortOrder: .foldersFirst)
         fileListModel = FileListModel(
-            files: files,
-            selection: Self.listEntry(for: fileURL, in: files)
+            currentDirectory: parentDir,
+            entries: entries,
+            selection: fileURL
         )
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
@@ -208,6 +210,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         // 新ファイルは自身の保存倍率(なければデフォルト)で表示する。
         applyStoredZoomToWebView()
         if newURL.deletingLastPathComponent() != oldURL.deletingLastPathComponent() {
+            fileListModel.currentDirectory = newURL.deletingLastPathComponent()
             refreshFileList()
         } else {
             fileListModel.selection = newURL
@@ -234,20 +237,24 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     /// サイドバーのファイル一覧を現在のディレクトリで取り直し、現在ファイルを選択する。
     private func refreshFileList() {
-        let files = DirectoryLister.listFiles(in: fileURL.deletingLastPathComponent())
-        fileListModel.files = files
-        let selected = Self.listEntry(for: fileURL, in: files)
-        if fileListModel.selection != selected {
-            fileListModel.selection = selected
+        let entries = DirectoryLister.listEntries(
+            in: fileListModel.currentDirectory,
+            sortOrder: fileListModel.sortOrder
+        )
+        fileListModel.entries = entries
+        if fileListModel.selection != fileURL {
+            fileListModel.selection = fileURL
         }
     }
 
-    /// 一覧内で url と同じファイルを指す URL を返す。List の選択一致は URL の
-    /// 同値性に依存するため、シンボリックリンク解決の有無で表記が揺れても
-    /// 一致するよう正規化キーで照合する。見つからなければ url をそのまま返す。
-    private static func listEntry(for url: URL, in files: [URL]) -> URL {
-        let key = url.normalizedPathKey
-        return files.first { $0.normalizedPathKey == key } ?? url
+    /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
+    func navigateToFolder(_ url: URL) {
+        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
+        let target = url.standardizedFileURL
+        guard target == home || target.path.hasPrefix(home.path + "/") else { return }
+        fileListModel.currentDirectory = url
+        fileListModel.entries = DirectoryLister.listEntries(in: url, sortOrder: fileListModel.sortOrder)
+        fileListModel.selection = nil
     }
 
     /// 既存のビューアウィンドウと位置が完全に一致する場合だけ、標準のカスケード量ずらす。

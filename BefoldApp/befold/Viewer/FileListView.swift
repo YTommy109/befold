@@ -6,12 +6,16 @@ import SwiftUI
 @MainActor
 @Observable
 final class FileListModel {
-    var files: [URL]
-    var selection: URL?
+    var currentDirectory: URL
+    var entries: [FileListEntry]
+    var selection: FileListEntry.ID?
+    var sortOrder: SortOrder
 
-    init(files: [URL], selection: URL?) {
-        self.files = files
+    init(currentDirectory: URL, entries: [FileListEntry], selection: FileListEntry.ID?) {
+        self.currentDirectory = currentDirectory
+        self.entries = entries
         self.selection = selection
+        sortOrder = .foldersFirst
     }
 }
 
@@ -20,19 +24,21 @@ struct FileListView: View {
     let onSelect: (URL) -> Void
 
     var body: some View {
-        List(model.files, id: \.self, selection: $model.selection) { file in
+        List(model.entries, selection: $model.selection) { entry in
             Label {
-                Text(file.lastPathComponent)
+                Text(entry.url.lastPathComponent)
                     .lineLimit(1)
                     .truncationMode(.middle)
             } icon: {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: file.path))
+                Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path))
                     .resizable()
                     .frame(width: 16, height: 16)
             }
         }
         .onChange(of: model.selection) { _, newValue in
-            if let url = newValue {
+            if let url = newValue,
+               model.entries.first(where: { $0.id == url })?.kind == .file
+            {
                 onSelect(url)
             }
         }

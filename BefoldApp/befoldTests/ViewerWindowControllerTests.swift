@@ -198,7 +198,7 @@ struct ViewerWindowControllerTests {
         controller.handleRename(to: renamed)
 
         // ディレクトリ列挙は /private シンボリックリンクを解決するため、名前で照合する。
-        let names = controller.fileListModel.files.map(\.lastPathComponent)
+        let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
         #expect(controller.fileListModel.selection?.lastPathComponent == "new.mmd")
         #expect(names.contains("new.mmd"))
         #expect(!names.contains("old.mmd"))
