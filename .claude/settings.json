@@ -5,7 +5,7 @@
   "permissions": {
     "allow": [
       "Bash(open:*)",
-      "Bash(pkill -x mmdview)",
+      "Bash(pkill -x befold)",
       "Bash(log show:*)",
       "Bash(xcodegen generate)",
       "Bash(xcodebuild:*)"
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) if ! grep -qF \"$(basename \"$f\")\" MmdviewApp/mmdview.xcodeproj/project.pbxproj; then cd MmdviewApp && xcodegen generate 2>&1 | tail -1; fi;; esac",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) if ! grep -qF \"$(basename \"$f\")\" BefoldApp/befold.xcodeproj/project.pbxproj; then cd BefoldApp && xcodegen generate 2>&1 | tail -1; fi;; esac",
             "statusMessage": "xcodegen generate (新規 Swift ファイル検出)"
           }
         ]
@@ -39,25 +39,25 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) cd \"${CLAUDE_PROJECT_DIR:-.}/MmdviewApp\" && { out=$(swift package plugin --allow-writing-to-package-directory swiftformat -- --lint 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(swift package plugin --allow-writing-to-package-directory swiftformat -- --lint 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
             "statusMessage": "swiftformat lint",
             "timeout": 300
           },
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) cd \"${CLAUDE_PROJECT_DIR:-.}/MmdviewApp\" && { out=$(swift build 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(swift build 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
             "statusMessage": "swift build",
             "timeout": 300
           },
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) cd \"${CLAUDE_PROJECT_DIR:-.}/MmdviewApp\" && { out=$(swift test --skip Integration --skip FileWatcherTests 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(swift test --skip Integration --skip FileWatcherTests 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
             "statusMessage": "swift test (unit)",
             "timeout": 120
           },
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *viewer.js|*viewer.html) cd \"${CLAUDE_PROJECT_DIR:-.}/MmdviewApp\" && { out=$(npx jest --silent 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *viewer.js|*viewer.html) cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(npx jest --silent 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
             "statusMessage": "jest (viewer)",
             "timeout": 120
           },
