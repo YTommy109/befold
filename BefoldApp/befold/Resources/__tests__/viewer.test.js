@@ -420,6 +420,55 @@ describe('renderCodeHtml', () => {
   });
 });
 
+describe('renderCodeHtml with line numbers', () => {
+  const hljs = require('highlight.js');
+
+  test('showLineNumbers=true wraps output in a table with line numbers', () => {
+    const result = renderCodeHtml(hljs, 'line1\nline2\nline3', 'plaintext', true);
+    expect(result).toContain('<table class="code-table">');
+    expect(result).toContain('<td class="line-number">1</td>');
+    expect(result).toContain('<td class="line-number">2</td>');
+    expect(result).toContain('<td class="line-number">3</td>');
+    expect(result).toContain('<td class="line-content">');
+  });
+
+  test('showLineNumbers=false returns plain pre/code (existing behavior)', () => {
+    const result = renderCodeHtml(hljs, 'let x = 1', 'swift', false);
+    expect(result).not.toContain('code-table');
+    expect(result).toContain('<pre><code');
+  });
+
+  test('showLineNumbers defaults to false when omitted', () => {
+    const result = renderCodeHtml(hljs, 'let x = 1', 'swift');
+    expect(result).not.toContain('code-table');
+  });
+
+  test('single line produces one row', () => {
+    const result = renderCodeHtml(null, 'hello', 'plaintext', true);
+    expect(result).toContain('<td class="line-number">1</td>');
+    expect(result).not.toContain('<td class="line-number">2</td>');
+  });
+
+  test('empty content produces single empty row', () => {
+    const result = renderCodeHtml(null, '', 'plaintext', true);
+    expect(result).toContain('<table class="code-table">');
+    expect(result).toContain('<td class="line-number">1</td>');
+  });
+
+  test('HTML is escaped in line content', () => {
+    const result = renderCodeHtml(null, '<script>alert(1)</script>', 'plaintext', true);
+    expect(result).not.toContain('<script>');
+    expect(result).toContain('&lt;script&gt;');
+  });
+
+  test('hljs highlighted code is split into lines and wrapped', () => {
+    const result = renderCodeHtml(hljs, 'let x = 1\nlet y = 2', 'swift', true);
+    expect(result).toContain('<td class="line-number">1</td>');
+    expect(result).toContain('<td class="line-number">2</td>');
+    expect(result).toContain('hljs');
+  });
+});
+
 describe('FileType.swift の言語名契約', () => {
   // FileType.codeExtensionLanguages(FileType.swift)の値と同期させること。
   // npm の highlight.js ではなく同梱の highlight.min.js に対して検証する
@@ -565,5 +614,25 @@ describe('renderCsvSourceHtml', () => {
     // ソース表示ではクオート付きフィールドを1つの色で表示する
     expect(html).toContain('<span class="csv-col-0">&quot;a,b&quot;</span>');
     expect(html).toContain('<span class="csv-col-1">c</span>');
+  });
+});
+
+describe('renderCsvSourceHtml with line numbers', () => {
+  test('showLineNumbers=true wraps output in a table with line numbers', () => {
+    const html = renderCsvSourceHtml('a,b\n1,2', ',', true);
+    expect(html).toContain('<table class="code-table">');
+    expect(html).toContain('<td class="line-number">1</td>');
+    expect(html).toContain('<td class="line-number">2</td>');
+    expect(html).toContain('csv-col-');
+  });
+
+  test('showLineNumbers=false returns existing format', () => {
+    const html = renderCsvSourceHtml('a,b\n1,2', ',', false);
+    expect(html).not.toContain('code-table');
+  });
+
+  test('showLineNumbers defaults to false when omitted', () => {
+    const html = renderCsvSourceHtml('a,b', ',');
+    expect(html).not.toContain('code-table');
   });
 });
