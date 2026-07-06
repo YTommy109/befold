@@ -231,6 +231,9 @@ struct ViewerWebView: NSViewRepresentable {
                         isDirectHTMLMode = false
                         webViewProxy?.isDirectHTMLMode = false
                         lastDirectHTMLPath = nil
+                        lastRenderedContent = nil
+                        lastRenderedFileType = nil
+                        lastWasDeleted = true
                         reloadViewerHTML(webView: webView) {
                             webView.evaluateJavaScript(ViewerBridge.showDeletedBannerScript)
                         }
@@ -273,6 +276,13 @@ struct ViewerWebView: NSViewRepresentable {
                     lastRenderedContent = nil
                     lastRenderedFileType = nil
                     reloadViewerHTML(webView: webView) {
+                        // ソース表示中は描画前にビューモードを source に切り替える。
+                        // 再ロード直後の viewer.html は _viewMode='rendered' / _lastContent=null のため、
+                        // setViewMode は再描画せず _viewMode のみ更新し、続く render() が
+                        // ソース表示分岐へ入る。
+                        if isSourceMode {
+                            webView.evaluateJavaScript(ViewerBridge.viewModeScript(.source))
+                        }
                         // viewer.html ロード完了後にコンテンツを描画
                         guard let script = ViewerBridge.renderScript(content: content, fileType: fileType)
                         else { return }
@@ -310,7 +320,13 @@ struct ViewerWebView: NSViewRepresentable {
 
         private func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
             isReady = false
-            pendingUpdate = completion
+            // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
+            // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
+            let zoom = initialPageZoom
+            pendingUpdate = {
+                webView.evaluateJavaScript(ViewerBridge.applyZoomScript(zoom))
+                completion()
+            }
             // viewer.html（mermaid.js）は JS 必須のため、直接ロードで無効化した JS を再有効化する。
             webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
             if let htmlURL = Bundle.l10n.url(forResource: "viewer", withExtension: "html") {

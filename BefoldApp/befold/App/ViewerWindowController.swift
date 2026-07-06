@@ -111,7 +111,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private func makeSplitViewController() -> NSViewController {
         let contentView = ViewerContentView(
             store: store,
-            initialZoom: zoomStore.zoom(for: fileURL),
+            zoomStore: zoomStore,
             // 現在の fileURL は rename で書き換わるため、旧値を捕捉せず self 経由で参照する
             onZoomChanged: { [weak self] zoom in
                 guard let self else { return }
@@ -340,7 +340,11 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     @objc func toggleSourceView(_ sender: Any?) {
         isSourceMode.toggle()
         store.isSourceMode = isSourceMode
-        if !webViewProxy.isDirectHTMLMode {
+        // HTML はビューモード切替を updateContent 側が担う(rendered は直接ロード、
+        // source は viewer.html へ戻して setViewMode)。ここで JS を呼ぶと直後の
+        // 再ロードに上書きされる無駄打ちになるため呼ばない。それ以外の形式は
+        // content 再描画が走らないため、ここで viewModeScript を直接送って反映する。
+        if store.fileType != .html {
             let mode: ViewerBridge.ViewMode = isSourceMode ? .source : .rendered
             webViewProxy.webView?.evaluateJavaScript(ViewerBridge.viewModeScript(mode))
         }
