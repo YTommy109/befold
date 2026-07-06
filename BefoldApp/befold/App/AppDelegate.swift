@@ -131,8 +131,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// About パネルを表示し、あわせて更新を自動チェックする。
     @objc func showAbout(_ sender: Any?) {
-        NSApp.orderFrontStandardAboutPanel(sender)
+        NSApp.orderFrontStandardAboutPanel(options: aboutPanelOptions)
         updateCoordinator.run(userInitiated: false)
+    }
+
+    private var aboutPanelOptions: [NSApplication.AboutPanelOptionKey: Any] {
+        let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let credits = NSMutableAttributedString()
+        credits.append(NSAttributedString(
+            string: "befold",
+            attributes: [.link: URL(string: "https://ytommy109.github.io/befold/") as Any, .font: font]
+        ))
+        credits.append(NSAttributedString(string: "\nCopyright © 2026 ", attributes: [.font: font]))
+        credits.append(NSAttributedString(
+            string: "Degino Inc.",
+            attributes: [.link: URL(string: "https://www.degino.com/") as Any, .font: font]
+        ))
+        credits.setAlignment(.center, range: NSRange(location: 0, length: credits.length))
+        return [.credits: credits]
     }
 
     /// メニューの「Check for Updates…」。キャッシュを無視して確認し、結果を必ず表示する。
