@@ -1,5 +1,5 @@
-import Foundation
 @testable import befold
+import Foundation
 import Testing
 
 private final class MockFetcher: ReleaseFetching, @unchecked Sendable {

@@ -1,5 +1,5 @@
-import Foundation
 @testable import befold
+import Foundation
 import Testing
 
 /// Localizable.xcstrings の訳の完全性を検証する。

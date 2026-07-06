@@ -1,5 +1,5 @@
-import Foundation
 @testable import befold
+import Foundation
 import Testing
 
 /// HTTP エラー応答を再現する URLProtocol スタブ。

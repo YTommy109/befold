@@ -1,5 +1,5 @@
-import Foundation
 @testable import befold
+import Foundation
 import Testing
 
 /// 実ファイルシステム（一時ディレクトリ）を使う UpdateInstaller の結合テスト。
