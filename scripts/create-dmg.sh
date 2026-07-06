@@ -8,9 +8,9 @@ app_path=$1
 output_dmg=$2
 
 create-dmg \
-  --volname "mmdview" \
+  --volname "befold" \
   --window-size 600 400 \
-  --icon "mmdview.app" 150 200 \
+  --icon "befold.app" 150 200 \
   --app-drop-link 450 200 \
   "$output_dmg" \
   "$app_path"

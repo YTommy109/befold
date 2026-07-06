@@ -5,7 +5,7 @@
 # Swift / Xcode
 .build/**
 DerivedData/**
-MmdviewApp/mmdview.xcodeproj/**
+BefoldApp/befold.xcodeproj/**
 *.xcuserstate
 *.pcm.lock*
 

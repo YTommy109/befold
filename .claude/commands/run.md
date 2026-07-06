@@ -8,8 +8,8 @@
 `-derivedDataPath` を固定し、worktree ごとに成果物の場所がずれないようにする。
 
 ```bash
-cd MmdviewApp && xcodegen generate && \
-  xcodebuild build -scheme mmdview -configuration Debug -derivedDataPath .build/xcode -quiet
+cd BefoldApp && xcodegen generate && \
+  xcodebuild build -scheme befold -configuration Debug -derivedDataPath .build/xcode -quiet
 ```
 
 ビルドに失敗した場合はエラーを報告して終了する。
@@ -17,13 +17,13 @@ cd MmdviewApp && xcodegen generate && \
 ## 2. 起動
 
 ```bash
-open MmdviewApp/.build/xcode/Build/Products/Debug/mmdview.app
+open BefoldApp/.build/xcode/Build/Products/Debug/befold.app
 ```
 
 引数でファイルパスが指定された場合はそのファイルを開く:
 
 ```bash
-open -a MmdviewApp/.build/xcode/Build/Products/Debug/mmdview.app <ファイルパス>
+open -a BefoldApp/.build/xcode/Build/Products/Debug/befold.app <ファイルパス>
 ```
 
 ## 3. 完了メッセージ
@@ -36,12 +36,12 @@ NSLog を捕捉したい場合は `open` ではなく実行ファイルを直接
 シェル終了時の SIGHUP でアプリが死ぬため **nohup + disown が必須**。
 
 ```bash
-pkill -x mmdview 2>/dev/null
-nohup MmdviewApp/.build/xcode/Build/Products/Debug/mmdview.app/Contents/MacOS/mmdview \
-  > /tmp/mmdview.log 2>&1 &
+pkill -x befold 2>/dev/null
+nohup BefoldApp/.build/xcode/Build/Products/Debug/befold.app/Contents/MacOS/befold \
+  > /tmp/befold.log 2>&1 &
 disown
 # ファイルを開く(起動済みインスタンスに open イベントが届く)
-open -a MmdviewApp/.build/xcode/Build/Products/Debug/mmdview.app <ファイルパス>
+open -a BefoldApp/.build/xcode/Build/Products/Debug/befold.app <ファイルパス>
 # ログ確認
-grep <パターン> /tmp/mmdview.log
+grep <パターン> /tmp/befold.log
 ```

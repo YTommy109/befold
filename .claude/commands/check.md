@@ -4,17 +4,17 @@
 
 1. **ビルド**
    ```bash
-   cd MmdviewApp && swift build
+   cd BefoldApp && swift build
    ```
 
 2. **Swift テスト**
    ```bash
-   cd MmdviewApp && swift test
+   cd BefoldApp && swift test
    ```
 
 3. **JS テスト**
    ```bash
-   cd MmdviewApp && npx jest
+   cd BefoldApp && npx jest
    ```
 
 問題が見つかった場合は修正してから再実行してください。すべて通過したら「✅ チェック完了」と報告してください。

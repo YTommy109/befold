@@ -1,4 +1,4 @@
-# mmdview
+# befold
 
 macOS 向け Mermaid ダイアグラム・ビューアアプリ。
 `.mmd` / `.md` ファイルを監視し、mermaid.js でリアルタイムにプレビューする。
@@ -19,18 +19,18 @@ macOS 向け Mermaid ダイアグラム・ビューアアプリ。
 
 ## インストール
 
-1. [GitHub Releases](https://github.com/YTommy109/mmdview/releases/latest) から `mmdview-vX.Y.Z.dmg` をダウンロードする
-2. DMG を開き、`mmdview.app` を `/Applications` にコピーする
+1. [GitHub Releases](https://github.com/YTommy109/befold/releases/latest) から `befold-vX.Y.Z.dmg` をダウンロードする
+2. DMG を開き、`befold.app` を `/Applications` にコピーする
 3. ターミナルで次のコマンドを実行してから起動する:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/mmdview.app
+xattr -dr com.apple.quarantine /Applications/befold.app
 ```
 
 > [!IMPORTANT]
 > 配布している DMG はコード署名・公証（notarization）を行っていないため、
 > そのまま開こうとすると macOS の Gatekeeper に
-> 「"mmdview" は壊れているため開けません」とブロックされます
+> 「"befold" は壊れているため開けません」とブロックされます
 > （新しい macOS ではシステム設定の「プライバシーとセキュリティ」からも許可できません）。
 > 上記コマンドで quarantine 属性を除去すると起動できます。
 > 一度起動すれば、アプリ内の「Check for Updates」による更新ではこの操作は不要です。
@@ -38,22 +38,22 @@ xattr -dr com.apple.quarantine /Applications/mmdview.app
 ## インストール（開発環境）
 
 ```bash
-cd MmdviewApp
+cd BefoldApp
 swift build
 ```
 
 ## ビルド（Xcode）
 
 ```bash
-cd MmdviewApp
+cd BefoldApp
 xcodegen generate            # .xcodeproj を生成
-xcodebuild build -scheme mmdview
+xcodebuild build -scheme befold
 ```
 
 ## 開発
 
 ```bash
-cd MmdviewApp
+cd BefoldApp
 swift build                  # ビルド
 swift test                   # テスト
 xcodegen generate            # .xcodeproj を再生成
@@ -62,7 +62,7 @@ xcodegen generate            # .xcodeproj を再生成
 ## アーキテクチャ
 
 ```
-mmdview.app (Swift / AppKit + SwiftUI)
+befold.app (Swift / AppKit + SwiftUI)
   ├── AppDelegate        # ライフサイクル・メニュー・ウィンドウ管理
   ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
   ├── ViewerStore        # @Observable 表示状態（content / error / deleted）

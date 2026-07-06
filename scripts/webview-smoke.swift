@@ -9,7 +9,7 @@
 //   4. 外部画像による情報流出が CSP(img-src) でブロックされる
 //
 // 使い方: swift scripts/webview-smoke.swift [Resources ディレクトリ]
-//   省略時は MmdviewApp/mmdview/Resources を対象にする。
+//   省略時は BefoldApp/befold/Resources を対象にする。
 // 成功で exit 0 / 失敗で非 0。
 
 import AppKit
@@ -18,7 +18,7 @@ import WebKit
 let resourceDir = URL(
     fileURLWithPath: CommandLine.arguments.count > 1
         ? CommandLine.arguments[1]
-        : "MmdviewApp/mmdview/Resources",
+        : "BefoldApp/befold/Resources",
     isDirectory: true
 )
 let htmlURL = resourceDir.appendingPathComponent("viewer.html")

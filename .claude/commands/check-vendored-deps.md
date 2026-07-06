@@ -7,11 +7,11 @@
 ## 1. 同梱バージョンを特定する
 
 ```bash
-head -1 MmdviewApp/mmdview/Resources/markdown-it.min.js
-head -1 MmdviewApp/mmdview/Resources/github-markdown.css
-grep -o '"version":"[0-9.]*"' MmdviewApp/mmdview/Resources/mermaid.min.js | head -1
-grep -o 'versionString="[0-9.]*"' MmdviewApp/mmdview/Resources/highlight.min.js | head -1
-grep -E 'markdown-it|mermaid|highlight|github-markdown' MmdviewApp/package.json
+head -1 BefoldApp/befold/Resources/markdown-it.min.js
+head -1 BefoldApp/befold/Resources/github-markdown.css
+grep -o '"version":"[0-9.]*"' BefoldApp/befold/Resources/mermaid.min.js | head -1
+grep -o 'versionString="[0-9.]*"' BefoldApp/befold/Resources/highlight.min.js | head -1
+grep -E 'markdown-it|mermaid|highlight|github-markdown' BefoldApp/package.json
 ```
 
 `package.json` の記録と同梱ファイルの実バージョンが一致するか確認する。

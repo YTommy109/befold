@@ -11,7 +11,7 @@ description: プロダクトコードを coding_rule.md に基づいてレビュ
 
 引数としてファイルパスまたはディレクトリパスを受け取る。
 引数がない場合は `git diff --name-only` で変更された `.swift` ファイルを対象にする。
-`MmdviewApp/mmdviewTests/` 配下のファイルはスキップする（テストコードは `review-swift-tests` スキルで扱う）。
+`BefoldApp/befoldTests/` 配下のファイルはスキップする（テストコードは `review-swift-tests` スキルで扱う）。
 
 ### Steps
 
@@ -20,7 +20,7 @@ description: プロダクトコードを coding_rule.md に基づいてレビュ
    - 引数にファイルパスがあればそれを使う
    - 引数にディレクトリがあれば配下の `.swift` ファイルを列挙する
    - 引数がなければ `git diff --name-only HEAD` で変更ファイルを取得する
-   - `mmdviewTests/` 配下は除外する
+   - `befoldTests/` 配下は除外する
 3. 各ファイルを読み込み、以下のチェックリストに沿ってレビューする。
 4. 発見事項をファイルごとに報告する。
 
@@ -46,7 +46,7 @@ description: プロダクトコードを coding_rule.md に基づいてレビュ
 
 - [ ] 型名が UpperCamelCase になっているか
 - [ ] メソッド・プロパティが lowerCamelCase になっているか
-- [ ] GCD キューラベルがリバースドメイン形式か（`com.degino.mmdview.*`）
+- [ ] GCD キューラベルがリバースドメイン形式か（`com.degino.befold.*`）
 
 #### パターン
 

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <!--
+    信頼できない .md / .mmd を開くビューアのため、CSP で外部通信・リモート読み込みを遮断する。
+    connect-src 'none' と img-src を自分自身+data: に限定することで、
+    レンダリング経路（markdown-it の html:true 等）に XSS が混入しても
+    fetch / beacon / 外部画像による情報流出を防ぐ。
+    インライン <script> と onclick、mermaid が注入するインライン <style> のため
+    script-src / style-src には 'unsafe-inline' を付与する。
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; frame-src blob:; connect-src 'none'; base-uri 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>befold</title>
+  <!-- ベンダー CSS(github-markdown / github / github-dark)は style.css が
+       @import layer(vendor) で取り込む。アプリ側スタイルは無レイヤーのため
+       読み込み順や詳細度に関係なく常にベンダーより優先される -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="viewer">
+    <div id="mmd-error" class="mmd-error-panel"></div>
+    <div id="diagram-wrap"></div>
+  </div>
+
+  <div id="mmd-deleted-banner" class="mmd-deleted-banner">deleted</div>
+
+  <script src="viewer.js"></script>
+  <script src="mermaid.min.js"></script>
+  <script src="markdown-it.min.js"></script>
+  <script src="highlight.min.js"></script>
+  <script>
+  // --- Zoom ---
+  var _mmdZoom = ZOOM_DEFAULT;
+  // 直近で postMessage した倍率。init 時点の値で初期化し、実際に変化した時だけ通知する
+  // （ページ初期化や render() のたびに UserDefaults へ書き込まれるのを防ぐ）。
+  var _mmdLastPostedZoom = parseStoredZoom(window._mmdInitialZoom);
+
+  function _mmdInitZoom() {
+    _mmdZoom = parseStoredZoom(window._mmdInitialZoom);
+    _mmdApplyZoom();
+  }
+
+  // Swift が注入したシステム本文フォントサイズを CSS 変数へ反映する。
+  // 適用先は style.css の #diagram-wrap.markdown-body(Markdown 表示のみ)。
+  function _mmdInitFontSize() {
+    document.documentElement.style.setProperty(
+      '--mmd-markdown-font-size',
+      markdownFontSize(window._mmdSystemFontSize) + 'px'
+    );
+  }
+
+  function _mmdApplyZoom() {
+    _mmdZoom = clampZoom(_mmdZoom);
+    var wrap = document.getElementById('diagram-wrap');
+    if (wrap.classList.contains('pdf-body')) {
+      // iframe 内の PDF プラグイン描画には CSS zoom が効かないため、
+      // iframe(=wrap)の寸法自体を倍率で変える。PDF は幅フィットで
+      // 描画されるので、幅が広がるほど拡大表示になる。
+      wrap.style.zoom = 1;
+      wrap.style.width = (effectiveZoom(_mmdZoom) * 100) + '%';
+      wrap.style.height = (effectiveZoom(_mmdZoom) * 100) + '%';
+    } else {
+      wrap.style.width = '';
+      wrap.style.height = '';
+      wrap.style.zoom = effectiveZoom(_mmdZoom);
+    }
+    // 枠高さの上限は全体ズームに依存する（レイアウト px への割り戻し）ため再計算する。
+    _mmdUpdateAllDiagramScrollHeights();
+    if (_mmdZoom !== _mmdLastPostedZoom &&
+        window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.zoomChanged) {
+      window.webkit.messageHandlers.zoomChanged.postMessage(_mmdZoom);
+      _mmdLastPostedZoom = _mmdZoom;
+    }
+  }
+
+  function _mmdZoomIn() {
+    _mmdZoom = stepZoom(_mmdZoom, ZOOM_STEP);
+    _mmdApplyZoom();
+  }
+
+  function _mmdZoomOut() {
+    _mmdZoom = stepZoom(_mmdZoom, -ZOOM_STEP);
+    _mmdApplyZoom();
+  }
+
+  function _mmdZoomReset() {
+    _mmdZoom = ZOOM_DEFAULT;
+    _mmdApplyZoom();
+  }
+
+  function _mmdWheelZoom(deltaY) {
+    _mmdZoom = wheelZoom(_mmdZoom, deltaY);
+    _mmdApplyZoom();
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.metaKey) {
+      if (e.key === '-') { e.preventDefault(); _mmdZoomOut(); }
+      else if (e.key === '=' || e.key === '+') { e.preventDefault(); _mmdZoomIn(); }
+    }
+  });
+
+  // Ctrl+ホイール（トラックパッドのピンチ含む）はポインタ位置で振り分ける:
+  // ダイアグラム上ならそのダイアグラムの個別ズーム、それ以外は全体ズーム。
+  document.addEventListener('wheel', function(e) {
+    if (!e.ctrlKey) { return; }
+    e.preventDefault();
+    var wrap = e.target instanceof Element ? e.target.closest('.diagram-zoom-wrap') : null;
+    if (wrap) {
+      _mmdDiagramWheelZoom(wrap, e.deltaY);
+    } else {
+      _mmdWheelZoom(e.deltaY);
+    }
+  }, { passive: false });
+
+  // --- Diagram Zoom（ダイアグラム個別ズーム）---
+  // ブロック順インデックス → ズーム倍率。セッション内のみ保持し、再レンダリング
+  // をまたいで維持する（永続化はしない。ウィンドウを閉じるとリセット）。
+  // markdown 編集でブロックの順番が変わるとズームが別のダイアグラムに付くが、
+  // 影響がセッション内に限られるため許容する（設計書参照）。
+  var _diagramZooms = new Map();
+
+  function _mmdDiagramZoomValue(index) {
+    return _diagramZooms.has(index) ? _diagramZooms.get(index) : ZOOM_DEFAULT;
+  }
+
+  function _mmdUpdateAllDiagramScrollHeights() {
+    document.querySelectorAll('.diagram-zoom-wrap').forEach(function(wrap) {
+      _mmdUpdateDiagramScrollHeight(wrap);
+    });
+  }
+
+  // ウィンドウリサイズで枠高さの上限(ビューポート高)が変わるため追従させる。
+  window.addEventListener('resize', _mmdUpdateAllDiagramScrollHeights);
+
+  // 枠(.diagram-zoom-scroll)の高さをズーム倍率とウィンドウ高に追従させる。
+  // 拡大時は枠がウィンドウ高まで伸び、収まらない分は枠内の縦スクロールで見る。
+  function _mmdUpdateDiagramScrollHeight(wrap) {
+    var zoom = _mmdDiagramZoomValue(Number(wrap.dataset.diagramIndex));
+    var naturalHeight = Number(wrap.dataset.naturalHeight);
+    wrap.querySelector('.diagram-zoom-scroll').style.height =
+      diagramScrollHeight(naturalHeight, zoom, window.innerHeight, _mmdZoom) + 'px';
+  }
+
+  function _mmdApplyDiagramZoom(wrap) {
+    var index = Number(wrap.dataset.diagramIndex);
+    var zoom = _mmdDiagramZoomValue(index);
+    wrap.querySelector('.diagram-zoom-inner').style.zoom = zoom * BASE_SCALE;
+    _mmdUpdateDiagramScrollHeight(wrap);
+    wrap.querySelector('.diagram-zoom-label').textContent = zoomLabel(zoom);
+    wrap.querySelector('.diagram-zoom-in').disabled = zoom >= DIAGRAM_ZOOM_MAX;
+    wrap.querySelector('.diagram-zoom-out').disabled = zoom <= ZOOM_MIN;
+  }
+
+  function _mmdDiagramZoomStep(wrap, delta) {
+    var index = Number(wrap.dataset.diagramIndex);
+    _diagramZooms.set(index, stepZoom(_mmdDiagramZoomValue(index), delta, DIAGRAM_ZOOM_MAX));
+    _mmdApplyDiagramZoom(wrap);
+  }
+
+  function _mmdDiagramZoomReset(wrap) {
+    _diagramZooms.set(Number(wrap.dataset.diagramIndex), ZOOM_DEFAULT);
+    _mmdApplyDiagramZoom(wrap);
+  }
+
+  function _mmdDiagramWheelZoom(wrap, deltaY) {
+    var index = Number(wrap.dataset.diagramIndex);
+    _diagramZooms.set(index, wheelZoom(_mmdDiagramZoomValue(index), deltaY, DIAGRAM_ZOOM_MAX));
+    _mmdApplyDiagramZoom(wrap);
+  }
+
+  // CSP により動的生成要素へ onclick 属性は使わず addEventListener で配線する。
+  function _mmdBuildDiagramControls(wrap) {
+    var controls = document.createElement('div');
+    controls.className = 'diagram-zoom-controls';
+    var zoomOut = document.createElement('button');
+    zoomOut.className = 'diagram-zoom-out';
+    zoomOut.title = '縮小';
+    zoomOut.textContent = '−';
+    zoomOut.addEventListener('click', function() { _mmdDiagramZoomStep(wrap, -ZOOM_STEP); });
+    var label = document.createElement('span');
+    label.className = 'diagram-zoom-label';
+    label.title = 'クリックでリセット';
+    label.addEventListener('click', function() { _mmdDiagramZoomReset(wrap); });
+    var zoomIn = document.createElement('button');
+    zoomIn.className = 'diagram-zoom-in';
+    zoomIn.title = '拡大';
+    zoomIn.textContent = '+';
+    zoomIn.addEventListener('click', function() { _mmdDiagramZoomStep(wrap, ZOOM_STEP); });
+    controls.appendChild(zoomOut);
+    controls.appendChild(label);
+    controls.appendChild(zoomIn);
+    return controls;
+  }
+
+  // 各 .mermaid 要素をズーム用ラッパーで包む。SVG サイズ確定後
+  // （mermaid.run() 完了後）に呼ぶこと。
+  function _mmdWrapDiagrams(diagramWrap) {
+    diagramWrap.querySelectorAll('.mermaid').forEach(function(el, i) {
+      var wrap = document.createElement('div');
+      wrap.className = 'diagram-zoom-wrap';
+      wrap.dataset.diagramIndex = i;
+      var scroll = document.createElement('div');
+      scroll.className = 'diagram-zoom-scroll';
+      var inner = document.createElement('div');
+      inner.className = 'diagram-zoom-inner';
+      el.parentNode.insertBefore(wrap, el);
+      inner.appendChild(el);
+      scroll.appendChild(inner);
+      wrap.appendChild(scroll);
+      wrap.appendChild(_mmdBuildDiagramControls(wrap));
+      // 100% 時の自然高を記録し、枠高さの計算(_mmdUpdateDiagramScrollHeight)に使う。
+      // この時点では inner にまだ zoom が適用されていないため素の実測値になる。
+      wrap.dataset.naturalHeight = inner.offsetHeight;
+      _mmdApplyDiagramZoom(wrap);
+    });
+  }
+
+  // --- Mermaid ---
+  var _currentType = 'mmd';
+  var _mmdDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+  // theme 以外の設定は固定。カラースキームに応じて theme だけ差し替える。
+  function _mmdMermaidConfig() {
+    return {
+      startOnLoad: false,
+      theme: mermaidTheme(_mmdDarkQuery.matches),
+      // 図ラベル内の生 HTML をサニタイズする（デフォルトだが将来の既定変更に備えて明示）
+      securityLevel: 'strict',
+      sequence:  { useMaxWidth: false },
+      er:        { useMaxWidth: false },
+      flowchart: { useMaxWidth: false },
+      gantt:     { useMaxWidth: false },
+      journey:   { useMaxWidth: false },
+      pie:       { useMaxWidth: false },
+      state:     { useMaxWidth: false },
+      class:     { useMaxWidth: false },
+    };
+  }
+
+  mermaid.initialize(_mmdMermaidConfig());
+
+  // カラースキームが切り替わったら mermaid を再初期化し、直近の内容を再描画する。
+  _mmdDarkQuery.addEventListener('change', function() {
+    mermaid.initialize(_mmdMermaidConfig());
+    if (_lastContent !== null) {
+      var wasDeleted = document.body.classList.contains('mmd-deleted');
+      render(_lastContent, _lastType, _lastLang);
+      // render() は先頭で hideDeletedBanner() を呼ぶため、削除状態を復元する。
+      if (wasDeleted) { showDeletedBanner(); }
+    }
+  });
+
+  mermaid.parseError = function(err) {
+    var msg = (err && (err.message || err.str)) || String(err);
+    var panel = document.getElementById('mmd-error');
+    panel.textContent = msg;
+    panel.style.display = 'block';
+    if (_currentType === 'mmd') {
+      document.getElementById('diagram-wrap').style.display = 'none';
+    }
+  };
+
+  // --- Markdown-it ---
+  var md;
+  if (typeof markdownit !== 'undefined') {
+    md = markdownit({
+      html: true,
+      linkify: true,
+      typographer: true,
+      // highlight.min.js の読み込み失敗時は hljs 未定義 → highlightCode が '' を
+      // 返し、ハイライトなしの従来表示に縮退する。
+      highlight: function(str, lang) {
+        return highlightCode(typeof hljs !== 'undefined' ? hljs : null, str, lang);
+      },
+    });
+    var defaultFence = md.renderer.rules.fence;
+    md.renderer.rules.fence = function(tokens, idx, options, env, self) {
+      var token = tokens[idx];
+      if (token.info.trim() === 'mermaid') {
+        return '<pre class="mermaid">' + md.utils.escapeHtml(token.content) + '</pre>';
+      }
+      if (defaultFence) {
+        return defaultFence(tokens, idx, options, env, self);
+      }
+      return '<pre><code>' + md.utils.escapeHtml(token.content) + '</code></pre>';
+    };
+  }
+
+  // --- Render ---
+  function _escapeHtml(text) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(text));
+    return div.innerHTML;
+  }
+
+  // カラースキーム変更時に再描画するため、直近の内容を保持する。
+  var _lastContent = null;
+  var _lastType = null;
+  var _lastLang = null;
+  var _viewMode = 'rendered';
+  // PDF 表示用に生成した blob URL。再描画のたびに revoke してリークを防ぐ。
+  var _pdfBlobUrl = null;
+
+  async function render(content, type, lang) {
+    _currentType = type;
+    _lastContent = content;
+    _lastType = type;
+    _lastLang = lang;
+    hideDeletedBanner();
+
+    var errorPanel = document.getElementById('mmd-error');
+    errorPanel.style.display = 'none';
+    errorPanel.textContent = '';
+    var diagramWrap = document.getElementById('diagram-wrap');
+    diagramWrap.style.display = 'block';
+
+    if (_viewMode === 'source' && type !== 'code' && type !== 'image' && type !== 'pdf') {
+      _renderSource(content, type, lang);
+      return;
+    }
+
+    // 分岐前に一括で外し、各分岐は自分のクラスを add するだけにする。
+    diagramWrap.classList.remove('markdown-body', 'code-body', 'html-body', 'csv-body', 'image-body', 'pdf-body');
+
+    // 前回の PDF 表示で生成した blob URL を解放する(PDF 以外への切替も含む)。
+    if (_pdfBlobUrl) {
+      URL.revokeObjectURL(_pdfBlobUrl);
+      _pdfBlobUrl = null;
+    }
+
+    if (type === 'mmd') {
+      diagramWrap.innerHTML = '<pre class="mermaid">' + _escapeHtml(content) + '</pre>';
+    } else if (type === 'svg') {
+      var svgImg = document.createElement('img');
+      svgImg.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(content)));
+      svgImg.style.maxWidth = '100%';
+      svgImg.alt = 'SVG';
+      // mermaid ダイアグラムと同じズーム用ラッパーで包む
+      var svgWrap = document.createElement('div');
+      svgWrap.className = 'diagram-zoom-wrap';
+      svgWrap.dataset.diagramIndex = '0';
+      var svgScroll = document.createElement('div');
+      svgScroll.className = 'diagram-zoom-scroll';
+      var svgInner = document.createElement('div');
+      svgInner.className = 'diagram-zoom-inner';
+      svgInner.appendChild(svgImg);
+      svgScroll.appendChild(svgInner);
+      svgWrap.appendChild(svgScroll);
+      svgWrap.appendChild(_mmdBuildDiagramControls(svgWrap));
+      diagramWrap.innerHTML = '';
+      diagramWrap.appendChild(svgWrap);
+      svgImg.onload = function() {
+        svgWrap.dataset.naturalHeight = svgInner.offsetHeight;
+        _mmdApplyDiagramZoom(svgWrap);
+      };
+    } else if (type === 'html') {
+      diagramWrap.classList.add('html-body');
+      var iframe = document.createElement('iframe');
+      iframe.sandbox = 'allow-same-origin';
+      iframe.srcdoc = content;
+      iframe.style.width = '100%';
+      iframe.style.border = 'none';
+      // iframe の高さをコンテンツに合わせる
+      iframe.onload = function() {
+        try {
+          var h = iframe.contentDocument.documentElement.scrollHeight;
+          iframe.style.height = h + 'px';
+        } catch(e) {
+          iframe.style.height = '80vh';
+        }
+      };
+      iframe.style.height = '80vh';
+      diagramWrap.innerHTML = '';
+      diagramWrap.appendChild(iframe);
+    } else if (type === 'csv') {
+      // github-markdown-css のテーブル装飾(markdown-body)を土台にしつつ、
+      // CSV 専用の上書き(style.css の csv-body)をそこにだけ効かせる。
+      // 通常の Markdown テーブルは markdown-body のみを付与するため影響しない。
+      diagramWrap.classList.add('markdown-body', 'csv-body');
+      var rows = parseCsv(content, lang || ',');
+      diagramWrap.innerHTML = buildTableHtml(rows);
+    } else if (type === 'image') {
+      // ナチュラルサイズで表示し、ウィンドウサイズには追従させない。
+      // 拡大縮小は #diagram-wrap への全体ズーム(⌘+/-)が担う。
+      diagramWrap.classList.add('image-body');
+      var img = document.createElement('img');
+      img.src = 'data:' + (lang || 'image/png') + ';base64,' + content;
+      img.alt = 'Image';
+      diagramWrap.innerHTML = '';
+      diagramWrap.appendChild(img);
+    } else if (type === 'pdf') {
+      // data: URI ではなく blob: URL を使う。CSP の frame-src は blob: のみを
+      // 許可しており、blob URL はこのスクリプトが生成した推測不能なものに
+      // 限られるため、Markdown 内に静的に書かれた iframe はロードできない。
+      diagramWrap.classList.add('pdf-body');
+      var pdfBytes = atob(content);
+      var pdfBuf = new Uint8Array(pdfBytes.length);
+      for (var bi = 0; bi < pdfBytes.length; bi++) { pdfBuf[bi] = pdfBytes.charCodeAt(bi); }
+      _pdfBlobUrl = URL.createObjectURL(new Blob([pdfBuf], { type: 'application/pdf' }));
+      var iframe = document.createElement('iframe');
+      iframe.src = _pdfBlobUrl;
+      diagramWrap.innerHTML = '';
+      diagramWrap.appendChild(iframe);
+    } else if (type === 'code') {
+      // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
+      // レイアウトは style.css の .code-body が担う。
+      diagramWrap.classList.add('code-body');
+      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang);
+    } else {
+      // github-markdown-css は .markdown-body プレフィックス前提のため
+      // Markdown レンダリング時のみ付与する
+      diagramWrap.classList.add('markdown-body');
+      if (md) {
+        diagramWrap.innerHTML = md.render(content);
+      } else {
+        diagramWrap.innerHTML = '<p>markdown-it not loaded</p>';
+        return;
+      }
+    }
+
+    var mermaidElements = diagramWrap.querySelectorAll('.mermaid');
+    if (mermaidElements.length > 0) {
+      mermaidElements.forEach(function(el, i) {
+        el.removeAttribute('data-processed');
+        el.id = 'mmd-' + i + '-' + Date.now();
+      });
+      try {
+        await mermaid.run({ nodes: Array.from(mermaidElements) });
+      } catch(e) {
+        // parseError callback handles display
+      }
+      _mmdWrapDiagrams(diagramWrap);
+    }
+
+    _mmdApplyZoom();
+  }
+
+  function _renderSource(content, type, lang) {
+    var diagramWrap = document.getElementById('diagram-wrap');
+    diagramWrap.classList.remove('markdown-body', 'html-body', 'csv-body', 'image-body', 'pdf-body');
+    diagramWrap.classList.add('code-body');
+    if (type === 'csv') {
+      diagramWrap.innerHTML = renderCsvSourceHtml(content, lang || ',');
+    } else {
+      var sourceLang = (type === 'svg' || type === 'html') ? 'xml'
+                     : (type === 'md') ? 'markdown'
+                     : lang || 'plaintext';
+      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang);
+    }
+    _mmdApplyZoom();
+  }
+
+  function setViewMode(mode) {
+    if (mode !== 'rendered' && mode !== 'source') return;
+    if (mode === _viewMode) return;
+    _viewMode = mode;
+    if (_lastContent !== null) {
+      render(_lastContent, _lastType, _lastLang);
+    }
+  }
+
+  // --- Deleted Banner ---
+  function showDeletedBanner() {
+    document.getElementById('mmd-deleted-banner').style.display = 'block';
+    document.body.classList.add('mmd-deleted');
+  }
+
+  function hideDeletedBanner() {
+    document.getElementById('mmd-deleted-banner').style.display = 'none';
+    document.body.classList.remove('mmd-deleted');
+  }
+
+  _mmdInitZoom();
+  _mmdInitFontSize();
+</script>
+</body>
+</html>

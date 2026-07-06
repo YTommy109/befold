@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'MmdviewApp/**'
+      - 'BefoldApp/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'MmdviewApp/**'
+      - 'BefoldApp/**'
       - '.github/workflows/ci.yml'
   schedule:
     # ThreadSanitizer を毎日回して競合回帰を検出する（push がなくても走らせる）
@@ -27,7 +27,7 @@ jobs:
     runs-on: macos-15
     defaults:
       run:
-        working-directory: MmdviewApp
+        working-directory: BefoldApp
     steps:
       - uses: actions/checkout@v4
 
@@ -38,8 +38,8 @@ jobs:
       # SPM のビルド成果物をキャッシュしてコールドビルドを避ける
       - uses: actions/cache@v4
         with:
-          path: MmdviewApp/.build
-          key: spm-${{ runner.os }}-${{ hashFiles('MmdviewApp/Package.resolved') }}
+          path: BefoldApp/.build
+          key: spm-${{ runner.os }}-${{ hashFiles('BefoldApp/Package.resolved') }}
           restore-keys: |
             spm-${{ runner.os }}-
 
@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: MmdviewApp
+        working-directory: BefoldApp
     steps:
       - uses: actions/checkout@v4
 
@@ -66,7 +66,7 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-          cache-dependency-path: MmdviewApp/package-lock.json
+          cache-dependency-path: BefoldApp/package-lock.json
 
       - name: 依存をインストールする
         run: npm ci
@@ -80,7 +80,7 @@ jobs:
     runs-on: macos-15
     defaults:
       run:
-        working-directory: MmdviewApp
+        working-directory: BefoldApp
     steps:
       - uses: actions/checkout@v4
 
@@ -91,8 +91,8 @@ jobs:
       # TSan 計装ビルドは通常ビルドと別成果物のためキャッシュキーを分ける
       - uses: actions/cache@v4
         with:
-          path: MmdviewApp/.build
-          key: spm-tsan-${{ runner.os }}-${{ hashFiles('MmdviewApp/Package.resolved') }}
+          path: BefoldApp/.build
+          key: spm-tsan-${{ runner.os }}-${{ hashFiles('BefoldApp/Package.resolved') }}
           restore-keys: |
             spm-tsan-${{ runner.os }}-
 

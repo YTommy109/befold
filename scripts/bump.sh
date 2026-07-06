@@ -17,7 +17,7 @@ case "$LEVEL" in
 esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PROJECT_YML="$ROOT/MmdviewApp/project.yml"
+PROJECT_YML="$ROOT/BefoldApp/project.yml"
 [ -f "$PROJECT_YML" ] || err "$PROJECT_YML が見つかりません"
 
 # --- ブランチ・作業ツリーの検証 ---
