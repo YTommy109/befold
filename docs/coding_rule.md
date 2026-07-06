@@ -1,6 +1,6 @@
-# mmdview コーディング規約
+# befold コーディング規約
 
-このドキュメントは mmdview プロジェクトのコーディング規約を一元管理する。
+このドキュメントは befold プロジェクトのコーディング規約を一元管理する。
 CLAUDE.md・スキル・コマンドはこのファイルを参照する。
 
 ## プロジェクト概要
@@ -12,7 +12,7 @@ macOS 向け Mermaid ダイアグラム・ビューアアプリ。
 ## アーキテクチャ
 
 ```
-mmdview.app (Swift / AppKit + SwiftUI)
+befold.app (Swift / AppKit + SwiftUI)
   ├── AppDelegate        # ライフサイクル・メニュー・ウィンドウ管理
   ├── DocumentController # Recent Documents 連携
   ├── ViewerWindowController # NSWindowController（1 ファイル = 1 ウィンドウ）
@@ -40,28 +40,28 @@ mmdview.app (Swift / AppKit + SwiftUI)
 ## プロジェクト構成
 
 ```
-MmdviewApp/
+BefoldApp/
 ├── project.yml              # XcodeGen 定義
 ├── Package.swift            # SPM ビルド用
 ├── .swiftlint.yml           # SwiftLint 設定
 ├── .swiftformat             # SwiftFormat 設定
-├── mmdview/
+├── befold/
 │   ├── App/                 # AppDelegate, DocumentController, ViewerWindowController
 │   ├── Viewer/              # ViewerStore, ViewerWebView, ViewerContentView, FileType
 │   ├── FileWatching/        # FileWatcher, Debouncer
 │   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js
 │       └── __tests__/       # viewer.js の Jest テスト
-└── mmdviewTests/            # Swift Testing テスト
+└── befoldTests/            # Swift Testing テスト
 ```
 
 ## コマンド
 
 ```bash
-cd MmdviewApp
+cd BefoldApp
 swift build                  # ビルド（SwiftLint も実行される）
 swift test                   # テスト（要 Xcode.app）
 xcodegen generate            # .xcodeproj を再生成
-xcodebuild build -scheme mmdview  # Xcode ビルド（要 Xcode.app）
+xcodebuild build -scheme befold  # Xcode ビルド（要 Xcode.app）
 npx jest                     # viewer.js のテスト
 
 # コード品質
@@ -128,7 +128,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 - Swift API Design Guidelines に従う
 - 型名: UpperCamelCase（`ViewerStore`, `FileWatcher`）
 - メソッド・プロパティ: lowerCamelCase（`openFile`, `isDeleted`）
-- GCD キューラベル: リバースドメイン（`com.degino.mmdview.filewatcher`）
+- GCD キューラベル: リバースドメイン（`com.degino.befold.filewatcher`）
 - ウィンドウ autosave 名: `Viewer-<パスベースの識別子>`
 - `@available(*, unavailable)` + `fatalError()`: Interface Builder 未使用を明示する `required init?(coder:)` に付ける
 
@@ -279,7 +279,7 @@ func detectsAtomicSave() async throws {
 ```swift
 private func makeTempDir() throws -> URL {
     let dir = FileManager.default.temporaryDirectory
-        .appendingPathComponent("mmdview-test-\(UUID().uuidString)")
+        .appendingPathComponent("befold-test-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     return dir
 }
