@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 
 enum CLIInstallError: Error, Equatable {
@@ -48,11 +47,27 @@ enum CLIInstaller {
 
         let destPath = url.path
         let dirPath = url.deletingLastPathComponent().path
-        let shellCmd = "mkdir -p \\\"\(dirPath)\\\" && cp \\\"\(tempURL.path)\\\" \\\"\(destPath)\\\" && chmod 755 \\\"\(destPath)\\\""
-        let script = "do shell script \"\(shellCmd)\" with administrator privileges"
+        let shellCmd = """
+        mkdir -p \(shellQuoted(dirPath)) && \
+        cp \(shellQuoted(tempURL.path)) \(shellQuoted(destPath)) && \
+        chmod 755 \(shellQuoted(destPath))
+        """
+        let script = "do shell script \"\(appleScriptQuoted(shellCmd))\" with administrator privileges"
         guard let appleScript = NSAppleScript(source: script) else { return false }
         var errorDict: NSDictionary?
         appleScript.executeAndReturnError(&errorDict)
         return errorDict == nil
+    }
+
+    /// POSIX シェル向けにシングルクォートで安全にエスケープする。
+    private static func shellQuoted(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    /// AppleScript の文字列リテラル向けにバックスラッシュとダブルクォートをエスケープする。
+    private static func appleScriptQuoted(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 }
