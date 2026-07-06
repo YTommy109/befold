@@ -69,4 +69,80 @@ struct DirectoryListerTests {
         let result = DirectoryLister.listFiles(in: missing)
         #expect(result.isEmpty)
     }
+
+    @Test("listEntries はフォルダーと対応ファイルを返し、非対応ファイルを除外する")
+    func listEntriesReturnsFoldersAndSupportedFiles() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        try FileManager.default.createDirectory(
+            at: tmp.url.appendingPathComponent("subdir"),
+            withIntermediateDirectories: true
+        )
+        _ = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        _ = try tmp.file(named: "unknown.xyz", contents: "skip me")
+
+        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
+
+        let kinds = entries.map(\.kind)
+        let names = entries.map(\.url.lastPathComponent)
+        #expect(kinds.first == .parentNavigation)
+        #expect(names.contains("subdir"))
+        #expect(names.contains("diagram.mmd"))
+        #expect(!names.contains("unknown.xyz"))
+    }
+
+    @Test("foldersFirst ソートではフォルダーがファイルより先に並ぶ")
+    func listEntriesFoldersFirstSort() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        try FileManager.default.createDirectory(
+            at: tmp.url.appendingPathComponent("zebra"),
+            withIntermediateDirectories: true
+        )
+        _ = try tmp.file(named: "alpha.mmd", contents: "")
+
+        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
+        let nonParent = entries.filter { $0.kind != .parentNavigation }
+
+        #expect(nonParent[0].kind == .folder)
+        #expect(nonParent[0].url.lastPathComponent == "zebra")
+        #expect(nonParent[1].kind == .file)
+        #expect(nonParent[1].url.lastPathComponent == "alpha.mmd")
+    }
+
+    @Test("alphabetical ソートではフォルダーとファイルが名前順で混在する")
+    func listEntriesAlphabeticalSort() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        try FileManager.default.createDirectory(
+            at: tmp.url.appendingPathComponent("beta"),
+            withIntermediateDirectories: true
+        )
+        _ = try tmp.file(named: "alpha.mmd", contents: "")
+
+        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .alphabetical)
+        let nonParent = entries.filter { $0.kind != .parentNavigation }
+
+        #expect(nonParent[0].url.lastPathComponent == "alpha.mmd")
+        #expect(nonParent[1].url.lastPathComponent == "beta")
+    }
+
+    @Test("ホームディレクトリでは parentNavigation が含まれない")
+    func listEntriesNoParentAtHome() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let entries = DirectoryLister.listEntries(in: home, sortOrder: .foldersFirst)
+
+        #expect(!entries.contains { $0.kind == .parentNavigation })
+    }
+
+    @Test("ホームディレクトリ以外では parentNavigation が先頭に含まれる")
+    func listEntriesHasParentBelowHome() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+
+        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
+
+        #expect(entries.first?.kind == .parentNavigation)
+        #expect(entries.first?.url == tmp.url.deletingLastPathComponent())
+    }
 }
