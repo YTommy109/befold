@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "mmdview",
+    name: "befold",
     defaultLocalization: "en",
     platforms: [.macOS(.v14)],
     dependencies: [
@@ -11,7 +11,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "mmdview",
+            name: "befold",
             path: "mmdview",
             exclude: ["Info.plist", "mmdview.entitlements", "Resources/__tests__"],
             resources: [
@@ -32,8 +32,8 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "mmdviewTests",
-            dependencies: ["mmdview"],
+            name: "befoldTests",
+            dependencies: ["befold"],
             path: "mmdviewTests",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
