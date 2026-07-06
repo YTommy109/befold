@@ -445,3 +445,13 @@ body.mmd-deleted {
   .csv-col-6 { color: #fa8; }
   .csv-col-7 { color: #8cf; }
 }
+
+/* cmd+click ファイル参照ジャンプ */
+.cmd-held a,
+.cmd-held .befold-path-ref {
+    text-decoration: underline;
+    cursor: pointer;
+}
+.befold-path-ref {
+    cursor: default;
+}

@@ -119,6 +119,8 @@ struct ViewerBridgeTests {
         #expect(html.contains("function _mmdZoomOut()"))
         #expect(html.contains("function _mmdZoomReset()"))
         #expect(html.contains("messageHandlers.\(ViewerBridge.zoomChangedMessageName)"))
+        #expect(html.contains("_MSG_REFERENCE_ACTIVATED = '\(ViewerBridge.referenceActivatedMessageName)'"))
+        #expect(html.contains("messageHandlers[_MSG_REFERENCE_ACTIVATED]"))
         #expect(html.contains("window._mmdInitialZoom"))
         #expect(html.contains("window._mmdSystemFontSize"))
         #expect(html.contains("function setViewMode(mode)"))

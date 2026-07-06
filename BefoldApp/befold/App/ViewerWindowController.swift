@@ -117,6 +117,9 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
                 guard let self else { return }
                 zoomStore.setZoom(zoom, for: fileURL)
             },
+            onOpenReference: { [weak self] href, isExternal, newWindow in
+                self?.handleOpenReference(href: href, isExternal: isExternal, newWindow: newWindow)
+            },
             webViewProxy: webViewProxy
         )
         let fileListView = FileListView(
@@ -124,6 +127,45 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             onSelect: { [weak self] url in self?.switchFile(to: url) }
         )
         return ViewerSplitViewController(sidebar: fileListView, content: contentView)
+    }
+
+    /// cmd+click によるリンク/パス参照のアクティベーションを処理する。
+    private func handleOpenReference(href: String, isExternal: Bool, newWindow: Bool) {
+        let target = ReferenceResolver.resolve(href: href, baseURL: fileURL)
+        switch target {
+        case let .external(url):
+            NSWorkspace.shared.open(url)
+        case let .localFile(url):
+            var isDir: ObjCBool = false
+            guard
+                FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
+                !isDir.boolValue
+            else {
+                showFileNotFoundAlert(path: url.path)
+                return
+            }
+            if newWindow {
+                AppDelegate.shared?.openViewer(for: url)
+            } else {
+                switchFile(to: url)
+            }
+        case .unsupported:
+            break
+        }
+    }
+
+    private func showFileNotFoundAlert(path: String) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = String(
+            localized: "alert.fileNotFound.message",
+            defaultValue: "File Not Found",
+            bundle: .l10n
+        )
+        alert.informativeText = path
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.beginSheetModal(for: window)
     }
 
     /// ファイルの rename / move をウィンドウに反映する。
@@ -165,7 +207,11 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         // 切替はリネームではない。旧ファイルの倍率は保存済みのまま保持し、
         // 新ファイルは自身の保存倍率(なければデフォルト)で表示する。
         applyStoredZoomToWebView()
-        fileListModel.selection = newURL
+        if newURL.deletingLastPathComponent() != oldURL.deletingLastPathComponent() {
+            refreshFileList()
+        } else {
+            fileListModel.selection = newURL
+        }
         onSwitchFile?(oldURL, newURL)
     }
 

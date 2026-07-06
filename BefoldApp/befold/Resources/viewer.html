@@ -31,6 +31,9 @@
   <script src="markdown-it.min.js"></script>
   <script src="highlight.min.js"></script>
   <script>
+  // Swift ブリッジメッセージ名（ViewerBridge.swift と同期）
+  const _MSG_REFERENCE_ACTIVATED = 'referenceActivated';
+
   // --- Zoom ---
   var _mmdZoom = ZOOM_DEFAULT;
   // 直近で postMessage した倍率。init 時点の値で初期化し、実際に変化した時だけ通知する
@@ -96,11 +99,101 @@
   }
 
   document.addEventListener('keydown', function(e) {
+    document.body.classList.toggle('cmd-held', e.metaKey);
     if (e.metaKey) {
       if (e.key === '-') { e.preventDefault(); _mmdZoomOut(); }
       else if (e.key === '=' || e.key === '+') { e.preventDefault(); _mmdZoomIn(); }
     }
   });
+
+  document.addEventListener('keyup', function(e) {
+    if (!e.metaKey) document.body.classList.remove('cmd-held');
+  });
+  // ウィンドウがフォーカスを失ったときも解除する
+  window.addEventListener('blur', function() {
+    document.body.classList.remove('cmd-held');
+  });
+
+  // --- ファイル参照ジャンプ(cmd+click) ---
+  document.getElementById('diagram-wrap').addEventListener('click', function(e) {
+    // <a> タグまたは .befold-path-ref をクリック対象として検出
+    var anchor = e.target.closest('a');
+    var pathRef = e.target.closest('.befold-path-ref');
+    var target = anchor || pathRef;
+    if (!target) return;
+
+    var href = anchor ? anchor.getAttribute('href') : pathRef.dataset.path;
+    if (!href) return;
+
+    // # で始まるアンカーリンクは JS 側で明示的にスクロールする
+    // (decidePolicyFor が WKWebView のナビゲーションをキャンセルするため)
+    if (href.charAt(0) === '#') {
+      e.preventDefault();
+      try { var id = decodeURIComponent(href.slice(1)); } catch (_) { var id = href.slice(1); }
+      var el = document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
+    // アンカー以外は全て preventDefault
+    e.preventDefault();
+
+    // cmd が押されていなければ no-op
+    if (!e.metaKey) return;
+
+    var isExternal = /^https?:\/\//.test(href);
+    window.webkit.messageHandlers[_MSG_REFERENCE_ACTIVATED].postMessage({
+      href: href,
+      isExternal: isExternal,
+      newWindow: e.shiftKey
+    });
+  });
+
+  // コードブロック内のファイルパス検出用の正規表現。
+  // 既知の制約: シンタックスハイライトによってトークンが複数の <span> に
+  // 分割されている場合、その境界をまたぐパスは検出されない(シンプルな
+  // ヒューリスティックとして許容する)。
+  var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/g;
+
+  function _annotatePathRefs() {
+    var blocks = document.querySelectorAll('#diagram-wrap pre code');
+    for (var i = 0; i < blocks.length; i++) {
+      _walkTextNodes(blocks[i]);
+    }
+  }
+
+  function _walkTextNodes(node) {
+    if (node.nodeType === 3) { // TEXT_NODE
+      var text = node.textContent;
+      if (text.length > 1000) return; // パスらしきトークンは長大なテキストには含まれない
+      _PATH_RE.lastIndex = 0;
+      var match = _PATH_RE.exec(text);
+      if (!match) return;
+      var frag = document.createDocumentFragment();
+      var lastIndex = 0;
+      do {
+        if (match.index > lastIndex) {
+          frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+        var span = document.createElement('span');
+        span.className = 'befold-path-ref';
+        span.dataset.path = match[0];
+        span.textContent = match[0];
+        frag.appendChild(span);
+        lastIndex = _PATH_RE.lastIndex;
+      } while ((match = _PATH_RE.exec(text)) !== null);
+      if (lastIndex < text.length) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+      }
+      node.parentNode.replaceChild(frag, node);
+    } else if (node.nodeType === 1 && !node.classList.contains('befold-path-ref')) {
+      // ELEMENT_NODE: スナップショットを取り順方向に走査(replaceChild で兄弟が変わるため)
+      var children = Array.prototype.slice.call(node.childNodes);
+      for (var j = 0; j < children.length; j++) {
+        _walkTextNodes(children[j]);
+      }
+    }
+  }
 
   // Ctrl+ホイール（トラックパッドのピンチ含む）はポインタ位置で振り分ける:
   // ダイアグラム上ならそのダイアグラムの個別ズーム、それ以外は全体ズーム。
@@ -435,6 +528,7 @@
       _mmdWrapDiagrams(diagramWrap);
     }
 
+    _annotatePathRefs();
     _mmdApplyZoom();
   }
 
