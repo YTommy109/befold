@@ -1,5 +1,5 @@
 import Foundation
-@testable import mmdview
+@testable import befold
 
 /// メモリ上の辞書でファイルシステムを模す FileReading 実装。
 /// キーは URL.path(テストではシンボリックリンクを含まないパスを使うこと)。

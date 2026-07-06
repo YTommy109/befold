@@ -1,5 +1,5 @@
 import Foundation
-@testable import mmdview
+@testable import befold
 import Testing
 
 @Suite
@@ -133,11 +133,11 @@ struct ViewerBridgeTests {
         #expect(js.contains("var ZOOM_MAX = \(ZoomStore.maxZoom);"))
     }
 
-    /// mmdviewTests/ から見た mmdview/Resources/ 内のリソース URL を返す。
+    /// befoldTests/ から見た befold/Resources/ 内のリソース URL を返す。
     private func resourceURL(_ name: String) -> URL {
         URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // mmdviewTests
-            .deletingLastPathComponent() // MmdviewApp
-            .appendingPathComponent("mmdview/Resources/\(name)")
+            .deletingLastPathComponent() // befoldTests
+            .deletingLastPathComponent() // BefoldApp
+            .appendingPathComponent("befold/Resources/\(name)")
     }
 }

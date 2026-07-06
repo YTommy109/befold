@@ -1,5 +1,5 @@
 import Foundation
-@testable import mmdview
+@testable import befold
 import Testing
 
 @Suite
@@ -243,7 +243,7 @@ struct FileWatcherIntegrationTests {
     @Test
     func watchingNonexistentFileDoesNotCrash() {
         let file = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mmdview-test-\(UUID().uuidString)")
+            .appendingPathComponent("befold-test-\(UUID().uuidString)")
             .appendingPathComponent("nonexistent.mmd")
 
         let watcher = FileWatcher(path: file) {}

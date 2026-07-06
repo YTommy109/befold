@@ -1,18 +1,18 @@
 import Foundation
-@testable import mmdview
+@testable import befold
 import Testing
 
 /// Info.plist のファイルタイプ宣言を検証する。
 /// .md の UTI は環境によって net.daringfireball.markdown / com.unknown.md 等に
-/// バインドが変わるため、mmdview 自身が UTI を宣言し、実勢 UTI も claim している
+/// バインドが変わるため、befold 自身が UTI を宣言し、実勢 UTI も claim している
 /// ことを回帰テストとして固定する。
 @Suite
 struct InfoPlistTests {
     private func loadPlist() -> [String: Any] {
         let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // mmdviewTests/
-            .deletingLastPathComponent() // MmdviewApp/
-            .appendingPathComponent("mmdview/Info.plist")
+            .deletingLastPathComponent() // befoldTests/
+            .deletingLastPathComponent() // BefoldApp/
+            .appendingPathComponent("befold/Info.plist")
         guard let data = try? Data(contentsOf: url),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
               let dict = plist as? [String: Any]
@@ -32,7 +32,7 @@ struct InfoPlistTests {
         Set(documentTypes.flatMap { $0["LSItemContentTypes"] as? [String] ?? [] })
     }
 
-    /// mmdview 自身が net.daringfireball.markdown を宣言していること。
+    /// befold 自身が net.daringfireball.markdown を宣言していること。
     /// 他アプリの宣言に依存すると、宣言アプリがない環境で .md の関連付けが効かない。
     @Test
     func importsDaringfireballMarkdownType() throws {
@@ -62,19 +62,19 @@ struct InfoPlistTests {
     func claimsMermaidDiagramTypeAsOwner() throws {
         let mermaid = try #require(
             documentTypes.first {
-                ($0["LSItemContentTypes"] as? [String])?.contains("com.degino.mmdview.mermaid-diagram") == true
+                ($0["LSItemContentTypes"] as? [String])?.contains("com.degino.befold.mermaid-diagram") == true
             }
         )
         #expect(mermaid["LSHandlerRank"] as? String == "Owner")
     }
 
-    /// コード全拡張子が mmdview 自身の source-code UTI 宣言に含まれていること。
+    /// コード全拡張子が befold 自身の source-code UTI 宣言に含まれていること。
     /// FileType.codeExtensionLanguages と Info.plist のドリフトを検知する。
     @Test("All code extensions are declared in source-code UTI")
     func importsSourceCodeTypeCoveringAllCodeExtensions() throws {
         let source = try #require(
             importedTypes.first {
-                ($0["UTTypeIdentifier"] as? String) == "com.degino.mmdview.source-code"
+                ($0["UTTypeIdentifier"] as? String) == "com.degino.befold.source-code"
             }
         )
         let tags = try #require(source["UTTypeTagSpecification"] as? [String: Any])
@@ -90,7 +90,7 @@ struct InfoPlistTests {
     @Test("Source code document type claims required UTIs")
     func claimsSourceCodeContentTypes() {
         let claimed = claimedContentTypes()
-        #expect(claimed.contains("com.degino.mmdview.source-code"))
+        #expect(claimed.contains("com.degino.befold.source-code"))
         #expect(claimed.contains("public.source-code"))
         #expect(claimed.contains("public.swift-source"))
         #expect(claimed.contains("public.json"))

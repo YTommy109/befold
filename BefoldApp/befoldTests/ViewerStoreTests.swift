@@ -1,5 +1,5 @@
 import Foundation
-@testable import mmdview
+@testable import befold
 import Testing
 
 private struct MockFileWatcher: FileWatching {

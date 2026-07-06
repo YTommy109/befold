@@ -1,5 +1,5 @@
 import Foundation
-@testable import mmdview
+@testable import befold
 import Testing
 
 /// HTTP エラー応答を再現する URLProtocol スタブ。
@@ -37,7 +37,7 @@ private final class HTTP404URLProtocol: URLProtocol {
 struct UpdateDownloaderIntegrationTests {
     @Test
     func downloadsFileAndReportsCompletion() async throws {
-        let tmp = try TempDir(prefix: "mmdview-download-test")
+        let tmp = try TempDir(prefix: "befold-download-test")
         defer { withExtendedLifetime(tmp) {} }
         let source = tmp.url.appendingPathComponent("source.bin")
         let content = Data((0 ..< 200_000).map { UInt8($0 % 256) })
@@ -55,7 +55,7 @@ struct UpdateDownloaderIntegrationTests {
 
     @Test
     func overwritesExistingDestination() async throws {
-        let tmp = try TempDir(prefix: "mmdview-download-test")
+        let tmp = try TempDir(prefix: "befold-download-test")
         defer { withExtendedLifetime(tmp) {} }
         let source = tmp.url.appendingPathComponent("source.bin")
         try Data("new".utf8).write(to: source)
@@ -72,10 +72,10 @@ struct UpdateDownloaderIntegrationTests {
         // https スキームのみを乗っ取るスタブを登録し、404 応答を返させる
         URLProtocol.registerClass(HTTP404URLProtocol.self)
         defer { URLProtocol.unregisterClass(HTTP404URLProtocol.self) }
-        let tmp = try TempDir(prefix: "mmdview-download-test")
+        let tmp = try TempDir(prefix: "befold-download-test")
         defer { withExtendedLifetime(tmp) {} }
         let destination = tmp.url.appendingPathComponent("dest.bin")
-        let url = try #require(URL(string: "https://example.com/mmdview.dmg"))
+        let url = try #require(URL(string: "https://example.com/befold.dmg"))
 
         await #expect(throws: (any Error).self) {
             try await UpdateDownloader().download(from: url, to: destination) { _ in }

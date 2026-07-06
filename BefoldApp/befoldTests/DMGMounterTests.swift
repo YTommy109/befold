@@ -1,5 +1,5 @@
 import Foundation
-@testable import mmdview
+@testable import befold
 import Testing
 
 @Suite
@@ -21,14 +21,14 @@ struct DMGMounterTests {
               <key>content-hint</key>
               <string>Apple_HFS</string>
               <key>mount-point</key>
-              <string>/Volumes/mmdview v1.2.0</string>
+              <string>/Volumes/befold v1.2.0</string>
             </dict>
           </array>
         </dict>
         </plist>
         """.utf8)
         let mountPoint = DMGMounter.mountPoint(fromPlist: plist)
-        #expect(mountPoint?.path == "/Volumes/mmdview v1.2.0")
+        #expect(mountPoint?.path == "/Volumes/befold v1.2.0")
     }
 
     /// mount-point を含まない plist と plist ですらないデータ、いずれも nil を返す。

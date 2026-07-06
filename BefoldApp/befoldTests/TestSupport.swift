@@ -14,7 +14,7 @@ func makeIsolatedDefaults(prefix: String) -> UserDefaults {
 final class TempDir: Sendable {
     let url: URL
 
-    init(prefix: String = "mmdview-test") throws {
+    init(prefix: String = "befold-test") throws {
         url = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(prefix)-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

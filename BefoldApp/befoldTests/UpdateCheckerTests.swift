@@ -1,5 +1,5 @@
 import Foundation
-@testable import mmdview
+@testable import befold
 import Testing
 
 private final class MockFetcher: ReleaseFetching, @unchecked Sendable {
@@ -41,12 +41,12 @@ private final class FakeClock: Sendable {
 private func makeRelease(tag: String) throws -> GitHubRelease {
     try GitHubRelease(
         tagName: tag,
-        htmlURL: #require(URL(string: "https://github.com/YTommy109/mmdview/releases/tag/\(tag)")),
+        htmlURL: #require(URL(string: "https://github.com/YTommy109/befold/releases/tag/\(tag)")),
         assets: [
             GitHubRelease.Asset(
-                name: "mmdview-\(tag).dmg",
+                name: "befold-\(tag).dmg",
                 browserDownloadURL: #require(
-                    URL(string: "https://github.com/YTommy109/mmdview/releases/download/\(tag)/mmdview-\(tag).dmg")
+                    URL(string: "https://github.com/YTommy109/befold/releases/download/\(tag)/befold-\(tag).dmg")
                 )
             ),
         ]

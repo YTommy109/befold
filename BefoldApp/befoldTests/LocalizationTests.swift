@@ -1,5 +1,5 @@
 import Foundation
-@testable import mmdview
+@testable import befold
 import Testing
 
 /// Localizable.xcstrings の訳の完全性を検証する。
@@ -32,8 +32,8 @@ struct LocalizationTests {
 
         #expect(catalog["menu.file.open"]?["ja"] == "開く…")
         #expect(catalog["menu.file.open"]?["en"] == "Open…")
-        #expect(catalog["menu.app.quit"]?["ja"] == "mmdview を終了")
-        #expect(catalog["menu.app.quit"]?["en"] == "Quit mmdview")
+        #expect(catalog["menu.app.quit"]?["ja"] == "befold を終了")
+        #expect(catalog["menu.app.quit"]?["en"] == "Quit befold")
         #expect(catalog["update.later"]?["ja"] == "後で")
         #expect(catalog["update.later"]?["en"] == "Later")
     }
