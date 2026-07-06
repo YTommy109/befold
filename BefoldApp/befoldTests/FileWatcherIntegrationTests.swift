@@ -10,21 +10,21 @@ struct FileWatcherIntegrationTests {
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
-        await confirmation { confirm in
-            let watcher = FileWatcher(path: file) {
-                confirm()
-            }
-
-            // 初期化完了を待つ
-            try? await Task.sleep(for: .seconds(0.3))
-
-            // ファイル内容を変更
-            try? "graph TD; A-->C".write(to: file, atomically: true, encoding: .utf8)
-
-            // コールバック発火を待つ
-            try? await Task.sleep(for: .seconds(3))
-            watcher.stop()
+        let changed = TestFlag()
+        let watcher = FileWatcher(path: file) {
+            changed.isSet = true
         }
+
+        // 初期化完了を待つ
+        try? await Task.sleep(for: .seconds(0.3))
+
+        // ファイル内容を変更
+        try "graph TD; A-->C".write(to: file, atomically: true, encoding: .utf8)
+
+        // コールバック発火を待つ（ポーリングで CI 遅延に対応）
+        await waitUntil { changed.isSet }
+        #expect(changed.isSet)
+        watcher.stop()
     }
 
     @Test(.timeLimit(.minutes(1)))
@@ -33,21 +33,21 @@ struct FileWatcherIntegrationTests {
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
-        await confirmation { confirm in
-            let watcher = FileWatcher(path: file) {
-                confirm()
-            }
-
-            // 初期化完了を待つ
-            try? await Task.sleep(for: .seconds(0.3))
-
-            // ファイルを削除
-            try? FileManager.default.removeItem(at: file)
-
-            // コールバック発火を待つ
-            try? await Task.sleep(for: .seconds(3))
-            watcher.stop()
+        let changed = TestFlag()
+        let watcher = FileWatcher(path: file) {
+            changed.isSet = true
         }
+
+        // 初期化完了を待つ
+        try? await Task.sleep(for: .seconds(0.3))
+
+        // ファイルを削除
+        try FileManager.default.removeItem(at: file)
+
+        // コールバック発火を待つ（ポーリングで CI 遅延に対応）
+        await waitUntil { changed.isSet }
+        #expect(changed.isSet)
+        watcher.stop()
     }
 
     @Test(.timeLimit(.minutes(1)))
@@ -56,23 +56,23 @@ struct FileWatcherIntegrationTests {
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
-        await confirmation { confirm in
-            let watcher = FileWatcher(path: file) {
-                confirm()
-            }
-
-            // 初期化完了を待つ
-            try? await Task.sleep(for: .seconds(0.3))
-
-            // アトミック保存（一時ファイル → rename）をシミュレート
-            let tmpFile = tmp.url.appendingPathComponent(".test.mmd.tmp")
-            try? "graph TD; X-->Y".write(to: tmpFile, atomically: false, encoding: .utf8)
-            _ = try? FileManager.default.replaceItemAt(file, withItemAt: tmpFile)
-
-            // コールバック発火を待つ
-            try? await Task.sleep(for: .seconds(3))
-            watcher.stop()
+        let changed = TestFlag()
+        let watcher = FileWatcher(path: file) {
+            changed.isSet = true
         }
+
+        // 初期化完了を待つ
+        try? await Task.sleep(for: .seconds(0.3))
+
+        // アトミック保存（一時ファイル → rename）をシミュレート
+        let tmpFile = tmp.url.appendingPathComponent(".test.mmd.tmp")
+        try "graph TD; X-->Y".write(to: tmpFile, atomically: false, encoding: .utf8)
+        _ = try FileManager.default.replaceItemAt(file, withItemAt: tmpFile)
+
+        // コールバック発火を待つ（ポーリングで CI 遅延に対応）
+        await waitUntil { changed.isSet }
+        #expect(changed.isSet)
+        watcher.stop()
     }
 
     /// 削除 → 同名再作成後の変更でもコールバックが発火することを検証する。
