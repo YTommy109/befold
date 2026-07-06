@@ -12,8 +12,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "befold",
-            path: "mmdview",
-            exclude: ["Info.plist", "mmdview.entitlements", "Resources/__tests__"],
+            path: "befold",
+            exclude: ["Info.plist", "befold.entitlements", "Resources/__tests__"],
             resources: [
                 .process("Resources/Localizable.xcstrings"),
                 .copy("Resources/AppIcon.icns"),
@@ -34,7 +34,7 @@ let package = Package(
         .testTarget(
             name: "befoldTests",
             dependencies: ["befold"],
-            path: "mmdviewTests",
+            path: "befoldTests",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
             ]
