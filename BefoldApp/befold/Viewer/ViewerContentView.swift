@@ -16,6 +16,7 @@ struct ViewerContentView: View {
                 content: store.content,
                 fileType: store.fileType,
                 isDeleted: store.isDeleted,
+                filePath: store.filePath,
                 initialZoom: initialZoom,
                 onZoomChanged: onZoomChanged,
                 onOpenReference: onOpenReference,

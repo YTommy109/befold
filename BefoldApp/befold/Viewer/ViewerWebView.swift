@@ -7,6 +7,8 @@ struct ViewerWebView: NSViewRepresentable {
     let content: String
     let fileType: FileType
     let isDeleted: Bool
+    /// レンダリング対象のファイルパス。HTML ファイルは loadFileURL による直接ロードに使う。
+    let filePath: URL?
     /// ロード時に JS へ注入するファイル毎の初期倍率。
     let initialZoom: Double
     /// JS 側で倍率が変わったときに呼ばれる。
@@ -72,7 +74,7 @@ struct ViewerWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onZoomChanged = onZoomChanged
         context.coordinator.onOpenReference = onOpenReference
-        context.coordinator.updateContent(content, fileType: fileType, isDeleted: isDeleted)
+        context.coordinator.updateContent(content, fileType: fileType, isDeleted: isDeleted, filePath: filePath)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -118,6 +120,8 @@ struct ViewerWebView: NSViewRepresentable {
         private var lastRenderedContent: String?
         private var lastRenderedFileType: FileType?
         private var lastWasDeleted: Bool?
+        private var isDirectHTMLMode = false
+        private var lastDirectHTMLPath: URL?
 
         // MARK: - WKScriptMessageHandler
 
@@ -160,15 +164,57 @@ struct ViewerWebView: NSViewRepresentable {
             }
         }
 
-        func updateContent(_ content: String, fileType: FileType, isDeleted: Bool) {
+        func updateContent(_ content: String, fileType: FileType, isDeleted: Bool, filePath: URL?) {
             let doUpdate = { [weak self] in
                 guard let self, let webView else { return }
 
                 if isDeleted {
+                    // 削除状態は常に viewer.html モードで表示する
+                    if isDirectHTMLMode {
+                        isDirectHTMLMode = false
+                        lastDirectHTMLPath = nil
+                        reloadViewerHTML(webView: webView) {
+                            webView.evaluateJavaScript(ViewerBridge.showDeletedBannerScript)
+                        }
+                        return
+                    }
                     if lastWasDeleted != true {
                         webView.evaluateJavaScript(ViewerBridge.showDeletedBannerScript)
                         lastWasDeleted = true
                     }
+                    return
+                }
+
+                // HTML レンダリング表示: loadFileURL で直接ロード
+                if fileType == .html, let filePath {
+                    lastWasDeleted = false
+                    let pathChanged = filePath != lastDirectHTMLPath
+                    let contentChanged = content != lastRenderedContent
+                    guard !isDirectHTMLMode || pathChanged || contentChanged else { return }
+                    lastRenderedContent = content
+                    lastRenderedFileType = fileType
+                    lastDirectHTMLPath = filePath
+                    isDirectHTMLMode = true
+                    isReady = false
+                    webView.loadFileURL(filePath, allowingReadAccessTo: filePath.deletingLastPathComponent())
+                    return
+                }
+
+                // 直接 HTML モードから viewer.html モードへの復帰
+                if isDirectHTMLMode {
+                    isDirectHTMLMode = false
+                    lastDirectHTMLPath = nil
+                    lastRenderedContent = nil
+                    lastRenderedFileType = nil
+                    reloadViewerHTML(webView: webView) {
+                        // viewer.html ロード完了後にコンテンツを描画
+                        guard let script = ViewerBridge.renderScript(content: content, fileType: fileType)
+                        else { return }
+                        webView.evaluateJavaScript(script)
+                    }
+                    lastWasDeleted = false
+                    lastRenderedContent = content
+                    lastRenderedFileType = fileType
                     return
                 }
 
@@ -193,6 +239,15 @@ struct ViewerWebView: NSViewRepresentable {
                 doUpdate()
             } else {
                 pendingUpdate = doUpdate
+            }
+        }
+
+        private func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
+            isReady = false
+            pendingUpdate = completion
+            if let htmlURL = Bundle.l10n.url(forResource: "viewer", withExtension: "html") {
+                let resourceDir = htmlURL.deletingLastPathComponent()
+                webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
             }
         }
     }
