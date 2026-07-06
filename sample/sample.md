@@ -1,6 +1,6 @@
 # Markdown サンプル
 
-mmdview の Markdown プレビュー機能を確認するためのサンプルファイル。
+befold の Markdown プレビュー機能を確認するためのサンプルファイル。
 
 ## Mermaid ダイアグラム
 
@@ -63,7 +63,7 @@ final class ViewerStore {
 
 ## 番号付き箇条書き
 
-1. `.mmd` または `.md` ファイルを mmdview で開く
+1. `.mmd` または `.md` ファイルを befold で開く
 2. エディタでファイルを編集して保存する
 3. プレビューが自動的に更新されるのを確認する
 
