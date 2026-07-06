@@ -339,8 +339,14 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     /// Toolbar > ソース表示トグル。レンダリング表示とソース表示を切り替える。
     @objc func toggleSourceView(_ sender: Any?) {
         isSourceMode.toggle()
-        let mode: ViewerBridge.ViewMode = isSourceMode ? .source : .rendered
-        webViewProxy.webView?.evaluateJavaScript(ViewerBridge.viewModeScript(mode))
+        store.isSourceMode = isSourceMode
+        if !webViewProxy.isDirectHTMLMode {
+            let mode: ViewerBridge.ViewMode = isSourceMode ? .source : .rendered
+            webViewProxy.webView?.evaluateJavaScript(ViewerBridge.viewModeScript(mode))
+        }
+        // HTML 直接ロードモードの場合、isSourceMode の変更が store 経由で
+        // SwiftUI の更新サイクルをトリガーし、ViewerWebView.updateNSView →
+        // updateContent が呼ばれ、自動的にモード切替が行われる。
         updateSourceToggleAppearance()
     }
 
@@ -364,7 +370,10 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private func resetSourceMode() {
         guard isSourceMode else { return }
         isSourceMode = false
-        webViewProxy.webView?.evaluateJavaScript(ViewerBridge.viewModeScript(.rendered))
+        store.isSourceMode = false
+        if !webViewProxy.isDirectHTMLMode {
+            webViewProxy.webView?.evaluateJavaScript(ViewerBridge.viewModeScript(.rendered))
+        }
         updateSourceToggleAppearance()
     }
 

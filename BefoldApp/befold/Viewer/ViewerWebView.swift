@@ -9,6 +9,8 @@ struct ViewerWebView: NSViewRepresentable {
     let isDeleted: Bool
     /// レンダリング対象のファイルパス。HTML ファイルは loadFileURL による直接ロードに使う。
     let filePath: URL?
+    /// ソース表示中かどうか。true の間 HTML ファイルも viewer.html でレンダリングする。
+    let isSourceMode: Bool
     /// ロード時に JS へ注入するファイル毎の初期倍率。
     let initialZoom: Double
     /// JS 側で倍率が変わったときに呼ばれる。
@@ -76,7 +78,13 @@ struct ViewerWebView: NSViewRepresentable {
         context.coordinator.onZoomChanged = onZoomChanged
         context.coordinator.onOpenReference = onOpenReference
         context.coordinator.initialPageZoom = initialZoom
-        context.coordinator.updateContent(content, fileType: fileType, isDeleted: isDeleted, filePath: filePath)
+        context.coordinator.updateContent(
+            content,
+            fileType: fileType,
+            isDeleted: isDeleted,
+            filePath: filePath,
+            isSourceMode: isSourceMode
+        )
     }
 
     func makeCoordinator() -> Coordinator {
@@ -175,7 +183,13 @@ struct ViewerWebView: NSViewRepresentable {
             }
         }
 
-        func updateContent(_ content: String, fileType: FileType, isDeleted: Bool, filePath: URL?) {
+        func updateContent(
+            _ content: String,
+            fileType: FileType,
+            isDeleted: Bool,
+            filePath: URL?,
+            isSourceMode: Bool
+        ) {
             let doUpdate = { [weak self] in
                 guard let self, let webView else { return }
 
@@ -198,7 +212,7 @@ struct ViewerWebView: NSViewRepresentable {
                 }
 
                 // HTML レンダリング表示: loadFileURL で直接ロード
-                if fileType == .html, let filePath {
+                if fileType == .html, !isSourceMode, let filePath {
                     lastWasDeleted = false
                     let pathChanged = filePath != lastDirectHTMLPath
                     let contentChanged = content != lastRenderedContent

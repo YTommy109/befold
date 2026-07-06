@@ -28,6 +28,9 @@ final class ViewerStore {
     /// true の間 content は更新されない(バイナリを丸ごと文字列化しない)。
     private(set) var isUnsupported: Bool = false
     private(set) var filePath: URL?
+    /// ソース表示中かどうか。HTML 直接ロードモードでは、変更が SwiftUI の
+    /// 更新サイクルをトリガーし ViewerWebView.updateContent での分岐に使われる。
+    var isSourceMode: Bool = false
 
     /// 開いているファイルが rename / move されたときに新 URL を通知する。
     /// ウィンドウ側がタイトル・representedURL・セッション記録を更新するために使う。
