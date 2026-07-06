@@ -6,4 +6,6 @@ import WebKit
 @MainActor
 final class WebViewProxy {
     weak var webView: WKWebView?
+    /// HTML ファイルが loadFileURL で直接ロードされているか（viewer.html の JS ズームが使えないモード）。
+    var isDirectHTMLMode = false
 }

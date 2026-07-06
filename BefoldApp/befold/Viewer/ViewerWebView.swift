@@ -61,6 +61,7 @@ struct ViewerWebView: NSViewRepresentable {
         // WKWebView の背景を透明にする（公開 API がないため KVC を使用）
         webView.setValue(false, forKey: "drawsBackground")
         context.coordinator.webView = webView
+        context.coordinator.webViewProxy = webViewProxy
         webViewProxy.webView = webView
 
         if let htmlURL = Bundle.l10n.url(forResource: "viewer", withExtension: "html") {
@@ -74,6 +75,7 @@ struct ViewerWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onZoomChanged = onZoomChanged
         context.coordinator.onOpenReference = onOpenReference
+        context.coordinator.initialPageZoom = initialZoom
         context.coordinator.updateContent(content, fileType: fileType, isDeleted: isDeleted, filePath: filePath)
     }
 
@@ -113,8 +115,13 @@ struct ViewerWebView: NSViewRepresentable {
     /// HTML ロード完了の検知と、コンテンツ差分に基づく再描画制御を行う。
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var webView: WKWebView?
+        var webViewProxy: WebViewProxy?
         var onZoomChanged: (@MainActor (Double) -> Void)?
         var onOpenReference: (@MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void)?
+        /// updateNSView から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
+        var initialPageZoom: Double = 1.0
+        /// HTML 直接ロード完了後に適用する pageZoom。適用後は nil に戻す。
+        var pendingPageZoom: Double?
         private var isReady = false
         private var pendingUpdate: (() -> Void)?
         private var lastRenderedContent: String?
@@ -146,6 +153,10 @@ struct ViewerWebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             isReady = true
+            if isDirectHTMLMode, let zoom = pendingPageZoom {
+                webView.pageZoom = zoom
+                pendingPageZoom = nil
+            }
             pendingUpdate?()
             pendingUpdate = nil
         }
@@ -172,6 +183,7 @@ struct ViewerWebView: NSViewRepresentable {
                     // 削除状態は常に viewer.html モードで表示する
                     if isDirectHTMLMode {
                         isDirectHTMLMode = false
+                        webViewProxy?.isDirectHTMLMode = false
                         lastDirectHTMLPath = nil
                         reloadViewerHTML(webView: webView) {
                             webView.evaluateJavaScript(ViewerBridge.showDeletedBannerScript)
@@ -195,7 +207,9 @@ struct ViewerWebView: NSViewRepresentable {
                     lastRenderedFileType = fileType
                     lastDirectHTMLPath = filePath
                     isDirectHTMLMode = true
+                    webViewProxy?.isDirectHTMLMode = true
                     isReady = false
+                    pendingPageZoom = initialPageZoom
                     webView.loadFileURL(filePath, allowingReadAccessTo: filePath.deletingLastPathComponent())
                     return
                 }
@@ -203,6 +217,7 @@ struct ViewerWebView: NSViewRepresentable {
                 // 直接 HTML モードから viewer.html モードへの復帰
                 if isDirectHTMLMode {
                     isDirectHTMLMode = false
+                    webViewProxy?.isDirectHTMLMode = false
                     lastDirectHTMLPath = nil
                     lastRenderedContent = nil
                     lastRenderedFileType = nil

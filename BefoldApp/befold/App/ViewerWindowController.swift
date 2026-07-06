@@ -286,19 +286,39 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Menu Actions
 
-    /// View > Zoom In。WebView 内の JS ズーム実装を呼び出す。
+    /// View > Zoom In。HTML 直接ロード時は WKWebView の pageZoom を、それ以外は JS ズーム実装を使う。
     @objc func zoomIn(_ sender: Any?) {
-        webViewProxy.webView?.evaluateJavaScript(ViewerBridge.zoomInScript)
+        guard let webView = webViewProxy.webView else { return }
+        if webViewProxy.isDirectHTMLMode {
+            let newZoom = min(ZoomStore.maxZoom, webView.pageZoom + 0.1)
+            webView.pageZoom = newZoom
+            zoomStore.setZoom(newZoom, for: fileURL)
+        } else {
+            webView.evaluateJavaScript(ViewerBridge.zoomInScript)
+        }
     }
 
     /// View > Zoom Out。
     @objc func zoomOut(_ sender: Any?) {
-        webViewProxy.webView?.evaluateJavaScript(ViewerBridge.zoomOutScript)
+        guard let webView = webViewProxy.webView else { return }
+        if webViewProxy.isDirectHTMLMode {
+            let newZoom = max(ZoomStore.minZoom, webView.pageZoom - 0.1)
+            webView.pageZoom = newZoom
+            zoomStore.setZoom(newZoom, for: fileURL)
+        } else {
+            webView.evaluateJavaScript(ViewerBridge.zoomOutScript)
+        }
     }
 
     /// View > Actual Size。倍率を 100% に戻す。
     @objc func resetZoom(_ sender: Any?) {
-        webViewProxy.webView?.evaluateJavaScript(ViewerBridge.zoomResetScript)
+        guard let webView = webViewProxy.webView else { return }
+        if webViewProxy.isDirectHTMLMode {
+            webView.pageZoom = ZoomStore.defaultZoom
+            zoomStore.setZoom(ZoomStore.defaultZoom, for: fileURL)
+        } else {
+            webView.evaluateJavaScript(ViewerBridge.zoomResetScript)
+        }
     }
 
     /// File > Print…。WebView の描画内容を印刷する。
