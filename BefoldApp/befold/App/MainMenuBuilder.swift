@@ -171,9 +171,9 @@ enum MainMenuBuilder {
         let toggleSidebar = menu.addItem(
             withTitle: String(localized: "menu.view.toggleSidebar", bundle: .l10n),
             action: #selector(NSSplitViewController.toggleSidebar(_:)),
-            keyEquivalent: "s"
+            keyEquivalent: "b"
         )
-        toggleSidebar.keyEquivalentModifierMask = [.command, .option]
+        toggleSidebar.keyEquivalentModifierMask = [.command]
         menu.addItem(.separator())
         let fullScreen = menu.addItem(
             withTitle: String(localized: "menu.view.enterFullScreen", bundle: .l10n),
