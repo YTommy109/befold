@@ -1,12 +1,12 @@
 # Node.js (Jest)
-MmdviewApp/node_modules/
+BefoldApp/node_modules/
 
 # Swift / Xcode
-MmdviewApp/.build/
-MmdviewApp/build/
-MmdviewApp/DerivedData/
-MmdviewApp/mmdview.xcodeproj/xcuserdata/
-MmdviewApp/mmdview.xcodeproj/project.xcworkspace/xcuserdata/
+BefoldApp/.build/
+BefoldApp/build/
+BefoldApp/DerivedData/
+BefoldApp/befold.xcodeproj/xcuserdata/
+BefoldApp/befold.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcuserstate
 *.profraw
 
