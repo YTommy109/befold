@@ -257,10 +257,10 @@ struct FileWatcherIntegrationTests {
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
-        nonisolated(unsafe) var callbackFired = false
+        let callbackFired = TestFlag()
 
         let watcher = FileWatcher(path: file) {
-            callbackFired = true
+            callbackFired.isSet = true
         }
 
         // 初期化完了を待つ
@@ -272,20 +272,51 @@ struct FileWatcherIntegrationTests {
 
         // 十分待ってもコールバックが呼ばれないこと
         try? await Task.sleep(for: .seconds(1))
-        #expect(!callbackFired)
+        #expect(!callbackFired.isSet)
     }
 }
 
 /// テスト内で @Sendable クロージャに捕捉された後に安全に書き換えるための可変フラグ。
 /// 参照型にすることで捕捉した参照自体は不変のまま中身だけを更新でき、
 /// 「sendable closure に捕捉した var の後続変更」警告を避ける。
+/// コールバックスレッドとテスト本体（別スレッド）から無同期でアクセスされるため、
+/// lock で読み書きを直列化してデータレースを防ぐ。
 private final class TestFlag: @unchecked Sendable {
-    var isSet = false
+    private let lock = NSLock()
+    private var value = false
+
+    var isSet: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            value = newValue
+        }
+    }
 }
 
 /// rename コールバックで受け取った URL を @Sendable クロージャ越しに保持するための可変ボックス。
+/// TestFlag と同様、コールバックスレッドとテスト本体から無同期でアクセスされるため lock で保護する。
 private final class RenamedBox: @unchecked Sendable {
-    var url: URL?
+    private let lock = NSLock()
+    private var value: URL?
+
+    var url: URL? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            value = newValue
+        }
+    }
 }
 
 /// 条件が true になるまでポーリングで待機する。CI 環境での DispatchSource イベント遅延に対応。
