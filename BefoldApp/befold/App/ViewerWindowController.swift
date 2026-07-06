@@ -126,7 +126,13 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         )
         let fileListView = FileListView(
             model: fileListModel,
-            onSelect: { [weak self] url in self?.switchFile(to: url) }
+            onSelect: { [weak self] url in self?.switchFile(to: url) },
+            onNavigate: { [weak self] url in self?.navigateToFolder(url) },
+            onSortOrderChanged: { [weak self] order in
+                guard let self else { return }
+                fileListModel.sortOrder = order
+                refreshFileList()
+            }
         )
         return ViewerSplitViewController(sidebar: fileListView, content: contentView)
     }
