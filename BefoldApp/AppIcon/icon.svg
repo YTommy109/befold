@@ -1,29 +1,69 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1d4ed8"/>
-      <stop offset="45%" stop-color="#7c3aed"/>
-      <stop offset="100%" stop-color="#0891b2"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2c3d5a"/>
+      <stop offset="0.55" stop-color="#16243e"/>
+      <stop offset="1" stop-color="#0a1120"/>
     </linearGradient>
-    <linearGradient id="node" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f0abfc"/>
-      <stop offset="100%" stop-color="#a5f3fc"/>
+    <radialGradient id="glow" cx="0.5" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#8ea8ff" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#8ea8ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7f9fc"/>
+      <stop offset="1" stop-color="#dbe4f0"/>
     </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2f6fc"/>
+      <stop offset="0.5" stop-color="#b9c6d8"/>
+      <stop offset="1" stop-color="#6c7c93"/>
+    </linearGradient>
+    <radialGradient id="glass" cx="0.36" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="0.55" stop-color="#cfe0ff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="handle" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e2e9f2"/>
+      <stop offset="1" stop-color="#586780"/>
+    </linearGradient>
+    <clipPath id="lensClip">
+      <circle cx="286" cy="300" r="96"/>
+    </clipPath>
   </defs>
-  <!-- Background -->
-  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
-  <!-- Subtle top highlight -->
-  <rect x="0" y="0" width="512" height="256" rx="112" fill="white" opacity="0.04"/>
-  <!-- Edge 1: top node → middle node (line + arrowhead) -->
-  <line x1="256" y1="192" x2="256" y2="220" stroke="white" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
-  <polygon points="242,220 270,220 256,248" fill="white" opacity="0.85"/>
-  <!-- Edge 2: middle node → bottom node (line + arrowhead) -->
-  <line x1="256" y1="332" x2="256" y2="360" stroke="white" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
-  <polygon points="242,360 270,360 256,388" fill="white" opacity="0.85"/>
-  <!-- Top node -->
-  <rect x="148" y="108" width="216" height="82" rx="22" fill="url(#node)"/>
-  <!-- Middle node -->
-  <rect x="148" y="248" width="216" height="82" rx="22" fill="url(#node)" opacity="0.88"/>
-  <!-- Bottom node -->
-  <rect x="148" y="388" width="216" height="82" rx="22" fill="url(#node)" opacity="0.76"/>
+
+  <!-- Background squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+
+  <!-- File stack behind (implies many files) -->
+  <g transform="rotate(-8 240 210)">
+    <rect x="150" y="96" width="185" height="150" rx="20" fill="url(#card)" opacity="0.55"/>
+  </g>
+  <g transform="rotate(6 250 200)">
+    <rect x="168" y="104" width="185" height="150" rx="20" fill="url(#card)" opacity="0.8"/>
+  </g>
+
+  <!-- Front card: diagram (top) + source code (bottom) -->
+  <rect x="162" y="120" width="200" height="230" rx="22" fill="url(#card)"/>
+  <circle cx="212" cy="168" r="16" fill="#7c9cff"/>
+  <circle cx="286" cy="168" r="16" fill="#5eead4"/>
+  <circle cx="249" cy="214" r="16" fill="#a78bfa"/>
+  <path d="M212 184 L243 200 M286 184 L255 200" stroke="#94a3b8" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <rect x="186" y="262" width="110" height="11" rx="5.5" fill="#f472b6"/>
+  <rect x="186" y="286" width="140" height="11" rx="5.5" fill="#38bdf8"/>
+  <rect x="186" y="310" width="86" height="11" rx="5.5" fill="#a3e635"/>
+
+  <!-- Magnifier (hero) -->
+  <rect x="376" y="352" width="40" height="116" rx="20" transform="rotate(-45 396 410)" fill="url(#handle)"/>
+  <!-- Magnified content seen through the glass -->
+  <g clip-path="url(#lensClip)">
+    <rect x="190" y="204" width="192" height="192" fill="#eef3fb"/>
+    <rect x="214" y="250" width="150" height="18" rx="9" fill="#f472b6"/>
+    <rect x="214" y="288" width="190" height="18" rx="9" fill="#38bdf8"/>
+    <rect x="214" y="326" width="120" height="18" rx="9" fill="#a3e635"/>
+  </g>
+  <circle cx="286" cy="300" r="96" fill="url(#glass)" stroke="url(#rim)" stroke-width="22"/>
+  <circle cx="286" cy="300" r="85" fill="none" stroke="#0a1120" stroke-width="2" opacity="0.28"/>
+  <path d="M234 268 A66 66 0 0 1 312 236" stroke="#ffffff" stroke-width="11" stroke-linecap="round" fill="none" opacity="0.6"/>
 </svg>
