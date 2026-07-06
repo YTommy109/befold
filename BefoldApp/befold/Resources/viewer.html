@@ -31,6 +31,9 @@
   <script src="markdown-it.min.js"></script>
   <script src="highlight.min.js"></script>
   <script>
+  // Swift ブリッジメッセージ名（ViewerBridge.swift と同期）
+  const _MSG_REFERENCE_ACTIVATED = 'referenceActivated';
+
   // --- Zoom ---
   var _mmdZoom = ZOOM_DEFAULT;
   // 直近で postMessage した倍率。init 時点の値で初期化し、実際に変化した時だけ通知する

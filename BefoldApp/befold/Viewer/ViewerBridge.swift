@@ -7,6 +7,10 @@ enum ViewerBridge {
     /// JS 側で全体ズーム倍率が変わったときに postMessage されるメッセージハンドラ名。
     static let zoomChangedMessageName = "zoomChanged"
 
+    /// cmd+click でリンクやパス参照がアクティベートされたときに postMessage されるメッセージハンドラ名。
+    /// payload: { href: String, isExternal: Bool, newWindow: Bool }
+    static let referenceActivatedMessageName = "referenceActivated"
+
     static let zoomInScript = "_mmdZoomIn()"
     static let zoomOutScript = "_mmdZoomOut()"
     static let zoomResetScript = "_mmdZoomReset()"
