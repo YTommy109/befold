@@ -48,8 +48,8 @@ enum DirectoryLister {
         var entries: [FileListEntry] = []
 
         let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
-        let dir = directory.standardizedFileURL
-        if dir != home {
+        let parent = directory.deletingLastPathComponent().standardizedFileURL
+        if parent == home || parent.path.hasPrefix(home.path + "/") {
             entries.append(FileListEntry(url: directory.deletingLastPathComponent(), kind: .parentNavigation))
         }
 
@@ -65,5 +65,35 @@ enum DirectoryLister {
         }
 
         return entries
+    }
+
+    static func containsSupportedFile(in directory: URL) -> Bool {
+        firstSupportedFile(in: directory) != nil
+    }
+
+    static func firstSupportedFile(in directory: URL) -> URL? {
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+        let extensions = FileType.allExtensions
+        return contents
+            .filter { url in
+                let isDir = (try? url.resourceValues(
+                    forKeys: [.isDirectoryKey]
+                ))?.isDirectory ?? false
+                return !isDir && extensions.contains(
+                    url.pathExtension.lowercased()
+                )
+            }
+            .sorted {
+                $0.lastPathComponent.localizedStandardCompare(
+                    $1.lastPathComponent
+                ) == .orderedAscending
+            }
+            .first
     }
 }

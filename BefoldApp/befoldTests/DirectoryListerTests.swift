@@ -72,7 +72,8 @@ struct DirectoryListerTests {
 
     @Test("listEntries はフォルダーと対応ファイルを返し、非対応ファイルを除外する")
     func listEntriesReturnsFoldersAndSupportedFiles() throws {
-        let tmp = try TempDir()
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let tmp = try TempDir(base: home)
         defer { withExtendedLifetime(tmp) {} }
         try FileManager.default.createDirectory(
             at: tmp.url.appendingPathComponent("subdir"),
@@ -135,14 +136,25 @@ struct DirectoryListerTests {
         #expect(!entries.contains { $0.kind == .parentNavigation })
     }
 
-    @Test("ホームディレクトリ以外では parentNavigation が先頭に含まれる")
+    @Test("ホームディレクトリ配下では parentNavigation が先頭に含まれる")
     func listEntriesHasParentBelowHome() throws {
-        let tmp = try TempDir()
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let tmp = try TempDir(base: home)
         defer { withExtendedLifetime(tmp) {} }
 
         let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
 
         #expect(entries.first?.kind == .parentNavigation)
         #expect(entries.first?.url == tmp.url.deletingLastPathComponent())
+    }
+
+    @Test("ホームディレクトリ外では parentNavigation が含まれない")
+    func listEntriesNoParentOutsideHome() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+
+        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
+
+        #expect(!entries.contains { $0.kind == .parentNavigation })
     }
 }

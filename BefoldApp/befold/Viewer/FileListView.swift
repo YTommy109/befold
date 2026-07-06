@@ -24,6 +24,7 @@ struct FileListView: View {
     let onSelect: (URL) -> Void
     let onNavigate: (URL) -> Void
     let onSortOrderChanged: (SortOrder) -> Void
+    let onOpenInNewWindow: (URL) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,36 +49,40 @@ struct FileListView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .help(model.sortOrder == .foldersFirst ? "アルファベット順" : "フォルダー優先")
+            .help(model.sortOrder == .foldersFirst
+                ? String(localized: "sidebar.sort.alphabetical", bundle: .l10n)
+                : String(localized: "sidebar.sort.foldersFirst", bundle: .l10n))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
     }
 
     private var entryList: some View {
-        Group {
+        List(model.entries, selection: $model.selection) { entry in
+            // 行インセットをゼロにして同等のパディングを行コンテンツ側へ移し、
+            // contentShape が行の全幅を覆うようにする。インセット部分をダブル
+            // クリックしたとき選択だけされて移動しない取りこぼしを防ぐ。
+            entryRow(entry)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .listRowInsets(EdgeInsets())
+                .contentShape(.rect)
+                .contextMenu { contextMenuItems(for: entry) }
+                .simultaneousGesture(singleTapGesture(for: entry))
+                .simultaneousGesture(doubleTapGesture(for: entry))
+        }
+        .overlay {
             if model.entries.allSatisfy({ $0.kind == .parentNavigation }) {
                 ContentUnavailableView(
-                    "対応ファイルがありません",
+                    String(localized: "sidebar.empty", bundle: .l10n),
                     systemImage: "doc.questionmark",
                     description: Text(model.currentDirectory.lastPathComponent)
                 )
-            } else {
-                List(model.entries, selection: $model.selection) { entry in
-                    entryRow(entry)
-                        .contextMenu { contextMenuItems(for: entry) }
-                }
-                .onChange(of: model.selection) { _, newValue in
-                    if let url = newValue,
-                       model.entries.first(where: { $0.id == url })?.kind == .file
-                    {
-                        onSelect(url)
-                    }
-                }
-                .onKeyPress { keyPress in
-                    handleKeyPress(keyPress)
-                }
+                .allowsHitTesting(false)
             }
+        }
+        .onKeyPress { keyPress in
+            handleKeyPress(keyPress)
         }
     }
 
@@ -85,32 +90,44 @@ struct FileListView: View {
     private func entryRow(_ entry: FileListEntry) -> some View {
         switch entry.kind {
         case .parentNavigation:
-            Label {
-                Text("..")
-                    .foregroundStyle(.secondary)
-            } icon: {
-                Image(systemName: "arrow.up.doc")
-                    .foregroundStyle(.secondary)
+            HStack {
+                Label {
+                    Text("..")
+                        .foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "arrow.up.doc")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
             }
         case .folder:
-            Label {
-                Text(entry.url.lastPathComponent)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            } icon: {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path))
-                    .resizable()
-                    .frame(width: 16, height: 16)
+            HStack {
+                Label {
+                    Text(entry.url.lastPathComponent)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } icon: {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path))
+                        .resizable()
+                        .frame(width: 16, height: 16)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(.tertiary)
+                    .font(.caption)
             }
         case .file:
-            Label {
-                Text(entry.url.lastPathComponent)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            } icon: {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path))
-                    .resizable()
-                    .frame(width: 16, height: 16)
+            HStack {
+                Label {
+                    Text(entry.url.lastPathComponent)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } icon: {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path))
+                        .resizable()
+                        .frame(width: 16, height: 16)
+                }
+                Spacer()
             }
         }
     }
@@ -120,27 +137,36 @@ struct FileListView: View {
     @ViewBuilder
     private func contextMenuItems(for entry: FileListEntry) -> some View {
         if entry.kind != .parentNavigation {
-            Button("コピー") { copyFileReference(entry.url) }
+            Button(String(localized: "sidebar.context.copy", bundle: .l10n)) {
+                copyFileReference(entry.url)
+            }
             openInNewWindowButton(for: entry)
-            Button("パスをコピーする") { copyPath(entry.url) }
-            Button("Finder で開く") { revealInFinder(entry.url) }
+            Button(String(localized: "sidebar.context.copyPath", bundle: .l10n)) {
+                copyPath(entry.url)
+            }
+            Button(String(localized: "sidebar.context.revealInFinder", bundle: .l10n)) {
+                revealInFinder(entry.url)
+            }
         }
     }
 
     @ViewBuilder
     private func openInNewWindowButton(for entry: FileListEntry) -> some View {
+        let label = String(
+            localized: "sidebar.context.openInNewWindow",
+            bundle: .l10n
+        )
         if entry.kind == .folder {
-            let firstFile = DirectoryLister.listEntries(in: entry.url, sortOrder: .foldersFirst)
-                .first { $0.kind == .file }
-            Button("新しいウィンドウで開く") {
-                if let file = firstFile {
-                    AppDelegate.shared?.openViewer(for: file.url)
+            let hasFile = DirectoryLister.containsSupportedFile(in: entry.url)
+            Button(label) {
+                if let first = DirectoryLister.firstSupportedFile(in: entry.url) {
+                    onOpenInNewWindow(first)
                 }
             }
-            .disabled(firstFile == nil)
+            .disabled(!hasFile)
         } else {
-            Button("新しいウィンドウで開く") {
-                AppDelegate.shared?.openViewer(for: entry.url)
+            Button(label) {
+                onOpenInNewWindow(entry.url)
             }
         }
     }
@@ -159,6 +185,36 @@ struct FileListView: View {
 
     private func revealInFinder(_ url: URL) {
         NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    // MARK: - Click
+
+    /// シングルクリックで行を選択し、ファイルなら開く。
+    /// List の選択バインディング任せにせず自前で選択を書くことで、
+    /// プログラム的な選択更新とクリックが競合しても確実に反応させる。
+    private func singleTapGesture(
+        for entry: FileListEntry
+    ) -> some Gesture {
+        TapGesture().onEnded {
+            model.selection = entry.id
+            if entry.kind == .file {
+                onSelect(entry.url)
+            }
+        }
+    }
+
+    private func doubleTapGesture(
+        for entry: FileListEntry
+    ) -> some Gesture {
+        TapGesture(count: 2).onEnded {
+            if entry.kind == .parentNavigation || entry.kind == .folder {
+                // List が 2 クリック目のイベント処理を終える前に entries を
+                // 差し替えないよう、次のランループまで遅延する(固定待ちは不要)。
+                DispatchQueue.main.async {
+                    onNavigate(entry.url)
+                }
+            }
+        }
     }
 
     // MARK: - Keyboard Navigation
@@ -215,7 +271,8 @@ struct FileListView: View {
             onNavigate(entry.url)
             return .handled
         case .file:
-            return .ignored
+            onSelect(entry.url)
+            return .handled
         }
     }
 

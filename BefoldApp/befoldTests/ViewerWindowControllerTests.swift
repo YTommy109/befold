@@ -248,4 +248,148 @@ struct ViewerWindowControllerTests {
         // .swift は isRenderable == false のため、ソース表示トグルが成立せずリセットする。
         #expect(!controller.isSourceMode)
     }
+
+    /// navigateToFolder はホームディレクトリ配下のみ許可するため、システム一時ディレクトリではなく
+    /// ホームディレクトリ配下に一時ディレクトリを作る。
+    private func makeHomeTempDir() throws -> TempDir {
+        try TempDir(base: FileManager.default.homeDirectoryForCurrentUser)
+    }
+
+    @Test("navigateToFolder でカレントディレクトリと一覧が更新される")
+    func navigateToFolderUpdatesCurrentDirectoryAndEntries() throws {
+        let tmp = try makeHomeTempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        _ = try tmp.file(named: "sub/child.mmd", contents: "graph LR;")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+        )
+        defer { controller.close() }
+
+        controller.navigateToFolder(subDir)
+
+        #expect(controller.fileListModel.currentDirectory.standardizedFileURL == subDir.standardizedFileURL)
+        let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
+        #expect(names.contains("child.mmd"))
+    }
+
+    @Test("navigateToFolder で親フォルダーへ移動できる")
+    func navigateToFolderToParentWorks() throws {
+        let tmp = try makeHomeTempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        let file = try tmp.file(named: "sub/child.mmd", contents: "graph TD;")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+        )
+        defer { controller.close() }
+
+        controller.navigateToFolder(tmp.url)
+
+        #expect(controller.fileListModel.currentDirectory.standardizedFileURL == tmp.url.standardizedFileURL)
+    }
+
+    @Test("navigateToFolder はホームディレクトリより上には移動しない")
+    func navigateToFolderRefusesAboveHomeDirectory() throws {
+        let tmp = try makeHomeTempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+        )
+        defer { controller.close() }
+        let before = controller.fileListModel.currentDirectory
+        let aboveHome = FileManager.default.homeDirectoryForCurrentUser
+            .deletingLastPathComponent()
+
+        controller.navigateToFolder(aboveHome)
+
+        #expect(controller.fileListModel.currentDirectory == before)
+    }
+
+    @Test("子フォルダーへの移動ではフォルダーをスキップして最初のファイルが選択される")
+    func navigateToChildSelectsFirstFileSkippingFolders() throws {
+        let tmp = try makeHomeTempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        // フォルダーファースト順ではフォルダーがファイルより先頭に来るため、
+        // 「先頭エントリ」選択だと grandchild が選ばれてしまう配置にする。
+        let grandChild = subDir.appendingPathComponent("grandchild", isDirectory: true)
+        try FileManager.default.createDirectory(at: grandChild, withIntermediateDirectories: true)
+        _ = try tmp.file(named: "sub/child.mmd", contents: "graph LR;")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+        )
+        defer { controller.close() }
+
+        controller.navigateToFolder(subDir)
+
+        #expect(controller.fileListModel.selection?.lastPathComponent == "child.mmd")
+    }
+
+    @Test("子フォルダーへの移動では最初のファイルが表示対象として開かれる")
+    func navigateToChildOpensFirstFile() throws {
+        let tmp = try makeHomeTempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        _ = try tmp.file(named: "sub/child.mmd", contents: "graph LR;")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+        )
+        defer { controller.close() }
+
+        controller.navigateToFolder(subDir)
+
+        #expect(controller.fileURL.lastPathComponent == "child.mmd")
+    }
+
+    @Test("ファイルのない子フォルダーへの移動では何も選択されない")
+    func navigateToChildWithoutFilesClearsSelection() throws {
+        let tmp = try makeHomeTempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        let grandChild = subDir.appendingPathComponent("grandchild", isDirectory: true)
+        try FileManager.default.createDirectory(at: grandChild, withIntermediateDirectories: true)
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+        )
+        defer { controller.close() }
+
+        controller.navigateToFolder(subDir)
+
+        #expect(controller.fileListModel.selection == nil)
+    }
+
+    @Test("親フォルダーへの移動では直前の子フォルダーが選択される")
+    func navigateToParentSelectsPreviousChild() throws {
+        let tmp = try makeHomeTempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        let file = try tmp.file(named: "sub/child.mmd", contents: "graph TD;")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+        )
+        defer { controller.close() }
+
+        controller.navigateToFolder(tmp.url)
+
+        #expect(controller.fileListModel.selection?.lastPathComponent == "sub")
+    }
 }
