@@ -31,6 +31,17 @@ struct ReferenceResolverTests {
         #expect(url.absoluteString == "http://example.com/path")
     }
 
+    @Test("大文字スキームの HTTPS URL を external として解決する")
+    func resolvesUppercaseSchemeAsExternal() {
+        let result = ReferenceResolver.resolve(
+            href: "HTTPS://EXAMPLE.COM/page", baseURL: base
+        )
+        guard case .external = result else {
+            Issue.record("expected .external, got \(result)")
+            return
+        }
+    }
+
     @Test("相対パスを baseURL の親ディレクトリ基準で解決する")
     func resolvesRelativePathAgainstBaseDirectory() {
         let result = ReferenceResolver.resolve(
@@ -67,6 +78,18 @@ struct ReferenceResolverTests {
         #expect(url.path == "/Users/test/docs/file.swift")
     }
 
+    @Test("行:列サフィックスを除去してパスを解決する")
+    func stripsLineColumnSuffix() {
+        let result = ReferenceResolver.resolve(
+            href: "./ViewerStore.swift:12:5", baseURL: base
+        )
+        guard case let .localFile(url) = result else {
+            Issue.record("expected .localFile, got \(result)")
+            return
+        }
+        #expect(url.path == "/Users/test/docs/ViewerStore.swift")
+    }
+
     @Test("絶対パスをそのまま localFile として解決する")
     func resolvesAbsolutePath() {
         let result = ReferenceResolver.resolve(
@@ -77,6 +100,42 @@ struct ReferenceResolverTests {
             return
         }
         #expect(url.path == "/tmp/absolute.md")
+    }
+
+    @Test("パーセントエンコードされた href をデコードして解決する")
+    func resolvesPercentEncodedHref() {
+        let result = ReferenceResolver.resolve(
+            href: "%E8%A8%AD%E8%A8%88%E3%83%A1%E3%83%A2.md", baseURL: base
+        )
+        guard case let .localFile(url) = result else {
+            Issue.record("expected .localFile, got \(result)")
+            return
+        }
+        #expect(url.path == "/Users/test/docs/設計メモ.md")
+    }
+
+    @Test("#fragment を除去してパスを解決する")
+    func stripsFragment() {
+        let result = ReferenceResolver.resolve(
+            href: "./other.md#usage", baseURL: base
+        )
+        guard case let .localFile(url) = result else {
+            Issue.record("expected .localFile, got \(result)")
+            return
+        }
+        #expect(url.path == "/Users/test/docs/other.md")
+    }
+
+    @Test("スラッシュなし・行番号付きのファイル名をローカルパスとして解決する")
+    func resolvesBareFilenameWithLineNumber() {
+        let result = ReferenceResolver.resolve(
+            href: "notes.md:12", baseURL: base
+        )
+        guard case let .localFile(url) = result else {
+            Issue.record("expected .localFile, got \(result)")
+            return
+        }
+        #expect(url.path == "/Users/test/docs/notes.md")
     }
 
     @Test("mailto リンクを unsupported として返す")

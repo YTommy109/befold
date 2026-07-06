@@ -129,7 +129,7 @@
     // (decidePolicyFor が WKWebView のナビゲーションをキャンセルするため)
     if (href.charAt(0) === '#') {
       e.preventDefault();
-      var id = decodeURIComponent(href.slice(1));
+      try { var id = decodeURIComponent(href.slice(1)); } catch (_) { var id = href.slice(1); }
       var el = document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
       return;
@@ -153,7 +153,7 @@
   // 既知の制約: シンタックスハイライトによってトークンが複数の <span> に
   // 分割されている場合、その境界をまたぐパスは検出されない(シンプルな
   // ヒューリスティックとして許容する)。
-  var _PATH_RE = /(?:\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)?/g;
+  var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/g;
 
   function _annotatePathRefs() {
     var blocks = document.querySelectorAll('#diagram-wrap pre code');
@@ -187,7 +187,7 @@
       }
       node.parentNode.replaceChild(frag, node);
     } else if (node.nodeType === 1 && !node.classList.contains('befold-path-ref')) {
-      // ELEMENT_NODE: 子を逆順に走査(replaceChild で兄弟が変わるため)
+      // ELEMENT_NODE: スナップショットを取り順方向に走査(replaceChild で兄弟が変わるため)
       var children = Array.prototype.slice.call(node.childNodes);
       for (var j = 0; j < children.length; j++) {
         _walkTextNodes(children[j]);

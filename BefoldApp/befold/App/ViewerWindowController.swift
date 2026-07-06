@@ -136,7 +136,11 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         case let .external(url):
             NSWorkspace.shared.open(url)
         case let .localFile(url):
-            guard FileManager.default.fileExists(atPath: url.path) else {
+            var isDir: ObjCBool = false
+            guard
+                FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
+                !isDir.boolValue
+            else {
                 showFileNotFoundAlert(path: url.path)
                 return
             }
@@ -203,7 +207,11 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         // 切替はリネームではない。旧ファイルの倍率は保存済みのまま保持し、
         // 新ファイルは自身の保存倍率(なければデフォルト)で表示する。
         applyStoredZoomToWebView()
-        fileListModel.selection = newURL
+        if newURL.deletingLastPathComponent() != oldURL.deletingLastPathComponent() {
+            refreshFileList()
+        } else {
+            fileListModel.selection = newURL
+        }
         onSwitchFile?(oldURL, newURL)
     }
 
