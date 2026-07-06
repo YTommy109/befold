@@ -14,9 +14,11 @@ func makeIsolatedDefaults(prefix: String) -> UserDefaults {
 final class TempDir: Sendable {
     let url: URL
 
-    init(prefix: String = "befold-test") throws {
-        url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(prefix)-\(UUID().uuidString)")
+    /// - Parameter base: 作成先の親ディレクトリ。省略時はシステム一時ディレクトリ。
+    ///   `navigateToFolder` はホームディレクトリ配下のみ許可するため、それをテストする
+    ///   場合はホームディレクトリ配下(例: `homeDirectoryForCurrentUser`)を渡す。
+    init(prefix: String = "befold-test", base: URL = FileManager.default.temporaryDirectory) throws {
+        url = base.appendingPathComponent("\(prefix)-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     }
 

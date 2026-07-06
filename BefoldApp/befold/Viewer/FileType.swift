@@ -57,6 +57,12 @@ enum FileType: Sendable, Equatable {
     ]
     /// PDF として扱う拡張子。
     static let pdfExtensions = ["pdf"]
+    /// 対応する全拡張子。
+    static let allExtensions: Set<String> = Set(
+        mermaidExtensions + markdownExtensions + svgExtensions + htmlExtensions
+            + csvExtensions + tsvExtensions + codeExtensions
+            + Array(imageExtensionMimeTypes.keys) + pdfExtensions
+    )
 
     init(url: URL) {
         let ext = url.pathExtension.lowercased()

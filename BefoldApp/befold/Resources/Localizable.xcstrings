@@ -357,6 +357,55 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Downloading Update…" } },
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "アップデートをダウンロード中…" } }
       }
+    },
+    "sidebar.sort.alphabetical" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Alphabetical" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アルファベット順" } }
+      }
+    },
+    "sidebar.sort.foldersFirst" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Folders First" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "フォルダー優先" } }
+      }
+    },
+    "sidebar.empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No Supported Files" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "対応ファイルがありません" } }
+      }
+    },
+    "sidebar.context.copy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コピー" } }
+      }
+    },
+    "sidebar.context.openInNewWindow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open in New Window" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいウィンドウで開く" } }
+      }
+    },
+    "sidebar.context.copyPath" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy Path" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "パスをコピーする" } }
+      }
+    },
+    "sidebar.context.revealInFinder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reveal in Finder" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Finder で開く" } }
+      }
     }
   },
   "version" : "1.0"

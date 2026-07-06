@@ -39,10 +39,12 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         self.zoomStore = zoomStore
         self.defaults = defaults
         store = ViewerStore()
-        let files = DirectoryLister.listFiles(in: fileURL.deletingLastPathComponent())
+        let parentDir = fileURL.deletingLastPathComponent()
+        let entries = DirectoryLister.listEntries(in: parentDir, sortOrder: .foldersFirst)
         fileListModel = FileListModel(
-            files: files,
-            selection: Self.listEntry(for: fileURL, in: files)
+            currentDirectory: parentDir,
+            entries: entries,
+            selection: fileURL
         )
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
@@ -124,7 +126,16 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         )
         let fileListView = FileListView(
             model: fileListModel,
-            onSelect: { [weak self] url in self?.switchFile(to: url) }
+            onSelect: { [weak self] url in self?.switchFile(to: url) },
+            onNavigate: { [weak self] url in self?.navigateToFolder(url) },
+            onSortOrderChanged: { [weak self] order in
+                guard let self else { return }
+                fileListModel.sortOrder = order
+                refreshFileList()
+            },
+            onOpenInNewWindow: { url in
+                AppDelegate.shared?.openViewer(for: url)
+            }
         )
         return ViewerSplitViewController(sidebar: fileListView, content: contentView)
     }
@@ -184,7 +195,12 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             resetSourceMode()
         }
         updateToolbarVisibility()
-        // init 時のスナップショットのままだとサイドバーに旧名が残るため、再取得して選択し直す。
+        let newDir = newURL.deletingLastPathComponent()
+        if newDir.standardizedFileURL
+            != fileListModel.currentDirectory.standardizedFileURL
+        {
+            fileListModel.currentDirectory = newDir
+        }
         refreshFileList()
         onRename?(oldURL, newURL)
     }
@@ -207,10 +223,12 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         // 切替はリネームではない。旧ファイルの倍率は保存済みのまま保持し、
         // 新ファイルは自身の保存倍率(なければデフォルト)で表示する。
         applyStoredZoomToWebView()
-        if newURL.deletingLastPathComponent() != oldURL.deletingLastPathComponent() {
+        let newDir = newURL.deletingLastPathComponent().standardizedFileURL
+        if newDir != fileListModel.currentDirectory.standardizedFileURL {
+            fileListModel.currentDirectory = newURL.deletingLastPathComponent()
             refreshFileList()
         } else {
-            fileListModel.selection = newURL
+            fileListModel.selection = matchingEntryURL(for: newURL)
         }
         onSwitchFile?(oldURL, newURL)
     }
@@ -234,20 +252,66 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     /// サイドバーのファイル一覧を現在のディレクトリで取り直し、現在ファイルを選択する。
     private func refreshFileList() {
-        let files = DirectoryLister.listFiles(in: fileURL.deletingLastPathComponent())
-        fileListModel.files = files
-        let selected = Self.listEntry(for: fileURL, in: files)
-        if fileListModel.selection != selected {
-            fileListModel.selection = selected
+        var entries = DirectoryLister.listEntries(
+            in: fileListModel.currentDirectory,
+            sortOrder: fileListModel.sortOrder
+        )
+        ensureCurrentFile(in: &entries)
+        fileListModel.entries = entries
+        let matched = matchingEntryURL(for: fileURL)
+        if fileListModel.selection != matched {
+            fileListModel.selection = matched
         }
     }
 
-    /// 一覧内で url と同じファイルを指す URL を返す。List の選択一致は URL の
-    /// 同値性に依存するため、シンボリックリンク解決の有無で表記が揺れても
-    /// 一致するよう正規化キーで照合する。見つからなければ url をそのまま返す。
-    private static func listEntry(for url: URL, in files: [URL]) -> URL {
+    /// エントリ一覧に現在のファイルが含まれていなければ末尾に追加する。
+    /// allExtensions に含まれない拡張子(plaintext フォールバック)のファイルが
+    /// サイドバーから消える回帰を防ぐ。
+    private func ensureCurrentFile(in entries: inout [FileListEntry]) {
+        let dir = fileURL.deletingLastPathComponent().standardizedFileURL
+        guard dir == fileListModel.currentDirectory.standardizedFileURL else {
+            return
+        }
+        let key = fileURL.normalizedPathKey
+        if !entries.contains(where: { $0.url.normalizedPathKey == key }) {
+            entries.append(FileListEntry(url: fileURL, kind: .file))
+        }
+    }
+
+    /// エントリ一覧から URL の正規化キーが一致するものを探し、
+    /// 見つからなければ元の URL をそのまま返す。
+    private func matchingEntryURL(for url: URL) -> URL {
         let key = url.normalizedPathKey
-        return files.first { $0.normalizedPathKey == key } ?? url
+        return fileListModel.entries.first {
+            $0.url.normalizedPathKey == key
+        }?.url ?? url
+    }
+
+    /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
+    func navigateToFolder(_ url: URL) {
+        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
+        let target = url.standardizedFileURL
+        guard target == home || target.path.hasPrefix(home.path + "/") else { return }
+        let previous = fileListModel.currentDirectory
+        fileListModel.currentDirectory = url
+        fileListModel.entries = DirectoryLister.listEntries(
+            in: url, sortOrder: fileListModel.sortOrder
+        )
+        let isGoingUp = target == previous.deletingLastPathComponent()
+            .standardizedFileURL
+        if isGoingUp {
+            let prevKey = previous.standardizedFileURL.path
+            fileListModel.selection = fileListModel.entries.first {
+                $0.kind == .folder
+                    && $0.url.standardizedFileURL.path == prevKey
+            }?.url
+        } else if let firstFile = fileListModel.entries.first(where: { $0.kind == .file }) {
+            // 最初のファイルを表示対象として開く。選択の書き換えをビューの
+            // 副作用に変換する経路は持たないため、コントローラが直接切り替える。
+            switchFile(to: firstFile.url)
+        } else {
+            fileListModel.selection = nil
+        }
     }
 
     /// 既存のビューアウィンドウと位置が完全に一致する場合だけ、標準のカスケード量ずらす。

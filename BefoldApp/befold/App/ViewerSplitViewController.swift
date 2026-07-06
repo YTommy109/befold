@@ -34,6 +34,21 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         sidebarItem.isCollapsed = true
     }
 
+    override func toggleSidebar(_ sender: Any?) {
+        let wasCollapsed = sidebarItem.isCollapsed
+        super.toggleSidebar(sender)
+        if wasCollapsed, !sidebarItem.isCollapsed {
+            DispatchQueue.main.async { [weak self] in
+                guard let self,
+                      let window = view.window
+                else { return }
+                window.makeFirstResponder(
+                    sidebarItem.viewController.view
+                )
+            }
+        }
+    }
+
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError()
