@@ -4,6 +4,7 @@ struct ViewerContentView: View {
     let store: ViewerStore
     let initialZoom: Double
     let onZoomChanged: @MainActor (Double) -> Void
+    let onOpenReference: @MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void
     let webViewProxy: WebViewProxy
 
     var body: some View {
@@ -17,6 +18,7 @@ struct ViewerContentView: View {
                 isDeleted: store.isDeleted,
                 initialZoom: initialZoom,
                 onZoomChanged: onZoomChanged,
+                onOpenReference: onOpenReference,
                 webViewProxy: webViewProxy
             )
             .opacity(store.isUnsupported ? 0 : 1)

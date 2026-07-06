@@ -117,6 +117,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
                 guard let self else { return }
                 zoomStore.setZoom(zoom, for: fileURL)
             },
+            onOpenReference: { _, _, _ in },
             webViewProxy: webViewProxy
         )
         let fileListView = FileListView(
