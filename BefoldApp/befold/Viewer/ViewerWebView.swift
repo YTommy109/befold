@@ -169,6 +169,38 @@ struct ViewerWebView: NSViewRepresentable {
             pendingUpdate = nil
         }
 
+        func webView(
+            _ webView: WKWebView,
+            didFailProvisionalNavigation navigation: WKNavigation!,
+            withError error: Error
+        ) {
+            handleNavigationFailure(webView: webView)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            handleNavigationFailure(webView: webView)
+        }
+
+        /// ナビゲーション失敗時に isReady のハングを防ぐ。直接ロード失敗なら viewer.html へ
+        /// 安全にフォールバックし、削除バナーを表示する。
+        private func handleNavigationFailure(webView: WKWebView) {
+            pendingPageZoom = nil
+            if isDirectHTMLMode {
+                isDirectHTMLMode = false
+                webViewProxy?.isDirectHTMLMode = false
+                lastDirectHTMLPath = nil
+                lastRenderedContent = nil
+                lastRenderedFileType = nil
+                reloadViewerHTML(webView: webView) {
+                    webView.evaluateJavaScript(ViewerBridge.showDeletedBannerScript)
+                }
+            } else {
+                isReady = true
+                pendingUpdate?()
+                pendingUpdate = nil
+            }
+        }
+
         /// 初回の HTML ロード（loadFileURL）のみ許可し、それ以外のナビゲーションは全てキャンセルする。
         /// リンククリックやフォーム送信による意図しないページ遷移を防ぐ。
         func webView(
@@ -217,13 +249,18 @@ struct ViewerWebView: NSViewRepresentable {
                     let pathChanged = filePath != lastDirectHTMLPath
                     let contentChanged = content != lastRenderedContent
                     guard !isDirectHTMLMode || pathChanged || contentChanged else { return }
+                    // 初回ロード・ファイル切替では保存済みの per-file 倍率を使い、
+                    // ライブリロード（同一ファイルの content 変更）では現在の倍率を維持する。
+                    let isFirstLoadOrSwitch = !isDirectHTMLMode || pathChanged
+                    pendingPageZoom = isFirstLoadOrSwitch ? initialPageZoom : webView.pageZoom
                     lastRenderedContent = content
                     lastRenderedFileType = fileType
                     lastDirectHTMLPath = filePath
                     isDirectHTMLMode = true
                     webViewProxy?.isDirectHTMLMode = true
                     isReady = false
-                    pendingPageZoom = initialPageZoom
+                    // 直接ロードする HTML 内の <script> 実行を無効化する（設計スコープ外）。
+                    webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = false
                     webView.loadFileURL(filePath, allowingReadAccessTo: filePath.deletingLastPathComponent())
                     return
                 }
@@ -274,6 +311,8 @@ struct ViewerWebView: NSViewRepresentable {
         private func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
             isReady = false
             pendingUpdate = completion
+            // viewer.html（mermaid.js）は JS 必須のため、直接ロードで無効化した JS を再有効化する。
+            webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
             if let htmlURL = Bundle.l10n.url(forResource: "viewer", withExtension: "html") {
                 let resourceDir = htmlURL.deletingLastPathComponent()
                 webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
