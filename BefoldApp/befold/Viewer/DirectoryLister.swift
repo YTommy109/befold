@@ -96,4 +96,16 @@ enum DirectoryLister {
             }
             .first
     }
+
+    /// CLI シム経由のオープン用にパスを解決する。
+    /// ディレクトリならフォルダー内最初の対応ファイルを返し(見つからなければ nil)、
+    /// ファイル・存在しないパスはそのまま返す(既存のオープン/エラー表示フローに委譲する)。
+    static func resolveFileToOpen(at url: URL) -> URL? {
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+        guard exists, isDirectory.boolValue else {
+            return url
+        }
+        return firstSupportedFile(in: url)
+    }
 }
