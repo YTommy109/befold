@@ -125,8 +125,15 @@
     var href = anchor ? anchor.getAttribute('href') : pathRef.dataset.path;
     if (!href) return;
 
-    // # で始まるアンカーリンクは既定のスクロール動作に任せる
-    if (href.charAt(0) === '#') return;
+    // # で始まるアンカーリンクは JS 側で明示的にスクロールする
+    // (decidePolicyFor が WKWebView のナビゲーションをキャンセルするため)
+    if (href.charAt(0) === '#') {
+      e.preventDefault();
+      var id = decodeURIComponent(href.slice(1));
+      var el = document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
 
     // アンカー以外は全て preventDefault
     e.preventDefault();
@@ -158,6 +165,7 @@
   function _walkTextNodes(node) {
     if (node.nodeType === 3) { // TEXT_NODE
       var text = node.textContent;
+      if (text.length > 1000) return; // パスらしきトークンは長大なテキストには含まれない
       _PATH_RE.lastIndex = 0;
       var match = _PATH_RE.exec(text);
       if (!match) return;
