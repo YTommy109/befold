@@ -15,6 +15,13 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "アップデートを確認…" } }
       }
     },
+    "menu.app.installCLI" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Install 'befold' command in PATH" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "PATH に 'befold' コマンドをインストール" } }
+      }
+    },
     "menu.app.services" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -412,6 +419,20 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "No supported file found in this folder." } },
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "このフォルダーに対応ファイルが見つかりません。" } }
+      }
+    },
+    "cli.install.success" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Installed the 'befold' command to /usr/local/bin." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "/usr/local/bin に 'befold' コマンドをインストールしました。" } }
+      }
+    },
+    "cli.install.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to install the 'befold' command." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "'befold' コマンドのインストールに失敗しました。" } }
       }
     }
   },

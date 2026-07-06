@@ -150,4 +150,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func checkForUpdates(_ sender: Any?) {
         updateCoordinator.run(userInitiated: true)
     }
+
+    /// メニューの「Install 'befold' command in PATH」。/usr/local/bin にシムスクリプトを設置する。
+    @objc func installCLI(_ sender: Any?) {
+        let installPath = URL(fileURLWithPath: "/usr/local/bin/befold")
+        let result = CLIInstaller.install(bundlePath: Bundle.main.bundlePath, installPath: installPath)
+        switch result {
+        case .success:
+            CLIInstallUI.presentInstallSucceeded()
+        case .failure:
+            CLIInstallUI.presentInstallFailed()
+        }
+    }
 }
