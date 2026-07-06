@@ -39,12 +39,28 @@ final class ViewerStore {
     private var fileWatcher: FileWatching?
     private let makeWatcher: WatcherFactory
     private let fileReader: any FileReading
+    private let defaults: UserDefaults
 
-    init(watcherFactory: WatcherFactory? = nil, fileReader: any FileReading = DefaultFileReader()) {
+    private static let showLineNumbersKey = "ShowLineNumbers"
+
+    /// 行番号付きコード表示を有効にするかどうか。UserDefaults に永続化される。
+    var showLineNumbers: Bool {
+        didSet {
+            defaults.set(showLineNumbers, forKey: Self.showLineNumbersKey)
+        }
+    }
+
+    init(
+        watcherFactory: WatcherFactory? = nil,
+        fileReader: any FileReading = DefaultFileReader(),
+        defaults: UserDefaults = .standard
+    ) {
+        self.defaults = defaults
         makeWatcher = watcherFactory ?? { url, onChange, onRename in
             FileWatcher(path: url, onChange: onChange, onRename: onRename)
         }
         self.fileReader = fileReader
+        _showLineNumbers = defaults.bool(forKey: Self.showLineNumbersKey)
     }
 
     /// 指定 URL のファイルを開き、ファイル監視を開始する。

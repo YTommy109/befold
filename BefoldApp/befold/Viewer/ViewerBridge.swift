@@ -59,4 +59,9 @@ enum ViewerBridge {
     static func viewModeScript(_ mode: ViewMode) -> String {
         "setViewMode('\(mode.rawValue)')"
     }
+
+    /// setLineNumbers(show) 呼び出しを組み立てる。
+    static func lineNumbersScript(_ show: Bool) -> String {
+        "setLineNumbers(\(show))"
+    }
 }

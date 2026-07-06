@@ -412,6 +412,33 @@ struct ViewerStoreTests {
 
         store.close()
     }
+
+    @Test("showLineNumbers のデフォルトは false")
+    func showLineNumbersDefaultsToFalse() {
+        let store = makeStore(reader: InMemoryFileReader())
+        #expect(!store.showLineNumbers)
+        store.close()
+    }
+
+    @Test("showLineNumbers のトグルが UserDefaults に永続化される")
+    func showLineNumbersPersistedToUserDefaults() throws {
+        let defaults = try #require(UserDefaults(suiteName: #function))
+        defaults.removePersistentDomain(forName: #function)
+        let store = ViewerStore(
+            watcherFactory: { _, _, _ in MockFileWatcher() },
+            fileReader: InMemoryFileReader(),
+            defaults: defaults
+        )
+
+        store.showLineNumbers = true
+        #expect(defaults.bool(forKey: "ShowLineNumbers") == true)
+
+        store.showLineNumbers = false
+        #expect(defaults.bool(forKey: "ShowLineNumbers") == false)
+
+        store.close()
+        defaults.removePersistentDomain(forName: #function)
+    }
 }
 
 private struct StopCountingWatcher: FileWatching {

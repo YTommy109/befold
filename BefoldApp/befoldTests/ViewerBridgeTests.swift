@@ -107,6 +107,12 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.viewModeScript(.rendered) == "setViewMode('rendered')")
     }
 
+    @Test("lineNumbersScript がブール値を埋め込む")
+    func lineNumbersScriptEmbedsBool() {
+        #expect(ViewerBridge.lineNumbersScript(true) == "setLineNumbers(true)")
+        #expect(ViewerBridge.lineNumbersScript(false) == "setLineNumbers(false)")
+    }
+
     /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html に実在することを
     /// リポジトリ内のソースを読んで検証する(ブリッジ契約のドリフト検知)。
     @Test("ViewerBridge の関数名が viewer.html に定義されている")
@@ -125,6 +131,7 @@ struct ViewerBridgeTests {
         #expect(html.contains("window._mmdSystemFontSize"))
         #expect(html.contains("function setViewMode(mode)"))
         #expect(html.contains("function _mmdInitZoom()"))
+        #expect(html.contains("function setLineNumbers(show)"))
     }
 
     @Test("viewer.js の ZOOM_MIN / ZOOM_MAX が ZoomStore の範囲と一致する")
