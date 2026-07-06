@@ -17,14 +17,18 @@ final class ViewerWindowManager {
 
     /// 指定 URL のファイルをビューアウィンドウで開く。
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
-    func openViewer(for url: URL) {
+    func openViewer(for url: URL, forceSidebarVisible: Bool = false) {
         let key = url.normalizedPathKey
         if let existing = controllers[key] {
             existing.window?.makeKeyAndOrderFront(nil)
             return
         }
 
-        let controller = ViewerWindowController(fileURL: url, zoomStore: zoomStore)
+        let controller = ViewerWindowController(
+            fileURL: url,
+            zoomStore: zoomStore,
+            forceSidebarVisible: forceSidebarVisible
+        )
         controllers[key] = controller
         bindCallbacks(for: controller, key: key, url: url)
         controller.showWindow(nil)

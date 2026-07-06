@@ -109,4 +109,15 @@ struct MainMenuBuilderTests {
         #expect(NSApp.helpMenu === help)
         #expect(help.items.contains { $0.action == #selector(AppDelegate.openHelp(_:)) })
     }
+
+    @Test("App メニューに Install CLI 項目がある")
+    func appMenuHasInstallCLIItem() throws {
+        let mainMenu = buildMenu()
+        let appMenu = try #require(mainMenu.items.first?.submenu)
+
+        let installItem = try #require(
+            appMenu.items.first { $0.action == #selector(AppDelegate.installCLI(_:)) }
+        )
+        #expect(installItem.title == localizedTitle("menu.app.installCLI"))
+    }
 }

@@ -14,6 +14,7 @@
 		0A9E93A607A6E61E104A3463 /* RecentDocumentsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60A721C9392EC1F5D290754 /* RecentDocumentsStore.swift */; };
 		115C5DB86091E668846ABD35 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3FA2042F35CFE821F23E642 /* SessionStore.swift */; };
 		11EF0AF391B69FE3E0A43627 /* SessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B17697513B5DDBA39FACA47 /* SessionStoreTests.swift */; };
+		14B016A905128CE710DE1EB9 /* CLIInstallUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 031A74612B8315483385312F /* CLIInstallUI.swift */; };
 		16D859CE9B60A4DDC863F1ED /* MainMenuBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CBDBEA63AB67714233F6BEA /* MainMenuBuilderTests.swift */; };
 		1F7886DD66BAA293FEAB70AD /* viewer.js in Resources */ = {isa = PBXBuildFile; fileRef = 835D903AED97FDE0B5AF8382 /* viewer.js */; };
 		2774EDFA42AEA47471F51C58 /* InfoPlistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AAE64F41B58DBF3D4191469 /* InfoPlistTests.swift */; };
@@ -21,6 +22,7 @@
 		2E42E9AECD58E2037E8B0606 /* GitHubReleaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01F667EFA72BB2AA71114DC6 /* GitHubReleaseTests.swift */; };
 		379ED0B65AB24C05BBE938A7 /* github-markdown.css in Resources */ = {isa = PBXBuildFile; fileRef = FC162655E5945D40DB66F1B9 /* github-markdown.css */; };
 		3A3C3D970FFBD4FB43FBA298 /* ViewerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C305DCE0DFF8BF0F5A9B41B /* ViewerStore.swift */; };
+		3A73A26E6421D6562CE777E8 /* CLIInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0684EBB76E4336D6DB9EC395 /* CLIInstaller.swift */; };
 		3C6FD6107D5422CD923FF110 /* UpdateFlowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89D2979B73A69282C2FC8809 /* UpdateFlowController.swift */; };
 		40DCA9C482EE351A80ED1BE8 /* ReferenceResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E9BD628BDCFB1FA9F33F2CD /* ReferenceResolverTests.swift */; };
 		41312F44E8EED28E443E2C80 /* github.css in Resources */ = {isa = PBXBuildFile; fileRef = A0DA8104EA0F6929CCC8D36D /* github.css */; };
@@ -72,6 +74,7 @@
 		DE61285CE29BD3E57A84DDD0 /* UpdateInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BA6369372A5B92026F2B11 /* UpdateInstaller.swift */; };
 		DE91E8182FEE9CB7BD525B3B /* FileWatcherIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F95E03C42C9665C1DE5CB25 /* FileWatcherIntegrationTests.swift */; };
 		DE9B42A4F07EADBD819D944E /* URLResponseValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92E332BBFB36E2FEDBDCF2C1 /* URLResponseValidationTests.swift */; };
+		DF9993FFC9610CFE8125D9F2 /* CLIInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21273EED83579960DC2E0920 /* CLIInstallerTests.swift */; };
 		E23793116689A052540F44F8 /* FileTypeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF7BF60C77687A3614D421C7 /* FileTypeTests.swift */; };
 		E265BF3909539595BCE69467 /* DMGMounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 882C5DB7C31C23A385D9654E /* DMGMounter.swift */; };
 		E44474A3F7FF7BDBB542BD91 /* ViewerStoreIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E93C9FB80B9AB7ECF88C063 /* ViewerStoreIntegrationTests.swift */; };
@@ -105,12 +108,15 @@
 		000D2815932D425EC9EFFAC7 /* ViewerBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerBridge.swift; sourceTree = "<group>"; };
 		01F667EFA72BB2AA71114DC6 /* GitHubReleaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubReleaseTests.swift; sourceTree = "<group>"; };
 		0224B109280A40D0580CD098 /* befoldTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = befoldTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		031A74612B8315483385312F /* CLIInstallUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstallUI.swift; sourceTree = "<group>"; };
 		039B6ED41573C61E1949C847 /* UnsupportedFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsupportedFileView.swift; sourceTree = "<group>"; };
+		0684EBB76E4336D6DB9EC395 /* CLIInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstaller.swift; sourceTree = "<group>"; };
 		10C2A0204DD6F6A36573BE24 /* ViewerSplitViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerSplitViewController.swift; sourceTree = "<group>"; };
 		191EFE2E9CDEE3B940B47B88 /* DefaultFileReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultFileReaderTests.swift; sourceTree = "<group>"; };
 		1B17697513B5DDBA39FACA47 /* SessionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStoreTests.swift; sourceTree = "<group>"; };
 		1EFB599CE9CD002E269DB13E /* ViewerWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerWebView.swift; sourceTree = "<group>"; };
 		20AD9835569BC3DCD43A1D1D /* ViewerStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerStoreTests.swift; sourceTree = "<group>"; };
+		21273EED83579960DC2E0920 /* CLIInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIInstallerTests.swift; sourceTree = "<group>"; };
 		22676103405C030E9DBB173C /* DMGMounterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMGMounterTests.swift; sourceTree = "<group>"; };
 		22BA6369372A5B92026F2B11 /* UpdateInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstaller.swift; sourceTree = "<group>"; };
 		2458221F5DDBE5143F65D684 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
@@ -221,6 +227,7 @@
 			isa = PBXGroup;
 			children = (
 				E54EAC2F13B5755F4750B1F0 /* AppVersionTests.swift */,
+				21273EED83579960DC2E0920 /* CLIInstallerTests.swift */,
 				B3934111DE71CFAF0A54F26D /* DebouncerTests.swift */,
 				191EFE2E9CDEE3B940B47B88 /* DefaultFileReaderTests.swift */,
 				F34555C0D5DFBDA1704A2232 /* DirectoryListerTests.swift */,
@@ -326,6 +333,8 @@
 			isa = PBXGroup;
 			children = (
 				F4FB8FE45B7A15F1B86E94D2 /* AppDelegate.swift */,
+				0684EBB76E4336D6DB9EC395 /* CLIInstaller.swift */,
+				031A74612B8315483385312F /* CLIInstallUI.swift */,
 				A5468C6282A6D717700403B9 /* DocumentController.swift */,
 				57D4E1646EE61799511D1046 /* LocalizedBundle.swift */,
 				8405F5C7FE140D4EA2AC0414 /* MainMenuBuilder.swift */,
@@ -440,6 +449,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				6D2E58C3855D9A141403C5E4 /* AppVersionTests.swift in Sources */,
+				DF9993FFC9610CFE8125D9F2 /* CLIInstallerTests.swift in Sources */,
 				999A6C9C737405F5A3D40B15 /* DMGMounterTests.swift in Sources */,
 				D2154ACD8B908C83B0B84E0F /* DebouncerTests.swift in Sources */,
 				C3340EBD45E7F51673B20469 /* DefaultFileReaderTests.swift in Sources */,
@@ -478,6 +488,8 @@
 			files = (
 				C342842FC9594241A4002821 /* AppDelegate.swift in Sources */,
 				F72C6985C8ACCB86B7A85D5D /* AppVersion.swift in Sources */,
+				14B016A905128CE710DE1EB9 /* CLIInstallUI.swift in Sources */,
+				3A73A26E6421D6562CE777E8 /* CLIInstaller.swift in Sources */,
 				E265BF3909539595BCE69467 /* DMGMounter.swift in Sources */,
 				CE2AEE58C2AE65F4B40D53F5 /* Debouncer.swift in Sources */,
 				C6CE218358F52759A5B5E92E /* DirectoryLister.swift in Sources */,
