@@ -39,7 +39,8 @@ iteration = 1
 │     No
 │     ├─ [Fix] Agent(model: sonnet): 指摘全件（タグ問わず）を修正
 │     ├─ [Verify] swift build / swift test / npx jest（/check の3ステップを流用）
-│     │     失敗 → Fix をやり直す（イテレーションは消費しない）
+│     │     失敗 → Fix をやり直す（イテレーションは消費しない、同一ラウンド内で2回まで）
+│     │     2回失敗 → 自動ループ中断。失敗内容と現在の diff をユーザーに提示
 │     └─ iteration += 1
 │
 ├─ [Round 2, 3] Re-review: Agent(model: sonnet)
@@ -47,8 +48,9 @@ iteration = 1
 │     内容: 直した箇所が指摘に対応できているか、新たな規約違反を生んでいないかの自己チェック
 │     （Opus は使わない。機械的な確認作業のため）
 │     指摘ゼロ? ─Yes→ [Final Confirmation] へ
-│     No ─ iteration <= 3 ? → Fix→Verify→iteration+=1→Re-review を繰り返す
-│           iteration > 3 ? → ループ中断。残指摘とここまでの修正差分をユーザーに提示し、続行可否を確認
+│     No ─ 現在が Round 2（iteration=2）? → Fix→Verify→Round 3（iteration=3）の Re-review を実行
+│           現在が Round 3（iteration=3）? → 上限到達（Round 4 は存在しない）のためループ中断。
+│           残指摘とここまでの修正差分をユーザーに提示し、続行可否を確認
 │
 └─ [Final Confirmation]（Round 1〜3のいずれかで指摘ゼロになった直後に1回だけ実行）
       Agent(model: opus): 最終 diff 全体を一度だけ見直す（見落とし防止のダブルチェック）
@@ -58,12 +60,16 @@ iteration = 1
 
 - **Opus 呼び出しは最大3回に固定**: Round 1 Review・Final Confirmation・Retrospective。
   イテレーションが増えても（Round 2, 3 は Sonnet のため）Opus 呼び出しは増えない。
-- **最大イテレーション数は3**。超過時は自動継続せず、必ずユーザーに判断を仰ぐ。
+- **最大イテレーション数は3**（Round 1 の Review が iteration=1、Round 2/3 の
+  Re-review が iteration=2/3 に対応。Round 4 は存在しない）。Round 3 で
+  指摘が残った場合は自動継続せず、必ずユーザーに判断を仰ぐ。
 
 ## Retrospective（coding_rule.md の成長）
 
 - **実行タイミング**: Final Confirmation が指摘ゼロで終わった後（正常収束時のみ）。
   イテレーション上限で中断した場合は、ユーザーが続行を選ばなかった時点でスキップ可能。
+  また、収集した rule-violation タグの指摘が1件もない場合も Retrospective は
+  スキップする。
 - **入力**: 全ラウンドの指摘ログのうち `rule-violation` タグが付いたものだけ。
   `bug` / `simplification` などの一般指摘はルール化候補にしない。
 - **処理**: Agent(model: opus) が、繰り返し発生した違反パターンや
@@ -75,10 +81,13 @@ iteration = 1
 
 ## 安全弁
 
-- 最大イテレーション: 3（Round 2, 3 の Sonnet 再レビューが対象）。
-- Verify（ビルド・テスト）失敗は必ず Fix のやり直しでゲートする。イテレーション超過とは独立してリトライする。
-- 自動ループが人間の判断を必要とする分岐（イテレーション超過、Final Confirmation での新規指摘）では、
+- 最大イテレーション: 3（Round 1 の Review が iteration=1、Round 2/3 の
+  Re-review が iteration=2/3 に対応。Round 4 は存在しない）。
+- Verify（ビルド・テスト）失敗は必ず Fix のやり直しでゲートする。イテレーション超過とは独立してリトライするが、
+  同一ラウンド内で2回までとする。2回失敗した場合は自動ループを中断し、失敗内容と現在の diff をユーザーに提示する。
+- 自動ループが人間の判断を必要とする分岐（Round 3 到達後も指摘が残る場合、Final Confirmation での新規指摘）では、
   常にユーザーに提示して止まる。無限ループ・暴走はしない。
+- rule-violation タグの指摘が1件もない場合、Retrospective はスキップする。
 
 ## 成果物
 
