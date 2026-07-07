@@ -6,21 +6,22 @@ import Testing
 @MainActor
 struct ViewerStoreIntegrationTests {
     @Test(.timeLimit(.minutes(1)))
-    func deletingWatchedFileMarksDeleted() async throws {
+    func deletingWatchedFileFiresOnFileGone() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
         let store = ViewerStore()
+        nonisolated(unsafe) var firedCount = 0
+        store.onFileGone = { firedCount += 1 }
         store.openFile(file)
-        #expect(!store.isDeleted)
+        #expect(firedCount == 0)
 
         try await Task.sleep(for: .seconds(0.3))
-
         try FileManager.default.removeItem(at: file)
 
         try await Task.sleep(for: .seconds(3))
-        #expect(store.isDeleted)
+        #expect(firedCount == 1)
 
         store.close()
     }

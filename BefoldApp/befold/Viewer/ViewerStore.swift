@@ -23,7 +23,6 @@ final class ViewerStore {
 
     private(set) var content: String = ""
     private(set) var fileType: FileType = .mmd
-    private(set) var isDeleted: Bool = false
     /// 開いたファイルがバイナリなど非対応内容と判定された場合に true になる。
     /// true の間 content は更新されない(バイナリを丸ごと文字列化しない)。
     private(set) var isUnsupported: Bool = false
@@ -35,6 +34,13 @@ final class ViewerStore {
     /// 開いているファイルが rename / move されたときに新 URL を通知する。
     /// ウィンドウ側がタイトル・representedURL・セッション記録を更新するために使う。
     var onFileRenamed: ((URL) -> Void)?
+
+    /// 監視中のファイルが削除されたことが確定したときに呼ばれるコールバック。
+    /// グレース期間(0.3 秒)中に再作成されなかった場合に発火する。
+    var onFileGone: (@MainActor @Sendable () -> Void)?
+
+    /// 削除確認のグレース期間タスク。再作成されたらキャンセルする。
+    private var fileGoneTask: Task<Void, Never>?
 
     private var fileWatcher: FileWatching?
     private let makeWatcher: WatcherFactory
@@ -75,6 +81,8 @@ final class ViewerStore {
     /// 指定 URL のファイルを開き、ファイル監視を開始する。
     /// 既に別のファイルを開いている場合は、先に監視を停止してから切り替える。
     func openFile(_ url: URL) {
+        fileGoneTask?.cancel()
+        fileGoneTask = nil
         fileWatcher?.stop()
         filePath = url
         fileType = FileType(url: url)
@@ -100,11 +108,11 @@ final class ViewerStore {
         guard let filePath else { return }
         let resolved = filePath.resolvingSymlinksInPath()
         guard fileReader.fileExists(at: resolved) else {
-            isDeleted = true
-            isUnsupported = false
+            scheduleFileGone()
             return
         }
-        isDeleted = false
+        fileGoneTask?.cancel()
+        fileGoneTask = nil
 
         // 上限を超える巨大ファイルは同期読み込みでメインスレッドをブロックするため
         // 読み込まず、非対応扱いにする。
@@ -137,8 +145,24 @@ final class ViewerStore {
         content = (try? fileReader.readString(from: resolved)) ?? ""
     }
 
+    /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
+    /// 常に張り直す(古いタスクをキャンセルして置き換える)ことで、発火せず完了した
+    /// タスクが残って以後の検知を塞ぐことを防ぐ。
+    private func scheduleFileGone() {
+        fileGoneTask?.cancel()
+        fileGoneTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(0.3))
+            guard let self, !Task.isCancelled else { return }
+            guard let filePath else { return }
+            guard !fileReader.fileExists(at: filePath.resolvingSymlinksInPath()) else { return }
+            onFileGone?()
+        }
+    }
+
     /// ファイル監視を停止し、リソースを解放する。
     func close() {
+        fileGoneTask?.cancel()
+        fileGoneTask = nil
         fileWatcher?.stop()
         fileWatcher = nil
     }
