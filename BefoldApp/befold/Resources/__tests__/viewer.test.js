@@ -18,6 +18,7 @@ const {
   markdownFontSize,
   escapeHtml,
   renderCodeHtml,
+  wrapWithLineNumbers,
   parseCsv,
   buildTableHtml,
   renderCsvSourceHtml,
@@ -467,6 +468,44 @@ describe('renderCodeHtml with line numbers', () => {
     expect(result).toContain('<td class="line-number">2</td>');
     expect(result).toContain('hljs');
   });
+
+  test('multi-line hljs span (block comment) stays balanced per row', () => {
+    const result = renderCodeHtml(hljs, '/* a\nb */', 'swift', true);
+    // 各 <td class="line-content"> 内で <span> の開閉が釣り合っていること
+    const cells = result.match(/<td class="line-content">.*?<\/td>/g);
+    expect(cells).toHaveLength(2);
+    for (const cell of cells) {
+      const opens = (cell.match(/<span\b/g) || []).length;
+      const closes = (cell.match(/<\/span>/g) || []).length;
+      expect(opens).toBe(closes);
+    }
+    // 2 行目はコメント色の span で開き直されている
+    expect(cells[1]).toMatch(/^<td class="line-content"><span[^>]*hljs-comment/);
+  });
+});
+
+describe('wrapWithLineNumbers', () => {
+  test('span crossing a newline is closed at row end and reopened on the next row', () => {
+    const html = wrapWithLineNumbers('<span class="x">a\nb</span>');
+    expect(html).toContain('<td class="line-content"><span class="x">a</span></td>');
+    expect(html).toContain('<td class="line-content"><span class="x">b</span></td>');
+  });
+
+  test('nested spans are reopened in order', () => {
+    const html = wrapWithLineNumbers('<span class="o"><span class="i">a\nb</span></span>');
+    expect(html).toContain(
+      '<td class="line-content"><span class="o"><span class="i">a</span></span></td>'
+    );
+    expect(html).toContain(
+      '<td class="line-content"><span class="o"><span class="i">b</span></span></td>'
+    );
+  });
+
+  test('balanced single-line spans are left untouched', () => {
+    const html = wrapWithLineNumbers('<span class="x">a</span>\nplain');
+    expect(html).toContain('<td class="line-content"><span class="x">a</span></td>');
+    expect(html).toContain('<td class="line-content">plain</td>');
+  });
 });
 
 describe('FileType.swift の言語名契約', () => {
@@ -634,5 +673,16 @@ describe('renderCsvSourceHtml with line numbers', () => {
   test('showLineNumbers defaults to false when omitted', () => {
     const html = renderCsvSourceHtml('a,b', ',');
     expect(html).not.toContain('code-table');
+  });
+
+  test('quoted cell with embedded newline keeps csv-col spans balanced per row', () => {
+    const html = renderCsvSourceHtml('a,"x\ny",b', ',', true);
+    const cells = html.match(/<td class="line-content">.*?<\/td>/g);
+    expect(cells).toHaveLength(2);
+    for (const cell of cells) {
+      const opens = (cell.match(/<span\b/g) || []).length;
+      const closes = (cell.match(/<\/span>/g) || []).length;
+      expect(opens).toBe(closes);
+    }
   });
 });

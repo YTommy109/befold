@@ -93,16 +93,35 @@ function escapeHtml(text) {
 }
 
 // 行ごとに分割した HTML を行番号付き <table> に組み立てる。
+// highlight.js はブロックコメント等で改行をまたぐ <span> を出力するため、
+// 行末で開いたままの span を閉じ、次の行の先頭で開き直して
+// 各セルの HTML を自己完結にする(未クローズ span が後続行を壊すのを防ぐ)。
 function wrapWithLineNumbers(codeHtml) {
   var lines = codeHtml.split('\n');
   // 末尾が空行の場合は除去する(highlight.js が末尾に \n を付けることがある)
   if (lines.length > 1 && lines[lines.length - 1] === '') {
     lines.pop();
   }
+  var openSpans = [];
   var rows = '';
   for (var i = 0; i < lines.length; i++) {
+    var line = lines[i] || '';
+    var reopen = openSpans.join('');
+    var tagRe = /<span\b[^>]*>|<\/span>/g;
+    var tag;
+    while ((tag = tagRe.exec(line)) !== null) {
+      if (tag[0] === '</span>') {
+        openSpans.pop();
+      } else {
+        openSpans.push(tag[0]);
+      }
+    }
+    var close = '';
+    for (var j = 0; j < openSpans.length; j++) {
+      close += '</span>';
+    }
     rows += '<tr><td class="line-number">' + (i + 1)
-      + '</td><td class="line-content">' + (lines[i] || '') + '</td></tr>';
+      + '</td><td class="line-content">' + reopen + line + close + '</td></tr>';
   }
   return '<table class="code-table">' + rows + '</table>';
 }
@@ -115,14 +134,10 @@ function renderCodeHtml(hljs, str, lang, showLineNumbers) {
   var highlighted = highlightCode(hljs, str, lang);
   if (showLineNumbers) {
     if (highlighted) {
-      // <pre><code ...>CONTENT</code></pre> から CONTENT を抽出する
-      var match = highlighted.match(/^<pre><code[^>]*>([\s\S]*)<\/code><\/pre>$/);
+      // <pre><code ...>CONTENT</code></pre> の CONTENT だけを行番号テーブルで包む
+      var match = highlighted.match(/^(<pre><code[^>]*>)([\s\S]*)(<\/code><\/pre>)$/);
       if (match) {
-        var openTag = highlighted.slice(0, highlighted.indexOf('>',
-          highlighted.indexOf('<code')) + 1);
-        // openTag = '<pre><code class="hljs language-xxx">'
-        return '<pre>' + openTag.slice(5) + wrapWithLineNumbers(match[1])
-          + '</code></pre>';
+        return match[1] + wrapWithLineNumbers(match[2]) + match[3];
       }
     }
     return '<pre><code>' + wrapWithLineNumbers(escapeHtml(str)) + '</code></pre>';
