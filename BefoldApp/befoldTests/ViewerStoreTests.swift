@@ -9,8 +9,17 @@ private struct MockFileWatcher: FileWatching {
 @Suite
 @MainActor
 struct ViewerStoreTests {
+    /// UserDefaults.standard を読むと過去の実行で永続化された値に影響されるため、
+    /// テストごとに使い捨てのスイートを注入して密閉性を保つ。
     private func makeStore(reader: InMemoryFileReader) -> ViewerStore {
-        ViewerStore(watcherFactory: { _, _, _ in MockFileWatcher() }, fileReader: reader)
+        let suiteName = "ViewerStoreTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return ViewerStore(
+            watcherFactory: { _, _, _ in MockFileWatcher() },
+            fileReader: reader,
+            defaults: defaults
+        )
     }
 
     @Test(arguments: [
@@ -411,6 +420,33 @@ struct ViewerStoreTests {
         #expect(stopCount == 1)
 
         store.close()
+    }
+
+    @Test("showLineNumbers のデフォルトは false")
+    func showLineNumbersDefaultsToFalse() {
+        let store = makeStore(reader: InMemoryFileReader())
+        #expect(!store.showLineNumbers)
+        store.close()
+    }
+
+    @Test("showLineNumbers のトグルが UserDefaults に永続化される")
+    func showLineNumbersPersistedToUserDefaults() throws {
+        let defaults = try #require(UserDefaults(suiteName: #function))
+        defaults.removePersistentDomain(forName: #function)
+        let store = ViewerStore(
+            watcherFactory: { _, _, _ in MockFileWatcher() },
+            fileReader: InMemoryFileReader(),
+            defaults: defaults
+        )
+
+        store.showLineNumbers = true
+        #expect(defaults.bool(forKey: "ShowLineNumbers") == true)
+
+        store.showLineNumbers = false
+        #expect(defaults.bool(forKey: "ShowLineNumbers") == false)
+
+        store.close()
+        defaults.removePersistentDomain(forName: #function)
     }
 }
 

@@ -172,6 +172,11 @@ enum MainMenuBuilder {
             action: #selector(ViewerWindowController.toggleSourceView(_:)),
             keyEquivalent: "u"
         )
+        menu.addItem(
+            withTitle: String(localized: "menu.view.showLineNumbers", bundle: .l10n),
+            action: #selector(ViewerWindowController.toggleLineNumbers(_:)),
+            keyEquivalent: "l"
+        )
         menu.addItem(.separator())
         let toggleSidebar = menu.addItem(
             withTitle: String(localized: "menu.view.toggleSidebar", bundle: .l10n),

@@ -92,11 +92,56 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
+// 行ごとに分割した HTML を行番号付き <table> に組み立てる。
+// highlight.js はブロックコメント等で改行をまたぐ <span> を出力するため、
+// 行末で開いたままの span を閉じ、次の行の先頭で開き直して
+// 各セルの HTML を自己完結にする(未クローズ span が後続行を壊すのを防ぐ)。
+function wrapWithLineNumbers(codeHtml) {
+  var lines = codeHtml.split('\n');
+  // 末尾が空行の場合は除去する(highlight.js が末尾に \n を付けることがある)
+  if (lines.length > 1 && lines[lines.length - 1] === '') {
+    lines.pop();
+  }
+  var openSpans = [];
+  var rows = '';
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i] || '';
+    var reopen = openSpans.join('');
+    var tagRe = /<span\b[^>]*>|<\/span>/g;
+    var tag;
+    while ((tag = tagRe.exec(line)) !== null) {
+      if (tag[0] === '</span>') {
+        openSpans.pop();
+      } else {
+        openSpans.push(tag[0]);
+      }
+    }
+    var close = '';
+    for (var j = 0; j < openSpans.length; j++) {
+      close += '</span>';
+    }
+    rows += '<tr><td class="line-number">' + (i + 1)
+      + '</td><td class="line-content">' + reopen + line + close + '</td></tr>';
+  }
+  return '<table class="code-table">' + rows + '</table>';
+}
+
 // 単一コードファイル全文のハイライト HTML を組み立てる。
 // highlightCode() を再利用し、未対応言語・hljs 不在・例外時は
 // エスケープ済みプレーン <pre><code> にフォールバックする。
-function renderCodeHtml(hljs, str, lang) {
+// showLineNumbers が true のとき、内容を行番号付き <table> で包む。
+function renderCodeHtml(hljs, str, lang, showLineNumbers) {
   var highlighted = highlightCode(hljs, str, lang);
+  if (showLineNumbers) {
+    if (highlighted) {
+      // <pre><code ...>CONTENT</code></pre> の CONTENT だけを行番号テーブルで包む
+      var match = highlighted.match(/^(<pre><code[^>]*>)([\s\S]*)(<\/code><\/pre>)$/);
+      if (match) {
+        return match[1] + wrapWithLineNumbers(match[2]) + match[3];
+      }
+    }
+    return '<pre><code>' + wrapWithLineNumbers(escapeHtml(str)) + '</code></pre>';
+  }
   if (highlighted) { return highlighted; }
   return '<pre><code>' + escapeHtml(str) + '</code></pre>';
 }
@@ -216,7 +261,7 @@ var CSV_COL_COUNT = 8;
 // Rainbow カラーで着色する。delimiter 自体は着色せずそのまま残す(クオート内の
 // delimiter は列区切りとしない)。クオート内改行を含むセルも 1 つの span に
 // まとまるため、テーブル表示(parseCsv)と同じ列割りで色が付く。
-function renderCsvSourceHtml(content, delimiter) {
+function renderCsvSourceHtml(content, delimiter, showLineNumbers) {
   if (!content) { return '<pre><code class="csv-source"></code></pre>'; }
   var tokenRows = tokenizeCsvRows(content, delimiter);
   var htmlLines = [];
@@ -229,7 +274,11 @@ function renderCsvSourceHtml(content, delimiter) {
     }
     htmlLines.push(htmlParts.join(delimiter));
   }
-  return '<pre><code class="csv-source">' + htmlLines.join('\n') + '</code></pre>';
+  var body = htmlLines.join('\n');
+  if (showLineNumbers) {
+    body = wrapWithLineNumbers(body);
+  }
+  return '<pre><code class="csv-source">' + body + '</code></pre>';
 }
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -255,6 +304,7 @@ if (typeof module !== 'undefined' && module.exports) {
     markdownFontSize: markdownFontSize,
     escapeHtml: escapeHtml,
     renderCodeHtml: renderCodeHtml,
+    wrapWithLineNumbers: wrapWithLineNumbers,
     tokenizeCsvRows: tokenizeCsvRows,
     parseCsv: parseCsv,
     buildTableHtml: buildTableHtml,

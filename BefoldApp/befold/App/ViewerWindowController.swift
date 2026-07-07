@@ -406,6 +406,11 @@ extension ViewerWindowController: NSWindowDelegate {
         operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
 
+    /// View > Toggle Line Numbers。行番号表示の有無を切り替える。
+    @objc func toggleLineNumbers(_ sender: Any?) {
+        store.showLineNumbers.toggle()
+    }
+
     /// Toolbar > ソース表示トグル。レンダリング表示とソース表示を切り替える。
     @objc func toggleSourceView(_ sender: Any?) {
         isSourceMode.toggle()
@@ -469,6 +474,12 @@ extension ViewerWindowController: NSWindowDelegate {
                 ? String(localized: "menu.view.showRendered", bundle: .l10n)
                 : String(localized: "menu.view.toggleSource", bundle: .l10n)
             return canToggleSourceMode
+        }
+        if menuItem.action == #selector(toggleLineNumbers(_:)) {
+            menuItem.title = store.showLineNumbers
+                ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
+                : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
+            return store.showsCodeContent
         }
         return true
     }

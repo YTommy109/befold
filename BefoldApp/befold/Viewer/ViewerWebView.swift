@@ -11,6 +11,8 @@ struct ViewerWebView: NSViewRepresentable {
     let filePath: URL?
     /// ソース表示中かどうか。true の間 HTML ファイルも viewer.html でレンダリングする。
     let isSourceMode: Bool
+    /// ソース表示中に行番号を表示するかどうか。
+    let showLineNumbers: Bool
     /// ロード時に JS へ注入するファイル毎の初期倍率。
     let initialZoom: Double
     /// JS 側で倍率が変わったときに呼ばれる。
@@ -83,7 +85,8 @@ struct ViewerWebView: NSViewRepresentable {
             fileType: fileType,
             isDeleted: isDeleted,
             filePath: filePath,
-            isSourceMode: isSourceMode
+            isSourceMode: isSourceMode,
+            showLineNumbers: showLineNumbers
         )
     }
 
@@ -135,6 +138,7 @@ struct ViewerWebView: NSViewRepresentable {
         private var lastRenderedContent: String?
         private var lastRenderedFileType: FileType?
         private var lastWasDeleted: Bool?
+        private var lastShowLineNumbers: Bool?
         private var isDirectHTMLMode = false
         private var lastDirectHTMLPath: URL?
 
@@ -220,7 +224,8 @@ struct ViewerWebView: NSViewRepresentable {
             fileType: FileType,
             isDeleted: Bool,
             filePath: URL?,
-            isSourceMode: Bool
+            isSourceMode: Bool,
+            showLineNumbers: Bool
         ) {
             let doUpdate = { [weak self] in
                 guard let self, let webView else { return }
@@ -276,6 +281,10 @@ struct ViewerWebView: NSViewRepresentable {
                     lastRenderedContent = nil
                     lastRenderedFileType = nil
                     reloadViewerHTML(webView: webView) {
+                        if showLineNumbers != self.lastShowLineNumbers {
+                            webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
+                            self.lastShowLineNumbers = showLineNumbers
+                        }
                         // ソース表示中は描画前にビューモードを source に切り替える。
                         // 再ロード直後の viewer.html は _viewMode='rendered' / _lastContent=null のため、
                         // setViewMode は再描画せず _viewMode のみ更新し、続く render() が
@@ -299,11 +308,17 @@ struct ViewerWebView: NSViewRepresentable {
                 let needsRender = content != lastRenderedContent
                     || fileType != lastRenderedFileType
                     || lastWasDeleted == true
+                    || showLineNumbers != lastShowLineNumbers
                 guard needsRender else { return }
 
                 lastWasDeleted = false
                 lastRenderedContent = content
                 lastRenderedFileType = fileType
+
+                if showLineNumbers != lastShowLineNumbers {
+                    webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
+                    lastShowLineNumbers = showLineNumbers
+                }
 
                 // JSONEncoder でエスケープし、JS インジェクションを防ぐ
                 guard let script = ViewerBridge.renderScript(content: content, fileType: fileType)
@@ -320,6 +335,9 @@ struct ViewerWebView: NSViewRepresentable {
 
         private func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
             isReady = false
+            // 再ロードで viewer.html の JS 状態(_showLineNumbers=false)が初期化されるため、
+            // Swift 側のキャッシュも破棄して次回更新時に setLineNumbers を再注入させる。
+            lastShowLineNumbers = nil
             // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
             // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
             let zoom = initialPageZoom

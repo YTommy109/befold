@@ -79,6 +79,20 @@ struct MainMenuBuilderTests {
         #expect(toggleSidebar.keyEquivalentModifierMask == [.command])
     }
 
+    @Test("View メニューに Toggle Line Numbers(⌘L) がある")
+    func viewMenuHasToggleLineNumbers() throws {
+        let mainMenu = buildMenu()
+        let view = try #require(submenu(titledKey: "menu.view.title", in: mainMenu))
+
+        let item = try #require(
+            view.items.first {
+                $0.action == #selector(ViewerWindowController.toggleLineNumbers(_:))
+            }
+        )
+        #expect(item.keyEquivalent == "l")
+        #expect(item.keyEquivalentModifierMask == .command)
+    }
+
     @Test("File メニューに Print(⌘P) がある")
     func fileMenuHasPrint() throws {
         let mainMenu = buildMenu()

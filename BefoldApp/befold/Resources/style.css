@@ -247,6 +247,30 @@ body.mmd-deleted {
   word-break: break-all;
 }
 
+/* ── 行番号テーブル ── */
+.code-table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+.line-number {
+  text-align: right;
+  padding-right: 1.5ch;
+  color: var(--fg-muted);
+  opacity: 0.5;
+  min-width: 3ch;
+  vertical-align: top;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.line-content {
+  white-space: pre-wrap;
+  word-break: break-all;
+  width: 100%;
+}
+
 /* 画像表示。ナチュラルサイズで上下左右中央寄せ、はみ出しはスクロール。
    justify-content: center のままだと内容がビューポートより大きいときに
    左端がスクロール到達不能になるため flex-start + margin: auto で寄せる。 */

@@ -394,6 +394,14 @@
   var _lastType = null;
   var _lastLang = null;
   var _viewMode = 'rendered';
+  var _showLineNumbers = false;
+
+  // 行番号表示状態を更新する。再描画はしない: Swift 側(ViewerWebView)が
+  // 状態変更時に必ず続けて render を送るため、ここで再描画すると全文
+  // 再ハイライトが二重に走る。
+  function setLineNumbers(show) {
+    _showLineNumbers = show;
+  }
   // PDF 表示用に生成した blob URL。再描画のたびに revoke してリークを防ぐ。
   var _pdfBlobUrl = null;
 
@@ -501,7 +509,7 @@
       // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
       // レイアウトは style.css の .code-body が担う。
       diagramWrap.classList.add('code-body');
-      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang);
+      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang, _showLineNumbers);
     } else {
       // github-markdown-css は .markdown-body プレフィックス前提のため
       // Markdown レンダリング時のみ付与する
@@ -537,12 +545,12 @@
     diagramWrap.classList.remove('markdown-body', 'html-body', 'csv-body', 'image-body', 'pdf-body');
     diagramWrap.classList.add('code-body');
     if (type === 'csv') {
-      diagramWrap.innerHTML = renderCsvSourceHtml(content, lang || ',');
+      diagramWrap.innerHTML = renderCsvSourceHtml(content, lang || ',', _showLineNumbers);
     } else {
       var sourceLang = (type === 'svg' || type === 'html') ? 'xml'
                      : (type === 'md') ? 'markdown'
                      : lang || 'plaintext';
-      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang);
+      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang, _showLineNumbers);
     }
     _mmdApplyZoom();
   }

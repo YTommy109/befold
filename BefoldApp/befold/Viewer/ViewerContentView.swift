@@ -19,22 +19,29 @@ struct ViewerContentView: View {
         // ViewerWebView は常に生かしておき(ビュー同一性を維持)、非対応時は
         // 上に UnsupportedFileView を重ねる。テキスト↔バイナリの切替で WKWebView が
         // 破棄・再生成されて白フラッシュや stale な initialZoom が起きるのを防ぐ。
-        ZStack {
-            ViewerWebView(
-                content: store.content,
-                fileType: store.fileType,
-                isDeleted: store.isDeleted,
-                filePath: store.filePath,
-                isSourceMode: store.isSourceMode,
-                initialZoom: currentZoom,
-                onZoomChanged: onZoomChanged,
-                onOpenReference: onOpenReference,
-                webViewProxy: webViewProxy
-            )
-            .opacity(store.isUnsupported ? 0 : 1)
+        VStack(spacing: 0) {
+            if store.showsCodeContent {
+                ViewerTopBar(store: store)
+            }
 
-            if store.isUnsupported {
-                UnsupportedFileView(fileURL: store.filePath)
+            ZStack {
+                ViewerWebView(
+                    content: store.content,
+                    fileType: store.fileType,
+                    isDeleted: store.isDeleted,
+                    filePath: store.filePath,
+                    isSourceMode: store.isSourceMode,
+                    showLineNumbers: store.showLineNumbers,
+                    initialZoom: currentZoom,
+                    onZoomChanged: onZoomChanged,
+                    onOpenReference: onOpenReference,
+                    webViewProxy: webViewProxy
+                )
+                .opacity(store.isUnsupported ? 0 : 1)
+
+                if store.isUnsupported {
+                    UnsupportedFileView(fileURL: store.filePath)
+                }
             }
         }
     }

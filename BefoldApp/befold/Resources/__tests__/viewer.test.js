@@ -18,6 +18,7 @@ const {
   markdownFontSize,
   escapeHtml,
   renderCodeHtml,
+  wrapWithLineNumbers,
   parseCsv,
   buildTableHtml,
   renderCsvSourceHtml,
@@ -420,6 +421,93 @@ describe('renderCodeHtml', () => {
   });
 });
 
+describe('renderCodeHtml with line numbers', () => {
+  const hljs = require('highlight.js');
+
+  test('showLineNumbers=true wraps output in a table with line numbers', () => {
+    const result = renderCodeHtml(hljs, 'line1\nline2\nline3', 'plaintext', true);
+    expect(result).toContain('<table class="code-table">');
+    expect(result).toContain('<td class="line-number">1</td>');
+    expect(result).toContain('<td class="line-number">2</td>');
+    expect(result).toContain('<td class="line-number">3</td>');
+    expect(result).toContain('<td class="line-content">');
+  });
+
+  test('showLineNumbers=false returns plain pre/code (existing behavior)', () => {
+    const result = renderCodeHtml(hljs, 'let x = 1', 'swift', false);
+    expect(result).not.toContain('code-table');
+    expect(result).toContain('<pre><code');
+  });
+
+  test('showLineNumbers defaults to false when omitted', () => {
+    const result = renderCodeHtml(hljs, 'let x = 1', 'swift');
+    expect(result).not.toContain('code-table');
+  });
+
+  test('single line produces one row', () => {
+    const result = renderCodeHtml(null, 'hello', 'plaintext', true);
+    expect(result).toContain('<td class="line-number">1</td>');
+    expect(result).not.toContain('<td class="line-number">2</td>');
+  });
+
+  test('empty content produces single empty row', () => {
+    const result = renderCodeHtml(null, '', 'plaintext', true);
+    expect(result).toContain('<table class="code-table">');
+    expect(result).toContain('<td class="line-number">1</td>');
+  });
+
+  test('HTML is escaped in line content', () => {
+    const result = renderCodeHtml(null, '<script>alert(1)</script>', 'plaintext', true);
+    expect(result).not.toContain('<script>');
+    expect(result).toContain('&lt;script&gt;');
+  });
+
+  test('hljs highlighted code is split into lines and wrapped', () => {
+    const result = renderCodeHtml(hljs, 'let x = 1\nlet y = 2', 'swift', true);
+    expect(result).toContain('<td class="line-number">1</td>');
+    expect(result).toContain('<td class="line-number">2</td>');
+    expect(result).toContain('hljs');
+  });
+
+  test('multi-line hljs span (block comment) stays balanced per row', () => {
+    const result = renderCodeHtml(hljs, '/* a\nb */', 'swift', true);
+    // 各 <td class="line-content"> 内で <span> の開閉が釣り合っていること
+    const cells = result.match(/<td class="line-content">.*?<\/td>/g);
+    expect(cells).toHaveLength(2);
+    for (const cell of cells) {
+      const opens = (cell.match(/<span\b/g) || []).length;
+      const closes = (cell.match(/<\/span>/g) || []).length;
+      expect(opens).toBe(closes);
+    }
+    // 2 行目はコメント色の span で開き直されている
+    expect(cells[1]).toMatch(/^<td class="line-content"><span[^>]*hljs-comment/);
+  });
+});
+
+describe('wrapWithLineNumbers', () => {
+  test('span crossing a newline is closed at row end and reopened on the next row', () => {
+    const html = wrapWithLineNumbers('<span class="x">a\nb</span>');
+    expect(html).toContain('<td class="line-content"><span class="x">a</span></td>');
+    expect(html).toContain('<td class="line-content"><span class="x">b</span></td>');
+  });
+
+  test('nested spans are reopened in order', () => {
+    const html = wrapWithLineNumbers('<span class="o"><span class="i">a\nb</span></span>');
+    expect(html).toContain(
+      '<td class="line-content"><span class="o"><span class="i">a</span></span></td>'
+    );
+    expect(html).toContain(
+      '<td class="line-content"><span class="o"><span class="i">b</span></span></td>'
+    );
+  });
+
+  test('balanced single-line spans are left untouched', () => {
+    const html = wrapWithLineNumbers('<span class="x">a</span>\nplain');
+    expect(html).toContain('<td class="line-content"><span class="x">a</span></td>');
+    expect(html).toContain('<td class="line-content">plain</td>');
+  });
+});
+
 describe('FileType.swift の言語名契約', () => {
   // FileType.codeExtensionLanguages(FileType.swift)の値と同期させること。
   // npm の highlight.js ではなく同梱の highlight.min.js に対して検証する
@@ -565,5 +653,36 @@ describe('renderCsvSourceHtml', () => {
     // ソース表示ではクオート付きフィールドを1つの色で表示する
     expect(html).toContain('<span class="csv-col-0">&quot;a,b&quot;</span>');
     expect(html).toContain('<span class="csv-col-1">c</span>');
+  });
+});
+
+describe('renderCsvSourceHtml with line numbers', () => {
+  test('showLineNumbers=true wraps output in a table with line numbers', () => {
+    const html = renderCsvSourceHtml('a,b\n1,2', ',', true);
+    expect(html).toContain('<table class="code-table">');
+    expect(html).toContain('<td class="line-number">1</td>');
+    expect(html).toContain('<td class="line-number">2</td>');
+    expect(html).toContain('csv-col-');
+  });
+
+  test('showLineNumbers=false returns existing format', () => {
+    const html = renderCsvSourceHtml('a,b\n1,2', ',', false);
+    expect(html).not.toContain('code-table');
+  });
+
+  test('showLineNumbers defaults to false when omitted', () => {
+    const html = renderCsvSourceHtml('a,b', ',');
+    expect(html).not.toContain('code-table');
+  });
+
+  test('quoted cell with embedded newline keeps csv-col spans balanced per row', () => {
+    const html = renderCsvSourceHtml('a,"x\ny",b', ',', true);
+    const cells = html.match(/<td class="line-content">.*?<\/td>/g);
+    expect(cells).toHaveLength(2);
+    for (const cell of cells) {
+      const opens = (cell.match(/<span\b/g) || []).length;
+      const closes = (cell.match(/<\/span>/g) || []).length;
+      expect(opens).toBe(closes);
+    }
   });
 });
