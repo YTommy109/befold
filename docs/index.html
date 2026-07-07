@@ -48,9 +48,17 @@
 
   <!-- Screenshot -->
   <section class="screenshot">
-    <div class="screenshot-placeholder">
-      <span lang="ja">スクリーンショット（後日追加）</span>
-      <span lang="en" hidden>Screenshot (coming soon)</span>
+    <div class="carousel">
+      <div class="carousel-track">
+        <div class="carousel-slide"><img src="images/screenshot-1.png" alt="Mermaid flowchart in befold" loading="lazy"></div>
+        <div class="carousel-slide"><img src="images/screenshot-2.png" alt="Mermaid sequence diagram in befold" loading="lazy"></div>
+        <div class="carousel-slide"><img src="images/screenshot-3.png" alt="Markdown preview in befold" loading="lazy"></div>
+        <div class="carousel-slide"><img src="images/screenshot-4.png" alt="CSV table view in befold" loading="lazy"></div>
+        <div class="carousel-slide"><img src="images/screenshot-5.png" alt="Source code view in befold" loading="lazy"></div>
+      </div>
+      <button class="carousel-prev" type="button" aria-label="Previous screenshot">‹</button>
+      <button class="carousel-next" type="button" aria-label="Next screenshot">›</button>
+      <div class="carousel-dots"></div>
     </div>
   </section>
 
@@ -156,6 +164,7 @@
   </p>
 </footer>
 
+<script src="carousel.js"></script>
 <script>
 function switchLang(lang) {
   document.querySelectorAll('[lang]').forEach(function(el) {
