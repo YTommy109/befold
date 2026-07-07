@@ -479,18 +479,9 @@ extension ViewerWindowController: NSWindowDelegate {
             menuItem.title = store.showLineNumbers
                 ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
                 : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
-            return showsCodeContent
+            return store.showsCodeContent
         }
         return true
-    }
-
-    /// 行番号トグルを表示できるか。コード表示中(ソースモードまたはコード形式)のみ有効。
-    /// ViewerContentView.showBottomBar と同じ条件。
-    private var showsCodeContent: Bool {
-        if store.isUnsupported { return false }
-        if store.isSourceMode { return true }
-        if case .code = store.fileType { return true }
-        return false
     }
 
     func windowWillClose(_ notification: Notification) {

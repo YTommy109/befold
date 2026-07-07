@@ -50,6 +50,15 @@ final class ViewerStore {
         }
     }
 
+    /// コード表示中(ソースモードまたはコード形式ファイル)かどうか。
+    /// トップバーの表示可否と行番号メニューの有効判定が共有する。
+    var showsCodeContent: Bool {
+        if isUnsupported { return false }
+        if isSourceMode { return true }
+        if case .code = fileType { return true }
+        return false
+    }
+
     init(
         watcherFactory: WatcherFactory? = nil,
         fileReader: any FileReading = DefaultFileReader(),
