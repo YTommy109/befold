@@ -435,8 +435,8 @@ struct ViewerStoreFileGoneTests {
         // グレース期間内に再作成 → onFileGone は発火しない
         reader.setFile("graph TD; C-->D", at: file)
         onChangeBox.get()?()
-        // グレース期間(1s)を過ぎても発火しないことを確認
-        try await Task.sleep(for: .seconds(0.8))
+        // グレース期間(1s)を過ぎても発火しないことを確認(1s + 余裕0.3s)
+        try await Task.sleep(for: .seconds(1.3))
         #expect(firedCount == 0)
         #expect(store.content == "graph TD; C-->D")
 
@@ -485,11 +485,10 @@ struct ViewerStoreFileGoneTests {
         onChangeBox.get()?()
         // 監視イベントなしで再作成(発火直前の存在再確認だけで救済されるケース)。
         // グレースタスクは発火せずに完了する。
-        // 待ち時間はフルスイート並列実行下でのタイマー遅延を吸収できるよう
-        // グレース期間(1s)に余裕を持たせている(FileWatcherIntegrationTests の
-        // フレーキー対策と同様の考え方)。
+        // グレース期間(1s)を過ぎても発火しないことを確認するため 1s + 余裕0.3s 待つ
+        // (FileWatcherIntegrationTests のフレーキー対策と同様の考え方)。
         reader.setFile("graph TD; C-->D", at: file)
-        try await Task.sleep(for: .seconds(0.8))
+        try await Task.sleep(for: .seconds(1.3))
         #expect(firedCount == 0)
 
         // 再削除 → 完了済みの stale タスクが検知を塞いでいないこと
