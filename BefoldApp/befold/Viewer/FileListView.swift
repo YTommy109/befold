@@ -183,7 +183,10 @@ struct FileListView: View {
     private func copyPath(_ url: URL) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(url.path, forType: .string)
+        pasteboard.setString(
+            PathRelativizer.relativePath(of: url, relativeTo: model.currentDirectory),
+            forType: .string
+        )
     }
 
     private func revealInFinder(_ url: URL) {
