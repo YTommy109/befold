@@ -35,15 +35,13 @@ set windowWidth to 1280
 set windowHeight to 800
 set captureRect to (windowX as string) & "," & (windowY as string) & "," & (windowWidth as string) & "," & (windowHeight as string)
 
--- {ファイル名, 出力ファイル名, サイドバーを表示するか, 末尾までスクロールするか}
--- sample.md は冒頭がMermaid図で占められるため、表・箇条書き・引用など
--- Markdownらしい要素が集まる末尾までスクロールしてから撮影する。
+-- {ファイル名, 出力ファイル名, サイドバーを表示するか}
 set targets to {¬
-    {"flowchart.mmd", "screenshot-1.png", true, false}, ¬
-    {"sequence.mmd", "screenshot-2.png", false, false}, ¬
-    {"sample.md", "screenshot-3.png", false, true}, ¬
-    {"sample.csv", "screenshot-4.png", false, false}, ¬
-    {"example.swift", "screenshot-5.png", false, false}}
+    {"flowchart.mmd", "screenshot-1.png", true}, ¬
+    {"sequence.mmd", "screenshot-2.png", false}, ¬
+    {"sample.md", "screenshot-3.png", false}, ¬
+    {"sample.csv", "screenshot-4.png", false}, ¬
+    {"example.swift", "screenshot-5.png", false}}
 
 do shell script "mkdir -p " & quoted form of imagesDir
 
@@ -51,7 +49,6 @@ repeat with targetItem in targets
     set fileName to item 1 of targetItem
     set outputName to item 2 of targetItem
     set showSidebar to item 3 of targetItem
-    set scrollToEnd to item 4 of targetItem
 
     set filePath to sampleDir & "/" & fileName
     set outputPath to imagesDir & "/" & outputName
@@ -83,14 +80,6 @@ repeat with targetItem in targets
 
     if showSidebar then
         tell application "System Events" to keystroke "b" using {command down}
-        delay 1
-    end if
-
-    if scrollToEnd then
-        -- End キーがコンテンツ(WKWebView)側に届くよう、まず中央をクリックしてフォーカスを移す
-        tell application "System Events" to click at {windowX + (windowWidth / 2), windowY + (windowHeight / 2)}
-        delay 0.5
-        tell application "System Events" to key code 119 -- End
         delay 1
     end if
 
