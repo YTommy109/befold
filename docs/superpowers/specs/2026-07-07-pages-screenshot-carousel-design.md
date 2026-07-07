@@ -19,18 +19,12 @@
 
 ## 1. sample ディレクトリのブラッシュアップ
 
-新規ファイル・拡張子は追加せず、既存ファイルの中身を実用的な内容に差し替える。
+既存ファイルの内容を確認した結果、`sample/*.mmd`(class/er/flowchart/sequence/state)・`sample.md`・`sample.csv`・`sample.tsv` はすでにbefoldの実アーキテクチャに基づいた内容の濃いサンプルであり、書き直しは不要と判断した。スクリーンショットで見劣りするのは `diagram.svg`(円3つ+テキストのみの明らかなプレースホルダー)のみのため、変更対象はこれに絞る。
 
 | ファイル | 変更方針 |
 |---|---|
-| `sample/flowchart.mmd` | 実際の開発フロー例(PR作成→CI→レビュー→マージ)にリッチ化 |
-| `sample/sequence.mmd` | API呼び出し例(Client→API→DB)にリッチ化 |
-| `sample/class.mmd` | クラス設計例として内容拡充 |
-| `sample/er.mmd` | ER図として内容拡充 |
-| `sample/state.mmd` | 状態遷移図として内容拡充 |
-| `sample/diagram.svg` | 手描き図形サンプルから、実用的なアイコン/ロゴ風SVGに差し替え |
-| `sample/sample.md` | 現状のMermaid+Swiftコードブロックのまま、必要に応じて整形 |
-| `sample/sample.csv` / `sample/sample.tsv` | 実データ風に軽く整える |
+| `sample/diagram.svg` | 手描き図形サンプルから、befoldらしいアイコン/ロゴ風SVGに差し替え |
+| `sample/*.mmd`, `sample/sample.md`, `sample/sample.csv`, `sample/sample.tsv` | 変更なし(すでに実用的な内容) |
 
 ## 2. スクリーンショット自動撮影(AppleScript)
 
@@ -72,8 +66,7 @@
 
 | ファイル | 種別 |
 |---|---|
-| `sample/class.mmd`, `er.mmd`, `flowchart.mmd`, `sequence.mmd`, `state.mmd`, `diagram.svg` | 内容ブラッシュアップ |
-| `sample/sample.csv`, `sample/sample.tsv` | 軽微な調整 |
+| `sample/diagram.svg` | 内容差し替え |
 | `scripts/capture-screenshots.applescript` | 新規 |
 | `docs/images/screenshot-1.png`〜`screenshot-5.png` | 新規(自動撮影の成果物) |
 | `docs/images/.gitkeep` | 削除 |
