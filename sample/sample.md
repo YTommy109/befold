@@ -1,6 +1,9 @@
 # Markdown サンプル
 
 befold の Markdown プレビュー機能を確認するためのサンプルファイル。
+見出し・表・箇条書きといった基本要素に加え、Mermaid 図やコードブロック、
+SVG 画像の埋め込みまで、befold が対応する主要なレンダリング機能を
+ひととおり確認できる。
 
 ## Mermaid ダイアグラム
 
@@ -104,3 +107,14 @@ function highlightCode(hljs, str, lang) {
 plain text block
 no highlighting here
 ```
+
+## 画像表示
+
+Markdown 内に画像を埋め込むと、SVG もラスター画像と同じように
+インラインでレンダリングされる。線画やアイコンのような軽量なベクター
+画像であれば、拡大してもぼやけず、ページの読み込みも妨げない。
+
+![befold のアイコン風サンプル図](diagram.svg)
+
+`.svg` 単体のファイルとしてはもちろん、このように Markdown 文書へ
+埋め込んだ場合でもレンダリング結果は変わらない。
