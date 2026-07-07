@@ -285,7 +285,9 @@ struct ViewerWebView: NSViewRepresentable {
                         }
                         // viewer.html ロード完了後にコンテンツを描画
                         guard let script = ViewerBridge.renderScript(
-                            content: Self.renderableContent(content, fileType: fileType, filePath: filePath),
+                            content: Self.renderableContent(
+                                content, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+                            ),
                             fileType: fileType
                         ) else { return }
                         webView.evaluateJavaScript(script)
@@ -312,7 +314,9 @@ struct ViewerWebView: NSViewRepresentable {
 
                 // JSONEncoder でエスケープし、JS インジェクションを防ぐ
                 guard let script = ViewerBridge.renderScript(
-                    content: Self.renderableContent(content, fileType: fileType, filePath: filePath),
+                    content: Self.renderableContent(
+                        content, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+                    ),
                     fileType: fileType
                 ) else { return }
                 webView.evaluateJavaScript(script)
@@ -327,10 +331,11 @@ struct ViewerWebView: NSViewRepresentable {
 
         /// render() に渡す直前のコンテンツ加工。markdown はローカル画像参照を
         /// data URI に差し替える(相対パスの解決基準として filePath が必要)。
-        private static func renderableContent(
-            _ content: String, fileType: FileType, filePath: URL?
+        /// ソース表示中は原文をそのまま見せるため、埋め込みは行わない。
+        static func renderableContent(
+            _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool
         ) -> String {
-            guard fileType == .markdown, let filePath else { return content }
+            guard !isSourceMode, fileType == .markdown, let filePath else { return content }
             return MarkdownImageEmbedder.embedLocalImages(in: content, baseURL: filePath)
         }
 
