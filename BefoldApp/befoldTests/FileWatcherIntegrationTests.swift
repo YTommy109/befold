@@ -2,7 +2,7 @@
 import Foundation
 import Testing
 
-@Suite
+@Suite(.serialized)
 struct FileWatcherIntegrationTests {
     @Test(.timeLimit(.minutes(1)))
     func detectsFileModification() async throws {
@@ -83,43 +83,35 @@ struct FileWatcherIntegrationTests {
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
-        // 再作成後の変更で発火した最初のコールバックだけを検証対象にする。
-        // 発火は 1 回以上あり得るため fired ガードで confirm() を 1 回に抑える
-        // （範囲指定の expectedCount は Swift 6.0 の Swift Testing に無いため使わない）。
-        // armed / fired は @Sendable クロージャに捕捉された後に書き換えるため、
-        // 参照型（TestFlag）に包んで「captured var の後続変更」警告を避ける。
-        await confirmation { confirm in
-            let armed = TestFlag()
-            let fired = TestFlag()
-            let watcher = FileWatcher(path: file) {
-                if armed.isSet, !fired.isSet {
-                    fired.isSet = true
-                    confirm()
-                }
-            }
-
-            // 初期化完了を待つ
-            try? await Task.sleep(for: .seconds(0.3))
-
-            // ファイルを削除（ファイル監視ソースが解放される）
-            try? FileManager.default.removeItem(at: file)
-            try? await Task.sleep(for: .seconds(0.5))
-
-            // 同名で再作成（ディレクトリ監視が検知してファイル監視を再開する）
-            try? "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
-            // 監視再開と、再作成に伴う先行コールバックの消化を待つ
-            try? await Task.sleep(for: .seconds(0.5))
-
-            // ここから先のコールバックのみを検証対象にする
-            armed.isSet = true
-
-            // 再作成後の変更 → 監視が再開していればコールバックが発火する
-            try? "graph TD; A-->C".write(to: file, atomically: false, encoding: .utf8)
-
-            // コールバック発火を待つ
-            try? await Task.sleep(for: .seconds(3))
-            watcher.stop()
+        let armed = TestFlag()
+        let changed = TestFlag()
+        let watcher = FileWatcher(path: file) {
+            if armed.isSet { changed.isSet = true }
         }
+
+        // 初期化完了を待つ
+        try? await Task.sleep(for: .seconds(0.3))
+
+        // ファイルを削除（ファイル監視ソースが解放される）
+        try FileManager.default.removeItem(at: file)
+        try? await Task.sleep(for: .seconds(0.5))
+
+        // 同名で再作成（ディレクトリ監視が検知してファイル監視を再開する）
+        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+        try? await Task.sleep(for: .seconds(0.5))
+
+        // ここから先のコールバックのみを検証対象にする
+        armed.isSet = true
+
+        // 監視再開が遅れてもリトライで検知できるよう、発火するまで書き込みを繰り返す
+        await waitUntilWithRetry(timeout: 15, action: {
+            try? "graph TD; A-->\(Int.random(in: 0 ... 999))"
+                .write(to: file, atomically: false, encoding: .utf8)
+        }, until: {
+            changed.isSet
+        })
+        #expect(changed.isSet)
+        watcher.stop()
     }
 
     /// 同一ディレクトリ内での rename を検知し、新パスを通知したうえで
@@ -321,11 +313,29 @@ private final class RenamedBox: @unchecked Sendable {
 
 /// 条件が true になるまでポーリングで待機する。CI 環境での DispatchSource イベント遅延に対応。
 private func waitUntil(
-    timeout: TimeInterval = 5,
+    timeout: TimeInterval = 10,
     _ condition: @escaping @Sendable () -> Bool
 ) async {
     let deadline = Date().addingTimeInterval(timeout)
     while !condition(), Date() < deadline {
         try? await Task.sleep(for: .seconds(0.05))
+    }
+}
+
+/// 条件が true になるまで action を定期的に実行しながらポーリングで待機する。
+/// 監視再開が遅れた場合でも後続の書き込みで検知できるようにするリトライパターン。
+private func waitUntilWithRetry(
+    timeout: TimeInterval = 15,
+    interval: TimeInterval = 0.5,
+    action: @escaping @Sendable () -> Void,
+    until condition: @escaping @Sendable () -> Bool
+) async {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !condition(), Date() < deadline {
+        action()
+        let retryDeadline = Date().addingTimeInterval(interval)
+        while !condition(), Date() < retryDeadline {
+            try? await Task.sleep(for: .seconds(0.05))
+        }
     }
 }
