@@ -59,6 +59,7 @@ final class NavigationHistory {
     }
 
     /// rename/move 時に履歴内の該当 URL（directory/file とも）を差し替える（陳腐化防止）。
+    /// リマップにより隣接エントリが同一になった場合は重複を除去する。
     func renameOccurred(from oldURL: URL, to newURL: URL) {
         let oldFileKey = oldURL.normalizedPathKey
         let oldDirKey = oldURL.deletingLastPathComponent().normalizedPathKey
@@ -71,5 +72,21 @@ final class NavigationHistory {
                 file: newURL
             )
         }
+        deduplicateAdjacentEntries()
+    }
+
+    /// 隣接する同一エントリを除去し、currentIndex を調整する。
+    private func deduplicateAdjacentEntries() {
+        var deduplicated: [HistoryEntry] = []
+        var newIndex = currentIndex
+        for (offset, entry) in entries.enumerated() {
+            if let last = deduplicated.last, last == entry {
+                if offset <= currentIndex { newIndex -= 1 }
+            } else {
+                deduplicated.append(entry)
+            }
+        }
+        entries = deduplicated
+        currentIndex = max(0, min(newIndex, entries.count - 1))
     }
 }

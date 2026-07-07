@@ -418,16 +418,33 @@ private struct HistoryNavigationButton: NSViewRepresentable {
             let menu = NSMenu()
             let direction = parent.primaryOffset < 0 ? -1 : 1
             for (index, entry) in parent.entries.enumerated() {
+                let (title, icon) = Self.menuLabel(for: entry)
                 let item = NSMenuItem(
-                    title: entry.file?.lastPathComponent ?? entry.directory.lastPathComponent,
+                    title: title,
                     action: #selector(menuItemClicked(_:)),
                     keyEquivalent: ""
                 )
+                item.image = icon
                 item.target = self
                 item.tag = direction * (index + 1)
                 menu.addItem(item)
             }
             menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.bounds.height + 2), in: view)
+        }
+
+        private static func menuLabel(for entry: HistoryEntry) -> (String, NSImage) {
+            if let file = entry.file {
+                let dirName = entry.directory.lastPathComponent
+                let title = "\(file.lastPathComponent) — \(dirName)"
+                let icon = NSWorkspace.shared.icon(forFile: file.path)
+                icon.size = NSSize(width: 16, height: 16)
+                return (title, icon)
+            } else {
+                let title = entry.directory.lastPathComponent
+                let icon = NSWorkspace.shared.icon(forFile: entry.directory.path)
+                icon.size = NSSize(width: 16, height: 16)
+                return (title, icon)
+            }
         }
 
         @objc private func menuItemClicked(_ sender: NSMenuItem) {

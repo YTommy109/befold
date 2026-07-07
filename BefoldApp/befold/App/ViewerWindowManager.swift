@@ -87,7 +87,11 @@ final class ViewerWindowManager {
         }
         controller.isFileOpenInAnotherWindow = { [weak self, weak controller] targetURL in
             guard let self, let controller else { return false }
-            return focusExistingWindowIfOpen(targetURL, excluding: controller)
+            return isOpenInAnotherWindow(targetURL, excluding: controller)
+        }
+        controller.focusWindowForFile = { [weak self, weak controller] targetURL in
+            guard let self, let controller else { return }
+            focusExistingWindow(targetURL, excluding: controller)
         }
         controller.onRename = { [weak self, weak controller] oldURL, newURL in
             guard let self, let controller else { return }
@@ -99,15 +103,22 @@ final class ViewerWindowManager {
         }
     }
 
-    /// targetURL が controller 以外のウィンドウで既に開かれていれば、そのウィンドウを
-    /// 前面化して true を返す。switchFile の可否判断(1 ファイル 1 ウィンドウ)に使う。
-    private func focusExistingWindowIfOpen(
+    /// targetURL が controller 以外のウィンドウで既に開かれているかを判定する純粋チェック。
+    private func isOpenInAnotherWindow(
         _ targetURL: URL, excluding controller: ViewerWindowController
     ) -> Bool {
         let key = targetURL.normalizedPathKey
         guard let existing = controllers[key], existing !== controller else { return false }
-        existing.window?.makeKeyAndOrderFront(nil)
         return true
+    }
+
+    /// targetURL を開いている別ウィンドウを前面化する。
+    private func focusExistingWindow(
+        _ targetURL: URL, excluding controller: ViewerWindowController
+    ) {
+        let key = targetURL.normalizedPathKey
+        guard let existing = controllers[key], existing !== controller else { return }
+        existing.window?.makeKeyAndOrderFront(nil)
     }
 
     /// rename / switch に伴うウィンドウ管理辞書のキー付け替えとセッション・履歴の更新。

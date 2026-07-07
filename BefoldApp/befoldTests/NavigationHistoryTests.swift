@@ -98,6 +98,25 @@ struct NavigationHistoryTests {
         #expect(history.entries[1].file?.lastPathComponent == "b.mmd")
     }
 
+    @Test("renameOccurred で隣接エントリが同一になった場合は重複が除去される")
+    func renameDeduplicatesAdjacentEntries() {
+        let history = NavigationHistory()
+        let sub = URL(fileURLWithPath: "/proj/sub")
+        let parent = URL(fileURLWithPath: "/proj")
+        let oldFile = sub.appendingPathComponent("old.mmd")
+        let newFile = parent.appendingPathComponent("old.mmd")
+        history.push(HistoryEntry(directory: sub, file: oldFile))
+        history.push(HistoryEntry(directory: parent, file: oldFile))
+        #expect(history.entries.count == 2)
+
+        history.renameOccurred(from: oldFile, to: newFile)
+
+        #expect(history.entries.count == 1)
+        #expect(history.entries[0].file?.lastPathComponent == "old.mmd")
+        #expect(history.entries[0].directory.path == "/proj")
+        #expect(history.currentIndex == 0)
+    }
+
     @Test("renameOccurred で別ディレクトリへ移動するとディレクトリも差し替わる")
     func renameRemapsDirectoryOnCrossDirectoryMove() {
         let history = NavigationHistory()
