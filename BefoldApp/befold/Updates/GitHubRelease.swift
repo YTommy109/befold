@@ -22,8 +22,17 @@ struct GitHubRelease: Decodable, Equatable, Sendable {
         case assets
     }
 
+    /// `.dmg` アセットが添付されているか。
+    var hasDMG: Bool {
+        dmgAsset != nil
+    }
+
     /// `.dmg` アセットの URL。なければリリースページにフォールバックする。
     var downloadURL: URL {
-        assets.first { $0.name.hasSuffix(".dmg") }?.browserDownloadURL ?? htmlURL
+        dmgAsset?.browserDownloadURL ?? htmlURL
+    }
+
+    private var dmgAsset: Asset? {
+        assets.first { $0.name.hasSuffix(".dmg") }
     }
 }

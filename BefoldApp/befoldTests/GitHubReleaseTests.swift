@@ -63,4 +63,20 @@ struct GitHubReleaseTests {
         )
         #expect(release.downloadURL == release.htmlURL)
     }
+
+    @Test
+    func hasDMGReturnsTrueWhenDmgAssetExists() throws {
+        let release = try JSONDecoder().decode(GitHubRelease.self, from: apiJSON)
+        #expect(release.hasDMG)
+    }
+
+    @Test
+    func hasDMGReturnsFalseWhenNoDmgAsset() throws {
+        let release = try GitHubRelease(
+            tagName: "v1.2.0",
+            htmlURL: #require(URL(string: "https://github.com/YTommy109/befold/releases/tag/v1.2.0")),
+            assets: []
+        )
+        #expect(!release.hasDMG)
+    }
 }
