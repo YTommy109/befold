@@ -36,6 +36,7 @@
 		62DC55E3F55F82B3BB523D7C /* RecentDocumentsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F74A06D5615D43BFF13BFCA6 /* RecentDocumentsStoreTests.swift */; };
 		63D62F412AF6AD9DAAEB0384 /* UpdateUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B4DBCFA1601C57DCBC3314D /* UpdateUI.swift */; };
 		653F8701B089FC6B39212C23 /* github-dark.css in Resources */ = {isa = PBXBuildFile; fileRef = 897B0FE39C08472D36E4A5E5 /* github-dark.css */; };
+		65A6F2C3E1F250528D246C87 /* UpdateChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9991EC383261DBA7DE4BECD7 /* UpdateChannel.swift */; };
 		65CED0CCA104935B6096139C /* ViewerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2480AF58CC6EFE5AAEA3915C /* ViewerWindowController.swift */; };
 		67F51587FCBD821F0DFA5355 /* NavigationHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB52519A3CA18CFE2EBBFF5C /* NavigationHistoryTests.swift */; };
 		6A74DBC41DCDB5E48740F972 /* ReferenceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5BC1C0DF53EC5AE73974CF /* ReferenceResolver.swift */; };
@@ -163,6 +164,7 @@
 		93EF3F22D9C904FCB9B59F54 /* Debouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debouncer.swift; sourceTree = "<group>"; };
 		950B1D89A235DA02837D63CE /* RecentDocumentsMenuControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentDocumentsMenuControllerTests.swift; sourceTree = "<group>"; };
 		96479B0C9A32AC0E241E957C /* UpdateCheckCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckCoordinator.swift; sourceTree = "<group>"; };
+		9991EC383261DBA7DE4BECD7 /* UpdateChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChannel.swift; sourceTree = "<group>"; };
 		9C305DCE0DFF8BF0F5A9B41B /* ViewerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerStore.swift; sourceTree = "<group>"; };
 		9CB35AE6856BE629A8594B9E /* UpdateCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckerTests.swift; sourceTree = "<group>"; };
 		9D083BEC39AF0D8996092CBF /* URL+PathKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "URL+PathKey.swift"; sourceTree = "<group>"; };
@@ -276,6 +278,7 @@
 				80F233EDFF1B7BDA2E9C9004 /* DownloadProgressWindow.swift */,
 				ECB0AD2D8DAAA6ABBA45A046 /* GitHubRelease.swift */,
 				357663FF11A58E7A70A06B31 /* ReleaseFetcher.swift */,
+				9991EC383261DBA7DE4BECD7 /* UpdateChannel.swift */,
 				A7BA051EDECA78D7BC2303C6 /* UpdateChecker.swift */,
 				71FE678F852141EDC0C3287A /* UpdateDownloader.swift */,
 				89D2979B73A69282C2FC8809 /* UpdateFlowController.swift */,
@@ -524,6 +527,7 @@
 				5571E2041567DA341855898F /* URL+PathKey.swift in Sources */,
 				7B45867F1EC43AA24A629747 /* URLResponse+Validation.swift in Sources */,
 				5FC55E4F0C043712F9C25F2D /* UnsupportedFileView.swift in Sources */,
+				65A6F2C3E1F250528D246C87 /* UpdateChannel.swift in Sources */,
 				FBA3CE255CC2DC2909C2AFFC /* UpdateCheckCoordinator.swift in Sources */,
 				5443BD01B7A5FA74DFAC3084 /* UpdateChecker.swift in Sources */,
 				FCE3B18A0778D447D3C1FC3A /* UpdateDownloader.swift in Sources */,
@@ -561,7 +565,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = befold/befold.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 225;
+				CURRENT_PROJECT_VERSION = 233;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = befold/Info.plist;
@@ -569,7 +573,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.7;
+				MARKETING_VERSION = 1.4.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.befold;
 				PRODUCT_NAME = befold;
 				SDKROOT = macosx;
@@ -582,7 +586,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = befold/befold.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 225;
+				CURRENT_PROJECT_VERSION = 233;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = befold/Info.plist;
@@ -590,7 +594,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.7;
+				MARKETING_VERSION = 1.4.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.befold;
 				PRODUCT_NAME = befold;
 				SDKROOT = macosx;

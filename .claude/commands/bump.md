@@ -1,6 +1,6 @@
 # /bump — バージョン bump & リリースタグ
 
-引数: $ARGUMENTS（patch | minor | major）
+引数: $ARGUMENTS（patch | minor | major | dev）
 
 以下のコマンドを実行し、出力をそのままユーザーに報告してください。
 検証・バージョン計算・コミット・タグ・プッシュはすべてスクリプト内で行われます。

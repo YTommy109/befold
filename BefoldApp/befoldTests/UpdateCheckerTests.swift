@@ -5,14 +5,20 @@ import Testing
 private final class MockFetcher: ReleaseFetching, @unchecked Sendable {
     private let count = LockedBox(0)
     private let result: Result<GitHubRelease, Error>
+    private let allResults: Result<[GitHubRelease], Error>?
     private let delayNanos: UInt64
 
     var callCount: Int {
         count.get()
     }
 
-    init(result: Result<GitHubRelease, Error>, delayNanos: UInt64 = 0) {
+    init(
+        result: Result<GitHubRelease, Error>,
+        allResults: Result<[GitHubRelease], Error>? = nil,
+        delayNanos: UInt64 = 0
+    ) {
         self.result = result
+        self.allResults = allResults
         self.delayNanos = delayNanos
     }
 
@@ -22,6 +28,14 @@ private final class MockFetcher: ReleaseFetching, @unchecked Sendable {
             try await Task.sleep(nanoseconds: delayNanos)
         }
         return try result.get()
+    }
+
+    func fetchLatestIncludingPrerelease() async throws -> [GitHubRelease] {
+        count.update { $0 += 1 }
+        if delayNanos > 0 {
+            try await Task.sleep(nanoseconds: delayNanos)
+        }
+        return try (allResults ?? result.map { [$0] }).get()
     }
 }
 
@@ -93,6 +107,22 @@ struct UpdateCheckerTests {
         let result = await checker.check(bypassCache: false)
 
         #expect(result == .upToDate(current: "not-a-version"))
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func newerReleaseWithoutDMGIsUpToDate() async throws {
+        let release = try GitHubRelease(
+            tagName: "v1.2.0",
+            htmlURL: #require(URL(string: "https://github.com/YTommy109/befold/releases/tag/v1.2.0")),
+            assets: []
+        )
+        let checker = UpdateChecker(
+            fetcher: MockFetcher(result: .success(release)), currentVersion: "1.1.1"
+        )
+
+        let result = await checker.check(bypassCache: false)
+
+        #expect(result == .upToDate(current: "1.1.1"))
     }
 
     @Test(.timeLimit(.minutes(1)))
@@ -170,5 +200,61 @@ struct UpdateCheckerTests {
         _ = await (first, second)
 
         #expect(fetcher.callCount == 1)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func developChannelDetectsPrerelease() async throws {
+        let devRelease = try makeRelease(tag: "v1.5.0-dev.1")
+        let stableRelease = try makeRelease(tag: "v1.4.8")
+        let checker = UpdateChecker(
+            fetcher: MockFetcher(
+                result: .success(stableRelease),
+                allResults: .success([devRelease, stableRelease])
+            ),
+            currentVersion: "1.4.8",
+            channel: .develop
+        )
+
+        let result = await checker.check(bypassCache: false)
+
+        #expect(result == .updateAvailable(
+            current: "1.4.8", latest: "v1.5.0-dev.1", downloadURL: devRelease.downloadURL
+        ))
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func stableChannelIgnoresPrerelease() async throws {
+        let stableRelease = try makeRelease(tag: "v1.4.8")
+        let checker = UpdateChecker(
+            fetcher: MockFetcher(result: .success(stableRelease)),
+            currentVersion: "1.4.8"
+        )
+
+        let result = await checker.check(bypassCache: false)
+
+        #expect(result == .upToDate(current: "1.4.8"))
+    }
+}
+
+@Suite
+struct UpdateChannelTests {
+    @Test
+    func defaultChannelIsStable() {
+        let defaults = makeIsolatedDefaults(prefix: "UpdateChannelTests")
+        #expect(UpdateChannel.read(from: defaults) == .stable)
+    }
+
+    @Test
+    func developChannelIsReadFromDefaults() {
+        let defaults = makeIsolatedDefaults(prefix: "UpdateChannelTests")
+        defaults.set("develop", forKey: "UpdateChannel")
+        #expect(UpdateChannel.read(from: defaults) == .develop)
+    }
+
+    @Test
+    func unknownValueFallsBackToStable() {
+        let defaults = makeIsolatedDefaults(prefix: "UpdateChannelTests")
+        defaults.set("unknown", forKey: "UpdateChannel")
+        #expect(UpdateChannel.read(from: defaults) == .stable)
     }
 }

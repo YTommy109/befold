@@ -42,6 +42,35 @@ befold.app (Swift / AppKit + SwiftUI)
 - DispatchSource（ファイル監視）
 - XcodeGen（プロジェクト生成）/ Swift Package Manager（ビルド）
 
+## 更新チャンネル
+
+アプリの更新チェックは stable チャンネル（デフォルト）と develop チャンネルを切り替えられる。
+
+| チャンネル | 対象リリース | 用途 |
+|---|---|---|
+| `stable` | 正式リリースのみ | 一般ユーザー向け（デフォルト） |
+| `develop` | pre-release を含む全リリース | 開発者向け |
+
+### 切り替え方法
+
+```bash
+# develop チャンネルに切り替える
+defaults write com.degino.befold UpdateChannel develop
+
+# stable に戻す
+defaults delete com.degino.befold UpdateChannel
+```
+
+### develop リリースの作成
+
+```bash
+/release dev
+```
+
+現在のバージョン（例: `1.4.8`）に対して `v1.4.8-dev.N` タグを自動で作成する。
+N は既存の dev タグから自動算出される。CI が DMG をビルドして GitHub の
+pre-release に添付する。
+
 ## 関連ドキュメント
 
 - [コーディング規約](./coding_rule.md)

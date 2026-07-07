@@ -60,3 +60,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.DMG_NAME }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
