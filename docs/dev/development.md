@@ -1,5 +1,14 @@
 # befold 開発ガイド
 
+## セットアップ
+
+clone 後に一度だけ実行する（git hooks をインストールする。worktree は
+`.git/hooks` を共有するため、以降作成する worktree にも自動的に反映される）:
+
+```bash
+bash scripts/setup-git-hooks.sh
+```
+
 ## ビルド
 
 ### Swift Package Manager
