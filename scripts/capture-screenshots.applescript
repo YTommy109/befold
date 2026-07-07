@@ -38,7 +38,7 @@ set captureRect to (windowX as string) & "," & (windowY as string) & "," & (wind
 -- {ファイル名, 出力ファイル名, サイドバーを表示するか}
 set targets to {¬
     {"flowchart.mmd", "screenshot-1.png", true}, ¬
-    {"sequence.mmd", "screenshot-2.png", false}, ¬
+    {"diagram.svg", "screenshot-2.png", false}, ¬
     {"sample.md", "screenshot-3.png", false}, ¬
     {"sample.csv", "screenshot-4.png", false}, ¬
     {"example.swift", "screenshot-5.png", false}}
