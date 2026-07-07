@@ -335,6 +335,9 @@ struct ViewerWebView: NSViewRepresentable {
 
         private func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
             isReady = false
+            // 再ロードで viewer.html の JS 状態(_showLineNumbers=false)が初期化されるため、
+            // Swift 側のキャッシュも破棄して次回更新時に setLineNumbers を再注入させる。
+            lastShowLineNumbers = nil
             // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
             // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
             let zoom = initialPageZoom

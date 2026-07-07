@@ -396,12 +396,11 @@
   var _viewMode = 'rendered';
   var _showLineNumbers = false;
 
+  // 行番号表示状態を更新する。再描画はしない: Swift 側(ViewerWebView)が
+  // 状態変更時に必ず続けて render を送るため、ここで再描画すると全文
+  // 再ハイライトが二重に走る。
   function setLineNumbers(show) {
-    if (_showLineNumbers === show) return;
     _showLineNumbers = show;
-    if (_lastContent !== null) {
-      render(_lastContent, _lastType, _lastLang);
-    }
   }
   // PDF 表示用に生成した blob URL。再描画のたびに revoke してリークを防ぐ。
   var _pdfBlobUrl = null;
