@@ -26,8 +26,8 @@ targets:
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold
       PRODUCT_NAME: befold
-      MARKETING_VERSION: "1.4.7"
-      CURRENT_PROJECT_VERSION: "225"
+      MARKETING_VERSION: "1.4.8"
+      CURRENT_PROJECT_VERSION: "233"
       INFOPLIST_FILE: befold/Info.plist
       CODE_SIGN_ENTITLEMENTS: befold/befold.entitlements
       ENABLE_HARDENED_RUNTIME: true
