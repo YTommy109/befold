@@ -19,6 +19,10 @@ final class ViewerWindowController: NSWindowController {
     private(set) var fileURL: URL
     /// サイドバーのファイル一覧と選択状態。リネームやキーウィンドウ化に合わせて更新する。
     let fileListModel: FileListModel
+    /// このタブの戻る/進むナビゲーション履歴（メモリ内のみ）。
+    let history = NavigationHistory()
+    /// 戻る/進む適用中は true。この間は recordHistory による再記録を抑止する。
+    private var isApplyingHistory = false
     /// ウィンドウが閉じられたときに呼ばれるコールバック。ViewerWindowManager がウィンドウ管理辞書から除去するために使用する。
     var onClose: (() -> Void)?
     /// 開いているファイルが rename / move されたときに旧 URL・新 URL を通知するコールバック。
@@ -109,6 +113,7 @@ final class ViewerWindowController: NSWindowController {
         }
         store.openFile(fileURL)
         updateToolbarVisibility()
+        recordHistory()
     }
 
     /// サイドバー(ファイル一覧)とコンテンツ(WebView)を並べる split view controller を組み立てる。
@@ -209,6 +214,8 @@ final class ViewerWindowController: NSWindowController {
         }
         refreshFileList()
         onRename?(oldURL, newURL)
+        history.renameOccurred(from: oldURL, to: newURL)
+        refreshHistoryState()
     }
 
     /// サイドバーで別ファイルが選択されたときにウィンドウの表示対象を切り替える。
@@ -237,6 +244,7 @@ final class ViewerWindowController: NSWindowController {
             fileListModel.selection = matchingEntryURL(for: newURL)
         }
         onSwitchFile?(oldURL, newURL)
+        recordHistory()
     }
 
     /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
@@ -318,6 +326,55 @@ final class ViewerWindowController: NSWindowController {
         } else {
             fileListModel.selection = nil
         }
+        recordHistory()
+    }
+
+    // MARK: - Navigation History
+
+    /// サイドバーの戻る/進む・履歴メニューから呼ばれる。offset 負=戻る / 正=進む。
+    func navigateHistory(by offset: Int) {
+        guard let entry = history.move(by: offset) else { return }
+        applyHistoryEntry(entry)
+    }
+
+    /// 現在の表示状態（ディレクトリ＋ファイル）を履歴に記録する。
+    /// 戻る/進む適用中は抑止する。push は現在エントリと同一なら無視する。
+    private func recordHistory() {
+        guard !isApplyingHistory else { return }
+        history.push(HistoryEntry(directory: fileListModel.currentDirectory, file: fileURL))
+        refreshHistoryState()
+    }
+
+    /// 履歴エントリを表示へ適用する。再記録を抑止しつつ、ディレクトリと
+    /// 表示ファイルを合わせる。switchFile の another-window 不変条件は尊重する。
+    private func applyHistoryEntry(_ entry: HistoryEntry) {
+        isApplyingHistory = true
+        defer {
+            isApplyingHistory = false
+            refreshHistoryState()
+        }
+        if entry.directory.standardizedFileURL
+            != fileListModel.currentDirectory.standardizedFileURL
+        {
+            fileListModel.currentDirectory = entry.directory
+            fileListModel.entries = DirectoryLister.listEntries(
+                in: entry.directory, sortOrder: fileListModel.sortOrder
+            )
+        }
+        if let file = entry.file,
+           file.standardizedFileURL != fileURL.standardizedFileURL
+        {
+            switchFile(to: file) // isApplyingHistory ガードにより recordHistory は抑止
+        }
+        refreshFileList()
+    }
+
+    /// 履歴状態をサイドバー（FileListModel）へ反映する。
+    private func refreshHistoryState() {
+        fileListModel.canGoBack = history.canGoBack
+        fileListModel.canGoForward = history.canGoForward
+        fileListModel.backHistory = history.backEntries()
+        fileListModel.forwardHistory = history.forwardEntries()
     }
 
     /// 既存のビューアウィンドウと位置が完全に一致する場合だけ、標準のカスケード量ずらす。

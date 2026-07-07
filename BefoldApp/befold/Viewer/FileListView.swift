@@ -10,6 +10,10 @@ final class FileListModel {
     var entries: [FileListEntry]
     var selection: FileListEntry.ID?
     var sortOrder: SortOrder
+    var canGoBack: Bool = false
+    var canGoForward: Bool = false
+    var backHistory: [HistoryEntry] = []
+    var forwardHistory: [HistoryEntry] = []
 
     init(currentDirectory: URL, entries: [FileListEntry], selection: FileListEntry.ID?) {
         self.currentDirectory = currentDirectory
