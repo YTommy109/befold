@@ -124,13 +124,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// ファイル選択パネルを表示し、選択されたファイルをビューアで開く。
+    /// 初期ディレクトリはキーウィンドウが最後に記憶したディレクトリ、
+    /// 無ければ（未オープン含む）ホームディレクトリを使う。
     @objc func showOpenPanel() {
+        let controller = NSApp.keyWindow?.windowController as? ViewerWindowController
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
+        panel.directoryURL = OpenPanelDirectoryResolver.resolve(
+            lastOpenDirectory: controller?.lastOpenDirectory,
+            homeDirectory: FileManager.default.homeDirectoryForCurrentUser
+        )
         panel.begin { [weak self] response in
             guard response == .OK else { return }
             for url in panel.urls {
                 self?.openViewer(for: url)
+            }
+            if let first = panel.urls.first {
+                controller?.lastOpenDirectory = first.deletingLastPathComponent()
             }
         }
     }

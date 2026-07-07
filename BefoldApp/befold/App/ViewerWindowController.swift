@@ -16,6 +16,9 @@ final class ViewerWindowController: NSWindowController {
     private let forceSidebarVisible: Bool
     private let webViewProxy = WebViewProxy()
     private(set) var isSourceMode = false
+    /// この ウィンドウで最後に cmd+o のファイル選択パネルを開いたディレクトリ。
+    /// ウィンドウ単位の記憶であり、永続化はしない。
+    var lastOpenDirectory: URL?
     private(set) var fileURL: URL
     /// サイドバー(一覧・選択同期・フォルダ移動)と戻る/進む履歴を担うナビゲータ。
     let sidebar: SidebarNavigator
