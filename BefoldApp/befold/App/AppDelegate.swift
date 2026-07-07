@@ -166,8 +166,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ))
         credits.append(NSAttributedString(string: "\nCopyright © 2026 ", attributes: [.font: font]))
         credits.append(NSAttributedString(
-            string: "Degino Inc.",
-            attributes: [.link: URL(string: "https://www.degino.com/") as Any, .font: font]
+            string: "Tommy109",
+            attributes: [.link: URL(string: "https://github.com/YTommy109") as Any, .font: font]
         ))
         credits.setAlignment(.center, range: NSRange(location: 0, length: credits.length))
         return [.credits: credits]
