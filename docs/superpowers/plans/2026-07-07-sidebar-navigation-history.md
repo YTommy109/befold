@@ -1,5 +1,7 @@
 # サイドバー ナビゲーション履歴（戻る/進む）実装計画
 
+<!-- constrained-by ../specs/2026-07-07-sidebar-navigation-history-design.md -->
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** サイドバー上部に「戻る/進む」ボタンを追加し、ディレクトリ移動とファイル参照を1本の履歴として辿れるようにする（Safari 風の長押し/右クリック履歴メニュー付き）。

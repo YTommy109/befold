@@ -58,12 +58,18 @@ final class NavigationHistory {
         return ((currentIndex + 1) ..< entries.count).map { entries[$0] }
     }
 
-    /// rename/move 時に履歴内の該当ファイル参照を新 URL へ差し替える（陳腐化防止）。
+    /// rename/move 時に履歴内の該当 URL（directory/file とも）を差し替える（陳腐化防止）。
     func renameOccurred(from oldURL: URL, to newURL: URL) {
-        let oldKey = oldURL.normalizedPathKey
+        let oldFileKey = oldURL.normalizedPathKey
+        let oldDirKey = oldURL.deletingLastPathComponent().normalizedPathKey
+        let newDir = newURL.deletingLastPathComponent()
         entries = entries.map { entry in
-            guard let file = entry.file, file.normalizedPathKey == oldKey else { return entry }
-            return HistoryEntry(directory: entry.directory, file: newURL)
+            guard entry.file?.normalizedPathKey == oldFileKey else { return entry }
+            let dirMatch = entry.directory.normalizedPathKey == oldDirKey
+            return HistoryEntry(
+                directory: dirMatch ? newDir : entry.directory,
+                file: newURL
+            )
         }
     }
 }

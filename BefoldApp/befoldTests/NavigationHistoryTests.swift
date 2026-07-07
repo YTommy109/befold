@@ -97,4 +97,22 @@ struct NavigationHistoryTests {
         #expect(history.entries[0].file?.lastPathComponent == "new.mmd")
         #expect(history.entries[1].file?.lastPathComponent == "b.mmd")
     }
+
+    @Test("renameOccurred で別ディレクトリへ移動するとディレクトリも差し替わる")
+    func renameRemapsDirectoryOnCrossDirectoryMove() {
+        let history = NavigationHistory()
+        let oldDir = URL(fileURLWithPath: "/old")
+        let newDir = URL(fileURLWithPath: "/new")
+        let oldFile = oldDir.appendingPathComponent("a.mmd")
+        let newFile = newDir.appendingPathComponent("a.mmd")
+        history.push(HistoryEntry(directory: oldDir, file: oldFile))
+        history.push(HistoryEntry(directory: oldDir, file: oldDir.appendingPathComponent("b.mmd")))
+
+        history.renameOccurred(from: oldFile, to: newFile)
+
+        #expect(history.entries[0].directory.path == "/new")
+        #expect(history.entries[0].file?.lastPathComponent == "a.mmd")
+        #expect(history.entries[1].directory.path == "/old")
+        #expect(history.entries[1].file?.lastPathComponent == "b.mmd")
+    }
 }

@@ -142,7 +142,8 @@ final class ViewerWindowController: NSWindowController {
             },
             onOpenInNewWindow: { url in
                 AppDelegate.shared?.openViewer(for: url)
-            }
+            },
+            onNavigateHistory: { [weak self] offset in self?.navigateHistory(by: offset) }
         )
         return ViewerSplitViewController(
             sidebar: fileListView,
@@ -319,14 +320,13 @@ final class ViewerWindowController: NSWindowController {
                 $0.kind == .folder
                     && $0.url.standardizedFileURL.path == prevKey
             }?.url
+            recordHistory()
         } else if let firstFile = fileListModel.entries.first(where: { $0.kind == .file }) {
-            // 最初のファイルを表示対象として開く。選択の書き換えをビューの
-            // 副作用に変換する経路は持たないため、コントローラが直接切り替える。
             switchFile(to: firstFile.url)
         } else {
             fileListModel.selection = nil
+            recordHistory()
         }
-        recordHistory()
     }
 
     // MARK: - Navigation History
@@ -334,7 +334,10 @@ final class ViewerWindowController: NSWindowController {
     /// サイドバーの戻る/進む・履歴メニューから呼ばれる。offset 負=戻る / 正=進む。
     func navigateHistory(by offset: Int) {
         guard let entry = history.move(by: offset) else { return }
-        applyHistoryEntry(entry)
+        if !applyHistoryEntry(entry) {
+            _ = history.move(by: -offset)
+        }
+        refreshHistoryState()
     }
 
     /// 現在の表示状態（ディレクトリ＋ファイル）を履歴に記録する。
@@ -345,34 +348,42 @@ final class ViewerWindowController: NSWindowController {
         refreshHistoryState()
     }
 
-    /// 履歴エントリを表示へ適用する。再記録を抑止しつつ、ディレクトリと
-    /// 表示ファイルを合わせる。switchFile の another-window 不変条件は尊重する。
-    private func applyHistoryEntry(_ entry: HistoryEntry) {
-        isApplyingHistory = true
-        defer {
-            isApplyingHistory = false
-            refreshHistoryState()
+    /// 履歴エントリを表示へ適用する。適用できなかった場合は false を返す。
+    /// switchFile を経由せずファイル切替をインラインで行い、
+    /// ディレクトリの上書きや二重リストを防ぐ。
+    @discardableResult
+    private func applyHistoryEntry(_ entry: HistoryEntry) -> Bool {
+        // 「1 ファイル 1 ウィンドウ」不変条件の事前チェック
+        if let file = entry.file,
+           file.normalizedPathKey != fileURL.normalizedPathKey,
+           isFileOpenInAnotherWindow?(file) == true
+        {
+            return false
         }
-        if entry.directory.standardizedFileURL
-            != fileListModel.currentDirectory.standardizedFileURL
+        isApplyingHistory = true
+        defer { isApplyingHistory = false }
+        if entry.directory.normalizedPathKey
+            != fileListModel.currentDirectory.normalizedPathKey
         {
             fileListModel.currentDirectory = entry.directory
-            fileListModel.entries = DirectoryLister.listEntries(
-                in: entry.directory, sortOrder: fileListModel.sortOrder
-            )
         }
         if let file = entry.file,
-           file.standardizedFileURL != fileURL.standardizedFileURL
+           file.normalizedPathKey != fileURL.normalizedPathKey
         {
-            switchFile(to: file) // isApplyingHistory ガードにより recordHistory は抑止
+            let oldURL = fileURL
+            resetSourceMode()
+            applyURLToWindow(file)
+            store.openFile(file)
+            updateToolbarVisibility()
+            applyStoredZoomToWebView()
+            onSwitchFile?(oldURL, file)
         }
         refreshFileList()
+        return true
     }
 
     /// 履歴状態をサイドバー（FileListModel）へ反映する。
     private func refreshHistoryState() {
-        fileListModel.canGoBack = history.canGoBack
-        fileListModel.canGoForward = history.canGoForward
         fileListModel.backHistory = history.backEntries()
         fileListModel.forwardHistory = history.forwardEntries()
     }

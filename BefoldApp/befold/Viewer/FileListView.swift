@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// サイドバーのファイル一覧と選択状態を保持する監視可能モデル。
@@ -10,8 +11,15 @@ final class FileListModel {
     var entries: [FileListEntry]
     var selection: FileListEntry.ID?
     var sortOrder: SortOrder
-    var canGoBack: Bool = false
-    var canGoForward: Bool = false
+
+    var canGoBack: Bool {
+        !backHistory.isEmpty
+    }
+
+    var canGoForward: Bool {
+        !forwardHistory.isEmpty
+    }
+
     var backHistory: [HistoryEntry] = []
     var forwardHistory: [HistoryEntry] = []
 
@@ -29,6 +37,7 @@ struct FileListView: View {
     let onNavigate: (URL) -> Void
     let onSortOrderChanged: (SortOrder) -> Void
     let onOpenInNewWindow: (URL) -> Void
+    var onNavigateHistory: ((Int) -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,6 +48,26 @@ struct FileListView: View {
 
     private var header: some View {
         HStack {
+            HistoryNavigationButton(
+                systemImage: "chevron.left",
+                accessibilityLabel: String(localized: "sidebar.back", bundle: .l10n),
+                isEnabled: model.canGoBack,
+                entries: model.backHistory,
+                primaryOffset: -1,
+                onNavigate: { onNavigateHistory?($0) }
+            )
+            .frame(width: 20, height: 20)
+
+            HistoryNavigationButton(
+                systemImage: "chevron.right",
+                accessibilityLabel: String(localized: "sidebar.forward", bundle: .l10n),
+                isEnabled: model.canGoForward,
+                entries: model.forwardHistory,
+                primaryOffset: 1,
+                onNavigate: { onNavigateHistory?($0) }
+            )
+            .frame(width: 20, height: 20)
+
             Text(model.currentDirectory.lastPathComponent)
                 .font(.headline)
                 .lineLimit(1)
@@ -286,5 +315,123 @@ struct FileListView: View {
             return .handled
         }
         return .ignored
+    }
+}
+
+// MARK: - HistoryNavigationButton
+
+private final class HistoryButtonView: NSButton {
+    weak var coordinator: HistoryNavigationButton.Coordinator?
+
+    override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
+
+        if event.modifierFlags.contains(.command) || event.modifierFlags.contains(.control) {
+            coordinator?.showMenu(from: self)
+            return
+        }
+
+        highlight(true)
+        let deadline = Date(timeIntervalSinceNow: 0.3)
+        var clickedInside = false
+        var mouseUp = false
+        while let next = window?.nextEvent(
+            matching: [.leftMouseUp, .leftMouseDragged],
+            until: deadline,
+            inMode: .eventTracking,
+            dequeue: true
+        ) {
+            if next.type == .leftMouseUp {
+                mouseUp = true
+                let location = convert(next.locationInWindow, from: nil)
+                clickedInside = bounds.contains(location)
+                break
+            }
+        }
+        highlight(false)
+
+        if clickedInside {
+            coordinator?.primaryAction()
+        } else if !mouseUp {
+            coordinator?.showMenu(from: self)
+        }
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
+        coordinator?.showMenu(from: self)
+    }
+}
+
+private struct HistoryNavigationButton: NSViewRepresentable {
+    let systemImage: String
+    let accessibilityLabel: String
+    let isEnabled: Bool
+    let entries: [HistoryEntry]
+    let primaryOffset: Int
+    let onNavigate: (Int) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeNSView(context: Context) -> HistoryButtonView {
+        let button = HistoryButtonView(frame: .zero)
+        button.bezelStyle = .accessoryBarAction
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.setButtonType(.momentaryPushIn)
+        button.coordinator = context.coordinator
+        configure(button)
+        return button
+    }
+
+    func updateNSView(_ button: HistoryButtonView, context: Context) {
+        context.coordinator.parent = self
+        configure(button)
+    }
+
+    private func configure(_ button: HistoryButtonView) {
+        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
+        button.image = NSImage(
+            systemSymbolName: systemImage,
+            accessibilityDescription: accessibilityLabel
+        )?.withSymbolConfiguration(config)
+        button.isEnabled = isEnabled
+        button.contentTintColor = isEnabled ? .secondaryLabelColor : .tertiaryLabelColor
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var parent: HistoryNavigationButton
+
+        init(parent: HistoryNavigationButton) {
+            self.parent = parent
+        }
+
+        func primaryAction() {
+            parent.onNavigate(parent.primaryOffset)
+        }
+
+        func showMenu(from view: NSView) {
+            guard !parent.entries.isEmpty else { return }
+            let menu = NSMenu()
+            let direction = parent.primaryOffset < 0 ? -1 : 1
+            for (index, entry) in parent.entries.enumerated() {
+                let item = NSMenuItem(
+                    title: entry.file?.lastPathComponent ?? entry.directory.lastPathComponent,
+                    action: #selector(menuItemClicked(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.tag = direction * (index + 1)
+                menu.addItem(item)
+            }
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.bounds.height + 2), in: view)
+        }
+
+        @objc private func menuItemClicked(_ sender: NSMenuItem) {
+            parent.onNavigate(sender.tag)
+        }
     }
 }
