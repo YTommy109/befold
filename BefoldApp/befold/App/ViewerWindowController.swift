@@ -18,6 +18,8 @@ final class ViewerWindowController: NSWindowController {
     private var scrollEventMonitor: Any?
     /// スワイプジェスチャー中(.began〜.changed)に積算する水平デルタ。.ended で判定に使う。
     private var swipeHorizontalAccumulator: CGFloat = 0
+    /// スワイプジェスチャー中(.began〜.changed)に積算する垂直デルタ。.ended で判定に使う。
+    private var swipeVerticalAccumulator: CGFloat = 0
     /// スワイプしきい値(pt)。この値未満の水平デルタはナビゲーションしない。
     private static let swipeThreshold: CGFloat = 40
     private let webViewProxy = WebViewProxy()
@@ -474,12 +476,18 @@ extension ViewerWindowController: NSWindowDelegate {
         switch event.phase {
         case .began:
             swipeHorizontalAccumulator = 0
+            swipeVerticalAccumulator = 0
         case .changed:
             swipeHorizontalAccumulator += event.scrollingDeltaX
+            swipeVerticalAccumulator += event.scrollingDeltaY
         case .ended:
-            defer { swipeHorizontalAccumulator = 0 }
+            defer {
+                swipeHorizontalAccumulator = 0
+                swipeVerticalAccumulator = 0
+            }
             guard let offset = SwipeHistoryNavigation.offset(
                 forHorizontalDelta: swipeHorizontalAccumulator,
+                verticalDelta: swipeVerticalAccumulator,
                 threshold: Self.swipeThreshold
             ) else { return }
             navigateHistory(by: offset)

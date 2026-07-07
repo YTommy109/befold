@@ -134,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             lastOpenDirectory: controller?.lastOpenDirectory,
             homeDirectory: FileManager.default.homeDirectoryForCurrentUser
         )
-        panel.begin { [weak self] response in
+        panel.begin { [weak self, weak controller] response in
             guard response == .OK else { return }
             for url in panel.urls {
                 self?.openViewer(for: url)
