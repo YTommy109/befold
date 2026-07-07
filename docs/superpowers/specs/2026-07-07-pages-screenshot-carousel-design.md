@@ -33,10 +33,15 @@
 処理フロー:
 
 1. befold が起動していれば終了し、`open -a befold <sample-file>` で対象ファイルを1つずつ開く
-2. `System Events` でウィンドウの位置・サイズを固定値(例: 1280×800)にリサイズ(befold 側の Apple Events 対応・sdef定義は不要。UIスクリプティングのみで実現可能)
-3. `keystroke "b" using {command down}` でサイドバー(ファイル一覧、既存の ⌘B ショートカット)を表示させる
-4. レンダリング待ち(`delay`)後、`screencapture -l<windowID>` でウィンドウ単体を撮影し `docs/images/screenshot-N.png` に保存
-5. 撮影対象は代表5ファイル: `flowchart.mmd`, `sequence.mmd`, `sample.md`, `sample.csv`, ソースコード表示例(任意のソースファイル)
+2. `System Events` でウィンドウの位置・サイズを固定値(原点 100,100 / 1280×800)にリサイズ(befold 側の Apple Events 対応・sdef定義は不要。UIスクリプティングのみで実現可能)
+3. 必要に応じ `keystroke "b" using {command down}`(サイドバー表示、既存の ⌘B)や `keystroke "u" using {command down}`(ソース表示切替、既存の ⌘U)を送る
+4. レンダリング待ち(`delay`)後、位置・サイズが既知のため `screencapture -R100,100,1280,800` で該当矩形を撮影し `docs/images/screenshot-N.png` に保存(ウィンドウIDの取得は行わない)
+5. 撮影対象は代表5枚:
+   - `flowchart.mmd`(⌘Bでサイドバー表示) → `screenshot-1.png`
+   - `sequence.mmd` → `screenshot-2.png`
+   - `sample.md` → `screenshot-3.png`
+   - `sample.csv` → `screenshot-4.png`
+   - `sample.md`(⌘Uでソース表示に切替、シンタックスハイライト確認用) → `screenshot-5.png`
 
 制約・前提:
 
