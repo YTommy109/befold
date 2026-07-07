@@ -236,40 +236,27 @@ struct ViewerStoreTests {
         store.close()
     }
 
-    /// 実際の画像ファイルは isBinary 判定が true になるため、テストでも
-    /// setBinary(true) を付けて「バイナリ判定より先に画像として読む」順序を検証する。
-    @Test
-    func openImageFileLoadsBase64Content() {
-        let file = URL(fileURLWithPath: "/files/photo.png")
-        let imageData = Data([0x89, 0x50, 0x4E, 0x47])
+    /// 実際の画像・PDF ファイルは isBinary 判定が true になるため、テストでも
+    /// setBinary(true) を付けて「バイナリ判定より先にバイナリとして読む」順序を検証する。
+    @Test(arguments: [
+        (
+            filename: "photo.png", data: Data([0x89, 0x50, 0x4E, 0x47]),
+            expectedType: FileType.image(mimeType: "image/png")
+        ),
+        (filename: "doc.pdf", data: Data("%PDF-1.4".utf8), expectedType: FileType.pdf),
+    ])
+    func openBinaryFileLoadsBase64Content(filename: String, data: Data, expectedType: FileType) {
+        let file = URL(fileURLWithPath: "/files/\(filename)")
         let reader = InMemoryFileReader()
-        reader.setDataFile(imageData, at: file)
+        reader.setDataFile(data, at: file)
         reader.setBinary(true, at: file)
 
         let store = makeStore(reader: reader)
         store.openFile(file)
 
         #expect(!store.isUnsupported)
-        #expect(store.fileType == .image(mimeType: "image/png"))
-        #expect(store.content == imageData.base64EncodedString())
-
-        store.close()
-    }
-
-    @Test
-    func openPdfFileLoadsBase64Content() {
-        let file = URL(fileURLWithPath: "/files/doc.pdf")
-        let pdfData = Data("%PDF-1.4".utf8)
-        let reader = InMemoryFileReader()
-        reader.setDataFile(pdfData, at: file)
-        reader.setBinary(true, at: file)
-
-        let store = makeStore(reader: reader)
-        store.openFile(file)
-
-        #expect(!store.isUnsupported)
-        #expect(store.fileType == .pdf)
-        #expect(store.content == pdfData.base64EncodedString())
+        #expect(store.fileType == expectedType)
+        #expect(store.content == data.base64EncodedString())
 
         store.close()
     }
