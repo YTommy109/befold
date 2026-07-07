@@ -5,7 +5,7 @@ description: テストコードを coding_rule.md に基づいてレビューす
 
 ## Review Swift Tests
 
-`docs/coding_rule.md` のテスト規約に基づいて Swift テストコードをレビューする。
+`docs/dev/coding_rule.md` のテスト規約に基づいて Swift テストコードをレビューする。
 
 ### 使い方
 
@@ -14,7 +14,7 @@ description: テストコードを coding_rule.md に基づいてレビューす
 
 ### Steps
 
-1. `docs/coding_rule.md` を読み込み、テスト規約を把握する。
+1. `docs/dev/coding_rule.md` を読み込み、テスト規約を把握する。
 2. 対象ファイルを特定する:
    - 引数にファイルパスがあればそれを使う
    - 引数にディレクトリがあれば配下の `.swift` ファイルを列挙する

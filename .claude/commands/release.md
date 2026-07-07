@@ -6,7 +6,7 @@
 
 ### 1. バージョン bump（またはdev タグ作成）
 
-`/bump` スキルと同じ手順で bump する:
+`/bump` コマンドと同じ手順で bump する:
 
 ```bash
 scripts/bump.sh $ARGUMENTS
@@ -16,7 +16,7 @@ scripts/bump.sh $ARGUMENTS
 
 ### 2. リリースノートの生成
 
-`/release-notes` スキルの手順に従い、最新タグと前回タグ間のコミットから
+`/release-notes` コマンドの手順に従い、最新タグと前回タグ間のコミットから
 リリースノートを Markdown で生成する。生成結果はユーザーに表示する。
 
 ### 3. GitHub リリース作成
