@@ -160,6 +160,7 @@ main {
 }
 
 .carousel-slide {
+  position: relative;
   flex: 0 0 100%;
 }
 
@@ -167,6 +168,23 @@ main {
   display: block;
   width: 100%;
   height: auto;
+}
+
+.carousel-caption {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  margin: 0;
+  padding: 3rem 2rem 1.5rem;
+  box-sizing: border-box;
+  text-align: right;
+  font-size: 48pt;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+  pointer-events: none;
 }
 
 .carousel-prev,
@@ -358,5 +376,10 @@ footer a:hover {
     top: 25px;
     right: -40px;
     font-size: 0.6875rem;
+  }
+
+  .carousel-caption {
+    padding: 2rem 1rem 1rem;
+    font-size: 1.75rem;
   }
 }
