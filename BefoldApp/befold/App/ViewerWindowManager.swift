@@ -18,6 +18,11 @@ final class ViewerWindowManager {
     /// 指定 URL のファイルをビューアウィンドウで開く。
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
     func openViewer(for url: URL, forceSidebarVisible: Bool = false) {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            showFileNotFoundAlert(path: url.path)
+            return
+        }
+
         let key = url.normalizedPathKey
         if let existing = controllers[key] {
             existing.window?.makeKeyAndOrderFront(nil)
@@ -35,6 +40,22 @@ final class ViewerWindowManager {
         sessionStore.noteOpened(url)
         recentDocumentsStore.noteOpened(url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
+    }
+
+    /// まだウィンドウが無い状態(新規オープン時)にファイルが見つからないことを通知する。
+    /// ウィンドウ内シート表示の ViewerWindowController.showFileNotFoundAlert とは異なり、
+    /// この時点では親となるウィンドウが存在しないため runModal で表示する。
+    private func showFileNotFoundAlert(path: String) {
+        let alert = NSAlert()
+        alert.messageText = String(
+            localized: "alert.fileNotFound.message",
+            defaultValue: "File Not Found",
+            bundle: .l10n
+        )
+        alert.informativeText = path
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     /// ウィンドウが「表示中のはずなのにアクティブ Space に居ない」状態かを判定する。

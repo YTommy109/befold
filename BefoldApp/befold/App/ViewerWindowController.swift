@@ -107,6 +107,9 @@ final class ViewerWindowController: NSWindowController {
         // windowDidResize 経由で保存されるのを防ぐ
         window.delegate = self
 
+        store.onFileGone = { [weak self] in
+            self?.window?.close()
+        }
         store.onFileRenamed = { [weak self] newURL in
             self?.handleRename(to: newURL)
         }
@@ -227,7 +230,10 @@ final class ViewerWindowController: NSWindowController {
             fileListModel.selection = oldURL
             return
         }
-        performFileSwitch(to: newURL)
+        guard performFileSwitch(to: newURL) else {
+            fileListModel.selection = oldURL
+            return
+        }
         let newDir = newURL.deletingLastPathComponent().standardizedFileURL
         if newDir != fileListModel.currentDirectory.standardizedFileURL {
             fileListModel.currentDirectory = newURL.deletingLastPathComponent()
@@ -340,7 +346,13 @@ final class ViewerWindowController: NSWindowController {
 
     /// switchFile と applyHistoryEntry が共有するファイル切替の実処理。
     /// ビューモードのリセット、URL 更新、コンテンツ読込、ズーム適用、コールバック通知を行う。
-    private func performFileSwitch(to newURL: URL) {
+    /// 切替先が存在しない場合はアラートを表示して false を返す(状態は変更しない)。
+    @discardableResult
+    private func performFileSwitch(to newURL: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: newURL.path) else {
+            showFileNotFoundAlert(path: newURL.path)
+            return false
+        }
         let oldURL = fileURL
         resetSourceMode()
         applyURLToWindow(newURL)
@@ -348,6 +360,7 @@ final class ViewerWindowController: NSWindowController {
         updateToolbarVisibility()
         applyStoredZoomToWebView()
         onSwitchFile?(oldURL, newURL)
+        return true
     }
 
     /// 履歴エントリを表示へ適用する。適用できなかった場合は false を返す。
@@ -367,7 +380,7 @@ final class ViewerWindowController: NSWindowController {
         if let file = entry.file,
            file.normalizedPathKey != fileURL.normalizedPathKey
         {
-            performFileSwitch(to: file)
+            guard performFileSwitch(to: file) else { return false }
         }
         if dirChanged {
             refreshFileList()
