@@ -63,6 +63,10 @@ struct ViewerWebView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         // WKWebView の背景を透明にする（公開 API がないため KVC を使用）
         webView.setValue(false, forKey: "drawsBackground")
+        // トラックパッドのピンチジェスチャーでズームできるようにする。
+        // viewer.html 経由のコンテンツは既存の ctrl+wheel ハンドラ(viewer.html)で
+        // 対応済みだが、.html ファイル直接ロード時はこの経路を通らないため必要。
+        webView.allowsMagnification = true
         context.coordinator.webView = webView
         context.coordinator.webViewProxy = webViewProxy
         webViewProxy.webView = webView
