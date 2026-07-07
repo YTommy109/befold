@@ -9,8 +9,17 @@ private struct MockFileWatcher: FileWatching {
 @Suite
 @MainActor
 struct ViewerStoreTests {
+    /// UserDefaults.standard を読むと過去の実行で永続化された値に影響されるため、
+    /// テストごとに使い捨てのスイートを注入して密閉性を保つ。
     private func makeStore(reader: InMemoryFileReader) -> ViewerStore {
-        ViewerStore(watcherFactory: { _, _, _ in MockFileWatcher() }, fileReader: reader)
+        let suiteName = "ViewerStoreTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return ViewerStore(
+            watcherFactory: { _, _, _ in MockFileWatcher() },
+            fileReader: reader,
+            defaults: defaults
+        )
     }
 
     @Test(arguments: [
