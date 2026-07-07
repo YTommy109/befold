@@ -8,6 +8,8 @@ final class ZoomStore {
     /// viewer.js の ZOOM_MIN / ZOOM_MAX と同値。
     static let minZoom = 0.5
     static let maxZoom = 2.0
+    /// viewer.js の ZOOM_STEP と同値。
+    static let zoomStep = 0.25
 
     private let zooms: PathKeyedDictionary<Double>
 

@@ -141,6 +141,13 @@ struct ViewerBridgeTests {
         #expect(js.contains("var ZOOM_MAX = \(ZoomStore.maxZoom);"))
     }
 
+    @Test("viewer.js の ZOOM_STEP が ZoomStore.zoomStep と一致する")
+    func zoomStepMatchesZoomStore() throws {
+        let js = try String(contentsOf: resourceURL("viewer.js"), encoding: .utf8)
+
+        #expect(js.contains("var ZOOM_STEP = \(ZoomStore.zoomStep);"))
+    }
+
     /// befoldTests/ から見た befold/Resources/ 内のリソース URL を返す。
     private func resourceURL(_ name: String) -> URL {
         URL(fileURLWithPath: #filePath)

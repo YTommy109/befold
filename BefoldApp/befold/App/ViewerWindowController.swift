@@ -438,7 +438,7 @@ extension ViewerWindowController: NSWindowDelegate {
     @objc func zoomIn(_ sender: Any?) {
         guard let webView = webViewProxy.webView else { return }
         if webViewProxy.isDirectHTMLMode {
-            let newZoom = min(ZoomStore.maxZoom, webView.pageZoom + 0.1)
+            let newZoom = min(ZoomStore.maxZoom, webView.pageZoom + ZoomStore.zoomStep)
             webView.pageZoom = newZoom
             zoomStore.setZoom(newZoom, for: fileURL)
         } else {
@@ -450,7 +450,7 @@ extension ViewerWindowController: NSWindowDelegate {
     @objc func zoomOut(_ sender: Any?) {
         guard let webView = webViewProxy.webView else { return }
         if webViewProxy.isDirectHTMLMode {
-            let newZoom = max(ZoomStore.minZoom, webView.pageZoom - 0.1)
+            let newZoom = max(ZoomStore.minZoom, webView.pageZoom - ZoomStore.zoomStep)
             webView.pageZoom = newZoom
             zoomStore.setZoom(newZoom, for: fileURL)
         } else {
