@@ -68,7 +68,7 @@ befold/
 │   ├── AppDelegate.swift       # application(_:open:)・終了処理
 │   └── WindowController.swift  # ウィンドウ生成・タイトル・複数ウィンドウ管理
 ├── Viewer/
-│   ├── ViewerStore.swift       # ObservableObject（content / error / deleted）
+│   ├── ViewerStore.swift       # ObservableObject（content / isUnsupported）
 │   ├── ViewerWebView.swift     # NSViewRepresentable（WKWebView ラッパー）
 │   └── Resources/
 │       ├── viewer.html         # 現行 viewer.html から移植（SSE 部分を除去）
@@ -92,7 +92,7 @@ befold/
 - シンボリックリンクは実パスに解決してから比較する（現行 `.resolve()` 相当）
 - イベント発生から **0.2 秒のデバウンス**後に読み込み・再描画
   （連続保存での多重描画を防ぐ。現行と同じ値）
-- ファイル消失時は `deleted` 状態にし、削除バナー＋グレー背景を表示（現行同等）
+- ファイル消失時はグレース期間(0.3秒)後に `onFileGone` コールバックで通知し、ウィンドウを閉じる
 - 実装は `DispatchSource.makeFileSystemObjectSource`（`.write` イベント、
   ディレクトリ FD 監視）を第一候補とする。ネットワークボリューム対応が
   必要になったら `FSEventStream` に切り替える

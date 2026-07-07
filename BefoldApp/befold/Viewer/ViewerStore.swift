@@ -148,6 +148,10 @@ final class ViewerStore {
     /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
     /// 常に張り直す(古いタスクをキャンセルして置き換える)ことで、発火せず完了した
     /// タスクが残って以後の検知を塞ぐことを防ぐ。
+    ///
+    /// 注: filePath は schedule 時点でキャプチャせず、発火時に再確認する。
+    /// handleRename で filePath が更新されると、rename と grace period の競争状態で
+    /// 新しいパスが存在する場合、ウィンドウを閉じずに監視を継続するため。
     private func scheduleFileGone() {
         fileGoneTask?.cancel()
         fileGoneTask = Task { @MainActor [weak self] in
