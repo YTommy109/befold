@@ -364,6 +364,10 @@
         return highlightCode(typeof hljs !== 'undefined' ? hljs : null, str, lang);
       },
     });
+    // 既定の validateLink は data:image/(gif|png|jpeg|webp) しか通さず、
+    // MarkdownImageEmbedder が埋め込む svg+xml / bmp / x-icon の data URI が
+    // 画像割れになる。data:image/* を全許可する判定へ差し替える。
+    md.validateLink = isSafeLinkURL;
     var defaultFence = md.renderer.rules.fence;
     md.renderer.rules.fence = function(tokens, idx, options, env, self) {
       var token = tokens[idx];
