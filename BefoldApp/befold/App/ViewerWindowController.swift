@@ -14,6 +14,10 @@ final class ViewerWindowController: NSWindowController {
     private let store: ViewerStore
     private let zoomStore: ZoomStore
     private let forceSidebarVisible: Bool
+    /// 二本指スワイプ検知用のローカルイベントモニタ。ウィンドウが閉じたら解除する。
+    private var scrollEventMonitor: Any?
+    /// スワイプしきい値(pt)。この値未満の水平デルタはナビゲーションしない。
+    private static let swipeThreshold: CGFloat = 40
     private let webViewProxy = WebViewProxy()
     private(set) var isSourceMode = false
     /// この ウィンドウで最後に cmd+o のファイル選択パネルを開いたディレクトリ。
@@ -108,6 +112,11 @@ final class ViewerWindowController: NSWindowController {
         // (contentViewController 設定によるフィッティングサイズ化など)が
         // windowDidResize 経由で保存されるのを防ぐ
         window.delegate = self
+
+        scrollEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            self?.handleScrollWheelForHistorySwipe(event)
+            return event
+        }
 
         sidebar.attach(to: self)
         store.onFileGone = { [weak self] in
@@ -455,7 +464,23 @@ extension ViewerWindowController: NSWindowDelegate {
         return true
     }
 
+    /// 二本指スワイプ(トラックパッド)によるファイル履歴の戻る/進むを検知する。
+    /// スワイプ完了時(momentumPhase が始まる直前の .ended)にのみ発火させ、
+    /// 慣性スクロール中の連続発火を防ぐ。
+    private func handleScrollWheelForHistorySwipe(_ event: NSEvent) {
+        guard event.phase == .ended else { return }
+        guard let offset = SwipeHistoryNavigation.offset(
+            forHorizontalDelta: event.scrollingDeltaX,
+            threshold: Self.swipeThreshold
+        ) else { return }
+        navigateHistory(by: offset)
+    }
+
     func windowWillClose(_ notification: Notification) {
+        if let scrollEventMonitor {
+            NSEvent.removeMonitor(scrollEventMonitor)
+            self.scrollEventMonitor = nil
+        }
         saveWindowFrame()
         store.close()
         onClose?()

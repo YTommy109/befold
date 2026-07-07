@@ -67,6 +67,10 @@ struct ViewerWebView: NSViewRepresentable {
         // viewer.html 経由のコンテンツは既存の ctrl+wheel ハンドラ(viewer.html)で
         // 対応済みだが、.html ファイル直接ロード時はこの経路を通らないため必要。
         webView.allowsMagnification = true
+        // WebKit標準の「2本指スワイプでページ履歴を戻る/進む」は本アプリの
+        // ページ内履歴(loadFileURLのみ)とは無関係なため無効化し、
+        // ViewerWindowController が二本指スワイプでファイル履歴を扱えるようにする。
+        webView.allowsBackForwardNavigationGestures = false
         context.coordinator.webView = webView
         context.coordinator.webViewProxy = webViewProxy
         webViewProxy.webView = webView
