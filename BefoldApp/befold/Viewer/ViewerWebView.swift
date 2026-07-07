@@ -267,8 +267,10 @@ struct ViewerWebView: NSViewRepresentable {
                             webView.evaluateJavaScript(ViewerBridge.viewModeScript(.source))
                         }
                         // viewer.html ロード完了後にコンテンツを描画
-                        guard let script = ViewerBridge.renderScript(content: content, fileType: fileType)
-                        else { return }
+                        guard let script = ViewerBridge.renderScript(
+                            content: Self.renderableContent(content, fileType: fileType, filePath: filePath),
+                            fileType: fileType
+                        ) else { return }
                         webView.evaluateJavaScript(script)
                     }
                     lastRenderedContent = content
@@ -292,8 +294,10 @@ struct ViewerWebView: NSViewRepresentable {
                 }
 
                 // JSONEncoder でエスケープし、JS インジェクションを防ぐ
-                guard let script = ViewerBridge.renderScript(content: content, fileType: fileType)
-                else { return }
+                guard let script = ViewerBridge.renderScript(
+                    content: Self.renderableContent(content, fileType: fileType, filePath: filePath),
+                    fileType: fileType
+                ) else { return }
                 webView.evaluateJavaScript(script)
             }
 
@@ -302,6 +306,15 @@ struct ViewerWebView: NSViewRepresentable {
             } else {
                 pendingUpdate = doUpdate
             }
+        }
+
+        /// render() に渡す直前のコンテンツ加工。markdown はローカル画像参照を
+        /// data URI に差し替える(相対パスの解決基準として filePath が必要)。
+        private static func renderableContent(
+            _ content: String, fileType: FileType, filePath: URL?
+        ) -> String {
+            guard fileType == .markdown, let filePath else { return content }
+            return MarkdownImageEmbedder.embedLocalImages(in: content, baseURL: filePath)
         }
 
         private func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {

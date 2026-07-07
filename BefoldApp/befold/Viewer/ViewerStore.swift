@@ -13,13 +13,14 @@ final class ViewerStore {
 
     /// メインアクター上で同期読み込みを許容する最大ファイルサイズ(10MB)。
     /// これを超えるファイルは読み込まず、非対応扱いにしてビーチボール化を防ぐ。
-    static let maxFileSizeBytes = 10 * 1024 * 1024
+    nonisolated static let maxFileSizeBytes = 10 * 1024 * 1024
 
     /// 画像・PDF(バイナリ表示対象)の最大ファイルサイズ(50MB)。
     /// スキャン PDF や高解像度写真は 10MB を超えることが珍しくないため
     /// テキストより緩くする。base64 化で約 1.33 倍に膨らんで
     /// evaluateJavaScript を通るため、無制限にはしない。
-    static let maxBinaryFileSizeBytes = 50 * 1024 * 1024
+    /// MarkdownImageEmbedder からも参照するため nonisolated にする。
+    nonisolated static let maxBinaryFileSizeBytes = 50 * 1024 * 1024
 
     private(set) var content: String = ""
     private(set) var fileType: FileType = .mmd
@@ -149,13 +150,16 @@ final class ViewerStore {
     /// 常に張り直す(古いタスクをキャンセルして置き換える)ことで、発火せず完了した
     /// タスクが残って以後の検知を塞ぐことを防ぐ。
     ///
+    /// FileWatcher のデバウンス(0.2s) + 余裕を持たせた期間を設定し、
+    /// 環境依存のタイミング問題による検知遅延に対応する。
+    ///
     /// 注: filePath は schedule 時点でキャプチャせず、発火時に再確認する。
     /// handleRename で filePath が更新されると、rename と grace period の競争状態で
     /// 新しいパスが存在する場合、ウィンドウを閉じずに監視を継続するため。
     private func scheduleFileGone() {
         fileGoneTask?.cancel()
         fileGoneTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(0.3))
+            try? await Task.sleep(for: .seconds(1))
             guard let self, !Task.isCancelled else { return }
             guard let filePath else { return }
             guard !fileReader.fileExists(at: filePath.resolvingSymlinksInPath()) else { return }

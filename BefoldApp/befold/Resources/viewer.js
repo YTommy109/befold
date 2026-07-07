@@ -82,6 +82,17 @@ function highlightCode(hljs, str, lang) {
   return '';
 }
 
+// markdown-it の validateLink 置き換え。既定は data:image/(gif|png|jpeg|webp)
+// のみ許可するが、MarkdownImageEmbedder が生成する svg+xml / bmp / x-icon の
+// data URI も表示できるよう data:image/* を全許可する。CSP は img-src 'self' data:
+// のため data:image の <img> 表示は安全(SVG も <img> 経由ではスクリプト非実行)。
+// javascript:/vbscript:/file:/画像以外の data: は既定どおり拒否し XSS を防ぐ。
+function isSafeLinkURL(url) {
+  var str = String(url).trim().toLowerCase();
+  if (/^data:image\//.test(str)) { return true; }
+  return !/^(vbscript|javascript|file|data):/.test(str);
+}
+
 // HTML 特殊文字をエスケープする(DOM 非依存の純粋関数)。
 // viewer.html の _escapeHtml は DOM を使うため Node テストできない。
 function escapeHtml(text) {
@@ -299,6 +310,7 @@ if (typeof module !== 'undefined' && module.exports) {
     parseStoredZoom: parseStoredZoom,
     mermaidTheme: mermaidTheme,
     sanitizeLang: sanitizeLang,
+    isSafeLinkURL: isSafeLinkURL,
     highlightCode: highlightCode,
     diagramScrollHeight: diagramScrollHeight,
     markdownFontSize: markdownFontSize,

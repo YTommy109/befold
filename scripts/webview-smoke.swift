@@ -106,6 +106,27 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
         ) { r in
             print("md render h1: \(String(describing: r))")
             if (r as? String) != "Title" { self.fail("markdown が描画されなかった") }
+            self.checkEmbeddedDataImageRenders()
+        }
+    }
+
+    // 3.5. Markdown 埋め込みの data: URI 画像が CSP(img-src data:) 下で描画されるか
+    //      (ローカル画像は MarkdownImageEmbedder が data URI 化してから render に渡す)
+    func checkEmbeddedDataImageRenders() {
+        let png1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+            + "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        let doc = "![dot](data:image/png;base64,\(png1x1))"
+        asyncJS(
+            "await render(\(jsString(doc)), 'md'); "
+                + "var img = document.querySelector('#diagram-wrap img'); "
+                + "if (!img) return 'noimg'; "
+                + "await img.decode(); return img.naturalWidth;",
+            "data-image"
+        ) { r in
+            print("embedded data image naturalWidth: \(String(describing: r))")
+            if (r as? Int) != 1 {
+                self.fail("data: URI 画像が markdown 内で描画されなかった")
+            }
             self.checkExfilBlocked()
         }
     }

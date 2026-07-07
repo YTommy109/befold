@@ -23,6 +23,7 @@ const {
   buildTableHtml,
   renderCsvSourceHtml,
   CSV_COL_COUNT,
+  isSafeLinkURL,
 } = require('../viewer');
 
 describe('clampZoom', () => {
@@ -684,5 +685,41 @@ describe('renderCsvSourceHtml with line numbers', () => {
       const closes = (cell.match(/<\/span>/g) || []).length;
       expect(opens).toBe(closes);
     }
+  });
+});
+
+describe('isSafeLinkURL', () => {
+  test('allows all data:image subtypes (svg/bmp/ico included)', () => {
+    expect(isSafeLinkURL('data:image/png;base64,AAAA')).toBe(true);
+    expect(isSafeLinkURL('data:image/jpeg;base64,AAAA')).toBe(true);
+    expect(isSafeLinkURL('data:image/gif;base64,AAAA')).toBe(true);
+    expect(isSafeLinkURL('data:image/webp;base64,AAAA')).toBe(true);
+    expect(isSafeLinkURL('data:image/svg+xml;base64,AAAA')).toBe(true);
+    expect(isSafeLinkURL('data:image/bmp;base64,AAAA')).toBe(true);
+    expect(isSafeLinkURL('data:image/x-icon;base64,AAAA')).toBe(true);
+  });
+
+  test('is case-insensitive and tolerant of surrounding whitespace', () => {
+    expect(isSafeLinkURL('  DATA:IMAGE/SVG+XML;base64,AAAA  ')).toBe(true);
+  });
+
+  test('blocks non-image data URIs', () => {
+    expect(isSafeLinkURL('data:text/html;base64,PHNjcmlwdD4=')).toBe(false);
+    expect(isSafeLinkURL('data:application/javascript,alert(1)')).toBe(false);
+  });
+
+  test('blocks dangerous schemes', () => {
+    expect(isSafeLinkURL('javascript:alert(1)')).toBe(false);
+    expect(isSafeLinkURL('vbscript:msgbox(1)')).toBe(false);
+    expect(isSafeLinkURL('file:///etc/passwd')).toBe(false);
+  });
+
+  test('allows ordinary links and relative paths', () => {
+    expect(isSafeLinkURL('https://example.com/a.png')).toBe(true);
+    expect(isSafeLinkURL('http://example.com')).toBe(true);
+    expect(isSafeLinkURL('./img/logo.png')).toBe(true);
+    expect(isSafeLinkURL('other.md#section')).toBe(true);
+    expect(isSafeLinkURL('#anchor')).toBe(true);
+    expect(isSafeLinkURL('mailto:a@example.com')).toBe(true);
   });
 });
