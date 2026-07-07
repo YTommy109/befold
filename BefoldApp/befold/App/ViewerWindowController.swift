@@ -376,15 +376,16 @@ final class ViewerWindowController: NSWindowController {
         }
         let dirChanged = entry.directory.normalizedPathKey
             != fileListModel.currentDirectory.normalizedPathKey
-        if dirChanged {
-            fileListModel.currentDirectory = entry.directory
-        }
+        // ファイル切替が存在しないファイルで失敗すると performFileSwitch が false を返す。
+        // currentDirectory の書き換えより先に切替を試み、失敗時は状態を一切変えずに
+        // return して部分適用による不整合(dir だけ変わって file list 未更新)を防ぐ。
         if let file = entry.file,
            file.normalizedPathKey != fileURL.normalizedPathKey
         {
             guard performFileSwitch(to: file) else { return false }
         }
         if dirChanged {
+            fileListModel.currentDirectory = entry.directory
             refreshFileList()
             // ファイルがディレクトリ外(上へ移動で記録されたエントリ)の場合、
             // ファイルの親フォルダを選択して元の状態を復元する
