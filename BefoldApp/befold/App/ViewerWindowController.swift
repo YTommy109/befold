@@ -16,6 +16,8 @@ final class ViewerWindowController: NSWindowController {
     private let forceSidebarVisible: Bool
     /// 二本指スワイプ検知用のローカルイベントモニタ。ウィンドウが閉じたら解除する。
     private var scrollEventMonitor: Any?
+    /// スワイプジェスチャー中(.began〜.changed)に積算する水平デルタ。.ended で判定に使う。
+    private var swipeHorizontalAccumulator: CGFloat = 0
     /// スワイプしきい値(pt)。この値未満の水平デルタはナビゲーションしない。
     private static let swipeThreshold: CGFloat = 40
     private let webViewProxy = WebViewProxy()
@@ -465,16 +467,25 @@ extension ViewerWindowController: NSWindowDelegate {
     }
 
     /// 二本指スワイプ(トラックパッド)によるファイル履歴の戻る/進むを検知する。
-    /// スワイプ完了時(momentumPhase が始まる直前の .ended)にのみ発火させ、
-    /// 慣性スクロール中の連続発火を防ぐ。
+    /// .began でリセットし、.changed で水平デルタを積算し、.ended で
+    /// 積算値をしきい値判定する(単一フレームの .ended デルタはほぼ0になるため)。
     private func handleScrollWheelForHistorySwipe(_ event: NSEvent) {
         guard event.window === window else { return }
-        guard event.phase == .ended else { return }
-        guard let offset = SwipeHistoryNavigation.offset(
-            forHorizontalDelta: event.scrollingDeltaX,
-            threshold: Self.swipeThreshold
-        ) else { return }
-        navigateHistory(by: offset)
+        switch event.phase {
+        case .began:
+            swipeHorizontalAccumulator = 0
+        case .changed:
+            swipeHorizontalAccumulator += event.scrollingDeltaX
+        case .ended:
+            defer { swipeHorizontalAccumulator = 0 }
+            guard let offset = SwipeHistoryNavigation.offset(
+                forHorizontalDelta: swipeHorizontalAccumulator,
+                threshold: Self.swipeThreshold
+            ) else { return }
+            navigateHistory(by: offset)
+        default:
+            break
+        }
     }
 
     func windowWillClose(_ notification: Notification) {
