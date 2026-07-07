@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # バージョン bump & リリースタグ作成スクリプト。
-# 使い方: scripts/bump.sh <patch|minor|major> [--dry-run]
+# 使い方: scripts/bump.sh <patch|minor|major|dev> [--dry-run]
 #   --dry-run: 変更・コミット・プッシュを行わず、実行内容の表示のみ
 set -euo pipefail
 
@@ -12,8 +12,8 @@ DRY_RUN=false
 [ "${2:-}" = "--dry-run" ] && DRY_RUN=true
 
 case "$LEVEL" in
-  patch|minor|major) ;;
-  *) err "引数は patch | minor | major のいずれかを指定してください（指定値: '${LEVEL}'）" ;;
+  patch|minor|major|dev) ;;
+  *) err "引数は patch | minor | major | dev のいずれかを指定してください（指定値: '${LEVEL}'）" ;;
 esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -31,6 +31,30 @@ fi
 # --- バージョンの bump ---
 OLD_VERSION="$(sed -n 's/.*MARKETING_VERSION: "\([0-9.]*\)".*/\1/p' "$PROJECT_YML")"
 [ -n "$OLD_VERSION" ] || err "MARKETING_VERSION を project.yml から読み取れません"
+
+# --- dev タグの作成（project.yml の変更・コミットは行わない） ---
+if [ "$LEVEL" = "dev" ]; then
+  DEV_PREFIX="v${OLD_VERSION}-dev."
+  LAST_DEV=$(git -C "$ROOT" tag --list "${DEV_PREFIX}*" --sort=-v:refname | head -1)
+  if [ -n "$LAST_DEV" ]; then
+    LAST_N="${LAST_DEV#"$DEV_PREFIX"}"
+    NEW_N=$(( LAST_N + 1 ))
+  else
+    NEW_N=1
+  fi
+  DEV_TAG="${DEV_PREFIX}${NEW_N}"
+  echo "dev タグ: ${DEV_TAG}"
+
+  if $DRY_RUN; then
+    echo "(dry-run のためここで終了します)"
+    exit 0
+  fi
+
+  git -C "$ROOT" tag "$DEV_TAG"
+  git -C "$ROOT" push --tags
+  echo "${DEV_TAG} をプッシュしました"
+  exit 0
+fi
 
 IFS='.' read -r MAJOR MINOR PATCH <<< "$OLD_VERSION"
 case "$LEVEL" in

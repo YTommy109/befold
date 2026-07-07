@@ -1,10 +1,10 @@
 # /release — バージョン bump & GitHub リリース作成
 
-引数: $ARGUMENTS（patch | minor | major）
+引数: $ARGUMENTS（patch | minor | major | dev）
 
 ## 手順
 
-### 1. バージョン bump
+### 1. バージョン bump（またはdev タグ作成）
 
 `/bump` スキルと同じ手順で bump する:
 
@@ -22,7 +22,15 @@ scripts/bump.sh $ARGUMENTS
 ### 3. GitHub リリース作成
 
 最新タグ（`git describe --tags --abbrev=0`）を使い、リリースノートを body にして
-GitHub リリースを作成する:
+GitHub リリースを作成する。
+
+**dev リリースの場合**（タグに `-` が含まれる場合）:
+
+```bash
+gh release create <タグ> --title "<タグ>" --notes "<リリースノート>" --prerelease
+```
+
+**stable リリースの場合**:
 
 ```bash
 gh release create <タグ> --title "<タグ>" --notes "<リリースノート>"
