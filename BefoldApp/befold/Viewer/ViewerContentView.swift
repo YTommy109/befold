@@ -20,6 +20,10 @@ struct ViewerContentView: View {
         // 上に UnsupportedFileView を重ねる。テキスト↔バイナリの切替で WKWebView が
         // 破棄・再生成されて白フラッシュや stale な initialZoom が起きるのを防ぐ。
         VStack(spacing: 0) {
+            if showTopBar {
+                ViewerTopBar(store: store)
+            }
+
             ZStack {
                 ViewerWebView(
                     content: store.content,
@@ -39,14 +43,10 @@ struct ViewerContentView: View {
                     UnsupportedFileView(fileURL: store.filePath)
                 }
             }
-
-            if showBottomBar {
-                ViewerBottomBar(store: store)
-            }
         }
     }
 
-    private var showBottomBar: Bool {
+    private var showTopBar: Bool {
         if store.isUnsupported { return false }
         if store.isSourceMode { return true }
         if case .code = store.fileType { return true }

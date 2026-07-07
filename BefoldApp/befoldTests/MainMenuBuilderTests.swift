@@ -79,7 +79,7 @@ struct MainMenuBuilderTests {
         #expect(toggleSidebar.keyEquivalentModifierMask == [.command])
     }
 
-    @Test("View メニューに Toggle Line Numbers(⌘⇧L) がある")
+    @Test("View メニューに Toggle Line Numbers(⌘L) がある")
     func viewMenuHasToggleLineNumbers() throws {
         let mainMenu = buildMenu()
         let view = try #require(submenu(titledKey: "menu.view.title", in: mainMenu))
@@ -90,8 +90,7 @@ struct MainMenuBuilderTests {
             }
         )
         #expect(item.keyEquivalent == "l")
-        #expect(item.keyEquivalentModifierMask.contains(.shift))
-        #expect(item.keyEquivalentModifierMask.contains(.command))
+        #expect(item.keyEquivalentModifierMask == .command)
     }
 
     @Test("File メニューに Print(⌘P) がある")

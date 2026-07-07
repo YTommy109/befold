@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ViewerBottomBar: View {
+struct ViewerTopBar: View {
     let store: ViewerStore
 
     var body: some View {
@@ -21,7 +21,7 @@ struct ViewerBottomBar: View {
         .padding(.horizontal, 8)
         .frame(height: 22)
         .background(.bar)
-        .overlay(alignment: .top) {
+        .overlay(alignment: .bottom) {
             Divider()
         }
     }
