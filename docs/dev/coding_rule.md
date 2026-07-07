@@ -13,16 +13,17 @@ macOS 向け Mermaid ダイアグラム・ビューアアプリ。
 
 ```
 befold.app (Swift / AppKit + SwiftUI)
-  ├── AppDelegate        # ライフサイクル・メニュー・ウィンドウ管理
-  ├── DocumentController # Recent Documents 連携
+  ├── AppDelegate            # ライフサイクル・各コーディネータの束ね
+  │     ├── ViewerWindowManager    # ウィンドウ生成・管理とセッション記録の更新
+  │     ├── SessionRestorer        # 前回セッションのタブ構成の保存/復元
+  │     └── UpdateCheckCoordinator # 更新チェックの実行と表示ポリシー
   ├── ViewerWindowController # NSWindowController（1 ファイル = 1 ウィンドウ）
+  │     └── SidebarNavigator       # サイドバー一覧・選択同期・戻る/進む履歴
   ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
-  ├── Debouncer          # GCD ベースのデバウンサー
-  ├── ViewerStore        # @Observable 表示状態（content / error / isUnsupported）
-  ├── ViewerContentView  # SwiftUI View（ViewerWebView のラッパー）
-  └── ViewerWebView      # WKWebView（NSViewRepresentable）
+  ├── ViewerStore        # @Observable 表示状態（content / isUnsupported、FileReading で読込を抽象化）
+  └── ViewerWebView      # WKWebView（NSViewRepresentable + Coordinator）
         ├── 同梱アセット（viewer.html / viewer.js / mermaid.min.js / markdown-it.min.js / style.css）
-        └── JS ブリッジ: evaluateJavaScript("render(content, type)")
+        └── JS ブリッジ: ViewerBridge 経由で evaluateJavaScript("render(content, type)")
 ```
 
 ファイル変更の伝搬:
@@ -46,12 +47,13 @@ BefoldApp/
 ├── .swiftlint.yml           # SwiftLint 設定
 ├── .swiftformat             # SwiftFormat 設定
 ├── befold/
-│   ├── App/                 # AppDelegate, DocumentController, ViewerWindowController
-│   ├── Viewer/              # ViewerStore, ViewerWebView, ViewerContentView, FileType
+│   ├── App/                 # AppDelegate, ViewerWindowController, SidebarNavigator ほかウィンドウ/セッション/メニュー系
+│   ├── Viewer/              # ViewerStore, ViewerWebView, FileType, FileListView, ViewerBridge ほか表示系
 │   ├── FileWatching/        # FileWatcher, Debouncer
+│   ├── Updates/             # UpdateChecker, UpdateFlowController, UpdateInstaller ほか自動更新系
 │   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js
 │       └── __tests__/       # viewer.js の Jest テスト
-└── befoldTests/            # Swift Testing テスト
+└── befoldTests/            # Swift Testing テスト（TestSupport.swift = 共有ヘルパー）
 ```
 
 ## コマンド
@@ -138,6 +140,43 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 - **`[weak self]` キャプチャ**: クロージャでの循環参照を防ぐ。`guard let self else { return }` と組み合わせる
 - **`defer`**: テストでの一時ファイル削除など、スコープ終了時の後処理に使う
 
+### 責務分離
+
+- **1 ファイル 1 主要型**: 補助型は主要型の実装詳細である場合のみ同居可。独立して使える部品
+  （`NSViewRepresentable` の UI 部品、`@Observable` モデル等）は別ファイルに置く
+- **SwiftLint の行数閾値は上限であって目標ではない**: 閾値未満でも、複数の関心
+  （例: ウィンドウ管理 + サイドバー + 履歴）が 1 クラスに同居し始めたら凝集単位で分割する。
+  分割先は `SidebarNavigator`（ホストへの weak 参照 + プロトコル `〜Host` で逆方向依存を切る）の
+  パターンに揃える
+- **ウィンドウコントローラを「何でも置き場」にしない**: メニューアクションの実装は
+  対応する凝集単位（navigator / store / builder）へ委譲し、コントローラには薄い委譲メソッドだけ残す
+- 並行作業でのコンフリクトを避ける観点で、「この機能を触る人が編集するファイル」が
+  他機能と重ならないように切ること
+
+### 共通化・単一情報源・DI
+
+同じ知識を 2 箇所に書かない。以下は既に単一情報源が決まっており、再定義・再実装は違反:
+
+| 知識 | 単一情報源 |
+|------|-----------|
+| 対応拡張子の集合 | `FileType.allExtensions`（Info.plist との整合は `InfoPlistTests` が検証） |
+| パスの同一性キー（symlink 解決込み） | `URL.normalizedPathKey`。ディレクトリ同一性比較も `standardizedFileURL.path` ではなくこちらを使う |
+| パスキー辞書の rename 移行 | `PathKeyedDictionary` |
+| Swift → JS の関数名・メッセージハンドラ名・注入スクリプト | `ViewerBridge`（`evaluateJavaScript` への文字列リテラル直書きは違反） |
+| シェルのシングルクォートエスケープ | `String.shellQuoted`（`ShellQuoting.swift`） |
+| ズーム上下限・ステップ | `ZoomStore.minZoom` / `maxZoom` / `zoomStep` |
+
+- **言語をまたぐ定数**（Swift ↔ viewer.js）は避けられない場合のみ二重定義し、
+  (1) 双方に対応相手を示すコメント、(2) ソースを読んで一致を検証するテスト
+  （`ViewerBridgeTests.zoomRangeMatchesZoomStore` の流儀）を必ずセットで付ける
+- **同型コードを 2 箇所目に書きそうになったら共通化を検討する**。ただしデータ形状・不変条件が
+  異なるもの（例: 順序保持リスト / 上限付き MRU / パス辞書の永続化骨格）を無理に統合しない
+  （偽の抽象）。見送る場合はその判断を PR に書く
+- **外部依存はプロトコル + デフォルト引数付きイニシャライザ注入**: ファイル読込は `FileReading`、
+  リリース取得は `ReleaseFetching`、ダウンロードは `UpdateDownloading`、監視は watcherFactory。
+  新しい外部依存（ネットワーク・タイマー・Process 等)も同じ方針で注入し、メソッド内部で
+  具象を直接生成しない。デフォルト引数により既存呼び出し元は変更不要に保つ
+
 ### AppKit / SwiftUI 混在ルール
 
 - **ウィンドウ管理**: AppKit（`NSWindowController`）で行う
@@ -148,9 +187,13 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 ### WKWebView / JavaScript ブリッジ
 
 - HTML・CSS・JS は `Resources/` に同梱し、`Bundle.main.url(forResource:)` でロードする
-- `evaluateJavaScript()` で Swift → JS の呼び出しを行う
+- `evaluateJavaScript()` で Swift → JS の呼び出しを行う。**呼び出しスクリプトの生成は
+  `ViewerBridge` に集約する**（文字列リテラルの直書きは違反。JS 側の関数名・メッセージ名の
+  変更検知は `ViewerBridgeTests` のソース突き合わせテストが担う）
 - JS に渡す文字列は `JSONEncoder` でエスケープする（XSS 防止）
 - コンテンツ差分チェック（`lastRenderedContent`）で不要な再描画を防ぐ
+- 複数のフラグを必ずセットで倒す状態遷移（例: 直接 HTML モード解除）は専用メソッドに
+  集約し、不変条件を `///` に明記する（呼び出し側での部分リセットを禁じる）
 
 ## コメント・ドキュメンテーション規約
 
@@ -198,10 +241,9 @@ guard let jsonData = try? JSONEncoder().encode(content) else { return }
 ```swift
 @Test(.timeLimit(.minutes(1)))
 func detectsAtomicSave() async throws {
-    let tempDir = try makeTempDir()
-    defer { try? FileManager.default.removeItem(at: tempDir) }
-    let file = tempDir.appendingPathComponent("test.mmd")
-    try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+    let tmp = try TempDir()
+    defer { withExtendedLifetime(tmp) {} }
+    let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
     await confirmation { confirm in
         let watcher = FileWatcher(path: file) {
@@ -212,7 +254,7 @@ func detectsAtomicSave() async throws {
         try? await Task.sleep(for: .seconds(0.3))
 
         // アトミック保存（一時ファイル → rename）をシミュレート
-        let tmpFile = tempDir.appendingPathComponent(".test.mmd.tmp")
+        let tmpFile = tmp.url.appendingPathComponent(".test.mmd.tmp")
         try? "graph TD; X-->Y".write(to: tmpFile, atomically: false, encoding: .utf8)
         _ = try? FileManager.default.replaceItemAt(file, withItemAt: tmpFile)
 
@@ -270,24 +312,44 @@ func detectsAtomicSave() async throws {
 @Test func testThatWhenAFileIsOpenedAndThenDeletedTheStoreMarksItAsDeleted() { ... }
 ```
 
+### 共有テストヘルパー（TestSupport.swift）
+
+以下の関心は必ず `TestSupport.swift` の共有ヘルパーで満たす。テストファイル内での自作は違反:
+
+| 関心 | ヘルパー | 自作したら違反になるパターン |
+|------|---------|------------------------------|
+| 一時ディレクトリ | `TempDir` | `temporaryDirectory` + `UUID` + `defer` 削除の手組み |
+| 独立した UserDefaults | `makeIsolatedDefaults(prefix:)` | `UserDefaults(suiteName:)` + `removePersistentDomain` の手書き |
+| `Sendable` クロージャからの記録・カウント | `LockedBox<Value>` | `NSLock` + `@unchecked Sendable` ボックスの自作 |
+| 条件成立までの待機 | `waitUntil(timeout:_:)` | 固定 `Task.sleep` の連打や独自ポーリングループ |
+
+- `TempDir` は deinit で削除するため、非同期テストでは冒頭に
+  `defer { withExtendedLifetime(tmp) {} }` を置いてテスト中の解放を防ぐ
+- スイート固有のセットアップ定型（対象型の生成 + 依存注入）が 3 回以上繰り返されたら
+  `makeController(file:)` / `makeStore(reader:)` のような `private` ファクトリ関数に抽出する
+
+### Unit / Integration の分離
+
+- 実ファイルシステム・実 `FileWatcher`・symlink 等の実デバイス挙動に依存するシナリオテストは
+  ファイル名を `〜IntegrationTests.swift` にする
+  （例外: `DirectoryLister` / `DefaultFileReader` のようにテスト対象自体がファイルシステム操作
+  であるスイートは、実 FS を使っても unit 扱いでよい）
+- unit テストではファイル読込を `InMemoryFileReader`、watcher をモック watcherFactory で置き換える
+- **実ネットワークに到達するテストは書かない**。HTTP は `URLProtocol` スタブか
+  モック Fetcher（`ReleaseFetching` 実装）を使う
+
 ### テストパターン
 
 #### ファイルシステムテスト（FileWatcher / ViewerStore）
 
-一時ディレクトリを作成し、`defer` で確実にクリーンアップする:
+`TempDir` で一時ディレクトリを作る（deinit が削除を担う）:
 
 ```swift
-private func makeTempDir() throws -> URL {
-    let dir = FileManager.default.temporaryDirectory
-        .appendingPathComponent("befold-test-\(UUID().uuidString)")
-    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    return dir
-}
-
 @Test
 func detectsFileModification() async throws {
-    let tempDir = try makeTempDir()
-    defer { try? FileManager.default.removeItem(at: tempDir) }
+    let tmp = try TempDir()
+    defer { withExtendedLifetime(tmp) {} }
+    let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
     // ...
 }
 ```
@@ -310,6 +372,12 @@ func detectsFileModification() async throws {
     }
 }
 ```
+
+- 「発火する」の検証は固定 sleep ではなく `waitUntil` で条件成立を待つ（CI の遅延に強い）
+- **「発火しない」の検証は時限の境界を必ず跨ぐ**: グレース期間など「N 秒後に起きるはずの
+  ことが起きない」ことを検証するときは、N より確実に長く（目安: N + 0.3 秒）待ってから
+  アサートする。N 未満の待機は時限内に検証が終わり、機構が壊れていても通ってしまう。
+  待機時間の根拠（どの時限に対する余裕か）をコメントに書く
 
 #### 状態遷移テスト（ViewerStore）
 
