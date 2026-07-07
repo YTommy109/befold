@@ -20,6 +20,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # rev-list --count を正しく数えるため全履歴を取得する
+          fetch-depth: 0
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -32,13 +35,19 @@ jobs:
         run: xcodegen generate
 
       - name: .app をビルドする
+        # タグからバージョンとビルド番号を注入する。
+        # MARKETING_VERSION: dev ビルドが 1.4.10-dev.1 を正しく名乗り、
+        #   stable でも project.yml とタグのずれ事故を構造的に防ぐ。
+        # CURRENT_PROJECT_VERSION: dev.1 と dev.2 に異なるビルド番号を付ける。
         run: |
           xcodebuild build \
             -scheme befold \
             -configuration Release \
             -derivedDataPath build \
             CODE_SIGN_IDENTITY=- \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            MARKETING_VERSION="${GITHUB_REF_NAME#v}" \
+            CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)"
 
       - name: create-dmg をインストールする
         run: brew install create-dmg

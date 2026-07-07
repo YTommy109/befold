@@ -34,7 +34,12 @@ OLD_VERSION="$(sed -n 's/.*MARKETING_VERSION: "\([0-9.]*\)".*/\1/p' "$PROJECT_YM
 
 # --- dev タグの作成（project.yml の変更・コミットは行わない） ---
 if [ "$LEVEL" = "dev" ]; then
-  DEV_PREFIX="v${OLD_VERSION}-dev."
+  # dev は次期 patch のプレリリースとして扱う。SemVer 上 1.4.10-dev.N < 1.4.10 となり、
+  # develop チャンネルで正しく更新検知される（現行 stable をベースにすると
+  # 1.4.9-dev.N < 1.4.9 となり自分自身より古く扱われ検知されない）
+  IFS='.' read -r MAJOR MINOR PATCH <<< "$OLD_VERSION"
+  DEV_BASE="${MAJOR}.${MINOR}.$((PATCH + 1))"
+  DEV_PREFIX="v${DEV_BASE}-dev."
   LAST_DEV=$(git -C "$ROOT" tag --list "${DEV_PREFIX}*" --sort=-v:refname | head -1)
   if [ -n "$LAST_DEV" ]; then
     LAST_N="${LAST_DEV#"$DEV_PREFIX"}"
@@ -68,7 +73,7 @@ git -C "$ROOT" rev-parse -q --verify "refs/tags/v${NEW_VERSION}" >/dev/null \
   && err "タグ v${NEW_VERSION} は既に存在します"
 
 # --- ビルド番号の更新 ---
-# +1 は後続の bump コミット自身を含めるため（タグが指すコミットの総コミット数と一致させる）
+# +1 は後続の bump コミット自身を数に含めるため。要件は単調増加のみ
 OLD_BUILD="$(sed -n 's/.*CURRENT_PROJECT_VERSION: "\([0-9]*\)".*/\1/p' "$PROJECT_YML")"
 [ -n "$OLD_BUILD" ] || err "CURRENT_PROJECT_VERSION を project.yml から読み取れません"
 
