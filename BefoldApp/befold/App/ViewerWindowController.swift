@@ -468,6 +468,7 @@ extension ViewerWindowController: NSWindowDelegate {
     /// スワイプ完了時(momentumPhase が始まる直前の .ended)にのみ発火させ、
     /// 慣性スクロール中の連続発火を防ぐ。
     private func handleScrollWheelForHistorySwipe(_ event: NSEvent) {
+        guard event.window === window else { return }
         guard event.phase == .ended else { return }
         guard let offset = SwipeHistoryNavigation.offset(
             forHorizontalDelta: event.scrollingDeltaX,
