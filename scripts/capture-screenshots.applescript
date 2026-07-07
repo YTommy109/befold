@@ -1,0 +1,85 @@
+-- scripts/capture-screenshots.applescript
+--
+-- befold の sample/ 配下のファイルを開き、GitHub Pages 掲載用の
+-- スクリーンショットを docs/images/ に自動生成する。
+--
+-- 事前準備:
+--   1. macOS をダークモードに切り替えておくこと(システム設定 > 外観 > ダーク)。
+--      このスクリプトはダークモードの切り替えを行わない。
+--   2. スクリーンショット領域(原点 100,100 / 1280x800)が画面に収まる
+--      解像度のディスプレイを使用すること。
+--   3. 初回実行時、システム設定 > プライバシーとセキュリティ > アクセシビリティ で
+--      実行元(ターミナル / スクリプトエディタ)にUI操作の許可を与えること。
+--   4. befold.app がインストール済みであること。
+--   5. 撮影対象領域に他アプリのウィンドウが重ならないようにしておくこと。
+--
+-- 実行方法:
+--   osascript scripts/capture-screenshots.applescript
+
+set scriptPosixPath to POSIX path of (path to me)
+set scriptsDir to do shell script "dirname " & quoted form of scriptPosixPath
+set repoRoot to do shell script "dirname " & quoted form of scriptsDir
+set sampleDir to repoRoot & "/sample"
+set imagesDir to repoRoot & "/docs/images"
+
+set windowX to 100
+set windowY to 100
+set windowWidth to 1280
+set windowHeight to 800
+set captureRect to (windowX as string) & "," & (windowY as string) & "," & (windowWidth as string) & "," & (windowHeight as string)
+
+-- {ファイル名, 出力ファイル名, サイドバーを表示するか, ソース表示に切替するか}
+set targets to {¬
+    {"flowchart.mmd", "screenshot-1.png", true, false}, ¬
+    {"sequence.mmd", "screenshot-2.png", false, false}, ¬
+    {"sample.md", "screenshot-3.png", false, false}, ¬
+    {"sample.csv", "screenshot-4.png", false, false}, ¬
+    {"sample.md", "screenshot-5.png", false, true}}
+
+do shell script "mkdir -p " & quoted form of imagesDir
+
+repeat with targetItem in targets
+    set fileName to item 1 of targetItem
+    set outputName to item 2 of targetItem
+    set showSidebar to item 3 of targetItem
+    set showSource to item 4 of targetItem
+
+    set filePath to sampleDir & "/" & fileName
+    set outputPath to imagesDir & "/" & outputName
+
+    -- 前回起動していれば終了してクリーンな状態にする
+    tell application "System Events"
+        if exists (process "befold") then
+            tell application "befold" to quit
+            delay 1
+        end if
+    end tell
+
+    do shell script "open -a befold " & quoted form of filePath
+    delay 2
+
+    tell application "System Events"
+        tell process "befold"
+            set position of window 1 to {windowX, windowY}
+            set size of window 1 to {windowWidth, windowHeight}
+        end tell
+    end tell
+    delay 1
+
+    if showSidebar then
+        tell application "System Events" to keystroke "b" using {command down}
+        delay 1
+    end if
+
+    if showSource then
+        tell application "System Events" to keystroke "u" using {command down}
+        delay 1
+    end if
+
+    tell application "befold" to activate
+    delay 1
+
+    do shell script "screencapture -x -R" & captureRect & " " & quoted form of outputPath
+end repeat
+
+tell application "befold" to quit
