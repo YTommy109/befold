@@ -87,6 +87,9 @@ repeat with targetItem in targets
     end if
 
     if scrollToEnd then
+        -- End キーがコンテンツ(WKWebView)側に届くよう、まず中央をクリックしてフォーカスを移す
+        tell application "System Events" to click at {windowX + (windowWidth / 2), windowY + (windowHeight / 2)}
+        delay 0.5
         tell application "System Events" to key code 119 -- End
         delay 1
     end if
