@@ -166,7 +166,7 @@ final class ViewerWindowController: NSWindowController {
                 FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
                 !isDir.boolValue
             else {
-                showFileNotFoundAlert(path: url.normalizedPathKey)
+                showFileNotFoundAlert(url: url)
                 return
             }
             if newWindow {
@@ -179,18 +179,9 @@ final class ViewerWindowController: NSWindowController {
         }
     }
 
-    private func showFileNotFoundAlert(path: String) {
-        guard let window else { return }
-        let alert = NSAlert()
-        alert.messageText = String(
-            localized: "alert.fileNotFound.message",
-            defaultValue: "File Not Found",
-            bundle: .l10n
-        )
-        alert.informativeText = path
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.beginSheetModal(for: window)
+    private func showFileNotFoundAlert(url: URL) {
+        // window があればシート、無ければモーダルで表示する(判定は FileNotFoundUI 側)。
+        FileNotFoundUI.present(url: url, over: window)
     }
 
     /// ファイルの rename / move をウィンドウに反映する。
@@ -350,9 +341,7 @@ final class ViewerWindowController: NSWindowController {
     @discardableResult
     private func performFileSwitch(to newURL: URL) -> Bool {
         guard FileManager.default.fileExists(atPath: newURL.path) else {
-            // 経路によりシンボリックリンクの解決状態が異なる(/tmp と /private/tmp 等)ため、
-            // 表示パスは normalizedPathKey と同じ正規化で揃える
-            showFileNotFoundAlert(path: newURL.normalizedPathKey)
+            showFileNotFoundAlert(url: newURL)
             return false
         }
         let oldURL = fileURL
