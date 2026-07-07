@@ -3,6 +3,7 @@ import Foundation
 /// 最新リリース情報の取得を抽象化する(テストではモックを注入する)。
 protocol ReleaseFetching: Sendable {
     func fetchLatest() async throws -> GitHubRelease
+    func fetchLatestIncludingPrerelease() async throws -> [GitHubRelease]
 }
 
 /// 更新チェックの結果。
@@ -18,6 +19,7 @@ enum UpdateCheckResult: Equatable, Sendable {
 final class UpdateChecker {
     private let fetcher: any ReleaseFetching
     private let currentVersion: String
+    private let channel: UpdateChannel
     private let cacheTTL: TimeInterval
     private let now: () -> Date
 
@@ -28,11 +30,13 @@ final class UpdateChecker {
         fetcher: any ReleaseFetching = GitHubReleaseFetcher(),
         currentVersion: String = Bundle.main
             .object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0",
+        channel: UpdateChannel = .read(),
         cacheTTL: TimeInterval = 3600,
         now: @escaping () -> Date = Date.init
     ) {
         self.fetcher = fetcher
         self.currentVersion = currentVersion
+        self.channel = channel
         self.cacheTTL = cacheTTL
         self.now = now
     }
@@ -46,8 +50,8 @@ final class UpdateChecker {
         if let inFlight {
             return await inFlight.value
         }
-        let task = Task { [fetcher, currentVersion] in
-            await Self.performCheck(fetcher: fetcher, currentVersion: currentVersion)
+        let task = Task { [fetcher, currentVersion, channel] in
+            await Self.performCheck(fetcher: fetcher, currentVersion: currentVersion, channel: channel)
         }
         inFlight = task
         let result = await task.value
@@ -59,13 +63,24 @@ final class UpdateChecker {
     }
 
     private static func performCheck(
-        fetcher: any ReleaseFetching, currentVersion: String
+        fetcher: any ReleaseFetching, currentVersion: String, channel: UpdateChannel
     ) async -> UpdateCheckResult {
         do {
-            let release = try await fetcher.fetchLatest()
+            let release: GitHubRelease
+            switch channel {
+            case .stable:
+                release = try await fetcher.fetchLatest()
+            case .develop:
+                let releases = try await fetcher.fetchLatestIncludingPrerelease()
+                guard let newest = releases.first(where: { $0.hasDMG }) else {
+                    return .upToDate(current: currentVersion)
+                }
+                release = newest
+            }
             guard let remote = AppVersion(release.tagName),
                   let current = AppVersion(currentVersion),
-                  remote > current
+                  remote > current,
+                  release.hasDMG
             else {
                 return .upToDate(current: currentVersion)
             }
