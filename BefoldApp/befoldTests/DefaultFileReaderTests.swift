@@ -71,52 +71,32 @@ struct DefaultFileReaderTests {
         #expect(try reader.readString(from: file) == text)
     }
 
-    @Test("UTF-16LE(BOM あり)テキストはバイナリと判定されず正しく読める")
-    func utf16LEWithBOMIsTextAndReadsBack() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let text = "name\tage\nAlice\t30"
-        let data = try Data([0xFF, 0xFE]) + #require(text.data(using: .utf16LittleEndian))
-        let file = try tmp.file(named: "excel.tsv", data: data)
-
-        let reader = DefaultFileReader()
-        #expect(!reader.isBinary(at: file))
-        #expect(try reader.readString(from: file) == text)
+    /// バイトオーダー(リトル/ビッグエンディアン)を表す。テストの引数用の識別子であり、
+    /// プロダクトコードの判定ロジックとは無関係。
+    private enum ByteOrder: Sendable {
+        case little
+        case big
     }
 
-    @Test("UTF-16BE(BOM あり)テキストはバイナリと判定されず正しく読める")
-    func utf16BEWithBOMIsTextAndReadsBack() throws {
+    /// UTF-16 LE/BE(BOM 有無を問わず)テキストはバイナリと判定されず正しく読めること
+    @Test(arguments: [
+        (text: "name\tage\nAlice\t30", order: ByteOrder.little, includeBOM: true, filename: "excel.tsv"),
+        (text: "hello world\nsecond line", order: ByteOrder.big, includeBOM: true, filename: "u16be.txt"),
+        (text: "a,b,c\n1,2,3\n4,5,6", order: ByteOrder.little, includeBOM: false, filename: "nobom.csv"),
+        (text: "col1,col2\nfoo,bar", order: ByteOrder.big, includeBOM: false, filename: "nobom_be.csv"),
+    ])
+    private func utf16IsTextAndReadsBackRegardlessOfBOM(
+        text: String, order: ByteOrder, includeBOM: Bool, filename: String
+    ) throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
-        let text = "hello world\nsecond line"
-        let data = try Data([0xFE, 0xFF]) + #require(text.data(using: .utf16BigEndian))
-        let file = try tmp.file(named: "u16be.txt", data: data)
-
-        let reader = DefaultFileReader()
-        #expect(!reader.isBinary(at: file))
-        #expect(try reader.readString(from: file) == text)
-    }
-
-    @Test("UTF-16LE(BOM なし)テキストはバイナリと判定されず正しく読める")
-    func utf16LEWithoutBOMIsTextAndReadsBack() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let text = "a,b,c\n1,2,3\n4,5,6"
-        let data = try #require(text.data(using: .utf16LittleEndian)) // BOM なし
-        let file = try tmp.file(named: "nobom.csv", data: data)
-
-        let reader = DefaultFileReader()
-        #expect(!reader.isBinary(at: file))
-        #expect(try reader.readString(from: file) == text)
-    }
-
-    @Test("UTF-16BE(BOM なし)テキストはバイナリと判定されず正しく読める")
-    func utf16BEWithoutBOMIsTextAndReadsBack() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let text = "col1,col2\nfoo,bar"
-        let data = try #require(text.data(using: .utf16BigEndian)) // BOM なし
-        let file = try tmp.file(named: "nobom_be.csv", data: data)
+        let encoding: String.Encoding = order == .little ? .utf16LittleEndian : .utf16BigEndian
+        var data = try #require(text.data(using: encoding))
+        if includeBOM {
+            let bom: [UInt8] = order == .little ? [0xFF, 0xFE] : [0xFE, 0xFF]
+            data = Data(bom) + data
+        }
+        let file = try tmp.file(named: filename, data: data)
 
         let reader = DefaultFileReader()
         #expect(!reader.isBinary(at: file))

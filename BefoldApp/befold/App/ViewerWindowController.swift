@@ -17,10 +17,13 @@ final class ViewerWindowController: NSWindowController {
     private let webViewProxy = WebViewProxy()
     private(set) var isSourceMode = false
     private(set) var fileURL: URL
+    /// サイドバー(一覧・選択同期・フォルダ移動)と戻る/進む履歴を担うナビゲータ。
+    let sidebar: SidebarNavigator
     /// サイドバーのファイル一覧と選択状態。リネームやキーウィンドウ化に合わせて更新する。
-    let fileListModel: FileListModel
-    /// このタブの戻る/進むナビゲーション履歴（メモリ内のみ）。
-    let history = NavigationHistory()
+    var fileListModel: FileListModel {
+        sidebar.fileListModel
+    }
+
     /// ウィンドウが閉じられたときに呼ばれるコールバック。ViewerWindowManager がウィンドウ管理辞書から除去するために使用する。
     var onClose: (() -> Void)?
     /// 開いているファイルが rename / move されたときに旧 URL・新 URL を通知するコールバック。
@@ -46,11 +49,7 @@ final class ViewerWindowController: NSWindowController {
         store = ViewerStore()
         let parentDir = fileURL.deletingLastPathComponent()
         let entries = DirectoryLister.listEntries(in: parentDir, sortOrder: .foldersFirst)
-        fileListModel = FileListModel(
-            currentDirectory: parentDir,
-            entries: entries,
-            selection: fileURL
-        )
+        sidebar = SidebarNavigator(currentDirectory: parentDir, entries: entries, selection: fileURL)
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
         // ここでの contentRect はプレースホルダ
@@ -107,6 +106,7 @@ final class ViewerWindowController: NSWindowController {
         // windowDidResize 経由で保存されるのを防ぐ
         window.delegate = self
 
+        sidebar.attach(to: self)
         store.onFileGone = { [weak self] in
             self?.window?.close()
         }
@@ -115,7 +115,7 @@ final class ViewerWindowController: NSWindowController {
         }
         store.openFile(fileURL)
         updateToolbarVisibility()
-        recordHistory()
+        sidebar.recordHistory()
     }
 
     /// サイドバー(ファイル一覧)とコンテンツ(WebView)を並べる split view controller を組み立てる。
@@ -140,7 +140,7 @@ final class ViewerWindowController: NSWindowController {
             onSortOrderChanged: { [weak self] order in
                 guard let self else { return }
                 fileListModel.sortOrder = order
-                refreshFileList()
+                sidebar.refreshFileList()
             },
             onOpenInNewWindow: { url in
                 AppDelegate.shared?.openViewer(for: url)
@@ -201,38 +201,31 @@ final class ViewerWindowController: NSWindowController {
         }
         updateToolbarVisibility()
         let newDir = newURL.deletingLastPathComponent()
-        if newDir.standardizedFileURL
-            != fileListModel.currentDirectory.standardizedFileURL
+        if newDir.normalizedPathKey
+            != fileListModel.currentDirectory.normalizedPathKey
         {
             fileListModel.currentDirectory = newDir
         }
-        refreshFileList()
+        sidebar.refreshFileList()
         onRename?(oldURL, newURL)
-        history.renameOccurred(from: oldURL, to: newURL)
-        refreshHistoryState()
+        sidebar.applyRename(from: oldURL, to: newURL)
     }
 
     /// サイドバーで別ファイルが選択されたときにウィンドウの表示対象を切り替える。
+    /// ファイル切替の実処理のみ担い、選択同期・履歴記録は SidebarNavigator へ委譲する。
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
         guard newURL != oldURL else { return }
         if isFileOpenInAnotherWindow?(newURL) == true {
             focusWindowForFile?(newURL)
-            fileListModel.selection = oldURL
+            sidebar.restoreSelection(to: oldURL)
             return
         }
         guard performFileSwitch(to: newURL) else {
-            fileListModel.selection = oldURL
+            sidebar.restoreSelection(to: oldURL)
             return
         }
-        let newDir = newURL.deletingLastPathComponent().standardizedFileURL
-        if newDir != fileListModel.currentDirectory.standardizedFileURL {
-            fileListModel.currentDirectory = newURL.deletingLastPathComponent()
-            refreshFileList()
-        } else {
-            fileListModel.selection = matchingEntryURL(for: newURL)
-        }
-        recordHistory()
+        sidebar.syncAfterSwitch(to: newURL)
     }
 
     /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
@@ -252,94 +245,21 @@ final class ViewerWindowController: NSWindowController {
         webView.evaluateJavaScript(ViewerBridge.applyZoomScript(zoomStore.zoom(for: fileURL)))
     }
 
-    /// サイドバーのファイル一覧を現在のディレクトリで取り直し、現在ファイルを選択する。
-    private func refreshFileList() {
-        var entries = DirectoryLister.listEntries(
-            in: fileListModel.currentDirectory,
-            sortOrder: fileListModel.sortOrder
-        )
-        ensureCurrentFile(in: &entries)
-        fileListModel.entries = entries
-        let matched = matchingEntryURL(for: fileURL)
-        if fileListModel.selection != matched {
-            fileListModel.selection = matched
-        }
-    }
-
-    /// エントリ一覧に現在のファイルが含まれていなければ末尾に追加する。
-    /// allExtensions に含まれない拡張子(plaintext フォールバック)のファイルが
-    /// サイドバーから消える回帰を防ぐ。
-    private func ensureCurrentFile(in entries: inout [FileListEntry]) {
-        let dir = fileURL.deletingLastPathComponent().standardizedFileURL
-        guard dir == fileListModel.currentDirectory.standardizedFileURL else {
-            return
-        }
-        let key = fileURL.normalizedPathKey
-        if !entries.contains(where: { $0.url.normalizedPathKey == key }) {
-            entries.append(FileListEntry(url: fileURL, kind: .file))
-        }
-    }
-
-    /// エントリ一覧から URL の正規化キーが一致するものを探し、
-    /// 見つからなければ元の URL をそのまま返す。
-    private func matchingEntryURL(for url: URL) -> URL {
-        let key = url.normalizedPathKey
-        return fileListModel.entries.first {
-            $0.url.normalizedPathKey == key
-        }?.url ?? url
-    }
-
-    /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
+    /// サイドバーで別フォルダーへ移動する。詳細は SidebarNavigator に委譲する。
     func navigateToFolder(_ url: URL) {
-        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
-        let target = url.standardizedFileURL
-        guard target == home || target.path.hasPrefix(home.path + "/") else { return }
-        let previous = fileListModel.currentDirectory
-        fileListModel.currentDirectory = url
-        fileListModel.entries = DirectoryLister.listEntries(
-            in: url, sortOrder: fileListModel.sortOrder
-        )
-        let isGoingUp = target == previous.deletingLastPathComponent()
-            .standardizedFileURL
-        if isGoingUp {
-            let prevKey = previous.standardizedFileURL.path
-            fileListModel.selection = fileListModel.entries.first {
-                $0.kind == .folder
-                    && $0.url.standardizedFileURL.path == prevKey
-            }?.url
-            recordHistory()
-        } else if let firstFile = fileListModel.entries.first(where: { $0.kind == .file }) {
-            switchFile(to: firstFile.url)
-            recordHistory()
-        } else {
-            fileListModel.selection = nil
-            recordHistory()
-        }
+        sidebar.navigateToFolder(url)
     }
-
-    // MARK: - Navigation History
 
     /// サイドバーの戻る/進む・履歴メニューから呼ばれる。offset 負=戻る / 正=進む。
     func navigateHistory(by offset: Int) {
-        guard let entry = history.move(by: offset) else { return }
-        if !applyHistoryEntry(entry) {
-            _ = history.move(by: -offset)
-        }
-        refreshHistoryState()
+        sidebar.navigateHistory(by: offset)
     }
 
-    /// 現在の表示状態(ディレクトリ＋ファイル)を履歴に記録する。
-    /// push は現在エントリと同一なら無視する。
-    private func recordHistory() {
-        history.push(HistoryEntry(directory: fileListModel.currentDirectory, file: fileURL))
-        refreshHistoryState()
-    }
-
-    /// switchFile と applyHistoryEntry が共有するファイル切替の実処理。
+    /// switchFile と履歴適用が共有するファイル切替の実処理。
     /// ビューモードのリセット、URL 更新、コンテンツ読込、ズーム適用、コールバック通知を行う。
     /// 切替先が存在しない場合はアラートを表示して false を返す(状態は変更しない)。
     @discardableResult
-    private func performFileSwitch(to newURL: URL) -> Bool {
+    func performFileSwitch(to newURL: URL) -> Bool {
         guard FileManager.default.fileExists(atPath: newURL.path) else {
             showFileNotFoundAlert(url: newURL)
             return false
@@ -352,50 +272,6 @@ final class ViewerWindowController: NSWindowController {
         applyStoredZoomToWebView()
         onSwitchFile?(oldURL, newURL)
         return true
-    }
-
-    /// 履歴エントリを表示へ適用する。適用できなかった場合は false を返す。
-    @discardableResult
-    private func applyHistoryEntry(_ entry: HistoryEntry) -> Bool {
-        if let file = entry.file,
-           file.normalizedPathKey != fileURL.normalizedPathKey,
-           isFileOpenInAnotherWindow?(file) == true
-        {
-            return false
-        }
-        let dirChanged = entry.directory.normalizedPathKey
-            != fileListModel.currentDirectory.normalizedPathKey
-        // ファイル切替が存在しないファイルで失敗すると performFileSwitch が false を返す。
-        // currentDirectory の書き換えより先に切替を試み、失敗時は状態を一切変えずに
-        // return して部分適用による不整合(dir だけ変わって file list 未更新)を防ぐ。
-        if let file = entry.file,
-           file.normalizedPathKey != fileURL.normalizedPathKey
-        {
-            guard performFileSwitch(to: file) else { return false }
-        }
-        if dirChanged {
-            fileListModel.currentDirectory = entry.directory
-            refreshFileList()
-            // ファイルがディレクトリ外(上へ移動で記録されたエントリ)の場合、
-            // ファイルの親フォルダを選択して元の状態を復元する
-            let fileDir = fileURL.deletingLastPathComponent().standardizedFileURL
-            if fileDir != fileListModel.currentDirectory.standardizedFileURL {
-                let fileDirPath = fileDir.path
-                fileListModel.selection = fileListModel.entries.first {
-                    $0.kind == .folder
-                        && $0.url.standardizedFileURL.path == fileDirPath
-                }?.url
-            }
-        } else {
-            fileListModel.selection = matchingEntryURL(for: fileURL)
-        }
-        return true
-    }
-
-    /// 履歴状態をサイドバー（FileListModel）へ反映する。
-    private func refreshHistoryState() {
-        fileListModel.backHistory = history.backEntries()
-        fileListModel.forwardHistory = history.forwardEntries()
     }
 
     /// 既存のビューアウィンドウと位置が完全に一致する場合だけ、標準のカスケード量ずらす。
@@ -424,6 +300,20 @@ final class ViewerWindowController: NSWindowController {
     }
 }
 
+// MARK: - SidebarNavigatorHost
+
+extension ViewerWindowController: SidebarNavigatorHost {
+    /// SidebarNavigator が現在ファイルを都度参照するための橋渡し。
+    var currentFileURL: URL {
+        fileURL
+    }
+
+    /// 指定 URL が自分以外のウィンドウで開かれているか(注入されたチェックへ委譲)。
+    func isFileOpenElsewhere(_ url: URL) -> Bool {
+        isFileOpenInAnotherWindow?(url) == true
+    }
+}
+
 // MARK: - Menu Actions / Validation / NSWindowDelegate
 
 extension ViewerWindowController: NSWindowDelegate {
@@ -438,7 +328,7 @@ extension ViewerWindowController: NSWindowDelegate {
     @objc func zoomIn(_ sender: Any?) {
         guard let webView = webViewProxy.webView else { return }
         if webViewProxy.isDirectHTMLMode {
-            let newZoom = min(ZoomStore.maxZoom, webView.pageZoom + 0.1)
+            let newZoom = min(ZoomStore.maxZoom, webView.pageZoom + ZoomStore.zoomStep)
             webView.pageZoom = newZoom
             zoomStore.setZoom(newZoom, for: fileURL)
         } else {
@@ -450,7 +340,7 @@ extension ViewerWindowController: NSWindowDelegate {
     @objc func zoomOut(_ sender: Any?) {
         guard let webView = webViewProxy.webView else { return }
         if webViewProxy.isDirectHTMLMode {
-            let newZoom = max(ZoomStore.minZoom, webView.pageZoom - 0.1)
+            let newZoom = max(ZoomStore.minZoom, webView.pageZoom - ZoomStore.zoomStep)
             webView.pageZoom = newZoom
             zoomStore.setZoom(newZoom, for: fileURL)
         } else {
@@ -571,7 +461,7 @@ extension ViewerWindowController: NSWindowDelegate {
     func windowDidBecomeKey(_ notification: Notification) {
         // ディレクトリ監視はしていないため、キーになったタイミングで一覧を取り直し、
         // 他所で作成/削除されたファイルをサイドバーへ反映する。
-        refreshFileList()
+        sidebar.refreshFileList()
         onBecomeKey?()
     }
 

@@ -67,41 +67,36 @@ struct MainMenuBuilderTests {
         #expect(fullScreen.keyEquivalentModifierMask == [.control, .command])
     }
 
-    @Test("View メニューに Toggle Sidebar(⌘B) がある")
-    func viewMenuHasToggleSidebar() throws {
+    /// メニュー項目が期待するセレクタ・ショートカットキー・修飾キーを持つこと。
+    /// modifiers が nil のケース(Print)は元テストどおり修飾キーを検証しない。
+    @Test(arguments: [
+        (
+            submenuKey: "menu.view.title",
+            selector: #selector(NSSplitViewController.toggleSidebar(_:)),
+            key: "b", modifiers: NSEvent.ModifierFlags?.some([.command])
+        ), // View メニューに Toggle Sidebar(⌘B) がある
+        (
+            submenuKey: "menu.view.title",
+            selector: #selector(ViewerWindowController.toggleLineNumbers(_:)),
+            key: "l", modifiers: NSEvent.ModifierFlags?.some(.command)
+        ), // View メニューに Toggle Line Numbers(⌘L) がある
+        (
+            submenuKey: "menu.file.title",
+            selector: #selector(ViewerWindowController.printDocument(_:)),
+            key: "p", modifiers: nil
+        ), // File メニューに Print(⌘P) がある
+    ])
+    func menuItemHasKeyEquivalent(
+        submenuKey: String, selector: Selector, key: String, modifiers: NSEvent.ModifierFlags?
+    ) throws {
         let mainMenu = buildMenu()
-        let view = try #require(submenu(titledKey: "menu.view.title", in: mainMenu))
+        let menu = try #require(submenu(titledKey: String.LocalizationValue(submenuKey), in: mainMenu))
 
-        let toggleSidebar = try #require(
-            view.items.first { $0.action == #selector(NSSplitViewController.toggleSidebar(_:)) }
-        )
-        #expect(toggleSidebar.keyEquivalent == "b")
-        #expect(toggleSidebar.keyEquivalentModifierMask == [.command])
-    }
-
-    @Test("View メニューに Toggle Line Numbers(⌘L) がある")
-    func viewMenuHasToggleLineNumbers() throws {
-        let mainMenu = buildMenu()
-        let view = try #require(submenu(titledKey: "menu.view.title", in: mainMenu))
-
-        let item = try #require(
-            view.items.first {
-                $0.action == #selector(ViewerWindowController.toggleLineNumbers(_:))
-            }
-        )
-        #expect(item.keyEquivalent == "l")
-        #expect(item.keyEquivalentModifierMask == .command)
-    }
-
-    @Test("File メニューに Print(⌘P) がある")
-    func fileMenuHasPrint() throws {
-        let mainMenu = buildMenu()
-        let file = try #require(submenu(titledKey: "menu.file.title", in: mainMenu))
-
-        let print = try #require(
-            file.items.first { $0.action == #selector(ViewerWindowController.printDocument(_:)) }
-        )
-        #expect(print.keyEquivalent == "p")
+        let item = try #require(menu.items.first { $0.action == selector })
+        #expect(item.keyEquivalent == key)
+        if let modifiers {
+            #expect(item.keyEquivalentModifierMask == modifiers)
+        }
     }
 
     @Test("Window メニューにタブ操作項目がある")

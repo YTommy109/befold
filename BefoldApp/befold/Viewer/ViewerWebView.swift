@@ -67,10 +67,7 @@ struct ViewerWebView: NSViewRepresentable {
         context.coordinator.webViewProxy = webViewProxy
         webViewProxy.webView = webView
 
-        if let htmlURL = Bundle.l10n.url(forResource: "viewer", withExtension: "html") {
-            let resourceDir = htmlURL.deletingLastPathComponent()
-            webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
-        }
+        Self.loadViewerHTML(into: webView)
 
         return webView
     }
@@ -90,6 +87,14 @@ struct ViewerWebView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
+    }
+
+    /// バンドル同梱の viewer.html を WebView へ読み込む。
+    /// リソース名(`"viewer"` / `"html"`)の出現箇所をここに一本化する。
+    static func loadViewerHTML(into webView: WKWebView) {
+        guard let htmlURL = Bundle.l10n.url(forResource: "viewer", withExtension: "html") else { return }
+        let resourceDir = htmlURL.deletingLastPathComponent()
+        webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
     }
 
     static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
@@ -182,19 +187,28 @@ struct ViewerWebView: NSViewRepresentable {
             handleNavigationFailure(webView: webView)
         }
 
+        /// 直接 HTML モードを解除し、viewer.html へ復帰する。
+        /// `isDirectHTMLMode` / `webViewProxy?.isDirectHTMLMode` / `lastDirectHTMLPath` /
+        /// `lastRenderedContent` / `lastRenderedFileType` の 5 つの状態を必ずセットで
+        /// リセットしてから viewer.html を再ロードする。一部だけ倒すと直接 HTML モードの
+        /// 判定と再描画キャッシュの整合性が崩れるため、呼び出し側で個別にリセットしないこと。
+        private func exitDirectHTMLMode(webView: WKWebView, completion: @escaping () -> Void) {
+            isDirectHTMLMode = false
+            webViewProxy?.isDirectHTMLMode = false
+            lastDirectHTMLPath = nil
+            lastRenderedContent = nil
+            lastRenderedFileType = nil
+            reloadViewerHTML(webView: webView, then: completion)
+        }
+
         /// ナビゲーション失敗時に isReady のハングを防ぐ。直接ロード失敗なら viewer.html へ
         /// 安全にフォールバックする。
         private func handleNavigationFailure(webView: WKWebView) {
             pendingPageZoom = nil
             if isDirectHTMLMode {
-                isDirectHTMLMode = false
-                webViewProxy?.isDirectHTMLMode = false
-                lastDirectHTMLPath = nil
-                lastRenderedContent = nil
-                lastRenderedFileType = nil
                 // 削除起因の失敗は onFileGone がウィンドウを閉じるため、ここでは
                 // viewer.html へ戻すだけでよい
-                reloadViewerHTML(webView: webView) {}
+                exitDirectHTMLMode(webView: webView) {}
             } else {
                 isReady = true
                 pendingUpdate?()
@@ -249,12 +263,7 @@ struct ViewerWebView: NSViewRepresentable {
 
                 // 直接 HTML モードから viewer.html モードへの復帰
                 if isDirectHTMLMode {
-                    isDirectHTMLMode = false
-                    webViewProxy?.isDirectHTMLMode = false
-                    lastDirectHTMLPath = nil
-                    lastRenderedContent = nil
-                    lastRenderedFileType = nil
-                    reloadViewerHTML(webView: webView) {
+                    exitDirectHTMLMode(webView: webView) {
                         if showLineNumbers != self.lastShowLineNumbers {
                             webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
                             self.lastShowLineNumbers = showLineNumbers
@@ -331,10 +340,7 @@ struct ViewerWebView: NSViewRepresentable {
             }
             // viewer.html（mermaid.js）は JS 必須のため、直接ロードで無効化した JS を再有効化する。
             webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-            if let htmlURL = Bundle.l10n.url(forResource: "viewer", withExtension: "html") {
-                let resourceDir = htmlURL.deletingLastPathComponent()
-                webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
-            }
+            ViewerWebView.loadViewerHTML(into: webView)
         }
     }
 }

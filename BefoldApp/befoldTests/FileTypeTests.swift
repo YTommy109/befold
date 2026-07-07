@@ -95,90 +95,84 @@ struct FileTypeTests {
         #expect(fileType.jsValue == expected)
     }
 
-    /// codeLanguage は .code のときだけ言語名を返すこと
-    @Test
-    func codeLanguageOnlyForCode() {
-        #expect(FileType.code(language: "python").codeLanguage == "python")
-        #expect(FileType.mmd.codeLanguage == nil)
-        #expect(FileType.markdown.codeLanguage == nil)
-        #expect(FileType.svg.codeLanguage == nil)
-        #expect(FileType.html.codeLanguage == nil)
-        #expect(FileType.csv(delimiter: ",").codeLanguage == nil)
-        #expect(FileType.image(mimeType: "image/png").codeLanguage == nil)
-        #expect(FileType.pdf.codeLanguage == nil)
+    /// FileType の派生プロパティ(codeLanguage/csvDelimiter/imageMimeType/isBinaryContent/
+    /// isRenderable/supportsSourceMode/renderLangArgument)の期待値セット。
+    /// 期待値はプロダクトコードの switch をコピーせず、リテラルで書く。
+    private struct FileTypeTraits: Sendable, CustomTestStringConvertible {
+        let fileType: FileType
+        let codeLanguage: String?
+        let csvDelimiter: String?
+        let imageMimeType: String?
+        let isBinaryContent: Bool
+        let isRenderable: Bool
+        let supportsSourceMode: Bool
+        let renderLangArgument: String?
+
+        var testDescription: String {
+            "\(fileType)"
+        }
     }
 
-    /// csvDelimiter は .csv のときだけ区切り文字を返すこと
-    @Test
-    func csvDelimiterOnlyForCsv() {
-        #expect(FileType.csv(delimiter: ",").csvDelimiter == ",")
-        #expect(FileType.csv(delimiter: "\t").csvDelimiter == "\t")
-        #expect(FileType.mmd.csvDelimiter == nil)
-        #expect(FileType.markdown.csvDelimiter == nil)
-        #expect(FileType.code(language: "swift").csvDelimiter == nil)
-        #expect(FileType.image(mimeType: "image/png").csvDelimiter == nil)
-        #expect(FileType.pdf.csvDelimiter == nil)
-    }
-
-    /// imageMimeType は .image のときだけ MIME タイプを返すこと
-    @Test
-    func imageMimeTypeOnlyForImage() {
-        #expect(FileType.image(mimeType: "image/png").imageMimeType == "image/png")
-        #expect(FileType.image(mimeType: "image/jpeg").imageMimeType == "image/jpeg")
-        #expect(FileType.mmd.imageMimeType == nil)
-        #expect(FileType.pdf.imageMimeType == nil)
-        #expect(FileType.code(language: "swift").imageMimeType == nil)
-    }
-
-    /// isBinaryContent は image/pdf のときだけ true を返すこと
-    @Test
-    func isBinaryContentOnlyForImageAndPdf() {
-        #expect(FileType.image(mimeType: "image/png").isBinaryContent == true)
-        #expect(FileType.pdf.isBinaryContent == true)
-        #expect(FileType.mmd.isBinaryContent == false)
-        #expect(FileType.markdown.isBinaryContent == false)
-        #expect(FileType.svg.isBinaryContent == false)
-        #expect(FileType.code(language: "swift").isBinaryContent == false)
-    }
-
-    /// isRenderable は mmd/markdown/svg/html/csv/image/pdf で true を返すこと
-    @Test
-    func isRenderable() {
-        #expect(FileType.mmd.isRenderable == true)
-        #expect(FileType.markdown.isRenderable == true)
-        #expect(FileType.svg.isRenderable == true)
-        #expect(FileType.html.isRenderable == true)
-        #expect(FileType.csv(delimiter: ",").isRenderable == true)
-        #expect(FileType.image(mimeType: "image/png").isRenderable == true)
-        #expect(FileType.pdf.isRenderable == true)
-        #expect(FileType.code(language: "swift").isRenderable == false)
-    }
-
-    /// supportsSourceMode はテキスト由来のレンダリング可能種別のみ true を返すこと
-    @Test
-    func supportsSourceModeOnlyForRenderableTextTypes() {
-        #expect(FileType.mmd.supportsSourceMode == true)
-        #expect(FileType.markdown.supportsSourceMode == true)
-        #expect(FileType.svg.supportsSourceMode == true)
-        #expect(FileType.html.supportsSourceMode == true)
-        #expect(FileType.csv(delimiter: ",").supportsSourceMode == true)
-        #expect(FileType.image(mimeType: "image/png").supportsSourceMode == false)
-        #expect(FileType.pdf.supportsSourceMode == false)
-        #expect(FileType.code(language: "swift").supportsSourceMode == false)
-    }
-
-    /// renderLangArgument は code/csv/image のときだけ第 3 引数を返すこと
-    @Test
-    func renderLangArgumentByType() {
-        #expect(FileType.code(language: "swift").renderLangArgument == "swift")
-        #expect(FileType.csv(delimiter: ",").renderLangArgument == ",")
-        #expect(FileType.csv(delimiter: "\t").renderLangArgument == "\t")
-        #expect(FileType.image(mimeType: "image/png").renderLangArgument == "image/png")
-        #expect(FileType.mmd.renderLangArgument == nil)
-        #expect(FileType.markdown.renderLangArgument == nil)
-        #expect(FileType.svg.renderLangArgument == nil)
-        #expect(FileType.html.renderLangArgument == nil)
-        #expect(FileType.pdf.renderLangArgument == nil)
+    /// codeLanguage / csvDelimiter / imageMimeType / isBinaryContent / isRenderable /
+    /// supportsSourceMode / renderLangArgument が種別ごとに正しい値を返すこと
+    @Test(arguments: [
+        FileTypeTraits(
+            fileType: .mmd, codeLanguage: nil, csvDelimiter: nil, imageMimeType: nil,
+            isBinaryContent: false, isRenderable: true, supportsSourceMode: true, renderLangArgument: nil
+        ),
+        FileTypeTraits(
+            fileType: .markdown, codeLanguage: nil, csvDelimiter: nil, imageMimeType: nil,
+            isBinaryContent: false, isRenderable: true, supportsSourceMode: true, renderLangArgument: nil
+        ),
+        FileTypeTraits(
+            fileType: .svg, codeLanguage: nil, csvDelimiter: nil, imageMimeType: nil,
+            isBinaryContent: false, isRenderable: true, supportsSourceMode: true, renderLangArgument: nil
+        ),
+        FileTypeTraits(
+            fileType: .html, codeLanguage: nil, csvDelimiter: nil, imageMimeType: nil,
+            isBinaryContent: false, isRenderable: true, supportsSourceMode: true, renderLangArgument: nil
+        ),
+        FileTypeTraits(
+            fileType: .csv(delimiter: ","), codeLanguage: nil, csvDelimiter: ",", imageMimeType: nil,
+            isBinaryContent: false, isRenderable: true, supportsSourceMode: true, renderLangArgument: ","
+        ),
+        FileTypeTraits(
+            fileType: .csv(delimiter: "\t"), codeLanguage: nil, csvDelimiter: "\t", imageMimeType: nil,
+            isBinaryContent: false, isRenderable: true, supportsSourceMode: true, renderLangArgument: "\t"
+        ),
+        FileTypeTraits(
+            fileType: .image(mimeType: "image/png"), codeLanguage: nil, csvDelimiter: nil,
+            imageMimeType: "image/png", isBinaryContent: true, isRenderable: true,
+            supportsSourceMode: false, renderLangArgument: "image/png"
+        ),
+        FileTypeTraits(
+            fileType: .image(mimeType: "image/jpeg"), codeLanguage: nil, csvDelimiter: nil,
+            imageMimeType: "image/jpeg", isBinaryContent: true, isRenderable: true,
+            supportsSourceMode: false, renderLangArgument: "image/jpeg"
+        ),
+        FileTypeTraits(
+            fileType: .pdf, codeLanguage: nil, csvDelimiter: nil, imageMimeType: nil,
+            isBinaryContent: true, isRenderable: true, supportsSourceMode: false, renderLangArgument: nil
+        ),
+        FileTypeTraits(
+            fileType: .code(language: "python"), codeLanguage: "python", csvDelimiter: nil,
+            imageMimeType: nil, isBinaryContent: false, isRenderable: false,
+            supportsSourceMode: false, renderLangArgument: "python"
+        ),
+        FileTypeTraits(
+            fileType: .code(language: "swift"), codeLanguage: "swift", csvDelimiter: nil,
+            imageMimeType: nil, isBinaryContent: false, isRenderable: false,
+            supportsSourceMode: false, renderLangArgument: "swift"
+        ),
+    ])
+    private func fileTypeTraits(_ traits: FileTypeTraits) {
+        #expect(traits.fileType.codeLanguage == traits.codeLanguage)
+        #expect(traits.fileType.csvDelimiter == traits.csvDelimiter)
+        #expect(traits.fileType.imageMimeType == traits.imageMimeType)
+        #expect(traits.fileType.isBinaryContent == traits.isBinaryContent)
+        #expect(traits.fileType.isRenderable == traits.isRenderable)
+        #expect(traits.fileType.supportsSourceMode == traits.supportsSourceMode)
+        #expect(traits.fileType.renderLangArgument == traits.renderLangArgument)
     }
 
     /// 拡張子リストに重複がないこと（対応表と mermaid/markdown/svg/html の衝突検知）

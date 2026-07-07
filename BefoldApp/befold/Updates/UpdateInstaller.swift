@@ -37,12 +37,12 @@ enum UpdateInstaller {
         // パスはすべて shellQuoted でシングルクォート化してから埋め込む。
         // ダブルクォートだと `"` `$` バッククォートを含むパスでスクリプトが破損・
         // インジェクションされる余地があるため。
-        let staging = shellQuoted(installedApp + ".update")
-        let installedApp = shellQuoted(installedApp)
-        let appInDMG = shellQuoted(appInDMG)
-        let mountPoint = shellQuoted(mountPoint)
-        let dmgPath = shellQuoted(dmgPath)
-        let logPath = shellQuoted(logPath)
+        let staging = (installedApp + ".update").shellQuoted
+        let installedApp = installedApp.shellQuoted
+        let appInDMG = appInDMG.shellQuoted
+        let mountPoint = mountPoint.shellQuoted
+        let dmgPath = dmgPath.shellQuoted
+        let logPath = logPath.shellQuoted
         return """
         #!/bin/bash
         exec >> \(logPath) 2>&1
@@ -64,14 +64,5 @@ enum UpdateInstaller {
         echo "=== $(/bin/date '+%Y-%m-%dT%H:%M:%S%z') updater done"
         /bin/rm -f "$0"
         """
-    }
-
-    /// パスをシングルクォートで囲み、シェルによる解釈を無効化する。
-    /// シングルクォート内では `'` 以外のすべての文字（`"` `$` バッククォート `\` など）が
-    /// リテラルとして扱われる。唯一の例外である `'` は、いったんクォートを閉じて
-    /// エスケープ済みの `'`（`\'`）を置き、再度クォートを開く `'\''` に置換する。
-    /// これにより任意の文字列を安全に単一の引数として埋め込める。
-    private static func shellQuoted(_ value: String) -> String {
-        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }

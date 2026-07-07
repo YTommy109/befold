@@ -116,37 +116,32 @@ struct MarkdownImageEmbedderTests {
         #expect(result == expected)
     }
 
-    @Test("リモート URL の画像は変更しない")
-    func leavesRemoteImageUntouched() throws {
+    /// 埋め込み対象外の markdown(リモート URL・欠損ファイル・非対応拡張子・フェンスコード・
+    /// チルダフェンス・インラインコード・素の markdown)は元の文字列のまま変更されないこと。
+    /// いずれのケースでも photo.png / doc.pdf を用意した上で判定する。
+    @Test(arguments: [
+        "![remote](https://example.com/photo.png)", // リモート URL の画像
+        "![missing](nowhere.png)", // 存在しないファイル
+        "![pdf](doc.pdf)", // 非対応拡張子のファイル
+        """
+        ```markdown
+        ![alt](photo.png)
+        ```
+        """, // フェンスコードブロック内の画像記法
+        """
+        ~~~
+        ![alt](photo.png)
+        ~~~
+        """, // チルダフェンス内の画像記法
+        "記法は `![alt](photo.png)` と書く", // インラインコード内の画像記法
+        "# 見出し\n\n[リンク](other.md) と本文。", // 画像記法を含まない markdown
+    ])
+    func leavesMarkdownUntouchedWhenNotEmbeddable(markdown: String) throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
-        let baseURL = tmp.url.appendingPathComponent("doc.md")
-        let markdown = "![remote](https://example.com/photo.png)"
-
-        let result = MarkdownImageEmbedder.embedLocalImages(in: markdown, baseURL: baseURL)
-
-        #expect(result == markdown)
-    }
-
-    @Test("存在しないファイルは変更しない")
-    func leavesMissingFileUntouched() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let baseURL = tmp.url.appendingPathComponent("doc.md")
-        let markdown = "![missing](nowhere.png)"
-
-        let result = MarkdownImageEmbedder.embedLocalImages(in: markdown, baseURL: baseURL)
-
-        #expect(result == markdown)
-    }
-
-    @Test("非対応拡張子のファイルは変更しない")
-    func leavesUnsupportedExtensionUntouched() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
+        try tmp.file(named: "photo.png", data: pngData)
         try tmp.file(named: "doc.pdf", data: pngData)
         let baseURL = tmp.url.appendingPathComponent("doc.md")
-        let markdown = "![pdf](doc.pdf)"
 
         let result = MarkdownImageEmbedder.embedLocalImages(in: markdown, baseURL: baseURL)
 
@@ -164,40 +159,6 @@ struct MarkdownImageEmbedderTests {
         let result = MarkdownImageEmbedder.embedLocalImages(
             in: markdown, baseURL: baseURL, maxImageSizeBytes: 99
         )
-
-        #expect(result == markdown)
-    }
-
-    @Test("フェンスコードブロック内の画像記法は変更しない")
-    func leavesFencedCodeBlockUntouched() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        try tmp.file(named: "photo.png", data: pngData)
-        let baseURL = tmp.url.appendingPathComponent("doc.md")
-        let markdown = """
-        ```markdown
-        ![alt](photo.png)
-        ```
-        """
-
-        let result = MarkdownImageEmbedder.embedLocalImages(in: markdown, baseURL: baseURL)
-
-        #expect(result == markdown)
-    }
-
-    @Test("チルダフェンス内の画像記法は変更しない")
-    func leavesTildeFencedBlockUntouched() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        try tmp.file(named: "photo.png", data: pngData)
-        let baseURL = tmp.url.appendingPathComponent("doc.md")
-        let markdown = """
-        ~~~
-        ![alt](photo.png)
-        ~~~
-        """
-
-        let result = MarkdownImageEmbedder.embedLocalImages(in: markdown, baseURL: baseURL)
 
         #expect(result == markdown)
     }
@@ -224,19 +185,6 @@ struct MarkdownImageEmbedderTests {
         ![out](\(dataURI(pngData, mimeType: "image/png")))
         """
         #expect(result == expected)
-    }
-
-    @Test("インラインコード内の画像記法は変更しない")
-    func leavesInlineCodeUntouched() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        try tmp.file(named: "photo.png", data: pngData)
-        let baseURL = tmp.url.appendingPathComponent("doc.md")
-        let markdown = "記法は `![alt](photo.png)` と書く"
-
-        let result = MarkdownImageEmbedder.embedLocalImages(in: markdown, baseURL: baseURL)
-
-        #expect(result == markdown)
     }
 
     @Test("インラインコードの後ろにある画像は差し替える")
@@ -270,17 +218,5 @@ struct MarkdownImageEmbedderTests {
 
         let second = MarkdownImageEmbedder.embedLocalImages(in: markdown, baseURL: baseURL)
         #expect(second == "![alt](\(dataURI(gifBytes, mimeType: "image/png")))")
-    }
-
-    @Test("画像記法を含まない markdown は変更しない")
-    func leavesPlainMarkdownUntouched() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let baseURL = tmp.url.appendingPathComponent("doc.md")
-        let markdown = "# 見出し\n\n[リンク](other.md) と本文。"
-
-        let result = MarkdownImageEmbedder.embedLocalImages(in: markdown, baseURL: baseURL)
-
-        #expect(result == markdown)
     }
 }

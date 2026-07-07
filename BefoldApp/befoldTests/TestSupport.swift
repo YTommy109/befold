@@ -41,6 +41,19 @@ final class TempDir: Sendable {
     }
 }
 
+/// 条件が true になるまでポーリングで待機する。CI 環境でのファイル監視イベントや
+/// タイマー発火の遅延に対応するため、固定 sleep ではなく条件成立を待つ。
+func waitUntil(
+    timeout: Duration = .seconds(10),
+    _ condition: @escaping @Sendable () -> Bool
+) async {
+    let deadline = ContinuousClock.now.advanced(by: timeout)
+    while ContinuousClock.now < deadline {
+        if condition() { return }
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+}
+
 /// NSLock で保護したスレッドセーフな可変ボックス。
 /// Sendable クロージャからのカウント・記録に使う。
 final class LockedBox<Value: Sendable>: @unchecked Sendable {

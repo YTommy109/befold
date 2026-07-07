@@ -17,45 +17,24 @@ struct ViewerBridgeTests {
         #expect(!script.contains("\n"))
     }
 
-    @Test
-    func renderScriptUsesFileTypeJSValue() throws {
-        let script = try #require(ViewerBridge.renderScript(content: "# Hi", fileType: .markdown))
-
-        #expect(script.hasSuffix("\", 'md')"))
-    }
-
-    @Test("code タイプは第 3 引数に言語名を渡す")
-    func renderScriptAppendsLanguageForCode() throws {
-        let script = try #require(
-            ViewerBridge.renderScript(content: "let x = 1", fileType: .code(language: "swift"))
-        )
-
-        #expect(script.hasSuffix("\", 'code', 'swift')"))
-    }
-
-    @Test("csv タイプは第 3 引数に delimiter を渡す")
-    func renderScriptAppendsDelimiterForCsv() throws {
-        let script = try #require(
-            ViewerBridge.renderScript(content: "a,b\n1,2", fileType: .csv(delimiter: ","))
-        )
-        #expect(script.hasSuffix("\", 'csv', ',')"))
-    }
-
-    @Test("tsv タイプは第 3 引数にタブ delimiter を渡す")
-    func renderScriptAppendsTabDelimiterForTsv() throws {
-        let script = try #require(
-            ViewerBridge.renderScript(content: "a\tb\n1\t2", fileType: .csv(delimiter: "\t"))
-        )
-        #expect(script.hasSuffix("\", 'csv', '\\t')"))
-    }
-
-    @Test("mmd / md は従来どおり 2 引数のまま（言語引数を付けない）")
-    func renderScriptOmitsLanguageForNonCode() throws {
-        let mmd = try #require(ViewerBridge.renderScript(content: "graph TD", fileType: .mmd))
-        let md = try #require(ViewerBridge.renderScript(content: "# Hi", fileType: .markdown))
-
-        #expect(mmd.hasSuffix("\", 'mmd')"))
-        #expect(md.hasSuffix("\", 'md')"))
+    /// FileType ごとに renderScript の suffix (type, lang) が正しく生成されること。
+    @Test(arguments: [
+        (content: "# Hi", fileType: FileType.markdown, expectedSuffix: "\", 'md')"),
+        (content: "let x = 1", fileType: FileType.code(language: "swift"), expectedSuffix: "\", 'code', 'swift')"),
+        (content: "a,b\n1,2", fileType: FileType.csv(delimiter: ","), expectedSuffix: "\", 'csv', ',')"),
+        (content: "a\tb\n1\t2", fileType: FileType.csv(delimiter: "\t"), expectedSuffix: "\", 'csv', '\\t')"),
+        (content: "graph TD", fileType: FileType.mmd, expectedSuffix: "\", 'mmd')"),
+        (content: "<svg></svg>", fileType: FileType.svg, expectedSuffix: "\", 'svg')"),
+        (content: "<html></html>", fileType: FileType.html, expectedSuffix: "\", 'html')"),
+        (
+            content: "base64data", fileType: FileType.image(mimeType: "image/png"),
+            expectedSuffix: "\", 'image', 'image/png')"
+        ),
+        (content: "base64data", fileType: FileType.pdf, expectedSuffix: "\", 'pdf')"),
+    ])
+    func renderScriptSuffixByFileType(content: String, fileType: FileType, expectedSuffix: String) throws {
+        let script = try #require(ViewerBridge.renderScript(content: content, fileType: fileType))
+        #expect(script.hasSuffix(expectedSuffix))
     }
 
     @Test
@@ -71,34 +50,6 @@ struct ViewerBridgeTests {
     @Test("applyZoomScript は倍率注入と _mmdInitZoom() 呼び出しを組み合わせる")
     func applyZoomScriptInjectsValueAndInvokesInit() {
         #expect(ViewerBridge.applyZoomScript(1.5) == "window._mmdInitialZoom = 1.5; _mmdInitZoom();")
-    }
-
-    @Test("svg タイプは 2 引数のまま（言語引数を付けない）")
-    func renderScriptOmitsLanguageForSvg() throws {
-        let script = try #require(ViewerBridge.renderScript(content: "<svg></svg>", fileType: .svg))
-        #expect(script.hasSuffix("\", 'svg')"))
-    }
-
-    @Test("html タイプは 2 引数のまま（言語引数を付けない）")
-    func renderScriptOmitsLanguageForHtml() throws {
-        let script = try #require(ViewerBridge.renderScript(content: "<html></html>", fileType: .html))
-        #expect(script.hasSuffix("\", 'html')"))
-    }
-
-    @Test("image タイプは第 3 引数に MIME タイプを渡す")
-    func renderScriptAppendsMimeTypeForImage() throws {
-        let script = try #require(
-            ViewerBridge.renderScript(content: "base64data", fileType: .image(mimeType: "image/png"))
-        )
-        #expect(script.hasSuffix("\", 'image', 'image/png')"))
-    }
-
-    @Test("pdf タイプは 2 引数のまま")
-    func renderScriptOmitsLangForPdf() throws {
-        let script = try #require(
-            ViewerBridge.renderScript(content: "base64data", fileType: .pdf)
-        )
-        #expect(script.hasSuffix("\", 'pdf')"))
     }
 
     @Test("viewModeScript がモード文字列を埋め込む")
@@ -139,6 +90,13 @@ struct ViewerBridgeTests {
 
         #expect(js.contains("var ZOOM_MIN = \(ZoomStore.minZoom);"))
         #expect(js.contains("var ZOOM_MAX = \(ZoomStore.maxZoom);"))
+    }
+
+    @Test("viewer.js の ZOOM_STEP が ZoomStore.zoomStep と一致する")
+    func zoomStepMatchesZoomStore() throws {
+        let js = try String(contentsOf: resourceURL("viewer.js"), encoding: .utf8)
+
+        #expect(js.contains("var ZOOM_STEP = \(ZoomStore.zoomStep);"))
     }
 
     /// befoldTests/ から見た befold/Resources/ 内のリソース URL を返す。
