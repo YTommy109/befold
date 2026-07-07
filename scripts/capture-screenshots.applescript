@@ -35,13 +35,15 @@ set windowWidth to 1280
 set windowHeight to 800
 set captureRect to (windowX as string) & "," & (windowY as string) & "," & (windowWidth as string) & "," & (windowHeight as string)
 
--- {ファイル名, 出力ファイル名, サイドバーを表示するか, ソース表示に切替するか}
+-- {ファイル名, 出力ファイル名, サイドバーを表示するか, 末尾までスクロールするか}
+-- sample.md は冒頭がMermaid図で占められるため、表・箇条書き・引用など
+-- Markdownらしい要素が集まる末尾までスクロールしてから撮影する。
 set targets to {¬
     {"flowchart.mmd", "screenshot-1.png", true, false}, ¬
     {"sequence.mmd", "screenshot-2.png", false, false}, ¬
-    {"sample.md", "screenshot-3.png", false, false}, ¬
+    {"sample.md", "screenshot-3.png", false, true}, ¬
     {"sample.csv", "screenshot-4.png", false, false}, ¬
-    {"sample.md", "screenshot-5.png", false, true}}
+    {"example.swift", "screenshot-5.png", false, false}}
 
 do shell script "mkdir -p " & quoted form of imagesDir
 
@@ -49,7 +51,7 @@ repeat with targetItem in targets
     set fileName to item 1 of targetItem
     set outputName to item 2 of targetItem
     set showSidebar to item 3 of targetItem
-    set showSource to item 4 of targetItem
+    set scrollToEnd to item 4 of targetItem
 
     set filePath to sampleDir & "/" & fileName
     set outputPath to imagesDir & "/" & outputName
@@ -84,8 +86,8 @@ repeat with targetItem in targets
         delay 1
     end if
 
-    if showSource then
-        tell application "System Events" to keystroke "u" using {command down}
+    if scrollToEnd then
+        tell application "System Events" to key code 119 -- End
         delay 1
     end if
 
