@@ -57,6 +57,7 @@ header h1 {
 .lang-switcher {
   display: flex;
   gap: 0.5rem;
+  margin-right: 150px;
 }
 
 .lang-btn {
@@ -168,6 +169,7 @@ main {
   display: block;
   width: 100%;
   height: auto;
+  aspect-ratio: 1280 / 800;
 }
 
 .carousel-caption {
@@ -368,6 +370,10 @@ footer a:hover {
   .github-ribbon {
     width: 100px;
     height: 100px;
+  }
+
+  .lang-switcher {
+    margin-right: 100px;
   }
 
   .github-ribbon span {
