@@ -15,7 +15,14 @@
 --
 -- 実行方法:
 --   osascript scripts/capture-screenshots.applescript
+--
+-- 注意: befold には前回セッション(開いていたタブ)を復元する SessionRestorer が
+-- あり、`open -a` で新しいファイルを指定して起動しても前回セッションのタブと
+-- 競合してどちらがフォーカスされるか不定になる。このスクリプトは各起動の直前に
+-- befold のセッション関連 UserDefaults を削除し、復元対象がない状態で起動する
+-- ことでこの競合を回避している。
 
+set befoldBundleID to "com.degino.befold"
 set scriptPosixPath to POSIX path of (path to me)
 set scriptsDir to do shell script "dirname " & quoted form of scriptPosixPath
 set repoRoot to do shell script "dirname " & quoted form of scriptsDir
@@ -54,6 +61,12 @@ repeat with targetItem in targets
             delay 1
         end if
     end tell
+
+    -- SessionRestorer による前回セッション復元と競合しないよう、
+    -- 起動直前にセッション関連の UserDefaults を消しておく
+    do shell script "defaults delete " & befoldBundleID & " SessionOpenFilePaths > /dev/null 2>&1; " & ¬
+        "defaults delete " & befoldBundleID & " SessionLayout > /dev/null 2>&1; " & ¬
+        "defaults delete " & befoldBundleID & " SessionActiveFilePath > /dev/null 2>&1; true"
 
     do shell script "open -a befold " & quoted form of filePath
     delay 2
