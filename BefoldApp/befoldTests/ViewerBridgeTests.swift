@@ -120,7 +120,6 @@ struct ViewerBridgeTests {
         let html = try String(contentsOf: resourceURL("viewer.html"), encoding: .utf8)
 
         #expect(html.contains("async function render(content, type, lang)"))
-        #expect(html.contains("function showDeletedBanner()"))
         #expect(html.contains("function _mmdZoomIn()"))
         #expect(html.contains("function _mmdZoomOut()"))
         #expect(html.contains("function _mmdZoomReset()"))

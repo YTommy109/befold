@@ -28,7 +28,6 @@ struct ViewerContentView: View {
                 ViewerWebView(
                     content: store.content,
                     fileType: store.fileType,
-                    isDeleted: store.isDeleted,
                     filePath: store.filePath,
                     isSourceMode: store.isSourceMode,
                     showLineNumbers: store.showLineNumbers,

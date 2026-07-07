@@ -18,8 +18,8 @@
     "menu.app.installCLI" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Install 'befold' command in PATH" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "PATH に 'befold' コマンドをインストール" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Install Command Line Tool" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コマンドラインツールをインストール" } }
       }
     },
     "menu.app.services" : {

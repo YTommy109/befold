@@ -107,6 +107,9 @@ final class ViewerWindowController: NSWindowController {
         // windowDidResize 経由で保存されるのを防ぐ
         window.delegate = self
 
+        store.onFileGone = { [weak self] in
+            self?.window?.close()
+        }
         store.onFileRenamed = { [weak self] newURL in
             self?.handleRename(to: newURL)
         }
@@ -163,7 +166,7 @@ final class ViewerWindowController: NSWindowController {
                 FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
                 !isDir.boolValue
             else {
-                showFileNotFoundAlert(path: url.path)
+                showFileNotFoundAlert(url: url)
                 return
             }
             if newWindow {
@@ -176,18 +179,9 @@ final class ViewerWindowController: NSWindowController {
         }
     }
 
-    private func showFileNotFoundAlert(path: String) {
-        guard let window else { return }
-        let alert = NSAlert()
-        alert.messageText = String(
-            localized: "alert.fileNotFound.message",
-            defaultValue: "File Not Found",
-            bundle: .l10n
-        )
-        alert.informativeText = path
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.beginSheetModal(for: window)
+    private func showFileNotFoundAlert(url: URL) {
+        // window があればシート、無ければモーダルで表示する(判定は FileNotFoundUI 側)。
+        FileNotFoundUI.present(url: url, over: window)
     }
 
     /// ファイルの rename / move をウィンドウに反映する。
@@ -227,7 +221,10 @@ final class ViewerWindowController: NSWindowController {
             fileListModel.selection = oldURL
             return
         }
-        performFileSwitch(to: newURL)
+        guard performFileSwitch(to: newURL) else {
+            fileListModel.selection = oldURL
+            return
+        }
         let newDir = newURL.deletingLastPathComponent().standardizedFileURL
         if newDir != fileListModel.currentDirectory.standardizedFileURL {
             fileListModel.currentDirectory = newURL.deletingLastPathComponent()
@@ -340,7 +337,13 @@ final class ViewerWindowController: NSWindowController {
 
     /// switchFile と applyHistoryEntry が共有するファイル切替の実処理。
     /// ビューモードのリセット、URL 更新、コンテンツ読込、ズーム適用、コールバック通知を行う。
-    private func performFileSwitch(to newURL: URL) {
+    /// 切替先が存在しない場合はアラートを表示して false を返す(状態は変更しない)。
+    @discardableResult
+    private func performFileSwitch(to newURL: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: newURL.path) else {
+            showFileNotFoundAlert(url: newURL)
+            return false
+        }
         let oldURL = fileURL
         resetSourceMode()
         applyURLToWindow(newURL)
@@ -348,6 +351,7 @@ final class ViewerWindowController: NSWindowController {
         updateToolbarVisibility()
         applyStoredZoomToWebView()
         onSwitchFile?(oldURL, newURL)
+        return true
     }
 
     /// 履歴エントリを表示へ適用する。適用できなかった場合は false を返す。
@@ -361,15 +365,16 @@ final class ViewerWindowController: NSWindowController {
         }
         let dirChanged = entry.directory.normalizedPathKey
             != fileListModel.currentDirectory.normalizedPathKey
-        if dirChanged {
-            fileListModel.currentDirectory = entry.directory
-        }
+        // ファイル切替が存在しないファイルで失敗すると performFileSwitch が false を返す。
+        // currentDirectory の書き換えより先に切替を試み、失敗時は状態を一切変えずに
+        // return して部分適用による不整合(dir だけ変わって file list 未更新)を防ぐ。
         if let file = entry.file,
            file.normalizedPathKey != fileURL.normalizedPathKey
         {
-            performFileSwitch(to: file)
+            guard performFileSwitch(to: file) else { return false }
         }
         if dirChanged {
+            fileListModel.currentDirectory = entry.directory
             refreshFileList()
             // ファイルがディレクトリ外(上へ移動で記録されたエントリ)の場合、
             // ファイルの親フォルダを選択して元の状態を復元する

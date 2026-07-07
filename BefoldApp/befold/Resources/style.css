@@ -41,8 +41,6 @@
 :root {
   color-scheme: light dark;
 
-  /* 削除状態でキャンバスに重ねるティント(白地で #e8e8e8 相当) */
-  --bg-deleted-tint: rgba(0, 0, 0, 0.09);
   --fg: #1a1a1a;
   --fg-muted: #555;
   --accent: #007aff;
@@ -53,8 +51,6 @@
   --btn-fg: #333;
   --btn-hover-bg: rgba(0, 0, 0, 0.07);
   --btn-disabled-fg: #bbb;
-
-  --banner-fg: #888;
 
   --error-bg: #fff5f5;
   --error-border: #e53e3e;
@@ -68,8 +64,6 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* #1e1e1e 地で #2a2a2a 相当 */
-    --bg-deleted-tint: rgba(255, 255, 255, 0.053);
     --fg: #e4e4e4;
     --fg-muted: #aaa;
     --accent: #4aa3ff;
@@ -80,8 +74,6 @@
     --btn-fg: #ddd;
     --btn-hover-bg: rgba(255, 255, 255, 0.1);
     --btn-disabled-fg: #666;
-
-    --banner-fg: #999;
 
     --error-bg: #3a1f1f;
     --error-border: #f56565;
@@ -110,12 +102,6 @@ body {
   color: var(--fg);
 }
 
-/* ファイル削除中は body に .mmd-deleted を付け、キャンバスに半透明ティントを
-   重ねて状態を示す(キャンバス色を知らなくても成立する) */
-body.mmd-deleted {
-  background: var(--bg-deleted-tint);
-}
-
 .viewer {
   flex: 1;
   overflow: auto;
@@ -134,26 +120,6 @@ body.mmd-deleted {
 #diagram-wrap {
   width: 100%;
   max-width: 100%;
-}
-
-.mmd-deleted-banner {
-  display: none;
-  position: fixed;
-  top: 12px;
-  left: 12px;
-  background: var(--panel-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  padding: 4px 12px;
-  box-shadow: 0 1px 4px var(--panel-shadow);
-  z-index: 1000;
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-  font-size: 13px;
-  font-style: italic;
-  color: var(--banner-fg);
-  user-select: none;
 }
 
 .mmd-error-panel {

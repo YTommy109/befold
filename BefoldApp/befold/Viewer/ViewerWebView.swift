@@ -6,7 +6,6 @@ import WebKit
 struct ViewerWebView: NSViewRepresentable {
     let content: String
     let fileType: FileType
-    let isDeleted: Bool
     /// レンダリング対象のファイルパス。HTML ファイルは loadFileURL による直接ロードに使う。
     let filePath: URL?
     /// ソース表示中かどうか。true の間 HTML ファイルも viewer.html でレンダリングする。
@@ -83,7 +82,6 @@ struct ViewerWebView: NSViewRepresentable {
         context.coordinator.updateContent(
             content,
             fileType: fileType,
-            isDeleted: isDeleted,
             filePath: filePath,
             isSourceMode: isSourceMode,
             showLineNumbers: showLineNumbers
@@ -137,7 +135,6 @@ struct ViewerWebView: NSViewRepresentable {
         private var pendingUpdate: (() -> Void)?
         private var lastRenderedContent: String?
         private var lastRenderedFileType: FileType?
-        private var lastWasDeleted: Bool?
         private var lastShowLineNumbers: Bool?
         private var isDirectHTMLMode = false
         private var lastDirectHTMLPath: URL?
@@ -186,7 +183,7 @@ struct ViewerWebView: NSViewRepresentable {
         }
 
         /// ナビゲーション失敗時に isReady のハングを防ぐ。直接ロード失敗なら viewer.html へ
-        /// 安全にフォールバックし、削除バナーを表示する。
+        /// 安全にフォールバックする。
         private func handleNavigationFailure(webView: WKWebView) {
             pendingPageZoom = nil
             if isDirectHTMLMode {
@@ -195,9 +192,9 @@ struct ViewerWebView: NSViewRepresentable {
                 lastDirectHTMLPath = nil
                 lastRenderedContent = nil
                 lastRenderedFileType = nil
-                reloadViewerHTML(webView: webView) {
-                    webView.evaluateJavaScript(ViewerBridge.showDeletedBannerScript)
-                }
+                // 削除起因の失敗は onFileGone がウィンドウを閉じるため、ここでは
+                // viewer.html へ戻すだけでよい
+                reloadViewerHTML(webView: webView) {}
             } else {
                 isReady = true
                 pendingUpdate?()
@@ -222,7 +219,6 @@ struct ViewerWebView: NSViewRepresentable {
         func updateContent(
             _ content: String,
             fileType: FileType,
-            isDeleted: Bool,
             filePath: URL?,
             isSourceMode: Bool,
             showLineNumbers: Bool
@@ -230,30 +226,8 @@ struct ViewerWebView: NSViewRepresentable {
             let doUpdate = { [weak self] in
                 guard let self, let webView else { return }
 
-                if isDeleted {
-                    // 削除状態は常に viewer.html モードで表示する
-                    if isDirectHTMLMode {
-                        isDirectHTMLMode = false
-                        webViewProxy?.isDirectHTMLMode = false
-                        lastDirectHTMLPath = nil
-                        lastRenderedContent = nil
-                        lastRenderedFileType = nil
-                        lastWasDeleted = true
-                        reloadViewerHTML(webView: webView) {
-                            webView.evaluateJavaScript(ViewerBridge.showDeletedBannerScript)
-                        }
-                        return
-                    }
-                    if lastWasDeleted != true {
-                        webView.evaluateJavaScript(ViewerBridge.showDeletedBannerScript)
-                        lastWasDeleted = true
-                    }
-                    return
-                }
-
                 // HTML レンダリング表示: loadFileURL で直接ロード
                 if fileType == .html, !isSourceMode, let filePath {
-                    lastWasDeleted = false
                     let pathChanged = filePath != lastDirectHTMLPath
                     let contentChanged = content != lastRenderedContent
                     guard !isDirectHTMLMode || pathChanged || contentChanged else { return }
@@ -297,7 +271,6 @@ struct ViewerWebView: NSViewRepresentable {
                         else { return }
                         webView.evaluateJavaScript(script)
                     }
-                    lastWasDeleted = false
                     lastRenderedContent = content
                     lastRenderedFileType = fileType
                     return
@@ -307,11 +280,9 @@ struct ViewerWebView: NSViewRepresentable {
                 // (例: notes.md → notes.txt のように内容が同じでも種別が変わる切替)
                 let needsRender = content != lastRenderedContent
                     || fileType != lastRenderedFileType
-                    || lastWasDeleted == true
                     || showLineNumbers != lastShowLineNumbers
                 guard needsRender else { return }
 
-                lastWasDeleted = false
                 lastRenderedContent = content
                 lastRenderedFileType = fileType
 

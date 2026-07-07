@@ -54,6 +54,7 @@
 		8D057178399756E00F44A86A /* MainMenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8405F5C7FE140D4EA2AC0414 /* MainMenuBuilder.swift */; };
 		8E88C5EF00CB94E50C7B8D90 /* ViewerWindowManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A97307DAD4C8E54AA2EA56 /* ViewerWindowManagerTests.swift */; };
 		8EA884D8DCFC3358DCC49B36 /* ReleaseFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 357663FF11A58E7A70A06B31 /* ReleaseFetcher.swift */; };
+		9193F630923861BF628D3DA5 /* FileNotFoundUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D5B50A40561FEC0CC8FA324 /* FileNotFoundUI.swift */; };
 		93FB748BE7D0887B56A95B0C /* FileType.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2864326E4EFACAD832427D /* FileType.swift */; };
 		9807475EF7A3D261E8ACEBE0 /* PathKeyedDictionaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58DDC3E2F4781D1F644032DB /* PathKeyedDictionaryTests.swift */; };
 		993996E9086BAB7398F03520 /* DocumentController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5468C6282A6D717700403B9 /* DocumentController.swift */; };
@@ -127,6 +128,7 @@
 		2480AF58CC6EFE5AAEA3915C /* ViewerWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerWindowController.swift; sourceTree = "<group>"; };
 		26B26DB33AAE63316A4C6D6D /* InMemoryFileReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InMemoryFileReader.swift; sourceTree = "<group>"; };
 		2AAE64F41B58DBF3D4191469 /* InfoPlistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPlistTests.swift; sourceTree = "<group>"; };
+		2D5B50A40561FEC0CC8FA324 /* FileNotFoundUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileNotFoundUI.swift; sourceTree = "<group>"; };
 		30ADF73D1500977DCCABF90B /* ViewerBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerBridgeTests.swift; sourceTree = "<group>"; };
 		34B7B377685D5122FD99D284 /* DirectoryLister.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryLister.swift; sourceTree = "<group>"; };
 		357663FF11A58E7A70A06B31 /* ReleaseFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseFetcher.swift; sourceTree = "<group>"; };
@@ -347,6 +349,7 @@
 				0684EBB76E4336D6DB9EC395 /* CLIInstaller.swift */,
 				031A74612B8315483385312F /* CLIInstallUI.swift */,
 				A5468C6282A6D717700403B9 /* DocumentController.swift */,
+				2D5B50A40561FEC0CC8FA324 /* FileNotFoundUI.swift */,
 				57D4E1646EE61799511D1046 /* LocalizedBundle.swift */,
 				8405F5C7FE140D4EA2AC0414 /* MainMenuBuilder.swift */,
 				E89963D5B445584129CCA244 /* NavigationHistory.swift */,
@@ -510,6 +513,7 @@
 				F33FB9F0DFE2D9C48369DB60 /* DownloadProgressWindow.swift in Sources */,
 				CE728E10742D8E25B4A36383 /* FileListEntry.swift in Sources */,
 				9D16DDBFBB9C3A8C7C7256B3 /* FileListView.swift in Sources */,
+				9193F630923861BF628D3DA5 /* FileNotFoundUI.swift in Sources */,
 				BB1E65B822EDB54E6BC3110A /* FileReading.swift in Sources */,
 				93FB748BE7D0887B56A95B0C /* FileType.swift in Sources */,
 				0A27675C0BEA72A04205837A /* FileWatcher.swift in Sources */,

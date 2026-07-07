@@ -36,20 +36,8 @@ struct ViewerStoreTests {
 
         #expect(store.content == content)
         #expect(store.fileType == expectedType)
-        #expect(!store.isDeleted)
         #expect(store.filePath == file)
 
-        store.close()
-    }
-
-    @Test
-    func openNonexistentFileMarksDeleted() {
-        let file = URL(fileURLWithPath: "/files/missing.mmd")
-
-        let store = makeStore(reader: InMemoryFileReader())
-        store.openFile(file)
-
-        #expect(store.isDeleted)
         store.close()
     }
 
@@ -63,7 +51,6 @@ struct ViewerStoreTests {
         store.openFile(file)
 
         #expect(store.content == "")
-        #expect(!store.isDeleted)
 
         store.close()
     }
@@ -102,7 +89,6 @@ struct ViewerStoreTests {
 
         #expect(store.isUnsupported)
         #expect(store.content == "")
-        #expect(!store.isDeleted)
 
         store.close()
     }
@@ -135,7 +121,6 @@ struct ViewerStoreTests {
 
         #expect(store.isUnsupported)
         #expect(store.content == "")
-        #expect(!store.isDeleted)
 
         store.close()
     }
@@ -221,34 +206,6 @@ struct ViewerStoreTests {
     }
 
     @Test
-    func watcherCallbackTracksDeletionAndRecreation() {
-        let file = URL(fileURLWithPath: "/files/test.mmd")
-        let reader = InMemoryFileReader()
-        reader.setFile("graph TD; A-->B", at: file)
-
-        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
-        let store = ViewerStore(watcherFactory: { _, callback, _ in
-            onChange = callback
-            return MockFileWatcher()
-        }, fileReader: reader)
-        store.openFile(file)
-        #expect(!store.isDeleted)
-
-        // ファイル削除 → コールバック発火で isDeleted が立つ
-        reader.setFile(nil, at: file)
-        onChange?()
-        #expect(store.isDeleted)
-
-        // 再作成 → コールバック発火で isDeleted が戻り、新しい内容が読める
-        reader.setFile("graph TD; C-->D", at: file)
-        onChange?()
-        #expect(!store.isDeleted)
-        #expect(store.content == "graph TD; C-->D")
-
-        store.close()
-    }
-
-    @Test
     func watcherRenameUpdatesPathAndReloadsContent() {
         let oldFile = URL(fileURLWithPath: "/files/old.mmd")
         let reader = InMemoryFileReader()
@@ -274,7 +231,6 @@ struct ViewerStoreTests {
         #expect(store.filePath == newFile)
         #expect(store.fileType == .markdown)
         #expect(store.content == "# Renamed")
-        #expect(!store.isDeleted)
         #expect(renamedTo == newFile)
 
         store.close()
@@ -294,7 +250,6 @@ struct ViewerStoreTests {
         store.openFile(file)
 
         #expect(!store.isUnsupported)
-        #expect(!store.isDeleted)
         #expect(store.fileType == .image(mimeType: "image/png"))
         #expect(store.content == imageData.base64EncodedString())
 
@@ -313,7 +268,6 @@ struct ViewerStoreTests {
         store.openFile(file)
 
         #expect(!store.isUnsupported)
-        #expect(!store.isDeleted)
         #expect(store.fileType == .pdf)
         #expect(store.content == pdfData.base64EncodedString())
 
@@ -395,7 +349,6 @@ struct ViewerStoreTests {
 
         #expect(store.isUnsupported)
         #expect(store.content == "")
-        #expect(!store.isDeleted)
 
         store.close()
     }
@@ -454,5 +407,149 @@ private struct StopCountingWatcher: FileWatching {
     let onStop: @Sendable () -> Void
     func stop() {
         onStop()
+    }
+}
+
+/// ファイル削除確定(グレース期間付き onFileGone)まわりのテスト。
+/// ViewerStoreTests から分離し、型の行数を SwiftLint の type_body_length 内に収める。
+@Suite
+@MainActor
+struct ViewerStoreFileGoneTests {
+    private func makeStore(reader: InMemoryFileReader) -> ViewerStore {
+        let suiteName = "ViewerStoreFileGoneTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return ViewerStore(
+            watcherFactory: { _, _, _ in MockFileWatcher() },
+            fileReader: reader,
+            defaults: defaults
+        )
+    }
+
+    /// firedCount が期待値に達するまで短い間隔でポーリングする。
+    /// フルスイート並列実行下では CPU 競合でタイマーが遅延しうるため、
+    /// 固定 sleep ではなく条件成立を待つことでフレーキーさを避ける。
+    private func waitUntil(
+        timeout: Duration = .seconds(5),
+        _ condition: @escaping () -> Bool
+    ) async throws {
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        while ContinuousClock.now < deadline {
+            if condition() { return }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
+    @Test
+    func openNonexistentFileFiresOnFileGoneAfterGrace() async throws {
+        let file = URL(fileURLWithPath: "/files/missing.mmd")
+        let store = makeStore(reader: InMemoryFileReader())
+
+        nonisolated(unsafe) var firedCount = 0
+        store.onFileGone = { firedCount += 1 }
+        store.openFile(file)
+        // グレース期間中は発火しない
+        #expect(firedCount == 0)
+
+        try await waitUntil { firedCount == 1 }
+        #expect(firedCount == 1)
+
+        store.close()
+    }
+
+    @Test
+    func watcherCallbackCancelsFileGoneOnRecreation() async throws {
+        let file = URL(fileURLWithPath: "/files/test.mmd")
+        let reader = InMemoryFileReader()
+        reader.setFile("graph TD; A-->B", at: file)
+
+        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
+        let store = ViewerStore(watcherFactory: { _, callback, _ in
+            onChange = callback
+            return MockFileWatcher()
+        }, fileReader: reader)
+
+        nonisolated(unsafe) var firedCount = 0
+        store.onFileGone = { firedCount += 1 }
+        store.openFile(file)
+        #expect(firedCount == 0)
+
+        // ファイル削除 → コールバック発火でグレース期間開始
+        reader.setFile(nil, at: file)
+        onChange?()
+
+        // グレース期間内に再作成 → onFileGone は発火しない
+        reader.setFile("graph TD; C-->D", at: file)
+        onChange?()
+        // グレース期間(0.3s)を過ぎても発火しないことを確認
+        try await Task.sleep(for: .seconds(0.8))
+        #expect(firedCount == 0)
+        #expect(store.content == "graph TD; C-->D")
+
+        store.close()
+    }
+
+    @Test
+    func watcherCallbackFiresOnFileGoneAfterGracePeriod() async throws {
+        let file = URL(fileURLWithPath: "/files/test.mmd")
+        let reader = InMemoryFileReader()
+        reader.setFile("graph TD; A-->B", at: file)
+
+        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
+        let store = ViewerStore(watcherFactory: { _, callback, _ in
+            onChange = callback
+            return MockFileWatcher()
+        }, fileReader: reader)
+
+        nonisolated(unsafe) var firedCount = 0
+        store.onFileGone = { firedCount += 1 }
+        store.openFile(file)
+
+        // ファイル削除 → コールバック発火
+        reader.setFile(nil, at: file)
+        onChange?()
+
+        // グレース期間後に onFileGone が発火する
+        try await waitUntil { firedCount == 1 }
+        #expect(firedCount == 1)
+
+        store.close()
+    }
+
+    @Test
+    func fileGoneDetectionSurvivesRecreateAndRedelete() async throws {
+        let file = URL(fileURLWithPath: "/files/test.mmd")
+        let reader = InMemoryFileReader()
+        reader.setFile("graph TD; A-->B", at: file)
+
+        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
+        let store = ViewerStore(watcherFactory: { _, callback, _ in
+            onChange = callback
+            return MockFileWatcher()
+        }, fileReader: reader)
+
+        nonisolated(unsafe) var firedCount = 0
+        store.onFileGone = { firedCount += 1 }
+        store.openFile(file)
+
+        // 削除 → グレース期間開始
+        reader.setFile(nil, at: file)
+        onChange?()
+        // 監視イベントなしで再作成(発火直前の存在再確認だけで救済されるケース)。
+        // グレースタスクは発火せずに完了する。
+        // 待ち時間はフルスイート並列実行下でのタイマー遅延を吸収できるよう
+        // グレース期間(0.3s)に余裕を持たせている(FileWatcherIntegrationTests の
+        // フレーキー対策と同様の考え方)。
+        reader.setFile("graph TD; C-->D", at: file)
+        try await Task.sleep(for: .seconds(0.8))
+        #expect(firedCount == 0)
+
+        // 再削除 → 完了済みの stale タスクが検知を塞いでいないこと
+        reader.setFile(nil, at: file)
+        onChange?()
+        try await waitUntil { firedCount == 1 }
+        #expect(firedCount == 1)
+
+        store.close()
     }
 }

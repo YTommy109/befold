@@ -18,7 +18,7 @@ befold.app (Swift / AppKit + SwiftUI)
   ├── ViewerWindowController # NSWindowController（1 ファイル = 1 ウィンドウ）
   ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
   ├── Debouncer          # GCD ベースのデバウンサー
-  ├── ViewerStore        # @Observable 表示状態（content / error / deleted）
+  ├── ViewerStore        # @Observable 表示状態（content / error / isUnsupported）
   ├── ViewerContentView  # SwiftUI View（ViewerWebView のラッパー）
   └── ViewerWebView      # WKWebView（NSViewRepresentable）
         ├── 同梱アセット（viewer.html / viewer.js / mermaid.min.js / markdown-it.min.js / style.css）
@@ -127,7 +127,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 
 - Swift API Design Guidelines に従う
 - 型名: UpperCamelCase（`ViewerStore`, `FileWatcher`）
-- メソッド・プロパティ: lowerCamelCase（`openFile`, `isDeleted`）
+- メソッド・プロパティ: lowerCamelCase（`openFile`, `isUnsupported`）
 - GCD キューラベル: リバースドメイン（`com.degino.befold.filewatcher`）
 - ウィンドウ autosave 名: `Viewer-<パスベースの識別子>`
 - `@available(*, unavailable)` + `fatalError()`: Interface Builder 未使用を明示する `required init?(coder:)` に付ける
@@ -323,7 +323,7 @@ func openMmdFile() throws {
 
     #expect(store.content == "graph TD; A-->B")
     #expect(store.fileType == .mmd)
-    #expect(!store.isDeleted)
+    #expect(!store.isUnsupported)
 
     store.close()
 }
@@ -371,7 +371,7 @@ func fileTypeDetection() {
 ## エラーハンドリング規約
 
 - ファイル読み取り失敗は `try?` で握りつぶし、空文字列にフォールバックする（ビューアアプリの特性上、致命的エラーにしない）
-- ファイル削除検出は `isDeleted` フラグで UI に伝搬する
+- ファイル削除はグレース期間(0.3 秒)後に `onFileGone` コールバックで通知し、ウィンドウを閉じる
 - `guard` + early return で異常系を先に処理し、正常系のネストを浅く保つ
 
 ## コミット規約

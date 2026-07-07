@@ -24,8 +24,6 @@
     <div id="diagram-wrap"></div>
   </div>
 
-  <div id="mmd-deleted-banner" class="mmd-deleted-banner">deleted</div>
-
   <script src="viewer.js"></script>
   <script src="mermaid.min.js"></script>
   <script src="markdown-it.min.js"></script>
@@ -339,10 +337,7 @@
   _mmdDarkQuery.addEventListener('change', function() {
     mermaid.initialize(_mmdMermaidConfig());
     if (_lastContent !== null) {
-      var wasDeleted = document.body.classList.contains('mmd-deleted');
       render(_lastContent, _lastType, _lastLang);
-      // render() は先頭で hideDeletedBanner() を呼ぶため、削除状態を復元する。
-      if (wasDeleted) { showDeletedBanner(); }
     }
   });
 
@@ -410,8 +405,6 @@
     _lastContent = content;
     _lastType = type;
     _lastLang = lang;
-    hideDeletedBanner();
-
     var errorPanel = document.getElementById('mmd-error');
     errorPanel.style.display = 'none';
     errorPanel.textContent = '';
@@ -562,17 +555,6 @@
     if (_lastContent !== null) {
       render(_lastContent, _lastType, _lastLang);
     }
-  }
-
-  // --- Deleted Banner ---
-  function showDeletedBanner() {
-    document.getElementById('mmd-deleted-banner').style.display = 'block';
-    document.body.classList.add('mmd-deleted');
-  }
-
-  function hideDeletedBanner() {
-    document.getElementById('mmd-deleted-banner').style.display = 'none';
-    document.body.classList.remove('mmd-deleted');
   }
 
   _mmdInitZoom();

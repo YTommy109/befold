@@ -14,7 +14,6 @@ enum ViewerBridge {
     static let zoomInScript = "_mmdZoomIn()"
     static let zoomOutScript = "_mmdZoomOut()"
     static let zoomResetScript = "_mmdZoomReset()"
-    static let showDeletedBannerScript = "showDeletedBanner()"
 
     /// ロード時にファイル毎の初期倍率を注入するスクリプト。
     static func initialZoomScript(_ zoom: Double) -> String {
