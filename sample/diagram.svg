@@ -1,15 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
-  <rect width="400" height="300" fill="#1a1a1a" rx="12"/>
-  <rect x="24" y="24" width="352" height="252" rx="8" fill="#2a2a2a" stroke="#3a3a3a" stroke-width="1.5"/>
-  <circle cx="44" cy="44" r="5" fill="#ff5f57"/>
-  <circle cx="60" cy="44" r="5" fill="#febc2e"/>
-  <circle cx="76" cy="44" r="5" fill="#28c840"/>
-  <line x1="24" y1="60" x2="376" y2="60" stroke="#3a3a3a" stroke-width="1"/>
-  <g transform="translate(150, 110)">
-    <circle cx="50" cy="50" r="48" fill="none" stroke="#4da6ff" stroke-width="6"/>
-    <path d="M 50 20 A 30 30 0 1 1 20 50" fill="none" stroke="#4da6ff" stroke-width="6" stroke-linecap="round"/>
-    <path d="M 20 50 L 10 38 L 30 34 Z" fill="#4da6ff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <g transform="scale(3)">
+    <rect width="400" height="300" fill="#1a1a1a" rx="12"/>
+    <rect x="24" y="24" width="352" height="252" rx="8" fill="#2a2a2a" stroke="#3a3a3a" stroke-width="1.5"/>
+    <line x1="24" y1="60" x2="376" y2="60" stroke="#3a3a3a" stroke-width="1"/>
+    <g transform="translate(150, 110)">
+      <circle cx="50" cy="50" r="48" fill="none" stroke="#4da6ff" stroke-width="6"/>
+      <path d="M 50 20 A 30 30 0 1 1 20 50" fill="none" stroke="#4da6ff" stroke-width="6" stroke-linecap="round"/>
+      <path d="M 20 50 L 10 38 L 30 34 Z" fill="#4da6ff"/>
+    </g>
+    <text x="200" y="250" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="20" font-weight="600" fill="#f0f0f0">befold</text>
+    <text x="200" y="272" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#aaa">Open a file. Instant rendering.</text>
   </g>
-  <text x="200" y="250" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="20" font-weight="600" fill="#f0f0f0">befold</text>
-  <text x="200" y="272" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#aaa">Open a file. Instant rendering.</text>
 </svg>
