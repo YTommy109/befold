@@ -1,4 +1,4 @@
-# /review-architecture -- アーキテクチャレビュー
+# /review-architecture — アーキテクチャレビュー
 
 `.claude/skills/review-architecture.md` スキルを読み込み、その手順に従ってアーキテクチャをレビューしてください。
 

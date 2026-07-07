@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *Package.resolved|*.swiftlint.yml|*.swiftformat) echo 'BLOCK: このファイルはユーザーの明示的な指示なしに編集しないでください' >&2; exit 2;; *mermaid.min.js|*markdown-it.min.js|*highlight.min.js|*github-markdown.css) echo 'BLOCK: ベンダリング済みファイルは直接編集しないでください。更新は /check-vendored-deps を使用' >&2; exit 2;; esac"
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *Package.resolved|*.swiftlint.yml|*.swiftformat) echo 'BLOCK: このファイルはユーザーの明示的な指示なしに編集しないでください' >&2; exit 2;; *mermaid.min.js|*markdown-it.min.js|*highlight.min.js|*github-markdown.css) echo 'BLOCK: ベンダリング済みファイルは直接編集しないでください。更新は /check-vendored-deps を使用' >&2; exit 2;; *.pbxproj) echo 'BLOCK: .pbxproj は XcodeGen の生成物です。project.yml を編集して xcodegen generate を実行してください' >&2; exit 2;; esac"
           }
         ]
       }
@@ -57,7 +57,7 @@
           },
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *viewer.js|*viewer.html) cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(npx jest --silent 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *viewer.js|*viewer.html) cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { [ -d node_modules ] || { echo 'node_modules 未インストールのため jest をスキップ: cd BefoldApp && npm ci' >&2; exit 0; }; out=$(npx jest --silent 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
             "statusMessage": "jest (viewer)",
             "timeout": 120
           },

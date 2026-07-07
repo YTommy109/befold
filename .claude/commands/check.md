@@ -12,9 +12,11 @@
    cd BefoldApp && swift test
    ```
 
-3. **JS テスト**
+3. **JS テスト**（viewer.js / viewer.html 用）
    ```bash
+   cd BefoldApp && [ -d node_modules ] || npm ci
    cd BefoldApp && npx jest
    ```
+   `node_modules` が無い環境では先に `npm ci` が必要（`npx jest` の都度取得を避ける）。
 
 問題が見つかった場合は修正してから再実行してください。すべて通過したら「✅ チェック完了」と報告してください。

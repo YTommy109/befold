@@ -5,7 +5,7 @@ description: プロダクトコードを coding_rule.md に基づいてレビュ
 
 ## Review Swift Code
 
-`docs/coding_rule.md` のコーディング規約に基づいて Swift プロダクトコードをレビューする。
+`docs/dev/coding_rule.md` のコーディング規約に基づいて Swift プロダクトコードをレビューする。
 
 ### 使い方
 
@@ -15,7 +15,7 @@ description: プロダクトコードを coding_rule.md に基づいてレビュ
 
 ### Steps
 
-1. `docs/coding_rule.md` を読み込み、レビュー基準を把握する。
+1. `docs/dev/coding_rule.md` を読み込み、レビュー基準を把握する。
 2. 対象ファイルを特定する:
    - 引数にファイルパスがあればそれを使う
    - 引数にディレクトリがあれば配下の `.swift` ファイルを列挙する
