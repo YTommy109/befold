@@ -57,6 +57,7 @@ header h1 {
 .lang-switcher {
   display: flex;
   gap: 0.5rem;
+  margin-right: 150px;
 }
 
 .lang-btn {
@@ -141,13 +142,102 @@ main {
   padding: 2rem 0;
 }
 
-.screenshot-placeholder {
-  background: var(--color-surface);
-  border: 2px dashed var(--color-border);
+.carousel {
+  position: relative;
+  overflow: hidden;
   border-radius: var(--radius);
-  padding: 4rem 2rem;
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
+  border: 1px solid var(--color-border);
+}
+
+.carousel-track {
+  display: flex;
+  transition: transform 0.5s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carousel-track {
+    transition: none;
+  }
+}
+
+.carousel-slide {
+  position: relative;
+  flex: 0 0 100%;
+}
+
+.carousel-slide img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1280 / 800;
+}
+
+.carousel-caption {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  margin: 0;
+  padding: 3rem 2rem 1.5rem;
+  box-sizing: border-box;
+  text-align: right;
+  font-size: 48pt;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+
+.carousel-prev,
+.carousel-next {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.carousel-prev {
+  left: 1rem;
+}
+
+.carousel-next {
+  right: 1rem;
+}
+
+.carousel-prev:hover,
+.carousel-next:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 0;
+  background: var(--color-surface);
+}
+
+.carousel-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-border);
+  cursor: pointer;
+  padding: 0;
+}
+
+.carousel-dot.active {
+  background: var(--color-accent);
 }
 
 .features {
@@ -231,6 +321,39 @@ footer a:hover {
   text-decoration: underline;
 }
 
+.github-ribbon {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 200;
+  overflow: hidden;
+  width: 150px;
+  height: 150px;
+  pointer-events: none;
+}
+
+.github-ribbon span {
+  position: absolute;
+  display: block;
+  width: 220px;
+  padding: 0.5rem 0;
+  top: 38px;
+  right: -50px;
+  transform: rotate(45deg);
+  background: var(--color-accent);
+  color: #fff;
+  text-align: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  pointer-events: auto;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.github-ribbon span:hover {
+  background: var(--color-accent-hover);
+}
+
 @media (max-width: 600px) {
   .hero h2 {
     font-size: 1.75rem;
@@ -242,5 +365,27 @@ footer a:hover {
 
   .feature-grid {
     grid-template-columns: 1fr;
+  }
+
+  .github-ribbon {
+    width: 100px;
+    height: 100px;
+  }
+
+  .lang-switcher {
+    margin-right: 100px;
+  }
+
+  .github-ribbon span {
+    width: 150px;
+    padding: 0.35rem 0;
+    top: 25px;
+    right: -40px;
+    font-size: 0.6875rem;
+  }
+
+  .carousel-caption {
+    padding: 2rem 1rem 1rem;
+    font-size: 1.75rem;
   }
 }

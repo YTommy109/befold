@@ -1,1 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect width="400" height="300" fill="#f0f4f8" rx="8"/><circle cx="120" cy="100" r="60" fill="#4a90d9" opacity="0.8"/><circle cx="200" cy="100" r="60" fill="#e74c3c" opacity="0.8"/><circle cx="280" cy="100" r="60" fill="#2ecc71" opacity="0.8"/><text x="200" y="200" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" fill="#333">SVG Sample Diagram</text><path d="M 50 250 Q 100 220 150 250 T 250 250 T 350 250" stroke="#666" stroke-width="2" fill="none"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <g transform="scale(3)">
+    <rect width="400" height="300" fill="#1a1a1a" rx="12"/>
+    <rect x="24" y="24" width="352" height="252" rx="8" fill="#2a2a2a" stroke="#3a3a3a" stroke-width="1.5"/>
+    <line x1="24" y1="60" x2="376" y2="60" stroke="#3a3a3a" stroke-width="1"/>
+    <g transform="translate(150, 110)">
+      <circle cx="50" cy="50" r="48" fill="none" stroke="#4da6ff" stroke-width="6"/>
+      <path d="M 50 20 A 30 30 0 1 1 20 50" fill="none" stroke="#4da6ff" stroke-width="6" stroke-linecap="round"/>
+      <path d="M 20 50 L 10 38 L 30 34 Z" fill="#4da6ff"/>
+    </g>
+    <text x="200" y="250" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="20" font-weight="600" fill="#f0f0f0">befold</text>
+    <text x="200" y="272" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#aaa">Open a file. Instant rendering.</text>
+  </g>
+</svg>

@@ -9,6 +9,10 @@
 </head>
 <body>
 
+<a class="github-ribbon" href="https://github.com/YTommy109/befold" target="_blank" rel="noopener" aria-label="View source on GitHub">
+  <span>GitHub</span>
+</a>
+
 <header>
   <h1>befold</h1>
   <div class="lang-switcher">
@@ -48,9 +52,32 @@
 
   <!-- Screenshot -->
   <section class="screenshot">
-    <div class="screenshot-placeholder">
-      <span lang="ja">スクリーンショット（後日追加）</span>
-      <span lang="en" hidden>Screenshot (coming soon)</span>
+    <div class="carousel">
+      <div class="carousel-track">
+        <div class="carousel-slide">
+          <img src="images/screenshot-1.png" alt="Mermaid flowchart in befold">
+          <p class="carousel-caption">Mermaid</p>
+        </div>
+        <div class="carousel-slide">
+          <img src="images/screenshot-2.png" alt="SVG diagram rendering in befold" loading="lazy">
+          <p class="carousel-caption">SVG</p>
+        </div>
+        <div class="carousel-slide">
+          <img src="images/screenshot-3.png" alt="Markdown preview in befold" loading="lazy">
+          <p class="carousel-caption">Markdown</p>
+        </div>
+        <div class="carousel-slide">
+          <img src="images/screenshot-4.png" alt="CSV table view in befold" loading="lazy">
+          <p class="carousel-caption">CSV</p>
+        </div>
+        <div class="carousel-slide">
+          <img src="images/screenshot-5.png" alt="Source code view in befold" loading="lazy">
+          <p class="carousel-caption"><span lang="ja">ソースコード</span><span lang="en" hidden>Source Code</span></p>
+        </div>
+      </div>
+      <button class="carousel-prev" type="button" aria-label="Previous screenshot">‹</button>
+      <button class="carousel-next" type="button" aria-label="Next screenshot">›</button>
+      <div class="carousel-dots"></div>
     </div>
   </section>
 
@@ -156,6 +183,7 @@
   </p>
 </footer>
 
+<script src="carousel.js"></script>
 <script>
 function switchLang(lang) {
   document.querySelectorAll('[lang]').forEach(function(el) {

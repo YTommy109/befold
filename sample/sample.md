@@ -1,6 +1,43 @@
 # Markdown サンプル
 
 befold の Markdown プレビュー機能を確認するためのサンプルファイル。
+見出し・表・箇条書きといった基本要素に加え、Mermaid 図やコードブロックまで、
+befold が対応する主要なレンダリング機能をひととおり確認できる。
+
+## テーブル
+
+| ファイル形式 | 拡張子 | レンダラー |
+| --- | --- | --- |
+| Mermaid | `.mmd` | mermaid.js |
+| Markdown | `.md` | markdown-it.js |
+| Markdown + Mermaid | `.md` | 両方 |
+
+## 箇条書き
+
+- ファイル変更をリアルタイムに検知する
+- Mermaid と Markdown の両方に対応する
+- ウィンドウ位置・サイズをファイル毎に保存する
+  - 起動時にタブ構成も復元する
+
+## 番号付き箇条書き
+
+1. `.mmd` または `.md` ファイルを befold で開く
+2. エディタでファイルを編集して保存する
+3. プレビューが自動的に更新されるのを確認する
+
+## 引用
+
+> ファイル変更は `FileWatcher → ViewerStore → evaluateJavaScript` の
+> 同一プロセス内伝搬で反映する。
+
+## 画像表示
+
+Markdown の画像記法(`![alt](path)`)で SVG ファイルを参照した例。
+
+![befold のアイコン風サンプル図](diagram.svg)
+
+画像の表示可否はレンダラーの実装に依存する。SVG そのものの見た目を
+確認したい場合は `diagram.svg` を単体で開くとよい。
 
 ## Mermaid ダイアグラム
 
@@ -45,32 +82,6 @@ final class ViewerStore {
     }
 }
 ```
-
-## テーブル
-
-| ファイル形式 | 拡張子 | レンダラー |
-| --- | --- | --- |
-| Mermaid | `.mmd` | mermaid.js |
-| Markdown | `.md` | markdown-it.js |
-| Markdown + Mermaid | `.md` | 両方 |
-
-## 箇条書き
-
-- ファイル変更をリアルタイムに検知する
-- Mermaid と Markdown の両方に対応する
-- ウィンドウ位置・サイズをファイル毎に保存する
-  - 起動時にタブ構成も復元する
-
-## 番号付き箇条書き
-
-1. `.mmd` または `.md` ファイルを befold で開く
-2. エディタでファイルを編集して保存する
-3. プレビューが自動的に更新されるのを確認する
-
-## 引用
-
-> ファイル変更は `FileWatcher → ViewerStore → evaluateJavaScript` の
-> 同一プロセス内伝搬で反映する。
 
 ## コードブロック
 
