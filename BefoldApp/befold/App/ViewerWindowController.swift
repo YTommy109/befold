@@ -469,8 +469,10 @@ extension ViewerWindowController: NSWindowDelegate {
     }
 
     /// 二本指スワイプ(トラックパッド)によるファイル履歴の戻る/進むを検知する。
-    /// .began でリセットし、.changed で水平デルタを積算し、.ended で
+    /// .began でリセットし、.changed で水平・垂直デルタを積算し、.ended で
     /// 積算値をしきい値判定する(単一フレームの .ended デルタはほぼ0になるため)。
+    /// 垂直デルタも積算するのは、縦スクロール中の横ドリフト蓄積による誤発火を
+    /// 防ぐため(横優勢のときのみナビゲーションする、SwipeHistoryNavigation 側で判定)。
     private func handleScrollWheelForHistorySwipe(_ event: NSEvent) {
         guard event.window === window else { return }
         switch event.phase {
