@@ -13,8 +13,8 @@ struct ViewerTopBar: View {
             }
             .buttonStyle(.borderless)
             .help(store.showLineNumbers
-                ? String(localized: "bottomBar.hideLineNumbers", bundle: .l10n)
-                : String(localized: "bottomBar.showLineNumbers", bundle: .l10n))
+                ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
+                : String(localized: "menu.view.showLineNumbers", bundle: .l10n))
 
             Spacer()
         }

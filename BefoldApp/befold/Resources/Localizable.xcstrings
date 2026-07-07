@@ -218,20 +218,6 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "行番号を隠す" } }
       }
     },
-    "bottomBar.showLineNumbers" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Line Numbers" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "行番号を表示" } }
-      }
-    },
-    "bottomBar.hideLineNumbers" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide Line Numbers" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "行番号を隠す" } }
-      }
-    },
     "menu.view.enterFullScreen" : {
       "extractionState" : "manual",
       "localizations" : {
