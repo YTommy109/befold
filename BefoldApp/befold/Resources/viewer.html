@@ -101,7 +101,16 @@
     if (e.metaKey) {
       if (e.key === '-') { e.preventDefault(); _mmdZoomOut(); }
       else if (e.key === '=' || e.key === '+') { e.preventDefault(); _mmdZoomIn(); }
+      return;
     }
+    var scrollKeys = [' ', 'ArrowDown', 'ArrowUp', 'j', 'k'];
+    if (scrollKeys.indexOf(e.key) === -1) { return; }
+    var viewerEl = document.querySelector('.viewer');
+    if (!viewerEl) { return; }
+    e.preventDefault();
+    var step = e.shiftKey ? SCROLL_STEP_LARGE : SCROLL_STEP;
+    var down = e.key === ' ' ? !e.shiftKey : (e.key === 'ArrowDown' || e.key === 'j');
+    viewerEl.scrollBy({ top: down ? step : -step, behavior: 'auto' });
   });
 
   document.addEventListener('keyup', function(e) {
