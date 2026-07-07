@@ -47,9 +47,8 @@ enum DirectoryLister {
 
         var entries: [FileListEntry] = []
 
-        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
         let parent = directory.deletingLastPathComponent().standardizedFileURL
-        if parent == home || parent.path.hasPrefix(home.path + "/") {
+        if isWithinHome(parent) {
             entries.append(FileListEntry(url: directory.deletingLastPathComponent(), kind: .parentNavigation))
         }
 
@@ -95,6 +94,15 @@ enum DirectoryLister {
                 ) == .orderedAscending
             }
             .first
+    }
+
+    /// 指定 URL がホームディレクトリ自身、またはその配下かどうかを判定する。
+    /// 前方一致だけの兄弟パス(例: ホームが `/Users/xxx` のとき `/Users/xxx2`)を
+    /// 誤って含めないよう、区切り文字 `/` を含めて比較する。
+    static func isWithinHome(_ url: URL) -> Bool {
+        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
+        let target = url.standardizedFileURL
+        return target == home || target.path.hasPrefix(home.path + "/")
     }
 
     /// 指定パスが存在するディレクトリかどうかを判定する。

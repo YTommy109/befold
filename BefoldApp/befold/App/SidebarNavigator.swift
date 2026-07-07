@@ -89,9 +89,8 @@ final class SidebarNavigator {
     /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
     func navigateToFolder(_ url: URL) {
         guard let host else { return }
-        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
         let target = url.standardizedFileURL
-        guard target == home || target.path.hasPrefix(home.path + "/") else { return }
+        guard DirectoryLister.isWithinHome(target) else { return }
         let previous = fileListModel.currentDirectory
         fileListModel.currentDirectory = url
         fileListModel.entries = DirectoryLister.listEntries(
