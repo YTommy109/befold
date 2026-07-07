@@ -37,7 +37,7 @@ final class ViewerStore {
     var onFileRenamed: ((URL) -> Void)?
 
     /// 監視中のファイルが削除されたことが確定したときに呼ばれるコールバック。
-    /// グレース期間(0.3 秒)中に再作成されなかった場合に発火する。
+    /// グレース期間(1 秒)中に再作成されなかった場合に発火する。
     var onFileGone: (@MainActor @Sendable () -> Void)?
 
     /// 削除確認のグレース期間タスク。再作成されたらキャンセルする。
