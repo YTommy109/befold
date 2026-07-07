@@ -6,66 +6,68 @@ argument-hint: "[query]"
 
 # Semantic Search
 
-Use this when semantic search quality, embedding setup, or hybrid search status
-matters.
+Use this when searching befold's code (Swift under `BefoldApp/befold/`, plus
+`Resources/` web assets) by symbol, keyword, or concept.
 
 <!-- dagayn skill embedding context -->
 ## Installed Search Mode
 
-Installed in FTS-only mode (`--mode fts`).
+**既定は FTS（全文検索）。** `.mcp.json` は素の `dagayn serve` で起動しており、
+埋め込みは構築されていない（SessionStart 表示でも空）。
 
 - Treat `semantic_search_nodes_tool` as keyword/FTS search, not vector semantic search.
-- Prefer exact symbols, file names, graph relationships, and one targeted `rg` for literals.
-- Do not rebuild embeddings unless the user explicitly changes install mode.
+- Prefer exact symbols (ViewerStore, ViewerBridge, FileWatcher, UpdateChecker,
+  ReleaseFetcher), file names, graph relationships, and one targeted `rg` for literals.
+- Do not rebuild embeddings unless the user explicitly asks. 埋め込み構築は任意の
+  高度・高コスト操作であり、既定の FTS 経路には不要である。
 <!-- /dagayn skill embedding context -->
 
-## Workflow
+## Workflow (default: FTS)
 
-1. Start with graph freshness:
-   ```bash
-   dagayn tool list_graph_stats_tool
-   ```
-2. Run the intended search and read `search_mode` / per-result `source`:
-   ```bash
-   dagayn tool semantic_search_nodes_tool --arg query='"auth handler"' --arg detail_level='"minimal"'
-   ```
-   `search_mode="hybrid"` means embeddings and FTS were merged. `fts_only`
-   is still valid, but semantic recall is lower.
-3. If embeddings are missing or stale, build them through the graph tools:
-   - Incremental local refresh: `build_or_update_graph_tool(local_embedding="low")`
-   - Dedicated embedding pass: `embed_graph_tool`
-   - Full local refresh: `build_or_update_graph_tool(full_rebuild=True, local_embedding="low")` only when explicitly doing embedding-quality or end-to-end maintenance work.
-   Before any embedding-enabled full rebuild, state the reason and get explicit
-   confirmation from the user; do not use it for parser, flow, documentation, or
-   ordinary implementation verification.
-4. For CLI fallback:
-   ```bash
-   dagayn build --local-embedding low
-   dagayn update --local-embedding low
-   dagayn tool embed_graph_tool
-   ```
-5. Re-run the same `semantic_search_nodes_tool` query and compare result count,
-   `search_mode`, and whether high-value hits now have `source="embedding"` or
-   `source="both"`.
+これらは露出済みの MCP ツールで、そのまま呼べる。
+
+1. Find functions/types by name or keyword:
+   `semantic_search_nodes_tool(query="file watcher debounce", detail_level="minimal")`
+2. Trace relationships instead of grepping:
+   `query_graph_tool(pattern="callers_of", target="ViewerStore", detail_level="minimal")`
+   （`callees_of` / `imports_of` / `tests_for` も同様）
+3. Read `search_mode` / per-result `source` on the results. 既定では
+   `search_mode="fts_only"` になる。これは正確な識別子・記号探索には十分である。
+4. If FTS misses a fuzzy concept, fall back to a single targeted `rg` for the
+   literal string before considering embeddings.
+
+## Optional: Embeddings (advanced, heavy — off by default)
+
+埋め込みは既定では不要。ファジーな概念検索やクロス言語検索を本当に強化したい
+場合のみ、任意の高度操作として構築する。理由を述べ、ユーザーの明示的な合意を
+得てから実行すること。埋め込み関連ツールは MCP に露出していないため CLI で回す:
+
+```bash
+# 埋め込み構築（重い任意操作。汎用ランナー経由）
+dagayn tool embed_graph_tool
+```
+
+構築後は同じ `semantic_search_nodes_tool` クエリを再実行し、結果件数と
+`search_mode`（`hybrid` になるか）、高価値ヒットが `source="embedding"` /
+`source="both"` になったかを比較する。フラグが不明なときは
+`dagayn <subcommand> --help` に委ねる。
 
 ## Troubleshooting
 
-- `fts_only` is acceptable for exact symbol/name lookup; do not rebuild
-  embeddings just to find a precise identifier.
-- Use local `low` for reusable developer environments when embeddings are
-  useful; use FTS-only when startup time or memory is tight.
-- If local embedding startup fails, check the local server binary (`auto` or
-  `llama-server`), port, and timeout before changing
-  graph data.
-- If provider imports are unavailable, keep going with FTS and report the
-  reduced recall instead of blocking unrelated work.
+- `fts_only` is acceptable for exact symbol/name lookup; do not build embeddings
+  just to find a precise identifier such as `FileType` or `UpdateChannel`.
+- FTS-only keeps startup time and memory low; that is the intended default here.
+- If graph queries miss a file, it may not be in the graph yet — see the
+  `build-graph` skill (`dagayn update`) before assuming a search problem.
 
 ## Efficiency Rules
 
-- Use FTS-only results for exact names; use embeddings for fuzzy concepts,
-  unfamiliar domain terms, and cross-language search.
-- Do one before/after query to prove search quality changed. Do not rebuild the
-  graph repeatedly without a changed file set or a failed verification.
-- Never use an embedding-enabled full rebuild to compensate for untracked files
-  not appearing in graph queries. Stage or otherwise expose the files first,
-  then run the smallest non-embedding graph refresh that proves the claim.
+- Default to FTS results for exact names; only reach for the optional embeddings
+  when fuzzy concepts or cross-language (Swift ↔ Resources JS/HTML) recall truly
+  fails with FTS.
+- If you do build embeddings, do one before/after query to prove search quality
+  changed. Do not rebuild repeatedly without a changed file set or a failed
+  verification.
+- Never build embeddings to compensate for files not appearing in graph queries.
+  Expose the files first, then run the smallest non-embedding graph refresh
+  (`dagayn update`) that proves the claim.

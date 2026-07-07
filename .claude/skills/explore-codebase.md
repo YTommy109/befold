@@ -28,7 +28,7 @@ Installed in FTS-only mode (`--mode fts`).
    selection before drilling down.
 3. Use `semantic_search_nodes_tool` to find specific functions or classes.
 4. Use `query_graph_tool` with patterns like `callers_of`, `callees_of`, `imports_of`
-   to trace relationships. Use `docs_for` when starting from a code/Terraform
+   to trace relationships. Use `docs_for` when starting from a Swift/JS code
    node and you need linked specs, runbooks, explanations, or issue notes. Use
    `implementations_of` when starting from a Markdown section and you need the
    code points linked by `implemented_by` / `implements_contract` documentation
@@ -44,12 +44,13 @@ Installed in FTS-only mode (`--mode fts`).
 - Start broad (minimal context, architecture health) then narrow down to
   specific areas.
 - Use `children_of` on a file to see all its functions and classes.
-- Use `find_large_functions_tool` to identify complex code.
+- Use `refactor_tool(mode="suggest")` to surface complex or refactor-worthy
+  code (large functions are available via the CLI fallback below).
 - For Markdown ↔ code traceability, treat `dagayn:` directives as authored
   `CROSS_ARTIFACT` evidence. Markdown comments such as
   `<!-- dagayn: implemented-by path::symbol -->` point from a doc section to a
-  code point; Python/Terraform comments such as
-  `# dagayn: implements docs/spec.md#Section` point from code to a Markdown
+  code point; Swift comments such as
+  `// dagayn: implements docs/spec.md#Section` point from code to a Markdown
   section. Query tools expose inverse labels, so do not assume both directions
   are stored. Read `evidence_type` (`authored`, `extracted`, or
   `heuristic_reachable`) and `missingness` before treating a traceability edge
@@ -74,7 +75,7 @@ dagayn tool flow_tool --arg mode='"list"' --arg detail_level='"minimal"'
 dagayn tool architecture_analysis_tool --arg mode='"overview"' --arg detail_level='"minimal"'
 dagayn tool architecture_analysis_tool --arg mode='"communities"'
 dagayn tool find_large_functions_tool --arg min_lines=80
-dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"src/app.py::handler"'
+dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"BefoldApp/befold/App/AppDelegate.swift::AppDelegate"'
 dagayn tool query_graph_tool --arg pattern='"implementations_of"' --arg target='"docs/spec.md::contract-section"'
 ```
 

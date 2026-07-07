@@ -20,7 +20,7 @@ Perform a thorough, risk-aware code review using the knowledge graph.
    `query_graph_tool(pattern="tests_for")` only when `analysis_summary` points to a
    concrete flow, blast-radius, or coverage question.
 5. Follow documentation bridge edges when they can change the review outcome:
-   - For changed code or Terraform nodes, use `query_graph_tool(pattern="docs_for", target="<path::symbol>", detail_level="minimal")` to find linked specs, runbooks, explanations, or issue notes from `dagayn:` documentation directives.
+   - For changed Swift or JS code nodes, use `query_graph_tool(pattern="docs_for", target="<path::symbol>", detail_level="minimal")` to find linked specs, runbooks, explanations, or issue notes from `dagayn:` documentation directives.
    - For changed Markdown contract sections, use `query_graph_tool(pattern="implementations_of", target="<doc.md>::<section-slug>", detail_level="minimal")` to find code linked by Markdown `implemented-by` or code `implements` directives.
 6. For any remaining untested changes, suggest specific test cases.
 
@@ -67,9 +67,9 @@ run the same implementation through the CLI without restarting the agent:
 ```bash
 dagayn tool review_tool --arg mode='"changes"' --arg detail_level='"minimal"'
 dagayn tool review_tool --arg mode='"context"' --arg detail_level='"minimal"'
-dagayn tool review_tool --arg mode='"affected_flows"' --arg 'changed_files=["src/app.py"]'
-dagayn tool review_tool --arg mode='"impact"' --arg 'changed_files=["src/app.py"]' --arg detail_level='"minimal"'
-dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"src/app.py::handler"'
+dagayn tool review_tool --arg mode='"affected_flows"' --arg 'changed_files=["BefoldApp/befold/Viewer/ViewerStore.swift"]'
+dagayn tool review_tool --arg mode='"impact"' --arg 'changed_files=["BefoldApp/befold/Viewer/ViewerStore.swift"]' --arg detail_level='"minimal"'
+dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore"'
 dagayn tool query_graph_tool --arg pattern='"implementations_of"' --arg target='"docs/spec.md::contract-section"'
 ```
 

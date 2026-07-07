@@ -30,7 +30,7 @@ question points to a signal.
    concrete node, edge, community, package, or file to verify.
 5. For architecture questions that cross documentation/code boundaries, use
    `query_graph_tool(pattern="docs_for", target="<path::symbol>", detail_level="minimal")`
-   from code/Terraform nodes and
+   from Swift code nodes and
    `query_graph_tool(pattern="implementations_of", target="<doc.md>::<section-slug>", detail_level="minimal")`
    from Markdown contract sections. Treat `CROSS_ARTIFACT` documentation roles
    as typed traceability evidence, not automatic architectural coupling; read
@@ -62,8 +62,8 @@ the same implementation through the CLI:
 ```bash
 dagayn tool architecture_analysis_tool --arg mode='"overview"' --arg detail_level='"minimal"'
 dagayn tool architecture_analysis_tool --arg mode='"sdp_violations"' --arg top_n=10
-dagayn tool architecture_analysis_tool --arg mode='"community"' --arg community_name='"auth"'
-dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"src/app.py::handler"'
+dagayn tool architecture_analysis_tool --arg mode='"community"' --arg community_name='"Viewer"'
+dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore"'
 dagayn tool query_graph_tool --arg pattern='"implementations_of"' --arg target='"docs/spec.md::contract-section"'
 ```
 

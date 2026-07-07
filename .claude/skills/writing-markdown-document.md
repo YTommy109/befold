@@ -22,7 +22,7 @@ Installed in FTS-only mode (`--mode fts`).
 
 Run **once** at the start, regardless of what the rest of the flow says:
 
-1. `list_graph_stats_tool` — if `last_updated` is `null` or `nodes == 0`, run `build_or_update_graph_tool(full_rebuild=True, local_embedding="none")` and stop until that returns.
+1. `get_minimal_context_tool(task="write <doc path>")` — check graph freshness. If it reports the graph is missing or empty, rebuild via the CLI (`dagayn tool build_or_update_graph_tool --arg full_rebuild=true --arg local_embedding='"none"'`) and stop until that returns.
 2. Resolve the doc path:
    - If `[doc path]` was provided and the file exists → that's your target.
    - If it was provided but the file is new → continue (Stage 1 will create it).
@@ -30,13 +30,13 @@ Run **once** at the start, regardless of what the rest of the flow says:
 
 ## dagayn Markdown reference
 
-dagayn's Markdown parser (`crates/dagayn-parser/src/markdown.rs`) extracts edges from these constructs. Use them deliberately:
+dagayn's Markdown parser extracts edges from these constructs. Use them deliberately:
 
 | Construct | Syntax | Edges produced |
 |-----------|--------|----------------|
 | **Heading** | `## Section Title` | `CONTAINS` (file → section, section → subsection) |
 | **Dependency directive** (HTML comment, case-insensitive) | `<!-- constrained-by ./other.md#Section -->` | `DEPENDS_ON` always; **plus** `IMPORTS_FROM` when the target is a different file |
-| **Documentation directive** (`dagayn:` HTML comment) | `<!-- dagayn: implemented-by services/auth.py::refresh_token -->` | `CROSS_ARTIFACT` from the enclosing Markdown section to a code/doc/artifact target |
+| **Documentation directive** (`dagayn:` HTML comment) | `<!-- dagayn: implemented-by BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore.updateContent -->` | `CROSS_ARTIFACT` from the enclosing Markdown section to a code/doc/artifact target |
 | **Inline link, no anchor** | `[text](./other.md)` | `IMPORTS_FROM` only |
 | **Inline link, with anchor** | `[text](./other.md#Section)` | `IMPORTS_FROM` (file→file) **and** `REFERENCES` (section→section) |
 | **Reference-style link** | `[label]: ./other.md#Section` | Same as inline links — same regex path |
@@ -49,7 +49,7 @@ Directive / link target shapes:
 - `./relative/path.md` — whole-file dependency
 - `./relative/path.md#Section` — specific section in another doc
 
-**Slug rules** (`_markdown_slugify`, lines 219–228):
+**Slug rules**:
 - Alphanumerics are lowercased.
 - Spaces and hyphens both become `-`.
 - Underscores are **preserved** (not converted to `-`).
@@ -62,12 +62,12 @@ Worked examples:
 - `## What's new?` → `whats-new`
 - `## Stage 1 — Outline` → `stage-1--outline` (em-dash stripped, two surrounding spaces both become `-`)
 
-**Code-span identifier rules** (`crates/dagayn-parser/src/markdown.rs`):
+**Code-span identifier rules**:
 - Regex: `^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$` — dots only allowed *between* identifier segments (so `module.Class` is fine, `..foo` or `foo.` are not).
 - Identifiers shorter than 3 chars are skipped.
 - Identifiers without `_` or `.` need ≥ 10 chars (filters generic English words like `list` / `parser`).
 
-**Postprocessing** (`dagayn/postprocessing.py:56–125` and `crates/dagayn-graph/src/lib.rs:511–625`): each unresolved Markdown-sourced `CROSS_ARTIFACT` edge is resolved against the code graph by symbol name. **One non-Markdown match → target is promoted to that node's qualified name with HIGH/0.8 confidence. Zero or 2+ matches → target stays or returns to `<unresolved:Symbol>` with LOW/0.2 confidence.** The edge is kept so a future graph update can resolve it; the `markdown_artifact_refs_dropped` counter means "demoted", not deleted. Use distinctive, ideally qualified, symbol names.
+**Postprocessing**: each unresolved Markdown-sourced `CROSS_ARTIFACT` edge is resolved against the code graph by symbol name. **One non-Markdown match → target is promoted to that node's qualified name with HIGH/0.8 confidence. Zero or 2+ matches → target stays or returns to `<unresolved:Symbol>` with LOW/0.2 confidence.** The edge is kept so a future graph update can resolve it; the `markdown_artifact_refs_dropped` counter means "demoted", not deleted. Use distinctive, ideally qualified, symbol names.
 
 ## Markdown ↔ code documentation links
 
@@ -77,21 +77,21 @@ Direction rule: the source should be the artifact that owns the assertion.
 
 | Authoring site | Preferred syntax | Stored role | Use when |
 |----------------|------------------|-------------|----------|
-| Markdown contract/spec section | `<!-- dagayn: implemented-by services/auth.py::refresh_token -->` | `implemented_by` | The doc section defines intent and code realizes it. |
-| Markdown explanation/problem section | `<!-- dagayn: discusses-artifact services/auth.py::refresh_token -->` or `<!-- dagayn: raises-issue-for services/auth.py::refresh_token -->` | `discusses_artifact`, `raises_issue_for` | The doc owns the discussion, audit note, or issue statement about code. |
-| Code or Terraform line comment | `# dagayn: implements docs/auth-spec.md#Token Refresh` | `implements_contract` | The implementation is the stable place to declare conformance to a doc section. |
-| Code or Terraform line comment | `# dagayn: explained-by docs/auth-runbook.md#Refresh Failures` | `explained_by` | The implementation points to rationale, behavior notes, or background. |
-| Code or Terraform line comment | `# dagayn: has-runbook docs/infra-runbook.md#Graph Store Bucket` | `has_runbook` | The implementation points to an operational runbook. |
-| Code or Terraform line comment | `# dagayn: problem-described-by docs/audits/auth.md#Stale Cache` | `problem_described_by` | The implementation points to an audit, incident, or known issue. |
+| Markdown contract/spec section | `<!-- dagayn: implemented-by BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore.updateContent -->` | `implemented_by` | The doc section defines intent and code realizes it. |
+| Markdown explanation/problem section | `<!-- dagayn: discusses-artifact BefoldApp/befold/FileWatching/FileWatcher.swift::FileWatcher -->` or `<!-- dagayn: raises-issue-for BefoldApp/befold/FileWatching/FileWatcher.swift::FileWatcher -->` | `discusses_artifact`, `raises_issue_for` | The doc owns the discussion, audit note, or issue statement about code. |
+| Code line comment | `// dagayn: implements docs/dev/coding_rule.md#Render Pipeline` | `implements_contract` | The implementation is the stable place to declare conformance to a doc section. |
+| Code line comment | `// dagayn: explained-by docs/dev/coding_rule.md#File Watching` | `explained_by` | The implementation points to rationale, behavior notes, or background. |
+| Code line comment | `// dagayn: has-runbook docs/dev/coding_rule.md#Release Flow` | `has_runbook` | The implementation points to an operational runbook. |
+| Code line comment | `// dagayn: problem-described-by docs/superpowers/specs/2026-07-07-dev-release-versioning-design.md#Known Issues` | `problem_described_by` | The implementation points to an audit, incident, or known issue. |
 
 Supported directive kinds are `implemented-by`, `implements`, `explained-by`, `has-runbook`, `problem-described-by`, `discussed-by`, `discusses`, `discusses-artifact`, `raises-issue-for`, `describes`, and `describes-symbol`.
 
 Target rules:
-- Markdown → code point: prefer a concrete graph node target in `path::symbol` form, e.g. `services/auth.py::AuthService.refresh_token`. Verify the exact node exists before writing the directive. A bare symbol target is allowed but starts LOW/0.2 as `<unresolved:Symbol>` until postprocessing finds exactly one non-Markdown node with that `name`.
-- Code → Markdown section: always include a Markdown path plus `#Heading`, e.g. `docs/auth-spec.md#Token Refresh` or `../docs/auth-spec.md#Token Refresh`. The parser slugifies the heading and stores the target as `docs/auth-spec.md::token-refresh`.
+- Markdown → code point: prefer a concrete graph node target in `path::symbol` form, e.g. `BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore.updateContent`. Verify the exact node exists before writing the directive. A bare symbol target is allowed but starts LOW/0.2 as `<unresolved:Symbol>` until postprocessing finds exactly one non-Markdown node with that `name`.
+- Code → Markdown section: always include a Markdown path plus `#Heading`, e.g. `docs/dev/coding_rule.md#Render Pipeline` or `../docs/dev/coding_rule.md#Render Pipeline`. The parser slugifies the heading and stores the target as `docs/dev/coding_rule.md::render-pipeline`.
 - In `dagayn:` directives, `./` and `../` paths are resolved relative to the source file; other file paths are treated as repo-root-relative and normalized.
 - `#Local Heading` is valid for Markdown-authored same-document targets. Do not use a bare `#Heading` in code comments; from code it would target the code file, not a Markdown document.
-- Code-authored line comments are currently extracted from Python `#` comments and Terraform `#` / `//` comments. Put the directive inside the implementation node or directly above the following function/resource/block; the parser attaches it to the nearest enclosing node or a following node within 3 lines.
+- Code-authored line comments are extracted from source-file comments in the languages your dagayn install supports; confirm the edge landed (rebuild, then `docs_for` / `implementations_of`) rather than assuming a given language is parsed. Put the directive inside the implementation node or directly above the following declaration (type / function / property); the parser attaches it to the nearest enclosing node or a following node within 3 lines.
 
 Verification rules:
 - Starting from a Markdown contract section, run `query_graph_tool(pattern="implementations_of", target="<doc.md>::<section-slug>", detail_level="minimal")` and check both doc-authored `implemented_by` and code-authored `implements_contract` edges. Treat those as `authored` contract evidence.
@@ -123,12 +123,12 @@ For each section, in dependency order:
    - Inline narrative references → `[text](./other.md#Section)`.
    - Intentional Markdown → code obligations → `<!-- dagayn: implemented-by path::symbol -->`, `<!-- dagayn: discusses-artifact path::symbol -->`, or `<!-- dagayn: raises-issue-for path::symbol -->`.
    - Low-intent code mentions → backtick the symbol exactly as it appears in code.
-3. **Save the file** and run `build_or_update_graph_tool(local_embedding="none")`
-   for Markdown/parser/postprocess verification. In local embedding installs,
-   an omitted `local_embedding` argument may inherit the server preset and turn
-   a documentation-edge check into a large embedding refresh.
+3. **Save the file** and rebuild the graph for Markdown/parser/postprocess
+   verification via the CLI: `dagayn tool build_or_update_graph_tool --arg local_embedding='"none"'`.
+   In local embedding installs, an omitted `local_embedding` argument may inherit
+   the server preset and turn a documentation-edge check into a large embedding refresh.
 4. **Verify the edges resolved:**
-   - `query_graph_tool(pattern="importers_of", target="<doc.md>", detail_level="minimal")` — file-level inbound edges. **Use the file path only — `importers_of` resolves the target to a file path; `<doc.md>::<section>` will silently return zero hits** (`tools/query.py:241`).
+   - `query_graph_tool(pattern="importers_of", target="<doc.md>", detail_level="minimal")` — file-level inbound edges. **Use the file path only — `importers_of` resolves the target to a file path; `<doc.md>::<section>` will silently return zero hits.**
    - `review_tool(mode="impact", changed_files=["<doc.md>"], detail_level="minimal")` — outbound blast radius for the whole file.
    - For explicit Markdown → code directives, `query_graph_tool(pattern="implementations_of", target="<doc.md>::<section-slug>", detail_level="minimal")` — confirms linked implementation/artifact targets.
 5. **If a directive looks like it didn't take effect**, re-read your slug against the rules in the reference table above (most common bug: punctuation in heading not accounted for, or section slug typo). Fix and re-run step 3 + 4.
@@ -141,7 +141,7 @@ Stage 2 done for the section when: dependency/link directives appear either as i
 
 1. Re-read the full draft top-to-bottom; tighten prose; merge or split sections if Stage 2 surfaced badly-balanced ones.
 2. For every backticked `Symbol`, run `semantic_search_nodes_tool(query="<symbol>", detail_level="minimal")` and require exactly one exact symbol match. Ignore semantic near-matches when embeddings are enabled; only exact `name` / `qualified_name` matches count for Markdown code-span `CROSS_ARTIFACT` promotion. If multiple exact matches remain, qualify (`module.Symbol`); if still multiple after qualification, **accept that this edge will remain LOW/0.2 and unresolved** and either (a) leave the backticks for prose readability and add a `<!-- TODO: ambiguous symbol — qualify when API stabilizes -->` comment, or (b) remove the backticks and use plain text.
-3. Run `build_or_update_graph_tool(local_embedding="none")` once more, then `review_tool(mode="impact")` again. Compare its output to Stage 2's. **Done criterion: no edge that was present in Stage 2 has disappeared.**
+3. Rebuild once more via the CLI (`dagayn tool build_or_update_graph_tool --arg local_embedding='"none"'`), then `review_tool(mode="impact")` again. Compare its output to Stage 2's. **Done criterion: no edge that was present in Stage 2 has disappeared.**
 
 Tool-call budget for Stage 3: ≤ 1 call per backticked symbol + 2 final builds.
 
@@ -164,9 +164,9 @@ through the CLI without restarting the agent:
 dagayn tool build_or_update_graph_tool --arg local_embedding='"none"'
 dagayn tool query_graph_tool --arg pattern='"file_summary"' --arg target='"docs/design.md"'
 dagayn tool query_graph_tool --arg pattern='"implementations_of"' --arg target='"docs/design.md::contract-section"'
-dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"src/app.py::handler"'
+dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore.updateContent"'
 dagayn tool review_tool --arg mode='"impact"' --arg 'changed_files=["docs/design.md"]' --arg detail_level='"minimal"'
-dagayn tool semantic_search_nodes_tool --arg query='"BridgeDetector"' --arg detail_level='"minimal"'
+dagayn tool semantic_search_nodes_tool --arg query='"ViewerStore"' --arg detail_level='"minimal"'
 ```
 
 ## Token Efficiency Rules (graph exploration only)

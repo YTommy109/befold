@@ -48,7 +48,7 @@ Installed in FTS-only mode (`--mode fts`).
 - When the symptom starts from a log line, CLI command, or UI action, use `rg`
   once to map that literal string to a graph node, then return to graph tools.
 - Treat `dagayn:` documentation directives as typed traceability evidence. Code
-  comments such as `# dagayn: explained-by docs/runbook.md#Failure Mode` can
+  comments such as `// dagayn: explained-by docs/runbook.md#Failure Mode` can
   point to runbooks or problem statements that are more useful than another
   caller hop.
 - For documentation bridge query results, check `evidence_type`: `authored`
@@ -67,12 +67,12 @@ such as `flow_tool` or `review_tool`, run the same implementation
 through the CLI without restarting the agent:
 
 ```bash
-dagayn tool get_minimal_context_tool --arg 'task="debug login timeout"'
+dagayn tool get_minimal_context_tool --arg 'task="debug file change not reflected"'
 dagayn tool flow_tool --arg mode='"list"' --arg detail_level='"minimal"'
-dagayn tool flow_tool --arg mode='"get"' --arg 'flow_name="handle_request"'
-dagayn tool review_tool --arg mode='"impact"' --arg 'changed_files=["src/auth.py"]'
-dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"src/auth.py::handler"'
-dagayn tool query_graph_tool --arg pattern='"implementations_of"' --arg target='"docs/auth.md::login-contract"'
+dagayn tool flow_tool --arg mode='"get"' --arg 'flow_name="handleFileChange"'
+dagayn tool review_tool --arg mode='"impact"' --arg 'changed_files=["BefoldApp/befold/FileWatching/FileWatcher.swift"]'
+dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"BefoldApp/befold/FileWatching/FileWatcher.swift::FileWatcher"'
+dagayn tool query_graph_tool --arg pattern='"implementations_of"' --arg target='"docs/spec.md::watch-contract"'
 ```
 
 ## Token Efficiency Rules

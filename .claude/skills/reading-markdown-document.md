@@ -11,7 +11,7 @@ Read a Markdown doc the way dagayn indexes it: load its dependency graph first, 
 ## Stage 0 — Prerequisites
 
 1. Confirm `[doc path]` was provided. If not, ask the user before continuing.
-2. Run `list_graph_stats_tool` once. If `last_updated` is `null`, **or** the doc's mtime (`stat <path>`) is newer than `last_updated`, run `build_or_update_graph_tool()` and wait for it to finish before Stage 1.
+2. Run `get_minimal_context_tool(task="read <doc path>")` once to check graph freshness. If it reports the graph is missing or stale — **or** the doc's mtime (`stat <path>`) is newer than the graph's last update — rebuild via the CLI (`dagayn tool build_or_update_graph_tool`) and wait for it to finish before Stage 1.
 3. **Skip-to-prose shortcut.** Run a quick check:
    ```
    wc -l <path>
@@ -24,8 +24,8 @@ Read a Markdown doc the way dagayn indexes it: load its dependency graph first, 
 Take a structural snapshot before opening the file:
 
 1. **Section list** — `query_graph_tool(pattern="file_summary", target="<doc.md>", detail_level="minimal")` to get every heading and its slug. This is the table of contents.
-   - If this returns empty (the doc isn't yet in the graph), Stage 0 missed an update — re-run `build_or_update_graph_tool()` once. If still empty, the file is brand new; treat it as a plain text read and skip to Stage 3.
-2. **Inbound edges** — `query_graph_tool(pattern="importers_of", target="<doc.md>", detail_level="minimal")`. **Use the file path only**, not `<doc.md>::<section>` — `importers_of` resolves to file paths; section-form targets silently return zero hits (`tools/query.py:241`).
+   - If this returns empty (the doc isn't yet in the graph), Stage 0 missed an update — rebuild once via `dagayn tool build_or_update_graph_tool`. If still empty, the file is brand new; treat it as a plain text read and skip to Stage 3.
+2. **Inbound edges** — `query_graph_tool(pattern="importers_of", target="<doc.md>", detail_level="minimal")`. **Use the file path only**, not `<doc.md>::<section>` — `importers_of` resolves to file paths; section-form targets silently return zero hits.
 3. **Outbound file-level imports** — `query_graph_tool(pattern="imports_of", target="<doc.md>", detail_level="minimal")` to list cross-doc `IMPORTS_FROM` edges (directives + links targeting other files).
 4. **Outbound blast radius** — `review_tool(mode="impact", changed_files=["<doc.md>"], detail_level="minimal")` to see everything that would be affected if this doc changed. This is your set of downstream consumers.
 5. **Documentation bridges** — if the doc is a spec, run `query_graph_tool(pattern="implementations_of", target="<doc.md>::<section-slug>", detail_level="minimal")` for the relevant contract section(s). This reads both Markdown-authored `implemented_by` and code-authored `implements_contract` `CROSS_ARTIFACT` edges. Check `evidence_type` and `missingness` before treating a bridge as contract evidence.
@@ -34,7 +34,7 @@ Tool-call budget for Stage 1: ≤ 4 calls plus ≤ 1 `implementations_of` call f
 
 ## Stage 2 — Pre-read by dependency type
 
-The directives, links, and code-spans in the doc itself are the authoritative outbound-edge list (`crates/dagayn-parser/src/markdown.rs` plus `crates/dagayn-parser/src/documentation_directives.rs`). Before reading prose, scan the raw file with one pass and build a per-edge-type triage list:
+The directives, links, and code-spans in the doc itself are the authoritative outbound-edge list. Before reading prose, scan the raw file with one pass and build a per-edge-type triage list:
 
 ```
 rg -n '<!-- *(constrained-by|blocked-by|supersedes|derived-from)' <path>   # DEPENDS_ON / IMPORTS_FROM
@@ -54,7 +54,7 @@ Then handle each type with a fixed budget:
 | `CROSS_ARTIFACT` | backticked symbols | **Cap: top 3 most-frequent symbols.** For each, run `query_graph_tool(pattern="callers_of", target="<symbol>", detail_level="minimal")` to know how it's used. Skip the rest unless the body specifically asks you to look them up. |
 | `CONTAINS` | heading hierarchy | No tool calls. Hold the section tree from Stage 1 step 1 in mind as a TOC. |
 
-Code-to-Markdown section directives such as `# dagayn: implements docs/auth-spec.md#Token Refresh` are not visible in the Markdown file body. Use `implementations_of` on the doc section to find them. When you start from a code point instead, use `query_graph_tool(pattern="docs_for", target="<path::symbol>", detail_level="minimal")` to find linked specs, runbooks, explanations, and issue notes before reading prose.
+Code-to-Markdown section directives such as `// dagayn: implements docs/dev/coding_rule.md#Render Pipeline` are not visible in the Markdown file body. Use `implementations_of` on the doc section to find them. When you start from a code point instead, use `query_graph_tool(pattern="docs_for", target="<path::symbol>", detail_level="minimal")` to find linked specs, runbooks, explanations, and issue notes before reading prose.
 
 Tool-call budget for Stage 2: ≤ 1 call per `constrained-by` target + ≤ 1 call per linked section actually read + ≤ 1 call per explicit `dagayn:` code target that affects the question + ≤ 3 `callers_of` calls for code symbols. If your triage list exceeds this, prioritize `constrained-by` first, then explicit documentation bridges, then linked sections, then symbols.
 
@@ -77,10 +77,10 @@ without restarting the agent:
 
 ```bash
 dagayn tool list_graph_stats_tool
-dagayn tool query_graph_tool --arg pattern='"file_summary"' --arg target='"docs/adr.md"'
-dagayn tool query_graph_tool --arg pattern='"implementations_of"' --arg target='"docs/adr.md::contract-section"'
-dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"src/app.py::handler"'
-dagayn tool review_tool --arg mode='"impact"' --arg 'changed_files=["docs/adr.md"]' --arg detail_level='"minimal"'
+dagayn tool query_graph_tool --arg pattern='"file_summary"' --arg target='"docs/dev/coding_rule.md"'
+dagayn tool query_graph_tool --arg pattern='"implementations_of"' --arg target='"docs/dev/coding_rule.md::render-pipeline"'
+dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore.updateContent"'
+dagayn tool review_tool --arg mode='"impact"' --arg 'changed_files=["docs/dev/coding_rule.md"]' --arg detail_level='"minimal"'
 ```
 
 ## Token Efficiency Rules
