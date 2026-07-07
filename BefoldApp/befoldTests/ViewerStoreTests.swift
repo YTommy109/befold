@@ -6,22 +6,30 @@ private struct MockFileWatcher: FileWatching {
     func stop() {}
 }
 
+/// UserDefaults.standard を読むと過去の実行で永続化された値に影響されるため、
+/// テストごとに使い捨てのスイートを注入して密閉性を保つ。
+/// `onChangeBox` / `onRenameBox` を渡すと watcherFactory に渡されたコールバックを捕捉し、
+/// テストから手動で発火できるようにする(ファイル監視イベントのシミュレート用)。
+@MainActor
+private func makeStore(
+    reader: InMemoryFileReader,
+    onChangeBox: LockedBox<(@MainActor @Sendable () -> Void)?>? = nil,
+    onRenameBox: LockedBox<(@MainActor @Sendable (URL) -> Void)?>? = nil
+) -> ViewerStore {
+    ViewerStore(
+        watcherFactory: { _, onChange, onRename in
+            onChangeBox?.set(onChange)
+            onRenameBox?.set(onRename)
+            return MockFileWatcher()
+        },
+        fileReader: reader,
+        defaults: makeIsolatedDefaults(prefix: "ViewerStoreTests")
+    )
+}
+
 @Suite
 @MainActor
 struct ViewerStoreTests {
-    /// UserDefaults.standard を読むと過去の実行で永続化された値に影響されるため、
-    /// テストごとに使い捨てのスイートを注入して密閉性を保つ。
-    private func makeStore(reader: InMemoryFileReader) -> ViewerStore {
-        let suiteName = "ViewerStoreTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return ViewerStore(
-            watcherFactory: { _, _, _ in MockFileWatcher() },
-            fileReader: reader,
-            defaults: defaults
-        )
-    }
-
     @Test(arguments: [
         ("test.mmd", "graph TD; A-->B", FileType.mmd),
         ("test.md", "# Hello", FileType.markdown),
@@ -187,18 +195,14 @@ struct ViewerStoreTests {
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: file)
 
-        // factory に渡された onChange を保持する
-        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
-        let store = ViewerStore(watcherFactory: { _, callback, _ in
-            onChange = callback
-            return MockFileWatcher()
-        }, fileReader: reader)
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
         store.openFile(file)
         #expect(store.content == "graph TD; A-->B")
 
         // ファイル内容を書き換えてから監視コールバックを発火する
         reader.setFile("graph TD; X-->Y", at: file)
-        onChange?()
+        onChangeBox.get()?()
 
         #expect(store.content == "graph TD; X-->Y")
 
@@ -211,12 +215,8 @@ struct ViewerStoreTests {
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: oldFile)
 
-        // factory に渡された onRename を保持する
-        nonisolated(unsafe) var onRename: (@MainActor @Sendable (URL) -> Void)?
-        let store = ViewerStore(watcherFactory: { _, _, rename in
-            onRename = rename
-            return MockFileWatcher()
-        }, fileReader: reader)
+        let onRenameBox = LockedBox<(@MainActor @Sendable (URL) -> Void)?>(nil)
+        let store = makeStore(reader: reader, onRenameBox: onRenameBox)
         store.openFile(oldFile)
         #expect(store.filePath == oldFile)
 
@@ -226,7 +226,7 @@ struct ViewerStoreTests {
 
         nonisolated(unsafe) var renamedTo: URL?
         store.onFileRenamed = { renamedTo = $0 }
-        onRename?(newFile)
+        onRenameBox.get()?(newFile)
 
         #expect(store.filePath == newFile)
         #expect(store.fileType == .markdown)
@@ -270,16 +270,13 @@ struct ViewerStoreTests {
         reader.setDataFile(data1, at: file)
         reader.setBinary(true, at: file)
 
-        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
-        let store = ViewerStore(watcherFactory: { _, callback, _ in
-            onChange = callback
-            return MockFileWatcher()
-        }, fileReader: reader)
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
         store.openFile(file)
         #expect(store.content == data1.base64EncodedString())
 
         reader.setDataFile(data2, at: file)
-        onChange?()
+        onChangeBox.get()?()
 
         #expect(store.content == data2.base64EncodedString())
 
@@ -370,9 +367,8 @@ struct ViewerStoreTests {
     }
 
     @Test("showLineNumbers のトグルが UserDefaults に永続化される")
-    func showLineNumbersPersistedToUserDefaults() throws {
-        let defaults = try #require(UserDefaults(suiteName: #function))
-        defaults.removePersistentDomain(forName: #function)
+    func showLineNumbersPersistedToUserDefaults() {
+        let defaults = makeIsolatedDefaults(prefix: "ViewerStoreTests-showLineNumbers")
         let store = ViewerStore(
             watcherFactory: { _, _, _ in MockFileWatcher() },
             fileReader: InMemoryFileReader(),
@@ -386,7 +382,6 @@ struct ViewerStoreTests {
         #expect(defaults.bool(forKey: "ShowLineNumbers") == false)
 
         store.close()
-        defaults.removePersistentDomain(forName: #function)
     }
 }
 
@@ -402,33 +397,8 @@ private struct StopCountingWatcher: FileWatching {
 @Suite
 @MainActor
 struct ViewerStoreFileGoneTests {
-    private func makeStore(reader: InMemoryFileReader) -> ViewerStore {
-        let suiteName = "ViewerStoreFileGoneTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return ViewerStore(
-            watcherFactory: { _, _, _ in MockFileWatcher() },
-            fileReader: reader,
-            defaults: defaults
-        )
-    }
-
-    /// firedCount が期待値に達するまで短い間隔でポーリングする。
-    /// フルスイート並列実行下では CPU 競合でタイマーが遅延しうるため、
-    /// 固定 sleep ではなく条件成立を待つことでフレーキーさを避ける。
-    private func waitUntil(
-        timeout: Duration = .seconds(5),
-        _ condition: @escaping () -> Bool
-    ) async throws {
-        let deadline = ContinuousClock.now.advanced(by: timeout)
-        while ContinuousClock.now < deadline {
-            if condition() { return }
-            try await Task.sleep(for: .milliseconds(50))
-        }
-    }
-
     @Test
-    func openNonexistentFileFiresOnFileGoneAfterGrace() async throws {
+    func openNonexistentFileFiresOnFileGoneAfterGrace() async {
         let file = URL(fileURLWithPath: "/files/missing.mmd")
         let store = makeStore(reader: InMemoryFileReader())
 
@@ -438,7 +408,7 @@ struct ViewerStoreFileGoneTests {
         // グレース期間中は発火しない
         #expect(firedCount == 0)
 
-        try await waitUntil { firedCount == 1 }
+        await waitUntil { firedCount == 1 }
         #expect(firedCount == 1)
 
         store.close()
@@ -450,11 +420,8 @@ struct ViewerStoreFileGoneTests {
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: file)
 
-        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
-        let store = ViewerStore(watcherFactory: { _, callback, _ in
-            onChange = callback
-            return MockFileWatcher()
-        }, fileReader: reader)
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
 
         nonisolated(unsafe) var firedCount = 0
         store.onFileGone = { firedCount += 1 }
@@ -463,11 +430,11 @@ struct ViewerStoreFileGoneTests {
 
         // ファイル削除 → コールバック発火でグレース期間開始
         reader.setFile(nil, at: file)
-        onChange?()
+        onChangeBox.get()?()
 
         // グレース期間内に再作成 → onFileGone は発火しない
         reader.setFile("graph TD; C-->D", at: file)
-        onChange?()
+        onChangeBox.get()?()
         // グレース期間(0.3s)を過ぎても発火しないことを確認
         try await Task.sleep(for: .seconds(0.8))
         #expect(firedCount == 0)
@@ -477,16 +444,13 @@ struct ViewerStoreFileGoneTests {
     }
 
     @Test
-    func watcherCallbackFiresOnFileGoneAfterGracePeriod() async throws {
+    func watcherCallbackFiresOnFileGoneAfterGracePeriod() async {
         let file = URL(fileURLWithPath: "/files/test.mmd")
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: file)
 
-        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
-        let store = ViewerStore(watcherFactory: { _, callback, _ in
-            onChange = callback
-            return MockFileWatcher()
-        }, fileReader: reader)
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
 
         nonisolated(unsafe) var firedCount = 0
         store.onFileGone = { firedCount += 1 }
@@ -494,10 +458,10 @@ struct ViewerStoreFileGoneTests {
 
         // ファイル削除 → コールバック発火
         reader.setFile(nil, at: file)
-        onChange?()
+        onChangeBox.get()?()
 
         // グレース期間後に onFileGone が発火する
-        try await waitUntil { firedCount == 1 }
+        await waitUntil { firedCount == 1 }
         #expect(firedCount == 1)
 
         store.close()
@@ -509,11 +473,8 @@ struct ViewerStoreFileGoneTests {
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: file)
 
-        nonisolated(unsafe) var onChange: (@MainActor @Sendable () -> Void)?
-        let store = ViewerStore(watcherFactory: { _, callback, _ in
-            onChange = callback
-            return MockFileWatcher()
-        }, fileReader: reader)
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
 
         nonisolated(unsafe) var firedCount = 0
         store.onFileGone = { firedCount += 1 }
@@ -521,7 +482,7 @@ struct ViewerStoreFileGoneTests {
 
         // 削除 → グレース期間開始
         reader.setFile(nil, at: file)
-        onChange?()
+        onChangeBox.get()?()
         // 監視イベントなしで再作成(発火直前の存在再確認だけで救済されるケース)。
         // グレースタスクは発火せずに完了する。
         // 待ち時間はフルスイート並列実行下でのタイマー遅延を吸収できるよう
@@ -533,8 +494,8 @@ struct ViewerStoreFileGoneTests {
 
         // 再削除 → 完了済みの stale タスクが検知を塞いでいないこと
         reader.setFile(nil, at: file)
-        onChange?()
-        try await waitUntil { firedCount == 1 }
+        onChangeBox.get()?()
+        await waitUntil { firedCount == 1 }
         #expect(firedCount == 1)
 
         store.close()

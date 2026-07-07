@@ -6,20 +6,27 @@ import Testing
 @Suite
 @MainActor
 struct ViewerWindowControllerTests {
+    /// テスト用に隔離済み UserDefaults(既定は使い捨て)と ZoomStore を注入したコントローラーを作る。
+    /// 呼び出し側で defaults / zoomStore を後から参照したい場合は明示的に渡す。
+    private func makeController(
+        file: URL,
+        zoomStore: ZoomStore? = nil,
+        defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
+    ) -> ViewerWindowController {
+        ViewerWindowController(
+            fileURL: file,
+            zoomStore: zoomStore ?? ZoomStore(defaults: defaults),
+            defaults: defaults
+        )
+    }
+
     @Test("ファイル別の frameAutosaveName は設定されない")
     func noPerFileFrameAutosave() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
 
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(
-                defaults: makeIsolatedDefaults(
-                    prefix: "ViewerWindowControllerTests"
-                )
-            )
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
 
         #expect(controller.windowFrameAutosaveName == "")
@@ -30,13 +37,8 @@ struct ViewerWindowControllerTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
-        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
 
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: defaults),
-            defaults: defaults
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
 
         let contentSize = controller.window.map {
@@ -53,13 +55,13 @@ struct ViewerWindowControllerTests {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
         let zoomStore = ZoomStore(defaults: defaults)
 
-        let first = ViewerWindowController(fileURL: file, zoomStore: zoomStore, defaults: defaults)
+        let first = makeController(file: file, zoomStore: zoomStore, defaults: defaults)
         defer { first.close() }
         let frame = NSRect(x: 120, y: 140, width: 900, height: 700)
         first.window?.setFrame(frame, display: false)
         first.windowDidEndLiveResize(Notification(name: NSWindow.didEndLiveResizeNotification))
 
-        let second = ViewerWindowController(fileURL: file, zoomStore: zoomStore, defaults: defaults)
+        let second = makeController(file: file, zoomStore: zoomStore, defaults: defaults)
         defer { second.close() }
 
         #expect(second.window?.frame == frame)
@@ -73,13 +75,13 @@ struct ViewerWindowControllerTests {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
         let zoomStore = ZoomStore(defaults: defaults)
 
-        let first = ViewerWindowController(fileURL: file, zoomStore: zoomStore, defaults: defaults)
+        let first = makeController(file: file, zoomStore: zoomStore, defaults: defaults)
         let frame = NSRect(x: 160, y: 180, width: 800, height: 650)
         first.window?.setFrame(frame, display: false)
         first.windowWillClose(Notification(name: NSWindow.willCloseNotification))
         first.close()
 
-        let second = ViewerWindowController(fileURL: file, zoomStore: zoomStore, defaults: defaults)
+        let second = makeController(file: file, zoomStore: zoomStore, defaults: defaults)
         defer { second.close() }
 
         #expect(second.window?.frame == frame)
@@ -90,10 +92,7 @@ struct ViewerWindowControllerTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
         var becameKey = false
         controller.onBecomeKey = { becameKey = true }
@@ -109,10 +108,7 @@ struct ViewerWindowControllerTests {
         defer { withExtendedLifetime(tmp) {} }
         let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
         let file2 = try tmp.file(named: "second.mmd", contents: "graph LR;")
-        let controller = ViewerWindowController(
-            fileURL: file1,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
-        )
+        let controller = makeController(file: file1)
         defer { controller.close() }
 
         controller.switchFile(to: file2)
@@ -128,10 +124,7 @@ struct ViewerWindowControllerTests {
         defer { withExtendedLifetime(tmp) {} }
         let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
         let file2 = try tmp.file(named: "second.mmd", contents: "graph LR;")
-        let controller = ViewerWindowController(
-            fileURL: file1,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
-        )
+        let controller = makeController(file: file1)
         defer { controller.close() }
         var callbackArgs: (old: URL, new: URL)?
         controller.onSwitchFile = { old, new in callbackArgs = (old, new) }
@@ -147,10 +140,7 @@ struct ViewerWindowControllerTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
         var called = false
         controller.onSwitchFile = { _, _ in called = true }
@@ -170,7 +160,7 @@ struct ViewerWindowControllerTests {
         let zoomStore = ZoomStore(defaults: defaults)
         zoomStore.setZoom(2.0, for: file1)
         zoomStore.setZoom(0.75, for: file2)
-        let controller = ViewerWindowController(fileURL: file1, zoomStore: zoomStore, defaults: defaults)
+        let controller = makeController(file: file1, zoomStore: zoomStore, defaults: defaults)
         defer { controller.close() }
 
         controller.switchFile(to: file2)
@@ -185,12 +175,7 @@ struct ViewerWindowControllerTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "old.mmd", contents: "graph TD;")
-        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: defaults),
-            defaults: defaults
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
         let renamed = tmp.url.appendingPathComponent("new.mmd")
         try FileManager.default.moveItem(at: file, to: renamed)
@@ -209,12 +194,7 @@ struct ViewerWindowControllerTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "note.md", contents: "# hi")
-        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: defaults),
-            defaults: defaults
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
         controller.toggleSourceView(nil)
         #expect(controller.isSourceMode)
@@ -231,12 +211,7 @@ struct ViewerWindowControllerTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "note.md", contents: "# hi")
-        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: defaults),
-            defaults: defaults
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
         controller.toggleSourceView(nil)
         #expect(controller.isSourceMode)
@@ -283,10 +258,7 @@ struct ViewerWindowControllerTests {
         let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
         try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
         let file = try tmp.file(named: "sub/child.mmd", contents: "graph TD;")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
 
         controller.navigateToFolder(tmp.url)
@@ -299,10 +271,7 @@ struct ViewerWindowControllerTests {
         let tmp = try makeHomeTempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
         let before = controller.fileListModel.currentDirectory
         let aboveHome = FileManager.default.homeDirectoryForCurrentUser
@@ -325,10 +294,7 @@ struct ViewerWindowControllerTests {
         let grandChild = subDir.appendingPathComponent("grandchild", isDirectory: true)
         try FileManager.default.createDirectory(at: grandChild, withIntermediateDirectories: true)
         _ = try tmp.file(named: "sub/child.mmd", contents: "graph LR;")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
 
         controller.navigateToFolder(subDir)
@@ -344,10 +310,7 @@ struct ViewerWindowControllerTests {
         let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
         try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
         _ = try tmp.file(named: "sub/child.mmd", contents: "graph LR;")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
 
         controller.navigateToFolder(subDir)
@@ -364,10 +327,7 @@ struct ViewerWindowControllerTests {
         try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
         let grandChild = subDir.appendingPathComponent("grandchild", isDirectory: true)
         try FileManager.default.createDirectory(at: grandChild, withIntermediateDirectories: true)
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
 
         controller.navigateToFolder(subDir)
@@ -382,10 +342,7 @@ struct ViewerWindowControllerTests {
         let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
         try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
         let file = try tmp.file(named: "sub/child.mmd", contents: "graph TD;")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
-        )
+        let controller = makeController(file: file)
         defer { controller.close() }
 
         controller.navigateToFolder(tmp.url)
@@ -405,10 +362,7 @@ extension ViewerWindowControllerTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "a.mmd", contents: "graph TD;")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "History"))
-        )
+        let controller = makeController(file: file, defaults: makeIsolatedDefaults(prefix: "History"))
         defer { controller.close() }
 
         #expect(controller.fileListModel.canGoBack == false)
@@ -422,10 +376,7 @@ extension ViewerWindowControllerTests {
         let fileA = try tmp.file(named: "a.mmd", contents: "graph TD;")
         _ = try tmp.file(named: "b.mmd", contents: "graph LR;")
         let fileB = fileA.deletingLastPathComponent().appendingPathComponent("b.mmd")
-        let controller = ViewerWindowController(
-            fileURL: fileA,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "History"))
-        )
+        let controller = makeController(file: fileA, defaults: makeIsolatedDefaults(prefix: "History"))
         defer { controller.close() }
 
         controller.switchFile(to: fileB)
@@ -445,10 +396,7 @@ extension ViewerWindowControllerTests {
         let fileA = try tmp.file(named: "a.mmd", contents: "graph TD;")
         _ = try tmp.file(named: "b.mmd", contents: "graph LR;")
         let fileB = fileA.deletingLastPathComponent().appendingPathComponent("b.mmd")
-        let controller = ViewerWindowController(
-            fileURL: fileA,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "History"))
-        )
+        let controller = makeController(file: fileA, defaults: makeIsolatedDefaults(prefix: "History"))
         defer { controller.close() }
         controller.switchFile(to: fileB)
 
