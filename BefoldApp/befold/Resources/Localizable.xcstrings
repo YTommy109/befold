@@ -393,6 +393,20 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "フォルダー優先" } }
       }
     },
+    "sidebar.back" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Back" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "戻る" } }
+      }
+    },
+    "sidebar.forward" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Forward" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "進む" } }
+      }
+    },
     "sidebar.empty" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -393,3 +393,71 @@ struct ViewerWindowControllerTests {
         #expect(controller.fileListModel.selection?.lastPathComponent == "sub")
     }
 }
+
+// MARK: - Navigation History
+
+/// SwiftLint の type_body_length(error: 350) を超えないよう、履歴系テストは
+/// 同一スイート(ViewerWindowControllerTests)の extension として分離する。
+/// Swift Testing は @Suite 型の extension 内の @Test も同一スイートとして検出する。
+extension ViewerWindowControllerTests {
+    @Test("初期状態では戻る履歴がない")
+    func historyStartsEmpty() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "a.mmd", contents: "graph TD;")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "History"))
+        )
+        defer { controller.close() }
+
+        #expect(controller.fileListModel.canGoBack == false)
+        #expect(controller.fileListModel.canGoForward == false)
+    }
+
+    @Test("switchFile で履歴が積まれ戻ると元ファイルに復帰する")
+    func switchFilePushesHistoryAndBackRestores() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let fileA = try tmp.file(named: "a.mmd", contents: "graph TD;")
+        _ = try tmp.file(named: "b.mmd", contents: "graph LR;")
+        let fileB = fileA.deletingLastPathComponent().appendingPathComponent("b.mmd")
+        let controller = ViewerWindowController(
+            fileURL: fileA,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "History"))
+        )
+        defer { controller.close() }
+
+        controller.switchFile(to: fileB)
+        #expect(controller.fileURL.lastPathComponent == "b.mmd")
+        #expect(controller.fileListModel.canGoBack == true)
+
+        controller.navigateHistory(by: -1)
+        #expect(controller.fileURL.lastPathComponent == "a.mmd")
+        #expect(controller.fileListModel.canGoForward == true)
+        #expect(controller.fileListModel.canGoBack == false)
+    }
+
+    @Test("戻る操作自体は新しい履歴を積まない")
+    func navigatingHistoryDoesNotRecord() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let fileA = try tmp.file(named: "a.mmd", contents: "graph TD;")
+        _ = try tmp.file(named: "b.mmd", contents: "graph LR;")
+        let fileB = fileA.deletingLastPathComponent().appendingPathComponent("b.mmd")
+        let controller = ViewerWindowController(
+            fileURL: fileA,
+            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "History"))
+        )
+        defer { controller.close() }
+        controller.switchFile(to: fileB)
+
+        controller.navigateHistory(by: -1) // a へ戻る
+        controller.navigateHistory(by: 1) // b へ進む
+
+        // 破棄されずに往復できる = 戻る/進むで push されていない
+        #expect(controller.fileURL.lastPathComponent == "b.mmd")
+        #expect(controller.fileListModel.canGoForward == false)
+        #expect(controller.fileListModel.canGoBack == true)
+    }
+}

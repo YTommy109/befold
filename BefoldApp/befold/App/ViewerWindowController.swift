@@ -19,6 +19,8 @@ final class ViewerWindowController: NSWindowController {
     private(set) var fileURL: URL
     /// サイドバーのファイル一覧と選択状態。リネームやキーウィンドウ化に合わせて更新する。
     let fileListModel: FileListModel
+    /// このタブの戻る/進むナビゲーション履歴（メモリ内のみ）。
+    let history = NavigationHistory()
     /// ウィンドウが閉じられたときに呼ばれるコールバック。ViewerWindowManager がウィンドウ管理辞書から除去するために使用する。
     var onClose: (() -> Void)?
     /// 開いているファイルが rename / move されたときに旧 URL・新 URL を通知するコールバック。
@@ -29,9 +31,10 @@ final class ViewerWindowController: NSWindowController {
     var onBecomeKey: (() -> Void)?
     /// switchFile(to:) でファイルを切り替えたときに旧 URL・新 URL を通知するコールバック。
     var onSwitchFile: ((_ old: URL, _ new: URL) -> Void)?
-    /// 切替先ファイルが自分以外のウィンドウで既に開かれているかを問い合わせるコールバック。
-    /// true(マネージャが既存ウィンドウを前面化済み)なら switchFile は切替を中止する。
+    /// 指定 URL が自分以外のウィンドウで既に開かれているかを判定する純粋チェック。
     var isFileOpenInAnotherWindow: ((_ url: URL) -> Bool)?
+    /// 指定 URL を開いている別ウィンドウを前面化する。switchFile で使用。
+    var focusWindowForFile: ((_ url: URL) -> Void)?
 
     // MARK: - Initialization
 
@@ -109,6 +112,7 @@ final class ViewerWindowController: NSWindowController {
         }
         store.openFile(fileURL)
         updateToolbarVisibility()
+        recordHistory()
     }
 
     /// サイドバー(ファイル一覧)とコンテンツ(WebView)を並べる split view controller を組み立てる。
@@ -137,7 +141,8 @@ final class ViewerWindowController: NSWindowController {
             },
             onOpenInNewWindow: { url in
                 AppDelegate.shared?.openViewer(for: url)
-            }
+            },
+            onNavigateHistory: { [weak self] offset in self?.navigateHistory(by: offset) }
         )
         return ViewerSplitViewController(
             sidebar: fileListView,
@@ -209,26 +214,20 @@ final class ViewerWindowController: NSWindowController {
         }
         refreshFileList()
         onRename?(oldURL, newURL)
+        history.renameOccurred(from: oldURL, to: newURL)
+        refreshHistoryState()
     }
 
     /// サイドバーで別ファイルが選択されたときにウィンドウの表示対象を切り替える。
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
         guard newURL != oldURL else { return }
-        // 「1 ファイル 1 ウィンドウ」不変条件: 切替先が別ウィンドウで開かれている場合は
-        // そのウィンドウを前面化(マネージャ側)して切替を中止し、サイドバー選択を元へ戻す。
         if isFileOpenInAnotherWindow?(newURL) == true {
+            focusWindowForFile?(newURL)
             fileListModel.selection = oldURL
             return
         }
-        // 内容差し替え前にビューモードをレンダリング表示へ戻し、旧内容の無駄な再描画を避ける。
-        resetSourceMode()
-        applyURLToWindow(newURL)
-        store.openFile(newURL)
-        updateToolbarVisibility()
-        // 切替はリネームではない。旧ファイルの倍率は保存済みのまま保持し、
-        // 新ファイルは自身の保存倍率(なければデフォルト)で表示する。
-        applyStoredZoomToWebView()
+        performFileSwitch(to: newURL)
         let newDir = newURL.deletingLastPathComponent().standardizedFileURL
         if newDir != fileListModel.currentDirectory.standardizedFileURL {
             fileListModel.currentDirectory = newURL.deletingLastPathComponent()
@@ -236,7 +235,7 @@ final class ViewerWindowController: NSWindowController {
         } else {
             fileListModel.selection = matchingEntryURL(for: newURL)
         }
-        onSwitchFile?(oldURL, newURL)
+        recordHistory()
     }
 
     /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
@@ -311,13 +310,87 @@ final class ViewerWindowController: NSWindowController {
                 $0.kind == .folder
                     && $0.url.standardizedFileURL.path == prevKey
             }?.url
+            recordHistory()
         } else if let firstFile = fileListModel.entries.first(where: { $0.kind == .file }) {
-            // 最初のファイルを表示対象として開く。選択の書き換えをビューの
-            // 副作用に変換する経路は持たないため、コントローラが直接切り替える。
             switchFile(to: firstFile.url)
+            recordHistory()
         } else {
             fileListModel.selection = nil
+            recordHistory()
         }
+    }
+
+    // MARK: - Navigation History
+
+    /// サイドバーの戻る/進む・履歴メニューから呼ばれる。offset 負=戻る / 正=進む。
+    func navigateHistory(by offset: Int) {
+        guard let entry = history.move(by: offset) else { return }
+        if !applyHistoryEntry(entry) {
+            _ = history.move(by: -offset)
+        }
+        refreshHistoryState()
+    }
+
+    /// 現在の表示状態(ディレクトリ＋ファイル)を履歴に記録する。
+    /// push は現在エントリと同一なら無視する。
+    private func recordHistory() {
+        history.push(HistoryEntry(directory: fileListModel.currentDirectory, file: fileURL))
+        refreshHistoryState()
+    }
+
+    /// switchFile と applyHistoryEntry が共有するファイル切替の実処理。
+    /// ビューモードのリセット、URL 更新、コンテンツ読込、ズーム適用、コールバック通知を行う。
+    private func performFileSwitch(to newURL: URL) {
+        let oldURL = fileURL
+        resetSourceMode()
+        applyURLToWindow(newURL)
+        store.openFile(newURL)
+        updateToolbarVisibility()
+        applyStoredZoomToWebView()
+        onSwitchFile?(oldURL, newURL)
+    }
+
+    /// 履歴エントリを表示へ適用する。適用できなかった場合は false を返す。
+    @discardableResult
+    private func applyHistoryEntry(_ entry: HistoryEntry) -> Bool {
+        if let file = entry.file,
+           file.normalizedPathKey != fileURL.normalizedPathKey,
+           isFileOpenInAnotherWindow?(file) == true
+        {
+            return false
+        }
+        let dirChanged = entry.directory.normalizedPathKey
+            != fileListModel.currentDirectory.normalizedPathKey
+        if dirChanged {
+            fileListModel.currentDirectory = entry.directory
+        }
+        if let file = entry.file,
+           file.normalizedPathKey != fileURL.normalizedPathKey
+        {
+            performFileSwitch(to: file)
+        }
+        if dirChanged {
+            refreshFileList()
+            // ファイルがディレクトリ外(上へ移動で記録されたエントリ)の場合、
+            // ファイルの親フォルダを選択して元の状態を復元する
+            let fileDir = fileURL.deletingLastPathComponent().standardizedFileURL
+            if fileDir != fileListModel.currentDirectory.standardizedFileURL {
+                let fileDirPath = fileDir.path
+                fileListModel.selection = fileListModel.entries.first {
+                    $0.kind == .folder
+                        && $0.url.standardizedFileURL.path == fileDirPath
+                }?.url
+            }
+        } else {
+            fileListModel.selection = matchingEntryURL(for: fileURL)
+        }
+        return true
+    }
+
+    /// 履歴状態をサイドバー（FileListModel）へ反映する。
+    private func refreshHistoryState() {
+        fileListModel.backHistory = history.backEntries()
+        fileListModel.forwardHistory = history.forwardEntries()
     }
 
     /// 既存のビューアウィンドウと位置が完全に一致する場合だけ、標準のカスケード量ずらす。

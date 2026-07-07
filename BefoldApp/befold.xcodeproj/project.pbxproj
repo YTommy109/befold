@@ -28,6 +28,7 @@
 		41312F44E8EED28E443E2C80 /* github.css in Resources */ = {isa = PBXBuildFile; fileRef = A0DA8104EA0F6929CCC8D36D /* github.css */; };
 		474C0ECA8BCBE022BA745BED /* style.css in Resources */ = {isa = PBXBuildFile; fileRef = 6C01BA9F3AB7BE074262D26C /* style.css */; };
 		4F1B8BB63A46F4748976B4FD /* RecentDocumentsMenuControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 950B1D89A235DA02837D63CE /* RecentDocumentsMenuControllerTests.swift */; };
+		536BA93BC99226BA5C0D2405 /* NavigationHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89963D5B445584129CCA244 /* NavigationHistory.swift */; };
 		5443BD01B7A5FA74DFAC3084 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7BA051EDECA78D7BC2303C6 /* UpdateChecker.swift */; };
 		5571E2041567DA341855898F /* URL+PathKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D083BEC39AF0D8996092CBF /* URL+PathKey.swift */; };
 		5FC55E4F0C043712F9C25F2D /* UnsupportedFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039B6ED41573C61E1949C847 /* UnsupportedFileView.swift */; };
@@ -36,6 +37,7 @@
 		63D62F412AF6AD9DAAEB0384 /* UpdateUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B4DBCFA1601C57DCBC3314D /* UpdateUI.swift */; };
 		653F8701B089FC6B39212C23 /* github-dark.css in Resources */ = {isa = PBXBuildFile; fileRef = 897B0FE39C08472D36E4A5E5 /* github-dark.css */; };
 		65CED0CCA104935B6096139C /* ViewerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2480AF58CC6EFE5AAEA3915C /* ViewerWindowController.swift */; };
+		67F51587FCBD821F0DFA5355 /* NavigationHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB52519A3CA18CFE2EBBFF5C /* NavigationHistoryTests.swift */; };
 		6A74DBC41DCDB5E48740F972 /* ReferenceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5BC1C0DF53EC5AE73974CF /* ReferenceResolver.swift */; };
 		6AA1034E8199DC25FA55A85B /* InMemoryFileReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26B26DB33AAE63316A4C6D6D /* InMemoryFileReader.swift */; };
 		6D2E58C3855D9A141403C5E4 /* AppVersionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E54EAC2F13B5755F4750B1F0 /* AppVersionTests.swift */; };
@@ -172,6 +174,7 @@
 		A5468C6282A6D717700403B9 /* DocumentController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentController.swift; sourceTree = "<group>"; };
 		A7BA051EDECA78D7BC2303C6 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		A95BB24D3A1EBAE77BDBA9A2 /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationTests.swift; sourceTree = "<group>"; };
+		AB52519A3CA18CFE2EBBFF5C /* NavigationHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationHistoryTests.swift; sourceTree = "<group>"; };
 		B0A97307DAD4C8E54AA2EA56 /* ViewerWindowManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerWindowManagerTests.swift; sourceTree = "<group>"; };
 		B3934111DE71CFAF0A54F26D /* DebouncerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncerTests.swift; sourceTree = "<group>"; };
 		B60A721C9392EC1F5D290754 /* RecentDocumentsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentDocumentsStore.swift; sourceTree = "<group>"; };
@@ -186,6 +189,7 @@
 		E1F6558189F78F4CE5266F39 /* ViewerTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerTheme.swift; sourceTree = "<group>"; };
 		E54EAC2F13B5755F4750B1F0 /* AppVersionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionTests.swift; sourceTree = "<group>"; };
 		E717285FB72DE68D1C17149E /* PathKeyedDictionary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathKeyedDictionary.swift; sourceTree = "<group>"; };
+		E89963D5B445584129CCA244 /* NavigationHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationHistory.swift; sourceTree = "<group>"; };
 		ECB0AD2D8DAAA6ABBA45A046 /* GitHubRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubRelease.swift; sourceTree = "<group>"; };
 		F34555C0D5DFBDA1704A2232 /* DirectoryListerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryListerTests.swift; sourceTree = "<group>"; };
 		F3FA2042F35CFE821F23E642 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
@@ -241,6 +245,7 @@
 				26B26DB33AAE63316A4C6D6D /* InMemoryFileReader.swift */,
 				A95BB24D3A1EBAE77BDBA9A2 /* LocalizationTests.swift */,
 				8CBDBEA63AB67714233F6BEA /* MainMenuBuilderTests.swift */,
+				AB52519A3CA18CFE2EBBFF5C /* NavigationHistoryTests.swift */,
 				58DDC3E2F4781D1F644032DB /* PathKeyedDictionaryTests.swift */,
 				950B1D89A235DA02837D63CE /* RecentDocumentsMenuControllerTests.swift */,
 				F74A06D5615D43BFF13BFCA6 /* RecentDocumentsStoreTests.swift */,
@@ -341,6 +346,7 @@
 				A5468C6282A6D717700403B9 /* DocumentController.swift */,
 				57D4E1646EE61799511D1046 /* LocalizedBundle.swift */,
 				8405F5C7FE140D4EA2AC0414 /* MainMenuBuilder.swift */,
+				E89963D5B445584129CCA244 /* NavigationHistory.swift */,
 				E717285FB72DE68D1C17149E /* PathKeyedDictionary.swift */,
 				FE96078D068A3768B64E0744 /* RecentDocumentsMenuController.swift */,
 				B60A721C9392EC1F5D290754 /* RecentDocumentsStore.swift */,
@@ -464,6 +470,7 @@
 				2774EDFA42AEA47471F51C58 /* InfoPlistTests.swift in Sources */,
 				76D1330AA00A5823F9484DE0 /* LocalizationTests.swift in Sources */,
 				16D859CE9B60A4DDC863F1ED /* MainMenuBuilderTests.swift in Sources */,
+				67F51587FCBD821F0DFA5355 /* NavigationHistoryTests.swift in Sources */,
 				9807475EF7A3D261E8ACEBE0 /* PathKeyedDictionaryTests.swift in Sources */,
 				4F1B8BB63A46F4748976B4FD /* RecentDocumentsMenuControllerTests.swift in Sources */,
 				62DC55E3F55F82B3BB523D7C /* RecentDocumentsStoreTests.swift in Sources */,
@@ -506,6 +513,7 @@
 				F35879FC95812728181CAD91 /* GitHubRelease.swift in Sources */,
 				75817D09B4DDA94BE34AABA9 /* LocalizedBundle.swift in Sources */,
 				8D057178399756E00F44A86A /* MainMenuBuilder.swift in Sources */,
+				536BA93BC99226BA5C0D2405 /* NavigationHistory.swift in Sources */,
 				9B60C2DDAF696828C4DC23C0 /* PathKeyedDictionary.swift in Sources */,
 				60C960E39FEA180A745308D3 /* RecentDocumentsMenuController.swift in Sources */,
 				0A9E93A607A6E61E104A3463 /* RecentDocumentsStore.swift in Sources */,
@@ -553,7 +561,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = befold/befold.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 209;
+				CURRENT_PROJECT_VERSION = 225;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = befold/Info.plist;
@@ -561,7 +569,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.6;
+				MARKETING_VERSION = 1.4.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.befold;
 				PRODUCT_NAME = befold;
 				SDKROOT = macosx;
@@ -574,7 +582,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = befold/befold.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 209;
+				CURRENT_PROJECT_VERSION = 225;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = befold/Info.plist;
@@ -582,7 +590,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.6;
+				MARKETING_VERSION = 1.4.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.degino.befold;
 				PRODUCT_NAME = befold;
 				SDKROOT = macosx;
