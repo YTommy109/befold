@@ -65,8 +65,8 @@ final class SidebarNavigator {
     /// allExtensions に含まれない拡張子(plaintext フォールバック)のファイルが
     /// サイドバーから消える回帰を防ぐ。
     private func ensureCurrentFile(in entries: inout [FileListEntry], currentFile: URL) {
-        let dir = currentFile.deletingLastPathComponent().standardizedFileURL
-        guard dir == fileListModel.currentDirectory.standardizedFileURL else {
+        let dirKey = currentFile.deletingLastPathComponent().normalizedPathKey
+        guard dirKey == fileListModel.currentDirectory.normalizedPathKey else {
             return
         }
         let key = currentFile.normalizedPathKey
@@ -96,13 +96,13 @@ final class SidebarNavigator {
         fileListModel.entries = DirectoryLister.listEntries(
             in: url, sortOrder: fileListModel.sortOrder
         )
-        let isGoingUp = target == previous.deletingLastPathComponent()
-            .standardizedFileURL
+        let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
+            .normalizedPathKey
         if isGoingUp {
-            let prevKey = previous.standardizedFileURL.path
+            let prevKey = previous.normalizedPathKey
             fileListModel.selection = fileListModel.entries.first {
                 $0.kind == .folder
-                    && $0.url.standardizedFileURL.path == prevKey
+                    && $0.url.normalizedPathKey == prevKey
             }?.url
             recordHistory()
         } else if let firstFile = fileListModel.entries.first(where: { $0.kind == .file }) {
@@ -117,8 +117,8 @@ final class SidebarNavigator {
     /// switchFile 成功後にサイドバー選択を同期し、履歴を記録する。
     /// ViewerWindowController.switchFile がファイル切替の実処理後に呼ぶ。
     func syncAfterSwitch(to newURL: URL) {
-        let newDir = newURL.deletingLastPathComponent().standardizedFileURL
-        if newDir != fileListModel.currentDirectory.standardizedFileURL {
+        let newDir = newURL.deletingLastPathComponent().normalizedPathKey
+        if newDir != fileListModel.currentDirectory.normalizedPathKey {
             fileListModel.currentDirectory = newURL.deletingLastPathComponent()
             refreshFileList()
         } else {
@@ -176,12 +176,11 @@ final class SidebarNavigator {
             refreshFileList()
             // ファイルがディレクトリ外(上へ移動で記録されたエントリ)の場合、
             // ファイルの親フォルダを選択して元の状態を復元する
-            let fileDir = host.currentFileURL.deletingLastPathComponent().standardizedFileURL
-            if fileDir != fileListModel.currentDirectory.standardizedFileURL {
-                let fileDirPath = fileDir.path
+            let fileDir = host.currentFileURL.deletingLastPathComponent().normalizedPathKey
+            if fileDir != fileListModel.currentDirectory.normalizedPathKey {
                 fileListModel.selection = fileListModel.entries.first {
                     $0.kind == .folder
-                        && $0.url.standardizedFileURL.path == fileDirPath
+                        && $0.url.normalizedPathKey == fileDir
                 }?.url
             }
         } else {

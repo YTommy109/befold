@@ -201,8 +201,8 @@ final class ViewerWindowController: NSWindowController {
         }
         updateToolbarVisibility()
         let newDir = newURL.deletingLastPathComponent()
-        if newDir.standardizedFileURL
-            != fileListModel.currentDirectory.standardizedFileURL
+        if newDir.normalizedPathKey
+            != fileListModel.currentDirectory.normalizedPathKey
         {
             fileListModel.currentDirectory = newDir
         }
