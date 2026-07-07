@@ -166,7 +166,7 @@ final class ViewerWindowController: NSWindowController {
                 FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
                 !isDir.boolValue
             else {
-                showFileNotFoundAlert(path: url.path)
+                showFileNotFoundAlert(path: url.normalizedPathKey)
                 return
             }
             if newWindow {
@@ -350,7 +350,9 @@ final class ViewerWindowController: NSWindowController {
     @discardableResult
     private func performFileSwitch(to newURL: URL) -> Bool {
         guard FileManager.default.fileExists(atPath: newURL.path) else {
-            showFileNotFoundAlert(path: newURL.path)
+            // 経路によりシンボリックリンクの解決状態が異なる(/tmp と /private/tmp 等)ため、
+            // 表示パスは normalizedPathKey と同じ正規化で揃える
+            showFileNotFoundAlert(path: newURL.normalizedPathKey)
             return false
         }
         let oldURL = fileURL

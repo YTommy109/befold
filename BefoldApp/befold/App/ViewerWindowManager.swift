@@ -19,7 +19,9 @@ final class ViewerWindowManager {
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
     func openViewer(for url: URL, forceSidebarVisible: Bool = false) {
         guard FileManager.default.fileExists(atPath: url.path) else {
-            showFileNotFoundAlert(path: url.path)
+            // 経路によりシンボリックリンクの解決状態が異なる(/tmp と /private/tmp 等)ため、
+            // 表示パスは normalizedPathKey と同じ正規化で揃える
+            showFileNotFoundAlert(path: url.normalizedPathKey)
             return
         }
 
