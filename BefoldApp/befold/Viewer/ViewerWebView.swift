@@ -332,7 +332,7 @@ struct ViewerWebView: NSViewRepresentable {
         /// render() に渡す直前のコンテンツ加工。markdown はローカル画像参照を
         /// data URI に差し替える(相対パスの解決基準として filePath が必要)。
         /// ソース表示中は原文をそのまま見せるため、埋め込みは行わない。
-        static func renderableContent(
+        nonisolated static func renderableContent(
             _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool
         ) -> String {
             guard !isSourceMode, fileType == .markdown, let filePath else { return content }
