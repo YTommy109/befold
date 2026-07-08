@@ -24,9 +24,6 @@ macOS 向けファイルビューアアプリ。
 1. [GitHub Releases](https://github.com/YTommy109/befold/releases/latest) から `befold-vX.Y.Z.dmg` をダウンロード
 2. DMG を開き、`befold.app` を `/Applications` にコピーして起動
 
-配布している DMG は Developer ID での署名・公証（notarization）済みのため、
-追加の操作なしで Gatekeeper を通過して起動できます。
-
 ## 開発
 
 開発者向けのビルド手順・アーキテクチャ・技術スタックについては [開発ガイド](docs/dev/development.md) を参照してください。
