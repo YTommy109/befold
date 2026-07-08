@@ -12,16 +12,17 @@ struct ViewerStoreIntegrationTests {
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
         let store = ViewerStore()
-        nonisolated(unsafe) var firedCount = 0
-        store.onFileGone = { firedCount += 1 }
+        let firedCount = LockedBox(0)
+        store.onFileGone = { firedCount.update { $0 += 1 } }
         store.openFile(file)
-        #expect(firedCount == 0)
+        #expect(firedCount.get() == 0)
 
         try await Task.sleep(for: .seconds(0.3))
         try FileManager.default.removeItem(at: file)
 
-        try await Task.sleep(for: .seconds(3))
-        #expect(firedCount == 1)
+        // onFileGone 発火を待つ（ポーリングで CI 遅延に対応）
+        await waitUntil { firedCount.get() == 1 }
+        #expect(firedCount.get() == 1)
 
         store.close()
     }
@@ -42,7 +43,8 @@ struct ViewerStoreIntegrationTests {
         // 実ファイルを編集 → デバウンス(0.2s)後に content が更新される
         try "graph TD; X-->Y".write(to: file, atomically: true, encoding: .utf8)
 
-        try await Task.sleep(for: .seconds(3))
+        // content 更新を待つ（ポーリングで CI 遅延に対応）
+        await waitUntilOnMainActor { store.content == "graph TD; X-->Y" }
         #expect(store.content == "graph TD; X-->Y")
 
         store.close()

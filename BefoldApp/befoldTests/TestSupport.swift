@@ -54,6 +54,20 @@ func waitUntil(
     }
 }
 
+/// `waitUntil` の MainActor 版。`@Observable` ストアなど MainActor 隔離のプロパティを
+/// 参照する条件は Sendable クロージャにできないため、こちらを使う。
+@MainActor
+func waitUntilOnMainActor(
+    timeout: Duration = .seconds(10),
+    _ condition: () -> Bool
+) async {
+    let deadline = ContinuousClock.now.advanced(by: timeout)
+    while ContinuousClock.now < deadline {
+        if condition() { return }
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+}
+
 /// NSLock で保護したスレッドセーフな可変ボックス。
 /// Sendable クロージャからのカウント・記録に使う。
 final class LockedBox<Value: Sendable>: @unchecked Sendable {
