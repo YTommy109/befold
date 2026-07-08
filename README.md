@@ -22,18 +22,7 @@ macOS 向けファイルビューアアプリ。
 ## インストール
 
 1. [GitHub Releases](https://github.com/YTommy109/befold/releases/latest) から `befold-vX.Y.Z.dmg` をダウンロード
-2. DMG を開き、`befold.app` を `/Applications` にコピー
-3. ターミナルで次のコマンドを実行してから起動:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/befold.app
-```
-
-> [!IMPORTANT]
-> 配布している DMG はコード署名・公証（notarization）を行っていないため、
-> そのまま開こうとすると macOS の Gatekeeper にブロックされます。
-> 上記コマンドで quarantine 属性を除去すると起動できます。
-> 一度起動すれば、アプリ内アップデートではこの操作は不要です。
+2. DMG を開き、`befold.app` を `/Applications` にコピーして起動
 
 ## 開発
 

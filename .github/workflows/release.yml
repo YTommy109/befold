@@ -34,20 +34,68 @@ jobs:
       - name: Xcode プロジェクトを生成する
         run: xcodegen generate
 
-      - name: .app をビルドする
+      - name: 署名用の一時キーチェーンを作成し証明書をインポートする
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PWD: ${{ secrets.MACOS_CERTIFICATE_PASSPHRASE }}
+        run: |
+          keychain_path="$RUNNER_TEMP/signing.keychain-db"
+          cert_path="$RUNNER_TEMP/certificate.p12"
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode -o "$cert_path"
+
+          security create-keychain -p "$KEYCHAIN_PWD" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$keychain_path"
+          security import "$cert_path" -P "$CERTIFICATE_PWD" -A -t cert -f pkcs12 -k "$keychain_path"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PWD" "$keychain_path"
+          IFS=$'\n' read -r -d '' -a existing_keychains < <(security list-keychains -d user | sed 's/"//g' && printf '\0')
+          security list-keychains -d user -s "$keychain_path" "${existing_keychains[@]}"
+          rm "$cert_path"
+
+      - name: .app をビルド・署名する
         # タグからバージョンとビルド番号を注入する。
         # MARKETING_VERSION: dev ビルドが 1.4.10-dev.1 を正しく名乗り、
         #   stable でも project.yml とタグのずれ事故を構造的に防ぐ。
         # CURRENT_PROJECT_VERSION: dev.1 と dev.2 に異なるビルド番号を付ける。
+        env:
+          DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
         run: |
           xcodebuild build \
             -scheme befold \
             -configuration Release \
             -derivedDataPath build \
-            CODE_SIGN_IDENTITY=- \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             MARKETING_VERSION="${GITHUB_REF_NAME#v}" \
             CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)"
+
+      - name: .app を公証申請する
+        env:
+          NOTARY_API_KEY: ${{ secrets.NOTARY_API_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          key_path="$RUNNER_TEMP/AuthKey_${NOTARY_KEY_ID}.p8"
+          echo "$NOTARY_API_KEY" > "$key_path"
+
+          ditto -c -k --keepParent "build/Build/Products/Release/befold.app" "$RUNNER_TEMP/befold.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/befold.zip" \
+            --key "$key_path" \
+            --key-id "$NOTARY_KEY_ID" \
+            --issuer "$NOTARY_ISSUER_ID" \
+            --wait
+
+          rm "$key_path"
+
+      - name: 公証チケットを .app にステープルする
+        run: xcrun stapler staple "build/Build/Products/Release/befold.app"
+
+      - name: 署名・公証を検証する
+        run: |
+          codesign --verify --deep --strict --verbose=2 "build/Build/Products/Release/befold.app"
+          spctl -a -vvv --type execute "build/Build/Products/Release/befold.app"
 
       - name: create-dmg をインストールする
         run: brew install create-dmg

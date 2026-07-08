@@ -154,25 +154,15 @@
       <h3>インストール</h3>
       <ol>
         <li><a href="https://github.com/YTommy109/befold/releases/latest">GitHub Releases</a> から <code>befold-vX.Y.Z.dmg</code> をダウンロード</li>
-        <li>DMG を開き、<code>befold.app</code> を <code>/Applications</code> にコピー</li>
-        <li>ターミナルで以下を実行してから起動:</li>
+        <li>DMG を開き、<code>befold.app</code> を <code>/Applications</code> にコピーして起動</li>
       </ol>
-      <code>xattr -dr com.apple.quarantine /Applications/befold.app</code>
-      <div class="note">
-        配布している DMG はコード署名・公証を行っていないため、そのまま開こうとすると Gatekeeper にブロックされます。上記コマンドで quarantine 属性を除去すると起動できます。一度起動すれば、アプリ内アップデートではこの操作は不要です。
-      </div>
     </div>
     <div lang="en" hidden>
       <h3>Installation</h3>
       <ol>
         <li>Download <code>befold-vX.Y.Z.dmg</code> from <a href="https://github.com/YTommy109/befold/releases/latest">GitHub Releases</a></li>
-        <li>Open the DMG and copy <code>befold.app</code> to <code>/Applications</code></li>
-        <li>Run the following command in Terminal before launching:</li>
+        <li>Open the DMG and copy <code>befold.app</code> to <code>/Applications</code> to launch</li>
       </ol>
-      <code>xattr -dr com.apple.quarantine /Applications/befold.app</code>
-      <div class="note">
-        The distributed DMG is not code-signed or notarized, so macOS Gatekeeper will block it from opening. The command above removes the quarantine attribute. Once launched, in-app updates don't require this step again.
-      </div>
     </div>
   </section>
 </main>
