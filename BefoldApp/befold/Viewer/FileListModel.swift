@@ -7,6 +7,9 @@ import Foundation
 @Observable
 final class FileListModel {
     var currentDirectory: URL
+    /// このウィンドウでこれまでにアクティブになった最上位のディレクトリ。
+    /// パスコピー機能の相対パス基準として使う(SidebarNavigator.navigateToFolder が更新)。
+    var rootDirectory: URL
     var entries: [FileListEntry]
     var selection: FileListEntry.ID?
     var sortOrder: SortOrder
@@ -24,6 +27,7 @@ final class FileListModel {
 
     init(currentDirectory: URL, entries: [FileListEntry], selection: FileListEntry.ID?) {
         self.currentDirectory = currentDirectory
+        rootDirectory = currentDirectory
         self.entries = entries
         self.selection = selection
         sortOrder = .foldersFirst
