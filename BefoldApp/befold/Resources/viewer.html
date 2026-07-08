@@ -561,13 +561,12 @@
     _mmdApplyZoom();
   }
 
+  // モードを切り替えるだけで再描画はしない: 呼び出し側(Swift)が
+  // 常にこの直後に render() を送るため、ここで再描画すると
+  // 古い内容による二重描画が発生する。
   function setViewMode(mode) {
     if (mode !== 'rendered' && mode !== 'source') return;
-    if (mode === _viewMode) return;
     _viewMode = mode;
-    if (_lastContent !== null) {
-      render(_lastContent, _lastType, _lastLang);
-    }
   }
 
   _mmdInitZoom();

@@ -396,17 +396,9 @@ extension ViewerWindowController: NSWindowDelegate {
     @objc func toggleSourceView(_ sender: Any?) {
         isSourceMode.toggle()
         store.isSourceMode = isSourceMode
-        // HTML はビューモード切替を updateContent 側が担う(rendered は直接ロード、
-        // source は viewer.html へ戻して setViewMode)。ここで JS を呼ぶと直後の
-        // 再ロードに上書きされる無駄打ちになるため呼ばない。それ以外の形式は
-        // content 再描画が走らないため、ここで viewModeScript を直接送って反映する。
-        if store.fileType != .html {
-            let mode: ViewerBridge.ViewMode = isSourceMode ? .source : .rendered
-            webViewProxy.webView?.evaluateJavaScript(ViewerBridge.viewModeScript(mode))
-        }
-        // HTML 直接ロードモードの場合、isSourceMode の変更が store 経由で
-        // SwiftUI の更新サイクルをトリガーし、ViewerWebView.updateNSView →
-        // updateContent が呼ばれ、自動的にモード切替が行われる。
+        // isSourceMode の変更が store 経由で SwiftUI の更新サイクルをトリガーし、
+        // ViewerWebView.updateNSView → updateContent が呼ばれ、
+        // 自動的にモード切替(必要なら再描画)が行われる。
         updateSourceToggleAppearance()
     }
 
@@ -431,9 +423,6 @@ extension ViewerWindowController: NSWindowDelegate {
         guard isSourceMode else { return }
         isSourceMode = false
         store.isSourceMode = false
-        if !webViewProxy.isDirectHTMLMode {
-            webViewProxy.webView?.evaluateJavaScript(ViewerBridge.viewModeScript(.rendered))
-        }
         updateSourceToggleAppearance()
     }
 
