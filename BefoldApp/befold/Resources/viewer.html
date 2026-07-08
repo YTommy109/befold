@@ -96,6 +96,15 @@
     _mmdApplyZoom();
   }
 
+  // 実際にスクロールする要素は表示モードで異なる（style.css の .code-body 参照）。
+  // ソースコード表示では #diagram-wrap.code-body pre code が、それ以外は .viewer 自体が
+  // スクロールコンテナになるため、都度どちらが実体かを見て決める。
+  function _mmdScrollTarget() {
+    var codeEl = document.querySelector('#diagram-wrap.code-body pre code');
+    if (codeEl) { return codeEl; }
+    return document.querySelector('.viewer');
+  }
+
   document.addEventListener('keydown', function(e) {
     document.body.classList.toggle('cmd-held', e.metaKey);
     if (e.metaKey) {
@@ -105,12 +114,12 @@
     }
     var scrollKeys = [' ', 'ArrowDown', 'ArrowUp', 'j', 'k'];
     if (scrollKeys.indexOf(e.key) === -1) { return; }
-    var viewerEl = document.querySelector('.viewer');
-    if (!viewerEl) { return; }
+    var scrollEl = _mmdScrollTarget();
+    if (!scrollEl) { return; }
     e.preventDefault();
     var step = e.shiftKey ? SCROLL_STEP_LARGE : SCROLL_STEP;
     var down = e.key === ' ' ? !e.shiftKey : (e.key === 'ArrowDown' || e.key === 'j');
-    viewerEl.scrollBy({ top: down ? step : -step, behavior: 'auto' });
+    scrollEl.scrollBy({ top: down ? step : -step, behavior: 'auto' });
   });
 
   document.addEventListener('keyup', function(e) {
