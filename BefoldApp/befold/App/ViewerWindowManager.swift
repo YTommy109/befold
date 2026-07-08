@@ -26,6 +26,7 @@ final class ViewerWindowManager {
 
         let key = url.normalizedPathKey
         if let existing = controllers[key] {
+            NSApp.activate()
             existing.window?.makeKeyAndOrderFront(nil)
             return
         }
@@ -37,6 +38,7 @@ final class ViewerWindowManager {
         )
         controllers[key] = controller
         bindCallbacks(for: controller, key: key, url: url)
+        NSApp.activate()
         controller.showWindow(nil)
         sessionStore.noteOpened(url)
         recentDocumentsStore.noteOpened(url)

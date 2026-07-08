@@ -1,5 +1,8 @@
 // viewer.js — テスト可能な純粋ロジック
 
+var SCROLL_STEP = 80;
+var SCROLL_STEP_LARGE = 400;
+
 var ZOOM_MIN = 0.5;
 var ZOOM_MAX = 2.0;
 var ZOOM_STEP = 0.25;

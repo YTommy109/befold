@@ -14,8 +14,19 @@ final class ViewerWindowController: NSWindowController {
     private let store: ViewerStore
     private let zoomStore: ZoomStore
     private let forceSidebarVisible: Bool
+    /// 二本指スワイプ検知用のローカルイベントモニタ。ウィンドウが閉じたら解除する。
+    private var scrollEventMonitor: Any?
+    /// スワイプジェスチャー中(.began〜.changed)に積算する水平デルタ。.ended で判定に使う。
+    private var swipeHorizontalAccumulator: CGFloat = 0
+    /// スワイプジェスチャー中(.began〜.changed)に積算する垂直デルタ。.ended で判定に使う。
+    private var swipeVerticalAccumulator: CGFloat = 0
+    /// スワイプしきい値(pt)。この値未満の水平デルタはナビゲーションしない。
+    private static let swipeThreshold: CGFloat = 40
     private let webViewProxy = WebViewProxy()
     private(set) var isSourceMode = false
+    /// この ウィンドウで最後に cmd+o のファイル選択パネルを開いたディレクトリ。
+    /// ウィンドウ単位の記憶であり、永続化はしない。
+    var lastOpenDirectory: URL?
     private(set) var fileURL: URL
     /// サイドバー(一覧・選択同期・フォルダ移動)と戻る/進む履歴を担うナビゲータ。
     let sidebar: SidebarNavigator
@@ -105,6 +116,11 @@ final class ViewerWindowController: NSWindowController {
         // (contentViewController 設定によるフィッティングサイズ化など)が
         // windowDidResize 経由で保存されるのを防ぐ
         window.delegate = self
+
+        scrollEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            self?.handleScrollWheelForHistorySwipe(event)
+            return event
+        }
 
         sidebar.attach(to: self)
         store.onFileGone = { [weak self] in
@@ -452,7 +468,41 @@ extension ViewerWindowController: NSWindowDelegate {
         return true
     }
 
+    /// 二本指スワイプ(トラックパッド)によるファイル履歴の戻る/進むを検知する。
+    /// .began でリセットし、.changed で水平・垂直デルタを積算し、.ended で
+    /// 積算値をしきい値判定する(単一フレームの .ended デルタはほぼ0になるため)。
+    /// 垂直デルタも積算するのは、縦スクロール中の横ドリフト蓄積による誤発火を
+    /// 防ぐため(横優勢のときのみナビゲーションする、SwipeHistoryNavigation 側で判定)。
+    private func handleScrollWheelForHistorySwipe(_ event: NSEvent) {
+        guard event.window === window else { return }
+        switch event.phase {
+        case .began:
+            swipeHorizontalAccumulator = 0
+            swipeVerticalAccumulator = 0
+        case .changed:
+            swipeHorizontalAccumulator += event.scrollingDeltaX
+            swipeVerticalAccumulator += event.scrollingDeltaY
+        case .ended:
+            defer {
+                swipeHorizontalAccumulator = 0
+                swipeVerticalAccumulator = 0
+            }
+            guard let offset = SwipeHistoryNavigation.offset(
+                forHorizontalDelta: swipeHorizontalAccumulator,
+                verticalDelta: swipeVerticalAccumulator,
+                threshold: Self.swipeThreshold
+            ) else { return }
+            navigateHistory(by: offset)
+        default:
+            break
+        }
+    }
+
     func windowWillClose(_ notification: Notification) {
+        if let scrollEventMonitor {
+            NSEvent.removeMonitor(scrollEventMonitor)
+            self.scrollEventMonitor = nil
+        }
         saveWindowFrame()
         store.close()
         onClose?()

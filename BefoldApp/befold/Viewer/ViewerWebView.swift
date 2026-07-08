@@ -63,6 +63,14 @@ struct ViewerWebView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         // WKWebView の背景を透明にする（公開 API がないため KVC を使用）
         webView.setValue(false, forKey: "drawsBackground")
+        // トラックパッドのピンチジェスチャーでズームできるようにする。
+        // viewer.html 経由のコンテンツは既存の ctrl+wheel ハンドラ(viewer.html)で
+        // 対応済みだが、.html ファイル直接ロード時はこの経路を通らないため必要。
+        webView.allowsMagnification = true
+        // WebKit標準の「2本指スワイプでページ履歴を戻る/進む」は本アプリの
+        // ページ内履歴(loadFileURLのみ)とは無関係なため無効化し、
+        // ViewerWindowController が二本指スワイプでファイル履歴を扱えるようにする。
+        webView.allowsBackForwardNavigationGestures = false
         context.coordinator.webView = webView
         context.coordinator.webViewProxy = webViewProxy
         webViewProxy.webView = webView
@@ -277,7 +285,9 @@ struct ViewerWebView: NSViewRepresentable {
                         }
                         // viewer.html ロード完了後にコンテンツを描画
                         guard let script = ViewerBridge.renderScript(
-                            content: Self.renderableContent(content, fileType: fileType, filePath: filePath),
+                            content: Self.renderableContent(
+                                content, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+                            ),
                             fileType: fileType
                         ) else { return }
                         webView.evaluateJavaScript(script)
@@ -304,7 +314,9 @@ struct ViewerWebView: NSViewRepresentable {
 
                 // JSONEncoder でエスケープし、JS インジェクションを防ぐ
                 guard let script = ViewerBridge.renderScript(
-                    content: Self.renderableContent(content, fileType: fileType, filePath: filePath),
+                    content: Self.renderableContent(
+                        content, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+                    ),
                     fileType: fileType
                 ) else { return }
                 webView.evaluateJavaScript(script)
@@ -319,10 +331,11 @@ struct ViewerWebView: NSViewRepresentable {
 
         /// render() に渡す直前のコンテンツ加工。markdown はローカル画像参照を
         /// data URI に差し替える(相対パスの解決基準として filePath が必要)。
-        private static func renderableContent(
-            _ content: String, fileType: FileType, filePath: URL?
+        /// ソース表示中は原文をそのまま見せるため、埋め込みは行わない。
+        nonisolated static func renderableContent(
+            _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool
         ) -> String {
-            guard fileType == .markdown, let filePath else { return content }
+            guard !isSourceMode, fileType == .markdown, let filePath else { return content }
             return MarkdownImageEmbedder.embedLocalImages(in: content, baseURL: filePath)
         }
 
