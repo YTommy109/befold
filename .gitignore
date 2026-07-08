@@ -10,6 +10,10 @@ BefoldApp/befold.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcuserstate
 *.profraw
 
+# xcodegen が generate 時に自動生成するため追跡不要
+BefoldApp/befold.xcodeproj/xcshareddata/xcschemes/
+BefoldApp/befold.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+
 # Tools
 .superpowers/
 .worktrees/
@@ -20,3 +24,12 @@ BefoldApp/befold.xcodeproj/project.xcworkspace/xcuserdata/
 # Config
 .claude/settings.local.json
 .claude/settings.json.bak
+
+# Signing / notarization
+env/
+*.p12
+*.p8
+*.keychain
+*.keychain-db
+*.mobileprovision
+*.provisionprofile
