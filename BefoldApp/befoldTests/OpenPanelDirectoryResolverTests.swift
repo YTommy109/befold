@@ -4,24 +4,24 @@ import Testing
 
 @Suite
 struct OpenPanelDirectoryResolverTests {
-    @Test("記憶されたディレクトリがあればそれを返す")
-    func returnsLastOpenDirectoryWhenPresent() {
-        let last = URL(fileURLWithPath: "/Users/tester/Documents")
+    @Test("表示中ファイルのディレクトリがあればそれを返す")
+    func returnsCurrentFileDirectoryWhenPresent() {
+        let current = URL(fileURLWithPath: "/Users/tester/Documents")
         let home = URL(fileURLWithPath: "/Users/tester")
 
         let resolved = OpenPanelDirectoryResolver.resolve(
-            lastOpenDirectory: last, homeDirectory: home
+            currentFileDirectory: current, homeDirectory: home
         )
 
-        #expect(resolved == last)
+        #expect(resolved == current)
     }
 
-    @Test("記憶が無ければホームディレクトリを返す")
-    func returnsHomeDirectoryWhenLastOpenDirectoryIsNil() {
+    @Test("表示中ファイルが無ければホームディレクトリを返す")
+    func returnsHomeDirectoryWhenCurrentFileDirectoryIsNil() {
         let home = URL(fileURLWithPath: "/Users/tester")
 
         let resolved = OpenPanelDirectoryResolver.resolve(
-            lastOpenDirectory: nil, homeDirectory: home
+            currentFileDirectory: nil, homeDirectory: home
         )
 
         #expect(resolved == home)

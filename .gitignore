@@ -11,8 +11,13 @@ BefoldApp/befold.xcodeproj/project.xcworkspace/xcuserdata/
 *.profraw
 
 # xcodegen が generate 時に自動生成するため追跡不要
+# (project.pbxproj は project.yml から再生成される成果物。CI・/run とも
+#  clone 後に xcodegen generate を必ず実行するため追跡不要。project.yml
+#  だけを更新するとビルド番号等がズレるので、コミットしないことでズレを防ぐ)
 BefoldApp/befold.xcodeproj/xcshareddata/xcschemes/
 BefoldApp/befold.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+BefoldApp/befold.xcodeproj/project.pbxproj
+BefoldApp/befold.xcodeproj/project.xcworkspace/contents.xcworkspacedata
 
 # Tools
 .superpowers/
