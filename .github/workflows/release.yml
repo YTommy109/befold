@@ -75,6 +75,7 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Developer ID Application" \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            OTHER_CODE_SIGN_FLAGS=--timestamp \
             MARKETING_VERSION="${GITHUB_REF_NAME#v}" \
             CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)"
 
@@ -92,9 +93,14 @@ jobs:
             --key "$key_path" \
             --key-id "$NOTARY_KEY_ID" \
             --issuer "$NOTARY_ISSUER_ID" \
-            --wait
+            --wait 2>&1 | tee "$RUNNER_TEMP/notarytool.log"
 
           rm "$key_path"
+
+          if grep -q 'status: Invalid' "$RUNNER_TEMP/notarytool.log"; then
+            echo "::error::Notarization failed with status Invalid"
+            exit 1
+          fi
 
       - name: 公証チケットを .app にステープルする
         run: |
