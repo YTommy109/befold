@@ -76,6 +76,7 @@ jobs:
             CODE_SIGN_IDENTITY="Developer ID Application" \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             OTHER_CODE_SIGN_FLAGS=--timestamp \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
             MARKETING_VERSION="${GITHUB_REF_NAME#v}" \
             CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)"
 
@@ -98,6 +99,18 @@ jobs:
           rm "$key_path"
 
           if grep -q 'status: Invalid' "$RUNNER_TEMP/notarytool.log"; then
+            submission_id=$(grep '  id:' "$RUNNER_TEMP/notarytool.log" | head -1 | awk '{print $2}')
+            echo "::group::Notarization log (submission $submission_id)"
+            key_path2="$RUNNER_TEMP/AuthKey_${NOTARY_KEY_ID}.p8"
+            echo "$NOTARY_API_KEY" > "$key_path2"
+            xcrun notarytool log "$submission_id" \
+              --key "$key_path2" \
+              --key-id "$NOTARY_KEY_ID" \
+              --issuer "$NOTARY_ISSUER_ID" \
+              "$RUNNER_TEMP/notary-log.json" 2>&1 || true
+            rm "$key_path2"
+            cat "$RUNNER_TEMP/notary-log.json" 2>/dev/null || echo "Failed to retrieve notarization log"
+            echo "::endgroup::"
             echo "::error::Notarization failed with status Invalid"
             exit 1
           fi
