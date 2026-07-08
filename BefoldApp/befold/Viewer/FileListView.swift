@@ -203,9 +203,16 @@ struct FileListView: View {
     ) -> some Gesture {
         TapGesture().onEnded {
             model.selection = entry.id
-            if entry.kind == .file {
-                onSelect(entry.url)
-            }
+            openIfFile(entry)
+        }
+    }
+
+    /// 選択が確定したエントリがファイルなら表示を更新する。
+    /// クリック・矢印キー・j/k など、選択を変えるすべての経路から呼ぶことで
+    /// 「選択は動くが表示が追従しない」状態を防ぐ。
+    func openIfFile(_ entry: FileListEntry) {
+        if entry.kind == .file {
+            onSelect(entry.url)
         }
     }
 
@@ -225,11 +232,19 @@ struct FileListView: View {
 
     // MARK: - Keyboard Navigation
 
-    private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
-        switch keyPress.key {
-        case "j":
+    /// サイドバーがアクティブなときのキー操作を処理する。
+    func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+        handleKey(keyPress.key)
+    }
+
+    /// キーとアクションの対応付け。`KeyPress` は公開イニシャライザがなくテストで
+    /// 直接構築できないため、`KeyEquivalent` だけを受け取るこの関数を internal にして
+    /// テストから直接呼べるようにしている。
+    func handleKey(_ key: KeyEquivalent) -> KeyPress.Result {
+        switch key {
+        case "j", .downArrow:
             selectNext()
-        case "k":
+        case "k", .upArrow:
             selectPrevious()
         case .return, .rightArrow, "l":
             enterSelected()
@@ -240,29 +255,36 @@ struct FileListView: View {
         }
     }
 
-    private func selectNext() -> KeyPress.Result {
+    /// 選択を次のエントリへ進める。テストから直接呼べるよう internal。
+    func selectNext() -> KeyPress.Result {
         guard let current = model.selection,
               let index = model.entries.firstIndex(where: { $0.id == current }),
               index + 1 < model.entries.count
         else {
             if model.selection == nil, let first = model.entries.first {
                 model.selection = first.id
+                openIfFile(first)
                 return .handled
             }
             return .ignored
         }
-        model.selection = model.entries[index + 1].id
+        let next = model.entries[index + 1]
+        model.selection = next.id
+        openIfFile(next)
         return .handled
     }
 
-    private func selectPrevious() -> KeyPress.Result {
+    /// 選択を前のエントリへ戻す。テストから直接呼べるよう internal。
+    func selectPrevious() -> KeyPress.Result {
         guard let current = model.selection,
               let index = model.entries.firstIndex(where: { $0.id == current }),
               index > 0
         else {
             return .ignored
         }
-        model.selection = model.entries[index - 1].id
+        let previous = model.entries[index - 1]
+        model.selection = previous.id
+        openIfFile(previous)
         return .handled
     }
 
@@ -277,7 +299,7 @@ struct FileListView: View {
             onNavigate(entry.url)
             return .handled
         case .file:
-            onSelect(entry.url)
+            openIfFile(entry)
             return .handled
         }
     }
