@@ -48,6 +48,13 @@ jobs:
           security set-keychain-settings -lut 21600 "$keychain_path"
           security unlock-keychain -p "$KEYCHAIN_PWD" "$keychain_path"
           security import "$cert_path" -P "$CERTIFICATE_PWD" -A -t cert -f pkcs12 -k "$keychain_path"
+
+          echo "--- diagnostic: imported identities ---"
+          security find-identity -v -p codesigning "$keychain_path"
+          echo "--- diagnostic: all items ---"
+          security dump-keychain "$keychain_path" | grep -E 'class:|labl|agrp' || true
+          echo "--- end diagnostic ---"
+
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PWD" "$keychain_path"
           IFS=$'\n' read -r -d '' -a existing_keychains < <(security list-keychains -d user | sed 's/"//g' && printf '\0')
           security list-keychains -d user -s "$keychain_path" "${existing_keychains[@]}"
@@ -90,7 +97,16 @@ jobs:
           rm "$key_path"
 
       - name: 公証チケットを .app にステープルする
-        run: xcrun stapler staple "build/Build/Products/Release/befold.app"
+        run: |
+          for i in 1 2 3; do
+            if xcrun stapler staple "build/Build/Products/Release/befold.app"; then
+              exit 0
+            fi
+            echo "stapler attempt $i failed — retrying in 15s…"
+            sleep 15
+          done
+          echo "::error::stapler staple failed after 3 attempts"
+          exit 1
 
       - name: 署名・公証を検証する
         run: |
