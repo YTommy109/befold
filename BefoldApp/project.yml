@@ -9,6 +9,18 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
+schemes:
+  befold:
+    build:
+      targets:
+        befold: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      coverageEnabled: false
+      targets:
+        - befoldTests
 targets:
   befold:
     type: application
