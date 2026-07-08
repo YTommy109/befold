@@ -184,7 +184,7 @@ struct FileListView: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(
-            PathRelativizer.relativePath(of: url, relativeTo: model.currentDirectory),
+            PathRelativizer.relativePath(of: url, relativeTo: model.rootDirectory),
             forType: .string
         )
     }

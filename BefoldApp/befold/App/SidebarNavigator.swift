@@ -93,6 +93,7 @@ final class SidebarNavigator {
         guard DirectoryLister.isWithinHome(target) else { return }
         let previous = fileListModel.currentDirectory
         fileListModel.currentDirectory = url
+        updateRootDirectory(with: target)
         fileListModel.entries = DirectoryLister.listEntries(
             in: url, sortOrder: fileListModel.sortOrder
         )
@@ -112,6 +113,18 @@ final class SidebarNavigator {
             fileListModel.selection = nil
             recordHistory()
         }
+    }
+
+    /// このウィンドウでこれまでにアクティブになった最上位のディレクトリ(rootDirectory)を更新する。
+    /// target が rootDirectory の祖先(より上位)なら、そこを新たな最上位として記録する。
+    /// 既に到達した最上位より下位・並列のディレクトリへ移動しても rootDirectory は変えない。
+    private func updateRootDirectory(with target: URL) {
+        let rootComponents = fileListModel.rootDirectory.standardizedFileURL.pathComponents
+        let targetComponents = target.pathComponents
+        guard targetComponents.count < rootComponents.count,
+              rootComponents.starts(with: targetComponents)
+        else { return }
+        fileListModel.rootDirectory = target
     }
 
     /// switchFile 成功後にサイドバー選択を同期し、履歴を記録する。
