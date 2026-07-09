@@ -112,13 +112,26 @@
       else if (e.key === '=' || e.key === '+') { e.preventDefault(); _mmdZoomIn(); }
       return;
     }
-    var scrollKeys = [' ', 'ArrowDown', 'ArrowUp', 'j', 'k'];
-    if (scrollKeys.indexOf(e.key) === -1) { return; }
+    var pageKeys = [' ', 'Backspace'];
+    var lineKeys = ['ArrowDown', 'ArrowUp', 'j', 'k'];
+    var isPageKey = pageKeys.indexOf(e.key) !== -1;
+    var isLineKey = lineKeys.indexOf(e.key) !== -1;
+    if (!isPageKey && !isLineKey) { return; }
     var scrollEl = _mmdScrollTarget();
     if (!scrollEl) { return; }
     e.preventDefault();
-    var step = e.shiftKey ? SCROLL_STEP_LARGE : SCROLL_STEP;
-    var down = e.key === ' ' ? !e.shiftKey : (e.key === 'ArrowDown' || e.key === 'j');
+    var down = isPageKey ? (e.key === ' ') : (e.key === 'ArrowDown' || e.key === 'j');
+    var step;
+    if (e.shiftKey) {
+      // Shift は「半ページ」を意味する。Space/Backspace と 矢印/vim キーの
+      // どちらから来ても同じ半ページ量になる(shift+space と shift+↓、
+      // shift+backspace と shift+↑ がそれぞれ同じ動作になる)。
+      step = halfPageScrollStep(scrollEl.clientHeight);
+    } else if (isPageKey) {
+      step = pageScrollStep(scrollEl.clientHeight);
+    } else {
+      step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
+    }
     scrollEl.scrollBy({ top: down ? step : -step, behavior: 'auto' });
   });
 

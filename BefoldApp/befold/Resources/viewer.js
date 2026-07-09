@@ -1,7 +1,28 @@
 // viewer.js — テスト可能な純粋ロジック
 
-var SCROLL_STEP = 80;
-var SCROLL_STEP_LARGE = 400;
+// Space/Backspace の1ページスクロール量。表示領域(clientHeight)の90%とし、
+// ウィンドウサイズが変わっても常に「ほぼ1画面分」になるようにする。
+var PAGE_SCROLL_RATIO = 0.9;
+// 行送り(矢印/vimキー)で行の高さを取得できなかった場合のフォールバック値。
+var DEFAULT_LINE_SCROLL_STEP = 24;
+
+// ページ単位のスクロール量(px)。表示領域の高さに対する比率で決まるため、
+// ウィンドウサイズによらず「ほぼ1画面分」になる。
+function pageScrollStep(clientHeight) {
+  return clientHeight * PAGE_SCROLL_RATIO;
+}
+
+// 半ページ単位のスクロール量(px)。Shift 修飾時に使う。
+function halfPageScrollStep(clientHeight) {
+  return pageScrollStep(clientHeight) / 2;
+}
+
+// 行単位のスクロール量(px)。CSS の line-height 計算値(例: "22.4px")を渡す。
+// 取得できない/数値でない場合は fallback を返す。
+function lineScrollStep(lineHeightPx, fallback) {
+  var lh = parseFloat(lineHeightPx);
+  return isNaN(lh) ? fallback : lh;
+}
 
 var ZOOM_MIN = 0.5;
 var ZOOM_MAX = 2.0;
@@ -297,6 +318,11 @@ function renderCsvSourceHtml(content, delimiter, showLineNumbers) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    PAGE_SCROLL_RATIO: PAGE_SCROLL_RATIO,
+    DEFAULT_LINE_SCROLL_STEP: DEFAULT_LINE_SCROLL_STEP,
+    pageScrollStep: pageScrollStep,
+    halfPageScrollStep: halfPageScrollStep,
+    lineScrollStep: lineScrollStep,
     ZOOM_MIN: ZOOM_MIN,
     ZOOM_MAX: ZOOM_MAX,
     ZOOM_STEP: ZOOM_STEP,

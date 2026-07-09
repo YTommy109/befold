@@ -15,6 +15,11 @@ const {
   sanitizeLang,
   highlightCode,
   diagramScrollHeight,
+  PAGE_SCROLL_RATIO,
+  DEFAULT_LINE_SCROLL_STEP,
+  pageScrollStep,
+  halfPageScrollStep,
+  lineScrollStep,
   markdownFontSize,
   escapeHtml,
   renderCodeHtml,
@@ -354,6 +359,41 @@ describe('diagramScrollHeight', () => {
   test('taller viewport raises the cap', () => {
     const cap = (1200 - 64) / 1;
     expect(diagramScrollHeight(600, 3, 1200, 1)).toBeCloseTo(cap, 5);
+  });
+});
+
+describe('pageScrollStep', () => {
+  test('is PAGE_SCROLL_RATIO(90%) of the client height', () => {
+    expect(pageScrollStep(800)).toBeCloseTo(800 * PAGE_SCROLL_RATIO, 5);
+    expect(pageScrollStep(1000)).toBeCloseTo(900, 5);
+  });
+
+  test('scales with client height (window size)', () => {
+    expect(pageScrollStep(400)).toBeLessThan(pageScrollStep(800));
+  });
+});
+
+describe('halfPageScrollStep', () => {
+  test('is exactly half of pageScrollStep', () => {
+    expect(halfPageScrollStep(800)).toBeCloseTo(pageScrollStep(800) / 2, 5);
+  });
+
+  test('scales with client height (window size)', () => {
+    expect(halfPageScrollStep(1000)).toBeCloseTo(450, 5);
+  });
+});
+
+describe('lineScrollStep', () => {
+  test('parses a CSS computed line-height string', () => {
+    expect(lineScrollStep('22.4px', DEFAULT_LINE_SCROLL_STEP)).toBeCloseTo(22.4, 5);
+  });
+
+  test('falls back when line-height is not a number (e.g. "normal")', () => {
+    expect(lineScrollStep('normal', DEFAULT_LINE_SCROLL_STEP)).toBe(DEFAULT_LINE_SCROLL_STEP);
+  });
+
+  test('falls back when line-height is missing', () => {
+    expect(lineScrollStep(undefined, DEFAULT_LINE_SCROLL_STEP)).toBe(DEFAULT_LINE_SCROLL_STEP);
   });
 });
 
