@@ -17,11 +17,14 @@ enum DirectoryLister {
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 
-    static func listEntries(in directory: URL, sortOrder: SortOrder) -> [FileListEntry] {
+    static func listEntries(
+        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
+    ) -> [FileListEntry] {
+        let options: FileManager.DirectoryEnumerationOptions = showHiddenFiles ? [] : [.skipsHiddenFiles]
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
+            options: options
         ) else {
             return []
         }

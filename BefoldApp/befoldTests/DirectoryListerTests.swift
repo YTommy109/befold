@@ -128,6 +128,39 @@ struct DirectoryListerTests {
         #expect(nonParent[1].url.lastPathComponent == "beta")
     }
 
+    @Test("listEntries は showHiddenFiles が true のとき不可視ファイル・フォルダーも含める")
+    func listEntriesIncludesHiddenWhenShowHiddenFilesIsTrue() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: ".hidden.mmd", contents: "")
+        try FileManager.default.createDirectory(
+            at: tmp.url.appendingPathComponent(".hiddenDir"),
+            withIntermediateDirectories: true
+        )
+        _ = try tmp.file(named: "visible.mmd", contents: "")
+
+        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst, showHiddenFiles: true)
+
+        let names = entries.map(\.url.lastPathComponent)
+        #expect(names.contains(".hidden.mmd"))
+        #expect(names.contains(".hiddenDir"))
+        #expect(names.contains("visible.mmd"))
+    }
+
+    @Test("listEntries は showHiddenFiles を省略すると不可視ファイル・フォルダーを除外する")
+    func listEntriesExcludesHiddenByDefault() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: ".hidden.mmd", contents: "")
+        _ = try tmp.file(named: "visible.mmd", contents: "")
+
+        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
+
+        let names = entries.map(\.url.lastPathComponent)
+        #expect(!names.contains(".hidden.mmd"))
+        #expect(names.contains("visible.mmd"))
+    }
+
     @Test("ホームディレクトリでは parentNavigation が含まれない")
     func listEntriesNoParentAtHome() {
         let home = FileManager.default.homeDirectoryForCurrentUser
