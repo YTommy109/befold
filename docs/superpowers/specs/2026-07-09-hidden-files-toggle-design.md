@@ -5,7 +5,7 @@
 サイドバーのファイル一覧に、不可視ファイル・フォルダー(ドットファイル)の表示/非表示を切り替えるトグル機能を追加する。デフォルトは非表示。ユーザーの選択は `UserDefaults` に永続化し、次回起動時も最後のモードを継続する。切り替えはアプリ全体・全ウィンドウで共通の状態として即座に連動する。
 
 操作経路は3つ用意する:
-- キーボードショートカット `Cmd+.`(Unix 慣習でピリオド始まりのファイルが不可視になることに由来)
+- キーボードショートカット `Cmd+Ctrl+H`(Finder と同じ習慣でドットファイルを表示/非表示)
 - View メニューの新規メニュー項目
 - サイドバー右上、既存のソート順ボタンの隣に置くアイコンボタン
 
@@ -117,14 +117,15 @@ func refreshAllSidebars() {
 `toggleSidebar` の区切り線の後に追加する。
 
 ```swift
-menu.addItem(
+let toggleHiddenFiles = menu.addItem(
     withTitle: String(localized: "menu.view.showHiddenFiles", bundle: .l10n),
     action: #selector(AppDelegate.toggleHiddenFiles(_:)),
-    keyEquivalent: "."
+    keyEquivalent: "h"
 )
+toggleHiddenFiles.keyEquivalentModifierMask = [.command, .control]
 ```
 
-`target` は `nil`(レスポンダチェーン経由で `AppDelegate` に到達する。`showOpenPanel` と同じ方式)。`keyEquivalent: "."` はデフォルトの Cmd 修飾のみで `Cmd+.` となるため、`keyEquivalentModifierMask` の上書きは不要。
+`target` は `nil`(レスポンダチェーン経由で `AppDelegate` に到達する。`showOpenPanel` と同じ方式)。`keyEquivalent: "h"` に `keyEquivalentModifierMask: [.command, .control]` を設定して `Cmd+Ctrl+H` となる(Finder と同じ慣例)。
 
 ローカライズキー(`Localizable.xcstrings` に追加): `menu.view.showHiddenFiles` / `menu.view.hideHiddenFiles`
 
