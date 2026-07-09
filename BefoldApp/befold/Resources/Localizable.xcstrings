@@ -418,7 +418,7 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コピー" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コピーする" } }
       }
     },
     "sidebar.context.openInNewWindow" : {
@@ -432,7 +432,7 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy Path" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "パスをコピーする" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "相対パスをコピーする" } }
       }
     },
     "sidebar.context.revealInFinder" : {
