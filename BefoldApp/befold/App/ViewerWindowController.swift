@@ -53,6 +53,9 @@ final class ViewerWindowController: NSWindowController {
 
     // MARK: - Initialization
 
+    /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate → ViewerWindowManager から
+    ///   注入される単一の共有インスタンスを渡すこと。デフォルト値は、不可視ファイル挙動に
+    ///   無関心なテストが省略できるようにするためのもの。
     init(
         fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),

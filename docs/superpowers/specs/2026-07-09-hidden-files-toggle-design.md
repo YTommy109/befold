@@ -15,10 +15,13 @@
 AppDelegate
   ├── HiddenFilesPreference       # 新規: showHiddenFiles: Bool、UserDefaults 永続化
   ├── toggleHiddenFiles(_:)       # 新規アクション。NSMenuItemValidation でメニュー文言反転
+  │     └── windowManager.toggleHiddenFiles() を呼ぶだけ
   └── ViewerWindowManager
         ├── hiddenFilesPreference (注入、zoomStore と同列)
+        ├── toggleHiddenFiles()   # 新規: トグル + refreshAllSidebars() をまとめて実行
         ├── refreshAllSidebars()  # 新規: 全 controllers のサイドバーを再読み込み
         └── ViewerWindowController (per window)
+              ├── onToggleHiddenFiles コールバック → windowManager.toggleHiddenFiles()
               └── SidebarNavigator
                     └── DirectoryLister.listEntries(in:sortOrder:showHiddenFiles:)
 
@@ -80,9 +83,16 @@ static func listEntries(
 
 `SidebarNavigator` は `HiddenFilesPreference` への参照を保持し(`FileListModel` には複製しない、`sortOrder` とは異なり単一の真実の源をそのまま参照する)、呼び出し時に `hiddenFilesPreference.showHiddenFiles` を直接読む。
 
-### 3. `ViewerWindowManager.refreshAllSidebars()`(新規)
+### 3. `ViewerWindowManager.toggleHiddenFiles()` / `refreshAllSidebars()`(新規)
+
+トグルと再読み込みは `ViewerWindowManager` に集約する(`AppDelegate` はトグル自体を行わず、`ViewerWindowManager` へ委譲する)。
 
 ```swift
+func toggleHiddenFiles() {
+    hiddenFilesPreference.showHiddenFiles.toggle()
+    refreshAllSidebars()
+}
+
 func refreshAllSidebars() {
     for controller in controllers.values {
         controller.sidebar.refreshFileList()
@@ -90,14 +100,13 @@ func refreshAllSidebars() {
 }
 ```
 
-`AppDelegate.toggleHiddenFiles(_:)` から呼ばれ、開いている全ウィンドウのサイドバーを即座に再読み込みする。
+`AppDelegate.toggleHiddenFiles(_:)` とサイドバーのアイコンボタン(`ViewerWindowController.onToggleHiddenFiles`)の両方が最終的に `windowManager.toggleHiddenFiles()` を呼び、開いている全ウィンドウのサイドバーを即座に再読み込みする。
 
 ### 4. `AppDelegate` のアクション・メニュー検証
 
 ```swift
 @objc func toggleHiddenFiles(_ sender: Any?) {
-    hiddenFilesPreference.showHiddenFiles.toggle()
-    windowManager.refreshAllSidebars()
+    windowManager.toggleHiddenFiles()
 }
 ```
 
@@ -138,7 +147,7 @@ Button {
 
 - アイコン: 表示中は `"eye"`、非表示中(デフォルト)は `"eye.slash"`
 - 配色: `ViewerTopBar` の `showLineNumbers` トグルと同じルール(オン時 `.primary`、オフ時 `.secondary`)
-- タップ時の処理は `onToggleHiddenFiles: () -> Void` クロージャ経由で `AppDelegate.toggleHiddenFiles(_:)` と同じ経路(トグル + `refreshAllSidebars()`)を通す。`ViewerWindowController` から `onSortOrderChanged` と同様に配線する
+- タップ時の処理は `onToggleHiddenFiles: () -> Void` クロージャ経由で `windowManager.toggleHiddenFiles()` を呼ぶ。`AppDelegate.toggleHiddenFiles(_:)` と同じ最終到達点(トグル + `refreshAllSidebars()`)に収束する。`ViewerWindowController` から `onSortOrderChanged` と同様に配線する
 - ローカライズキー: `sidebar.hiddenFiles.show` / `sidebar.hiddenFiles.hide`
 
 他ウィンドウでの切り替えも `refreshAllSidebars()` により即座に反映されるため、ボタンの見た目・メニュー文言は常に最新状態を表示する。
@@ -146,8 +155,8 @@ Button {
 ## 状態伝搬の流れ
 
 1. ユーザーがショートカット(`Cmd+.`)・メニュー・アイコンボタンいずれかを操作
-2. `AppDelegate.toggleHiddenFiles(_:)` が呼ばれ、`hiddenFilesPreference.showHiddenFiles` をトグルして `UserDefaults` に永続化
-3. `windowManager.refreshAllSidebars()` が開いている全 `ViewerWindowController` の `sidebar.refreshFileList()` を呼ぶ
+2. ショートカット/メニューは `AppDelegate.toggleHiddenFiles(_:)` を、アイコンボタンは `ViewerWindowController.onToggleHiddenFiles` コールバックを経由し、いずれも最終的に `windowManager.toggleHiddenFiles()` を呼ぶ
+3. `ViewerWindowManager.toggleHiddenFiles()` が `hiddenFilesPreference.showHiddenFiles` をトグルして `UserDefaults` に永続化し、続けて `refreshAllSidebars()` を呼んで開いている全 `ViewerWindowController` の `sidebar.refreshFileList()` を実行する
 4. 各 `SidebarNavigator` が `DirectoryLister.listEntries(in:sortOrder:showHiddenFiles:)` を現在の `hiddenFilesPreference.showHiddenFiles` で再実行し、`fileListModel.entries` を更新
 5. SwiftUI が各ウィンドウのサイドバー・アイコンボタン・メニュー項目タイトルを再描画
 

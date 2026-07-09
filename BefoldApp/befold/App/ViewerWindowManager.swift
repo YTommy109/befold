@@ -10,6 +10,8 @@ final class ViewerWindowManager {
     private let recentDocumentsStore: RecentDocumentsStore
     private let hiddenFilesPreference: HiddenFilesPreference
 
+    /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
+    ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
     init(
         sessionStore: SessionStore, zoomStore: ZoomStore, recentDocumentsStore: RecentDocumentsStore,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference()
@@ -27,7 +29,7 @@ final class ViewerWindowManager {
     }
 
     /// 開いている全ウィンドウのサイドバー(ファイル一覧)を再読み込みする。
-    func refreshAllSidebars() {
+    private func refreshAllSidebars() {
         for controller in controllers.values {
             controller.sidebar.refreshFileList()
         }
