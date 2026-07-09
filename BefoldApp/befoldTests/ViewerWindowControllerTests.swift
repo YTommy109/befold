@@ -20,6 +20,51 @@ struct ViewerWindowControllerTests {
         )
     }
 
+    @Test("hiddenFilesPreference.showHiddenFiles が true のときサイドバーに不可視ファイルが含まれる")
+    func sidebarIncludesHiddenFilesWhenPreferenceIsOn() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
+        let visible = try tmp.file(named: "visible.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
+        let preference = HiddenFilesPreference(defaults: defaults)
+        preference.showHiddenFiles = true
+
+        let controller = ViewerWindowController(
+            fileURL: visible,
+            zoomStore: ZoomStore(defaults: defaults),
+            defaults: defaults,
+            hiddenFilesPreference: preference
+        )
+        defer { controller.close() }
+
+        let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
+        #expect(names.contains(".hidden.mmd"))
+        #expect(controller.fileListModel.showHiddenFiles)
+    }
+
+    @Test("hiddenFilesPreference.showHiddenFiles が false(デフォルト)のとき不可視ファイルは含まれない")
+    func sidebarExcludesHiddenFilesWhenPreferenceIsOff() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
+        let visible = try tmp.file(named: "visible.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
+        let preference = HiddenFilesPreference(defaults: defaults)
+
+        let controller = ViewerWindowController(
+            fileURL: visible,
+            zoomStore: ZoomStore(defaults: defaults),
+            defaults: defaults,
+            hiddenFilesPreference: preference
+        )
+        defer { controller.close() }
+
+        let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
+        #expect(!names.contains(".hidden.mmd"))
+        #expect(!controller.fileListModel.showHiddenFiles)
+    }
+
     @Test("ファイル別の frameAutosaveName は設定されない")
     func noPerFileFrameAutosave() throws {
         let tmp = try TempDir()

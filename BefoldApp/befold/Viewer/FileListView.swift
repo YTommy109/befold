@@ -8,6 +8,7 @@ struct FileListView: View {
     let onSortOrderChanged: (SortOrder) -> Void
     let onOpenInNewWindow: (URL) -> Void
     var onNavigateHistory: ((Int) -> Void)?
+    var onToggleHiddenFiles: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,6 +56,17 @@ struct FileListView: View {
             .help(model.sortOrder == .foldersFirst
                 ? String(localized: "sidebar.sort.alphabetical", bundle: .l10n)
                 : String(localized: "sidebar.sort.foldersFirst", bundle: .l10n))
+
+            Button {
+                onToggleHiddenFiles?()
+            } label: {
+                Image(systemName: model.showHiddenFiles ? "eye" : "eye.slash")
+                    .foregroundStyle(model.showHiddenFiles ? .primary : .secondary)
+            }
+            .buttonStyle(.borderless)
+            .help(model.showHiddenFiles
+                ? String(localized: "sidebar.hiddenFiles.hide", bundle: .l10n)
+                : String(localized: "sidebar.hiddenFiles.show", bundle: .l10n))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)

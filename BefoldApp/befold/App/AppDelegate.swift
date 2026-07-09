@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) static var shared: AppDelegate?
     private let sessionStore: SessionStore
     private let windowManager: ViewerWindowManager
+    private let hiddenFilesPreference: HiddenFilesPreference
     private let sessionRestorer: SessionRestorer
     private let updateCoordinator = UpdateCheckCoordinator()
     private let recentDocumentsStore: RecentDocumentsStore
@@ -22,14 +23,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let sessionStore = SessionStore()
         let zoomStore = ZoomStore()
         let recentDocumentsStore = RecentDocumentsStore()
+        let hiddenFilesPreference = HiddenFilesPreference()
         let windowManager = ViewerWindowManager(
             sessionStore: sessionStore,
             zoomStore: zoomStore,
-            recentDocumentsStore: recentDocumentsStore
+            recentDocumentsStore: recentDocumentsStore,
+            hiddenFilesPreference: hiddenFilesPreference
         )
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
         self.windowManager = windowManager
+        self.hiddenFilesPreference = hiddenFilesPreference
         sessionRestorer = SessionRestorer(sessionStore: sessionStore, windowManager: windowManager)
         super.init()
     }
@@ -175,5 +179,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .failure:
             CLIInstallUI.presentInstallFailed()
         }
+    }
+
+    /// View > Show/Hide Hidden Files(⌘⌃H)。不可視ファイル表示を全ウィンドウで一括切替する。
+    @objc func toggleHiddenFiles(_ sender: Any?) {
+        windowManager.toggleHiddenFiles()
+    }
+}
+
+// MARK: - NSMenuItemValidation
+
+extension AppDelegate: NSMenuItemValidation {
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(toggleHiddenFiles(_:)) {
+            menuItem.title = hiddenFilesPreference.showHiddenFiles
+                ? String(localized: "menu.view.hideHiddenFiles", bundle: .l10n)
+                : String(localized: "menu.view.showHiddenFiles", bundle: .l10n)
+        }
+        return true
     }
 }

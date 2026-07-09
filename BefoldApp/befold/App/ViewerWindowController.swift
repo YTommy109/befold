@@ -13,6 +13,7 @@ final class ViewerWindowController: NSWindowController {
     private let defaults: UserDefaults
     private let store: ViewerStore
     private let zoomStore: ZoomStore
+    private let hiddenFilesPreference: HiddenFilesPreference
     private let forceSidebarVisible: Bool
     /// 二本指スワイプ検知用のローカルイベントモニタ。ウィンドウが閉じたら解除する。
     private var scrollEventMonitor: Any?
@@ -42,6 +43,9 @@ final class ViewerWindowController: NSWindowController {
     var onBecomeKey: (() -> Void)?
     /// switchFile(to:) でファイルを切り替えたときに旧 URL・新 URL を通知するコールバック。
     var onSwitchFile: ((_ old: URL, _ new: URL) -> Void)?
+    /// サイドバーのアイコンボタンから不可視ファイル表示切替が要求されたときに呼ばれるコールバック。
+    /// ViewerWindowManager が toggleHiddenFiles() を束ねるために使用する。
+    var onToggleHiddenFiles: (() -> Void)?
     /// 指定 URL が自分以外のウィンドウで既に開かれているかを判定する純粋チェック。
     var isFileOpenInAnotherWindow: ((_ url: URL) -> Bool)?
     /// 指定 URL を開いている別ウィンドウを前面化する。switchFile で使用。
@@ -49,15 +53,28 @@ final class ViewerWindowController: NSWindowController {
 
     // MARK: - Initialization
 
-    init(fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard, forceSidebarVisible: Bool = false) {
+    /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate → ViewerWindowManager から
+    ///   注入される単一の共有インスタンスを渡すこと。デフォルト値は、不可視ファイル挙動に
+    ///   無関心なテストが省略できるようにするためのもの。
+    init(
+        fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard,
+        hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
+        forceSidebarVisible: Bool = false
+    ) {
         self.fileURL = fileURL
         self.zoomStore = zoomStore
         self.defaults = defaults
+        self.hiddenFilesPreference = hiddenFilesPreference
         self.forceSidebarVisible = forceSidebarVisible
         store = ViewerStore()
         let parentDir = fileURL.deletingLastPathComponent()
-        let entries = DirectoryLister.listEntries(in: parentDir, sortOrder: .foldersFirst)
-        sidebar = SidebarNavigator(currentDirectory: parentDir, entries: entries, selection: fileURL)
+        let entries = DirectoryLister.listEntries(
+            in: parentDir, sortOrder: .foldersFirst, showHiddenFiles: hiddenFilesPreference.showHiddenFiles
+        )
+        sidebar = SidebarNavigator(
+            currentDirectory: parentDir, entries: entries, selection: fileURL,
+            hiddenFilesPreference: hiddenFilesPreference
+        )
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
         // ここでの contentRect はプレースホルダ
@@ -158,7 +175,8 @@ final class ViewerWindowController: NSWindowController {
             onOpenInNewWindow: { url in
                 AppDelegate.shared?.openViewer(for: url)
             },
-            onNavigateHistory: { [weak self] offset in self?.navigateHistory(by: offset) }
+            onNavigateHistory: { [weak self] offset in self?.navigateHistory(by: offset) },
+            onToggleHiddenFiles: { [weak self] in self?.onToggleHiddenFiles?() }
         )
         return ViewerSplitViewController(
             sidebar: fileListView,
