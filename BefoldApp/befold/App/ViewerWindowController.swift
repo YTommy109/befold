@@ -43,6 +43,9 @@ final class ViewerWindowController: NSWindowController {
     var onBecomeKey: (() -> Void)?
     /// switchFile(to:) でファイルを切り替えたときに旧 URL・新 URL を通知するコールバック。
     var onSwitchFile: ((_ old: URL, _ new: URL) -> Void)?
+    /// サイドバーのアイコンボタンから不可視ファイル表示切替が要求されたときに呼ばれるコールバック。
+    /// ViewerWindowManager が toggleHiddenFiles() を束ねるために使用する。
+    var onToggleHiddenFiles: (() -> Void)?
     /// 指定 URL が自分以外のウィンドウで既に開かれているかを判定する純粋チェック。
     var isFileOpenInAnotherWindow: ((_ url: URL) -> Bool)?
     /// 指定 URL を開いている別ウィンドウを前面化する。switchFile で使用。

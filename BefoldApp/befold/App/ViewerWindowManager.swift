@@ -8,11 +8,29 @@ final class ViewerWindowManager {
     private let sessionStore: SessionStore
     private let zoomStore: ZoomStore
     private let recentDocumentsStore: RecentDocumentsStore
+    private let hiddenFilesPreference: HiddenFilesPreference
 
-    init(sessionStore: SessionStore, zoomStore: ZoomStore, recentDocumentsStore: RecentDocumentsStore) {
+    init(
+        sessionStore: SessionStore, zoomStore: ZoomStore, recentDocumentsStore: RecentDocumentsStore,
+        hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference()
+    ) {
         self.sessionStore = sessionStore
         self.zoomStore = zoomStore
         self.recentDocumentsStore = recentDocumentsStore
+        self.hiddenFilesPreference = hiddenFilesPreference
+    }
+
+    /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
+    func toggleHiddenFiles() {
+        hiddenFilesPreference.showHiddenFiles.toggle()
+        refreshAllSidebars()
+    }
+
+    /// 開いている全ウィンドウのサイドバー(ファイル一覧)を再読み込みする。
+    func refreshAllSidebars() {
+        for controller in controllers.values {
+            controller.sidebar.refreshFileList()
+        }
     }
 
     /// 指定 URL のファイルをビューアウィンドウで開く。
@@ -34,6 +52,7 @@ final class ViewerWindowManager {
         let controller = ViewerWindowController(
             fileURL: url,
             zoomStore: zoomStore,
+            hiddenFilesPreference: hiddenFilesPreference,
             forceSidebarVisible: forceSidebarVisible
         )
         controllers[key] = controller
@@ -108,6 +127,9 @@ final class ViewerWindowManager {
         controller.onSwitchFile = { [weak self, weak controller] oldURL, newURL in
             guard let self, let controller else { return }
             remapController(controller, from: oldURL, to: newURL, isRename: false)
+        }
+        controller.onToggleHiddenFiles = { [weak self] in
+            self?.toggleHiddenFiles()
         }
     }
 
