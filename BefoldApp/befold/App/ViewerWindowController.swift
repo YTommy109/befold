@@ -13,6 +13,7 @@ final class ViewerWindowController: NSWindowController {
     private let defaults: UserDefaults
     private let store: ViewerStore
     private let zoomStore: ZoomStore
+    private let hiddenFilesPreference: HiddenFilesPreference
     private let forceSidebarVisible: Bool
     /// 二本指スワイプ検知用のローカルイベントモニタ。ウィンドウが閉じたら解除する。
     private var scrollEventMonitor: Any?
@@ -49,15 +50,25 @@ final class ViewerWindowController: NSWindowController {
 
     // MARK: - Initialization
 
-    init(fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard, forceSidebarVisible: Bool = false) {
+    init(
+        fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard,
+        hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
+        forceSidebarVisible: Bool = false
+    ) {
         self.fileURL = fileURL
         self.zoomStore = zoomStore
         self.defaults = defaults
+        self.hiddenFilesPreference = hiddenFilesPreference
         self.forceSidebarVisible = forceSidebarVisible
         store = ViewerStore()
         let parentDir = fileURL.deletingLastPathComponent()
-        let entries = DirectoryLister.listEntries(in: parentDir, sortOrder: .foldersFirst)
-        sidebar = SidebarNavigator(currentDirectory: parentDir, entries: entries, selection: fileURL)
+        let entries = DirectoryLister.listEntries(
+            in: parentDir, sortOrder: .foldersFirst, showHiddenFiles: hiddenFilesPreference.showHiddenFiles
+        )
+        sidebar = SidebarNavigator(
+            currentDirectory: parentDir, entries: entries, selection: fileURL,
+            hiddenFilesPreference: hiddenFilesPreference
+        )
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
         // ここでの contentRect はプレースホルダ
