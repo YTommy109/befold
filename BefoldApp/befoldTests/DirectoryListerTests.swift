@@ -70,8 +70,8 @@ struct DirectoryListerTests {
         #expect(result.isEmpty)
     }
 
-    @Test("listEntries はフォルダーと対応ファイルを返し、非対応ファイルを除外する")
-    func listEntriesReturnsFoldersAndSupportedFiles() throws {
+    @Test("listEntries はフォルダーと拡張子を問わず全ファイルを返す")
+    func listEntriesReturnsFoldersAndAllFiles() throws {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let tmp = try TempDir(base: home)
         defer { withExtendedLifetime(tmp) {} }
@@ -80,7 +80,7 @@ struct DirectoryListerTests {
             withIntermediateDirectories: true
         )
         _ = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
-        _ = try tmp.file(named: "unknown.xyz", contents: "skip me")
+        _ = try tmp.file(named: "unknown.xyz", contents: "not skipped anymore")
 
         let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
 
@@ -89,7 +89,7 @@ struct DirectoryListerTests {
         #expect(kinds.first == .parentNavigation)
         #expect(names.contains("subdir"))
         #expect(names.contains("diagram.mmd"))
-        #expect(!names.contains("unknown.xyz"))
+        #expect(names.contains("unknown.xyz"))
     }
 
     @Test("foldersFirst ソートではフォルダーがファイルより先に並ぶ")

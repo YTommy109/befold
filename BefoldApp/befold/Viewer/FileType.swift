@@ -64,6 +64,13 @@ enum FileType: Sendable, Equatable {
             + Array(imageExtensionMimeTypes.keys) + pdfExtensions
     )
 
+    /// 拡張子が `allExtensions` に含まれる既知の拡張子かどうかを判定する。
+    /// `allExtensions` に無い拡張子でも `init(url:)` は plaintext としてフォールバックするため、
+    /// この判定は「開けるか」ではなく「拡張子を既知としてハンドリングできるか」を表す。
+    static func isSupported(_ url: URL) -> Bool {
+        allExtensions.contains(url.pathExtension.lowercased())
+    }
+
     init(url: URL) {
         let ext = url.pathExtension.lowercased()
         if Self.mermaidExtensions.contains(ext) {

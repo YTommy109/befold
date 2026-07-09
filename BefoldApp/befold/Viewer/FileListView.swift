@@ -128,6 +128,7 @@ struct FileListView: View {
                     Text(entry.url.lastPathComponent)
                         .lineLimit(1)
                         .truncationMode(.middle)
+                        .foregroundStyle(entry.hasUnknownExtension ? .secondary : .primary)
                 } icon: {
                     Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path))
                         .resizable()
