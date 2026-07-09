@@ -181,7 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// View > Show/Hide Hidden Files(⌘.)。不可視ファイル表示を全ウィンドウで一括切替する。
+    /// View > Show/Hide Hidden Files(⌘⌃H)。不可視ファイル表示を全ウィンドウで一括切替する。
     @objc func toggleHiddenFiles(_ sender: Any?) {
         windowManager.toggleHiddenFiles()
     }

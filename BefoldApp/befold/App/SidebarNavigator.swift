@@ -43,7 +43,17 @@ final class SidebarNavigator {
             entries: entries,
             selection: selection
         )
-        fileListModel.showHiddenFiles = hiddenFilesPreference.showHiddenFiles
+        syncShowHiddenFiles()
+    }
+
+    /// fileListModel.showHiddenFiles を真実の源(hiddenFilesPreference)へ同期し、
+    /// 同期後の値を返す。DirectoryLister 呼び出し前後の重複読み取りを避けるため、
+    /// この値を呼び出し側で再利用する。
+    @discardableResult
+    private func syncShowHiddenFiles() -> Bool {
+        let showHiddenFiles = hiddenFilesPreference.showHiddenFiles
+        fileListModel.showHiddenFiles = showHiddenFiles
+        return showHiddenFiles
     }
 
     /// host を接続する。ViewerWindowController が super.init 後に呼ぶ。
@@ -56,7 +66,7 @@ final class SidebarNavigator {
     /// サイドバーのファイル一覧を現在のディレクトリで取り直し、現在ファイルを選択する。
     func refreshFileList() {
         guard let host else { return }
-        let showHiddenFiles = hiddenFilesPreference.showHiddenFiles
+        let showHiddenFiles = syncShowHiddenFiles()
         var entries = DirectoryLister.listEntries(
             in: fileListModel.currentDirectory,
             sortOrder: fileListModel.sortOrder,
@@ -64,7 +74,6 @@ final class SidebarNavigator {
         )
         ensureCurrentFile(in: &entries, currentFile: host.currentFileURL)
         fileListModel.entries = entries
-        fileListModel.showHiddenFiles = showHiddenFiles
         let matched = matchingEntryURL(for: host.currentFileURL)
         if fileListModel.selection != matched {
             fileListModel.selection = matched
@@ -104,10 +113,10 @@ final class SidebarNavigator {
         let previous = fileListModel.currentDirectory
         fileListModel.currentDirectory = url
         updateRootDirectory(with: target)
+        let showHiddenFiles = syncShowHiddenFiles()
         fileListModel.entries = DirectoryLister.listEntries(
-            in: url, sortOrder: fileListModel.sortOrder, showHiddenFiles: hiddenFilesPreference.showHiddenFiles
+            in: url, sortOrder: fileListModel.sortOrder, showHiddenFiles: showHiddenFiles
         )
-        fileListModel.showHiddenFiles = hiddenFilesPreference.showHiddenFiles
         let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
             .normalizedPathKey
         if isGoingUp {

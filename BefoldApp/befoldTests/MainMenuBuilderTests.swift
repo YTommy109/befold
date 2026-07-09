@@ -83,8 +83,8 @@ struct MainMenuBuilderTests {
         (
             submenuKey: "menu.view.title",
             selector: #selector(AppDelegate.toggleHiddenFiles(_:)),
-            key: ".", modifiers: NSEvent.ModifierFlags?.some(.command)
-        ), // View メニューに Show Hidden Files(⌘.) がある
+            key: "h", modifiers: NSEvent.ModifierFlags?.some([.command, .control])
+        ), // View メニューに Show Hidden Files(⌘⌃H) がある
         (
             submenuKey: "menu.file.title",
             selector: #selector(ViewerWindowController.printDocument(_:)),
