@@ -73,8 +73,8 @@ struct MainMenuBuilderTests {
         (
             submenuKey: "menu.view.title",
             selector: #selector(NSSplitViewController.toggleSidebar(_:)),
-            key: "b", modifiers: NSEvent.ModifierFlags?.some([.command])
-        ), // View メニューに Toggle Sidebar(⌘B) がある
+            key: "s", modifiers: NSEvent.ModifierFlags?.some([.command])
+        ), // View メニューに Toggle Sidebar(⌘S) がある
         (
             submenuKey: "menu.view.title",
             selector: #selector(ViewerWindowController.toggleLineNumbers(_:)),

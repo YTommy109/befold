@@ -181,7 +181,7 @@ enum MainMenuBuilder {
         let toggleSidebar = menu.addItem(
             withTitle: String(localized: "menu.view.toggleSidebar", bundle: .l10n),
             action: #selector(NSSplitViewController.toggleSidebar(_:)),
-            keyEquivalent: "b"
+            keyEquivalent: "s"
         )
         toggleSidebar.keyEquivalentModifierMask = [.command]
         menu.addItem(.separator())
