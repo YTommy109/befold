@@ -186,6 +186,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 | 知識 | 単一情報源 |
 |------|-----------|
 | 対応拡張子の集合 | `FileType.allExtensions`（Info.plist との整合は `InfoPlistTests` が検証） |
+| 拡張子が対応形式かの判定 | `FileType.isSupported(_:)`（`allExtensions.contains(url.pathExtension.lowercased())` という判定式そのものを一本化。呼び出し元で `contains` / `lowercased` を組み立て直さない） |
 | パスの同一性キー（symlink 解決込み） | `URL.normalizedPathKey`。ディレクトリ同一性比較も `standardizedFileURL.path` ではなくこちらを使う |
 | パスキー辞書の rename 移行 | `PathKeyedDictionary` |
 | Swift → JS の関数名・メッセージハンドラ名・注入スクリプト | `ViewerBridge`（`evaluateJavaScript` への文字列リテラル直書きは違反） |
@@ -198,6 +199,13 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 - **同型コードを 2 箇所目に書きそうになったら共通化を検討する**。ただしデータ形状・不変条件が
   異なるもの（例: 順序保持リスト / 上限付き MRU / パス辞書の永続化骨格）を無理に統合しない
   （偽の抽象）。見送る場合はその判断を PR に書く
+- **値の単一情報源は、その値を使う判定・変換ロジックの単一情報源までは保証しない**。上の表は
+  定数・集合そのもの（`FileType.allExtensions` 等）の一本化を定めるが、それを参照していれば
+  原則を満たすわけではない。定数を使った述語や変換
+  （`allExtensions.contains(url.pathExtension.lowercased())` のような「対応形式か」の判定）を
+  呼び出し元ごとに個別に組み立てれば、判定式の重複という別の違反になる。定数を使う判定・変換が
+  2 箇所目に現れたら、その判定自体を関数（`FileType.isSupported(_:)` の流儀）へ切り出し、
+  上の表へ登録する
 - **外部依存はプロトコル + デフォルト引数付きイニシャライザ注入**: ファイル読込は `FileReading`、
   リリース取得は `ReleaseFetching`、ダウンロードは `UpdateDownloading`、監視は watcherFactory。
   新しい外部依存（ネットワーク・タイマー・Process 等)も同じ方針で注入し、メソッド内部で

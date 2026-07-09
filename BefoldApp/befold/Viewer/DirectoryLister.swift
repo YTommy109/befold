@@ -26,7 +26,6 @@ enum DirectoryLister {
             return []
         }
 
-        let supportedExtensions = FileType.allExtensions
         var folders: [URL] = []
         var files: [URL] = []
 
@@ -34,7 +33,7 @@ enum DirectoryLister {
             let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
             if isDirectory {
                 folders.append(url)
-            } else if supportedExtensions.contains(url.pathExtension.lowercased()) {
+            } else {
                 files.append(url)
             }
         }
@@ -78,15 +77,12 @@ enum DirectoryLister {
         ) else {
             return nil
         }
-        let extensions = FileType.allExtensions
         return contents
             .filter { url in
                 let isDir = (try? url.resourceValues(
                     forKeys: [.isDirectoryKey]
                 ))?.isDirectory ?? false
-                return !isDir && extensions.contains(
-                    url.pathExtension.lowercased()
-                )
+                return !isDir && FileType.isSupported(url)
             }
             .sorted {
                 $0.lastPathComponent.localizedStandardCompare(
