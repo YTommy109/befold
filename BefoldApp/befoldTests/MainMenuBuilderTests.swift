@@ -81,6 +81,11 @@ struct MainMenuBuilderTests {
             key: "l", modifiers: NSEvent.ModifierFlags?.some(.command)
         ), // View メニューに Toggle Line Numbers(⌘L) がある
         (
+            submenuKey: "menu.view.title",
+            selector: #selector(AppDelegate.toggleHiddenFiles(_:)),
+            key: ".", modifiers: NSEvent.ModifierFlags?.some(.command)
+        ), // View メニューに Show Hidden Files(⌘.) がある
+        (
             submenuKey: "menu.file.title",
             selector: #selector(ViewerWindowController.printDocument(_:)),
             key: "p", modifiers: nil

@@ -218,6 +218,20 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "行番号を隠す" } }
       }
     },
+    "menu.view.showHiddenFiles" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Hidden Files" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "不可視ファイルを表示" } }
+      }
+    },
+    "menu.view.hideHiddenFiles" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide Hidden Files" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "不可視ファイルを隠す" } }
+      }
+    },
     "menu.view.enterFullScreen" : {
       "extractionState" : "manual",
       "localizations" : {

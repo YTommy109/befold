@@ -185,6 +185,11 @@ enum MainMenuBuilder {
         )
         toggleSidebar.keyEquivalentModifierMask = [.command]
         menu.addItem(.separator())
+        menu.addItem(
+            withTitle: String(localized: "menu.view.showHiddenFiles", bundle: .l10n),
+            action: #selector(AppDelegate.toggleHiddenFiles(_:)),
+            keyEquivalent: "."
+        )
         let fullScreen = menu.addItem(
             withTitle: String(localized: "menu.view.enterFullScreen", bundle: .l10n),
             action: #selector(NSWindow.toggleFullScreen(_:)),
