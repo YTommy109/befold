@@ -172,7 +172,8 @@ final class ViewerWindowController: NSWindowController {
             onOpenInNewWindow: { url in
                 AppDelegate.shared?.openViewer(for: url)
             },
-            onNavigateHistory: { [weak self] offset in self?.navigateHistory(by: offset) }
+            onNavigateHistory: { [weak self] offset in self?.navigateHistory(by: offset) },
+            onToggleHiddenFiles: { [weak self] in self?.onToggleHiddenFiles?() }
         )
         return ViewerSplitViewController(
             sidebar: fileListView,

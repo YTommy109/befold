@@ -407,6 +407,20 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "フォルダー優先" } }
       }
     },
+    "sidebar.hiddenFiles.show" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Hidden Files" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "不可視ファイルを表示" } }
+      }
+    },
+    "sidebar.hiddenFiles.hide" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide Hidden Files" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "不可視ファイルを隠す" } }
+      }
+    },
     "sidebar.back" : {
       "extractionState" : "manual",
       "localizations" : {
