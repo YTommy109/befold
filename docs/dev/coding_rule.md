@@ -192,6 +192,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 | Swift → JS の関数名・メッセージハンドラ名・注入スクリプト | `ViewerBridge`（`evaluateJavaScript` への文字列リテラル直書きは違反） |
 | シェルのシングルクォートエスケープ | `String.shellQuoted`（`ShellQuoting.swift`） |
 | ズーム上下限・ステップ | `ZoomStore.minZoom` / `maxZoom` / `zoomStep` |
+| 不可視ファイル表示の共有状態 | `HiddenFilesPreference` インスタンス（AppDelegate が生成した 1 個を全ウィンドウで共有） |
 
 - **言語をまたぐ定数**（Swift ↔ viewer.js）は避けられない場合のみ二重定義し、
   (1) 双方に対応相手を示すコメント、(2) ソースを読んで一致を検証するテスト
@@ -210,6 +211,23 @@ swift package plugin --allow-writing-to-package-directory swiftformat
   リリース取得は `ReleaseFetching`、ダウンロードは `UpdateDownloading`、監視は watcherFactory。
   新しい外部依存（ネットワーク・タイマー・Process 等)も同じ方針で注入し、メソッド内部で
   具象を直接生成しない。デフォルト引数により既存呼び出し元は変更不要に保つ
+- **デフォルト引数が許されるのは「差し替え可能で状態を共有しない」依存に限る**。
+  上記の `FileReading` / `ReleaseFetching` / `UpdateDownloading` はいずれも、
+  どの具象インスタンスでも観測結果が等価な（＝呼び出し側が横断的に状態を共有しない）依存なので、
+  デフォルトに具象を置いてよい
+- **単一の共有インスタンスであることが不変条件の依存には、値を生成するデフォルトを付けない**。
+  複数の所有者がその状態を横断的に観測する依存（例: `ZoomStore`、`HiddenFilesPreference` の
+  ように「全ウィンドウが同じ 1 個を共有する」もの）は、デフォルトで `HiddenFilesPreference()` のような
+  新規インスタンスを生成すると、本番で注入を書き忘れたときに「共有されていない別個体」が
+  静かに生まれ、単一情報源の不変条件を破る。この種の依存は **`ZoomStore` の流儀に倣い、
+  デフォルトなしの必須パラメータ**にして注入を強制するのが原則
+  - NG: `hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference()`（共有前提なのに
+    新規個体を生成するデフォルト）
+  - OK: `zoomStore: ZoomStore`（必須パラメータ。AppDelegate が生成した 1 個を全経路へ注入）
+- テスト簡便化のためどうしても共有依存にデフォルトを残す場合は、**必須ではなく例外**と位置づけ、
+  イニシャライザの `///` に「本番では必ず共有インスタンスを注入すること／このデフォルトは
+  当該依存に無関心なテスト専用」を明記する（`ViewerWindowController` / `ViewerWindowManager` の
+  `hiddenFilesPreference` の注記が現行の実例）。この注記は任意のドキュメントではなく**必須**とする
 
 ### AppKit / SwiftUI 混在ルール
 
