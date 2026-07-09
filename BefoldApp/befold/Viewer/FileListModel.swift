@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 /// サイドバーのファイル一覧と選択状態を保持する監視可能モデル。
@@ -13,6 +14,12 @@ final class FileListModel {
     var entries: [FileListEntry]
     var selection: FileListEntry.ID?
     var sortOrder: SortOrder
+
+    /// サイドバー行から見つかった NSTableView への弱参照。SidebarTableViewLocator が
+    /// 行描画時に設定する。クリック時に first responder へ昇格させるためだけの
+    /// UI 専用値であり、監視対象にする必要はない(#144)。
+    @ObservationIgnored
+    weak var sidebarTableView: NSTableView?
 
     var canGoBack: Bool {
         !backHistory.isEmpty

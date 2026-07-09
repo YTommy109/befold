@@ -70,6 +70,9 @@ struct FileListView: View {
                 .padding(.vertical, 2)
                 .listRowInsets(EdgeInsets())
                 .contentShape(.rect)
+                .background(SidebarTableViewLocator { tableView in
+                    model.sidebarTableView = tableView
+                })
                 .contextMenu { contextMenuItems(for: entry) }
                 .simultaneousGesture(singleTapGesture(for: entry))
                 .simultaneousGesture(doubleTapGesture(for: entry))
@@ -204,7 +207,22 @@ struct FileListView: View {
         TapGesture().onEnded {
             model.selection = entry.id
             openIfFile(entry)
+            // List が選択を NSTableView へ反映し終える前に first responder を
+            // 奪うと選択行とハイライトがズレるため、次のランループへ遅延する
+            // (固定待ちは不要)。
+            DispatchQueue.main.async {
+                focusSidebarTable()
+            }
         }
+    }
+
+    /// サイドバーの NSTableView を first responder にし、選択ハイライトを
+    /// 青にする(#144)。参照がまだ解決していない場合は何もしない。
+    private func focusSidebarTable() {
+        guard let tableView = model.sidebarTableView,
+              let window = tableView.window
+        else { return }
+        window.makeFirstResponder(tableView)
     }
 
     /// 選択が確定したエントリがファイルなら表示を更新する。
