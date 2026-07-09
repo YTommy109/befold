@@ -5,6 +5,7 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
     private let sidebarItem: NSSplitViewItem
     private var didForceInitialCollapse = false
     private let forceSidebarVisible: Bool
+    private let collapsedHandleView = CollapsedSidebarHandleView()
 
     init(sidebar: Sidebar, content: Content, forceSidebarVisible: Bool = false) {
         self.forceSidebarVisible = forceSidebarVisible
@@ -24,6 +25,18 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         // この autosave は開閉状態も復元するため、開閉だけは
         // viewWillAppear で明示的に決める(forceSidebarVisible があれば開く)
         splitView.autosaveName = "ViewerSplitView"
+
+        collapsedHandleView.translatesAutoresizingMaskIntoConstraints = false
+        collapsedHandleView.onActivate = { [weak self] in
+            self?.toggleSidebar(nil)
+        }
+        view.addSubview(collapsedHandleView)
+        NSLayoutConstraint.activate([
+            collapsedHandleView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            collapsedHandleView.topAnchor.constraint(equalTo: view.topAnchor),
+            collapsedHandleView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            collapsedHandleView.widthAnchor.constraint(equalToConstant: 8),
+        ])
     }
 
     override func viewWillAppear() {
@@ -34,14 +47,27 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         //  フォルダーを開いたときに、フォルダーを閲覧していることを一目で
         //  分かるようにするため)
         // タブ切替や最小化復帰でも viewWillAppear は呼ばれるため、初回に限定する
-        guard !didForceInitialCollapse else { return }
+        guard !didForceInitialCollapse else {
+            syncCollapsedHandleVisibility()
+            return
+        }
         didForceInitialCollapse = true
         sidebarItem.isCollapsed = !forceSidebarVisible
+        syncCollapsedHandleVisibility()
+    }
+
+    private func syncCollapsedHandleVisibility() {
+        let shouldHide = !sidebarItem.isCollapsed
+        if collapsedHandleView.isHidden != shouldHide {
+            collapsedHandleView.isHidden = shouldHide
+        }
     }
 
     override func toggleSidebar(_ sender: Any?) {
         let wasCollapsed = sidebarItem.isCollapsed
         super.toggleSidebar(sender)
+        // アニメーション完了(splitViewDidResizeSubviews)を待たず即座に反映するため明示的に呼んでいる
+        syncCollapsedHandleVisibility()
         if wasCollapsed, !sidebarItem.isCollapsed {
             DispatchQueue.main.async { [weak self] in
                 guard let self,
@@ -52,6 +78,11 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
                 )
             }
         }
+    }
+
+    override func splitViewDidResizeSubviews(_ notification: Notification) {
+        super.splitViewDidResizeSubviews(notification)
+        syncCollapsedHandleVisibility()
     }
 
     @available(*, unavailable)

@@ -190,6 +190,14 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "サイドバーを表示/非表示" } }
       }
     },
+    "sidebar.collapsedHandle.tooltip" : {
+      "comment" : "⌘B は MainMenuBuilder.swift の menu.view.toggleSidebar のキーボードショートカットと一致させること",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Sidebar (⌘B)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サイドバーを表示 (⌘B)" } }
+      }
+    },
     "menu.view.toggleSource" : {
       "extractionState" : "manual",
       "localizations" : {
