@@ -408,7 +408,7 @@ struct ViewerStoreFileGoneTests {
         // グレース期間中は発火しない
         #expect(firedCount == 0)
 
-        await waitUntil { firedCount == 1 }
+        await waitUntilOnMainActor { firedCount == 1 }
         #expect(firedCount == 1)
 
         store.close()
@@ -461,7 +461,7 @@ struct ViewerStoreFileGoneTests {
         onChangeBox.get()?()
 
         // グレース期間後に onFileGone が発火する
-        await waitUntil { firedCount == 1 }
+        await waitUntilOnMainActor { firedCount == 1 }
         #expect(firedCount == 1)
 
         store.close()
@@ -494,7 +494,7 @@ struct ViewerStoreFileGoneTests {
         // 再削除 → 完了済みの stale タスクが検知を塞いでいないこと
         reader.setFile(nil, at: file)
         onChangeBox.get()?()
-        await waitUntil { firedCount == 1 }
+        await waitUntilOnMainActor { firedCount == 1 }
         #expect(firedCount == 1)
 
         store.close()
