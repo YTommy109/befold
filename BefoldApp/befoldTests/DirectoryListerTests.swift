@@ -170,11 +170,21 @@ struct DirectoryListerTests {
         #expect(result?.lastPathComponent == "a.mmd")
     }
 
-    @Test("resolveFileToOpen は対応ファイルのないディレクトリで nil を返す")
-    func resolveFileToOpenReturnsNilForEmptyDirectory() throws {
+    @Test("resolveFileToOpen は対応ファイルがなければ最初のファイルを返す")
+    func resolveFileToOpenFallsBackToFirstFileWhenNoSupportedFile() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: "unsupported.xyz", contents: "skip me")
+
+        let result = DirectoryLister.resolveFileToOpen(at: tmp.url)
+
+        #expect(result?.lastPathComponent == "unsupported.xyz")
+    }
+
+    @Test("resolveFileToOpen はファイルが1つもないディレクトリで nil を返す")
+    func resolveFileToOpenReturnsNilForTrulyEmptyDirectory() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
 
         let result = DirectoryLister.resolveFileToOpen(at: tmp.url)
 

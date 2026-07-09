@@ -442,11 +442,11 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "Finder で開く" } }
       }
     },
-    "cli.folder.noSupportedFile" : {
+    "cli.folder.noFile" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No supported file found in this folder." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このフォルダーに対応ファイルが見つかりません。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No file found in this folder." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このフォルダーにファイルが見つかりません。" } }
       }
     },
     "cli.install.success" : {

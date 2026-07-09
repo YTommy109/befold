@@ -107,19 +107,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Actions
 
     /// 指定 URL のファイルをビューアウィンドウで開く(DocumentController・Recent メニューからも呼ばれる)。
-    /// ディレクトリが渡された場合は、フォルダー内最初の対応ファイルを開く(CLI シム経由の想定)。
+    /// ディレクトリが渡された場合は、フォルダー内最初のファイルを開く(CLI シム経由の想定)。
+    /// 拡張子を問わずウィンドウは開かれ、未対応の内容ならビューア側でプレースホルダー表示する。
     func openViewer(for url: URL) {
         let isDirectory = DirectoryLister.isDirectory(url)
         guard let target = DirectoryLister.resolveFileToOpen(at: url) else {
-            presentNoSupportedFileAlert()
+            presentNoFileAlert()
             return
         }
         windowManager.openViewer(for: target, forceSidebarVisible: isDirectory)
     }
 
-    private func presentNoSupportedFileAlert() {
+    private func presentNoFileAlert() {
         let alert = NSAlert()
-        alert.messageText = String(localized: "cli.folder.noSupportedFile", bundle: .l10n)
+        alert.messageText = String(localized: "cli.folder.noFile", bundle: .l10n)
         alert.runModal()
     }
 

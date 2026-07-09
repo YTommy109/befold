@@ -113,12 +113,13 @@ enum DirectoryLister {
     }
 
     /// CLI シム経由のオープン用にパスを解決する。
-    /// ディレクトリならフォルダー内最初の対応ファイルを返し(見つからなければ nil)、
-    /// ファイル・存在しないパスはそのまま返す(既存のオープン/エラー表示フローに委譲する)。
+    /// ディレクトリなら最初の対応ファイルを優先し、無ければ最初のファイルを返す
+    /// (ファイルが1つもなければ nil)。ファイル・存在しないパスはそのまま返す
+    /// (既存のオープン/エラー表示フローに委譲する)。
     static func resolveFileToOpen(at url: URL) -> URL? {
         guard isDirectory(url) else {
             return url
         }
-        return firstSupportedFile(in: url)
+        return firstSupportedFile(in: url) ?? listFiles(in: url).first
     }
 }
