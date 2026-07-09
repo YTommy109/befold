@@ -9,6 +9,8 @@ final class CollapsedSidebarHandleView: NSView {
         didSet { needsDisplay = true }
     }
 
+    private var hoverTrackingArea: NSTrackingArea?
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         toolTip = String(localized: "sidebar.collapsedHandle.tooltip", bundle: .l10n)
@@ -27,15 +29,17 @@ final class CollapsedSidebarHandleView: NSView {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(
-            NSTrackingArea(
-                rect: bounds,
-                options: [.activeAlways, .mouseEnteredAndExited],
-                owner: self,
-                userInfo: nil
-            )
+        if let hoverTrackingArea {
+            removeTrackingArea(hoverTrackingArea)
+        }
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.activeAlways, .mouseEnteredAndExited],
+            owner: self,
+            userInfo: nil
         )
+        addTrackingArea(trackingArea)
+        hoverTrackingArea = trackingArea
     }
 
     override func mouseEntered(with event: NSEvent) {
