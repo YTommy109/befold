@@ -14,6 +14,10 @@ final class FileListModel {
     var entries: [FileListEntry]
     var selection: FileListEntry.ID?
     var sortOrder: SortOrder
+    /// サイドバーのアイコンボタン・メニュー・ショートカットの見た目に使う現在値。
+    /// 永続化・真実の源は HiddenFilesPreference。SidebarNavigator が
+    /// refreshFileList()/navigateToFolder(_:) のたびに同期する。
+    var showHiddenFiles: Bool = false
 
     /// サイドバー行から見つかった NSTableView への弱参照。SidebarTableViewLocator が
     /// 行描画時に設定する。クリック時に first responder へ昇格させるためだけの
