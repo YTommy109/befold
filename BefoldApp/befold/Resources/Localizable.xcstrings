@@ -516,6 +516,7 @@
       }
     },
     "viewer.find.previous" : {
+      "comment" : "「Shift+Enter」は viewer.html の mmd-find-input keydown ハンドラ（e.shiftKey && e.key === 'Enter'）と一致させること。",
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous (Shift+Enter)" } },
@@ -523,6 +524,7 @@
       }
     },
     "viewer.find.next" : {
+      "comment" : "「Enter」は viewer.html の mmd-find-input keydown ハンドラ（e.key === 'Enter'）と一致させること。",
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Next (Enter)" } },
@@ -551,6 +553,7 @@
       }
     },
     "viewer.find.close" : {
+      "comment" : "「Esc」は viewer.html の mmd-find-input keydown ハンドラ（e.key === 'Escape'）と一致させること。",
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Close (Esc)" } },

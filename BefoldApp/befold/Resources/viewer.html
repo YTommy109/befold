@@ -536,13 +536,19 @@
     node.parentNode.replaceChild(frag, node);
   }
 
+  // SVG(mermaid の描画結果)・STYLE・SCRIPT 配下は再帰しない: SVG 名前空間に HTML の
+  // <mark> を挿入すると描画されず文字が消え、mermaid が注入する <style> の中身を
+  // 誤ってラップすると図のスタイルも壊れるため。この結果、mermaid 図のラベル文字列
+  // (SVG text)は検索対象外となるが、これは意図したスコープ境界であり見落としではない。
+  var _mmdFindSkipTags = ['MARK', 'SVG', 'STYLE', 'SCRIPT'];
+
   // #diagram-wrap 配下のテキストノードを再帰的に歩き、マッチを <mark> に置換する。
   // 既知の制約: シンタックスハイライトの <span> 境界やパス参照 <span> の境界をまたぐ
   // 一致は検出しない(_PATH_RE の制約と同じ考え方)。
   function _mmdFindWalk(node, regex, matches) {
     if (node.nodeType === 3) {
       _mmdFindWalkText(node, regex, matches);
-    } else if (node.nodeType === 1 && node.tagName !== 'MARK') {
+    } else if (node.nodeType === 1 && _mmdFindSkipTags.indexOf(node.tagName) === -1) {
       var children = Array.prototype.slice.call(node.childNodes);
       for (var i = 0; i < children.length; i++) {
         _mmdFindWalk(children[i], regex, matches);
