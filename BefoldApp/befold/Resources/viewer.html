@@ -716,6 +716,31 @@
   var _mmdModeJustSwitched = false;
   var _showLineNumbers = false;
 
+  // ファイルパスをキーにしたスクロール位置の保存領域。render() が呼ばれるたびに
+  // 直前のキーの位置を保存し、新しいキー(Swift 側から _mmdSetScrollKey で
+  // 事前に渡される)の保存済み位置(未保存なら 0)を復元する。
+  var _mmdScrollPositions = {};
+  var _mmdScrollKey = null;
+  var _mmdPendingScrollKey = null;
+
+  // Swift 側(ViewerWebView)が render() 呼び出しの直前に評価し、次の render() が
+  // 復元すべきスクロール位置のキーを予告する。
+  function _mmdSetScrollKey(key) {
+    _mmdPendingScrollKey = key;
+  }
+
+  function _mmdSaveScrollPosition() {
+    if (_mmdScrollKey === null) return;
+    var el = _mmdScrollTarget();
+    if (el) { _mmdScrollPositions[_mmdScrollKey] = el.scrollTop; }
+  }
+
+  function _mmdRestoreScrollPosition() {
+    _mmdScrollKey = _mmdPendingScrollKey;
+    var el = _mmdScrollTarget();
+    if (el) { el.scrollTop = (_mmdScrollKey !== null && _mmdScrollPositions[_mmdScrollKey]) || 0; }
+  }
+
   // 行番号表示状態を更新する。再描画はしない: Swift 側(ViewerWebView)が
   // 状態変更時に必ず続けて render を送るため、ここで再描画すると全文
   // 再ハイライトが二重に走る。
@@ -732,6 +757,7 @@
   }
 
   async function render(content, type, lang) {
+    _mmdSaveScrollPosition();
     _currentType = type;
     _lastContent = content;
     _lastType = type;
@@ -744,6 +770,7 @@
 
     if (_viewMode === 'source' && type !== 'code' && type !== 'image' && type !== 'pdf') {
       _renderSource(content, type, lang);
+      _mmdRestoreScrollPosition();
       return;
     }
 
@@ -863,6 +890,7 @@
     _annotatePathRefs();
     _mmdFindRefreshAfterRender();
     _mmdApplyZoom();
+    _mmdRestoreScrollPosition();
   }
 
   function _renderSource(content, type, lang) {
