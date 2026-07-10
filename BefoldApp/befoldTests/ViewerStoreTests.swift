@@ -338,6 +338,92 @@ struct ViewerStoreTests {
     }
 
     @Test
+    func openFileFiresOnContentReloaded() {
+        let file = URL(fileURLWithPath: "/files/test.mmd")
+        let reader = InMemoryFileReader()
+        reader.setFile("graph TD; A-->B", at: file)
+
+        let store = makeStore(reader: reader)
+        nonisolated(unsafe) var firedCount = 0
+        store.onContentReloaded = { firedCount += 1 }
+        store.openFile(file)
+
+        #expect(firedCount == 1)
+
+        store.close()
+    }
+
+    @Test
+    func watcherCallbackFiresOnContentReloaded() {
+        let file = URL(fileURLWithPath: "/files/test.mmd")
+        let reader = InMemoryFileReader()
+        reader.setFile("graph TD; A-->B", at: file)
+
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
+        nonisolated(unsafe) var firedCount = 0
+        store.onContentReloaded = { firedCount += 1 }
+        store.openFile(file)
+        #expect(firedCount == 1)
+
+        // ファイル変更(監視コールバック)のたびに再発火する。
+        reader.setFile("graph TD; X-->Y", at: file)
+        onChangeBox.get()?()
+
+        #expect(firedCount == 2)
+
+        store.close()
+    }
+
+    /// ファイルサイズ超過 → 縮小のような、isUnsupported が変化する再読込でも発火することを確認する。
+    @Test
+    func watcherCallbackFiresOnContentReloadedWhenUnsupportedChanges() {
+        let file = URL(fileURLWithPath: "/files/huge.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("col1,col2\n1,2", at: file)
+        reader.setSize(ViewerStore.maxFileSizeBytes + 1, at: file)
+
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
+        nonisolated(unsafe) var firedCount = 0
+        store.onContentReloaded = { firedCount += 1 }
+        store.openFile(file)
+        #expect(store.isUnsupported)
+        #expect(firedCount == 1)
+
+        // サイズが上限内に戻る → isUnsupported が false に変わる再読込でも発火する。
+        reader.setSize(ViewerStore.maxFileSizeBytes, at: file)
+        onChangeBox.get()?()
+
+        #expect(!store.isUnsupported)
+        #expect(firedCount == 2)
+
+        store.close()
+    }
+
+    @Test
+    func watcherRenameFiresOnContentReloaded() {
+        let oldFile = URL(fileURLWithPath: "/files/old.mmd")
+        let reader = InMemoryFileReader()
+        reader.setFile("graph TD; A-->B", at: oldFile)
+
+        let onRenameBox = LockedBox<(@MainActor @Sendable (URL) -> Void)?>(nil)
+        let store = makeStore(reader: reader, onRenameBox: onRenameBox)
+        nonisolated(unsafe) var firedCount = 0
+        store.onContentReloaded = { firedCount += 1 }
+        store.openFile(oldFile)
+        #expect(firedCount == 1)
+
+        let newFile = URL(fileURLWithPath: "/files/renamed.md")
+        reader.setFile("# Renamed", at: newFile)
+        onRenameBox.get()?(newFile)
+
+        #expect(firedCount == 2)
+
+        store.close()
+    }
+
+    @Test
     func openFileStopsPreviousWatcher() {
         let file1 = URL(fileURLWithPath: "/files/a.mmd")
         let reader = InMemoryFileReader()
@@ -412,6 +498,22 @@ struct ViewerStoreFileGoneTests {
 
         await waitUntilOnMainActor { firedCount == 1 }
         #expect(firedCount == 1)
+
+        store.close()
+    }
+
+    @Test
+    func openNonexistentFileDoesNotFireOnContentReloaded() {
+        let file = URL(fileURLWithPath: "/files/missing.mmd")
+        let store = makeStore(reader: InMemoryFileReader())
+
+        nonisolated(unsafe) var firedCount = 0
+        store.onContentReloaded = { firedCount += 1 }
+        store.openFile(file)
+
+        // ファイルが存在しない場合は scheduleFileGone() へ抜けるため、
+        // 内容は確定せず onContentReloaded は発火しない。
+        #expect(firedCount == 0)
 
         store.close()
     }

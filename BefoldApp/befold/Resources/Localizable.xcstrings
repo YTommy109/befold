@@ -255,6 +255,27 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "レンダリング表示" } }
       }
     },
+    "toolbar.mode.group" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Display Mode" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "表示モード" } }
+      }
+    },
+    "toolbar.mode.preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Preview" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プレビュー" } }
+      }
+    },
+    "toolbar.mode.source" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Source" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ソース" } }
+      }
+    },
     "menu.view.showLineNumbers" : {
       "extractionState" : "manual",
       "localizations" : {

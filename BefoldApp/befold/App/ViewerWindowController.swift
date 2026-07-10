@@ -2,13 +2,19 @@ import AppKit
 import SwiftUI
 import WebKit
 
+/// モード切替セグメントコントロールのセグメント位置(0=プレビュー, 1=ソース)。
+private enum ModeSegment: Int, Sendable {
+    case preview = 0
+    case source = 1
+}
+
 /// 1 ファイルに対応する 1 ウィンドウを管理する NSWindowController。
 /// SwiftUI の ViewerContentView を NSHostingView 経由で表示する。
 final class ViewerWindowController: NSWindowController {
     /// 最後に調整したウィンドウフレーム（位置＋サイズ）の保存キー。全ウィンドウで共有する。
     private static let lastWindowFrameKey = "LastWindowFrame"
     private static let defaultContentSize = NSSize(width: 1100, height: 850)
-    private static let sourceToggleItemIdentifier = NSToolbarItem.Identifier("sourceToggle")
+    private static let modeToggleItemIdentifier = NSToolbarItem.Identifier("modeToggle")
 
     private let defaults: UserDefaults
     private let store: ViewerStore
@@ -151,10 +157,13 @@ final class ViewerWindowController: NSWindowController {
         store.onFileRenamed = { [weak self] newURL in
             self?.handleRename(to: newURL)
         }
+        store.onContentReloaded = { [weak self] in
+            self?.updateModeToggleAppearance()
+        }
         store.openFile(fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
+        // applySourceMode が内部で updateModeToggleAppearance() を呼ぶため、ここでの明示呼び出しは不要。
         applySourceMode(FileType(url: fileURL).supportsSourceMode && sourceModeStore.isSourceMode(for: fileURL))
-        updateToolbarVisibility()
         sidebar.recordHistory()
     }
 
@@ -240,10 +249,12 @@ final class ViewerWindowController: NSWindowController {
         // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
         // (例: .md → .swift、.md → .png)ソース表示トグルが成立しなくなる
         // 場合のみリセットする。
+        // store.handleRename が loadContent 経由で onContentReloaded を発火済みのため、
+        // ここでの明示的な updateModeToggleAppearance() 呼び出しは不要
+        // (resetSourceMode() が走る場合は applySourceMode 内で再同期される)。
         if isSourceMode, !FileType(url: newURL).supportsSourceMode {
             resetSourceMode()
         }
-        updateToolbarVisibility()
         let newDir = newURL.deletingLastPathComponent()
         if newDir.normalizedPathKey
             != fileListModel.currentDirectory.normalizedPathKey
@@ -314,8 +325,9 @@ final class ViewerWindowController: NSWindowController {
             && sourceModeStore.isSourceMode(for: newURL)
         applySourceMode(restoredSourceMode)
         applyURLToWindow(newURL)
+        // fileExists を確認済みなので store.openFile は必ず loadContent → onContentReloaded まで
+        // 到達し、そこで updateModeToggleAppearance() が発火する。ここでの明示呼び出しは不要。
         store.openFile(newURL)
-        updateToolbarVisibility()
         applyStoredZoomToWebView()
         onSwitchFile?(oldURL, newURL)
         return true
@@ -450,48 +462,56 @@ extension ViewerWindowController: NSWindowDelegate {
         store.showLineNumbers.toggle()
     }
 
-    /// Toolbar > ソース表示トグル。レンダリング表示とソース表示を切り替える。
+    /// View メニュー > ソース表示トグル。レンダリング表示とソース表示を切り替える。
     @objc func toggleSourceView(_ sender: Any?) {
-        applySourceMode(!isSourceMode)
+        setSourceMode(!isSourceMode)
+    }
+
+    /// モード切替セグメントコントロールの選択変更を受けて呼ばれる。
+    @objc private func modeSegmentChanged(_ sender: NSSegmentedControl) {
+        setSourceMode(sender.selectedSegment == ModeSegment.source.rawValue)
+    }
+
+    /// isSourceMode を変更し、store・永続化・モード切替セグメントの表示更新までを一貫して行う。
+    private func setSourceMode(_ newValue: Bool) {
+        applySourceMode(newValue)
         sourceModeStore.setSourceMode(isSourceMode, for: fileURL)
     }
 
-    /// isSourceMode を変更し、store への反映とトグルボタン表示更新までを一貫して行う。
+    /// isSourceMode を変更し、store への反映とモード切替セグメントの表示更新までを一貫して行う。
     /// isSourceMode の変更が store 経由で SwiftUI の更新サイクルをトリガーし、
     /// ViewerWebView.updateNSView → updateContent が呼ばれ、
     /// 自動的にモード切替(必要なら再描画)が行われる。
     private func applySourceMode(_ newValue: Bool) {
-        guard isSourceMode != newValue else { return }
-        isSourceMode = newValue
-        store.isSourceMode = newValue
-        updateSourceToggleAppearance()
+        if isSourceMode != newValue {
+            isSourceMode = newValue
+            store.isSourceMode = newValue
+        }
+        updateModeToggleAppearance()
     }
 
-    /// トグルボタンの見た目(アイコン・ツールチップ)を現在のモードに合わせて更新する。
-    private func updateSourceToggleAppearance(_ item: NSToolbarItem? = nil) {
+    /// モード切替セグメントの選択状態・有効/無効を現在のファイル種別に合わせて更新する。
+    /// プレビューできない種別(.code)ではソース側を、テキストソースを持たない
+    /// バイナリ種別(画像・PDF)ではプレビュー側を、それぞれ選択済み・唯一の有効状態にする。
+    /// - Parameter item: 更新対象のツールバーアイテム。省略時は window.toolbar から検索する
+    ///   (生成中でまだ toolbar.items に含まれないアイテムを更新する場合は明示的に渡すこと)。
+    private func updateModeToggleAppearance(_ item: NSToolbarItem? = nil) {
         guard let item = item ?? window?.toolbar?.items.first(where: {
-            $0.itemIdentifier == Self.sourceToggleItemIdentifier
-        }) else { return }
-        // ソース表示中はレンダリング表示へ戻すボタン、レンダリング表示中はソースを表示するボタン。
-        // ラベルはメニュー項目と同じローカライズ文字列を共有する。
-        let symbolName = isSourceMode ? "doc.richtext" : "chevron.left.forwardslash.chevron.right"
-        let label = isSourceMode
-            ? String(localized: "menu.view.showRendered", bundle: .l10n)
-            : String(localized: "menu.view.toggleSource", bundle: .l10n)
-        item.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: label)
-        item.label = label
-        item.toolTip = label
+            $0.itemIdentifier == Self.modeToggleItemIdentifier
+        }), let segmentedControl = item.view as? NSSegmentedControl else { return }
+        let isEnabled = !store.isUnsupported
+        segmentedControl.setEnabled(
+            store.fileType.isRenderable && isEnabled, forSegment: ModeSegment.preview.rawValue
+        )
+        segmentedControl.setEnabled(
+            !store.fileType.isBinaryContent && isEnabled, forSegment: ModeSegment.source.rawValue
+        )
+        segmentedControl.selectedSegment = (store.showsCodeContent ? ModeSegment.source : ModeSegment.preview).rawValue
     }
 
     /// ファイル切り替え時にソース表示状態をレンダリング表示にリセットする。
     private func resetSourceMode() {
         applySourceMode(false)
-    }
-
-    /// ツールバーの再バリデーションを要求する。トグルボタンの enabled 状態は
-    /// validateToolbarItem(_:) が現在のファイル種別から決める。
-    private func updateToolbarVisibility() {
-        window?.toolbar?.validateVisibleItems()
     }
 
     /// ソース表示トグルを有効にできるか。レンダリング可能な形式でも、
@@ -583,33 +603,37 @@ extension ViewerWindowController: NSToolbarDelegate {
         itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
-        guard itemIdentifier == Self.sourceToggleItemIdentifier else { return nil }
+        guard itemIdentifier == Self.modeToggleItemIdentifier else { return nil }
+        let previewLabel = String(localized: "toolbar.mode.preview", bundle: .l10n)
+        let sourceLabel = String(localized: "toolbar.mode.source", bundle: .l10n)
+        // ラベル文字列は状態に関わらず固定なので、セグメント幅が切替でジッターしない。
+        let segmentedControl = NSSegmentedControl(
+            images: [
+                NSImage(systemSymbolName: "doc.richtext", accessibilityDescription: previewLabel)!,
+                NSImage(
+                    systemSymbolName: "chevron.left.forwardslash.chevron.right",
+                    accessibilityDescription: sourceLabel
+                )!,
+            ],
+            trackingMode: .selectOne,
+            target: self,
+            action: #selector(modeSegmentChanged(_:))
+        )
+        segmentedControl.setToolTip(previewLabel, forSegment: ModeSegment.preview.rawValue)
+        segmentedControl.setToolTip(sourceLabel, forSegment: ModeSegment.source.rawValue)
+
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-        item.label = String(localized: "menu.view.toggleSource", bundle: .l10n)
-        item.isBordered = true
-        item.target = self
-        item.action = #selector(toggleSourceView(_:))
-        updateSourceToggleAppearance(item)
+        item.label = String(localized: "toolbar.mode.group", bundle: .l10n)
+        item.view = segmentedControl
+        updateModeToggleAppearance(item)
         return item
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .flexibleSpace, Self.sourceToggleItemIdentifier]
+        [.toggleSidebar, .flexibleSpace, Self.modeToggleItemIdentifier]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, Self.sourceToggleItemIdentifier, .flexibleSpace, .space]
-    }
-}
-
-// MARK: - NSToolbarItemValidation
-
-extension ViewerWindowController: NSToolbarItemValidation {
-    /// NSToolbar の自動バリデーションはターゲットがアクションに応答する限り
-    /// isEnabled を true に戻すため、手動で isEnabled を設定しても維持されない。
-    /// 唯一有効な制御点であるこのメソッドでファイル種別から enabled を決める。
-    func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
-        guard item.itemIdentifier == Self.sourceToggleItemIdentifier else { return true }
-        return canToggleSourceMode
+        [.toggleSidebar, Self.modeToggleItemIdentifier, .flexibleSpace, .space]
     }
 }
