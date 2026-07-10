@@ -10,20 +10,24 @@ final class ViewerWindowManager {
     private let recentDocumentsStore: RecentDocumentsStore
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
+    private let sourceModeStore: SourceModeStore
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
+    /// - Parameter sourceModeStore: 同上。ソース表示モード挙動に無関心なテストが省略できるようにする。
     init(
         sessionStore: SessionStore, zoomStore: ZoomStore, recentDocumentsStore: RecentDocumentsStore,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
-        findOptionsPreference: FindOptionsPreference = FindOptionsPreference()
+        findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
+        sourceModeStore: SourceModeStore = SourceModeStore()
     ) {
         self.sessionStore = sessionStore
         self.zoomStore = zoomStore
         self.recentDocumentsStore = recentDocumentsStore
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
+        self.sourceModeStore = sourceModeStore
     }
 
     /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
@@ -60,6 +64,7 @@ final class ViewerWindowManager {
             zoomStore: zoomStore,
             hiddenFilesPreference: hiddenFilesPreference,
             findOptionsPreference: findOptionsPreference,
+            sourceModeStore: sourceModeStore,
             forceSidebarVisible: forceSidebarVisible
         )
         controllers[key] = controller
