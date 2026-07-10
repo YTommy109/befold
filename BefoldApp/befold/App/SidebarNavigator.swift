@@ -74,10 +74,16 @@ final class SidebarNavigator {
         )
         ensureCurrentFile(in: &entries, currentFile: host.currentFileURL)
         fileListModel.entries = entries
-        let matched = matchingEntryURL(for: host.currentFileURL)
-        if fileListModel.selection != matched {
-            fileListModel.selection = matched
-        }
+
+        // 既存の選択(フォルダーも含む)が一覧内に残っていればそのまま保持する。
+        // フォルダー選択時は currentFileURL と一致しない状態が正当にあり得るため、
+        // ここで currentFileURL への一致を強制してはならない(issue #161)。
+        let selectionStillValid = fileListModel.selection.map { selection in
+            let selectionKey = selection.normalizedPathKey
+            return entries.contains { $0.url.normalizedPathKey == selectionKey }
+        } ?? false
+        guard !selectionStillValid else { return }
+        fileListModel.selection = matchingEntryURL(for: host.currentFileURL)
     }
 
     /// エントリ一覧に現在のファイルが含まれていなければ末尾に追加する。

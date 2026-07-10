@@ -85,4 +85,28 @@ struct SidebarNavigatorIntegrationTests {
         controller.navigateToFolder(level3)
         #expect(controller.fileListModel.rootDirectory.path == level2.path)
     }
+
+    @Test("フォルダーを選択した状態で refreshFileList してもフォルダー選択が保持される")
+    func refreshFileListPreservesFolderSelection() throws {
+        let base = try makeHomeTempDir()
+        defer { withExtendedLifetime(base) {} }
+
+        // base/dir/(file.mmd, sub/)
+        let dir = base.url.appendingPathComponent("dir", isDirectory: true)
+        let sub = dir.appendingPathComponent("sub", isDirectory: true)
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("file.mmd")
+        try "graph TD; A-->B".write(to: file, atomically: true, encoding: .utf8)
+
+        let controller = makeController(file: file)
+        defer { controller.close() }
+
+        // issue #161: ファイルではなくフォルダーをサイドバーで選択した状態を再現する。
+        controller.fileListModel.selection = sub
+
+        // 他アプリへ切り替えて戻ってきた際に windowDidBecomeKey から呼ばれる処理。
+        controller.sidebar.refreshFileList()
+
+        #expect(controller.fileListModel.selection == sub)
+    }
 }
