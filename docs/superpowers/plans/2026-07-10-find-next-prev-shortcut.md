@@ -332,7 +332,8 @@ open /Users/tokutomi/.warp/worktrees/behold/mogote-switchback/BefoldApp/.build/x
 
 - [ ] **Step 2: 検索バーが閉じている状態で `⌘G` / `⌘Shift+G` を押しても何も起きないことを確認する**
 
-Mermaid または Markdown ファイルを開き、検索バーを開かずに `⌘G` と `⌘Shift+G` を押す。表示内容・フォーカスに変化がないこと。Edit メニューを開き、「次を検索」「前を検索」がグレーアウトしていることも確認する。
+Mermaid または Markdown ファイルを開き、検索バーを開かずに `⌘G` と `⌘Shift+G` を押す。表示内容・フォーカスに変化がないこと。
+（Edit メニューの「次を検索」「前を検索」自体は HTML 直接表示モード以外では常に有効のままで、グレーアウトはしない。開閉判定は JS 側の no-op ガードのみで行うため。）
 
 - [ ] **Step 3: 検索バーを開いた状態で前後移動が動くことを確認する**
 
