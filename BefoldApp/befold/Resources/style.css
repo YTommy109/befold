@@ -450,6 +450,10 @@ body {
   background: var(--btn-hover-bg);
 }
 
+.mmd-find-nav svg {
+  display: block;
+}
+
 .mmd-find-toggle.active {
   background: var(--accent);
   color: #fff;

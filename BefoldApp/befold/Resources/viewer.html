@@ -29,8 +29,12 @@
   <div id="mmd-find-bar" class="mmd-find-bar">
     <input id="mmd-find-input" type="text" class="mmd-find-input" placeholder="検索">
     <span id="mmd-find-count" class="mmd-find-count"></span>
-    <button id="mmd-find-prev" class="mmd-find-nav" title="前へ (Shift+Enter)">&#728;</button>
-    <button id="mmd-find-next" class="mmd-find-nav" title="次へ (Enter)">&#711;</button>
+    <button id="mmd-find-prev" class="mmd-find-nav mmd-find-nav-prev" title="前へ (Shift+Enter)">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 6.5L5 2.5L9 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button id="mmd-find-next" class="mmd-find-nav mmd-find-nav-next" title="次へ (Enter)">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 3.5L5 7.5L9 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
     <button id="mmd-find-case" class="mmd-find-toggle" title="大文字・小文字を区別">Aa</button>
     <button id="mmd-find-word" class="mmd-find-toggle" title="単語単位で検索">ab|</button>
     <button id="mmd-find-regex" class="mmd-find-toggle" title="正規表現">.*</button>
