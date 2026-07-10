@@ -62,6 +62,12 @@ struct ViewerWebView: NSViewRepresentable {
             forMainFrameOnly: true
         )
         config.userContentController.addUserScript(findOptionsScript)
+        let findStringsScript = WKUserScript(
+            source: ViewerBridge.findStringsScript(),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(findStringsScript)
         config.userContentController.add(
             WeakScriptMessageHandler(delegate: context.coordinator),
             name: ViewerBridge.findOptionsChangedMessageName

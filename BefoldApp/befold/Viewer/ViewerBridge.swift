@@ -84,4 +84,27 @@ enum ViewerBridge {
         "window._mmdInitialFindOptions = { caseSensitive: \(options.caseSensitive), " +
             "wholeWord: \(options.wholeWord), useRegex: \(options.useRegex) };"
     }
+
+    /// ロード時に検索バーのローカライズ済み文字列を注入するスクリプト。
+    /// viewer.html 側は _mmdInitFind() が window._mmdFindStrings を読んで各要素に適用する。
+    /// JSONEncoder でエスケープし、ローカライズ済み文字列に引用符等が含まれても
+    /// JS オブジェクトリテラルを壊さないようにする。
+    static func findStringsScript() -> String {
+        let strings: [String: String] = [
+            "placeholder": String(localized: "viewer.find.placeholder", bundle: .l10n),
+            "previous": String(localized: "viewer.find.previous", bundle: .l10n),
+            "next": String(localized: "viewer.find.next", bundle: .l10n),
+            "matchCase": String(localized: "viewer.find.matchCase", bundle: .l10n),
+            "matchWholeWord": String(localized: "viewer.find.matchWholeWord", bundle: .l10n),
+            "useRegularExpression": String(localized: "viewer.find.useRegularExpression", bundle: .l10n),
+            "close": String(localized: "viewer.find.close", bundle: .l10n),
+            "noResults": String(localized: "viewer.find.noResults", bundle: .l10n),
+        ]
+        guard let jsonData = try? JSONEncoder().encode(strings),
+              let jsonString = String(data: jsonData, encoding: .utf8)
+        else {
+            return "window._mmdFindStrings = {};"
+        }
+        return "window._mmdFindStrings = \(jsonString);"
+    }
 }

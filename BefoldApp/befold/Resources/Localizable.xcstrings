@@ -507,6 +507,62 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to install the 'befold' command." } },
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "'befold' コマンドのインストールに失敗しました。" } }
       }
+    },
+    "viewer.find.placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "検索" } }
+      }
+    },
+    "viewer.find.previous" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous (Shift+Enter)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "前へ (Shift+Enter)" } }
+      }
+    },
+    "viewer.find.next" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next (Enter)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次へ (Enter)" } }
+      }
+    },
+    "viewer.find.matchCase" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Match Case" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "大文字・小文字を区別" } }
+      }
+    },
+    "viewer.find.matchWholeWord" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Match Whole Word" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "単語単位で検索" } }
+      }
+    },
+    "viewer.find.useRegularExpression" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use Regular Expression" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "正規表現" } }
+      }
+    },
+    "viewer.find.close" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close (Esc)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "閉じる (Esc)" } }
+      }
+    },
+    "viewer.find.noResults" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No results" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "見つかりません" } }
+      }
     }
   },
   "version" : "1.0"

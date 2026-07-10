@@ -24,6 +24,8 @@
     <div id="diagram-wrap"></div>
   </div>
 
+  <!-- placeholder/title は _mmdInitFind() が window._mmdFindStrings(ローカライズ済み)で
+       上書きする。未定義時のフォールバックとして日本語を静的に残す。 -->
   <div id="mmd-find-bar" class="mmd-find-bar">
     <input id="mmd-find-input" type="text" class="mmd-find-input" placeholder="検索">
     <span id="mmd-find-count" class="mmd-find-count"></span>
@@ -434,8 +436,11 @@
   var _mmdFindMatches = [];
   var _mmdFindCurrentIndex = -1;
   var _mmdFindIsOpenFlag = false;
+  // マッチなし表示文字列。_mmdInitFind() が window._mmdFindStrings(Swift から注入)で上書きする。
+  var _mmdFindNoResultsText = '見つかりません';
 
-  // ロード時に保存済みトグル状態(window._mmdInitialFindOptions、Swift から注入)を反映する。
+  // ロード時に保存済みトグル状態(window._mmdInitialFindOptions、Swift から注入)と
+  // ローカライズ済み文字列(window._mmdFindStrings、Swift から注入)を反映する。
   function _mmdInitFind() {
     var opts = window._mmdInitialFindOptions || {};
     _mmdFindOptions.caseSensitive = !!opts.caseSensitive;
@@ -444,6 +449,19 @@
     document.getElementById('mmd-find-case').classList.toggle('active', _mmdFindOptions.caseSensitive);
     document.getElementById('mmd-find-word').classList.toggle('active', _mmdFindOptions.wholeWord);
     document.getElementById('mmd-find-regex').classList.toggle('active', _mmdFindOptions.useRegex);
+
+    var strings = window._mmdFindStrings || {};
+    var input = document.getElementById('mmd-find-input');
+    if (strings.placeholder) { input.placeholder = strings.placeholder; }
+    if (strings.previous) { document.getElementById('mmd-find-prev').title = strings.previous; }
+    if (strings.next) { document.getElementById('mmd-find-next').title = strings.next; }
+    if (strings.matchCase) { document.getElementById('mmd-find-case').title = strings.matchCase; }
+    if (strings.matchWholeWord) { document.getElementById('mmd-find-word').title = strings.matchWholeWord; }
+    if (strings.useRegularExpression) {
+      document.getElementById('mmd-find-regex').title = strings.useRegularExpression;
+    }
+    if (strings.close) { document.getElementById('mmd-find-close').title = strings.close; }
+    if (strings.noResults) { _mmdFindNoResultsText = strings.noResults; }
   }
 
   function _mmdFindIsOpen() {
@@ -469,15 +487,18 @@
   }
 
   // 前回検索でハイライトした <mark> を平文へ復元する(次の検索前に必ず呼ぶ)。
+  // normalize() は親ごとに1回だけ呼ぶ(同じ親に複数の <mark> がある場合の重複呼び出しを避ける)。
   function _mmdFindClearMarks() {
     var marks = document.querySelectorAll('#diagram-wrap mark.mmd-find-match');
+    var parents = new Set();
     marks.forEach(function(mark) {
       var text = document.createTextNode(mark.textContent);
       var parent = mark.parentNode;
       if (!parent) return;
       parent.replaceChild(text, mark);
-      parent.normalize();
+      parents.add(parent);
     });
+    parents.forEach(function(parent) { parent.normalize(); });
   }
 
   // 1つのテキストノード内のマッチをすべて <mark> に置換し、matches に追加する。
@@ -535,7 +556,7 @@
     if (_mmdFindQuery.length === 0 || input.classList.contains('mmd-find-error')) {
       countEl.textContent = '';
     } else if (_mmdFindMatches.length === 0) {
-      countEl.textContent = '見つかりません';
+      countEl.textContent = _mmdFindNoResultsText;
     } else {
       countEl.textContent = (_mmdFindCurrentIndex + 1) + '/' + _mmdFindMatches.length;
     }
