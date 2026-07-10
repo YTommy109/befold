@@ -394,7 +394,9 @@ private struct StopCountingWatcher: FileWatching {
 
 /// ファイル削除確定(グレース期間付き onFileGone)まわりのテスト。
 /// ViewerStoreTests から分離し、型の行数を SwiftLint の type_body_length 内に収める。
-@Suite
+/// 実時間の固定スリープ(グレース期間 1s)に依存するため、CI での並列実行による
+/// MainActor 混雑を避けて直列化する(docs/dev/flaky-test-filewatcher-investigation.md 参照)。
+@Suite(.serialized)
 @MainActor
 struct ViewerStoreFileGoneTests {
     @Test

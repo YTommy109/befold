@@ -24,7 +24,7 @@ jobs:
   build-and-test:
     # PR と main push で走らせる（nightly は TSan のみで十分）
     if: github.event_name != 'schedule'
-    runs-on: macos-15
+    runs-on: macos-26
     defaults:
       run:
         working-directory: BefoldApp
@@ -33,15 +33,15 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '16.2'
+          xcode-version: '26.5'
 
       # SPM のビルド成果物をキャッシュしてコールドビルドを避ける
       - uses: actions/cache@v4
         with:
           path: BefoldApp/.build
-          key: spm-${{ runner.os }}-${{ hashFiles('BefoldApp/Package.resolved') }}
+          key: spm-${{ runner.os }}-xcode26.5-${{ hashFiles('BefoldApp/Package.resolved') }}
           restore-keys: |
-            spm-${{ runner.os }}-
+            spm-${{ runner.os }}-xcode26.5-
 
       - name: アプリをビルドする（SwiftLint も実行される）
         run: swift build
@@ -77,7 +77,7 @@ jobs:
   thread-sanitizer:
     # コストが高いため PR では回さず、main push と nightly に限定する
     if: github.event_name == 'push' || github.event_name == 'schedule'
-    runs-on: macos-15
+    runs-on: macos-26
     defaults:
       run:
         working-directory: BefoldApp
@@ -86,15 +86,15 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '16.2'
+          xcode-version: '26.5'
 
       # TSan 計装ビルドは通常ビルドと別成果物のためキャッシュキーを分ける
       - uses: actions/cache@v4
         with:
           path: BefoldApp/.build
-          key: spm-tsan-${{ runner.os }}-${{ hashFiles('BefoldApp/Package.resolved') }}
+          key: spm-tsan-${{ runner.os }}-xcode26.5-${{ hashFiles('BefoldApp/Package.resolved') }}
           restore-keys: |
-            spm-tsan-${{ runner.os }}-
+            spm-tsan-${{ runner.os }}-xcode26.5-
 
       # FileWatcher / Debouncer は GCD/DispatchSource でスレッド安全性を保証しており、
       # データ競合の回帰を ThreadSanitizer で検出する。

@@ -4,7 +4,7 @@ options:
   developmentLanguage: en
   deploymentTarget:
     macOS: "14.0"
-  xcodeVersion: "16.0"
+  xcodeVersion: "26.5"
 settings:
   base:
     SWIFT_VERSION: "6.0"
