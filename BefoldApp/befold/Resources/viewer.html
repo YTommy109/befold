@@ -540,6 +540,11 @@
   // <mark> を挿入すると描画されず文字が消え、mermaid が注入する <style> の中身を
   // 誤ってラップすると図のスタイルも壊れるため。この結果、mermaid 図のラベル文字列
   // (SVG text)は検索対象外となるが、これは意図したスコープ境界であり見落としではない。
+  //
+  // 注意: DOM 仕様上 Element.tagName が ASCII 大文字化されるのは HTML 名前空間の要素の
+  // みで、SVG 名前空間の要素(mermaid が描画する <svg>/<text>/<tspan> や注入する
+  // <style> を含む)の tagName は大文字化されず小文字のまま返る(例: 'svg'、'style')。
+  // このリストは大文字で保持しつつ、比較側で toUpperCase() して正規化する。
   var _mmdFindSkipTags = ['MARK', 'SVG', 'STYLE', 'SCRIPT'];
 
   // #diagram-wrap 配下のテキストノードを再帰的に歩き、マッチを <mark> に置換する。
@@ -548,7 +553,7 @@
   function _mmdFindWalk(node, regex, matches) {
     if (node.nodeType === 3) {
       _mmdFindWalkText(node, regex, matches);
-    } else if (node.nodeType === 1 && _mmdFindSkipTags.indexOf(node.tagName) === -1) {
+    } else if (node.nodeType === 1 && _mmdFindSkipTags.indexOf(node.tagName.toUpperCase()) === -1) {
       var children = Array.prototype.slice.call(node.childNodes);
       for (var i = 0; i < children.length; i++) {
         _mmdFindWalk(children[i], regex, matches);

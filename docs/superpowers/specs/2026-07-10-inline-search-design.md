@@ -64,6 +64,8 @@ viewer.html / viewer.js (新規ロジック)
 </div>
 ```
 
+(注: この `placeholder="検索"` は例示。実装では quality-loop レビューで追加された `ViewerBridge.findStringsScript()` により、プレースホルダーを含む検索バーの全文言(ツールチップ・「見つかりません」等)が `window._mmdFindStrings` 経由でローカライズ注入される。対応するキーは `Localizable.xcstrings` の `viewer.find.*` を参照。)
+
 - 位置: `position: fixed; top: 12px; right: 12px;` の半透明パネル(既存 `.diagram-zoom-controls` と近い見た目のトーン)
 - トグルボタンは ON 時に `.active` クラスで背景色を付ける
 - 正規表現構文エラー時は `#mmd-find-input` に `.mmd-find-error` クラスを付け赤枠にし、`#mmd-find-count` は空にする
@@ -112,7 +114,11 @@ struct FindOptions: Codable {
     var wholeWord: Bool
     var useRegex: Bool
 }
+```
 
+(注: 実装では `Codable` ではなく `Equatable` に準拠する。この struct は Swift 側で生成し手動で JS 文字列に埋め込むだけでエンコード/デコードされないため。)
+
+```swift
 static func initialFindOptionsScript(_ options: FindOptions) -> String {
     "window._mmdInitialFindOptions = { caseSensitive: \(options.caseSensitive), " +
     "wholeWord: \(options.wholeWord), useRegex: \(options.useRegex) };"

@@ -626,6 +626,7 @@ Expected: PASS(`bridgeFunctionsExistInViewerHTML` を含め全て通る)
 - [ ] **Step 8: 手動テストで JS ロジックを検証する**
 
 `buildFindRegExp` を含む JS ロジックにはこのプロジェクトの自動テスト基盤が及ばない(`WebView/GUI 層: 自動テスト対象外` — プロジェクト規約)ため、この時点でアプリをビルドして手動確認する。
+[実際には Jest 基盤(`BefoldApp/package.json` の `jest` / `npm test`)と `__tests__/viewer.test.js` が既に存在し、この前提は誤りだった。quality-loop レビューで `buildFindRegExp` は export されテストが追加された — 詳細は該当コミット参照]
 
 Run: `cd BefoldApp && xcodegen generate && xcodebuild build -scheme befold`
 Expected: ビルド成功
