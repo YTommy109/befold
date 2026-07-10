@@ -40,6 +40,11 @@ final class ViewerStore {
     /// グレース期間(1 秒)中に再作成されなかった場合に発火する。
     var onFileGone: (@MainActor @Sendable () -> Void)?
 
+    /// 開いたままのファイルが内容を再読込した(FileWatcher 経由の変更検知・rename)ときに
+    /// 呼ばれるコールバック。isUnsupported / showsCodeContent など loadContent が
+    /// 確定させた表示状態を、AppKit ツールバー側に追従させるために使う。
+    var onContentReloaded: (() -> Void)?
+
     /// 削除確認のグレース期間タスク。再作成されたらキャンセルする。
     private var fileGoneTask: Task<Void, Never>?
 
@@ -121,10 +126,7 @@ final class ViewerStore {
         if let size = fileReader.fileSize(at: resolved), size > sizeLimit {
             isUnsupported = true
             content = ""
-            return
-        }
-
-        if fileType.isBinaryContent {
+        } else if fileType.isBinaryContent {
             if let data = try? fileReader.readData(from: resolved) {
                 isUnsupported = false
                 content = data.base64EncodedString()
@@ -134,16 +136,15 @@ final class ViewerStore {
                 isUnsupported = true
                 content = ""
             }
-            return
-        }
-
-        guard !fileReader.isBinary(at: resolved) else {
+        } else if fileReader.isBinary(at: resolved) {
             isUnsupported = true
             content = ""
-            return
+        } else {
+            isUnsupported = false
+            content = (try? fileReader.readString(from: resolved)) ?? ""
         }
-        isUnsupported = false
-        content = (try? fileReader.readString(from: resolved)) ?? ""
+        // isUnsupported / content(表示状態)が確定した後に通知する。
+        onContentReloaded?()
     }
 
     /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
