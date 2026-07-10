@@ -414,20 +414,24 @@ extension ViewerWindowController: NSWindowDelegate {
     /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないため無効化する
     /// (validateMenuItem 側で判定)。
     @objc func find(_ sender: Any?) {
-        guard let webView = webViewProxy.webView, !webViewProxy.isDirectHTMLMode else { return }
-        webView.evaluateJavaScript(ViewerBridge.openFindScript)
+        runFindScript(ViewerBridge.openFindScript)
     }
 
     /// Edit > 次を検索。検索バーが開いている間のみ JS 側で処理される。
     @objc func findNext(_ sender: Any?) {
-        guard let webView = webViewProxy.webView, !webViewProxy.isDirectHTMLMode else { return }
-        webView.evaluateJavaScript(ViewerBridge.findNextScript)
+        runFindScript(ViewerBridge.findNextScript)
     }
 
     /// Edit > 前を検索。検索バーが開いている間のみ JS 側で処理される。
     @objc func findPrevious(_ sender: Any?) {
+        runFindScript(ViewerBridge.findPrevScript)
+    }
+
+    /// find / findNext / findPrevious 共通のガードと JS 実行。
+    /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないためスキップする。
+    private func runFindScript(_ script: String) {
         guard let webView = webViewProxy.webView, !webViewProxy.isDirectHTMLMode else { return }
-        webView.evaluateJavaScript(ViewerBridge.findPrevScript)
+        webView.evaluateJavaScript(script)
     }
 
     /// View > Toggle Line Numbers。行番号表示の有無を切り替える。
@@ -494,10 +498,8 @@ extension ViewerWindowController: NSWindowDelegate {
                 : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
             return store.showsCodeContent
         }
-        if menuItem.action == #selector(find(_:)) {
-            return !webViewProxy.isDirectHTMLMode
-        }
-        if menuItem.action == #selector(findNext(_:)) || menuItem.action == #selector(findPrevious(_:)) {
+        let findActions: [Selector] = [#selector(find(_:)), #selector(findNext(_:)), #selector(findPrevious(_:))]
+        if let action = menuItem.action, findActions.contains(action) {
             return !webViewProxy.isDirectHTMLMode
         }
         return true

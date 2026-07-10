@@ -587,7 +587,7 @@
       }
     },
     "viewer.find.close" : {
-      "comment" : "「Esc」は viewer.html の mmd-find-input keydown ハンドラ（e.key === 'Escape'）と一致させること。",
+      "comment" : "「Esc」は viewer.html の document keydown ハンドラ（e.key === 'Escape' && _mmdFindIsOpen()）と一致させること。",
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Close (Esc)" } },

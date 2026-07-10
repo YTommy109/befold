@@ -14,30 +14,33 @@ struct FindOptionsPreferenceTests {
         #expect(preference.useRegex == false)
     }
 
-    @Test("caseSensitive をトグルした値は UserDefaults に永続化され、次のインスタンスへ引き継がれる")
-    func caseSensitiveTogglePersistsAcrossInstances() {
-        let defaults = makeIsolatedDefaults(prefix: "FindOptionsPreferenceTests")
+    /// トグルするプロパティを指す KeyPath は @MainActor 境界を跨ぐ @Test(arguments:) では
+    /// Sendable 要件を満たせないため、@MainActor クロージャで包んで Sendable にする。
+    struct BoolProperty: Sendable, CustomTestStringConvertible {
+        let name: String
+        let get: @MainActor @Sendable (FindOptionsPreference) -> Bool
+        let set: @MainActor @Sendable (FindOptionsPreference) -> Void
 
-        FindOptionsPreference(defaults: defaults).caseSensitive = true
-
-        #expect(FindOptionsPreference(defaults: defaults).caseSensitive == true)
+        var testDescription: String {
+            name
+        }
     }
 
-    @Test("wholeWord をトグルした値は UserDefaults に永続化され、次のインスタンスへ引き継がれる")
-    func wholeWordTogglePersistsAcrossInstances() {
+    private nonisolated static let boolProperties: [BoolProperty] = [
+        BoolProperty(name: "caseSensitive", get: { $0.caseSensitive }, set: { $0.caseSensitive = true }),
+        BoolProperty(name: "wholeWord", get: { $0.wholeWord }, set: { $0.wholeWord = true }),
+        BoolProperty(name: "useRegex", get: { $0.useRegex }, set: { $0.useRegex = true }),
+    ]
+
+    @Test(
+        "トグルした値は UserDefaults に永続化され、次のインスタンスへ引き継がれる",
+        arguments: boolProperties
+    )
+    func togglePersistsAcrossInstances(_ property: BoolProperty) {
         let defaults = makeIsolatedDefaults(prefix: "FindOptionsPreferenceTests")
 
-        FindOptionsPreference(defaults: defaults).wholeWord = true
+        property.set(FindOptionsPreference(defaults: defaults))
 
-        #expect(FindOptionsPreference(defaults: defaults).wholeWord == true)
-    }
-
-    @Test("useRegex をトグルした値は UserDefaults に永続化され、次のインスタンスへ引き継がれる")
-    func useRegexTogglePersistsAcrossInstances() {
-        let defaults = makeIsolatedDefaults(prefix: "FindOptionsPreferenceTests")
-
-        FindOptionsPreference(defaults: defaults).useRegex = true
-
-        #expect(FindOptionsPreference(defaults: defaults).useRegex == true)
+        #expect(property.get(FindOptionsPreference(defaults: defaults)) == true)
     }
 }

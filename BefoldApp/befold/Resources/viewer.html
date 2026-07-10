@@ -123,7 +123,11 @@
   }
 
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && _mmdFindIsOpen()) {
+    // IME 変換中の Escape(候補キャンセル)では検索バーを閉じない。
+    // Enter 側の変換確定判定(_mmdInitFind 付近の keydown ハンドラ)と同じ理由:
+    // Safari/WKWebView は compositionend → keydown の順で発火するため isComposing は
+    // 既に false になりうるが、keyCode は 229 のまま残るためこれも合わせて判定する。
+    if (e.key === 'Escape' && _mmdFindIsOpen() && !e.isComposing && e.keyCode !== 229) {
       e.preventDefault();
       _mmdCloseFind();
       return;
@@ -599,7 +603,9 @@
   }
 
   // 入力・トグル変更のたびに呼ばれる: 現在のハイライトをクリアして再検索する。
-  function _mmdFindRun() {
+  // suppressAutoHighlight を true にすると、1件目への自動ハイライト・スクロールを行わない
+  // (呼び出し元が位置確定後に自分でハイライトする場合に使う。_mmdFindRefresh 参照)。
+  function _mmdFindRun(suppressAutoHighlight) {
     var input = document.getElementById('mmd-find-input');
     _mmdFindQuery = input.value;
     _mmdFindClearMarks();
@@ -615,7 +621,9 @@
 
     if (_mmdFindMatches.length > 0) {
       _mmdFindCurrentIndex = 0;
-      _mmdFindHighlightCurrent();
+      if (!suppressAutoHighlight) {
+        _mmdFindHighlightCurrent();
+      }
     }
     _mmdFindUpdateCount();
   }
@@ -625,9 +633,11 @@
   // resetToFirst が真の場合は1件目に位置をリセットする(モード切替時: レンダリング結果と
   // ソースコードとで DOM 構造に連続性がないため、位置維持に意味がない)。
   // 省略時は可能な限り現在位置を維持する(ライブリロード追従)。
+  // _mmdFindRun には suppressAutoHighlight=true を渡し、1件目への自動スクロールを抑止した上で、
+  // 位置確定後にここで1回だけ _mmdFindHighlightCurrent() を呼ぶ(二重スクロール防止)。
   function _mmdFindRefresh(resetToFirst) {
     var previousIndex = resetToFirst ? 0 : _mmdFindCurrentIndex;
-    _mmdFindRun();
+    _mmdFindRun(true);
     if (_mmdFindMatches.length > 0) {
       _mmdFindCurrentIndex = Math.min(Math.max(previousIndex, 0), _mmdFindMatches.length - 1);
       _mmdFindHighlightCurrent();
@@ -663,7 +673,7 @@
     _mmdFindRun();
   }
 
-  document.getElementById('mmd-find-input').addEventListener('input', _mmdFindRun);
+  document.getElementById('mmd-find-input').addEventListener('input', function() { _mmdFindRun(); });
   document.getElementById('mmd-find-input').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
       // Safari/WKWebView は compositionend → keydown の順で発火するため、
@@ -672,10 +682,9 @@
       if (e.isComposing || e.keyCode === 229) { return; }
       e.preventDefault();
       if (e.shiftKey) { _mmdFindPrev(); } else { _mmdFindNext(); }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      _mmdCloseFind();
     }
+    // Escape はここでは処理しない: document の keydown ハンドラがバブリングで捕捉し、
+    // _mmdFindIsOpen() 時に preventDefault + _mmdCloseFind() を行う(同じ挙動になる)。
   });
   document.getElementById('mmd-find-next').addEventListener('click', _mmdFindNext);
   document.getElementById('mmd-find-prev').addEventListener('click', _mmdFindPrev);
@@ -715,6 +724,12 @@
   }
   // PDF 表示用に生成した blob URL。再描画のたびに revoke してリークを防ぐ。
   var _pdfBlobUrl = null;
+
+  // render()/_renderSource() の末尾で検索状態を再描画後の内容に合わせて更新する。
+  function _mmdFindRefreshAfterRender() {
+    if (_mmdFindIsOpen()) { _mmdFindRefresh(_mmdModeJustSwitched); }
+    _mmdModeJustSwitched = false;
+  }
 
   async function render(content, type, lang) {
     _currentType = type;
@@ -846,8 +861,7 @@
     }
 
     _annotatePathRefs();
-    if (_mmdFindIsOpen()) { _mmdFindRefresh(_mmdModeJustSwitched); }
-    _mmdModeJustSwitched = false;
+    _mmdFindRefreshAfterRender();
     _mmdApplyZoom();
   }
 
@@ -863,8 +877,7 @@
                      : lang || 'plaintext';
       diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang, _showLineNumbers);
     }
-    if (_mmdFindIsOpen()) { _mmdFindRefresh(_mmdModeJustSwitched); }
-    _mmdModeJustSwitched = false;
+    _mmdFindRefreshAfterRender();
     _mmdApplyZoom();
   }
 
