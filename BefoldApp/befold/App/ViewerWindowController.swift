@@ -410,6 +410,14 @@ extension ViewerWindowController: NSWindowDelegate {
         operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
 
+    /// Edit > 検索…。プレビュー右上の検索バーを開く。
+    /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないため無効化する
+    /// (validateMenuItem 側で判定)。
+    @objc func find(_ sender: Any?) {
+        guard let webView = webViewProxy.webView, !webViewProxy.isDirectHTMLMode else { return }
+        webView.evaluateJavaScript(ViewerBridge.openFindScript)
+    }
+
     /// View > Toggle Line Numbers。行番号表示の有無を切り替える。
     @objc func toggleLineNumbers(_ sender: Any?) {
         store.showLineNumbers.toggle()
@@ -473,6 +481,9 @@ extension ViewerWindowController: NSWindowDelegate {
                 ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
                 : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
             return store.showsCodeContent
+        }
+        if menuItem.action == #selector(find(_:)) {
+            return !webViewProxy.isDirectHTMLMode
         }
         return true
     }

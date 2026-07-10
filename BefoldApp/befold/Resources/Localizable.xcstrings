@@ -155,6 +155,23 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "すべてを選択" } }
       }
     },
+    "menu.edit.find" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索…"
+          }
+        }
+      }
+    },
     "menu.view.title" : {
       "extractionState" : "manual",
       "localizations" : {

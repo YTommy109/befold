@@ -144,6 +144,12 @@ enum MainMenuBuilder {
             action: #selector(NSText.selectAll(_:)),
             keyEquivalent: "a"
         )
+        menu.addItem(.separator())
+        menu.addItem(
+            withTitle: String(localized: "menu.edit.find", bundle: .l10n),
+            action: #selector(ViewerWindowController.find(_:)),
+            keyEquivalent: "f"
+        )
         return item
     }
 
