@@ -39,9 +39,9 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: BefoldApp/.build
-          key: spm-${{ runner.os }}-${{ hashFiles('BefoldApp/Package.resolved') }}
+          key: spm-${{ runner.os }}-xcode26.5-${{ hashFiles('BefoldApp/Package.resolved') }}
           restore-keys: |
-            spm-${{ runner.os }}-
+            spm-${{ runner.os }}-xcode26.5-
 
       - name: アプリをビルドする（SwiftLint も実行される）
         run: swift build
@@ -92,9 +92,9 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: BefoldApp/.build
-          key: spm-tsan-${{ runner.os }}-${{ hashFiles('BefoldApp/Package.resolved') }}
+          key: spm-tsan-${{ runner.os }}-xcode26.5-${{ hashFiles('BefoldApp/Package.resolved') }}
           restore-keys: |
-            spm-tsan-${{ runner.os }}-
+            spm-tsan-${{ runner.os }}-xcode26.5-
 
       # FileWatcher / Debouncer は GCD/DispatchSource でスレッド安全性を保証しており、
       # データ競合の回帰を ThreadSanitizer で検出する。
