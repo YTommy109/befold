@@ -5,7 +5,8 @@
 手順:
 1. `git log origin/main..HEAD --oneline` で PR に含まれるコミットを確認する
 2. 未 push のコミットがあれば `git push -u origin <ブランチ名>` する
-3. `gh pr create` で PR を作成し、URL を報告する
+3. PR タイトルの Conventional Commits type（`feat` / `fix` / `chore` / `refactor` / `docs` / `test` / `ci` / `perf`）に対応するラベルを 1 つ選ぶ
+4. `gh pr create --label <type> --assignee YTommy109` で PR を作成し、URL を報告する
 
 タイトル: ブランチの主要コミットに合わせた Conventional Commits 形式の日本語。
 例: `feat: リリース DMG に Applications フォルダへのリンクを追加する`
@@ -29,3 +30,5 @@
 注意:
 - ベースブランチは `main`
 - 複数コミットの場合はタイトルをブランチ全体の目的に合わせる(先頭コミットの丸写しにしない)
+- ラベルは PR タイトルの type と一致する 1 つのみ付与する(複数 type にまたがる場合はブランチ全体で最も主要な変更の type を選ぶ)
+- Assignees には常に `YTommy109`(自分)を割り当てる
