@@ -825,7 +825,8 @@
     }
 
     _annotatePathRefs();
-    if (_mmdFindIsOpen()) { _mmdFindRefresh(); }
+    if (_mmdFindIsOpen()) { _mmdFindRefresh(_mmdModeJustSwitched); }
+    _mmdModeJustSwitched = false;
     _mmdApplyZoom();
   }
 
@@ -841,6 +842,8 @@
                      : lang || 'plaintext';
       diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang, _showLineNumbers);
     }
+    if (_mmdFindIsOpen()) { _mmdFindRefresh(_mmdModeJustSwitched); }
+    _mmdModeJustSwitched = false;
     _mmdApplyZoom();
   }
 
