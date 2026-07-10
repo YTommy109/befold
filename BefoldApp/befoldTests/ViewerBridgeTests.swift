@@ -52,6 +52,21 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.applyZoomScript(1.5) == "window._mmdInitialZoom = 1.5; _mmdInitZoom();")
     }
 
+    @Test("scrollKeyScript がファイルパスを JSON エスケープして埋め込む")
+    func scrollKeyScriptEmbedsFilePath() {
+        let path = URL(fileURLWithPath: "/tmp/a b\"c.md")
+
+        #expect(
+            ViewerBridge.scrollKeyScript(filePath: path)
+                == "_mmdSetScrollKey(\"\\/tmp\\/a b\\\"c.md\")"
+        )
+    }
+
+    @Test("scrollKeyScript は filePath が nil の場合 null を渡す")
+    func scrollKeyScriptPassesNullWhenFilePathIsNil() {
+        #expect(ViewerBridge.scrollKeyScript(filePath: nil) == "_mmdSetScrollKey(null)")
+    }
+
     @Test("viewModeScript がモード文字列を埋め込む")
     func viewModeScriptEmbedsMode() {
         #expect(ViewerBridge.viewModeScript(.source) == "setViewMode('source')")
@@ -131,6 +146,7 @@ struct ViewerBridgeTests {
         #expect(html.contains("function setViewMode(mode)"))
         #expect(html.contains("function _mmdInitZoom()"))
         #expect(html.contains("function setLineNumbers(show)"))
+        #expect(html.contains("function _mmdSetScrollKey(key)"))
         #expect(html.contains("function _mmdOpenFind()"))
         #expect(html.contains("function _mmdCloseFind()"))
         #expect(html.contains("function _mmdFindRefresh(resetToFirst)"))

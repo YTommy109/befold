@@ -333,6 +333,7 @@ struct ViewerWebView: NSViewRepresentable {
                             ),
                             fileType: fileType
                         ) else { return }
+                        webView.evaluateJavaScript(ViewerBridge.scrollKeyScript(filePath: filePath))
                         webView.evaluateJavaScript(script)
                     }
                     lastRenderedContent = content
@@ -373,6 +374,7 @@ struct ViewerWebView: NSViewRepresentable {
                     ),
                     fileType: fileType
                 ) else { return }
+                webView.evaluateJavaScript(ViewerBridge.scrollKeyScript(filePath: filePath))
                 webView.evaluateJavaScript(script)
             }
 

@@ -48,6 +48,20 @@ enum ViewerBridge {
         return "render(\(jsonString), '\(fileType.jsValue)', '\(escaped)')"
     }
 
+    /// render() 呼び出しの直前に評価し、次に復元すべきスクロール位置のキー
+    /// (ファイルパス)を JS 側へ予告するスクリプト。viewer.html 側は
+    /// _mmdSetScrollKey() が受け取ったキーを保持し、続く render() の末尾で
+    /// そのファイルの保存済みスクロール位置(未保存なら先頭)を復元する。
+    static func scrollKeyScript(filePath: URL?) -> String {
+        guard let filePath,
+              let jsonData = try? JSONEncoder().encode(filePath.path),
+              let jsonString = String(data: jsonData, encoding: .utf8)
+        else {
+            return "_mmdSetScrollKey(null)"
+        }
+        return "_mmdSetScrollKey(\(jsonString))"
+    }
+
     /// レンダリング表示とソース表示の切り替えモード。
     enum ViewMode: String {
         case rendered

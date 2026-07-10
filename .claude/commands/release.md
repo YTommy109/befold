@@ -47,4 +47,13 @@ gh release create <タグ> --title "<タグ>" --notes "<リリースノート>"
 DMG のビルドと添付は GitHub Actions（release.yml）が自動で行うため、
 ローカルでのビルド・DMG 作成は不要。
 
+### 4. CHANGELOG.md への追記（stable リリースのみ）
+
+**stable リリースの場合のみ**、`.claude/skills/changelog.md` スキルの手順に
+従い、生成したリリースノートを `CHANGELOG.md` に追記し、
+`git add CHANGELOG.md && git commit -m "docs: CHANGELOG.md に <タグ> を追記する"`
+でコミット・push する（バージョン bump コミットとは分けて新規コミットにする）。
+
+dev リリースの場合は追記しない。
+
 各ステップの結果をユーザーに報告する。
