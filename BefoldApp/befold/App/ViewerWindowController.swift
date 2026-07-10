@@ -13,6 +13,7 @@ final class ViewerWindowController: NSWindowController {
     private let defaults: UserDefaults
     private let store: ViewerStore
     private let zoomStore: ZoomStore
+    private let sourceModeStore: SourceModeStore
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
     private let forceSidebarVisible: Bool
@@ -58,14 +59,17 @@ final class ViewerWindowController: NSWindowController {
     ///   注入される単一の共有インスタンスを渡すこと。デフォルト値は、不可視ファイル挙動に
     ///   無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
+    /// - Parameter sourceModeStore: 同上。ソース表示モード挙動に無関心なテストが省略できるようにする。
     init(
         fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
+        sourceModeStore: SourceModeStore = SourceModeStore(),
         forceSidebarVisible: Bool = false
     ) {
         self.fileURL = fileURL
         self.zoomStore = zoomStore
+        self.sourceModeStore = sourceModeStore
         self.defaults = defaults
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
@@ -148,6 +152,8 @@ final class ViewerWindowController: NSWindowController {
             self?.handleRename(to: newURL)
         }
         store.openFile(fileURL)
+        // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
+        applySourceMode(FileType(url: fileURL).supportsSourceMode && sourceModeStore.isSourceMode(for: fileURL))
         updateToolbarVisibility()
         sidebar.recordHistory()
     }
@@ -227,8 +233,10 @@ final class ViewerWindowController: NSWindowController {
         guard newURL != oldURL else { return }
         applyURLToWindow(newURL)
 
-        // 実体は同じファイルなので旧パスの倍率を新パスへ引き継ぐ(旧パスはもう存在しない)。
+        // 実体は同じファイルなので旧パスの倍率・ソース表示モードを新パスへ引き継ぐ
+        // (旧パスはもう存在しない)。
         zoomStore.migrateZoom(from: oldURL, to: newURL)
+        sourceModeStore.migrateSourceMode(from: oldURL, to: newURL)
         // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
         // (例: .md → .swift、.md → .png)ソース表示トグルが成立しなくなる
         // 場合のみリセットする。
@@ -292,7 +300,8 @@ final class ViewerWindowController: NSWindowController {
     }
 
     /// switchFile と履歴適用が共有するファイル切替の実処理。
-    /// ビューモードのリセット、URL 更新、コンテンツ読込、ズーム適用、コールバック通知を行う。
+    /// 切替先ファイルの保存済みビューモードの復元、URL 更新、コンテンツ読込、
+    /// ズーム適用、コールバック通知を行う。
     /// 切替先が存在しない場合はアラートを表示して false を返す(状態は変更しない)。
     @discardableResult
     func performFileSwitch(to newURL: URL) -> Bool {
@@ -301,7 +310,9 @@ final class ViewerWindowController: NSWindowController {
             return false
         }
         let oldURL = fileURL
-        resetSourceMode()
+        let restoredSourceMode = FileType(url: newURL).supportsSourceMode
+            && sourceModeStore.isSourceMode(for: newURL)
+        applySourceMode(restoredSourceMode)
         applyURLToWindow(newURL)
         store.openFile(newURL)
         updateToolbarVisibility()
@@ -441,11 +452,18 @@ extension ViewerWindowController: NSWindowDelegate {
 
     /// Toolbar > ソース表示トグル。レンダリング表示とソース表示を切り替える。
     @objc func toggleSourceView(_ sender: Any?) {
-        isSourceMode.toggle()
-        store.isSourceMode = isSourceMode
-        // isSourceMode の変更が store 経由で SwiftUI の更新サイクルをトリガーし、
-        // ViewerWebView.updateNSView → updateContent が呼ばれ、
-        // 自動的にモード切替(必要なら再描画)が行われる。
+        applySourceMode(!isSourceMode)
+        sourceModeStore.setSourceMode(isSourceMode, for: fileURL)
+    }
+
+    /// isSourceMode を変更し、store への反映とトグルボタン表示更新までを一貫して行う。
+    /// isSourceMode の変更が store 経由で SwiftUI の更新サイクルをトリガーし、
+    /// ViewerWebView.updateNSView → updateContent が呼ばれ、
+    /// 自動的にモード切替(必要なら再描画)が行われる。
+    private func applySourceMode(_ newValue: Bool) {
+        guard isSourceMode != newValue else { return }
+        isSourceMode = newValue
+        store.isSourceMode = newValue
         updateSourceToggleAppearance()
     }
 
@@ -467,10 +485,7 @@ extension ViewerWindowController: NSWindowDelegate {
 
     /// ファイル切り替え時にソース表示状態をレンダリング表示にリセットする。
     private func resetSourceMode() {
-        guard isSourceMode else { return }
-        isSourceMode = false
-        store.isSourceMode = false
-        updateSourceToggleAppearance()
+        applySourceMode(false)
     }
 
     /// ツールバーの再バリデーションを要求する。トグルボタンの enabled 状態は

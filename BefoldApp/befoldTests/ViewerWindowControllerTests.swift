@@ -6,17 +6,19 @@ import Testing
 @Suite
 @MainActor
 struct ViewerWindowControllerTests {
-    /// テスト用に隔離済み UserDefaults(既定は使い捨て)と ZoomStore を注入したコントローラーを作る。
-    /// 呼び出し側で defaults / zoomStore を後から参照したい場合は明示的に渡す。
+    /// テスト用に隔離済み UserDefaults(既定は使い捨て)と ZoomStore / SourceModeStore を注入したコントローラーを作る。
+    /// 呼び出し側で defaults / zoomStore / sourceModeStore を後から参照したい場合は明示的に渡す。
     private func makeController(
         file: URL,
         zoomStore: ZoomStore? = nil,
+        sourceModeStore: SourceModeStore? = nil,
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
     ) -> ViewerWindowController {
         ViewerWindowController(
             fileURL: file,
             zoomStore: zoomStore ?? ZoomStore(defaults: defaults),
-            defaults: defaults
+            defaults: defaults,
+            sourceModeStore: sourceModeStore ?? SourceModeStore(defaults: defaults)
         )
     }
 
