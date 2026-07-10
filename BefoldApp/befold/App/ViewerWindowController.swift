@@ -546,11 +546,11 @@ extension ViewerWindowController: NSToolbarDelegate {
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, Self.sourceToggleItemIdentifier]
+        [.toggleSidebar, .flexibleSpace, Self.sourceToggleItemIdentifier]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.sourceToggleItemIdentifier, .flexibleSpace, .space]
+        [.toggleSidebar, Self.sourceToggleItemIdentifier, .flexibleSpace, .space]
     }
 }
 
