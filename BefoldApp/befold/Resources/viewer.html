@@ -603,10 +603,13 @@
     _mmdFindUpdateCount();
   }
 
-  // render() の末尾から呼ばれる: バーが開いていれば同じクエリ・トグルのまま
-  // 新しい DOM に対して再検索し、可能なら現在位置を維持する(ライブリロード追従)。
-  function _mmdFindRefresh() {
-    var previousIndex = _mmdFindCurrentIndex;
+  // render() / _renderSource() の末尾から呼ばれる: バーが開いていれば
+  // 同じクエリ・トグルのまま新しい DOM に対して再検索する。
+  // resetToFirst が真の場合は1件目に位置をリセットする(モード切替時: レンダリング結果と
+  // ソースコードとで DOM 構造に連続性がないため、位置維持に意味がない)。
+  // 省略時は可能な限り現在位置を維持する(ライブリロード追従)。
+  function _mmdFindRefresh(resetToFirst) {
+    var previousIndex = resetToFirst ? 0 : _mmdFindCurrentIndex;
     _mmdFindRun();
     if (_mmdFindMatches.length > 0) {
       _mmdFindCurrentIndex = Math.min(Math.max(previousIndex, 0), _mmdFindMatches.length - 1);
