@@ -133,7 +133,7 @@ struct ViewerBridgeTests {
         #expect(html.contains("function setLineNumbers(show)"))
         #expect(html.contains("function _mmdOpenFind()"))
         #expect(html.contains("function _mmdCloseFind()"))
-        #expect(html.contains("function _mmdFindRefresh()"))
+        #expect(html.contains("function _mmdFindRefresh(resetToFirst)"))
         #expect(html.contains("window._mmdInitialFindOptions"))
         #expect(html.contains("messageHandlers.\(ViewerBridge.findOptionsChangedMessageName)"))
         #expect(html.contains("window._mmdFindStrings"))
