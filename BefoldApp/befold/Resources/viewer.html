@@ -681,6 +681,9 @@
   var _lastType = null;
   var _lastLang = null;
   var _viewMode = 'rendered';
+  // setViewMode() が直前と異なるモードを検知したら true になり、
+  // render()/_renderSource() が検索リフレッシュ(先頭リセット)に使った後 false へ戻す。
+  var _mmdModeJustSwitched = false;
   var _showLineNumbers = false;
 
   // 行番号表示状態を更新する。再描画はしない: Swift 側(ViewerWebView)が
@@ -846,6 +849,9 @@
   // 古い内容による二重描画が発生する。
   function setViewMode(mode) {
     if (mode !== 'rendered' && mode !== 'source') return;
+    if (mode !== _viewMode) {
+      _mmdModeJustSwitched = true;
+    }
     _viewMode = mode;
   }
 
