@@ -64,6 +64,55 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.lineNumbersScript(false) == "setLineNumbers(false)")
     }
 
+    @Test("openFindScript が固定の呼び出し文字列である")
+    func openFindScriptIsFixedCall() {
+        #expect(ViewerBridge.openFindScript == "_mmdOpenFind()")
+    }
+
+    @Test("findOptionsChangedMessageName が固定値である")
+    func findOptionsChangedMessageNameIsFixed() {
+        #expect(ViewerBridge.findOptionsChangedMessageName == "findOptionsChanged")
+    }
+
+    @Test("initialFindOptionsScript がトグル値を埋め込む")
+    func initialFindOptionsScriptEmbedsValues() {
+        let options = ViewerBridge.FindOptions(caseSensitive: true, wholeWord: false, useRegex: true)
+
+        #expect(
+            ViewerBridge.initialFindOptionsScript(options)
+                == "window._mmdInitialFindOptions = { caseSensitive: true, wholeWord: false, useRegex: true };"
+        )
+    }
+
+    @Test("findStringsScript が window._mmdFindStrings への代入文を生成する")
+    func findStringsScriptAssignsFindStringsGlobal() {
+        let script = ViewerBridge.findStringsScript()
+
+        #expect(script.hasPrefix("window._mmdFindStrings = "))
+        #expect(script.hasSuffix(";"))
+    }
+
+    @Test("findStringsScript が全キーを含む妥当な JSON を生成する")
+    func findStringsScriptProducesValidJSONWithAllKeys() throws {
+        let script = ViewerBridge.findStringsScript()
+
+        let jsonPart = script
+            .replacingOccurrences(of: "window._mmdFindStrings = ", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ";"))
+        let data = try #require(jsonPart.data(using: .utf8))
+        let decoded = try #require(
+            try JSONSerialization.jsonObject(with: data) as? [String: String]
+        )
+
+        let expectedKeys = [
+            "placeholder", "previous", "next", "matchCase",
+            "matchWholeWord", "useRegularExpression", "close", "noResults",
+        ]
+        for key in expectedKeys {
+            #expect(decoded[key]?.isEmpty == false)
+        }
+    }
+
     /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html に実在することを
     /// リポジトリ内のソースを読んで検証する(ブリッジ契約のドリフト検知)。
     @Test("ViewerBridge の関数名が viewer.html に定義されている")
@@ -82,6 +131,12 @@ struct ViewerBridgeTests {
         #expect(html.contains("function setViewMode(mode)"))
         #expect(html.contains("function _mmdInitZoom()"))
         #expect(html.contains("function setLineNumbers(show)"))
+        #expect(html.contains("function _mmdOpenFind()"))
+        #expect(html.contains("function _mmdCloseFind()"))
+        #expect(html.contains("function _mmdFindRefresh(resetToFirst)"))
+        #expect(html.contains("window._mmdInitialFindOptions"))
+        #expect(html.contains("messageHandlers.\(ViewerBridge.findOptionsChangedMessageName)"))
+        #expect(html.contains("window._mmdFindStrings"))
     }
 
     @Test("viewer.js の ZOOM_MIN / ZOOM_MAX が ZoomStore の範囲と一致する")

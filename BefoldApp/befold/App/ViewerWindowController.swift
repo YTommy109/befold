@@ -14,6 +14,7 @@ final class ViewerWindowController: NSWindowController {
     private let store: ViewerStore
     private let zoomStore: ZoomStore
     private let hiddenFilesPreference: HiddenFilesPreference
+    private let findOptionsPreference: FindOptionsPreference
     private let forceSidebarVisible: Bool
     /// 二本指スワイプ検知用のローカルイベントモニタ。ウィンドウが閉じたら解除する。
     private var scrollEventMonitor: Any?
@@ -56,15 +57,18 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate → ViewerWindowManager から
     ///   注入される単一の共有インスタンスを渡すこと。デフォルト値は、不可視ファイル挙動に
     ///   無関心なテストが省略できるようにするためのもの。
+    /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
     init(
         fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
+        findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         forceSidebarVisible: Bool = false
     ) {
         self.fileURL = fileURL
         self.zoomStore = zoomStore
         self.defaults = defaults
         self.hiddenFilesPreference = hiddenFilesPreference
+        self.findOptionsPreference = findOptionsPreference
         self.forceSidebarVisible = forceSidebarVisible
         store = ViewerStore()
         let parentDir = fileURL.deletingLastPathComponent()
@@ -153,6 +157,7 @@ final class ViewerWindowController: NSWindowController {
         let contentView = ViewerContentView(
             store: store,
             zoomStore: zoomStore,
+            findOptionsPreference: findOptionsPreference,
             // 現在の fileURL は rename で書き換わるため、旧値を捕捉せず self 経由で参照する
             onZoomChanged: { [weak self] zoom in
                 guard let self else { return }
@@ -405,6 +410,30 @@ extension ViewerWindowController: NSWindowDelegate {
         operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
 
+    /// Edit > 検索…。プレビュー右上の検索バーを開く。
+    /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないため無効化する
+    /// (validateMenuItem 側で判定)。
+    @objc func find(_ sender: Any?) {
+        runFindScript(ViewerBridge.openFindScript)
+    }
+
+    /// Edit > 次を検索。検索バーが開いている間のみ JS 側で処理される。
+    @objc func findNext(_ sender: Any?) {
+        runFindScript(ViewerBridge.findNextScript)
+    }
+
+    /// Edit > 前を検索。検索バーが開いている間のみ JS 側で処理される。
+    @objc func findPrevious(_ sender: Any?) {
+        runFindScript(ViewerBridge.findPrevScript)
+    }
+
+    /// find / findNext / findPrevious 共通のガードと JS 実行。
+    /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないためスキップする。
+    private func runFindScript(_ script: String) {
+        guard let webView = webViewProxy.webView, !webViewProxy.isDirectHTMLMode else { return }
+        webView.evaluateJavaScript(script)
+    }
+
     /// View > Toggle Line Numbers。行番号表示の有無を切り替える。
     @objc func toggleLineNumbers(_ sender: Any?) {
         store.showLineNumbers.toggle()
@@ -468,6 +497,10 @@ extension ViewerWindowController: NSWindowDelegate {
                 ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
                 : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
             return store.showsCodeContent
+        }
+        let findActions: [Selector] = [#selector(find(_:)), #selector(findNext(_:)), #selector(findPrevious(_:))]
+        if let action = menuItem.action, findActions.contains(action) {
+            return !webViewProxy.isDirectHTMLMode
         }
         return true
     }

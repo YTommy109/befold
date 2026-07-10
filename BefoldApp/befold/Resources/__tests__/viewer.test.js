@@ -29,6 +29,7 @@ const {
   renderCsvSourceHtml,
   CSV_COL_COUNT,
   isSafeLinkURL,
+  buildFindRegExp,
 } = require('../viewer');
 
 describe('clampZoom', () => {
@@ -761,5 +762,59 @@ describe('isSafeLinkURL', () => {
     expect(isSafeLinkURL('other.md#section')).toBe(true);
     expect(isSafeLinkURL('#anchor')).toBe(true);
     expect(isSafeLinkURL('mailto:a@example.com')).toBe(true);
+  });
+});
+
+describe('buildFindRegExp', () => {
+  test('plain mode matches literal substrings', () => {
+    const re = buildFindRegExp('cat', { caseSensitive: false, wholeWord: false, useRegex: false });
+    expect(re.test('the cat sat')).toBe(true);
+  });
+
+  test('plain mode escapes regex special characters', () => {
+    const re = buildFindRegExp('a.b*c', { caseSensitive: false, wholeWord: false, useRegex: false });
+    expect(re.test('a.b*c')).toBe(true);
+    re.lastIndex = 0;
+    expect(re.test('aXbYYc')).toBe(false);
+  });
+
+  test('caseSensitive true only matches exact case', () => {
+    const re = buildFindRegExp('Cat', { caseSensitive: true, wholeWord: false, useRegex: false });
+    expect(re.test('Cat')).toBe(true);
+    expect(re.test('cat')).toBe(false);
+  });
+
+  test('caseSensitive false (default) matches regardless of case', () => {
+    const re = buildFindRegExp('Cat', { caseSensitive: false, wholeWord: false, useRegex: false });
+    expect(re.test('cat')).toBe(true);
+    re.lastIndex = 0;
+    expect(re.test('CAT')).toBe(true);
+  });
+
+  test('wholeWord true matches only at word boundaries', () => {
+    const re = buildFindRegExp('cat', { caseSensitive: false, wholeWord: true, useRegex: false });
+    expect(re.test('the cat sat')).toBe(true);
+    re.lastIndex = 0;
+    expect(re.test('category')).toBe(false);
+  });
+
+  test('useRegex true uses the query as-is as regex source', () => {
+    const re = buildFindRegExp('a+', { caseSensitive: false, wholeWord: false, useRegex: true });
+    expect(re.test('aaa')).toBe(true);
+    re.lastIndex = 0;
+    expect(re.test('b')).toBe(false);
+  });
+
+  test('useRegex true with invalid regex syntax returns null', () => {
+    expect(buildFindRegExp('(', { caseSensitive: false, wholeWord: false, useRegex: true })).toBe(null);
+  });
+
+  test('empty query returns null', () => {
+    expect(buildFindRegExp('', { caseSensitive: false, wholeWord: false, useRegex: false })).toBe(null);
+  });
+
+  test('returned RegExp always has the global flag set', () => {
+    const re = buildFindRegExp('cat', { caseSensitive: true, wholeWord: false, useRegex: false });
+    expect(re.global).toBe(true);
   });
 });

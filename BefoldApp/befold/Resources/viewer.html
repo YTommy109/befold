@@ -24,6 +24,23 @@
     <div id="diagram-wrap"></div>
   </div>
 
+  <!-- placeholder/title は _mmdInitFind() が window._mmdFindStrings(ローカライズ済み)で
+       上書きする。未定義時のフォールバックとして日本語を静的に残す。 -->
+  <div id="mmd-find-bar" class="mmd-find-bar">
+    <input id="mmd-find-input" type="text" class="mmd-find-input" placeholder="検索">
+    <span id="mmd-find-count" class="mmd-find-count"></span>
+    <button id="mmd-find-prev" class="mmd-find-nav mmd-find-nav-prev" title="前へ (Shift+Enter)">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 6.5L5 2.5L9 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button id="mmd-find-next" class="mmd-find-nav mmd-find-nav-next" title="次へ (Enter)">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 3.5L5 7.5L9 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button id="mmd-find-case" class="mmd-find-toggle" title="大文字・小文字を区別">Aa</button>
+    <button id="mmd-find-word" class="mmd-find-toggle" title="単語単位で検索">ab|</button>
+    <button id="mmd-find-regex" class="mmd-find-toggle" title="正規表現">.*</button>
+    <button id="mmd-find-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
+  </div>
+
   <script src="viewer.js"></script>
   <script src="mermaid.min.js"></script>
   <script src="markdown-it.min.js"></script>
@@ -106,6 +123,15 @@
   }
 
   document.addEventListener('keydown', function(e) {
+    // IME 変換中の Escape(候補キャンセル)では検索バーを閉じない。
+    // Enter 側の変換確定判定(_mmdInitFind 付近の keydown ハンドラ)と同じ理由:
+    // Safari/WKWebView は compositionend → keydown の順で発火するため isComposing は
+    // 既に false になりうるが、keyCode は 229 のまま残るためこれも合わせて判定する。
+    if (e.key === 'Escape' && _mmdFindIsOpen() && !e.isComposing && e.keyCode !== 229) {
+      e.preventDefault();
+      _mmdCloseFind();
+      return;
+    }
     document.body.classList.toggle('cmd-held', e.metaKey);
     if (e.metaKey) {
       if (e.key === '-') { e.preventDefault(); _mmdZoomOut(); }
@@ -412,6 +438,267 @@
     };
   }
 
+  // --- Find ---
+  var _mmdFindOptions = { caseSensitive: false, wholeWord: false, useRegex: false };
+  var _mmdFindQuery = '';
+  var _mmdFindMatches = [];
+  var _mmdFindCurrentIndex = -1;
+  var _mmdFindIsOpenFlag = false;
+  // マッチなし表示文字列。_mmdInitFind() が window._mmdFindStrings(Swift から注入)で上書きする。
+  var _mmdFindNoResultsText = '見つかりません';
+
+  // ロード時に保存済みトグル状態(window._mmdInitialFindOptions、Swift から注入)と
+  // ローカライズ済み文字列(window._mmdFindStrings、Swift から注入)を反映する。
+  function _mmdInitFind() {
+    var opts = window._mmdInitialFindOptions || {};
+    _mmdFindOptions.caseSensitive = !!opts.caseSensitive;
+    _mmdFindOptions.wholeWord = !!opts.wholeWord;
+    _mmdFindOptions.useRegex = !!opts.useRegex;
+    document.getElementById('mmd-find-case').classList.toggle('active', _mmdFindOptions.caseSensitive);
+    document.getElementById('mmd-find-word').classList.toggle('active', _mmdFindOptions.wholeWord);
+    document.getElementById('mmd-find-regex').classList.toggle('active', _mmdFindOptions.useRegex);
+
+    var strings = window._mmdFindStrings || {};
+    var input = document.getElementById('mmd-find-input');
+    if (strings.placeholder) { input.placeholder = strings.placeholder; }
+    if (strings.previous) { document.getElementById('mmd-find-prev').title = strings.previous; }
+    if (strings.next) { document.getElementById('mmd-find-next').title = strings.next; }
+    if (strings.matchCase) { document.getElementById('mmd-find-case').title = strings.matchCase; }
+    if (strings.matchWholeWord) { document.getElementById('mmd-find-word').title = strings.matchWholeWord; }
+    if (strings.useRegularExpression) {
+      document.getElementById('mmd-find-regex').title = strings.useRegularExpression;
+    }
+    if (strings.close) { document.getElementById('mmd-find-close').title = strings.close; }
+    if (strings.noResults) { _mmdFindNoResultsText = strings.noResults; }
+  }
+
+  function _mmdFindIsOpen() {
+    return _mmdFindIsOpenFlag;
+  }
+
+  function _mmdOpenFind() {
+    _mmdFindIsOpenFlag = true;
+    document.getElementById('mmd-find-bar').style.display = 'flex';
+    var input = document.getElementById('mmd-find-input');
+    input.value = _mmdFindQuery;
+    input.focus();
+    input.select();
+    _mmdFindRun();
+  }
+
+  function _mmdCloseFind() {
+    _mmdFindIsOpenFlag = false;
+    document.getElementById('mmd-find-bar').style.display = 'none';
+    _mmdFindClearMarks();
+    _mmdFindMatches = [];
+    _mmdFindCurrentIndex = -1;
+  }
+
+  // ⌘G / ⌘Shift+G から呼ばれる。検索バーが閉じている間は何もしない
+  // (フォーカス位置に関わらずグローバルショートカットとして配線されるため、
+  // 呼び出し側では開閉判定をせずここで一元的にガードする)。
+  function _mmdFindNextIfOpen() {
+    if (!_mmdFindIsOpen()) return;
+    _mmdFindNext();
+  }
+
+  function _mmdFindPrevIfOpen() {
+    if (!_mmdFindIsOpen()) return;
+    _mmdFindPrev();
+  }
+
+  // 前回検索でハイライトした <mark> を平文へ復元する(次の検索前に必ず呼ぶ)。
+  // normalize() は親ごとに1回だけ呼ぶ(同じ親に複数の <mark> がある場合の重複呼び出しを避ける)。
+  function _mmdFindClearMarks() {
+    var marks = document.querySelectorAll('#diagram-wrap mark.mmd-find-match');
+    var parents = new Set();
+    marks.forEach(function(mark) {
+      var text = document.createTextNode(mark.textContent);
+      var parent = mark.parentNode;
+      if (!parent) return;
+      parent.replaceChild(text, mark);
+      parents.add(parent);
+    });
+    parents.forEach(function(parent) { parent.normalize(); });
+  }
+
+  // 1つのテキストノード内のマッチをすべて <mark> に置換し、matches に追加する。
+  // ゼロ幅マッチ(例: 正規表現 "a*" の空文字一致)は無限ループを避けるため読み飛ばす。
+  function _mmdFindWalkText(node, regex, matches) {
+    var text = node.textContent;
+    regex.lastIndex = 0;
+    var ranges = [];
+    var match;
+    while ((match = regex.exec(text)) !== null) {
+      if (match[0].length === 0) {
+        regex.lastIndex++;
+        if (regex.lastIndex > text.length) break;
+        continue;
+      }
+      ranges.push({ index: match.index, text: match[0] });
+    }
+    if (ranges.length === 0) return;
+    var frag = document.createDocumentFragment();
+    var lastIndex = 0;
+    ranges.forEach(function(range) {
+      if (range.index > lastIndex) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex, range.index)));
+      }
+      var mark = document.createElement('mark');
+      mark.className = 'mmd-find-match';
+      mark.textContent = range.text;
+      frag.appendChild(mark);
+      matches.push(mark);
+      lastIndex = range.index + range.text.length;
+    });
+    if (lastIndex < text.length) {
+      frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+    node.parentNode.replaceChild(frag, node);
+  }
+
+  // SVG(mermaid の描画結果)・STYLE・SCRIPT 配下は再帰しない: SVG 名前空間に HTML の
+  // <mark> を挿入すると描画されず文字が消え、mermaid が注入する <style> の中身を
+  // 誤ってラップすると図のスタイルも壊れるため。この結果、mermaid 図のラベル文字列
+  // (SVG text)は検索対象外となるが、これは意図したスコープ境界であり見落としではない。
+  //
+  // 注意: DOM 仕様上 Element.tagName が ASCII 大文字化されるのは HTML 名前空間の要素の
+  // みで、SVG 名前空間の要素(mermaid が描画する <svg>/<text>/<tspan> や注入する
+  // <style> を含む)の tagName は大文字化されず小文字のまま返る(例: 'svg'、'style')。
+  // このリストは大文字で保持しつつ、比較側で toUpperCase() して正規化する。
+  var _mmdFindSkipTags = ['MARK', 'SVG', 'STYLE', 'SCRIPT'];
+
+  // #diagram-wrap 配下のテキストノードを再帰的に歩き、マッチを <mark> に置換する。
+  // 既知の制約: シンタックスハイライトの <span> 境界やパス参照 <span> の境界をまたぐ
+  // 一致は検出しない(_PATH_RE の制約と同じ考え方)。
+  function _mmdFindWalk(node, regex, matches) {
+    if (node.nodeType === 3) {
+      _mmdFindWalkText(node, regex, matches);
+    } else if (node.nodeType === 1 && _mmdFindSkipTags.indexOf(node.tagName.toUpperCase()) === -1) {
+      var children = Array.prototype.slice.call(node.childNodes);
+      for (var i = 0; i < children.length; i++) {
+        _mmdFindWalk(children[i], regex, matches);
+      }
+    }
+  }
+
+  function _mmdFindUpdateCount() {
+    var countEl = document.getElementById('mmd-find-count');
+    var input = document.getElementById('mmd-find-input');
+    if (_mmdFindQuery.length === 0 || input.classList.contains('mmd-find-error')) {
+      countEl.textContent = '';
+    } else if (_mmdFindMatches.length === 0) {
+      countEl.textContent = _mmdFindNoResultsText;
+    } else {
+      countEl.textContent = (_mmdFindCurrentIndex + 1) + '/' + _mmdFindMatches.length;
+    }
+  }
+
+  function _mmdFindHighlightCurrent() {
+    _mmdFindMatches.forEach(function(mark) { mark.classList.remove('mmd-find-match-current'); });
+    var current = _mmdFindMatches[_mmdFindCurrentIndex];
+    if (!current) return;
+    current.classList.add('mmd-find-match-current');
+    current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  // 入力・トグル変更のたびに呼ばれる: 現在のハイライトをクリアして再検索する。
+  // suppressAutoHighlight を true にすると、1件目への自動ハイライト・スクロールを行わない
+  // (呼び出し元が位置確定後に自分でハイライトする場合に使う。_mmdFindRefresh 参照)。
+  function _mmdFindRun(suppressAutoHighlight) {
+    var input = document.getElementById('mmd-find-input');
+    _mmdFindQuery = input.value;
+    _mmdFindClearMarks();
+    _mmdFindMatches = [];
+    _mmdFindCurrentIndex = -1;
+
+    var regex = buildFindRegExp(_mmdFindQuery, _mmdFindOptions);
+    input.classList.toggle('mmd-find-error', _mmdFindQuery.length > 0 && regex === null);
+
+    if (regex) {
+      _mmdFindWalk(document.getElementById('diagram-wrap'), regex, _mmdFindMatches);
+    }
+
+    if (_mmdFindMatches.length > 0) {
+      _mmdFindCurrentIndex = 0;
+      if (!suppressAutoHighlight) {
+        _mmdFindHighlightCurrent();
+      }
+    }
+    _mmdFindUpdateCount();
+  }
+
+  // render() / _renderSource() の末尾から呼ばれる: バーが開いていれば
+  // 同じクエリ・トグルのまま新しい DOM に対して再検索する。
+  // resetToFirst が真の場合は1件目に位置をリセットする(モード切替時: レンダリング結果と
+  // ソースコードとで DOM 構造に連続性がないため、位置維持に意味がない)。
+  // 省略時は可能な限り現在位置を維持する(ライブリロード追従)。
+  // _mmdFindRun には suppressAutoHighlight=true を渡し、1件目への自動スクロールを抑止した上で、
+  // 位置確定後にここで1回だけ _mmdFindHighlightCurrent() を呼ぶ(二重スクロール防止)。
+  function _mmdFindRefresh(resetToFirst) {
+    var previousIndex = resetToFirst ? 0 : _mmdFindCurrentIndex;
+    _mmdFindRun(true);
+    if (_mmdFindMatches.length > 0) {
+      _mmdFindCurrentIndex = Math.min(Math.max(previousIndex, 0), _mmdFindMatches.length - 1);
+      _mmdFindHighlightCurrent();
+      _mmdFindUpdateCount();
+    }
+  }
+
+  function _mmdFindNext() {
+    if (_mmdFindMatches.length === 0) return;
+    _mmdFindCurrentIndex = (_mmdFindCurrentIndex + 1) % _mmdFindMatches.length;
+    _mmdFindHighlightCurrent();
+    _mmdFindUpdateCount();
+  }
+
+  function _mmdFindPrev() {
+    if (_mmdFindMatches.length === 0) return;
+    _mmdFindCurrentIndex = (_mmdFindCurrentIndex - 1 + _mmdFindMatches.length) % _mmdFindMatches.length;
+    _mmdFindHighlightCurrent();
+    _mmdFindUpdateCount();
+  }
+
+  // トグルボタン共通のハンドラ: 状態を反転し、見た目を更新し、Swift へ永続化を依頼して再検索する。
+  function _mmdFindToggleOption(optionName, buttonId) {
+    _mmdFindOptions[optionName] = !_mmdFindOptions[optionName];
+    document.getElementById(buttonId).classList.toggle('active', _mmdFindOptions[optionName]);
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.findOptionsChanged) {
+      window.webkit.messageHandlers.findOptionsChanged.postMessage({
+        caseSensitive: _mmdFindOptions.caseSensitive,
+        wholeWord: _mmdFindOptions.wholeWord,
+        useRegex: _mmdFindOptions.useRegex
+      });
+    }
+    _mmdFindRun();
+  }
+
+  document.getElementById('mmd-find-input').addEventListener('input', function() { _mmdFindRun(); });
+  document.getElementById('mmd-find-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      // Safari/WKWebView は compositionend → keydown の順で発火するため、
+      // 変換確定の Enter では isComposing が既に false になっている。
+      // ただし keyCode は 229 のまま残るため、これも合わせて判定する。
+      if (e.isComposing || e.keyCode === 229) { return; }
+      e.preventDefault();
+      if (e.shiftKey) { _mmdFindPrev(); } else { _mmdFindNext(); }
+    }
+    // Escape はここでは処理しない: document の keydown ハンドラがバブリングで捕捉し、
+    // _mmdFindIsOpen() 時に preventDefault + _mmdCloseFind() を行う(同じ挙動になる)。
+  });
+  document.getElementById('mmd-find-next').addEventListener('click', _mmdFindNext);
+  document.getElementById('mmd-find-prev').addEventListener('click', _mmdFindPrev);
+  document.getElementById('mmd-find-close').addEventListener('click', _mmdCloseFind);
+  document.getElementById('mmd-find-case').addEventListener('click', function() {
+    _mmdFindToggleOption('caseSensitive', 'mmd-find-case');
+  });
+  document.getElementById('mmd-find-word').addEventListener('click', function() {
+    _mmdFindToggleOption('wholeWord', 'mmd-find-word');
+  });
+  document.getElementById('mmd-find-regex').addEventListener('click', function() {
+    _mmdFindToggleOption('useRegex', 'mmd-find-regex');
+  });
+
   // --- Render ---
   function _escapeHtml(text) {
     var div = document.createElement('div');
@@ -424,6 +711,9 @@
   var _lastType = null;
   var _lastLang = null;
   var _viewMode = 'rendered';
+  // setViewMode() が直前と異なるモードを検知したら true になり、
+  // render()/_renderSource() が検索リフレッシュ(先頭リセット)に使った後 false へ戻す。
+  var _mmdModeJustSwitched = false;
   var _showLineNumbers = false;
 
   // 行番号表示状態を更新する。再描画はしない: Swift 側(ViewerWebView)が
@@ -434,6 +724,12 @@
   }
   // PDF 表示用に生成した blob URL。再描画のたびに revoke してリークを防ぐ。
   var _pdfBlobUrl = null;
+
+  // render()/_renderSource() の末尾で検索状態を再描画後の内容に合わせて更新する。
+  function _mmdFindRefreshAfterRender() {
+    if (_mmdFindIsOpen()) { _mmdFindRefresh(_mmdModeJustSwitched); }
+    _mmdModeJustSwitched = false;
+  }
 
   async function render(content, type, lang) {
     _currentType = type;
@@ -565,6 +861,7 @@
     }
 
     _annotatePathRefs();
+    _mmdFindRefreshAfterRender();
     _mmdApplyZoom();
   }
 
@@ -580,6 +877,7 @@
                      : lang || 'plaintext';
       diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang, _showLineNumbers);
     }
+    _mmdFindRefreshAfterRender();
     _mmdApplyZoom();
   }
 
@@ -588,11 +886,15 @@
   // 古い内容による二重描画が発生する。
   function setViewMode(mode) {
     if (mode !== 'rendered' && mode !== 'source') return;
+    if (mode !== _viewMode) {
+      _mmdModeJustSwitched = true;
+    }
     _viewMode = mode;
   }
 
   _mmdInitZoom();
   _mmdInitFontSize();
+  _mmdInitFind();
 </script>
 </body>
 </html>

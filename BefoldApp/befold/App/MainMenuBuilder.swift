@@ -144,6 +144,23 @@ enum MainMenuBuilder {
             action: #selector(NSText.selectAll(_:)),
             keyEquivalent: "a"
         )
+        menu.addItem(.separator())
+        menu.addItem(
+            withTitle: String(localized: "menu.edit.find", bundle: .l10n),
+            action: #selector(ViewerWindowController.find(_:)),
+            keyEquivalent: "f"
+        )
+        menu.addItem(
+            withTitle: String(localized: "menu.edit.findNext", bundle: .l10n),
+            action: #selector(ViewerWindowController.findNext(_:)),
+            keyEquivalent: "g"
+        )
+        let findPrevious = menu.addItem(
+            withTitle: String(localized: "menu.edit.findPrevious", bundle: .l10n),
+            action: #selector(ViewerWindowController.findPrevious(_:)),
+            keyEquivalent: "g"
+        )
+        findPrevious.keyEquivalentModifierMask = [.command, .shift]
         return item
     }
 

@@ -155,6 +155,57 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "すべてを選択" } }
       }
     },
+    "menu.edit.find" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索…"
+          }
+        }
+      }
+    },
+    "menu.edit.findNext" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find Next"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次を検索"
+          }
+        }
+      }
+    },
+    "menu.edit.findPrevious" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find Previous"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前を検索"
+          }
+        }
+      }
+    },
     "menu.view.title" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -489,6 +540,65 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to install the 'befold' command." } },
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "'befold' コマンドのインストールに失敗しました。" } }
+      }
+    },
+    "viewer.find.placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "検索" } }
+      }
+    },
+    "viewer.find.previous" : {
+      "comment" : "「Shift+Enter」は viewer.html の mmd-find-input keydown ハンドラ（e.shiftKey && e.key === 'Enter'）と一致させること。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous (Shift+Enter)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "前へ (Shift+Enter)" } }
+      }
+    },
+    "viewer.find.next" : {
+      "comment" : "「Enter」は viewer.html の mmd-find-input keydown ハンドラ（e.key === 'Enter'）と一致させること。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next (Enter)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次へ (Enter)" } }
+      }
+    },
+    "viewer.find.matchCase" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Match Case" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "大文字・小文字を区別" } }
+      }
+    },
+    "viewer.find.matchWholeWord" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Match Whole Word" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "単語単位で検索" } }
+      }
+    },
+    "viewer.find.useRegularExpression" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use Regular Expression" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "正規表現" } }
+      }
+    },
+    "viewer.find.close" : {
+      "comment" : "「Esc」は viewer.html の document keydown ハンドラ（e.key === 'Escape' && _mmdFindIsOpen()）と一致させること。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close (Esc)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "閉じる (Esc)" } }
+      }
+    },
+    "viewer.find.noResults" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No results" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "見つかりません" } }
       }
     }
   },

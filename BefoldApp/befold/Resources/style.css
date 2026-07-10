@@ -388,6 +388,87 @@ body {
   color: var(--accent);
 }
 
+/* ── 検索バー(Cmd+F) ── */
+.mmd-find-bar {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 100;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  box-shadow: 0 1px 4px var(--panel-shadow);
+  font-size: 13px;
+}
+
+.mmd-find-input {
+  width: 180px;
+  padding: 3px 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  outline: none;
+}
+
+.mmd-find-input.mmd-find-error {
+  border-color: var(--error-border);
+  background: var(--error-bg);
+  color: var(--error-fg);
+}
+
+.mmd-find-count {
+  min-width: 64px;
+  text-align: center;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.mmd-find-bar button {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--btn-fg);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.mmd-find-bar button:hover {
+  background: var(--btn-hover-bg);
+}
+
+.mmd-find-nav svg {
+  display: block;
+}
+
+.mmd-find-toggle.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+mark.mmd-find-match {
+  background: rgba(255, 213, 0, 0.55);
+  color: inherit;
+}
+
+mark.mmd-find-match-current {
+  background: var(--accent);
+  color: #fff;
+}
+
 /* ── CSV テーブル表示 ──
    CSV 表示時は #diagram-wrap に markdown-body(github-markdown-css の土台)と
    csv-body(CSV 専用の上書き)を両方付与する。CSV 専用スタイルをここに

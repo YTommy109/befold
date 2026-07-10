@@ -19,6 +19,8 @@ struct ViewerWebView: NSViewRepresentable {
     /// cmd+click でリンクやパス参照がアクティベートされたときに呼ばれる。
     /// パラメータ: href, isExternal, newWindow
     let onOpenReference: @MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void
+    /// 検索バーの3トグル(大文字小文字区別・単語マッチ・正規表現)の永続化ストア。
+    let findOptionsPreference: FindOptionsPreference
     /// AppKit 側（メニューアクション）へ WKWebView を公開するプロキシ。
     let webViewProxy: WebViewProxy
 
@@ -48,6 +50,29 @@ struct ViewerWebView: NSViewRepresentable {
             forMainFrameOnly: true
         )
         config.userContentController.addUserScript(fontSizeScript)
+        let findOptionsScript = WKUserScript(
+            source: ViewerBridge.initialFindOptionsScript(
+                ViewerBridge.FindOptions(
+                    caseSensitive: findOptionsPreference.caseSensitive,
+                    wholeWord: findOptionsPreference.wholeWord,
+                    useRegex: findOptionsPreference.useRegex
+                )
+            ),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(findOptionsScript)
+        let findStringsScript = WKUserScript(
+            source: ViewerBridge.findStringsScript(),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(findStringsScript)
+        config.userContentController.add(
+            WeakScriptMessageHandler(delegate: context.coordinator),
+            name: ViewerBridge.findOptionsChangedMessageName
+        )
+        context.coordinator.findOptionsPreference = findOptionsPreference
         config.userContentController.add(
             WeakScriptMessageHandler(delegate: context.coordinator),
             name: ViewerBridge.zoomChangedMessageName
@@ -83,6 +108,7 @@ struct ViewerWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onZoomChanged = onZoomChanged
         context.coordinator.onOpenReference = onOpenReference
+        context.coordinator.findOptionsPreference = findOptionsPreference
         context.coordinator.initialPageZoom = initialZoom
         context.coordinator.updateContent(
             content,
@@ -110,6 +136,8 @@ struct ViewerWebView: NSViewRepresentable {
             .removeScriptMessageHandler(forName: ViewerBridge.zoomChangedMessageName)
         nsView.configuration.userContentController
             .removeScriptMessageHandler(forName: ViewerBridge.referenceActivatedMessageName)
+        nsView.configuration.userContentController
+            .removeScriptMessageHandler(forName: ViewerBridge.findOptionsChangedMessageName)
     }
 
     // MARK: - WeakScriptMessageHandler
@@ -140,6 +168,8 @@ struct ViewerWebView: NSViewRepresentable {
         var webViewProxy: WebViewProxy?
         var onZoomChanged: (@MainActor (Double) -> Void)?
         var onOpenReference: (@MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void)?
+        /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
+        var findOptionsPreference: FindOptionsPreference?
         /// updateNSView から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
         var initialPageZoom: Double = 1.0
         /// HTML 直接ロード完了後に適用する pageZoom。適用後は nil に戻す。
@@ -171,6 +201,15 @@ struct ViewerWebView: NSViewRepresentable {
                       let newWindow = body["newWindow"] as? Bool
             {
                 onOpenReference?(href, isExternal, newWindow)
+            } else if message.name == ViewerBridge.findOptionsChangedMessageName,
+                      let body = message.body as? [String: Any],
+                      let caseSensitive = body["caseSensitive"] as? Bool,
+                      let wholeWord = body["wholeWord"] as? Bool,
+                      let useRegex = body["useRegex"] as? Bool
+            {
+                findOptionsPreference?.caseSensitive = caseSensitive
+                findOptionsPreference?.wholeWord = wholeWord
+                findOptionsPreference?.useRegex = useRegex
             }
         }
 

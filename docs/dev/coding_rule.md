@@ -205,6 +205,13 @@ swift package plugin --allow-writing-to-package-directory swiftformat
   コメントを付ける（`Localizable.xcstrings` の該当エントリの `comment` フィールドに書く）。
   埋め込み箇所が増える・変更頻度が上がる場合は、さらに (2) 実体と文言の一致を検証する
   テスト（メニューの `keyEquivalent` を読む `MainMenuBuilderTests` の流儀）を追加する。
+  相互参照コメントは **実装箇所が確定してから書く（または確定後に指し先を検証する）**。
+  実装が固まる前に「この辺に実装するはず」という想定で指し先を書くと、実装が別の場所へ
+  着地したときにコメントだけが古い想定のまま取り残される（例: Escape 処理を
+  `mmd-find-input` の keydown 側に書く想定でコメントしたが、実際は IME ガード付きの
+  document レベル keydown ハンドラへ実装された、という指し先ズレ）。指し先には
+  「どのハンドラ・どの修飾条件（IME ガード等）か」まで具体的に書き、実装確定後に
+  その記述が実物と一致しているか読み合わせる。
   グリフのコード生成のような完全な単一情報源化は viewer アプリの規模では過剰。
   なお対象は「ショートカット等の設定値の断片」に限る。ラベル文言そのものの一致
   （ツールチップとメニュータイトルが同じ意味を表すこと）は、ローカライズ上それぞれ独立に
@@ -494,6 +501,49 @@ func fileTypeDetection() {
 - 複数の入力に対して同じ変換結果を期待する（型判定・マッピング）
 - 複数の無効入力に対して同じエラーを期待する
 - 境界値テスト（最小・最大・境界+1）
+
+#### パラメータが「値」でなく「対象プロパティ・振る舞い」のとき
+
+「defaults 生成 → あるプロパティを true にする → 新インスタンスで true を期待」のように、
+アサーション構造は同一で **対象プロパティだけが異なる** テスト群もパラメタライズ対象。
+ただしパラメータに「どのプロパティを触るか」という振る舞いを載せる必要がある。
+
+- **`ReferenceWritableKeyPath` を引数にしない**。`@Test(arguments:)` の引数は `Sendable` が要求されるが、
+  `@MainActor` 隔離された型（`FindOptionsPreference` 等）のプロパティへの KeyPath は
+  `@MainActor` 境界を跨げず `Sendable` 要件を満たせない。
+- 代わりに、**`name` と `@MainActor @Sendable` の get/set クロージャを持つ `Sendable` な値型**で包む。
+  クロージャに `@MainActor` を付けることで、隔離されたプロパティへのアクセスを型安全に閉じ込める。
+- その値型に **`CustomTestStringConvertible` を実装**し、`testDescription` に `name` を返す。
+  失敗時にどのプロパティのケースで落ちたかがテスト結果に表示される。
+
+```swift
+struct BoolProperty: Sendable, CustomTestStringConvertible {
+    let name: String
+    let get: @MainActor @Sendable (FindOptionsPreference) -> Bool
+    let set: @MainActor @Sendable (FindOptionsPreference) -> Void
+    var testDescription: String { name }
+}
+
+@Test("トグルした値は次のインスタンスへ引き継がれる", arguments: boolProperties)
+func togglePersistsAcrossInstances(_ property: BoolProperty) {
+    let defaults = makeIsolatedDefaults(prefix: "FindOptionsPreferenceTests")
+    property.set(FindOptionsPreference(defaults: defaults))
+    #expect(property.get(FindOptionsPreference(defaults: defaults)) == true)
+}
+```
+
+#### パラメタライズ用のヘルパー型・本体関数の可視性
+
+パラメータ型（`BoolProperty` / `FileTypeTraits` 等）と、それを引数に取るテスト本体関数の
+可視性は **必ず同じレベルに揃える**。Swift のアクセス制御上、関数はその引数型より広い可視性を
+持てないため、片方だけ `private` を付けると警告・エラーになる。
+
+- `@Test` の本体関数はデフォルトで `internal`。これに合わせるなら **型も `internal`（修飾なし）**
+  にする（`FindOptionsPreferenceTests.BoolProperty` の流儀）
+- スイート内に閉じたいなら **関数・型の両方に `private`** を付ける
+  （`FileTypeTests.FileTypeTraits` + `fileTypeTraits(_:)` の流儀）
+- どちらでもよいが **同一テスト内では揃える**。片側だけ `private` を付けて可視性がちぐはぐな
+  状態は違反とする
 
 ### テスト対象外
 
