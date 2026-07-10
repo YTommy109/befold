@@ -63,4 +63,25 @@ enum ViewerBridge {
     static func lineNumbersScript(_ show: Bool) -> String {
         "setLineNumbers(\(show))"
     }
+
+    /// 検索バーを開く(未オープンなら表示してフォーカス)スクリプト。
+    static let openFindScript = "_mmdOpenFind()"
+
+    /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったときに
+    /// postMessage されるメッセージハンドラ名。
+    static let findOptionsChangedMessageName = "findOptionsChanged"
+
+    /// 検索の3トグルの状態。
+    struct FindOptions: Equatable {
+        var caseSensitive: Bool
+        var wholeWord: Bool
+        var useRegex: Bool
+    }
+
+    /// ロード時に検索トグルの保存済み状態を注入するスクリプト。
+    /// viewer.html 側は _mmdInitFind() が window._mmdInitialFindOptions を読んで適用する。
+    static func initialFindOptionsScript(_ options: FindOptions) -> String {
+        "window._mmdInitialFindOptions = { caseSensitive: \(options.caseSensitive), " +
+            "wholeWord: \(options.wholeWord), useRegex: \(options.useRegex) };"
+    }
 }

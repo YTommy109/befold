@@ -64,6 +64,26 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.lineNumbersScript(false) == "setLineNumbers(false)")
     }
 
+    @Test("openFindScript が固定の呼び出し文字列である")
+    func openFindScriptIsFixedCall() {
+        #expect(ViewerBridge.openFindScript == "_mmdOpenFind()")
+    }
+
+    @Test("findOptionsChangedMessageName が固定値である")
+    func findOptionsChangedMessageNameIsFixed() {
+        #expect(ViewerBridge.findOptionsChangedMessageName == "findOptionsChanged")
+    }
+
+    @Test("initialFindOptionsScript がトグル値を埋め込む")
+    func initialFindOptionsScriptEmbedsValues() {
+        let options = ViewerBridge.FindOptions(caseSensitive: true, wholeWord: false, useRegex: true)
+
+        #expect(
+            ViewerBridge.initialFindOptionsScript(options)
+                == "window._mmdInitialFindOptions = { caseSensitive: true, wholeWord: false, useRegex: true };"
+        )
+    }
+
     /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html に実在することを
     /// リポジトリ内のソースを読んで検証する(ブリッジ契約のドリフト検知)。
     @Test("ViewerBridge の関数名が viewer.html に定義されている")
