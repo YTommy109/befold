@@ -98,7 +98,9 @@ sed -i.bak \
 rm -f "${PROJECT_YML}.bak"
 
 git -C "$ROOT" add "$PROJECT_YML"
-git -C "$ROOT" commit -m "chore: バージョンを ${OLD_VERSION} から ${NEW_VERSION} に更新する"
+# main への直接コミットは pre-commit フックでブロックされるため、
+# リリース作業として意図的なコミットであることを明示する。
+ALLOW_MAIN_COMMIT=1 git -C "$ROOT" commit -m "chore: バージョンを ${OLD_VERSION} から ${NEW_VERSION} に更新する"
 git -C "$ROOT" tag "v${NEW_VERSION}"
 git -C "$ROOT" push
 git -C "$ROOT" push --tags
