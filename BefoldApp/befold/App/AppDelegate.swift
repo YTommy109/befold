@@ -24,11 +24,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let zoomStore = ZoomStore()
         let recentDocumentsStore = RecentDocumentsStore()
         let hiddenFilesPreference = HiddenFilesPreference()
+        let findOptionsPreference = FindOptionsPreference()
         let windowManager = ViewerWindowManager(
             sessionStore: sessionStore,
             zoomStore: zoomStore,
             recentDocumentsStore: recentDocumentsStore,
-            hiddenFilesPreference: hiddenFilesPreference
+            hiddenFilesPreference: hiddenFilesPreference,
+            findOptionsPreference: findOptionsPreference
         )
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore

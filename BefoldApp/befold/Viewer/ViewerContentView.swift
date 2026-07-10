@@ -3,6 +3,7 @@ import SwiftUI
 struct ViewerContentView: View {
     let store: ViewerStore
     let zoomStore: ZoomStore
+    let findOptionsPreference: FindOptionsPreference
     let onZoomChanged: @MainActor (Double) -> Void
     let onOpenReference: @MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void
     let webViewProxy: WebViewProxy
@@ -34,6 +35,7 @@ struct ViewerContentView: View {
                     initialZoom: currentZoom,
                     onZoomChanged: onZoomChanged,
                     onOpenReference: onOpenReference,
+                    findOptionsPreference: findOptionsPreference,
                     webViewProxy: webViewProxy
                 )
                 .opacity(store.isUnsupported ? 0 : 1)

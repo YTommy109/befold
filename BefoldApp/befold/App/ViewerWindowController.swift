@@ -14,6 +14,7 @@ final class ViewerWindowController: NSWindowController {
     private let store: ViewerStore
     private let zoomStore: ZoomStore
     private let hiddenFilesPreference: HiddenFilesPreference
+    private let findOptionsPreference: FindOptionsPreference
     private let forceSidebarVisible: Bool
     /// 二本指スワイプ検知用のローカルイベントモニタ。ウィンドウが閉じたら解除する。
     private var scrollEventMonitor: Any?
@@ -56,15 +57,18 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate → ViewerWindowManager から
     ///   注入される単一の共有インスタンスを渡すこと。デフォルト値は、不可視ファイル挙動に
     ///   無関心なテストが省略できるようにするためのもの。
+    /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
     init(
         fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
+        findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         forceSidebarVisible: Bool = false
     ) {
         self.fileURL = fileURL
         self.zoomStore = zoomStore
         self.defaults = defaults
         self.hiddenFilesPreference = hiddenFilesPreference
+        self.findOptionsPreference = findOptionsPreference
         self.forceSidebarVisible = forceSidebarVisible
         store = ViewerStore()
         let parentDir = fileURL.deletingLastPathComponent()
@@ -153,6 +157,7 @@ final class ViewerWindowController: NSWindowController {
         let contentView = ViewerContentView(
             store: store,
             zoomStore: zoomStore,
+            findOptionsPreference: findOptionsPreference,
             // 現在の fileURL は rename で書き換わるため、旧値を捕捉せず self 経由で参照する
             onZoomChanged: { [weak self] zoom in
                 guard let self else { return }
