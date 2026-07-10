@@ -67,6 +67,12 @@ enum ViewerBridge {
     /// 検索バーを開く(未オープンなら表示してフォーカス)スクリプト。
     static let openFindScript = "_mmdOpenFind()"
 
+    /// 次のマッチへ移動するスクリプト。検索バーが閉じている間は JS 側で無視される。
+    static let findNextScript = "_mmdFindNextIfOpen()"
+
+    /// 前のマッチへ移動するスクリプト。検索バーが閉じている間は JS 側で無視される。
+    static let findPrevScript = "_mmdFindPrevIfOpen()"
+
     /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったときに
     /// postMessage されるメッセージハンドラ名。
     static let findOptionsChangedMessageName = "findOptionsChanged"

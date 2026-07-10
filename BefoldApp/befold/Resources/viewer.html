@@ -490,6 +490,19 @@
     _mmdFindCurrentIndex = -1;
   }
 
+  // ⌘G / ⌘Shift+G から呼ばれる。検索バーが閉じている間は何もしない
+  // (フォーカス位置に関わらずグローバルショートカットとして配線されるため、
+  // 呼び出し側では開閉判定をせずここで一元的にガードする)。
+  function _mmdFindNextIfOpen() {
+    if (!_mmdFindIsOpen()) return;
+    _mmdFindNext();
+  }
+
+  function _mmdFindPrevIfOpen() {
+    if (!_mmdFindIsOpen()) return;
+    _mmdFindPrev();
+  }
+
   // 前回検索でハイライトした <mark> を平文へ復元する(次の検索前に必ず呼ぶ)。
   // normalize() は親ごとに1回だけ呼ぶ(同じ親に複数の <mark> がある場合の重複呼び出しを避ける)。
   function _mmdFindClearMarks() {

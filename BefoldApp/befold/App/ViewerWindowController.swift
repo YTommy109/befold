@@ -418,6 +418,18 @@ extension ViewerWindowController: NSWindowDelegate {
         webView.evaluateJavaScript(ViewerBridge.openFindScript)
     }
 
+    /// Edit > 次を検索。検索バーが開いている間のみ JS 側で処理される。
+    @objc func findNext(_ sender: Any?) {
+        guard let webView = webViewProxy.webView, !webViewProxy.isDirectHTMLMode else { return }
+        webView.evaluateJavaScript(ViewerBridge.findNextScript)
+    }
+
+    /// Edit > 前を検索。検索バーが開いている間のみ JS 側で処理される。
+    @objc func findPrevious(_ sender: Any?) {
+        guard let webView = webViewProxy.webView, !webViewProxy.isDirectHTMLMode else { return }
+        webView.evaluateJavaScript(ViewerBridge.findPrevScript)
+    }
+
     /// View > Toggle Line Numbers。行番号表示の有無を切り替える。
     @objc func toggleLineNumbers(_ sender: Any?) {
         store.showLineNumbers.toggle()
@@ -483,6 +495,9 @@ extension ViewerWindowController: NSWindowDelegate {
             return store.showsCodeContent
         }
         if menuItem.action == #selector(find(_:)) {
+            return !webViewProxy.isDirectHTMLMode
+        }
+        if menuItem.action == #selector(findNext(_:)) || menuItem.action == #selector(findPrevious(_:)) {
             return !webViewProxy.isDirectHTMLMode
         }
         return true
