@@ -24,6 +24,17 @@
     <div id="diagram-wrap"></div>
   </div>
 
+  <div id="mmd-find-bar" class="mmd-find-bar">
+    <input id="mmd-find-input" type="text" class="mmd-find-input" placeholder="検索">
+    <span id="mmd-find-count" class="mmd-find-count"></span>
+    <button id="mmd-find-prev" class="mmd-find-nav" title="前へ (Shift+Enter)">&#728;</button>
+    <button id="mmd-find-next" class="mmd-find-nav" title="次へ (Enter)">&#711;</button>
+    <button id="mmd-find-case" class="mmd-find-toggle" title="大文字・小文字を区別">Aa</button>
+    <button id="mmd-find-word" class="mmd-find-toggle" title="単語単位で検索">ab|</button>
+    <button id="mmd-find-regex" class="mmd-find-toggle" title="正規表現">.*</button>
+    <button id="mmd-find-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
+  </div>
+
   <script src="viewer.js"></script>
   <script src="mermaid.min.js"></script>
   <script src="markdown-it.min.js"></script>
@@ -106,6 +117,11 @@
   }
 
   document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && _mmdFindIsOpen()) {
+      e.preventDefault();
+      _mmdCloseFind();
+      return;
+    }
     document.body.classList.toggle('cmd-held', e.metaKey);
     if (e.metaKey) {
       if (e.key === '-') { e.preventDefault(); _mmdZoomOut(); }
@@ -412,6 +428,212 @@
     };
   }
 
+  // --- Find ---
+  var _mmdFindOptions = { caseSensitive: false, wholeWord: false, useRegex: false };
+  var _mmdFindQuery = '';
+  var _mmdFindMatches = [];
+  var _mmdFindCurrentIndex = -1;
+  var _mmdFindIsOpenFlag = false;
+
+  // ロード時に保存済みトグル状態(window._mmdInitialFindOptions、Swift から注入)を反映する。
+  function _mmdInitFind() {
+    var opts = window._mmdInitialFindOptions || {};
+    _mmdFindOptions.caseSensitive = !!opts.caseSensitive;
+    _mmdFindOptions.wholeWord = !!opts.wholeWord;
+    _mmdFindOptions.useRegex = !!opts.useRegex;
+    document.getElementById('mmd-find-case').classList.toggle('active', _mmdFindOptions.caseSensitive);
+    document.getElementById('mmd-find-word').classList.toggle('active', _mmdFindOptions.wholeWord);
+    document.getElementById('mmd-find-regex').classList.toggle('active', _mmdFindOptions.useRegex);
+  }
+
+  function _mmdFindIsOpen() {
+    return _mmdFindIsOpenFlag;
+  }
+
+  function _mmdOpenFind() {
+    _mmdFindIsOpenFlag = true;
+    document.getElementById('mmd-find-bar').style.display = 'flex';
+    var input = document.getElementById('mmd-find-input');
+    input.value = _mmdFindQuery;
+    input.focus();
+    input.select();
+    _mmdFindRun();
+  }
+
+  function _mmdCloseFind() {
+    _mmdFindIsOpenFlag = false;
+    document.getElementById('mmd-find-bar').style.display = 'none';
+    _mmdFindClearMarks();
+    _mmdFindMatches = [];
+    _mmdFindCurrentIndex = -1;
+  }
+
+  // 前回検索でハイライトした <mark> を平文へ復元する(次の検索前に必ず呼ぶ)。
+  function _mmdFindClearMarks() {
+    var marks = document.querySelectorAll('#diagram-wrap mark.mmd-find-match');
+    marks.forEach(function(mark) {
+      var text = document.createTextNode(mark.textContent);
+      var parent = mark.parentNode;
+      if (!parent) return;
+      parent.replaceChild(text, mark);
+      parent.normalize();
+    });
+  }
+
+  // 1つのテキストノード内のマッチをすべて <mark> に置換し、matches に追加する。
+  // ゼロ幅マッチ(例: 正規表現 "a*" の空文字一致)は無限ループを避けるため読み飛ばす。
+  function _mmdFindWalkText(node, regex, matches) {
+    var text = node.textContent;
+    regex.lastIndex = 0;
+    var ranges = [];
+    var match;
+    while ((match = regex.exec(text)) !== null) {
+      if (match[0].length === 0) {
+        regex.lastIndex++;
+        if (regex.lastIndex > text.length) break;
+        continue;
+      }
+      ranges.push({ index: match.index, text: match[0] });
+    }
+    if (ranges.length === 0) return;
+    var frag = document.createDocumentFragment();
+    var lastIndex = 0;
+    ranges.forEach(function(range) {
+      if (range.index > lastIndex) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex, range.index)));
+      }
+      var mark = document.createElement('mark');
+      mark.className = 'mmd-find-match';
+      mark.textContent = range.text;
+      frag.appendChild(mark);
+      matches.push(mark);
+      lastIndex = range.index + range.text.length;
+    });
+    if (lastIndex < text.length) {
+      frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+    node.parentNode.replaceChild(frag, node);
+  }
+
+  // #diagram-wrap 配下のテキストノードを再帰的に歩き、マッチを <mark> に置換する。
+  // 既知の制約: シンタックスハイライトの <span> 境界やパス参照 <span> の境界をまたぐ
+  // 一致は検出しない(_PATH_RE の制約と同じ考え方)。
+  function _mmdFindWalk(node, regex, matches) {
+    if (node.nodeType === 3) {
+      _mmdFindWalkText(node, regex, matches);
+    } else if (node.nodeType === 1 && node.tagName !== 'MARK') {
+      var children = Array.prototype.slice.call(node.childNodes);
+      for (var i = 0; i < children.length; i++) {
+        _mmdFindWalk(children[i], regex, matches);
+      }
+    }
+  }
+
+  function _mmdFindUpdateCount() {
+    var countEl = document.getElementById('mmd-find-count');
+    var input = document.getElementById('mmd-find-input');
+    if (_mmdFindQuery.length === 0 || input.classList.contains('mmd-find-error')) {
+      countEl.textContent = '';
+    } else if (_mmdFindMatches.length === 0) {
+      countEl.textContent = '見つかりません';
+    } else {
+      countEl.textContent = (_mmdFindCurrentIndex + 1) + '/' + _mmdFindMatches.length;
+    }
+  }
+
+  function _mmdFindHighlightCurrent() {
+    _mmdFindMatches.forEach(function(mark) { mark.classList.remove('mmd-find-match-current'); });
+    var current = _mmdFindMatches[_mmdFindCurrentIndex];
+    if (!current) return;
+    current.classList.add('mmd-find-match-current');
+    current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  // 入力・トグル変更のたびに呼ばれる: 現在のハイライトをクリアして再検索する。
+  function _mmdFindRun() {
+    var input = document.getElementById('mmd-find-input');
+    _mmdFindQuery = input.value;
+    _mmdFindClearMarks();
+    _mmdFindMatches = [];
+    _mmdFindCurrentIndex = -1;
+
+    var regex = buildFindRegExp(_mmdFindQuery, _mmdFindOptions);
+    input.classList.toggle('mmd-find-error', _mmdFindQuery.length > 0 && regex === null);
+
+    if (regex) {
+      _mmdFindWalk(document.getElementById('diagram-wrap'), regex, _mmdFindMatches);
+    }
+
+    if (_mmdFindMatches.length > 0) {
+      _mmdFindCurrentIndex = 0;
+      _mmdFindHighlightCurrent();
+    }
+    _mmdFindUpdateCount();
+  }
+
+  // render() の末尾から呼ばれる: バーが開いていれば同じクエリ・トグルのまま
+  // 新しい DOM に対して再検索し、可能なら現在位置を維持する(ライブリロード追従)。
+  function _mmdFindRefresh() {
+    var previousIndex = _mmdFindCurrentIndex;
+    _mmdFindRun();
+    if (_mmdFindMatches.length > 0) {
+      _mmdFindCurrentIndex = Math.min(Math.max(previousIndex, 0), _mmdFindMatches.length - 1);
+      _mmdFindHighlightCurrent();
+      _mmdFindUpdateCount();
+    }
+  }
+
+  function _mmdFindNext() {
+    if (_mmdFindMatches.length === 0) return;
+    _mmdFindCurrentIndex = (_mmdFindCurrentIndex + 1) % _mmdFindMatches.length;
+    _mmdFindHighlightCurrent();
+    _mmdFindUpdateCount();
+  }
+
+  function _mmdFindPrev() {
+    if (_mmdFindMatches.length === 0) return;
+    _mmdFindCurrentIndex = (_mmdFindCurrentIndex - 1 + _mmdFindMatches.length) % _mmdFindMatches.length;
+    _mmdFindHighlightCurrent();
+    _mmdFindUpdateCount();
+  }
+
+  // トグルボタン共通のハンドラ: 状態を反転し、見た目を更新し、Swift へ永続化を依頼して再検索する。
+  function _mmdFindToggleOption(optionName, buttonId) {
+    _mmdFindOptions[optionName] = !_mmdFindOptions[optionName];
+    document.getElementById(buttonId).classList.toggle('active', _mmdFindOptions[optionName]);
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.findOptionsChanged) {
+      window.webkit.messageHandlers.findOptionsChanged.postMessage({
+        caseSensitive: _mmdFindOptions.caseSensitive,
+        wholeWord: _mmdFindOptions.wholeWord,
+        useRegex: _mmdFindOptions.useRegex
+      });
+    }
+    _mmdFindRun();
+  }
+
+  document.getElementById('mmd-find-input').addEventListener('input', _mmdFindRun);
+  document.getElementById('mmd-find-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) { _mmdFindPrev(); } else { _mmdFindNext(); }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      _mmdCloseFind();
+    }
+  });
+  document.getElementById('mmd-find-next').addEventListener('click', _mmdFindNext);
+  document.getElementById('mmd-find-prev').addEventListener('click', _mmdFindPrev);
+  document.getElementById('mmd-find-close').addEventListener('click', _mmdCloseFind);
+  document.getElementById('mmd-find-case').addEventListener('click', function() {
+    _mmdFindToggleOption('caseSensitive', 'mmd-find-case');
+  });
+  document.getElementById('mmd-find-word').addEventListener('click', function() {
+    _mmdFindToggleOption('wholeWord', 'mmd-find-word');
+  });
+  document.getElementById('mmd-find-regex').addEventListener('click', function() {
+    _mmdFindToggleOption('useRegex', 'mmd-find-regex');
+  });
+
   // --- Render ---
   function _escapeHtml(text) {
     var div = document.createElement('div');
@@ -565,6 +787,7 @@
     }
 
     _annotatePathRefs();
+    if (_mmdFindIsOpen()) { _mmdFindRefresh(); }
     _mmdApplyZoom();
   }
 
@@ -593,6 +816,7 @@
 
   _mmdInitZoom();
   _mmdInitFontSize();
+  _mmdInitFind();
 </script>
 </body>
 </html>

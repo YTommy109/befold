@@ -353,3 +353,19 @@ if (typeof module !== 'undefined' && module.exports) {
     CSV_COL_COUNT: CSV_COL_COUNT,
   };
 }
+
+// --- Find ---
+
+// クエリと3トグル(caseSensitive / wholeWord / useRegex)から RegExp を組み立てる。
+// クエリが空、または正規表現として不正な場合は null を返す(呼び出し側はエラー表示に切り替える)。
+function buildFindRegExp(query, options) {
+  if (!query) { return null; }
+  var source = options.useRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (options.wholeWord) { source = '\\b(?:' + source + ')\\b'; }
+  var flags = 'g' + (options.caseSensitive ? '' : 'i');
+  try {
+    return new RegExp(source, flags);
+  } catch (e) {
+    return null;
+  }
+}
