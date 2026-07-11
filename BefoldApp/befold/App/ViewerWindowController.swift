@@ -220,7 +220,8 @@ final class ViewerWindowController: NSWindowController {
     }
 
     /// リンク/パス参照のアクティベーションを処理する。
-    private func handleOpenReference(href: String, newWindow: Bool) {
+    /// テスト(@testable import)から回帰テストとして直接呼べるよう internal にする（外部公開はしない）。
+    func handleOpenReference(href: String, newWindow: Bool) {
         let target = ReferenceResolver.resolve(href: href, baseURL: fileURL)
         switch target {
         case let .external(url):

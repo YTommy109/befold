@@ -198,20 +198,11 @@
 
     e.preventDefault();
 
-    if (anchor) {
-      // レンダリング系リンク: 無修飾=同一ウィンドウ, cmd=新規ウィンドウ
-      window.webkit.messageHandlers[_MSG_REFERENCE_ACTIVATED].postMessage({
-        href: href,
-        newWindow: e.metaKey
-      });
-    } else {
-      // .befold-path-ref: cmd+click のみで同一ウィンドウ遷移(従来通り)
-      if (!e.metaKey) return;
-      window.webkit.messageHandlers[_MSG_REFERENCE_ACTIVATED].postMessage({
-        href: href,
-        newWindow: false
-      });
-    }
+    // <a> / .befold-path-ref とも同じ挙動: 無修飾=同一ウィンドウ, cmd=新規ウィンドウ
+    window.webkit.messageHandlers[_MSG_REFERENCE_ACTIVATED].postMessage({
+      href: href,
+      newWindow: e.metaKey
+    });
   });
 
   // コードブロック内のファイルパス検出用の正規表現。
@@ -220,17 +211,24 @@
   // ヒューリスティックとして許容する)。
   var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/g;
 
+  // パス検出の対象にするタグ(このタグに入った時点で配下は許可状態になる)。
+  // code はコードブロック(pre 配下)・インラインコードの両方を兼ねる。
+  var _PATH_ANNOTATE_TAGS = ['p', 'li', 'td', 'th', 'blockquote', 'dt', 'dd', 'code'];
+
   function _annotatePathRefs() {
-    var blocks = document.querySelectorAll('#diagram-wrap pre code');
-    for (var i = 0; i < blocks.length; i++) {
-      _walkTextNodes(blocks[i]);
-    }
+    var wrap = document.getElementById('diagram-wrap');
+    if (wrap) { _walkTextNodes(wrap, false); }
   }
 
-  function _walkTextNodes(node) {
+  // #diagram-wrap 配下を一度だけ再帰的に歩く。allowed は現在位置がパス検出の
+  // 対象コンテキスト内(_PATH_ANNOTATE_TAGS 配下)かどうかを表し、対象タグに
+  // 入った時点で true になり、非対象の子孫にもそのまま引き継がれる
+  // (例: <p> 内の <strong> のテキストも検出対象)。単一パスの走査のため、
+  // ネストしたタグ(li 内の li 等)を二重に処理する心配もない。
+  function _walkTextNodes(node, allowed) {
     if (node.nodeType === 3) { // TEXT_NODE
+      if (!allowed) return;
       var text = node.textContent;
-      if (text.length > 1000) return; // パスらしきトークンは長大なテキストには含まれない
       _PATH_RE.lastIndex = 0;
       var match = _PATH_RE.exec(text);
       if (!match) return;
@@ -251,11 +249,29 @@
         frag.appendChild(document.createTextNode(text.slice(lastIndex)));
       }
       node.parentNode.replaceChild(frag, node);
-    } else if (node.nodeType === 1 && !node.classList.contains('befold-path-ref')) {
-      // ELEMENT_NODE: スナップショットを取り順方向に走査(replaceChild で兄弟が変わるため)
+    } else if (node.nodeType === 1) {
+      var tag = node.tagName.toLowerCase();
+      // <a> 配下は既にリンクとして処理済み、svg/.mermaid は図中テキストの誤検出防止、
+      // .befold-path-ref 配下は既存ガード(二重ラップ防止)。
+      if (tag === 'a' || tag === 'svg' || node.classList.contains('mermaid') ||
+          node.classList.contains('befold-path-ref')) {
+        return;
+      }
+      var childAllowed;
+      if (tag === 'pre') {
+        // <pre> 直下のテキストは対象外(markdown-it の html:true により
+        // <code> を伴わない生の <pre> がリスト項目内などに書かれた場合でも
+        // 誤って対象化しないよう、祖先から引き継いだ allowed をリセットする)。
+        // 内側の <code> は改めて自身で allowed = true にするため、
+        // 従来の「pre code のみ対象」という範囲はそのまま維持される。
+        childAllowed = false;
+      } else {
+        childAllowed = allowed || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1;
+      }
+      // スナップショットを取り順方向に走査(replaceChild で兄弟が変わるため)
       var children = Array.prototype.slice.call(node.childNodes);
       for (var j = 0; j < children.length; j++) {
-        _walkTextNodes(children[j]);
+        _walkTextNodes(children[j], childAllowed);
       }
     }
   }
@@ -445,6 +461,11 @@
           return '<' + tag + cleaned + (match.charAt(match.length - 2) === '/' ? ' />' : '>');
         });
     };
+    // fuzzyLink(scheme なしのドメイン風文字列の自動リンク化)を無効化する。
+    // .md(モルドバ)や .sh(セントヘレナ)は実在の ccTLD のため、素のファイル名
+    // (setup.md 等)が http:// の外部リンクに化けてブラウザが開いてしまう。
+    // scheme 付き URL(https://...)の自動リンク化と [text](url) 形式は影響なし。
+    md.linkify.set({ fuzzyLink: false });
     // 既定の validateLink は data:image/(gif|png|jpeg|webp) しか通さず、
     // MarkdownImageEmbedder が埋め込む svg+xml / bmp / x-icon の data URI が
     // 画像割れになる。data:image/* を全許可する判定へ差し替える。

@@ -33,6 +33,18 @@ final class TempDir: Sendable {
         return file
     }
 
+    /// サブディレクトリを含むパス(例: "sub/target.md")にファイルを作成して URL を返す。
+    /// 中間ディレクトリが存在しない場合は自動的に作成する。
+    func file(atPath relativePath: String, contents: String) throws -> URL {
+        let file = url.appendingPathComponent(relativePath)
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try contents.write(to: file, atomically: true, encoding: .utf8)
+        return file
+    }
+
     /// ディレクトリ内にバイト列でファイルを作成して URL を返す。
     func file(named name: String, data: Data) throws -> URL {
         let file = url.appendingPathComponent(name)
