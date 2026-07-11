@@ -124,7 +124,7 @@ struct ViewerStoreTests {
         let file = URL(fileURLWithPath: "/files/huge.csv")
         let reader = InMemoryFileReader()
         reader.setFile("col1,col2\n1,2", at: file)
-        reader.setSize(ViewerStore.maxFileSizeBytes + 1, at: file)
+        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
 
         let store = makeStore(reader: reader)
         store.openFile(file)
@@ -140,7 +140,7 @@ struct ViewerStoreTests {
         let file = URL(fileURLWithPath: "/files/ok.csv")
         let reader = InMemoryFileReader()
         reader.setFile("col1,col2\n1,2", at: file)
-        reader.setSize(ViewerStore.maxFileSizeBytes, at: file)
+        reader.setSize(ContentLoader.maxFileSizeBytes, at: file)
 
         let store = makeStore(reader: reader)
         store.openFile(file)
@@ -157,7 +157,7 @@ struct ViewerStoreTests {
         let normalFile = URL(fileURLWithPath: "/files/readme.md")
         let reader = InMemoryFileReader()
         reader.setFile("x", at: hugeFile)
-        reader.setSize(ViewerStore.maxFileSizeBytes + 1, at: hugeFile)
+        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: hugeFile)
         reader.setFile("# Hello", at: normalFile)
 
         let store = makeStore(reader: reader)
@@ -293,7 +293,7 @@ struct ViewerStoreTests {
         let reader = InMemoryFileReader()
         reader.setDataFile(imageData, at: file)
         reader.setBinary(true, at: file)
-        reader.setSize(ViewerStore.maxFileSizeBytes + 1, at: file)
+        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
 
         let store = makeStore(reader: reader)
         store.openFile(file)
@@ -310,7 +310,7 @@ struct ViewerStoreTests {
         let reader = InMemoryFileReader()
         reader.setDataFile(Data([0x89]), at: file)
         reader.setBinary(true, at: file)
-        reader.setSize(ViewerStore.maxBinaryFileSizeBytes + 1, at: file)
+        reader.setSize(ContentLoader.maxBinaryFileSizeBytes + 1, at: file)
 
         let store = makeStore(reader: reader)
         store.openFile(file)
@@ -383,7 +383,7 @@ struct ViewerStoreTests {
         let file = URL(fileURLWithPath: "/files/huge.csv")
         let reader = InMemoryFileReader()
         reader.setFile("col1,col2\n1,2", at: file)
-        reader.setSize(ViewerStore.maxFileSizeBytes + 1, at: file)
+        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
 
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
         let store = makeStore(reader: reader, onChangeBox: onChangeBox)
@@ -394,7 +394,7 @@ struct ViewerStoreTests {
         #expect(firedCount == 1)
 
         // サイズが上限内に戻る → isUnsupported が false に変わる再読込でも発火する。
-        reader.setSize(ViewerStore.maxFileSizeBytes, at: file)
+        reader.setSize(ContentLoader.maxFileSizeBytes, at: file)
         onChangeBox.get()?()
 
         #expect(!store.isUnsupported)

@@ -11,17 +11,6 @@ final class ViewerStore {
         (@MainActor @Sendable (URL) -> Void)?
     ) -> FileWatching
 
-    /// メインアクター上で同期読み込みを許容する最大ファイルサイズ(10MB)。
-    /// これを超えるファイルは読み込まず、非対応扱いにしてビーチボール化を防ぐ。
-    nonisolated static let maxFileSizeBytes = 10 * 1024 * 1024
-
-    /// 画像・PDF(バイナリ表示対象)の最大ファイルサイズ(50MB)。
-    /// スキャン PDF や高解像度写真は 10MB を超えることが珍しくないため
-    /// テキストより緩くする。base64 化で約 1.33 倍に膨らんで
-    /// evaluateJavaScript を通るため、無制限にはしない。
-    /// MarkdownImageEmbedder からも参照するため nonisolated にする。
-    nonisolated static let maxBinaryFileSizeBytes = 50 * 1024 * 1024
-
     private(set) var content: String = ""
     private(set) var fileType: FileType = .mmd
     /// 開いたファイルがバイナリなど非対応内容と判定された場合に true になる。
@@ -51,6 +40,7 @@ final class ViewerStore {
     private var fileWatcher: FileWatching?
     private let makeWatcher: WatcherFactory
     private let fileReader: any FileReading
+    private let contentLoader: ContentLoader
     private let defaults: UserDefaults
     /// グレース期間の待機に使うクロック。テストでは仮想時刻を注入して実時間依存を排除する。
     private let clock: any Clock<Duration>
@@ -84,6 +74,7 @@ final class ViewerStore {
             FileWatcher(path: url, onChange: onChange, onRename: onRename)
         }
         self.fileReader = fileReader
+        contentLoader = ContentLoader(fileReader: fileReader)
         self.clock = clock
         _showLineNumbers = defaults.bool(forKey: Self.showLineNumbersKey)
     }
@@ -124,29 +115,11 @@ final class ViewerStore {
         fileGoneTask?.cancel()
         fileGoneTask = nil
 
-        let loaded = loadedState(for: resolved)
+        let loaded = contentLoader.load(from: resolved, fileType: fileType)
         isUnsupported = loaded.isUnsupported
         content = loaded.content
         // isUnsupported / content(表示状態)が確定した後に通知する。
         onContentReloaded?()
-    }
-
-    /// ファイルの種別とサイズから (isUnsupported, content) を決定する純粋な読み込みロジック。
-    private func loadedState(for resolved: URL) -> (isUnsupported: Bool, content: String) {
-        let sizeLimit = fileType.isBinaryContent ? Self.maxBinaryFileSizeBytes : Self.maxFileSizeBytes
-        if let size = fileReader.fileSize(at: resolved), size > sizeLimit {
-            return (true, "")
-        } else if fileType.isBinaryContent {
-            if let data = try? fileReader.readData(from: resolved) {
-                return (false, data.base64EncodedString())
-            } else {
-                return (true, "")
-            }
-        } else if fileReader.isBinary(at: resolved) {
-            return (true, "")
-        } else {
-            return (false, (try? fileReader.readString(from: resolved)) ?? "")
-        }
     }
 
     /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
