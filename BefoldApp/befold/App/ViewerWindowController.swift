@@ -163,7 +163,7 @@ final class ViewerWindowController: NSWindowController {
         store.openFile(fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
         // applySourceMode が内部で updateModeToggleAppearance() を呼ぶため、ここでの明示呼び出しは不要。
-        applySourceMode(FileType(url: fileURL).supportsSourceMode && sourceModeStore.isSourceMode(for: fileURL))
+        applySourceMode(sourceModeStore.restoredSourceMode(for: fileURL))
         sidebar.recordHistory()
     }
 
@@ -239,7 +239,7 @@ final class ViewerWindowController: NSWindowController {
     /// リネームは同一ファイルの改名であり、内容・表示倍率・ビューモードは原則保持する。
     func handleRename(to newURL: URL) {
         let oldURL = fileURL
-        guard newURL != oldURL else { return }
+        guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
         applyURLToWindow(newURL)
 
         // 実体は同じファイルなので旧パスの倍率・ソース表示モードを新パスへ引き継ぐ
@@ -270,7 +270,7 @@ final class ViewerWindowController: NSWindowController {
     /// ファイル切替の実処理のみ担い、選択同期・履歴記録は SidebarNavigator へ委譲する。
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
-        guard newURL != oldURL else { return }
+        guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
         if isFileOpenInAnotherWindow?(newURL) == true {
             focusWindowForFile?(newURL)
             sidebar.restoreSelection(to: oldURL)
@@ -321,8 +321,7 @@ final class ViewerWindowController: NSWindowController {
             return false
         }
         let oldURL = fileURL
-        let restoredSourceMode = FileType(url: newURL).supportsSourceMode
-            && sourceModeStore.isSourceMode(for: newURL)
+        let restoredSourceMode = sourceModeStore.restoredSourceMode(for: newURL)
         applySourceMode(restoredSourceMode)
         applyURLToWindow(newURL)
         // fileExists を確認済みなので store.openFile は必ず loadContent → onContentReloaded まで
@@ -383,39 +382,43 @@ extension ViewerWindowController: NSWindowDelegate {
         defaults.set(window.frameDescriptor, forKey: Self.lastWindowFrameKey)
     }
 
-    /// View > Zoom In。HTML 直接ロード時は WKWebView の pageZoom を、それ以外は JS ズーム実装を使う。
-    @objc func zoomIn(_ sender: Any?) {
+    /// 直接 HTML モードでは pageZoom を transform で変換して保存し、
+    /// それ以外は viewer.js のズーム実装(script)へ委譲する。
+    private func performZoom(
+        directHTML transform: (Double) -> Double, script: String
+    ) {
         guard let webView = webViewProxy.webView else { return }
         if webViewProxy.isDirectHTMLMode {
-            let newZoom = min(ZoomStore.maxZoom, webView.pageZoom + ZoomStore.zoomStep)
+            let newZoom = transform(webView.pageZoom)
             webView.pageZoom = newZoom
             zoomStore.setZoom(newZoom, for: fileURL)
         } else {
-            webView.evaluateJavaScript(ViewerBridge.zoomInScript)
+            webView.evaluateJavaScript(script)
         }
+    }
+
+    /// View > Zoom In。HTML 直接ロード時は WKWebView の pageZoom を、それ以外は JS ズーム実装を使う。
+    @objc func zoomIn(_ sender: Any?) {
+        performZoom(
+            directHTML: { min(ZoomStore.maxZoom, $0 + ZoomStore.zoomStep) },
+            script: ViewerBridge.zoomInScript
+        )
     }
 
     /// View > Zoom Out。
     @objc func zoomOut(_ sender: Any?) {
-        guard let webView = webViewProxy.webView else { return }
-        if webViewProxy.isDirectHTMLMode {
-            let newZoom = max(ZoomStore.minZoom, webView.pageZoom - ZoomStore.zoomStep)
-            webView.pageZoom = newZoom
-            zoomStore.setZoom(newZoom, for: fileURL)
-        } else {
-            webView.evaluateJavaScript(ViewerBridge.zoomOutScript)
-        }
+        performZoom(
+            directHTML: { max(ZoomStore.minZoom, $0 - ZoomStore.zoomStep) },
+            script: ViewerBridge.zoomOutScript
+        )
     }
 
     /// View > Actual Size。倍率を 100% に戻す。
     @objc func resetZoom(_ sender: Any?) {
-        guard let webView = webViewProxy.webView else { return }
-        if webViewProxy.isDirectHTMLMode {
-            webView.pageZoom = ZoomStore.defaultZoom
-            zoomStore.setZoom(ZoomStore.defaultZoom, for: fileURL)
-        } else {
-            webView.evaluateJavaScript(ViewerBridge.zoomResetScript)
-        }
+        performZoom(
+            directHTML: { _ in ZoomStore.defaultZoom },
+            script: ViewerBridge.zoomResetScript
+        )
     }
 
     /// File > Print…。WebView の描画内容を印刷する。

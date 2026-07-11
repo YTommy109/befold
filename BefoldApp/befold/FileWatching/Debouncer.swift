@@ -15,19 +15,20 @@ final class Debouncer: @unchecked Sendable {
 
     /// アクションをスケジュールする。既にスケジュール済みのアクションがあればキャンセルして置き換える。
     func schedule(action: @escaping @Sendable () -> Void) {
-        lock.lock()
-        workItem?.cancel()
-        let item = DispatchWorkItem(block: action)
-        workItem = item
-        lock.unlock()
+        let item = lock.withLock {
+            workItem?.cancel()
+            let item = DispatchWorkItem(block: action)
+            workItem = item
+            return item
+        }
         queue.asyncAfter(deadline: .now() + delay, execute: item)
     }
 
     /// スケジュール済みのアクションをキャンセルする。
     func cancel() {
-        lock.lock()
-        workItem?.cancel()
-        workItem = nil
-        lock.unlock()
+        lock.withLock {
+            workItem?.cancel()
+            workItem = nil
+        }
     }
 }

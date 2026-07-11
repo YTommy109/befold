@@ -10,9 +10,9 @@ final class RecentDocumentsMenuController: NSObject, NSMenuDelegate {
     private let clearHandler: () -> Void
 
     init(
-        recentURLs: @escaping () -> [URL] = { NSDocumentController.shared.recentDocumentURLs },
+        recentURLs: @escaping () -> [URL],
         openHandler: @escaping (URL) -> Void,
-        clearHandler: @escaping () -> Void = { NSDocumentController.shared.clearRecentDocuments(nil) }
+        clearHandler: @escaping () -> Void
     ) {
         self.recentURLs = recentURLs
         self.openHandler = openHandler

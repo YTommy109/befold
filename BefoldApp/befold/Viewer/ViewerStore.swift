@@ -120,31 +120,29 @@ final class ViewerStore {
         fileGoneTask?.cancel()
         fileGoneTask = nil
 
-        // 上限を超える巨大ファイルは同期読み込みでメインスレッドをブロックするため
-        // 読み込まず、非対応扱いにする。
-        let sizeLimit = fileType.isBinaryContent ? Self.maxBinaryFileSizeBytes : Self.maxFileSizeBytes
-        if let size = fileReader.fileSize(at: resolved), size > sizeLimit {
-            isUnsupported = true
-            content = ""
-        } else if fileType.isBinaryContent {
-            if let data = try? fileReader.readData(from: resolved) {
-                isUnsupported = false
-                content = data.base64EncodedString()
-            } else {
-                // 読めないバイナリは非対応表示にする(壊れた画像アイコンや
-                // 空の PDF を無言で出さない)。
-                isUnsupported = true
-                content = ""
-            }
-        } else if fileReader.isBinary(at: resolved) {
-            isUnsupported = true
-            content = ""
-        } else {
-            isUnsupported = false
-            content = (try? fileReader.readString(from: resolved)) ?? ""
-        }
+        let loaded = loadedState(for: resolved)
+        isUnsupported = loaded.isUnsupported
+        content = loaded.content
         // isUnsupported / content(表示状態)が確定した後に通知する。
         onContentReloaded?()
+    }
+
+    /// ファイルの種別とサイズから (isUnsupported, content) を決定する純粋な読み込みロジック。
+    private func loadedState(for resolved: URL) -> (isUnsupported: Bool, content: String) {
+        let sizeLimit = fileType.isBinaryContent ? Self.maxBinaryFileSizeBytes : Self.maxFileSizeBytes
+        if let size = fileReader.fileSize(at: resolved), size > sizeLimit {
+            return (true, "")
+        } else if fileType.isBinaryContent {
+            if let data = try? fileReader.readData(from: resolved) {
+                return (false, data.base64EncodedString())
+            } else {
+                return (true, "")
+            }
+        } else if fileReader.isBinary(at: resolved) {
+            return (true, "")
+        } else {
+            return (false, (try? fileReader.readString(from: resolved)) ?? "")
+        }
     }
 
     /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
