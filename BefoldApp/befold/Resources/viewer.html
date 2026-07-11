@@ -143,6 +143,12 @@
     var isPageKey = pageKeys.indexOf(e.key) !== -1;
     var isLineKey = lineKeys.indexOf(e.key) !== -1;
     if (!isPageKey && !isLineKey) { return; }
+    // 検索入力欄など編集可能要素にフォーカスがある間は、Space/Backspace/矢印/vim jk を
+    // 文字入力・カーソル移動としてそのまま素通りさせる(ビューアのスクロールに奪わない)。
+    var active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+      return;
+    }
     var scrollEl = _mmdScrollTarget();
     if (!scrollEl) { return; }
     e.preventDefault();
