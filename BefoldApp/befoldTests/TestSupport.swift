@@ -41,10 +41,21 @@ final class TempDir: Sendable {
     }
 }
 
+/// ポーリング待機の既定タイムアウト。`BEFOLD_TEST_TIMEOUT_SECONDS` が設定されていれば
+/// それを秒数として使い、なければ `fallback` 秒を使う。ThreadSanitizer ジョブなど
+/// スローダウンの大きい環境で CI 側からタイムアウトを延長できるようにする。
+func testTimeout(fallback seconds: Double) -> Duration {
+    let raw = ProcessInfo.processInfo.environment["BEFOLD_TEST_TIMEOUT_SECONDS"]
+    if let raw, let override = Double(raw) {
+        return .seconds(override)
+    }
+    return .seconds(seconds)
+}
+
 /// 条件が true になるまでポーリングで待機する。CI 環境でのファイル監視イベントや
 /// タイマー発火の遅延に対応するため、固定 sleep ではなく条件成立を待つ。
 func waitUntil(
-    timeout: Duration = .seconds(10),
+    timeout: Duration = testTimeout(fallback: 10),
     _ condition: @escaping @Sendable () -> Bool
 ) async {
     let deadline = ContinuousClock.now.advanced(by: timeout)
@@ -58,13 +69,91 @@ func waitUntil(
 /// 参照する条件は Sendable クロージャにできないため、こちらを使う。
 @MainActor
 func waitUntilOnMainActor(
-    timeout: Duration = .seconds(10),
+    timeout: Duration = testTimeout(fallback: 10),
     _ condition: () -> Bool
 ) async {
     let deadline = ContinuousClock.now.advanced(by: timeout)
     while ContinuousClock.now < deadline {
         if condition() { return }
         try? await Task.sleep(for: .milliseconds(50))
+    }
+}
+
+/// 条件が true になるまで action を定期的に実行しながらポーリングで待機する。
+/// ファイル監視の再開が遅れた場合でも後続の書き込みで検知できるようにするリトライパターン。
+/// 「単発アクション + waitUntil」ではイベントを取りこぼすと回復不能になるため、
+/// 冪等な書き込み系アクションはこちらで発火するまで再試行する。
+func waitUntilWithRetry(
+    timeout: TimeInterval = 15,
+    interval: TimeInterval = 0.5,
+    action: @escaping @Sendable () -> Void,
+    until condition: @escaping @Sendable () -> Bool
+) async {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !condition(), Date() < deadline {
+        action()
+        let retryDeadline = Date().addingTimeInterval(interval)
+        while !condition(), Date() < retryDeadline {
+            try? await Task.sleep(for: .seconds(0.05))
+        }
+    }
+}
+
+/// `waitUntilWithRetry` の MainActor 版。`@Observable` ストアなど MainActor 隔離の
+/// プロパティを条件・アクションから参照する場合に使う。
+@MainActor
+func waitUntilWithRetryOnMainActor(
+    timeout: TimeInterval = 15,
+    interval: TimeInterval = 0.5,
+    action: () -> Void,
+    until condition: () -> Bool
+) async {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !condition(), Date() < deadline {
+        action()
+        let retryDeadline = Date().addingTimeInterval(interval)
+        while !condition(), Date() < retryDeadline {
+            try? await Task.sleep(for: .seconds(0.05))
+        }
+    }
+}
+
+/// FileWatcher の監視準備完了（file source の kevent 登録）を条件ベースで確認する。
+///
+/// `DispatchSource.resume()` は同期的に戻るが、kevent のカーネル登録は dispatch の
+/// マネージャスレッドで**非同期**に完了する。そのため `FileWatcher.init` 直後は
+/// `.delete` / `.rename` のような一度きり（エッジトリガー）のイベントを取りこぼしうる。
+/// `.write` は再試行で救済できるが、削除・rename は再実行できないため、非冪等な操作を
+/// 行う前にこのプローブで登録完了を観測しておく。
+///
+/// 手順:
+/// 1. 対象ファイルへ書き込みを繰り返し、最初のコールバック到達を待って file source の
+///    登録完了を観測する。`atomically: false`（in-place 書き込み）を使うのは、
+///    `atomically: true` が rename 経由で監視を張り直し登録レースを再発させるため。
+/// 2. プローブ書き込みのデバウンス残コールバックが後続の検証を汚さないよう、
+///    コールバック数が `quiescePeriod` の間ひとつも増えなくなるまで待つ。
+///
+/// - Parameter quiescePeriod: 静穏判定の待機時間。既定 0.3s はテスト用 debounce 0.05s の
+///   6 倍で、最後のプローブ書き込みのデバウンス発火を十分に取り込める。
+/// - Returns: 静穏化後のコールバック回数。以降は「操作後の発火」を
+///   この基準値との比較（`callbackCount.get() > baseline`）で判定する。
+func confirmWatcherArmed(
+    file: URL,
+    callbackCount: LockedBox<Int>,
+    quiescePeriod: TimeInterval = 0.3
+) async -> Int {
+    await waitUntilWithRetry(action: {
+        try? "arm-probe-\(Int.random(in: 0 ... 999))"
+            .write(to: file, atomically: false, encoding: .utf8)
+    }, until: {
+        callbackCount.get() > 0
+    })
+    var last = callbackCount.get()
+    while true {
+        try? await Task.sleep(for: .seconds(quiescePeriod))
+        let current = callbackCount.get()
+        if current == last { return current }
+        last = current
     }
 }
 

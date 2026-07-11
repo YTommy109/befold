@@ -14,7 +14,8 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     /// save-by-rename（旧ファイル退避 → 同パスへ新ファイル作成）では
     /// 退避直後の一瞬だけ元パスが空になるため、この間隔だけ待って
     /// 元パスへの再出現有無を見てから rename か変更かを判定する。
-    private static let renameSettleDelay: TimeInterval = 0.2
+    /// 既定値はプロダクト用。テストは短い値を注入して所要時間を縮める。
+    private let renameSettleDelay: TimeInterval
 
     /// 現在の監視対象パス。rename 追従で書き換わるため var。
     /// 読み書きは常にイベントハンドラと同じ監視キュー上で直列化する。
@@ -28,12 +29,15 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
 
     init(
         path: URL,
+        debounceDelay: TimeInterval = 0.2,
+        renameSettleDelay: TimeInterval = 0.2,
         onChange: @escaping @MainActor @Sendable () -> Void,
         onRename: (@MainActor @Sendable (URL) -> Void)? = nil
     ) {
         resolvedPath = path.resolvingSymlinksInPath()
+        self.renameSettleDelay = renameSettleDelay
         queue = DispatchQueue(label: "com.degino.befold.filewatcher", qos: .utility)
-        debouncer = Debouncer(delay: 0.2, queue: queue)
+        debouncer = Debouncer(delay: debounceDelay, queue: queue)
         self.onChange = onChange
         self.onRename = onRename
         // fileSource / dirSource はイベントハンドラ（監視キュー上）でも
@@ -112,7 +116,7 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     /// 判定時に F_GETPATH で移動後パスを取得できる。
     private func scheduleRenameResolution(fd: Int32) {
         let originalPath = resolvedPath
-        queue.asyncAfter(deadline: .now() + Self.renameSettleDelay) { [weak self] in
+        queue.asyncAfter(deadline: .now() + renameSettleDelay) { [weak self] in
             self?.resolveRename(fd: fd, originalPath: originalPath)
         }
     }

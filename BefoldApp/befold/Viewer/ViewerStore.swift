@@ -52,6 +52,8 @@ final class ViewerStore {
     private let makeWatcher: WatcherFactory
     private let fileReader: any FileReading
     private let defaults: UserDefaults
+    /// グレース期間の待機に使うクロック。テストでは仮想時刻を注入して実時間依存を排除する。
+    private let clock: any Clock<Duration>
 
     private static let showLineNumbersKey = "ShowLineNumbers"
 
@@ -74,13 +76,15 @@ final class ViewerStore {
     init(
         watcherFactory: WatcherFactory? = nil,
         fileReader: any FileReading = DefaultFileReader(),
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        clock: any Clock<Duration> = ContinuousClock()
     ) {
         self.defaults = defaults
         makeWatcher = watcherFactory ?? { url, onChange, onRename in
             FileWatcher(path: url, onChange: onChange, onRename: onRename)
         }
         self.fileReader = fileReader
+        self.clock = clock
         _showLineNumbers = defaults.bool(forKey: Self.showLineNumbersKey)
     }
 
@@ -157,8 +161,8 @@ final class ViewerStore {
     /// 新しいパスが存在する場合、ウィンドウを閉じずに監視を継続するため。
     private func scheduleFileGone() {
         fileGoneTask?.cancel()
-        fileGoneTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(1))
+        fileGoneTask = Task { @MainActor [weak self, clock] in
+            try? await clock.sleep(for: .seconds(1))
             guard let self, !Task.isCancelled else { return }
             guard let filePath else { return }
             guard !fileReader.fileExists(at: filePath.resolvingSymlinksInPath()) else { return }

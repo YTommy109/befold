@@ -14,7 +14,8 @@ private struct MockFileWatcher: FileWatching {
 private func makeStore(
     reader: InMemoryFileReader,
     onChangeBox: LockedBox<(@MainActor @Sendable () -> Void)?>? = nil,
-    onRenameBox: LockedBox<(@MainActor @Sendable (URL) -> Void)?>? = nil
+    onRenameBox: LockedBox<(@MainActor @Sendable (URL) -> Void)?>? = nil,
+    clock: any Clock<Duration> = ContinuousClock()
 ) -> ViewerStore {
     ViewerStore(
         watcherFactory: { _, onChange, onRename in
@@ -23,7 +24,8 @@ private func makeStore(
             return MockFileWatcher()
         },
         fileReader: reader,
-        defaults: makeIsolatedDefaults(prefix: "ViewerStoreTests")
+        defaults: makeIsolatedDefaults(prefix: "ViewerStoreTests"),
+        clock: clock
     )
 }
 
@@ -480,23 +482,32 @@ private struct StopCountingWatcher: FileWatching {
 
 /// ファイル削除確定(グレース期間付き onFileGone)まわりのテスト。
 /// ViewerStoreTests から分離し、型の行数を SwiftLint の type_body_length 内に収める。
-/// 実時間の固定スリープ(グレース期間 1s)に依存するため、CI での並列実行による
-/// MainActor 混雑を避けて直列化する(docs/dev/flaky-test-filewatcher-investigation.md 参照)。
-@Suite(.serialized)
+/// グレース期間の待機は TestClock を注入して仮想時刻で厳密に進めるため、実時間依存はなく
+/// 通常どおり並列実行できる。
+@Suite
 @MainActor
 struct ViewerStoreFileGoneTests {
     @Test
     func openNonexistentFileFiresOnFileGoneAfterGrace() async {
+        let clock = TestClock()
         let file = URL(fileURLWithPath: "/files/missing.mmd")
-        let store = makeStore(reader: InMemoryFileReader())
+        let store = makeStore(reader: InMemoryFileReader(), clock: clock)
 
         nonisolated(unsafe) var firedCount = 0
         store.onFileGone = { firedCount += 1 }
         store.openFile(file)
+        await clock.waitForPendingSleepers(atLeast: 1)
         // グレース期間中は発火しない
         #expect(firedCount == 0)
 
-        await waitUntilOnMainActor { firedCount == 1 }
+        // 0.999 秒では未到達で発火しない
+        clock.advance(by: .milliseconds(999))
+        await yieldMainActor()
+        #expect(firedCount == 0)
+
+        // グレース期間 1 秒到達で発火する
+        clock.advance(by: .milliseconds(1))
+        await waitUntilYielding { firedCount == 1 }
         #expect(firedCount == 1)
 
         store.close()
@@ -519,13 +530,14 @@ struct ViewerStoreFileGoneTests {
     }
 
     @Test
-    func watcherCallbackCancelsFileGoneOnRecreation() async throws {
+    func watcherCallbackCancelsFileGoneOnRecreation() async {
+        let clock = TestClock()
         let file = URL(fileURLWithPath: "/files/test.mmd")
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: file)
 
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
-        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox, clock: clock)
 
         nonisolated(unsafe) var firedCount = 0
         store.onFileGone = { firedCount += 1 }
@@ -535,12 +547,16 @@ struct ViewerStoreFileGoneTests {
         // ファイル削除 → コールバック発火でグレース期間開始
         reader.setFile(nil, at: file)
         onChangeBox.get()?()
+        await clock.waitForPendingSleepers(atLeast: 1)
 
-        // グレース期間内に再作成 → onFileGone は発火しない
+        // グレース期間内に再作成 → グレースタスクがキャンセルされ待機が消える
         reader.setFile("graph TD; C-->D", at: file)
         onChangeBox.get()?()
-        // グレース期間(1s)を過ぎても発火しないことを確認(1s + 余裕0.3s)
-        try await Task.sleep(for: .seconds(1.3))
+        #expect(clock.pendingSleepCount == 0)
+
+        // 10 秒進めても発火しない
+        clock.advance(by: .seconds(10))
+        await yieldMainActor()
         #expect(firedCount == 0)
         #expect(store.content == "graph TD; C-->D")
 
@@ -549,36 +565,45 @@ struct ViewerStoreFileGoneTests {
 
     @Test
     func watcherCallbackFiresOnFileGoneAfterGracePeriod() async {
+        let clock = TestClock()
         let file = URL(fileURLWithPath: "/files/test.mmd")
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: file)
 
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
-        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox, clock: clock)
 
         nonisolated(unsafe) var firedCount = 0
         store.onFileGone = { firedCount += 1 }
         store.openFile(file)
 
-        // ファイル削除 → コールバック発火
+        // ファイル削除 → コールバック発火でグレース期間開始
         reader.setFile(nil, at: file)
         onChangeBox.get()?()
+        await clock.waitForPendingSleepers(atLeast: 1)
 
-        // グレース期間後に onFileGone が発火する
-        await waitUntilOnMainActor { firedCount == 1 }
+        // 0.999 秒では未到達で発火しない
+        clock.advance(by: .milliseconds(999))
+        await yieldMainActor()
+        #expect(firedCount == 0)
+
+        // グレース期間 1 秒到達で発火する
+        clock.advance(by: .milliseconds(1))
+        await waitUntilYielding { firedCount == 1 }
         #expect(firedCount == 1)
 
         store.close()
     }
 
     @Test
-    func fileGoneDetectionSurvivesRecreateAndRedelete() async throws {
+    func fileGoneDetectionSurvivesRecreateAndRedelete() async {
+        let clock = TestClock()
         let file = URL(fileURLWithPath: "/files/test.mmd")
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: file)
 
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
-        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox, clock: clock)
 
         nonisolated(unsafe) var firedCount = 0
         store.onFileGone = { firedCount += 1 }
@@ -587,18 +612,23 @@ struct ViewerStoreFileGoneTests {
         // 削除 → グレース期間開始
         reader.setFile(nil, at: file)
         onChangeBox.get()?()
+        await clock.waitForPendingSleepers(atLeast: 1)
+
         // 監視イベントなしで再作成(発火直前の存在再確認だけで救済されるケース)。
-        // グレースタスクは発火せずに完了する。
-        // グレース期間(1s)を過ぎても発火しないことを確認するため 1s + 余裕0.3s 待つ
-        // (FileWatcherIntegrationTests のフレーキー対策と同様の考え方)。
+        // グレース期間を過ぎてもファイルが存在するため発火せず、タスクは完了する。
         reader.setFile("graph TD; C-->D", at: file)
-        try await Task.sleep(for: .seconds(1.3))
+        clock.advance(by: .seconds(1))
+        await yieldMainActor()
         #expect(firedCount == 0)
+        // 完了済み(stale)タスクは待機を残していない
+        #expect(clock.pendingSleepCount == 0)
 
         // 再削除 → 完了済みの stale タスクが検知を塞いでいないこと
         reader.setFile(nil, at: file)
         onChangeBox.get()?()
-        await waitUntilOnMainActor { firedCount == 1 }
+        await clock.waitForPendingSleepers(atLeast: 1)
+        clock.advance(by: .seconds(1))
+        await waitUntilYielding { firedCount == 1 }
         #expect(firedCount == 1)
 
         store.close()
