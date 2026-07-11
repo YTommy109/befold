@@ -539,10 +539,12 @@ mark.mmd-find-match-current {
     text-decoration: underline;
     cursor: pointer;
 }
-/* コードブロック内のパス参照は cmd 押下中のみリンク風にする(従来通り) */
+/* コードブロック内のパス参照はクリック可能の手がかりとして常時 pointer カーソルを付与する。
+   下線は cmd 押下時のみ(.cmd-held 側のルールで付与)。ホバー色はコードブロックの見た目を
+   保つため pre 内では付けない(下の pre .befold-path-ref:hover で無条件に打ち消す)。 */
 pre .befold-path-ref {
     text-decoration: none;
-    cursor: default;
+    cursor: pointer;
 }
 /* 本文・インラインコード中のパス参照は常時 <a> 風に表示する */
 .befold-path-ref {
@@ -551,4 +553,10 @@ pre .befold-path-ref {
 }
 .befold-path-ref:hover {
     color: var(--fgColor-accent);
+}
+/* pre 内は既存スタイル維持(cmd-held 時のみ変化)。
+   :hover(0,2,0) は pre .befold-path-ref(0,1,1) に specificity で勝つため、
+   個別に無効化する(0,2,1 で上のルールに勝つ)。 */
+pre .befold-path-ref:hover {
+    color: inherit;
 }

@@ -213,7 +213,7 @@
 
   // パス検出の対象にするタグ(このタグに入った時点で配下は許可状態になる)。
   // code はコードブロック(pre 配下)・インラインコードの両方を兼ねる。
-  var _PATH_ANNOTATE_TAGS = ['P', 'LI', 'TD', 'TH', 'BLOCKQUOTE', 'DT', 'DD', 'CODE'];
+  var _PATH_ANNOTATE_TAGS = ['p', 'li', 'td', 'th', 'blockquote', 'dt', 'dd', 'code'];
 
   function _annotatePathRefs() {
     var wrap = document.getElementById('diagram-wrap');
@@ -266,7 +266,7 @@
         // 従来の「pre code のみ対象」という範囲はそのまま維持される。
         childAllowed = false;
       } else {
-        childAllowed = allowed || _PATH_ANNOTATE_TAGS.indexOf(node.tagName) !== -1;
+        childAllowed = allowed || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1;
       }
       // スナップショットを取り順方向に走査(replaceChild で兄弟が変わるため)
       var children = Array.prototype.slice.call(node.childNodes);

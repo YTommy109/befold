@@ -534,8 +534,7 @@ extension ViewerWindowControllerTests {
         defer { withExtendedLifetime(tmp) {} }
         let fileA = try tmp.file(named: "a.md", contents: "# A")
         let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
-        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
-        _ = try tmp.file(named: "sub/target.md", contents: "# Target")
+        _ = try tmp.file(atPath: "sub/target.md", contents: "# Target")
         let controller = makeController(file: fileA, defaults: makeIsolatedDefaults(prefix: "OpenReference"))
         defer { controller.close() }
         let originalDirectory = controller.fileListModel.currentDirectory
