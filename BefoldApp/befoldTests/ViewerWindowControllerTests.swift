@@ -3,6 +3,51 @@ import AppKit
 import Foundation
 import Testing
 
+private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
+    var becomeKeyCalled = false
+    var closeCalled = false
+    var renameArgs: (old: URL, new: URL)?
+    var switchFileArgs: (old: URL, new: URL)?
+    var toggleHiddenFilesCalled = false
+    private let isFileOpenCheck: (URL) -> Bool
+
+    init(isFileOpenCheck: @escaping (URL) -> Bool = { _ in false }) {
+        self.isFileOpenCheck = isFileOpenCheck
+    }
+
+    func viewerWindowWillClose(_ controller: ViewerWindowController) {
+        closeCalled = true
+    }
+
+    func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {
+        becomeKeyCalled = true
+    }
+
+    func viewerWindow(
+        _ controller: ViewerWindowController, didRenameFrom oldURL: URL, to newURL: URL
+    ) {
+        renameArgs = (oldURL, newURL)
+    }
+
+    func viewerWindow(
+        _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
+    ) {
+        switchFileArgs = (oldURL, newURL)
+    }
+
+    func viewerWindow(
+        _ controller: ViewerWindowController, isFileOpenInAnotherWindow url: URL
+    ) -> Bool {
+        isFileOpenCheck(url)
+    }
+
+    func viewerWindow(_ controller: ViewerWindowController, focusWindowForFile url: URL) {}
+
+    func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
+        toggleHiddenFilesCalled = true
+    }
+}
+
 @Suite
 @MainActor
 struct ViewerWindowControllerTests {
@@ -134,19 +179,19 @@ struct ViewerWindowControllerTests {
         #expect(second.window?.frame == frame)
     }
 
-    @Test("windowDidBecomeKey で onBecomeKey コールバックが呼ばれる")
-    func windowDidBecomeKeyInvokesCallback() throws {
+    @Test("windowDidBecomeKey でデリゲートが呼ばれる")
+    func windowDidBecomeKeyInvokesDelegate() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         let controller = makeController(file: file)
         defer { controller.close() }
-        var becameKey = false
-        controller.onBecomeKey = { becameKey = true }
+        let mock = MockViewerWindowControllerDelegate()
+        controller.delegate = mock
 
         controller.windowDidBecomeKey(Notification(name: NSWindow.didBecomeKeyNotification))
 
-        #expect(becameKey)
+        #expect(mock.becomeKeyCalled)
     }
 
     @Test("switchFile でファイル URL とウィンドウタイトルが更新される")
@@ -165,21 +210,21 @@ struct ViewerWindowControllerTests {
         #expect(controller.window?.representedURL == file2)
     }
 
-    @Test("switchFile で onSwitchFile コールバックが旧・新 URL で呼ばれる")
-    func switchFileInvokesCallback() throws {
+    @Test("switchFile でデリゲートに旧・新 URL が通知される")
+    func switchFileInvokesDelegate() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
         let file2 = try tmp.file(named: "second.mmd", contents: "graph LR;")
         let controller = makeController(file: file1)
         defer { controller.close() }
-        var callbackArgs: (old: URL, new: URL)?
-        controller.onSwitchFile = { old, new in callbackArgs = (old, new) }
+        let mock = MockViewerWindowControllerDelegate()
+        controller.delegate = mock
 
         controller.switchFile(to: file2)
 
-        #expect(callbackArgs?.old == file1)
-        #expect(callbackArgs?.new == file2)
+        #expect(mock.switchFileArgs?.old == file1)
+        #expect(mock.switchFileArgs?.new == file2)
     }
 
     @Test("switchFile で同じファイルを選んでも何も起きない")
@@ -189,12 +234,12 @@ struct ViewerWindowControllerTests {
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         let controller = makeController(file: file)
         defer { controller.close() }
-        var called = false
-        controller.onSwitchFile = { _, _ in called = true }
+        let mock = MockViewerWindowControllerDelegate()
+        controller.delegate = mock
 
         controller.switchFile(to: file)
 
-        #expect(!called)
+        #expect(mock.switchFileArgs == nil)
     }
 
     @Test("switchFile は旧・新ファイルの保存済み倍率を破壊しない")
