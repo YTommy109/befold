@@ -726,10 +726,7 @@
 
   // スクロール位置の変化を Swift 側へ通知する(継続的な保存用、200ms デバウンス経由でのみ呼ばれる)。
   // ファイル/モード切替直前の退場側位置は、Swift 側(ViewerWindowController)が
-  // 切替処理の中で明示的に旧 URL・旧モードのキーへ確定保存するため、ここでは扱わない
-  // (render() から同期的に呼ぶと、postMessage が Swift に届く時点では既に
-  // fileURL/viewMode が切替先へ進んでいて誤ったキーに保存されるため; 過去に render()
-  // 冒頭から呼んでいたのはこの理由で撤去した)。
+  // 切替処理の中で明示的に旧 URL・旧モードのキーへ確定保存するため、ここでは扱わない。
   function _mmdPostScrollPosition() {
     var el = _mmdScrollTarget();
     if (!el) return;
@@ -783,15 +780,10 @@
   }
 
   async function render(content, type, lang) {
-    // ファイル/モード切替は必ずこの render() を経由し、その際 Swift 側が直前に
-    // _mmdSetRestoreScroll() を呼ぶため _mmdPendingRestoreScroll が非 null になる
-    // (呼び出し規約は上記コメント参照)。保留中のデバウンス通知が残っていると、
-    // 切替後にタイマーが発火して新ファイル・新モードの _mmdScrollTarget()/_viewMode を
-    // 誤って postMessage してしまうため、ここで確実に破棄する。
-    // 一方、カラースキーム変更時の内部再描画(_mmdDarkQuery の 'change' ハンドラ経由)は
-    // Swift を経由せず _mmdPendingRestoreScroll が null のままなので、ファイル/モードは
-    // 変わっていない。この場合まで保留中のタイマーを破棄すると、直前のスクロール確定保存が
-    // 失われたまま二度と発火しなくなるため、破棄は Swift 主導の render() のときに限る。
+    // _mmdPendingRestoreScroll が非 null(=Swift 主導のファイル/モード切替)のときだけ
+    // 保留中のデバウンス通知を破棄する。無条件に破棄すると、Swift を経由しない内部再描画
+    // (カラースキーム変更時など、ファイル/モードは変わらない)で直前のスクロール確定保存が
+    // 失われたまま二度と発火しなくなるため。
     if (_mmdPendingRestoreScroll !== null && _mmdScrollDebounceTimer !== null) {
       clearTimeout(_mmdScrollDebounceTimer);
       _mmdScrollDebounceTimer = null;

@@ -366,10 +366,6 @@ struct ViewerWebView: NSViewRepresentable {
                     || isSourceMode != lastIsSourceMode
                 guard needsRender else { return }
 
-                // ファイル/モードが実際に切り替わった描画だけ永続化済みスクロール位置で復元する。
-                // 同一ファイルのライブリロードや行番号トグルは「切替」ではないため、
-                // JS 側のフォールバック(現在位置の維持)に任せる方が正確
-                // (永続値は最大 200ms 古い可能性がある。詳細は _mmdRestoreScrollPosition 参照)。
                 let restoreFromPersistedPosition = Self.isFileOrModeSwitch(
                     filePath: filePath, isSourceMode: isSourceMode,
                     lastRenderedFilePath: lastRenderedFilePath, lastIsSourceMode: lastIsSourceMode
@@ -392,9 +388,7 @@ struct ViewerWebView: NSViewRepresentable {
 
         /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
         /// scrollKey 予告 + render を評価する。
-        /// - Parameter restoreFromPersistedPosition: true の場合のみ永続化済みスクロール位置を
-        ///   JS へ注入する。false の場合は何も注入せず、JS 側のフォールバック(render() 直前の
-        ///   現在位置)による復元に任せる(`isFileOrModeSwitch` 参照)。
+        /// - Parameter restoreFromPersistedPosition: `isFileOrModeSwitch` 参照。
         private func applyRender(
             webView: WKWebView, content: String, fileType: FileType,
             filePath: URL?, isSourceMode: Bool, showLineNumbers: Bool,
