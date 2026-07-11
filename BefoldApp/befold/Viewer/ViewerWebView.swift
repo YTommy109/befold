@@ -463,3 +463,53 @@ struct ViewerWebView: NSViewRepresentable {
         }
     }
 }
+
+// MARK: - Direct HTML link policy
+
+extension ViewerWebView.Coordinator {
+    /// 直接 HTML モードでのリンククリックに対する挙動分類。
+    enum DirectHTMLLinkAction: Equatable {
+        case allowNativeNavigation
+        case openLocalFile(url: URL, newWindow: Bool)
+        case openExternal(url: URL)
+        case ignore
+    }
+
+    /// クリックされたリンク URL を分類する純関数。
+    /// 同一文書内フラグメントはネイティブのスクロールに任せ、それ以外のローカルファイルは
+    /// フラグメントを除去した上で cmd 修飾の有無に応じて同一/新規ウィンドウを判断する。
+    nonisolated static func directHTMLLinkPolicy(
+        url: URL,
+        currentURL: URL?,
+        modifierFlags: NSEvent.ModifierFlags
+    ) -> DirectHTMLLinkAction {
+        if let fragment = url.fragment, !fragment.isEmpty,
+           let currentURL,
+           url.deletingFragment() == currentURL.deletingFragment()
+        {
+            return .allowNativeNavigation
+        }
+
+        let scheme = url.scheme ?? ""
+        if scheme == "http" || scheme == "https" {
+            return .openExternal(url: url)
+        }
+
+        if url.isFileURL {
+            let cleanURL = url.fragment != nil ? url.deletingFragment() : url
+            let newWindow = modifierFlags.contains(.command)
+            return .openLocalFile(url: cleanURL, newWindow: newWindow)
+        }
+
+        return .ignore
+    }
+}
+
+private extension URL {
+    /// フラグメント(`#...`)を除去した URL を返す。
+    func deletingFragment() -> URL {
+        guard var components = URLComponents(url: self, resolvingAgainstBaseURL: false) else { return self }
+        components.fragment = nil
+        return components.url ?? self
+    }
+}
