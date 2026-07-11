@@ -398,6 +398,10 @@ func detectsAtomicSave() async throws {
 - `viewer.js` にはテスト可能な純粋ロジックのみを置く（DOM 操作は `viewer.html` 側）
 - CommonJS 互換の `module.exports` で関数をエクスポートする（Jest テスト用）
 - `var` 宣言を使用する（WKWebView 内での互換性）
+- **コメントは「コメント・ドキュメンテーション規約」に従う**。同節の例は Swift だが、
+  規約は言語非依存であり `viewer.js` / `viewer.html` のコメントにも等しく適用される。
+  特に「書かなくてよいコメント」の**タスク番号・issue 番号・変更履歴の参照は JS/HTML でも書かない**
+  （`(issue #NNN)` のような記述はコミットメッセージ側に置く）。
 
 ## テスト規約
 
