@@ -11,16 +11,19 @@ final class ViewerWindowManager {
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
     private let sourceModeStore: SourceModeStore
+    private let scrollPositionStore: ScrollPositionStore
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
     /// - Parameter sourceModeStore: 同上。ソース表示モード挙動に無関心なテストが省略できるようにする。
+    /// - Parameter scrollPositionStore: 同上。スクロール位置挙動に無関心なテストが省略できるようにする。
     init(
         sessionStore: SessionStore, zoomStore: ZoomStore, recentDocumentsStore: RecentDocumentsStore,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
-        sourceModeStore: SourceModeStore = SourceModeStore()
+        sourceModeStore: SourceModeStore = SourceModeStore(),
+        scrollPositionStore: ScrollPositionStore = ScrollPositionStore()
     ) {
         self.sessionStore = sessionStore
         self.zoomStore = zoomStore
@@ -28,6 +31,7 @@ final class ViewerWindowManager {
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
         self.sourceModeStore = sourceModeStore
+        self.scrollPositionStore = scrollPositionStore
     }
 
     /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
@@ -65,6 +69,7 @@ final class ViewerWindowManager {
             hiddenFilesPreference: hiddenFilesPreference,
             findOptionsPreference: findOptionsPreference,
             sourceModeStore: sourceModeStore,
+            scrollPositionStore: scrollPositionStore,
             forceSidebarVisible: forceSidebarVisible
         )
         controllers[key] = controller

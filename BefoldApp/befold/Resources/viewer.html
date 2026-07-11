@@ -716,30 +716,56 @@
   var _mmdModeJustSwitched = false;
   var _showLineNumbers = false;
 
-  // ファイルパスをキーにしたスクロール位置の保存領域。render() が呼ばれるたびに
-  // 直前のキーの位置を保存し、新しいキー(Swift 側から _mmdSetScrollKey で
-  // 事前に渡される)の保存済み位置(未保存なら 0)を復元する。
-  var _mmdScrollPositions = {};
-  var _mmdScrollKey = null;
-  var _mmdPendingScrollKey = null;
-
   // Swift 側(ViewerWebView)が render() 呼び出しの直前に評価し、次の render() が
-  // 復元すべきスクロール位置のキーを予告する。
-  function _mmdSetScrollKey(key) {
-    _mmdPendingScrollKey = key;
+  // 復元すべきスクロール位置(scrollTop)を注入する。
+  var _mmdPendingRestoreScroll = null;
+
+  function _mmdSetRestoreScroll(position) {
+    _mmdPendingRestoreScroll = position;
   }
 
-  function _mmdSaveScrollPosition() {
-    if (_mmdScrollKey === null) return;
+  // スクロール位置の変化を Swift 側へ通知する(継続的な保存用、200ms デバウンス経由でのみ呼ばれる)。
+  // ファイル/モード切替直前の退場側位置は、Swift 側(ViewerWindowController)が
+  // 切替処理の中で明示的に旧 URL・旧モードのキーへ確定保存するため、ここでは扱わない
+  // (render() から同期的に呼ぶと、postMessage が Swift に届く時点では既に
+  // fileURL/viewMode が切替先へ進んでいて誤ったキーに保存されるため; 過去に render()
+  // 冒頭から呼んでいたのはこの理由で撤去した)。
+  function _mmdPostScrollPosition() {
     var el = _mmdScrollTarget();
-    if (el) { _mmdScrollPositions[_mmdScrollKey] = el.scrollTop; }
+    if (!el) return;
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.scrollPositionChanged) {
+      window.webkit.messageHandlers.scrollPositionChanged.postMessage({
+        position: el.scrollTop,
+        mode: _viewMode
+      });
+    }
   }
 
-  function _mmdRestoreScrollPosition() {
-    _mmdScrollKey = _mmdPendingScrollKey;
+  // fallbackScrollTop は Swift 由来の pending 値が無いとき(カラースキーム変更時の
+  // 内部再描画など、Swift を経由しない render() 呼び出し)に使う復元位置。
+  // render() が DOM を書き換える直前の scrollTop を渡すことで、内部再描画では
+  // 現在位置がそのまま保たれる。
+  function _mmdRestoreScrollPosition(fallbackScrollTop) {
     var el = _mmdScrollTarget();
-    if (el) { el.scrollTop = (_mmdScrollKey !== null && _mmdScrollPositions[_mmdScrollKey]) || 0; }
+    if (!el) return;
+    el.scrollTop = (_mmdPendingRestoreScroll !== null)
+      ? _mmdPendingRestoreScroll
+      : (typeof fallbackScrollTop === 'number' ? fallbackScrollTop : 0);
+    _mmdPendingRestoreScroll = null;
   }
+
+  // スクロールイベントを 200ms デバウンスして Swift 側へ通知する。
+  // アプリ終了時やウィンドウ破棄時にも最新の位置が保存されるよう継続的に送る
+  // (ファイル/モード切替直前の確定保存は Swift 側が別途行う。上記コメント参照)。
+  var _mmdScrollDebounceTimer = null;
+  function _mmdDebouncedScrollNotify() {
+    if (_mmdScrollDebounceTimer !== null) { clearTimeout(_mmdScrollDebounceTimer); }
+    _mmdScrollDebounceTimer = setTimeout(function() {
+      _mmdScrollDebounceTimer = null;
+      _mmdPostScrollPosition();
+    }, 200);
+  }
+  document.addEventListener('scroll', _mmdDebouncedScrollNotify, true);
 
   // 行番号表示状態を更新する。再描画はしない: Swift 側(ViewerWebView)が
   // 状態変更時に必ず続けて render を送るため、ここで再描画すると全文
@@ -757,7 +783,23 @@
   }
 
   async function render(content, type, lang) {
-    _mmdSaveScrollPosition();
+    // ファイル/モード切替は必ずこの render() を経由し、その際 Swift 側が直前に
+    // _mmdSetRestoreScroll() を呼ぶため _mmdPendingRestoreScroll が非 null になる
+    // (呼び出し規約は上記コメント参照)。保留中のデバウンス通知が残っていると、
+    // 切替後にタイマーが発火して新ファイル・新モードの _mmdScrollTarget()/_viewMode を
+    // 誤って postMessage してしまうため、ここで確実に破棄する。
+    // 一方、カラースキーム変更時の内部再描画(_mmdDarkQuery の 'change' ハンドラ経由)は
+    // Swift を経由せず _mmdPendingRestoreScroll が null のままなので、ファイル/モードは
+    // 変わっていない。この場合まで保留中のタイマーを破棄すると、直前のスクロール確定保存が
+    // 失われたまま二度と発火しなくなるため、破棄は Swift 主導の render() のときに限る。
+    if (_mmdPendingRestoreScroll !== null && _mmdScrollDebounceTimer !== null) {
+      clearTimeout(_mmdScrollDebounceTimer);
+      _mmdScrollDebounceTimer = null;
+    }
+    // DOM を書き換える前に、内部再描画(カラースキーム変更時など)向けの
+    // フォールバック復元位置として現在位置を退避する(_mmdRestoreScrollPosition 参照)。
+    var scrollTargetBeforeRender = _mmdScrollTarget();
+    var fallbackScrollTop = scrollTargetBeforeRender ? scrollTargetBeforeRender.scrollTop : 0;
     _currentType = type;
     _lastContent = content;
     _lastType = type;
@@ -770,7 +812,7 @@
 
     if (_viewMode === 'source' && type !== 'code' && type !== 'image' && type !== 'pdf') {
       _renderSource(content, type, lang);
-      _mmdRestoreScrollPosition();
+      _mmdRestoreScrollPosition(fallbackScrollTop);
       return;
     }
 
@@ -890,7 +932,7 @@
     _annotatePathRefs();
     _mmdFindRefreshAfterRender();
     _mmdApplyZoom();
-    _mmdRestoreScrollPosition();
+    _mmdRestoreScrollPosition(fallbackScrollTop);
   }
 
   function _renderSource(content, type, lang) {

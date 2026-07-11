@@ -52,19 +52,30 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.applyZoomScript(1.5) == "window._mmdInitialZoom = 1.5; _mmdInitZoom();")
     }
 
-    @Test("scrollKeyScript がファイルパスを JSON エスケープして埋め込む")
-    func scrollKeyScriptEmbedsFilePath() {
-        let path = URL(fileURLWithPath: "/tmp/a b\"c.md")
-
+    @Test("restoreScrollPositionScript がスクロール位置を埋め込む")
+    func restoreScrollPositionScriptEmbedsValue() {
         #expect(
-            ViewerBridge.scrollKeyScript(filePath: path)
-                == "_mmdSetScrollKey(\"\\/tmp\\/a b\\\"c.md\")"
+            ViewerBridge.restoreScrollPositionScript(150.5)
+                == "_mmdSetRestoreScroll(150.5)"
         )
     }
 
-    @Test("scrollKeyScript は filePath が nil の場合 null を渡す")
-    func scrollKeyScriptPassesNullWhenFilePathIsNil() {
-        #expect(ViewerBridge.scrollKeyScript(filePath: nil) == "_mmdSetScrollKey(null)")
+    @Test("restoreScrollPositionScript は 0 のときも正しく生成する")
+    func restoreScrollPositionScriptHandlesZero() {
+        #expect(ViewerBridge.restoreScrollPositionScript(0) == "_mmdSetRestoreScroll(0.0)")
+    }
+
+    /// NaN/Infinity は不正な JS リテラルになるため 0 にフォールバックすること。
+    @Test("restoreScrollPositionScript は非有限値を 0 にフォールバックする", arguments: [
+        Double.nan, Double.infinity, -Double.infinity,
+    ])
+    func restoreScrollPositionScriptFallsBackToZeroForNonFinite(position: Double) {
+        #expect(ViewerBridge.restoreScrollPositionScript(position) == "_mmdSetRestoreScroll(0.0)")
+    }
+
+    @Test("scrollPositionChangedMessageName が固定値である")
+    func scrollPositionChangedMessageNameIsFixed() {
+        #expect(ViewerBridge.scrollPositionChangedMessageName == "scrollPositionChanged")
     }
 
     @Test("viewModeScript がモード文字列を埋め込む")
@@ -146,7 +157,9 @@ struct ViewerBridgeTests {
         #expect(html.contains("function setViewMode(mode)"))
         #expect(html.contains("function _mmdInitZoom()"))
         #expect(html.contains("function setLineNumbers(show)"))
-        #expect(html.contains("function _mmdSetScrollKey(key)"))
+        #expect(html.contains("function _mmdSetRestoreScroll(position)"))
+        #expect(html.contains("function _mmdScrollTarget()"))
+        #expect(html.contains("messageHandlers.\(ViewerBridge.scrollPositionChangedMessageName)"))
         #expect(html.contains("function _mmdOpenFind()"))
         #expect(html.contains("function _mmdCloseFind()"))
         #expect(html.contains("function _mmdFindRefresh(resetToFirst)"))

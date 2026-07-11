@@ -14,6 +14,10 @@ struct ViewerWebView: NSViewRepresentable {
     let showLineNumbers: Bool
     /// ロード時に JS へ注入するファイル毎の初期倍率。
     let initialZoom: Double
+    /// render() 呼び出し前に JS へ注入するスクロール復元位置。
+    let scrollPositionToRestore: Double
+    /// JS 側でスクロール位置が変わったときに呼ばれる。(position, mode)
+    let onScrollPositionChanged: @MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void
     /// JS 側で倍率が変わったときに呼ばれる。
     let onZoomChanged: @MainActor (Double) -> Void
     /// cmd+click でリンクやパス参照がアクティベートされたときに呼ばれる。
@@ -83,6 +87,11 @@ struct ViewerWebView: NSViewRepresentable {
             name: ViewerBridge.referenceActivatedMessageName
         )
         context.coordinator.onOpenReference = onOpenReference
+        config.userContentController.add(
+            WeakScriptMessageHandler(delegate: context.coordinator),
+            name: ViewerBridge.scrollPositionChangedMessageName
+        )
+        context.coordinator.onScrollPositionChanged = onScrollPositionChanged
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -107,9 +116,11 @@ struct ViewerWebView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onZoomChanged = onZoomChanged
+        context.coordinator.onScrollPositionChanged = onScrollPositionChanged
         context.coordinator.onOpenReference = onOpenReference
         context.coordinator.findOptionsPreference = findOptionsPreference
         context.coordinator.initialPageZoom = initialZoom
+        context.coordinator.scrollPositionToRestore = scrollPositionToRestore
         context.coordinator.updateContent(
             content,
             fileType: fileType,
@@ -136,6 +147,8 @@ struct ViewerWebView: NSViewRepresentable {
             .removeScriptMessageHandler(forName: ViewerBridge.zoomChangedMessageName)
         nsView.configuration.userContentController
             .removeScriptMessageHandler(forName: ViewerBridge.referenceActivatedMessageName)
+        nsView.configuration.userContentController
+            .removeScriptMessageHandler(forName: ViewerBridge.scrollPositionChangedMessageName)
         nsView.configuration.userContentController
             .removeScriptMessageHandler(forName: ViewerBridge.findOptionsChangedMessageName)
     }
@@ -167,17 +180,21 @@ struct ViewerWebView: NSViewRepresentable {
         var webView: WKWebView?
         var webViewProxy: WebViewProxy?
         var onZoomChanged: (@MainActor (Double) -> Void)?
+        var onScrollPositionChanged: (@MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void)?
         var onOpenReference: (@MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void)?
         /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
         var findOptionsPreference: FindOptionsPreference?
         /// updateNSView から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
         var initialPageZoom: Double = 1.0
+        /// render() 呼び出し前に JS へ注入するスクロール復元位置。
+        var scrollPositionToRestore: Double = 0
         /// HTML 直接ロード完了後に適用する pageZoom。適用後は nil に戻す。
         var pendingPageZoom: Double?
         private var isReady = false
         private var pendingUpdate: (() -> Void)?
         private var lastRenderedContent: String?
         private var lastRenderedFileType: FileType?
+        private var lastRenderedFilePath: URL?
         private var lastShowLineNumbers: Bool?
         private var lastIsSourceMode: Bool?
         private var isDirectHTMLMode = false
@@ -201,6 +218,13 @@ struct ViewerWebView: NSViewRepresentable {
                       let newWindow = body["newWindow"] as? Bool
             {
                 onOpenReference?(href, isExternal, newWindow)
+            } else if message.name == ViewerBridge.scrollPositionChangedMessageName,
+                      let body = message.body as? [String: Any],
+                      let position = (body["position"] as? NSNumber)?.doubleValue,
+                      let modeString = body["mode"] as? String,
+                      let mode = ViewerBridge.ViewMode(rawValue: modeString)
+            {
+                onScrollPositionChanged?(position, mode)
             } else if message.name == ViewerBridge.findOptionsChangedMessageName,
                       let body = message.body as? [String: Any],
                       let caseSensitive = body["caseSensitive"] as? Bool,
@@ -237,9 +261,10 @@ struct ViewerWebView: NSViewRepresentable {
 
         /// 直接 HTML モードを解除し、viewer.html へ復帰する。
         /// `isDirectHTMLMode` / `webViewProxy?.isDirectHTMLMode` / `lastDirectHTMLPath` /
-        /// `lastRenderedContent` / `lastRenderedFileType` の 5 つの状態を必ずセットで
-        /// リセットしてから viewer.html を再ロードする。一部だけ倒すと直接 HTML モードの
-        /// 判定と再描画キャッシュの整合性が崩れるため、呼び出し側で個別にリセットしないこと。
+        /// `lastRenderedContent` / `lastRenderedFileType` / `lastRenderedFilePath` の 6 つの
+        /// 状態を必ずセットでリセットしてから viewer.html を再ロードする。一部だけ倒すと
+        /// 直接 HTML モードの判定と再描画キャッシュの整合性が崩れるため、呼び出し側で
+        /// 個別にリセットしないこと。
         /// (`lastIsSourceMode` は viewer.html 再ロードに伴う JS 側 `_viewMode` の初期化と
         /// セットで `reloadViewerHTML` 側がリセットする)
         private func exitDirectHTMLMode(webView: WKWebView, completion: @escaping () -> Void) {
@@ -248,6 +273,7 @@ struct ViewerWebView: NSViewRepresentable {
             lastDirectHTMLPath = nil
             lastRenderedContent = nil
             lastRenderedFileType = nil
+            lastRenderedFilePath = nil
             reloadViewerHTML(webView: webView, then: completion)
         }
 
@@ -299,7 +325,7 @@ struct ViewerWebView: NSViewRepresentable {
                     // ライブリロード（同一ファイルの content 変更）では現在の倍率を維持する。
                     let isFirstLoadOrSwitch = !isDirectHTMLMode || pathChanged
                     pendingPageZoom = isFirstLoadOrSwitch ? initialPageZoom : webView.pageZoom
-                    recordRendered(content: content, fileType: fileType)
+                    recordRendered(content: content, fileType: fileType, filePath: filePath)
                     lastIsSourceMode = isSourceMode
                     lastDirectHTMLPath = filePath
                     isDirectHTMLMode = true
@@ -313,14 +339,21 @@ struct ViewerWebView: NSViewRepresentable {
 
                 // 直接 HTML モードから viewer.html モードへの復帰
                 if isDirectHTMLMode {
+                    // この分岐に来る時点でファイルかモードが直接HTML状態と必ず異なるため
+                    // (同一なら上の直接HTMLロード分岐に吸収される)、常に切替として扱われる。
+                    let restoreFromPersistedPosition = Self.isFileOrModeSwitch(
+                        filePath: filePath, isSourceMode: isSourceMode,
+                        lastRenderedFilePath: lastRenderedFilePath, lastIsSourceMode: lastIsSourceMode
+                    )
                     exitDirectHTMLMode(webView: webView) {
                         self.applyRender(
                             webView: webView, content: content, fileType: fileType,
                             filePath: filePath, isSourceMode: isSourceMode,
-                            showLineNumbers: showLineNumbers
+                            showLineNumbers: showLineNumbers,
+                            restoreFromPersistedPosition: restoreFromPersistedPosition
                         )
                     }
-                    recordRendered(content: content, fileType: fileType)
+                    recordRendered(content: content, fileType: fileType, filePath: filePath)
                     return
                 }
 
@@ -333,11 +366,20 @@ struct ViewerWebView: NSViewRepresentable {
                     || isSourceMode != lastIsSourceMode
                 guard needsRender else { return }
 
-                recordRendered(content: content, fileType: fileType)
+                // ファイル/モードが実際に切り替わった描画だけ永続化済みスクロール位置で復元する。
+                // 同一ファイルのライブリロードや行番号トグルは「切替」ではないため、
+                // JS 側のフォールバック(現在位置の維持)に任せる方が正確
+                // (永続値は最大 200ms 古い可能性がある。詳細は _mmdRestoreScrollPosition 参照)。
+                let restoreFromPersistedPosition = Self.isFileOrModeSwitch(
+                    filePath: filePath, isSourceMode: isSourceMode,
+                    lastRenderedFilePath: lastRenderedFilePath, lastIsSourceMode: lastIsSourceMode
+                )
+                recordRendered(content: content, fileType: fileType, filePath: filePath)
                 applyRender(
                     webView: webView, content: content, fileType: fileType,
                     filePath: filePath, isSourceMode: isSourceMode,
-                    showLineNumbers: showLineNumbers
+                    showLineNumbers: showLineNumbers,
+                    restoreFromPersistedPosition: restoreFromPersistedPosition
                 )
             }
 
@@ -350,9 +392,13 @@ struct ViewerWebView: NSViewRepresentable {
 
         /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
         /// scrollKey 予告 + render を評価する。
+        /// - Parameter restoreFromPersistedPosition: true の場合のみ永続化済みスクロール位置を
+        ///   JS へ注入する。false の場合は何も注入せず、JS 側のフォールバック(render() 直前の
+        ///   現在位置)による復元に任せる(`isFileOrModeSwitch` 参照)。
         private func applyRender(
             webView: WKWebView, content: String, fileType: FileType,
-            filePath: URL?, isSourceMode: Bool, showLineNumbers: Bool
+            filePath: URL?, isSourceMode: Bool, showLineNumbers: Bool,
+            restoreFromPersistedPosition: Bool
         ) {
             if showLineNumbers != lastShowLineNumbers {
                 webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
@@ -371,13 +417,27 @@ struct ViewerWebView: NSViewRepresentable {
                 ),
                 fileType: fileType
             ) else { return }
-            webView.evaluateJavaScript(ViewerBridge.scrollKeyScript(filePath: filePath))
+            if restoreFromPersistedPosition {
+                webView.evaluateJavaScript(ViewerBridge.restoreScrollPositionScript(scrollPositionToRestore))
+            }
             webView.evaluateJavaScript(script)
         }
 
-        private func recordRendered(content: String, fileType: FileType) {
+        /// 今回の render() がファイル/モードの実際の切替かどうかを判定する。
+        /// 切替時のみ永続化済みスクロール位置(最大 200ms 古い可能性がある)で復元し、
+        /// 同一ファイル・同一モードでの再描画(ライブリロード・行番号トグル等)では
+        /// ライブの現在スクロール位置を優先させる(JS 側フォールバック。applyRender 参照)。
+        nonisolated static func isFileOrModeSwitch(
+            filePath: URL?, isSourceMode: Bool,
+            lastRenderedFilePath: URL?, lastIsSourceMode: Bool?
+        ) -> Bool {
+            filePath != lastRenderedFilePath || isSourceMode != lastIsSourceMode
+        }
+
+        private func recordRendered(content: String, fileType: FileType, filePath: URL?) {
             lastRenderedContent = content
             lastRenderedFileType = fileType
+            lastRenderedFilePath = filePath
         }
 
         /// render() に渡す直前のコンテンツ加工。markdown はローカル画像参照を
