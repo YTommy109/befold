@@ -142,12 +142,9 @@
       else if (e.key === '=' || e.key === '+') { e.preventDefault(); _mmdZoomIn(); }
       return;
     }
-    var pageKeys = [' ', 'Backspace'];
-    var lineKeys = ['ArrowDown', 'ArrowUp', 'j', 'k'];
-    var isPageKey = pageKeys.indexOf(e.key) !== -1;
-    var isLineKey = lineKeys.indexOf(e.key) !== -1;
-    if (!isPageKey && !isLineKey) { return; }
-    // 検索入力欄など編集可能要素にフォーカスがある間は、Space/Backspace/矢印/vim jk を
+    var action = resolveScrollKey(e.key, e.shiftKey);
+    if (!action) { return; }
+    // 検索入力欄など編集可能要素にフォーカスがある間は、Space/矢印/vim jk を
     // 文字入力・カーソル移動としてそのまま素通りさせる(ビューアのスクロールに奪わない)。
     var active = document.activeElement;
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
@@ -156,19 +153,15 @@
     var scrollEl = _mmdScrollTarget();
     if (!scrollEl) { return; }
     e.preventDefault();
-    var down = isPageKey ? (e.key === ' ') : (e.key === 'ArrowDown' || e.key === 'j');
     var step;
-    if (e.shiftKey) {
-      // Shift は「半ページ」を意味する。Space/Backspace と 矢印/vim キーの
-      // どちらから来ても同じ半ページ量になる(shift+space と shift+↓、
-      // shift+backspace と shift+↑ がそれぞれ同じ動作になる)。
-      step = halfPageScrollStep(scrollEl.clientHeight);
-    } else if (isPageKey) {
+    if (action.amount === 'page') {
       step = pageScrollStep(scrollEl.clientHeight);
+    } else if (action.amount === 'half') {
+      step = halfPageScrollStep(scrollEl.clientHeight);
     } else {
       step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
     }
-    scrollEl.scrollBy({ top: down ? step : -step, behavior: 'auto' });
+    scrollEl.scrollBy({ top: action.down ? step : -step, behavior: 'auto' });
   });
 
   document.addEventListener('keyup', function(e) {

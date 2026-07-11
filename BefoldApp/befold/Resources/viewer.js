@@ -1,6 +1,6 @@
 // viewer.js — テスト可能な純粋ロジック
 
-// Space/Backspace の1ページスクロール量。表示領域(clientHeight)の90%とし、
+// Space の1ページスクロール量。表示領域(clientHeight)の90%とし、
 // ウィンドウサイズが変わっても常に「ほぼ1画面分」になるようにする。
 var PAGE_SCROLL_RATIO = 0.9;
 // 行送り(矢印/vimキー)で行の高さを取得できなかった場合のフォールバック値。
@@ -22,6 +22,24 @@ function halfPageScrollStep(clientHeight) {
 function lineScrollStep(lineHeightPx, fallback) {
   var lh = parseFloat(lineHeightPx);
   return isNaN(lh) ? fallback : lh;
+}
+
+// キーボードスクロールのキー→動作解決。Safari に合わせ、Space=下/Shift+Space=上(バックスクロール)は
+// 同じフルページ量のまま方向だけ反転させ、矢印/vim キーは Shift でハーフページに切り替える。
+// Backspace はバックスクロールとして扱わない(未対応キーとして null を返す)。
+function resolveScrollKey(key, shiftKey) {
+  if (key === ' ') {
+    return { down: !shiftKey, amount: 'page' };
+  }
+  var down;
+  if (key === 'ArrowDown' || key === 'j') {
+    down = true;
+  } else if (key === 'ArrowUp' || key === 'k') {
+    down = false;
+  } else {
+    return null;
+  }
+  return { down: down, amount: shiftKey ? 'half' : 'line' };
 }
 
 var ZOOM_MIN = 0.5;
@@ -339,6 +357,7 @@ if (typeof module !== 'undefined' && module.exports) {
     pageScrollStep: pageScrollStep,
     halfPageScrollStep: halfPageScrollStep,
     lineScrollStep: lineScrollStep,
+    resolveScrollKey: resolveScrollKey,
     ZOOM_MIN: ZOOM_MIN,
     ZOOM_MAX: ZOOM_MAX,
     ZOOM_STEP: ZOOM_STEP,
