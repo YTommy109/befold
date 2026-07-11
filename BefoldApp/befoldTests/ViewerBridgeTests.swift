@@ -132,7 +132,7 @@ struct ViewerBridgeTests {
 
         let expectedKeys = [
             "placeholder", "previous", "next", "matchCase",
-            "matchWholeWord", "useRegularExpression", "close", "noResults",
+            "matchWholeWord", "useRegularExpression", "close",
         ]
         for key in expectedKeys {
             #expect(decoded[key]?.isEmpty == false)

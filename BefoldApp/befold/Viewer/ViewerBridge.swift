@@ -121,7 +121,6 @@ enum ViewerBridge {
             "matchWholeWord": String(localized: "viewer.find.matchWholeWord", bundle: .l10n),
             "useRegularExpression": String(localized: "viewer.find.useRegularExpression", bundle: .l10n),
             "close": String(localized: "viewer.find.close", bundle: .l10n),
-            "noResults": String(localized: "viewer.find.noResults", bundle: .l10n),
         ]
         guard let jsonData = try? JSONEncoder().encode(strings),
               let jsonString = String(data: jsonData, encoding: .utf8)
