@@ -29,8 +29,17 @@ struct ViewerStoreIntegrationTests {
         store.openFile(file)
         #expect(firedCount.get() == 0)
 
-        // 削除は一度きりの操作（冪等でない）。ファイル .delete とディレクトリ .write の
-        // 両方でイベントが上がるため取りこぼしにくく、waitUntil のまま待つ。
+        // 削除は一度きり（エッジトリガー）で再実行できず、kevent 登録は resume 後に
+        // 非同期完了するため、登録前に削除するとイベントを取りこぼす。content を書き換えて
+        // 更新が届くのを待ち、file source の登録完了を観測してから削除する。
+        // content 更新は onFileGone に影響しないため静穏化は不要。
+        await waitUntilWithRetryOnMainActor(action: {
+            try? "graph TD; A-->\(Int.random(in: 0 ... 999))"
+                .write(to: file, atomically: false, encoding: .utf8)
+        }, until: {
+            store.content != "graph TD; A-->B"
+        })
+
         try FileManager.default.removeItem(at: file)
 
         // onFileGone 発火を待つ（ポーリングで CI 遅延に対応）
