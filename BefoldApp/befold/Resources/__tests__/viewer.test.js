@@ -20,6 +20,7 @@ const {
   pageScrollStep,
   halfPageScrollStep,
   lineScrollStep,
+  resolveScrollKey,
   markdownFontSize,
   escapeHtml,
   renderCodeHtml,
@@ -395,6 +396,43 @@ describe('lineScrollStep', () => {
 
   test('falls back when line-height is missing', () => {
     expect(lineScrollStep(undefined, DEFAULT_LINE_SCROLL_STEP)).toBe(DEFAULT_LINE_SCROLL_STEP);
+  });
+});
+
+describe('resolveScrollKey', () => {
+  test('Space scrolls down a full page', () => {
+    expect(resolveScrollKey(' ', false)).toEqual({ down: true, amount: 'page' });
+  });
+
+  test('Shift+Space scrolls up (back) a full page, same amount as plain Space', () => {
+    expect(resolveScrollKey(' ', true)).toEqual({ down: false, amount: 'page' });
+  });
+
+  test('Backspace is no longer handled (back-scroll removed)', () => {
+    expect(resolveScrollKey('Backspace', false)).toBeNull();
+    expect(resolveScrollKey('Backspace', true)).toBeNull();
+  });
+
+  test('ArrowDown/ArrowUp scroll one line without Shift', () => {
+    expect(resolveScrollKey('ArrowDown', false)).toEqual({ down: true, amount: 'line' });
+    expect(resolveScrollKey('ArrowUp', false)).toEqual({ down: false, amount: 'line' });
+  });
+
+  test('Shift+ArrowDown/ArrowUp scroll half a page', () => {
+    expect(resolveScrollKey('ArrowDown', true)).toEqual({ down: true, amount: 'half' });
+    expect(resolveScrollKey('ArrowUp', true)).toEqual({ down: false, amount: 'half' });
+  });
+
+  test('vim keys j/k behave the same as ArrowDown/ArrowUp', () => {
+    expect(resolveScrollKey('j', false)).toEqual({ down: true, amount: 'line' });
+    expect(resolveScrollKey('k', false)).toEqual({ down: false, amount: 'line' });
+    expect(resolveScrollKey('j', true)).toEqual({ down: true, amount: 'half' });
+    expect(resolveScrollKey('k', true)).toEqual({ down: false, amount: 'half' });
+  });
+
+  test('unrelated keys are not handled', () => {
+    expect(resolveScrollKey('a', false)).toBeNull();
+    expect(resolveScrollKey('Enter', false)).toBeNull();
   });
 });
 
