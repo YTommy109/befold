@@ -11,10 +11,9 @@ struct DMGMounter: DMGMounting, Sendable {
     struct MountFailed: Error {}
 
     /// DMG をマウントしてマウントポイントを返す。
-    /// Gatekeeper の警告を避けるため、事前に quarantine 属性を除去する。
     /// `Process` 実行でブロックするため、呼び出し側で `Task.detached` に載せること。
+    /// quarantine 属性は署名検証後にインストーラスクリプトが除去する。
     func mount(dmgAt dmgURL: URL) throws -> URL {
-        removeQuarantine(from: dmgURL)
         let output = try run("/usr/bin/hdiutil", ["attach", dmgURL.path, "-nobrowse", "-plist"])
         guard let mountPoint = Self.mountPoint(fromPlist: output) else {
             throw MountFailed()
@@ -40,10 +39,6 @@ struct DMGMounter: DMGMounting, Sendable {
             }
         }
         return nil
-    }
-
-    private func removeQuarantine(from url: URL) {
-        _ = try? run("/usr/bin/xattr", ["-d", "com.apple.quarantine", url.path])
     }
 
     @discardableResult

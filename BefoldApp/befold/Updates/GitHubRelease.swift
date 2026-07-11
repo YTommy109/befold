@@ -28,8 +28,29 @@ struct GitHubRelease: Decodable, Equatable, Sendable {
     }
 
     /// `.dmg` アセットの URL。なければリリースページにフォールバックする。
+    /// スキームが https かつ許可ホストであることを検証する。
     var downloadURL: URL {
-        dmgAsset?.browserDownloadURL ?? htmlURL
+        guard let asset = dmgAsset,
+              Self.isAllowedDownloadURL(asset.browserDownloadURL)
+        else {
+            return htmlURL
+        }
+        return asset.browserDownloadURL
+    }
+
+    private static let allowedHosts: Set<String> = [
+        "github.com",
+        "objects.githubusercontent.com",
+    ]
+
+    private static func isAllowedDownloadURL(_ url: URL) -> Bool {
+        guard url.scheme == "https",
+              let host = url.host,
+              allowedHosts.contains(host)
+        else {
+            return false
+        }
+        return true
     }
 
     private var dmgAsset: Asset? {
