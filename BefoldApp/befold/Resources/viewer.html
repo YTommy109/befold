@@ -445,6 +445,11 @@
           return '<' + tag + cleaned + (match.charAt(match.length - 2) === '/' ? ' />' : '>');
         });
     };
+    // fuzzyLink(scheme なしのドメイン風文字列の自動リンク化)を無効化する。
+    // .md(モルドバ)や .sh(セントヘレナ)は実在の ccTLD のため、素のファイル名
+    // (setup.md 等)が http:// の外部リンクに化けてブラウザが開いてしまう。
+    // scheme 付き URL(https://...)の自動リンク化と [text](url) 形式は影響なし。
+    md.linkify.set({ fuzzyLink: false });
     // 既定の validateLink は data:image/(gif|png|jpeg|webp) しか通さず、
     // MarkdownImageEmbedder が埋め込む svg+xml / bmp / x-icon の data URI が
     // 画像割れになる。data:image/* を全許可する判定へ差し替える。
