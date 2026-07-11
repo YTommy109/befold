@@ -9,7 +9,7 @@ enum CLIInstaller {
     /// `open -a` 経由でアプリを起動するシムスクリプトの内容を生成する。
     static func shimScriptContents(bundlePath: String) -> String {
         let shebang = "#!/bin/bash"
-        let command = #"exec open -a "\#(bundlePath)" "$@""#
+        let command = "exec open -a \(bundlePath.shellQuoted) \"$@\""
         return "\(shebang)\n\(command)\n"
     }
 

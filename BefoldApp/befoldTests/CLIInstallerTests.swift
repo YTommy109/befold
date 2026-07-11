@@ -9,7 +9,7 @@ struct CLIInstallerTests {
         let script = CLIInstaller.shimScriptContents(bundlePath: "/Applications/befold.app")
 
         #expect(script.contains("#!/bin/bash"))
-        #expect(script.contains(#"open -a "/Applications/befold.app" "$@""#))
+        #expect(script.contains("open -a '/Applications/befold.app' \"$@\""))
     }
 
     @Test("書き込み可能な場所には直接インストールされる")

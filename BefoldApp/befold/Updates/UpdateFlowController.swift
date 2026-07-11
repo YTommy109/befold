@@ -9,7 +9,7 @@ protocol UpdaterScriptLaunching: Sendable {
 struct UpdaterScriptLauncher: UpdaterScriptLaunching {
     func launch(script: String) throws {
         let scriptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("befold-updater.sh")
+            .appendingPathComponent("befold-updater-\(UUID().uuidString).sh")
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o755], ofItemAtPath: scriptURL.path
@@ -58,7 +58,7 @@ final class UpdateFlowController {
         }
 
         let dmgURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("befold-update.dmg")
+            .appendingPathComponent("befold-update-\(UUID().uuidString).dmg")
         let progressWindow = makeProgressWindow()
         progressWindow.showWindow(nil)
         do {
@@ -84,6 +84,15 @@ final class UpdateFlowController {
         guard let appInDMG = UpdateInstaller.findApp(inMountPoint: mountPoint) else {
             await Task.detached { mounter.detach(mountPoint: mountPoint) }.value
             throw UpdateInstaller.InstallError.appNotFoundInDMG
+        }
+
+        // 署名検証: ダウンロードしたアプリが実行中アプリと同一の Team ID で
+        // 有効に署名されていることを確認する。検証失敗時はインストールを中断する。
+        do {
+            try CodeSignatureVerifier.verify(appAt: appInDMG)
+        } catch {
+            await Task.detached { mounter.detach(mountPoint: mountPoint) }.value
+            throw error
         }
 
         let logURL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
