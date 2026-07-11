@@ -15,10 +15,12 @@ macOS 向け Mermaid ダイアグラム・ビューアアプリ。
 befold.app (Swift / AppKit + SwiftUI)
   ├── AppDelegate            # ライフサイクル・各コーディネータの束ね
   │     ├── ViewerWindowManager    # ウィンドウ生成・管理とセッション記録の更新
+  │     │     └─ ViewerWindowControllerDelegate  # VWC→VWM のイベント通知（close/rename/switch 等）
   │     ├── SessionRestorer        # 前回セッションのタブ構成の保存/復元
   │     └── UpdateCheckCoordinator # 更新チェックの実行と表示ポリシー
   ├── ViewerWindowController # NSWindowController（1 ファイル = 1 ウィンドウ）
   │     └── SidebarNavigator       # サイドバー一覧・選択同期・戻る/進む履歴
+  │           └─ SidebarNavigatorHost  # Navigator→VWC の逆方向依存を切るプロトコル
   ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
   ├── ViewerStore        # @Observable 表示状態（content / isUnsupported、FileReading で読込を抽象化）
   └── ViewerWebView      # WKWebView（NSViewRepresentable + Coordinator）
@@ -148,6 +150,11 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 - **guard-let early return**: `guard let filePath else { return }` でオプショナルを早期アンラップする
 - **`[weak self]` キャプチャ**: クロージャでの循環参照を防ぐ。`guard let self else { return }` と組み合わせる
 - **`defer`**: テストでの一時ファイル削除など、スコープ終了時の後処理に使う
+- **純粋関数抽出**: メソッドが「状態の計算」と「状態の適用（副作用）」を混在させている場合、
+  計算部分を戻り値を返す純粋関数に切り出し、呼び出し元で結果を適用する。
+  テスタビリティが向上し、同じ計算ロジックを複数の経路で再利用できる
+  （例: `ViewerStore.loadedState(for:)` → `(isUnsupported, content)` を返す純粋関数、
+  `performZoom(directHTML:script:)` → 変換関数を引数で受け取り 3 アクションの重複を解消）
 
 ### 責務分離
 
@@ -157,6 +164,14 @@ swift package plugin --allow-writing-to-package-directory swiftformat
   （例: ウィンドウ管理 + サイドバー + 履歴）が 1 クラスに同居し始めたら凝集単位で分割する。
   分割先は `SidebarNavigator`（ホストへの weak 参照 + プロトコル `〜Host` で逆方向依存を切る）の
   パターンに揃える
+- **クロージャバンドルが 3 つを超えたら delegate プロトコルを検討する**:
+  親→子へのコールバック注入がクロージャで 3 つを超えた場合、delegate プロトコルへの
+  置換を検討する。特に、クロージャが値をキャプチャしており **rename / switch のたびに
+  再束縛（rebind）が必要になる** 場合は、delegate への移行が強く推奨される。
+  delegate メソッドは呼び出し時に対象オブジェクトを引数として受け取るため、キャプチャの
+  更新が不要になり、再束縛メカニズムそのものが消える。
+  - 子→親の逆方向依存: `SidebarNavigatorHost`（weak 参照 + `〜Host` プロトコル）の流儀
+  - 親→子のイベント通知: `ViewerWindowControllerDelegate`（weak delegate + `〜Delegate` プロトコル）の流儀
 - **ウィンドウコントローラを「何でも置き場」にしない**: メニューアクションの実装は
   対応する凝集単位（navigator / store / builder）へ委譲し、コントローラには薄い委譲メソッドだけ残す
 - 並行作業でのコンフリクトを避ける観点で、「この機能を触る人が編集するファイル」が
@@ -195,6 +210,9 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 | シェルのシングルクォートエスケープ | `String.shellQuoted`（`ShellQuoting.swift`） |
 | ズーム上下限・ステップ | `ZoomStore.minZoom` / `maxZoom` / `zoomStep` |
 | 不可視ファイル表示の共有状態 | `HiddenFilesPreference` インスタンス（AppDelegate が生成した 1 個を全ウィンドウで共有） |
+| 拡張子→FileType のマッピング | `FileType.typeByExtension`（`init(url:)` と `allExtensions` の双方がここから導出。拡張子追加は辞書への 1 行追加で完結する） |
+| BOM 検出（バイトパターン→エンコーディング） | `DefaultFileReader.detectBOM(_:)`（`decodeUnicodeText` と `hasUnicodeBOM` の双方がここに委譲） |
+| ディレクトリ列挙（ソート・フィルタ込み） | `DirectoryLister.sortedContents(in:showHiddenFiles:)`（`listFiles` / `listEntries` / `firstSupportedFile` が委譲） |
 
 - **言語をまたぐ定数**（Swift ↔ viewer.js）は避けられない場合のみ二重定義し、
   (1) 双方に対応相手を示すコメント、(2) ソースを読んで一致を検証するテスト
@@ -229,7 +247,8 @@ swift package plugin --allow-writing-to-package-directory swiftformat
   2 箇所目に現れたら、その判定自体を関数（`FileType.isSupported(_:)` の流儀）へ切り出し、
   上の表へ登録する
 - **外部依存はプロトコル + デフォルト引数付きイニシャライザ注入**: ファイル読込は `FileReading`、
-  リリース取得は `ReleaseFetching`、ダウンロードは `UpdateDownloading`、監視は watcherFactory。
+  リリース取得は `ReleaseFetching`、ダウンロードは `UpdateDownloading`、DMG マウントは
+  `DMGMounting`、アップデータスクリプト起動は `UpdaterScriptLaunching`、監視は watcherFactory。
   新しい外部依存（ネットワーク・タイマー・Process 等)も同じ方針で注入し、メソッド内部で
   具象を直接生成しない。デフォルト引数により既存呼び出し元は変更不要に保つ
 - **デフォルト引数が許されるのは「差し替え可能で状態を共有しない」依存に限る**。
