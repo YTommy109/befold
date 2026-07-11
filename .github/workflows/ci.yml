@@ -98,5 +98,8 @@ jobs:
 
       # FileWatcher / Debouncer は GCD/DispatchSource でスレッド安全性を保証しており、
       # データ競合の回帰を ThreadSanitizer で検出する。
+      # TSan は 5〜15 倍スローダウンするため、ポーリング待機のタイムアウトを延長する。
       - name: ThreadSanitizer 付きでテストを実行する
         run: swift test --sanitize=thread
+        env:
+          BEFOLD_TEST_TIMEOUT_SECONDS: 30

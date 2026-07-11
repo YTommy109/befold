@@ -2,22 +2,35 @@
 import Foundation
 import Testing
 
-@Suite
+/// 実ファイルシステム + 実 FileWatcher を使うため直列化する。
+/// 並列実行では複数の GCD キュー・DispatchSource が CI の少コアランナー上で
+/// リソースを奪い合い、イベント配送が遅れてフレーキーになるため。
+@Suite(.serialized)
 @MainActor
 struct ViewerStoreIntegrationTests {
+    /// 実 FileWatcher を短い debounce で生成する watcherFactory。
+    /// プロダクト既定の 0.2s では TSan スローダウン下で伝搬が遅れるため、
+    /// テストでは短い値を注入して所要時間とマージンを改善する。
+    private static func fastWatcherFactory() -> ViewerStore.WatcherFactory {
+        { url, onChange, onRename in
+            FileWatcher(path: url, debounceDelay: 0.05, renameSettleDelay: 0.05, onChange: onChange, onRename: onRename)
+        }
+    }
+
     @Test(.timeLimit(.minutes(1)))
     func deletingWatchedFileFiresOnFileGone() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
-        let store = ViewerStore()
+        let store = ViewerStore(watcherFactory: Self.fastWatcherFactory())
         let firedCount = LockedBox(0)
         store.onFileGone = { firedCount.update { $0 += 1 } }
         store.openFile(file)
         #expect(firedCount.get() == 0)
 
-        try await Task.sleep(for: .seconds(0.3))
+        // 削除は一度きりの操作（冪等でない）。ファイル .delete とディレクトリ .write の
+        // 両方でイベントが上がるため取りこぼしにくく、waitUntil のまま待つ。
         try FileManager.default.removeItem(at: file)
 
         // onFileGone 発火を待つ（ポーリングで CI 遅延に対応）
@@ -33,18 +46,17 @@ struct ViewerStoreIntegrationTests {
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
-        let store = ViewerStore()
+        let store = ViewerStore(watcherFactory: Self.fastWatcherFactory())
         store.openFile(file)
         #expect(store.content == "graph TD; A-->B")
 
-        // 監視の初期化完了を待つ
-        try await Task.sleep(for: .seconds(0.3))
-
-        // 実ファイルを編集 → デバウンス(0.2s)後に content が更新される
-        try "graph TD; X-->Y".write(to: file, atomically: true, encoding: .utf8)
-
-        // content 更新を待つ（ポーリングで CI 遅延に対応）
-        await waitUntilOnMainActor { store.content == "graph TD; X-->Y" }
+        // 実ファイルを編集 → デバウンス後に content が更新される。
+        // 監視再開の遅れに強いよう、更新されるまで書き込みを繰り返す。
+        await waitUntilWithRetryOnMainActor(action: {
+            try? "graph TD; X-->Y".write(to: file, atomically: true, encoding: .utf8)
+        }, until: {
+            store.content == "graph TD; X-->Y"
+        })
         #expect(store.content == "graph TD; X-->Y")
 
         store.close()
@@ -56,7 +68,7 @@ struct ViewerStoreIntegrationTests {
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
-        let store = ViewerStore()
+        let store = ViewerStore(watcherFactory: Self.fastWatcherFactory())
         store.openFile(file)
         #expect(store.content == "graph TD; A-->B")
 
@@ -65,6 +77,7 @@ struct ViewerStoreIntegrationTests {
 
         try "graph TD; X-->Y".write(to: file, atomically: true, encoding: .utf8)
 
+        // close 後は変更が反映されないこと（発火しないことの確認なので固定待ち）
         try await Task.sleep(for: .seconds(1))
         #expect(store.content == "graph TD; A-->B")
     }
