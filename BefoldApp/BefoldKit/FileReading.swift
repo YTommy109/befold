@@ -1,7 +1,7 @@
 import Foundation
 
 /// ファイルの存在確認と内容読み込みを抽象化する(テストでの差し替え用)。
-protocol FileReading: Sendable {
+public protocol FileReading: Sendable {
     func fileExists(at url: URL) -> Bool
     func readString(from url: URL) throws -> String
     func readData(from url: URL) throws -> Data
@@ -12,7 +12,9 @@ protocol FileReading: Sendable {
 }
 
 /// FileManager / String(contentsOf:) による標準実装。
-struct DefaultFileReader: FileReading {
+public struct DefaultFileReader: FileReading {
+    public init() {}
+
     /// バイナリ判定・エンコーディング判定に見る先頭バイト数。
     private static let binarySniffLength = 8192
 
@@ -22,19 +24,19 @@ struct DefaultFileReader: FileReading {
     /// (実バイナリは NUL が散在し、この比は大きくなる)。
     private static let utf16NulParitySkewRatio = 0.1
 
-    func fileExists(at url: URL) -> Bool {
+    public func fileExists(at url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.path)
     }
 
-    func fileSize(at url: URL) -> Int? {
+    public func fileSize(at url: URL) -> Int? {
         (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
     }
 
-    func readData(from url: URL) throws -> Data {
+    public func readData(from url: URL) throws -> Data {
         try Data(contentsOf: url)
     }
 
-    func readString(from url: URL) throws -> String {
+    public func readString(from url: URL) throws -> String {
         let data = try Data(contentsOf: url)
         // BOM 付き UTF-8 / UTF-16 / UTF-32 と、BOM なし UTF-16 を判定して復号する。
         // String(contentsOf:usedEncoding:) は BOM なし UTF-16 を誤ったエンコーディングで
@@ -51,7 +53,7 @@ struct DefaultFileReader: FileReading {
     /// 片側の位置に規則的に並ぶ場合は UTF-16 テキストとみなしてテキスト扱いにする。
     /// ファイルを開けない場合はテキスト扱い(false)とし、readString 側の
     /// エラー処理に委ねる。
-    func isBinary(at url: URL) -> Bool {
+    public func isBinary(at url: URL) -> Bool {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
         defer { try? handle.close() }
         guard let data = try? handle.read(upToCount: Self.binarySniffLength) else { return false }

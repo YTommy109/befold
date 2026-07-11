@@ -31,7 +31,7 @@ const {
   CSV_COL_COUNT,
   isSafeLinkURL,
   buildFindRegExp,
-} = require('../viewer');
+} = require('../../../BefoldKit/Resources/viewer');
 
 describe('clampZoom', () => {
   test('returns value within range unchanged', () => {
@@ -592,7 +592,7 @@ describe('FileType.swift の言語名契約', () => {
   // FileType.codeExtensionLanguages(FileType.swift)の値と同期させること。
   // npm の highlight.js ではなく同梱の highlight.min.js に対して検証する
   // (同梱ビルドは言語のサブセットのため、npm 版では偽陽性になる)。
-  const bundledHljs = require('../highlight.min.js');
+  const bundledHljs = require('../../../BefoldKit/Resources/highlight.min.js');
   const LANGUAGES = [
     'swift', 'python', 'go', 'rust', 'javascript', 'typescript',
     'java', 'kotlin', 'c', 'cpp', 'csharp', 'objectivec',

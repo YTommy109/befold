@@ -1,3 +1,4 @@
+import BefoldKit
 import SwiftUI
 
 struct ViewerContentView: View {

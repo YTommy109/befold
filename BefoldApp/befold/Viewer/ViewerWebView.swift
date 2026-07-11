@@ -1,3 +1,4 @@
+import BefoldKit
 import SwiftUI
 import WebKit
 
@@ -67,7 +68,7 @@ struct ViewerWebView: NSViewRepresentable {
         )
         config.userContentController.addUserScript(findOptionsScript)
         let findStringsScript = WKUserScript(
-            source: ViewerBridge.findStringsScript(),
+            source: ViewerBridge.findStringsScript(bundle: .l10n),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
@@ -136,8 +137,8 @@ struct ViewerWebView: NSViewRepresentable {
 
     /// バンドル同梱の viewer.html を WebView へ読み込む。
     /// リソース名(`"viewer"` / `"html"`)の出現箇所をここに一本化する。
-    static func loadViewerHTML(into webView: WKWebView) {
-        guard let htmlURL = Bundle.l10n.url(forResource: "viewer", withExtension: "html") else { return }
+    static func loadViewerHTML(into webView: WKWebView, bundle: Bundle = .rendering) {
+        guard let htmlURL = bundle.url(forResource: "viewer", withExtension: "html") else { return }
         let resourceDir = htmlURL.deletingLastPathComponent()
         webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
     }

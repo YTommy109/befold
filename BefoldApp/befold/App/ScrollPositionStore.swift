@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// ファイル毎のスクロール位置(scrollTop)を UserDefaults に永続化し、

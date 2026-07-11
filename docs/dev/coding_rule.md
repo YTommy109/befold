@@ -167,7 +167,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 - **純粋関数抽出**: メソッドが「状態の計算」と「状態の適用（副作用）」を混在させている場合、
   計算部分を戻り値を返す純粋関数に切り出し、呼び出し元で結果を適用する。
   テスタビリティが向上し、同じ計算ロジックを複数の経路で再利用できる
-  （例: `ViewerStore.loadedState(for:)` → `(isUnsupported, content)` を返す純粋関数、
+  （例: `ContentLoader.load(from:fileType:)` → `LoadedContent` を返す純粋関数、
   `performZoom(directHTML:script:)` → 変換関数を引数で受け取り 3 アクションの重複を解消）
 
 ### 責務分離

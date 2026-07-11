@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// ファイル毎のソース/レンダリング表示モードを UserDefaults に永続化し、

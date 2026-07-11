@@ -1,4 +1,5 @@
 // BefoldApp/befold/Viewer/MarkdownImageEmbedder.swift
+import BefoldKit
 import Foundation
 
 /// markdown 本文中の ![alt](path) が指すローカル画像を base64 data URI に差し替える
@@ -12,7 +13,7 @@ enum MarkdownImageEmbedder {
         FileType.imageExtensionMimeTypes.merging(["svg": "image/svg+xml"]) { current, _ in current }
 
     /// 1 画像あたりのサイズ上限。バイナリ表示と同じ上限を単一情報源から参照する。
-    static let defaultMaxImageSizeBytes = ViewerStore.maxBinaryFileSizeBytes
+    static let defaultMaxImageSizeBytes = ContentLoader.maxBinaryFileSizeBytes
 
     // Regex は Sendable でないため、strict concurrency 下では static 格納プロパティに
     // できず、各関数内のローカル定数として生成する。
