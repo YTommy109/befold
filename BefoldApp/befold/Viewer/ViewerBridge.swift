@@ -4,6 +4,10 @@ import Foundation
 /// ここの文字列を変更する場合は viewer.html 側の定義とあわせて変更すること
 /// (整合性は ViewerBridgeTests がソースを読んで検証する)。
 enum ViewerBridge {
+    /// JS 側でスクロール位置が変わったときに postMessage されるメッセージハンドラ名。
+    /// payload: { position: Double, mode: String }
+    static let scrollPositionChangedMessageName = "scrollPositionChanged"
+
     /// JS 側で全体ズーム倍率が変わったときに postMessage されるメッセージハンドラ名。
     static let zoomChangedMessageName = "zoomChanged"
 
@@ -48,22 +52,21 @@ enum ViewerBridge {
         return "render(\(jsonString), '\(fileType.jsValue)', '\(escaped)')"
     }
 
-    /// render() 呼び出しの直前に評価し、次に復元すべきスクロール位置のキー
-    /// (ファイルパス)を JS 側へ予告するスクリプト。viewer.html 側は
-    /// _mmdSetScrollKey() が受け取ったキーを保持し、続く render() の末尾で
-    /// そのファイルの保存済みスクロール位置(未保存なら先頭)を復元する。
-    static func scrollKeyScript(filePath: URL?) -> String {
-        guard let filePath,
-              let jsonData = try? JSONEncoder().encode(filePath.path),
-              let jsonString = String(data: jsonData, encoding: .utf8)
-        else {
-            return "_mmdSetScrollKey(null)"
-        }
-        return "_mmdSetScrollKey(\(jsonString))"
+    /// render() 呼び出しの直前に評価し、次に復元すべきスクロール位置(scrollTop)を
+    /// JS 側へ注入するスクリプト。viewer.html 側は _mmdSetRestoreScroll() が受け取った
+    /// 値を保持し、続く render() の末尾でその位置を復元する。
+    /// position が非有限値(NaN/Infinity)の場合は不正な JS リテラルになるため 0 にフォールバックする。
+    static func restoreScrollPositionScript(_ position: Double) -> String {
+        "_mmdSetRestoreScroll(\(position.isFinite ? position : 0))"
     }
 
+    /// 現在のスクロール位置(scrollTop)を同期的に取得するスクリプト。ファイル/モード
+    /// 切替直前に、退場側の正確な位置を明示的なキー(旧 URL・旧モード)へ保存するために使う
+    /// (詳細は ViewerWindowController.saveCurrentScrollPosition 参照)。
+    static let currentScrollPositionScript = "(function() { var el = _mmdScrollTarget(); return el ? el.scrollTop : 0; })()"
+
     /// レンダリング表示とソース表示の切り替えモード。
-    enum ViewMode: String {
+    enum ViewMode: String, Sendable {
         case rendered
         case source
     }

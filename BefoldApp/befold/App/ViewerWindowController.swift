@@ -36,6 +36,7 @@ final class ViewerWindowController: NSWindowController {
     private let defaults: UserDefaults
     private let store: ViewerStore
     private let zoomStore: ZoomStore
+    private let scrollPositionStore: ScrollPositionStore
     private let sourceModeStore: SourceModeStore
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
@@ -68,15 +69,18 @@ final class ViewerWindowController: NSWindowController {
     ///   無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
     /// - Parameter sourceModeStore: 同上。ソース表示モード挙動に無関心なテストが省略できるようにする。
+    /// - Parameter scrollPositionStore: 同上。スクロール位置挙動に無関心なテストが省略できるようにする。
     init(
         fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         sourceModeStore: SourceModeStore = SourceModeStore(),
+        scrollPositionStore: ScrollPositionStore = ScrollPositionStore(),
         forceSidebarVisible: Bool = false
     ) {
         self.fileURL = fileURL
         self.zoomStore = zoomStore
+        self.scrollPositionStore = scrollPositionStore
         self.sourceModeStore = sourceModeStore
         self.defaults = defaults
         self.hiddenFilesPreference = hiddenFilesPreference
@@ -174,11 +178,16 @@ final class ViewerWindowController: NSWindowController {
         let contentView = ViewerContentView(
             store: store,
             zoomStore: zoomStore,
+            scrollPositionStore: scrollPositionStore,
             findOptionsPreference: findOptionsPreference,
             // 現在の fileURL は rename で書き換わるため、旧値を捕捉せず self 経由で参照する
             onZoomChanged: { [weak self] zoom in
                 guard let self else { return }
                 zoomStore.setZoom(zoom, for: fileURL)
+            },
+            onScrollPositionChanged: { [weak self] position, mode in
+                guard let self else { return }
+                scrollPositionStore.setScrollPosition(position, for: fileURL, mode: mode)
             },
             onOpenReference: { [weak self] href, isExternal, newWindow in
                 self?.handleOpenReference(href: href, isExternal: isExternal, newWindow: newWindow)
@@ -251,6 +260,7 @@ final class ViewerWindowController: NSWindowController {
         // (旧パスはもう存在しない)。
         zoomStore.migrateZoom(from: oldURL, to: newURL)
         sourceModeStore.migrateSourceMode(from: oldURL, to: newURL)
+        scrollPositionStore.migrateScrollPosition(from: oldURL, to: newURL)
         // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
         // (例: .md → .swift、.md → .png)ソース表示トグルが成立しなくなる
         // 場合のみリセットする。
@@ -326,6 +336,10 @@ final class ViewerWindowController: NSWindowController {
             return false
         }
         let oldURL = fileURL
+        // fileURL・viewMode を書き換える前に、退場側(oldURL・現在のモード)の
+        // スクロール位置を明示的なキーで確定保存する。切替後に保存すると
+        // 退場側の位置が入場側ファイルのキーへ誤って保存されるため、順序が重要。
+        saveCurrentScrollPosition(for: oldURL, mode: isSourceMode ? .source : .rendered)
         let restoredSourceMode = sourceModeStore.restoredSourceMode(for: newURL)
         applySourceMode(restoredSourceMode)
         applyURLToWindow(newURL)
@@ -335,6 +349,17 @@ final class ViewerWindowController: NSWindowController {
         applyStoredZoomToWebView()
         delegate?.viewerWindow(self, didSwitchFileFrom: oldURL, to: newURL)
         return true
+    }
+
+    /// WebView に現在のスクロール位置を問い合わせ、指定した URL・モードのキーへ保存する。
+    /// ファイル/モード切替の直前に、切替後の self.fileURL / isSourceMode に依存せず
+    /// 退場側の位置を確定させるために使う(render() 冒頭の同期通知を廃止した代替)。
+    private func saveCurrentScrollPosition(for url: URL, mode: ViewerBridge.ViewMode) {
+        guard let webView = webViewProxy.webView else { return }
+        webView.evaluateJavaScript(ViewerBridge.currentScrollPositionScript) { [scrollPositionStore] result, _ in
+            guard let position = (result as? NSNumber)?.doubleValue else { return }
+            scrollPositionStore.setScrollPosition(position, for: url, mode: mode)
+        }
     }
 
     /// 既存のビューアウィンドウと位置が完全に一致する場合だけ、標準のカスケード量ずらす。
@@ -482,6 +507,11 @@ extension ViewerWindowController: NSWindowDelegate {
 
     /// isSourceMode を変更し、store・永続化・モード切替セグメントの表示更新までを一貫して行う。
     private func setSourceMode(_ newValue: Bool) {
+        // モードを書き換える前に、切替元モードのスクロール位置を確定保存する
+        // (performFileSwitch と同じ理由。切替後に保存すると入場側モードのキーへ誤って保存される)。
+        if newValue != isSourceMode {
+            saveCurrentScrollPosition(for: fileURL, mode: isSourceMode ? .source : .rendered)
+        }
         applySourceMode(newValue)
         sourceModeStore.setSourceMode(isSourceMode, for: fileURL)
     }

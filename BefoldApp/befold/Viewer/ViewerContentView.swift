@@ -3,8 +3,10 @@ import SwiftUI
 struct ViewerContentView: View {
     let store: ViewerStore
     let zoomStore: ZoomStore
+    let scrollPositionStore: ScrollPositionStore
     let findOptionsPreference: FindOptionsPreference
     let onZoomChanged: @MainActor (Double) -> Void
+    let onScrollPositionChanged: @MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void
     let onOpenReference: @MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void
     let webViewProxy: WebViewProxy
 
@@ -14,6 +16,12 @@ struct ViewerContentView: View {
     private var currentZoom: Double {
         guard let url = store.filePath else { return ZoomStore.defaultZoom }
         return zoomStore.zoom(for: url)
+    }
+
+    private var currentScrollPosition: Double {
+        guard let url = store.filePath else { return 0 }
+        let mode: ViewerBridge.ViewMode = store.isSourceMode ? .source : .rendered
+        return scrollPositionStore.scrollPosition(for: url, mode: mode)
     }
 
     var body: some View {
@@ -33,6 +41,8 @@ struct ViewerContentView: View {
                     isSourceMode: store.isSourceMode,
                     showLineNumbers: store.showLineNumbers,
                     initialZoom: currentZoom,
+                    scrollPositionToRestore: currentScrollPosition,
+                    onScrollPositionChanged: onScrollPositionChanged,
                     onZoomChanged: onZoomChanged,
                     onOpenReference: onOpenReference,
                     findOptionsPreference: findOptionsPreference,
