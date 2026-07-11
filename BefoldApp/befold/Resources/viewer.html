@@ -172,9 +172,8 @@
     document.body.classList.remove('cmd-held');
   });
 
-  // --- ファイル参照ジャンプ(cmd+click) ---
+  // --- リンク・パス参照クリック ---
   document.getElementById('diagram-wrap').addEventListener('click', function(e) {
-    // <a> タグまたは .befold-path-ref をクリック対象として検出
     var anchor = e.target.closest('a');
     var pathRef = e.target.closest('.befold-path-ref');
     var target = anchor || pathRef;
@@ -193,18 +192,22 @@
       return;
     }
 
-    // アンカー以外は全て preventDefault
     e.preventDefault();
 
-    // cmd が押されていなければ no-op
-    if (!e.metaKey) return;
-
-    var isExternal = /^https?:\/\//.test(href);
-    window.webkit.messageHandlers[_MSG_REFERENCE_ACTIVATED].postMessage({
-      href: href,
-      isExternal: isExternal,
-      newWindow: e.shiftKey
-    });
+    if (anchor) {
+      // レンダリング系リンク: 無修飾=同一ウィンドウ, cmd=新規ウィンドウ
+      window.webkit.messageHandlers[_MSG_REFERENCE_ACTIVATED].postMessage({
+        href: href,
+        newWindow: e.metaKey
+      });
+    } else {
+      // .befold-path-ref: cmd+click のみで同一ウィンドウ遷移(従来通り)
+      if (!e.metaKey) return;
+      window.webkit.messageHandlers[_MSG_REFERENCE_ACTIVATED].postMessage({
+        href: href,
+        newWindow: false
+      });
+    }
   });
 
   // コードブロック内のファイルパス検出用の正規表現。

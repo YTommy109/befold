@@ -7,7 +7,7 @@ struct ViewerContentView: View {
     let findOptionsPreference: FindOptionsPreference
     let onZoomChanged: @MainActor (Double) -> Void
     let onScrollPositionChanged: @MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void
-    let onOpenReference: @MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void
+    let onOpenReference: @MainActor (_ href: String, _ newWindow: Bool) -> Void
     let webViewProxy: WebViewProxy
 
     /// 表示中ファイルの保存倍率。ファイル切替(store.filePath 変化)で再評価され、

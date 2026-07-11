@@ -20,9 +20,9 @@ struct ViewerWebView: NSViewRepresentable {
     let onScrollPositionChanged: @MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void
     /// JS 側で倍率が変わったときに呼ばれる。
     let onZoomChanged: @MainActor (Double) -> Void
-    /// cmd+click でリンクやパス参照がアクティベートされたときに呼ばれる。
-    /// パラメータ: href, isExternal, newWindow
-    let onOpenReference: @MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void
+    /// リンクやパス参照がアクティベートされたときに呼ばれる。
+    /// パラメータ: href, newWindow
+    let onOpenReference: @MainActor (_ href: String, _ newWindow: Bool) -> Void
     /// 検索バーの3トグル(大文字小文字区別・単語マッチ・正規表現)の永続化ストア。
     let findOptionsPreference: FindOptionsPreference
     /// AppKit 側（メニューアクション）へ WKWebView を公開するプロキシ。
@@ -181,7 +181,7 @@ struct ViewerWebView: NSViewRepresentable {
         var webViewProxy: WebViewProxy?
         var onZoomChanged: (@MainActor (Double) -> Void)?
         var onScrollPositionChanged: (@MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void)?
-        var onOpenReference: (@MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void)?
+        var onOpenReference: (@MainActor (_ href: String, _ newWindow: Bool) -> Void)?
         /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
         var findOptionsPreference: FindOptionsPreference?
         /// updateNSView から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
@@ -214,10 +214,9 @@ struct ViewerWebView: NSViewRepresentable {
             } else if message.name == ViewerBridge.referenceActivatedMessageName,
                       let body = message.body as? [String: Any],
                       let href = body["href"] as? String,
-                      let isExternal = body["isExternal"] as? Bool,
                       let newWindow = body["newWindow"] as? Bool
             {
-                onOpenReference?(href, isExternal, newWindow)
+                onOpenReference?(href, newWindow)
             } else if message.name == ViewerBridge.scrollPositionChangedMessageName,
                       let body = message.body as? [String: Any],
                       let position = (body["position"] as? NSNumber)?.doubleValue,
@@ -292,18 +291,15 @@ struct ViewerWebView: NSViewRepresentable {
             }
         }
 
-        /// 初回の HTML ロード（loadFileURL）のみ許可し、それ以外のナビゲーションは全てキャンセルする。
-        /// リンククリックやフォーム送信による意図しないページ遷移を防ぐ。
+        /// 初回の HTML ロード（loadFileURL）は常に許可する。viewer.html モードではそれ以外の
+        /// ナビゲーションを全てキャンセルする(JS 側がリンクを処理する)。直接 HTML モードでは
+        /// リンククリック(.linkActivated)のみ directHTMLLinkPolicy で分類して処理する。
+        /// (実装は type_body_length 対策で下部の extension に分離)
         func webView(
             _ webView: WKWebView,
             decidePolicyFor navigationAction: WKNavigationAction
         ) async -> WKNavigationActionPolicy {
-            switch navigationAction.navigationType {
-            case .other:
-                .allow
-            default:
-                .cancel
-            }
+            decidePolicyForDirectHTMLAware(webView: webView, navigationAction: navigationAction)
         }
 
         func updateContent(
@@ -462,5 +458,97 @@ struct ViewerWebView: NSViewRepresentable {
             webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
             ViewerWebView.loadViewerHTML(into: webView)
         }
+    }
+}
+
+// MARK: - Direct HTML link policy
+
+extension ViewerWebView.Coordinator {
+    /// decidePolicyFor の実装本体。type_body_length 対策で struct 外の extension に分離している。
+    /// 初回の HTML ロード（loadFileURL）は常に許可する。viewer.html モードではそれ以外の
+    /// ナビゲーションを全てキャンセルする(JS 側がリンクを処理する)。直接 HTML モードでは
+    /// リンククリック(.linkActivated)のみ directHTMLLinkPolicy で分類して処理する。
+    func decidePolicyForDirectHTMLAware(
+        webView: WKWebView,
+        navigationAction: WKNavigationAction
+    ) -> WKNavigationActionPolicy {
+        if navigationAction.navigationType == .other {
+            return .allow
+        }
+
+        guard isDirectHTMLMode else {
+            return .cancel
+        }
+
+        guard navigationAction.navigationType == .linkActivated,
+              let url = navigationAction.request.url
+        else {
+            return .cancel
+        }
+
+        let action = Self.directHTMLLinkPolicy(
+            url: url,
+            currentURL: webView.url,
+            modifierFlags: navigationAction.modifierFlags
+        )
+
+        switch action {
+        case .allowNativeNavigation:
+            return .allow
+        case let .openLocalFile(fileURL, newWindow):
+            onOpenReference?(fileURL.path, newWindow)
+            return .cancel
+        case let .openExternal(externalURL):
+            NSWorkspace.shared.open(externalURL)
+            return .cancel
+        case .ignore:
+            return .cancel
+        }
+    }
+
+    /// 直接 HTML モードでのリンククリックに対する挙動分類。
+    enum DirectHTMLLinkAction: Equatable {
+        case allowNativeNavigation
+        case openLocalFile(url: URL, newWindow: Bool)
+        case openExternal(url: URL)
+        case ignore
+    }
+
+    /// クリックされたリンク URL を分類する純関数。
+    /// 同一文書内フラグメントはネイティブのスクロールに任せ、それ以外のローカルファイルは
+    /// フラグメントを除去した上で cmd 修飾の有無に応じて同一/新規ウィンドウを判断する。
+    nonisolated static func directHTMLLinkPolicy(
+        url: URL,
+        currentURL: URL?,
+        modifierFlags: NSEvent.ModifierFlags
+    ) -> DirectHTMLLinkAction {
+        if let fragment = url.fragment, !fragment.isEmpty,
+           let currentURL,
+           url.deletingFragment() == currentURL.deletingFragment()
+        {
+            return .allowNativeNavigation
+        }
+
+        let scheme = url.scheme ?? ""
+        if scheme == "http" || scheme == "https" {
+            return .openExternal(url: url)
+        }
+
+        if url.isFileURL {
+            let cleanURL = url.fragment != nil ? url.deletingFragment() : url
+            let newWindow = modifierFlags.contains(.command)
+            return .openLocalFile(url: cleanURL, newWindow: newWindow)
+        }
+
+        return .ignore
+    }
+}
+
+private extension URL {
+    /// フラグメント(`#...`)を除去した URL を返す。
+    func deletingFragment() -> URL {
+        guard var components = URLComponents(url: self, resolvingAgainstBaseURL: false) else { return self }
+        components.fragment = nil
+        return components.url ?? self
     }
 }
