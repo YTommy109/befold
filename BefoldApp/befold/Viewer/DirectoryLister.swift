@@ -2,56 +2,19 @@ import Foundation
 
 enum DirectoryLister {
     static func listFiles(in directory: URL) -> [URL] {
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return []
-        }
-        return contents
-            .filter { url in
-                let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-                return !isDirectory
-            }
-            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+        sortedContents(in: directory).files
     }
 
     static func listEntries(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
     ) -> [FileListEntry] {
-        let options: FileManager.DirectoryEnumerationOptions = showHiddenFiles ? [] : [.skipsHiddenFiles]
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: options
-        ) else {
-            return []
-        }
-
-        var folders: [URL] = []
-        var files: [URL] = []
-
-        for url in contents {
-            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-            if isDirectory {
-                folders.append(url)
-            } else {
-                files.append(url)
-            }
-        }
-
-        let nameSort: (URL, URL) -> Bool = {
-            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
-        }
-        folders.sort(by: nameSort)
-        files.sort(by: nameSort)
+        let (folders, files) = sortedContents(in: directory, showHiddenFiles: showHiddenFiles)
 
         var entries: [FileListEntry] = []
 
-        let parent = directory.deletingLastPathComponent().standardizedFileURL
+        let parent = directory.deletingLastPathComponent()
         if isWithinHome(parent) {
-            entries.append(FileListEntry(url: directory.deletingLastPathComponent(), kind: .parentNavigation))
+            entries.append(FileListEntry(url: parent, kind: .parentNavigation))
         }
 
         switch sortOrder {
@@ -61,7 +24,11 @@ enum DirectoryLister {
         case .alphabetical:
             var mixed = folders.map { FileListEntry(url: $0, kind: .folder) }
                 + files.map { FileListEntry(url: $0, kind: .file) }
-            mixed.sort(by: { nameSort($0.url, $1.url) })
+            mixed.sort {
+                $0.url.lastPathComponent.localizedStandardCompare(
+                    $1.url.lastPathComponent
+                ) == .orderedAscending
+            }
             entries += mixed
         }
 
@@ -73,35 +40,17 @@ enum DirectoryLister {
     }
 
     static func firstSupportedFile(in directory: URL) -> URL? {
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return nil
-        }
-        return contents
-            .filter { url in
-                let isDir = (try? url.resourceValues(
-                    forKeys: [.isDirectoryKey]
-                ))?.isDirectory ?? false
-                return !isDir && FileType.isSupported(url)
-            }
-            .sorted {
-                $0.lastPathComponent.localizedStandardCompare(
-                    $1.lastPathComponent
-                ) == .orderedAscending
-            }
-            .first
+        listFiles(in: directory).first(where: FileType.isSupported)
     }
 
     /// 指定 URL がホームディレクトリ自身、またはその配下かどうかを判定する。
+    /// symlink を解決した normalizedPathKey で比較し、パス表記の揺れを吸収する。
     /// 前方一致だけの兄弟パス(例: ホームが `/Users/xxx` のとき `/Users/xxx2`)を
     /// 誤って含めないよう、区切り文字 `/` を含めて比較する。
     static func isWithinHome(_ url: URL) -> Bool {
-        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
-        let target = url.standardizedFileURL
-        return target == home || target.path.hasPrefix(home.path + "/")
+        let home = FileManager.default.homeDirectoryForCurrentUser.normalizedPathKey
+        let target = url.normalizedPathKey
+        return target == home || target.hasPrefix(home + "/")
     }
 
     /// 指定パスが存在するディレクトリかどうかを判定する。
@@ -120,5 +69,41 @@ enum DirectoryLister {
             return url
         }
         return firstSupportedFile(in: url) ?? listFiles(in: url).first
+    }
+
+    // MARK: - Private
+
+    /// ディレクトリ内容を列挙し、フォルダーとファイルに分類してファイル名ソート済みで返す。
+    private static func sortedContents(
+        in directory: URL, showHiddenFiles: Bool = false
+    ) -> (folders: [URL], files: [URL]) {
+        let options: FileManager.DirectoryEnumerationOptions = showHiddenFiles ? [] : [.skipsHiddenFiles]
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: options
+        ) else {
+            return ([], [])
+        }
+
+        var folders: [URL] = []
+        var files: [URL] = []
+
+        for url in contents {
+            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            if isDirectory {
+                folders.append(url)
+            } else {
+                files.append(url)
+            }
+        }
+
+        return (folders.sortedByFileName(), files.sortedByFileName())
+    }
+}
+
+private extension [URL] {
+    func sortedByFileName() -> [URL] {
+        sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 }

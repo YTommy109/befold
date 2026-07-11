@@ -20,6 +20,11 @@ final class SourceModeStore {
         modes.setValue(isSourceMode, for: url)
     }
 
+    /// 保存済みモードを返すが、ソース表示が成立しない形式では常に false。
+    func restoredSourceMode(for url: URL) -> Bool {
+        FileType(url: url).supportsSourceMode && isSourceMode(for: url)
+    }
+
     /// ファイルの rename / move に伴い、旧パスの保存値を新パスへ引き継ぐ。
     func migrateSourceMode(from oldURL: URL, to newURL: URL) {
         modes.migrateValue(from: oldURL, to: newURL)

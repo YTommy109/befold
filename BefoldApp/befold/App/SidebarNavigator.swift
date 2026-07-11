@@ -100,6 +100,13 @@ final class SidebarNavigator {
         }
     }
 
+    /// エントリ一覧からフォルダーの正規化キーが一致するものを返す。
+    private func folderEntryURL(forKey key: String) -> URL? {
+        fileListModel.entries.first {
+            $0.kind == .folder && $0.url.normalizedPathKey == key
+        }?.url
+    }
+
     /// エントリ一覧から URL の正規化キーが一致するものを探し、
     /// 見つからなければ元の URL をそのまま返す。
     func matchingEntryURL(for url: URL) -> URL {
@@ -126,11 +133,7 @@ final class SidebarNavigator {
         let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
             .normalizedPathKey
         if isGoingUp {
-            let prevKey = previous.normalizedPathKey
-            fileListModel.selection = fileListModel.entries.first {
-                $0.kind == .folder
-                    && $0.url.normalizedPathKey == prevKey
-            }?.url
+            fileListModel.selection = folderEntryURL(forKey: previous.normalizedPathKey)
             recordHistory()
         } else if let firstFile = fileListModel.entries.first(where: { $0.kind == .file }) {
             host.switchFile(to: firstFile.url)
@@ -145,8 +148,10 @@ final class SidebarNavigator {
     /// target が rootDirectory の祖先(より上位)なら、そこを新たな最上位として記録する。
     /// 既に到達した最上位より下位・並列のディレクトリへ移動しても rootDirectory は変えない。
     private func updateRootDirectory(with target: URL) {
-        let rootComponents = fileListModel.rootDirectory.standardizedFileURL.pathComponents
-        let targetComponents = target.pathComponents
+        let rootKey = fileListModel.rootDirectory.normalizedPathKey
+        let targetKey = target.normalizedPathKey
+        let rootComponents = rootKey.split(separator: "/")
+        let targetComponents = targetKey.split(separator: "/")
         guard targetComponents.count < rootComponents.count,
               rootComponents.starts(with: targetComponents)
         else { return }
@@ -217,10 +222,7 @@ final class SidebarNavigator {
             // ファイルの親フォルダを選択して元の状態を復元する
             let fileDir = host.currentFileURL.deletingLastPathComponent().normalizedPathKey
             if fileDir != fileListModel.currentDirectory.normalizedPathKey {
-                fileListModel.selection = fileListModel.entries.first {
-                    $0.kind == .folder
-                        && $0.url.normalizedPathKey == fileDir
-                }?.url
+                fileListModel.selection = folderEntryURL(forKey: fileDir)
             }
         } else {
             fileListModel.selection = matchingEntryURL(for: host.currentFileURL)

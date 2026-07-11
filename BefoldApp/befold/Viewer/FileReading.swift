@@ -64,29 +64,33 @@ struct DefaultFileReader: FileReading {
         return true
     }
 
-    /// BOM 付き UTF-8 / UTF-16 / UTF-32、および BOM なし UTF-16 を判定して復号する。
-    /// いずれの復号にも失敗した場合は nil を返す。
-    private static func decodeUnicodeText(_ data: Data) -> String? {
+    /// 先頭バイト列から BOM を検出し、対応するエンコーディングと BOM 長を返す。
+    /// UTF-32 の BOM(4 バイト)は UTF-16 LE と先頭が同じなので先に判定する。
+    private static func detectBOM(_ data: Data) -> (encoding: String.Encoding, bomLength: Int)? {
         let bytes = [UInt8](data.prefix(4))
-        // UTF-32 の BOM(4 バイト)は UTF-16 LE と先頭が同じなので先に判定する。
         if bytes.count >= 4 {
             if bytes[0] == 0x00, bytes[1] == 0x00, bytes[2] == 0xFE, bytes[3] == 0xFF {
-                return String(data: data.dropFirst(4), encoding: .utf32BigEndian)
+                return (.utf32BigEndian, 4)
             }
             if bytes[0] == 0xFF, bytes[1] == 0xFE, bytes[2] == 0x00, bytes[3] == 0x00 {
-                return String(data: data.dropFirst(4), encoding: .utf32LittleEndian)
+                return (.utf32LittleEndian, 4)
             }
         }
         if bytes.count >= 2 {
-            if bytes[0] == 0xFE, bytes[1] == 0xFF {
-                return String(data: data.dropFirst(2), encoding: .utf16BigEndian)
-            }
-            if bytes[0] == 0xFF, bytes[1] == 0xFE {
-                return String(data: data.dropFirst(2), encoding: .utf16LittleEndian)
-            }
+            if bytes[0] == 0xFE, bytes[1] == 0xFF { return (.utf16BigEndian, 2) }
+            if bytes[0] == 0xFF, bytes[1] == 0xFE { return (.utf16LittleEndian, 2) }
         }
         if bytes.count >= 3, bytes[0] == 0xEF, bytes[1] == 0xBB, bytes[2] == 0xBF {
-            return String(data: data.dropFirst(3), encoding: .utf8)
+            return (.utf8, 3)
+        }
+        return nil
+    }
+
+    /// BOM 付き UTF-8 / UTF-16 / UTF-32、および BOM なし UTF-16 を判定して復号する。
+    /// いずれの復号にも失敗した場合は nil を返す。
+    private static func decodeUnicodeText(_ data: Data) -> String? {
+        if let bom = detectBOM(data) {
+            return String(data: data.dropFirst(bom.bomLength), encoding: bom.encoding)
         }
         // BOM なしで NUL を含めば UTF-16 とみなし、NUL の位置から endian を推定する。
         // NUL の有無は isBinary と同じ先頭 8KB 窓で判定し、判定窓のずれによる
@@ -103,18 +107,7 @@ struct DefaultFileReader: FileReading {
 
     /// UTF-8 / UTF-16 / UTF-32 の BOM を検出する。
     private static func hasUnicodeBOM(_ data: Data) -> Bool {
-        let bytes = [UInt8](data.prefix(4))
-        // UTF-32 の BOM は UTF-16 LE と先頭 2 バイトが同じなので先に判定する。
-        if bytes.count >= 4 {
-            if bytes[0] == 0x00, bytes[1] == 0x00, bytes[2] == 0xFE, bytes[3] == 0xFF { return true }
-            if bytes[0] == 0xFF, bytes[1] == 0xFE, bytes[2] == 0x00, bytes[3] == 0x00 { return true }
-        }
-        if bytes.count >= 2 {
-            if bytes[0] == 0xFE, bytes[1] == 0xFF { return true } // UTF-16 BE
-            if bytes[0] == 0xFF, bytes[1] == 0xFE { return true } // UTF-16 LE
-        }
-        if bytes.count >= 3, bytes[0] == 0xEF, bytes[1] == 0xBB, bytes[2] == 0xBF { return true } // UTF-8
-        return false
+        detectBOM(data) != nil
     }
 
     /// NUL バイトが偶数位置・奇数位置のどちらか一方にほぼ偏っていれば

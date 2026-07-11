@@ -68,7 +68,7 @@ final class ViewerWindowManager {
             forceSidebarVisible: forceSidebarVisible
         )
         controllers[key] = controller
-        bindCallbacks(for: controller, key: key, url: url)
+        controller.delegate = self
         NSApp.activate()
         controller.showWindow(nil)
         sessionStore.noteOpened(url)
@@ -106,45 +106,6 @@ final class ViewerWindowManager {
         (window.windowController as? ViewerWindowController)?.fileURL.normalizedPathKey
     }
 
-    /// ウィンドウ管理辞書のキー付け替えとセッション記録更新のため、
-    /// コントローラの onClose / onRename を現在の key / url で束ね直す。
-    /// rename 時は新しい key / url で再束縛し、onClose が古い値を捕捉し続けないようにする。
-    private func bindCallbacks(for controller: ViewerWindowController, key: String, url: URL) {
-        controller.onBecomeKey = { [weak self, weak controller] in
-            guard let self, let controller else { return }
-            // fileURL は rename で書き換わるため、クロージャ引数の url ではなく現在値を参照する
-            sessionStore.noteActivated(controller.fileURL)
-        }
-        controller.onClose = { [weak self, weak controller] in
-            guard let self else { return }
-            // 付け替え後に別コントローラが同じキーを使っている可能性を避け、
-            // 自分が登録されている場合のみ除去する
-            if let controller, controllers[key] === controller {
-                controllers.removeValue(forKey: key)
-            }
-            sessionStore.noteClosed(url)
-        }
-        controller.isFileOpenInAnotherWindow = { [weak self, weak controller] targetURL in
-            guard let self, let controller else { return false }
-            return isOpenInAnotherWindow(targetURL, excluding: controller)
-        }
-        controller.focusWindowForFile = { [weak self, weak controller] targetURL in
-            guard let self, let controller else { return }
-            focusExistingWindow(targetURL, excluding: controller)
-        }
-        controller.onRename = { [weak self, weak controller] oldURL, newURL in
-            guard let self, let controller else { return }
-            remapController(controller, from: oldURL, to: newURL, isRename: true)
-        }
-        controller.onSwitchFile = { [weak self, weak controller] oldURL, newURL in
-            guard let self, let controller else { return }
-            remapController(controller, from: oldURL, to: newURL, isRename: false)
-        }
-        controller.onToggleHiddenFiles = { [weak self] in
-            self?.toggleHiddenFiles()
-        }
-    }
-
     /// targetURL が controller 以外のウィンドウで既に開かれているかを判定する純粋チェック。
     private func isOpenInAnotherWindow(
         _ targetURL: URL, excluding controller: ViewerWindowController
@@ -164,8 +125,6 @@ final class ViewerWindowManager {
     }
 
     /// rename / switch に伴うウィンドウ管理辞書のキー付け替えとセッション・履歴の更新。
-    /// 差分は「リネームか(レイアウトの付け替え・履歴の旧パス除去)、単なる切替か
-    /// (履歴は新規オープン扱い)」のみで、それ以外の付け替え手順は共通。
     private func remapController(
         _ controller: ViewerWindowController,
         from oldURL: URL,
@@ -189,6 +148,47 @@ final class ViewerWindowManager {
             recentDocumentsStore.noteOpened(newURL)
         }
         NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
-        bindCallbacks(for: controller, key: newKey, url: newURL)
+    }
+}
+
+// MARK: - ViewerWindowControllerDelegate
+
+extension ViewerWindowManager: ViewerWindowControllerDelegate {
+    func viewerWindowWillClose(_ controller: ViewerWindowController) {
+        let key = controller.fileURL.normalizedPathKey
+        if controllers[key] === controller {
+            controllers.removeValue(forKey: key)
+        }
+        sessionStore.noteClosed(controller.fileURL)
+    }
+
+    func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {
+        sessionStore.noteActivated(controller.fileURL)
+    }
+
+    func viewerWindow(
+        _ controller: ViewerWindowController, didRenameFrom oldURL: URL, to newURL: URL
+    ) {
+        remapController(controller, from: oldURL, to: newURL, isRename: true)
+    }
+
+    func viewerWindow(
+        _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
+    ) {
+        remapController(controller, from: oldURL, to: newURL, isRename: false)
+    }
+
+    func viewerWindow(
+        _ controller: ViewerWindowController, isFileOpenInAnotherWindow url: URL
+    ) -> Bool {
+        isOpenInAnotherWindow(url, excluding: controller)
+    }
+
+    func viewerWindow(_ controller: ViewerWindowController, focusWindowForFile url: URL) {
+        focusExistingWindow(url, excluding: controller)
+    }
+
+    func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
+        toggleHiddenFiles()
     }
 }

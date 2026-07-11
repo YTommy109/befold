@@ -57,12 +57,41 @@ enum FileType: Sendable, Equatable {
     ]
     /// PDF として扱う拡張子。
     static let pdfExtensions = ["pdf"]
+    /// 拡張子 → FileType の単一対応表。`init(url:)` と `allExtensions` の唯一の情報源。
+    private static let typeByExtension: [String: FileType] = {
+        var map: [String: FileType] = [:]
+        for ext in mermaidExtensions {
+            map[ext] = .mmd
+        }
+        for ext in markdownExtensions {
+            map[ext] = .markdown
+        }
+        for ext in svgExtensions {
+            map[ext] = .svg
+        }
+        for ext in htmlExtensions {
+            map[ext] = .html
+        }
+        for ext in csvExtensions {
+            map[ext] = .csv(delimiter: ",")
+        }
+        for ext in tsvExtensions {
+            map[ext] = .csv(delimiter: "\t")
+        }
+        for (ext, mime) in imageExtensionMimeTypes {
+            map[ext] = .image(mimeType: mime)
+        }
+        for ext in pdfExtensions {
+            map[ext] = .pdf
+        }
+        for (ext, lang) in codeExtensionLanguages {
+            map[ext] = .code(language: lang)
+        }
+        return map
+    }()
+
     /// 対応する全拡張子。
-    static let allExtensions: Set<String> = Set(
-        mermaidExtensions + markdownExtensions + svgExtensions + htmlExtensions
-            + csvExtensions + tsvExtensions + codeExtensions
-            + Array(imageExtensionMimeTypes.keys) + pdfExtensions
-    )
+    static let allExtensions: Set<String> = Set(typeByExtension.keys)
 
     /// 拡張子が `allExtensions` に含まれる既知の拡張子かどうかを判定する。
     /// `allExtensions` に無い拡張子でも `init(url:)` は plaintext としてフォールバックするため、
@@ -72,28 +101,7 @@ enum FileType: Sendable, Equatable {
     }
 
     init(url: URL) {
-        let ext = url.pathExtension.lowercased()
-        if Self.mermaidExtensions.contains(ext) {
-            self = .mmd
-        } else if Self.svgExtensions.contains(ext) {
-            self = .svg
-        } else if Self.htmlExtensions.contains(ext) {
-            self = .html
-        } else if Self.csvExtensions.contains(ext) {
-            self = .csv(delimiter: ",")
-        } else if Self.tsvExtensions.contains(ext) {
-            self = .csv(delimiter: "\t")
-        } else if let mimeType = Self.imageExtensionMimeTypes[ext] {
-            self = .image(mimeType: mimeType)
-        } else if Self.pdfExtensions.contains(ext) {
-            self = .pdf
-        } else if let language = Self.codeExtensionLanguages[ext] {
-            self = .code(language: language)
-        } else if Self.markdownExtensions.contains(ext) {
-            self = .markdown
-        } else {
-            self = .code(language: "plaintext")
-        }
+        self = Self.typeByExtension[url.pathExtension.lowercased()] ?? .code(language: "plaintext")
     }
 
     var jsValue: String {

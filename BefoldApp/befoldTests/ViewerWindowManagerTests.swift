@@ -87,7 +87,8 @@ struct ViewerWindowManagerTests {
         let manager = makeManager(defaults: defaults)
         manager.openViewer(for: file)
 
-        manager.controllers[file.normalizedPathKey]?.onRename?(file, renamed)
+        let controller = try #require(manager.controllers[file.normalizedPathKey])
+        manager.viewerWindow(controller, didRenameFrom: file, to: renamed)
 
         #expect(recentStore.recentURLs().map(\.path) == [renamed.normalizedPathKey])
         manager.controllers.values.forEach { $0.close() }
@@ -158,7 +159,7 @@ struct ViewerWindowManagerTests {
         manager.openViewer(for: file2)
         let first = try #require(manager.controllers[file1.normalizedPathKey])
 
-        first.onToggleHiddenFiles?()
+        manager.viewerWindowDidToggleHiddenFiles(first)
 
         for controller in manager.controllers.values {
             #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
@@ -183,7 +184,8 @@ struct ViewerWindowManagerTests {
         manager.openViewer(for: file1)
         #expect(manager.controllers[file1.normalizedPathKey] != nil)
 
-        manager.controllers[file1.normalizedPathKey]?.onSwitchFile?(file1, file2)
+        let controller = try #require(manager.controllers[file1.normalizedPathKey])
+        manager.viewerWindow(controller, didSwitchFileFrom: file1, to: file2)
 
         #expect(manager.controllers[file1.normalizedPathKey] == nil)
         #expect(manager.controllers[file2.normalizedPathKey] != nil)

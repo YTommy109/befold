@@ -1,7 +1,13 @@
 import Foundation
 
+/// DMG のマウント/アンマウントを抽象化するプロトコル。
+protocol DMGMounting: Sendable {
+    func mount(dmgAt dmgURL: URL) throws -> URL
+    func detach(mountPoint: URL)
+}
+
 /// hdiutil を使った DMG のマウント/アンマウント。
-struct DMGMounter: Sendable {
+struct DMGMounter: DMGMounting, Sendable {
     struct MountFailed: Error {}
 
     /// DMG をマウントしてマウントポイントを返す。

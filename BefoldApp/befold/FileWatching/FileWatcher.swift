@@ -48,44 +48,62 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         startFileMonitor()
     }
 
+    // MARK: - Monitor Helpers
+
+    /// DispatchSource 生成の定型処理を共通化する。
+    /// open(path) → fd 検査 → makeFileSystemObjectSource → handler/cancel 設定 → resume。
+    private func makeMonitor(
+        path: String,
+        mask: DispatchSource.FileSystemEvent,
+        handler: @escaping (DispatchSourceFileSystemObject) -> Void
+    ) -> DispatchSourceFileSystemObject? {
+        let fd = open(path, O_EVTONLY)
+        guard fd >= 0 else { return nil }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: mask,
+            queue: queue
+        )
+        source.setEventHandler { handler(source) }
+        source.setCancelHandler { close(fd) }
+        source.resume()
+        return source
+    }
+
+    private func stopFileMonitor() {
+        fileSource?.cancel()
+        fileSource = nil
+    }
+
+    private func stopDirectoryMonitor() {
+        dirSource?.cancel()
+        dirSource = nil
+    }
+
     // MARK: - File Monitoring
 
     /// ファイルの書き込み・削除・リネームを監視する。
     /// 削除時はソースを解放し、ディレクトリ監視側で再作成を検知する。
     /// リネーム時は移動後のパスを判別し、追従または削除扱いに振り分ける。
     private func startFileMonitor() {
-        fileSource?.cancel()
-        fileSource = nil
+        stopFileMonitor()
 
-        let fd = open(resolvedPath.path, O_EVTONLY)
-        guard fd >= 0 else { return }
-
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fd,
-            eventMask: [.write, .delete, .rename, .attrib],
-            queue: queue
+        fileSource = makeMonitor(
+            path: resolvedPath.path,
+            mask: [.write, .delete, .rename, .attrib],
+            handler: { [weak self] source in
+                guard let self else { return }
+                let flags = source.data
+                if flags.contains(.rename) {
+                    scheduleRenameResolution(fd: source.handle)
+                    return
+                }
+                if flags.contains(.delete) {
+                    stopFileMonitor()
+                }
+                scheduleNotify()
+            }
         )
-
-        source.setEventHandler { [weak self] in
-            guard let self else { return }
-            let flags = source.data
-            if flags.contains(.rename) {
-                scheduleRenameResolution(fd: fd)
-                return
-            }
-            if flags.contains(.delete) {
-                source.cancel()
-                fileSource = nil
-            }
-            scheduleNotify()
-        }
-
-        source.setCancelHandler {
-            close(fd)
-        }
-
-        source.resume()
-        fileSource = source
     }
 
     /// ファイル本体の .rename イベントを受けて、追従判定を settle 待ち後に予約する。
@@ -112,8 +130,7 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         // (a) 元パスにファイルが再出現している（save-by-rename / アトミック保存）。
         //     「変更」として扱い、元パスの新ファイルを監視し直す。
         if FileManager.default.fileExists(atPath: originalPath.path) {
-            fileSource?.cancel()
-            fileSource = nil
+            stopFileMonitor()
             startFileMonitor()
             scheduleNotify()
             return
@@ -127,8 +144,7 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         }
 
         // (c) それ以外（ゴミ箱への移動・新パス不明・onRename 未設定）→ 削除として扱う。
-        fileSource?.cancel()
-        fileSource = nil
+        stopFileMonitor()
         scheduleNotify()
     }
 
@@ -139,10 +155,8 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     private func switchToNewPath(_ newPath: URL) {
         resolvedPath = newPath
 
-        fileSource?.cancel()
-        fileSource = nil
-        dirSource?.cancel()
-        dirSource = nil
+        stopFileMonitor()
+        stopDirectoryMonitor()
         startMonitors()
 
         guard let onRename else { return }
@@ -172,33 +186,20 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
 
     /// 親ディレクトリの変更を監視し、ファイルが再作成された場合にファイル監視を再開する。
     private func startDirectoryMonitor() {
-        dirSource?.cancel()
-        dirSource = nil
+        stopDirectoryMonitor()
 
         let dirPath = resolvedPath.deletingLastPathComponent().path
-        let fd = open(dirPath, O_EVTONLY)
-        guard fd >= 0 else { return }
-
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fd,
-            eventMask: [.write],
-            queue: queue
-        )
-
-        source.setEventHandler { [weak self] in
-            guard let self else { return }
-            if fileSource == nil {
-                startFileMonitor()
+        dirSource = makeMonitor(
+            path: dirPath,
+            mask: [.write],
+            handler: { [weak self] _ in
+                guard let self else { return }
+                if fileSource == nil {
+                    startFileMonitor()
+                }
+                scheduleNotify()
             }
-            scheduleNotify()
-        }
-
-        source.setCancelHandler {
-            close(fd)
-        }
-
-        source.resume()
-        dirSource = source
+        )
     }
 
     // MARK: - Notification
@@ -220,10 +221,8 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         // 直列化する。stop() は MainActor（windowWillClose）または deinit からのみ
         // 呼ばれ、監視キュー上からは呼ばれないため queue.sync でデッドロックしない。
         queue.sync {
-            fileSource?.cancel()
-            fileSource = nil
-            dirSource?.cancel()
-            dirSource = nil
+            stopFileMonitor()
+            stopDirectoryMonitor()
             debouncer.cancel()
         }
     }

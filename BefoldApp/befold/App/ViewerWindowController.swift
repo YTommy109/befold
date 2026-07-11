@@ -2,6 +2,23 @@ import AppKit
 import SwiftUI
 import WebKit
 
+/// ViewerWindowController のウィンドウイベント(クローズ・rename・キー化など)を
+/// 上位のウィンドウ管理層へ通知するプロトコル。ViewerWindowManager が実装する。
+@MainActor
+protocol ViewerWindowControllerDelegate: AnyObject {
+    func viewerWindowWillClose(_ controller: ViewerWindowController)
+    func viewerWindowDidBecomeKey(_ controller: ViewerWindowController)
+    func viewerWindow(_ controller: ViewerWindowController, didRenameFrom oldURL: URL, to newURL: URL)
+    func viewerWindow(
+        _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
+    )
+    func viewerWindow(
+        _ controller: ViewerWindowController, isFileOpenInAnotherWindow url: URL
+    ) -> Bool
+    func viewerWindow(_ controller: ViewerWindowController, focusWindowForFile url: URL)
+    func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
+}
+
 /// モード切替セグメントコントロールのセグメント位置(0=プレビュー, 1=ソース)。
 private enum ModeSegment: Int, Sendable {
     case preview = 0
@@ -41,23 +58,8 @@ final class ViewerWindowController: NSWindowController {
         sidebar.fileListModel
     }
 
-    /// ウィンドウが閉じられたときに呼ばれるコールバック。ViewerWindowManager がウィンドウ管理辞書から除去するために使用する。
-    var onClose: (() -> Void)?
-    /// 開いているファイルが rename / move されたときに旧 URL・新 URL を通知するコールバック。
-    /// ViewerWindowManager がウィンドウ管理辞書のキー付け替えとセッション記録の更新に使用する。
-    var onRename: ((_ old: URL, _ new: URL) -> Void)?
-    /// ウィンドウがキーウィンドウになったときに呼ばれるコールバック。
-    /// ViewerWindowManager がアクティブファイルのセッション記録の更新に使用する。
-    var onBecomeKey: (() -> Void)?
-    /// switchFile(to:) でファイルを切り替えたときに旧 URL・新 URL を通知するコールバック。
-    var onSwitchFile: ((_ old: URL, _ new: URL) -> Void)?
-    /// サイドバーのアイコンボタンから不可視ファイル表示切替が要求されたときに呼ばれるコールバック。
-    /// ViewerWindowManager が toggleHiddenFiles() を束ねるために使用する。
-    var onToggleHiddenFiles: (() -> Void)?
-    /// 指定 URL が自分以外のウィンドウで既に開かれているかを判定する純粋チェック。
-    var isFileOpenInAnotherWindow: ((_ url: URL) -> Bool)?
-    /// 指定 URL を開いている別ウィンドウを前面化する。switchFile で使用。
-    var focusWindowForFile: ((_ url: URL) -> Void)?
+    /// ウィンドウイベントの通知先。ViewerWindowManager が実装する。
+    weak var delegate: ViewerWindowControllerDelegate?
 
     // MARK: - Initialization
 
@@ -163,7 +165,7 @@ final class ViewerWindowController: NSWindowController {
         store.openFile(fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
         // applySourceMode が内部で updateModeToggleAppearance() を呼ぶため、ここでの明示呼び出しは不要。
-        applySourceMode(FileType(url: fileURL).supportsSourceMode && sourceModeStore.isSourceMode(for: fileURL))
+        applySourceMode(sourceModeStore.restoredSourceMode(for: fileURL))
         sidebar.recordHistory()
     }
 
@@ -196,7 +198,10 @@ final class ViewerWindowController: NSWindowController {
                 AppDelegate.shared?.openViewer(for: url)
             },
             onNavigateHistory: { [weak self] offset in self?.navigateHistory(by: offset) },
-            onToggleHiddenFiles: { [weak self] in self?.onToggleHiddenFiles?() }
+            onToggleHiddenFiles: { [weak self] in
+                guard let self else { return }
+                delegate?.viewerWindowDidToggleHiddenFiles(self)
+            }
         )
         return ViewerSplitViewController(
             sidebar: fileListView,
@@ -239,7 +244,7 @@ final class ViewerWindowController: NSWindowController {
     /// リネームは同一ファイルの改名であり、内容・表示倍率・ビューモードは原則保持する。
     func handleRename(to newURL: URL) {
         let oldURL = fileURL
-        guard newURL != oldURL else { return }
+        guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
         applyURLToWindow(newURL)
 
         // 実体は同じファイルなので旧パスの倍率・ソース表示モードを新パスへ引き継ぐ
@@ -262,7 +267,7 @@ final class ViewerWindowController: NSWindowController {
             fileListModel.currentDirectory = newDir
         }
         sidebar.refreshFileList()
-        onRename?(oldURL, newURL)
+        delegate?.viewerWindow(self, didRenameFrom: oldURL, to: newURL)
         sidebar.applyRename(from: oldURL, to: newURL)
     }
 
@@ -270,9 +275,9 @@ final class ViewerWindowController: NSWindowController {
     /// ファイル切替の実処理のみ担い、選択同期・履歴記録は SidebarNavigator へ委譲する。
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
-        guard newURL != oldURL else { return }
-        if isFileOpenInAnotherWindow?(newURL) == true {
-            focusWindowForFile?(newURL)
+        guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
+        if delegate?.viewerWindow(self, isFileOpenInAnotherWindow: newURL) == true {
+            delegate?.viewerWindow(self, focusWindowForFile: newURL)
             sidebar.restoreSelection(to: oldURL)
             return
         }
@@ -321,15 +326,14 @@ final class ViewerWindowController: NSWindowController {
             return false
         }
         let oldURL = fileURL
-        let restoredSourceMode = FileType(url: newURL).supportsSourceMode
-            && sourceModeStore.isSourceMode(for: newURL)
+        let restoredSourceMode = sourceModeStore.restoredSourceMode(for: newURL)
         applySourceMode(restoredSourceMode)
         applyURLToWindow(newURL)
         // fileExists を確認済みなので store.openFile は必ず loadContent → onContentReloaded まで
         // 到達し、そこで updateModeToggleAppearance() が発火する。ここでの明示呼び出しは不要。
         store.openFile(newURL)
         applyStoredZoomToWebView()
-        onSwitchFile?(oldURL, newURL)
+        delegate?.viewerWindow(self, didSwitchFileFrom: oldURL, to: newURL)
         return true
     }
 
@@ -369,7 +373,7 @@ extension ViewerWindowController: SidebarNavigatorHost {
 
     /// 指定 URL が自分以外のウィンドウで開かれているか(注入されたチェックへ委譲)。
     func isFileOpenElsewhere(_ url: URL) -> Bool {
-        isFileOpenInAnotherWindow?(url) == true
+        delegate?.viewerWindow(self, isFileOpenInAnotherWindow: url) ?? false
     }
 }
 
@@ -383,39 +387,43 @@ extension ViewerWindowController: NSWindowDelegate {
         defaults.set(window.frameDescriptor, forKey: Self.lastWindowFrameKey)
     }
 
-    /// View > Zoom In。HTML 直接ロード時は WKWebView の pageZoom を、それ以外は JS ズーム実装を使う。
-    @objc func zoomIn(_ sender: Any?) {
+    /// 直接 HTML モードでは pageZoom を transform で変換して保存し、
+    /// それ以外は viewer.js のズーム実装(script)へ委譲する。
+    private func performZoom(
+        directHTML transform: (Double) -> Double, script: String
+    ) {
         guard let webView = webViewProxy.webView else { return }
         if webViewProxy.isDirectHTMLMode {
-            let newZoom = min(ZoomStore.maxZoom, webView.pageZoom + ZoomStore.zoomStep)
+            let newZoom = transform(webView.pageZoom)
             webView.pageZoom = newZoom
             zoomStore.setZoom(newZoom, for: fileURL)
         } else {
-            webView.evaluateJavaScript(ViewerBridge.zoomInScript)
+            webView.evaluateJavaScript(script)
         }
+    }
+
+    /// View > Zoom In。HTML 直接ロード時は WKWebView の pageZoom を、それ以外は JS ズーム実装を使う。
+    @objc func zoomIn(_ sender: Any?) {
+        performZoom(
+            directHTML: { min(ZoomStore.maxZoom, $0 + ZoomStore.zoomStep) },
+            script: ViewerBridge.zoomInScript
+        )
     }
 
     /// View > Zoom Out。
     @objc func zoomOut(_ sender: Any?) {
-        guard let webView = webViewProxy.webView else { return }
-        if webViewProxy.isDirectHTMLMode {
-            let newZoom = max(ZoomStore.minZoom, webView.pageZoom - ZoomStore.zoomStep)
-            webView.pageZoom = newZoom
-            zoomStore.setZoom(newZoom, for: fileURL)
-        } else {
-            webView.evaluateJavaScript(ViewerBridge.zoomOutScript)
-        }
+        performZoom(
+            directHTML: { max(ZoomStore.minZoom, $0 - ZoomStore.zoomStep) },
+            script: ViewerBridge.zoomOutScript
+        )
     }
 
     /// View > Actual Size。倍率を 100% に戻す。
     @objc func resetZoom(_ sender: Any?) {
-        guard let webView = webViewProxy.webView else { return }
-        if webViewProxy.isDirectHTMLMode {
-            webView.pageZoom = ZoomStore.defaultZoom
-            zoomStore.setZoom(ZoomStore.defaultZoom, for: fileURL)
-        } else {
-            webView.evaluateJavaScript(ViewerBridge.zoomResetScript)
-        }
+        performZoom(
+            directHTML: { _ in ZoomStore.defaultZoom },
+            script: ViewerBridge.zoomResetScript
+        )
     }
 
     /// File > Print…。WebView の描画内容を印刷する。
@@ -577,14 +585,14 @@ extension ViewerWindowController: NSWindowDelegate {
         }
         saveWindowFrame()
         store.close()
-        onClose?()
+        delegate?.viewerWindowWillClose(self)
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
         // ディレクトリ監視はしていないため、キーになったタイミングで一覧を取り直し、
         // 他所で作成/削除されたファイルをサイドバーへ反映する。
         sidebar.refreshFileList()
-        onBecomeKey?()
+        delegate?.viewerWindowDidBecomeKey(self)
     }
 
     /// リサイズ完了時にのみ保存する。ライブリサイズ中は windowDidResize が毎フレーム

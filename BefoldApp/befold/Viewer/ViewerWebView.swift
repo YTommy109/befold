@@ -299,8 +299,7 @@ struct ViewerWebView: NSViewRepresentable {
                     // ライブリロード（同一ファイルの content 変更）では現在の倍率を維持する。
                     let isFirstLoadOrSwitch = !isDirectHTMLMode || pathChanged
                     pendingPageZoom = isFirstLoadOrSwitch ? initialPageZoom : webView.pageZoom
-                    lastRenderedContent = content
-                    lastRenderedFileType = fileType
+                    recordRendered(content: content, fileType: fileType)
                     lastIsSourceMode = isSourceMode
                     lastDirectHTMLPath = filePath
                     isDirectHTMLMode = true
@@ -315,30 +314,13 @@ struct ViewerWebView: NSViewRepresentable {
                 // 直接 HTML モードから viewer.html モードへの復帰
                 if isDirectHTMLMode {
                     exitDirectHTMLMode(webView: webView) {
-                        if showLineNumbers != self.lastShowLineNumbers {
-                            webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
-                            self.lastShowLineNumbers = showLineNumbers
-                        }
-                        // ソース表示中は描画前にビューモードを source に切り替える。
-                        // 再ロード直後の viewer.html は _viewMode='rendered' / _lastContent=null のため、
-                        // setViewMode は再描画せず _viewMode のみ更新し、続く render() が
-                        // ソース表示分岐へ入る。
-                        if isSourceMode {
-                            webView.evaluateJavaScript(ViewerBridge.viewModeScript(.source))
-                        }
-                        // viewer.html ロード完了後にコンテンツを描画
-                        guard let script = ViewerBridge.renderScript(
-                            content: Self.renderableContent(
-                                content, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
-                            ),
-                            fileType: fileType
-                        ) else { return }
-                        webView.evaluateJavaScript(ViewerBridge.scrollKeyScript(filePath: filePath))
-                        webView.evaluateJavaScript(script)
+                        self.applyRender(
+                            webView: webView, content: content, fileType: fileType,
+                            filePath: filePath, isSourceMode: isSourceMode,
+                            showLineNumbers: showLineNumbers
+                        )
                     }
-                    lastRenderedContent = content
-                    lastRenderedFileType = fileType
-                    lastIsSourceMode = isSourceMode
+                    recordRendered(content: content, fileType: fileType)
                     return
                 }
 
@@ -351,31 +333,12 @@ struct ViewerWebView: NSViewRepresentable {
                     || isSourceMode != lastIsSourceMode
                 guard needsRender else { return }
 
-                lastRenderedContent = content
-                lastRenderedFileType = fileType
-
-                if showLineNumbers != lastShowLineNumbers {
-                    webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
-                    lastShowLineNumbers = showLineNumbers
-                }
-
-                // ビューモードは render() 呼び出しより先に反映する必要がある
-                // (render() は _viewMode を見てソース/レンダリング表示を分岐するため)。
-                if isSourceMode != lastIsSourceMode {
-                    let mode: ViewerBridge.ViewMode = isSourceMode ? .source : .rendered
-                    webView.evaluateJavaScript(ViewerBridge.viewModeScript(mode))
-                    lastIsSourceMode = isSourceMode
-                }
-
-                // JSONEncoder でエスケープし、JS インジェクションを防ぐ
-                guard let script = ViewerBridge.renderScript(
-                    content: Self.renderableContent(
-                        content, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
-                    ),
-                    fileType: fileType
-                ) else { return }
-                webView.evaluateJavaScript(ViewerBridge.scrollKeyScript(filePath: filePath))
-                webView.evaluateJavaScript(script)
+                recordRendered(content: content, fileType: fileType)
+                applyRender(
+                    webView: webView, content: content, fileType: fileType,
+                    filePath: filePath, isSourceMode: isSourceMode,
+                    showLineNumbers: showLineNumbers
+                )
             }
 
             if isReady {
@@ -383,6 +346,38 @@ struct ViewerWebView: NSViewRepresentable {
             } else {
                 pendingUpdate = doUpdate
             }
+        }
+
+        /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
+        /// scrollKey 予告 + render を評価する。
+        private func applyRender(
+            webView: WKWebView, content: String, fileType: FileType,
+            filePath: URL?, isSourceMode: Bool, showLineNumbers: Bool
+        ) {
+            if showLineNumbers != lastShowLineNumbers {
+                webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
+                lastShowLineNumbers = showLineNumbers
+            }
+            if isSourceMode != lastIsSourceMode {
+                webView.evaluateJavaScript(
+                    ViewerBridge.viewModeScript(isSourceMode ? .source : .rendered)
+                )
+                lastIsSourceMode = isSourceMode
+            }
+            guard let script = ViewerBridge.renderScript(
+                content: Self.renderableContent(
+                    content, fileType: fileType,
+                    filePath: filePath, isSourceMode: isSourceMode
+                ),
+                fileType: fileType
+            ) else { return }
+            webView.evaluateJavaScript(ViewerBridge.scrollKeyScript(filePath: filePath))
+            webView.evaluateJavaScript(script)
+        }
+
+        private func recordRendered(content: String, fileType: FileType) {
+            lastRenderedContent = content
+            lastRenderedFileType = fileType
         }
 
         /// render() に渡す直前のコンテンツ加工。markdown はローカル画像参照を
