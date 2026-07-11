@@ -535,10 +535,20 @@ mark.mmd-find-match-current {
 
 /* cmd+click ファイル参照ジャンプ */
 .cmd-held a,
-.cmd-held .befold-path-ref {
+.cmd-held pre .befold-path-ref {
     text-decoration: underline;
     cursor: pointer;
 }
-.befold-path-ref {
+/* コードブロック内のパス参照は cmd 押下中のみリンク風にする(従来通り) */
+pre .befold-path-ref {
+    text-decoration: none;
     cursor: default;
+}
+/* 本文・インラインコード中のパス参照は常時 <a> 風に表示する */
+.befold-path-ref {
+    text-decoration: underline;
+    cursor: pointer;
+}
+.befold-path-ref:hover {
+    color: var(--fgColor-accent);
 }
