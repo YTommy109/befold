@@ -614,13 +614,6 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Close (Esc)" } },
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "閉じる (Esc)" } }
       }
-    },
-    "viewer.find.noResults" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No results" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "見つかりません" } }
-      }
     }
   },
   "version" : "1.0"

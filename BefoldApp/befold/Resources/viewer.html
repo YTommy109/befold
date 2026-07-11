@@ -27,7 +27,14 @@
   <!-- placeholder/title は _mmdInitFind() が window._mmdFindStrings(ローカライズ済み)で
        上書きする。未定義時のフォールバックとして日本語を静的に残す。 -->
   <div id="mmd-find-bar" class="mmd-find-bar">
-    <input id="mmd-find-input" type="text" class="mmd-find-input" placeholder="検索">
+    <div class="mmd-find-input-wrap">
+      <input id="mmd-find-input" type="text" class="mmd-find-input" placeholder="検索">
+      <div class="mmd-find-toggles">
+        <button id="mmd-find-case" class="mmd-find-toggle" title="大文字・小文字を区別">Aa</button>
+        <button id="mmd-find-word" class="mmd-find-toggle" title="単語単位で検索">ab|</button>
+        <button id="mmd-find-regex" class="mmd-find-toggle" title="正規表現">.*</button>
+      </div>
+    </div>
     <span id="mmd-find-count" class="mmd-find-count"></span>
     <button id="mmd-find-prev" class="mmd-find-nav mmd-find-nav-prev" title="前へ (Shift+Enter)">
       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 6.5L5 2.5L9 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -35,9 +42,6 @@
     <button id="mmd-find-next" class="mmd-find-nav mmd-find-nav-next" title="次へ (Enter)">
       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 3.5L5 7.5L9 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
-    <button id="mmd-find-case" class="mmd-find-toggle" title="大文字・小文字を区別">Aa</button>
-    <button id="mmd-find-word" class="mmd-find-toggle" title="単語単位で検索">ab|</button>
-    <button id="mmd-find-regex" class="mmd-find-toggle" title="正規表現">.*</button>
     <button id="mmd-find-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
   </div>
 
@@ -143,6 +147,12 @@
     var isPageKey = pageKeys.indexOf(e.key) !== -1;
     var isLineKey = lineKeys.indexOf(e.key) !== -1;
     if (!isPageKey && !isLineKey) { return; }
+    // 検索入力欄など編集可能要素にフォーカスがある間は、Space/Backspace/矢印/vim jk を
+    // 文字入力・カーソル移動としてそのまま素通りさせる(ビューアのスクロールに奪わない)。
+    var active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+      return;
+    }
     var scrollEl = _mmdScrollTarget();
     if (!scrollEl) { return; }
     e.preventDefault();
@@ -444,8 +454,6 @@
   var _mmdFindMatches = [];
   var _mmdFindCurrentIndex = -1;
   var _mmdFindIsOpenFlag = false;
-  // マッチなし表示文字列。_mmdInitFind() が window._mmdFindStrings(Swift から注入)で上書きする。
-  var _mmdFindNoResultsText = '見つかりません';
 
   // ロード時に保存済みトグル状態(window._mmdInitialFindOptions、Swift から注入)と
   // ローカライズ済み文字列(window._mmdFindStrings、Swift から注入)を反映する。
@@ -469,7 +477,6 @@
       document.getElementById('mmd-find-regex').title = strings.useRegularExpression;
     }
     if (strings.close) { document.getElementById('mmd-find-close').title = strings.close; }
-    if (strings.noResults) { _mmdFindNoResultsText = strings.noResults; }
   }
 
   function _mmdFindIsOpen() {
@@ -582,15 +589,16 @@
     }
   }
 
+  // マッチなしを専用文言で表示すると文字幅の違いでバーが伸縮するため、
+  // 常に「現在位置/件数」形式(マッチなし時は 0/0)のみを表示する。
   function _mmdFindUpdateCount() {
     var countEl = document.getElementById('mmd-find-count');
     var input = document.getElementById('mmd-find-input');
     if (_mmdFindQuery.length === 0 || input.classList.contains('mmd-find-error')) {
       countEl.textContent = '';
-    } else if (_mmdFindMatches.length === 0) {
-      countEl.textContent = _mmdFindNoResultsText;
     } else {
-      countEl.textContent = (_mmdFindCurrentIndex + 1) + '/' + _mmdFindMatches.length;
+      var current = _mmdFindMatches.length === 0 ? 0 : _mmdFindCurrentIndex + 1;
+      countEl.textContent = current + '/' + _mmdFindMatches.length;
     }
   }
 

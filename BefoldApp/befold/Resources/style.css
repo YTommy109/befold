@@ -407,9 +407,16 @@ body {
   font-size: 13px;
 }
 
+.mmd-find-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .mmd-find-input {
-  width: 180px;
-  padding: 3px 6px;
+  width: 220px;
+  /* 右側はテキストボックス内に重ねるトグルボタン3つ分(.mmd-find-toggles)を避ける */
+  padding: 3px 74px 3px 6px;
   border: 1px solid var(--panel-border);
   border-radius: 4px;
   background: transparent;
@@ -422,6 +429,15 @@ body {
   border-color: var(--error-border);
   background: var(--error-bg);
   color: var(--error-fg);
+}
+
+.mmd-find-toggles {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 2px;
 }
 
 .mmd-find-count {
