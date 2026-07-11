@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 extension Bundle {
@@ -10,5 +11,11 @@ extension Bundle {
         #else
             .main
         #endif
+    }
+
+    /// viewer.html 等のレンダリングリソースを含むバンドル。
+    /// BefoldKit ターゲットのリソースバンドルを返す。
+    static var rendering: Bundle {
+        Bundle.befoldKitResources
     }
 }

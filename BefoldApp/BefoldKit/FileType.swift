@@ -1,7 +1,7 @@
 import Foundation
 
 /// ビューアが対応するファイル種別。拡張子から判定する。
-enum FileType: Sendable, Equatable {
+public enum FileType: Sendable, Equatable {
     case mmd
     case markdown
     case svg
@@ -12,21 +12,21 @@ enum FileType: Sendable, Equatable {
     case code(language: String)
 
     /// mermaid ダイアグラムとして扱う拡張子。
-    static let mermaidExtensions = ["mmd", "mermaid"]
+    public static let mermaidExtensions = ["mmd", "mermaid"]
     /// markdown として扱う拡張子。
-    static let markdownExtensions = ["md", "markdown"]
+    public static let markdownExtensions = ["md", "markdown"]
     /// SVG として扱う拡張子。
-    static let svgExtensions = ["svg"]
+    public static let svgExtensions = ["svg"]
     /// HTML として扱う拡張子。
-    static let htmlExtensions = ["html", "htm"]
+    public static let htmlExtensions = ["html", "htm"]
     /// CSV として扱う拡張子。
-    static let csvExtensions = ["csv"]
+    public static let csvExtensions = ["csv"]
     /// TSV として扱う拡張子。
-    static let tsvExtensions = ["tsv"]
+    public static let tsvExtensions = ["tsv"]
     /// コードとして扱う拡張子 → highlight.js の言語名。
     /// 同梱 highlight.min.js が対応する言語のみを載せる
     /// (整合性は viewer.test.js が同梱ビルドの言語リストと突き合わせて検証する)。
-    static let codeExtensionLanguages: [String: String] = [
+    public static let codeExtensionLanguages: [String: String] = [
         "swift": "swift", "py": "python", "go": "go", "rs": "rust",
         "js": "javascript", "mjs": "javascript", "cjs": "javascript", "jsx": "javascript",
         "ts": "typescript", "tsx": "typescript",
@@ -48,15 +48,15 @@ enum FileType: Sendable, Equatable {
         "vb": "vbnet",
     ]
     /// コードとして扱う拡張子。
-    static let codeExtensions = [String](codeExtensionLanguages.keys)
+    public static let codeExtensions = [String](codeExtensionLanguages.keys)
     /// 画像拡張子 → MIME タイプ。
-    static let imageExtensionMimeTypes: [String: String] = [
+    public static let imageExtensionMimeTypes: [String: String] = [
         "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
         "gif": "image/gif", "webp": "image/webp", "bmp": "image/bmp",
         "ico": "image/x-icon",
     ]
     /// PDF として扱う拡張子。
-    static let pdfExtensions = ["pdf"]
+    public static let pdfExtensions = ["pdf"]
     /// 拡張子 → FileType の単一対応表。`init(url:)` と `allExtensions` の唯一の情報源。
     private static let typeByExtension: [String: FileType] = {
         var map: [String: FileType] = [:]
@@ -91,20 +91,20 @@ enum FileType: Sendable, Equatable {
     }()
 
     /// 対応する全拡張子。
-    static let allExtensions: Set<String> = Set(typeByExtension.keys)
+    public static let allExtensions: Set<String> = Set(typeByExtension.keys)
 
     /// 拡張子が `allExtensions` に含まれる既知の拡張子かどうかを判定する。
     /// `allExtensions` に無い拡張子でも `init(url:)` は plaintext としてフォールバックするため、
     /// この判定は「開けるか」ではなく「拡張子を既知としてハンドリングできるか」を表す。
-    static func isSupported(_ url: URL) -> Bool {
+    public static func isSupported(_ url: URL) -> Bool {
         allExtensions.contains(url.pathExtension.lowercased())
     }
 
-    init(url: URL) {
+    public init(url: URL) {
         self = Self.typeByExtension[url.pathExtension.lowercased()] ?? .code(language: "plaintext")
     }
 
-    var jsValue: String {
+    public var jsValue: String {
         switch self {
         case .mmd: "mmd"
         case .markdown: "md"
@@ -118,19 +118,19 @@ enum FileType: Sendable, Equatable {
     }
 
     /// .code の highlight.js 言語名。他の種別は nil。
-    var codeLanguage: String? {
+    public var codeLanguage: String? {
         if case let .code(language) = self { return language }
         return nil
     }
 
     /// .csv の区切り文字。他の種別は nil。
-    var csvDelimiter: String? {
+    public var csvDelimiter: String? {
         if case let .csv(delimiter) = self { return delimiter }
         return nil
     }
 
     /// .image の MIME タイプ。他の種別は nil。
-    var imageMimeType: String? {
+    public var imageMimeType: String? {
         if case let .image(mimeType) = self { return mimeType }
         return nil
     }
@@ -138,12 +138,12 @@ enum FileType: Sendable, Equatable {
     /// JS の render(content, type, lang) に渡す第 3 引数(lang)。取らない種別は nil。
     /// .code は highlight.js の言語名、.csv は区切り文字、.image は MIME タイプ。
     /// いずれも FileType の対応表由来の固定文字列のみで、ユーザー入力は混入しない。
-    var renderLangArgument: String? {
+    public var renderLangArgument: String? {
         codeLanguage ?? csvDelimiter ?? imageMimeType
     }
 
     /// バイナリファイルとして読み込むべき種別かどうか。
-    var isBinaryContent: Bool {
+    public var isBinaryContent: Bool {
         switch self {
         case .image, .pdf: true
         default: false
@@ -151,7 +151,7 @@ enum FileType: Sendable, Equatable {
     }
 
     /// レンダリング表示が可能な種別かどうか。false ならソース表示のみ。
-    var isRenderable: Bool {
+    public var isRenderable: Bool {
         switch self {
         case .mmd, .markdown, .svg, .html, .csv, .image, .pdf: true
         case .code: false
@@ -160,7 +160,7 @@ enum FileType: Sendable, Equatable {
 
     /// ソース表示(レンダリングとの切り替え)に対応する種別かどうか。
     /// バイナリ(画像・PDF)にはテキストソースがないため対象外。
-    var supportsSourceMode: Bool {
+    public var supportsSourceMode: Bool {
         isRenderable && !isBinaryContent
     }
 }

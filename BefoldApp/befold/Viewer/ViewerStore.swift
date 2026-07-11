@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// ビューアの表示状態を管理する。

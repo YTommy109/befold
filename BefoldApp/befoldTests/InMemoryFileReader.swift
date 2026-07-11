@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldKit
 import Foundation
 
 /// メモリ上の辞書でファイルシステムを模す FileReading 実装。

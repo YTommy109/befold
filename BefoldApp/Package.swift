@@ -10,13 +10,10 @@ let package = Package(
         .package(url: "https://github.com/nicklockwood/SwiftFormat", from: "0.55.0"),
     ],
     targets: [
-        .executableTarget(
-            name: "befold",
-            path: "befold",
-            exclude: ["Info.plist", "befold.entitlements", "Resources/__tests__"],
+        .target(
+            name: "BefoldKit",
+            path: "BefoldKit",
             resources: [
-                .process("Resources/Localizable.xcstrings"),
-                .copy("Resources/AppIcon.icns"),
                 .copy("Resources/viewer.html"),
                 .copy("Resources/viewer.js"),
                 .copy("Resources/style.css"),
@@ -31,9 +28,22 @@ let package = Package(
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
             ]
         ),
+        .executableTarget(
+            name: "befold",
+            dependencies: ["BefoldKit"],
+            path: "befold",
+            exclude: ["Info.plist", "befold.entitlements", "Resources/__tests__"],
+            resources: [
+                .process("Resources/Localizable.xcstrings"),
+                .copy("Resources/AppIcon.icns"),
+            ],
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
+            ]
+        ),
         .testTarget(
             name: "befoldTests",
-            dependencies: ["befold"],
+            dependencies: ["befold", "BefoldKit"],
             path: "befoldTests",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),

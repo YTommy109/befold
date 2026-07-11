@@ -22,6 +22,19 @@ schemes:
       targets:
         - befoldTests
 targets:
+  BefoldKit:
+    type: framework
+    platform: macOS
+    sources:
+      - path: BefoldKit
+        excludes:
+          - "Resources/**"
+      - path: BefoldKit/Resources
+        buildPhase: resources
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.kit
+      PRODUCT_NAME: BefoldKit
+      GENERATE_INFOPLIST_FILE: true
   befold:
     type: application
     platform: macOS
@@ -35,6 +48,17 @@ targets:
         buildPhase: resources
         excludes:
           - "__tests__/**"
+          - "viewer.html"
+          - "viewer.js"
+          - "style.css"
+          - "mermaid.min.js"
+          - "markdown-it.min.js"
+          - "highlight.min.js"
+          - "github.css"
+          - "github-dark.css"
+          - "github-markdown.css"
+    dependencies:
+      - target: BefoldKit
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold
       PRODUCT_NAME: befold
@@ -51,6 +75,7 @@ targets:
       - befoldTests
     dependencies:
       - target: befold
+      - target: BefoldKit
     settings:
       BUNDLE_LOADER: "$(TEST_HOST)"
       TEST_HOST: "$(BUILT_PRODUCTS_DIR)/befold.app/Contents/MacOS/befold"

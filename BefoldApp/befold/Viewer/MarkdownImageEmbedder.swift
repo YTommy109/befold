@@ -1,4 +1,5 @@
 // BefoldApp/befold/Viewer/MarkdownImageEmbedder.swift
+import BefoldKit
 import Foundation
 
 /// markdown 本文中の ![alt](path) が指すローカル画像を base64 data URI に差し替える

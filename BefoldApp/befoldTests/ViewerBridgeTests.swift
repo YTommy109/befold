@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldKit
 import Foundation
 import Testing
 
@@ -112,7 +113,7 @@ struct ViewerBridgeTests {
 
     @Test("findStringsScript が window._mmdFindStrings への代入文を生成する")
     func findStringsScriptAssignsFindStringsGlobal() {
-        let script = ViewerBridge.findStringsScript()
+        let script = ViewerBridge.findStringsScript(bundle: .l10n)
 
         #expect(script.hasPrefix("window._mmdFindStrings = "))
         #expect(script.hasSuffix(";"))
@@ -120,7 +121,7 @@ struct ViewerBridgeTests {
 
     @Test("findStringsScript が全キーを含む妥当な JSON を生成する")
     func findStringsScriptProducesValidJSONWithAllKeys() throws {
-        let script = ViewerBridge.findStringsScript()
+        let script = ViewerBridge.findStringsScript(bundle: .l10n)
 
         let jsonPart = script
             .replacingOccurrences(of: "window._mmdFindStrings = ", with: "")
@@ -183,11 +184,11 @@ struct ViewerBridgeTests {
         #expect(js.contains("var ZOOM_STEP = \(ZoomStore.zoomStep);"))
     }
 
-    /// befoldTests/ から見た befold/Resources/ 内のリソース URL を返す。
+    /// befoldTests/ から見た BefoldKit/Resources/ 内のリソース URL を返す。
     private func resourceURL(_ name: String) -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // befoldTests
             .deletingLastPathComponent() // BefoldApp
-            .appendingPathComponent("befold/Resources/\(name)")
+            .appendingPathComponent("BefoldKit/Resources/\(name)")
     }
 }
