@@ -189,8 +189,8 @@ final class ViewerWindowController: NSWindowController {
                 guard let self else { return }
                 scrollPositionStore.setScrollPosition(position, for: fileURL, mode: mode)
             },
-            onOpenReference: { [weak self] href, isExternal, newWindow in
-                self?.handleOpenReference(href: href, isExternal: isExternal, newWindow: newWindow)
+            onOpenReference: { [weak self] href, newWindow in
+                self?.handleOpenReference(href: href, newWindow: newWindow)
             },
             webViewProxy: webViewProxy
         )
@@ -219,8 +219,8 @@ final class ViewerWindowController: NSWindowController {
         )
     }
 
-    /// cmd+click によるリンク/パス参照のアクティベーションを処理する。
-    private func handleOpenReference(href: String, isExternal: Bool, newWindow: Bool) {
+    /// リンク/パス参照のアクティベーションを処理する。
+    private func handleOpenReference(href: String, newWindow: Bool) {
         let target = ReferenceResolver.resolve(href: href, baseURL: fileURL)
         switch target {
         case let .external(url):

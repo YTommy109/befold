@@ -20,9 +20,9 @@ struct ViewerWebView: NSViewRepresentable {
     let onScrollPositionChanged: @MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void
     /// JS 側で倍率が変わったときに呼ばれる。
     let onZoomChanged: @MainActor (Double) -> Void
-    /// cmd+click でリンクやパス参照がアクティベートされたときに呼ばれる。
-    /// パラメータ: href, isExternal, newWindow
-    let onOpenReference: @MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void
+    /// リンクやパス参照がアクティベートされたときに呼ばれる。
+    /// パラメータ: href, newWindow
+    let onOpenReference: @MainActor (_ href: String, _ newWindow: Bool) -> Void
     /// 検索バーの3トグル(大文字小文字区別・単語マッチ・正規表現)の永続化ストア。
     let findOptionsPreference: FindOptionsPreference
     /// AppKit 側（メニューアクション）へ WKWebView を公開するプロキシ。
@@ -181,7 +181,7 @@ struct ViewerWebView: NSViewRepresentable {
         var webViewProxy: WebViewProxy?
         var onZoomChanged: (@MainActor (Double) -> Void)?
         var onScrollPositionChanged: (@MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void)?
-        var onOpenReference: (@MainActor (_ href: String, _ isExternal: Bool, _ newWindow: Bool) -> Void)?
+        var onOpenReference: (@MainActor (_ href: String, _ newWindow: Bool) -> Void)?
         /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
         var findOptionsPreference: FindOptionsPreference?
         /// updateNSView から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
@@ -214,10 +214,9 @@ struct ViewerWebView: NSViewRepresentable {
             } else if message.name == ViewerBridge.referenceActivatedMessageName,
                       let body = message.body as? [String: Any],
                       let href = body["href"] as? String,
-                      let isExternal = body["isExternal"] as? Bool,
                       let newWindow = body["newWindow"] as? Bool
             {
-                onOpenReference?(href, isExternal, newWindow)
+                onOpenReference?(href, newWindow)
             } else if message.name == ViewerBridge.scrollPositionChangedMessageName,
                       let body = message.body as? [String: Any],
                       let position = (body["position"] as? NSNumber)?.doubleValue,
