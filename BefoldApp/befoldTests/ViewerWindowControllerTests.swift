@@ -501,3 +501,77 @@ extension ViewerWindowControllerTests {
         #expect(controller.fileListModel.canGoBack == true)
     }
 }
+
+// MARK: - handleOpenReference (Link Navigation)
+
+/// リンククリック(JS の referenceActivated → handleOpenReference)経由の履歴記録・
+/// サイドバー追従は switchFile 内の sidebar.syncAfterSwitch が既に行っている(実機確認済み)。
+/// この既存挙動を回帰テストとして固定する。
+extension ViewerWindowControllerTests {
+    @Test("リンク遷移で履歴が積まれ、戻る操作で復帰する")
+    func handleOpenReferenceRecordsHistoryAndBackRestores() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let fileA = try tmp.file(named: "a.md", contents: "# A")
+        _ = try tmp.file(named: "b.md", contents: "# B")
+        let controller = makeController(file: fileA, defaults: makeIsolatedDefaults(prefix: "OpenReference"))
+        defer { controller.close() }
+
+        controller.handleOpenReference(href: "b.md", newWindow: false)
+
+        #expect(controller.fileURL.lastPathComponent == "b.md")
+        #expect(controller.fileListModel.canGoBack == true)
+
+        controller.navigateHistory(by: -1)
+
+        #expect(controller.fileURL.lastPathComponent == "a.md")
+        #expect(controller.fileListModel.canGoForward == true)
+    }
+
+    @Test("別ディレクトリへのリンク遷移でサイドバーのディレクトリが追従し、戻ると復帰する")
+    func handleOpenReferenceToOtherDirectoryFollowsSidebarAndBackRestores() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let fileA = try tmp.file(named: "a.md", contents: "# A")
+        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        _ = try tmp.file(named: "sub/target.md", contents: "# Target")
+        let controller = makeController(file: fileA, defaults: makeIsolatedDefaults(prefix: "OpenReference"))
+        defer { controller.close() }
+        let originalDirectory = controller.fileListModel.currentDirectory
+
+        controller.handleOpenReference(href: "sub/target.md", newWindow: false)
+
+        #expect(controller.fileURL.lastPathComponent == "target.md")
+        #expect(controller.fileListModel.currentDirectory.standardizedFileURL == subDir.standardizedFileURL)
+
+        controller.navigateHistory(by: -1)
+
+        #expect(controller.fileURL.lastPathComponent == "a.md")
+        #expect(
+            controller.fileListModel.currentDirectory.standardizedFileURL
+                == originalDirectory.standardizedFileURL
+        )
+    }
+
+    /// newWindow: true では AppDelegate.shared?.openViewer(for:) へ委譲するのみで、
+    /// 現在のウィンドウ(controller)は switchFile を一切経由しない。テスト環境では
+    /// AppDelegate.shared は nil(または新規ウィンドウを開けない)ため実際に新規ウィンドウが
+    /// 開くかまでは検証できないが、本テストが固定したいのは「元ウィンドウの表示ファイル・履歴が
+    /// 変化しないこと」であり、それはこの環境でも確実に検証できる。
+    @Test("newWindow: true 経路では元ウィンドウの状態が変化しない")
+    func handleOpenReferenceWithNewWindowLeavesOriginalWindowUnchanged() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let fileA = try tmp.file(named: "a.md", contents: "# A")
+        _ = try tmp.file(named: "b.md", contents: "# B")
+        let controller = makeController(file: fileA, defaults: makeIsolatedDefaults(prefix: "OpenReference"))
+        defer { controller.close() }
+
+        controller.handleOpenReference(href: "b.md", newWindow: true)
+
+        #expect(controller.fileURL.lastPathComponent == "a.md")
+        #expect(controller.fileListModel.canGoBack == false)
+        #expect(controller.fileListModel.selection?.lastPathComponent == "a.md")
+    }
+}
