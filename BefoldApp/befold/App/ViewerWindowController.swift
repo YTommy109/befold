@@ -722,6 +722,9 @@ extension ViewerWindowController: NSToolbarDelegate {
         item.label = label
         item.toolTip = label
         item.view = button
+        // Finder と同じく、ナビゲーション項目としてウィンドウタイトル(ファイル名)より
+        // 先頭側(コンテンツ領域の左端)に配置する
+        item.isNavigational = true
         // ウィンドウが狭まりオーバーフロー(») メニューに収容される際、view ベースの
         // アイテムは menuFormRepresentation が無いと action の無い死んだ項目になるため設定する。
         let menuItem = NSMenuItem(
@@ -756,7 +759,6 @@ extension ViewerWindowController: NSToolbarDelegate {
             action: #selector(toggleLineNumbers(_:))
         )
         button.bezelStyle = .texturedRounded
-        button.setButtonType(.pushOnPushOff)
         let item = NSToolbarItem(itemIdentifier: Self.lineNumbersItemIdentifier)
         item.label = label
         item.view = button
@@ -777,7 +779,9 @@ extension ViewerWindowController: NSToolbarDelegate {
             $0.itemIdentifier == Self.lineNumbersItemIdentifier
         }), let button = item.view as? NSButton else { return }
         button.isEnabled = store.showsCodeContent
-        button.state = store.showLineNumbers ? .on : .off
+        // オン状態はボタンの塗り潰し(.pushOnPushOff)ではなくシンボルの
+        // アクセント色で示し、隣のモード切替セグメントと色味を揃える
+        button.contentTintColor = store.showLineNumbers ? .controlAccentColor : nil
         item.toolTip = store.showLineNumbers
             ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
             : String(localized: "menu.view.showLineNumbers", bundle: .l10n)

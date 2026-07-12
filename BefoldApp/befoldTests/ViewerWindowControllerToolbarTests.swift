@@ -59,6 +59,23 @@ struct ViewerWindowControllerToolbarTests {
         #expect(previewButton.isEnabled == false)
     }
 
+    @Test("戻る・進むアイテムはナビゲーション項目としてタイトルより先頭側に配置される")
+    func historyItemsAreNavigational() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "a.mmd", contents: "graph TD;")
+        let controller = makeController(file: file)
+        defer { controller.close() }
+        let toolbar = try #require(controller.window?.toolbar)
+
+        for identifier in ["historyBack", "historyForward"] {
+            let item = try #require(controller.toolbar(
+                toolbar, itemForItemIdentifier: .init(identifier), willBeInsertedIntoToolbar: false
+            ))
+            #expect(item.isNavigational, "\(identifier) は isNavigational であるべき")
+        }
+    }
+
     @Test("履歴が無い間、戻る・進むアイテムは無効")
     func historyItemsDisabledWithoutHistory() throws {
         let tmp = try TempDir()
