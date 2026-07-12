@@ -104,7 +104,7 @@ final class ViewerWindowController: NSWindowController {
         // ここでの contentRect はプレースホルダ
         let window = NSWindow(
             contentRect: .zero,
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
