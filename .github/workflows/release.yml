@@ -200,12 +200,16 @@ jobs:
           is_prerelease=${{ contains(github.ref_name, '-') }}
           download_url_prefix="https://github.com/YTommy109/befold/releases/download/${tag_name}/"
 
+          # EdDSA 秘密鍵をファイルに書き出す
+          key_file="$RUNNER_TEMP/sparkle_eddsa_key"
+          echo "$SPARKLE_PRIVATE_KEY" > "$key_file"
+
           # develop 用 appcast（全リリース含む）
           develop_dir="$RUNNER_TEMP/appcast-develop"
           mkdir -p "$develop_dir"
           gh release download appcast -p "appcast-develop.xml" -D "$develop_dir" 2>/dev/null || true
           cp "../$DMG_NAME" "$develop_dir/"
-          generate_appcast --download-url-prefix "$download_url_prefix" "$develop_dir"
+          generate_appcast --ed-key-file "$key_file" --download-url-prefix "$download_url_prefix" "$develop_dir"
           mv "$develop_dir/appcast-develop.xml" "$RUNNER_TEMP/appcast-develop.xml" 2>/dev/null || mv "$develop_dir/appcast.xml" "$RUNNER_TEMP/appcast-develop.xml"
 
           # stable 用 appcast（prerelease を除外）
@@ -214,8 +218,10 @@ jobs:
           gh release download appcast -p "appcast.xml" -D "$stable_dir" 2>/dev/null || true
           if [ "$is_prerelease" = "false" ]; then
             cp "../$DMG_NAME" "$stable_dir/"
-            generate_appcast --download-url-prefix "$download_url_prefix" "$stable_dir"
+            generate_appcast --ed-key-file "$key_file" --download-url-prefix "$download_url_prefix" "$stable_dir"
           fi
+
+          rm "$key_file"
           # stable appcast が存在しない場合（初回 prerelease のみの場合）は空 appcast を作成
           if [ ! -f "$stable_dir/appcast.xml" ]; then
             echo '<?xml version="1.0" encoding="utf-8"?><rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><title>befold</title></channel></rss>' > "$stable_dir/appcast.xml"
