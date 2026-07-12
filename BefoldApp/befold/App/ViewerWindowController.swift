@@ -33,6 +33,9 @@ final class ViewerWindowController: NSWindowController {
     private static let lastWindowFrameKey = "LastWindowFrame"
     private static let defaultContentSize = NSSize(width: 1100, height: 850)
     private static let modeToggleItemIdentifier = NSToolbarItem.Identifier("modeToggle")
+    private static let backItemIdentifier = NSToolbarItem.Identifier("historyBack")
+    private static let forwardItemIdentifier = NSToolbarItem.Identifier("historyForward")
+    private static let lineNumbersItemIdentifier = NSToolbarItem.Identifier("lineNumbers")
 
     private let defaults: UserDefaults
     private let store: ViewerStore
@@ -101,7 +104,7 @@ final class ViewerWindowController: NSWindowController {
         // ここでの contentRect はプレースホルダ
         let window = NSWindow(
             contentRect: .zero,
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -166,6 +169,7 @@ final class ViewerWindowController: NSWindowController {
         }
         store.onContentReloaded = { [weak self] in
             self?.updateModeToggleAppearance()
+            self?.updateLineNumbersToolbarItem()
         }
         store.openFile(fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
@@ -207,7 +211,6 @@ final class ViewerWindowController: NSWindowController {
             onOpenInNewWindow: { url in
                 AppDelegate.shared?.openViewer(for: url)
             },
-            onNavigateHistory: { [weak self] offset in self?.navigateHistory(by: offset) },
             onToggleHiddenFiles: { [weak self] in
                 guard let self else { return }
                 delegate?.viewerWindowDidToggleHiddenFiles(self)
@@ -300,23 +303,6 @@ final class ViewerWindowController: NSWindowController {
         sidebar.syncAfterSwitch(to: newURL)
     }
 
-    /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
-    /// handleRename / switchFile 共通の表示更新。
-    private func applyURLToWindow(_ newURL: URL) {
-        fileURL = newURL
-        guard let window else { return }
-        window.title = newURL.lastPathComponent
-        window.representedURL = newURL
-    }
-
-    /// 現在のファイルの保存倍率を WebView に適用する。
-    /// 初期ロード時の倍率注入(ViewerBridge.initialZoomScript)と同じ経路で
-    /// window._mmdInitialZoom を書き換え、viewer.html の初期化関数で反映させる。
-    private func applyStoredZoomToWebView() {
-        guard let webView = webViewProxy.webView else { return }
-        webView.evaluateJavaScript(ViewerBridge.applyZoomScript(zoomStore.zoom(for: fileURL)))
-    }
-
     /// サイドバーで別フォルダーへ移動する。詳細は SidebarNavigator に委譲する。
     func navigateToFolder(_ url: URL) {
         sidebar.navigateToFolder(url)
@@ -353,6 +339,32 @@ final class ViewerWindowController: NSWindowController {
         return true
     }
 
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError()
+    }
+}
+
+// MARK: - Window / Content Helpers
+
+extension ViewerWindowController {
+    /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
+    /// handleRename / switchFile 共通の表示更新。
+    private func applyURLToWindow(_ newURL: URL) {
+        fileURL = newURL
+        guard let window else { return }
+        window.title = newURL.lastPathComponent
+        window.representedURL = newURL
+    }
+
+    /// 現在のファイルの保存倍率を WebView に適用する。
+    /// 初期ロード時の倍率注入(ViewerBridge.initialZoomScript)と同じ経路で
+    /// window._mmdInitialZoom を書き換え、viewer.html の初期化関数で反映させる。
+    private func applyStoredZoomToWebView() {
+        guard let webView = webViewProxy.webView else { return }
+        webView.evaluateJavaScript(ViewerBridge.applyZoomScript(zoomStore.zoom(for: fileURL)))
+    }
+
     /// WebView に現在のスクロール位置を問い合わせ、指定した URL・モードのキーへ保存する。
     /// ファイル/モード切替の直前に、切替後の self.fileURL / isSourceMode に依存せず
     /// 退場側の位置を確定させるために使う(render() 冒頭の同期通知を廃止した代替)。
@@ -383,11 +395,6 @@ final class ViewerWindowController: NSWindowController {
             attempts += 1
         }
     }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError()
-    }
 }
 
 // MARK: - SidebarNavigatorHost
@@ -401,6 +408,16 @@ extension ViewerWindowController: SidebarNavigatorHost {
     /// 指定 URL が自分以外のウィンドウで開かれているか(注入されたチェックへ委譲)。
     func isFileOpenElsewhere(_ url: URL) -> Bool {
         delegate?.viewerWindow(self, isFileOpenInAnotherWindow: url) ?? false
+    }
+
+    /// 履歴状態の変化をツールバーの戻る/進むアイテムへ反映する。
+    func historyStateDidChange() {
+        window?.toolbar?.items
+            .filter {
+                $0.itemIdentifier == Self.backItemIdentifier
+                    || $0.itemIdentifier == Self.forwardItemIdentifier
+            }
+            .forEach { updateHistoryToolbarItem($0) }
     }
 }
 
@@ -492,14 +509,25 @@ extension ViewerWindowController: NSWindowDelegate {
         webView.evaluateJavaScript(script)
     }
 
-    /// View > Toggle Line Numbers。行番号表示の有無を切り替える。
+    /// View > Toggle Line Numbers / ツールバーの行番号ボタン。行番号表示の有無を切り替える。
     @objc func toggleLineNumbers(_ sender: Any?) {
         store.showLineNumbers.toggle()
+        updateLineNumbersToolbarItem()
     }
 
     /// View メニュー > ソース表示トグル。レンダリング表示とソース表示を切り替える。
     @objc func toggleSourceView(_ sender: Any?) {
         setSourceMode(!isSourceMode)
+    }
+
+    /// View > Back。ファイル履歴を 1 つ戻る。
+    @objc func goBack(_ sender: Any?) {
+        navigateHistory(by: -1)
+    }
+
+    /// View > Forward。ファイル履歴を 1 つ進む。
+    @objc func goForward(_ sender: Any?) {
+        navigateHistory(by: 1)
     }
 
     /// モード切替セグメントコントロールの選択変更を受けて呼ばれる。
@@ -528,6 +556,7 @@ extension ViewerWindowController: NSWindowDelegate {
             store.isSourceMode = newValue
         }
         updateModeToggleAppearance()
+        updateLineNumbersToolbarItem()
     }
 
     /// モード切替セグメントの選択状態・有効/無効を現在のファイル種別に合わせて更新する。
@@ -572,6 +601,12 @@ extension ViewerWindowController: NSWindowDelegate {
                 ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
                 : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
             return store.showsCodeContent
+        }
+        if menuItem.action == #selector(goBack(_:)) {
+            return fileListModel.canGoBack
+        }
+        if menuItem.action == #selector(goForward(_:)) {
+            return fileListModel.canGoForward
         }
         let findActions: [Selector] = [#selector(find(_:)), #selector(findNext(_:)), #selector(findPrevious(_:))]
         if let action = menuItem.action, findActions.contains(action) {
@@ -643,6 +678,12 @@ extension ViewerWindowController: NSToolbarDelegate {
         itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
+        if itemIdentifier == Self.backItemIdentifier || itemIdentifier == Self.forwardItemIdentifier {
+            return makeHistoryToolbarItem(itemIdentifier)
+        }
+        if itemIdentifier == Self.lineNumbersItemIdentifier {
+            return makeLineNumbersToolbarItem()
+        }
         guard itemIdentifier == Self.modeToggleItemIdentifier else { return nil }
         let previewLabel = String(localized: "toolbar.mode.preview", bundle: .l10n)
         let sourceLabel = String(localized: "toolbar.mode.source", bundle: .l10n)
@@ -669,11 +710,101 @@ extension ViewerWindowController: NSToolbarDelegate {
         return item
     }
 
+    /// 戻る/進むのツールバーアイテムを生成する。生成時点の履歴状態を初期反映する。
+    private func makeHistoryToolbarItem(_ identifier: NSToolbarItem.Identifier) -> NSToolbarItem {
+        let isBack = identifier == Self.backItemIdentifier
+        let label = isBack
+            ? String(localized: "toolbar.back", bundle: .l10n)
+            : String(localized: "toolbar.forward", bundle: .l10n)
+        let button = HistoryButtonView(
+            systemImage: isBack ? "chevron.left" : "chevron.right",
+            accessibilityLabel: label,
+            primaryOffset: isBack ? -1 : 1,
+            onNavigate: { [weak self] offset in self?.navigateHistory(by: offset) }
+        )
+        let item = NSToolbarItem(itemIdentifier: identifier)
+        item.label = label
+        item.toolTip = label
+        item.view = button
+        // Finder と同じく、ナビゲーション項目としてウィンドウタイトル(ファイル名)より
+        // 先頭側(コンテンツ領域の左端)に配置する
+        item.isNavigational = true
+        // ウィンドウが狭まりオーバーフロー(») メニューに収容される際、view ベースの
+        // アイテムは menuFormRepresentation が無いと action の無い死んだ項目になるため設定する。
+        let menuItem = NSMenuItem(
+            title: label,
+            action: isBack
+                ? #selector(goBack(_:)) : #selector(goForward(_:)),
+            keyEquivalent: ""
+        )
+        menuItem.target = self
+        item.menuFormRepresentation = menuItem
+        updateHistoryToolbarItem(item)
+        return item
+    }
+
+    /// 戻る/進むアイテム 1 つへ現在の履歴状態を反映する。
+    private func updateHistoryToolbarItem(_ item: NSToolbarItem) {
+        guard let button = item.view as? HistoryButtonView else { return }
+        if item.itemIdentifier == Self.backItemIdentifier {
+            button.updateState(isEnabled: fileListModel.canGoBack, entries: fileListModel.backHistory)
+        } else {
+            button.updateState(isEnabled: fileListModel.canGoForward, entries: fileListModel.forwardHistory)
+        }
+    }
+
+    /// 行番号トグルのツールバーアイテムを生成する。常時表示し、
+    /// コード系コンテンツ表示中(showsCodeContent)以外は無効にする。
+    private func makeLineNumbersToolbarItem() -> NSToolbarItem {
+        let label = String(localized: "menu.view.showLineNumbers", bundle: .l10n)
+        let button = NSButton(
+            image: NSImage(systemSymbolName: "list.number", accessibilityDescription: label)!,
+            target: self,
+            action: #selector(toggleLineNumbers(_:))
+        )
+        button.bezelStyle = .texturedRounded
+        let item = NSToolbarItem(itemIdentifier: Self.lineNumbersItemIdentifier)
+        item.label = label
+        item.view = button
+        // ウィンドウが狭まりオーバーフロー(») メニューに収容される際、view ベースの
+        // アイテムは menuFormRepresentation が無いと action の無い死んだ項目になるため設定する。
+        let menuItem = NSMenuItem(title: label, action: #selector(toggleLineNumbers(_:)), keyEquivalent: "")
+        menuItem.target = self
+        item.menuFormRepresentation = menuItem
+        updateLineNumbersToolbarItem(item)
+        return item
+    }
+
+    /// 行番号アイテムの有効/無効・オンオフ表示・ツールチップを現在の表示状態に合わせて更新する。
+    /// - Parameter item: 更新対象。省略時は window.toolbar から検索する
+    ///   (生成中でまだ toolbar.items に含まれないアイテムを更新する場合は明示的に渡すこと)。
+    private func updateLineNumbersToolbarItem(_ item: NSToolbarItem? = nil) {
+        guard let item = item ?? window?.toolbar?.items.first(where: {
+            $0.itemIdentifier == Self.lineNumbersItemIdentifier
+        }), let button = item.view as? NSButton else { return }
+        button.isEnabled = store.showsCodeContent
+        // オン状態はボタンの塗り潰し(.pushOnPushOff)ではなくシンボルの
+        // アクセント色で示し、隣のモード切替セグメントと色味を揃える
+        button.contentTintColor = store.showLineNumbers ? .controlAccentColor : nil
+        item.toolTip = store.showLineNumbers
+            ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
+            : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
+    }
+
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .flexibleSpace, Self.modeToggleItemIdentifier]
+        [
+            .toggleSidebar, .sidebarTrackingSeparator,
+            Self.backItemIdentifier, Self.forwardItemIdentifier,
+            .flexibleSpace, Self.lineNumbersItemIdentifier, Self.modeToggleItemIdentifier,
+        ]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, Self.modeToggleItemIdentifier, .flexibleSpace, .space]
+        [
+            .toggleSidebar, .sidebarTrackingSeparator,
+            Self.backItemIdentifier, Self.forwardItemIdentifier,
+            Self.lineNumbersItemIdentifier, Self.modeToggleItemIdentifier,
+            .flexibleSpace, .space,
+        ]
     }
 }

@@ -7,7 +7,6 @@ struct FileListView: View {
     let onNavigate: (URL) -> Void
     let onSortOrderChanged: (SortOrder) -> Void
     let onOpenInNewWindow: (URL) -> Void
-    var onNavigateHistory: ((Int) -> Void)?
     var onToggleHiddenFiles: (() -> Void)?
 
     var body: some View {
@@ -19,26 +18,6 @@ struct FileListView: View {
 
     private var header: some View {
         HStack {
-            HistoryNavigationButton(
-                systemImage: "chevron.left",
-                accessibilityLabel: String(localized: "sidebar.back", bundle: .l10n),
-                isEnabled: model.canGoBack,
-                entries: model.backHistory,
-                primaryOffset: -1,
-                onNavigate: { onNavigateHistory?($0) }
-            )
-            .frame(width: 20, height: 20)
-
-            HistoryNavigationButton(
-                systemImage: "chevron.right",
-                accessibilityLabel: String(localized: "sidebar.forward", bundle: .l10n),
-                isEnabled: model.canGoForward,
-                entries: model.forwardHistory,
-                primaryOffset: 1,
-                onNavigate: { onNavigateHistory?($0) }
-            )
-            .frame(width: 20, height: 20)
-
             Text(model.currentDirectory.lastPathComponent)
                 .font(.headline)
                 .lineLimit(1)

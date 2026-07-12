@@ -29,31 +29,25 @@ struct ViewerContentView: View {
         // ViewerWebView は常に生かしておき(ビュー同一性を維持)、非対応時は
         // 上に UnsupportedFileView を重ねる。テキスト↔バイナリの切替で WKWebView が
         // 破棄・再生成されて白フラッシュや stale な initialZoom が起きるのを防ぐ。
-        VStack(spacing: 0) {
-            if store.showsCodeContent {
-                ViewerTopBar(store: store)
-            }
+        ZStack {
+            ViewerWebView(
+                content: store.content,
+                fileType: store.fileType,
+                filePath: store.filePath,
+                isSourceMode: store.isSourceMode,
+                showLineNumbers: store.showLineNumbers,
+                initialZoom: currentZoom,
+                scrollPositionToRestore: currentScrollPosition,
+                onScrollPositionChanged: onScrollPositionChanged,
+                onZoomChanged: onZoomChanged,
+                onOpenReference: onOpenReference,
+                findOptionsPreference: findOptionsPreference,
+                webViewProxy: webViewProxy
+            )
+            .opacity(store.isUnsupported ? 0 : 1)
 
-            ZStack {
-                ViewerWebView(
-                    content: store.content,
-                    fileType: store.fileType,
-                    filePath: store.filePath,
-                    isSourceMode: store.isSourceMode,
-                    showLineNumbers: store.showLineNumbers,
-                    initialZoom: currentZoom,
-                    scrollPositionToRestore: currentScrollPosition,
-                    onScrollPositionChanged: onScrollPositionChanged,
-                    onZoomChanged: onZoomChanged,
-                    onOpenReference: onOpenReference,
-                    findOptionsPreference: findOptionsPreference,
-                    webViewProxy: webViewProxy
-                )
-                .opacity(store.isUnsupported ? 0 : 1)
-
-                if store.isUnsupported {
-                    UnsupportedFileView(fileURL: store.filePath)
-                }
+            if store.isUnsupported {
+                UnsupportedFileView(fileURL: store.filePath)
             }
         }
     }

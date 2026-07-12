@@ -202,6 +202,17 @@ enum MainMenuBuilder {
         )
         toggleSidebar.keyEquivalentModifierMask = [.command]
         menu.addItem(.separator())
+        menu.addItem(
+            withTitle: String(localized: "menu.view.goBack", bundle: .l10n),
+            action: #selector(ViewerWindowController.goBack(_:)),
+            keyEquivalent: "["
+        )
+        menu.addItem(
+            withTitle: String(localized: "menu.view.goForward", bundle: .l10n),
+            action: #selector(ViewerWindowController.goForward(_:)),
+            keyEquivalent: "]"
+        )
+        menu.addItem(.separator())
         let toggleHiddenFiles = menu.addItem(
             withTitle: String(localized: "menu.view.showHiddenFiles", bundle: .l10n),
             action: #selector(AppDelegate.toggleHiddenFiles(_:)),

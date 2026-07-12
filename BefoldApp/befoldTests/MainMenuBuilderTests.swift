@@ -77,6 +77,16 @@ struct MainMenuBuilderTests {
         ), // View メニューに Toggle Sidebar(⌘S) がある
         (
             submenuKey: "menu.view.title",
+            selector: #selector(ViewerWindowController.goBack(_:)),
+            key: "[", modifiers: NSEvent.ModifierFlags?.some(.command)
+        ), // View メニューに Back(⌘[) がある
+        (
+            submenuKey: "menu.view.title",
+            selector: #selector(ViewerWindowController.goForward(_:)),
+            key: "]", modifiers: NSEvent.ModifierFlags?.some(.command)
+        ), // View メニューに Forward(⌘]) がある
+        (
+            submenuKey: "menu.view.title",
             selector: #selector(ViewerWindowController.toggleLineNumbers(_:)),
             key: "l", modifiers: NSEvent.ModifierFlags?.some(.command)
         ), // View メニューに Toggle Line Numbers(⌘L) がある

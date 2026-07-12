@@ -311,6 +311,20 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "フルスクリーンにする" } }
       }
     },
+    "menu.view.goBack" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Back" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "戻る" } }
+      }
+    },
+    "menu.view.goForward" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Forward" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "進む" } }
+      }
+    },
     "menu.window.title" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -493,14 +507,14 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "不可視ファイルを隠す" } }
       }
     },
-    "sidebar.back" : {
+    "toolbar.back" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Back" } },
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "戻る" } }
       }
     },
-    "sidebar.forward" : {
+    "toolbar.forward" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Forward" } },

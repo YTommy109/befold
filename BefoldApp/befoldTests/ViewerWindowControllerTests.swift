@@ -500,6 +500,33 @@ extension ViewerWindowControllerTests {
         #expect(controller.fileListModel.canGoForward == false)
         #expect(controller.fileListModel.canGoBack == true)
     }
+
+    @Test("戻る/進むメニューは対応する履歴があるときだけ有効")
+    func goBackAndForwardMenuValidation() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let fileA = try tmp.file(named: "a.mmd", contents: "graph TD;")
+        let fileB = try tmp.file(named: "b.mmd", contents: "graph TD;")
+        let controller = makeController(file: fileA)
+        defer { controller.close() }
+        let backItem = NSMenuItem(
+            title: "", action: #selector(ViewerWindowController.goBack(_:)), keyEquivalent: ""
+        )
+        let forwardItem = NSMenuItem(
+            title: "", action: #selector(ViewerWindowController.goForward(_:)), keyEquivalent: ""
+        )
+
+        #expect(controller.validateMenuItem(backItem) == false)
+        #expect(controller.validateMenuItem(forwardItem) == false)
+
+        controller.switchFile(to: fileB)
+        #expect(controller.validateMenuItem(backItem) == true)
+        #expect(controller.validateMenuItem(forwardItem) == false)
+
+        controller.navigateHistory(by: -1)
+        #expect(controller.validateMenuItem(backItem) == false)
+        #expect(controller.validateMenuItem(forwardItem) == true)
+    }
 }
 
 // MARK: - handleOpenReference (Link Navigation)
