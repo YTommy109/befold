@@ -1,19 +1,17 @@
-// BefoldApp/befold/Viewer/MarkdownImageEmbedder.swift
-import BefoldKit
 import Foundation
 
 /// markdown 本文中の ![alt](path) が指すローカル画像を base64 data URI に差し替える
 /// レンダリング前プリプロセス。viewer.html の CSP は img-src 'self' data: のため、
 /// ローカルパスのままでは画像を読めない(data URI は許可済みなので CSP 変更が不要)。
 /// リモート URL・読込失敗・非対応拡張子は原文のまま残す。
-enum MarkdownImageEmbedder {
+public enum MarkdownImageEmbedder {
     /// 埋め込み対象の拡張子 → MIME タイプ。画像ファイル単体表示の対応表に加えて SVG も
     /// 対象にする(<img> 経由の SVG は画像モードで扱われスクリプトが実行されないため安全)。
-    static let imageExtensionMimeTypes: [String: String] =
+    public static let imageExtensionMimeTypes: [String: String] =
         FileType.imageExtensionMimeTypes.merging(["svg": "image/svg+xml"]) { current, _ in current }
 
     /// 1 画像あたりのサイズ上限。バイナリ表示と同じ上限を単一情報源から参照する。
-    static let defaultMaxImageSizeBytes = ContentLoader.maxBinaryFileSizeBytes
+    public static let defaultMaxImageSizeBytes = ContentLoader.maxBinaryFileSizeBytes
 
     // Regex は Sendable でないため、strict concurrency 下では static 格納プロパティに
     // できず、各関数内のローカル定数として生成する。
@@ -27,7 +25,7 @@ enum MarkdownImageEmbedder {
     ///   - markdown: 元の markdown 本文。
     ///   - baseURL: 相対パスの解決基準となる markdown ファイルの URL。
     ///   - maxImageSizeBytes: これを超えるサイズの画像は差し替えない。
-    static func embedLocalImages(
+    public static func embedLocalImages(
         in markdown: String,
         baseURL: URL,
         maxImageSizeBytes: Int = defaultMaxImageSizeBytes

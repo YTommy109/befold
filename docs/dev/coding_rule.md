@@ -58,6 +58,7 @@ BefoldApp/
 │   ├── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
 │   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js
 │       └── __tests__/       # viewer.js の Jest テスト
+├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver）
 └── befoldTests/            # Swift Testing テスト（TestSupport.swift = 共有ヘルパー）
 ```
 
