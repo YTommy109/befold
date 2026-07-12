@@ -14,6 +14,8 @@ protocol SidebarNavigatorHost: AnyObject {
     func switchFile(to url: URL)
     /// 指定 URL が自分以外のウィンドウで既に開かれているか。
     func isFileOpenElsewhere(_ url: URL) -> Bool
+    /// 戻る/進む履歴の状態が変化した。AppKit 側 UI(ツールバー)の更新契機。
+    func historyStateDidChange()
 }
 
 /// サイドバー(ファイル一覧・選択同期・フォルダ移動)と戻る/進む履歴を管理する。
@@ -236,9 +238,10 @@ final class SidebarNavigator {
         refreshHistoryState()
     }
 
-    /// 履歴状態をサイドバー（FileListModel）へ反映する。
+    /// 履歴状態をサイドバー(FileListModel)とホスト(ツールバー)へ反映する。
     private func refreshHistoryState() {
         fileListModel.backHistory = history.backEntries()
         fileListModel.forwardHistory = history.forwardEntries()
+        host?.historyStateDidChange()
     }
 }

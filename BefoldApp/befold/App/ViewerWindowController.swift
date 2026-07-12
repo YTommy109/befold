@@ -33,6 +33,8 @@ final class ViewerWindowController: NSWindowController {
     private static let lastWindowFrameKey = "LastWindowFrame"
     private static let defaultContentSize = NSSize(width: 1100, height: 850)
     private static let modeToggleItemIdentifier = NSToolbarItem.Identifier("modeToggle")
+    private static let backItemIdentifier = NSToolbarItem.Identifier("historyBack")
+    private static let forwardItemIdentifier = NSToolbarItem.Identifier("historyForward")
 
     private let defaults: UserDefaults
     private let store: ViewerStore
@@ -401,6 +403,16 @@ extension ViewerWindowController: SidebarNavigatorHost {
     func isFileOpenElsewhere(_ url: URL) -> Bool {
         delegate?.viewerWindow(self, isFileOpenInAnotherWindow: url) ?? false
     }
+
+    /// 履歴状態の変化をツールバーの戻る/進むアイテムへ反映する。
+    func historyStateDidChange() {
+        window?.toolbar?.items
+            .filter {
+                $0.itemIdentifier == Self.backItemIdentifier
+                    || $0.itemIdentifier == Self.forwardItemIdentifier
+            }
+            .forEach { updateHistoryToolbarItem($0) }
+    }
 }
 
 // MARK: - Menu Actions / Validation / NSWindowDelegate
@@ -642,6 +654,9 @@ extension ViewerWindowController: NSToolbarDelegate {
         itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
+        if itemIdentifier == Self.backItemIdentifier || itemIdentifier == Self.forwardItemIdentifier {
+            return makeHistoryToolbarItem(itemIdentifier)
+        }
         guard itemIdentifier == Self.modeToggleItemIdentifier else { return nil }
         let previewLabel = String(localized: "toolbar.mode.preview", bundle: .l10n)
         let sourceLabel = String(localized: "toolbar.mode.source", bundle: .l10n)
@@ -668,11 +683,49 @@ extension ViewerWindowController: NSToolbarDelegate {
         return item
     }
 
+    /// 戻る/進むのツールバーアイテムを生成する。生成時点の履歴状態を初期反映する。
+    private func makeHistoryToolbarItem(_ identifier: NSToolbarItem.Identifier) -> NSToolbarItem {
+        let isBack = identifier == Self.backItemIdentifier
+        let label = isBack
+            ? String(localized: "toolbar.back", bundle: .l10n)
+            : String(localized: "toolbar.forward", bundle: .l10n)
+        let button = HistoryButtonView(
+            systemImage: isBack ? "chevron.left" : "chevron.right",
+            accessibilityLabel: label,
+            primaryOffset: isBack ? -1 : 1,
+            onNavigate: { [weak self] offset in self?.navigateHistory(by: offset) }
+        )
+        let item = NSToolbarItem(itemIdentifier: identifier)
+        item.label = label
+        item.toolTip = label
+        item.view = button
+        updateHistoryToolbarItem(item)
+        return item
+    }
+
+    /// 戻る/進むアイテム 1 つへ現在の履歴状態を反映する。
+    private func updateHistoryToolbarItem(_ item: NSToolbarItem) {
+        guard let button = item.view as? HistoryButtonView else { return }
+        if item.itemIdentifier == Self.backItemIdentifier {
+            button.updateState(isEnabled: fileListModel.canGoBack, entries: fileListModel.backHistory)
+        } else {
+            button.updateState(isEnabled: fileListModel.canGoForward, entries: fileListModel.forwardHistory)
+        }
+    }
+
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .flexibleSpace, Self.modeToggleItemIdentifier]
+        [
+            .toggleSidebar, .sidebarTrackingSeparator,
+            Self.backItemIdentifier, Self.forwardItemIdentifier,
+            .flexibleSpace, Self.modeToggleItemIdentifier,
+        ]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, Self.modeToggleItemIdentifier, .flexibleSpace, .space]
+        [
+            .toggleSidebar, .sidebarTrackingSeparator,
+            Self.backItemIdentifier, Self.forwardItemIdentifier,
+            Self.modeToggleItemIdentifier, .flexibleSpace, .space,
+        ]
     }
 }
