@@ -6,6 +6,7 @@ let package = Package(
     defaultLocalization: "en",
     platforms: [.macOS(.v14)],
     dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.0.0"),
         .package(url: "https://github.com/SimplyDanny/SwiftLintPlugins", from: "0.58.0"),
         .package(url: "https://github.com/nicklockwood/SwiftFormat", from: "0.55.0"),
     ],
@@ -30,7 +31,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "befold",
-            dependencies: ["BefoldKit"],
+            dependencies: [
+                "BefoldKit",
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
             path: "befold",
             exclude: ["Info.plist", "befold.entitlements", "Resources/__tests__"],
             resources: [

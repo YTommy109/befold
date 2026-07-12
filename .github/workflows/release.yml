@@ -153,3 +153,50 @@ jobs:
         with:
           files: ${{ env.DMG_NAME }}
           prerelease: ${{ contains(github.ref_name, '-') }}
+
+      - name: Sparkle ツールをインストールする
+        run: |
+          brew install sparkle
+          sparkle_bin="/opt/homebrew/Caskroom/sparkle/$(brew info sparkle --json=v2 | python3 -c 'import sys,json;print(json.load(sys.stdin)["casks"][0]["version"])')/bin"
+          echo "$sparkle_bin" >> "$GITHUB_PATH"
+
+      - name: appcast を生成する
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag_name="${GITHUB_REF_NAME}"
+          is_prerelease=${{ contains(github.ref_name, '-') }}
+          download_url_prefix="https://github.com/YTommy109/befold/releases/download/${tag_name}/"
+
+          # develop 用 appcast（全リリース含む）
+          develop_dir="$RUNNER_TEMP/appcast-develop"
+          mkdir -p "$develop_dir"
+          gh release download appcast -p "appcast-develop.xml" -D "$develop_dir" 2>/dev/null || true
+          cp "../$DMG_NAME" "$develop_dir/"
+          generate_appcast --download-url-prefix "$download_url_prefix" "$develop_dir"
+          mv "$develop_dir/appcast-develop.xml" "$RUNNER_TEMP/appcast-develop.xml" 2>/dev/null || mv "$develop_dir/appcast.xml" "$RUNNER_TEMP/appcast-develop.xml"
+
+          # stable 用 appcast（prerelease を除外）
+          stable_dir="$RUNNER_TEMP/appcast-stable"
+          mkdir -p "$stable_dir"
+          gh release download appcast -p "appcast.xml" -D "$stable_dir" 2>/dev/null || true
+          if [ "$is_prerelease" = "false" ]; then
+            cp "../$DMG_NAME" "$stable_dir/"
+            generate_appcast --download-url-prefix "$download_url_prefix" "$stable_dir"
+          fi
+          # stable appcast が存在しない場合（初回 prerelease のみの場合）は空 appcast を作成
+          if [ ! -f "$stable_dir/appcast.xml" ]; then
+            echo '<?xml version="1.0" encoding="utf-8"?><rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><title>befold</title></channel></rss>' > "$stable_dir/appcast.xml"
+          fi
+          mv "$stable_dir/appcast.xml" "$RUNNER_TEMP/appcast.xml"
+
+      - name: appcast を固定リリースにアップロードする
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # appcast リリースが存在しなければ作成
+          gh release view appcast 2>/dev/null || gh release create appcast --title "Appcast" --notes "Sparkle appcast files (自動更新)" --latest=false
+
+          # アセットをアップロード（既存があれば上書き）
+          gh release upload appcast "$RUNNER_TEMP/appcast.xml" "$RUNNER_TEMP/appcast-develop.xml" --clobber

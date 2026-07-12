@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 
 @main
 @MainActor
@@ -8,7 +9,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windowManager: ViewerWindowManager
     private let hiddenFilesPreference: HiddenFilesPreference
     private let sessionRestorer: SessionRestorer
-    private let updateCoordinator = UpdateCheckCoordinator()
+    private lazy var updaterController = SPUStandardUpdaterController(
+        startingUpdater: false,
+        updaterDelegate: self,
+        userDriverDelegate: nil
+    )
     private let recentDocumentsStore: RecentDocumentsStore
     private lazy var recentDocumentsMenuController = RecentDocumentsMenuController(
         recentURLs: { [weak self] in self?.recentDocumentsStore.recentURLs() ?? [] },
@@ -75,11 +80,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [windowManager] in
             windowManager.rescueWindowsDetachedFromSpace()
         }
-        updateCoordinator.run(userInitiated: false)
-    }
-
-    func applicationDidBecomeActive(_ notification: Notification) {
-        updateCoordinator.run(userInitiated: false)
+        #if DEBUG
+            updaterController.updater.automaticallyChecksForUpdates = false
+        #endif
+        updaterController.startUpdater()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -157,10 +161,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    /// About パネルを表示し、あわせて更新を自動チェックする。
     @objc func showAbout(_ sender: Any?) {
         NSApp.orderFrontStandardAboutPanel(options: aboutPanelOptions)
-        updateCoordinator.run(userInitiated: false)
     }
 
     private var aboutPanelOptions: [NSApplication.AboutPanelOptionKey: Any] {
@@ -168,9 +170,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return [.credits: AboutPanelCredits.make(font: font)]
     }
 
-    /// メニューの「Check for Updates…」。キャッシュを無視して確認し、結果を必ず表示する。
     @objc func checkForUpdates(_ sender: Any?) {
-        updateCoordinator.run(userInitiated: true)
+        updaterController.checkForUpdates(sender)
     }
 
     /// メニューの「Install 'befold' command in PATH」。/usr/local/bin にシムスクリプトを設置する。
@@ -188,6 +189,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// View > Show/Hide Hidden Files(⌘⌃H)。不可視ファイル表示を全ウィンドウで一括切替する。
     @objc func toggleHiddenFiles(_ sender: Any?) {
         windowManager.toggleHiddenFiles()
+    }
+}
+
+// MARK: - SPUUpdaterDelegate
+
+extension AppDelegate: SPUUpdaterDelegate {
+    func feedURLString(for updater: SPUUpdater) -> String? {
+        UpdateChannel.read(from: .standard).feedURLString
     }
 }
 
