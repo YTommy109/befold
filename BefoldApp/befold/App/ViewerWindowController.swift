@@ -207,7 +207,6 @@ final class ViewerWindowController: NSWindowController {
             onOpenInNewWindow: { url in
                 AppDelegate.shared?.openViewer(for: url)
             },
-            onNavigateHistory: { [weak self] offset in self?.navigateHistory(by: offset) },
             onToggleHiddenFiles: { [weak self] in
                 guard let self else { return }
                 delegate?.viewerWindowDidToggleHiddenFiles(self)
