@@ -39,6 +39,7 @@ BefoldApp/
 │   ├── FileWatching/        # FileWatcher, Debouncer
 │   ├── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
 │   └── Resources/           # viewer.html, style.css, mermaid.min.js, markdown-it.min.js
+├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver）
 └── befoldTests/            # Swift Testing テスト
 ```
 

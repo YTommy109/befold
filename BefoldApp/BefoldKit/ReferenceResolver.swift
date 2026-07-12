@@ -1,14 +1,13 @@
-// BefoldApp/befold/Viewer/ReferenceResolver.swift
 import Foundation
 
-enum ReferenceTarget: Equatable {
+public enum ReferenceTarget: Equatable, Sendable {
     case external(URL)
     case localFile(URL)
     case unsupported
 }
 
-enum ReferenceResolver {
-    static func resolve(href: String, baseURL: URL) -> ReferenceTarget {
+public enum ReferenceResolver {
+    public static func resolve(href: String, baseURL: URL) -> ReferenceTarget {
         guard !href.isEmpty, !href.hasPrefix("#") else { return .unsupported }
 
         let decoded = href.removingPercentEncoding ?? href
