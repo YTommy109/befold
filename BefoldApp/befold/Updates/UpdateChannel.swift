@@ -1,5 +1,6 @@
 import Foundation
 
+/// アップデートチェックの対象チャンネル(安定版 / 開発版)。
 enum UpdateChannel: String, Sendable {
     case stable
     case develop
@@ -9,6 +10,7 @@ enum UpdateChannel: String, Sendable {
             .flatMap(UpdateChannel.init(rawValue:)) ?? .stable
     }
 
+    /// Sparkle が参照する appcast フィード URL。
     var feedURLString: String {
         switch self {
         case .stable:

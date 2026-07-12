@@ -3,6 +3,10 @@
 このドキュメントは befold プロジェクトのコーディング規約を一元管理する。
 CLAUDE.md・スキル・コマンドはこのファイルを参照する。
 
+**CLAUDE.md との関係**: CLAUDE.md のアーキテクチャ図・プロジェクト構成・技術スタックは
+このドキュメントの同名セクションの要約版である。coding_rule.md を更新したら、
+CLAUDE.md の対応セクションも同じ diff 内で同期する（権威元は coding_rule.md）。
+
 ## プロジェクト概要
 
 macOS 向け Mermaid ダイアグラム・ビューアアプリ。
@@ -16,8 +20,7 @@ befold.app (Swift / AppKit + SwiftUI)
   ├── AppDelegate            # ライフサイクル・各コーディネータの束ね
   │     ├── ViewerWindowManager    # ウィンドウ生成・管理とセッション記録の更新
   │     │     └─ ViewerWindowControllerDelegate  # VWC→VWM のイベント通知（close/rename/switch 等）
-  │     ├── SessionRestorer        # 前回セッションのタブ構成の保存/復元
-  │     └── UpdateCheckCoordinator # 更新チェックの実行と表示ポリシー
+  │     └── SessionRestorer        # 前回セッションのタブ構成の保存/復元
   ├── ViewerWindowController # NSWindowController（1 ファイル = 1 ウィンドウ）
   │     └── SidebarNavigator       # サイドバー一覧・選択同期・戻る/進む履歴
   │           └─ SidebarNavigatorHost  # Navigator→VWC の逆方向依存を切るプロトコル
@@ -52,7 +55,7 @@ BefoldApp/
 │   ├── App/                 # AppDelegate, ViewerWindowController, SidebarNavigator ほかウィンドウ/セッション/メニュー系
 │   ├── Viewer/              # ViewerStore, ViewerWebView, FileType, FileListView, ViewerBridge ほか表示系
 │   ├── FileWatching/        # FileWatcher, Debouncer
-│   ├── Updates/             # UpdateChecker, UpdateFlowController, UpdateInstaller ほか自動更新系
+│   ├── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
 │   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js
 │       └── __tests__/       # viewer.js の Jest テスト
 └── befoldTests/            # Swift Testing テスト（TestSupport.swift = 共有ヘルパー）
@@ -227,6 +230,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 | 拡張子→FileType のマッピング | `FileType.typeByExtension`（`init(url:)` と `allExtensions` の双方がここから導出。拡張子追加は辞書への 1 行追加で完結する） |
 | BOM 検出（バイトパターン→エンコーディング） | `DefaultFileReader.detectBOM(_:)`（`decodeUnicodeText` と `hasUnicodeBOM` の双方がここに委譲） |
 | ディレクトリ列挙（ソート・フィルタ込み） | `DirectoryLister.sortedContents(in:showHiddenFiles:)`（`listFiles` / `listEntries` / `firstSupportedFile` が委譲） |
+| Sparkle フィード URL | `UpdateChannel.feedURLString`（`SPUUpdaterDelegate.feedURLString(for:)` 経由で Sparkle に提供。Info.plist の `SUFeedURL` は使用しない） |
 
 - **言語をまたぐ定数**（Swift ↔ viewer.js）は避けられない場合のみ二重定義し、
   (1) 双方に対応相手を示すコメント、(2) ソースを読んで一致を検証するテスト
@@ -261,12 +265,11 @@ swift package plugin --allow-writing-to-package-directory swiftformat
   2 箇所目に現れたら、その判定自体を関数（`FileType.isSupported(_:)` の流儀）へ切り出し、
   上の表へ登録する
 - **外部依存はプロトコル + デフォルト引数付きイニシャライザ注入**: ファイル読込は `FileReading`、
-  リリース取得は `ReleaseFetching`、ダウンロードは `UpdateDownloading`、DMG マウントは
-  `DMGMounting`、アップデータスクリプト起動は `UpdaterScriptLaunching`、監視は watcherFactory。
+  監視は watcherFactory。
   新しい外部依存（ネットワーク・タイマー・Process 等)も同じ方針で注入し、メソッド内部で
   具象を直接生成しない。デフォルト引数により既存呼び出し元は変更不要に保つ
 - **デフォルト引数が許されるのは「差し替え可能で状態を共有しない」依存に限る**。
-  上記の `FileReading` / `ReleaseFetching` / `UpdateDownloading` はいずれも、
+  上記の `FileReading` は、
   どの具象インスタンスでも観測結果が等価な（＝呼び出し側が横断的に状態を共有しない）依存なので、
   デフォルトに具象を置いてよい
 - **単一の共有インスタンスであることが不変条件の依存には、値を生成するデフォルトを付けない**。
@@ -315,6 +318,10 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 - **`// MARK: - <セクション名>`**: ファイル内の論理セクション区切りに使う（Xcode のジャンプバーに反映される）
 - **`///` ドキュメンテーションコメント**: 公開クラス・公開メソッドに日本語で付ける
 - 非公開メソッド（`private` / `fileprivate`）や自明なヘルパーは省略可
+- **リファクタリング・移行で型やメソッドを書き換えるとき、既存の `///` を削除しない**。
+  シグネチャや責務が変わった場合は内容を更新するが、`///` 自体を落とさない。
+  特に enum や公開型のクラス概要 `///` は、移行先の新コードにも引き継ぐ
+  （`UpdateChannel` の `///` が Sparkle 2 移行時に失われた実例）
 - コードの「なぜ（WHY）」を書く。「何を（WHAT）」は明確な命名で伝える
   - 実装の詳細（UI 部品の種類・呼び出し元・処理の中身）を言葉で説明するコメントは
     WHAT 寄りであり、命名・型・シグネチャで表現すべきことを言葉で重複させている。
@@ -339,6 +346,13 @@ swift package plugin --allow-writing-to-package-directory swiftformat
     一致するかを読み合わせる。コード側だけ直してコメント・仕様書を取り残すと、実装は正しいのに
     説明だけが古い誤りとして残る（CSS のホバー挙動を変えたのにコメントと仕様書が旧挙動のまま
     残っていた実例）。
+  - **型・ファイルの削除・追加・リネームは、アーキテクチャ図とプロジェクト構成ツリーへの
+    波及を必ず確認する**。上記の「仕様書を読み合わせて更新する」波及範囲には、
+    `docs/dev/coding_rule.md` および `CLAUDE.md` のアーキテクチャ図（`## アーキテクチャ`）と
+    プロジェクト構成ツリー（`## プロジェクト構成`）が含まれる。型の新設・削除・移動、
+    ディレクトリの追加・廃止のいずれも、これらの図・ツリーとの突き合わせを同じ diff 内で行う
+    （`UpdateCheckCoordinator` を削除したがアーキテクチャ図に残っていた実例、
+    `Updates/` ディレクトリを追加したが CLAUDE.md の構成ツリーに反映されていなかった実例）
   - **「〜のみ」「常に〜」「〜のまま（変更しない）」のように現在の状態・変更有無を断定する
     コメントは、たとえ WHY 寄りであっても壊れやすい**。可視性ルール等を説明する正当なコメントでも、
     現状を事実として断定する部分（`private` → `internal` に変えたのに「internal のままにする」）は、

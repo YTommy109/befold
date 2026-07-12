@@ -155,41 +155,41 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
 
       - name: Sparkle ツールをインストールする
-        run: brew install sparkle
-
-      - name: DMG の EdDSA 署名を生成する
-        env:
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
-          signature=$(echo -n "$SPARKLE_PRIVATE_KEY" | sparkle sign --ed-key-file - "../$DMG_NAME")
-          echo "SPARKLE_SIGNATURE=$signature" >> "$GITHUB_ENV"
-          echo "DMG_LENGTH=$(stat -f%z "../$DMG_NAME")" >> "$GITHUB_ENV"
+          brew install sparkle
+          sparkle_bin="/opt/homebrew/Caskroom/sparkle/$(brew info sparkle --json=v2 | python3 -c 'import sys,json;print(json.load(sys.stdin)["casks"][0]["version"])')/bin"
+          echo "$sparkle_bin" >> "$GITHUB_PATH"
 
       - name: appcast を生成する
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
           tag_name="${GITHUB_REF_NAME}"
-          download_url="https://github.com/YTommy109/befold/releases/download/${tag_name}/${DMG_NAME}"
           is_prerelease=${{ contains(github.ref_name, '-') }}
+          download_url_prefix="https://github.com/YTommy109/befold/releases/download/${tag_name}/"
 
-          # 既存の appcast をダウンロード（初回は空で開始）
-          gh release download appcast -p "appcast.xml" -D "$RUNNER_TEMP" 2>/dev/null || echo '<?xml version="1.0" encoding="utf-8"?><rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><title>befold</title></channel></rss>' > "$RUNNER_TEMP/appcast.xml"
-          gh release download appcast -p "appcast-develop.xml" -D "$RUNNER_TEMP" 2>/dev/null || echo '<?xml version="1.0" encoding="utf-8"?><rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><title>befold</title></channel></rss>' > "$RUNNER_TEMP/appcast-develop.xml"
-
-          # 新しいエントリの XML フラグメントを生成
-          pub_date=$(date -R)
-          item="<item><title>befold ${version}</title><sparkle:version>${CURRENT_PROJECT_VERSION:-$(git rev-list --count HEAD)}</sparkle:version><sparkle:shortVersionString>${version}</sparkle:shortVersionString><pubDate>${pub_date}</pubDate><enclosure url=\"${download_url}\" sparkle:edSignature=\"${SPARKLE_SIGNATURE}\" length=\"${DMG_LENGTH}\" type=\"application/octet-stream\" /></item>"
-
-          # develop 用 appcast（全リリース含む）に追加
-          sed -i '' "s|</channel>|${item}</channel>|" "$RUNNER_TEMP/appcast-develop.xml"
+          # develop 用 appcast（全リリース含む）
+          develop_dir="$RUNNER_TEMP/appcast-develop"
+          mkdir -p "$develop_dir"
+          gh release download appcast -p "appcast-develop.xml" -D "$develop_dir" 2>/dev/null || true
+          cp "../$DMG_NAME" "$develop_dir/"
+          generate_appcast --download-url-prefix "$download_url_prefix" "$develop_dir"
+          mv "$develop_dir/appcast-develop.xml" "$RUNNER_TEMP/appcast-develop.xml" 2>/dev/null || mv "$develop_dir/appcast.xml" "$RUNNER_TEMP/appcast-develop.xml"
 
           # stable 用 appcast（prerelease を除外）
+          stable_dir="$RUNNER_TEMP/appcast-stable"
+          mkdir -p "$stable_dir"
+          gh release download appcast -p "appcast.xml" -D "$stable_dir" 2>/dev/null || true
           if [ "$is_prerelease" = "false" ]; then
-            sed -i '' "s|</channel>|${item}</channel>|" "$RUNNER_TEMP/appcast.xml"
+            cp "../$DMG_NAME" "$stable_dir/"
+            generate_appcast --download-url-prefix "$download_url_prefix" "$stable_dir"
           fi
+          # stable appcast が存在しない場合（初回 prerelease のみの場合）は空 appcast を作成
+          if [ ! -f "$stable_dir/appcast.xml" ]; then
+            echo '<?xml version="1.0" encoding="utf-8"?><rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><title>befold</title></channel></rss>' > "$stable_dir/appcast.xml"
+          fi
+          mv "$stable_dir/appcast.xml" "$RUNNER_TEMP/appcast.xml"
 
       - name: appcast を固定リリースにアップロードする
         env:

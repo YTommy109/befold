@@ -9,8 +9,7 @@ macOS 向け Mermaid ダイアグラム・ビューアアプリ。
 befold.app (Swift / AppKit + SwiftUI)
   ├── AppDelegate            # ライフサイクル・メニュー・各コーディネータの束ね
   │     ├── ViewerWindowManager    # ウィンドウ生成・管理とセッション記録の更新
-  │     ├── SessionRestorer        # 前回セッションのタブ構成の保存/復元
-  │     └── UpdateCheckCoordinator # 更新チェックの実行と表示ポリシー
+  │     └── SessionRestorer        # 前回セッションのタブ構成の保存/復元
   ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
   ├── ViewerStore        # @Observable 表示状態（content / isUnsupported、FileReading で読込を抽象化）
   └── ViewerWebView      # WKWebView（NSViewRepresentable）
@@ -38,6 +37,7 @@ BefoldApp/
 │   ├── App/                 # AppDelegate, DocumentController, ViewerWindowController
 │   ├── Viewer/              # ViewerStore, ViewerWebView, ViewerContentView, FileType
 │   ├── FileWatching/        # FileWatcher, Debouncer
+│   ├── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
 │   └── Resources/           # viewer.html, style.css, mermaid.min.js, markdown-it.min.js
 └── befoldTests/            # Swift Testing テスト
 ```

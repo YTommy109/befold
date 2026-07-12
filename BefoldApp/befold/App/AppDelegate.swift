@@ -86,8 +86,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updaterController.startUpdater()
     }
 
-    func applicationDidBecomeActive(_ notification: Notification) {}
-
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
             showOpenPanel()
