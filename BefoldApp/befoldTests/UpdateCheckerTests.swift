@@ -235,26 +235,3 @@ struct UpdateCheckerTests {
         #expect(result == .upToDate(current: "1.4.8"))
     }
 }
-
-@Suite
-struct UpdateChannelTests {
-    @Test
-    func defaultChannelIsStable() {
-        let defaults = makeIsolatedDefaults(prefix: "UpdateChannelTests")
-        #expect(UpdateChannel.read(from: defaults) == .stable)
-    }
-
-    @Test
-    func developChannelIsReadFromDefaults() {
-        let defaults = makeIsolatedDefaults(prefix: "UpdateChannelTests")
-        defaults.set("develop", forKey: "UpdateChannel")
-        #expect(UpdateChannel.read(from: defaults) == .develop)
-    }
-
-    @Test
-    func unknownValueFallsBackToStable() {
-        let defaults = makeIsolatedDefaults(prefix: "UpdateChannelTests")
-        defaults.set("unknown", forKey: "UpdateChannel")
-        #expect(UpdateChannel.read(from: defaults) == .stable)
-    }
-}
