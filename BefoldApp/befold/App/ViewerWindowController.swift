@@ -303,23 +303,6 @@ final class ViewerWindowController: NSWindowController {
         sidebar.syncAfterSwitch(to: newURL)
     }
 
-    /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
-    /// handleRename / switchFile 共通の表示更新。
-    private func applyURLToWindow(_ newURL: URL) {
-        fileURL = newURL
-        guard let window else { return }
-        window.title = newURL.lastPathComponent
-        window.representedURL = newURL
-    }
-
-    /// 現在のファイルの保存倍率を WebView に適用する。
-    /// 初期ロード時の倍率注入(ViewerBridge.initialZoomScript)と同じ経路で
-    /// window._mmdInitialZoom を書き換え、viewer.html の初期化関数で反映させる。
-    private func applyStoredZoomToWebView() {
-        guard let webView = webViewProxy.webView else { return }
-        webView.evaluateJavaScript(ViewerBridge.applyZoomScript(zoomStore.zoom(for: fileURL)))
-    }
-
     /// サイドバーで別フォルダーへ移動する。詳細は SidebarNavigator に委譲する。
     func navigateToFolder(_ url: URL) {
         sidebar.navigateToFolder(url)
@@ -356,6 +339,32 @@ final class ViewerWindowController: NSWindowController {
         return true
     }
 
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError()
+    }
+}
+
+// MARK: - Window / Content Helpers
+
+extension ViewerWindowController {
+    /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
+    /// handleRename / switchFile 共通の表示更新。
+    private func applyURLToWindow(_ newURL: URL) {
+        fileURL = newURL
+        guard let window else { return }
+        window.title = newURL.lastPathComponent
+        window.representedURL = newURL
+    }
+
+    /// 現在のファイルの保存倍率を WebView に適用する。
+    /// 初期ロード時の倍率注入(ViewerBridge.initialZoomScript)と同じ経路で
+    /// window._mmdInitialZoom を書き換え、viewer.html の初期化関数で反映させる。
+    private func applyStoredZoomToWebView() {
+        guard let webView = webViewProxy.webView else { return }
+        webView.evaluateJavaScript(ViewerBridge.applyZoomScript(zoomStore.zoom(for: fileURL)))
+    }
+
     /// WebView に現在のスクロール位置を問い合わせ、指定した URL・モードのキーへ保存する。
     /// ファイル/モード切替の直前に、切替後の self.fileURL / isSourceMode に依存せず
     /// 退場側の位置を確定させるために使う(render() 冒頭の同期通知を廃止した代替)。
@@ -385,11 +394,6 @@ final class ViewerWindowController: NSWindowController {
             window.setFrameTopLeftPoint(shifted)
             attempts += 1
         }
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError()
     }
 }
 

@@ -37,6 +37,7 @@ final class HistoryButtonView: NSButton {
     override func mouseDown(with event: NSEvent) {
         guard isEnabled else { return }
 
+        // NSButton では Ctrl+click が rightMouseDown へ転送されない場合がある
         if event.modifierFlags.contains(.command) || event.modifierFlags.contains(.control) {
             showMenu()
             return
