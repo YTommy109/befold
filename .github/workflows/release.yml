@@ -80,6 +80,37 @@ jobs:
             MARKETING_VERSION="${GITHUB_REF_NAME#v}" \
             CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)"
 
+      - name: Sparkle.framework の内蔵バイナリを再署名する
+        # xcodebuild は SPM 依存フレームワーク内部のヘルパーバイナリに
+        # Developer ID 署名を適用しないことがある。公証前に明示的に再署名する。
+        env:
+          DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+        run: |
+          app="build/Build/Products/Release/befold.app"
+          identity="Developer ID Application"
+          sparkle="$app/Contents/Frameworks/Sparkle.framework"
+
+          # 全 Mach-O バイナリを内側から外側の順で再署名する
+          find "$sparkle" -type f -perm +111 | while read -r binary; do
+            file_type=$(file -b "$binary")
+            if echo "$file_type" | grep -q "Mach-O"; then
+              echo "Re-signing: $binary"
+              codesign --force --sign "$identity" --timestamp --options runtime "$binary"
+            fi
+          done
+
+          # .xpc バンドルと .app バンドルを署名する
+          find "$sparkle" -name '*.xpc' -o -name '*.app' | while read -r bundle; do
+            echo "Re-signing bundle: $bundle"
+            codesign --force --sign "$identity" --timestamp --options runtime "$bundle"
+          done
+
+          # フレームワーク自体を署名する
+          codesign --force --sign "$identity" --timestamp --options runtime "$sparkle"
+
+          echo "--- Sparkle 署名検証 ---"
+          codesign --verify --deep --strict --verbose=2 "$sparkle"
+
       - name: .app を公証申請する
         env:
           NOTARY_API_KEY: ${{ secrets.NOTARY_API_KEY }}
