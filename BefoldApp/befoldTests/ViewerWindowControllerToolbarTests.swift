@@ -95,4 +95,27 @@ struct ViewerWindowControllerToolbarTests {
         let button = try #require(item.view as? HistoryButtonView)
         #expect(button.isEnabled == true)
     }
+
+    @Test("履歴状態の変化がツールバー上の実アイテムにライブ反映される")
+    func historyBackButtonUpdatesLiveToolbarItemOnFileSwitch() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let fileA = try tmp.file(named: "a.mmd", contents: "graph TD;")
+        let fileB = try tmp.file(named: "b.mmd", contents: "graph TD;")
+        let controller = makeController(file: fileA)
+        defer { controller.close() }
+        let toolbar = try #require(controller.window?.toolbar)
+
+        let liveItem = try #require(toolbar.items.first {
+            $0.itemIdentifier == .init("historyBack")
+        })
+        let button = try #require(liveItem.view as? HistoryButtonView)
+        #expect(button.isEnabled == false)
+
+        controller.switchFile(to: fileB)
+        #expect(button.isEnabled == true)
+
+        controller.navigateHistory(by: -1)
+        #expect(button.isEnabled == false)
+    }
 }

@@ -722,6 +722,16 @@ extension ViewerWindowController: NSToolbarDelegate {
         item.label = label
         item.toolTip = label
         item.view = button
+        // ウィンドウが狭まりオーバーフロー(») メニューに収容される際、view ベースの
+        // アイテムは menuFormRepresentation が無いと action の無い死んだ項目になるため設定する。
+        let menuItem = NSMenuItem(
+            title: label,
+            action: isBack
+                ? #selector(goBack(_:)) : #selector(goForward(_:)),
+            keyEquivalent: ""
+        )
+        menuItem.target = self
+        item.menuFormRepresentation = menuItem
         updateHistoryToolbarItem(item)
         return item
     }
@@ -750,6 +760,11 @@ extension ViewerWindowController: NSToolbarDelegate {
         let item = NSToolbarItem(itemIdentifier: Self.lineNumbersItemIdentifier)
         item.label = label
         item.view = button
+        // ウィンドウが狭まりオーバーフロー(») メニューに収容される際、view ベースの
+        // アイテムは menuFormRepresentation が無いと action の無い死んだ項目になるため設定する。
+        let menuItem = NSMenuItem(title: label, action: #selector(toggleLineNumbers(_:)), keyEquivalent: "")
+        menuItem.target = self
+        item.menuFormRepresentation = menuItem
         updateLineNumbersToolbarItem(item)
         return item
     }
