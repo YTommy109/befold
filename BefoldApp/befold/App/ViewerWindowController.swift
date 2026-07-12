@@ -516,6 +516,16 @@ extension ViewerWindowController: NSWindowDelegate {
         setSourceMode(!isSourceMode)
     }
 
+    /// View > Back。ファイル履歴を 1 つ戻る。
+    @objc func goBack(_ sender: Any?) {
+        navigateHistory(by: -1)
+    }
+
+    /// View > Forward。ファイル履歴を 1 つ進む。
+    @objc func goForward(_ sender: Any?) {
+        navigateHistory(by: 1)
+    }
+
     /// モード切替セグメントコントロールの選択変更を受けて呼ばれる。
     @objc private func modeSegmentChanged(_ sender: NSSegmentedControl) {
         setSourceMode(sender.selectedSegment == ModeSegment.source.rawValue)
@@ -587,6 +597,12 @@ extension ViewerWindowController: NSWindowDelegate {
                 ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
                 : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
             return store.showsCodeContent
+        }
+        if menuItem.action == #selector(goBack(_:)) {
+            return fileListModel.canGoBack
+        }
+        if menuItem.action == #selector(goForward(_:)) {
+            return fileListModel.canGoForward
         }
         let findActions: [Selector] = [#selector(find(_:)), #selector(findNext(_:)), #selector(findPrevious(_:))]
         if let action = menuItem.action, findActions.contains(action) {
