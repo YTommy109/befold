@@ -230,5 +230,9 @@
 			</array>
 		</dict>
 	</array>
+	<key>SUFeedURL</key>
+	<string>https://github.com/YTommy109/befold/releases/download/appcast/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>PLACEHOLDER_PUBLIC_KEY</string>
 </dict>
 </plist>
