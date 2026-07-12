@@ -35,6 +35,7 @@ final class ViewerWindowController: NSWindowController {
     private static let modeToggleItemIdentifier = NSToolbarItem.Identifier("modeToggle")
     private static let backItemIdentifier = NSToolbarItem.Identifier("historyBack")
     private static let forwardItemIdentifier = NSToolbarItem.Identifier("historyForward")
+    private static let lineNumbersItemIdentifier = NSToolbarItem.Identifier("lineNumbers")
 
     private let defaults: UserDefaults
     private let store: ViewerStore
@@ -168,6 +169,7 @@ final class ViewerWindowController: NSWindowController {
         }
         store.onContentReloaded = { [weak self] in
             self?.updateModeToggleAppearance()
+            self?.updateLineNumbersToolbarItem()
         }
         store.openFile(fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
@@ -503,9 +505,10 @@ extension ViewerWindowController: NSWindowDelegate {
         webView.evaluateJavaScript(script)
     }
 
-    /// View > Toggle Line Numbers。行番号表示の有無を切り替える。
+    /// View > Toggle Line Numbers / ツールバーの行番号ボタン。行番号表示の有無を切り替える。
     @objc func toggleLineNumbers(_ sender: Any?) {
         store.showLineNumbers.toggle()
+        updateLineNumbersToolbarItem()
     }
 
     /// View メニュー > ソース表示トグル。レンダリング表示とソース表示を切り替える。
@@ -539,6 +542,7 @@ extension ViewerWindowController: NSWindowDelegate {
             store.isSourceMode = newValue
         }
         updateModeToggleAppearance()
+        updateLineNumbersToolbarItem()
     }
 
     /// モード切替セグメントの選択状態・有効/無効を現在のファイル種別に合わせて更新する。
@@ -657,6 +661,9 @@ extension ViewerWindowController: NSToolbarDelegate {
         if itemIdentifier == Self.backItemIdentifier || itemIdentifier == Self.forwardItemIdentifier {
             return makeHistoryToolbarItem(itemIdentifier)
         }
+        if itemIdentifier == Self.lineNumbersItemIdentifier {
+            return makeLineNumbersToolbarItem()
+        }
         guard itemIdentifier == Self.modeToggleItemIdentifier else { return nil }
         let previewLabel = String(localized: "toolbar.mode.preview", bundle: .l10n)
         let sourceLabel = String(localized: "toolbar.mode.source", bundle: .l10n)
@@ -713,11 +720,43 @@ extension ViewerWindowController: NSToolbarDelegate {
         }
     }
 
+    /// 行番号トグルのツールバーアイテムを生成する。常時表示し、
+    /// コード系コンテンツ表示中(showsCodeContent)以外は無効にする。
+    private func makeLineNumbersToolbarItem() -> NSToolbarItem {
+        let label = String(localized: "menu.view.showLineNumbers", bundle: .l10n)
+        let button = NSButton(
+            image: NSImage(systemSymbolName: "list.number", accessibilityDescription: label)!,
+            target: self,
+            action: #selector(toggleLineNumbers(_:))
+        )
+        button.bezelStyle = .texturedRounded
+        button.setButtonType(.pushOnPushOff)
+        let item = NSToolbarItem(itemIdentifier: Self.lineNumbersItemIdentifier)
+        item.label = label
+        item.view = button
+        updateLineNumbersToolbarItem(item)
+        return item
+    }
+
+    /// 行番号アイテムの有効/無効・オンオフ表示・ツールチップを現在の表示状態に合わせて更新する。
+    /// - Parameter item: 更新対象。省略時は window.toolbar から検索する
+    ///   (生成中でまだ toolbar.items に含まれないアイテムを更新する場合は明示的に渡すこと)。
+    private func updateLineNumbersToolbarItem(_ item: NSToolbarItem? = nil) {
+        guard let item = item ?? window?.toolbar?.items.first(where: {
+            $0.itemIdentifier == Self.lineNumbersItemIdentifier
+        }), let button = item.view as? NSButton else { return }
+        button.isEnabled = store.showsCodeContent
+        button.state = store.showLineNumbers ? .on : .off
+        item.toolTip = store.showLineNumbers
+            ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
+            : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
+    }
+
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [
             .toggleSidebar, .sidebarTrackingSeparator,
             Self.backItemIdentifier, Self.forwardItemIdentifier,
-            .flexibleSpace, Self.modeToggleItemIdentifier,
+            .flexibleSpace, Self.lineNumbersItemIdentifier, Self.modeToggleItemIdentifier,
         ]
     }
 
@@ -725,7 +764,8 @@ extension ViewerWindowController: NSToolbarDelegate {
         [
             .toggleSidebar, .sidebarTrackingSeparator,
             Self.backItemIdentifier, Self.forwardItemIdentifier,
-            Self.modeToggleItemIdentifier, .flexibleSpace, .space,
+            Self.lineNumbersItemIdentifier, Self.modeToggleItemIdentifier,
+            .flexibleSpace, .space,
         ]
     }
 }

@@ -29,8 +29,34 @@ struct ViewerWindowControllerToolbarTests {
         #expect(identifiers == [
             .toggleSidebar, .sidebarTrackingSeparator,
             .init("historyBack"), .init("historyForward"),
-            .flexibleSpace, .init("modeToggle"),
+            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"),
         ])
+    }
+
+    @Test("行番号アイテムはコード表示中のみ有効")
+    func lineNumbersItemEnabledOnlyForCodeContent() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let codeFile = try tmp.file(named: "a.swift", contents: "let x = 1")
+        let previewFile = try tmp.file(named: "b.mmd", contents: "graph TD;")
+
+        let codeController = makeController(file: codeFile)
+        defer { codeController.close() }
+        let codeToolbar = try #require(codeController.window?.toolbar)
+        let codeItem = try #require(codeController.toolbar(
+            codeToolbar, itemForItemIdentifier: .init("lineNumbers"), willBeInsertedIntoToolbar: false
+        ))
+        let codeButton = try #require(codeItem.view as? NSButton)
+        #expect(codeButton.isEnabled == true)
+
+        let previewController = makeController(file: previewFile)
+        defer { previewController.close() }
+        let previewToolbar = try #require(previewController.window?.toolbar)
+        let previewItem = try #require(previewController.toolbar(
+            previewToolbar, itemForItemIdentifier: .init("lineNumbers"), willBeInsertedIntoToolbar: false
+        ))
+        let previewButton = try #require(previewItem.view as? NSButton)
+        #expect(previewButton.isEnabled == false)
     }
 
     @Test("履歴が無い間、戻る・進むアイテムは無効")
