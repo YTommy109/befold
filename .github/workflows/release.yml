@@ -208,9 +208,13 @@ jobs:
           develop_dir="$RUNNER_TEMP/appcast-develop"
           mkdir -p "$develop_dir"
           gh release download appcast -p "appcast-develop.xml" -D "$develop_dir" 2>/dev/null || true
+          # generate_appcast は appcast.xml を出力するのでリネームして渡す
+          if [ -f "$develop_dir/appcast-develop.xml" ]; then
+            mv "$develop_dir/appcast-develop.xml" "$develop_dir/appcast.xml"
+          fi
           cp "../$DMG_NAME" "$develop_dir/"
           generate_appcast --ed-key-file "$key_file" --download-url-prefix "$download_url_prefix" "$develop_dir"
-          mv "$develop_dir/appcast-develop.xml" "$RUNNER_TEMP/appcast-develop.xml" 2>/dev/null || mv "$develop_dir/appcast.xml" "$RUNNER_TEMP/appcast-develop.xml"
+          mv "$develop_dir/appcast.xml" "$RUNNER_TEMP/appcast-develop.xml"
 
           # stable 用 appcast（prerelease を除外）
           stable_dir="$RUNNER_TEMP/appcast-stable"
