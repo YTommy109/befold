@@ -38,14 +38,14 @@ public struct DefaultFileReader: FileReading {
 
     public func readString(from url: URL) throws -> String {
         let data = try Data(contentsOf: url)
-        // BOM 付き UTF-8 / UTF-16 / UTF-32 と、BOM なし UTF-16 を判定して復号する。
+        // BOM 付き UTF-8 / UTF-16 / UTF-32、BOM なし UTF-16、UTF-8、
+        // および Shift_JIS / EUC-JP 等のレガシーエンコーディングを判定して復号する。
         // String(contentsOf:usedEncoding:) は BOM なし UTF-16 を誤ったエンコーディングで
         // 復号して文字化けした文字列を返す(エラーを投げない)ため、自前で判定する。
         if let decoded = Self.decodeUnicodeText(data) {
             return decoded
         }
-        // 判定できなければ UTF-8 として読み、エラーは呼び出し側へ伝える。
-        return try String(contentsOf: url, encoding: .utf8)
+        throw CocoaError(.fileReadInapplicableStringEncoding)
     }
 
     /// 先頭 8KB を読み、テキストとして解釈できない内容ならバイナリと判定する。
@@ -103,8 +103,24 @@ public struct DefaultFileReader: FileReading {
                 : .utf16BigEndian
             return String(data: data, encoding: encoding)
         }
-        // BOM なし・NUL なしは UTF-8 として復号する。
-        return String(data: data, encoding: .utf8)
+        // BOM なし・NUL なしは UTF-8 として復号を試みる。
+        if let utf8 = String(data: data, encoding: .utf8) {
+            return utf8
+        }
+        // UTF-8 復号に失敗した場合、NSString のヒューリスティックで
+        // Shift_JIS / EUC-JP などのエンコーディングを推定する。
+        var convertedString: NSString?
+        var usedLossyConversion: ObjCBool = false
+        let detected = NSString.stringEncoding(
+            for: data,
+            encodingOptions: nil,
+            convertedString: &convertedString,
+            usedLossyConversion: &usedLossyConversion
+        )
+        if detected != 0, let result = convertedString {
+            return result as String
+        }
+        return nil
     }
 
     /// UTF-8 / UTF-16 / UTF-32 の BOM を検出する。
