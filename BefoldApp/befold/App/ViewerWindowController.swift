@@ -568,7 +568,7 @@ extension ViewerWindowController: NSWindowDelegate {
         guard let item = item ?? window?.toolbar?.items.first(where: {
             $0.itemIdentifier == Self.modeToggleItemIdentifier
         }), let segmentedControl = item.view as? NSSegmentedControl else { return }
-        let isEnabled = !store.isUnsupported
+        let isEnabled = !store.isRejected
         segmentedControl.setEnabled(
             store.fileType.isRenderable && isEnabled, forSegment: ModeSegment.preview.rawValue
         )
@@ -586,7 +586,7 @@ extension ViewerWindowController: NSWindowDelegate {
     /// ソース表示トグルを有効にできるか。レンダリング可能な形式でも、
     /// サイズ超過などで非対応表示になっている間は切り替え先が不可視なため無効にする。
     var canToggleSourceMode: Bool {
-        store.fileType.supportsSourceMode && !store.isUnsupported
+        store.fileType.supportsSourceMode && !store.isRejected
     }
 
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {

@@ -44,10 +44,10 @@ struct ViewerContentView: View {
                 findOptionsPreference: findOptionsPreference,
                 webViewProxy: webViewProxy
             )
-            .opacity(store.isUnsupported ? 0 : 1)
+            .opacity(store.isRejected ? 0 : 1)
 
-            if store.isUnsupported {
-                UnsupportedFileView(fileURL: store.filePath)
+            if let reason = store.rejectReason {
+                UnsupportedFileView(fileURL: store.filePath, rejectReason: reason)
             }
         }
     }

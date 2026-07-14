@@ -98,7 +98,7 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader)
         store.openFile(file)
 
-        #expect(store.isUnsupported)
+        #expect(store.rejectReason == .unsupportedFormat)
         #expect(store.content == "")
 
         store.close()
@@ -113,7 +113,7 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader)
         store.openFile(file)
 
-        #expect(!store.isUnsupported)
+        #expect(!store.isRejected)
         #expect(store.content == "hello")
         #expect(store.fileType == .code(language: "plaintext"))
 
@@ -130,7 +130,7 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader)
         store.openFile(file)
 
-        #expect(store.isUnsupported)
+        #expect(store.rejectReason == .fileTooLarge)
         #expect(store.content == "")
 
         store.close()
@@ -146,7 +146,7 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader)
         store.openFile(file)
 
-        #expect(!store.isUnsupported)
+        #expect(!store.isRejected)
         #expect(store.content == "col1,col2\n1,2")
 
         store.close()
@@ -163,10 +163,10 @@ struct ViewerStoreTests {
 
         let store = makeStore(reader: reader)
         store.openFile(hugeFile)
-        #expect(store.isUnsupported)
+        #expect(store.isRejected)
 
         store.openFile(normalFile)
-        #expect(!store.isUnsupported)
+        #expect(!store.isRejected)
         #expect(store.content == "# Hello")
 
         store.close()
@@ -183,10 +183,10 @@ struct ViewerStoreTests {
 
         let store = makeStore(reader: reader)
         store.openFile(binaryFile)
-        #expect(store.isUnsupported)
+        #expect(store.isRejected)
 
         store.openFile(textFile)
-        #expect(!store.isUnsupported)
+        #expect(!store.isRejected)
         #expect(store.content == "# Hello")
 
         store.close()
@@ -257,7 +257,7 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader)
         store.openFile(file)
 
-        #expect(!store.isUnsupported)
+        #expect(!store.isRejected)
         #expect(store.fileType == expectedType)
         #expect(store.content == data.base64EncodedString())
 
@@ -297,7 +297,7 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader)
         store.openFile(file)
 
-        #expect(store.isUnsupported)
+        #expect(store.isRejected)
         #expect(store.content == "")
 
         store.close()
@@ -315,7 +315,7 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader)
         store.openFile(file)
 
-        #expect(store.isUnsupported)
+        #expect(store.isRejected)
         #expect(store.content == "")
 
         store.close()
@@ -359,7 +359,7 @@ struct ViewerStoreTests {
         store.close()
     }
 
-    /// ファイルサイズ超過 → 縮小のような、isUnsupported が変化する再読込でも発火することを確認する。
+    /// ファイルサイズ超過 → 縮小のような、isRejected が変化する再読込でも発火することを確認する。
     @Test
     func watcherCallbackFiresOnContentReloadedWhenUnsupportedChanges() {
         let file = URL(fileURLWithPath: "/files/huge.csv")
@@ -372,14 +372,14 @@ struct ViewerStoreTests {
         nonisolated(unsafe) var firedCount = 0
         store.onContentReloaded = { firedCount += 1 }
         store.openFile(file)
-        #expect(store.isUnsupported)
+        #expect(store.isRejected)
         #expect(firedCount == 1)
 
-        // サイズが上限内に戻る → isUnsupported が false に変わる再読込でも発火する。
+        // サイズが上限内に戻る → isRejected が false に変わる再読込でも発火する。
         reader.setSize(ContentLoader.maxFileSizeBytes, at: file)
         onChangeBox.get()?()
 
-        #expect(!store.isUnsupported)
+        #expect(!store.isRejected)
         #expect(firedCount == 2)
 
         store.close()
@@ -450,6 +450,42 @@ struct ViewerStoreTests {
 
         store.showLineNumbers = false
         #expect(defaults.bool(forKey: "ShowLineNumbers") == false)
+
+        store.close()
+    }
+
+    @Test("10MB 超ファイルは isTruncated で段階読み込みされる")
+    func oversizedTextFileIsTruncatedThenFullLoaded() async {
+        let file = URL(fileURLWithPath: "/files/big.csv")
+        let reader = InMemoryFileReader()
+        let lines = (0 ..< 500_000).map { "line\($0)" }.joined(separator: "\n")
+        reader.setFile(lines, at: file)
+        reader.setSize(ContentLoader.previewSizeBytes + 1, at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+
+        #expect(store.isTruncated)
+        #expect(!store.isRejected)
+        // 非同期全量読み込みの完了を待つ
+        await yieldMainActor()
+        #expect(!store.isTruncated)
+        #expect(store.content == lines)
+
+        store.close()
+    }
+
+    @Test("10MB 以下のファイルは isTruncated = false")
+    func normalFileIsNotTruncated() {
+        let file = URL(fileURLWithPath: "/files/small.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("a,b\n1,2", at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+
+        #expect(!store.isTruncated)
+        #expect(!store.isRejected)
 
         store.close()
     }

@@ -14,10 +14,18 @@ final class ViewerStore {
 
     private(set) var content: String = ""
     private(set) var fileType: FileType = .mmd
-    /// 開いたファイルがバイナリなど非対応内容と判定された場合に true になる。
-    /// true の間 content は更新されない(バイナリを丸ごと文字列化しない)。
-    private(set) var isUnsupported: Bool = false
+    /// 開いたファイルが非対応内容と判定された場合に理由が入る。
+    /// 非 nil の間 content は更新されない(バイナリを丸ごと文字列化しない)。
+    private(set) var rejectReason: RejectReason?
+    /// 大きいファイルをプレビュー読み込みした直後、全量読み込みが完了するまで true になる。
+    private(set) var isTruncated: Bool = false
     private(set) var filePath: URL?
+
+    /// 開いたファイルが非対応と判定されているかどうか。
+    var isRejected: Bool {
+        rejectReason != nil
+    }
+
     /// ソース表示中かどうか。HTML 直接ロードモードでは、変更が SwiftUI の
     /// 更新サイクルをトリガーし ViewerWebView.updateContent での分岐に使われる。
     var isSourceMode: Bool = false
@@ -31,7 +39,7 @@ final class ViewerStore {
     var onFileGone: (@MainActor @Sendable () -> Void)?
 
     /// 開いたままのファイルが内容を再読込した(FileWatcher 経由の変更検知・rename)ときに
-    /// 呼ばれるコールバック。isUnsupported / showsCodeContent など loadContent が
+    /// 呼ばれるコールバック。rejectReason / showsCodeContent など loadContent が
     /// 確定させた表示状態を、AppKit ツールバー側に追従させるために使う。
     var onContentReloaded: (() -> Void)?
 
@@ -58,7 +66,7 @@ final class ViewerStore {
     /// コード表示中(ソースモードまたはコード形式ファイル)かどうか。
     /// トップバーの表示可否と行番号メニューの有効判定が共有する。
     var showsCodeContent: Bool {
-        if isUnsupported { return false }
+        if isRejected { return false }
         if isSourceMode { return true }
         if case .code = fileType { return true }
         return false
@@ -106,6 +114,10 @@ final class ViewerStore {
         onFileRenamed?(newURL)
     }
 
+    /// プレビュー読み込み(先頭のみ)後に全量読み込みを行う非同期タスク。
+    /// close() および次回 loadContent() で必ずキャンセルする。
+    private var fullLoadTask: Task<Void, Never>?
+
     private func loadContent() {
         guard let filePath else { return }
         let resolved = filePath.resolvingSymlinksInPath()
@@ -115,12 +127,37 @@ final class ViewerStore {
         }
         fileGoneTask?.cancel()
         fileGoneTask = nil
+        fullLoadTask?.cancel()
+        fullLoadTask = nil
 
-        let loaded = contentLoader.load(from: resolved, fileType: fileType)
-        isUnsupported = loaded.rejectReason != nil
-        content = loaded.content
-        // isUnsupported / content(表示状態)が確定した後に通知する。
-        onContentReloaded?()
+        let size = fileReader.fileSize(at: resolved)
+        let needsDeferred = size.map { $0 > ContentLoader.previewSizeBytes } ?? false
+
+        if needsDeferred {
+            let preview = contentLoader.loadPreview(from: resolved, fileType: fileType)
+            rejectReason = preview.rejectReason
+            isTruncated = preview.isTruncated
+            content = preview.content
+            // rejectReason / content(表示状態)が確定した後に通知する。
+            onContentReloaded?()
+
+            guard preview.rejectReason == nil else { return }
+            fullLoadTask = Task { @MainActor [weak self, contentLoader, fileType] in
+                let full = contentLoader.load(from: resolved, fileType: fileType)
+                guard !Task.isCancelled, let self else { return }
+                rejectReason = full.rejectReason
+                isTruncated = false
+                content = full.content
+                onContentReloaded?()
+            }
+        } else {
+            let loaded = contentLoader.load(from: resolved, fileType: fileType)
+            rejectReason = loaded.rejectReason
+            isTruncated = false
+            content = loaded.content
+            // rejectReason / content(表示状態)が確定した後に通知する。
+            onContentReloaded?()
+        }
     }
 
     /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
@@ -148,6 +185,8 @@ final class ViewerStore {
     func close() {
         fileGoneTask?.cancel()
         fileGoneTask = nil
+        fullLoadTask?.cancel()
+        fullLoadTask = nil
         fileWatcher?.stop()
         fileWatcher = nil
     }
