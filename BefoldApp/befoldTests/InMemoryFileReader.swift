@@ -89,7 +89,16 @@ final class InMemoryFileReader: FileReading, Sendable {
         binaryPaths.get().contains(url.path)
     }
 
+    private let nullSizePaths: LockedBox<Set<String>> = LockedBox([])
+
+    func setSizeUnknown(_ unknown: Bool, at url: URL) {
+        nullSizePaths.update { paths in
+            if unknown { paths.insert(url.path) } else { paths.remove(url.path) }
+        }
+    }
+
     func fileSize(at url: URL) -> Int? {
+        if nullSizePaths.get().contains(url.path) { return nil }
         if let override = sizeOverrides.get()[url.path] { return override }
         return files.get()[url.path]?.count
     }

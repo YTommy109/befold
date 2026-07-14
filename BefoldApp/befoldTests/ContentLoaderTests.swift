@@ -59,7 +59,7 @@ struct ContentLoaderTests {
     func loadPreviewReturnsTruncated() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
-        let lines = (0 ..< 200_000).map { "line\($0),data\($0)" }.joined(separator: "\n")
+        let lines = (0 ..< 600_000).map { "line\($0),data\($0)" }.joined(separator: "\n")
         let file = try tmp.file(named: "big.csv", contents: lines)
 
         let result = loader.loadPreview(from: file, fileType: .csv(delimiter: ","))
@@ -67,6 +67,31 @@ struct ContentLoaderTests {
         #expect(result.isTruncated)
         #expect(result.content.utf8.count <= ContentLoader.previewSizeBytes)
         #expect(result.content.hasSuffix("\n"))
+    }
+
+    @Test("loadPreview で閾値以下テキストは isTruncated = false")
+    func loadPreviewSmallTextIsNotTruncated() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "small.csv", contents: "a,b\n1,2")
+
+        let result = loader.loadPreview(from: file, fileType: .csv(delimiter: ","))
+        #expect(result.rejectReason == nil)
+        #expect(!result.isTruncated)
+        #expect(result.content == "a,b\n1,2")
+    }
+
+    @Test("loadPreview でサイズ不明テキストは truncated パスで読み込む")
+    func loadPreviewUnknownSizeIsTruncated() {
+        let file = URL(fileURLWithPath: "/files/unknown.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("a,b\n1,2", at: file)
+        reader.setSizeUnknown(true, at: file)
+        let loader = ContentLoader(fileReader: reader)
+
+        let result = loader.loadPreview(from: file, fileType: .csv(delimiter: ","))
+        #expect(result.rejectReason == nil)
+        #expect(result.isTruncated)
     }
 
     @Test("loadPreview で上限以下のバイナリは通常読み込み")

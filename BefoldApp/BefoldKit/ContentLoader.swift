@@ -52,13 +52,17 @@ public struct ContentLoader: Sendable {
     /// previewSizeBytes を超えるテキストファイルは先頭のみ読み込み、isTruncated を立てる。
     public func loadPreview(from url: URL, fileType: FileType) -> LoadedContent {
         let resolved = url.resolvingSymlinksInPath()
-        if let size = fileReader.fileSize(at: resolved), size > Self.maxFileSizeBytes {
+        let size = fileReader.fileSize(at: resolved)
+        if let size, size > Self.maxFileSizeBytes {
             return LoadedContent(rejectReason: .fileTooLarge, content: "")
         } else if fileType.isBinaryContent {
             return load(from: url, fileType: fileType)
         } else if fileReader.isBinary(at: resolved) {
             return LoadedContent(rejectReason: .unsupportedFormat, content: "")
         } else {
+            if let size, size <= Self.previewSizeBytes {
+                return load(from: url, fileType: fileType)
+            }
             let content = (try? fileReader.readString(from: resolved, maxBytes: Self.previewSizeBytes)) ?? ""
             return LoadedContent(rejectReason: nil, content: content, isTruncated: true)
         }
