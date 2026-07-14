@@ -91,6 +91,12 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.lineNumbersScript(false) == "setLineNumbers(false)")
     }
 
+    @Test("truncatedScript は _mmdSetTruncated を呼ぶ JS を返す")
+    func truncatedScript() {
+        #expect(ViewerBridge.truncatedScript(true) == "_mmdSetTruncated(true)")
+        #expect(ViewerBridge.truncatedScript(false) == "_mmdSetTruncated(false)")
+    }
+
     @Test("openFindScript が固定の呼び出し文字列である")
     func openFindScriptIsFixedCall() {
         #expect(ViewerBridge.openFindScript == "_mmdOpenFind()")
@@ -158,6 +164,7 @@ struct ViewerBridgeTests {
         #expect(html.contains("function setViewMode(mode)"))
         #expect(html.contains("function _mmdInitZoom()"))
         #expect(html.contains("function setLineNumbers(show)"))
+        #expect(html.contains("function _mmdSetTruncated(isTruncated)"))
         #expect(html.contains("function _mmdSetRestoreScroll(position)"))
         #expect(html.contains("function _mmdScrollTarget()"))
         #expect(html.contains("messageHandlers.\(ViewerBridge.scrollPositionChangedMessageName)"))

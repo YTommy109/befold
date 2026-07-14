@@ -82,6 +82,11 @@ public enum ViewerBridge {
         "setLineNumbers(\(show))"
     }
 
+    /// _mmdSetTruncated(isTruncated) 呼び出しを組み立てる。
+    public static func truncatedScript(_ isTruncated: Bool) -> String {
+        "_mmdSetTruncated(\(isTruncated))"
+    }
+
     /// 検索バーを開く(未オープンなら表示してフォーカス)スクリプト。
     public static let openFindScript = "_mmdOpenFind()"
 

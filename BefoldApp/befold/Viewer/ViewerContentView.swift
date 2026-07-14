@@ -36,6 +36,7 @@ struct ViewerContentView: View {
                 filePath: store.filePath,
                 isSourceMode: store.isSourceMode,
                 showLineNumbers: store.showLineNumbers,
+                isTruncated: store.isTruncated,
                 initialZoom: currentZoom,
                 scrollPositionToRestore: currentScrollPosition,
                 onScrollPositionChanged: onScrollPositionChanged,
