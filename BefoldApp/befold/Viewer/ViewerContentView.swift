@@ -37,10 +37,14 @@ struct ViewerContentView: View {
                 isSourceMode: store.isSourceMode,
                 showLineNumbers: store.showLineNumbers,
                 isTruncated: store.isTruncated,
+                lineCount: store.displayedLineCount,
                 initialZoom: currentZoom,
                 scrollPositionToRestore: currentScrollPosition,
                 onScrollPositionChanged: onScrollPositionChanged,
                 onZoomChanged: onZoomChanged,
+                onLoadMoreLines: {
+                    store.loadMoreLines()
+                },
                 onOpenReference: onOpenReference,
                 findOptionsPreference: findOptionsPreference,
                 webViewProxy: webViewProxy

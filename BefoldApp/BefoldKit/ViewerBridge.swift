@@ -82,11 +82,6 @@ public enum ViewerBridge {
         "setLineNumbers(\(show))"
     }
 
-    /// _mmdSetTruncated(isTruncated) 呼び出しを組み立てる。
-    public static func truncatedScript(_ isTruncated: Bool) -> String {
-        "_mmdSetTruncated(\(isTruncated))"
-    }
-
     /// _mmdSetTruncated(isTruncated, lineCount) 呼び出しを組み立てる。
     public static func truncatedScript(_ isTruncated: Bool, lineCount: Int) -> String {
         "_mmdSetTruncated(\(isTruncated), \(lineCount))"

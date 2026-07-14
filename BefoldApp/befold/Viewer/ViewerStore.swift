@@ -12,13 +12,17 @@ final class ViewerStore {
         (@MainActor @Sendable (URL) -> Void)?
     ) -> FileWatching
 
+    typealias ChunkedReaderFactory = @MainActor @Sendable (URL) throws -> any ChunkedTextReading
+
     private(set) var content: String = ""
     private(set) var fileType: FileType = .mmd
     /// 開いたファイルが非対応内容と判定された場合に理由が入る。
     /// 非 nil の間 content は更新されない(バイナリを丸ごと文字列化しない)。
     private(set) var rejectReason: RejectReason?
-    /// 大きいファイルをプレビュー読み込みした直後、全量読み込みが完了するまで true になる。
+    /// 行指向ファイルを段階読み込み中で、まだ末尾に達していない間 true になる。
     private(set) var isTruncated: Bool = false
+    /// 現在表示している累積行数(段階読み込みのバナー表示に使う)。
+    private(set) var displayedLineCount: Int = 0
     private(set) var filePath: URL?
 
     /// 開いたファイルが非対応と判定されているかどうか。
@@ -46,8 +50,12 @@ final class ViewerStore {
     /// 削除確認のグレース期間タスク。再作成されたらキャンセルする。
     private var fileGoneTask: Task<Void, Never>?
 
+    /// 段階読み込み中の行チャンクセッション。ファイル再読込・close でリセットする。
+    private var chunkSession: (any ChunkedTextReading)?
+
     private var fileWatcher: FileWatching?
     private let makeWatcher: WatcherFactory
+    private let makeChunkedReader: ChunkedReaderFactory
     private let fileReader: any FileReading
     private let contentLoader: ContentLoader
     private let defaults: UserDefaults
@@ -75,12 +83,16 @@ final class ViewerStore {
     init(
         watcherFactory: WatcherFactory? = nil,
         fileReader: any FileReading = DefaultFileReader(),
+        chunkedReaderFactory: ChunkedReaderFactory? = nil,
         defaults: UserDefaults = .standard,
         clock: any Clock<Duration> = ContinuousClock()
     ) {
         self.defaults = defaults
         makeWatcher = watcherFactory ?? { url, onChange, onRename in
             FileWatcher(path: url, onChange: onChange, onRename: onRename)
+        }
+        makeChunkedReader = chunkedReaderFactory ?? { url in
+            try LineChunkReader(url: url)
         }
         self.fileReader = fileReader
         contentLoader = ContentLoader(fileReader: fileReader)
@@ -114,9 +126,18 @@ final class ViewerStore {
         onFileRenamed?(newURL)
     }
 
-    /// プレビュー読み込み(先頭のみ)後に全量読み込みを行う非同期タスク。
-    /// close() および次回 loadContent() で必ずキャンセルする。
-    private var fullLoadTask: Task<Void, Never>?
+    /// 次のチャンクを読み込んで content に追記し、表示状態を返す。
+    /// 末尾に達している・セッションがない場合は nil を返す。
+    func loadMoreLines() -> (chunk: String, isTruncated: Bool, lineCount: Int)? {
+        guard let session = chunkSession, !session.isAtEnd else { return nil }
+        guard let chunk = try? session.readNextChunk() else { return nil }
+        content += chunk
+        isTruncated = !session.isAtEnd
+        displayedLineCount += chunk.split(
+            separator: "\n", omittingEmptySubsequences: false
+        ).count
+        return (chunk, isTruncated, displayedLineCount)
+    }
 
     private func loadContent() {
         guard let filePath else { return }
@@ -127,40 +148,49 @@ final class ViewerStore {
         }
         fileGoneTask?.cancel()
         fileGoneTask = nil
-        fullLoadTask?.cancel()
-        fullLoadTask = nil
+        chunkSession = nil
+        displayedLineCount = 0
 
-        let size = fileReader.fileSize(at: resolved)
-        let needsDeferred = size.map { $0 > ContentLoader.previewSizeBytes } ?? false
-
-        if needsDeferred {
-            let preview = contentLoader.loadPreview(from: resolved, fileType: fileType)
-            rejectReason = preview.rejectReason
-            isTruncated = preview.isTruncated
-            content = preview.content
-            // rejectReason / content(表示状態)が確定した後に通知する。
-            onContentReloaded?()
-
-            guard preview.rejectReason == nil else { return }
-            fullLoadTask = Task { [weak self, contentLoader, fileType] in
-                let full = contentLoader.load(from: resolved, fileType: fileType)
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    guard let self else { return }
-                    self.rejectReason = full.rejectReason
-                    self.isTruncated = false
-                    self.content = full.content
-                    self.onContentReloaded?()
-                }
+        if fileType.isLineOriented {
+            do {
+                let reader = try makeChunkedReader(resolved)
+                let firstChunk = try reader.readNextChunk()
+                chunkSession = reader
+                rejectReason = nil
+                isTruncated = !reader.isAtEnd
+                content = firstChunk
+                displayedLineCount = firstChunk.split(
+                    separator: "\n", omittingEmptySubsequences: false
+                ).count
+            } catch is TextEncodingError {
+                // 行境界をバイト位置で確定できないエンコーディングは全量読み込みへフォールバックする。
+                loadFullContent(resolved: resolved)
+            } catch {
+                rejectReason = .unsupportedFormat
+                content = ""
+                isTruncated = false
             }
         } else {
-            let loaded = contentLoader.load(from: resolved, fileType: fileType)
-            rejectReason = loaded.rejectReason
-            isTruncated = false
-            content = loaded.content
-            // rejectReason / content(表示状態)が確定した後に通知する。
-            onContentReloaded?()
+            loadFullContent(resolved: resolved)
         }
+        // rejectReason / content(表示状態)が確定した後に通知する。
+        onContentReloaded?()
+    }
+
+    private func loadFullContent(resolved: URL) {
+        let size = fileReader.fileSize(at: resolved)
+        if !fileType.isBinaryContent,
+           let size, size > ContentLoader.maxTextFileSizeBytes
+        {
+            rejectReason = .fileTooLarge
+            content = ""
+            isTruncated = false
+            return
+        }
+        let loaded = contentLoader.load(from: resolved, fileType: fileType)
+        rejectReason = loaded.rejectReason
+        isTruncated = false
+        content = loaded.content
     }
 
     /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
@@ -188,8 +218,7 @@ final class ViewerStore {
     func close() {
         fileGoneTask?.cancel()
         fileGoneTask = nil
-        fullLoadTask?.cancel()
-        fullLoadTask = nil
+        chunkSession = nil
         fileWatcher?.stop()
         fileWatcher = nil
     }

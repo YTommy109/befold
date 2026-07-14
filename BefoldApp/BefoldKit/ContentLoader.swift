@@ -6,9 +6,6 @@ public struct ContentLoader: Sendable {
     /// 全量読み込みとバイナリ表示の共通上限(50MB)。
     public static let maxFileSizeBytes = 50 * 1024 * 1024
 
-    /// プレビュー読み込みの上限(10MB)。これ以下なら同期全量読み込みで済む。
-    public static let previewSizeBytes = 10 * 1024 * 1024
-
     /// 非行指向テキスト(Markdown/Mermaid/HTML/SVG)の上限。
     public static let maxTextFileSizeBytes = 10 * 1024 * 1024
 
@@ -56,24 +53,5 @@ public struct ContentLoader: Sendable {
     public func openChunked(from url: URL) throws -> LineChunkReader {
         let resolved = url.resolvingSymlinksInPath()
         return try LineChunkReader(url: resolved)
-    }
-
-    /// previewSizeBytes を超えるテキストファイルは先頭のみ読み込み、isTruncated を立てる。
-    public func loadPreview(from url: URL, fileType: FileType) -> LoadedContent {
-        let resolved = url.resolvingSymlinksInPath()
-        let size = fileReader.fileSize(at: resolved)
-        if let size, size > Self.maxFileSizeBytes {
-            return LoadedContent(rejectReason: .fileTooLarge, content: "")
-        } else if fileType.isBinaryContent {
-            return load(from: url, fileType: fileType)
-        } else if fileReader.isBinary(at: resolved) {
-            return LoadedContent(rejectReason: .unsupportedFormat, content: "")
-        } else {
-            if let size, size <= Self.previewSizeBytes {
-                return load(from: url, fileType: fileType)
-            }
-            let content = (try? fileReader.readString(from: resolved, maxBytes: Self.previewSizeBytes)) ?? ""
-            return LoadedContent(rejectReason: nil, content: content, isTruncated: true)
-        }
     }
 }

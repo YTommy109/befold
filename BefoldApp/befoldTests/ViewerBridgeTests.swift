@@ -91,12 +91,6 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.lineNumbersScript(false) == "setLineNumbers(false)")
     }
 
-    @Test("truncatedScript は _mmdSetTruncated を呼ぶ JS を返す")
-    func truncatedScript() {
-        #expect(ViewerBridge.truncatedScript(true) == "_mmdSetTruncated(true)")
-        #expect(ViewerBridge.truncatedScript(false) == "_mmdSetTruncated(false)")
-    }
-
     @Test("appendChunkScript は JSON エスケープされた appendChunk 呼び出しを生成する")
     func appendChunkScriptGeneratesCall() throws {
         let chunk = "line1\nline2\n\"quoted\""
