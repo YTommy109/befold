@@ -150,6 +150,24 @@ body {
   background: rgba(255, 204, 0, 0.15);
   color: var(--fg);
   border-top: 1px solid rgba(255, 204, 0, 0.3);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.mmd-truncated-banner button {
+  background: rgba(255, 204, 0, 0.3);
+  color: var(--fg);
+  border: 1px solid rgba(255, 204, 0, 0.5);
+  border-radius: 4px;
+  padding: 2px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mmd-truncated-banner button:hover {
+  background: rgba(255, 204, 0, 0.5);
 }
 
 /*

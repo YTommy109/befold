@@ -21,7 +21,10 @@
 <body>
   <div class="viewer">
     <div id="mmd-error" class="mmd-error-panel"></div>
-    <div id="mmd-truncated-banner" class="mmd-truncated-banner" style="display:none;">ファイルの一部を表示しています…</div>
+    <div id="mmd-truncated-banner" class="mmd-truncated-banner" style="display:none;">
+      <span id="mmd-truncated-text"></span>
+      <button id="mmd-load-more-btn" style="display:none;"></button>
+    </div>
     <div id="diagram-wrap"></div>
   </div>
 
@@ -816,10 +819,39 @@
   }
 
   // 段階読み込み中(ファイルの一部だけを表示している間)のバナー表示を切り替える。
-  function _mmdSetTruncated(isTruncated) {
+  function _mmdSetTruncated(isTruncated, lineCount) {
     var banner = document.getElementById('mmd-truncated-banner');
-    banner.style.display = isTruncated ? 'block' : 'none';
+    if (!isTruncated) {
+        banner.style.display = 'none';
+        return;
+    }
+    banner.style.display = 'flex';
+    var strings = window._mmdBannerStrings || {};
+    var textEl = document.getElementById('mmd-truncated-text');
+    if (typeof lineCount === 'number') {
+        textEl.textContent = (strings.showing || 'Showing {count} lines').replace('{count}', lineCount);
+        var btn = document.getElementById('mmd-load-more-btn');
+        btn.textContent = strings.loadMore || 'Load More';
+        btn.style.display = 'inline-block';
+    } else {
+        textEl.textContent = strings.showing
+            ? strings.showing.replace('{count}', '?')
+            : 'Showing partial content';
+        document.getElementById('mmd-load-more-btn').style.display = 'none';
+    }
   }
+
+  function _mmdLoadMore() {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.loadMoreLines) {
+        window.webkit.messageHandlers.loadMoreLines.postMessage({});
+    }
+  }
+
+  // CSP のため onclick ではなく addEventListener で配線する。
+  document.getElementById('mmd-load-more-btn').addEventListener('click', function(e) {
+    if (!e.isTrusted) return;
+    _mmdLoadMore();
+  });
   // PDF 表示用に生成した blob URL。再描画のたびに revoke してリークを防ぐ。
   var _pdfBlobUrl = null;
 

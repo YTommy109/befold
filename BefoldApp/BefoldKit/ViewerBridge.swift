@@ -87,6 +87,42 @@ public enum ViewerBridge {
         "_mmdSetTruncated(\(isTruncated))"
     }
 
+    /// _mmdSetTruncated(isTruncated, lineCount) 呼び出しを組み立てる。
+    public static func truncatedScript(_ isTruncated: Bool, lineCount: Int) -> String {
+        "_mmdSetTruncated(\(isTruncated), \(lineCount))"
+    }
+
+    /// JS 側「続きを読み込む」ボタン押下時に postMessage されるメッセージハンドラ名。
+    public static let loadMoreLinesMessageName = "loadMoreLines"
+
+    /// appendChunk(content, type[, lang]) 呼び出しを組み立てる。
+    /// content は JSONEncoder でエスケープし、JS インジェクションを防ぐ。
+    /// エンコードに失敗した場合は nil(呼び出し側は何もしない)。
+    public static func appendChunkScript(chunk: String, fileType: FileType) -> String? {
+        guard let jsonData = try? JSONEncoder().encode(chunk),
+              let jsonString = String(data: jsonData, encoding: .utf8) else { return nil }
+        guard let lang = fileType.renderLangArgument else {
+            return "appendChunk(\(jsonString), '\(fileType.jsValue)')"
+        }
+        let escaped = lang == "\t" ? "\\t" : lang
+        return "appendChunk(\(jsonString), '\(fileType.jsValue)', '\(escaped)')"
+    }
+
+    /// ロード時にバナーのローカライズ済み文字列を JS 側へ注入するスクリプト。
+    /// viewer.html 側は _mmdSetTruncated() が window._mmdBannerStrings を読んで表示する。
+    public static func bannerStringsScript(bundle: Bundle = .main) -> String {
+        let strings: [String: String] = [
+            "showing": String(localized: "banner.showing", bundle: bundle),
+            "loadMore": String(localized: "banner.loadMore", bundle: bundle),
+        ]
+        guard let jsonData = try? JSONEncoder().encode(strings),
+              let jsonString = String(data: jsonData, encoding: .utf8)
+        else {
+            return "window._mmdBannerStrings = {};"
+        }
+        return "window._mmdBannerStrings = \(jsonString);"
+    }
+
     /// 検索バーを開く(未オープンなら表示してフォーカス)スクリプト。
     public static let openFindScript = "_mmdOpenFind()"
 

@@ -350,6 +350,57 @@ function buildFindRegExp(query, options) {
   }
 }
 
+function appendChunk(text, type, lang) {
+  var diagramWrap = document.getElementById('diagram-wrap');
+  if (type === 'csv') {
+    var rows = parseCsv(text, lang || ',');
+    var tbody = diagramWrap.querySelector('tbody');
+    if (!tbody) { return; }
+    var maxCols = tbody.parentElement.querySelector('thead tr')
+      ? tbody.parentElement.querySelector('thead tr').children.length : 0;
+    for (var r = 0; r < rows.length; r++) {
+      var tr = document.createElement('tr');
+      var cols = Math.max(maxCols, rows[r].length);
+      for (var c = 0; c < cols; c++) {
+        var td = document.createElement('td');
+        td.textContent = c < rows[r].length ? rows[r][c] : '';
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+  } else {
+    var codeEl = diagramWrap.querySelector('pre code');
+    if (!codeEl) { return; }
+    var table = codeEl.querySelector('table.code-table');
+    if (table) {
+      var existingRows = table.querySelectorAll('tr');
+      var startLine = existingRows.length + 1;
+      var highlighted = highlightCode(window.hljs, text, lang);
+      var inner = highlighted
+        ? highlighted.replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '')
+        : escapeHtml(text);
+      var lines = inner.split('\n');
+      if (lines.length > 1 && lines[lines.length - 1] === '') { lines.pop(); }
+      var rows = '';
+      for (var i = 0; i < lines.length; i++) {
+        rows += '<tr><td class="line-number">' + (startLine + i)
+          + '</td><td class="line-content">' + (lines[i] || '') + '</td></tr>';
+      }
+      table.insertAdjacentHTML('beforeend', rows);
+    } else {
+      var highlighted = highlightCode(window.hljs, text, lang);
+      if (highlighted) {
+        var inner = highlighted.replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '');
+        codeEl.insertAdjacentHTML('beforeend', inner);
+      } else {
+        codeEl.insertAdjacentHTML('beforeend', escapeHtml(text));
+      }
+    }
+  }
+  _annotatePathRefs();
+  _mmdFindRefreshAfterRender();
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PAGE_SCROLL_RATIO: PAGE_SCROLL_RATIO,
@@ -387,5 +438,6 @@ if (typeof module !== 'undefined' && module.exports) {
     renderCsvSourceHtml: renderCsvSourceHtml,
     CSV_COL_COUNT: CSV_COL_COUNT,
     buildFindRegExp: buildFindRegExp,
+    appendChunk: appendChunk,
   };
 }

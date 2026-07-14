@@ -1,6 +1,20 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "banner.loadMore" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Load More" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "続きを読み込む" } }
+      }
+    },
+    "banner.showing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Showing {count} lines" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "{count} 行を表示中" } }
+      }
+    },
     "menu.app.about" : {
       "extractionState" : "manual",
       "localizations" : {
