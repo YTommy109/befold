@@ -163,4 +163,14 @@ public enum FileType: Sendable, Equatable {
     public var supportsSourceMode: Bool {
         isRenderable && !isBinaryContent
     }
+
+    /// 行指向の形式かどうか。チャンク読み込みの対象判定に使う。
+    /// CSV/TSV とコード(プレーンテキスト含む)が該当する。
+    /// Markdown/Mermaid/HTML/SVG は途中切断で描画が壊れるため対象外。
+    public var isLineOriented: Bool {
+        switch self {
+        case .csv, .code: true
+        default: false
+        }
+    }
 }

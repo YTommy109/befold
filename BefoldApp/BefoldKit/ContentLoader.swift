@@ -9,6 +9,9 @@ public struct ContentLoader: Sendable {
     /// プレビュー読み込みの上限(10MB)。これ以下なら同期全量読み込みで済む。
     public static let previewSizeBytes = 10 * 1024 * 1024
 
+    /// 非行指向テキスト(Markdown/Mermaid/HTML/SVG)の上限。
+    public static let maxTextFileSizeBytes = 10 * 1024 * 1024
+
     /// ファイル読み込みの結果。表示可否と表示内容を保持する。
     public struct LoadedContent: Sendable, Equatable {
         public let rejectReason: RejectReason?
@@ -47,6 +50,12 @@ public struct ContentLoader: Sendable {
                 content: (try? fileReader.readString(from: resolved)) ?? ""
             )
         }
+    }
+
+    /// 行指向ファイルのチャンク読み込みセッションを開く。
+    public func openChunked(from url: URL) throws -> LineChunkReader {
+        let resolved = url.resolvingSymlinksInPath()
+        return try LineChunkReader(url: resolved)
     }
 
     /// previewSizeBytes を超えるテキストファイルは先頭のみ読み込み、isTruncated を立てる。
