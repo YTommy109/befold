@@ -117,7 +117,7 @@ final class ViewerStore {
         fileGoneTask = nil
 
         let loaded = contentLoader.load(from: resolved, fileType: fileType)
-        isUnsupported = loaded.isUnsupported
+        isUnsupported = loaded.rejectReason != nil
         content = loaded.content
         // isUnsupported / content(表示状態)が確定した後に通知する。
         onContentReloaded?()

@@ -286,32 +286,13 @@ struct ViewerStoreTests {
         store.close()
     }
 
-    /// 画像・PDF はテキストの 10MB 制限ではなく緩い 50MB 制限が適用される。
-    @Test
-    func imageOverTextSizeLimitStillLoads() {
-        let file = URL(fileURLWithPath: "/files/scan.png")
-        let imageData = Data([0x89, 0x50, 0x4E, 0x47])
-        let reader = InMemoryFileReader()
-        reader.setDataFile(imageData, at: file)
-        reader.setBinary(true, at: file)
-        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
-
-        let store = makeStore(reader: reader)
-        store.openFile(file)
-
-        #expect(!store.isUnsupported)
-        #expect(store.content == imageData.base64EncodedString())
-
-        store.close()
-    }
-
     @Test
     func imageOverBinarySizeLimitMarksUnsupported() {
         let file = URL(fileURLWithPath: "/files/huge.png")
         let reader = InMemoryFileReader()
         reader.setDataFile(Data([0x89]), at: file)
         reader.setBinary(true, at: file)
-        reader.setSize(ContentLoader.maxBinaryFileSizeBytes + 1, at: file)
+        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
 
         let store = makeStore(reader: reader)
         store.openFile(file)

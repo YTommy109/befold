@@ -13,24 +13,26 @@ struct ContentLoaderTests {
         let file = try tmp.file(named: "test.txt", contents: "hello")
 
         let result = loader.load(from: file, fileType: .code(language: "plaintext"))
-        #expect(!result.isUnsupported)
+        #expect(result.rejectReason == nil)
         #expect(result.content == "hello")
+        #expect(!result.isTruncated)
     }
 
-    @Test("サイズ超過ファイルは isUnsupported")
-    func oversizedFileIsUnsupported() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let bigData = Data(repeating: 0x41, count: ContentLoader.maxFileSizeBytes + 1)
-        let file = try tmp.file(named: "big.txt", data: bigData)
+    @Test("サイズ超過ファイルは fileTooLarge")
+    func oversizedFileIsRejected() {
+        let reader = InMemoryFileReader()
+        let file = URL(fileURLWithPath: "/files/big.txt")
+        reader.setFile("hello", at: file)
+        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
+        let loader = ContentLoader(fileReader: reader)
 
         let result = loader.load(from: file, fileType: .code(language: "plaintext"))
-        #expect(result.isUnsupported)
+        #expect(result.rejectReason == .fileTooLarge)
         #expect(result.content == "")
     }
 
-    @Test("バイナリファイルは isUnsupported")
-    func binaryFileIsUnsupported() throws {
+    @Test("バイナリファイルは unsupportedFormat")
+    func binaryFileIsRejected() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         var data = Data(repeating: 0x00, count: 100)
@@ -38,7 +40,7 @@ struct ContentLoaderTests {
         let file = try tmp.file(named: "bin.dat", data: data)
 
         let result = loader.load(from: file, fileType: .code(language: "plaintext"))
-        #expect(result.isUnsupported)
+        #expect(result.rejectReason == .unsupportedFormat)
     }
 
     @Test("画像ファイルは base64 エンコードされる")
@@ -49,7 +51,33 @@ struct ContentLoaderTests {
         let file = try tmp.file(named: "img.png", data: data)
 
         let result = loader.load(from: file, fileType: .image(mimeType: "image/png"))
-        #expect(!result.isUnsupported)
+        #expect(result.rejectReason == nil)
+        #expect(result.content == data.base64EncodedString())
+    }
+
+    @Test("loadPreview は先頭のみ返し isTruncated を設定する")
+    func loadPreviewReturnsTruncated() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let lines = (0 ..< 200_000).map { "line\($0),data\($0)" }.joined(separator: "\n")
+        let file = try tmp.file(named: "big.csv", contents: lines)
+
+        let result = loader.loadPreview(from: file, fileType: .csv(delimiter: ","))
+        #expect(result.rejectReason == nil)
+        #expect(result.isTruncated)
+        #expect(result.content.utf8.count <= ContentLoader.previewSizeBytes)
+        #expect(result.content.hasSuffix("\n"))
+    }
+
+    @Test("loadPreview で上限以下のバイナリは通常読み込み")
+    func loadPreviewBinaryFallsThrough() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let data = Data([0x89, 0x50, 0x4E, 0x47])
+        let file = try tmp.file(named: "img.png", data: data)
+
+        let result = loader.loadPreview(from: file, fileType: .image(mimeType: "image/png"))
+        #expect(result.rejectReason == nil)
         #expect(result.content == data.base64EncodedString())
     }
 }

@@ -11,7 +11,7 @@ public enum MarkdownImageEmbedder {
         FileType.imageExtensionMimeTypes.merging(["svg": "image/svg+xml"]) { current, _ in current }
 
     /// 1 画像あたりのサイズ上限。バイナリ表示と同じ上限を単一情報源から参照する。
-    public static let defaultMaxImageSizeBytes = ContentLoader.maxBinaryFileSizeBytes
+    public static let defaultMaxImageSizeBytes = ContentLoader.maxFileSizeBytes
 
     // Regex は Sendable でないため、strict concurrency 下では static 格納プロパティに
     // できず、各関数内のローカル定数として生成する。

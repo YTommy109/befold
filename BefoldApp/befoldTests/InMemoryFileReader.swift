@@ -64,6 +64,17 @@ final class InMemoryFileReader: FileReading, Sendable {
         try String(decoding: readData(from: url), as: UTF8.self)
     }
 
+    func readString(from url: URL, maxBytes: Int) throws -> String {
+        let full = try readString(from: url)
+        let data = Data(full.utf8)
+        if data.count <= maxBytes { return full }
+        let prefix = data.prefix(maxBytes)
+        if let lastNewline = prefix.lastIndex(of: UInt8(ascii: "\n")) {
+            return String(decoding: prefix[prefix.startIndex ... lastNewline], as: UTF8.self)
+        }
+        return String(decoding: prefix, as: UTF8.self)
+    }
+
     func readData(from url: URL) throws -> Data {
         guard !readErrorPaths.get().contains(url.path) else {
             throw CocoaError(.fileReadUnknown)
