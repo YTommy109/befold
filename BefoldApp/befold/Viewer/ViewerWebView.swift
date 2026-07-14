@@ -397,7 +397,7 @@ extension ViewerWebView.Coordinator {
     /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
     /// scrollKey 予告 + render を評価する。
     /// - Parameter restoreFromPersistedPosition: `isFileOrModeSwitch` 参照。
-    func applyRender(
+    private func applyRender(
         webView: WKWebView, content: String, fileType: FileType,
         filePath: URL?, isSourceMode: Bool, showLineNumbers: Bool, isTruncated: Bool,
         restoreFromPersistedPosition: Bool
@@ -440,7 +440,7 @@ extension ViewerWebView.Coordinator {
         filePath != lastRenderedFilePath || isSourceMode != lastIsSourceMode
     }
 
-    func recordRendered(content: String, fileType: FileType, filePath: URL?) {
+    private func recordRendered(content: String, fileType: FileType, filePath: URL?) {
         lastRenderedContent = content
         lastRenderedFileType = fileType
         lastRenderedFilePath = filePath
@@ -456,13 +456,14 @@ extension ViewerWebView.Coordinator {
         return MarkdownImageEmbedder.embedLocalImages(in: content, baseURL: filePath)
     }
 
-    func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
+    private func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
         isReady = false
         // 再ロードで viewer.html の JS 状態(_showLineNumbers=false, _viewMode='rendered')が
         // 初期化されるため、Swift 側のキャッシュも破棄して次回更新時に
         // setLineNumbers / setViewMode を再注入させる。
         lastShowLineNumbers = nil
         lastIsSourceMode = nil
+        lastIsTruncated = nil
         // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
         // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
         let zoom = initialPageZoom

@@ -142,13 +142,16 @@ final class ViewerStore {
             onContentReloaded?()
 
             guard preview.rejectReason == nil else { return }
-            fullLoadTask = Task { @MainActor [weak self, contentLoader, fileType] in
+            fullLoadTask = Task { [weak self, contentLoader, fileType] in
                 let full = contentLoader.load(from: resolved, fileType: fileType)
-                guard !Task.isCancelled, let self else { return }
-                rejectReason = full.rejectReason
-                isTruncated = false
-                content = full.content
-                onContentReloaded?()
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard let self else { return }
+                    self.rejectReason = full.rejectReason
+                    self.isTruncated = false
+                    self.content = full.content
+                    self.onContentReloaded?()
+                }
             }
         } else {
             let loaded = contentLoader.load(from: resolved, fileType: fileType)
