@@ -25,7 +25,7 @@ befold.app (Swift / AppKit + SwiftUI)
   │     └── SidebarNavigator       # サイドバー一覧・選択同期・戻る/進む履歴
   │           └─ SidebarNavigatorHost  # Navigator→VWC の逆方向依存を切るプロトコル
   ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
-  ├── ViewerStore        # @Observable 表示状態（content / isUnsupported、FileReading で読込を抽象化）
+  ├── ViewerStore        # @Observable 表示状態（content / rejectReason / isTruncated、FileReading で読込を抽象化）
   └── ViewerWebView      # WKWebView（NSViewRepresentable + Coordinator）
         ├── 同梱アセット（viewer.html / viewer.js / mermaid.min.js / markdown-it.min.js / style.css）
         └── JS ブリッジ: ViewerBridge 経由で evaluateJavaScript("render(content, type)")
@@ -158,7 +158,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 
 - Swift API Design Guidelines に従う
 - 型名: UpperCamelCase（`ViewerStore`, `FileWatcher`）
-- メソッド・プロパティ: lowerCamelCase（`openFile`, `isUnsupported`）
+- メソッド・プロパティ: lowerCamelCase（`openFile`, `isRejected`）
 - GCD キューラベル: リバースドメイン（`com.degino.befold.filewatcher`）
 - ウィンドウ autosave 名: `Viewer-<パスベースの識別子>`
 - `@available(*, unavailable)` + `fatalError()`: Interface Builder 未使用を明示する `required init?(coder:)` に付ける
@@ -351,9 +351,13 @@ swift package plugin --allow-writing-to-package-directory swiftformat
     波及を必ず確認する**。上記の「仕様書を読み合わせて更新する」波及範囲には、
     `docs/dev/coding_rule.md` および `CLAUDE.md` のアーキテクチャ図（`## アーキテクチャ`）と
     プロジェクト構成ツリー（`## プロジェクト構成`）が含まれる。型の新設・削除・移動、
-    ディレクトリの追加・廃止のいずれも、これらの図・ツリーとの突き合わせを同じ diff 内で行う
+    ディレクトリの追加・廃止のいずれも、これらの図・ツリーとの突き合わせを同じ diff 内で行う。
+    さらに、**プロパティ・型のリネームは、`coding_rule.md` 内のコード例・命名例・テスト例との
+    突き合わせも行う**。規約ドキュメントが実在の識別子名をサンプルとして使用している場合、
+    リネーム元の名前が残っていると規約とコードの乖離が生じる
     （`UpdateCheckCoordinator` を削除したがアーキテクチャ図に残っていた実例、
-    `Updates/` ディレクトリを追加したが CLAUDE.md の構成ツリーに反映されていなかった実例）
+    `Updates/` ディレクトリを追加したが CLAUDE.md の構成ツリーに反映されていなかった実例、
+    `isUnsupported` を `rejectReason` にリネームしたが命名例とテスト例に旧名が残っていた実例）
   - **「〜のみ」「常に〜」「〜のまま（変更しない）」のように現在の状態・変更有無を断定する
     コメントは、たとえ WHY 寄りであっても壊れやすい**。可視性ルール等を説明する正当なコメントでも、
     現状を事実として断定する部分（`private` → `internal` に変えたのに「internal のままにする」）は、
@@ -558,7 +562,7 @@ func openMmdFile() throws {
 
     #expect(store.content == "graph TD; A-->B")
     #expect(store.fileType == .mmd)
-    #expect(!store.isUnsupported)
+    #expect(!store.isRejected)
 
     store.close()
 }
