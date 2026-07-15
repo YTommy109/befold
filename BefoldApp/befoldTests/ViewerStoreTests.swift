@@ -687,39 +687,22 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
-    @Test("レガシーエンコーディングの行指向ファイルは全量デコード後にチャンク送信する")
-    func legacyEncodingLineOrientedFileUsesDecodedChunks() async {
-        let file = URL(fileURLWithPath: "/files/data.csv")
+    @Test("レガシーエンコーディングの行指向ファイルは LineChunkReader で直接チャンク読みする")
+    func legacyEncodingLineOrientedFileUsesDirectChunking() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let text = "名前,値\nテスト,1\n"
+        let data = try #require(text.data(using: .shiftJIS))
+        let file = try tmp.file(named: "data.csv", data: data)
+
         let reader = InMemoryFileReader()
-        // Shift_JIS エンコードの CSV データ
-        let shiftJISData = "名前,値\nテスト,1\n".data(using: .shiftJIS)!
-        reader.setDataFile(shiftJISData, at: file)
-        let store = makeStore(
-            reader: reader,
-            chunkedReaderFactory: { _, _ in throw TextEncodingError.unsupportedForChunking }
-        )
+        reader.setDataFile(data, at: file)
+        let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
         #expect(store.rejectReason == nil)
         #expect(store.content.contains("名前"))
         #expect(store.isTruncated == false)
-
-        store.close()
-    }
-
-    @Test("レガシーエンコーディングで 10MB 超のファイルは fileTooLarge")
-    func legacyEncodingOverMaxFileSizeIsRejected() async {
-        let file = URL(fileURLWithPath: "/files/data.csv")
-        let reader = InMemoryFileReader()
-        reader.setDataFile(Data([0x61, 0x0A]), at: file)
-        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
-        let store = makeStore(
-            reader: reader,
-            chunkedReaderFactory: { _, _ in throw TextEncodingError.unsupportedForChunking }
-        )
-        await openAndLoad(store, file)
-
-        #expect(store.rejectReason == .fileTooLarge)
 
         store.close()
     }

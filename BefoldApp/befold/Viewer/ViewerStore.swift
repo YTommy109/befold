@@ -175,7 +175,7 @@ final class ViewerStore {
     /// 現在の filePath の読み込みを予約する。I/O・デコードはバックグラウンドで行い、
     /// 完了後にメインアクターで表示状態へ一括適用する。呼び出しごとに世代番号を進め、
     /// 追い越された古い読み込みの結果は破棄する。
-    private func loadContent(forceFullDecode: Bool = false) {
+    private func loadContent() {
         guard let filePath else { return }
         loadGeneration += 1
         let generation = loadGeneration
@@ -184,22 +184,21 @@ final class ViewerStore {
         loadTask = Task {
             await self.performLoad(
                 resolved: resolved, fileType: fileType,
-                generation: generation, forceFullDecode: forceFullDecode
+                generation: generation
             )
         }
     }
 
     /// バックグラウンドで読み込み結果を計算し、世代が最新のままなら表示状態へ適用する。
     private func performLoad(
-        resolved: URL, fileType: FileType, generation: Int, forceFullDecode: Bool = false
+        resolved: URL, fileType: FileType, generation: Int
     ) async {
         let outcome = await Self.computeLoad(
             resolved: resolved,
             fileType: fileType,
             fileReader: fileReader,
             contentLoader: contentLoader,
-            chunkedReaderFactory: makeChunkedReader,
-            forceFullDecode: forceFullDecode
+            chunkedReaderFactory: makeChunkedReader
         )
         // close() でキャンセルされた、または新しい読み込みに追い越された結果は捨てる。
         guard !Task.isCancelled, generation == loadGeneration else { return }
@@ -226,40 +225,20 @@ final class ViewerStore {
         fileType: FileType,
         fileReader: any FileReading,
         contentLoader: ContentLoader,
-        chunkedReaderFactory: ChunkedReaderFactory,
-        forceFullDecode: Bool = false
+        chunkedReaderFactory: ChunkedReaderFactory
     ) async -> LoadOutcome {
         guard fileReader.fileExists(at: resolved) else { return .missing }
 
         if fileType.isLineOriented {
-            if !forceFullDecode {
-                do {
-                    let reader = try chunkedReaderFactory(resolved, fileType)
-                    let firstChunk = try await reader.readNextChunk()
-                    return .chunked(
-                        session: reader, firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
-                    )
-                } catch is TextEncodingError {
-                    // fall through to full-decode below
-                } catch {
-                    if !fileReader.fileExists(at: resolved) { return .missing }
-                    return .rejected(.unsupportedFormat)
-                }
-            }
-            switch contentLoader.loadDecodedText(from: resolved) {
-            case let .success(decoded):
-                let reader = DecodedTextChunkReader(
-                    text: decoded,
-                    respectsCSVQuotes: fileType.csvDelimiter != nil
-                )
-                let firstChunk = await reader.readNextChunk()
+            do {
+                let reader = try chunkedReaderFactory(resolved, fileType)
+                let firstChunk = try await reader.readNextChunk()
                 return .chunked(
-                    session: reader,
-                    firstChunk: firstChunk.text,
-                    isAtEnd: firstChunk.isAtEnd
+                    session: reader, firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
                 )
-            case let .failure(reason):
-                return .rejected(reason)
+            } catch {
+                if !fileReader.fileExists(at: resolved) { return .missing }
+                return .rejected(.unsupportedFormat)
             }
         }
         return .full(contentLoader.load(from: resolved, fileType: fileType))

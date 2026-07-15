@@ -26,26 +26,6 @@ public struct ContentLoader: Sendable {
         self.fileReader = fileReader
     }
 
-    /// テキストファイルをサイズ上限・バイナリ判定・エンコーディング復号を 1 パスで行い、
-    /// 成功すればデコード済み文字列を、失敗すれば RejectReason を返す。
-    public func loadDecodedText(from url: URL) -> Result<String, RejectReason> {
-        let resolved = url.resolvingSymlinksInPath()
-        guard let size = fileReader.fileSize(at: resolved),
-              size <= Self.maxTextFileSizeBytes
-        else {
-            return .failure(.fileTooLarge)
-        }
-        guard !fileReader.isBinary(at: resolved) else {
-            return .failure(.unsupportedFormat)
-        }
-        guard let data = try? fileReader.readData(from: resolved),
-              let text = TextEncoding.decodeText(data)
-        else {
-            return .failure(.unsupportedFormat)
-        }
-        return .success(text)
-    }
-
     /// 指定 URL のファイルを種別に応じて読み込み、表示可否と内容を返す。
     public func load(from url: URL, fileType: FileType) -> LoadedContent {
         let resolved = url.resolvingSymlinksInPath()

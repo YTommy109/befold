@@ -121,6 +121,25 @@ public enum TextEncoding: Sendable {
         return data[data.startIndex ..< end]
     }
 
+    /// チャンク末尾のマルチバイト文字境界を保護する汎用メソッド。
+    /// UTF-8 は既存のビットパターン走査で高速に処理し、
+    /// それ以外のエンコーディングはデコード試行+末尾切り詰めリトライで対処する。
+    public static func trimIncompleteTail(_ data: Data, encoding: String.Encoding) -> Data {
+        if encoding == .utf8 || encoding == .ascii {
+            return trimIncompleteUTF8Tail(data)
+        }
+        if String(data: data, encoding: encoding) != nil {
+            return data
+        }
+        for trim in 1 ... min(3, data.count) {
+            let candidate = data[data.startIndex ..< data.index(data.endIndex, offsetBy: -trim)]
+            if String(data: candidate, encoding: encoding) != nil {
+                return Data(candidate)
+            }
+        }
+        return data
+    }
+
     /// BOM なし UTF-16 の endian を NUL の位置から推定する
     /// (LE は奇数位置、BE は偶数位置に NUL が並ぶ)。
     static func looksLittleEndianUTF16(_ data: Data) -> Bool {

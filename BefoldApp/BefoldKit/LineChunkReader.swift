@@ -7,16 +7,14 @@ public protocol ChunkedTextReading: AnyObject, Sendable {
     func readNextChunk() async throws -> (text: String, isAtEnd: Bool)
 }
 
-/// ファイルを行単位のチャンク(既定 1000 行 / 最大 4MB)で逐次読み込む actor。
+/// ファイルを行単位のチャンク(既定 1000 行 / 最大 1MB)で逐次読み込む actor。
 /// I/O・デコードを呼び出し元のアクター(メインスレッド)から切り離して実行する。
-/// チャンクセッションは UTF-8(ASCII 含む)専用とする。UTF-16 / UTF-32 のような
-/// 行境界をバイト位置で確定できないエンコーディングに加え、Shift_JIS / EUC-JP 等の
-/// レガシーエンコーディングも(強制分割時に文字境界を保証できないため)
-/// 初期化時に `TextEncodingError.unsupportedForChunking` を投げ、
-/// 呼び出し側の全量読み込みフォールバックに委ねる。
+/// UTF-8/ASCII に加え Shift_JIS / EUC-JP 等のレガシーエンコーディングにも対応する。
+/// UTF-16 / UTF-32 は改行バイト(0x0A/0x0D)が多バイト列中に出現し
+/// バイト走査で行境界を確定できないため `unsupportedForChunking` を投げる。
 public actor LineChunkReader: ChunkedTextReading {
     public static let linesPerChunk = 1000
-    public static let maxChunkBytes = 4 * 1024 * 1024
+    public static let maxChunkBytes = 1 * 1024 * 1024
 
     private var isAtEnd = false
 
@@ -74,13 +72,6 @@ public actor LineChunkReader: ChunkedTextReading {
         } else {
             detectedEncoding = .utf8
             detectedBomLength = 0
-        }
-
-        // UTF-8 以外は強制分割時に文字境界を保証できないため、チャンク読み込みの
-        // 対象外として全量読み込みへフォールバックさせる。
-        guard detectedEncoding == .utf8 || detectedEncoding == .ascii else {
-            try? handle.close()
-            throw TextEncodingError.unsupportedForChunking
         }
 
         try handle.seek(toOffset: UInt64(detectedBomLength))
@@ -156,10 +147,10 @@ public actor LineChunkReader: ChunkedTextReading {
         } else {
             // 改行が現れないまま maxChunkBytes を満たした(超長行)。
             // マルチバイト文字を割らないよう文字境界で切り詰めて分割する。
-            chunkData = TextEncoding.trimIncompleteUTF8Tail(buffer)
+            chunkData = TextEncoding.trimIncompleteTail(buffer, encoding: encoding)
             remainder = Data(buffer[chunkData.endIndex...])
             isAtEnd = false
-            // 4MB 超の RFC 4180 引用フィールドは現実的に存在しない。
+            // 1MB 超の RFC 4180 引用フィールドは現実的に存在しない。
             // 対のない引用符で立ちっぱなしになった状態をここでリセットし、
             // 以降のチャンクが全て強制分割に陥る連鎖を防ぐ。
             inQuotes = false

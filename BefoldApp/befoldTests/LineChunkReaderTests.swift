@@ -151,17 +151,17 @@ struct LineChunkReaderTests {
         }
     }
 
-    @Test("Shift_JIS ファイルは unsupportedForChunking を投げる(全量読み込みへフォールバックさせる)")
-    func shiftJISThrowsUnsupportedForChunking() throws {
+    @Test("Shift_JIS ファイルをチャンク読みできる")
+    func shiftJISChunkReading() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
-        let text = "表示\n価格"
+        let text = "表示\n価格\n"
         let data = try #require(text.data(using: .shiftJIS))
         let file = try tmp.file(named: "sjis.txt", data: data)
 
-        #expect(throws: TextEncodingError.unsupportedForChunking) {
-            _ = try LineChunkReader(url: file)
-        }
+        let reader = try LineChunkReader(url: file)
+        let (_, joined) = try await readAll(reader)
+        #expect(joined == text)
     }
 
     @Test("先頭 8192 バイト目がマルチバイト文字を跨いでも UTF-8 と判定して読める")
