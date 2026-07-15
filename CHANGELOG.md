@@ -4,6 +4,15 @@ stable リリースのユーザー影響のある変更を記録する。
 dev リリースの全変更履歴は [GitHub Releases](https://github.com/YTommy109/befold/releases) を参照。
 v1.5.0 より前の履歴は GitHub Releases の各タグページを参照。
 
+## v1.7.0
+
+### 新機能
+- 大容量テキストファイルの行チャンク段階読み込みを実装する (#191)
+- Sparkle 2 に移行し自動アップデートを刷新する (#185)
+
+### 修正
+- 非 UTF-8 エンコーディング(Shift_JIS / EUC-JP)のフォールバック復号を追加する (#191)
+
 ## v1.6.0
 
 ### 新機能
