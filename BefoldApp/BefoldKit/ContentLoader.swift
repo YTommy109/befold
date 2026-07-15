@@ -29,7 +29,8 @@ public struct ContentLoader: Sendable {
     /// 指定 URL のファイルを種別に応じて読み込み、表示可否と内容を返す。
     public func load(from url: URL, fileType: FileType) -> LoadedContent {
         let resolved = url.resolvingSymlinksInPath()
-        if let size = fileReader.fileSize(at: resolved), size > Self.maxFileSizeBytes {
+        let sizeLimit = fileType.isBinaryContent ? Self.maxFileSizeBytes : Self.maxTextFileSizeBytes
+        if let size = fileReader.fileSize(at: resolved), size > sizeLimit {
             return LoadedContent(rejectReason: .fileTooLarge, content: "")
         } else if fileType.isBinaryContent {
             if let data = try? fileReader.readData(from: resolved) {
@@ -40,10 +41,12 @@ public struct ContentLoader: Sendable {
         } else if fileReader.isBinary(at: resolved) {
             return LoadedContent(rejectReason: .unsupportedFormat, content: "")
         } else {
-            return LoadedContent(
-                rejectReason: nil,
-                content: (try? fileReader.readString(from: resolved)) ?? ""
-            )
+            do {
+                let text = try fileReader.readString(from: resolved)
+                return LoadedContent(rejectReason: nil, content: text)
+            } catch {
+                return LoadedContent(rejectReason: .unsupportedFormat, content: "")
+            }
         }
     }
 }

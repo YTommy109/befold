@@ -161,7 +161,10 @@ final class ViewerStore {
             // 全体を再読込して整合した状態(新しいチャンクセッション、または
             // フォールバック/非対応表示)を作り直す。「続きを読み込む」ボタンが
             // 死んだまま残ることを防ぐ。
-            loadContent()
+            // TextEncodingError は先頭プローブと実際のエンコーディングが不一致(例:
+            // ASCII ヘッダ + 日本語本文の Shift_JIS)のため、再プローブしても同じ
+            // 結果になる。全量デコードフォールバックを強制する。
+            loadContent(forceFullDecode: error is TextEncodingError)
             return nil
         }
     }
@@ -176,25 +179,31 @@ final class ViewerStore {
     /// 現在の filePath の読み込みを予約する。I/O・デコードはバックグラウンドで行い、
     /// 完了後にメインアクターで表示状態へ一括適用する。呼び出しごとに世代番号を進め、
     /// 追い越された古い読み込みの結果は破棄する。
-    private func loadContent() {
+    private func loadContent(forceFullDecode: Bool = false) {
         guard let filePath else { return }
         loadGeneration += 1
         let generation = loadGeneration
         let resolved = filePath.resolvingSymlinksInPath()
         let fileType = fileType
         loadTask = Task {
-            await self.performLoad(resolved: resolved, fileType: fileType, generation: generation)
+            await self.performLoad(
+                resolved: resolved, fileType: fileType,
+                generation: generation, forceFullDecode: forceFullDecode
+            )
         }
     }
 
     /// バックグラウンドで読み込み結果を計算し、世代が最新のままなら表示状態へ適用する。
-    private func performLoad(resolved: URL, fileType: FileType, generation: Int) async {
+    private func performLoad(
+        resolved: URL, fileType: FileType, generation: Int, forceFullDecode: Bool = false
+    ) async {
         let outcome = await Self.computeLoad(
             resolved: resolved,
             fileType: fileType,
             fileReader: fileReader,
             contentLoader: contentLoader,
-            chunkedReaderFactory: makeChunkedReader
+            chunkedReaderFactory: makeChunkedReader,
+            forceFullDecode: forceFullDecode
         )
         // close() でキャンセルされた、または新しい読み込みに追い越された結果は捨てる。
         guard !Task.isCancelled, generation == loadGeneration else { return }
@@ -221,45 +230,56 @@ final class ViewerStore {
         fileType: FileType,
         fileReader: any FileReading,
         contentLoader: ContentLoader,
-        chunkedReaderFactory: ChunkedReaderFactory
+        chunkedReaderFactory: ChunkedReaderFactory,
+        forceFullDecode: Bool = false
     ) async -> LoadOutcome {
         guard fileReader.fileExists(at: resolved) else { return .missing }
 
         if fileType.isLineOriented {
-            do {
-                let reader = try chunkedReaderFactory(resolved, fileType)
-                let firstChunk = try await reader.readNextChunk()
-                return .chunked(session: reader, firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd)
-            } catch is TextEncodingError {
-                // 行境界をバイト位置で確定できないエンコーディングは全量読み込みへフォールバックする。
-                return fullLoadOutcome(
-                    resolved: resolved, fileType: fileType,
-                    fileReader: fileReader, contentLoader: contentLoader
-                )
-            } catch {
-                return .rejected(.unsupportedFormat)
+            if !forceFullDecode {
+                do {
+                    let reader = try chunkedReaderFactory(resolved, fileType)
+                    let firstChunk = try await reader.readNextChunk()
+                    return .chunked(
+                        session: reader, firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
+                    )
+                } catch is TextEncodingError {
+                    // fall through to full-decode below
+                } catch {
+                    if !fileReader.fileExists(at: resolved) { return .missing }
+                    return .rejected(.unsupportedFormat)
+                }
             }
-        }
-        return fullLoadOutcome(
-            resolved: resolved, fileType: fileType,
-            fileReader: fileReader, contentLoader: contentLoader
-        )
-    }
-
-    /// 全量読み込み(サイズ上限の事前チェック付き)の結果を返す。
-    private nonisolated static func fullLoadOutcome(
-        resolved: URL,
-        fileType: FileType,
-        fileReader: any FileReading,
-        contentLoader: ContentLoader
-    ) -> LoadOutcome {
-        let size = fileReader.fileSize(at: resolved)
-        if !fileType.isBinaryContent,
-           let size, size > ContentLoader.maxTextFileSizeBytes
-        {
-            return .rejected(.fileTooLarge)
+            if let decoded = decodeFullFile(
+                resolved: resolved, fileReader: fileReader
+            ) {
+                let reader = DecodedTextChunkReader(
+                    text: decoded,
+                    respectsCSVQuotes: fileType.csvDelimiter != nil
+                )
+                let firstChunk = await reader.readNextChunk()
+                return .chunked(
+                    session: reader,
+                    firstChunk: firstChunk.text,
+                    isAtEnd: firstChunk.isAtEnd
+                )
+            }
+            return .full(contentLoader.load(from: resolved, fileType: fileType))
         }
         return .full(contentLoader.load(from: resolved, fileType: fileType))
+    }
+
+    /// テキスト系のサイズ上限内であることを確認したうえで、
+    /// エンコーディング判定・BOM 除去を含む復号を TextEncoding.decodeText に委ねる。
+    private nonisolated static func decodeFullFile(
+        resolved: URL, fileReader: any FileReading
+    ) -> String? {
+        guard let size = fileReader.fileSize(at: resolved),
+              size <= ContentLoader.maxTextFileSizeBytes,
+              !fileReader.isBinary(at: resolved),
+              let data = try? fileReader.readData(from: resolved)
+        else { return nil }
+        return TextEncoding.decodeText(data)
     }
 
     /// 読み込み結果を表示状態(content / rejectReason / isTruncated / 行数カウンタ /

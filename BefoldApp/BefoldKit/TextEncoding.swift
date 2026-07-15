@@ -10,9 +10,9 @@ public enum TextEncodingError: Error, Sendable {
 
 /// テキストのエンコーディング判定・復号ロジックを集約する。
 /// FileReading(全量読み込み)と LineChunkReader(チャンク読み込み)の双方から使う。
-public enum TextEncoding {
+public enum TextEncoding: Sendable {
     /// バイナリ判定・エンコーディング判定に見る先頭バイト数。
-    static let sniffLength = 8192
+    public static let sniffLength = 8192
 
     /// 先頭バイト列から BOM を検出し、対応するエンコーディングと BOM 長を返す。
     /// UTF-32 の BOM(4 バイト)は UTF-16 LE と先頭が同じなので先に判定する。
@@ -68,7 +68,7 @@ public enum TextEncoding {
             convertedString: &convertedString,
             usedLossyConversion: &usedLossyConversion
         )
-        if detected != 0 { return String.Encoding(rawValue: detected) }
+        if detected != 0, !usedLossyConversion.boolValue { return String.Encoding(rawValue: detected) }
         return nil
     }
 
@@ -95,7 +95,7 @@ public enum TextEncoding {
             convertedString: &convertedString,
             usedLossyConversion: &usedLossyConversion
         )
-        if detected != 0, let result = convertedString {
+        if detected != 0, !usedLossyConversion.boolValue, let result = convertedString {
             return result as String
         }
         return nil
@@ -107,7 +107,9 @@ public enum TextEncoding {
     /// (最大 3+1 バイト)。境界で切れていなければそのまま返す。
     public static func trimIncompleteUTF8Tail(_ data: Data) -> Data {
         var end = data.endIndex
-        while end > data.startIndex {
+        let maxScan = min(data.count, 4)
+        let scanLimit = data.index(data.endIndex, offsetBy: -maxScan)
+        while end > scanLimit {
             let byte = data[data.index(before: end)]
             if byte & 0x80 == 0 { break }
             if byte & 0xC0 != 0x80 {

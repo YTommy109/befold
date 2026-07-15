@@ -149,6 +149,10 @@ public actor LineChunkReader: ChunkedTextReading {
             chunkData = TextEncoding.trimIncompleteUTF8Tail(buffer)
             remainder = Data(buffer[chunkData.endIndex...])
             isAtEnd = false
+            // 4MB 超の RFC 4180 引用フィールドは現実的に存在しない。
+            // 対のない引用符で立ちっぱなしになった状態をここでリセットし、
+            // 以降のチャンクが全て強制分割に陥る連鎖を防ぐ。
+            inQuotes = false
         }
 
         guard let text = String(data: chunkData, encoding: encoding) else {

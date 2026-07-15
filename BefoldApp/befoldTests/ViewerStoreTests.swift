@@ -643,7 +643,7 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
-    @Test("チャンク読み込みエラー時は nil を返し、再読込で新しいセッションに回復する")
+    @Test("チャンク読み込みエラー時は nil を返し、全量デコードフォールバックで回復する")
     func loadMoreLinesErrorRecoversViaReload() async {
         let file = URL(fileURLWithPath: "/files/data.csv")
         let reader = InMemoryFileReader()
@@ -653,27 +653,19 @@ struct ViewerStoreChunkTests {
             reader: reader,
             chunkedReaderFactory: { _, _ in
                 callCount.update { $0 += 1 }
-                if callCount.get() == 1 { return FailingSecondChunkReader(firstChunk: "old\n") }
-                return MockChunkedReader(chunks: ["fresh\n", "tail\n"])
+                return FailingSecondChunkReader(firstChunk: "old\n")
             }
         )
         await openAndLoad(store, file)
         #expect(store.content == "old\n")
         #expect(store.isTruncated == true)
 
-        // 2 回目の読み込みが失敗 → nil を返しつつ loadContent で状態を張り直す。
+        // 2 回目の読み込みが TextEncodingError で失敗 → forceFullDecode で回復。
+        // chunkedReaderFactory は再呼出されず、全量デコード→DecodedTextChunkReader で配信。
         #expect(await store.loadMoreLines() == nil)
-        // 復旧の再読込は非同期のため、完了を待ってから状態を検証する。
         await awaitLoad(store)
-        #expect(callCount.get() == 2)
-        #expect(store.content == "fresh\n")
-        #expect(store.isTruncated == true)
-        #expect(store.displayedLineCount == 1)
-
-        // 新しいセッションで「続きを読み込む」が機能する。
-        let result = await store.loadMoreLines()
-        #expect(result?.chunk == "tail\n")
-        #expect(store.content == "fresh\ntail\n")
+        #expect(callCount.get() == 1)
+        #expect(store.content == "first\nsecond")
         #expect(store.isTruncated == false)
 
         store.close()
@@ -699,6 +691,43 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
+    @Test("レガシーエンコーディングの行指向ファイルは全量デコード後にチャンク送信する")
+    func legacyEncodingLineOrientedFileUsesDecodedChunks() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        // Shift_JIS エンコードの CSV データ
+        let shiftJISData = "名前,値\nテスト,1\n".data(using: .shiftJIS)!
+        reader.setDataFile(shiftJISData, at: file)
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in throw TextEncodingError.unsupportedForChunking }
+        )
+        await openAndLoad(store, file)
+
+        #expect(store.rejectReason == nil)
+        #expect(store.content.contains("名前"))
+        #expect(store.isTruncated == false)
+
+        store.close()
+    }
+
+    @Test("レガシーエンコーディングで 10MB 超のファイルは fileTooLarge")
+    func legacyEncodingOverMaxFileSizeIsRejected() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setDataFile(Data([0x61, 0x0A]), at: file)
+        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in throw TextEncodingError.unsupportedForChunking }
+        )
+        await openAndLoad(store, file)
+
+        #expect(store.rejectReason == .fileTooLarge)
+
+        store.close()
+    }
+
     @Test("非行指向ファイルは従来の一括読み込み")
     func nonLineOrientedFileUsesFullLoad() async {
         let file = URL(fileURLWithPath: "/files/doc.md")
@@ -709,6 +738,25 @@ struct ViewerStoreChunkTests {
 
         #expect(store.content == "# Hello\n\nWorld")
         #expect(store.isTruncated == false)
+
+        store.close()
+    }
+
+    @Test("10MB 超・50MB 以下の画像ファイルは正常に読み込める")
+    func imageOverTextSizeLimitStillLoads() async {
+        let file = URL(fileURLWithPath: "/files/large.png")
+        let data = Data([0x89, 0x50, 0x4E, 0x47])
+        let reader = InMemoryFileReader()
+        reader.setDataFile(data, at: file)
+        reader.setBinary(true, at: file)
+        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
+
+        let store = makeStore(reader: reader)
+        await openAndLoad(store, file)
+
+        #expect(!store.isRejected)
+        #expect(store.fileType == .image(mimeType: "image/png"))
+        #expect(store.content == data.base64EncodedString())
 
         store.close()
     }
