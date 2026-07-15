@@ -25,8 +25,8 @@ struct ViewerWebView: NSViewRepresentable {
     let onScrollPositionChanged: @MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void
     /// JS 側で倍率が変わったときに呼ばれる。
     let onZoomChanged: @MainActor (Double) -> Void
-    /// JS 側「続きを読み込む」押下時に呼ばれ、次チャンクと更新後の表示状態を返す。
-    let onLoadMoreLines: @MainActor () -> (chunk: String, isTruncated: Bool, lineCount: Int)?
+    /// JS 側「続きを読み込む」押下時に呼ばれ、次チャンクと更新後の表示状態を非同期で返す。
+    let onLoadMoreLines: @MainActor () async -> (chunk: String, isTruncated: Bool, lineCount: Int)?
     /// リンクやパス参照がアクティベートされたときに呼ばれる。
     /// パラメータ: href, newWindow
     let onOpenReference: @MainActor (_ href: String, _ newWindow: Bool) -> Void
@@ -205,7 +205,10 @@ struct ViewerWebView: NSViewRepresentable {
         var onZoomChanged: (@MainActor (Double) -> Void)?
         var onScrollPositionChanged: (@MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void)?
         var onOpenReference: (@MainActor (_ href: String, _ newWindow: Bool) -> Void)?
-        var onLoadMoreLines: (@MainActor () -> (chunk: String, isTruncated: Bool, lineCount: Int)?)?
+        var onLoadMoreLines: (@MainActor () async -> (chunk: String, isTruncated: Bool, lineCount: Int)?)?
+        /// 「続きを読み込む」の実行中フラグ。非同期読み込み中の再押下を無視し、
+        /// 追記の交錯(順序の入れ替わり)を防ぐ。
+        private var isLoadingMoreLines = false
         /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
         var findOptionsPreference: FindOptionsPreference?
         /// updateNSView から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
@@ -267,39 +270,47 @@ struct ViewerWebView: NSViewRepresentable {
             }
         }
 
-        /// JS 側「続きを読み込む」押下時に次チャンクを取得し、キャッシュ更新と描画を行う。
+        /// JS 側「続きを読み込む」押下時に次チャンクを非同期で取得し、キャッシュ更新と描画を行う。
+        /// 読み込み中の再押下は isLoadingMoreLines で無視し、追記の交錯を防ぐ。
         @MainActor
         private func handleLoadMoreLines() {
-            guard let result = onLoadMoreLines?(), let webView else { return }
-            // 連結代入は蓄積済み文字列全体をコピーする(クリックごとに O(n))ため、
-            // in-place の append で追記する。
-            if lastRenderedContent == nil { lastRenderedContent = "" }
-            lastRenderedContent?.append(result.chunk)
-            lastIsTruncated = result.isTruncated
-            lastTruncatedLineCount = result.isTruncated ? result.lineCount : 0
+            guard !isLoadingMoreLines else { return }
+            isLoadingMoreLines = true
+            Task { @MainActor [self] in
+                defer { isLoadingMoreLines = false }
+                guard let result = await onLoadMoreLines?(), let webView else { return }
+                // 連結代入は蓄積済み文字列全体をコピーする(クリックごとに O(n))ため、
+                // in-place の append で追記する。
+                if lastRenderedContent == nil { lastRenderedContent = "" }
+                lastRenderedContent?.append(result.chunk)
+                lastIsTruncated = result.isTruncated
+                lastTruncatedLineCount = result.isTruncated ? result.lineCount : 0
 
-            // ソース表示でも .code は render() がレンダリング表示と同一の描画をするため
-            // 追記で足りる。CSV のソース表示(レインボー表示)だけは描画が異なるため、
-            // 蓄積済みコンテンツ全体を再描画する。
-            if lastIsSourceMode == true, lastRenderedFileType?.csvDelimiter != nil {
-                guard let script = ViewerBridge.renderScript(
-                    content: Self.renderableContent(
-                        lastRenderedContent ?? "",
-                        fileType: lastRenderedFileType ?? .code(language: "plaintext"),
-                        filePath: lastRenderedFilePath, isSourceMode: true
-                    ),
+                // ソース表示でも .code は render() がレンダリング表示と同一の描画をするため
+                // 追記で足りる。CSV のソース表示(レインボー表示)だけは描画が異なるため、
+                // 蓄積済みコンテンツ全体を再描画する。
+                if lastIsSourceMode == true, lastRenderedFileType?.csvDelimiter != nil {
+                    guard let script = ViewerBridge.renderScript(
+                        content: Self.renderableContent(
+                            lastRenderedContent ?? "",
+                            fileType: lastRenderedFileType ?? .code(language: "plaintext"),
+                            filePath: lastRenderedFilePath, isSourceMode: true
+                        ),
+                        fileType: lastRenderedFileType ?? .code(language: "plaintext")
+                    ) else { return }
+                    // async コンテキストでは待つ必要のない fire-and-forget 版を明示する。
+                    webView.evaluateJavaScript(script, completionHandler: nil)
+                } else if let script = ViewerBridge.appendChunkScript(
+                    chunk: result.chunk,
                     fileType: lastRenderedFileType ?? .code(language: "plaintext")
-                ) else { return }
-                webView.evaluateJavaScript(script)
-            } else if let script = ViewerBridge.appendChunkScript(
-                chunk: result.chunk,
-                fileType: lastRenderedFileType ?? .code(language: "plaintext")
-            ) {
-                webView.evaluateJavaScript(script)
+                ) {
+                    webView.evaluateJavaScript(script, completionHandler: nil)
+                }
+                webView.evaluateJavaScript(
+                    ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount),
+                    completionHandler: nil
+                )
             }
-            webView.evaluateJavaScript(
-                ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount)
-            )
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

@@ -1,22 +1,24 @@
 import Foundation
 
 /// テキストを行単位のチャンクで逐次読み込む抽象(テストでの差し替え用)。
-public protocol ChunkedTextReading: AnyObject {
-    var isAtEnd: Bool { get }
-    func readNextChunk() throws -> String
+/// AnyObject 要件は呼び出し側がセッションの同一性比較(===)に使う。
+public protocol ChunkedTextReading: AnyObject, Sendable {
+    /// 次のチャンクと、読み終えたかどうかを返す。
+    func readNextChunk() async throws -> (text: String, isAtEnd: Bool)
 }
 
-/// ファイルを行単位のチャンク(既定 1000 行 / 最大 4MB)で逐次読み込む。
+/// ファイルを行単位のチャンク(既定 1000 行 / 最大 4MB)で逐次読み込む actor。
+/// I/O・デコードを呼び出し元のアクター(メインスレッド)から切り離して実行する。
 /// チャンクセッションは UTF-8(ASCII 含む)専用とする。UTF-16 / UTF-32 のような
 /// 行境界をバイト位置で確定できないエンコーディングに加え、Shift_JIS / EUC-JP 等の
 /// レガシーエンコーディングも(強制分割時に文字境界を保証できないため)
 /// 初期化時に `TextEncodingError.unsupportedForChunking` を投げ、
 /// 呼び出し側の全量読み込みフォールバックに委ねる。
-public final class LineChunkReader: ChunkedTextReading {
+public actor LineChunkReader: ChunkedTextReading {
     public static let linesPerChunk = 1000
     public static let maxChunkBytes = 4 * 1024 * 1024
 
-    public private(set) var isAtEnd = false
+    private var isAtEnd = false
 
     private let handle: FileHandle
     private let encoding: String.Encoding
@@ -32,6 +34,9 @@ public final class LineChunkReader: ChunkedTextReading {
     /// - Parameter respectsCSVQuotes: true の場合、RFC 4180 の引用符状態を追跡し、
     ///   引用フィールド内の改行をチャンク分割候補として数えない
     ///   (JS 側の CSV トークナイザがチャンク単体でパースしても壊れないようにする)。
+    ///
+    /// nonisolated な同期 init のため、格納済みプロパティの読み出しはできない。
+    /// エンコーディング判定はローカル値で行い、最後に書き込みだけを行う。
     public init(url: URL, respectsCSVQuotes: Bool = false) throws {
         self.respectsCSVQuotes = respectsCSVQuotes
         let handle = try FileHandle(forReadingFrom: url)
@@ -58,34 +63,38 @@ public final class LineChunkReader: ChunkedTextReading {
             ? TextEncoding.trimIncompleteUTF8Tail(probe)
             : probe
 
+        let detectedEncoding: String.Encoding
+        let detectedBomLength: Int
         if let bom = TextEncoding.detectBOM(detectionProbe) {
-            encoding = bom.encoding
-            bomLength = bom.bomLength
+            detectedEncoding = bom.encoding
+            detectedBomLength = bom.bomLength
         } else if let detected = TextEncoding.detectEncoding(detectionProbe) {
-            encoding = detected
-            bomLength = 0
+            detectedEncoding = detected
+            detectedBomLength = 0
         } else {
-            encoding = .utf8
-            bomLength = 0
+            detectedEncoding = .utf8
+            detectedBomLength = 0
         }
 
         // UTF-8 以外は強制分割時に文字境界を保証できないため、チャンク読み込みの
         // 対象外として全量読み込みへフォールバックさせる。
-        guard encoding == .utf8 || encoding == .ascii else {
+        guard detectedEncoding == .utf8 || detectedEncoding == .ascii else {
             try? handle.close()
             throw TextEncodingError.unsupportedForChunking
         }
 
-        offset = UInt64(bomLength)
-        try handle.seek(toOffset: offset)
+        try handle.seek(toOffset: UInt64(detectedBomLength))
+        encoding = detectedEncoding
+        bomLength = detectedBomLength
+        offset = UInt64(detectedBomLength)
     }
 
     deinit {
         try? handle.close()
     }
 
-    public func readNextChunk() throws -> String {
-        guard !isAtEnd else { return "" }
+    public func readNextChunk() throws -> (text: String, isAtEnd: Bool) {
+        guard !isAtEnd else { return ("", true) }
 
         var buffer = remainder
         remainder = Data()
@@ -96,7 +105,7 @@ public final class LineChunkReader: ChunkedTextReading {
 
         if buffer.isEmpty {
             isAtEnd = true
-            return ""
+            return ("", true)
         }
 
         let filledBuffer = buffer.count >= Self.maxChunkBytes
@@ -145,7 +154,7 @@ public final class LineChunkReader: ChunkedTextReading {
         guard let text = String(data: chunkData, encoding: encoding) else {
             throw TextEncodingError.decodeFailed
         }
-        return text
+        return (text, isAtEnd)
     }
 
     /// 次の 1 バイトを覗いて末尾かを判定する。読めたバイトは remainder に戻す。

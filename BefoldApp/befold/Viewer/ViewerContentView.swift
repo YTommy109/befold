@@ -43,7 +43,7 @@ struct ViewerContentView: View {
                 onScrollPositionChanged: onScrollPositionChanged,
                 onZoomChanged: onZoomChanged,
                 onLoadMoreLines: {
-                    store.loadMoreLines()
+                    await store.loadMoreLines()
                 },
                 onOpenReference: onOpenReference,
                 findOptionsPreference: findOptionsPreference,

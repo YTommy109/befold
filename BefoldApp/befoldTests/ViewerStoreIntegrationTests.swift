@@ -27,6 +27,9 @@ struct ViewerStoreIntegrationTests {
         let firedCount = LockedBox(0)
         store.onFileGone = { firedCount.update { $0 += 1 } }
         store.openFile(file)
+        // 読み込みは非同期のため、初回読み込みの完了を待ってから後続の書き換え検知に進む。
+        await store.loadTask?.value
+        #expect(store.content == "graph TD; A-->B")
         #expect(firedCount.get() == 0)
 
         // 削除は一度きり（エッジトリガー）で再実行できず、kevent 登録は resume 後に
@@ -57,6 +60,8 @@ struct ViewerStoreIntegrationTests {
 
         let store = ViewerStore(watcherFactory: Self.fastWatcherFactory())
         store.openFile(file)
+        // 読み込みは非同期のため、完了を待ってから検証する。
+        await store.loadTask?.value
         #expect(store.content == "graph TD; A-->B")
 
         // 実ファイルを編集 → デバウンス後に content が更新される。
@@ -79,6 +84,8 @@ struct ViewerStoreIntegrationTests {
 
         let store = ViewerStore(watcherFactory: Self.fastWatcherFactory())
         store.openFile(file)
+        // 読み込みは非同期のため、完了を待ってから検証する。
+        await store.loadTask?.value
         #expect(store.content == "graph TD; A-->B")
 
         store.close()

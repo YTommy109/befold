@@ -86,44 +86,48 @@ struct LineChunkReaderTests {
         (0 ..< count).map { "line \($0)" }.joined(separator: "\n") + "\n"
     }
 
-    private func readAll(_ reader: LineChunkReader) throws -> (chunks: [String], joined: String) {
+    /// 末尾(isAtEnd)に達するまで readNextChunk を繰り返し、チャンク列と結合結果を返す。
+    private func readAll(_ reader: LineChunkReader) async throws -> (chunks: [String], joined: String) {
         var chunks: [String] = []
-        while !reader.isAtEnd {
-            let chunk = try reader.readNextChunk()
-            chunks.append(chunk)
+        while true {
+            let (text, isAtEnd) = try await reader.readNextChunk()
+            if !text.isEmpty {
+                chunks.append(text)
+            }
+            if isAtEnd {
+                return (chunks, chunks.joined())
+            }
         }
-        return (chunks, chunks.joined())
     }
 
     @Test("500 行のファイルは 1 チャンクで完了する")
-    func smallFileCompletesInOneChunk() throws {
+    func smallFileCompletesInOneChunk() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let text = makeLines(500)
         let file = try tmp.file(named: "small.txt", contents: text)
 
         let reader = try LineChunkReader(url: file)
-        let (chunks, joined) = try readAll(reader)
+        let (chunks, joined) = try await readAll(reader)
         #expect(chunks.count == 1)
         #expect(joined == text)
-        #expect(reader.isAtEnd)
     }
 
     @Test("2500 行のファイルは 3 チャンクに分割され原文を再構成する")
-    func largeFileSplitsIntoChunks() throws {
+    func largeFileSplitsIntoChunks() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let text = makeLines(2500)
         let file = try tmp.file(named: "large.txt", contents: text)
 
         let reader = try LineChunkReader(url: file)
-        let (chunks, joined) = try readAll(reader)
+        let (chunks, joined) = try await readAll(reader)
         #expect(chunks.count == 3)
         #expect(joined == text)
     }
 
     @Test("UTF-8 BOM ファイルを正しく読める")
-    func utf8BomFile() throws {
+    func utf8BomFile() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let text = "こんにちは\n世界"
@@ -131,7 +135,7 @@ struct LineChunkReaderTests {
         let file = try tmp.file(named: "bom.txt", data: data)
 
         let reader = try LineChunkReader(url: file)
-        let (_, joined) = try readAll(reader)
+        let (_, joined) = try await readAll(reader)
         #expect(joined == text)
     }
 
@@ -161,7 +165,7 @@ struct LineChunkReaderTests {
     }
 
     @Test("先頭 8192 バイト目がマルチバイト文字を跨いでも UTF-8 と判定して読める")
-    func probeBoundaryInsideMultibyteCharStillDetectsUTF8() throws {
+    func probeBoundaryInsideMultibyteCharStillDetectsUTF8() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         // 8191 バイトの ASCII の直後に 3 バイト文字「あ」を置くと、
@@ -170,25 +174,25 @@ struct LineChunkReaderTests {
         let file = try tmp.file(named: "boundary.txt", contents: text)
 
         let reader = try LineChunkReader(url: file)
-        let (_, joined) = try readAll(reader)
+        let (_, joined) = try await readAll(reader)
         #expect(joined == text)
     }
 
     @Test("maxChunkBytes を超える改行なし単一行は強制分割される")
-    func noNewlineForceSplitAtMaxBytes() throws {
+    func noNewlineForceSplitAtMaxBytes() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let text = String(repeating: "A", count: LineChunkReader.maxChunkBytes + 1000)
         let file = try tmp.file(named: "oneline.txt", contents: text)
 
         let reader = try LineChunkReader(url: file)
-        let (chunks, joined) = try readAll(reader)
+        let (chunks, joined) = try await readAll(reader)
         #expect(chunks.count >= 2)
         #expect(joined == text)
     }
 
     @Test("UTF-8 マルチバイト境界で有効な UTF-8 チャンクに分割する")
-    func utf8MultibyteBoundary() throws {
+    func utf8MultibyteBoundary() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         // maxChunkBytes 直前にマルチバイト文字が跨る位置を作る。
@@ -197,37 +201,38 @@ struct LineChunkReaderTests {
         let file = try tmp.file(named: "multibyte.txt", contents: text)
 
         let reader = try LineChunkReader(url: file)
-        let (_, joined) = try readAll(reader)
+        let (_, joined) = try await readAll(reader)
         #expect(joined == text)
     }
 
     @Test("空ファイルは空文字列と isAtEnd を返す")
-    func emptyFile() throws {
+    func emptyFile() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "empty.txt", contents: "")
 
         let reader = try LineChunkReader(url: file)
-        #expect(reader.isAtEnd)
-        #expect(try reader.readNextChunk() == "")
+        let result = try await reader.readNextChunk()
+        #expect(result.text == "")
+        #expect(result.isAtEnd)
     }
 
-    @Test("ちょうど 1000 行のファイルは isAtEnd になる")
-    func exactly1000LinesIsAtEnd() throws {
+    @Test("ちょうど 1000 行のファイルは 1 チャンクで isAtEnd になる")
+    func exactly1000LinesIsAtEnd() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let text = makeLines(1000)
         let file = try tmp.file(named: "thousand.txt", contents: text)
 
         let reader = try LineChunkReader(url: file)
-        let (chunks, joined) = try readAll(reader)
+        let (chunks, joined) = try await readAll(reader)
         #expect(joined == text)
-        #expect(reader.isAtEnd)
-        #expect(chunks.allSatisfy { !$0.isEmpty })
+        // 末尾の空チャンクを追加で読まされることなく、1 回で isAtEnd に達する。
+        #expect(chunks.count == 1)
     }
 
     @Test("respectsCSVQuotes は引用フィールド内の改行をチャンク境界にしない")
-    func csvQuotedNewlineIsNotAChunkBoundary() throws {
+    func csvQuotedNewlineIsNotAChunkBoundary() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         // 999 行の通常行の後、1000 個目の改行が引用フィールド内に来るようにする。
@@ -237,7 +242,7 @@ struct LineChunkReaderTests {
         let file = try tmp.file(named: "quoted.csv", contents: text)
 
         let reader = try LineChunkReader(url: file, respectsCSVQuotes: true)
-        let (chunks, joined) = try readAll(reader)
+        let (chunks, joined) = try await readAll(reader)
         // チャンク境界は引用フィールドを跨がず、引用行末尾の(引用符外の)改行まで進む。
         #expect(chunks.count == 2)
         #expect(chunks[0].hasSuffix(quotedLine))
@@ -245,7 +250,7 @@ struct LineChunkReaderTests {
     }
 
     @Test("respectsCSVQuotes なしでは引用フィールド内の改行もチャンク境界になる")
-    func withoutCSVQuotesQuotedNewlineIsABoundary() throws {
+    func withoutCSVQuotesQuotedNewlineIsABoundary() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let normalLines = (0 ..< 999).map { "id\($0),value\($0)" }.joined(separator: "\n") + "\n"
@@ -253,21 +258,21 @@ struct LineChunkReaderTests {
         let file = try tmp.file(named: "naive.csv", contents: text)
 
         let reader = try LineChunkReader(url: file)
-        let (chunks, joined) = try readAll(reader)
+        let (chunks, joined) = try await readAll(reader)
         #expect(chunks.count == 2)
         #expect(chunks[0].hasSuffix("a,\"x\n"))
         #expect(joined == text)
     }
 
     @Test("3333 行の全チャンクを結合すると原文と一致する")
-    func chunksReconstructOriginal() throws {
+    func chunksReconstructOriginal() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let text = makeLines(3333)
         let file = try tmp.file(named: "many.txt", contents: text)
 
         let reader = try LineChunkReader(url: file)
-        let (_, joined) = try readAll(reader)
+        let (_, joined) = try await readAll(reader)
         #expect(joined == text)
     }
 }
