@@ -229,7 +229,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 | ズーム上下限・ステップ | `ZoomStore.minZoom` / `maxZoom` / `zoomStep` |
 | 不可視ファイル表示の共有状態 | `HiddenFilesPreference` インスタンス（AppDelegate が生成した 1 個を全ウィンドウで共有） |
 | 拡張子→FileType のマッピング | `FileType.typeByExtension`（`init(url:)` と `allExtensions` の双方がここから導出。拡張子追加は辞書への 1 行追加で完結する） |
-| BOM 検出（バイトパターン→エンコーディング） | `DefaultFileReader.detectBOM(_:)`（`decodeUnicodeText` と `hasUnicodeBOM` の双方がここに委譲） |
+| BOM 検出（バイトパターン→エンコーディング） | `TextEncoding.detectBOM(_:)`（`decodeText` と `isChunkableEncoding` の双方がここに委譲） |
 | ディレクトリ列挙（ソート・フィルタ込み） | `DirectoryLister.sortedContents(in:showHiddenFiles:)`（`listFiles` / `listEntries` / `firstSupportedFile` が委譲） |
 | Sparkle フィード URL | `UpdateChannel.feedURLString`（`SPUUpdaterDelegate.feedURLString(for:)` 経由で Sparkle に提供。Info.plist の `SUFeedURL` は使用しない） |
 

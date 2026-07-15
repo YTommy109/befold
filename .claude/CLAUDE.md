@@ -13,7 +13,7 @@ befold.app (Swift / AppKit + SwiftUI)
   ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
   ├── ViewerStore        # @Observable 表示状態（content / rejectReason / isTruncated、FileReading で読込を抽象化）
   └── ViewerWebView      # WKWebView（NSViewRepresentable）
-        ├── 同梱アセット（viewer.html / mermaid.min.js / markdown-it.min.js / style.css）
+        ├── 同梱アセット（viewer.html / viewer.js / mermaid.min.js / markdown-it.min.js / style.css）
         └── JS ブリッジ: ViewerBridge 経由で evaluateJavaScript("render(content, type)")
 ```
 
@@ -38,7 +38,7 @@ BefoldApp/
 │   ├── Viewer/              # ViewerStore, ViewerWebView, ViewerContentView, FileType
 │   ├── FileWatching/        # FileWatcher, Debouncer
 │   ├── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
-│   └── Resources/           # viewer.html, style.css, mermaid.min.js, markdown-it.min.js
+│   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js
 ├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver）
 └── befoldTests/            # Swift Testing テスト
 ```
