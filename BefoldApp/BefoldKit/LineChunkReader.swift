@@ -127,6 +127,16 @@ public actor LineChunkReader: ChunkedTextReading {
                     splitIndex = buffer.index(after: index)
                     break
                 }
+            } else if byte == 0x0D, !quoted {
+                // CR のみ改行(CRLF は 0x0A 分岐で処理済み)。
+                let nextIndex = buffer.index(after: index)
+                if nextIndex >= buffer.endIndex || buffer[nextIndex] != 0x0A {
+                    lineCount += 1
+                    if lineCount >= Self.linesPerChunk {
+                        splitIndex = nextIndex
+                        break
+                    }
+                }
             }
         }
         // 分割位置で break した場合は引用符外の改行直後なので quoted は false。

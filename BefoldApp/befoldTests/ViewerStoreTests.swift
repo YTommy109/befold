@@ -643,29 +643,25 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
-    @Test("チャンク読み込みエラー時は nil を返し、全量デコードフォールバックで回復する")
-    func loadMoreLinesErrorRecoversViaReload() async {
+    @Test("チャンク読み込みエラー時は nil を返し、表示済みコンテンツを保持してセッションを終了する")
+    func loadMoreLinesErrorKeepsContentAndStops() async {
         let file = URL(fileURLWithPath: "/files/data.csv")
         let reader = InMemoryFileReader()
         reader.setFile("first\nsecond", at: file)
-        let callCount = LockedBox(0)
         let store = makeStore(
             reader: reader,
             chunkedReaderFactory: { _, _ in
-                callCount.update { $0 += 1 }
-                return FailingSecondChunkReader(firstChunk: "old\n")
+                FailingSecondChunkReader(firstChunk: "old\n")
             }
         )
         await openAndLoad(store, file)
         #expect(store.content == "old\n")
         #expect(store.isTruncated == true)
 
-        // 2 回目の読み込みが TextEncodingError で失敗 → forceFullDecode で回復。
-        // chunkedReaderFactory は再呼出されず、全量デコード→DecodedTextChunkReader で配信。
+        // 2 回目の読み込みが TextEncodingError で失敗 → 表示済みコンテンツを保持し
+        // セッション終了。10MB 超ファイルで fileTooLarge に置き換わることを防ぐ。
         #expect(await store.loadMoreLines() == nil)
-        await awaitLoad(store)
-        #expect(callCount.get() == 1)
-        #expect(store.content == "first\nsecond")
+        #expect(store.content == "old\n")
         #expect(store.isTruncated == false)
 
         store.close()

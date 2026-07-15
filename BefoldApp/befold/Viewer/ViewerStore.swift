@@ -151,20 +151,16 @@ final class ViewerStore {
             guard chunkSession === session else { return nil }
             content += result.text
             isTruncated = !result.isAtEnd
-            newlineCount += result.text.count(where: { $0 == "\n" })
+            newlineCount += result.text.utf8.count(where: { $0 == 0x0A })
             updateDisplayedLineCount()
             return (result.text, isTruncated, displayedLineCount)
         } catch {
-            // セッションが既に交代していれば、進行中の新しい読み込みに任せる。
             guard chunkSession === session else { return nil }
-            // セッション途中の読み込み・復号エラーは同じセッションでは回復できないため、
-            // 全体を再読込して整合した状態(新しいチャンクセッション、または
-            // フォールバック/非対応表示)を作り直す。「続きを読み込む」ボタンが
-            // 死んだまま残ることを防ぐ。
-            // TextEncodingError は先頭プローブと実際のエンコーディングが不一致(例:
-            // ASCII ヘッダ + 日本語本文の Shift_JIS)のため、再プローブしても同じ
-            // 結果になる。全量デコードフォールバックを強制する。
-            loadContent(forceFullDecode: error is TextEncodingError)
+            // セッション途中のエラーではチャンクセッションを終了し、
+            // 表示済みの内容を保持する。loadContent で全体を再読込すると、
+            // 10MB 超のファイルで表示済みコンテンツが fileTooLarge に置き換わるため。
+            chunkSession = nil
+            isTruncated = false
             return nil
         }
     }
@@ -173,7 +169,7 @@ final class ViewerStore {
     /// 末尾が改行で終わらない場合、その途中の行(強制分割チャンク末尾・最終行)も
     /// 表示中の 1 行として数える(改行なしの巨大単一行が「0 行」と表示されないように)。
     private func updateDisplayedLineCount() {
-        displayedLineCount = newlineCount + (!content.isEmpty && !content.hasSuffix("\n") ? 1 : 0)
+        displayedLineCount = newlineCount + (!content.isEmpty && content.utf8.last != 0x0A ? 1 : 0)
     }
 
     /// 現在の filePath の読み込みを予約する。I/O・デコードはバックグラウンドで行い、
@@ -250,9 +246,8 @@ final class ViewerStore {
                     return .rejected(.unsupportedFormat)
                 }
             }
-            if let decoded = decodeFullFile(
-                resolved: resolved, fileReader: fileReader
-            ) {
+            switch contentLoader.loadDecodedText(from: resolved) {
+            case let .success(decoded):
                 let reader = DecodedTextChunkReader(
                     text: decoded,
                     respectsCSVQuotes: fileType.csvDelimiter != nil
@@ -263,23 +258,11 @@ final class ViewerStore {
                     firstChunk: firstChunk.text,
                     isAtEnd: firstChunk.isAtEnd
                 )
+            case let .failure(reason):
+                return .rejected(reason)
             }
-            return .full(contentLoader.load(from: resolved, fileType: fileType))
         }
         return .full(contentLoader.load(from: resolved, fileType: fileType))
-    }
-
-    /// テキスト系のサイズ上限内であることを確認したうえで、
-    /// エンコーディング判定・BOM 除去を含む復号を TextEncoding.decodeText に委ねる。
-    private nonisolated static func decodeFullFile(
-        resolved: URL, fileReader: any FileReading
-    ) -> String? {
-        guard let size = fileReader.fileSize(at: resolved),
-              size <= ContentLoader.maxTextFileSizeBytes,
-              !fileReader.isBinary(at: resolved),
-              let data = try? fileReader.readData(from: resolved)
-        else { return nil }
-        return TextEncoding.decodeText(data)
     }
 
     /// 読み込み結果を表示状態(content / rejectReason / isTruncated / 行数カウンタ /
@@ -294,7 +277,7 @@ final class ViewerStore {
             rejectReason = nil
             isTruncated = !isAtEnd
             content = firstChunk
-            newlineCount = firstChunk.count(where: { $0 == "\n" })
+            newlineCount = firstChunk.utf8.count(where: { $0 == 0x0A })
             updateDisplayedLineCount()
         case let .full(loaded):
             chunkSession = nil

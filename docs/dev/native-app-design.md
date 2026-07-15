@@ -19,7 +19,7 @@ befold.app (Swift 6 / AppKit + SwiftUI, macOS 14+)
   │     ├── SessionRestorer          # 前回セッションのウィンドウ/タブ構成の保存・復元
   │     └── UpdateCheckCoordinator   # 更新チェックの実行と表示ポリシー
   ├── FileWatcher                # DispatchSource によるファイル監視（0.2s デバウンス）
-  ├── ViewerStore                # @Observable 表示状態（content / isUnsupported）
+  ├── ViewerStore                # @Observable 表示状態（content / rejectReason / isTruncated）
   ├── ViewerWebView               # WKWebView（NSViewRepresentable）
   └── Updates/                    # GitHub Releases 経由の自動アップデート（自前実装）
 ```
