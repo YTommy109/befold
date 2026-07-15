@@ -13,12 +13,10 @@ public struct ContentLoader: Sendable {
     public struct LoadedContent: Sendable, Equatable {
         public let rejectReason: RejectReason?
         public let content: String
-        public let isTruncated: Bool
 
-        public init(rejectReason: RejectReason?, content: String, isTruncated: Bool = false) {
+        public init(rejectReason: RejectReason?, content: String) {
             self.rejectReason = rejectReason
             self.content = content
-            self.isTruncated = isTruncated
         }
     }
 
@@ -47,11 +45,5 @@ public struct ContentLoader: Sendable {
                 content: (try? fileReader.readString(from: resolved)) ?? ""
             )
         }
-    }
-
-    /// 行指向ファイルのチャンク読み込みセッションを開く。
-    public func openChunked(from url: URL) throws -> LineChunkReader {
-        let resolved = url.resolvingSymlinksInPath()
-        return try LineChunkReader(url: resolved)
     }
 }

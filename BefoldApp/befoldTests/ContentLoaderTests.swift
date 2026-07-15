@@ -15,7 +15,6 @@ struct ContentLoaderTests {
         let result = loader.load(from: file, fileType: .code(language: "plaintext"))
         #expect(result.rejectReason == nil)
         #expect(result.content == "hello")
-        #expect(!result.isTruncated)
     }
 
     @Test("サイズ超過ファイルは fileTooLarge")
@@ -53,29 +52,5 @@ struct ContentLoaderTests {
         let result = loader.load(from: file, fileType: .image(mimeType: "image/png"))
         #expect(result.rejectReason == nil)
         #expect(result.content == data.base64EncodedString())
-    }
-
-    @Test("openChunked は行指向ファイルの LineChunkReader を返す")
-    func openChunkedReturnsReader() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "data.csv", contents: "a,b\n1,2\n3,4")
-
-        let reader = try loader.openChunked(from: file)
-        let chunk = try reader.readNextChunk()
-        #expect(chunk == "a,b\n1,2\n3,4")
-        #expect(reader.isAtEnd)
-    }
-
-    @Test("openChunked は UTF-16 ファイルで unsupportedForChunking を throw する")
-    func openChunkedThrowsForUtf16() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let data = Data([0xFF, 0xFE, 0x41, 0x00, 0x0A, 0x00])
-        let file = try tmp.file(named: "utf16.csv", data: data)
-
-        #expect(throws: TextEncodingError.unsupportedForChunking) {
-            try loader.openChunked(from: file)
-        }
     }
 }

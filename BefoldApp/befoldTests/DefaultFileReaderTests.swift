@@ -128,15 +128,4 @@ struct DefaultFileReaderTests {
         let reader = DefaultFileReader()
         #expect(try reader.readString(from: file) == text)
     }
-
-    @Test("readString(maxBytes:) は指定バイト以内で改行境界で切断する")
-    func readStringWithMaxBytesTruncatesAtNewline() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let text = "line1\nline2\nline3\nline4\n"
-        let file = try tmp.file(named: "lines.txt", contents: text)
-
-        let result = try DefaultFileReader().readString(from: file, maxBytes: 15)
-        #expect(result == "line1\nline2\n")
-    }
 }

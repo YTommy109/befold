@@ -31,6 +31,9 @@ const {
   CSV_COL_COUNT,
   isSafeLinkURL,
   buildFindRegExp,
+  buildLineNumberRows,
+  csvRowsHtml,
+  codeChunkInnerHtml,
 } = require('../../../BefoldKit/Resources/viewer');
 
 describe('clampZoom', () => {
@@ -854,5 +857,91 @@ describe('buildFindRegExp', () => {
   test('returned RegExp always has the global flag set', () => {
     const re = buildFindRegExp('cat', { caseSensitive: true, wholeWord: false, useRegex: false });
     expect(re.global).toBe(true);
+  });
+});
+
+describe('buildLineNumberRows', () => {
+  test('numbers rows from startLine', () => {
+    const rows = buildLineNumberRows('a\nb', 42);
+    expect(rows).toContain('<td class="line-number">42</td><td class="line-content">a</td>');
+    expect(rows).toContain('<td class="line-number">43</td><td class="line-content">b</td>');
+  });
+
+  test('multi-line span spanning 3 lines is closed and reopened per row starting at 42', () => {
+    const rows = buildLineNumberRows('<span class="hljs-comment">/*\nbody\n*/</span>', 42);
+    expect(rows).toContain(
+      '<tr><td class="line-number">42</td><td class="line-content"><span class="hljs-comment">/*</span></td></tr>'
+    );
+    expect(rows).toContain(
+      '<tr><td class="line-number">43</td><td class="line-content"><span class="hljs-comment">body</span></td></tr>'
+    );
+    expect(rows).toContain(
+      '<tr><td class="line-number">44</td><td class="line-content"><span class="hljs-comment">*/</span></td></tr>'
+    );
+    // 各行のセルは自己完結: 行ごとに open と close の数が一致する
+    const cells = rows.match(/<td class="line-content">.*?<\/td>/g);
+    for (const cell of cells) {
+      const opens = (cell.match(/<span\b/g) || []).length;
+      const closes = (cell.match(/<\/span>/g) || []).length;
+      expect(opens).toBe(closes);
+    }
+  });
+
+  test('drops a single trailing empty line (highlight.js trailing newline)', () => {
+    const rows = buildLineNumberRows('a\nb\n', 1);
+    expect((rows.match(/<tr>/g) || []).length).toBe(2);
+  });
+
+  test('wrapWithLineNumbers equals code-table wrapper around buildLineNumberRows from line 1', () => {
+    const input = '<span class="x">a\nb</span>\nplain';
+    expect(wrapWithLineNumbers(input)).toBe(
+      '<table class="code-table">' + buildLineNumberRows(input, 1) + '</table>'
+    );
+  });
+});
+
+describe('csvRowsHtml', () => {
+  test('builds tr/td rows and pads short rows up to minCols', () => {
+    const html = csvRowsHtml([['a', 'b'], ['c']], 3);
+    expect(html).toBe(
+      '<tr><td>a</td><td>b</td><td></td></tr>'
+      + '<tr><td>c</td><td></td><td></td></tr>'
+    );
+  });
+
+  test('a row longer than minCols keeps all its cells', () => {
+    const html = csvRowsHtml([['a', 'b', 'c']], 2);
+    expect(html).toBe('<tr><td>a</td><td>b</td><td>c</td></tr>');
+  });
+
+  test('escapes HTML special characters in cells', () => {
+    const html = csvRowsHtml([['<b>', 'a&b', '"q"']], 0);
+    expect(html).toBe('<tr><td>&lt;b&gt;</td><td>a&amp;b</td><td>&quot;q&quot;</td></tr>');
+  });
+
+  test('empty rows array produces empty string', () => {
+    expect(csvRowsHtml([], 3)).toBe('');
+  });
+});
+
+describe('codeChunkInnerHtml', () => {
+  const hljs = require('highlight.js');
+
+  test('strips the pre/code wrapper from highlighted output', () => {
+    const inner = codeChunkInnerHtml(hljs, 'const x = 1;', 'javascript');
+    expect(inner).not.toMatch(/<pre>|<code|<\/code>|<\/pre>/);
+    expect(inner).toContain('hljs-keyword');
+    expect(inner).toBe(
+      highlightCode(hljs, 'const x = 1;', 'javascript')
+        .replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '')
+    );
+  });
+
+  test('falls back to escapeHtml when hljs is unavailable', () => {
+    expect(codeChunkInnerHtml(null, '<b> & "x"', 'javascript')).toBe('&lt;b&gt; &amp; &quot;x&quot;');
+  });
+
+  test('falls back to escapeHtml when the language is unknown', () => {
+    expect(codeChunkInnerHtml(hljs, 'a < b', 'no-such-lang')).toBe('a &lt; b');
   });
 });

@@ -852,6 +852,49 @@
     if (!e.isTrusted) return;
     _mmdLoadMore();
   });
+
+  // 追加読み込みされたチャンクを既存 DOM に追記する(Swift の ViewerBridge から呼ばれる)。
+  // HTML 組み立ては viewer.js の純粋関数(csvRowsHtml / buildLineNumberRows /
+  // codeChunkInnerHtml)に委ね、ここでは DOM 挿入のみ行う。パス注釈は追記した行だけを
+  // _walkTextNodes で処理し、追記コストを O(チャンク) に抑える。
+  function appendChunk(text, type, lang) {
+    var diagramWrap = document.getElementById('diagram-wrap');
+    if (!diagramWrap) { return; }
+    if (type === 'csv') {
+      var csvRows = parseCsv(text, lang || ',');
+      var tbody = diagramWrap.querySelector('tbody');
+      if (!tbody) { return; }
+      var table = tbody.parentElement;
+      var headRow = table.tHead && table.tHead.rows[0];
+      var minCols = headRow ? headRow.cells.length : 0;
+      var firstNew = tbody.rows.length;
+      tbody.insertAdjacentHTML('beforeend', csvRowsHtml(csvRows, minCols));
+      for (var r = firstNew; r < tbody.rows.length; r++) {
+        _walkTextNodes(tbody.rows[r], false);
+      }
+    } else {
+      var codeEl = diagramWrap.querySelector('pre code');
+      if (!codeEl) { return; }
+      var codeTable = codeEl.querySelector('table.code-table');
+      if (codeTable) {
+        // 行番号あり: 既存行数の続きから番号を振って行を追記する
+        // (末尾の空行除去は buildLineNumberRows 側で行われる)。
+        var startLine = codeTable.rows.length + 1;
+        var inner = codeChunkInnerHtml(window.hljs, text, lang);
+        var firstNewRow = codeTable.rows.length;
+        codeTable.insertAdjacentHTML('beforeend', buildLineNumberRows(inner, startLine));
+        for (var i = firstNewRow; i < codeTable.rows.length; i++) {
+          _walkTextNodes(codeTable.rows[i], false);
+        }
+      } else {
+        // 行番号なし: テキストノードが既存内容と結合しうるため、
+        // 追記分だけの注釈はできず全体を再注釈する(まれな経路)。
+        codeEl.insertAdjacentHTML('beforeend', codeChunkInnerHtml(window.hljs, text, lang));
+        _annotatePathRefs();
+      }
+    }
+    _mmdFindRefreshAfterRender();
+  }
   // PDF 表示用に生成した blob URL。再描画のたびに revoke してリークを防ぐ。
   var _pdfBlobUrl = null;
 

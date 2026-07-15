@@ -146,7 +146,7 @@ public enum FileType: Sendable, Equatable {
     public var isBinaryContent: Bool {
         switch self {
         case .image, .pdf: true
-        default: false
+        case .mmd, .markdown, .svg, .html, .csv, .code: false
         }
     }
 
@@ -170,7 +170,7 @@ public enum FileType: Sendable, Equatable {
     public var isLineOriented: Bool {
         switch self {
         case .csv, .code: true
-        default: false
+        case .mmd, .markdown, .svg, .html, .image, .pdf: false
         }
     }
 }

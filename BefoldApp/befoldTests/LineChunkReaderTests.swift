@@ -65,6 +65,19 @@ struct TextEncodingTests {
         let data = Data("hello".utf8) + Data([0x00]) + Data("world".utf8)
         #expect(!TextEncoding.isChunkableEncoding(data))
     }
+
+    @Test("trimIncompleteUTF8Tail は途中で切れたマルチバイト文字を切り詰める")
+    func trimIncompleteUTF8TailRemovesPartialCharacter() {
+        let full = Data("abcあ".utf8) // 「あ」は 3 バイト
+        // 「あ」の 1〜2 バイト目までで切れたデータは "abc" まで戻る
+        #expect(TextEncoding.trimIncompleteUTF8Tail(full.prefix(4)) == Data("abc".utf8))
+        #expect(TextEncoding.trimIncompleteUTF8Tail(full.prefix(5)) == Data("abc".utf8))
+        // 末尾のマルチバイト文字は完結していても保守的に切り詰める
+        // (切り落とした分は呼び出し側が remainder / 判定対象外として扱うため無害)
+        #expect(TextEncoding.trimIncompleteUTF8Tail(full) == Data("abc".utf8))
+        // ASCII で終わっていればそのまま
+        #expect(TextEncoding.trimIncompleteUTF8Tail(Data("abc".utf8)) == Data("abc".utf8))
+    }
 }
 
 @Suite(.serialized)
@@ -134,17 +147,27 @@ struct LineChunkReaderTests {
         }
     }
 
-    @Test("Shift_JIS(CP932)ファイルを正しく読める")
-    func cp932File() throws {
+    @Test("Shift_JIS ファイルは unsupportedForChunking を投げる(全量読み込みへフォールバックさせる)")
+    func shiftJISThrowsUnsupportedForChunking() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let text = "表示\n価格"
-        let cfEncoding = CFStringConvertEncodingToNSStringEncoding(
-            CFStringEncoding(CFStringEncodings.dosJapanese.rawValue)
-        )
-        let encoding = String.Encoding(rawValue: cfEncoding)
-        let data = try #require(text.data(using: encoding))
+        let data = try #require(text.data(using: .shiftJIS))
         let file = try tmp.file(named: "sjis.txt", data: data)
+
+        #expect(throws: TextEncodingError.unsupportedForChunking) {
+            _ = try LineChunkReader(url: file)
+        }
+    }
+
+    @Test("先頭 8192 バイト目がマルチバイト文字を跨いでも UTF-8 と判定して読める")
+    func probeBoundaryInsideMultibyteCharStillDetectsUTF8() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        // 8191 バイトの ASCII の直後に 3 バイト文字「あ」を置くと、
+        // 8192 バイトのプローブが「あ」の 1 バイト目で切れる。
+        let text = String(repeating: "A", count: 8191) + "あ日本語のテキスト\n続きの行\n"
+        let file = try tmp.file(named: "boundary.txt", contents: text)
 
         let reader = try LineChunkReader(url: file)
         let (_, joined) = try readAll(reader)
@@ -201,6 +224,39 @@ struct LineChunkReaderTests {
         #expect(joined == text)
         #expect(reader.isAtEnd)
         #expect(chunks.allSatisfy { !$0.isEmpty })
+    }
+
+    @Test("respectsCSVQuotes は引用フィールド内の改行をチャンク境界にしない")
+    func csvQuotedNewlineIsNotAChunkBoundary() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        // 999 行の通常行の後、1000 個目の改行が引用フィールド内に来るようにする。
+        let normalLines = (0 ..< 999).map { "id\($0),value\($0)" }.joined(separator: "\n") + "\n"
+        let quotedLine = "a,\"x\ny\",b\n"
+        let text = normalLines + quotedLine + "c,d\ne,f\n"
+        let file = try tmp.file(named: "quoted.csv", contents: text)
+
+        let reader = try LineChunkReader(url: file, respectsCSVQuotes: true)
+        let (chunks, joined) = try readAll(reader)
+        // チャンク境界は引用フィールドを跨がず、引用行末尾の(引用符外の)改行まで進む。
+        #expect(chunks.count == 2)
+        #expect(chunks[0].hasSuffix(quotedLine))
+        #expect(joined == text)
+    }
+
+    @Test("respectsCSVQuotes なしでは引用フィールド内の改行もチャンク境界になる")
+    func withoutCSVQuotesQuotedNewlineIsABoundary() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let normalLines = (0 ..< 999).map { "id\($0),value\($0)" }.joined(separator: "\n") + "\n"
+        let text = normalLines + "a,\"x\ny\",b\n"
+        let file = try tmp.file(named: "naive.csv", contents: text)
+
+        let reader = try LineChunkReader(url: file)
+        let (chunks, joined) = try readAll(reader)
+        #expect(chunks.count == 2)
+        #expect(chunks[0].hasSuffix("a,\"x\n"))
+        #expect(joined == text)
     }
 
     @Test("3333 行の全チャンクを結合すると原文と一致する")

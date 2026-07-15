@@ -12,7 +12,7 @@ final class ViewerStore {
         (@MainActor @Sendable (URL) -> Void)?
     ) -> FileWatching
 
-    typealias ChunkedReaderFactory = @MainActor @Sendable (URL) throws -> any ChunkedTextReading
+    typealias ChunkedReaderFactory = @MainActor @Sendable (URL, FileType) throws -> any ChunkedTextReading
 
     private(set) var content: String = ""
     private(set) var fileType: FileType = .mmd
@@ -53,6 +53,9 @@ final class ViewerStore {
     /// 段階読み込み中の行チャンクセッション。ファイル再読込・close でリセットする。
     private var chunkSession: (any ChunkedTextReading)?
 
+    /// 蓄積済み content に含まれる改行の数(displayedLineCount の増分計算用)。
+    @ObservationIgnored private var newlineCount: Int = 0
+
     private var fileWatcher: FileWatching?
     private let makeWatcher: WatcherFactory
     private let makeChunkedReader: ChunkedReaderFactory
@@ -91,8 +94,8 @@ final class ViewerStore {
         makeWatcher = watcherFactory ?? { url, onChange, onRename in
             FileWatcher(path: url, onChange: onChange, onRename: onRename)
         }
-        makeChunkedReader = chunkedReaderFactory ?? { url in
-            try LineChunkReader(url: url)
+        makeChunkedReader = chunkedReaderFactory ?? { url, fileType in
+            try LineChunkReader(url: url, respectsCSVQuotes: fileType.csvDelimiter != nil)
         }
         self.fileReader = fileReader
         contentLoader = ContentLoader(fileReader: fileReader)
@@ -130,13 +133,29 @@ final class ViewerStore {
     /// 末尾に達している・セッションがない場合は nil を返す。
     func loadMoreLines() -> (chunk: String, isTruncated: Bool, lineCount: Int)? {
         guard let session = chunkSession, !session.isAtEnd else { return nil }
-        guard let chunk = try? session.readNextChunk() else { return nil }
+        let chunk: String
+        do {
+            chunk = try session.readNextChunk()
+        } catch {
+            // セッション途中の読み込み・復号エラーは同じセッションでは回復できないため、
+            // 全体を再読込して整合した状態(新しいチャンクセッション、または
+            // フォールバック/非対応表示)を作り直す。「続きを読み込む」ボタンが
+            // 死んだまま残ることを防ぐ。
+            loadContent()
+            return nil
+        }
         content += chunk
         isTruncated = !session.isAtEnd
-        displayedLineCount += chunk.split(
-            separator: "\n", omittingEmptySubsequences: false
-        ).count
+        newlineCount += chunk.count(where: { $0 == "\n" })
+        updateDisplayedLineCount()
         return (chunk, isTruncated, displayedLineCount)
+    }
+
+    /// 蓄積済み content の改行数から表示行数を再計算する。
+    /// 末尾が改行で終わらない場合、その途中の行(強制分割チャンク末尾・最終行)も
+    /// 表示中の 1 行として数える(改行なしの巨大単一行が「0 行」と表示されないように)。
+    private func updateDisplayedLineCount() {
+        displayedLineCount = newlineCount + (!content.isEmpty && !content.hasSuffix("\n") ? 1 : 0)
     }
 
     private func loadContent() {
@@ -149,19 +168,19 @@ final class ViewerStore {
         fileGoneTask?.cancel()
         fileGoneTask = nil
         chunkSession = nil
+        newlineCount = 0
         displayedLineCount = 0
 
         if fileType.isLineOriented {
             do {
-                let reader = try makeChunkedReader(resolved)
+                let reader = try makeChunkedReader(resolved, fileType)
                 let firstChunk = try reader.readNextChunk()
                 chunkSession = reader
                 rejectReason = nil
                 isTruncated = !reader.isAtEnd
                 content = firstChunk
-                displayedLineCount = firstChunk.split(
-                    separator: "\n", omittingEmptySubsequences: false
-                ).count
+                newlineCount = firstChunk.count(where: { $0 == "\n" })
+                updateDisplayedLineCount()
             } catch is TextEncodingError {
                 // 行境界をバイト位置で確定できないエンコーディングは全量読み込みへフォールバックする。
                 loadFullContent(resolved: resolved)

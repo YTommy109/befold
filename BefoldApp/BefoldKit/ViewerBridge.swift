@@ -44,13 +44,21 @@ public enum ViewerBridge {
     /// ユーザー入力は混入しない。
     /// エンコードに失敗した場合は nil(呼び出し側は何もしない)。
     public static func renderScript(content: String, fileType: FileType) -> String? {
+        contentCallScript(function: "render", content: content, fileType: fileType)
+    }
+
+    /// fn(content, type[, lang]) 形式の JS 呼び出しを組み立てる共通実装。
+    /// renderScript / appendChunkScript が委譲する。
+    private static func contentCallScript(
+        function: String, content: String, fileType: FileType
+    ) -> String? {
         guard let jsonData = try? JSONEncoder().encode(content),
               let jsonString = String(data: jsonData, encoding: .utf8) else { return nil }
         guard let lang = fileType.renderLangArgument else {
-            return "render(\(jsonString), '\(fileType.jsValue)')"
+            return "\(function)(\(jsonString), '\(fileType.jsValue)')"
         }
         let escaped = lang == "\t" ? "\\t" : lang
-        return "render(\(jsonString), '\(fileType.jsValue)', '\(escaped)')"
+        return "\(function)(\(jsonString), '\(fileType.jsValue)', '\(escaped)')"
     }
 
     /// render() 呼び出しの直前に評価し、次に復元すべきスクロール位置(scrollTop)を
@@ -94,13 +102,7 @@ public enum ViewerBridge {
     /// content は JSONEncoder でエスケープし、JS インジェクションを防ぐ。
     /// エンコードに失敗した場合は nil(呼び出し側は何もしない)。
     public static func appendChunkScript(chunk: String, fileType: FileType) -> String? {
-        guard let jsonData = try? JSONEncoder().encode(chunk),
-              let jsonString = String(data: jsonData, encoding: .utf8) else { return nil }
-        guard let lang = fileType.renderLangArgument else {
-            return "appendChunk(\(jsonString), '\(fileType.jsValue)')"
-        }
-        let escaped = lang == "\t" ? "\\t" : lang
-        return "appendChunk(\(jsonString), '\(fileType.jsValue)', '\(escaped)')"
+        contentCallScript(function: "appendChunk", content: chunk, fileType: fileType)
     }
 
     /// ロード時にバナーのローカライズ済み文字列を JS 側へ注入するスクリプト。

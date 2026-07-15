@@ -222,6 +222,10 @@ struct ViewerWebView: NSViewRepresentable {
         private var lastShowLineNumbers: Bool?
         private var lastIsSourceMode: Bool?
         private var lastIsTruncated: Bool?
+        /// 最後に _mmdSetTruncated へ送った表示行数(非切り詰め時は 0 に正規化)。
+        /// 切り詰め状態のまま行数だけが変わる再読込(3000 行 → 1000 行など)でも
+        /// バナーを更新できるよう、isTruncated とセットで追跡する。
+        private var lastTruncatedLineCount: Int?
         private var isDirectHTMLMode = false
         private var lastDirectHTMLPath: URL?
 
@@ -259,30 +263,43 @@ struct ViewerWebView: NSViewRepresentable {
                 findOptionsPreference?.wholeWord = wholeWord
                 findOptionsPreference?.useRegex = useRegex
             } else if message.name == ViewerBridge.loadMoreLinesMessageName {
-                guard let result = onLoadMoreLines?(), let webView else { return }
-                lastRenderedContent = (lastRenderedContent ?? "") + result.chunk
-                lastIsTruncated = result.isTruncated
-
-                if lastIsSourceMode == true {
-                    guard let script = ViewerBridge.renderScript(
-                        content: Self.renderableContent(
-                            lastRenderedContent ?? "",
-                            fileType: lastRenderedFileType ?? .code(language: "plaintext"),
-                            filePath: lastRenderedFilePath, isSourceMode: true
-                        ),
-                        fileType: lastRenderedFileType ?? .code(language: "plaintext")
-                    ) else { return }
-                    webView.evaluateJavaScript(script)
-                } else if let script = ViewerBridge.appendChunkScript(
-                    chunk: result.chunk,
-                    fileType: lastRenderedFileType ?? .code(language: "plaintext")
-                ) {
-                    webView.evaluateJavaScript(script)
-                }
-                webView.evaluateJavaScript(
-                    ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount)
-                )
+                handleLoadMoreLines()
             }
+        }
+
+        /// JS 側「続きを読み込む」押下時に次チャンクを取得し、キャッシュ更新と描画を行う。
+        @MainActor
+        private func handleLoadMoreLines() {
+            guard let result = onLoadMoreLines?(), let webView else { return }
+            // 連結代入は蓄積済み文字列全体をコピーする(クリックごとに O(n))ため、
+            // in-place の append で追記する。
+            if lastRenderedContent == nil { lastRenderedContent = "" }
+            lastRenderedContent?.append(result.chunk)
+            lastIsTruncated = result.isTruncated
+            lastTruncatedLineCount = result.isTruncated ? result.lineCount : 0
+
+            // ソース表示でも .code は render() がレンダリング表示と同一の描画をするため
+            // 追記で足りる。CSV のソース表示(レインボー表示)だけは描画が異なるため、
+            // 蓄積済みコンテンツ全体を再描画する。
+            if lastIsSourceMode == true, lastRenderedFileType?.csvDelimiter != nil {
+                guard let script = ViewerBridge.renderScript(
+                    content: Self.renderableContent(
+                        lastRenderedContent ?? "",
+                        fileType: lastRenderedFileType ?? .code(language: "plaintext"),
+                        filePath: lastRenderedFilePath, isSourceMode: true
+                    ),
+                    fileType: lastRenderedFileType ?? .code(language: "plaintext")
+                ) else { return }
+                webView.evaluateJavaScript(script)
+            } else if let script = ViewerBridge.appendChunkScript(
+                chunk: result.chunk,
+                fileType: lastRenderedFileType ?? .code(language: "plaintext")
+            ) {
+                webView.evaluateJavaScript(script)
+            }
+            webView.evaluateJavaScript(
+                ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount)
+            )
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -412,7 +429,7 @@ struct ViewerWebView: NSViewRepresentable {
                     || fileType != lastRenderedFileType
                     || showLineNumbers != lastShowLineNumbers
                     || isSourceMode != lastIsSourceMode
-                    || isTruncated != lastIsTruncated
+                    || truncationStateChanged(isTruncated: isTruncated, lineCount: lineCount)
                 guard needsRender else { return }
 
                 let restoreFromPersistedPosition = Self.isFileOrModeSwitch(
@@ -460,11 +477,12 @@ extension ViewerWebView.Coordinator {
             )
             lastIsSourceMode = isSourceMode
         }
-        if truncation.isTruncated != lastIsTruncated {
+        if truncationStateChanged(isTruncated: truncation.isTruncated, lineCount: truncation.lineCount) {
             webView.evaluateJavaScript(
                 ViewerBridge.truncatedScript(truncation.isTruncated, lineCount: truncation.lineCount)
             )
             lastIsTruncated = truncation.isTruncated
+            lastTruncatedLineCount = truncation.isTruncated ? truncation.lineCount : 0
         }
         guard let script = ViewerBridge.renderScript(
             content: Self.renderableContent(
@@ -477,6 +495,13 @@ extension ViewerWebView.Coordinator {
             webView.evaluateJavaScript(ViewerBridge.restoreScrollPositionScript(scrollPositionToRestore))
         }
         webView.evaluateJavaScript(script)
+    }
+
+    /// _mmdSetTruncated の再送が必要か(切り詰め状態、または切り詰め中の表示行数が
+    /// 変わったか)を判定する。行数は非切り詰め時 0 に正規化して比較する。
+    private func truncationStateChanged(isTruncated: Bool, lineCount: Int) -> Bool {
+        isTruncated != lastIsTruncated
+            || (isTruncated ? lineCount : 0) != lastTruncatedLineCount
     }
 
     /// 今回の render() がファイル/モードの実際の切替かどうかを判定する。
@@ -514,6 +539,7 @@ extension ViewerWebView.Coordinator {
         lastShowLineNumbers = nil
         lastIsSourceMode = nil
         lastIsTruncated = nil
+        lastTruncatedLineCount = nil
         // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
         // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
         let zoom = initialPageZoom

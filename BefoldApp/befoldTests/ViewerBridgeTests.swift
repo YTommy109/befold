@@ -206,10 +206,7 @@ struct ViewerBridgeTests {
         #expect(html.contains("window._mmdInitialFindOptions"))
         #expect(html.contains("messageHandlers.\(ViewerBridge.findOptionsChangedMessageName)"))
         #expect(html.contains("window._mmdFindStrings"))
-
-        // appendChunk は viewer.js(<script src> で読み込まれる)側に定義される。
-        let js = try String(contentsOf: resourceURL("viewer.js"), encoding: .utf8)
-        #expect(js.contains("function appendChunk(text, type, lang)"))
+        #expect(html.contains("function appendChunk(text, type, lang)"))
     }
 
     @Test("viewer.js の ZOOM_MIN / ZOOM_MAX が ZoomStore の範囲と一致する")

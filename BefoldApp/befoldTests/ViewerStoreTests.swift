@@ -26,6 +26,27 @@ private final class MockChunkedReader: ChunkedTextReading {
     }
 }
 
+/// 初回チャンクは成功し、2 回目以降の readNextChunk が throw するモック
+/// (セッション途中の読み込みエラーからの回復テスト用)。
+private final class FailingSecondChunkReader: ChunkedTextReading {
+    private let firstChunk: String
+    private var readCount = 0
+
+    init(firstChunk: String) {
+        self.firstChunk = firstChunk
+    }
+
+    var isAtEnd: Bool {
+        false
+    }
+
+    func readNextChunk() throws -> String {
+        readCount += 1
+        guard readCount == 1 else { throw TextEncodingError.decodeFailed }
+        return firstChunk
+    }
+}
+
 /// UserDefaults.standard を読むと過去の実行で永続化された値に影響されるため、
 /// テストごとに使い捨てのスイートを注入して密閉性を保つ。
 /// `onChangeBox` / `onRenameBox` を渡すと watcherFactory に渡されたコールバックを捕捉し、
@@ -133,7 +154,7 @@ struct ViewerStoreTests {
 
         let store = makeStore(
             reader: reader,
-            chunkedReaderFactory: { _ in MockChunkedReader(chunks: ["hello"]) }
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["hello"]) }
         )
         store.openFile(file)
 
@@ -506,13 +527,13 @@ struct ViewerStoreChunkTests {
         reader.setFile("a,b\n1,2\n3,4", at: file)
         let store = makeStore(
             reader: reader,
-            chunkedReaderFactory: { _ in MockChunkedReader(chunks: ["a,b\n1,2\n", "3,4"]) }
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["a,b\n1,2\n", "3,4"]) }
         )
         store.openFile(file)
 
         #expect(store.content == "a,b\n1,2\n")
         #expect(store.isTruncated == true)
-        #expect(store.displayedLineCount == 3)
+        #expect(store.displayedLineCount == 2)
 
         store.close()
     }
@@ -524,7 +545,7 @@ struct ViewerStoreChunkTests {
         reader.setFile("a,b\n1,2\n3,4", at: file)
         let store = makeStore(
             reader: reader,
-            chunkedReaderFactory: { _ in MockChunkedReader(chunks: ["a,b\n1,2\n", "3,4"]) }
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["a,b\n1,2\n", "3,4"]) }
         )
         store.openFile(file)
 
@@ -545,7 +566,7 @@ struct ViewerStoreChunkTests {
         reader.setFile("a,b", at: file)
         let store = makeStore(
             reader: reader,
-            chunkedReaderFactory: { _ in MockChunkedReader(chunks: ["a,b"]) }
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["a,b"]) }
         )
         store.openFile(file)
 
@@ -565,7 +586,7 @@ struct ViewerStoreChunkTests {
         let store = makeStore(
             reader: reader,
             onChangeBox: onChangeBox,
-            chunkedReaderFactory: { _ in
+            chunkedReaderFactory: { _, _ in
                 callCount += 1
                 return MockChunkedReader(chunks: ["a,b\n1,2\n", "3,4\n5,6"])
             }
@@ -581,6 +602,81 @@ struct ViewerStoreChunkTests {
         #expect(callCount == 2)
         #expect(store.content == "a,b\n1,2\n")
         #expect(store.isTruncated == true)
+
+        store.close()
+    }
+
+    @Test("末尾に改行がないチャンクは途中の行も 1 行として数える")
+    func displayedLineCountCountsTrailingPartialLine() {
+        let file = URL(fileURLWithPath: "/files/oneline.js")
+        let reader = InMemoryFileReader()
+        reader.setFile("var x = 1;", at: file)
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["var x = 1;", "var y = 2;"]) }
+        )
+        store.openFile(file)
+
+        // 改行なしの強制分割チャンクでも「0 行」ではなく途中行を 1 行と数える。
+        #expect(store.displayedLineCount == 1)
+
+        let result = store.loadMoreLines()
+        #expect(result?.lineCount == 1)
+        #expect(store.displayedLineCount == 1)
+
+        store.close()
+    }
+
+    @Test("チャンク読み込みエラー時は nil を返し、再読込で新しいセッションに回復する")
+    func loadMoreLinesErrorRecoversViaReload() {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("first\nsecond", at: file)
+        nonisolated(unsafe) var callCount = 0
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in
+                callCount += 1
+                if callCount == 1 { return FailingSecondChunkReader(firstChunk: "old\n") }
+                return MockChunkedReader(chunks: ["fresh\n", "tail\n"])
+            }
+        )
+        store.openFile(file)
+        #expect(store.content == "old\n")
+        #expect(store.isTruncated == true)
+
+        // 2 回目の読み込みが失敗 → nil を返しつつ loadContent で状態を張り直す。
+        #expect(store.loadMoreLines() == nil)
+        #expect(callCount == 2)
+        #expect(store.content == "fresh\n")
+        #expect(store.isTruncated == true)
+        #expect(store.displayedLineCount == 1)
+
+        // 新しいセッションで「続きを読み込む」が機能する。
+        let result = store.loadMoreLines()
+        #expect(result?.chunk == "tail\n")
+        #expect(store.content == "fresh\ntail\n")
+        #expect(store.isTruncated == false)
+
+        store.close()
+    }
+
+    @Test("chunkedReaderFactory はファイル種別を受け取る(CSV 判定に使う)")
+    func chunkedReaderFactoryReceivesFileType() {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("a,b", at: file)
+        nonisolated(unsafe) var receivedType: FileType?
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, fileType in
+                receivedType = fileType
+                return MockChunkedReader(chunks: ["a,b"])
+            }
+        )
+        store.openFile(file)
+
+        #expect(receivedType?.csvDelimiter == ",")
 
         store.close()
     }

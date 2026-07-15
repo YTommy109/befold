@@ -4,7 +4,6 @@ import Foundation
 public protocol FileReading: Sendable {
     func fileExists(at url: URL) -> Bool
     func readString(from url: URL) throws -> String
-    func readString(from url: URL, maxBytes: Int) throws -> String
     func readData(from url: URL) throws -> Data
     /// テキストとして扱えない内容(バイナリ)かどうかを判定する。
     func isBinary(at url: URL) -> Bool
@@ -44,26 +43,6 @@ public struct DefaultFileReader: FileReading {
         // String(contentsOf:usedEncoding:) は BOM なし UTF-16 を誤ったエンコーディングで
         // 復号して文字化けした文字列を返す(エラーを投げない)ため、自前で判定する。
         if let decoded = Self.decodeUnicodeText(data) {
-            return decoded
-        }
-        throw CocoaError(.fileReadInapplicableStringEncoding)
-    }
-
-    /// ファイル先頭から最大 maxBytes バイトのみを読み込む(プレビュー読み込み用)。
-    /// 行途中で切断すると markdown-it 等のパーサが不正な結果を返しうるため、
-    /// 読み込んだ範囲内の最後の改行で切り詰める。
-    public func readString(from url: URL, maxBytes: Int) throws -> String {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        guard let data = try handle.read(upToCount: maxBytes) else {
-            return ""
-        }
-        let trimmed: Data = if let lastNewline = data.lastIndex(of: UInt8(ascii: "\n")) {
-            data[data.startIndex ... lastNewline]
-        } else {
-            data
-        }
-        if let decoded = Self.decodeUnicodeText(trimmed) {
             return decoded
         }
         throw CocoaError(.fileReadInapplicableStringEncoding)

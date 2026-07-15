@@ -1,7 +1,7 @@
 import Foundation
 
 /// チャンク読み込み・エンコーディング判定で発生しうるエラー。
-public enum TextEncodingError: Error {
+public enum TextEncodingError: Error, Sendable {
     /// UTF-16 / UTF-32 など、行単位でバイト境界を確定できないエンコーディング。
     case unsupportedForChunking
     /// 検出したエンコーディングでの復号に失敗した。
@@ -99,6 +99,24 @@ public enum TextEncoding {
             return result as String
         }
         return nil
+    }
+
+    /// UTF-8 のバイト列がマルチバイト文字の途中で切れている場合、
+    /// 直前の文字境界(先頭バイトの手前)まで末尾を切り詰めて返す。
+    /// 末尾の継続バイト(0b10xxxxxx)を遡り、先頭バイトが見つかればそれも落とす
+    /// (最大 3+1 バイト)。境界で切れていなければそのまま返す。
+    public static func trimIncompleteUTF8Tail(_ data: Data) -> Data {
+        var end = data.endIndex
+        while end > data.startIndex {
+            let byte = data[data.index(before: end)]
+            if byte & 0x80 == 0 { break }
+            if byte & 0xC0 != 0x80 {
+                end = data.index(before: end)
+                break
+            }
+            end = data.index(before: end)
+        }
+        return data[data.startIndex ..< end]
     }
 
     /// BOM なし UTF-16 の endian を NUL の位置から推定する
