@@ -91,6 +91,41 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.lineNumbersScript(false) == "setLineNumbers(false)")
     }
 
+    @Test("appendChunkScript は JSON エスケープされた appendChunk 呼び出しを生成する")
+    func appendChunkScriptGeneratesCall() throws {
+        let chunk = "line1\nline2\n\"quoted\""
+        let script = try #require(
+            ViewerBridge.appendChunkScript(chunk: chunk, fileType: .csv(delimiter: ","))
+        )
+        #expect(script.hasPrefix("appendChunk("))
+        #expect(script.contains("'csv'"))
+        #expect(!script.contains("\n"))
+    }
+
+    @Test("truncatedScript にカウントを渡せる")
+    func truncatedScriptWithLineCount() {
+        let script = ViewerBridge.truncatedScript(true, lineCount: 1000)
+        #expect(script == "_mmdSetTruncated(true, 1000)")
+    }
+
+    @Test("truncatedScript false はカウント 0")
+    func truncatedScriptFalse() {
+        let script = ViewerBridge.truncatedScript(false, lineCount: 0)
+        #expect(script == "_mmdSetTruncated(false, 0)")
+    }
+
+    @Test
+    func loadMoreLinesMessageNameIsDefined() {
+        #expect(!ViewerBridge.loadMoreLinesMessageName.isEmpty)
+    }
+
+    @Test("bannerStringsScript が window._mmdBannerStrings への代入文を生成する")
+    func bannerStringsScriptAssignsBannerStringsGlobal() {
+        let script = ViewerBridge.bannerStringsScript(bundle: .l10n)
+        #expect(script.hasPrefix("window._mmdBannerStrings = "))
+        #expect(script.hasSuffix(";"))
+    }
+
     @Test("openFindScript が固定の呼び出し文字列である")
     func openFindScriptIsFixedCall() {
         #expect(ViewerBridge.openFindScript == "_mmdOpenFind()")
@@ -158,6 +193,10 @@ struct ViewerBridgeTests {
         #expect(html.contains("function setViewMode(mode)"))
         #expect(html.contains("function _mmdInitZoom()"))
         #expect(html.contains("function setLineNumbers(show)"))
+        #expect(html.contains("function _mmdSetTruncated(isTruncated, lineCount)"))
+        #expect(html.contains("function _mmdLoadMore()"))
+        #expect(html.contains("messageHandlers.\(ViewerBridge.loadMoreLinesMessageName)"))
+        #expect(html.contains("window._mmdBannerStrings"))
         #expect(html.contains("function _mmdSetRestoreScroll(position)"))
         #expect(html.contains("function _mmdScrollTarget()"))
         #expect(html.contains("messageHandlers.\(ViewerBridge.scrollPositionChangedMessageName)"))
@@ -167,6 +206,7 @@ struct ViewerBridgeTests {
         #expect(html.contains("window._mmdInitialFindOptions"))
         #expect(html.contains("messageHandlers.\(ViewerBridge.findOptionsChangedMessageName)"))
         #expect(html.contains("window._mmdFindStrings"))
+        #expect(html.contains("function appendChunk(text, type, lang)"))
     }
 
     @Test("viewer.js の ZOOM_MIN / ZOOM_MAX が ZoomStore の範囲と一致する")

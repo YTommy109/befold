@@ -3,8 +3,44 @@ import BefoldKit
 import Foundation
 import Testing
 
-private struct MockFileWatcher: FileWatching {
+struct MockFileWatcher: FileWatching {
     func stop() {}
+}
+
+/// 事前に与えたチャンク列を順に返すモック。最後のチャンクと同時に isAtEnd を返す。
+/// バックグラウンドの読み込みタスクから呼ばれるため LockedBox でスレッド安全にする。
+final class MockChunkedReader: ChunkedTextReading, @unchecked Sendable {
+    private let chunks: [String]
+    private let index = LockedBox(0)
+
+    init(chunks: [String]) {
+        self.chunks = chunks
+    }
+
+    func readNextChunk() async throws -> (text: String, isAtEnd: Bool) {
+        let current = index.get()
+        guard current < chunks.count else { return ("", true) }
+        index.set(current + 1)
+        return (chunks[current], current + 1 >= chunks.count)
+    }
+}
+
+/// 初回チャンクは成功し、2 回目以降の readNextChunk が throw するモック
+/// (セッション途中の読み込みエラーからの回復テスト用)。
+private final class FailingSecondChunkReader: ChunkedTextReading, @unchecked Sendable {
+    private let firstChunk: String
+    private let readCount = LockedBox(0)
+
+    init(firstChunk: String) {
+        self.firstChunk = firstChunk
+    }
+
+    func readNextChunk() async throws -> (text: String, isAtEnd: Bool) {
+        let count = readCount.get() + 1
+        readCount.set(count)
+        guard count == 1 else { throw TextEncodingError.decodeFailed }
+        return (firstChunk, false)
+    }
 }
 
 /// UserDefaults.standard を読むと過去の実行で永続化された値に影響されるため、
@@ -12,10 +48,11 @@ private struct MockFileWatcher: FileWatching {
 /// `onChangeBox` / `onRenameBox` を渡すと watcherFactory に渡されたコールバックを捕捉し、
 /// テストから手動で発火できるようにする(ファイル監視イベントのシミュレート用)。
 @MainActor
-private func makeStore(
+func makeStore(
     reader: InMemoryFileReader,
     onChangeBox: LockedBox<(@MainActor @Sendable () -> Void)?>? = nil,
     onRenameBox: LockedBox<(@MainActor @Sendable (URL) -> Void)?>? = nil,
+    chunkedReaderFactory: ViewerStore.ChunkedReaderFactory? = nil,
     clock: any Clock<Duration> = ContinuousClock()
 ) -> ViewerStore {
     ViewerStore(
@@ -25,9 +62,23 @@ private func makeStore(
             return MockFileWatcher()
         },
         fileReader: reader,
+        chunkedReaderFactory: chunkedReaderFactory,
         defaults: makeIsolatedDefaults(prefix: "ViewerStoreTests"),
         clock: clock
     )
+}
+
+/// openFile / 監視コールバックが予約した非同期読み込みの完了を待つ。
+@MainActor
+func awaitLoad(_ store: ViewerStore) async {
+    await store.loadTask?.value
+}
+
+/// openFile して非同期読み込みの完了まで待つ(同期読み込み時代の openFile 相当)。
+@MainActor
+func openAndLoad(_ store: ViewerStore, _ url: URL) async {
+    store.openFile(url)
+    await awaitLoad(store)
 }
 
 @Suite
@@ -37,13 +88,13 @@ struct ViewerStoreTests {
         ("test.mmd", "graph TD; A-->B", FileType.mmd),
         ("test.md", "# Hello", FileType.markdown),
     ])
-    func openFileByType(filename: String, content: String, expectedType: FileType) {
+    func openFileByType(filename: String, content: String, expectedType: FileType) async {
         let file = URL(fileURLWithPath: "/files/\(filename)")
         let reader = InMemoryFileReader()
         reader.setFile(content, at: file)
 
         let store = makeStore(reader: reader)
-        store.openFile(file)
+        await openAndLoad(store, file)
 
         #expect(store.content == content)
         #expect(store.fileType == expectedType)
@@ -53,13 +104,13 @@ struct ViewerStoreTests {
     }
 
     @Test
-    func openEmptyFile() {
+    func openEmptyFile() async {
         let file = URL(fileURLWithPath: "/files/empty.mmd")
         let reader = InMemoryFileReader()
         reader.setFile("", at: file)
 
         let store = makeStore(reader: reader)
-        store.openFile(file)
+        await openAndLoad(store, file)
 
         #expect(store.content == "")
 
@@ -67,7 +118,7 @@ struct ViewerStoreTests {
     }
 
     @Test
-    func reopenDifferentFile() {
+    func reopenDifferentFile() async {
         let file1 = URL(fileURLWithPath: "/files/first.mmd")
         let file2 = URL(fileURLWithPath: "/files/second.md")
         let reader = InMemoryFileReader()
@@ -75,11 +126,11 @@ struct ViewerStoreTests {
         reader.setFile("# Second", at: file2)
 
         let store = makeStore(reader: reader)
-        store.openFile(file1)
+        await openAndLoad(store, file1)
         #expect(store.content == "graph TD; A-->B")
         #expect(store.fileType == .mmd)
 
-        store.openFile(file2)
+        await openAndLoad(store, file2)
 
         #expect(store.content == "# Second")
         #expect(store.fileType == .markdown)
@@ -89,31 +140,34 @@ struct ViewerStoreTests {
     }
 
     @Test
-    func openBinaryFileMarksUnsupported() {
+    func openBinaryFileMarksUnsupported() async {
         let file = URL(fileURLWithPath: "/files/data.bin")
         let reader = InMemoryFileReader()
         reader.setFile("binary-ish", at: file)
         reader.setBinary(true, at: file)
 
         let store = makeStore(reader: reader)
-        store.openFile(file)
+        await openAndLoad(store, file)
 
-        #expect(store.isUnsupported)
+        #expect(store.rejectReason == .unsupportedFormat)
         #expect(store.content == "")
 
         store.close()
     }
 
     @Test
-    func openTextFileWithUnknownExtensionIsNotUnsupported() {
+    func openTextFileWithUnknownExtensionIsNotUnsupported() async {
         let file = URL(fileURLWithPath: "/files/notes.txt")
         let reader = InMemoryFileReader()
         reader.setFile("hello", at: file)
 
-        let store = makeStore(reader: reader)
-        store.openFile(file)
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["hello"]) }
+        )
+        await openAndLoad(store, file)
 
-        #expect(!store.isUnsupported)
+        #expect(!store.isRejected)
         #expect(store.content == "hello")
         #expect(store.fileType == .code(language: "plaintext"))
 
@@ -121,39 +175,39 @@ struct ViewerStoreTests {
     }
 
     @Test
-    func openOversizedFileMarksUnsupportedWithoutLoading() {
-        let file = URL(fileURLWithPath: "/files/huge.csv")
+    func openOversizedFileMarksUnsupportedWithoutLoading() async {
+        let file = URL(fileURLWithPath: "/files/huge.md")
         let reader = InMemoryFileReader()
-        reader.setFile("col1,col2\n1,2", at: file)
+        reader.setFile("# Hello", at: file)
         reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
 
         let store = makeStore(reader: reader)
-        store.openFile(file)
+        await openAndLoad(store, file)
 
-        #expect(store.isUnsupported)
+        #expect(store.rejectReason == .fileTooLarge)
         #expect(store.content == "")
 
         store.close()
     }
 
     @Test
-    func openFileAtSizeLimitLoadsContent() {
-        let file = URL(fileURLWithPath: "/files/ok.csv")
+    func openFileAtSizeLimitLoadsContent() async {
+        let file = URL(fileURLWithPath: "/files/ok.md")
         let reader = InMemoryFileReader()
-        reader.setFile("col1,col2\n1,2", at: file)
-        reader.setSize(ContentLoader.maxFileSizeBytes, at: file)
+        reader.setFile("# Hello", at: file)
+        reader.setSize(ContentLoader.maxTextFileSizeBytes, at: file)
 
         let store = makeStore(reader: reader)
-        store.openFile(file)
+        await openAndLoad(store, file)
 
-        #expect(!store.isUnsupported)
-        #expect(store.content == "col1,col2\n1,2")
+        #expect(!store.isRejected)
+        #expect(store.content == "# Hello")
 
         store.close()
     }
 
     @Test
-    func switchingFromOversizedToNormalResetsUnsupported() {
+    func switchingFromOversizedToNormalResetsUnsupported() async {
         let hugeFile = URL(fileURLWithPath: "/files/huge.log")
         let normalFile = URL(fileURLWithPath: "/files/readme.md")
         let reader = InMemoryFileReader()
@@ -162,18 +216,18 @@ struct ViewerStoreTests {
         reader.setFile("# Hello", at: normalFile)
 
         let store = makeStore(reader: reader)
-        store.openFile(hugeFile)
-        #expect(store.isUnsupported)
+        await openAndLoad(store, hugeFile)
+        #expect(store.isRejected)
 
-        store.openFile(normalFile)
-        #expect(!store.isUnsupported)
+        await openAndLoad(store, normalFile)
+        #expect(!store.isRejected)
         #expect(store.content == "# Hello")
 
         store.close()
     }
 
     @Test
-    func switchingFromBinaryToTextResetsUnsupported() {
+    func switchingFromBinaryToTextResetsUnsupported() async {
         let binaryFile = URL(fileURLWithPath: "/files/data.bin")
         let textFile = URL(fileURLWithPath: "/files/readme.md")
         let reader = InMemoryFileReader()
@@ -182,30 +236,31 @@ struct ViewerStoreTests {
         reader.setFile("# Hello", at: textFile)
 
         let store = makeStore(reader: reader)
-        store.openFile(binaryFile)
-        #expect(store.isUnsupported)
+        await openAndLoad(store, binaryFile)
+        #expect(store.isRejected)
 
-        store.openFile(textFile)
-        #expect(!store.isUnsupported)
+        await openAndLoad(store, textFile)
+        #expect(!store.isRejected)
         #expect(store.content == "# Hello")
 
         store.close()
     }
 
     @Test
-    func watcherCallbackReloadsContent() {
+    func watcherCallbackReloadsContent() async {
         let file = URL(fileURLWithPath: "/files/test.mmd")
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: file)
 
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
         let store = makeStore(reader: reader, onChangeBox: onChangeBox)
-        store.openFile(file)
+        await openAndLoad(store, file)
         #expect(store.content == "graph TD; A-->B")
 
         // ファイル内容を書き換えてから監視コールバックを発火する
         reader.setFile("graph TD; X-->Y", at: file)
         onChangeBox.get()?()
+        await awaitLoad(store)
 
         #expect(store.content == "graph TD; X-->Y")
 
@@ -213,14 +268,14 @@ struct ViewerStoreTests {
     }
 
     @Test
-    func watcherRenameUpdatesPathAndReloadsContent() {
+    func watcherRenameUpdatesPathAndReloadsContent() async {
         let oldFile = URL(fileURLWithPath: "/files/old.mmd")
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: oldFile)
 
         let onRenameBox = LockedBox<(@MainActor @Sendable (URL) -> Void)?>(nil)
         let store = makeStore(reader: reader, onRenameBox: onRenameBox)
-        store.openFile(oldFile)
+        await openAndLoad(store, oldFile)
         #expect(store.filePath == oldFile)
 
         // 別名 + 別内容 + 別タイプへ移動したことを通知する
@@ -230,6 +285,7 @@ struct ViewerStoreTests {
         nonisolated(unsafe) var renamedTo: URL?
         store.onFileRenamed = { renamedTo = $0 }
         onRenameBox.get()?(newFile)
+        await awaitLoad(store)
 
         #expect(store.filePath == newFile)
         #expect(store.fileType == .markdown)
@@ -248,16 +304,16 @@ struct ViewerStoreTests {
         ),
         (filename: "doc.pdf", data: Data("%PDF-1.4".utf8), expectedType: FileType.pdf),
     ])
-    func openBinaryFileLoadsBase64Content(filename: String, data: Data, expectedType: FileType) {
+    func openBinaryFileLoadsBase64Content(filename: String, data: Data, expectedType: FileType) async {
         let file = URL(fileURLWithPath: "/files/\(filename)")
         let reader = InMemoryFileReader()
         reader.setDataFile(data, at: file)
         reader.setBinary(true, at: file)
 
         let store = makeStore(reader: reader)
-        store.openFile(file)
+        await openAndLoad(store, file)
 
-        #expect(!store.isUnsupported)
+        #expect(!store.isRejected)
         #expect(store.fileType == expectedType)
         #expect(store.content == data.base64EncodedString())
 
@@ -265,7 +321,7 @@ struct ViewerStoreTests {
     }
 
     @Test
-    func imageFileWatcherCallbackReloadsContent() {
+    func imageFileWatcherCallbackReloadsContent() async {
         let file = URL(fileURLWithPath: "/files/photo.png")
         let data1 = Data([0x89, 0x50, 0x4E, 0x47])
         let data2 = Data([0x89, 0x50, 0x4E, 0x47, 0x0D])
@@ -275,48 +331,30 @@ struct ViewerStoreTests {
 
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
         let store = makeStore(reader: reader, onChangeBox: onChangeBox)
-        store.openFile(file)
+        await openAndLoad(store, file)
         #expect(store.content == data1.base64EncodedString())
 
         reader.setDataFile(data2, at: file)
         onChangeBox.get()?()
+        await awaitLoad(store)
 
         #expect(store.content == data2.base64EncodedString())
 
         store.close()
     }
 
-    /// 画像・PDF はテキストの 10MB 制限ではなく緩い 50MB 制限が適用される。
     @Test
-    func imageOverTextSizeLimitStillLoads() {
-        let file = URL(fileURLWithPath: "/files/scan.png")
-        let imageData = Data([0x89, 0x50, 0x4E, 0x47])
-        let reader = InMemoryFileReader()
-        reader.setDataFile(imageData, at: file)
-        reader.setBinary(true, at: file)
-        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
-
-        let store = makeStore(reader: reader)
-        store.openFile(file)
-
-        #expect(!store.isUnsupported)
-        #expect(store.content == imageData.base64EncodedString())
-
-        store.close()
-    }
-
-    @Test
-    func imageOverBinarySizeLimitMarksUnsupported() {
+    func imageOverBinarySizeLimitMarksUnsupported() async {
         let file = URL(fileURLWithPath: "/files/huge.png")
         let reader = InMemoryFileReader()
         reader.setDataFile(Data([0x89]), at: file)
         reader.setBinary(true, at: file)
-        reader.setSize(ContentLoader.maxBinaryFileSizeBytes + 1, at: file)
+        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
 
         let store = makeStore(reader: reader)
-        store.openFile(file)
+        await openAndLoad(store, file)
 
-        #expect(store.isUnsupported)
+        #expect(store.isRejected)
         #expect(store.content == "")
 
         store.close()
@@ -324,7 +362,7 @@ struct ViewerStoreTests {
 
     /// 画像・PDF の読み込み失敗は無表示ではなく非対応表示にする。
     @Test
-    func imageReadFailureMarksUnsupported() {
+    func imageReadFailureMarksUnsupported() async {
         let file = URL(fileURLWithPath: "/files/locked.png")
         let reader = InMemoryFileReader()
         reader.setDataFile(Data([0x89]), at: file)
@@ -332,16 +370,16 @@ struct ViewerStoreTests {
         reader.setReadError(true, at: file)
 
         let store = makeStore(reader: reader)
-        store.openFile(file)
+        await openAndLoad(store, file)
 
-        #expect(store.isUnsupported)
+        #expect(store.isRejected)
         #expect(store.content == "")
 
         store.close()
     }
 
     @Test
-    func openFileFiresOnContentReloaded() {
+    func openFileFiresOnContentReloaded() async {
         let file = URL(fileURLWithPath: "/files/test.mmd")
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: file)
@@ -349,7 +387,7 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader)
         nonisolated(unsafe) var firedCount = 0
         store.onContentReloaded = { firedCount += 1 }
-        store.openFile(file)
+        await openAndLoad(store, file)
 
         #expect(firedCount == 1)
 
@@ -357,7 +395,7 @@ struct ViewerStoreTests {
     }
 
     @Test
-    func watcherCallbackFiresOnContentReloaded() {
+    func watcherCallbackFiresOnContentReloaded() async {
         let file = URL(fileURLWithPath: "/files/test.mmd")
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: file)
@@ -366,46 +404,48 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader, onChangeBox: onChangeBox)
         nonisolated(unsafe) var firedCount = 0
         store.onContentReloaded = { firedCount += 1 }
-        store.openFile(file)
+        await openAndLoad(store, file)
         #expect(firedCount == 1)
 
         // ファイル変更(監視コールバック)のたびに再発火する。
         reader.setFile("graph TD; X-->Y", at: file)
         onChangeBox.get()?()
+        await awaitLoad(store)
 
         #expect(firedCount == 2)
 
         store.close()
     }
 
-    /// ファイルサイズ超過 → 縮小のような、isUnsupported が変化する再読込でも発火することを確認する。
+    /// ファイルサイズ超過 → 縮小のような、isRejected が変化する再読込でも発火することを確認する。
     @Test
-    func watcherCallbackFiresOnContentReloadedWhenUnsupportedChanges() {
-        let file = URL(fileURLWithPath: "/files/huge.csv")
+    func watcherCallbackFiresOnContentReloadedWhenUnsupportedChanges() async {
+        let file = URL(fileURLWithPath: "/files/huge.md")
         let reader = InMemoryFileReader()
-        reader.setFile("col1,col2\n1,2", at: file)
-        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
+        reader.setFile("# Hello", at: file)
+        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
 
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
         let store = makeStore(reader: reader, onChangeBox: onChangeBox)
         nonisolated(unsafe) var firedCount = 0
         store.onContentReloaded = { firedCount += 1 }
-        store.openFile(file)
-        #expect(store.isUnsupported)
+        await openAndLoad(store, file)
+        #expect(store.isRejected)
         #expect(firedCount == 1)
 
-        // サイズが上限内に戻る → isUnsupported が false に変わる再読込でも発火する。
-        reader.setSize(ContentLoader.maxFileSizeBytes, at: file)
+        // サイズが上限内に戻る → isRejected が false に変わる再読込でも発火する。
+        reader.setSize(ContentLoader.maxTextFileSizeBytes, at: file)
         onChangeBox.get()?()
+        await awaitLoad(store)
 
-        #expect(!store.isUnsupported)
+        #expect(!store.isRejected)
         #expect(firedCount == 2)
 
         store.close()
     }
 
     @Test
-    func watcherRenameFiresOnContentReloaded() {
+    func watcherRenameFiresOnContentReloaded() async {
         let oldFile = URL(fileURLWithPath: "/files/old.mmd")
         let reader = InMemoryFileReader()
         reader.setFile("graph TD; A-->B", at: oldFile)
@@ -414,12 +454,13 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader, onRenameBox: onRenameBox)
         nonisolated(unsafe) var firedCount = 0
         store.onContentReloaded = { firedCount += 1 }
-        store.openFile(oldFile)
+        await openAndLoad(store, oldFile)
         #expect(firedCount == 1)
 
         let newFile = URL(fileURLWithPath: "/files/renamed.md")
         reader.setFile("# Renamed", at: newFile)
         onRenameBox.get()?(newFile)
+        await awaitLoad(store)
 
         #expect(firedCount == 2)
 
@@ -472,166 +513,251 @@ struct ViewerStoreTests {
 
         store.close()
     }
+
+    @Test("10MB 以下のファイルは isTruncated = false")
+    func normalFileIsNotTruncated() async {
+        let file = URL(fileURLWithPath: "/files/small.md")
+        let reader = InMemoryFileReader()
+        reader.setFile("# Hello", at: file)
+
+        let store = makeStore(reader: reader)
+        await openAndLoad(store, file)
+
+        #expect(!store.isTruncated)
+        #expect(!store.isRejected)
+
+        store.close()
+    }
+}
+
+/// 行指向ファイルのチャンク読み込み(段階読み込み)まわりのテスト。
+/// ViewerStoreTests から分離し、型の行数を SwiftLint の type_body_length 内に収める。
+@Suite
+@MainActor
+struct ViewerStoreChunkTests {
+    @Test("行指向ファイルは初回チャンクのみ表示し isTruncated = true になる")
+    func lineOrientedFileShowsFirstChunk() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("a,b\n1,2\n3,4", at: file)
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["a,b\n1,2\n", "3,4"]) }
+        )
+        await openAndLoad(store, file)
+
+        #expect(store.content == "a,b\n1,2\n")
+        #expect(store.isTruncated == true)
+        #expect(store.displayedLineCount == 2)
+
+        store.close()
+    }
+
+    @Test("loadMoreLines は次チャンクを蓄積し isTruncated を更新する")
+    func loadMoreLinesAccumulatesContent() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("a,b\n1,2\n3,4", at: file)
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["a,b\n1,2\n", "3,4"]) }
+        )
+        await openAndLoad(store, file)
+
+        let result = await store.loadMoreLines()
+
+        #expect(result != nil)
+        #expect(result?.chunk == "3,4")
+        #expect(store.content == "a,b\n1,2\n3,4")
+        #expect(store.isTruncated == false)
+
+        store.close()
+    }
+
+    @Test("loadMoreLines は全チャンク読み込み後は nil を返す")
+    func loadMoreLinesReturnsNilWhenComplete() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("a,b", at: file)
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["a,b"]) }
+        )
+        await openAndLoad(store, file)
+
+        #expect(store.isTruncated == false)
+        #expect(await store.loadMoreLines() == nil)
+
+        store.close()
+    }
+
+    @Test("FileWatcher 発火でチャンクセッションがリセットされる")
+    func fileWatcherResetChunkSession() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("a,b\n1,2\n3,4\n5,6", at: file)
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let callCount = LockedBox(0)
+        let store = makeStore(
+            reader: reader,
+            onChangeBox: onChangeBox,
+            chunkedReaderFactory: { _, _ in
+                callCount.update { $0 += 1 }
+                return MockChunkedReader(chunks: ["a,b\n1,2\n", "3,4\n5,6"])
+            }
+        )
+        await openAndLoad(store, file)
+        #expect(callCount.get() == 1)
+        #expect(store.isTruncated == true)
+
+        _ = await store.loadMoreLines()
+        #expect(store.isTruncated == false)
+
+        onChangeBox.get()?()
+        await awaitLoad(store)
+        #expect(callCount.get() == 2)
+        #expect(store.content == "a,b\n1,2\n")
+        #expect(store.isTruncated == true)
+
+        store.close()
+    }
+
+    @Test("末尾に改行がないチャンクは途中の行も 1 行として数える")
+    func displayedLineCountCountsTrailingPartialLine() async {
+        let file = URL(fileURLWithPath: "/files/oneline.js")
+        let reader = InMemoryFileReader()
+        reader.setFile("var x = 1;", at: file)
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["var x = 1;", "var y = 2;"]) }
+        )
+        await openAndLoad(store, file)
+
+        // 改行なしの強制分割チャンクでも「0 行」ではなく途中行を 1 行と数える。
+        #expect(store.displayedLineCount == 1)
+
+        let result = await store.loadMoreLines()
+        #expect(result?.lineCount == 1)
+        #expect(store.displayedLineCount == 1)
+
+        store.close()
+    }
+
+    @Test("チャンク読み込みエラー時は nil を返し、表示済みコンテンツを保持してセッションを終了する")
+    func loadMoreLinesErrorKeepsContentAndStops() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("first\nsecond", at: file)
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in
+                FailingSecondChunkReader(firstChunk: "old\n")
+            }
+        )
+        await openAndLoad(store, file)
+        #expect(store.content == "old\n")
+        #expect(store.isTruncated == true)
+
+        // 2 回目の読み込みが TextEncodingError で失敗 → 表示済みコンテンツを保持し
+        // セッション終了。10MB 超ファイルで fileTooLarge に置き換わることを防ぐ。
+        #expect(await store.loadMoreLines() == nil)
+        #expect(store.content == "old\n")
+        #expect(store.isTruncated == false)
+
+        store.close()
+    }
+
+    @Test("chunkedReaderFactory はファイル種別を受け取る(CSV 判定に使う)")
+    func chunkedReaderFactoryReceivesFileType() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("a,b", at: file)
+        let receivedType = LockedBox<FileType?>(nil)
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, fileType in
+                receivedType.set(fileType)
+                return MockChunkedReader(chunks: ["a,b"])
+            }
+        )
+        await openAndLoad(store, file)
+
+        #expect(receivedType.get()?.csvDelimiter == ",")
+
+        store.close()
+    }
+
+    @Test("レガシーエンコーディングの行指向ファイルは LineChunkReader で直接チャンク読みする")
+    func legacyEncodingLineOrientedFileUsesDirectChunking() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let text = "名前,値\nテスト,1\n"
+        let data = try #require(text.data(using: .shiftJIS))
+        let file = try tmp.file(named: "data.csv", data: data)
+
+        let reader = InMemoryFileReader()
+        reader.setDataFile(data, at: file)
+        let store = makeStore(reader: reader)
+        await openAndLoad(store, file)
+
+        #expect(store.rejectReason == nil)
+        #expect(store.content.contains("名前"))
+        #expect(store.isTruncated == false)
+
+        store.close()
+    }
+
+    @Test("非行指向ファイルは従来の一括読み込み")
+    func nonLineOrientedFileUsesFullLoad() async {
+        let file = URL(fileURLWithPath: "/files/doc.md")
+        let reader = InMemoryFileReader()
+        reader.setFile("# Hello\n\nWorld", at: file)
+        let store = makeStore(reader: reader)
+        await openAndLoad(store, file)
+
+        #expect(store.content == "# Hello\n\nWorld")
+        #expect(store.isTruncated == false)
+
+        store.close()
+    }
+
+    @Test("10MB 超・50MB 以下の画像ファイルは正常に読み込める")
+    func imageOverTextSizeLimitStillLoads() async {
+        let file = URL(fileURLWithPath: "/files/large.png")
+        let data = Data([0x89, 0x50, 0x4E, 0x47])
+        let reader = InMemoryFileReader()
+        reader.setDataFile(data, at: file)
+        reader.setBinary(true, at: file)
+        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
+
+        let store = makeStore(reader: reader)
+        await openAndLoad(store, file)
+
+        #expect(!store.isRejected)
+        #expect(store.fileType == .image(mimeType: "image/png"))
+        #expect(store.content == data.base64EncodedString())
+
+        store.close()
+    }
+
+    @Test("非行指向テキストが 10MB を超えると fileTooLarge")
+    func nonLineOrientedTextOverLimitIsRejected() async {
+        let file = URL(fileURLWithPath: "/files/huge.md")
+        let reader = InMemoryFileReader()
+        reader.setFile("# Big", at: file)
+        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
+        let store = makeStore(reader: reader)
+        await openAndLoad(store, file)
+
+        #expect(store.rejectReason == .fileTooLarge)
+
+        store.close()
+    }
 }
 
 private struct StopCountingWatcher: FileWatching {
     let onStop: @Sendable () -> Void
     func stop() {
         onStop()
-    }
-}
-
-/// ファイル削除確定(グレース期間付き onFileGone)まわりのテスト。
-/// ViewerStoreTests から分離し、型の行数を SwiftLint の type_body_length 内に収める。
-/// グレース期間の待機は TestClock を注入して仮想時刻で厳密に進めるため、実時間依存はなく
-/// 通常どおり並列実行できる。
-@Suite
-@MainActor
-struct ViewerStoreFileGoneTests {
-    @Test
-    func openNonexistentFileFiresOnFileGoneAfterGrace() async {
-        let clock = TestClock()
-        let file = URL(fileURLWithPath: "/files/missing.mmd")
-        let store = makeStore(reader: InMemoryFileReader(), clock: clock)
-
-        nonisolated(unsafe) var firedCount = 0
-        store.onFileGone = { firedCount += 1 }
-        store.openFile(file)
-        await clock.waitForPendingSleepers(atLeast: 1)
-        // グレース期間中は発火しない
-        #expect(firedCount == 0)
-
-        // 0.999 秒では未到達で発火しない
-        clock.advance(by: .milliseconds(999))
-        await yieldMainActor()
-        #expect(firedCount == 0)
-
-        // グレース期間 1 秒到達で発火する
-        clock.advance(by: .milliseconds(1))
-        await waitUntilYielding { firedCount == 1 }
-        #expect(firedCount == 1)
-
-        store.close()
-    }
-
-    @Test
-    func openNonexistentFileDoesNotFireOnContentReloaded() {
-        let file = URL(fileURLWithPath: "/files/missing.mmd")
-        let store = makeStore(reader: InMemoryFileReader())
-
-        nonisolated(unsafe) var firedCount = 0
-        store.onContentReloaded = { firedCount += 1 }
-        store.openFile(file)
-
-        // ファイルが存在しない場合は scheduleFileGone() へ抜けるため、
-        // 内容は確定せず onContentReloaded は発火しない。
-        #expect(firedCount == 0)
-
-        store.close()
-    }
-
-    @Test
-    func watcherCallbackCancelsFileGoneOnRecreation() async {
-        let clock = TestClock()
-        let file = URL(fileURLWithPath: "/files/test.mmd")
-        let reader = InMemoryFileReader()
-        reader.setFile("graph TD; A-->B", at: file)
-
-        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
-        let store = makeStore(reader: reader, onChangeBox: onChangeBox, clock: clock)
-
-        nonisolated(unsafe) var firedCount = 0
-        store.onFileGone = { firedCount += 1 }
-        store.openFile(file)
-        #expect(firedCount == 0)
-
-        // ファイル削除 → コールバック発火でグレース期間開始
-        reader.setFile(nil, at: file)
-        onChangeBox.get()?()
-        await clock.waitForPendingSleepers(atLeast: 1)
-
-        // グレース期間内に再作成 → グレースタスクがキャンセルされ待機が消える
-        reader.setFile("graph TD; C-->D", at: file)
-        onChangeBox.get()?()
-        #expect(clock.pendingSleepCount == 0)
-
-        // 10 秒進めても発火しない
-        clock.advance(by: .seconds(10))
-        await yieldMainActor()
-        #expect(firedCount == 0)
-        #expect(store.content == "graph TD; C-->D")
-
-        store.close()
-    }
-
-    @Test
-    func watcherCallbackFiresOnFileGoneAfterGracePeriod() async {
-        let clock = TestClock()
-        let file = URL(fileURLWithPath: "/files/test.mmd")
-        let reader = InMemoryFileReader()
-        reader.setFile("graph TD; A-->B", at: file)
-
-        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
-        let store = makeStore(reader: reader, onChangeBox: onChangeBox, clock: clock)
-
-        nonisolated(unsafe) var firedCount = 0
-        store.onFileGone = { firedCount += 1 }
-        store.openFile(file)
-
-        // ファイル削除 → コールバック発火でグレース期間開始
-        reader.setFile(nil, at: file)
-        onChangeBox.get()?()
-        await clock.waitForPendingSleepers(atLeast: 1)
-
-        // 0.999 秒では未到達で発火しない
-        clock.advance(by: .milliseconds(999))
-        await yieldMainActor()
-        #expect(firedCount == 0)
-
-        // グレース期間 1 秒到達で発火する
-        clock.advance(by: .milliseconds(1))
-        await waitUntilYielding { firedCount == 1 }
-        #expect(firedCount == 1)
-
-        store.close()
-    }
-
-    @Test
-    func fileGoneDetectionSurvivesRecreateAndRedelete() async {
-        let clock = TestClock()
-        let file = URL(fileURLWithPath: "/files/test.mmd")
-        let reader = InMemoryFileReader()
-        reader.setFile("graph TD; A-->B", at: file)
-
-        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
-        let store = makeStore(reader: reader, onChangeBox: onChangeBox, clock: clock)
-
-        nonisolated(unsafe) var firedCount = 0
-        store.onFileGone = { firedCount += 1 }
-        store.openFile(file)
-
-        // 削除 → グレース期間開始
-        reader.setFile(nil, at: file)
-        onChangeBox.get()?()
-        await clock.waitForPendingSleepers(atLeast: 1)
-
-        // 監視イベントなしで再作成(発火直前の存在再確認だけで救済されるケース)。
-        // グレース期間を過ぎてもファイルが存在するため発火せず、タスクは完了する。
-        reader.setFile("graph TD; C-->D", at: file)
-        clock.advance(by: .seconds(1))
-        await yieldMainActor()
-        #expect(firedCount == 0)
-        // 完了済み(stale)タスクは待機を残していない
-        #expect(clock.pendingSleepCount == 0)
-
-        // 再削除 → 完了済みの stale タスクが検知を塞いでいないこと
-        reader.setFile(nil, at: file)
-        onChangeBox.get()?()
-        await clock.waitForPendingSleepers(atLeast: 1)
-        clock.advance(by: .seconds(1))
-        await waitUntilYielding { firedCount == 1 }
-        #expect(firedCount == 1)
-
-        store.close()
     }
 }

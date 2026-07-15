@@ -138,6 +138,38 @@ body {
   word-break: break-all;
 }
 
+.mmd-truncated-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 6px 16px;
+  font-size: 12px;
+  text-align: center;
+  z-index: 1000;
+  background: rgba(255, 204, 0, 0.15);
+  color: var(--fg);
+  border-top: 1px solid rgba(255, 204, 0, 0.3);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.mmd-truncated-banner button {
+  background: rgba(255, 204, 0, 0.3);
+  color: var(--fg);
+  border: 1px solid rgba(255, 204, 0, 0.5);
+  border-radius: 4px;
+  padding: 2px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mmd-truncated-banner button:hover {
+  background: rgba(255, 204, 0, 0.5);
+}
+
 /*
   Markdown 本文のスタイルは github-markdown-css(.markdown-body)が担う。
   render() が Markdown レンダリング時のみ #diagram-wrap に markdown-body を

@@ -21,6 +21,10 @@
 <body>
   <div class="viewer">
     <div id="mmd-error" class="mmd-error-panel"></div>
+    <div id="mmd-truncated-banner" class="mmd-truncated-banner" style="display:none;">
+      <span id="mmd-truncated-text"></span>
+      <button id="mmd-load-more-btn" style="display:none;"></button>
+    </div>
     <div id="diagram-wrap"></div>
   </div>
 
@@ -758,6 +762,8 @@
   // render()/_renderSource() が検索リフレッシュ(先頭リセット)に使った後 false へ戻す。
   var _mmdModeJustSwitched = false;
   var _showLineNumbers = false;
+  // 直前チャンクが改行で終わったか(強制分割の継続行判定用)。
+  var _lastChunkEndedWithNewline = true;
 
   // Swift 側(ViewerWebView)が render() 呼び出しの直前に評価し、次の render() が
   // 復元すべきスクロール位置(scrollTop)を注入する。
@@ -813,6 +819,95 @@
   function setLineNumbers(show) {
     _showLineNumbers = show;
   }
+
+  // 段階読み込み中(ファイルの一部だけを表示している間)のバナー表示を切り替える。
+  function _mmdSetTruncated(isTruncated, lineCount) {
+    var banner = document.getElementById('mmd-truncated-banner');
+    if (!isTruncated) {
+        banner.style.display = 'none';
+        return;
+    }
+    banner.style.display = 'flex';
+    var strings = window._mmdBannerStrings || {};
+    var textEl = document.getElementById('mmd-truncated-text');
+    if (typeof lineCount === 'number') {
+        textEl.textContent = (strings.showing || 'Showing {count} lines').replace('{count}', lineCount);
+        var btn = document.getElementById('mmd-load-more-btn');
+        btn.textContent = strings.loadMore || 'Load More';
+        btn.style.display = 'inline-block';
+    } else {
+        textEl.textContent = strings.showing
+            ? strings.showing.replace('{count}', '?')
+            : 'Showing partial content';
+        document.getElementById('mmd-load-more-btn').style.display = 'none';
+    }
+  }
+
+  function _mmdLoadMore() {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.loadMoreLines) {
+        window.webkit.messageHandlers.loadMoreLines.postMessage({});
+    }
+  }
+
+  // CSP のため onclick ではなく addEventListener で配線する。
+  document.getElementById('mmd-load-more-btn').addEventListener('click', function(e) {
+    if (!e.isTrusted) return;
+    _mmdLoadMore();
+  });
+
+  // 追加読み込みされたチャンクを既存 DOM に追記する(Swift の ViewerBridge から呼ばれる)。
+  // HTML 組み立ては viewer.js の純粋関数(csvRowsHtml / buildLineNumberRows /
+  // codeChunkInnerHtml)に委ね、ここでは DOM 挿入のみ行う。パス注釈は追記した行だけを
+  // _walkTextNodes で処理し、追記コストを O(チャンク) に抑える。
+  function appendChunk(text, type, lang) {
+    var diagramWrap = document.getElementById('diagram-wrap');
+    if (!diagramWrap) { return; }
+    if (_lastContent !== null) { _lastContent += text; }
+    if (type === 'csv') {
+      var csvRows = parseCsv(text, lang || ',');
+      var tbody = diagramWrap.querySelector('tbody');
+      if (!tbody) { return; }
+      var table = tbody.parentElement;
+      var headRow = table.tHead && table.tHead.rows[0];
+      var minCols = headRow ? headRow.cells.length : 0;
+      // 後続チャンクに幅広行があればヘッダを拡張する。
+      var maxNewCols = 0;
+      for (var r = 0; r < csvRows.length; r++) {
+        if (csvRows[r].length > maxNewCols) { maxNewCols = csvRows[r].length; }
+      }
+      if (maxNewCols > minCols && headRow) {
+        for (var c = minCols; c < maxNewCols; c++) {
+          headRow.insertAdjacentHTML('beforeend', '<th></th>');
+        }
+        minCols = maxNewCols;
+      }
+      var firstNew = tbody.rows.length;
+      tbody.insertAdjacentHTML('beforeend', csvRowsHtml(csvRows, minCols));
+      for (var r2 = firstNew; r2 < tbody.rows.length; r2++) {
+        _walkTextNodes(tbody.rows[r2], false);
+      }
+    } else {
+      var codeEl = diagramWrap.querySelector('pre code');
+      if (!codeEl) { return; }
+      var codeTable = codeEl.querySelector('table.code-table');
+      if (codeTable) {
+        // 強制分割(前チャンクが改行で終わらなかった)の場合、継続行は
+        // 前行と同じ番号から振り直す(行番号のずれを防ぐ)。
+        var startLine = codeTable.rows.length + (_lastChunkEndedWithNewline ? 1 : 0);
+        var inner = codeChunkInnerHtml(window.hljs, text, lang);
+        var firstNewRow = codeTable.rows.length;
+        codeTable.insertAdjacentHTML('beforeend', buildLineNumberRows(inner, startLine));
+        for (var i = firstNewRow; i < codeTable.rows.length; i++) {
+          _walkTextNodes(codeTable.rows[i], false);
+        }
+      } else {
+        codeEl.insertAdjacentHTML('beforeend', codeChunkInnerHtml(window.hljs, text, lang));
+        _annotatePathRefs();
+      }
+    }
+    _lastChunkEndedWithNewline = text.length > 0 && text[text.length - 1] === '\n';
+    _mmdFindRefreshAfterRender();
+  }
   // PDF 表示用に生成した blob URL。再描画のたびに revoke してリークを防ぐ。
   var _pdfBlobUrl = null;
 
@@ -839,6 +934,7 @@
     _lastContent = content;
     _lastType = type;
     _lastLang = lang;
+    _lastChunkEndedWithNewline = true;
     var errorPanel = document.getElementById('mmd-error');
     errorPanel.style.display = 'none';
     errorPanel.textContent = '';

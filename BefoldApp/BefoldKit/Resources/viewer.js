@@ -145,11 +145,12 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
-// 行ごとに分割した HTML を行番号付き <table> に組み立てる。
+// 行ごとに分割した HTML を行番号付き <tr> 列(文字列連結)に組み立てる。
+// 行番号は startLine から振る(チャンク追記では既存行数 + 1 を渡す)。
 // highlight.js はブロックコメント等で改行をまたぐ <span> を出力するため、
 // 行末で開いたままの span を閉じ、次の行の先頭で開き直して
 // 各セルの HTML を自己完結にする(未クローズ span が後続行を壊すのを防ぐ)。
-function wrapWithLineNumbers(codeHtml) {
+function buildLineNumberRows(codeHtml, startLine) {
   var lines = codeHtml.split('\n');
   // 末尾が空行の場合は除去する(highlight.js が末尾に \n を付けることがある)
   if (lines.length > 1 && lines[lines.length - 1] === '') {
@@ -173,10 +174,15 @@ function wrapWithLineNumbers(codeHtml) {
     for (var j = 0; j < openSpans.length; j++) {
       close += '</span>';
     }
-    rows += '<tr><td class="line-number">' + (i + 1)
+    rows += '<tr><td class="line-number">' + (startLine + i)
       + '</td><td class="line-content">' + reopen + line + close + '</td></tr>';
   }
-  return '<table class="code-table">' + rows + '</table>';
+  return rows;
+}
+
+// コード全文を行番号付き <table> で包む(初回描画用)。
+function wrapWithLineNumbers(codeHtml) {
+  return '<table class="code-table">' + buildLineNumberRows(codeHtml, 1) + '</table>';
 }
 
 // 単一コードファイル全文のハイライト HTML を組み立てる。
@@ -283,6 +289,22 @@ function parseCsv(content, delimiter) {
   return rows;
 }
 
+// CSV 行の配列から <tr><td>…</td></tr> 列(文字列連結)を組み立てる。
+// 各行は max(minCols, 行の列数) まで空セルでパディングし、セルは escapeHtml する。
+// buildTableHtml の <tbody> とチャンク追記(viewer.html の appendChunk)が共有する。
+function csvRowsHtml(rows, minCols) {
+  var html = '';
+  for (var r = 0; r < rows.length; r++) {
+    var cols = Math.max(minCols, rows[r].length);
+    html += '<tr>';
+    for (var c = 0; c < cols; c++) {
+      html += '<td>' + escapeHtml(c < rows[r].length ? rows[r][c] : '') + '</td>';
+    }
+    html += '</tr>';
+  }
+  return html;
+}
+
 // CSV 行の配列から HTML テーブル文字列を組み立てる。1行目を <thead>、残りを <tbody> にする。
 // 列数が揃っていない行は空セルでパディングする。
 function buildTableHtml(rows) {
@@ -296,13 +318,7 @@ function buildTableHtml(rows) {
     html += '<th>' + escapeHtml(c < rows[0].length ? rows[0][c] : '') + '</th>';
   }
   html += '</tr></thead><tbody>';
-  for (r = 1; r < rows.length; r++) {
-    html += '<tr>';
-    for (c = 0; c < maxCols; c++) {
-      html += '<td>' + escapeHtml(c < rows[r].length ? rows[r][c] : '') + '</td>';
-    }
-    html += '</tr>';
-  }
+  html += csvRowsHtml(rows.slice(1), maxCols);
   html += '</tbody></table>';
   return html;
 }
@@ -350,6 +366,17 @@ function buildFindRegExp(query, options) {
   }
 }
 
+// チャンク追記用のコード HTML。highlightCode の <pre><code…> ラッパーを剥がした
+// 中身だけを返し、ハイライト不可(hljs 不在・未対応言語)の場合はエスケープ済み
+// プレーンテキストにフォールバックする。DOM への挿入は viewer.html の appendChunk が行う。
+function codeChunkInnerHtml(hljs, str, lang) {
+  var highlighted = highlightCode(hljs, str, lang);
+  if (highlighted) {
+    return highlighted.replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '');
+  }
+  return escapeHtml(str);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PAGE_SCROLL_RATIO: PAGE_SCROLL_RATIO,
@@ -381,6 +408,9 @@ if (typeof module !== 'undefined' && module.exports) {
     escapeHtml: escapeHtml,
     renderCodeHtml: renderCodeHtml,
     wrapWithLineNumbers: wrapWithLineNumbers,
+    buildLineNumberRows: buildLineNumberRows,
+    csvRowsHtml: csvRowsHtml,
+    codeChunkInnerHtml: codeChunkInnerHtml,
     tokenizeCsvRows: tokenizeCsvRows,
     parseCsv: parseCsv,
     buildTableHtml: buildTableHtml,

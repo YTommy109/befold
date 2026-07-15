@@ -1,6 +1,20 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "banner.loadMore" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Load More" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "続きを読み込む" } }
+      }
+    },
+    "banner.showing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Showing {count} lines" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "{count} 行を表示中" } }
+      }
+    },
     "menu.app.about" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -627,6 +641,20 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Close (Esc)" } },
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "閉じる (Esc)" } }
+      }
+    },
+    "viewer.unsupported.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This file format is not supported for preview." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このファイル形式はプレビューに対応していません" } }
+      }
+    },
+    "viewer.unsupported.tooLarge" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This file is too large to display." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイルが大きすぎるため表示できません" } }
       }
     }
   },

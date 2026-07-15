@@ -269,8 +269,9 @@ final class ViewerWindowController: NSWindowController {
         // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
         // (例: .md → .swift、.md → .png)ソース表示トグルが成立しなくなる
         // 場合のみリセットする。
-        // store.handleRename が loadContent 経由で onContentReloaded を発火済みのため、
-        // ここでの明示的な updateModeToggleAppearance() 呼び出しは不要
+        // store.handleRename が予約した非同期読み込みの完了後に onContentReloaded が
+        // 発火してツールバーが追従するため、ここでの明示的な
+        // updateModeToggleAppearance() 呼び出しは不要
         // (resetSourceMode() が走る場合は applySourceMode 内で再同期される)。
         if isSourceMode, !FileType(url: newURL).supportsSourceMode {
             resetSourceMode()
@@ -331,8 +332,9 @@ final class ViewerWindowController: NSWindowController {
         let restoredSourceMode = sourceModeStore.restoredSourceMode(for: newURL)
         applySourceMode(restoredSourceMode)
         applyURLToWindow(newURL)
-        // fileExists を確認済みなので store.openFile は必ず loadContent → onContentReloaded まで
-        // 到達し、そこで updateModeToggleAppearance() が発火する。ここでの明示呼び出しは不要。
+        // fileExists を確認済みなので store.openFile が予約した非同期読み込みは必ず完了に達し、
+        // その時点で onContentReloaded → updateModeToggleAppearance() が発火する
+        // (読み込み完了までは切替前の表示状態が残る)。ここでの明示呼び出しは不要。
         store.openFile(newURL)
         applyStoredZoomToWebView()
         delegate?.viewerWindow(self, didSwitchFileFrom: oldURL, to: newURL)
@@ -568,7 +570,7 @@ extension ViewerWindowController: NSWindowDelegate {
         guard let item = item ?? window?.toolbar?.items.first(where: {
             $0.itemIdentifier == Self.modeToggleItemIdentifier
         }), let segmentedControl = item.view as? NSSegmentedControl else { return }
-        let isEnabled = !store.isUnsupported
+        let isEnabled = !store.isRejected
         segmentedControl.setEnabled(
             store.fileType.isRenderable && isEnabled, forSegment: ModeSegment.preview.rawValue
         )
@@ -586,7 +588,7 @@ extension ViewerWindowController: NSWindowDelegate {
     /// ソース表示トグルを有効にできるか。レンダリング可能な形式でも、
     /// サイズ超過などで非対応表示になっている間は切り替え先が不可視なため無効にする。
     var canToggleSourceMode: Bool {
-        store.fileType.supportsSourceMode && !store.isUnsupported
+        store.fileType.supportsSourceMode && !store.isRejected
     }
 
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {

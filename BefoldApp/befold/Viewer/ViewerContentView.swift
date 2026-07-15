@@ -36,18 +36,23 @@ struct ViewerContentView: View {
                 filePath: store.filePath,
                 isSourceMode: store.isSourceMode,
                 showLineNumbers: store.showLineNumbers,
+                isTruncated: store.isTruncated,
+                lineCount: store.displayedLineCount,
                 initialZoom: currentZoom,
                 scrollPositionToRestore: currentScrollPosition,
                 onScrollPositionChanged: onScrollPositionChanged,
                 onZoomChanged: onZoomChanged,
+                onLoadMoreLines: {
+                    await store.loadMoreLines()
+                },
                 onOpenReference: onOpenReference,
                 findOptionsPreference: findOptionsPreference,
                 webViewProxy: webViewProxy
             )
-            .opacity(store.isUnsupported ? 0 : 1)
+            .opacity(store.isRejected ? 0 : 1)
 
-            if store.isUnsupported {
-                UnsupportedFileView(fileURL: store.filePath)
+            if let reason = store.rejectReason {
+                UnsupportedFileView(fileURL: store.filePath, rejectReason: reason)
             }
         }
     }

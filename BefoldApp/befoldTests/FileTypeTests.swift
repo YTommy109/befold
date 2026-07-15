@@ -176,6 +176,22 @@ struct FileTypeTests {
         #expect(traits.fileType.renderLangArgument == traits.renderLangArgument)
     }
 
+    @Test(arguments: [
+        (FileType.csv(delimiter: ","), true),
+        (FileType.csv(delimiter: "\t"), true),
+        (FileType.code(language: "swift"), true),
+        (FileType.code(language: "plaintext"), true),
+        (FileType.mmd, false),
+        (FileType.markdown, false),
+        (FileType.svg, false),
+        (FileType.html, false),
+        (FileType.image(mimeType: "image/png"), false),
+        (FileType.pdf, false),
+    ])
+    func isLineOriented(fileType: FileType, expected: Bool) {
+        #expect(fileType.isLineOriented == expected)
+    }
+
     /// 拡張子リストに重複がないこと（対応表と mermaid/markdown/svg/html の衝突検知）
     @Test
     func extensionListsHaveNoDuplicates() {

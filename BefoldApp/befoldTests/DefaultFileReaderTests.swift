@@ -103,4 +103,29 @@ struct DefaultFileReaderTests {
         #expect(!reader.isBinary(at: file))
         #expect(try reader.readString(from: file) == text)
     }
+
+    @Test("Shift_JIS ファイルが正しくデコードされる")
+    func shiftJISFileDecodesCorrectly() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let text = "北海道特定疾患"
+        let data = try #require(text.data(using: .shiftJIS))
+        let file = try tmp.file(named: "data.csv", data: data)
+
+        let reader = DefaultFileReader()
+        #expect(!reader.isBinary(at: file))
+        #expect(try reader.readString(from: file) == text)
+    }
+
+    @Test("EUC-JP ファイルが正しくデコードされる")
+    func eucJPFileDecodesCorrectly() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let text = "日本語テスト"
+        let data = try #require(text.data(using: .japaneseEUC))
+        let file = try tmp.file(named: "data.txt", data: data)
+
+        let reader = DefaultFileReader()
+        #expect(try reader.readString(from: file) == text)
+    }
 }

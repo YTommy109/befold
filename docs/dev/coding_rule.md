@@ -25,7 +25,7 @@ befold.app (Swift / AppKit + SwiftUI)
   │     └── SidebarNavigator       # サイドバー一覧・選択同期・戻る/進む履歴
   │           └─ SidebarNavigatorHost  # Navigator→VWC の逆方向依存を切るプロトコル
   ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
-  ├── ViewerStore        # @Observable 表示状態（content / isUnsupported、FileReading で読込を抽象化）
+  ├── ViewerStore        # @Observable 表示状態（content / rejectReason / isTruncated、FileReading + ChunkedTextReading で読込を抽象化）
   └── ViewerWebView      # WKWebView（NSViewRepresentable + Coordinator）
         ├── 同梱アセット（viewer.html / viewer.js / mermaid.min.js / markdown-it.min.js / style.css）
         └── JS ブリッジ: ViewerBridge 経由で evaluateJavaScript("render(content, type)")
@@ -58,7 +58,7 @@ BefoldApp/
 │   ├── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
 │   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js
 │       └── __tests__/       # viewer.js の Jest テスト
-├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver）
+├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TextEncoding, LineChunkReader, ContentLoader）
 └── befoldTests/            # Swift Testing テスト（TestSupport.swift = 共有ヘルパー）
 ```
 
@@ -158,7 +158,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 
 - Swift API Design Guidelines に従う
 - 型名: UpperCamelCase（`ViewerStore`, `FileWatcher`）
-- メソッド・プロパティ: lowerCamelCase（`openFile`, `isUnsupported`）
+- メソッド・プロパティ: lowerCamelCase（`openFile`, `isRejected`）
 - GCD キューラベル: リバースドメイン（`com.degino.befold.filewatcher`）
 - ウィンドウ autosave 名: `Viewer-<パスベースの識別子>`
 - `@available(*, unavailable)` + `fatalError()`: Interface Builder 未使用を明示する `required init?(coder:)` に付ける
@@ -229,10 +229,20 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 | ズーム上下限・ステップ | `ZoomStore.minZoom` / `maxZoom` / `zoomStep` |
 | 不可視ファイル表示の共有状態 | `HiddenFilesPreference` インスタンス（AppDelegate が生成した 1 個を全ウィンドウで共有） |
 | 拡張子→FileType のマッピング | `FileType.typeByExtension`（`init(url:)` と `allExtensions` の双方がここから導出。拡張子追加は辞書への 1 行追加で完結する） |
-| BOM 検出（バイトパターン→エンコーディング） | `DefaultFileReader.detectBOM(_:)`（`decodeUnicodeText` と `hasUnicodeBOM` の双方がここに委譲） |
+| BOM 検出（バイトパターン→エンコーディング） | `TextEncoding.detectBOM(_:)`（`decodeText` と `isChunkableEncoding` の双方がここに委譲） |
+| テキスト復号（BOM / UTF-16 / UTF-8 / レガシーエンコーディング） | `TextEncoding.decodeText(_:)`（`DefaultFileReader.readString` と `ViewerStore.decodeFullFile` の双方がここに委譲。`LineChunkReader` は `detectBOM` / `detectEncoding` / `trimIncompleteUTF8Tail` に委譲し、`decodeText` は使わない） |
 | ディレクトリ列挙（ソート・フィルタ込み） | `DirectoryLister.sortedContents(in:showHiddenFiles:)`（`listFiles` / `listEntries` / `firstSupportedFile` が委譲） |
 | Sparkle フィード URL | `UpdateChannel.feedURLString`（`SPUUpdaterDelegate.feedURLString(for:)` 経由で Sparkle に提供。Info.plist の `SUFeedURL` は使用しない） |
 
+- **同一 diff 内の自己整合性**: 単一情報源テーブルへのエントリ追加・共通関数の新設を含む diff では、
+  **その同じ diff 内の全コードが新設した情報源を使っているか** をセルフレビューで照合する。
+  「テーブルに登録したが、同じ PR の別ファイルでは自前実装している」は、既存コードとの重複と
+  同じ違反である。同様に、ある制約を表す既存の定数（`maxTextFileSizeBytes` 等）が存在するとき、
+  同じ制約を意図する新規コードで別の定数（`maxFileSizeBytes` 等）を参照するのは
+  「同じ知識の二重表現」であり違反とする
+  （`decodeText` をテーブル登録した同じ diff で `decodeFullFile` が自前デコードしていた実例、
+  テキストファイルサイズ上限に汎用の `maxFileSizeBytes` を使い `maxTextFileSizeBytes` と
+  不整合を起こした実例）
 - **言語をまたぐ定数**（Swift ↔ viewer.js）は避けられない場合のみ二重定義し、
   (1) 双方に対応相手を示すコメント、(2) ソースを読んで一致を検証するテスト
   （`ViewerBridgeTests.zoomRangeMatchesZoomStore` の流儀）を必ずセットで付ける
@@ -351,9 +361,13 @@ swift package plugin --allow-writing-to-package-directory swiftformat
     波及を必ず確認する**。上記の「仕様書を読み合わせて更新する」波及範囲には、
     `docs/dev/coding_rule.md` および `CLAUDE.md` のアーキテクチャ図（`## アーキテクチャ`）と
     プロジェクト構成ツリー（`## プロジェクト構成`）が含まれる。型の新設・削除・移動、
-    ディレクトリの追加・廃止のいずれも、これらの図・ツリーとの突き合わせを同じ diff 内で行う
+    ディレクトリの追加・廃止のいずれも、これらの図・ツリーとの突き合わせを同じ diff 内で行う。
+    さらに、**プロパティ・型のリネームは、`coding_rule.md` 内のコード例・命名例・テスト例との
+    突き合わせも行う**。規約ドキュメントが実在の識別子名をサンプルとして使用している場合、
+    リネーム元の名前が残っていると規約とコードの乖離が生じる
     （`UpdateCheckCoordinator` を削除したがアーキテクチャ図に残っていた実例、
-    `Updates/` ディレクトリを追加したが CLAUDE.md の構成ツリーに反映されていなかった実例）
+    `Updates/` ディレクトリを追加したが CLAUDE.md の構成ツリーに反映されていなかった実例、
+    `isUnsupported` を `rejectReason` にリネームしたが命名例とテスト例に旧名が残っていた実例）
   - **「〜のみ」「常に〜」「〜のまま（変更しない）」のように現在の状態・変更有無を断定する
     コメントは、たとえ WHY 寄りであっても壊れやすい**。可視性ルール等を説明する正当なコメントでも、
     現状を事実として断定する部分（`private` → `internal` に変えたのに「internal のままにする」）は、
@@ -558,7 +572,7 @@ func openMmdFile() throws {
 
     #expect(store.content == "graph TD; A-->B")
     #expect(store.fileType == .mmd)
-    #expect(!store.isUnsupported)
+    #expect(!store.isRejected)
 
     store.close()
 }

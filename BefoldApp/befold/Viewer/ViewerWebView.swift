@@ -13,6 +13,10 @@ struct ViewerWebView: NSViewRepresentable {
     let isSourceMode: Bool
     /// ソース表示中に行番号を表示するかどうか。
     let showLineNumbers: Bool
+    /// ファイルの一部だけを読み込んでいる(段階読み込み中)かどうか。
+    let isTruncated: Bool
+    /// 現在表示している累積行数(段階読み込みのバナー表示に使う)。
+    let lineCount: Int
     /// ロード時に JS へ注入するファイル毎の初期倍率。
     let initialZoom: Double
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
@@ -21,6 +25,8 @@ struct ViewerWebView: NSViewRepresentable {
     let onScrollPositionChanged: @MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void
     /// JS 側で倍率が変わったときに呼ばれる。
     let onZoomChanged: @MainActor (Double) -> Void
+    /// JS 側「続きを読み込む」押下時に呼ばれ、次チャンクと更新後の表示状態を非同期で返す。
+    let onLoadMoreLines: @MainActor () async -> (chunk: String, isTruncated: Bool, lineCount: Int)?
     /// リンクやパス参照がアクティベートされたときに呼ばれる。
     /// パラメータ: href, newWindow
     let onOpenReference: @MainActor (_ href: String, _ newWindow: Bool) -> Void
@@ -73,11 +79,22 @@ struct ViewerWebView: NSViewRepresentable {
             forMainFrameOnly: true
         )
         config.userContentController.addUserScript(findStringsScript)
+        let bannerStringsScript = WKUserScript(
+            source: ViewerBridge.bannerStringsScript(bundle: .l10n),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(bannerStringsScript)
         config.userContentController.add(
             WeakScriptMessageHandler(delegate: context.coordinator),
             name: ViewerBridge.findOptionsChangedMessageName
         )
         context.coordinator.findOptionsPreference = findOptionsPreference
+        config.userContentController.add(
+            WeakScriptMessageHandler(delegate: context.coordinator),
+            name: ViewerBridge.loadMoreLinesMessageName
+        )
+        context.coordinator.onLoadMoreLines = onLoadMoreLines
         config.userContentController.add(
             WeakScriptMessageHandler(delegate: context.coordinator),
             name: ViewerBridge.zoomChangedMessageName
@@ -119,6 +136,7 @@ struct ViewerWebView: NSViewRepresentable {
         context.coordinator.onZoomChanged = onZoomChanged
         context.coordinator.onScrollPositionChanged = onScrollPositionChanged
         context.coordinator.onOpenReference = onOpenReference
+        context.coordinator.onLoadMoreLines = onLoadMoreLines
         context.coordinator.findOptionsPreference = findOptionsPreference
         context.coordinator.initialPageZoom = initialZoom
         context.coordinator.scrollPositionToRestore = scrollPositionToRestore
@@ -127,7 +145,9 @@ struct ViewerWebView: NSViewRepresentable {
             fileType: fileType,
             filePath: filePath,
             isSourceMode: isSourceMode,
-            showLineNumbers: showLineNumbers
+            showLineNumbers: showLineNumbers,
+            isTruncated: isTruncated,
+            lineCount: lineCount
         )
     }
 
@@ -152,6 +172,8 @@ struct ViewerWebView: NSViewRepresentable {
             .removeScriptMessageHandler(forName: ViewerBridge.scrollPositionChangedMessageName)
         nsView.configuration.userContentController
             .removeScriptMessageHandler(forName: ViewerBridge.findOptionsChangedMessageName)
+        nsView.configuration.userContentController
+            .removeScriptMessageHandler(forName: ViewerBridge.loadMoreLinesMessageName)
     }
 
     // MARK: - WeakScriptMessageHandler
@@ -183,6 +205,10 @@ struct ViewerWebView: NSViewRepresentable {
         var onZoomChanged: (@MainActor (Double) -> Void)?
         var onScrollPositionChanged: (@MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void)?
         var onOpenReference: (@MainActor (_ href: String, _ newWindow: Bool) -> Void)?
+        var onLoadMoreLines: (@MainActor () async -> (chunk: String, isTruncated: Bool, lineCount: Int)?)?
+        /// 「続きを読み込む」の実行中フラグ。非同期読み込み中の再押下を無視し、
+        /// 追記の交錯(順序の入れ替わり)を防ぐ。
+        private var isLoadingMoreLines = false
         /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
         var findOptionsPreference: FindOptionsPreference?
         /// updateNSView から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
@@ -198,6 +224,11 @@ struct ViewerWebView: NSViewRepresentable {
         private var lastRenderedFilePath: URL?
         private var lastShowLineNumbers: Bool?
         private var lastIsSourceMode: Bool?
+        private var lastIsTruncated: Bool?
+        /// 最後に _mmdSetTruncated へ送った表示行数(非切り詰め時は 0 に正規化)。
+        /// 切り詰め状態のまま行数だけが変わる再読込(3000 行 → 1000 行など)でも
+        /// バナーを更新できるよう、isTruncated とセットで追跡する。
+        private var lastTruncatedLineCount: Int?
         private var isDirectHTMLMode = false
         private var lastDirectHTMLPath: URL?
 
@@ -234,6 +265,51 @@ struct ViewerWebView: NSViewRepresentable {
                 findOptionsPreference?.caseSensitive = caseSensitive
                 findOptionsPreference?.wholeWord = wholeWord
                 findOptionsPreference?.useRegex = useRegex
+            } else if message.name == ViewerBridge.loadMoreLinesMessageName {
+                handleLoadMoreLines()
+            }
+        }
+
+        /// JS 側「続きを読み込む」押下時に次チャンクを非同期で取得し、キャッシュ更新と描画を行う。
+        /// 読み込み中の再押下は isLoadingMoreLines で無視し、追記の交錯を防ぐ。
+        @MainActor
+        private func handleLoadMoreLines() {
+            guard !isLoadingMoreLines else { return }
+            isLoadingMoreLines = true
+            Task { @MainActor [self] in
+                defer { isLoadingMoreLines = false }
+                guard let result = await onLoadMoreLines?(), let webView else { return }
+                // 連結代入は蓄積済み文字列全体をコピーする(クリックごとに O(n))ため、
+                // in-place の append で追記する。
+                if lastRenderedContent == nil { lastRenderedContent = "" }
+                lastRenderedContent?.append(result.chunk)
+                lastIsTruncated = result.isTruncated
+                lastTruncatedLineCount = result.isTruncated ? result.lineCount : 0
+
+                // ソース表示でも .code は render() がレンダリング表示と同一の描画をするため
+                // 追記で足りる。CSV のソース表示(レインボー表示)だけは描画が異なるため、
+                // 蓄積済みコンテンツ全体を再描画する。
+                if lastIsSourceMode == true, lastRenderedFileType?.csvDelimiter != nil {
+                    guard let script = ViewerBridge.renderScript(
+                        content: Self.renderableContent(
+                            lastRenderedContent ?? "",
+                            fileType: lastRenderedFileType ?? .code(language: "plaintext"),
+                            filePath: lastRenderedFilePath, isSourceMode: true
+                        ),
+                        fileType: lastRenderedFileType ?? .code(language: "plaintext")
+                    ) else { return }
+                    // async コンテキストでは待つ必要のない fire-and-forget 版を明示する。
+                    webView.evaluateJavaScript(script, completionHandler: nil)
+                } else if let script = ViewerBridge.appendChunkScript(
+                    chunk: result.chunk,
+                    fileType: lastRenderedFileType ?? .code(language: "plaintext")
+                ) {
+                    webView.evaluateJavaScript(script, completionHandler: nil)
+                }
+                webView.evaluateJavaScript(
+                    ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount),
+                    completionHandler: nil
+                )
             }
         }
 
@@ -308,7 +384,9 @@ struct ViewerWebView: NSViewRepresentable {
             fileType: FileType,
             filePath: URL?,
             isSourceMode: Bool,
-            showLineNumbers: Bool
+            showLineNumbers: Bool,
+            isTruncated: Bool,
+            lineCount: Int
         ) {
             let doUpdate = { [weak self] in
                 guard let self, let webView else { return }
@@ -347,6 +425,7 @@ struct ViewerWebView: NSViewRepresentable {
                             webView: webView, content: content, fileType: fileType,
                             filePath: filePath, isSourceMode: isSourceMode,
                             showLineNumbers: showLineNumbers,
+                            truncation: (isTruncated, lineCount),
                             restoreFromPersistedPosition: restoreFromPersistedPosition
                         )
                     }
@@ -361,6 +440,7 @@ struct ViewerWebView: NSViewRepresentable {
                     || fileType != lastRenderedFileType
                     || showLineNumbers != lastShowLineNumbers
                     || isSourceMode != lastIsSourceMode
+                    || truncationStateChanged(isTruncated: isTruncated, lineCount: lineCount)
                 guard needsRender else { return }
 
                 let restoreFromPersistedPosition = Self.isFileOrModeSwitch(
@@ -372,6 +452,7 @@ struct ViewerWebView: NSViewRepresentable {
                     webView: webView, content: content, fileType: fileType,
                     filePath: filePath, isSourceMode: isSourceMode,
                     showLineNumbers: showLineNumbers,
+                    truncation: (isTruncated, lineCount),
                     restoreFromPersistedPosition: restoreFromPersistedPosition
                 )
             }
@@ -382,83 +463,104 @@ struct ViewerWebView: NSViewRepresentable {
                 pendingUpdate = doUpdate
             }
         }
+    }
+}
 
-        /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
-        /// scrollKey 予告 + render を評価する。
-        /// - Parameter restoreFromPersistedPosition: `isFileOrModeSwitch` 参照。
-        private func applyRender(
-            webView: WKWebView, content: String, fileType: FileType,
-            filePath: URL?, isSourceMode: Bool, showLineNumbers: Bool,
-            restoreFromPersistedPosition: Bool
-        ) {
-            if showLineNumbers != lastShowLineNumbers {
-                webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
-                lastShowLineNumbers = showLineNumbers
-            }
-            if isSourceMode != lastIsSourceMode {
-                webView.evaluateJavaScript(
-                    ViewerBridge.viewModeScript(isSourceMode ? .source : .rendered)
-                )
-                lastIsSourceMode = isSourceMode
-            }
-            guard let script = ViewerBridge.renderScript(
-                content: Self.renderableContent(
-                    content, fileType: fileType,
-                    filePath: filePath, isSourceMode: isSourceMode
-                ),
-                fileType: fileType
-            ) else { return }
-            if restoreFromPersistedPosition {
-                webView.evaluateJavaScript(ViewerBridge.restoreScrollPositionScript(scrollPositionToRestore))
-            }
-            webView.evaluateJavaScript(script)
-        }
+// MARK: - Render helpers
 
-        /// 今回の render() がファイル/モードの実際の切替かどうかを判定する。
-        /// 切替時のみ永続化済みスクロール位置(最大 200ms 古い可能性がある)で復元し、
-        /// 同一ファイル・同一モードでの再描画(ライブリロード・行番号トグル等)では
-        /// ライブの現在スクロール位置を優先させる(JS 側フォールバック。applyRender 参照)。
-        nonisolated static func isFileOrModeSwitch(
-            filePath: URL?, isSourceMode: Bool,
-            lastRenderedFilePath: URL?, lastIsSourceMode: Bool?
-        ) -> Bool {
-            filePath != lastRenderedFilePath || isSourceMode != lastIsSourceMode
+extension ViewerWebView.Coordinator {
+    /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
+    /// scrollKey 予告 + render を評価する。
+    /// - Parameter restoreFromPersistedPosition: `isFileOrModeSwitch` 参照。
+    private func applyRender(
+        webView: WKWebView, content: String, fileType: FileType,
+        filePath: URL?, isSourceMode: Bool, showLineNumbers: Bool,
+        truncation: (isTruncated: Bool, lineCount: Int),
+        restoreFromPersistedPosition: Bool
+    ) {
+        if showLineNumbers != lastShowLineNumbers {
+            webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
+            lastShowLineNumbers = showLineNumbers
         }
+        if isSourceMode != lastIsSourceMode {
+            webView.evaluateJavaScript(
+                ViewerBridge.viewModeScript(isSourceMode ? .source : .rendered)
+            )
+            lastIsSourceMode = isSourceMode
+        }
+        if truncationStateChanged(isTruncated: truncation.isTruncated, lineCount: truncation.lineCount) {
+            webView.evaluateJavaScript(
+                ViewerBridge.truncatedScript(truncation.isTruncated, lineCount: truncation.lineCount)
+            )
+            lastIsTruncated = truncation.isTruncated
+            lastTruncatedLineCount = truncation.isTruncated ? truncation.lineCount : 0
+        }
+        guard let script = ViewerBridge.renderScript(
+            content: Self.renderableContent(
+                content, fileType: fileType,
+                filePath: filePath, isSourceMode: isSourceMode
+            ),
+            fileType: fileType
+        ) else { return }
+        if restoreFromPersistedPosition {
+            webView.evaluateJavaScript(ViewerBridge.restoreScrollPositionScript(scrollPositionToRestore))
+        }
+        webView.evaluateJavaScript(script)
+    }
 
-        private func recordRendered(content: String, fileType: FileType, filePath: URL?) {
-            lastRenderedContent = content
-            lastRenderedFileType = fileType
-            lastRenderedFilePath = filePath
-        }
+    /// _mmdSetTruncated の再送が必要か(切り詰め状態、または切り詰め中の表示行数が
+    /// 変わったか)を判定する。行数は非切り詰め時 0 に正規化して比較する。
+    private func truncationStateChanged(isTruncated: Bool, lineCount: Int) -> Bool {
+        isTruncated != lastIsTruncated
+            || (isTruncated ? lineCount : 0) != lastTruncatedLineCount
+    }
 
-        /// render() に渡す直前のコンテンツ加工。markdown はローカル画像参照を
-        /// data URI に差し替える(相対パスの解決基準として filePath が必要)。
-        /// ソース表示中は原文をそのまま見せるため、埋め込みは行わない。
-        nonisolated static func renderableContent(
-            _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool
-        ) -> String {
-            guard !isSourceMode, fileType == .markdown, let filePath else { return content }
-            return MarkdownImageEmbedder.embedLocalImages(in: content, baseURL: filePath)
-        }
+    /// 今回の render() がファイル/モードの実際の切替かどうかを判定する。
+    /// 切替時のみ永続化済みスクロール位置(最大 200ms 古い可能性がある)で復元し、
+    /// 同一ファイル・同一モードでの再描画(ライブリロード・行番号トグル等)では
+    /// ライブの現在スクロール位置を優先させる(JS 側フォールバック。applyRender 参照)。
+    nonisolated static func isFileOrModeSwitch(
+        filePath: URL?, isSourceMode: Bool,
+        lastRenderedFilePath: URL?, lastIsSourceMode: Bool?
+    ) -> Bool {
+        filePath != lastRenderedFilePath || isSourceMode != lastIsSourceMode
+    }
 
-        private func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
-            isReady = false
-            // 再ロードで viewer.html の JS 状態(_showLineNumbers=false, _viewMode='rendered')が
-            // 初期化されるため、Swift 側のキャッシュも破棄して次回更新時に
-            // setLineNumbers / setViewMode を再注入させる。
-            lastShowLineNumbers = nil
-            lastIsSourceMode = nil
-            // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
-            // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
-            let zoom = initialPageZoom
-            pendingUpdate = {
-                webView.evaluateJavaScript(ViewerBridge.applyZoomScript(zoom))
-                completion()
-            }
-            // viewer.html（mermaid.js）は JS 必須のため、直接ロードで無効化した JS を再有効化する。
-            webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-            ViewerWebView.loadViewerHTML(into: webView)
+    private func recordRendered(content: String, fileType: FileType, filePath: URL?) {
+        lastRenderedContent = content
+        lastRenderedFileType = fileType
+        lastRenderedFilePath = filePath
+    }
+
+    /// render() に渡す直前のコンテンツ加工。markdown はローカル画像参照を
+    /// data URI に差し替える(相対パスの解決基準として filePath が必要)。
+    /// ソース表示中は原文をそのまま見せるため、埋め込みは行わない。
+    nonisolated static func renderableContent(
+        _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool
+    ) -> String {
+        guard !isSourceMode, fileType == .markdown, let filePath else { return content }
+        return MarkdownImageEmbedder.embedLocalImages(in: content, baseURL: filePath)
+    }
+
+    private func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
+        isReady = false
+        // 再ロードで viewer.html の JS 状態(_showLineNumbers=false, _viewMode='rendered')が
+        // 初期化されるため、Swift 側のキャッシュも破棄して次回更新時に
+        // setLineNumbers / setViewMode を再注入させる。
+        lastShowLineNumbers = nil
+        lastIsSourceMode = nil
+        lastIsTruncated = nil
+        lastTruncatedLineCount = nil
+        // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
+        // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
+        let zoom = initialPageZoom
+        pendingUpdate = {
+            webView.evaluateJavaScript(ViewerBridge.applyZoomScript(zoom))
+            completion()
         }
+        // viewer.html（mermaid.js）は JS 必須のため、直接ロードで無効化した JS を再有効化する。
+        webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        ViewerWebView.loadViewerHTML(into: webView)
     }
 }
 

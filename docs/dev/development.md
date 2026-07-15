@@ -36,7 +36,7 @@ befold.app (Swift / AppKit + SwiftUI)
   │     ├── SessionRestorer        # 前回セッションのタブ構成の保存/復元
   │     └── UpdateCheckCoordinator # 更新チェックの実行と表示ポリシー
   ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
-  ├── ViewerStore        # @Observable 表示状態（content / isUnsupported、FileReading で読込を抽象化）
+  ├── ViewerStore        # @Observable 表示状態（content / rejectReason / isTruncated、FileReading + ChunkedTextReading で読込を抽象化）
   └── ViewerWebView      # WKWebView（NSViewRepresentable）
         ├── 同梱アセット（viewer.html / mermaid.min.js / markdown-it.min.js / style.css）
         └── JS ブリッジ: ViewerBridge 経由で evaluateJavaScript("render(content, type)")

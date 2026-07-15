@@ -146,7 +146,7 @@ public enum FileType: Sendable, Equatable {
     public var isBinaryContent: Bool {
         switch self {
         case .image, .pdf: true
-        default: false
+        case .mmd, .markdown, .svg, .html, .csv, .code: false
         }
     }
 
@@ -162,5 +162,15 @@ public enum FileType: Sendable, Equatable {
     /// バイナリ(画像・PDF)にはテキストソースがないため対象外。
     public var supportsSourceMode: Bool {
         isRenderable && !isBinaryContent
+    }
+
+    /// 行指向の形式かどうか。チャンク読み込みの対象判定に使う。
+    /// CSV/TSV とコード(プレーンテキスト含む)が該当する。
+    /// Markdown/Mermaid/HTML/SVG は途中切断で描画が壊れるため対象外。
+    public var isLineOriented: Bool {
+        switch self {
+        case .csv, .code: true
+        case .mmd, .markdown, .svg, .html, .image, .pdf: false
+        }
     }
 }
