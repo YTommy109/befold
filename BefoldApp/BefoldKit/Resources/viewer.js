@@ -145,19 +145,19 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
-// 行ごとに分割した HTML を行番号付き <tr> 列(文字列連結)に組み立てる。
-// 行番号は startLine から振る(チャンク追記では既存行数 + 1 を渡す)。
-// highlight.js はブロックコメント等で改行をまたぐ <span> を出力するため、
-// 行末で開いたままの span を閉じ、次の行の先頭で開き直して
-// 各セルの HTML を自己完結にする(未クローズ span が後続行を壊すのを防ぐ)。
-function buildLineNumberRows(codeHtml, startLine) {
+// HTML を行ごとに分割し、各行を自己完結な HTML にする(未クローズ span が
+// 後続行を壊すのを防ぐ)。highlight.js はブロックコメント等で改行をまたぐ
+// <span> を出力するため、行末で開いたままの span を閉じ、次の行の先頭で
+// 開き直す。buildLineNumberRows(行番号付与) と codeChunkInnerHtml
+// (チャンク境界の前方文脈を落とす処理)の双方から使う。
+function reflowSpanBalancedLines(codeHtml) {
   var lines = codeHtml.split('\n');
   // 末尾が空行の場合は除去する(highlight.js が末尾に \n を付けることがある)
   if (lines.length > 1 && lines[lines.length - 1] === '') {
     lines.pop();
   }
   var openSpans = [];
-  var rows = '';
+  var result = [];
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i] || '';
     var reopen = openSpans.join('');
@@ -174,8 +174,19 @@ function buildLineNumberRows(codeHtml, startLine) {
     for (var j = 0; j < openSpans.length; j++) {
       close += '</span>';
     }
+    result.push(reopen + line + close);
+  }
+  return result;
+}
+
+// 行ごとに分割した HTML を行番号付き <tr> 列(文字列連結)に組み立てる。
+// 行番号は startLine から振る(チャンク追記では既存行数 + 1 を渡す)。
+function buildLineNumberRows(codeHtml, startLine) {
+  var lines = reflowSpanBalancedLines(codeHtml);
+  var rows = '';
+  for (var i = 0; i < lines.length; i++) {
     rows += '<tr><td class="line-number">' + (startLine + i)
-      + '</td><td class="line-content">' + reopen + line + close + '</td></tr>';
+      + '</td><td class="line-content">' + lines[i] + '</td></tr>';
   }
   return rows;
 }
@@ -369,12 +380,44 @@ function buildFindRegExp(query, options) {
 // チャンク追記用のコード HTML。highlightCode の <pre><code…> ラッパーを剥がした
 // 中身だけを返し、ハイライト不可(hljs 不在・未対応言語)の場合はエスケープ済み
 // プレーンテキストにフォールバックする。DOM への挿入は viewer.html の appendChunk が行う。
-function codeChunkInnerHtml(hljs, str, lang) {
+// contextStr(改行終端済みの直前チャンクの末尾行、任意)を渡すと、
+// contextStr + str をまとめて highlight.js にかけてから contextStr 分の
+// 行を取り除いて返す。highlight.js はチャンクをまたいだ継続状態を持たない
+// (v11 で continuation 引数は廃止済み)ため、ブロックコメントや複数行文字列が
+// チャンク境界をまたぐと、文脈なしでは境界直後が通常コードとして誤ハイライト
+// される。境界前の数百行を文脈として与えることで、hljs が正しい字句状態
+// (コメント内/文字列内など)を自力で再構築できるようにする。
+function codeChunkInnerHtml(hljs, str, lang, contextStr) {
+  if (contextStr) {
+    var highlightedWithContext = highlightCode(hljs, contextStr + str, lang);
+    if (highlightedWithContext) {
+      var inner = highlightedWithContext.replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '');
+      var lines = reflowSpanBalancedLines(inner);
+      var contextLineCount = (contextStr.match(/\n/g) || []).length;
+      return lines.slice(contextLineCount).join('\n');
+    }
+  }
   var highlighted = highlightCode(hljs, str, lang);
   if (highlighted) {
     return highlighted.replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '');
   }
   return escapeHtml(str);
+}
+
+// str の末尾から改行終端済みの行を最大 maxLines 行分切り出す(文脈として
+// highlight.js に渡す用)。全文をスキャンせず末尾から lastIndexOf を
+// maxLines 回たどるだけなので、str が巨大でもコストは maxLines に比例する。
+function lastLines(str, maxLines) {
+  if (str.length === 0) { return ''; }
+  var idx = str.length - 1;
+  var count = 0;
+  while (count < maxLines) {
+    var nl = str.lastIndexOf('\n', idx - 1);
+    if (nl === -1) { return str; }
+    idx = nl;
+    count++;
+  }
+  return str.slice(idx + 1);
 }
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -409,8 +452,10 @@ if (typeof module !== 'undefined' && module.exports) {
     renderCodeHtml: renderCodeHtml,
     wrapWithLineNumbers: wrapWithLineNumbers,
     buildLineNumberRows: buildLineNumberRows,
+    reflowSpanBalancedLines: reflowSpanBalancedLines,
     csvRowsHtml: csvRowsHtml,
     codeChunkInnerHtml: codeChunkInnerHtml,
+    lastLines: lastLines,
     tokenizeCsvRows: tokenizeCsvRows,
     parseCsv: parseCsv,
     buildTableHtml: buildTableHtml,

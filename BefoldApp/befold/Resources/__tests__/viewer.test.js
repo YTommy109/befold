@@ -32,8 +32,10 @@ const {
   isSafeLinkURL,
   buildFindRegExp,
   buildLineNumberRows,
+  reflowSpanBalancedLines,
   csvRowsHtml,
   codeChunkInnerHtml,
+  lastLines,
 } = require('../../../BefoldKit/Resources/viewer');
 
 describe('clampZoom', () => {
@@ -943,5 +945,59 @@ describe('codeChunkInnerHtml', () => {
 
   test('falls back to escapeHtml when the language is unknown', () => {
     expect(codeChunkInnerHtml(hljs, 'a < b', 'no-such-lang')).toBe('a &lt; b');
+  });
+
+  test('without context, a block comment continuation is misidentified as code', () => {
+    // チャンク境界後の 'still comment' は、文脈なしでは通常コードとして扱われる
+    // (これが TASK-14 のバグ本体)。
+    const continuation = codeChunkInnerHtml(hljs, 'still comment */\nconst y = 2;', 'javascript');
+    expect(continuation).not.toContain('hljs-comment');
+  });
+
+  test('with context spanning an open block comment, the continuation stays a comment', () => {
+    const context = '/* comment start\n';
+    const continuation = codeChunkInnerHtml(hljs, 'still comment */\nconst y = 2;', 'javascript', context);
+    const lines = continuation.split('\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('hljs-comment');
+    expect(lines[0]).toContain('still comment');
+    expect(lines[1]).toContain('hljs-keyword');
+  });
+
+  test('context lines are dropped and do not duplicate into the returned HTML', () => {
+    const context = 'const a = 1;\nconst b = 2;\n';
+    const continuation = codeChunkInnerHtml(hljs, 'const c = 3;', 'javascript', context);
+    expect(continuation).not.toContain('a = 1');
+    expect(continuation).not.toContain('b = 2');
+    expect(continuation).toContain('hljs-number">3');
+  });
+
+  test('with a multi-line context, output matches highlighting the same text without a chunk split', () => {
+    const full = '/* start\nmiddle\nend */\nconst z = 1;';
+    const context = '/* start\nmiddle\n';
+    const tail = 'end */\nconst z = 1;';
+    const withContext = codeChunkInnerHtml(hljs, tail, 'javascript', context);
+    const fullHighlighted = highlightCode(hljs, full, 'javascript')
+      .replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '');
+    const fullReflowedTailLines = reflowSpanBalancedLines(fullHighlighted).slice(2).join('\n');
+    expect(withContext).toBe(fullReflowedTailLines);
+  });
+});
+
+describe('lastLines', () => {
+  test('returns the whole string when it has fewer newlines than maxLines', () => {
+    expect(lastLines('a\nb\n', 10)).toBe('a\nb\n');
+  });
+
+  test('returns the last maxLines complete lines, preserving the trailing newline', () => {
+    expect(lastLines('a\nb\nc\n', 2)).toBe('b\nc\n');
+  });
+
+  test('returns empty string for empty input', () => {
+    expect(lastLines('', 5)).toBe('');
+  });
+
+  test('maxLines=0 returns empty string', () => {
+    expect(lastLines('a\nb\n', 0)).toBe('');
   });
 });
