@@ -451,16 +451,15 @@ extension ViewerWebView.Coordinator {
                     chunk: result.chunk,
                     fileType: fileType
                 ) {
-                    webView.evaluateJavaScript(script, completionHandler: nil)
+                    _ = try? await webView.evaluateJavaScript(script)
                 }
-                webView.evaluateJavaScript(
-                    ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount),
-                    completionHandler: nil
+                _ = try? await webView.evaluateJavaScript(
+                    ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount)
                 )
                 if !untilFullyLoaded { break }
             }
             if untilFullyLoaded {
-                webView.evaluateJavaScript(ViewerBridge.allLinesLoadedScript, completionHandler: nil)
+                _ = try? await webView.evaluateJavaScript(ViewerBridge.allLinesLoadedScript)
             }
         }
     }
