@@ -34,7 +34,7 @@ struct ViewerWindowControllerToolbarTests {
     }
 
     @Test("行番号アイテムはコード表示中のみ有効")
-    func lineNumbersItemEnabledOnlyForCodeContent() throws {
+    func lineNumbersItemEnabledOnlyForCodeContent() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let codeFile = try tmp.file(named: "a.swift", contents: "let x = 1")
@@ -43,10 +43,17 @@ struct ViewerWindowControllerToolbarTests {
         let codeController = makeController(file: codeFile)
         defer { codeController.close() }
         let codeToolbar = try #require(codeController.window?.toolbar)
-        let codeItem = try #require(codeController.toolbar(
-            codeToolbar, itemForItemIdentifier: .init("lineNumbers"), willBeInsertedIntoToolbar: false
-        ))
-        let codeButton = try #require(codeItem.view as? NSButton)
+        // toolbar(_:itemForItemIdentifier:willBeInsertedIntoToolbar:) は呼び出しごとに
+        // 現在の store 状態から新しいアイテムを生成するため、都度呼び直してポーリングする。
+        // fileType は非同期読み込みの完了(apply())と同時にのみ確定するため、
+        // 読み込み完了(onContentReloaded による toolbar 更新)を待ってから検証する。
+        func makeCodeButton() -> NSButton? {
+            (codeController.toolbar(
+                codeToolbar, itemForItemIdentifier: .init("lineNumbers"), willBeInsertedIntoToolbar: false
+            )?.view as? NSButton)
+        }
+        await waitUntilOnMainActor { makeCodeButton()?.isEnabled == true }
+        let codeButton = try #require(makeCodeButton())
         #expect(codeButton.isEnabled == true)
 
         let previewController = makeController(file: previewFile)

@@ -31,6 +31,12 @@ final class ViewerStore {
     private(set) var displayedLineCount: Int = 0
     private(set) var filePath: URL?
 
+    /// filePath が指す現在のファイルの種別。openFile / handleRename で filePath と同時に
+    /// 即時更新する内部値。バックグラウンド読み込み(loadContent → computeLoad)へ渡すために使い、
+    /// 公開の fileType とは異なりロード完了を待たない。
+    /// 公開 fileType は apply() 内で content と同時にのみ更新する(このずれが task-32 の原因だった)。
+    @ObservationIgnored private var pendingFileType: FileType = .mmd
+
     /// 開いたファイルが非対応と判定されているかどうか。
     var isRejected: Bool {
         rejectReason != nil
@@ -130,7 +136,7 @@ final class ViewerStore {
         fileGoneTask = nil
         fileWatcher?.stop()
         filePath = url
-        fileType = FileType(url: url)
+        pendingFileType = FileType(url: url)
         loadContent()
 
         fileWatcher = makeWatcher(url, { [weak self] in
@@ -141,10 +147,11 @@ final class ViewerStore {
     }
 
     /// 監視対象ファイルの rename / move を反映する。
-    /// filePath / fileType を新 URL に更新し、コンテンツの再読込を予約したうえでウィンドウ側へ通知する。
+    /// filePath を新 URL に更新し、コンテンツの再読込を予約したうえでウィンドウ側へ通知する。
+    /// 公開 fileType は apply() で content と同時にのみ更新する(下の pendingFileType 参照)。
     private func handleRename(to newURL: URL) {
         filePath = newURL
-        fileType = FileType(url: newURL)
+        pendingFileType = FileType(url: newURL)
         loadContent()
         onFileRenamed?(newURL)
     }
@@ -190,7 +197,7 @@ final class ViewerStore {
         loadGeneration += 1
         let generation = loadGeneration
         let resolved = filePath.resolvingSymlinksInPath()
-        let fileType = fileType
+        let fileType = pendingFileType
         loadTask = Task {
             await self.performLoad(
                 resolved: resolved, fileType: fileType,
@@ -212,7 +219,7 @@ final class ViewerStore {
         )
         // close() でキャンセルされた、または新しい読み込みに追い越された結果は捨てる。
         guard !Task.isCancelled, generation == loadGeneration else { return }
-        apply(outcome)
+        apply(outcome, fileType: fileType)
     }
 
     /// バックグラウンド読み込みの結果。メインアクターへ持ち帰って一括適用する。
@@ -290,9 +297,11 @@ final class ViewerStore {
         }
     }
 
-    /// 読み込み結果を表示状態(content / rejectReason / isTruncated / 行数カウンタ /
+    /// 読み込み結果を表示状態(fileType / content / rejectReason / isTruncated / 行数カウンタ /
     /// chunkSession)へ一括適用する。表示状態のタプルを書き換えるのはここだけにする。
-    private func apply(_ outcome: LoadOutcome) {
+    /// fileType を content と同時にここで確定させることで、旧ファイルの content に
+    /// 新ファイルの fileType が組み合わさった中間状態が描画されないようにする(task-32)。
+    private func apply(_ outcome: LoadOutcome, fileType: FileType) {
         switch outcome {
         case .missing:
             scheduleFileGone()
@@ -301,6 +310,7 @@ final class ViewerStore {
             if cache.dataHash == contentHash {
                 return
             }
+            self.fileType = fileType
             textCache = cache
             contentHash = cache.dataHash
             chunkSession = session
@@ -314,6 +324,7 @@ final class ViewerStore {
             if let cache, cache.dataHash == contentHash {
                 return
             }
+            self.fileType = fileType
             textCache = cache
             contentHash = cache?.dataHash
             chunkSession = nil
