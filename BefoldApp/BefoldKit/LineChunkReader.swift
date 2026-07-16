@@ -61,18 +61,9 @@ public actor LineChunkReader: ChunkedTextReading {
             ? TextEncoding.trimIncompleteUTF8Tail(probe)
             : probe
 
-        let detectedEncoding: String.Encoding
-        let detectedBomLength: Int
-        if let bom = TextEncoding.detectBOM(detectionProbe) {
-            detectedEncoding = bom.encoding
-            detectedBomLength = bom.bomLength
-        } else if let detected = TextEncoding.detectEncoding(detectionProbe) {
-            detectedEncoding = detected
-            detectedBomLength = 0
-        } else {
-            detectedEncoding = .utf8
-            detectedBomLength = 0
-        }
+        let detected = TextEncoding.detectEncoding(detectionProbe)
+        let detectedEncoding = detected?.encoding ?? .utf8
+        let detectedBomLength = detected?.bomLength ?? 0
 
         try handle.seek(toOffset: UInt64(detectedBomLength))
         encoding = detectedEncoding
