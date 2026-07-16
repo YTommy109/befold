@@ -216,10 +216,6 @@ struct ViewerWebView: NSViewRepresentable {
         /// 直近に描画した content の世代番号。content 全文を保持せず整数比較で
         /// 変更検知することで、ViewerStore.content との重複バッファを避ける。
         private var lastRenderedContentRevision: Int?
-        /// CSV ソースモードの追記再描画専用の蓄積バッファ。それ以外のファイル/モードでは
-        /// 常に nil のままで重複バッファを持たない(recordRendered 参照)。
-        /// CSV ソースモード自体の全文再描画を追記化するのは別タスクの範囲。
-        private var accumulatedSourceContent: String?
         private var lastRenderedFileType: FileType?
         private var lastRenderedFilePath: URL?
         private var lastShowLineNumbers: Bool?
@@ -294,8 +290,8 @@ struct ViewerWebView: NSViewRepresentable {
 
         /// 直接 HTML モードを解除し、viewer.html へ復帰する。
         /// `isDirectHTMLMode` / `webViewProxy?.isDirectHTMLMode` / `lastDirectHTMLPath` /
-        /// `lastRenderedContentRevision` / `accumulatedSourceContent` / `lastRenderedFileType` /
-        /// `lastRenderedFilePath` の 7 つの状態を必ずセットでリセットしてから viewer.html を
+        /// `lastRenderedContentRevision` / `lastRenderedFileType` /
+        /// `lastRenderedFilePath` の 6 つの状態を必ずセットでリセットしてから viewer.html を
         /// 再ロードする。一部だけ倒すと直接 HTML モードの判定と再描画キャッシュの整合性が
         /// 崩れるため、呼び出し側で個別にリセットしないこと。
         /// (`lastIsSourceMode` は viewer.html 再ロードに伴う JS 側 `_viewMode` の初期化と
@@ -305,7 +301,6 @@ struct ViewerWebView: NSViewRepresentable {
             webViewProxy?.isDirectHTMLMode = false
             lastDirectHTMLPath = nil
             lastRenderedContentRevision = nil
-            accumulatedSourceContent = nil
             lastRenderedFileType = nil
             lastRenderedFilePath = nil
             reloadViewerHTML(webView: webView, then: completion)
@@ -360,8 +355,8 @@ struct ViewerWebView: NSViewRepresentable {
                     let isFirstLoadOrSwitch = !isDirectHTMLMode || pathChanged
                     pendingPageZoom = isFirstLoadOrSwitch ? initialPageZoom : webView.pageZoom
                     recordRendered(
-                        content: content, contentRevision: contentRevision,
-                        fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+                        contentRevision: contentRevision,
+                        fileType: fileType, filePath: filePath
                     )
                     lastIsSourceMode = isSourceMode
                     lastDirectHTMLPath = filePath
@@ -392,8 +387,8 @@ struct ViewerWebView: NSViewRepresentable {
                         )
                     }
                     recordRendered(
-                        content: content, contentRevision: contentRevision,
-                        fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+                        contentRevision: contentRevision,
+                        fileType: fileType, filePath: filePath
                     )
                     return
                 }
@@ -413,8 +408,8 @@ struct ViewerWebView: NSViewRepresentable {
                     lastRenderedFilePath: lastRenderedFilePath, lastIsSourceMode: lastIsSourceMode
                 )
                 recordRendered(
-                    content: content, contentRevision: contentRevision,
-                    fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+                    contentRevision: contentRevision,
+                    fileType: fileType, filePath: filePath
                 )
                 applyRender(
                     webView: webView, content: content, fileType: fileType,
@@ -449,34 +444,10 @@ extension ViewerWebView.Coordinator {
             defer { isLoadingMoreLines = false }
             guard let webView else { return }
             let fileType = lastRenderedFileType ?? .code(language: "plaintext")
-            // CSV のソース表示(レインボー表示)だけは追記でなく蓄積済みコンテンツ全体を
-            // 再描画するため、この場合のみ蓄積バッファを持つ(それ以外のファイル/モードでは
-            // 重複バッファを避けるため保持しない。全文再描画自体の追記化は別タスクの範囲)。
-            let needsSourceAccumulation = lastIsSourceMode == true && fileType.csvDelimiter != nil
             while let result = await onLoadMoreLines?() {
-                if needsSourceAccumulation {
-                    // 連結代入は蓄積済み文字列全体をコピーする(呼び出しごとに O(n))ため、
-                    // in-place の append で追記する。
-                    if accumulatedSourceContent == nil { accumulatedSourceContent = "" }
-                    accumulatedSourceContent?.append(result.chunk)
-                }
                 lastTruncation = TruncationState(isTruncated: result.isTruncated, lineCount: result.lineCount)
 
-                // ソース表示でも .code は render() がレンダリング表示と同一の描画をするため
-                // 追記で足りる。CSV のソース表示(レインボー表示)だけは描画が異なるため、
-                // 蓄積済みコンテンツ全体を再描画する。
-                if needsSourceAccumulation,
-                   let script = ViewerBridge.renderScript(
-                       content: Self.renderableContent(
-                           accumulatedSourceContent ?? "",
-                           fileType: fileType,
-                           filePath: lastRenderedFilePath, isSourceMode: true
-                       ),
-                       fileType: fileType
-                   )
-                {
-                    webView.evaluateJavaScript(script, completionHandler: nil)
-                } else if let script = ViewerBridge.appendChunkScript(
+                if let script = ViewerBridge.appendChunkScript(
                     chunk: result.chunk,
                     fileType: fileType
                 ) {
@@ -561,16 +532,13 @@ extension ViewerWebView.Coordinator {
     }
 
     /// 描画済みキャッシュを更新する。content 全文は保持せず contentRevision だけを
-    /// 比較用に保存する。CSV ソースモードの追記再描画専用バッファ(accumulatedSourceContent)
-    /// は、その用途で必要な場合のみ content 全文でシードし、それ以外では nil にして
-    /// 重複バッファを持たない。
+    /// 比較用に保存する。
     private func recordRendered(
-        content: String, contentRevision: Int, fileType: FileType, filePath: URL?, isSourceMode: Bool
+        contentRevision: Int, fileType: FileType, filePath: URL?
     ) {
         lastRenderedContentRevision = contentRevision
         lastRenderedFileType = fileType
         lastRenderedFilePath = filePath
-        accumulatedSourceContent = (isSourceMode && fileType.csvDelimiter != nil) ? content : nil
     }
 
     /// render() に渡す直前のコンテンツ加工。markdown はローカル画像参照を

@@ -904,7 +904,11 @@
     var highlightContext = (_lastChunkEndedWithNewline && _lastContent)
       ? lastLines(_lastContent, CODE_CHUNK_CONTEXT_LINES) : '';
     if (_lastContent !== null) { _lastContent += text; }
-    if (type === 'csv') {
+    // CSV は「レンダリング表示(テーブル)」と「ソース表示(レインボー)」で DOM 構造が
+    // 異なる(#diagram-wrap 直下が <table><tbody> か <pre><code class="csv-source">
+    // か)ため、実際の DOM を見て分岐する。
+    var csvSourceEl = type === 'csv' ? diagramWrap.querySelector('pre code.csv-source') : null;
+    if (type === 'csv' && !csvSourceEl) {
       var csvRows = parseCsv(text, lang || ',');
       var tbody = diagramWrap.querySelector('tbody');
       if (!tbody) { return; }
@@ -928,15 +932,17 @@
         _walkTextNodes(tbody.rows[r2], false);
       }
     } else {
-      var codeEl = diagramWrap.querySelector('pre code');
+      var codeEl = csvSourceEl || diagramWrap.querySelector('pre code');
       if (!codeEl) { return; }
+      var inner = csvSourceEl
+        ? csvSourceInnerHtml(text, lang || ',')
+        : codeChunkInnerHtml(window.hljs, text, lang, highlightContext);
       var codeTable = codeEl.querySelector('table.code-table');
       if (codeTable) {
         // 強制分割(前チャンクが改行で終わらなかった)の場合、継続行は新しい行では
         // なく前チャンク最終行の続きなので、生成した最初の行分を <tr> ごと追加
         // せず既存の最終行セルへ結合する(行番号の重複を防ぐ)。
         var startLine = codeTable.rows.length + (_lastChunkEndedWithNewline ? 1 : 0);
-        var inner = codeChunkInnerHtml(window.hljs, text, lang, highlightContext);
         var rowsHtml = buildLineNumberRows(inner, startLine);
         if (!_lastChunkEndedWithNewline && codeTable.rows.length > 0) {
           var pendingRows = document.createElement('tbody');
@@ -960,7 +966,7 @@
           _walkTextNodes(codeTable.rows[i], false);
         }
       } else {
-        codeEl.insertAdjacentHTML('beforeend', codeChunkInnerHtml(window.hljs, text, lang, highlightContext));
+        codeEl.insertAdjacentHTML('beforeend', inner);
         _annotatePathRefs();
       }
     }

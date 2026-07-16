@@ -28,6 +28,7 @@ const {
   parseCsv,
   buildTableHtml,
   renderCsvSourceHtml,
+  csvSourceInnerHtml,
   CSV_COL_COUNT,
   isSafeLinkURL,
   buildFindRegExp,
@@ -769,6 +770,27 @@ describe('renderCsvSourceHtml with line numbers', () => {
       const closes = (cell.match(/<\/span>/g) || []).length;
       expect(opens).toBe(closes);
     }
+  });
+});
+
+describe('csvSourceInnerHtml', () => {
+  test('returns empty string for empty content', () => {
+    expect(csvSourceInnerHtml('', ',')).toBe('');
+  });
+
+  test('is the exact body renderCsvSourceHtml wraps in pre/code (no line numbers)', () => {
+    const content = 'a,b,c\n1,"x,y",3';
+    const inner = csvSourceInnerHtml(content, ',');
+    expect(renderCsvSourceHtml(content, ',')).toBe(
+      '<pre><code class="csv-source">' + inner + '</code></pre>'
+    );
+  });
+
+  test('produces per-row rainbow spans usable for chunked append', () => {
+    const inner = csvSourceInnerHtml('1,2,3', ',');
+    expect(inner).toBe(
+      '<span class="csv-col-0">1</span>,<span class="csv-col-1">2</span>,<span class="csv-col-2">3</span>'
+    );
   });
 });
 

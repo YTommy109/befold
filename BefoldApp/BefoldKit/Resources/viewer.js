@@ -336,13 +336,15 @@ function buildTableHtml(rows) {
 
 var CSV_COL_COUNT = 8;
 
-// CSV/TSV のソース表示用 HTML。tokenizeCsvRows(parseCsv と共通のトークナイザー)
-// が返す raw(クオート・エスケープされたクオートを含む生テキスト)を列ごとに
-// Rainbow カラーで着色する。delimiter 自体は着色せずそのまま残す(クオート内の
-// delimiter は列区切りとしない)。クオート内改行を含むセルも 1 つの span に
-// まとまるため、テーブル表示(parseCsv)と同じ列割りで色が付く。
-function renderCsvSourceHtml(content, delimiter, showLineNumbers) {
-  if (!content) { return '<pre><code class="csv-source"></code></pre>'; }
+// CSV/TSV のソース表示用の行別カラー HTML(行番号ラップ前の中身)。
+// tokenizeCsvRows(parseCsv と共通のトークナイザー)が返す raw(クオート・
+// エスケープされたクオートを含む生テキスト)を列ごとに Rainbow カラーで着色する。
+// delimiter 自体は着色せずそのまま残す(クオート内の delimiter は列区切りとしない)。
+// クオート内改行を含むセルも 1 つの span にまとまるため、テーブル表示(parseCsv)
+// と同じ列割りで色が付く。renderCsvSourceHtml(初回描画)と appendChunk(チャンク
+// 追記、viewer.html)の両方から呼ばれる。
+function csvSourceInnerHtml(content, delimiter) {
+  if (!content) { return ''; }
   var tokenRows = tokenizeCsvRows(content, delimiter);
   var htmlLines = [];
   for (var r = 0; r < tokenRows.length; r++) {
@@ -354,7 +356,13 @@ function renderCsvSourceHtml(content, delimiter, showLineNumbers) {
     }
     htmlLines.push(htmlParts.join(delimiter));
   }
-  var body = htmlLines.join('\n');
+  return htmlLines.join('\n');
+}
+
+// CSV/TSV のソース表示用 HTML。
+function renderCsvSourceHtml(content, delimiter, showLineNumbers) {
+  if (!content) { return '<pre><code class="csv-source"></code></pre>'; }
+  var body = csvSourceInnerHtml(content, delimiter);
   if (showLineNumbers) {
     body = wrapWithLineNumbers(body);
   }
@@ -460,6 +468,7 @@ if (typeof module !== 'undefined' && module.exports) {
     parseCsv: parseCsv,
     buildTableHtml: buildTableHtml,
     renderCsvSourceHtml: renderCsvSourceHtml,
+    csvSourceInnerHtml: csvSourceInnerHtml,
     CSV_COL_COUNT: CSV_COL_COUNT,
     buildFindRegExp: buildFindRegExp,
   };
