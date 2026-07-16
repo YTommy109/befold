@@ -643,6 +643,14 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "閉じる (Esc)" } }
       }
     },
+    "viewer.find.loadingAll" : {
+      "comment" : "検索バーを開いた時点でファイルが段階読み込み中の場合、残り全チャンクを読み込む間に検索カウント欄へ表示する文言。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading…" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "読み込み中…" } }
+      }
+    },
     "viewer.unsupported.format" : {
       "extractionState" : "manual",
       "localizations" : {
