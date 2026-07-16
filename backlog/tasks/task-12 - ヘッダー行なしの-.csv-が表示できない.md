@@ -9,7 +9,7 @@ dependencies: []
 references:
   - 'https://github.com/YTommy109/befold/issues/190'
 type: bug
-ordinal: 18000
+ordinal: 6000
 ---
 
 ## Description

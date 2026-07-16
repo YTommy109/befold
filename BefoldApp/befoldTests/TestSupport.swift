@@ -53,15 +53,19 @@ final class TempDir: Sendable {
     }
 }
 
-/// ポーリング待機の既定タイムアウト。`BEFOLD_TEST_TIMEOUT_SECONDS` が設定されていれば
+/// ポーリング待機の既定タイムアウト秒数。`BEFOLD_TEST_TIMEOUT_SECONDS` が設定されていれば
 /// それを秒数として使い、なければ `fallback` 秒を使う。ThreadSanitizer ジョブなど
 /// スローダウンの大きい環境で CI 側からタイムアウトを延長できるようにする。
-func testTimeout(fallback seconds: Double) -> Duration {
+func testTimeoutSeconds(fallback seconds: Double) -> Double {
     let raw = ProcessInfo.processInfo.environment["BEFOLD_TEST_TIMEOUT_SECONDS"]
     if let raw, let override = Double(raw) {
-        return .seconds(override)
+        return override
     }
-    return .seconds(seconds)
+    return seconds
+}
+
+func testTimeout(fallback seconds: Double) -> Duration {
+    .seconds(testTimeoutSeconds(fallback: seconds))
 }
 
 /// 条件が true になるまでポーリングで待機する。CI 環境でのファイル監視イベントや
@@ -96,7 +100,7 @@ func waitUntilOnMainActor(
 /// 「単発アクション + waitUntil」ではイベントを取りこぼすと回復不能になるため、
 /// 冪等な書き込み系アクションはこちらで発火するまで再試行する。
 func waitUntilWithRetry(
-    timeout: TimeInterval = 15,
+    timeout: TimeInterval = testTimeoutSeconds(fallback: 15),
     interval: TimeInterval = 0.5,
     action: @escaping @Sendable () -> Void,
     until condition: @escaping @Sendable () -> Bool
@@ -115,7 +119,7 @@ func waitUntilWithRetry(
 /// プロパティを条件・アクションから参照する場合に使う。
 @MainActor
 func waitUntilWithRetryOnMainActor(
-    timeout: TimeInterval = 15,
+    timeout: TimeInterval = testTimeoutSeconds(fallback: 15),
     interval: TimeInterval = 0.5,
     action: () -> Void,
     until condition: () -> Bool
