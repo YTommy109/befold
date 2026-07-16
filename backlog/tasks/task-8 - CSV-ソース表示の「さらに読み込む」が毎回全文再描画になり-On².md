@@ -4,12 +4,13 @@ title: CSV ソース表示の「さらに読み込む」が毎回全文再描画
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:39'
-updated_date: '2026-07-16 00:55'
+updated_date: '2026-07-16 03:44'
 labels: []
 dependencies: []
 references:
   - //github.com/YTommy109/befold/issues/199
-ordinal: 9000
+priority: medium
+ordinal: 6000
 ---
 
 ## Description
