@@ -4,13 +4,15 @@ title: ツールバーボタンと View メニューでブックマークをト�
 status: To Do
 assignee: []
 created_date: '2026-07-16 11:20'
+updated_date: '2026-07-16 12:16'
 labels: []
 dependencies:
   - TASK-28.1
 references:
   - docs/superpowers/specs/2026-07-16-bookmark-feature-design.md
 parent_task_id: TASK-28
-ordinal: 27000
+priority: low
+ordinal: 132
 ---
 
 ## Description

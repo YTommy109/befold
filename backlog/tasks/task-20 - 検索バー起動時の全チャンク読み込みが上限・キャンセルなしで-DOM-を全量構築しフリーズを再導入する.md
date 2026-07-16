@@ -14,7 +14,7 @@ references:
   - docs/superpowers/specs/2026-07-14-line-chunked-loading-design.md
 priority: high
 type: bug
-ordinal: 17000
+ordinal: 50
 ---
 
 ## Description

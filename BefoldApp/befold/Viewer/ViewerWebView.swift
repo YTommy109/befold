@@ -158,7 +158,6 @@ struct ViewerWebView: NSViewRepresentable {
     private static let messageHandlerNames = [
         ViewerBridge.findOptionsChangedMessageName,
         ViewerBridge.loadMoreLinesMessageName,
-        ViewerBridge.loadAllLinesForSearchMessageName,
         ViewerBridge.zoomChangedMessageName,
         ViewerBridge.referenceActivatedMessageName,
         ViewerBridge.scrollPositionChangedMessageName,
@@ -261,8 +260,6 @@ struct ViewerWebView: NSViewRepresentable {
                 findOptionsPreference?.useRegex = useRegex
             } else if message.name == ViewerBridge.loadMoreLinesMessageName {
                 handleLoadMoreLines()
-            } else if message.name == ViewerBridge.loadAllLinesForSearchMessageName {
-                handleLoadMoreLines(untilFullyLoaded: true)
             }
         }
 
@@ -433,34 +430,26 @@ struct ViewerWebView: NSViewRepresentable {
 
 extension ViewerWebView.Coordinator {
     /// 次チャンクを非同期で取得し、キャッシュ更新と描画を行う。読み込み中の再入は
-    /// isLoadingMoreLines で無視し、追記の交錯を防ぐ。untilFullyLoaded が true の場合、
-    /// 検索バーを開いた時点で段階読み込み中だったときに残り全チャンクを読み終えるまで
-    /// ループし、完了を JS 側(_mmdOnAllLinesLoaded)へ通知する。
+    /// isLoadingMoreLines で無視し、追記の交錯を防ぐ。
     @MainActor
-    private func handleLoadMoreLines(untilFullyLoaded: Bool = false) {
+    private func handleLoadMoreLines() {
         guard !isLoadingMoreLines else { return }
         isLoadingMoreLines = true
         Task { @MainActor [self] in
             defer { isLoadingMoreLines = false }
-            guard let webView else { return }
-            let fileType = lastRenderedFileType ?? .code(language: "plaintext")
-            while let result = await onLoadMoreLines?() {
-                lastTruncation = TruncationState(isTruncated: result.isTruncated, lineCount: result.lineCount)
+            guard let webView, let result = await onLoadMoreLines?() else { return }
+            lastTruncation = TruncationState(isTruncated: result.isTruncated, lineCount: result.lineCount)
 
-                if let script = ViewerBridge.appendChunkScript(
-                    chunk: result.chunk,
-                    fileType: fileType
-                ) {
-                    _ = try? await webView.evaluateJavaScript(script)
-                }
-                _ = try? await webView.evaluateJavaScript(
-                    ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount)
-                )
-                if !untilFullyLoaded { break }
+            let fileType = lastRenderedFileType ?? .code(language: "plaintext")
+            if let script = ViewerBridge.appendChunkScript(
+                chunk: result.chunk,
+                fileType: fileType
+            ) {
+                _ = try? await webView.evaluateJavaScript(script)
             }
-            if untilFullyLoaded {
-                _ = try? await webView.evaluateJavaScript(ViewerBridge.allLinesLoadedScript)
-            }
+            _ = try? await webView.evaluateJavaScript(
+                ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount)
+            )
         }
     }
 

@@ -95,8 +95,8 @@ struct ViewerStoreLoadRaceTests {
         let slowReader = GatedChunkedReader(chunk: "slow\n")
         let store = makeStore(
             reader: reader,
-            chunkedReaderFactory: { url, _ in
-                if url.path == slowFile.path { return slowReader }
+            chunkedReaderFactory: { cache, _ in
+                if cache.text.hasPrefix("slow") { return slowReader }
                 return MockChunkedReader(chunks: ["fast\n"])
             }
         )
@@ -143,7 +143,8 @@ struct ViewerStoreLoadRaceTests {
         let moreTask = Task { await store.loadMoreLines() }
         await waitUntilYielding { sessionA.enteredSecondRead.get() }
 
-        // 待機中に再読込が走り、セッションが新しいものへ交代する。
+        // 待機中にファイル内容が変わり、再読込でセッションが新しいものへ交代する。
+        reader.setFile("new\ndata", at: file)
         await openAndLoad(store, file)
         #expect(store.content == "new\n")
 

@@ -15,7 +15,7 @@ final class ViewerStore {
 
     /// チャンクリーダーの生成(ファイルを開いて先頭をプローブする)はバックグラウンドの
     /// 読み込みタスクから呼ばれるため、メインアクター隔離にしない。
-    typealias ChunkedReaderFactory = @Sendable (URL, FileType) throws -> any ChunkedTextReading
+    typealias ChunkedReaderFactory = @Sendable (NormalizedTextCache, FileType) throws -> any ChunkedTextReading
 
     private(set) var content: String = ""
     /// content が更新されるたびに増分する世代番号。ViewerWebView.Coordinator が
@@ -67,6 +67,12 @@ final class ViewerStore {
     /// 段階読み込み中の行チャンクセッション。ファイル再読込・close でリセットする。
     private var chunkSession: (any ChunkedTextReading)?
 
+    /// NormalizedTextCache。検索・同一内容スキップに使う。
+    @ObservationIgnored private var textCache: NormalizedTextCache?
+
+    /// 前回適用したキャッシュの dataHash。同一内容スキップの比較に使う。
+    @ObservationIgnored private var contentHash: Int?
+
     /// 蓄積済み content に含まれる改行の数(displayedLineCount の増分計算用)。
     @ObservationIgnored private var newlineCount: Int = 0
 
@@ -108,8 +114,8 @@ final class ViewerStore {
         makeWatcher = watcherFactory ?? { url, onChange, onRename in
             FileWatcher(path: url, onChange: onChange, onRename: onRename)
         }
-        makeChunkedReader = chunkedReaderFactory ?? { url, fileType in
-            try LineChunkReader(url: url, respectsCSVQuotes: fileType.csvDelimiter != nil)
+        makeChunkedReader = chunkedReaderFactory ?? { cache, fileType in
+            StringChunkReader(cache: cache, respectsCSVQuotes: fileType.csvDelimiter != nil)
         }
         self.fileReader = fileReader
         contentLoader = ContentLoader(fileReader: fileReader)
@@ -214,14 +220,14 @@ final class ViewerStore {
         /// ファイルが存在しない(削除グレース期間を開始する)。
         case missing
         /// 行指向ファイルのチャンクセッションを開始し、先頭チャンクを読み込んだ。
-        case chunked(session: any ChunkedTextReading, firstChunk: String, isAtEnd: Bool)
+        case chunked(session: any ChunkedTextReading, cache: NormalizedTextCache, firstChunk: String, isAtEnd: Bool)
         /// 全量読み込みの結果(rejectReason を含みうる)。
-        case full(ContentLoader.LoadedContent)
+        case full(ContentLoader.LoadedContent, cache: NormalizedTextCache?)
     }
 
-    /// ファイルの存在確認・チャンクセッション生成・全量読み込みを行う。
+    /// ファイルの存在確認・NormalizedTextCache 生成・チャンクセッション生成・全量読み込みを行う。
     /// nonisolated async のため呼び出し元のアクターを離れて実行され、
-    /// 最大 4MB の I/O・デコードがメインスレッドを塞がない。
+    /// I/O・デコードがメインスレッドを塞がない。
     private nonisolated static func computeLoad(
         resolved: URL,
         fileType: FileType,
@@ -231,19 +237,57 @@ final class ViewerStore {
     ) async -> LoadOutcome {
         guard fileReader.fileExists(at: resolved) else { return .missing }
 
-        if fileType.isLineOriented {
-            do {
-                let reader = try chunkedReaderFactory(resolved, fileType)
+        if fileType.isBinaryContent {
+            return .full(contentLoader.load(from: resolved, fileType: fileType), cache: nil)
+        }
+
+        if fileReader.isBinary(at: resolved) {
+            return .full(
+                ContentLoader.LoadedContent(rejectReason: .unsupportedFormat, content: ""),
+                cache: nil
+            )
+        }
+
+        let sizeLimit = fileType.isLineOriented
+            ? NormalizedTextCache.maxFileSizeBytes
+            : ContentLoader.maxTextFileSizeBytes
+        if let size = fileReader.fileSize(at: resolved), size > sizeLimit {
+            return .full(
+                ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
+                cache: nil
+            )
+        }
+
+        do {
+            let data = try fileReader.readData(from: resolved)
+            let cache = try NormalizedTextCache(data: data)
+
+            if fileType.isLineOriented {
+                let reader = try chunkedReaderFactory(cache, fileType)
                 let firstChunk = try await reader.readNextChunk()
                 return .chunked(
-                    session: reader, firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
+                    session: reader, cache: cache,
+                    firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
                 )
-            } catch {
-                if !fileReader.fileExists(at: resolved) { return .missing }
-                return .full(ContentLoader.LoadedContent(rejectReason: .unsupportedFormat, content: ""))
+            } else {
+                if cache.text.utf8.count > ContentLoader.maxTextFileSizeBytes {
+                    return .full(
+                        ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
+                        cache: nil
+                    )
+                }
+                return .full(
+                    ContentLoader.LoadedContent(rejectReason: nil, content: cache.text),
+                    cache: cache
+                )
             }
+        } catch {
+            if !fileReader.fileExists(at: resolved) { return .missing }
+            return .full(
+                ContentLoader.LoadedContent(rejectReason: .unsupportedFormat, content: ""),
+                cache: nil
+            )
         }
-        return .full(contentLoader.load(from: resolved, fileType: fileType))
     }
 
     /// 読み込み結果を表示状態(content / rejectReason / isTruncated / 行数カウンタ /
@@ -253,7 +297,12 @@ final class ViewerStore {
         case .missing:
             scheduleFileGone()
             return
-        case let .chunked(session, firstChunk, isAtEnd):
+        case let .chunked(session, cache, firstChunk, isAtEnd):
+            if cache.dataHash == contentHash {
+                return
+            }
+            textCache = cache
+            contentHash = cache.dataHash
             chunkSession = session
             rejectReason = nil
             isTruncated = !isAtEnd
@@ -261,7 +310,12 @@ final class ViewerStore {
             contentRevision += 1
             newlineCount = firstChunk.utf8.count(where: { $0 == 0x0A })
             updateDisplayedLineCount()
-        case let .full(loaded):
+        case let .full(loaded, cache):
+            if let cache, cache.dataHash == contentHash {
+                return
+            }
+            textCache = cache
+            contentHash = cache?.dataHash
             chunkSession = nil
             rejectReason = loaded.rejectReason
             isTruncated = false

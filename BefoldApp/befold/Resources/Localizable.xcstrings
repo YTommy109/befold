@@ -643,12 +643,12 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "閉じる (Esc)" } }
       }
     },
-    "viewer.find.loadingAll" : {
-      "comment" : "検索バーを開いた時点でファイルが段階読み込み中の場合、残り全チャンクを読み込む間に検索カウント欄へ表示する文言。",
+    "viewer.find.withinDisplayedRange" : {
+      "comment" : "段階読み込み中のファイルで検索した際、表示済み範囲のみが検索対象であることを示すため検索カウント欄に付与するラベル。",
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading…" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "読み込み中…" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Displayed range" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "表示範囲内" } }
       }
     },
     "viewer.unsupported.format" : {

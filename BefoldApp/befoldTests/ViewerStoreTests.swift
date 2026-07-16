@@ -208,7 +208,7 @@ struct ViewerStoreTests {
 
     @Test
     func switchingFromOversizedToNormalResetsUnsupported() async {
-        let hugeFile = URL(fileURLWithPath: "/files/huge.log")
+        let hugeFile = URL(fileURLWithPath: "/files/huge.md")
         let normalFile = URL(fileURLWithPath: "/files/readme.md")
         let reader = InMemoryFileReader()
         reader.setFile("x", at: hugeFile)
@@ -613,6 +613,8 @@ struct ViewerStoreChunkTests {
         _ = await store.loadMoreLines()
         #expect(store.isTruncated == false)
 
+        // ファイル内容が変わった場合にセッションがリセットされることを検証する。
+        reader.setFile("a,b\n1,2\n3,4\n5,6\n7,8", at: file)
         onChangeBox.get()?()
         await awaitLoad(store)
         #expect(callCount.get() == 2)
@@ -691,7 +693,7 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
-    @Test("レガシーエンコーディングの行指向ファイルは LineChunkReader で直接チャンク読みする")
+    @Test("レガシーエンコーディングの行指向ファイルはチャンク読みできる")
     func legacyEncodingLineOrientedFileUsesDirectChunking() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
