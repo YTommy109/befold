@@ -51,7 +51,7 @@ public enum TextEncoding: Sendable {
         var convertedString: NSString?
         var usedLossyConversion: ObjCBool = false
         let detected = NSString.stringEncoding(
-            for: data, encodingOptions: nil,
+            for: data.prefix(sniffLength), encodingOptions: nil,
             convertedString: &convertedString,
             usedLossyConversion: &usedLossyConversion
         )

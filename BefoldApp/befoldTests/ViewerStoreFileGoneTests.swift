@@ -118,6 +118,41 @@ struct ViewerStoreLoadRaceTests {
         store.close()
     }
 
+    @Test("画像→巨大CSVへの切替では、読み込み完了まで旧ファイルの fileType/content が保たれる(task-32)")
+    func fileTypeStaysWithPreviousFileUntilLoadCompletes() async {
+        let imageFile = URL(fileURLWithPath: "/files/photo.png")
+        let csvFile = URL(fileURLWithPath: "/files/huge.csv")
+        let reader = InMemoryFileReader()
+        reader.setDataFile(Data([0x89, 0x50, 0x4E, 0x47]), at: imageFile)
+        reader.setFile("a,b,c", at: csvFile)
+        let csvReader = GatedChunkedReader(chunk: "a,b,c")
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in csvReader }
+        )
+        await openAndLoad(store, imageFile)
+        #expect(store.fileType == .image(mimeType: "image/png"))
+        let imageContent = store.content
+
+        store.openFile(csvFile)
+        // csv の読み込みが readNextChunk の待機に入った(= まだ apply() 前)ことを確認する。
+        await waitUntilYielding { csvReader.entered.get() }
+        // apply() が未実行の間、fileType/content は前ファイル(画像)のまま据え置かれるべき。
+        // (fileType だけ即座に新ファイルへ切り替わると、ViewerWebView.Coordinator の
+        // needsRender が fileType の変化だけで発火し、旧 content を新 fileType として
+        // 誤描画してしまう)
+        #expect(store.fileType == .image(mimeType: "image/png"))
+        #expect(store.content == imageContent)
+
+        csvReader.gate.open()
+        await awaitLoad(store)
+
+        #expect(store.fileType == .csv(delimiter: ","))
+        #expect(store.content == "a,b,c")
+
+        store.close()
+    }
+
     @Test("readNextChunk 待機中に再読込が走ったら古いセッションの結果を捨てる")
     func loadMoreLinesDropsResultAfterReload() async {
         let file = URL(fileURLWithPath: "/files/data.csv")

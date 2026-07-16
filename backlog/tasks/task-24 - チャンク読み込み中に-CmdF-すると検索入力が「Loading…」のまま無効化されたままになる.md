@@ -1,11 +1,12 @@
 ---
 id: TASK-24
 title: チャンク読み込み中に Cmd+F すると検索入力が「Loading…」のまま無効化されたままになる
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-16 10:54'
-updated_date: '2026-07-16 12:11'
-labels: []
+updated_date: '2026-07-16 14:14'
+labels:
+  - obsolete
 dependencies:
   - TASK-29
 references:
@@ -27,3 +28,9 @@ handleLoadMoreLines の再入ガード guard !isLoadingMoreLines else { return }
 - [ ] #1 「さらに読み込む」進行中に Cmd+F を押しても検索入力が最終的に有効化され検索できる
 - [ ] #2 最終チャンク読込との競合ケースでも入力が無効のまま残らない
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+TASK-20と同根の問題。TASK-29.6で検索が表示範囲内検索に変わり、Cmd+FがuntilFullyLoadedの全量読み込みを要求する経路が廃止された(_mmdOnAllLinesLoaded/loadAllLinesForSearchはviewer.html/jsに存在しないことを確認)。『さらに読み込む』進行中にCmd+Fで検索入力が無効化されたまま復旧しない、という不具合の前提条件自体がなくなったため対応不要と判断し完了扱いにする。
+<!-- SECTION:FINAL_SUMMARY:END -->

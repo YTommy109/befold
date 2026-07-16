@@ -1,11 +1,12 @@
 ---
 id: TASK-20
 title: 検索バー起動時の全チャンク読み込みが上限・キャンセルなしで DOM を全量構築しフリーズを再導入する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-16 10:53'
-updated_date: '2026-07-16 12:11'
-labels: []
+updated_date: '2026-07-16 14:14'
+labels:
+  - obsolete
 dependencies:
   - TASK-29
 references:
@@ -29,3 +30,9 @@ ordinal: 50
 - [ ] #2 検索のための読み込みに上限またはキャンセル手段があり、上限時は検索範囲が明示される
 - [ ] #3 設計判断（テキストモデル検索への移行 or 上限付き全量読み込み）が記録されている
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+TASK-29(NormalizedTextCache刷新)のサブタスク29.6でloadAllLinesForSearch/untilFullyLoadedを廃止し、検索は表示済みDOM範囲のみを対象にする設計に変更済み(viewer.html _mmdOpenFind/_mmdFindRun、コミット8a014b1)。Cmd+Fで残チャンクを全量DOM化する経路自体が存在しなくなったため、本タスクの前提(上限・キャンセルなしの全量構築)は解消された。現行コードで loadAllLinesForSearch を grep しても該当箇所なしを確認。対応不要と判断し完了扱いにする。
+<!-- SECTION:FINAL_SUMMARY:END -->

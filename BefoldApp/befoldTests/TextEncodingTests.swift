@@ -41,4 +41,18 @@ struct TextEncodingTests {
         let data = Data("hello".utf8)
         #expect(TextEncoding.detectBOM(data) == nil)
     }
+
+    @Test("巨大な Shift_JIS データでもエンコーディング判定が高速に完了する(task-31)")
+    func detectEncodingStaysFastForLargeLegacyData() throws {
+        let line = "これはエンコーディング判定の速度を確認するためのテスト行です。\n"
+        let repeated = String(repeating: line, count: 100_000)
+        let data = try #require(repeated.data(using: .shiftJIS))
+        #expect(data.count > 5_000_000)
+
+        let clock = ContinuousClock()
+        let elapsed = clock.measure {
+            _ = TextEncoding.detectEncoding(data)
+        }
+        #expect(elapsed < .seconds(3))
+    }
 }
