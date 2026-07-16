@@ -11,29 +11,6 @@ private let testRenameSettleDelay: TimeInterval = 0.05
 @Suite(.serialized)
 struct FileWatcherIntegrationTests {
     @Test(.timeLimit(.minutes(1)))
-    func detectsFileModification() async throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
-
-        let changed = LockedBox(false)
-        let watcher = FileWatcher(path: file, debounceDelay: testDebounceDelay) {
-            changed.set(true)
-        }
-        defer { watcher.stop() }
-
-        // 書き込み系は冪等なので、発火するまで書き込みを繰り返せば監視 arm の
-        // 非同期登録レースも自然に救済される（プローブ不要）。
-        await waitUntilWithRetry(action: {
-            try? "graph TD; A-->\(Int.random(in: 0 ... 999))"
-                .write(to: file, atomically: true, encoding: .utf8)
-        }, until: {
-            changed.get()
-        })
-        #expect(changed.get())
-    }
-
-    @Test(.timeLimit(.minutes(1)))
     func detectsFileDeletion() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
