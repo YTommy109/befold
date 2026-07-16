@@ -693,7 +693,7 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
-    @Test("レガシーエンコーディングの行指向ファイルは LineChunkReader で直接チャンク読みする")
+    @Test("レガシーエンコーディングの行指向ファイルはチャンク読みできる")
     func legacyEncodingLineOrientedFileUsesDirectChunking() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }

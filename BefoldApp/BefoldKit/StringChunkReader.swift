@@ -1,5 +1,12 @@
 import Foundation
 
+/// テキストを行単位のチャンクで逐次読み込む抽象(テストでの差し替え用)。
+/// AnyObject 要件は呼び出し側がセッションの同一性比較(===)に使う。
+public protocol ChunkedTextReading: AnyObject, Sendable {
+    /// 次のチャンクと、読み終えたかどうかを返す。
+    func readNextChunk() async throws -> (text: String, isAtEnd: Bool)
+}
+
 public actor StringChunkReader: ChunkedTextReading {
     public static let linesPerChunk = 1000
 

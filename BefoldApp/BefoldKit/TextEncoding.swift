@@ -1,15 +1,12 @@
 import Foundation
 
-/// チャンク読み込み・エンコーディング判定で発生しうるエラー。
+/// エンコーディング判定・復号で発生しうるエラー。
 public enum TextEncodingError: Error, Sendable {
-    /// UTF-16 / UTF-32 など、行単位でバイト境界を確定できないエンコーディング。
-    case unsupportedForChunking
     /// 検出したエンコーディングでの復号に失敗した。
     case decodeFailed
 }
 
 /// テキストのエンコーディング判定・復号ロジックを集約する。
-/// FileReading(全量読み込み)と LineChunkReader(チャンク読み込み)の双方から使う。
 public enum TextEncoding: Sendable {
     /// バイナリ判定・エンコーディング判定に見る先頭バイト数。
     public static let sniffLength = 8192
@@ -36,29 +33,10 @@ public enum TextEncoding: Sendable {
         return nil
     }
 
-    /// 行単位でのチャンク分割が可能なエンコーディングかを判定する。
-    /// UTF-16 / UTF-32 は改行が複数バイトで表され行境界をバイト位置だけで
-    /// 確定できないため不可。BOM なしで NUL を含む場合も不可とする。
-    public static func isChunkableEncoding(_ data: Data) -> Bool {
-        if let bom = detectBOM(data) {
-            switch bom.encoding {
-            case .utf16BigEndian, .utf16LittleEndian,
-                 .utf32BigEndian, .utf32LittleEndian:
-                return false
-            default:
-                return true
-            }
-        }
-        let sniffWindow = data.prefix(sniffLength)
-        return !sniffWindow.contains(0)
-    }
-
     /// BOM またはヒューリスティックでエンコーディングを推定する(復号はしない)。
     /// BOM がある場合はその bomLength を、それ以外は 0 を返す
     /// (呼び出し元が復号時にスキップすべきバイト数の単一情報源)。
-    /// BOM なしで NUL を含む場合は UTF-16 とみなし、NUL の位置から endian を推定する
-    /// (呼び出し元がチャンク読み込みの場合は isChunkableEncoding が事前にこのケースを
-    /// 弾くため、この分岐に到達するのは全量読み込み経由のみ)。
+    /// BOM なしで NUL を含む場合は UTF-16 とみなし、NUL の位置から endian を推定する。
     public static func detectEncoding(_ data: Data) -> (encoding: String.Encoding, bomLength: Int)? {
         if let bom = detectBOM(data) {
             return bom
@@ -88,45 +66,6 @@ public enum TextEncoding: Sendable {
     public static func decodeText(_ data: Data) -> String? {
         guard let detected = detectEncoding(data) else { return nil }
         return String(data: data.dropFirst(detected.bomLength), encoding: detected.encoding)
-    }
-
-    /// UTF-8 のバイト列がマルチバイト文字の途中で切れている場合、
-    /// 直前の文字境界(先頭バイトの手前)まで末尾を切り詰めて返す。
-    /// 末尾の継続バイト(0b10xxxxxx)を遡り、先頭バイトが見つかればそれも落とす
-    /// (最大 3+1 バイト)。境界で切れていなければそのまま返す。
-    public static func trimIncompleteUTF8Tail(_ data: Data) -> Data {
-        var end = data.endIndex
-        let maxScan = min(data.count, 4)
-        let scanLimit = data.index(data.endIndex, offsetBy: -maxScan)
-        while end > scanLimit {
-            let byte = data[data.index(before: end)]
-            if byte & 0x80 == 0 { break }
-            if byte & 0xC0 != 0x80 {
-                end = data.index(before: end)
-                break
-            }
-            end = data.index(before: end)
-        }
-        return data[data.startIndex ..< end]
-    }
-
-    /// チャンク末尾のマルチバイト文字境界を保護する汎用メソッド。
-    /// UTF-8 は既存のビットパターン走査で高速に処理し、
-    /// それ以外のエンコーディングはデコード試行+末尾切り詰めリトライで対処する。
-    public static func trimIncompleteTail(_ data: Data, encoding: String.Encoding) -> Data {
-        if encoding == .utf8 || encoding == .ascii {
-            return trimIncompleteUTF8Tail(data)
-        }
-        if String(data: data, encoding: encoding) != nil {
-            return data
-        }
-        for trim in 1 ... min(3, data.count) {
-            let candidate = data[data.startIndex ..< data.index(data.endIndex, offsetBy: -trim)]
-            if String(data: candidate, encoding: encoding) != nil {
-                return Data(candidate)
-            }
-        }
-        return data
     }
 
     /// データ中の NUL バイトを偶数位置・奇数位置別に数える。
