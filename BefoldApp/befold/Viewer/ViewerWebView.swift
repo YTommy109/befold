@@ -214,11 +214,9 @@ struct ViewerWebView: NSViewRepresentable {
         private var lastRenderedFilePath: URL?
         private var lastShowLineNumbers: Bool?
         private var lastIsSourceMode: Bool?
-        private var lastIsTruncated: Bool?
-        /// 最後に _mmdSetTruncated へ送った表示行数(非切り詰め時は 0 に正規化)。
-        /// 切り詰め状態のまま行数だけが変わる再読込(3000 行 → 1000 行など)でも
-        /// バナーを更新できるよう、isTruncated とセットで追跡する。
-        private var lastTruncatedLineCount: Int?
+        /// 最後に _mmdSetTruncated へ送った切り詰め状態と表示行数
+        /// (再読込での行数だけの変化もバナー更新できるよう両方をセットで保持する)。
+        private var lastTruncation: TruncationState?
         private var isDirectHTMLMode = false
         private var lastDirectHTMLPath: URL?
 
@@ -273,31 +271,31 @@ struct ViewerWebView: NSViewRepresentable {
             Task { @MainActor [self] in
                 defer { isLoadingMoreLines = false }
                 guard let webView else { return }
+                let fileType = lastRenderedFileType ?? .code(language: "plaintext")
                 while let result = await onLoadMoreLines?() {
                     // 連結代入は蓄積済み文字列全体をコピーする(呼び出しごとに O(n))ため、
                     // in-place の append で追記する。
                     if lastRenderedContent == nil { lastRenderedContent = "" }
                     lastRenderedContent?.append(result.chunk)
-                    lastIsTruncated = result.isTruncated
-                    lastTruncatedLineCount = result.isTruncated ? result.lineCount : 0
+                    lastTruncation = TruncationState(isTruncated: result.isTruncated, lineCount: result.lineCount)
 
                     // ソース表示でも .code は render() がレンダリング表示と同一の描画をするため
                     // 追記で足りる。CSV のソース表示(レインボー表示)だけは描画が異なるため、
                     // 蓄積済みコンテンツ全体を再描画する。
-                    if lastIsSourceMode == true, lastRenderedFileType?.csvDelimiter != nil,
+                    if lastIsSourceMode == true, fileType.csvDelimiter != nil,
                        let script = ViewerBridge.renderScript(
                            content: Self.renderableContent(
                                lastRenderedContent ?? "",
-                               fileType: lastRenderedFileType ?? .code(language: "plaintext"),
+                               fileType: fileType,
                                filePath: lastRenderedFilePath, isSourceMode: true
                            ),
-                           fileType: lastRenderedFileType ?? .code(language: "plaintext")
+                           fileType: fileType
                        )
                     {
                         webView.evaluateJavaScript(script, completionHandler: nil)
                     } else if let script = ViewerBridge.appendChunkScript(
                         chunk: result.chunk,
-                        fileType: lastRenderedFileType ?? .code(language: "plaintext")
+                        fileType: fileType
                     ) {
                         webView.evaluateJavaScript(script, completionHandler: nil)
                     }
@@ -469,6 +467,17 @@ struct ViewerWebView: NSViewRepresentable {
 // MARK: - Render helpers
 
 extension ViewerWebView.Coordinator {
+    /// _mmdSetTruncated へ送る切り詰め状態と表示行数のペア。非切り詰め時の
+    /// 行数は 0 に正規化する(切り詰め有無だけが意味を持つ)。
+    struct TruncationState: Equatable {
+        let isTruncated: Bool
+        let lineCount: Int
+        init(isTruncated: Bool, lineCount: Int) {
+            self.isTruncated = isTruncated
+            self.lineCount = isTruncated ? lineCount : 0
+        }
+    }
+
     /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
     /// scrollKey 予告 + render を評価する。
     /// - Parameter restoreFromPersistedPosition: `isFileOrModeSwitch` 参照。
@@ -492,8 +501,7 @@ extension ViewerWebView.Coordinator {
             webView.evaluateJavaScript(
                 ViewerBridge.truncatedScript(truncation.isTruncated, lineCount: truncation.lineCount)
             )
-            lastIsTruncated = truncation.isTruncated
-            lastTruncatedLineCount = truncation.isTruncated ? truncation.lineCount : 0
+            lastTruncation = TruncationState(isTruncated: truncation.isTruncated, lineCount: truncation.lineCount)
         }
         guard let script = ViewerBridge.renderScript(
             content: Self.renderableContent(
@@ -511,8 +519,7 @@ extension ViewerWebView.Coordinator {
     /// _mmdSetTruncated の再送が必要か(切り詰め状態、または切り詰め中の表示行数が
     /// 変わったか)を判定する。行数は非切り詰め時 0 に正規化して比較する。
     private func truncationStateChanged(isTruncated: Bool, lineCount: Int) -> Bool {
-        isTruncated != lastIsTruncated
-            || (isTruncated ? lineCount : 0) != lastTruncatedLineCount
+        TruncationState(isTruncated: isTruncated, lineCount: lineCount) != lastTruncation
     }
 
     /// 今回の render() がファイル/モードの実際の切替かどうかを判定する。
@@ -549,8 +556,7 @@ extension ViewerWebView.Coordinator {
         // setLineNumbers / setViewMode を再注入させる。
         lastShowLineNumbers = nil
         lastIsSourceMode = nil
-        lastIsTruncated = nil
-        lastTruncatedLineCount = nil
+        lastTruncation = nil
         // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
         // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
         let zoom = initialPageZoom
