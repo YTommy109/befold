@@ -1,11 +1,12 @@
 ---
 id: TASK-23
 title: 内容が同一でもファイル再保存のたびに全再描画される（同一内容スキップの回帰）
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-16 10:54'
-updated_date: '2026-07-16 12:11'
-labels: []
+updated_date: '2026-07-16 14:14'
+labels:
+  - obsolete
 dependencies:
   - TASK-29
 references:
@@ -28,3 +29,9 @@ ordinal: 50
 - [ ] #2 内容が実際に変わった場合は従来どおり再描画される
 - [ ] #3 メモリ削減（Coordinator の重複バッファ廃止）は維持される
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+TASK-29.4(ViewerStoreのNormalizedTextCache統合)でViewerStore.apply(.full)にcache.dataHash == contentHashの比較を追加済み(ViewerStore.swift:314-316)。同一内容の再読込はcontentRevisionを進めずスキップされるため、本タスクが指摘した『内容同一でも毎回全再描画される』問題は構造的に解消された。対応不要と判断し完了扱いにする。
+<!-- SECTION:FINAL_SUMMARY:END -->
