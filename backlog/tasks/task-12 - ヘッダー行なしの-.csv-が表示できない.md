@@ -1,9 +1,10 @@
 ---
 id: TASK-12
 title: ヘッダー行なしの .csv が表示できない
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-16 00:54'
+updated_date: '2026-07-16 02:09'
 labels: []
 dependencies: []
 references:
@@ -20,6 +21,12 @@ ordinal: 6000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ヘッダー行なしの .csv がテキストとして表示される
-- [ ] #2 ヘッダー行なしの .csv/.tsv がヘッダーなし状態でテーブルレンダリングされる
+- [x] #1 ヘッダー行なしの .csv がテキストとして表示される
+- [x] #2 ヘッダー行なしの .csv/.tsv がヘッダーなし状態でテーブルレンダリングされる
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+GitHub Issue #190 としてクローズ済み（COMPLETED）。別ブランチで修正が完了している。
+<!-- SECTION:FINAL_SUMMARY:END -->
