@@ -13,7 +13,7 @@ references:
   - BefoldApp/befold/Viewer/ViewerWebView.swift
 priority: medium
 type: bug
-ordinal: 20000
+ordinal: 50
 ---
 
 ## Description

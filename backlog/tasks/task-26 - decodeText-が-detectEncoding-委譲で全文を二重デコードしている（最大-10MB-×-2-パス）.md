@@ -12,7 +12,7 @@ references:
   - BefoldApp/BefoldKit/TextEncoding.swift
   - BefoldApp/BefoldKit/FileReading.swift
 priority: medium
-ordinal: 23000
+ordinal: 80
 ---
 
 ## Description

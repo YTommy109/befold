@@ -11,7 +11,7 @@ dependencies: []
 references:
   - docs/dev/coding_rule.md
 priority: low
-ordinal: 24000
+ordinal: 120
 ---
 
 ## Description

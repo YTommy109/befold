@@ -4,12 +4,14 @@ title: 高解像度JPEGがウィンドウにフィットせず等倍表示され
 status: To Do
 assignee: []
 created_date: '2026-07-16 07:54'
+updated_date: '2026-07-16 12:16'
 labels: []
 dependencies: []
 references:
   - 'https://github.com/YTommy109/befold/issues/223'
+priority: medium
 type: bug
-ordinal: 16000
+ordinal: 90
 ---
 
 ## Description

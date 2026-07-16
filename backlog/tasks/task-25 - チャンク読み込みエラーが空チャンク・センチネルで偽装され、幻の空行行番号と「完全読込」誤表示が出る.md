@@ -14,7 +14,7 @@ references:
   - BefoldApp/BefoldKit/Resources/viewer.html
 priority: medium
 type: bug
-ordinal: 22000
+ordinal: 60
 ---
 
 ## Description

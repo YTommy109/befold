@@ -4,13 +4,15 @@ title: File メニューに Bookmarks 一覧サブメニューを追加する
 status: To Do
 assignee: []
 created_date: '2026-07-16 11:20'
+updated_date: '2026-07-16 12:16'
 labels: []
 dependencies:
   - TASK-28.1
 references:
   - docs/superpowers/specs/2026-07-16-bookmark-feature-design.md
 parent_task_id: TASK-28
-ordinal: 28000
+priority: low
+ordinal: 133
 ---
 
 ## Description

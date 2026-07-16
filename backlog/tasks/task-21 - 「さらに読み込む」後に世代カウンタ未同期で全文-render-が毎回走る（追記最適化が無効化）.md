@@ -11,7 +11,7 @@ references:
   - BefoldApp/befold/Viewer/ViewerStore.swift
 priority: high
 type: bug
-ordinal: 18000
+ordinal: 52
 ---
 
 ## Description
