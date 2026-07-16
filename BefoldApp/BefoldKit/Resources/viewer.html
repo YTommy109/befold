@@ -795,6 +795,10 @@
   var _showLineNumbers = false;
   // 直前チャンクが改行で終わったか(強制分割の継続行判定用)。
   var _lastChunkEndedWithNewline = true;
+  // appendChunk でのハイライトに与える前方文脈の行数。ブロックコメントや
+  // 複数行文字列がチャンク境界をまたいでも hljs が字句状態を再構築できる
+  // ようにするための固定サイズの先読み(詳細は codeChunkInnerHtml 参照)。
+  var CODE_CHUNK_CONTEXT_LINES = 200;
 
   // Swift 側(ViewerWebView)が render() 呼び出しの直前に評価し、次の render() が
   // 復元すべきスクロール位置(scrollTop)を注入する。
@@ -894,6 +898,11 @@
   function appendChunk(text, type, lang) {
     var diagramWrap = document.getElementById('diagram-wrap');
     if (!diagramWrap) { return; }
+    // 直前チャンクが改行で終わっている(=行境界で分割された)場合のみ、
+    // ブロックコメント等の継続を hljs に再構築させるための前方文脈を取り出す。
+    // 強制分割(行途中)の継続は既存の行結合ロジックが別途処理する。
+    var highlightContext = (_lastChunkEndedWithNewline && _lastContent)
+      ? lastLines(_lastContent, CODE_CHUNK_CONTEXT_LINES) : '';
     if (_lastContent !== null) { _lastContent += text; }
     if (type === 'csv') {
       var csvRows = parseCsv(text, lang || ',');
@@ -923,17 +932,35 @@
       if (!codeEl) { return; }
       var codeTable = codeEl.querySelector('table.code-table');
       if (codeTable) {
-        // 強制分割(前チャンクが改行で終わらなかった)の場合、継続行は
-        // 前行と同じ番号から振り直す(行番号のずれを防ぐ)。
+        // 強制分割(前チャンクが改行で終わらなかった)の場合、継続行は新しい行では
+        // なく前チャンク最終行の続きなので、生成した最初の行分を <tr> ごと追加
+        // せず既存の最終行セルへ結合する(行番号の重複を防ぐ)。
         var startLine = codeTable.rows.length + (_lastChunkEndedWithNewline ? 1 : 0);
-        var inner = codeChunkInnerHtml(window.hljs, text, lang);
+        var inner = codeChunkInnerHtml(window.hljs, text, lang, highlightContext);
+        var rowsHtml = buildLineNumberRows(inner, startLine);
+        if (!_lastChunkEndedWithNewline && codeTable.rows.length > 0) {
+          var pendingRows = document.createElement('tbody');
+          pendingRows.innerHTML = rowsHtml;
+          var continuationRow = pendingRows.rows[0];
+          if (continuationRow) {
+            var lastRow = codeTable.rows[codeTable.rows.length - 1];
+            var lastContentCell = lastRow.querySelector('.line-content');
+            var continuationContentCell = continuationRow.querySelector('.line-content');
+            if (lastContentCell && continuationContentCell) {
+              lastContentCell.insertAdjacentHTML('beforeend', continuationContentCell.innerHTML);
+            }
+            continuationRow.remove();
+            rowsHtml = pendingRows.innerHTML;
+            _walkTextNodes(lastRow, false);
+          }
+        }
         var firstNewRow = codeTable.rows.length;
-        codeTable.insertAdjacentHTML('beforeend', buildLineNumberRows(inner, startLine));
+        codeTable.insertAdjacentHTML('beforeend', rowsHtml);
         for (var i = firstNewRow; i < codeTable.rows.length; i++) {
           _walkTextNodes(codeTable.rows[i], false);
         }
       } else {
-        codeEl.insertAdjacentHTML('beforeend', codeChunkInnerHtml(window.hljs, text, lang));
+        codeEl.insertAdjacentHTML('beforeend', codeChunkInnerHtml(window.hljs, text, lang, highlightContext));
         _annotatePathRefs();
       }
     }
@@ -966,7 +993,10 @@
     _lastContent = content;
     _lastType = type;
     _lastLang = lang;
-    _lastChunkEndedWithNewline = true;
+    // 初回チャンクも LineChunkReader の強制分割で改行なしのまま渡ることがあるため、
+    // appendChunk と同じ判定式で実際の末尾を見る(true 固定だと最初の強制分割で
+    // 継続行の結合判定を誤る)。
+    _lastChunkEndedWithNewline = content.length > 0 && content[content.length - 1] === '\n';
     var errorPanel = document.getElementById('mmd-error');
     errorPanel.style.display = 'none';
     errorPanel.textContent = '';
