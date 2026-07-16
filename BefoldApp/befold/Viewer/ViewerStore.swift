@@ -213,8 +213,6 @@ final class ViewerStore {
         case chunked(session: any ChunkedTextReading, firstChunk: String, isAtEnd: Bool)
         /// 全量読み込みの結果(rejectReason を含みうる)。
         case full(ContentLoader.LoadedContent)
-        /// 読み込み前の判定で非対応が確定した。
-        case rejected(RejectReason)
     }
 
     /// ファイルの存在確認・チャンクセッション生成・全量読み込みを行う。
@@ -238,7 +236,7 @@ final class ViewerStore {
                 )
             } catch {
                 if !fileReader.fileExists(at: resolved) { return .missing }
-                return .rejected(.unsupportedFormat)
+                return .full(ContentLoader.LoadedContent(rejectReason: .unsupportedFormat, content: ""))
             }
         }
         return .full(contentLoader.load(from: resolved, fileType: fileType))
@@ -263,13 +261,6 @@ final class ViewerStore {
             rejectReason = loaded.rejectReason
             isTruncated = false
             content = loaded.content
-            newlineCount = 0
-            displayedLineCount = 0
-        case let .rejected(reason):
-            chunkSession = nil
-            rejectReason = reason
-            isTruncated = false
-            content = ""
             newlineCount = 0
             displayedLineCount = 0
         }
