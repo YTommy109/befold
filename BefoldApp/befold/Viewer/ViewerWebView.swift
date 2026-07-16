@@ -29,7 +29,7 @@ struct ViewerWebView: NSViewRepresentable {
     /// JS 側で倍率が変わったときに呼ばれる。
     let onZoomChanged: @MainActor (Double) -> Void
     /// JS 側「続きを読み込む」押下時に呼ばれ、次チャンクと更新後の表示状態を非同期で返す。
-    let onLoadMoreLines: @MainActor () async -> (chunk: String, isTruncated: Bool, lineCount: Int)?
+    let onLoadMoreLines: @MainActor () async -> LoadMoreLinesResult?
     /// リンクやパス参照がアクティベートされたときに呼ばれる。
     /// パラメータ: href, newWindow
     let onOpenReference: @MainActor (_ href: String, _ newWindow: Bool) -> Void
@@ -198,7 +198,7 @@ struct ViewerWebView: NSViewRepresentable {
         var onZoomChanged: (@MainActor (Double) -> Void)?
         var onScrollPositionChanged: (@MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void)?
         var onOpenReference: (@MainActor (_ href: String, _ newWindow: Bool) -> Void)?
-        var onLoadMoreLines: (@MainActor () async -> (chunk: String, isTruncated: Bool, lineCount: Int)?)?
+        var onLoadMoreLines: (@MainActor () async -> LoadMoreLinesResult?)?
         /// 「続きを読み込む」の実行中フラグ。非同期読み込み中の再押下を無視し、
         /// 追記の交錯(順序の入れ替わり)を防ぐ。
         private var isLoadingMoreLines = false
@@ -440,7 +440,15 @@ extension ViewerWebView.Coordinator {
             guard let webView, let result = await onLoadMoreLines?() else { return }
             lastTruncation = TruncationState(isTruncated: result.isTruncated, lineCount: result.lineCount)
 
+            // JS 呼び出し(await)より前に同期でキャッシュを更新することで、追記後の
+            // SwiftUI 再描画による全文 render の誤爆と、チャンク二重表示レースの
+            // 窓を閉じる(recordRendered 呼び出し前に他の処理へ制御が渡らない)。
             let fileType = lastRenderedFileType ?? .code(language: "plaintext")
+            recordRendered(
+                contentRevision: result.contentRevision,
+                fileType: fileType, filePath: lastRenderedFilePath
+            )
+
             if let script = ViewerBridge.appendChunkScript(
                 chunk: result.chunk,
                 fileType: fileType

@@ -574,6 +574,29 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
+    @Test("loadMoreLines は追記のたびに contentRevision を増分して返す")
+    func loadMoreLinesReturnsIncrementedContentRevision() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("a,b\n1,2\n3,4\n5,6", at: file)
+        let store = makeStore(
+            reader: reader,
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["a,b\n1,2\n", "3,4\n", "5,6"]) }
+        )
+        await openAndLoad(store, file)
+        let initialRevision = store.contentRevision
+
+        let firstResult = await store.loadMoreLines()
+        #expect(firstResult?.contentRevision == initialRevision + 1)
+        #expect(store.contentRevision == initialRevision + 1)
+
+        let secondResult = await store.loadMoreLines()
+        #expect(secondResult?.contentRevision == initialRevision + 2)
+        #expect(store.contentRevision == initialRevision + 2)
+
+        store.close()
+    }
+
     @Test("loadMoreLines は全チャンク読み込み後は nil を返す")
     func loadMoreLinesReturnsNilWhenComplete() async {
         let file = URL(fileURLWithPath: "/files/data.csv")

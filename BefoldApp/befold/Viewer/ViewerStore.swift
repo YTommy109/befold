@@ -1,6 +1,15 @@
 import BefoldKit
 import Foundation
 
+/// loadMoreLines() の結果。contentRevision は追記後の世代番号で、呼び出し側が
+/// 描画済みキャッシュを同期し直後の全文 render 誤爆を防ぐために使う。
+struct LoadMoreLinesResult: Equatable {
+    let chunk: String
+    let isTruncated: Bool
+    let lineCount: Int
+    let contentRevision: Int
+}
+
 /// ビューアの表示状態を管理する。
 /// ファイルの読み込み・監視・削除検知を行い、UI にバインドされるプロパティを更新する。
 /// 読み込み(I/O・デコード)はバックグラウンドで行い、結果だけをメインアクターで適用する。
@@ -158,7 +167,9 @@ final class ViewerStore {
 
     /// 次のチャンクを読み込んで content に追記し、表示状態を返す。
     /// 末尾に達している・セッションがない場合は nil を返す。
-    func loadMoreLines() async -> (chunk: String, isTruncated: Bool, lineCount: Int)? {
+    /// 戻り値の contentRevision は追記後の世代番号(呼び出し側が描画済みキャッシュを
+    /// 同期し、直後の全文 render 誤爆を防ぐために使う)。
+    func loadMoreLines() async -> LoadMoreLinesResult? {
         guard isTruncated, let session = chunkSession else { return nil }
         do {
             let result = try await session.readNextChunk()
@@ -170,7 +181,10 @@ final class ViewerStore {
             isTruncated = !result.isAtEnd
             newlineCount += result.text.utf8.count(where: { $0 == 0x0A })
             updateDisplayedLineCount()
-            return (result.text, isTruncated, displayedLineCount)
+            return LoadMoreLinesResult(
+                chunk: result.text, isTruncated: isTruncated,
+                lineCount: displayedLineCount, contentRevision: contentRevision
+            )
         } catch {
             guard chunkSession === session else { return nil }
             // セッション途中のエラーではチャンクセッションを終了し、
@@ -178,7 +192,10 @@ final class ViewerStore {
             // 10MB 超のファイルで表示済みコンテンツが fileTooLarge に置き換わるため。
             chunkSession = nil
             isTruncated = false
-            return ("", false, displayedLineCount)
+            return LoadMoreLinesResult(
+                chunk: "", isTruncated: false,
+                lineCount: displayedLineCount, contentRevision: contentRevision
+            )
         }
     }
 
