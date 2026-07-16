@@ -15,9 +15,6 @@ public protocol FileReading: Sendable {
 public struct DefaultFileReader: FileReading {
     public init() {}
 
-    /// バイナリ判定・エンコーディング判定に見る先頭バイト数。
-    private static let binarySniffLength = 8192
-
     /// BOM なし UTF-16 とみなす NUL パリティ偏りの許容比。
     /// 少数側 / 多数側の NUL 数がこの比未満なら、NUL が偶数位置か奇数位置の
     /// 一方にほぼ揃っており UTF-16 テキストと判断する
@@ -56,7 +53,7 @@ public struct DefaultFileReader: FileReading {
     public func isBinary(at url: URL) -> Bool {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
         defer { try? handle.close() }
-        guard let data = try? handle.read(upToCount: Self.binarySniffLength) else { return false }
+        guard let data = try? handle.read(upToCount: TextEncoding.sniffLength) else { return false }
         // NUL を含まなければテキスト(UTF-8 など)。
         guard data.contains(0) else { return false }
         // UTF-16 / UTF-32 の BOM があればテキスト。
@@ -75,14 +72,10 @@ public struct DefaultFileReader: FileReading {
     /// NUL バイトが偶数位置・奇数位置のどちらか一方にほぼ偏っていれば
     /// BOM なし UTF-16 テキストとみなす(実バイナリは NUL が散在する)。
     private static func looksLikeUTF16(_ data: Data) -> Bool {
-        var evenNul = 0
-        var oddNul = 0
-        for (index, byte) in data.enumerated() where byte == 0 {
-            if index.isMultiple(of: 2) { evenNul += 1 } else { oddNul += 1 }
-        }
-        let majority = max(evenNul, oddNul)
+        let parity = TextEncoding.nulParity(data)
+        let majority = max(parity.even, parity.odd)
         guard majority > 0 else { return false }
-        let minority = min(evenNul, oddNul)
+        let minority = min(parity.even, parity.odd)
         return Double(minority) / Double(majority) < utf16NulParitySkewRatio
     }
 }

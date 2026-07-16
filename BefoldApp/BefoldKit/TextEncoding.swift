@@ -54,12 +54,21 @@ public enum TextEncoding: Sendable {
     }
 
     /// BOM またはヒューリスティックでエンコーディングを推定する(復号はしない)。
-    public static func detectEncoding(_ data: Data) -> String.Encoding? {
+    /// BOM がある場合はその bomLength を、それ以外は 0 を返す
+    /// (呼び出し元が復号時にスキップすべきバイト数の単一情報源)。
+    /// BOM なしで NUL を含む場合は UTF-16 とみなし、NUL の位置から endian を推定する
+    /// (呼び出し元がチャンク読み込みの場合は isChunkableEncoding が事前にこのケースを
+    /// 弾くため、この分岐に到達するのは全量読み込み経由のみ)。
+    public static func detectEncoding(_ data: Data) -> (encoding: String.Encoding, bomLength: Int)? {
         if let bom = detectBOM(data) {
-            return bom.encoding
+            return bom
+        }
+        if data.prefix(sniffLength).contains(0) {
+            let encoding: String.Encoding = looksLittleEndianUTF16(data) ? .utf16LittleEndian : .utf16BigEndian
+            return (encoding, 0)
         }
         if String(data: data, encoding: .utf8) != nil {
-            return .utf8
+            return (.utf8, 0)
         }
         var convertedString: NSString?
         var usedLossyConversion: ObjCBool = false
@@ -68,37 +77,17 @@ public enum TextEncoding: Sendable {
             convertedString: &convertedString,
             usedLossyConversion: &usedLossyConversion
         )
-        if detected != 0, !usedLossyConversion.boolValue { return String.Encoding(rawValue: detected) }
+        if detected != 0, !usedLossyConversion.boolValue { return (String.Encoding(rawValue: detected), 0) }
         return nil
     }
 
     /// BOM 付き UTF-8 / UTF-16 / UTF-32、BOM なし UTF-16、UTF-8、
     /// および Shift_JIS / EUC-JP 等のレガシーエンコーディングを判定して復号する。
+    /// エンコーディング・BOM 長の判定は detectEncoding に委譲する。
     /// いずれの復号にも失敗した場合は nil を返す。
     public static func decodeText(_ data: Data) -> String? {
-        if let bom = detectBOM(data) {
-            return String(data: data.dropFirst(bom.bomLength), encoding: bom.encoding)
-        }
-        // BOM なしで NUL を含めば UTF-16 とみなし、NUL の位置から endian を推定する。
-        if data.prefix(sniffLength).contains(0) {
-            let encoding: String.Encoding = looksLittleEndianUTF16(data)
-                ? .utf16LittleEndian : .utf16BigEndian
-            return String(data: data, encoding: encoding)
-        }
-        if let utf8 = String(data: data, encoding: .utf8) {
-            return utf8
-        }
-        var convertedString: NSString?
-        var usedLossyConversion: ObjCBool = false
-        let detected = NSString.stringEncoding(
-            for: data, encodingOptions: nil,
-            convertedString: &convertedString,
-            usedLossyConversion: &usedLossyConversion
-        )
-        if detected != 0, !usedLossyConversion.boolValue, let result = convertedString {
-            return result as String
-        }
-        return nil
+        guard let detected = detectEncoding(data) else { return nil }
+        return String(data: data.dropFirst(detected.bomLength), encoding: detected.encoding)
     }
 
     /// UTF-8 のバイト列がマルチバイト文字の途中で切れている場合、
@@ -140,14 +129,20 @@ public enum TextEncoding: Sendable {
         return data
     }
 
+    /// データ中の NUL バイトを偶数位置・奇数位置別に数える。
+    /// UTF-16 の endian 推定・バイナリ判定など、NUL の位置的偏りを見る用途で共有する。
+    static func nulParity(_ data: Data) -> (even: Int, odd: Int) {
+        var evenNul = 0, oddNul = 0
+        for (index, byte) in data.enumerated() where byte == 0 {
+            if index.isMultiple(of: 2) { evenNul += 1 } else { oddNul += 1 }
+        }
+        return (evenNul, oddNul)
+    }
+
     /// BOM なし UTF-16 の endian を NUL の位置から推定する
     /// (LE は奇数位置、BE は偶数位置に NUL が並ぶ)。
     static func looksLittleEndianUTF16(_ data: Data) -> Bool {
-        let window = data.prefix(sniffLength)
-        var evenNul = 0, oddNul = 0
-        for (index, byte) in window.enumerated() where byte == 0 {
-            if index.isMultiple(of: 2) { evenNul += 1 } else { oddNul += 1 }
-        }
-        return oddNul >= evenNul
+        let parity = nulParity(data.prefix(sniffLength))
+        return parity.odd >= parity.even
     }
 }

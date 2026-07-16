@@ -6,6 +6,9 @@ import WebKit
 /// Coordinator パターンで WKNavigationDelegate を処理する。
 struct ViewerWebView: NSViewRepresentable {
     let content: String
+    /// content が変わるたびに増分する世代番号。Coordinator は再描画要否の判定に
+    /// content 全文比較でなくこれを使い、文字列の重複保持を避ける。
+    let contentRevision: Int
     let fileType: FileType
     /// レンダリング対象のファイルパス。HTML ファイルは loadFileURL による直接ロードに使う。
     let filePath: URL?
@@ -128,6 +131,7 @@ struct ViewerWebView: NSViewRepresentable {
         context.coordinator.scrollPositionToRestore = scrollPositionToRestore
         context.coordinator.updateContent(
             content,
+            contentRevision: contentRevision,
             fileType: fileType,
             filePath: filePath,
             isSourceMode: isSourceMode,
@@ -209,16 +213,20 @@ struct ViewerWebView: NSViewRepresentable {
         var pendingPageZoom: Double?
         private var isReady = false
         private var pendingUpdate: (() -> Void)?
-        private var lastRenderedContent: String?
+        /// 直近に描画した content の世代番号。content 全文を保持せず整数比較で
+        /// 変更検知することで、ViewerStore.content との重複バッファを避ける。
+        private var lastRenderedContentRevision: Int?
+        /// CSV ソースモードの追記再描画専用の蓄積バッファ。それ以外のファイル/モードでは
+        /// 常に nil のままで重複バッファを持たない(recordRendered 参照)。
+        /// CSV ソースモード自体の全文再描画を追記化するのは別タスクの範囲。
+        private var accumulatedSourceContent: String?
         private var lastRenderedFileType: FileType?
         private var lastRenderedFilePath: URL?
         private var lastShowLineNumbers: Bool?
         private var lastIsSourceMode: Bool?
-        private var lastIsTruncated: Bool?
-        /// 最後に _mmdSetTruncated へ送った表示行数(非切り詰め時は 0 に正規化)。
-        /// 切り詰め状態のまま行数だけが変わる再読込(3000 行 → 1000 行など)でも
-        /// バナーを更新できるよう、isTruncated とセットで追跡する。
-        private var lastTruncatedLineCount: Int?
+        /// 最後に _mmdSetTruncated へ送った切り詰め状態と表示行数
+        /// (再読込での行数だけの変化もバナー更新できるよう両方をセットで保持する)。
+        private var lastTruncation: TruncationState?
         private var isDirectHTMLMode = false
         private var lastDirectHTMLPath: URL?
 
@@ -262,57 +270,6 @@ struct ViewerWebView: NSViewRepresentable {
             }
         }
 
-        /// 次チャンクを非同期で取得し、キャッシュ更新と描画を行う。読み込み中の再入は
-        /// isLoadingMoreLines で無視し、追記の交錯を防ぐ。untilFullyLoaded が true の場合、
-        /// 検索バーを開いた時点で段階読み込み中だったときに残り全チャンクを読み終えるまで
-        /// ループし、完了を JS 側(_mmdOnAllLinesLoaded)へ通知する。
-        @MainActor
-        private func handleLoadMoreLines(untilFullyLoaded: Bool = false) {
-            guard !isLoadingMoreLines else { return }
-            isLoadingMoreLines = true
-            Task { @MainActor [self] in
-                defer { isLoadingMoreLines = false }
-                guard let webView else { return }
-                while let result = await onLoadMoreLines?() {
-                    // 連結代入は蓄積済み文字列全体をコピーする(呼び出しごとに O(n))ため、
-                    // in-place の append で追記する。
-                    if lastRenderedContent == nil { lastRenderedContent = "" }
-                    lastRenderedContent?.append(result.chunk)
-                    lastIsTruncated = result.isTruncated
-                    lastTruncatedLineCount = result.isTruncated ? result.lineCount : 0
-
-                    // ソース表示でも .code は render() がレンダリング表示と同一の描画をするため
-                    // 追記で足りる。CSV のソース表示(レインボー表示)だけは描画が異なるため、
-                    // 蓄積済みコンテンツ全体を再描画する。
-                    if lastIsSourceMode == true, lastRenderedFileType?.csvDelimiter != nil,
-                       let script = ViewerBridge.renderScript(
-                           content: Self.renderableContent(
-                               lastRenderedContent ?? "",
-                               fileType: lastRenderedFileType ?? .code(language: "plaintext"),
-                               filePath: lastRenderedFilePath, isSourceMode: true
-                           ),
-                           fileType: lastRenderedFileType ?? .code(language: "plaintext")
-                       )
-                    {
-                        webView.evaluateJavaScript(script, completionHandler: nil)
-                    } else if let script = ViewerBridge.appendChunkScript(
-                        chunk: result.chunk,
-                        fileType: lastRenderedFileType ?? .code(language: "plaintext")
-                    ) {
-                        webView.evaluateJavaScript(script, completionHandler: nil)
-                    }
-                    webView.evaluateJavaScript(
-                        ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount),
-                        completionHandler: nil
-                    )
-                    if !untilFullyLoaded { break }
-                }
-                if untilFullyLoaded {
-                    webView.evaluateJavaScript(ViewerBridge.allLinesLoadedScript, completionHandler: nil)
-                }
-            }
-        }
-
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             isReady = true
             if isDirectHTMLMode, let zoom = pendingPageZoom {
@@ -337,17 +294,18 @@ struct ViewerWebView: NSViewRepresentable {
 
         /// 直接 HTML モードを解除し、viewer.html へ復帰する。
         /// `isDirectHTMLMode` / `webViewProxy?.isDirectHTMLMode` / `lastDirectHTMLPath` /
-        /// `lastRenderedContent` / `lastRenderedFileType` / `lastRenderedFilePath` の 6 つの
-        /// 状態を必ずセットでリセットしてから viewer.html を再ロードする。一部だけ倒すと
-        /// 直接 HTML モードの判定と再描画キャッシュの整合性が崩れるため、呼び出し側で
-        /// 個別にリセットしないこと。
+        /// `lastRenderedContentRevision` / `accumulatedSourceContent` / `lastRenderedFileType` /
+        /// `lastRenderedFilePath` の 7 つの状態を必ずセットでリセットしてから viewer.html を
+        /// 再ロードする。一部だけ倒すと直接 HTML モードの判定と再描画キャッシュの整合性が
+        /// 崩れるため、呼び出し側で個別にリセットしないこと。
         /// (`lastIsSourceMode` は viewer.html 再ロードに伴う JS 側 `_viewMode` の初期化と
         /// セットで `reloadViewerHTML` 側がリセットする)
         private func exitDirectHTMLMode(webView: WKWebView, completion: @escaping () -> Void) {
             isDirectHTMLMode = false
             webViewProxy?.isDirectHTMLMode = false
             lastDirectHTMLPath = nil
-            lastRenderedContent = nil
+            lastRenderedContentRevision = nil
+            accumulatedSourceContent = nil
             lastRenderedFileType = nil
             lastRenderedFilePath = nil
             reloadViewerHTML(webView: webView, then: completion)
@@ -381,6 +339,7 @@ struct ViewerWebView: NSViewRepresentable {
 
         func updateContent(
             _ content: String,
+            contentRevision: Int,
             fileType: FileType,
             filePath: URL?,
             isSourceMode: Bool,
@@ -394,13 +353,16 @@ struct ViewerWebView: NSViewRepresentable {
                 // HTML レンダリング表示: loadFileURL で直接ロード
                 if fileType == .html, !isSourceMode, let filePath {
                     let pathChanged = filePath != lastDirectHTMLPath
-                    let contentChanged = content != lastRenderedContent
+                    let contentChanged = contentRevision != lastRenderedContentRevision
                     guard !isDirectHTMLMode || pathChanged || contentChanged else { return }
                     // 初回ロード・ファイル切替では保存済みの per-file 倍率を使い、
                     // ライブリロード（同一ファイルの content 変更）では現在の倍率を維持する。
                     let isFirstLoadOrSwitch = !isDirectHTMLMode || pathChanged
                     pendingPageZoom = isFirstLoadOrSwitch ? initialPageZoom : webView.pageZoom
-                    recordRendered(content: content, fileType: fileType, filePath: filePath)
+                    recordRendered(
+                        content: content, contentRevision: contentRevision,
+                        fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+                    )
                     lastIsSourceMode = isSourceMode
                     lastDirectHTMLPath = filePath
                     isDirectHTMLMode = true
@@ -429,14 +391,17 @@ struct ViewerWebView: NSViewRepresentable {
                             restoreFromPersistedPosition: restoreFromPersistedPosition
                         )
                     }
-                    recordRendered(content: content, fileType: fileType, filePath: filePath)
+                    recordRendered(
+                        content: content, contentRevision: contentRevision,
+                        fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+                    )
                     return
                 }
 
                 // content・fileType だけでなく isSourceMode の変化でも再描画する。
                 // (例: notes.md → notes.txt のように内容が同じでも種別が変わる切替、
                 // ソース/レンダリング表示の切替も同じ content から異なる文字列を描画し直す必要がある)
-                let needsRender = content != lastRenderedContent
+                let needsRender = contentRevision != lastRenderedContentRevision
                     || fileType != lastRenderedFileType
                     || showLineNumbers != lastShowLineNumbers
                     || isSourceMode != lastIsSourceMode
@@ -447,7 +412,10 @@ struct ViewerWebView: NSViewRepresentable {
                     filePath: filePath, isSourceMode: isSourceMode,
                     lastRenderedFilePath: lastRenderedFilePath, lastIsSourceMode: lastIsSourceMode
                 )
-                recordRendered(content: content, fileType: fileType, filePath: filePath)
+                recordRendered(
+                    content: content, contentRevision: contentRevision,
+                    fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+                )
                 applyRender(
                     webView: webView, content: content, fileType: fileType,
                     filePath: filePath, isSourceMode: isSourceMode,
@@ -469,6 +437,74 @@ struct ViewerWebView: NSViewRepresentable {
 // MARK: - Render helpers
 
 extension ViewerWebView.Coordinator {
+    /// 次チャンクを非同期で取得し、キャッシュ更新と描画を行う。読み込み中の再入は
+    /// isLoadingMoreLines で無視し、追記の交錯を防ぐ。untilFullyLoaded が true の場合、
+    /// 検索バーを開いた時点で段階読み込み中だったときに残り全チャンクを読み終えるまで
+    /// ループし、完了を JS 側(_mmdOnAllLinesLoaded)へ通知する。
+    @MainActor
+    private func handleLoadMoreLines(untilFullyLoaded: Bool = false) {
+        guard !isLoadingMoreLines else { return }
+        isLoadingMoreLines = true
+        Task { @MainActor [self] in
+            defer { isLoadingMoreLines = false }
+            guard let webView else { return }
+            let fileType = lastRenderedFileType ?? .code(language: "plaintext")
+            // CSV のソース表示(レインボー表示)だけは追記でなく蓄積済みコンテンツ全体を
+            // 再描画するため、この場合のみ蓄積バッファを持つ(それ以外のファイル/モードでは
+            // 重複バッファを避けるため保持しない。全文再描画自体の追記化は別タスクの範囲)。
+            let needsSourceAccumulation = lastIsSourceMode == true && fileType.csvDelimiter != nil
+            while let result = await onLoadMoreLines?() {
+                if needsSourceAccumulation {
+                    // 連結代入は蓄積済み文字列全体をコピーする(呼び出しごとに O(n))ため、
+                    // in-place の append で追記する。
+                    if accumulatedSourceContent == nil { accumulatedSourceContent = "" }
+                    accumulatedSourceContent?.append(result.chunk)
+                }
+                lastTruncation = TruncationState(isTruncated: result.isTruncated, lineCount: result.lineCount)
+
+                // ソース表示でも .code は render() がレンダリング表示と同一の描画をするため
+                // 追記で足りる。CSV のソース表示(レインボー表示)だけは描画が異なるため、
+                // 蓄積済みコンテンツ全体を再描画する。
+                if needsSourceAccumulation,
+                   let script = ViewerBridge.renderScript(
+                       content: Self.renderableContent(
+                           accumulatedSourceContent ?? "",
+                           fileType: fileType,
+                           filePath: lastRenderedFilePath, isSourceMode: true
+                       ),
+                       fileType: fileType
+                   )
+                {
+                    webView.evaluateJavaScript(script, completionHandler: nil)
+                } else if let script = ViewerBridge.appendChunkScript(
+                    chunk: result.chunk,
+                    fileType: fileType
+                ) {
+                    webView.evaluateJavaScript(script, completionHandler: nil)
+                }
+                webView.evaluateJavaScript(
+                    ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount),
+                    completionHandler: nil
+                )
+                if !untilFullyLoaded { break }
+            }
+            if untilFullyLoaded {
+                webView.evaluateJavaScript(ViewerBridge.allLinesLoadedScript, completionHandler: nil)
+            }
+        }
+    }
+
+    /// _mmdSetTruncated へ送る切り詰め状態と表示行数のペア。非切り詰め時の
+    /// 行数は 0 に正規化する(切り詰め有無だけが意味を持つ)。
+    struct TruncationState: Equatable {
+        let isTruncated: Bool
+        let lineCount: Int
+        init(isTruncated: Bool, lineCount: Int) {
+            self.isTruncated = isTruncated
+            self.lineCount = isTruncated ? lineCount : 0
+        }
+    }
+
     /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
     /// scrollKey 予告 + render を評価する。
     /// - Parameter restoreFromPersistedPosition: `isFileOrModeSwitch` 参照。
@@ -492,8 +528,7 @@ extension ViewerWebView.Coordinator {
             webView.evaluateJavaScript(
                 ViewerBridge.truncatedScript(truncation.isTruncated, lineCount: truncation.lineCount)
             )
-            lastIsTruncated = truncation.isTruncated
-            lastTruncatedLineCount = truncation.isTruncated ? truncation.lineCount : 0
+            lastTruncation = TruncationState(isTruncated: truncation.isTruncated, lineCount: truncation.lineCount)
         }
         guard let script = ViewerBridge.renderScript(
             content: Self.renderableContent(
@@ -511,8 +546,7 @@ extension ViewerWebView.Coordinator {
     /// _mmdSetTruncated の再送が必要か(切り詰め状態、または切り詰め中の表示行数が
     /// 変わったか)を判定する。行数は非切り詰め時 0 に正規化して比較する。
     private func truncationStateChanged(isTruncated: Bool, lineCount: Int) -> Bool {
-        isTruncated != lastIsTruncated
-            || (isTruncated ? lineCount : 0) != lastTruncatedLineCount
+        TruncationState(isTruncated: isTruncated, lineCount: lineCount) != lastTruncation
     }
 
     /// 今回の render() がファイル/モードの実際の切替かどうかを判定する。
@@ -526,10 +560,17 @@ extension ViewerWebView.Coordinator {
         filePath != lastRenderedFilePath || isSourceMode != lastIsSourceMode
     }
 
-    private func recordRendered(content: String, fileType: FileType, filePath: URL?) {
-        lastRenderedContent = content
+    /// 描画済みキャッシュを更新する。content 全文は保持せず contentRevision だけを
+    /// 比較用に保存する。CSV ソースモードの追記再描画専用バッファ(accumulatedSourceContent)
+    /// は、その用途で必要な場合のみ content 全文でシードし、それ以外では nil にして
+    /// 重複バッファを持たない。
+    private func recordRendered(
+        content: String, contentRevision: Int, fileType: FileType, filePath: URL?, isSourceMode: Bool
+    ) {
+        lastRenderedContentRevision = contentRevision
         lastRenderedFileType = fileType
         lastRenderedFilePath = filePath
+        accumulatedSourceContent = (isSourceMode && fileType.csvDelimiter != nil) ? content : nil
     }
 
     /// render() に渡す直前のコンテンツ加工。markdown はローカル画像参照を
@@ -549,8 +590,7 @@ extension ViewerWebView.Coordinator {
         // setLineNumbers / setViewMode を再注入させる。
         lastShowLineNumbers = nil
         lastIsSourceMode = nil
-        lastIsTruncated = nil
-        lastTruncatedLineCount = nil
+        lastTruncation = nil
         // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
         // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
         let zoom = initialPageZoom

@@ -18,6 +18,9 @@ final class ViewerStore {
     typealias ChunkedReaderFactory = @Sendable (URL, FileType) throws -> any ChunkedTextReading
 
     private(set) var content: String = ""
+    /// content が更新されるたびに増分する世代番号。ViewerWebView.Coordinator が
+    /// content 全文比較の代わりにこれで変更検知することで、文字列の重複保持を避ける。
+    private(set) var contentRevision = 0
     private(set) var fileType: FileType = .mmd
     /// 開いたファイルが非対応内容と判定された場合に理由が入る。
     /// 非 nil の間 content は更新されない(バイナリを丸ごと文字列化しない)。
@@ -150,6 +153,7 @@ final class ViewerStore {
             // 古いセッションの結果を捨てて新しい表示を壊さない。
             guard chunkSession === session else { return nil }
             content += result.text
+            contentRevision += 1
             isTruncated = !result.isAtEnd
             newlineCount += result.text.utf8.count(where: { $0 == 0x0A })
             updateDisplayedLineCount()
@@ -254,6 +258,7 @@ final class ViewerStore {
             rejectReason = nil
             isTruncated = !isAtEnd
             content = firstChunk
+            contentRevision += 1
             newlineCount = firstChunk.utf8.count(where: { $0 == 0x0A })
             updateDisplayedLineCount()
         case let .full(loaded):
@@ -261,6 +266,7 @@ final class ViewerStore {
             rejectReason = loaded.rejectReason
             isTruncated = false
             content = loaded.content
+            contentRevision += 1
             newlineCount = 0
             displayedLineCount = 0
         }
