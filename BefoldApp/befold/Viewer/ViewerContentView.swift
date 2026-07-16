@@ -32,6 +32,7 @@ struct ViewerContentView: View {
         ZStack {
             ViewerWebView(
                 content: store.content,
+                contentRevision: store.contentRevision,
                 fileType: store.fileType,
                 filePath: store.filePath,
                 isSourceMode: store.isSourceMode,
