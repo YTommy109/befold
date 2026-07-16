@@ -310,8 +310,23 @@
     });
   }
 
-  // ウィンドウリサイズで枠高さの上限(ビューポート高)が変わるため追従させる。
-  window.addEventListener('resize', _mmdUpdateAllDiagramScrollHeights);
+  // 画像のフィットサイズ(px 実数値)を再計算して適用する。
+  function _mmdFitImage(img, wrap) {
+    var fit = imageFitSize(img.naturalWidth, img.naturalHeight, wrap.clientWidth, wrap.clientHeight);
+    img.style.width = fit.width + 'px';
+    img.style.height = fit.height + 'px';
+  }
+
+  // ウィンドウリサイズで枠高さの上限(ビューポート高)や画像のフィットサイズが
+  // 変わるため追従させる。
+  window.addEventListener('resize', function() {
+    _mmdUpdateAllDiagramScrollHeights();
+    var wrap = document.getElementById('diagram-wrap');
+    var img = wrap.classList.contains('image-body') ? wrap.querySelector('img') : null;
+    if (img && img.complete && img.naturalWidth) {
+      _mmdFitImage(img, wrap);
+    }
+  });
 
   // 枠(.diagram-zoom-scroll)の高さをズーム倍率とウィンドウ高に追従させる。
   // 拡大時は枠がウィンドウ高まで伸び、収まらない分は枠内の縦スクロールで見る。
@@ -1060,12 +1075,16 @@
       var rows = parseCsv(content, lang || ',');
       diagramWrap.innerHTML = buildTableHtml(rows);
     } else if (type === 'image') {
-      // ナチュラルサイズで表示し、ウィンドウサイズには追従させない。
-      // 拡大縮小は #diagram-wrap への全体ズーム(⌘+/-)が担う。
+      // 初期表示はウィンドウに収まるサイズ(縦横とも)にフィットさせる。
+      // フィット後は #diagram-wrap への全体ズーム(⌘+/-/0、Ctrl+ホイール)が
+      // フィット状態を基準に乗算する(imageFitSize のコメント参照)。
       diagramWrap.classList.add('image-body');
       var img = document.createElement('img');
-      img.src = 'data:' + (lang || 'image/png') + ';base64,' + content;
       img.alt = 'Image';
+      img.onload = function() {
+        _mmdFitImage(img, diagramWrap);
+      };
+      img.src = 'data:' + (lang || 'image/png') + ';base64,' + content;
       diagramWrap.innerHTML = '';
       diagramWrap.appendChild(img);
     } else if (type === 'pdf') {

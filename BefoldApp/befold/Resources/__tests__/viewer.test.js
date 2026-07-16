@@ -15,6 +15,7 @@ const {
   sanitizeLang,
   highlightCode,
   diagramScrollHeight,
+  imageFitSize,
   PAGE_SCROLL_RATIO,
   DEFAULT_LINE_SCROLL_STEP,
   pageScrollStep,
@@ -367,6 +368,27 @@ describe('diagramScrollHeight', () => {
   test('taller viewport raises the cap', () => {
     const cap = (1200 - 64) / 1;
     expect(diagramScrollHeight(600, 3, 1200, 1)).toBeCloseTo(cap, 5);
+  });
+});
+
+describe('imageFitSize', () => {
+  test('shrinks a wide image to fit the available width, preserving aspect ratio', () => {
+    expect(imageFitSize(4000, 1000, 768, 568)).toEqual({ width: 768, height: 192 });
+  });
+
+  test('shrinks a tall image to fit the available height, preserving aspect ratio', () => {
+    const fit = imageFitSize(800, 3000, 768, 568);
+    expect(fit.height).toBe(568);
+    expect(fit.width).toBeCloseTo((800 / 3000) * 568, 5);
+  });
+
+  test('does not upscale an image smaller than the available area', () => {
+    expect(imageFitSize(200, 100, 768, 568)).toEqual({ width: 200, height: 100 });
+  });
+
+  test('returns the natural size unchanged when available size is not known (zero/negative)', () => {
+    expect(imageFitSize(400, 300, 0, 0)).toEqual({ width: 400, height: 300 });
+    expect(imageFitSize(400, 300, -1, 500)).toEqual({ width: 400, height: 300 });
   });
 });
 
