@@ -923,12 +923,30 @@
       if (!codeEl) { return; }
       var codeTable = codeEl.querySelector('table.code-table');
       if (codeTable) {
-        // 強制分割(前チャンクが改行で終わらなかった)の場合、継続行は
-        // 前行と同じ番号から振り直す(行番号のずれを防ぐ)。
+        // 強制分割(前チャンクが改行で終わらなかった)の場合、継続行は新しい行では
+        // なく前チャンク最終行の続きなので、生成した最初の行分を <tr> ごと追加
+        // せず既存の最終行セルへ結合する(行番号の重複を防ぐ)。
         var startLine = codeTable.rows.length + (_lastChunkEndedWithNewline ? 1 : 0);
         var inner = codeChunkInnerHtml(window.hljs, text, lang);
+        var rowsHtml = buildLineNumberRows(inner, startLine);
+        if (!_lastChunkEndedWithNewline && codeTable.rows.length > 0) {
+          var pendingRows = document.createElement('tbody');
+          pendingRows.innerHTML = rowsHtml;
+          var continuationRow = pendingRows.rows[0];
+          if (continuationRow) {
+            var lastRow = codeTable.rows[codeTable.rows.length - 1];
+            var lastContentCell = lastRow.querySelector('.line-content');
+            var continuationContentCell = continuationRow.querySelector('.line-content');
+            if (lastContentCell && continuationContentCell) {
+              lastContentCell.insertAdjacentHTML('beforeend', continuationContentCell.innerHTML);
+            }
+            continuationRow.remove();
+            rowsHtml = pendingRows.innerHTML;
+            _walkTextNodes(lastRow, false);
+          }
+        }
         var firstNewRow = codeTable.rows.length;
-        codeTable.insertAdjacentHTML('beforeend', buildLineNumberRows(inner, startLine));
+        codeTable.insertAdjacentHTML('beforeend', rowsHtml);
         for (var i = firstNewRow; i < codeTable.rows.length; i++) {
           _walkTextNodes(codeTable.rows[i], false);
         }
@@ -966,7 +984,10 @@
     _lastContent = content;
     _lastType = type;
     _lastLang = lang;
-    _lastChunkEndedWithNewline = true;
+    // 初回チャンクも LineChunkReader の強制分割で改行なしのまま渡ることがあるため、
+    // appendChunk と同じ判定式で実際の末尾を見る(true 固定だと最初の強制分割で
+    // 継続行の結合判定を誤る)。
+    _lastChunkEndedWithNewline = content.length > 0 && content[content.length - 1] === '\n';
     var errorPanel = document.getElementById('mmd-error');
     errorPanel.style.display = 'none';
     errorPanel.textContent = '';
