@@ -4,12 +4,13 @@ title: lastIsTruncated と lastTruncatedLineCount を単一フィールドに集
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:39'
-updated_date: '2026-07-16 00:55'
+updated_date: '2026-07-16 03:44'
 labels: []
 dependencies: []
 references:
   - //github.com/YTommy109/befold/issues/206
-ordinal: 12000
+priority: low
+ordinal: 9000
 ---
 
 ## Description

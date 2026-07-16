@@ -98,6 +98,14 @@ public enum ViewerBridge {
     /// JS 側「続きを読み込む」ボタン押下時に postMessage されるメッセージハンドラ名。
     public static let loadMoreLinesMessageName = "loadMoreLines"
 
+    /// 検索バーを開いた時点でまだ段階読み込み中の場合に、残り全チャンクの読み込みを
+    /// 要求するために postMessage されるメッセージハンドラ名。
+    public static let loadAllLinesForSearchMessageName = "loadAllLinesForSearch"
+
+    /// loadAllLinesForSearch による全チャンク読み込みが完了した後に評価するスクリプト。
+    /// viewer.html 側は _mmdOnAllLinesLoaded() がローディング表示を解除し、再検索を行う。
+    public static let allLinesLoadedScript = "_mmdOnAllLinesLoaded()"
+
     /// appendChunk(content, type[, lang]) 呼び出しを組み立てる。
     /// content は JSONEncoder でエスケープし、JS インジェクションを防ぐ。
     /// エンコードに失敗した場合は nil(呼び出し側は何もしない)。
@@ -166,6 +174,7 @@ public enum ViewerBridge {
             "matchWholeWord": String(localized: "viewer.find.matchWholeWord", bundle: bundle),
             "useRegularExpression": String(localized: "viewer.find.useRegularExpression", bundle: bundle),
             "close": String(localized: "viewer.find.close", bundle: bundle),
+            "loadingAll": String(localized: "viewer.find.loadingAll", bundle: bundle),
         ]
         guard let jsonData = try? JSONEncoder().encode(strings),
               let jsonString = String(data: jsonData, encoding: .utf8)

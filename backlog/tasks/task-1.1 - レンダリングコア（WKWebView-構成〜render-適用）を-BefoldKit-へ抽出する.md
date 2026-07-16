@@ -4,13 +4,14 @@ title: レンダリングコア（WKWebView 構成〜render 適用）を BefoldK
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:38'
-updated_date: '2026-07-16 00:55'
+updated_date: '2026-07-16 03:44'
 labels: []
 dependencies: []
 references:
   - //github.com/YTommy109/befold/issues/209
 parent_task_id: TASK-1
-ordinal: 17100
+priority: medium
+ordinal: 11100
 ---
 
 ## Description

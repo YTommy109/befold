@@ -4,12 +4,13 @@ title: 蓄積コンテンツを Store と Coordinator が二重保持し更新�
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:39'
-updated_date: '2026-07-16 00:55'
+updated_date: '2026-07-16 03:44'
 labels: []
 dependencies: []
 references:
   - //github.com/YTommy109/befold/issues/200
-ordinal: 8000
+priority: medium
+ordinal: 5000
 ---
 
 ## Description

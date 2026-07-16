@@ -85,30 +85,16 @@ struct ViewerWebView: NSViewRepresentable {
             forMainFrameOnly: true
         )
         config.userContentController.addUserScript(bannerStringsScript)
-        config.userContentController.add(
-            WeakScriptMessageHandler(delegate: context.coordinator),
-            name: ViewerBridge.findOptionsChangedMessageName
-        )
+        // JS → Swift の postMessage ハンドラをまとめて登録する(同一 delegate のため一括化)。
+        for name in Self.messageHandlerNames {
+            config.userContentController.add(
+                WeakScriptMessageHandler(delegate: context.coordinator), name: name
+            )
+        }
         context.coordinator.findOptionsPreference = findOptionsPreference
-        config.userContentController.add(
-            WeakScriptMessageHandler(delegate: context.coordinator),
-            name: ViewerBridge.loadMoreLinesMessageName
-        )
         context.coordinator.onLoadMoreLines = onLoadMoreLines
-        config.userContentController.add(
-            WeakScriptMessageHandler(delegate: context.coordinator),
-            name: ViewerBridge.zoomChangedMessageName
-        )
         context.coordinator.onZoomChanged = onZoomChanged
-        config.userContentController.add(
-            WeakScriptMessageHandler(delegate: context.coordinator),
-            name: ViewerBridge.referenceActivatedMessageName
-        )
         context.coordinator.onOpenReference = onOpenReference
-        config.userContentController.add(
-            WeakScriptMessageHandler(delegate: context.coordinator),
-            name: ViewerBridge.scrollPositionChangedMessageName
-        )
         context.coordinator.onScrollPositionChanged = onScrollPositionChanged
 
         let webView = WKWebView(frame: .zero, configuration: config)
@@ -163,17 +149,21 @@ struct ViewerWebView: NSViewRepresentable {
         webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
     }
 
+    /// JS → Swift の postMessage ハンドラ名一覧。makeNSView での登録・dismantleNSView での
+    /// 解除を一箇所から駆動する(新規メッセージ追加時はここに加えるだけでよい)。
+    private static let messageHandlerNames = [
+        ViewerBridge.findOptionsChangedMessageName,
+        ViewerBridge.loadMoreLinesMessageName,
+        ViewerBridge.loadAllLinesForSearchMessageName,
+        ViewerBridge.zoomChangedMessageName,
+        ViewerBridge.referenceActivatedMessageName,
+        ViewerBridge.scrollPositionChangedMessageName,
+    ]
+
     static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
-        nsView.configuration.userContentController
-            .removeScriptMessageHandler(forName: ViewerBridge.zoomChangedMessageName)
-        nsView.configuration.userContentController
-            .removeScriptMessageHandler(forName: ViewerBridge.referenceActivatedMessageName)
-        nsView.configuration.userContentController
-            .removeScriptMessageHandler(forName: ViewerBridge.scrollPositionChangedMessageName)
-        nsView.configuration.userContentController
-            .removeScriptMessageHandler(forName: ViewerBridge.findOptionsChangedMessageName)
-        nsView.configuration.userContentController
-            .removeScriptMessageHandler(forName: ViewerBridge.loadMoreLinesMessageName)
+        for name in messageHandlerNames {
+            nsView.configuration.userContentController.removeScriptMessageHandler(forName: name)
+        }
     }
 
     // MARK: - WeakScriptMessageHandler
@@ -267,49 +257,59 @@ struct ViewerWebView: NSViewRepresentable {
                 findOptionsPreference?.useRegex = useRegex
             } else if message.name == ViewerBridge.loadMoreLinesMessageName {
                 handleLoadMoreLines()
+            } else if message.name == ViewerBridge.loadAllLinesForSearchMessageName {
+                handleLoadMoreLines(untilFullyLoaded: true)
             }
         }
 
-        /// JS 側「続きを読み込む」押下時に次チャンクを非同期で取得し、キャッシュ更新と描画を行う。
-        /// 読み込み中の再押下は isLoadingMoreLines で無視し、追記の交錯を防ぐ。
+        /// 次チャンクを非同期で取得し、キャッシュ更新と描画を行う。読み込み中の再入は
+        /// isLoadingMoreLines で無視し、追記の交錯を防ぐ。untilFullyLoaded が true の場合、
+        /// 検索バーを開いた時点で段階読み込み中だったときに残り全チャンクを読み終えるまで
+        /// ループし、完了を JS 側(_mmdOnAllLinesLoaded)へ通知する。
         @MainActor
-        private func handleLoadMoreLines() {
+        private func handleLoadMoreLines(untilFullyLoaded: Bool = false) {
             guard !isLoadingMoreLines else { return }
             isLoadingMoreLines = true
             Task { @MainActor [self] in
                 defer { isLoadingMoreLines = false }
-                guard let result = await onLoadMoreLines?(), let webView else { return }
-                // 連結代入は蓄積済み文字列全体をコピーする(クリックごとに O(n))ため、
-                // in-place の append で追記する。
-                if lastRenderedContent == nil { lastRenderedContent = "" }
-                lastRenderedContent?.append(result.chunk)
-                lastIsTruncated = result.isTruncated
-                lastTruncatedLineCount = result.isTruncated ? result.lineCount : 0
+                guard let webView else { return }
+                while let result = await onLoadMoreLines?() {
+                    // 連結代入は蓄積済み文字列全体をコピーする(呼び出しごとに O(n))ため、
+                    // in-place の append で追記する。
+                    if lastRenderedContent == nil { lastRenderedContent = "" }
+                    lastRenderedContent?.append(result.chunk)
+                    lastIsTruncated = result.isTruncated
+                    lastTruncatedLineCount = result.isTruncated ? result.lineCount : 0
 
-                // ソース表示でも .code は render() がレンダリング表示と同一の描画をするため
-                // 追記で足りる。CSV のソース表示(レインボー表示)だけは描画が異なるため、
-                // 蓄積済みコンテンツ全体を再描画する。
-                if lastIsSourceMode == true, lastRenderedFileType?.csvDelimiter != nil {
-                    guard let script = ViewerBridge.renderScript(
-                        content: Self.renderableContent(
-                            lastRenderedContent ?? "",
-                            fileType: lastRenderedFileType ?? .code(language: "plaintext"),
-                            filePath: lastRenderedFilePath, isSourceMode: true
-                        ),
+                    // ソース表示でも .code は render() がレンダリング表示と同一の描画をするため
+                    // 追記で足りる。CSV のソース表示(レインボー表示)だけは描画が異なるため、
+                    // 蓄積済みコンテンツ全体を再描画する。
+                    if lastIsSourceMode == true, lastRenderedFileType?.csvDelimiter != nil,
+                       let script = ViewerBridge.renderScript(
+                           content: Self.renderableContent(
+                               lastRenderedContent ?? "",
+                               fileType: lastRenderedFileType ?? .code(language: "plaintext"),
+                               filePath: lastRenderedFilePath, isSourceMode: true
+                           ),
+                           fileType: lastRenderedFileType ?? .code(language: "plaintext")
+                       )
+                    {
+                        webView.evaluateJavaScript(script, completionHandler: nil)
+                    } else if let script = ViewerBridge.appendChunkScript(
+                        chunk: result.chunk,
                         fileType: lastRenderedFileType ?? .code(language: "plaintext")
-                    ) else { return }
-                    // async コンテキストでは待つ必要のない fire-and-forget 版を明示する。
-                    webView.evaluateJavaScript(script, completionHandler: nil)
-                } else if let script = ViewerBridge.appendChunkScript(
-                    chunk: result.chunk,
-                    fileType: lastRenderedFileType ?? .code(language: "plaintext")
-                ) {
-                    webView.evaluateJavaScript(script, completionHandler: nil)
+                    ) {
+                        webView.evaluateJavaScript(script, completionHandler: nil)
+                    }
+                    webView.evaluateJavaScript(
+                        ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount),
+                        completionHandler: nil
+                    )
+                    if !untilFullyLoaded { break }
                 }
-                webView.evaluateJavaScript(
-                    ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount),
-                    completionHandler: nil
-                )
+                if untilFullyLoaded {
+                    webView.evaluateJavaScript(ViewerBridge.allLinesLoadedScript, completionHandler: nil)
+                }
             }
         }
 

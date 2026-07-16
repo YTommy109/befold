@@ -4,12 +4,13 @@ title: LineChunkReader.init の detectBOM 重複実行を統合する
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:39'
-updated_date: '2026-07-16 00:55'
+updated_date: '2026-07-16 03:44'
 labels: []
 dependencies: []
 references:
   - //github.com/YTommy109/befold/issues/207
-ordinal: 13000
+priority: low
+ordinal: 8000
 ---
 
 ## Description

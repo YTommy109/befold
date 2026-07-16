@@ -4,12 +4,13 @@ title: ViewerWebView.swift の evaluateJavaScript 呼び出しでコンパイラ
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:39'
-updated_date: '2026-07-16 00:55'
+updated_date: '2026-07-16 03:44'
 labels: []
 dependencies: []
 references:
   - //github.com/YTommy109/befold/issues/193
-ordinal: 16000
+priority: low
+ordinal: 10000
 ---
 
 ## Description

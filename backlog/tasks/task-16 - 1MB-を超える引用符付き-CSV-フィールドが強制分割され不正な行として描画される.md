@@ -4,12 +4,14 @@ title: 1MB を超える引用符付き CSV フィールドが強制分割され�
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:55'
+updated_date: '2026-07-16 03:44'
 labels: []
 dependencies: []
 references:
   - 'https://github.com/YTommy109/befold/issues/197'
+priority: medium
 type: bug
-ordinal: 7000
+ordinal: 4000
 ---
 
 ## Description

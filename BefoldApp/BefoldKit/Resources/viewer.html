@@ -493,6 +493,8 @@
   var _mmdFindMatches = [];
   var _mmdFindCurrentIndex = -1;
   var _mmdFindIsOpenFlag = false;
+  // 段階読み込み中(まだ全チャンクを読み終えていない)かどうか。_mmdSetTruncated が更新する。
+  var _mmdIsTruncated = false;
 
   // ロード時に保存済みトグル状態(window._mmdInitialFindOptions、Swift から注入)と
   // ローカライズ済み文字列(window._mmdFindStrings、Swift から注入)を反映する。
@@ -529,6 +531,35 @@
     input.value = _mmdFindQuery;
     input.focus();
     input.select();
+    // 段階読み込み中は未読み込み部分が検索にヒットしないため、検索を開く前に
+    // 残り全チャンクの読み込みを Swift 側へ要求する。完了は _mmdOnAllLinesLoaded() 経由。
+    if (_mmdIsTruncated) {
+      _mmdSetFindLoading(true);
+      if (window.webkit && window.webkit.messageHandlers &&
+          window.webkit.messageHandlers.loadAllLinesForSearch) {
+        window.webkit.messageHandlers.loadAllLinesForSearch.postMessage({});
+      }
+      return;
+    }
+    _mmdFindRun();
+  }
+
+  // 検索バーが開いている間、段階読み込みの残りチャンクを取得している旨を表示する。
+  // 入力欄を無効化して読み込み完了までの検索実行を防ぐ。
+  function _mmdSetFindLoading(isLoading) {
+    var input = document.getElementById('mmd-find-input');
+    input.disabled = isLoading;
+    if (isLoading) {
+      var strings = window._mmdFindStrings || {};
+      document.getElementById('mmd-find-count').textContent = strings.loadingAll || 'Loading…';
+    }
+  }
+
+  // Swift 側で残り全チャンクの読み込みが完了した後に呼ばれる。
+  // 検索バーが既に閉じられていれば何もしない。
+  function _mmdOnAllLinesLoaded() {
+    _mmdSetFindLoading(false);
+    if (!_mmdFindIsOpenFlag) { return; }
     _mmdFindRun();
   }
 
@@ -822,6 +853,7 @@
 
   // 段階読み込み中(ファイルの一部だけを表示している間)のバナー表示を切り替える。
   function _mmdSetTruncated(isTruncated, lineCount) {
+    _mmdIsTruncated = isTruncated;
     var banner = document.getElementById('mmd-truncated-banner');
     if (!isTruncated) {
         banner.style.display = 'none';

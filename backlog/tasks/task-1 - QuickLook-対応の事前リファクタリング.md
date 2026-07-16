@@ -4,7 +4,7 @@ title: QuickLook 対応の事前リファクタリング
 status: To Do
 assignee: []
 created_date: '2026-07-16 00:38'
-updated_date: '2026-07-16 01:14'
+updated_date: '2026-07-16 03:44'
 labels: []
 dependencies:
   - TASK-11
@@ -16,7 +16,8 @@ dependencies:
   - TASK-16
   - TASK-9
   - TASK-8
-ordinal: 17000
+priority: medium
+ordinal: 11000
 ---
 
 ## Description
