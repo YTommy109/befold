@@ -4,8 +4,10 @@ title: decodeText が detectEncoding 委譲で全文を二重デコードして�
 status: To Do
 assignee: []
 created_date: '2026-07-16 10:55'
+updated_date: '2026-07-16 12:11'
 labels: []
-dependencies: []
+dependencies:
+  - TASK-29
 references:
   - BefoldApp/BefoldKit/TextEncoding.swift
   - BefoldApp/BefoldKit/FileReading.swift
