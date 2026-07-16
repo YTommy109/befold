@@ -80,6 +80,20 @@ function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZ
   return Math.min(naturalHeight * diagramZoom * BASE_SCALE, viewportCap);
 }
 
+// ラスター画像の初期フィットサイズ。アスペクト比を保ったまま利用可能領域に
+// 収まるよう縮小する(ナチュラルサイズより拡大はしない)。戻り値は px の
+// 実数値(% ではない)。% で表現すると祖先の #diagram-wrap に適用される
+// CSS zoom(全体ズーム)が相殺されてしまい、Cmd+/Cmd-/Cmd0 が効かなくなる
+// (diagramScrollHeight と同様、レイアウト px は祖先の CSS zoom の影響を
+// 受けないため、px 実数値であれば zoom がそのまま乗算されて効く)。
+function imageFitSize(naturalWidth, naturalHeight, availWidth, availHeight) {
+  if (naturalWidth <= 0 || naturalHeight <= 0 || availWidth <= 0 || availHeight <= 0) {
+    return { width: naturalWidth, height: naturalHeight };
+  }
+  var scale = Math.min(1, availWidth / naturalWidth, availHeight / naturalHeight);
+  return { width: naturalWidth * scale, height: naturalHeight * scale };
+}
+
 function parseStoredZoom(raw) {
   var z = parseFloat(raw);
   return isNaN(z) ? ZOOM_DEFAULT : z;
@@ -455,6 +469,7 @@ if (typeof module !== 'undefined' && module.exports) {
     isSafeLinkURL: isSafeLinkURL,
     highlightCode: highlightCode,
     diagramScrollHeight: diagramScrollHeight,
+    imageFitSize: imageFitSize,
     markdownFontSize: markdownFontSize,
     escapeHtml: escapeHtml,
     renderCodeHtml: renderCodeHtml,
