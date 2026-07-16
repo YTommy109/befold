@@ -161,7 +161,7 @@ final class ViewerStore {
             // 10MB 超のファイルで表示済みコンテンツが fileTooLarge に置き換わるため。
             chunkSession = nil
             isTruncated = false
-            return nil
+            return ("", false, displayedLineCount)
         }
     }
 
