@@ -531,35 +531,8 @@
     input.value = _mmdFindQuery;
     input.focus();
     input.select();
-    // 段階読み込み中は未読み込み部分が検索にヒットしないため、検索を開く前に
-    // 残り全チャンクの読み込みを Swift 側へ要求する。完了は _mmdOnAllLinesLoaded() 経由。
-    if (_mmdIsTruncated) {
-      _mmdSetFindLoading(true);
-      if (window.webkit && window.webkit.messageHandlers &&
-          window.webkit.messageHandlers.loadAllLinesForSearch) {
-        window.webkit.messageHandlers.loadAllLinesForSearch.postMessage({});
-      }
-      return;
-    }
-    _mmdFindRun();
-  }
-
-  // 検索バーが開いている間、段階読み込みの残りチャンクを取得している旨を表示する。
-  // 入力欄を無効化して読み込み完了までの検索実行を防ぐ。
-  function _mmdSetFindLoading(isLoading) {
-    var input = document.getElementById('mmd-find-input');
-    input.disabled = isLoading;
-    if (isLoading) {
-      var strings = window._mmdFindStrings || {};
-      document.getElementById('mmd-find-count').textContent = strings.loadingAll || 'Loading…';
-    }
-  }
-
-  // Swift 側で残り全チャンクの読み込みが完了した後に呼ばれる。
-  // 検索バーが既に閉じられていれば何もしない。
-  function _mmdOnAllLinesLoaded() {
-    _mmdSetFindLoading(false);
-    if (!_mmdFindIsOpenFlag) { return; }
+    // 段階読み込み中(_mmdIsTruncated)でも未読み込み部分は検索対象にせず、
+    // 表示済み DOM のみを検索する(件数表示は _mmdFindUpdateCount が「表示範囲内」を付与する)。
     _mmdFindRun();
   }
 
@@ -661,6 +634,8 @@
 
   // マッチなしを専用文言で表示すると文字幅の違いでバーが伸縮するため、
   // 常に「現在位置/件数」形式(マッチなし時は 0/0)のみを表示する。
+  // 段階読み込み中(_mmdIsTruncated)は表示済み DOM だけが検索対象であることを示すため
+  // 「表示範囲内」ラベルを付与する。
   function _mmdFindUpdateCount() {
     var countEl = document.getElementById('mmd-find-count');
     var input = document.getElementById('mmd-find-input');
@@ -668,7 +643,12 @@
       countEl.textContent = '';
     } else {
       var current = _mmdFindMatches.length === 0 ? 0 : _mmdFindCurrentIndex + 1;
-      countEl.textContent = current + '/' + _mmdFindMatches.length;
+      var text = current + '/' + _mmdFindMatches.length;
+      if (_mmdIsTruncated) {
+        var strings = window._mmdFindStrings || {};
+        text += ' (' + (strings.withinDisplayedRange || 'Displayed range') + ')';
+      }
+      countEl.textContent = text;
     }
   }
 
@@ -858,6 +838,10 @@
   // 段階読み込み中(ファイルの一部だけを表示している間)のバナー表示を切り替える。
   function _mmdSetTruncated(isTruncated, lineCount) {
     _mmdIsTruncated = isTruncated;
+    // 検索バーが開いていれば「表示範囲内」ラベルの表示/非表示を即座に反映する。
+    // (通常は appendChunk 後の _mmdFindRefreshAfterRender が再検索するが、
+    // それより先に評価されるため、ここでも件数表示だけ更新しておく)
+    if (_mmdFindIsOpenFlag) { _mmdFindUpdateCount(); }
     var banner = document.getElementById('mmd-truncated-banner');
     if (!isTruncated) {
         banner.style.display = 'none';

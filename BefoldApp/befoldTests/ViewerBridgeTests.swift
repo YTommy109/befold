@@ -168,21 +168,11 @@ struct ViewerBridgeTests {
 
         let expectedKeys = [
             "placeholder", "previous", "next", "matchCase",
-            "matchWholeWord", "useRegularExpression", "close", "loadingAll",
+            "matchWholeWord", "useRegularExpression", "close", "withinDisplayedRange",
         ]
         for key in expectedKeys {
             #expect(decoded[key]?.isEmpty == false)
         }
-    }
-
-    @Test("loadAllLinesForSearchMessageName が想定値である")
-    func loadAllLinesForSearchMessageNameValue() {
-        #expect(ViewerBridge.loadAllLinesForSearchMessageName == "loadAllLinesForSearch")
-    }
-
-    @Test("allLinesLoadedScript が想定値である")
-    func allLinesLoadedScriptValue() {
-        #expect(ViewerBridge.allLinesLoadedScript == "_mmdOnAllLinesLoaded()")
     }
 
     /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html に実在することを
@@ -206,8 +196,6 @@ struct ViewerBridgeTests {
         #expect(html.contains("function _mmdSetTruncated(isTruncated, lineCount)"))
         #expect(html.contains("function _mmdLoadMore()"))
         #expect(html.contains("messageHandlers.\(ViewerBridge.loadMoreLinesMessageName)"))
-        #expect(html.contains("messageHandlers.\(ViewerBridge.loadAllLinesForSearchMessageName)"))
-        #expect(html.contains("function _mmdOnAllLinesLoaded()"))
         #expect(html.contains("window._mmdBannerStrings"))
         #expect(html.contains("function _mmdSetRestoreScroll(position)"))
         #expect(html.contains("function _mmdScrollTarget()"))
