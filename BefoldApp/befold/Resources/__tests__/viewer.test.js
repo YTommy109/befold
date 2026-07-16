@@ -814,6 +814,16 @@ describe('csvSourceInnerHtml', () => {
       '<span class="csv-col-0">1</span>,<span class="csv-col-1">2</span>,<span class="csv-col-2">3</span>'
     );
   });
+
+  test('preserves a trailing newline so the next appended chunk does not merge into the last line', () => {
+    const inner = csvSourceInnerHtml('1,2,3\n', ',');
+    expect(inner.endsWith('\n')).toBe(true);
+  });
+
+  test('does not add a trailing newline when the content has none', () => {
+    const inner = csvSourceInnerHtml('1,2,3', ',');
+    expect(inner.endsWith('\n')).toBe(false);
+  });
 });
 
 describe('isSafeLinkURL', () => {
@@ -1014,6 +1024,18 @@ describe('codeChunkInnerHtml', () => {
     expect(continuation).not.toContain('a = 1');
     expect(continuation).not.toContain('b = 2');
     expect(continuation).toContain('hljs-number">3');
+  });
+
+  test('with context, preserves a trailing newline so the next chunk does not merge into the last line', () => {
+    const context = 'const a = 1;\n';
+    const continuation = codeChunkInnerHtml(hljs, 'const b = 2;\n', 'javascript', context);
+    expect(continuation.endsWith('\n')).toBe(true);
+  });
+
+  test('with context, does not add a trailing newline when the chunk has none', () => {
+    const context = 'const a = 1;\n';
+    const continuation = codeChunkInnerHtml(hljs, 'const b = 2;', 'javascript', context);
+    expect(continuation.endsWith('\n')).toBe(false);
   });
 
   test('with a multi-line context, output matches highlighting the same text without a chunk split', () => {
