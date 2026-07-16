@@ -179,7 +179,7 @@ struct ViewerStoreTests {
         let file = URL(fileURLWithPath: "/files/huge.md")
         let reader = InMemoryFileReader()
         reader.setFile("# Hello", at: file)
-        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
+        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
 
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
@@ -212,7 +212,7 @@ struct ViewerStoreTests {
         let normalFile = URL(fileURLWithPath: "/files/readme.md")
         let reader = InMemoryFileReader()
         reader.setFile("x", at: hugeFile)
-        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: hugeFile)
+        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: hugeFile)
         reader.setFile("# Hello", at: normalFile)
 
         let store = makeStore(reader: reader)
