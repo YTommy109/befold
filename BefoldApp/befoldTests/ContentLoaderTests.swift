@@ -22,7 +22,7 @@ struct ContentLoaderTests {
         let reader = InMemoryFileReader()
         let file = URL(fileURLWithPath: "/files/big.txt")
         reader.setFile("hello", at: file)
-        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
+        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
         let loader = ContentLoader(fileReader: reader)
 
         let result = loader.load(from: file, fileType: .code(language: "plaintext"))

@@ -230,7 +230,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 | 不可視ファイル表示の共有状態 | `HiddenFilesPreference` インスタンス（AppDelegate が生成した 1 個を全ウィンドウで共有） |
 | 拡張子→FileType のマッピング | `FileType.typeByExtension`（`init(url:)` と `allExtensions` の双方がここから導出。拡張子追加は辞書への 1 行追加で完結する） |
 | BOM 検出（バイトパターン→エンコーディング） | `TextEncoding.detectBOM(_:)`（`decodeText` と `isChunkableEncoding` の双方がここに委譲） |
-| テキスト復号（BOM / UTF-16 / UTF-8 / レガシーエンコーディング） | `TextEncoding.decodeText(_:)`（`DefaultFileReader.readString` と `ViewerStore.decodeFullFile` の双方がここに委譲。`LineChunkReader` は `detectBOM` / `detectEncoding` / `trimIncompleteUTF8Tail` に委譲し、`decodeText` は使わない） |
+| テキスト復号（BOM / UTF-16 / UTF-8 / レガシーエンコーディング） | `TextEncoding.decodeText(_:)`（`DefaultFileReader.readString` がここに委譲。`LineChunkReader` は `detectBOM` / `detectEncoding` / `trimIncompleteUTF8Tail` に委譲し、`decodeText` は使わない） |
 | ディレクトリ列挙（ソート・フィルタ込み） | `DirectoryLister.sortedContents(in:showHiddenFiles:)`（`listFiles` / `listEntries` / `firstSupportedFile` が委譲） |
 | Sparkle フィード URL | `UpdateChannel.feedURLString`（`SPUUpdaterDelegate.feedURLString(for:)` 経由で Sparkle に提供。Info.plist の `SUFeedURL` は使用しない） |
 
@@ -240,7 +240,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
   同じ違反である。同様に、ある制約を表す既存の定数（`maxTextFileSizeBytes` 等）が存在するとき、
   同じ制約を意図する新規コードで別の定数（`maxFileSizeBytes` 等）を参照するのは
   「同じ知識の二重表現」であり違反とする
-  （`decodeText` をテーブル登録した同じ diff で `decodeFullFile` が自前デコードしていた実例、
+  （`decodeText` をテーブル登録した同じ diff で別の関数が自前デコードしていた実例、
   テキストファイルサイズ上限に汎用の `maxFileSizeBytes` を使い `maxTextFileSizeBytes` と
   不整合を起こした実例）
 - **言語をまたぐ定数**（Swift ↔ viewer.js）は避けられない場合のみ二重定義し、
