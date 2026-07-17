@@ -731,6 +731,40 @@ struct ViewerStoreChunkTests {
         #expect(result?.loadFailed == true)
         #expect(store.content == "old\n")
         #expect(store.isTruncated == true)
+        #expect(store.loadFailed == true)
+
+        store.close()
+    }
+
+    @Test("チャンク読み込みエラー後にファイルが再読込されると loadFailed がリセットされる(TASK-39)")
+    func loadFailedResetsOnReload() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("old\nrest", at: file)
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let callCount = LockedBox(0)
+        let store = makeStore(
+            reader: reader,
+            onChangeBox: onChangeBox,
+            chunkedReaderFactory: { _, _ in
+                callCount.update { $0 += 1 }
+                return callCount.get() == 1
+                    ? FailingSecondChunkReader(firstChunk: "old\n")
+                    : MockChunkedReader(chunks: ["new\n", "content"])
+            }
+        )
+        await openAndLoad(store, file)
+        _ = await store.loadMoreLines()
+        #expect(store.loadFailed == true)
+
+        // ファイル変更を検知した再読込で新しいチャンクセッションが張り直され、
+        // loadFailed は false にリセットされる(エラーバナーが再描画で無効な
+        // 「さらに読み込む」ボタンへ戻らないことの前提となる状態)。
+        reader.setFile("new\ncontent", at: file)
+        onChangeBox.get()?()
+        await awaitLoad(store)
+        #expect(store.loadFailed == false)
+        #expect(store.isTruncated == true)
 
         store.close()
     }
