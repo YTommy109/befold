@@ -10,7 +10,7 @@ dependencies: []
 documentation:
   - docs/superpowers/specs/2026-07-16-bookmark-feature-design.md
 priority: low
-ordinal: 9400
+ordinal: 7000
 ---
 
 ## Description

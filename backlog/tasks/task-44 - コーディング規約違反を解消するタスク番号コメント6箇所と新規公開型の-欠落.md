@@ -4,11 +4,12 @@ title: コーディング規約違反を解消する(タスク番号コメント
 status: To Do
 assignee: []
 created_date: '2026-07-17 02:08'
+updated_date: '2026-07-17 05:09'
 labels: []
 dependencies: []
 priority: low
 type: chore
-ordinal: 9200
+ordinal: 4100
 ---
 
 ## Description
@@ -32,3 +33,9 @@ docs/dev/coding_rule.md の「書かなくてよいコメント: タスク番号
 - [ ] #1 プロダクトコード・JS/HTML から task-NN/TASK-NN 参照コメントがなくなる(意図説明は残す)
 - [ ] #2 NormalizedTextCache/StringChunkReader の公開型・公開イニシャライザに日本語 /// が付く
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+コードレビュー (high) で追加の TASK-39 参照を検出: ViewerStore.swift:45, ViewerWebView.swift:23。AC#1 の対象に含める。
+<!-- SECTION:NOTES:END -->
