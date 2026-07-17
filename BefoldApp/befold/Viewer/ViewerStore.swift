@@ -325,8 +325,12 @@ final class ViewerStore {
             }
         } catch {
             if !fileReader.fileExists(at: resolved) { return .missing }
+            // 事前サイズチェックをすり抜けた場合(fileSize が nil を返した、または
+            // チェック後にファイルが肥大化した TOCTOU)、NormalizedTextCache.init が
+            // fileTooLarge を投げる。これを unsupportedFormat に丸めず理由を保持する。
+            let reason: RejectReason = error is NormalizedTextCacheError ? .fileTooLarge : .unsupportedFormat
             return .full(
-                ContentLoader.LoadedContent(rejectReason: .unsupportedFormat, content: ""),
+                ContentLoader.LoadedContent(rejectReason: reason, content: ""),
                 cache: nil
             )
         }

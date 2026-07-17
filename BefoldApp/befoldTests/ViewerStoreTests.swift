@@ -891,6 +891,22 @@ struct ViewerStoreChunkTests {
 
         store.close()
     }
+
+    @Test("事前サイズチェックをすり抜けた場合(fileSize が nil)でも NormalizedTextCache の fileTooLarge が unsupportedFormat に丸められない(TASK-41)")
+    func sizeCheckBypassStillReportsFileTooLarge() async {
+        let file = URL(fileURLWithPath: "/files/huge.md")
+        let reader = InMemoryFileReader()
+        reader.setDataFile(Data(count: NormalizedTextCache.maxFileSizeBytes + 1), at: file)
+        reader.setSizeUnknown(true, at: file)
+
+        let store = makeStore(reader: reader)
+        await openAndLoad(store, file)
+
+        #expect(store.rejectReason == .fileTooLarge)
+        #expect(store.content == "")
+
+        store.close()
+    }
 }
 
 private struct StopCountingWatcher: FileWatching {
