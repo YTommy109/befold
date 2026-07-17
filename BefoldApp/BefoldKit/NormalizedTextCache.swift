@@ -32,15 +32,12 @@ public struct NormalizedTextCache: Sendable {
             return
         }
 
-        guard let detected = TextEncoding.detectEncoding(data) else {
-            throw TextEncodingError.decodeFailed
-        }
-        let payload = data.dropFirst(detected.bomLength)
-        guard let decoded = String(data: payload, encoding: detected.encoding),
-              !decoded.isEmpty || payload.isEmpty
+        guard let detected = TextEncoding.detectAndDecodeText(data),
+              !detected.text.isEmpty || data.count == detected.bomLength
         else {
             throw TextEncodingError.decodeFailed
         }
+        let decoded = detected.text
 
         let (normalizedUTF8, lineStartOffsets) = Self.normalizeAndFindLineStarts(decoded)
         let normalized = String(decoding: normalizedUTF8, as: UTF8.self)
