@@ -29,14 +29,14 @@ jobs:
       run:
         working-directory: BefoldApp
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '26.5'
 
       # SPM のビルド成果物をキャッシュしてコールドビルドを避ける
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: BefoldApp/.build
           key: spm-${{ runner.os }}-xcode26.5-${{ hashFiles('BefoldApp/Package.resolved') }}
@@ -60,9 +60,9 @@ jobs:
       run:
         working-directory: BefoldApp
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: npm
@@ -82,14 +82,14 @@ jobs:
       run:
         working-directory: BefoldApp
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '26.5'
 
       # TSan 計装ビルドは通常ビルドと別成果物のためキャッシュキーを分ける
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: BefoldApp/.build
           key: spm-tsan-${{ runner.os }}-xcode26.5-${{ hashFiles('BefoldApp/Package.resolved') }}
