@@ -64,14 +64,19 @@ public actor StringChunkReader: ChunkedTextReading {
                 ? cache.lineStartIndices[scanLine + 1]
                 : cache.text.endIndex
 
+            // クォート判定を含むこのループはホットパス(巨大CSV全行)のため、書記素クラスタ
+            // 境界計算を伴う Character 単位ではなく UTF-8 バイト単位で走査する。`"` (U+0022) は
+            // ASCII のためマルチバイト文字の継続バイト(0x80 以上)と衝突せず、バイト走査でも
+            // Character 走査と同じ判定結果になる。
+            let utf8View = cache.text.utf8
             var cursor = lineStart
             while cursor < lineEnd {
-                let char = cache.text[cursor]
-                if respectsCSVQuotes, char == "\"" {
+                let byte = utf8View[cursor]
+                if respectsCSVQuotes, byte == 0x22 {
                     inQuotes.toggle()
                 }
-                bytesScanned += char.utf8.count
-                cursor = cache.text.index(after: cursor)
+                bytesScanned += 1
+                cursor = utf8View.index(after: cursor)
 
                 if bytesScanned >= Self.maxChunkBytes {
                     return (cursor, scanLine, true)
