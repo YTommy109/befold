@@ -38,20 +38,23 @@ public enum TextEncoding: Sendable {
     /// (呼び出し元が復号時にスキップすべきバイト数の単一情報源)。
     /// BOM なしで NUL を含む場合は UTF-16 とみなし、NUL の位置から endian を推定する。
     public static func detectEncoding(_ data: Data) -> (encoding: String.Encoding, bomLength: Int)? {
-        detectEncodingAndDecode(data).map { (encoding: $0.encoding, bomLength: $0.bomLength) }
+        detectEncodingAndDecode(data, sniffWindow: data.prefix(sniffLength))
+            .map { (encoding: $0.encoding, bomLength: $0.bomLength) }
     }
 
     /// エンコーディング判定と同時に、判定過程で得られた復号結果があれば併せて返す。
     /// BOM なし UTF-8 の判定は検証のため一度全文デコードするため、その結果を
     /// decodedText として持ち帰り、呼び出し元での再デコードを避ける。
+    /// レガシーエンコーディング判定(NUL 判定・NSString.stringEncoding)は
+    /// sniffWindow に対して行う(既定は先頭 sniffLength バイト)。
     private static func detectEncodingAndDecode(
-        _ data: Data
+        _ data: Data, sniffWindow: Data
     ) -> (encoding: String.Encoding, bomLength: Int, decodedText: String?)? {
         if let bom = detectBOM(data) {
             return (bom.encoding, bom.bomLength, nil)
         }
-        if data.prefix(sniffLength).contains(0) {
-            let encoding: String.Encoding = looksLittleEndianUTF16(data) ? .utf16LittleEndian : .utf16BigEndian
+        if sniffWindow.contains(0) {
+            let encoding: String.Encoding = looksLittleEndianUTF16(sniffWindow) ? .utf16LittleEndian : .utf16BigEndian
             return (encoding, 0, nil)
         }
         if let utf8String = String(data: data, encoding: .utf8) {
@@ -60,7 +63,7 @@ public enum TextEncoding: Sendable {
         var convertedString: NSString?
         var usedLossyConversion: ObjCBool = false
         let detected = NSString.stringEncoding(
-            for: data.prefix(sniffLength), encodingOptions: nil,
+            for: sniffWindow, encodingOptions: nil,
             convertedString: &convertedString,
             usedLossyConversion: &usedLossyConversion
         )
@@ -79,9 +82,22 @@ public enum TextEncoding: Sendable {
     }
 
     /// エンコーディング判定と復号を1パスで行う。判定過程で全文デコード済みの場合は
-    /// その結果を再利用し、判定結果とともに返す。判定・復号いずれかに失敗した場合は nil。
+    /// その結果を再利用し、判定結果とともに返す。
+    /// 先頭 sniffLength バイトのみでの判定・復号が失敗した場合(判定に使ったプレフィックスが
+    /// 実データを代表していない、あるいはプレフィックス末尾でマルチバイト文字が
+    /// 途切れているケース)は、全データを判定窓として再試行する。
+    /// このフォールバックは失敗時にのみ全文走査するため、通常系の高速性は変わらない。
     static func detectAndDecodeText(_ data: Data) -> (encoding: String.Encoding, bomLength: Int, text: String)? {
-        guard let detected = detectEncodingAndDecode(data) else { return nil }
+        if let result = decodeUsingDetection(data, sniffWindow: data.prefix(sniffLength)) {
+            return result
+        }
+        return decodeUsingDetection(data, sniffWindow: data)
+    }
+
+    private static func decodeUsingDetection(
+        _ data: Data, sniffWindow: Data
+    ) -> (encoding: String.Encoding, bomLength: Int, text: String)? {
+        guard let detected = detectEncodingAndDecode(data, sniffWindow: sniffWindow) else { return nil }
         let payload = data.dropFirst(detected.bomLength)
         guard let decoded = detected.decodedText ?? String(data: payload, encoding: detected.encoding) else {
             return nil
@@ -100,9 +116,9 @@ public enum TextEncoding: Sendable {
     }
 
     /// BOM なし UTF-16 の endian を NUL の位置から推定する
-    /// (LE は奇数位置、BE は偶数位置に NUL が並ぶ)。
+    /// (LE は奇数位置、BE は偶数位置に NUL が並ぶ)。呼び出し元が判定窓を絞り込む。
     static func looksLittleEndianUTF16(_ data: Data) -> Bool {
-        let parity = nulParity(data.prefix(sniffLength))
+        let parity = nulParity(data)
         return parity.odd >= parity.even
     }
 }
