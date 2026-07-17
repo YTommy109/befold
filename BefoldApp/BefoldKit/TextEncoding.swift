@@ -37,24 +37,37 @@ public enum TextEncoding: Sendable {
     /// BOM がある場合はその bomLength を、それ以外は 0 を返す
     /// (呼び出し元が復号時にスキップすべきバイト数の単一情報源)。
     /// BOM なしで NUL を含む場合は UTF-16 とみなし、NUL の位置から endian を推定する。
+    /// detectAndDecodeText と同じ2段階フォールバック戦略を共有する。
     public static func detectEncoding(_ data: Data) -> (encoding: String.Encoding, bomLength: Int)? {
+        detectWithFallback(data).map { (encoding: $0.encoding, bomLength: $0.bomLength) }
+    }
+
+    /// 先頭 sniffLength バイトでの判定を試み、失敗した場合のみ全データを判定窓として再試行する。
+    private static func detectWithFallback(
+        _ data: Data
+    ) -> (encoding: String.Encoding, bomLength: Int, decodedText: String?)? {
         detectEncodingAndDecode(data, sniffWindow: data.prefix(sniffLength))
-            .map { (encoding: $0.encoding, bomLength: $0.bomLength) }
+            ?? detectEncodingAndDecode(data, sniffWindow: data)
     }
 
     /// エンコーディング判定と同時に、判定過程で得られた復号結果があれば併せて返す。
     /// BOM なし UTF-8 の判定は検証のため一度全文デコードするため、その結果を
     /// decodedText として持ち帰り、呼び出し元での再デコードを避ける。
-    /// レガシーエンコーディング判定(NUL 判定・NSString.stringEncoding)は
-    /// sniffWindow に対して行う(既定は先頭 sniffLength バイト)。
+    /// レガシーエンコーディング判定(NSString.stringEncoding)は sniffWindow に対して行う
+    /// (既定は先頭 sniffLength バイト、フォールバック時は全データ)。
+    /// NUL 判定のみは sniffWindow の広さによらず常に先頭 sniffLength バイトに限定する
+    /// (全データを NUL 判定に使うと、8KB 以降にのみ NUL を含むレガシーエンコーディングの
+    /// ファイルが UTF-16 と誤判定されるため)。
     private static func detectEncodingAndDecode(
         _ data: Data, sniffWindow: Data
     ) -> (encoding: String.Encoding, bomLength: Int, decodedText: String?)? {
         if let bom = detectBOM(data) {
             return (bom.encoding, bom.bomLength, nil)
         }
-        if sniffWindow.contains(0) {
-            let encoding: String.Encoding = looksLittleEndianUTF16(sniffWindow) ? .utf16LittleEndian : .utf16BigEndian
+        let nulCheckWindow = data.prefix(sniffLength)
+        if nulCheckWindow.contains(0) {
+            let encoding: String.Encoding = looksLittleEndianUTF16(nulCheckWindow)
+                ? .utf16LittleEndian : .utf16BigEndian
             return (encoding, 0, nil)
         }
         if let utf8String = String(data: data, encoding: .utf8) {
@@ -87,6 +100,8 @@ public enum TextEncoding: Sendable {
     /// 実データを代表していない、あるいはプレフィックス末尾でマルチバイト文字が
     /// 途切れているケース)は、全データを判定窓として再試行する。
     /// このフォールバックは失敗時にのみ全文走査するため、通常系の高速性は変わらない。
+    /// detectEncoding と同じ「先頭 sniffLength バイト→失敗時のみ全データ」という
+    /// 2段階フォールバック戦略を、復号の成否まで含めて適用する。
     static func detectAndDecodeText(_ data: Data) -> (encoding: String.Encoding, bomLength: Int, text: String)? {
         if let result = decodeUsingDetection(data, sniffWindow: data.prefix(sniffLength)) {
             return result
