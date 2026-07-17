@@ -104,14 +104,20 @@ struct ViewerBridgeTests {
 
     @Test("truncatedScript にカウントを渡せる")
     func truncatedScriptWithLineCount() {
-        let script = ViewerBridge.truncatedScript(true, lineCount: 1000)
-        #expect(script == "_mmdSetTruncated(true, 1000)")
+        let script = ViewerBridge.truncatedScript(true, lineCount: 1000, failed: false)
+        #expect(script == "_mmdSetTruncated(true, 1000, false)")
     }
 
     @Test("truncatedScript false はカウント 0")
     func truncatedScriptFalse() {
-        let script = ViewerBridge.truncatedScript(false, lineCount: 0)
-        #expect(script == "_mmdSetTruncated(false, 0)")
+        let script = ViewerBridge.truncatedScript(false, lineCount: 0, failed: false)
+        #expect(script == "_mmdSetTruncated(false, 0, false)")
+    }
+
+    @Test("truncatedScript は failed=true を渡せる(読込エラー時のバナー切替用)")
+    func truncatedScriptFailed() {
+        let script = ViewerBridge.truncatedScript(true, lineCount: 5, failed: true)
+        #expect(script == "_mmdSetTruncated(true, 5, true)")
     }
 
     @Test
@@ -193,7 +199,7 @@ struct ViewerBridgeTests {
         #expect(html.contains("function setViewMode(mode)"))
         #expect(html.contains("function _mmdInitZoom()"))
         #expect(html.contains("function setLineNumbers(show)"))
-        #expect(html.contains("function _mmdSetTruncated(isTruncated, lineCount)"))
+        #expect(html.contains("function _mmdSetTruncated(isTruncated, lineCount, failed)"))
         #expect(html.contains("function _mmdLoadMore()"))
         #expect(html.contains("messageHandlers.\(ViewerBridge.loadMoreLinesMessageName)"))
         #expect(html.contains("window._mmdBannerStrings"))

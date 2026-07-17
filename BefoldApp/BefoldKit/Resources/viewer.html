@@ -851,7 +851,10 @@
   }
 
   // 段階読み込み中(ファイルの一部だけを表示している間)のバナー表示を切り替える。
-  function _mmdSetTruncated(isTruncated, lineCount) {
+  // failed が true の場合、チャンク読込エラーで打ち切られたことを示す。正常な
+  // 段階読込(「続きを読み込む」ボタン)とは異なる文言に切り替え、ボタンは隠す
+  // (再試行しても同じエラーになるため。TASK-25)。
+  function _mmdSetTruncated(isTruncated, lineCount, failed) {
     _mmdIsTruncated = isTruncated;
     // 検索バーが開いていれば「表示範囲内」ラベルの表示/非表示を即座に反映する。
     // (通常は appendChunk 後の _mmdFindRefreshAfterRender が再検索するが、
@@ -865,16 +868,19 @@
     banner.style.display = 'flex';
     var strings = window._mmdBannerStrings || {};
     var textEl = document.getElementById('mmd-truncated-text');
-    if (typeof lineCount === 'number') {
+    var btn = document.getElementById('mmd-load-more-btn');
+    if (failed) {
+        textEl.textContent = strings.loadError || 'Failed to load the rest of the file';
+        btn.style.display = 'none';
+    } else if (typeof lineCount === 'number') {
         textEl.textContent = (strings.showing || 'Showing {count} lines').replace('{count}', lineCount);
-        var btn = document.getElementById('mmd-load-more-btn');
         btn.textContent = strings.loadMore || 'Load More';
         btn.style.display = 'inline-block';
     } else {
         textEl.textContent = strings.showing
             ? strings.showing.replace('{count}', '?')
             : 'Showing partial content';
-        document.getElementById('mmd-load-more-btn').style.display = 'none';
+        btn.style.display = 'none';
     }
   }
 
@@ -895,6 +901,10 @@
   // codeChunkInnerHtml)に委ね、ここでは DOM 挿入のみ行う。パス注釈は追記した行だけを
   // _walkTextNodes で処理し、追記コストを O(チャンク) に抑える。
   function appendChunk(text, type, lang) {
+    // 空チャンク(チャンク読込エラー時のセンチネル)は追記する内容がない。
+    // buildLineNumberRows('') は初回描画(空ファイル1行目)用に空行1つを返す契約のため、
+    // ここで弾かないと既存テーブルの末尾に幻の空行が増えてしまう。
+    if (!text) { return; }
     var diagramWrap = document.getElementById('diagram-wrap');
     if (!diagramWrap) { return; }
     // 直前チャンクが改行で終わっている(=行境界で分割された)場合のみ、

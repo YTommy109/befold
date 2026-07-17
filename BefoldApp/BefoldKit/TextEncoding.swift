@@ -38,15 +38,24 @@ public enum TextEncoding: Sendable {
     /// (呼び出し元が復号時にスキップすべきバイト数の単一情報源)。
     /// BOM なしで NUL を含む場合は UTF-16 とみなし、NUL の位置から endian を推定する。
     public static func detectEncoding(_ data: Data) -> (encoding: String.Encoding, bomLength: Int)? {
+        detectEncodingAndDecode(data).map { (encoding: $0.encoding, bomLength: $0.bomLength) }
+    }
+
+    /// エンコーディング判定と同時に、判定過程で得られた復号結果があれば併せて返す。
+    /// BOM なし UTF-8 の判定は検証のため一度全文デコードするため、その結果を
+    /// decodedText として持ち帰り、呼び出し元での再デコードを避ける。
+    private static func detectEncodingAndDecode(
+        _ data: Data
+    ) -> (encoding: String.Encoding, bomLength: Int, decodedText: String?)? {
         if let bom = detectBOM(data) {
-            return bom
+            return (bom.encoding, bom.bomLength, nil)
         }
         if data.prefix(sniffLength).contains(0) {
             let encoding: String.Encoding = looksLittleEndianUTF16(data) ? .utf16LittleEndian : .utf16BigEndian
-            return (encoding, 0)
+            return (encoding, 0, nil)
         }
-        if String(data: data, encoding: .utf8) != nil {
-            return (.utf8, 0)
+        if let utf8String = String(data: data, encoding: .utf8) {
+            return (.utf8, 0, utf8String)
         }
         var convertedString: NSString?
         var usedLossyConversion: ObjCBool = false
@@ -55,17 +64,29 @@ public enum TextEncoding: Sendable {
             convertedString: &convertedString,
             usedLossyConversion: &usedLossyConversion
         )
-        if detected != 0, !usedLossyConversion.boolValue { return (String.Encoding(rawValue: detected), 0) }
+        if detected != 0, !usedLossyConversion.boolValue {
+            return (String.Encoding(rawValue: detected), 0, nil)
+        }
         return nil
     }
 
     /// BOM 付き UTF-8 / UTF-16 / UTF-32、BOM なし UTF-16、UTF-8、
     /// および Shift_JIS / EUC-JP 等のレガシーエンコーディングを判定して復号する。
-    /// エンコーディング・BOM 長の判定は detectEncoding に委譲する。
+    /// エンコーディング・BOM 長の判定は detectEncodingAndDecode に委譲する。
     /// いずれの復号にも失敗した場合は nil を返す。
     public static func decodeText(_ data: Data) -> String? {
-        guard let detected = detectEncoding(data) else { return nil }
-        return String(data: data.dropFirst(detected.bomLength), encoding: detected.encoding)
+        detectAndDecodeText(data)?.text
+    }
+
+    /// エンコーディング判定と復号を1パスで行う。判定過程で全文デコード済みの場合は
+    /// その結果を再利用し、判定結果とともに返す。判定・復号いずれかに失敗した場合は nil。
+    static func detectAndDecodeText(_ data: Data) -> (encoding: String.Encoding, bomLength: Int, text: String)? {
+        guard let detected = detectEncodingAndDecode(data) else { return nil }
+        let payload = data.dropFirst(detected.bomLength)
+        guard let decoded = detected.decodedText ?? String(data: payload, encoding: detected.encoding) else {
+            return nil
+        }
+        return (detected.encoding, detected.bomLength, decoded)
     }
 
     /// データ中の NUL バイトを偶数位置・奇数位置別に数える。

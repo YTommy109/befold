@@ -530,6 +530,42 @@ struct ViewerStoreTests {
     }
 }
 
+/// isLoading(task-30 の読み込み中インジケータ用状態)まわりのテスト。
+/// ViewerStoreTests から分離し、型の行数を SwiftLint の type_body_length 内に収める。
+@Suite
+@MainActor
+struct ViewerStoreLoadingTests {
+    @Test("openFile 直後は isLoading = true、読込完了後は false になる(task-30)")
+    func isLoadingReflectsInFlightLoad() async {
+        let file = URL(fileURLWithPath: "/files/loading.md")
+        let reader = InMemoryFileReader()
+        reader.setFile("# Hello", at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+        #expect(store.isLoading)
+
+        await awaitLoad(store)
+        #expect(!store.isLoading)
+
+        store.close()
+    }
+
+    @Test("close() は実行中の isLoading をリセットする")
+    func closeResetsIsLoading() {
+        let file = URL(fileURLWithPath: "/files/loading2.md")
+        let reader = InMemoryFileReader()
+        reader.setFile("# Hello", at: file)
+
+        let store = makeStore(reader: reader)
+        store.openFile(file)
+        #expect(store.isLoading)
+
+        store.close()
+        #expect(!store.isLoading)
+    }
+}
+
 /// 行指向ファイルのチャンク読み込み(段階読み込み)まわりのテスト。
 /// ViewerStoreTests から分離し、型の行数を SwiftLint の type_body_length 内に収める。
 @Suite
@@ -668,7 +704,7 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
-    @Test("チャンク読み込みエラー時は空チャンクと isTruncated=false を返し、表示済みコンテンツを保持してセッションを終了する")
+    @Test("チャンク読み込みエラー時は空チャンクと loadFailed=true(isTruncated=true 維持)を返し、表示済みコンテンツを保持してセッションを終了する")
     func loadMoreLinesErrorKeepsContentAndStops() async {
         let file = URL(fileURLWithPath: "/files/data.csv")
         let reader = InMemoryFileReader()
@@ -685,13 +721,16 @@ struct ViewerStoreChunkTests {
 
         // 2 回目の読み込みが TextEncodingError で失敗 → 表示済みコンテンツを保持し
         // セッション終了。10MB 超ファイルで fileTooLarge に置き換わることを防ぐ。
-        // 空チャンクを返すことで Coordinator が JS 側の truncation バナーを消せる。
+        // isTruncated は true のまま維持し loadFailed で区別する(バナーは消さず
+        // 「続きを読み込めませんでした」に切り替える。正常な EOF との区別が
+        // TASK-25 の狙い)。
         let result = await store.loadMoreLines()
         #expect(result != nil)
         #expect(result?.chunk == "")
-        #expect(result?.isTruncated == false)
+        #expect(result?.isTruncated == true)
+        #expect(result?.loadFailed == true)
         #expect(store.content == "old\n")
-        #expect(store.isTruncated == false)
+        #expect(store.isTruncated == true)
 
         store.close()
     }

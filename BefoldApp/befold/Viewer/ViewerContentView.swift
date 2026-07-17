@@ -54,6 +54,8 @@ struct ViewerContentView: View {
 
             if let reason = store.rejectReason {
                 UnsupportedFileView(fileURL: store.filePath, rejectReason: reason)
+            } else if store.isLoading, store.content.isEmpty {
+                LoadingIndicatorView()
             }
         }
     }

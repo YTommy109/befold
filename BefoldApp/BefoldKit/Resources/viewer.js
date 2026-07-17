@@ -370,7 +370,8 @@ function csvSourceInnerHtml(content, delimiter) {
     }
     htmlLines.push(htmlParts.join(delimiter));
   }
-  return htmlLines.join('\n');
+  var body = htmlLines.join('\n');
+  return content.endsWith('\n') ? body + '\n' : body;
 }
 
 // CSV/TSV のソース表示用 HTML。
@@ -416,7 +417,8 @@ function codeChunkInnerHtml(hljs, str, lang, contextStr) {
       var inner = highlightedWithContext.replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '');
       var lines = reflowSpanBalancedLines(inner);
       var contextLineCount = (contextStr.match(/\n/g) || []).length;
-      return lines.slice(contextLineCount).join('\n');
+      var body = lines.slice(contextLineCount).join('\n');
+      return str.endsWith('\n') ? body + '\n' : body;
     }
   }
   var highlighted = highlightCode(hljs, str, lang);

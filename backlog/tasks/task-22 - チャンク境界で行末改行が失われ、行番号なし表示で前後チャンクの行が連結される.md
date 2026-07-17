@@ -1,10 +1,11 @@
 ---
 id: TASK-22
 title: チャンク境界で行末改行が失われ、行番号なし表示で前後チャンクの行が連結される
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-07-16 10:54'
-updated_date: '2026-07-16 12:11'
+updated_date: '2026-07-16 17:12'
 labels: []
 dependencies:
   - TASK-29
@@ -24,7 +25,19 @@ ordinal: 51
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 コードのソース表示（行番号 OFF）でチャンク境界の行が連結されない
-- [ ] #2 CSV ソース表示（行番号 OFF）でチャンク境界の行が連結されない
-- [ ] #3 末尾改行付きチャンクを使った回帰テストが viewer.test.js に追加されている
+- [x] #1 コードのソース表示（行番号 OFF）でチャンク境界の行が連結されない
+- [x] #2 CSV ソース表示（行番号 OFF）でチャンク境界の行が連結されない
+- [x] #3 末尾改行付きチャンクを使った回帰テストが viewer.test.js に追加されている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+viewer.js の csvSourceInnerHtml と codeChunkInnerHtml(context経路)を修正。元の入力文字列(content/str)が末尾改行を持つ場合のみ join 結果に '\n' を復元する(既存の _lastChunkEndedWithNewline と同じ「呼び出しごとに入力文字列の末尾を見る」パターンを踏襲、新規の永続状態は追加せず)。回帰テストを viewer.test.js に追加(末尾改行あり/なしの両方)。npx jest --silent 193件全パスを確認。TASK-29のNormalizedTextCache刷新後もこのバグは残存していたことを確認済み(調査は Explore サブエージェントに委譲)。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+csvSourceInnerHtml と codeChunkInnerHtml(context経路)で、入力文字列が末尾改行を持つ場合に出力へ '\n' を復元するよう修正。既存の endsWith('\n') チェックパターンを再利用し新規状態は追加していない。viewer.test.js に末尾改行あり/なしの回帰テストを追加し、npx jest --silent で193件全パスを確認した。
+<!-- SECTION:FINAL_SUMMARY:END -->
