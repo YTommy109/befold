@@ -42,6 +42,10 @@ final class ViewerStore {
     private(set) var isTruncated: Bool = false
     /// 現在表示している累積行数(段階読み込みのバナー表示に使う)。
     private(set) var displayedLineCount: Int = 0
+    /// 最新世代の読み込み(I/O・デコード・初回チャンク取得)が実行中かどうか。
+    /// content はロード完了まで旧ファイルの表示を保持するため(task-32)、
+    /// UI 側は content が空でまだ何も表示できていない間だけこれを見てインジケータを出す。
+    private(set) var isLoading: Bool = false
     private(set) var filePath: URL?
 
     /// filePath が指す現在のファイルの種別。openFile / handleRename で filePath と同時に
@@ -221,6 +225,7 @@ final class ViewerStore {
         guard let filePath else { return }
         loadGeneration += 1
         let generation = loadGeneration
+        isLoading = true
         let resolved = filePath.resolvingSymlinksInPath()
         let fileType = pendingFileType
         loadTask = Task {
@@ -327,6 +332,7 @@ final class ViewerStore {
     /// fileType を content と同時にここで確定させることで、旧ファイルの content に
     /// 新ファイルの fileType が組み合わさった中間状態が描画されないようにする(task-32)。
     private func apply(_ outcome: LoadOutcome, fileType: FileType) {
+        isLoading = false
         switch outcome {
         case .missing:
             scheduleFileGone()
@@ -391,6 +397,7 @@ final class ViewerStore {
     func close() {
         loadTask?.cancel()
         loadTask = nil
+        isLoading = false
         fileGoneTask?.cancel()
         fileGoneTask = nil
         chunkSession = nil
