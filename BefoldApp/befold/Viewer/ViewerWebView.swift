@@ -138,7 +138,9 @@ struct ViewerWebView: NSViewRepresentable {
             filePath: filePath,
             isSourceMode: isSourceMode,
             showLineNumbers: showLineNumbers,
-            truncation: (isTruncated, lineCount, loadFailed)
+            truncation: Coordinator.TruncationState(
+                isTruncated: isTruncated, lineCount: lineCount, failed: loadFailed
+            )
         )
     }
 
@@ -337,7 +339,7 @@ struct ViewerWebView: NSViewRepresentable {
             filePath: URL?,
             isSourceMode: Bool,
             showLineNumbers: Bool,
-            truncation: (isTruncated: Bool, lineCount: Int, loadFailed: Bool)
+            truncation: TruncationState
         ) {
             let doUpdate = { [weak self] in
                 guard let self, let webView else { return }
@@ -397,10 +399,7 @@ struct ViewerWebView: NSViewRepresentable {
                     || fileType != lastRenderedFileType
                     || showLineNumbers != lastShowLineNumbers
                     || isSourceMode != lastIsSourceMode
-                    || truncationStateChanged(
-                        isTruncated: truncation.isTruncated, lineCount: truncation.lineCount,
-                        failed: truncation.loadFailed
-                    )
+                    || truncation != lastTruncation
                 guard needsRender else { return }
 
                 let restoreFromPersistedPosition = Self.isFileOrModeSwitch(
@@ -441,9 +440,10 @@ extension ViewerWebView.Coordinator {
         Task { @MainActor [self] in
             defer { isLoadingMoreLines = false }
             guard let webView, let result = await onLoadMoreLines?() else { return }
-            lastTruncation = TruncationState(
+            let truncation = TruncationState(
                 isTruncated: result.isTruncated, lineCount: result.lineCount, failed: result.loadFailed
             )
+            lastTruncation = truncation
 
             // JS 呼び出し(await)より前に同期でキャッシュを更新することで、追記後の
             // SwiftUI 再描画による全文 render の誤爆と、チャンク二重表示レースの
@@ -463,7 +463,9 @@ extension ViewerWebView.Coordinator {
                 _ = try? await webView.evaluateJavaScript(script)
             }
             _ = try? await webView.evaluateJavaScript(
-                ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount, failed: result.loadFailed)
+                ViewerBridge.truncatedScript(
+                    truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.failed
+                )
             )
         }
     }
@@ -488,7 +490,7 @@ extension ViewerWebView.Coordinator {
     private func applyRender(
         webView: WKWebView, content: String, fileType: FileType,
         filePath: URL?, isSourceMode: Bool, showLineNumbers: Bool,
-        truncation: (isTruncated: Bool, lineCount: Int, loadFailed: Bool),
+        truncation: TruncationState,
         restoreFromPersistedPosition: Bool
     ) {
         if showLineNumbers != lastShowLineNumbers {
@@ -501,17 +503,13 @@ extension ViewerWebView.Coordinator {
             )
             lastIsSourceMode = isSourceMode
         }
-        if truncationStateChanged(
-            isTruncated: truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.loadFailed
-        ) {
+        if truncation != lastTruncation {
             webView.evaluateJavaScript(
                 ViewerBridge.truncatedScript(
-                    truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.loadFailed
+                    truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.failed
                 )
             )
-            lastTruncation = TruncationState(
-                isTruncated: truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.loadFailed
-            )
+            lastTruncation = truncation
         }
         guard let script = ViewerBridge.renderScript(
             content: Self.renderableContent(
@@ -524,12 +522,6 @@ extension ViewerWebView.Coordinator {
             webView.evaluateJavaScript(ViewerBridge.restoreScrollPositionScript(scrollPositionToRestore))
         }
         webView.evaluateJavaScript(script)
-    }
-
-    /// _mmdSetTruncated の再送が必要か(切り詰め状態、切り詰め中の表示行数、または
-    /// 読込エラー状態が変わったか)を判定する。行数は非切り詰め時 0 に正規化して比較する。
-    private func truncationStateChanged(isTruncated: Bool, lineCount: Int, failed: Bool) -> Bool {
-        TruncationState(isTruncated: isTruncated, lineCount: lineCount, failed: failed) != lastTruncation
     }
 
     /// 今回の render() がファイル/モードの実際の切替かどうかを判定する。
