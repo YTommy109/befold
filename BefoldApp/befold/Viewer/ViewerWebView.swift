@@ -20,7 +20,7 @@ struct ViewerWebView: NSViewRepresentable {
     let isTruncated: Bool
     /// 現在表示している累積行数(段階読み込みのバナー表示に使う)。
     let lineCount: Int
-    /// 直近のチャンク読込がエラーで打ち切られたかどうか(TASK-39)。
+    /// 直近のチャンク読込がエラーで打ち切られたかどうか。
     let loadFailed: Bool
     /// ロード時に JS へ注入するファイル毎の初期倍率。
     let initialZoom: Double
@@ -455,7 +455,7 @@ extension ViewerWebView.Coordinator {
             )
 
             // result.chunk が空(チャンク読込エラーのセンチネル)の場合は追記する
-            // 内容がないため appendChunk 自体を呼ばない(幻の空行を防ぐ、TASK-25)。
+            // 内容がないため appendChunk 自体を呼ばない(幻の空行を防ぐ)。
             if !result.chunk.isEmpty, let script = ViewerBridge.appendChunkScript(
                 chunk: result.chunk,
                 fileType: fileType

@@ -7,6 +7,9 @@ public protocol ChunkedTextReading: AnyObject, Sendable {
     func readNextChunk() async throws -> (text: String, isAtEnd: Bool)
 }
 
+/// NormalizedTextCache から行単位のチャンクを逐次読み出す ChunkedTextReading の標準実装。
+/// CSV クォート内の改行をチャンク境界にしない任意対応と、巨大行でもチャンクが際限なく
+/// 肥大化しないためのバイト単位の強制分割を備える。
 public actor StringChunkReader: ChunkedTextReading {
     public static let linesPerChunk = 1000
     /// 不平衡クォートや改行なし巨大行でも 1 チャンクが際限なく肥大化しないための強制分割の上限。
@@ -20,6 +23,8 @@ public actor StringChunkReader: ChunkedTextReading {
     private var resumeIndex: String.Index?
     private var inQuotes: Bool = false
 
+    /// respectsCSVQuotes が true の場合、CSV のクォート内改行をチャンク境界にしない
+    /// (advanceRespectingQuotes を使う)。false の場合は行境界のみで判定する軽量パスを使う。
     public init(cache: NormalizedTextCache, respectsCSVQuotes: Bool = false) {
         self.cache = cache
         self.respectsCSVQuotes = respectsCSVQuotes
