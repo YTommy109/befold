@@ -47,13 +47,20 @@ struct ViewerWindowControllerToolbarTests {
         // 現在の store 状態から新しいアイテムを生成するため、都度呼び直してポーリングする。
         // fileType は非同期読み込みの完了(apply())と同時にのみ確定するため、
         // 読み込み完了(onContentReloaded による toolbar 更新)を待ってから検証する。
+        // ポーリングで true を確認した後に取得し直すと、await の再開点を挟んだ別呼び出しに
+        // なり、その間の状態変化と競合しうる。ポーリング中に取得したボタンをそのまま使う。
         func makeCodeButton() -> NSButton? {
             (codeController.toolbar(
                 codeToolbar, itemForItemIdentifier: .init("lineNumbers"), willBeInsertedIntoToolbar: false
             )?.view as? NSButton)
         }
-        await waitUntilOnMainActor { makeCodeButton()?.isEnabled == true }
-        let codeButton = try #require(makeCodeButton())
+        var codeButtonBox: NSButton?
+        await waitUntilOnMainActor {
+            let button = makeCodeButton()
+            codeButtonBox = button
+            return button?.isEnabled == true
+        }
+        let codeButton = try #require(codeButtonBox)
         #expect(codeButton.isEnabled == true)
 
         let previewController = makeController(file: previewFile)

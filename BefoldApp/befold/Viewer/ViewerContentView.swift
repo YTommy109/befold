@@ -39,6 +39,7 @@ struct ViewerContentView: View {
                 showLineNumbers: store.showLineNumbers,
                 isTruncated: store.isTruncated,
                 lineCount: store.displayedLineCount,
+                loadFailed: store.loadFailed,
                 initialZoom: currentZoom,
                 scrollPositionToRestore: currentScrollPosition,
                 onScrollPositionChanged: onScrollPositionChanged,

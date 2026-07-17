@@ -311,8 +311,12 @@
   }
 
   // 画像のフィットサイズ(px 実数値)を再計算して適用する。
+  // wrap 自身に全体ズーム(CSS zoom)がかかっているため、wrap.clientWidth/Height は
+  // ローカル座標系で実ビューポート/zoom を返す(diagramScrollHeight と同じ理由)。
+  // フィット計算は実ビューポート基準で行う必要があるため zoom を掛けて実寸に戻す。
   function _mmdFitImage(img, wrap) {
-    var fit = imageFitSize(img.naturalWidth, img.naturalHeight, wrap.clientWidth, wrap.clientHeight);
+    var zoom = effectiveZoom(_mmdZoom);
+    var fit = imageFitSize(img.naturalWidth, img.naturalHeight, wrap.clientWidth * zoom, wrap.clientHeight * zoom);
     img.style.width = fit.width + 'px';
     img.style.height = fit.height + 'px';
   }

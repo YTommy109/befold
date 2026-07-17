@@ -17,7 +17,7 @@ dependencies:
   - TASK-9
   - TASK-8
 priority: medium
-ordinal: 100
+ordinal: 8000
 ---
 
 ## Description

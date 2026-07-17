@@ -40,6 +40,10 @@ final class ViewerStore {
     private(set) var rejectReason: RejectReason?
     /// 行指向ファイルを段階読み込み中で、まだ末尾に達していない間 true になる。
     private(set) var isTruncated: Bool = false
+    /// 直近のチャンク読込がエラーで打ち切られたかどうか。isTruncated=true のまま
+    /// chunkSession が nil になるケースをバナー表示から区別するために使う。
+    /// apply() の読み込み完了で false にリセットする(TASK-39)。
+    private(set) var loadFailed: Bool = false
     /// 現在表示している累積行数(段階読み込みのバナー表示に使う)。
     private(set) var displayedLineCount: Int = 0
     /// 最新世代の読み込み(I/O・デコード・初回チャンク取得)が実行中かどうか。
@@ -203,6 +207,7 @@ final class ViewerStore {
             // エラー打ち切り(バナーをエラー表示に切り替える)を区別するため、
             // loadFailed だけで判別させる。
             chunkSession = nil
+            loadFailed = true
             return LoadMoreLinesResult(
                 chunk: "", isTruncated: isTruncated,
                 lineCount: displayedLineCount, contentRevision: contentRevision,
@@ -338,7 +343,7 @@ final class ViewerStore {
             scheduleFileGone()
             return
         case let .chunked(session, cache, firstChunk, isAtEnd):
-            if cache.dataHash == contentHash {
+            if cache.dataHash == contentHash, fileType == self.fileType {
                 return
             }
             self.fileType = fileType
@@ -347,12 +352,13 @@ final class ViewerStore {
             chunkSession = session
             rejectReason = nil
             isTruncated = !isAtEnd
+            loadFailed = false
             content = firstChunk
             contentRevision += 1
             newlineCount = firstChunk.utf8.count(where: { $0 == 0x0A })
             updateDisplayedLineCount()
         case let .full(loaded, cache):
-            if let cache, cache.dataHash == contentHash {
+            if let cache, cache.dataHash == contentHash, fileType == self.fileType {
                 return
             }
             self.fileType = fileType
@@ -361,6 +367,7 @@ final class ViewerStore {
             chunkSession = nil
             rejectReason = loaded.rejectReason
             isTruncated = false
+            loadFailed = false
             content = loaded.content
             contentRevision += 1
             newlineCount = 0

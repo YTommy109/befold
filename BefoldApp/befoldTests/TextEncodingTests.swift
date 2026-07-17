@@ -55,4 +55,33 @@ struct TextEncodingTests {
         }
         #expect(elapsed < .seconds(3))
     }
+
+    @Test("先頭8KB超がASCIIで後半に日本語があるShift_JISファイルを正しくデコードする(task-36)")
+    func decodesShiftJISWithAsciiHeaderExceedingSniffLength() throws {
+        let asciiHeader = String(repeating: "a", count: TextEncoding.sniffLength + 1000)
+        let text = asciiHeader + "日本語の本文です。\n"
+        let data = try #require(text.data(using: .shiftJIS))
+
+        let decoded = TextEncoding.decodeText(data)
+
+        #expect(decoded == text)
+    }
+
+    @Test("2バイト文字がsniffLength境界をまたぐShift_JISファイルを正しくデコードする(task-36)")
+    func decodesShiftJISWithMultiByteCharacterCrossingSniffBoundary() throws {
+        let line = "日本語のテスト文字列です。"
+        var text = ""
+        while (text.data(using: .shiftJIS)?.count ?? 0) < TextEncoding.sniffLength - 1 {
+            text += line
+        }
+        // 現在のテキストは sniffLength 境界のすぐ手前で終わっている。
+        // ここに全角文字を追加すると、その2バイトが境界をまたぐ。
+        text += "日本語続き\n"
+        let data = try #require(text.data(using: .shiftJIS))
+        #expect(data.count > TextEncoding.sniffLength)
+
+        let decoded = TextEncoding.decodeText(data)
+
+        #expect(decoded == text)
+    }
 }

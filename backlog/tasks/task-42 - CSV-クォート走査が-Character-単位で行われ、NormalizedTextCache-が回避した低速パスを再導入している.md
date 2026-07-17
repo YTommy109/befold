@@ -1,14 +1,16 @@
 ---
 id: TASK-42
 title: CSV クォート走査が Character 単位で行われ、NormalizedTextCache が回避した低速パスを再導入している
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@Tommy109'
 created_date: '2026-07-17 02:07'
+updated_date: '2026-07-17 04:08'
 labels: []
 dependencies: []
 priority: medium
 type: enhancement
-ordinal: 25000
+ordinal: 7000
 ---
 
 ## Description
@@ -21,7 +23,32 @@ StringChunkReader.swift:56 の advanceRespectingQuotes は `for char in cache.te
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 CSV のクォート走査が Character イテレーションを使わない
-- [ ] #2 既存の StringChunkReader のクォート跨ぎテストが全て通る
-- [ ] #3 巨大CSVのチャンク読込時間が改善する(手元計測をノートに記録)
+- [x] #1 CSV のクォート走査が Character イテレーションを使わない
+- [x] #2 既存の StringChunkReader のクォート跨ぎテストが全て通る
+- [x] #3 巨大CSVのチャンク読込時間が改善する(手元計測をノートに記録)
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. StringChunkReader.advance のクォート走査を text.utf8 のバイト単位走査に置き換える(U+0022 はASCII単一バイトでマルチバイト継続バイトと衝突しないため意味論的に等価)
+2. bytesScanned のインクリメントをバイト単位に統一する
+3. 既存のクォート跨ぎテスト(csvQuotedNewline, withoutCSVQuotes, unbalancedQuoteLargeCSVIsChunked 等)を実行して回帰がないことを確認する
+4. 巨大CSVでの読込時間を簡易計測し、改善をノートに記録する
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+text.utf8 のバイト単位走査に置き換え(U+0022はASCII単一バイトのためマルチバイト継続バイトと衝突せず意味論的に等価)。既存のクォート跨ぎテスト全12件(StringChunkReaderTests)がパス。
+計測: 50万行(各行 "field1,\"quoted, value\",field3,field4,field5\n")のCSVを respectsCSVQuotes=true で全読込した所要時間。
+- 修正前(Character単位走査): 1.203s
+- 修正後(UTF8バイト単位走査): 0.229s
+約5.2倍高速化。計測はテスト対象コードに一時的なPerfScratchTestを追加して実施し、計測後に削除(コミットには含めない)。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+StringChunkReader.advance のクォート走査を Character 単位から text.utf8 のバイト単位走査に置き換えた。U+0022 はASCII単一バイトでUTF-8マルチバイト継続バイト(0x80以上)と衝突しないため意味論的に等価。既存のクォート跨ぎテストを含む StringChunkReaderTests 12件、および全体テストスイート360件が全てパス。50万行CSVでの読込ベンチマークで 1.203s→0.229s (約5.2倍)の改善を確認(計測用コードはコミットに含めず削除済み)。
+<!-- SECTION:FINAL_SUMMARY:END -->
