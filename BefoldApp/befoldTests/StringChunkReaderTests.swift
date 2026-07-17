@@ -156,6 +156,16 @@ struct StringChunkReaderTests {
         #expect(chunks.count <= expectedUpperBound)
     }
 
+    @Test("改行なしテキストの長さがちょうど maxChunkBytes のとき境界外アクセスせずに読み切れる")
+    func exactMaxChunkBytesNoTrailingNewlineDoesNotCrash() async throws {
+        let text = String(repeating: "A", count: StringChunkReader.maxChunkBytes)
+        let cache = try makeCache(text)
+        let reader = StringChunkReader(cache: cache)
+        let chunks = await readAll(reader)
+        #expect(chunks.count == 1)
+        #expect(chunks.joined() == text)
+    }
+
     @Test("1MB超の単一行日本語テキストの強制分割がマルチバイト文字境界を尊重する")
     func forcedSplitRespectsMultibyteCharacterBoundary() async throws {
         let text = String(repeating: "あ", count: StringChunkReader.maxChunkBytes)

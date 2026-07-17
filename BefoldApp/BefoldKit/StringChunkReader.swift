@@ -106,7 +106,7 @@ public actor StringChunkReader: ChunkedTextReading {
         in utf8View: String.UTF8View
     ) -> String.Index {
         var index = index
-        while index > lowerBound, (0x80 ... 0xBF).contains(utf8View[index]) {
+        while index > lowerBound, index < utf8View.endIndex, (0x80 ... 0xBF).contains(utf8View[index]) {
             index = utf8View.index(before: index)
         }
         return index
