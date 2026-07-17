@@ -94,9 +94,6 @@ final class ViewerStore {
     /// 段階読み込み中の行チャンクセッション。ファイル再読込・close でリセットする。
     private var chunkSession: (any ChunkedTextReading)?
 
-    /// NormalizedTextCache。検索・同一内容スキップに使う。
-    @ObservationIgnored private var textCache: NormalizedTextCache?
-
     /// 前回適用したキャッシュの dataHash。同一内容スキップの比較に使う。
     @ObservationIgnored private var contentHash: Int?
 
@@ -351,7 +348,6 @@ final class ViewerStore {
                 return
             }
             self.fileType = fileType
-            textCache = cache
             contentHash = cache.dataHash
             chunkSession = session
             rejectReason = nil
@@ -366,7 +362,6 @@ final class ViewerStore {
                 return
             }
             self.fileType = fileType
-            textCache = cache
             contentHash = cache?.dataHash
             chunkSession = nil
             rejectReason = loaded.rejectReason
