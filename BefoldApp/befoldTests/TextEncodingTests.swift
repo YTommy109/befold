@@ -67,6 +67,29 @@ struct TextEncodingTests {
         #expect(decoded == text)
     }
 
+    @Test("先頭8KBがASCIIで本文にNULを含むShift_JISファイルを正しくデコードする(task-47)")
+    func decodesShiftJISWithNulByteAfterAsciiHeader() throws {
+        let asciiHeader = String(repeating: "a", count: TextEncoding.sniffLength + 1000)
+        let text = asciiHeader + "\0" + "日本語の本文です。\n"
+        let data = try #require(text.data(using: .shiftJIS))
+
+        let decoded = TextEncoding.decodeText(data)
+
+        #expect(decoded == text)
+    }
+
+    @Test("先頭8KBがASCIIで本文にNULを含むShift_JISファイルでdetectEncodingがUTF-16と誤判定しない(task-47)")
+    func detectEncodingDoesNotMisdetectShiftJISWithNulByteAsUtf16() throws {
+        let asciiHeader = String(repeating: "a", count: TextEncoding.sniffLength + 1000)
+        let text = asciiHeader + "\0" + "日本語の本文です。\n"
+        let data = try #require(text.data(using: .shiftJIS))
+
+        let detected = TextEncoding.detectEncoding(data)
+
+        #expect(detected?.encoding != .utf16LittleEndian)
+        #expect(detected?.encoding != .utf16BigEndian)
+    }
+
     @Test("2バイト文字がsniffLength境界をまたぐShift_JISファイルを正しくデコードする(task-36)")
     func decodesShiftJISWithMultiByteCharacterCrossingSniffBoundary() throws {
         let line = "日本語のテスト文字列です。"

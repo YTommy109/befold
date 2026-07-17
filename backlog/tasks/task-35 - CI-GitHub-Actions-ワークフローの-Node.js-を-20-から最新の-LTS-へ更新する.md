@@ -1,9 +1,11 @@
 ---
 id: TASK-35
 title: 'CI: GitHub Actions ワークフローの Node.js を 20 から最新の LTS へ更新する'
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-07-17 02:05'
+updated_date: '2026-07-17 09:09'
 labels:
   - ci
   - chore
@@ -20,7 +22,29 @@ CI 実行時に "Node.js 20 is deprecated." という警告が出ている。.gi
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ci.yml の node-version を現行の Node.js LTS バージョンへ更新する
-- [ ] #2 CI を実行し、Node.js 関連のステップが問題なく通ることを確認する
-- [ ] #3 "Node.js 20 is deprecated" 警告が CI ログに出なくなることを確認する
+- [x] #1 ci.yml の node-version を現行の Node.js LTS バージョンへ更新する
+- [x] #2 CI を実行し、Node.js 関連のステップが問題なく通ることを確認する
+- [x] #3 "Node.js 20 is deprecated" 警告が CI ログに出なくなることを確認する
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. .github/workflows/ci.yml:67 の node-version を '20' から '24'(現行 Active LTS) へ更新する
+2. BefoldApp で npm ci / npm test をローカル実行し、Node 24 でも問題なく通ることを確認する
+3. CI 実行結果で Node.js 20 deprecated 警告が消えていることを確認する
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+ci.yml:67 の node-version を '20'→'24' に更新。ローカル Node 24.18.0 で npm ci / npm test を実行し、193 テスト全て成功を確認。CI 上での deprecated 警告解消確認は push 後に要実施。
+
+スコープ拡張: node-version 更新だけでは 'Node.js 20 is deprecated' 警告は消えないと判明(警告は actions/checkout@v4・actions/setup-node@v4・actions/cache@v4 自体が Node20 ランタイムでビルドされていることが原因で、node-version 入力値とは無関係)。ユーザー承認の上、これらを Node24 ランタイム採用済みの v5 へ更新。PR #239 の CI(js-test)で deprecated 警告が消えたことを確認。build-and-test ジョブで FileWatcherIntegrationTests / ViewerWindowControllerToolbarTests が失敗しているが、実行ごとに異なるテストが失敗しており、main ブランチでも同様の既存 flaky テストと確認(本タスクの diff とは無関係)。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ci.yml の node-version を '20'→'24' に更新し、加えて actions/checkout・actions/cache・actions/setup-node を v4→v5(Node24 ランタイム)へ更新した。ローカル(Node 24.18.0)で npm ci / npm test 実行し 193 テスト全て成功。PR #239 の CI で js-test ジョブが正常に通過し、'Node.js 20 is deprecated' 警告がログから消えたことを確認した。build-and-test ジョブの FileWatcherIntegrationTests / ViewerWindowControllerToolbarTests の失敗は本変更と無関係な既存の flaky テスト。
+<!-- SECTION:FINAL_SUMMARY:END -->

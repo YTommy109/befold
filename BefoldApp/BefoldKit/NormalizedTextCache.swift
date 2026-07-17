@@ -1,10 +1,14 @@
 import CryptoKit
 import Foundation
 
+/// NormalizedTextCache の初期化時に発生しうるエラー。
 public enum NormalizedTextCacheError: Error, Sendable {
+    /// ファイルサイズが maxFileSizeBytes を超えている。
     case fileTooLarge
 }
 
+/// ファイルの生データを改行コード正規化した文字列と行頭インデックスに変換して保持するキャッシュ。
+/// デコード・正規化・行分割を一度だけ行い、以降の読み込み処理(ChunkedTextReading 実装等)で使い回す。
 public struct NormalizedTextCache: Sendable {
     public static let maxFileSizeBytes = 100 * 1024 * 1024
 
@@ -16,6 +20,8 @@ public struct NormalizedTextCache: Sendable {
         lineStartIndices.count
     }
 
+    /// 生データをデコード・正規化してキャッシュを構築する。サイズ上限超過は fileTooLarge を、
+    /// デコード失敗は TextEncodingError.decodeFailed を投げる。
     public init(data: Data) throws {
         if data.count > Self.maxFileSizeBytes {
             throw NormalizedTextCacheError.fileTooLarge

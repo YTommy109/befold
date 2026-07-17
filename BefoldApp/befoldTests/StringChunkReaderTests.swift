@@ -137,12 +137,12 @@ struct StringChunkReaderTests {
         #expect(chunks.joined() == text)
     }
 
-    @Test("強制分割後にクォート状態がリセットされ通常の行ベース分割に復帰する")
-    func forcedSplitRecoversLineBasedChunking() async throws {
-        // 先頭の対のない `"` により、リセットしなければ inQuotes が全編 true のままになり、
-        // 毎チャンクが maxChunkBytes 上限だけで区切られ続ける(粗い巨大チャンクへ退化する)。
-        // 強制分割のたびに inQuotes をリセットすれば、以降クォートのない平文行は
-        // すぐに通常の 1000 行ベースの細かいチャンクへ復帰するはずである。
+    @Test("強制分割後も inQuotes 状態が維持され不平衡クォートなら以降もバイト上限分割が続く")
+    func forcedSplitPreservesQuoteState() async throws {
+        // 先頭の対のない `"` により、ファイル全体が実質クォート内にある。
+        // inQuotes を強制分割ごとにリセットしてしまうと、以降の平文行が誤って
+        // クォート外と判定され、通常の 1000 行ベースの細かいチャンクに退化してしまう。
+        // 正しく inQuotes を維持すれば、バイト上限による大きなチャンクのみが続くはずである。
         let plainRows = String(repeating: "a,b,c\n", count: 1_000_000)
         let text = "\"" + plainRows
         let cache = try makeCache(text)
@@ -150,8 +150,25 @@ struct StringChunkReaderTests {
         let chunks = await readAll(reader)
         #expect(chunks.joined() == text)
         #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
-        // リセットされずバイト上限だけで区切られ続けるなら 10 個未満で済むはずだが、
-        // 通常の行ベース分割に復帰していれば桁違いに多いチャンク数になる。
-        #expect(chunks.count > 100)
+        // 行ベース分割に退化していれば数万チャンクになるが、バイト上限分割のみなら
+        // 総バイト数 / maxChunkBytes 程度(1桁〜2桁)にとどまるはずである。
+        let expectedUpperBound = text.utf8.count / StringChunkReader.maxChunkBytes + 2
+        #expect(chunks.count <= expectedUpperBound)
+    }
+
+    @Test("1MB超の単一行日本語テキストの強制分割がマルチバイト文字境界を尊重する")
+    func forcedSplitRespectsMultibyteCharacterBoundary() async throws {
+        let text = String(repeating: "あ", count: StringChunkReader.maxChunkBytes)
+        let cache = try makeCache(text)
+        let reader = StringChunkReader(cache: cache)
+        let chunks = await readAll(reader)
+        #expect(chunks.count >= 2)
+        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
+        // 分割位置が文字境界からずれていれば、結合結果が元テキストと一致しない、
+        // または不正な UTF-8 途中断片から構築された文字列が混入して文字数が変化する。
+        #expect(chunks.joined() == text)
+        // 各分割点が文字境界を尊重していれば、3 バイト文字「あ」のみの列である以上
+        // 各チャンクのバイト数は常に 3 の倍数になる。
+        #expect(chunks.allSatisfy { $0.utf8.count % 3 == 0 })
     }
 }

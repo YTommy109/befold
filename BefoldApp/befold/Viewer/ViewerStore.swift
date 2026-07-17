@@ -42,12 +42,12 @@ final class ViewerStore {
     private(set) var isTruncated: Bool = false
     /// 直近のチャンク読込がエラーで打ち切られたかどうか。isTruncated=true のまま
     /// chunkSession が nil になるケースをバナー表示から区別するために使う。
-    /// apply() の読み込み完了で false にリセットする(TASK-39)。
+    /// apply() の読み込み完了で false にリセットする。
     private(set) var loadFailed: Bool = false
     /// 現在表示している累積行数(段階読み込みのバナー表示に使う)。
     private(set) var displayedLineCount: Int = 0
     /// 最新世代の読み込み(I/O・デコード・初回チャンク取得)が実行中かどうか。
-    /// content はロード完了まで旧ファイルの表示を保持するため(task-32)、
+    /// content はロード完了まで旧ファイルの表示を保持するため、
     /// UI 側は content が空でまだ何も表示できていない間だけこれを見てインジケータを出す。
     private(set) var isLoading: Bool = false
     private(set) var filePath: URL?
@@ -55,7 +55,7 @@ final class ViewerStore {
     /// filePath が指す現在のファイルの種別。openFile / handleRename で filePath と同時に
     /// 即時更新する内部値。バックグラウンド読み込み(loadContent → computeLoad)へ渡すために使い、
     /// 公開の fileType とは異なりロード完了を待たない。
-    /// 公開 fileType は apply() 内で content と同時にのみ更新する(このずれが task-32 の原因だった)。
+    /// 公開 fileType は apply() 内で content と同時にのみ更新する(この2値のずれが表示不整合の原因になるため)。
     @ObservationIgnored private var pendingFileType: FileType = .mmd
 
     /// 開いたファイルが非対応と判定されているかどうか。
@@ -93,9 +93,6 @@ final class ViewerStore {
 
     /// 段階読み込み中の行チャンクセッション。ファイル再読込・close でリセットする。
     private var chunkSession: (any ChunkedTextReading)?
-
-    /// NormalizedTextCache。検索・同一内容スキップに使う。
-    @ObservationIgnored private var textCache: NormalizedTextCache?
 
     /// 前回適用したキャッシュの dataHash。同一内容スキップの比較に使う。
     @ObservationIgnored private var contentHash: Int?
@@ -325,8 +322,12 @@ final class ViewerStore {
             }
         } catch {
             if !fileReader.fileExists(at: resolved) { return .missing }
+            // 事前サイズチェックをすり抜けた場合(fileSize が nil を返した、または
+            // チェック後にファイルが肥大化した TOCTOU)、NormalizedTextCache.init が
+            // fileTooLarge を投げる。これを unsupportedFormat に丸めず理由を保持する。
+            let reason: RejectReason = error is NormalizedTextCacheError ? .fileTooLarge : .unsupportedFormat
             return .full(
-                ContentLoader.LoadedContent(rejectReason: .unsupportedFormat, content: ""),
+                ContentLoader.LoadedContent(rejectReason: reason, content: ""),
                 cache: nil
             )
         }
@@ -335,7 +336,7 @@ final class ViewerStore {
     /// 読み込み結果を表示状態(fileType / content / rejectReason / isTruncated / 行数カウンタ /
     /// chunkSession)へ一括適用する。表示状態のタプルを書き換えるのはここだけにする。
     /// fileType を content と同時にここで確定させることで、旧ファイルの content に
-    /// 新ファイルの fileType が組み合わさった中間状態が描画されないようにする(task-32)。
+    /// 新ファイルの fileType が組み合わさった中間状態が描画されないようにする。
     private func apply(_ outcome: LoadOutcome, fileType: FileType) {
         isLoading = false
         switch outcome {
@@ -343,11 +344,10 @@ final class ViewerStore {
             scheduleFileGone()
             return
         case let .chunked(session, cache, firstChunk, isAtEnd):
-            if cache.dataHash == contentHash, fileType == self.fileType {
+            if cache.dataHash == contentHash, fileType == self.fileType, !loadFailed {
                 return
             }
             self.fileType = fileType
-            textCache = cache
             contentHash = cache.dataHash
             chunkSession = session
             rejectReason = nil
@@ -358,11 +358,10 @@ final class ViewerStore {
             newlineCount = firstChunk.utf8.count(where: { $0 == 0x0A })
             updateDisplayedLineCount()
         case let .full(loaded, cache):
-            if let cache, cache.dataHash == contentHash, fileType == self.fileType {
+            if let cache, cache.dataHash == contentHash, fileType == self.fileType, !loadFailed {
                 return
             }
             self.fileType = fileType
-            textCache = cache
             contentHash = cache?.dataHash
             chunkSession = nil
             rejectReason = loaded.rejectReason

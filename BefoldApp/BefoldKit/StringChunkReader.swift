@@ -7,6 +7,9 @@ public protocol ChunkedTextReading: AnyObject, Sendable {
     func readNextChunk() async throws -> (text: String, isAtEnd: Bool)
 }
 
+/// NormalizedTextCache から行単位のチャンクを逐次読み出す ChunkedTextReading の標準実装。
+/// CSV クォート内の改行をチャンク境界にしない任意対応と、巨大行でもチャンクが際限なく
+/// 肥大化しないためのバイト単位の強制分割を備える。
 public actor StringChunkReader: ChunkedTextReading {
     public static let linesPerChunk = 1000
     /// 不平衡クォートや改行なし巨大行でも 1 チャンクが際限なく肥大化しないための強制分割の上限。
@@ -20,6 +23,8 @@ public actor StringChunkReader: ChunkedTextReading {
     private var resumeIndex: String.Index?
     private var inQuotes: Bool = false
 
+    /// respectsCSVQuotes が true の場合、CSV のクォート内改行をチャンク境界にしない
+    /// (advanceRespectingQuotes を使う)。false の場合は行境界のみで判定する軽量パスを使う。
     public init(cache: NormalizedTextCache, respectsCSVQuotes: Bool = false) {
         self.cache = cache
         self.respectsCSVQuotes = respectsCSVQuotes
@@ -39,9 +44,6 @@ public actor StringChunkReader: ChunkedTextReading {
         currentLine = endLine
         if forcedSplit {
             resumeIndex = endIndex
-            // 強制分割時点でのクォート状態は行途中の恣意的な切断点でのものでしかなく、
-            // 以降ずっと inQuotes=true のまま全チャンクが強制分割に陥る連鎖を防ぐためリセットする。
-            inQuotes = false
         } else {
             resumeIndex = nil
         }
@@ -54,10 +56,72 @@ public actor StringChunkReader: ChunkedTextReading {
     /// どちらか早い方でチャンク終端を決める。バイト上限による終端(forcedSplit)は
     /// 行境界を跨がず途中で切れるため、呼び出し側は次回 resumeIndex から再開する。
     private func advance(from startIndex: String.Index) -> (endIndex: String.Index, endLine: Int, forcedSplit: Bool) {
+        respectsCSVQuotes
+            ? advanceRespectingQuotes(from: startIndex)
+            : advanceByLines(from: startIndex)
+    }
+
+    /// CSV クォートを判定しないパス。クォートの対応関係を追う必要がないため、
+    /// 行境界は lineStartIndices から O(1) で参照でき、バイト単位の走査は
+    /// maxChunkBytes 境界を跨ぐ行の強制分割時のみ行う。
+    private func advanceByLines(from startIndex: String
+        .Index) -> (endIndex: String.Index, endLine: Int, forcedSplit: Bool)
+    {
         var scanLine = currentLine
         var lineStart = startIndex
         var linesConsumed = 0
         var bytesScanned = 0
+        let utf8View = cache.text.utf8
+
+        while scanLine < cache.lineCount {
+            let lineEnd = scanLine + 1 < cache.lineCount
+                ? cache.lineStartIndices[scanLine + 1]
+                : cache.text.endIndex
+
+            let lineBytes = utf8View.distance(from: lineStart, to: lineEnd)
+            if bytesScanned + lineBytes >= Self.maxChunkBytes {
+                let rawEnd = utf8View.index(lineStart, offsetBy: Self.maxChunkBytes - bytesScanned)
+                let forcedEnd = Self.snappedToCharacterBoundary(rawEnd, lowerBound: lineStart, in: utf8View)
+                return (forcedEnd, scanLine, true)
+            }
+            bytesScanned += lineBytes
+
+            scanLine += 1
+            lineStart = lineEnd
+            linesConsumed += 1
+            if linesConsumed >= Self.linesPerChunk {
+                return (lineEnd, scanLine, false)
+            }
+        }
+
+        return (lineStart, scanLine, false)
+    }
+
+    /// UTF-8 継続バイト(0x80–0xBF)の途中を指している場合、そのマルチバイト文字の
+    /// 先頭バイトまで後退させる。バイト数上限による強制分割はバイト単位の位置計算を
+    /// 経由するため、文字境界を保証するにはこのスナップが必須。
+    private static func snappedToCharacterBoundary(
+        _ index: String.Index,
+        lowerBound: String.Index,
+        in utf8View: String.UTF8View
+    ) -> String.Index {
+        var index = index
+        while index > lowerBound, (0x80 ... 0xBF).contains(utf8View[index]) {
+            index = utf8View.index(before: index)
+        }
+        return index
+    }
+
+    /// CSV クォート内の改行をチャンク境界にしないための、UTF-8 バイト単位の走査パス。
+    /// クォートの対応を追う都合上、行の中身をバイト単位で読む必要がある。
+    private func advanceRespectingQuotes(from startIndex: String
+        .Index) -> (endIndex: String.Index, endLine: Int, forcedSplit: Bool)
+    {
+        var scanLine = currentLine
+        var lineStart = startIndex
+        var linesConsumed = 0
+        var bytesScanned = 0
+        let utf8View = cache.text.utf8
 
         while scanLine < cache.lineCount {
             let lineEnd = scanLine + 1 < cache.lineCount
@@ -68,18 +132,18 @@ public actor StringChunkReader: ChunkedTextReading {
             // 境界計算を伴う Character 単位ではなく UTF-8 バイト単位で走査する。`"` (U+0022) は
             // ASCII のためマルチバイト文字の継続バイト(0x80 以上)と衝突せず、バイト走査でも
             // Character 走査と同じ判定結果になる。
-            let utf8View = cache.text.utf8
             var cursor = lineStart
             while cursor < lineEnd {
                 let byte = utf8View[cursor]
-                if respectsCSVQuotes, byte == 0x22 {
+                if byte == 0x22 {
                     inQuotes.toggle()
                 }
                 bytesScanned += 1
                 cursor = utf8View.index(after: cursor)
 
                 if bytesScanned >= Self.maxChunkBytes {
-                    return (cursor, scanLine, true)
+                    let forcedEnd = Self.snappedToCharacterBoundary(cursor, lowerBound: lineStart, in: utf8View)
+                    return (forcedEnd, scanLine, true)
                 }
             }
 
