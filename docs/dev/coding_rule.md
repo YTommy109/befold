@@ -58,7 +58,7 @@ BefoldApp/
 │   ├── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
 │   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js
 │       └── __tests__/       # viewer.js の Jest テスト
-├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TextEncoding, LineChunkReader, ContentLoader）
+├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TextEncoding, StringChunkReader, ContentLoader）
 └── befoldTests/            # Swift Testing テスト（TestSupport.swift = 共有ヘルパー）
 ```
 
@@ -229,8 +229,8 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 | ズーム上下限・ステップ | `ZoomStore.minZoom` / `maxZoom` / `zoomStep` |
 | 不可視ファイル表示の共有状態 | `HiddenFilesPreference` インスタンス（AppDelegate が生成した 1 個を全ウィンドウで共有） |
 | 拡張子→FileType のマッピング | `FileType.typeByExtension`（`init(url:)` と `allExtensions` の双方がここから導出。拡張子追加は辞書への 1 行追加で完結する） |
-| BOM 検出（バイトパターン→エンコーディング） | `TextEncoding.detectBOM(_:)`（`decodeText` と `isChunkableEncoding` の双方がここに委譲） |
-| テキスト復号（BOM / UTF-16 / UTF-8 / レガシーエンコーディング） | `TextEncoding.decodeText(_:)`（`DefaultFileReader.readString` がここに委譲。`LineChunkReader` は `detectBOM` / `detectEncoding` / `trimIncompleteUTF8Tail` に委譲し、`decodeText` は使わない） |
+| BOM 検出（バイトパターン→エンコーディング） | `TextEncoding.detectBOM(_:)`（`decodeText` / `detectEncoding`（内部の `detectEncodingAndDecode` 経由）と `DefaultFileReader.isBinary` の双方がここに委譲） |
+| テキスト復号（BOM / UTF-16 / UTF-8 / レガシーエンコーディング） | `TextEncoding.decodeText(_:)` / `detectAndDecodeText(_:)`（`DefaultFileReader.readString` と `NormalizedTextCache.init(data:)` の双方がここに委譲。行チャンク読み込みを担う `StringChunkReader` は `NormalizedTextCache` が復号済みの文字列を読むだけで、自前のエンコーディング判定は行わない） |
 | ディレクトリ列挙（ソート・フィルタ込み） | `DirectoryLister.sortedContents(in:showHiddenFiles:)`（`listFiles` / `listEntries` / `firstSupportedFile` が委譲） |
 | Sparkle フィード URL | `UpdateChannel.feedURLString`（`SPUUpdaterDelegate.feedURLString(for:)` 経由で Sparkle に提供。Info.plist の `SUFeedURL` は使用しない） |
 
@@ -318,7 +318,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
     スクリプト定数の追加とテスト行の追加をワンセットにする（新スクリプトが参照する
     `_mmdScrollTarget` の存在チェックがテストから漏れていた実例）
 - JS に渡す文字列は `JSONEncoder` でエスケープする（XSS 防止）
-- コンテンツ差分チェック（`lastRenderedContent`）で不要な再描画を防ぐ
+- コンテンツ差分チェック（`lastRenderedContentRevision`）で不要な再描画を防ぐ
 - 複数のフラグを必ずセットで倒す状態遷移（例: 直接 HTML モード解除）は専用メソッドに
   集約し、不変条件を `///` に明記する（呼び出し側での部分リセットを禁じる）
 
