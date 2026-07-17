@@ -113,4 +113,45 @@ struct StringChunkReaderTests {
         #expect(chunks.count == 2)
         #expect(chunks.joined() == text)
     }
+
+    @Test("不平衡クォートを含む巨大CSVでもチャンクサイズが上限内に収まる")
+    func unbalancedQuoteLargeCSVIsChunked() async throws {
+        let hugeAfterUnbalancedQuote = String(repeating: "a,b,c\n", count: 300_000)
+        let text = "\"unbalanced\n" + hugeAfterUnbalancedQuote
+        let cache = try makeCache(text)
+        let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true)
+        let chunks = await readAll(reader)
+        #expect(chunks.count > 1)
+        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
+        #expect(chunks.joined() == text)
+    }
+
+    @Test("改行なしの巨大1行ファイルでもチャンクサイズが上限内に収まる")
+    func noNewlineHugeSingleLineIsChunked() async throws {
+        let text = String(repeating: "A", count: StringChunkReader.maxChunkBytes + 500_000)
+        let cache = try makeCache(text)
+        let reader = StringChunkReader(cache: cache)
+        let chunks = await readAll(reader)
+        #expect(chunks.count >= 2)
+        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
+        #expect(chunks.joined() == text)
+    }
+
+    @Test("強制分割後にクォート状態がリセットされ通常の行ベース分割に復帰する")
+    func forcedSplitRecoversLineBasedChunking() async throws {
+        // 先頭の対のない `"` により、リセットしなければ inQuotes が全編 true のままになり、
+        // 毎チャンクが maxChunkBytes 上限だけで区切られ続ける(粗い巨大チャンクへ退化する)。
+        // 強制分割のたびに inQuotes をリセットすれば、以降クォートのない平文行は
+        // すぐに通常の 1000 行ベースの細かいチャンクへ復帰するはずである。
+        let plainRows = String(repeating: "a,b,c\n", count: 1_000_000)
+        let text = "\"" + plainRows
+        let cache = try makeCache(text)
+        let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true)
+        let chunks = await readAll(reader)
+        #expect(chunks.joined() == text)
+        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
+        // リセットされずバイト上限だけで区切られ続けるなら 10 個未満で済むはずだが、
+        // 通常の行ベース分割に復帰していれば桁違いに多いチャンク数になる。
+        #expect(chunks.count > 100)
+    }
 }
