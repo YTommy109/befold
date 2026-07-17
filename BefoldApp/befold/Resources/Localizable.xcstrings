@@ -1,6 +1,13 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "banner.loadError" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to load the rest of the file" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "続きを読み込めませんでした" } }
+      }
+    },
     "banner.loadMore" : {
       "extractionState" : "manual",
       "localizations" : {

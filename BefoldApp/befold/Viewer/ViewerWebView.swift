@@ -438,7 +438,9 @@ extension ViewerWebView.Coordinator {
         Task { @MainActor [self] in
             defer { isLoadingMoreLines = false }
             guard let webView, let result = await onLoadMoreLines?() else { return }
-            lastTruncation = TruncationState(isTruncated: result.isTruncated, lineCount: result.lineCount)
+            lastTruncation = TruncationState(
+                isTruncated: result.isTruncated, lineCount: result.lineCount, failed: result.loadFailed
+            )
 
             // JS 呼び出し(await)より前に同期でキャッシュを更新することで、追記後の
             // SwiftUI 再描画による全文 render の誤爆と、チャンク二重表示レースの
@@ -449,26 +451,31 @@ extension ViewerWebView.Coordinator {
                 fileType: fileType, filePath: lastRenderedFilePath
             )
 
-            if let script = ViewerBridge.appendChunkScript(
+            // result.chunk が空(チャンク読込エラーのセンチネル)の場合は追記する
+            // 内容がないため appendChunk 自体を呼ばない(幻の空行を防ぐ、TASK-25)。
+            if !result.chunk.isEmpty, let script = ViewerBridge.appendChunkScript(
                 chunk: result.chunk,
                 fileType: fileType
             ) {
                 _ = try? await webView.evaluateJavaScript(script)
             }
             _ = try? await webView.evaluateJavaScript(
-                ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount)
+                ViewerBridge.truncatedScript(result.isTruncated, lineCount: result.lineCount, failed: result.loadFailed)
             )
         }
     }
 
     /// _mmdSetTruncated へ送る切り詰め状態と表示行数のペア。非切り詰め時の
-    /// 行数は 0 に正規化する(切り詰め有無だけが意味を持つ)。
+    /// 行数は 0 に正規化する(切り詰め有無だけが意味を持つ)。failed はチャンク
+    /// 読込エラーによる打ち切りを示す(通常の再描画経路からは常に false)。
     struct TruncationState: Equatable {
         let isTruncated: Bool
         let lineCount: Int
-        init(isTruncated: Bool, lineCount: Int) {
+        let failed: Bool
+        init(isTruncated: Bool, lineCount: Int, failed: Bool = false) {
             self.isTruncated = isTruncated
             self.lineCount = isTruncated ? lineCount : 0
+            self.failed = failed
         }
     }
 
@@ -493,7 +500,7 @@ extension ViewerWebView.Coordinator {
         }
         if truncationStateChanged(isTruncated: truncation.isTruncated, lineCount: truncation.lineCount) {
             webView.evaluateJavaScript(
-                ViewerBridge.truncatedScript(truncation.isTruncated, lineCount: truncation.lineCount)
+                ViewerBridge.truncatedScript(truncation.isTruncated, lineCount: truncation.lineCount, failed: false)
             )
             lastTruncation = TruncationState(isTruncated: truncation.isTruncated, lineCount: truncation.lineCount)
         }

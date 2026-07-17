@@ -668,7 +668,7 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
-    @Test("チャンク読み込みエラー時は空チャンクと isTruncated=false を返し、表示済みコンテンツを保持してセッションを終了する")
+    @Test("チャンク読み込みエラー時は空チャンクと loadFailed=true(isTruncated=true 維持)を返し、表示済みコンテンツを保持してセッションを終了する")
     func loadMoreLinesErrorKeepsContentAndStops() async {
         let file = URL(fileURLWithPath: "/files/data.csv")
         let reader = InMemoryFileReader()
@@ -685,13 +685,16 @@ struct ViewerStoreChunkTests {
 
         // 2 回目の読み込みが TextEncodingError で失敗 → 表示済みコンテンツを保持し
         // セッション終了。10MB 超ファイルで fileTooLarge に置き換わることを防ぐ。
-        // 空チャンクを返すことで Coordinator が JS 側の truncation バナーを消せる。
+        // isTruncated は true のまま維持し loadFailed で区別する(バナーは消さず
+        // 「続きを読み込めませんでした」に切り替える。正常な EOF との区別が
+        // TASK-25 の狙い)。
         let result = await store.loadMoreLines()
         #expect(result != nil)
         #expect(result?.chunk == "")
-        #expect(result?.isTruncated == false)
+        #expect(result?.isTruncated == true)
+        #expect(result?.loadFailed == true)
         #expect(store.content == "old\n")
-        #expect(store.isTruncated == false)
+        #expect(store.isTruncated == true)
 
         store.close()
     }

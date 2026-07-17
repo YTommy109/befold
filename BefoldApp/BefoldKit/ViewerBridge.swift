@@ -90,9 +90,11 @@ public enum ViewerBridge {
         "setLineNumbers(\(show))"
     }
 
-    /// _mmdSetTruncated(isTruncated, lineCount) 呼び出しを組み立てる。
-    public static func truncatedScript(_ isTruncated: Bool, lineCount: Int) -> String {
-        "_mmdSetTruncated(\(isTruncated), \(lineCount))"
+    /// _mmdSetTruncated(isTruncated, lineCount, failed) 呼び出しを組み立てる。
+    /// failed はチャンク読込エラーで打ち切られたことを示す。true のとき、viewer.html は
+    /// バナーを「続きを読み込む」ではなく「読込エラー」表示に切り替える。
+    public static func truncatedScript(_ isTruncated: Bool, lineCount: Int, failed: Bool) -> String {
+        "_mmdSetTruncated(\(isTruncated), \(lineCount), \(failed))"
     }
 
     /// JS 側「続きを読み込む」ボタン押下時に postMessage されるメッセージハンドラ名。
@@ -111,6 +113,7 @@ public enum ViewerBridge {
         let strings: [String: String] = [
             "showing": String(localized: "banner.showing", bundle: bundle),
             "loadMore": String(localized: "banner.loadMore", bundle: bundle),
+            "loadError": String(localized: "banner.loadError", bundle: bundle),
         ]
         guard let jsonData = try? JSONEncoder().encode(strings),
               let jsonString = String(data: jsonData, encoding: .utf8)

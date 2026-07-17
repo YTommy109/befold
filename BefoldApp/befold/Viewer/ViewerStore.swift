@@ -8,6 +8,10 @@ struct LoadMoreLinesResult: Equatable {
     let isTruncated: Bool
     let lineCount: Int
     let contentRevision: Int
+    /// セッション途中のチャンク読込がエラーで打ち切られた場合 true。
+    /// isTruncated は true のまま維持され(表示済みが全体ではないことを示すため)、
+    /// このフラグでバナーを「正常な段階読込」ではなく「読込エラー」として区別する。
+    let loadFailed: Bool
 }
 
 /// ビューアの表示状態を管理する。
@@ -183,18 +187,22 @@ final class ViewerStore {
             updateDisplayedLineCount()
             return LoadMoreLinesResult(
                 chunk: result.text, isTruncated: isTruncated,
-                lineCount: displayedLineCount, contentRevision: contentRevision
+                lineCount: displayedLineCount, contentRevision: contentRevision,
+                loadFailed: false
             )
         } catch {
             guard chunkSession === session else { return nil }
             // セッション途中のエラーではチャンクセッションを終了し、
             // 表示済みの内容を保持する。loadContent で全体を再読込すると、
             // 10MB 超のファイルで表示済みコンテンツが fileTooLarge に置き換わるため。
+            // isTruncated は true のまま維持する: 正常な EOF(バナーを消す)と
+            // エラー打ち切り(バナーをエラー表示に切り替える)を区別するため、
+            // loadFailed だけで判別させる。
             chunkSession = nil
-            isTruncated = false
             return LoadMoreLinesResult(
-                chunk: "", isTruncated: false,
-                lineCount: displayedLineCount, contentRevision: contentRevision
+                chunk: "", isTruncated: isTruncated,
+                lineCount: displayedLineCount, contentRevision: contentRevision,
+                loadFailed: true
             )
         }
     }
