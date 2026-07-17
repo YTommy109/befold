@@ -11,7 +11,7 @@ references:
   - //github.com/YTommy109/befold/issues/214
 parent_task_id: TASK-1
 priority: low
-ordinal: 8600
+ordinal: 6600
 ---
 
 ## Description

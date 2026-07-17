@@ -11,7 +11,7 @@ references:
   - docs/superpowers/specs/2026-07-16-bookmark-feature-design.md
 parent_task_id: TASK-28
 priority: low
-ordinal: 9410
+ordinal: 7100
 ---
 
 ## Description
