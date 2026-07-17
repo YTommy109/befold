@@ -39,9 +39,6 @@ public actor StringChunkReader: ChunkedTextReading {
         currentLine = endLine
         if forcedSplit {
             resumeIndex = endIndex
-            // 強制分割時点でのクォート状態は行途中の恣意的な切断点でのものでしかなく、
-            // 以降ずっと inQuotes=true のまま全チャンクが強制分割に陥る連鎖を防ぐためリセットする。
-            inQuotes = false
         } else {
             resumeIndex = nil
         }
@@ -78,7 +75,8 @@ public actor StringChunkReader: ChunkedTextReading {
 
             let lineBytes = utf8View.distance(from: lineStart, to: lineEnd)
             if bytesScanned + lineBytes >= Self.maxChunkBytes {
-                let forcedEnd = utf8View.index(lineStart, offsetBy: Self.maxChunkBytes - bytesScanned)
+                let rawEnd = utf8View.index(lineStart, offsetBy: Self.maxChunkBytes - bytesScanned)
+                let forcedEnd = Self.snappedToCharacterBoundary(rawEnd, lowerBound: lineStart, in: utf8View)
                 return (forcedEnd, scanLine, true)
             }
             bytesScanned += lineBytes
@@ -92,6 +90,21 @@ public actor StringChunkReader: ChunkedTextReading {
         }
 
         return (lineStart, scanLine, false)
+    }
+
+    /// UTF-8 継続バイト(0x80–0xBF)の途中を指している場合、そのマルチバイト文字の
+    /// 先頭バイトまで後退させる。バイト数上限による強制分割はバイト単位の位置計算を
+    /// 経由するため、文字境界を保証するにはこのスナップが必須。
+    private static func snappedToCharacterBoundary(
+        _ index: String.Index,
+        lowerBound: String.Index,
+        in utf8View: String.UTF8View
+    ) -> String.Index {
+        var index = index
+        while index > lowerBound, (0x80 ... 0xBF).contains(utf8View[index]) {
+            index = utf8View.index(before: index)
+        }
+        return index
     }
 
     /// CSV クォート内の改行をチャンク境界にしないための、UTF-8 バイト単位の走査パス。
@@ -124,7 +137,8 @@ public actor StringChunkReader: ChunkedTextReading {
                 cursor = utf8View.index(after: cursor)
 
                 if bytesScanned >= Self.maxChunkBytes {
-                    return (cursor, scanLine, true)
+                    let forcedEnd = Self.snappedToCharacterBoundary(cursor, lowerBound: lineStart, in: utf8View)
+                    return (forcedEnd, scanLine, true)
                 }
             }
 
