@@ -343,7 +343,7 @@ final class ViewerStore {
             scheduleFileGone()
             return
         case let .chunked(session, cache, firstChunk, isAtEnd):
-            if cache.dataHash == contentHash, fileType == self.fileType {
+            if cache.dataHash == contentHash, fileType == self.fileType, !loadFailed {
                 return
             }
             self.fileType = fileType
@@ -358,7 +358,7 @@ final class ViewerStore {
             newlineCount = firstChunk.utf8.count(where: { $0 == 0x0A })
             updateDisplayedLineCount()
         case let .full(loaded, cache):
-            if let cache, cache.dataHash == contentHash, fileType == self.fileType {
+            if let cache, cache.dataHash == contentHash, fileType == self.fileType, !loadFailed {
                 return
             }
             self.fileType = fileType

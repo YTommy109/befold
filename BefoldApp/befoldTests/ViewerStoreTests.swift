@@ -769,6 +769,42 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
+    @Test("チャンク読み込みエラー後に同一内容で再読込されても loadFailed がリセットされる(TASK-45)")
+    func loadFailedResetsOnReloadWithIdenticalContent() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("old\nrest", at: file)
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let callCount = LockedBox(0)
+        let store = makeStore(
+            reader: reader,
+            onChangeBox: onChangeBox,
+            chunkedReaderFactory: { _, _ in
+                callCount.update { $0 += 1 }
+                return callCount.get() == 1
+                    ? FailingSecondChunkReader(firstChunk: "old\n")
+                    : MockChunkedReader(chunks: ["old\n", "rest"])
+            }
+        )
+        await openAndLoad(store, file)
+        _ = await store.loadMoreLines()
+        #expect(store.loadFailed == true)
+
+        // ハッシュと fileType が変わらない「同一内容」の再保存であっても、
+        // 直前のチャンク読込が失敗している場合は early-return せずに
+        // chunkSession を張り直し loadFailed をリセットする(apply() の早期リターンが
+        // loadFailed を無視すると、エラーバナーが再読込しても消えなくなる)。
+        onChangeBox.get()?()
+        await awaitLoad(store)
+        #expect(store.loadFailed == false)
+
+        let result = await store.loadMoreLines()
+        #expect(result?.loadFailed == false)
+        #expect(result?.chunk == "rest")
+
+        store.close()
+    }
+
     @Test("chunkedReaderFactory はファイル種別を受け取る(CSV 判定に使う)")
     func chunkedReaderFactoryReceivesFileType() async {
         let file = URL(fileURLWithPath: "/files/data.csv")
