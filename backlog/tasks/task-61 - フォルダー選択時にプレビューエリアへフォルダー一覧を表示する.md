@@ -11,7 +11,7 @@ documentation:
   - docs/superpowers/specs/2026-07-18-folder-preview-listing-design.md
   - docs/superpowers/plans/2026-07-18-folder-preview-listing.md
 priority: medium
-ordinal: 28500
+ordinal: 3000
 ---
 
 ## Description

@@ -11,7 +11,7 @@ dependencies:
 parent_task_id: TASK-1
 priority: medium
 type: enhancement
-ordinal: 6150
+ordinal: 1150
 ---
 
 ## Description

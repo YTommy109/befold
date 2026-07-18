@@ -12,7 +12,7 @@ references:
   - docs/superpowers/specs/2026-07-16-bookmark-feature-design.md
 parent_task_id: TASK-28
 priority: medium
-ordinal: 5300
+ordinal: 2300
 ---
 
 ## Description
