@@ -1,10 +1,10 @@
 ---
 id: TASK-51
 title: 'CI: ViewerWindowControllerToolbarTests の行番号アイテムテストが再び不安定に失敗する'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-17 09:12'
-updated_date: '2026-07-18 07:27'
+updated_date: '2026-07-18 07:38'
 labels:
   - ci
   - bug
@@ -25,7 +25,7 @@ PR #239 の CI run https://github.com/YTommy109/befold/actions/runs/29568618799 
 <!-- AC:BEGIN -->
 - [x] #1 GHA run 29568618799 の失敗ログと task-34 の修正差分を照合し、再発原因を特定する
 - [x] #2 task-34 の修正で解消しきれていない競合要因を特定する
-- [ ] #3 原因に応じて実装またはテストを修正し、CI で複数回にわたり安定して通ることを確認する
+- [x] #3 原因に応じて実装またはテストを修正し、CI で複数回にわたり安定して通ることを確認する
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -54,4 +54,16 @@ task-34の修正(ポーリングで取得したボタンをそのまま使い回
 単純化検討: 新たなリトライ機構・ポーリング設計変更・タイムアウト個別延長は追加せず、既存の仕組み(BEFOLD_TEST_TIMEOUT_SECONDS)がbuild-and-testジョブ全体に及んでいることを確認するだけで十分と判断し、コード変更は行わなかった。
 
 検証: swift test(366テスト)全件成功。ViewerWindowControllerToolbarTestsを通常設定で複数回連続実行し全て成功(0.5秒台で安定)。
+
+CI確認(AC#3): PR #242(chasm-mirage)を push し、build-and-test を3回連続実行して全て成功を確認した。
+- run 29635808259 (1回目): 行番号アイテムはコード表示中のみ有効 が 18.665秒で成功
+- 同run 再実行(2回目): 18.530秒で成功
+- 同run 再実行(3回目): 8.887秒で成功
+いずれも旧デフォルト10秒は超過する所要時間だが、現行の BEFOLD_TEST_TIMEOUT_SECONDS: 30(task-50対応, 64eb757)により安定して成功しており、真因がタイムアウト予算不足だったという判断を裏付ける。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+task-51が参照するCI run 29568618799のViewerWindowControllerToolbarTests再発を調査した結果、同一runで失敗していたtask-50(detectsFileDeletion)と同じ根本原因(CIランナーの一時的な低速化によるwaitUntilOnMainActorのデフォルト10秒ポーリング予算超過)であると判明した。ローカルでBEFOLD_TEST_TIMEOUT_SECONDS=0.001を設定して意図的にタイムアウトさせ、CIと同一のエラーメッセージ(codeButton.isEnabled → false)が再現することで裏付けた。task-34の『二段階非同期フェッチの競合』という原因特定は誤りで、実際は当時からタイムアウト超過が真因だった(task-34調査時の失敗も13.989秒でデフォルト10秒を超過)。task-50対応(64eb757、build-and-testジョブへのBEFOLD_TEST_TIMEOUT_SECONDS:30追加)がこのブランチに既に取り込まれておりこのテストにも適用されるため、単純化方針に沿って追加のコード変更は行わなかった。PR #242を push し、build-and-testを3回連続実行して全て成功(18.665秒/18.530秒/8.887秒)を確認し、AC#3を満たした。
+<!-- SECTION:FINAL_SUMMARY:END -->
