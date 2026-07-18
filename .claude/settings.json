@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *Package.resolved|*.swiftlint.yml|*.swiftformat) echo 'BLOCK: このファイルはユーザーの明示的な指示なしに編集しないでください' >&2; exit 2;; *mermaid.min.js|*markdown-it.min.js|*highlight.min.js|*github-markdown.css) echo 'BLOCK: ベンダリング済みファイルは直接編集しないでください。更新は /check-vendored-deps を使用' >&2; exit 2;; *.pbxproj) echo 'BLOCK: .pbxproj は XcodeGen の生成物です。project.yml を編集して xcodegen generate を実行してください' >&2; exit 2;; *Localizable.xcstrings) echo '注意: Localizable.xcstrings の直接編集はキー追加漏れ・JSON 構造破壊のリスクがあります。編集後は /l10n-check で en/ja の翻訳漏れ・整合性を確認してください' >&2;; esac"
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *Package.resolved|*.swiftlint.yml|*.swiftformat) echo 'BLOCK: このファイルはユーザーの明示的な指示なしに編集しないでください' >&2; exit 2;; *mermaid.min.js|*markdown-it.min.js|*highlight.min.js|*github-markdown.css) echo 'BLOCK: ベンダリング済みファイルは直接編集しないでください。更新は /check-vendored-deps を使用' >&2; exit 2;; *.pbxproj) echo 'BLOCK: .pbxproj は XcodeGen の生成物です。project.yml を編集して xcodegen generate を実行してください' >&2; exit 2;; *Localizable.xcstrings) echo '注意: Localizable.xcstrings の直接編集はキー追加漏れ・JSON 構造破壊のリスクがあります。編集後は /l10n-check で en/ja の翻訳漏れ・整合性を確認してください' >&2;; *backlog/*.md) echo 'BLOCK: Backlog タスク/ドラフト/ドキュメント/決定事項/マイルストーンは backlog CLI 経由で編集してください（直接編集不可）。backlog instructions を参照' >&2; exit 2;; esac"
           }
         ]
       }
