@@ -42,24 +42,10 @@ public enum TextEncoding: Sendable {
         detectWithFallback(data).map { (encoding: $0.encoding, bomLength: $0.bomLength) }
     }
 
-    /// 先頭 sniffLength バイトでの判定を試み、失敗した場合のみ全データを判定窓として再試行する。
-    private static func detectWithFallback(
+    /// BOM チェック・NUL スキャン・UTF-8 全文デコードの結果。判定窓(sniffWindow)によらず
+    /// data 全体から一意に決まるため、フォールバック再試行の対象にならない。
+    private static func detectFixedEncoding(
         _ data: Data
-    ) -> (encoding: String.Encoding, bomLength: Int, decodedText: String?)? {
-        detectEncodingAndDecode(data, sniffWindow: data.prefix(sniffLength))
-            ?? detectEncodingAndDecode(data, sniffWindow: data)
-    }
-
-    /// エンコーディング判定と同時に、判定過程で得られた復号結果があれば併せて返す。
-    /// BOM なし UTF-8 の判定は検証のため一度全文デコードするため、その結果を
-    /// decodedText として持ち帰り、呼び出し元での再デコードを避ける。
-    /// レガシーエンコーディング判定(NSString.stringEncoding)は sniffWindow に対して行う
-    /// (既定は先頭 sniffLength バイト、フォールバック時は全データ)。
-    /// NUL 判定のみは sniffWindow の広さによらず常に先頭 sniffLength バイトに限定する
-    /// (全データを NUL 判定に使うと、8KB 以降にのみ NUL を含むレガシーエンコーディングの
-    /// ファイルが UTF-16 と誤判定されるため)。
-    private static func detectEncodingAndDecode(
-        _ data: Data, sniffWindow: Data
     ) -> (encoding: String.Encoding, bomLength: Int, decodedText: String?)? {
         if let bom = detectBOM(data) {
             return (bom.encoding, bom.bomLength, nil)
@@ -73,6 +59,24 @@ public enum TextEncoding: Sendable {
         if let utf8String = String(data: data, encoding: .utf8) {
             return (.utf8, 0, utf8String)
         }
+        return nil
+    }
+
+    /// detectFixedEncoding で判定できない場合、NSString.stringEncoding によるレガシー
+    /// エンコーディング判定を先頭 sniffLength バイトで試み、失敗した場合のみ全データを
+    /// 判定窓として再試行する。
+    private static func detectWithFallback(
+        _ data: Data
+    ) -> (encoding: String.Encoding, bomLength: Int, decodedText: String?)? {
+        detectFixedEncoding(data)
+            ?? detectLegacyEncoding(sniffWindow: data.prefix(sniffLength))
+            ?? detectLegacyEncoding(sniffWindow: data)
+    }
+
+    /// NSString.stringEncoding によるレガシーエンコーディング判定を sniffWindow に対して行う。
+    private static func detectLegacyEncoding(
+        sniffWindow: Data
+    ) -> (encoding: String.Encoding, bomLength: Int, decodedText: String?)? {
         var convertedString: NSString?
         var usedLossyConversion: ObjCBool = false
         let detected = NSString.stringEncoding(
@@ -88,31 +92,36 @@ public enum TextEncoding: Sendable {
 
     /// BOM 付き UTF-8 / UTF-16 / UTF-32、BOM なし UTF-16、UTF-8、
     /// および Shift_JIS / EUC-JP 等のレガシーエンコーディングを判定して復号する。
-    /// エンコーディング・BOM 長の判定は detectEncodingAndDecode に委譲する。
+    /// エンコーディング・BOM 長の判定は detectWithFallback に委譲する。
     /// いずれの復号にも失敗した場合は nil を返す。
     public static func decodeText(_ data: Data) -> String? {
         detectAndDecodeText(data)?.text
     }
 
-    /// エンコーディング判定と復号を1パスで行う。判定過程で全文デコード済みの場合は
-    /// その結果を再利用し、判定結果とともに返す。
-    /// 先頭 sniffLength バイトのみでの判定・復号が失敗した場合(判定に使ったプレフィックスが
-    /// 実データを代表していない、あるいはプレフィックス末尾でマルチバイト文字が
-    /// 途切れているケース)は、全データを判定窓として再試行する。
-    /// このフォールバックは失敗時にのみ全文走査するため、通常系の高速性は変わらない。
-    /// detectEncoding と同じ「先頭 sniffLength バイト→失敗時のみ全データ」という
-    /// 2段階フォールバック戦略を、復号の成否まで含めて適用する。
+    /// エンコーディング判定と復号を1パスで行う。detectFixedEncoding は判定窓によらず
+    /// 結果が変わらないため一度だけ行う。それで判定できない場合は、レガシーエンコーディング
+    /// 判定と復号の両方を先頭 sniffLength バイトで試み、判定または復号のいずれかが失敗した
+    /// 場合のみ全データを判定窓として再試行する
+    /// (sniffWindow がたまたま ASCII のみ等で判定には成功しても、実際のデータを
+    /// 正しく復号できないケースがあるため、判定成功だけでなく復号成功も再試行の条件とする)。
     static func detectAndDecodeText(_ data: Data) -> (encoding: String.Encoding, bomLength: Int, text: String)? {
-        if let result = decodeUsingDetection(data, sniffWindow: data.prefix(sniffLength)) {
-            return result
+        if let fixed = detectFixedEncoding(data) {
+            return decode(data, detected: fixed)
         }
-        return decodeUsingDetection(data, sniffWindow: data)
+        return decodeUsingLegacyDetection(data, sniffWindow: data.prefix(sniffLength))
+            ?? decodeUsingLegacyDetection(data, sniffWindow: data)
     }
 
-    private static func decodeUsingDetection(
+    private static func decodeUsingLegacyDetection(
         _ data: Data, sniffWindow: Data
     ) -> (encoding: String.Encoding, bomLength: Int, text: String)? {
-        guard let detected = detectEncodingAndDecode(data, sniffWindow: sniffWindow) else { return nil }
+        guard let detected = detectLegacyEncoding(sniffWindow: sniffWindow) else { return nil }
+        return decode(data, detected: detected)
+    }
+
+    private static func decode(
+        _ data: Data, detected: (encoding: String.Encoding, bomLength: Int, decodedText: String?)
+    ) -> (encoding: String.Encoding, bomLength: Int, text: String)? {
         let payload = data.dropFirst(detected.bomLength)
         guard let decoded = detected.decodedText ?? String(data: payload, encoding: detected.encoding) else {
             return nil

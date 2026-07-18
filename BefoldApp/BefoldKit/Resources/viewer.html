@@ -56,7 +56,19 @@
   <script src="dompurify.min.js"></script>
   <script>
   // Swift ブリッジメッセージ名（ViewerBridge.swift と同期）
+  const _MSG_ZOOM_CHANGED = 'zoomChanged';
   const _MSG_REFERENCE_ACTIVATED = 'referenceActivated';
+  const _MSG_FIND_OPTIONS_CHANGED = 'findOptionsChanged';
+  const _MSG_SCROLL_POSITION_CHANGED = 'scrollPositionChanged';
+  const _MSG_LOAD_MORE_LINES = 'loadMoreLines';
+
+  // postMessage を一箇所に集約するヘルパー。ハンドラ未登録の WebView
+  // （例: 機能限定ホスト)でも安全に呼べるよう存在チェックを内包する。
+  function _mmdPostMessage(name, payload) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers[name]) {
+      window.webkit.messageHandlers[name].postMessage(payload);
+    }
+  }
 
   // --- Zoom ---
   var _mmdZoom = ZOOM_DEFAULT;
@@ -95,9 +107,8 @@
     }
     // 枠高さの上限は全体ズームに依存する（レイアウト px への割り戻し）ため再計算する。
     _mmdUpdateAllDiagramScrollHeights();
-    if (_mmdZoom !== _mmdLastPostedZoom &&
-        window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.zoomChanged) {
-      window.webkit.messageHandlers.zoomChanged.postMessage(_mmdZoom);
+    if (_mmdZoom !== _mmdLastPostedZoom) {
+      _mmdPostMessage(_MSG_ZOOM_CHANGED, _mmdZoom);
       _mmdLastPostedZoom = _mmdZoom;
     }
   }
@@ -149,6 +160,7 @@
     }
     var action = resolveScrollKey(e.key, e.shiftKey);
     if (!action) { return; }
+    if (e.key === ' ' && !isHostFeatureEnabled(window._mmdHostFeatures, 'spaceScroll')) { return; }
     // 検索入力欄など編集可能要素にフォーカスがある間は、Space/矢印/vim jk を
     // 文字入力・カーソル移動としてそのまま素通りさせる(ビューアのスクロールに奪わない)。
     var active = document.activeElement;
@@ -204,7 +216,7 @@
     e.preventDefault();
 
     // <a> / .befold-path-ref とも同じ挙動: 無修飾=同一ウィンドウ, cmd=新規ウィンドウ
-    window.webkit.messageHandlers[_MSG_REFERENCE_ACTIVATED].postMessage({
+    _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, {
       href: href,
       newWindow: e.metaKey
     });
@@ -738,13 +750,11 @@
   function _mmdFindToggleOption(optionName, buttonId) {
     _mmdFindOptions[optionName] = !_mmdFindOptions[optionName];
     document.getElementById(buttonId).classList.toggle('active', _mmdFindOptions[optionName]);
-    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.findOptionsChanged) {
-      window.webkit.messageHandlers.findOptionsChanged.postMessage({
-        caseSensitive: _mmdFindOptions.caseSensitive,
-        wholeWord: _mmdFindOptions.wholeWord,
-        useRegex: _mmdFindOptions.useRegex
-      });
-    }
+    _mmdPostMessage(_MSG_FIND_OPTIONS_CHANGED, {
+      caseSensitive: _mmdFindOptions.caseSensitive,
+      wholeWord: _mmdFindOptions.wholeWord,
+      useRegex: _mmdFindOptions.useRegex
+    });
     _mmdFindRun();
   }
 
@@ -811,12 +821,10 @@
   function _mmdPostScrollPosition() {
     var el = _mmdScrollTarget();
     if (!el) return;
-    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.scrollPositionChanged) {
-      window.webkit.messageHandlers.scrollPositionChanged.postMessage({
-        position: el.scrollTop,
-        mode: _viewMode
-      });
-    }
+    _mmdPostMessage(_MSG_SCROLL_POSITION_CHANGED, {
+      position: el.scrollTop,
+      mode: _viewMode
+    });
   }
 
   // fallbackScrollTop は Swift 由来の pending 値が無いとき(カラースキーム変更時の
@@ -876,8 +884,12 @@
         btn.style.display = 'none';
     } else if (typeof lineCount === 'number') {
         textEl.textContent = (strings.showing || 'Showing {count} lines').replace('{count}', lineCount);
-        btn.textContent = strings.loadMore || 'Load More';
-        btn.style.display = 'inline-block';
+        if (isHostFeatureEnabled(window._mmdHostFeatures, 'loadMore')) {
+            btn.textContent = strings.loadMore || 'Load More';
+            btn.style.display = 'inline-block';
+        } else {
+            btn.style.display = 'none';
+        }
     } else {
         textEl.textContent = strings.showing
             ? strings.showing.replace('{count}', '?')
@@ -887,9 +899,7 @@
   }
 
   function _mmdLoadMore() {
-    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.loadMoreLines) {
-        window.webkit.messageHandlers.loadMoreLines.postMessage({});
-    }
+    _mmdPostMessage(_MSG_LOAD_MORE_LINES, {});
   }
 
   // CSP のため onclick ではなく addEventListener で配線する。

@@ -1,0 +1,197 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "banner.loadError": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load the rest of the file"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "続きを読み込めませんでした"
+          }
+        }
+      }
+    },
+    "banner.loadMore": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load More"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "続きを読み込む"
+          }
+        }
+      }
+    },
+    "banner.showing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing {count} lines"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{count} 行を表示中"
+          }
+        }
+      }
+    },
+    "viewer.find.close": {
+      "comment": "「Esc」は viewer.html の document keydown ハンドラ（e.key === 'Escape' && _mmdFindIsOpen()）と一致させること。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close (Esc)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閉じる (Esc)"
+          }
+        }
+      }
+    },
+    "viewer.find.matchCase": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Match Case"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大文字・小文字を区別"
+          }
+        }
+      }
+    },
+    "viewer.find.matchWholeWord": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Match Whole Word"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "単語単位で検索"
+          }
+        }
+      }
+    },
+    "viewer.find.next": {
+      "comment": "「Enter」は viewer.html の mmd-find-input keydown ハンドラ（e.key === 'Enter'）と一致させること。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next (Enter)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次へ (Enter)"
+          }
+        }
+      }
+    },
+    "viewer.find.placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索"
+          }
+        }
+      }
+    },
+    "viewer.find.previous": {
+      "comment": "「Shift+Enter」は viewer.html の mmd-find-input keydown ハンドラ（e.shiftKey && e.key === 'Enter'）と一致させること。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous (Shift+Enter)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前へ (Shift+Enter)"
+          }
+        }
+      }
+    },
+    "viewer.find.useRegularExpression": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Regular Expression"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正規表現"
+          }
+        }
+      }
+    },
+    "viewer.find.withinDisplayedRange": {
+      "comment": "段階読み込み中のファイルで検索した際、表示済み範囲のみが検索対象であることを示すため検索カウント欄に付与するラベル。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Displayed range"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表示範囲内"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

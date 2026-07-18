@@ -28,7 +28,7 @@ final class ViewerStore {
 
     /// チャンクリーダーの生成(ファイルを開いて先頭をプローブする)はバックグラウンドの
     /// 読み込みタスクから呼ばれるため、メインアクター隔離にしない。
-    typealias ChunkedReaderFactory = @Sendable (NormalizedTextCache, FileType) throws -> any ChunkedTextReading
+    typealias ChunkedReaderFactory = ViewerLoadPipeline.ChunkedReaderFactory
 
     private(set) var content: String = ""
     /// content が更新されるたびに増分する世代番号。ViewerWebView.Coordinator が
@@ -242,7 +242,7 @@ final class ViewerStore {
     private func performLoad(
         resolved: URL, fileType: FileType, generation: Int
     ) async {
-        let outcome = await Self.computeLoad(
+        let outcome = await ViewerLoadPipeline.load(
             resolved: resolved,
             fileType: fileType,
             fileReader: fileReader,
@@ -254,90 +254,11 @@ final class ViewerStore {
         apply(outcome, fileType: fileType)
     }
 
-    /// バックグラウンド読み込みの結果。メインアクターへ持ち帰って一括適用する。
-    private enum LoadOutcome: Sendable {
-        /// ファイルが存在しない(削除グレース期間を開始する)。
-        case missing
-        /// 行指向ファイルのチャンクセッションを開始し、先頭チャンクを読み込んだ。
-        case chunked(session: any ChunkedTextReading, cache: NormalizedTextCache, firstChunk: String, isAtEnd: Bool)
-        /// 全量読み込みの結果(rejectReason を含みうる)。
-        case full(ContentLoader.LoadedContent, cache: NormalizedTextCache?)
-    }
-
-    /// ファイルの存在確認・NormalizedTextCache 生成・チャンクセッション生成・全量読み込みを行う。
-    /// nonisolated async のため呼び出し元のアクターを離れて実行され、
-    /// I/O・デコードがメインスレッドを塞がない。
-    private nonisolated static func computeLoad(
-        resolved: URL,
-        fileType: FileType,
-        fileReader: any FileReading,
-        contentLoader: ContentLoader,
-        chunkedReaderFactory: ChunkedReaderFactory
-    ) async -> LoadOutcome {
-        guard fileReader.fileExists(at: resolved) else { return .missing }
-
-        if fileType.isBinaryContent {
-            return .full(contentLoader.load(from: resolved, fileType: fileType), cache: nil)
-        }
-
-        if fileReader.isBinary(at: resolved) {
-            return .full(
-                ContentLoader.LoadedContent(rejectReason: .unsupportedFormat, content: ""),
-                cache: nil
-            )
-        }
-
-        let sizeLimit = fileType.isLineOriented
-            ? NormalizedTextCache.maxFileSizeBytes
-            : ContentLoader.maxTextFileSizeBytes
-        if let size = fileReader.fileSize(at: resolved), size > sizeLimit {
-            return .full(
-                ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
-                cache: nil
-            )
-        }
-
-        do {
-            let data = try fileReader.readData(from: resolved)
-            let cache = try NormalizedTextCache(data: data)
-
-            if fileType.isLineOriented {
-                let reader = try chunkedReaderFactory(cache, fileType)
-                let firstChunk = try await reader.readNextChunk()
-                return .chunked(
-                    session: reader, cache: cache,
-                    firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
-                )
-            } else {
-                if cache.text.utf8.count > ContentLoader.maxTextFileSizeBytes {
-                    return .full(
-                        ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
-                        cache: nil
-                    )
-                }
-                return .full(
-                    ContentLoader.LoadedContent(rejectReason: nil, content: cache.text),
-                    cache: cache
-                )
-            }
-        } catch {
-            if !fileReader.fileExists(at: resolved) { return .missing }
-            // 事前サイズチェックをすり抜けた場合(fileSize が nil を返した、または
-            // チェック後にファイルが肥大化した TOCTOU)、NormalizedTextCache.init が
-            // fileTooLarge を投げる。これを unsupportedFormat に丸めず理由を保持する。
-            let reason: RejectReason = error is NormalizedTextCacheError ? .fileTooLarge : .unsupportedFormat
-            return .full(
-                ContentLoader.LoadedContent(rejectReason: reason, content: ""),
-                cache: nil
-            )
-        }
-    }
-
     /// 読み込み結果を表示状態(fileType / content / rejectReason / isTruncated / 行数カウンタ /
     /// chunkSession)へ一括適用する。表示状態のタプルを書き換えるのはここだけにする。
     /// fileType を content と同時にここで確定させることで、旧ファイルの content に
     /// 新ファイルの fileType が組み合わさった中間状態が描画されないようにする。
-    private func apply(_ outcome: LoadOutcome, fileType: FileType) {
+    private func apply(_ outcome: ViewerLoadPipeline.Outcome, fileType: FileType) {
         isLoading = false
         switch outcome {
         case .missing:
@@ -378,12 +299,13 @@ final class ViewerStore {
         onContentReloaded?()
     }
 
+    /// FileWatcher のデバウンス既定値に余裕を持たせたグレース期間。
+    /// 環境依存のタイミング問題による検知遅延に対応する。
+    private static let fileGoneGracePeriod = FileWatcher.defaultDebounceDelay * 5
+
     /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
     /// 常に張り直す(古いタスクをキャンセルして置き換える)ことで、発火せず完了した
     /// タスクが残って以後の検知を塞ぐことを防ぐ。
-    ///
-    /// FileWatcher のデバウンス(0.2s) + 余裕を持たせた期間を設定し、
-    /// 環境依存のタイミング問題による検知遅延に対応する。
     ///
     /// 注: filePath は schedule 時点でキャプチャせず、発火時に再確認する。
     /// handleRename で filePath が更新されると、rename と grace period の競争状態で
@@ -391,7 +313,7 @@ final class ViewerStore {
     private func scheduleFileGone() {
         fileGoneTask?.cancel()
         fileGoneTask = Task { @MainActor [weak self, clock] in
-            try? await clock.sleep(for: .seconds(1))
+            try? await clock.sleep(for: .seconds(Self.fileGoneGracePeriod))
             guard let self, !Task.isCancelled else { return }
             guard let filePath else { return }
             guard !fileReader.fileExists(at: filePath.resolvingSymlinksInPath()) else { return }

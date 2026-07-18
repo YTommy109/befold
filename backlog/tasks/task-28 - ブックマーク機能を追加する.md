@@ -4,13 +4,13 @@ title: ブックマーク機能を追加する
 status: To Do
 assignee: []
 created_date: '2026-07-16 11:19'
-updated_date: '2026-07-16 12:16'
+updated_date: '2026-07-17 14:28'
 labels: []
 dependencies: []
 documentation:
   - docs/superpowers/specs/2026-07-16-bookmark-feature-design.md
-priority: low
-ordinal: 7000
+priority: medium
+ordinal: 5000
 ---
 
 ## Description

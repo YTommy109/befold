@@ -1,9 +1,11 @@
 ---
 id: TASK-58
 title: ファイルサイズが maxChunkBytes と完全一致し末尾改行がないとき偽のトランケーションバナーが一瞬表示される
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@tokutomi'
 created_date: '2026-07-18 08:13'
+updated_date: '2026-07-18 12:48'
 labels: []
 dependencies: []
 priority: low
@@ -20,6 +22,18 @@ ordinal: 27000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ファイルサイズが maxChunkBytes と完全一致し末尾改行がない場合にトランケーションバナーが表示されない
-- [ ] #2 forcedSplit=true かつ endIndex の場合を正しくハンドルするユニットテストが追加されている
+- [x] #1 ファイルサイズが maxChunkBytes と完全一致し末尾改行がない場合にトランケーションバナーが表示されない
+- [x] #2 forcedSplit=true かつ endIndex の場合を正しくハンドルするユニットテストが追加されている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+readNextChunk の isAtEnd 判定を endIndex == cache.text.endIndex ベースに単純化し、forcedSplit=true でも実質的にテキスト全体を読み切っている場合を正しく isAtEnd=true として扱うよう修正(StringChunkReader.swift)。テスト exactMaxChunkBytesNoTrailingNewlineReportsAtEndImmediately を追加し最初の readNextChunk で isAtEnd=true になることを直接検証。swift test 374 tests 全て pass。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+readNextChunk 内の isAtEnd 判定を forcedSplit フラグ依存から endIndex==cache.text.endIndex 判定に変更し、maxChunkBytes ちょうど・末尾改行なしのケースでもトランケーションバナーが誤表示されないよう修正した。advanceByLines/advanceRespectingQuotes 側は変更不要で単純化できた。新規ユニットテストで最初の readNextChunk が isAtEnd=true を返すことを直接検証し、既存374テストも全てpass。
+<!-- SECTION:FINAL_SUMMARY:END -->

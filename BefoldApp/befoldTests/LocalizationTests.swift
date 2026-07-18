@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldKit
 import Foundation
 import Testing
 
@@ -6,13 +7,16 @@ import Testing
 /// swift test(SwiftPM)では String Catalog がコンパイルされず素の JSON のまま
 /// バンドルされ、xcodebuild では .lproj/Localizable.strings にコンパイルされる。
 /// どちらのビルドでも検証できるよう、両形式から訳を読み取る。
+///
+/// アプリ本体(Bundle.l10n)と BefoldKit(Bundle.befoldKitResources)の
+/// 2 つのカタログに分かれているため、両方を検証する。
 @Suite
 struct LocalizationTests {
     private static let languages = ["en", "ja"]
 
-    @Test("全キーに en / ja 両方の訳がある(訳漏れ検出)")
-    func allKeysHaveBothLanguages() throws {
-        let catalog = try loadCatalog()
+    @Test("全キーに en / ja 両方の訳がある(訳漏れ検出)", arguments: [Bundle.l10n, Bundle.befoldKitResources])
+    func allKeysHaveBothLanguages(bundle: Bundle) throws {
+        let catalog = try loadCatalog(bundle: bundle)
 
         #expect(!catalog.isEmpty)
         for (key, translations) in catalog {
@@ -28,7 +32,7 @@ struct LocalizationTests {
 
     @Test("代表キーが期待する訳を持つ")
     func representativeKeysHaveExpectedValues() throws {
-        let catalog = try loadCatalog()
+        let catalog = try loadCatalog(bundle: .l10n)
 
         #expect(catalog["menu.file.open"]?["ja"] == "開く…")
         #expect(catalog["menu.file.open"]?["en"] == "Open…")
@@ -38,12 +42,22 @@ struct LocalizationTests {
         #expect(catalog["update.later"]?["en"] == "Later")
     }
 
+    @Test("BefoldKit の代表キーが期待する訳を持つ")
+    func befoldKitRepresentativeKeysHaveExpectedValues() throws {
+        let catalog = try loadCatalog(bundle: .befoldKitResources)
+
+        #expect(catalog["viewer.find.placeholder"]?["en"]?.isEmpty == false)
+        #expect(catalog["viewer.find.placeholder"]?["ja"]?.isEmpty == false)
+        #expect(catalog["banner.showing"]?["en"]?.isEmpty == false)
+        #expect(catalog["banner.showing"]?["ja"]?.isEmpty == false)
+    }
+
     /// key -> 言語 -> 訳 の辞書を返す。
-    private func loadCatalog() throws -> [String: [String: String]] {
-        if let url = Bundle.l10n.url(forResource: "Localizable", withExtension: "xcstrings") {
+    private func loadCatalog(bundle: Bundle) throws -> [String: [String: String]] {
+        if let url = bundle.url(forResource: "Localizable", withExtension: "xcstrings") {
             return try parseStringCatalog(url)
         }
-        return try loadCompiledStrings()
+        return try loadCompiledStrings(bundle: bundle)
     }
 
     private func parseStringCatalog(_ url: URL) throws -> [String: [String: String]] {
@@ -65,10 +79,10 @@ struct LocalizationTests {
         }
     }
 
-    private func loadCompiledStrings() throws -> [String: [String: String]] {
+    private func loadCompiledStrings(bundle: Bundle) throws -> [String: [String: String]] {
         var catalog: [String: [String: String]] = [:]
         for language in Self.languages {
-            let url = try #require(Bundle.l10n.url(
+            let url = try #require(bundle.url(
                 forResource: "Localizable",
                 withExtension: "strings",
                 subdirectory: nil,

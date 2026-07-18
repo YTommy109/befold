@@ -35,6 +35,8 @@ targets:
           - "Resources/**"
       - path: BefoldKit/Resources
         buildPhase: resources
+        excludes:
+          - "__tests__/**"
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.kit
       PRODUCT_NAME: BefoldKit
@@ -51,7 +53,6 @@ targets:
       - path: befold/Resources
         buildPhase: resources
         excludes:
-          - "__tests__/**"
           - "viewer.html"
           - "viewer.js"
           - "style.css"

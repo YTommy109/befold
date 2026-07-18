@@ -100,6 +100,23 @@ public enum ViewerBridge {
     /// JS 側「続きを読み込む」ボタン押下時に postMessage されるメッセージハンドラ名。
     public static let loadMoreLinesMessageName = "loadMoreLines"
 
+    /// ロード時にホスト機能フラグを JS 側へ注入するスクリプト。
+    /// viewer.html 側は window._mmdHostFeatures(未注入時は全機能有効扱い)を読み、
+    /// Load More ボタンの表示可否・Space キーでのページスクロール可否を切り替える。
+    /// アプリ本体は両機能をフルサポートするためデフォルトは true/true。
+    public static func hostFeaturesScript(loadMore: Bool = true, spaceScroll: Bool = true) -> String {
+        let features: [String: Bool] = [
+            "loadMore": loadMore,
+            "spaceScroll": spaceScroll,
+        ]
+        guard let jsonData = try? JSONEncoder().encode(features),
+              let jsonString = String(data: jsonData, encoding: .utf8)
+        else {
+            return "window._mmdHostFeatures = {};"
+        }
+        return "window._mmdHostFeatures = \(jsonString);"
+    }
+
     /// appendChunk(content, type[, lang]) 呼び出しを組み立てる。
     /// content は JSONEncoder でエスケープし、JS インジェクションを防ぐ。
     /// エンコードに失敗した場合は nil(呼び出し側は何もしない)。
@@ -109,7 +126,7 @@ public enum ViewerBridge {
 
     /// ロード時にバナーのローカライズ済み文字列を JS 側へ注入するスクリプト。
     /// viewer.html 側は _mmdSetTruncated() が window._mmdBannerStrings を読んで表示する。
-    public static func bannerStringsScript(bundle: Bundle = .main) -> String {
+    public static func bannerStringsScript(bundle: Bundle = .befoldKitResources) -> String {
         let strings: [String: String] = [
             "showing": String(localized: "banner.showing", bundle: bundle),
             "loadMore": String(localized: "banner.loadMore", bundle: bundle),
@@ -160,7 +177,7 @@ public enum ViewerBridge {
     /// viewer.html 側は _mmdInitFind() が window._mmdFindStrings を読んで各要素に適用する。
     /// JSONEncoder でエスケープし、ローカライズ済み文字列に引用符等が含まれても
     /// JS オブジェクトリテラルを壊さないようにする。
-    public static func findStringsScript(bundle: Bundle = .main) -> String {
+    public static func findStringsScript(bundle: Bundle = .befoldKitResources) -> String {
         let strings: [String: String] = [
             "placeholder": String(localized: "viewer.find.placeholder", bundle: bundle),
             "previous": String(localized: "viewer.find.previous", bundle: bundle),

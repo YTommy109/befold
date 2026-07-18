@@ -56,11 +56,17 @@ struct TextEncodingTests {
         #expect(elapsed < .seconds(3))
     }
 
+    /// sniffLength を超えるASCIIヘッダーに続けて `body` を配置したShift_JISテストデータを組み立てる。
+    private func makeShiftJISDataWithAsciiHeader(body: String) throws -> (text: String, data: Data) {
+        let asciiHeader = String(repeating: "a", count: TextEncoding.sniffLength + 1000)
+        let text = asciiHeader + body
+        let data = try #require(text.data(using: .shiftJIS))
+        return (text, data)
+    }
+
     @Test("先頭8KB超がASCIIで後半に日本語があるShift_JISファイルを正しくデコードする(task-36)")
     func decodesShiftJISWithAsciiHeaderExceedingSniffLength() throws {
-        let asciiHeader = String(repeating: "a", count: TextEncoding.sniffLength + 1000)
-        let text = asciiHeader + "日本語の本文です。\n"
-        let data = try #require(text.data(using: .shiftJIS))
+        let (text, data) = try makeShiftJISDataWithAsciiHeader(body: "日本語の本文です。\n")
 
         let decoded = TextEncoding.decodeText(data)
 
@@ -69,9 +75,7 @@ struct TextEncodingTests {
 
     @Test("先頭8KBがASCIIで本文にNULを含むShift_JISファイルを正しくデコードする(task-47)")
     func decodesShiftJISWithNulByteAfterAsciiHeader() throws {
-        let asciiHeader = String(repeating: "a", count: TextEncoding.sniffLength + 1000)
-        let text = asciiHeader + "\0" + "日本語の本文です。\n"
-        let data = try #require(text.data(using: .shiftJIS))
+        let (text, data) = try makeShiftJISDataWithAsciiHeader(body: "\0" + "日本語の本文です。\n")
 
         let decoded = TextEncoding.decodeText(data)
 
@@ -80,9 +84,7 @@ struct TextEncodingTests {
 
     @Test("先頭8KBがASCIIで本文にNULを含むShift_JISファイルでdetectEncodingがUTF-16と誤判定しない(task-47)")
     func detectEncodingDoesNotMisdetectShiftJISWithNulByteAsUtf16() throws {
-        let asciiHeader = String(repeating: "a", count: TextEncoding.sniffLength + 1000)
-        let text = asciiHeader + "\0" + "日本語の本文です。\n"
-        let data = try #require(text.data(using: .shiftJIS))
+        let (_, data) = try makeShiftJISDataWithAsciiHeader(body: "\0" + "日本語の本文です。\n")
 
         let detected = TextEncoding.detectEncoding(data)
 
