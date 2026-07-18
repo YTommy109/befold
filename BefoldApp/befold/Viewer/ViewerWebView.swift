@@ -90,6 +90,12 @@ struct ViewerWebView: NSViewRepresentable {
             forMainFrameOnly: true
         )
         config.userContentController.addUserScript(bannerStringsScript)
+        let hostFeaturesScript = WKUserScript(
+            source: ViewerBridge.hostFeaturesScript(),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(hostFeaturesScript)
         // JS → Swift の postMessage ハンドラをまとめて登録する(同一 delegate のため一括化)。
         for name in Self.messageHandlerNames {
             config.userContentController.add(

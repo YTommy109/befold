@@ -22,6 +22,7 @@ const {
   halfPageScrollStep,
   lineScrollStep,
   resolveScrollKey,
+  isHostFeatureEnabled,
   markdownFontSize,
   escapeHtml,
   renderCodeHtml,
@@ -424,6 +425,26 @@ describe('lineScrollStep', () => {
 
   test('falls back when line-height is missing', () => {
     expect(lineScrollStep(undefined, DEFAULT_LINE_SCROLL_STEP)).toBe(DEFAULT_LINE_SCROLL_STEP);
+  });
+});
+
+describe('isHostFeatureEnabled', () => {
+  test('未注入(undefined/null)の場合は常に有効とみなす', () => {
+    expect(isHostFeatureEnabled(undefined, 'loadMore')).toBe(true);
+    expect(isHostFeatureEnabled(null, 'spaceScroll')).toBe(true);
+  });
+
+  test('キー未指定(空オブジェクト)の場合はそのキーを有効とみなす', () => {
+    expect(isHostFeatureEnabled({}, 'loadMore')).toBe(true);
+  });
+
+  test('明示的に false が指定されたキーのみ無効とみなす', () => {
+    expect(isHostFeatureEnabled({ loadMore: false }, 'loadMore')).toBe(false);
+    expect(isHostFeatureEnabled({ loadMore: false }, 'spaceScroll')).toBe(true);
+  });
+
+  test('true が指定されたキーは有効とみなす', () => {
+    expect(isHostFeatureEnabled({ spaceScroll: true }, 'spaceScroll')).toBe(true);
   });
 });
 

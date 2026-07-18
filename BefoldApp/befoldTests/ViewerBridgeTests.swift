@@ -125,6 +125,35 @@ struct ViewerBridgeTests {
         #expect(!ViewerBridge.loadMoreLinesMessageName.isEmpty)
     }
 
+    @Test("hostFeaturesScript が window._mmdHostFeatures への代入文を生成する")
+    func hostFeaturesScriptAssignsHostFeaturesGlobal() throws {
+        let script = ViewerBridge.hostFeaturesScript(loadMore: true, spaceScroll: false)
+
+        #expect(script.hasPrefix("window._mmdHostFeatures = "))
+        #expect(script.hasSuffix(";"))
+
+        let jsonPart = script
+            .replacingOccurrences(of: "window._mmdHostFeatures = ", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ";"))
+        let data = try #require(jsonPart.data(using: .utf8))
+        let decoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Bool])
+        #expect(decoded["loadMore"] == true)
+        #expect(decoded["spaceScroll"] == false)
+    }
+
+    @Test("hostFeaturesScript のデフォルトは両機能とも有効")
+    func hostFeaturesScriptDefaultsToAllEnabled() throws {
+        let script = ViewerBridge.hostFeaturesScript()
+
+        let jsonPart = script
+            .replacingOccurrences(of: "window._mmdHostFeatures = ", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ";"))
+        let data = try #require(jsonPart.data(using: .utf8))
+        let decoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Bool])
+        #expect(decoded["loadMore"] == true)
+        #expect(decoded["spaceScroll"] == true)
+    }
+
     @Test("bannerStringsScript が window._mmdBannerStrings への代入文を生成する")
     func bannerStringsScriptAssignsBannerStringsGlobal() {
         let script = ViewerBridge.bannerStringsScript()
@@ -191,9 +220,17 @@ struct ViewerBridgeTests {
         #expect(html.contains("function _mmdZoomIn()"))
         #expect(html.contains("function _mmdZoomOut()"))
         #expect(html.contains("function _mmdZoomReset()"))
-        #expect(html.contains("messageHandlers.\(ViewerBridge.zoomChangedMessageName)"))
+        #expect(html.contains("_MSG_ZOOM_CHANGED = '\(ViewerBridge.zoomChangedMessageName)'"))
         #expect(html.contains("_MSG_REFERENCE_ACTIVATED = '\(ViewerBridge.referenceActivatedMessageName)'"))
-        #expect(html.contains("messageHandlers[_MSG_REFERENCE_ACTIVATED]"))
+        #expect(html.contains("_MSG_FIND_OPTIONS_CHANGED = '\(ViewerBridge.findOptionsChangedMessageName)'"))
+        #expect(html.contains("_MSG_SCROLL_POSITION_CHANGED = '\(ViewerBridge.scrollPositionChangedMessageName)'"))
+        #expect(html.contains("_MSG_LOAD_MORE_LINES = '\(ViewerBridge.loadMoreLinesMessageName)'"))
+        #expect(html.contains("function _mmdPostMessage(name, payload)"))
+        #expect(html.contains("_mmdPostMessage(_MSG_ZOOM_CHANGED,"))
+        #expect(html.contains("_mmdPostMessage(_MSG_REFERENCE_ACTIVATED,"))
+        #expect(html.contains("_mmdPostMessage(_MSG_FIND_OPTIONS_CHANGED,"))
+        #expect(html.contains("_mmdPostMessage(_MSG_SCROLL_POSITION_CHANGED,"))
+        #expect(html.contains("_mmdPostMessage(_MSG_LOAD_MORE_LINES,"))
         #expect(html.contains("window._mmdInitialZoom"))
         #expect(html.contains("window._mmdSystemFontSize"))
         #expect(html.contains("function setViewMode(mode)"))
@@ -201,16 +238,16 @@ struct ViewerBridgeTests {
         #expect(html.contains("function setLineNumbers(show)"))
         #expect(html.contains("function _mmdSetTruncated(isTruncated, lineCount, failed)"))
         #expect(html.contains("function _mmdLoadMore()"))
-        #expect(html.contains("messageHandlers.\(ViewerBridge.loadMoreLinesMessageName)"))
         #expect(html.contains("window._mmdBannerStrings"))
+        #expect(html.contains("window._mmdHostFeatures"))
+        #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'loadMore')"))
+        #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'spaceScroll')"))
         #expect(html.contains("function _mmdSetRestoreScroll(position)"))
         #expect(html.contains("function _mmdScrollTarget()"))
-        #expect(html.contains("messageHandlers.\(ViewerBridge.scrollPositionChangedMessageName)"))
         #expect(html.contains("function _mmdOpenFind()"))
         #expect(html.contains("function _mmdCloseFind()"))
         #expect(html.contains("function _mmdFindRefresh(resetToFirst)"))
         #expect(html.contains("window._mmdInitialFindOptions"))
-        #expect(html.contains("messageHandlers.\(ViewerBridge.findOptionsChangedMessageName)"))
         #expect(html.contains("window._mmdFindStrings"))
         #expect(html.contains("function appendChunk(text, type, lang)"))
     }

@@ -27,6 +27,14 @@ function lineScrollStep(lineHeightPx, fallback) {
 // キーボードスクロールのキー→動作解決。Safari に合わせ、Space=下/Shift+Space=上(バックスクロール)は
 // 同じフルページ量のまま方向だけ反転させ、矢印/vim キーは Shift でハーフページに切り替える。
 // Backspace はバックスクロールとして扱わない(未対応キーとして null を返す)。
+// ホスト機能フラグ(Swift 側が window._mmdHostFeatures として注入)を読む。
+// 未注入、またはキー未指定の場合はその機能が有効であるとみなす
+// (フラグを送らないホストは全機能サポートとして扱う後方互換のため)。
+function isHostFeatureEnabled(hostFeatures, key) {
+  if (!hostFeatures) { return true; }
+  return hostFeatures[key] !== false;
+}
+
 function resolveScrollKey(key, shiftKey) {
   if (key === ' ') {
     return { down: !shiftKey, amount: 'page' };
@@ -452,6 +460,7 @@ if (typeof module !== 'undefined' && module.exports) {
     halfPageScrollStep: halfPageScrollStep,
     lineScrollStep: lineScrollStep,
     resolveScrollKey: resolveScrollKey,
+    isHostFeatureEnabled: isHostFeatureEnabled,
     ZOOM_MIN: ZOOM_MIN,
     ZOOM_MAX: ZOOM_MAX,
     ZOOM_STEP: ZOOM_STEP,
