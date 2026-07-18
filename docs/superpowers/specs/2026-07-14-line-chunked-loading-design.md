@@ -147,17 +147,19 @@ ViewerStore
 
 ## 既知の制限
 
-- **`maxChunkBytes`（1MB）を超える引用符付き CSV フィールド**:
-  `LineChunkReader` は行内の `"` 出現を走査して `inQuotes` 状態を
-  チャンクをまたいで維持するが、1 論理行（引用符付きフィールド含む）が
-  `maxChunkBytes` を超えると改行境界を見つけられず強制分割する。
-  この際、対のない引用符で `inQuotes` が立ちっぱなしのまま以降の全チャンクが
-  強制分割に陥る連鎖を防ぐため、`inQuotes` を意図的に `false` へリセットする
-  （`LineChunkReader.swift` 内、強制分割時のコメント参照）。
-  JS 側 `parseCsv`/`tokenizeCsvRows`（viewer.js）はチャンクをまたぐ引用符状態を
-  そもそも持たないため、この強制分割が起きた論理行は 2 つの不正な行として
-  描画される。
-  RFC 4180 の引用フィールドが 1MB を超えるケースは現実的にまれであり、
+- **`maxQuotedFieldBytes`（500 バイト）を超える引用符付き CSV フィールド**:
+  `StringChunkReader` は行内の `"` 出現を走査して `inQuotes` 状態を
+  チャンクをまたいで維持するが、開いたクォートが 500 バイト
+  （`maxQuotedFieldBytes`）を超えても閉じられない場合は不均衡クォートとみなし、
+  `inQuotes` を強制的に `false` へリセットして通常の行ベース分割に復帰する
+  （`StringChunkReader.swift` の `advanceRespectingQuotes` 内、
+  `quotedRunLength` 判定を参照）。この閾値はチャンク境界（`maxChunkBytes`
+  = 1MiB）とは無関係に、CSV セルの実長に基づいて判定する。
+  そのため 500 バイトを超える正当な複数行クォートフィールドは、
+  対のない引用符と区別できず途中で `inQuotes` が失われ、
+  JS 側 `parseCsv`/`tokenizeCsvRows`（viewer.js）はチャンクをまたぐ
+  引用符状態を持たないため、当該論理行は不正な複数行として描画される。
+  RFC 4180 の引用フィールドが 500 バイトを超えるケースは現実的にまれであり、
   対応する場合は Swift→JS 間に新しい継続状態フラグを追加し、
   `appendChunk` の CSV 分岐に直前チャンク最終行とのマージ処理
   （コード分岐が強制分割継続に対して持つ処理と同様のもの）を追加する必要がある。

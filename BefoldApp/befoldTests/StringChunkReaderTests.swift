@@ -137,23 +137,22 @@ struct StringChunkReaderTests {
         #expect(chunks.joined() == text)
     }
 
-    @Test("強制分割後も inQuotes 状態が維持され不平衡クォートなら以降もバイト上限分割が続く")
-    func forcedSplitPreservesQuoteState() async throws {
-        // 先頭の対のない `"` により、ファイル全体が実質クォート内にある。
-        // inQuotes を強制分割ごとにリセットしてしまうと、以降の平文行が誤って
-        // クォート外と判定され、通常の 1000 行ベースの細かいチャンクに退化してしまう。
-        // 正しく inQuotes を維持すれば、バイト上限による大きなチャンクのみが続くはずである。
-        let plainRows = String(repeating: "a,b,c\n", count: 1_000_000)
+    @Test("対のない引用符は規定長を超えると不均衡とみなされ通常の行ベース分割に復帰する")
+    func unbalancedQuoteGivesUpAfterGuaranteedLengthAndRecovers() async throws {
+        // 先頭の対のない `"` により一時的にクォート内と判定されるが、閉じずに
+        // 規定長(500バイト)を超えたら不均衡クォートとみなして inQuotes を
+        // 強制的に閉じ、以降は通常の 1000 行ベースのチャンクに復帰するはずである。
+        // リセットせず永久にクォート内とみなしてしまうと、ファイル全体が
+        // 巨大な1チャンク(または少数のバイト上限チャンク)のまま行数が把握できなくなる。
+        let plainRows = String(repeating: "a,b,c\n", count: 5000)
         let text = "\"" + plainRows
         let cache = try makeCache(text)
         let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true)
         let chunks = await readAll(reader)
         #expect(chunks.joined() == text)
-        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
-        // 行ベース分割に退化していれば数万チャンクになるが、バイト上限分割のみなら
-        // 総バイト数 / maxChunkBytes 程度(1桁〜2桁)にとどまるはずである。
-        let expectedUpperBound = text.utf8.count / StringChunkReader.maxChunkBytes + 2
-        #expect(chunks.count <= expectedUpperBound)
+        // 復帰していれば 5000 行 / 1000 行 = 5 チャンク程度に分かれる。
+        // 復帰しなければ強制分割前提の巨大チャンク(1〜2個)にしかならない。
+        #expect(chunks.count >= 4)
     }
 
     @Test("改行なしテキストの長さがちょうど maxChunkBytes のとき境界外アクセスせずに読み切れる")

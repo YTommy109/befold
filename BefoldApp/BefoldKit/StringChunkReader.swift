@@ -14,6 +14,10 @@ public actor StringChunkReader: ChunkedTextReading {
     public static let linesPerChunk = 1000
     /// 不平衡クォートや改行なし巨大行でも 1 チャンクが際限なく肥大化しないための強制分割の上限。
     public static let maxChunkBytes = 1 * 1024 * 1024
+    /// クォート付き CSV フィールドとして正当に扱う最大バイト数。開いたクォートが
+    /// これを超えて閉じられない場合は不均衡クォートとみなし inQuotes を強制的に閉じる。
+    /// チャンク境界(maxChunkBytes)とは無関係の、CSV セルの実長に基づく閾値。
+    private static let maxQuotedFieldBytes = 500
 
     private let cache: NormalizedTextCache
     private let respectsCSVQuotes: Bool
@@ -22,6 +26,8 @@ public actor StringChunkReader: ChunkedTextReading {
     /// 行境界で自然に終わったチャンクの後は nil に戻る。
     private var resumeIndex: String.Index?
     private var inQuotes: Bool = false
+    /// 現在開いているクォートが閉じずに経過したバイト数。クォートの開閉ごとに 0 へ戻る。
+    private var quotedRunLength: Int = 0
 
     /// respectsCSVQuotes が true の場合、CSV のクォート内改行をチャンク境界にしない
     /// (advanceRespectingQuotes を使う)。false の場合は行境界のみで判定する軽量パスを使う。
@@ -137,6 +143,14 @@ public actor StringChunkReader: ChunkedTextReading {
                 let byte = utf8View[cursor]
                 if byte == 0x22 {
                     inQuotes.toggle()
+                    quotedRunLength = 0
+                } else if inQuotes {
+                    quotedRunLength += 1
+                    if quotedRunLength > Self.maxQuotedFieldBytes {
+                        // 対のないクォートを不均衡とみなし、以降は通常の行ベース分割に復帰させる。
+                        inQuotes = false
+                        quotedRunLength = 0
+                    }
                 }
                 bytesScanned += 1
                 cursor = utf8View.index(after: cursor)
