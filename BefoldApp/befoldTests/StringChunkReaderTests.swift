@@ -252,6 +252,16 @@ struct StringChunkReaderTests {
         #expect(chunks.joined() == text)
     }
 
+    @Test("改行なしテキストの長さがちょうど maxChunkBytes のとき最初の readNextChunk で isAtEnd が true になる")
+    func exactMaxChunkBytesNoTrailingNewlineReportsAtEndImmediately() async throws {
+        let text = String(repeating: "A", count: StringChunkReader.maxChunkBytes)
+        let cache = try makeCache(text)
+        let reader = StringChunkReader(cache: cache)
+        let result = await reader.readNextChunk()
+        #expect(result.text == text)
+        #expect(result.isAtEnd)
+    }
+
     @Test("1MB超の単一行日本語テキストの強制分割がマルチバイト文字境界を尊重する")
     func forcedSplitRespectsMultibyteCharacterBoundary() async throws {
         let text = String(repeating: "あ", count: StringChunkReader.maxChunkBytes)

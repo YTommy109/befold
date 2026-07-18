@@ -54,13 +54,13 @@ public actor StringChunkReader: ChunkedTextReading {
         // endLine は forcedSplit の場合も resumeIndex が実際に属する行を指すため、
         // 次回 advance(from:) が正しい行境界(lineStartIndices[currentLine+1])を参照できるよう常に更新する。
         currentLine = endLine
-        if forcedSplit {
-            resumeIndex = endIndex
-        } else {
-            resumeIndex = nil
-        }
 
-        let isAtEnd = !forcedSplit && currentLine >= cache.lineCount
+        // forcedSplit はバイト上限で「行の途中」を想定したフラグだが、テキスト長が
+        // ちょうど maxChunkBytes で終わる(末尾改行なし)場合は endIndex がテキスト終端と
+        // 一致する。この場合は forcedSplit の値によらず読み切ったとみなす。
+        let isAtEnd = endIndex == cache.text.endIndex
+        resumeIndex = (forcedSplit && !isAtEnd) ? endIndex : nil
+
         return (chunk, isAtEnd)
     }
 
