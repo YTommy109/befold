@@ -52,10 +52,17 @@ final class ViewerStore {
     private(set) var isLoading: Bool = false
     private(set) var filePath: URL?
 
-    /// filePath が指す現在のファイルの種別。openFile / handleRename で filePath と同時に
-    /// 即時更新する内部値。バックグラウンド読み込み(loadContent → computeLoad)へ渡すために使い、
+    /// openFile / handleRename で即時更新する、読み込み対象の URL。バックグラウンド読み込み
+    /// (loadContent → performLoad)へ渡すために使い、公開の filePath とは異なりロード完了を待たない。
+    /// 公開 filePath は apply() 内で fileType / content と同時にのみ更新する(下記 pendingFileType 参照)。
+    @ObservationIgnored private var pendingURL: URL?
+
+    /// pendingURL が指す読み込み対象ファイルの種別。openFile / handleRename で pendingURL と
+    /// 同時に即時更新する内部値。バックグラウンド読み込み(loadContent → performLoad)へ渡すために使い、
     /// 公開の fileType とは異なりロード完了を待たない。
-    /// 公開 fileType は apply() 内で content と同時にのみ更新する(この2値のずれが表示不整合の原因になるため)。
+    /// 公開 fileType は apply() 内で filePath / content と同時にのみ更新する
+    /// (filePath だけ先行して変わると、旧ファイルの fileType に新ファイルの filePath が
+    /// 組み合わさった中間状態が描画されてしまうため)。
     @ObservationIgnored private var pendingFileType: FileType = .mmd
 
     /// 開いたファイルが非対応と判定されているかどうか。
@@ -153,7 +160,7 @@ final class ViewerStore {
         fileGoneTask?.cancel()
         fileGoneTask = nil
         fileWatcher?.stop()
-        filePath = url
+        pendingURL = url
         pendingFileType = FileType(url: url)
         loadContent()
 
@@ -165,10 +172,10 @@ final class ViewerStore {
     }
 
     /// 監視対象ファイルの rename / move を反映する。
-    /// filePath を新 URL に更新し、コンテンツの再読込を予約したうえでウィンドウ側へ通知する。
-    /// 公開 fileType は apply() で content と同時にのみ更新する(下の pendingFileType 参照)。
+    /// コンテンツの再読込を予約したうえでウィンドウ側へ通知する。公開 filePath / fileType は
+    /// apply() で content と同時にのみ更新する(上の pendingURL / pendingFileType 参照)。
     private func handleRename(to newURL: URL) {
-        filePath = newURL
+        pendingURL = newURL
         pendingFileType = FileType(url: newURL)
         loadContent()
         onFileRenamed?(newURL)
@@ -220,19 +227,19 @@ final class ViewerStore {
         displayedLineCount = newlineCount + (!content.isEmpty && content.utf8.last != 0x0A ? 1 : 0)
     }
 
-    /// 現在の filePath の読み込みを予約する。I/O・デコードはバックグラウンドで行い、
+    /// pendingURL の読み込みを予約する。I/O・デコードはバックグラウンドで行い、
     /// 完了後にメインアクターで表示状態へ一括適用する。呼び出しごとに世代番号を進め、
     /// 追い越された古い読み込みの結果は破棄する。
     private func loadContent() {
-        guard let filePath else { return }
+        guard let target = pendingURL else { return }
         loadGeneration += 1
         let generation = loadGeneration
         isLoading = true
-        let resolved = filePath.resolvingSymlinksInPath()
+        let resolved = target.resolvingSymlinksInPath()
         let fileType = pendingFileType
         loadTask = Task {
             await self.performLoad(
-                resolved: resolved, fileType: fileType,
+                resolved: resolved, url: target, fileType: fileType,
                 generation: generation
             )
         }
@@ -240,7 +247,7 @@ final class ViewerStore {
 
     /// バックグラウンドで読み込み結果を計算し、世代が最新のままなら表示状態へ適用する。
     private func performLoad(
-        resolved: URL, fileType: FileType, generation: Int
+        resolved: URL, url: URL, fileType: FileType, generation: Int
     ) async {
         let outcome = await ViewerLoadPipeline.load(
             resolved: resolved,
@@ -251,15 +258,17 @@ final class ViewerStore {
         )
         // close() でキャンセルされた、または新しい読み込みに追い越された結果は捨てる。
         guard !Task.isCancelled, generation == loadGeneration else { return }
-        apply(outcome, fileType: fileType)
+        apply(outcome, url: url, fileType: fileType)
     }
 
-    /// 読み込み結果を表示状態(fileType / content / rejectReason / isTruncated / 行数カウンタ /
-    /// chunkSession)へ一括適用する。表示状態のタプルを書き換えるのはここだけにする。
-    /// fileType を content と同時にここで確定させることで、旧ファイルの content に
-    /// 新ファイルの fileType が組み合わさった中間状態が描画されないようにする。
-    private func apply(_ outcome: ViewerLoadPipeline.Outcome, fileType: FileType) {
+    /// 読み込み結果を表示状態(filePath / fileType / content / rejectReason / isTruncated /
+    /// 行数カウンタ / chunkSession)へ一括適用する。表示状態のタプルを書き換えるのはここだけにする。
+    /// filePath / fileType を content と同時にここで確定させることで、旧ファイルの content に
+    /// 新ファイルの filePath や fileType が組み合わさった中間状態が描画されないようにする
+    /// (task: HTML 表示直後の切替で空白表示になる不具合の再発防止)。
+    private func apply(_ outcome: ViewerLoadPipeline.Outcome, url: URL, fileType: FileType) {
         isLoading = false
+        filePath = url
         switch outcome {
         case .missing:
             scheduleFileGone()
