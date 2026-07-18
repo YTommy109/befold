@@ -49,7 +49,8 @@ struct ViewerContentView: View {
                 },
                 onOpenReference: onOpenReference,
                 findOptionsPreference: findOptionsPreference,
-                webViewProxy: webViewProxy
+                webViewProxy: webViewProxy,
+                rendererFeatures: .allEnabled
             )
             .opacity(store.isRejected ? 0 : 1)
 
