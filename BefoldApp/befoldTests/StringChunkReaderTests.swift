@@ -114,16 +114,51 @@ struct StringChunkReaderTests {
         #expect(chunks.joined() == text)
     }
 
-    @Test("不平衡クォートを含む巨大CSVでもチャンクサイズが上限内に収まる")
+    @Test("対のない引用符を含む巨大CSVは規定長超過後に行ベース分割へ復帰し、少数の巨大チャンクにならない")
     func unbalancedQuoteLargeCSVIsChunked() async throws {
-        let hugeAfterUnbalancedQuote = String(repeating: "a,b,c\n", count: 300_000)
+        // 500 バイト回復機能(TASK-57)導入後は、不均衡クォート検出後すぐに行ベース
+        // 分割へ復帰するため、チャンクは maxChunkBytes(1MB)に達する前に 1000 行単位で
+        // 区切られるようになった。「各チャンクが maxChunkBytes 以下」という
+        // アサーションだけでは復帰後の小さなチャンクでも自明に成立してしまい、
+        // 復帰の成否を検出できない。復帰していれば 300,000 行 / 1000 行 ≈ 300 個の
+        // チャンクに分かれ、各チャンクは数KB程度に収まるはずである。復帰に失敗して
+        // 不均衡クォートのままバイト上限まで走査し続けた場合は、maxChunkBytes ごとの
+        // 少数(数個)の巨大チャンクにしかならない。
+        let rowCount = 300_000
+        let hugeAfterUnbalancedQuote = String(repeating: "a,b,c\n", count: rowCount)
         let text = "\"unbalanced\n" + hugeAfterUnbalancedQuote
         let cache = try makeCache(text)
         let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true)
         let chunks = await readAll(reader)
-        #expect(chunks.count > 1)
-        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
         #expect(chunks.joined() == text)
+        #expect(chunks.count >= 250)
+        #expect(chunks.allSatisfy { $0.utf8.count <= 10000 })
+    }
+
+    @Test("respectsCSVQuotes:true でクォートフィールドの内部が maxChunkBytes 境界をまたいでも、クォート状態を保ったまま強制分割される")
+    func forcedSplitPreservesQuoteStateAcrossBoundary() async throws {
+        // 開きクォートの後、maxChunkBytes 境界がクォートフィールド内部(500バイト未満の
+        // 位置、不均衡クォートの規定長には達しない)に来るよう埋め草を配置する。
+        // 強制分割後も inQuotes/quotedRunLength が正しく保持されていなければ、
+        // フィールド内部の改行がチャンク境界(または行境界)として扱われてしまったり、
+        // フィールドを閉じた後の後続クォート対応(followUpField)が反転したりする。
+        let openingQuoteOffset = StringChunkReader.maxChunkBytes - 150
+        let filler = String(repeating: "a", count: openingQuoteOffset)
+        let straddlingField = "\"" + String(repeating: "x", count: 300) + "\nafter\"\n"
+        let trailingRows = (0 ..< 2000).map { "row\($0)\n" }.joined()
+        let followUpField = "\"quoted\nfield\"\n"
+        let text = filler + straddlingField + trailingRows + followUpField + "tail\n"
+        let cache = try makeCache(text)
+        let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true)
+        let chunks = await readAll(reader)
+        #expect(chunks.joined() == text)
+        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
+        // filler だけで maxChunkBytes 手前まで達しているため、強制分割(バイト上限)と
+        // 通常の行ベース分割の両方が発生し、複数チャンクに分かれるはず。
+        #expect(chunks.count > 2)
+        // 強制分割を経てもクォート対応が破壊されていなければ、後続の複数行
+        // クォートフィールドは分断されず1つのチャンク内に残る。
+        #expect(chunks.contains { $0.contains("\"quoted\nfield\"") })
     }
 
     @Test("改行なしの巨大1行ファイルでもチャンクサイズが上限内に収まる")
