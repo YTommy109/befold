@@ -23,6 +23,7 @@ let package = Package(
                 .copy("Resources/mermaid.min.js"),
                 .copy("Resources/markdown-it.min.js"),
                 .copy("Resources/highlight.min.js"),
+                .copy("Resources/dompurify.min.js"),
                 .copy("Resources/github.css"),
                 .copy("Resources/github-dark.css"),
                 .copy("Resources/github-markdown.css"),

@@ -149,8 +149,10 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
         }
     }
 
-    // 5. Markdown 内に静的に書かれた data: iframe が CSP(frame-src) でブロックされるか
-    //    (frame-src は blob: のみ許可。PDF 表示はスクリプト生成の blob URL を使う)
+    // 5. Markdown 内に静的に書かれた data: iframe がブロックされるか
+    //    多層防御: DOMPurify(既定設定)は <iframe> をタグごと除去するため、まずそれで
+    //    到達しないことを確認する。除去されなかった場合の保険として CSP(frame-src、
+    //    blob: のみ許可。PDF 表示はスクリプト生成の blob URL を使う)も確認する。
     func checkDataFrameBlocked() {
         let payload = "<iframe src=\"data:text/html;base64,PGgxPng8L2gxPg==\"></iframe>"
         let doc = "before\n\n\(payload)\n\nafter"
@@ -159,13 +161,24 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
                 + "document.addEventListener('securitypolicyviolation', "
                 + "function(e) { window.__frameViolation = e.violatedDirective; }); "
                 + "await render(\(jsString(doc)), 'md'); "
-                + "await new Promise(r => setTimeout(r, 800)); return window.__frameViolation;",
+                + "await new Promise(r => setTimeout(r, 800)); "
+                + "return { violation: window.__frameViolation, "
+                + "hasIframe: !!document.querySelector('#diagram-wrap iframe') };",
             "data-frame"
         ) { r in
-            print("data: iframe violation: \(String(describing: r))")
-            guard let directive = r as? String,
+            print("data: iframe result: \(String(describing: r))")
+            guard let result = r as? [String: Any] else {
+                self.fail("data: iframe の検証結果を取得できなかった")
+            }
+            let hasIframe = (result["hasIframe"] as? Bool) ?? true
+            if !hasIframe {
+                // DOMPurify が <iframe> ごと除去した(sanitizer 層で防御達成)。
+                self.checkPdfBlobRenders()
+                return
+            }
+            guard let directive = result["violation"] as? String,
                   directive.hasPrefix("frame-src") || directive.hasPrefix("child-src") else {
-                self.fail("data: iframe が CSP でブロックされなかった")
+                self.fail("data: iframe が sanitizer にも CSP にもブロックされなかった")
             }
             self.checkPdfBlobRenders()
         }

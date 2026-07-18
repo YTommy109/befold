@@ -53,6 +53,7 @@
   <script src="mermaid.min.js"></script>
   <script src="markdown-it.min.js"></script>
   <script src="highlight.min.js"></script>
+  <script src="dompurify.min.js"></script>
   <script>
   // Swift ブリッジメッセージ名（ViewerBridge.swift と同期）
   const _MSG_ZOOM_CHANGED = 'zoomChanged';
@@ -486,19 +487,12 @@
         return highlightCode(typeof hljs !== 'undefined' ? hljs : null, str, lang);
       },
     });
-    // md.render() 出力からインラインイベントハンドラ(on*)を除去する後処理を追加。
-    // html:true で .md 内の生 HTML を許可しているため、<img onerror=...> 等の
-    // XSS ベクタを事前に無害化する。
+    // md.render() 出力を DOMPurify でサニタイズする後処理を追加。html:true で .md 内の
+    // 生 HTML を許可しているため、<img onerror=...> 等の XSS ベクタを innerHTML 適用前に
+    // 無害化する(sanitizeRenderedHtml は viewer.js の純粋関数、実処理は DOMPurify に委譲)。
     var _mdRenderOriginal = md.render.bind(md);
     md.render = function(src, env) {
-      var html = _mdRenderOriginal(src, env);
-      return html.replace(/<([a-z][a-z0-9]*)((?:\s+[a-z_-][\w.-]*(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]*))?)*)\s*\/?>/gi,
-        function(match, tag, attrs) {
-          if (!attrs) return match;
-          var cleaned = attrs.replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]*)/gi, '');
-          if (cleaned === attrs) return match;
-          return '<' + tag + cleaned + (match.charAt(match.length - 2) === '/' ? ' />' : '>');
-        });
+      return sanitizeRenderedHtml(DOMPurify, _mdRenderOriginal(src, env));
     };
     // fuzzyLink(scheme なしのドメイン風文字列の自動リンク化)を無効化する。
     // .md(モルドバ)や .sh(セントヘレナ)は実在の ccTLD のため、素のファイル名
