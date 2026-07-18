@@ -120,6 +120,14 @@ function sanitizeLang(lang) {
   return String(lang).replace(/[^\w+-]/g, '');
 }
 
+// markdown-it の html:true が通す生 HTML(md.render() 出力)を innerHTML 適用前にサニタイズする。
+// purify は依存注入(viewer.html ではグローバル DOMPurify、テストでは jsdom 上に構築した DOMPurify)。
+// 自前の正規表現(on* 属性除去等)は個別のバイパス手法ごとにパッチを重ねる対症療法になるため、
+// 実績のある DOMPurify にサニタイズそのものを委譲する。
+function sanitizeRenderedHtml(purify, html) {
+  return purify.sanitize(html);
+}
+
 // Markdown コードブロックのシンタックスハイライト。
 // markdown-it の highlight オプションから呼ばれる。hljs は依存注入
 // (viewer.html ではグローバル hljs、テストでは npm の highlight.js)。
@@ -468,6 +476,7 @@ if (typeof module !== 'undefined' && module.exports) {
     parseStoredZoom: parseStoredZoom,
     mermaidTheme: mermaidTheme,
     sanitizeLang: sanitizeLang,
+    sanitizeRenderedHtml: sanitizeRenderedHtml,
     isSafeLinkURL: isSafeLinkURL,
     highlightCode: highlightCode,
     diagramScrollHeight: diagramScrollHeight,

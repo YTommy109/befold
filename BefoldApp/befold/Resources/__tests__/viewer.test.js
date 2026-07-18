@@ -13,6 +13,7 @@ const {
   parseStoredZoom,
   mermaidTheme,
   sanitizeLang,
+  sanitizeRenderedHtml,
   highlightCode,
   diagramScrollHeight,
   imageFitSize,
@@ -279,6 +280,62 @@ describe('markdown-it integration with highlightCode', () => {
     const html = md.render('```no-such-lang-xyz\n<b>raw</b>\n```\n');
     expect(html).toContain('&lt;b&gt;raw&lt;/b&gt;');
     expect(html).not.toContain('<span class="hljs-');
+  });
+});
+
+describe('sanitizeRenderedHtml', () => {
+  const { JSDOM } = require('jsdom');
+  const createDOMPurify = require('dompurify');
+  const markdownit = require('markdown-it');
+  const purify = createDOMPurify(new JSDOM('').window);
+
+  // 実際に innerHTML へ挿入した DOM を検査し、on* ハンドラ属性が存在しないことを確認する。
+  // (旧サニタイザは文字列置換のため、on* を含む文字列がタグの外/属性値の中に残っても
+  // それだけでは脆弱性ではない。DOM 構造として実行可能なハンドラが無いことが本質。)
+  function hasEventHandlerAttribute(html) {
+    const container = new JSDOM('').window.document.createElement('div');
+    container.innerHTML = html;
+    return Array.from(container.querySelectorAll('*')).some((el) =>
+      Array.from(el.attributes).some((attr) => /^on/i.test(attr.name))
+    );
+  }
+
+  test('strips onerror hidden behind a slash after a quoted attribute (regex-sanitizer /\\s+on.../ bypass)', () => {
+    // 閉じクォート直後の "/" は HTML5 仕様上 attribute name state に戻るため、
+    // 空白なしでも onerror が独立した属性としてパースされる(旧正規表現の \s+ 要求を回避)。
+    const html = '<div>\n<img src="x"/onerror=alert(1)>\n</div>';
+    expect(hasEventHandlerAttribute(html)).toBe(true);
+    expect(hasEventHandlerAttribute(sanitizeRenderedHtml(purify, html))).toBe(false);
+  });
+
+  test('strips onload behind a namespaced attribute (xlink:href) (regex-sanitizer bypass)', () => {
+    const html = '<a xlink:href="1" onload="alert(1)">x</a>';
+    expect(hasEventHandlerAttribute(html)).toBe(true);
+    expect(hasEventHandlerAttribute(sanitizeRenderedHtml(purify, html))).toBe(false);
+  });
+
+  test('strips script tags entirely', () => {
+    const html = '<p>hi</p><script>alert(1)</script>';
+    expect(sanitizeRenderedHtml(purify, html)).not.toMatch(/<script/i);
+  });
+
+  test('keeps benign markdown-rendered markup intact', () => {
+    const html = '<p><strong>hello</strong> <a href="https://example.com">link</a></p>';
+    expect(sanitizeRenderedHtml(purify, html)).toBe(html);
+  });
+
+  test('keeps mermaid fence output intact', () => {
+    // viewer.html の fence ルール(mermaid)が生成する形と同じ
+    const html = '<pre class="mermaid">graph TD; A--&gt;B;</pre>';
+    expect(sanitizeRenderedHtml(purify, html)).toBe(html);
+  });
+
+  test('end-to-end: markdown-it html:true output with the slash-separator bypass payload is neutralized', () => {
+    // viewer.html の markdownit 初期化と同じ配線(html:true が生 HTML を通す)
+    const md = markdownit({ html: true, linkify: true, typographer: true });
+    const rendered = md.render('<div>\n<img src="x"/onerror=alert(1)>\n</div>');
+    const clean = sanitizeRenderedHtml(purify, rendered);
+    expect(hasEventHandlerAttribute(clean)).toBe(false);
   });
 });
 

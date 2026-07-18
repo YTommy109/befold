@@ -58,6 +58,7 @@ targets:
           - "mermaid.min.js"
           - "markdown-it.min.js"
           - "highlight.min.js"
+          - "dompurify.min.js"
           - "github.css"
           - "github-dark.css"
           - "github-markdown.css"
