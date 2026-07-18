@@ -20,6 +20,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# detectsFileDeletion 等の一発イベント検出テストは CI ランナーの一時的な
+# 低速化(コンパイル直後の CPU 輻輳、TSan の 5〜15 倍スローダウン等)でデフォルトの
+# 10秒待機予算を超過することがある(task-50)。build-and-test / thread-sanitizer
+# の両ジョブで共通の延長値を適用する。
+env:
+  BEFOLD_TEST_TIMEOUT_SECONDS: 30
+
 jobs:
   build-and-test:
     # PR と main push で走らせる（nightly は TSan のみで十分）
@@ -49,13 +56,8 @@ jobs:
       - name: SwiftFormat の整形を検証する
         run: swift package plugin --allow-writing-to-package-directory swiftformat -- --lint
 
-      # detectsFileDeletion 等の一発イベント検出テストは CI ランナーの一時的な
-      # 低速化(コンパイル直後の CPU 輻輳等)でデフォルトの10秒待機予算を
-      # 超過することがある(task-50)。thread-sanitizer ジョブと同じ延長値を適用する。
       - name: テストを実行する
         run: swift test
-        env:
-          BEFOLD_TEST_TIMEOUT_SECONDS: 30
 
   js-test:
     # viewer.js は純粋ロジックのため安価な Ubuntu ランナーで回す
@@ -103,8 +105,5 @@ jobs:
 
       # FileWatcher / Debouncer は GCD/DispatchSource でスレッド安全性を保証しており、
       # データ競合の回帰を ThreadSanitizer で検出する。
-      # TSan は 5〜15 倍スローダウンするため、ポーリング待機のタイムアウトを延長する。
       - name: ThreadSanitizer 付きでテストを実行する
         run: swift test --sanitize=thread
-        env:
-          BEFOLD_TEST_TIMEOUT_SECONDS: 30
