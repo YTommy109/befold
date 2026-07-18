@@ -15,6 +15,7 @@ let package = Package(
             name: "BefoldKit",
             path: "BefoldKit",
             resources: [
+                .process("Resources/Localizable.xcstrings"),
                 .copy("Resources/viewer.html"),
                 .copy("Resources/viewer.js"),
                 .copy("Resources/style.css"),

@@ -127,7 +127,7 @@ struct ViewerBridgeTests {
 
     @Test("bannerStringsScript が window._mmdBannerStrings への代入文を生成する")
     func bannerStringsScriptAssignsBannerStringsGlobal() {
-        let script = ViewerBridge.bannerStringsScript(bundle: .l10n)
+        let script = ViewerBridge.bannerStringsScript()
         #expect(script.hasPrefix("window._mmdBannerStrings = "))
         #expect(script.hasSuffix(";"))
     }
@@ -154,7 +154,7 @@ struct ViewerBridgeTests {
 
     @Test("findStringsScript が window._mmdFindStrings への代入文を生成する")
     func findStringsScriptAssignsFindStringsGlobal() {
-        let script = ViewerBridge.findStringsScript(bundle: .l10n)
+        let script = ViewerBridge.findStringsScript()
 
         #expect(script.hasPrefix("window._mmdFindStrings = "))
         #expect(script.hasSuffix(";"))
@@ -162,7 +162,7 @@ struct ViewerBridgeTests {
 
     @Test("findStringsScript が全キーを含む妥当な JSON を生成する")
     func findStringsScriptProducesValidJSONWithAllKeys() throws {
-        let script = ViewerBridge.findStringsScript(bundle: .l10n)
+        let script = ViewerBridge.findStringsScript()
 
         let jsonPart = script
             .replacingOccurrences(of: "window._mmdFindStrings = ", with: "")

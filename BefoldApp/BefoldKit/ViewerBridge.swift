@@ -109,7 +109,7 @@ public enum ViewerBridge {
 
     /// ロード時にバナーのローカライズ済み文字列を JS 側へ注入するスクリプト。
     /// viewer.html 側は _mmdSetTruncated() が window._mmdBannerStrings を読んで表示する。
-    public static func bannerStringsScript(bundle: Bundle = .main) -> String {
+    public static func bannerStringsScript(bundle: Bundle = .befoldKitResources) -> String {
         let strings: [String: String] = [
             "showing": String(localized: "banner.showing", bundle: bundle),
             "loadMore": String(localized: "banner.loadMore", bundle: bundle),
@@ -160,7 +160,7 @@ public enum ViewerBridge {
     /// viewer.html 側は _mmdInitFind() が window._mmdFindStrings を読んで各要素に適用する。
     /// JSONEncoder でエスケープし、ローカライズ済み文字列に引用符等が含まれても
     /// JS オブジェクトリテラルを壊さないようにする。
-    public static func findStringsScript(bundle: Bundle = .main) -> String {
+    public static func findStringsScript(bundle: Bundle = .befoldKitResources) -> String {
         let strings: [String: String] = [
             "placeholder": String(localized: "viewer.find.placeholder", bundle: bundle),
             "previous": String(localized: "viewer.find.previous", bundle: bundle),

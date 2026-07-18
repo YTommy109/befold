@@ -79,13 +79,13 @@ struct ViewerWebView: NSViewRepresentable {
         )
         config.userContentController.addUserScript(findOptionsScript)
         let findStringsScript = WKUserScript(
-            source: ViewerBridge.findStringsScript(bundle: .l10n),
+            source: ViewerBridge.findStringsScript(),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
         config.userContentController.addUserScript(findStringsScript)
         let bannerStringsScript = WKUserScript(
-            source: ViewerBridge.bannerStringsScript(bundle: .l10n),
+            source: ViewerBridge.bannerStringsScript(),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
