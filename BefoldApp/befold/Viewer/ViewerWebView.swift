@@ -39,6 +39,9 @@ struct ViewerWebView: NSViewRepresentable {
     let findOptionsPreference: FindOptionsPreference
     /// AppKit 側（メニューアクション）へ WKWebView を公開するプロキシ。
     let webViewProxy: WebViewProxy
+    /// 直接 HTML モード・相対画像埋め込みの有効/無効を切り替えるフラグ。
+    /// アプリ本体は `.allEnabled`(既定挙動)を渡す。
+    let rendererFeatures: RendererFeatures
 
     // MARK: - NSViewRepresentable
 
@@ -85,6 +88,7 @@ struct ViewerWebView: NSViewRepresentable {
         context.coordinator.onZoomChanged = onZoomChanged
         context.coordinator.onOpenReference = onOpenReference
         context.coordinator.onScrollPositionChanged = onScrollPositionChanged
+        context.coordinator.rendererFeatures = rendererFeatures
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -115,6 +119,7 @@ struct ViewerWebView: NSViewRepresentable {
         context.coordinator.findOptionsPreference = findOptionsPreference
         context.coordinator.initialPageZoom = initialZoom
         context.coordinator.scrollPositionToRestore = scrollPositionToRestore
+        context.coordinator.rendererFeatures = rendererFeatures
         context.coordinator.updateContent(
             content,
             contentRevision: contentRevision,
@@ -191,6 +196,8 @@ struct ViewerWebView: NSViewRepresentable {
         private var isLoadingMoreLines = false
         /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
         var findOptionsPreference: FindOptionsPreference?
+        /// 直接 HTML モード・相対画像埋め込みの有効/無効フラグ。
+        var rendererFeatures: RendererFeatures = .allEnabled
         /// updateNSView から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
         var initialPageZoom: Double = 1.0
         /// render() 呼び出し前に JS へ注入するスクロール復元位置。
@@ -329,7 +336,10 @@ struct ViewerWebView: NSViewRepresentable {
                 guard let self, let webView else { return }
 
                 // HTML レンダリング表示: loadFileURL で直接ロード
-                if fileType == .html, !isSourceMode, let filePath {
+                if Self.shouldEnterDirectHTMLMode(
+                    fileType: fileType, isSourceMode: isSourceMode,
+                    filePath: filePath, features: rendererFeatures
+                ), let filePath {
                     let pathChanged = filePath != lastDirectHTMLPath
                     let contentChanged = contentRevision != lastRenderedContentRevision
                     guard !isDirectHTMLMode || pathChanged || contentChanged else { return }
@@ -498,7 +508,8 @@ extension ViewerWebView.Coordinator {
         guard let script = ViewerBridge.renderScript(
             content: Self.renderableContent(
                 content, fileType: fileType,
-                filePath: filePath, isSourceMode: isSourceMode
+                filePath: filePath, isSourceMode: isSourceMode,
+                embedImages: rendererFeatures.embedImages
             ),
             fileType: fileType
         ) else { return }
@@ -506,6 +517,15 @@ extension ViewerWebView.Coordinator {
             webView.evaluateJavaScript(ViewerBridge.restoreScrollPositionScript(scrollPositionToRestore))
         }
         webView.evaluateJavaScript(script)
+    }
+
+    /// 直接 HTML モード(loadFileURL による親ディレクトリ read)へ入るべきかどうかを判定する。
+    /// features.allowDirectHTML が false の場合は常に入らず、viewer.html 経由の通常描画に
+    /// フォールバックする(QuickLook 等、親ディレクトリへの read 権限がない実行環境向け)。
+    nonisolated static func shouldEnterDirectHTMLMode(
+        fileType: FileType, isSourceMode: Bool, filePath: URL?, features: RendererFeatures
+    ) -> Bool {
+        fileType == .html && !isSourceMode && filePath != nil && features.allowDirectHTML
     }
 
     /// 今回の render() がファイル/モードの実際の切替かどうかを判定する。
@@ -533,9 +553,10 @@ extension ViewerWebView.Coordinator {
     /// data URI に差し替える(相対パスの解決基準として filePath が必要)。
     /// ソース表示中は原文をそのまま見せるため、埋め込みは行わない。
     nonisolated static func renderableContent(
-        _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool
+        _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool,
+        embedImages: Bool = true
     ) -> String {
-        guard !isSourceMode, fileType == .markdown, let filePath else { return content }
+        guard !isSourceMode, fileType == .markdown, let filePath, embedImages else { return content }
         return MarkdownImageEmbedder.embedLocalImages(in: content, baseURL: filePath)
     }
 

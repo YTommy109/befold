@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldKit
 import Foundation
 import Testing
 
@@ -33,6 +34,75 @@ struct ViewerWebViewCoordinatorTests {
 
         #expect(result.contains("data:image/png;base64,"))
         #expect(!result.contains("(image.png)"))
+    }
+
+    @Test("embedImages: false のときはレンダリング表示中でもmarkdownのローカル画像参照を埋め込まない")
+    func embedImagesDisabledDoesNotEmbedLocalImages() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: "image.png", data: Data([0x89, 0x50, 0x4E, 0x47]))
+        let markdownURL = tmp.url.appendingPathComponent("doc.md")
+        let markdown = "# Title\n\n![alt](image.png)\n"
+
+        let result = ViewerWebView.Coordinator.renderableContent(
+            markdown, fileType: .markdown, filePath: markdownURL, isSourceMode: false,
+            embedImages: false
+        )
+
+        #expect(result == markdown)
+    }
+
+    struct DirectHTMLCase: Sendable, CustomTestStringConvertible {
+        let name: String
+        let fileType: FileType
+        let isSourceMode: Bool
+        let hasFilePath: Bool
+        let features: RendererFeatures
+        let expected: Bool
+        var testDescription: String {
+            name
+        }
+    }
+
+    private static let directHTMLURL = URL(fileURLWithPath: "/tmp/page.html")
+
+    static let directHTMLCases: [DirectHTMLCase] = [
+        DirectHTMLCase(
+            name: "html・レンダリング表示・ファイル有り・allowDirectHTML有効 → 直接HTMLモードに入る",
+            fileType: .html, isSourceMode: false, hasFilePath: true,
+            features: .allEnabled, expected: true
+        ),
+        DirectHTMLCase(
+            name: "allowDirectHTML無効 → 条件を満たしても直接HTMLモードに入らない",
+            fileType: .html, isSourceMode: false, hasFilePath: true,
+            features: RendererFeatures(allowDirectHTML: false, embedImages: true), expected: false
+        ),
+        DirectHTMLCase(
+            name: "ソース表示中は直接HTMLモードに入らない",
+            fileType: .html, isSourceMode: true, hasFilePath: true,
+            features: .allEnabled, expected: false
+        ),
+        DirectHTMLCase(
+            name: "html以外は直接HTMLモードに入らない",
+            fileType: .markdown, isSourceMode: false, hasFilePath: true,
+            features: .allEnabled, expected: false
+        ),
+        DirectHTMLCase(
+            name: "filePathがnilなら直接HTMLモードに入らない",
+            fileType: .html, isSourceMode: false, hasFilePath: false,
+            features: .allEnabled, expected: false
+        ),
+    ]
+
+    @Test("直接HTMLモードへの遷移可否はallowDirectHTMLフラグとファイル種別/表示モードで決まる", arguments: directHTMLCases)
+    func shouldEnterDirectHTMLMode(_ testCase: DirectHTMLCase) {
+        let result = ViewerWebView.Coordinator.shouldEnterDirectHTMLMode(
+            fileType: testCase.fileType, isSourceMode: testCase.isSourceMode,
+            filePath: testCase.hasFilePath ? Self.directHTMLURL : nil,
+            features: testCase.features
+        )
+
+        #expect(result == testCase.expected)
     }
 
     private static let fileA = URL(fileURLWithPath: "/tmp/a.md")
