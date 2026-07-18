@@ -54,13 +54,13 @@ public actor StringChunkReader: ChunkedTextReading {
         // endLine は forcedSplit の場合も resumeIndex が実際に属する行を指すため、
         // 次回 advance(from:) が正しい行境界(lineStartIndices[currentLine+1])を参照できるよう常に更新する。
         currentLine = endLine
-        if forcedSplit {
-            resumeIndex = endIndex
-        } else {
-            resumeIndex = nil
-        }
 
-        let isAtEnd = !forcedSplit && currentLine >= cache.lineCount
+        // forcedSplit はバイト上限で「行の途中」を想定したフラグだが、テキスト長が
+        // ちょうど maxChunkBytes で終わる(末尾改行なし)場合は endIndex がテキスト終端と
+        // 一致する。この場合は forcedSplit の値によらず読み切ったとみなす。
+        let isAtEnd = endIndex == cache.text.endIndex
+        resumeIndex = (forcedSplit && !isAtEnd) ? endIndex : nil
+
         return (chunk, isAtEnd)
     }
 
@@ -73,40 +73,66 @@ public actor StringChunkReader: ChunkedTextReading {
             : advanceByLines(from: startIndex)
     }
 
-    /// CSV クォートを判定しないパス。クォートの対応関係を追う必要がないため、
-    /// 行境界は lineStartIndices から O(1) で参照でき、バイト単位の走査は
-    /// maxChunkBytes 境界を跨ぐ行の強制分割時のみ行う。
-    private func advanceByLines(from startIndex: String
-        .Index) -> (endIndex: String.Index, endLine: Int, forcedSplit: Bool)
-    {
+    /// 1 行分の処理結果。強制分割ならその終端位置、そうでなければ
+    /// その行を linesConsumed に数えるかどうかを返す。
+    private enum LineOutcome {
+        case forcedSplit(endIndex: String.Index)
+        case consumed(shouldCountLine: Bool)
+    }
+
+    /// advanceByLines と advanceRespectingQuotes に共通する行境界の走査骨格。
+    /// 行末位置(lineStart/lineEnd)の算出・scanLine の進行・linesPerChunk 到達判定・
+    /// 走査終了時の return は両者で同一のため、行ごとの中身(processLine)だけを
+    /// 差し替え可能にして共通化する。
+    private func scanLines(
+        from startIndex: String.Index,
+        processLine: (_ lineStart: String.Index, _ lineEnd: String.Index, _ bytesScanned: inout Int) -> LineOutcome
+    ) -> (endIndex: String.Index, endLine: Int, forcedSplit: Bool) {
         var scanLine = currentLine
         var lineStart = startIndex
         var linesConsumed = 0
         var bytesScanned = 0
-        let utf8View = cache.text.utf8
 
         while scanLine < cache.lineCount {
             let lineEnd = scanLine + 1 < cache.lineCount
                 ? cache.lineStartIndices[scanLine + 1]
                 : cache.text.endIndex
 
-            let lineBytes = utf8View.distance(from: lineStart, to: lineEnd)
-            if bytesScanned + lineBytes >= Self.maxChunkBytes {
-                let rawEnd = utf8View.index(lineStart, offsetBy: Self.maxChunkBytes - bytesScanned)
-                let forcedEnd = Self.snappedToCharacterBoundary(rawEnd, lowerBound: lineStart, in: utf8View)
-                return (forcedEnd, scanLine, true)
-            }
-            bytesScanned += lineBytes
-
-            scanLine += 1
-            lineStart = lineEnd
-            linesConsumed += 1
-            if linesConsumed >= Self.linesPerChunk {
-                return (lineEnd, scanLine, false)
+            switch processLine(lineStart, lineEnd, &bytesScanned) {
+            case let .forcedSplit(endIndex):
+                return (endIndex, scanLine, true)
+            case let .consumed(shouldCountLine):
+                scanLine += 1
+                lineStart = lineEnd
+                if shouldCountLine {
+                    linesConsumed += 1
+                    if linesConsumed >= Self.linesPerChunk {
+                        return (lineEnd, scanLine, false)
+                    }
+                }
             }
         }
 
         return (lineStart, scanLine, false)
+    }
+
+    /// CSV クォートを判定しないパス。クォートの対応関係を追う必要がないため、
+    /// 行境界は lineStartIndices から O(1) で参照でき、バイト単位の走査は
+    /// maxChunkBytes 境界を跨ぐ行の強制分割時のみ行う。
+    private func advanceByLines(from startIndex: String
+        .Index) -> (endIndex: String.Index, endLine: Int, forcedSplit: Bool)
+    {
+        let utf8View = cache.text.utf8
+        return scanLines(from: startIndex) { lineStart, lineEnd, bytesScanned in
+            let lineBytes = utf8View.distance(from: lineStart, to: lineEnd)
+            if bytesScanned + lineBytes >= Self.maxChunkBytes {
+                let rawEnd = utf8View.index(lineStart, offsetBy: Self.maxChunkBytes - bytesScanned)
+                let forcedEnd = Self.snappedToCharacterBoundary(rawEnd, lowerBound: lineStart, in: utf8View)
+                return .forcedSplit(endIndex: forcedEnd)
+            }
+            bytesScanned += lineBytes
+            return .consumed(shouldCountLine: true)
+        }
     }
 
     /// UTF-8 継続バイト(0x80–0xBF)の途中を指している場合、そのマルチバイト文字の
@@ -129,17 +155,8 @@ public actor StringChunkReader: ChunkedTextReading {
     private func advanceRespectingQuotes(from startIndex: String
         .Index) -> (endIndex: String.Index, endLine: Int, forcedSplit: Bool)
     {
-        var scanLine = currentLine
-        var lineStart = startIndex
-        var linesConsumed = 0
-        var bytesScanned = 0
         let utf8View = cache.text.utf8
-
-        while scanLine < cache.lineCount {
-            let lineEnd = scanLine + 1 < cache.lineCount
-                ? cache.lineStartIndices[scanLine + 1]
-                : cache.text.endIndex
-
+        return scanLines(from: startIndex) { lineStart, lineEnd, bytesScanned in
             // クォート判定を含むこのループはホットパス(巨大CSV全行)のため、書記素クラスタ
             // 境界計算を伴う Character 単位ではなく UTF-8 バイト単位で走査する。`"` (U+0022) は
             // ASCII のためマルチバイト文字の継続バイト(0x80 以上)と衝突せず、バイト走査でも
@@ -179,21 +196,11 @@ public actor StringChunkReader: ChunkedTextReading {
                             hasGivenUpQuoteTracking = false
                         }
                     }
-                    return (forcedEnd, scanLine, true)
+                    return .forcedSplit(endIndex: forcedEnd)
                 }
             }
 
-            scanLine += 1
-            lineStart = lineEnd
-
-            if !inQuotes || hasGivenUpQuoteTracking {
-                linesConsumed += 1
-                if linesConsumed >= Self.linesPerChunk {
-                    return (lineEnd, scanLine, false)
-                }
-            }
+            return .consumed(shouldCountLine: !inQuotes || hasGivenUpQuoteTracking)
         }
-
-        return (lineStart, scanLine, false)
     }
 }

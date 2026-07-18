@@ -10,6 +10,10 @@ protocol FileWatching: Sendable {
 /// ファイルの rename / move を検知した場合は監視対象を新パスへ切り替え、
 /// onRename で通知する。
 final class FileWatcher: FileWatching, @unchecked Sendable {
+    /// 変更イベントのデバウンス既定値。他コンポーネントがこの時間を前提にした
+    /// 待機を行う場合は、数値をハードコードせずこの定数を参照する。
+    static let defaultDebounceDelay: TimeInterval = 0.2
+
     /// .rename 検知から追従判定までの待機時間。
     /// save-by-rename（旧ファイル退避 → 同パスへ新ファイル作成）では
     /// 退避直後の一瞬だけ元パスが空になるため、この間隔だけ待って
@@ -29,7 +33,7 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
 
     init(
         path: URL,
-        debounceDelay: TimeInterval = 0.2,
+        debounceDelay: TimeInterval = FileWatcher.defaultDebounceDelay,
         renameSettleDelay: TimeInterval = 0.2,
         onChange: @escaping @MainActor @Sendable () -> Void,
         onRename: (@MainActor @Sendable (URL) -> Void)? = nil
