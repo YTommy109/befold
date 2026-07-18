@@ -153,6 +153,58 @@ struct StringChunkReaderTests {
         // 復帰していれば 5000 行 / 1000 行 = 5 チャンク程度に分かれる。
         // 復帰しなければ強制分割前提の巨大チャンク(1〜2個)にしかならない。
         #expect(chunks.count >= 4)
+        // 不均衡クォート判定までの ~500 バイト分の行はカウントされないため多少の
+        // 超過はあるが、大幅に(1 チャンクあたり linesPerChunk の 2 倍近くまで)
+        // 超過してはならない。
+        #expect(chunks.count <= 6)
+    }
+
+    @Test("500 バイトを超える正規のクォートフィールドの後もクォート状態が正しく追跡される")
+    func longLegitimateQuotedFieldDoesNotCorruptSubsequentQuoteState() async throws {
+        // 999 行の平文行の直後に、1 行内で開いて閉じる 600 バイトの正規クォート
+        // フィールド(強制的な不均衡判定を経由するが本物の閉じクォートで終わる)を置き、
+        // 直後(500 バイト未満の間隔)に本物の複数行クォートフィールドを続ける。
+        // クォート状態が破壊されていれば、複数行フィールドの開きクォートが閉じクォート
+        // として誤認識され、内部の改行が 1000 行目の境界と重なってチャンクが
+        // フィールドの途中(quoted と field の間)で分断される。
+        let paddingLines = (0 ..< 999).map { "cell\($0)\n" }.joined()
+        let longField = "\"" + String(repeating: "x", count: 600) + "\"\n"
+        let multilineField = "\"quoted\nfield\"\n"
+        let text = paddingLines + longField + multilineField + "after\n"
+        let cache = try makeCache(text)
+        let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true)
+        let chunks = await readAll(reader)
+        #expect(chunks.joined() == text)
+        #expect(chunks.contains { $0.contains("\"quoted\nfield\"") })
+    }
+
+    @Test("クォートフィールド内のマルチバイト文字が maxChunkBytes 境界をまたいでも二重カウントされない")
+    func multibyteCharacterAtChunkBoundaryInsideQuotedFieldIsNotDoubleCounted() async throws {
+        // "あ"(3 バイト)の 2 バイト目がちょうど maxChunkBytes 境界に来るよう前置バイト数を
+        // 調整する。境界を snappedToCharacterBoundary で巻き戻す際に quotedRunLength も
+        // 同時に巻き戻さないと "あ" の先頭 2 バイトが次チャンクで再走査されて二重カウント
+        // される。フィールドの実際の長さはちょうど 500 バイト
+        // (495 の "a" + 3 バイトの "あ" + 改行 + "z") で不均衡判定されるべきではないが、
+        // 二重カウントされると 501 バイト相当に見えてしまい、本来閉じクォートまで
+        // カウントされないはずの内部改行が 1 行早く linesConsumed に数えられてしまう。
+        // その 1 行のずれは以降ずっと持ち越されるため、フィールドの後に十分な数の平文行を
+        // 続けると、二重カウントの有無でチャンク境界が 1 行分ずれて現れる。
+        let openingQuoteByteOffset = StringChunkReader.maxChunkBytes - 498
+        let filler = String(repeating: "a", count: openingQuoteByteOffset)
+        let field = "\"" + String(repeating: "a", count: 495) + "あ\nz\"\n"
+        // 二重カウントされると内部改行が数えられ始めるのが 1 行早まるため、
+        // 999 行を続けると誤って 1000 行目でチャンクが切られ、"pad998" が
+        // 分断後のチャンクに含まれなくなる。正しい実装では 1000 行目に届かず
+        // 同じチャンク内に収まる。
+        let paddingLines = (0 ..< 999).map { "pad\($0)\n" }.joined()
+        let text = filler + field + paddingLines
+        let cache = try makeCache(text)
+        let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true)
+        let chunks = await readAll(reader)
+        #expect(chunks.joined() == text)
+        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
+        #expect(chunks.contains { $0.contains("あ\nz\"") })
+        #expect(chunks.contains { $0.contains("pad998\n") && $0.contains("あ\nz\"") })
     }
 
     @Test("改行なしテキストの長さがちょうど maxChunkBytes のとき境界外アクセスせずに読み切れる")

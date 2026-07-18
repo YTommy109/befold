@@ -15,7 +15,8 @@ public actor StringChunkReader: ChunkedTextReading {
     /// 不平衡クォートや改行なし巨大行でも 1 チャンクが際限なく肥大化しないための強制分割の上限。
     public static let maxChunkBytes = 1 * 1024 * 1024
     /// クォート付き CSV フィールドとして正当に扱う最大バイト数。開いたクォートが
-    /// これを超えて閉じられない場合は不均衡クォートとみなし inQuotes を強制的に閉じる。
+    /// これを超えて閉じられない場合は不均衡クォートの可能性が高いとみなし、
+    /// hasGivenUpQuoteTracking を立てて行ベースのチャンク区切りを再開する。
     /// チャンク境界(maxChunkBytes)とは無関係の、CSV セルの実長に基づく閾値。
     private static let maxQuotedFieldBytes = 500
 
@@ -28,6 +29,11 @@ public actor StringChunkReader: ChunkedTextReading {
     private var inQuotes: Bool = false
     /// 現在開いているクォートが閉じずに経過したバイト数。クォートの開閉ごとに 0 へ戻る。
     private var quotedRunLength: Int = 0
+    /// quotedRunLength が maxQuotedFieldBytes を超え、行ベースのチャンク区切りを
+    /// 再開すると判断した状態。inQuotes 自体は書き換えない(実際のクォート対応関係を
+    /// 壊さないため)ので、本物の閉じクォートに出会えば toggle 処理が inQuotes を
+    /// 正しく false に戻し、このフラグもあわせてリセットされる。
+    private var hasGivenUpQuoteTracking: Bool = false
 
     /// respectsCSVQuotes が true の場合、CSV のクォート内改行をチャンク境界にしない
     /// (advanceRespectingQuotes を使う)。false の場合は行境界のみで判定する軽量パスを使う。
@@ -142,13 +148,19 @@ public actor StringChunkReader: ChunkedTextReading {
             while cursor < lineEnd {
                 let byte = utf8View[cursor]
                 if byte == 0x22 {
+                    // 本物の閉じクォートが見つかった場合、対応関係を正しく戻す。
+                    // (途中で hasGivenUpQuoteTracking が立っていても inQuotes 自体は
+                    // 書き換えていないため、ここでの toggle は常に正しい状態遷移になる。)
                     inQuotes.toggle()
                     quotedRunLength = 0
+                    hasGivenUpQuoteTracking = false
                 } else if inQuotes {
                     quotedRunLength += 1
                     if quotedRunLength > Self.maxQuotedFieldBytes {
-                        // 対のないクォートを不均衡とみなし、以降は通常の行ベース分割に復帰させる。
-                        inQuotes = false
+                        // 不均衡クォートの可能性が高いとみなし、行ベースの分割を再開する。
+                        // inQuotes は書き換えない(実際のクォートが後で閉じたときに
+                        // 誤って反転させないため)。
+                        hasGivenUpQuoteTracking = true
                         quotedRunLength = 0
                     }
                 }
@@ -157,6 +169,16 @@ public actor StringChunkReader: ChunkedTextReading {
 
                 if bytesScanned >= Self.maxChunkBytes {
                     let forcedEnd = Self.snappedToCharacterBoundary(cursor, lowerBound: lineStart, in: utf8View)
+                    if inQuotes, forcedEnd < cursor {
+                        // snappedToCharacterBoundary が巻き戻したバイトは次回の
+                        // resumeIndex から再走査されるため、quotedRunLength から
+                        // 差し引いて二重カウントを防ぐ。
+                        let rolledBackBytes = utf8View.distance(from: forcedEnd, to: cursor)
+                        quotedRunLength = max(0, quotedRunLength - rolledBackBytes)
+                        if quotedRunLength <= Self.maxQuotedFieldBytes {
+                            hasGivenUpQuoteTracking = false
+                        }
+                    }
                     return (forcedEnd, scanLine, true)
                 }
             }
@@ -164,7 +186,7 @@ public actor StringChunkReader: ChunkedTextReading {
             scanLine += 1
             lineStart = lineEnd
 
-            if !inQuotes {
+            if !inQuotes || hasGivenUpQuoteTracking {
                 linesConsumed += 1
                 if linesConsumed >= Self.linesPerChunk {
                     return (lineEnd, scanLine, false)
