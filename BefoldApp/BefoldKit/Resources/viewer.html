@@ -50,7 +50,6 @@
   </div>
 
   <script src="viewer.js"></script>
-  <script src="mermaid.min.js"></script>
   <script src="markdown-it.min.js"></script>
   <script src="highlight.min.js"></script>
   <script src="dompurify.min.js"></script>
@@ -454,17 +453,7 @@
     };
   }
 
-  mermaid.initialize(_mmdMermaidConfig());
-
-  // カラースキームが切り替わったら mermaid を再初期化し、直近の内容を再描画する。
-  _mmdDarkQuery.addEventListener('change', function() {
-    mermaid.initialize(_mmdMermaidConfig());
-    if (_lastContent !== null) {
-      render(_lastContent, _lastType, _lastLang);
-    }
-  });
-
-  mermaid.parseError = function(err) {
+  function _mmdMermaidParseError(err) {
     var msg = (err && (err.message || err.str)) || String(err);
     var panel = document.getElementById('mmd-error');
     panel.textContent = msg;
@@ -472,7 +461,39 @@
     if (_currentType === 'mmd') {
       document.getElementById('diagram-wrap').style.display = 'none';
     }
-  };
+  }
+
+  // mermaid.min.js（3.2MB）は CSV・ログ・コード・SVG・HTML ソース等の mermaid 不使用
+  // プレビューでは無駄なパース/評価コストになるため、mermaid を実際に描画する瞬間まで
+  // ロードを遅延する。<script> をDOM挿入する方式は WKWebView の CSP（script-src 'self'）
+  // にも適合する。Promise をキャッシュし、複数回呼ばれても2回ロードしない。
+  var _mermaidLoadPromise = null;
+  function _mmdEnsureMermaidLoaded() {
+    if (_mermaidLoadPromise) return _mermaidLoadPromise;
+    _mermaidLoadPromise = new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'mermaid.min.js';
+      script.onload = resolve;
+      script.onerror = function() { reject(new Error('mermaid.min.js failed to load')); };
+      document.head.appendChild(script);
+    }).then(function() {
+      mermaid.initialize(_mmdMermaidConfig());
+      mermaid.parseError = _mmdMermaidParseError;
+    });
+    return _mermaidLoadPromise;
+  }
+
+  // カラースキームが切り替わったら（既にロード済みの場合のみ）mermaid を再初期化し、
+  // 直近の内容を再描画する。未ロードなら次回 _mmdEnsureMermaidLoaded() が現在の
+  // カラースキームで初期化するため、ここでの再初期化は不要。
+  _mmdDarkQuery.addEventListener('change', function() {
+    if (_mermaidLoadPromise) {
+      mermaid.initialize(_mmdMermaidConfig());
+    }
+    if (_lastContent !== null) {
+      render(_lastContent, _lastType, _lastLang);
+    }
+  });
 
   // --- Markdown-it ---
   var md;
@@ -1141,14 +1162,15 @@
 
     var mermaidElements = diagramWrap.querySelectorAll('.mermaid');
     if (mermaidElements.length > 0) {
-      mermaidElements.forEach(function(el, i) {
-        el.removeAttribute('data-processed');
-        el.id = 'mmd-' + i + '-' + Date.now();
-      });
       try {
+        await _mmdEnsureMermaidLoaded();
+        mermaidElements.forEach(function(el, i) {
+          el.removeAttribute('data-processed');
+          el.id = 'mmd-' + i + '-' + Date.now();
+        });
         await mermaid.run({ nodes: Array.from(mermaidElements) });
       } catch(e) {
-        // parseError callback handles display
+        // parseError callback handles parse-time display; load failure falls through silently
       }
       _mmdWrapDiagrams(diagramWrap);
     }
