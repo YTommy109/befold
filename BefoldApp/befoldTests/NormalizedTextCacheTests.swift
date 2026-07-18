@@ -170,4 +170,25 @@ struct NormalizedTextCacheTests {
         let cacheBBB = try NormalizedTextCache(data: Data("bbb\n".utf8))
         #expect(cacheAAA.dataHash != cacheBBB.dataHash)
     }
+
+    // MARK: - oneShotLoad (TASK-1.11)
+
+    @Test("oneShotLoad: true では dataHash が nil になる(SHA256計算を省略する)")
+    func oneShotLoadSkipsHash() throws {
+        let cache = try NormalizedTextCache(data: Data("test\n".utf8), oneShotLoad: true)
+        #expect(cache.dataHash == nil)
+    }
+
+    @Test("oneShotLoad: false(既定)では従来どおり dataHash が計算される")
+    func defaultLoadStillComputesHash() throws {
+        let cache = try NormalizedTextCache(data: Data("test\n".utf8))
+        #expect(cache.dataHash != nil)
+    }
+
+    @Test("oneShotLoad: true でも通常どおりデコード・正規化・行分割される(回帰なし)")
+    func oneShotLoadStillDecodesCorrectly() throws {
+        let cache = try NormalizedTextCache(data: Data("a\r\nb\rc\n".utf8), oneShotLoad: true)
+        #expect(cache.text == "a\nb\nc\n")
+        #expect(cache.lineCount == 3)
+    }
 }

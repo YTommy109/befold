@@ -109,4 +109,33 @@ struct TextEncodingTests {
 
         #expect(decoded == text)
     }
+
+    // MARK: - fallbackScanLimit (TASK-1.11)
+
+    @Test("ASCIIヘッダーが oneShotFallbackScanBytes を超えるレガシーファイルは、通常読込では全量フォールバックで正しくデコードされる")
+    func decodesShiftJISWithHeaderExceedingOneShotLimitUsingUnlimitedFallback() throws {
+        let asciiHeader = String(repeating: "a", count: TextEncoding.oneShotFallbackScanBytes + 1000)
+        let fullText = asciiHeader + "日本語の本文です。\n"
+        let data = try #require(fullText.data(using: .shiftJIS))
+
+        // NormalizedTextCache の既定(oneShotLoad: false)は全データを判定窓として
+        // 再試行するため、sniffLength や oneShotFallbackScanBytes を超えるヘッダーでも
+        // 正しくデコードできる(回帰なし)。
+        let cache = try NormalizedTextCache(data: data)
+        #expect(cache.text == fullText)
+    }
+
+    @Test("ASCIIヘッダーが oneShotFallbackScanBytes を超えるレガシーファイルは、静的1回読込ではフォールバック判定窓が制限されデコードに失敗する")
+    func oneShotLoadLimitsFallbackScanWindow() throws {
+        let asciiHeader = String(repeating: "a", count: TextEncoding.oneShotFallbackScanBytes + 1000)
+        let fullText = asciiHeader + "日本語の本文です。\n"
+        let data = try #require(fullText.data(using: .shiftJIS))
+
+        // oneShotLoad: true では2回目の判定窓が oneShotFallbackScanBytes に制限されるため、
+        // 本文(日本語)がその範囲外にあるこのケースでは正しいエンコーディングを判定できず、
+        // デコードに失敗する。全データを読まずに判定窓を打ち切っていることの直接的な証跡。
+        #expect(throws: TextEncodingError.decodeFailed) {
+            try NormalizedTextCache(data: data, oneShotLoad: true)
+        }
+    }
 }

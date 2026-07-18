@@ -11,6 +11,11 @@ public enum TextEncoding: Sendable {
     /// バイナリ判定・エンコーディング判定に見る先頭バイト数。
     public static let sniffLength = 8192
 
+    /// 静的1回読込(QuickLook 等)でレガシーエンコーディング判定が先頭 sniffLength バイトで
+    /// 確定しなかった場合に、全データの代わりに使うフォールバック判定窓の上限。
+    /// sniffLength より大きく、かつ 100MB 級ファイルでも即応できる範囲に収める。
+    public static let oneShotFallbackScanBytes = 1024 * 1024
+
     /// 先頭バイト列から BOM を検出し、対応するエンコーディングと BOM 長を返す。
     /// UTF-32 の BOM(4 バイト)は UTF-16 LE と先頭が同じなので先に判定する。
     public static func detectBOM(_ data: Data) -> (encoding: String.Encoding, bomLength: Int)? {
@@ -101,15 +106,21 @@ public enum TextEncoding: Sendable {
     /// エンコーディング判定と復号を1パスで行う。detectFixedEncoding は判定窓によらず
     /// 結果が変わらないため一度だけ行う。それで判定できない場合は、レガシーエンコーディング
     /// 判定と復号の両方を先頭 sniffLength バイトで試み、判定または復号のいずれかが失敗した
-    /// 場合のみ全データを判定窓として再試行する
+    /// 場合のみ2回目の判定窓(既定は全データ)で再試行する
     /// (sniffWindow がたまたま ASCII のみ等で判定には成功しても、実際のデータを
     /// 正しく復号できないケースがあるため、判定成功だけでなく復号成功も再試行の条件とする)。
-    static func detectAndDecodeText(_ data: Data) -> (encoding: String.Encoding, bomLength: Int, text: String)? {
+    /// fallbackScanLimit を指定すると、2回目の判定窓を全データではなく先頭 fallbackScanLimit
+    /// バイトに制限する(静的1回読込で 100MB 級ファイルの全量スキャンを避けるため)。
+    /// 復号(decode)自体は判定窓によらず常に全データに対して行われるため、正しさは変わらない。
+    static func detectAndDecodeText(
+        _ data: Data, fallbackScanLimit: Int? = nil
+    ) -> (encoding: String.Encoding, bomLength: Int, text: String)? {
         if let fixed = detectFixedEncoding(data) {
             return decode(data, detected: fixed)
         }
+        let fallbackWindow = fallbackScanLimit.map { data.prefix($0) } ?? data
         return decodeUsingLegacyDetection(data, sniffWindow: data.prefix(sniffLength))
-            ?? decodeUsingLegacyDetection(data, sniffWindow: data)
+            ?? decodeUsingLegacyDetection(data, sniffWindow: fallbackWindow)
     }
 
     private static func decodeUsingLegacyDetection(

@@ -21,12 +21,17 @@ public enum ViewerLoadPipeline {
     /// ファイルの存在確認・NormalizedTextCache 生成・チャンクセッション生成・全量読み込みを行う。
     /// nonisolated async のため呼び出し元のアクターを離れて実行され、
     /// I/O・デコードがメインスレッドを塞がない。
+    /// oneShotLoad: true の場合、ライブリロードの同一内容スキップにしか使わない dataHash の
+    /// 計算とエンコーディング判定の全量フォールバックスキャンを省略する(QuickLook 拡張のような
+    /// 1回描画のみのホスト向け。詳細は NormalizedTextCache.init 参照)。ViewerStore は
+    /// 同一内容スキップに dataHash を必要とするため既定の false のまま呼び出す。
     public static func load(
         resolved: URL,
         fileType: FileType,
         fileReader: any FileReading,
         contentLoader: ContentLoader,
-        chunkedReaderFactory: ChunkedReaderFactory
+        chunkedReaderFactory: ChunkedReaderFactory,
+        oneShotLoad: Bool = false
     ) async -> Outcome {
         guard fileReader.fileExists(at: resolved) else { return .missing }
 
@@ -58,7 +63,7 @@ public enum ViewerLoadPipeline {
                 // 先頭チャンク描画に必要な範囲だけを正規化・行分割する
                 // (ファイル全体を materialize しない。100MB 級ファイルでの
                 // ピークメモリ・CPU 削減のため。詳細は NormalizedTextCache 参照)。
-                let cache = try NormalizedTextCache(data: data, normalizeFully: false)
+                let cache = try NormalizedTextCache(data: data, normalizeFully: false, oneShotLoad: oneShotLoad)
                 let reader = try chunkedReaderFactory(cache, fileType)
                 let firstChunk = try await reader.readNextChunk()
                 return .chunked(
@@ -66,7 +71,7 @@ public enum ViewerLoadPipeline {
                     firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
                 )
             } else {
-                let cache = try NormalizedTextCache(data: data)
+                let cache = try NormalizedTextCache(data: data, oneShotLoad: oneShotLoad)
                 if cache.text.utf8.count > ContentLoader.maxTextFileSizeBytes {
                     return .full(
                         ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
