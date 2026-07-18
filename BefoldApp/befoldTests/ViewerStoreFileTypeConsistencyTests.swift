@@ -58,6 +58,40 @@ struct ViewerStoreFileTypeConsistencyTests {
         store.close()
     }
 
+    /// ファイル切替中(読み込み完了前)は filePath だけが先行して新ファイルを指す
+    /// 中間状態が観測されてはいけない(GitHub issue #252: HTML 表示直後に他ファイルへ
+    /// 切り替えると空白表示になる不具合の再発防止)。切替直後は旧ファイルの
+    /// filePath/fileType/content が組のまま保たれ、読み込み完了後に新ファイルの組へ
+    /// 一括で切り替わることを確認する。
+    @Test
+    func filePathStaysPairedWithFileTypeAndContentDuringSwitch() async {
+        let htmlFile = URL(fileURLWithPath: "/files/page.html")
+        let cssFile = URL(fileURLWithPath: "/files/style.css")
+        let reader = InMemoryFileReader()
+        reader.setFile("<html></html>", at: htmlFile)
+        reader.setFile("body { color: red; }", at: cssFile)
+
+        let store = makeStore(reader: reader)
+        await openAndLoad(store, htmlFile)
+        #expect(store.fileType == .html)
+        #expect(store.filePath == htmlFile)
+
+        store.openFile(cssFile)
+        // 読み込み完了前は、旧ファイルの filePath/fileType/content が組のまま残るべき
+        // (filePath だけ新ファイルを指し、fileType/content が旧ファイルのままという
+        // 中間状態は許されない)。
+        #expect(store.filePath == htmlFile)
+        #expect(store.fileType == .html)
+        #expect(store.content == "<html></html>")
+
+        await awaitLoad(store)
+        #expect(store.filePath == cssFile)
+        #expect(store.fileType == .code(language: "css"))
+        #expect(store.content == "body { color: red; }")
+
+        store.close()
+    }
+
     /// 内容・タイプとも完全に同一の再読込では、従来どおり再描画をスキップする
     /// (TASK-23 の回帰なし)。
     @Test
