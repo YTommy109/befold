@@ -53,9 +53,12 @@ public enum ViewerLoadPipeline {
 
         do {
             let data = try fileReader.readData(from: resolved)
-            let cache = try NormalizedTextCache(data: data)
 
             if fileType.isLineOriented {
+                // 先頭チャンク描画に必要な範囲だけを正規化・行分割する
+                // (ファイル全体を materialize しない。100MB 級ファイルでの
+                // ピークメモリ・CPU 削減のため。詳細は NormalizedTextCache 参照)。
+                let cache = try NormalizedTextCache(data: data, normalizeFully: false)
                 let reader = try chunkedReaderFactory(cache, fileType)
                 let firstChunk = try await reader.readNextChunk()
                 return .chunked(
@@ -63,6 +66,7 @@ public enum ViewerLoadPipeline {
                     firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
                 )
             } else {
+                let cache = try NormalizedTextCache(data: data)
                 if cache.text.utf8.count > ContentLoader.maxTextFileSizeBytes {
                     return .full(
                         ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
