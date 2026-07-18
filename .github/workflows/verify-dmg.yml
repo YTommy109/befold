@@ -12,7 +12,7 @@ jobs:
   verify:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: create-dmg をインストールする
         run: brew install create-dmg

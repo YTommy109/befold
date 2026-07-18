@@ -19,7 +19,7 @@ jobs:
         working-directory: BefoldApp
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # rev-list --count を正しく数えるため全履歴を取得する
           fetch-depth: 0
