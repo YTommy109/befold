@@ -49,8 +49,13 @@ jobs:
       - name: SwiftFormat の整形を検証する
         run: swift package plugin --allow-writing-to-package-directory swiftformat -- --lint
 
+      # detectsFileDeletion 等の一発イベント検出テストは CI ランナーの一時的な
+      # 低速化(コンパイル直後の CPU 輻輳等)でデフォルトの10秒待機予算を
+      # 超過することがある(task-50)。thread-sanitizer ジョブと同じ延長値を適用する。
       - name: テストを実行する
         run: swift test
+        env:
+          BEFOLD_TEST_TIMEOUT_SECONDS: 30
 
   js-test:
     # viewer.js は純粋ロジックのため安価な Ubuntu ランナーで回す
