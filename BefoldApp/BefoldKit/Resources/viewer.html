@@ -426,6 +426,10 @@
       theme: mermaidTheme(_mmdDarkQuery.matches),
       // 図ラベル内の生 HTML をサニタイズする（デフォルトだが将来の既定変更に備えて明示）
       securityLevel: 'strict',
+      // mermaid.js のデフォルト上限（50,000文字/500エッジ）はアプリが許容するテキストファイル上限（10MB）より
+      // はるかに小さく、大きめの図が "Maximum text size in diagram exceeded" になるため引き上げる。
+      maxTextSize: 10 * 1024 * 1024,
+      maxEdges: 10000,
       sequence:  { useMaxWidth: false },
       er:        { useMaxWidth: false },
       flowchart: { useMaxWidth: false },
