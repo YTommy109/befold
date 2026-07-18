@@ -57,6 +57,8 @@ public enum FileType: Sendable, Equatable {
     ]
     /// PDF として扱う拡張子。
     public static let pdfExtensions = ["pdf"]
+    /// 未知の拡張子に対するフォールバック種別。
+    public static let plaintextFallback: FileType = .code(language: "plaintext")
     /// 拡張子 → FileType の単一対応表。`init(url:)` と `allExtensions` の唯一の情報源。
     private static let typeByExtension: [String: FileType] = {
         var map: [String: FileType] = [:]
@@ -101,7 +103,7 @@ public enum FileType: Sendable, Equatable {
     }
 
     public init(url: URL) {
-        self = Self.typeByExtension[url.pathExtension.lowercased()] ?? .code(language: "plaintext")
+        self = Self.typeByExtension[url.pathExtension.lowercased()] ?? Self.plaintextFallback
     }
 
     public var jsValue: String {

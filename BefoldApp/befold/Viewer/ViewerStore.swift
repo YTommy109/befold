@@ -299,12 +299,13 @@ final class ViewerStore {
         onContentReloaded?()
     }
 
+    /// FileWatcher のデバウンス既定値に余裕を持たせたグレース期間。
+    /// 環境依存のタイミング問題による検知遅延に対応する。
+    private static let fileGoneGracePeriod = FileWatcher.defaultDebounceDelay * 5
+
     /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
     /// 常に張り直す(古いタスクをキャンセルして置き換える)ことで、発火せず完了した
     /// タスクが残って以後の検知を塞ぐことを防ぐ。
-    ///
-    /// FileWatcher のデバウンス(0.2s) + 余裕を持たせた期間を設定し、
-    /// 環境依存のタイミング問題による検知遅延に対応する。
     ///
     /// 注: filePath は schedule 時点でキャプチャせず、発火時に再確認する。
     /// handleRename で filePath が更新されると、rename と grace period の競争状態で
@@ -312,7 +313,7 @@ final class ViewerStore {
     private func scheduleFileGone() {
         fileGoneTask?.cancel()
         fileGoneTask = Task { @MainActor [weak self, clock] in
-            try? await clock.sleep(for: .seconds(1))
+            try? await clock.sleep(for: .seconds(Self.fileGoneGracePeriod))
             guard let self, !Task.isCancelled else { return }
             guard let filePath else { return }
             guard !fileReader.fileExists(at: filePath.resolvingSymlinksInPath()) else { return }

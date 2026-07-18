@@ -267,11 +267,22 @@ struct ViewerBridgeTests {
         #expect(js.contains("var ZOOM_STEP = \(ZoomStore.zoomStep);"))
     }
 
-    /// befoldTests/ から見た BefoldKit/Resources/ 内のリソース URL を返す。
+    @Test("viewer.js の ZOOM_DEFAULT が ZoomStore.defaultZoom と一致する")
+    func zoomDefaultMatchesZoomStore() throws {
+        let js = try String(contentsOf: resourceURL("viewer.js"), encoding: .utf8)
+
+        #expect(js.contains("var ZOOM_DEFAULT = \(Int(ZoomStore.defaultZoom));"))
+    }
+
+    /// BefoldKit のリソースバンドルから、ビルド成果物に実際に含まれるリソース URL を返す。
     private func resourceURL(_ name: String) -> URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // befoldTests
-            .deletingLastPathComponent() // BefoldApp
-            .appendingPathComponent("BefoldKit/Resources/\(name)")
+        let url = URL(fileURLWithPath: name)
+        guard let resourceURL = Bundle.befoldKitResources.url(
+            forResource: url.deletingPathExtension().lastPathComponent,
+            withExtension: url.pathExtension
+        ) else {
+            fatalError("BefoldKit リソースが見つかりません: \(name)")
+        }
+        return resourceURL
     }
 }

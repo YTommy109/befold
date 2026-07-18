@@ -14,6 +14,7 @@ let package = Package(
         .target(
             name: "BefoldKit",
             path: "BefoldKit",
+            exclude: ["Resources/__tests__"],
             resources: [
                 .process("Resources/Localizable.xcstrings"),
                 .copy("Resources/viewer.html"),
@@ -37,7 +38,7 @@ let package = Package(
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
             path: "befold",
-            exclude: ["Info.plist", "befold.entitlements", "Resources/__tests__"],
+            exclude: ["Info.plist", "befold.entitlements"],
             resources: [
                 .process("Resources/Localizable.xcstrings"),
                 .copy("Resources/AppIcon.icns"),

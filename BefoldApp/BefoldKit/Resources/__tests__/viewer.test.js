@@ -39,7 +39,7 @@ const {
   csvRowsHtml,
   codeChunkInnerHtml,
   lastLines,
-} = require('../../../BefoldKit/Resources/viewer');
+} = require('../viewer');
 
 describe('clampZoom', () => {
   test('returns value within range unchanged', () => {

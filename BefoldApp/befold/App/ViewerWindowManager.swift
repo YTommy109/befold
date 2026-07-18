@@ -111,22 +111,27 @@ final class ViewerWindowManager {
         (window.windowController as? ViewerWindowController)?.fileURL.normalizedPathKey
     }
 
+    /// targetURL を controller 以外のウィンドウで開いている ViewerWindowController を返す。
+    private func existingOtherController(
+        for targetURL: URL, excluding controller: ViewerWindowController
+    ) -> ViewerWindowController? {
+        let key = targetURL.normalizedPathKey
+        guard let existing = controllers[key], existing !== controller else { return nil }
+        return existing
+    }
+
     /// targetURL が controller 以外のウィンドウで既に開かれているかを判定する純粋チェック。
     private func isOpenInAnotherWindow(
         _ targetURL: URL, excluding controller: ViewerWindowController
     ) -> Bool {
-        let key = targetURL.normalizedPathKey
-        guard let existing = controllers[key], existing !== controller else { return false }
-        return true
+        existingOtherController(for: targetURL, excluding: controller) != nil
     }
 
     /// targetURL を開いている別ウィンドウを前面化する。
     private func focusExistingWindow(
         _ targetURL: URL, excluding controller: ViewerWindowController
     ) {
-        let key = targetURL.normalizedPathKey
-        guard let existing = controllers[key], existing !== controller else { return }
-        existing.window?.makeKeyAndOrderFront(nil)
+        existingOtherController(for: targetURL, excluding: controller)?.window?.makeKeyAndOrderFront(nil)
     }
 
     /// rename / switch に伴うウィンドウ管理辞書のキー付け替えとセッション・履歴の更新。

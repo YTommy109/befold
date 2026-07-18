@@ -50,52 +50,30 @@ struct ViewerWebView: NSViewRepresentable {
             config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         #endif
 
-        let zoomScript = WKUserScript(
-            source: ViewerBridge.initialZoomScript(initialZoom),
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        )
-        config.userContentController.addUserScript(zoomScript)
-        // Markdown 本文をシステム設定のテキストサイズに合わせる。
-        // preferredFont(.body) はアクセシビリティのテキストサイズ変更に追従する(既定 13pt)。
-        let fontSizeScript = WKUserScript(
-            source: ViewerBridge.systemFontSizeScript(
+        // ロード前に注入する JS を一括登録する(全て atDocumentStart / メインフレーム限定)。
+        // Markdown 本文をシステム設定のテキストサイズに合わせる際は preferredFont(.body) を使う
+        // (アクセシビリティのテキストサイズ変更に追従、既定 13pt)。
+        let userScriptSources = [
+            ViewerBridge.initialZoomScript(initialZoom),
+            ViewerBridge.systemFontSizeScript(
                 NSFont.preferredFont(forTextStyle: .body).pointSize
             ),
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        )
-        config.userContentController.addUserScript(fontSizeScript)
-        let findOptionsScript = WKUserScript(
-            source: ViewerBridge.initialFindOptionsScript(
+            ViewerBridge.initialFindOptionsScript(
                 ViewerBridge.FindOptions(
                     caseSensitive: findOptionsPreference.caseSensitive,
                     wholeWord: findOptionsPreference.wholeWord,
                     useRegex: findOptionsPreference.useRegex
                 )
             ),
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        )
-        config.userContentController.addUserScript(findOptionsScript)
-        let findStringsScript = WKUserScript(
-            source: ViewerBridge.findStringsScript(),
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        )
-        config.userContentController.addUserScript(findStringsScript)
-        let bannerStringsScript = WKUserScript(
-            source: ViewerBridge.bannerStringsScript(),
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        )
-        config.userContentController.addUserScript(bannerStringsScript)
-        let hostFeaturesScript = WKUserScript(
-            source: ViewerBridge.hostFeaturesScript(),
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        )
-        config.userContentController.addUserScript(hostFeaturesScript)
+            ViewerBridge.findStringsScript(),
+            ViewerBridge.bannerStringsScript(),
+            ViewerBridge.hostFeaturesScript(),
+        ]
+        for source in userScriptSources {
+            config.userContentController.addUserScript(
+                WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+            )
+        }
         // JS → Swift の postMessage ハンドラをまとめて登録する(同一 delegate のため一括化)。
         for name in Self.messageHandlerNames {
             config.userContentController.add(
@@ -454,7 +432,7 @@ extension ViewerWebView.Coordinator {
             // JS 呼び出し(await)より前に同期でキャッシュを更新することで、追記後の
             // SwiftUI 再描画による全文 render の誤爆と、チャンク二重表示レースの
             // 窓を閉じる(recordRendered 呼び出し前に他の処理へ制御が渡らない)。
-            let fileType = lastRenderedFileType ?? .code(language: "plaintext")
+            let fileType = lastRenderedFileType ?? FileType.plaintextFallback
             recordRendered(
                 contentRevision: result.contentRevision,
                 fileType: fileType, filePath: lastRenderedFilePath
