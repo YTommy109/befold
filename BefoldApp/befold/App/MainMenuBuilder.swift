@@ -103,10 +103,15 @@ enum MainMenuBuilder {
     /// ビューア専用アプリだが、⌘C コピー・⌘A 全選択などのキーイベントは
     /// 対応するメニュー項目が存在して初めてファーストレスポンダ（WKWebView）へ
     /// 配送されるため、標準構成の Edit メニューを用意する。
+    /// undo/redo・cut/copy/paste/delete/selectAll は NSResponder の標準セレクタに
+    /// そのまま委譲し、Find 系だけ WKWebView 内蔵の検索バーを操作する
+    /// ViewerWindowController のアクションへつなぐ(標準の Find パネルは使わない)。
     private static func makeEditMenuItem() -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.edit.title", bundle: .l10n))
         item.submenu = menu
+        // undo:/redo: は NSUndoManager が実装時のみ応答するセレクタで #selector による
+        // コンパイル時チェック対象の宣言が存在しないため、文字列セレクタで指定する。
         menu.addItem(
             withTitle: String(localized: "menu.edit.undo", bundle: .l10n),
             action: Selector(("undo:")),
@@ -117,6 +122,7 @@ enum MainMenuBuilder {
             action: Selector(("redo:")),
             keyEquivalent: "z"
         )
+        // redo は macOS 標準どおり undo と同じキー(z)に shift を重ねて区別する。
         redo.keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(.separator())
         menu.addItem(
@@ -160,10 +166,15 @@ enum MainMenuBuilder {
             action: #selector(ViewerWindowController.findPrevious(_:)),
             keyEquivalent: "g"
         )
+        // findNext と同じキー(g)に shift を重ねて逆方向を表す(Safari 等と同じ慣習)。
         findPrevious.keyEquivalentModifierMask = [.command, .shift]
         return item
     }
 
+    /// ズーム・表示モード切替・サイドバー・履歴ナビゲーションをまとめた View メニュー。
+    /// 大半は ViewerWindowController のアクションへ委譲する薄いラッパーだが、
+    /// 一部の項目は他メニューとのキーバインド衝突を避けるため既定の修飾キーを
+    /// 上書きしている(各項目の直前コメント参照)。
     private static func makeViewMenuItem() -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.view.title", bundle: .l10n))
@@ -200,6 +211,8 @@ enum MainMenuBuilder {
             action: #selector(NSSplitViewController.toggleSidebar(_:)),
             keyEquivalent: "s"
         )
+        // addItem(withTitle:...) の既定修飾キーは [.command] だが、意図を明示するため
+        // 明示的に上書きしている(挙動は変わらない)。
         toggleSidebar.keyEquivalentModifierMask = [.command]
         menu.addItem(.separator())
         menu.addItem(
@@ -218,12 +231,15 @@ enum MainMenuBuilder {
             action: #selector(AppDelegate.toggleHiddenFiles(_:)),
             keyEquivalent: "h"
         )
+        // 素の ⌘H は App メニューの Hide(NSApplication.hide)と衝突するため、
+        // control を重ねて区別する。
         toggleHiddenFiles.keyEquivalentModifierMask = [.command, .control]
         let fullScreen = menu.addItem(
             withTitle: String(localized: "menu.view.enterFullScreen", bundle: .l10n),
             action: #selector(NSWindow.toggleFullScreen(_:)),
             keyEquivalent: "f"
         )
+        // macOS 標準のフルスクリーン切替ショートカット(⌃⌘F)に合わせる。
         fullScreen.keyEquivalentModifierMask = [.control, .command]
         return item
     }
