@@ -100,6 +100,32 @@ extension ViewerRenderer {
         rendered.filePath = filePath
     }
 
+    /// pendingAppend の消費可否判定に必要な、更新後の描画条件をまとめた入力
+    /// (function_parameter_count 対策)。
+    struct PendingAppendCheck {
+        let contentRevision: Int
+        let showLineNumbers: Bool
+        let filePath: URL?
+        let isSourceMode: Bool
+    }
+
+    /// pendingAppend(段階読み込みでステージされた次チャンク)を全文 render せず増分描画して
+    /// よいかどうかを判定する。revision 不一致・ファイル/モード切替に加え、直近描画時から
+    /// showLineNumbers が変化している場合も全文 render 側へ倒す。同一 revision で pending
+    /// append と行番号トグルが1つの @Observable サイクルに合体すると、増分追記だけを行い
+    /// setLineNumbers() の注入が起きない applyAppend 経路へ吸収されてしまい、トグルが
+    /// 1周期失われるため。
+    nonisolated static func canConsumePendingAppend(
+        _ pending: PendingAppend, _ current: PendingAppendCheck, rendered: RenderedStateMirror
+    ) -> Bool {
+        pending.revision == current.contentRevision
+            && current.showLineNumbers == rendered.showLineNumbers
+            && !isFileOrModeSwitch(
+                filePath: current.filePath, isSourceMode: current.isSourceMode,
+                lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
+            )
+    }
+
     /// 呼び出し前に `exitDirectHTMLMode` が `rendered.reset()` でミラーを一括破棄済みである
     /// 前提。再ロードで viewer.html の JS 状態(_showLineNumbers=false, _viewMode='rendered')が
     /// 初期化されるのに合わせ、次回更新時に setLineNumbers / setViewMode を再注入させる。

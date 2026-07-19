@@ -94,17 +94,20 @@ public extension ViewerRenderer {
             }
 
             // 段階読み込みの続き(loadMoreLines)は handleLoadMoreLines が pendingAppend として
-            // ステージする。現在の revision と一致し、ファイル/モード切替でなければ全文 render せず
-            // 増分追記する。これで「追記の描画」経路が updateContent 1 本に集約される。revision
-            // 不一致(別の読み込みに追い越された)場合は破棄し、下の通常経路で全文 render に倒す。
+            // ステージする。現在の revision と一致し、ファイル/モード/行番号表示切替でなければ
+            // 全文 render せず増分追記する。これで「追記の描画」経路が updateContent 1 本に集約される。
+            // 条件不一致(別の読み込みに追い越された・同一サイクルで行番号トグルも変わった等)の
+            // 場合は破棄し、下の通常経路で全文 render に倒す。
             if let pending = pendingAppend {
                 pendingAppend = nil
-                if pending.revision == contentRevision,
-                   !Self.isFileOrModeSwitch(
-                       filePath: filePath, isSourceMode: isSourceMode,
-                       lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
-                   )
-                {
+                if Self.canConsumePendingAppend(
+                    pending,
+                    PendingAppendCheck(
+                        contentRevision: contentRevision, showLineNumbers: showLineNumbers,
+                        filePath: filePath, isSourceMode: isSourceMode
+                    ),
+                    rendered: rendered
+                ) {
                     applyAppend(
                         webView: webView, chunk: pending.chunk, contentRevision: contentRevision,
                         fileType: fileType, filePath: filePath, truncation: truncation
