@@ -106,6 +106,82 @@ struct ViewerRendererMessageHandlingTests {
         #expect(renderer.isLoadingMoreLines == true)
     }
 
+    @Test("handleLoadMoreLines は onLoadMoreLines の結果を pendingAppend にステージする")
+    func handleLoadMoreLinesStagesPendingAppend() async {
+        let renderer = ViewerRenderer()
+        renderer.onLoadMoreLines = {
+            LoadMoreLinesResult(
+                chunk: "row2\n", isTruncated: true, lineCount: 2,
+                contentRevision: 5, loadFailed: false
+            )
+        }
+
+        renderer.handleLoadMoreLines()
+        // spawn した非同期 Task の完了(isLoadingMoreLines が false に戻る)を待つ。
+        while renderer.isLoadingMoreLines { await Task.yield() }
+
+        // 描画はここでは行わず(全文 render も appendChunk も評価しない)、次チャンクを
+        // ステージするだけ。実描画は updateContent が pendingAppend を消費して行う。
+        #expect(renderer.pendingAppend?.chunk == "row2\n")
+        #expect(renderer.pendingAppend?.revision == 5)
+    }
+
+    @Test("未消費の pendingAppend がある間の続き読み込みはチャンクを累積する")
+    func handleLoadMoreLinesAccumulatesUnconsumedChunks() async {
+        let renderer = ViewerRenderer()
+        var revision = 1
+        renderer.onLoadMoreLines = {
+            revision += 1
+            return LoadMoreLinesResult(
+                chunk: revision == 2 ? "A" : "B", isTruncated: true, lineCount: revision,
+                contentRevision: revision, loadFailed: false
+            )
+        }
+
+        // updateContent が消費する前に 2 回続けてステージする(SwiftUI 更新の合体を模す)。
+        renderer.handleLoadMoreLines()
+        while renderer.isLoadingMoreLines { await Task.yield() }
+        renderer.handleLoadMoreLines()
+        while renderer.isLoadingMoreLines { await Task.yield() }
+
+        // 上書きせず累積し、DOM への追記漏れを防ぐ。revision は最新を採る。
+        #expect(renderer.pendingAppend?.chunk == "AB")
+        #expect(renderer.pendingAppend?.revision == 3)
+    }
+
+    @Test("onLoadMoreLines が nil を返すと pendingAppend はステージされない")
+    func handleLoadMoreLinesNilResultDoesNotStage() async {
+        let renderer = ViewerRenderer()
+        renderer.onLoadMoreLines = { nil }
+
+        renderer.handleLoadMoreLines()
+        while renderer.isLoadingMoreLines { await Task.yield() }
+
+        #expect(renderer.pendingAppend == nil)
+    }
+
+    @Test("RenderedStateMirror.reset は 6 ミラーを一括で破棄する")
+    func renderedStateMirrorResetClearsAll() {
+        var mirror = ViewerRenderer.RenderedStateMirror()
+        mirror.contentRevision = 3
+        mirror.fileType = .markdown
+        mirror.filePath = URL(fileURLWithPath: "/tmp/a.md")
+        mirror.showLineNumbers = true
+        mirror.isSourceMode = true
+        mirror.truncation = ViewerRenderer.TruncationState(
+            isTruncated: true, lineCount: 4, failed: false
+        )
+
+        mirror.reset()
+
+        #expect(mirror.contentRevision == nil)
+        #expect(mirror.fileType == nil)
+        #expect(mirror.filePath == nil)
+        #expect(mirror.showLineNumbers == nil)
+        #expect(mirror.isSourceMode == nil)
+        #expect(mirror.truncation == nil)
+    }
+
     // MARK: - 不正 body(型不一致・キー欠落)は無視される
 
     @Test("zoomChanged の body が数値でなければ onZoomChanged を呼ばない")

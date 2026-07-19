@@ -28,16 +28,39 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     var pendingPageZoom: Double?
     var isReady = false
     var pendingUpdate: (() -> Void)?
-    /// 直近に描画した content の世代番号。content 全文を保持せず整数比較で
-    /// 変更検知することで、呼び出し側の content との重複バッファを避ける。
-    var lastRenderedContentRevision: Int?
-    var lastRenderedFileType: FileType?
-    var lastRenderedFilePath: URL?
-    var lastShowLineNumbers: Bool?
-    var lastIsSourceMode: Bool?
-    /// 最後に _mmdSetTruncated へ送った切り詰め状態と表示行数
-    /// (再読込での行数だけの変化もバナー更新できるよう両方をセットで保持する)。
-    var lastTruncation: TruncationState?
+    /// 直近に描画した表示状態のミラー。呼び出し側 content の全文を保持せず、
+    /// contentRevision の整数比較で再描画要否を判定することで重複バッファを避ける。
+    /// viewer.html 再ロード時は 6 値を必ずセットで破棄する必要があるため、
+    /// 個別フィールドではなく 1 つの struct にまとめ `reset()` で一括リセットする。
+    struct RenderedStateMirror {
+        /// 直近に描画した content の世代番号。
+        var contentRevision: Int?
+        var fileType: FileType?
+        var filePath: URL?
+        var showLineNumbers: Bool?
+        var isSourceMode: Bool?
+        /// 最後に _mmdSetTruncated へ送った切り詰め状態と表示行数
+        /// (再読込での行数だけの変化もバナー更新できるよう両方をセットで保持する)。
+        var truncation: TruncationState?
+
+        /// viewer.html 再ロードで JS 側状態が初期化されるのに合わせて全ミラーを破棄する。
+        mutating func reset() {
+            self = RenderedStateMirror()
+        }
+    }
+
+    var rendered = RenderedStateMirror()
+
+    /// 段階読み込み(loadMoreLines)でステージされた次チャンク。実際の増分描画は
+    /// @Observable 変更が駆動する updateContent(唯一の描画 sink)が消費して行う。
+    /// revision は追記後の世代番号で、updateContent の contentRevision と一致した
+    /// ときだけ増分描画する(不一致=別更新に追い越された場合は破棄し全文 render に倒す)。
+    struct PendingAppend {
+        let chunk: String
+        let revision: Int
+    }
+
+    var pendingAppend: PendingAppend?
     var isDirectHTMLMode = false
     var lastDirectHTMLPath: URL?
 
@@ -181,20 +204,18 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     }
 
     /// 直接 HTML モードを解除し、viewer.html へ復帰する。
-    /// `isDirectHTMLMode` / `webViewProxy?.isDirectHTMLMode` / `lastDirectHTMLPath` /
-    /// `lastRenderedContentRevision` / `lastRenderedFileType` /
-    /// `lastRenderedFilePath` の 6 つの状態を必ずセットでリセットしてから viewer.html を
-    /// 再ロードする。一部だけ倒すと直接 HTML モードの判定と再描画キャッシュの整合性が
-    /// 崩れるため、呼び出し側で個別にリセットしないこと。
-    /// (`lastIsSourceMode` は viewer.html 再ロードに伴う JS 側 `_viewMode` の初期化と
-    /// セットで `reloadViewerHTML` 側がリセットする)
+    /// 直接 HTML モードの判定状態(`isDirectHTMLMode` / `webViewProxy?.isDirectHTMLMode` /
+    /// `lastDirectHTMLPath`)と、`rendered` ミラー 6 値を必ずセットで破棄してから
+    /// viewer.html を再ロードする。ミラーは `rendered.reset()` で一括リセットする
+    /// (再ロードで JS 側状態 `_showLineNumbers=false` / `_viewMode='rendered'` が
+    /// 初期化されるため、Swift 側のミラーも全て破棄して次回更新時に再注入させる)。
+    /// 一部だけ倒すと直接 HTML モードの判定と再描画キャッシュの整合性が崩れるため、
+    /// 呼び出し側で個別にリセットしないこと。
     func exitDirectHTMLMode(webView: WKWebView, completion: @escaping () -> Void) {
         isDirectHTMLMode = false
         webViewProxy?.isDirectHTMLMode = false
         lastDirectHTMLPath = nil
-        lastRenderedContentRevision = nil
-        lastRenderedFileType = nil
-        lastRenderedFilePath = nil
+        rendered.reset()
         reloadViewerHTML(webView: webView, then: completion)
     }
 

@@ -37,7 +37,7 @@ public extension ViewerRenderer {
                 filePath: filePath, features: rendererFeatures
             ), let filePath {
                 let pathChanged = filePath != lastDirectHTMLPath
-                let contentChanged = contentRevision != lastRenderedContentRevision
+                let contentChanged = contentRevision != rendered.contentRevision
                 guard !isDirectHTMLMode || pathChanged || contentChanged else { return }
                 // 初回ロード・ファイル切替では保存済みの per-file 倍率を使い、
                 // ライブリロード（同一ファイルの content 変更）では現在の倍率を維持する。
@@ -47,7 +47,7 @@ public extension ViewerRenderer {
                     contentRevision: contentRevision,
                     fileType: fileType, filePath: filePath
                 )
-                lastIsSourceMode = isSourceMode
+                rendered.isSourceMode = isSourceMode
                 lastDirectHTMLPath = filePath
                 isDirectHTMLMode = true
                 webViewProxy?.isDirectHTMLMode = true
@@ -64,7 +64,7 @@ public extension ViewerRenderer {
                 // (同一なら上の直接HTMLロード分岐に吸収される)、常に切替として扱われる。
                 let restoreFromPersistedPosition = Self.isFileOrModeSwitch(
                     filePath: filePath, isSourceMode: isSourceMode,
-                    lastRenderedFilePath: lastRenderedFilePath, lastIsSourceMode: lastIsSourceMode
+                    lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
                 )
                 exitDirectHTMLMode(webView: webView) {
                     self.applyRender(
@@ -82,19 +82,40 @@ public extension ViewerRenderer {
                 return
             }
 
+            // 段階読み込みの続き(loadMoreLines)は handleLoadMoreLines が pendingAppend として
+            // ステージする。現在の revision と一致し、ファイル/モード切替でなければ全文 render せず
+            // 増分追記する。これで「追記の描画」経路が updateContent 1 本に集約され、コールバック
+            // 戻り値経由の全文 render 誤爆を先行 recordRendered で抑止する必要がなくなる。revision
+            // 不一致(別の読み込みに追い越された)場合は破棄し、下の通常経路で全文 render に倒す。
+            if let pending = pendingAppend {
+                pendingAppend = nil
+                if pending.revision == contentRevision,
+                   !Self.isFileOrModeSwitch(
+                       filePath: filePath, isSourceMode: isSourceMode,
+                       lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
+                   )
+                {
+                    applyAppend(
+                        webView: webView, chunk: pending.chunk, contentRevision: contentRevision,
+                        fileType: fileType, filePath: filePath, truncation: truncation
+                    )
+                    return
+                }
+            }
+
             // content・fileType だけでなく isSourceMode の変化でも再描画する。
             // (例: notes.md → notes.txt のように内容が同じでも種別が変わる切替、
             // ソース/レンダリング表示の切替も同じ content から異なる文字列を描画し直す必要がある)
-            let needsRender = contentRevision != lastRenderedContentRevision
-                || fileType != lastRenderedFileType
-                || showLineNumbers != lastShowLineNumbers
-                || isSourceMode != lastIsSourceMode
-                || truncation != lastTruncation
+            let needsRender = contentRevision != rendered.contentRevision
+                || fileType != rendered.fileType
+                || showLineNumbers != rendered.showLineNumbers
+                || isSourceMode != rendered.isSourceMode
+                || truncation != rendered.truncation
             guard needsRender else { return }
 
             let restoreFromPersistedPosition = Self.isFileOrModeSwitch(
                 filePath: filePath, isSourceMode: isSourceMode,
-                lastRenderedFilePath: lastRenderedFilePath, lastIsSourceMode: lastIsSourceMode
+                lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
             )
             recordRendered(
                 contentRevision: contentRevision,
