@@ -70,7 +70,10 @@ struct ViewerWebView: NSViewRepresentable {
             ),
             ViewerBridge.findStringsScript(),
             ViewerBridge.bannerStringsScript(),
-            ViewerBridge.hostFeaturesScript(),
+            ViewerBridge.hostFeaturesScript(
+                loadMore: rendererFeatures.allowsInteractiveBridging,
+                referenceActivation: rendererFeatures.allowsInteractiveBridging
+            ),
         ]
         for source in userScriptSources {
             config.userContentController.addUserScript(
@@ -78,7 +81,7 @@ struct ViewerWebView: NSViewRepresentable {
             )
         }
         // JS → Swift の postMessage ハンドラをまとめて登録する(同一 delegate のため一括化)。
-        for name in Self.messageHandlerNames {
+        for name in Self.messageHandlerNames(for: rendererFeatures) {
             config.userContentController.add(
                 WeakScriptMessageHandler(delegate: context.coordinator), name: name
             )
@@ -147,16 +150,24 @@ struct ViewerWebView: NSViewRepresentable {
 
     /// JS → Swift の postMessage ハンドラ名一覧。makeNSView での登録・dismantleNSView での
     /// 解除を一箇所から駆動する(新規メッセージ追加時はここに加えるだけでよい)。
-    private static let messageHandlerNames = [
-        ViewerBridge.findOptionsChangedMessageName,
-        ViewerBridge.loadMoreLinesMessageName,
-        ViewerBridge.zoomChangedMessageName,
-        ViewerBridge.referenceActivatedMessageName,
-        ViewerBridge.scrollPositionChangedMessageName,
-    ]
+    /// referenceActivated/loadMoreLines は features.allowsInteractiveBridging が false の
+    /// (QuickLook 拡張等の静的1回描画ホストを想定した)場合、そもそも登録しない
+    /// (多層防御: XSS が postMessage を直接呼んでもハンドラ未登録のため Swift 側に届かない)。
+    static func messageHandlerNames(for features: RendererFeatures) -> [String] {
+        var names = [
+            ViewerBridge.findOptionsChangedMessageName,
+            ViewerBridge.zoomChangedMessageName,
+            ViewerBridge.scrollPositionChangedMessageName,
+        ]
+        if features.allowsInteractiveBridging {
+            names.append(ViewerBridge.loadMoreLinesMessageName)
+            names.append(ViewerBridge.referenceActivatedMessageName)
+        }
+        return names
+    }
 
     static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
-        for name in messageHandlerNames {
+        for name in messageHandlerNames(for: coordinator.rendererFeatures) {
             nsView.configuration.userContentController.removeScriptMessageHandler(forName: name)
         }
     }

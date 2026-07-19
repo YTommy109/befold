@@ -18,7 +18,9 @@ public struct NormalizedTextCache: Sendable {
     /// 先頭チャンク描画に必要な範囲だけを正規化できる程度の粒度にする)。
     static let normalizationWindowBytes = 2 * 1024 * 1024
 
-    public let dataHash: Int
+    /// ファイル全体の SHA256 に基づくハッシュ。ライブリロード時の同一内容スキップ
+    /// (ViewerStore)専用で、静的1回読込(oneShotLoad: true)では計算自体を省略し nil になる。
+    public let dataHash: Int?
 
     /// 正規化済みバイト列(改行コードは LF に統一済み)。normalizeFully: false の場合、
     /// ensureNormalized で処理した範囲までしか含まない(ファイル全体とは限らない)。
@@ -55,14 +57,22 @@ public struct NormalizedTextCache: Sendable {
     /// 生データをデコードし、正規化・行分割を行う。normalizeFully: false の場合、
     /// 呼び出し元が ensureNormalized で必要な範囲だけ追加正規化するまで、
     /// 正規化・行分割は行わない(先頭チャンクしか使わない読込でのピークメモリ・CPU を抑えるため)。
-    public init(data: Data, normalizeFully: Bool = true) throws {
+    /// oneShotLoad: true の場合、ライブリロードの同一内容スキップにしか使わない dataHash の
+    /// SHA256 計算を省略し(dataHash は nil になる)、エンコーディング判定のフォールバックも
+    /// 全データではなく TextEncoding.oneShotFallbackScanBytes に制限する(QuickLook 等の
+    /// 1回描画のみのホストで 100MB 級ファイルの全量スキャンを避けるため)。
+    public init(data: Data, normalizeFully: Bool = true, oneShotLoad: Bool = false) throws {
         if data.count > Self.maxFileSizeBytes {
             throw NormalizedTextCacheError.fileTooLarge
         }
 
-        let hash = SHA256.hash(data: data)
-        dataHash = hash.withUnsafeBytes { buffer in
-            buffer.load(as: Int.self)
+        if oneShotLoad {
+            dataHash = nil
+        } else {
+            let hash = SHA256.hash(data: data)
+            dataHash = hash.withUnsafeBytes { buffer in
+                buffer.load(as: Int.self)
+            }
         }
 
         if data.isEmpty {
@@ -76,7 +86,8 @@ public struct NormalizedTextCache: Sendable {
             return
         }
 
-        guard let detected = TextEncoding.detectAndDecodeText(data),
+        let fallbackScanLimit = oneShotLoad ? TextEncoding.oneShotFallbackScanBytes : nil
+        guard let detected = TextEncoding.detectAndDecodeText(data, fallbackScanLimit: fallbackScanLimit),
               !detected.text.isEmpty || data.count == detected.bomLength
         else {
             throw TextEncodingError.decodeFailed

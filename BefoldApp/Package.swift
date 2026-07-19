@@ -19,6 +19,7 @@ let package = Package(
                 .process("Resources/Localizable.xcstrings"),
                 .copy("Resources/viewer.html"),
                 .copy("Resources/viewer.js"),
+                .copy("Resources/viewer-main.js"),
                 .copy("Resources/style.css"),
                 .copy("Resources/mermaid.min.js"),
                 .copy("Resources/markdown-it.min.js"),
