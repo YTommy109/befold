@@ -274,16 +274,21 @@ function tokenizeCsvRows(content, delimiter) {
     var ch = content[i];
     if (inQuotes) {
       if (ch === '"') {
+        // 直後にもう1つ " があれば RFC 4180 のエスケープされたクオート("" → ")。
+        // value には 1 個の " だけを積み、raw には元の "" を丸ごと残す。
         if (i + 1 < content.length && content[i + 1] === '"') {
           value += '"';
           raw += '""';
           i += 2;
         } else {
+          // エスケープでない単独の " はクオートフィールドの終端。
           raw += ch;
           inQuotes = false;
           i++;
         }
       } else {
+        // クオート内ではデリミタ・改行もすべて通常文字として蓄積する
+        // (行またぎのセルを1フィールドとして扱うための核心部分)。
         value += ch;
         raw += ch;
         i++;
@@ -297,6 +302,7 @@ function tokenizeCsvRows(content, delimiter) {
         pushField();
         i++;
       } else if (ch === '\r') {
+        // \r\n を1つの改行として扱うため、直後の \n を先読みして読み飛ばす。
         pushRow();
         i++;
         if (i < content.length && content[i] === '\n') { i++; }
@@ -310,6 +316,9 @@ function tokenizeCsvRows(content, delimiter) {
       }
     }
   }
+  // 末尾行の確定: ループ終了時点で未確定のフィールド/行が残っていれば push する。
+  // ただし content が改行で終わっている場合は既に pushRow 済みで value/raw/row が
+  // 空のため、ここでの再 push を条件付きでスキップし、末尾に幻の空行を作らない。
   if (value !== '' || raw !== '' || row.length > 0) {
     pushRow();
   }

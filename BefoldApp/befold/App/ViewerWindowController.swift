@@ -21,41 +21,35 @@ protocol ViewerWindowControllerDelegate: AnyObject {
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
 }
 
-/// モード切替セグメントコントロールのセグメント位置(0=プレビュー, 1=ソース)。
-private enum ModeSegment: Int, Sendable {
-    case preview = 0
-    case source = 1
-}
-
 /// 1 ファイルに対応する 1 ウィンドウを管理する NSWindowController。
 /// SwiftUI の ViewerContentView を NSHostingView 経由で表示する。
 final class ViewerWindowController: NSWindowController {
     /// 最後に調整したウィンドウフレーム（位置＋サイズ）の保存キー。全ウィンドウで共有する。
     private static let lastWindowFrameKey = "LastWindowFrame"
     private static let defaultContentSize = NSSize(width: 1100, height: 850)
-    private static let modeToggleItemIdentifier = NSToolbarItem.Identifier("modeToggle")
-    private static let backItemIdentifier = NSToolbarItem.Identifier("historyBack")
-    private static let forwardItemIdentifier = NSToolbarItem.Identifier("historyForward")
-    private static let lineNumbersItemIdentifier = NSToolbarItem.Identifier("lineNumbers")
 
     private let defaults: UserDefaults
-    private let store: ViewerStore
+    /// 表示状態(ファイル種別・ソース表示可否・行番号表示)。ViewerToolbarHost 経由でツールバーにも公開する。
+    let store: ViewerStore
     private let zoomStore: ZoomStore
     private let scrollPositionStore: ScrollPositionStore
     private let sourceModeStore: SourceModeStore
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
     private let forceSidebarVisible: Bool
-    /// 二本指スワイプ検知用のローカルイベントモニタ。ウィンドウが閉じたら解除する。
-    private var scrollEventMonitor: Any?
-    /// スワイプジェスチャー中(.began〜.changed)に積算する水平デルタ。.ended で判定に使う。
-    private var swipeHorizontalAccumulator: CGFloat = 0
-    /// スワイプジェスチャー中(.began〜.changed)に積算する垂直デルタ。.ended で判定に使う。
-    private var swipeVerticalAccumulator: CGFloat = 0
-    /// スワイプしきい値(pt)。この値未満の水平デルタはナビゲーションしない。
-    private static let swipeThreshold: CGFloat = 40
+    /// 別ウィンドウでファイルを開く処理。本番では AppDelegate.shared?.openViewer(for:) を注入する。
+    private let openFileInNewWindow: (URL) -> Void
+    /// 二本指スワイプによるファイル履歴ナビゲーション検知。ウィンドウ生成後に start()、
+    /// 閉じるときに stop() する。
+    private var swipeMonitor: SwipeHistoryMonitor!
+    /// ツールバー(モード切替・戻る/進む・行番号)の構築とライブ状態更新を担う。
+    private(set) var toolbarController: ViewerToolbarController!
     private let webViewProxy = WebViewProxy()
-    private(set) var isSourceMode = false
+    /// ソース表示モードの唯一の真実の源は store。二重保持を避けるため委譲する。
+    var isSourceMode: Bool {
+        store.isSourceMode
+    }
+
     private(set) var fileURL: URL
     /// サイドバー(一覧・選択同期・フォルダ移動)と戻る/進む履歴を担うナビゲータ。
     let sidebar: SidebarNavigator
@@ -75,13 +69,19 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
     /// - Parameter sourceModeStore: 同上。ソース表示モード挙動に無関心なテストが省略できるようにする。
     /// - Parameter scrollPositionStore: 同上。スクロール位置挙動に無関心なテストが省略できるようにする。
+    /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
+    /// - Parameter directoryLister: 同上。サイドバー初期一覧の取得元。テストで差し替え可能にする。
+    /// - Parameter openFileInNewWindow: 同上。別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
     init(
         fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         sourceModeStore: SourceModeStore = SourceModeStore(),
         scrollPositionStore: ScrollPositionStore = ScrollPositionStore(),
-        forceSidebarVisible: Bool = false
+        forceSidebarVisible: Bool = false,
+        store: ViewerStore = ViewerStore(),
+        directoryLister: (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
+        openFileInNewWindow: @escaping (URL) -> Void = { AppDelegate.shared?.openViewer(for: $0) }
     ) {
         self.fileURL = fileURL
         self.zoomStore = zoomStore
@@ -91,10 +91,11 @@ final class ViewerWindowController: NSWindowController {
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
         self.forceSidebarVisible = forceSidebarVisible
-        store = ViewerStore()
+        self.store = store
+        self.openFileInNewWindow = openFileInNewWindow
         let parentDir = fileURL.deletingLastPathComponent()
-        let entries = DirectoryLister.listEntries(
-            in: parentDir, sortOrder: .foldersFirst, showHiddenFiles: hiddenFilesPreference.showHiddenFiles
+        let entries = directoryLister(
+            parentDir, .foldersFirst, hiddenFilesPreference.showHiddenFiles
         )
         sidebar = SidebarNavigator(
             currentDirectory: parentDir, entries: entries, selection: fileURL,
@@ -131,9 +132,10 @@ final class ViewerWindowController: NSWindowController {
 
         super.init(window: window)
 
-        // toolbar.delegate は self を使うため super.init の後に設定する。
+        // toolbarController は self(ViewerToolbarHost) を使うため super.init の後に生成する。
         // window.toolbar もデリゲート設定後に代入しないとアイテムが空になる。
-        toolbar.delegate = self
+        toolbarController = ViewerToolbarController(window: window, host: self)
+        toolbar.delegate = toolbarController
         window.toolbar = toolbar
 
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
@@ -156,10 +158,10 @@ final class ViewerWindowController: NSWindowController {
         // windowDidResize 経由で保存されるのを防ぐ
         window.delegate = self
 
-        scrollEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            self?.handleScrollWheelForHistorySwipe(event)
-            return event
+        swipeMonitor = SwipeHistoryMonitor(window: window) { [weak self] offset in
+            self?.navigateHistory(by: offset)
         }
+        swipeMonitor.start()
 
         sidebar.attach(to: self)
         store.onFileGone = { [weak self] in
@@ -169,8 +171,8 @@ final class ViewerWindowController: NSWindowController {
             self?.handleRename(to: newURL)
         }
         store.onContentReloaded = { [weak self] in
-            self?.updateModeToggleAppearance()
-            self?.updateLineNumbersToolbarItem()
+            self?.toolbarController.updateModeToggleAppearance()
+            self?.toolbarController.updateLineNumbersToolbarItem()
         }
         store.openFile(fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
@@ -209,8 +211,8 @@ final class ViewerWindowController: NSWindowController {
                 fileListModel.sortOrder = order
                 sidebar.refreshFileList()
             },
-            onOpenInNewWindow: { url in
-                AppDelegate.shared?.openViewer(for: url)
+            onOpenInNewWindow: { [weak self] url in
+                self?.openFileInNewWindow(url)
             },
             onToggleHiddenFiles: { [weak self] in
                 guard let self else { return }
@@ -241,7 +243,7 @@ final class ViewerWindowController: NSWindowController {
                 return
             }
             if newWindow {
-                AppDelegate.shared?.openViewer(for: url)
+                openFileInNewWindow(url)
             } else {
                 switchFile(to: url)
             }
@@ -415,14 +417,13 @@ extension ViewerWindowController: SidebarNavigatorHost {
 
     /// 履歴状態の変化をツールバーの戻る/進むアイテムへ反映する。
     func historyStateDidChange() {
-        window?.toolbar?.items
-            .filter {
-                $0.itemIdentifier == Self.backItemIdentifier
-                    || $0.itemIdentifier == Self.forwardItemIdentifier
-            }
-            .forEach { updateHistoryToolbarItem($0) }
+        toolbarController.historyStateDidChange()
     }
 }
+
+// MARK: - ViewerToolbarHost
+
+extension ViewerWindowController: ViewerToolbarHost {}
 
 // MARK: - Menu Actions / Validation / NSWindowDelegate
 
@@ -515,7 +516,7 @@ extension ViewerWindowController: NSWindowDelegate {
     /// View > Toggle Line Numbers / ツールバーの行番号ボタン。行番号表示の有無を切り替える。
     @objc func toggleLineNumbers(_ sender: Any?) {
         store.showLineNumbers.toggle()
-        updateLineNumbersToolbarItem()
+        toolbarController.updateLineNumbersToolbarItem()
     }
 
     /// View メニュー > ソース表示トグル。レンダリング表示とソース表示を切り替える。
@@ -533,13 +534,9 @@ extension ViewerWindowController: NSWindowDelegate {
         navigateHistory(by: 1)
     }
 
-    /// モード切替セグメントコントロールの選択変更を受けて呼ばれる。
-    @objc private func modeSegmentChanged(_ sender: NSSegmentedControl) {
-        setSourceMode(sender.selectedSegment == ModeSegment.source.rawValue)
-    }
-
     /// isSourceMode を変更し、store・永続化・モード切替セグメントの表示更新までを一貫して行う。
-    private func setSourceMode(_ newValue: Bool) {
+    /// ツールバーのモード切替セグメント(ViewerToolbarController)からも ViewerToolbarHost 経由で呼ばれる。
+    func setSourceMode(_ newValue: Bool) {
         // モードを書き換える前に、切替元モードのスクロール位置を確定保存する
         // (performFileSwitch と同じ理由。切替後に保存すると入場側モードのキーへ誤って保存される)。
         if newValue != isSourceMode {
@@ -549,36 +546,16 @@ extension ViewerWindowController: NSWindowDelegate {
         sourceModeStore.setSourceMode(isSourceMode, for: fileURL)
     }
 
-    /// isSourceMode を変更し、store への反映とモード切替セグメントの表示更新までを一貫して行う。
+    /// isSourceMode を変更し、store への反映とツールバーの表示更新までを一貫して行う。
     /// isSourceMode の変更が store 経由で SwiftUI の更新サイクルをトリガーし、
     /// ViewerWebView.updateNSView → updateContent が呼ばれ、
     /// 自動的にモード切替(必要なら再描画)が行われる。
     private func applySourceMode(_ newValue: Bool) {
         if isSourceMode != newValue {
-            isSourceMode = newValue
             store.isSourceMode = newValue
         }
-        updateModeToggleAppearance()
-        updateLineNumbersToolbarItem()
-    }
-
-    /// モード切替セグメントの選択状態・有効/無効を現在のファイル種別に合わせて更新する。
-    /// プレビューできない種別(.code)ではソース側を、テキストソースを持たない
-    /// バイナリ種別(画像・PDF)ではプレビュー側を、それぞれ選択済み・唯一の有効状態にする。
-    /// - Parameter item: 更新対象のツールバーアイテム。省略時は window.toolbar から検索する
-    ///   (生成中でまだ toolbar.items に含まれないアイテムを更新する場合は明示的に渡すこと)。
-    private func updateModeToggleAppearance(_ item: NSToolbarItem? = nil) {
-        guard let item = item ?? window?.toolbar?.items.first(where: {
-            $0.itemIdentifier == Self.modeToggleItemIdentifier
-        }), let segmentedControl = item.view as? NSSegmentedControl else { return }
-        let isEnabled = !store.isRejected
-        segmentedControl.setEnabled(
-            store.fileType.isRenderable && isEnabled, forSegment: ModeSegment.preview.rawValue
-        )
-        segmentedControl.setEnabled(
-            !store.fileType.isBinaryContent && isEnabled, forSegment: ModeSegment.source.rawValue
-        )
-        segmentedControl.selectedSegment = (store.showsCodeContent ? ModeSegment.source : ModeSegment.preview).rawValue
+        toolbarController.updateModeToggleAppearance()
+        toolbarController.updateLineNumbersToolbarItem()
     }
 
     /// ファイル切り替え時にソース表示状態をレンダリング表示にリセットする。
@@ -618,41 +595,8 @@ extension ViewerWindowController: NSWindowDelegate {
         return true
     }
 
-    /// 二本指スワイプ(トラックパッド)によるファイル履歴の戻る/進むを検知する。
-    /// .began でリセットし、.changed で水平・垂直デルタを積算し、.ended で
-    /// 積算値をしきい値判定する(単一フレームの .ended デルタはほぼ0になるため)。
-    /// 垂直デルタも積算するのは、縦スクロール中の横ドリフト蓄積による誤発火を
-    /// 防ぐため(横優勢のときのみナビゲーションする、SwipeHistoryNavigation 側で判定)。
-    private func handleScrollWheelForHistorySwipe(_ event: NSEvent) {
-        guard event.window === window else { return }
-        switch event.phase {
-        case .began:
-            swipeHorizontalAccumulator = 0
-            swipeVerticalAccumulator = 0
-        case .changed:
-            swipeHorizontalAccumulator += event.scrollingDeltaX
-            swipeVerticalAccumulator += event.scrollingDeltaY
-        case .ended:
-            defer {
-                swipeHorizontalAccumulator = 0
-                swipeVerticalAccumulator = 0
-            }
-            guard let offset = SwipeHistoryNavigation.offset(
-                forHorizontalDelta: swipeHorizontalAccumulator,
-                verticalDelta: swipeVerticalAccumulator,
-                threshold: Self.swipeThreshold
-            ) else { return }
-            navigateHistory(by: offset)
-        default:
-            break
-        }
-    }
-
     func windowWillClose(_ notification: Notification) {
-        if let scrollEventMonitor {
-            NSEvent.removeMonitor(scrollEventMonitor)
-            self.scrollEventMonitor = nil
-        }
+        swipeMonitor.stop()
         saveWindowFrame()
         store.close()
         delegate?.viewerWindowWillClose(self)
@@ -670,144 +614,5 @@ extension ViewerWindowController: NSWindowDelegate {
     /// ドラッグ移動やタイリングでの位置変更は windowWillClose 時にまとめて保存される。
     func windowDidEndLiveResize(_ notification: Notification) {
         saveWindowFrame()
-    }
-}
-
-// MARK: - NSToolbarDelegate
-
-extension ViewerWindowController: NSToolbarDelegate {
-    func toolbar(
-        _ toolbar: NSToolbar,
-        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
-        willBeInsertedIntoToolbar flag: Bool
-    ) -> NSToolbarItem? {
-        if itemIdentifier == Self.backItemIdentifier || itemIdentifier == Self.forwardItemIdentifier {
-            return makeHistoryToolbarItem(itemIdentifier)
-        }
-        if itemIdentifier == Self.lineNumbersItemIdentifier {
-            return makeLineNumbersToolbarItem()
-        }
-        guard itemIdentifier == Self.modeToggleItemIdentifier else { return nil }
-        let previewLabel = String(localized: "toolbar.mode.preview", bundle: .l10n)
-        let sourceLabel = String(localized: "toolbar.mode.source", bundle: .l10n)
-        // ラベル文字列は状態に関わらず固定なので、セグメント幅が切替でジッターしない。
-        let segmentedControl = NSSegmentedControl(
-            images: [
-                NSImage(systemSymbolName: "doc.richtext", accessibilityDescription: previewLabel)!,
-                NSImage(
-                    systemSymbolName: "chevron.left.forwardslash.chevron.right",
-                    accessibilityDescription: sourceLabel
-                )!,
-            ],
-            trackingMode: .selectOne,
-            target: self,
-            action: #selector(modeSegmentChanged(_:))
-        )
-        segmentedControl.setToolTip(previewLabel, forSegment: ModeSegment.preview.rawValue)
-        segmentedControl.setToolTip(sourceLabel, forSegment: ModeSegment.source.rawValue)
-
-        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-        item.label = String(localized: "toolbar.mode.group", bundle: .l10n)
-        item.view = segmentedControl
-        updateModeToggleAppearance(item)
-        return item
-    }
-
-    /// 戻る/進むのツールバーアイテムを生成する。生成時点の履歴状態を初期反映する。
-    private func makeHistoryToolbarItem(_ identifier: NSToolbarItem.Identifier) -> NSToolbarItem {
-        let isBack = identifier == Self.backItemIdentifier
-        let label = isBack
-            ? String(localized: "toolbar.back", bundle: .l10n)
-            : String(localized: "toolbar.forward", bundle: .l10n)
-        let button = HistoryButtonView(
-            systemImage: isBack ? "chevron.left" : "chevron.right",
-            accessibilityLabel: label,
-            primaryOffset: isBack ? -1 : 1,
-            onNavigate: { [weak self] offset in self?.navigateHistory(by: offset) }
-        )
-        let item = NSToolbarItem(itemIdentifier: identifier)
-        item.label = label
-        item.toolTip = label
-        item.view = button
-        // Finder と同じく、ナビゲーション項目としてウィンドウタイトル(ファイル名)より
-        // 先頭側(コンテンツ領域の左端)に配置する
-        item.isNavigational = true
-        // ウィンドウが狭まりオーバーフロー(») メニューに収容される際、view ベースの
-        // アイテムは menuFormRepresentation が無いと action の無い死んだ項目になるため設定する。
-        let menuItem = NSMenuItem(
-            title: label,
-            action: isBack
-                ? #selector(goBack(_:)) : #selector(goForward(_:)),
-            keyEquivalent: ""
-        )
-        menuItem.target = self
-        item.menuFormRepresentation = menuItem
-        updateHistoryToolbarItem(item)
-        return item
-    }
-
-    /// 戻る/進むアイテム 1 つへ現在の履歴状態を反映する。
-    private func updateHistoryToolbarItem(_ item: NSToolbarItem) {
-        guard let button = item.view as? HistoryButtonView else { return }
-        if item.itemIdentifier == Self.backItemIdentifier {
-            button.updateState(isEnabled: fileListModel.canGoBack, entries: fileListModel.backHistory)
-        } else {
-            button.updateState(isEnabled: fileListModel.canGoForward, entries: fileListModel.forwardHistory)
-        }
-    }
-
-    /// 行番号トグルのツールバーアイテムを生成する。常時表示し、
-    /// コード系コンテンツ表示中(showsCodeContent)以外は無効にする。
-    private func makeLineNumbersToolbarItem() -> NSToolbarItem {
-        let label = String(localized: "menu.view.showLineNumbers", bundle: .l10n)
-        let button = NSButton(
-            image: NSImage(systemSymbolName: "list.number", accessibilityDescription: label)!,
-            target: self,
-            action: #selector(toggleLineNumbers(_:))
-        )
-        button.bezelStyle = .texturedRounded
-        let item = NSToolbarItem(itemIdentifier: Self.lineNumbersItemIdentifier)
-        item.label = label
-        item.view = button
-        // ウィンドウが狭まりオーバーフロー(») メニューに収容される際、view ベースの
-        // アイテムは menuFormRepresentation が無いと action の無い死んだ項目になるため設定する。
-        let menuItem = NSMenuItem(title: label, action: #selector(toggleLineNumbers(_:)), keyEquivalent: "")
-        menuItem.target = self
-        item.menuFormRepresentation = menuItem
-        updateLineNumbersToolbarItem(item)
-        return item
-    }
-
-    /// 行番号アイテムの有効/無効・オンオフ表示・ツールチップを現在の表示状態に合わせて更新する。
-    /// - Parameter item: 更新対象。省略時は window.toolbar から検索する
-    ///   (生成中でまだ toolbar.items に含まれないアイテムを更新する場合は明示的に渡すこと)。
-    private func updateLineNumbersToolbarItem(_ item: NSToolbarItem? = nil) {
-        guard let item = item ?? window?.toolbar?.items.first(where: {
-            $0.itemIdentifier == Self.lineNumbersItemIdentifier
-        }), let button = item.view as? NSButton else { return }
-        button.isEnabled = store.showsCodeContent
-        // オン状態はボタンの塗り潰し(.pushOnPushOff)ではなくシンボルの
-        // アクセント色で示し、隣のモード切替セグメントと色味を揃える
-        button.contentTintColor = store.showLineNumbers ? .controlAccentColor : nil
-        item.toolTip = store.showLineNumbers
-            ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
-            : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
-    }
-
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [
-            .toggleSidebar, .sidebarTrackingSeparator,
-            Self.backItemIdentifier, Self.forwardItemIdentifier,
-            .flexibleSpace, Self.lineNumbersItemIdentifier, Self.modeToggleItemIdentifier,
-        ]
-    }
-
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [
-            .toggleSidebar, .sidebarTrackingSeparator,
-            Self.backItemIdentifier, Self.forwardItemIdentifier,
-            Self.lineNumbersItemIdentifier, Self.modeToggleItemIdentifier,
-            .flexibleSpace, .space,
-        ]
     }
 }

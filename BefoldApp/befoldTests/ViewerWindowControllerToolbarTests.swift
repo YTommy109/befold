@@ -24,7 +24,7 @@ struct ViewerWindowControllerToolbarTests {
         defer { controller.close() }
         let toolbar = try #require(controller.window?.toolbar)
 
-        let identifiers = controller.toolbarDefaultItemIdentifiers(toolbar)
+        let identifiers = controller.toolbarController.toolbarDefaultItemIdentifiers(toolbar)
 
         #expect(identifiers == [
             .toggleSidebar, .sidebarTrackingSeparator,
@@ -50,7 +50,7 @@ struct ViewerWindowControllerToolbarTests {
         // ポーリングで true を確認した後に取得し直すと、await の再開点を挟んだ別呼び出しに
         // なり、その間の状態変化と競合しうる。ポーリング中に取得したボタンをそのまま使う。
         func makeCodeButton() -> NSButton? {
-            (codeController.toolbar(
+            (codeController.toolbarController.toolbar(
                 codeToolbar, itemForItemIdentifier: .init("lineNumbers"), willBeInsertedIntoToolbar: false
             )?.view as? NSButton)
         }
@@ -66,7 +66,7 @@ struct ViewerWindowControllerToolbarTests {
         let previewController = makeController(file: previewFile)
         defer { previewController.close() }
         let previewToolbar = try #require(previewController.window?.toolbar)
-        let previewItem = try #require(previewController.toolbar(
+        let previewItem = try #require(previewController.toolbarController.toolbar(
             previewToolbar, itemForItemIdentifier: .init("lineNumbers"), willBeInsertedIntoToolbar: false
         ))
         let previewButton = try #require(previewItem.view as? NSButton)
@@ -83,7 +83,7 @@ struct ViewerWindowControllerToolbarTests {
         let toolbar = try #require(controller.window?.toolbar)
 
         for identifier in ["historyBack", "historyForward"] {
-            let item = try #require(controller.toolbar(
+            let item = try #require(controller.toolbarController.toolbar(
                 toolbar, itemForItemIdentifier: .init(identifier), willBeInsertedIntoToolbar: false
             ))
             #expect(item.isNavigational, "\(identifier) は isNavigational であるべき")
@@ -100,7 +100,7 @@ struct ViewerWindowControllerToolbarTests {
         let toolbar = try #require(controller.window?.toolbar)
 
         for identifier in ["historyBack", "historyForward"] {
-            let item = try #require(controller.toolbar(
+            let item = try #require(controller.toolbarController.toolbar(
                 toolbar, itemForItemIdentifier: .init(identifier), willBeInsertedIntoToolbar: false
             ))
             let button = try #require(item.view as? HistoryButtonView)
@@ -120,7 +120,7 @@ struct ViewerWindowControllerToolbarTests {
 
         controller.switchFile(to: fileB)
 
-        let item = try #require(controller.toolbar(
+        let item = try #require(controller.toolbarController.toolbar(
             toolbar, itemForItemIdentifier: .init("historyBack"), willBeInsertedIntoToolbar: false
         ))
         let button = try #require(item.view as? HistoryButtonView)
