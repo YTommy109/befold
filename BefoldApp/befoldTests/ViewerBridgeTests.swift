@@ -127,7 +127,9 @@ struct ViewerBridgeTests {
 
     @Test("hostFeaturesScript が window._mmdHostFeatures への代入文を生成する")
     func hostFeaturesScriptAssignsHostFeaturesGlobal() throws {
-        let script = ViewerBridge.hostFeaturesScript(loadMore: true, spaceScroll: false)
+        let script = ViewerBridge.hostFeaturesScript(
+            loadMore: true, spaceScroll: false, referenceActivation: false
+        )
 
         #expect(script.hasPrefix("window._mmdHostFeatures = "))
         #expect(script.hasSuffix(";"))
@@ -139,9 +141,10 @@ struct ViewerBridgeTests {
         let decoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Bool])
         #expect(decoded["loadMore"] == true)
         #expect(decoded["spaceScroll"] == false)
+        #expect(decoded["referenceActivation"] == false)
     }
 
-    @Test("hostFeaturesScript のデフォルトは両機能とも有効")
+    @Test("hostFeaturesScript のデフォルトは全機能とも有効")
     func hostFeaturesScriptDefaultsToAllEnabled() throws {
         let script = ViewerBridge.hostFeaturesScript()
 
@@ -152,6 +155,7 @@ struct ViewerBridgeTests {
         let decoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Bool])
         #expect(decoded["loadMore"] == true)
         #expect(decoded["spaceScroll"] == true)
+        #expect(decoded["referenceActivation"] == true)
     }
 
     @Test("bannerStringsScript が window._mmdBannerStrings への代入文を生成する")
@@ -210,11 +214,16 @@ struct ViewerBridgeTests {
         }
     }
 
-    /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html に実在することを
-    /// リポジトリ内のソースを読んで検証する(ブリッジ契約のドリフト検知)。
-    @Test("ViewerBridge の関数名が viewer.html に定義されている")
+    /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html / viewer-main.js に
+    /// 実在することをリポジトリ内のソースを読んで検証する(ブリッジ契約のドリフト検知)。
+    /// TASK-1.12 で viewer.html のインライン <script> を CSP の script-src から
+    /// 'unsafe-inline' を除去するために viewer-main.js へ外部化したため、
+    /// 両ファイルの内容を連結して検証する(どちらに定義があっても検知できる)。
+    @Test("ViewerBridge の関数名が viewer.html / viewer-main.js に定義されている")
     func bridgeFunctionsExistInViewerHTML() throws {
-        let html = try String(contentsOf: resourceURL("viewer.html"), encoding: .utf8)
+        let viewerHTML = try String(contentsOf: resourceURL("viewer.html"), encoding: .utf8)
+        let viewerMainJS = try String(contentsOf: resourceURL("viewer-main.js"), encoding: .utf8)
+        let html = viewerHTML + viewerMainJS
 
         #expect(html.contains("async function render(content, type, lang)"))
         #expect(html.contains("function _mmdZoomIn()"))
@@ -242,6 +251,9 @@ struct ViewerBridgeTests {
         #expect(html.contains("window._mmdHostFeatures"))
         #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'loadMore')"))
         #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'spaceScroll')"))
+        // TASK-1.12: referenceActivated/loadMoreLines の postMessage 発火は hostFeatures で
+        // 多層防御する(Swift 側はハンドラ未登録、JS 側はここで呼び出し自体を抑止)。
+        #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')"))
         #expect(html.contains("function _mmdSetRestoreScroll(position)"))
         #expect(html.contains("function _mmdScrollTarget()"))
         #expect(html.contains("function _mmdOpenFind()"))
@@ -250,6 +262,24 @@ struct ViewerBridgeTests {
         #expect(html.contains("window._mmdInitialFindOptions"))
         #expect(html.contains("window._mmdFindStrings"))
         #expect(html.contains("function appendChunk(text, type, lang)"))
+    }
+
+    /// CSP の script-src に 'unsafe-inline' が残っていないことを検証する(TASK-1.12 M-2)。
+    /// アプリの JS は全て viewer.js / viewer-main.js 等の外部ファイルから読み込み、
+    /// インライン <script> を使わない設計になったため、XSS がサニタイザ層を
+    /// すり抜けても CSP がインライン script/イベントハンドラの実行をブロックできる。
+    @Test("CSP の script-src から 'unsafe-inline' が削除されている")
+    func cspScriptSrcHasNoUnsafeInline() throws {
+        let html = try String(contentsOf: resourceURL("viewer.html"), encoding: .utf8)
+
+        let cspLine = try #require(
+            html.split(separator: "\n").first { $0.contains("Content-Security-Policy") }
+        )
+        let scriptSrcDirective = try #require(
+            cspLine.split(separator: ";").first { $0.trimmingCharacters(in: .whitespaces).hasPrefix("script-src") }
+        )
+        #expect(!scriptSrcDirective.contains("unsafe-inline"))
+        #expect(!html.contains("<script>\n"))
     }
 
     @Test("viewer.js の ZOOM_MIN / ZOOM_MAX が ZoomStore の範囲と一致する")

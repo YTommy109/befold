@@ -157,4 +157,34 @@ struct ViewerWebViewCoordinatorTests {
 
         #expect(result == testCase.expected)
     }
+
+    // MARK: - messageHandlerNames (TASK-1.12)
+
+    @Test("allowsInteractiveBridging: true(既定)では referenceActivated/loadMoreLines を含む全ハンドラを登録する")
+    func messageHandlerNamesIncludesAllWhenInteractiveBridgingEnabled() {
+        let names = ViewerWebView.messageHandlerNames(for: .allEnabled)
+
+        #expect(names.contains(ViewerBridge.referenceActivatedMessageName))
+        #expect(names.contains(ViewerBridge.loadMoreLinesMessageName))
+        #expect(names.contains(ViewerBridge.zoomChangedMessageName))
+        #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
+        #expect(names.contains(ViewerBridge.scrollPositionChangedMessageName))
+        #expect(names.count == 5)
+    }
+
+    @Test("allowsInteractiveBridging: false では referenceActivated/loadMoreLines を登録しない(多層防御)")
+    func messageHandlerNamesExcludesInteractiveHandlersWhenDisabled() {
+        let features = RendererFeatures(
+            allowDirectHTML: false, embedImages: false, allowsInteractiveBridging: false
+        )
+        let names = ViewerWebView.messageHandlerNames(for: features)
+
+        #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
+        #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
+        // ズーム・検索・スクロール位置通知は静的1回読込でも安全なため登録を維持する。
+        #expect(names.contains(ViewerBridge.zoomChangedMessageName))
+        #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
+        #expect(names.contains(ViewerBridge.scrollPositionChangedMessageName))
+        #expect(names.count == 3)
+    }
 }

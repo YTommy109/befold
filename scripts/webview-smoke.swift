@@ -67,14 +67,17 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
     }
 
     // 1. CSP 下でローカルスクリプトがロードされたか
+    // mermaid.min.js は TASK-1.10 で mermaid 使用時のみ動的 <script> 挿入で遅延ロードする
+    // ようになったため、ここでは typeof mermaid を確認しない(未ロードで 'undefined' が
+    // 正しい)。実際にロードされることは checkMermaid() の描画確認で検証する。
     func checkScriptsLoaded() {
         webView.evaluateJavaScript(
-            "[typeof markdownit, typeof mermaid, typeof ZOOM_DEFAULT, typeof md].join(',')"
+            "[typeof markdownit, typeof ZOOM_DEFAULT, typeof md].join(',')"
         ) { result, error in
             if let error { self.fail("script-load: \(error)") }
             guard let s = result as? String else { self.fail("script-load: no result") }
             print("globals: \(s)")
-            if s != "function,object,number,object" {
+            if s != "function,number,object" {
                 self.fail("ローカルスクリプトが CSP でブロックされた可能性: \(s)")
             }
             self.checkMermaid()

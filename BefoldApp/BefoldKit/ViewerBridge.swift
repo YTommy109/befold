@@ -102,12 +102,16 @@ public enum ViewerBridge {
 
     /// ロード時にホスト機能フラグを JS 側へ注入するスクリプト。
     /// viewer.html 側は window._mmdHostFeatures(未注入時は全機能有効扱い)を読み、
-    /// Load More ボタンの表示可否・Space キーでのページスクロール可否を切り替える。
-    /// アプリ本体は両機能をフルサポートするためデフォルトは true/true。
-    public static func hostFeaturesScript(loadMore: Bool = true, spaceScroll: Bool = true) -> String {
+    /// Load More ボタンの表示可否・Space キーでのページスクロール可否・リンク/パス参照
+    /// クリック時の referenceActivated postMessage 可否を切り替える。
+    /// アプリ本体は全機能をフルサポートするためデフォルトは true。
+    public static func hostFeaturesScript(
+        loadMore: Bool = true, spaceScroll: Bool = true, referenceActivation: Bool = true
+    ) -> String {
         let features: [String: Bool] = [
             "loadMore": loadMore,
             "spaceScroll": spaceScroll,
+            "referenceActivation": referenceActivation,
         ]
         guard let jsonData = try? JSONEncoder().encode(features),
               let jsonString = String(data: jsonData, encoding: .utf8)
