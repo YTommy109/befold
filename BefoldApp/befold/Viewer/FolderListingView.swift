@@ -16,12 +16,25 @@ struct FolderListingView: View {
     /// 同期しない。ダブルクリックで確定した操作(onSelectFile/onNavigateToFolder)だけが
     /// サイドバー側の状態を書き換える。
     @State private var localSelection: FileListEntry.ID?
-    /// ディレクトリー一覧をキャッシュ。directory 変更時に .task で非同期に再取得し、
-    /// 毎回の本体レンダリング時の再計算・重複呼び出しを避ける。
-    @State private var cachedEntries: [FileListEntry] = []
+    /// ディレクトリー一覧をキャッシュ。listingKey(directory・sortOrder・showHiddenFiles)変更時に
+    /// .task で非同期に再取得し、毎回の本体レンダリング時の再計算・重複呼び出しを避ける。
+    /// 初期値 nil は「未取得」を表し、取得完了後に空一覧と区別する(空状態の一瞬のちらつき防止)。
+    @State private var cachedEntries: [FileListEntry]?
+
+    /// .task(id:) のキー。directory だけでなく sortOrder・showHiddenFiles の変更でも
+    /// 一覧を再取得させるため、3値をまとめた Hashable な複合キーにする。
+    private struct ListingKey: Hashable {
+        let directory: URL
+        let sortOrder: SortOrder
+        let showHiddenFiles: Bool
+    }
+
+    private var listingKey: ListingKey {
+        ListingKey(directory: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
+    }
 
     var body: some View {
-        List(cachedEntries, selection: $localSelection) { entry in
+        List(cachedEntries ?? [], selection: $localSelection) { entry in
             FileListEntryRow(entry: entry)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
@@ -31,7 +44,7 @@ struct FolderListingView: View {
                 .simultaneousGesture(doubleTapGesture(for: entry))
         }
         .overlay {
-            if cachedEntries.allSatisfy({ $0.kind == .parentNavigation }) {
+            if let cachedEntries, cachedEntries.allSatisfy({ $0.kind == .parentNavigation }) {
                 ContentUnavailableView(
                     String(localized: "sidebar.empty", bundle: .l10n),
                     systemImage: "doc.questionmark",
@@ -40,7 +53,7 @@ struct FolderListingView: View {
                 .allowsHitTesting(false)
             }
         }
-        .task(id: directory) {
+        .task(id: listingKey) {
             cachedEntries = await DirectoryLister.listEntriesAsync(
                 in: directory,
                 sortOrder: sortOrder,

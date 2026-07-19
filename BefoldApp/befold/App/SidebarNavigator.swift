@@ -10,7 +10,8 @@ protocol SidebarNavigatorHost: AnyObject {
     @discardableResult
     func performFileSwitch(to url: URL) -> Bool
     /// 別ファイルへの完全なファイル切替(別ウィンドウ判定・選択同期・履歴記録込み)。
-    /// フォルダ移動で最初のファイルを開くときに使用する。
+    /// サイドバー/フォルダー一覧でのファイル選択やリンク参照など、ファイルを明示的に
+    /// 選んだ操作から呼ばれる(フォルダ移動時の自動オープンには使わない)。
     func switchFile(to url: URL)
     /// 指定 URL が自分以外のウィンドウで既に開かれているか。
     func isFileOpenElsewhere(_ url: URL) -> Bool
