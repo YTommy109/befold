@@ -31,9 +31,8 @@ final class ViewerWindowController: NSWindowController {
     private let defaults: UserDefaults
     /// 表示状態(ファイル種別・ソース表示可否・行番号表示)。ViewerToolbarHost 経由でツールバーにも公開する。
     let store: ViewerStore
-    private let zoomStore: ZoomStore
-    private let scrollPositionStore: ScrollPositionStore
-    private let sourceModeStore: SourceModeStore
+    /// ファイル毎の永続表示状態(倍率・ソース表示モード・スクロール位置)の束。
+    private let perFileState: PerFileStateStore
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
     private let forceSidebarVisible: Bool
@@ -45,12 +44,22 @@ final class ViewerWindowController: NSWindowController {
     /// ツールバー(モード切替・戻る/進む・行番号)の構築とライブ状態更新を担う。
     private(set) var toolbarController: ViewerToolbarController!
     private let webViewProxy = WebViewProxy()
+    /// WebView 操作系メニューアクション(ズーム・印刷・検索・スクロール位置保存)の実処理。
+    private var webViewCommands: WebViewCommandController!
     /// ソース表示モードの唯一の真実の源は store。二重保持を避けるため委譲する。
     var isSourceMode: Bool {
         store.isSourceMode
     }
 
-    private(set) var fileURL: URL
+    /// ウィンドウ起動時の初期ファイル URL。可変な現在 URL の唯一の保持先は store.currentURL であり、
+    /// これは store がまだ URL を持たない init 直後の一瞬(実際には store.openFile 済みのため到達しない)を
+    /// 型的に埋めるためのブートストラップ定数。rename / switch では更新しない。
+    private let initialFileURL: URL
+    /// 現在表示中ファイルの URL。保持先は store 一箇所(store.currentURL)。ここでは複製せず委譲する。
+    var fileURL: URL {
+        store.currentURL ?? initialFileURL
+    }
+
     /// サイドバー(一覧・選択同期・フォルダ移動)と戻る/進む履歴を担うナビゲータ。
     let sidebar: SidebarNavigator
     /// サイドバーのファイル一覧と選択状態。リネームやキーウィンドウ化に合わせて更新する。
@@ -67,26 +76,23 @@ final class ViewerWindowController: NSWindowController {
     ///   注入される単一の共有インスタンスを渡すこと。デフォルト値は、不可視ファイル挙動に
     ///   無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
-    /// - Parameter sourceModeStore: 同上。ソース表示モード挙動に無関心なテストが省略できるようにする。
-    /// - Parameter scrollPositionStore: 同上。スクロール位置挙動に無関心なテストが省略できるようにする。
+    /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
+    ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
     /// - Parameter directoryLister: 同上。サイドバー初期一覧の取得元。テストで差し替え可能にする。
     /// - Parameter openFileInNewWindow: 同上。別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
     init(
-        fileURL: URL, zoomStore: ZoomStore, defaults: UserDefaults = .standard,
+        fileURL: URL, defaults: UserDefaults = .standard,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
-        sourceModeStore: SourceModeStore = SourceModeStore(),
-        scrollPositionStore: ScrollPositionStore = ScrollPositionStore(),
+        perFileState: PerFileStateStore = PerFileStateStore(),
         forceSidebarVisible: Bool = false,
         store: ViewerStore = ViewerStore(),
-        directoryLister: (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
+        directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
         openFileInNewWindow: @escaping (URL) -> Void = { AppDelegate.shared?.openViewer(for: $0) }
     ) {
-        self.fileURL = fileURL
-        self.zoomStore = zoomStore
-        self.scrollPositionStore = scrollPositionStore
-        self.sourceModeStore = sourceModeStore
+        initialFileURL = fileURL
+        self.perFileState = perFileState
         self.defaults = defaults
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
@@ -99,7 +105,8 @@ final class ViewerWindowController: NSWindowController {
         )
         sidebar = SidebarNavigator(
             currentDirectory: parentDir, entries: entries, selection: fileURL,
-            hiddenFilesPreference: hiddenFilesPreference
+            hiddenFilesPreference: hiddenFilesPreference,
+            directoryLister: directoryLister
         )
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
@@ -138,6 +145,13 @@ final class ViewerWindowController: NSWindowController {
         toolbar.delegate = toolbarController
         window.toolbar = toolbar
 
+        webViewCommands = WebViewCommandController(
+            webViewProxy: webViewProxy,
+            perFileState: perFileState,
+            // 現在 URL は rename/switch で書き換わるため、旧値を捕捉せず self 経由で参照する。
+            currentURL: { [weak self] in self?.fileURL ?? fileURL }
+        )
+
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
         // リサイズされるため、フレームの確定はその後に行う。
         // frameDescriptor はフレーム座標系で保存・復元されるため、
@@ -167,8 +181,8 @@ final class ViewerWindowController: NSWindowController {
         store.onFileGone = { [weak self] in
             self?.window?.close()
         }
-        store.onFileRenamed = { [weak self] newURL in
-            self?.handleRename(to: newURL)
+        store.onFileRenamed = { [weak self] oldURL, newURL in
+            self?.handleRename(from: oldURL, to: newURL)
         }
         store.onContentReloaded = { [weak self] in
             self?.toolbarController.updateModeToggleAppearance()
@@ -177,7 +191,7 @@ final class ViewerWindowController: NSWindowController {
         store.openFile(fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
         // applySourceMode が内部で updateModeToggleAppearance() を呼ぶため、ここでの明示呼び出しは不要。
-        applySourceMode(sourceModeStore.restoredSourceMode(for: fileURL))
+        applySourceMode(perFileState.sourceMode.restoredSourceMode(for: fileURL))
         sidebar.recordHistory()
     }
 
@@ -185,17 +199,17 @@ final class ViewerWindowController: NSWindowController {
     private func makeSplitViewController() -> NSViewController {
         let contentView = ViewerContentView(
             store: store,
-            zoomStore: zoomStore,
-            scrollPositionStore: scrollPositionStore,
+            zoomStore: perFileState.zoom,
+            scrollPositionStore: perFileState.scrollPosition,
             findOptionsPreference: findOptionsPreference,
             // 現在の fileURL は rename で書き換わるため、旧値を捕捉せず self 経由で参照する
             onZoomChanged: { [weak self] zoom in
                 guard let self else { return }
-                zoomStore.setZoom(zoom, for: fileURL)
+                perFileState.zoom.setZoom(zoom, for: fileURL)
             },
             onScrollPositionChanged: { [weak self] position, mode in
                 guard let self else { return }
-                scrollPositionStore.setScrollPosition(position, for: fileURL, mode: mode)
+                perFileState.scrollPosition.setScrollPosition(position, for: fileURL, mode: mode)
             },
             onOpenReference: { [weak self] href, newWindow in
                 self?.handleOpenReference(href: href, newWindow: newWindow)
@@ -234,11 +248,7 @@ final class ViewerWindowController: NSWindowController {
         case let .external(url):
             NSWorkspace.shared.open(url)
         case let .localFile(url):
-            var isDir: ObjCBool = false
-            guard
-                FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
-                !isDir.boolValue
-            else {
+            guard DirectoryLister.isExistingFile(url) else {
                 showFileNotFoundAlert(url: url)
                 return
             }
@@ -259,16 +269,13 @@ final class ViewerWindowController: NSWindowController {
 
     /// ファイルの rename / move をウィンドウに反映する。
     /// リネームは同一ファイルの改名であり、内容・表示倍率・ビューモードは原則保持する。
-    func handleRename(to newURL: URL) {
-        let oldURL = fileURL
+    func handleRename(from oldURL: URL, to newURL: URL) {
         guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
         applyURLToWindow(newURL)
 
-        // 実体は同じファイルなので旧パスの倍率・ソース表示モードを新パスへ引き継ぐ
-        // (旧パスはもう存在しない)。
-        zoomStore.migrateZoom(from: oldURL, to: newURL)
-        sourceModeStore.migrateSourceMode(from: oldURL, to: newURL)
-        scrollPositionStore.migrateScrollPosition(from: oldURL, to: newURL)
+        // 実体は同じファイルなので旧パスの表示状態(倍率・ソース表示モード・スクロール位置)を
+        // 新パスへまとめて引き継ぐ(旧パスはもう存在しない)。
+        perFileState.migrate(from: oldURL, to: newURL)
         // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
         // (例: .md → .swift、.md → .png)ソース表示トグルが成立しなくなる
         // 場合のみリセットする。
@@ -323,7 +330,7 @@ final class ViewerWindowController: NSWindowController {
     /// 切替先が存在しない場合はアラートを表示して false を返す(状態は変更しない)。
     @discardableResult
     func performFileSwitch(to newURL: URL) -> Bool {
-        guard FileManager.default.fileExists(atPath: newURL.path) else {
+        guard DirectoryLister.fileExists(newURL) else {
             showFileNotFoundAlert(url: newURL)
             return false
         }
@@ -331,15 +338,15 @@ final class ViewerWindowController: NSWindowController {
         // fileURL・viewMode を書き換える前に、退場側(oldURL・現在のモード)の
         // スクロール位置を明示的なキーで確定保存する。切替後に保存すると
         // 退場側の位置が入場側ファイルのキーへ誤って保存されるため、順序が重要。
-        saveCurrentScrollPosition(for: oldURL, mode: isSourceMode ? .source : .rendered)
-        let restoredSourceMode = sourceModeStore.restoredSourceMode(for: newURL)
+        webViewCommands.saveCurrentScrollPosition(for: oldURL, mode: isSourceMode ? .source : .rendered)
+        let restoredSourceMode = perFileState.sourceMode.restoredSourceMode(for: newURL)
         applySourceMode(restoredSourceMode)
         applyURLToWindow(newURL)
         // fileExists を確認済みなので store.openFile が予約した非同期読み込みは必ず完了に達し、
         // その時点で onContentReloaded → updateModeToggleAppearance() が発火する
         // (読み込み完了までは切替前の表示状態が残る)。ここでの明示呼び出しは不要。
         store.openFile(newURL)
-        applyStoredZoomToWebView()
+        webViewCommands.applyStoredZoom()
         delegate?.viewerWindow(self, didSwitchFileFrom: oldURL, to: newURL)
         return true
     }
@@ -354,31 +361,12 @@ final class ViewerWindowController: NSWindowController {
 
 extension ViewerWindowController {
     /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
-    /// handleRename / switchFile 共通の表示更新。
+    /// handleRename / switchFile 共通の表示更新。現在 URL 自体は store が保持するため
+    /// ここでは複製・代入せず、ウィンドウの見た目だけを追従させる。
     private func applyURLToWindow(_ newURL: URL) {
-        fileURL = newURL
         guard let window else { return }
         window.title = newURL.lastPathComponent
         window.representedURL = newURL
-    }
-
-    /// 現在のファイルの保存倍率を WebView に適用する。
-    /// 初期ロード時の倍率注入(ViewerBridge.initialZoomScript)と同じ経路で
-    /// window._mmdInitialZoom を書き換え、viewer.html の初期化関数で反映させる。
-    private func applyStoredZoomToWebView() {
-        guard let webView = webViewProxy.webView else { return }
-        webView.evaluateJavaScript(ViewerBridge.applyZoomScript(zoomStore.zoom(for: fileURL)))
-    }
-
-    /// WebView に現在のスクロール位置を問い合わせ、指定した URL・モードのキーへ保存する。
-    /// ファイル/モード切替の直前に、切替後の self.fileURL / isSourceMode に依存せず
-    /// 退場側の位置を確定させるために使う(render() 冒頭の同期通知を廃止した代替)。
-    private func saveCurrentScrollPosition(for url: URL, mode: ViewerBridge.ViewMode) {
-        guard let webView = webViewProxy.webView else { return }
-        webView.evaluateJavaScript(ViewerBridge.currentScrollPositionScript) { [scrollPositionStore] result, _ in
-            guard let position = (result as? NSNumber)?.doubleValue else { return }
-            scrollPositionStore.setScrollPosition(position, for: url, mode: mode)
-        }
     }
 
     /// 既存のビューアウィンドウと位置が完全に一致する場合だけ、標準のカスケード量ずらす。
@@ -435,82 +423,41 @@ extension ViewerWindowController: NSWindowDelegate {
         defaults.set(window.frameDescriptor, forKey: Self.lastWindowFrameKey)
     }
 
-    /// 直接 HTML モードでは pageZoom を transform で変換して保存し、
-    /// それ以外は viewer.js のズーム実装(script)へ委譲する。
-    private func performZoom(
-        directHTML transform: (Double) -> Double, script: String
-    ) {
-        guard let webView = webViewProxy.webView else { return }
-        if webViewProxy.isDirectHTMLMode {
-            let newZoom = transform(webView.pageZoom)
-            webView.pageZoom = newZoom
-            zoomStore.setZoom(newZoom, for: fileURL)
-        } else {
-            webView.evaluateJavaScript(script)
-        }
-    }
-
     /// View > Zoom In。HTML 直接ロード時は WKWebView の pageZoom を、それ以外は JS ズーム実装を使う。
     @objc func zoomIn(_ sender: Any?) {
-        performZoom(
-            directHTML: { min(ZoomStore.maxZoom, $0 + ZoomStore.zoomStep) },
-            script: ViewerBridge.zoomInScript
-        )
+        webViewCommands.zoomIn()
     }
 
     /// View > Zoom Out。
     @objc func zoomOut(_ sender: Any?) {
-        performZoom(
-            directHTML: { max(ZoomStore.minZoom, $0 - ZoomStore.zoomStep) },
-            script: ViewerBridge.zoomOutScript
-        )
+        webViewCommands.zoomOut()
     }
 
     /// View > Actual Size。倍率を 100% に戻す。
     @objc func resetZoom(_ sender: Any?) {
-        performZoom(
-            directHTML: { _ in ZoomStore.defaultZoom },
-            script: ViewerBridge.zoomResetScript
-        )
+        webViewCommands.resetZoom()
     }
 
     /// File > Print…。WebView の描画内容を印刷する。
     @objc func printDocument(_ sender: Any?) {
-        guard let window, let webView = webViewProxy.webView else { return }
-        let printInfo = NSPrintInfo()
-        printInfo.horizontalPagination = .automatic
-        printInfo.verticalPagination = .automatic
-        printInfo.isHorizontallyCentered = true
-        printInfo.isVerticallyCentered = false
-        let operation = webView.printOperation(with: printInfo)
-        // WKWebView の printOperation はビューのフレームが zero のままだと
-        // 白紙になるため、印刷対象の用紙サイズを明示する
-        operation.view?.frame = NSRect(origin: .zero, size: printInfo.paperSize)
-        operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+        webViewCommands.printDocument(over: window)
     }
 
     /// Edit > 検索…。プレビュー右上の検索バーを開く。
     /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないため無効化する
     /// (validateMenuItem 側で判定)。
     @objc func find(_ sender: Any?) {
-        runFindScript(ViewerBridge.openFindScript)
+        webViewCommands.openFind()
     }
 
     /// Edit > 次を検索。検索バーが開いている間のみ JS 側で処理される。
     @objc func findNext(_ sender: Any?) {
-        runFindScript(ViewerBridge.findNextScript)
+        webViewCommands.findNext()
     }
 
     /// Edit > 前を検索。検索バーが開いている間のみ JS 側で処理される。
     @objc func findPrevious(_ sender: Any?) {
-        runFindScript(ViewerBridge.findPrevScript)
-    }
-
-    /// find / findNext / findPrevious 共通のガードと JS 実行。
-    /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないためスキップする。
-    private func runFindScript(_ script: String) {
-        guard let webView = webViewProxy.webView, !webViewProxy.isDirectHTMLMode else { return }
-        webView.evaluateJavaScript(script)
+        webViewCommands.findPrevious()
     }
 
     /// View > Toggle Line Numbers / ツールバーの行番号ボタン。行番号表示の有無を切り替える。
@@ -540,10 +487,10 @@ extension ViewerWindowController: NSWindowDelegate {
         // モードを書き換える前に、切替元モードのスクロール位置を確定保存する
         // (performFileSwitch と同じ理由。切替後に保存すると入場側モードのキーへ誤って保存される)。
         if newValue != isSourceMode {
-            saveCurrentScrollPosition(for: fileURL, mode: isSourceMode ? .source : .rendered)
+            webViewCommands.saveCurrentScrollPosition(for: fileURL, mode: isSourceMode ? .source : .rendered)
         }
         applySourceMode(newValue)
-        sourceModeStore.setSourceMode(isSourceMode, for: fileURL)
+        perFileState.sourceMode.setSourceMode(isSourceMode, for: fileURL)
     }
 
     /// isSourceMode を変更し、store への反映とツールバーの表示更新までを一貫して行う。
@@ -590,7 +537,7 @@ extension ViewerWindowController: NSWindowDelegate {
         }
         let findActions: [Selector] = [#selector(find(_:)), #selector(findNext(_:)), #selector(findPrevious(_:))]
         if let action = menuItem.action, findActions.contains(action) {
-            return !webViewProxy.isDirectHTMLMode
+            return !webViewCommands.isDirectHTMLMode
         }
         return true
     }

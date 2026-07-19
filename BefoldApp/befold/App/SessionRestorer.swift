@@ -79,10 +79,7 @@ final class SessionRestorer {
         defer { NSWindow.allowsAutomaticWindowTabbing = allowsTabbing }
 
         let existingURLs = urlsToRestore.filter { url in
-            var isDir: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
-                  !isDir.boolValue
-            else {
+            guard fileReader.isExistingFile(at: url) else {
                 sessionStore.noteClosed(url)
                 return false
             }

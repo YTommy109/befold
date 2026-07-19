@@ -19,19 +19,10 @@ struct UnsupportedFileView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            Text(message)
+            Text(rejectReason.localizedMessage)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var message: String {
-        switch rejectReason {
-        case .unsupportedFormat:
-            String(localized: "viewer.unsupported.format", bundle: .l10n)
-        case .fileTooLarge:
-            String(localized: "viewer.unsupported.tooLarge", bundle: .l10n)
-        }
     }
 }

@@ -3,6 +3,10 @@ import Foundation
 /// ファイルの存在確認と内容読み込みを抽象化する(テストでの差し替え用)。
 public protocol FileReading: Sendable {
     func fileExists(at url: URL) -> Bool
+    /// 存在し、かつディレクトリである。
+    func isDirectory(at url: URL) -> Bool
+    /// 存在し、かつ通常ファイル(ディレクトリでない)。
+    func isExistingFile(at url: URL) -> Bool
     func readString(from url: URL) throws -> String
     func readData(from url: URL) throws -> Data
     /// テキストとして扱えない内容(バイナリ)かどうかを判定する。
@@ -23,6 +27,23 @@ public struct DefaultFileReader: FileReading {
 
     public func fileExists(at url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.path)
+    }
+
+    public func isDirectory(at url: URL) -> Bool {
+        Self.existence(of: url).isDirectory
+    }
+
+    public func isExistingFile(at url: URL) -> Bool {
+        let existence = Self.existence(of: url)
+        return existence.exists && !existence.isDirectory
+    }
+
+    /// 存在確認とディレクトリ判定を 1 度の FileManager 呼び出しで返す。
+    /// ObjCBool の取り回しはここ 1 箇所に集約する。
+    private static func existence(of url: URL) -> (exists: Bool, isDirectory: Bool) {
+        var isDir: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
+        return (exists, isDir.boolValue)
     }
 
     public func fileSize(at url: URL) -> Int? {

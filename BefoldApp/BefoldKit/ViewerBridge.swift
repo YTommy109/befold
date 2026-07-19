@@ -52,13 +52,25 @@ public enum ViewerBridge {
     private static func contentCallScript(
         function: String, content: String, fileType: FileType
     ) -> String? {
-        guard let jsonData = try? JSONEncoder().encode(content),
-              let jsonString = String(data: jsonData, encoding: .utf8) else { return nil }
+        guard let jsonString = jsonLiteral(content) else { return nil }
         guard let lang = fileType.renderLangArgument else {
             return "\(function)(\(jsonString), '\(fileType.jsValue)')"
         }
         let escaped = lang == "\t" ? "\\t" : lang
         return "\(function)(\(jsonString), '\(fileType.jsValue)', '\(escaped)')"
+    }
+
+    /// Encodable 値を JSON リテラル文字列へ変換する(JS へ埋め込む際の
+    /// 共通処理)。エンコードに失敗した場合は nil。
+    private static func jsonLiteral(_ value: some Encodable) -> String? {
+        guard let jsonData = try? JSONEncoder().encode(value) else { return nil }
+        return String(data: jsonData, encoding: .utf8)
+    }
+
+    /// `global = <JSON>;` 形式のグローバル代入スクリプトを組み立てる。
+    /// エンコードに失敗した場合は空オブジェクト `{}` へフォールバックする。
+    private static func assignGlobalScript(_ global: String, _ value: some Encodable) -> String {
+        "\(global) = \(jsonLiteral(value) ?? "{}");"
     }
 
     /// render() 呼び出しの直前に評価し、次に復元すべきスクロール位置(scrollTop)を
@@ -113,12 +125,7 @@ public enum ViewerBridge {
             "spaceScroll": spaceScroll,
             "referenceActivation": referenceActivation,
         ]
-        guard let jsonData = try? JSONEncoder().encode(features),
-              let jsonString = String(data: jsonData, encoding: .utf8)
-        else {
-            return "window._mmdHostFeatures = {};"
-        }
-        return "window._mmdHostFeatures = \(jsonString);"
+        return assignGlobalScript("window._mmdHostFeatures", features)
     }
 
     /// appendChunk(content, type[, lang]) 呼び出しを組み立てる。
@@ -136,12 +143,7 @@ public enum ViewerBridge {
             "loadMore": String(localized: "banner.loadMore", bundle: bundle),
             "loadError": String(localized: "banner.loadError", bundle: bundle),
         ]
-        guard let jsonData = try? JSONEncoder().encode(strings),
-              let jsonString = String(data: jsonData, encoding: .utf8)
-        else {
-            return "window._mmdBannerStrings = {};"
-        }
-        return "window._mmdBannerStrings = \(jsonString);"
+        return assignGlobalScript("window._mmdBannerStrings", strings)
     }
 
     /// 検索バーを開く(未オープンなら表示してフォーカス)スクリプト。
@@ -192,11 +194,6 @@ public enum ViewerBridge {
             "close": String(localized: "viewer.find.close", bundle: bundle),
             "withinDisplayedRange": String(localized: "viewer.find.withinDisplayedRange", bundle: bundle),
         ]
-        guard let jsonData = try? JSONEncoder().encode(strings),
-              let jsonString = String(data: jsonData, encoding: .utf8)
-        else {
-            return "window._mmdFindStrings = {};"
-        }
-        return "window._mmdFindStrings = \(jsonString);"
+        return assignGlobalScript("window._mmdFindStrings", strings)
     }
 }

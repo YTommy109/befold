@@ -87,10 +87,7 @@ struct ZoomStoreTests {
         let defaults = makeIsolatedDefaults(prefix: "ZoomStoreTests")
         let tmp = try TempDir(prefix: "ZoomStoreTests")
         defer { withExtendedLifetime(tmp) {} }
-        let real = tmp.url.appendingPathComponent("real.mmd")
-        try Data().write(to: real)
-        let link = tmp.url.appendingPathComponent("link.mmd")
-        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        let (real, link) = try tmp.symlinkedFile()
         let store = ZoomStore(defaults: defaults)
 
         store.setZoom(1.25, for: link)

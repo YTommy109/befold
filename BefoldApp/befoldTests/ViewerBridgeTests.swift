@@ -214,6 +214,60 @@ struct ViewerBridgeTests {
         }
     }
 
+    /// bannerStringsScript が注入する各キーが viewer-main.js 側で `strings.<key>` として
+    /// 読まれていることを検証する(タイポ時に英語文言へ静かに縮退するのを検知する)。
+    @Test("bannerStrings の各キーが viewer-main.js で読み取られている")
+    func bannerStringsKeysAreReadInJS() throws {
+        let js = try String(contentsOf: resourceURL("viewer-main.js"), encoding: .utf8)
+        let keys = try bridgeGlobalKeys(
+            from: ViewerBridge.bannerStringsScript(), global: "window._mmdBannerStrings"
+        )
+        #expect(!keys.isEmpty)
+        for key in keys {
+            #expect(js.contains("strings.\(key)"), "banner キー '\(key)' が viewer-main.js で読まれていない")
+        }
+    }
+
+    /// findStringsScript が注入する 8 キーが viewer-main.js 側で `strings.<key>` として
+    /// 読まれていることを検証する。
+    @Test("findStrings の各キーが viewer-main.js で読み取られている")
+    func findStringsKeysAreReadInJS() throws {
+        let js = try String(contentsOf: resourceURL("viewer-main.js"), encoding: .utf8)
+        let keys = try bridgeGlobalKeys(
+            from: ViewerBridge.findStringsScript(), global: "window._mmdFindStrings"
+        )
+        #expect(keys.count == 8)
+        for key in keys {
+            #expect(js.contains("strings.\(key)"), "find キー '\(key)' が viewer-main.js で読まれていない")
+        }
+    }
+
+    /// FileType.jsValue が viewer-main.js の render() 分岐名と対応していることを検証する。
+    /// markdown('md') は明示分岐を持たず else(既定)で処理されるため対象外。
+    @Test("FileType.jsValue が render() の type 分岐に対応している")
+    func fileTypeJSValuesMatchRenderBranches() throws {
+        let js = try String(contentsOf: resourceURL("viewer-main.js"), encoding: .utf8)
+        let fileTypes: [FileType] = [
+            .mmd, .markdown, .svg, .html, .csv(delimiter: ","),
+            .image(mimeType: "image/png"), .pdf, .code(language: "swift"),
+        ]
+        for fileType in fileTypes {
+            let value = fileType.jsValue
+            if value == "md" { continue }
+            #expect(js.contains("type === '\(value)'"), "render() に type === '\(value)' 分岐がない")
+        }
+    }
+
+    /// `global = { ... };` 形式のスクリプトから、注入される JSON オブジェクトのキー集合を取り出す。
+    private func bridgeGlobalKeys(from script: String, global: String) throws -> [String] {
+        let jsonPart = script
+            .replacingOccurrences(of: "\(global) = ", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ";"))
+        let data = try #require(jsonPart.data(using: .utf8))
+        let decoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        return Array(decoded.keys)
+    }
+
     /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html / viewer-main.js に
     /// 実在することをリポジトリ内のソースを読んで検証する(ブリッジ契約のドリフト検知)。
     /// TASK-1.12 で viewer.html のインライン <script> を CSP の script-src から

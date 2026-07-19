@@ -7,32 +7,27 @@ import BefoldKit
 final class ViewerWindowManager {
     private(set) var controllers: [String: ViewerWindowController] = [:]
     private let sessionStore: SessionStore
-    private let zoomStore: ZoomStore
     private let recentDocumentsStore: RecentDocumentsStore
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
-    private let sourceModeStore: SourceModeStore
-    private let scrollPositionStore: ScrollPositionStore
+    private let perFileState: PerFileStateStore
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
-    /// - Parameter sourceModeStore: 同上。ソース表示モード挙動に無関心なテストが省略できるようにする。
-    /// - Parameter scrollPositionStore: 同上。スクロール位置挙動に無関心なテストが省略できるようにする。
+    /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
+    ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
     init(
-        sessionStore: SessionStore, zoomStore: ZoomStore, recentDocumentsStore: RecentDocumentsStore,
+        sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
-        sourceModeStore: SourceModeStore = SourceModeStore(),
-        scrollPositionStore: ScrollPositionStore = ScrollPositionStore()
+        perFileState: PerFileStateStore = PerFileStateStore()
     ) {
         self.sessionStore = sessionStore
-        self.zoomStore = zoomStore
         self.recentDocumentsStore = recentDocumentsStore
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
-        self.sourceModeStore = sourceModeStore
-        self.scrollPositionStore = scrollPositionStore
+        self.perFileState = perFileState
     }
 
     /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
@@ -51,7 +46,7 @@ final class ViewerWindowManager {
     /// 指定 URL のファイルをビューアウィンドウで開く。
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
     func openViewer(for url: URL, forceSidebarVisible: Bool = false) {
-        guard FileManager.default.fileExists(atPath: url.path) else {
+        guard DirectoryLister.fileExists(url) else {
             // 新規オープン時点ではまだ親ウィンドウが無いため over: nil でモーダル表示する。
             FileNotFoundUI.present(url: url, over: nil)
             return
@@ -66,11 +61,9 @@ final class ViewerWindowManager {
 
         let controller = ViewerWindowController(
             fileURL: url,
-            zoomStore: zoomStore,
             hiddenFilesPreference: hiddenFilesPreference,
             findOptionsPreference: findOptionsPreference,
-            sourceModeStore: sourceModeStore,
-            scrollPositionStore: scrollPositionStore,
+            perFileState: perFileState,
             forceSidebarVisible: forceSidebarVisible,
             openFileInNewWindow: { [weak self] fileURL in self?.openViewer(for: fileURL) }
         )

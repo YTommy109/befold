@@ -4,43 +4,44 @@ import WebKit
 // MARK: - Render helpers
 
 extension ViewerRenderer {
-    /// 次チャンクを非同期で取得し、キャッシュ更新と描画を行う。読み込み中の再入は
-    /// isLoadingMoreLines で無視し、追記の交錯を防ぐ。
+    /// 次チャンクを非同期で取得し、次チャンクを pendingAppend にステージする。
+    /// 実際の増分描画はここでは行わず、@Observable(content/contentRevision/truncation)の
+    /// 変更が駆動する updateContent(唯一の描画 sink)が pendingAppend を消費して行う。
+    /// これにより「追記の描画」経路が updateContent 1 本に一本化され、コールバック戻り値
+    /// 経由の全文 render 誤爆を先行 recordRendered で抑止する必要がなくなる。
+    /// 読み込み中の再入は isLoadingMoreLines で無視し、追記の交錯を防ぐ。
     @MainActor
     func handleLoadMoreLines() {
         guard !isLoadingMoreLines else { return }
         isLoadingMoreLines = true
         Task { @MainActor [self] in
             defer { isLoadingMoreLines = false }
-            guard let webView, let result = await onLoadMoreLines?() else { return }
-            let truncation = TruncationState(
-                isTruncated: result.isTruncated, lineCount: result.lineCount, failed: result.loadFailed
-            )
-            lastTruncation = truncation
-
-            // JS 呼び出し(await)より前に同期でキャッシュを更新することで、追記後の
-            // 呼び出し側の再描画による全文 render の誤爆と、チャンク二重表示レースの
-            // 窓を閉じる(recordRendered 呼び出し前に他の処理へ制御が渡らない)。
-            let fileType = lastRenderedFileType ?? FileType.plaintextFallback
-            recordRendered(
-                contentRevision: result.contentRevision,
-                fileType: fileType, filePath: lastRenderedFilePath
-            )
-
-            // result.chunk が空(チャンク読込エラーのセンチネル)の場合は追記する
-            // 内容がないため appendChunk 自体を呼ばない(幻の空行を防ぐ)。
-            if !result.chunk.isEmpty, let script = ViewerBridge.appendChunkScript(
-                chunk: result.chunk,
-                fileType: fileType
-            ) {
-                _ = try? await webView.evaluateJavaScript(script)
-            }
-            _ = try? await webView.evaluateJavaScript(
-                ViewerBridge.truncatedScript(
-                    truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.failed
-                )
-            )
+            guard let result = await onLoadMoreLines?() else { return }
+            // updateContent が消費する前に次の続き読み込みが完了した場合(SwiftUI 更新の
+            // 合体)に備え、未消費チャンクへ連結する。上書きすると先行チャンクが DOM へ
+            // 追記されないまま失われるため、必ず累積する。revision は最新値を採る。
+            let combinedChunk = (pendingAppend?.chunk ?? "") + result.chunk
+            pendingAppend = PendingAppend(chunk: combinedChunk, revision: result.contentRevision)
         }
+    }
+
+    /// pendingAppend を消費して次チャンクを増分追記する(全文 render しない)。
+    /// truncation は updateContent が受け取った現在値をそのまま使う。
+    /// chunk が空(チャンク読込エラーのセンチネル)の場合は追記せず、切り詰めバナーだけ更新する。
+    func applyAppend(
+        webView: WKWebView, chunk: String, contentRevision: Int,
+        fileType: FileType, filePath: URL?, truncation: TruncationState
+    ) {
+        recordRendered(contentRevision: contentRevision, fileType: fileType, filePath: filePath)
+        rendered.truncation = truncation
+        if !chunk.isEmpty, let script = ViewerBridge.appendChunkScript(chunk: chunk, fileType: fileType) {
+            webView.evaluateJavaScript(script)
+        }
+        webView.evaluateJavaScript(
+            ViewerBridge.truncatedScript(
+                truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.failed
+            )
+        )
     }
 
     /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
@@ -52,23 +53,23 @@ extension ViewerRenderer {
         truncation: TruncationState,
         restoreFromPersistedPosition: Bool
     ) {
-        if showLineNumbers != lastShowLineNumbers {
+        if showLineNumbers != rendered.showLineNumbers {
             webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
-            lastShowLineNumbers = showLineNumbers
+            rendered.showLineNumbers = showLineNumbers
         }
-        if isSourceMode != lastIsSourceMode {
+        if isSourceMode != rendered.isSourceMode {
             webView.evaluateJavaScript(
                 ViewerBridge.viewModeScript(isSourceMode ? .source : .rendered)
             )
-            lastIsSourceMode = isSourceMode
+            rendered.isSourceMode = isSourceMode
         }
-        if truncation != lastTruncation {
+        if truncation != rendered.truncation {
             webView.evaluateJavaScript(
                 ViewerBridge.truncatedScript(
                     truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.failed
                 )
             )
-            lastTruncation = truncation
+            rendered.truncation = truncation
         }
         guard let script = ViewerBridge.renderScript(
             content: Self.renderableContent(
@@ -89,19 +90,16 @@ extension ViewerRenderer {
     func recordRendered(
         contentRevision: Int, fileType: FileType, filePath: URL?
     ) {
-        lastRenderedContentRevision = contentRevision
-        lastRenderedFileType = fileType
-        lastRenderedFilePath = filePath
+        rendered.contentRevision = contentRevision
+        rendered.fileType = fileType
+        rendered.filePath = filePath
     }
 
+    /// 呼び出し前に `exitDirectHTMLMode` が `rendered.reset()` でミラーを一括破棄済みである
+    /// 前提。再ロードで viewer.html の JS 状態(_showLineNumbers=false, _viewMode='rendered')が
+    /// 初期化されるのに合わせ、次回更新時に setLineNumbers / setViewMode を再注入させる。
     func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
         isReady = false
-        // 再ロードで viewer.html の JS 状態(_showLineNumbers=false, _viewMode='rendered')が
-        // 初期化されるため、Swift 側のキャッシュも破棄して次回更新時に
-        // setLineNumbers / setViewMode を再注入させる。
-        lastShowLineNumbers = nil
-        lastIsSourceMode = nil
-        lastTruncation = nil
         // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
         // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
         let zoom = initialPageZoom

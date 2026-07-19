@@ -61,9 +61,12 @@ struct ViewerWindowControllerTests {
     ) -> ViewerWindowController {
         ViewerWindowController(
             fileURL: file,
-            zoomStore: zoomStore ?? ZoomStore(defaults: defaults),
             defaults: defaults,
-            sourceModeStore: sourceModeStore ?? SourceModeStore(defaults: defaults)
+            perFileState: PerFileStateStore(
+                zoom: zoomStore ?? ZoomStore(defaults: defaults),
+                sourceMode: sourceModeStore ?? SourceModeStore(defaults: defaults),
+                scrollPosition: ScrollPositionStore(defaults: defaults)
+            )
         )
     }
 
@@ -79,9 +82,9 @@ struct ViewerWindowControllerTests {
 
         let controller = ViewerWindowController(
             fileURL: visible,
-            zoomStore: ZoomStore(defaults: defaults),
             defaults: defaults,
-            hiddenFilesPreference: preference
+            hiddenFilesPreference: preference,
+            perFileState: PerFileStateStore(defaults: defaults)
         )
         defer { controller.close() }
 
@@ -101,9 +104,9 @@ struct ViewerWindowControllerTests {
 
         let controller = ViewerWindowController(
             fileURL: visible,
-            zoomStore: ZoomStore(defaults: defaults),
             defaults: defaults,
-            hiddenFilesPreference: preference
+            hiddenFilesPreference: preference,
+            perFileState: PerFileStateStore(defaults: defaults)
         )
         defer { controller.close() }
 
@@ -272,7 +275,10 @@ struct ViewerWindowControllerTests {
         let renamed = tmp.url.appendingPathComponent("new.mmd")
         try FileManager.default.moveItem(at: file, to: renamed)
 
-        controller.handleRename(to: renamed)
+        // 本番では ViewerStore が現在 URL(store.currentURL)を新パスへ進めてから
+        // controller.handleRename を呼ぶ。その順序を再現するため store を先に進める。
+        controller.store.openFile(renamed)
+        controller.handleRename(from: file, to: renamed)
 
         // ディレクトリ列挙は /private シンボリックリンクを解決するため、名前で照合する。
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
@@ -293,7 +299,7 @@ struct ViewerWindowControllerTests {
         let renamed = tmp.url.appendingPathComponent("note.markdown")
         try FileManager.default.moveItem(at: file, to: renamed)
 
-        controller.handleRename(to: renamed)
+        controller.handleRename(from: controller.fileURL, to: renamed)
 
         #expect(controller.isSourceMode)
     }
@@ -310,16 +316,10 @@ struct ViewerWindowControllerTests {
         let renamed = tmp.url.appendingPathComponent("note.swift")
         try FileManager.default.moveItem(at: file, to: renamed)
 
-        controller.handleRename(to: renamed)
+        controller.handleRename(from: controller.fileURL, to: renamed)
 
         // .swift は isRenderable == false のため、ソース表示トグルが成立せずリセットする。
         #expect(!controller.isSourceMode)
-    }
-
-    /// navigateToFolder はホームディレクトリ配下のみ許可するため、システム一時ディレクトリではなく
-    /// ホームディレクトリ配下に一時ディレクトリを作る。
-    private func makeHomeTempDir() throws -> TempDir {
-        try TempDir(base: FileManager.default.homeDirectoryForCurrentUser)
     }
 
     @Test("navigateToFolder でカレントディレクトリと一覧が更新される")
@@ -332,7 +332,7 @@ struct ViewerWindowControllerTests {
         _ = try tmp.file(named: "sub/child.mmd", contents: "graph LR;")
         let controller = ViewerWindowController(
             fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+            perFileState: PerFileStateStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
         )
         defer { controller.close() }
 

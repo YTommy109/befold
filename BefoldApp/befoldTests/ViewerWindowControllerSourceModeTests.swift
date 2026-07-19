@@ -15,9 +15,12 @@ struct ViewerWindowControllerSourceModeTests {
     ) -> ViewerWindowController {
         ViewerWindowController(
             fileURL: file,
-            zoomStore: ZoomStore(defaults: defaults),
             defaults: defaults,
-            sourceModeStore: sourceModeStore ?? SourceModeStore(defaults: defaults)
+            perFileState: PerFileStateStore(
+                zoom: ZoomStore(defaults: defaults),
+                sourceMode: sourceModeStore ?? SourceModeStore(defaults: defaults),
+                scrollPosition: ScrollPositionStore(defaults: defaults)
+            )
         )
     }
 
