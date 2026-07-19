@@ -45,7 +45,7 @@ struct ViewerRendererOneShotTests {
     }
 
     @Test("chunked outcome は先頭チャンクと切り詰め状態・表示行数を渡す")
-    func chunkedOutcomeReportsTruncationAndLineCount() async throws {
+    func chunkedOutcomeReportsTruncationAndLineCount() throws {
         let url = URL(fileURLWithPath: "/tmp/oneshot-chunk.log")
         let data = try #require("line1\nline2\nline3\n".data(using: .utf8))
         let cache = try NormalizedTextCache(data: data, normalizeFully: false, oneShotLoad: true)
@@ -66,7 +66,7 @@ struct ViewerRendererOneShotTests {
     }
 
     @Test("chunked outcome で末尾が改行で終わらない場合は途中行も1行として数える(切り詰め時)")
-    func chunkedOutcomeCountsTrailingPartialLine() async throws {
+    func chunkedOutcomeCountsTrailingPartialLine() throws {
         let url = URL(fileURLWithPath: "/tmp/oneshot-partial.log")
         let data = try #require("a\nb\nc".data(using: .utf8))
         let cache = try NormalizedTextCache(data: data, normalizeFully: false, oneShotLoad: true)

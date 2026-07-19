@@ -21,8 +21,13 @@ struct ViewerRendererMessageHandlingTests {
             super.init()
         }
 
-        override var name: String { stubName }
-        override var body: Any { stubBody }
+        override var name: String {
+            stubName
+        }
+
+        override var body: Any {
+            stubBody
+        }
     }
 
     private func dispatch(_ renderer: ViewerRenderer, name: String, body: Any) {
@@ -118,7 +123,9 @@ struct ViewerRendererMessageHandlingTests {
 
         renderer.handleLoadMoreLines()
         // spawn した非同期 Task の完了(isLoadingMoreLines が false に戻る)を待つ。
-        while renderer.isLoadingMoreLines { await Task.yield() }
+        while renderer.isLoadingMoreLines {
+            await Task.yield()
+        }
 
         // 描画はここでは行わず(全文 render も appendChunk も評価しない)、次チャンクを
         // ステージするだけ。実描画は updateContent が pendingAppend を消費して行う。
@@ -140,9 +147,13 @@ struct ViewerRendererMessageHandlingTests {
 
         // updateContent が消費する前に 2 回続けてステージする(SwiftUI 更新の合体を模す)。
         renderer.handleLoadMoreLines()
-        while renderer.isLoadingMoreLines { await Task.yield() }
+        while renderer.isLoadingMoreLines {
+            await Task.yield()
+        }
         renderer.handleLoadMoreLines()
-        while renderer.isLoadingMoreLines { await Task.yield() }
+        while renderer.isLoadingMoreLines {
+            await Task.yield()
+        }
 
         // 上書きせず累積し、DOM への追記漏れを防ぐ。revision は最新を採る。
         #expect(renderer.pendingAppend?.chunk == "AB")
@@ -155,7 +166,9 @@ struct ViewerRendererMessageHandlingTests {
         renderer.onLoadMoreLines = { nil }
 
         renderer.handleLoadMoreLines()
-        while renderer.isLoadingMoreLines { await Task.yield() }
+        while renderer.isLoadingMoreLines {
+            await Task.yield()
+        }
 
         #expect(renderer.pendingAppend == nil)
     }
