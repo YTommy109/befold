@@ -376,15 +376,13 @@ struct ViewerWindowControllerTests {
         #expect(controller.fileListModel.currentDirectory == before)
     }
 
-    @Test("子フォルダーへの移動ではフォルダーをスキップして最初のファイルが選択される")
-    func navigateToChildSelectsFirstFileSkippingFolders() async throws {
+    @Test("子フォルダーへの移動では自動選択されない")
+    func navigateToChildDoesNotAutoSelect() async throws {
         let tmp = try makeHomeTempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
         try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
-        // フォルダーファースト順ではフォルダーがファイルより先頭に来るため、
-        // 「先頭エントリ」選択だと grandchild が選ばれてしまう配置にする。
         let grandChild = subDir.appendingPathComponent("grandchild", isDirectory: true)
         try FileManager.default.createDirectory(at: grandChild, withIntermediateDirectories: true)
         _ = try tmp.file(named: "sub/child.mmd", contents: "graph LR;")
@@ -394,11 +392,11 @@ struct ViewerWindowControllerTests {
         controller.navigateToFolder(subDir)
         await controller.sidebar.pendingListingTask?.value
 
-        #expect(controller.fileListModel.selection?.lastPathComponent == "child.mmd")
+        #expect(controller.fileListModel.selection == nil)
     }
 
-    @Test("子フォルダーへの移動では最初のファイルが表示対象として開かれる")
-    func navigateToChildOpensFirstFile() async throws {
+    @Test("子フォルダーへの移動ではファイルが自動的に開かれない")
+    func navigateToChildDoesNotAutoOpenFile() async throws {
         let tmp = try makeHomeTempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
@@ -411,7 +409,7 @@ struct ViewerWindowControllerTests {
         controller.navigateToFolder(subDir)
         await controller.sidebar.pendingListingTask?.value
 
-        #expect(controller.fileURL.lastPathComponent == "child.mmd")
+        #expect(controller.fileURL.lastPathComponent == "diagram.mmd")
     }
 
     @Test("ファイルのない子フォルダーへの移動では何も選択されない")

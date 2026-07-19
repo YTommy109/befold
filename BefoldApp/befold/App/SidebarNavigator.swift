@@ -10,7 +10,8 @@ protocol SidebarNavigatorHost: AnyObject {
     @discardableResult
     func performFileSwitch(to url: URL) -> Bool
     /// 別ファイルへの完全なファイル切替(別ウィンドウ判定・選択同期・履歴記録込み)。
-    /// フォルダ移動で最初のファイルを開くときに使用する。
+    /// サイドバー/フォルダー一覧でのファイル選択やリンク参照など、ファイルを明示的に
+    /// 選んだ操作から呼ばれる(フォルダ移動時の自動オープンには使わない)。
     func switchFile(to url: URL)
     /// 指定 URL が自分以外のウィンドウで既に開かれているか。
     func isFileOpenElsewhere(_ url: URL) -> Bool
@@ -152,6 +153,9 @@ final class SidebarNavigator {
 
     /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
     /// 列挙はメイン外で行い、完了後にメインアクターへ一括反映する(呼び出し自体は非 async)。
+    /// 移動先に最初から自動的にファイルを開くことはしない(#folder-preview-listing)。
+    /// 選択を空にすることで、プレビューエリアには新しいディレクトリの一覧が表示される
+    /// (PreviewTargetResolver.resolve が selection == nil を currentDirectory の一覧として扱う)。
     func navigateToFolder(_ url: URL) {
         guard host != nil else { return }
         let target = url.standardizedFileURL
@@ -165,20 +169,16 @@ final class SidebarNavigator {
         let generation = listingGeneration
         pendingListingTask = Task {
             let entries = await self.directoryLister(url, sortOrder, showHiddenFiles)
-            guard generation == self.listingGeneration, let host = self.host else { return }
+            guard generation == self.listingGeneration, self.host != nil else { return }
             self.fileListModel.entries = entries
             let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
                 .normalizedPathKey
             if isGoingUp {
                 self.fileListModel.selection = self.folderEntryURL(forKey: previous.normalizedPathKey)
-                self.recordHistory()
-            } else if let firstFile = entries.first(where: { $0.kind == .file }) {
-                host.switchFile(to: firstFile.url)
-                self.recordHistory()
             } else {
                 self.fileListModel.selection = nil
-                self.recordHistory()
             }
+            self.recordHistory()
         }
     }
 

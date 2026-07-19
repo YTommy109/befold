@@ -57,7 +57,7 @@ struct FileListView: View {
             // 行インセットをゼロにして同等のパディングを行コンテンツ側へ移し、
             // contentShape が行の全幅を覆うようにする。インセット部分をダブル
             // クリックしたとき選択だけされて移動しない取りこぼしを防ぐ。
-            entryRow(entry)
+            FileListEntryRow(entry: entry)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
                 .listRowInsets(EdgeInsets())
@@ -81,53 +81,6 @@ struct FileListView: View {
         }
         .onKeyPress { keyPress in
             handleKeyPress(keyPress)
-        }
-    }
-
-    @ViewBuilder
-    private func entryRow(_ entry: FileListEntry) -> some View {
-        switch entry.kind {
-        case .parentNavigation:
-            HStack {
-                Label {
-                    Text("..")
-                        .foregroundStyle(.secondary)
-                } icon: {
-                    Image(systemName: "arrow.up.doc")
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-        case .folder:
-            HStack {
-                Label {
-                    Text(entry.url.lastPathComponent)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                } icon: {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path))
-                        .resizable()
-                        .frame(width: 16, height: 16)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(.tertiary)
-                    .font(.caption)
-            }
-        case .file:
-            HStack {
-                Label {
-                    Text(entry.url.lastPathComponent)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .foregroundStyle(entry.hasUnknownExtension ? .secondary : .primary)
-                } icon: {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path))
-                        .resizable()
-                        .frame(width: 16, height: 16)
-                }
-                Spacer()
-            }
         }
     }
 
