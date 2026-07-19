@@ -105,7 +105,8 @@ public extension ViewerRenderer {
             fileReader: fileReader,
             contentLoader: ContentLoader(fileReader: fileReader),
             chunkedReaderFactory: chunkedReaderFactory,
-            oneShotLoad: true
+            oneShotLoad: true,
+            embedLocalImages: rendererFeatures.embedImages
         )
         let render = Self.oneShotRender(from: outcome, url: url, fileType: resolvedFileType)
 

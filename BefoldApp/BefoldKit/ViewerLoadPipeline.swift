@@ -25,13 +25,21 @@ public enum ViewerLoadPipeline {
     /// 計算とエンコーディング判定の全量フォールバックスキャンを省略する(QuickLook 拡張のような
     /// 1回描画のみのホスト向け。詳細は NormalizedTextCache.init 参照)。ViewerStore は
     /// 同一内容スキップに dataHash を必要とするため既定の false のまま呼び出す。
+    /// embedLocalImages: markdown 内のローカル画像を MarkdownImageEmbedder のキャッシュへ
+    /// ウォームアップするかどうか。render 経路(ViewerRenderer+RenderHelpers.swift)は
+    /// 従来どおり render 直前に embedLocalImages を呼ぶが、ここで先に同じ (mtime, size) キーの
+    /// キャッシュを温めておくことで、render 側の呼び出しをメインスレッド上のディスク読込・
+    /// base64 エンコード無しのキャッシュヒットにする。ホストが画像埋め込みを無効化する場合
+    /// (QuickLook 等、rendererFeatures.embedImages == false)は false を渡し、
+    /// 読込権限のないファイルへ触れないようにする。
     public static func load(
         resolved: URL,
         fileType: FileType,
         fileReader: any FileReading,
         contentLoader: ContentLoader,
         chunkedReaderFactory: ChunkedReaderFactory,
-        oneShotLoad: Bool = false
+        oneShotLoad: Bool = false,
+        embedLocalImages: Bool = true
     ) async -> Outcome {
         guard fileReader.fileExists(at: resolved) else { return .missing }
 
@@ -71,16 +79,9 @@ public enum ViewerLoadPipeline {
                     firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
                 )
             } else {
-                let cache = try NormalizedTextCache(data: data, oneShotLoad: oneShotLoad)
-                if cache.text.utf8.count > ContentLoader.maxTextFileSizeBytes {
-                    return .full(
-                        ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
-                        cache: nil
-                    )
-                }
-                return .full(
-                    ContentLoader.LoadedContent(rejectReason: nil, content: cache.text),
-                    cache: cache
+                return try loadFull(
+                    data: data, resolved: resolved, fileType: fileType,
+                    oneShotLoad: oneShotLoad, embedLocalImages: embedLocalImages
                 )
             }
         } catch {
@@ -94,5 +95,28 @@ public enum ViewerLoadPipeline {
                 cache: nil
             )
         }
+    }
+
+    /// 非行指向(markdown/mmd/svg/html)の全量読み込み。markdown の場合、embedLocalImages が
+    /// true なら render 直前の MarkdownImageEmbedder 呼び出しに先立ちキャッシュをウォームアップする
+    /// (詳細は load のドキュメントコメント参照)。
+    private static func loadFull(
+        data: Data, resolved: URL, fileType: FileType,
+        oneShotLoad: Bool, embedLocalImages: Bool
+    ) throws -> Outcome {
+        let cache = try NormalizedTextCache(data: data, oneShotLoad: oneShotLoad)
+        if cache.text.utf8.count > ContentLoader.maxTextFileSizeBytes {
+            return .full(
+                ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
+                cache: nil
+            )
+        }
+        if embedLocalImages, fileType == .markdown {
+            _ = MarkdownImageEmbedder.embedLocalImages(in: cache.text, baseURL: resolved)
+        }
+        return .full(
+            ContentLoader.LoadedContent(rejectReason: nil, content: cache.text),
+            cache: cache
+        )
     }
 }
