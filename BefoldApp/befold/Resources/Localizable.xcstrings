@@ -1343,40 +1343,6 @@
           }
         }
       }
-    },
-    "viewer.unsupported.format": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This file format is not supported for preview."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このファイル形式はプレビューに対応していません"
-          }
-        }
-      }
-    },
-    "viewer.unsupported.tooLarge": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This file is too large to display."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ファイルが大きすぎるため表示できません"
-          }
-        }
-      }
     }
   },
   "version": "1.0"

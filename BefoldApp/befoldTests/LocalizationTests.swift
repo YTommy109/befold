@@ -50,6 +50,10 @@ struct LocalizationTests {
         #expect(catalog["viewer.find.placeholder"]?["ja"]?.isEmpty == false)
         #expect(catalog["banner.showing"]?["en"]?.isEmpty == false)
         #expect(catalog["banner.showing"]?["ja"]?.isEmpty == false)
+        #expect(catalog["viewer.unsupported.format"]?["en"]?.isEmpty == false)
+        #expect(catalog["viewer.unsupported.format"]?["ja"]?.isEmpty == false)
+        #expect(catalog["viewer.unsupported.tooLarge"]?["en"]?.isEmpty == false)
+        #expect(catalog["viewer.unsupported.tooLarge"]?["ja"]?.isEmpty == false)
     }
 
     /// key -> 言語 -> 訳 の辞書を返す。
