@@ -83,6 +83,7 @@ struct ViewerRendererContentUpdateTests {
     }
 
     // MARK: - pendingAppend 消費判定(showLineNumbers 不一致は全文 render に倒す)
+
     // PR #262 レビュー(1): pendingAppend 消費経路のガードが showLineNumbers を見ておらず、
     // 同一 revision の pending append と行番号トグルが1つの @Observable サイクルに合体すると
     // トグルが1周期失われうる問題への回帰テスト。
