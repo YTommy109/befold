@@ -65,7 +65,9 @@ struct ViewerWindowControllerTests {
             perFileState: PerFileStateStore(
                 zoom: zoomStore ?? ZoomStore(defaults: defaults),
                 sourceMode: sourceModeStore ?? SourceModeStore(defaults: defaults),
-                scrollPosition: ScrollPositionStore(defaults: defaults)
+                scrollPosition: ScrollPositionStore(defaults: defaults),
+                sidebar: SidebarStateStore(defaults: defaults),
+                windowFrame: WindowFrameStore(defaults: defaults)
             ),
             bookmarkStore: BookmarkStore(defaults: defaults)
         )
@@ -143,41 +145,67 @@ struct ViewerWindowControllerTests {
         #expect(contentSize == NSSize(width: 1100, height: 850))
     }
 
-    @Test("ウィンドウフレーム(位置とサイズ)が次のウィンドウに引き継がれる")
-    func windowFrameIsPersistedAcrossControllers() throws {
+    // フレームの「次のウィンドウへの引き継ぎ」自体は ViewerWindowManager.openViewer が
+    // WindowFrameStore を介して解決する(ViewerWindowManagerTests 参照)。ここでは
+    // ViewerWindowController 自身の責務、すなわち (1) リサイズ/クローズ時に
+    // WindowFrameStore へ記録すること、(2) 注入された initialFrameDescriptor を
+    // 実際のウィンドウへ適用すること、を検証する。
+
+    @Test("リサイズ完了時に WindowFrameStore へフレームが記録される")
+    func windowFrameIsRecordedOnResize() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
-        let zoomStore = ZoomStore(defaults: defaults)
-
-        let first = makeController(file: file, zoomStore: zoomStore, defaults: defaults)
-        defer { first.close() }
+        let perFileState = PerFileStateStore(defaults: defaults)
+        let controller = ViewerWindowController(
+            fileURL: file, defaults: defaults, perFileState: perFileState
+        )
+        defer { controller.close() }
         let frame = NSRect(x: 120, y: 140, width: 900, height: 700)
-        first.window?.setFrame(frame, display: false)
-        first.windowDidEndLiveResize(Notification(name: NSWindow.didEndLiveResizeNotification))
+        controller.window?.setFrame(frame, display: false)
 
-        let second = makeController(file: file, zoomStore: zoomStore, defaults: defaults)
-        defer { second.close() }
+        controller.windowDidEndLiveResize(Notification(name: NSWindow.didEndLiveResizeNotification))
 
-        #expect(second.window?.frame == frame)
+        #expect(perFileState.windowFrame.frameDescriptor(for: file) == controller.window?.frameDescriptor)
     }
 
-    @Test("ウィンドウを閉じたときにもフレームが保存される")
-    func windowFrameIsSavedOnClose() throws {
+    @Test("ウィンドウを閉じたときにも WindowFrameStore へフレームが記録される")
+    func windowFrameIsRecordedOnClose() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
-        let zoomStore = ZoomStore(defaults: defaults)
-
-        let first = makeController(file: file, zoomStore: zoomStore, defaults: defaults)
+        let perFileState = PerFileStateStore(defaults: defaults)
+        let controller = ViewerWindowController(
+            fileURL: file, defaults: defaults, perFileState: perFileState
+        )
         let frame = NSRect(x: 160, y: 180, width: 800, height: 650)
+        controller.window?.setFrame(frame, display: false)
+        let descriptor = try #require(controller.window?.frameDescriptor)
+
+        controller.windowWillClose(Notification(name: NSWindow.willCloseNotification))
+        controller.close()
+
+        #expect(perFileState.windowFrame.frameDescriptor(for: file) == descriptor)
+    }
+
+    @Test("initialFrameDescriptor を渡すとそのフレームで開く")
+    func windowUsesInjectedInitialFrameDescriptor() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
+        let first = makeController(file: file, defaults: defaults)
+        let frame = NSRect(x: 120, y: 140, width: 900, height: 700)
         first.window?.setFrame(frame, display: false)
-        first.windowWillClose(Notification(name: NSWindow.willCloseNotification))
+        let descriptor = try #require(first.window?.frameDescriptor)
         first.close()
 
-        let second = makeController(file: file, zoomStore: zoomStore, defaults: defaults)
+        let second = ViewerWindowController(
+            fileURL: file, defaults: defaults, perFileState: PerFileStateStore(defaults: defaults),
+            initialFrameDescriptor: descriptor
+        )
         defer { second.close() }
 
         #expect(second.window?.frame == frame)

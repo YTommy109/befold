@@ -24,8 +24,6 @@ protocol ViewerWindowControllerDelegate: AnyObject {
 /// 1 ファイルに対応する 1 ウィンドウを管理する NSWindowController。
 /// SwiftUI の ViewerContentView を NSHostingView 経由で表示する。
 final class ViewerWindowController: NSWindowController {
-    /// 最後に調整したウィンドウフレーム（位置＋サイズ）の保存キー。全ウィンドウで共有する。
-    private static let lastWindowFrameKey = "LastWindowFrame"
     private static let defaultContentSize = NSSize(width: 1100, height: 850)
 
     private let defaults: UserDefaults
@@ -36,7 +34,9 @@ final class ViewerWindowController: NSWindowController {
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
     private let bookmarkStore: BookmarkStore
-    private let forceSidebarVisible: Bool
+    /// ウィンドウ生成時のサイドバー初期開閉状態。解決(記憶の引き継ぎ・CLI からの強制表示など)は
+    /// ViewerWindowManager.openViewer が行い、ここでは結果を受け取って渡すだけにする。
+    private let initialSidebarCollapsed: Bool
     /// 別ウィンドウでファイルを開く処理。本番では AppDelegate.shared?.openViewer(for:) を注入する。
     private let openFileInNewWindow: (URL) -> Void
     /// 二本指スワイプによるファイル履歴ナビゲーション検知。ウィンドウ生成後に start()、
@@ -89,7 +89,8 @@ final class ViewerWindowController: NSWindowController {
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore = BookmarkStore(),
-        forceSidebarVisible: Bool = false,
+        initialSidebarCollapsed: Bool = true,
+        initialFrameDescriptor: String? = nil,
         store: ViewerStore = ViewerStore(),
         directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
         openFileInNewWindow: @escaping (URL) -> Void = { AppDelegate.shared?.openViewer(for: $0) }
@@ -100,7 +101,7 @@ final class ViewerWindowController: NSWindowController {
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
         self.bookmarkStore = bookmarkStore
-        self.forceSidebarVisible = forceSidebarVisible
+        self.initialSidebarCollapsed = initialSidebarCollapsed
         self.store = store
         self.openFileInNewWindow = openFileInNewWindow
         let parentDir = fileURL.deletingLastPathComponent()
@@ -163,10 +164,10 @@ final class ViewerWindowController: NSWindowController {
         // frameDescriptor はフレーム座標系で保存・復元されるため、
         // タイトルバー高さの混入によるサイズのずれは起きない
         window.contentViewController = makeSplitViewController()
-        if let descriptor = defaults.string(forKey: Self.lastWindowFrameKey) {
+        if let descriptor = initialFrameDescriptor {
             window.setFrame(from: descriptor)
-            // 共有フレームをそのまま使うと復元・複数同時オープンでウィンドウが
-            // 完全に重なるため、既存ウィンドウと位置が一致する場合だけずらす。
+            // 自身の保存値・引き継ぎ値のどちらでも、既存ウィンドウと位置が
+            // 完全に一致する場合は重なって見分けが付かなくなるためずらす。
             offsetFrameToAvoidOverlap(window)
         } else {
             window.setContentSize(Self.defaultContentSize)
@@ -248,7 +249,11 @@ final class ViewerWindowController: NSWindowController {
         return ViewerSplitViewController(
             sidebar: fileListView,
             content: contentView,
-            forceSidebarVisible: forceSidebarVisible
+            initialCollapsed: initialSidebarCollapsed,
+            onCollapsedChange: { [weak self] collapsed in
+                guard let self else { return }
+                perFileState.sidebar.recordToggle(collapsed, for: fileURL)
+            }
         )
     }
 
@@ -432,7 +437,7 @@ extension ViewerWindowController: NSWindowDelegate {
     /// フルスクリーン中のフレームは通常ウィンドウの寸法として無意味なため保存しない。
     private func saveWindowFrame() {
         guard let window, !window.styleMask.contains(.fullScreen) else { return }
-        defaults.set(window.frameDescriptor, forKey: Self.lastWindowFrameKey)
+        perFileState.windowFrame.recordUserAdjustedFrame(window.frameDescriptor, for: fileURL)
     }
 
     /// View > Zoom In。HTML 直接ロード時は WKWebView の pageZoom を、それ以外は JS ズーム実装を使う。
