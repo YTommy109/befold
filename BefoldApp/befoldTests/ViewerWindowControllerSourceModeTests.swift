@@ -19,7 +19,9 @@ struct ViewerWindowControllerSourceModeTests {
             perFileState: PerFileStateStore(
                 zoom: ZoomStore(defaults: defaults),
                 sourceMode: sourceModeStore ?? SourceModeStore(defaults: defaults),
-                scrollPosition: ScrollPositionStore(defaults: defaults)
+                scrollPosition: ScrollPositionStore(defaults: defaults),
+                sidebar: SidebarStateStore(defaults: defaults),
+                windowFrame: WindowFrameStore(defaults: defaults)
             )
         )
     }

@@ -63,13 +63,27 @@ final class ViewerWindowManager {
             return
         }
 
+        let lastActivePathKey = sessionStore.savedActivePath()
+        let initialSidebarCollapsed = forceSidebarVisible
+            ? false
+            : perFileState.sidebar.initialCollapsed(for: url, lastActivePathKey: lastActivePathKey)
+        perFileState.sidebar.setCollapsed(initialSidebarCollapsed, for: url)
+
+        let initialFrameDescriptor = perFileState.windowFrame.initialFrameDescriptor(
+            for: url, lastActivePathKey: lastActivePathKey
+        )
+        if let initialFrameDescriptor {
+            perFileState.windowFrame.setFrameDescriptor(initialFrameDescriptor, for: url)
+        }
+
         let controller = ViewerWindowController(
             fileURL: url,
             hiddenFilesPreference: hiddenFilesPreference,
             findOptionsPreference: findOptionsPreference,
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
-            forceSidebarVisible: forceSidebarVisible,
+            initialSidebarCollapsed: initialSidebarCollapsed,
+            initialFrameDescriptor: initialFrameDescriptor,
             openFileInNewWindow: { [weak self] fileURL in self?.openViewer(for: fileURL) }
         )
         controllers[key] = controller

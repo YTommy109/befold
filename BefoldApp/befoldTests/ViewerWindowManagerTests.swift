@@ -202,6 +202,149 @@ struct ViewerWindowManagerTests {
         manager.controllers.values.forEach { $0.close() }
     }
 
+    @Test("新規ファイルを開くと、記録がなければ既定(閉じた状態)がサイドバー状態として記録される")
+    func openViewerPersistsDefaultClosedSidebarStateForNewFile() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
+        let perFileState = PerFileStateStore(defaults: defaults)
+        let manager = ViewerWindowManager(
+            sessionStore: SessionStore(defaults: defaults),
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            perFileState: perFileState
+        )
+
+        manager.openViewer(for: file)
+
+        #expect(perFileState.sidebar.isCollapsed(for: file) == true)
+        manager.controllers.values.forEach { $0.close() }
+    }
+
+    @Test("既に保存済みのサイドバー状態があるファイルを開いても保存値は上書きされない")
+    func openViewerKeepsOwnSavedSidebarState() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
+        let perFileState = PerFileStateStore(defaults: defaults)
+        perFileState.sidebar.setCollapsed(false, for: file)
+        let manager = ViewerWindowManager(
+            sessionStore: SessionStore(defaults: defaults),
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            perFileState: perFileState
+        )
+
+        manager.openViewer(for: file)
+
+        #expect(perFileState.sidebar.isCollapsed(for: file) == false)
+        manager.controllers.values.forEach { $0.close() }
+    }
+
+    @Test("初めて開くファイルは直近アクティブだったウィンドウのサイドバー状態を引き継ぐ")
+    func openViewerInheritsLastActiveWindowSidebarState() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let activeFile = try tmp.file(named: "active.mmd", contents: "graph TD;")
+        let newFile = try tmp.file(named: "new.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
+        let sessionStore = SessionStore(defaults: defaults)
+        let perFileState = PerFileStateStore(defaults: defaults)
+        perFileState.sidebar.setCollapsed(false, for: activeFile)
+        sessionStore.noteActivated(activeFile)
+        let manager = ViewerWindowManager(
+            sessionStore: sessionStore,
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            perFileState: perFileState
+        )
+
+        manager.openViewer(for: newFile)
+
+        #expect(perFileState.sidebar.isCollapsed(for: newFile) == false)
+        manager.controllers.values.forEach { $0.close() }
+    }
+
+    @Test("forceSidebarVisible は保存済み・引き継ぎ値より優先され、結果も記録される")
+    func openViewerForceSidebarVisibleOverridesResolvedDefault() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
+        let perFileState = PerFileStateStore(defaults: defaults)
+        let manager = ViewerWindowManager(
+            sessionStore: SessionStore(defaults: defaults),
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            perFileState: perFileState
+        )
+
+        manager.openViewer(for: file, forceSidebarVisible: true)
+
+        #expect(perFileState.sidebar.isCollapsed(for: file) == false)
+        manager.controllers.values.forEach { $0.close() }
+    }
+
+    @Test("既に保存済みのウィンドウフレームがあるファイルを開いても保存値は上書きされない")
+    func openViewerKeepsOwnSavedWindowFrame() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
+        let perFileState = PerFileStateStore(defaults: defaults)
+        perFileState.windowFrame.setFrameDescriptor("200 200 900 700 0 0 1920 1080", for: file)
+        let manager = ViewerWindowManager(
+            sessionStore: SessionStore(defaults: defaults),
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            perFileState: perFileState
+        )
+
+        manager.openViewer(for: file)
+
+        #expect(perFileState.windowFrame.frameDescriptor(for: file) == "200 200 900 700 0 0 1920 1080")
+        manager.controllers.values.forEach { $0.close() }
+    }
+
+    @Test("初めて開くファイルは直近アクティブだったウィンドウのフレームを引き継ぐ")
+    func openViewerInheritsLastActiveWindowFrame() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let activeFile = try tmp.file(named: "active.mmd", contents: "graph TD;")
+        let newFile = try tmp.file(named: "new.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
+        let sessionStore = SessionStore(defaults: defaults)
+        let perFileState = PerFileStateStore(defaults: defaults)
+        perFileState.windowFrame.setFrameDescriptor("50 50 700 500 0 0 1920 1080", for: activeFile)
+        sessionStore.noteActivated(activeFile)
+        let manager = ViewerWindowManager(
+            sessionStore: sessionStore,
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            perFileState: perFileState
+        )
+
+        manager.openViewer(for: newFile)
+
+        #expect(perFileState.windowFrame.frameDescriptor(for: newFile) == "50 50 700 500 0 0 1920 1080")
+        manager.controllers.values.forEach { $0.close() }
+    }
+
+    @Test("記録が何もない新規ファイルはウィンドウフレームを記録しない(既定のカスケード配置に任せる)")
+    func openViewerLeavesWindowFrameUnsetWhenNothingToInherit() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerTests")
+        let perFileState = PerFileStateStore(defaults: defaults)
+        let manager = ViewerWindowManager(
+            sessionStore: SessionStore(defaults: defaults),
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            perFileState: perFileState
+        )
+
+        manager.openViewer(for: file)
+
+        #expect(perFileState.windowFrame.frameDescriptor(for: file) == nil)
+        manager.controllers.values.forEach { $0.close() }
+    }
+
     @Test("別ウィンドウで開いているファイルへの切替は中止され重複ウィンドウを作らない")
     func switchToFileOpenInAnotherWindowIsRejected() throws {
         let tmp = try TempDir()
