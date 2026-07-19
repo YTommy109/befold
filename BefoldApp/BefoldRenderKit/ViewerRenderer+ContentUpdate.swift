@@ -3,6 +3,19 @@ import WebKit
 
 // MARK: - Content update
 
+extension ViewerRenderer {
+    /// applyRender の引数をまとめた入力(function_parameter_count 対策)。
+    struct RenderRequest {
+        let content: String
+        let contentRevision: Int
+        let fileType: FileType
+        let filePath: URL?
+        let isSourceMode: Bool
+        let showLineNumbers: Bool
+        let truncation: TruncationState
+    }
+}
+
 public extension ViewerRenderer {
     /// _mmdSetTruncated へ送る切り詰め状態と表示行数のペア。非切り詰め時の
     /// 行数は 0 に正規化する(切り詰め有無だけが意味を持つ)。failed はチャンク
@@ -66,35 +79,35 @@ public extension ViewerRenderer {
                     filePath: filePath, isSourceMode: isSourceMode,
                     lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
                 )
+                let request = RenderRequest(
+                    content: content, contentRevision: contentRevision, fileType: fileType,
+                    filePath: filePath, isSourceMode: isSourceMode, showLineNumbers: showLineNumbers,
+                    truncation: truncation
+                )
                 exitDirectHTMLMode(webView: webView) {
                     self.applyRender(
-                        webView: webView, content: content, fileType: fileType,
-                        filePath: filePath, isSourceMode: isSourceMode,
-                        showLineNumbers: showLineNumbers,
-                        truncation: truncation,
+                        webView: webView, request: request,
                         restoreFromPersistedPosition: restoreFromPersistedPosition
                     )
                 }
-                recordRendered(
-                    contentRevision: contentRevision,
-                    fileType: fileType, filePath: filePath
-                )
                 return
             }
 
             // 段階読み込みの続き(loadMoreLines)は handleLoadMoreLines が pendingAppend として
-            // ステージする。現在の revision と一致し、ファイル/モード切替でなければ全文 render せず
-            // 増分追記する。これで「追記の描画」経路が updateContent 1 本に集約され、コールバック
-            // 戻り値経由の全文 render 誤爆を先行 recordRendered で抑止する必要がなくなる。revision
-            // 不一致(別の読み込みに追い越された)場合は破棄し、下の通常経路で全文 render に倒す。
+            // ステージする。現在の revision と一致し、ファイル/モード/行番号表示切替でなければ
+            // 全文 render せず増分追記する。これで「追記の描画」経路が updateContent 1 本に集約される。
+            // 条件不一致(別の読み込みに追い越された・同一サイクルで行番号トグルも変わった等)の
+            // 場合は破棄し、下の通常経路で全文 render に倒す。
             if let pending = pendingAppend {
                 pendingAppend = nil
-                if pending.revision == contentRevision,
-                   !Self.isFileOrModeSwitch(
-                       filePath: filePath, isSourceMode: isSourceMode,
-                       lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
-                   )
-                {
+                if Self.canConsumePendingAppend(
+                    pending,
+                    PendingAppendCheck(
+                        contentRevision: contentRevision, showLineNumbers: showLineNumbers,
+                        filePath: filePath, isSourceMode: isSourceMode
+                    ),
+                    rendered: rendered
+                ) {
                     applyAppend(
                         webView: webView, chunk: pending.chunk, contentRevision: contentRevision,
                         fileType: fileType, filePath: filePath, truncation: truncation
@@ -108,6 +121,7 @@ public extension ViewerRenderer {
             // ソース/レンダリング表示の切替も同じ content から異なる文字列を描画し直す必要がある)
             let needsRender = contentRevision != rendered.contentRevision
                 || fileType != rendered.fileType
+                || filePath != rendered.filePath
                 || showLineNumbers != rendered.showLineNumbers
                 || isSourceMode != rendered.isSourceMode
                 || truncation != rendered.truncation
@@ -117,15 +131,13 @@ public extension ViewerRenderer {
                 filePath: filePath, isSourceMode: isSourceMode,
                 lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
             )
-            recordRendered(
-                contentRevision: contentRevision,
-                fileType: fileType, filePath: filePath
-            )
             applyRender(
-                webView: webView, content: content, fileType: fileType,
-                filePath: filePath, isSourceMode: isSourceMode,
-                showLineNumbers: showLineNumbers,
-                truncation: truncation,
+                webView: webView,
+                request: RenderRequest(
+                    content: content, contentRevision: contentRevision, fileType: fileType,
+                    filePath: filePath, isSourceMode: isSourceMode, showLineNumbers: showLineNumbers,
+                    truncation: truncation
+                ),
                 restoreFromPersistedPosition: restoreFromPersistedPosition
             )
         }

@@ -8,6 +8,10 @@ final class PerFileStateStore {
     let sourceMode: SourceModeStore
     let scrollPosition: ScrollPositionStore
 
+    /// - Parameter defaults: 各ストア(zoom / sourceMode / scrollPosition)の永続化先。
+    ///   本番では必ず AppDelegate が生成した単一の共有インスタンスを注入すること
+    ///   (このイニシャライザ自体はテストの都合で defaults に既定値を持つが、
+    ///   PerFileStateStore インスタンス自体は全ウィンドウで共有される前提)。
     init(defaults: UserDefaults = .standard) {
         zoom = ZoomStore(defaults: defaults)
         sourceMode = SourceModeStore(defaults: defaults)

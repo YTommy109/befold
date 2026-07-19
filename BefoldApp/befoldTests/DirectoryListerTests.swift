@@ -191,6 +191,22 @@ struct DirectoryListerTests {
         #expect(!entries.contains { $0.kind == .parentNavigation })
     }
 
+    @Test("listEntriesAsync は listEntries と同じ結果を返す")
+    func listEntriesAsyncMatchesSyncVariant() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        try FileManager.default.createDirectory(
+            at: tmp.url.appendingPathComponent("subdir"),
+            withIntermediateDirectories: true
+        )
+        _ = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+
+        let syncResult = DirectoryLister.listEntries(in: tmp.url, sortOrder: .alphabetical)
+        let asyncResult = await DirectoryLister.listEntriesAsync(in: tmp.url, sortOrder: .alphabetical)
+
+        #expect(asyncResult == syncResult)
+    }
+
     @Test("resolveFileToOpen はディレクトリを渡すと最初の対応ファイルを返す")
     func resolveFileToOpenReturnsFirstSupportedFileForDirectory() throws {
         let tmp = try TempDir()

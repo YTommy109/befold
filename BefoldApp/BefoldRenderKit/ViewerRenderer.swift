@@ -210,12 +210,15 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// (再ロードで JS 側状態 `_showLineNumbers=false` / `_viewMode='rendered'` が
     /// 初期化されるため、Swift 側のミラーも全て破棄して次回更新時に再注入させる)。
     /// 一部だけ倒すと直接 HTML モードの判定と再描画キャッシュの整合性が崩れるため、
-    /// 呼び出し側で個別にリセットしないこと。
+    /// 呼び出し側で個別にリセットしないこと。`pendingAppend` は `rendered` の一部ではないが、
+    /// 直接 HTML モードへの切替(pendingAppend 消費前に return する分岐)を挟んで残留した
+    /// 増分チャンクが復帰後に誤って古い内容へ適用されないよう、ここで併せて破棄する。
     func exitDirectHTMLMode(webView: WKWebView, completion: @escaping () -> Void) {
         isDirectHTMLMode = false
         webViewProxy?.isDirectHTMLMode = false
         lastDirectHTMLPath = nil
         rendered.reset()
+        pendingAppend = nil
         reloadViewerHTML(webView: webView, then: completion)
     }
 

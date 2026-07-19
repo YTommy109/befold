@@ -13,6 +13,24 @@ enum DirectoryLister {
     static func listEntries(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
     ) -> [FileListEntry] {
+        buildEntries(in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
+    }
+
+    /// listEntries と同一ロジックを、呼び出し元アクターを離れて実行する版。
+    /// nonisolated async のため、windowDidBecomeKey / navigateToFolder のような
+    /// 反復して呼ばれる経路からの利用時に FileManager 列挙でメインスレッドを
+    /// 塞がない(ViewerLoadPipeline.load と同じパターン)。ウィンドウ生成時の
+    /// 一回限りの初期一覧取得(ViewerWindowController.init)は同期のままで十分なため
+    /// listEntries を継続利用する。
+    static func listEntriesAsync(
+        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
+    ) async -> [FileListEntry] {
+        buildEntries(in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
+    }
+
+    private static func buildEntries(
+        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool
+    ) -> [FileListEntry] {
         let (folders, files) = sortedContents(in: directory, showHiddenFiles: showHiddenFiles)
 
         var entries: [FileListEntry] = []

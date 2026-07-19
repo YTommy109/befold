@@ -30,11 +30,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let recentDocumentsStore = RecentDocumentsStore()
         let hiddenFilesPreference = HiddenFilesPreference()
         let findOptionsPreference = FindOptionsPreference()
+        let perFileState = PerFileStateStore()
         let windowManager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
             hiddenFilesPreference: hiddenFilesPreference,
-            findOptionsPreference: findOptionsPreference
+            findOptionsPreference: findOptionsPreference,
+            perFileState: perFileState
         )
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore

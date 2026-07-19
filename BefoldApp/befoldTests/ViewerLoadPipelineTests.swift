@@ -75,4 +75,73 @@ struct ViewerLoadPipelineTests {
         }
         #expect(cache.dataHash != nil)
     }
+
+    // MARK: - TASK-70: markdown ローカル画像埋め込みキャッシュのウォームアップ
+
+    private func withReadPermissionRemoved<T>(at url: URL, _ body: () throws -> T) rethrows -> T {
+        let original = try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
+        try? FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        defer {
+            if let original {
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: original], ofItemAtPath: url.path
+                )
+            }
+        }
+        return try body()
+    }
+
+    @Test("embedLocalImages: true でロードすると画像埋め込みキャッシュが温まり、その後の埋め込み呼び出しは画像を再読込しない")
+    func loadWarmsMarkdownImageEmbedCache() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let pngData = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        let imageURL = try tmp.file(named: "task-70-warm.png", data: pngData)
+        let markdownURL = try tmp.file(named: "doc.md", contents: "![alt](task-70-warm.png)")
+        let fileReader = DefaultFileReader()
+
+        _ = await ViewerLoadPipeline.load(
+            resolved: markdownURL,
+            fileType: .markdown,
+            fileReader: fileReader,
+            contentLoader: ContentLoader(fileReader: fileReader),
+            chunkedReaderFactory: chunkedReaderFactory,
+            embedLocalImages: true
+        )
+
+        let expectedURI = "data:image/png;base64,\(pngData.base64EncodedString())"
+        let result = withReadPermissionRemoved(at: imageURL) {
+            MarkdownImageEmbedder.embedLocalImages(
+                in: "![alt](task-70-warm.png)", baseURL: markdownURL
+            )
+        }
+
+        #expect(result == "![alt](\(expectedURI))")
+    }
+
+    @Test("embedLocalImages: false でロードすると画像埋め込みキャッシュを温めない")
+    func loadWithEmbedLocalImagesDisabledDoesNotWarmCache() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let pngData = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        let imageURL = try tmp.file(named: "task-70-cold.png", data: pngData)
+        let markdownURL = try tmp.file(named: "doc.md", contents: "![alt](task-70-cold.png)")
+        let fileReader = DefaultFileReader()
+
+        _ = await ViewerLoadPipeline.load(
+            resolved: markdownURL,
+            fileType: .markdown,
+            fileReader: fileReader,
+            contentLoader: ContentLoader(fileReader: fileReader),
+            chunkedReaderFactory: chunkedReaderFactory,
+            embedLocalImages: false
+        )
+
+        let markdown = "![alt](task-70-cold.png)"
+        let result = withReadPermissionRemoved(at: imageURL) {
+            MarkdownImageEmbedder.embedLocalImages(in: markdown, baseURL: markdownURL)
+        }
+
+        #expect(result == markdown)
+    }
 }

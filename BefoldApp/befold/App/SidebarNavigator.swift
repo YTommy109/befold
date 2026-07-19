@@ -29,9 +29,15 @@ final class SidebarNavigator {
     let history = NavigationHistory()
     /// 不可視ファイル表示設定。全ウィンドウで共有される単一の真実の源を都度参照する。
     private let hiddenFilesPreference: HiddenFilesPreference
-    /// ファイル一覧の再取得元。既定は DirectoryLister だが、再読込経路を
-    /// テストで差し替えられるよう注入可能にする。
-    private let directoryLister: (URL, SortOrder, Bool) -> [FileListEntry]
+    /// ファイル一覧の再取得元。既定は DirectoryLister.listEntriesAsync(nonisolated async)だが、
+    /// 再読込経路をテストで差し替えられるよう注入可能にする。async のため呼び出し元アクター
+    /// (MainActor)を離れて実行され、巨大ディレクトリでもメインスレッドを塞がない。
+    private let directoryLister: (URL, SortOrder, Bool) async -> [FileListEntry]
+    /// refreshFileList / navigateToFolder が発行する一覧取得タスクの世代番号。
+    /// 新しい要求が来たら古い結果の反映を捨てる(ViewerStore.loadGeneration と同型)。
+    private var listingGeneration = 0
+    /// 直近に発行した一覧取得タスク。テストから完了を待つために公開する。
+    private(set) var pendingListingTask: Task<Void, Never>?
 
     /// ファイル切替・現在ファイル参照の委譲先。循環参照を避けるため weak。
     private weak var host: SidebarNavigatorHost?
@@ -41,7 +47,8 @@ final class SidebarNavigator {
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: URL?,
         hiddenFilesPreference: HiddenFilesPreference,
-        directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries
+        directoryLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]
+            = DirectoryLister.listEntriesAsync
     ) {
         self.hiddenFilesPreference = hiddenFilesPreference
         self.directoryLister = directoryLister
@@ -71,24 +78,44 @@ final class SidebarNavigator {
     // MARK: - File List
 
     /// サイドバーのファイル一覧を現在のディレクトリで取り直し、現在ファイルを選択する。
-    func refreshFileList() {
-        guard let host else { return }
+    /// 列挙はメイン外で行い、完了後にメインアクターへ一括反映する(呼び出し自体は非 async)。
+    /// - Parameter applyCustomSelection: 一覧反映後(fileListModel.entries 更新後)に呼ばれる。
+    ///   選択を自前で決めて true を返すと既定の選択保持/フォールバック処理をスキップする。
+    ///   false を返すと既定処理にフォールバックする。applyHistoryEntry の
+    ///   「上へ移動」後の親フォルダ選択復元に使う。
+    func refreshFileList(applyCustomSelection: (() -> Bool)? = nil) {
+        guard host != nil else { return }
         let showHiddenFiles = syncShowHiddenFiles()
-        var entries = directoryLister(
-            fileListModel.currentDirectory, fileListModel.sortOrder, showHiddenFiles
-        )
-        ensureCurrentFile(in: &entries, currentFile: host.currentFileURL)
-        fileListModel.entries = entries
+        let directory = fileListModel.currentDirectory
+        let sortOrder = fileListModel.sortOrder
+        listingGeneration += 1
+        let generation = listingGeneration
+        pendingListingTask = Task {
+            var entries = await self.directoryLister(directory, sortOrder, showHiddenFiles)
+            guard generation == self.listingGeneration, let host = self.host else { return }
+            self.ensureCurrentFile(in: &entries, currentFile: host.currentFileURL)
+            self.fileListModel.entries = entries
 
-        // 既存の選択(フォルダーも含む)が一覧内に残っていればそのまま保持する。
-        // フォルダー選択時は currentFileURL と一致しない状態が正当にあり得るため、
-        // ここで currentFileURL への一致を強制してはならない(issue #161)。
-        let selectionStillValid = fileListModel.selection.map { selection in
-            let selectionKey = selection.normalizedPathKey
-            return entries.contains { $0.url.normalizedPathKey == selectionKey }
-        } ?? false
-        guard !selectionStillValid else { return }
-        fileListModel.selection = matchingEntryURL(for: host.currentFileURL)
+            if let applyCustomSelection, applyCustomSelection() {
+                return
+            }
+
+            // 既存の選択(フォルダーも含む)が一覧内に残っていればそのまま保持する。
+            // フォルダー選択時は currentFileURL と一致しない状態が正当にあり得るため、
+            // ここで currentFileURL への一致を強制してはならない(issue #161)。
+            let selectionStillValid = self.fileListModel.selection.map { selection in
+                let selectionKey = selection.normalizedPathKey
+                return entries.contains { $0.url.normalizedPathKey == selectionKey }
+            } ?? false
+            guard !selectionStillValid else { return }
+            self.fileListModel.selection = self.matchingEntryURL(for: host.currentFileURL)
+        }
+    }
+
+    /// 進行中の一覧取得タスクを破棄する。ウィンドウを閉じるときに呼ぶ。
+    func cancelPendingListing() {
+        pendingListingTask?.cancel()
+        pendingListingTask = nil
     }
 
     /// エントリ一覧に現在のファイルが含まれていなければ末尾に追加する。
@@ -124,28 +151,34 @@ final class SidebarNavigator {
     // MARK: - Folder Navigation
 
     /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
+    /// 列挙はメイン外で行い、完了後にメインアクターへ一括反映する(呼び出し自体は非 async)。
     func navigateToFolder(_ url: URL) {
-        guard let host else { return }
+        guard host != nil else { return }
         let target = url.standardizedFileURL
         guard DirectoryLister.isWithinHome(target) else { return }
         let previous = fileListModel.currentDirectory
         fileListModel.currentDirectory = url
         updateRootDirectory(with: target)
         let showHiddenFiles = syncShowHiddenFiles()
-        fileListModel.entries = DirectoryLister.listEntries(
-            in: url, sortOrder: fileListModel.sortOrder, showHiddenFiles: showHiddenFiles
-        )
-        let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
-            .normalizedPathKey
-        if isGoingUp {
-            fileListModel.selection = folderEntryURL(forKey: previous.normalizedPathKey)
-            recordHistory()
-        } else if let firstFile = fileListModel.entries.first(where: { $0.kind == .file }) {
-            host.switchFile(to: firstFile.url)
-            recordHistory()
-        } else {
-            fileListModel.selection = nil
-            recordHistory()
+        let sortOrder = fileListModel.sortOrder
+        listingGeneration += 1
+        let generation = listingGeneration
+        pendingListingTask = Task {
+            let entries = await self.directoryLister(url, sortOrder, showHiddenFiles)
+            guard generation == self.listingGeneration, let host = self.host else { return }
+            self.fileListModel.entries = entries
+            let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
+                .normalizedPathKey
+            if isGoingUp {
+                self.fileListModel.selection = self.folderEntryURL(forKey: previous.normalizedPathKey)
+                self.recordHistory()
+            } else if let firstFile = entries.first(where: { $0.kind == .file }) {
+                host.switchFile(to: firstFile.url)
+                self.recordHistory()
+            } else {
+                self.fileListModel.selection = nil
+                self.recordHistory()
+            }
         }
     }
 
@@ -222,12 +255,13 @@ final class SidebarNavigator {
         }
         if dirChanged {
             fileListModel.currentDirectory = entry.directory
-            refreshFileList()
             // ファイルがディレクトリ外(上へ移動で記録されたエントリ)の場合、
-            // ファイルの親フォルダを選択して元の状態を復元する
+            // ファイルの親フォルダを選択して元の状態を復元する(一覧反映後に判定する)。
             let fileDir = host.currentFileURL.deletingLastPathComponent().normalizedPathKey
-            if fileDir != fileListModel.currentDirectory.normalizedPathKey {
+            refreshFileList { [weak self] in
+                guard let self, fileDir != fileListModel.currentDirectory.normalizedPathKey else { return false }
                 fileListModel.selection = folderEntryURL(forKey: fileDir)
+                return true
             }
         } else {
             fileListModel.selection = matchingEntryURL(for: host.currentFileURL)
