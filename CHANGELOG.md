@@ -4,6 +4,15 @@ stable リリースのユーザー影響のある変更を記録する。
 dev リリースの全変更履歴は [GitHub Releases](https://github.com/YTommy109/befold/releases) を参照。
 v1.5.0 より前の履歴は GitHub Releases の各タグページを参照。
 
+## v1.7.2
+
+### 修正
+- HTML 表示直後の切替で空白表示になる問題を修正
+- 完全一致・末尾改行なしのファイルで偽のトランケーション表示が出る問題を修正
+- markdown-it の HTML サニタイザにあった XSS バイパスを DOMPurify で解消
+- postMessage ブリッジをゲートし CSP から unsafe-inline を削除（セキュリティ強化）
+- 大きなファイル・ディレクトリ表示時の一時的なフリーズを解消（ディレクトリ列挙・画像埋め込み・エンコーディング判定・mermaid読み込みをメインスレッド外／遅延化）
+
 ## v1.7.1
 
 ### 修正
