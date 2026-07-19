@@ -26,6 +26,9 @@ BefoldApp/befold.xcodeproj/project.xcworkspace/contents.xcworkspacedata
 .dagayn
 .dagayn/
 
+# 手動確認用の一時ファイル置き場(サンプルディレクトリなど)
+.tmp/
+
 # Config
 .claude/settings.local.json
 .claude/settings.json.bak
