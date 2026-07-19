@@ -283,8 +283,8 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
         [
             .toggleSidebar, .sidebarTrackingSeparator,
             Self.backItemIdentifier, Self.forwardItemIdentifier,
-            .flexibleSpace, Self.lineNumbersItemIdentifier, Self.bookmarkItemIdentifier,
-            Self.modeToggleItemIdentifier,
+            .flexibleSpace, Self.lineNumbersItemIdentifier,
+            Self.modeToggleItemIdentifier, Self.bookmarkItemIdentifier,
         ]
     }
 
@@ -292,7 +292,7 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
         [
             .toggleSidebar, .sidebarTrackingSeparator,
             Self.backItemIdentifier, Self.forwardItemIdentifier,
-            Self.lineNumbersItemIdentifier, Self.bookmarkItemIdentifier, Self.modeToggleItemIdentifier,
+            Self.lineNumbersItemIdentifier, Self.modeToggleItemIdentifier, Self.bookmarkItemIdentifier,
             .flexibleSpace, .space,
         ]
     }

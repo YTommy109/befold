@@ -16,7 +16,7 @@ struct ViewerWindowControllerToolbarTests {
         )
     }
 
-    @Test("既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/モード切替 の順")
+    @Test("既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/行番号/モード切替/ブックマーク の順")
     func defaultItemsPlaceHistoryButtonsAfterTrackingSeparator() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -30,7 +30,7 @@ struct ViewerWindowControllerToolbarTests {
         #expect(identifiers == [
             .toggleSidebar, .sidebarTrackingSeparator,
             .init("historyBack"), .init("historyForward"),
-            .flexibleSpace, .init("lineNumbers"), .init("bookmark"), .init("modeToggle"),
+            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"), .init("bookmark"),
         ])
     }
 
