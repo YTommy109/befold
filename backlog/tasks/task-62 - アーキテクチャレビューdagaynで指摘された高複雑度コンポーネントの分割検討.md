@@ -11,7 +11,7 @@ references:
   - dagayn architecture_analysis_tool(mode=overview/hubs)
   - refactor_tool(mode=suggest)による2026-07-19レビュー
 priority: low
-ordinal: 30000
+ordinal: 900
 ---
 
 ## Description

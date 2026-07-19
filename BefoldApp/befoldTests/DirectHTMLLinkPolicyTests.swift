@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldRenderKit
 import Testing
 
 @Suite("Direct HTML link policy")
@@ -17,7 +18,7 @@ struct DirectHTMLLinkPolicyTests {
     @Test("同一文書内フラグメントは allowNativeNavigation を返す")
     func sameDocumentFragment() throws {
         let url = try fileURL("/tmp/test/index.html", fragment: "section1")
-        let result = ViewerWebView.Coordinator.directHTMLLinkPolicy(
+        let result = ViewerRenderer.directHTMLLinkPolicy(
             url: url, currentURL: currentURL, modifierFlags: []
         )
         #expect(result == .allowNativeNavigation)
@@ -26,7 +27,7 @@ struct DirectHTMLLinkPolicyTests {
     @Test("cmd 付きフラグメントも allowNativeNavigation を返す")
     func sameDocumentFragmentWithCmd() throws {
         let url = try fileURL("/tmp/test/index.html", fragment: "section1")
-        let result = ViewerWebView.Coordinator.directHTMLLinkPolicy(
+        let result = ViewerRenderer.directHTMLLinkPolicy(
             url: url, currentURL: currentURL, modifierFlags: .command
         )
         #expect(result == .allowNativeNavigation)
@@ -35,7 +36,7 @@ struct DirectHTMLLinkPolicyTests {
     @Test("ローカルファイル cmd 無しは openLocalFile sameWindow を返す")
     func localFileSameWindow() {
         let url = URL(fileURLWithPath: "/tmp/test/other.md")
-        let result = ViewerWebView.Coordinator.directHTMLLinkPolicy(
+        let result = ViewerRenderer.directHTMLLinkPolicy(
             url: url, currentURL: currentURL, modifierFlags: []
         )
         #expect(result == .openLocalFile(url: url, newWindow: false))
@@ -44,7 +45,7 @@ struct DirectHTMLLinkPolicyTests {
     @Test("ローカルファイル cmd ありは openLocalFile newWindow を返す")
     func localFileNewWindow() {
         let url = URL(fileURLWithPath: "/tmp/test/other.md")
-        let result = ViewerWebView.Coordinator.directHTMLLinkPolicy(
+        let result = ViewerRenderer.directHTMLLinkPolicy(
             url: url, currentURL: currentURL, modifierFlags: .command
         )
         #expect(result == .openLocalFile(url: url, newWindow: true))
@@ -53,7 +54,7 @@ struct DirectHTMLLinkPolicyTests {
     @Test("http URL は openExternal を返す")
     func httpExternal() throws {
         let url = try #require(URL(string: "https://example.com"))
-        let result = ViewerWebView.Coordinator.directHTMLLinkPolicy(
+        let result = ViewerRenderer.directHTMLLinkPolicy(
             url: url, currentURL: currentURL, modifierFlags: []
         )
         #expect(result == .openExternal(url: url))
@@ -62,7 +63,7 @@ struct DirectHTMLLinkPolicyTests {
     @Test("http URL cmd ありでも openExternal を返す")
     func httpExternalWithCmd() throws {
         let url = try #require(URL(string: "https://example.com"))
-        let result = ViewerWebView.Coordinator.directHTMLLinkPolicy(
+        let result = ViewerRenderer.directHTMLLinkPolicy(
             url: url, currentURL: currentURL, modifierFlags: .command
         )
         #expect(result == .openExternal(url: url))
@@ -71,7 +72,7 @@ struct DirectHTMLLinkPolicyTests {
     @Test("mailto は ignore を返す")
     func mailtoIgnored() throws {
         let url = try #require(URL(string: "mailto:test@example.com"))
-        let result = ViewerWebView.Coordinator.directHTMLLinkPolicy(
+        let result = ViewerRenderer.directHTMLLinkPolicy(
             url: url, currentURL: currentURL, modifierFlags: []
         )
         #expect(result == .ignore)
@@ -80,7 +81,7 @@ struct DirectHTMLLinkPolicyTests {
     @Test("ローカルファイルのフラグメント付きはフラグメントを除去して openLocalFile を返す")
     func localFileWithFragment() throws {
         let url = try fileURL("/tmp/test/other.md", fragment: "heading")
-        let result = ViewerWebView.Coordinator.directHTMLLinkPolicy(
+        let result = ViewerRenderer.directHTMLLinkPolicy(
             url: url, currentURL: currentURL, modifierFlags: []
         )
         let expected = URL(fileURLWithPath: "/tmp/test/other.md")

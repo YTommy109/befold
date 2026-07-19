@@ -1,4 +1,5 @@
 import AppKit
+import BefoldKit
 import Sparkle
 
 @main

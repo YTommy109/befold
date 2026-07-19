@@ -9,7 +9,7 @@ dependencies: []
 references:
   - dagayn refactor_tool(mode=suggest)による2026-07-19レビュー
 priority: low
-ordinal: 31000
+ordinal: 1000
 ---
 
 ## Description

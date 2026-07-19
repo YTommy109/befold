@@ -1,5 +1,6 @@
 @testable import befold
 import BefoldKit
+import BefoldRenderKit
 import Foundation
 import Testing
 
@@ -13,7 +14,7 @@ struct ViewerWebViewCoordinatorTests {
         let markdownURL = tmp.url.appendingPathComponent("doc.md")
         let markdown = "# Title\n\n![alt](image.png)\n"
 
-        let result = ViewerWebView.Coordinator.renderableContent(
+        let result = ViewerRenderer.renderableContent(
             markdown, fileType: .markdown, filePath: markdownURL, isSourceMode: true
         )
 
@@ -28,7 +29,7 @@ struct ViewerWebViewCoordinatorTests {
         let markdownURL = tmp.url.appendingPathComponent("doc.md")
         let markdown = "# Title\n\n![alt](image.png)\n"
 
-        let result = ViewerWebView.Coordinator.renderableContent(
+        let result = ViewerRenderer.renderableContent(
             markdown, fileType: .markdown, filePath: markdownURL, isSourceMode: false
         )
 
@@ -44,7 +45,7 @@ struct ViewerWebViewCoordinatorTests {
         let markdownURL = tmp.url.appendingPathComponent("doc.md")
         let markdown = "# Title\n\n![alt](image.png)\n"
 
-        let result = ViewerWebView.Coordinator.renderableContent(
+        let result = ViewerRenderer.renderableContent(
             markdown, fileType: .markdown, filePath: markdownURL, isSourceMode: false,
             embedImages: false
         )
@@ -96,7 +97,7 @@ struct ViewerWebViewCoordinatorTests {
 
     @Test("直接HTMLモードへの遷移可否はallowDirectHTMLフラグとファイル種別/表示モードで決まる", arguments: directHTMLCases)
     func shouldEnterDirectHTMLMode(_ testCase: DirectHTMLCase) {
-        let result = ViewerWebView.Coordinator.shouldEnterDirectHTMLMode(
+        let result = ViewerRenderer.shouldEnterDirectHTMLMode(
             fileType: testCase.fileType, isSourceMode: testCase.isSourceMode,
             filePath: testCase.hasFilePath ? Self.directHTMLURL : nil,
             features: testCase.features
@@ -150,7 +151,7 @@ struct ViewerWebViewCoordinatorTests {
 
     @Test("ファイル/モードが変わらない再描画は切替として扱わない", arguments: switchCases)
     func isFileOrModeSwitch(_ testCase: SwitchCase) {
-        let result = ViewerWebView.Coordinator.isFileOrModeSwitch(
+        let result = ViewerRenderer.isFileOrModeSwitch(
             filePath: testCase.filePath, isSourceMode: testCase.isSourceMode,
             lastRenderedFilePath: testCase.lastRenderedFilePath, lastIsSourceMode: testCase.lastIsSourceMode
         )
@@ -162,7 +163,7 @@ struct ViewerWebViewCoordinatorTests {
 
     @Test("allowsInteractiveBridging: true(既定)では referenceActivated/loadMoreLines を含む全ハンドラを登録する")
     func messageHandlerNamesIncludesAllWhenInteractiveBridgingEnabled() {
-        let names = ViewerWebView.messageHandlerNames(for: .allEnabled)
+        let names = ViewerRenderer.messageHandlerNames(for: .allEnabled)
 
         #expect(names.contains(ViewerBridge.referenceActivatedMessageName))
         #expect(names.contains(ViewerBridge.loadMoreLinesMessageName))
@@ -177,7 +178,7 @@ struct ViewerWebViewCoordinatorTests {
         let features = RendererFeatures(
             allowDirectHTML: false, embedImages: false, allowsInteractiveBridging: false
         )
-        let names = ViewerWebView.messageHandlerNames(for: features)
+        let names = ViewerRenderer.messageHandlerNames(for: features)
 
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
         #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))

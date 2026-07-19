@@ -1,19 +1,6 @@
 import BefoldKit
 import Foundation
 
-/// loadMoreLines() の結果。contentRevision は追記後の世代番号で、呼び出し側が
-/// 描画済みキャッシュを同期し直後の全文 render 誤爆を防ぐために使う。
-struct LoadMoreLinesResult: Equatable {
-    let chunk: String
-    let isTruncated: Bool
-    let lineCount: Int
-    let contentRevision: Int
-    /// セッション途中のチャンク読込がエラーで打ち切られた場合 true。
-    /// isTruncated は true のまま維持され(表示済みが全体ではないことを示すため)、
-    /// このフラグでバナーを「正常な段階読込」ではなく「読込エラー」として区別する。
-    let loadFailed: Bool
-}
-
 /// ビューアの表示状態を管理する。
 /// ファイルの読み込み・監視・削除検知を行い、UI にバインドされるプロパティを更新する。
 /// 読み込み(I/O・デコード)はバックグラウンドで行い、結果だけをメインアクターで適用する。

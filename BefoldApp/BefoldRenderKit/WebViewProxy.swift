@@ -4,8 +4,10 @@ import WebKit
 /// メニューアクション）へ橋渡しするための弱参照ホルダー。
 /// ズーム・印刷などレスポンダチェーン経由のアクションから WebView を操作するのに使う。
 @MainActor
-final class WebViewProxy {
-    weak var webView: WKWebView?
+public final class WebViewProxy {
+    public weak var webView: WKWebView?
     /// HTML ファイルが loadFileURL で直接ロードされているか（viewer.html の JS ズームが使えないモード）。
-    var isDirectHTMLMode = false
+    public var isDirectHTMLMode = false
+
+    public init() {}
 }
