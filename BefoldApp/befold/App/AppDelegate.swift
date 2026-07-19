@@ -25,6 +25,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSDocumentController.shared.clearRecentDocuments(nil)
         }
     )
+    private lazy var bookmarksMenuController = BookmarksMenuController(
+        bookmarkedURLs: { [weak self] in self?.bookmarkStore.bookmarkedURLs() ?? [] },
+        openHandler: { [weak self] url in self?.openViewer(for: url) }
+    )
 
     override init() {
         let sessionStore = SessionStore()
@@ -74,7 +78,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = MainMenuBuilder.build(
             openAction: #selector(showOpenPanel),
             helpAction: #selector(openHelp(_:)),
-            recentMenuDelegate: recentDocumentsMenuController
+            recentMenuDelegate: recentDocumentsMenuController,
+            bookmarksMenuDelegate: bookmarksMenuController
         )
         sessionRestorer.restoreLastSession()
         NSApp.activate()

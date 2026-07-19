@@ -14,7 +14,8 @@ struct MainMenuBuilderTests {
         return MainMenuBuilder.build(
             openAction: #selector(AppDelegate.showOpenPanel),
             helpAction: #selector(AppDelegate.openHelp(_:)),
-            recentMenuDelegate: StubMenuDelegate()
+            recentMenuDelegate: StubMenuDelegate(),
+            bookmarksMenuDelegate: StubMenuDelegate()
         )
     }
 
@@ -40,6 +41,20 @@ struct MainMenuBuilderTests {
         #expect(titles.contains(localizedTitle("menu.view.title")))
         #expect(titles.contains(localizedTitle("menu.window.title")))
         #expect(titles.contains(localizedTitle("menu.help.title")))
+    }
+
+    @Test("File メニューに Open Recent と並んで Bookmarks サブメニューがある")
+    func fileMenuHasBookmarksSubmenu() throws {
+        let mainMenu = buildMenu()
+        let file = try #require(submenu(titledKey: "menu.file.title", in: mainMenu))
+
+        let recentItem = try #require(file.items.first {
+            $0.submenu?.title == localizedTitle("menu.file.openRecent")
+        })
+        let bookmarksItem = try #require(file.items.first {
+            $0.submenu?.title == localizedTitle("menu.file.bookmarks")
+        })
+        #expect(file.items.firstIndex(of: bookmarksItem) == file.items.firstIndex(of: recentItem)! + 1)
     }
 
     @Test("Edit メニューに Copy(⌘C) と Select All(⌘A) がある")

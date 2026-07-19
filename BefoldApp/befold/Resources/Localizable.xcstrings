@@ -188,6 +188,23 @@
         }
       }
     },
+    "menu.file.bookmarks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmarks"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマーク"
+          }
+        }
+      }
+    },
     "menu.file.close": {
       "extractionState": "manual",
       "localizations": {
