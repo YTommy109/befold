@@ -7,8 +7,7 @@ extension ViewerRenderer {
     /// 次チャンクを非同期で取得し、次チャンクを pendingAppend にステージする。
     /// 実際の増分描画はここでは行わず、@Observable(content/contentRevision/truncation)の
     /// 変更が駆動する updateContent(唯一の描画 sink)が pendingAppend を消費して行う。
-    /// これにより「追記の描画」経路が updateContent 1 本に一本化され、コールバック戻り値
-    /// 経由の全文 render 誤爆を先行 recordRendered で抑止する必要がなくなる。
+    /// これにより「追記の描画」経路が updateContent 1 本に一本化される。
     /// 読み込み中の再入は isLoadingMoreLines で無視し、追記の交錯を防ぐ。
     @MainActor
     func handleLoadMoreLines() {
@@ -32,7 +31,6 @@ extension ViewerRenderer {
         webView: WKWebView, chunk: String, contentRevision: Int,
         fileType: FileType, filePath: URL?, truncation: TruncationState
     ) {
-        recordRendered(contentRevision: contentRevision, fileType: fileType, filePath: filePath)
         rendered.truncation = truncation
         if !chunk.isEmpty, let script = ViewerBridge.appendChunkScript(chunk: chunk, fileType: fileType) {
             webView.evaluateJavaScript(script)
@@ -42,17 +40,23 @@ extension ViewerRenderer {
                 truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.failed
             )
         )
+        recordRendered(contentRevision: contentRevision, fileType: fileType, filePath: filePath)
     }
 
     /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
-    /// scrollKey 予告 + render を評価する。
+    /// scrollKey 予告 + render を評価する。recordRendered は render スクリプトを実際に
+    /// evaluateJavaScript した後にのみ呼ぶ(呼び出し側で先行確定しないこと。直接 HTML
+    /// モード離脱時のように呼び出しが pendingUpdate 経由で遅延・破棄されうる場合、
+    /// 先行確定するとミラーが「描画済み」と偽り、以後の再描画が需要判定で握り潰される)。
     /// - Parameter restoreFromPersistedPosition: `isFileOrModeSwitch` 参照。
     func applyRender(
-        webView: WKWebView, content: String, fileType: FileType,
-        filePath: URL?, isSourceMode: Bool, showLineNumbers: Bool,
-        truncation: TruncationState,
+        webView: WKWebView, request: RenderRequest,
         restoreFromPersistedPosition: Bool
     ) {
+        let (content, contentRevision, fileType, filePath, isSourceMode, showLineNumbers, truncation) = (
+            request.content, request.contentRevision, request.fileType, request.filePath,
+            request.isSourceMode, request.showLineNumbers, request.truncation
+        )
         if showLineNumbers != rendered.showLineNumbers {
             webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
             rendered.showLineNumbers = showLineNumbers
@@ -83,6 +87,7 @@ extension ViewerRenderer {
             webView.evaluateJavaScript(ViewerBridge.restoreScrollPositionScript(scrollPositionToRestore))
         }
         webView.evaluateJavaScript(script)
+        recordRendered(contentRevision: contentRevision, fileType: fileType, filePath: filePath)
     }
 
     /// 描画済みキャッシュを更新する。content 全文は保持せず contentRevision だけを

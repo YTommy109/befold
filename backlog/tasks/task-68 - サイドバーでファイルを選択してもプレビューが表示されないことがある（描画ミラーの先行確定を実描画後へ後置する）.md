@@ -1,9 +1,10 @@
 ---
 id: TASK-68
 title: サイドバーでファイルを選択してもプレビューが表示されないことがある（描画ミラーの先行確定を実描画後へ後置する）
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-19 05:30'
+updated_date: '2026-07-19 06:10'
 labels: []
 dependencies: []
 priority: high
@@ -19,8 +20,20 @@ ordinal: 100
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 .html 表示中に別ファイルへ切替え、viewer.html 再ロード中に updateContent が再発火しても最終的にプレビューが表示される（回帰テストあり）
-- [ ] #2 内容が同一の2ファイル間の切替でも新ファイル基準で再描画される（回帰テストあり）
-- [ ] #3 recordRendered が実描画（render スクリプト評価）後にのみ呼ばれる構造になっている
-- [ ] #4 既存の描画系テスト（ViewerRendererMessageHandlingTests / ViewerStore 系）が通過する
+- [x] #1 .html 表示中に別ファイルへ切替え、viewer.html 再ロード中に updateContent が再発火しても最終的にプレビューが表示される（回帰テストあり）
+- [x] #2 内容が同一の2ファイル間の切替でも新ファイル基準で再描画される（回帰テストあり）
+- [x] #3 recordRendered が実描画（render スクリプト評価）後にのみ呼ばれる構造になっている
+- [x] #4 既存の描画系テスト（ViewerRendererMessageHandlingTests / ViewerStore 系）が通過する
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+メイン側で main worktree に取り込み検証: swift build 成功、swift test 全439件pass(新規回帰テスト2件含む)、swiftlint --strict は該当ファイルで baseline と同数(pre-existing違反のみ、新規違反なし)。コミット 20b2929 で確定。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+recordRendered を applyRender/applyAppend 内の evaluateJavaScript 実行後に一本化し、needsRender に filePath 差分判定を追加。回帰テスト2件(直接HTMLモード離脱中の再ロード競合、同一revisionでのファイル切替)を追加し全て pass。既存描画系テスト含め swift test 439件全pass。コミット 20b2929。
+<!-- SECTION:FINAL_SUMMARY:END -->
