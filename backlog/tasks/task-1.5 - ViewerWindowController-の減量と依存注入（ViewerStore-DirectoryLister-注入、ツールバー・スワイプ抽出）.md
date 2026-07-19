@@ -1,11 +1,11 @@
 ---
 id: TASK-1.5
 title: ViewerWindowController の減量と依存注入（ViewerStore/DirectoryLister 注入、ツールバー・スワイプ抽出）
-status: To Do
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-07-16 00:38'
-updated_date: '2026-07-18 13:40'
+updated_date: '2026-07-19 01:31'
 labels: []
 dependencies: []
 references:
@@ -25,10 +25,10 @@ GitHub Issue #213 から移行。ViewerWindowController（812行、out_degree 46
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ツールバーとスワイプ検知が独立クラスに抽出されている
-- [ ] #2 ViewerStore と DirectoryLister が init 注入されている
-- [ ] #3 AppDelegate.shared?.openViewer が注入クロージャ化されている
-- [ ] #4 isSourceMode の二重保持が解消されている
+- [x] #1 ツールバーとスワイプ検知が独立クラスに抽出されている
+- [x] #2 ViewerStore と DirectoryLister が init 注入されている
+- [x] #3 AppDelegate.shared?.openViewer が注入クロージャ化されている
+- [x] #4 isSourceMode の二重保持が解消されている
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -63,4 +63,12 @@ GitHub Issue #213 から移行。ViewerWindowController（812行、out_degree 46
 
 <!-- SECTION:NOTES:BEGIN -->
 実装計画を策定・記録済み(2026-07-18)。ユーザー判断によりいったん保留。着手再開時はbacklogのImplementation Planを参照。
+
+実装計画通りに完了(2026-07-19)。ViewerStore/DirectoryLister/openFileInNewWindowをinit注入化、isSourceModeをstore.isSourceModeへのcomputed property委譲に変更、SwipeHistoryMonitor.swift(NSEvent監視+phaseステートマシン)とViewerToolbarController.swift(NSToolbarDelegate+ViewerToolbarHostパターン)を新規抽出してViewerWindowControllerから分離。ViewerWindowController.swiftは813行→618行に減量。swift build / swift test --skip Integration --skip FileWatcherTests で386テスト全件成功、swiftlint/swiftformat --lint も新規追加ファイルに違反なしを確認。ViewerWindowControllerToolbarTests.swiftはcontroller.toolbarController経由の呼び出しに機械的書き換え、SwipeHistoryMonitorTests.swiftを新規追加(5テスト)。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ViewerWindowController(813行)からツールバー管理(ViewerToolbarController)とスワイプ検知(SwipeHistoryMonitor)を独立クラスへ抽出し618行に減量。ViewerStore/DirectoryLister/openFileInNewWindowをinit注入化、isSourceModeの二重保持をstore委譲のcomputed propertyに解消。swift build成功、swift test 386件全件成功、swiftlint/swiftformat --lintで新規ファイルに違反なしを確認。
+<!-- SECTION:FINAL_SUMMARY:END -->

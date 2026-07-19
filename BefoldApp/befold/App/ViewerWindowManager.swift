@@ -71,7 +71,8 @@ final class ViewerWindowManager {
             findOptionsPreference: findOptionsPreference,
             sourceModeStore: sourceModeStore,
             scrollPositionStore: scrollPositionStore,
-            forceSidebarVisible: forceSidebarVisible
+            forceSidebarVisible: forceSidebarVisible,
+            openFileInNewWindow: { [weak self] fileURL in self?.openViewer(for: fileURL) }
         )
         controllers[key] = controller
         controller.delegate = self
