@@ -197,13 +197,16 @@ final class ViewerWindowController: NSWindowController {
         sidebar.recordHistory()
     }
 
-    /// サイドバー(ファイル一覧)とコンテンツ(WebView)を並べる split view controller を組み立てる。
+    /// サイドバー(ファイル一覧)とコンテンツ(WebView/フォルダー一覧)を並べる split view controller を組み立てる。
     private func makeSplitViewController() -> NSViewController {
+        let onSelectFile: (URL) -> Void = { [weak self] url in self?.switchFile(to: url) }
+        let onNavigateToFolder: (URL) -> Void = { [weak self] url in self?.navigateToFolder(url) }
         let contentView = ViewerContentView(
             store: store,
             zoomStore: perFileState.zoom,
             scrollPositionStore: perFileState.scrollPosition,
             findOptionsPreference: findOptionsPreference,
+            fileListModel: fileListModel,
             // 現在の fileURL は rename で書き換わるため、旧値を捕捉せず self 経由で参照する
             onZoomChanged: { [weak self] zoom in
                 guard let self else { return }
@@ -216,12 +219,14 @@ final class ViewerWindowController: NSWindowController {
             onOpenReference: { [weak self] href, newWindow in
                 self?.handleOpenReference(href: href, newWindow: newWindow)
             },
+            onSelectFile: onSelectFile,
+            onNavigateToFolder: onNavigateToFolder,
             webViewProxy: webViewProxy
         )
         let fileListView = FileListView(
             model: fileListModel,
-            onSelect: { [weak self] url in self?.switchFile(to: url) },
-            onNavigate: { [weak self] url in self?.navigateToFolder(url) },
+            onSelect: onSelectFile,
+            onNavigate: onNavigateToFolder,
             onSortOrderChanged: { [weak self] order in
                 guard let self else { return }
                 fileListModel.sortOrder = order
