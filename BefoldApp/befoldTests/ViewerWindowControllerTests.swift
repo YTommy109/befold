@@ -66,7 +66,8 @@ struct ViewerWindowControllerTests {
                 zoom: zoomStore ?? ZoomStore(defaults: defaults),
                 sourceMode: sourceModeStore ?? SourceModeStore(defaults: defaults),
                 scrollPosition: ScrollPositionStore(defaults: defaults)
-            )
+            ),
+            bookmarkStore: BookmarkStore(defaults: defaults)
         )
     }
 
@@ -530,6 +531,26 @@ extension ViewerWindowControllerTests {
         controller.navigateHistory(by: -1)
         #expect(controller.validateMenuItem(backItem) == false)
         #expect(controller.validateMenuItem(forwardItem) == true)
+    }
+
+    @Test("ブックマークメニューはブックマーク状態に応じてタイトルが切り替わる")
+    func toggleBookmarkMenuItemTitleReflectsState() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "a.mmd", contents: "graph TD;")
+        let controller = makeController(file: file)
+        defer { controller.close() }
+        let bookmarkItem = NSMenuItem(
+            title: "", action: #selector(ViewerWindowController.toggleBookmark(_:)), keyEquivalent: ""
+        )
+
+        #expect(controller.validateMenuItem(bookmarkItem) == true)
+        #expect(bookmarkItem.title == String(localized: "menu.view.addBookmark", bundle: .l10n))
+
+        controller.toggleBookmark(nil)
+
+        #expect(controller.validateMenuItem(bookmarkItem) == true)
+        #expect(bookmarkItem.title == String(localized: "menu.view.removeBookmark", bundle: .l10n))
     }
 }
 

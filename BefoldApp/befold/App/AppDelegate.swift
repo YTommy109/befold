@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         userDriverDelegate: nil
     )
     private let recentDocumentsStore: RecentDocumentsStore
+    private let bookmarkStore: BookmarkStore
     private lazy var recentDocumentsMenuController = RecentDocumentsMenuController(
         recentURLs: { [weak self] in self?.recentDocumentsStore.recentURLs() ?? [] },
         openHandler: { [weak self] url in self?.openViewer(for: url) },
@@ -28,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     override init() {
         let sessionStore = SessionStore()
         let recentDocumentsStore = RecentDocumentsStore()
+        let bookmarkStore = BookmarkStore()
         let hiddenFilesPreference = HiddenFilesPreference()
         let findOptionsPreference = FindOptionsPreference()
         let perFileState = PerFileStateStore()
@@ -36,10 +38,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             recentDocumentsStore: recentDocumentsStore,
             hiddenFilesPreference: hiddenFilesPreference,
             findOptionsPreference: findOptionsPreference,
-            perFileState: perFileState
+            perFileState: perFileState,
+            bookmarkStore: bookmarkStore
         )
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
+        self.bookmarkStore = bookmarkStore
         self.windowManager = windowManager
         self.hiddenFilesPreference = hiddenFilesPreference
         sessionRestorer = SessionRestorer(sessionStore: sessionStore, windowManager: windowManager)

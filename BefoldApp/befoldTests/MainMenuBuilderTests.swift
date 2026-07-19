@@ -96,6 +96,11 @@ struct MainMenuBuilderTests {
             key: "h", modifiers: NSEvent.ModifierFlags?.some([.command, .control])
         ), // View メニューに Show Hidden Files(⌘⌃H) がある
         (
+            submenuKey: "menu.view.title",
+            selector: #selector(ViewerWindowController.toggleBookmark(_:)),
+            key: "d", modifiers: NSEvent.ModifierFlags?.some(.command)
+        ), // View メニューに Bookmark(⌘D) がある
+        (
             submenuKey: "menu.file.title",
             selector: #selector(ViewerWindowController.printDocument(_:)),
             key: "p", modifiers: nil

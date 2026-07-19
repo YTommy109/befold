@@ -11,23 +11,27 @@ final class ViewerWindowManager {
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
     private let perFileState: PerFileStateStore
+    private let bookmarkStore: BookmarkStore
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
     /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
     ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
+    /// - Parameter bookmarkStore: 同上。ブックマーク挙動に無関心なテストが省略できるようにする。
     init(
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
-        perFileState: PerFileStateStore = PerFileStateStore()
+        perFileState: PerFileStateStore = PerFileStateStore(),
+        bookmarkStore: BookmarkStore = BookmarkStore()
     ) {
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
         self.perFileState = perFileState
+        self.bookmarkStore = bookmarkStore
     }
 
     /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
@@ -64,6 +68,7 @@ final class ViewerWindowManager {
             hiddenFilesPreference: hiddenFilesPreference,
             findOptionsPreference: findOptionsPreference,
             perFileState: perFileState,
+            bookmarkStore: bookmarkStore,
             forceSidebarVisible: forceSidebarVisible,
             openFileInNewWindow: { [weak self] fileURL in self?.openViewer(for: fileURL) }
         )
@@ -149,6 +154,7 @@ final class ViewerWindowManager {
         sessionStore.noteOpened(newURL)
         if isRename {
             recentDocumentsStore.noteRenamed(from: oldURL, to: newURL)
+            bookmarkStore.noteRenamed(from: oldURL, to: newURL)
         } else {
             recentDocumentsStore.noteOpened(newURL)
         }

@@ -35,6 +35,7 @@ final class ViewerWindowController: NSWindowController {
     private let perFileState: PerFileStateStore
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
+    private let bookmarkStore: BookmarkStore
     private let forceSidebarVisible: Bool
     /// 別ウィンドウでファイルを開く処理。本番では AppDelegate.shared?.openViewer(for:) を注入する。
     private let openFileInNewWindow: (URL) -> Void
@@ -78,6 +79,7 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
     /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
     ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
+    /// - Parameter bookmarkStore: 同上。ブックマーク挙動に無関心なテストが省略できるようにする。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
     /// - Parameter directoryLister: 同上。サイドバー初期一覧の取得元。テストで差し替え可能にする。
     /// - Parameter openFileInNewWindow: 同上。別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
@@ -86,6 +88,7 @@ final class ViewerWindowController: NSWindowController {
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
+        bookmarkStore: BookmarkStore = BookmarkStore(),
         forceSidebarVisible: Bool = false,
         store: ViewerStore = ViewerStore(),
         directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
@@ -96,6 +99,7 @@ final class ViewerWindowController: NSWindowController {
         self.defaults = defaults
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
+        self.bookmarkStore = bookmarkStore
         self.forceSidebarVisible = forceSidebarVisible
         self.store = store
         self.openFileInNewWindow = openFileInNewWindow
@@ -189,6 +193,7 @@ final class ViewerWindowController: NSWindowController {
         store.onContentReloaded = { [weak self] in
             self?.toolbarController.updateModeToggleAppearance()
             self?.toolbarController.updateLineNumbersToolbarItem()
+            self?.toolbarController.updateBookmarkToolbarItem()
         }
         store.openFile(fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
@@ -478,6 +483,17 @@ extension ViewerWindowController: NSWindowDelegate {
         setSourceMode(!isSourceMode)
     }
 
+    /// View > Bookmark / ツールバーのブックマークボタン。現在ファイルのブックマーク状態を切り替える。
+    @objc func toggleBookmark(_ sender: Any?) {
+        bookmarkStore.toggle(fileURL)
+        toolbarController.updateBookmarkToolbarItem()
+    }
+
+    /// 現在ファイルがブックマーク済みかどうか。ツールバー・View メニューの表示に使う。
+    var isBookmarked: Bool {
+        bookmarkStore.isBookmarked(fileURL)
+    }
+
     /// View > Back。ファイル履歴を 1 つ戻る。
     @objc func goBack(_ sender: Any?) {
         navigateHistory(by: -1)
@@ -535,6 +551,12 @@ extension ViewerWindowController: NSWindowDelegate {
                 ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
                 : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
             return store.showsCodeContent
+        }
+        if menuItem.action == #selector(toggleBookmark(_:)) {
+            menuItem.title = isBookmarked
+                ? String(localized: "menu.view.removeBookmark", bundle: .l10n)
+                : String(localized: "menu.view.addBookmark", bundle: .l10n)
+            return true
         }
         if menuItem.action == #selector(goBack(_:)) {
             return fileListModel.canGoBack

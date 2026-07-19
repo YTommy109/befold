@@ -630,6 +630,40 @@
         }
       }
     },
+    "menu.view.addBookmark": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmark"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマークする"
+          }
+        }
+      }
+    },
+    "menu.view.removeBookmark": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Bookmark"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマーク解除"
+          }
+        }
+      }
+    },
     "menu.view.showHiddenFiles": {
       "extractionState": "manual",
       "localizations": {
