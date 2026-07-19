@@ -16,6 +16,10 @@ protocol ViewerToolbarHost: AnyObject {
     func navigateHistory(by offset: Int)
     /// 行番号ボタン・メニュー表現から呼ばれる行番号表示トグル。
     func toggleLineNumbers(_ sender: Any?)
+    /// 現在ファイルがブックマーク済みかどうか。ブックマークボタンのアイコン・色に使う。
+    var isBookmarked: Bool { get }
+    /// ブックマークボタン・メニュー表現から呼ばれるブックマークトグル。
+    func toggleBookmark(_ sender: Any?)
 }
 
 /// モード切替セグメントコントロールのセグメント位置(0=プレビュー, 1=ソース)。
@@ -32,6 +36,7 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     static let backItemIdentifier = NSToolbarItem.Identifier("historyBack")
     static let forwardItemIdentifier = NSToolbarItem.Identifier("historyForward")
     static let lineNumbersItemIdentifier = NSToolbarItem.Identifier("lineNumbers")
+    static let bookmarkItemIdentifier = NSToolbarItem.Identifier("bookmark")
 
     /// ツールバーが所属するウィンドウ。生成済みアイテムの検索(window.toolbar.items)に使う。
     private weak var window: NSWindow?
@@ -108,6 +113,27 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
             : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
     }
 
+    /// ブックマークアイテムのアイコン(bookmark/bookmark.fill)・色・ツールチップを
+    /// 現在ファイルのブックマーク状態に合わせて更新する。
+    /// - Parameter item: 更新対象。省略時は window.toolbar から検索する
+    ///   (生成中でまだ toolbar.items に含まれないアイテムを更新する場合は明示的に渡すこと)。
+    func updateBookmarkToolbarItem(_ item: NSToolbarItem? = nil) {
+        guard let host,
+              let item = item ?? window?.toolbar?.items.first(where: {
+                  $0.itemIdentifier == Self.bookmarkItemIdentifier
+              }), let button = item.view as? NSButton
+        else { return }
+        let isBookmarked = host.isBookmarked
+        let label = isBookmarked
+            ? String(localized: "menu.view.removeBookmark", bundle: .l10n)
+            : String(localized: "menu.view.addBookmark", bundle: .l10n)
+        button.image = NSImage(
+            systemSymbolName: isBookmarked ? "bookmark.fill" : "bookmark", accessibilityDescription: label
+        )
+        button.contentTintColor = isBookmarked ? .controlAccentColor : nil
+        item.toolTip = label
+    }
+
     // MARK: - Action Targets
 
     /// モード切替セグメントコントロールの選択変更を受けて呼ばれる。
@@ -118,6 +144,11 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     /// 行番号ボタン・メニュー表現の共通アクション。host へトグルを委譲する。
     @objc private func lineNumbersItemClicked(_ sender: Any?) {
         host?.toggleLineNumbers(sender)
+    }
+
+    /// ブックマークボタン・メニュー表現の共通アクション。host へトグルを委譲する。
+    @objc private func bookmarkItemClicked(_ sender: Any?) {
+        host?.toggleBookmark(sender)
     }
 
     /// 戻るアイテムのメニュー表現から呼ばれる。
@@ -142,6 +173,9 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
         }
         if itemIdentifier == Self.lineNumbersItemIdentifier {
             return makeLineNumbersToolbarItem()
+        }
+        if itemIdentifier == Self.bookmarkItemIdentifier {
+            return makeBookmarkToolbarItem()
         }
         guard itemIdentifier == Self.modeToggleItemIdentifier else { return nil }
         let previewLabel = String(localized: "toolbar.mode.preview", bundle: .l10n)
@@ -224,11 +258,33 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
         return item
     }
 
+    /// ブックマークトグルのツールバーアイテムを生成する。常時有効。
+    private func makeBookmarkToolbarItem() -> NSToolbarItem {
+        let label = String(localized: "menu.view.addBookmark", bundle: .l10n)
+        let button = NSButton(
+            image: NSImage(systemSymbolName: "bookmark", accessibilityDescription: label)!,
+            target: self,
+            action: #selector(bookmarkItemClicked(_:))
+        )
+        button.bezelStyle = .texturedRounded
+        let item = NSToolbarItem(itemIdentifier: Self.bookmarkItemIdentifier)
+        item.label = label
+        item.view = button
+        // ウィンドウが狭まりオーバーフロー(») メニューに収容される際、view ベースの
+        // アイテムは menuFormRepresentation が無いと action の無い死んだ項目になるため設定する。
+        let menuItem = NSMenuItem(title: label, action: #selector(bookmarkItemClicked(_:)), keyEquivalent: "")
+        menuItem.target = self
+        item.menuFormRepresentation = menuItem
+        updateBookmarkToolbarItem(item)
+        return item
+    }
+
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [
             .toggleSidebar, .sidebarTrackingSeparator,
             Self.backItemIdentifier, Self.forwardItemIdentifier,
-            .flexibleSpace, Self.lineNumbersItemIdentifier, Self.modeToggleItemIdentifier,
+            .flexibleSpace, Self.lineNumbersItemIdentifier,
+            Self.modeToggleItemIdentifier, Self.bookmarkItemIdentifier,
         ]
     }
 
@@ -236,7 +292,7 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
         [
             .toggleSidebar, .sidebarTrackingSeparator,
             Self.backItemIdentifier, Self.forwardItemIdentifier,
-            Self.lineNumbersItemIdentifier, Self.modeToggleItemIdentifier,
+            Self.lineNumbersItemIdentifier, Self.modeToggleItemIdentifier, Self.bookmarkItemIdentifier,
             .flexibleSpace, .space,
         ]
     }

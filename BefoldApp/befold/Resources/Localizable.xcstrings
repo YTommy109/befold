@@ -188,6 +188,23 @@
         }
       }
     },
+    "menu.file.bookmarks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmarks"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマーク"
+          }
+        }
+      }
+    },
     "menu.file.close": {
       "extractionState": "manual",
       "localizations": {
@@ -626,6 +643,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "行番号を隠す"
+          }
+        }
+      }
+    },
+    "menu.view.addBookmark": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmark"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマークする"
+          }
+        }
+      }
+    },
+    "menu.view.removeBookmark": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Bookmark"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマーク解除"
           }
         }
       }

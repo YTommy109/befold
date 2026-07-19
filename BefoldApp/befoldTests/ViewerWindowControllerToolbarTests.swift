@@ -11,11 +11,12 @@ struct ViewerWindowControllerToolbarTests {
         return ViewerWindowController(
             fileURL: file,
             defaults: defaults,
-            perFileState: PerFileStateStore(defaults: defaults)
+            perFileState: PerFileStateStore(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults)
         )
     }
 
-    @Test("既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/モード切替 の順")
+    @Test("既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/行番号/モード切替/ブックマーク の順")
     func defaultItemsPlaceHistoryButtonsAfterTrackingSeparator() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -29,8 +30,53 @@ struct ViewerWindowControllerToolbarTests {
         #expect(identifiers == [
             .toggleSidebar, .sidebarTrackingSeparator,
             .init("historyBack"), .init("historyForward"),
-            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"),
+            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"), .init("bookmark"),
         ])
+    }
+
+    @Test("ブックマークボタンをクリックすると状態がトグルされアイコン・色に反映される")
+    func bookmarkItemTogglesOnClick() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "a.mmd", contents: "graph TD;")
+        let controller = makeController(file: file)
+        defer { controller.close() }
+        let toolbar = try #require(controller.window?.toolbar)
+
+        let item = try #require(toolbar.items.first { $0.itemIdentifier == .init("bookmark") })
+        let button = try #require(item.view as? NSButton)
+        #expect(button.contentTintColor == nil)
+
+        controller.toggleBookmark(nil)
+
+        #expect(button.contentTintColor == .controlAccentColor)
+
+        controller.toggleBookmark(nil)
+
+        #expect(button.contentTintColor == nil)
+    }
+
+    @Test("ファイル切替でブックマークボタンが新しいファイルの状態に更新される")
+    func bookmarkItemUpdatesOnFileSwitch() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let fileA = try tmp.file(named: "a.mmd", contents: "graph TD;")
+        let fileB = try tmp.file(named: "b.mmd", contents: "graph TD;")
+        let controller = makeController(file: fileA)
+        defer { controller.close() }
+        let toolbar = try #require(controller.window?.toolbar)
+
+        let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("bookmark") })
+        let button = try #require(liveItem.view as? NSButton)
+
+        controller.toggleBookmark(nil)
+        #expect(button.contentTintColor == .controlAccentColor)
+
+        controller.switchFile(to: fileB)
+
+        // onContentReloaded はファイル読み込み完了後に非同期で発火するため、反映をポーリングで待つ。
+        await waitUntilOnMainActor { button.contentTintColor == nil }
+        #expect(button.contentTintColor == nil)
     }
 
     @Test("行番号アイテムはコード表示中のみ有効")

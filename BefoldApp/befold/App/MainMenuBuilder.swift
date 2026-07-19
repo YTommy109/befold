@@ -5,11 +5,16 @@ enum MainMenuBuilder {
     static func build(
         openAction: Selector,
         helpAction: Selector,
-        recentMenuDelegate: NSMenuDelegate
+        recentMenuDelegate: NSMenuDelegate,
+        bookmarksMenuDelegate: NSMenuDelegate
     ) -> NSMenu {
         let mainMenu = NSMenu()
         mainMenu.addItem(makeAppMenuItem())
-        mainMenu.addItem(makeFileMenuItem(openAction: openAction, recentMenuDelegate: recentMenuDelegate))
+        mainMenu.addItem(makeFileMenuItem(
+            openAction: openAction,
+            recentMenuDelegate: recentMenuDelegate,
+            bookmarksMenuDelegate: bookmarksMenuDelegate
+        ))
         mainMenu.addItem(makeEditMenuItem())
         mainMenu.addItem(makeViewMenuItem())
         mainMenu.addItem(makeWindowMenuItem())
@@ -68,7 +73,9 @@ enum MainMenuBuilder {
         return item
     }
 
-    private static func makeFileMenuItem(openAction: Selector, recentMenuDelegate: NSMenuDelegate) -> NSMenuItem {
+    private static func makeFileMenuItem(
+        openAction: Selector, recentMenuDelegate: NSMenuDelegate, bookmarksMenuDelegate: NSMenuDelegate
+    ) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.file.title", bundle: .l10n))
         item.submenu = menu
@@ -84,6 +91,13 @@ enum MainMenuBuilder {
         recentMenu.delegate = recentMenuDelegate
         recentItem.submenu = recentMenu
         menu.addItem(recentItem)
+
+        let bookmarksTitle = String(localized: "menu.file.bookmarks", bundle: .l10n)
+        let bookmarksItem = NSMenuItem(title: bookmarksTitle, action: nil, keyEquivalent: "")
+        let bookmarksMenu = NSMenu(title: bookmarksTitle)
+        bookmarksMenu.delegate = bookmarksMenuDelegate
+        bookmarksItem.submenu = bookmarksMenu
+        menu.addItem(bookmarksItem)
 
         menu.addItem(.separator())
         menu.addItem(
@@ -204,6 +218,11 @@ enum MainMenuBuilder {
             withTitle: String(localized: "menu.view.showLineNumbers", bundle: .l10n),
             action: #selector(ViewerWindowController.toggleLineNumbers(_:)),
             keyEquivalent: "l"
+        )
+        menu.addItem(
+            withTitle: String(localized: "menu.view.addBookmark", bundle: .l10n),
+            action: #selector(ViewerWindowController.toggleBookmark(_:)),
+            keyEquivalent: "d"
         )
         menu.addItem(.separator())
         let toggleSidebar = menu.addItem(
