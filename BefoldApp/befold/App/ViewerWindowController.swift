@@ -88,7 +88,7 @@ final class ViewerWindowController: NSWindowController {
         perFileState: PerFileStateStore = PerFileStateStore(),
         forceSidebarVisible: Bool = false,
         store: ViewerStore = ViewerStore(),
-        directoryLister: (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
+        directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
         openFileInNewWindow: @escaping (URL) -> Void = { AppDelegate.shared?.openViewer(for: $0) }
     ) {
         initialFileURL = fileURL
@@ -105,7 +105,8 @@ final class ViewerWindowController: NSWindowController {
         )
         sidebar = SidebarNavigator(
             currentDirectory: parentDir, entries: entries, selection: fileURL,
-            hiddenFilesPreference: hiddenFilesPreference
+            hiddenFilesPreference: hiddenFilesPreference,
+            directoryLister: directoryLister
         )
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
@@ -247,11 +248,7 @@ final class ViewerWindowController: NSWindowController {
         case let .external(url):
             NSWorkspace.shared.open(url)
         case let .localFile(url):
-            var isDir: ObjCBool = false
-            guard
-                FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
-                !isDir.boolValue
-            else {
+            guard DirectoryLister.isExistingFile(url) else {
                 showFileNotFoundAlert(url: url)
                 return
             }
@@ -333,7 +330,7 @@ final class ViewerWindowController: NSWindowController {
     /// 切替先が存在しない場合はアラートを表示して false を返す(状態は変更しない)。
     @discardableResult
     func performFileSwitch(to newURL: URL) -> Bool {
-        guard FileManager.default.fileExists(atPath: newURL.path) else {
+        guard DirectoryLister.fileExists(newURL) else {
             showFileNotFoundAlert(url: newURL)
             return false
         }

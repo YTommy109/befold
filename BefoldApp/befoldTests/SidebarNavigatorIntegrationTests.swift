@@ -9,10 +9,6 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorIntegrationTests {
-    private func makeHomeTempDir() throws -> TempDir {
-        try TempDir(base: FileManager.default.homeDirectoryForCurrentUser)
-    }
-
     private func makeController(file: URL) -> ViewerWindowController {
         ViewerWindowController(
             fileURL: file,

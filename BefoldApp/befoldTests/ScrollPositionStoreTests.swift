@@ -82,10 +82,7 @@ struct ScrollPositionStoreTests {
         let store = ScrollPositionStore(defaults: makeIsolatedDefaults(prefix: "ScrollPositionStoreTests"))
         let tmp = try TempDir(prefix: "ScrollPositionStoreTests")
         defer { withExtendedLifetime(tmp) {} }
-        let real = tmp.url.appendingPathComponent("real.mmd")
-        try Data().write(to: real)
-        let link = tmp.url.appendingPathComponent("link.mmd")
-        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        let (real, link) = try tmp.symlinkedFile()
 
         store.setScrollPosition(120, for: link, mode: .rendered)
 

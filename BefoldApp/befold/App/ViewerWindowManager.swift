@@ -46,7 +46,7 @@ final class ViewerWindowManager {
     /// 指定 URL のファイルをビューアウィンドウで開く。
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
     func openViewer(for url: URL, forceSidebarVisible: Bool = false) {
-        guard FileManager.default.fileExists(atPath: url.path) else {
+        guard DirectoryLister.fileExists(url) else {
             // 新規オープン時点ではまだ親ウィンドウが無いため over: nil でモーダル表示する。
             FileNotFoundUI.present(url: url, over: nil)
             return

@@ -2,6 +2,10 @@ import BefoldKit
 import Foundation
 
 enum DirectoryLister {
+    /// 存在確認・ディレクトリ判定の単一の実装元。ObjCBool の取り回しは
+    /// DefaultFileReader に集約し、ここではそこへ委譲する。
+    private static let fileReader: any FileReading = DefaultFileReader()
+
     static func listFiles(in directory: URL) -> [URL] {
         sortedContents(in: directory).files
     }
@@ -54,11 +58,19 @@ enum DirectoryLister {
         return target == home || target.hasPrefix(home + "/")
     }
 
+    /// 指定パスが存在するファイル(ディレクトリでない)かどうかを判定する。
+    static func isExistingFile(_ url: URL) -> Bool {
+        fileReader.isExistingFile(at: url)
+    }
+
+    /// 指定パスが存在するかどうかを判定する(ディレクトリ含む)。
+    static func fileExists(_ url: URL) -> Bool {
+        fileReader.fileExists(at: url)
+    }
+
     /// 指定パスが存在するディレクトリかどうかを判定する。
     static func isDirectory(_ url: URL) -> Bool {
-        var isDir: ObjCBool = false
-        let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
-        return exists && isDir.boolValue
+        fileReader.isDirectory(at: url)
     }
 
     /// CLI シム経由のオープン用にパスを解決する。

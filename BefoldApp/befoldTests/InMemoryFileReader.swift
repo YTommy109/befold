@@ -60,6 +60,16 @@ final class InMemoryFileReader: FileReading, Sendable {
         files.get()[url.path] != nil
     }
 
+    /// メモリ上のストアはディレクトリを持たないため常に false。
+    func isDirectory(at _: URL) -> Bool {
+        false
+    }
+
+    /// ディレクトリを持たないため、存在すれば通常ファイル扱い。
+    func isExistingFile(at url: URL) -> Bool {
+        fileExists(at: url)
+    }
+
     func readString(from url: URL) throws -> String {
         try String(decoding: readData(from: url), as: UTF8.self)
     }

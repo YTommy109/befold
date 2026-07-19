@@ -29,6 +29,9 @@ final class SidebarNavigator {
     let history = NavigationHistory()
     /// 不可視ファイル表示設定。全ウィンドウで共有される単一の真実の源を都度参照する。
     private let hiddenFilesPreference: HiddenFilesPreference
+    /// ファイル一覧の再取得元。既定は DirectoryLister だが、再読込経路を
+    /// テストで差し替えられるよう注入可能にする。
+    private let directoryLister: (URL, SortOrder, Bool) -> [FileListEntry]
 
     /// ファイル切替・現在ファイル参照の委譲先。循環参照を避けるため weak。
     private weak var host: SidebarNavigatorHost?
@@ -37,9 +40,11 @@ final class SidebarNavigator {
 
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: URL?,
-        hiddenFilesPreference: HiddenFilesPreference
+        hiddenFilesPreference: HiddenFilesPreference,
+        directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries
     ) {
         self.hiddenFilesPreference = hiddenFilesPreference
+        self.directoryLister = directoryLister
         fileListModel = FileListModel(
             currentDirectory: currentDirectory,
             entries: entries,
@@ -69,10 +74,8 @@ final class SidebarNavigator {
     func refreshFileList() {
         guard let host else { return }
         let showHiddenFiles = syncShowHiddenFiles()
-        var entries = DirectoryLister.listEntries(
-            in: fileListModel.currentDirectory,
-            sortOrder: fileListModel.sortOrder,
-            showHiddenFiles: showHiddenFiles
+        var entries = directoryLister(
+            fileListModel.currentDirectory, fileListModel.sortOrder, showHiddenFiles
         )
         ensureCurrentFile(in: &entries, currentFile: host.currentFileURL)
         fileListModel.entries = entries

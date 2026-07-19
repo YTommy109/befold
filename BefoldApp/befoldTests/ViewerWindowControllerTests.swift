@@ -322,12 +322,6 @@ struct ViewerWindowControllerTests {
         #expect(!controller.isSourceMode)
     }
 
-    /// navigateToFolder はホームディレクトリ配下のみ許可するため、システム一時ディレクトリではなく
-    /// ホームディレクトリ配下に一時ディレクトリを作る。
-    private func makeHomeTempDir() throws -> TempDir {
-        try TempDir(base: FileManager.default.homeDirectoryForCurrentUser)
-    }
-
     @Test("navigateToFolder でカレントディレクトリと一覧が更新される")
     func navigateToFolderUpdatesCurrentDirectoryAndEntries() throws {
         let tmp = try makeHomeTempDir()

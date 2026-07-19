@@ -14,6 +14,9 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     /// 待機を行う場合は、数値をハードコードせずこの定数を参照する。
     static let defaultDebounceDelay: TimeInterval = 0.2
 
+    /// renameSettleDelay の既定値。数値のハードコードを避けるためここで一元定義する。
+    static let defaultRenameSettleDelay: TimeInterval = 0.2
+
     /// .rename 検知から追従判定までの待機時間。
     /// save-by-rename（旧ファイル退避 → 同パスへ新ファイル作成）では
     /// 退避直後の一瞬だけ元パスが空になるため、この間隔だけ待って
@@ -34,7 +37,7 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     init(
         path: URL,
         debounceDelay: TimeInterval = FileWatcher.defaultDebounceDelay,
-        renameSettleDelay: TimeInterval = 0.2,
+        renameSettleDelay: TimeInterval = FileWatcher.defaultRenameSettleDelay,
         onChange: @escaping @MainActor @Sendable () -> Void,
         onRename: (@MainActor @Sendable (URL) -> Void)? = nil
     ) {

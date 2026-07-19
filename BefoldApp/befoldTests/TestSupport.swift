@@ -51,6 +51,24 @@ final class TempDir: Sendable {
         try data.write(to: file)
         return file
     }
+
+    /// 実体ファイルと、それを指す symlink を作成して両方の URL を返す。
+    /// symlink 経由でも同一ファイルとして扱われることの検証に使う。
+    func symlinkedFile(
+        real realName: String = "real.mmd", link linkName: String = "link.mmd"
+    ) throws -> (real: URL, link: URL) {
+        let real = url.appendingPathComponent(realName)
+        try Data().write(to: real)
+        let link = url.appendingPathComponent(linkName)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        return (real, link)
+    }
+}
+
+/// ホームディレクトリ配下に一時ディレクトリを作る。`navigateToFolder` は
+/// ホーム配下のみ許可するため、その経路を実 FS で検証する際に使う。
+func makeHomeTempDir() throws -> TempDir {
+    try TempDir(base: FileManager.default.homeDirectoryForCurrentUser)
 }
 
 /// ポーリング待機の既定タイムアウト秒数。`BEFOLD_TEST_TIMEOUT_SECONDS` が設定されていれば
