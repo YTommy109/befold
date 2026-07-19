@@ -35,11 +35,11 @@ BefoldApp/
 ├── Package.swift            # SPM ビルド用
 ├── befold/
 │   ├── App/                 # AppDelegate, DocumentController, ViewerWindowController
-│   ├── Viewer/              # ViewerStore, ViewerWebView, ViewerContentView, FileType
+│   ├── Viewer/              # ViewerStore, ViewerWebView, ViewerContentView
 │   ├── FileWatching/        # FileWatcher, Debouncer
-│   ├── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
-│   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js
-├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TextEncoding, StringChunkReader, ContentLoader）
+│   └── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
+├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TextEncoding, StringChunkReader, ContentLoader, FileType）
+│   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js, DOMPurify, highlight.js, github-markdown-css
 └── befoldTests/            # Swift Testing テスト
 ```
 
