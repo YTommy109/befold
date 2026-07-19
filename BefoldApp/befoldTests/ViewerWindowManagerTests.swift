@@ -111,7 +111,7 @@ struct ViewerWindowManagerTests {
     }
 
     @Test("toggleHiddenFiles は状態を反転し開いているサイドバーへ反映する")
-    func toggleHiddenFilesRefreshesOpenSidebar() throws {
+    func toggleHiddenFilesRefreshesOpenSidebar() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
@@ -123,13 +123,14 @@ struct ViewerWindowManagerTests {
         #expect(!controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
 
         manager.toggleHiddenFiles()
+        await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
         manager.controllers.values.forEach { $0.close() }
     }
 
     @Test("toggleHiddenFiles は複数の開いているウィンドウすべてへ同時に反映する")
-    func toggleHiddenFilesAffectsAllOpenWindows() throws {
+    func toggleHiddenFilesAffectsAllOpenWindows() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
@@ -140,6 +141,9 @@ struct ViewerWindowManagerTests {
         manager.openViewer(for: file2)
 
         manager.toggleHiddenFiles()
+        for controller in manager.controllers.values {
+            await controller.sidebar.pendingListingTask?.value
+        }
 
         for controller in manager.controllers.values {
             #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
@@ -148,7 +152,7 @@ struct ViewerWindowManagerTests {
     }
 
     @Test("ウィンドウのアイコンボタン操作(onToggleHiddenFiles)でも全ウィンドウが同期する")
-    func onToggleHiddenFilesCallbackTogglesAllWindows() throws {
+    func onToggleHiddenFilesCallbackTogglesAllWindows() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
@@ -160,6 +164,9 @@ struct ViewerWindowManagerTests {
         let first = try #require(manager.controllers[file1.normalizedPathKey])
 
         manager.viewerWindowDidToggleHiddenFiles(first)
+        for controller in manager.controllers.values {
+            await controller.sidebar.pendingListingTask?.value
+        }
 
         for controller in manager.controllers.values {
             #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))

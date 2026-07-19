@@ -55,7 +55,7 @@ struct SidebarNavigatorIntegrationTests {
     }
 
     @Test("親ディレクトリへ移動すると rootDirectory が最上位に更新される")
-    func navigatingUpUpdatesRootDirectory() throws {
+    func navigatingUpUpdatesRootDirectory() async throws {
         let base = try makeHomeTempDir()
         defer { withExtendedLifetime(base) {} }
 
@@ -74,16 +74,19 @@ struct SidebarNavigatorIntegrationTests {
         #expect(controller.fileListModel.rootDirectory.path == level3.path)
 
         // level2 へ上に移動すると、そこが新たな最上位として rootDirectory に反映される。
+        // 列挙はメイン外の非同期タスクで行われるため、完了を待ってから検証する。
         controller.navigateToFolder(level2)
+        await controller.sidebar.pendingListingTask?.value
         #expect(controller.fileListModel.rootDirectory.path == level2.path)
 
         // level3 へ戻っても、既に到達した最上位(level2)は保持される。
         controller.navigateToFolder(level3)
+        await controller.sidebar.pendingListingTask?.value
         #expect(controller.fileListModel.rootDirectory.path == level2.path)
     }
 
     @Test("フォルダーを選択した状態で refreshFileList してもフォルダー選択が保持される")
-    func refreshFileListPreservesFolderSelection() throws {
+    func refreshFileListPreservesFolderSelection() async throws {
         let base = try makeHomeTempDir()
         defer { withExtendedLifetime(base) {} }
 
@@ -102,7 +105,37 @@ struct SidebarNavigatorIntegrationTests {
 
         // 他アプリへ切り替えて戻ってきた際に windowDidBecomeKey から呼ばれる処理。
         controller.sidebar.refreshFileList()
+        await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.selection == sub)
+    }
+
+    @Test("連続する navigateToFolder では古い列挙結果が新しい結果を上書きしない")
+    func rapidNavigateToFolderDiscardsStaleResult() async throws {
+        let base = try makeHomeTempDir()
+        defer { withExtendedLifetime(base) {} }
+
+        // base/(fileA.mmd, dirB/(fileB.mmd))
+        let fileA = base.url.appendingPathComponent("fileA.mmd")
+        try "graph TD; A-->B".write(to: fileA, atomically: true, encoding: .utf8)
+        let dirB = base.url.appendingPathComponent("dirB", isDirectory: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+        let fileB = dirB.appendingPathComponent("fileB.mmd")
+        try "graph TD; C-->D".write(to: fileB, atomically: true, encoding: .utf8)
+
+        let controller = makeController(file: fileA)
+        defer { controller.close() }
+
+        // 1 回目の navigateToFolder が完了する前に 2 回目を発行する。
+        // 世代ガードにより、後から発行した dirB の結果だけが最終的に反映されるべき。
+        controller.navigateToFolder(base.url)
+        controller.navigateToFolder(dirB)
+        await controller.sidebar.pendingListingTask?.value
+
+        #expect(controller.fileListModel.currentDirectory.standardizedFileURL == dirB.standardizedFileURL)
+        let names = controller.fileListModel.entries
+            .filter { $0.kind != .parentNavigation }
+            .map(\.url.lastPathComponent)
+        #expect(names == ["fileB.mmd"])
     }
 }

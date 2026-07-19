@@ -266,7 +266,7 @@ struct ViewerWindowControllerTests {
     }
 
     @Test("rename でサイドバーの一覧が再取得され新名が選択される")
-    func renameRefreshesSidebarListAndSelection() throws {
+    func renameRefreshesSidebarListAndSelection() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "old.mmd", contents: "graph TD;")
@@ -279,6 +279,7 @@ struct ViewerWindowControllerTests {
         // controller.handleRename を呼ぶ。その順序を再現するため store を先に進める。
         controller.store.openFile(renamed)
         controller.handleRename(from: file, to: renamed)
+        await controller.sidebar.pendingListingTask?.value
 
         // ディレクトリ列挙は /private シンボリックリンクを解決するため、名前で照合する。
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
@@ -323,7 +324,7 @@ struct ViewerWindowControllerTests {
     }
 
     @Test("navigateToFolder でカレントディレクトリと一覧が更新される")
-    func navigateToFolderUpdatesCurrentDirectoryAndEntries() throws {
+    func navigateToFolderUpdatesCurrentDirectoryAndEntries() async throws {
         let tmp = try makeHomeTempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
@@ -337,6 +338,7 @@ struct ViewerWindowControllerTests {
         defer { controller.close() }
 
         controller.navigateToFolder(subDir)
+        await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.currentDirectory.standardizedFileURL == subDir.standardizedFileURL)
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
@@ -375,7 +377,7 @@ struct ViewerWindowControllerTests {
     }
 
     @Test("子フォルダーへの移動ではフォルダーをスキップして最初のファイルが選択される")
-    func navigateToChildSelectsFirstFileSkippingFolders() throws {
+    func navigateToChildSelectsFirstFileSkippingFolders() async throws {
         let tmp = try makeHomeTempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
@@ -390,12 +392,13 @@ struct ViewerWindowControllerTests {
         defer { controller.close() }
 
         controller.navigateToFolder(subDir)
+        await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.selection?.lastPathComponent == "child.mmd")
     }
 
     @Test("子フォルダーへの移動では最初のファイルが表示対象として開かれる")
-    func navigateToChildOpensFirstFile() throws {
+    func navigateToChildOpensFirstFile() async throws {
         let tmp = try makeHomeTempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
@@ -406,12 +409,13 @@ struct ViewerWindowControllerTests {
         defer { controller.close() }
 
         controller.navigateToFolder(subDir)
+        await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileURL.lastPathComponent == "child.mmd")
     }
 
     @Test("ファイルのない子フォルダーへの移動では何も選択されない")
-    func navigateToChildWithoutFilesClearsSelection() throws {
+    func navigateToChildWithoutFilesClearsSelection() async throws {
         let tmp = try makeHomeTempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
@@ -423,12 +427,13 @@ struct ViewerWindowControllerTests {
         defer { controller.close() }
 
         controller.navigateToFolder(subDir)
+        await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.selection == nil)
     }
 
     @Test("親フォルダーへの移動では直前の子フォルダーが選択される")
-    func navigateToParentSelectsPreviousChild() throws {
+    func navigateToParentSelectsPreviousChild() async throws {
         let tmp = try makeHomeTempDir()
         defer { withExtendedLifetime(tmp) {} }
         let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
@@ -438,6 +443,7 @@ struct ViewerWindowControllerTests {
         defer { controller.close() }
 
         controller.navigateToFolder(tmp.url)
+        await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.selection?.lastPathComponent == "sub")
     }

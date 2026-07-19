@@ -100,13 +100,15 @@ final class ViewerWindowController: NSWindowController {
         self.store = store
         self.openFileInNewWindow = openFileInNewWindow
         let parentDir = fileURL.deletingLastPathComponent()
+        // ウィンドウ生成は一回限りであり、表示前に一覧が必要なためここだけは同期で取得する。
+        // 反復して呼ばれる refreshFileList / navigateToFolder は SidebarNavigator 内で
+        // 既定の非同期版(DirectoryLister.listEntriesAsync)を使う。
         let entries = directoryLister(
             parentDir, .foldersFirst, hiddenFilesPreference.showHiddenFiles
         )
         sidebar = SidebarNavigator(
             currentDirectory: parentDir, entries: entries, selection: fileURL,
-            hiddenFilesPreference: hiddenFilesPreference,
-            directoryLister: directoryLister
+            hiddenFilesPreference: hiddenFilesPreference
         )
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
@@ -546,6 +548,7 @@ extension ViewerWindowController: NSWindowDelegate {
         swipeMonitor.stop()
         saveWindowFrame()
         store.close()
+        sidebar.cancelPendingListing()
         delegate?.viewerWindowWillClose(self)
     }
 
