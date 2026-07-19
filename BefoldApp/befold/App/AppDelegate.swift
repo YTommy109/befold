@@ -27,18 +27,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     override init() {
         let sessionStore = SessionStore()
-        let zoomStore = ZoomStore()
         let recentDocumentsStore = RecentDocumentsStore()
         let hiddenFilesPreference = HiddenFilesPreference()
         let findOptionsPreference = FindOptionsPreference()
-        let sourceModeStore = SourceModeStore()
         let windowManager = ViewerWindowManager(
             sessionStore: sessionStore,
-            zoomStore: zoomStore,
             recentDocumentsStore: recentDocumentsStore,
             hiddenFilesPreference: hiddenFilesPreference,
-            findOptionsPreference: findOptionsPreference,
-            sourceModeStore: sourceModeStore
+            findOptionsPreference: findOptionsPreference
         )
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore

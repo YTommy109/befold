@@ -283,7 +283,7 @@ struct ViewerStoreTests {
         reader.setFile("# Renamed", at: newFile)
 
         nonisolated(unsafe) var renamedTo: URL?
-        store.onFileRenamed = { renamedTo = $0 }
+        store.onFileRenamed = { _, newURL in renamedTo = newURL }
         onRenameBox.get()?(newFile)
         await awaitLoad(store)
 

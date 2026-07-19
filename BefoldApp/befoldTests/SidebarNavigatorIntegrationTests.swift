@@ -16,8 +16,8 @@ struct SidebarNavigatorIntegrationTests {
     private func makeController(file: URL) -> ViewerWindowController {
         ViewerWindowController(
             fileURL: file,
-            zoomStore: ZoomStore(defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests")),
-            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests")
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests"),
+            perFileState: PerFileStateStore(defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests"))
         )
     }
 

@@ -10,8 +10,8 @@ struct ViewerWindowControllerToolbarTests {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerToolbarTests")
         return ViewerWindowController(
             fileURL: file,
-            zoomStore: ZoomStore(defaults: defaults),
-            defaults: defaults
+            defaults: defaults,
+            perFileState: PerFileStateStore(defaults: defaults)
         )
     }
 

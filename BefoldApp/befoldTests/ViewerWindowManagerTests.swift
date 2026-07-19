@@ -11,9 +11,9 @@ struct ViewerWindowManagerTests {
     ) -> ViewerWindowManager {
         ViewerWindowManager(
             sessionStore: SessionStore(defaults: defaults),
-            zoomStore: ZoomStore(defaults: defaults),
             recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
-            hiddenFilesPreference: HiddenFilesPreference(defaults: defaults)
+            hiddenFilesPreference: HiddenFilesPreference(defaults: defaults),
+            perFileState: PerFileStateStore(defaults: defaults)
         )
     }
 
@@ -40,8 +40,8 @@ struct ViewerWindowManagerTests {
         let sessionStore = SessionStore(defaults: defaults)
         let manager = ViewerWindowManager(
             sessionStore: sessionStore,
-            zoomStore: ZoomStore(defaults: defaults),
-            recentDocumentsStore: RecentDocumentsStore(defaults: defaults)
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            perFileState: PerFileStateStore(defaults: defaults)
         )
 
         manager.openViewer(for: file)
@@ -177,8 +177,8 @@ struct ViewerWindowManagerTests {
         let sessionStore = SessionStore(defaults: defaults)
         let manager = ViewerWindowManager(
             sessionStore: sessionStore,
-            zoomStore: ZoomStore(defaults: defaults),
-            recentDocumentsStore: RecentDocumentsStore(defaults: defaults)
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            perFileState: PerFileStateStore(defaults: defaults)
         )
 
         manager.openViewer(for: file1)

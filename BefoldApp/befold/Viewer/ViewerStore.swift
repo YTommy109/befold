@@ -44,6 +44,13 @@ final class ViewerStore {
     /// 公開 filePath は apply() 内で fileType / content と同時にのみ更新する(下記 pendingFileType 参照)。
     @ObservationIgnored private var pendingURL: URL?
 
+    /// 現在の対象ファイル URL の唯一の保持先。openFile / handleRename で即時に更新される
+    /// (pendingURL と同値)。ウィンドウ層(ViewerWindowController)はこれを参照し、URL を
+    /// 二重に保持しない。公開 filePath はロード完了後にのみ更新される点で異なる。
+    var currentURL: URL? {
+        pendingURL
+    }
+
     /// pendingURL が指す読み込み対象ファイルの種別。openFile / handleRename で pendingURL と
     /// 同時に即時更新する内部値。バックグラウンド読み込み(loadContent → performLoad)へ渡すために使い、
     /// 公開の fileType とは異なりロード完了を待たない。
@@ -61,9 +68,11 @@ final class ViewerStore {
     /// 更新サイクルをトリガーし ViewerWebView.updateContent での分岐に使われる。
     var isSourceMode: Bool = false
 
-    /// 開いているファイルが rename / move されたときに新 URL を通知する。
-    /// ウィンドウ側がタイトル・representedURL・セッション記録を更新するために使う。
-    var onFileRenamed: ((URL) -> Void)?
+    /// 開いているファイルが rename / move されたときに旧 URL と新 URL を通知する。
+    /// ウィンドウ側がタイトル・representedURL・セッション記録・per-file 状態の移行を
+    /// 更新するために使う。旧 URL は store が握る唯一の現在 URL(currentURL)であり、
+    /// ウィンドウ側で別途保持しないよう通知に含める。
+    var onFileRenamed: ((_ oldURL: URL, _ newURL: URL) -> Void)?
 
     /// 監視中のファイルが削除されたことが確定したときに呼ばれるコールバック。
     /// グレース期間(1 秒)中に再作成されなかった場合に発火する。
@@ -162,10 +171,13 @@ final class ViewerStore {
     /// コンテンツの再読込を予約したうえでウィンドウ側へ通知する。公開 filePath / fileType は
     /// apply() で content と同時にのみ更新する(上の pendingURL / pendingFileType 参照)。
     private func handleRename(to newURL: URL) {
+        let oldURL = pendingURL
         pendingURL = newURL
         pendingFileType = FileType(url: newURL)
         loadContent()
-        onFileRenamed?(newURL)
+        if let oldURL {
+            onFileRenamed?(oldURL, newURL)
+        }
     }
 
     /// 次のチャンクを読み込んで content に追記し、表示状態を返す。
