@@ -33,10 +33,19 @@ let package = Package(
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
             ]
         ),
+        .target(
+            name: "BefoldRenderKit",
+            dependencies: ["BefoldKit"],
+            path: "BefoldRenderKit",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
+            ]
+        ),
         .executableTarget(
             name: "befold",
             dependencies: [
                 "BefoldKit",
+                "BefoldRenderKit",
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
             path: "befold",
@@ -51,7 +60,7 @@ let package = Package(
         ),
         .testTarget(
             name: "befoldTests",
-            dependencies: ["befold", "BefoldKit"],
+            dependencies: ["befold", "BefoldKit", "BefoldRenderKit"],
             path: "befoldTests",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
