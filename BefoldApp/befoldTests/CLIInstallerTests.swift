@@ -4,12 +4,12 @@ import Testing
 
 @Suite
 struct CLIInstallerTests {
-    @Test("シムスクリプトは指定の bundle path を open -a で呼び出す")
+    @Test("シムスクリプトは bundle 内の実行ファイルを直接 exec する")
     func shimScriptContentsEmbedsBundlePath() {
         let script = CLIInstaller.shimScriptContents(bundlePath: "/Applications/befold.app")
 
         #expect(script.contains("#!/bin/bash"))
-        #expect(script.contains("open -a '/Applications/befold.app' \"$@\""))
+        #expect(script.contains("exec '/Applications/befold.app/Contents/MacOS/befold' \"$@\""))
     }
 
     @Test("書き込み可能な場所には直接インストールされる")

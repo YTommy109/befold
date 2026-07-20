@@ -20,6 +20,26 @@ struct BookmarkStoreTests {
         #expect(!makeStore().isBookmarked(url("a.mmd")))
     }
 
+    @Test("add で追加され isBookmarked が true になる(TASK-73.4)")
+    func addAddsBookmark() {
+        let store = makeStore()
+
+        store.add(url("a.mmd"))
+
+        #expect(store.isBookmarked(url("a.mmd")))
+    }
+
+    @Test("add を同じパスへ複数回呼んでも冪等に成功する(TASK-73.4)")
+    func addIsIdempotent() {
+        let store = makeStore()
+
+        store.add(url("a.mmd"))
+        store.add(url("a.mmd"))
+
+        #expect(store.isBookmarked(url("a.mmd")))
+        #expect(store.bookmarkedURLs().count == 1)
+    }
+
     @Test("toggle で追加され isBookmarked が true になる")
     func toggleAddsBookmark() {
         let store = makeStore()

@@ -17,6 +17,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private let recentDocumentsStore: RecentDocumentsStore
     private let bookmarkStore: BookmarkStore
+    /// CLI 経由の起動時に指定された初期オープン対象パス。GUI ダブルクリック起動時は空。
+    private let initialPaths: [String]
+    /// CLI から指定された表示オプション(未指定項目は nil で、既存の保存済み設定・既定値を維持する)。
+    private let initialOptions: CLIOpenOptions
     private lazy var recentDocumentsMenuController = RecentDocumentsMenuController(
         recentURLs: { [weak self] in self?.recentDocumentsStore.recentURLs() ?? [] },
         openHandler: { [weak self] url in self?.openViewer(for: url) },
@@ -30,7 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openHandler: { [weak self] url in self?.openViewer(for: url) }
     )
 
-    override init() {
+    init(initialPaths: [String] = [], initialOptions: CLIOpenOptions = CLIOpenOptions()) {
+        self.initialPaths = initialPaths
+        self.initialOptions = initialOptions
         let sessionStore = SessionStore()
         let recentDocumentsStore = RecentDocumentsStore()
         let bookmarkStore = BookmarkStore()
@@ -55,10 +61,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     nonisolated static func main() {
+        let arguments = Array(CommandLine.arguments.dropFirst())
+        switch CLIArgumentParser.parse(arguments) {
+        case .success(.help):
+            print(CLIArgumentParser.usageText)
+            exit(0)
+        case let .success(.openPaths(paths, options)):
+            launch(withInitialPaths: paths, options: options)
+        case let .success(.subcommand(name, arguments)):
+            runSubcommand(name: name, arguments: arguments)
+        case let .failure(error):
+            FileHandle.standardError.write(Data((error.message + "\n").utf8))
+            exit(64)
+        }
+    }
+
+    /// GUI を起動せず、サブコマンドの結果を stdout/stderr へ出力してプロセスを終了する。
+    private nonisolated static func runSubcommand(name: String, arguments: [String]) -> Never {
+        let result = MainActor.assumeIsolated { () -> CLICommandResult in
+            switch name {
+            case "bookmark":
+                CLIBookmarkCommand.run(arguments)
+            case "check":
+                CLICheckCommand.run(arguments)
+            default:
+                CLICommandResult(message: "未実装のサブコマンドです: \(name)", exitCode: 1)
+            }
+        }
+        if result.exitCode == 0 {
+            print(result.message)
+        } else {
+            FileHandle.standardError.write(Data((result.message + "\n").utf8))
+        }
+        exit(result.exitCode)
+    }
+
+    /// 既に起動中のインスタンスがあればそちらへ転送し、無ければ新規に GUI を起動する。
+    private nonisolated static func launch(withInitialPaths paths: [String], options: CLIOpenOptions) {
         MainActor.assumeIsolated {
+            if !paths.isEmpty, let running = CLIInstanceRouter.runningInstance() {
+                CLIInstanceRouter.forward(paths: paths, options: options, to: running)
+                exit(0)
+            }
             let app = NSApplication.shared
             app.setActivationPolicy(.regular)
-            let delegate = AppDelegate()
+            let delegate = AppDelegate(initialPaths: paths, initialOptions: options)
             app.delegate = delegate
             AppDelegate.shared = delegate
             app.run()
@@ -70,6 +117,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         _ = DocumentController()
         sessionRestorer.captureSavedState()
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(handleCLIOpenRequest(_:)),
+            name: CLIInstanceRouter.openRequestNotificationName, object: nil
+        )
+    }
+
+    /// 別プロセスの CLI 起動から、起動中の当インスタンスへ転送されたオープン要求を処理する。
+    @objc private func handleCLIOpenRequest(_ notification: Notification) {
+        guard let (paths, options) = CLIInstanceRouter.decode(userInfo: notification.userInfo) else { return }
+        openPaths(paths, options: options)
+        NSApp.activate()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -81,7 +139,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             recentMenuDelegate: recentDocumentsMenuController,
             bookmarksMenuDelegate: bookmarksMenuController
         )
-        sessionRestorer.restoreLastSession()
+        if initialPaths.isEmpty {
+            sessionRestorer.restoreLastSession()
+        } else {
+            openPaths(initialPaths, options: initialOptions)
+        }
         NSApp.activate()
         // アップデータによる再起動直後は、復元したウィンドウが WindowServer の遷移状態により
         // どの Space にも属さず不可視になることがあるため、少し待ってから載せ直す
@@ -135,12 +197,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// ディレクトリが渡された場合は、フォルダー内最初のファイルを開く(CLI シム経由の想定)。
     /// 拡張子を問わずウィンドウは開かれ、未対応の内容ならビューア側でプレースホルダー表示する。
     func openViewer(for url: URL) {
+        openViewer(for: url, options: CLIOpenOptions())
+    }
+
+    /// CLI から渡されたパス群を、表示オプション付きでそれぞれ別ウィンドウに開く。
+    /// `--hidden-files`/`--no-hidden-files` はウィンドウ単位ではなくアプリ全体の設定のため、先に一度だけ反映する。
+    func openPaths(_ paths: [String], options: CLIOpenOptions) {
+        if let showHiddenFiles = options.showHiddenFiles {
+            windowManager.setHiddenFiles(showHiddenFiles)
+        }
+        for path in paths {
+            openViewer(for: URL(fileURLWithPath: path), options: options)
+        }
+    }
+
+    private func openViewer(for url: URL, options: CLIOpenOptions) {
         let isDirectory = DirectoryLister.isDirectory(url)
         guard let target = DirectoryLister.resolveFileToOpen(at: url) else {
             presentNoFileAlert()
             return
         }
-        windowManager.openViewer(for: target, forceSidebarVisible: isDirectory)
+        windowManager.openViewer(
+            for: target, forceSidebarVisible: isDirectory,
+            initialSortOrder: options.sortOrder == .alphabetical ? .alphabetical : .foldersFirst,
+            showLineNumbersOverride: options.showLineNumbers,
+            sourceModeOverride: options.sourceMode
+        )
     }
 
     private func presentNoFileAlert() {

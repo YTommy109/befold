@@ -40,6 +40,14 @@ final class ViewerWindowManager {
         refreshAllSidebars()
     }
 
+    /// CLI の `--hidden-files`/`--no-hidden-files` から呼ばれる。値を直接設定し、
+    /// 開いている全ウィンドウのサイドバーへ即座に反映する。
+    func setHiddenFiles(_ value: Bool) {
+        guard hiddenFilesPreference.showHiddenFiles != value else { return }
+        hiddenFilesPreference.showHiddenFiles = value
+        refreshAllSidebars()
+    }
+
     /// 開いている全ウィンドウのサイドバー(ファイル一覧)を再読み込みする。
     private func refreshAllSidebars() {
         for controller in controllers.values {
@@ -49,7 +57,12 @@ final class ViewerWindowManager {
 
     /// 指定 URL のファイルをビューアウィンドウで開く。
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
-    func openViewer(for url: URL, forceSidebarVisible: Bool = false) {
+    func openViewer(
+        for url: URL, forceSidebarVisible: Bool = false,
+        initialSortOrder: SortOrder = .foldersFirst,
+        showLineNumbersOverride: Bool? = nil,
+        sourceModeOverride: Bool? = nil
+    ) {
         guard DirectoryLister.fileExists(url) else {
             // 新規オープン時点ではまだ親ウィンドウが無いため over: nil でモーダル表示する。
             FileNotFoundUI.present(url: url, over: nil)
@@ -84,6 +97,9 @@ final class ViewerWindowManager {
             bookmarkStore: bookmarkStore,
             initialSidebarCollapsed: initialSidebarCollapsed,
             initialFrameDescriptor: initialFrameDescriptor,
+            initialSortOrder: initialSortOrder,
+            showLineNumbersOverride: showLineNumbersOverride,
+            sourceModeOverride: sourceModeOverride,
             openFileInNewWindow: { [weak self] fileURL in self?.openViewer(for: fileURL) }
         )
         controllers[key] = controller

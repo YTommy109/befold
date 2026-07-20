@@ -17,6 +17,16 @@ final class BookmarkStore {
         savedPaths().contains(url.normalizedPathKey)
     }
 
+    /// 指定 URL をブックマークに追加する。既に追加済みなら何もしない(冪等)。
+    /// `befold bookmark add` サブコマンドから呼ばれる。
+    func add(_ url: URL) {
+        let path = url.normalizedPathKey
+        var paths = savedPaths()
+        guard !paths.contains(path) else { return }
+        paths.append(path)
+        save(paths)
+    }
+
     /// ブックマークの有無を反転させる。
     func toggle(_ url: URL) {
         let path = url.normalizedPathKey

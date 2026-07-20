@@ -36,11 +36,14 @@ final class FileListModel {
     var backHistory: [HistoryEntry] = []
     var forwardHistory: [HistoryEntry] = []
 
-    init(currentDirectory: URL, entries: [FileListEntry], selection: FileListEntry.ID?) {
+    init(
+        currentDirectory: URL, entries: [FileListEntry], selection: FileListEntry.ID?,
+        sortOrder: SortOrder = .foldersFirst
+    ) {
         self.currentDirectory = currentDirectory
         rootDirectory = currentDirectory
         self.entries = entries
         self.selection = selection
-        sortOrder = .foldersFirst
+        self.sortOrder = sortOrder
     }
 }

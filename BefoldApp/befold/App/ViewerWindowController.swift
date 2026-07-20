@@ -91,6 +91,9 @@ final class ViewerWindowController: NSWindowController {
         bookmarkStore: BookmarkStore = BookmarkStore(),
         initialSidebarCollapsed: Bool = true,
         initialFrameDescriptor: String? = nil,
+        initialSortOrder: SortOrder = .foldersFirst,
+        showLineNumbersOverride: Bool? = nil,
+        sourceModeOverride: Bool? = nil,
         store: ViewerStore = ViewerStore(),
         directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
         openFileInNewWindow: @escaping (URL) -> Void = { AppDelegate.shared?.openViewer(for: $0) }
@@ -104,16 +107,19 @@ final class ViewerWindowController: NSWindowController {
         self.initialSidebarCollapsed = initialSidebarCollapsed
         self.store = store
         self.openFileInNewWindow = openFileInNewWindow
+        if let showLineNumbersOverride {
+            store.showLineNumbers = showLineNumbersOverride
+        }
         let parentDir = fileURL.deletingLastPathComponent()
         // ウィンドウ生成は一回限りであり、表示前に一覧が必要なためここだけは同期で取得する。
         // 反復して呼ばれる refreshFileList / navigateToFolder は SidebarNavigator 内で
         // 既定の非同期版(DirectoryLister.listEntriesAsync)を使う。
         let entries = directoryLister(
-            parentDir, .foldersFirst, hiddenFilesPreference.showHiddenFiles
+            parentDir, initialSortOrder, hiddenFilesPreference.showHiddenFiles
         )
         sidebar = SidebarNavigator(
             currentDirectory: parentDir, entries: entries, selection: fileURL,
-            hiddenFilesPreference: hiddenFilesPreference
+            hiddenFilesPreference: hiddenFilesPreference, sortOrder: initialSortOrder
         )
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
@@ -198,8 +204,9 @@ final class ViewerWindowController: NSWindowController {
         }
         store.openFile(fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
+        // CLI から --source/--preview が指定された場合はそちらを優先し、保存値は書き換えない(この起動限りの上書き)。
         // applySourceMode が内部で updateModeToggleAppearance() を呼ぶため、ここでの明示呼び出しは不要。
-        applySourceMode(perFileState.sourceMode.restoredSourceMode(for: fileURL))
+        applySourceMode(sourceModeOverride ?? perFileState.sourceMode.restoredSourceMode(for: fileURL))
         sidebar.recordHistory()
     }
 
