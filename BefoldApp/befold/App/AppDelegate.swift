@@ -92,6 +92,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             updaterController.updater.automaticallyChecksForUpdates = false
         #endif
         updaterController.startUpdater()
+        // startUpdater() は前回チェックから updateCheckInterval 経過時のみチェックするため、
+        // 起動毎に必ずチェックさせるには明示的な呼び出しが必要
+        if updaterController.updater.automaticallyChecksForUpdates {
+            updaterController.updater.checkForUpdatesInBackground()
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
