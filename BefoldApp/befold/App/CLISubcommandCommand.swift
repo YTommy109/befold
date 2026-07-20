@@ -73,18 +73,21 @@ enum CLICheckCommand {
     }
 
     /// ContentLoader/NormalizedTextCache のサイズ上限定数を再利用し、開けない理由があれば返す。
+    /// 実際のオープン経路 ViewerLoadPipeline.load と同じ順序(バイナリ判定 → サイズ判定)で
+    /// 判定する。順序が逆だと、10MB超かつ内容がバイナリ判定されるテキスト系ファイルで
+    /// fileTooLarge/unsupportedFormat の報告が実際のオープン結果と食い違う。
     private static func rejectReason(
         for fileType: FileType, size: Int, target: URL, fileReader: any FileReading
     ) -> RejectReason? {
-        let sizeLimit = fileType.isBinaryContent
-            ? ContentLoader.maxFileSizeBytes
-            : fileType.isLineOriented ? NormalizedTextCache.maxFileSizeBytes : ContentLoader.maxTextFileSizeBytes
-        if size > sizeLimit {
-            return .fileTooLarge
+        if fileType.isBinaryContent {
+            return size > ContentLoader.maxFileSizeBytes ? .fileTooLarge : nil
         }
-        if !fileType.isBinaryContent, fileReader.isBinary(at: target) {
+        if fileReader.isBinary(at: target) {
             return .unsupportedFormat
         }
-        return nil
+        let sizeLimit = fileType.isLineOriented
+            ? NormalizedTextCache.maxFileSizeBytes
+            : ContentLoader.maxTextFileSizeBytes
+        return size > sizeLimit ? .fileTooLarge : nil
     }
 }

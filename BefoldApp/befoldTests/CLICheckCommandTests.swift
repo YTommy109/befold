@@ -51,6 +51,20 @@ struct CLICheckCommandTests {
         #expect(result.message.contains(RejectReason.unsupportedFormat.localizedMessage))
     }
 
+    @Test("サイズ超過かつ内容がバイナリの場合、実際のオープン経路と同じくバイナリ判定を優先する(TASK-73.8)")
+    func oversizedAndBinaryContentPrefersUnsupportedFormatOverFileTooLarge() {
+        let url = URL(fileURLWithPath: "/tmp/big-binary.md")
+        let reader = InMemoryFileReader(files: [url.path: "not really markdown"])
+        reader.setBinary(true, at: url)
+        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: url)
+
+        let result = CLICheckCommand.run([url.path], fileReader: reader)
+
+        #expect(result.exitCode != 0)
+        #expect(result.message.contains(RejectReason.unsupportedFormat.localizedMessage))
+        #expect(!result.message.contains(RejectReason.fileTooLarge.localizedMessage))
+    }
+
     @Test("引数の数が不正な場合は usage エラーになる")
     func invalidArgumentCountReturnsUsageError() {
         #expect(CLICheckCommand.run([]).exitCode == 64)
