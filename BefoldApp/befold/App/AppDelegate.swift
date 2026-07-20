@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 既に起動中のインスタンスがあればそちらへ転送し、無ければ新規に GUI を起動する。
     private nonisolated static func launch(withInitialPaths paths: [String], options: CLIOpenOptions) {
         MainActor.assumeIsolated {
-            if !paths.isEmpty, let running = CLIInstanceRouter.runningInstance() {
+            if let running = CLIInstanceRouter.runningInstance() {
                 if CLIInstanceRouter.forward(paths: paths, options: options, to: running) {
                     exit(0)
                 }
