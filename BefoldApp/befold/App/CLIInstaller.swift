@@ -6,10 +6,15 @@ enum CLIInstallError: Error, Equatable {
 
 /// PATH に `befold` コマンドをインストールする(VSCode の `code` コマンド相当)。
 enum CLIInstaller {
-    /// `open -a` 経由でアプリを起動するシムスクリプトの内容を生成する。
+    /// アプリ本体の実行ファイルを直接 exec するシムスクリプトの内容を生成する。
+    /// `open -a` 経由だと `open(1)` が全引数をファイルパスとして扱うため、
+    /// `--hidden-files` のようなオプションフラグをアプリ本体まで区別して渡せない。
+    /// また `open -a --args` は既に起動中のインスタンスには argv を届けられないため、
+    /// バンドル内の実行ファイルを直接 exec する方式にしている。
     static func shimScriptContents(bundlePath: String) -> String {
         let shebang = "#!/bin/bash"
-        let command = "exec open -a \(bundlePath.shellQuoted) \"$@\""
+        let executablePath = "\(bundlePath)/Contents/MacOS/befold"
+        let command = "exec \(executablePath.shellQuoted) \"$@\""
         return "\(shebang)\n\(command)\n"
     }
 

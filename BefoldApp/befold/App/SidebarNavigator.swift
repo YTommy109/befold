@@ -48,6 +48,7 @@ final class SidebarNavigator {
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: URL?,
         hiddenFilesPreference: HiddenFilesPreference,
+        sortOrder: SortOrder = .foldersFirst,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]
             = DirectoryLister.listEntriesAsync
     ) {
@@ -56,7 +57,8 @@ final class SidebarNavigator {
         fileListModel = FileListModel(
             currentDirectory: currentDirectory,
             entries: entries,
-            selection: selection
+            selection: selection,
+            sortOrder: sortOrder
         )
         syncShowHiddenFiles()
     }
