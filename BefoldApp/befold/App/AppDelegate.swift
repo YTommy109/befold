@@ -100,8 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private nonisolated static func launch(withInitialPaths paths: [String], options: CLIOpenOptions) {
         MainActor.assumeIsolated {
             if !paths.isEmpty, let running = CLIInstanceRouter.runningInstance() {
-                CLIInstanceRouter.forward(paths: paths, options: options, to: running)
-                exit(0)
+                if CLIInstanceRouter.forward(paths: paths, options: options, to: running) {
+                    exit(0)
+                }
+                FileHandle.standardError.write(Data("既存インスタンスへの転送に失敗しました\n".utf8))
+                exit(1)
             }
             let app = NSApplication.shared
             app.setActivationPolicy(.regular)
@@ -126,6 +129,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 別プロセスの CLI 起動から、起動中の当インスタンスへ転送されたオープン要求を処理する。
     @objc private func handleCLIOpenRequest(_ notification: Notification) {
         guard let (paths, options) = CLIInstanceRouter.decode(userInfo: notification.userInfo) else { return }
+        if let requestID = CLIInstanceRouter.requestID(from: notification.userInfo) {
+            CLIInstanceRouter.sendAck(requestID: requestID)
+        }
         openPaths(paths, options: options)
         NSApp.activate()
     }
