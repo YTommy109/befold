@@ -62,42 +62,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     nonisolated static func main() {
         let arguments = Array(CommandLine.arguments.dropFirst())
-        switch CLIArgumentParser.parse(arguments) {
-        case .success(.help):
-            print(CLIArgumentParser.usageText)
-            exit(0)
-        case let .success(.openPaths(paths, options)):
-            launch(withInitialPaths: paths, options: options)
-        case let .success(.subcommand(name, arguments)):
-            runSubcommand(name: name, arguments: arguments)
-        case let .failure(error):
-            FileHandle.standardError.write(Data((error.message + "\n").utf8))
-            exit(64)
+        do {
+            var command = try BefoldRootCommand.parseAsRoot(arguments)
+            try command.run()
+        } catch {
+            BefoldRootCommand.exit(withError: error)
         }
-    }
-
-    /// GUI を起動せず、サブコマンドの結果を stdout/stderr へ出力してプロセスを終了する。
-    private nonisolated static func runSubcommand(name: String, arguments: [String]) -> Never {
-        let result = MainActor.assumeIsolated { () -> CLICommandResult in
-            switch name {
-            case "bookmark":
-                CLIBookmarkCommand.run(arguments)
-            case "check":
-                CLICheckCommand.run(arguments)
-            default:
-                CLICommandResult(message: "未実装のサブコマンドです: \(name)", exitCode: 1)
-            }
-        }
-        if result.exitCode == 0 {
-            print(result.message)
-        } else {
-            FileHandle.standardError.write(Data((result.message + "\n").utf8))
-        }
-        exit(result.exitCode)
     }
 
     /// 既に起動中のインスタンスがあればそちらへ転送し、無ければ新規に GUI を起動する。
-    private nonisolated static func launch(withInitialPaths paths: [String], options: CLIOpenOptions) {
+    /// `BefoldRootCommand.run()` から呼ばれる(パス解析・サブコマンド分岐は ArgumentParser に委譲する)。
+    nonisolated static func launch(withInitialPaths paths: [String], options: CLIOpenOptions) {
         MainActor.assumeIsolated {
             if let running = CLIInstanceRouter.runningInstance() {
                 if CLIInstanceRouter.forward(paths: paths, options: options, to: running) {

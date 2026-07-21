@@ -9,6 +9,9 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.0.0"
+  swift-argument-parser:
+    url: https://github.com/apple/swift-argument-parser
+    from: "1.5.0"
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -78,6 +81,8 @@ targets:
       - target: BefoldKit
       - target: BefoldRenderKit
       - package: Sparkle
+      - package: swift-argument-parser
+        product: ArgumentParser
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold
       PRODUCT_NAME: befold
