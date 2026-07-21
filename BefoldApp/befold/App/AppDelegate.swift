@@ -103,11 +103,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return paths.isEmpty ? .launchAsNewInstance : .exitWithForwardError
     }
 
+    /// paths も表示オプションも指定されていない、単なる `befold` 起動(既存インスタンスの
+    /// 前面化だけが目的)かどうか。この場合は転送すべき内容が無いため、
+    /// forward() の ACK 待ちコスト(task-88 参照)を経由せず直接 activate() すれば十分(task-89)。
+    nonisolated static func isTrivialActivateOnly(paths: [String], options: CLIOpenOptions) -> Bool {
+        paths.isEmpty && options == CLIOpenOptions()
+    }
+
     /// 既に起動中のインスタンスがあればそちらへ転送し、無ければ新規に GUI を起動する。
     /// `BefoldRootCommand.run()` から呼ばれる(パス解析・サブコマンド分岐は ArgumentParser に委譲する)。
     nonisolated static func launch(withInitialPaths paths: [String], options: CLIOpenOptions) {
         MainActor.assumeIsolated {
             let running = CLIInstanceRouter.runningInstance()
+            if let running, isTrivialActivateOnly(paths: paths, options: options) {
+                running.activate()
+                exit(0)
+            }
             let forwardSucceeded = running.map {
                 CLIInstanceRouter.forward(paths: paths, options: options, to: $0)
             } ?? false

@@ -47,4 +47,21 @@ struct AppDelegateLaunchTests {
             ) == .exitWithForwardError
         )
     }
+
+    @Test("パスも表示オプションも無い起動は、前面化だけが目的の単純ケースと判定する(TASK-89)")
+    func detectsTrivialActivateOnlyLaunch() {
+        #expect(AppDelegate.isTrivialActivateOnly(paths: [], options: CLIOpenOptions()))
+    }
+
+    @Test("パスがあれば単純ケースと判定しない")
+    func doesNotTreatLaunchWithPathsAsTrivial() {
+        #expect(!AppDelegate.isTrivialActivateOnly(paths: ["a.md"], options: CLIOpenOptions()))
+    }
+
+    @Test("表示オプションが1つでも指定されていれば単純ケースと判定しない")
+    func doesNotTreatLaunchWithDisplayOptionsAsTrivial() {
+        var options = CLIOpenOptions()
+        options.showLineNumbers = true
+        #expect(!AppDelegate.isTrivialActivateOnly(paths: [], options: options))
+    }
 }
