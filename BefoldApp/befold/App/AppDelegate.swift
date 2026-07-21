@@ -198,16 +198,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 書き込み(再インストール自体)は行わない。
     ///
     /// 状態チェックのファイル I/O はバックグラウンドキューへ逃がし、起動処理(ウィンドウ復元・
-    /// メニュー構築)をブロックしない。案内も app-modal な `runModal()` ではなくウィンドウに
-    /// 紐づく非ブロッキングなシートで表示し、表示中も CLI 転送の ACK 応答が main run loop 上で
-    /// 通常どおり処理され続けるようにする。
+    /// メニュー構築)をブロックしない。案内も app-modal な `runModal()` ではなく通知センターの
+    /// バナー通知で表示し、表示中も CLI 転送の ACK 応答が main run loop 上で通常どおり
+    /// 処理され続けるようにする。
     private func notifyIfCLIShimIsStale() {
         let bundlePath = Bundle.main.bundlePath
         DispatchQueue.global(qos: .utility).async {
             let status = CLIShimInspector.status(bundlePath: bundlePath, installPath: CLIInstaller.defaultInstallPath)
             guard status == .legacyFile || status == .staleSymlink else { return }
-            DispatchQueue.main.async {
-                CLIInstallUI.presentReinstallRecommended(attachedTo: NSApp.windows.first { $0.isVisible })
+            Task { @MainActor in
+                await CLIInstallUI.presentReinstallRecommended()
             }
         }
     }
