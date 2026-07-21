@@ -190,6 +190,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if updaterController.updater.automaticallyChecksForUpdates {
             updaterController.updater.checkForUpdatesInBackground()
         }
+        notifyIfCLIShimIsStale()
+    }
+
+    /// 起動時に一度だけ /usr/local/bin/befold の状態を読み取り専用でチェックし、
+    /// 古い実体ファイル/参照先不一致の symlink が残っている場合のみ再インストールを案内する。
+    /// 書き込み(再インストール自体)は行わない。
+    ///
+    /// 状態チェックのファイル I/O はバックグラウンドキューへ逃がし、起動処理(ウィンドウ復元・
+    /// メニュー構築)をブロックしない。案内も app-modal な `runModal()` ではなくウィンドウに
+    /// 紐づく非ブロッキングなシートで表示し、表示中も CLI 転送の ACK 応答が main run loop 上で
+    /// 通常どおり処理され続けるようにする。
+    private func notifyIfCLIShimIsStale() {
+        let bundlePath = Bundle.main.bundlePath
+        DispatchQueue.global(qos: .utility).async {
+            let status = CLIShimInspector.status(bundlePath: bundlePath, installPath: CLIInstaller.defaultInstallPath)
+            guard status == .legacyFile || status == .staleSymlink else { return }
+            DispatchQueue.main.async {
+                CLIInstallUI.presentReinstallRecommended(attachedTo: NSApp.windows.first { $0.isVisible })
+            }
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -312,7 +332,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// メニューの「Install 'befold' command in PATH」。/usr/local/bin にシムスクリプトを設置する。
     @objc func installCLI(_ sender: Any?) {
-        let installPath = URL(fileURLWithPath: "/usr/local/bin/befold")
+        let installPath = CLIInstaller.defaultInstallPath
         let result = CLIInstaller.install(bundlePath: Bundle.main.bundlePath, installPath: installPath)
         switch result {
         case .success:

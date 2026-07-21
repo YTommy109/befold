@@ -1378,6 +1378,23 @@
         }
       }
     },
+    "cli.install.reinstallRecommended": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The 'befold' command is outdated. Choose \"Install Command Line Tool\" from the menu to update it."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "'befold' コマンドが古い状態です。メニューの「コマンドラインツールをインストール」から更新してください。"
+          }
+        }
+      }
+    },
     "viewer.loading": {
       "extractionState": "manual",
       "localizations": {

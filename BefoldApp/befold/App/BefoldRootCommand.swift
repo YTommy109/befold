@@ -46,6 +46,10 @@ struct BefoldRootCommand: ParsableCommand {
 
         "check"/"bookmark" という名前のパスや、ハイフンで始まるパスを開く場合は \
         `--` 以降を常にパスとして扱う機能を使う(例: befold -- -notes.md)。
+
+        `befold` コマンドは /Applications/befold.app 内の実行ファイルへの symlink です。\
+        アプリを /Applications 以外へ移動した場合は、befold のアプリメニューから \
+        「コマンドラインツールをインストール」を再度実行してください。
         """,
         subcommands: [OpenPathsCommand.self, BookmarkPassthroughCommand.self, CheckPassthroughCommand.self],
         defaultSubcommand: OpenPathsCommand.self
