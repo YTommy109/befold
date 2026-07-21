@@ -60,6 +60,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.hiddenFilesPreference = hiddenFilesPreference
         sessionRestorer = SessionRestorer(sessionStore: sessionStore, windowManager: windowManager)
         super.init()
+        // NSApplication.run() 開始(≒applicationWillFinishLaunching発火)を待たずに登録する。
+        // このインスタンスは launch() の .launchAsNewInstance 分岐でのみ生成され、生成された時点で
+        // 既に NSRunningApplication 経由で「起動中インスタンス」として他プロセスから見えうるため、
+        // observer 登録を先送りするほど後続 CLI 起動からの forward() が誰にも受信されないレース窓が
+        // 広がる(task-85)。DistributedNotificationCenter への登録自体はランループの起動を必要としない。
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(handleCLIOpenRequest(_:)),
+            name: CLIInstanceRouter.openRequestNotificationName, object: nil
+        )
     }
 
     nonisolated static func main() {
@@ -125,10 +134,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         _ = DocumentController()
         sessionRestorer.captureSavedState()
-        DistributedNotificationCenter.default().addObserver(
-            self, selector: #selector(handleCLIOpenRequest(_:)),
-            name: CLIInstanceRouter.openRequestNotificationName, object: nil
-        )
     }
 
     /// 別プロセスの CLI 起動から、起動中の当インスタンスへ転送されたオープン要求を処理する。
