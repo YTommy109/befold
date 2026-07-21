@@ -84,6 +84,24 @@ struct CLICheckCommandTests {
         #expect(result.message.contains("md"))
     }
 
+    @Test("フォルダー内のファイル解決はDirectoryListerと同じ自然順ソートを使う(TASK-73.12)")
+    func directoryResolutionUsesNaturalSortLikeDirectoryLister() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        // バイト列比較では "file10.md" < "file2.md" となり誤った順序になるが、
+        // 自然順ソート(localizedStandardCompare)では "file2.md" が先に来る
+        // (DirectoryLister.firstSupportedFile/GUI が実際に開くファイルと一致させる)。
+        _ = try tmp.file(named: "file10.md", contents: "# ten")
+        _ = try tmp.file(named: "file2.md", contents: "# two")
+
+        let result = CLICheckCommand.run([tmp.url.path])
+        let expected = DirectoryLister.firstSupportedFile(in: tmp.url)
+
+        #expect(result.exitCode == 0)
+        #expect(expected?.lastPathComponent == "file2.md")
+        #expect(result.message.contains("file2.md"))
+    }
+
     @Test("空のフォルダーはエラーになる")
     func emptyDirectoryFails() throws {
         let tmp = try TempDir()
