@@ -125,7 +125,10 @@ enum DirectoryLister {
         for url in contents {
             if fileReader.isDirectory(at: url) {
                 folders.append(url)
-            } else if fileReader.isExistingFile(at: url) {
+            } else {
+                // 実体が存在しないダングリングシンボリックリンク等の非通常エントリも
+                // files に算入する。サイレントに一覧から消さず、開こうとした時点で
+                // 既存のオープン/エラー表示フローに委譲する。
                 files.append(url)
             }
         }

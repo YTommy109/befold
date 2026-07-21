@@ -110,5 +110,24 @@ struct CLICheckCommandTests {
         let result = CLICheckCommand.run([tmp.url.path])
 
         #expect(result.exitCode != 0)
+        #expect(result.message.contains("フォルダー内にファイルがありません"))
+    }
+
+    @Test("壊れたシンボリックリンクだけのフォルダーは空扱いせず、開けないエントリとして報告する")
+    func directoryWithOnlyDanglingSymlinkReportsUnopenableEntry() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        try FileManager.default.createSymbolicLink(
+            at: tmp.url.appendingPathComponent("broken.mmd"),
+            withDestinationURL: tmp.url.appendingPathComponent("missing.mmd")
+        )
+
+        let result = CLICheckCommand.run([tmp.url.path])
+
+        #expect(result.exitCode != 0)
+        #expect(result.message.contains("broken.mmd"))
+        #expect(result.message.contains("実体が見つかりません"))
+        // 「フォルダーが空」の文言とは区別されること(実際の原因を報告する)。
+        #expect(!result.message.contains("フォルダー内にファイルがありません"))
     }
 }

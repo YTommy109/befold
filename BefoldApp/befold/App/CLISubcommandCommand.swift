@@ -41,7 +41,16 @@ enum CLICheckCommand {
         }
 
         guard let target = DirectoryLister.resolveFileToOpen(at: url, fileReader: fileReader) else {
-            return CLICommandResult(message: "フォルダー内に開けるファイルがありません: \(path)", exitCode: 1)
+            return CLICommandResult(message: "フォルダー内にファイルがありません: \(path)", exitCode: 1)
+        }
+
+        // フォルダーは非空だが、解決先が実体のないエントリ(削除済みターゲットを指す
+        // ダングリングシンボリックリンク等)のケース。「フォルダーが空」とは区別して報告する。
+        guard fileReader.isExistingFile(at: target) else {
+            return CLICommandResult(
+                message: "開けません: \(target.path)\n理由: ファイルの実体が見つかりません(壊れたシンボリックリンクの可能性があります)",
+                exitCode: 1
+            )
         }
 
         let fileType = FileType(url: target)
