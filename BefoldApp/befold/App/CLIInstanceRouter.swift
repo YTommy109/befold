@@ -13,6 +13,13 @@ enum CLIInstanceRouter {
     /// forward() が ACK 未受信時に同じ要求を再送する最大試行回数。
     static let maxForwardAttempts = 3
     /// 1回の試行あたり、ACK 受信を待つ最大秒数。
+    ///
+    /// maxForwardAttempts × ackTimeout(現状 1.5 秒)は、起動直後でオブザーバ登録が
+    /// まだ完了していない宛先インスタンスへの転送が待つ最大時間でもある(task-86)。
+    /// ここを安易に短縮すると、宛先の初期化がこの総待ち時間より遅い場合に、
+    /// 一度も request が届かないまま isDestinationAlive のフォールバックで
+    /// 成功扱いされてしまう既知の限界(task-86)を悪化させる。CLI 呼び出し元の
+    /// 体感速度より、この安全マージンを優先し現状の値を維持する(task-88)。
     static let ackTimeout: TimeInterval = 0.5
 
     /// 自プロセス以外に起動中の befold インスタンスがあれば返す。
