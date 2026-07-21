@@ -27,7 +27,14 @@ enum CLIInstanceRouter {
     /// `paths`/`options` を既存インスタンスへ Distributed Notification 経由で転送し、
     /// 対象インスタンスからの ACK を待つ。起動直後でオブザーバ未登録のインスタンスへ転送する場合、
     /// 通知は誰にも受信されず失われうるため、ACK が届くまで `maxAttempts` 回まで再送する。
-    /// 戻り値は ACK を確認できたかどうか(false の場合、呼び出し元はエラーとして扱うこと)。
+    ///
+    /// ACK 自体も同じ DistributedNotificationCenter 経由で返ってくるため、request 側同様に
+    /// 消失しうる。`maxAttempts` 回再送しても ACK が一度も観測できなかった場合、宛先プロセスが
+    /// まだ生存していれば「(ほぼ確実に配送されている) request は処理済みだが ACK だけ消失した」と
+    /// みなし、配送失敗ではなく成功として扱う(task-81)。宛先プロセスが実際に終了していた場合のみ、
+    /// 真の配送失敗として false を返す。
+    /// 戻り値は転送が(確認または生存推定により)成功したとみなせるか(false の場合のみ、
+    /// 呼び出し元はエラーとして扱うこと)。
     @MainActor
     static func forward(
         paths: [String], options: CLIOpenOptions, to instance: NSRunningApplication,
@@ -38,8 +45,12 @@ enum CLIInstanceRouter {
                 name, object: nil, userInfo: userInfo, deliverImmediately: true
             )
         },
-        waitForAck: (String, TimeInterval) -> Bool = defaultWaitForAck
+        waitForAck: (String, TimeInterval) -> Bool = defaultWaitForAck,
+        isDestinationAlive: (() -> Bool)? = nil,
+        activate: (() -> Void)? = nil
     ) -> Bool {
+        let isDestinationAlive = isDestinationAlive ?? { !instance.isTerminated }
+        let activate = activate ?? { instance.activate() }
         let requestID = UUID().uuidString
         var userInfo: [String: Any] = ["paths": paths, "requestID": requestID]
         if let value = options.showHiddenFiles { userInfo["showHiddenFiles"] = value }
@@ -50,11 +61,13 @@ enum CLIInstanceRouter {
         for _ in 0 ..< maxAttempts {
             post(openRequestNotificationName, userInfo)
             if waitForAck(requestID, ackTimeout) {
-                instance.activate()
+                activate()
                 return true
             }
         }
-        return false
+        guard isDestinationAlive() else { return false }
+        activate()
+        return true
     }
 
     /// `openRequestAckNotificationName` を購読し、一致する requestID の ACK を `timeout` 秒まで待つ。

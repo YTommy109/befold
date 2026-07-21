@@ -9,17 +9,20 @@ import Testing
 @Suite
 @MainActor
 struct CLIInstanceRouterTests {
-    @Test("ACK が初回で届いた場合は true を返し、再送しない")
+    @Test("ACK が初回で届いた場合は true を返し、再送せず前面化する")
     func returnsTrueOnFirstAck() {
         var postCount = 0
+        var activateCount = 0
         let acked = CLIInstanceRouter.forward(
             paths: ["a.md"], options: CLIOpenOptions(), to: NSRunningApplication.current,
             post: { _, _ in postCount += 1 },
-            waitForAck: { _, _ in true }
+            waitForAck: { _, _ in true },
+            activate: { activateCount += 1 }
         )
 
         #expect(acked)
         #expect(postCount == 1)
+        #expect(activateCount == 1)
     }
 
     @Test("起動直後でACKが届かない場合、maxAttempts回まで同じ requestID で再送する")
@@ -41,18 +44,40 @@ struct CLIInstanceRouterTests {
         #expect(Set(seenRequestIDs).count == 1)
     }
 
-    @Test("maxAttempts回試してもACKが届かない場合は false を返す")
-    func returnsFalseWhenAckNeverObserved() {
+    @Test("maxAttempts回試してもACKが届かず、かつ宛先プロセスが終了している場合は false を返す(真の配送失敗)")
+    func returnsFalseWhenAckNeverObservedAndDestinationTerminated() {
         var attempts = 0
+        var activateCount = 0
         let acked = CLIInstanceRouter.forward(
             paths: ["a.md"], options: CLIOpenOptions(), to: NSRunningApplication.current,
             maxAttempts: 3,
             post: { _, _ in attempts += 1 },
-            waitForAck: { _, _ in false }
+            waitForAck: { _, _ in false },
+            isDestinationAlive: { false },
+            activate: { activateCount += 1 }
         )
 
         #expect(!acked)
         #expect(attempts == 3)
+        #expect(activateCount == 0)
+    }
+
+    @Test("maxAttempts回試してもACKが届かないが、宛先プロセスが生存している場合はACK消失とみなし true を返し前面化する(task-81)")
+    func returnsTrueWhenAckLostButDestinationAlive() {
+        var attempts = 0
+        var activateCount = 0
+        let acked = CLIInstanceRouter.forward(
+            paths: ["a.md"], options: CLIOpenOptions(), to: NSRunningApplication.current,
+            maxAttempts: 3,
+            post: { _, _ in attempts += 1 },
+            waitForAck: { _, _ in false },
+            isDestinationAlive: { true },
+            activate: { activateCount += 1 }
+        )
+
+        #expect(acked)
+        #expect(attempts == 3)
+        #expect(activateCount == 1)
     }
 
     @Test("requestID / decode は往復できる")
