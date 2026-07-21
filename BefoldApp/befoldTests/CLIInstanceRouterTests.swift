@@ -62,6 +62,10 @@ struct CLIInstanceRouterTests {
         #expect(activateCount == 0)
     }
 
+    /// forward() は「ACK消失だが処理済み」を、宛先の実際の状態(起動直後でオブザーバ未登録 /
+    /// 生存しているがRunLoopハング中)から区別できない。isDestinationAlive を true にする
+    /// このテストは、どちらのケースでも forward() が同じ挙動(true・前面化)になることを規定する。
+    /// この2ケースを true 扱いすることは task-86 で検討済みで、意図的に許容している既知の限界。
     @Test("maxAttempts回試してもACKが届かないが、宛先プロセスが生存している場合はACK消失とみなし true を返し前面化する(task-81)")
     func returnsTrueWhenAckLostButDestinationAlive() {
         var attempts = 0
