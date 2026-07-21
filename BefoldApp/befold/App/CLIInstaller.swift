@@ -5,63 +5,60 @@ enum CLIInstallError: Error, Equatable {
 }
 
 /// PATH に `befold` コマンドをインストールする(VSCode の `code` コマンド相当)。
+///
+/// `/usr/local/bin/befold` はバンドル内の実行ファイルへの symlink として設置する。
+/// シムスクリプトのファイルをコピーする方式だと、アプリ本体がアップデートされても
+/// 設置済みのシムの中身は追随せず古いロジックのまま残ってしまう
+/// (例: 旧バージョンでは `open -a` 経由の別方式だった)。symlink はパス解決を OS に
+/// 任せるため、アプリが同一パスへ上書き更新される限り常に最新の実行ファイルを指す。
 enum CLIInstaller {
-    /// アプリ本体の実行ファイルを直接 exec するシムスクリプトの内容を生成する。
-    /// `open -a` 経由だと `open(1)` が全引数をファイルパスとして扱うため、
-    /// `--hidden-files` のようなオプションフラグをアプリ本体まで区別して渡せない。
-    /// また `open -a --args` は既に起動中のインスタンスには argv を届けられないため、
-    /// バンドル内の実行ファイルを直接 exec する方式にしている。
-    static func shimScriptContents(bundlePath: String) -> String {
-        let shebang = "#!/bin/bash"
-        let executablePath = "\(bundlePath)/Contents/MacOS/befold"
-        let command = "exec \(executablePath.shellQuoted) \"$@\""
-        return "\(shebang)\n\(command)\n"
+    /// symlink の参照先となる、バンドル内の実行ファイルのパスを返す。
+    static func targetExecutablePath(bundlePath: String) -> String {
+        "\(bundlePath)/Contents/MacOS/befold"
     }
 
-    /// `installPath` にシムスクリプトを書き込む。書き込み権限がない場合は
-    /// 管理者権限(AppleScript `with administrator privileges`)での書き込みにフォールバックする。
+    /// `installPath` にバンドル内実行ファイルへの symlink を作成する。書き込み権限がない場合は
+    /// 管理者権限(AppleScript `with administrator privileges`)での作成にフォールバックする。
     static func install(bundlePath: String, installPath: URL) -> Result<Void, CLIInstallError> {
-        let contents = shimScriptContents(bundlePath: bundlePath)
-        if writeDirectly(contents: contents, to: installPath) {
+        let target = targetExecutablePath(bundlePath: bundlePath)
+        if writeDirectly(target: target, to: installPath) {
             return .success(())
         }
-        if writeWithAdministratorPrivileges(contents: contents, to: installPath) {
+        if writeWithAdministratorPrivileges(target: target, to: installPath) {
             return .success(())
         }
         return .failure(.writeFailed(installPath.path))
     }
 
-    private static func writeDirectly(contents: String, to url: URL) -> Bool {
+    private static func writeDirectly(target: String, to url: URL) -> Bool {
+        try? FileManager.default.removeItem(at: url)
         do {
-            try contents.write(to: url, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+            try FileManager.default.createSymbolicLink(atPath: url.path, withDestinationPath: target)
             return true
         } catch {
             return false
         }
     }
 
-    private static func writeWithAdministratorPrivileges(contents: String, to url: URL) -> Bool {
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        do {
-            try contents.write(to: tempURL, atomically: true, encoding: .utf8)
-        } catch {
-            return false
-        }
-        defer { try? FileManager.default.removeItem(at: tempURL) }
-
+    private static func writeWithAdministratorPrivileges(target: String, to url: URL) -> Bool {
         let destPath = url.path
         let dirPath = url.deletingLastPathComponent().path
-        let shellCmd = """
-        mkdir -p \(dirPath.shellQuoted) && \
-        cp \(tempURL.path.shellQuoted) \(destPath.shellQuoted) && \
-        chmod 755 \(destPath.shellQuoted)
-        """
+        let shellCmd = administratorInstallShellCommand(target: target, destPath: destPath, dirPath: dirPath)
         let script = "do shell script \"\(appleScriptQuoted(shellCmd))\" with administrator privileges"
         guard let appleScript = NSAppleScript(source: script) else { return false }
         var errorDict: NSDictionary?
         appleScript.executeAndReturnError(&errorDict)
         return errorDict == nil
+    }
+
+    /// 管理者権限で実行するシェルコマンドの組み立て。既存の実体ファイル/symlink を
+    /// 削除してから symlink を作成する(`ln -s` は既存パスがあると失敗するため)。
+    static func administratorInstallShellCommand(target: String, destPath: String, dirPath: String) -> String {
+        """
+        mkdir -p \(dirPath.shellQuoted) && \
+        rm -f \(destPath.shellQuoted) && \
+        ln -s \(target.shellQuoted) \(destPath.shellQuoted)
+        """
     }
 
     /// AppleScript の文字列リテラル向けにバックスラッシュとダブルクォートをエスケープする。
