@@ -21,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let initialPaths: [String]
     /// CLI から指定された表示オプション(未指定項目は nil で、既存の保存済み設定・既定値を維持する)。
     private let initialOptions: CLIOpenOptions
+    /// CLIInstanceRouter.forward() の再送による同一requestIDの二重処理を防ぐ。
+    private var cliRequestDeduplicator = CLIRequestDeduplicator()
     private lazy var recentDocumentsMenuController = RecentDocumentsMenuController(
         recentURLs: { [weak self] in self?.recentDocumentsStore.recentURLs() ?? [] },
         openHandler: { [weak self] url in self?.openViewer(for: url) },
@@ -130,11 +132,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// 別プロセスの CLI 起動から、起動中の当インスタンスへ転送されたオープン要求を処理する。
+    /// forward() は ACK 未受信時に同じ requestID で再送するため、ACK は受信のたびに返すが、
+    /// openPaths の実行は requestID ごとに一度だけに絞る(task-79)。
     @objc private func handleCLIOpenRequest(_ notification: Notification) {
         guard let (paths, options) = CLIInstanceRouter.decode(userInfo: notification.userInfo) else { return }
-        if let requestID = CLIInstanceRouter.requestID(from: notification.userInfo) {
+        let requestID = CLIInstanceRouter.requestID(from: notification.userInfo)
+        if let requestID {
             CLIInstanceRouter.sendAck(requestID: requestID)
         }
+        guard cliRequestDeduplicator.shouldProcess(requestID: requestID) else { return }
         openPaths(paths, options: options)
         NSApp.activate()
     }
