@@ -13,6 +13,11 @@ struct CLIOpenOptions: Equatable, Codable {
     var sortOrder: CLISortOrderOption?
     var showLineNumbers: Bool?
     var sourceMode: Bool?
+
+    /// Viewer 層の `SortOrder` へ変換したもの。未指定時は既定の `.foldersFirst`。
+    var viewerSortOrder: SortOrder {
+        sortOrder == .alphabetical ? .alphabetical : .foldersFirst
+    }
 }
 
 /// befold CLI のルートコマンド。`befold` シム経由で渡された argv を解析する。

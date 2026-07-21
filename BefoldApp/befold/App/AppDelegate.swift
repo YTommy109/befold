@@ -121,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             bookmarksMenuDelegate: bookmarksMenuController
         )
         if initialPaths.isEmpty {
-            sessionRestorer.restoreLastSession()
+            sessionRestorer.restoreLastSession(options: initialOptions)
         } else {
             openPaths(initialPaths, options: initialOptions)
         }
@@ -200,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         windowManager.openViewer(
             for: target, forceSidebarVisible: isDirectory,
-            initialSortOrder: options.sortOrder == .alphabetical ? .alphabetical : .foldersFirst,
+            initialSortOrder: options.viewerSortOrder,
             showLineNumbersOverride: options.showLineNumbers,
             sourceModeOverride: options.sourceMode
         )
