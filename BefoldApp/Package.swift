@@ -7,6 +7,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.0.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
         .package(url: "https://github.com/SimplyDanny/SwiftLintPlugins", from: "0.58.0"),
         .package(url: "https://github.com/nicklockwood/SwiftFormat", from: "0.55.0"),
     ],
@@ -47,6 +48,7 @@ let package = Package(
                 "BefoldKit",
                 "BefoldRenderKit",
                 .product(name: "Sparkle", package: "Sparkle"),
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "befold",
             exclude: ["Info.plist", "befold.entitlements"],

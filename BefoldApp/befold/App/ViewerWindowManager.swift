@@ -55,6 +55,21 @@ final class ViewerWindowManager {
         }
     }
 
+    /// パス無し CLI 起動(`befold --line-numbers` 等)から、開いている全ウィンドウへ表示オプションを適用する。
+    /// 新規ウィンドウ生成時は initialSortOrder/showLineNumbersOverride/sourceModeOverride で
+    /// 個別に適用できるが、パス無し起動では開くべき新規ウィンドウが無いため、既存の全ウィンドウへ
+    /// 直接反映する(task-82)。隠しファイル表示は setHiddenFiles が別途アプリ全体へ反映するため対象外。
+    func applyDisplayOverrides(showLineNumbers: Bool?, sourceMode: Bool?, sortOrder: SortOrder?) {
+        for controller in controllers.values {
+            if let showLineNumbers { controller.store.applyShowLineNumbersOverride(showLineNumbers) }
+            if let sourceMode { controller.setSourceMode(sourceMode) }
+            if let sortOrder {
+                controller.fileListModel.sortOrder = sortOrder
+                controller.sidebar.refreshFileList()
+            }
+        }
+    }
+
     /// 指定 URL のファイルをビューアウィンドウで開く。
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
     func openViewer(

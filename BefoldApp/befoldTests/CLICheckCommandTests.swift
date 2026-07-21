@@ -51,6 +51,20 @@ struct CLICheckCommandTests {
         #expect(result.message.contains(RejectReason.unsupportedFormat.localizedMessage))
     }
 
+    @Test("サイズ超過かつ内容がバイナリの場合、実際のオープン経路と同じくバイナリ判定を優先する(TASK-73.8)")
+    func oversizedAndBinaryContentPrefersUnsupportedFormatOverFileTooLarge() {
+        let url = URL(fileURLWithPath: "/tmp/big-binary.md")
+        let reader = InMemoryFileReader(files: [url.path: "not really markdown"])
+        reader.setBinary(true, at: url)
+        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: url)
+
+        let result = CLICheckCommand.run([url.path], fileReader: reader)
+
+        #expect(result.exitCode != 0)
+        #expect(result.message.contains(RejectReason.unsupportedFormat.localizedMessage))
+        #expect(!result.message.contains(RejectReason.fileTooLarge.localizedMessage))
+    }
+
     @Test("引数の数が不正な場合は usage エラーになる")
     func invalidArgumentCountReturnsUsageError() {
         #expect(CLICheckCommand.run([]).exitCode == 64)
@@ -70,6 +84,24 @@ struct CLICheckCommandTests {
         #expect(result.message.contains("md"))
     }
 
+    @Test("フォルダー内のファイル解決はDirectoryListerの実装を再利用する(TASK-73.12/TASK-80)")
+    func directoryResolutionUsesNaturalSortLikeDirectoryLister() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        // バイト列比較では "file10.md" < "file2.md" となり誤った順序になるが、
+        // 自然順ソート(localizedStandardCompare)では "file2.md" が先に来る
+        // (DirectoryLister.firstSupportedFile/GUI が実際に開くファイルと一致させる)。
+        _ = try tmp.file(named: "file10.md", contents: "# ten")
+        _ = try tmp.file(named: "file2.md", contents: "# two")
+
+        let result = CLICheckCommand.run([tmp.url.path])
+        let expected = DirectoryLister.firstSupportedFile(in: tmp.url)
+
+        #expect(result.exitCode == 0)
+        #expect(expected?.lastPathComponent == "file2.md")
+        #expect(result.message.contains("file2.md"))
+    }
+
     @Test("空のフォルダーはエラーになる")
     func emptyDirectoryFails() throws {
         let tmp = try TempDir()
@@ -78,5 +110,24 @@ struct CLICheckCommandTests {
         let result = CLICheckCommand.run([tmp.url.path])
 
         #expect(result.exitCode != 0)
+        #expect(result.message.contains("フォルダー内にファイルがありません"))
+    }
+
+    @Test("壊れたシンボリックリンクだけのフォルダーは空扱いせず、開けないエントリとして報告する")
+    func directoryWithOnlyDanglingSymlinkReportsUnopenableEntry() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        try FileManager.default.createSymbolicLink(
+            at: tmp.url.appendingPathComponent("broken.mmd"),
+            withDestinationURL: tmp.url.appendingPathComponent("missing.mmd")
+        )
+
+        let result = CLICheckCommand.run([tmp.url.path])
+
+        #expect(result.exitCode != 0)
+        #expect(result.message.contains("broken.mmd"))
+        #expect(result.message.contains("実体が見つかりません"))
+        // 「フォルダーが空」の文言とは区別されること(実際の原因を報告する)。
+        #expect(!result.message.contains("フォルダー内にファイルがありません"))
     }
 }

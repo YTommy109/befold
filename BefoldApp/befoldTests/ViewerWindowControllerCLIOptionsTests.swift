@@ -85,6 +85,62 @@ struct ViewerWindowControllerCLIOptionsTests {
         #expect(controller.store.showLineNumbers)
     }
 
+    @Test("CLI の --line-numbers 指定は保存済みのグローバル設定を書き換えない(TASK-73.13)")
+    func lineNumbersOverrideDoesNotPersistToUserDefaults() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "note.md", contents: "# hi")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
+        defaults.set(false, forKey: "ShowLineNumbers")
+
+        let controller = ViewerWindowController(
+            fileURL: file, defaults: defaults,
+            perFileState: makePerFileState(defaults: defaults),
+            showLineNumbersOverride: true
+        )
+        defer { controller.close() }
+
+        #expect(controller.store.showLineNumbers)
+        #expect(!defaults.bool(forKey: "ShowLineNumbers"))
+    }
+
+    @Test("CLI のオプション未指定時は保存済みの行番号設定がそのまま復元される")
+    func noLineNumbersOverridePreservesSavedValue() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "note.md", contents: "# hi")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
+        defaults.set(true, forKey: "ShowLineNumbers")
+
+        let controller = ViewerWindowController(
+            fileURL: file, defaults: defaults, perFileState: makePerFileState(defaults: defaults)
+        )
+        defer { controller.close() }
+
+        #expect(controller.store.showLineNumbers)
+    }
+
+    @Test("store を明示注入した場合でも --line-numbers 指定が反映される(TASK-77)")
+    func lineNumbersOverrideIsAppliedEvenWithExplicitStore() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "note.md", contents: "# hi")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
+        defaults.set(false, forKey: "ShowLineNumbers")
+        let injectedStore = ViewerStore(defaults: defaults)
+
+        let controller = ViewerWindowController(
+            fileURL: file, defaults: defaults,
+            perFileState: makePerFileState(defaults: defaults),
+            showLineNumbersOverride: true,
+            store: injectedStore
+        )
+        defer { controller.close() }
+
+        #expect(controller.store.showLineNumbers)
+        #expect(!defaults.bool(forKey: "ShowLineNumbers"))
+    }
+
     @Test("CLI の --sort 指定はサイドバーの並び順(FileListModel.sortOrder)に反映される")
     func sortOrderOverrideIsAppliedToFileListModel() throws {
         let tmp = try TempDir()

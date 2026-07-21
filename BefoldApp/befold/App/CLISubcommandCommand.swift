@@ -40,14 +40,17 @@ enum CLICheckCommand {
             return CLICommandResult(message: "指定されたパスが見つかりません: \(path)", exitCode: 1)
         }
 
-        let target: URL
-        if fileReader.isDirectory(at: url) {
-            guard let resolved = resolveFileInDirectory(url, fileReader: fileReader) else {
-                return CLICommandResult(message: "フォルダー内に開けるファイルがありません: \(path)", exitCode: 1)
-            }
-            target = resolved
-        } else {
-            target = url
+        guard let target = DirectoryLister.resolveFileToOpen(at: url, fileReader: fileReader) else {
+            return CLICommandResult(message: "フォルダー内にファイルがありません: \(path)", exitCode: 1)
+        }
+
+        // フォルダーは非空だが、解決先が実体のないエントリ(削除済みターゲットを指す
+        // ダングリングシンボリックリンク等)のケース。「フォルダーが空」とは区別して報告する。
+        guard fileReader.isExistingFile(at: target) else {
+            return CLICommandResult(
+                message: "開けません: \(target.path)\n理由: ファイルの実体が見つかりません(壊れたシンボリックリンクの可能性があります)",
+                exitCode: 1
+            )
         }
 
         let fileType = FileType(url: target)
@@ -62,29 +65,22 @@ enum CLICheckCommand {
         return CLICommandResult(message: "開けます: \(target.path)\n\(detail)", exitCode: 0)
     }
 
-    /// フォルダー内の最初に開けるファイルを探す。既存の DirectoryLister.resolveFileToOpen と
-    /// 同じ優先順位(対応形式優先→先頭ファイル)だが、fileReader を注入できるようテスト用に簡略化している。
-    private static func resolveFileInDirectory(_ directory: URL, fileReader: any FileReading) -> URL? {
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return nil }
-        let files = entries.filter { fileReader.isExistingFile(at: $0) }.sorted { $0.path < $1.path }
-        return files.first { FileType.isSupported($0) } ?? files.first
-    }
-
     /// ContentLoader/NormalizedTextCache のサイズ上限定数を再利用し、開けない理由があれば返す。
+    /// 実際のオープン経路 ViewerLoadPipeline.load と同じ順序(バイナリ判定 → サイズ判定)で
+    /// 判定する。順序が逆だと、10MB超かつ内容がバイナリ判定されるテキスト系ファイルで
+    /// fileTooLarge/unsupportedFormat の報告が実際のオープン結果と食い違う。
     private static func rejectReason(
         for fileType: FileType, size: Int, target: URL, fileReader: any FileReading
     ) -> RejectReason? {
-        let sizeLimit = fileType.isBinaryContent
-            ? ContentLoader.maxFileSizeBytes
-            : fileType.isLineOriented ? NormalizedTextCache.maxFileSizeBytes : ContentLoader.maxTextFileSizeBytes
-        if size > sizeLimit {
-            return .fileTooLarge
+        if fileType.isBinaryContent {
+            return size > ContentLoader.maxFileSizeBytes ? .fileTooLarge : nil
         }
-        if !fileType.isBinaryContent, fileReader.isBinary(at: target) {
+        if fileReader.isBinary(at: target) {
             return .unsupportedFormat
         }
-        return nil
+        let sizeLimit = fileType.isLineOriented
+            ? NormalizedTextCache.maxFileSizeBytes
+            : ContentLoader.maxTextFileSizeBytes
+        return size > sizeLimit ? .fileTooLarge : nil
     }
 }

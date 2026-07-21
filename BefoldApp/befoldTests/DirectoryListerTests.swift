@@ -1,6 +1,50 @@
 @testable import befold
+import BefoldKit
 import Foundation
 import Testing
+
+/// DirectoryLister への fileReader 注入(TASK-80)を検証するためだけの薄いラッパー。
+/// DefaultFileReader へ委譲しつつ、指定したファイル名だけ「ディレクトリ」と報告する。
+/// DirectoryLister の分類は isDirectory を参照するため、注入した fileReader が
+/// 実際に使われていれば、そのファイルはフォルダー扱いになり listFiles から外れる。
+/// (ファイル名で比較するのは、tmp ディレクトリのシンボリックリンク解決有無により
+/// FileManager 列挙結果と作成時 URL の path 文字列表現が食い違いうるため)
+private struct ExclusionFileReader: FileReading {
+    let directoryFileNames: Set<String>
+    private let base = DefaultFileReader()
+
+    init(treatingAsDirectory fileNames: [String]) {
+        directoryFileNames = Set(fileNames)
+    }
+
+    func fileExists(at url: URL) -> Bool {
+        base.fileExists(at: url)
+    }
+
+    func isDirectory(at url: URL) -> Bool {
+        directoryFileNames.contains(url.lastPathComponent) || base.isDirectory(at: url)
+    }
+
+    func isExistingFile(at url: URL) -> Bool {
+        !directoryFileNames.contains(url.lastPathComponent) && base.isExistingFile(at: url)
+    }
+
+    func readString(from url: URL) throws -> String {
+        try base.readString(from: url)
+    }
+
+    func readData(from url: URL) throws -> Data {
+        try base.readData(from: url)
+    }
+
+    func isBinary(at url: URL) -> Bool {
+        base.isBinary(at: url)
+    }
+
+    func fileSize(at url: URL) -> Int? {
+        base.fileSize(at: url)
+    }
+}
 
 @Suite
 struct DirectoryListerTests {
@@ -35,6 +79,37 @@ struct DirectoryListerTests {
         let result = DirectoryLister.listFiles(in: tmp.url)
 
         #expect(result.map(\.lastPathComponent) == ["visible.mmd"])
+    }
+
+    @Test("ダングリングシンボリックリンクも一覧に含まれる")
+    func listFilesIncludesDanglingSymlink() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: "real.mmd", contents: "graph TD;")
+        try FileManager.default.createSymbolicLink(
+            at: tmp.url.appendingPathComponent("broken.mmd"),
+            withDestinationURL: tmp.url.appendingPathComponent("does-not-exist.mmd")
+        )
+
+        let names = DirectoryLister.listFiles(in: tmp.url).map(\.lastPathComponent)
+
+        #expect(names.contains("broken.mmd"))
+        #expect(names.contains("real.mmd"))
+    }
+
+    @Test("listEntries はダングリングシンボリックリンクを file として含める")
+    func listEntriesIncludesDanglingSymlinkAsFile() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        try FileManager.default.createSymbolicLink(
+            at: tmp.url.appendingPathComponent("broken.mmd"),
+            withDestinationURL: tmp.url.appendingPathComponent("missing")
+        )
+
+        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
+        let broken = entries.first { $0.url.lastPathComponent == "broken.mmd" }
+
+        #expect(broken?.kind == .file)
     }
 
     @Test("結果がファイル名でローカライズソートされる")
@@ -258,6 +333,26 @@ struct DirectoryListerTests {
         let result = DirectoryLister.resolveFileToOpen(at: missing)
 
         #expect(result == missing)
+    }
+
+    @Test("listFiles/firstSupportedFile/resolveFileToOpen は fileReader を注入できる(TASK-80)")
+    func resolveFileToOpenHonorsInjectedFileReader() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: "a.md", contents: "# a")
+        _ = try tmp.file(named: "b.md", contents: "# b")
+        // DefaultFileReader をラップし、特定のファイル名だけ「ディレクトリ」と報告する fileReader を注入する。
+        // 分類は isDirectory を参照するため、注入が実際に使われていれば a.md はフォルダー扱いになり
+        // listFiles から外れる(無視して常に DefaultFileReader を使っていれば a.md も一覧に含まれてしまう)。
+        let reader = ExclusionFileReader(treatingAsDirectory: ["a.md"])
+
+        let files = DirectoryLister.listFiles(in: tmp.url, fileReader: reader)
+        let firstSupported = DirectoryLister.firstSupportedFile(in: tmp.url, fileReader: reader)
+        let resolved = DirectoryLister.resolveFileToOpen(at: tmp.url, fileReader: reader)
+
+        #expect(files.map(\.lastPathComponent) == ["b.md"])
+        #expect(firstSupported?.lastPathComponent == "b.md")
+        #expect(resolved?.lastPathComponent == "b.md")
     }
 
     @Test("isDirectory は既存ディレクトリで true を返す")

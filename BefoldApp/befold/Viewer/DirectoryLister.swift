@@ -6,8 +6,8 @@ enum DirectoryLister {
     /// DefaultFileReader に集約し、ここではそこへ委譲する。
     private static let fileReader: any FileReading = DefaultFileReader()
 
-    static func listFiles(in directory: URL) -> [URL] {
-        sortedContents(in: directory).files
+    static func listFiles(in directory: URL, fileReader: any FileReading = Self.fileReader) -> [URL] {
+        sortedContents(in: directory, fileReader: fileReader).files
     }
 
     static func listEntries(
@@ -62,8 +62,8 @@ enum DirectoryLister {
         firstSupportedFile(in: directory) != nil
     }
 
-    static func firstSupportedFile(in directory: URL) -> URL? {
-        listFiles(in: directory).first(where: FileType.isSupported)
+    static func firstSupportedFile(in directory: URL, fileReader: any FileReading = Self.fileReader) -> URL? {
+        listFiles(in: directory, fileReader: fileReader).first(where: FileType.isSupported)
     }
 
     /// 指定 URL がホームディレクトリ自身、またはその配下かどうかを判定する。
@@ -95,23 +95,25 @@ enum DirectoryLister {
     /// ディレクトリなら最初の対応ファイルを優先し、無ければ最初のファイルを返す
     /// (ファイルが1つもなければ nil)。ファイル・存在しないパスはそのまま返す
     /// (既存のオープン/エラー表示フローに委譲する)。
-    static func resolveFileToOpen(at url: URL) -> URL? {
-        guard isDirectory(url) else {
+    /// - Parameter fileReader: テスト用に差し替え可能(CLICheckCommand がフォルダー内ファイル解決を
+    ///   ここへ委譲する際、自身に注入された fileReader をそのまま渡す)。
+    static func resolveFileToOpen(at url: URL, fileReader: any FileReading = Self.fileReader) -> URL? {
+        guard fileReader.isDirectory(at: url) else {
             return url
         }
-        return firstSupportedFile(in: url) ?? listFiles(in: url).first
+        return firstSupportedFile(in: url, fileReader: fileReader) ?? listFiles(in: url, fileReader: fileReader).first
     }
 
     // MARK: - Private
 
     /// ディレクトリ内容を列挙し、フォルダーとファイルに分類してファイル名ソート済みで返す。
     private static func sortedContents(
-        in directory: URL, showHiddenFiles: Bool = false
+        in directory: URL, showHiddenFiles: Bool = false, fileReader: any FileReading = Self.fileReader
     ) -> (folders: [URL], files: [URL]) {
         let options: FileManager.DirectoryEnumerationOptions = showHiddenFiles ? [] : [.skipsHiddenFiles]
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: directory,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            includingPropertiesForKeys: nil,
             options: options
         ) else {
             return ([], [])
@@ -121,10 +123,12 @@ enum DirectoryLister {
         var files: [URL] = []
 
         for url in contents {
-            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-            if isDirectory {
+            if fileReader.isDirectory(at: url) {
                 folders.append(url)
             } else {
+                // 実体が存在しないダングリングシンボリックリンク等の非通常エントリも
+                // files に算入する。サイレントに一覧から消さず、開こうとした時点で
+                // 既存のオープン/エラー表示フローに委譲する。
                 files.append(url)
             }
         }
