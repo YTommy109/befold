@@ -70,23 +70,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// `launch(withInitialPaths:options:)` が転送結果を受けて取るべき行動。
+    /// 実際の `exit()`/`NSApplication.run()` を呼ばずに分岐だけをテストできるよう切り出す。
+    enum LaunchAction: Equatable {
+        /// 転送に成功した。この起動はここで終了する。
+        case exitSuccess
+        /// 転送に失敗し、かつ復元すべき対象パスも無い(パス無し起動)ため、
+        /// 旧実装と同じく自身のセッションを復元してウィンドウを開く(task-78)。
+        case launchAsNewInstance
+        /// 対象パスがある転送が失敗した。ユーザーへエラーを伝えて終了する。
+        case exitWithForwardError
+    }
+
+    /// 既存インスタンスの有無・転送結果・パスの有無から、取るべき行動を決定する。
+    /// 副作用(exit/NSApplication.run)を持たないため単体テスト可能。
+    nonisolated static func decideLaunchAction(
+        paths: [String], runningInstance: NSRunningApplication?, forwardSucceeded: Bool
+    ) -> LaunchAction {
+        guard runningInstance != nil else { return .launchAsNewInstance }
+        if forwardSucceeded { return .exitSuccess }
+        return paths.isEmpty ? .launchAsNewInstance : .exitWithForwardError
+    }
+
     /// 既に起動中のインスタンスがあればそちらへ転送し、無ければ新規に GUI を起動する。
     /// `BefoldRootCommand.run()` から呼ばれる(パス解析・サブコマンド分岐は ArgumentParser に委譲する)。
     nonisolated static func launch(withInitialPaths paths: [String], options: CLIOpenOptions) {
         MainActor.assumeIsolated {
-            if let running = CLIInstanceRouter.runningInstance() {
-                if CLIInstanceRouter.forward(paths: paths, options: options, to: running) {
-                    exit(0)
-                }
+            let running = CLIInstanceRouter.runningInstance()
+            let forwardSucceeded = running.map {
+                CLIInstanceRouter.forward(paths: paths, options: options, to: $0)
+            } ?? false
+
+            switch decideLaunchAction(paths: paths, runningInstance: running, forwardSucceeded: forwardSucceeded) {
+            case .exitSuccess:
+                exit(0)
+            case .exitWithForwardError:
                 FileHandle.standardError.write(Data("既存インスタンスへの転送に失敗しました\n".utf8))
                 exit(1)
+            case .launchAsNewInstance:
+                let app = NSApplication.shared
+                app.setActivationPolicy(.regular)
+                let delegate = AppDelegate(initialPaths: paths, initialOptions: options)
+                app.delegate = delegate
+                AppDelegate.shared = delegate
+                app.run()
             }
-            let app = NSApplication.shared
-            app.setActivationPolicy(.regular)
-            let delegate = AppDelegate(initialPaths: paths, initialOptions: options)
-            app.delegate = delegate
-            AppDelegate.shared = delegate
-            app.run()
         }
     }
 
