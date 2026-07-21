@@ -217,9 +217,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// CLI から渡されたパス群を、表示オプション付きでそれぞれ別ウィンドウに開く。
     /// `--hidden-files`/`--no-hidden-files` はウィンドウ単位ではなくアプリ全体の設定のため、先に一度だけ反映する。
+    /// パス無し起動(`befold --line-numbers` 等)は新規に開くウィンドウが無いため、
+    /// 行番号/ソース表示/並び順のオーバーライドは開いている全ウィンドウへ直接適用する(task-82)。
     func openPaths(_ paths: [String], options: CLIOpenOptions) {
         if let showHiddenFiles = options.showHiddenFiles {
             windowManager.setHiddenFiles(showHiddenFiles)
+        }
+        guard !paths.isEmpty else {
+            windowManager.applyDisplayOverrides(
+                showLineNumbers: options.showLineNumbers,
+                sourceMode: options.sourceMode,
+                sortOrder: options.sortOrder.map { _ in options.viewerSortOrder }
+            )
+            return
         }
         for path in paths {
             openViewer(for: URL(fileURLWithPath: path), options: options)
