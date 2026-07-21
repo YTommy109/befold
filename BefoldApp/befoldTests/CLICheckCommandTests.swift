@@ -84,7 +84,7 @@ struct CLICheckCommandTests {
         #expect(result.message.contains("md"))
     }
 
-    @Test("フォルダー内のファイル解決はDirectoryListerと同じ自然順ソートを使う(TASK-73.12)")
+    @Test("フォルダー内のファイル解決はDirectoryListerの実装を再利用する(TASK-73.12/TASK-80)")
     func directoryResolutionUsesNaturalSortLikeDirectoryLister() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }

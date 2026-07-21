@@ -1,6 +1,48 @@
 @testable import befold
+import BefoldKit
 import Foundation
 import Testing
+
+/// DirectoryLister への fileReader 注入(TASK-80)を検証するためだけの薄いラッパー。
+/// DefaultFileReader へ委譲しつつ、指定したファイル名だけ「存在しない」と報告する。
+/// (ファイル名で比較するのは、tmp ディレクトリのシンボリックリンク解決有無により
+/// FileManager 列挙結果と作成時 URL の path 文字列表現が食い違いうるため)
+private struct ExclusionFileReader: FileReading {
+    let excludedFileNames: Set<String>
+    private let base = DefaultFileReader()
+
+    init(excluding fileNames: [String]) {
+        excludedFileNames = Set(fileNames)
+    }
+
+    func fileExists(at url: URL) -> Bool {
+        !excludedFileNames.contains(url.lastPathComponent) && base.fileExists(at: url)
+    }
+
+    func isDirectory(at url: URL) -> Bool {
+        !excludedFileNames.contains(url.lastPathComponent) && base.isDirectory(at: url)
+    }
+
+    func isExistingFile(at url: URL) -> Bool {
+        !excludedFileNames.contains(url.lastPathComponent) && base.isExistingFile(at: url)
+    }
+
+    func readString(from url: URL) throws -> String {
+        try base.readString(from: url)
+    }
+
+    func readData(from url: URL) throws -> Data {
+        try base.readData(from: url)
+    }
+
+    func isBinary(at url: URL) -> Bool {
+        base.isBinary(at: url)
+    }
+
+    func fileSize(at url: URL) -> Int? {
+        base.fileSize(at: url)
+    }
+}
 
 @Suite
 struct DirectoryListerTests {
@@ -258,6 +300,26 @@ struct DirectoryListerTests {
         let result = DirectoryLister.resolveFileToOpen(at: missing)
 
         #expect(result == missing)
+    }
+
+    @Test("listFiles/firstSupportedFile/resolveFileToOpen は fileReader を注入できる(TASK-80)")
+    func resolveFileToOpenHonorsInjectedFileReader() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: "a.md", contents: "# a")
+        _ = try tmp.file(named: "b.md", contents: "# b")
+        // DefaultFileReader をラップし、特定のファイル名だけ「存在しない」と報告する fileReader を注入する。
+        // これにより、DirectoryLister が実際に注入された fileReader を使って分類していることを検証できる
+        // (無視して常に DefaultFileReader を使っていれば a.md も一覧に含まれてしまう)。
+        let reader = ExclusionFileReader(excluding: ["a.md"])
+
+        let files = DirectoryLister.listFiles(in: tmp.url, fileReader: reader)
+        let firstSupported = DirectoryLister.firstSupportedFile(in: tmp.url, fileReader: reader)
+        let resolved = DirectoryLister.resolveFileToOpen(at: tmp.url, fileReader: reader)
+
+        #expect(files.map(\.lastPathComponent) == ["b.md"])
+        #expect(firstSupported?.lastPathComponent == "b.md")
+        #expect(resolved?.lastPathComponent == "b.md")
     }
 
     @Test("isDirectory は既存ディレクトリで true を返す")

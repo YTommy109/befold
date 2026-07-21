@@ -40,14 +40,8 @@ enum CLICheckCommand {
             return CLICommandResult(message: "指定されたパスが見つかりません: \(path)", exitCode: 1)
         }
 
-        let target: URL
-        if fileReader.isDirectory(at: url) {
-            guard let resolved = resolveFileInDirectory(url, fileReader: fileReader) else {
-                return CLICommandResult(message: "フォルダー内に開けるファイルがありません: \(path)", exitCode: 1)
-            }
-            target = resolved
-        } else {
-            target = url
+        guard let target = DirectoryLister.resolveFileToOpen(at: url, fileReader: fileReader) else {
+            return CLICommandResult(message: "フォルダー内に開けるファイルがありません: \(path)", exitCode: 1)
         }
 
         let fileType = FileType(url: target)
@@ -60,20 +54,6 @@ enum CLICheckCommand {
             )
         }
         return CLICommandResult(message: "開けます: \(target.path)\n\(detail)", exitCode: 0)
-    }
-
-    /// フォルダー内の最初に開けるファイルを探す。既存の DirectoryLister.resolveFileToOpen と
-    /// 同じ優先順位(対応形式優先→先頭ファイル)・同じ並び順(localizedStandardCompare による自然順ソート)
-    /// だが、fileReader を注入できるようテスト用に簡略化している。並び順が異なると、
-    /// "file2.md"/"file10.md" が混在するフォルダー等で GUI が実際に開くファイルと判定結果が食い違う。
-    private static func resolveFileInDirectory(_ directory: URL, fileReader: any FileReading) -> URL? {
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return nil }
-        let files = entries.filter { fileReader.isExistingFile(at: $0) }.sorted {
-            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
-        }
-        return files.first { FileType.isSupported($0) } ?? files.first
     }
 
     /// ContentLoader/NormalizedTextCache のサイズ上限定数を再利用し、開けない理由があれば返す。
