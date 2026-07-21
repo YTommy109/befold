@@ -107,10 +107,7 @@ final class SessionRestorer {
 
         // レイアウトに無いファイル(クラッシュ後に開いたもの等)は従来どおり開いた順に開く
         for url in existingURLs where !restoredPaths.contains(url.normalizedPathKey) {
-            windowManager.openViewer(
-                for: url, initialSortOrder: options.viewerSortOrder,
-                showLineNumbersOverride: options.showLineNumbers, sourceModeOverride: options.sourceMode
-            )
+            openViewer(for: url, options: options)
         }
 
         // 前回アクティブだったファイルをキーウィンドウにする(開けていなければ成り行きのまま)
@@ -122,6 +119,16 @@ final class SessionRestorer {
         activePathToRestore = nil
     }
 
+    /// CLI 起動オプションの上書きをまとめてウィンドウ生成へ引き渡す。
+    /// restoreLastSession とタブグループ復元の両方から呼ぶことで、
+    /// CLIOpenOptions にオーバーライドが追加されても転送漏れが起きないようにする。
+    private func openViewer(for url: URL, options: CLIOpenOptions) {
+        windowManager.openViewer(
+            for: url, initialSortOrder: options.viewerSortOrder,
+            showLineNumbersOverride: options.showLineNumbers, sourceModeOverride: options.sourceMode
+        )
+    }
+
     /// 1 つのタブグループを復元する。先頭のウィンドウに残りを順にタブ連結し、選択タブを再現する。
     private func restoreTabGroup(
         _ group: SessionLayout.TabGroup, urlByPath: [String: URL], options: CLIOpenOptions
@@ -129,10 +136,7 @@ final class SessionRestorer {
         var previousWindow: NSWindow?
         for path in group.paths {
             guard let url = urlByPath[path] else { continue }
-            windowManager.openViewer(
-                for: url, initialSortOrder: options.viewerSortOrder,
-                showLineNumbersOverride: options.showLineNumbers, sourceModeOverride: options.sourceMode
-            )
+            openViewer(for: url, options: options)
             guard let window = windowManager.window(forPath: path) else { continue }
             // システムの「書類を開くときはタブで開く」設定に依存しないよう明示的にタブ化する
             previousWindow?.addTabbedWindow(window, ordered: .above)
