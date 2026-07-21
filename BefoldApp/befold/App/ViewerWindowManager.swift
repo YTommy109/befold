@@ -63,7 +63,10 @@ final class ViewerWindowManager {
         for controller in controllers.values {
             if let showLineNumbers { controller.store.applyShowLineNumbersOverride(showLineNumbers) }
             if let sourceMode { controller.setSourceMode(sourceMode) }
-            if let sortOrder { controller.fileListModel.sortOrder = sortOrder }
+            if let sortOrder {
+                controller.fileListModel.sortOrder = sortOrder
+                controller.sidebar.refreshFileList()
+            }
         }
     }
 
