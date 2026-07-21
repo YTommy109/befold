@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 enum CLIInstallError: Error, Equatable {
@@ -33,14 +34,25 @@ enum CLIInstaller {
         return .failure(.writeFailed(installPath.path))
     }
 
-    private static func writeDirectly(target: String, to url: URL) -> Bool {
-        try? FileManager.default.removeItem(at: url)
+    /// symlink をアトミックに設置する: 同一ディレクトリの一時パスへ symlink を作成してから、
+    /// リネームで置き換える。作成が失敗しても既存の設置内容(旧シム等)には触れない
+    /// (先に既存を削除してから新規作成すると、途中失敗時にシムが消滅してしまうため)。
+    static func writeDirectly(target: String, to url: URL) -> Bool {
+        let fileManager = FileManager.default
+        let tempURL = url.deletingLastPathComponent()
+            .appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString)")
         do {
-            try FileManager.default.createSymbolicLink(atPath: url.path, withDestinationPath: target)
-            return true
+            try fileManager.createSymbolicLink(atPath: tempURL.path, withDestinationPath: target)
         } catch {
             return false
         }
+        defer { try? fileManager.removeItem(at: tempURL) }
+
+        // FileManager.replaceItemAt/moveItem are built for document-style files
+        // (metadata/xattr preservation, existence checks) and behave unpredictably
+        // with symlinks (including dangling ones). `rename(2)` atomically replaces
+        // the directory entry itself, regardless of what it currently points to.
+        return rename(tempURL.path, url.path) == 0
     }
 
     private static func writeWithAdministratorPrivileges(target: String, to url: URL) -> Bool {
@@ -54,13 +66,16 @@ enum CLIInstaller {
         return errorDict == nil
     }
 
-    /// 管理者権限で実行するシェルコマンドの組み立て。既存の実体ファイル/symlink を
-    /// 削除してから symlink を作成する(`ln -s` は既存パスがあると失敗するため)。
+    /// 管理者権限で実行するシェルコマンドの組み立て。同一ディレクトリの一時パスに symlink を
+    /// 作成してから `mv -f`(同一ボリューム上ではアトミックな rename)で置き換える。
+    /// `rm -f` してから `ln -s` する方式だと、symlink 作成が失敗した際に既存の設置内容が
+    /// 消えたまま復元できないため採らない。
     static func administratorInstallShellCommand(target: String, destPath: String, dirPath: String) -> String {
-        """
+        let tempPath = "\(dirPath)/.\(URL(fileURLWithPath: destPath).lastPathComponent).\(UUID().uuidString)"
+        return """
         mkdir -p \(dirPath.shellQuoted) && \
-        rm -f \(destPath.shellQuoted) && \
-        ln -s \(target.shellQuoted) \(destPath.shellQuoted)
+        ln -s \(target.shellQuoted) \(tempPath.shellQuoted) && \
+        mv -f \(tempPath.shellQuoted) \(destPath.shellQuoted)
         """
     }
 
