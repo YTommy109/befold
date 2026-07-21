@@ -1,6 +1,7 @@
 import AppKit
 import BefoldKit
 import Sparkle
+import UserNotifications
 
 @main
 @MainActor
@@ -170,6 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             recentMenuDelegate: recentDocumentsMenuController,
             bookmarksMenuDelegate: bookmarksMenuController
         )
+        UNUserNotificationCenter.current().delegate = self
         if initialPaths.isEmpty {
             sessionRestorer.restoreLastSession(options: initialOptions)
         } else {
@@ -366,5 +368,18 @@ extension AppDelegate: NSMenuItemValidation {
                 : String(localized: "menu.view.showHiddenFiles", bundle: .l10n)
         }
         return true
+    }
+}
+
+// MARK: - UNUserNotificationCenterDelegate
+
+extension AppDelegate: @preconcurrency UNUserNotificationCenterDelegate {
+    /// befold 自身がフォアグラウンドの起動直後に通知を出すため、既定の抑制を解除してバナー表示させる。
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list])
     }
 }
