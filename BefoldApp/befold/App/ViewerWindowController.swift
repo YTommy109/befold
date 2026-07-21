@@ -94,7 +94,7 @@ final class ViewerWindowController: NSWindowController {
         initialSortOrder: SortOrder = .foldersFirst,
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
-        store: ViewerStore = ViewerStore(),
+        store: ViewerStore? = nil,
         directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
         openFileInNewWindow: @escaping (URL) -> Void = { AppDelegate.shared?.openViewer(for: $0) }
     ) {
@@ -105,11 +105,11 @@ final class ViewerWindowController: NSWindowController {
         self.findOptionsPreference = findOptionsPreference
         self.bookmarkStore = bookmarkStore
         self.initialSidebarCollapsed = initialSidebarCollapsed
+        // showLineNumbersOverride は ViewerStore.init へ渡す(didSet の UserDefaults 書き込みを経由させず、
+        // この起動限りの上書きに留めて保存済みのグローバル設定を書き換えないため)。
+        let store = store ?? ViewerStore(defaults: defaults, showLineNumbersOverride: showLineNumbersOverride)
         self.store = store
         self.openFileInNewWindow = openFileInNewWindow
-        if let showLineNumbersOverride {
-            store.showLineNumbers = showLineNumbersOverride
-        }
         let parentDir = fileURL.deletingLastPathComponent()
         // ウィンドウ生成は一回限りであり、表示前に一覧が必要なためここだけは同期で取得する。
         // 反復して呼ばれる refreshFileList / navigateToFolder は SidebarNavigator 内で

@@ -130,12 +130,16 @@ final class ViewerStore {
         return false
     }
 
+    /// - Parameter showLineNumbersOverride: CLI の `--line-numbers`/`--no-line-numbers` から渡される、
+    ///   この起動限りの初期値。didSet の UserDefaults 書き込みを経由しないため、保存済みのグローバル設定を
+    ///   永続的に上書きしない(nil の場合は従来どおり保存済み設定 [既定値 false] を初期値にする)。
     init(
         watcherFactory: WatcherFactory? = nil,
         fileReader: any FileReading = DefaultFileReader(),
         chunkedReaderFactory: ChunkedReaderFactory? = nil,
         defaults: UserDefaults = .standard,
-        clock: any Clock<Duration> = ContinuousClock()
+        clock: any Clock<Duration> = ContinuousClock(),
+        showLineNumbersOverride: Bool? = nil
     ) {
         self.defaults = defaults
         makeWatcher = watcherFactory ?? { url, onChange, onRename in
@@ -147,7 +151,7 @@ final class ViewerStore {
         self.fileReader = fileReader
         contentLoader = ContentLoader(fileReader: fileReader)
         self.clock = clock
-        _showLineNumbers = defaults.bool(forKey: Self.showLineNumbersKey)
+        _showLineNumbers = showLineNumbersOverride ?? defaults.bool(forKey: Self.showLineNumbersKey)
     }
 
     /// 指定 URL のファイルを開き、ファイル監視を開始する。
