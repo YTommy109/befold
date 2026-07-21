@@ -12,6 +12,9 @@ enum CLIInstallError: Error, Equatable {
 /// (例: 旧バージョンでは `open -a` 経由の別方式だった)。symlink はパス解決を OS に
 /// 任せるため、アプリが同一パスへ上書き更新される限り常に最新の実行ファイルを指す。
 enum CLIInstaller {
+    /// シムの標準設置先。`installCLI` アクションと起動時の状態チェックの双方で共有する。
+    static let defaultInstallPath = URL(fileURLWithPath: "/usr/local/bin/befold")
+
     /// symlink の参照先となる、バンドル内の実行ファイルのパスを返す。
     static func targetExecutablePath(bundlePath: String) -> String {
         "\(bundlePath)/Contents/MacOS/befold"

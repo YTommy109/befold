@@ -11,6 +11,10 @@ enum CLIInstallUI {
         presentInfo(message: String(localized: "cli.install.failed", bundle: .l10n))
     }
 
+    static func presentReinstallRecommended() {
+        presentInfo(message: String(localized: "cli.install.reinstallRecommended", bundle: .l10n))
+    }
+
     private static func presentInfo(message: String) {
         let alert = NSAlert()
         alert.messageText = message
