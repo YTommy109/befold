@@ -114,9 +114,13 @@ final class ViewerStore {
 
     private static let showLineNumbersKey = "ShowLineNumbers"
 
+    /// applyShowLineNumbersOverride 実行中だけ true になり、didSet の永続化書き込みを抑止する。
+    private var suppressShowLineNumbersPersistence = false
+
     /// 行番号付きコード表示を有効にするかどうか。UserDefaults に永続化される。
     var showLineNumbers: Bool {
         didSet {
+            guard !suppressShowLineNumbersPersistence else { return }
             defaults.set(showLineNumbers, forKey: Self.showLineNumbersKey)
         }
     }
@@ -130,16 +134,12 @@ final class ViewerStore {
         return false
     }
 
-    /// - Parameter showLineNumbersOverride: CLI の `--line-numbers`/`--no-line-numbers` から渡される、
-    ///   この起動限りの初期値。didSet の UserDefaults 書き込みを経由しないため、保存済みのグローバル設定を
-    ///   永続的に上書きしない(nil の場合は従来どおり保存済み設定 [既定値 false] を初期値にする)。
     init(
         watcherFactory: WatcherFactory? = nil,
         fileReader: any FileReading = DefaultFileReader(),
         chunkedReaderFactory: ChunkedReaderFactory? = nil,
         defaults: UserDefaults = .standard,
-        clock: any Clock<Duration> = ContinuousClock(),
-        showLineNumbersOverride: Bool? = nil
+        clock: any Clock<Duration> = ContinuousClock()
     ) {
         self.defaults = defaults
         makeWatcher = watcherFactory ?? { url, onChange, onRename in
@@ -151,7 +151,17 @@ final class ViewerStore {
         self.fileReader = fileReader
         contentLoader = ContentLoader(fileReader: fileReader)
         self.clock = clock
-        _showLineNumbers = showLineNumbersOverride ?? defaults.bool(forKey: Self.showLineNumbersKey)
+        _showLineNumbers = defaults.bool(forKey: Self.showLineNumbersKey)
+    }
+
+    /// CLI の `--line-numbers`/`--no-line-numbers` から渡される、この起動限りの上書きを適用する。
+    /// showLineNumbers の didSet(UserDefaults への永続化)を経由しないため、保存済みの
+    /// グローバル設定は書き換えない。store が呼び出し元から明示注入された場合でも、
+    /// この起動限りの上書きが確実に反映されるよう、store 生成後に呼び出す想定。
+    func applyShowLineNumbersOverride(_ value: Bool) {
+        suppressShowLineNumbersPersistence = true
+        showLineNumbers = value
+        suppressShowLineNumbersPersistence = false
     }
 
     /// 指定 URL のファイルを開き、ファイル監視を開始する。

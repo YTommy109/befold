@@ -105,9 +105,12 @@ final class ViewerWindowController: NSWindowController {
         self.findOptionsPreference = findOptionsPreference
         self.bookmarkStore = bookmarkStore
         self.initialSidebarCollapsed = initialSidebarCollapsed
-        // showLineNumbersOverride は ViewerStore.init へ渡す(didSet の UserDefaults 書き込みを経由させず、
-        // この起動限りの上書きに留めて保存済みのグローバル設定を書き換えないため)。
-        let store = store ?? ViewerStore(defaults: defaults, showLineNumbersOverride: showLineNumbersOverride)
+        let store = store ?? ViewerStore(defaults: defaults)
+        // store が呼び出し元から明示注入された場合でも上書きが反映されるよう、
+        // store の生成元にかかわらずここで一律に適用する(sourceModeOverride と同じ方針)。
+        if let showLineNumbersOverride {
+            store.applyShowLineNumbersOverride(showLineNumbersOverride)
+        }
         self.store = store
         self.openFileInNewWindow = openFileInNewWindow
         let parentDir = fileURL.deletingLastPathComponent()
