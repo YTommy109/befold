@@ -1,5 +1,7 @@
 import ArgumentParser
 @testable import befold
+import BefoldKit
+import Foundation
 import Testing
 
 /// BefoldRootCommand(swift-argument-parser への移行、TASK-76)の parseAsRoot 挙動を検証する。
@@ -118,5 +120,138 @@ struct BefoldRootCommandTests {
 
         #expect(open.paths == ["a.md", "b.md"])
         #expect(open.options == CLIOpenOptions(showHiddenFiles: true, sourceMode: true))
+    }
+
+    @Test("configuration.version は AppVersion.current と一致する(単一の情報源)")
+    func versionMatchesAppVersionConstant() {
+        #expect(!AppVersion.current.isEmpty)
+        #expect(BefoldRootCommand.configuration.version == AppVersion.current)
+    }
+
+    /// project.yml の MARKETING_VERSION(言語をまたぐ定数)を実ファイルから読み取り、
+    /// AppVersion.current とのドリフトを検知する(ViewerBridgeTests のソース突き合わせの流儀)。
+    @Test("project.yml の MARKETING_VERSION が AppVersion.current と一致する")
+    func projectYmlMarketingVersionMatchesAppVersionConstant() throws {
+        let projectYmlURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // befoldTests/
+            .deletingLastPathComponent() // BefoldApp/
+            .appendingPathComponent("project.yml")
+        let projectYml = try String(contentsOf: projectYmlURL, encoding: .utf8)
+
+        let marketingVersionLine = try #require(
+            projectYml.components(separatedBy: .newlines).first { $0.contains("MARKETING_VERSION:") }
+        )
+        let marketingVersion = marketingVersionLine
+            .components(separatedBy: "MARKETING_VERSION:")[1]
+            .trimmingCharacters(in: .whitespaces)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+
+        #expect(marketingVersion == AppVersion.current)
+    }
+
+    @Test("help文言は英語で統一されている(TASK-94.3)")
+    func helpTextIsEnglishOnly() {
+        #expect(BefoldRootCommand.configuration.abstract == "Mermaid/Markdown viewer.")
+        #expect(OpenPathsCommand.configuration.abstract.hasPrefix("Open a file/folder"))
+    }
+
+    @Test("bookmark/check サブコマンドには一目でわかる abstract がある(TASK-94.4)")
+    func bookmarkAndCheckHaveAbstracts() {
+        #expect(BookmarkPassthroughCommand.configuration.abstract == "Manage bookmarks.")
+        #expect(CheckPassthroughCommand.configuration.abstract == "Check whether befold can open a file/folder.")
+    }
+
+    @Test("open はデフォルト挙動として --help のサブコマンド一覧に表示される(TASK-94.4)")
+    func openSubcommandIsDisplayedInHelp() {
+        #expect(OpenPathsCommand.configuration.shouldDisplay)
+        #expect(OpenPathsCommand.configuration.abstract.contains("default"))
+    }
+
+    @Test("root の discussion は簡潔になり、open のオプション参照先を案内する(TASK-94.4)")
+    func rootDiscussionIsConciseAndPointsToOpenHelp() {
+        let discussion = BefoldRootCommand.configuration.discussion
+
+        #expect(discussion.contains("befold open --help"))
+        #expect(!discussion.contains("symlink"))
+    }
+
+    @Test("open の discussion に -- エスケープの案内がある(TASK-94.4)")
+    func openDiscussionHasEscapingNote() {
+        let discussion = OpenPathsCommand.configuration.discussion
+
+        #expect(discussion.contains("treat everything after it as paths"))
+    }
+
+    @Test("open の discussion に複数パスのウィンドウ挙動が記載されている(TASK-100)")
+    func openDiscussionDescribesMultipleWindowBehavior() {
+        let discussion = OpenPathsCommand.configuration.discussion
+
+        #expect(discussion.contains("its own window"))
+    }
+
+    @Test("open 専用オプションはトップレベル --help に表示されない(befold open --help に委ねる)")
+    func openOptionsDoNotAppearInTopLevelHelp() {
+        let help = BefoldRootCommand.helpMessage()
+
+        #expect(!help.contains("--hidden-files"))
+        #expect(!help.contains("--sort"))
+        #expect(!help.contains("--line-numbers"))
+        #expect(help.contains("befold open --help"))
+    }
+
+    @Test("サブコマンド名を省略しても open 相当のオプションが引き続き正しく解釈される(トップレベル共有後の回帰確認)")
+    func openOptionsStillParseWithoutSubcommandName() throws {
+        let open = try parseRoot(["--hidden-files", "a.md", "--sort", "alphabetical"])
+
+        #expect(open.paths == ["a.md"])
+        #expect(open.options == CLIOpenOptions(showHiddenFiles: true, sortOrder: .alphabetical))
+    }
+
+    @Test("open 専用フラグがサブコマンド名の前にあると、サブコマンド名はパスとして解釈される(TASK-97)")
+    func openFlagsBeforeSubcommandNameCausesPathInterpretation() throws {
+        let open = try parseRoot(["--hidden-files", "check", "/tmp/a"])
+
+        #expect(open.paths == ["check", "/tmp/a"])
+        #expect(open.options.showHiddenFiles == true)
+    }
+
+    @Test("check --help はヘルプテキストを返す(TASK-96)")
+    func checkHelpReturnsHelpText() {
+        let result = CLICheckCommand.run(["--help"])
+
+        #expect(result.exitCode == 0)
+        #expect(result.message.contains("USAGE: befold check"))
+    }
+
+    @Test("check -h はヘルプテキストを返す(TASK-96)")
+    func checkShortHelpReturnsHelpText() {
+        let result = CLICheckCommand.run(["-h"])
+
+        #expect(result.exitCode == 0)
+        #expect(result.message.contains("OVERVIEW:"))
+    }
+
+    @Test("bookmark --help はヘルプテキストを返す(TASK-96)")
+    @MainActor
+    func bookmarkHelpReturnsHelpText() {
+        let result = CLIBookmarkCommand.run(["--help"])
+
+        #expect(result.exitCode == 0)
+        #expect(result.message.contains("USAGE: befold bookmark"))
+    }
+
+    @Test("bookmark -h はヘルプテキストを返す(TASK-96)")
+    @MainActor
+    func bookmarkShortHelpReturnsHelpText() {
+        let result = CLIBookmarkCommand.run(["-h"])
+
+        #expect(result.exitCode == 0)
+        #expect(result.message.contains("OVERVIEW:"))
+    }
+
+    @Test("RejectReason.cliMessage はロケールに依存しない英語固定メッセージを返す(TASK-98)")
+    func rejectReasonCliMessageIsEnglish() {
+        #expect(RejectReason.unsupportedFormat.cliMessage == "This file format is not supported for preview.")
+        #expect(RejectReason.fileTooLarge.cliMessage == "This file is too large to display.")
     }
 }

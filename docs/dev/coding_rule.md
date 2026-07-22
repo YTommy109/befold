@@ -256,9 +256,25 @@ swift package plugin --allow-writing-to-package-directory swiftformat
   （`decodeText` をテーブル登録した同じ diff で別の関数が自前デコードしていた実例、
   テキストファイルサイズ上限に汎用の `maxFileSizeBytes` を使い `maxTextFileSizeBytes` と
   不整合を起こした実例）
-- **言語をまたぐ定数**（Swift ↔ viewer.js）は避けられない場合のみ二重定義し、
-  (1) 双方に対応相手を示すコメント、(2) ソースを読んで一致を検証するテスト
-  （`ViewerBridgeTests.zoomRangeMatchesZoomStore` の流儀）を必ずセットで付ける
+- **言語・レイヤをまたぐ定数**（Swift ↔ viewer.js、Swift ↔ ビルド設定 `project.yml`／
+  Info.plist、Swift ↔ シェル等、コンパイラが同一性を保証できない境界をまたぐ定数）は
+  避けられない場合のみ二重定義し、(1) **両方の定義箇所**に対応相手を示すコメント
+  （viewer.js／Swift だけでなく `project.yml` 側にも相互参照コメントを書く）、
+  (2) 一致を検証するテストを必ずセットで付ける。
+  - **要件(2)の「ソースを読んで一致を検証」とは、テストが相手側の実ソース
+    （`project.yml`／`viewer.js` 等）をその場で読み取り、自分側の定数と突き合わせることを指す。
+    両辺が同じ一つの値から導出されるトートロジー（恒真）検証はこの要件を満たさない。**
+    たとえば「`AppVersion.current` == `AppVersion.current`」や、Swift 側の定数同士を比較する
+    テストは、相手（`project.yml` の `MARKETING_VERSION`）が食い違ってもグリーンのままで、
+    ドリフトを一切検知できない。テストは**必ず相手側ファイルをパース・読み取りして比較する**
+    こと（`project.yml` を読んで `MARKETING_VERSION` を抽出し `AppVersion.current` と照合する、
+    `viewer.js` のソースを読んで数値リテラルを照合する `ViewerBridgeTests.zoomRangeMatchesZoomStore`
+    の流儀）。
+  - セルフチェック指標: 「相手側の値を書き換えたらこのテストは落ちるか？」を自問する。
+    落ちないならトートロジーであり、検証になっていない。
+  （`AppVersion.current` と `MARKETING_VERSION` の二重定義で、project.yml 側の相互参照コメントが
+  欠落し、かつ検証テストが両辺とも `AppVersion.current` 由来でトートロジーになっていて
+  ドリフトを検知できなかった実例）
 - **設定値の断片を UI 文言に埋め込むときはドリフトを前提に扱う**。メニュー項目の
   `keyEquivalent`（`MainMenuBuilder.swift`）のような「実体」を、人間可読な断片
   （`⌘B`）としてローカライズ文言（`Localizable.xcstrings` のツールチップ等）へ書き写すのは、
@@ -369,7 +385,9 @@ swift package plugin --allow-writing-to-package-directory swiftformat
     （`docs/` 配下の spec 等）**を変更の波及範囲（blast radius）として洗い出し、記述が新しい挙動と
     一致するかを読み合わせる。コード側だけ直してコメント・仕様書を取り残すと、実装は正しいのに
     説明だけが古い誤りとして残る（CSS のホバー挙動を変えたのにコメントと仕様書が旧挙動のまま
-    残っていた実例）。
+    残っていた実例、`OpenPathsCommand` の `shouldDisplay: false` を削除して `--help` への表示挙動を
+    変えたのに「非表示」「--help にも表示しない」と旧挙動を断定する `///` コメント 2 箇所が
+    同じ diff 内で取り残された実例）。
   - **型・ファイルの削除・追加・リネームは、アーキテクチャ図とプロジェクト構成ツリーへの
     波及を必ず確認する**。上記の「仕様書を読み合わせて更新する」波及範囲には、
     `docs/dev/coding_rule.md` および `CLAUDE.md` のアーキテクチャ図（`## アーキテクチャ`）と
@@ -524,8 +542,16 @@ func detectsAtomicSave() async throws {
 
 ### Unit / Integration の分離
 
-- 実ファイルシステム・実 `FileWatcher`・symlink 等の実デバイス挙動に依存するシナリオテストは
-  ファイル名を `〜IntegrationTests.swift` にする
+- 実デバイス挙動・実プロセス挙動に依存するシナリオテストはファイル名を
+  `〜IntegrationTests.swift` にする。対象となる「実挙動」には次を含む（これは網羅列挙ではなく
+  代表例であり、**下の判定基準を満たすなら未列挙のものも Integration 扱いにする**）:
+    - 実ファイルシステムへの読み書き（一時ファイル・ディレクトリ操作）
+    - 実 `FileWatcher` によるファイル変更検知
+    - symlink 解決・実パス正規化
+    - **実行ファイルのサブプロセス起動**（`Process` でビルド済みバイナリを起動し、
+      標準出力・終了コード・CLI 引数解釈を検証するテスト）
+  - 判定基準: **テスト対象自体をインメモリ／モックに差し替えられず、OS・ファイルシステム・
+    別プロセスの実挙動が結果を左右する**なら Integration。差し替え可能な純粋ロジックは unit。
   （例外: `DirectoryLister` / `DefaultFileReader` のようにテスト対象自体がファイルシステム操作
   であるスイートは、実 FS を使っても unit 扱いでよい）
 - unit テストではファイル読込を `InMemoryFileReader`、watcher をモック watcherFactory で置き換える

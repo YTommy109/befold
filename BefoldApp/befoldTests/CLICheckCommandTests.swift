@@ -14,7 +14,7 @@ struct CLICheckCommandTests {
 
         #expect(result.exitCode == 0)
         #expect(result.message.contains("mmd"))
-        #expect(result.message.contains("\(("graph TD;" as String).utf8.count)バイト"))
+        #expect(result.message.contains("\(("graph TD;" as String).utf8.count) bytes"))
     }
 
     @Test("存在しないパスはエラーになる")
@@ -36,7 +36,7 @@ struct CLICheckCommandTests {
         let result = CLICheckCommand.run([url.path], fileReader: reader)
 
         #expect(result.exitCode != 0)
-        #expect(result.message.contains(RejectReason.fileTooLarge.localizedMessage))
+        #expect(result.message.contains(RejectReason.fileTooLarge.cliMessage))
     }
 
     @Test("拡張子は既知だが内容がバイナリのファイルは未対応形式として開けないと判定される")
@@ -48,7 +48,7 @@ struct CLICheckCommandTests {
         let result = CLICheckCommand.run([url.path], fileReader: reader)
 
         #expect(result.exitCode != 0)
-        #expect(result.message.contains(RejectReason.unsupportedFormat.localizedMessage))
+        #expect(result.message.contains(RejectReason.unsupportedFormat.cliMessage))
     }
 
     @Test("サイズ超過かつ内容がバイナリの場合、実際のオープン経路と同じくバイナリ判定を優先する(TASK-73.8)")
@@ -61,8 +61,8 @@ struct CLICheckCommandTests {
         let result = CLICheckCommand.run([url.path], fileReader: reader)
 
         #expect(result.exitCode != 0)
-        #expect(result.message.contains(RejectReason.unsupportedFormat.localizedMessage))
-        #expect(!result.message.contains(RejectReason.fileTooLarge.localizedMessage))
+        #expect(result.message.contains(RejectReason.unsupportedFormat.cliMessage))
+        #expect(!result.message.contains(RejectReason.fileTooLarge.cliMessage))
     }
 
     @Test("引数の数が不正な場合は usage エラーになる")
@@ -110,7 +110,7 @@ struct CLICheckCommandTests {
         let result = CLICheckCommand.run([tmp.url.path])
 
         #expect(result.exitCode != 0)
-        #expect(result.message.contains("フォルダー内にファイルがありません"))
+        #expect(result.message.contains("No file found in folder"))
     }
 
     @Test("壊れたシンボリックリンクだけのフォルダーは空扱いせず、開けないエントリとして報告する")
@@ -126,8 +126,8 @@ struct CLICheckCommandTests {
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains("broken.mmd"))
-        #expect(result.message.contains("実体が見つかりません"))
+        #expect(result.message.contains("target could not be found"))
         // 「フォルダーが空」の文言とは区別されること(実際の原因を報告する)。
-        #expect(!result.message.contains("フォルダー内にファイルがありません"))
+        #expect(!result.message.contains("No file found in folder"))
     }
 }
