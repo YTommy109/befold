@@ -29,20 +29,14 @@ struct CLIOpenOptions: Equatable, Codable {
 struct BefoldRootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "befold",
-        abstract: "Mermaid/Markdown ビューア。ファイル/フォルダーを指定すると、それぞれ別ウィンドウで開きます。",
+        abstract: "Mermaid/Markdown ビューア。",
         usage: """
         befold [オプション] [ファイル/フォルダー...]
         befold <サブコマンド> [引数...]
         """,
         discussion: """
-        オプション:
-          --hidden-files          隠しファイルを表示する
-          --no-hidden-files       隠しファイルを表示しない
-          --sort <値>             並び順を指定する(folders-first|alphabetical)
-          --line-numbers          行番号を表示する
-          --no-line-numbers       行番号を表示しない
-          --source                ソース表示モードで開く
-          --preview               プレビュー表示モードで開く
+        ファイル/フォルダーを指定すると、それぞれ別ウィンドウで開きます。\
+        オプション一覧は `befold open --help` を参照してください。
 
         "check"/"bookmark" という名前のパスや、ハイフンで始まるパスを開く場合は \
         `--` 以降を常にパスとして扱う機能を使う(例: befold -- -notes.md)。
@@ -60,7 +54,11 @@ struct BefoldRootCommand: ParsableCommand {
 /// 指定されなかった場合の既定の挙動(ファイル/フォルダーを開く)を担う。CLI 上は独立したサブコマンド名を
 /// 持たず(defaultSubcommand)、`--help` にも表示しない。
 struct OpenPathsCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "open", shouldDisplay: false)
+    static let configuration = CommandConfiguration(
+        commandName: "open",
+        abstract: "ファイル/フォルダーを開く(既定の挙動)。",
+        shouldDisplay: false
+    )
 
     @Argument(help: "開くファイル/フォルダーのパス(複数指定可)")
     var paths: [String] = []
