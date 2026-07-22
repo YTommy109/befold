@@ -1,10 +1,10 @@
 ---
 id: TASK-94
 title: CLI --help の内容を整理・改善する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-22 02:21'
-updated_date: '2026-07-22 11:42'
+updated_date: '2026-07-22 12:11'
 labels: []
 dependencies: []
 ordinal: 79000
@@ -29,3 +29,9 @@ ordinal: 79000
 <!-- SECTION:NOTES:BEGIN -->
 TASK-94.2(デフォルトウィンドウ挙動変更)はユーザー判断により対応不要とし Done でクローズ。CLIからの起動は単一/複数パスとも現行通り常に新規ウィンドウのまま。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+help改善4項目のうち94.1(--version実装)・94.3(英語統一)・94.4(overview短縮/subcommand説明/openの可視化)を実装し、94.2(デフォルトウィンドウ挙動変更)はユーザー判断により対応不要としてクローズした。全サブタスク完了。
+<!-- SECTION:FINAL_SUMMARY:END -->
