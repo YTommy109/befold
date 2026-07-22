@@ -22,35 +22,25 @@ struct BefoldRootCommandIntegrationTests {
         process.waitUntilExit()
 
         #expect(process.terminationStatus == 0)
-        #expect(String(data: output, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) == expectedVersion)
+        #expect(String(data: output, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) == expectedVersion)
     }
 
-    @Test("open 専用オプションはトップレベル --help に表示されない(befold open --help に委ねる)")
-    func openOptionsDoNotAppearInTopLevelHelp() throws {
-        let executableURL = try Self.builtExecutableURL()
-
-        let process = Process()
-        process.executableURL = executableURL
-        process.arguments = ["--help"]
-        let stdout = Pipe()
-        process.standardOutput = stdout
-        try process.run()
-        let output = stdout.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        let text = String(data: output, encoding: .utf8) ?? ""
-
-        #expect(!text.contains("--hidden-files"))
-        #expect(!text.contains("--sort"))
-        #expect(!text.contains("--line-numbers"))
-        #expect(text.contains("befold open --help"))
-    }
-
-    /// テストバイナリと同じ `.build` ディレクトリ内にある `befold` 実行ファイルのパスを解決する。
+    /// テストバイナリと同じビルドディレクトリ内にある `befold` 実行ファイルのパスを解決する。
+    /// SPM(.build レイアウト)と xcodebuild(befold.app/Contents/MacOS/befold)の両方に対応する。
     private static func builtExecutableURL() throws -> URL {
         let testBinaryDirectory = Bundle(for: BundleToken.self).bundleURL.deletingLastPathComponent()
-        let executableURL = testBinaryDirectory.appendingPathComponent("befold")
-        #expect(FileManager.default.isExecutableFile(atPath: executableURL.path))
-        return executableURL
+        let spmCandidate = testBinaryDirectory.appendingPathComponent("befold")
+        if FileManager.default.isExecutableFile(atPath: spmCandidate.path) {
+            return spmCandidate
+        }
+        let xcodeCandidate = testBinaryDirectory
+            .appendingPathComponent("befold.app/Contents/MacOS/befold")
+        try #require(
+            FileManager.default.isExecutableFile(atPath: xcodeCandidate.path),
+            "befold executable not found in SPM or xcodebuild layout"
+        )
+        return xcodeCandidate
     }
 }
 

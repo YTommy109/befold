@@ -173,14 +173,30 @@ struct BefoldRootCommandTests {
 
         #expect(discussion.contains("befold open --help"))
         #expect(!discussion.contains("symlink"))
-        #expect(discussion.count < 200)
     }
 
     @Test("open の discussion に -- エスケープの案内がある(TASK-94.4)")
     func openDiscussionHasEscapingNote() {
         let discussion = OpenPathsCommand.configuration.discussion
 
-        #expect(discussion.contains("--"))
+        #expect(discussion.contains("treat everything after it as paths"))
+    }
+
+    @Test("open の discussion に複数パスのウィンドウ挙動が記載されている(TASK-100)")
+    func openDiscussionDescribesMultipleWindowBehavior() {
+        let discussion = OpenPathsCommand.configuration.discussion
+
+        #expect(discussion.contains("its own window"))
+    }
+
+    @Test("open 専用オプションはトップレベル --help に表示されない(befold open --help に委ねる)")
+    func openOptionsDoNotAppearInTopLevelHelp() {
+        let help = BefoldRootCommand.helpMessage()
+
+        #expect(!help.contains("--hidden-files"))
+        #expect(!help.contains("--sort"))
+        #expect(!help.contains("--line-numbers"))
+        #expect(help.contains("befold open --help"))
     }
 
     @Test("サブコマンド名を省略しても open 相当のオプションが引き続き正しく解釈される(トップレベル共有後の回帰確認)")

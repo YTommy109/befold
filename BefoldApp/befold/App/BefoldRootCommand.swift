@@ -98,6 +98,8 @@ struct OpenPathsCommand: ParsableCommand {
         commandName: "open",
         abstract: "Open a file/folder (the default action when no subcommand is given).",
         discussion: """
+        Each path opens in its own window.
+
         To open a path literally named "check"/"bookmark", or one starting with a hyphen, \
         use `--` to treat everything after it as paths (e.g. befold -- -notes.md).
         """
