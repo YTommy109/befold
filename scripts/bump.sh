@@ -100,7 +100,7 @@ sed -i.bak \
 rm -f "${PROJECT_YML}.bak"
 
 sed -i.bak \
-  "s/static let current = \"${OLD_VERSION}\"/static let current = \"${NEW_VERSION}\"/" \
+  "s/static let fallback = \"${OLD_VERSION}\"/static let fallback = \"${NEW_VERSION}\"/" \
   "$APP_VERSION_SWIFT"
 rm -f "${APP_VERSION_SWIFT}.bak"
 
