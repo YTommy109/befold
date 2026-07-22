@@ -20,10 +20,8 @@ struct CLIOpenOptions: Equatable, Codable {
     }
 }
 
-/// open(パス省略時の既定挙動)のオプション定義。root/OpenPathsCommand 双方から
-/// `@OptionGroup` で共有し、root の `--help` にも同じオプションが表示されるようにする
-/// (swift-argument-parser は親子で同じ OptionGroup 型を宣言すると、親側で decode 済みの
-/// 値をそのまま子へ引き継ぐため、二重パースにはならない)。
+/// open(パス省略時の既定挙動)のオプション定義。OpenPathsCommand のみが保持し、
+/// `befold open --help` で表示される。ルートの `--help` discussion が参照先を案内する。
 struct OpenCLIOptions: ParsableArguments {
     @Flag(name: .customLong("hidden-files"), help: "Show hidden files in the sidebar.")
     var hiddenFilesOn = false
@@ -90,10 +88,6 @@ struct BefoldRootCommand: ParsableCommand {
         subcommands: [OpenPathsCommand.self, BookmarkPassthroughCommand.self, CheckPassthroughCommand.self],
         defaultSubcommand: OpenPathsCommand.self
     )
-
-    /// open(既定挙動)のオプションを root の --help にも表示するための共有 OptionGroup。
-    /// 実際の値の反映は OpenPathsCommand 側が担う(root 自身は run() を持たない)。
-    @OptionGroup var openOptions: OpenCLIOptions
 }
 
 /// `befold [オプション] [ファイル/フォルダー...]`。サブコマンド名(bookmark/check)が明示的に

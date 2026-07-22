@@ -1,5 +1,6 @@
 import ArgumentParser
 @testable import befold
+import BefoldKit
 import Foundation
 import Testing
 
@@ -188,5 +189,53 @@ struct BefoldRootCommandTests {
 
         #expect(open.paths == ["a.md"])
         #expect(open.options == CLIOpenOptions(showHiddenFiles: true, sortOrder: .alphabetical))
+    }
+
+    @Test("open 専用フラグがサブコマンド名の前にあると、サブコマンド名はパスとして解釈される(TASK-97)")
+    func openFlagsBeforeSubcommandNameCausesPathInterpretation() throws {
+        let open = try parseRoot(["--hidden-files", "check", "/tmp/a"])
+
+        #expect(open.paths == ["check", "/tmp/a"])
+        #expect(open.options.showHiddenFiles == true)
+    }
+
+    @Test("check --help はヘルプテキストを返す(TASK-96)")
+    func checkHelpReturnsHelpText() {
+        let result = CLICheckCommand.run(["--help"])
+
+        #expect(result.exitCode == 0)
+        #expect(result.message.contains("USAGE: befold check"))
+    }
+
+    @Test("check -h はヘルプテキストを返す(TASK-96)")
+    func checkShortHelpReturnsHelpText() {
+        let result = CLICheckCommand.run(["-h"])
+
+        #expect(result.exitCode == 0)
+        #expect(result.message.contains("OVERVIEW:"))
+    }
+
+    @Test("bookmark --help はヘルプテキストを返す(TASK-96)")
+    @MainActor
+    func bookmarkHelpReturnsHelpText() {
+        let result = CLIBookmarkCommand.run(["--help"])
+
+        #expect(result.exitCode == 0)
+        #expect(result.message.contains("USAGE: befold bookmark"))
+    }
+
+    @Test("bookmark -h はヘルプテキストを返す(TASK-96)")
+    @MainActor
+    func bookmarkShortHelpReturnsHelpText() {
+        let result = CLIBookmarkCommand.run(["-h"])
+
+        #expect(result.exitCode == 0)
+        #expect(result.message.contains("OVERVIEW:"))
+    }
+
+    @Test("RejectReason.cliMessage はロケールに依存しない英語固定メッセージを返す(TASK-98)")
+    func rejectReasonCliMessageIsEnglish() {
+        #expect(RejectReason.unsupportedFormat.cliMessage == "This file format is not supported for preview.")
+        #expect(RejectReason.fileTooLarge.cliMessage == "This file is too large to display.")
     }
 }

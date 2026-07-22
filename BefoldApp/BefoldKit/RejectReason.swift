@@ -17,4 +17,14 @@ public enum RejectReason: Error, Sendable, Equatable {
             String(localized: "viewer.unsupported.tooLarge", bundle: .befoldKitResources)
         }
     }
+
+    /// CLI 出力用の英語固定メッセージ。ロケールに依存しない。
+    public var cliMessage: String {
+        switch self {
+        case .unsupportedFormat:
+            "This file format is not supported for preview."
+        case .fileTooLarge:
+            "This file is too large to display."
+        }
+    }
 }

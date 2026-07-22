@@ -25,8 +25,8 @@ struct BefoldRootCommandIntegrationTests {
         #expect(String(data: output, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) == expectedVersion)
     }
 
-    @Test("open がデフォルトサブコマンドのため、そのオプションはトップレベルの --help にも表示される")
-    func openOptionsAppearInTopLevelHelp() throws {
+    @Test("open 専用オプションはトップレベル --help に表示されない(befold open --help に委ねる)")
+    func openOptionsDoNotAppearInTopLevelHelp() throws {
         let executableURL = try Self.builtExecutableURL()
 
         let process = Process()
@@ -39,9 +39,10 @@ struct BefoldRootCommandIntegrationTests {
         process.waitUntilExit()
         let text = String(data: output, encoding: .utf8) ?? ""
 
-        #expect(text.contains("--hidden-files"))
-        #expect(text.contains("--sort"))
-        #expect(text.contains("--line-numbers"))
+        #expect(!text.contains("--hidden-files"))
+        #expect(!text.contains("--sort"))
+        #expect(!text.contains("--line-numbers"))
+        #expect(text.contains("befold open --help"))
     }
 
     /// テストバイナリと同じ `.build` ディレクトリ内にある `befold` 実行ファイルのパスを解決する。

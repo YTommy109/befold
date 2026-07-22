@@ -18,7 +18,9 @@ esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_YML="$ROOT/BefoldApp/project.yml"
+APP_VERSION_SWIFT="$ROOT/BefoldApp/befold/App/AppVersion.swift"
 [ -f "$PROJECT_YML" ] || err "$PROJECT_YML が見つかりません"
+[ -f "$APP_VERSION_SWIFT" ] || err "$APP_VERSION_SWIFT が見つかりません"
 
 # --- ブランチ・作業ツリーの検証 ---
 BRANCH="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)"
@@ -97,7 +99,16 @@ sed -i.bak \
   "$PROJECT_YML"
 rm -f "${PROJECT_YML}.bak"
 
-git -C "$ROOT" add "$PROJECT_YML"
+sed -i.bak \
+  "s/static let current = \"${OLD_VERSION}\"/static let current = \"${NEW_VERSION}\"/" \
+  "$APP_VERSION_SWIFT"
+rm -f "${APP_VERSION_SWIFT}.bak"
+
+# バージョンドリフト検知テストを tag/push 前に実行する
+(cd "$ROOT/BefoldApp" && swift test --filter projectYmlMarketingVersionMatchesAppVersionConstant) \
+  || err "バージョンドリフト検知テストが失敗しました。AppVersion.swift と project.yml の整合性を確認してください"
+
+git -C "$ROOT" add "$PROJECT_YML" "$APP_VERSION_SWIFT"
 # main への直接コミットは pre-commit フックでブロックされるため、
 # リリース作業として意図的なコミットであることを明示する。
 ALLOW_MAIN_COMMIT=1 git -C "$ROOT" commit -m "chore: バージョンを ${OLD_VERSION} から ${NEW_VERSION} に更新する"

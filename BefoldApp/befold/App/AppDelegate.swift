@@ -128,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .exitSuccess:
                 exit(0)
             case .exitWithForwardError:
-                FileHandle.standardError.write(Data("既存インスタンスへの転送に失敗しました\n".utf8))
+                FileHandle.standardError.write(Data("Failed to forward to the running instance.\n".utf8))
                 exit(1)
             case .launchAsNewInstance:
                 let app = NSApplication.shared
