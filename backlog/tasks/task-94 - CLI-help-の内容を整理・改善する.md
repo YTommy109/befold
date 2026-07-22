@@ -4,6 +4,7 @@ title: CLI --help の内容を整理・改善する
 status: To Do
 assignee: []
 created_date: '2026-07-22 02:21'
+updated_date: '2026-07-22 11:42'
 labels: []
 dependencies: []
 ordinal: 79000
@@ -22,3 +23,9 @@ ordinal: 79000
 
 対象ファイル: BefoldApp/befold/App/BefoldRootCommand.swift
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-94.2(デフォルトウィンドウ挙動変更)はユーザー判断により対応不要とし Done でクローズ。CLIからの起動は単一/複数パスとも現行通り常に新規ウィンドウのまま。
+<!-- SECTION:NOTES:END -->

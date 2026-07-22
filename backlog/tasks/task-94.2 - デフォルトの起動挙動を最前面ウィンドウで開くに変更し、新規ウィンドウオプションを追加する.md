@@ -1,9 +1,10 @@
 ---
 id: TASK-94.2
 title: デフォルトの起動挙動を最前面ウィンドウで開くに変更し、新規ウィンドウオプションを追加する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-22 02:21'
+updated_date: '2026-07-22 11:42'
 labels: []
 dependencies: []
 parent_task_id: TASK-94
@@ -27,3 +28,15 @@ ordinal: 81000
 - [ ] #4 変更後の挙動が --help の説明文に反映されている
 - [ ] #5 既存のウィンドウ復元・セッション関連のテストが引き続き成功する
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+ユーザー判断により対応取りやめ。「コマンドラインから開く場合は現行通り新規ウィンドウのまま」との回答を得た(単一パス・複数パス問わず)。TASK-94 起票時の要望(item 6)を撤回する形。実装は行っていない。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ユーザーとの確認の結果、CLIからの起動は単一パス・複数パスとも現行通り常に新規ウィンドウで開く挙動を維持することになったため、本タスクは対応不要と判断しクローズする。実装・テスト変更なし。
+<!-- SECTION:FINAL_SUMMARY:END -->
