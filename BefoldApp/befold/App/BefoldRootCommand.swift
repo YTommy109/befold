@@ -54,10 +54,6 @@ struct OpenPathsCommand: ParsableCommand {
         discussion: """
         To open a path literally named "check"/"bookmark", or one starting with a hyphen, \
         use `--` to treat everything after it as paths (e.g. befold -- -notes.md).
-
-        The `befold` command is a symlink to the executable inside /Applications/befold.app. \
-        If you move the app outside of /Applications, choose "Install Command Line Tool" \
-        from the befold app menu again.
         """
     )
 

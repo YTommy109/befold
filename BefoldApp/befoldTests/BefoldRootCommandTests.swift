@@ -180,12 +180,11 @@ struct BefoldRootCommandTests {
         #expect(discussion.count < 200)
     }
 
-    @Test("open の discussion に -- エスケープと symlink 再インストールの案内がある(TASK-94.4)")
-    func openDiscussionHasEscapingAndSymlinkNotes() {
+    @Test("open の discussion に -- エスケープの案内がある(TASK-94.4)")
+    func openDiscussionHasEscapingNote() {
         let discussion = OpenPathsCommand.configuration.discussion
 
         #expect(discussion.contains("--"))
-        #expect(discussion.contains("symlink"))
     }
 }
 
