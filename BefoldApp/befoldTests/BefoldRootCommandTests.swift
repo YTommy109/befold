@@ -156,7 +156,36 @@ struct BefoldRootCommandTests {
     @Test("help文言は英語で統一されている(TASK-94.3)")
     func helpTextIsEnglishOnly() {
         #expect(BefoldRootCommand.configuration.abstract == "Mermaid/Markdown viewer.")
-        #expect(OpenPathsCommand.configuration.abstract == "Open a file/folder (default behavior).")
+        #expect(OpenPathsCommand.configuration.abstract.hasPrefix("Open a file/folder"))
+    }
+
+    @Test("bookmark/check サブコマンドには一目でわかる abstract がある(TASK-94.4)")
+    func bookmarkAndCheckHaveAbstracts() {
+        #expect(BookmarkPassthroughCommand.configuration.abstract == "Manage bookmarks.")
+        #expect(CheckPassthroughCommand.configuration.abstract == "Check whether befold can open a file/folder.")
+    }
+
+    @Test("open はデフォルト挙動として --help のサブコマンド一覧に表示される(TASK-94.4)")
+    func openSubcommandIsDisplayedInHelp() {
+        #expect(OpenPathsCommand.configuration.shouldDisplay)
+        #expect(OpenPathsCommand.configuration.abstract.contains("default"))
+    }
+
+    @Test("root の discussion は簡潔になり、open のオプション参照先を案内する(TASK-94.4)")
+    func rootDiscussionIsConciseAndPointsToOpenHelp() {
+        let discussion = BefoldRootCommand.configuration.discussion
+
+        #expect(discussion.contains("befold open --help"))
+        #expect(!discussion.contains("symlink"))
+        #expect(discussion.count < 200)
+    }
+
+    @Test("open の discussion に -- エスケープと symlink 再インストールの案内がある(TASK-94.4)")
+    func openDiscussionHasEscapingAndSymlinkNotes() {
+        let discussion = OpenPathsCommand.configuration.discussion
+
+        #expect(discussion.contains("--"))
+        #expect(discussion.contains("symlink"))
     }
 }
 

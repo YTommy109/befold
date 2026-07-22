@@ -35,15 +35,8 @@ struct BefoldRootCommand: ParsableCommand {
         befold <subcommand> [args...]
         """,
         discussion: """
-        Specifying files/folders opens each in a separate window. \
-        See `befold open --help` for the full list of options.
-
-        To open a path literally named "check"/"bookmark", or one starting with a hyphen, \
-        use `--` to treat everything after it as paths (e.g. befold -- -notes.md).
-
-        The `befold` command is a symlink to the executable inside /Applications/befold.app. \
-        If you move the app outside of /Applications, choose "Install Command Line Tool" \
-        from the befold app menu again.
+        Opening a file/folder without a subcommand is the same as `befold open` \
+        (the default action). See `befold open --help` for its options.
         """,
         version: AppVersion.current,
         subcommands: [OpenPathsCommand.self, BookmarkPassthroughCommand.self, CheckPassthroughCommand.self],
@@ -57,8 +50,15 @@ struct BefoldRootCommand: ParsableCommand {
 struct OpenPathsCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "open",
-        abstract: "Open a file/folder (default behavior).",
-        shouldDisplay: false
+        abstract: "Open a file/folder (the default action when no subcommand is given).",
+        discussion: """
+        To open a path literally named "check"/"bookmark", or one starting with a hyphen, \
+        use `--` to treat everything after it as paths (e.g. befold -- -notes.md).
+
+        The `befold` command is a symlink to the executable inside /Applications/befold.app. \
+        If you move the app outside of /Applications, choose "Install Command Line Tool" \
+        from the befold app menu again.
+        """
     )
 
     @Argument(help: "Paths of files/folders to open (multiple allowed).")
@@ -111,7 +111,7 @@ struct OpenPathsCommand: ParsableCommand {
 /// `befold bookmark [add <path>]`。実際の引数検証・処理は既存の CLIBookmarkCommand へ委譲する
 /// (add 以外の語や引数不足のエラーメッセージ・終了コードは CLIBookmarkCommand が持つ)。
 struct BookmarkPassthroughCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "bookmark")
+    static let configuration = CommandConfiguration(commandName: "bookmark", abstract: "Manage bookmarks.")
 
     @Argument(parsing: .captureForPassthrough, help: "Bookmark a file/folder with `add <path>`.")
     var arguments: [String] = []
@@ -124,7 +124,9 @@ struct BookmarkPassthroughCommand: ParsableCommand {
 
 /// `befold check <path>`。実際の引数検証・処理は既存の CLICheckCommand へ委譲する。
 struct CheckPassthroughCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "check")
+    static let configuration = CommandConfiguration(
+        commandName: "check", abstract: "Check whether befold can open a file/folder."
+    )
 
     @Argument(parsing: .captureForPassthrough, help: "Check whether befold can open the given file/folder.")
     var arguments: [String] = []
