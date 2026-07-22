@@ -20,46 +20,11 @@ struct CLIOpenOptions: Equatable, Codable {
     }
 }
 
-/// befold CLI のルートコマンド。`befold` シム経由で渡された argv を解析する。
-/// swift-argument-parser に委譲することで、`--` ターミネータやサブコマンド名の衝突といった
-/// 引数解析の落とし穴(TASK-73.9/73.10 参照)を自前実装せずに回避する。
-/// ルート自身は positional 引数を持たない(サブコマンドの配列引数と競合し、
-/// "bookmark"/"check" がサブコマンドとしてではなくパスとして飲み込まれてしまうため)。
-/// ファイル/フォルダーを開く既定の挙動は `OpenPathsCommand`(非表示の defaultSubcommand)が担う。
-struct BefoldRootCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "befold",
-        abstract: "Mermaid/Markdown viewer.",
-        usage: """
-        befold [options] [file/folder...]
-        befold <subcommand> [args...]
-        """,
-        discussion: """
-        Opening a file/folder without a subcommand is the same as `befold open` \
-        (the default action). See `befold open --help` for its options.
-        """,
-        version: AppVersion.current,
-        subcommands: [OpenPathsCommand.self, BookmarkPassthroughCommand.self, CheckPassthroughCommand.self],
-        defaultSubcommand: OpenPathsCommand.self
-    )
-}
-
-/// `befold [オプション] [ファイル/フォルダー...]`。サブコマンド名(bookmark/check)が明示的に
-/// 指定されなかった場合の既定の挙動(ファイル/フォルダーを開く)を担う。CLI 上は独立したサブコマンド名を
-/// 持たず(defaultSubcommand)、`--help` にも表示しない。
-struct OpenPathsCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "open",
-        abstract: "Open a file/folder (the default action when no subcommand is given).",
-        discussion: """
-        To open a path literally named "check"/"bookmark", or one starting with a hyphen, \
-        use `--` to treat everything after it as paths (e.g. befold -- -notes.md).
-        """
-    )
-
-    @Argument(help: "Paths of files/folders to open (multiple allowed).")
-    var paths: [String] = []
-
+/// open(パス省略時の既定挙動)のオプション定義。root/OpenPathsCommand 双方から
+/// `@OptionGroup` で共有し、root の `--help` にも同じオプションが表示されるようにする
+/// (swift-argument-parser は親子で同じ OptionGroup 型を宣言すると、親側で decode 済みの
+/// 値をそのまま子へ引き継ぐため、二重パースにはならない)。
+struct OpenCLIOptions: ParsableArguments {
     @Flag(name: .customLong("hidden-files"), help: "Show hidden files in the sidebar.")
     var hiddenFilesOn = false
     @Flag(name: .customLong("no-hidden-files"), help: "Don't show hidden files in the sidebar.")
@@ -78,6 +43,8 @@ struct OpenPathsCommand: ParsableCommand {
     @Flag(name: .customLong("preview"), help: "Open in preview mode.")
     var sourceOff = false
 
+    init() {}
+
     func validate() throws {
         if hiddenFilesOn, hiddenFilesOff {
             throw ValidationError("--hidden-files and --no-hidden-files cannot be specified together.")
@@ -90,13 +57,65 @@ struct OpenPathsCommand: ParsableCommand {
         }
     }
 
-    var options: CLIOpenOptions {
+    var cliOpenOptions: CLIOpenOptions {
         CLIOpenOptions(
             showHiddenFiles: hiddenFilesOn ? true : (hiddenFilesOff ? false : nil),
             sortOrder: sortOrder,
             showLineNumbers: lineNumbersOn ? true : (lineNumbersOff ? false : nil),
             sourceMode: sourceOn ? true : (sourceOff ? false : nil)
         )
+    }
+}
+
+/// befold CLI のルートコマンド。`befold` シム経由で渡された argv を解析する。
+/// swift-argument-parser に委譲することで、`--` ターミネータやサブコマンド名の衝突といった
+/// 引数解析の落とし穴(TASK-73.9/73.10 参照)を自前実装せずに回避する。
+/// ルート自身は positional 引数を持たない(サブコマンドの配列引数と競合し、
+/// "bookmark"/"check" がサブコマンドとしてではなくパスとして飲み込まれてしまうため)。
+/// ファイル/フォルダーを開く既定の挙動は `OpenPathsCommand`(defaultSubcommand)が担う。
+/// SUBCOMMANDS 一覧にも表示される(open (default))。
+struct BefoldRootCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "befold",
+        abstract: "Mermaid/Markdown viewer.",
+        usage: """
+        befold [options] [file/folder...]
+        befold <subcommand> [args...]
+        """,
+        discussion: """
+        Opening a file/folder without a subcommand is the same as `befold open` \
+        (the default action). See `befold open --help` for its options.
+        """,
+        version: AppVersion.current,
+        subcommands: [OpenPathsCommand.self, BookmarkPassthroughCommand.self, CheckPassthroughCommand.self],
+        defaultSubcommand: OpenPathsCommand.self
+    )
+
+    /// open(既定挙動)のオプションを root の --help にも表示するための共有 OptionGroup。
+    /// 実際の値の反映は OpenPathsCommand 側が担う(root 自身は run() を持たない)。
+    @OptionGroup var openOptions: OpenCLIOptions
+}
+
+/// `befold [オプション] [ファイル/フォルダー...]`。サブコマンド名(bookmark/check)が明示的に
+/// 指定されなかった場合の既定の挙動(ファイル/フォルダーを開く)を担う。CLI 上は独立したサブコマンド名を
+/// 持たず(defaultSubcommand)、`--help` の SUBCOMMANDS には "open (default)" として表示される。
+struct OpenPathsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "open",
+        abstract: "Open a file/folder (the default action when no subcommand is given).",
+        discussion: """
+        To open a path literally named "check"/"bookmark", or one starting with a hyphen, \
+        use `--` to treat everything after it as paths (e.g. befold -- -notes.md).
+        """
+    )
+
+    @Argument(help: "Paths of files/folders to open (multiple allowed).")
+    var paths: [String] = []
+
+    @OptionGroup var openOptions: OpenCLIOptions
+
+    var options: CLIOpenOptions {
+        openOptions.cliOpenOptions
     }
 
     func run() throws {

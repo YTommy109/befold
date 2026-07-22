@@ -86,6 +86,8 @@ targets:
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold
       PRODUCT_NAME: befold
+      # befold/App/AppVersion.swift の `AppVersion.current` と値を一致させる
+      # (BefoldRootCommandTests.projectYmlMarketingVersionMatchesAppVersionConstant で照合)
       MARKETING_VERSION: "1.7.2"
       CURRENT_PROJECT_VERSION: "543"
       INFOPLIST_FILE: befold/Info.plist

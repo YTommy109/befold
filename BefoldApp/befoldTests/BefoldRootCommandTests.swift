@@ -127,30 +127,25 @@ struct BefoldRootCommandTests {
         #expect(BefoldRootCommand.configuration.version == AppVersion.current)
     }
 
-    @Test("befold --version を実行すると標準出力にバージョン文字列を印字し、終了コード0で終了する")
-    func versionFlagPrintsVersionAndExitsSuccessfully() throws {
-        let executableURL = try Self.builtExecutableURL()
-        let expectedVersion = AppVersion.current
+    /// project.yml の MARKETING_VERSION(言語をまたぐ定数)を実ファイルから読み取り、
+    /// AppVersion.current とのドリフトを検知する(ViewerBridgeTests のソース突き合わせの流儀)。
+    @Test("project.yml の MARKETING_VERSION が AppVersion.current と一致する")
+    func projectYmlMarketingVersionMatchesAppVersionConstant() throws {
+        let projectYmlURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // befoldTests/
+            .deletingLastPathComponent() // BefoldApp/
+            .appendingPathComponent("project.yml")
+        let projectYml = try String(contentsOf: projectYmlURL, encoding: .utf8)
 
-        let process = Process()
-        process.executableURL = executableURL
-        process.arguments = ["--version"]
-        let stdout = Pipe()
-        process.standardOutput = stdout
-        try process.run()
-        let output = stdout.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
+        let marketingVersionLine = try #require(
+            projectYml.components(separatedBy: .newlines).first { $0.contains("MARKETING_VERSION:") }
+        )
+        let marketingVersion = marketingVersionLine
+            .components(separatedBy: "MARKETING_VERSION:")[1]
+            .trimmingCharacters(in: .whitespaces)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
 
-        #expect(process.terminationStatus == 0)
-        #expect(String(data: output, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) == expectedVersion)
-    }
-
-    /// テストバイナリと同じ `.build` ディレクトリ内にある `befold` 実行ファイルのパスを解決する。
-    private static func builtExecutableURL() throws -> URL {
-        let testBinaryDirectory = Bundle(for: BundleToken.self).bundleURL.deletingLastPathComponent()
-        let executableURL = testBinaryDirectory.appendingPathComponent("befold")
-        #expect(FileManager.default.isExecutableFile(atPath: executableURL.path))
-        return executableURL
+        #expect(marketingVersion == AppVersion.current)
     }
 
     @Test("help文言は英語で統一されている(TASK-94.3)")
@@ -186,7 +181,12 @@ struct BefoldRootCommandTests {
 
         #expect(discussion.contains("--"))
     }
-}
 
-/// `Bundle(for:)` 用のマーカークラス(テストターゲットのバンドルを特定するため)。
-private final class BundleToken {}
+    @Test("サブコマンド名を省略しても open 相当のオプションが引き続き正しく解釈される(トップレベル共有後の回帰確認)")
+    func openOptionsStillParseWithoutSubcommandName() throws {
+        let open = try parseRoot(["--hidden-files", "a.md", "--sort", "alphabetical"])
+
+        #expect(open.paths == ["a.md"])
+        #expect(open.options == CLIOpenOptions(showHiddenFiles: true, sortOrder: .alphabetical))
+    }
+}
