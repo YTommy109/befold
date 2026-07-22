@@ -60,17 +60,17 @@ struct OpenPathsCommand: ParsableCommand {
     @Argument(help: "Paths of files/folders to open (multiple allowed).")
     var paths: [String] = []
 
-    @Flag(name: .customLong("hidden-files"), help: "Show hidden files.")
+    @Flag(name: .customLong("hidden-files"), help: "Show hidden files in the sidebar.")
     var hiddenFilesOn = false
-    @Flag(name: .customLong("no-hidden-files"), help: "Don't show hidden files.")
+    @Flag(name: .customLong("no-hidden-files"), help: "Don't show hidden files in the sidebar.")
     var hiddenFilesOff = false
 
-    @Option(name: .customLong("sort"), help: "Specify the sort order.")
+    @Option(name: .customLong("sort"), help: "Specify the sidebar sort order.")
     var sortOrder: CLISortOrderOption?
 
-    @Flag(name: .customLong("line-numbers"), help: "Show line numbers.")
+    @Flag(name: .customLong("line-numbers"), help: "Show line numbers in source view.")
     var lineNumbersOn = false
-    @Flag(name: .customLong("no-line-numbers"), help: "Don't show line numbers.")
+    @Flag(name: .customLong("no-line-numbers"), help: "Don't show line numbers in source view.")
     var lineNumbersOff = false
 
     @Flag(name: .customLong("source"), help: "Open in source view mode.")
