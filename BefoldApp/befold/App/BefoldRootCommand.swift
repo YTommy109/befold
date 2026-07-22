@@ -29,21 +29,21 @@ struct CLIOpenOptions: Equatable, Codable {
 struct BefoldRootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "befold",
-        abstract: "Mermaid/Markdown ビューア。",
+        abstract: "Mermaid/Markdown viewer.",
         usage: """
-        befold [オプション] [ファイル/フォルダー...]
-        befold <サブコマンド> [引数...]
+        befold [options] [file/folder...]
+        befold <subcommand> [args...]
         """,
         discussion: """
-        ファイル/フォルダーを指定すると、それぞれ別ウィンドウで開きます。\
-        オプション一覧は `befold open --help` を参照してください。
+        Specifying files/folders opens each in a separate window. \
+        See `befold open --help` for the full list of options.
 
-        "check"/"bookmark" という名前のパスや、ハイフンで始まるパスを開く場合は \
-        `--` 以降を常にパスとして扱う機能を使う(例: befold -- -notes.md)。
+        To open a path literally named "check"/"bookmark", or one starting with a hyphen, \
+        use `--` to treat everything after it as paths (e.g. befold -- -notes.md).
 
-        `befold` コマンドは /Applications/befold.app 内の実行ファイルへの symlink です。\
-        アプリを /Applications 以外へ移動した場合は、befold のアプリメニューから \
-        「コマンドラインツールをインストール」を再度実行してください。
+        The `befold` command is a symlink to the executable inside /Applications/befold.app. \
+        If you move the app outside of /Applications, choose "Install Command Line Tool" \
+        from the befold app menu again.
         """,
         version: AppVersion.current,
         subcommands: [OpenPathsCommand.self, BookmarkPassthroughCommand.self, CheckPassthroughCommand.self],
@@ -57,40 +57,40 @@ struct BefoldRootCommand: ParsableCommand {
 struct OpenPathsCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "open",
-        abstract: "ファイル/フォルダーを開く(既定の挙動)。",
+        abstract: "Open a file/folder (default behavior).",
         shouldDisplay: false
     )
 
-    @Argument(help: "開くファイル/フォルダーのパス(複数指定可)")
+    @Argument(help: "Paths of files/folders to open (multiple allowed).")
     var paths: [String] = []
 
-    @Flag(name: .customLong("hidden-files"), help: "隠しファイルを表示する")
+    @Flag(name: .customLong("hidden-files"), help: "Show hidden files.")
     var hiddenFilesOn = false
-    @Flag(name: .customLong("no-hidden-files"), help: "隠しファイルを表示しない")
+    @Flag(name: .customLong("no-hidden-files"), help: "Don't show hidden files.")
     var hiddenFilesOff = false
 
-    @Option(name: .customLong("sort"), help: "並び順を指定する")
+    @Option(name: .customLong("sort"), help: "Specify the sort order.")
     var sortOrder: CLISortOrderOption?
 
-    @Flag(name: .customLong("line-numbers"), help: "行番号を表示する")
+    @Flag(name: .customLong("line-numbers"), help: "Show line numbers.")
     var lineNumbersOn = false
-    @Flag(name: .customLong("no-line-numbers"), help: "行番号を表示しない")
+    @Flag(name: .customLong("no-line-numbers"), help: "Don't show line numbers.")
     var lineNumbersOff = false
 
-    @Flag(name: .customLong("source"), help: "ソース表示モードで開く")
+    @Flag(name: .customLong("source"), help: "Open in source view mode.")
     var sourceOn = false
-    @Flag(name: .customLong("preview"), help: "プレビュー表示モードで開く")
+    @Flag(name: .customLong("preview"), help: "Open in preview mode.")
     var sourceOff = false
 
     func validate() throws {
         if hiddenFilesOn, hiddenFilesOff {
-            throw ValidationError("--hidden-files と --no-hidden-files は同時に指定できません")
+            throw ValidationError("--hidden-files and --no-hidden-files cannot be specified together.")
         }
         if lineNumbersOn, lineNumbersOff {
-            throw ValidationError("--line-numbers と --no-line-numbers は同時に指定できません")
+            throw ValidationError("--line-numbers and --no-line-numbers cannot be specified together.")
         }
         if sourceOn, sourceOff {
-            throw ValidationError("--source と --preview は同時に指定できません")
+            throw ValidationError("--source and --preview cannot be specified together.")
         }
     }
 
@@ -113,7 +113,7 @@ struct OpenPathsCommand: ParsableCommand {
 struct BookmarkPassthroughCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "bookmark")
 
-    @Argument(parsing: .captureForPassthrough, help: "add <path> でファイル/フォルダーをブックマークに追加する")
+    @Argument(parsing: .captureForPassthrough, help: "Bookmark a file/folder with `add <path>`.")
     var arguments: [String] = []
 
     func run() throws {
@@ -126,7 +126,7 @@ struct BookmarkPassthroughCommand: ParsableCommand {
 struct CheckPassthroughCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "check")
 
-    @Argument(parsing: .captureForPassthrough, help: "指定したファイル/フォルダーが befold で開けるか確認する")
+    @Argument(parsing: .captureForPassthrough, help: "Check whether befold can open the given file/folder.")
     var arguments: [String] = []
 
     func run() throws {

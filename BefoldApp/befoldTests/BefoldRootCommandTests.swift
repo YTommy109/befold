@@ -152,6 +152,12 @@ struct BefoldRootCommandTests {
         #expect(FileManager.default.isExecutableFile(atPath: executableURL.path))
         return executableURL
     }
+
+    @Test("help文言は英語で統一されている(TASK-94.3)")
+    func helpTextIsEnglishOnly() {
+        #expect(BefoldRootCommand.configuration.abstract == "Mermaid/Markdown viewer.")
+        #expect(OpenPathsCommand.configuration.abstract == "Open a file/folder (default behavior).")
+    }
 }
 
 /// `Bundle(for:)` 用のマーカークラス(テストターゲットのバンドルを特定するため)。

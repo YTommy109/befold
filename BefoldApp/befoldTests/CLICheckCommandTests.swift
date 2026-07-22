@@ -14,7 +14,7 @@ struct CLICheckCommandTests {
 
         #expect(result.exitCode == 0)
         #expect(result.message.contains("mmd"))
-        #expect(result.message.contains("\(("graph TD;" as String).utf8.count)バイト"))
+        #expect(result.message.contains("\(("graph TD;" as String).utf8.count) bytes"))
     }
 
     @Test("存在しないパスはエラーになる")
@@ -110,7 +110,7 @@ struct CLICheckCommandTests {
         let result = CLICheckCommand.run([tmp.url.path])
 
         #expect(result.exitCode != 0)
-        #expect(result.message.contains("フォルダー内にファイルがありません"))
+        #expect(result.message.contains("No file found in folder"))
     }
 
     @Test("壊れたシンボリックリンクだけのフォルダーは空扱いせず、開けないエントリとして報告する")
@@ -126,8 +126,8 @@ struct CLICheckCommandTests {
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains("broken.mmd"))
-        #expect(result.message.contains("実体が見つかりません"))
+        #expect(result.message.contains("target could not be found"))
         // 「フォルダーが空」の文言とは区別されること(実際の原因を報告する)。
-        #expect(!result.message.contains("フォルダー内にファイルがありません"))
+        #expect(!result.message.contains("No file found in folder"))
     }
 }

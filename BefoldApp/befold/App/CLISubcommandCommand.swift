@@ -16,15 +16,15 @@ enum CLIBookmarkCommand {
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> CLICommandResult {
         guard arguments.count == 2, arguments[0] == "add" else {
-            return CLICommandResult(message: "使い方: befold bookmark add <path>", exitCode: 64)
+            return CLICommandResult(message: "Usage: befold bookmark add <path>", exitCode: 64)
         }
         let path = arguments[1]
         guard fileExists(path) else {
-            return CLICommandResult(message: "指定されたパスが見つかりません: \(path)", exitCode: 1)
+            return CLICommandResult(message: "No such path: \(path)", exitCode: 1)
         }
         let url = URL(fileURLWithPath: path)
         bookmarkStore.add(url)
-        return CLICommandResult(message: "ブックマークに追加しました: \(url.path)", exitCode: 0)
+        return CLICommandResult(message: "Bookmarked: \(url.path)", exitCode: 0)
     }
 }
 
@@ -32,37 +32,38 @@ enum CLIBookmarkCommand {
 enum CLICheckCommand {
     static func run(_ arguments: [String], fileReader: any FileReading = DefaultFileReader()) -> CLICommandResult {
         guard arguments.count == 1 else {
-            return CLICommandResult(message: "使い方: befold check <path>", exitCode: 64)
+            return CLICommandResult(message: "Usage: befold check <path>", exitCode: 64)
         }
         let path = arguments[0]
         let url = URL(fileURLWithPath: path)
         guard fileReader.fileExists(at: url) else {
-            return CLICommandResult(message: "指定されたパスが見つかりません: \(path)", exitCode: 1)
+            return CLICommandResult(message: "No such path: \(path)", exitCode: 1)
         }
 
         guard let target = DirectoryLister.resolveFileToOpen(at: url, fileReader: fileReader) else {
-            return CLICommandResult(message: "フォルダー内にファイルがありません: \(path)", exitCode: 1)
+            return CLICommandResult(message: "No file found in folder: \(path)", exitCode: 1)
         }
 
         // フォルダーは非空だが、解決先が実体のないエントリ(削除済みターゲットを指す
         // ダングリングシンボリックリンク等)のケース。「フォルダーが空」とは区別して報告する。
         guard fileReader.isExistingFile(at: target) else {
             return CLICommandResult(
-                message: "開けません: \(target.path)\n理由: ファイルの実体が見つかりません(壊れたシンボリックリンクの可能性があります)",
+                message: "Cannot open: \(target.path)\nReason: "
+                    + "The file's target could not be found (it may be a broken symbolic link).",
                 exitCode: 1
             )
         }
 
         let fileType = FileType(url: target)
         let size = fileReader.fileSize(at: target) ?? 0
-        let detail = "サイズ: \(size)バイト\n型: \(fileType.jsValue)(拡張子: .\(target.pathExtension))"
+        let detail = "Size: \(size) bytes\nType: \(fileType.jsValue) (extension: .\(target.pathExtension))"
 
         if let reason = rejectReason(for: fileType, size: size, target: target, fileReader: fileReader) {
             return CLICommandResult(
-                message: "開けません: \(target.path)\n理由: \(reason.localizedMessage)\n\(detail)", exitCode: 1
+                message: "Cannot open: \(target.path)\nReason: \(reason.localizedMessage)\n\(detail)", exitCode: 1
             )
         }
-        return CLICommandResult(message: "開けます: \(target.path)\n\(detail)", exitCode: 0)
+        return CLICommandResult(message: "Can open: \(target.path)\n\(detail)", exitCode: 0)
     }
 
     /// ContentLoader/NormalizedTextCache のサイズ上限定数を再利用し、開けない理由があれば返す。
