@@ -21,9 +21,8 @@ concurrency:
   cancel-in-progress: true
 
 # detectsFileDeletion 等の一発イベント検出テストは CI ランナーの一時的な
-# 低速化(コンパイル直後の CPU 輻輳、TSan の 5〜15 倍スローダウン等)でデフォルトの
-# 10秒待機予算を超過することがある(task-50)。build-and-test / thread-sanitizer
-# の両ジョブで共通の延長値を適用する。
+# 低速化(コンパイル直後の CPU 輻輳等)でデフォルトの 10秒待機予算を超過する
+# ことがある(task-50)。thread-sanitizer ジョブはジョブレベル env で上書き。
 env:
   BEFOLD_TEST_TIMEOUT_SECONDS: 30
 
@@ -85,6 +84,11 @@ jobs:
     # コストが高いため PR では回さず、main push と nightly に限定する
     if: github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: macos-26
+    env:
+      # TSan 計装は 5〜15 倍のスローダウンを引き起こし、ワークフローレベルの
+      # 30 秒では waitUntil 系ポーリングがタイムアウトする(直近14回中12回失敗)。
+      # lineNumbers テストで最大 74 秒を観測しているため、十分なマージンを確保する。
+      BEFOLD_TEST_TIMEOUT_SECONDS: 120
     defaults:
       run:
         working-directory: BefoldApp
