@@ -27,4 +27,14 @@ struct AppVersionTests {
         let resolved = AppVersion.resolved(infoDictionary: ["CFBundleShortVersionString": "$(MARKETING_VERSION)"])
         #expect(resolved == AppVersion.fallback)
     }
+
+    /// `/usr/local/bin/befold` の symlink 経由起動を模した実行ファイルパスから、
+    /// 正しく `.app` バンドルのパスを導けることを確認する
+    /// (`Bundle.main` は symlink を辿れずこのパスを解決できないため、
+    /// AppVersion.current 側で明示的にバンドルを探す必要がある)。
+    @Test("実行ファイルパスから親の .app バンドルパスを導出する")
+    func bundlePathDerivesAppBundleFromExecutablePath() {
+        let executablePath = "/Applications/befold.app/Contents/MacOS/befold"
+        #expect(AppVersion.bundlePath(fromExecutablePath: executablePath) == "/Applications/befold.app")
+    }
 }
