@@ -45,6 +45,7 @@ struct BefoldRootCommand: ParsableCommand {
         アプリを /Applications 以外へ移動した場合は、befold のアプリメニューから \
         「コマンドラインツールをインストール」を再度実行してください。
         """,
+        version: AppVersion.current,
         subcommands: [OpenPathsCommand.self, BookmarkPassthroughCommand.self, CheckPassthroughCommand.self],
         defaultSubcommand: OpenPathsCommand.self
     )
