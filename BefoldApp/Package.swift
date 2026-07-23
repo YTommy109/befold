@@ -84,9 +84,21 @@ let package = Package(
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
             ]
         ),
+        // テスト用の共有ヘルパー。befoldTests / befoldCLITests の双方から使うため
+        // 独立したターゲットに置く。GUI 本体(befold)や BefoldRenderKit への依存を
+        // 持ち込まないよう、依存は Foundation のみに保つこと。
+        .target(
+            name: "BefoldTestSupport",
+            path: "BefoldTestSupport",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
+            ]
+        ),
         .testTarget(
             name: "befoldTests",
-            dependencies: ["befold", "BefoldKit", "BefoldCLI", "BefoldRenderKit"],
+            dependencies: [
+                "befold", "BefoldKit", "BefoldCLI", "BefoldRenderKit", "BefoldTestSupport",
+            ],
             path: "befoldTests",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
@@ -94,7 +106,7 @@ let package = Package(
         ),
         .testTarget(
             name: "befoldCLITests",
-            dependencies: ["befold-cli", "BefoldCLI", "BefoldKit"],
+            dependencies: ["befold-cli", "BefoldCLI", "BefoldKit", "BefoldTestSupport"],
             path: "befoldCLITests",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),

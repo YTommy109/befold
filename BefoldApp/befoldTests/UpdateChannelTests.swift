@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldTestSupport
 import Testing
 
 @Suite
