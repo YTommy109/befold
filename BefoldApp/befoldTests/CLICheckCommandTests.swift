@@ -10,7 +10,7 @@ struct CLICheckCommandTests {
         let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
         let reader = InMemoryFileReader(files: [url.path: "graph TD;"])
 
-        let result = CLICheckCommand.run([url.path], fileReader: reader)
+        let result = CLICheckCommand.run(url.path, fileReader: reader)
 
         #expect(result.exitCode == 0)
         #expect(result.message.contains("mmd"))
@@ -21,7 +21,7 @@ struct CLICheckCommandTests {
     func missingPathFails() {
         let reader = InMemoryFileReader()
 
-        let result = CLICheckCommand.run(["/tmp/missing.mmd"], fileReader: reader)
+        let result = CLICheckCommand.run("/tmp/missing.mmd", fileReader: reader)
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains("/tmp/missing.mmd"))
@@ -33,7 +33,7 @@ struct CLICheckCommandTests {
         let reader = InMemoryFileReader(files: [url.path: "# big"])
         reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: url)
 
-        let result = CLICheckCommand.run([url.path], fileReader: reader)
+        let result = CLICheckCommand.run(url.path, fileReader: reader)
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains(RejectReason.fileTooLarge.cliMessage))
@@ -45,7 +45,7 @@ struct CLICheckCommandTests {
         let reader = InMemoryFileReader(files: [url.path: "not really markdown"])
         reader.setBinary(true, at: url)
 
-        let result = CLICheckCommand.run([url.path], fileReader: reader)
+        let result = CLICheckCommand.run(url.path, fileReader: reader)
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains(RejectReason.unsupportedFormat.cliMessage))
@@ -58,17 +58,11 @@ struct CLICheckCommandTests {
         reader.setBinary(true, at: url)
         reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: url)
 
-        let result = CLICheckCommand.run([url.path], fileReader: reader)
+        let result = CLICheckCommand.run(url.path, fileReader: reader)
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains(RejectReason.unsupportedFormat.cliMessage))
         #expect(!result.message.contains(RejectReason.fileTooLarge.cliMessage))
-    }
-
-    @Test("引数の数が不正な場合は usage エラーになる")
-    func invalidArgumentCountReturnsUsageError() {
-        #expect(CLICheckCommand.run([]).exitCode == 64)
-        #expect(CLICheckCommand.run(["a", "b"]).exitCode == 64)
     }
 
     @Test("フォルダーを指定すると対応形式優先で最初のファイルを判定する")
@@ -78,7 +72,7 @@ struct CLICheckCommandTests {
         _ = try tmp.file(named: "a.txt", contents: "plain")
         _ = try tmp.file(named: "b.md", contents: "# hi")
 
-        let result = CLICheckCommand.run([tmp.url.path])
+        let result = CLICheckCommand.run(tmp.url.path)
 
         #expect(result.exitCode == 0)
         #expect(result.message.contains("md"))
@@ -94,7 +88,7 @@ struct CLICheckCommandTests {
         _ = try tmp.file(named: "file10.md", contents: "# ten")
         _ = try tmp.file(named: "file2.md", contents: "# two")
 
-        let result = CLICheckCommand.run([tmp.url.path])
+        let result = CLICheckCommand.run(tmp.url.path)
         let expected = DirectoryLister.firstSupportedFile(in: tmp.url)
 
         #expect(result.exitCode == 0)
@@ -107,7 +101,7 @@ struct CLICheckCommandTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
 
-        let result = CLICheckCommand.run([tmp.url.path])
+        let result = CLICheckCommand.run(tmp.url.path)
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains("No file found in folder"))
@@ -122,7 +116,7 @@ struct CLICheckCommandTests {
             withDestinationURL: tmp.url.appendingPathComponent("missing.mmd")
         )
 
-        let result = CLICheckCommand.run([tmp.url.path])
+        let result = CLICheckCommand.run(tmp.url.path)
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains("broken.mmd"))

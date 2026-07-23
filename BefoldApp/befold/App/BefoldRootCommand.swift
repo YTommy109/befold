@@ -7,7 +7,7 @@ enum CLISortOrderOption: String, Equatable, Codable, ExpressibleByArgument {
     case alphabetical
 }
 
-/// `-h`/`--help`・サブコマンド以外の起動オプション。未指定の項目は既存の保存済み設定・既定値を維持する。
+/// `-h`/`--help`・`--check`/`--bookmark` 以外の起動オプション。未指定の項目は既存の保存済み設定・既定値を維持する。
 struct CLIOpenOptions: Equatable, Codable {
     var showHiddenFiles: Bool?
     var sortOrder: CLISortOrderOption?
@@ -20,8 +20,9 @@ struct CLIOpenOptions: Equatable, Codable {
     }
 }
 
-/// open(パス省略時の既定挙動)のオプション定義。OpenPathsCommand のみが保持し、
-/// `befold open --help` で表示される。ルートの `--help` discussion が参照先を案内する。
+/// ファイルを開く際の表示オプション定義。BefoldRootCommand が単一の @OptionGroup として保持する
+/// (root 以外にこれを共有する ParsableCommand は存在しないため、
+/// サブコマンド名の前でフラグが黙殺される問題は構造的に起きない)。
 struct OpenCLIOptions: ParsableArguments {
     @Flag(name: .customLong("hidden-files"), help: "Show hidden files in the sidebar.")
     var hiddenFilesOn = false
@@ -66,96 +67,85 @@ struct OpenCLIOptions: ParsableArguments {
 }
 
 /// befold CLI のルートコマンド。`befold` シム経由で渡された argv を解析する。
-/// swift-argument-parser に委譲することで、`--` ターミネータやサブコマンド名の衝突といった
-/// 引数解析の落とし穴(TASK-73.9/73.10 参照)を自前実装せずに回避する。
-/// ルート自身は positional 引数を持たない(サブコマンドの配列引数と競合し、
-/// "bookmark"/"check" がサブコマンドとしてではなくパスとして飲み込まれてしまうため)。
-/// ファイル/フォルダーを開く既定の挙動は `OpenPathsCommand`(defaultSubcommand)が担う。
-/// SUBCOMMANDS 一覧にも表示される(open (default))。
+/// swift-argument-parser に委譲することで、`--` ターミネータといった引数解析の
+/// 落とし穴を自前実装せずに回避する。
+///
+/// `open`/`bookmark`/`check` は以前 `ParsableCommand` のサブコマンドだったが、
+/// サブコマンド分割は「オプションがどのコマンドに属するか」が argv 上の位置に依存する
+/// 問題を生む(open 専用フラグをサブコマンド名の前に置くと root が消費してしまい
+/// 黙殺される)。トップレベル `--help` に open のオプションを表示する要求とは
+/// 実装手段(`@OptionGroup` 共有)の上で両立しなかったため、サブコマンド分割自体を
+/// 廃止し、単一コマンド + `--check`/`--bookmark` フラグに統合した。フラグは常に
+/// トップレベルの実オプションであり、argv 上の位置に依存しない。
 struct BefoldRootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "befold",
         abstract: "Mermaid/Markdown viewer.",
-        usage: """
-        befold [options] [file/folder...]
-        befold <subcommand> [args...]
-        """,
-        discussion: """
-        Opening a file/folder without a subcommand is the same as `befold open` \
-        (the default action). See `befold open --help` for its options.
-        """,
-        version: AppVersion.current,
-        subcommands: [OpenPathsCommand.self, BookmarkPassthroughCommand.self, CheckPassthroughCommand.self],
-        defaultSubcommand: OpenPathsCommand.self
-    )
-}
-
-/// `befold [オプション] [ファイル/フォルダー...]`。サブコマンド名(bookmark/check)が明示的に
-/// 指定されなかった場合の既定の挙動(ファイル/フォルダーを開く)を担う。CLI 上は独立したサブコマンド名を
-/// 持たず(defaultSubcommand)、`--help` の SUBCOMMANDS には "open (default)" として表示される。
-struct OpenPathsCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "open",
-        abstract: "Open a file/folder (the default action when no subcommand is given).",
+        usage: "befold [options] [file/folder...]",
         discussion: """
         Each path opens in its own window.
-
-        To open a path literally named "check"/"bookmark", or one starting with a hyphen, \
-        use `--` to treat everything after it as paths (e.g. befold -- -notes.md).
-        """
+        To open a path starting with a hyphen, use `--` to treat everything after it \
+        as paths (e.g. befold -- -notes.md).
+        """,
+        version: AppVersion.current
     )
 
-    @Argument(help: "Paths of files/folders to open (multiple allowed).")
-    var paths: [String] = []
+    @Flag(name: .customLong("check"), help: "Check whether the given paths can be opened, instead of opening them.")
+    var check = false
+
+    @Flag(name: .customLong("bookmark"), help: "Bookmark the given paths, instead of opening them.")
+    var bookmark = false
 
     @OptionGroup var openOptions: OpenCLIOptions
+
+    @Argument(help: "Paths of files/folders to open (multiple allowed; also used as the target of --check/--bookmark).")
+    var paths: [String] = []
 
     var options: CLIOpenOptions {
         openOptions.cliOpenOptions
     }
 
+    func validate() throws {
+        try openOptions.validate()
+        if check || bookmark, paths.isEmpty {
+            throw ValidationError("At least one path is required with --check/--bookmark.")
+        }
+    }
+
     func run() throws {
-        AppDelegate.launch(withInitialPaths: paths, options: options)
+        guard check || bookmark else {
+            AppDelegate.launch(withInitialPaths: paths, options: options)
+            return
+        }
+
+        var anyFailed = false
+        if check {
+            for path in paths {
+                let result = CLICheckCommand.run(path)
+                CLICommandResultPrinter.print(result)
+                if result.exitCode != 0 { anyFailed = true }
+            }
+        }
+        if bookmark {
+            for path in paths {
+                let result = MainActor.assumeIsolated { CLIBookmarkCommand.run(path) }
+                CLICommandResultPrinter.print(result)
+                if result.exitCode != 0 { anyFailed = true }
+            }
+        }
+        throw ExitCode(anyFailed ? 1 : 0)
     }
 }
 
-/// `befold bookmark [add <path>]`。実際の引数検証・処理は既存の CLIBookmarkCommand へ委譲する
-/// (add 以外の語や引数不足のエラーメッセージ・終了コードは CLIBookmarkCommand が持つ)。
-struct BookmarkPassthroughCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "bookmark", abstract: "Manage bookmarks.")
-
-    @Argument(parsing: .captureForPassthrough, help: "Bookmark a file/folder with `add <path>`.")
-    var arguments: [String] = []
-
-    func run() throws {
-        let result = MainActor.assumeIsolated { CLIBookmarkCommand.run(arguments) }
-        CLICommandResultPrinter.printAndExit(result)
-    }
-}
-
-/// `befold check <path>`。実際の引数検証・処理は既存の CLICheckCommand へ委譲する。
-struct CheckPassthroughCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "check", abstract: "Check whether befold can open a file/folder."
-    )
-
-    @Argument(parsing: .captureForPassthrough, help: "Check whether befold can open the given file/folder.")
-    var arguments: [String] = []
-
-    func run() throws {
-        let result = CLICheckCommand.run(arguments)
-        CLICommandResultPrinter.printAndExit(result)
-    }
-}
-
-/// `CLICommandResult` を stdout/stderr へ出力し、対応する終了コードでプロセスを終了する。
+/// `CLICommandResult` を stdout/stderr へ出力する。終了コードの決定・プロセス終了は
+/// 呼び出し側(`BefoldRootCommand.run()`)が担う(--check/--bookmark 併用時に
+/// 複数件の結果をまとめて出力してから終了コードを決めるため)。
 enum CLICommandResultPrinter {
-    static func printAndExit(_ result: CLICommandResult) -> Never {
+    static func print(_ result: CLICommandResult) {
         if result.exitCode == 0 {
-            print(result.message)
+            Swift.print(result.message)
         } else {
             FileHandle.standardError.write(Data((result.message + "\n").utf8))
         }
-        exit(result.exitCode)
     }
 }

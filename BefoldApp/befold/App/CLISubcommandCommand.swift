@@ -7,30 +7,14 @@ struct CLICommandResult: Equatable {
     let exitCode: Int32
 }
 
-/// `befold bookmark add <path>` — 既存の BookmarkStore を再利用してブックマークを追加する。
+/// `befold --bookmark <path>` — 既存の BookmarkStore を再利用してブックマークを追加する。
 enum CLIBookmarkCommand {
-    static let helpMessage = """
-    OVERVIEW: Manage bookmarks.
-
-    USAGE: befold bookmark add <path>
-
-    ARGUMENTS:
-      <path>                  Path to the file or folder to bookmark.
-    """
-
     @MainActor
     static func run(
-        _ arguments: [String],
+        _ path: String,
         bookmarkStore: BookmarkStore = BookmarkStore(),
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> CLICommandResult {
-        if arguments.contains("--help") || arguments.contains("-h") {
-            return CLICommandResult(message: helpMessage, exitCode: 0)
-        }
-        guard arguments.count == 2, arguments[0] == "add" else {
-            return CLICommandResult(message: "Usage: befold bookmark add <path>", exitCode: 64)
-        }
-        let path = arguments[1]
         guard fileExists(path) else {
             return CLICommandResult(message: "No such path: \(path)", exitCode: 1)
         }
@@ -40,25 +24,9 @@ enum CLIBookmarkCommand {
     }
 }
 
-/// `befold check <path>` — 既存の FileType・サイズ上限定数を再利用し、befold が開けるファイルかどうかを判定する。
+/// `befold --check <path>` — 既存の FileType・サイズ上限定数を再利用し、befold が開けるファイルかどうかを判定する。
 enum CLICheckCommand {
-    static let helpMessage = """
-    OVERVIEW: Check whether befold can open a file or folder.
-
-    USAGE: befold check <path>
-
-    ARGUMENTS:
-      <path>                  Path to the file or folder to check.
-    """
-
-    static func run(_ arguments: [String], fileReader: any FileReading = DefaultFileReader()) -> CLICommandResult {
-        if arguments.contains("--help") || arguments.contains("-h") {
-            return CLICommandResult(message: helpMessage, exitCode: 0)
-        }
-        guard arguments.count == 1 else {
-            return CLICommandResult(message: "Usage: befold check <path>", exitCode: 64)
-        }
-        let path = arguments[0]
+    static func run(_ path: String, fileReader: any FileReading = DefaultFileReader()) -> CLICommandResult {
         let url = URL(fileURLWithPath: path)
         guard fileReader.fileExists(at: url) else {
             return CLICommandResult(message: "No such path: \(path)", exitCode: 1)

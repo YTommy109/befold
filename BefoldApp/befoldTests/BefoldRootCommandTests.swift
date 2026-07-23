@@ -4,32 +4,36 @@ import BefoldKit
 import Foundation
 import Testing
 
-/// BefoldRootCommand(swift-argument-parser への移行、TASK-76)の parseAsRoot 挙動を検証する。
+/// BefoldRootCommand の parseAsRoot 挙動を検証する。
+/// open/bookmark/check のサブコマンド分割を廃止し、単一コマンド + --check/--bookmark
+/// フラグへ統合したため、parseAsRoot は常に BefoldRootCommand 自身を返す。
 @Suite
 struct BefoldRootCommandTests {
-    private func parseRoot(_ arguments: [String]) throws -> OpenPathsCommand {
+    private func parseRoot(_ arguments: [String]) throws -> BefoldRootCommand {
         let command = try BefoldRootCommand.parseAsRoot(arguments)
-        guard let open = command as? OpenPathsCommand else {
-            Issue.record("expected OpenPathsCommand, got \(type(of: command))")
+        guard let root = command as? BefoldRootCommand else {
+            Issue.record("expected BefoldRootCommand, got \(type(of: command))")
             throw ValidationError("unexpected command type")
         }
-        return open
+        return root
     }
 
-    @Test("引数なしの場合は空のパス・既定オプションになる(defaultSubcommand)")
+    @Test("引数なしの場合は空のパス・既定オプションになる")
     func emptyArgumentsReturnsEmptyPaths() throws {
-        let open = try parseRoot([])
+        let root = try parseRoot([])
 
-        #expect(open.paths.isEmpty)
-        #expect(open.options == CLIOpenOptions())
+        #expect(root.paths.isEmpty)
+        #expect(root.options == CLIOpenOptions())
+        #expect(!root.check)
+        #expect(!root.bookmark)
     }
 
     @Test("ファイルパスのみの場合はそのままパスとして解釈する")
     func plainPathsAreParsedAsPaths() throws {
-        let open = try parseRoot(["a.mmd", "b.md"])
+        let root = try parseRoot(["a.mmd", "b.md"])
 
-        #expect(open.paths == ["a.mmd", "b.md"])
-        #expect(open.options == CLIOpenOptions())
+        #expect(root.paths == ["a.mmd", "b.md"])
+        #expect(root.options == CLIOpenOptions())
     }
 
     @Test("-h / --help はヘルプ要求として run() がエラーを投げる")
@@ -49,28 +53,67 @@ struct BefoldRootCommandTests {
         #expect(throws: (any Error).self) { try BefoldRootCommand.parseAsRoot(["--no-such-option"]) }
     }
 
-    @Test("登録済みサブコマンド bookmark/check は subcommand として解釈する(TASK-73.4/73.5)")
-    func registeredSubcommandsAreParsed() throws {
-        let bookmark = try BefoldRootCommand.parseAsRoot(["bookmark", "add", "/tmp/a.mmd"])
-        #expect((bookmark as? BookmarkPassthroughCommand)?.arguments == ["add", "/tmp/a.mmd"])
+    @Test("--check/--bookmark は値を取らないブールフラグとして解釈する(TASK-104)")
+    func checkAndBookmarkFlagsAreParsed() throws {
+        let checkOnly = try parseRoot(["--check", "a.md"])
+        #expect(checkOnly.check)
+        #expect(!checkOnly.bookmark)
+        #expect(checkOnly.paths == ["a.md"])
 
-        let check = try BefoldRootCommand.parseAsRoot(["check", "/tmp/a.mmd"])
-        #expect((check as? CheckPassthroughCommand)?.arguments == ["/tmp/a.mmd"])
+        let both = try parseRoot(["--check", "--bookmark", "a.md", "b.md"])
+        #expect(both.check)
+        #expect(both.bookmark)
+        #expect(both.paths == ["a.md", "b.md"])
     }
 
-    @Test("`--` 以降は check/bookmark という名前のパスでもサブコマンドと解釈されない(TASK-73.9)")
-    func dashDashEscapesSubcommandLikePathNames() throws {
-        let open = try parseRoot(["--", "check"])
+    @Test("--check/--bookmark 指定時に paths が空だとエラーになる(TASK-104)")
+    func checkOrBookmarkWithoutPathsThrows() {
+        #expect(throws: (any Error).self) { try BefoldRootCommand.parseAsRoot(["--check"]) }
+        #expect(throws: (any Error).self) { try BefoldRootCommand.parseAsRoot(["--bookmark"]) }
+    }
 
-        #expect(open.paths == ["check"])
+    @Test("--check は複数パスを対象にし、1件でも失敗すれば終了コードが非0になる(TASK-104)")
+    func checkAggregatesMultiplePathsAndFailsIfAnyFails() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let existing = try tmp.file(named: "ok.md", contents: "# ok")
+
+        let allOk = try parseRoot(["--check", existing.path])
+        #expect(throws: ExitCode(0)) { try allOk.run() }
+
+        let oneMissing = try parseRoot(["--check", existing.path, "/tmp/does-not-exist.md"])
+        #expect(throws: ExitCode(1)) { try oneMissing.run() }
+    }
+
+    @Test("--check と --bookmark を併用すると check→bookmark の順で両方実行され、失敗が集計される(TASK-104)")
+    @MainActor
+    func checkAndBookmarkRunInOrderAndAggregateFailure() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let existing = try tmp.file(named: "ok.md", contents: "# ok")
+
+        // bookmark 対象を存在しないパスにすることで、CLIBookmarkCommand.run の
+        // fileExists ガードで早期リターンさせ、実 UserDefaults への書き込みを避けつつ
+        // check→bookmark の両方が実行されることと、失敗集計を検証する。
+        let both = try parseRoot(["--check", "--bookmark", existing.path, "/tmp/does-not-exist-for-bookmark.md"])
+        #expect(throws: ExitCode(1)) { try both.run() }
+    }
+
+    @Test("旧サブコマンド名と同名のパスはサブコマンドと解釈されず、そのまま open 対象になる(TASK-104)")
+    func formerSubcommandNamesAreTreatedAsPlainPaths() throws {
+        let root = try parseRoot(["--hidden-files", "check", "/tmp/a"])
+
+        #expect(root.paths == ["check", "/tmp/a"])
+        #expect(root.options.showHiddenFiles == true)
+        #expect(!root.check)
     }
 
     @Test("`--` 以降はハイフンで始まるパスでもオプションと解釈されない(TASK-73.10)")
     func dashDashEscapesHyphenPrefixedPaths() throws {
-        let open = try parseRoot(["--hidden-files", "--", "-notes.md"])
+        let root = try parseRoot(["--hidden-files", "--", "-notes.md"])
 
-        #expect(open.paths == ["-notes.md"])
-        #expect(open.options == CLIOpenOptions(showHiddenFiles: true))
+        #expect(root.paths == ["-notes.md"])
+        #expect(root.options == CLIOpenOptions(showHiddenFiles: true))
     }
 
     @Test("--hidden-files / --no-hidden-files を解釈する")
@@ -116,10 +159,10 @@ struct BefoldRootCommandTests {
 
     @Test("オプションとファイルパスは混在指定できる")
     func optionsAndPathsCanBeMixed() throws {
-        let open = try parseRoot(["--hidden-files", "a.md", "--source", "b.md"])
+        let root = try parseRoot(["--hidden-files", "a.md", "--source", "b.md"])
 
-        #expect(open.paths == ["a.md", "b.md"])
-        #expect(open.options == CLIOpenOptions(showHiddenFiles: true, sourceMode: true))
+        #expect(root.paths == ["a.md", "b.md"])
+        #expect(root.options == CLIOpenOptions(showHiddenFiles: true, sourceMode: true))
     }
 
     @Test("configuration.version は AppVersion.current と一致する(単一の情報源)")
@@ -152,101 +195,33 @@ struct BefoldRootCommandTests {
     @Test("help文言は英語で統一されている(TASK-94.3)")
     func helpTextIsEnglishOnly() {
         #expect(BefoldRootCommand.configuration.abstract == "Mermaid/Markdown viewer.")
-        #expect(OpenPathsCommand.configuration.abstract.hasPrefix("Open a file/folder"))
     }
 
-    @Test("bookmark/check サブコマンドには一目でわかる abstract がある(TASK-94.4)")
-    func bookmarkAndCheckHaveAbstracts() {
-        #expect(BookmarkPassthroughCommand.configuration.abstract == "Manage bookmarks.")
-        #expect(CheckPassthroughCommand.configuration.abstract == "Check whether befold can open a file/folder.")
+    @Test("トップレベル --help に全オプションが表示される(TASK-104)")
+    func allOptionsAppearInTopLevelHelp() {
+        let help = BefoldRootCommand.helpMessage()
+
+        #expect(help.contains("--check"))
+        #expect(help.contains("--bookmark"))
+        #expect(help.contains("--hidden-files"))
+        #expect(help.contains("--sort"))
+        #expect(help.contains("--line-numbers"))
+        #expect(help.contains("--source"))
+        #expect(help.contains("--preview"))
     }
 
-    @Test("open はデフォルト挙動として --help のサブコマンド一覧に表示される(TASK-94.4)")
-    func openSubcommandIsDisplayedInHelp() {
-        #expect(OpenPathsCommand.configuration.shouldDisplay)
-        #expect(OpenPathsCommand.configuration.abstract.contains("default"))
-    }
-
-    @Test("root の discussion は簡潔になり、open のオプション参照先を案内する(TASK-94.4)")
-    func rootDiscussionIsConciseAndPointsToOpenHelp() {
+    @Test("open の discussion に -- エスケープの案内がある")
+    func discussionHasEscapingNote() {
         let discussion = BefoldRootCommand.configuration.discussion
-
-        #expect(discussion.contains("befold open --help"))
-        #expect(!discussion.contains("symlink"))
-    }
-
-    @Test("open の discussion に -- エスケープの案内がある(TASK-94.4)")
-    func openDiscussionHasEscapingNote() {
-        let discussion = OpenPathsCommand.configuration.discussion
 
         #expect(discussion.contains("treat everything after it as paths"))
     }
 
-    @Test("open の discussion に複数パスのウィンドウ挙動が記載されている(TASK-100)")
-    func openDiscussionDescribesMultipleWindowBehavior() {
-        let discussion = OpenPathsCommand.configuration.discussion
+    @Test("discussion に複数パスのウィンドウ挙動が記載されている(TASK-100)")
+    func discussionDescribesMultipleWindowBehavior() {
+        let discussion = BefoldRootCommand.configuration.discussion
 
         #expect(discussion.contains("its own window"))
-    }
-
-    @Test("open 専用オプションはトップレベル --help に表示されない(befold open --help に委ねる)")
-    func openOptionsDoNotAppearInTopLevelHelp() {
-        let help = BefoldRootCommand.helpMessage()
-
-        #expect(!help.contains("--hidden-files"))
-        #expect(!help.contains("--sort"))
-        #expect(!help.contains("--line-numbers"))
-        #expect(help.contains("befold open --help"))
-    }
-
-    @Test("サブコマンド名を省略しても open 相当のオプションが引き続き正しく解釈される(トップレベル共有後の回帰確認)")
-    func openOptionsStillParseWithoutSubcommandName() throws {
-        let open = try parseRoot(["--hidden-files", "a.md", "--sort", "alphabetical"])
-
-        #expect(open.paths == ["a.md"])
-        #expect(open.options == CLIOpenOptions(showHiddenFiles: true, sortOrder: .alphabetical))
-    }
-
-    @Test("open 専用フラグがサブコマンド名の前にあると、サブコマンド名はパスとして解釈される(TASK-97)")
-    func openFlagsBeforeSubcommandNameCausesPathInterpretation() throws {
-        let open = try parseRoot(["--hidden-files", "check", "/tmp/a"])
-
-        #expect(open.paths == ["check", "/tmp/a"])
-        #expect(open.options.showHiddenFiles == true)
-    }
-
-    @Test("check --help はヘルプテキストを返す(TASK-96)")
-    func checkHelpReturnsHelpText() {
-        let result = CLICheckCommand.run(["--help"])
-
-        #expect(result.exitCode == 0)
-        #expect(result.message.contains("USAGE: befold check"))
-    }
-
-    @Test("check -h はヘルプテキストを返す(TASK-96)")
-    func checkShortHelpReturnsHelpText() {
-        let result = CLICheckCommand.run(["-h"])
-
-        #expect(result.exitCode == 0)
-        #expect(result.message.contains("OVERVIEW:"))
-    }
-
-    @Test("bookmark --help はヘルプテキストを返す(TASK-96)")
-    @MainActor
-    func bookmarkHelpReturnsHelpText() {
-        let result = CLIBookmarkCommand.run(["--help"])
-
-        #expect(result.exitCode == 0)
-        #expect(result.message.contains("USAGE: befold bookmark"))
-    }
-
-    @Test("bookmark -h はヘルプテキストを返す(TASK-96)")
-    @MainActor
-    func bookmarkShortHelpReturnsHelpText() {
-        let result = CLIBookmarkCommand.run(["-h"])
-
-        #expect(result.exitCode == 0)
-        #expect(result.message.contains("OVERVIEW:"))
     }
 
     @Test("RejectReason.cliMessage はロケールに依存しない英語固定メッセージを返す(TASK-98)")
