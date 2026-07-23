@@ -28,6 +28,12 @@ schemes:
       coverageEnabled: false
       targets:
         - befoldTests
+  befold-cli:
+    build:
+      targets:
+        befold-cli: all
+    run:
+      config: Debug
 targets:
   BefoldKit:
     type: framework
@@ -55,6 +61,19 @@ targets:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.renderkit
       PRODUCT_NAME: BefoldRenderKit
       GENERATE_INFOPLIST_FILE: true
+  BefoldCLI:
+    type: framework
+    platform: macOS
+    sources:
+      - path: BefoldCLI
+    dependencies:
+      - target: BefoldKit
+      - package: swift-argument-parser
+        product: ArgumentParser
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.cli
+      PRODUCT_NAME: BefoldCLI
+      GENERATE_INFOPLIST_FILE: true
   befold:
     type: application
     platform: macOS
@@ -80,14 +99,15 @@ targets:
     dependencies:
       - target: BefoldKit
       - target: BefoldRenderKit
+      - target: BefoldCLI
       - package: Sparkle
       - package: swift-argument-parser
         product: ArgumentParser
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold
       PRODUCT_NAME: befold
-      # befold/App/AppVersion.swift の `AppVersion.current` と値を一致させる
-      # (BefoldRootCommandTests.projectYmlMarketingVersionMatchesAppVersionConstant で照合)
+      # BefoldCLI/AppVersion.swift の `AppVersion.current` と値を一致させる
+      # (BefoldCLICommandTests.projectYmlMarketingVersionMatchesAppVersionConstant で照合)
       MARKETING_VERSION: "1.7.2"
       CURRENT_PROJECT_VERSION: "543"
       INFOPLIST_FILE: befold/Info.plist
@@ -107,3 +127,14 @@ targets:
       BUNDLE_LOADER: "$(TEST_HOST)"
       TEST_HOST: "$(BUILT_PRODUCTS_DIR)/befold.app/Contents/MacOS/befold"
       GENERATE_INFOPLIST_FILE: true
+  befold-cli:
+    type: tool
+    platform: macOS
+    sources:
+      - path: befold-cli
+    dependencies:
+      - target: BefoldCLI
+      - package: swift-argument-parser
+        product: ArgumentParser
+    settings:
+      PRODUCT_NAME: befold-cli
