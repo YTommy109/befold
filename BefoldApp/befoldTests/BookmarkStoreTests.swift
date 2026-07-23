@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldKit
 import Foundation
 import Testing
 
@@ -96,5 +97,17 @@ struct BookmarkStoreTests {
         let relaunched = makeStore()
 
         #expect(relaunched.isBookmarked(url("a.mmd")))
+    }
+
+    @Test("シンボリックリンク経由で add しても実体パスで isBookmarked と判定される(TASK-111)")
+    func addResolvesSymlinkToRealPath() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let (real, link) = try tmp.symlinkedFile()
+        let store = makeStore()
+
+        store.add(link)
+
+        #expect(store.isBookmarked(real))
     }
 }

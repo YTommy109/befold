@@ -1,4 +1,5 @@
 @testable import befold
+@testable import BefoldCLI
 import Foundation
 import Testing
 
@@ -8,7 +9,7 @@ struct CLIInstallerTests {
     func targetExecutablePathPointsIntoBundle() {
         let target = CLIInstaller.targetExecutablePath(bundlePath: "/Applications/befold.app")
 
-        #expect(target == "/Applications/befold.app/Contents/MacOS/befold")
+        #expect(target == "/Applications/befold.app/Contents/MacOS/befold-cli")
     }
 
     @Test("書き込み可能な場所には bundle 内の実行ファイルへの symlink が作成される")
@@ -26,7 +27,7 @@ struct CLIInstallerTests {
         let attributes = try FileManager.default.attributesOfItem(atPath: installPath.path)
         #expect(attributes[.type] as? FileAttributeType == .typeSymbolicLink)
         let destination = try FileManager.default.destinationOfSymbolicLink(atPath: installPath.path)
-        #expect(destination == "/Applications/befold.app/Contents/MacOS/befold")
+        #expect(destination == "/Applications/befold.app/Contents/MacOS/befold-cli")
     }
 
     @Test("旧バージョンの実体ファイルシムが残っていても symlink に置き換わる")
@@ -55,7 +56,7 @@ struct CLIInstallerTests {
         let installPath = tmp.url.appendingPathComponent("befold")
         try FileManager.default.createSymbolicLink(
             atPath: installPath.path,
-            withDestinationPath: "/Applications/befold-old.app/Contents/MacOS/befold"
+            withDestinationPath: "/Applications/befold-old.app/Contents/MacOS/befold-cli"
         )
 
         let result = CLIInstaller.install(bundlePath: "/Applications/befold.app", installPath: installPath)
@@ -65,7 +66,7 @@ struct CLIInstallerTests {
             return
         }
         let destination = try FileManager.default.destinationOfSymbolicLink(atPath: installPath.path)
-        #expect(destination == "/Applications/befold.app/Contents/MacOS/befold")
+        #expect(destination == "/Applications/befold.app/Contents/MacOS/befold-cli")
     }
 
     @Test("symlink 作成に失敗した場合、既存の設置内容は変更されずに残る")
@@ -80,7 +81,7 @@ struct CLIInstallerTests {
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tmp.url.path) }
 
         let succeeded = CLIInstaller.writeDirectly(
-            target: "/Applications/befold.app/Contents/MacOS/befold", to: installPath
+            target: "/Applications/befold.app/Contents/MacOS/befold-cli", to: installPath
         )
 
         #expect(!succeeded)
@@ -93,13 +94,13 @@ struct CLIInstallerTests {
     @Test("管理者権限インストール用のシェルコマンドは一時パスに symlink を作成してから mv -f でアトミックに置き換える")
     func administratorInstallShellCommandCreatesSymlinkAtomically() {
         let command = CLIInstaller.administratorInstallShellCommand(
-            target: "/Applications/befold.app/Contents/MacOS/befold",
+            target: "/Applications/befold.app/Contents/MacOS/befold-cli",
             destPath: "/usr/local/bin/befold",
             dirPath: "/usr/local/bin"
         )
 
         #expect(command.contains("mkdir -p '/usr/local/bin'"))
-        #expect(command.contains("ln -s '/Applications/befold.app/Contents/MacOS/befold' '/usr/local/bin/."))
+        #expect(command.contains("ln -s '/Applications/befold.app/Contents/MacOS/befold-cli' '/usr/local/bin/."))
         #expect(command.contains("&& mv -f '/usr/local/bin/."))
         #expect(command.contains("' '/usr/local/bin/befold'"))
         #expect(!command.contains("rm -f"))

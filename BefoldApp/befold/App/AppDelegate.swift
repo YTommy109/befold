@@ -1,4 +1,5 @@
 import AppKit
+import BefoldCLI
 import BefoldKit
 import Sparkle
 import UserNotifications
@@ -18,11 +19,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private let recentDocumentsStore: RecentDocumentsStore
     private let bookmarkStore: BookmarkStore
-    /// CLI 経由の起動時に指定された初期オープン対象パス。GUI ダブルクリック起動時は空。
-    private let initialPaths: [String]
-    /// CLI から指定された表示オプション(未指定項目は nil で、既存の保存済み設定・既定値を維持する)。
-    private let initialOptions: CLIOpenOptions
-    /// CLIInstanceRouter.forward() の再送による同一requestIDの二重処理を防ぐ。
     private var cliRequestDeduplicator = CLIRequestDeduplicator()
     private lazy var recentDocumentsMenuController = RecentDocumentsMenuController(
         recentURLs: { [weak self] in self?.recentDocumentsStore.recentURLs() ?? [] },
@@ -37,9 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openHandler: { [weak self] url in self?.openViewer(for: url) }
     )
 
-    init(initialPaths: [String] = [], initialOptions: CLIOpenOptions = CLIOpenOptions()) {
-        self.initialPaths = initialPaths
-        self.initialOptions = initialOptions
+    override init() {
         let sessionStore = SessionStore()
         let recentDocumentsStore = RecentDocumentsStore()
         let bookmarkStore = BookmarkStore()
@@ -61,11 +55,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.hiddenFilesPreference = hiddenFilesPreference
         sessionRestorer = SessionRestorer(sessionStore: sessionStore, windowManager: windowManager)
         super.init()
-        // NSApplication.run() 開始(≒applicationWillFinishLaunching発火)を待たずに登録する。
-        // このインスタンスは launch() の .launchAsNewInstance 分岐でのみ生成され、生成された時点で
-        // 既に NSRunningApplication 経由で「起動中インスタンス」として他プロセスから見えうるため、
-        // observer 登録を先送りするほど後続 CLI 起動からの forward() が誰にも受信されないレース窓が
-        // 広がる(task-85)。DistributedNotificationCenter への登録自体はランループの起動を必要としない。
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(handleCLIOpenRequest(_:)),
             name: CLIInstanceRouter.openRequestNotificationName, object: nil
@@ -73,115 +62,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     nonisolated static func main() {
-        let arguments = Array(CommandLine.arguments.dropFirst())
-        do {
-            var command = try BefoldRootCommand.parseAsRoot(arguments)
-            try command.run()
-        } catch {
-            BefoldRootCommand.exit(withError: error)
-        }
-    }
-
-    /// `launch(withInitialPaths:options:)` が転送結果を受けて取るべき行動。
-    /// 実際の `exit()`/`NSApplication.run()` を呼ばずに分岐だけをテストできるよう切り出す。
-    enum LaunchAction: Equatable {
-        /// 転送に成功した。この起動はここで終了する。
-        case exitSuccess
-        /// 転送に失敗し、かつ復元すべき対象パスも無い(パス無し起動)ため、
-        /// 旧実装と同じく自身のセッションを復元してウィンドウを開く(task-78)。
-        case launchAsNewInstance
-        /// 対象パスがある転送が失敗した。ユーザーへエラーを伝えて終了する。
-        case exitWithForwardError
-    }
-
-    /// 既存インスタンスの有無・転送結果・パスの有無から、取るべき行動を決定する。
-    /// 副作用(exit/NSApplication.run)を持たないため単体テスト可能。
-    nonisolated static func decideLaunchAction(
-        paths: [String], runningInstance: NSRunningApplication?, forwardSucceeded: Bool
-    ) -> LaunchAction {
-        guard runningInstance != nil else { return .launchAsNewInstance }
-        if forwardSucceeded { return .exitSuccess }
-        return paths.isEmpty ? .launchAsNewInstance : .exitWithForwardError
-    }
-
-    /// paths も表示オプションも指定されていない、単なる `befold` 起動(既存インスタンスの
-    /// 前面化だけが目的)かどうか。この場合は転送すべき内容が無いため、
-    /// forward() の ACK 待ちコスト(task-88 参照)を経由せず直接 activate() すれば十分(task-89)。
-    nonisolated static func isTrivialActivateOnly(paths: [String], options: CLIOpenOptions) -> Bool {
-        paths.isEmpty && options == CLIOpenOptions()
-    }
-
-    /// 既に起動中のインスタンスがあればそちらへ転送し、無ければ新規に GUI を起動する。
-    /// `BefoldRootCommand.run()` から呼ばれる(パス解析・サブコマンド分岐は ArgumentParser に委譲する)。
-    nonisolated static func launch(withInitialPaths paths: [String], options: CLIOpenOptions) {
-        MainActor.assumeIsolated {
-            let paths = paths.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
-            let running = CLIInstanceRouter.runningInstance()
-            if let running, isTrivialActivateOnly(paths: paths, options: options) {
-                running.activate()
-                exit(0)
-            }
-            let forwardSucceeded = running.map {
-                CLIInstanceRouter.forward(paths: paths, options: options, to: $0)
-            } ?? false
-
-            switch decideLaunchAction(paths: paths, runningInstance: running, forwardSucceeded: forwardSucceeded) {
-            case .exitSuccess:
-                exit(0)
-            case .exitWithForwardError:
-                FileHandle.standardError.write(Data("Failed to forward to the running instance.\n".utf8))
-                exit(1)
-            case .launchAsNewInstance:
-                if !paths.isEmpty, Bundle.main.bundlePath.hasSuffix(".app") {
-                    launchAppAndForward(paths: paths, options: options, bundlePath: Bundle.main.bundlePath)
-                }
-                let app = NSApplication.shared
-                app.setActivationPolicy(.regular)
-                let delegate = AppDelegate(initialPaths: paths, initialOptions: options)
-                app.delegate = delegate
-                AppDelegate.shared = delegate
-                app.run()
-            }
-        }
-    }
-
-    /// `launchAsNewInstance` かつパス指定ありの場合に、GUI アプリを `/usr/bin/open` で
-    /// 起動し、起動完了を待ってから CLI 転送する。
-    private static func launchAppAndForward(
-        paths: [String], options: CLIOpenOptions, bundlePath: String
-    ) -> Never {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-a", bundlePath]
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            FileHandle.standardError.write(
-                Data("Failed to launch app: \(error)\n".utf8)
-            )
-            exit(1)
-        }
-        guard process.terminationStatus == 0 else {
-            exit(process.terminationStatus)
-        }
-        // 起動したインスタンスが見えるまでポーリングし、forwarding で転送する
-        let deadline = Date().addingTimeInterval(10)
-        var launched: NSRunningApplication?
-        while launched == nil, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.1)
-            launched = CLIInstanceRouter.runningInstance()
-        }
-        guard let destination = launched else {
-            FileHandle.standardError.write(
-                Data("Timed out waiting for app to launch.\n".utf8)
-            )
-            exit(1)
-        }
-        let forwarded = CLIInstanceRouter.forward(
-            paths: paths, options: options, to: destination
-        )
-        exit(forwarded ? 0 : 1)
+        let app = NSApplication.shared
+        app.setActivationPolicy(.regular)
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        AppDelegate.shared = delegate
+        app.run()
     }
 
     // MARK: - NSApplicationDelegate
@@ -191,9 +77,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sessionRestorer.captureSavedState()
     }
 
-    /// 別プロセスの CLI 起動から、起動中の当インスタンスへ転送されたオープン要求を処理する。
-    /// forward() は ACK 未受信時に同じ requestID で再送するため、ACK は受信のたびに返すが、
-    /// openPaths の実行は requestID ごとに一度だけに絞る(task-79)。
     @objc private func handleCLIOpenRequest(_ notification: Notification) {
         guard let (paths, options) = CLIInstanceRouter.decode(userInfo: notification.userInfo) else { return }
         let requestID = CLIInstanceRouter.requestID(from: notification.userInfo)
@@ -206,7 +89,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // 初回のみシステム管理の Recent Documents を取り込む(以降はアプリ側の記録が正)
         recentDocumentsStore.seedIfNeeded(with: NSDocumentController.shared.recentDocumentURLs)
         NSApp.mainMenu = MainMenuBuilder.build(
             openAction: #selector(showOpenPanel),
@@ -215,14 +97,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             bookmarksMenuDelegate: bookmarksMenuController
         )
         UNUserNotificationCenter.current().delegate = self
-        if initialPaths.isEmpty {
-            sessionRestorer.restoreLastSession(options: initialOptions)
-        } else {
-            openPaths(initialPaths, options: initialOptions)
-        }
+        sessionRestorer.restoreLastSession()
         NSApp.activate()
-        // アップデータによる再起動直後は、復元したウィンドウが WindowServer の遷移状態により
-        // どの Space にも属さず不可視になることがあるため、少し待ってから載せ直す
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [windowManager] in
             windowManager.rescueWindowsDetachedFromSpace()
         }
@@ -234,22 +110,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             NSLog("Sparkle updater failed to start: %@", error.localizedDescription)
         }
-        // updater.start() は前回チェックから updateCheckInterval 経過時のみチェックするため、
-        // 起動毎に必ずチェックさせるには明示的な呼び出しが必要
         if updaterController.updater.automaticallyChecksForUpdates {
             updaterController.updater.checkForUpdatesInBackground()
         }
         notifyIfCLIShimIsStale()
     }
 
-    /// 起動時に一度だけ /usr/local/bin/befold の状態を読み取り専用でチェックし、
-    /// 古い実体ファイル/参照先不一致の symlink が残っている場合のみ再インストールを案内する。
-    /// 書き込み(再インストール自体)は行わない。
-    ///
-    /// 状態チェックのファイル I/O はバックグラウンドキューへ逃がし、起動処理(ウィンドウ復元・
-    /// メニュー構築)をブロックしない。案内も app-modal な `runModal()` ではなく通知センターの
-    /// バナー通知で表示し、表示中も CLI 転送の ACK 応答が main run loop 上で通常どおり
-    /// 処理され続けるようにする。
     private func notifyIfCLIShimIsStale() {
         let bundlePath = Bundle.main.bundlePath
         DispatchQueue.global(qos: .utility).async {
@@ -279,31 +145,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // ウィンドウが閉じられる前に、現在のタブ構成とアクティブファイルを確定値で保存する
         if let keyWindow = NSApp.keyWindow,
            let controller = keyWindow.windowController as? ViewerWindowController
         {
             sessionStore.noteActivated(controller.fileURL)
         }
         sessionStore.saveLayout(sessionRestorer.currentSessionLayout())
-        // 終了処理中のウィンドウクローズで復元リストが空にならないよう記録を止める
         sessionStore.freeze()
         return .terminateNow
     }
 
     // MARK: - Actions
 
-    /// 指定 URL のファイルをビューアウィンドウで開く(DocumentController・Recent メニューからも呼ばれる)。
-    /// ディレクトリが渡された場合は、フォルダー内最初のファイルを開く(CLI シム経由の想定)。
-    /// 拡張子を問わずウィンドウは開かれ、未対応の内容ならビューア側でプレースホルダー表示する。
     func openViewer(for url: URL) {
         openViewer(for: url, options: CLIOpenOptions())
     }
 
-    /// CLI から渡されたパス群を、表示オプション付きでそれぞれ別ウィンドウに開く。
-    /// `--hidden-files`/`--no-hidden-files` はウィンドウ単位ではなくアプリ全体の設定のため、先に一度だけ反映する。
-    /// パス無し起動(`befold --line-numbers` 等)は新規に開くウィンドウが無いため、
-    /// 行番号/ソース表示/並び順のオーバーライドは開いている全ウィンドウへ直接適用する(task-82)。
     func openPaths(_ paths: [String], options: CLIOpenOptions) {
         if let showHiddenFiles = options.showHiddenFiles {
             windowManager.setHiddenFiles(showHiddenFiles)
@@ -341,9 +198,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.runModal()
     }
 
-    /// ファイル選択パネルを表示し、選択されたファイルをビューアで開く。
-    /// 初期ディレクトリはキーウィンドウが表示中のファイルのディレクトリ、
-    /// 無ければ（未オープン含む）ホームディレクトリを使う。
     @objc func showOpenPanel() {
         let controller = NSApp.keyWindow?.windowController as? ViewerWindowController
         let panel = NSOpenPanel()
@@ -360,7 +214,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Help > befold Help。GitHub の README をブラウザで開く。
     @objc func openHelp(_ sender: Any?) {
         guard let url = URL(string: "https://github.com/YTommy109/befold#readme") else { return }
         NSWorkspace.shared.open(url)
@@ -379,7 +232,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updaterController.checkForUpdates(sender)
     }
 
-    /// メニューの「Install 'befold' command in PATH」。/usr/local/bin にシムスクリプトを設置する。
     @objc func installCLI(_ sender: Any?) {
         let installPath = CLIInstaller.defaultInstallPath
         let result = CLIInstaller.install(bundlePath: Bundle.main.bundlePath, installPath: installPath)
@@ -391,7 +243,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// View > Show/Hide Hidden Files(⌘⌃H)。不可視ファイル表示を全ウィンドウで一括切替する。
     @objc func toggleHiddenFiles(_ sender: Any?) {
         windowManager.toggleHiddenFiles()
     }
@@ -421,7 +272,6 @@ extension AppDelegate: NSMenuItemValidation {
 // MARK: - UNUserNotificationCenterDelegate
 
 extension AppDelegate: @preconcurrency UNUserNotificationCenterDelegate {
-    /// befold 自身がフォアグラウンドの起動直後に通知を出すため、既定の抑制を解除してバナー表示させる。
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,

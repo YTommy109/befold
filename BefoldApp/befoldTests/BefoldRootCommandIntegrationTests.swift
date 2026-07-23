@@ -1,13 +1,12 @@
 import ArgumentParser
-@testable import befold
+@testable import BefoldCLI
 import Foundation
 import Testing
 
-/// BefoldRootCommand のうち、ビルド済み実行ファイルを
-/// 実サブプロセス起動して検証するシナリオテスト。
+/// befold-cli バイナリを実サブプロセスとして起動して検証するシナリオテスト。
 @Suite
-struct BefoldRootCommandIntegrationTests {
-    @Test("befold --version を実行すると標準出力にバージョン文字列を印字し、終了コード0で終了する")
+struct BefoldCLIIntegrationTests {
+    @Test("befold-cli --version は標準出力にバージョン文字列を印字し終了コード 0 で終了する")
     func versionFlagPrintsVersionAndExitsSuccessfully() throws {
         let executableURL = try Self.builtExecutableURL()
         let expectedVersion = AppVersion.current
@@ -22,11 +21,14 @@ struct BefoldRootCommandIntegrationTests {
         process.waitUntilExit()
 
         #expect(process.terminationStatus == 0)
-        #expect(String(data: output, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) == expectedVersion)
+        #expect(
+            String(data: output, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                == expectedVersion
+        )
     }
 
-    @Test("befold --help のトップレベルOPTIONSに --check/--bookmark と全表示オプションが表示される")
+    @Test("befold-cli --help に --check/--bookmark と全表示オプションが表示される")
     func helpDisplaysAllOptionsAtTopLevel() throws {
         let executableURL = try Self.builtExecutableURL()
 
@@ -40,6 +42,7 @@ struct BefoldRootCommandIntegrationTests {
         process.waitUntilExit()
         let text = String(data: output, encoding: .utf8) ?? ""
 
+        #expect(process.terminationStatus == 0)
         #expect(text.contains("--check"))
         #expect(text.contains("--bookmark"))
         #expect(text.contains("--hidden-files"))
@@ -49,7 +52,9 @@ struct BefoldRootCommandIntegrationTests {
         #expect(text.contains("--preview"))
     }
 
-    @Test("befold --check <path> は実プロセスとして終了コード0でチェック結果を出力する")
+    @Test(
+        "befold-cli --check <path> は終了コード 0 でチェック結果を出力する"
+    )
     func checkFlagRunsAsRealSubprocess() throws {
         let executableURL = try Self.builtExecutableURL()
         let tmp = try TempDir()
@@ -66,10 +71,15 @@ struct BefoldRootCommandIntegrationTests {
         process.waitUntilExit()
 
         #expect(process.terminationStatus == 0)
-        #expect(String(data: output, encoding: .utf8)?.contains("Can open:") == true)
+        #expect(
+            String(data: output, encoding: .utf8)?
+                .contains("Can open:") == true
+        )
     }
 
-    @Test("befold --check <相対パス> はカレントディレクトリ基準で解決される")
+    @Test(
+        "befold-cli --check <相対パス> はカレントディレクトリ基準で解決される"
+    )
     func checkFlagResolvesRelativePath() throws {
         let executableURL = try Self.builtExecutableURL()
         let tmp = try TempDir()
@@ -87,55 +97,76 @@ struct BefoldRootCommandIntegrationTests {
         process.waitUntilExit()
 
         #expect(process.terminationStatus == 0)
-        #expect(String(data: output, encoding: .utf8)?.contains("Can open:") == true)
+        #expect(
+            String(data: output, encoding: .utf8)?
+                .contains("Can open:") == true
+        )
     }
 
     @Test(
-        "befold <path> はファイルを開いてプロセスが終了する",
-        .enabled(if: Self.builtExecutableIsInAppBundle())
+        "befold-cli --check を引数なしで呼ぶと終了コード非ゼロ"
     )
-    func openFileExitsProcess() async throws {
+    func checkFlagWithoutPathFails() throws {
         let executableURL = try Self.builtExecutableURL()
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "exit-test.mmd", contents: "graph TD;")
 
         let process = Process()
         process.executableURL = executableURL
-        process.arguments = [file.path]
+        process.arguments = ["--check"]
+        let stderr = Pipe()
+        process.standardError = stderr
         try process.run()
+        process.waitUntilExit()
 
-        await waitUntil(timeout: .seconds(10)) { !process.isRunning }
-        if process.isRunning {
-            process.terminate()
-            Issue.record("befold <path> did not exit within 10 seconds")
-            return
-        }
-        #expect(process.terminationStatus == 0)
+        #expect(process.terminationStatus != 0)
     }
 
-    private static func builtExecutableIsInAppBundle() -> Bool {
-        guard let url = try? builtExecutableURL() else { return false }
-        return url.path.contains(".app/")
+    @Test(
+        "befold-cli --check <存在しないパス> は終了コード非ゼロを返す"
+    )
+    func checkFlagWithMissingPathFails() throws {
+        let executableURL = try Self.builtExecutableURL()
+
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = ["--check", "/no/such/file.mmd"]
+        let stderr = Pipe()
+        process.standardError = stderr
+        try process.run()
+        let output = stderr.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        #expect(process.terminationStatus != 0)
+        #expect(
+            String(data: output, encoding: .utf8)?
+                .contains("No such path:") == true
+        )
     }
 
-    /// テストバイナリと同じビルドディレクトリ内にある `befold` 実行ファイルのパスを解決する。
-    /// SPM(.build レイアウト)と xcodebuild(befold.app/Contents/MacOS/befold)の両方に対応する。
+    /// テストバイナリと同じビルドディレクトリ内の `befold-cli` を解決する。
+    /// SPM(.build レイアウト)と xcodebuild(befold.app/Contents/MacOS/befold-cli)の
+    /// 両方に対応する。
     private static func builtExecutableURL() throws -> URL {
-        let testBinaryDirectory = Bundle(for: BundleToken.self).bundleURL.deletingLastPathComponent()
-        let spmCandidate = testBinaryDirectory.appendingPathComponent("befold")
-        if FileManager.default.isExecutableFile(atPath: spmCandidate.path) {
+        let testBinaryDirectory = Bundle(
+            for: BundleToken.self
+        ).bundleURL.deletingLastPathComponent()
+        let spmCandidate = testBinaryDirectory
+            .appendingPathComponent("befold-cli")
+        if FileManager.default
+            .isExecutableFile(atPath: spmCandidate.path)
+        {
             return spmCandidate
         }
         let xcodeCandidate = testBinaryDirectory
-            .appendingPathComponent("befold.app/Contents/MacOS/befold")
+            .appendingPathComponent(
+                "befold.app/Contents/MacOS/befold-cli"
+            )
         try #require(
-            FileManager.default.isExecutableFile(atPath: xcodeCandidate.path),
-            "befold executable not found in SPM or xcodebuild layout"
+            FileManager.default
+                .isExecutableFile(atPath: xcodeCandidate.path),
+            "befold-cli executable not found in SPM or xcodebuild layout"
         )
         return xcodeCandidate
     }
 }
 
-/// `Bundle(for:)` 用のマーカークラス(テストターゲットのバンドルを特定するため)。
 private final class BundleToken {}

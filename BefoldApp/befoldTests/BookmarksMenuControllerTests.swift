@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldKit
 import Testing
 
 @Suite

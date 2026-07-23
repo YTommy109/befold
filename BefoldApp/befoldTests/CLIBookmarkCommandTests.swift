@@ -1,4 +1,6 @@
 @testable import befold
+@testable import BefoldCLI
+import BefoldKit
 import Foundation
 import Testing
 
@@ -14,7 +16,7 @@ struct CLIBookmarkCommandTests {
         let store = makeStore()
 
         let result = CLIBookmarkCommand.run(
-            "/tmp/diagram.mmd", bookmarkStore: store, fileExists: { _ in true }
+            "/tmp/diagram.mmd", addBookmark: { store.add($0) }, fileExists: { _ in true }
         )
 
         #expect(result.exitCode == 0)
@@ -25,9 +27,9 @@ struct CLIBookmarkCommandTests {
     func addIsIdempotentAcrossInvocations() {
         let store = makeStore()
 
-        _ = CLIBookmarkCommand.run("/tmp/diagram.mmd", bookmarkStore: store, fileExists: { _ in true })
+        _ = CLIBookmarkCommand.run("/tmp/diagram.mmd", addBookmark: { store.add($0) }, fileExists: { _ in true })
         let second = CLIBookmarkCommand.run(
-            "/tmp/diagram.mmd", bookmarkStore: store, fileExists: { _ in true }
+            "/tmp/diagram.mmd", addBookmark: { store.add($0) }, fileExists: { _ in true }
         )
 
         #expect(second.exitCode == 0)
@@ -39,7 +41,7 @@ struct CLIBookmarkCommandTests {
         let store = makeStore()
 
         let result = CLIBookmarkCommand.run(
-            "/tmp/missing.mmd", bookmarkStore: store, fileExists: { _ in false }
+            "/tmp/missing.mmd", addBookmark: { store.add($0) }, fileExists: { _ in false }
         )
 
         #expect(result.exitCode != 0)

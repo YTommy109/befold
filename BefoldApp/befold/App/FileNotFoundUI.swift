@@ -1,4 +1,5 @@
 import AppKit
+import BefoldKit
 
 /// 「File Not Found」アラートの生成と表示(GUI 層・自動テスト対象外)。
 ///

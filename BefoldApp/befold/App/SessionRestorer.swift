@@ -1,4 +1,5 @@
 import AppKit
+import BefoldCLI
 import BefoldKit
 
 /// 前回セッションのウィンドウ/タブ構成のスナップショットと復元を担う。

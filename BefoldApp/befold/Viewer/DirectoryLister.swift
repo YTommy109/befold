@@ -91,17 +91,11 @@ enum DirectoryLister {
         fileReader.isDirectory(at: url)
     }
 
-    /// CLI シム経由のオープン用にパスを解決する。
-    /// ディレクトリなら最初の対応ファイルを優先し、無ければ最初のファイルを返す
-    /// (ファイルが1つもなければ nil)。ファイル・存在しないパスはそのまま返す
-    /// (既存のオープン/エラー表示フローに委譲する)。
-    /// - Parameter fileReader: テスト用に差し替え可能(CLICheckCommand がフォルダー内ファイル解決を
-    ///   ここへ委譲する際、自身に注入された fileReader をそのまま渡す)。
+    /// CLI シム経由のオープン用にパスを解決する。実体は BefoldKit.SupportedFileResolver
+    /// (GUI・CLI 双方の単一の実装元)に委譲する。
+    /// - Parameter fileReader: テスト用に差し替え可能。
     static func resolveFileToOpen(at url: URL, fileReader: any FileReading = Self.fileReader) -> URL? {
-        guard fileReader.isDirectory(at: url) else {
-            return url
-        }
-        return firstSupportedFile(in: url, fileReader: fileReader) ?? listFiles(in: url, fileReader: fileReader).first
+        SupportedFileResolver.resolveFileToOpen(at: url, fileReader: fileReader)
     }
 
     // MARK: - Private

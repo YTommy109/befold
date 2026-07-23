@@ -13,6 +13,17 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "BefoldCLI",
+            dependencies: [
+                "BefoldKit",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            path: "BefoldCLI",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
+            ]
+        ),
+        .target(
             name: "BefoldKit",
             path: "BefoldKit",
             exclude: ["Resources/__tests__"],
@@ -46,6 +57,7 @@ let package = Package(
             name: "befold",
             dependencies: [
                 "BefoldKit",
+                "BefoldCLI",
                 "BefoldRenderKit",
                 .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -60,10 +72,30 @@ let package = Package(
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
             ]
         ),
+        .executableTarget(
+            name: "befold-cli",
+            dependencies: [
+                "BefoldCLI",
+                "BefoldKit",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            path: "befold-cli",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
+            ]
+        ),
         .testTarget(
             name: "befoldTests",
-            dependencies: ["befold", "BefoldKit", "BefoldRenderKit"],
+            dependencies: ["befold", "BefoldKit", "BefoldCLI", "BefoldRenderKit"],
             path: "befoldTests",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
+            ]
+        ),
+        .testTarget(
+            name: "befoldCLITests",
+            dependencies: ["befold-cli", "BefoldCLI", "BefoldKit"],
+            path: "befoldCLITests",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
             ]

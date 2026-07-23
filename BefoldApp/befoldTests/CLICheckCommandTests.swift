@@ -1,16 +1,23 @@
 @testable import befold
+@testable import BefoldCLI
 import BefoldKit
 import Foundation
 import Testing
 
 @Suite
 struct CLICheckCommandTests {
+    private let resolve: (URL, any FileReading) -> URL? = {
+        DirectoryLister.resolveFileToOpen(at: $0, fileReader: $1)
+    }
+
     @Test("開けるファイルはサイズと型を含めて成功する")
     func openableFileSucceedsWithSizeAndType() {
         let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
         let reader = InMemoryFileReader(files: [url.path: "graph TD;"])
 
-        let result = CLICheckCommand.run(url.path, fileReader: reader)
+        let result = CLICheckCommand.run(
+            url.path, fileReader: reader, resolveFileToOpen: resolve
+        )
 
         #expect(result.exitCode == 0)
         #expect(result.message.contains("mmd"))
@@ -21,7 +28,9 @@ struct CLICheckCommandTests {
     func missingPathFails() {
         let reader = InMemoryFileReader()
 
-        let result = CLICheckCommand.run("/tmp/missing.mmd", fileReader: reader)
+        let result = CLICheckCommand.run(
+            "/tmp/missing.mmd", fileReader: reader, resolveFileToOpen: resolve
+        )
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains("/tmp/missing.mmd"))
@@ -33,7 +42,9 @@ struct CLICheckCommandTests {
         let reader = InMemoryFileReader(files: [url.path: "# big"])
         reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: url)
 
-        let result = CLICheckCommand.run(url.path, fileReader: reader)
+        let result = CLICheckCommand.run(
+            url.path, fileReader: reader, resolveFileToOpen: resolve
+        )
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains(RejectReason.fileTooLarge.cliMessage))
@@ -45,7 +56,9 @@ struct CLICheckCommandTests {
         let reader = InMemoryFileReader(files: [url.path: "not really markdown"])
         reader.setBinary(true, at: url)
 
-        let result = CLICheckCommand.run(url.path, fileReader: reader)
+        let result = CLICheckCommand.run(
+            url.path, fileReader: reader, resolveFileToOpen: resolve
+        )
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains(RejectReason.unsupportedFormat.cliMessage))
@@ -58,7 +71,9 @@ struct CLICheckCommandTests {
         reader.setBinary(true, at: url)
         reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: url)
 
-        let result = CLICheckCommand.run(url.path, fileReader: reader)
+        let result = CLICheckCommand.run(
+            url.path, fileReader: reader, resolveFileToOpen: resolve
+        )
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains(RejectReason.unsupportedFormat.cliMessage))
@@ -72,7 +87,9 @@ struct CLICheckCommandTests {
         _ = try tmp.file(named: "a.txt", contents: "plain")
         _ = try tmp.file(named: "b.md", contents: "# hi")
 
-        let result = CLICheckCommand.run(tmp.url.path)
+        let result = CLICheckCommand.run(
+            tmp.url.path, resolveFileToOpen: resolve
+        )
 
         #expect(result.exitCode == 0)
         #expect(result.message.contains("md"))
@@ -82,13 +99,12 @@ struct CLICheckCommandTests {
     func directoryResolutionUsesNaturalSortLikeDirectoryLister() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
-        // バイト列比較では "file10.md" < "file2.md" となり誤った順序になるが、
-        // 自然順ソート(localizedStandardCompare)では "file2.md" が先に来る
-        // (DirectoryLister.firstSupportedFile/GUI が実際に開くファイルと一致させる)。
         _ = try tmp.file(named: "file10.md", contents: "# ten")
         _ = try tmp.file(named: "file2.md", contents: "# two")
 
-        let result = CLICheckCommand.run(tmp.url.path)
+        let result = CLICheckCommand.run(
+            tmp.url.path, resolveFileToOpen: resolve
+        )
         let expected = DirectoryLister.firstSupportedFile(in: tmp.url)
 
         #expect(result.exitCode == 0)
@@ -101,7 +117,9 @@ struct CLICheckCommandTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
 
-        let result = CLICheckCommand.run(tmp.url.path)
+        let result = CLICheckCommand.run(
+            tmp.url.path, resolveFileToOpen: resolve
+        )
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains("No file found in folder"))
@@ -116,12 +134,13 @@ struct CLICheckCommandTests {
             withDestinationURL: tmp.url.appendingPathComponent("missing.mmd")
         )
 
-        let result = CLICheckCommand.run(tmp.url.path)
+        let result = CLICheckCommand.run(
+            tmp.url.path, resolveFileToOpen: resolve
+        )
 
         #expect(result.exitCode != 0)
         #expect(result.message.contains("broken.mmd"))
         #expect(result.message.contains("target could not be found"))
-        // 「フォルダーが空」の文言とは区別されること(実際の原因を報告する)。
         #expect(!result.message.contains("No file found in folder"))
     }
 }
