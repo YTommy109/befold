@@ -133,39 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 exit(1)
             case .launchAsNewInstance:
                 if !paths.isEmpty, Bundle.main.bundlePath.hasSuffix(".app") {
-                    let bundlePath = Bundle.main.bundlePath
-                    let process = Process()
-                    process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-                    process.arguments = ["-a", bundlePath]
-                    do {
-                        try process.run()
-                        process.waitUntilExit()
-                    } catch {
-                        FileHandle.standardError.write(
-                            Data("Failed to launch app: \(error)\n".utf8)
-                        )
-                        exit(1)
-                    }
-                    guard process.terminationStatus == 0 else {
-                        exit(process.terminationStatus)
-                    }
-                    // 起動したインスタンスが見えるまでポーリングし、forwarding で転送する
-                    let deadline = Date().addingTimeInterval(10)
-                    var launched: NSRunningApplication?
-                    while launched == nil, Date() < deadline {
-                        Thread.sleep(forTimeInterval: 0.1)
-                        launched = CLIInstanceRouter.runningInstance()
-                    }
-                    guard let destination = launched else {
-                        FileHandle.standardError.write(
-                            Data("Timed out waiting for app to launch.\n".utf8)
-                        )
-                        exit(1)
-                    }
-                    let forwarded = CLIInstanceRouter.forward(
-                        paths: paths, options: options, to: destination
-                    )
-                    exit(forwarded ? 0 : 1)
+                    launchAppAndForward(paths: paths, options: options, bundlePath: Bundle.main.bundlePath)
                 }
                 let app = NSApplication.shared
                 app.setActivationPolicy(.regular)
@@ -175,6 +143,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 app.run()
             }
         }
+    }
+
+    /// `launchAsNewInstance` かつパス指定ありの場合に、GUI アプリを `/usr/bin/open` で
+    /// 起動し、起動完了を待ってから CLI 転送する。
+    private static func launchAppAndForward(
+        paths: [String], options: CLIOpenOptions, bundlePath: String
+    ) -> Never {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-a", bundlePath]
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            FileHandle.standardError.write(
+                Data("Failed to launch app: \(error)\n".utf8)
+            )
+            exit(1)
+        }
+        guard process.terminationStatus == 0 else {
+            exit(process.terminationStatus)
+        }
+        // 起動したインスタンスが見えるまでポーリングし、forwarding で転送する
+        let deadline = Date().addingTimeInterval(10)
+        var launched: NSRunningApplication?
+        while launched == nil, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+            launched = CLIInstanceRouter.runningInstance()
+        }
+        guard let destination = launched else {
+            FileHandle.standardError.write(
+                Data("Timed out waiting for app to launch.\n".utf8)
+            )
+            exit(1)
+        }
+        let forwarded = CLIInstanceRouter.forward(
+            paths: paths, options: options, to: destination
+        )
+        exit(forwarded ? 0 : 1)
     }
 
     // MARK: - NSApplicationDelegate
@@ -227,7 +234,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             NSLog("Sparkle updater failed to start: %@", error.localizedDescription)
         }
-        // startUpdater() は前回チェックから updateCheckInterval 経過時のみチェックするため、
+        // updater.start() は前回チェックから updateCheckInterval 経過時のみチェックするため、
         // 起動毎に必ずチェックさせるには明示的な呼び出しが必要
         if updaterController.updater.automaticallyChecksForUpdates {
             updaterController.updater.checkForUpdatesInBackground()

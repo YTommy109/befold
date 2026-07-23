@@ -26,7 +26,7 @@ struct BefoldRootCommandIntegrationTests {
             .trimmingCharacters(in: .whitespacesAndNewlines) == expectedVersion)
     }
 
-    @Test("befold --help のトップレベルOPTIONSに --check/--bookmark と全表示オプションが表示される(TASK-104)")
+    @Test("befold --help のトップレベルOPTIONSに --check/--bookmark と全表示オプションが表示される")
     func helpDisplaysAllOptionsAtTopLevel() throws {
         let executableURL = try Self.builtExecutableURL()
 
@@ -49,7 +49,7 @@ struct BefoldRootCommandIntegrationTests {
         #expect(text.contains("--preview"))
     }
 
-    @Test("befold --check <path> は実プロセスとして終了コード0でチェック結果を出力する(TASK-104)")
+    @Test("befold --check <path> は実プロセスとして終了コード0でチェック結果を出力する")
     func checkFlagRunsAsRealSubprocess() throws {
         let executableURL = try Self.builtExecutableURL()
         let tmp = try TempDir()
@@ -69,7 +69,7 @@ struct BefoldRootCommandIntegrationTests {
         #expect(String(data: output, encoding: .utf8)?.contains("Can open:") == true)
     }
 
-    @Test("befold --check <相対パス> はカレントディレクトリ基準で解決される(TASK-105)")
+    @Test("befold --check <相対パス> はカレントディレクトリ基準で解決される")
     func checkFlagResolvesRelativePath() throws {
         let executableURL = try Self.builtExecutableURL()
         let tmp = try TempDir()
@@ -91,10 +91,10 @@ struct BefoldRootCommandIntegrationTests {
     }
 
     @Test(
-        "befold <path> はファイルを開いてプロセスが終了する(TASK-106)",
+        "befold <path> はファイルを開いてプロセスが終了する",
         .enabled(if: Self.builtExecutableIsInAppBundle())
     )
-    func openFileExitsProcess() throws {
+    func openFileExitsProcess() async throws {
         let executableURL = try Self.builtExecutableURL()
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -105,10 +105,7 @@ struct BefoldRootCommandIntegrationTests {
         process.arguments = [file.path]
         try process.run()
 
-        let deadline = Date(timeIntervalSinceNow: 10)
-        while process.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.1)
-        }
+        await waitUntil(timeout: .seconds(10)) { !process.isRunning }
         if process.isRunning {
             process.terminate()
             Issue.record("befold <path> did not exit within 10 seconds")
@@ -117,7 +114,7 @@ struct BefoldRootCommandIntegrationTests {
         #expect(process.terminationStatus == 0)
     }
 
-    static func builtExecutableIsInAppBundle() -> Bool {
+    private static func builtExecutableIsInAppBundle() -> Bool {
         guard let url = try? builtExecutableURL() else { return false }
         return url.path.contains(".app/")
     }
