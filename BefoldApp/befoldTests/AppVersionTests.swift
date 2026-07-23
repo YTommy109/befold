@@ -37,4 +37,11 @@ struct AppVersionTests {
         let executablePath = "/Applications/befold.app/Contents/MacOS/befold"
         #expect(AppVersion.bundlePath(fromExecutablePath: executablePath) == "/Applications/befold.app")
     }
+
+    @Test("actualExecutablePath は nil でない実パスを返す")
+    func actualExecutablePathReturnsNonNil() {
+        let path = AppVersion.actualExecutablePath()
+        #expect(path != nil)
+        #expect(path?.isEmpty == false)
+    }
 }
