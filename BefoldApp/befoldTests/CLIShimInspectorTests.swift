@@ -22,7 +22,7 @@ struct CLIShimInspectorTests {
         let installPath = tmp.url.appendingPathComponent("befold")
         try FileManager.default.createSymbolicLink(
             atPath: installPath.path,
-            withDestinationPath: "/Applications/befold.app/Contents/MacOS/befold"
+            withDestinationPath: "/Applications/befold.app/Contents/MacOS/befold-cli"
         )
 
         let status = CLIShimInspector.status(bundlePath: "/Applications/befold.app", installPath: installPath)
@@ -51,7 +51,7 @@ struct CLIShimInspectorTests {
         let installPath = tmp.url.appendingPathComponent("befold")
         try FileManager.default.createSymbolicLink(
             atPath: installPath.path,
-            withDestinationPath: "/Applications/befold-old.app/Contents/MacOS/befold"
+            withDestinationPath: "/Applications/befold-old.app/Contents/MacOS/befold-cli"
         )
 
         let status = CLIShimInspector.status(bundlePath: "/Applications/befold.app", installPath: installPath)
