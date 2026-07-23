@@ -115,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `BefoldRootCommand.run()` から呼ばれる(パス解析・サブコマンド分岐は ArgumentParser に委譲する)。
     nonisolated static func launch(withInitialPaths paths: [String], options: CLIOpenOptions) {
         MainActor.assumeIsolated {
+            let paths = paths.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
             let running = CLIInstanceRouter.runningInstance()
             if let running, isTrivialActivateOnly(paths: paths, options: options) {
                 running.activate()

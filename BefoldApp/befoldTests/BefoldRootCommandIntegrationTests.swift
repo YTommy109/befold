@@ -69,6 +69,27 @@ struct BefoldRootCommandIntegrationTests {
         #expect(String(data: output, encoding: .utf8)?.contains("Can open:") == true)
     }
 
+    @Test("befold --check <相対パス> はカレントディレクトリ基準で解決される(TASK-105)")
+    func checkFlagResolvesRelativePath() throws {
+        let executableURL = try Self.builtExecutableURL()
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "rel.mmd", contents: "graph TD;")
+
+        let process = Process()
+        process.executableURL = executableURL
+        process.currentDirectoryURL = file.deletingLastPathComponent()
+        process.arguments = ["--check", "rel.mmd"]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        try process.run()
+        let output = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        #expect(process.terminationStatus == 0)
+        #expect(String(data: output, encoding: .utf8)?.contains("Can open:") == true)
+    }
+
     /// テストバイナリと同じビルドディレクトリ内にある `befold` 実行ファイルのパスを解決する。
     /// SPM(.build レイアウト)と xcodebuild(befold.app/Contents/MacOS/befold)の両方に対応する。
     private static func builtExecutableURL() throws -> URL {
