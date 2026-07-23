@@ -1,11 +1,11 @@
 ---
 id: TASK-106
 title: CLI経由でファイルを開いた後にプロセスが終了しない
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-07-23 06:37'
-updated_date: '2026-07-23 06:51'
+updated_date: '2026-07-23 07:32'
 labels: []
 dependencies:
   - TASK-105
@@ -30,3 +30,9 @@ TASK-105（相対パス問題）が先に修正される必要がある。パス
 - [ ] #2 既存インスタンスがない場合でもCLIは終了し、アプリは別プロセスとして起動する
 - [ ] #3 befold（パス引数なし）の既存動作に影響がない
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+open -a でアプリを別プロセス起動し CLI は exit する方式で実装完了。表示オプション(--hidden-files等)は初回起動時は未対応(follow-up対象)。コミット 59cf09c。
+<!-- SECTION:NOTES:END -->

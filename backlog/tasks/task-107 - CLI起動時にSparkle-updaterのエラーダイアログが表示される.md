@@ -1,9 +1,11 @@
 ---
 id: TASK-107
 title: CLI起動時にSparkle updaterのエラーダイアログが表示される
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-07-23 06:38'
+updated_date: '2026-07-23 07:42'
 labels: []
 dependencies:
   - TASK-105
@@ -27,3 +29,9 @@ TASK-105の修正により既存インスタンスへの転送が正しく動作
 - [ ] #1 befold file.mmd 実行時にSparkle updaterのエラーダイアログが表示されない
 - [ ] #2 アプリの通常起動時の自動更新チェック機能に影響がない
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+SPUStandardUpdaterController.startUpdater() を SPUUpdater.start() の try/catch に置き換え、エラー時はNSLogに留めダイアログを抑止。コミット ec5370f。
+<!-- SECTION:NOTES:END -->
