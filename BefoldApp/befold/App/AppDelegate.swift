@@ -132,6 +132,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 FileHandle.standardError.write(Data("Failed to forward to the running instance.\n".utf8))
                 exit(1)
             case .launchAsNewInstance:
+                if !paths.isEmpty, Bundle.main.bundlePath.hasSuffix(".app") {
+                    let bundlePath = Bundle.main.bundlePath
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                    process.arguments = ["-a", bundlePath]
+                    do {
+                        try process.run()
+                        process.waitUntilExit()
+                    } catch {
+                        FileHandle.standardError.write(
+                            Data("Failed to launch app: \(error)\n".utf8)
+                        )
+                        exit(1)
+                    }
+                    guard process.terminationStatus == 0 else {
+                        exit(process.terminationStatus)
+                    }
+                    // 起動したインスタンスが見えるまでポーリングし、forwarding で転送する
+                    let deadline = Date().addingTimeInterval(10)
+                    var launched: NSRunningApplication?
+                    while launched == nil, Date() < deadline {
+                        Thread.sleep(forTimeInterval: 0.1)
+                        launched = CLIInstanceRouter.runningInstance()
+                    }
+                    guard let destination = launched else {
+                        FileHandle.standardError.write(
+                            Data("Timed out waiting for app to launch.\n".utf8)
+                        )
+                        exit(1)
+                    }
+                    let forwarded = CLIInstanceRouter.forward(
+                        paths: paths, options: options, to: destination
+                    )
+                    exit(forwarded ? 0 : 1)
+                }
                 let app = NSApplication.shared
                 app.setActivationPolicy(.regular)
                 let delegate = AppDelegate(initialPaths: paths, initialOptions: options)

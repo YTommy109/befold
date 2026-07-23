@@ -1,9 +1,11 @@
 ---
 id: TASK-106
 title: CLI経由でファイルを開いた後にプロセスが終了しない
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-07-23 06:37'
+updated_date: '2026-07-23 06:51'
 labels: []
 dependencies:
   - TASK-105

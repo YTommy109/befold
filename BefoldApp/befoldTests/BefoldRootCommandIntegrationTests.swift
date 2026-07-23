@@ -90,6 +90,38 @@ struct BefoldRootCommandIntegrationTests {
         #expect(String(data: output, encoding: .utf8)?.contains("Can open:") == true)
     }
 
+    @Test(
+        "befold <path> はファイルを開いてプロセスが終了する(TASK-106)",
+        .enabled(if: Self.builtExecutableIsInAppBundle())
+    )
+    func openFileExitsProcess() throws {
+        let executableURL = try Self.builtExecutableURL()
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "exit-test.mmd", contents: "graph TD;")
+
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = [file.path]
+        try process.run()
+
+        let deadline = Date(timeIntervalSinceNow: 10)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        if process.isRunning {
+            process.terminate()
+            Issue.record("befold <path> did not exit within 10 seconds")
+            return
+        }
+        #expect(process.terminationStatus == 0)
+    }
+
+    static func builtExecutableIsInAppBundle() -> Bool {
+        guard let url = try? builtExecutableURL() else { return false }
+        return url.path.contains(".app/")
+    }
+
     /// テストバイナリと同じビルドディレクトリ内にある `befold` 実行ファイルのパスを解決する。
     /// SPM(.build レイアウト)と xcodebuild(befold.app/Contents/MacOS/befold)の両方に対応する。
     private static func builtExecutableURL() throws -> URL {
