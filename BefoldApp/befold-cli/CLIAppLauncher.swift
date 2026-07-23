@@ -56,7 +56,10 @@ public enum CLIAppLauncher {
             return Bundle.main.bundlePath
         },
         pollInterval: TimeInterval = 0.1,
-        pollTimeout: TimeInterval = 10
+        pollTimeout: TimeInterval = 10,
+        writeError: (String) -> Void = {
+            FileHandle.standardError.write(Data($0.utf8))
+        }
     ) -> Int32 {
         let paths = paths.map {
             URL(fileURLWithPath: $0).standardizedFileURL.path
@@ -67,7 +70,7 @@ public enum CLIAppLauncher {
                 running.activate()
                 return 0
             }
-            return forwardOrReportFailure(paths, options, running, forward)
+            return forwardOrReportFailure(paths, options, running, forward, writeError)
         }
 
         let bundlePath = resolveBundlePath()
@@ -75,9 +78,7 @@ public enum CLIAppLauncher {
             let status = try processLauncher.launchApp(bundlePath: bundlePath)
             guard status == 0 else { return status }
         } catch {
-            FileHandle.standardError.write(
-                Data("Failed to launch app: \(error)\n".utf8)
-            )
+            writeError("Failed to launch app: \(error)\n")
             return 1
         }
 
@@ -90,12 +91,10 @@ public enum CLIAppLauncher {
             launched = findRunningInstance()
         }
         guard let destination = launched else {
-            FileHandle.standardError.write(
-                Data("Timed out waiting for app to launch.\n".utf8)
-            )
+            writeError("Timed out waiting for app to launch.\n")
             return 1
         }
-        return forwardOrReportFailure(paths, options, destination, forward)
+        return forwardOrReportFailure(paths, options, destination, forward, writeError)
     }
 
     @MainActor
@@ -103,12 +102,11 @@ public enum CLIAppLauncher {
         _ paths: [String],
         _ options: CLIOpenOptions,
         _ destination: NSRunningApplication,
-        _ forward: @MainActor ([String], CLIOpenOptions, NSRunningApplication) -> Bool
+        _ forward: @MainActor ([String], CLIOpenOptions, NSRunningApplication) -> Bool,
+        _ writeError: (String) -> Void
     ) -> Int32 {
         guard forward(paths, options, destination) else {
-            FileHandle.standardError.write(
-                Data("Failed to forward to the running instance.\n".utf8)
-            )
+            writeError("Failed to forward to the running instance.\n")
             return 1
         }
         return 0

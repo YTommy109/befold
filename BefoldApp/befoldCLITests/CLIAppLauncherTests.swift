@@ -1,36 +1,8 @@
 import AppKit
 @testable import befold_cli
 @testable import BefoldCLI
-import Darwin
 import Foundation
 import Testing
-
-/// `body` 実行中の stderr 出力を一時的に横取りして文字列として返す。
-/// パイプ読み出しを別スレッドで並行実行し、body 実行中に書き込まれる出力が
-/// パイプバッファ(64KB)を埋めてブロックすることを防ぐ。
-private func captureStderr(_ body: () -> Void) -> String {
-    let pipe = Pipe()
-    let originalStderr = dup(STDERR_FILENO)
-    dup2(pipe.fileHandleForWriting.fileDescriptor, STDERR_FILENO)
-
-    // セマフォで body() 完了後の readerDone.wait() までアクセスを直列化しているため、
-    // 実際の並行書き込みは発生しない(コンパイラの静的解析では検出できない)。
-    nonisolated(unsafe) var captured = Data()
-    let readerDone = DispatchSemaphore(value: 0)
-    DispatchQueue.global().async {
-        captured = pipe.fileHandleForReading.readDataToEndOfFile()
-        readerDone.signal()
-    }
-
-    body()
-
-    pipe.fileHandleForWriting.closeFile()
-    readerDone.wait()
-    dup2(originalStderr, STDERR_FILENO)
-    close(originalStderr)
-
-    return String(data: captured, encoding: .utf8) ?? ""
-}
 
 struct MockProcessLauncher: ProcessLaunching {
     var status: Int32
@@ -57,7 +29,6 @@ struct CLIAppLauncherTests {
     @Test("既存インスタンスがあり引数なしなら activate して 0 を返す")
     @MainActor
     func activatesExistingInstanceWithNoPaths() {
-        var activated = false
         let mockApp = NSRunningApplication.current
 
         let code = CLIAppLauncher.run(
@@ -69,7 +40,6 @@ struct CLIAppLauncherTests {
             }
         )
 
-        _ = activated
         #expect(code == 0)
     }
 
@@ -111,15 +81,16 @@ struct CLIAppLauncherTests {
     func forwardFailureWritesStderrMessage() {
         let mockApp = NSRunningApplication.current
 
-        let output = captureStderr {
-            _ = CLIAppLauncher.run(
-                paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
-                findRunningInstance: { mockApp },
-                forward: { _, _, _ in false }
-            )
-        }
+        var errorOutput = ""
 
-        #expect(output.contains("Failed to forward to the running instance."))
+        _ = CLIAppLauncher.run(
+            paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
+            findRunningInstance: { mockApp },
+            forward: { _, _, _ in false },
+            writeError: { errorOutput += $0 }
+        )
+
+        #expect(errorOutput.contains("Failed to forward to the running instance."))
     }
 
     @Test("既存インスタンスなしでアプリ起動に成功しパスなしなら 0 を返す")
@@ -235,22 +206,23 @@ struct CLIAppLauncherTests {
         let mockApp = NSRunningApplication.current
         var callCount = 0
 
-        let output = captureStderr {
-            _ = CLIAppLauncher.run(
-                paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
-                processLauncher: launcher,
-                findRunningInstance: {
-                    callCount += 1
-                    return callCount >= 2 ? mockApp : nil
-                },
-                forward: { _, _, _ in false },
-                resolveBundlePath: { "/Applications/befold.app" },
-                pollInterval: 0.01,
-                pollTimeout: 1
-            )
-        }
+        var errorOutput = ""
 
-        #expect(output.contains("Failed to forward to the running instance."))
+        _ = CLIAppLauncher.run(
+            paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
+            processLauncher: launcher,
+            findRunningInstance: {
+                callCount += 1
+                return callCount >= 2 ? mockApp : nil
+            },
+            forward: { _, _, _ in false },
+            resolveBundlePath: { "/Applications/befold.app" },
+            pollInterval: 0.01,
+            pollTimeout: 1,
+            writeError: { errorOutput += $0 }
+        )
+
+        #expect(errorOutput.contains("Failed to forward to the running instance."))
     }
 
     @Test("アプリ起動後にインスタンスが見つからずタイムアウトしたら 1 を返す")
