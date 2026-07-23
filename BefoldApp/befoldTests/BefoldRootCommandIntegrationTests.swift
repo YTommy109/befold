@@ -3,7 +3,7 @@ import ArgumentParser
 import Foundation
 import Testing
 
-/// BefoldRootCommand(swift-argument-parser への移行、TASK-76)のうち、ビルド済み実行ファイルを
+/// BefoldRootCommand のうち、ビルド済み実行ファイルを
 /// 実サブプロセス起動して検証するシナリオテスト。
 @Suite
 struct BefoldRootCommandIntegrationTests {
@@ -24,6 +24,49 @@ struct BefoldRootCommandIntegrationTests {
         #expect(process.terminationStatus == 0)
         #expect(String(data: output, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) == expectedVersion)
+    }
+
+    @Test("befold --help のトップレベルOPTIONSに --check/--bookmark と全表示オプションが表示される(TASK-104)")
+    func helpDisplaysAllOptionsAtTopLevel() throws {
+        let executableURL = try Self.builtExecutableURL()
+
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = ["--help"]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        try process.run()
+        let output = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let text = String(data: output, encoding: .utf8) ?? ""
+
+        #expect(text.contains("--check"))
+        #expect(text.contains("--bookmark"))
+        #expect(text.contains("--hidden-files"))
+        #expect(text.contains("--sort"))
+        #expect(text.contains("--line-numbers"))
+        #expect(text.contains("--source"))
+        #expect(text.contains("--preview"))
+    }
+
+    @Test("befold --check <path> は実プロセスとして終了コード0でチェック結果を出力する(TASK-104)")
+    func checkFlagRunsAsRealSubprocess() throws {
+        let executableURL = try Self.builtExecutableURL()
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
+
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = ["--check", file.path]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        try process.run()
+        let output = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        #expect(process.terminationStatus == 0)
+        #expect(String(data: output, encoding: .utf8)?.contains("Can open:") == true)
     }
 
     /// テストバイナリと同じビルドディレクトリ内にある `befold` 実行ファイルのパスを解決する。
