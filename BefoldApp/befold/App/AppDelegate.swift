@@ -115,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `BefoldRootCommand.run()` から呼ばれる(パス解析・サブコマンド分岐は ArgumentParser に委譲する)。
     nonisolated static func launch(withInitialPaths paths: [String], options: CLIOpenOptions) {
         MainActor.assumeIsolated {
+            let paths = paths.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
             let running = CLIInstanceRouter.runningInstance()
             if let running, isTrivialActivateOnly(paths: paths, options: options) {
                 running.activate()
@@ -131,6 +132,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 FileHandle.standardError.write(Data("Failed to forward to the running instance.\n".utf8))
                 exit(1)
             case .launchAsNewInstance:
+                if !paths.isEmpty, Bundle.main.bundlePath.hasSuffix(".app") {
+                    launchAppAndForward(paths: paths, options: options, bundlePath: Bundle.main.bundlePath)
+                }
                 let app = NSApplication.shared
                 app.setActivationPolicy(.regular)
                 let delegate = AppDelegate(initialPaths: paths, initialOptions: options)
@@ -139,6 +143,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 app.run()
             }
         }
+    }
+
+    /// `launchAsNewInstance` かつパス指定ありの場合に、GUI アプリを `/usr/bin/open` で
+    /// 起動し、起動完了を待ってから CLI 転送する。
+    private static func launchAppAndForward(
+        paths: [String], options: CLIOpenOptions, bundlePath: String
+    ) -> Never {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-a", bundlePath]
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            FileHandle.standardError.write(
+                Data("Failed to launch app: \(error)\n".utf8)
+            )
+            exit(1)
+        }
+        guard process.terminationStatus == 0 else {
+            exit(process.terminationStatus)
+        }
+        // 起動したインスタンスが見えるまでポーリングし、forwarding で転送する
+        let deadline = Date().addingTimeInterval(10)
+        var launched: NSRunningApplication?
+        while launched == nil, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+            launched = CLIInstanceRouter.runningInstance()
+        }
+        guard let destination = launched else {
+            FileHandle.standardError.write(
+                Data("Timed out waiting for app to launch.\n".utf8)
+            )
+            exit(1)
+        }
+        let forwarded = CLIInstanceRouter.forward(
+            paths: paths, options: options, to: destination
+        )
+        exit(forwarded ? 0 : 1)
     }
 
     // MARK: - NSApplicationDelegate
@@ -186,8 +229,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
             updaterController.updater.automaticallyChecksForUpdates = false
         #endif
-        updaterController.startUpdater()
-        // startUpdater() は前回チェックから updateCheckInterval 経過時のみチェックするため、
+        do {
+            try updaterController.updater.start()
+        } catch {
+            NSLog("Sparkle updater failed to start: %@", error.localizedDescription)
+        }
+        // updater.start() は前回チェックから updateCheckInterval 経過時のみチェックするため、
         // 起動毎に必ずチェックさせるには明示的な呼び出しが必要
         if updaterController.updater.automaticallyChecksForUpdates {
             updaterController.updater.checkForUpdatesInBackground()
