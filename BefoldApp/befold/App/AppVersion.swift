@@ -1,12 +1,8 @@
 import Foundation
 
 /// アプリのバージョン文字列。
-/// xcodebuild でビルドされた.appバンドル(CI の dev/release ビルド含む)では、実行時に
-/// Info.plist(CFBundleShortVersionString、CIがタグから注入する実際の値)を優先して参照する。
-/// `Bundle.main` は `/usr/local/bin/befold`(CLIInstaller が設置する symlink)経由の起動では
-/// symlink を辿れずバンドルを解決できないため使わず、実行ファイルの実パス(symlink解決後)から
-/// バンドルを探す。SPM 単体ビルド等でバンドルが見つからない場合は、`fallback`
-/// (project.yml の MARKETING_VERSION と手動で同期させる)を使う。
+/// `_NSGetExecutablePath` で実バイナリのパスを取得し、`.app` バンドルの Info.plist から
+/// CFBundleShortVersionString を読む。バンドル外(SPM 単体ビルド等)では `fallback` を使う。
 enum AppVersion {
     static let fallback = "1.7.2"
 
@@ -34,14 +30,23 @@ enum AppVersion {
     }
 
     private static func currentBundleInfoDictionary() -> [String: Any]? {
-        guard let argv0 = CommandLine.arguments.first,
-              let resolvedPath = realpath(argv0, nil)
-        else {
-            return Bundle.main.infoDictionary
+        if let executablePath = actualExecutablePath() {
+            let bundle = Bundle(path: bundlePath(fromExecutablePath: executablePath))
+            if let info = bundle?.infoDictionary { return info }
         }
-        defer { free(resolvedPath) }
-        let executablePath = String(cString: resolvedPath)
-        let bundle = Bundle(path: bundlePath(fromExecutablePath: executablePath))
-        return bundle?.infoDictionary ?? Bundle.main.infoDictionary
+        return Bundle.main.infoDictionary
+    }
+
+    /// `_NSGetExecutablePath` で実行ファイルの実パスを取得する。
+    /// `argv[0]` はシェルが入力どおりにセットするため素のコマンド名("befold")では
+    /// `realpath` が失敗する。この API は argv[0] に依存せず常に正しいパスを返す。
+    static func actualExecutablePath() -> String? {
+        var bufSize: UInt32 = 0
+        _NSGetExecutablePath(nil, &bufSize)
+        var buf = [CChar](repeating: 0, count: Int(bufSize))
+        guard _NSGetExecutablePath(&buf, &bufSize) == 0 else { return nil }
+        guard let resolved = realpath(&buf, nil) else { return String(cString: buf) }
+        defer { free(resolved) }
+        return String(cString: resolved)
     }
 }
