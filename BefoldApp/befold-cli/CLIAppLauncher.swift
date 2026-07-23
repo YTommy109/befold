@@ -2,10 +2,13 @@ import AppKit
 import BefoldCLI
 import Foundation
 
+/// GUI アプリ本体(befold.app)をプロセスとして起動する処理を抽象化する。テストで
+/// 実プロセス起動を差し替えられるようにするための境界。
 public protocol ProcessLaunching: Sendable {
     func launchApp(bundlePath: String) throws -> Int32
 }
 
+/// `/usr/bin/open -a <bundlePath>` で befold.app を起動する既定の実装。
 public struct DefaultProcessLauncher: ProcessLaunching {
     public init() {}
 
@@ -19,20 +22,21 @@ public struct DefaultProcessLauncher: ProcessLaunching {
     }
 }
 
+/// 既に起動中の befold インスタンスがあればそちらへ転送し、無ければ GUI アプリを新規起動してから
+/// 転送する。`befold-cli` 実行ファイルのエントリーポイント(`BefoldCLICommand.run()`)から呼ばれる。
 public enum CLIAppLauncher {
+    @MainActor
     public static func launch(
         paths: [String],
         options: CLIOpenOptions,
         processLauncher: ProcessLaunching = DefaultProcessLauncher(),
         findRunningInstance: @MainActor () -> NSRunningApplication? = CLIInstanceRouter.runningInstance
     ) -> Never {
-        let code = MainActor.assumeIsolated {
-            run(
-                paths: paths, options: options,
-                processLauncher: processLauncher,
-                findRunningInstance: findRunningInstance
-            )
-        }
+        let code = run(
+            paths: paths, options: options,
+            processLauncher: processLauncher,
+            findRunningInstance: findRunningInstance
+        )
         exit(code)
     }
 
@@ -63,7 +67,7 @@ public enum CLIAppLauncher {
                 running.activate()
                 return 0
             }
-            return forward(paths, options, running) ? 0 : 1
+            return forwardOrReportFailure(paths, options, running, forward)
         }
 
         let bundlePath = resolveBundlePath()
@@ -77,7 +81,7 @@ public enum CLIAppLauncher {
             return 1
         }
 
-        guard !paths.isEmpty else { return 0 }
+        guard !paths.isEmpty || options != CLIOpenOptions() else { return 0 }
 
         let deadline = Date().addingTimeInterval(pollTimeout)
         var launched: NSRunningApplication?
@@ -91,6 +95,22 @@ public enum CLIAppLauncher {
             )
             return 1
         }
-        return forward(paths, options, destination) ? 0 : 1
+        return forwardOrReportFailure(paths, options, destination, forward)
+    }
+
+    @MainActor
+    private static func forwardOrReportFailure(
+        _ paths: [String],
+        _ options: CLIOpenOptions,
+        _ destination: NSRunningApplication,
+        _ forward: @MainActor ([String], CLIOpenOptions, NSRunningApplication) -> Bool
+    ) -> Int32 {
+        guard forward(paths, options, destination) else {
+            FileHandle.standardError.write(
+                Data("Failed to forward to the running instance.\n".utf8)
+            )
+            return 1
+        }
+        return 0
     }
 }

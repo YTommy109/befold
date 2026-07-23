@@ -41,7 +41,11 @@ struct BefoldCLICommand: ParsableCommand {
 
     func run() throws {
         if !check, !bookmark {
-            CLIAppLauncher.launch(paths: paths, options: options)
+            let paths = paths
+            let options = options
+            MainActor.assumeIsolated {
+                CLIAppLauncher.launch(paths: paths, options: options)
+            }
         }
 
         var anyFailed = false
