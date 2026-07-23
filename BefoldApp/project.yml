@@ -134,6 +134,7 @@ targets:
       - path: befold-cli
     dependencies:
       - target: BefoldCLI
+      - target: BefoldKit
       - package: swift-argument-parser
         product: ArgumentParser
     settings:

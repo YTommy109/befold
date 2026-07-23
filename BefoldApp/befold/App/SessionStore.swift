@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// 終了時のウィンドウ/タブ構成。groups はウィンドウ(タブグループ)の前面からの並び、

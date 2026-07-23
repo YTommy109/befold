@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// UserDefaults 上の「正規化パス → 値」辞書を読み書きする共通基盤。

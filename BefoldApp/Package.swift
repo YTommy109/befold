@@ -76,6 +76,7 @@ let package = Package(
             name: "befold-cli",
             dependencies: [
                 "BefoldCLI",
+                "BefoldKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "befold-cli",
@@ -93,7 +94,7 @@ let package = Package(
         ),
         .testTarget(
             name: "befoldCLITests",
-            dependencies: ["befold-cli", "BefoldCLI"],
+            dependencies: ["befold-cli", "BefoldCLI", "BefoldKit"],
             path: "befoldCLITests",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),

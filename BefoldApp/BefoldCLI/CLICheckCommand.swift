@@ -1,16 +1,12 @@
 import BefoldKit
 import Foundation
 
+/// `befold --check <path>` — 既存の FileType・サイズ上限定数を再利用し、befold が開けるファイルかどうかを判定する。
 public enum CLICheckCommand {
+    /// ディレクトリが渡された場合、対応形式優先で中のファイルを解決する。ファイルならそのまま返す。
+    /// 実体は BefoldKit.SupportedFileResolver(GUI・CLI 双方の単一の実装元)に委譲する。
     public static func defaultResolveFileToOpen(at url: URL, fileReader: any FileReading) -> URL? {
-        guard fileReader.isDirectory(at: url) else { return url }
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: url, includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else { return nil }
-        return contents
-            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-            .first { !fileReader.isDirectory(at: $0) }
+        SupportedFileResolver.resolveFileToOpen(at: url, fileReader: fileReader)
     }
 
     public static func run(

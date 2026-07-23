@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// "Open Recent" 履歴を UserDefaults に永続化するストア。

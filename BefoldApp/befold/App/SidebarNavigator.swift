@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// SidebarNavigator がファイル切替・現在ファイル参照を委譲する先。

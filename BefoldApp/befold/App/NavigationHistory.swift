@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// 戻る/進む履歴の 1 エントリ。表示ディレクトリと表示ファイルのスナップショット。

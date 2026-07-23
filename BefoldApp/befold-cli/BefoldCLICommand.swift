@@ -1,5 +1,6 @@
 import ArgumentParser
 import BefoldCLI
+import BefoldKit
 import Foundation
 
 @main
@@ -39,7 +40,7 @@ struct BefoldCLICommand: ParsableCommand {
     }
 
     func run() throws {
-        guard check || bookmark else {
+        if !check, !bookmark {
             CLIAppLauncher.launch(paths: paths, options: options)
         }
 
@@ -56,7 +57,7 @@ struct BefoldCLICommand: ParsableCommand {
                 let result = MainActor.assumeIsolated {
                     CLIBookmarkCommand.run(
                         path,
-                        addBookmark: { CLIBookmarkDefaults.add($0) }
+                        addBookmark: { BefoldCLICommand.bookmarkStore.add($0) }
                     )
                 }
                 CLICommandResultPrinter.print(result)
@@ -65,19 +66,13 @@ struct BefoldCLICommand: ParsableCommand {
         }
         throw ExitCode(anyFailed ? 1 : 0)
     }
-}
 
-enum CLIBookmarkDefaults {
-    private static let defaultsKey = "BookmarkedPaths"
-    private static let suiteName = "com.degino.befold"
-
+    /// `--bookmark` 実行時、GUI アプリを起動せずに直接 GUI と同じ UserDefaults 領域へ
+    /// ブックマークを追加する(BookmarkStore は GUI・CLI 共通の実装元、BefoldKit 参照)。
+    /// befold-cli はバンドルを持たない実行ファイルのため、GUI アプリのバンドル ID を
+    /// suiteName に明示して同じ永続化領域を指す。
     @MainActor
-    static func add(_ url: URL) {
-        guard let defaults = UserDefaults(suiteName: suiteName) else { return }
-        let path = url.standardizedFileURL.path
-        var paths = defaults.stringArray(forKey: defaultsKey) ?? []
-        guard !paths.contains(path) else { return }
-        paths.append(path)
-        defaults.set(paths, forKey: defaultsKey)
-    }
+    private static let bookmarkStore = BookmarkStore(
+        defaults: UserDefaults(suiteName: "com.degino.befold") ?? .standard
+    )
 }
