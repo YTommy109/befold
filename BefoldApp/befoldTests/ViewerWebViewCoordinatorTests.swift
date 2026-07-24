@@ -142,4 +142,49 @@ struct ViewerWebViewCoordinatorTests {
         #expect(names.contains(ViewerBridge.scrollPositionChangedMessageName))
         #expect(names.count == 3)
     }
+
+    // MARK: - renderableContent(ローカル画像埋め込み)
+
+    /// InMemoryFileReader を背にした MarkdownImageEmbedder を注入(TASK-116.12)して、
+    /// 実 PNG ファイル無しに埋め込み/非埋め込み分岐を検証する。
+    private static let embedImageURL = URL(fileURLWithPath: "/tmp/coordinator/image.png")
+    private static let embedMarkdownURL = URL(fileURLWithPath: "/tmp/coordinator/doc.md")
+    private static let embedMarkdown = "# Title\n\n![alt](image.png)\n"
+
+    private func makeEmbedder() -> MarkdownImageEmbedder {
+        let fileReader = InMemoryFileReader()
+        fileReader.setDataFile(Data([0x89, 0x50, 0x4E, 0x47]), at: Self.embedImageURL)
+        return MarkdownImageEmbedder(fileReader: fileReader)
+    }
+
+    @Test("レンダリング表示中はmarkdownのローカル画像参照をbase64に埋め込む")
+    func renderedModeEmbedsLocalImages() {
+        let result = ViewerRenderer.renderableContent(
+            Self.embedMarkdown, fileType: .markdown, filePath: Self.embedMarkdownURL,
+            isSourceMode: false, imageEmbedder: makeEmbedder()
+        )
+
+        #expect(result.contains("data:image/png;base64,"))
+        #expect(!result.contains("(image.png)"))
+    }
+
+    @Test("ソース表示中はmarkdownのローカル画像参照をbase64に埋め込まない")
+    func sourceModeDoesNotEmbedLocalImages() {
+        let result = ViewerRenderer.renderableContent(
+            Self.embedMarkdown, fileType: .markdown, filePath: Self.embedMarkdownURL,
+            isSourceMode: true, imageEmbedder: makeEmbedder()
+        )
+
+        #expect(result == Self.embedMarkdown)
+    }
+
+    @Test("embedImages: false のときはレンダリング表示中でもmarkdownのローカル画像参照を埋め込まない")
+    func embedImagesDisabledDoesNotEmbedLocalImages() {
+        let result = ViewerRenderer.renderableContent(
+            Self.embedMarkdown, fileType: .markdown, filePath: Self.embedMarkdownURL,
+            isSourceMode: false, embedImages: false, imageEmbedder: makeEmbedder()
+        )
+
+        #expect(result == Self.embedMarkdown)
+    }
 }

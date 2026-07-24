@@ -6,7 +6,9 @@ import Testing
 
 /// パス無し CLI 転送(`befold --line-numbers` 等)で開いている既存ウィンドウへ
 /// 行番号/ソース表示/並び順/サイドバー開閉のオーバーライドが反映されることを検証する。
-/// 全件が実 openViewer(WM:85 の DirectoryLister.fileExists)を踏むため Integration。
+/// 全件が実 openViewer 経由でコントローラ生成パイプライン(実 store・FileWatcher・
+/// サイドバーの DirectoryLister 列挙)を踏むため Integration。存在ガードは注入 fileReader
+/// 経由になった(TASK-116.12)が、生成パイプライン全体の注入シームは未導入。
 @Suite
 @MainActor
 struct ViewerWindowManagerDisplayOverridesIntegrationTests {

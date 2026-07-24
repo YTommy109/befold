@@ -170,10 +170,11 @@ public extension ViewerRenderer {
     /// ソース表示中は原文をそのまま見せるため、埋め込みは行わない。
     nonisolated static func renderableContent(
         _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool,
-        embedImages: Bool = true
+        embedImages: Bool = true,
+        imageEmbedder: MarkdownImageEmbedder = .shared
     ) -> String {
         guard !isSourceMode, fileType == .markdown, let filePath, embedImages else { return content }
-        // ロード時のウォームアップと同じキャッシュを引くため、共有インスタンスを経由すること。
-        return MarkdownImageEmbedder.shared.embedLocalImages(in: content, baseURL: filePath)
+        // ロード時のウォームアップと同じキャッシュを引くため、同一インスタンス(本番は .shared)を経由すること。
+        return imageEmbedder.embedLocalImages(in: content, baseURL: filePath)
     }
 }
