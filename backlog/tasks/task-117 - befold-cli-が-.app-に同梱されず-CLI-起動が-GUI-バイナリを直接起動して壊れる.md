@@ -1,11 +1,11 @@
 ---
 id: TASK-117
 title: befold-cli が .app に同梱されず CLI 起動が GUI バイナリを直接起動して壊れる
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-07-24 02:50'
-updated_date: '2026-07-24 03:51'
+updated_date: '2026-07-24 11:14'
 labels: []
 dependencies: []
 priority: high
@@ -46,8 +46,8 @@ TASK-108 の CLI バイナリ分離で `CLIInstaller.targetExecutablePath` は `
 - [x] #2 /usr/local/bin/befold から CLI をインストールし直すと symlink 先が Contents/MacOS/befold-cli になり、`befold <path>` がファイルを開いた後に CLI プロセスが正常終了する
 - [x] #3 CLI 起動時にメニューバーがローカライズされた文言で表示され、ローカライズキーがそのまま出ない
 - [x] #4 CLI 起動時に Sparkle の bundle identifier エラーが出力されない
-- [ ] #5 CLI 起動したウィンドウが Dock 上で既存の befold.app と同一アプリとして扱われ、別アイコンが増えない
-- [ ] #6 DMG / リリース成果物に befold-cli が含まれ、コード署名・公証が通る
+- [x] #5 CLI 起動したウィンドウが Dock 上で既存の befold.app と同一アプリとして扱われ、別アイコンが増えない
+- [x] #6 DMG / リリース成果物に befold-cli が含まれ、コード署名・公証が通る
 - [x] #7 CLI から既に起動中の befold インスタンスへファイルを転送でき、二重起動しない（CLIInstanceRouter が befold-cli 上で機能する）
 - [x] #8 DMG 検証ジョブが befold.app/Contents/MacOS/befold-cli の存在を検証する
 <!-- AC:END -->
@@ -140,4 +140,26 @@ Dock について: 検証中は Dock に befold のタイルが 2 つ見えた�
 
 ## ユーザー向けの注意
 既存の `/usr/local/bin/befold` は旧形式(GUI 本体を指す symlink)のままなので、befold-cli を含むビルドをインストールしたあとにメニューの「コマンドラインツールをインストール」を実行し直す必要がある。起動時に CLIShimInspector が staleSymlink を検知してバナーで案内する(検証中に表示を確認済み)。
+
+## リリースビルドでの残 AC 確認 (2026-07-24)
+
+インストール済みリリースビルド 1.7.3-dev.19 (664) / /Applications/befold.app で #5 / #6 を実測確認。
+
+### #6 署名・公証 ✅
+- spctl -a -t execute: accepted / source=Notarized Developer ID (Developer ID Application: Yuichi Tokutomi X3587J4U72)
+- codesign --verify --deep --strict: valid on disk / Designated Requirement 充足。同梱 befold-cli も --validated
+- befold-cli 単体署名: Developer ID Application + hardened runtime (flags=0x10000(runtime)), TeamIdentifier=X3587J4U72
+- xcrun stapler validate: 公証チケット staple 済み
+
+### #5 Dock 同一アプリ扱い ✅
+- /usr/local/bin/befold → /Applications/befold.app/Contents/MacOS/befold-cli (新 shim)
+- befold <file> 実行 → exit 0。既存の /Applications インスタンス(PID 36240, 不変)へファイルが合流
+- GUI 本体プロセスは終始 1 つ、新規プロセス/別アイコンなし、befold-cli プロセスの残存もなし
+- 常駐タイルと同一 /Applications パスのため Dock タイルは 1 つに収束(Debug 検証時の 2 タイル問題は解消)
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+befold-cli を .app へ同梱(project.yml embed)し、CLIInstanceRouter の Bundle.main 依存を AppBundle.identifier 定数へ置換。release.yml の DMG 検証に befold-cli の存在チェックを追加。全 AC を検証済み: #1-4/#7 は swift/jest テスト(600+203)green と symlink 経由コールドスタート手動確認、#8 は release.yml、#5/#6 はリリースビルド 1.7.3-dev.19(664) で spctl=Notarized・stapler OK・codesign valid、CLI 起動が既存 /Applications インスタンスに合流し GUI プロセス 1 つのままを実測。
+<!-- SECTION:FINAL_SUMMARY:END -->

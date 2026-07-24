@@ -6,9 +6,10 @@ import Testing
 
 /// パス無し CLI 転送(`befold --line-numbers` 等)で開いている既存ウィンドウへ
 /// 行番号/ソース表示/並び順/サイドバー開閉のオーバーライドが反映されることを検証する。
+/// 全件が実 openViewer(WM:85 の DirectoryLister.fileExists)を踏むため Integration。
 @Suite
 @MainActor
-struct ViewerWindowManagerDisplayOverridesTests {
+struct ViewerWindowManagerDisplayOverridesIntegrationTests {
     private func makeStore(
         prefix: String = "ViewerWindowManagerDisplayOverridesTests"
     ) -> (manager: ViewerWindowManager, perFileState: PerFileStateStore) {

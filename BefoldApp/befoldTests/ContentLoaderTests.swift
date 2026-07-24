@@ -5,8 +5,6 @@ import Testing
 
 @Suite
 struct ContentLoaderTests {
-    private let loader = ContentLoader(fileReader: DefaultFileReader())
-
     @Test("サイズ超過ファイルは fileTooLarge")
     func oversizedFileIsRejected() {
         let reader = InMemoryFileReader()
@@ -33,11 +31,12 @@ struct ContentLoaderTests {
     }
 
     @Test("画像ファイルは base64 エンコードされる")
-    func imageFileIsBase64Encoded() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
+    func imageFileIsBase64Encoded() {
+        let reader = InMemoryFileReader()
+        let file = URL(fileURLWithPath: "/files/img.png")
         let data = Data([0x89, 0x50, 0x4E, 0x47])
-        let file = try tmp.file(named: "img.png", data: data)
+        reader.setDataFile(data, at: file)
+        let loader = ContentLoader(fileReader: reader)
 
         let result = loader.load(from: file, fileType: .image(mimeType: "image/png"))
         #expect(result.rejectReason == nil)

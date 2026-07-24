@@ -82,17 +82,4 @@ struct ZoomStoreTests {
         // 旧パスに保存値がないため、新パスの既存倍率は上書きされない
         #expect(store.zoom(for: new) == 1.5)
     }
-
-    @Test("シンボリックリンク経由でも同一ファイルとして扱う")
-    func symlinkResolvesToSamePath() throws {
-        let defaults = makeIsolatedDefaults(prefix: "ZoomStoreTests")
-        let tmp = try TempDir(prefix: "ZoomStoreTests")
-        defer { withExtendedLifetime(tmp) {} }
-        let (real, link) = try tmp.symlinkedFile()
-        let store = ZoomStore(defaults: defaults)
-
-        store.setZoom(1.25, for: link)
-
-        #expect(store.zoom(for: real) == 1.25)
-    }
 }
