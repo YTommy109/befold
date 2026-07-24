@@ -29,10 +29,25 @@ befold.app (Swift / AppKit + SwiftUI)
   └── ViewerWebView      # WKWebView（NSViewRepresentable + Coordinator）
         ├── 同梱アセット（viewer.html / viewer.js / mermaid.min.js / markdown-it.min.js / style.css）
         └── JS ブリッジ: ViewerBridge 経由で evaluateJavaScript("render(content, type)")
+
+befold-cli (Swift executable)
+  └── BefoldCLICommand    # ArgumentParser エントリポイント（--check/--bookmark/paths）
+        └── CLIAppLauncher      # befold.app への起動委譲（CLIInstanceRouter 経由）
+
+BefoldCLI (Swift ライブラリ、befold.app / befold-cli 双方から参照)
+  ├── AppVersion          # バージョン情報の単一情報源
+  ├── CLIInstanceRouter   # 既存インスタンスへのオープン要求ルーティング
+  ├── CLIInstaller        # シェルシムのインストール
+  ├── CLIOpenOptions      # --sort 等のオープンオプション
+  ├── CLIBookmarkCommand / CLICheckCommand / CLICommandResult  # --bookmark/--check の実処理・結果表現
+  └── ShellQuoting        # シェルのシングルクォートエスケープ
 ```
 
 ファイル変更の伝搬:
 `FileWatcher → ViewerStore → ViewerWebView.updateNSView → evaluateJavaScript`
+
+CLI からの起動:
+`befold-cli (BefoldCLICommand) → BefoldCLI (CLIAppLauncher / CLIInstanceRouter) → befold.app`
 
 ## 技術スタック
 
@@ -59,7 +74,11 @@ BefoldApp/
 │   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js
 │       └── __tests__/       # viewer.js の Jest テスト
 ├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TextEncoding, StringChunkReader, ContentLoader）
-└── befoldTests/            # Swift Testing テスト（TestSupport.swift = 共有ヘルパー）
+├── BefoldCLI/               # CLI 共通ロジックライブラリ（AppVersion, CLIBookmarkCommand, CLICheckCommand, CLICommandResult, CLIInstaller, CLIInstanceRouter, CLIOpenOptions, ShellQuoting）
+├── befold-cli/              # CLI 実行ファイル（BefoldCLICommand, CLIAppLauncher）
+├── BefoldTestSupport/       # テスト共有ヘルパーの単一情報源（TempDir, LockedBox, makeIsolatedDefaults, waitUntil 系）
+├── befoldTests/            # Swift Testing テスト（TestSupport.swift = FileWatcher 固有の confirmWatcherArmed のみ）
+└── befoldCLITests/         # befold-cli の Swift Testing テスト
 ```
 
 ## コマンド
@@ -524,9 +543,13 @@ func detectsAtomicSave() async throws {
 @Test func testThatWhenAFileIsOpenedAndThenDeletedTheStoreMarksItAsDeleted() { ... }
 ```
 
-### 共有テストヘルパー（TestSupport.swift）
+### 共有テストヘルパー（BefoldTestSupport）
 
-以下の関心は必ず `TestSupport.swift` の共有ヘルパーで満たす。テストファイル内での自作は違反:
+以下の関心は必ず `BefoldTestSupport` ターゲットの共有ヘルパーで満たす。テストファイル内での自作は違反:
+
+`BefoldTestSupport` は `befoldTests` / `befoldCLITests` の双方から参照する単一情報源で、
+依存は Foundation のみに保つ（GUI 本体 `befold` や `BefoldRenderKit` を引き込まないため）。
+使う側のファイルには `import BefoldTestSupport` を書く。
 
 | 関心 | ヘルパー | 自作したら違反になるパターン |
 |------|---------|------------------------------|

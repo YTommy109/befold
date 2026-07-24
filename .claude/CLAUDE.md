@@ -15,10 +15,21 @@ befold.app (Swift / AppKit + SwiftUI)
   └── ViewerWebView      # WKWebView（NSViewRepresentable）
         ├── 同梱アセット（viewer.html / viewer.js / mermaid.min.js / markdown-it.min.js / style.css）
         └── JS ブリッジ: ViewerBridge 経由で evaluateJavaScript("render(content, type)")
+
+befold-cli (Swift executable)
+  └── BefoldCLICommand    # ArgumentParser エントリポイント（--check/--bookmark/paths）
+        └── CLIAppLauncher      # befold.app への起動委譲（CLIInstanceRouter 経由）
+
+BefoldCLI (Swift ライブラリ、befold.app / befold-cli 双方から参照)
+  ├── AppVersion / CLIInstanceRouter / CLIInstaller / CLIOpenOptions
+  ├── CLIBookmarkCommand / CLICheckCommand / CLICommandResult
+  └── ShellQuoting
 ```
 
 ファイル変更は `FileWatcher → ViewerStore → evaluateJavaScript` の
 同一プロセス内伝搬で反映する。
+
+CLI からの起動は `befold-cli (BefoldCLICommand) → BefoldCLI (CLIAppLauncher / CLIInstanceRouter) → befold.app` で伝搬する。
 
 ## 技術スタック
 
@@ -40,7 +51,11 @@ BefoldApp/
 │   └── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
 ├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TextEncoding, StringChunkReader, ContentLoader, FileType）
 │   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js, DOMPurify, highlight.js, github-markdown-css
-└── befoldTests/            # Swift Testing テスト
+├── BefoldCLI/               # CLI 共通ロジックライブラリ（AppVersion, CLIBookmarkCommand, CLICheckCommand, CLICommandResult, CLIInstaller, CLIInstanceRouter, CLIOpenOptions, ShellQuoting）
+├── befold-cli/              # CLI 実行ファイル（BefoldCLICommand, CLIAppLauncher）
+├── BefoldTestSupport/       # テスト共有ヘルパー（TempDir, LockedBox, makeIsolatedDefaults, waitUntil 系）。依存は Foundation のみ
+├── befoldTests/            # Swift Testing テスト
+└── befoldCLITests/         # befold-cli の Swift Testing テスト
 ```
 
 ## コマンド
