@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 @Suite
-struct CLIShimInspectorTests {
+struct CLIShimInspectorIntegrationTests {
     @Test("何も設置されていない場合は notInstalled")
     func statusIsNotInstalledWhenNothingExists() throws {
         let tmp = try TempDir()
