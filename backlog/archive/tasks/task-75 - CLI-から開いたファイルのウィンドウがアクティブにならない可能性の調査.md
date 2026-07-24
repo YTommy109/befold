@@ -5,7 +5,7 @@ status: To Do
 assignee:
   - '@claude'
 created_date: '2026-07-19 11:54'
-updated_date: '2026-07-19 13:55'
+updated_date: '2026-07-24 11:17'
 labels: []
 dependencies: []
 ordinal: 52000
@@ -73,4 +73,7 @@ CLI (`open -a befold <file>`) → `AppDelegate.application(_:open:)` が `urls: 
 - 単一ファイルの協調アクティベーション信頼性のみ、必要なら本タスク後の小さな独立修正として切り出し可。ただし手動再現で (a) の失敗が確認できるまでは緊急修正不要。
 
 （本タスクは調査のみ。実装は方針合意後 or TASK-73 に委ねる想定でステータスは In Progress のまま）
+
+## キャンセル (2026-07-24, ユーザー判断)
+調査は全 AC 完了・結論記録済み。実装方針は「複数ファイルのアクティブ化ポリシーは TASK-73 で扱う / 単一ファイルの協調アクティベーション信頼性は緊急修正不要」で決着したため、独立タスクとして進める必要がなくなった。Cancelled ステータスが無いため archive で対応。
 <!-- SECTION:NOTES:END -->
