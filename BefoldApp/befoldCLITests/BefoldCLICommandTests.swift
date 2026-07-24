@@ -20,6 +20,12 @@ struct BefoldCLICommandTests {
         return root
     }
 
+    /// 本番の UserDefaults(`com.degino.befold`)と実 stdout/stderr に到達させずに実行する。
+    /// 出力・ブックマーク内容を検証しないテストはこちらを使う。
+    private func executeIsolated(_ command: BefoldCLICommand) throws {
+        try command.execute(addBookmark: { _ in }, printResult: { _ in })
+    }
+
     @Test("引数なしの場合は空のパス・既定オプションになる")
     func emptyArgumentsReturnsEmptyPaths() throws {
         let root = try parseCommand([])
@@ -38,21 +44,12 @@ struct BefoldCLICommandTests {
         #expect(root.options == CLIOpenOptions())
     }
 
-    @Test("-h / --help はヘルプ要求として run() がエラーを投げる")
-    func helpFlagsThrowOnRun() {
+    @Test("ヘルプ要求は run() がエラーを投げる", arguments: ["-h", "--help"])
+    func helpFlagsThrowOnRun(flag: String) {
         #expect(throws: (any Error).self) {
-            var command = try BefoldCLICommand.parseAsRoot(["-h"])
+            var command = try BefoldCLICommand.parseAsRoot([flag])
             try command.run()
         }
-        #expect(throws: (any Error).self) {
-            var command = try BefoldCLICommand.parseAsRoot(["--help"])
-            try command.run()
-        }
-    }
-
-    @Test("未知のオプションはエラーになる")
-    func unknownOptionThrows() {
-        #expect(throws: (any Error).self) { try BefoldCLICommand.parseAsRoot(["--no-such-option"]) }
     }
 
     @Test("--check/--bookmark は値を取らないブールフラグとして解釈する")
@@ -68,23 +65,18 @@ struct BefoldCLICommandTests {
         #expect(both.paths == ["a.md", "b.md"])
     }
 
-    @Test("--check/--bookmark 指定時に paths が空だとエラーになる")
-    func checkOrBookmarkWithoutPathsThrows() {
-        #expect(throws: (any Error).self) { try BefoldCLICommand.parseAsRoot(["--check"]) }
-        #expect(throws: (any Error).self) { try BefoldCLICommand.parseAsRoot(["--bookmark"]) }
-    }
-
     @Test("--check は複数パスを対象にし、1件でも失敗すれば終了コードが非0になる")
     func checkAggregatesMultiplePathsAndFailsIfAnyFails() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let existing = try tmp.file(named: "ok.md", contents: "# ok")
+        let missing = tmp.url.appendingPathComponent("missing.md")
 
         let allOk = try parseCommand(["--check", existing.path])
-        #expect(throws: ExitCode(0)) { try allOk.run() }
+        #expect(throws: ExitCode(0)) { try executeIsolated(allOk) }
 
-        let oneMissing = try parseCommand(["--check", existing.path, "/tmp/does-not-exist.md"])
-        #expect(throws: ExitCode(1)) { try oneMissing.run() }
+        let oneMissing = try parseCommand(["--check", existing.path, missing.path])
+        #expect(throws: ExitCode(1)) { try executeIsolated(oneMissing) }
     }
 
     @Test("--check と --bookmark を併用すると check→bookmark の順で両方実行され、失敗が集計される")
@@ -93,12 +85,27 @@ struct BefoldCLICommandTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let existing = try tmp.file(named: "ok.md", contents: "# ok")
+        let missing = tmp.url.appendingPathComponent("missing.md")
 
-        // bookmark 対象を存在しないパスにすることで、CLIBookmarkCommand.run の
-        // fileExists ガードで早期リターンさせ、実 UserDefaults への書き込みを避けつつ
-        // check→bookmark の両方が実行されることと、失敗集計を検証する。
-        let both = try parseCommand(["--check", "--bookmark", existing.path, "/tmp/does-not-exist-for-bookmark.md"])
-        #expect(throws: ExitCode(1)) { try both.run() }
+        var bookmarked: [URL] = []
+        var messages: [String] = []
+        let both = try parseCommand(["--check", "--bookmark", existing.path, missing.path])
+
+        #expect(throws: ExitCode(1)) {
+            try both.execute(
+                addBookmark: { bookmarked.append($0) },
+                printResult: { messages.append($0.message) }
+            )
+        }
+
+        // 全パスの check を終えてから bookmark に移る順序を、出力の並びで確認する。
+        #expect(messages.count == 4)
+        #expect(messages[0].contains("Can open:"))
+        #expect(messages[1].contains("No such path: \(missing.path)"))
+        #expect(messages[2].contains("Bookmarked: \(existing.path)"))
+        #expect(messages[3].contains("No such path: \(missing.path)"))
+        // 存在しないパスは fileExists ガードで弾かれ、実在する側だけが登録される。
+        #expect(bookmarked.map(\.path) == [existing.path])
     }
 
     @Test("旧サブコマンド名と同名のパスはサブコマンドと解釈されず、そのまま open 対象になる")
@@ -118,45 +125,36 @@ struct BefoldCLICommandTests {
         #expect(root.options == CLIOpenOptions(showHiddenFiles: true))
     }
 
-    @Test("--hidden-files / --no-hidden-files を解釈する")
-    func hiddenFilesOptionIsParsed() throws {
-        #expect(try parseCommand(["--hidden-files"]).options == CLIOpenOptions(showHiddenFiles: true))
-        #expect(try parseCommand(["--no-hidden-files"]).options == CLIOpenOptions(showHiddenFiles: false))
+    @Test(
+        "表示オプションのフラグを対応する CLIOpenOptions に解釈する",
+        arguments: [
+            (["--hidden-files"], CLIOpenOptions(showHiddenFiles: true)),
+            (["--no-hidden-files"], CLIOpenOptions(showHiddenFiles: false)),
+            (["--line-numbers"], CLIOpenOptions(showLineNumbers: true)),
+            (["--no-line-numbers"], CLIOpenOptions(showLineNumbers: false)),
+            (["--source"], CLIOpenOptions(sourceMode: true)),
+            (["--preview"], CLIOpenOptions(sourceMode: false)),
+            (["--sort", "folders-first"], CLIOpenOptions(sortOrder: .foldersFirst)),
+            (["--sort", "alphabetical"], CLIOpenOptions(sortOrder: .alphabetical)),
+        ]
+    )
+    func displayOptionsAreParsed(arguments: [String], expected: CLIOpenOptions) throws {
+        #expect(try parseCommand(arguments).options == expected)
     }
 
-    @Test("--hidden-files と --no-hidden-files を同時に指定するとエラーになる")
-    func conflictingHiddenFilesFlagsThrow() {
-        #expect(throws: (any Error).self) {
-            try BefoldCLICommand.parseAsRoot(["--hidden-files", "--no-hidden-files"])
-        }
-    }
-
-    @Test("--line-numbers / --no-line-numbers を解釈する")
-    func lineNumbersOptionIsParsed() throws {
-        #expect(try parseCommand(["--line-numbers"]).options == CLIOpenOptions(showLineNumbers: true))
-        #expect(try parseCommand(["--no-line-numbers"]).options == CLIOpenOptions(showLineNumbers: false))
-    }
-
-    @Test("--source / --preview を解釈する")
-    func sourcePreviewOptionIsParsed() throws {
-        #expect(try parseCommand(["--source"]).options == CLIOpenOptions(sourceMode: true))
-        #expect(try parseCommand(["--preview"]).options == CLIOpenOptions(sourceMode: false))
-    }
-
-    @Test("--sort は folders-first / alphabetical を解釈する")
-    func sortOptionIsParsed() throws {
-        #expect(try parseCommand(["--sort", "folders-first"]).options == CLIOpenOptions(sortOrder: .foldersFirst))
-        #expect(try parseCommand(["--sort", "alphabetical"]).options == CLIOpenOptions(sortOrder: .alphabetical))
-    }
-
-    @Test("--sort に値がない場合はエラーになる")
-    func sortOptionWithoutValueThrows() {
-        #expect(throws: (any Error).self) { try BefoldCLICommand.parseAsRoot(["--sort"]) }
-    }
-
-    @Test("--sort に不正な値を渡すとエラーになる")
-    func sortOptionWithInvalidValueThrows() {
-        #expect(throws: (any Error).self) { try BefoldCLICommand.parseAsRoot(["--sort", "reverse"]) }
+    @Test(
+        "不正な引数はエラーになる",
+        arguments: [
+            ["--no-such-option"],
+            ["--check"],
+            ["--bookmark"],
+            ["--hidden-files", "--no-hidden-files"],
+            ["--sort"],
+            ["--sort", "reverse"],
+        ]
+    )
+    func invalidArgumentsThrow(arguments: [String]) {
+        #expect(throws: (any Error).self) { try BefoldCLICommand.parseAsRoot(arguments) }
     }
 
     @Test("オプションとファイルパスは混在指定できる")
@@ -199,36 +197,37 @@ struct BefoldCLICommandTests {
         #expect(BefoldCLICommand.configuration.abstract == "Mermaid/Markdown viewer.")
     }
 
-    @Test("トップレベル --help に全オプションが表示される")
-    func allOptionsAppearInTopLevelHelp() {
-        let help = BefoldCLICommand.helpMessage()
-
-        #expect(help.contains("--check"))
-        #expect(help.contains("--bookmark"))
-        #expect(help.contains("--hidden-files"))
-        #expect(help.contains("--sort"))
-        #expect(help.contains("--line-numbers"))
-        #expect(help.contains("--source"))
-        #expect(help.contains("--preview"))
+    @Test(
+        "トップレベル --help に全オプションが表示される",
+        arguments: [
+            "--check", "--bookmark", "--hidden-files",
+            "--sort", "--line-numbers", "--source", "--preview",
+        ]
+    )
+    func allOptionsAppearInTopLevelHelp(option: String) {
+        #expect(BefoldCLICommand.helpMessage().contains(option))
     }
 
-    @Test("open の discussion に -- エスケープの案内がある")
-    func discussionHasEscapingNote() {
-        let discussion = BefoldCLICommand.configuration.discussion
-
-        #expect(discussion.contains("treat everything after it as paths"))
+    @Test(
+        "discussion に -- エスケープと複数パスのウィンドウ挙動が記載されている",
+        arguments: ["treat everything after it as paths", "its own window"]
+    )
+    func discussionDescribesUsageNotes(note: String) {
+        #expect(BefoldCLICommand.configuration.discussion.contains(note))
     }
+}
 
-    @Test("discussion に複数パスのウィンドウ挙動が記載されている")
-    func discussionDescribesMultipleWindowBehavior() {
-        let discussion = BefoldCLICommand.configuration.discussion
-
-        #expect(discussion.contains("its own window"))
-    }
-
-    @Test("RejectReason.cliMessage はロケールに依存しない英語固定メッセージを返す")
-    func rejectReasonCliMessageIsEnglish() {
-        #expect(RejectReason.unsupportedFormat.cliMessage == "This file format is not supported for preview.")
-        #expect(RejectReason.fileTooLarge.cliMessage == "This file is too large to display.")
+/// CLI が出すファイル種別の拒否理由メッセージを検証する。
+@Suite
+struct RejectReasonCLIMessageTests {
+    @Test(
+        "RejectReason.cliMessage はロケールに依存しない英語固定メッセージを返す",
+        arguments: [
+            (RejectReason.unsupportedFormat, "This file format is not supported for preview."),
+            (RejectReason.fileTooLarge, "This file is too large to display."),
+        ]
+    )
+    func cliMessageIsEnglish(reason: RejectReason, expected: String) {
+        #expect(reason.cliMessage == expected)
     }
 }
