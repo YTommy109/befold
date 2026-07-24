@@ -4,7 +4,10 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// 全件が manager.openViewer(実 DirectoryLister を踏む WM:85 経由)に依存するため Integration。
+/// 全件が manager.openViewer 経由。openViewer は実 ViewerWindowController を生成し、
+/// その store(DefaultFileReader)・FileWatcher・サイドバーの DirectoryLister 列挙が実 FS を踏むため
+/// Integration。存在ガード(WM:85)は注入 fileReader 経由になった(TASK-116.12)が、
+/// コントローラ生成パイプライン全体をモック化する注入シームは未導入のため unit 化しない。
 @Suite
 @MainActor
 struct ViewerWindowManagerIntegrationTests {

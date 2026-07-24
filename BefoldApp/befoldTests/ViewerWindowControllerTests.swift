@@ -216,3 +216,228 @@ struct ViewerWindowControllerTests {
         #expect(bookmarkItem.title == String(localized: "menu.view.removeBookmark", bundle: .l10n))
     }
 }
+
+// MARK: - switch / rename / history / handleOpenReference
+
+/// switchFile / performFileSwitch / handleOpenReference の存在ガードが store.fileReader 経由に
+/// なった(TASK-116.12)ため、切替・リンク遷移・履歴の振る舞いも InMemoryFileReader でモック化して
+/// unit で検証する。サイドバー一覧の実列挙・実 rename の再一覧に依存するテストは
+/// ViewerWindowControllerIntegrationTests に残す。
+extension ViewerWindowControllerTests {
+    /// 複数ファイルを InMemoryFileReader に登録した store を持つコントローラーを作る。
+    /// primary が初期表示ファイル、others は switch/リンク先として存在確認を通すために登録する。
+    private func makeSwitchController(
+        primary: URL,
+        others: [URL] = [],
+        contents: String = "graph TD;",
+        zoomStore: ZoomStore? = nil,
+        defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"),
+        openFileInNewWindow: @escaping (URL) -> Void = { _ in }
+    ) -> ViewerWindowController {
+        var dict: [String: String] = [:]
+        for url in [primary] + others {
+            dict[url.path] = contents
+        }
+        return ViewerWindowController(
+            fileURL: primary,
+            defaults: defaults,
+            perFileState: PerFileStateStore(
+                zoom: zoomStore ?? ZoomStore(defaults: defaults),
+                sourceMode: SourceModeStore(defaults: defaults),
+                scrollPosition: ScrollPositionStore(defaults: defaults),
+                sidebar: SidebarStateStore(defaults: defaults),
+                windowFrame: WindowFrameStore(defaults: defaults)
+            ),
+            bookmarkStore: BookmarkStore(defaults: defaults),
+            store: ViewerStore(
+                watcherFactory: { _, _, _ in MockFileWatcher() },
+                fileReader: InMemoryFileReader(files: dict),
+                defaults: defaults
+            ),
+            directoryLister: noEntries,
+            openFileInNewWindow: openFileInNewWindow
+        )
+    }
+
+    @Test("switchFile でファイル URL とウィンドウタイトルが更新される")
+    func switchFileUpdatesFileURLAndTitle() {
+        let file1 = URL(fileURLWithPath: "/mock/first.mmd")
+        let file2 = URL(fileURLWithPath: "/mock/second.mmd")
+        let controller = makeSwitchController(primary: file1, others: [file2])
+        defer { controller.close() }
+
+        controller.switchFile(to: file2)
+
+        #expect(controller.fileURL == file2)
+        #expect(controller.window?.title == "second.mmd")
+        #expect(controller.window?.representedURL == file2)
+    }
+
+    @Test("switchFile でデリゲートに旧・新 URL が通知される")
+    func switchFileInvokesDelegate() {
+        let file1 = URL(fileURLWithPath: "/mock/first.mmd")
+        let file2 = URL(fileURLWithPath: "/mock/second.mmd")
+        let controller = makeSwitchController(primary: file1, others: [file2])
+        defer { controller.close() }
+        let mock = MockViewerWindowControllerDelegate()
+        controller.delegate = mock
+
+        controller.switchFile(to: file2)
+
+        #expect(mock.switchFileArgs?.old == file1)
+        #expect(mock.switchFileArgs?.new == file2)
+    }
+
+    @Test("switchFile は旧・新ファイルの保存済み倍率を破壊しない")
+    func switchFilePreservesSavedZoomForBothFiles() {
+        let file1 = URL(fileURLWithPath: "/mock/first.mmd")
+        let file2 = URL(fileURLWithPath: "/mock/second.mmd")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
+        let zoomStore = ZoomStore(defaults: defaults)
+        zoomStore.setZoom(2.0, for: file1)
+        zoomStore.setZoom(0.75, for: file2)
+        let controller = makeSwitchController(
+            primary: file1, others: [file2], zoomStore: zoomStore, defaults: defaults
+        )
+        defer { controller.close() }
+
+        controller.switchFile(to: file2)
+
+        // 切替はリネームではないため、双方の保存倍率が独立して保たれる。
+        #expect(zoomStore.zoom(for: file1) == 2.0)
+        #expect(zoomStore.zoom(for: file2) == 0.75)
+    }
+
+    @Test("対応形式への rename ではソース表示が維持される")
+    func renameToRenderableKeepsSourceMode() {
+        let file = URL(fileURLWithPath: "/mock/note.md")
+        let controller = makeSwitchController(primary: file, contents: "# hi")
+        defer { controller.close() }
+        controller.toggleSourceView(nil)
+        #expect(controller.isSourceMode)
+        let renamed = URL(fileURLWithPath: "/mock/note.markdown")
+
+        controller.handleRename(from: controller.fileURL, to: renamed)
+
+        #expect(controller.isSourceMode)
+    }
+
+    @Test("非対応形式への rename ではソース表示が解除される")
+    func renameToNonRenderableResetsSourceMode() {
+        let file = URL(fileURLWithPath: "/mock/note.md")
+        let controller = makeSwitchController(primary: file, contents: "# hi")
+        defer { controller.close() }
+        controller.toggleSourceView(nil)
+        #expect(controller.isSourceMode)
+        let renamed = URL(fileURLWithPath: "/mock/note.swift")
+
+        controller.handleRename(from: controller.fileURL, to: renamed)
+
+        // .swift は supportsSourceMode == false のため、ソース表示トグルが成立せずリセットする。
+        #expect(!controller.isSourceMode)
+    }
+
+    @Test("switchFile で履歴が積まれ戻ると元ファイルに復帰する")
+    func switchFilePushesHistoryAndBackRestores() {
+        let fileA = URL(fileURLWithPath: "/mock/a.mmd")
+        let fileB = URL(fileURLWithPath: "/mock/b.mmd")
+        let controller = makeSwitchController(
+            primary: fileA, others: [fileB], defaults: makeIsolatedDefaults(prefix: "History")
+        )
+        defer { controller.close() }
+
+        controller.switchFile(to: fileB)
+        #expect(controller.fileURL.lastPathComponent == "b.mmd")
+        #expect(controller.fileListModel.canGoBack == true)
+
+        controller.navigateHistory(by: -1)
+        #expect(controller.fileURL.lastPathComponent == "a.mmd")
+        #expect(controller.fileListModel.canGoForward == true)
+        #expect(controller.fileListModel.canGoBack == false)
+    }
+
+    @Test("戻る操作自体は新しい履歴を積まない")
+    func navigatingHistoryDoesNotRecord() {
+        let fileA = URL(fileURLWithPath: "/mock/a.mmd")
+        let fileB = URL(fileURLWithPath: "/mock/b.mmd")
+        let controller = makeSwitchController(
+            primary: fileA, others: [fileB], defaults: makeIsolatedDefaults(prefix: "History")
+        )
+        defer { controller.close() }
+        controller.switchFile(to: fileB)
+
+        controller.navigateHistory(by: -1) // a へ戻る
+        controller.navigateHistory(by: 1) // b へ進む
+
+        // 破棄されずに往復できる = 戻る/進むで push されていない
+        #expect(controller.fileURL.lastPathComponent == "b.mmd")
+        #expect(controller.fileListModel.canGoForward == false)
+        #expect(controller.fileListModel.canGoBack == true)
+    }
+
+    @Test("戻る/進むメニューは対応する履歴があるときだけ有効")
+    func goBackAndForwardMenuValidation() {
+        let fileA = URL(fileURLWithPath: "/mock/a.mmd")
+        let fileB = URL(fileURLWithPath: "/mock/b.mmd")
+        let controller = makeSwitchController(primary: fileA, others: [fileB])
+        defer { controller.close() }
+        let backItem = NSMenuItem(
+            title: "", action: #selector(ViewerWindowController.goBack(_:)), keyEquivalent: ""
+        )
+        let forwardItem = NSMenuItem(
+            title: "", action: #selector(ViewerWindowController.goForward(_:)), keyEquivalent: ""
+        )
+
+        #expect(controller.validateMenuItem(backItem) == false)
+        #expect(controller.validateMenuItem(forwardItem) == false)
+
+        controller.switchFile(to: fileB)
+        #expect(controller.validateMenuItem(backItem) == true)
+        #expect(controller.validateMenuItem(forwardItem) == false)
+
+        controller.navigateHistory(by: -1)
+        #expect(controller.validateMenuItem(backItem) == false)
+        #expect(controller.validateMenuItem(forwardItem) == true)
+    }
+
+    @Test("リンク遷移で履歴が積まれ、戻る操作で復帰する")
+    func handleOpenReferenceRecordsHistoryAndBackRestores() {
+        let fileA = URL(fileURLWithPath: "/mock/a.md")
+        let fileB = URL(fileURLWithPath: "/mock/b.md")
+        let controller = makeSwitchController(
+            primary: fileA, others: [fileB], contents: "# doc",
+            defaults: makeIsolatedDefaults(prefix: "OpenReference")
+        )
+        defer { controller.close() }
+
+        controller.handleOpenReference(href: "b.md", newWindow: false)
+
+        #expect(controller.fileURL.lastPathComponent == "b.md")
+        #expect(controller.fileListModel.canGoBack == true)
+
+        controller.navigateHistory(by: -1)
+
+        #expect(controller.fileURL.lastPathComponent == "a.md")
+        #expect(controller.fileListModel.canGoForward == true)
+    }
+
+    @Test("newWindow: true 経路では元ウィンドウの状態が変化しない")
+    func handleOpenReferenceWithNewWindowLeavesOriginalWindowUnchanged() {
+        let fileA = URL(fileURLWithPath: "/mock/a.md")
+        let fileB = URL(fileURLWithPath: "/mock/b.md")
+        var openedInNewWindow: [URL] = []
+        let controller = makeSwitchController(
+            primary: fileA, others: [fileB], contents: "# doc",
+            defaults: makeIsolatedDefaults(prefix: "OpenReference"),
+            openFileInNewWindow: { openedInNewWindow.append($0) }
+        )
+        defer { controller.close() }
+
+        controller.handleOpenReference(href: "b.md", newWindow: true)
+
+        // 新規ウィンドウへの委譲のみで、現在のウィンドウは switchFile を経由しない。
+        #expect(openedInNewWindow.map(\.lastPathComponent) == ["b.md"])
+        #expect(controller.fileURL.lastPathComponent == "a.md")
+        #expect(controller.fileListModel.canGoBack == false)
+    }
+}

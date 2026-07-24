@@ -5,54 +5,11 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
-    var becomeKeyCalled = false
-    var closeCalled = false
-    var renameArgs: (old: URL, new: URL)?
-    var switchFileArgs: (old: URL, new: URL)?
-    var toggleHiddenFilesCalled = false
-    private let isFileOpenCheck: (URL) -> Bool
-
-    init(isFileOpenCheck: @escaping (URL) -> Bool = { _ in false }) {
-        self.isFileOpenCheck = isFileOpenCheck
-    }
-
-    func viewerWindowWillClose(_ controller: ViewerWindowController) {
-        closeCalled = true
-    }
-
-    func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {
-        becomeKeyCalled = true
-    }
-
-    func viewerWindow(
-        _ controller: ViewerWindowController, didRenameFrom oldURL: URL, to newURL: URL
-    ) {
-        renameArgs = (oldURL, newURL)
-    }
-
-    func viewerWindow(
-        _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
-    ) {
-        switchFileArgs = (oldURL, newURL)
-    }
-
-    func viewerWindow(
-        _ controller: ViewerWindowController, isFileOpenInAnotherWindow url: URL
-    ) -> Bool {
-        isFileOpenCheck(url)
-    }
-
-    func viewerWindow(_ controller: ViewerWindowController, focusWindowForFile url: URL) {}
-
-    func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
-        toggleHiddenFilesCalled = true
-    }
-}
-
-/// ViewerWindowController のうち、実 rename/switch/navigate/隠しファイルフィルタなど
-/// 実ファイルシステムの挙動そのものを検証するテスト。実 DirectoryLister / 実 store を
-/// 使うため製品変更なしにはモック化できず Integration として分離する。
+/// ViewerWindowController のうち、サイドバー一覧の実列挙・実 rename の再一覧・実フォルダー
+/// ナビゲーションなど、実ファイルシステムの挙動そのものを検証するテスト。DirectoryLister は
+/// FileManager を直接列挙するため InMemoryFileReader でモック化できず Integration として分離する。
+/// (存在ガードのみに依存する switch/rename/history/リンク遷移の unit テストは
+/// ViewerWindowControllerTests へ戻した。)
 @Suite
 @MainActor
 struct ViewerWindowControllerIntegrationTests {
@@ -123,59 +80,6 @@ struct ViewerWindowControllerIntegrationTests {
         #expect(!controller.fileListModel.showHiddenFiles)
     }
 
-    @Test("switchFile でファイル URL とウィンドウタイトルが更新される")
-    func switchFileUpdatesFileURLAndTitle() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
-        let file2 = try tmp.file(named: "second.mmd", contents: "graph LR;")
-        let controller = makeController(file: file1)
-        defer { controller.close() }
-
-        controller.switchFile(to: file2)
-
-        #expect(controller.fileURL == file2)
-        #expect(controller.window?.title == "second.mmd")
-        #expect(controller.window?.representedURL == file2)
-    }
-
-    @Test("switchFile でデリゲートに旧・新 URL が通知される")
-    func switchFileInvokesDelegate() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
-        let file2 = try tmp.file(named: "second.mmd", contents: "graph LR;")
-        let controller = makeController(file: file1)
-        defer { controller.close() }
-        let mock = MockViewerWindowControllerDelegate()
-        controller.delegate = mock
-
-        controller.switchFile(to: file2)
-
-        #expect(mock.switchFileArgs?.old == file1)
-        #expect(mock.switchFileArgs?.new == file2)
-    }
-
-    @Test("switchFile は旧・新ファイルの保存済み倍率を破壊しない")
-    func switchFilePreservesSavedZoomForBothFiles() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
-        let file2 = try tmp.file(named: "second.mmd", contents: "graph LR;")
-        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
-        let zoomStore = ZoomStore(defaults: defaults)
-        zoomStore.setZoom(2.0, for: file1)
-        zoomStore.setZoom(0.75, for: file2)
-        let controller = makeController(file: file1, zoomStore: zoomStore, defaults: defaults)
-        defer { controller.close() }
-
-        controller.switchFile(to: file2)
-
-        // 切替はリネームではないため、双方の保存倍率が独立して保たれる。
-        #expect(zoomStore.zoom(for: file1) == 2.0)
-        #expect(zoomStore.zoom(for: file2) == 0.75)
-    }
-
     @Test("rename でサイドバーの一覧が再取得され新名が選択される")
     func renameRefreshesSidebarListAndSelection() async throws {
         let tmp = try TempDir()
@@ -197,41 +101,6 @@ struct ViewerWindowControllerIntegrationTests {
         #expect(controller.fileListModel.selection?.lastPathComponent == "new.mmd")
         #expect(names.contains("new.mmd"))
         #expect(!names.contains("old.mmd"))
-    }
-
-    @Test("対応形式への rename ではソース表示が維持される")
-    func renameToRenderableKeepsSourceMode() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "note.md", contents: "# hi")
-        let controller = makeController(file: file)
-        defer { controller.close() }
-        controller.toggleSourceView(nil)
-        #expect(controller.isSourceMode)
-        let renamed = tmp.url.appendingPathComponent("note.markdown")
-        try FileManager.default.moveItem(at: file, to: renamed)
-
-        controller.handleRename(from: controller.fileURL, to: renamed)
-
-        #expect(controller.isSourceMode)
-    }
-
-    @Test("非対応形式への rename ではソース表示が解除される")
-    func renameToNonRenderableResetsSourceMode() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "note.md", contents: "# hi")
-        let controller = makeController(file: file)
-        defer { controller.close() }
-        controller.toggleSourceView(nil)
-        #expect(controller.isSourceMode)
-        let renamed = tmp.url.appendingPathComponent("note.swift")
-        try FileManager.default.moveItem(at: file, to: renamed)
-
-        controller.handleRename(from: controller.fileURL, to: renamed)
-
-        // .swift は isRenderable == false のため、ソース表示トグルが成立せずリセットする。
-        #expect(!controller.isSourceMode)
     }
 }
 
@@ -362,103 +231,11 @@ extension ViewerWindowControllerIntegrationTests {
     }
 }
 
-// MARK: - Navigation History
-
-extension ViewerWindowControllerIntegrationTests {
-    @Test("switchFile で履歴が積まれ戻ると元ファイルに復帰する")
-    func switchFilePushesHistoryAndBackRestores() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let fileA = try tmp.file(named: "a.mmd", contents: "graph TD;")
-        _ = try tmp.file(named: "b.mmd", contents: "graph LR;")
-        let fileB = fileA.deletingLastPathComponent().appendingPathComponent("b.mmd")
-        let controller = makeController(file: fileA, defaults: makeIsolatedDefaults(prefix: "History"))
-        defer { controller.close() }
-
-        controller.switchFile(to: fileB)
-        #expect(controller.fileURL.lastPathComponent == "b.mmd")
-        #expect(controller.fileListModel.canGoBack == true)
-
-        controller.navigateHistory(by: -1)
-        #expect(controller.fileURL.lastPathComponent == "a.mmd")
-        #expect(controller.fileListModel.canGoForward == true)
-        #expect(controller.fileListModel.canGoBack == false)
-    }
-
-    @Test("戻る操作自体は新しい履歴を積まない")
-    func navigatingHistoryDoesNotRecord() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let fileA = try tmp.file(named: "a.mmd", contents: "graph TD;")
-        _ = try tmp.file(named: "b.mmd", contents: "graph LR;")
-        let fileB = fileA.deletingLastPathComponent().appendingPathComponent("b.mmd")
-        let controller = makeController(file: fileA, defaults: makeIsolatedDefaults(prefix: "History"))
-        defer { controller.close() }
-        controller.switchFile(to: fileB)
-
-        controller.navigateHistory(by: -1) // a へ戻る
-        controller.navigateHistory(by: 1) // b へ進む
-
-        // 破棄されずに往復できる = 戻る/進むで push されていない
-        #expect(controller.fileURL.lastPathComponent == "b.mmd")
-        #expect(controller.fileListModel.canGoForward == false)
-        #expect(controller.fileListModel.canGoBack == true)
-    }
-
-    @Test("戻る/進むメニューは対応する履歴があるときだけ有効")
-    func goBackAndForwardMenuValidation() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let fileA = try tmp.file(named: "a.mmd", contents: "graph TD;")
-        let fileB = try tmp.file(named: "b.mmd", contents: "graph TD;")
-        let controller = makeController(file: fileA)
-        defer { controller.close() }
-        let backItem = NSMenuItem(
-            title: "", action: #selector(ViewerWindowController.goBack(_:)), keyEquivalent: ""
-        )
-        let forwardItem = NSMenuItem(
-            title: "", action: #selector(ViewerWindowController.goForward(_:)), keyEquivalent: ""
-        )
-
-        #expect(controller.validateMenuItem(backItem) == false)
-        #expect(controller.validateMenuItem(forwardItem) == false)
-
-        controller.switchFile(to: fileB)
-        #expect(controller.validateMenuItem(backItem) == true)
-        #expect(controller.validateMenuItem(forwardItem) == false)
-
-        controller.navigateHistory(by: -1)
-        #expect(controller.validateMenuItem(backItem) == false)
-        #expect(controller.validateMenuItem(forwardItem) == true)
-    }
-}
-
 // MARK: - handleOpenReference (Link Navigation)
 
-/// リンククリック(JS の referenceActivated → handleOpenReference)経由の履歴記録・
-/// サイドバー追従は switchFile 内の sidebar.syncAfterSwitch が既に行っている(実機確認済み)。
-/// この既存挙動を回帰テストとして固定する。
+/// 別ディレクトリへのリンク遷移でサイドバーのディレクトリが実列挙で追従することを検証する。
+/// currentDirectory の追従は実 FS のディレクトリ列挙に依存するため Integration。
 extension ViewerWindowControllerIntegrationTests {
-    @Test("リンク遷移で履歴が積まれ、戻る操作で復帰する")
-    func handleOpenReferenceRecordsHistoryAndBackRestores() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let fileA = try tmp.file(named: "a.md", contents: "# A")
-        _ = try tmp.file(named: "b.md", contents: "# B")
-        let controller = makeController(file: fileA, defaults: makeIsolatedDefaults(prefix: "OpenReference"))
-        defer { controller.close() }
-
-        controller.handleOpenReference(href: "b.md", newWindow: false)
-
-        #expect(controller.fileURL.lastPathComponent == "b.md")
-        #expect(controller.fileListModel.canGoBack == true)
-
-        controller.navigateHistory(by: -1)
-
-        #expect(controller.fileURL.lastPathComponent == "a.md")
-        #expect(controller.fileListModel.canGoForward == true)
-    }
-
     @Test("別ディレクトリへのリンク遷移でサイドバーのディレクトリが追従し、戻ると復帰する")
     func handleOpenReferenceToOtherDirectoryFollowsSidebarAndBackRestores() throws {
         let tmp = try TempDir()
@@ -482,26 +259,5 @@ extension ViewerWindowControllerIntegrationTests {
             controller.fileListModel.currentDirectory.standardizedFileURL
                 == originalDirectory.standardizedFileURL
         )
-    }
-
-    /// newWindow: true では AppDelegate.shared?.openViewer(for:) へ委譲するのみで、
-    /// 現在のウィンドウ(controller)は switchFile を一切経由しない。テスト環境では
-    /// AppDelegate.shared は nil(または新規ウィンドウを開けない)ため実際に新規ウィンドウが
-    /// 開くかまでは検証できないが、本テストが固定したいのは「元ウィンドウの表示ファイル・履歴が
-    /// 変化しないこと」であり、それはこの環境でも確実に検証できる。
-    @Test("newWindow: true 経路では元ウィンドウの状態が変化しない")
-    func handleOpenReferenceWithNewWindowLeavesOriginalWindowUnchanged() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let fileA = try tmp.file(named: "a.md", contents: "# A")
-        _ = try tmp.file(named: "b.md", contents: "# B")
-        let controller = makeController(file: fileA, defaults: makeIsolatedDefaults(prefix: "OpenReference"))
-        defer { controller.close() }
-
-        controller.handleOpenReference(href: "b.md", newWindow: true)
-
-        #expect(controller.fileURL.lastPathComponent == "a.md")
-        #expect(controller.fileListModel.canGoBack == false)
-        #expect(controller.fileListModel.selection?.lastPathComponent == "a.md")
     }
 }

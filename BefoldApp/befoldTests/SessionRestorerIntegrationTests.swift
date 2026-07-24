@@ -7,7 +7,9 @@ import Testing
 
 /// パス引数なしの CLI 起動(`befold --hidden-files` 等)でも、
 /// セッション復元されるウィンドウへ表示オプションが適用されることを検証する。
-/// 全件が restore→openViewer→WM:85 の実 DirectoryLister.fileExists を踏むため Integration。
+/// 全件が restore→openViewer 経由で実コントローラ生成パイプライン(実 store・FileWatcher・
+/// サイドバーの DirectoryLister 列挙)を踏むため Integration。存在ガードは注入 fileReader
+/// 経由になった(TASK-116.12)が、生成パイプライン全体の注入シームは未導入。
 @Suite
 @MainActor
 struct SessionRestorerIntegrationTests {

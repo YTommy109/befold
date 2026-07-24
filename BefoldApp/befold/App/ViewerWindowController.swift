@@ -288,7 +288,7 @@ final class ViewerWindowController: NSWindowController {
         case let .external(url):
             NSWorkspace.shared.open(url)
         case let .localFile(url):
-            guard DirectoryLister.isExistingFile(url) else {
+            guard store.isExistingFile(at: url) else {
                 showFileNotFoundAlert(url: url)
                 return
             }
@@ -370,7 +370,7 @@ final class ViewerWindowController: NSWindowController {
     /// 切替先が存在しない場合はアラートを表示して false を返す(状態は変更しない)。
     @discardableResult
     func performFileSwitch(to newURL: URL) -> Bool {
-        guard DirectoryLister.fileExists(newURL) else {
+        guard store.fileExists(at: newURL) else {
             showFileNotFoundAlert(url: newURL)
             return false
         }

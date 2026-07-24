@@ -12,6 +12,9 @@ final class ViewerWindowManager {
     private let findOptionsPreference: FindOptionsPreference
     private let perFileState: PerFileStateStore
     private let bookmarkStore: BookmarkStore
+    /// openViewer のファイル存在ガードが使う I/O 抽象。静的な DefaultFileReader を直接叩かず
+    /// ここへ集約することで、テストが InMemoryFileReader を注入して存在確認をモック化できる。
+    private let fileReader: any FileReading
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
@@ -24,7 +27,8 @@ final class ViewerWindowManager {
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
-        bookmarkStore: BookmarkStore = BookmarkStore()
+        bookmarkStore: BookmarkStore = BookmarkStore(),
+        fileReader: any FileReading = DefaultFileReader()
     ) {
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
@@ -32,6 +36,7 @@ final class ViewerWindowManager {
         self.findOptionsPreference = findOptionsPreference
         self.perFileState = perFileState
         self.bookmarkStore = bookmarkStore
+        self.fileReader = fileReader
     }
 
     /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
@@ -82,7 +87,7 @@ final class ViewerWindowManager {
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil
     ) {
-        guard DirectoryLister.fileExists(url) else {
+        guard fileReader.fileExists(at: url) else {
             // 新規オープン時点ではまだ親ウィンドウが無いため over: nil でモーダル表示する。
             FileNotFoundUI.present(url: url, over: nil)
             return

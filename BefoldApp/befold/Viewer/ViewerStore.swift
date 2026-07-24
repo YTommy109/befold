@@ -181,6 +181,20 @@ final class ViewerStore {
         })
     }
 
+    /// 注入された fileReader を通したファイル存在確認(ディレクトリを含む)。
+    /// ウィンドウ層(ViewerWindowController)の switch/rename/リンク遷移の存在ガードが
+    /// 静的な DefaultFileReader を直接叩かず、store と同一の fileReader を共有できるようにする
+    /// (テストで InMemoryFileReader を注入した store 経由でモック化するため)。
+    func fileExists(at url: URL) -> Bool {
+        fileReader.fileExists(at: url)
+    }
+
+    /// 注入された fileReader を通した「存在する通常ファイル(ディレクトリでない)」判定。
+    /// 用途は fileExists(at:) と同じく存在ガードの fileReader 共有。
+    func isExistingFile(at url: URL) -> Bool {
+        fileReader.isExistingFile(at: url)
+    }
+
     /// 監視対象ファイルの rename / move を反映する。
     /// コンテンツの再読込を予約したうえでウィンドウ側へ通知する。公開 filePath / fileType は
     /// apply() で content と同時にのみ更新する(上の pendingURL / pendingFileType 参照)。

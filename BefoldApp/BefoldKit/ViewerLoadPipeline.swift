@@ -39,7 +39,8 @@ public enum ViewerLoadPipeline {
         contentLoader: ContentLoader,
         chunkedReaderFactory: ChunkedReaderFactory,
         oneShotLoad: Bool = false,
-        embedLocalImages: Bool = true
+        embedLocalImages: Bool = true,
+        imageEmbedder: MarkdownImageEmbedder = .shared
     ) async -> Outcome {
         guard fileReader.fileExists(at: resolved) else { return .missing }
 
@@ -81,7 +82,8 @@ public enum ViewerLoadPipeline {
             } else {
                 return try loadFull(
                     data: data, resolved: resolved, fileType: fileType,
-                    oneShotLoad: oneShotLoad, embedLocalImages: embedLocalImages
+                    oneShotLoad: oneShotLoad, embedLocalImages: embedLocalImages,
+                    imageEmbedder: imageEmbedder
                 )
             }
         } catch {
@@ -102,7 +104,8 @@ public enum ViewerLoadPipeline {
     /// (詳細は load のドキュメントコメント参照)。
     private static func loadFull(
         data: Data, resolved: URL, fileType: FileType,
-        oneShotLoad: Bool, embedLocalImages: Bool
+        oneShotLoad: Bool, embedLocalImages: Bool,
+        imageEmbedder: MarkdownImageEmbedder
     ) throws -> Outcome {
         let cache = try NormalizedTextCache(data: data, oneShotLoad: oneShotLoad)
         if cache.text.utf8.count > ContentLoader.maxTextFileSizeBytes {
@@ -112,8 +115,8 @@ public enum ViewerLoadPipeline {
             )
         }
         if embedLocalImages, fileType == .markdown {
-            // render 経路と同じキャッシュを温めるため、共有インスタンスを経由すること。
-            _ = MarkdownImageEmbedder.shared.embedLocalImages(in: cache.text, baseURL: resolved)
+            // render 経路と同じキャッシュを温めるため、同一インスタンス(本番は .shared)を経由すること。
+            _ = imageEmbedder.embedLocalImages(in: cache.text, baseURL: resolved)
         }
         return .full(
             ContentLoader.LoadedContent(rejectReason: nil, content: cache.text),

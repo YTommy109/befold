@@ -7,7 +7,8 @@ import Testing
 /// ViewerLoadPipeline.load(oneShotLoad:) が静的1回読込(QuickLook 等)経路で
 /// dataHash 計算をスキップすることを、ViewerStore を経由せず直接検証する。
 /// InMemoryFileReader を使うため実 FS 不要の unit テスト。
-/// 実ローカル画像埋め込みキャッシュのウォームアップ検証は Integration へ移した。
+/// 画像埋め込みキャッシュのウォームアップも imageEmbedder 注入(TASK-116.12)で
+/// InMemoryFileReader によりモック化できるようになったため unit で検証する。
 @Suite
 struct ViewerLoadPipelineTests {
     private let chunkedReaderFactory: ViewerLoadPipeline.ChunkedReaderFactory = { cache, fileType in
@@ -77,5 +78,62 @@ struct ViewerLoadPipelineTests {
             return
         }
         #expect(cache.dataHash != nil)
+    }
+
+    @Test("embedLocalImages: true でロードすると画像埋め込みキャッシュが温まり、その後の埋め込み呼び出しは画像を再読込しない")
+    func loadWarmsMarkdownImageEmbedCache() async {
+        let dir = URL(fileURLWithPath: "/tmp/pipeline-warm")
+        let imageURL = dir.appendingPathComponent("warm.png")
+        let markdownURL = dir.appendingPathComponent("doc.md")
+        let pngData = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        let fileReader = InMemoryFileReader(files: [markdownURL.path: "![alt](warm.png)"])
+        fileReader.setDataFile(pngData, at: imageURL)
+        let embedder = MarkdownImageEmbedder(fileReader: fileReader)
+
+        _ = await ViewerLoadPipeline.load(
+            resolved: markdownURL,
+            fileType: .markdown,
+            fileReader: fileReader,
+            contentLoader: ContentLoader(fileReader: fileReader),
+            chunkedReaderFactory: chunkedReaderFactory,
+            embedLocalImages: true,
+            imageEmbedder: embedder
+        )
+
+        // ウォームアップ後に画像の読み込みを失敗させても、キャッシュ済み data URI が返る。
+        // (サイズ・更新日時は不変なのでキャッシュがヒットし readData を呼ばない)= 再読込していない。
+        fileReader.setReadError(true, at: imageURL)
+        let expectedURI = "data:image/png;base64,\(pngData.base64EncodedString())"
+        let result = embedder.embedLocalImages(in: "![alt](warm.png)", baseURL: markdownURL)
+
+        #expect(result == "![alt](\(expectedURI))")
+    }
+
+    @Test("embedLocalImages: false でロードすると画像埋め込みキャッシュを温めない")
+    func loadWithEmbedLocalImagesDisabledDoesNotWarmCache() async {
+        let dir = URL(fileURLWithPath: "/tmp/pipeline-cold")
+        let imageURL = dir.appendingPathComponent("cold.png")
+        let markdownURL = dir.appendingPathComponent("doc.md")
+        let pngData = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        let fileReader = InMemoryFileReader(files: [markdownURL.path: "![alt](cold.png)"])
+        fileReader.setDataFile(pngData, at: imageURL)
+        let embedder = MarkdownImageEmbedder(fileReader: fileReader)
+
+        _ = await ViewerLoadPipeline.load(
+            resolved: markdownURL,
+            fileType: .markdown,
+            fileReader: fileReader,
+            contentLoader: ContentLoader(fileReader: fileReader),
+            chunkedReaderFactory: chunkedReaderFactory,
+            embedLocalImages: false,
+            imageEmbedder: embedder
+        )
+
+        // キャッシュが温まっていなければ、読み込み失敗時に埋め込みできず原文のまま。
+        fileReader.setReadError(true, at: imageURL)
+        let markdown = "![alt](cold.png)"
+        let result = embedder.embedLocalImages(in: markdown, baseURL: markdownURL)
+
+        #expect(result == markdown)
     }
 }
