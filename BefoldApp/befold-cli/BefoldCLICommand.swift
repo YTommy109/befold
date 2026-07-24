@@ -40,6 +40,19 @@ struct BefoldCLICommand: ParsableCommand {
     }
 
     func run() throws {
+        try execute(
+            addBookmark: { BefoldCLICommand.bookmarkStore.add($0) },
+            printResult: CLICommandResultPrinter.print
+        )
+    }
+
+    /// `run()` の実体。ブックマークの追加先と結果の出力先を注入できるようにしている。
+    /// 既定の追加先は GUI と共有する UserDefaults(`com.degino.befold`)= 利用者の実データ、
+    /// 既定の出力先は実プロセスの stdout/stderr のため、テストからは差し替えて使う。
+    func execute(
+        addBookmark: @MainActor (URL) -> Void,
+        printResult: (CLICommandResult) -> Void
+    ) throws {
         if !check, !bookmark {
             let paths = paths
             let options = options
@@ -52,19 +65,16 @@ struct BefoldCLICommand: ParsableCommand {
         if check {
             for path in paths {
                 let result = CLICheckCommand.run(path)
-                CLICommandResultPrinter.print(result)
+                printResult(result)
                 if result.exitCode != 0 { anyFailed = true }
             }
         }
         if bookmark {
             for path in paths {
                 let result = MainActor.assumeIsolated {
-                    CLIBookmarkCommand.run(
-                        path,
-                        addBookmark: { BefoldCLICommand.bookmarkStore.add($0) }
-                    )
+                    CLIBookmarkCommand.run(path, addBookmark: addBookmark)
                 }
-                CLICommandResultPrinter.print(result)
+                printResult(result)
                 if result.exitCode != 0 { anyFailed = true }
             }
         }

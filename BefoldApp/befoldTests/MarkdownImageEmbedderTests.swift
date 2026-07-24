@@ -1,5 +1,6 @@
 // BefoldApp/befoldTests/MarkdownImageEmbedderTests.swift
 import BefoldKit
+import BefoldTestSupport
 import Foundation
 import Testing
 
