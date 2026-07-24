@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-07-23 23:19'
-updated_date: '2026-07-24 00:31'
+updated_date: '2026-07-24 01:30'
 labels:
   - test
   - ci
@@ -76,4 +76,6 @@ AC#3(TSan を継続するか)の判断: 継続する。理由は (a) 失敗は 1
 検証: 修正後に BEFOLD_TEST_TIMEOUT_SECONDS=120 swift test --sanitize=thread を再実行し、593 tests / 77 suites が 34.365 秒で pass。通常の swift test も 593 tests が 15.212 秒で pass。
 
 AC#1(CI で安定して結果を返す)は未チェック。ローカルでは元の失敗を再現できないため、main へマージ後の push トリガーと nightly(15:00 UTC)の thread-sanitizer ジョブを複数回観測して確認する必要がある。
+
+CI 観測(1/N): fix マージ後の main push run 30059009672 で thread-sanitizer が success(2分32秒)。AC#1 は nightly(15:00 UTC)を含む複数回の観測が揃うまで未チェックのまま。次セッションでは gh run list --workflow=ci.yml --event schedule で nightly の thread-sanitizer 結果を確認し、2〜3 回連続 success なら AC#1 をチェックして Done にできる。
 <!-- SECTION:NOTES:END -->

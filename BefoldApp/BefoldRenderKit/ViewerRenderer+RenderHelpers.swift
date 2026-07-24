@@ -173,6 +173,7 @@ public extension ViewerRenderer {
         embedImages: Bool = true
     ) -> String {
         guard !isSourceMode, fileType == .markdown, let filePath, embedImages else { return content }
-        return MarkdownImageEmbedder.embedLocalImages(in: content, baseURL: filePath)
+        // ロード時のウォームアップと同じキャッシュを引くため、共有インスタンスを経由すること。
+        return MarkdownImageEmbedder.shared.embedLocalImages(in: content, baseURL: filePath)
     }
 }

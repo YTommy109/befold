@@ -13,6 +13,9 @@ public protocol FileReading: Sendable {
     func isBinary(at url: URL) -> Bool
     /// ファイルのバイトサイズ。取得できない場合は nil。
     func fileSize(at url: URL) -> Int?
+    /// ファイルの最終更新日時。取得できない場合は nil。
+    /// サイズだけでは検出できない「同サイズでの内容変更」をキャッシュ無効化に使う。
+    func modificationDate(at url: URL) -> Date?
 }
 
 /// FileManager / String(contentsOf:) による標準実装。
@@ -48,6 +51,10 @@ public struct DefaultFileReader: FileReading {
 
     public func fileSize(at url: URL) -> Int? {
         (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+    }
+
+    public func modificationDate(at url: URL) -> Date? {
+        (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
     }
 
     public func readData(from url: URL) throws -> Data {

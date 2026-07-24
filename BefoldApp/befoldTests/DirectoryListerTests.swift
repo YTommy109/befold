@@ -45,6 +45,10 @@ private struct ExclusionFileReader: FileReading {
     func fileSize(at url: URL) -> Int? {
         base.fileSize(at: url)
     }
+
+    func modificationDate(at url: URL) -> Date? {
+        base.modificationDate(at: url)
+    }
 }
 
 @Suite
