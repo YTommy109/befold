@@ -1,6 +1,9 @@
 import AppKit
 import Foundation
 
+/// CLI 起動時、既に起動中の befold インスタンスがあればそちらへファイルオープン要求を転送する。
+/// これにより CLI 経由の起動でも、既存インスタンスのウィンドウ管理(セッション・重複オープン抑止等)を
+/// そのまま利用でき、`--hidden-files` 等の表示オプションも既存インスタンスへ届けられる。
 public enum CLIInstanceRouter {
     public static let openRequestNotificationName = Notification.Name("dev.befold.cli.openRequest")
     public static let openRequestAckNotificationName = Notification.Name("dev.befold.cli.openRequestAck")
@@ -9,11 +12,11 @@ public enum CLIInstanceRouter {
     /// 1回の試行あたり、ACK 受信を待つ最大秒数。
     ///
     /// maxForwardAttempts × ackTimeout(現状 1.5 秒)は、起動直後でオブザーバ登録が
-    /// まだ完了していない宛先インスタンスへの転送が待つ最大時間でもある(task-86)。
+    /// まだ完了していない宛先インスタンスへの転送が待つ最大時間でもある。
     /// ここを安易に短縮すると、宛先の初期化がこの総待ち時間より遅い場合に、
     /// 一度も request が届かないまま isDestinationAlive のフォールバックで
-    /// 成功扱いされてしまう既知の限界(task-86)を悪化させる。CLI 呼び出し元の
-    /// 体感速度より、この安全マージンを優先し現状の値を維持する(task-88)。
+    /// 成功扱いされてしまう既知の限界を悪化させる。CLI 呼び出し元の
+    /// 体感速度より、この安全マージンを優先し現状の値を維持する。
     public static let ackTimeout: TimeInterval = 0.5
 
     @MainActor
@@ -28,7 +31,7 @@ public enum CLIInstanceRouter {
     /// 対象インスタンスからの ACK を待つ。ACK が届くまで `maxAttempts` 回まで再送する。
     ///
     /// ACK も DistributedNotificationCenter 経由のため消失しうる。全試行で ACK 未観測でも
-    /// 宛先プロセスが生存していれば成功として扱う(task-81)。
+    /// 宛先プロセスが生存していれば成功として扱う。
     @MainActor
     public static func forward(
         paths: [String], options: CLIOpenOptions, to instance: NSRunningApplication,
@@ -80,6 +83,7 @@ public enum CLIInstanceRouter {
         return acked
     }
 
+    /// 受信した Distributed Notification の userInfo から paths/options を復元する。
     public static func decode(userInfo: [AnyHashable: Any]?) -> (paths: [String], options: CLIOpenOptions)? {
         guard let paths = userInfo?["paths"] as? [String] else { return nil }
         var options = CLIOpenOptions()
@@ -92,10 +96,12 @@ public enum CLIInstanceRouter {
         return (paths, options)
     }
 
+    /// 受信した Distributed Notification の userInfo から requestID を取り出す(ACK 送信用)。
     public static func requestID(from userInfo: [AnyHashable: Any]?) -> String? {
         userInfo?["requestID"] as? String
     }
 
+    /// 受信側が要求を受け取ったことを ACK 通知で送り返す。
     public static func sendAck(requestID: String) {
         DistributedNotificationCenter.default().postNotificationName(
             openRequestAckNotificationName, object: nil,

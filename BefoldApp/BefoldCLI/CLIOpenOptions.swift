@@ -1,11 +1,13 @@
 import ArgumentParser
 import Foundation
 
+/// サイドバー/フォルダー一覧の並び順。`SortOrder`(Viewer 層)に対応する CLI 向けの値。
 public enum CLISortOrderOption: String, Equatable, Codable, ExpressibleByArgument, Sendable {
     case foldersFirst = "folders-first"
     case alphabetical
 }
 
+/// `-h`/`--help`・`--check`/`--bookmark` 以外の起動オプション。未指定の項目は既存の保存済み設定・既定値を維持する。
 public struct CLIOpenOptions: Equatable, Codable, Sendable {
     public var showHiddenFiles: Bool?
     public var sortOrder: CLISortOrderOption?
@@ -25,6 +27,9 @@ public struct CLIOpenOptions: Equatable, Codable, Sendable {
     }
 }
 
+/// ファイルを開く際の表示オプション定義。BefoldCLICommand が単一の @OptionGroup として保持する
+/// (root 以外にこれを共有する ParsableCommand は存在しないため、
+/// サブコマンド名の前でフラグが黙殺される問題は構造的に起きない)。
 public struct OpenCLIOptions: ParsableArguments {
     @Flag(name: .customLong("hidden-files"), help: "Show hidden files in the sidebar.")
     var hiddenFilesOn = false
