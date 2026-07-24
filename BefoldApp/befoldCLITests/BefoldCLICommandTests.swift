@@ -149,6 +149,8 @@ struct BefoldCLICommandTests {
             ["--check"],
             ["--bookmark"],
             ["--hidden-files", "--no-hidden-files"],
+            ["--line-numbers", "--no-line-numbers"],
+            ["--source", "--preview"],
             ["--sort"],
             ["--sort", "reverse"],
         ]
