@@ -85,6 +85,20 @@ struct CLIInstanceRouterTests {
         #expect(activateCount == 1)
     }
 
+    /// befold-cli は `/usr/local/bin/befold` の symlink 経由で起動されるため、Bundle.main は
+    /// symlink の置き場所(`/usr/local/bin`)に解決され bundleIdentifier は nil になる。
+    /// 起動中インスタンスの探索を Bundle.main に依存させてはならない。
+    @Test("runningInstance は Bundle.main のバンドル ID ではなく befold.app のバンドル ID で探索する")
+    func runningInstanceLooksUpAppBundleIdentifier() {
+        var queried: [String] = []
+        _ = CLIInstanceRouter.runningInstance(runningApplications: { identifier in
+            queried.append(identifier)
+            return []
+        })
+
+        #expect(queried == [AppBundle.identifier])
+    }
+
     @Test("requestID / decode は往復できる")
     func requestIDRoundTrips() {
         let userInfo: [AnyHashable: Any] = ["paths": ["a.md"], "requestID": "abc-123"]

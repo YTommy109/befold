@@ -19,11 +19,18 @@ public enum CLIInstanceRouter {
     /// 体感速度より、この安全マージンを優先し現状の値を維持する。
     public static let ackTimeout: TimeInterval = 0.5
 
+    /// 起動中の befold.app インスタンスを探す。
+    ///
+    /// 探索対象のバンドル ID は `Bundle.main` からではなく `AppBundle.identifier` から取る。
+    /// befold-cli は `/usr/local/bin/befold` の symlink 経由で起動され、その場合 `Bundle.main` は
+    /// symlink の置き場所(`/usr/local/bin`)に解決されて bundleIdentifier が nil になるため。
     @MainActor
-    public static func runningInstance() -> NSRunningApplication? {
-        guard let bundleID = Bundle.main.bundleIdentifier else { return nil }
-        return NSRunningApplication
-            .runningApplications(withBundleIdentifier: bundleID)
+    public static func runningInstance(
+        runningApplications: (String) -> [NSRunningApplication] = {
+            NSRunningApplication.runningApplications(withBundleIdentifier: $0)
+        }
+    ) -> NSRunningApplication? {
+        runningApplications(AppBundle.identifier)
             .first { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
     }
 
