@@ -134,6 +134,8 @@ struct BefoldCLICommandTests {
             (["--no-line-numbers"], CLIOpenOptions(showLineNumbers: false)),
             (["--source"], CLIOpenOptions(sourceMode: true)),
             (["--preview"], CLIOpenOptions(sourceMode: false)),
+            (["--sidebar"], CLIOpenOptions(showSidebar: true)),
+            (["--no-sidebar"], CLIOpenOptions(showSidebar: false)),
             (["--sort", "folders-first"], CLIOpenOptions(sortOrder: .foldersFirst)),
             (["--sort", "alphabetical"], CLIOpenOptions(sortOrder: .alphabetical)),
         ]
@@ -151,6 +153,7 @@ struct BefoldCLICommandTests {
             ["--hidden-files", "--no-hidden-files"],
             ["--line-numbers", "--no-line-numbers"],
             ["--source", "--preview"],
+            ["--sidebar", "--no-sidebar"],
             ["--sort"],
             ["--sort", "reverse"],
         ]
@@ -204,6 +207,7 @@ struct BefoldCLICommandTests {
         arguments: [
             "--check", "--bookmark", "--hidden-files",
             "--sort", "--line-numbers", "--source", "--preview",
+            "--sidebar", "--no-sidebar",
         ]
     )
     func allOptionsAppearInTopLevelHelp(option: String) {

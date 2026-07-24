@@ -13,17 +13,20 @@ public struct CLIOpenOptions: Equatable, Codable, Sendable {
     public var sortOrder: CLISortOrderOption?
     public var showLineNumbers: Bool?
     public var sourceMode: Bool?
+    public var showSidebar: Bool?
 
     public init(
         showHiddenFiles: Bool? = nil,
         sortOrder: CLISortOrderOption? = nil,
         showLineNumbers: Bool? = nil,
-        sourceMode: Bool? = nil
+        sourceMode: Bool? = nil,
+        showSidebar: Bool? = nil
     ) {
         self.showHiddenFiles = showHiddenFiles
         self.sortOrder = sortOrder
         self.showLineNumbers = showLineNumbers
         self.sourceMode = sourceMode
+        self.showSidebar = showSidebar
     }
 }
 
@@ -69,6 +72,26 @@ enum LineNumbersFlag: EnumerableFlag {
     }
 }
 
+/// サイドバーの表示/非表示を排他的に受ける。詳細は `HiddenFilesFlag` を参照。
+enum SidebarVisibilityFlag: EnumerableFlag {
+    case sidebar
+    case noSidebar
+
+    static func name(for value: Self) -> NameSpecification {
+        switch value {
+        case .sidebar: [.customLong("sidebar")]
+        case .noSidebar: [.customLong("no-sidebar")]
+        }
+    }
+
+    static func help(for value: Self) -> ArgumentHelp? {
+        switch value {
+        case .sidebar: "Open with the sidebar shown."
+        case .noSidebar: "Open with the sidebar hidden."
+        }
+    }
+}
+
 /// ソース/プレビュー表示モードを排他的に受ける。詳細は `HiddenFilesFlag` を参照。
 /// `.source` が true(ソースモード)に対応する。
 enum SourceModeFlag: EnumerableFlag {
@@ -107,6 +130,8 @@ public struct OpenCLIOptions: ParsableArguments {
 
     @Flag var sourceMode: SourceModeFlag?
 
+    @Flag var sidebar: SidebarVisibilityFlag?
+
     public init() {}
 
     public var cliOpenOptions: CLIOpenOptions {
@@ -114,7 +139,8 @@ public struct OpenCLIOptions: ParsableArguments {
             showHiddenFiles: hiddenFiles.map { $0 == .hiddenFiles },
             sortOrder: sortOrder,
             showLineNumbers: lineNumbers.map { $0 == .lineNumbers },
-            sourceMode: sourceMode.map { $0 == .source }
+            sourceMode: sourceMode.map { $0 == .source },
+            showSidebar: sidebar.map { $0 == .sidebar }
         )
     }
 }

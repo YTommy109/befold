@@ -60,6 +60,7 @@ public enum CLIInstanceRouter {
         if let value = options.showHiddenFiles { userInfo["showHiddenFiles"] = value }
         if let value = options.showLineNumbers { userInfo["showLineNumbers"] = value }
         if let value = options.sourceMode { userInfo["sourceMode"] = value }
+        if let value = options.showSidebar { userInfo["showSidebar"] = value }
         if let value = options.sortOrder { userInfo["sortOrder"] = value.rawValue }
 
         for _ in 0 ..< maxAttempts {
@@ -97,6 +98,7 @@ public enum CLIInstanceRouter {
         options.showHiddenFiles = userInfo?["showHiddenFiles"] as? Bool
         options.showLineNumbers = userInfo?["showLineNumbers"] as? Bool
         options.sourceMode = userInfo?["sourceMode"] as? Bool
+        options.showSidebar = userInfo?["showSidebar"] as? Bool
         if let rawSortOrder = userInfo?["sortOrder"] as? String {
             options.sortOrder = CLISortOrderOption(rawValue: rawSortOrder)
         }

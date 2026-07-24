@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+/// 既存ウィンドウのサイドバー開閉を、ジェネリック型パラメータを消して操作するためのプロトコル。
+/// CLI の `--sidebar`/`--no-sidebar` をパス無し起動で既存ウィンドウへ適用する際に使う。
+@MainActor
+protocol SidebarCollapsible: AnyObject {
+    func setSidebarCollapsed(_ collapsed: Bool)
+}
+
 final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitViewController {
     private let sidebarItem: NSSplitViewItem
     private var didForceInitialCollapse = false
@@ -61,5 +68,14 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError()
+    }
+}
+
+extension ViewerSplitViewController: SidebarCollapsible {
+    /// 望む開閉状態と現在が異なるときだけ toggleSidebar を再利用して切り替える。
+    /// これにより状態永続化(onCollapsedChange)とフォーカス移動の挙動を一本化する。
+    func setSidebarCollapsed(_ collapsed: Bool) {
+        guard sidebarItem.isCollapsed != collapsed else { return }
+        toggleSidebar(nil)
     }
 }

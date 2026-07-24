@@ -39,6 +39,9 @@ final class ViewerWindowController: NSWindowController {
     private let initialSidebarCollapsed: Bool
     /// 別ウィンドウでファイルを開く処理。本番では AppDelegate.shared?.openViewer(for:) を注入する。
     private let openFileInNewWindow: (URL) -> Void
+    /// 生成した SplitViewController への型消去参照。contentViewController が保持するため weak。
+    /// CLI の `--sidebar`/`--no-sidebar` を既存ウィンドウへ適用する際に使う。
+    private weak var sidebarCollapsible: (any SidebarCollapsible)?
     /// 二本指スワイプによるファイル履歴ナビゲーション検知。ウィンドウ生成後に start()、
     /// 閉じるときに stop() する。
     private var swipeMonitor: SwipeHistoryMonitor!
@@ -256,7 +259,7 @@ final class ViewerWindowController: NSWindowController {
                 delegate?.viewerWindowDidToggleHiddenFiles(self)
             }
         )
-        return ViewerSplitViewController(
+        let splitViewController = ViewerSplitViewController(
             sidebar: fileListView,
             content: contentView,
             initialCollapsed: initialSidebarCollapsed,
@@ -265,6 +268,13 @@ final class ViewerWindowController: NSWindowController {
                 perFileState.sidebar.recordToggle(collapsed, for: fileURL)
             }
         )
+        sidebarCollapsible = splitViewController
+        return splitViewController
+    }
+
+    /// CLI の `--sidebar`/`--no-sidebar` から、この既存ウィンドウのサイドバー開閉を設定する。
+    func setSidebarCollapsed(_ collapsed: Bool) {
+        sidebarCollapsible?.setSidebarCollapsed(collapsed)
     }
 
     /// リンク/パス参照のアクティベーションを処理する。

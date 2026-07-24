@@ -5,10 +5,24 @@ import Foundation
 import Testing
 
 /// パス無し CLI 転送(`befold --line-numbers` 等)で開いている既存ウィンドウへ
-/// 行番号/ソース表示/並び順のオーバーライドが反映されることを検証する。
+/// 行番号/ソース表示/並び順/サイドバー開閉のオーバーライドが反映されることを検証する。
 @Suite
 @MainActor
 struct ViewerWindowManagerDisplayOverridesTests {
+    private func makeStore(
+        prefix: String = "ViewerWindowManagerDisplayOverridesTests"
+    ) -> (manager: ViewerWindowManager, perFileState: PerFileStateStore) {
+        let defaults = makeIsolatedDefaults(prefix: prefix)
+        let perFileState = PerFileStateStore(defaults: defaults)
+        let manager = ViewerWindowManager(
+            sessionStore: SessionStore(defaults: defaults),
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            hiddenFilesPreference: HiddenFilesPreference(defaults: defaults),
+            perFileState: perFileState
+        )
+        return (manager, perFileState)
+    }
+
     private func makeManager(
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerDisplayOverridesTests")
     ) -> ViewerWindowManager {
@@ -30,7 +44,9 @@ struct ViewerWindowManagerDisplayOverridesTests {
         manager.openViewer(for: file1)
         manager.openViewer(for: file2)
 
-        manager.applyDisplayOverrides(showLineNumbers: true, sourceMode: true, sortOrder: .alphabetical)
+        manager.applyDisplayOverrides(
+            showLineNumbers: true, sourceMode: true, sortOrder: .alphabetical, showSidebar: nil
+        )
 
         for controller in manager.controllers.values {
             #expect(controller.store.showLineNumbers)
@@ -53,7 +69,9 @@ struct ViewerWindowManagerDisplayOverridesTests {
         await controller.sidebar.pendingListingTask?.value
         #expect(controller.fileListModel.entries.map(\.kind) == [.folder, .file])
 
-        manager.applyDisplayOverrides(showLineNumbers: nil, sourceMode: nil, sortOrder: .alphabetical)
+        manager.applyDisplayOverrides(
+            showLineNumbers: nil, sourceMode: nil, sortOrder: .alphabetical, showSidebar: nil
+        )
         await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.sortOrder == .alphabetical)
@@ -72,11 +90,63 @@ struct ViewerWindowManagerDisplayOverridesTests {
         let originalSortOrder = controller.fileListModel.sortOrder
         let originalSourceMode = controller.isSourceMode
 
-        manager.applyDisplayOverrides(showLineNumbers: true, sourceMode: nil, sortOrder: nil)
+        manager.applyDisplayOverrides(
+            showLineNumbers: true, sourceMode: nil, sortOrder: nil, showSidebar: nil
+        )
 
         #expect(controller.store.showLineNumbers)
         #expect(controller.isSourceMode == originalSourceMode)
         #expect(controller.fileListModel.sortOrder == originalSortOrder)
+        manager.controllers.values.forEach { $0.close() }
+    }
+
+    @Test(
+        "新規ウィンドウは sidebarVisibleOverride に従って開閉状態が決まる",
+        arguments: [(true, false), (false, true)]
+    )
+    func sidebarVisibleOverrideDeterminesInitialCollapse(
+        visible: Bool, expectedCollapsed: Bool
+    ) throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "first.mmd", contents: "graph TD;")
+        let (manager, perFileState) = makeStore(prefix: "SidebarOverrideInitial-\(visible)")
+        manager.openViewer(for: file, sidebarVisibleOverride: visible)
+
+        #expect(perFileState.sidebar.isCollapsed(for: file) == expectedCollapsed)
+        manager.controllers.values.forEach { $0.close() }
+    }
+
+    @Test("sidebarVisibleOverride 未指定(nil)なら保存済み開閉状態を維持する")
+    func sidebarVisibleOverrideNilKeepsSavedState() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "first.mmd", contents: "graph TD;")
+        let (manager, perFileState) = makeStore(prefix: "SidebarOverrideNil")
+        // 事前に「開いた状態(collapsed=false)」を保存しておく。
+        perFileState.sidebar.setCollapsed(false, for: file)
+
+        manager.openViewer(for: file, sidebarVisibleOverride: nil)
+
+        #expect(perFileState.sidebar.isCollapsed(for: file) == false)
+        manager.controllers.values.forEach { $0.close() }
+    }
+
+    @Test("既存ウィンドウへ showSidebar を反映して開閉状態を切り替える")
+    func applyDisplayOverridesTogglesSidebarOnOpenWindow() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "first.mmd", contents: "graph TD;")
+        let (manager, perFileState) = makeStore(prefix: "SidebarOverrideApply")
+        // 閉じた状態で開く。
+        manager.openViewer(for: file, sidebarVisibleOverride: false)
+        #expect(perFileState.sidebar.isCollapsed(for: file) == true)
+
+        manager.applyDisplayOverrides(
+            showLineNumbers: nil, sourceMode: nil, sortOrder: nil, showSidebar: true
+        )
+
+        #expect(perFileState.sidebar.isCollapsed(for: file) == false)
         manager.controllers.values.forEach { $0.close() }
     }
 }
