@@ -16,6 +16,21 @@ public func testTimeout(fallback seconds: Double) -> Duration {
     .seconds(testTimeoutSeconds(fallback: seconds))
 }
 
+/// ポーリング予算より必ず長い `.timeLimit` を返す。
+///
+/// 両者を独立に書くとドリフトする。実際に thread-sanitizer ジョブでは
+/// `BEFOLD_TEST_TIMEOUT_SECONDS: 120` へ延長した一方でスイート側は
+/// `.timeLimit(.minutes(1))` のままだったため、**延長した予算を使い切る前に
+/// テストが 60 秒で打ち切られる**という矛盾が起き、慢性的な赤の原因になっていた。
+/// 同じ環境変数から導くことで、CI 側で予算を変えても打ち切りが自動的に追随する。
+///
+/// `.timeLimit` の粒度は分単位（切り上げ）のため、予算の 2 倍を分に換算して用いる。
+public func testTimeLimit(pollingBudgetFallback seconds: Double = 15) -> TimeLimitTrait {
+    let budget = testTimeoutSeconds(fallback: seconds)
+    let minutes = max(1, Int((budget * 2 / 60).rounded(.up)))
+    return .timeLimit(.minutes(minutes))
+}
+
 // 以下のポーリングヘルパーは、条件が成立しないままタイムアウトしたとき必ず
 // `Issue.record` でテストを失敗させる。呼び出し側の `#expect` に頼らないのは、
 // アサーションを書き忘れた箇所が「所定秒数を丸ごと浪費した上でグリーン」に

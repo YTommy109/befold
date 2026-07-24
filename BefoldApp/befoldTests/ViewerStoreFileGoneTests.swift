@@ -83,7 +83,7 @@ private final class GatedSecondChunkReader: ChunkedTextReading, @unchecked Senda
 }
 
 /// 非同期読み込みの競合(世代交代・セッション交代)まわりのテスト。
-@Suite(.timeLimit(.minutes(1)))
+@Suite(testTimeLimit())
 @MainActor
 struct ViewerStoreLoadRaceTests {
     @Test("遅い読み込みが後続の openFile に追い越されたら結果を破棄する")
@@ -207,7 +207,7 @@ struct ViewerStoreLoadRaceTests {
 /// ViewerStoreTests から分離し、型の行数を SwiftLint の type_body_length 内に収める。
 /// グレース期間の待機は TestClock を注入して仮想時刻で厳密に進めるため、実時間依存はなく
 /// 通常どおり並列実行できる。
-@Suite(.timeLimit(.minutes(1)))
+@Suite(testTimeLimit())
 @MainActor
 struct ViewerStoreFileGoneTests {
     @Test

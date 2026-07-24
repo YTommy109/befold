@@ -1,10 +1,11 @@
 @testable import befold
+import BefoldTestSupport
 import Foundation
 import Testing
 
 @Suite
 struct DebouncerTests {
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func firesAfterDelay() async {
         await confirmation { confirm in
             let queue = DispatchQueue(label: "test.debouncer")
@@ -20,7 +21,7 @@ struct DebouncerTests {
         }
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func coalescesRapidCalls() async {
         // 合一されて 1 回だけ実行されること
         await confirmation(expectedCount: 1) { confirm in
@@ -39,7 +40,7 @@ struct DebouncerTests {
         }
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func cancelPreventsExecution() async {
         // 十分待ってもアクションが実行されないこと
         await confirmation(expectedCount: 0) { confirm in
@@ -57,7 +58,7 @@ struct DebouncerTests {
     }
 
     /// cancel 後に再度 schedule しても正常に発火すること
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func reschedulesAfterCancel() async {
         await confirmation { confirm in
             let queue = DispatchQueue(label: "test.debouncer")
