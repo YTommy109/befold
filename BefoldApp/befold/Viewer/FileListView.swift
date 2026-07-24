@@ -157,18 +157,9 @@ struct FileListView: View {
             // 奪うと選択行とハイライトがズレるため、次のランループへ遅延する
             // (固定待ちは不要)。
             DispatchQueue.main.async {
-                focusSidebarTable()
+                model.focusSidebarTable()
             }
         }
-    }
-
-    /// サイドバーの NSTableView を first responder にし、選択ハイライトを
-    /// 青にする(#144)。参照がまだ解決していない場合は何もしない。
-    private func focusSidebarTable() {
-        guard let tableView = model.sidebarTableView,
-              let window = tableView.window
-        else { return }
-        window.makeFirstResponder(tableView)
     }
 
     /// 選択が確定したエントリがファイルなら表示を更新する。

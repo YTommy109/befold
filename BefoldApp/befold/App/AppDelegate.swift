@@ -187,7 +187,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             windowManager.applyDisplayOverrides(
                 showLineNumbers: options.showLineNumbers,
                 sourceMode: options.sourceMode,
-                sortOrder: options.sortOrder.map { _ in options.viewerSortOrder }
+                sortOrder: options.sortOrder.map { _ in options.viewerSortOrder },
+                showSidebar: options.showSidebar
             )
             return
         }
@@ -204,6 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         windowManager.openViewer(
             for: target, forceSidebarVisible: isDirectory,
+            sidebarVisibleOverride: options.showSidebar,
             initialSortOrder: options.viewerSortOrder,
             showLineNumbersOverride: options.showLineNumbers,
             sourceModeOverride: options.sourceMode

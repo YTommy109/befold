@@ -12,6 +12,7 @@ struct CLIInstanceRouterDecodeTests {
             "showHiddenFiles": true,
             "showLineNumbers": false,
             "sourceMode": true,
+            "showSidebar": false,
             "sortOrder": "alphabetical",
         ]
 
@@ -22,6 +23,7 @@ struct CLIInstanceRouterDecodeTests {
         #expect(result?.options.showHiddenFiles == true)
         #expect(result?.options.showLineNumbers == false)
         #expect(result?.options.sourceMode == true)
+        #expect(result?.options.showSidebar == false)
         #expect(result?.options.sortOrder == .alphabetical)
     }
 
