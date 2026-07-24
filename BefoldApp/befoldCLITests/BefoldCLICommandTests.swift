@@ -209,6 +209,26 @@ struct BefoldCLICommandTests {
     }
 
     @Test(
+        "--help の --sort 項目で指定可能な値が確認できる",
+        arguments: ["folders-first", "alphabetical"]
+    )
+    func sortHelpListsAvailableValues(value: String) {
+        #expect(BefoldCLICommand.helpMessage().contains(value))
+    }
+
+    @Test("不正な --sort 値のエラーメッセージに候補が含まれる")
+    func invalidSortValueErrorListsCandidates() {
+        do {
+            _ = try BefoldCLICommand.parseAsRoot(["--sort", "reverse"])
+            Issue.record("expected parse to throw for an invalid --sort value")
+        } catch {
+            let message = BefoldCLICommand.fullMessage(for: error)
+            #expect(message.contains("folders-first"))
+            #expect(message.contains("alphabetical"))
+        }
+    }
+
+    @Test(
         "discussion に -- エスケープと複数パスのウィンドウ挙動が記載されている",
         arguments: ["treat everything after it as paths", "its own window"]
     )

@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 
 /// サイドバー/フォルダー一覧の並び順。`SortOrder`(Viewer 層)に対応する CLI 向けの値。
-public enum CLISortOrderOption: String, Equatable, Codable, ExpressibleByArgument, Sendable {
+public enum CLISortOrderOption: String, CaseIterable, Equatable, Codable, ExpressibleByArgument, Sendable {
     case foldersFirst = "folders-first"
     case alphabetical
 }
