@@ -2,7 +2,7 @@ import BefoldKit
 import Foundation
 import Testing
 
-@Suite(.serialized)
+@Suite
 struct StringChunkReaderTests {
     private func makeCache(_ text: String) throws -> NormalizedTextCache {
         try NormalizedTextCache(data: Data(text.utf8))

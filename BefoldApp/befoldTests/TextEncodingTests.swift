@@ -42,18 +42,24 @@ struct TextEncodingTests {
         #expect(TextEncoding.detectBOM(data) == nil)
     }
 
-    @Test("巨大な Shift_JIS データでもエンコーディング判定が高速に完了する(task-31)")
-    func detectEncodingStaysFastForLargeLegacyData() throws {
+    @Test("エンコーディング判定の所要時間がデータ量に比例しない")
+    func detectEncodingCostDoesNotScaleWithDataSize() throws {
+        // detectEncoding は先頭 sniffLength バイトしか見ないため、データを 20 倍にしても
+        // 所要時間はほぼ変わらないはずである。「3 秒以内」のような絶対値だと、共有 CI
+        // ランナーや TSan 計装下のマシン速度に左右されてフレーキーになるうえ、全走査への
+        // 退行も 3 秒未満なら見逃す。ここでは同一マシン上の相対比較で線形走査を検出する。
         let line = "これはエンコーディング判定の速度を確認するためのテスト行です。\n"
-        let repeated = String(repeating: line, count: 100_000)
-        let data = try #require(repeated.data(using: .shiftJIS))
-        #expect(data.count > 5_000_000)
+        let small = try #require(String(repeating: line, count: 5000).data(using: .shiftJIS))
+        let large = try #require(String(repeating: line, count: 100_000).data(using: .shiftJIS))
+        #expect(large.count > small.count * 15)
 
         let clock = ContinuousClock()
-        let elapsed = clock.measure {
-            _ = TextEncoding.detectEncoding(data)
-        }
-        #expect(elapsed < .seconds(3))
+        let elapsedSmall = clock.measure { _ = TextEncoding.detectEncoding(small) }
+        let elapsedLarge = clock.measure { _ = TextEncoding.detectEncoding(large) }
+
+        // データ量は 20 倍。全走査していれば所要時間も概ね 20 倍になる。
+        // 5 倍 + 固定スラック(計測ノイズ吸収)を超えたら線形走査を疑う。
+        #expect(elapsedLarge < elapsedSmall * 5 + .milliseconds(50))
     }
 
     /// sniffLength を超えるASCIIヘッダーに続けて `body` を配置したShift_JISテストデータを組み立てる。

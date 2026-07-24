@@ -25,24 +25,22 @@ struct NormalizedTextCacheLazyGrowthTests {
 
     @Test("QuickLook 相当(先頭チャンク1回だけ読む)では、正規化済み範囲が元ファイルサイズよりずっと小さいまま留まる")
     func singleChunkReadKeepsNormalizedRangeMuchSmallerThanFileSize() async throws {
-        // QuickLook はファイル全体を読み切らず先頭チャンクしか使わない。ここでは
-        // maxFileSizeBytes(100MB)級の実データではなく、同じ仕組み(固定サイズの
-        // ウィンドウで増分正規化する)がファイルサイズに依存しないことを、
-        // 十分大きい(20MB 超)代表サイズで検証する。
-        let text = makeLines(2_000_000)
+        // QuickLook はファイル全体を読み切らず先頭チャンクしか使わない。
+        // normalizationWindowBytes(2MiB)を十分超えていれば増分正規化の経路に入るため、
+        // フィクスチャはその条件を満たす最小限のサイズでよい。
+        let text = makeLines(400_000)
         let fileSize = text.utf8.count
-        #expect(fileSize > 20 * 1024 * 1024)
+        #expect(fileSize > 4 * 1024 * 1024)
 
         let cache = try NormalizedTextCache(data: Data(text.utf8), normalizeFully: false)
         let reader = StringChunkReader(cache: cache)
         let first = await reader.readNextChunk()
 
         #expect(first.isAtEnd == false)
-        // 先頭チャンク自体のサイズ(≈ linesPerChunk 行分)は、元ファイルサイズの
-        // 数倍どころかごく一部(ここでは 1/4 未満)に収まる。NormalizedTextCache は
-        // この描画に必要な範囲だけしか正規化していない(normalizeFully: false)ため、
-        // 読込側が実際に確保したメモリもこのチャンクサイズに比例する。
-        #expect(first.text.utf8.count < fileSize / 4)
+        // 先頭チャンクのサイズは linesPerChunk 行分で決まり、元ファイルサイズに
+        // 比例しない(実測 ≈ 7.9KB)。fileSize との相対比較にすると、フィクスチャを
+        // 大きくするほど条件が緩くなって検証の意味が薄れるため、絶対値で押さえる。
+        #expect(first.text.utf8.count < 64 * 1024)
     }
 
     @Test("ensureNormalized は要求された行数に達するかファイル全体正規化のどちらか早い方で停止する")
