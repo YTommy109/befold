@@ -33,7 +33,6 @@ struct BefoldCLICommand: ParsableCommand {
     }
 
     func validate() throws {
-        try openOptions.validate()
         if check || bookmark, paths.isEmpty {
             throw ValidationError("At least one path is required with --check/--bookmark.")
         }

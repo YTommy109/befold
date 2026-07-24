@@ -1,18 +1,28 @@
 import AppKit
 import SwiftUI
 
+/// 既存ウィンドウのサイドバー開閉を、ジェネリック型パラメータを消して操作するためのプロトコル。
+/// CLI の `--sidebar`/`--no-sidebar` をパス無し起動で既存ウィンドウへ適用する際に使う。
+@MainActor
+protocol SidebarCollapsible: AnyObject {
+    func setSidebarCollapsed(_ collapsed: Bool)
+}
+
 final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitViewController {
     private let sidebarItem: NSSplitViewItem
     private var didForceInitialCollapse = false
     private let initialCollapsed: Bool
     private let onCollapsedChange: (Bool) -> Void
+    private let onSidebarDidReveal: () -> Void
 
     init(
         sidebar: Sidebar, content: Content, initialCollapsed: Bool = true,
-        onCollapsedChange: @escaping (Bool) -> Void = { _ in }
+        onCollapsedChange: @escaping (Bool) -> Void = { _ in },
+        onSidebarDidReveal: @escaping () -> Void = {}
     ) {
         self.initialCollapsed = initialCollapsed
         self.onCollapsedChange = onCollapsedChange
+        self.onSidebarDidReveal = onSidebarDidReveal
         sidebarItem = NSSplitViewItem(sidebarWithViewController: NSHostingController(rootView: sidebar))
         super.init(nibName: nil, bundle: nil)
 
@@ -47,13 +57,11 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         super.toggleSidebar(sender)
         onCollapsedChange(sidebarItem.isCollapsed)
         if wasCollapsed, !sidebarItem.isCollapsed {
+            // 開いた直後にサイドバー(アウトラインビュー)へフォーカスを移し、フォルダー名を
+            // アクティブ(黒)表示にして矢印キー操作を可能にする(task-118)。フォーカス先の解決は
+            // ViewerWindowController に委ね、ここでは開いた事実だけを通知する。
             DispatchQueue.main.async { [weak self] in
-                guard let self,
-                      let window = view.window
-                else { return }
-                window.makeFirstResponder(
-                    sidebarItem.viewController.view
-                )
+                self?.onSidebarDidReveal()
             }
         }
     }
@@ -61,5 +69,14 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError()
+    }
+}
+
+extension ViewerSplitViewController: SidebarCollapsible {
+    /// 望む開閉状態と現在が異なるときだけ toggleSidebar を再利用して切り替える。
+    /// これにより状態永続化(onCollapsedChange)とフォーカス移動の挙動を一本化する。
+    func setSidebarCollapsed(_ collapsed: Bool) {
+        guard sidebarItem.isCollapsed != collapsed else { return }
+        toggleSidebar(nil)
     }
 }

@@ -59,7 +59,9 @@ final class ViewerWindowManager {
     /// 新規ウィンドウ生成時は initialSortOrder/showLineNumbersOverride/sourceModeOverride で
     /// 個別に適用できるが、パス無し起動では開くべき新規ウィンドウが無いため、既存の全ウィンドウへ
     /// 直接反映する(task-82)。隠しファイル表示は setHiddenFiles が別途アプリ全体へ反映するため対象外。
-    func applyDisplayOverrides(showLineNumbers: Bool?, sourceMode: Bool?, sortOrder: SortOrder?) {
+    func applyDisplayOverrides(
+        showLineNumbers: Bool?, sourceMode: Bool?, sortOrder: SortOrder?, showSidebar: Bool?
+    ) {
         for controller in controllers.values {
             if let showLineNumbers { controller.store.applyShowLineNumbersOverride(showLineNumbers) }
             if let sourceMode { controller.setSourceMode(sourceMode) }
@@ -67,6 +69,7 @@ final class ViewerWindowManager {
                 controller.fileListModel.sortOrder = sortOrder
                 controller.sidebar.refreshFileList()
             }
+            if let showSidebar { controller.setSidebarCollapsed(!showSidebar) }
         }
     }
 
@@ -74,6 +77,7 @@ final class ViewerWindowManager {
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
     func openViewer(
         for url: URL, forceSidebarVisible: Bool = false,
+        sidebarVisibleOverride: Bool? = nil,
         initialSortOrder: SortOrder = .foldersFirst,
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil
@@ -92,9 +96,14 @@ final class ViewerWindowManager {
         }
 
         let lastActivePathKey = sessionStore.savedActivePath()
-        let initialSidebarCollapsed = forceSidebarVisible
-            ? false
-            : perFileState.sidebar.initialCollapsed(for: url, lastActivePathKey: lastActivePathKey)
+        // 開閉の解決順: CLI の明示指定(--sidebar/--no-sidebar) > フォルダーオープンによる強制表示 > 記憶の引き継ぎ。
+        let initialSidebarCollapsed: Bool = if let sidebarVisibleOverride {
+            !sidebarVisibleOverride
+        } else if forceSidebarVisible {
+            false
+        } else {
+            perFileState.sidebar.initialCollapsed(for: url, lastActivePathKey: lastActivePathKey)
+        }
         perFileState.sidebar.setCollapsed(initialSidebarCollapsed, for: url)
 
         let initialFrameDescriptor = perFileState.windowFrame.initialFrameDescriptor(

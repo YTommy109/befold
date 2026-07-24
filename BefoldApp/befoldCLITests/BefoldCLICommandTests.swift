@@ -134,6 +134,8 @@ struct BefoldCLICommandTests {
             (["--no-line-numbers"], CLIOpenOptions(showLineNumbers: false)),
             (["--source"], CLIOpenOptions(sourceMode: true)),
             (["--preview"], CLIOpenOptions(sourceMode: false)),
+            (["--sidebar"], CLIOpenOptions(showSidebar: true)),
+            (["--no-sidebar"], CLIOpenOptions(showSidebar: false)),
             (["--sort", "folders-first"], CLIOpenOptions(sortOrder: .foldersFirst)),
             (["--sort", "alphabetical"], CLIOpenOptions(sortOrder: .alphabetical)),
         ]
@@ -149,6 +151,9 @@ struct BefoldCLICommandTests {
             ["--check"],
             ["--bookmark"],
             ["--hidden-files", "--no-hidden-files"],
+            ["--line-numbers", "--no-line-numbers"],
+            ["--source", "--preview"],
+            ["--sidebar", "--no-sidebar"],
             ["--sort"],
             ["--sort", "reverse"],
         ]
@@ -202,10 +207,31 @@ struct BefoldCLICommandTests {
         arguments: [
             "--check", "--bookmark", "--hidden-files",
             "--sort", "--line-numbers", "--source", "--preview",
+            "--sidebar", "--no-sidebar",
         ]
     )
     func allOptionsAppearInTopLevelHelp(option: String) {
         #expect(BefoldCLICommand.helpMessage().contains(option))
+    }
+
+    @Test(
+        "--help の --sort 項目で指定可能な値が確認できる",
+        arguments: ["folders-first", "alphabetical"]
+    )
+    func sortHelpListsAvailableValues(value: String) {
+        #expect(BefoldCLICommand.helpMessage().contains(value))
+    }
+
+    @Test("不正な --sort 値のエラーメッセージに候補が含まれる")
+    func invalidSortValueErrorListsCandidates() {
+        do {
+            _ = try BefoldCLICommand.parseAsRoot(["--sort", "reverse"])
+            Issue.record("expected parse to throw for an invalid --sort value")
+        } catch {
+            let message = BefoldCLICommand.fullMessage(for: error)
+            #expect(message.contains("folders-first"))
+            #expect(message.contains("alphabetical"))
+        }
     }
 
     @Test(

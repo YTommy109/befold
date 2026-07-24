@@ -125,7 +125,8 @@ final class SessionRestorer {
     /// CLIOpenOptions にオーバーライドが追加されても転送漏れが起きないようにする。
     private func openViewer(for url: URL, options: CLIOpenOptions) {
         windowManager.openViewer(
-            for: url, initialSortOrder: options.viewerSortOrder,
+            for: url, sidebarVisibleOverride: options.showSidebar,
+            initialSortOrder: options.viewerSortOrder,
             showLineNumbersOverride: options.showLineNumbers, sourceModeOverride: options.sourceMode
         )
     }
