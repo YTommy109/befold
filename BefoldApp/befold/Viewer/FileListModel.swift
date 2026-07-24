@@ -25,6 +25,22 @@ final class FileListModel {
     @ObservationIgnored
     weak var sidebarTableView: NSTableView?
 
+    /// サイドバーの NSTableView を first responder にする。選択ハイライトを青にし(#144)、
+    /// サイドバーを開いた直後からフォルダー名がアクティブ(黒)表示になり矢印キーで操作できるようにする(task-118)。
+    /// 参照(sidebarTableView)がまだ解決していない場合は、次のランループで数回だけ再試行する。
+    /// サイドバーを畳んだ状態から初めて開いた直後は、List の行(と NSTableView 参照)の生成が
+    /// フォーカス要求に間に合わないことがあるため。
+    func focusSidebarTable(retriesRemaining: Int = 5) {
+        guard let tableView = sidebarTableView, let window = tableView.window else {
+            guard retriesRemaining > 0 else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.focusSidebarTable(retriesRemaining: retriesRemaining - 1)
+            }
+            return
+        }
+        window.makeFirstResponder(tableView)
+    }
+
     var canGoBack: Bool {
         !backHistory.isEmpty
     }

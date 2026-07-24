@@ -266,6 +266,9 @@ final class ViewerWindowController: NSWindowController {
             onCollapsedChange: { [weak self] collapsed in
                 guard let self else { return }
                 perFileState.sidebar.recordToggle(collapsed, for: fileURL)
+            },
+            onSidebarDidReveal: { [weak self] in
+                self?.fileListModel.focusSidebarTable()
             }
         )
         sidebarCollapsible = splitViewController
