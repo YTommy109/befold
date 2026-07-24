@@ -112,7 +112,8 @@ public enum ViewerLoadPipeline {
             )
         }
         if embedLocalImages, fileType == .markdown {
-            _ = MarkdownImageEmbedder.embedLocalImages(in: cache.text, baseURL: resolved)
+            // render 経路と同じキャッシュを温めるため、共有インスタンスを経由すること。
+            _ = MarkdownImageEmbedder.shared.embedLocalImages(in: cache.text, baseURL: resolved)
         }
         return .full(
             ContentLoader.LoadedContent(rejectReason: nil, content: cache.text),

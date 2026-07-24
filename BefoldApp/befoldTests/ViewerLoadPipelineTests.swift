@@ -112,7 +112,7 @@ struct ViewerLoadPipelineTests {
 
         let expectedURI = "data:image/png;base64,\(pngData.base64EncodedString())"
         let result = withReadPermissionRemoved(at: imageURL) {
-            MarkdownImageEmbedder.embedLocalImages(
+            MarkdownImageEmbedder.shared.embedLocalImages(
                 in: "![alt](warm.png)", baseURL: markdownURL
             )
         }
@@ -140,7 +140,7 @@ struct ViewerLoadPipelineTests {
 
         let markdown = "![alt](cold.png)"
         let result = withReadPermissionRemoved(at: imageURL) {
-            MarkdownImageEmbedder.embedLocalImages(in: markdown, baseURL: markdownURL)
+            MarkdownImageEmbedder.shared.embedLocalImages(in: markdown, baseURL: markdownURL)
         }
 
         #expect(result == markdown)

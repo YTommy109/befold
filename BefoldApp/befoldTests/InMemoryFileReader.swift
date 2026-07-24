@@ -11,12 +11,14 @@ final class InMemoryFileReader: FileReading, Sendable {
     private let binaryPaths: LockedBox<Set<String>>
     private let readErrorPaths: LockedBox<Set<String>>
     private let sizeOverrides: LockedBox<[String: Int]>
+    private let modificationDates: LockedBox<[String: Date]>
 
     init(files: [String: String] = [:]) {
         self.files = LockedBox(files.mapValues { Data($0.utf8) })
         binaryPaths = LockedBox([])
         readErrorPaths = LockedBox([])
         sizeOverrides = LockedBox([:])
+        modificationDates = LockedBox([:])
     }
 
     /// テキストファイルを作成/上書きする。nil を渡すと削除する。
@@ -95,6 +97,16 @@ final class InMemoryFileReader: FileReading, Sendable {
         nullSizePaths.update { paths in
             if unknown { paths.insert(url.path) } else { paths.remove(url.path) }
         }
+    }
+
+    /// このパスの最終更新日時を設定する。nil で解除する
+    /// (未設定なら modificationDate(at:) は nil を返す)。
+    func setModificationDate(_ date: Date?, at url: URL) {
+        modificationDates.update { $0[url.path] = date }
+    }
+
+    func modificationDate(at url: URL) -> Date? {
+        modificationDates.get()[url.path]
     }
 
     func fileSize(at url: URL) -> Int? {

@@ -4,7 +4,7 @@ import Foundation
 /// レンダリング前プリプロセス。viewer.html の CSP は img-src 'self' data: のため、
 /// ローカルパスのままでは画像を読めない(data URI は許可済みなので CSP 変更が不要)。
 /// リモート URL・読込失敗・非対応拡張子は原文のまま残す。
-public enum MarkdownImageEmbedder {
+public struct MarkdownImageEmbedder: Sendable {
     /// 埋め込み対象の拡張子 → MIME タイプ。画像ファイル単体表示の対応表に加えて SVG も
     /// 対象にする(<img> 経由の SVG は画像モードで扱われスクリプトが実行されないため安全)。
     public static let imageExtensionMimeTypes: [String: String] =
@@ -16,16 +16,29 @@ public enum MarkdownImageEmbedder {
     // Regex は Sendable でないため、strict concurrency 下では static 格納プロパティに
     // できず、各関数内のローカル定数として生成する。
 
+    /// 本番で使う共有インスタンス。data URI キャッシュはインスタンスが持つため、
+    /// ロード時のウォームアップと render 直前の差し替えは必ずこの 1 個を経由すること
+    /// (別インスタンスを作るとキャッシュが共有されず、画像を毎回読み直す)。
+    public static let shared = MarkdownImageEmbedder()
+
+    private let fileReader: any FileReading
+
     /// 生成済み data URI のキャッシュ。ライブリロードで markdown 本文が変わるたびに、
     /// 未変更の画像まで同期読込・base64 化してメインスレッドを塞ぐのを避ける。
-    private static let cache = DataURICache()
+    /// インスタンスごとに持つため、テストは自前のインスタンスを作れば互いに干渉しない。
+    private let cache = DataURICache()
+
+    /// - Parameter fileReader: 画像のサイズ・更新日時・内容の取得元。
+    public init(fileReader: any FileReading = DefaultFileReader()) {
+        self.fileReader = fileReader
+    }
 
     /// markdown 内のローカル画像参照を data URI に差し替えた文字列を返す。
     /// - Parameters:
     ///   - markdown: 元の markdown 本文。
     ///   - baseURL: 相対パスの解決基準となる markdown ファイルの URL。
     ///   - maxImageSizeBytes: これを超えるサイズの画像は差し替えない。
-    public static func embedLocalImages(
+    public func embedLocalImages(
         in markdown: String,
         baseURL: URL,
         maxImageSizeBytes: Int = defaultMaxImageSizeBytes
@@ -52,7 +65,7 @@ public enum MarkdownImageEmbedder {
     }
 
     /// 1 行内の画像記法を差し替える。インラインコードスパン内は対象外。
-    private static func embedImages(
+    private func embedImages(
         inLine line: String, baseURL: URL, maxImageSizeBytes: Int
     ) -> String {
         // ![alt](path) / ![alt](path "title")。パスは空白・閉じ括弧を含まない前提
@@ -82,20 +95,17 @@ public enum MarkdownImageEmbedder {
 
     /// ローカル画像パスを data URI に変換する。対象外・失敗時は nil。
     /// 更新日時・サイズが前回と一致すればキャッシュ済みの data URI を返す。
-    private static func dataURI(
+    private func dataURI(
         forPath path: String, baseURL: URL, maxImageSizeBytes: Int
     ) -> String? {
         guard case let .localFile(url) = ReferenceResolver.resolve(href: path, baseURL: baseURL),
-              let mimeType = imageExtensionMimeTypes[url.pathExtension.lowercased()],
-              let values = try? url.resourceValues(
-                  forKeys: [.fileSizeKey, .contentModificationDateKey]
-              ),
-              let size = values.fileSize,
+              let mimeType = Self.imageExtensionMimeTypes[url.pathExtension.lowercased()],
+              let size = fileReader.fileSize(at: url),
               size <= maxImageSizeBytes
         else { return nil }
-        let mtime = values.contentModificationDate
+        let mtime = fileReader.modificationDate(at: url)
         if let cached = cache.uri(for: url, size: size, mtime: mtime) { return cached }
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let data = try? fileReader.readData(from: url) else { return nil }
         let uri = "data:\(mimeType);base64,\(data.base64EncodedString())"
         cache.store(uri, for: url, size: size, mtime: mtime)
         return uri
