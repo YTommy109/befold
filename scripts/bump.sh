@@ -18,7 +18,7 @@ esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_YML="$ROOT/BefoldApp/project.yml"
-APP_VERSION_SWIFT="$ROOT/BefoldApp/befold/App/AppVersion.swift"
+APP_VERSION_SWIFT="$ROOT/BefoldApp/BefoldCLI/AppVersion.swift"
 [ -f "$PROJECT_YML" ] || err "$PROJECT_YML が見つかりません"
 [ -f "$APP_VERSION_SWIFT" ] || err "$APP_VERSION_SWIFT が見つかりません"
 
