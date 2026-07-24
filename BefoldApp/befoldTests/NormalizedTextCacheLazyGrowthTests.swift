@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 /// NormalizedTextCache(data:normalizeFully:false) の増分正規化(ensureNormalized)を検証する。
-/// task-1.8: 先頭チャンク描画に必要な範囲だけをデコード/正規化/インデックス化し、
+/// 先頭チャンク描画に必要な範囲だけをデコード/正規化/インデックス化し、
 /// ファイル全体を materialize しない読込経路があることを確認する。
 @Suite
 struct NormalizedTextCacheLazyGrowthTests {

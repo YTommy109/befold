@@ -4,7 +4,7 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// DirectoryLister への fileReader 注入(TASK-80)を検証するためだけの薄いラッパー。
+/// DirectoryLister への fileReader 注入を検証するためだけの薄いラッパー。
 /// DefaultFileReader へ委譲しつつ、指定したファイル名だけ「ディレクトリ」と報告する。
 /// DirectoryLister の分類は isDirectory を参照するため、注入した fileReader が
 /// 実際に使われていれば、そのファイルはフォルダー扱いになり listFiles から外れる。
@@ -336,7 +336,7 @@ struct DirectoryListerTests {
         #expect(result == missing)
     }
 
-    @Test("listFiles/firstSupportedFile/resolveFileToOpen は fileReader を注入できる(TASK-80)")
+    @Test("listFiles/firstSupportedFile/resolveFileToOpen は fileReader を注入できる")
     func resolveFileToOpenHonorsInjectedFileReader() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }

@@ -531,12 +531,12 @@ struct ViewerStoreTests {
     }
 }
 
-/// isLoading(task-30 の読み込み中インジケータ用状態)まわりのテスト。
+/// isLoading(読み込み中インジケータ用状態)まわりのテスト。
 /// ViewerStoreTests から分離し、型の行数を SwiftLint の type_body_length 内に収める。
 @Suite
 @MainActor
 struct ViewerStoreLoadingTests {
-    @Test("openFile 直後は isLoading = true、読込完了後は false になる(task-30)")
+    @Test("openFile 直後は isLoading = true、読込完了後は false になる")
     func isLoadingReflectsInFlightLoad() async {
         let file = URL(fileURLWithPath: "/files/loading.md")
         let reader = InMemoryFileReader()
@@ -723,8 +723,7 @@ struct ViewerStoreChunkTests {
         // 2 回目の読み込みが TextEncodingError で失敗 → 表示済みコンテンツを保持し
         // セッション終了。10MB 超ファイルで fileTooLarge に置き換わることを防ぐ。
         // isTruncated は true のまま維持し loadFailed で区別する(バナーは消さず
-        // 「続きを読み込めませんでした」に切り替える。正常な EOF との区別が
-        // TASK-25 の狙い)。
+        // 「続きを読み込めませんでした」に切り替える。正常な EOF と区別することが狙い)。
         let result = await store.loadMoreLines()
         #expect(result != nil)
         #expect(result?.chunk == "")
@@ -737,7 +736,7 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
-    @Test("チャンク読み込みエラー後にファイルが再読込されると loadFailed がリセットされる(TASK-39)")
+    @Test("チャンク読み込みエラー後にファイルが再読込されると loadFailed がリセットされる")
     func loadFailedResetsOnReload() async {
         let file = URL(fileURLWithPath: "/files/data.csv")
         let reader = InMemoryFileReader()
@@ -770,7 +769,7 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
-    @Test("チャンク読み込みエラー後に同一内容で再読込されても loadFailed がリセットされる(TASK-45)")
+    @Test("チャンク読み込みエラー後に同一内容で再読込されても loadFailed がリセットされる")
     func loadFailedResetsOnReloadWithIdenticalContent() async {
         let file = URL(fileURLWithPath: "/files/data.csv")
         let reader = InMemoryFileReader()
@@ -893,7 +892,7 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
-    @Test("事前サイズチェックをすり抜けた場合(fileSize が nil)でも NormalizedTextCache の fileTooLarge が unsupportedFormat に丸められない(TASK-41)")
+    @Test("事前サイズチェックをすり抜けた場合(fileSize が nil)でも NormalizedTextCache の fileTooLarge が unsupportedFormat に丸められない")
     func sizeCheckBypassStillReportsFileTooLarge() async {
         let file = URL(fileURLWithPath: "/files/huge.md")
         let reader = InMemoryFileReader()

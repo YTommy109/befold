@@ -70,7 +70,7 @@ struct TextEncodingTests {
         return (text, data)
     }
 
-    @Test("先頭8KB超がASCIIで後半に日本語があるShift_JISファイルを正しくデコードする(task-36)")
+    @Test("先頭8KB超がASCIIで後半に日本語があるShift_JISファイルを正しくデコードする")
     func decodesShiftJISWithAsciiHeaderExceedingSniffLength() throws {
         let (text, data) = try makeShiftJISDataWithAsciiHeader(body: "日本語の本文です。\n")
 
@@ -79,7 +79,7 @@ struct TextEncodingTests {
         #expect(decoded == text)
     }
 
-    @Test("先頭8KBがASCIIで本文にNULを含むShift_JISファイルを正しくデコードする(task-47)")
+    @Test("先頭8KBがASCIIで本文にNULを含むShift_JISファイルを正しくデコードする")
     func decodesShiftJISWithNulByteAfterAsciiHeader() throws {
         let (text, data) = try makeShiftJISDataWithAsciiHeader(body: "\0" + "日本語の本文です。\n")
 
@@ -88,7 +88,7 @@ struct TextEncodingTests {
         #expect(decoded == text)
     }
 
-    @Test("先頭8KBがASCIIで本文にNULを含むShift_JISファイルでdetectEncodingがUTF-16と誤判定しない(task-47)")
+    @Test("先頭8KBがASCIIで本文にNULを含むShift_JISファイルでdetectEncodingがUTF-16と誤判定しない")
     func detectEncodingDoesNotMisdetectShiftJISWithNulByteAsUtf16() throws {
         let (_, data) = try makeShiftJISDataWithAsciiHeader(body: "\0" + "日本語の本文です。\n")
 
@@ -98,7 +98,7 @@ struct TextEncodingTests {
         #expect(detected?.encoding != .utf16BigEndian)
     }
 
-    @Test("2バイト文字がsniffLength境界をまたぐShift_JISファイルを正しくデコードする(task-36)")
+    @Test("2バイト文字がsniffLength境界をまたぐShift_JISファイルを正しくデコードする")
     func decodesShiftJISWithMultiByteCharacterCrossingSniffBoundary() throws {
         let line = "日本語のテスト文字列です。"
         var text = ""
@@ -116,7 +116,7 @@ struct TextEncodingTests {
         #expect(decoded == text)
     }
 
-    // MARK: - fallbackScanLimit (TASK-1.11)
+    // MARK: - fallbackScanLimit
 
     @Test("ASCIIヘッダーが oneShotFallbackScanBytes を超えるレガシーファイルは、通常読込では全量フォールバックで正しくデコードされる")
     func decodesShiftJISWithHeaderExceedingOneShotLimitUsingUnlimitedFallback() throws {

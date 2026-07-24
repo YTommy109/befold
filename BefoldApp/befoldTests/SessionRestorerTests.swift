@@ -5,7 +5,7 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// TASK-73.11: パス引数なしの CLI 起動(`befold --hidden-files` 等)でも、
+/// パス引数なしの CLI 起動(`befold --hidden-files` 等)でも、
 /// セッション復元されるウィンドウへ表示オプションが適用されることを検証する。
 @Suite
 @MainActor

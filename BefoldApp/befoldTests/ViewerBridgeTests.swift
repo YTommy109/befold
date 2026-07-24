@@ -270,8 +270,8 @@ struct ViewerBridgeTests {
 
     /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html / viewer-main.js に
     /// 実在することをリポジトリ内のソースを読んで検証する(ブリッジ契約のドリフト検知)。
-    /// TASK-1.12 で viewer.html のインライン <script> を CSP の script-src から
-    /// 'unsafe-inline' を除去するために viewer-main.js へ外部化したため、
+    /// インライン <script> は CSP の script-src から 'unsafe-inline' を除去する
+    /// ために viewer-main.js へ外部化したため、
     /// 両ファイルの内容を連結して検証する(どちらに定義があっても検知できる)。
     @Test("ViewerBridge の関数名が viewer.html / viewer-main.js に定義されている")
     func bridgeFunctionsExistInViewerHTML() throws {
@@ -305,7 +305,7 @@ struct ViewerBridgeTests {
         #expect(html.contains("window._mmdHostFeatures"))
         #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'loadMore')"))
         #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'spaceScroll')"))
-        // TASK-1.12: referenceActivated/loadMoreLines の postMessage 発火は hostFeatures で
+        // referenceActivated/loadMoreLines の postMessage 発火は hostFeatures で
         // 多層防御する(Swift 側はハンドラ未登録、JS 側はここで呼び出し自体を抑止)。
         #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')"))
         #expect(html.contains("function _mmdSetRestoreScroll(position)"))
@@ -318,7 +318,7 @@ struct ViewerBridgeTests {
         #expect(html.contains("function appendChunk(text, type, lang)"))
     }
 
-    /// CSP の script-src に 'unsafe-inline' が残っていないことを検証する(TASK-1.12 M-2)。
+    /// CSP の script-src に 'unsafe-inline' が残っていないことを検証する。
     /// アプリの JS は全て viewer.js / viewer-main.js 等の外部ファイルから読み込み、
     /// インライン <script> を使わない設計になったため、XSS がサニタイザ層を
     /// すり抜けても CSP がインライン script/イベントハンドラの実行をブロックできる。

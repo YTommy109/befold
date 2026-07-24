@@ -127,7 +127,7 @@ struct ViewerStoreLoadRaceTests {
         store.close()
     }
 
-    @Test("画像→巨大CSVへの切替では、読み込み完了まで旧ファイルの fileType/content が保たれる(task-32)")
+    @Test("画像→巨大CSVへの切替では、読み込み完了まで旧ファイルの fileType/content が保たれる")
     func fileTypeStaysWithPreviousFileUntilLoadCompletes() async {
         let imageFile = URL(fileURLWithPath: "/files/photo.png")
         let csvFile = URL(fileURLWithPath: "/files/huge.csv")

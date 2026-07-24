@@ -4,7 +4,7 @@ import Foundation
 import SwiftUI
 import Testing
 
-/// サイドバーで矢印キー選択してもプレビュー内容が変わらない問題(#142)の回帰テスト。
+/// サイドバーで矢印キー選択してもプレビュー内容が変わらない問題の回帰テスト。
 /// `selectNext()` / `selectPrevious()` が選択インデックスを進める/戻すだけでなく、
 /// 選択先がファイルなら `onSelect` を呼んで表示を追従させることを検証する。
 @Suite
@@ -42,7 +42,7 @@ struct FileListViewTests {
         }
     }
 
-    @Test("selectNext で次のファイルへ選択が進んだとき onSelect が呼ばれる(#142 の回帰テスト)")
+    @Test("selectNext で次のファイルへ選択が進んだとき onSelect が呼ばれる(回帰テスト)")
     func selectNextMovesToNextFileAndCallsOnSelect() {
         let fixture = StandardEntries()
         let selected = LockedBox<URL?>(nil)
@@ -100,7 +100,7 @@ struct FileListViewTests {
         #expect(selected.get() == firstFile.url)
     }
 
-    @Test("downArrow キーで次のファイルへ選択が進み onSelect が呼ばれる(#142 のキー操作経路全体の回帰テスト)")
+    @Test("downArrow キーで次のファイルへ選択が進み onSelect が呼ばれる(キー操作経路全体の回帰テスト)")
     func downArrowRoutesToSelectNextAndCallsOnSelect() {
         let fixture = StandardEntries()
         let selected = LockedBox<URL?>(nil)

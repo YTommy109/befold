@@ -116,7 +116,7 @@ struct StringChunkReaderTests {
 
     @Test("対のない引用符を含む巨大CSVは規定長超過後に行ベース分割へ復帰し、少数の巨大チャンクにならない")
     func unbalancedQuoteLargeCSVIsChunked() async throws {
-        // 500 バイト回復機能(TASK-57)導入後は、不均衡クォート検出後すぐに行ベース
+        // 500 バイト回復機能の導入後は、不均衡クォート検出後すぐに行ベース
         // 分割へ復帰するため、チャンクは maxChunkBytes(1MB)に達する前に 1000 行単位で
         // 区切られるようになった。「各チャンクが maxChunkBytes 以下」という
         // アサーションだけでは復帰後の小さなチャンクでも自明に成立してしまい、
