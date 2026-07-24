@@ -100,6 +100,17 @@ targets:
       - target: BefoldKit
       - target: BefoldRenderKit
       - target: BefoldCLI
+      # CLI 実行ファイルを Contents/MacOS へ同梱する。CLIInstaller が設置する
+      # /usr/local/bin/befold の symlink 先がここになる (CLIInstaller.targetExecutablePath)。
+      # link: false — アプリ本体にリンクするのではなく、成果物として持ち運ぶだけ。
+      # codeSign: true — XcodeGen は executable の codeSignOnCopy を既定で無効にするため明示する
+      #   (無効のままだと codesign --verify --deep が公証前に落ちる)。
+      - target: befold-cli
+        embed: true
+        link: false
+        codeSign: true
+        copy:
+          destination: executables
       - package: Sparkle
       - package: swift-argument-parser
         product: ArgumentParser
@@ -139,3 +150,6 @@ targets:
         product: ArgumentParser
     settings:
       PRODUCT_NAME: befold-cli
+      # befold.app に同梱して配布するため、アプリ本体と同じく Hardened Runtime を有効にする
+      # (無効な Mach-O が 1 つでも含まれると公証が通らない)。
+      ENABLE_HARDENED_RUNTIME: true

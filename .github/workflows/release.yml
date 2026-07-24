@@ -177,6 +177,9 @@ jobs:
           hdiutil attach "../$DMG_NAME" -nobrowse -readonly -mountpoint "$mount_point"
           trap 'hdiutil detach "$mount_point" -quiet' EXIT
           test -x "$mount_point/befold.app/Contents/MacOS/befold"
+          # /usr/local/bin/befold の symlink 先。同梱が漏れるとインストール済みの
+          # シムがダングリングになり CLI が起動しなくなる (CLIInstaller.targetExecutablePath)
+          test -x "$mount_point/befold.app/Contents/MacOS/befold-cli"
           test "$(readlink "$mount_point/Applications")" = "/Applications"
 
       - name: GitHub Release を作成して DMG を添付する

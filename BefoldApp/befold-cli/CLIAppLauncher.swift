@@ -30,7 +30,7 @@ public enum CLIAppLauncher {
         paths: [String],
         options: CLIOpenOptions,
         processLauncher: ProcessLaunching = DefaultProcessLauncher(),
-        findRunningInstance: @MainActor () -> NSRunningApplication? = CLIInstanceRouter.runningInstance
+        findRunningInstance: @MainActor () -> NSRunningApplication? = { CLIInstanceRouter.runningInstance() }
     ) -> Never {
         let code = run(
             paths: paths, options: options,
@@ -45,7 +45,7 @@ public enum CLIAppLauncher {
         paths: [String],
         options: CLIOpenOptions,
         processLauncher: ProcessLaunching = DefaultProcessLauncher(),
-        findRunningInstance: @MainActor () -> NSRunningApplication? = CLIInstanceRouter.runningInstance,
+        findRunningInstance: @MainActor () -> NSRunningApplication? = { CLIInstanceRouter.runningInstance() },
         forward: @MainActor ([String], CLIOpenOptions, NSRunningApplication) -> Bool = {
             CLIInstanceRouter.forward(paths: $0, options: $1, to: $2)
         },

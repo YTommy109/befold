@@ -87,6 +87,6 @@ struct BefoldCLICommand: ParsableCommand {
     /// suiteName に明示して同じ永続化領域を指す。
     @MainActor
     private static let bookmarkStore = BookmarkStore(
-        defaults: UserDefaults(suiteName: "com.degino.befold") ?? .standard
+        defaults: UserDefaults(suiteName: AppBundle.identifier) ?? .standard
     )
 }
