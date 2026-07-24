@@ -548,8 +548,15 @@ func detectsAtomicSave() async throws {
 以下の関心は必ず `BefoldTestSupport` ターゲットの共有ヘルパーで満たす。テストファイル内での自作は違反:
 
 `BefoldTestSupport` は `befoldTests` / `befoldCLITests` の双方から参照する単一情報源で、
-依存は Foundation のみに保つ（GUI 本体 `befold` や `BefoldRenderKit` を引き込まないため）。
-使う側のファイルには `import BefoldTestSupport` を書く。
+依存は Foundation と Testing のみに保つ（GUI 本体 `befold` や `BefoldRenderKit` を
+引き込まないため）。使う側のファイルには `import BefoldTestSupport` を書く。
+
+ポーリングヘルパー（`waitUntil` 系）は、条件が成立しないままタイムアウトしたとき
+**ヘルパー自身が `Issue.record` でテストを失敗させる**。呼び出し側の `#expect` に
+頼らないのは、アサーションを書き忘れた箇所が「所定秒数を丸ごと浪費した上で
+グリーン」になるのを防ぐため（実際にこの穴で、追い越しレースを一度も検証して
+いないテストが 11 秒を浪費したままグリーンで放置されていた）。
+新しい待機ヘルパーを足すときも同じ扱いにすること。
 
 | 関心 | ヘルパー | 自作したら違反になるパターン |
 |------|---------|------------------------------|

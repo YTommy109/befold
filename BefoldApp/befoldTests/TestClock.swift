@@ -1,4 +1,5 @@
 import Foundation
+import Testing
 
 /// 実時間に依存しない手動進行クロック。`advance(by:)` で仮想時刻を進め、
 /// 期限が到来した `sleep` の continuation を resume する。
@@ -116,11 +117,23 @@ func yieldMainActor(_ times: Int = 10) async {
 
 /// 条件が満たされるまで MainActor 上で yield し続ける。実時間 sleep には依存しない。
 /// 「発火する」ことを確認する肯定的アサーションで使う。
+/// `maxYields` に達しても条件が成立しなければ失敗を記録する（黙って素通りさせない）。
 @MainActor
-func waitUntilYielding(maxYields: Int = 100_000, _ condition: () -> Bool) async {
+@discardableResult
+func waitUntilYielding(
+    maxYields: Int = 100_000,
+    sourceLocation: SourceLocation = #_sourceLocation,
+    _ condition: () -> Bool
+) async -> Bool {
     var yields = 0
     while !condition(), yields < maxYields {
         await Task.yield()
         yields += 1
     }
+    if condition() { return true }
+    Issue.record(
+        "waitUntilYielding が \(maxYields) 回の yield で条件を満たさなかった",
+        sourceLocation: sourceLocation
+    )
+    return false
 }

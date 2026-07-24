@@ -1,5 +1,6 @@
 import BefoldTestSupport
 import Foundation
+import Testing
 
 /// FileWatcher の監視準備完了（file source の kevent 登録）を条件ベースで確認する。
 ///
@@ -23,19 +24,30 @@ import Foundation
 func confirmWatcherArmed(
     file: URL,
     callbackCount: LockedBox<Int>,
-    quiescePeriod: TimeInterval = 0.3
+    quiescePeriod: TimeInterval = 0.3,
+    sourceLocation: SourceLocation = #_sourceLocation
 ) async -> Int {
-    await waitUntilWithRetry(action: {
+    // arm 自体が失敗したらこの時点で失敗が記録される（waitUntilWithRetry が報告する）。
+    await waitUntilWithRetry(sourceLocation: sourceLocation, action: {
         try? "arm-probe-\(Int.random(in: 0 ... 999))"
             .write(to: file, atomically: false, encoding: .utf8)
     }, until: {
         callbackCount.get() > 0
     })
+
+    // 静穏化を待つ。コールバックが延々と入り続ける状況で無限ループしないよう、
+    // 打ち切り期限を設ける。既定は quiescePeriod の 20 倍。
+    let deadline = Date().addingTimeInterval(quiescePeriod * 20)
     var last = callbackCount.get()
-    while true {
+    while Date() < deadline {
         try? await Task.sleep(for: .seconds(quiescePeriod))
         let current = callbackCount.get()
         if current == last { return current }
         last = current
     }
+    Issue.record(
+        "confirmWatcherArmed がコールバックの静穏化を待ちきれなかった",
+        sourceLocation: sourceLocation
+    )
+    return callbackCount.get()
 }
