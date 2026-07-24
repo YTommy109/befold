@@ -99,16 +99,4 @@ struct BookmarkStoreTests {
 
         #expect(relaunched.isBookmarked(url("a.mmd")))
     }
-
-    @Test("シンボリックリンク経由で add しても実体パスで isBookmarked と判定される")
-    func addResolvesSymlinkToRealPath() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let (real, link) = try tmp.symlinkedFile()
-        let store = makeStore()
-
-        store.add(link)
-
-        #expect(store.isBookmarked(real))
-    }
 }

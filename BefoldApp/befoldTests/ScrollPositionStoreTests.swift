@@ -77,16 +77,4 @@ struct ScrollPositionStoreTests {
 
         #expect(store.scrollPosition(for: new, mode: .rendered) == 200)
     }
-
-    @Test("シンボリックリンク経由でも同一ファイルとして扱う")
-    func symlinkResolvesToSamePath() throws {
-        let store = ScrollPositionStore(defaults: makeIsolatedDefaults(prefix: "ScrollPositionStoreTests"))
-        let tmp = try TempDir(prefix: "ScrollPositionStoreTests")
-        defer { withExtendedLifetime(tmp) {} }
-        let (real, link) = try tmp.symlinkedFile()
-
-        store.setScrollPosition(120, for: link, mode: .rendered)
-
-        #expect(store.scrollPosition(for: real, mode: .rendered) == 120)
-    }
 }

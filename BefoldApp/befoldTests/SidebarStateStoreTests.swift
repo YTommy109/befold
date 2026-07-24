@@ -64,19 +64,6 @@ struct SidebarStateStoreTests {
         #expect(store.isCollapsed(for: new) == false)
     }
 
-    @Test("シンボリックリンク経由でも同一ファイルとして扱う")
-    func symlinkResolvesToSamePath() throws {
-        let defaults = makeIsolatedDefaults(prefix: "SidebarStateStoreTests")
-        let tmp = try TempDir(prefix: "SidebarStateStoreTests")
-        defer { withExtendedLifetime(tmp) {} }
-        let (real, link) = try tmp.symlinkedFile()
-        let store = SidebarStateStore(defaults: defaults)
-
-        store.setCollapsed(false, for: link)
-
-        #expect(store.isCollapsed(for: real) == false)
-    }
-
     @Test("未操作時は閉じた状態(true)がデフォルト")
     func lastToggledCollapsedDefaultsToTrueWhenUnsaved() {
         let store = SidebarStateStore(defaults: makeIsolatedDefaults(prefix: "SidebarStateStoreTests"))

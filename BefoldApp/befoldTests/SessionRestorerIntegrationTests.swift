@@ -7,9 +7,10 @@ import Testing
 
 /// パス引数なしの CLI 起動(`befold --hidden-files` 等)でも、
 /// セッション復元されるウィンドウへ表示オプションが適用されることを検証する。
+/// 全件が restore→openViewer→WM:85 の実 DirectoryLister.fileExists を踏むため Integration。
 @Suite
 @MainActor
-struct SessionRestorerTests {
+struct SessionRestorerIntegrationTests {
     private func makeRestorer(
         defaults: UserDefaults
     ) -> (restorer: SessionRestorer, manager: ViewerWindowManager, hiddenFilesPreference: HiddenFilesPreference) {
