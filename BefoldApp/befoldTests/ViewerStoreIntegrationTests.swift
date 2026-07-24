@@ -18,7 +18,7 @@ struct ViewerStoreIntegrationTests {
         }
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func deletingWatchedFileFiresOnFileGone() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -53,7 +53,7 @@ struct ViewerStoreIntegrationTests {
         store.close()
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func reflectsFileEditAfterDebounce() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -77,7 +77,7 @@ struct ViewerStoreIntegrationTests {
         store.close()
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func closeStopsWatching() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }

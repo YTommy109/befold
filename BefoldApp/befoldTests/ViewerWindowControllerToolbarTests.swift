@@ -5,7 +5,7 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-@Suite
+@Suite(testTimeLimit())
 @MainActor
 struct ViewerWindowControllerToolbarTests {
     private func makeController(file: URL) -> ViewerWindowController {

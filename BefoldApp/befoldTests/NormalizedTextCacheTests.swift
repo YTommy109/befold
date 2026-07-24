@@ -171,7 +171,7 @@ struct NormalizedTextCacheTests {
         #expect(cacheAAA.dataHash != cacheBBB.dataHash)
     }
 
-    // MARK: - oneShotLoad (TASK-1.11)
+    // MARK: - oneShotLoad
 
     @Test("oneShotLoad: true では dataHash が nil になる(SHA256計算を省略する)")
     func oneShotLoadSkipsHash() throws {

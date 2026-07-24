@@ -1,5 +1,6 @@
 import Foundation
 
+/// `befold --bookmark <path>` — 既存の BookmarkStore を再利用してブックマークを追加する。
 public enum CLIBookmarkCommand {
     @MainActor
     public static func run(

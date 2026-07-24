@@ -9,7 +9,7 @@ import Testing
 @MainActor
 struct ViewerStoreFileTypeConsistencyTests {
     /// 内容が完全に同一(バイト列一致)のままリネームされた場合、apply() の同一内容スキップに
-    /// 入っても fileType は必ず新しい判定へ更新されるべき(task-38)。
+    /// 入っても fileType は必ず新しい判定へ更新されるべき。
     @Test
     func watcherRenameWithIdenticalContentUpdatesFileType() async {
         let oldFile = URL(fileURLWithPath: "/files/notes.md")
@@ -38,7 +38,7 @@ struct ViewerStoreFileTypeConsistencyTests {
     }
 
     /// openFile で同じ store インスタンスを使い回して切り替える場合も、内容が偶然同一の
-    /// 別ファイル(別タイプ)へ切り替えたら fileType が更新されるべき(task-38)。
+    /// 別ファイル(別タイプ)へ切り替えたら fileType が更新されるべき。
     @Test
     func openFileWithIdenticalContentAcrossDifferentTypesUpdatesFileType() async {
         let file1 = URL(fileURLWithPath: "/files/first.md")
@@ -94,7 +94,6 @@ struct ViewerStoreFileTypeConsistencyTests {
     }
 
     /// 内容・タイプとも完全に同一の再読込では、従来どおり再描画をスキップする
-    /// (TASK-23 の回帰なし)。
     @Test
     func watcherCallbackWithIdenticalContentAndTypeSkipsReload() async {
         let file = URL(fileURLWithPath: "/files/notes.md")

@@ -22,7 +22,7 @@ struct BookmarkStoreTests {
         #expect(!makeStore().isBookmarked(url("a.mmd")))
     }
 
-    @Test("add で追加され isBookmarked が true になる(TASK-73.4)")
+    @Test("add で追加され isBookmarked が true になる")
     func addAddsBookmark() {
         let store = makeStore()
 
@@ -31,7 +31,7 @@ struct BookmarkStoreTests {
         #expect(store.isBookmarked(url("a.mmd")))
     }
 
-    @Test("add を同じパスへ複数回呼んでも冪等に成功する(TASK-73.4)")
+    @Test("add を同じパスへ複数回呼んでも冪等に成功する")
     func addIsIdempotent() {
         let store = makeStore()
 
@@ -100,7 +100,7 @@ struct BookmarkStoreTests {
         #expect(relaunched.isBookmarked(url("a.mmd")))
     }
 
-    @Test("シンボリックリンク経由で add しても実体パスで isBookmarked と判定される(TASK-111)")
+    @Test("シンボリックリンク経由で add しても実体パスで isBookmarked と判定される")
     func addResolvesSymlinkToRealPath() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }

@@ -65,7 +65,7 @@ struct CLICheckCommandTests {
         #expect(result.message.contains(RejectReason.unsupportedFormat.cliMessage))
     }
 
-    @Test("サイズ超過かつ内容がバイナリの場合、実際のオープン経路と同じくバイナリ判定を優先する(TASK-73.8)")
+    @Test("サイズ超過かつ内容がバイナリの場合、実際のオープン経路と同じくバイナリ判定を優先する")
     func oversizedAndBinaryContentPrefersUnsupportedFormatOverFileTooLarge() {
         let url = URL(fileURLWithPath: "/tmp/big-binary.md")
         let reader = InMemoryFileReader(files: [url.path: "not really markdown"])
@@ -96,7 +96,7 @@ struct CLICheckCommandTests {
         #expect(result.message.contains("md"))
     }
 
-    @Test("フォルダー内のファイル解決はDirectoryListerの実装を再利用する(TASK-73.12/TASK-80)")
+    @Test("フォルダー内のファイル解決はDirectoryListerの実装を再利用する")
     func directoryResolutionUsesNaturalSortLikeDirectoryLister() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }

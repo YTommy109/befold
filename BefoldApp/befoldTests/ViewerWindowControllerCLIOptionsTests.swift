@@ -4,7 +4,7 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// CLI から渡される表示オプション(TASK-73.3: 隠しファイル・並び順・行番号・ソース/プレビューモード)が
+/// CLI から渡される表示オプション(隠しファイル・並び順・行番号・ソース/プレビューモード)が
 /// ウィンドウオープン時に適用されることを検証する。
 @Suite
 @MainActor
@@ -86,7 +86,7 @@ struct ViewerWindowControllerCLIOptionsTests {
         #expect(controller.store.showLineNumbers)
     }
 
-    @Test("CLI の --line-numbers 指定は保存済みのグローバル設定を書き換えない(TASK-73.13)")
+    @Test("CLI の --line-numbers 指定は保存済みのグローバル設定を書き換えない")
     func lineNumbersOverrideDoesNotPersistToUserDefaults() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -121,7 +121,7 @@ struct ViewerWindowControllerCLIOptionsTests {
         #expect(controller.store.showLineNumbers)
     }
 
-    @Test("store を明示注入した場合でも --line-numbers 指定が反映される(TASK-77)")
+    @Test("store を明示注入した場合でも --line-numbers 指定が反映される")
     func lineNumbersOverrideIsAppliedEvenWithExplicitStore() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }

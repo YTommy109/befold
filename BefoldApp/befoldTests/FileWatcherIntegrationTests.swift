@@ -11,7 +11,7 @@ private let testRenameSettleDelay: TimeInterval = 0.05
 
 @Suite(.serialized)
 struct FileWatcherIntegrationTests {
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func detectsFileDeletion() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -34,7 +34,7 @@ struct FileWatcherIntegrationTests {
         #expect(count.get() > baseline)
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func detectsAtomicSave() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -65,7 +65,7 @@ struct FileWatcherIntegrationTests {
 
     /// 削除 → 同名再作成後の変更でもコールバックが発火することを検証する。
     /// ディレクトリ監視がファイルの再作成を検知してファイル監視を再開する経路の回帰テスト。
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func detectsChangeAfterRecreation() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -107,7 +107,7 @@ struct FileWatcherIntegrationTests {
 
     /// 同一ディレクトリ内での rename を検知し、新パスを通知したうえで
     /// 追従後の変更も検知できることを検証する。
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func detectsRenameWithinSameDirectory() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -154,7 +154,7 @@ struct FileWatcherIntegrationTests {
 
     /// 別ディレクトリへの move を検知し、新しい親ディレクトリ基準で監視が張り直され、
     /// 移動後の変更も検知できることを検証する。
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func detectsMoveToAnotherDirectory() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -205,7 +205,7 @@ struct FileWatcherIntegrationTests {
 
     /// エディタの save-by-rename（旧ファイルをバックアップへ退避し、同じパスに新ファイルを作る）が
     /// rename 扱いにならず、変更として通知されることを検証する。
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func saveByRenameIsTreatedAsChangeNotRename() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -262,7 +262,7 @@ struct FileWatcherIntegrationTests {
         watcher.stop()
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    @Test(testTimeLimit())
     func stopPreventsCallback() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }

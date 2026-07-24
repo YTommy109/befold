@@ -77,6 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sessionRestorer.captureSavedState()
     }
 
+    /// 別プロセスの CLI 起動から、起動中の当インスタンスへ転送されたオープン要求を処理する。
+    /// forward() は ACK 未受信時に同じ requestID で再送するため、ACK は受信のたびに返すが、
+    /// openPaths の実行は requestID ごとに一度だけに絞る。
     @objc private func handleCLIOpenRequest(_ notification: Notification) {
         guard let (paths, options) = CLIInstanceRouter.decode(userInfo: notification.userInfo) else { return }
         let requestID = CLIInstanceRouter.requestID(from: notification.userInfo)
@@ -116,6 +119,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notifyIfCLIShimIsStale()
     }
 
+    /// 起動時に一度だけ /usr/local/bin/befold の状態を読み取り専用でチェックし、
+    /// 古い実体ファイル/参照先不一致の symlink が残っている場合のみ再インストールを案内する。
+    /// 書き込み(再インストール自体)は行わない。
+    ///
+    /// 状態チェックのファイル I/O はバックグラウンドキューへ逃がし、起動処理(ウィンドウ復元・
+    /// メニュー構築)をブロックしない。案内も app-modal な `runModal()` ではなく通知センターの
+    /// バナー通知で表示し、表示中も CLI 転送の ACK 応答が main run loop 上で通常どおり
+    /// 処理され続けるようにする。
     private func notifyIfCLIShimIsStale() {
         let bundlePath = Bundle.main.bundlePath
         DispatchQueue.global(qos: .utility).async {
@@ -157,10 +168,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Actions
 
+    /// 指定 URL のファイルをビューアウィンドウで開く(DocumentController・Recent メニューからも呼ばれる)。
+    /// ディレクトリが渡された場合は、フォルダー内最初のファイルを開く(CLI シム経由の想定)。
+    /// 拡張子を問わずウィンドウは開かれ、未対応の内容ならビューア側でプレースホルダー表示する。
     func openViewer(for url: URL) {
         openViewer(for: url, options: CLIOpenOptions())
     }
 
+    /// CLI から渡されたパス群を、表示オプション付きでそれぞれ別ウィンドウに開く。
+    /// `--hidden-files`/`--no-hidden-files` はウィンドウ単位ではなくアプリ全体の設定のため、先に一度だけ反映する。
+    /// パス無し起動(`befold --line-numbers` 等)は新規に開くウィンドウが無いため、
+    /// 行番号/ソース表示/並び順のオーバーライドは開いている全ウィンドウへ直接適用する。
     func openPaths(_ paths: [String], options: CLIOpenOptions) {
         if let showHiddenFiles = options.showHiddenFiles {
             windowManager.setHiddenFiles(showHiddenFiles)
@@ -198,6 +216,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.runModal()
     }
 
+    /// ファイル選択パネルを表示し、選択されたファイルをビューアで開く。
+    /// 初期ディレクトリはキーウィンドウが表示中のファイルのディレクトリ、
+    /// 無ければ（未オープン含む）ホームディレクトリを使う。
     @objc func showOpenPanel() {
         let controller = NSApp.keyWindow?.windowController as? ViewerWindowController
         let panel = NSOpenPanel()
@@ -214,6 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Help > befold Help。GitHub の README をブラウザで開く。
     @objc func openHelp(_ sender: Any?) {
         guard let url = URL(string: "https://github.com/YTommy109/befold#readme") else { return }
         NSWorkspace.shared.open(url)
@@ -232,6 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updaterController.checkForUpdates(sender)
     }
 
+    /// メニューの「Install 'befold' command in PATH」。/usr/local/bin に CLI コマンドの symlink を設置する。
     @objc func installCLI(_ sender: Any?) {
         let installPath = CLIInstaller.defaultInstallPath
         let result = CLIInstaller.install(bundlePath: Bundle.main.bundlePath, installPath: installPath)
@@ -243,6 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// View > Show/Hide Hidden Files(⌘⌃H)。不可視ファイル表示を全ウィンドウで一括切替する。
     @objc func toggleHiddenFiles(_ sender: Any?) {
         windowManager.toggleHiddenFiles()
     }
@@ -272,6 +296,7 @@ extension AppDelegate: NSMenuItemValidation {
 // MARK: - UNUserNotificationCenterDelegate
 
 extension AppDelegate: @preconcurrency UNUserNotificationCenterDelegate {
+    /// befold 自身がフォアグラウンドの起動直後に通知を出すため、既定の抑制を解除してバナー表示させる。
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,

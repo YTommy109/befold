@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 @Suite
-struct CLIInstallerTests {
+struct CLIInstallerIntegrationTests {
     @Test("シムの参照先は bundle 内の実行ファイルである")
     func targetExecutablePathPointsIntoBundle() {
         let target = CLIInstaller.targetExecutablePath(bundlePath: "/Applications/befold.app")

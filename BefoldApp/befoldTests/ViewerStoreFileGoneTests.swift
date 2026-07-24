@@ -83,7 +83,7 @@ private final class GatedSecondChunkReader: ChunkedTextReading, @unchecked Senda
 }
 
 /// 非同期読み込みの競合(世代交代・セッション交代)まわりのテスト。
-@Suite
+@Suite(testTimeLimit())
 @MainActor
 struct ViewerStoreLoadRaceTests {
     @Test("遅い読み込みが後続の openFile に追い越されたら結果を破棄する")
@@ -94,11 +94,19 @@ struct ViewerStoreLoadRaceTests {
         reader.setFile("slow", at: slowFile)
         reader.setFile("fast", at: fastFile)
         let slowReader = GatedChunkedReader(chunk: "slow\n")
+        // どちらのファイルの読み込みかは呼び出し順で見分ける。
+        // `cache.text` は normalizeFully: false の遅延正規化のためこの時点では空で、
+        // 内容による判別はできない（判別に使うと slowReader が一度も使われず、
+        // 追い越しのレースを検証しないまま素通りする）。
+        let factoryCallCount = LockedBox(0)
         let store = makeStore(
             reader: reader,
-            chunkedReaderFactory: { cache, _ in
-                if cache.text.hasPrefix("slow") { return slowReader }
-                return MockChunkedReader(chunks: ["fast\n"])
+            chunkedReaderFactory: { _, _ in
+                factoryCallCount.update { $0 += 1 }
+                // このテストでは 2 つの openFile が順に走るため、呼び出しは直列。
+                return factoryCallCount.get() == 1
+                    ? slowReader
+                    : MockChunkedReader(chunks: ["fast\n"])
             }
         )
         store.openFile(slowFile)
@@ -119,7 +127,7 @@ struct ViewerStoreLoadRaceTests {
         store.close()
     }
 
-    @Test("画像→巨大CSVへの切替では、読み込み完了まで旧ファイルの fileType/content が保たれる(task-32)")
+    @Test("画像→巨大CSVへの切替では、読み込み完了まで旧ファイルの fileType/content が保たれる")
     func fileTypeStaysWithPreviousFileUntilLoadCompletes() async {
         let imageFile = URL(fileURLWithPath: "/files/photo.png")
         let csvFile = URL(fileURLWithPath: "/files/huge.csv")
@@ -199,7 +207,7 @@ struct ViewerStoreLoadRaceTests {
 /// ViewerStoreTests から分離し、型の行数を SwiftLint の type_body_length 内に収める。
 /// グレース期間の待機は TestClock を注入して仮想時刻で厳密に進めるため、実時間依存はなく
 /// 通常どおり並列実行できる。
-@Suite
+@Suite(testTimeLimit())
 @MainActor
 struct ViewerStoreFileGoneTests {
     @Test

@@ -1,5 +1,8 @@
 import Foundation
 
+/// アプリのバージョン文字列。
+/// `_NSGetExecutablePath` で実バイナリのパスを取得し、`.app` バンドルの Info.plist から
+/// CFBundleShortVersionString を読む。バンドル外(SPM 単体ビルド等)では `fallback` を使う。
 public enum AppVersion {
     public static let fallback = "1.7.2"
 
@@ -17,6 +20,7 @@ public enum AppVersion {
         return fallback
     }
 
+    /// 実行ファイルパス(`Contents/MacOS/<exe>`)から、その親の `.app` バンドルのパスを返す。
     public static func bundlePath(fromExecutablePath executablePath: String) -> String {
         URL(fileURLWithPath: executablePath)
             .deletingLastPathComponent() // MacOS
@@ -33,6 +37,9 @@ public enum AppVersion {
         return Bundle.main.infoDictionary
     }
 
+    /// `_NSGetExecutablePath` で実行ファイルの実パスを取得する。
+    /// `argv[0]` はシェルが入力どおりにセットするため素のコマンド名("befold")では
+    /// `realpath` が失敗する。この API は argv[0] に依存せず常に正しいパスを返す。
     public static func actualExecutablePath() -> String? {
         var bufSize: UInt32 = 0
         _NSGetExecutablePath(nil, &bufSize)

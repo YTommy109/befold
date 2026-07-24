@@ -1,7 +1,7 @@
 @testable import befold
 import Testing
 
-/// CLIInstanceRouter.forward() の再送による同一requestIDの二重処理防止(task-79)を検証する。
+/// CLIInstanceRouter.forward() の再送による同一requestIDの二重処理防止を検証する。
 /// 実際の DistributedNotificationCenter には依存せず、requestID の重複判定だけを純粋に検証する。
 @Suite
 struct CLIRequestDeduplicatorTests {

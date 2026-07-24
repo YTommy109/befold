@@ -4,7 +4,7 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// task-82: パス無し CLI 転送(`befold --line-numbers` 等)で開いている既存ウィンドウへ
+/// パス無し CLI 転送(`befold --line-numbers` 等)で開いている既存ウィンドウへ
 /// 行番号/ソース表示/並び順のオーバーライドが反映されることを検証する。
 @Suite
 @MainActor

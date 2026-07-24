@@ -4,7 +4,7 @@ import AppKit
 import Foundation
 import Testing
 
-/// TASK-73.6: forward() の ACK 待ち・再送ロジックを、実際の DistributedNotificationCenter を使わず検証する。
+/// forward() の ACK 待ち・再送ロジックを、実際の DistributedNotificationCenter を使わず検証する。
 /// 起動直後(オブザーバ未登録)のインスタンスへの転送は、post/waitForAck を差し替えることで
 /// 「初回は届かず、後続の再送で届く」「一度も届かない」というタイミングを決定的に再現する。
 @Suite
@@ -66,8 +66,8 @@ struct CLIInstanceRouterTests {
     /// forward() は「ACK消失だが処理済み」を、宛先の実際の状態(起動直後でオブザーバ未登録 /
     /// 生存しているがRunLoopハング中)から区別できない。isDestinationAlive を true にする
     /// このテストは、どちらのケースでも forward() が同じ挙動(true・前面化)になることを規定する。
-    /// この2ケースを true 扱いすることは task-86 で検討済みで、意図的に許容している既知の限界。
-    @Test("maxAttempts回試してもACKが届かないが、宛先プロセスが生存している場合はACK消失とみなし true を返し前面化する(task-81)")
+    /// この2ケースを true 扱いするのは、検討の上で意図的に許容している既知の限界。
+    @Test("maxAttempts回試してもACKが届かないが、宛先プロセスが生存している場合はACK消失とみなし true を返し前面化する")
     func returnsTrueWhenAckLostButDestinationAlive() {
         var attempts = 0
         var activateCount = 0

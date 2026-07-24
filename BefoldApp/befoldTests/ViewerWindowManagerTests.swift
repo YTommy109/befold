@@ -366,7 +366,7 @@ struct ViewerWindowManagerTests {
         manager.controllers.values.forEach { $0.close() }
     }
 
-    @Test("setHiddenFiles は指定値を反映し開いているサイドバーへ即座に反映する(TASK-73.3: --hidden-files)")
+    @Test("setHiddenFiles は指定値を反映し開いているサイドバーへ即座に反映する(--hidden-files)")
     func setHiddenFilesAppliesGivenValueAndRefreshesOpenSidebar() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -383,7 +383,7 @@ struct ViewerWindowManagerTests {
         manager.controllers.values.forEach { $0.close() }
     }
 
-    @Test("CLI から複数ファイル/フォルダーを指定した起動を模すと、それぞれ別ウィンドウで開く(TASK-73.2)")
+    @Test("CLI から複数ファイル/フォルダーを指定した起動を模すと、それぞれ別ウィンドウで開く")
     func multipleCLITargetsEachOpenSeparateWindow() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -406,7 +406,7 @@ struct ViewerWindowManagerTests {
         manager.controllers.values.forEach { $0.close() }
     }
 
-    @Test("単一ファイル指定では従来通りウィンドウは1つだけ開く(TASK-73.2 回帰確認)")
+    @Test("単一ファイル指定では従来通りウィンドウは1つだけ開く(回帰確認)")
     func singleCLITargetOpensExactlyOneWindow() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }

@@ -101,7 +101,7 @@ struct SidebarNavigatorIntegrationTests {
         let controller = makeController(file: file)
         defer { controller.close() }
 
-        // issue #161: ファイルではなくフォルダーをサイドバーで選択した状態を再現する。
+        // ファイルではなくフォルダーをサイドバーで選択した状態を再現する。
         controller.fileListModel.selection = sub
 
         // 他アプリへ切り替えて戻ってきた際に windowDidBecomeKey から呼ばれる処理。

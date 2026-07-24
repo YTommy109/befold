@@ -3,7 +3,7 @@ import BefoldKit
 import Testing
 import WebKit
 
-/// TASK-68: 直接 HTML モード離脱時の再ロード中に updateContent が再発火して
+/// 直接 HTML モード離脱時の再ロード中に updateContent が再発火して
 /// pendingUpdate(単一スロット)が上書きされても、最終的に正しく描画されることを検証する
 /// 回帰テスト。recordRendered が実描画(render スクリプト評価)後にのみ呼ばれる構造であれば、
 /// 上書きで離脱時の描画が失われても描画ミラーが「未描画」のまま残り、次の updateContent が
@@ -84,7 +84,7 @@ struct ViewerRendererContentUpdateTests {
 
     // MARK: - pendingAppend 消費判定(showLineNumbers 不一致は全文 render に倒す)
 
-    // PR #262 レビュー(1): pendingAppend 消費経路のガードが showLineNumbers を見ておらず、
+    // pendingAppend 消費経路のガードが showLineNumbers を見ておらず、
     // 同一 revision の pending append と行番号トグルが1つの @Observable サイクルに合体すると
     // トグルが1周期失われうる問題への回帰テスト。
 

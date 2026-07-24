@@ -3,7 +3,7 @@ import BefoldKit
 import Testing
 import WebKit
 
-/// TASK-1.13: one-shot 合成 API の純粋な Outcome→描画変換(reject / truncation を含む)を、
+/// one-shot 合成 API の純粋な Outcome→描画変換(reject / truncation を含む)を、
 /// WebView 構成を伴わずに検証する。ライブ経路(ViewerStore.apply / ViewerWebView)とは
 /// 独立した QuickLook 想定の値変換ロジックを対象とする。
 @Suite

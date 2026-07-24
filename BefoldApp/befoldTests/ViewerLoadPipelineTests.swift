@@ -4,7 +4,7 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// TASK-1.11: ViewerLoadPipeline.load(oneShotLoad:) が静的1回読込(QuickLook 等)経路で
+/// ViewerLoadPipeline.load(oneShotLoad:) が静的1回読込(QuickLook 等)経路で
 /// dataHash 計算をスキップすることを、ViewerStore を経由せず直接検証する。
 @Suite
 struct ViewerLoadPipelineTests {
@@ -14,7 +14,7 @@ struct ViewerLoadPipelineTests {
 
     @Test("oneShotLoad: true では行指向ファイル(chunked)経路で dataHash が nil になる")
     func oneShotLoadSkipsHashForChunkedOutcome() async {
-        let url = URL(fileURLWithPath: "/tmp/task-1-11-oneshot.log")
+        let url = URL(fileURLWithPath: "/tmp/oneshot.log")
         let fileReader = InMemoryFileReader(files: [url.path: "line1\nline2\nline3\n"])
         let contentLoader = ContentLoader(fileReader: fileReader)
 
@@ -36,7 +36,7 @@ struct ViewerLoadPipelineTests {
 
     @Test("oneShotLoad: true では非行指向ファイル(full)経路で dataHash が nil になる")
     func oneShotLoadSkipsHashForFullOutcome() async {
-        let url = URL(fileURLWithPath: "/tmp/task-1-11-oneshot.md")
+        let url = URL(fileURLWithPath: "/tmp/oneshot.md")
         let fileReader = InMemoryFileReader(files: [url.path: "# hello\n"])
         let contentLoader = ContentLoader(fileReader: fileReader)
 
@@ -58,7 +58,7 @@ struct ViewerLoadPipelineTests {
 
     @Test("oneShotLoad: false(既定)では従来どおり dataHash が計算される(回帰なし)")
     func defaultLoadStillComputesHashForChunkedOutcome() async {
-        let url = URL(fileURLWithPath: "/tmp/task-1-11-default.log")
+        let url = URL(fileURLWithPath: "/tmp/default-load.log")
         let fileReader = InMemoryFileReader(files: [url.path: "line1\nline2\n"])
         let contentLoader = ContentLoader(fileReader: fileReader)
 
@@ -77,7 +77,7 @@ struct ViewerLoadPipelineTests {
         #expect(cache.dataHash != nil)
     }
 
-    // MARK: - TASK-70: markdown ローカル画像埋め込みキャッシュのウォームアップ
+    // MARK: - markdown ローカル画像埋め込みキャッシュのウォームアップ
 
     private func withReadPermissionRemoved<T>(at url: URL, _ body: () throws -> T) rethrows -> T {
         let original = try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
@@ -97,8 +97,8 @@ struct ViewerLoadPipelineTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let pngData = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-        let imageURL = try tmp.file(named: "task-70-warm.png", data: pngData)
-        let markdownURL = try tmp.file(named: "doc.md", contents: "![alt](task-70-warm.png)")
+        let imageURL = try tmp.file(named: "warm.png", data: pngData)
+        let markdownURL = try tmp.file(named: "doc.md", contents: "![alt](warm.png)")
         let fileReader = DefaultFileReader()
 
         _ = await ViewerLoadPipeline.load(
@@ -113,7 +113,7 @@ struct ViewerLoadPipelineTests {
         let expectedURI = "data:image/png;base64,\(pngData.base64EncodedString())"
         let result = withReadPermissionRemoved(at: imageURL) {
             MarkdownImageEmbedder.embedLocalImages(
-                in: "![alt](task-70-warm.png)", baseURL: markdownURL
+                in: "![alt](warm.png)", baseURL: markdownURL
             )
         }
 
@@ -125,8 +125,8 @@ struct ViewerLoadPipelineTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let pngData = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-        let imageURL = try tmp.file(named: "task-70-cold.png", data: pngData)
-        let markdownURL = try tmp.file(named: "doc.md", contents: "![alt](task-70-cold.png)")
+        let imageURL = try tmp.file(named: "cold.png", data: pngData)
+        let markdownURL = try tmp.file(named: "doc.md", contents: "![alt](cold.png)")
         let fileReader = DefaultFileReader()
 
         _ = await ViewerLoadPipeline.load(
@@ -138,7 +138,7 @@ struct ViewerLoadPipelineTests {
             embedLocalImages: false
         )
 
-        let markdown = "![alt](task-70-cold.png)"
+        let markdown = "![alt](cold.png)"
         let result = withReadPermissionRemoved(at: imageURL) {
             MarkdownImageEmbedder.embedLocalImages(in: markdown, baseURL: markdownURL)
         }

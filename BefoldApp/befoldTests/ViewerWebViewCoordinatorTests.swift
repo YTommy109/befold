@@ -160,7 +160,7 @@ struct ViewerWebViewCoordinatorTests {
         #expect(result == testCase.expected)
     }
 
-    // MARK: - messageHandlerNames (TASK-1.12)
+    // MARK: - messageHandlerNames
 
     @Test("allowsInteractiveBridging: true(既定)では referenceActivated/loadMoreLines を含む全ハンドラを登録する")
     func messageHandlerNamesIncludesAllWhenInteractiveBridgingEnabled() {
