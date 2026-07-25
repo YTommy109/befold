@@ -41,17 +41,20 @@ struct BefoldCLICommand: AsyncParsableCommand {
     @MainActor
     func run() async throws {
         try await execute(
-            addBookmark: { BefoldCLICommand.bookmarkStore.add($0) },
+            addBookmark: { url in
+                CLIBookmarkRouter.add(url, addLocally: { BefoldCLICommand.bookmarkStore.add($0) })
+            },
             printResult: CLICommandResultPrinter.print
         )
     }
 
     /// `run()` の実体。ブックマークの追加先と結果の出力先を注入できるようにしている。
-    /// 既定の追加先は GUI と共有する UserDefaults(`com.degino.befold`)= 利用者の実データ、
+    /// 既定の追加先は起動中インスタンスがあれば GUI プロセス、無ければ GUI と共有する
+    /// UserDefaults(`com.degino.befold`)= 利用者の実データ(CLIBookmarkRouter 参照)、
     /// 既定の出力先は実プロセスの stdout/stderr のため、テストからは差し替えて使う。
     @MainActor
     func execute(
-        addBookmark: @MainActor (URL) -> Void,
+        addBookmark: @MainActor (URL) -> Bool,
         printResult: (CLICommandResult) -> Void
     ) async throws {
         if !check, !bookmark {

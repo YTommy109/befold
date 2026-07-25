@@ -175,6 +175,30 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
+// SVG テキストを <img> の src に使える data URI にする。
+// btoa は Latin-1 しか扱えないため、encodeURIComponent + unescape で
+// UTF-8 バイト列を 1 バイト 1 文字の文字列へ均してから base64 化する。
+function svgDataURI(svgText) {
+  return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)));
+}
+
+// base64 の画像データを <img> の src に使える data URI にする。
+// mimeType は Swift 側(ViewerBridge)が渡す実際の MIME。未指定時は
+// 従来どおり image/png とみなす。
+function imageDataURI(base64, mimeType) {
+  return 'data:' + (mimeType || 'image/png') + ';base64,' + base64;
+}
+
+// base64 文字列をバイト列へ復号する(PDF の Blob 生成用)。
+function base64ToBytes(base64) {
+  var binary = atob(base64);
+  var bytes = new Uint8Array(binary.length);
+  for (var i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 // HTML を行ごとに分割し、各行を自己完結な HTML にする(未クローズ span が
 // 後続行を壊すのを防ぐ)。highlight.js はブロックコメント等で改行をまたぐ
 // <span> を出力するため、行末で開いたままの span を閉じ、次の行の先頭で
@@ -425,6 +449,26 @@ function buildFindRegExp(query, options) {
   }
 }
 
+// 検索ヒット間の移動先インデックス。件数 0 のときはどれも -1(選択なし)を返す。
+// 末尾の次は先頭、先頭の前は末尾へ循環する。
+
+function nextMatchIndex(currentIndex, count) {
+  if (count <= 0) { return -1; }
+  return (currentIndex + 1) % count;
+}
+
+function prevMatchIndex(currentIndex, count) {
+  if (count <= 0) { return -1; }
+  return (currentIndex - 1 + count) % count;
+}
+
+// 再検索(_mmdFindRefresh)で維持する現在位置。再検索でヒット数が減っても
+// 範囲外を指さないようクランプする。負値(未選択)は先頭に寄せる。
+function keptMatchIndex(previousIndex, count) {
+  if (count <= 0) { return -1; }
+  return Math.min(Math.max(previousIndex, 0), count - 1);
+}
+
 // チャンク追記用のコード HTML。highlightCode の <pre><code…> ラッパーを剥がした
 // 中身だけを返し、ハイライト不可(hljs 不在・未対応言語)の場合はエスケープ済み
 // プレーンテキストにフォールバックする。DOM への挿入は viewer.html の appendChunk が行う。
@@ -501,6 +545,9 @@ if (typeof module !== 'undefined' && module.exports) {
     imageFitSize: imageFitSize,
     markdownFontSize: markdownFontSize,
     escapeHtml: escapeHtml,
+    svgDataURI: svgDataURI,
+    imageDataURI: imageDataURI,
+    base64ToBytes: base64ToBytes,
     renderCodeHtml: renderCodeHtml,
     wrapWithLineNumbers: wrapWithLineNumbers,
     buildLineNumberRows: buildLineNumberRows,
@@ -515,5 +562,8 @@ if (typeof module !== 'undefined' && module.exports) {
     csvSourceInnerHtml: csvSourceInnerHtml,
     CSV_COL_COUNT: CSV_COL_COUNT,
     buildFindRegExp: buildFindRegExp,
+    nextMatchIndex: nextMatchIndex,
+    prevMatchIndex: prevMatchIndex,
+    keptMatchIndex: keptMatchIndex,
   };
 }

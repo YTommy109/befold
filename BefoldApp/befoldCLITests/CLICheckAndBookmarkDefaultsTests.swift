@@ -29,7 +29,7 @@ struct CLICheckAndBookmarkDefaultsTests {
         let (real, link) = try tmp.symlinkedFile()
         let store = BookmarkStore(defaults: makeIsolatedDefaults(prefix: "CLICheckAndBookmarkDefaultsTests"))
 
-        let result = CLIBookmarkCommand.run(link.path, addBookmark: { store.add($0) })
+        let result = CLIBookmarkCommand.run(link.path, addBookmark: { store.add($0); return true })
 
         #expect(result.exitCode == 0)
         #expect(store.isBookmarked(real))

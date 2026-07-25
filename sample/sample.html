@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>HTML サンプル</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+      line-height: 1.7;
+      margin: 0;
+      padding: 24px;
+      color: #24292f;
+    }
+    h1 { border-bottom: 1px solid #d0d7de; padding-bottom: 8px; }
+    h2 { margin-top: 28px; }
+    table { border-collapse: collapse; margin: 12px 0; }
+    th, td { border: 1px solid #d0d7de; padding: 6px 12px; text-align: left; }
+    th { background: #f6f8fa; }
+    code {
+      background: #f6f8fa;
+      border-radius: 4px;
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    blockquote {
+      border-left: 4px solid #d0d7de;
+      color: #57606a;
+      margin: 12px 0;
+      padding: 0 16px;
+    }
+    #script-check { color: #1a7f37; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>HTML サンプル</h1>
+
+  <p>
+    befold の HTML プレビュー機能を確認するためのサンプルファイル。
+    <code>.html</code> は <code>&lt;iframe&gt;</code> の <code>srcdoc</code> へ流し込んで
+    描画するため、ページ内の CSS がそのまま効く。
+  </p>
+
+  <h2>見出しと段落</h2>
+
+  <p>
+    この段落が本文として表示され、上の見出しに罫線が付いていれば、
+    ページ内 <code>&lt;style&gt;</code> が適用されている。
+  </p>
+
+  <blockquote>
+    iframe の高さは読み込み後にコンテンツの scrollHeight へ追従する
+    （取得できない場合は 80vh にフォールバックする）。
+  </blockquote>
+
+  <h2>テーブル</h2>
+
+  <table>
+    <thead>
+      <tr><th>ファイル形式</th><th>拡張子</th><th>描画方法</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Mermaid</td><td><code>.mmd</code></td><td>mermaid.js</td></tr>
+      <tr><td>Markdown</td><td><code>.md</code></td><td>markdown-it.js</td></tr>
+      <tr><td>HTML</td><td><code>.html</code></td><td>iframe (srcdoc)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>箇条書き</h2>
+
+  <ul>
+    <li>ページ内の CSS はそのまま適用される</li>
+    <li>iframe には <code>sandbox="allow-same-origin"</code> が付く</li>
+    <li>
+      <code>allow-scripts</code> は付けないため、スクリプトは実行されない
+    </li>
+  </ul>
+
+  <h2>スクリプトが実行されないことの確認</h2>
+
+  <p id="script-check">
+    このテキストが緑のままなら正常（スクリプトはサンドボックスにブロックされている）。
+  </p>
+
+  <script>
+    // sandbox に allow-scripts がないため、このスクリプトは実行されない。
+    // 万一実行された場合は文言と色が変わるので目視で気付ける。
+    document.getElementById('script-check').textContent =
+      '警告: スクリプトが実行された（sandbox が効いていない）';
+    document.getElementById('script-check').style.color = '#cf222e';
+  </script>
+</body>
+</html>

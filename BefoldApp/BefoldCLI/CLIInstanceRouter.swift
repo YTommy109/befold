@@ -1,9 +1,22 @@
 import AppKit
 import Foundation
 
-/// CLI 起動時、既に起動中の befold インスタンスがあればそちらへファイルオープン要求を転送する。
+/// CLI から起動中の befold インスタンスへ転送される要求。
+public enum CLIRequest: Equatable {
+    /// パスを開く要求(`befold <path>`)。
+    case open(paths: [String], options: CLIOpenOptions)
+    /// パスをブックマークする要求(`befold --bookmark <path>`)。
+    case bookmark(paths: [String])
+}
+
+/// CLI 起動時、既に起動中の befold インスタンスがあればそちらへ要求を転送する。
 /// これにより CLI 経由の起動でも、既存インスタンスのウィンドウ管理(セッション・重複オープン抑止等)を
 /// そのまま利用でき、`--hidden-files` 等の表示オプションも既存インスタンスへ届けられる。
+///
+/// ブックマーク追加も同じ経路に載せる。ブックマークは UserDefaults の配列を
+/// read-modify-write で更新するため、CLI と GUI が別プロセスから同時に書くと
+/// 後勝ちで片方の追加が消える。起動中インスタンスがあるときは常に GUI プロセスを
+/// 唯一の writer にすることで、この競合自体を無くしている。
 public enum CLIInstanceRouter {
     public static let openRequestNotificationName = Notification.Name("dev.befold.cli.openRequest")
     public static let openRequestAckNotificationName = Notification.Name("dev.befold.cli.openRequestAck")
@@ -61,29 +74,76 @@ public enum CLIInstanceRouter {
         activate: (() -> Void)? = nil
     ) -> Bool {
         let activate = activate ?? { instance.activate() }
-        let requestID = UUID().uuidString
-        var userInfo: [String: Any] = ["paths": paths, "requestID": requestID]
+        var userInfo: [String: Any] = ["paths": paths]
         if let value = options.showHiddenFiles { userInfo["showHiddenFiles"] = value }
         if let value = options.showLineNumbers { userInfo["showLineNumbers"] = value }
         if let value = options.sourceMode { userInfo["sourceMode"] = value }
         if let value = options.showSidebar { userInfo["showSidebar"] = value }
         if let value = options.sortOrder { userInfo["sortOrder"] = value.rawValue }
 
+        guard postAwaitingAck(
+            userInfo, maxAttempts: maxAttempts, ackTimeout: ackTimeout,
+            post: post, makeAckWaiter: makeAckWaiter
+        ) else { return false }
+        activate()
+        return true
+    }
+
+    /// `paths` のブックマーク追加を既存インスタンスへ転送し、ACK を待つ。
+    ///
+    /// 転送に成功した場合、ブックマークを実際に書くのは GUI プロセスのみになる。
+    /// ACK が届かなければ CLI 側で書き足すのではなく失敗を返す。ここでローカル書き込みへ
+    /// フォールバックすると、要求が遅れて届いた GUI との二重書き込みが起き、
+    /// この経路で防いでいる read-modify-write 競合が復活するため。
+    ///
+    /// オープン要求と違いユーザーは GUI を見ていないので、成功しても前面化はしない。
+    /// 宛先の指定は不要(通知はブロードキャストで、単一インスタンスの GUI だけが受け取る)だが、
+    /// 呼び出し側は起動中インスタンスの存在を確認してから使うこと。居なければ ACK は返らない。
+    @MainActor
+    public static func forwardBookmark(
+        paths: [String],
+        maxAttempts: Int = maxForwardAttempts,
+        ackTimeout: TimeInterval = ackTimeout,
+        post: (Notification.Name, [String: Any]) -> Void = { name, userInfo in
+            DistributedNotificationCenter.default().postNotificationName(
+                name, object: nil, userInfo: userInfo, deliverImmediately: true
+            )
+        },
+        makeAckWaiter: (String) -> any AckWaiting = { DistributedAckWaiter(requestID: $0) }
+    ) -> Bool {
+        postAwaitingAck(
+            ["bookmarkPaths": paths], maxAttempts: maxAttempts, ackTimeout: ackTimeout,
+            post: post, makeAckWaiter: makeAckWaiter
+        )
+    }
+
+    /// requestID を採番して userInfo に載せ、ACK が観測できるまで最大 `maxAttempts` 回 post する。
+    private static func postAwaitingAck(
+        _ userInfo: [String: Any],
+        maxAttempts: Int,
+        ackTimeout: TimeInterval,
+        post: (Notification.Name, [String: Any]) -> Void,
+        makeAckWaiter: (String) -> any AckWaiting
+    ) -> Bool {
+        let requestID = UUID().uuidString
+        var userInfo = userInfo
+        userInfo["requestID"] = requestID
+
         let waiter = makeAckWaiter(requestID)
         defer { waiter.cancel() }
 
         for _ in 0 ..< maxAttempts {
             post(openRequestNotificationName, userInfo)
-            if waiter.wait(timeout: ackTimeout) {
-                activate()
-                return true
-            }
+            if waiter.wait(timeout: ackTimeout) { return true }
         }
         return false
     }
 
-    /// 受信した Distributed Notification の userInfo から paths/options を復元する。
-    public static func decode(userInfo: [AnyHashable: Any]?) -> (paths: [String], options: CLIOpenOptions)? {
+    /// 受信した Distributed Notification の userInfo から要求を復元する。
+    public static func decode(userInfo: [AnyHashable: Any]?) -> CLIRequest? {
+        if let bookmarkPaths = userInfo?["bookmarkPaths"] as? [String] {
+            return .bookmark(paths: bookmarkPaths)
+        }
         guard let paths = userInfo?["paths"] as? [String] else { return nil }
         var options = CLIOpenOptions()
         options.showHiddenFiles = userInfo?["showHiddenFiles"] as? Bool
@@ -93,7 +153,7 @@ public enum CLIInstanceRouter {
         if let rawSortOrder = userInfo?["sortOrder"] as? String {
             options.sortOrder = CLISortOrderOption(rawValue: rawSortOrder)
         }
-        return (paths, options)
+        return .open(paths: paths, options: options)
     }
 
     /// 受信した Distributed Notification の userInfo から requestID を取り出す(ACK 送信用)。

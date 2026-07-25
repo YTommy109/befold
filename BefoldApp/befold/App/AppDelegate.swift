@@ -77,18 +77,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sessionRestorer.captureSavedState()
     }
 
-    /// 別プロセスの CLI 起動から、起動中の当インスタンスへ転送されたオープン要求を処理する。
+    /// 別プロセスの CLI 起動から、起動中の当インスタンスへ転送された要求を処理する。
     /// forward() は ACK 未受信時に同じ requestID で再送するため、ACK は受信のたびに返すが、
-    /// openPaths の実行は requestID ごとに一度だけに絞る。
+    /// 要求の実行は requestID ごとに一度だけに絞る。
+    ///
+    /// ブックマーク追加を CLI プロセスではなくここで行うことで、UserDefaults の
+    /// ブックマーク配列を書くプロセスを GUI に一本化し、CLI との同時更新で
+    /// 片方の追加が消える競合を防ぐ(CLIInstanceRouter 参照)。
     @objc private func handleCLIOpenRequest(_ notification: Notification) {
-        guard let (paths, options) = CLIInstanceRouter.decode(userInfo: notification.userInfo) else { return }
+        guard let request = CLIInstanceRouter.decode(userInfo: notification.userInfo) else { return }
         let requestID = CLIInstanceRouter.requestID(from: notification.userInfo)
         if let requestID {
             CLIInstanceRouter.sendAck(requestID: requestID)
         }
         guard cliRequestDeduplicator.shouldProcess(requestID: requestID) else { return }
-        openPaths(paths, options: options)
-        NSApp.activate()
+        switch request {
+        case let .open(paths, options):
+            openPaths(paths, options: options)
+            NSApp.activate()
+        case let .bookmark(paths):
+            // ユーザーは GUI を見ていないので前面化はしない。
+            for path in paths {
+                bookmarkStore.add(URL(fileURLWithPath: path))
+            }
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

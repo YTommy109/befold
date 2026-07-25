@@ -24,7 +24,7 @@ struct BefoldCLICommandTests {
     /// 出力・ブックマーク内容を検証しないテストはこちらを使う。
     @MainActor
     private func executeIsolated(_ command: BefoldCLICommand) async throws {
-        try await command.execute(addBookmark: { _ in }, printResult: { _ in })
+        try await command.execute(addBookmark: { _ in true }, printResult: { _ in })
     }
 
     @Test("引数なしの場合は空のパス・既定オプションになる")
@@ -95,7 +95,7 @@ struct BefoldCLICommandTests {
 
         await #expect(throws: ExitCode(1)) {
             try await both.execute(
-                addBookmark: { bookmarked.append($0) },
+                addBookmark: { bookmarked.append($0); return true },
                 printResult: { messages.append($0.message) }
             )
         }
