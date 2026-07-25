@@ -1,11 +1,11 @@
 ---
 id: TASK-126
 title: makeIsolatedDefaults がテスト実行ごとに orphan plist を漏らす
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-07-24 22:22'
-updated_date: '2026-07-25 03:36'
+updated_date: '2026-07-25 03:45'
 labels:
   - test
   - bug
@@ -62,4 +62,14 @@ AC#1 の達成方法について: 受け入れ基準の文面は「テスト終�
 - swift test: 622 tests / 87 suites passed(IsolatedDefaultsTests 7 件を含む)。
 - swiftformat --lint: 全ターゲット 0 files require formatting。
 - scripts/clean-test-defaults.sh の dry-run が 189,656 個を検出し、接頭辞ごとの内訳を表示することを確認(実行時間 約 6 秒)。
+
+既存堆積の掃除を実施(2026-07-25)。scripts/clean-test-defaults.sh --force により 189,656 個を削除、~/Library/Preferences は 754MB → 13MB。所要 43 秒。掃除後に cfprefsd を再起動。
+実在ドメインの健全性も確認済み: com.apple.finder.plist / .GlobalPreferences.plist は残存、befold 本番スイート com.degino.befold.plist(36.3KB)も無傷。
+掃除後に swift test を実行し、0 → 0 で増加なし・622 tests passed を確認。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+makeIsolatedDefaults が永続 UserDefaults スイートを作り続けて plist が堆積していた問題を解消した。当初計画のプロセス終了時削除は成立しないことを実測で確認したため(atexit で削除しても cfprefsd が終了 2 秒後に全件書き戻す)、永続ドメインを作ること自体をやめ、メモリ上の辞書に閉じた UserDefaults サブクラスを返す方式に変更した。シグネチャ据え置きのため呼び出し 110 箇所以上は無変更。型付きセッターも塞ぎ、利用者の実際の設定ドメインへ漏れないことをテストで担保した。既存堆積の掃除用に scripts/clean-test-defaults.sh を追加(dry-run 既定)。検証: swift test 連続実行で plist 増加 delta 0(従来は毎回約 150〜170 個増)、622 tests passed、swiftformat lint クリーン。既存の 189,656 個を実際に削除し 754MB → 13MB、実在ドメインが無傷であることも確認済み。
+<!-- SECTION:FINAL_SUMMARY:END -->
