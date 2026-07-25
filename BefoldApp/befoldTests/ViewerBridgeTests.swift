@@ -79,6 +79,12 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.scrollPositionChangedMessageName == "scrollPositionChanged")
     }
 
+    @Test("ViewMode(isSourceMode:) が Bool をモードへ写す")
+    func viewModeFromIsSourceMode() {
+        #expect(ViewerBridge.ViewMode(isSourceMode: true) == .source)
+        #expect(ViewerBridge.ViewMode(isSourceMode: false) == .rendered)
+    }
+
     @Test("viewModeScript がモード文字列を埋め込む")
     func viewModeScriptEmbedsMode() {
         #expect(ViewerBridge.viewModeScript(.source) == "setViewMode('source')")

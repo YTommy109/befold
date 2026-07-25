@@ -8,8 +8,6 @@ protocol ViewerToolbarHost: AnyObject {
     var fileListModel: FileListModel { get }
     /// 表示状態(ファイル種別・ソース表示可否・行番号表示)。
     var store: ViewerStore { get }
-    /// 現在のソース表示モード。モード切替セグメントの初期選択に使う。
-    var isSourceMode: Bool { get }
     /// モード切替セグメントの選択変更を反映する。
     func setSourceMode(_ newValue: Bool)
     /// 戻る/進むアイテム・メニュー表現から呼ばれる履歴ナビゲーション。

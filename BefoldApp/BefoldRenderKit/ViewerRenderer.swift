@@ -207,7 +207,7 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// 直接 HTML モードの判定状態(`isDirectHTMLMode` / `webViewProxy?.isDirectHTMLMode` /
     /// `lastDirectHTMLPath`)と、`rendered` ミラー 6 値を必ずセットで破棄してから
     /// viewer.html を再ロードする。ミラーは `rendered.reset()` で一括リセットする
-    /// (再ロードで JS 側状態 `_showLineNumbers=false` / `_viewMode='rendered'` が
+    /// (再ロードで JS 側状態 `_mmdViewOptions`(行番号 false / モード rendered)が
     /// 初期化されるため、Swift 側のミラーも全て破棄して次回更新時に再注入させる)。
     /// 一部だけ倒すと直接 HTML モードの判定と再描画キャッシュの整合性が崩れるため、
     /// 呼び出し側で個別にリセットしないこと。`pendingAppend` は `rendered` の一部ではないが、

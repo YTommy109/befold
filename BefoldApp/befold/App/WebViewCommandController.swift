@@ -119,8 +119,9 @@ final class WebViewCommandController {
     // MARK: - Scroll position
 
     /// WebView に現在のスクロール位置を問い合わせ、指定した URL・モードのキーへ保存する。
-    /// ファイル/モード切替の直前に、切替後の現在 URL / モードに依存せず退場側の位置を
-    /// 確定させるために使う。
+    /// 現在の表示状態に依存せず呼び出し側が指定したキーへ書くだけで、いつ呼ぶべきか
+    /// (切替前でなければならない)の判断は呼び出し側が負う
+    /// (ViewerWindowController.saveScrollPositionBeforeTransition 参照)。
     func saveCurrentScrollPosition(for url: URL, mode: ViewerBridge.ViewMode) {
         guard let webView = webViewProxy.webView else { return }
         webView.evaluateJavaScript(ViewerBridge.currentScrollPositionScript) { [perFileState] result, _ in

@@ -4,6 +4,37 @@
 
 const { loadViewerMain, captureBridgeMessages } = require('./support/viewerMainHarness');
 
+// カラースキーム変更を発火できる matchMedia に差し替える。ハーネス既定のスタブは
+// addEventListener が空実装のため、change を流すテストだけここで置き換える
+// (_mmdInit() が matchMedia を呼ぶより前に差し替える必要がある)。
+function installColorSchemeStub(window) {
+  const listeners = [];
+  window.matchMedia = function(query) {
+    return {
+      media: query,
+      matches: false,
+      addEventListener: function(type, fn) { listeners.push(fn); },
+      removeEventListener: function() {},
+    };
+  };
+  return { fireChange: () => listeners.forEach((fn) => fn()) };
+}
+
+// setTimeout/clearTimeout を記録するスタブに差し替える。スクロール通知のデバウンスは
+// jsdom window のタイマを使うため jest のフェイクタイマーが効かず、また実時間を待つと
+// テストが遅く不安定になる。予約と取り消しを直接観測する。
+function installTimerStub(window) {
+  const scheduled = [];
+  window.setTimeout = function(fn, delay) {
+    scheduled.push({ fn: fn, delay: delay, cancelled: false });
+    return scheduled.length;
+  };
+  window.clearTimeout = function(id) {
+    if (id) { scheduled[id - 1].cancelled = true; }
+  };
+  return scheduled;
+}
+
 describe('エクスポート境界', () => {
   test('読み込むだけでは初期化の副作用が起きない', () => {
     const { document, main } = loadViewerMain({ init: false });
@@ -557,5 +588,278 @@ describe('チャンク末尾の改行の持ち越し', () => {
     expect(lineNumbers(document)).toEqual(['1', '2']);
     const rows = document.querySelectorAll('#diagram-wrap table.code-table tr');
     expect(rows[1].querySelector('.line-content').textContent).toBe('bcd');
+  });
+});
+
+describe('ダイアグラム個別ズーム', () => {
+  const labelOf = (wrap) => wrap.querySelector('.diagram-zoom-label').textContent;
+  const wraps = (document) =>
+    Array.from(document.querySelectorAll('#diagram-wrap .diagram-zoom-wrap'));
+
+  // mermaid 実行後の DOM(=.mermaid が 2 つある状態)を作り、ズームラッパーで包む。
+  // 実際の描画は mermaid.min.js を読まないハーネスでは走らないため、包む対象だけ用意する。
+  function wrapTwoDiagrams(loaded) {
+    const diagramWrap = loaded.document.getElementById('diagram-wrap');
+    diagramWrap.innerHTML = '<pre class="mermaid">graph TD; A-->B;</pre>'
+      + '<pre class="mermaid">graph TD; C-->D;</pre>';
+    loaded.main._mmdWrapDiagrams(diagramWrap);
+    return wraps(loaded.document);
+  }
+
+  test('個別ズームは対象のダイアグラムだけに効く', () => {
+    const loaded = loadViewerMain({});
+    const [first, second] = wrapTwoDiagrams(loaded);
+
+    // 先頭以外を操作して、インデックスごとに独立していることを確かめる
+    second.querySelector('.diagram-zoom-in').click();
+
+    expect(labelOf(second)).toBe(loaded.viewer.zoomLabel(loaded.viewer.ZOOM_DEFAULT + loaded.viewer.ZOOM_STEP));
+    expect(labelOf(first)).toBe(loaded.viewer.zoomLabel(loaded.viewer.ZOOM_DEFAULT));
+    expect(loaded.main._mmdDiagramZoomValue(0)).toBe(loaded.viewer.ZOOM_DEFAULT);
+    // 全体ズームは個別ズームでは動かない
+    expect(loaded.main._mmdZoom.value()).toBe(loaded.viewer.ZOOM_DEFAULT);
+  });
+
+  test('個別ズームは再描画をまたいで維持される', () => {
+    const loaded = loadViewerMain({});
+    const [first] = wrapTwoDiagrams(loaded);
+    first.querySelector('.diagram-zoom-in').click();
+    const zoomed = labelOf(first);
+    expect(zoomed).not.toBe(loaded.viewer.zoomLabel(loaded.viewer.ZOOM_DEFAULT));
+
+    // ライブリロード相当: DOM を作り直して同じ順番のダイアグラムを包み直す
+    const [reFirst, reSecond] = wrapTwoDiagrams(loaded);
+
+    expect(labelOf(reFirst)).toBe(zoomed);
+    expect(labelOf(reSecond)).toBe(loaded.viewer.zoomLabel(loaded.viewer.ZOOM_DEFAULT));
+  });
+
+  test('倍率ラベルのクリックで既定倍率に戻る', () => {
+    const loaded = loadViewerMain({});
+    const [first] = wrapTwoDiagrams(loaded);
+    first.querySelector('.diagram-zoom-in').click();
+
+    first.querySelector('.diagram-zoom-label').click();
+
+    expect(labelOf(first)).toBe(loaded.viewer.zoomLabel(loaded.viewer.ZOOM_DEFAULT));
+    expect(loaded.main._mmdDiagramZoomValue(0)).toBe(loaded.viewer.ZOOM_DEFAULT);
+  });
+});
+
+describe('カラースキーム変更時の再描画', () => {
+  test('直近に描画した内容・型・区切り文字で描き直す', async () => {
+    const loaded = loadViewerMain({ init: false });
+    const colorScheme = installColorSchemeStub(loaded.window);
+    loaded.main._mmdInit();
+    await loaded.main.render('a;b\n', 'csv', ';');
+    // 描画結果を消し、再描画で戻ってくることを観測できる状態にする
+    loaded.document.getElementById('diagram-wrap').innerHTML = '';
+
+    colorScheme.fireChange();
+
+    const cells = Array.from(loaded.document.querySelectorAll('#diagram-wrap th'))
+      .map((th) => th.textContent);
+    // 区切り文字(';')を保持していなければ 1 セルに固まる
+    expect(cells).toEqual(['a', 'b']);
+  });
+
+  test('追記済みのチャンクも含めて描き直す', async () => {
+    const loaded = loadViewerMain({ init: false });
+    const colorScheme = installColorSchemeStub(loaded.window);
+    loaded.main._mmdInit();
+    await loaded.main.render('a\n', 'csv', ',');
+    loaded.main.appendChunk('b\n', 'csv', ',');
+    loaded.document.getElementById('diagram-wrap').innerHTML = '';
+
+    colorScheme.fireChange();
+
+    const rows = Array.from(loaded.document.querySelectorAll('#diagram-wrap tr'))
+      .map((tr) => tr.textContent);
+    expect(rows).toEqual(['a', 'b']);
+  });
+
+  test('まだ何も描画していなければ再描画しない', () => {
+    const loaded = loadViewerMain({ init: false });
+    const colorScheme = installColorSchemeStub(loaded.window);
+    loaded.main._mmdInit();
+
+    colorScheme.fireChange();
+
+    expect(loaded.document.getElementById('diagram-wrap').innerHTML).toBe('');
+  });
+});
+
+describe('行番号表示の反映', () => {
+  const hasLineNumbers = (document) =>
+    document.querySelector('#diagram-wrap table.code-table') !== null;
+
+  test('無効にすると次の描画で行番号が付かない', async () => {
+    const { main, document } = loadViewerMain({});
+    main.setLineNumbers(true);
+    await main.render('a\nb\n', 'code', 'txt');
+    expect(hasLineNumbers(document)).toBe(true);
+
+    main.setLineNumbers(false);
+    await main.render('a\nb\n', 'code', 'txt');
+
+    expect(hasLineNumbers(document)).toBe(false);
+  });
+
+  test('ソース表示にも行番号設定が効く', async () => {
+    const { main, document } = loadViewerMain({});
+    main.setLineNumbers(true);
+    main.setViewMode('source');
+
+    await main.render('a,b\n', 'csv', ',');
+
+    expect(hasLineNumbers(document)).toBe(true);
+  });
+});
+
+describe('PDF の blob URL', () => {
+  // 生成/解放を記録する URL スタブ。ハーネス既定のスタブは解放を観測できない。
+  function installBlobUrlRecorder(window) {
+    const issued = [];
+    const revoked = [];
+    window.URL.createObjectURL = function() {
+      const url = 'blob:https://localhost/recorded-' + issued.length;
+      issued.push(url);
+      return url;
+    };
+    window.URL.revokeObjectURL = function(url) { revoked.push(url); };
+    return { issued, revoked };
+  }
+
+  test('他の型へ切り替えると前回の blob URL を解放する', async () => {
+    const { window, main } = loadViewerMain({});
+    const recorder = installBlobUrlRecorder(window);
+    await main.render('JVBERg==', 'pdf');
+
+    await main.render('a\nb\n', 'code', 'txt');
+
+    expect(recorder.revoked).toEqual(recorder.issued);
+  });
+
+  test('PDF を続けて描画しても解放漏れがない', async () => {
+    const { window, main, document } = loadViewerMain({});
+    const recorder = installBlobUrlRecorder(window);
+
+    await main.render('JVBERg==', 'pdf');
+    await main.render('JVBERg==', 'pdf');
+
+    expect(recorder.issued.length).toBe(2);
+    // 直前の 1 本だけが解放され、表示中の URL は生きている
+    expect(recorder.revoked).toEqual([recorder.issued[0]]);
+    expect(document.querySelector('#diagram-wrap iframe').getAttribute('src'))
+      .toBe(recorder.issued[1]);
+  });
+
+  test('解放済みの blob URL を二重に解放しない', async () => {
+    const { window, main } = loadViewerMain({});
+    const recorder = installBlobUrlRecorder(window);
+    await main.render('JVBERg==', 'pdf');
+    await main.render('a\nb\n', 'code', 'txt');
+
+    await main.render('a\nb\n', 'code', 'txt');
+
+    expect(recorder.revoked.length).toBe(1);
+  });
+});
+
+describe('スクロール位置の復元', () => {
+  test('Swift が注入した位置を次の描画で復元する', async () => {
+    const { main } = loadViewerMain({});
+    main._mmdSetRestoreScroll(120);
+
+    await main.render('a\nb\n', 'code', 'txt');
+
+    expect(main._mmdScrollTarget().scrollTop).toBe(120);
+  });
+
+  test('注入位置は 1 回の描画で消費され、次の描画では現在位置を保つ', async () => {
+    const { main } = loadViewerMain({});
+    main._mmdSetRestoreScroll(120);
+    await main.render('a\nb\n', 'code', 'txt');
+    // ソース表示のスクロール実体は描画のたびに作り直されるため都度取り直す
+    main._mmdScrollTarget().scrollTop = 40;
+
+    // 内部再描画(カラースキーム変更相当)では注入位置は残っていない
+    await main.render('a\nb\n', 'code', 'txt');
+
+    expect(main._mmdScrollTarget().scrollTop).toBe(40);
+  });
+});
+
+describe('スクロール通知のデバウンス', () => {
+  function scroll(loaded) {
+    loaded.document.querySelector('.viewer')
+      .dispatchEvent(new loaded.window.Event('scroll'));
+  }
+
+  test('連続したスクロールは 1 本の通知にまとめる', () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['scrollPositionChanged']);
+    const scheduled = installTimerStub(loaded.window);
+
+    scroll(loaded);
+    scroll(loaded);
+
+    expect(scheduled.length).toBe(2);
+    expect(scheduled[0].cancelled).toBe(true);
+    expect(scheduled[1].delay).toBe(200);
+    expect(received).toEqual([]);
+
+    scheduled[1].fn();
+
+    expect(received.length).toBe(1);
+    expect(received[0].payload.mode).toBe('rendered');
+  });
+
+  test('Swift 主導の切替では保留中の通知を破棄する', async () => {
+    const loaded = loadViewerMain({});
+    const scheduled = installTimerStub(loaded.window);
+    scroll(loaded);
+
+    loaded.main._mmdSetRestoreScroll(0);
+    await loaded.main.render('a\nb\n', 'code', 'txt');
+
+    expect(scheduled[0].cancelled).toBe(true);
+  });
+
+  test('内部再描画では保留中の通知を残す', async () => {
+    const loaded = loadViewerMain({});
+    const scheduled = installTimerStub(loaded.window);
+    scroll(loaded);
+
+    // 注入位置なし(=ファイル/モードは変わらない)の再描画では確定保存を失わない
+    await loaded.main.render('a\nb\n', 'code', 'txt');
+
+    expect(scheduled[0].cancelled).toBe(false);
+  });
+});
+
+describe('mermaid のパースエラー表示', () => {
+  test('mmd 表示ではエラーパネルを出して図の領域を隠す', () => {
+    const { main, document } = loadViewerMain({});
+    // mermaid.min.js は jsdom では読み込めず await が解決しないため、型の記録が
+    // 終わっている同期部分だけを使う(render の型ディスパッチのテストと同じ理由)。
+    main.render('graph TD; A-->B;', 'mmd');
+
+    main._mmdMermaidParseError(new Error('boom'));
+
+    expect(document.getElementById('mmd-error').style.display).toBe('block');
+    expect(document.getElementById('mmd-error').textContent).toBe('boom');
+    expect(document.getElementById('diagram-wrap').style.display).toBe('none');
+  });
+
+  test('Markdown 内の図では図の領域を隠さない', async () => {
+    const { main, document } = loadViewerMain({});
+    // markdown-it 未ロードのハーネスでは本文は縮退するが、型は md として記録される
+    await main.render('# title', 'md');
+
+    main._mmdMermaidParseError(new Error('boom'));
+
+    expect(document.getElementById('mmd-error').style.display).toBe('block');
+    expect(document.getElementById('diagram-wrap').style.display).toBe('block');
   });
 });

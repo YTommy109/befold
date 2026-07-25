@@ -396,10 +396,7 @@ final class ViewerWindowController: NSWindowController {
             return .failed
         }
         let oldURL = fileURL
-        // fileURL・viewMode を書き換える前に、退場側(oldURL・現在のモード)の
-        // スクロール位置を明示的なキーで確定保存する。切替後に保存すると
-        // 退場側の位置が入場側ファイルのキーへ誤って保存されるため、順序が重要。
-        webViewCommands.saveCurrentScrollPosition(for: oldURL, mode: isSourceMode ? .source : .rendered)
+        saveScrollPositionBeforeTransition()
         let restoredSourceMode = perFileState.sourceMode.restoredSourceMode(for: newURL)
         applySourceMode(restoredSourceMode)
         applyURLToWindow(newURL)
@@ -475,6 +472,58 @@ extension ViewerWindowController: SidebarNavigatorHost {
 // MARK: - ViewerToolbarHost
 
 extension ViewerWindowController: ViewerToolbarHost {}
+
+// MARK: - Source Mode
+
+extension ViewerWindowController {
+    /// 表示中ファイル・表示モードを書き換える前に、退場側(現在の URL・現在のモード)の
+    /// スクロール位置を明示的なキーで確定保存する。
+    ///
+    /// 切替後に保存すると、退場側の位置が入場側ファイル・入場側モードのキーへ誤って
+    /// 保存されるため、必ず書き換え前に呼ぶこと。この save-before-mutate の順序制約を
+    /// 負う入口はここだけで、呼び出し点はファイル切替(performFileSwitch)と
+    /// モード切替(setSourceMode)の 2 つ。
+    private func saveScrollPositionBeforeTransition() {
+        webViewCommands.saveCurrentScrollPosition(
+            for: fileURL, mode: ViewerBridge.ViewMode(isSourceMode: isSourceMode)
+        )
+    }
+
+    /// isSourceMode を変更し、store・永続化・モード切替セグメントの表示更新までを一貫して行う。
+    /// ツールバーのモード切替セグメント(ViewerToolbarController)からも ViewerToolbarHost 経由で呼ばれる。
+    func setSourceMode(_ newValue: Bool) {
+        if newValue != isSourceMode {
+            saveScrollPositionBeforeTransition()
+        }
+        applySourceMode(newValue)
+        perFileState.sourceMode.setSourceMode(isSourceMode, for: fileURL)
+    }
+
+    /// isSourceMode を変更し、store への反映とツールバーの表示更新までを一貫して行う。
+    /// 永続化を伴わない復元・強制リセット(init・performFileSwitch・resetSourceMode)は
+    /// 保存値を書き換えないためこちらを使う。
+    /// isSourceMode の変更が store 経由で SwiftUI の更新サイクルをトリガーし、
+    /// ViewerWebView.updateNSView → updateContent が呼ばれ、
+    /// 自動的にモード切替(必要なら再描画)が行われる。
+    private func applySourceMode(_ newValue: Bool) {
+        if isSourceMode != newValue {
+            store.isSourceMode = newValue
+        }
+        refreshToolbarState()
+    }
+
+    /// リネームで表示形式がソース表示非対応になったとき、レンダリング表示へ戻す。
+    /// 保存値は残す(リネーム時のキー付け替えは PerFileStateStore.migrate が行う)。
+    private func resetSourceMode() {
+        applySourceMode(false)
+    }
+
+    /// ソース表示トグルを有効にできるか。レンダリング可能な形式でも、
+    /// サイズ超過などで非対応表示になっている間は切り替え先が不可視なため無効にする。
+    var canToggleSourceMode: Bool {
+        store.fileType.supportsSourceMode && !store.isRejected
+    }
+}
 
 // MARK: - Menu Actions / Validation / NSWindowDelegate
 
@@ -553,40 +602,6 @@ extension ViewerWindowController: NSWindowDelegate {
     /// View > Forward。ファイル履歴を 1 つ進む。
     @objc func goForward(_ sender: Any?) {
         navigateHistory(by: 1)
-    }
-
-    /// isSourceMode を変更し、store・永続化・モード切替セグメントの表示更新までを一貫して行う。
-    /// ツールバーのモード切替セグメント(ViewerToolbarController)からも ViewerToolbarHost 経由で呼ばれる。
-    func setSourceMode(_ newValue: Bool) {
-        // モードを書き換える前に、切替元モードのスクロール位置を確定保存する
-        // (performFileSwitch と同じ理由。切替後に保存すると入場側モードのキーへ誤って保存される)。
-        if newValue != isSourceMode {
-            webViewCommands.saveCurrentScrollPosition(for: fileURL, mode: isSourceMode ? .source : .rendered)
-        }
-        applySourceMode(newValue)
-        perFileState.sourceMode.setSourceMode(isSourceMode, for: fileURL)
-    }
-
-    /// isSourceMode を変更し、store への反映とツールバーの表示更新までを一貫して行う。
-    /// isSourceMode の変更が store 経由で SwiftUI の更新サイクルをトリガーし、
-    /// ViewerWebView.updateNSView → updateContent が呼ばれ、
-    /// 自動的にモード切替(必要なら再描画)が行われる。
-    private func applySourceMode(_ newValue: Bool) {
-        if isSourceMode != newValue {
-            store.isSourceMode = newValue
-        }
-        refreshToolbarState()
-    }
-
-    /// ファイル切り替え時にソース表示状態をレンダリング表示にリセットする。
-    private func resetSourceMode() {
-        applySourceMode(false)
-    }
-
-    /// ソース表示トグルを有効にできるか。レンダリング可能な形式でも、
-    /// サイズ超過などで非対応表示になっている間は切り替え先が不可視なため無効にする。
-    var canToggleSourceMode: Bool {
-        store.fileType.supportsSourceMode && !store.isRejected
     }
 
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
