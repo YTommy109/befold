@@ -5,9 +5,9 @@ import Testing
 
 struct GitRepositoryTests {
     /// 実 git を叩くテスト用のリポジトリ。git 1 回あたりの予算は他のポーリング待機と同じ
-    /// 単一情報源(`BEFOLD_TEST_TIMEOUT_SECONDS`)から採る。本番既定の 10 秒は、
-    /// 数百のテストを並行実行して CPU が飽和した CI では足りず、打ち切りが
-    /// `.undetermined` として観測されて慢性的な赤になっていた。
+    /// 単一情報源(`BEFOLD_TEST_TIMEOUT_SECONDS`)から採る。少コアの CI で数百テストを
+    /// 並行実行すると git の起動自体が遅れうるため、本番既定の 10 秒に縛らず
+    /// CI 側から延ばせるようにしておく。
     private func makeRepository() -> GitRepository {
         GitRepository(runner: GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10)))
     }

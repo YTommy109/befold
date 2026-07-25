@@ -92,14 +92,34 @@ struct GitCommandRunner: Sendable {
         // readDataToEndOfFile を呼び出しスレッドで回して watchdog から terminate() する形だと、
         // git が孫プロセス(フック/エイリアス経由の子)へ標準出力を渡していた場合に
         // git を殺しても pipe が閉じず、結局 timeout が効かない。
+        //
+        // 読み取り先は `DispatchQueue.global` ではなく専用スレッドにする。global は
+        // 非 overcommit の共有ワーカープールで、その本数は `kern.wq_max_constrained_threads`
+        // (実測 64)が上限。これはコア数ではなくプロセス全体・全 QoS 共通の枠なので、
+        // どこか他所がブロッキング処理で 64 本を埋めれば何コアあっても詰まる。
+        // そこへブロックする処理(ここでは EOF 待ちの read)を投げると、読み取りブロック
+        // 自体が起動できず、git はとっくに終わっているのに毎回 timeout まで待って
+        // `.unavailable` になる。CI(数百テスト並行)で実際にこれが起き、パス参照リンクが
+        // 丸ごと死ぬ形の赤になった。予算を延ばしても直らない種類の詰まりのため、
+        // 共有プールに依存しない専用スレッドで確実に読み始める。
+        //
+        // 打ち切り時に残留したときも、共有プールの 1 本を恒久的に食い潰す旧実装と違って
+        // 影響がこのスレッド 1 本に閉じる利点がある。
+        // stackSize は既定(512KB)のまま触らない。このスレッドでは `waitUntilExit()` の
+        // ラン・ループや、fd 破壊時の `NSFileHandleOperationException` のバックトレース
+        // 採取も走るため、切り詰めても仮想アドレス空間しか節約できない一方で
+        // 溢れたときは診断しにくい SIGSEGV に化ける。
         let output = OutputBox()
         let done = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .utility).async {
+        let reader = Thread {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
             output.set(status: process.terminationStatus, data: data)
             done.signal()
         }
+        reader.name = "GitCommandRunner.read"
+        reader.stackSize = 64 * 1024
+        reader.start()
         guard done.wait(timeout: .now() + timeout) == .success else {
             // 打ち切りは呼び出し元(索引のロックを持つ)を解放するだけに留め、読み取り端は閉じない。
             // 読み取りスレッドは孫プロセスが標準出力を離すまで残りうるが、閉じる方が危険:

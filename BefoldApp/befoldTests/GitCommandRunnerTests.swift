@@ -8,8 +8,8 @@ import Testing
 /// 将来のリファクタで静かに落ちないよう引数構築と実挙動の両方で押さえる。
 struct GitCommandRunnerTests {
     /// 実 git を叩くテスト用のランナー。git 1 回あたりの予算は他のポーリング待機と同じ
-    /// 単一情報源(`BEFOLD_TEST_TIMEOUT_SECONDS`)から採る。本番既定の 10 秒は、
-    /// 数百のテストを並行実行して CPU が飽和した CI では足りない。
+    /// 単一情報源(`BEFOLD_TEST_TIMEOUT_SECONDS`)から採る。少コアの CI で数百テストを
+    /// 並行実行すると git の起動自体が遅れうるため、本番既定の 10 秒に縛らない。
     private func makeRunner() -> GitCommandRunner {
         GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10))
     }
@@ -89,14 +89,67 @@ struct GitCommandRunnerTests {
     /// 無関係な読み取りを壊す。CI では実際に SIGABRT でテストプロセスが落ちた。
     @Test("打ち切り後に読み取りスレッドが動いてもクラッシュしない", .timeLimit(.minutes(1)))
     func survivesTimeoutBeforeReadStarts() {
-        // 読み取りスレッドが起動する前に打ち切りへ入る状況を確定させるため予算 0 で回す。
-        // 落ちるのはプロセス全体なので、繰り返して取りこぼしを減らす。
-        for _ in 0 ..< 20 {
-            #expect(GitCommandRunner(timeout: 0).run(["--version"]) == .unavailable)
+        // 読み取りスレッドが起動する前に打ち切りへ入りやすいよう予算 0 で回す。
+        // どちらが先着するかは競争なので 1 回ごとの結果は固定できない(読み取りが
+        // 間に合えば出力が返る)。ここで確かめたいのは打ち切り経路を通ってもプロセスが
+        // 生きていることそのもので、落ちれば実行全体が落ちて検知される。
+        var timedOutCount = 0
+        for _ in 0 ..< 20 where GitCommandRunner(timeout: 0).run(["--version"]) == .unavailable {
+            timedOutCount += 1
         }
+
+        // 20 回とも読み取りが先着すると打ち切り経路を一度も通らず、このテストは
+        // 無検証でグリーンになる。予算 0 では起動〜EOF〜reap が同一瞬間に終わらない限り
+        // 必ず打ち切られるため、1 回以上を要求してもフレークしない。
+        #expect(timedOutCount >= 1)
 
         // 打ち切り後も後続の git 実行が壊れていないこと(fd を壊していないこと)を確かめる。
         #expect(GitCommandRunner().run(["--version"]) != .unavailable)
+    }
+
+    /// 読み取りを `DispatchQueue.global` に投げていると、共有ワーカープールが他所の
+    /// ブロッキング処理で埋まっているときに読み取り自体が起動できず、git が正常終了
+    /// していても毎回タイムアウトして `.unavailable` になる(CI で実際に発生した)。
+    /// 予算を延ばしても直らないため、共有プールに依存しないことをここで固定する。
+    ///
+    /// 検証のためプールを一時的に埋める。この飽和は QoS を問わずプロセス全体の
+    /// `DispatchQueue.global` を止めるため、窓は可能な限り短く保つ:
+    /// 固定 sleep ではなく起動ハンドシェイクで飽和の成立を検出し、git 実行を挟んだら
+    /// defer で必ず解放する。ハンドシェイクは検証力の担保も兼ねる。固定 sleep では
+    /// 負荷の高い CI で 1 本も掴めていなくても素通りし、無検証でグリーンになりうる。
+    @Test("共有ワーカープールが埋まっていても git の結果を取りこぼさない", testTimeLimit())
+    func readsOutputWhileGlobalQueueIsSaturated() {
+        // 非 overcommit プールの上限(`kern.wq_max_constrained_threads`、実測 64)より
+        // 多めに投げる。他のテストが既に何本か握っていても飽和が成立する。
+        // 上限を超えた分は起動できないまま滞留するので、全部の起動は待てない。
+        let blockerCount = 80
+        let blocker = DispatchSemaphore(value: 0)
+        let started = DispatchSemaphore(value: 0)
+        defer {
+            // 起動できなかったブロックも、ワーカーが空き次第起動して 1 つ消費する。
+            // 投げた数だけ signal しておけば全部が確実に抜ける。
+            for _ in 0 ..< blockerCount {
+                blocker.signal()
+            }
+        }
+        for _ in 0 ..< blockerCount {
+            DispatchQueue.global(qos: .utility).async {
+                started.signal()
+                blocker.wait()
+            }
+        }
+
+        // 新しい起動が止まった時点が飽和の成立。何本目で止まるかは他テストの占有状況に
+        // 依存するので数は固定できないが、「もう起動できない」こと自体が飽和の定義なので
+        // 検証力は本数に依らない。
+        var startedCount = 0
+        while startedCount < blockerCount, started.wait(timeout: .now() + 0.2) == .success {
+            startedCount += 1
+        }
+        // 1 本も掴めていなければ飽和させられておらず、この後の判定は無意味になる。
+        #expect(startedCount > 0)
+
+        #expect(makeRunner().run(["--version"]) != .unavailable)
     }
 
     /// 無害化オプションを通さずに git を実行する(対照用)。

@@ -1,5 +1,6 @@
 @testable import befold_cli
 @testable import BefoldCLI
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -17,7 +18,10 @@ struct DistributedAckWaiterIntegrationTests {
 
         CLIRequestWire.sendAck(requestID: requestID)
 
-        #expect(await waiter.wait(timeout: 5))
+        // プロセス間通知の配送待ちは負荷で伸びるため、待機予算は他のポーリング待機と
+        // 同じ単一情報源(`BEFOLD_TEST_TIMEOUT_SECONDS`)から採る。固定 5 秒では
+        // 並行実行で負荷が上がったときに取りこぼしと区別が付かず散発的に赤くなる。
+        #expect(await waiter.wait(timeout: testTimeoutSeconds(fallback: 5)))
     }
 
     @Test("別の requestID の ACK は観測しない")
