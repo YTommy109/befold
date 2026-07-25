@@ -1,10 +1,10 @@
-@testable import befold
 import BefoldKit
 import Foundation
 import Testing
 
+/// ViewerBridge が組み立てるスクリプト文字列そのものの検証。
+/// 同梱 JS/HTML との突合(契約のドリフト検知)は ViewerBridgeContractTests が担う。
 @Suite
-@MainActor // ZoomStore(@MainActor)の static 定数を参照するため
 struct ViewerBridgeTests {
     @Test("render 呼び出しの content が JSON エスケープされる")
     func renderScriptEscapesContentAsJSON() throws {
@@ -171,9 +171,20 @@ struct ViewerBridgeTests {
         #expect(script.hasSuffix(";"))
     }
 
-    @Test("openFindScript が固定の呼び出し文字列である")
-    func openFindScriptIsFixedCall() {
+    /// PlainFunction から導出される呼び出しスクリプト定数の実値を固定する
+    /// (JS 側の関数名と 1 文字単位で対応していることの回帰防止)。
+    @Test("引数なし呼び出しスクリプト定数が固定の文字列である")
+    func plainCallScriptsAreFixedStrings() {
+        #expect(ViewerBridge.zoomInScript == "_mmdZoomIn()")
+        #expect(ViewerBridge.zoomOutScript == "_mmdZoomOut()")
+        #expect(ViewerBridge.zoomResetScript == "_mmdZoomReset()")
         #expect(ViewerBridge.openFindScript == "_mmdOpenFind()")
+        #expect(ViewerBridge.findNextScript == "_mmdFindNextIfOpen()")
+        #expect(ViewerBridge.findPrevScript == "_mmdFindPrevIfOpen()")
+        #expect(
+            ViewerBridge.currentScrollPositionScript
+                == "(function() { var el = _mmdScrollTarget(); return el ? el.scrollTop : 0; })()"
+        )
     }
 
     @Test("findOptionsChangedMessageName が固定値である")
@@ -218,161 +229,5 @@ struct ViewerBridgeTests {
         for key in expectedKeys {
             #expect(decoded[key]?.isEmpty == false)
         }
-    }
-
-    /// bannerStringsScript が注入する各キーが viewer-main.js 側で `strings.<key>` として
-    /// 読まれていることを検証する(タイポ時に英語文言へ静かに縮退するのを検知する)。
-    @Test("bannerStrings の各キーが viewer-main.js で読み取られている")
-    func bannerStringsKeysAreReadInJS() throws {
-        let js = try String(contentsOf: resourceURL("viewer-main.js"), encoding: .utf8)
-        let keys = try bridgeGlobalKeys(
-            from: ViewerBridge.bannerStringsScript(), global: "window._mmdBannerStrings"
-        )
-        #expect(!keys.isEmpty)
-        for key in keys {
-            #expect(js.contains("strings.\(key)"), "banner キー '\(key)' が viewer-main.js で読まれていない")
-        }
-    }
-
-    /// findStringsScript が注入する 8 キーが viewer-main.js 側で `strings.<key>` として
-    /// 読まれていることを検証する。
-    @Test("findStrings の各キーが viewer-main.js で読み取られている")
-    func findStringsKeysAreReadInJS() throws {
-        let js = try String(contentsOf: resourceURL("viewer-main.js"), encoding: .utf8)
-        let keys = try bridgeGlobalKeys(
-            from: ViewerBridge.findStringsScript(), global: "window._mmdFindStrings"
-        )
-        #expect(keys.count == 8)
-        for key in keys {
-            #expect(js.contains("strings.\(key)"), "find キー '\(key)' が viewer-main.js で読まれていない")
-        }
-    }
-
-    /// FileType.jsValue が viewer-main.js の render() 分岐名と対応していることを検証する。
-    /// markdown('md') は明示分岐を持たず else(既定)で処理されるため対象外。
-    @Test("FileType.jsValue が render() の type 分岐に対応している")
-    func fileTypeJSValuesMatchRenderBranches() throws {
-        let js = try String(contentsOf: resourceURL("viewer-main.js"), encoding: .utf8)
-        let fileTypes: [FileType] = [
-            .mmd, .markdown, .svg, .html, .csv(delimiter: ","),
-            .image(mimeType: "image/png"), .pdf, .code(language: "swift"),
-        ]
-        for fileType in fileTypes {
-            let value = fileType.jsValue
-            if value == "md" { continue }
-            #expect(js.contains("type === '\(value)'"), "render() に type === '\(value)' 分岐がない")
-        }
-    }
-
-    /// `global = { ... };` 形式のスクリプトから、注入される JSON オブジェクトのキー集合を取り出す。
-    private func bridgeGlobalKeys(from script: String, global: String) throws -> [String] {
-        let jsonPart = script
-            .replacingOccurrences(of: "\(global) = ", with: "")
-            .trimmingCharacters(in: CharacterSet(charactersIn: ";"))
-        let data = try #require(jsonPart.data(using: .utf8))
-        let decoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-        return Array(decoded.keys)
-    }
-
-    /// ViewerBridge が参照する JS 関数・メッセージ名が viewer.html / viewer-main.js に
-    /// 実在することをリポジトリ内のソースを読んで検証する(ブリッジ契約のドリフト検知)。
-    /// インライン <script> は CSP の script-src から 'unsafe-inline' を除去する
-    /// ために viewer-main.js へ外部化したため、
-    /// 両ファイルの内容を連結して検証する(どちらに定義があっても検知できる)。
-    @Test("ViewerBridge の関数名が viewer.html / viewer-main.js に定義されている")
-    func bridgeFunctionsExistInViewerHTML() throws {
-        let viewerHTML = try String(contentsOf: resourceURL("viewer.html"), encoding: .utf8)
-        let viewerMainJS = try String(contentsOf: resourceURL("viewer-main.js"), encoding: .utf8)
-        let html = viewerHTML + viewerMainJS
-
-        #expect(html.contains("async function render(content, type, lang)"))
-        #expect(html.contains("function _mmdZoomIn()"))
-        #expect(html.contains("function _mmdZoomOut()"))
-        #expect(html.contains("function _mmdZoomReset()"))
-        #expect(html.contains("_MSG_ZOOM_CHANGED = '\(ViewerBridge.zoomChangedMessageName)'"))
-        #expect(html.contains("_MSG_REFERENCE_ACTIVATED = '\(ViewerBridge.referenceActivatedMessageName)'"))
-        #expect(html.contains("_MSG_FIND_OPTIONS_CHANGED = '\(ViewerBridge.findOptionsChangedMessageName)'"))
-        #expect(html.contains("_MSG_SCROLL_POSITION_CHANGED = '\(ViewerBridge.scrollPositionChangedMessageName)'"))
-        #expect(html.contains("_MSG_LOAD_MORE_LINES = '\(ViewerBridge.loadMoreLinesMessageName)'"))
-        #expect(html.contains("function _mmdPostMessage(name, payload)"))
-        #expect(html.contains("_mmdPostMessage(_MSG_ZOOM_CHANGED,"))
-        #expect(html.contains("_mmdPostMessage(_MSG_REFERENCE_ACTIVATED,"))
-        #expect(html.contains("_mmdPostMessage(_MSG_FIND_OPTIONS_CHANGED,"))
-        #expect(html.contains("_mmdPostMessage(_MSG_SCROLL_POSITION_CHANGED,"))
-        #expect(html.contains("_mmdPostMessage(_MSG_LOAD_MORE_LINES,"))
-        #expect(html.contains("window._mmdInitialZoom"))
-        #expect(html.contains("window._mmdSystemFontSize"))
-        #expect(html.contains("function setViewMode(mode)"))
-        #expect(html.contains("function _mmdInitZoom()"))
-        #expect(html.contains("function setLineNumbers(show)"))
-        #expect(html.contains("function _mmdSetTruncated(isTruncated, lineCount, failed)"))
-        #expect(html.contains("function _mmdLoadMore()"))
-        #expect(html.contains("window._mmdBannerStrings"))
-        #expect(html.contains("window._mmdHostFeatures"))
-        #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'loadMore')"))
-        #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'spaceScroll')"))
-        // referenceActivated/loadMoreLines の postMessage 発火は hostFeatures で
-        // 多層防御する(Swift 側はハンドラ未登録、JS 側はここで呼び出し自体を抑止)。
-        #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')"))
-        #expect(html.contains("function _mmdSetRestoreScroll(position)"))
-        #expect(html.contains("function _mmdScrollTarget()"))
-        #expect(html.contains("function _mmdOpenFind()"))
-        #expect(html.contains("function _mmdCloseFind()"))
-        #expect(html.contains("function _mmdFindRefresh(resetToFirst)"))
-        #expect(html.contains("window._mmdInitialFindOptions"))
-        #expect(html.contains("window._mmdFindStrings"))
-        #expect(html.contains("function appendChunk(text, type, lang)"))
-    }
-
-    /// CSP の script-src に 'unsafe-inline' が残っていないことを検証する。
-    /// アプリの JS は全て viewer.js / viewer-main.js 等の外部ファイルから読み込み、
-    /// インライン <script> を使わない設計になったため、XSS がサニタイザ層を
-    /// すり抜けても CSP がインライン script/イベントハンドラの実行をブロックできる。
-    @Test("CSP の script-src から 'unsafe-inline' が削除されている")
-    func cspScriptSrcHasNoUnsafeInline() throws {
-        let html = try String(contentsOf: resourceURL("viewer.html"), encoding: .utf8)
-
-        let cspLine = try #require(
-            html.split(separator: "\n").first { $0.contains("Content-Security-Policy") }
-        )
-        let scriptSrcDirective = try #require(
-            cspLine.split(separator: ";").first { $0.trimmingCharacters(in: .whitespaces).hasPrefix("script-src") }
-        )
-        #expect(!scriptSrcDirective.contains("unsafe-inline"))
-        #expect(!html.contains("<script>\n"))
-    }
-
-    @Test("viewer.js の ZOOM_MIN / ZOOM_MAX が ZoomStore の範囲と一致する")
-    func zoomRangeMatchesZoomStore() throws {
-        let js = try String(contentsOf: resourceURL("viewer.js"), encoding: .utf8)
-
-        #expect(js.contains("var ZOOM_MIN = \(ZoomStore.minZoom);"))
-        #expect(js.contains("var ZOOM_MAX = \(ZoomStore.maxZoom);"))
-    }
-
-    @Test("viewer.js の ZOOM_STEP が ZoomStore.zoomStep と一致する")
-    func zoomStepMatchesZoomStore() throws {
-        let js = try String(contentsOf: resourceURL("viewer.js"), encoding: .utf8)
-
-        #expect(js.contains("var ZOOM_STEP = \(ZoomStore.zoomStep);"))
-    }
-
-    @Test("viewer.js の ZOOM_DEFAULT が ZoomStore.defaultZoom と一致する")
-    func zoomDefaultMatchesZoomStore() throws {
-        let js = try String(contentsOf: resourceURL("viewer.js"), encoding: .utf8)
-
-        #expect(js.contains("var ZOOM_DEFAULT = \(Int(ZoomStore.defaultZoom));"))
-    }
-
-    /// BefoldKit のリソースバンドルから、ビルド成果物に実際に含まれるリソース URL を返す。
-    private func resourceURL(_ name: String) -> URL {
-        let url = URL(fileURLWithPath: name)
-        guard let resourceURL = Bundle.befoldKitResources.url(
-            forResource: url.deletingPathExtension().lastPathComponent,
-            withExtension: url.pathExtension
-        ) else {
-            fatalError("BefoldKit リソースが見つかりません: \(name)")
-        }
-        return resourceURL
     }
 }

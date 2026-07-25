@@ -16,9 +16,34 @@ public enum ViewerBridge {
     /// payload: { href: String, newWindow: Bool }
     public static let referenceActivatedMessageName = "referenceActivated"
 
-    public static let zoomInScript = "_mmdZoomIn()"
-    public static let zoomOutScript = "_mmdZoomOut()"
-    public static let zoomResetScript = "_mmdZoomReset()"
+    /// Swift から引数なしで呼び出す JS 関数。呼び出しスクリプト文字列と、JS 側の定義
+    /// トークン(存在検証に使う)をこの 1 箇所から導出し、生リテラルの二重管理をなくす。
+    public enum PlainFunction: String, CaseIterable, Sendable {
+        case zoomIn = "_mmdZoomIn"
+        case zoomOut = "_mmdZoomOut"
+        case zoomReset = "_mmdZoomReset"
+        /// 注入済みの _mmdInitialZoom を読んで即時反映する(applyZoomScript が使う)。
+        case initZoom = "_mmdInitZoom"
+        /// スクロール対象要素を返す(currentScrollPositionScript が使う)。
+        case scrollTarget = "_mmdScrollTarget"
+        case openFind = "_mmdOpenFind"
+        case findNextIfOpen = "_mmdFindNextIfOpen"
+        case findPrevIfOpen = "_mmdFindPrevIfOpen"
+
+        /// `_mmdZoomIn()` 形式の呼び出しスクリプト。
+        public var callScript: String {
+            "\(rawValue)()"
+        }
+
+        /// JS 側にこの関数が実在することを検証するための定義トークン。
+        public var definitionToken: String {
+            "function \(rawValue)()"
+        }
+    }
+
+    public static let zoomInScript = PlainFunction.zoomIn.callScript
+    public static let zoomOutScript = PlainFunction.zoomOut.callScript
+    public static let zoomResetScript = PlainFunction.zoomReset.callScript
 
     /// ロード時にファイル毎の初期倍率を注入するスクリプト。
     public static func initialZoomScript(_ zoom: Double) -> String {
@@ -28,7 +53,7 @@ public enum ViewerBridge {
     /// 表示中ファイルの切り替え時などに、保存済み倍率を注入し直して即時反映する
     /// スクリプト。viewer.html 側は _mmdInitZoom() が _mmdInitialZoom を読んで適用する。
     public static func applyZoomScript(_ zoom: Double) -> String {
-        initialZoomScript(zoom) + " _mmdInitZoom();"
+        initialZoomScript(zoom) + " \(PlainFunction.initZoom.callScript);"
     }
 
     /// ロード時にシステム本文フォントサイズ(pt)を注入するスクリプト。
@@ -85,7 +110,8 @@ public enum ViewerBridge {
     /// 切替直前に、退場側の正確な位置を明示的なキー(旧 URL・旧モード)へ保存するために使う
     /// (詳細は ViewerWindowController.saveScrollPositionBeforeTransition 参照)。
     public static let currentScrollPositionScript =
-        "(function() { var el = _mmdScrollTarget(); return el ? el.scrollTop : 0; })()"
+        "(function() { var el = \(PlainFunction.scrollTarget.callScript); " +
+        "return el ? el.scrollTop : 0; })()"
 
     /// レンダリング表示とソース表示の切り替えモード。
     public enum ViewMode: String, Sendable {
@@ -154,13 +180,13 @@ public enum ViewerBridge {
     }
 
     /// 検索バーを開く(未オープンなら表示してフォーカス)スクリプト。
-    public static let openFindScript = "_mmdOpenFind()"
+    public static let openFindScript = PlainFunction.openFind.callScript
 
     /// 次のマッチへ移動するスクリプト。検索バーが閉じている間は JS 側で無視される。
-    public static let findNextScript = "_mmdFindNextIfOpen()"
+    public static let findNextScript = PlainFunction.findNextIfOpen.callScript
 
     /// 前のマッチへ移動するスクリプト。検索バーが閉じている間は JS 側で無視される。
-    public static let findPrevScript = "_mmdFindPrevIfOpen()"
+    public static let findPrevScript = PlainFunction.findPrevIfOpen.callScript
 
     /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったときに
     /// postMessage されるメッセージハンドラ名。
@@ -203,4 +229,41 @@ public enum ViewerBridge {
         ]
         return assignGlobalScript("window._mmdFindStrings", strings)
     }
+
+    // MARK: - ペイロードキー(JS → Swift)
+
+    /// postMessage のペイロードオブジェクトのキー。Swift の読み取り側(ViewerRenderer)と
+    /// JS の送信側(viewer-main.js)で同じ名前を使う必要があるため、ここを単一情報源にする
+    /// (JS 側との突合は ViewerBridgePayloadContractTests がソースを読んで検証する)。
+    public enum PayloadKey {
+        /// referenceActivated のキー。
+        public enum ReferenceActivated: String, CaseIterable, Sendable {
+            case href
+            case newWindow
+        }
+
+        /// scrollPositionChanged のキー。
+        public enum ScrollPositionChanged: String, CaseIterable, Sendable {
+            case position
+            case mode
+        }
+
+        /// findOptionsChanged のキー。
+        public enum FindOptionsChanged: String, CaseIterable, Sendable {
+            case caseSensitive
+            case wholeWord
+            case useRegex
+        }
+    }
+
+    /// メッセージ名 → JS がオブジェクトとして送るペイロードのキー集合。
+    /// zoomChanged は裸の数値を送るためキーを持たず、この表には登録しない。
+    /// 契約テストは JS 側の全 postMessage 呼び出しを走査してこの表と突合するため、
+    /// オブジェクトを送るメッセージを JS 側に追加してここへ登録しないとテストが失敗する。
+    public static let payloadKeysByMessageName: [String: Set<String>] = [
+        referenceActivatedMessageName: Set(PayloadKey.ReferenceActivated.allCases.map(\.rawValue)),
+        scrollPositionChangedMessageName: Set(PayloadKey.ScrollPositionChanged.allCases.map(\.rawValue)),
+        findOptionsChangedMessageName: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue)),
+        loadMoreLinesMessageName: [],
+    ]
 }
