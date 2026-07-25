@@ -83,7 +83,7 @@ public enum ViewerBridge {
 
     /// 現在のスクロール位置(scrollTop)を同期的に取得するスクリプト。ファイル/モード
     /// 切替直前に、退場側の正確な位置を明示的なキー(旧 URL・旧モード)へ保存するために使う
-    /// (詳細は ViewerWindowController.saveCurrentScrollPosition 参照)。
+    /// (詳細は ViewerWindowController.saveScrollPositionBeforeTransition 参照)。
     public static let currentScrollPositionScript =
         "(function() { var el = _mmdScrollTarget(); return el ? el.scrollTop : 0; })()"
 
@@ -91,6 +91,12 @@ public enum ViewerBridge {
     public enum ViewMode: String, Sendable {
         case rendered
         case source
+
+        /// ソース表示中かどうかの Bool からモードを決める。アプリ側の状態(store.isSourceMode や
+        /// 描画済みミラー)は Bool で持つため、その写像をここ 1 箇所に集約する。
+        public init(isSourceMode: Bool) {
+            self = isSourceMode ? .source : .rendered
+        }
     }
 
     /// setViewMode(mode) 呼び出しを組み立てる。

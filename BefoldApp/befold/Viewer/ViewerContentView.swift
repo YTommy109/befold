@@ -25,8 +25,7 @@ struct ViewerContentView: View {
 
     private var currentScrollPosition: Double {
         guard let url = store.filePath else { return 0 }
-        let mode: ViewerBridge.ViewMode = store.isSourceMode ? .source : .rendered
-        return scrollPositionStore.scrollPosition(for: url, mode: mode)
+        return scrollPositionStore.scrollPosition(for: url, mode: .init(isSourceMode: store.isSourceMode))
     }
 
     /// サイドバーの選択状態から、プレビューエリアが表示すべき対象を決める。

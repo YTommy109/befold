@@ -63,7 +63,7 @@ extension ViewerRenderer {
         }
         if isSourceMode != rendered.isSourceMode {
             webView.evaluateJavaScript(
-                ViewerBridge.viewModeScript(isSourceMode ? .source : .rendered)
+                ViewerBridge.viewModeScript(.init(isSourceMode: isSourceMode))
             )
             rendered.isSourceMode = isSourceMode
         }
