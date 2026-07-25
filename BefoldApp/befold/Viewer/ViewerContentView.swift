@@ -8,10 +8,8 @@ struct ViewerContentView: View {
     let scrollPositionStore: ScrollPositionStore
     let findOptionsPreference: FindOptionsPreference
     let fileListModel: FileListModel
-    let onZoomChanged: @MainActor (Double) -> Void
-    let onScrollPositionChanged: @MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void
-    let onOpenReference: @MainActor (_ href: String, _ newWindow: Bool) -> Void
-    let onResolveReferences: @MainActor (_ paths: [String]) async -> [String: String]
+    /// JS 側の出来事の通知先(倍率・スクロール位置・リンク・パス解決・続きを読み込む)。
+    let rendererDelegate: WeakRendererDelegate
     let onSelectFile: (URL) -> Void
     let onNavigateToFolder: (URL) -> Void
     let webViewProxy: WebViewProxy
@@ -57,13 +55,7 @@ struct ViewerContentView: View {
                     loadFailed: store.loadFailed,
                     initialZoom: currentZoom,
                     scrollPositionToRestore: currentScrollPosition,
-                    onScrollPositionChanged: onScrollPositionChanged,
-                    onZoomChanged: onZoomChanged,
-                    onLoadMoreLines: {
-                        await store.loadMoreLines()
-                    },
-                    onOpenReference: onOpenReference,
-                    onResolveReferences: onResolveReferences,
+                    rendererDelegate: rendererDelegate,
                     findOptionsPreference: findOptionsPreference,
                     webViewProxy: webViewProxy,
                     rendererFeatures: .allEnabled

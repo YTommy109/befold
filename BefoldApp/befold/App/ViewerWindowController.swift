@@ -256,21 +256,7 @@ final class ViewerWindowController: NSWindowController {
             scrollPositionStore: perFileState.scrollPosition,
             findOptionsPreference: findOptionsPreference,
             fileListModel: fileListModel,
-            // 現在の fileURL は rename で書き換わるため、旧値を捕捉せず self 経由で参照する
-            onZoomChanged: { [weak self] zoom in
-                guard let self else { return }
-                perFileState.zoom.setZoom(zoom, for: fileURL)
-            },
-            onScrollPositionChanged: { [weak self] position, mode in
-                guard let self else { return }
-                perFileState.scrollPosition.setScrollPosition(position, for: fileURL, mode: mode)
-            },
-            onOpenReference: { [weak self] href, newWindow in
-                self?.handleOpenReference(href: href, newWindow: newWindow)
-            },
-            onResolveReferences: { [weak self] paths in
-                await self?.resolveReferences(paths) ?? [:]
-            },
+            rendererDelegate: WeakRendererDelegate(self),
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
             webViewProxy: webViewProxy
@@ -474,6 +460,33 @@ extension ViewerWindowController: SidebarNavigatorHost {
     /// (ViewerWindowManager.applyDisplayOverrides)のような外部要因からも呼ばれる。
     func refreshToolbarState() {
         toolbarController.refreshToolbarState()
+    }
+}
+
+// MARK: - ViewerRendererDelegate
+
+extension ViewerWindowController: ViewerRendererDelegate {
+    /// 現在の fileURL は rename で書き換わるため、旧値を捕捉せず呼び出しのたびに参照する。
+    func renderer(_: ViewerRenderer, didChangeZoom zoom: Double) {
+        perFileState.zoom.setZoom(zoom, for: fileURL)
+    }
+
+    func renderer(
+        _: ViewerRenderer, didChangeScrollPosition position: Double, mode: ViewerBridge.ViewMode
+    ) {
+        perFileState.scrollPosition.setScrollPosition(position, for: fileURL, mode: mode)
+    }
+
+    func renderer(_: ViewerRenderer, didActivateReference href: String, newWindow: Bool) {
+        handleOpenReference(href: href, newWindow: newWindow)
+    }
+
+    func renderer(_: ViewerRenderer, resolveReferences paths: [String]) async -> [String: String] {
+        await resolveReferences(paths)
+    }
+
+    func rendererDidRequestMoreLines(_: ViewerRenderer) async -> LoadMoreLinesResult? {
+        await store.loadMoreLines()
     }
 }
 

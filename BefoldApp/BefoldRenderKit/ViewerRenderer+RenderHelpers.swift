@@ -15,7 +15,7 @@ extension ViewerRenderer {
         isLoadingMoreLines = true
         Task { @MainActor [self] in
             defer { isLoadingMoreLines = false }
-            guard let result = await onLoadMoreLines?() else { return }
+            guard let result = await delegate?.rendererDidRequestMoreLines(self) else { return }
             // updateContent が消費する前に次の続き読み込みが完了した場合(SwiftUI 更新の
             // 合体)に備え、未消費チャンクへ連結する。上書きすると先行チャンクが DOM へ
             // 追記されないまま失われるため、必ず累積する。revision は最新値を採る。
