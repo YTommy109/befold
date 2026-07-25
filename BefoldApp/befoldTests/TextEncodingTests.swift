@@ -53,9 +53,19 @@ struct TextEncodingTests {
         let large = try #require(String(repeating: line, count: 100_000).data(using: .shiftJIS))
         #expect(large.count > small.count * 15)
 
+        // 1 回きりの計測だと、先に測る small 側だけが page-in や String/ICU の遅延初期化を
+        // 負担して数倍に膨らみ、比率での判定が緩む(逆に large 側がスケジューラ揺らぎで
+        // 上振れすると誤って赤くなる)。ウォームアップしてから複数回計測の最小値を採り、
+        // どちらの向きの一過性ノイズも取り除く。
+        _ = TextEncoding.detectEncoding(small)
+        _ = TextEncoding.detectEncoding(large)
+
         let clock = ContinuousClock()
-        let elapsedSmall = clock.measure { _ = TextEncoding.detectEncoding(small) }
-        let elapsedLarge = clock.measure { _ = TextEncoding.detectEncoding(large) }
+        func minElapsed(of body: () -> Void) -> Duration {
+            (0 ..< 5).map { _ in clock.measure(body) }.min() ?? .zero
+        }
+        let elapsedSmall = minElapsed { _ = TextEncoding.detectEncoding(small) }
+        let elapsedLarge = minElapsed { _ = TextEncoding.detectEncoding(large) }
 
         // データ量は 20 倍。全走査していれば所要時間も概ね 20 倍になる。
         // 5 倍 + 固定スラック(計測ノイズ吸収)を超えたら線形走査を疑う。
