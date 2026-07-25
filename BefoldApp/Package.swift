@@ -14,10 +14,7 @@ let package = Package(
     targets: [
         .target(
             name: "BefoldCLI",
-            dependencies: [
-                "BefoldKit",
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            ],
+            dependencies: ["BefoldKit"],
             path: "BefoldCLI",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
@@ -60,7 +57,6 @@ let package = Package(
                 "BefoldCLI",
                 "BefoldRenderKit",
                 .product(name: "Sparkle", package: "Sparkle"),
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "befold",
             exclude: ["Info.plist", "befold.entitlements"],
