@@ -1,11 +1,11 @@
 ---
 id: TASK-122
 title: ドキュメント内のファイルパス参照を表示時に解決してリンク化する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-07-24 12:53'
-updated_date: '2026-07-25 10:21'
+updated_date: '2026-07-25 10:28'
 labels: []
 dependencies: []
 documentation:
@@ -23,8 +23,8 @@ ordinal: 200000
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 ドキュメントに書かれたファイルパスのうち、実ファイルに解決できたものだけがクリック可能なリンクとして表示される
-- [ ] #2 解決できないパスは通常テキストで表示され、クリック可能に見えない（偽リンクを出さない）
-- [ ] #3 リンクをクリックすると対象ファイルが befold で開く（無修飾=同一ウィンドウ、Cmd=新規ウィンドウ）。プロトコル付き(http(s) 等)はリンク維持、#アンカーはページ内スクロール
+- [x] #2 解決できないパスは通常テキストで表示され、クリック可能に見えない（偽リンクを出さない）
+- [x] #3 リンクをクリックすると対象ファイルが befold で開く（無修飾=同一ウィンドウ、Cmd=新規ウィンドウ）。プロトコル付き(http(s) 等)はリンク維持、#アンカーはページ内スクロール
 - [x] #4 開いているファイル基準の相対パス・絶対パスで実在するものは git 管理外でも解決・リンク化される
 - [x] #5 git リポジトリ配下では、相対で解決できないパスも git 追跡ファイル(git ls-files)への構成要素単位サフィックス一致で解決し、候補が複数ある場合は開いているファイルに最も近いものを決定論的に選ぶ
 - [x] #6 外部での git ブランチ/ワークツリー切替・commit 後、リンク解決が最新の追跡ファイル集合に追従する
@@ -63,4 +63,12 @@ AC #2 / #3 の見た目・対話部分（リンク色/下線と素のテキス�
 
 ### 後続タスク
 TASK-144（resolveReferences の async 化）に、キャッシュ cold 時のメインスレッド git 実行、ウィンドウ間共有ロックの別リポジトリ間での待ち増加、アプリ寿命キャッシュの eviction 不在、GitCommandRunner のタイムアウト不在を集約済み。
+
+AC #2 / #3 は実アプリでの目視確認により検証済み（ユーザー確認）。リンク色/下線と素のテキストの描き分け、無修飾クリックでの同一ウィンドウ遷移、Cmd クリックでの新規ウィンドウ、#アンカーのページ内スクロールを確認。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ドキュメント中のファイルパス参照を表示時に解決し、実在するもの（相対/絶対、および git 追跡ファイルへの構成要素単位サフィックス一致）だけをクリック可能なリンクとして表示するようにした。解決を表示時に前倒しし、実在しないパスはリンクにしないことで「リンクに見えるのに開けない」偽リンクをなくした。純ロジック（SuffixPathMatcher / TrackedPathResolver）は BefoldKit、git の Process 実行（GitCommandRunner / GitRepository / GitCommandFileIndex）は app 層に分離し、キャッシュは .git/index の fingerprint で無効化して外部のブランチ切替・commit に追従する。表示時とクリック時は同じ TrackedPathResolver を使う単一情報源。最終レビューで、git 実行が開いた文書のリポジトリ設定由来の core.fsmonitor を実行する任意コマンド実行を発見し、GitCommandRunner で封鎖した（git 2.54.0 で再現・ミューテーション検証済み）。検証: swift test 680 件全通過、npx jest 295 件全通過、webview-smoke PASS、および実アプリでの目視確認。
+<!-- SECTION:FINAL_SUMMARY:END -->
