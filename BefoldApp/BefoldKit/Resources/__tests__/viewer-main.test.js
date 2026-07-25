@@ -2,7 +2,9 @@
 // エクスポート境界の導入により、jsdom + viewer.html の DOM 上でロジックを
 // 読み込み・初期化・単体呼び出しできることを確認する。
 
-const { loadViewerMain, captureBridgeMessages } = require('./support/viewerMainHarness');
+const {
+  loadViewerMain, captureBridgeMessages, dispatchTrustedClick,
+} = require('./support/viewerMainHarness');
 
 // カラースキーム変更を発火できる matchMedia に差し替える。ハーネス既定のスタブは
 // addEventListener が空実装のため、change を流すテストだけここで置き換える
@@ -861,5 +863,170 @@ describe('mermaid のパースエラー表示', () => {
 
     expect(document.getElementById('mmd-error').style.display).toBe('block');
     expect(document.getElementById('diagram-wrap').style.display).toBe('block');
+  });
+});
+
+describe('パス参照の表示時解決', () => {
+  // #diagram-wrap に任意の HTML を流し込み、収集対象を組み立てる。
+  // <a> は markdown-it 未ロードのハーネスでは render() から作れないため直接置く。
+  function setWrapHtml(loaded, html) {
+    loaded.document.getElementById('diagram-wrap').innerHTML = html;
+  }
+
+  function classesOf(loaded, selector) {
+    return Array.from(loaded.document.querySelector(selector).classList).sort();
+  }
+
+  function click(loaded, selector) {
+    dispatchTrustedClick(loaded.window, loaded.document.querySelector(selector));
+  }
+
+  test('描画後にローカルパス候補を一意化して resolveReferences を送る', async () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences']);
+
+    await loaded.main.render('src/a.swift\nsrc/a.swift\nsrc/b.swift\n', 'code', 'txt');
+
+    expect(received.length).toBe(1);
+    expect(received[0].payload.paths.sort()).toEqual(['src/a.swift', 'src/b.swift']);
+    // 応答が返るまでは全候補が中立表示になる
+    const refs = loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref');
+    expect(refs.length).toBe(3);
+    refs.forEach((ref) => expect(ref.classList.contains('befold-link-pending')).toBe(true));
+  });
+
+  test('解決できたものだけをリンク化し、絶対パスを DOM に残す', async () => {
+    const loaded = loadViewerMain({});
+    captureBridgeMessages(loaded.window, ['resolveReferences']);
+    await loaded.main.render('src/a.swift\nsrc/missing.swift\n', 'code', 'txt');
+
+    loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
+
+    const refs = loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref');
+    expect(Array.from(refs[0].classList).sort()).toEqual(['befold-link', 'befold-path-ref']);
+    expect(refs[0].dataset.resolved).toBe('/repo/src/a.swift');
+    expect(Array.from(refs[1].classList).sort()).toEqual(['befold-link-dead', 'befold-path-ref']);
+    expect(refs[1].dataset.resolved).toBeUndefined();
+  });
+
+  test('解決できなかった <a> は href を失いクリックできなくなる', () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    setWrapHtml(loaded, '<a id="dead" href="./missing.md">missing</a>');
+
+    loaded.main._mmdResolveReferences();
+    loaded.main._mmdApplyResolvedReferences({});
+
+    expect(loaded.document.getElementById('dead').hasAttribute('href')).toBe(false);
+    click(loaded, '#dead');
+    expect(received.filter((m) => m.name === 'referenceActivated')).toEqual([]);
+  });
+
+  test('解決応答が返る前のクリックでは referenceActivated を送らない', async () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    await loaded.main.render('src/a.swift\n', 'code', 'txt');
+
+    click(loaded, '#diagram-wrap .befold-path-ref');
+
+    expect(received.filter((m) => m.name === 'referenceActivated')).toEqual([]);
+  });
+
+  test('解決済みのパス参照はクリックで referenceActivated を送る', async () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    await loaded.main.render('src/a.swift\n', 'code', 'txt');
+    loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
+
+    click(loaded, '#diagram-wrap .befold-path-ref');
+
+    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload))
+      .toEqual([{ href: 'src/a.swift', newWindow: false }]);
+  });
+
+  test('外部 URL と # アンカーは中立化せず従来どおり動く', () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    setWrapHtml(
+      loaded,
+      '<a id="ext" href="https://example.com/a.md">ext</a>' +
+      '<a id="mail" href="mailto:a@example.com">mail</a>' +
+      '<a id="anchor" href="#sec">anchor</a><h2 id="sec">sec</h2>'
+    );
+
+    loaded.main._mmdResolveReferences();
+
+    expect(received.filter((m) => m.name === 'resolveReferences')).toEqual([]);
+    ['#ext', '#mail', '#anchor'].forEach((sel) => expect(classesOf(loaded, sel)).toEqual([]));
+    click(loaded, '#ext');
+    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload))
+      .toEqual([{ href: 'https://example.com/a.md', newWindow: false }]);
+  });
+
+  test('コロン付きの行番号参照はスキームと誤認せず解決要求に含める', () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences']);
+    setWrapHtml(loaded, '<a id="line" href="viewer-main.js:12">line</a>');
+
+    loaded.main._mmdResolveReferences();
+
+    expect(received[0].payload.paths).toEqual(['viewer-main.js:12']);
+  });
+
+  test('メッセージハンドラ未登録のホストでは中立化したまま固まらない', () => {
+    const loaded = loadViewerMain({});
+    // webkit.messageHandlers を用意しない = Swift 側にハンドラが無く応答も来ない
+    setWrapHtml(loaded, '<a id="local" href="./doc.md">doc</a>');
+
+    loaded.main._mmdResolveReferences();
+
+    expect(classesOf(loaded, '#local')).toEqual([]);
+  });
+
+  test('追加チャンクでは未分類のパス参照だけを送り直す', async () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences']);
+    await loaded.main.render('src/a.swift\n', 'code', 'txt');
+    loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
+
+    loaded.main.appendChunk('src/b.swift\n', 'code', 'txt');
+
+    expect(received.map((m) => m.payload.paths)).toEqual([['src/a.swift'], ['src/b.swift']]);
+    const refs = loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref');
+    expect(refs[0].classList.contains('befold-link')).toBe(true);
+    expect(refs[1].classList.contains('befold-link-pending')).toBe(true);
+  });
+
+  test('未応答バッチが無い状態で応答が届いても何も起きない', async () => {
+    const loaded = loadViewerMain({});
+    captureBridgeMessages(loaded.window, ['resolveReferences']);
+    await loaded.main.render('src/a.swift\n', 'code', 'txt');
+    loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
+    const ref = loaded.document.querySelector('#diagram-wrap .befold-path-ref');
+
+    // キューが空の状態での 2 度目の応答(Swift 側の重複応答を想定)
+    loaded.main._mmdApplyResolvedReferences({});
+
+    expect(Array.from(ref.classList).sort()).toEqual(['befold-link', 'befold-path-ref']);
+    expect(ref.dataset.resolved).toBe('/repo/src/a.swift');
+  });
+
+  test('再描画中に届いた古い応答が新しい要求の対象を巻き込まない', async () => {
+    const loaded = loadViewerMain({});
+    captureBridgeMessages(loaded.window, ['resolveReferences']);
+    await loaded.main.render('src/old.swift\n', 'code', 'txt');
+
+    // 応答が返る前にファイルが切り替わり、新しい要求が出る
+    await loaded.main.render('src/new.swift\n', 'code', 'txt');
+    // 旧ドキュメント向けの応答が遅れて届く
+    loaded.main._mmdApplyResolvedReferences({ 'src/old.swift': '/repo/src/old.swift' });
+
+    const ref = loaded.document.querySelector('#diagram-wrap .befold-path-ref');
+    expect(ref.textContent).toBe('src/new.swift');
+    expect(ref.classList.contains('befold-link-pending')).toBe(true);
+
+    loaded.main._mmdApplyResolvedReferences({ 'src/new.swift': '/repo/src/new.swift' });
+
+    expect(ref.dataset.resolved).toBe('/repo/src/new.swift');
   });
 });

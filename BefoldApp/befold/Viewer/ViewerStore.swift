@@ -106,7 +106,9 @@ final class ViewerStore {
     private var fileWatcher: FileWatching?
     private let makeWatcher: WatcherFactory
     private let makeChunkedReader: ChunkedReaderFactory
-    private let fileReader: any FileReading
+    /// 注入された fileReader。ウィンドウ層(ViewerWindowController)が pathResolver の構築に
+    /// 同一インスタンスを共有できるよう、fileExists/isExistingFile 越しだけでなく直接公開する。
+    let fileReader: any FileReading
     private let contentLoader: ContentLoader
     private let defaults: UserDefaults
     /// グレース期間の待機に使うクロック。テストでは仮想時刻を注入して実時間依存を排除する。

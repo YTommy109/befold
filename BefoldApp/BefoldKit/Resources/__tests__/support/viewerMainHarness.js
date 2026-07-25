@@ -103,4 +103,25 @@ function captureBridgeMessages(window, names) {
   return received;
 }
 
-module.exports = { loadViewerMain, captureBridgeMessages, readResource };
+// ユーザー操作と同じクリック(e.isTrusted === true)を要素へ流す。
+// viewer-main.js のクリックハンドラは XSS からの自動発火を防ぐため isTrusted の
+// イベントだけを処理するので、これがないとクリック挙動を一切テストできない。
+// 公開側の isTrusted は仕様どおり書き換え不可の own プロパティで、さらに
+// dispatchEvent() が内部実装オブジェクト(Symbol(impl))の値を false に落とす。
+// そこで実装側に「常に true・代入は無視」のアクセサを被せて再現する。
+function dispatchTrustedClick(window, element, init) {
+  const event = new window.MouseEvent('click', Object.assign(
+    { bubbles: true, cancelable: true }, init || {}
+  ));
+  const implSymbol = Object.getOwnPropertySymbols(event)
+    .find((symbol) => symbol.description === 'impl');
+  Object.defineProperty(event[implSymbol], 'isTrusted', {
+    get: function() { return true; },
+    set: function() {},
+    configurable: true,
+  });
+  element.dispatchEvent(event);
+  return event;
+}
+
+module.exports = { loadViewerMain, captureBridgeMessages, readResource, dispatchTrustedClick };

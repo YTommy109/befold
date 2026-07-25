@@ -597,3 +597,35 @@ pre .befold-path-ref {
 pre .befold-path-ref:hover {
     color: inherit;
 }
+
+/* 解決待ち(pending)・解決失敗(dead)のパス参照/リンクは通常テキスト表示にする。
+   pending は Swift の解決応答が返るまでの一時状態(偽リンクを見せないため)。
+   .befold-path-ref / <a> の基本スタイルより後に置き、同 specificity で上書きする。 */
+.befold-link-pending,
+.befold-link-dead,
+a.befold-link-pending,
+a.befold-link-dead {
+    text-decoration: none;
+    cursor: default;
+    color: inherit;
+}
+/* pre 内は cursor もここで打ち消す。pre .befold-path-ref { cursor: pointer }(0,1,1) は
+   上の .befold-link-dead { cursor: default }(0,1,0) に詳細度で勝つため、
+   同じ 0,1,1 以上のこのセレクタで上書きしないと偽のクリック手がかりが残る。 */
+.befold-link-pending:hover,
+.befold-link-dead:hover,
+pre .befold-link-pending,
+pre .befold-link-dead {
+    color: inherit;
+    text-decoration: none;
+    cursor: default;
+}
+/* cmd 押下時も pending/dead はクリック手がかりを出さない
+   (コードブロック内の実在しないパス対策)。 */
+.cmd-held .befold-link-pending,
+.cmd-held .befold-link-dead,
+.cmd-held pre .befold-link-pending,
+.cmd-held pre .befold-link-dead {
+    text-decoration: none;
+    cursor: default;
+}

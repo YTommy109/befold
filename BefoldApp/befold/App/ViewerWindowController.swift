@@ -86,6 +86,13 @@ final class ViewerWindowController: NSWindowController {
     /// ウィンドウイベントの通知先。ViewerWindowManager が実装する。
     weak var delegate: ViewerWindowControllerDelegate?
 
+    /// git 追跡ファイルの索引(リポジトリルート単位でキャッシュ)。
+    /// 本番では ViewerWindowManager が持つ単一インスタンスが注入され、全ウィンドウで共有する。
+    let gitFileIndex: GitCommandFileIndex
+    /// パス参照の解決器。fileReader は store と共有し(既存の fileExists/isExistingFile 共有と同じ理由で
+    /// InMemoryFileReader 注入テストと整合させる)、テストから丸ごと差し替えられるよう var にする。
+    lazy var pathResolver = TrackedPathResolver(fileReader: store.fileReader, gitIndex: gitFileIndex)
+
     // MARK: - Initialization
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate → ViewerWindowManager から
@@ -95,6 +102,9 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
     ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
     /// - Parameter bookmarkStore: 同上。ブックマーク挙動に無関心なテストが省略できるようにする。
+    /// - Parameter gitFileIndex: 同上。git 追跡ファイルの索引。本番では ViewerWindowManager が持つ
+    ///   単一インスタンスを渡し、同じリポジトリを開く複数ウィンドウで追跡ファイル一覧と
+    ///   `git ls-files` の実行を共有する。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
     /// - Parameter directoryLister: 同上。サイドバー初期一覧の取得元。テストで差し替え可能にする。
     /// - Parameter openFileInNewWindow: 同上。別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
@@ -104,6 +114,7 @@ final class ViewerWindowController: NSWindowController {
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore = BookmarkStore(),
+        gitFileIndex: GitCommandFileIndex = GitCommandFileIndex(),
         initialSidebarCollapsed: Bool = true,
         initialFrameDescriptor: String? = nil,
         initialSortOrder: SortOrder = .foldersFirst,
@@ -119,6 +130,7 @@ final class ViewerWindowController: NSWindowController {
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
         self.bookmarkStore = bookmarkStore
+        self.gitFileIndex = gitFileIndex
         self.initialSidebarCollapsed = initialSidebarCollapsed
         let store = store ?? ViewerStore(defaults: defaults)
         // store が呼び出し元から明示注入された場合でも上書きが反映されるよう、
@@ -219,6 +231,8 @@ final class ViewerWindowController: NSWindowController {
             self?.refreshToolbarState()
         }
         store.openFile(fileURL)
+        // クリック時解決(pathResolver)の git 追跡ファイル索引を先読みしておく。
+        gitFileIndex.warm(forFileAt: fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
         // CLI から --source/--preview が指定された場合はそちらを優先し、保存値は書き換えない(この起動限りの上書き)。
         // applySourceMode が内部で refreshToolbarState() を呼ぶため、ここでの明示呼び出しは不要。
@@ -247,6 +261,9 @@ final class ViewerWindowController: NSWindowController {
             },
             onOpenReference: { [weak self] href, newWindow in
                 self?.handleOpenReference(href: href, newWindow: newWindow)
+            },
+            onResolveReferences: { [weak self] paths in
+                await self?.resolveReferences(paths) ?? [:]
             },
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
@@ -293,23 +310,48 @@ final class ViewerWindowController: NSWindowController {
     /// リンク/パス参照のアクティベーションを処理する。
     /// テスト(@testable import)から回帰テストとして直接呼べるよう internal にする（外部公開はしない）。
     func handleOpenReference(href: String, newWindow: Bool) {
-        let target = ReferenceResolver.resolve(href: href, baseURL: fileURL)
-        switch target {
+        switch pathResolver.resolve(href: href, baseURL: fileURL) {
         case let .external(url):
             NSWorkspace.shared.open(url)
-        case let .localFile(url):
-            guard store.isExistingFile(at: url) else {
-                showFileNotFoundAlert(url: url)
-                return
-            }
+        case let .resolved(url):
             if newWindow {
                 openFileInNewWindow(url)
             } else {
                 switchFile(to: url)
             }
-        case .unsupported:
+        case .unresolved:
+            // 解決できなかったパスは、素朴な相対解決結果を「見つかりません」表示に使う。
+            if case let .localFile(url) = ReferenceResolver.resolve(href: href, baseURL: fileURL) {
+                showFileNotFoundAlert(url: url)
+            }
+        case .ignored:
             break
         }
+    }
+
+    /// パス参照群を解決し、実在するものだけ「書かれたパス→解決済み絶対パス」で返す(表示時解決用)。
+    /// クリック時の handleOpenReference と同じ pathResolver を使うため、リンク化した参照は
+    /// 必ず同じ URL へ開く(解決の単一情報源)。
+    ///
+    /// 解決はキャッシュ未命中時に `git ls-files` の subprocess を待つため、MainActor 上では
+    /// 走らせない(大きなリポジトリで数百 ms の停止になる)。要求時点の pathResolver と
+    /// fileURL を捕捉してバックグラウンドで解決する。解決中にファイルが切り替わっても、
+    /// 捕捉した baseURL は「その要求を出した表示内容」の基準ディレクトリのままなので、
+    /// リンク化とクリック時の遷移先が食い違うことはない(切替時は JS 側が未応答バッチを
+    /// 空にするため、遅れて届いた応答は何にも適用されない)。
+    func resolveReferences(_ paths: [String]) async -> [String: String] {
+        let resolver = pathResolver
+        let baseURL = fileURL
+        return await Task.detached(priority: .userInitiated) {
+            var result: [String: String] = [:]
+            // バッチ一括で解決し、git 追跡ファイルの索引構築を 1 度に抑える。
+            for (path, reference) in resolver.resolveAll(hrefs: paths, baseURL: baseURL) {
+                if case let .resolved(url) = reference {
+                    result[path] = url.path
+                }
+            }
+            return result
+        }.value
     }
 
     private func showFileNotFoundAlert(url: URL) {
@@ -352,6 +394,7 @@ final class ViewerWindowController: NSWindowController {
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
         guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
+        gitFileIndex.warm(forFileAt: newURL)
         switch performFileSwitch(to: newURL) {
         case .switched:
             sidebar.syncAfterSwitch(to: newURL)

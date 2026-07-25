@@ -121,10 +121,11 @@ struct ViewerWebViewCoordinatorTests {
 
         #expect(names.contains(ViewerBridge.referenceActivatedMessageName))
         #expect(names.contains(ViewerBridge.loadMoreLinesMessageName))
+        #expect(names.contains(ViewerBridge.resolveReferencesMessageName))
         #expect(names.contains(ViewerBridge.zoomChangedMessageName))
         #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
         #expect(names.contains(ViewerBridge.scrollPositionChangedMessageName))
-        #expect(names.count == 5)
+        #expect(names.count == 6)
     }
 
     @Test("allowsInteractiveBridging: false では referenceActivated/loadMoreLines を登録しない(多層防御)")
@@ -136,6 +137,7 @@ struct ViewerWebViewCoordinatorTests {
 
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
         #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
+        #expect(!names.contains(ViewerBridge.resolveReferencesMessageName))
         // ズーム・検索・スクロール位置通知は静的1回読込でも安全なため登録を維持する。
         #expect(names.contains(ViewerBridge.zoomChangedMessageName))
         #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))

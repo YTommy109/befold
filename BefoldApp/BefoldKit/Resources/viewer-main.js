@@ -4,13 +4,18 @@
   const _MSG_FIND_OPTIONS_CHANGED = 'findOptionsChanged';
   const _MSG_SCROLL_POSITION_CHANGED = 'scrollPositionChanged';
   const _MSG_LOAD_MORE_LINES = 'loadMoreLines';
+  const _MSG_RESOLVE_REFERENCES = 'resolveReferences';
 
   // postMessage を一箇所に集約するヘルパー。ハンドラ未登録の WebView
   // （例: 機能限定ホスト)でも安全に呼べるよう存在チェックを内包する。
+  // 実際に送れたかどうかを返す(応答を前提に状態を進める呼び出し側が、
+  // 送れなかった場合にその状態変更を取り消せるようにするため)。
   function _mmdPostMessage(name, payload) {
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers[name]) {
       window.webkit.messageHandlers[name].postMessage(payload);
+      return true;
     }
+    return false;
   }
 
   // --- Zoom ---
@@ -192,6 +197,13 @@
       var target = anchor || pathRef;
       if (!target) return;
 
+      // 解決待ち(pending)・解決失敗(dead)のパス参照はクリック不可(通常テキスト扱い)。
+      // 外部 URL・# アンカーは中立化の対象外でこれらのクラスを持たないため影響しない。
+      if (target.classList.contains('befold-link-pending') ||
+          target.classList.contains('befold-link-dead')) {
+        return;
+      }
+
       var href = anchor ? anchor.getAttribute('href') : pathRef.dataset.path;
       if (!href) return;
 
@@ -232,6 +244,84 @@
   function _annotatePathRefs() {
     var wrap = document.getElementById('diagram-wrap');
     if (wrap) { _walkTextNodes(wrap, false); }
+  }
+
+  // --- 表示時のパス参照解決 ---
+  // 解決要求を出した順に、その要求に含めた要素をバッチとして積むキュー。
+  // Swift 側は受信したメッセージごとに必ず 1 回 _mmdApplyResolvedReferences() を
+  // 評価し、その順序はメインスレッド上で保たれるため、先入れ先出しで
+  // 「応答 ↔ その応答が答えている要素集合」を対応づけられる。
+  var _mmdPendingRefBatches = [];
+
+  // 分類済み(pending/解決済み/解決失敗)の参照は再収集しない。
+  function _mmdIsClassifiedRef(el) {
+    return el.classList.contains('befold-link-pending') ||
+           el.classList.contains('befold-link') ||
+           el.classList.contains('befold-link-dead');
+  }
+
+  // href がローカルパス候補か。#アンカー・http(s) 等スキーム付きは除外する。
+  // file.md:12 が scheme="file.md" と誤解釈される都合、ドットを含むスキームは許可する。
+  function _mmdIsLocalPathHref(href) {
+    if (!href) return false;
+    if (href.charAt(0) === '#') return false;
+    var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*):/);
+    if (m && m[1].indexOf('.') === -1) return false; // http:, mailto:, tel: 等
+    return true;
+  }
+
+  // 描画直後に呼ぶ。未分類のローカルパス候補(<a> と .befold-path-ref)を集めて
+  // 一意なパス集合を Swift へ送り、同時に中立化(pending)する。
+  // 解決が返るまでリンクに見せないことで、開けない偽リンクを出さない。
+  function _mmdResolveReferences() {
+    if (!isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')) { return; }
+    var wrap = document.getElementById('diagram-wrap');
+    if (!wrap) { return; }
+    var targets = [];
+    wrap.querySelectorAll('a[href]').forEach(function(a) {
+      if (_mmdIsClassifiedRef(a)) { return; }
+      var href = a.getAttribute('href');
+      if (_mmdIsLocalPathHref(href)) { targets.push({ el: a, raw: href }); }
+    });
+    wrap.querySelectorAll('.befold-path-ref').forEach(function(s) {
+      if (_mmdIsClassifiedRef(s) || !s.dataset.path) { return; }
+      targets.push({ el: s, raw: s.dataset.path });
+    });
+    if (!targets.length) { return; }
+    var uniq = {};
+    targets.forEach(function(t) { uniq[t.raw] = true; });
+    // 送れなかった(ハンドラ未登録の)場合は応答が来ないため、中立化もキュー登録も
+    // 行わない。中立化したまま応答待ちで固まるのを防ぐ。
+    if (!_mmdPostMessage(_MSG_RESOLVE_REFERENCES, { paths: Object.keys(uniq) })) { return; }
+    targets.forEach(function(t) { t.el.classList.add('befold-link-pending'); });
+    _mmdPendingRefBatches.push(targets);
+  }
+
+  // Swift からの解決結果(書かれたパス -> 解決済み絶対パス)を、最も古い未応答バッチへ
+  // 適用する。map に含まれるものだけリンク化し、含まれないものは通常テキストに戻す。
+  function _mmdApplyResolvedReferences(map) {
+    var targets = _mmdPendingRefBatches.shift() || [];
+    targets.forEach(function(t) {
+      t.el.classList.remove('befold-link-pending');
+      var abs = map && map[t.raw];
+      if (abs) {
+        t.el.classList.add('befold-link');
+        // コピー等の後続機能が使えるよう、解決済み絶対パスを DOM に残す。
+        t.el.dataset.resolved = abs;
+      } else {
+        t.el.classList.add('befold-link-dead');
+        if (t.el.tagName === 'A') { t.el.removeAttribute('href'); }
+      }
+    });
+  }
+
+  // 再描画で #diagram-wrap の中身を捨てる直前に呼ぶ。未応答バッチの中身だけを空にし、
+  // 要素数 0 のバッチとして残す。キューの長さ(=未応答の要求数)を保つことで、
+  // 飛行中の応答が新しいバッチを誤って消費するのを防ぐ。
+  function _mmdInvalidatePendingRefs() {
+    for (var i = 0; i < _mmdPendingRefBatches.length; i++) {
+      _mmdPendingRefBatches[i] = [];
+    }
   }
 
   // #diagram-wrap 配下を一度だけ再帰的に歩く。allowed は現在位置がパス検出の
@@ -1164,6 +1254,9 @@
       }
     }
     _mmdChunkTail.record(text);
+    // 追加分のパス参照も解決する。上の各分岐(_annotatePathRefs / _walkTextNodes)が
+    // 生成した未分類の参照だけが対象になるため、ここ 1 箇所で全分岐をまかなえる。
+    _mmdResolveReferences();
     _mmdFindRefreshAfterRender();
   }
   // PDF 表示用に生成した blob URL。生成と解放をこの owner に閉じ、再描画のたびに
@@ -1334,6 +1427,8 @@
     // appendChunk と同じ判定式で実際の末尾を見る(true 固定だと最初の強制分割で
     // 継続行の結合判定を誤る)。
     _mmdChunkTail.record(content);
+    // 以降で #diagram-wrap を作り直すため、旧 DOM を指す未応答の解決バッチを無効化する。
+    _mmdInvalidatePendingRefs();
     var errorPanel = document.getElementById('mmd-error');
     errorPanel.style.display = 'none';
     errorPanel.textContent = '';
@@ -1375,6 +1470,7 @@
     await _mmdRunMermaid(diagramWrap);
 
     _annotatePathRefs();
+    _mmdResolveReferences();
     _mmdFindRefreshAfterRender();
     _mmdApplyZoom();
     _mmdRestoreScrollPosition(fallbackScrollTop);
@@ -1439,6 +1535,8 @@
       _mmdWheelZoom: _mmdWheelZoom,
       _mmdScrollTarget: _mmdScrollTarget,
       _annotatePathRefs: _annotatePathRefs,
+      _mmdResolveReferences: _mmdResolveReferences,
+      _mmdApplyResolvedReferences: _mmdApplyResolvedReferences,
       _mmdDiagramZoomValue: _mmdDiagramZoomValue,
       _mmdFitImage: _mmdFitImage,
       _mmdWrapDiagrams: _mmdWrapDiagrams,

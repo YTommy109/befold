@@ -40,6 +40,11 @@ struct ViewerBridgeContractTests {
         #expect(html.contains("_MSG_FIND_OPTIONS_CHANGED = '\(ViewerBridge.findOptionsChangedMessageName)'"))
         #expect(html.contains("_MSG_SCROLL_POSITION_CHANGED = '\(ViewerBridge.scrollPositionChangedMessageName)'"))
         #expect(html.contains("_MSG_LOAD_MORE_LINES = '\(ViewerBridge.loadMoreLinesMessageName)'"))
+        #expect(html.contains("_MSG_RESOLVE_REFERENCES = '\(ViewerBridge.resolveReferencesMessageName)'"))
+        // 表示時解決: JS が候補を集めて要求する側(_mmdResolveReferences)と、
+        // Swift の応答を適用する側(applyResolvedReferencesScript が呼ぶ関数)の両方を確認する。
+        #expect(html.contains("function _mmdResolveReferences()"))
+        #expect(html.contains("function _mmdApplyResolvedReferences(map)"))
         #expect(html.contains("function _mmdPostMessage(name, payload)"))
         #expect(html.contains("_mmdPostMessage(_MSG_ZOOM_CHANGED,"))
         #expect(html.contains("window._mmdInitialZoom"))

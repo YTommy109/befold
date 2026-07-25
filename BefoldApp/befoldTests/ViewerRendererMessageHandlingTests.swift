@@ -9,32 +9,10 @@ import WebKit
 @Suite
 @MainActor
 struct ViewerRendererMessageHandlingTests {
-    /// WKScriptMessage は公開イニシャライザを持たないため、name/body を差し替えた
-    /// サブクラスでハンドラへ任意のメッセージを注入する。
-    private final class StubScriptMessage: WKScriptMessage {
-        private let stubName: String
-        private let stubBody: Any
-
-        init(name: String, body: Any) {
-            stubName = name
-            stubBody = body
-            super.init()
-        }
-
-        override var name: String {
-            stubName
-        }
-
-        override var body: Any {
-            stubBody
-        }
-    }
+    private typealias Stubs = ViewerRendererMessageStubs
 
     private func dispatch(_ renderer: ViewerRenderer, name: String, body: Any) {
-        renderer.userContentController(
-            WKUserContentController(),
-            didReceive: StubScriptMessage(name: name, body: body)
-        )
+        Stubs.dispatch(renderer, name: name, body: body)
     }
 
     // MARK: - デコードとディスパッチ(正常系)

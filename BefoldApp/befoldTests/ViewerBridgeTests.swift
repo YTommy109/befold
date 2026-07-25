@@ -210,6 +210,29 @@ struct ViewerBridgeTests {
         #expect(script.hasSuffix(";"))
     }
 
+    @Test("resolveReferencesMessageName が固定値である")
+    func resolveReferencesMessageNameIsFixed() {
+        #expect(ViewerBridge.resolveReferencesMessageName == "resolveReferences")
+    }
+
+    @Test("applyResolvedReferencesScript が _mmdApplyResolvedReferences 呼び出しを組み立てる")
+    func applyResolvedReferencesScriptBuildsCallWithResolutions() throws {
+        let script = ViewerBridge.applyResolvedReferencesScript(["docs/a.md": "/repo/docs/a.md"])
+
+        #expect(script.hasPrefix("_mmdApplyResolvedReferences("))
+        #expect(script.hasSuffix(")"))
+
+        let jsonPart = String(script.dropFirst("_mmdApplyResolvedReferences(".count).dropLast())
+        let data = try #require(jsonPart.data(using: .utf8))
+        let decoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: String])
+        #expect(decoded == ["docs/a.md": "/repo/docs/a.md"])
+    }
+
+    @Test("applyResolvedReferencesScript は空の解決結果でも空オブジェクトを生成する")
+    func applyResolvedReferencesScriptHandlesEmptyResolutions() {
+        #expect(ViewerBridge.applyResolvedReferencesScript([:]) == "_mmdApplyResolvedReferences({})")
+    }
+
     @Test("findStringsScript が全キーを含む妥当な JSON を生成する")
     func findStringsScriptProducesValidJSONWithAllKeys() throws {
         let script = ViewerBridge.findStringsScript()
