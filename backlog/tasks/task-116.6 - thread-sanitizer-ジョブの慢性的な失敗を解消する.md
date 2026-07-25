@@ -1,11 +1,11 @@
 ---
 id: TASK-116.6
 title: thread-sanitizer ジョブの慢性的な失敗を解消する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-07-23 23:19'
-updated_date: '2026-07-24 01:30'
+updated_date: '2026-07-25 00:28'
 labels:
   - test
   - ci
@@ -48,7 +48,7 @@ TASK-116.5(ポーリングヘルパーの silent timeout 撲滅)を先に済ま�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 thread-sanitizer ジョブが main push / nightly で安定して結果を返す(常時赤ではない)
+- [x] #1 thread-sanitizer ジョブが main push / nightly で安定して結果を返す(常時赤ではない)
 - [x] #2 deletingWatchedFileFiresOnFileGone が TSan 下で時間超過しない、または対象から意図的に除外され理由が記録されている
 - [x] #3 TSan を継続する/縮小する の判断理由がタスクに記録されている
 <!-- AC:END -->
@@ -78,4 +78,12 @@ AC#3(TSan を継続するか)の判断: 継続する。理由は (a) 失敗は 1
 AC#1(CI で安定して結果を返す)は未チェック。ローカルでは元の失敗を再現できないため、main へマージ後の push トリガーと nightly(15:00 UTC)の thread-sanitizer ジョブを複数回観測して確認する必要がある。
 
 CI 観測(1/N): fix マージ後の main push run 30059009672 で thread-sanitizer が success(2分32秒)。AC#1 は nightly(15:00 UTC)を含む複数回の観測が揃うまで未チェックのまま。次セッションでは gh run list --workflow=ci.yml --event schedule で nightly の thread-sanitizer 結果を確認し、2〜3 回連続 success なら AC#1 をチェックして Done にできる。
+
+CI 観測(完了): 修正マージ後の thread-sanitizer ジョブは 7 連続 success。内訳 — push 6 件(30059009672 / 30059949869 / 30065581598 / 30085900119 / 30093218554 / 30096330251)、schedule(nightly) 1 件(30109024291, 2026-07-24 16:26 UTC)。修正前は直近 17 件中 failure 10 / success 5 / cancelled 2 だったため、フレーキーは解消したと判断し AC#1 をチェックした。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+TSan 下の慢性的失敗の原因は、CI が BEFOLD_TEST_TIMEOUT_SECONDS=120 でポーリング予算を延ばす一方、対象スイートの .timeLimit(.minutes(1)) が 60 秒に固定されたままという設定のドリフトだった。BefoldTestSupport に testTimeLimit(pollingBudgetFallback:) を追加し、打ち切り時間を予算と同じ環境変数から導出することで再発を構造的に防いだ。検証は BEFOLD_TEST_TIMEOUT_SECONDS=120 swift test --sanitize=thread(593 tests / 77 suites が 34.4 秒で pass、競合検出ゼロ)と、マージ後の CI thread-sanitizer ジョブ 7 連続 success(nightly 1 件を含む)。
+<!-- SECTION:FINAL_SUMMARY:END -->
