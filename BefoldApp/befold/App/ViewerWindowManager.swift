@@ -15,6 +15,11 @@ final class ViewerWindowManager {
     /// openViewer のファイル存在ガードが使う I/O 抽象。静的な DefaultFileReader を直接叩かず
     /// ここへ集約することで、テストが InMemoryFileReader を注入して存在確認をモック化できる。
     private let fileReader: any FileReading
+    /// openViewer が生成するコントローラへ渡す ViewerStore の差し替え口。nil なら
+    /// ViewerWindowController が従来どおり自前で生成する(本番の既定)。
+    private let makeStore: ((URL) -> ViewerStore)?
+    /// 同コントローラのサイドバー初期一覧の取得口。既定は実 FS を列挙する DirectoryLister.listEntries。
+    private let directoryLister: (URL, SortOrder, Bool) -> [FileListEntry]
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
@@ -22,13 +27,19 @@ final class ViewerWindowManager {
     /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
     ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
     /// - Parameter bookmarkStore: 同上。ブックマーク挙動に無関心なテストが省略できるようにする。
+    /// - Parameter makeStore: 生成するコントローラの ViewerStore を差し替える。既定の nil では
+    ///   コントローラが自前で生成するため本番挙動は変わらない。テストが実 FileWatcher と
+    ///   実ファイル読込を避けて生成パイプラインごと unit 化するための唯一のシーム。
+    /// - Parameter directoryLister: 同コントローラのサイドバー初期一覧の取得口。既定は実 FS 列挙。
     init(
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore = BookmarkStore(),
-        fileReader: any FileReading = DefaultFileReader()
+        fileReader: any FileReading = DefaultFileReader(),
+        makeStore: ((URL) -> ViewerStore)? = nil,
+        directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries
     ) {
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
@@ -37,6 +48,8 @@ final class ViewerWindowManager {
         self.perFileState = perFileState
         self.bookmarkStore = bookmarkStore
         self.fileReader = fileReader
+        self.makeStore = makeStore
+        self.directoryLister = directoryLister
     }
 
     /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
@@ -129,6 +142,8 @@ final class ViewerWindowManager {
             initialSortOrder: initialSortOrder,
             showLineNumbersOverride: showLineNumbersOverride,
             sourceModeOverride: sourceModeOverride,
+            store: makeStore?(url),
+            directoryLister: directoryLister,
             openFileInNewWindow: { [weak self] fileURL in self?.openViewer(for: fileURL) }
         )
         controllers[key] = controller
