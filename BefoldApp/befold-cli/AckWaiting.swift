@@ -8,7 +8,13 @@ import Foundation
 /// 「観測の開始」と「待つ」を別の操作に分けている。
 public protocol AckWaiting {
     /// ACK を最大 `timeout` 秒待つ。生成後〜この呼び出しより前に届いた ACK も観測済みとして true を返す。
-    func wait(timeout: TimeInterval) -> Bool
+    ///
+    /// 待機は必ず async にする。CLI の実行経路(ArgumentParser の async main →
+    /// `@MainActor run() async`)は Swift 並行処理のコンテキストであり、そこで
+    /// `RunLoop.run(_:before:)` を同期的に回すと Distributed Notification が配送されない
+    /// (コンパイラもこの API を async コンテキストでは使用不可としている)。
+    /// await して中断点を作れば、通知はメインキュー側で配送される。
+    func wait(timeout: TimeInterval) async -> Bool
     /// 観測を終了する。以後 `wait` は使えない。
     func cancel()
 }
@@ -44,10 +50,10 @@ public final class DistributedAckWaiter: AckWaiting, @unchecked Sendable {
         return acked
     }
 
-    public func wait(timeout: TimeInterval) -> Bool {
+    public func wait(timeout: TimeInterval) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !isAcked, Date() < deadline {
-            RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.02)))
+            try? await Task.sleep(for: .milliseconds(20))
         }
         return isAcked
     }

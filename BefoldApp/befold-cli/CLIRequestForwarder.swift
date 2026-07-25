@@ -61,9 +61,9 @@ public enum CLIRequestForwarder {
         post: (Notification.Name, [String: Any]) -> Void = broadcast,
         makeAckWaiter: (String) -> any AckWaiting = { DistributedAckWaiter(requestID: $0) },
         activate: (() -> Void)? = nil
-    ) -> Bool {
+    ) async -> Bool {
         let activate = activate ?? { instance.activate() }
-        guard postAwaitingAck(
+        guard await postAwaitingAck(
             .open(paths: paths, options: options),
             maxAttempts: maxAttempts, ackTimeout: ackTimeout,
             post: post, makeAckWaiter: makeAckWaiter
@@ -89,8 +89,8 @@ public enum CLIRequestForwarder {
         ackTimeout: TimeInterval = ackTimeout,
         post: (Notification.Name, [String: Any]) -> Void = broadcast,
         makeAckWaiter: (String) -> any AckWaiting = { DistributedAckWaiter(requestID: $0) }
-    ) -> Bool {
-        postAwaitingAck(
+    ) async -> Bool {
+        await postAwaitingAck(
             .bookmark(paths: paths),
             maxAttempts: maxAttempts, ackTimeout: ackTimeout,
             post: post, makeAckWaiter: makeAckWaiter
@@ -98,13 +98,14 @@ public enum CLIRequestForwarder {
     }
 
     /// requestID を採番して要求をワイヤ表現へ載せ、ACK が観測できるまで最大 `maxAttempts` 回 post する。
+    @MainActor
     private static func postAwaitingAck(
         _ request: CLIRequest,
         maxAttempts: Int,
         ackTimeout: TimeInterval,
         post: (Notification.Name, [String: Any]) -> Void,
         makeAckWaiter: (String) -> any AckWaiting
-    ) -> Bool {
+    ) async -> Bool {
         let requestID = UUID().uuidString
         guard let userInfo = CLIRequestWire.userInfo(for: request, requestID: requestID) else {
             return false
@@ -115,7 +116,7 @@ public enum CLIRequestForwarder {
 
         for _ in 0 ..< maxAttempts {
             post(CLIRequestWire.requestNotificationName, userInfo)
-            if waiter.wait(timeout: ackTimeout) { return true }
+            if await waiter.wait(timeout: ackTimeout) { return true }
         }
         return false
     }

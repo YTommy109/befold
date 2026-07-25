@@ -42,7 +42,7 @@ struct BefoldCLICommand: AsyncParsableCommand {
     func run() async throws {
         try await execute(
             addBookmark: { url in
-                CLIBookmarkRouter.add(url, addLocally: { BefoldCLICommand.bookmarkStore.add($0) })
+                await CLIBookmarkRouter.add(url, addLocally: { BefoldCLICommand.bookmarkStore.add($0) })
             },
             printResult: CLICommandResultPrinter.print
         )
@@ -54,11 +54,11 @@ struct BefoldCLICommand: AsyncParsableCommand {
     /// 既定の出力先は実プロセスの stdout/stderr のため、テストからは差し替えて使う。
     @MainActor
     func execute(
-        addBookmark: @MainActor (URL) -> Bool,
+        addBookmark: @MainActor (URL) async -> Bool,
         printResult: (CLICommandResult) -> Void
     ) async throws {
         if !check, !bookmark {
-            CLIAppLauncher.launch(paths: paths, options: options)
+            await CLIAppLauncher.launch(paths: paths, options: options)
         }
 
         var anyFailed = false
@@ -73,7 +73,7 @@ struct BefoldCLICommand: AsyncParsableCommand {
         }
         if bookmark {
             for path in paths {
-                let result = CLIBookmarkCommand.run(path, addBookmark: addBookmark)
+                let result = await CLIBookmarkCommand.run(path, addBookmark: addBookmark)
                 printResult(result)
                 if result.exitCode != 0 { anyFailed = true }
             }

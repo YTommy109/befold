@@ -20,12 +20,12 @@ public enum CLIBookmarkRouter {
         _ url: URL,
         addLocally: @MainActor (URL) -> Void,
         findRunningInstance: @MainActor () -> NSRunningApplication? = { CLIRequestForwarder.runningInstance() },
-        forward: @MainActor ([String]) -> Bool = { CLIRequestForwarder.forwardBookmark(paths: $0) }
-    ) -> Bool {
+        forward: @MainActor ([String]) async -> Bool = { await CLIRequestForwarder.forwardBookmark(paths: $0) }
+    ) async -> Bool {
         guard findRunningInstance() != nil else {
             addLocally(url)
             return true
         }
-        return forward([url.path])
+        return await forward([url.path])
     }
 }
