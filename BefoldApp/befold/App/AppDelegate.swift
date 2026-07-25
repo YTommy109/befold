@@ -57,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         super.init()
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(handleCLIOpenRequest(_:)),
-            name: CLIInstanceRouter.openRequestNotificationName, object: nil
+            name: CLIRequestWire.requestNotificationName, object: nil
         )
     }
 
@@ -83,12 +83,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// ブックマーク追加を CLI プロセスではなくここで行うことで、UserDefaults の
     /// ブックマーク配列を書くプロセスを GUI に一本化し、CLI との同時更新で
-    /// 片方の追加が消える競合を防ぐ(CLIInstanceRouter 参照)。
+    /// 片方の追加が消える競合を防ぐ(CLIRequestForwarder 参照)。
     @objc private func handleCLIOpenRequest(_ notification: Notification) {
-        guard let request = CLIInstanceRouter.decode(userInfo: notification.userInfo) else { return }
-        let requestID = CLIInstanceRouter.requestID(from: notification.userInfo)
+        guard let request = CLIRequestWire.decode(userInfo: notification.userInfo) else { return }
+        let requestID = CLIRequestWire.requestID(from: notification.userInfo)
         if let requestID {
-            CLIInstanceRouter.sendAck(requestID: requestID)
+            CLIRequestWire.sendAck(requestID: requestID)
         }
         guard cliRequestDeduplicator.shouldProcess(requestID: requestID) else { return }
         switch request {

@@ -1,3 +1,4 @@
+@testable import befold_cli
 @testable import BefoldCLI
 import Foundation
 

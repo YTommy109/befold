@@ -4,6 +4,10 @@ import WebKit
 // MARK: - WKScriptMessageHandler
 
 extension ViewerRenderer {
+    private typealias ReferenceKey = ViewerBridge.PayloadKey.ReferenceActivated
+    private typealias ScrollKey = ViewerBridge.PayloadKey.ScrollPositionChanged
+    private typealias FindKey = ViewerBridge.PayloadKey.FindOptionsChanged
+
     /// WKUserContentController はハンドラを強参照するため、ViewerRenderer への参照を弱めて
     /// dismantle の呼び出しに依存せずリークを防ぐプロキシ。
     /// type_body_length 対策で ViewerRenderer 本体の外の extension に分離している。
@@ -33,22 +37,22 @@ extension ViewerRenderer {
             onZoomChanged?(zoom)
         } else if message.name == ViewerBridge.referenceActivatedMessageName,
                   let body = message.body as? [String: Any],
-                  let href = body["href"] as? String,
-                  let newWindow = body["newWindow"] as? Bool
+                  let href = body[ReferenceKey.href.rawValue] as? String,
+                  let newWindow = body[ReferenceKey.newWindow.rawValue] as? Bool
         {
             onOpenReference?(href, newWindow)
         } else if message.name == ViewerBridge.scrollPositionChangedMessageName,
                   let body = message.body as? [String: Any],
-                  let position = (body["position"] as? NSNumber)?.doubleValue,
-                  let modeString = body["mode"] as? String,
+                  let position = (body[ScrollKey.position.rawValue] as? NSNumber)?.doubleValue,
+                  let modeString = body[ScrollKey.mode.rawValue] as? String,
                   let mode = ViewerBridge.ViewMode(rawValue: modeString)
         {
             onScrollPositionChanged?(position, mode)
         } else if message.name == ViewerBridge.findOptionsChangedMessageName,
                   let body = message.body as? [String: Any],
-                  let caseSensitive = body["caseSensitive"] as? Bool,
-                  let wholeWord = body["wholeWord"] as? Bool,
-                  let useRegex = body["useRegex"] as? Bool
+                  let caseSensitive = body[FindKey.caseSensitive.rawValue] as? Bool,
+                  let wholeWord = body[FindKey.wholeWord.rawValue] as? Bool,
+                  let useRegex = body[FindKey.useRegex.rawValue] as? Bool
         {
             findOptionsPreference?.caseSensitive = caseSensitive
             findOptionsPreference?.wholeWord = wholeWord

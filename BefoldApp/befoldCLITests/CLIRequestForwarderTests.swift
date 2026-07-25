@@ -1,5 +1,5 @@
 import AppKit
-@testable import befold
+@testable import befold_cli
 @testable import BefoldCLI
 import Foundation
 import Testing
@@ -9,12 +9,12 @@ import Testing
 /// 「初回は届かず、後続の再送で届く」「一度も届かない」というタイミングを決定的に再現する。
 @Suite
 @MainActor
-struct CLIInstanceRouterTests {
+struct CLIRequestForwarderTests {
     @Test("ACK が初回で届いた場合は true を返し、再送せず前面化する")
     func returnsTrueOnFirstAck() {
         var postCount = 0
         var activateCount = 0
-        let acked = CLIInstanceRouter.forward(
+        let acked = CLIRequestForwarder.forward(
             paths: ["a.md"], options: CLIOpenOptions(), to: NSRunningApplication.current,
             post: { _, _ in postCount += 1 },
             makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 1) },
@@ -30,7 +30,7 @@ struct CLIInstanceRouterTests {
     func retriesWithSameRequestIDUntilAckObserved() {
         var attempts = 0
         var seenRequestIDs: [String] = []
-        let acked = CLIInstanceRouter.forward(
+        let acked = CLIRequestForwarder.forward(
             paths: ["a.md"], options: CLIOpenOptions(), to: NSRunningApplication.current,
             maxAttempts: 3,
             post: { _, userInfo in
@@ -54,7 +54,7 @@ struct CLIInstanceRouterTests {
         var events: [String] = []
         var waiterCount = 0
 
-        let acked = CLIInstanceRouter.forward(
+        let acked = CLIRequestForwarder.forward(
             paths: ["a.md"], options: CLIOpenOptions(), to: NSRunningApplication.current,
             maxAttempts: 3,
             post: { _, _ in events.append("post") },
@@ -82,7 +82,7 @@ struct CLIInstanceRouterTests {
     func returnsFalseWhenAckNeverObserved() {
         var attempts = 0
         var activateCount = 0
-        let acked = CLIInstanceRouter.forward(
+        let acked = CLIRequestForwarder.forward(
             paths: ["a.md"], options: CLIOpenOptions(), to: NSRunningApplication.current,
             maxAttempts: 3,
             post: { _, _ in attempts += 1 },
@@ -101,7 +101,7 @@ struct CLIInstanceRouterTests {
     @Test("runningInstance は Bundle.main のバンドル ID ではなく befold.app のバンドル ID で探索する")
     func runningInstanceLooksUpAppBundleIdentifier() {
         var queried: [String] = []
-        _ = CLIInstanceRouter.runningInstance(runningApplications: { identifier in
+        _ = CLIRequestForwarder.runningInstance(runningApplications: { identifier in
             queried.append(identifier)
             return []
         })
@@ -109,12 +109,25 @@ struct CLIInstanceRouterTests {
         #expect(queried == [AppBundle.identifier])
     }
 
-    @Test("requestID / decode は往復できる")
-    func requestIDRoundTrips() {
-        let userInfo: [AnyHashable: Any] = ["paths": ["a.md"], "requestID": "abc-123"]
+    /// forward が post する userInfo は、受信側が使う CLIRequestWire.decode でそのまま
+    /// 要求へ戻せる必要がある(オプションの取りこぼしはこの往復で検知する)。
+    @Test("forward が post した userInfo は decode で全オプション付きの要求へ戻る")
+    func forwardPostsDecodableOpenRequest() {
+        let options = CLIOpenOptions(
+            showHiddenFiles: true, sortOrder: .alphabetical, showLineNumbers: false,
+            sourceMode: true, showSidebar: false
+        )
+        var posted: [String: Any] = [:]
+        let acked = CLIRequestForwarder.forward(
+            paths: ["a.md"], options: options, to: NSRunningApplication.current,
+            post: { _, userInfo in posted = userInfo },
+            makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 1) },
+            activate: {}
+        )
 
-        #expect(CLIInstanceRouter.requestID(from: userInfo) == "abc-123")
-        #expect(CLIInstanceRouter.decode(userInfo: userInfo) == .open(paths: ["a.md"], options: CLIOpenOptions()))
+        #expect(acked)
+        #expect(CLIRequestWire.decode(userInfo: posted) == .open(paths: ["a.md"], options: options))
+        #expect(CLIRequestWire.requestID(from: posted) != nil)
     }
 
     // MARK: - ブックマーク転送
@@ -124,21 +137,21 @@ struct CLIInstanceRouterTests {
     @Test("forwardBookmark は bookmarkPaths として post され、decode でブックマーク要求に戻る")
     func forwardBookmarkPostsBookmarkPaths() {
         var posted: [String: Any] = [:]
-        let acked = CLIInstanceRouter.forwardBookmark(
+        let acked = CLIRequestForwarder.forwardBookmark(
             paths: ["/tmp/a.md"],
             post: { _, userInfo in posted = userInfo },
             makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 1) }
         )
 
         #expect(acked)
-        #expect(CLIInstanceRouter.decode(userInfo: posted) == .bookmark(paths: ["/tmp/a.md"]))
-        #expect(CLIInstanceRouter.requestID(from: posted) != nil)
+        #expect(CLIRequestWire.decode(userInfo: posted) == .bookmark(paths: ["/tmp/a.md"]))
+        #expect(CLIRequestWire.requestID(from: posted) != nil)
     }
 
     @Test("forwardBookmark も ACK が届くまで同じ requestID で再送する")
     func forwardBookmarkRetriesWithSameRequestID() {
         var seenRequestIDs: [String] = []
-        let acked = CLIInstanceRouter.forwardBookmark(
+        let acked = CLIRequestForwarder.forwardBookmark(
             paths: ["/tmp/a.md"],
             maxAttempts: 3,
             post: { _, userInfo in
@@ -155,7 +168,7 @@ struct CLIInstanceRouterTests {
     @Test("forwardBookmark は ACK が一度も届かなければ失敗を返す")
     func forwardBookmarkReturnsFalseWhenAckNeverObserved() {
         var attempts = 0
-        let acked = CLIInstanceRouter.forwardBookmark(
+        let acked = CLIRequestForwarder.forwardBookmark(
             paths: ["/tmp/a.md"],
             maxAttempts: 3,
             post: { _, _ in attempts += 1 },

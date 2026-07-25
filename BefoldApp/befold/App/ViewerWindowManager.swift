@@ -75,7 +75,7 @@ final class ViewerWindowManager {
 
     /// CLI の `--bookmark <path>` から転送された追加を適用し、開いている全ウィンドウの
     /// ツールバーへ即座に反映する。書き込みを GUI プロセスへ一本化する意図で
-    /// AppDelegate から呼ばれる(CLIInstanceRouter 参照)。
+    /// AppDelegate から呼ばれる(CLIRequestForwarder 参照)。
     /// ブックマーク状態はツールバーが表示のたびに store から読み直すため、
     /// 反映は全ウィンドウの再同期で足り、変更通知の購読機構は要らない。
     func addBookmarks(for urls: [URL]) {

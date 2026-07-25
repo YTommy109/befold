@@ -1,6 +1,6 @@
 import Foundation
 
-/// CLIInstanceRouter.forward() の再送(ACK ロスト時の回復のための同一requestIDでの再通知)により、
+/// CLIRequestForwarder.forward() の再送(ACK ロスト時の回復のための同一requestIDでの再通知)により、
 /// 受信側で同じ要求が複数回処理されるのを防ぐ。
 struct CLIRequestDeduplicator {
     private var seenRequestIDs: Set<String> = []

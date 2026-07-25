@@ -242,9 +242,9 @@ struct CLIAppLauncherTests {
         #expect(code == 1)
     }
 
-    /// CLIInstanceRouterTests と同じ方針(実際の DistributedNotificationCenter は使わず
+    /// CLIRequestForwarderTests と同じ方針(実際の DistributedNotificationCenter は使わず
     /// post/ACK 待ち受けを差し替える)で、CLIAppLauncher.run から実際の
-    /// CLIInstanceRouter.forward 実装を呼び出し、ACK 受信後ただちに exit(0) することを検証する。
+    /// CLIRequestForwarder.forward 実装を呼び出し、ACK 受信後ただちに exit(0) することを検証する。
     @Test("実際の forward 実装を通しても、ACK 受信後ただちに exit(0) する")
     @MainActor
     func realForwardReceivesAckAndExitsPromptly() {
@@ -255,7 +255,7 @@ struct CLIAppLauncherTests {
             paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
             findRunningInstance: { mockApp },
             forward: { paths, options, destination in
-                CLIInstanceRouter.forward(
+                CLIRequestForwarder.forward(
                     paths: paths, options: options, to: destination,
                     post: { _, _ in },
                     makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 1) },
