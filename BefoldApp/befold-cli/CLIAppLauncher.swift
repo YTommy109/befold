@@ -76,9 +76,15 @@ public enum CLIAppLauncher {
         let bundlePath = resolveBundlePath()
         do {
             let status = try processLauncher.launchApp(bundlePath: bundlePath)
-            guard status == 0 else { return status }
+            guard status == 0 else {
+                writeError(
+                    "Failed to launch app at \(bundlePath): open exited with status \(status). "
+                        + "The app bundle may be missing or damaged.\n"
+                )
+                return status
+            }
         } catch {
-            writeError("Failed to launch app: \(error)\n")
+            writeError("Failed to launch app at \(bundlePath): \(error)\n")
             return 1
         }
 

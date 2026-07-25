@@ -123,6 +123,26 @@ struct CLIAppLauncherTests {
         #expect(code == 42)
     }
 
+    @Test("アプリ起動が非ゼロ終了コードなら stderr へ診断メッセージを出力する")
+    @MainActor
+    func launchNonZeroExitWritesStderrMessage() {
+        let launcher = MockProcessLauncher(status: 42)
+
+        var errorOutput = ""
+
+        _ = CLIAppLauncher.run(
+            paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
+            processLauncher: launcher,
+            findRunningInstance: { nil },
+            resolveBundlePath: { "/Applications/befold.app" },
+            writeError: { errorOutput += $0 }
+        )
+
+        #expect(errorOutput.contains("Failed to launch app"))
+        #expect(errorOutput.contains("/Applications/befold.app"))
+        #expect(errorOutput.contains("42"))
+    }
+
     @Test("アプリ起動が例外を投げたら 1 を返す")
     @MainActor
     func launchThrowingReturnsOne() {
