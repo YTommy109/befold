@@ -8,15 +8,15 @@ public enum CLIInstanceRouter {
     public static let openRequestNotificationName = Notification.Name("dev.befold.cli.openRequest")
     public static let openRequestAckNotificationName = Notification.Name("dev.befold.cli.openRequestAck")
 
-    public static let maxForwardAttempts = 3
-    /// 1回の試行あたり、ACK 受信を待つ最大秒数。
+    /// 再送の上限回数。maxForwardAttempts × ackTimeout = 10 秒が転送の総予算になる。
     ///
-    /// maxForwardAttempts × ackTimeout(現状 1.5 秒)は、起動直後でオブザーバ登録が
-    /// まだ完了していない宛先インスタンスへの転送が待つ最大時間でもある。
-    /// ここを安易に短縮すると、宛先の初期化がこの総待ち時間より遅い場合に、
-    /// 一度も request が届かないまま isDestinationAlive のフォールバックで
-    /// 成功扱いされてしまう既知の限界を悪化させる。CLI 呼び出し元の
-    /// 体感速度より、この安全マージンを優先し現状の値を維持する。
+    /// 宛先がコールドローンチ中の場合、NSRunningApplication として検出できてから
+    /// ランループが回って通知が配送されるまでには相応の時間がかかる(アップデート直後の
+    /// 初回起動・遅いディスクでは特に)。ここが短いと、request が一度も届かないまま
+    /// 全試行を使い切ってしまう。CLIAppLauncher がアプリの出現を待つ上限(pollTimeout = 10 秒)
+    /// と同じ予算を、届いたことの確認にも与える。
+    public static let maxForwardAttempts = 20
+    /// 1回の試行あたり、ACK 受信を待つ最大秒数。
     public static let ackTimeout: TimeInterval = 0.5
 
     /// 起動中の befold.app インスタンスを探す。
@@ -37,8 +37,16 @@ public enum CLIInstanceRouter {
     /// `paths`/`options` を既存インスタンスへ Distributed Notification 経由で転送し、
     /// 対象インスタンスからの ACK を待つ。ACK が届くまで `maxAttempts` 回まで再送する。
     ///
-    /// ACK も DistributedNotificationCenter 経由のため消失しうる。全試行で ACK 未観測でも
-    /// 宛先プロセスが生存していれば成功として扱う。
+    /// ACK の待ち受けは最初の post より前に開始し、再送をまたいで解除しない。
+    /// post してから待ち受けを始めると、その間に返った ACK を取りこぼす。宛先が
+    /// コールドローンチ中のときはこの取りこぼしが起きやすく、実際には届いていた要求を
+    /// 「未達」と誤判定する原因になる。
+    ///
+    /// ACK を一度も観測できなければ失敗を返す。宛先プロセスの生存は「要求が届いた」ことの
+    /// 証拠にはならない(オブザーバ未登録で起動中のインスタンスはまさに生存しているが届かない)。
+    /// ここを成功扱いにすると CLI が exit 0 するのにファイルが開かない無言失敗になるため、
+    /// 生存によるフォールバックは設けない。再送は GUI 側が requestID で重複排除するため、
+    /// 同じファイルが二重に開くことはない。
     @MainActor
     public static func forward(
         paths: [String], options: CLIOpenOptions, to instance: NSRunningApplication,
@@ -49,11 +57,9 @@ public enum CLIInstanceRouter {
                 name, object: nil, userInfo: userInfo, deliverImmediately: true
             )
         },
-        waitForAck: (String, TimeInterval) -> Bool = defaultWaitForAck,
-        isDestinationAlive: (() -> Bool)? = nil,
+        makeAckWaiter: (String) -> any AckWaiting = { DistributedAckWaiter(requestID: $0) },
         activate: (() -> Void)? = nil
     ) -> Bool {
-        let isDestinationAlive = isDestinationAlive ?? { !instance.isTerminated }
         let activate = activate ?? { instance.activate() }
         let requestID = UUID().uuidString
         var userInfo: [String: Any] = ["paths": paths, "requestID": requestID]
@@ -63,32 +69,17 @@ public enum CLIInstanceRouter {
         if let value = options.showSidebar { userInfo["showSidebar"] = value }
         if let value = options.sortOrder { userInfo["sortOrder"] = value.rawValue }
 
+        let waiter = makeAckWaiter(requestID)
+        defer { waiter.cancel() }
+
         for _ in 0 ..< maxAttempts {
             post(openRequestNotificationName, userInfo)
-            if waitForAck(requestID, ackTimeout) {
+            if waiter.wait(timeout: ackTimeout) {
                 activate()
                 return true
             }
         }
-        guard isDestinationAlive() else { return false }
-        activate()
-        return true
-    }
-
-    public static func defaultWaitForAck(requestID: String, timeout: TimeInterval) -> Bool {
-        var acked = false
-        let observer = DistributedNotificationCenter.default().addObserver(
-            forName: openRequestAckNotificationName, object: nil, queue: nil
-        ) { notification in
-            if notification.userInfo?["requestID"] as? String == requestID { acked = true }
-        }
-        defer { DistributedNotificationCenter.default().removeObserver(observer) }
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while !acked, Date() < deadline {
-            RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.02)))
-        }
-        return acked
+        return false
     }
 
     /// 受信した Distributed Notification の userInfo から paths/options を復元する。

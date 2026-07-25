@@ -4,28 +4,13 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// パス無し CLI 転送(`befold --line-numbers` 等)で開いている既存ウィンドウへ
-/// 行番号/ソース表示/並び順/サイドバー開閉のオーバーライドが反映されることを検証する。
-/// 全件が実 openViewer 経由でコントローラ生成パイプライン(実 store・FileWatcher・
-/// サイドバーの DirectoryLister 列挙)を踏むため Integration。存在ガードは注入 fileReader
-/// 経由になった(TASK-116.12)が、生成パイプライン全体の注入シームは未導入。
+/// 並び順オーバーライドがサイドバーの entries 表示へ反映されることを、実ディレクトリ列挙の
+/// 結果で検証するため Integration に残す。
+/// オーバーライドの適用そのもの(行番号・ソース表示・サイドバー開閉)は TASK-116.13 で
+/// ViewerWindowManagerDisplayOverridesTests(unit)へ移設済み。
 @Suite
 @MainActor
 struct ViewerWindowManagerDisplayOverridesIntegrationTests {
-    private func makeStore(
-        prefix: String = "ViewerWindowManagerDisplayOverridesTests"
-    ) -> (manager: ViewerWindowManager, perFileState: PerFileStateStore) {
-        let defaults = makeIsolatedDefaults(prefix: prefix)
-        let perFileState = PerFileStateStore(defaults: defaults)
-        let manager = ViewerWindowManager(
-            sessionStore: SessionStore(defaults: defaults),
-            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
-            hiddenFilesPreference: HiddenFilesPreference(defaults: defaults),
-            perFileState: perFileState
-        )
-        return (manager, perFileState)
-    }
-
     private func makeManager(
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowManagerDisplayOverridesTests")
     ) -> ViewerWindowManager {
@@ -35,28 +20,6 @@ struct ViewerWindowManagerDisplayOverridesIntegrationTests {
             hiddenFilesPreference: HiddenFilesPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults)
         )
-    }
-
-    @Test("開いている全ウィンドウへ行番号/ソース/並び順を反映する")
-    func applyDisplayOverridesAffectsAllOpenWindows() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
-        let file2 = try tmp.file(named: "second.md", contents: "# hello")
-        let manager = makeManager()
-        manager.openViewer(for: file1)
-        manager.openViewer(for: file2)
-
-        manager.applyDisplayOverrides(
-            showLineNumbers: true, sourceMode: true, sortOrder: .alphabetical, showSidebar: nil
-        )
-
-        for controller in manager.controllers.values {
-            #expect(controller.store.showLineNumbers)
-            #expect(controller.isSourceMode)
-            #expect(controller.fileListModel.sortOrder == .alphabetical)
-        }
-        manager.controllers.values.forEach { $0.close() }
     }
 
     @Test("既存ウィンドウへの並び順オーバーライドはサイドバーのentries表示にも反映される")
@@ -79,77 +42,6 @@ struct ViewerWindowManagerDisplayOverridesIntegrationTests {
 
         #expect(controller.fileListModel.sortOrder == .alphabetical)
         #expect(controller.fileListModel.entries.map(\.kind) == [.file, .folder])
-        manager.controllers.values.forEach { $0.close() }
-    }
-
-    @Test("nil を渡したオーバーライドは既存ウィンドウの状態を変更しない")
-    func applyDisplayOverridesLeavesUnspecifiedOptionsUntouched() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "first.mmd", contents: "graph TD;")
-        let manager = makeManager()
-        manager.openViewer(for: file)
-        let controller = try #require(manager.controllers[file.normalizedPathKey])
-        let originalSortOrder = controller.fileListModel.sortOrder
-        let originalSourceMode = controller.isSourceMode
-
-        manager.applyDisplayOverrides(
-            showLineNumbers: true, sourceMode: nil, sortOrder: nil, showSidebar: nil
-        )
-
-        #expect(controller.store.showLineNumbers)
-        #expect(controller.isSourceMode == originalSourceMode)
-        #expect(controller.fileListModel.sortOrder == originalSortOrder)
-        manager.controllers.values.forEach { $0.close() }
-    }
-
-    @Test(
-        "新規ウィンドウは sidebarVisibleOverride に従って開閉状態が決まる",
-        arguments: [(true, false), (false, true)]
-    )
-    func sidebarVisibleOverrideDeterminesInitialCollapse(
-        visible: Bool, expectedCollapsed: Bool
-    ) throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "first.mmd", contents: "graph TD;")
-        let (manager, perFileState) = makeStore(prefix: "SidebarOverrideInitial-\(visible)")
-        manager.openViewer(for: file, sidebarVisibleOverride: visible)
-
-        #expect(perFileState.sidebar.isCollapsed(for: file) == expectedCollapsed)
-        manager.controllers.values.forEach { $0.close() }
-    }
-
-    @Test("sidebarVisibleOverride 未指定(nil)なら保存済み開閉状態を維持する")
-    func sidebarVisibleOverrideNilKeepsSavedState() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "first.mmd", contents: "graph TD;")
-        let (manager, perFileState) = makeStore(prefix: "SidebarOverrideNil")
-        // 事前に「開いた状態(collapsed=false)」を保存しておく。
-        perFileState.sidebar.setCollapsed(false, for: file)
-
-        manager.openViewer(for: file, sidebarVisibleOverride: nil)
-
-        #expect(perFileState.sidebar.isCollapsed(for: file) == false)
-        manager.controllers.values.forEach { $0.close() }
-    }
-
-    @Test("既存ウィンドウへ showSidebar を反映して開閉状態を切り替える")
-    func applyDisplayOverridesTogglesSidebarOnOpenWindow() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "first.mmd", contents: "graph TD;")
-        let (manager, perFileState) = makeStore(prefix: "SidebarOverrideApply")
-        // 閉じた状態で開く。
-        manager.openViewer(for: file, sidebarVisibleOverride: false)
-        #expect(perFileState.sidebar.isCollapsed(for: file) == true)
-
-        manager.applyDisplayOverrides(
-            showLineNumbers: nil, sourceMode: nil, sortOrder: nil, showSidebar: true
-        )
-
-        #expect(perFileState.sidebar.isCollapsed(for: file) == false)
         manager.controllers.values.forEach { $0.close() }
     }
 }

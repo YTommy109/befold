@@ -243,7 +243,7 @@ struct CLIAppLauncherTests {
     }
 
     /// CLIInstanceRouterTests と同じ方針(実際の DistributedNotificationCenter は使わず
-    /// post/waitForAck を差し替える)で、CLIAppLauncher.run から実際の
+    /// post/ACK 待ち受けを差し替える)で、CLIAppLauncher.run から実際の
     /// CLIInstanceRouter.forward 実装を呼び出し、ACK 受信後ただちに exit(0) することを検証する。
     @Test("実際の forward 実装を通しても、ACK 受信後ただちに exit(0) する")
     @MainActor
@@ -258,7 +258,7 @@ struct CLIAppLauncherTests {
                 CLIInstanceRouter.forward(
                     paths: paths, options: options, to: destination,
                     post: { _, _ in },
-                    waitForAck: { _, _ in true },
+                    makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 1) },
                     activate: { activateCount += 1 }
                 )
             }

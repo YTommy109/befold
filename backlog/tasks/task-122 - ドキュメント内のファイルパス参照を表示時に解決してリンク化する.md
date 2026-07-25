@@ -4,12 +4,13 @@ title: ドキュメント内のファイルパス参照を表示時に解決し�
 status: To Do
 assignee: []
 created_date: '2026-07-24 12:53'
+updated_date: '2026-07-25 00:25'
 labels: []
 dependencies: []
 documentation:
   - docs/superpowers/plans/2026-07-24-clickable-path-resolution.md
-priority: medium
-ordinal: 108000
+priority: low
+ordinal: 200000
 ---
 
 ## Description

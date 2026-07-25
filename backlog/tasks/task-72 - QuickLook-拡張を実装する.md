@@ -1,14 +1,14 @@
 ---
 id: TASK-72
 title: QuickLook 拡張を実装する
-status: In Progress
+status: To Do
 assignee:
   - '@tokutomi'
 created_date: '2026-07-19 06:38'
-updated_date: '2026-07-19 06:43'
+updated_date: '2026-07-25 00:27'
 labels: []
 dependencies: []
-ordinal: 37000
+ordinal: 210000
 ---
 
 ## Description
@@ -38,3 +38,9 @@ befold にファイル種別に応じたプレビューを提供する QuickLook
 
 各ステップをTASK-72の子タスクとして分割し、順に着手する。
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+コード品質を新機能より優先する方針に伴い、本タスクを保留して To Do へ戻した（子タスク 7 件はすべて未着手で、実装成果物はない）。再開の目安: 構造リファクタ層（TASK-135 / 133 / 134 / 139 / 140 系 / 136 / 137 / 138）とテスト品質層が片付いた時点。
+<!-- SECTION:NOTES:END -->

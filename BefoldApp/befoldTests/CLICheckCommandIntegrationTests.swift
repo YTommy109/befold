@@ -14,13 +14,13 @@ struct CLICheckCommandIntegrationTests {
     }
 
     @Test("フォルダーを指定すると対応形式優先で最初のファイルを判定する")
-    func directoryResolvesToFirstSupportedFile() throws {
+    func directoryResolvesToFirstSupportedFile() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: "a.txt", contents: "plain")
         _ = try tmp.file(named: "b.md", contents: "# hi")
 
-        let result = CLICheckCommand.run(
+        let result = await CLICheckCommand.run(
             tmp.url.path, resolveFileToOpen: resolve
         )
 
@@ -29,13 +29,13 @@ struct CLICheckCommandIntegrationTests {
     }
 
     @Test("フォルダー内のファイル解決はDirectoryListerの実装を再利用する")
-    func directoryResolutionUsesNaturalSortLikeDirectoryLister() throws {
+    func directoryResolutionUsesNaturalSortLikeDirectoryLister() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: "file10.md", contents: "# ten")
         _ = try tmp.file(named: "file2.md", contents: "# two")
 
-        let result = CLICheckCommand.run(
+        let result = await CLICheckCommand.run(
             tmp.url.path, resolveFileToOpen: resolve
         )
         let expected = DirectoryLister.firstSupportedFile(in: tmp.url)
@@ -46,11 +46,11 @@ struct CLICheckCommandIntegrationTests {
     }
 
     @Test("空のフォルダーはエラーになる")
-    func emptyDirectoryFails() throws {
+    func emptyDirectoryFails() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
 
-        let result = CLICheckCommand.run(
+        let result = await CLICheckCommand.run(
             tmp.url.path, resolveFileToOpen: resolve
         )
 
@@ -59,7 +59,7 @@ struct CLICheckCommandIntegrationTests {
     }
 
     @Test("壊れたシンボリックリンクだけのフォルダーは空扱いせず、開けないエントリとして報告する")
-    func directoryWithOnlyDanglingSymlinkReportsUnopenableEntry() throws {
+    func directoryWithOnlyDanglingSymlinkReportsUnopenableEntry() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         try FileManager.default.createSymbolicLink(
@@ -67,7 +67,7 @@ struct CLICheckCommandIntegrationTests {
             withDestinationURL: tmp.url.appendingPathComponent("missing.mmd")
         )
 
-        let result = CLICheckCommand.run(
+        let result = await CLICheckCommand.run(
             tmp.url.path, resolveFileToOpen: resolve
         )
 

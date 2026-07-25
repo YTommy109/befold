@@ -1,6 +1,91 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "cli.folder.noFile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No file found in this folder."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このフォルダーにファイルが見つかりません。"
+          }
+        }
+      }
+    },
+    "cli.install.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to install the 'befold' command."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "'befold' コマンドのインストールに失敗しました。"
+          }
+        }
+      }
+    },
+    "cli.install.reinstallRecommended": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The 'befold' command is outdated. Choose \"Install Command Line Tool\" from the menu to update it."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "'befold' コマンドが古い状態です。メニューの「コマンドラインツールをインストール」から更新してください。"
+          }
+        }
+      }
+    },
+    "cli.install.success": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed the 'befold' command to /usr/local/bin."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "/usr/local/bin に 'befold' コマンドをインストールしました。"
+          }
+        }
+      }
+    },
+    "cli.install.translocated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move befold.app to the Applications folder and reopen it, then try installing the 'befold' command again. The app is running from a temporary location, so the installed command would stop working."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "befold.app を アプリケーション フォルダーへ移動して開き直してから、もう一度 'befold' コマンドをインストールしてください。現在アプリは一時的な場所で実行されているため、インストールしてもコマンドは動かなくなります。"
+          }
+        }
+      }
+    },
     "menu.app.about": {
       "extractionState": "manual",
       "localizations": {
@@ -31,40 +116,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "アップデートを確認…"
-          }
-        }
-      }
-    },
-    "menu.app.installCLI": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Install Command Line Tool"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コマンドラインツールをインストール"
-          }
-        }
-      }
-    },
-    "menu.app.services": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Services"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サービス"
           }
         }
       }
@@ -103,19 +154,19 @@
         }
       }
     },
-    "menu.app.showAll": {
+    "menu.app.installCLI": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Show All"
+            "value": "Install Command Line Tool"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべてを表示"
+            "value": "コマンドラインツールをインストール"
           }
         }
       }
@@ -137,189 +188,36 @@
         }
       }
     },
-    "menu.file.title": {
+    "menu.app.services": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "File"
+            "value": "Services"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ファイル"
+            "value": "サービス"
           }
         }
       }
     },
-    "menu.file.open": {
+    "menu.app.showAll": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open…"
+            "value": "Show All"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "開く…"
-          }
-        }
-      }
-    },
-    "menu.file.openRecent": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open Recent"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最近使った項目を開く"
-          }
-        }
-      }
-    },
-    "menu.file.bookmarks": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bookmarks"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ブックマーク"
-          }
-        }
-      }
-    },
-    "menu.file.close": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "閉じる"
-          }
-        }
-      }
-    },
-    "menu.file.print": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Print…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "プリント…"
-          }
-        }
-      }
-    },
-    "menu.file.clearMenu": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clear Menu"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "メニューを消去"
-          }
-        }
-      }
-    },
-    "menu.edit.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "編集"
-          }
-        }
-      }
-    },
-    "menu.edit.undo": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Undo"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取り消す"
-          }
-        }
-      }
-    },
-    "menu.edit.redo": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Redo"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "やり直す"
-          }
-        }
-      }
-    },
-    "menu.edit.cut": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cut"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "カット"
+            "value": "すべてを表示"
           }
         }
       }
@@ -341,19 +239,19 @@
         }
       }
     },
-    "menu.edit.paste": {
+    "menu.edit.cut": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Paste"
+            "value": "Cut"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ペースト"
+            "value": "カット"
           }
         }
       }
@@ -371,23 +269,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "削除"
-          }
-        }
-      }
-    },
-    "menu.edit.selectAll": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Select All"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すべてを選択"
           }
         }
       }
@@ -443,19 +324,240 @@
         }
       }
     },
-    "menu.view.title": {
+    "menu.edit.paste": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "View"
+            "value": "Paste"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "表示"
+            "value": "ペースト"
+          }
+        }
+      }
+    },
+    "menu.edit.redo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "やり直す"
+          }
+        }
+      }
+    },
+    "menu.edit.selectAll": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select All"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてを選択"
+          }
+        }
+      }
+    },
+    "menu.edit.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編集"
+          }
+        }
+      }
+    },
+    "menu.edit.undo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取り消す"
+          }
+        }
+      }
+    },
+    "menu.file.bookmarks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmarks"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマーク"
+          }
+        }
+      }
+    },
+    "menu.file.clearMenu": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Menu"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メニューを消去"
+          }
+        }
+      }
+    },
+    "menu.file.close": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閉じる"
+          }
+        }
+      }
+    },
+    "menu.file.open": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開く…"
+          }
+        }
+      }
+    },
+    "menu.file.openRecent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Recent"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近使った項目を開く"
+          }
+        }
+      }
+    },
+    "menu.file.print": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Print…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プリント…"
+          }
+        }
+      }
+    },
+    "menu.file.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイル"
+          }
+        }
+      }
+    },
+    "menu.help.appHelp": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "befold Help"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "befold ヘルプ"
+          }
+        }
+      }
+    },
+    "menu.help.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ヘルプ"
           }
         }
       }
@@ -477,176 +579,6 @@
         }
       }
     },
-    "menu.view.zoomIn": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zoom In"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "拡大"
-          }
-        }
-      }
-    },
-    "menu.view.zoomOut": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zoom Out"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "縮小"
-          }
-        }
-      }
-    },
-    "menu.view.toggleSidebar": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toggle Sidebar"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サイドバーを表示/非表示"
-          }
-        }
-      }
-    },
-    "menu.view.toggleSource": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toggle Source"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ソースを表示"
-          }
-        }
-      }
-    },
-    "menu.view.showRendered": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Rendered"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "レンダリング表示"
-          }
-        }
-      }
-    },
-    "toolbar.mode.group": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Display Mode"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "表示モード"
-          }
-        }
-      }
-    },
-    "toolbar.mode.preview": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preview"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "プレビュー"
-          }
-        }
-      }
-    },
-    "toolbar.mode.source": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Source"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ソース"
-          }
-        }
-      }
-    },
-    "menu.view.showLineNumbers": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Line Numbers"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "行番号を表示"
-          }
-        }
-      }
-    },
-    "menu.view.hideLineNumbers": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hide Line Numbers"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "行番号を隠す"
-          }
-        }
-      }
-    },
     "menu.view.addBookmark": {
       "extractionState": "manual",
       "localizations": {
@@ -660,57 +592,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "ブックマークする"
-          }
-        }
-      }
-    },
-    "menu.view.removeBookmark": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remove Bookmark"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ブックマーク解除"
-          }
-        }
-      }
-    },
-    "menu.view.showHiddenFiles": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Hidden Files"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不可視ファイルを表示"
-          }
-        }
-      }
-    },
-    "menu.view.hideHiddenFiles": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hide Hidden Files"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不可視ファイルを隠す"
           }
         }
       }
@@ -766,121 +647,189 @@
         }
       }
     },
-    "menu.window.title": {
+    "menu.view.hideHiddenFiles": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Window"
+            "value": "Hide Hidden Files"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ウインドウ"
+            "value": "不可視ファイルを隠す"
           }
         }
       }
     },
-    "menu.window.minimize": {
+    "menu.view.hideLineNumbers": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Minimize"
+            "value": "Hide Line Numbers"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "しまう"
+            "value": "行番号を隠す"
           }
         }
       }
     },
-    "menu.window.zoom": {
+    "menu.view.removeBookmark": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zoom"
+            "value": "Remove Bookmark"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "拡大/縮小"
+            "value": "ブックマーク解除"
           }
         }
       }
     },
-    "menu.window.showPreviousTab": {
+    "menu.view.showHiddenFiles": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Show Previous Tab"
+            "value": "Show Hidden Files"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "前のタブを表示"
+            "value": "不可視ファイルを表示"
           }
         }
       }
     },
-    "menu.window.showNextTab": {
+    "menu.view.showLineNumbers": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Show Next Tab"
+            "value": "Show Line Numbers"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "次のタブを表示"
+            "value": "行番号を表示"
           }
         }
       }
     },
-    "menu.window.moveTabToNewWindow": {
+    "menu.view.showRendered": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Move Tab to New Window"
+            "value": "Show Rendered"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "タブを新規ウインドウに移動"
+            "value": "レンダリング表示"
           }
         }
       }
     },
-    "menu.window.mergeAllWindows": {
+    "menu.view.title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Merge All Windows"
+            "value": "View"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべてのウインドウを結合"
+            "value": "表示"
+          }
+        }
+      }
+    },
+    "menu.view.toggleSidebar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Sidebar"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイドバーを表示/非表示"
+          }
+        }
+      }
+    },
+    "menu.view.toggleSource": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Source"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ソースを表示"
+          }
+        }
+      }
+    },
+    "menu.view.zoomIn": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom In"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拡大"
+          }
+        }
+      }
+    },
+    "menu.view.zoomOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom Out"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "縮小"
           }
         }
       }
@@ -902,240 +851,240 @@
         }
       }
     },
-    "menu.help.title": {
+    "menu.window.mergeAllWindows": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Help"
+            "value": "Merge All Windows"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ヘルプ"
+            "value": "すべてのウインドウを結合"
           }
         }
       }
     },
-    "menu.help.appHelp": {
+    "menu.window.minimize": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "befold Help"
+            "value": "Minimize"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "befold ヘルプ"
+            "value": "しまう"
           }
         }
       }
     },
-    "update.available.title": {
+    "menu.window.moveTabToNewWindow": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "befold %@ is available"
+            "value": "Move Tab to New Window"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "befold %@ が利用可能です"
+            "value": "タブを新規ウインドウに移動"
           }
         }
       }
     },
-    "update.available.message": {
+    "menu.window.showNextTab": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You are currently on v%@. Do you want to download and install the update?"
+            "value": "Show Next Tab"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "現在のバージョンは v%@ です。ダウンロードしてインストールしますか?"
+            "value": "次のタブを表示"
           }
         }
       }
     },
-    "update.available.install": {
+    "menu.window.showPreviousTab": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Download and Install"
+            "value": "Show Previous Tab"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ダウンロードしてインストール"
+            "value": "前のタブを表示"
           }
         }
       }
     },
-    "update.later": {
+    "menu.window.title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Later"
+            "value": "Window"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "後で"
+            "value": "ウインドウ"
           }
         }
       }
     },
-    "update.downloaded.title": {
+    "menu.window.zoom": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ has been downloaded"
+            "value": "Zoom"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ のダウンロードが完了しました"
+            "value": "拡大/縮小"
           }
         }
       }
     },
-    "update.downloaded.message": {
+    "sidebar.context.copy": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The app will relaunch to install the update."
+            "value": "Copy"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "インストールするとアプリが再起動します。"
+            "value": "コピーする"
           }
         }
       }
     },
-    "update.downloaded.installAndRelaunch": {
+    "sidebar.context.copyPath": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Install and Relaunch"
+            "value": "Copy Path"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "インストールして再起動"
+            "value": "相対パスをコピーする"
           }
         }
       }
     },
-    "update.devBuildFallback": {
+    "sidebar.context.openInNewWindow": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Automatic installation is not available for development builds. Opening the download page."
+            "value": "Open in New Window"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "開発ビルドのため自動インストールできません。ダウンロードページを開きます。"
+            "value": "新しいウィンドウで開く"
           }
         }
       }
     },
-    "update.upToDate": {
+    "sidebar.context.revealInFinder": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You're up to date (v%@)"
+            "value": "Reveal in Finder"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "最新バージョンです(v%@)"
+            "value": "Finder で開く"
           }
         }
       }
     },
-    "update.checkFailed": {
+    "sidebar.empty": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Failed to check for updates."
+            "value": "No Supported Files"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "アップデートの確認に失敗しました。"
+            "value": "対応ファイルがありません"
           }
         }
       }
     },
-    "update.installFailed": {
+    "sidebar.hiddenFiles.hide": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Failed to install the update."
+            "value": "Hide Hidden Files"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "アップデートのインストールに失敗しました。"
+            "value": "不可視ファイルを隠す"
           }
         }
       }
     },
-    "update.downloading": {
+    "sidebar.hiddenFiles.show": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Downloading Update…"
+            "value": "Show Hidden Files"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "アップデートをダウンロード中…"
+            "value": "不可視ファイルを表示"
           }
         }
       }
@@ -1174,40 +1123,6 @@
         }
       }
     },
-    "sidebar.hiddenFiles.show": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Hidden Files"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不可視ファイルを表示"
-          }
-        }
-      }
-    },
-    "sidebar.hiddenFiles.hide": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hide Hidden Files"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不可視ファイルを隠す"
-          }
-        }
-      }
-    },
     "toolbar.back": {
       "extractionState": "manual",
       "localizations": {
@@ -1242,155 +1157,257 @@
         }
       }
     },
-    "sidebar.empty": {
+    "toolbar.mode.group": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No Supported Files"
+            "value": "Display Mode"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "対応ファイルがありません"
+            "value": "表示モード"
           }
         }
       }
     },
-    "sidebar.context.copy": {
+    "toolbar.mode.preview": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Copy"
+            "value": "Preview"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "コピーする"
+            "value": "プレビュー"
           }
         }
       }
     },
-    "sidebar.context.openInNewWindow": {
+    "toolbar.mode.source": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open in New Window"
+            "value": "Source"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新しいウィンドウで開く"
+            "value": "ソース"
           }
         }
       }
     },
-    "sidebar.context.copyPath": {
+    "update.available.install": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Copy Path"
+            "value": "Download and Install"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "相対パスをコピーする"
+            "value": "ダウンロードしてインストール"
           }
         }
       }
     },
-    "sidebar.context.revealInFinder": {
+    "update.available.message": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reveal in Finder"
+            "value": "You are currently on v%@. Do you want to download and install the update?"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Finder で開く"
+            "value": "現在のバージョンは v%@ です。ダウンロードしてインストールしますか?"
           }
         }
       }
     },
-    "cli.folder.noFile": {
+    "update.available.title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No file found in this folder."
+            "value": "befold %@ is available"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "このフォルダーにファイルが見つかりません。"
+            "value": "befold %@ が利用可能です"
           }
         }
       }
     },
-    "cli.install.success": {
+    "update.checkFailed": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Installed the 'befold' command to /usr/local/bin."
+            "value": "Failed to check for updates."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "/usr/local/bin に 'befold' コマンドをインストールしました。"
+            "value": "アップデートの確認に失敗しました。"
           }
         }
       }
     },
-    "cli.install.failed": {
+    "update.devBuildFallback": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Failed to install the 'befold' command."
+            "value": "Automatic installation is not available for development builds. Opening the download page."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "'befold' コマンドのインストールに失敗しました。"
+            "value": "開発ビルドのため自動インストールできません。ダウンロードページを開きます。"
           }
         }
       }
     },
-    "cli.install.reinstallRecommended": {
+    "update.downloaded.installAndRelaunch": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The 'befold' command is outdated. Choose \"Install Command Line Tool\" from the menu to update it."
+            "value": "Install and Relaunch"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "'befold' コマンドが古い状態です。メニューの「コマンドラインツールをインストール」から更新してください。"
+            "value": "インストールして再起動"
+          }
+        }
+      }
+    },
+    "update.downloaded.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app will relaunch to install the update."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インストールするとアプリが再起動します。"
+          }
+        }
+      }
+    },
+    "update.downloaded.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ has been downloaded"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ のダウンロードが完了しました"
+          }
+        }
+      }
+    },
+    "update.downloading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading Update…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートをダウンロード中…"
+          }
+        }
+      }
+    },
+    "update.installFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to install the update."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートのインストールに失敗しました。"
+          }
+        }
+      }
+    },
+    "update.later": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Later"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "後で"
+          }
+        }
+      }
+    },
+    "update.upToDate": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're up to date (v%@)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新バージョンです(v%@)"
           }
         }
       }

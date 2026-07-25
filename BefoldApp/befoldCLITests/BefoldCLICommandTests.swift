@@ -22,8 +22,9 @@ struct BefoldCLICommandTests {
 
     /// 本番の UserDefaults(`com.degino.befold`)と実 stdout/stderr に到達させずに実行する。
     /// 出力・ブックマーク内容を検証しないテストはこちらを使う。
-    private func executeIsolated(_ command: BefoldCLICommand) throws {
-        try command.execute(addBookmark: { _ in }, printResult: { _ in })
+    @MainActor
+    private func executeIsolated(_ command: BefoldCLICommand) async throws {
+        try await command.execute(addBookmark: { _ in }, printResult: { _ in })
     }
 
     @Test("引数なしの場合は空のパス・既定オプションになる")
@@ -66,22 +67,23 @@ struct BefoldCLICommandTests {
     }
 
     @Test("--check は複数パスを対象にし、1件でも失敗すれば終了コードが非0になる")
-    func checkAggregatesMultiplePathsAndFailsIfAnyFails() throws {
+    @MainActor
+    func checkAggregatesMultiplePathsAndFailsIfAnyFails() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let existing = try tmp.file(named: "ok.md", contents: "# ok")
         let missing = tmp.url.appendingPathComponent("missing.md")
 
         let allOk = try parseCommand(["--check", existing.path])
-        #expect(throws: ExitCode(0)) { try executeIsolated(allOk) }
+        await #expect(throws: ExitCode(0)) { try await executeIsolated(allOk) }
 
         let oneMissing = try parseCommand(["--check", existing.path, missing.path])
-        #expect(throws: ExitCode(1)) { try executeIsolated(oneMissing) }
+        await #expect(throws: ExitCode(1)) { try await executeIsolated(oneMissing) }
     }
 
     @Test("--check と --bookmark を併用すると check→bookmark の順で両方実行され、失敗が集計される")
     @MainActor
-    func checkAndBookmarkRunInOrderAndAggregateFailure() throws {
+    func checkAndBookmarkRunInOrderAndAggregateFailure() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let existing = try tmp.file(named: "ok.md", contents: "# ok")
@@ -91,8 +93,8 @@ struct BefoldCLICommandTests {
         var messages: [String] = []
         let both = try parseCommand(["--check", "--bookmark", existing.path, missing.path])
 
-        #expect(throws: ExitCode(1)) {
-            try both.execute(
+        await #expect(throws: ExitCode(1)) {
+            try await both.execute(
                 addBookmark: { bookmarked.append($0) },
                 printResult: { messages.append($0.message) }
             )

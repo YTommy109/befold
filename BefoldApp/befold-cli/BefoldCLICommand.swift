@@ -4,7 +4,7 @@ import BefoldKit
 import Foundation
 
 @main
-struct BefoldCLICommand: ParsableCommand {
+struct BefoldCLICommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "befold",
         abstract: "Mermaid/Markdown viewer.",
@@ -38,8 +38,9 @@ struct BefoldCLICommand: ParsableCommand {
         }
     }
 
-    func run() throws {
-        try execute(
+    @MainActor
+    func run() async throws {
+        try await execute(
             addBookmark: { BefoldCLICommand.bookmarkStore.add($0) },
             printResult: CLICommandResultPrinter.print
         )
@@ -48,31 +49,28 @@ struct BefoldCLICommand: ParsableCommand {
     /// `run()` の実体。ブックマークの追加先と結果の出力先を注入できるようにしている。
     /// 既定の追加先は GUI と共有する UserDefaults(`com.degino.befold`)= 利用者の実データ、
     /// 既定の出力先は実プロセスの stdout/stderr のため、テストからは差し替えて使う。
+    @MainActor
     func execute(
         addBookmark: @MainActor (URL) -> Void,
         printResult: (CLICommandResult) -> Void
-    ) throws {
+    ) async throws {
         if !check, !bookmark {
-            let paths = paths
-            let options = options
-            MainActor.assumeIsolated {
-                CLIAppLauncher.launch(paths: paths, options: options)
-            }
+            CLIAppLauncher.launch(paths: paths, options: options)
         }
 
         var anyFailed = false
         if check {
             for path in paths {
-                let result = CLICheckCommand.run(path)
+                // 判定は GUI と同じ ViewerLoadPipeline へ委譲する(CLICheckCommand 参照)。
+                // I/O とデコードは nonisolated な pipeline 側で行われ、メインスレッドは塞がない。
+                let result = await CLICheckCommand.run(path)
                 printResult(result)
                 if result.exitCode != 0 { anyFailed = true }
             }
         }
         if bookmark {
             for path in paths {
-                let result = MainActor.assumeIsolated {
-                    CLIBookmarkCommand.run(path, addBookmark: addBookmark)
-                }
+                let result = CLIBookmarkCommand.run(path, addBookmark: addBookmark)
                 printResult(result)
                 if result.exitCode != 0 { anyFailed = true }
             }

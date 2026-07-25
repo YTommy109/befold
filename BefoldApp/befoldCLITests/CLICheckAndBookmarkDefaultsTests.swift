@@ -9,13 +9,13 @@ import Testing
 @Suite
 struct CLICheckAndBookmarkDefaultsTests {
     @Test("--check はフォルダー内に対応形式・非対応形式が混在していても対応形式を優先して解決する")
-    func checkPrefersSupportedFormatInMixedDirectory() throws {
+    func checkPrefersSupportedFormatInMixedDirectory() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: "a.txt", contents: "plain")
         _ = try tmp.file(named: "b.md", contents: "# hi")
 
-        let result = CLICheckCommand.run(tmp.url.path)
+        let result = await CLICheckCommand.run(tmp.url.path)
 
         #expect(result.exitCode == 0)
         #expect(result.message.contains("b.md"))
