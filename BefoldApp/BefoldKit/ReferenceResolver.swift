@@ -39,7 +39,6 @@ public enum ReferenceResolver {
 
     private static func classify(href: String) -> Classified {
         guard !href.isEmpty, !href.hasPrefix("#") else { return .unsupported }
-        let decoded = href.removingPercentEncoding ?? href
 
         if let url = URL(string: href), let scheme = url.scheme {
             switch scheme.lowercased() {
@@ -52,20 +51,23 @@ public enum ReferenceResolver {
             }
         }
 
-        // #fragment を除去（クロスドキュメントリンク other.md#section 対応）
-        let withoutFragment: String = if let hashIndex = decoded.firstIndex(of: "#") {
-            String(decoded[..<hashIndex])
+        // #fragment を除去（クロスドキュメントリンク other.md#section 対応）。
+        // パーセントデコードより前に行う。逆順にすると、ファイル名の # をエスケープした
+        // href(file%23name.md)がデコードで生の # に戻り、以降を fragment として失う。
+        let withoutFragment: String = if let hashIndex = href.firstIndex(of: "#") {
+            String(href[..<hashIndex])
         } else {
-            decoded
+            href
         }
+        let decoded = withoutFragment.removingPercentEncoding ?? withoutFragment
 
         // 行番号・行列サフィックス (:数字) を繰り返し除去
-        let pathString: String = if let colonRange = withoutFragment.range(
+        let pathString: String = if let colonRange = decoded.range(
             of: #"(?::\d+)+$"#, options: .regularExpression
         ) {
-            String(withoutFragment[..<colonRange.lowerBound])
+            String(decoded[..<colonRange.lowerBound])
         } else {
-            withoutFragment
+            decoded
         }
 
         guard !pathString.isEmpty else { return .unsupported }

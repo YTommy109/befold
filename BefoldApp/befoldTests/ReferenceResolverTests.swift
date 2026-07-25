@@ -42,6 +42,10 @@ struct ReferenceResolverTests {
         (href: "%E8%A8%AD%E8%A8%88%E3%83%A1%E3%83%A2.md", expectedPath: "/Users/test/docs/設計メモ.md"),
         // #fragment を除去してパスを解決する
         (href: "./other.md#usage", expectedPath: "/Users/test/docs/other.md"),
+        // エスケープされた # はファイル名の一部として残す(fragment 区切りではない)
+        (href: "./file%23name.md", expectedPath: "/Users/test/docs/file#name.md"),
+        // エスケープされた # の後ろに本物の fragment が続く場合も両方正しく扱う
+        (href: "./file%23name.md#usage", expectedPath: "/Users/test/docs/file#name.md"),
         // スラッシュなし・行番号付きのファイル名をローカルパスとして解決する
         (href: "notes.md:12", expectedPath: "/Users/test/docs/notes.md"),
     ])
