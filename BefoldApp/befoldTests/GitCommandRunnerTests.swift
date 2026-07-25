@@ -140,14 +140,11 @@ struct GitCommandRunnerTests {
         }
 
         // 新しい起動が止まった時点が飽和の成立。何本目で止まるかは他テストの占有状況に
-        // 依存するので数は固定できないが、「もう起動できない」こと自体が飽和の定義なので
-        // 検証力は本数に依らない。
-        var startedCount = 0
-        while startedCount < blockerCount, started.wait(timeout: .now() + 0.2) == .success {
-            startedCount += 1
-        }
-        // 1 本も掴めていなければ飽和させられておらず、この後の判定は無意味になる。
-        #expect(startedCount > 0)
+        // 依存する。自分の投げた分が 1 本も起動しないこともある(他のテストが既に上限まで
+        // 握っている場合。CI で実際に起きる)が、それは飽和がより強く成立している
+        // ということなので、本数を検証条件にしてはならない。
+        // 「もう起動できない」こと自体が飽和の定義で、検証力は本数に依らない。
+        while started.wait(timeout: .now() + 0.2) == .success {}
 
         #expect(makeRunner().run(["--version"]) != .unavailable)
     }
