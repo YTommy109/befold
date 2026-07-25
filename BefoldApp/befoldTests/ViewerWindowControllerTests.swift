@@ -421,6 +421,32 @@ extension ViewerWindowControllerTests {
         #expect(controller.fileListModel.canGoForward == true)
     }
 
+    @Test("resolveReferences は実在パスのみ解決済み絶対パスで返す")
+    func resolveReferencesReturnsResolvedOnly() {
+        // 常に固定の追跡ファイル一覧を返すフェイク索引。相対解決で見つからないパスの
+        // git サフィックス一致フォールバックを検証するために使う。
+        struct FakeGitIndex: GitFileIndexing {
+            let tracked: URL
+            func trackedFiles(forFileAt url: URL) -> [URL]? {
+                [tracked]
+            }
+        }
+        let base = URL(fileURLWithPath: "/mock/docs/guide.md")
+        let tracked = URL(fileURLWithPath: "/mock/src/utils.swift")
+        let controller = makeSwitchController(primary: base, contents: "# doc")
+        defer { controller.close() }
+        // utils.swift は相対解決では見つからず(store の fileReader に登録していない)、
+        // git 追跡ファイル一覧からのサフィックス一致でのみ解決できる状態にする。
+        controller.pathResolver = TrackedPathResolver(
+            fileReader: InMemoryFileReader(files: [base.path: "# doc"]),
+            gitIndex: FakeGitIndex(tracked: tracked)
+        )
+
+        let map = controller.resolveReferences(["utils.swift", "https://example.com", "nope.swift"])
+
+        #expect(map == ["utils.swift": tracked.path])
+    }
+
     @Test("newWindow: true 経路では元ウィンドウの状態が変化しない")
     func handleOpenReferenceWithNewWindowLeavesOriginalWindowUnchanged() {
         let fileA = URL(fileURLWithPath: "/mock/a.md")

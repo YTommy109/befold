@@ -86,6 +86,12 @@ final class ViewerWindowController: NSWindowController {
     /// ウィンドウイベントの通知先。ViewerWindowManager が実装する。
     weak var delegate: ViewerWindowControllerDelegate?
 
+    /// git 追跡ファイルの索引(リポジトリルート単位でキャッシュ)。
+    let gitFileIndex = GitCommandFileIndex()
+    /// パス参照の解決器。fileReader は store と共有し(既存の fileExists/isExistingFile 共有と同じ理由で
+    /// InMemoryFileReader 注入テストと整合させる)、テストから丸ごと差し替えられるよう var にする。
+    lazy var pathResolver = TrackedPathResolver(fileReader: store.fileReader, gitIndex: gitFileIndex)
+
     // MARK: - Initialization
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate → ViewerWindowManager から
@@ -219,6 +225,8 @@ final class ViewerWindowController: NSWindowController {
             self?.refreshToolbarState()
         }
         store.openFile(fileURL)
+        // クリック時解決(pathResolver)の git 追跡ファイル索引を先読みしておく。
+        gitFileIndex.warm(forFileAt: fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
         // CLI から --source/--preview が指定された場合はそちらを優先し、保存値は書き換えない(この起動限りの上書き)。
         // applySourceMode が内部で refreshToolbarState() を呼ぶため、ここでの明示呼び出しは不要。
@@ -293,23 +301,34 @@ final class ViewerWindowController: NSWindowController {
     /// リンク/パス参照のアクティベーションを処理する。
     /// テスト(@testable import)から回帰テストとして直接呼べるよう internal にする（外部公開はしない）。
     func handleOpenReference(href: String, newWindow: Bool) {
-        let target = ReferenceResolver.resolve(href: href, baseURL: fileURL)
-        switch target {
+        switch pathResolver.resolve(href: href, baseURL: fileURL) {
         case let .external(url):
             NSWorkspace.shared.open(url)
-        case let .localFile(url):
-            guard store.isExistingFile(at: url) else {
-                showFileNotFoundAlert(url: url)
-                return
-            }
+        case let .resolved(url):
             if newWindow {
                 openFileInNewWindow(url)
             } else {
                 switchFile(to: url)
             }
-        case .unsupported:
+        case .unresolved:
+            // 解決できなかったパスは、素朴な相対解決結果を「見つかりません」表示に使う。
+            if case let .localFile(url) = ReferenceResolver.resolve(href: href, baseURL: fileURL) {
+                showFileNotFoundAlert(url: url)
+            }
+        case .ignored:
             break
         }
+    }
+
+    /// パス参照群を解決し、実在するものだけ「書かれたパス→解決済み絶対パス」で返す(表示時解決用)。
+    func resolveReferences(_ paths: [String]) -> [String: String] {
+        var result: [String: String] = [:]
+        for path in paths {
+            if case let .resolved(url) = pathResolver.resolve(href: path, baseURL: fileURL) {
+                result[path] = url.path
+            }
+        }
+        return result
     }
 
     private func showFileNotFoundAlert(url: URL) {
@@ -352,6 +371,7 @@ final class ViewerWindowController: NSWindowController {
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
         guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
+        gitFileIndex.warm(forFileAt: newURL)
         switch performFileSwitch(to: newURL) {
         case .switched:
             sidebar.syncAfterSwitch(to: newURL)
