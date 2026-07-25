@@ -21,7 +21,7 @@ final class ViewerWindowManager {
     /// 同コントローラのサイドバー初期一覧の取得口。既定は実 FS を列挙する DirectoryLister.listEntries。
     private let directoryLister: (URL, SortOrder, Bool) -> [FileListEntry]
     /// 生成する全ウィンドウで共有する git 追跡ファイルの索引。同じリポジトリのファイルを
-    /// 複数ウィンドウで開いても `git ls-files` は 1 回で済み、追跡ファイル一覧の実体も 1 つで済む
+    /// 複数ウィンドウで開いても `git ls-files` は 1 回で済み、照合索引の実体も 1 つで済む
     /// (モノレポではウィンドウごとの複製が無視できない大きさになる)。
     private let gitFileIndex = GitCommandFileIndex()
 

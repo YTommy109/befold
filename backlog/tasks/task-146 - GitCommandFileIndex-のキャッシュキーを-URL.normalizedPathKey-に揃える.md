@@ -1,10 +1,10 @@
 ---
 id: TASK-146
 title: GitCommandFileIndex のキャッシュキーを URL.normalizedPathKey に揃える
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-25 11:30'
-updated_date: '2026-07-25 11:44'
+updated_date: '2026-07-25 11:48'
 labels:
   - path-reference
 dependencies: []
@@ -21,8 +21,8 @@ GitCommandFileIndex.swift L41 が dirKey に `url.deletingLastPathComponent().st
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 rootByDir / entryByRoot のキー生成が URL.normalizedPathKey 経由になっている
-- [ ] #2 symlink 経由パスと実パスが同一キャッシュエントリに集約されることをテストで確認する
+- [x] #1 rootByDir / entryByRoot のキー生成が URL.normalizedPathKey 経由になっている
+- [x] #2 symlink 経由パスと実パスが同一キャッシュエントリに集約されることをテストで確認する
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -33,3 +33,18 @@ GitCommandFileIndex.swift L41 が dirKey に `url.deletingLastPathComponent().st
 3. TempDir に symlinkedDirectory ヘルパーを追加（テストファイル内での手組みは規約違反）
 4. 実 FS の symlink 経由パスと実パスが同一エントリに集約される（列挙が 1 回で済む）ことをテストで固定
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+dirKey を normalizedPathKey へ、entryByRoot / rootsByRecency のキーを root.normalizedPathKey へ変更。root は rev-parse 由来で実質正規化済みだが、GitRepositoryReading の契約はそれを保証しないため揃えた（その理由をインラインコメントに明記）。
+テストの手組み回避のため BefoldTestSupport.TempDir に symlinkedDirectory ヘルパーを追加（既存の symlinkedFile と同じ流儀）。
+実効性の確認: GitCommandFileIndex.swift だけを git stash して同テストを実行し、rootCallCount / trackedCallCount がいずれも 2 になって落ちることを確認済み（修正後は 1）。
+検証: swift test 629 tests 全パス、swift build（SwiftLint 込み）、swiftformat 差分なし。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+GitCommandFileIndex のキャッシュキー（rootByDir / entryByRoot / rootsByRecency）を規約の単一情報源である URL.normalizedPathKey に統一した。symlink 経由ディレクトリを実 FS で作る回帰テストを追加し、修正前は rev-parse・ls-files が各 2 回、修正後は各 1 回になることを stash 実験で確認済み。
+<!-- SECTION:FINAL_SUMMARY:END -->

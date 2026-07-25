@@ -4,12 +4,12 @@ import Testing
 
 private struct FakeGitIndex: GitFileIndexing {
     let files: [URL]?
-    func trackedFiles(forFileAt url: URL) -> [URL]? {
-        files
+    func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
+        files.map(SuffixPathIndex.init(candidates:))
     }
 }
 
-/// 追跡ファイル取得の回数を数える索引。バッチ解決が git を 1 度しか引かないことの検証に使う。
+/// 追跡ファイル索引の取得回数を数える索引。バッチ解決が git を 1 度しか引かないことの検証に使う。
 private final class CountingGitIndex: GitFileIndexing, @unchecked Sendable {
     private let files: [URL]?
     private let lock = NSLock()
@@ -23,11 +23,11 @@ private final class CountingGitIndex: GitFileIndexing, @unchecked Sendable {
         self.files = files
     }
 
-    func trackedFiles(forFileAt url: URL) -> [URL]? {
+    func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
         lock.lock()
         _callCount += 1
         lock.unlock()
-        return files
+        return files.map(SuffixPathIndex.init(candidates:))
     }
 }
 

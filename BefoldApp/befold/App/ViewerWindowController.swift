@@ -103,7 +103,7 @@ final class ViewerWindowController: NSWindowController {
     ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
     /// - Parameter bookmarkStore: 同上。ブックマーク挙動に無関心なテストが省略できるようにする。
     /// - Parameter gitFileIndex: 同上。git 追跡ファイルの索引。本番では ViewerWindowManager が持つ
-    ///   単一インスタンスを渡し、同じリポジトリを開く複数ウィンドウで追跡ファイル一覧と
+    ///   単一インスタンスを渡し、同じリポジトリを開く複数ウィンドウで照合索引と
     ///   `git ls-files` の実行を共有する。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
     /// - Parameter directoryLister: 同上。サイドバー初期一覧の取得元。テストで差し替え可能にする。

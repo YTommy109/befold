@@ -423,12 +423,12 @@ extension ViewerWindowControllerTests {
 
     @Test("resolveReferences は実在パスのみ解決済み絶対パスで返す")
     func resolveReferencesReturnsResolvedOnly() async {
-        // 常に固定の追跡ファイル一覧を返すフェイク索引。相対解決で見つからないパスの
+        // 常に固定の追跡ファイル索引を返すフェイク。相対解決で見つからないパスの
         // git サフィックス一致フォールバックを検証するために使う。
         struct FakeGitIndex: GitFileIndexing {
             let tracked: URL
-            func trackedFiles(forFileAt url: URL) -> [URL]? {
-                [tracked]
+            func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
+                SuffixPathIndex(candidates: [tracked])
             }
         }
         let base = URL(fileURLWithPath: "/mock/docs/guide.md")
@@ -456,9 +456,9 @@ extension ViewerWindowControllerTests {
         // 呼ばれたスレッドを記録するだけのフェイク索引。
         struct ThreadRecordingGitIndex: GitFileIndexing {
             let wasMainThread: LockedBox<Bool?>
-            func trackedFiles(forFileAt url: URL) -> [URL]? {
+            func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
                 wasMainThread.set(Thread.isMainThread)
-                return []
+                return SuffixPathIndex(candidates: [])
             }
         }
         let base = URL(fileURLWithPath: "/mock/docs/guide.md")
@@ -487,8 +487,8 @@ extension ViewerWindowControllerTests {
     func resolveReferencesAndOpenReferenceAgreeOnGitFallback() async {
         struct FakeGitIndex: GitFileIndexing {
             let tracked: URL
-            func trackedFiles(forFileAt url: URL) -> [URL]? {
-                [tracked]
+            func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
+                SuffixPathIndex(candidates: [tracked])
             }
         }
         let base = URL(fileURLWithPath: "/mock/docs/guide.md")

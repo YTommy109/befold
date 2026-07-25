@@ -1,8 +1,12 @@
 import Foundation
 
-/// url を含む git リポジトリの追跡ファイル絶対 URL 一覧を返す。git 管理外なら nil。
+/// url を含む git リポジトリの追跡ファイル索引を返す。git 管理外なら nil。
+///
+/// 生の URL 一覧ではなく索引を返すのは、索引の構築が候補数に比例した正規化コストを持ち、
+/// 実装側でキャッシュして使い回せるようにするため(呼び出しのたびに作り直すと、
+/// 大きなリポジトリでは解決バッチごとに O(候補数) の再構築が走る)。
 public protocol GitFileIndexing: Sendable {
-    func trackedFiles(forFileAt url: URL) -> [URL]?
+    func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex?
 }
 
 /// パス参照の解決結果。
@@ -30,7 +34,7 @@ public struct TrackedPathResolver: Sendable {
     }
 
     /// 複数の参照を一括解決する(表示時解決のバッチ用)。
-    /// git 追跡ファイルの取得と索引構築をバッチ全体で 1 度に抑えるため、参照数に比例した
+    /// git 追跡ファイル索引の取得をバッチ全体で 1 度に抑えるため、参照数に比例した
     /// 再計算が起きない。重複する href は 1 度だけ解決する。
     public func resolveAll(hrefs: [String], baseURL: URL) -> [String: ResolvedReference] {
         var index = LazySuffixIndex(gitIndex: gitIndex, baseURL: baseURL)
@@ -65,8 +69,8 @@ public struct TrackedPathResolver: Sendable {
         }
     }
 
-    /// git 追跡ファイルの索引を、実際に git フォールバックが要るまで作らず、
-    /// 要った場合もバッチ内で 1 度だけ作る遅延ホルダ。
+    /// git 追跡ファイルの索引を、実際に git フォールバックが要るまで取りに行かず、
+    /// 要った場合もバッチ内で 1 度だけ取得する遅延ホルダ。
     /// 相対解決だけで片付く一般的な文書では git 索引に触れない。
     private struct LazySuffixIndex {
         private let gitIndex: GitFileIndexing
@@ -83,7 +87,7 @@ public struct TrackedPathResolver: Sendable {
         mutating func value() -> SuffixPathIndex? {
             if !isLoaded {
                 isLoaded = true
-                index = gitIndex.trackedFiles(forFileAt: baseURL).map(SuffixPathIndex.init(candidates:))
+                index = gitIndex.trackedFileIndex(forFileAt: baseURL)
             }
             return index
         }
