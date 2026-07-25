@@ -256,6 +256,9 @@ final class ViewerWindowController: NSWindowController {
             onOpenReference: { [weak self] href, newWindow in
                 self?.handleOpenReference(href: href, newWindow: newWindow)
             },
+            onResolveReferences: { [weak self] paths in
+                self?.resolveReferences(paths) ?? [:]
+            },
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
             webViewProxy: webViewProxy

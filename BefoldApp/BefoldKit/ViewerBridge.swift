@@ -265,6 +265,11 @@ public enum ViewerBridge {
             case wholeWord
             case useRegex
         }
+
+        /// resolveReferences のキー。
+        public enum ResolveReferences: String, CaseIterable, Sendable {
+            case paths
+        }
     }
 
     /// メッセージ名 → JS がオブジェクトとして送るペイロードのキー集合。
@@ -276,5 +281,6 @@ public enum ViewerBridge {
         scrollPositionChangedMessageName: Set(PayloadKey.ScrollPositionChanged.allCases.map(\.rawValue)),
         findOptionsChangedMessageName: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue)),
         loadMoreLinesMessageName: [],
+        resolveReferencesMessageName: Set(PayloadKey.ResolveReferences.allCases.map(\.rawValue)),
     ]
 }

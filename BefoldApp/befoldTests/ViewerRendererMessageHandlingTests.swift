@@ -308,41 +308,37 @@ struct ViewerRendererMessageHandlingTests {
         #expect(preference.useRegex == false)
     }
 
-    @Test("resolveReferences の paths キーが欠けていれば onResolveReferences を呼ばない")
-    func resolveReferencesIgnoresMissingPathsKey() {
-        let renderer = ViewerRenderer()
-        let webView = StubWebView()
-        renderer.webView = webView
-        var called = false
-        renderer.onResolveReferences = { _ in
-            called = true
-            return [:]
+    /// JS は応答を要求へ FIFO で対応づけるため、ペイロードが不正でも応答は必ず返す必要がある。
+    /// 落とすとキューが恒久的にずれ、以後すべての参照が解決失敗表示になる。
+    /// 解決自体はアプリ層へ渡さず、空の結果で応答する。
+    @Test("resolveReferences のペイロードが不正でも空の適用スクリプトを必ず評価する")
+    func resolveReferencesAlwaysRepliesOnInvalidPayload() {
+        // 不正ペイロードの各形: キー欠落・型違い・要素の型違い。
+        let invalidBodies: [Any] = [
+            [String: Any](),
+            ["paths": "not-an-array"],
+            ["paths": [1, 2]],
+            "not-an-object",
+        ]
+
+        for body in invalidBodies {
+            let renderer = ViewerRenderer()
+            let webView = StubWebView()
+            renderer.webView = webView
+            var called = false
+            renderer.onResolveReferences = { _ in
+                called = true
+                return ["./a.md": "/repo/a.md"]
+            }
+
+            dispatch(renderer, name: ViewerBridge.resolveReferencesMessageName, body: body)
+
+            #expect(called == false, "不正ペイロードをアプリ層へ渡している: \(body)")
+            #expect(
+                webView.lastEvaluatedScript == ViewerBridge.applyResolvedReferencesScript([:]),
+                "応答を返していない: \(body)"
+            )
         }
-
-        dispatch(renderer, name: ViewerBridge.resolveReferencesMessageName, body: [String: Any]())
-
-        #expect(called == false)
-        #expect(webView.lastEvaluatedScript == nil)
-    }
-
-    @Test("resolveReferences の paths が文字列配列でなければ onResolveReferences を呼ばない")
-    func resolveReferencesIgnoresWrongTypedPaths() {
-        let renderer = ViewerRenderer()
-        let webView = StubWebView()
-        renderer.webView = webView
-        var called = false
-        renderer.onResolveReferences = { _ in
-            called = true
-            return [:]
-        }
-
-        dispatch(
-            renderer, name: ViewerBridge.resolveReferencesMessageName,
-            body: ["paths": "not-an-array"]
-        )
-
-        #expect(called == false)
-        #expect(webView.lastEvaluatedScript == nil)
     }
 
     @Test("未知のメッセージ名は無視される")
