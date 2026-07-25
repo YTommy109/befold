@@ -131,7 +131,7 @@ final class ViewerWindowManager {
         let key = url.normalizedPathKey
         if let existing = controllers[key] {
             NSApp.activate()
-            existing.window?.makeKeyAndOrderFront(nil)
+            existing.focusWindow()
             return
         }
 
@@ -207,29 +207,6 @@ final class ViewerWindowManager {
         (window.windowController as? ViewerWindowController)?.fileURL.normalizedPathKey
     }
 
-    /// targetURL を controller 以外のウィンドウで開いている ViewerWindowController を返す。
-    private func existingOtherController(
-        for targetURL: URL, excluding controller: ViewerWindowController
-    ) -> ViewerWindowController? {
-        let key = targetURL.normalizedPathKey
-        guard let existing = controllers[key], existing !== controller else { return nil }
-        return existing
-    }
-
-    /// targetURL が controller 以外のウィンドウで既に開かれているかを判定する純粋チェック。
-    private func isOpenInAnotherWindow(
-        _ targetURL: URL, excluding controller: ViewerWindowController
-    ) -> Bool {
-        existingOtherController(for: targetURL, excluding: controller) != nil
-    }
-
-    /// targetURL を開いている別ウィンドウを前面化する。
-    private func focusExistingWindow(
-        _ targetURL: URL, excluding controller: ViewerWindowController
-    ) {
-        existingOtherController(for: targetURL, excluding: controller)?.window?.makeKeyAndOrderFront(nil)
-    }
-
     /// rename / switch に伴うウィンドウ管理辞書のキー付け替えとセッション・履歴の更新。
     private func remapController(
         _ controller: ViewerWindowController,
@@ -285,14 +262,13 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
         remapController(controller, from: oldURL, to: newURL, isRename: false)
     }
 
+    /// url を controller 以外のウィンドウが開いていれば、そのコントローラを返す。
+    /// 判定と前面化対象の解決を兼ねるため、辞書 lookup は 1 回で済む。
     func viewerWindow(
-        _ controller: ViewerWindowController, isFileOpenInAnotherWindow url: URL
-    ) -> Bool {
-        isOpenInAnotherWindow(url, excluding: controller)
-    }
-
-    func viewerWindow(_ controller: ViewerWindowController, focusWindowForFile url: URL) {
-        focusExistingWindow(url, excluding: controller)
+        _ controller: ViewerWindowController, windowShowingFileElsewhere url: URL
+    ) -> ViewerWindowController? {
+        guard let existing = controllers[url.normalizedPathKey], existing !== controller else { return nil }
+        return existing
     }
 
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {

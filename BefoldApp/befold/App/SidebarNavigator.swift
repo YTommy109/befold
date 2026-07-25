@@ -7,15 +7,10 @@ import Foundation
 protocol SidebarNavigatorHost: AnyObject {
     /// 現在表示中のファイル URL。performFileSwitch により変化するため都度参照する。
     var currentFileURL: URL { get }
-    /// サイドバー選択・履歴から要求されたファイル切替の実処理。成功時 true。
+    /// サイドバー選択・履歴から要求されたファイル切替の実処理。
+    /// 別ウィンドウで開いている・存在しないなど切替できなかった理由は結果で返る。
     @discardableResult
-    func performFileSwitch(to url: URL) -> Bool
-    /// 別ファイルへの完全なファイル切替(別ウィンドウ判定・選択同期・履歴記録込み)。
-    /// サイドバー/フォルダー一覧でのファイル選択やリンク参照など、ファイルを明示的に
-    /// 選んだ操作から呼ばれる(フォルダ移動時の自動オープンには使わない)。
-    func switchFile(to url: URL)
-    /// 指定 URL が自分以外のウィンドウで既に開かれているか。
-    func isFileOpenElsewhere(_ url: URL) -> Bool
+    func performFileSwitch(to url: URL) -> FileSwitchOutcome
     /// 戻る/進む履歴の状態が変化した。AppKit 側 UI(ツールバー)の更新契機。
     func historyStateDidChange()
 }
@@ -240,21 +235,18 @@ final class SidebarNavigator {
     @discardableResult
     private func applyHistoryEntry(_ entry: HistoryEntry) -> Bool {
         guard let host else { return false }
-        if let file = entry.file,
-           file.normalizedPathKey != host.currentFileURL.normalizedPathKey,
-           host.isFileOpenElsewhere(file)
-        {
-            return false
-        }
         let dirChanged = entry.directory.normalizedPathKey
             != fileListModel.currentDirectory.normalizedPathKey
-        // ファイル切替が存在しないファイルで失敗すると performFileSwitch が false を返す。
-        // currentDirectory の書き換えより先に切替を試み、失敗時は状態を一切変えずに
-        // return して部分適用による不整合(dir だけ変わって file list 未更新)を防ぐ。
+        // 存在しないファイルや別ウィンドウで開かれているファイルへは切替できず、
+        // performFileSwitch が .switched 以外を返す。currentDirectory の書き換えより先に
+        // 切替を試み、失敗時は状態を一切変えずに return して部分適用による不整合
+        // (dir だけ変わって file list 未更新)を防ぐ。
+        // 明示的なファイル選択と違い、履歴移動では既存ウィンドウの前面化はしない
+        // (利用者はこのウィンドウの履歴を辿っているだけなので、他ウィンドウを奪わない)。
         if let file = entry.file,
            file.normalizedPathKey != host.currentFileURL.normalizedPathKey
         {
-            guard host.performFileSwitch(to: file) else { return false }
+            guard case .switched = host.performFileSwitch(to: file) else { return false }
         }
         if dirChanged {
             fileListModel.currentDirectory = entry.directory

@@ -14,11 +14,23 @@ protocol ViewerWindowControllerDelegate: AnyObject {
     func viewerWindow(
         _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
     )
+    /// url を controller 以外のウィンドウが既に開いていれば、そのコントローラを返す。
+    /// 判定と前面化対象の解決を 1 回の問い合わせで済ませるため、Bool ではなく対象を返す。
     func viewerWindow(
-        _ controller: ViewerWindowController, isFileOpenInAnotherWindow url: URL
-    ) -> Bool
-    func viewerWindow(_ controller: ViewerWindowController, focusWindowForFile url: URL)
+        _ controller: ViewerWindowController, windowShowingFileElsewhere url: URL
+    ) -> ViewerWindowController?
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
+}
+
+/// performFileSwitch の結果。呼び出し元(明示的なファイル選択と履歴ナビゲーション)が
+/// 「別ウィンドウで開いていた」場合の扱いを分けられるよう、単なる Bool ではなく理由を返す。
+enum FileSwitchOutcome {
+    /// 切替が完了した。
+    case switched
+    /// 対象ファイルが見つからず切替できなかった(利用者へは警告済み)。
+    case failed
+    /// 対象ファイルを別ウィンドウが既に開いているため切替しなかった。値はそのウィンドウ。
+    case openInAnotherWindow(ViewerWindowController)
 }
 
 /// 1 ファイルに対応する 1 ウィンドウを管理する NSWindowController。
@@ -340,16 +352,21 @@ final class ViewerWindowController: NSWindowController {
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
         guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
-        if delegate?.viewerWindow(self, isFileOpenInAnotherWindow: newURL) == true {
-            delegate?.viewerWindow(self, focusWindowForFile: newURL)
+        switch performFileSwitch(to: newURL) {
+        case .switched:
+            sidebar.syncAfterSwitch(to: newURL)
+        case let .openInAnotherWindow(other):
+            // 明示的なファイル選択では、重複ウィンドウを作らず既存ウィンドウを見せる。
+            other.focusWindow()
             sidebar.restoreSelection(to: oldURL)
-            return
-        }
-        guard performFileSwitch(to: newURL) else {
+        case .failed:
             sidebar.restoreSelection(to: oldURL)
-            return
         }
-        sidebar.syncAfterSwitch(to: newURL)
+    }
+
+    /// このウィンドウをキーウィンドウにして前面へ出す。
+    func focusWindow() {
+        window?.makeKeyAndOrderFront(nil)
     }
 
     /// サイドバーで別フォルダーへ移動する。詳細は SidebarNavigator に委譲する。
@@ -365,12 +382,18 @@ final class ViewerWindowController: NSWindowController {
     /// switchFile と履歴適用が共有するファイル切替の実処理。
     /// 切替先ファイルの保存済みビューモードの復元、URL 更新、コンテンツ読込、
     /// ズーム適用、コールバック通知を行う。
-    /// 切替先が存在しない場合はアラートを表示して false を返す(状態は変更しない)。
+    /// 切替先を別ウィンドウが開いている場合・存在しない場合は状態を変更せず、
+    /// 理由(と前面化対象)を結果で返す。存在しない場合はアラートを表示する。
+    /// 登録簿(開いているウィンドウ)への問い合わせはここが唯一の窓口で、
+    /// 判定と前面化対象の解決を 1 回で済ませる。
     @discardableResult
-    func performFileSwitch(to newURL: URL) -> Bool {
+    func performFileSwitch(to newURL: URL) -> FileSwitchOutcome {
+        if let other = delegate?.viewerWindow(self, windowShowingFileElsewhere: newURL) {
+            return .openInAnotherWindow(other)
+        }
         guard store.fileExists(at: newURL) else {
             showFileNotFoundAlert(url: newURL)
-            return false
+            return .failed
         }
         let oldURL = fileURL
         // fileURL・viewMode を書き換える前に、退場側(oldURL・現在のモード)の
@@ -386,7 +409,7 @@ final class ViewerWindowController: NSWindowController {
         store.openFile(newURL)
         webViewCommands.applyStoredZoom()
         delegate?.viewerWindow(self, didSwitchFileFrom: oldURL, to: newURL)
-        return true
+        return .switched
     }
 
     @available(*, unavailable)
@@ -434,11 +457,6 @@ extension ViewerWindowController: SidebarNavigatorHost {
     /// SidebarNavigator が現在ファイルを都度参照するための橋渡し。
     var currentFileURL: URL {
         fileURL
-    }
-
-    /// 指定 URL が自分以外のウィンドウで開かれているか(注入されたチェックへ委譲)。
-    func isFileOpenElsewhere(_ url: URL) -> Bool {
-        delegate?.viewerWindow(self, isFileOpenInAnotherWindow: url) ?? false
     }
 
     /// 履歴状態の変化をツールバーへ反映する。

@@ -11,10 +11,12 @@ private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDe
     var renameArgs: (old: URL, new: URL)?
     var switchFileArgs: (old: URL, new: URL)?
     var toggleHiddenFilesCalled = false
-    private let isFileOpenCheck: (URL) -> Bool
+    /// 別ウィンドウで開いている扱いにする URL を判定するクロージャ。
+    /// 対象として返すコントローラはテスト側から与える(既定は「どれも開いていない」)。
+    private let windowShowingFileElsewhere: (URL) -> ViewerWindowController?
 
-    init(isFileOpenCheck: @escaping (URL) -> Bool = { _ in false }) {
-        self.isFileOpenCheck = isFileOpenCheck
+    init(windowShowingFileElsewhere: @escaping (URL) -> ViewerWindowController? = { _ in nil }) {
+        self.windowShowingFileElsewhere = windowShowingFileElsewhere
     }
 
     func viewerWindowWillClose(_ controller: ViewerWindowController) {
@@ -38,12 +40,10 @@ private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDe
     }
 
     func viewerWindow(
-        _ controller: ViewerWindowController, isFileOpenInAnotherWindow url: URL
-    ) -> Bool {
-        isFileOpenCheck(url)
+        _ controller: ViewerWindowController, windowShowingFileElsewhere url: URL
+    ) -> ViewerWindowController? {
+        windowShowingFileElsewhere(url)
     }
-
-    func viewerWindow(_ controller: ViewerWindowController, focusWindowForFile url: URL) {}
 
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
         toggleHiddenFilesCalled = true
