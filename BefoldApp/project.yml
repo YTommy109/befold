@@ -68,8 +68,6 @@ targets:
       - path: BefoldCLI
     dependencies:
       - target: BefoldKit
-      - package: swift-argument-parser
-        product: ArgumentParser
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.cli
       PRODUCT_NAME: BefoldCLI
@@ -112,8 +110,6 @@ targets:
         copy:
           destination: executables
       - package: Sparkle
-      - package: swift-argument-parser
-        product: ArgumentParser
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold
       PRODUCT_NAME: befold
