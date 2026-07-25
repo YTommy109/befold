@@ -12,14 +12,32 @@ struct GitCommandRunnerTests {
         let args = GitCommandRunner.processArguments(for: ["ls-files", "-z"])
 
         // サブコマンドより前に置かないと git が解釈しないため、位置まで固定する。
-        #expect(args == ["git", "-c", "core.fsmonitor=", "-c", "core.hooksPath=/dev/null", "ls-files", "-z"])
+        #expect(args == [
+            "--no-pager", "-c", "core.fsmonitor=", "-c", "core.hooksPath=/dev/null", "ls-files", "-z",
+        ])
     }
 
     @Test("引数無しの呼び出しでも無害化オプションは落ちない")
     func hardeningSurvivesEmptyArguments() {
         // hardeningOptions を参照して組み立てると恒真になるため、期待値は直値で書く。
         #expect(GitCommandRunner.processArguments(for: [])
-            == ["git", "-c", "core.fsmonitor=", "-c", "core.hooksPath=/dev/null"])
+            == ["--no-pager", "-c", "core.fsmonitor=", "-c", "core.hooksPath=/dev/null"])
+    }
+
+    /// `GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_*` のような GIT_* 変数はコマンドラインの `-c` を
+    /// 上書きしうるため、継承すると無害化オプションを素通しされる。環境を丸ごと差し替えて
+    /// いること(`ProcessInfo.processInfo.environment` から作り直していないこと)を固定する。
+    @Test("git へ渡す環境は固定で、呼び出し元の GIT_* を引き継がない")
+    func processEnvironmentDropsInheritedGitVariables() {
+        // 値 0 は「追加設定なし」の宣言で、並行実行中の他テストの git を壊さない。
+        setenv("GIT_CONFIG_COUNT", "0", 1)
+        defer { unsetenv("GIT_CONFIG_COUNT") }
+
+        let environment = GitCommandRunner.processEnvironment()
+
+        #expect(environment["GIT_CONFIG_COUNT"] == nil, "呼び出し元の GIT_* を引き継いでいる")
+        #expect(environment["PATH"] == "/usr/bin:/bin:/usr/sbin:/sbin")
+        #expect(environment["GIT_TERMINAL_PROMPT"] == "0")
     }
 
     @Test("core.fsmonitor を仕込んだリポジトリでもコマンドが実行されない")

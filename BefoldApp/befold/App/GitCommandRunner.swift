@@ -25,18 +25,47 @@ struct GitCommandRunner: Sendable {
     /// `core.hooksPath` は現在使う 2 コマンド(rev-parse / ls-files)では起動しないが、
     /// 将来 git 呼び出しを増やしたときの既定を安全側へ倒すため同時に無効化する。
     /// befold は読み取り専用ビューアなのでフックを必要とする用途は無い。
-    static let hardeningOptions = ["-c", "core.fsmonitor=", "-c", "core.hooksPath=/dev/null"]
+    /// `--no-pager` も同じ先回りで、ページャという外部プロセスの起動経路自体を塞ぐ
+    /// (標準出力が pipe の現在は起動しないが、それは呼び出し形態に依存する性質のため)。
+    ///
+    /// `core.fsmonitor` を `false` ではなく空文字にするのは、値の解釈が git のバージョンで
+    /// 変わるため。2.37 以降は真偽値だが、それ以前は監視フックのパスであり、`false` は
+    /// 相対パス扱いになる = リポジトリに同梱された `false` という実行ファイルを起動しうる
+    /// (塞ぎたい攻撃そのもの)。空文字はどちらの解釈でも「無効」に落ちる。
+    static let hardeningOptions = [
+        "--no-pager", "-c", "core.fsmonitor=", "-c", "core.hooksPath=/dev/null",
+    ]
 
-    /// `/usr/bin/env` へ渡す実引数列。無害化オプションが確実に前置されることを
+    /// git へ渡す実引数列。無害化オプションが確実に前置されることを
     /// テストから固定できるよう、組み立てをここへ切り出す。
     static func processArguments(for args: [String]) -> [String] {
-        ["git"] + hardeningOptions + args
+        hardeningOptions + args
+    }
+
+    /// git へ渡す環境変数。呼び出し元の環境は引き継がない。
+    ///
+    /// `GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_*` や `GIT_DIR` のような GIT_* 変数は
+    /// コマンドラインの `-c` と同等以上に効くため、継承したままでは上の無害化を素通しできる。
+    /// `PATH` を固定するのも同じ理由(CLI から起動したインスタンスはユーザーのシェルの
+    /// PATH を引き継ぐため、書き込み可能なディレクトリが先頭にあると偽の git を掴む)。
+    /// `HOME` だけは残す。ユーザー自身の `~/.gitconfig` は信頼できる設定であり、
+    /// 落とすと git が意図しない既定へ倒れるため。
+    static func processEnvironment() -> [String: String] {
+        [
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+            "HOME": NSHomeDirectory(),
+            // 資格情報の入力待ちで止まらないようにする(端末を持たないので応答できない)。
+            "GIT_TERMINAL_PROMPT": "0",
+        ]
     }
 
     func run(_ args: [String], in workingDirectory: URL? = nil) -> Data? {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        // PATH 解決を挟まず実体を直接起動する。GUI 起動時に `/usr/bin/env git` が
+        // 解決するのも同じ /usr/bin/git だが、PATH を差し替えられる余地を残さない。
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = Self.processArguments(for: args)
+        process.environment = Self.processEnvironment()
         if let workingDirectory { process.currentDirectoryURL = workingDirectory }
         let pipe = Pipe()
         process.standardOutput = pipe
