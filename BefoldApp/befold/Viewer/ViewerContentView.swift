@@ -11,7 +11,7 @@ struct ViewerContentView: View {
     let onZoomChanged: @MainActor (Double) -> Void
     let onScrollPositionChanged: @MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void
     let onOpenReference: @MainActor (_ href: String, _ newWindow: Bool) -> Void
-    let onResolveReferences: @MainActor (_ paths: [String]) -> [String: String]
+    let onResolveReferences: @MainActor (_ paths: [String]) async -> [String: String]
     let onSelectFile: (URL) -> Void
     let onNavigateToFolder: (URL) -> Void
     let webViewProxy: WebViewProxy

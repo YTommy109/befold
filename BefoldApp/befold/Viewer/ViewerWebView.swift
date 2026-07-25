@@ -38,7 +38,8 @@ struct ViewerWebView: NSViewRepresentable {
     /// パラメータ: href, newWindow
     let onOpenReference: @MainActor (_ href: String, _ newWindow: Bool) -> Void
     /// JS がパス参照の解決を要求したときに呼ばれる。戻り値: 書かれたパス→解決済み絶対パス。
-    let onResolveReferences: @MainActor (_ paths: [String]) -> [String: String]
+    /// 解決は git subprocess を伴いうるため非同期(MainActor をブロックしない)。
+    let onResolveReferences: @MainActor (_ paths: [String]) async -> [String: String]
     /// 検索バーの3トグル(大文字小文字区別・単語マッチ・正規表現)の永続化ストア。
     let findOptionsPreference: FindOptionsPreference
     /// AppKit 側（メニューアクション）へ WKWebView を公開するプロキシ。

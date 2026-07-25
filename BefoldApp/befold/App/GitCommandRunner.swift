@@ -4,6 +4,16 @@ import Foundation
 /// git 未インストール・実行失敗・非 0 終了はすべて nil に倒す。
 /// git を呼ぶ全機能(パス解決・将来のブランチ/差分)の共通土台。
 struct GitCommandRunner: Sendable {
+    /// git 1 回あたりの上限時間。超えたらプロセスを終了させ、他のエラーと同じく nil に倒す。
+    /// 応答しないネットワークファイルシステム上のリポジトリなどで git が返ってこないと、
+    /// 呼び出し元 (GitCommandFileIndex) は共有ロックを掴んだまま止まり、
+    /// 別リポジトリを開いた他ウィンドウのパス解決まで巻き添えで止まるため、必ず打ち切る。
+    let timeout: TimeInterval
+
+    init(timeout: TimeInterval = 10) {
+        self.timeout = timeout
+    }
+
     /// 全 git 呼び出しに前置する無害化オプション。
     ///
     /// befold は信頼できないソースのファイルを開くことが仕事のアプリであり、git は
@@ -31,11 +41,45 @@ struct GitCommandRunner: Sendable {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
+        // 標準入力を待って止まらないよう明示的に閉じておく(ビューアは何も送らない)。
+        process.standardInput = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        return data
+
+        // 読み取りは別スレッドで行い、呼び出し元は timeout までしか待たない。
+        // readDataToEndOfFile を呼び出しスレッドで回して watchdog から terminate() する形だと、
+        // git が孫プロセス(フック/エイリアス経由の子)へ標準出力を渡していた場合に
+        // git を殺しても pipe が閉じず、結局 timeout が効かない。
+        let output = OutputBox()
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .utility).async {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            if process.terminationStatus == 0 { output.set(data) }
+            done.signal()
+        }
+        guard done.wait(timeout: .now() + timeout) == .success else {
+            // 打ち切り。読み取りスレッドは孫プロセス次第で残りうるが、
+            // 呼び出し元(索引のロックを持つ)はここで解放される。
+            process.terminate()
+            return nil
+        }
+        return output.get()
+    }
+
+    /// 読み取りスレッドから呼び出しスレッドへ結果を渡すだけの小箱。
+    private final class OutputBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var data: Data?
+
+        func set(_ newValue: Data) {
+            lock.lock(); defer { lock.unlock() }
+            data = newValue
+        }
+
+        func get() -> Data? {
+            lock.lock(); defer { lock.unlock() }
+            return data
+        }
     }
 
     func runString(_ args: [String], in workingDirectory: URL? = nil) -> String? {

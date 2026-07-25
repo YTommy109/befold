@@ -263,7 +263,7 @@ final class ViewerWindowController: NSWindowController {
                 self?.handleOpenReference(href: href, newWindow: newWindow)
             },
             onResolveReferences: { [weak self] paths in
-                self?.resolveReferences(paths) ?? [:]
+                await self?.resolveReferences(paths) ?? [:]
             },
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
@@ -332,15 +332,26 @@ final class ViewerWindowController: NSWindowController {
     /// パス参照群を解決し、実在するものだけ「書かれたパス→解決済み絶対パス」で返す(表示時解決用)。
     /// クリック時の handleOpenReference と同じ pathResolver を使うため、リンク化した参照は
     /// 必ず同じ URL へ開く(解決の単一情報源)。
-    func resolveReferences(_ paths: [String]) -> [String: String] {
-        var result: [String: String] = [:]
-        // バッチ一括で解決し、git 追跡ファイルの索引構築を 1 度に抑える。
-        for (path, reference) in pathResolver.resolveAll(hrefs: paths, baseURL: fileURL) {
-            if case let .resolved(url) = reference {
-                result[path] = url.path
+    ///
+    /// 解決はキャッシュ未命中時に `git ls-files` の subprocess を待つため、MainActor 上では
+    /// 走らせない(大きなリポジトリで数百 ms の停止になる)。要求時点の pathResolver と
+    /// fileURL を捕捉してバックグラウンドで解決する。解決中にファイルが切り替わっても、
+    /// 捕捉した baseURL は「その要求を出した表示内容」の基準ディレクトリのままなので、
+    /// リンク化とクリック時の遷移先が食い違うことはない(切替時は JS 側が未応答バッチを
+    /// 空にするため、遅れて届いた応答は何にも適用されない)。
+    func resolveReferences(_ paths: [String]) async -> [String: String] {
+        let resolver = pathResolver
+        let baseURL = fileURL
+        return await Task.detached(priority: .userInitiated) {
+            var result: [String: String] = [:]
+            // バッチ一括で解決し、git 追跡ファイルの索引構築を 1 度に抑える。
+            for (path, reference) in resolver.resolveAll(hrefs: paths, baseURL: baseURL) {
+                if case let .resolved(url) = reference {
+                    result[path] = url.path
+                }
             }
-        }
-        return result
+            return result
+        }.value
     }
 
     private func showFileNotFoundAlert(url: URL) {

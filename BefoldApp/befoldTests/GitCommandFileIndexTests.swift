@@ -54,6 +54,33 @@ private final class FakeRepository: GitRepositoryReading, @unchecked Sendable {
     }
 }
 
+/// ファイルの置かれたディレクトリをそのままリポジトリルートとみなす、複数リポジトリ用のフェイク。
+/// LRU の追い出しを検証するために、ルートごとの列挙回数を数える。
+private final class MultiRepoFake: GitRepositoryReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var callCountByRoot: [String: Int] = [:]
+
+    func trackedCallCount(for root: URL) -> Int {
+        lock.lock(); defer { lock.unlock() }
+        return callCountByRoot[root.path] ?? 0
+    }
+
+    func root(forFileAt url: URL) -> URL? {
+        url.deletingLastPathComponent()
+    }
+
+    func trackedFiles(at root: URL) -> [URL] {
+        lock.lock()
+        callCountByRoot[root.path, default: 0] += 1
+        lock.unlock()
+        return [root.appendingPathComponent("a.swift")]
+    }
+
+    func indexFingerprint(at root: URL) -> Date? {
+        Date(timeIntervalSince1970: 1)
+    }
+}
+
 struct GitCommandFileIndexTests {
     private func url(_ path: String) -> URL {
         URL(fileURLWithPath: path)
@@ -103,6 +130,34 @@ struct GitCommandFileIndexTests {
         let after = sut.trackedFiles(forFileAt: url("/repo/docs/x.md"))
         #expect(repo.trackedCallCount == 2)
         #expect(after == [url("/repo/a.swift"), url("/repo/b.swift")])
+    }
+
+    /// この索引はアプリ寿命で生きるため、上限が無いと開いたことのある全リポジトリの
+    /// 追跡ファイル一覧を抱え続ける。上限超過分が捨てられることを固定する。
+    @Test("保持するリポジトリ数には上限があり、古いものから捨てられる")
+    func evictsLeastRecentlyUsedRoots() {
+        let repo = MultiRepoFake()
+        let sut = GitCommandFileIndex(repository: repo)
+        let limit = GitCommandFileIndex.maxCachedRoots
+        let roots = (1 ... limit + 1).map { url("/repo\($0)") }
+
+        // 上限ちょうどまで埋める。
+        for root in roots.prefix(limit) {
+            _ = sut.trackedFiles(forFileAt: root.appendingPathComponent("x.md"))
+        }
+        // どれも再列挙されない(全部キャッシュに載っている)。
+        for root in roots.prefix(limit) {
+            _ = sut.trackedFiles(forFileAt: root.appendingPathComponent("x.md"))
+            #expect(repo.trackedCallCount(for: root) == 1)
+        }
+
+        // 上限を 1 つ超えると、最も古い roots[0] が押し出される。
+        _ = sut.trackedFiles(forFileAt: roots[limit].appendingPathComponent("x.md"))
+
+        _ = sut.trackedFiles(forFileAt: roots[0].appendingPathComponent("x.md"))
+        #expect(repo.trackedCallCount(for: roots[0]) == 2, "追い出されたはずのルートが再列挙されていない")
+        _ = sut.trackedFiles(forFileAt: roots[limit].appendingPathComponent("x.md"))
+        #expect(repo.trackedCallCount(for: roots[limit]) == 1, "直近のルートまで捨てている")
     }
 
     @Test("warm はバックグラウンドでキャッシュを温める", testTimeLimit())

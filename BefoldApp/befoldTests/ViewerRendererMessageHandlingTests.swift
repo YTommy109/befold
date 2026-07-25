@@ -9,46 +9,10 @@ import WebKit
 @Suite
 @MainActor
 struct ViewerRendererMessageHandlingTests {
-    /// WKScriptMessage は公開イニシャライザを持たないため、name/body を差し替えた
-    /// サブクラスでハンドラへ任意のメッセージを注入する。
-    private final class StubScriptMessage: WKScriptMessage {
-        private let stubName: String
-        private let stubBody: Any
-
-        init(name: String, body: Any) {
-            stubName = name
-            stubBody = body
-            super.init()
-        }
-
-        override var name: String {
-            stubName
-        }
-
-        override var body: Any {
-            stubBody
-        }
-    }
+    private typealias Stubs = ViewerRendererMessageStubs
 
     private func dispatch(_ renderer: ViewerRenderer, name: String, body: Any) {
-        renderer.userContentController(
-            WKUserContentController(),
-            didReceive: StubScriptMessage(name: name, body: body)
-        )
-    }
-
-    /// resolveReferences が実際に評価した JS を検証するため、evaluateJavaScript を
-    /// フックして最後に渡されたスクリプト文字列を記録する WKWebView サブクラス。
-    @MainActor
-    private final class StubWebView: WKWebView {
-        var lastEvaluatedScript: String?
-
-        override func evaluateJavaScript(
-            _ javaScriptString: String,
-            completionHandler: (@MainActor @Sendable (Any?, (any Error)?) -> Void)? = nil
-        ) {
-            lastEvaluatedScript = javaScriptString
-        }
+        Stubs.dispatch(renderer, name: name, body: body)
     }
 
     // MARK: - デコードとディスパッチ(正常系)
@@ -187,29 +151,6 @@ struct ViewerRendererMessageHandlingTests {
         #expect(renderer.pendingAppend == nil)
     }
 
-    @Test("resolveReferences が onResolveReferences へ paths を渡し、解決結果を適用スクリプトで評価する")
-    func resolveReferencesDispatchesPathsAndAppliesResult() {
-        let renderer = ViewerRenderer()
-        let webView = StubWebView()
-        renderer.webView = webView
-        var receivedPaths: [String]?
-        renderer.onResolveReferences = { paths in
-            receivedPaths = paths
-            return ["./other.md": "/repo/other.md"]
-        }
-
-        dispatch(
-            renderer, name: ViewerBridge.resolveReferencesMessageName,
-            body: ["paths": ["./other.md", "./missing.md"]]
-        )
-
-        #expect(receivedPaths == ["./other.md", "./missing.md"])
-        #expect(
-            webView.lastEvaluatedScript
-                == ViewerBridge.applyResolvedReferencesScript(["./other.md": "/repo/other.md"])
-        )
-    }
-
     @Test("RenderedStateMirror.reset は 6 ミラーを一括で破棄する")
     func renderedStateMirrorResetClearsAll() {
         var mirror = ViewerRenderer.RenderedStateMirror()
@@ -306,39 +247,6 @@ struct ViewerRendererMessageHandlingTests {
         #expect(preference.caseSensitive == false)
         #expect(preference.wholeWord == true)
         #expect(preference.useRegex == false)
-    }
-
-    /// JS は応答を要求へ FIFO で対応づけるため、ペイロードが不正でも応答は必ず返す必要がある。
-    /// 落とすとキューが恒久的にずれ、以後すべての参照が解決失敗表示になる。
-    /// 解決自体はアプリ層へ渡さず、空の結果で応答する。
-    @Test("resolveReferences のペイロードが不正でも空の適用スクリプトを必ず評価する")
-    func resolveReferencesAlwaysRepliesOnInvalidPayload() {
-        // 不正ペイロードの各形: キー欠落・型違い・要素の型違い。
-        let invalidBodies: [Any] = [
-            [String: Any](),
-            ["paths": "not-an-array"],
-            ["paths": [1, 2]],
-            "not-an-object",
-        ]
-
-        for body in invalidBodies {
-            let renderer = ViewerRenderer()
-            let webView = StubWebView()
-            renderer.webView = webView
-            var called = false
-            renderer.onResolveReferences = { _ in
-                called = true
-                return ["./a.md": "/repo/a.md"]
-            }
-
-            dispatch(renderer, name: ViewerBridge.resolveReferencesMessageName, body: body)
-
-            #expect(called == false, "不正ペイロードをアプリ層へ渡している: \(body)")
-            #expect(
-                webView.lastEvaluatedScript == ViewerBridge.applyResolvedReferencesScript([:]),
-                "応答を返していない: \(body)"
-            )
-        }
     }
 
     @Test("未知のメッセージ名は無視される")

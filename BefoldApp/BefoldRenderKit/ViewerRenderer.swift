@@ -13,11 +13,16 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     public var onOpenReference: (@MainActor (_ href: String, _ newWindow: Bool) -> Void)?
     /// JS が検出したパス参照群の解決を要求したときに呼ばれる。
     /// 戻り値: 書かれたパス -> 解決済み絶対パス(実在するもののみ)。
-    public var onResolveReferences: (@MainActor (_ paths: [String]) -> [String: String])?
+    /// 解決は git subprocess を伴いうるため非同期。実装は MainActor をブロックせずに返すこと。
+    public var onResolveReferences: (@MainActor (_ paths: [String]) async -> [String: String])?
     public var onLoadMoreLines: (@MainActor () async -> LoadMoreLinesResult?)?
     /// 「続きを読み込む」の実行中フラグ。非同期読み込み中の再押下を無視し、
     /// 追記の交錯(順序の入れ替わり)を防ぐ。
     var isLoadingMoreLines = false
+    /// 解決応答(applyResolvedReferences 評価)の直列チェーン。JS は応答を要求へ FIFO で
+    /// 対応づけるため、解決が非同期になっても評価順が要求順とずれてはならない。
+    /// 各要求は直前の要求の完了を待ってから解決・評価する。
+    var resolveResponseChain: Task<Void, Never>?
     /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
     /// QuickLook 拡張等、検索 UI を持たないホストでは nil のまま省略できる。
     public var findOptionsPreference: FindOptionsPreference?

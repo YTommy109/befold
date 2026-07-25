@@ -41,6 +41,21 @@ struct GitCommandRunnerTests {
         #expect(FileManager.default.fileExists(atPath: marker.path) == false)
     }
 
+    /// 索引はロックを保持したまま git を待つため、git が返らないと他ウィンドウの
+    /// パス解決まで巻き添えで止まる。タイムアウトで必ず打ち切ることを固定する。
+    @Test("返ってこない git はタイムアウトで打ち切られる", .timeLimit(.minutes(1)))
+    func abortsHangingGit() {
+        let started = Date()
+        // シェルエイリアス経由で 30 秒眠る git を作る(git 自体が返ってこない状況の再現)。
+        // git を殺しても孫プロセスが標準出力を握ったままになりうる形なので、
+        // 「pipe が閉じるのを待つ」だけの実装ではここで止まる。
+        let result = GitCommandRunner(timeout: 0.5).run(["-c", "alias.zzz=!sleep 30", "zzz"])
+        let elapsed = Date().timeIntervalSince(started)
+
+        #expect(result == nil)
+        #expect(elapsed < 10, "タイムアウトが効かず \(elapsed) 秒待っている")
+    }
+
     /// 無害化オプションを通さずに git を実行する(対照用)。
     private func rawGit(_ dir: URL, _ args: [String]) {
         let process = Process()
