@@ -26,6 +26,9 @@ const {
   isHostFeatureEnabled,
   markdownFontSize,
   escapeHtml,
+  svgDataURI,
+  imageDataURI,
+  base64ToBytes,
   renderCodeHtml,
   wrapWithLineNumbers,
   parseCsv,
@@ -1143,5 +1146,48 @@ describe('lastLines', () => {
 
   test('maxLines=0 returns empty string', () => {
     expect(lastLines('a\nb\n', 0)).toBe('');
+  });
+});
+
+describe('svgDataURI', () => {
+  test('base64-encodes ASCII SVG text', () => {
+    const uri = svgDataURI('<svg/>');
+    expect(uri.startsWith('data:image/svg+xml;base64,')).toBe(true);
+    expect(atob(uri.slice('data:image/svg+xml;base64,'.length))).toBe('<svg/>');
+  });
+
+  test('round-trips non-Latin-1 characters as UTF-8', () => {
+    const svg = '<svg><text>日本語</text></svg>';
+    const bytes = atob(svgDataURI(svg).slice('data:image/svg+xml;base64,'.length));
+    const utf8 = Uint8Array.from(bytes, (c) => c.charCodeAt(0));
+    expect(new TextDecoder().decode(utf8)).toBe(svg);
+  });
+});
+
+describe('imageDataURI', () => {
+  test('uses the given MIME type', () => {
+    expect(imageDataURI('AAAA', 'image/webp')).toBe('data:image/webp;base64,AAAA');
+  });
+
+  test('falls back to image/png when the MIME type is missing', () => {
+    expect(imageDataURI('AAAA', '')).toBe('data:image/png;base64,AAAA');
+    expect(imageDataURI('AAAA', undefined)).toBe('data:image/png;base64,AAAA');
+  });
+});
+
+describe('base64ToBytes', () => {
+  test('decodes base64 into the original bytes', () => {
+    // '%PDF' — PDF のマジックナンバー
+    expect(Array.from(base64ToBytes('JVBERg=='))).toEqual([0x25, 0x50, 0x44, 0x46]);
+  });
+
+  test('returns an empty Uint8Array for empty input', () => {
+    const bytes = base64ToBytes('');
+    expect(bytes).toBeInstanceOf(Uint8Array);
+    expect(bytes.length).toBe(0);
+  });
+
+  test('preserves bytes above 0x7f', () => {
+    expect(Array.from(base64ToBytes('/w=='))).toEqual([0xff]);
   });
 });

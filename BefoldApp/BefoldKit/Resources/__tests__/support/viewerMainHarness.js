@@ -28,6 +28,16 @@ function installBrowserStubs(window) {
       removeEventListener: function() {},
     };
   };
+  // jsdom は blob URL を実装していない。PDF 表示は blob: URL の生成/解放だけを
+  // 行い中身は WebKit の PDF プラグインが描くため、識別可能な擬似 URL で足りる。
+  if (typeof window.URL.createObjectURL !== 'function') {
+    let issued = 0;
+    window.URL.createObjectURL = function() {
+      issued += 1;
+      return 'blob:https://localhost/stub-' + issued;
+    };
+    window.URL.revokeObjectURL = function() {};
+  }
 }
 
 // viewer.html の DOM 上に viewer.js → viewer-main.js を評価し、両者の

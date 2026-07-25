@@ -175,6 +175,30 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
+// SVG テキストを <img> の src に使える data URI にする。
+// btoa は Latin-1 しか扱えないため、encodeURIComponent + unescape で
+// UTF-8 バイト列を 1 バイト 1 文字の文字列へ均してから base64 化する。
+function svgDataURI(svgText) {
+  return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)));
+}
+
+// base64 の画像データを <img> の src に使える data URI にする。
+// mimeType は Swift 側(ViewerBridge)が渡す実際の MIME。未指定時は
+// 従来どおり image/png とみなす。
+function imageDataURI(base64, mimeType) {
+  return 'data:' + (mimeType || 'image/png') + ';base64,' + base64;
+}
+
+// base64 文字列をバイト列へ復号する(PDF の Blob 生成用)。
+function base64ToBytes(base64) {
+  var binary = atob(base64);
+  var bytes = new Uint8Array(binary.length);
+  for (var i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 // HTML を行ごとに分割し、各行を自己完結な HTML にする(未クローズ span が
 // 後続行を壊すのを防ぐ)。highlight.js はブロックコメント等で改行をまたぐ
 // <span> を出力するため、行末で開いたままの span を閉じ、次の行の先頭で
@@ -501,6 +525,9 @@ if (typeof module !== 'undefined' && module.exports) {
     imageFitSize: imageFitSize,
     markdownFontSize: markdownFontSize,
     escapeHtml: escapeHtml,
+    svgDataURI: svgDataURI,
+    imageDataURI: imageDataURI,
+    base64ToBytes: base64ToBytes,
     renderCodeHtml: renderCodeHtml,
     wrapWithLineNumbers: wrapWithLineNumbers,
     buildLineNumberRows: buildLineNumberRows,

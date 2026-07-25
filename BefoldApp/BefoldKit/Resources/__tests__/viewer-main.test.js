@@ -203,3 +203,135 @@ describe('検索バーの配線', () => {
     expect(document.getElementById('mmd-find-bar').style.display).toBe('none');
   });
 });
+
+describe('render の型ディスパッチ', () => {
+  // #diagram-wrap に付いた型別クラスだけを取り出す
+  function bodyClasses(document) {
+    return Array.from(document.getElementById('diagram-wrap').classList)
+      .filter((c) => c.endsWith('-body'))
+      .sort();
+  }
+
+  test('mmd は mermaid 用の pre を組み立てる', () => {
+    const { document, main } = loadViewerMain({});
+
+    // mermaid.min.js は jsdom では読み込めず _mmdEnsureMermaidLoaded() の await が
+    // 解決しないため、DOM 構築が終わっている同期部分だけを検証する。
+    main.render('graph TD;\nA-->B', 'mmd');
+
+    const wrap = document.getElementById('diagram-wrap');
+    expect(wrap.querySelector('pre.mermaid').textContent).toBe('graph TD;\nA-->B');
+    expect(bodyClasses(document)).toEqual([]);
+  });
+
+  test('mmd はダイアグラム定義を HTML エスケープする', () => {
+    const { document, main } = loadViewerMain({});
+
+    main.render('A["<img src=x onerror=alert(1)>"]', 'mmd');
+
+    const wrap = document.getElementById('diagram-wrap');
+    expect(wrap.querySelector('img')).toBeNull();
+    expect(wrap.querySelector('pre.mermaid').textContent).toContain('<img src=x onerror=alert(1)>');
+  });
+
+  test('svg はズームラッパー付きの img を組み立てる', async () => {
+    const { window, document, main } = loadViewerMain({});
+
+    await main.render('<svg><text>日本語</text></svg>', 'svg');
+
+    const img = document.querySelector('#diagram-wrap .diagram-zoom-wrap .diagram-zoom-inner img');
+    expect(img).not.toBeNull();
+    expect(img.alt).toBe('SVG');
+    expect(img.src).toBe(window.svgDataURI('<svg><text>日本語</text></svg>'));
+    expect(document.querySelector('#diagram-wrap .diagram-zoom-wrap').dataset.diagramIndex).toBe('0');
+    // mermaid と同じズーム操作 UI が付く
+    expect(document.querySelector('#diagram-wrap .diagram-zoom-controls')).not.toBeNull();
+  });
+
+  test('html は sandbox 付き iframe に srcdoc で流し込む', async () => {
+    const { document, main } = loadViewerMain({});
+
+    await main.render('<p>hi</p>', 'html');
+
+    const iframe = document.querySelector('#diagram-wrap iframe');
+    expect(iframe.getAttribute('sandbox')).toBe('allow-same-origin');
+    expect(iframe.srcdoc).toBe('<p>hi</p>');
+    expect(bodyClasses(document)).toEqual(['html-body']);
+  });
+
+  test('csv はテーブルを組み立てる', async () => {
+    const { document, main } = loadViewerMain({});
+
+    await main.render('a,b\n1,2\n', 'csv', ',');
+
+    const headers = Array.from(document.querySelectorAll('#diagram-wrap table th'))
+      .map((th) => th.textContent);
+    const cells = Array.from(document.querySelectorAll('#diagram-wrap table td'))
+      .map((td) => td.textContent);
+    expect(headers).toContain('a');
+    expect(cells).toContain('2');
+    expect(bodyClasses(document)).toEqual(['csv-body', 'markdown-body']);
+  });
+
+  test('image は MIME 付きの data URI を img に設定する', async () => {
+    const { document, main } = loadViewerMain({});
+
+    await main.render('AAAA', 'image', 'image/webp');
+
+    const img = document.querySelector('#diagram-wrap img');
+    expect(img.getAttribute('src')).toBe('data:image/webp;base64,AAAA');
+    expect(img.alt).toBe('Image');
+    expect(bodyClasses(document)).toEqual(['image-body']);
+  });
+
+  test('pdf は data: ではなく blob: URL の iframe にする', async () => {
+    const { document, main } = loadViewerMain({});
+
+    await main.render('JVBERg==', 'pdf');
+
+    const iframe = document.querySelector('#diagram-wrap iframe');
+    expect(iframe.getAttribute('src').startsWith('blob:')).toBe(true);
+    expect(bodyClasses(document)).toEqual(['pdf-body']);
+  });
+
+  test('code はコード表示用のクラスと内容を設定する', async () => {
+    const { document, main } = loadViewerMain({});
+
+    await main.render('let x = 1', 'code', 'swift');
+
+    expect(document.querySelector('#diagram-wrap pre code').textContent).toBe('let x = 1');
+    expect(bodyClasses(document)).toEqual(['code-body']);
+  });
+
+  test('markdown-it 未ロードでは代替文言を出して後続処理を打ち切る', async () => {
+    const { document, main } = loadViewerMain({});
+
+    await main.render('# Title', 'md');
+
+    expect(document.getElementById('diagram-wrap').textContent).toBe('markdown-it not loaded');
+    expect(bodyClasses(document)).toEqual(['markdown-body']);
+  });
+
+  test('型を切り替えると前回の型別クラスが残らない', async () => {
+    const { document, main } = loadViewerMain({});
+
+    await main.render('AAAA', 'image', 'image/png');
+    expect(bodyClasses(document)).toEqual(['image-body']);
+
+    await main.render('a,b\n', 'csv', ',');
+
+    expect(bodyClasses(document)).toEqual(['csv-body', 'markdown-body']);
+  });
+
+  test('描画のたびにエラーパネルを消す', async () => {
+    const { document, main } = loadViewerMain({});
+    const panel = document.getElementById('mmd-error');
+    panel.textContent = 'previous error';
+    panel.style.display = 'block';
+
+    await main.render('a,b\n', 'csv', ',');
+
+    expect(panel.style.display).toBe('none');
+    expect(panel.textContent).toBe('');
+  });
+});

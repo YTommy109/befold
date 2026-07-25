@@ -999,6 +999,137 @@
     _mmdModeJustSwitched = false;
   }
 
+  // --- 型別 DOM ビルダー ---
+  // いずれも #diagram-wrap を受け取り、その中身と自分のクラスだけを組み立てる。
+  // クラスの一括除去・blob URL の解放・mermaid 実行・パス注釈・検索/ズーム/
+  // スクロール復元といった型共通の後処理は render() 側が担う。
+
+  function _renderMmd(diagramWrap, content) {
+    diagramWrap.innerHTML = '<pre class="mermaid">' + _escapeHtml(content) + '</pre>';
+  }
+
+  function _renderSvg(diagramWrap, content) {
+    var img = document.createElement('img');
+    img.src = svgDataURI(content);
+    img.style.maxWidth = '100%';
+    img.alt = 'SVG';
+    // mermaid ダイアグラムと同じズーム用ラッパーで包む
+    var wrap = document.createElement('div');
+    wrap.className = 'diagram-zoom-wrap';
+    wrap.dataset.diagramIndex = '0';
+    var scroll = document.createElement('div');
+    scroll.className = 'diagram-zoom-scroll';
+    var inner = document.createElement('div');
+    inner.className = 'diagram-zoom-inner';
+    inner.appendChild(img);
+    scroll.appendChild(inner);
+    wrap.appendChild(scroll);
+    wrap.appendChild(_mmdBuildDiagramControls(wrap));
+    diagramWrap.innerHTML = '';
+    diagramWrap.appendChild(wrap);
+    img.onload = function() {
+      wrap.dataset.naturalHeight = inner.offsetHeight;
+      _mmdApplyDiagramZoom(wrap);
+    };
+  }
+
+  function _renderHtml(diagramWrap, content) {
+    diagramWrap.classList.add('html-body');
+    var iframe = document.createElement('iframe');
+    // 属性で直接指定する(iframe.sandbox はブラウザにより DOMTokenList 反映の
+    // 実装差があり、属性値としての確認もしづらいため)。
+    iframe.setAttribute('sandbox', 'allow-same-origin');
+    iframe.srcdoc = content;
+    iframe.style.width = '100%';
+    iframe.style.border = 'none';
+    // iframe の高さをコンテンツに合わせる
+    iframe.onload = function() {
+      try {
+        var h = iframe.contentDocument.documentElement.scrollHeight;
+        iframe.style.height = h + 'px';
+      } catch(e) {
+        iframe.style.height = '80vh';
+      }
+    };
+    iframe.style.height = '80vh';
+    diagramWrap.innerHTML = '';
+    diagramWrap.appendChild(iframe);
+  }
+
+  function _renderCsv(diagramWrap, content, lang) {
+    // github-markdown-css のテーブル装飾(markdown-body)を土台にしつつ、
+    // CSV 専用の上書き(style.css の csv-body)をそこにだけ効かせる。
+    // 通常の Markdown テーブルは markdown-body のみを付与するため影響しない。
+    diagramWrap.classList.add('markdown-body', 'csv-body');
+    diagramWrap.innerHTML = buildTableHtml(parseCsv(content, lang || ','));
+  }
+
+  function _renderImage(diagramWrap, content, lang) {
+    // 初期表示はウィンドウに収まるサイズ(縦横とも)にフィットさせる。
+    // フィット後は #diagram-wrap への全体ズーム(⌘+/-/0、Ctrl+ホイール)が
+    // フィット状態を基準に乗算する(imageFitSize のコメント参照)。
+    diagramWrap.classList.add('image-body');
+    var img = document.createElement('img');
+    img.alt = 'Image';
+    img.onload = function() {
+      _mmdFitImage(img, diagramWrap);
+    };
+    img.src = imageDataURI(content, lang);
+    diagramWrap.innerHTML = '';
+    diagramWrap.appendChild(img);
+  }
+
+  function _renderPdf(diagramWrap, content) {
+    // data: URI ではなく blob: URL を使う。CSP の frame-src は blob: のみを
+    // 許可しており、blob URL はこのスクリプトが生成した推測不能なものに
+    // 限られるため、Markdown 内に静的に書かれた iframe はロードできない。
+    diagramWrap.classList.add('pdf-body');
+    _pdfBlobUrl = URL.createObjectURL(new Blob([base64ToBytes(content)], { type: 'application/pdf' }));
+    var iframe = document.createElement('iframe');
+    iframe.src = _pdfBlobUrl;
+    diagramWrap.innerHTML = '';
+    diagramWrap.appendChild(iframe);
+  }
+
+  function _renderCode(diagramWrap, content, lang) {
+    // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
+    // レイアウトは style.css の .code-body が担う。
+    diagramWrap.classList.add('code-body');
+    diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang, _showLineNumbers);
+  }
+
+  // markdown-it 未ロード時は false を返す。呼び出し側(render)はそこで打ち切り、
+  // mermaid 実行やスクロール復元といった後処理を行わない(分割前の挙動と同じ)。
+  function _renderMarkdown(diagramWrap, content) {
+    // github-markdown-css は .markdown-body プレフィックス前提のため
+    // Markdown レンダリング時のみ付与する
+    diagramWrap.classList.add('markdown-body');
+    if (!md) {
+      diagramWrap.innerHTML = '<p>markdown-it not loaded</p>';
+      return false;
+    }
+    diagramWrap.innerHTML = md.render(content);
+    return true;
+  }
+
+  // 描画後の DOM に .mermaid があれば mermaid を実行し、ズーム用ラッパーで包む。
+  // mmd 直接表示だけでなく Markdown 内の ```mermaid フェンスもここを通る。
+  async function _mmdRunMermaid(diagramWrap) {
+    var elements = diagramWrap.querySelectorAll('.mermaid');
+    if (elements.length === 0) { return; }
+    try {
+      await _mmdEnsureMermaidLoaded();
+      elements.forEach(function(el, i) {
+        el.removeAttribute('data-processed');
+        el.id = 'mmd-' + i + '-' + Date.now();
+      });
+      await mermaid.run({ nodes: Array.from(elements) });
+    } catch(e) {
+      // parseError callback handles parse-time display; load failure falls through silently
+    }
+    _mmdWrapDiagrams(diagramWrap);
+  }
+
   async function render(content, type, lang) {
     // _mmdPendingRestoreScroll が非 null(=Swift 主導のファイル/モード切替)のときだけ
     // 保留中のデバウンス通知を破棄する。無条件に破棄すると、Swift を経由しない内部再描画
@@ -1041,114 +1172,27 @@
       _pdfBlobUrl = null;
     }
 
+    // 型ディスパッチ。中身の組み立ては各ビルダーに委ね、ここでは選ぶだけにする。
+    // md(既定)分岐だけは markdown-it 未ロード時に後続処理を打ち切る。
     if (type === 'mmd') {
-      diagramWrap.innerHTML = '<pre class="mermaid">' + _escapeHtml(content) + '</pre>';
+      _renderMmd(diagramWrap, content);
     } else if (type === 'svg') {
-      var svgImg = document.createElement('img');
-      svgImg.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(content)));
-      svgImg.style.maxWidth = '100%';
-      svgImg.alt = 'SVG';
-      // mermaid ダイアグラムと同じズーム用ラッパーで包む
-      var svgWrap = document.createElement('div');
-      svgWrap.className = 'diagram-zoom-wrap';
-      svgWrap.dataset.diagramIndex = '0';
-      var svgScroll = document.createElement('div');
-      svgScroll.className = 'diagram-zoom-scroll';
-      var svgInner = document.createElement('div');
-      svgInner.className = 'diagram-zoom-inner';
-      svgInner.appendChild(svgImg);
-      svgScroll.appendChild(svgInner);
-      svgWrap.appendChild(svgScroll);
-      svgWrap.appendChild(_mmdBuildDiagramControls(svgWrap));
-      diagramWrap.innerHTML = '';
-      diagramWrap.appendChild(svgWrap);
-      svgImg.onload = function() {
-        svgWrap.dataset.naturalHeight = svgInner.offsetHeight;
-        _mmdApplyDiagramZoom(svgWrap);
-      };
+      _renderSvg(diagramWrap, content);
     } else if (type === 'html') {
-      diagramWrap.classList.add('html-body');
-      var iframe = document.createElement('iframe');
-      iframe.sandbox = 'allow-same-origin';
-      iframe.srcdoc = content;
-      iframe.style.width = '100%';
-      iframe.style.border = 'none';
-      // iframe の高さをコンテンツに合わせる
-      iframe.onload = function() {
-        try {
-          var h = iframe.contentDocument.documentElement.scrollHeight;
-          iframe.style.height = h + 'px';
-        } catch(e) {
-          iframe.style.height = '80vh';
-        }
-      };
-      iframe.style.height = '80vh';
-      diagramWrap.innerHTML = '';
-      diagramWrap.appendChild(iframe);
+      _renderHtml(diagramWrap, content);
     } else if (type === 'csv') {
-      // github-markdown-css のテーブル装飾(markdown-body)を土台にしつつ、
-      // CSV 専用の上書き(style.css の csv-body)をそこにだけ効かせる。
-      // 通常の Markdown テーブルは markdown-body のみを付与するため影響しない。
-      diagramWrap.classList.add('markdown-body', 'csv-body');
-      var rows = parseCsv(content, lang || ',');
-      diagramWrap.innerHTML = buildTableHtml(rows);
+      _renderCsv(diagramWrap, content, lang);
     } else if (type === 'image') {
-      // 初期表示はウィンドウに収まるサイズ(縦横とも)にフィットさせる。
-      // フィット後は #diagram-wrap への全体ズーム(⌘+/-/0、Ctrl+ホイール)が
-      // フィット状態を基準に乗算する(imageFitSize のコメント参照)。
-      diagramWrap.classList.add('image-body');
-      var img = document.createElement('img');
-      img.alt = 'Image';
-      img.onload = function() {
-        _mmdFitImage(img, diagramWrap);
-      };
-      img.src = 'data:' + (lang || 'image/png') + ';base64,' + content;
-      diagramWrap.innerHTML = '';
-      diagramWrap.appendChild(img);
+      _renderImage(diagramWrap, content, lang);
     } else if (type === 'pdf') {
-      // data: URI ではなく blob: URL を使う。CSP の frame-src は blob: のみを
-      // 許可しており、blob URL はこのスクリプトが生成した推測不能なものに
-      // 限られるため、Markdown 内に静的に書かれた iframe はロードできない。
-      diagramWrap.classList.add('pdf-body');
-      var pdfBytes = atob(content);
-      var pdfBuf = new Uint8Array(pdfBytes.length);
-      for (var bi = 0; bi < pdfBytes.length; bi++) { pdfBuf[bi] = pdfBytes.charCodeAt(bi); }
-      _pdfBlobUrl = URL.createObjectURL(new Blob([pdfBuf], { type: 'application/pdf' }));
-      var iframe = document.createElement('iframe');
-      iframe.src = _pdfBlobUrl;
-      diagramWrap.innerHTML = '';
-      diagramWrap.appendChild(iframe);
+      _renderPdf(diagramWrap, content);
     } else if (type === 'code') {
-      // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
-      // レイアウトは style.css の .code-body が担う。
-      diagramWrap.classList.add('code-body');
-      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang, _showLineNumbers);
-    } else {
-      // github-markdown-css は .markdown-body プレフィックス前提のため
-      // Markdown レンダリング時のみ付与する
-      diagramWrap.classList.add('markdown-body');
-      if (md) {
-        diagramWrap.innerHTML = md.render(content);
-      } else {
-        diagramWrap.innerHTML = '<p>markdown-it not loaded</p>';
-        return;
-      }
+      _renderCode(diagramWrap, content, lang);
+    } else if (!_renderMarkdown(diagramWrap, content)) {
+      return;
     }
 
-    var mermaidElements = diagramWrap.querySelectorAll('.mermaid');
-    if (mermaidElements.length > 0) {
-      try {
-        await _mmdEnsureMermaidLoaded();
-        mermaidElements.forEach(function(el, i) {
-          el.removeAttribute('data-processed');
-          el.id = 'mmd-' + i + '-' + Date.now();
-        });
-        await mermaid.run({ nodes: Array.from(mermaidElements) });
-      } catch(e) {
-        // parseError callback handles parse-time display; load failure falls through silently
-      }
-      _mmdWrapDiagrams(diagramWrap);
-    }
+    await _mmdRunMermaid(diagramWrap);
 
     _annotatePathRefs();
     _mmdFindRefreshAfterRender();
