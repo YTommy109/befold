@@ -1,10 +1,10 @@
 ---
 id: TASK-153
 title: 'パーセントエスケープした # を含む href が fragment として切り落とされる'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-25 11:32'
-updated_date: '2026-07-25 12:26'
+updated_date: '2026-07-25 12:30'
 labels:
   - path-reference
 dependencies: []
@@ -21,8 +21,8 @@ ReferenceResolver.swift はパーセントデコード（L42）を fragment 除�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 fragment 除去をパーセントデコードより先に行い、`file%23name.md` のようなファイル名が正しく解決される
-- [ ] #2 回帰テストを追加する
+- [x] #1 fragment 除去をパーセントデコードより先に行い、`file%23name.md` のようなファイル名が正しく解決される
+- [x] #2 回帰テストを追加する
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -32,3 +32,17 @@ ReferenceResolver.swift はパーセントデコード（L42）を fragment 除�
 2. 行番号サフィックス除去はデコード後のまま維持する（file.md%3A12 の既存挙動を変えない）
 3. ReferenceResolverTests のパラメタライズに file%23name.md のケースを追加し、修正前に落ちることを確認する
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+classify(href:) の順序を「デコード → fragment 除去」から「fragment 除去 → デコード」へ入れ替えた。fragment の区切りは生の href の # だけで判断される。行番号サフィックス (:数字) の除去はデコード後のままにしてある（file.md%3A12 の既存挙動を変えないため）。
+実効性の確認: ReferenceResolver.swift だけを git stash して実行し、追加した 2 ケース（./file%23name.md、./file%23name.md#usage）がいずれも /Users/test/docs/file に切り落とされて落ちることを確認済み。
+検証: swift test 689 tests（Integration 含む）全パス。途中、pathString の分岐が withoutFragment を参照したままでパーセントデコードが効かなくなる取りこぼしがあり、既存テスト（ReferenceResolverTests の日本語ファイル名、MarkdownImageEmbedderTests のスペース入りファイル名）が検知した。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+fragment 除去をパーセントデコードより前に移し、ファイル名の # をエスケープした href（file%23name.md）が切り落とされる問題を修正した。エスケープ # のみ・エスケープ # + 本物の fragment の 2 ケースを回帰テストに追加し、修正前に落ちることを stash 実験で確認済み。swift test 689 件全パス。
+<!-- SECTION:FINAL_SUMMARY:END -->

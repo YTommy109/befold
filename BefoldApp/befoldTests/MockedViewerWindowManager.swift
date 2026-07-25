@@ -4,6 +4,26 @@ import BefoldKit
 import BefoldTestSupport
 import Foundation
 
+/// 実 `git` を起動せず、温め要求だけを記録する索引。
+/// unit テストの既定として使い、ウィンドウ生成で subprocess が走らないようにする。
+final nonisolated class RecordingGitFileIndex: GitFileIndexing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _warmedPaths: [URL] = []
+
+    var warmedPaths: [URL] {
+        lock.lock(); defer { lock.unlock() }; return _warmedPaths
+    }
+
+    func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
+        nil
+    }
+
+    func warm(forFileAt url: URL) {
+        lock.lock(); defer { lock.unlock() }
+        _warmedPaths.append(url)
+    }
+}
+
 /// ViewerWindowManager を実 FS へ触れさせずに組み立てるテスト用フィクスチャ。
 ///
 /// openViewer が生成する ViewerWindowController は既定では実 FileWatcher・実ファイル読込・
@@ -23,6 +43,8 @@ struct MockedViewerWindowManager {
     let hiddenFilesPreference: HiddenFilesPreference
     /// 本番 UserDefaults へ書かないよう、隔離 defaults で明示的に生成して注入する。
     let bookmarkStore: BookmarkStore
+    /// 生成される全ウィンドウが共有する git 索引。実 `git` を起動しない記録用フェイク。
+    let gitFileIndex: RecordingGitFileIndex
     let manager: ViewerWindowManager
 
     /// - Parameter files: 存在するものとして扱う URL。VWM の存在ガードと、
@@ -40,6 +62,8 @@ struct MockedViewerWindowManager {
         hiddenFilesPreference = HiddenFilesPreference(defaults: defaults)
         let bookmarkStore = BookmarkStore(defaults: defaults)
         self.bookmarkStore = bookmarkStore
+        let gitFileIndex = RecordingGitFileIndex()
+        self.gitFileIndex = gitFileIndex
         manager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
@@ -54,7 +78,8 @@ struct MockedViewerWindowManager {
                     defaults: defaults
                 )
             },
-            directoryLister: { _, _, _ in [] }
+            directoryLister: { _, _, _ in [] },
+            gitFileIndex: gitFileIndex
         )
     }
 

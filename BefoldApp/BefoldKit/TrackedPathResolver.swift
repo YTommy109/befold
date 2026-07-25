@@ -7,6 +7,13 @@ import Foundation
 /// 大きなリポジトリでは解決バッチごとに O(候補数) の再構築が走る)。
 public protocol GitFileIndexing: Sendable {
     func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex?
+    /// 解決要求より前に索引を用意しておく(ファイルを開いた/切り替えた契機で呼ぶ)。
+    /// 索引の準備は最適化であって解決の前提ではないため、既定は何もしない。
+    func warm(forFileAt url: URL)
+}
+
+public extension GitFileIndexing {
+    func warm(forFileAt _: URL) {}
 }
 
 /// パス参照の解決結果。

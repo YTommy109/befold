@@ -438,7 +438,7 @@ extension ViewerWindowControllerTests {
         // utils.swift は書かれた相対位置(/mock/docs/utils.swift)には存在せず、
         // 追跡ファイルの実体(/mock/src/utils.swift)だけが存在する状態にする。
         // git サフィックス一致でのみ解決でき、かつ一致先は実在するという経路。
-        controller.pathResolver = TrackedPathResolver(
+        controller.referenceCoordinator.resolver = TrackedPathResolver(
             fileReader: InMemoryFileReader(files: [base.path: "# doc", tracked.path: "// utils"]),
             gitIndex: FakeGitIndex(tracked: tracked)
         )
@@ -469,7 +469,7 @@ extension ViewerWindowControllerTests {
         )
         defer { controller.close() }
         // 相対解決では見つからないパスを渡し、必ず git 索引フォールバックへ入らせる。
-        controller.pathResolver = TrackedPathResolver(
+        controller.referenceCoordinator.resolver = TrackedPathResolver(
             fileReader: InMemoryFileReader(files: [base.path: "# doc"]),
             gitIndex: ThreadRecordingGitIndex(wasMainThread: wasMainThread)
         )
@@ -501,7 +501,7 @@ extension ViewerWindowControllerTests {
         )
         defer { controller.close() }
         // 相対解決では見つからず、git 追跡ファイルのサフィックス一致でのみ解決できる状態。
-        controller.pathResolver = TrackedPathResolver(
+        controller.referenceCoordinator.resolver = TrackedPathResolver(
             fileReader: InMemoryFileReader(files: [base.path: "# doc", tracked.path: "// utils"]),
             gitIndex: FakeGitIndex(tracked: tracked)
         )
