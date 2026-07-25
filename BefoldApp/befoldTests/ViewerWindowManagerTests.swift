@@ -124,6 +124,47 @@ struct ViewerWindowManagerTests {
         fixture.closeAll()
     }
 
+    @Test("別ウィンドウで開いているファイルへの切替は、前面化対象のウィンドウを結果として返す")
+    func performFileSwitchReportsWindowAlreadyShowingFile() throws {
+        let fixture = MockedViewerWindowManager(files: [file1, file2])
+        fixture.manager.openViewer(for: file1)
+        fixture.manager.openViewer(for: file2)
+        let first = try #require(fixture.manager.controllers[file1.normalizedPathKey])
+        let second = try #require(fixture.manager.controllers[file2.normalizedPathKey])
+
+        // 前面化そのものは AppKit 依存(非アクティブなテストプロセスでは isKeyWindow が
+        // 立たない)ため、前面化対象の解決結果だけを検証する。
+        let outcome = first.performFileSwitch(to: file2)
+
+        guard case let .openInAnotherWindow(other) = outcome else {
+            Issue.record("別ウィンドウで開いている場合は .openInAnotherWindow を返すべき: \(outcome)")
+            fixture.closeAll()
+            return
+        }
+        #expect(other === second)
+        #expect(first.fileURL == file1)
+        fixture.closeAll()
+    }
+
+    @Test("履歴で戻る先が別ウィンドウで開かれていた場合、中止するが前面化はしない")
+    func historyNavigationToFileOpenElsewhereIsAbortedWithoutFocusing() throws {
+        let fixture = MockedViewerWindowManager(files: [file1, file2])
+        fixture.manager.openViewer(for: file1)
+        let first = try #require(fixture.manager.controllers[file1.normalizedPathKey])
+        // file1 -> file2 の切替で file1 が履歴に残る。
+        first.switchFile(to: file2)
+        // 戻る先(file1)を別ウィンドウで開いてから戻ろうとする。
+        fixture.manager.openViewer(for: file1)
+        let second = try #require(fixture.manager.controllers[file1.normalizedPathKey])
+        first.window?.makeKeyAndOrderFront(nil)
+
+        first.navigateHistory(by: -1)
+
+        #expect(first.fileURL.normalizedPathKey == file2.normalizedPathKey)
+        #expect(second.window?.isKeyWindow == false)
+        fixture.closeAll()
+    }
+
     @Test("新規ファイルを開くと、記録がなければ既定(閉じた状態)がサイドバー状態として記録される")
     func openViewerPersistsDefaultClosedSidebarStateForNewFile() {
         let fixture = MockedViewerWindowManager(files: [file])
