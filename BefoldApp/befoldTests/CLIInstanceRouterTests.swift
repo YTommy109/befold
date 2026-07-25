@@ -114,6 +114,55 @@ struct CLIInstanceRouterTests {
         let userInfo: [AnyHashable: Any] = ["paths": ["a.md"], "requestID": "abc-123"]
 
         #expect(CLIInstanceRouter.requestID(from: userInfo) == "abc-123")
-        #expect(CLIInstanceRouter.decode(userInfo: userInfo)?.paths == ["a.md"])
+        #expect(CLIInstanceRouter.decode(userInfo: userInfo) == .open(paths: ["a.md"], options: CLIOpenOptions()))
+    }
+
+    // MARK: - ブックマーク転送
+
+    /// ブックマークの書き込みプロセスを GUI に一本化するため、CLI は起動中インスタンスへ
+    /// 要求を転送する。転送された userInfo が受信側で .bookmark として復元できることを規定する。
+    @Test("forwardBookmark は bookmarkPaths として post され、decode でブックマーク要求に戻る")
+    func forwardBookmarkPostsBookmarkPaths() {
+        var posted: [String: Any] = [:]
+        let acked = CLIInstanceRouter.forwardBookmark(
+            paths: ["/tmp/a.md"],
+            post: { _, userInfo in posted = userInfo },
+            makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 1) }
+        )
+
+        #expect(acked)
+        #expect(CLIInstanceRouter.decode(userInfo: posted) == .bookmark(paths: ["/tmp/a.md"]))
+        #expect(CLIInstanceRouter.requestID(from: posted) != nil)
+    }
+
+    @Test("forwardBookmark も ACK が届くまで同じ requestID で再送する")
+    func forwardBookmarkRetriesWithSameRequestID() {
+        var seenRequestIDs: [String] = []
+        let acked = CLIInstanceRouter.forwardBookmark(
+            paths: ["/tmp/a.md"],
+            maxAttempts: 3,
+            post: { _, userInfo in
+                if let requestID = userInfo["requestID"] as? String { seenRequestIDs.append(requestID) }
+            },
+            makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 3) }
+        )
+
+        #expect(acked)
+        #expect(seenRequestIDs.count == 3)
+        #expect(Set(seenRequestIDs).count == 1)
+    }
+
+    @Test("forwardBookmark は ACK が一度も届かなければ失敗を返す")
+    func forwardBookmarkReturnsFalseWhenAckNeverObserved() {
+        var attempts = 0
+        let acked = CLIInstanceRouter.forwardBookmark(
+            paths: ["/tmp/a.md"],
+            maxAttempts: 3,
+            post: { _, _ in attempts += 1 },
+            makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 0) }
+        )
+
+        #expect(!acked)
+        #expect(attempts == 3)
     }
 }

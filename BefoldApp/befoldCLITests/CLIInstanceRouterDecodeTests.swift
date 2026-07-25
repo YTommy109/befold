@@ -4,6 +4,12 @@ import Testing
 
 @Suite
 struct CLIInstanceRouterDecodeTests {
+    /// `.open` の paths/options を取り出す。種別が違えば nil を返す。
+    private func openPayload(_ request: CLIRequest?) -> (paths: [String], options: CLIOpenOptions)? {
+        guard case let .open(paths, options) = request else { return nil }
+        return (paths, options)
+    }
+
     @Test("全オプション付き userInfo を decode できる")
     func decodesAllOptions() {
         let userInfo: [AnyHashable: Any] = [
@@ -16,7 +22,7 @@ struct CLIInstanceRouterDecodeTests {
             "sortOrder": "alphabetical",
         ]
 
-        let result = CLIInstanceRouter.decode(userInfo: userInfo)
+        let result = openPayload(CLIInstanceRouter.decode(userInfo: userInfo))
 
         #expect(result != nil)
         #expect(result?.paths == ["/tmp/a.mmd", "/tmp/b.md"])
@@ -33,7 +39,7 @@ struct CLIInstanceRouterDecodeTests {
             "paths": ["/tmp/a.mmd"],
         ]
 
-        let result = CLIInstanceRouter.decode(userInfo: userInfo)
+        let result = openPayload(CLIInstanceRouter.decode(userInfo: userInfo))
 
         #expect(result != nil)
         #expect(result?.paths == ["/tmp/a.mmd"])
@@ -41,6 +47,18 @@ struct CLIInstanceRouterDecodeTests {
         #expect(result?.options.showLineNumbers == nil)
         #expect(result?.options.sourceMode == nil)
         #expect(result?.options.sortOrder == nil)
+    }
+
+    @Test("bookmarkPaths キーがあればブックマーク要求として decode される")
+    func decodesBookmarkRequest() {
+        let userInfo: [AnyHashable: Any] = [
+            "bookmarkPaths": ["/tmp/a.mmd", "/tmp/b.md"],
+            "requestID": "test-id",
+        ]
+
+        let result = CLIInstanceRouter.decode(userInfo: userInfo)
+
+        #expect(result == .bookmark(paths: ["/tmp/a.mmd", "/tmp/b.md"]))
     }
 
     @Test("paths キーがなければ nil を返す")
