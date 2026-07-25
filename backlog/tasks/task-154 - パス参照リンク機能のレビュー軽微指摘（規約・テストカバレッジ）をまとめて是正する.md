@@ -4,6 +4,7 @@ title: パス参照リンク機能のレビュー軽微指摘（規約・テス�
 status: To Do
 assignee: []
 created_date: '2026-07-25 11:32'
+updated_date: '2026-07-25 12:06'
 labels:
   - path-reference
 dependencies: []
@@ -28,4 +29,11 @@ feat/document_path コードレビューの軽微指摘の一括是正。個別�
 - [ ] #6 _mmdIsLocalPathHref を viewer.js の純粋ロジック側へ移し module.exports して直接ユニットテストする
 - [ ] #7 GitCommandFileIndex.rootByDir に上限を設けない判断・warm の多重呼び出し許容をコメントで明文化する（または in-flight 抑止を入れる）
 - [ ] #8 SuffixPathMatcher と SuffixPathIndex の公開型 2 つ同居について、分離するか同居の判断を記録する
+- [ ] #9 CLAUDE.md と docs/dev/coding_rule.md のプロジェクト構成ツリー（BefoldKit の一覧）に SuffixPathMatcher / TrackedPathResolver を追記し、パス参照リンク機能で追加した型と実体を一致させる
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-147 の作業中に発見: TASK-122 でパス参照リンク機能の型（SuffixPathMatcher / TrackedPathResolver）を BefoldKit へ追加した際、CLAUDE.md・coding_rule.md の「プロジェクト構成」ツリーへの反映が漏れていた（規約「型・ファイルの削除・追加・リネームはアーキテクチャ図とプロジェクト構成ツリーへの波及を必ず確認する」の未履行）。GitCommandFileIndex / GitCommandRunner / GitRepository（befold/App/ 配下）についても同様に記載の要否を確認すること。
+<!-- SECTION:NOTES:END -->

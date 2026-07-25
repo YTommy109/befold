@@ -1,10 +1,10 @@
 ---
 id: TASK-147
 title: SuffixPathIndex を fingerprint キャッシュに載せてバッチごとの再構築をなくす
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-25 11:30'
-updated_date: '2026-07-25 11:48'
+updated_date: '2026-07-25 12:00'
 labels:
   - path-reference
   - performance
@@ -22,9 +22,9 @@ GitCommandFileIndex がキャッシュするのは [URL] のみで、LazySuffixI
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 GitCommandFileIndex のエントリを (fingerprint, files, suffixIndex) に拡張し、fingerprint が同じ間は構築済み SuffixPathIndex を返す
-- [ ] #2 同一 fingerprint での連続バッチで SuffixPathIndex が再構築されないことをテストで確認する
-- [ ] #3 fingerprint 無効化・LRU 追い出し時に索引も一緒に破棄される
+- [x] #1 GitCommandFileIndex のエントリを (fingerprint, files, suffixIndex) に拡張し、fingerprint が同じ間は構築済み SuffixPathIndex を返す
+- [x] #2 同一 fingerprint での連続バッチで SuffixPathIndex が再構築されないことをテストで確認する
+- [x] #3 fingerprint 無効化・LRU 追い出し時に索引も一緒に破棄される
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -40,3 +40,20 @@ GitCommandFileIndex がキャッシュするのは [URL] のみで、LazySuffixI
 4. 索引の保持コストは [URL] より重いため、maxCachedRoots の根拠コメントを更新
 5. テスト: 同一 fingerprint の連続取得で再列挙＝再構築が起きないことを固定。フェイク索引（TrackedPathResolverTests / ViewerWindowControllerTests / GitCommandFileIndexTests）を新 API へ追従
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+AC#1 は「(fingerprint, files, suffixIndex) の 3 つ組」ではなく (fingerprint, index) の 2 つ組で満たした。GitFileIndexing の返り値自体を [URL] から SuffixPathIndex へ変えたため、生の URL 一覧を読む呼び出し元が消え、両方を保持すると同じ知識の二重保持になるため。索引だけをキャッシュすることで fingerprint 無効化・LRU 追い出しがそのまま索引にも効き、AC#3 は構造的に満たされる（追い出しテストのドキュメントにも明記）。
+本番コードで SuffixPathIndex を構築する箇所は GitCommandFileIndex の 1 箇所だけになったことを grep で確認済み（もう 1 箇所の SuffixPathMatcher.bestMatch は索引と単発照合の等価性を固定するテスト専用）。
+索引構築はロック内（列挙直後）に置いた。全ウィンドウで 1 つの索引を共有するのが目的のため。その意図をインラインコメントに明記。
+保持コストは生の [URL] より数倍重くなるため maxCachedRoots の根拠コメントを更新した（上限値 4 は据え置き。典型的なリポジトリでは数 MB 規模で、下げると 3 リポジトリ以上を行き来する際に ls-files と索引構築が再発するため）。
+コメント波及: GitCommandFileIndex / ViewerWindowManager / ViewerWindowController / 各テストの「追跡ファイル一覧」記述を索引ベースへ更新。
+検証: swift test 686 tests（Integration 含む）全パス、npx jest 295 passed、swift build（SwiftLint 込み）、swiftformat 差分なし。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+GitFileIndexing の返り値を追跡ファイルの URL 一覧から SuffixPathIndex に変更し、GitCommandFileIndex が fingerprint 単位で構築済み索引をキャッシュするようにした。これにより解決バッチ（再レンダリング）ごとの O(候補数) の索引再構築がなくなり、本番の索引構築箇所は 1 箇所に収束。キャッシュ命中テストを「列挙回数＝索引構築回数」の観点で強化し、swift test 686 件・jest 295 件が全てパスすることを確認済み。
+<!-- SECTION:FINAL_SUMMARY:END -->
