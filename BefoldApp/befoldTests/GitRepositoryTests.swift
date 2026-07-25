@@ -35,6 +35,45 @@ struct GitRepositoryTests {
         #expect(repo.trackedFiles(at: root)?.map(\.lastPathComponent) == ["main.swift"])
     }
 
+    /// `ls-files -z` を使う理由そのものの検証。既定の改行区切り出力では、スペースや
+    /// 引用符を含むファイル名が core.quotepath でエスケープされて壊れる。
+    @Test("スペース・引用符を含むファイル名も欠けずに列挙される")
+    func trackedFilesHandleSpacesAndQuotesInNames() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        try makeRepo(temp.url)
+        let awkwardNames = ["my notes.md", "quote\"name.md", "日本語 メモ.md"]
+        for name in awkwardNames {
+            try "x".write(to: temp.url.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        }
+        git(temp.url, ["add", "."])
+
+        let tracked = GitRepository().trackedFiles(at: temp.url)?.map(\.lastPathComponent)
+
+        for name in awkwardNames {
+            #expect(tracked?.contains(name) == true, "\(name) が列挙されていない")
+        }
+    }
+
+    /// submodule の `.git` ファイルは `gitdir: ../.git/modules/<name>` のように
+    /// 相対パスを書く。worktree(絶対パス)の分岐しか通っていないと、submodule では
+    /// 存在しない index を見て fingerprint が nil になり、キャッシュ無効化が効かなくなる。
+    @Test("submodule 形式の相対 gitdir を辿って index を見る")
+    func resolvesRelativeGitdirFile() throws {
+        let parent = try TempDir()
+        defer { withExtendedLifetime(parent) {} }
+        let realGitDir = parent.url.appendingPathComponent(".git/modules/sub")
+        try FileManager.default.createDirectory(at: realGitDir, withIntermediateDirectories: true)
+        try "".write(to: realGitDir.appendingPathComponent("index"), atomically: true, encoding: .utf8)
+        let work = parent.url.appendingPathComponent("sub")
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        try "gitdir: ../.git/modules/sub\n".write(
+            to: work.appendingPathComponent(".git"), atomically: true, encoding: .utf8
+        )
+
+        #expect(GitRepository().indexFingerprint(at: work) != nil, "相対 gitdir を辿れていない")
+    }
+
     /// git が動いて「リポジトリではない」と答えた場合と、git を実行できず不明な場合とを
     /// 区別する(キャッシュ層は前者だけを覚えるため、取り違えると失敗が固定化する)。
     @Test("git 管理外は notARepository として返る")

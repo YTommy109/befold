@@ -225,9 +225,10 @@ struct ViewerBridgeContractTests {
         }
     }
 
-    /// `const _MSG_X = 'name';` 形式の宣言から JS 定数名 → メッセージ名の対応を作る。
+    /// `var _MSG_X = 'name';` 形式の宣言から JS 定数名 → メッセージ名の対応を作る
+    /// (宣言子は同梱 JS の規約に合わせて var / const / let のいずれも受ける)。
     private static func messageNamesByJSConstant(in source: String) throws -> [String: String] {
-        let pattern = #"const\s+(_MSG_[A-Z_]+)\s*=\s*'([A-Za-z]+)'"#
+        let pattern = #"(?:var|let|const)\s+(_MSG_[A-Z_]+)\s*=\s*'([A-Za-z]+)'"#
         let pairs = try matches(of: pattern, in: source).map { ($0[1], $0[2]) }
         #expect(!pairs.isEmpty, "viewer-main.js に _MSG_* 定数の宣言が見つからない")
         return Dictionary(uniqueKeysWithValues: pairs)

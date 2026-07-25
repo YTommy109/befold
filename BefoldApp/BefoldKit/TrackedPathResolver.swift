@@ -35,6 +35,8 @@ public struct TrackedPathResolver: Sendable {
         self.gitIndex = gitIndex
     }
 
+    /// 単一の参照を解決する(クリック時のオープン用)。
+    /// 複数の参照をまとめて解決する場合は、git 索引の取得を 1 度に抑える `resolveAll` を使う。
     public func resolve(href: String, baseURL: URL) -> ResolvedReference {
         var index = LazySuffixIndex(gitIndex: gitIndex, baseURL: baseURL)
         return resolve(href: href, baseURL: baseURL, index: &index)

@@ -1,12 +1,20 @@
 import Foundation
 
+/// href を「どう扱うべきか」で分類した結果。
 public enum ReferenceTarget: Equatable, Sendable {
+    /// ブラウザで開く http/https。
     case external(URL)
+    /// ローカルファイルとして解釈した URL。実在するかどうかはここでは判定しない。
     case localFile(URL)
+    /// 空 / #anchor / 未対応スキーム。何もしない。
     case unsupported
 }
 
+/// 文書内の href を、外部 URL・ローカルファイル・未対応のいずれかへ分類する。
+/// 実在確認や git 追跡ファイルへのフォールバックは行わない(それは TrackedPathResolver の責務)。
 public enum ReferenceResolver {
+    /// href を baseURL(その href が書かれている文書)基準で解決する。
+    /// 相対パスは文書のディレクトリ基準、絶対パスはそのまま解釈する。
     public static func resolve(href: String, baseURL: URL) -> ReferenceTarget {
         switch classify(href: href) {
         case let .external(url):

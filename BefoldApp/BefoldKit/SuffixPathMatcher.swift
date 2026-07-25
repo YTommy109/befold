@@ -17,13 +17,22 @@ public enum SuffixPathMatcher {
 
     /// ルート "/" を除いた URL の構成要素。
     static func components(of url: URL) -> [String] {
-        url.standardizedFileURL.pathComponents.filter { $0 != "/" }
+        components(ofStandardized: url.standardizedFileURL)
+    }
+
+    /// 正規化済み URL の、ルート "/" を除いた構成要素。
+    /// 正規化を呼び出し側が済ませている場合に、`standardizedFileURL`(ファイルシステムに
+    /// 触る処理)の二度打ちを避けるための入口。
+    static func components(ofStandardized url: URL) -> [String] {
+        url.pathComponents.filter { $0 != "/" }
     }
 
     /// haystack の末尾 needle.count 個が needle と一致するか。
     static func hasComponentSuffix(_ haystack: [String], _ needle: [String]) -> Bool {
         guard needle.count <= haystack.count else { return false }
-        return Array(haystack.suffix(needle.count)) == needle
+        // 同名ファイルが多いリポジトリではバケット全件でこの比較が走るため、
+        // 部分配列をコピーせずその場で突き合わせる。
+        return haystack[(haystack.count - needle.count)...].elementsEqual(needle)
     }
 
     /// 共通接頭辞を除いた (合計距離, 上がる段数)。
@@ -39,6 +48,11 @@ public enum SuffixPathMatcher {
 }
 
 /// 候補ファイル群を 1 度だけ前処理して繰り返しのサフィックス照合に備える索引。
+///
+/// `SuffixPathMatcher` と同じファイルに置いている。照合規則(構成要素の切り出し・距離・
+/// タイブレーク)を両者で共有しており、片方だけを読んでも意味を成さないため。
+/// 単発照合の入口が `SuffixPathMatcher`、それを繰り返すための前処理済み形がこの型、
+/// という 1 つの関心の 2 つの面と捉えている。
 ///
 /// 候補ごとの構成要素は `standardizedFileURL` を経由する = ファイルシステムに触る正規化であり、
 /// 単なる文字列操作ではない。照合のたびに、しかも比較子の内側で計算すると
@@ -65,7 +79,7 @@ public struct SuffixPathIndex: Sendable {
         var grouped: [String: [Candidate]] = [:]
         for url in candidates {
             let standardized = url.standardizedFileURL
-            let components = standardized.pathComponents.filter { $0 != "/" }
+            let components = SuffixPathMatcher.components(ofStandardized: standardized)
             // 構成要素を持たない候補(ルート)はどんな needle にも一致しないため落とす。
             guard let lastComponent = components.last else { continue }
             grouped[lastComponent, default: []].append(Candidate(

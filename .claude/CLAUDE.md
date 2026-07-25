@@ -45,11 +45,11 @@ BefoldApp/
 ├── project.yml              # XcodeGen 定義
 ├── Package.swift            # SPM ビルド用
 ├── befold/
-│   ├── App/                 # AppDelegate, DocumentController, ViewerWindowController
+│   ├── App/                 # AppDelegate, DocumentController, ViewerWindowController, ReferenceResolutionCoordinator, GitRepository
 │   ├── Viewer/              # ViewerStore, ViewerWebView, ViewerContentView
 │   ├── FileWatching/        # FileWatcher, Debouncer
 │   └── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
-├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TextEncoding, StringChunkReader, ContentLoader, FileType）
+├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TrackedPathResolver, SuffixPathMatcher, TextEncoding, StringChunkReader, ContentLoader, FileType）
 │   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js, DOMPurify, highlight.js, github-markdown-css
 ├── BefoldCLI/               # CLI 共通ロジックライブラリ（AppVersion, CLIBookmarkCommand, CLICheckCommand, CLICommandResult, CLIInstaller, CLIInstanceRouter, CLIOpenOptions, ShellQuoting）
 ├── befold-cli/              # CLI 実行ファイル（BefoldCLICommand, CLIAppLauncher）

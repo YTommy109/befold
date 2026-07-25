@@ -30,6 +30,9 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
     /// そのため寿命の間、`git init` でリポジトリになった/リポジトリでなくなったディレクトリは
     /// 古い答えを返し続ける。無効化には毎回 `rev-parse` の subprocess が要る一方、
     /// 表示中の文書のリポジトリ所属が入れ替わるのは稀なため、この staleness を受け入れる。
+    /// entryByRoot と違い件数の上限も設けない。1 件はパス文字列 2 本ぶんで、
+    /// 抱えるのは「開いたことのあるディレクトリの数」に留まるため、
+    /// 追い出しの複雑さに見合わない。
     private var rootByDir: [String: GitRootLookup] = [:]
     private var entryByRoot: [String: (fingerprint: Date?, index: SuffixPathIndex)] = [:]
     /// entryByRoot のキーを最近使った順(先頭が直近)に並べたもの。LRU の追い出しに使う。
@@ -94,6 +97,8 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
     }
 
     /// 開いた/切り替えたタイミングで背景実行し、解決要求時のキャッシュ命中を狙う。
+    /// 多重呼び出し(タブの連続切替など)は抑止しない。2 回目以降はキャッシュ命中で
+    /// ロックを取ってすぐ抜けるため、in-flight 管理を足すほどの重複コストにならない。
     func warm(forFileAt url: URL) {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             _ = self?.trackedFileIndex(forFileAt: url)

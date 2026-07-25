@@ -1,10 +1,10 @@
 ---
 id: TASK-154
 title: パス参照リンク機能のレビュー軽微指摘（規約・テストカバレッジ）をまとめて是正する
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-07-25 11:32'
-updated_date: '2026-07-25 12:06'
+updated_date: '2026-07-25 12:53'
 labels:
   - path-reference
 dependencies: []
@@ -31,6 +31,21 @@ feat/document_path コードレビューの軽微指摘の一括是正。個別�
 - [ ] #8 SuffixPathMatcher と SuffixPathIndex の公開型 2 つ同居について、分離するか同居の判断を記録する
 - [ ] #9 CLAUDE.md と docs/dev/coding_rule.md のプロジェクト構成ツリー（BefoldKit の一覧）に SuffixPathMatcher / TrackedPathResolver を追記し、パス参照リンク機能で追加した型と実体を一致させる
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+AC 9 項目を性質ごとに片付ける。
+1. /// 補完（ReferenceResolver / TrackedPathResolver.resolve / GitCommandRunner.run。runString は TASK-150 で削除済み）
+2. SuffixPathIndex.init の components 手組みを components(of:) へ一本化
+3. hasComponentSuffix を elementsEqual のコピーなし比較へ
+4. GitRepositoryTests にスペース入りファイル名・相対 gitdir のテストを追加
+5. viewer.js の const/var 規約乖離を解消（実態に合わせて規約側を更新する方向で検討）
+6. _mmdIsLocalPathHref を viewer.js へ移して直接テスト
+7. rootByDir の上限なし・warm 多重呼び出しの判断をコメント化
+8. SuffixPathMatcher / SuffixPathIndex 同居の判断を記録
+9. CLAUDE.md / coding_rule.md の構成ツリーへ新規型を追記
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 

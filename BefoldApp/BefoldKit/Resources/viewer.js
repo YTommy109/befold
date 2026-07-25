@@ -165,6 +165,16 @@ function isSafeLinkURL(url) {
   return !/^(vbscript|javascript|file|data):/.test(str);
 }
 
+// href がローカルパス候補か。#アンカー・http(s) 等スキーム付きは除外する。
+// file.md:12 が scheme="file.md" と誤解釈される都合、ドットを含むスキームは許可する。
+function isLocalPathHref(href) {
+  if (!href) { return false; }
+  if (href.charAt(0) === '#') { return false; }
+  var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*):/);
+  if (m && m[1].indexOf('.') === -1) { return false; } // http:, mailto:, tel: 等
+  return true;
+}
+
 // HTML 特殊文字をエスケープする(DOM 非依存の純粋関数)。
 // viewer.html の _escapeHtml は DOM を使うため Node テストできない。
 function escapeHtml(text) {
@@ -540,6 +550,7 @@ if (typeof module !== 'undefined' && module.exports) {
     sanitizeLang: sanitizeLang,
     sanitizeRenderedHtml: sanitizeRenderedHtml,
     isSafeLinkURL: isSafeLinkURL,
+    isLocalPathHref: isLocalPathHref,
     highlightCode: highlightCode,
     diagramScrollHeight: diagramScrollHeight,
     imageFitSize: imageFitSize,

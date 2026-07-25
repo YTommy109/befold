@@ -1,10 +1,10 @@
   // Swift ブリッジメッセージ名（ViewerBridge.swift と同期）
-  const _MSG_ZOOM_CHANGED = 'zoomChanged';
-  const _MSG_REFERENCE_ACTIVATED = 'referenceActivated';
-  const _MSG_FIND_OPTIONS_CHANGED = 'findOptionsChanged';
-  const _MSG_SCROLL_POSITION_CHANGED = 'scrollPositionChanged';
-  const _MSG_LOAD_MORE_LINES = 'loadMoreLines';
-  const _MSG_RESOLVE_REFERENCES = 'resolveReferences';
+  var _MSG_ZOOM_CHANGED = 'zoomChanged';
+  var _MSG_REFERENCE_ACTIVATED = 'referenceActivated';
+  var _MSG_FIND_OPTIONS_CHANGED = 'findOptionsChanged';
+  var _MSG_SCROLL_POSITION_CHANGED = 'scrollPositionChanged';
+  var _MSG_LOAD_MORE_LINES = 'loadMoreLines';
+  var _MSG_RESOLVE_REFERENCES = 'resolveReferences';
 
   // postMessage を一箇所に集約するヘルパー。ハンドラ未登録の WebView
   // （例: 機能限定ホスト)でも安全に呼べるよう存在チェックを内包する。
@@ -260,16 +260,6 @@
            el.classList.contains('befold-link-dead');
   }
 
-  // href がローカルパス候補か。#アンカー・http(s) 等スキーム付きは除外する。
-  // file.md:12 が scheme="file.md" と誤解釈される都合、ドットを含むスキームは許可する。
-  function _mmdIsLocalPathHref(href) {
-    if (!href) return false;
-    if (href.charAt(0) === '#') return false;
-    var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*):/);
-    if (m && m[1].indexOf('.') === -1) return false; // http:, mailto:, tel: 等
-    return true;
-  }
-
   // 描画直後に呼ぶ。未分類のローカルパス候補(<a> と .befold-path-ref)を集めて
   // 一意なパス集合を Swift へ送り、同時に中立化(pending)する。
   // 解決が返るまでリンクに見せないことで、開けない偽リンクを出さない。
@@ -281,7 +271,7 @@
     wrap.querySelectorAll('a[href]').forEach(function(a) {
       if (_mmdIsClassifiedRef(a)) { return; }
       var href = a.getAttribute('href');
-      if (_mmdIsLocalPathHref(href)) { targets.push({ el: a, raw: href }); }
+      if (isLocalPathHref(href)) { targets.push({ el: a, raw: href }); }
     });
     wrap.querySelectorAll('.befold-path-ref').forEach(function(s) {
       if (_mmdIsClassifiedRef(s) || !s.dataset.path) { return; }
