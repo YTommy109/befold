@@ -9,6 +9,28 @@ private struct FakeGitIndex: GitFileIndexing {
     }
 }
 
+/// 追跡ファイル取得の回数を数える索引。バッチ解決が git を 1 度しか引かないことの検証に使う。
+private final class CountingGitIndex: GitFileIndexing, @unchecked Sendable {
+    private let files: [URL]?
+    private let lock = NSLock()
+    private var _callCount = 0
+
+    var callCount: Int {
+        lock.lock(); defer { lock.unlock() }; return _callCount
+    }
+
+    init(files: [URL]?) {
+        self.files = files
+    }
+
+    func trackedFiles(forFileAt url: URL) -> [URL]? {
+        lock.lock()
+        _callCount += 1
+        lock.unlock()
+        return files
+    }
+}
+
 private struct FakeFileReader: FileReading {
     let existing: Set<String>
     func fileExists(at url: URL) -> Bool {
@@ -90,6 +112,53 @@ struct TrackedPathResolverTests {
         #expect(try sut.resolve(href: "https://example.com", baseURL: base)
             == .external(#require(URL(string: "https://example.com"))))
         #expect(sut.resolve(href: "#section", baseURL: base) == .ignored)
+    }
+
+    @Test("resolveAll は単発 resolve と同じ結果を返す")
+    func resolveAllMatchesSingleResolve() {
+        let base = url("/repo/docs/guide.md")
+        let tracked = url("/repo/src/utils.swift")
+        let existing = url("/repo/docs/img.png")
+        let hrefs = ["utils.swift", "img.png", "nope.swift", "https://example.com", "#section"]
+        let makeSUT = {
+            TrackedPathResolver(
+                fileReader: FakeFileReader(existing: [existing.path]),
+                gitIndex: CountingGitIndex(files: [tracked])
+            )
+        }
+
+        let batch = makeSUT().resolveAll(hrefs: hrefs, baseURL: base)
+
+        let single = makeSUT()
+        for href in hrefs {
+            #expect(batch[href] == single.resolve(href: href, baseURL: base), "href=\(href)")
+        }
+    }
+
+    @Test("resolveAll は git 追跡ファイルの取得をバッチで 1 度に抑える")
+    func resolveAllFetchesTrackedFilesOnce() {
+        let index = CountingGitIndex(files: [url("/repo/src/utils.swift")])
+        let sut = TrackedPathResolver(fileReader: FakeFileReader(existing: []), gitIndex: index)
+
+        _ = sut.resolveAll(
+            hrefs: ["utils.swift", "other.swift", "third.swift"],
+            baseURL: url("/repo/docs/guide.md")
+        )
+
+        #expect(index.callCount == 1)
+    }
+
+    @Test("相対解決だけで片付くバッチは git を一切引かない")
+    func resolveAllSkipsGitWhenAllRelativePathsExist() {
+        let existing = url("/repo/docs/img.png")
+        let index = CountingGitIndex(files: [url("/repo/src/utils.swift")])
+        let sut = TrackedPathResolver(
+            fileReader: FakeFileReader(existing: [existing.path]), gitIndex: index
+        )
+
+        _ = sut.resolveAll(hrefs: ["img.png", "https://example.com"], baseURL: url("/repo/docs/guide.md"))
+
+        #expect(index.callCount == 0)
     }
 
     @Test("行番号サフィックス付きでも解決できる")

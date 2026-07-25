@@ -25,6 +25,25 @@ public struct TrackedPathResolver: Sendable {
     }
 
     public func resolve(href: String, baseURL: URL) -> ResolvedReference {
+        var index = LazySuffixIndex(gitIndex: gitIndex, baseURL: baseURL)
+        return resolve(href: href, baseURL: baseURL, index: &index)
+    }
+
+    /// 複数の参照を一括解決する(表示時解決のバッチ用)。
+    /// git 追跡ファイルの取得と索引構築をバッチ全体で 1 度に抑えるため、参照数に比例した
+    /// 再計算が起きない。重複する href は 1 度だけ解決する。
+    public func resolveAll(hrefs: [String], baseURL: URL) -> [String: ResolvedReference] {
+        var index = LazySuffixIndex(gitIndex: gitIndex, baseURL: baseURL)
+        var result: [String: ResolvedReference] = Dictionary(minimumCapacity: hrefs.count)
+        for href in hrefs where result[href] == nil {
+            result[href] = resolve(href: href, baseURL: baseURL, index: &index)
+        }
+        return result
+    }
+
+    private func resolve(
+        href: String, baseURL: URL, index: inout LazySuffixIndex
+    ) -> ResolvedReference {
         switch ReferenceResolver.resolve(href: href, baseURL: baseURL) {
         case let .external(url):
             return .external(url)
@@ -35,12 +54,34 @@ public struct TrackedPathResolver: Sendable {
                 return .resolved(url)
             }
             guard let written = ReferenceResolver.localPathString(from: href),
-                  let candidates = gitIndex.trackedFiles(forFileAt: baseURL),
-                  let match = SuffixPathMatcher.bestMatch(
-                      writtenPath: written, candidates: candidates, baseURL: baseURL
-                  )
+                  let candidates = index.value(),
+                  let match = candidates.bestMatch(writtenPath: written, baseURL: baseURL)
             else { return .unresolved }
             return .resolved(match)
+        }
+    }
+
+    /// git 追跡ファイルの索引を、実際に git フォールバックが要るまで作らず、
+    /// 要った場合もバッチ内で 1 度だけ作る遅延ホルダ。
+    /// 相対解決だけで片付く一般的な文書では git 索引に触れない。
+    private struct LazySuffixIndex {
+        private let gitIndex: GitFileIndexing
+        private let baseURL: URL
+        private var isLoaded = false
+        private var index: SuffixPathIndex?
+
+        init(gitIndex: GitFileIndexing, baseURL: URL) {
+            self.gitIndex = gitIndex
+            self.baseURL = baseURL
+        }
+
+        /// git 管理外(追跡ファイルを取得できない)なら nil。
+        mutating func value() -> SuffixPathIndex? {
+            if !isLoaded {
+                isLoaded = true
+                index = gitIndex.trackedFiles(forFileAt: baseURL).map(SuffixPathIndex.init(candidates:))
+            }
+            return index
         }
     }
 }

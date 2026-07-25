@@ -75,6 +75,31 @@ struct SuffixPathMatcherTests {
         #expect(result == nil)
     }
 
+    /// 索引を作り直す単発 API と、1 度作って使い回す API が同じ答えを出すことを固定する。
+    /// バッチ解決は後者を通るため、ここがずれると「表示時はリンク化されるのにクリックでは
+    /// 別のファイルへ飛ぶ」形で壊れる。
+    @Test("索引を使い回しても単発の bestMatch と同じ結果になる")
+    func reusedIndexAgreesWithOneShot() {
+        let candidates = [
+            url("/repo/packages/web/src/utils.swift"),
+            url("/repo/packages/api/src/utils.swift"),
+            url("/repo/docs/x.md"),
+        ]
+        let index = SuffixPathIndex(candidates: candidates)
+
+        for base in [url("/repo/packages/web/docs/guide.md"), url("/repo/packages/api/a.md")] {
+            for written in ["utils.swift", "src/utils.swift", "x.md", "nope.swift"] {
+                #expect(
+                    index.bestMatch(writtenPath: written, baseURL: base)
+                        == SuffixPathMatcher.bestMatch(
+                            writtenPath: written, candidates: candidates, baseURL: base
+                        ),
+                    "written=\(written) base=\(base.path)"
+                )
+            }
+        }
+    }
+
     @Test("距離同点は up 段数最小→path 昇順で決定論的に確定する")
     func deterministicTieBreak() {
         let candidates = [url("/repo/b/x.swift"), url("/repo/a/x.swift")]

@@ -87,7 +87,8 @@ final class ViewerWindowController: NSWindowController {
     weak var delegate: ViewerWindowControllerDelegate?
 
     /// git 追跡ファイルの索引(リポジトリルート単位でキャッシュ)。
-    let gitFileIndex = GitCommandFileIndex()
+    /// 本番では ViewerWindowManager が持つ単一インスタンスが注入され、全ウィンドウで共有する。
+    let gitFileIndex: GitCommandFileIndex
     /// パス参照の解決器。fileReader は store と共有し(既存の fileExists/isExistingFile 共有と同じ理由で
     /// InMemoryFileReader 注入テストと整合させる)、テストから丸ごと差し替えられるよう var にする。
     lazy var pathResolver = TrackedPathResolver(fileReader: store.fileReader, gitIndex: gitFileIndex)
@@ -101,6 +102,9 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
     ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
     /// - Parameter bookmarkStore: 同上。ブックマーク挙動に無関心なテストが省略できるようにする。
+    /// - Parameter gitFileIndex: 同上。git 追跡ファイルの索引。本番では ViewerWindowManager が持つ
+    ///   単一インスタンスを渡し、同じリポジトリを開く複数ウィンドウで追跡ファイル一覧と
+    ///   `git ls-files` の実行を共有する。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
     /// - Parameter directoryLister: 同上。サイドバー初期一覧の取得元。テストで差し替え可能にする。
     /// - Parameter openFileInNewWindow: 同上。別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
@@ -110,6 +114,7 @@ final class ViewerWindowController: NSWindowController {
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore = BookmarkStore(),
+        gitFileIndex: GitCommandFileIndex = GitCommandFileIndex(),
         initialSidebarCollapsed: Bool = true,
         initialFrameDescriptor: String? = nil,
         initialSortOrder: SortOrder = .foldersFirst,
@@ -125,6 +130,7 @@ final class ViewerWindowController: NSWindowController {
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
         self.bookmarkStore = bookmarkStore
+        self.gitFileIndex = gitFileIndex
         self.initialSidebarCollapsed = initialSidebarCollapsed
         let store = store ?? ViewerStore(defaults: defaults)
         // store が呼び出し元から明示注入された場合でも上書きが反映されるよう、
@@ -324,10 +330,13 @@ final class ViewerWindowController: NSWindowController {
     }
 
     /// パス参照群を解決し、実在するものだけ「書かれたパス→解決済み絶対パス」で返す(表示時解決用)。
+    /// クリック時の handleOpenReference と同じ pathResolver を使うため、リンク化した参照は
+    /// 必ず同じ URL へ開く(解決の単一情報源)。
     func resolveReferences(_ paths: [String]) -> [String: String] {
         var result: [String: String] = [:]
-        for path in paths {
-            if case let .resolved(url) = pathResolver.resolve(href: path, baseURL: fileURL) {
+        // バッチ一括で解決し、git 追跡ファイルの索引構築を 1 度に抑える。
+        for (path, reference) in pathResolver.resolveAll(hrefs: paths, baseURL: fileURL) {
+            if case let .resolved(url) = reference {
                 result[path] = url.path
             }
         }

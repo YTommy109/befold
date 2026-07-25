@@ -447,6 +447,45 @@ extension ViewerWindowControllerTests {
         #expect(map == ["utils.swift": tracked.path])
     }
 
+    /// 表示時解決とクリック時解決が同じ入力に一致することを固定する。
+    /// 「リンク化したものは必ずそのリンク先へ開ける」がこの機能の中心的な不変条件であり、
+    /// 現状は同じ pathResolver を通ることで成立しているが、片方だけを変える将来の変更で
+    /// 静かに壊れうるため、実際の 2 経路を突き合わせて押さえる。
+    @Test("表示時にリンク化した参照は、クリック時も同じ URL へ解決される")
+    func resolveReferencesAndOpenReferenceAgreeOnGitFallback() {
+        struct FakeGitIndex: GitFileIndexing {
+            let tracked: URL
+            func trackedFiles(forFileAt url: URL) -> [URL]? {
+                [tracked]
+            }
+        }
+        let base = URL(fileURLWithPath: "/mock/docs/guide.md")
+        let tracked = URL(fileURLWithPath: "/mock/src/utils.swift")
+        var openedInNewWindow: [URL] = []
+        let controller = makeSwitchController(
+            primary: base, contents: "# doc",
+            defaults: makeIsolatedDefaults(prefix: "ResolveAgreement"),
+            openFileInNewWindow: { openedInNewWindow.append($0) }
+        )
+        defer { controller.close() }
+        // 相対解決では見つからず、git 追跡ファイルのサフィックス一致でのみ解決できる状態。
+        controller.pathResolver = TrackedPathResolver(
+            fileReader: InMemoryFileReader(files: [base.path: "# doc"]),
+            gitIndex: FakeGitIndex(tracked: tracked)
+        )
+
+        let resolved = controller.resolveReferences(["utils.swift"])["utils.swift"]
+        // newWindow: true でクリックすると、開く先の URL がそのまま観測できる。
+        controller.handleOpenReference(href: "utils.swift", newWindow: true)
+
+        #expect(resolved == tracked.path)
+        #expect(openedInNewWindow.map(\.path) == [tracked.path])
+        // 表示時にリンク化しなかった参照は、クリックしても遷移しない(逆方向の一致)。
+        #expect(controller.resolveReferences(["nope.swift"]).isEmpty)
+        controller.handleOpenReference(href: "nope.swift", newWindow: true)
+        #expect(openedInNewWindow.map(\.path) == [tracked.path])
+    }
+
     @Test("newWindow: true 経路では元ウィンドウの状態が変化しない")
     func handleOpenReferenceWithNewWindowLeavesOriginalWindowUnchanged() {
         let fileA = URL(fileURLWithPath: "/mock/a.md")
