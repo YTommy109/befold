@@ -204,14 +204,12 @@ final class ViewerWindowController: NSWindowController {
             self?.handleRename(from: oldURL, to: newURL)
         }
         store.onContentReloaded = { [weak self] in
-            self?.toolbarController.updateModeToggleAppearance()
-            self?.toolbarController.updateLineNumbersToolbarItem()
-            self?.toolbarController.updateBookmarkToolbarItem()
+            self?.refreshToolbarState()
         }
         store.openFile(fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
         // CLI から --source/--preview が指定された場合はそちらを優先し、保存値は書き換えない(この起動限りの上書き)。
-        // applySourceMode が内部で updateModeToggleAppearance() を呼ぶため、ここでの明示呼び出しは不要。
+        // applySourceMode が内部で refreshToolbarState() を呼ぶため、ここでの明示呼び出しは不要。
         applySourceMode(sourceModeOverride ?? perFileState.sourceMode.restoredSourceMode(for: fileURL))
         sidebar.recordHistory()
     }
@@ -321,7 +319,7 @@ final class ViewerWindowController: NSWindowController {
         // 場合のみリセットする。
         // store.handleRename が予約した非同期読み込みの完了後に onContentReloaded が
         // 発火してツールバーが追従するため、ここでの明示的な
-        // updateModeToggleAppearance() 呼び出しは不要
+        // refreshToolbarState() 呼び出しは不要
         // (resetSourceMode() が走る場合は applySourceMode 内で再同期される)。
         if isSourceMode, !FileType(url: newURL).supportsSourceMode {
             resetSourceMode()
@@ -383,7 +381,7 @@ final class ViewerWindowController: NSWindowController {
         applySourceMode(restoredSourceMode)
         applyURLToWindow(newURL)
         // fileExists を確認済みなので store.openFile が予約した非同期読み込みは必ず完了に達し、
-        // その時点で onContentReloaded → updateModeToggleAppearance() が発火する
+        // その時点で onContentReloaded → refreshToolbarState() が発火する
         // (読み込み完了までは切替前の表示状態が残る)。ここでの明示呼び出しは不要。
         store.openFile(newURL)
         webViewCommands.applyStoredZoom()
@@ -443,9 +441,16 @@ extension ViewerWindowController: SidebarNavigatorHost {
         delegate?.viewerWindow(self, isFileOpenInAnotherWindow: url) ?? false
     }
 
-    /// 履歴状態の変化をツールバーの戻る/進むアイテムへ反映する。
+    /// 履歴状態の変化をツールバーへ反映する。
     func historyStateDidChange() {
-        toolbarController.historyStateDidChange()
+        refreshToolbarState()
+    }
+
+    /// 現在の表示状態をツールバーの全アイテムへ再同期する。
+    /// ウィンドウ内部の状態変更に加え、CLI からの表示オプション上書き
+    /// (ViewerWindowManager.applyDisplayOverrides)のような外部要因からも呼ばれる。
+    func refreshToolbarState() {
+        toolbarController.refreshToolbarState()
     }
 }
 
@@ -503,7 +508,7 @@ extension ViewerWindowController: NSWindowDelegate {
     /// View > Toggle Line Numbers / ツールバーの行番号ボタン。行番号表示の有無を切り替える。
     @objc func toggleLineNumbers(_ sender: Any?) {
         store.showLineNumbers.toggle()
-        toolbarController.updateLineNumbersToolbarItem()
+        refreshToolbarState()
     }
 
     /// View メニュー > ソース表示トグル。レンダリング表示とソース表示を切り替える。
@@ -514,7 +519,7 @@ extension ViewerWindowController: NSWindowDelegate {
     /// View > Bookmark / ツールバーのブックマークボタン。現在ファイルのブックマーク状態を切り替える。
     @objc func toggleBookmark(_ sender: Any?) {
         bookmarkStore.toggle(fileURL)
-        toolbarController.updateBookmarkToolbarItem()
+        refreshToolbarState()
     }
 
     /// 現在ファイルがブックマーク済みかどうか。ツールバー・View メニューの表示に使う。
@@ -552,8 +557,7 @@ extension ViewerWindowController: NSWindowDelegate {
         if isSourceMode != newValue {
             store.isSourceMode = newValue
         }
-        toolbarController.updateModeToggleAppearance()
-        toolbarController.updateLineNumbersToolbarItem()
+        refreshToolbarState()
     }
 
     /// ファイル切り替え時にソース表示状態をレンダリング表示にリセットする。

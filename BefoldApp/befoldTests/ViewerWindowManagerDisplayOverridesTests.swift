@@ -55,6 +55,25 @@ struct ViewerWindowManagerDisplayOverridesTests {
         fixture.closeAll()
     }
 
+    @Test("行番号オーバーライドは既存ウィンドウのツールバーアイテムへも反映される")
+    func applyDisplayOverridesRefreshesLineNumbersToolbarItem() throws {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "LineNumbersToolbarRefresh")
+        fixture.manager.openViewer(for: file)
+        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey])
+        let toolbar = try #require(controller.window?.toolbar)
+        let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("lineNumbers") })
+        let button = try #require(liveItem.view as? NSButton)
+        #expect(button.contentTintColor == nil)
+
+        // sourceMode を渡さず行番号のみを上書きする(間接発火に頼れない経路)。
+        fixture.manager.applyDisplayOverrides(
+            showLineNumbers: true, sourceMode: nil, sortOrder: nil, showSidebar: nil
+        )
+
+        #expect(button.contentTintColor == .controlAccentColor)
+        fixture.closeAll()
+    }
+
     @Test(
         "新規ウィンドウは sidebarVisibleOverride に従って開閉状態が決まる",
         arguments: [(true, false), (false, true)]

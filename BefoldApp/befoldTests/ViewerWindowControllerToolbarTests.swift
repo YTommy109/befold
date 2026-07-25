@@ -16,7 +16,8 @@ struct ViewerWindowControllerToolbarTests {
     private let noEntries: (URL, befold.SortOrder, Bool) -> [FileListEntry] = { _, _, _ in [] }
 
     private func makeController(
-        file: URL, contents: String = "graph TD;", extraFiles: [URL] = []
+        file: URL, contents: String = "graph TD;", extraFiles: [URL] = [],
+        bookmarkStore: BookmarkStore? = nil
     ) -> ViewerWindowController {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerToolbarTests")
         var files = [file.path: contents]
@@ -27,7 +28,7 @@ struct ViewerWindowControllerToolbarTests {
             fileURL: file,
             defaults: defaults,
             perFileState: PerFileStateStore(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults),
+            bookmarkStore: bookmarkStore ?? BookmarkStore(defaults: defaults),
             store: ViewerStore(
                 watcherFactory: { _, _, _ in MockFileWatcher() },
                 fileReader: InMemoryFileReader(files: files),
@@ -133,6 +134,51 @@ struct ViewerWindowControllerToolbarTests {
             let button = try #require(item.view as? HistoryButtonView)
             #expect(button.isEnabled == false, "\(identifier) は初期状態で無効のはず")
         }
+    }
+
+    @Test("モード切替セグメントの有効状態と選択はファイル種別で決まる", arguments: [
+        // (ファイル名, 内容, プレビュー有効, ソース有効, ソース側が選択済み)
+        ("a.mmd", "graph TD;", true, true, false), // レンダリング可能なテキスト: 両方有効・プレビュー選択
+        ("a.swift", "let x = 1", false, true, true), // コード: プレビュー不可・ソース固定
+    ])
+    func modeToggleReflectsFileType(
+        name: String, contents: String, previewEnabled: Bool, sourceEnabled: Bool, sourceSelected: Bool
+    ) async throws {
+        let controller = makeController(file: URL(fileURLWithPath: "/mock/\(name)"), contents: contents)
+        defer { controller.close() }
+        let toolbar = try #require(controller.window?.toolbar)
+        // fileType は非同期読み込みの完了(apply())と同時に確定するため、完了を待つ。
+        await controller.store.loadTask?.value
+
+        controller.toolbarController.refreshToolbarState()
+
+        let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("modeToggle") })
+        let segmented = try #require(liveItem.view as? NSSegmentedControl)
+        #expect(segmented.isEnabled(forSegment: 0) == previewEnabled)
+        #expect(segmented.isEnabled(forSegment: 1) == sourceEnabled)
+        #expect(segmented.selectedSegment == (sourceSelected ? 1 : 0))
+    }
+
+    // MARK: - 外部からの状態変更に伴う再同期
+
+    @Test("GUI のトグルを経ないブックマーク変更も refreshToolbarState() で実アイテムへ反映される")
+    func refreshToolbarStateAppliesExternalBookmarkChange() throws {
+        let file = URL(fileURLWithPath: "/mock/a.mmd")
+        let bookmarkStore = BookmarkStore(
+            defaults: makeIsolatedDefaults(prefix: "ToolbarRefreshExternalBookmark")
+        )
+        let controller = makeController(file: file, bookmarkStore: bookmarkStore)
+        defer { controller.close() }
+        let toolbar = try #require(controller.window?.toolbar)
+        let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("bookmark") })
+        let button = try #require(liveItem.view as? NSButton)
+        #expect(button.contentTintColor == nil)
+
+        // CLI 転送など、ウィンドウのトグル操作を経ずストアだけが変わる経路を模す。
+        bookmarkStore.toggle(file)
+        controller.toolbarController.refreshToolbarState()
+
+        #expect(button.contentTintColor == .controlAccentColor)
     }
 
     // MARK: - ファイル切替に伴うライブ更新
