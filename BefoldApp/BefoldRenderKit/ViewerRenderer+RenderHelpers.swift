@@ -127,7 +127,7 @@ extension ViewerRenderer {
     }
 
     /// 呼び出し前に `exitDirectHTMLMode` が `rendered.reset()` でミラーを一括破棄済みである
-    /// 前提。再ロードで viewer.html の JS 状態(_showLineNumbers=false, _viewMode='rendered')が
+    /// 前提。再ロードで viewer.html の JS 状態(_mmdViewOptions: 行番号 false, モード rendered)が
     /// 初期化されるのに合わせ、次回更新時に setLineNumbers / setViewMode を再注入させる。
     func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
         isReady = false

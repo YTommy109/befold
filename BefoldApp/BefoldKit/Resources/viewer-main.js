@@ -14,14 +14,59 @@
   }
 
   // --- Zoom ---
-  var _mmdZoom = ZOOM_DEFAULT;
-  // 直近で postMessage した倍率。init 時点の値で初期化し、実際に変化した時だけ通知する
-  // （ページ初期化や render() のたびに UserDefaults へ書き込まれるのを防ぐ）。
-  var _mmdLastPostedZoom = ZOOM_DEFAULT;
+  // 全体ズーム(⌘+/-/0・Ctrl+ホイール)・直近通知値・ダイアグラム個別ズームの 3 つを
+  // このストアのクロージャに閉じる。倍率のクランプは書き込みメソッド側で必ず行うため、
+  // 読み手(適用関数)は value() / diagramValue() の値をそのまま使える。
+  function _createZoomStore() {
+    var zoom = ZOOM_DEFAULT;
+    // 直近で postMessage した倍率。adoptStored() が注入値で初期化し、実際に変化した
+    // 時だけ通知する（ページ初期化や render() のたびに UserDefaults へ書き込まれるのを防ぐ）。
+    var lastPosted = ZOOM_DEFAULT;
+    // ブロック順インデックス → ズーム倍率。セッション内のみ保持し、再レンダリング
+    // をまたいで維持する（永続化はしない。ウィンドウを閉じるとリセット）。
+    // markdown 編集でブロックの順番が変わるとズームが別のダイアグラムに付くが、
+    // 影響がセッション内に限られるため許容する（設計書参照）。
+    var diagramZooms = new Map();
+
+    function diagramValue(index) {
+      return diagramZooms.has(index) ? diagramZooms.get(index) : ZOOM_DEFAULT;
+    }
+
+    return {
+      value: function() { return zoom; },
+      // Swift が注入した保存値を採用する。範囲外の保存値はクランプした値を採用しつつ、
+      // 直近通知値には注入値そのままを記録する: 次の takePostable() が補正後の値を
+      // 通知対象として返し、Swift 側の保存値が正される。
+      adoptStored: function(raw) {
+        var parsed = parseStoredZoom(raw);
+        zoom = clampZoom(parsed);
+        lastPosted = parsed;
+      },
+      step: function(delta) { zoom = stepZoom(zoom, delta); },
+      wheel: function(deltaY) { zoom = wheelZoom(zoom, deltaY); },
+      reset: function() { zoom = ZOOM_DEFAULT; },
+      // 直近通知値と変わっていれば通知すべき倍率を返し、同時に直近通知値を更新する。
+      // 変わっていなければ null を返す（通知は不要）。
+      takePostable: function() {
+        if (zoom === lastPosted) { return null; }
+        lastPosted = zoom;
+        return zoom;
+      },
+      diagramValue: diagramValue,
+      diagramStep: function(index, delta) {
+        diagramZooms.set(index, stepZoom(diagramValue(index), delta, DIAGRAM_ZOOM_MAX));
+      },
+      diagramWheel: function(index, deltaY) {
+        diagramZooms.set(index, wheelZoom(diagramValue(index), deltaY, DIAGRAM_ZOOM_MAX));
+      },
+      diagramReset: function(index) { diagramZooms.set(index, ZOOM_DEFAULT); },
+    };
+  }
+
+  var _mmdZoom = _createZoomStore();
 
   function _mmdInitZoom() {
-    _mmdZoom = parseStoredZoom(window._mmdInitialZoom);
-    _mmdLastPostedZoom = _mmdZoom;
+    _mmdZoom.adoptStored(window._mmdInitialZoom);
     _mmdApplyZoom();
   }
 
@@ -35,45 +80,45 @@
   }
 
   function _mmdApplyZoom() {
-    _mmdZoom = clampZoom(_mmdZoom);
+    var zoom = _mmdZoom.value();
     var wrap = document.getElementById('diagram-wrap');
     if (wrap.classList.contains('pdf-body')) {
       // iframe 内の PDF プラグイン描画には CSS zoom が効かないため、
       // iframe(=wrap)の寸法自体を倍率で変える。PDF は幅フィットで
       // 描画されるので、幅が広がるほど拡大表示になる。
       wrap.style.zoom = 1;
-      wrap.style.width = (effectiveZoom(_mmdZoom) * 100) + '%';
-      wrap.style.height = (effectiveZoom(_mmdZoom) * 100) + '%';
+      wrap.style.width = (effectiveZoom(zoom) * 100) + '%';
+      wrap.style.height = (effectiveZoom(zoom) * 100) + '%';
     } else {
       wrap.style.width = '';
       wrap.style.height = '';
-      wrap.style.zoom = effectiveZoom(_mmdZoom);
+      wrap.style.zoom = effectiveZoom(zoom);
     }
     // 枠高さの上限は全体ズームに依存する（レイアウト px への割り戻し）ため再計算する。
     _mmdUpdateAllDiagramScrollHeights();
-    if (_mmdZoom !== _mmdLastPostedZoom) {
-      _mmdPostMessage(_MSG_ZOOM_CHANGED, _mmdZoom);
-      _mmdLastPostedZoom = _mmdZoom;
+    var postable = _mmdZoom.takePostable();
+    if (postable !== null) {
+      _mmdPostMessage(_MSG_ZOOM_CHANGED, postable);
     }
   }
 
   function _mmdZoomIn() {
-    _mmdZoom = stepZoom(_mmdZoom, ZOOM_STEP);
+    _mmdZoom.step(ZOOM_STEP);
     _mmdApplyZoom();
   }
 
   function _mmdZoomOut() {
-    _mmdZoom = stepZoom(_mmdZoom, -ZOOM_STEP);
+    _mmdZoom.step(-ZOOM_STEP);
     _mmdApplyZoom();
   }
 
   function _mmdZoomReset() {
-    _mmdZoom = ZOOM_DEFAULT;
+    _mmdZoom.reset();
     _mmdApplyZoom();
   }
 
   function _mmdWheelZoom(deltaY) {
-    _mmdZoom = wheelZoom(_mmdZoom, deltaY);
+    _mmdZoom.wheel(deltaY);
     _mmdApplyZoom();
   }
 
@@ -261,14 +306,10 @@
   }
 
   // --- Diagram Zoom（ダイアグラム個別ズーム）---
-  // ブロック順インデックス → ズーム倍率。セッション内のみ保持し、再レンダリング
-  // をまたいで維持する（永続化はしない。ウィンドウを閉じるとリセット）。
-  // markdown 編集でブロックの順番が変わるとズームが別のダイアグラムに付くが、
-  // 影響がセッション内に限られるため許容する（設計書参照）。
-  var _diagramZooms = new Map();
-
+  // 倍率そのものは _mmdZoom ストアが持つ（インデックス → 倍率）。ここにあるのは
+  // その値を DOM へ適用する側だけ。
   function _mmdDiagramZoomValue(index) {
-    return _diagramZooms.has(index) ? _diagramZooms.get(index) : ZOOM_DEFAULT;
+    return _mmdZoom.diagramValue(index);
   }
 
   function _mmdUpdateAllDiagramScrollHeights() {
@@ -282,7 +323,7 @@
   // ローカル座標系で実ビューポート/zoom を返す(diagramScrollHeight と同じ理由)。
   // フィット計算は実ビューポート基準で行う必要があるため zoom を掛けて実寸に戻す。
   function _mmdFitImage(img, wrap) {
-    var zoom = effectiveZoom(_mmdZoom);
+    var zoom = effectiveZoom(_mmdZoom.value());
     var fit = imageFitSize(img.naturalWidth, img.naturalHeight, wrap.clientWidth * zoom, wrap.clientHeight * zoom);
     img.style.width = fit.width + 'px';
     img.style.height = fit.height + 'px';
@@ -307,7 +348,7 @@
     var zoom = _mmdDiagramZoomValue(Number(wrap.dataset.diagramIndex));
     var naturalHeight = Number(wrap.dataset.naturalHeight);
     wrap.querySelector('.diagram-zoom-scroll').style.height =
-      diagramScrollHeight(naturalHeight, zoom, window.innerHeight, _mmdZoom) + 'px';
+      diagramScrollHeight(naturalHeight, zoom, window.innerHeight, _mmdZoom.value()) + 'px';
   }
 
   function _mmdApplyDiagramZoom(wrap) {
@@ -321,19 +362,17 @@
   }
 
   function _mmdDiagramZoomStep(wrap, delta) {
-    var index = Number(wrap.dataset.diagramIndex);
-    _diagramZooms.set(index, stepZoom(_mmdDiagramZoomValue(index), delta, DIAGRAM_ZOOM_MAX));
+    _mmdZoom.diagramStep(Number(wrap.dataset.diagramIndex), delta);
     _mmdApplyDiagramZoom(wrap);
   }
 
   function _mmdDiagramZoomReset(wrap) {
-    _diagramZooms.set(Number(wrap.dataset.diagramIndex), ZOOM_DEFAULT);
+    _mmdZoom.diagramReset(Number(wrap.dataset.diagramIndex));
     _mmdApplyDiagramZoom(wrap);
   }
 
   function _mmdDiagramWheelZoom(wrap, deltaY) {
-    var index = Number(wrap.dataset.diagramIndex);
-    _diagramZooms.set(index, wheelZoom(_mmdDiagramZoomValue(index), deltaY, DIAGRAM_ZOOM_MAX));
+    _mmdZoom.diagramWheel(Number(wrap.dataset.diagramIndex), deltaY);
     _mmdApplyDiagramZoom(wrap);
   }
 
@@ -385,7 +424,6 @@
   }
 
   // --- Mermaid ---
-  var _currentType = 'mmd';
   // カラースキーム監視。_mmdInitColorScheme() が代入するまでは null
   // (代入前に mermaid を描画する経路はない: 描画は必ず初期化後に走る)。
   var _mmdDarkQuery = null;
@@ -417,7 +455,7 @@
     var panel = document.getElementById('mmd-error');
     panel.textContent = msg;
     panel.style.display = 'block';
-    if (_currentType === 'mmd') {
+    if (_mmdDocument.type() === 'mmd') {
       document.getElementById('diagram-wrap').style.display = 'none';
     }
   }
@@ -451,8 +489,8 @@
       if (_mermaidLoadPromise) {
         mermaid.initialize(_mmdMermaidConfig());
       }
-      if (_lastContent !== null) {
-        render(_lastContent, _lastType, _lastLang);
+      if (_mmdDocument.hasContent()) {
+        render(_mmdDocument.content(), _mmdDocument.type(), _mmdDocument.lang());
       }
     });
   }
@@ -824,12 +862,31 @@
     return div.innerHTML;
   }
 
-  // カラースキーム変更時に再描画するため、直近の内容を保持する。
-  var _lastContent = null;
-  var _lastType = null;
-  var _lastLang = null;
-  var _viewMode = 'rendered';
-  var _showLineNumbers = false;
+  // 直近に描画した内容(カラースキーム変更時の再描画と、追記チャンクへ渡す前方文脈の
+  // 取得元)。書き手は render() の record() と appendChunk() の append() の 2 つだけで、
+  // 読み手は必ずアクセサ経由になる。type は mermaid のパースエラー表示でも読むため、
+  // 初回描画前は mmd(既定の表示型)として扱う。
+  function _createDocumentState() {
+    var content = null;
+    var type = 'mmd';
+    var lang = null;
+
+    return {
+      record: function(newContent, newType, newLang) {
+        content = newContent;
+        type = newType;
+        lang = newLang;
+      },
+      // 追記チャンクを直近内容の末尾に足す。まだ何も描画していない間は何もしない。
+      append: function(text) { if (content !== null) { content += text; } },
+      content: function() { return content; },
+      type: function() { return type; },
+      lang: function() { return lang; },
+      hasContent: function() { return content !== null; },
+    };
+  }
+
+  var _mmdDocument = _createDocumentState();
 
   // モード切替の持ち越し。setViewMode() が mark() で立て、直後の描画後処理
   // (_mmdFindRefreshAfterRender)が consume() で 1 度だけ取り出して検索位置の
@@ -846,6 +903,28 @@
       },
     };
   })();
+
+  // 表示モードと行番号表示。どちらも Swift 側(ViewerWebView)が変更直後に必ず render を
+  // 送るため、ここは状態を持つだけで再描画はしない(setViewMode / setLineNumbers のコメント参照)。
+  // モード切替の持ち越しを立てるのも setMode() の責務に含め、「変わったときだけ mark する」
+  // 判定を旧モードを知っているこの owner に閉じる。
+  function _createViewOptions() {
+    var mode = 'rendered';
+    var lineNumbers = false;
+
+    return {
+      mode: function() { return mode; },
+      setMode: function(newMode) {
+        if (newMode !== 'rendered' && newMode !== 'source') { return; }
+        if (newMode !== mode) { _mmdModeSwitch.mark(); }
+        mode = newMode;
+      },
+      lineNumbers: function() { return lineNumbers; },
+      setLineNumbers: function(show) { lineNumbers = show; },
+    };
+  }
+
+  var _mmdViewOptions = _createViewOptions();
 
   // チャンク境界の持ち越し。render()(初回チャンク)と appendChunk()(追記)が
   // record() で更新し、次の appendChunk() だけが endedWithNewline() で読む。
@@ -864,12 +943,51 @@
   // ようにするための固定サイズの先読み(詳細は codeChunkInnerHtml 参照)。
   var CODE_CHUNK_CONTEXT_LINES = 200;
 
-  // Swift 側(ViewerWebView)が render() 呼び出しの直前に評価し、次の render() が
-  // 復元すべきスクロール位置(scrollTop)を注入する。
-  var _mmdPendingRestoreScroll = null;
+  // スクロール位置の受け渡しを 1 つの owner に閉じる。持つのは 2 つ:
+  // - 注入された復元位置: Swift 側(ViewerWebView)が render() 呼び出しの直前に評価し、
+  //   次の render() が復元すべき scrollTop を渡してくる。復元時に消費する。
+  // - 通知デバウンスのタイマ: スクロールイベントを 200ms まとめて Swift へ送る。
+  // この 2 つは描画開始時に組み合わせて判定する(beginRender 参照)ため同じ owner に置く。
+  function _createScrollSync(notify) {
+    var pendingRestore = null;
+    var debounceTimer = null;
+
+    function cancelPendingNotify() {
+      if (debounceTimer === null) { return; }
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+
+    return {
+      setRestore: function(position) { pendingRestore = position; },
+      // 復元位置が注入されている(=Swift 主導のファイル/モード切替)ときだけ保留中の
+      // デバウンス通知を破棄する。無条件に破棄すると、Swift を経由しない内部再描画
+      // (カラースキーム変更時など、ファイル/モードは変わらない)で直前のスクロール確定
+      // 保存が失われたまま二度と発火しなくなるため。
+      beginRender: function() {
+        if (pendingRestore !== null) { cancelPendingNotify(); }
+      },
+      // 注入された復元位置があればそれを、無ければ fallback を返して消費する。
+      // fallback は Swift を経由しない内部再描画で現在位置を保つための値。
+      takeRestorePosition: function(fallback) {
+        var position = (pendingRestore !== null)
+          ? pendingRestore
+          : (typeof fallback === 'number' ? fallback : 0);
+        pendingRestore = null;
+        return position;
+      },
+      notifyDebounced: function() {
+        cancelPendingNotify();
+        debounceTimer = setTimeout(function() {
+          debounceTimer = null;
+          notify();
+        }, 200);
+      },
+    };
+  }
 
   function _mmdSetRestoreScroll(position) {
-    _mmdPendingRestoreScroll = position;
+    _mmdScroll.setRestore(position);
   }
 
   // スクロール位置の変化を Swift 側へ通知する(継続的な保存用、200ms デバウンス経由でのみ呼ばれる)。
@@ -880,9 +998,12 @@
     if (!el) return;
     _mmdPostMessage(_MSG_SCROLL_POSITION_CHANGED, {
       position: el.scrollTop,
-      mode: _viewMode
+      mode: _mmdViewOptions.mode()
     });
   }
+
+  // 通知先(_mmdPostScrollPosition)は関数宣言として巻き上げられるため、ここで束ねられる。
+  var _mmdScroll = _createScrollSync(_mmdPostScrollPosition);
 
   // fallbackScrollTop は Swift 由来の pending 値が無いとき(カラースキーム変更時の
   // 内部再描画など、Swift を経由しない render() 呼び出し)に使う復元位置。
@@ -891,33 +1012,23 @@
   function _mmdRestoreScrollPosition(fallbackScrollTop) {
     var el = _mmdScrollTarget();
     if (!el) return;
-    el.scrollTop = (_mmdPendingRestoreScroll !== null)
-      ? _mmdPendingRestoreScroll
-      : (typeof fallbackScrollTop === 'number' ? fallbackScrollTop : 0);
-    _mmdPendingRestoreScroll = null;
+    el.scrollTop = _mmdScroll.takeRestorePosition(fallbackScrollTop);
   }
 
-  // スクロールイベントを 200ms デバウンスして Swift 側へ通知する。
-  // アプリ終了時やウィンドウ破棄時にも最新の位置が保存されるよう継続的に送る
-  // (ファイル/モード切替直前の確定保存は Swift 側が別途行う。上記コメント参照)。
-  var _mmdScrollDebounceTimer = null;
-  function _mmdDebouncedScrollNotify() {
-    if (_mmdScrollDebounceTimer !== null) { clearTimeout(_mmdScrollDebounceTimer); }
-    _mmdScrollDebounceTimer = setTimeout(function() {
-      _mmdScrollDebounceTimer = null;
-      _mmdPostScrollPosition();
-    }, 200);
-  }
-
+  // スクロールイベントをデバウンスして Swift 側へ通知する。アプリ終了時やウィンドウ
+  // 破棄時にも最新の位置が保存されるよう継続的に送る(ファイル/モード切替直前の確定保存は
+  // Swift 側が別途行う。上記コメント参照)。
   function _mmdInitScrollNotify() {
-    document.addEventListener('scroll', _mmdDebouncedScrollNotify, true);
+    document.addEventListener('scroll', function() {
+      _mmdScroll.notifyDebounced();
+    }, true);
   }
 
   // 行番号表示状態を更新する。再描画はしない: Swift 側(ViewerWebView)が
   // 状態変更時に必ず続けて render を送るため、ここで再描画すると全文
   // 再ハイライトが二重に走る。
   function setLineNumbers(show) {
-    _showLineNumbers = show;
+    _mmdViewOptions.setLineNumbers(show);
   }
 
   // 段階読み込み中(ファイルの一部だけを表示している間)のバナー表示を切り替える。
@@ -983,9 +1094,9 @@
     // 直前チャンクが改行で終わっている(=行境界で分割された)場合のみ、
     // ブロックコメント等の継続を hljs に再構築させるための前方文脈を取り出す。
     // 強制分割(行途中)の継続は既存の行結合ロジックが別途処理する。
-    var highlightContext = (_mmdChunkTail.endedWithNewline() && _lastContent)
-      ? lastLines(_lastContent, CODE_CHUNK_CONTEXT_LINES) : '';
-    if (_lastContent !== null) { _lastContent += text; }
+    var highlightContext = (_mmdChunkTail.endedWithNewline() && _mmdDocument.content())
+      ? lastLines(_mmdDocument.content(), CODE_CHUNK_CONTEXT_LINES) : '';
+    _mmdDocument.append(text);
     // CSV は「レンダリング表示(テーブル)」と「ソース表示(レインボー)」で DOM 構造が
     // 異なる(#diagram-wrap 直下が <table><tbody> か <pre><code class="csv-source">
     // か)ため、実際の DOM を見て分岐する。
@@ -1055,8 +1166,24 @@
     _mmdChunkTail.record(text);
     _mmdFindRefreshAfterRender();
   }
-  // PDF 表示用に生成した blob URL。再描画のたびに revoke してリークを防ぐ。
-  var _pdfBlobUrl = null;
+  // PDF 表示用に生成した blob URL。生成と解放をこの owner に閉じ、再描画のたびに
+  // release() してリークを防ぐ(PDF 以外への切替も含む)。
+  function _createPdfBlobHolder() {
+    var url = null;
+    return {
+      issue: function(bytes) {
+        url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+        return url;
+      },
+      release: function() {
+        if (!url) { return; }
+        URL.revokeObjectURL(url);
+        url = null;
+      },
+    };
+  }
+
+  var _mmdPdfBlob = _createPdfBlobHolder();
 
   // render()/_renderSource() の末尾で検索状態を再描画後の内容に合わせて更新する。
   // 持ち越しフラグは検索バーの開閉に関わらずここで必ず消費する(閉じている間に
@@ -1151,9 +1278,8 @@
     // 許可しており、blob URL はこのスクリプトが生成した推測不能なものに
     // 限られるため、Markdown 内に静的に書かれた iframe はロードできない。
     diagramWrap.classList.add('pdf-body');
-    _pdfBlobUrl = URL.createObjectURL(new Blob([base64ToBytes(content)], { type: 'application/pdf' }));
     var iframe = document.createElement('iframe');
-    iframe.src = _pdfBlobUrl;
+    iframe.src = _mmdPdfBlob.issue(base64ToBytes(content));
     diagramWrap.innerHTML = '';
     diagramWrap.appendChild(iframe);
   }
@@ -1162,7 +1288,7 @@
     // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
     // レイアウトは style.css の .code-body が担う。
     diagramWrap.classList.add('code-body');
-    diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang, _showLineNumbers);
+    diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang, _mmdViewOptions.lineNumbers());
   }
 
   // markdown-it 未ロード時は false を返す。呼び出し側(render)はそこで打ち切り、
@@ -1198,22 +1324,12 @@
   }
 
   async function render(content, type, lang) {
-    // _mmdPendingRestoreScroll が非 null(=Swift 主導のファイル/モード切替)のときだけ
-    // 保留中のデバウンス通知を破棄する。無条件に破棄すると、Swift を経由しない内部再描画
-    // (カラースキーム変更時など、ファイル/モードは変わらない)で直前のスクロール確定保存が
-    // 失われたまま二度と発火しなくなるため。
-    if (_mmdPendingRestoreScroll !== null && _mmdScrollDebounceTimer !== null) {
-      clearTimeout(_mmdScrollDebounceTimer);
-      _mmdScrollDebounceTimer = null;
-    }
+    _mmdScroll.beginRender();
     // DOM を書き換える前に、内部再描画(カラースキーム変更時など)向けの
     // フォールバック復元位置として現在位置を退避する(_mmdRestoreScrollPosition 参照)。
     var scrollTargetBeforeRender = _mmdScrollTarget();
     var fallbackScrollTop = scrollTargetBeforeRender ? scrollTargetBeforeRender.scrollTop : 0;
-    _currentType = type;
-    _lastContent = content;
-    _lastType = type;
-    _lastLang = lang;
+    _mmdDocument.record(content, type, lang);
     // 初回チャンクも LineChunkReader の強制分割で改行なしのまま渡ることがあるため、
     // appendChunk と同じ判定式で実際の末尾を見る(true 固定だと最初の強制分割で
     // 継続行の結合判定を誤る)。
@@ -1224,7 +1340,7 @@
     var diagramWrap = document.getElementById('diagram-wrap');
     diagramWrap.style.display = 'block';
 
-    if (_viewMode === 'source' && type !== 'code' && type !== 'image' && type !== 'pdf') {
+    if (_mmdViewOptions.mode() === 'source' && type !== 'code' && type !== 'image' && type !== 'pdf') {
       _renderSource(content, type, lang);
       _mmdRestoreScrollPosition(fallbackScrollTop);
       return;
@@ -1234,10 +1350,7 @@
     diagramWrap.classList.remove('markdown-body', 'code-body', 'html-body', 'csv-body', 'image-body', 'pdf-body');
 
     // 前回の PDF 表示で生成した blob URL を解放する(PDF 以外への切替も含む)。
-    if (_pdfBlobUrl) {
-      URL.revokeObjectURL(_pdfBlobUrl);
-      _pdfBlobUrl = null;
-    }
+    _mmdPdfBlob.release();
 
     // 型ディスパッチ。中身の組み立ては各ビルダーに委ね、ここでは選ぶだけにする。
     // md(既定)分岐だけは markdown-it 未ロード時に後続処理を打ち切る。
@@ -1272,12 +1385,12 @@
     diagramWrap.classList.remove('markdown-body', 'html-body', 'csv-body', 'image-body', 'pdf-body');
     diagramWrap.classList.add('code-body');
     if (type === 'csv') {
-      diagramWrap.innerHTML = renderCsvSourceHtml(content, lang || ',', _showLineNumbers);
+      diagramWrap.innerHTML = renderCsvSourceHtml(content, lang || ',', _mmdViewOptions.lineNumbers());
     } else {
       var sourceLang = (type === 'svg' || type === 'html') ? 'xml'
                      : (type === 'md') ? 'markdown'
                      : lang || 'plaintext';
-      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang, _showLineNumbers);
+      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang, _mmdViewOptions.lineNumbers());
     }
     _mmdFindRefreshAfterRender();
     _mmdApplyZoom();
@@ -1287,11 +1400,7 @@
   // 常にこの直後に render() を送るため、ここで再描画すると
   // 古い内容による二重描画が発生する。
   function setViewMode(mode) {
-    if (mode !== 'rendered' && mode !== 'source') return;
-    if (mode !== _viewMode) {
-      _mmdModeSwitch.mark();
-    }
-    _viewMode = mode;
+    _mmdViewOptions.setMode(mode);
   }
 
   // --- 初期化 ---
@@ -1336,6 +1445,12 @@
       _mmdMermaidConfig: _mmdMermaidConfig,
       _mmdMermaidParseError: _mmdMermaidParseError,
       _mmdFind: _mmdFind,
+      _mmdZoom: _mmdZoom,
+      _mmdDocument: _mmdDocument,
+      _mmdViewOptions: _mmdViewOptions,
+      _mmdScroll: _mmdScroll,
+      _mmdDiagramZoomStep: _mmdDiagramZoomStep,
+      _mmdDiagramZoomReset: _mmdDiagramZoomReset,
       _mmdOpenFind: _mmdOpenFind,
       _mmdCloseFind: _mmdCloseFind,
       _mmdFindNextIfOpen: _mmdFindNextIfOpen,
