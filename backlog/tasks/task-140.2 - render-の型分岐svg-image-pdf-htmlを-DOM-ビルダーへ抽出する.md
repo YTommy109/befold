@@ -1,11 +1,11 @@
 ---
 id: TASK-140.2
 title: render() の型分岐(svg/image/pdf/html)を DOM ビルダーへ抽出する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-07-24 22:42'
-updated_date: '2026-07-25 02:42'
+updated_date: '2026-07-25 02:47'
 labels:
   - refactor
   - structural
@@ -27,7 +27,7 @@ render()(viewer-main.js:978-1133, 155行)の 9 分岐型ディスパッチのう
 <!-- AC:BEGIN -->
 - [x] #1 svg/image/pdf/html の各分岐がヘルパー関数へ抽出され、純粋化可能な部分は viewer.js の HTML ビルダーとして単体テストされている
 - [x] #2 render() 本体が型ディスパッチ+共通オーケストレーションに縮小している
-- [ ] #3 各型の描画(mmd/svg/html/csv/image/pdf/code/md)に回帰がない(webview-smoke + 手動確認)
+- [x] #3 各型の描画(mmd/svg/html/csv/image/pdf/code/md)に回帰がない(webview-smoke + 手動確認)
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -69,4 +69,14 @@ render()(viewer-main.js:978-1133, 155行)の 9 分岐型ディスパッチのう
 - swift scripts/webview-smoke.swift: PASS(mmd/md 描画・data: 埋め込み画像・PDF blob 表示・CSP ブロックを実 WKWebView で確認)
 
 AC#3 について: webview-smoke(実 WKWebView)は PASS し、mmd/md/image(data URI)/pdf(blob) の実描画と CSP ブロックを確認済み。jest 側で svg/html/csv/image/pdf/code/md の DOM 構築も検証している。ただし AC#3 が求める『手動確認』(実アプリでの svg/csv/code/html の目視)は未実施のため、AC#3 は未チェックのままにしている。
+
+AC#3 の手動確認を実施(ユーザーによる目視、2026-07-25)。xcodebuild で .app をビルドして起動し、svg(sample/diagram.svg・ズームコントロール込み)/ csv(sample/sample.csv)/ code(sample/example.swift)/ html(新規追加した sample/sample.html)/ mmd(sample/flowchart.mmd)/ md(sample/sample.md、内部の mermaid フェンス込み)の描画に問題がないことを確認。image / pdf は webview-smoke が実 WKWebView で自動検証済み。
+
+あわせて sample/ に .html が存在せず html 型の確認手段がなかったため、sample/sample.html を追加した(ページ内 CSS・見出し/段落/引用/箇条書き/テーブルに加え、sandbox に allow-scripts が付かないことを目視判定できるスクリプトを含む)。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+render() の svg/image/pdf/html 分岐がインライン DOM 構築のままだったのを、型別 DOM ビルダー(_renderMmd/_renderSvg/_renderHtml/_renderCsv/_renderImage/_renderPdf/_renderCode/_renderMarkdown)へ抽出し、純粋化できる data URI 生成と base64 復号は viewer.js の svgDataURI/imageDataURI/base64ToBytes として切り出した。mermaid 実行部も _mmdRunMermaid() へ分離し、render() は型ディスパッチ+共通オーケストレーションに縮小(155行 → 69行)。型分岐の if/else 骨格は Swift 側のドリフト検知テストを維持するため意図的に残した。検証: npx jest 238 passed(純粋ビルダー 7 件・render 型ディスパッチ 11 件を新規追加)/ swift test 615 passed / webview-smoke PASS / 実アプリでの svg・csv・code・html・mmd・md の目視確認済み。
+<!-- SECTION:FINAL_SUMMARY:END -->
