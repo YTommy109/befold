@@ -17,10 +17,11 @@
   var _mmdZoom = ZOOM_DEFAULT;
   // 直近で postMessage した倍率。init 時点の値で初期化し、実際に変化した時だけ通知する
   // （ページ初期化や render() のたびに UserDefaults へ書き込まれるのを防ぐ）。
-  var _mmdLastPostedZoom = parseStoredZoom(window._mmdInitialZoom);
+  var _mmdLastPostedZoom = ZOOM_DEFAULT;
 
   function _mmdInitZoom() {
     _mmdZoom = parseStoredZoom(window._mmdInitialZoom);
+    _mmdLastPostedZoom = _mmdZoom;
     _mmdApplyZoom();
   }
 
@@ -85,89 +86,93 @@
     return document.querySelector('.viewer');
   }
 
-  document.addEventListener('keydown', function(e) {
-    // IME 変換中の Escape(候補キャンセル)では検索バーを閉じない。
-    // Enter 側の変換確定判定(_mmdInitFind 付近の keydown ハンドラ)と同じ理由:
-    // Safari/WKWebView は compositionend → keydown の順で発火するため isComposing は
-    // 既に false になりうるが、keyCode は 229 のまま残るためこれも合わせて判定する。
-    if (e.key === 'Escape' && _mmdFindIsOpen() && !e.isComposing && e.keyCode !== 229) {
+  function _mmdInitKeyboard() {
+    document.addEventListener('keydown', function(e) {
+      // IME 変換中の Escape(候補キャンセル)では検索バーを閉じない。
+      // Enter 側の変換確定判定(_mmdInitFindControls の keydown ハンドラ)と同じ理由:
+      // Safari/WKWebView は compositionend → keydown の順で発火するため isComposing は
+      // 既に false になりうるが、keyCode は 229 のまま残るためこれも合わせて判定する。
+      if (e.key === 'Escape' && _mmdFindIsOpen() && !e.isComposing && e.keyCode !== 229) {
+        e.preventDefault();
+        _mmdCloseFind();
+        return;
+      }
+      document.body.classList.toggle('cmd-held', e.metaKey);
+      if (e.metaKey) {
+        if (e.key === '-') { e.preventDefault(); _mmdZoomOut(); }
+        else if (e.key === '=' || e.key === '+') { e.preventDefault(); _mmdZoomIn(); }
+        return;
+      }
+      var action = resolveScrollKey(e.key, e.shiftKey);
+      if (!action) { return; }
+      if (e.key === ' ' && !isHostFeatureEnabled(window._mmdHostFeatures, 'spaceScroll')) { return; }
+      // 検索入力欄など編集可能要素にフォーカスがある間は、Space/矢印/vim jk を
+      // 文字入力・カーソル移動としてそのまま素通りさせる(ビューアのスクロールに奪わない)。
+      var active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+        return;
+      }
+      var scrollEl = _mmdScrollTarget();
+      if (!scrollEl) { return; }
       e.preventDefault();
-      _mmdCloseFind();
-      return;
-    }
-    document.body.classList.toggle('cmd-held', e.metaKey);
-    if (e.metaKey) {
-      if (e.key === '-') { e.preventDefault(); _mmdZoomOut(); }
-      else if (e.key === '=' || e.key === '+') { e.preventDefault(); _mmdZoomIn(); }
-      return;
-    }
-    var action = resolveScrollKey(e.key, e.shiftKey);
-    if (!action) { return; }
-    if (e.key === ' ' && !isHostFeatureEnabled(window._mmdHostFeatures, 'spaceScroll')) { return; }
-    // 検索入力欄など編集可能要素にフォーカスがある間は、Space/矢印/vim jk を
-    // 文字入力・カーソル移動としてそのまま素通りさせる(ビューアのスクロールに奪わない)。
-    var active = document.activeElement;
-    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
-      return;
-    }
-    var scrollEl = _mmdScrollTarget();
-    if (!scrollEl) { return; }
-    e.preventDefault();
-    var step;
-    if (action.amount === 'page') {
-      step = pageScrollStep(scrollEl.clientHeight);
-    } else if (action.amount === 'half') {
-      step = halfPageScrollStep(scrollEl.clientHeight);
-    } else {
-      step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
-    }
-    scrollEl.scrollBy({ top: action.down ? step : -step, behavior: 'auto' });
-  });
+      var step;
+      if (action.amount === 'page') {
+        step = pageScrollStep(scrollEl.clientHeight);
+      } else if (action.amount === 'half') {
+        step = halfPageScrollStep(scrollEl.clientHeight);
+      } else {
+        step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
+      }
+      scrollEl.scrollBy({ top: action.down ? step : -step, behavior: 'auto' });
+    });
 
-  document.addEventListener('keyup', function(e) {
-    if (!e.metaKey) document.body.classList.remove('cmd-held');
-  });
-  // ウィンドウがフォーカスを失ったときも解除する
-  window.addEventListener('blur', function() {
-    document.body.classList.remove('cmd-held');
-  });
+    document.addEventListener('keyup', function(e) {
+      if (!e.metaKey) document.body.classList.remove('cmd-held');
+    });
+    // ウィンドウがフォーカスを失ったときも解除する
+    window.addEventListener('blur', function() {
+      document.body.classList.remove('cmd-held');
+    });
+  }
 
   // --- リンク・パス参照クリック ---
-  document.getElementById('diagram-wrap').addEventListener('click', function(e) {
-    // XSS から postMessage を自動発火させる攻撃を防ぐため、
-    // ユーザー起因のイベントのみ処理する。
-    if (!e.isTrusted) return;
+  function _mmdInitReferenceClicks() {
+    document.getElementById('diagram-wrap').addEventListener('click', function(e) {
+      // XSS から postMessage を自動発火させる攻撃を防ぐため、
+      // ユーザー起因のイベントのみ処理する。
+      if (!e.isTrusted) return;
 
-    var anchor = e.target.closest('a');
-    var pathRef = e.target.closest('.befold-path-ref');
-    var target = anchor || pathRef;
-    if (!target) return;
+      var anchor = e.target.closest('a');
+      var pathRef = e.target.closest('.befold-path-ref');
+      var target = anchor || pathRef;
+      if (!target) return;
 
-    var href = anchor ? anchor.getAttribute('href') : pathRef.dataset.path;
-    if (!href) return;
+      var href = anchor ? anchor.getAttribute('href') : pathRef.dataset.path;
+      if (!href) return;
 
-    // # で始まるアンカーリンクは JS 側で明示的にスクロールする
-    // (decidePolicyFor が WKWebView のナビゲーションをキャンセルするため)
-    if (href.charAt(0) === '#') {
+      // # で始まるアンカーリンクは JS 側で明示的にスクロールする
+      // (decidePolicyFor が WKWebView のナビゲーションをキャンセルするため)
+      if (href.charAt(0) === '#') {
+        e.preventDefault();
+        try { var id = decodeURIComponent(href.slice(1)); } catch (_) { var id = href.slice(1); }
+        var el = document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+
       e.preventDefault();
-      try { var id = decodeURIComponent(href.slice(1)); } catch (_) { var id = href.slice(1); }
-      var el = document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-      return;
-    }
 
-    e.preventDefault();
+      // 多層防御: hostFeatures で無効化されたホスト(QuickLook 拡張等の静的1回描画)では
+      // ここで抑止する(Swift 側もハンドラ未登録。ViewerWebView.messageHandlerNames 参照)。
+      if (!isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')) { return; }
 
-    // 多層防御: hostFeatures で無効化されたホスト(QuickLook 拡張等の静的1回描画)では
-    // ここで抑止する(Swift 側もハンドラ未登録。ViewerWebView.messageHandlerNames 参照)。
-    if (!isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')) { return; }
-
-    // <a> / .befold-path-ref とも同じ挙動: 無修飾=同一ウィンドウ, cmd=新規ウィンドウ
-    _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, {
-      href: href,
-      newWindow: e.metaKey
+      // <a> / .befold-path-ref とも同じ挙動: 無修飾=同一ウィンドウ, cmd=新規ウィンドウ
+      _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, {
+        href: href,
+        newWindow: e.metaKey
+      });
     });
-  });
+  }
 
   // コードブロック内のファイルパス検出用の正規表現。
   // 既知の制約: シンタックスハイライトによってトークンが複数の <span> に
@@ -242,16 +247,18 @@
 
   // Ctrl+ホイール（トラックパッドのピンチ含む）はポインタ位置で振り分ける:
   // ダイアグラム上ならそのダイアグラムの個別ズーム、それ以外は全体ズーム。
-  document.addEventListener('wheel', function(e) {
-    if (!e.ctrlKey) { return; }
-    e.preventDefault();
-    var wrap = e.target instanceof Element ? e.target.closest('.diagram-zoom-wrap') : null;
-    if (wrap) {
-      _mmdDiagramWheelZoom(wrap, e.deltaY);
-    } else {
-      _mmdWheelZoom(e.deltaY);
-    }
-  }, { passive: false });
+  function _mmdInitWheelZoom() {
+    document.addEventListener('wheel', function(e) {
+      if (!e.ctrlKey) { return; }
+      e.preventDefault();
+      var wrap = e.target instanceof Element ? e.target.closest('.diagram-zoom-wrap') : null;
+      if (wrap) {
+        _mmdDiagramWheelZoom(wrap, e.deltaY);
+      } else {
+        _mmdWheelZoom(e.deltaY);
+      }
+    }, { passive: false });
+  }
 
   // --- Diagram Zoom（ダイアグラム個別ズーム）---
   // ブロック順インデックス → ズーム倍率。セッション内のみ保持し、再レンダリング
@@ -283,14 +290,16 @@
 
   // ウィンドウリサイズで枠高さの上限(ビューポート高)や画像のフィットサイズが
   // 変わるため追従させる。
-  window.addEventListener('resize', function() {
-    _mmdUpdateAllDiagramScrollHeights();
-    var wrap = document.getElementById('diagram-wrap');
-    var img = wrap.classList.contains('image-body') ? wrap.querySelector('img') : null;
-    if (img && img.complete && img.naturalWidth) {
-      _mmdFitImage(img, wrap);
-    }
-  });
+  function _mmdInitResize() {
+    window.addEventListener('resize', function() {
+      _mmdUpdateAllDiagramScrollHeights();
+      var wrap = document.getElementById('diagram-wrap');
+      var img = wrap.classList.contains('image-body') ? wrap.querySelector('img') : null;
+      if (img && img.complete && img.naturalWidth) {
+        _mmdFitImage(img, wrap);
+      }
+    });
+  }
 
   // 枠(.diagram-zoom-scroll)の高さをズーム倍率とウィンドウ高に追従させる。
   // 拡大時は枠がウィンドウ高まで伸び、収まらない分は枠内の縦スクロールで見る。
@@ -377,7 +386,9 @@
 
   // --- Mermaid ---
   var _currentType = 'mmd';
-  var _mmdDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  // カラースキーム監視。_mmdInitColorScheme() が代入するまでは null
+  // (代入前に mermaid を描画する経路はない: 描画は必ず初期化後に走る)。
+  var _mmdDarkQuery = null;
 
   // theme 以外の設定は固定。カラースキームに応じて theme だけ差し替える。
   function _mmdMermaidConfig() {
@@ -434,18 +445,24 @@
   // カラースキームが切り替わったら（既にロード済みの場合のみ）mermaid を再初期化し、
   // 直近の内容を再描画する。未ロードなら次回 _mmdEnsureMermaidLoaded() が現在の
   // カラースキームで初期化するため、ここでの再初期化は不要。
-  _mmdDarkQuery.addEventListener('change', function() {
-    if (_mermaidLoadPromise) {
-      mermaid.initialize(_mmdMermaidConfig());
-    }
-    if (_lastContent !== null) {
-      render(_lastContent, _lastType, _lastLang);
-    }
-  });
+  function _mmdInitColorScheme() {
+    _mmdDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    _mmdDarkQuery.addEventListener('change', function() {
+      if (_mermaidLoadPromise) {
+        mermaid.initialize(_mmdMermaidConfig());
+      }
+      if (_lastContent !== null) {
+        render(_lastContent, _lastType, _lastLang);
+      }
+    });
+  }
 
   // --- Markdown-it ---
   var md;
-  if (typeof markdownit !== 'undefined') {
+  // markdown-it.min.js の読み込み失敗時は markdownit 未定義 → md も未定義のままにし、
+  // Markdown 描画経路(render の md.render 呼び出し)だけが機能しない縮退にとどめる。
+  function _mmdInitMarkdown() {
+    if (typeof markdownit === 'undefined') { return; }
     md = markdownit({
       html: true,
       linkify: true,
@@ -727,31 +744,33 @@
     _mmdFindRun();
   }
 
-  document.getElementById('mmd-find-input').addEventListener('input', function() { _mmdFindRun(); });
-  document.getElementById('mmd-find-input').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') {
-      // Safari/WKWebView は compositionend → keydown の順で発火するため、
-      // 変換確定の Enter では isComposing が既に false になっている。
-      // ただし keyCode は 229 のまま残るため、これも合わせて判定する。
-      if (e.isComposing || e.keyCode === 229) { return; }
-      e.preventDefault();
-      if (e.shiftKey) { _mmdFindPrev(); } else { _mmdFindNext(); }
-    }
-    // Escape はここでは処理しない: document の keydown ハンドラがバブリングで捕捉し、
-    // _mmdFindIsOpen() 時に preventDefault + _mmdCloseFind() を行う(同じ挙動になる)。
-  });
-  document.getElementById('mmd-find-next').addEventListener('click', _mmdFindNext);
-  document.getElementById('mmd-find-prev').addEventListener('click', _mmdFindPrev);
-  document.getElementById('mmd-find-close').addEventListener('click', _mmdCloseFind);
-  document.getElementById('mmd-find-case').addEventListener('click', function() {
-    _mmdFindToggleOption('caseSensitive', 'mmd-find-case');
-  });
-  document.getElementById('mmd-find-word').addEventListener('click', function() {
-    _mmdFindToggleOption('wholeWord', 'mmd-find-word');
-  });
-  document.getElementById('mmd-find-regex').addEventListener('click', function() {
-    _mmdFindToggleOption('useRegex', 'mmd-find-regex');
-  });
+  function _mmdInitFindControls() {
+    document.getElementById('mmd-find-input').addEventListener('input', function() { _mmdFindRun(); });
+    document.getElementById('mmd-find-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        // Safari/WKWebView は compositionend → keydown の順で発火するため、
+        // 変換確定の Enter では isComposing が既に false になっている。
+        // ただし keyCode は 229 のまま残るため、これも合わせて判定する。
+        if (e.isComposing || e.keyCode === 229) { return; }
+        e.preventDefault();
+        if (e.shiftKey) { _mmdFindPrev(); } else { _mmdFindNext(); }
+      }
+      // Escape はここでは処理しない: document の keydown ハンドラがバブリングで捕捉し、
+      // _mmdFindIsOpen() 時に preventDefault + _mmdCloseFind() を行う(同じ挙動になる)。
+    });
+    document.getElementById('mmd-find-next').addEventListener('click', _mmdFindNext);
+    document.getElementById('mmd-find-prev').addEventListener('click', _mmdFindPrev);
+    document.getElementById('mmd-find-close').addEventListener('click', _mmdCloseFind);
+    document.getElementById('mmd-find-case').addEventListener('click', function() {
+      _mmdFindToggleOption('caseSensitive', 'mmd-find-case');
+    });
+    document.getElementById('mmd-find-word').addEventListener('click', function() {
+      _mmdFindToggleOption('wholeWord', 'mmd-find-word');
+    });
+    document.getElementById('mmd-find-regex').addEventListener('click', function() {
+      _mmdFindToggleOption('useRegex', 'mmd-find-regex');
+    });
+  }
 
   // --- Render ---
   function _escapeHtml(text) {
@@ -820,7 +839,10 @@
       _mmdPostScrollPosition();
     }, 200);
   }
-  document.addEventListener('scroll', _mmdDebouncedScrollNotify, true);
+
+  function _mmdInitScrollNotify() {
+    document.addEventListener('scroll', _mmdDebouncedScrollNotify, true);
+  }
 
   // 行番号表示状態を更新する。再描画はしない: Swift 側(ViewerWebView)が
   // 状態変更時に必ず続けて render を送るため、ここで再描画すると全文
@@ -875,10 +897,12 @@
   }
 
   // CSP のため onclick ではなく addEventListener で配線する。
-  document.getElementById('mmd-load-more-btn').addEventListener('click', function(e) {
-    if (!e.isTrusted) return;
-    _mmdLoadMore();
-  });
+  function _mmdInitLoadMore() {
+    document.getElementById('mmd-load-more-btn').addEventListener('click', function(e) {
+      if (!e.isTrusted) return;
+      _mmdLoadMore();
+    });
+  }
 
   // 追加読み込みされたチャンクを既存 DOM に追記する(Swift の ViewerBridge から呼ばれる)。
   // HTML 組み立ては viewer.js の純粋関数(csvRowsHtml / buildLineNumberRows /
@@ -1159,6 +1183,66 @@
     _viewMode = mode;
   }
 
-  _mmdInitZoom();
-  _mmdInitFontSize();
-  _mmdInitFind();
+  // --- 初期化 ---
+  // 読み込み時の副作用(DOM 取得・リスナ登録・注入値の反映)をすべてここへ集約する。
+  // 呼び出し順は分割前のトップレベル実行順そのまま。viewer.html は viewer-main.js を
+  // </body> 直前の classic script として読むため、この時点で DOM は構築済み。
+  function _mmdInit() {
+    _mmdInitKeyboard();
+    _mmdInitReferenceClicks();
+    _mmdInitWheelZoom();
+    _mmdInitResize();
+    _mmdInitColorScheme();
+    _mmdInitMarkdown();
+    _mmdInitFindControls();
+    _mmdInitScrollNotify();
+    _mmdInitLoadMore();
+    _mmdInitZoom();
+    _mmdInitFontSize();
+    _mmdInitFind();
+  }
+
+  // viewer.js と同型のエクスポート境界。CommonJS(jest)から読み込まれたときは
+  // 定義だけを公開し、初期化はテスト側が DOM を用意してから _mmdInit() で行う。
+  // ブラウザ(WKWebView)には module が存在しないため、従来どおり即時初期化する。
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+      _mmdInit: _mmdInit,
+      _mmdInitZoom: _mmdInitZoom,
+      _mmdInitFontSize: _mmdInitFontSize,
+      _mmdInitFind: _mmdInitFind,
+      _mmdPostMessage: _mmdPostMessage,
+      _mmdApplyZoom: _mmdApplyZoom,
+      _mmdZoomIn: _mmdZoomIn,
+      _mmdZoomOut: _mmdZoomOut,
+      _mmdZoomReset: _mmdZoomReset,
+      _mmdWheelZoom: _mmdWheelZoom,
+      _mmdScrollTarget: _mmdScrollTarget,
+      _annotatePathRefs: _annotatePathRefs,
+      _mmdDiagramZoomValue: _mmdDiagramZoomValue,
+      _mmdFitImage: _mmdFitImage,
+      _mmdWrapDiagrams: _mmdWrapDiagrams,
+      _mmdMermaidConfig: _mmdMermaidConfig,
+      _mmdMermaidParseError: _mmdMermaidParseError,
+      _mmdFindIsOpen: _mmdFindIsOpen,
+      _mmdOpenFind: _mmdOpenFind,
+      _mmdCloseFind: _mmdCloseFind,
+      _mmdFindNext: _mmdFindNext,
+      _mmdFindPrev: _mmdFindPrev,
+      _mmdFindNextIfOpen: _mmdFindNextIfOpen,
+      _mmdFindPrevIfOpen: _mmdFindPrevIfOpen,
+      _mmdFindRefresh: _mmdFindRefresh,
+      _mmdFindRun: _mmdFindRun,
+      _mmdSetRestoreScroll: _mmdSetRestoreScroll,
+      _mmdRestoreScrollPosition: _mmdRestoreScrollPosition,
+      _mmdPostScrollPosition: _mmdPostScrollPosition,
+      _mmdSetTruncated: _mmdSetTruncated,
+      _mmdLoadMore: _mmdLoadMore,
+      setLineNumbers: setLineNumbers,
+      setViewMode: setViewMode,
+      appendChunk: appendChunk,
+      render: render,
+    };
+  } else {
+    _mmdInit();
+  }

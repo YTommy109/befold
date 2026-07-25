@@ -3,6 +3,11 @@
   "scripts": {
     "test": "jest"
   },
+  "jest": {
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ]
+  },
   "devDependencies": {
     "dompurify": "3.4.12",
     "github-markdown-css": "5.9.0",
