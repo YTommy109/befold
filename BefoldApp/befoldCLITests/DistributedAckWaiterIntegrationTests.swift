@@ -1,3 +1,4 @@
+@testable import befold_cli
 @testable import BefoldCLI
 import Foundation
 import Testing
@@ -14,7 +15,7 @@ struct DistributedAckWaiterIntegrationTests {
         let waiter = DistributedAckWaiter(requestID: requestID)
         defer { waiter.cancel() }
 
-        CLIInstanceRouter.sendAck(requestID: requestID)
+        CLIRequestWire.sendAck(requestID: requestID)
 
         #expect(waiter.wait(timeout: 5))
     }
@@ -24,7 +25,7 @@ struct DistributedAckWaiterIntegrationTests {
         let waiter = DistributedAckWaiter(requestID: UUID().uuidString)
         defer { waiter.cancel() }
 
-        CLIInstanceRouter.sendAck(requestID: UUID().uuidString)
+        CLIRequestWire.sendAck(requestID: UUID().uuidString)
 
         #expect(!waiter.wait(timeout: 0.5))
     }
@@ -35,7 +36,7 @@ struct DistributedAckWaiterIntegrationTests {
         let waiter = DistributedAckWaiter(requestID: requestID)
         waiter.cancel()
 
-        CLIInstanceRouter.sendAck(requestID: requestID)
+        CLIRequestWire.sendAck(requestID: requestID)
 
         #expect(!waiter.wait(timeout: 0.5))
     }

@@ -1,13 +1,6 @@
 import AppKit
+import BefoldCLI
 import Foundation
-
-/// CLI から起動中の befold インスタンスへ転送される要求。
-public enum CLIRequest: Equatable {
-    /// パスを開く要求(`befold <path>`)。
-    case open(paths: [String], options: CLIOpenOptions)
-    /// パスをブックマークする要求(`befold --bookmark <path>`)。
-    case bookmark(paths: [String])
-}
 
 /// CLI 起動時、既に起動中の befold インスタンスがあればそちらへ要求を転送する。
 /// これにより CLI 経由の起動でも、既存インスタンスのウィンドウ管理(セッション・重複オープン抑止等)を
@@ -17,10 +10,10 @@ public enum CLIRequest: Equatable {
 /// read-modify-write で更新するため、CLI と GUI が別プロセスから同時に書くと
 /// 後勝ちで片方の追加が消える。起動中インスタンスがあるときは常に GUI プロセスを
 /// 唯一の writer にすることで、この競合自体を無くしている。
-public enum CLIInstanceRouter {
-    public static let openRequestNotificationName = Notification.Name("dev.befold.cli.openRequest")
-    public static let openRequestAckNotificationName = Notification.Name("dev.befold.cli.openRequestAck")
-
+///
+/// 宛先の探索・再送・ACK の busy-wait は送信側だけの関心なので、受信側(befold.app)が
+/// リンクしない CLI 実行ファイル側に置く。ワイヤ表現は BefoldCLI の CLIRequestWire が持つ。
+public enum CLIRequestForwarder {
     /// 再送の上限回数。maxForwardAttempts × ackTimeout = 10 秒が転送の総予算になる。
     ///
     /// 宛先がコールドローンチ中の場合、NSRunningApplication として検出できてから
@@ -65,24 +58,14 @@ public enum CLIInstanceRouter {
         paths: [String], options: CLIOpenOptions, to instance: NSRunningApplication,
         maxAttempts: Int = maxForwardAttempts,
         ackTimeout: TimeInterval = ackTimeout,
-        post: (Notification.Name, [String: Any]) -> Void = { name, userInfo in
-            DistributedNotificationCenter.default().postNotificationName(
-                name, object: nil, userInfo: userInfo, deliverImmediately: true
-            )
-        },
+        post: (Notification.Name, [String: Any]) -> Void = broadcast,
         makeAckWaiter: (String) -> any AckWaiting = { DistributedAckWaiter(requestID: $0) },
         activate: (() -> Void)? = nil
     ) -> Bool {
         let activate = activate ?? { instance.activate() }
-        var userInfo: [String: Any] = ["paths": paths]
-        if let value = options.showHiddenFiles { userInfo["showHiddenFiles"] = value }
-        if let value = options.showLineNumbers { userInfo["showLineNumbers"] = value }
-        if let value = options.sourceMode { userInfo["sourceMode"] = value }
-        if let value = options.showSidebar { userInfo["showSidebar"] = value }
-        if let value = options.sortOrder { userInfo["sortOrder"] = value.rawValue }
-
         guard postAwaitingAck(
-            userInfo, maxAttempts: maxAttempts, ackTimeout: ackTimeout,
+            .open(paths: paths, options: options),
+            maxAttempts: maxAttempts, ackTimeout: ackTimeout,
             post: post, makeAckWaiter: makeAckWaiter
         ) else { return false }
         activate()
@@ -104,68 +87,43 @@ public enum CLIInstanceRouter {
         paths: [String],
         maxAttempts: Int = maxForwardAttempts,
         ackTimeout: TimeInterval = ackTimeout,
-        post: (Notification.Name, [String: Any]) -> Void = { name, userInfo in
-            DistributedNotificationCenter.default().postNotificationName(
-                name, object: nil, userInfo: userInfo, deliverImmediately: true
-            )
-        },
+        post: (Notification.Name, [String: Any]) -> Void = broadcast,
         makeAckWaiter: (String) -> any AckWaiting = { DistributedAckWaiter(requestID: $0) }
     ) -> Bool {
         postAwaitingAck(
-            ["bookmarkPaths": paths], maxAttempts: maxAttempts, ackTimeout: ackTimeout,
+            .bookmark(paths: paths),
+            maxAttempts: maxAttempts, ackTimeout: ackTimeout,
             post: post, makeAckWaiter: makeAckWaiter
         )
     }
 
-    /// requestID を採番して userInfo に載せ、ACK が観測できるまで最大 `maxAttempts` 回 post する。
+    /// requestID を採番して要求をワイヤ表現へ載せ、ACK が観測できるまで最大 `maxAttempts` 回 post する。
     private static func postAwaitingAck(
-        _ userInfo: [String: Any],
+        _ request: CLIRequest,
         maxAttempts: Int,
         ackTimeout: TimeInterval,
         post: (Notification.Name, [String: Any]) -> Void,
         makeAckWaiter: (String) -> any AckWaiting
     ) -> Bool {
         let requestID = UUID().uuidString
-        var userInfo = userInfo
-        userInfo["requestID"] = requestID
+        guard let userInfo = CLIRequestWire.userInfo(for: request, requestID: requestID) else {
+            return false
+        }
 
         let waiter = makeAckWaiter(requestID)
         defer { waiter.cancel() }
 
         for _ in 0 ..< maxAttempts {
-            post(openRequestNotificationName, userInfo)
+            post(CLIRequestWire.requestNotificationName, userInfo)
             if waiter.wait(timeout: ackTimeout) { return true }
         }
         return false
     }
 
-    /// 受信した Distributed Notification の userInfo から要求を復元する。
-    public static func decode(userInfo: [AnyHashable: Any]?) -> CLIRequest? {
-        if let bookmarkPaths = userInfo?["bookmarkPaths"] as? [String] {
-            return .bookmark(paths: bookmarkPaths)
-        }
-        guard let paths = userInfo?["paths"] as? [String] else { return nil }
-        var options = CLIOpenOptions()
-        options.showHiddenFiles = userInfo?["showHiddenFiles"] as? Bool
-        options.showLineNumbers = userInfo?["showLineNumbers"] as? Bool
-        options.sourceMode = userInfo?["sourceMode"] as? Bool
-        options.showSidebar = userInfo?["showSidebar"] as? Bool
-        if let rawSortOrder = userInfo?["sortOrder"] as? String {
-            options.sortOrder = CLISortOrderOption(rawValue: rawSortOrder)
-        }
-        return .open(paths: paths, options: options)
-    }
-
-    /// 受信した Distributed Notification の userInfo から requestID を取り出す(ACK 送信用)。
-    public static func requestID(from userInfo: [AnyHashable: Any]?) -> String? {
-        userInfo?["requestID"] as? String
-    }
-
-    /// 受信側が要求を受け取ったことを ACK 通知で送り返す。
-    public static func sendAck(requestID: String) {
+    /// 既定の post 実装(Distributed Notification のブロードキャスト)。テストは post を差し替える。
+    public static func broadcast(_ name: Notification.Name, _ userInfo: [String: Any]) {
         DistributedNotificationCenter.default().postNotificationName(
-            openRequestAckNotificationName, object: nil,
-            userInfo: ["requestID": requestID], deliverImmediately: true
+            name, object: nil, userInfo: userInfo, deliverImmediately: true
         )
     }
 }

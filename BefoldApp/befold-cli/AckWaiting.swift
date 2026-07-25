@@ -1,6 +1,7 @@
+import BefoldCLI
 import Foundation
 
-/// CLIInstanceRouter.forward() が使う ACK の待ち受け。
+/// CLIRequestForwarder.forward() が使う ACK の待ち受け。
 ///
 /// 生成した時点で観測を開始し、`cancel()` まで解除しない。post のたびに登録・解除を
 /// 繰り返すと、post 直後〜登録前と、再送の合間に ACK を取りこぼす窓ができるため、
@@ -22,9 +23,9 @@ public final class DistributedAckWaiter: AckWaiting, @unchecked Sendable {
 
     public init(requestID: String) {
         observer = DistributedNotificationCenter.default().addObserver(
-            forName: CLIInstanceRouter.openRequestAckNotificationName, object: nil, queue: nil
+            forName: CLIRequestWire.ackNotificationName, object: nil, queue: nil
         ) { [weak self] notification in
-            guard notification.userInfo?["requestID"] as? String == requestID else { return }
+            guard CLIRequestWire.ackRequestID(from: notification.userInfo) == requestID else { return }
             self?.markAcked()
         }
     }
