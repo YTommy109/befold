@@ -1,0 +1,48 @@
+import AppKit
+@testable import befold
+import BefoldKit
+import Foundation
+import Testing
+
+/// CLI から転送されたブックマーク追加(`befold --bookmark <path>`)を
+/// ストアと開いているウィンドウのツールバーへ反映することを検証する。
+/// コントローラ生成は MockedViewerWindowManager 経由でモック化しているため実 FS を踏まない。
+@Suite
+@MainActor
+struct ViewerWindowManagerBookmarkTests {
+    private let file = URL(fileURLWithPath: "/mock/first.mmd")
+    private let otherFile = URL(fileURLWithPath: "/mock/second.md")
+
+    @Test("CLI からのブックマーク追加はストアと表示中ウィンドウのツールバーへ即座に反映される")
+    func addBookmarksUpdatesStoreAndOpenWindowToolbar() throws {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "CLIBookmarkToolbarRefresh")
+        fixture.manager.openViewer(for: file)
+        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey])
+        let toolbar = try #require(controller.window?.toolbar)
+        let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("bookmark") })
+        let button = try #require(liveItem.view as? NSButton)
+        #expect(button.contentTintColor == nil)
+
+        fixture.manager.addBookmarks(for: [file])
+
+        #expect(fixture.bookmarkStore.isBookmarked(file))
+        #expect(button.contentTintColor == .controlAccentColor)
+        fixture.closeAll()
+    }
+
+    @Test("表示中でないファイルのブックマーク追加は開いているウィンドウのアイコンを変えない")
+    func addBookmarksForUnrelatedFileLeavesToolbarUntouched() throws {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "CLIBookmarkUnrelated")
+        fixture.manager.openViewer(for: file)
+        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey])
+        let toolbar = try #require(controller.window?.toolbar)
+        let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("bookmark") })
+        let button = try #require(liveItem.view as? NSButton)
+
+        fixture.manager.addBookmarks(for: [otherFile])
+
+        #expect(fixture.bookmarkStore.isBookmarked(otherFile))
+        #expect(button.contentTintColor == nil)
+        fixture.closeAll()
+    }
+}

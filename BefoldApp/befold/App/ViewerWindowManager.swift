@@ -73,6 +73,25 @@ final class ViewerWindowManager {
         }
     }
 
+    /// CLI の `--bookmark <path>` から転送された追加を適用し、開いている全ウィンドウの
+    /// ツールバーへ即座に反映する。書き込みを GUI プロセスへ一本化する意図で
+    /// AppDelegate から呼ばれる(CLIInstanceRouter 参照)。
+    /// ブックマーク状態はツールバーが表示のたびに store から読み直すため、
+    /// 反映は全ウィンドウの再同期で足り、変更通知の購読機構は要らない。
+    func addBookmarks(for urls: [URL]) {
+        for url in urls {
+            bookmarkStore.add(url)
+        }
+        refreshAllToolbars()
+    }
+
+    /// 開いている全ウィンドウのツールバーを現在状態へ再同期する。
+    private func refreshAllToolbars() {
+        for controller in controllers.values {
+            controller.refreshToolbarState()
+        }
+    }
+
     /// パス無し CLI 起動(`befold --line-numbers` 等)から、開いている全ウィンドウへ表示オプションを適用する。
     /// 新規ウィンドウ生成時は initialSortOrder/showLineNumbersOverride/sourceModeOverride で
     /// 個別に適用できるが、パス無し起動では開くべき新規ウィンドウが無いため、既存の全ウィンドウへ
