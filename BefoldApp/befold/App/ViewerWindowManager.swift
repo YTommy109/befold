@@ -73,6 +73,25 @@ final class ViewerWindowManager {
         }
     }
 
+    /// CLI の `--bookmark <path>` から転送された追加を適用し、開いている全ウィンドウの
+    /// ツールバーへ即座に反映する。書き込みを GUI プロセスへ一本化する意図で
+    /// AppDelegate から呼ばれる(CLIInstanceRouter 参照)。
+    /// ブックマーク状態はツールバーが表示のたびに store から読み直すため、
+    /// 反映は全ウィンドウの再同期で足り、変更通知の購読機構は要らない。
+    func addBookmarks(for urls: [URL]) {
+        for url in urls {
+            bookmarkStore.add(url)
+        }
+        refreshAllToolbars()
+    }
+
+    /// 開いている全ウィンドウのツールバーを現在状態へ再同期する。
+    private func refreshAllToolbars() {
+        for controller in controllers.values {
+            controller.refreshToolbarState()
+        }
+    }
+
     /// パス無し CLI 起動(`befold --line-numbers` 等)から、開いている全ウィンドウへ表示オプションを適用する。
     /// 新規ウィンドウ生成時は initialSortOrder/showLineNumbersOverride/sourceModeOverride で
     /// 個別に適用できるが、パス無し起動では開くべき新規ウィンドウが無いため、既存の全ウィンドウへ
@@ -88,6 +107,9 @@ final class ViewerWindowManager {
                 controller.sidebar.refreshFileList()
             }
             if let showSidebar { controller.setSidebarCollapsed(!showSidebar) }
+            // store の直接書き換え(行番号の上書き)はツールバーへ通知されないため、
+            // 他経路の間接発火に頼らずここで明示的に再同期する。
+            controller.refreshToolbarState()
         }
     }
 
@@ -109,7 +131,7 @@ final class ViewerWindowManager {
         let key = url.normalizedPathKey
         if let existing = controllers[key] {
             NSApp.activate()
-            existing.window?.makeKeyAndOrderFront(nil)
+            existing.focusWindow()
             return
         }
 
@@ -185,29 +207,6 @@ final class ViewerWindowManager {
         (window.windowController as? ViewerWindowController)?.fileURL.normalizedPathKey
     }
 
-    /// targetURL を controller 以外のウィンドウで開いている ViewerWindowController を返す。
-    private func existingOtherController(
-        for targetURL: URL, excluding controller: ViewerWindowController
-    ) -> ViewerWindowController? {
-        let key = targetURL.normalizedPathKey
-        guard let existing = controllers[key], existing !== controller else { return nil }
-        return existing
-    }
-
-    /// targetURL が controller 以外のウィンドウで既に開かれているかを判定する純粋チェック。
-    private func isOpenInAnotherWindow(
-        _ targetURL: URL, excluding controller: ViewerWindowController
-    ) -> Bool {
-        existingOtherController(for: targetURL, excluding: controller) != nil
-    }
-
-    /// targetURL を開いている別ウィンドウを前面化する。
-    private func focusExistingWindow(
-        _ targetURL: URL, excluding controller: ViewerWindowController
-    ) {
-        existingOtherController(for: targetURL, excluding: controller)?.window?.makeKeyAndOrderFront(nil)
-    }
-
     /// rename / switch に伴うウィンドウ管理辞書のキー付け替えとセッション・履歴の更新。
     private func remapController(
         _ controller: ViewerWindowController,
@@ -263,14 +262,13 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
         remapController(controller, from: oldURL, to: newURL, isRename: false)
     }
 
+    /// url を controller 以外のウィンドウが開いていれば、そのコントローラを返す。
+    /// 判定と前面化対象の解決を兼ねるため、辞書 lookup は 1 回で済む。
     func viewerWindow(
-        _ controller: ViewerWindowController, isFileOpenInAnotherWindow url: URL
-    ) -> Bool {
-        isOpenInAnotherWindow(url, excluding: controller)
-    }
-
-    func viewerWindow(_ controller: ViewerWindowController, focusWindowForFile url: URL) {
-        focusExistingWindow(url, excluding: controller)
+        _ controller: ViewerWindowController, windowShowingFileElsewhere url: URL
+    ) -> ViewerWindowController? {
+        guard let existing = controllers[url.normalizedPathKey], existing !== controller else { return nil }
+        return existing
     }
 
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {

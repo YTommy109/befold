@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldKit
 import BefoldTestSupport
 import Foundation
 
@@ -20,6 +21,8 @@ struct MockedViewerWindowManager {
     let recentDocumentsStore: RecentDocumentsStore
     let perFileState: PerFileStateStore
     let hiddenFilesPreference: HiddenFilesPreference
+    /// 本番 UserDefaults へ書かないよう、隔離 defaults で明示的に生成して注入する。
+    let bookmarkStore: BookmarkStore
     let manager: ViewerWindowManager
 
     /// - Parameter files: 存在するものとして扱う URL。VWM の存在ガードと、
@@ -35,11 +38,14 @@ struct MockedViewerWindowManager {
         recentDocumentsStore = RecentDocumentsStore(defaults: defaults)
         perFileState = PerFileStateStore(defaults: defaults)
         hiddenFilesPreference = HiddenFilesPreference(defaults: defaults)
+        let bookmarkStore = BookmarkStore(defaults: defaults)
+        self.bookmarkStore = bookmarkStore
         manager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
             hiddenFilesPreference: hiddenFilesPreference,
             perFileState: perFileState,
+            bookmarkStore: bookmarkStore,
             fileReader: fileReader,
             makeStore: { _ in
                 ViewerStore(

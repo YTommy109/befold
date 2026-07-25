@@ -97,9 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.activate()
         case let .bookmark(paths):
             // ユーザーは GUI を見ていないので前面化はしない。
-            for path in paths {
-                bookmarkStore.add(URL(fileURLWithPath: path))
-            }
+            windowManager.addBookmarks(for: paths.map { URL(fileURLWithPath: $0) })
         }
     }
 
