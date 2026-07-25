@@ -87,10 +87,24 @@ struct TrackedPathResolverTests {
         let base = url("/repo/docs/guide.md")
         let tracked = url("/repo/src/utils.swift")
         let sut = TrackedPathResolver(
-            fileReader: FakeFileReader(existing: []),
+            fileReader: FakeFileReader(existing: [tracked.path]),
             gitIndex: FakeGitIndex(files: [tracked])
         )
         #expect(sut.resolve(href: "utils.swift", baseURL: base) == .resolved(tracked))
+    }
+
+    /// git の索引は worktree の実態と一致しない。worktree から削除して index に残っている
+    /// ファイルや submodule の gitlink(実体はディレクトリ)も列挙されるため、
+    /// 一致しただけでリンク化すると「クリックしても開けないリンク」になる。
+    @Test("git が追跡していても worktree に実在しなければ unresolved")
+    func unresolvedWhenTrackedFileIsMissingFromWorktree() {
+        let base = url("/repo/docs/guide.md")
+        let tracked = url("/repo/src/utils.swift")
+        let sut = TrackedPathResolver(
+            fileReader: FakeFileReader(existing: []),
+            gitIndex: FakeGitIndex(files: [tracked])
+        )
+        #expect(sut.resolve(href: "utils.swift", baseURL: base) == .unresolved)
     }
 
     @Test("git 管理外かつ相対で実在しなければ unresolved")
@@ -122,7 +136,7 @@ struct TrackedPathResolverTests {
         let hrefs = ["utils.swift", "img.png", "nope.swift", "https://example.com", "#section"]
         let makeSUT = {
             TrackedPathResolver(
-                fileReader: FakeFileReader(existing: [existing.path]),
+                fileReader: FakeFileReader(existing: [existing.path, tracked.path]),
                 gitIndex: CountingGitIndex(files: [tracked])
             )
         }
@@ -166,7 +180,7 @@ struct TrackedPathResolverTests {
         let base = url("/repo/docs/guide.md")
         let tracked = url("/repo/src/utils.swift")
         let sut = TrackedPathResolver(
-            fileReader: FakeFileReader(existing: []),
+            fileReader: FakeFileReader(existing: [tracked.path]),
             gitIndex: FakeGitIndex(files: [tracked])
         )
         #expect(sut.resolve(href: "utils.swift:42", baseURL: base) == .resolved(tracked))

@@ -435,10 +435,11 @@ extension ViewerWindowControllerTests {
         let tracked = URL(fileURLWithPath: "/mock/src/utils.swift")
         let controller = makeSwitchController(primary: base, contents: "# doc")
         defer { controller.close() }
-        // utils.swift は相対解決では見つからず(store の fileReader に登録していない)、
-        // git 追跡ファイル一覧からのサフィックス一致でのみ解決できる状態にする。
+        // utils.swift は書かれた相対位置(/mock/docs/utils.swift)には存在せず、
+        // 追跡ファイルの実体(/mock/src/utils.swift)だけが存在する状態にする。
+        // git サフィックス一致でのみ解決でき、かつ一致先は実在するという経路。
         controller.pathResolver = TrackedPathResolver(
-            fileReader: InMemoryFileReader(files: [base.path: "# doc"]),
+            fileReader: InMemoryFileReader(files: [base.path: "# doc", tracked.path: "// utils"]),
             gitIndex: FakeGitIndex(tracked: tracked)
         )
 
@@ -501,7 +502,7 @@ extension ViewerWindowControllerTests {
         defer { controller.close() }
         // 相対解決では見つからず、git 追跡ファイルのサフィックス一致でのみ解決できる状態。
         controller.pathResolver = TrackedPathResolver(
-            fileReader: InMemoryFileReader(files: [base.path: "# doc"]),
+            fileReader: InMemoryFileReader(files: [base.path: "# doc", tracked.path: "// utils"]),
             gitIndex: FakeGitIndex(tracked: tracked)
         )
 

@@ -53,9 +53,13 @@ public struct TrackedPathResolver: Sendable {
             if fileReader.isExistingFile(at: url) {
                 return .resolved(url)
             }
+            // git の索引は worktree の実態と一致しない。削除済みで index にだけ残る
+            // ファイルや submodule の gitlink(実体はディレクトリ)も列挙されるため、
+            // 一致した候補も実在を確かめてからでないと開けないリンクを作ってしまう。
             guard let written = ReferenceResolver.localPathString(from: href),
                   let candidates = index.value(),
-                  let match = candidates.bestMatch(writtenPath: written, baseURL: baseURL)
+                  let match = candidates.bestMatch(writtenPath: written, baseURL: baseURL),
+                  fileReader.isExistingFile(at: match)
             else { return .unresolved }
             return .resolved(match)
         }
