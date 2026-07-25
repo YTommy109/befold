@@ -1,9 +1,10 @@
 ---
 id: TASK-146
 title: GitCommandFileIndex のキャッシュキーを URL.normalizedPathKey に揃える
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-07-25 11:30'
+updated_date: '2026-07-25 11:44'
 labels:
   - path-reference
 dependencies: []
@@ -23,3 +24,12 @@ GitCommandFileIndex.swift L41 が dirKey に `url.deletingLastPathComponent().st
 - [ ] #1 rootByDir / entryByRoot のキー生成が URL.normalizedPathKey 経由になっている
 - [ ] #2 symlink 経由パスと実パスが同一キャッシュエントリに集約されることをテストで確認する
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. GitCommandFileIndex の dirKey を url.deletingLastPathComponent().normalizedPathKey にする
+2. entryByRoot / rootsByRecency のキーを root.normalizedPathKey に揃える（GitRepositoryReading の契約は正規化を保証しないため）
+3. TempDir に symlinkedDirectory ヘルパーを追加（テストファイル内での手組みは規約違反）
+4. 実 FS の symlink 経由パスと実パスが同一エントリに集約される（列挙が 1 回で済む）ことをテストで固定
+<!-- SECTION:PLAN:END -->

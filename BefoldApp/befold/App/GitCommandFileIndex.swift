@@ -38,7 +38,7 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
     }
 
     func trackedFiles(forFileAt url: URL) -> [URL]? {
-        let dirKey = url.deletingLastPathComponent().standardizedFileURL.path
+        let dirKey = url.deletingLastPathComponent().normalizedPathKey
 
         lock.lock(); defer { lock.unlock() }
 
@@ -51,14 +51,17 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
         }
         guard let root else { return nil }
 
+        // root は rev-parse 由来だが、GitRepositoryReading の契約は正規化を保証しない。
+        // dirKey と同じ規約のキーに揃え、別表記の root が別エントリに割れないようにする。
+        let rootKey = root.normalizedPathKey
         let fingerprint = repository.indexFingerprint(at: root)
-        if let entry = entryByRoot[root.path], entry.fingerprint == fingerprint {
-            touch(root.path)
+        if let entry = entryByRoot[rootKey], entry.fingerprint == fingerprint {
+            touch(rootKey)
             return entry.files
         }
         let files = repository.trackedFiles(at: root)
-        entryByRoot[root.path] = (fingerprint, files)
-        touch(root.path)
+        entryByRoot[rootKey] = (fingerprint, files)
+        touch(rootKey)
         return files
     }
 

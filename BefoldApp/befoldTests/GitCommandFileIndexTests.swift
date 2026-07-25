@@ -81,6 +81,39 @@ private final class MultiRepoFake: GitRepositoryReading, @unchecked Sendable {
     }
 }
 
+/// 問い合わせに使われた URL からリポジトリルートを導くフェイク。
+/// 実際の `rev-parse` と違い、symlink 経由で問い合わせれば symlink 表記のルートを返す
+/// ため、キャッシュキーの正規化が効いていないと同じリポジトリが別エントリに割れる。
+private final class PathDerivedRepository: GitRepositoryReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _rootCallCount = 0
+    private var _trackedCallCount = 0
+
+    var rootCallCount: Int {
+        lock.lock(); defer { lock.unlock() }; return _rootCallCount
+    }
+
+    var trackedCallCount: Int {
+        lock.lock(); defer { lock.unlock() }; return _trackedCallCount
+    }
+
+    func root(forFileAt url: URL) -> URL? {
+        lock.lock(); defer { lock.unlock() }
+        _rootCallCount += 1
+        return url.deletingLastPathComponent()
+    }
+
+    func trackedFiles(at root: URL) -> [URL] {
+        lock.lock(); defer { lock.unlock() }
+        _trackedCallCount += 1
+        return [root.appendingPathComponent("a.swift")]
+    }
+
+    func indexFingerprint(at root: URL) -> Date? {
+        Date(timeIntervalSince1970: 1)
+    }
+}
+
 struct GitCommandFileIndexTests {
     private func url(_ path: String) -> URL {
         URL(fileURLWithPath: path)
@@ -158,6 +191,24 @@ struct GitCommandFileIndexTests {
         #expect(repo.trackedCallCount(for: roots[0]) == 2, "追い出されたはずのルートが再列挙されていない")
         _ = sut.trackedFiles(forFileAt: roots[limit].appendingPathComponent("x.md"))
         #expect(repo.trackedCallCount(for: roots[limit]) == 1, "直近のルートまで捨てている")
+    }
+
+    /// 同じディレクトリを symlink 経由と実パスの両方から開いても、キャッシュは
+    /// 1 エントリに集約される(パスの同一性キーは URL.normalizedPathKey が単一情報源)。
+    /// 集約されないと同じリポジトリに対して rev-parse と ls-files が二重に走る。
+    @Test("symlink 経由と実パスは同じキャッシュエントリに集約される")
+    func sharesCacheBetweenSymlinkedAndRealPaths() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let (real, link) = try tmp.symlinkedDirectory()
+        let repo = PathDerivedRepository()
+        let sut = GitCommandFileIndex(repository: repo)
+
+        _ = sut.trackedFiles(forFileAt: real.appendingPathComponent("x.md"))
+        _ = sut.trackedFiles(forFileAt: link.appendingPathComponent("x.md"))
+
+        #expect(repo.rootCallCount == 1, "symlink 表記のディレクトリで rev-parse が再実行されている")
+        #expect(repo.trackedCallCount == 1, "symlink 表記のルートで追跡ファイルが再列挙されている")
     }
 
     @Test("warm はバックグラウンドでキャッシュを温める", testTimeLimit())

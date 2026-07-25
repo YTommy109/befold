@@ -1,10 +1,10 @@
 ---
 id: TASK-145
 title: パス参照のサフィックス一致が実在未確認のまま resolved を返す
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-25 11:30'
-updated_date: '2026-07-25 11:38'
+updated_date: '2026-07-25 11:44'
 labels:
   - path-reference
 dependencies: []
@@ -21,9 +21,9 @@ TrackedPathResolver のサフィックス一致経路（TrackedPathResolver.swif
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 bestMatch 成立後に fileReader.isExistingFile による実在確認を挟み、不成立なら .unresolved を返す
-- [ ] #2 「追跡されているが worktree に実在しないファイル」の回帰テストを TrackedPathResolverTests に追加する
-- [ ] #3 .resolved の /// コメントと実装の整合が取れている
+- [x] #1 bestMatch 成立後に fileReader.isExistingFile による実在確認を挟み、不成立なら .unresolved を返す
+- [x] #2 「追跡されているが worktree に実在しないファイル」の回帰テストを TrackedPathResolverTests に追加する
+- [x] #3 .resolved の /// コメントと実装の整合が取れている
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -34,3 +34,17 @@ TrackedPathResolver のサフィックス一致経路（TrackedPathResolver.swif
 3. 「git が追跡しているが worktree に実在しない(削除済み・submodule gitlink)」の回帰テストを追加する
 4. .resolved の /// 「実在を確認できたローカルファイル」は実装が追いつく形になるため文言は維持する
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TrackedPathResolver のサフィックス一致経路に fileReader.isExistingFile のガードを追加。実在確認は git 一致が成立した href に限られるため、追加 stat は 1 href あたり最大 1 回で解決コストへの影響はない。
+既存テスト 4 件（TrackedPathResolverTests の resolvesViaGitSuffix / resolvesWithLineSuffix / resolveAllMatchesSingleResolve、ViewerWindowControllerTests の resolveReferencesReturnsResolvedOnly / resolveReferencesAndOpenReferenceAgreeOnGitFallback）は「一致先が実在しない」前提で .resolved を期待していたため、追跡ファイルを fileReader に登録して実態（書かれた相対位置には無く、追跡先には在る）へ合わせた。
+検証: swift test（628 tests, 全パス。修正前は本件の回帰テストを含め 6 issues）、swift build（SwiftLint 込み）、swiftformat 差分なし。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+git 追跡ファイルへのサフィックス一致成立後に fileReader.isExistingFile による実在確認を追加し、worktree から削除済み・submodule gitlink 等の「開けないリンク」を unresolved に倒すよう修正した。回帰テスト unresolvedWhenTrackedFileIsMissingFromWorktree を追加し、修正前に落ちること・修正後に全 628 テストが通ることを swift test で確認済み。
+<!-- SECTION:FINAL_SUMMARY:END -->
