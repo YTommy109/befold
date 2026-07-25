@@ -12,6 +12,12 @@ enum CLIInstallUI {
         presentInfo(message: String(localized: "cli.install.failed", bundle: .l10n))
     }
 
+    /// App Translocation 下からのインストールを断ったときの案内。
+    /// 再試行では解決せず、アプリ本体を移動してもらう必要があるため専用の文言を出す。
+    static func presentInstallBlockedByTranslocation() {
+        presentInfo(message: String(localized: "cli.install.translocated", bundle: .l10n))
+    }
+
     /// 起動時の自動チェックからの案内。ユーザー操作を待たずに表示されるため、
     /// app-modal な `runModal()` は使わない(CLI 転送の ACK 待ちなど、他の main run loop
     /// 上の処理をブロックしてしまうため)。また、ウィンドウに紐づくシートだと表示できる

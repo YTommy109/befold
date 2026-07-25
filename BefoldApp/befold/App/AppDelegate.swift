@@ -129,6 +129,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 処理され続けるようにする。
     private func notifyIfCLIShimIsStale() {
         let bundlePath = Bundle.main.bundlePath
+        // App Translocation 下では bundlePath がランダム化された一時マウントを指すため、
+        // 正しく設置済みの symlink でも参照先不一致(staleSymlink)に見えてしまう。
+        // ここで案内しても再インストールは translocatedBundle で断られるだけなので黙る。
+        guard !CLIInstaller.isTranslocated(bundlePath: bundlePath) else { return }
         DispatchQueue.global(qos: .utility).async {
             let status = CLIShimInspector.status(bundlePath: bundlePath, installPath: CLIInstaller.defaultInstallPath)
             guard status == .legacyFile || status == .staleSymlink else { return }
@@ -263,7 +267,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch result {
         case .success:
             CLIInstallUI.presentInstallSucceeded()
-        case .failure:
+        case .failure(.translocatedBundle):
+            // 書き込み権限の問題ではないため、再試行を促す汎用の失敗案内では解決に導けない。
+            CLIInstallUI.presentInstallBlockedByTranslocation()
+        case .failure(.writeFailed):
             CLIInstallUI.presentInstallFailed()
         }
     }

@@ -4,6 +4,8 @@ import Foundation
 /// `CLIInstaller.install` の失敗結果。
 public enum CLIInstallError: Error, Equatable, Sendable {
     case writeFailed(String)
+    /// アプリが App Translocation 下で実行されており、安定した symlink 先が存在しない。
+    case translocatedBundle
 }
 
 /// PATH に `befold` コマンドをインストールする(VSCode の `code` コマンド相当)。
@@ -22,9 +24,29 @@ public enum CLIInstaller {
         "\(bundlePath)/Contents/MacOS/befold-cli"
     }
 
+    /// バンドルが App Translocation 下で実行されているかを判定する。
+    ///
+    /// quarantine 属性の付いたアプリを Downloads 等の場所から起動すると、macOS は
+    /// `/private/var/folders/.../AppTranslocation/<UUID>/d/befold.app` というランダム化された
+    /// 読み取り専用マウントへ写して実行する。このマウントはアプリ終了後や再起動で消えるため、
+    /// ここを指す symlink は「インストールは成功したのに次回から動かない」壊れたリンクになる。
+    ///
+    /// 判定はパス要素の完全一致で行う(部分文字列一致にすると `AppTranslocationNotes/` のような
+    /// 通常のディレクトリ名まで誤検出するため)。SecTranslocateIsTranslocatedURL を使わないのは、
+    /// 実在する URL を要求するためテストから任意のパスを与えて検証できず、判定の根拠としては
+    /// マウントパスの形と同じ情報しか得られないため。
+    public static func isTranslocated(bundlePath: String) -> Bool {
+        URL(fileURLWithPath: bundlePath).pathComponents.contains("AppTranslocation")
+    }
+
     /// `installPath` にバンドル内実行ファイルへの symlink を作成する。書き込み権限がない場合は
     /// 管理者権限(AppleScript `with administrator privileges`)での作成にフォールバックする。
+    /// バンドルが App Translocation 下にある場合は、消滅する symlink を残さないため何も書き込まずに失敗を返す
+    /// (アプリを /Applications 等へ移動してもらう必要がある)。
     public static func install(bundlePath: String, installPath: URL) -> Result<Void, CLIInstallError> {
+        guard !isTranslocated(bundlePath: bundlePath) else {
+            return .failure(.translocatedBundle)
+        }
         let target = targetExecutablePath(bundlePath: bundlePath)
         if writeDirectly(target: target, to: installPath) {
             return .success(())
