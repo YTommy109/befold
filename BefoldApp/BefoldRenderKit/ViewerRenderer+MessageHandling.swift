@@ -59,6 +59,12 @@ extension ViewerRenderer {
             findOptionsPreference?.useRegex = useRegex
         } else if message.name == ViewerBridge.loadMoreLinesMessageName {
             handleLoadMoreLines()
+        } else if message.name == ViewerBridge.resolveReferencesMessageName,
+                  let body = message.body as? [String: Any],
+                  let paths = body["paths"] as? [String]
+        {
+            let resolutions = onResolveReferences?(paths) ?? [:]
+            webView?.evaluateJavaScript(ViewerBridge.applyResolvedReferencesScript(resolutions))
         }
     }
 }

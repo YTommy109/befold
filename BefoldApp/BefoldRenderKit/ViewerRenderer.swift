@@ -11,6 +11,9 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     public var onZoomChanged: (@MainActor (Double) -> Void)?
     public var onScrollPositionChanged: (@MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void)?
     public var onOpenReference: (@MainActor (_ href: String, _ newWindow: Bool) -> Void)?
+    /// JS が検出したパス参照群の解決を要求したときに呼ばれる。
+    /// 戻り値: 書かれたパス -> 解決済み絶対パス(実在するもののみ)。
+    public var onResolveReferences: (@MainActor (_ paths: [String]) -> [String: String])?
     public var onLoadMoreLines: (@MainActor () async -> LoadMoreLinesResult?)?
     /// 「続きを読み込む」の実行中フラグ。非同期読み込み中の再押下を無視し、
     /// 追記の交錯(順序の入れ替わり)を防ぐ。
@@ -157,6 +160,7 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
         if features.allowsInteractiveBridging {
             names.append(ViewerBridge.loadMoreLinesMessageName)
             names.append(ViewerBridge.referenceActivatedMessageName)
+            names.append(ViewerBridge.resolveReferencesMessageName)
         }
         return names
     }

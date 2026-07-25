@@ -145,6 +145,17 @@ public enum ViewerBridge {
     /// JS 側「続きを読み込む」ボタン押下時に postMessage されるメッセージハンドラ名。
     public static let loadMoreLinesMessageName = "loadMoreLines"
 
+    /// JS 側が検出したパス参照の解決を要求するときに postMessage されるメッセージハンドラ名。
+    /// payload: { paths: [String] }
+    public static let resolveReferencesMessageName = "resolveReferences"
+
+    /// 解決結果(書かれたパス -> 解決済み絶対パス。未解決は含めない)を JS へ適用する
+    /// スクリプトを組み立てる。viewer.html 側は _mmdApplyResolvedReferences() が受け取り、
+    /// 収録されたパスだけをリンク化する。
+    public static func applyResolvedReferencesScript(_ resolutions: [String: String]) -> String {
+        "_mmdApplyResolvedReferences(\(jsonLiteral(resolutions) ?? "{}"))"
+    }
+
     /// ロード時にホスト機能フラグを JS 側へ注入するスクリプト。
     /// viewer.html 側は window._mmdHostFeatures(未注入時は全機能有効扱い)を読み、
     /// Load More ボタンの表示可否・Space キーでのページスクロール可否・リンク/パス参照

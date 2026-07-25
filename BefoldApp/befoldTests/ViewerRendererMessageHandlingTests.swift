@@ -37,6 +37,20 @@ struct ViewerRendererMessageHandlingTests {
         )
     }
 
+    /// resolveReferences が実際に評価した JS を検証するため、evaluateJavaScript を
+    /// フックして最後に渡されたスクリプト文字列を記録する WKWebView サブクラス。
+    @MainActor
+    private final class StubWebView: WKWebView {
+        var lastEvaluatedScript: String?
+
+        override func evaluateJavaScript(
+            _ javaScriptString: String,
+            completionHandler: (@MainActor @Sendable (Any?, (any Error)?) -> Void)? = nil
+        ) {
+            lastEvaluatedScript = javaScriptString
+        }
+    }
+
     // MARK: - デコードとディスパッチ(正常系)
 
     @Test("zoomChanged が onZoomChanged へ倍率を渡す")
@@ -173,6 +187,29 @@ struct ViewerRendererMessageHandlingTests {
         #expect(renderer.pendingAppend == nil)
     }
 
+    @Test("resolveReferences が onResolveReferences へ paths を渡し、解決結果を適用スクリプトで評価する")
+    func resolveReferencesDispatchesPathsAndAppliesResult() {
+        let renderer = ViewerRenderer()
+        let webView = StubWebView()
+        renderer.webView = webView
+        var receivedPaths: [String]?
+        renderer.onResolveReferences = { paths in
+            receivedPaths = paths
+            return ["./other.md": "/repo/other.md"]
+        }
+
+        dispatch(
+            renderer, name: ViewerBridge.resolveReferencesMessageName,
+            body: ["paths": ["./other.md", "./missing.md"]]
+        )
+
+        #expect(receivedPaths == ["./other.md", "./missing.md"])
+        #expect(
+            webView.lastEvaluatedScript
+                == ViewerBridge.applyResolvedReferencesScript(["./other.md": "/repo/other.md"])
+        )
+    }
+
     @Test("RenderedStateMirror.reset は 6 ミラーを一括で破棄する")
     func renderedStateMirrorResetClearsAll() {
         var mirror = ViewerRenderer.RenderedStateMirror()
@@ -269,6 +306,43 @@ struct ViewerRendererMessageHandlingTests {
         #expect(preference.caseSensitive == false)
         #expect(preference.wholeWord == true)
         #expect(preference.useRegex == false)
+    }
+
+    @Test("resolveReferences の paths キーが欠けていれば onResolveReferences を呼ばない")
+    func resolveReferencesIgnoresMissingPathsKey() {
+        let renderer = ViewerRenderer()
+        let webView = StubWebView()
+        renderer.webView = webView
+        var called = false
+        renderer.onResolveReferences = { _ in
+            called = true
+            return [:]
+        }
+
+        dispatch(renderer, name: ViewerBridge.resolveReferencesMessageName, body: [String: Any]())
+
+        #expect(called == false)
+        #expect(webView.lastEvaluatedScript == nil)
+    }
+
+    @Test("resolveReferences の paths が文字列配列でなければ onResolveReferences を呼ばない")
+    func resolveReferencesIgnoresWrongTypedPaths() {
+        let renderer = ViewerRenderer()
+        let webView = StubWebView()
+        renderer.webView = webView
+        var called = false
+        renderer.onResolveReferences = { _ in
+            called = true
+            return [:]
+        }
+
+        dispatch(
+            renderer, name: ViewerBridge.resolveReferencesMessageName,
+            body: ["paths": "not-an-array"]
+        )
+
+        #expect(called == false)
+        #expect(webView.lastEvaluatedScript == nil)
     }
 
     @Test("未知のメッセージ名は無視される")
