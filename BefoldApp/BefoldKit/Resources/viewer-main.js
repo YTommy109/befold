@@ -288,7 +288,9 @@
       targets.push({ el: s, raw: s.dataset.path });
     });
     if (!targets.length) { return; }
-    var uniq = {};
+    // プロトタイプを持たない辞書にする。素の {} だと __proto__ への代入が
+    // プロトタイプ変更として吸われ、そのパスが解決要求から静かに落ちる。
+    var uniq = Object.create(null);
     targets.forEach(function(t) { uniq[t.raw] = true; });
     // 送れなかった(ハンドラ未登録の)場合は応答が来ないため、中立化もキュー登録も
     // 行わない。中立化したまま応答待ちで固まるのを防ぐ。
@@ -303,14 +305,21 @@
     var targets = _mmdPendingRefBatches.shift() || [];
     targets.forEach(function(t) {
       t.el.classList.remove('befold-link-pending');
-      var abs = map && map[t.raw];
+      // 自己所有プロパティだけを見る。constructor / toString のような
+      // Object.prototype の名前をパスとして書かれると、素の参照では
+      // 未解決のパスが継承値で解決済みと誤判定される。
+      var abs = (map && Object.prototype.hasOwnProperty.call(map, t.raw)) ? map[t.raw] : null;
       if (abs) {
         t.el.classList.add('befold-link');
         // コピー等の後続機能が使えるよう、解決済み絶対パスを DOM に残す。
         t.el.dataset.resolved = abs;
+        // 表示テキストや文書側が付けた title は実際の遷移先と無関係になりうる
+        // (生 HTML の span でリンク偽装が作れる)。解決先そのものを見せて上書きする。
+        t.el.setAttribute('title', abs);
       } else {
         t.el.classList.add('befold-link-dead');
         if (t.el.tagName === 'A') { t.el.removeAttribute('href'); }
+        t.el.removeAttribute('title');
       }
     });
   }
