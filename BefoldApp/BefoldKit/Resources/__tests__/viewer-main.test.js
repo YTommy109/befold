@@ -187,19 +187,19 @@ describe('検索バーの配線', () => {
     expect(received[0].payload).toEqual({
       caseSensitive: true, wholeWord: false, useRegex: false,
     });
-    expect(main._mmdFindIsOpen()).toBe(false);
+    expect(main._mmdFind.isOpen()).toBe(false);
   });
 
   test('閉じるボタンで検索バーが閉じる', () => {
     const { document, main } = loadViewerMain({});
 
     main._mmdOpenFind();
-    expect(main._mmdFindIsOpen()).toBe(true);
+    expect(main._mmdFind.isOpen()).toBe(true);
     expect(document.getElementById('mmd-find-bar').style.display).toBe('flex');
 
     document.getElementById('mmd-find-close').click();
 
-    expect(main._mmdFindIsOpen()).toBe(false);
+    expect(main._mmdFind.isOpen()).toBe(false);
     expect(document.getElementById('mmd-find-bar').style.display).toBe('none');
   });
 });
@@ -333,5 +333,229 @@ describe('render の型ディスパッチ', () => {
 
     expect(panel.style.display).toBe('none');
     expect(panel.textContent).toBe('');
+  });
+});
+
+describe('検索ナビゲーション', () => {
+  // 検索対象の DOM を用意し、検索バーを開いて query を入力した状態にする。
+  // 入力は実際の input イベント経由で流し、配線ごと検証する。
+  function openFindOn(text, query) {
+    const loaded = loadViewerMain({});
+    loaded.document.getElementById('diagram-wrap').textContent = text;
+    loaded.main._mmdOpenFind();
+    const input = loaded.document.getElementById('mmd-find-input');
+    input.value = query;
+    input.dispatchEvent(new loaded.window.Event('input'));
+    return loaded;
+  }
+
+  const count = (document) => document.getElementById('mmd-find-count').textContent;
+  const currentMark = (document) => document.querySelector('mark.mmd-find-match-current');
+
+  test('検索するとヒット件数と先頭のハイライトが出る', () => {
+    const { document } = openFindOn('x a x b x', 'x');
+
+    expect(count(document)).toBe('1/3');
+    expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(3);
+    expect(currentMark(document)).toBe(document.querySelectorAll('mark.mmd-find-match')[0]);
+  });
+
+  test('next は末尾から先頭へ循環する', () => {
+    const { document, main } = openFindOn('x a x b x', 'x');
+
+    main._mmdFind.next();
+    expect(count(document)).toBe('2/3');
+    main._mmdFind.next();
+    expect(count(document)).toBe('3/3');
+    main._mmdFind.next();
+    expect(count(document)).toBe('1/3');
+  });
+
+  test('prev は先頭から末尾へ循環する', () => {
+    const { document, main } = openFindOn('x a x b x', 'x');
+
+    main._mmdFind.prev();
+    expect(count(document)).toBe('3/3');
+    main._mmdFind.prev();
+    expect(count(document)).toBe('2/3');
+  });
+
+  test('現在位置のハイライトは常に1つだけ', () => {
+    const { document, main } = openFindOn('x a x b x', 'x');
+
+    main._mmdFind.next();
+
+    expect(document.querySelectorAll('mark.mmd-find-match-current').length).toBe(1);
+    expect(currentMark(document)).toBe(document.querySelectorAll('mark.mmd-find-match')[1]);
+  });
+
+  test('⌘G 相当は検索バーが閉じている間は何もしない', () => {
+    const { document, main } = openFindOn('x a x b x', 'x');
+    main._mmdCloseFind();
+
+    main._mmdFindNextIfOpen();
+
+    expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
+  });
+
+  test('閉じるとハイライトが平文に戻る', () => {
+    const { document, main } = openFindOn('x a x b x', 'x');
+
+    main._mmdCloseFind();
+
+    expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
+    expect(document.getElementById('diagram-wrap').textContent).toBe('x a x b x');
+  });
+});
+
+describe('_mmdFindRefresh の現在位置維持', () => {
+  function openFindOn(text, query) {
+    const loaded = loadViewerMain({});
+    loaded.document.getElementById('diagram-wrap').textContent = text;
+    loaded.main._mmdOpenFind();
+    const input = loaded.document.getElementById('mmd-find-input');
+    input.value = query;
+    input.dispatchEvent(new loaded.window.Event('input'));
+    return loaded;
+  }
+
+  const count = (document) => document.getElementById('mmd-find-count').textContent;
+
+  test('再検索しても現在位置を維持する', () => {
+    const { document, main } = openFindOn('x a x b x', 'x');
+    main._mmdFind.next();
+    expect(count(document)).toBe('2/3');
+
+    main._mmdFindRefresh();
+
+    expect(count(document)).toBe('2/3');
+  });
+
+  test('resetToFirst で先頭に戻す', () => {
+    const { document, main } = openFindOn('x a x b x', 'x');
+    main._mmdFind.next();
+
+    main._mmdFindRefresh(true);
+
+    expect(count(document)).toBe('1/3');
+  });
+
+  test('ヒット数が減ったら末尾にクランプする', () => {
+    const { document, main } = openFindOn('x a x b x', 'x');
+    main._mmdFind.next();
+    main._mmdFind.next();
+    expect(count(document)).toBe('3/3');
+
+    // 再描画でヒットが 2 件に減った状況を作る
+    document.getElementById('diagram-wrap').textContent = 'x a x';
+    main._mmdFindRefresh();
+
+    expect(count(document)).toBe('2/2');
+  });
+
+  test('ヒットが無くなったら 0/0 を表示する', () => {
+    const { document, main } = openFindOn('x a x b x', 'x');
+
+    document.getElementById('diagram-wrap').textContent = 'no hits here';
+    main._mmdFindRefresh();
+
+    expect(count(document)).toBe('0/0');
+  });
+});
+
+describe('段階読み込み中の件数表示', () => {
+  test('打ち切り中は「表示範囲内」を添える', () => {
+    const { document, window, main } = loadViewerMain({
+      findStrings: { withinDisplayedRange: '表示範囲内' },
+      bannerStrings: { showing: '{count} 行' },
+    });
+    document.getElementById('diagram-wrap').textContent = 'x a x';
+    main._mmdOpenFind();
+    const input = document.getElementById('mmd-find-input');
+    input.value = 'x';
+    input.dispatchEvent(new window.Event('input'));
+    expect(document.getElementById('mmd-find-count').textContent).toBe('1/2');
+
+    main._mmdSetTruncated(true, 100, false);
+
+    expect(document.getElementById('mmd-find-count').textContent).toBe('1/2 (表示範囲内)');
+  });
+});
+
+describe('モード切替の持ち越し', () => {
+  const count = (document) => document.getElementById('mmd-find-count').textContent;
+
+  // csv を描画し、検索バーを開いて 2 件目を選択した状態にする
+  async function renderAndSelectSecond() {
+    const loaded = loadViewerMain({});
+    await loaded.main.render('x,a\nx,b\n', 'csv', ',');
+    loaded.main._mmdOpenFind();
+    const input = loaded.document.getElementById('mmd-find-input');
+    input.value = 'x';
+    input.dispatchEvent(new loaded.window.Event('input'));
+    loaded.main._mmdFind.next();
+    expect(count(loaded.document)).toBe('2/2');
+    return loaded;
+  }
+
+  test('setViewMode 直後の描画では検索位置が先頭に戻る', async () => {
+    const { document, main } = await renderAndSelectSecond();
+
+    main.setViewMode('source');
+    await main.render('x,a\nx,b\n', 'csv', ',');
+
+    expect(count(document)).toBe('1/2');
+  });
+
+  test('持ち越しは1回の描画で消費され、次の描画には残らない', async () => {
+    const { document, main } = await renderAndSelectSecond();
+
+    main.setViewMode('source');
+    await main.render('x,a\nx,b\n', 'csv', ',');
+    main._mmdFind.next();
+    expect(count(document)).toBe('2/2');
+
+    // モードを切り替えずに再描画(ライブリロード相当)しても位置は維持される
+    await main.render('x,a\nx,b\n', 'csv', ',');
+
+    expect(count(document)).toBe('2/2');
+  });
+
+  test('同じモードを指定しても持ち越しは立たない', async () => {
+    const { document, main } = await renderAndSelectSecond();
+
+    main.setViewMode('rendered');
+    await main.render('x,a\nx,b\n', 'csv', ',');
+
+    expect(count(document)).toBe('2/2');
+  });
+});
+
+describe('チャンク末尾の改行の持ち越し', () => {
+  const lineNumbers = (document) =>
+    Array.from(document.querySelectorAll('#diagram-wrap table.code-table tr'))
+      .map((tr) => tr.querySelector('.line-number').textContent);
+
+  test('改行で終わったチャンクの続きは新しい行になる', async () => {
+    const { main, document } = loadViewerMain({});
+    main.setLineNumbers(true);
+    await main.render('a\nb\n', 'code', 'txt');
+
+    main.appendChunk('c\n', 'code', 'txt');
+
+    expect(lineNumbers(document)).toEqual(['1', '2', '3']);
+  });
+
+  test('改行で終わらなかったチャンクの続きは前の行に結合される', async () => {
+    const { main, document } = loadViewerMain({});
+    main.setLineNumbers(true);
+    // 強制分割で行の途中で切れた状態
+    await main.render('a\nb', 'code', 'txt');
+
+    main.appendChunk('cd\n', 'code', 'txt');
+
+    expect(lineNumbers(document)).toEqual(['1', '2']);
+    const rows = document.querySelectorAll('#diagram-wrap table.code-table tr');
+    expect(rows[1].querySelector('.line-content').textContent).toBe('bcd');
   });
 });

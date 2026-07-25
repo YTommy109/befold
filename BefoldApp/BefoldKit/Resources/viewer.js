@@ -449,6 +449,26 @@ function buildFindRegExp(query, options) {
   }
 }
 
+// 検索ヒット間の移動先インデックス。件数 0 のときはどれも -1(選択なし)を返す。
+// 末尾の次は先頭、先頭の前は末尾へ循環する。
+
+function nextMatchIndex(currentIndex, count) {
+  if (count <= 0) { return -1; }
+  return (currentIndex + 1) % count;
+}
+
+function prevMatchIndex(currentIndex, count) {
+  if (count <= 0) { return -1; }
+  return (currentIndex - 1 + count) % count;
+}
+
+// 再検索(_mmdFindRefresh)で維持する現在位置。再検索でヒット数が減っても
+// 範囲外を指さないようクランプする。負値(未選択)は先頭に寄せる。
+function keptMatchIndex(previousIndex, count) {
+  if (count <= 0) { return -1; }
+  return Math.min(Math.max(previousIndex, 0), count - 1);
+}
+
 // チャンク追記用のコード HTML。highlightCode の <pre><code…> ラッパーを剥がした
 // 中身だけを返し、ハイライト不可(hljs 不在・未対応言語)の場合はエスケープ済み
 // プレーンテキストにフォールバックする。DOM への挿入は viewer.html の appendChunk が行う。
@@ -542,5 +562,8 @@ if (typeof module !== 'undefined' && module.exports) {
     csvSourceInnerHtml: csvSourceInnerHtml,
     CSV_COL_COUNT: CSV_COL_COUNT,
     buildFindRegExp: buildFindRegExp,
+    nextMatchIndex: nextMatchIndex,
+    prevMatchIndex: prevMatchIndex,
+    keptMatchIndex: keptMatchIndex,
   };
 }

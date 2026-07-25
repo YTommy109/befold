@@ -38,6 +38,9 @@ const {
   CSV_COL_COUNT,
   isSafeLinkURL,
   buildFindRegExp,
+  nextMatchIndex,
+  prevMatchIndex,
+  keptMatchIndex,
   buildLineNumberRows,
   reflowSpanBalancedLines,
   csvRowsHtml,
@@ -1189,5 +1192,65 @@ describe('base64ToBytes', () => {
 
   test('preserves bytes above 0x7f', () => {
     expect(Array.from(base64ToBytes('/w=='))).toEqual([0xff]);
+  });
+});
+
+describe('nextMatchIndex', () => {
+  test('advances to the next match', () => {
+    expect(nextMatchIndex(0, 3)).toBe(1);
+    expect(nextMatchIndex(1, 3)).toBe(2);
+  });
+
+  test('wraps from the last match to the first', () => {
+    expect(nextMatchIndex(2, 3)).toBe(0);
+  });
+
+  test('selects the first match from an unselected state', () => {
+    expect(nextMatchIndex(-1, 3)).toBe(0);
+  });
+
+  test('returns -1 when there are no matches', () => {
+    expect(nextMatchIndex(0, 0)).toBe(-1);
+    expect(nextMatchIndex(-1, 0)).toBe(-1);
+  });
+});
+
+describe('prevMatchIndex', () => {
+  test('goes back to the previous match', () => {
+    expect(prevMatchIndex(2, 3)).toBe(1);
+    expect(prevMatchIndex(1, 3)).toBe(0);
+  });
+
+  test('wraps from the first match to the last', () => {
+    expect(prevMatchIndex(0, 3)).toBe(2);
+  });
+
+  test('undoes nextMatchIndex for every position in the cycle', () => {
+    for (let i = 0; i < 3; i++) {
+      expect(prevMatchIndex(nextMatchIndex(i, 3), 3)).toBe(i);
+    }
+  });
+
+  test('returns -1 when there are no matches', () => {
+    expect(prevMatchIndex(0, 0)).toBe(-1);
+  });
+});
+
+describe('keptMatchIndex', () => {
+  test('keeps an index that is still in range', () => {
+    expect(keptMatchIndex(1, 3)).toBe(1);
+    expect(keptMatchIndex(2, 3)).toBe(2);
+  });
+
+  test('clamps to the last match when the count shrank', () => {
+    expect(keptMatchIndex(5, 3)).toBe(2);
+  });
+
+  test('clamps an unselected index to the first match', () => {
+    expect(keptMatchIndex(-1, 3)).toBe(0);
+  });
+
+  test('returns -1 when there are no matches', () => {
+    expect(keptMatchIndex(2, 0)).toBe(-1);
   });
 });
