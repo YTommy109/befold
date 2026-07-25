@@ -4,6 +4,14 @@ import Foundation
 import Testing
 
 struct GitRepositoryTests {
+    /// 実 git を叩くテスト用のリポジトリ。git 1 回あたりの予算は他のポーリング待機と同じ
+    /// 単一情報源(`BEFOLD_TEST_TIMEOUT_SECONDS`)から採る。本番既定の 10 秒は、
+    /// 数百のテストを並行実行して CPU が飽和した CI では足りず、打ち切りが
+    /// `.undetermined` として観測されて慢性的な赤になっていた。
+    private func makeRepository() -> GitRepository {
+        GitRepository(runner: GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10)))
+    }
+
     private func git(_ dir: URL, _ args: [String]) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -28,7 +36,7 @@ struct GitRepositoryTests {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
         try makeRepo(temp.url)
-        let repo = GitRepository()
+        let repo = makeRepository()
         let lookup = repo.root(forFileAt: temp.url.appendingPathComponent("main.swift"))
         let root = try #require(lookup.foundRoot)
         #expect(root.standardizedFileURL == temp.url.standardizedFileURL)
@@ -48,7 +56,7 @@ struct GitRepositoryTests {
         }
         git(temp.url, ["add", "."])
 
-        let tracked = GitRepository().trackedFiles(at: temp.url)?.map(\.lastPathComponent)
+        let tracked = makeRepository().trackedFiles(at: temp.url)?.map(\.lastPathComponent)
 
         for name in awkwardNames {
             #expect(tracked?.contains(name) == true, "\(name) が列挙されていない")
@@ -71,7 +79,7 @@ struct GitRepositoryTests {
             to: work.appendingPathComponent(".git"), atomically: true, encoding: .utf8
         )
 
-        #expect(GitRepository().indexFingerprint(at: work) != nil, "相対 gitdir を辿れていない")
+        #expect(makeRepository().indexFingerprint(at: work) != nil, "相対 gitdir を辿れていない")
     }
 
     /// git が動いて「リポジトリではない」と答えた場合と、git を実行できず不明な場合とを
@@ -80,7 +88,7 @@ struct GitRepositoryTests {
     func reportsNotARepositoryOutsideRepo() throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
-        #expect(GitRepository().root(forFileAt: temp.url.appendingPathComponent("x.md")) == .notARepository)
+        #expect(makeRepository().root(forFileAt: temp.url.appendingPathComponent("x.md")) == .notARepository)
     }
 
     @Test("index の更新で fingerprint が変わる")
@@ -88,7 +96,7 @@ struct GitRepositoryTests {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
         try makeRepo(temp.url)
-        let repo = GitRepository()
+        let repo = makeRepository()
         let before = repo.indexFingerprint(at: temp.url)
         #expect(before != nil)
         try "x".write(to: temp.url.appendingPathComponent("b.txt"), atomically: true, encoding: .utf8)
@@ -108,7 +116,7 @@ struct GitRepositoryTests {
         try "gitdir: \(gitdir.url.path)\n".write(
             to: work.url.appendingPathComponent(".git"), atomically: true, encoding: .utf8
         )
-        let fingerprint = GitRepository().indexFingerprint(at: work.url)
+        let fingerprint = makeRepository().indexFingerprint(at: work.url)
         let attributes = try FileManager.default.attributesOfItem(atPath: indexURL.path)
         let expected = attributes[.modificationDate] as? Date
         #expect(fingerprint != nil)

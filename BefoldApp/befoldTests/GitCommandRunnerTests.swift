@@ -7,6 +7,13 @@ import Testing
 /// 開いた文書のリポジトリ設定(`core.fsmonitor`)による任意コマンド実行を防ぐ要のため、
 /// 将来のリファクタで静かに落ちないよう引数構築と実挙動の両方で押さえる。
 struct GitCommandRunnerTests {
+    /// 実 git を叩くテスト用のランナー。git 1 回あたりの予算は他のポーリング待機と同じ
+    /// 単一情報源(`BEFOLD_TEST_TIMEOUT_SECONDS`)から採る。本番既定の 10 秒は、
+    /// 数百のテストを並行実行して CPU が飽和した CI では足りない。
+    private func makeRunner() -> GitCommandRunner {
+        GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10))
+    }
+
     @Test("git 呼び出しには常に core.fsmonitor 無効化が前置される")
     func alwaysPrependsFsmonitorHardening() {
         let args = GitCommandRunner.processArguments(for: ["ls-files", "-z"])
@@ -54,7 +61,7 @@ struct GitCommandRunnerTests {
         guard FileManager.default.fileExists(atPath: marker.path) else { return }
         try FileManager.default.removeItem(at: marker)
 
-        _ = GitCommandRunner().run(["ls-files", "-z"], in: temp.url)
+        _ = makeRunner().run(["ls-files", "-z"], in: temp.url)
 
         #expect(FileManager.default.fileExists(atPath: marker.path) == false)
     }
@@ -73,6 +80,23 @@ struct GitCommandRunnerTests {
         // 打ち切りは「git が動いて出した答え」ではないため unavailable(キャッシュ不可)。
         #expect(result == .unavailable)
         #expect(elapsed < 10, "タイムアウトが効かず \(elapsed) 秒待っている")
+    }
+
+    /// 打ち切りは呼び出し元を解放するだけで、読み取り中の fd に触ってはならない。
+    /// 読み取りは別スレッドで走るため、打ち切り側から読み取り端を閉じると
+    /// (a) まだ read に入っていなければ EBADF で `NSFileHandleOperationException` が飛び、
+    /// 誰も catch できないのでアプリごと落ちる。(b) 閉じた番号が別ファイルに再利用されると
+    /// 無関係な読み取りを壊す。CI では実際に SIGABRT でテストプロセスが落ちた。
+    @Test("打ち切り後に読み取りスレッドが動いてもクラッシュしない", .timeLimit(.minutes(1)))
+    func survivesTimeoutBeforeReadStarts() {
+        // 読み取りスレッドが起動する前に打ち切りへ入る状況を確定させるため予算 0 で回す。
+        // 落ちるのはプロセス全体なので、繰り返して取りこぼしを減らす。
+        for _ in 0 ..< 20 {
+            #expect(GitCommandRunner(timeout: 0).run(["--version"]) == .unavailable)
+        }
+
+        // 打ち切り後も後続の git 実行が壊れていないこと(fd を壊していないこと)を確かめる。
+        #expect(GitCommandRunner().run(["--version"]) != .unavailable)
     }
 
     /// 無害化オプションを通さずに git を実行する(対照用)。

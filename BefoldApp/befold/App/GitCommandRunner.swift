@@ -101,11 +101,13 @@ struct GitCommandRunner: Sendable {
             done.signal()
         }
         guard done.wait(timeout: .now() + timeout) == .success else {
+            // 打ち切りは呼び出し元(索引のロックを持つ)を解放するだけに留め、読み取り端は閉じない。
+            // 読み取りスレッドは孫プロセスが標準出力を離すまで残りうるが、閉じる方が危険:
+            // read に入る前に閉じると EBADF で `NSFileHandleOperationException` が飛び、
+            // Swift からは catch できないのでプロセスごと落ちる。閉じた fd 番号が別の
+            // ファイルへ再利用されれば無関係な読み取りまで壊す。しかも read 中の close は
+            // Darwin では読み取りを中断しないため、解放したいスレッドは結局残る。
             process.terminate()
-            // 読み取り端を閉じて、ブロックしている読み取りスレッドを EOF で解放する。
-            // git を殺しても孫プロセスが標準出力を握っていれば pipe は閉じないため、
-            // terminate() だけではスレッドが残る。
-            try? pipe.fileHandleForReading.close()
             return .unavailable
         }
         return output.outcome()
