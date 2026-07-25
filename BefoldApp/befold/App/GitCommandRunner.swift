@@ -1,7 +1,20 @@
 import Foundation
 
+/// git 実行の結果。
+///
+/// 「git が動いて出した答え」と「git を動かせなかった」を区別するために分けている。
+/// 両方を nil に潰すと、呼び出し元は「リポジトリ外」という確定した答えと
+/// 「タイムアウトで不明」を取り違え、後者をキャッシュして機能を殺してしまう。
+enum GitCommandOutcome: Sendable, Equatable {
+    /// 正常終了。標準出力の内容。
+    case output(Data)
+    /// 実行できたが非 0 終了(リポジトリ外での rev-parse など)。答えとして確定している。
+    case rejected
+    /// 起動できない・タイムアウトで打ち切った。答えは不明。
+    case unavailable
+}
+
 /// git コマンド実行を一元化する薄い Process ラッパ。
-/// git 未インストール・実行失敗・非 0 終了はすべて nil に倒す。
 /// git を呼ぶ全機能(パス解決・将来のブランチ/差分)の共通土台。
 struct GitCommandRunner: Sendable {
     /// git 1 回あたりの上限時間。超えたらプロセスを終了させ、他のエラーと同じく nil に倒す。
@@ -59,7 +72,8 @@ struct GitCommandRunner: Sendable {
         ]
     }
 
-    func run(_ args: [String], in workingDirectory: URL? = nil) -> Data? {
+    /// git を同期実行して標準出力を返す。標準エラーは捨てる。
+    func run(_ args: [String], in workingDirectory: URL? = nil) -> GitCommandOutcome {
         let process = Process()
         // PATH 解決を挟まず実体を直接起動する。GUI 起動時に `/usr/bin/env git` が
         // 解決するのも同じ /usr/bin/git だが、PATH を差し替えられる余地を残さない。
@@ -72,7 +86,7 @@ struct GitCommandRunner: Sendable {
         process.standardError = FileHandle.nullDevice
         // 標準入力を待って止まらないよう明示的に閉じておく(ビューアは何も送らない)。
         process.standardInput = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
+        do { try process.run() } catch { return .unavailable }
 
         // 読み取りは別スレッドで行い、呼び出し元は timeout までしか待たない。
         // readDataToEndOfFile を呼び出しスレッドで回して watchdog から terminate() する形だと、
@@ -83,36 +97,36 @@ struct GitCommandRunner: Sendable {
         DispatchQueue.global(qos: .utility).async {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
-            if process.terminationStatus == 0 { output.set(data) }
+            output.set(status: process.terminationStatus, data: data)
             done.signal()
         }
         guard done.wait(timeout: .now() + timeout) == .success else {
-            // 打ち切り。読み取りスレッドは孫プロセス次第で残りうるが、
-            // 呼び出し元(索引のロックを持つ)はここで解放される。
             process.terminate()
-            return nil
+            // 読み取り端を閉じて、ブロックしている読み取りスレッドを EOF で解放する。
+            // git を殺しても孫プロセスが標準出力を握っていれば pipe は閉じないため、
+            // terminate() だけではスレッドが残る。
+            try? pipe.fileHandleForReading.close()
+            return .unavailable
         }
-        return output.get()
+        return output.outcome()
     }
 
     /// 読み取りスレッドから呼び出しスレッドへ結果を渡すだけの小箱。
     private final class OutputBox: @unchecked Sendable {
         private let lock = NSLock()
-        private var data: Data?
+        private var status: Int32?
+        private var data = Data()
 
-        func set(_ newValue: Data) {
+        func set(status newStatus: Int32, data newData: Data) {
             lock.lock(); defer { lock.unlock() }
-            data = newValue
+            status = newStatus
+            data = newData
         }
 
-        func get() -> Data? {
+        func outcome() -> GitCommandOutcome {
             lock.lock(); defer { lock.unlock() }
-            return data
+            guard let status else { return .unavailable }
+            return status == 0 ? .output(data) : .rejected
         }
-    }
-
-    func runString(_ args: [String], in workingDirectory: URL? = nil) -> String? {
-        guard let data = run(args, in: workingDirectory) else { return nil }
-        return String(data: data, encoding: .utf8)
     }
 }

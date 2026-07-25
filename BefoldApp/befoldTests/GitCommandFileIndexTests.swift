@@ -8,14 +8,19 @@ import Testing
 /// アクセスはロックで直列化して race を避ける。
 private final class FakeRepository: GitRepositoryReading, @unchecked Sendable {
     private let lock = NSLock()
-    private var _stubRoot: URL?
+    private var _stubRoot: GitRootLookup
     private var _fingerprint: Date?
-    private var _files: [URL]
+    private var _files: [URL]?
     private var _trackedCallCount = 0
+    private var _rootCallCount = 0
 
-    var stubRoot: URL? {
+    var stubRoot: GitRootLookup {
         get { lock.lock(); defer { lock.unlock() }; return _stubRoot }
         set { lock.lock(); defer { lock.unlock() }; _stubRoot = newValue }
+    }
+
+    var rootCallCount: Int {
+        lock.lock(); defer { lock.unlock() }; return _rootCallCount
     }
 
     var fingerprint: Date? {
@@ -23,7 +28,8 @@ private final class FakeRepository: GitRepositoryReading, @unchecked Sendable {
         set { lock.lock(); defer { lock.unlock() }; _fingerprint = newValue }
     }
 
-    var files: [URL] {
+    /// nil は「git を実行できなかった」を表す(追跡ファイル 0 件と区別する)。
+    var files: [URL]? {
         get { lock.lock(); defer { lock.unlock() }; return _files }
         set { lock.lock(); defer { lock.unlock() }; _files = newValue }
     }
@@ -32,17 +38,19 @@ private final class FakeRepository: GitRepositoryReading, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }; return _trackedCallCount
     }
 
-    init(root: URL?, fingerprint: Date?, files: [URL]) {
+    init(root: GitRootLookup, fingerprint: Date?, files: [URL]?) {
         _stubRoot = root
         _fingerprint = fingerprint
         _files = files
     }
 
-    func root(forFileAt url: URL) -> URL? {
-        stubRoot
+    func root(forFileAt url: URL) -> GitRootLookup {
+        lock.lock(); defer { lock.unlock() }
+        _rootCallCount += 1
+        return _stubRoot
     }
 
-    func trackedFiles(at root: URL) -> [URL] {
+    func trackedFiles(at root: URL) -> [URL]? {
         lock.lock()
         _trackedCallCount += 1
         let result = _files
@@ -66,11 +74,11 @@ private final class MultiRepoFake: GitRepositoryReading, @unchecked Sendable {
         return callCountByRoot[root.path] ?? 0
     }
 
-    func root(forFileAt url: URL) -> URL? {
-        url.deletingLastPathComponent()
+    func root(forFileAt url: URL) -> GitRootLookup {
+        .root(url.deletingLastPathComponent())
     }
 
-    func trackedFiles(at root: URL) -> [URL] {
+    func trackedFiles(at root: URL) -> [URL]? {
         lock.lock()
         callCountByRoot[root.path, default: 0] += 1
         lock.unlock()
@@ -98,13 +106,13 @@ private final class PathDerivedRepository: GitRepositoryReading, @unchecked Send
         lock.lock(); defer { lock.unlock() }; return _trackedCallCount
     }
 
-    func root(forFileAt url: URL) -> URL? {
+    func root(forFileAt url: URL) -> GitRootLookup {
         lock.lock(); defer { lock.unlock() }
         _rootCallCount += 1
-        return url.deletingLastPathComponent()
+        return .root(url.deletingLastPathComponent())
     }
 
-    func trackedFiles(at root: URL) -> [URL] {
+    func trackedFiles(at root: URL) -> [URL]? {
         lock.lock(); defer { lock.unlock() }
         _trackedCallCount += 1
         return [root.appendingPathComponent("a.swift")]
@@ -128,7 +136,7 @@ struct GitCommandFileIndexTests {
     @Test("追跡ファイルの索引を返す")
     func returnsTrackedFileIndex() {
         let repo = FakeRepository(
-            root: url("/repo"),
+            root: .root(url("/repo")),
             fingerprint: Date(timeIntervalSince1970: 1),
             files: [url("/repo/a.swift")]
         )
@@ -139,7 +147,7 @@ struct GitCommandFileIndexTests {
 
     @Test("git 管理外は nil")
     func returnsNilOutsideRepo() {
-        let repo = FakeRepository(root: nil, fingerprint: nil, files: [])
+        let repo = FakeRepository(root: .notARepository, fingerprint: nil, files: [])
         #expect(GitCommandFileIndex(repository: repo).trackedFileIndex(forFileAt: url("/x/y.md")) == nil)
     }
 
@@ -149,7 +157,7 @@ struct GitCommandFileIndexTests {
     @Test("同一 fingerprint では再列挙も索引の再構築もしない(キャッシュ命中)")
     func cachesWhileFingerprintUnchanged() {
         let repo = FakeRepository(
-            root: url("/repo"),
+            root: .root(url("/repo")),
             fingerprint: Date(timeIntervalSince1970: 1),
             files: [url("/repo/a.swift")]
         )
@@ -166,7 +174,7 @@ struct GitCommandFileIndexTests {
     @Test("fingerprint が変われば再列挙する(無効化)")
     func refetchesWhenFingerprintChanges() {
         let repo = FakeRepository(
-            root: url("/repo"),
+            root: .root(url("/repo")),
             fingerprint: Date(timeIntervalSince1970: 1),
             files: [url("/repo/a.swift")]
         )
@@ -178,6 +186,49 @@ struct GitCommandFileIndexTests {
         #expect(repo.trackedCallCount == 2)
         // 再列挙後に増えたファイルが索引にも反映されている(索引ごと作り直されている)。
         #expect(resolution(after, of: "b.swift") == url("/repo/b.swift"))
+    }
+
+    /// rev-parse を実行できなかっただけの結果を「git 管理外」として覚えると、起動直後の
+    /// 高負荷などで 1 度タイムアウトしただけで、そのディレクトリはアプリ寿命の間ずっと
+    /// リンク化されなくなる。確定した答えだけを覚えることを固定する。
+    @Test("rev-parse が実行不能なら判定を覚えず、次回やり直す")
+    func retriesRootLookupAfterUndeterminedResult() {
+        let repo = FakeRepository(root: .undetermined, fingerprint: nil, files: [url("/repo/a.swift")])
+        let sut = GitCommandFileIndex(repository: repo)
+
+        #expect(sut.trackedFileIndex(forFileAt: url("/repo/docs/x.md")) == nil)
+
+        // git が復帰した後は、覚えた失敗に邪魔されず解決できる。
+        repo.stubRoot = .root(url("/repo"))
+        repo.fingerprint = Date(timeIntervalSince1970: 1)
+        let index = sut.trackedFileIndex(forFileAt: url("/repo/docs/x.md"))
+        #expect(resolution(index, of: "a.swift") == url("/repo/a.swift"))
+        #expect(repo.rootCallCount == 2, "判定不能をキャッシュして再問い合わせしていない")
+    }
+
+    /// ls-files が実行できなかったときに空の索引を今の fingerprint で覚えると、次に commit 等で
+    /// index が動くまでそのリポジトリのリンク化が丸ごと止まる。覚えないこと、
+    /// そして手元に前回の索引があればそれを返してリンクを生かすことを固定する。
+    @Test("ls-files が実行不能なら空を覚えず、前回の索引を返して次回やり直す")
+    func keepsStaleIndexWhenEnumerationFails() {
+        let repo = FakeRepository(
+            root: .root(url("/repo")),
+            fingerprint: Date(timeIntervalSince1970: 1),
+            files: [url("/repo/a.swift")]
+        )
+        let sut = GitCommandFileIndex(repository: repo)
+        _ = sut.trackedFileIndex(forFileAt: url("/repo/docs/x.md"))
+
+        // 外部の commit で fingerprint が変わり、再列挙が git のタイムアウトで失敗する。
+        repo.fingerprint = Date(timeIntervalSince1970: 2)
+        repo.files = nil
+        let duringFailure = sut.trackedFileIndex(forFileAt: url("/repo/docs/x.md"))
+        #expect(resolution(duringFailure, of: "a.swift") == url("/repo/a.swift"), "前回の索引が失われている")
+
+        // git が復帰したら、覚えていた古い索引ではなく新しい列挙結果に更新される。
+        repo.files = [url("/repo/a.swift"), url("/repo/b.swift")]
+        let afterRecovery = sut.trackedFileIndex(forFileAt: url("/repo/docs/x.md"))
+        #expect(resolution(afterRecovery, of: "b.swift") == url("/repo/b.swift"), "失敗を覚えて再列挙していない")
     }
 
     /// この索引はアプリ寿命で生きるため、上限が無いと開いたことのある全リポジトリの
@@ -229,7 +280,7 @@ struct GitCommandFileIndexTests {
     @Test("warm はバックグラウンドでキャッシュを温める", testTimeLimit())
     func warmPopulatesCacheInBackground() async {
         let repo = FakeRepository(
-            root: url("/repo"),
+            root: .root(url("/repo")),
             fingerprint: Date(timeIntervalSince1970: 1),
             files: [url("/repo/a.swift")]
         )

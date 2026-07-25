@@ -30,7 +30,7 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
     /// そのため寿命の間、`git init` でリポジトリになった/リポジトリでなくなったディレクトリは
     /// 古い答えを返し続ける。無効化には毎回 `rev-parse` の subprocess が要る一方、
     /// 表示中の文書のリポジトリ所属が入れ替わるのは稀なため、この staleness を受け入れる。
-    private var rootByDir: [String: URL?] = [:]
+    private var rootByDir: [String: GitRootLookup] = [:]
     private var entryByRoot: [String: (fingerprint: Date?, index: SuffixPathIndex)] = [:]
     /// entryByRoot のキーを最近使った順(先頭が直近)に並べたもの。LRU の追い出しに使う。
     private var rootsByRecency: [String] = []
@@ -44,14 +44,16 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
 
         lock.lock(); defer { lock.unlock() }
 
-        let root: URL?
+        let lookup: GitRootLookup
         if let cached = rootByDir[dirKey] {
-            root = cached
+            lookup = cached
         } else {
-            root = repository.root(forFileAt: url)
-            rootByDir[dirKey] = root
+            lookup = repository.root(forFileAt: url)
+            // 確定した答えだけを覚える。git を実行できなかっただけの結果を覚えると、
+            // 一時的な失敗がアプリ寿命の間「git 管理外」として固定されてしまう。
+            if lookup != .undetermined { rootByDir[dirKey] = lookup }
         }
-        guard let root else { return nil }
+        guard case let .root(root) = lookup else { return nil }
 
         // root は rev-parse 由来だが、GitRepositoryReading の契約は正規化を保証しない。
         // dirKey と同じ規約のキーに揃え、別表記の root が別エントリに割れないようにする。
@@ -61,9 +63,19 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
             touch(rootKey)
             return entry.index
         }
+        guard let files = repository.trackedFiles(at: root) else {
+            // 列挙できなかった。空の索引を今の fingerprint で覚えると、次に commit などで
+            // index が動くまでこのリポジトリのリンク化が丸ごと止まる。覚えずに次回やり直し、
+            // 手元に前回の索引があるならそれを返してリンクを生かしておく。
+            if let stale = entryByRoot[rootKey] {
+                touch(rootKey)
+                return stale.index
+            }
+            return nil
+        }
         // 索引の構築も列挙と同じくロック内で行う。候補数に比例した正規化コストがあるため、
         // ここで作って共有しないと解決バッチのたびに全ウィンドウが作り直すことになる。
-        let index = SuffixPathIndex(candidates: repository.trackedFiles(at: root))
+        let index = SuffixPathIndex(candidates: files)
         entryByRoot[rootKey] = (fingerprint, index)
         touch(rootKey)
         return index

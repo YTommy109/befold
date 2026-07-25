@@ -29,16 +29,19 @@ struct GitRepositoryTests {
         defer { withExtendedLifetime(temp) {} }
         try makeRepo(temp.url)
         let repo = GitRepository()
-        let root = try #require(repo.root(forFileAt: temp.url.appendingPathComponent("main.swift")))
+        let lookup = repo.root(forFileAt: temp.url.appendingPathComponent("main.swift"))
+        let root = try #require(lookup.foundRoot)
         #expect(root.standardizedFileURL == temp.url.standardizedFileURL)
-        #expect(repo.trackedFiles(at: root).map(\.lastPathComponent) == ["main.swift"])
+        #expect(repo.trackedFiles(at: root)?.map(\.lastPathComponent) == ["main.swift"])
     }
 
-    @Test("git 管理外は root が nil")
-    func noRootOutsideRepo() throws {
+    /// git が動いて「リポジトリではない」と答えた場合と、git を実行できず不明な場合とを
+    /// 区別する(キャッシュ層は前者だけを覚えるため、取り違えると失敗が固定化する)。
+    @Test("git 管理外は notARepository として返る")
+    func reportsNotARepositoryOutsideRepo() throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
-        #expect(GitRepository().root(forFileAt: temp.url.appendingPathComponent("x.md")) == nil)
+        #expect(GitRepository().root(forFileAt: temp.url.appendingPathComponent("x.md")) == .notARepository)
     }
 
     @Test("index の更新で fingerprint が変わる")

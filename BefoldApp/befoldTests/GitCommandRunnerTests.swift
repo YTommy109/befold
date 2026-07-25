@@ -70,7 +70,8 @@ struct GitCommandRunnerTests {
         let result = GitCommandRunner(timeout: 0.5).run(["-c", "alias.zzz=!sleep 30", "zzz"])
         let elapsed = Date().timeIntervalSince(started)
 
-        #expect(result == nil)
+        // 打ち切りは「git が動いて出した答え」ではないため unavailable(キャッシュ不可)。
+        #expect(result == .unavailable)
         #expect(elapsed < 10, "タイムアウトが効かず \(elapsed) 秒待っている")
     }
 
