@@ -17,7 +17,7 @@ final class StubAckWaiter: AckWaiting {
         self.onEvent = onEvent
     }
 
-    func wait(timeout _: TimeInterval) -> Bool {
+    func wait(timeout _: TimeInterval) async -> Bool {
         waitCount += 1
         onEvent("wait")
         return ackOnWait > 0 && waitCount >= ackOnWait

@@ -11,10 +11,10 @@ import Testing
 @MainActor
 struct CLIRequestForwarderTests {
     @Test("ACK が初回で届いた場合は true を返し、再送せず前面化する")
-    func returnsTrueOnFirstAck() {
+    func returnsTrueOnFirstAck() async {
         var postCount = 0
         var activateCount = 0
-        let acked = CLIRequestForwarder.forward(
+        let acked = await CLIRequestForwarder.forward(
             paths: ["a.md"], options: CLIOpenOptions(), to: NSRunningApplication.current,
             post: { _, _ in postCount += 1 },
             makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 1) },
@@ -27,10 +27,10 @@ struct CLIRequestForwarderTests {
     }
 
     @Test("起動直後でACKが届かない場合、maxAttempts回まで同じ requestID で再送する")
-    func retriesWithSameRequestIDUntilAckObserved() {
+    func retriesWithSameRequestIDUntilAckObserved() async {
         var attempts = 0
         var seenRequestIDs: [String] = []
-        let acked = CLIRequestForwarder.forward(
+        let acked = await CLIRequestForwarder.forward(
             paths: ["a.md"], options: CLIOpenOptions(), to: NSRunningApplication.current,
             maxAttempts: 3,
             post: { _, userInfo in
@@ -50,11 +50,11 @@ struct CLIRequestForwarderTests {
     /// 実際には届いていた要求を「未達」と誤判定する原因になる。
     /// 待ち受けは最初の post より前に 1 度だけ開始し、全再送を通じて解除しないことを規定する。
     @Test("ACK 待ち受けは最初の post より前に開始され、再送の合間に解除されない")
-    func ackWaiterIsArmedBeforeFirstPostAndKeptAcrossRetries() {
+    func ackWaiterIsArmedBeforeFirstPostAndKeptAcrossRetries() async {
         var events: [String] = []
         var waiterCount = 0
 
-        let acked = CLIRequestForwarder.forward(
+        let acked = await CLIRequestForwarder.forward(
             paths: ["a.md"], options: CLIOpenOptions(), to: NSRunningApplication.current,
             maxAttempts: 3,
             post: { _, _ in events.append("post") },
@@ -79,10 +79,10 @@ struct CLIRequestForwarderTests {
     /// コールドローンチ中でオブザーバ未登録のインスタンスがまさにこの状態であり、
     /// ここを成功扱いにすると CLI は exit 0 するのにファイルが開かない無言失敗になる。
     @Test("ACK が一度も届かなければ失敗を返し、前面化もしない")
-    func returnsFalseWhenAckNeverObserved() {
+    func returnsFalseWhenAckNeverObserved() async {
         var attempts = 0
         var activateCount = 0
-        let acked = CLIRequestForwarder.forward(
+        let acked = await CLIRequestForwarder.forward(
             paths: ["a.md"], options: CLIOpenOptions(), to: NSRunningApplication.current,
             maxAttempts: 3,
             post: { _, _ in attempts += 1 },
@@ -112,13 +112,13 @@ struct CLIRequestForwarderTests {
     /// forward が post する userInfo は、受信側が使う CLIRequestWire.decode でそのまま
     /// 要求へ戻せる必要がある(オプションの取りこぼしはこの往復で検知する)。
     @Test("forward が post した userInfo は decode で全オプション付きの要求へ戻る")
-    func forwardPostsDecodableOpenRequest() {
+    func forwardPostsDecodableOpenRequest() async {
         let options = CLIOpenOptions(
             showHiddenFiles: true, sortOrder: .alphabetical, showLineNumbers: false,
             sourceMode: true, showSidebar: false
         )
         var posted: [String: Any] = [:]
-        let acked = CLIRequestForwarder.forward(
+        let acked = await CLIRequestForwarder.forward(
             paths: ["a.md"], options: options, to: NSRunningApplication.current,
             post: { _, userInfo in posted = userInfo },
             makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 1) },
@@ -135,9 +135,9 @@ struct CLIRequestForwarderTests {
     /// ブックマークの書き込みプロセスを GUI に一本化するため、CLI は起動中インスタンスへ
     /// 要求を転送する。転送された userInfo が受信側で .bookmark として復元できることを規定する。
     @Test("forwardBookmark は bookmarkPaths として post され、decode でブックマーク要求に戻る")
-    func forwardBookmarkPostsBookmarkPaths() {
+    func forwardBookmarkPostsBookmarkPaths() async {
         var posted: [String: Any] = [:]
-        let acked = CLIRequestForwarder.forwardBookmark(
+        let acked = await CLIRequestForwarder.forwardBookmark(
             paths: ["/tmp/a.md"],
             post: { _, userInfo in posted = userInfo },
             makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 1) }
@@ -149,9 +149,9 @@ struct CLIRequestForwarderTests {
     }
 
     @Test("forwardBookmark も ACK が届くまで同じ requestID で再送する")
-    func forwardBookmarkRetriesWithSameRequestID() {
+    func forwardBookmarkRetriesWithSameRequestID() async {
         var seenRequestIDs: [String] = []
-        let acked = CLIRequestForwarder.forwardBookmark(
+        let acked = await CLIRequestForwarder.forwardBookmark(
             paths: ["/tmp/a.md"],
             maxAttempts: 3,
             post: { _, userInfo in
@@ -166,9 +166,9 @@ struct CLIRequestForwarderTests {
     }
 
     @Test("forwardBookmark は ACK が一度も届かなければ失敗を返す")
-    func forwardBookmarkReturnsFalseWhenAckNeverObserved() {
+    func forwardBookmarkReturnsFalseWhenAckNeverObserved() async {
         var attempts = 0
-        let acked = CLIRequestForwarder.forwardBookmark(
+        let acked = await CLIRequestForwarder.forwardBookmark(
             paths: ["/tmp/a.md"],
             maxAttempts: 3,
             post: { _, _ in attempts += 1 },

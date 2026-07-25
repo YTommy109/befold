@@ -14,11 +14,11 @@ struct CLIBookmarkRouterTests {
     private let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
 
     @Test("起動中インスタンスがあれば GUI へ転送し、CLI からは書き込まない")
-    func forwardsToRunningInstanceWithoutWritingLocally() {
+    func forwardsToRunningInstanceWithoutWritingLocally() async {
         var forwardedPaths: [String] = []
         var localWrites: [URL] = []
 
-        let added = CLIBookmarkRouter.add(
+        let added = await CLIBookmarkRouter.add(
             url,
             addLocally: { localWrites.append($0) },
             findRunningInstance: { NSRunningApplication.current },
@@ -36,10 +36,10 @@ struct CLIBookmarkRouterTests {
     /// 転送不達でローカル書き込みへフォールバックすると、遅れて届いた要求を GUI が処理した際に
     /// 二重書き込みとなり、この経路で防いでいる競合が復活する。失敗はそのまま失敗として返す。
     @Test("転送に失敗してもローカル書き込みへフォールバックせず失敗を返す")
-    func doesNotFallBackToLocalWriteOnForwardFailure() {
+    func doesNotFallBackToLocalWriteOnForwardFailure() async {
         var localWrites: [URL] = []
 
-        let added = CLIBookmarkRouter.add(
+        let added = await CLIBookmarkRouter.add(
             url,
             addLocally: { localWrites.append($0) },
             findRunningInstance: { NSRunningApplication.current },
@@ -51,10 +51,10 @@ struct CLIBookmarkRouterTests {
     }
 
     @Test("起動中インスタンスが無ければ CLI が直接書き込む")
-    func writesLocallyWhenNoRunningInstance() {
+    func writesLocallyWhenNoRunningInstance() async {
         var localWrites: [URL] = []
 
-        let added = CLIBookmarkRouter.add(
+        let added = await CLIBookmarkRouter.add(
             url,
             addLocally: { localWrites.append($0) },
             findRunningInstance: { nil },

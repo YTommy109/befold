@@ -28,10 +28,10 @@ struct MockProcessLauncher: ProcessLaunching {
 struct CLIAppLauncherTests {
     @Test("既存インスタンスがあり引数なしなら activate して 0 を返す")
     @MainActor
-    func activatesExistingInstanceWithNoPaths() {
+    func activatesExistingInstanceWithNoPaths() async {
         let mockApp = NSRunningApplication.current
 
-        let code = CLIAppLauncher.run(
+        let code = await CLIAppLauncher.run(
             paths: [], options: CLIOpenOptions(),
             findRunningInstance: { mockApp },
             forward: { _, _, _ in
@@ -45,11 +45,11 @@ struct CLIAppLauncherTests {
 
     @Test("既存インスタンスがありパスありなら forward して結果を返す")
     @MainActor
-    func forwardsToExistingInstance() {
+    func forwardsToExistingInstance() async {
         let mockApp = NSRunningApplication.current
         var forwardedPaths: [String] = []
 
-        let code = CLIAppLauncher.run(
+        let code = await CLIAppLauncher.run(
             paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
             findRunningInstance: { mockApp },
             forward: { paths, _, _ in
@@ -64,10 +64,10 @@ struct CLIAppLauncherTests {
 
     @Test("既存インスタンスへの forward が失敗したら 1 を返す")
     @MainActor
-    func forwardFailureReturnsOne() {
+    func forwardFailureReturnsOne() async {
         let mockApp = NSRunningApplication.current
 
-        let code = CLIAppLauncher.run(
+        let code = await CLIAppLauncher.run(
             paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
             findRunningInstance: { mockApp },
             forward: { _, _, _ in false }
@@ -78,12 +78,12 @@ struct CLIAppLauncherTests {
 
     @Test("既存インスタンスへの forward 失敗時に stderr へ診断メッセージを出力する")
     @MainActor
-    func forwardFailureWritesStderrMessage() {
+    func forwardFailureWritesStderrMessage() async {
         let mockApp = NSRunningApplication.current
 
         var errorOutput = ""
 
-        _ = CLIAppLauncher.run(
+        _ = await CLIAppLauncher.run(
             paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
             findRunningInstance: { mockApp },
             forward: { _, _, _ in false },
@@ -95,10 +95,10 @@ struct CLIAppLauncherTests {
 
     @Test("既存インスタンスなしでアプリ起動に成功しパスなしなら 0 を返す")
     @MainActor
-    func launchSucceedsWithNoPaths() {
+    func launchSucceedsWithNoPaths() async {
         let launcher = MockProcessLauncher(status: 0)
 
-        let code = CLIAppLauncher.run(
+        let code = await CLIAppLauncher.run(
             paths: [], options: CLIOpenOptions(),
             processLauncher: launcher,
             findRunningInstance: { nil },
@@ -110,10 +110,10 @@ struct CLIAppLauncherTests {
 
     @Test("アプリ起動が非ゼロ終了コードなら そのコードを返す")
     @MainActor
-    func launchNonZeroExitReturnsStatus() {
+    func launchNonZeroExitReturnsStatus() async {
         let launcher = MockProcessLauncher(status: 42)
 
-        let code = CLIAppLauncher.run(
+        let code = await CLIAppLauncher.run(
             paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
             processLauncher: launcher,
             findRunningInstance: { nil },
@@ -123,12 +123,32 @@ struct CLIAppLauncherTests {
         #expect(code == 42)
     }
 
+    @Test("アプリ起動が非ゼロ終了コードなら stderr へ診断メッセージを出力する")
+    @MainActor
+    func launchNonZeroExitWritesStderrMessage() async {
+        let launcher = MockProcessLauncher(status: 42)
+
+        var errorOutput = ""
+
+        _ = await CLIAppLauncher.run(
+            paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
+            processLauncher: launcher,
+            findRunningInstance: { nil },
+            resolveBundlePath: { "/Applications/befold.app" },
+            writeError: { errorOutput += $0 }
+        )
+
+        #expect(errorOutput.contains("Failed to launch app"))
+        #expect(errorOutput.contains("/Applications/befold.app"))
+        #expect(errorOutput.contains("42"))
+    }
+
     @Test("アプリ起動が例外を投げたら 1 を返す")
     @MainActor
-    func launchThrowingReturnsOne() {
+    func launchThrowingReturnsOne() async {
         let launcher = MockProcessLauncher(shouldThrow: true)
 
-        let code = CLIAppLauncher.run(
+        let code = await CLIAppLauncher.run(
             paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
             processLauncher: launcher,
             findRunningInstance: { nil },
@@ -142,13 +162,13 @@ struct CLIAppLauncherTests {
         "アプリ起動後にインスタンスが見つかればパスを forward する"
     )
     @MainActor
-    func launchAndForwardSucceeds() {
+    func launchAndForwardSucceeds() async {
         let launcher = MockProcessLauncher(status: 0)
         let mockApp = NSRunningApplication.current
         var callCount = 0
         var forwardedPaths: [String] = []
 
-        let code = CLIAppLauncher.run(
+        let code = await CLIAppLauncher.run(
             paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
             processLauncher: launcher,
             findRunningInstance: {
@@ -170,14 +190,14 @@ struct CLIAppLauncherTests {
 
     @Test("アプリ起動後、パスなしでも表示オプション指定ありなら forward する")
     @MainActor
-    func launchWithNoPathsButNonDefaultOptionsForwards() {
+    func launchWithNoPathsButNonDefaultOptionsForwards() async {
         let launcher = MockProcessLauncher(status: 0)
         let mockApp = NSRunningApplication.current
         var callCount = 0
         var forwardCalled = false
         var forwardedOptions = CLIOpenOptions()
 
-        let code = CLIAppLauncher.run(
+        let code = await CLIAppLauncher.run(
             paths: [], options: CLIOpenOptions(showHiddenFiles: true),
             processLauncher: launcher,
             findRunningInstance: {
@@ -201,14 +221,14 @@ struct CLIAppLauncherTests {
 
     @Test("アプリ起動後の forward 失敗時にも stderr へ診断メッセージを出力する")
     @MainActor
-    func launchAndForwardFailureWritesStderrMessage() {
+    func launchAndForwardFailureWritesStderrMessage() async {
         let launcher = MockProcessLauncher(status: 0)
         let mockApp = NSRunningApplication.current
         var callCount = 0
 
         var errorOutput = ""
 
-        _ = CLIAppLauncher.run(
+        _ = await CLIAppLauncher.run(
             paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
             processLauncher: launcher,
             findRunningInstance: {
@@ -227,10 +247,10 @@ struct CLIAppLauncherTests {
 
     @Test("アプリ起動後にインスタンスが見つからずタイムアウトしたら 1 を返す")
     @MainActor
-    func launchAndForwardTimesOut() {
+    func launchAndForwardTimesOut() async {
         let launcher = MockProcessLauncher(status: 0)
 
-        let code = CLIAppLauncher.run(
+        let code = await CLIAppLauncher.run(
             paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
             processLauncher: launcher,
             findRunningInstance: { nil },
@@ -247,15 +267,15 @@ struct CLIAppLauncherTests {
     /// CLIRequestForwarder.forward 実装を呼び出し、ACK 受信後ただちに exit(0) することを検証する。
     @Test("実際の forward 実装を通しても、ACK 受信後ただちに exit(0) する")
     @MainActor
-    func realForwardReceivesAckAndExitsPromptly() {
+    func realForwardReceivesAckAndExitsPromptly() async {
         let mockApp = NSRunningApplication.current
         var activateCount = 0
 
-        let code = CLIAppLauncher.run(
+        let code = await CLIAppLauncher.run(
             paths: ["/tmp/test.mmd"], options: CLIOpenOptions(),
             findRunningInstance: { mockApp },
             forward: { paths, options, destination in
-                CLIRequestForwarder.forward(
+                await CLIRequestForwarder.forward(
                     paths: paths, options: options, to: destination,
                     post: { _, _ in },
                     makeAckWaiter: { _ in StubAckWaiter(ackOnWait: 1) },

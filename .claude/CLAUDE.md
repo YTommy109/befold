@@ -53,7 +53,7 @@ BefoldApp/
 │   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js, DOMPurify, highlight.js, github-markdown-css
 ├── BefoldCLI/               # CLI 共通ロジックライブラリ（AppVersion, CLIBookmarkCommand, CLICheckCommand, CLICommandResult, CLIInstaller, CLIInstanceRouter, CLIOpenOptions, ShellQuoting）
 ├── befold-cli/              # CLI 実行ファイル（BefoldCLICommand, CLIAppLauncher）
-├── BefoldTestSupport/       # テスト共有ヘルパー（TempDir, LockedBox, makeIsolatedDefaults, waitUntil 系）。依存は Foundation のみ
+├── BefoldTestSupport/       # テスト共有ヘルパー（TempDir, LockedBox, makeIsolatedDefaults, waitUntil 系）。依存は Foundation と Testing のみ（テストターゲットからのみリンクする）
 ├── befoldTests/            # Swift Testing テスト
 └── befoldCLITests/         # befold-cli の Swift Testing テスト
 ```

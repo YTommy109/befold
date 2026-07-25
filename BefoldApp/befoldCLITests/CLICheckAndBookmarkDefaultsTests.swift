@@ -23,13 +23,13 @@ struct CLICheckAndBookmarkDefaultsTests {
 
     @Test("--bookmark はシンボリックリンク経由でも実体パスで正規化して登録する")
     @MainActor
-    func bookmarkResolvesSymlinkToRealPath() throws {
+    func bookmarkResolvesSymlinkToRealPath() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let (real, link) = try tmp.symlinkedFile()
         let store = BookmarkStore(defaults: makeIsolatedDefaults(prefix: "CLICheckAndBookmarkDefaultsTests"))
 
-        let result = CLIBookmarkCommand.run(link.path, addBookmark: { store.add($0); return true })
+        let result = await CLIBookmarkCommand.run(link.path, addBookmark: { store.add($0); return true })
 
         #expect(result.exitCode == 0)
         #expect(store.isBookmarked(real))

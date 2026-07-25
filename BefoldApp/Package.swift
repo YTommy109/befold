@@ -81,8 +81,10 @@ let package = Package(
             ]
         ),
         // テスト用の共有ヘルパー。befoldTests / befoldCLITests の双方から使うため
-        // 独立したターゲットに置く。GUI 本体(befold)や BefoldRenderKit への依存を
-        // 持ち込まないよう、依存は Foundation のみに保つこと。
+        // 独立したターゲットに置く。GUI 本体(befold)や BefoldRenderKit・BefoldKit への
+        // 依存を持ち込まないよう、依存は Foundation と Testing(swift-testing。待機
+        // ヘルパーが Issue.record / SourceLocation / TimeLimitTrait を使う)のみに保つこと。
+        // Testing はテストホスト外では解決できないため、リンクするのはテストターゲットに限る。
         .target(
             name: "BefoldTestSupport",
             path: "BefoldTestSupport",

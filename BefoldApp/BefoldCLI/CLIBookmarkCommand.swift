@@ -7,14 +7,14 @@ public enum CLIBookmarkCommand {
     @MainActor
     public static func run(
         _ path: String,
-        addBookmark: @MainActor (URL) -> Bool,
+        addBookmark: @MainActor (URL) async -> Bool,
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
-    ) -> CLICommandResult {
+    ) async -> CLICommandResult {
         guard fileExists(path) else {
             return CLICommandResult(message: "No such path: \(path)", exitCode: 1)
         }
         let url = URL(fileURLWithPath: path)
-        guard addBookmark(url) else {
+        guard await addBookmark(url) else {
             return CLICommandResult(
                 message: "Failed to forward the bookmark to the running instance: \(url.path)", exitCode: 1
             )

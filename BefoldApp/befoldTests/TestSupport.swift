@@ -21,6 +21,16 @@ import Testing
 ///   6 倍で、最後のプローブ書き込みのデバウンス発火を十分に取り込める。
 /// - Returns: 静穏化後のコールバック回数。以降は「操作後の発火」を
 ///   この基準値との比較（`callbackCount.get() > baseline`）で判定する。
+/// `confirmWatcherArmed` の静穏化待ちを打ち切る秒数。
+///
+/// 他のポーリング待機と同じ単一情報源(`BEFOLD_TEST_TIMEOUT_SECONDS`)から導く。
+/// 独自の固定値にすると、thread-sanitizer ジョブのように CI 側で予算を延長した環境で、
+/// 待てば成功するケースを打ち切って赤にしてしまう。
+/// 環境変数がなければ従来どおり `quiescePeriod` の 20 倍。
+func quiesceCutoffSeconds(quiescePeriod: TimeInterval) -> TimeInterval {
+    testTimeoutSeconds(fallback: quiescePeriod * 20)
+}
+
 func confirmWatcherArmed(
     file: URL,
     callbackCount: LockedBox<Int>,
@@ -36,8 +46,8 @@ func confirmWatcherArmed(
     })
 
     // 静穏化を待つ。コールバックが延々と入り続ける状況で無限ループしないよう、
-    // 打ち切り期限を設ける。既定は quiescePeriod の 20 倍。
-    let deadline = Date().addingTimeInterval(quiescePeriod * 20)
+    // 打ち切り期限を設ける(期限の導出は quiesceCutoffSeconds 参照)。
+    let deadline = Date().addingTimeInterval(quiesceCutoffSeconds(quiescePeriod: quiescePeriod))
     var last = callbackCount.get()
     while Date() < deadline {
         try? await Task.sleep(for: .seconds(quiescePeriod))

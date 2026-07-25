@@ -10,34 +10,36 @@ struct DistributedAckWaiterIntegrationTests {
     /// 旧実装は post の後に observer を登録していたため、この窓に返った ACK を取りこぼしていた。
     /// 待ち受けを生成した時点から観測が始まっていることを、wait より前に ACK を投げて確かめる。
     @Test("待ち受け開始後・wait 呼び出し前に届いた ACK も観測される")
-    func ackArrivingBeforeWaitIsStillObserved() {
+    func ackArrivingBeforeWaitIsStillObserved() async {
         let requestID = UUID().uuidString
         let waiter = DistributedAckWaiter(requestID: requestID)
         defer { waiter.cancel() }
 
         CLIRequestWire.sendAck(requestID: requestID)
 
-        #expect(waiter.wait(timeout: 5))
+        #expect(await waiter.wait(timeout: 5))
     }
 
     @Test("別の requestID の ACK は観測しない")
-    func ackForDifferentRequestIDIsIgnored() {
+    func ackForDifferentRequestIDIsIgnored() async {
         let waiter = DistributedAckWaiter(requestID: UUID().uuidString)
         defer { waiter.cancel() }
 
         CLIRequestWire.sendAck(requestID: UUID().uuidString)
 
-        #expect(!waiter.wait(timeout: 0.5))
+        let acked = await waiter.wait(timeout: 0.5)
+        #expect(!acked)
     }
 
     @Test("cancel 後に届いた ACK は観測しない")
-    func ackAfterCancelIsIgnored() {
+    func ackAfterCancelIsIgnored() async {
         let requestID = UUID().uuidString
         let waiter = DistributedAckWaiter(requestID: requestID)
         waiter.cancel()
 
         CLIRequestWire.sendAck(requestID: requestID)
 
-        #expect(!waiter.wait(timeout: 0.5))
+        let acked = await waiter.wait(timeout: 0.5)
+        #expect(!acked)
     }
 }

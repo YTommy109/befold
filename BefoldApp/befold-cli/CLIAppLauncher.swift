@@ -31,8 +31,8 @@ public enum CLIAppLauncher {
         options: CLIOpenOptions,
         processLauncher: ProcessLaunching = DefaultProcessLauncher(),
         findRunningInstance: @MainActor () -> NSRunningApplication? = { CLIRequestForwarder.runningInstance() }
-    ) -> Never {
-        let code = run(
+    ) async -> Never {
+        let code = await run(
             paths: paths, options: options,
             processLauncher: processLauncher,
             findRunningInstance: findRunningInstance
@@ -46,8 +46,8 @@ public enum CLIAppLauncher {
         options: CLIOpenOptions,
         processLauncher: ProcessLaunching = DefaultProcessLauncher(),
         findRunningInstance: @MainActor () -> NSRunningApplication? = { CLIRequestForwarder.runningInstance() },
-        forward: @MainActor ([String], CLIOpenOptions, NSRunningApplication) -> Bool = {
-            CLIRequestForwarder.forward(paths: $0, options: $1, to: $2)
+        forward: @MainActor ([String], CLIOpenOptions, NSRunningApplication) async -> Bool = {
+            await CLIRequestForwarder.forward(paths: $0, options: $1, to: $2)
         },
         resolveBundlePath: () -> String = {
             if let execPath = AppVersion.actualExecutablePath() {
@@ -60,7 +60,7 @@ public enum CLIAppLauncher {
         writeError: (String) -> Void = {
             FileHandle.standardError.write(Data($0.utf8))
         }
-    ) -> Int32 {
+    ) async -> Int32 {
         let paths = paths.map {
             URL(fileURLWithPath: $0).standardizedFileURL.path
         }
@@ -70,15 +70,21 @@ public enum CLIAppLauncher {
                 running.activate()
                 return 0
             }
-            return forwardOrReportFailure(paths, options, running, forward, writeError)
+            return await forwardOrReportFailure(paths, options, running, forward, writeError)
         }
 
         let bundlePath = resolveBundlePath()
         do {
             let status = try processLauncher.launchApp(bundlePath: bundlePath)
-            guard status == 0 else { return status }
+            guard status == 0 else {
+                writeError(
+                    "Failed to launch app at \(bundlePath): open exited with status \(status). "
+                        + "The app bundle may be missing or damaged.\n"
+                )
+                return status
+            }
         } catch {
-            writeError("Failed to launch app: \(error)\n")
+            writeError("Failed to launch app at \(bundlePath): \(error)\n")
             return 1
         }
 
@@ -87,14 +93,14 @@ public enum CLIAppLauncher {
         let deadline = Date().addingTimeInterval(pollTimeout)
         var launched: NSRunningApplication?
         while launched == nil, Date() < deadline {
-            Thread.sleep(forTimeInterval: pollInterval)
+            try? await Task.sleep(for: .seconds(pollInterval))
             launched = findRunningInstance()
         }
         guard let destination = launched else {
             writeError("Timed out waiting for app to launch.\n")
             return 1
         }
-        return forwardOrReportFailure(paths, options, destination, forward, writeError)
+        return await forwardOrReportFailure(paths, options, destination, forward, writeError)
     }
 
     @MainActor
@@ -102,10 +108,10 @@ public enum CLIAppLauncher {
         _ paths: [String],
         _ options: CLIOpenOptions,
         _ destination: NSRunningApplication,
-        _ forward: @MainActor ([String], CLIOpenOptions, NSRunningApplication) -> Bool,
+        _ forward: @MainActor ([String], CLIOpenOptions, NSRunningApplication) async -> Bool,
         _ writeError: (String) -> Void
-    ) -> Int32 {
-        guard forward(paths, options, destination) else {
+    ) async -> Int32 {
+        guard await forward(paths, options, destination) else {
             writeError("Failed to forward to the running instance.\n")
             return 1
         }
