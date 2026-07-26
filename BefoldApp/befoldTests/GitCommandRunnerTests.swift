@@ -3,9 +3,20 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
+/// 資源残留テストのポーリング予算(秒)。`.timeLimit` と `waitUntil` の双方をここから導く。
+/// 両者を独立に書くとドリフトし、「予算を延ばしたのに打ち切られる」「宣言した予算が
+/// 内側の待機へ伝わらない」の両方が起きる(`Waiting.swift` の doc 参照)。
+private let leakPollingBudget: Double = 30
+
 /// `GitCommandRunner` が全 git 呼び出しへ無害化オプションを前置することを固定する。
 /// 開いた文書のリポジトリ設定(`core.fsmonitor`)による任意コマンド実行を防ぐ要のため、
 /// 将来のリファクタで静かに落ちないよう引数構築と実挙動の両方で押さえる。
+///
+/// `.serialized` にするのは資源残留テストのため。同じスイートには共有ワーカープールを
+/// 64 本埋めるテストや、打ち切った git のリーダースレッドを猶予いっぱい保持するテストが
+/// あり、並列に走ると残留の基準線がそれらのノイズで揺れる。数え方を対象限定にした上で
+/// (`openPipeCount` / `readerThreadCount`)、同居ノイズも直列化で断つ。
+@Suite(.serialized)
 struct GitCommandRunnerTests {
     /// 実 git を叩くテスト用のランナー。git 1 回あたりの予算は他のポーリング待機と同じ
     /// 単一情報源(`BEFOLD_TEST_TIMEOUT_SECONDS`)から採る。少コアの CI で数百テストを
@@ -156,10 +167,14 @@ struct GitCommandRunnerTests {
     func killsGrandchildHoldingStandardOutput() async throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
-        let sleeper = try makeSleeperScript(in: temp.url)
+        let sleeper = try makeHangingRepo(in: temp.url)
         defer { killSleepers(matching: sleeper.path) }
 
-        _ = GitCommandRunner(timeout: 0.5).run(hangingAliasArguments(sleeper), in: temp.url)
+        let results = runInBackground(GitCommandRunner(timeout: hangingBudget), sleeper, in: temp.url)
+        // 「消えたこと」だけを見ると、git が孫を fork する前に打ち切られた回でも通ってしまう。
+        // 打ち切りが起きる前に、消すべき対象が実在したことを先に固定する。
+        #expect(await waitUntil { processExists(matching: sleeper.path) == true })
+        #expect(await waitUntil { results.get() == [GitCommandOutcome.unavailable] })
 
         // 打ち切りから孫の消滅までは非同期なのでポーリングで待つ。
         // 一時ディレクトリ名が一意なので、他テストの sleeper とは取り違えない。
@@ -169,43 +184,98 @@ struct GitCommandRunnerTests {
     /// 索引の warm はファイルを開くたび・タブを切り替えるたびに走るため、打ち切り 1 回ごとに
     /// 読み取りスレッドと Pipe の fd が残ると、応答しないリポジトリでは残留が積み上がって
     /// GUI アプリの soft RLIMIT_NOFILE(典型 256)に届く。繰り返しても増え続けないことを固定する。
-    @Test("打ち切りを繰り返しても fd とスレッドが残留しない", testTimeLimit(pollingBudgetFallback: 60))
+    @Test("打ち切りを繰り返しても fd とスレッドが残留しない", testTimeLimit(pollingBudgetFallback: leakPollingBudget))
     func repeatedTimeoutsDoNotAccumulateResources() async throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
-        let sleeper = try makeSleeperScript(in: temp.url)
+        let sleeper = try makeHangingRepo(in: temp.url)
         defer { killSleepers(matching: sleeper.path) }
-        // 予算を切り詰めすぎると git がエイリアスのシェルを fork する前に打ち切られ、
-        // 残留させたい子孫がそもそも生まれない(0.2 秒では実際にそうなり、残留のある
-        // 実装でもこのテストが通ってしまった)。生成を待てる程度には与える。
-        let runner = GitCommandRunner(timeout: 0.5)
+        let runner = GitCommandRunner(timeout: hangingBudget)
 
-        // 初回は Thread や Process の一度きりの確保が入るため、基準線の前に 1 回空打ちする。
-        #expect(runner.run(hangingAliasArguments(sleeper), in: temp.url) == .unavailable)
-        await waitUntil { processExists(matching: sleeper.path) == false }
-        let baselineFDs = openFileDescriptorCount()
-        let baselineThreads = liveThreadCount()
+        // 数えるのは pipe の fd と `GitCommandRunner.read` という名前のスレッドだけなので、
+        // Thread や Process の一度きりの確保はそもそも数に入らない。空打ちのウォームアップは要らない。
+        let baselinePipes = openPipeCount()
+        let baselineReaders = readerThreadCount()
 
+        // 逐次に回すと 1 ラウンドぶんの予算をラウンド数だけ積むことになる。打ち切りは互いに
+        // 独立なので並行に走らせ、ウォールクロックを 1 ラウンドぶんへ畳む。残留は「全部
+        // 返ってきて落ち着いた後に残っているか」で見るため、並行にしても検出力は変わらない。
         let rounds = 20
-        for _ in 0 ..< rounds {
-            #expect(runner.run(hangingAliasArguments(sleeper), in: temp.url) == .unavailable)
-        }
+        let results = runInBackground(runner, sleeper, in: temp.url, count: rounds)
+        // 打ち切りの前に、残留させたい孫が実在したことを固定する(空成立の防止)。
+        #expect(await waitUntil { processExists(matching: sleeper.path) == true })
+        #expect(await waitUntil { results.get().count == rounds })
+        #expect(results.get().allSatisfy { $0 == .unavailable })
 
         // 解放は読み取りスレッドが EOF に達してから起きるのでポーリングで待つ。
-        // 許容幅は「並行実行中の他テストが一時的に増やす分」を吸収するためのもので、
-        // 残留があれば rounds 本(20)積み上がって許容幅を必ず超えるため検証力は落ちない。
-        // 待つほど条件が満たされやすくなる形なので、他テストのノイズで落ちることもない。
-        let slack = 10
-        await waitUntil { openFileDescriptorCount() <= baselineFDs + slack }
-        await waitUntil { liveThreadCount() <= baselineThreads + slack }
+        // 許容幅は他スイートの git 呼び出しが一瞬だけ立てる pipe / リーダースレッドを吸収する
+        // ためのもの。残留があればラウンド数(20)ぶん積み上がるので、許容幅 3 に対して
+        // 検出マージンは約 6.7 倍あり、幅を狭めても検証力は落ちない。
+        // 待つほど条件が満たされやすくなる形なので、一時的なノイズで落ちることもない。
+        let slack = 3
+        let budget = testTimeout(fallback: leakPollingBudget)
+        await waitUntil(timeout: budget) { openPipeCount() <= baselinePipes + slack }
+        await waitUntil(timeout: budget) { readerThreadCount() <= baselineReaders + slack }
     }
+
+    /// 書き込み端を握るプロセスを殺し切れない場合(孫が自前のセッションへ抜けていて、git の
+    /// プロセスグループへの SIGKILL が届かない)でも、リーダースレッドと pipe の fd が返ることを
+    /// 固定する。EOF の到来を資源解放の唯一の条件にしている実装ではここが落ちる。
+    @Test("殺し切れない孫が標準出力を握っていてもスレッドと fd は返る", testTimeLimit(pollingBudgetFallback: leakPollingBudget))
+    func releasesResourcesWhenWriteEndSurvivesTermination() async throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        let sleeper = try makeHangingRepo(in: temp.url, escapesProcessGroup: true)
+        defer { killSleepers(matching: sleeper.path) }
+        let baselinePipes = openPipeCount()
+        let baselineReaders = readerThreadCount()
+
+        let results = runInBackground(GitCommandRunner(timeout: hangingBudget), sleeper, in: temp.url)
+        #expect(await waitUntil { processExists(matching: sleeper.path) == true })
+        #expect(await waitUntil { results.get() == [GitCommandOutcome.unavailable] })
+
+        // 孫は生き残るので EOF は永遠に来ない。それでも資源は返らなければならない。
+        let budget = testTimeout(fallback: leakPollingBudget)
+        await waitUntil(timeout: budget) { openPipeCount() <= baselinePipes }
+        await waitUntil(timeout: budget) { readerThreadCount() <= baselineReaders }
+        #expect(processExists(matching: sleeper.path) == true, "この経路では孫が残るのが仕様")
+    }
+
+    /// 返ってこない git を専用スレッドで `count` 本走らせ、結果を貯める箱を返す。
+    /// 呼び出し元は打ち切りが起きるまでの間に、消すべき子孫の実在を確かめられる。
+    ///
+    /// 専用スレッドを使うのは、返ってこない git を待つブロッキング呼び出しで
+    /// 共有ワーカープールや Swift Concurrency のスレッドを塞がないため。
+    private func runInBackground(
+        _ runner: GitCommandRunner, _ sleeper: URL, in directory: URL, count: Int = 1
+    ) -> LockedBox<[GitCommandOutcome]> {
+        let results = LockedBox<[GitCommandOutcome]>([])
+        let arguments = hangingAliasArguments(sleeper)
+        for _ in 0 ..< count {
+            Thread {
+                let outcome = runner.run(arguments, in: directory)
+                results.update { $0.append(outcome) }
+            }.start()
+        }
+        return results
+    }
+
+    /// 返ってこない git に与える予算(秒)。
+    ///
+    /// 短くしすぎると git がエイリアスのシェルを fork する前に打ち切られ、残留させたい子孫が
+    /// そもそも生まれない(0.2 秒では実際にそうなった)。逆に長くすると素の待ち時間になる。
+    /// 2 秒は、fork が済んだことをポーリング(50ms 間隔)で確かめる窓としても充分に広い。
+    /// git は別プロセスなのでサニタイザによる減速の影響を受けず、CI 予算に連動させる必要はない。
+    private let hangingBudget: TimeInterval = 2
 
     /// 返ってこない git を、`Process` からは直接殺せない子孫が標準出力を握る形で再現する引数列。
     private func hangingAliasArguments(_ sleeper: URL) -> [String] {
         ["-c", "alias.zzz=!\(sleeper.path)", "zzz"]
     }
 
-    /// 標準出力を握ったまま眠り続けるスクリプトを作る。パスが一意なので `pgrep -f` で追える。
+    /// git リポジトリを作り、その中に「標準出力を握ったまま眠り続けるスクリプト」を置いて返す。
+    /// `!` 付きエイリアスはリポジトリの外では動かないため `git init` まで含めて 1 つの仕掛けとする。
+    /// スクリプトのパスは一時ディレクトリ名で一意なので `pgrep -f` で追える。
     ///
     /// `trap '' TERM` が再現の要。`!` 付きエイリアスで git は自分の子としてこのシェルを
     /// fork し、その完了を待つ。子が素直に SIGTERM で死ぬ形だと git が子を道連れに畳んで
@@ -217,10 +287,20 @@ struct GitCommandRunnerTests {
     ///
     /// 末尾を素朴に `sleep 300` と書かないのは、シェルが最後のコマンドを `exec` 最適化して
     /// 単一プロセスに潰し、`pgrep` から追えなくなるため。
-    private func makeSleeperScript(in dir: URL) throws -> URL {
+    ///
+    /// - Parameter escapesProcessGroup: 眠る側を `setsid` で自前のセッションへ抜けさせる。
+    ///   git のプロセスグループへ SIGKILL を送っても届かなくなるので、「書き込み端を握る
+    ///   プロセスを殺し切れない」状況(自分を daemon 化するフックなど)の再現に使う。
+    ///   `setsid(1)` は macOS に無いため、常にある perl から `POSIX::setsid` を呼ぶ。
+    private func makeHangingRepo(in dir: URL, escapesProcessGroup: Bool = false) throws -> URL {
         rawGit(dir, ["init"])
+        let sleepForever = escapesProcessGroup
+            // 末尾の "$0"(スクリプト自身のパス)は perl からは使わない。argv に混ぜて
+            // `pgrep -f` の対象に含めるためのマーカー。
+            ? "/usr/bin/perl -e 'use POSIX; POSIX::setsid(); sleep 1 while 1;' \"$0\" &"
+            : "while true; do sleep 1; done &"
         let script = dir.appendingPathComponent("befold-sleeper.sh")
-        try "#!/bin/sh\ntrap '' TERM\nwhile true; do sleep 1; done &\nwait\n"
+        try "#!/bin/sh\ntrap '' TERM\n\(sleepForever)\nwait\n"
             .write(to: script, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
         return script
@@ -229,38 +309,35 @@ struct GitCommandRunnerTests {
     /// 残ってしまった sleeper を SIGKILL で始末する。実装が壊れているとテストは失敗するが、
     /// SIGTERM を伏せた無限ループがマシンに残り続けるのは別問題なので、後始末は必ず行う。
     private func killSleepers(matching pattern: String) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
-        process.arguments = ["-9", "-f", pattern]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        try? process.run()
-        process.waitUntilExit()
+        _ = runTool("/usr/bin/pkill", ["-9", "-f", pattern])
     }
 
     /// argv に `pattern` を含むプロセスが存在するか。
-    private func processExists(matching pattern: String) -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        process.arguments = ["-f", pattern]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        try? process.run()
-        process.waitUntilExit()
-        return process.terminationStatus == 0
+    /// spawn できなかった場合は「存在しない」と嘘をつかないよう nil を返す。
+    private func processExists(matching pattern: String) -> Bool? {
+        runTool("/usr/bin/pgrep", ["-f", pattern]).map { $0 == 0 }
     }
 
-    /// このプロセスが開いている fd の数。
-    private func openFileDescriptorCount() -> Int {
+    /// このプロセスが開いている pipe の fd 数。
+    ///
+    /// fd を全部数えると、並行実行中の他スイートが開くファイルやソケットが基準線に混ざる。
+    /// 残したくないのは打ち切った git の `Pipe` なので、種別を pipe に絞って数える。
+    private func openPipeCount() -> Int {
         var count = 0
-        for descriptor in 0 ..< getdtablesize() where fcntl(descriptor, F_GETFD) != -1 {
-            count += 1
+        for descriptor in 0 ..< getdtablesize() {
+            var status = stat()
+            if fstat(descriptor, &status) == 0, status.st_mode & S_IFMT == S_IFIFO {
+                count += 1
+            }
         }
         return count
     }
 
-    /// このプロセスで生きているスレッドの数。
-    private func liveThreadCount() -> Int {
+    /// `GitCommandRunner` の読み取りスレッドの本数。
+    ///
+    /// 全スレッドを数えると GCD のワーカー本数の増減が基準線に乗ってしまうため、
+    /// ランナーが付けた名前で絞る。名前が変わればここも合わせて直す必要がある。
+    private func readerThreadCount() -> Int {
         var threads: thread_act_array_t?
         var count: mach_msg_type_number_t = 0
         guard task_threads(mach_task_self_, &threads, &count) == KERN_SUCCESS,
@@ -268,27 +345,69 @@ struct GitCommandRunnerTests {
         else { return 0 }
         // task_threads は各スレッドへの送信権と配列そのものを呼び出し側へ渡すので、
         // 数えるだけでも両方返さないとポート枯渇とリークを起こす。
-        for index in 0 ..< Int(count) {
-            mach_port_deallocate(mach_task_self_, threads[index])
+        defer {
+            for index in 0 ..< Int(count) {
+                mach_port_deallocate(mach_task_self_, threads[index])
+            }
+            vm_deallocate(
+                mach_task_self_,
+                vm_address_t(UInt(bitPattern: UnsafeRawPointer(threads))),
+                vm_size_t(Int(count) * MemoryLayout<thread_t>.stride)
+            )
         }
-        vm_deallocate(
-            mach_task_self_,
-            vm_address_t(UInt(bitPattern: UnsafeRawPointer(threads))),
-            vm_size_t(Int(count) * MemoryLayout<thread_t>.stride)
+        return (0 ..< Int(count)).count { threadName(threads[$0]) == "GitCommandRunner.read" }
+    }
+
+    /// スレッドに付けられた名前(付いていなければ空文字)。
+    private func threadName(_ thread: thread_t) -> String {
+        var info = thread_extended_info_data_t()
+        var infoCount = mach_msg_type_number_t(
+            MemoryLayout<thread_extended_info_data_t>.size / MemoryLayout<integer_t>.size
         )
-        return Int(count)
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(infoCount)) {
+                thread_info(thread, thread_flavor_t(THREAD_EXTENDED_INFO), $0, &infoCount)
+            }
+        }
+        guard result == KERN_SUCCESS else { return "" }
+        return withUnsafePointer(to: info.pth_name) { pointer in
+            pointer.withMemoryRebound(
+                to: CChar.self, capacity: MemoryLayout.size(ofValue: info.pth_name)
+            ) { String(cString: $0) }
+        }
     }
 
     /// 無害化オプションを通さずに git を実行する(対照用)。
     private func rawGit(_ dir: URL, _ args: [String]) {
+        _ = runTool("/usr/bin/env", ["git"] + args, in: dir)
+    }
+
+    /// 補助ツールを同期実行して終了コードを返す。spawn に失敗したら `Issue` として記録し nil を返す。
+    ///
+    /// 起動できなかった `Process` へ `waitUntilExit()` / `terminationStatus` を呼ぶと、Swift から
+    /// 捕捉できない `NSInvalidArgumentException` が飛んでテストプロセスごと落ちる。spawn 失敗は
+    /// fd リーク退行の検証中(EMFILE)にこそ起きやすく、そこでクラッシュすると defer の後始末まで
+    /// 飛ばして SIGTERM を伏せた sleeper を CI マシンに残す。起動できたときだけ待つ。
+    private func runTool(
+        _ executable: String,
+        _ arguments: [String],
+        in directory: URL? = nil,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) -> Int32? {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["git"] + args
-        process.currentDirectoryURL = dir
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        if let directory { process.currentDirectoryURL = directory }
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        try? process.run()
+        do {
+            try process.run()
+        } catch {
+            Issue.record("\(executable) を起動できなかった: \(error)", sourceLocation: sourceLocation)
+            return nil
+        }
         process.waitUntilExit()
+        return process.terminationStatus
     }
 
     /// marker を作るだけのフックを `core.fsmonitor` に仕込んだリポジトリを作る

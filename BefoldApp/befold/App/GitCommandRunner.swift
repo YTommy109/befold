@@ -23,6 +23,16 @@ struct GitCommandRunner: Sendable {
     /// 別リポジトリを開いた他ウィンドウのパス解決まで巻き添えで止まるため、必ず打ち切る。
     let timeout: TimeInterval
 
+    /// 打ち切りを試みてから、読み取りスレッドが EOF を諦めるまでの猶予(秒)。
+    ///
+    /// 予算切れの直後にプロセスグループを消しているので、通常はこの猶予に入る前に EOF が来る。
+    /// 猶予が実際に使われるのは、書き込み端を握る全員を殺し切れない場合(プロセスグループを
+    /// 特定できないフォールバック経路で、孫プロセスが SIGTERM を伏せているとき)だけ。
+    /// そこで無期限に待たないことが、スレッドと fd を必ず返す保証になっている。
+    /// SIGKILL の配送と数十 KB のパイプの吸い出しには桁違いに余裕のある幅を採り、
+    /// 負荷の高い環境で正常な巻き取りを取りこぼさないようにする。
+    private static let terminationGrace: TimeInterval = 5
+
     init(timeout: TimeInterval = 10) {
         self.timeout = timeout
     }
@@ -93,7 +103,7 @@ struct GitCommandRunner: Sendable {
         let processGroup = terminableProcessGroup(of: process)
 
         // 読み取りは別スレッドで行い、呼び出し元は timeout までしか待たない。
-        // readDataToEndOfFile を呼び出しスレッドで回して watchdog から terminate() する形だと、
+        // 読み取りを呼び出しスレッドで回して watchdog から terminate() する形だと、
         // git が孫プロセス(フック/エイリアス経由の子)へ標準出力を渡していた場合に
         // git を殺しても pipe が閉じず、結局 timeout が効かない。
         //
@@ -107,16 +117,27 @@ struct GitCommandRunner: Sendable {
         // 丸ごと死ぬ形の赤になった。予算を延ばしても直らない種類の詰まりのため、
         // 共有プールに依存しない専用スレッドで確実に読み始める。
         //
-        // 打ち切っても、この後の `terminate(_:fallingBackTo:)` がパイプの書き込み端を
-        // 持つプロセスを一掃するので、read は EOF に達してこのスレッドは必ず終わる。
+        // このスレッドは EOF を無期限には待たず、自分の期限を持つ(`readUntilEOF` を参照)。
+        // 期限は呼び出し元の予算に `terminationGrace` を足したもの。呼び出し元は予算切れで
+        // プロセスグループを消しに行くので、殺せていれば猶予の中で EOF が来て通常どおり
+        // 巻き取れる。殺し切れない場合(グループを特定できないフォールバック経路で孫が
+        // SIGTERM を伏せているとき)だけ猶予切れで読み取りを諦める。こうしてスレッドと
+        // Pipe の解放が「書き込み端を握る全員を殺せたか」に依存しなくなる。
+        // スレッドを抜ければ最後の参照が切れて Pipe が deinit し、両端の fd が閉じる。
+        //
         // stackSize は既定(512KB)のまま触らない。このスレッドでは `waitUntilExit()` の
-        // ラン・ループや、fd 破壊時の `NSFileHandleOperationException` のバックトレース
-        // 採取も走るため、切り詰めても仮想アドレス空間しか節約できない一方で
+        // ラン・ループも走るため、切り詰めても仮想アドレス空間しか節約できない一方で
         // 溢れたときは診断しにくい SIGSEGV に化ける。
+        let deadline = ContinuousClock.now.advanced(by: .seconds(timeout + Self.terminationGrace))
         let output = OutputBox()
         let done = DispatchSemaphore(value: 0)
         let reader = Thread {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let data = readUntilEOF(pipe.fileHandleForReading, deadline: deadline) else {
+                // 期限切れ。標準出力は不完全なので結果は採らない。`done` も signal しない:
+                // 呼び出し元を待機解除してしまうと、下の `terminate` を通らずに git を
+                // 野放しにする。呼び出し元は自分の期限で抜け、打ち切り処理へ進む。
+                return
+            }
             process.waitUntilExit()
             output.set(status: process.terminationStatus, data: data)
             done.signal()
@@ -128,22 +149,59 @@ struct GitCommandRunner: Sendable {
             // `NSFileHandleOperationException` が飛び、Swift からは catch できないので
             // プロセスごと落ちる。閉じた fd 番号が別のファイルへ再利用されれば無関係な
             // 読み取りまで壊す。しかも read 中の close は Darwin では読み取りを中断しない
-            // ため、解放したいスレッドは結局残る。
+            // ため、解放したいスレッドは結局残る。fd を閉じるのは読み取りスレッド自身に任せる。
             //
-            // 代わりに書き込み側を根こそぎ消す。git 単体への SIGTERM だと、git が孫プロセス
-            // (フック/エイリアス経由の子)へ標準出力を渡していて、その孫が SIGTERM に
-            // 応じないときにパイプの書き込み端が残る。git は素直に死ぬ子なら道連れに畳んで
-            // くれるが、伏せられると自分も子を待ったまま死ねず、git・シェル・孫の全員が
-            // 書き込み端を握ったまま残る(実測)。こうなると read は EOF に達せず、
-            // 読み取りスレッド 1 本と Pipe の fd が孫の終了まで残留する。索引の warm は
+            // ここでやるのは、放置すると居座る子孫の始末。git 単体への SIGTERM だと、
+            // git が孫プロセス(フック/エイリアス経由の子)へ標準出力を渡していて、その孫が
+            // SIGTERM に応じないときに git・シェル・孫の全員が生き残る(実測)。索引の warm は
             // ファイルを開くたび・タブを切り替えるたびに走るので、応答しないリポジトリでは
-            // 残留が積み上がって fd 上限に届きうる。
-            // プロセスグループごと消せば書き込み端の持ち主が全員いなくなり、read が EOF で
-            // 自然終了して、スレッド・fd・Process がまとめて解放される。
+            // 居座るプロセスが積み上がる。プロセスグループごと消せば全員まとめて始末できる。
             terminate(processGroup, fallingBackTo: process)
             return .unavailable
         }
         return output.outcome()
+    }
+
+    /// 期限まで pipe を読み、EOF に達したら読み取った全量を返す。期限切れなら nil。
+    ///
+    /// `readDataToEndOfFile` を使わないのは、EOF が来ない限り戻らないため。書き込み端を
+    /// 握った孫プロセスを殺し切れない状況(プロセスグループを特定できないフォールバック
+    /// 経路)では EOF が永遠に来ず、スレッドと Pipe の fd が孫の終了まで残留してしまう。
+    /// 期限を読み取り側にも持たせて、打ち切りの成否と資源の解放を切り離す。
+    ///
+    /// `poll` で読める状態を確かめてから `read` するので、単一の読み手であるこのスレッドが
+    /// ブロックすることはない。`FileHandle` の API を経由しないため、fd が壊れていても
+    /// catch 不能な `NSFileHandleOperationException` ではなく戻り値のエラーとして現れる。
+    private func readUntilEOF(_ handle: FileHandle, deadline: ContinuousClock.Instant) -> Data? {
+        let descriptor = handle.fileDescriptor
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while true {
+            let remaining = ContinuousClock.now.duration(to: deadline)
+            guard remaining > .zero else { return nil }
+            var fds = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
+            let ready = poll(&fds, 1, Self.pollMilliseconds(remaining))
+            if ready < 0 {
+                if errno == EINTR { continue }
+                return nil
+            }
+            if ready == 0 { return nil }
+            let count = buffer.withUnsafeMutableBytes { read(descriptor, $0.baseAddress, $0.count) }
+            if count < 0 {
+                if errno == EINTR { continue }
+                return nil
+            }
+            if count == 0 { return data }
+            data.append(contentsOf: buffer[0 ..< count])
+        }
+    }
+
+    /// 残り時間を `poll` の待機ミリ秒へ丸める。0 に潰れて空回りしないよう最低 1ms を与え、
+    /// Int32 を溢れさせないよう上限で切る(このランナーの予算では実際には届かない)。
+    private static func pollMilliseconds(_ remaining: Duration) -> Int32 {
+        let components = remaining.components
+        let millis = components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000
+        return Int32(min(max(millis, 1), Int64(Int32.max)))
     }
 
     /// 打ち切り時にまとめて消してよいプロセスグループ ID を返す。判断できなければ nil。
@@ -166,11 +224,20 @@ struct GitCommandRunner: Sendable {
     /// 「必ず書き込み端が閉じる」保証そのものだから。猶予を与えて後始末させる必要も無い:
     /// このランナーが実行するのは読み取り専用のクエリ(rev-parse / ls-files)だけで、
     /// フックは `hardeningOptions` で無効化済みのため、中断で壊れる書きかけの状態が無い。
+    /// フォールバック(グループ不明)では git 単体へ SIGTERM を送るに留める。この経路では
+    /// 孫プロセスが SIGTERM を伏せていると生き残るが、読み取りは自前の期限で打ち切られるため
+    /// befold 側のスレッドと fd は残らない。
     private func terminate(_ processGroup: pid_t?, fallingBackTo process: Process) {
         guard let processGroup else {
             process.terminate()
             return
         }
+        // pgid は起動直後に控えた値なので、既に git が終わって Foundation が reap していれば
+        // その番号は別のプロセスグループへ再利用されうる。無関係なグループを SIGKILL しないよう、
+        // 送る直前に子がまだ生きていることを確かめる。
+        // (確認と kill の間にも理屈の上では窓が残るが、Foundation の reap は
+        // `waitpid` を回すスレッドが起きてからなので、この幅は縮められる限界まで縮む。)
+        guard process.isRunning else { return }
         kill(-processGroup, SIGKILL)
     }
 
