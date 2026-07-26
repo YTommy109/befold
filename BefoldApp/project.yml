@@ -115,8 +115,8 @@ targets:
       PRODUCT_NAME: befold
       # BefoldCLI/AppVersion.swift の `AppVersion.current` と値を一致させる
       # (BefoldCLICommandTests.projectYmlMarketingVersionMatchesAppVersionConstant で照合)
-      MARKETING_VERSION: "1.7.2"
-      CURRENT_PROJECT_VERSION: "543"
+      MARKETING_VERSION: "1.7.3"
+      CURRENT_PROJECT_VERSION: "748"
       INFOPLIST_FILE: befold/Info.plist
       CODE_SIGN_ENTITLEMENTS: befold/befold.entitlements
       ENABLE_HARDENED_RUNTIME: true
