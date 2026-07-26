@@ -4,6 +4,12 @@ stable リリースのユーザー影響のある変更を記録する。
 dev リリースの全変更履歴は [GitHub Releases](https://github.com/YTommy109/befold/releases) を参照。
 v1.5.0 より前の履歴は GitHub Releases の各タグページを参照。
 
+## v1.8.0
+
+### 新機能
+- QuickLook 拡張を追加しました。Finder でファイルを選んでスペースキーを押すだけで、befold を起動せずに Mermaid / Markdown のプレビューを表示できます。対象拡張子は `.mmd` / `.mermaid` / `.md` / `.markdown` などで、プレビューは描画完了を待ってから表示されるため途中の状態が見えることはありません。
+- 大きいファイルや行指向でないファイルでも、QuickLook のプレビューが空白のまま止まらないようにしました。
+
 ## v1.7.3
 
 ### 新機能
