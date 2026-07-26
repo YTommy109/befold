@@ -74,10 +74,11 @@ Cmd+P
 - **パス解決**: `TrackedPathResolver.resolve(href:baseURL:)` を流用する。ディレクトリが指された場合は `SupportedFileResolver.resolveFileToOpen(at:)` に渡す。
 - **表示ラベル**: `PathRelativizer.relativePath(of:relativeTo:)` で相対パスを生成する。
 - **重複除去キー**: `URL+NormalizedPathKey` の `normalizedPathKey` を使う。
-- **デバウンス**: `FileWatching/Debouncer` を流用する。
 - **メニュー**: `MainMenuBuilder.build(...)` に Quick Open 項目を追加し、Print の `keyEquivalent` を `p` から `P`（`Shift+Cmd+P`）へ変更する。
 
-既存の `SuffixPathMatcher` / `SuffixPathIndex` は最良 1 件のみを返す設計であり、候補リスト表示には使えない。既存の文書内リンク解決の挙動を変えないため `SuffixPathMatcher` には手を入れず、`FuzzyMatcher` を別に設ける。
+既存の `SuffixPathMatcher` / `SuffixPathIndex` は最良 1 件のみを返す設計であり、候補リスト表示には使えない。既存の文書内リンク解決の挙動を変えないため、照合規則には手を入れず `FuzzyMatcher` を別に設ける。
+
+ただし `GitFileIndexing.trackedFileIndex(forFileAt:)` は `SuffixPathIndex` を返すだけで、取り込んだ候補 URL を読み出す口を持たない。そのため `SuffixPathIndex` に読み取り専用の `allCandidates: [URL]` を 1 つ追加する。照合には使わず、既存の解決挙動は変わらない。
 
 ## Behavior
 
@@ -107,7 +108,7 @@ Cmd+P
 - 非 Git のディレクトリ走査は深さ上限 8、件数上限 10,000 とする。`.git` `node_modules` `.build` を除外する。
 - 隠しファイルの扱いは既存の `HiddenFilesPreference.showHiddenFiles`（`Ctrl+Cmd+H` で切り替わる値）に従い、独自のフィルタ設定を持たない。
 - 上限に達して打ち切った場合は、その旨をリスト末尾に表示する。黙って切り捨てない。
-- 索引取得とディレクトリ走査はバックグラウンドで行い、結果を `@MainActor` に戻して反映する。入力ごとの絞り込みはデバウンスする。
+- 索引取得とディレクトリ走査はバックグラウンドで行い、結果を `@MainActor` に戻して反映する。入力ごとの絞り込みは同期で行う。候補は 10,000 件で上限が掛かっており、メモリ内の照合はデバウンスを挟むまでもなく収まる。実測でもたつく場合にのみ後からデバウンスを導入する。
 
 ### エラーと空結果
 
@@ -145,4 +146,4 @@ TDD で進める。各ステップで `swift test` が通る状態を保つ。
 - 新しいタブでの表示（`addTabbedWindow` の明示的な利用）。macOS の自動タブ化に任せる現行方針を変えない。
 - ファイル内容の全文検索。候補はパスとファイル名のみを対象とする。
 - コマンドパレット（ファイル以外のアクション実行）への拡張。
-- `SuffixPathMatcher` / `SuffixPathIndex` の変更。文書内リンク解決の挙動は現状を維持する。
+- `SuffixPathMatcher` / `SuffixPathIndex` の照合規則の変更。文書内リンク解決の挙動は現状を維持する（`allCandidates` の追加は読み取り専用で挙動を変えないため対象外）。
