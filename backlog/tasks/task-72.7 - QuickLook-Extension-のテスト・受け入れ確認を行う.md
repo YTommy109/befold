@@ -4,6 +4,7 @@ title: QuickLook Extension のテスト・受け入れ確認を行う
 status: To Do
 assignee: []
 created_date: '2026-07-19 06:44'
+updated_date: '2026-07-26 06:06'
 labels: []
 dependencies: []
 parent_task_id: TASK-72
@@ -22,3 +23,9 @@ FileType拡張子集合のユニットテスト、xcodebuildでのappexビルド
 - [ ] #2 Finder上での手動QuickLook検証結果が記録されている
 - [ ] #3 TASK-72の受け入れ基準が全て満たされている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+着手不可。TASK-72.5 が UTI 競合の設計見直しのため中断している。受け入れ確認の対象(どの拡張子をプレビューできることを保証するか)が親タスク AC#1 の見直し待ちのため確定していない。TASK-72.5 の再開条件が解消すれば着手できる。
+<!-- SECTION:NOTES:END -->

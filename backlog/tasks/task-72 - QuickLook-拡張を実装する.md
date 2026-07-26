@@ -5,7 +5,7 @@ status: To Do
 assignee:
   - '@tokutomi'
 created_date: '2026-07-19 06:38'
-updated_date: '2026-07-25 00:27'
+updated_date: '2026-07-26 06:06'
 labels: []
 dependencies: []
 ordinal: 210000
@@ -43,4 +43,34 @@ befold にファイル種別に応じたプレビューを提供する QuickLook
 
 <!-- SECTION:NOTES:BEGIN -->
 コード品質を新機能より優先する方針に伴い、本タスクを保留して To Do へ戻した（子タスク 7 件はすべて未着手で、実装成果物はない）。再開の目安: 構造リファクタ層（TASK-135 / 133 / 134 / 139 / 140 系 / 136 / 137 / 138）とテスト品質層が片付いた時点。
+
+## 進捗と中断(2026-07-26)
+子タスク 72.1 / 72.2 / 72.3 / 72.4 は Done。72.5 は実装完了・コミット済みだが
+AC#1 未達のまま中断。72.6 / 72.7 は着手不可。
+
+### 中断理由: 対象 UTI の多くが他の QuickLook 拡張に取られる
+QuickLook は 1 つの UTI につき拡張を 1 つしか選ばず、優先度を指定する API はない。
+実機(macOS 26.5.2)で qlmanage -p により appex の起動有無を確認した結果:
+- 起動する: .mermaid / .swift / .json
+- 起動しない(設計どおり対象外): .pdf
+- 起動しない(想定外): .md / .markdown / .svg / .html / .csv
+
+競合相手:
+- markdown 系 UTI → org.sbarex.QLMarkdown.QLExtension (/Applications/QLMarkdown.app)
+- public.html → com.apple.Safari.SafariQuickLookPreview
+- public.svg-image → システム標準の画像プレビュー
+
+befold 側のコードの不具合ではなく環境側の競合だが、この状態では
+AC#1「.mmd/.mermaid, .md/.markdown, .svg, .html/.htm, .csv/.tsv を
+レンダリングモードでプレビューできる」は競合アプリが入った環境では
+原理的に満たせない。AC#1 の見直しが必要。
+
+### 再開時に決めること
+1. AC#1 の対象範囲を、実効性のある種別(mermaid + ソースコード系)へ縮小するか
+2. 宣言は残したうえで「環境によっては選ばれない」と割り切り、
+   競合をユーザーへ知らせる仕組みを別途用意するか
+3. .svg の public.svg-image 宣言(TASK-72.4 で決めた判断)を維持するか
+
+### 未実施
+レンダリング結果そのものの目視確認(TASK-72.7 の手動チェック項目)。
 <!-- SECTION:NOTES:END -->

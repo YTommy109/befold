@@ -95,6 +95,15 @@ public enum FileType: Sendable, Equatable {
     /// 対応する全拡張子。
     public static let allExtensions: Set<String> = Set(typeByExtension.keys)
 
+    /// QuickLook 拡張がプレビュー対象とする拡張子。
+    /// 画像・PDF は macOS 標準の QuickLook が既に高品質なプレビューを提供するため除外する。
+    /// 除外条件は独自のリストではなく `isBinaryContent`(= .image/.pdf)へ委ね、
+    /// typeByExtension を単一情報源に保つ。これにより拡張子を追加しても
+    /// QuickLook 側の対象集合が自動的に追随する。
+    public static let quickLookSupportedExtensions: Set<String> = Set(
+        typeByExtension.lazy.filter { !$0.value.isBinaryContent }.map(\.key)
+    )
+
     /// 拡張子が `allExtensions` に含まれる既知の拡張子かどうかを判定する。
     /// `allExtensions` に無い拡張子でも `init(url:)` は plaintext としてフォールバックするため、
     /// この判定は「開けるか」ではなく「拡張子を既知としてハンドリングできるか」を表す。

@@ -218,4 +218,34 @@ struct FileTypeTests {
             #expect(key == key.lowercased())
         }
     }
+
+    /// QuickLook 拡張の対象拡張子に、レンダリング表示する 5 種と
+    /// シンタックスハイライト対象のコード拡張子がすべて含まれること。
+    @Test
+    func quickLookSupportedExtensionsCoverRenderingAndCodeTypes() {
+        let expected = Set(
+            FileType.mermaidExtensions + FileType.markdownExtensions
+                + FileType.svgExtensions + FileType.htmlExtensions
+                + FileType.csvExtensions + FileType.tsvExtensions
+                + FileType.codeExtensions
+        )
+        #expect(FileType.quickLookSupportedExtensions.isSuperset(of: expected))
+    }
+
+    /// PDF・画像は macOS 標準の QuickLook が既に高品質なプレビューを出すため、
+    /// befold の QuickLook 拡張の対象に含めないこと。
+    @Test("QuickLook 対象拡張子は PDF・画像を含まない", arguments: [
+        "pdf", "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico",
+    ])
+    func quickLookSupportedExtensionsExcludeBinaryTypes(ext: String) {
+        #expect(!FileType.quickLookSupportedExtensions.contains(ext))
+    }
+
+    /// 対象集合が独自のリストではなく allExtensions からバイナリ種別を除いた
+    /// 導出であること(拡張子の二重管理が入り込むと崩れる)。
+    @Test
+    func quickLookSupportedExtensionsAreDerivedFromAllExtensions() {
+        let binary = Set(FileType.imageExtensionMimeTypes.keys).union(FileType.pdfExtensions)
+        #expect(FileType.quickLookSupportedExtensions == FileType.allExtensions.subtracting(binary))
+    }
 }

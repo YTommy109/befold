@@ -28,4 +28,12 @@ public struct RendererFeatures: Equatable, Sendable {
 
     /// アプリ本体向けの既定値。全機能とも有効。
     public static let allEnabled = RendererFeatures(allowDirectHTML: true, embedImages: true)
+
+    /// QuickLook 拡張(.appex)向けのプリセット。全機能を無効にする。
+    /// appex は対象ファイル単体の read しか持たず、かつ 1 回描画のみの静的プレビューで
+    /// リンク遷移・追加読込を必要としないため、サンドボックス越境 read
+    /// (allowDirectHTML / embedImages)と postMessage ブリッジをまとめて閉じる。
+    public static let quickLookRestricted = RendererFeatures(
+        allowDirectHTML: false, embedImages: false, allowsInteractiveBridging: false
+    )
 }

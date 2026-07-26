@@ -63,6 +63,11 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     public var initialPageZoom: Double = 1.0
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
     public var scrollPositionToRestore: Double = 0
+    /// loadOneShot が描画完了(mermaid 等の非同期描画を含む)を待つ上限。
+    /// QuickLook のプレビュー生成をハングさせないための保険で、超過した場合は
+    /// その時点の DOM のまま完了として返す。負荷の高いテスト環境など、
+    /// ホスト側の事情で待ち時間を伸ばしたい場合に差し替える。
+    public var oneShotRenderTimeout: Duration = .seconds(3)
     /// HTML 直接ロード完了後に適用する pageZoom。適用後は nil に戻す。
     var pendingPageZoom: Double?
     var isReady = false

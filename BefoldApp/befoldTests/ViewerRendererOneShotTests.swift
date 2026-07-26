@@ -114,9 +114,7 @@ struct ViewerRendererOneShotTests {
     @MainActor
     func loadOneShotBuildsWebViewAndReportsReject() async {
         let renderer = ViewerRenderer()
-        renderer.rendererFeatures = RendererFeatures(
-            allowDirectHTML: false, embedImages: false, allowsInteractiveBridging: false
-        )
+        renderer.rendererFeatures = RendererFeatures.quickLookRestricted
 
         let url = URL(fileURLWithPath: "/tmp/oneshot-api.md")
         let fileReader = InMemoryFileReader(files: [url.path: "# ok\n"])
@@ -137,9 +135,7 @@ struct ViewerRendererOneShotTests {
     @MainActor
     func loadOneShotReportsRejectForBinary() async {
         let renderer = ViewerRenderer()
-        renderer.rendererFeatures = RendererFeatures(
-            allowDirectHTML: false, embedImages: false, allowsInteractiveBridging: false
-        )
+        renderer.rendererFeatures = RendererFeatures.quickLookRestricted
 
         let url = URL(fileURLWithPath: "/tmp/oneshot-binary.md")
         let fileReader = InMemoryFileReader(files: [url.path: "binary-ish"])
@@ -151,5 +147,32 @@ struct ViewerRendererOneShotTests {
         )
 
         #expect(result.rejectReason == .unsupportedFormat)
+    }
+
+    /// loadOneShot が「描画を予約して即 return」ではなく、実際の描画完了まで待つこと。
+    /// QuickLook はこの戻りの直後にプレビューを撮るため、待てていないと空白が表示される。
+    /// 完了検知は callAsyncJavaScript が受け取る render() の Promise 解決に依存するので、
+    /// 戻った時点で DOM に描画結果が入っていることを実際の WebView から読んで確かめる。
+    @Test("loadOneShot は描画完了まで待ってから返る")
+    @MainActor
+    func loadOneShotAwaitsRenderCompletion() async throws {
+        let renderer = ViewerRenderer()
+        renderer.rendererFeatures = .quickLookRestricted
+        // 既定の 3 秒は QuickLook 向けの上限で、全テスト並走時の WebView ロードには
+        // 足りずタイムアウト側が先に発火しうる。ここでは打ち切りではなく
+        // 「完了まで待つ」ことを見たいので十分に長く取る。
+        renderer.oneShotRenderTimeout = .seconds(60)
+
+        let url = URL(fileURLWithPath: "/tmp/oneshot-await.md")
+        let fileReader = InMemoryFileReader(files: [url.path: "# heading-marker\n"])
+
+        let result = await renderer.loadOneShot(
+            url: url, fileReader: fileReader, chunkedReaderFactory: chunkedReaderFactory
+        )
+
+        let html = try await result.webView.evaluateJavaScript(
+            "document.getElementById('diagram-wrap').innerHTML"
+        ) as? String
+        #expect(html?.contains("heading-marker") == true)
     }
 }

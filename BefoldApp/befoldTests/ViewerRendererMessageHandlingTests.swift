@@ -303,9 +303,7 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("allowsInteractiveBridging=false では referenceActivated/loadMoreLines を登録しない")
     func handlerNamesExcludeInteractiveWhenDisabled() {
-        let features = RendererFeatures(
-            allowDirectHTML: false, embedImages: false, allowsInteractiveBridging: false
-        )
+        let features = RendererFeatures.quickLookRestricted
         let names = ViewerRenderer.messageHandlerNames(for: features)
 
         // 非インタラクティブでも必要な 3 種は残る
