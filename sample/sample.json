@@ -1,0 +1,5 @@
+{
+  "purpose": "QuickLook 担当拡張の判定",
+  "expect": "シンタックスハイライト + 右下に befold QL バッジ",
+  "nested": { "array": [1, 2, 3], "bool": true, "null": null }
+}

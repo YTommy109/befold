@@ -6,5 +6,11 @@
 	<true/>
 	<key>com.apple.security.files.user-selected.read-only</key>
 	<true/>
+	<!-- WKWebView はローカルコンテンツのみでも WebKit の Networking プロセスを起動する。
+	     サンドボックス下でこれが無いと Networking プロセスが起動できず、
+	     連鎖して WebContent も上がらないため、あらゆるロードが完了せず空白になる。
+	     外部通信は viewer.html 側の CSP と rendererFeatures = .quickLookRestricted で塞ぐ。 -->
+	<key>com.apple.security.network.client</key>
+	<true/>
 </dict>
 </plist>

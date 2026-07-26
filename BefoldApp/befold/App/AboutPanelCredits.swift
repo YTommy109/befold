@@ -1,4 +1,5 @@
 import AppKit
+import BefoldKit
 
 /// About パネルの credits(著作権表記)を組み立てる純粋ロジック。
 enum AboutPanelCredits {
@@ -6,7 +7,7 @@ enum AboutPanelCredits {
         let credits = NSMutableAttributedString()
         credits.append(NSAttributedString(
             string: "befold",
-            attributes: [.link: URL(string: "https://ytommy109.github.io/befold/") as Any, .font: font]
+            attributes: [.link: AppLinks.homepage, .font: font]
         ))
         credits.append(NSAttributedString(string: "\nCopyright © 2026 ", attributes: [.font: font]))
         credits.append(NSAttributedString(

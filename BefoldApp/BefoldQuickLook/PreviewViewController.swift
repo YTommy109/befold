@@ -50,5 +50,41 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
             subview.topAnchor.constraint(equalTo: view.topAnchor),
             subview.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        addBadge()
+    }
+
+    /// どの QuickLook 拡張がプレビューを担当したかを見分けるための表示。
+    /// QuickLook は 1 つの UTI につき拡張を 1 つしか選ばず優先度指定の API もないため、
+    /// 対象拡張子でも他の拡張(QLMarkdown / Safari / システム標準)が選ばれることがある。
+    /// WebView の描画に依存しないネイティブビューとして重ねることで、
+    /// 内容が空でも「befold が担当したが描画できなかった」ことを判別できる。
+    /// バージョンを含めるのは、インストール済みのどのビルドが動いているかを
+    /// プレビュー上で確認できるようにするため(検証時にビルドの取り違えが起きたため)。
+    private func addBadge() {
+        let badge = NSTextField(
+            labelWithString: QuickLookBadge.text(infoDictionary: Bundle.main.infoDictionary)
+        )
+        badge.font = .systemFont(ofSize: 9, weight: .medium)
+        badge.textColor = .secondaryLabelColor
+        badge.translatesAutoresizingMaskIntoConstraints = false
+
+        let background = NSVisualEffectView()
+        background.material = .hudWindow
+        background.blendingMode = .withinWindow
+        background.state = .active
+        background.wantsLayer = true
+        background.layer?.cornerRadius = 4
+        background.translatesAutoresizingMaskIntoConstraints = false
+
+        background.addSubview(badge)
+        view.addSubview(background)
+        NSLayoutConstraint.activate([
+            badge.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 5),
+            badge.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -5),
+            badge.topAnchor.constraint(equalTo: background.topAnchor, constant: 2),
+            badge.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -2),
+            background.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            background.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8),
+        ])
     }
 }

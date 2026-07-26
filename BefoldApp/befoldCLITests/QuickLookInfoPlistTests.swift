@@ -42,6 +42,17 @@ struct QuickLookInfoPlistTests {
     /// レンダリング表示するにはこの UTI を宣言するしかない(TASK-72.4 で方針決定)。
     private static let quickLookOnlyContentTypes: Set<String> = ["public.svg-image"]
 
+    /// .ts(TypeScript)は実機で public.mpeg-2-transport-stream(動画)に解決されるが、
+    /// この UTI を宣言する QuickLook 拡張が befold だけの状態にしても macOS は内蔵
+    /// プレビューアを優先し appex を呼ばない(2026-07-26 / macOS 26.5.2 で実機確認)。
+    /// 効かない宣言は本物の .ts 動画のプレビューを奪うリスクだけが残るため宣言しない。
+    @Test("QLSupportedContentTypes は動画 UTI を含まない")
+    func supportedContentTypesExcludeTransportStream() throws {
+        let supported = try Self.supportedContentTypes()
+
+        #expect(!supported.contains("public.mpeg-2-transport-stream"))
+    }
+
     @Test("QLSupportedContentTypes はアプリ本体の CFBundleDocumentTypes と SVG のみで構成される")
     func supportedContentTypesMirrorAppDocumentTypes() throws {
         let supported = try Self.supportedContentTypes()
@@ -62,12 +73,19 @@ struct QuickLookInfoPlistTests {
         #expect(!supported.contains(uti))
     }
 
-    @Test("appex の entitlements はサンドボックス有効でネットワーク権限を持たない")
-    func entitlementsEnableSandboxWithoutNetwork() throws {
+    /// network.client は WKWebView の動作要件であり、外部通信のために付けているのではない。
+    /// サンドボックス下の WKWebView はローカルコンテンツのみでも WebKit の Networking
+    /// プロセスを起動するため、これが無いと Networking プロセスが起動できず、連鎖して
+    /// WebContent も上がらず、あらゆるロードが完了しないまま空白のプレビューになる
+    /// (実機で loadHTMLString すら url=nil のまま完了しないことを確認済み)。
+    /// 外部への通信自体は viewer.html 側の CSP と
+    /// `RendererFeatures.quickLookRestricted` で塞ぐ。
+    @Test("appex の entitlements はサンドボックス有効で、WKWebView 要件の network.client のみを持つ")
+    func entitlementsEnableSandboxWithWebKitRequirement() throws {
         let entitlements = try Self.plist(at: "BefoldQuickLook/BefoldQuickLook.entitlements")
 
         #expect(entitlements["com.apple.security.app-sandbox"] as? Bool == true)
-        #expect(entitlements["com.apple.security.network.client"] == nil)
+        #expect(entitlements["com.apple.security.network.client"] as? Bool == true)
         #expect(entitlements["com.apple.security.network.server"] == nil)
     }
 }
