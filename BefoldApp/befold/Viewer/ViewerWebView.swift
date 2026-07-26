@@ -3,9 +3,17 @@ import BefoldRenderKit
 import SwiftUI
 import WebKit
 
-/// WKWebView で Mermaid / Markdown コンテンツをレンダリングする NSViewRepresentable。
-/// WKWebView の構成・render 評価などドライバ本体は BefoldRenderKit.ViewerRenderer に
-/// 委譲し、本体は SwiftUI とのブリッジ役に徹する。
+/// SwiftUI View から ViewerRenderer の通知先を weak で運ぶ箱。
+/// View(struct)が通知先を直接強参照すると、通知先 → ウィンドウ → ホスティングビュー → View
+/// という所有の輪が閉じてしまうため、参照の弱さをここに閉じ込める。
+struct WeakRendererDelegate {
+    weak var value: (any ViewerRendererDelegate)?
+
+    init(_ value: (any ViewerRendererDelegate)?) {
+        self.value = value
+    }
+}
+
 struct ViewerWebView: NSViewRepresentable {
     let content: String
     /// content が変わるたびに増分する世代番号。ViewerRenderer は再描画要否の判定に
@@ -28,18 +36,9 @@ struct ViewerWebView: NSViewRepresentable {
     let initialZoom: Double
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
     let scrollPositionToRestore: Double
-    /// JS 側でスクロール位置が変わったときに呼ばれる。(position, mode)
-    let onScrollPositionChanged: @MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void
-    /// JS 側で倍率が変わったときに呼ばれる。
-    let onZoomChanged: @MainActor (Double) -> Void
-    /// JS 側「続きを読み込む」押下時に呼ばれ、次チャンクと更新後の表示状態を非同期で返す。
-    let onLoadMoreLines: @MainActor () async -> LoadMoreLinesResult?
-    /// リンクやパス参照がアクティベートされたときに呼ばれる。
-    /// パラメータ: href, newWindow
-    let onOpenReference: @MainActor (_ href: String, _ newWindow: Bool) -> Void
-    /// JS がパス参照の解決を要求したときに呼ばれる。戻り値: 書かれたパス→解決済み絶対パス。
-    /// 解決は git subprocess を伴いうるため非同期(MainActor をブロックしない)。
-    let onResolveReferences: @MainActor (_ paths: [String]) async -> [String: String]
+    /// JS 側の出来事(倍率・スクロール位置・リンク・パス解決・続きを読み込む)の通知先。
+    /// SwiftUI View はウィンドウ階層越しに通知先へ強参照を持つと循環するため weak で運ぶ。
+    let rendererDelegate: WeakRendererDelegate
     /// 検索バーの3トグル(大文字小文字区別・単語マッチ・正規表現)の永続化ストア。
     let findOptionsPreference: FindOptionsPreference
     /// AppKit 側（メニューアクション）へ WKWebView を公開するプロキシ。
@@ -53,11 +52,8 @@ struct ViewerWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let renderer = context.coordinator
         renderer.findOptionsPreference = findOptionsPreference
-        renderer.onLoadMoreLines = onLoadMoreLines
-        renderer.onZoomChanged = onZoomChanged
-        renderer.onOpenReference = onOpenReference
-        renderer.onResolveReferences = onResolveReferences
-        renderer.onScrollPositionChanged = onScrollPositionChanged
+        // 通知先は 1 度結び付ければよい(weak なので更新サイクルごとの張り直しは不要)。
+        renderer.delegate = rendererDelegate.value
         renderer.rendererFeatures = rendererFeatures
 
         let webView = renderer.makeWebView(initialZoom: initialZoom, findOptionsPreference: findOptionsPreference)
@@ -69,11 +65,6 @@ struct ViewerWebView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         let renderer = context.coordinator
-        renderer.onZoomChanged = onZoomChanged
-        renderer.onScrollPositionChanged = onScrollPositionChanged
-        renderer.onOpenReference = onOpenReference
-        renderer.onResolveReferences = onResolveReferences
-        renderer.onLoadMoreLines = onLoadMoreLines
         renderer.findOptionsPreference = findOptionsPreference
         renderer.initialPageZoom = initialZoom
         renderer.scrollPositionToRestore = scrollPositionToRestore

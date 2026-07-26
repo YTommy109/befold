@@ -1,3 +1,4 @@
+import BefoldKit
 @testable import BefoldRenderKit
 import WebKit
 
@@ -40,6 +41,40 @@ enum ViewerRendererMessageStubs {
             completionHandler: (@MainActor @Sendable (Any?, (any Error)?) -> Void)? = nil
         ) {
             evaluatedScripts.append(javaScriptString)
+        }
+    }
+
+    /// 各通知をクロージャへ横流しするスタブ delegate。
+    /// ViewerRenderer.delegate は weak なので、テスト側でこのインスタンスを
+    /// ローカル変数に保持し続けること(即座に解放されると通知が届かない)。
+    @MainActor
+    final class Delegate: ViewerRendererDelegate {
+        var onZoomChanged: ((Double) -> Void)?
+        var onScrollPositionChanged: ((Double, ViewerBridge.ViewMode) -> Void)?
+        var onOpenReference: ((String, Bool) -> Void)?
+        var onResolveReferences: (([String]) async -> [String: String])?
+        var onLoadMoreLines: (() async -> LoadMoreLinesResult?)?
+
+        func renderer(_: ViewerRenderer, didChangeZoom zoom: Double) {
+            onZoomChanged?(zoom)
+        }
+
+        func renderer(
+            _: ViewerRenderer, didChangeScrollPosition position: Double, mode: ViewerBridge.ViewMode
+        ) {
+            onScrollPositionChanged?(position, mode)
+        }
+
+        func renderer(_: ViewerRenderer, didActivateReference href: String, newWindow: Bool) {
+            onOpenReference?(href, newWindow)
+        }
+
+        func renderer(_: ViewerRenderer, resolveReferences paths: [String]) async -> [String: String] {
+            await onResolveReferences?(paths) ?? [:]
+        }
+
+        func rendererDidRequestMoreLines(_: ViewerRenderer) async -> LoadMoreLinesResult? {
+            await onLoadMoreLines?() ?? nil
         }
     }
 

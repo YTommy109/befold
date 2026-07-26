@@ -37,7 +37,7 @@ extension ViewerRenderer {
         case .allowNativeNavigation:
             return .allow
         case let .openLocalFile(fileURL, newWindow):
-            onOpenReference?(fileURL.path, newWindow)
+            delegate?.renderer(self, didActivateReference: fileURL.path, newWindow: newWindow)
             return .cancel
         case let .openExternal(externalURL):
             NSWorkspace.shared.open(externalURL)

@@ -4,12 +4,12 @@ import Testing
 
 private struct FakeGitIndex: GitFileIndexing {
     let files: [URL]?
-    func trackedFiles(forFileAt url: URL) -> [URL]? {
-        files
+    func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
+        files.map(SuffixPathIndex.init(candidates:))
     }
 }
 
-/// 追跡ファイル取得の回数を数える索引。バッチ解決が git を 1 度しか引かないことの検証に使う。
+/// 追跡ファイル索引の取得回数を数える索引。バッチ解決が git を 1 度しか引かないことの検証に使う。
 private final class CountingGitIndex: GitFileIndexing, @unchecked Sendable {
     private let files: [URL]?
     private let lock = NSLock()
@@ -23,11 +23,11 @@ private final class CountingGitIndex: GitFileIndexing, @unchecked Sendable {
         self.files = files
     }
 
-    func trackedFiles(forFileAt url: URL) -> [URL]? {
+    func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
         lock.lock()
         _callCount += 1
         lock.unlock()
-        return files
+        return files.map(SuffixPathIndex.init(candidates:))
     }
 }
 
@@ -87,10 +87,24 @@ struct TrackedPathResolverTests {
         let base = url("/repo/docs/guide.md")
         let tracked = url("/repo/src/utils.swift")
         let sut = TrackedPathResolver(
-            fileReader: FakeFileReader(existing: []),
+            fileReader: FakeFileReader(existing: [tracked.path]),
             gitIndex: FakeGitIndex(files: [tracked])
         )
         #expect(sut.resolve(href: "utils.swift", baseURL: base) == .resolved(tracked))
+    }
+
+    /// git の索引は worktree の実態と一致しない。worktree から削除して index に残っている
+    /// ファイルや submodule の gitlink(実体はディレクトリ)も列挙されるため、
+    /// 一致しただけでリンク化すると「クリックしても開けないリンク」になる。
+    @Test("git が追跡していても worktree に実在しなければ unresolved")
+    func unresolvedWhenTrackedFileIsMissingFromWorktree() {
+        let base = url("/repo/docs/guide.md")
+        let tracked = url("/repo/src/utils.swift")
+        let sut = TrackedPathResolver(
+            fileReader: FakeFileReader(existing: []),
+            gitIndex: FakeGitIndex(files: [tracked])
+        )
+        #expect(sut.resolve(href: "utils.swift", baseURL: base) == .unresolved)
     }
 
     @Test("git 管理外かつ相対で実在しなければ unresolved")
@@ -122,7 +136,7 @@ struct TrackedPathResolverTests {
         let hrefs = ["utils.swift", "img.png", "nope.swift", "https://example.com", "#section"]
         let makeSUT = {
             TrackedPathResolver(
-                fileReader: FakeFileReader(existing: [existing.path]),
+                fileReader: FakeFileReader(existing: [existing.path, tracked.path]),
                 gitIndex: CountingGitIndex(files: [tracked])
             )
         }
@@ -166,7 +180,7 @@ struct TrackedPathResolverTests {
         let base = url("/repo/docs/guide.md")
         let tracked = url("/repo/src/utils.swift")
         let sut = TrackedPathResolver(
-            fileReader: FakeFileReader(existing: []),
+            fileReader: FakeFileReader(existing: [tracked.path]),
             gitIndex: FakeGitIndex(files: [tracked])
         )
         #expect(sut.resolve(href: "utils.swift:42", baseURL: base) == .resolved(tracked))

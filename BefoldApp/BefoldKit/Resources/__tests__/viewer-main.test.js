@@ -1029,4 +1029,54 @@ describe('パス参照の表示時解決', () => {
 
     expect(ref.dataset.resolved).toBe('/repo/src/new.swift');
   });
+
+  test('Object.prototype 由来の名前を書いた参照は解決済み扱いにならない', () => {
+    const loaded = loadViewerMain({});
+    captureBridgeMessages(loaded.window, ['resolveReferences']);
+    setWrapHtml(
+      loaded,
+      '<a id="ctor" href="constructor">ctor</a>' +
+      '<a id="hop" href="hasOwnProperty">hop</a>' +
+      '<a id="tostr" href="toString">tostr</a>'
+    );
+
+    loaded.main._mmdResolveReferences();
+    // Swift が 1 件も解決できなかった応答
+    loaded.main._mmdApplyResolvedReferences({});
+
+    ['#ctor', '#hop', '#tostr'].forEach((sel) => {
+      const el = loaded.document.querySelector(sel);
+      expect(el.classList.contains('befold-link')).toBe(false);
+      expect(el.classList.contains('befold-link-dead')).toBe(true);
+      expect(el.dataset.resolved).toBeUndefined();
+      expect(el.hasAttribute('href')).toBe(false);
+    });
+  });
+
+  test('__proto__ という名前の参照も解決要求に含める', () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences']);
+    setWrapHtml(loaded, '<a id="proto" href="__proto__">proto</a><a id="ok" href="./doc.md">doc</a>');
+
+    loaded.main._mmdResolveReferences();
+
+    expect(received[0].payload.paths.sort()).toEqual(['./doc.md', '__proto__']);
+  });
+
+  test('解決先の絶対パスを title に出し、解決失敗時は元の title を残さない', () => {
+    const loaded = loadViewerMain({});
+    captureBridgeMessages(loaded.window, ['resolveReferences']);
+    // 生 HTML で表示テキストと無関係なパスへ誘導し、title で偽装した参照
+    setWrapHtml(
+      loaded,
+      '<span id="fake" class="befold-path-ref" data-path="./secret.md" title="README.md">README.md</span>' +
+      '<a id="dead" href="./missing.md" title="安全なリンク">missing</a>'
+    );
+
+    loaded.main._mmdResolveReferences();
+    loaded.main._mmdApplyResolvedReferences({ './secret.md': '/repo/secret.md' });
+
+    expect(loaded.document.getElementById('fake').getAttribute('title')).toBe('/repo/secret.md');
+    expect(loaded.document.getElementById('dead').hasAttribute('title')).toBe(false);
+  });
 });

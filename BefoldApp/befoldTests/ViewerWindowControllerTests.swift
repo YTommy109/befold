@@ -423,22 +423,23 @@ extension ViewerWindowControllerTests {
 
     @Test("resolveReferences は実在パスのみ解決済み絶対パスで返す")
     func resolveReferencesReturnsResolvedOnly() async {
-        // 常に固定の追跡ファイル一覧を返すフェイク索引。相対解決で見つからないパスの
+        // 常に固定の追跡ファイル索引を返すフェイク。相対解決で見つからないパスの
         // git サフィックス一致フォールバックを検証するために使う。
         struct FakeGitIndex: GitFileIndexing {
             let tracked: URL
-            func trackedFiles(forFileAt url: URL) -> [URL]? {
-                [tracked]
+            func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
+                SuffixPathIndex(candidates: [tracked])
             }
         }
         let base = URL(fileURLWithPath: "/mock/docs/guide.md")
         let tracked = URL(fileURLWithPath: "/mock/src/utils.swift")
         let controller = makeSwitchController(primary: base, contents: "# doc")
         defer { controller.close() }
-        // utils.swift は相対解決では見つからず(store の fileReader に登録していない)、
-        // git 追跡ファイル一覧からのサフィックス一致でのみ解決できる状態にする。
-        controller.pathResolver = TrackedPathResolver(
-            fileReader: InMemoryFileReader(files: [base.path: "# doc"]),
+        // utils.swift は書かれた相対位置(/mock/docs/utils.swift)には存在せず、
+        // 追跡ファイルの実体(/mock/src/utils.swift)だけが存在する状態にする。
+        // git サフィックス一致でのみ解決でき、かつ一致先は実在するという経路。
+        controller.referenceCoordinator.resolver = TrackedPathResolver(
+            fileReader: InMemoryFileReader(files: [base.path: "# doc", tracked.path: "// utils"]),
             gitIndex: FakeGitIndex(tracked: tracked)
         )
 
@@ -455,9 +456,9 @@ extension ViewerWindowControllerTests {
         // 呼ばれたスレッドを記録するだけのフェイク索引。
         struct ThreadRecordingGitIndex: GitFileIndexing {
             let wasMainThread: LockedBox<Bool?>
-            func trackedFiles(forFileAt url: URL) -> [URL]? {
+            func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
                 wasMainThread.set(Thread.isMainThread)
-                return []
+                return SuffixPathIndex(candidates: [])
             }
         }
         let base = URL(fileURLWithPath: "/mock/docs/guide.md")
@@ -468,7 +469,7 @@ extension ViewerWindowControllerTests {
         )
         defer { controller.close() }
         // 相対解決では見つからないパスを渡し、必ず git 索引フォールバックへ入らせる。
-        controller.pathResolver = TrackedPathResolver(
+        controller.referenceCoordinator.resolver = TrackedPathResolver(
             fileReader: InMemoryFileReader(files: [base.path: "# doc"]),
             gitIndex: ThreadRecordingGitIndex(wasMainThread: wasMainThread)
         )
@@ -486,8 +487,8 @@ extension ViewerWindowControllerTests {
     func resolveReferencesAndOpenReferenceAgreeOnGitFallback() async {
         struct FakeGitIndex: GitFileIndexing {
             let tracked: URL
-            func trackedFiles(forFileAt url: URL) -> [URL]? {
-                [tracked]
+            func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
+                SuffixPathIndex(candidates: [tracked])
             }
         }
         let base = URL(fileURLWithPath: "/mock/docs/guide.md")
@@ -500,8 +501,8 @@ extension ViewerWindowControllerTests {
         )
         defer { controller.close() }
         // 相対解決では見つからず、git 追跡ファイルのサフィックス一致でのみ解決できる状態。
-        controller.pathResolver = TrackedPathResolver(
-            fileReader: InMemoryFileReader(files: [base.path: "# doc"]),
+        controller.referenceCoordinator.resolver = TrackedPathResolver(
+            fileReader: InMemoryFileReader(files: [base.path: "# doc", tracked.path: "// utils"]),
             gitIndex: FakeGitIndex(tracked: tracked)
         )
 

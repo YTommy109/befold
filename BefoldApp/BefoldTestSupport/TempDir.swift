@@ -58,6 +58,18 @@ public final class TempDir: Sendable {
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
         return (real, link)
     }
+
+    /// 実体ディレクトリと、それを指す symlink を作成して両方の URL を返す。
+    /// symlink 経由のディレクトリでも同一とみなされることの検証に使う。
+    public func symlinkedDirectory(
+        real realName: String = "real", link linkName: String = "link"
+    ) throws -> (real: URL, link: URL) {
+        let real = url.appendingPathComponent(realName)
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        let link = url.appendingPathComponent(linkName)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        return (real, link)
+    }
 }
 
 /// ホームディレクトリ配下に一時ディレクトリを作る。`navigateToFolder` は

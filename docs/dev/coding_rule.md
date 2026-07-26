@@ -67,13 +67,13 @@ BefoldApp/
 ├── .swiftlint.yml           # SwiftLint 設定
 ├── .swiftformat             # SwiftFormat 設定
 ├── befold/
-│   ├── App/                 # AppDelegate, ViewerWindowController, SidebarNavigator ほかウィンドウ/セッション/メニュー系
+│   ├── App/                 # AppDelegate, ViewerWindowController, SidebarNavigator, ReferenceResolutionCoordinator, GitRepository ほかウィンドウ/セッション/メニュー/git 系
 │   ├── Viewer/              # ViewerStore, ViewerWebView, FileType, FileListView, ViewerBridge ほか表示系
 │   ├── FileWatching/        # FileWatcher, Debouncer
 │   ├── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
 │   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js
 │       └── __tests__/       # viewer.js の Jest テスト
-├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TextEncoding, StringChunkReader, ContentLoader）
+├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TrackedPathResolver, SuffixPathMatcher, TextEncoding, StringChunkReader, ContentLoader）
 ├── BefoldCLI/               # CLI 共通ロジックライブラリ（AppVersion, CLIBookmarkCommand, CLICheckCommand, CLICommandResult, CLIInstaller, CLIInstanceRouter, CLIOpenOptions, ShellQuoting）
 ├── befold-cli/              # CLI 実行ファイル（BefoldCLICommand, CLIAppLauncher）
 ├── BefoldTestSupport/       # テスト共有ヘルパーの単一情報源（TempDir, LockedBox, makeIsolatedDefaults, waitUntil 系）
@@ -494,11 +494,16 @@ func detectsAtomicSave() async throws {
 
 ## JavaScript コーディング規約
 
-- `viewer.js` にはテスト可能な純粋ロジックのみを置く（DOM 操作は `viewer.html` 側）
+- `viewer.js` にはテスト可能な純粋ロジックのみを置く（DOM 操作は `viewer.html` /
+  `viewer-main.js` 側）。DOM に触れない純粋述語を `viewer-main.js` に書き足したくなったら
+  `viewer.js` へ置き、`module.exports` に載せて Jest から直接テストする
 - CommonJS 互換の `module.exports` で関数をエクスポートする（Jest テスト用）
-- `var` 宣言を使用する（WKWebView 内での互換性）
+- `var` 宣言を使用する。macOS 14+ の WKWebView は `const` / `let` も解釈できるため
+  技術的制約ではなく、同梱 JS（`viewer.js` / `viewer-main.js`）が全面的に `var` で
+  書かれているための一貫性ルールである。混在させず既存に揃える
 - **コメントは「コメント・ドキュメンテーション規約」に従う**。同節の例は Swift だが、
-  規約は言語非依存であり `viewer.js` / `viewer.html` のコメントにも等しく適用される。
+  規約は言語非依存であり `viewer.js` / `viewer-main.js` / `viewer.html` のコメントにも
+  等しく適用される。
   特に「書かなくてよいコメント」の**タスク番号・issue 番号・変更履歴の参照は JS/HTML でも書かない**
   （`(issue #NNN)` のような記述はコミットメッセージ側に置く）。
 

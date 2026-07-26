@@ -37,6 +37,7 @@ const {
   csvSourceInnerHtml,
   CSV_COL_COUNT,
   isSafeLinkURL,
+  isLocalPathHref,
   buildFindRegExp,
   nextMatchIndex,
   prevMatchIndex,
@@ -943,6 +944,53 @@ describe('isSafeLinkURL', () => {
     expect(isSafeLinkURL('other.md#section')).toBe(true);
     expect(isSafeLinkURL('#anchor')).toBe(true);
     expect(isSafeLinkURL('mailto:a@example.com')).toBe(true);
+  });
+});
+
+describe('isLocalPathHref', () => {
+  test('treats relative and absolute paths as local', () => {
+    expect(isLocalPathHref('other.md')).toBe(true);
+    expect(isLocalPathHref('./docs/spec.md')).toBe(true);
+    expect(isLocalPathHref('../sibling/a.mmd')).toBe(true);
+    expect(isLocalPathHref('/abs/path/a.md')).toBe(true);
+    expect(isLocalPathHref('~/notes/a.md')).toBe(true);
+    expect(isLocalPathHref('dir/file.md#section')).toBe(true);
+  });
+
+  test('treats a dotted scheme-like prefix as a path with a line suffix', () => {
+    // file.md:12 は scheme="file.md" と読めてしまうため、ドットを含む
+    // スキームはローカルパス扱いにする
+    expect(isLocalPathHref('file.md:12')).toBe(true);
+    expect(isLocalPathHref('./docs/spec.md:120:5')).toBe(true);
+  });
+
+  test('excludes URL schemes without a dot', () => {
+    expect(isLocalPathHref('https://example.com/a.md')).toBe(false);
+    expect(isLocalPathHref('http://example.com')).toBe(false);
+    expect(isLocalPathHref('mailto:a@example.com')).toBe(false);
+    expect(isLocalPathHref('tel:0312345678')).toBe(false);
+    expect(isLocalPathHref('javascript:alert(1)')).toBe(false);
+    expect(isLocalPathHref('data:text/plain,x')).toBe(false);
+    expect(isLocalPathHref('befold-x.y:open')).toBe(true); // ドット入りスキームは除外できない
+    expect(isLocalPathHref('x+y-z:payload')).toBe(false);
+  });
+
+  test('excludes in-document anchors', () => {
+    expect(isLocalPathHref('#anchor')).toBe(false);
+    expect(isLocalPathHref('#')).toBe(false);
+  });
+
+  test('excludes empty and nullish hrefs', () => {
+    expect(isLocalPathHref('')).toBe(false);
+    expect(isLocalPathHref(null)).toBe(false);
+    expect(isLocalPathHref(undefined)).toBe(false);
+  });
+
+  test('keeps colon-containing strings that are not scheme-shaped', () => {
+    // スキームは英字始まりのみ。数字始まりやコロン始まりはパス候補として残す
+    expect(isLocalPathHref('12:34')).toBe(true);
+    expect(isLocalPathHref(':leading')).toBe(true);
+    expect(isLocalPathHref('a b:c')).toBe(true);
   });
 });
 

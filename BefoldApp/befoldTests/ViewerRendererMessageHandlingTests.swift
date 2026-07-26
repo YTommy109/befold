@@ -20,8 +20,10 @@ struct ViewerRendererMessageHandlingTests {
     @Test("zoomChanged が onZoomChanged へ倍率を渡す")
     func zoomChangedDispatchesZoom() {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         var received: Double?
-        renderer.onZoomChanged = { received = $0 }
+        delegate.onZoomChanged = { received = $0 }
 
         dispatch(renderer, name: ViewerBridge.zoomChangedMessageName, body: NSNumber(value: 1.75))
 
@@ -31,8 +33,10 @@ struct ViewerRendererMessageHandlingTests {
     @Test("referenceActivated が onOpenReference へ href/newWindow を渡す")
     func referenceActivatedDispatchesReference() {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         var received: (href: String, newWindow: Bool)?
-        renderer.onOpenReference = { received = ($0, $1) }
+        delegate.onOpenReference = { received = ($0, $1) }
 
         dispatch(
             renderer, name: ViewerBridge.referenceActivatedMessageName,
@@ -46,8 +50,10 @@ struct ViewerRendererMessageHandlingTests {
     @Test("scrollPositionChanged が onScrollPositionChanged へ位置/モードを渡す")
     func scrollPositionChangedDispatchesPositionAndMode() {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         var received: (position: Double, mode: ViewerBridge.ViewMode)?
-        renderer.onScrollPositionChanged = { received = ($0, $1) }
+        delegate.onScrollPositionChanged = { received = ($0, $1) }
 
         dispatch(
             renderer, name: ViewerBridge.scrollPositionChangedMessageName,
@@ -61,6 +67,8 @@ struct ViewerRendererMessageHandlingTests {
     @Test("findOptionsChanged が findOptionsPreference へ3トグルを書き戻す")
     func findOptionsChangedWritesBackPreference() {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         let preference = FindOptionsPreference(defaults: Self.ephemeralDefaults())
         preference.caseSensitive = false
         preference.wholeWord = false
@@ -80,6 +88,8 @@ struct ViewerRendererMessageHandlingTests {
     @Test("loadMoreLines が handleLoadMoreLines を起動する(isLoadingMoreLines が立つ)")
     func loadMoreLinesInvokesHandler() {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         #expect(renderer.isLoadingMoreLines == false)
 
         dispatch(renderer, name: ViewerBridge.loadMoreLinesMessageName, body: [])
@@ -92,7 +102,9 @@ struct ViewerRendererMessageHandlingTests {
     @Test("handleLoadMoreLines は onLoadMoreLines の結果を pendingAppend にステージする")
     func handleLoadMoreLinesStagesPendingAppend() async {
         let renderer = ViewerRenderer()
-        renderer.onLoadMoreLines = {
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
+        delegate.onLoadMoreLines = {
             LoadMoreLinesResult(
                 chunk: "row2\n", isTruncated: true, lineCount: 2,
                 contentRevision: 5, loadFailed: false
@@ -114,8 +126,10 @@ struct ViewerRendererMessageHandlingTests {
     @Test("未消費の pendingAppend がある間の続き読み込みはチャンクを累積する")
     func handleLoadMoreLinesAccumulatesUnconsumedChunks() async {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         var revision = 1
-        renderer.onLoadMoreLines = {
+        delegate.onLoadMoreLines = {
             revision += 1
             return LoadMoreLinesResult(
                 chunk: revision == 2 ? "A" : "B", isTruncated: true, lineCount: revision,
@@ -141,7 +155,9 @@ struct ViewerRendererMessageHandlingTests {
     @Test("onLoadMoreLines が nil を返すと pendingAppend はステージされない")
     func handleLoadMoreLinesNilResultDoesNotStage() async {
         let renderer = ViewerRenderer()
-        renderer.onLoadMoreLines = { nil }
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
+        delegate.onLoadMoreLines = { nil }
 
         renderer.handleLoadMoreLines()
         while renderer.isLoadingMoreLines {
@@ -178,8 +194,10 @@ struct ViewerRendererMessageHandlingTests {
     @Test("zoomChanged の body が数値でなければ onZoomChanged を呼ばない")
     func zoomChangedIgnoresNonNumberBody() {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         var called = false
-        renderer.onZoomChanged = { _ in called = true }
+        delegate.onZoomChanged = { _ in called = true }
 
         dispatch(renderer, name: ViewerBridge.zoomChangedMessageName, body: "1.5")
 
@@ -189,8 +207,10 @@ struct ViewerRendererMessageHandlingTests {
     @Test("referenceActivated の必須キーが欠けていれば onOpenReference を呼ばない")
     func referenceActivatedIgnoresMissingKeys() {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         var called = false
-        renderer.onOpenReference = { _, _ in called = true }
+        delegate.onOpenReference = { _, _ in called = true }
 
         // newWindow が欠落
         dispatch(
@@ -204,8 +224,10 @@ struct ViewerRendererMessageHandlingTests {
     @Test("referenceActivated の href が文字列でなければ onOpenReference を呼ばない")
     func referenceActivatedIgnoresWrongTypedHref() {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         var called = false
-        renderer.onOpenReference = { _, _ in called = true }
+        delegate.onOpenReference = { _, _ in called = true }
 
         dispatch(
             renderer, name: ViewerBridge.referenceActivatedMessageName,
@@ -218,8 +240,10 @@ struct ViewerRendererMessageHandlingTests {
     @Test("scrollPositionChanged の mode が不正な文字列なら onScrollPositionChanged を呼ばない")
     func scrollPositionChangedIgnoresInvalidMode() {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         var called = false
-        renderer.onScrollPositionChanged = { _, _ in called = true }
+        delegate.onScrollPositionChanged = { _, _ in called = true }
 
         dispatch(
             renderer, name: ViewerBridge.scrollPositionChangedMessageName,
@@ -232,6 +256,8 @@ struct ViewerRendererMessageHandlingTests {
     @Test("findOptionsChanged の値が Bool でなければ preference を書き換えない")
     func findOptionsChangedIgnoresNonBoolValues() {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         let preference = FindOptionsPreference(defaults: Self.ephemeralDefaults())
         preference.caseSensitive = false
         preference.wholeWord = true
@@ -252,8 +278,10 @@ struct ViewerRendererMessageHandlingTests {
     @Test("未知のメッセージ名は無視される")
     func unknownMessageNameIsIgnored() {
         let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         var called = false
-        renderer.onZoomChanged = { _ in called = true }
+        delegate.onZoomChanged = { _ in called = true }
 
         dispatch(renderer, name: "somethingElse", body: NSNumber(value: 2.0))
 

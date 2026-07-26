@@ -1,10 +1,10 @@
   // Swift ブリッジメッセージ名（ViewerBridge.swift と同期）
-  const _MSG_ZOOM_CHANGED = 'zoomChanged';
-  const _MSG_REFERENCE_ACTIVATED = 'referenceActivated';
-  const _MSG_FIND_OPTIONS_CHANGED = 'findOptionsChanged';
-  const _MSG_SCROLL_POSITION_CHANGED = 'scrollPositionChanged';
-  const _MSG_LOAD_MORE_LINES = 'loadMoreLines';
-  const _MSG_RESOLVE_REFERENCES = 'resolveReferences';
+  var _MSG_ZOOM_CHANGED = 'zoomChanged';
+  var _MSG_REFERENCE_ACTIVATED = 'referenceActivated';
+  var _MSG_FIND_OPTIONS_CHANGED = 'findOptionsChanged';
+  var _MSG_SCROLL_POSITION_CHANGED = 'scrollPositionChanged';
+  var _MSG_LOAD_MORE_LINES = 'loadMoreLines';
+  var _MSG_RESOLVE_REFERENCES = 'resolveReferences';
 
   // postMessage を一箇所に集約するヘルパー。ハンドラ未登録の WebView
   // （例: 機能限定ホスト)でも安全に呼べるよう存在チェックを内包する。
@@ -260,16 +260,6 @@
            el.classList.contains('befold-link-dead');
   }
 
-  // href がローカルパス候補か。#アンカー・http(s) 等スキーム付きは除外する。
-  // file.md:12 が scheme="file.md" と誤解釈される都合、ドットを含むスキームは許可する。
-  function _mmdIsLocalPathHref(href) {
-    if (!href) return false;
-    if (href.charAt(0) === '#') return false;
-    var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*):/);
-    if (m && m[1].indexOf('.') === -1) return false; // http:, mailto:, tel: 等
-    return true;
-  }
-
   // 描画直後に呼ぶ。未分類のローカルパス候補(<a> と .befold-path-ref)を集めて
   // 一意なパス集合を Swift へ送り、同時に中立化(pending)する。
   // 解決が返るまでリンクに見せないことで、開けない偽リンクを出さない。
@@ -281,14 +271,16 @@
     wrap.querySelectorAll('a[href]').forEach(function(a) {
       if (_mmdIsClassifiedRef(a)) { return; }
       var href = a.getAttribute('href');
-      if (_mmdIsLocalPathHref(href)) { targets.push({ el: a, raw: href }); }
+      if (isLocalPathHref(href)) { targets.push({ el: a, raw: href }); }
     });
     wrap.querySelectorAll('.befold-path-ref').forEach(function(s) {
       if (_mmdIsClassifiedRef(s) || !s.dataset.path) { return; }
       targets.push({ el: s, raw: s.dataset.path });
     });
     if (!targets.length) { return; }
-    var uniq = {};
+    // プロトタイプを持たない辞書にする。素の {} だと __proto__ への代入が
+    // プロトタイプ変更として吸われ、そのパスが解決要求から静かに落ちる。
+    var uniq = Object.create(null);
     targets.forEach(function(t) { uniq[t.raw] = true; });
     // 送れなかった(ハンドラ未登録の)場合は応答が来ないため、中立化もキュー登録も
     // 行わない。中立化したまま応答待ちで固まるのを防ぐ。
@@ -303,14 +295,21 @@
     var targets = _mmdPendingRefBatches.shift() || [];
     targets.forEach(function(t) {
       t.el.classList.remove('befold-link-pending');
-      var abs = map && map[t.raw];
+      // 自己所有プロパティだけを見る。constructor / toString のような
+      // Object.prototype の名前をパスとして書かれると、素の参照では
+      // 未解決のパスが継承値で解決済みと誤判定される。
+      var abs = (map && Object.prototype.hasOwnProperty.call(map, t.raw)) ? map[t.raw] : null;
       if (abs) {
         t.el.classList.add('befold-link');
         // コピー等の後続機能が使えるよう、解決済み絶対パスを DOM に残す。
         t.el.dataset.resolved = abs;
+        // 表示テキストや文書側が付けた title は実際の遷移先と無関係になりうる
+        // (生 HTML の span でリンク偽装が作れる)。解決先そのものを見せて上書きする。
+        t.el.setAttribute('title', abs);
       } else {
         t.el.classList.add('befold-link-dead');
         if (t.el.tagName === 'A') { t.el.removeAttribute('href'); }
+        t.el.removeAttribute('title');
       }
     });
   }

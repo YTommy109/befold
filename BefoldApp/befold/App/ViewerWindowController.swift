@@ -86,12 +86,15 @@ final class ViewerWindowController: NSWindowController {
     /// ウィンドウイベントの通知先。ViewerWindowManager が実装する。
     weak var delegate: ViewerWindowControllerDelegate?
 
-    /// git 追跡ファイルの索引(リポジトリルート単位でキャッシュ)。
-    /// 本番では ViewerWindowManager が持つ単一インスタンスが注入され、全ウィンドウで共有する。
-    let gitFileIndex: GitCommandFileIndex
-    /// パス参照の解決器。fileReader は store と共有し(既存の fileExists/isExistingFile 共有と同じ理由で
-    /// InMemoryFileReader 注入テストと整合させる)、テストから丸ごと差し替えられるよう var にする。
-    lazy var pathResolver = TrackedPathResolver(fileReader: store.fileReader, gitIndex: gitFileIndex)
+    /// git 追跡ファイルの索引。本番では ViewerWindowManager が持つ単一インスタンスが
+    /// 注入され、全ウィンドウで共有する。
+    private let gitFileIndex: any GitFileIndexing
+    /// パス参照の解決(索引の先読み・クリック時のオープン・表示時の一括解決)を担う。
+    /// fileReader は store と共有する(既存の fileExists/isExistingFile 共有と同じ理由で
+    /// InMemoryFileReader 注入テストと整合させる)。
+    lazy var referenceCoordinator = ReferenceResolutionCoordinator(
+        host: self, fileReader: store.fileReader, gitIndex: gitFileIndex
+    )
 
     // MARK: - Initialization
 
@@ -102,9 +105,12 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
     ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
     /// - Parameter bookmarkStore: 同上。ブックマーク挙動に無関心なテストが省略できるようにする。
-    /// - Parameter gitFileIndex: 同上。git 追跡ファイルの索引。本番では ViewerWindowManager が持つ
-    ///   単一インスタンスを渡し、同じリポジトリを開く複数ウィンドウで追跡ファイル一覧と
-    ///   `git ls-files` の実行を共有する。
+    /// - Parameter gitFileIndex: git 追跡ファイルの索引。本番では ViewerWindowManager が持つ
+    ///   単一インスタンスを必ず渡し、同じリポジトリを開く複数ウィンドウで照合索引と
+    ///   `git ls-files` の実行を共有する。デフォルトは git を起動しない索引であり、
+    ///   パス解決に無関心なテストが省略できるようにするためのもの。実インスタンスを
+    ///   デフォルトにすると、注入を書き忘れたときに共有されない別個体が静かに生まれ、
+    ///   ウィンドウごとに `git ls-files` を重複実行してしまう。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
     /// - Parameter directoryLister: 同上。サイドバー初期一覧の取得元。テストで差し替え可能にする。
     /// - Parameter openFileInNewWindow: 同上。別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
@@ -114,7 +120,7 @@ final class ViewerWindowController: NSWindowController {
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore = BookmarkStore(),
-        gitFileIndex: GitCommandFileIndex = GitCommandFileIndex(),
+        gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
         initialSidebarCollapsed: Bool = true,
         initialFrameDescriptor: String? = nil,
         initialSortOrder: SortOrder = .foldersFirst,
@@ -232,7 +238,7 @@ final class ViewerWindowController: NSWindowController {
         }
         store.openFile(fileURL)
         // クリック時解決(pathResolver)の git 追跡ファイル索引を先読みしておく。
-        gitFileIndex.warm(forFileAt: fileURL)
+        referenceCoordinator.warm(forFileAt: fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
         // CLI から --source/--preview が指定された場合はそちらを優先し、保存値は書き換えない(この起動限りの上書き)。
         // applySourceMode が内部で refreshToolbarState() を呼ぶため、ここでの明示呼び出しは不要。
@@ -250,21 +256,7 @@ final class ViewerWindowController: NSWindowController {
             scrollPositionStore: perFileState.scrollPosition,
             findOptionsPreference: findOptionsPreference,
             fileListModel: fileListModel,
-            // 現在の fileURL は rename で書き換わるため、旧値を捕捉せず self 経由で参照する
-            onZoomChanged: { [weak self] zoom in
-                guard let self else { return }
-                perFileState.zoom.setZoom(zoom, for: fileURL)
-            },
-            onScrollPositionChanged: { [weak self] position, mode in
-                guard let self else { return }
-                perFileState.scrollPosition.setScrollPosition(position, for: fileURL, mode: mode)
-            },
-            onOpenReference: { [weak self] href, newWindow in
-                self?.handleOpenReference(href: href, newWindow: newWindow)
-            },
-            onResolveReferences: { [weak self] paths in
-                await self?.resolveReferences(paths) ?? [:]
-            },
+            rendererDelegate: WeakRendererDelegate(self),
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
             webViewProxy: webViewProxy
@@ -310,53 +302,12 @@ final class ViewerWindowController: NSWindowController {
     /// リンク/パス参照のアクティベーションを処理する。
     /// テスト(@testable import)から回帰テストとして直接呼べるよう internal にする（外部公開はしない）。
     func handleOpenReference(href: String, newWindow: Bool) {
-        switch pathResolver.resolve(href: href, baseURL: fileURL) {
-        case let .external(url):
-            NSWorkspace.shared.open(url)
-        case let .resolved(url):
-            if newWindow {
-                openFileInNewWindow(url)
-            } else {
-                switchFile(to: url)
-            }
-        case .unresolved:
-            // 解決できなかったパスは、素朴な相対解決結果を「見つかりません」表示に使う。
-            if case let .localFile(url) = ReferenceResolver.resolve(href: href, baseURL: fileURL) {
-                showFileNotFoundAlert(url: url)
-            }
-        case .ignored:
-            break
-        }
+        referenceCoordinator.handleOpenReference(href: href, newWindow: newWindow)
     }
 
     /// パス参照群を解決し、実在するものだけ「書かれたパス→解決済み絶対パス」で返す(表示時解決用)。
-    /// クリック時の handleOpenReference と同じ pathResolver を使うため、リンク化した参照は
-    /// 必ず同じ URL へ開く(解決の単一情報源)。
-    ///
-    /// 解決はキャッシュ未命中時に `git ls-files` の subprocess を待つため、MainActor 上では
-    /// 走らせない(大きなリポジトリで数百 ms の停止になる)。要求時点の pathResolver と
-    /// fileURL を捕捉してバックグラウンドで解決する。解決中にファイルが切り替わっても、
-    /// 捕捉した baseURL は「その要求を出した表示内容」の基準ディレクトリのままなので、
-    /// リンク化とクリック時の遷移先が食い違うことはない(切替時は JS 側が未応答バッチを
-    /// 空にするため、遅れて届いた応答は何にも適用されない)。
     func resolveReferences(_ paths: [String]) async -> [String: String] {
-        let resolver = pathResolver
-        let baseURL = fileURL
-        return await Task.detached(priority: .userInitiated) {
-            var result: [String: String] = [:]
-            // バッチ一括で解決し、git 追跡ファイルの索引構築を 1 度に抑える。
-            for (path, reference) in resolver.resolveAll(hrefs: paths, baseURL: baseURL) {
-                if case let .resolved(url) = reference {
-                    result[path] = url.path
-                }
-            }
-            return result
-        }.value
-    }
-
-    private func showFileNotFoundAlert(url: URL) {
-        // window があればシート、無ければモーダルで表示する(判定は FileNotFoundUI 側)。
-        FileNotFoundUI.present(url: url, over: window)
+        await referenceCoordinator.resolveReferences(paths)
     }
 
     /// ファイルの rename / move をウィンドウに反映する。
@@ -394,7 +345,7 @@ final class ViewerWindowController: NSWindowController {
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
         guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
-        gitFileIndex.warm(forFileAt: newURL)
+        referenceCoordinator.warm(forFileAt: newURL)
         switch performFileSwitch(to: newURL) {
         case .switched:
             sidebar.syncAfterSwitch(to: newURL)
@@ -435,7 +386,7 @@ final class ViewerWindowController: NSWindowController {
             return .openInAnotherWindow(other)
         }
         guard store.fileExists(at: newURL) else {
-            showFileNotFoundAlert(url: newURL)
+            presentReferenceNotFound(url: newURL)
             return .failed
         }
         let oldURL = fileURL
@@ -509,6 +460,57 @@ extension ViewerWindowController: SidebarNavigatorHost {
     /// (ViewerWindowManager.applyDisplayOverrides)のような外部要因からも呼ばれる。
     func refreshToolbarState() {
         toolbarController.refreshToolbarState()
+    }
+}
+
+// MARK: - ViewerRendererDelegate
+
+extension ViewerWindowController: ViewerRendererDelegate {
+    /// 現在の fileURL は rename で書き換わるため、旧値を捕捉せず呼び出しのたびに参照する。
+    func renderer(_: ViewerRenderer, didChangeZoom zoom: Double) {
+        perFileState.zoom.setZoom(zoom, for: fileURL)
+    }
+
+    func renderer(
+        _: ViewerRenderer, didChangeScrollPosition position: Double, mode: ViewerBridge.ViewMode
+    ) {
+        perFileState.scrollPosition.setScrollPosition(position, for: fileURL, mode: mode)
+    }
+
+    func renderer(_: ViewerRenderer, didActivateReference href: String, newWindow: Bool) {
+        handleOpenReference(href: href, newWindow: newWindow)
+    }
+
+    func renderer(_: ViewerRenderer, resolveReferences paths: [String]) async -> [String: String] {
+        await resolveReferences(paths)
+    }
+
+    func rendererDidRequestMoreLines(_: ViewerRenderer) async -> LoadMoreLinesResult? {
+        await store.loadMoreLines()
+    }
+}
+
+// MARK: - ReferenceResolutionHost
+
+extension ViewerWindowController: ReferenceResolutionHost {
+    /// ReferenceResolutionCoordinator が解決の基準ディレクトリを都度参照するための橋渡し。
+    var referenceBaseURL: URL {
+        fileURL
+    }
+
+    /// 解決できたパス参照を、このウィンドウで開くか別ウィンドウで開く。
+    func openReference(_ url: URL, inNewWindow: Bool) {
+        if inNewWindow {
+            openFileInNewWindow(url)
+        } else {
+            switchFile(to: url)
+        }
+    }
+
+    /// 参照先が見つからないことをユーザーに知らせる。
+    /// window があればシート、無ければモーダルで表示する(判定は FileNotFoundUI 側)。
+    func presentReferenceNotFound(url: URL) {
+        FileNotFoundUI.present(url: url, over: window)
     }
 }
 

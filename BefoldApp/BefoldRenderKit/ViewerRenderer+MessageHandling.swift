@@ -35,20 +35,20 @@ extension ViewerRenderer {
         if message.name == ViewerBridge.zoomChangedMessageName,
            let zoom = (message.body as? NSNumber)?.doubleValue
         {
-            onZoomChanged?(zoom)
+            delegate?.renderer(self, didChangeZoom: zoom)
         } else if message.name == ViewerBridge.referenceActivatedMessageName,
                   let body = message.body as? [String: Any],
                   let href = body[ReferenceKey.href.rawValue] as? String,
                   let newWindow = body[ReferenceKey.newWindow.rawValue] as? Bool
         {
-            onOpenReference?(href, newWindow)
+            delegate?.renderer(self, didActivateReference: href, newWindow: newWindow)
         } else if message.name == ViewerBridge.scrollPositionChangedMessageName,
                   let body = message.body as? [String: Any],
                   let position = (body[ScrollKey.position.rawValue] as? NSNumber)?.doubleValue,
                   let modeString = body[ScrollKey.mode.rawValue] as? String,
                   let mode = ViewerBridge.ViewMode(rawValue: modeString)
         {
-            onScrollPositionChanged?(position, mode)
+            delegate?.renderer(self, didChangeScrollPosition: position, mode: mode)
         } else if message.name == ViewerBridge.findOptionsChangedMessageName,
                   let body = message.body as? [String: Any],
                   let caseSensitive = body[FindKey.caseSensitive.rawValue] as? Bool,
@@ -90,7 +90,7 @@ extension ViewerRenderer {
             guard let self else { return }
             var resolutions: [String: String] = [:]
             if let requestedPaths {
-                resolutions = await onResolveReferences?(requestedPaths) ?? [:]
+                resolutions = await delegate?.renderer(self, resolveReferences: requestedPaths) ?? [:]
             }
             // async 文脈では completionHandler 版を明示しないと throwing/async の
             // オーバーロードが選ばれてしまうため、nil を明示して同期版へ固定する。

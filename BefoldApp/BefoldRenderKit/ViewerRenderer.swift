@@ -1,6 +1,41 @@
 import BefoldKit
 import WebKit
 
+/// ViewerRenderer が JS 側の出来事を通知する先。アプリ本体では ViewerWindowController が実装する。
+///
+/// 全メソッドに「何もしない」既定実装があるため、QuickLook 拡張のような
+/// 静的 1 回描画ホストは必要なものだけを実装すればよい(delegate 自体を設定しなくてもよい)。
+@MainActor
+public protocol ViewerRendererDelegate: AnyObject {
+    /// JS 側で表示倍率が変わった。
+    func renderer(_ renderer: ViewerRenderer, didChangeZoom zoom: Double)
+    /// JS 側でスクロール位置が変わった。
+    func renderer(
+        _ renderer: ViewerRenderer, didChangeScrollPosition position: Double, mode: ViewerBridge.ViewMode
+    )
+    /// リンクまたはパス参照がアクティベートされた。
+    func renderer(_ renderer: ViewerRenderer, didActivateReference href: String, newWindow: Bool)
+    /// JS が検出したパス参照群の解決を要求した。
+    /// 戻り値: 書かれたパス -> 解決済み絶対パス(実在するもののみ)。
+    /// 解決は git subprocess を伴いうるため非同期。実装は MainActor をブロックせずに返すこと。
+    func renderer(_ renderer: ViewerRenderer, resolveReferences paths: [String]) async -> [String: String]
+    /// JS 側「続きを読み込む」が押された。次チャンクと更新後の表示状態を返す。
+    func rendererDidRequestMoreLines(_ renderer: ViewerRenderer) async -> LoadMoreLinesResult?
+}
+
+public extension ViewerRendererDelegate {
+    func renderer(_: ViewerRenderer, didChangeZoom _: Double) {}
+    func renderer(_: ViewerRenderer, didChangeScrollPosition _: Double, mode _: ViewerBridge.ViewMode) {}
+    func renderer(_: ViewerRenderer, didActivateReference _: String, newWindow _: Bool) {}
+    func renderer(_: ViewerRenderer, resolveReferences _: [String]) async -> [String: String] {
+        [:]
+    }
+
+    func rendererDidRequestMoreLines(_: ViewerRenderer) async -> LoadMoreLinesResult? {
+        nil
+    }
+}
+
 /// WKWebView の構成・viewer.html ロード・render() 評価を担う WKWebView ドライバ。
 /// find/loadMore/リンク遷移などアプリ専用機能はフック注入・オプショナルにしてあり、
 /// QuickLook 拡張(.appex)のような静的1回描画ホストではそれらを省いて利用できる。
@@ -8,14 +43,10 @@ import WebKit
 public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     public var webView: WKWebView?
     public var webViewProxy: WebViewProxy?
-    public var onZoomChanged: (@MainActor (Double) -> Void)?
-    public var onScrollPositionChanged: (@MainActor (_ position: Double, _ mode: ViewerBridge.ViewMode) -> Void)?
-    public var onOpenReference: (@MainActor (_ href: String, _ newWindow: Bool) -> Void)?
-    /// JS が検出したパス参照群の解決を要求したときに呼ばれる。
-    /// 戻り値: 書かれたパス -> 解決済み絶対パス(実在するもののみ)。
-    /// 解決は git subprocess を伴いうるため非同期。実装は MainActor をブロックせずに返すこと。
-    public var onResolveReferences: (@MainActor (_ paths: [String]) async -> [String: String])?
-    public var onLoadMoreLines: (@MainActor () async -> LoadMoreLinesResult?)?
+    /// JS 側で起きた出来事の通知先。アプリ本体では ViewerWindowController が実装する。
+    /// 循環参照を避けるため weak。QuickLook 拡張のような静的 1 回描画ホストは
+    /// 設定しないままでよい(全メソッドに既定実装があり、通知は捨てられる)。
+    public weak var delegate: (any ViewerRendererDelegate)?
     /// 「続きを読み込む」の実行中フラグ。非同期読み込み中の再押下を無視し、
     /// 追記の交錯(順序の入れ替わり)を防ぐ。
     var isLoadingMoreLines = false

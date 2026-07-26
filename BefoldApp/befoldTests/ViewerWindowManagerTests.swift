@@ -23,6 +23,20 @@ struct ViewerWindowManagerTests {
         #expect(!ViewerWindowManager.isDetachedFromSpace(isVisible: false, isOnActiveSpace: true))
     }
 
+    /// コントローラ側の既定は「git を使わない索引」なので、注入を書き忘れるとパス参照の
+    /// リンク化が黙って効かなくなる。生成経路が共有インスタンスを渡していることを固定する。
+    @Test("生成したウィンドウには共有の git 索引が注入される")
+    func openViewerInjectsSharedGitFileIndex() {
+        let fixture = MockedViewerWindowManager(files: [file1, file2])
+
+        fixture.manager.openViewer(for: file1)
+        fixture.manager.openViewer(for: file2)
+
+        // 2 ウィンドウ分の先読みが同じ 1 個の索引に届いている。
+        #expect(fixture.gitFileIndex.warmedPaths.map(\.path) == [file1.path, file2.path])
+        fixture.closeAll()
+    }
+
     @Test("同じファイルを二度開いてもウィンドウは 1 つに集約される")
     func openViewerReusesControllerForSamePath() {
         let fixture = MockedViewerWindowManager(files: [file])

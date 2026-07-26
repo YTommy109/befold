@@ -16,8 +16,10 @@ struct ViewerRendererResolveReferencesTests {
         let renderer = ViewerRenderer()
         let webView = Stubs.WebView()
         renderer.webView = webView
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         var receivedPaths: [String]?
-        renderer.onResolveReferences = { paths in
+        delegate.onResolveReferences = { paths in
             receivedPaths = paths
             return ["./other.md": "/repo/other.md"]
         }
@@ -43,10 +45,12 @@ struct ViewerRendererResolveReferencesTests {
         let renderer = ViewerRenderer()
         let webView = Stubs.WebView()
         renderer.webView = webView
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
         let firstResult = ["./slow.md": "/repo/slow.md"]
         let secondResult = ["./fast.md": "/repo/fast.md"]
         var isFirstRequest = true
-        renderer.onResolveReferences = { _ in
+        delegate.onResolveReferences = { _ in
             guard isFirstRequest else { return secondResult }
             isFirstRequest = false
             // 1 件目の解決だけ遅らせ、2 件目が追い越しうる状況を作る。
@@ -88,8 +92,10 @@ struct ViewerRendererResolveReferencesTests {
             let renderer = ViewerRenderer()
             let webView = Stubs.WebView()
             renderer.webView = webView
+            let delegate = Stubs.Delegate()
+            renderer.delegate = delegate
             var called = false
-            renderer.onResolveReferences = { _ in
+            delegate.onResolveReferences = { _ in
                 called = true
                 return ["./a.md": "/repo/a.md"]
             }

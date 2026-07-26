@@ -1,12 +1,20 @@
 import Foundation
 
+/// href を「どう扱うべきか」で分類した結果。
 public enum ReferenceTarget: Equatable, Sendable {
+    /// ブラウザで開く http/https。
     case external(URL)
+    /// ローカルファイルとして解釈した URL。実在するかどうかはここでは判定しない。
     case localFile(URL)
+    /// 空 / #anchor / 未対応スキーム。何もしない。
     case unsupported
 }
 
+/// 文書内の href を、外部 URL・ローカルファイル・未対応のいずれかへ分類する。
+/// 実在確認や git 追跡ファイルへのフォールバックは行わない(それは TrackedPathResolver の責務)。
 public enum ReferenceResolver {
+    /// href を baseURL(その href が書かれている文書)基準で解決する。
+    /// 相対パスは文書のディレクトリ基準、絶対パスはそのまま解釈する。
     public static func resolve(href: String, baseURL: URL) -> ReferenceTarget {
         switch classify(href: href) {
         case let .external(url):
@@ -39,7 +47,6 @@ public enum ReferenceResolver {
 
     private static func classify(href: String) -> Classified {
         guard !href.isEmpty, !href.hasPrefix("#") else { return .unsupported }
-        let decoded = href.removingPercentEncoding ?? href
 
         if let url = URL(string: href), let scheme = url.scheme {
             switch scheme.lowercased() {
@@ -52,20 +59,23 @@ public enum ReferenceResolver {
             }
         }
 
-        // #fragment を除去（クロスドキュメントリンク other.md#section 対応）
-        let withoutFragment: String = if let hashIndex = decoded.firstIndex(of: "#") {
-            String(decoded[..<hashIndex])
+        // #fragment を除去（クロスドキュメントリンク other.md#section 対応）。
+        // パーセントデコードより前に行う。逆順にすると、ファイル名の # をエスケープした
+        // href(file%23name.md)がデコードで生の # に戻り、以降を fragment として失う。
+        let withoutFragment: String = if let hashIndex = href.firstIndex(of: "#") {
+            String(href[..<hashIndex])
         } else {
-            decoded
+            href
         }
+        let decoded = withoutFragment.removingPercentEncoding ?? withoutFragment
 
         // 行番号・行列サフィックス (:数字) を繰り返し除去
-        let pathString: String = if let colonRange = withoutFragment.range(
+        let pathString: String = if let colonRange = decoded.range(
             of: #"(?::\d+)+$"#, options: .regularExpression
         ) {
-            String(withoutFragment[..<colonRange.lowerBound])
+            String(decoded[..<colonRange.lowerBound])
         } else {
-            withoutFragment
+            decoded
         }
 
         guard !pathString.isEmpty else { return .unsupported }

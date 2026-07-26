@@ -21,9 +21,9 @@ final class ViewerWindowManager {
     /// 同コントローラのサイドバー初期一覧の取得口。既定は実 FS を列挙する DirectoryLister.listEntries。
     private let directoryLister: (URL, SortOrder, Bool) -> [FileListEntry]
     /// 生成する全ウィンドウで共有する git 追跡ファイルの索引。同じリポジトリのファイルを
-    /// 複数ウィンドウで開いても `git ls-files` は 1 回で済み、追跡ファイル一覧の実体も 1 つで済む
+    /// 複数ウィンドウで開いても `git ls-files` は 1 回で済み、照合索引の実体も 1 つで済む
     /// (モノレポではウィンドウごとの複製が無視できない大きさになる)。
-    private let gitFileIndex = GitCommandFileIndex()
+    private let gitFileIndex: any GitFileIndexing
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
@@ -35,6 +35,8 @@ final class ViewerWindowManager {
     ///   コントローラが自前で生成するため本番挙動は変わらない。テストが実 FileWatcher と
     ///   実ファイル読込を避けて生成パイプラインごと unit 化するための唯一のシーム。
     /// - Parameter directoryLister: 同コントローラのサイドバー初期一覧の取得口。既定は実 FS 列挙。
+    /// - Parameter gitFileIndex: 生成する全ウィンドウで共有する git 追跡ファイルの索引。
+    ///   既定は実 `git` を実行する実装。テストは実 subprocess を避けるため差し替えられる。
     init(
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
@@ -43,8 +45,10 @@ final class ViewerWindowManager {
         bookmarkStore: BookmarkStore = BookmarkStore(),
         fileReader: any FileReading = DefaultFileReader(),
         makeStore: ((URL) -> ViewerStore)? = nil,
-        directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries
+        directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
+        gitFileIndex: any GitFileIndexing = GitCommandFileIndex()
     ) {
+        self.gitFileIndex = gitFileIndex
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
         self.hiddenFilesPreference = hiddenFilesPreference
