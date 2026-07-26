@@ -1,11 +1,11 @@
 ---
 id: TASK-72.6
 title: QuickLook Extension のメモリ・起動速度を実機検証する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-07-19 06:44'
-updated_date: '2026-07-26 11:55'
+updated_date: '2026-07-26 13:38'
 labels: []
 dependencies: []
 parent_task_id: TASK-72
@@ -20,8 +20,8 @@ ordinal: 216000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 代表的な大きめファイル種別(mermaid/markdown/巨大コード)でのメモリ・起動速度の計測結果が記録されている
-- [ ] #2 appexのメモリ上限に対する余裕があることを確認している、または追加のサイズ上限が導入されている
+- [x] #1 代表的な大きめファイル種別(mermaid/markdown/巨大コード)でのメモリ・起動速度の計測結果が記録されている
+- [x] #2 appexのメモリ上限に対する余裕があることを確認している、または追加のサイズ上限が導入されている
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -94,4 +94,27 @@ Data は memory-map されるため appex の footprint も増えない。上限
 本体アプリでも同じ全量読み込み経路を通るため実測したところ、9MB の markdown で
 WebContent が 3.06GB に達した。ユーザーが直接遭遇する不具合のため GitHub Issue
 #307 として起票した(本タスクのスコープ外)。
+
+## 検証(2026-07-26)
+- swift test: 659 件パス(サイズ上限の 3 テストを追加: QuickLook で 2MB 超を拒否 /
+  本体は 10MB のまま / 行指向は 2MB 超でも拒否しない)
+- Release ビルド(Developer ID 署名)・codesign --verify --deep --strict・起動確認
+- Finder の QuickLook で手動確認し、期待どおりの動作を確認した:
+  markdown_1mb.md=従来どおり表示 / markdown_4mb.md=「大きすぎて表示できません」
+  (対策前は空白) / mermaid_2000nodes.mmd=「レンダリング中…」の後に図が表示
+  / code_99mb.py=変化なし(先頭チャンク表示)
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+QuickLook 拡張のメモリ・起動速度を実機計測し、非行指向ファイルの破綻に対処した。
+
+計測: appex の自己計測(経過時間・phys_footprint)と外部サンプラー(RSS)を Finder 経路で突き合わせた。行指向は 99MB でも 0.33 秒・WebContent 118MB と優秀な一方、非行指向は WebContent がサイズにほぼ比例して伸び(1MB→901MB、9MB→4.17GB)、4MB 以上で描画が 3 秒以内に終わらず空白のまま放置されていた。mermaid はノード数依存で 53KB でも 1.39GB に達する。appex 本体のピークは 331MB でメモリ上限には余裕があり、破綻は WebContent 側だけだった。
+
+対処: oneShotLoad 時の非行指向に 2MB の上限を新設(本体の 10MB は据え置き)。サイズ上限が効かない mermaid 向けに「レンダリング中…」表示を追加し、完了判定に evaluateJavaScript の応答を使う。
+
+検証: swift test 659 件パス、Release ビルド・署名検証・起動確認、および Finder での手動確認(4MB markdown が拒否メッセージに変わり、2000 ノード mermaid が描画中表示の後に図を出すこと)。
+
+派生: 本体アプリも同じ全量読み込み経路で 9MB の markdown が 3.06GB に達することを実測し、GitHub Issue #307 として起票した。
+<!-- SECTION:FINAL_SUMMARY:END -->
