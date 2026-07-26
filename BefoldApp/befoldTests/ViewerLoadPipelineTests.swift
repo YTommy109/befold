@@ -136,4 +136,78 @@ struct ViewerLoadPipelineTests {
 
         #expect(result == markdown)
     }
+
+    // MARK: - 非行指向のサイズ上限(TASK-72.6 の実測に基づく)
+
+    /// 非行指向はチャンク読み込みが効かず全量を DOM 化するため、静的1回描画
+    /// (QuickLook)では通常より厳しい上限を使う。実測では 4MB 以上で描画が
+    /// 3 秒以内に終わらず、プレビューが長時間空白のままになった。
+    @Test("oneShotLoad: true では非行指向の上限が 2MB に下がる")
+    func oneShotLoadUsesSmallerLimitForNonLineOriented() async {
+        let url = URL(fileURLWithPath: "/tmp/big.md")
+        let content = String(repeating: "a", count: ContentLoader.maxOneShotTextFileSizeBytes + 1)
+        let fileReader = InMemoryFileReader(files: [url.path: content])
+
+        let outcome = await ViewerLoadPipeline.load(
+            resolved: url,
+            fileType: .markdown,
+            fileReader: fileReader,
+            contentLoader: ContentLoader(fileReader: fileReader),
+            chunkedReaderFactory: chunkedReaderFactory,
+            oneShotLoad: true
+        )
+
+        guard case let .full(loaded, _) = outcome else {
+            Issue.record("full outcome を期待したが \(outcome) だった")
+            return
+        }
+        #expect(loaded.rejectReason == .fileTooLarge)
+    }
+
+    /// 通常のアプリ本体(oneShotLoad: false)は従来どおり 10MB まで扱う。
+    /// QuickLook 側の上限を下げたことで本体の挙動が変わっていないことを担保する。
+    @Test("oneShotLoad: false では 2MB 超の非行指向でも従来どおり読み込める")
+    func regularLoadKeepsLargerLimitForNonLineOriented() async {
+        let url = URL(fileURLWithPath: "/tmp/big.md")
+        let content = String(repeating: "a", count: ContentLoader.maxOneShotTextFileSizeBytes + 1)
+        let fileReader = InMemoryFileReader(files: [url.path: content])
+
+        let outcome = await ViewerLoadPipeline.load(
+            resolved: url,
+            fileType: .markdown,
+            fileReader: fileReader,
+            contentLoader: ContentLoader(fileReader: fileReader),
+            chunkedReaderFactory: chunkedReaderFactory,
+            oneShotLoad: false
+        )
+
+        guard case let .full(loaded, _) = outcome else {
+            Issue.record("full outcome を期待したが \(outcome) だった")
+            return
+        }
+        #expect(loaded.rejectReason == nil)
+    }
+
+    /// 行指向(コード/CSV)は先頭チャンクしか描画しないため、実測でも 99MB で
+    /// 0.33 秒・WebContent 118MB に収まっていた。上限を下げてはいけない。
+    @Test("oneShotLoad: true でも行指向は 2MB 超を拒否しない")
+    func oneShotLoadKeepsChunkedLimitForLineOriented() async {
+        let url = URL(fileURLWithPath: "/tmp/big.py")
+        let content = String(repeating: "x\n", count: ContentLoader.maxOneShotTextFileSizeBytes)
+        let fileReader = InMemoryFileReader(files: [url.path: content])
+
+        let outcome = await ViewerLoadPipeline.load(
+            resolved: url,
+            fileType: .code(language: "python"),
+            fileReader: fileReader,
+            contentLoader: ContentLoader(fileReader: fileReader),
+            chunkedReaderFactory: chunkedReaderFactory,
+            oneShotLoad: true
+        )
+
+        guard case .chunked = outcome else {
+            Issue.record("chunked outcome を期待したが \(outcome) だった")
+            return
+        }
+    }
 }

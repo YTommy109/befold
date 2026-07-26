@@ -41,3 +41,6 @@ env/
 *.keychain-db
 *.mobileprovision
 *.provisionprofile
+
+# QuickLook 計測用の巨大ファイル(生成物・コミットしない)
+sample/large/

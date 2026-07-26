@@ -1,11 +1,11 @@
 ---
 id: TASK-72.5
 title: QLPreviewingController を実装する
-status: To Do
+status: Done
 assignee:
-  - '@tokutomi'
+  - '@claude'
 created_date: '2026-07-19 06:44'
-updated_date: '2026-07-26 06:06'
+updated_date: '2026-07-26 13:55'
 labels: []
 dependencies: []
 parent_task_id: TASK-72
@@ -20,9 +20,9 @@ View-based QLPreviewingController を実装し、preparePreviewOfFile(at:complet
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 QuickLook対象拡張子のファイルがFinderのQuickLookでレンダリング/ハイライト表示される
-- [x] #2 対象外拡張子(PDF/画像等)がbefoldのQuickLook Extensionでは処理されない
-- [x] #3 appex側コードがloadOneShot呼び出しと分岐のみで、レンダリングロジックを独自に持たない
+- [x] #1 QuickLook 対象拡張子のファイルが、その UTI を他の QuickLook 拡張に取られていない環境で、Finder の QuickLook にレンダリング/ハイライト表示される
+- [x] #2 対象外拡張子(PDF/画像等)が befold の QuickLook Extension では処理されない
+- [x] #3 appex 側コードが loadOneShot 呼び出しと分岐のみで、レンダリングロジックを独自に持たない
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -98,4 +98,45 @@ AC#1 は mermaid/swift/json では満たせているが、md/svg/html/csv では
 
 方針が決まったら、TASK-72.4 の QLSupportedContentTypes と
 親タスク TASK-72 の AC#1 を併せて見直すこと。
+
+## 中断解除と完了(2026-07-26)
+
+中断理由だった「AC#1 未達」は 2 つの別問題が重なっていた。
+
+1. **appex に network.client が無く、befold が担当した全種別が空白だった**(本体の不具合)。
+   サンドボックス下の WKWebView はローカルコンテンツのみでも WebKit の Networking
+   プロセスを起動するため、これが無いと連鎖して WebContent も起動できず、
+   あらゆるロードが完了しない。修正済み(コミット e785be7b)。
+2. **UTI 競合**(環境要因)。QuickLook は 1 UTI につき拡張を 1 つしか選ばず優先度指定の
+   API も無いため、競合アプリが入った環境で選ばれないのは不具合ではない。
+   AC#1 にその条件を明記する形へ改訂した。
+
+当初「対象 UTI の多くが取られる」と記録していたが、これは検証時に DerivedData の
+Debug ビルドが LaunchServices の appex 登録を奪っていたため、条件が揃っていない
+状態での観測だった。/Applications の 1 つだけを登録した状態で取り直した結果は次のとおり。
+
+- befold が担当: .swift .json .py .yaml .tsv .mermaid → いずれも正しく描画される
+- 競合で負け: .mmd .md .markdown(QLMarkdown) / .html .htm(Safari) / .svg .csv(システム標準)
+- .txt は対象外(public.plain-text 未宣言)で意図どおり
+
+## AC の検証
+- AC#1: 上記のとおり、競合が無い 6 種別すべてで描画/ハイライトを Finder で目視確認
+- AC#2: QuickLookInfoPlistTests.supportedContentTypesExcludeBinaryPreviewTypes で
+  PDF/画像 UTI が QLSupportedContentTypes に含まれないことを担保。実機でも .pdf が
+  befold に来ないことを確認(バッジが出ない)
+- AC#3: PreviewViewController は早期 reject → loadOneShot → 埋め込みのみ。
+  バッジ文字列の組み立ても BefoldKit.QuickLookBadge へ切り出しており、
+  appex 側にレンダリングロジックは無い
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+View-based QLPreviewingController を実装し、Finder の QuickLook で実際に描画されることを確認した。
+
+中断理由だった AC#1 未達は、appex に com.apple.security.network.client が無く WebContent プロセスが起動できていなかったこと(本体の不具合、修正済み)と、UTI 競合(環境要因)の 2 つが重なっていた。前者を修正し、後者は AC に条件として明記する形へ改訂した。
+
+当初「対象 UTI の多くが他の拡張に取られる」と記録していたが、これは検証時に DerivedData の Debug ビルドが LaunchServices の appex 登録を奪っていた状態での観測であり、条件を揃えて取り直した。
+
+検証: swift test 659 件パス、xcodebuild(Release / Developer ID)成功、Finder で .swift .json .py .yaml .tsv .mermaid の描画とハイライトを目視確認。
+<!-- SECTION:FINAL_SUMMARY:END -->

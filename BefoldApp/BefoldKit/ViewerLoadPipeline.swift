@@ -57,7 +57,7 @@ public enum ViewerLoadPipeline {
 
         let sizeLimit = fileType.isLineOriented
             ? NormalizedTextCache.maxFileSizeBytes
-            : ContentLoader.maxTextFileSizeBytes
+            : nonLineOrientedSizeLimit(oneShotLoad: oneShotLoad)
         if let size = fileReader.fileSize(at: resolved), size > sizeLimit {
             return .full(
                 ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
@@ -99,6 +99,16 @@ public enum ViewerLoadPipeline {
         }
     }
 
+    /// 非行指向(markdown/mmd/svg/html)のサイズ上限。
+    /// 静的1回描画ホスト(QuickLook 拡張)ではより厳しい上限を使う。
+    /// 非行指向はチャンク読み込みが効かず全量を DOM 化するため、WebContent の
+    /// メモリと描画時間がサイズにほぼ比例して伸びるため(詳細は定数側のコメント)。
+    static func nonLineOrientedSizeLimit(oneShotLoad: Bool) -> Int {
+        oneShotLoad
+            ? ContentLoader.maxOneShotTextFileSizeBytes
+            : ContentLoader.maxTextFileSizeBytes
+    }
+
     /// 非行指向(markdown/mmd/svg/html)の全量読み込み。markdown の場合、embedLocalImages が
     /// true なら render 直前の MarkdownImageEmbedder 呼び出しに先立ちキャッシュをウォームアップする
     /// (詳細は load のドキュメントコメント参照)。
@@ -108,7 +118,7 @@ public enum ViewerLoadPipeline {
         imageEmbedder: MarkdownImageEmbedder
     ) throws -> Outcome {
         let cache = try NormalizedTextCache(data: data, oneShotLoad: oneShotLoad)
-        if cache.text.utf8.count > ContentLoader.maxTextFileSizeBytes {
+        if cache.text.utf8.count > nonLineOrientedSizeLimit(oneShotLoad: oneShotLoad) {
             return .full(
                 ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
                 cache: nil

@@ -1,0 +1,7 @@
+purpose: QuickLook 担当拡張の判定
+expect: シンタックスハイライト + 右下に befold QL バッジ
+list:
+  - one
+  - two
+nested:
+  bool: true

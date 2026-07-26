@@ -16,6 +16,14 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
+    # バージョンは全ターゲット共通の 1 か所だけで持つ。appex の
+    # CFBundleVersion / CFBundleShortVersionString はアプリ本体と一致している必要があり
+    # (不一致だと ValidateEmbeddedBinary が警告し、公証で弾かれる)、
+    # ターゲットごとに書くとドリフトする。scripts/bump.sh もこの 1 行を書き換える。
+    # BefoldCLI/AppVersion.swift の `AppVersion.current` と値を一致させる
+    # (BefoldCLICommandTests.projectYmlMarketingVersionMatchesAppVersionConstant で照合)
+    MARKETING_VERSION: "1.7.3"
+    CURRENT_PROJECT_VERSION: "748"
 schemes:
   befold:
     build:
@@ -88,10 +96,6 @@ targets:
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.quicklook
       PRODUCT_NAME: BefoldQuickLook
-      # appex の CFBundleVersion / CFBundleShortVersionString は親アプリと一致させる
-      # 必要がある(不一致だと ValidateEmbeddedBinary が警告し、公証で弾かれる)。
-      MARKETING_VERSION: "1.7.2"
-      CURRENT_PROJECT_VERSION: "543"
       INFOPLIST_FILE: BefoldQuickLook/Info.plist
       CODE_SIGN_ENTITLEMENTS: BefoldQuickLook/BefoldQuickLook.entitlements
       ENABLE_HARDENED_RUNTIME: true
@@ -148,10 +152,6 @@ targets:
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold
       PRODUCT_NAME: befold
-      # BefoldCLI/AppVersion.swift の `AppVersion.current` と値を一致させる
-      # (BefoldCLICommandTests.projectYmlMarketingVersionMatchesAppVersionConstant で照合)
-      MARKETING_VERSION: "1.7.3"
-      CURRENT_PROJECT_VERSION: "748"
       INFOPLIST_FILE: befold/Info.plist
       CODE_SIGN_ENTITLEMENTS: befold/befold.entitlements
       ENABLE_HARDENED_RUNTIME: true

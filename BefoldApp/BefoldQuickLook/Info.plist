@@ -63,6 +63,11 @@
 				<string>public.tab-separated-values-text</string>
 				<string>public.html</string>
 				<string>public.svg-image</string>
+				<!-- .ts(TypeScript)は宣言しない。実機では public.mpeg-2-transport-stream
+				     (動画)に解決されるが、この UTI を唯一宣言する拡張が befold だけの
+				     状態にしても macOS は内蔵プレビューアを優先し、appex は呼ばれない
+				     (2026-07-26 / macOS 26.5.2 で実機確認)。効かない宣言を残すと
+				     本物の .ts 動画のプレビューを奪うリスクだけが残るため撤回した。 -->
 			</array>
 			<key>QLSupportsSearchableItems</key>
 			<false/>
