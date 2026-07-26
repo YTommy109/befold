@@ -111,15 +111,79 @@ public extension ViewerRenderer {
         let render = Self.oneShotRender(from: outcome, url: url, fileType: resolvedFileType)
 
         let webView = makeWebView(initialZoom: initialZoom, findOptionsPreference: nil)
-        updateContent(
-            render.content,
-            contentRevision: 1,
-            fileType: render.fileType,
-            filePath: render.filePath,
-            isSourceMode: false,
-            showLineNumbers: false,
-            truncation: render.truncation
-        )
+        if render.rejectReason == nil {
+            await renderOnce(webView: webView, render: render)
+        }
         return OneShotResult(webView: webView, rejectReason: render.rejectReason)
+    }
+
+    /// viewer.html のロード完了を待ってから 1 回だけ描画し、その完了までを await する。
+    /// 通常ホストの updateContent 経路(fire-and-forget な evaluateJavaScript と
+    /// 差分判定用の rendered ミラー)は使わない。1 回しか描画しないため差分判定が不要で、
+    /// かつ描画完了を待つには render() の返す Promise を callAsyncJavaScript で
+    /// 受け取る必要があるため、専用の一本道にしている。
+    private func renderOnce(webView: WKWebView, render: OneShotRender) async {
+        guard let script = ViewerBridge.awaitRenderScript(
+            content: Self.renderableContent(
+                render.content, fileType: render.fileType,
+                filePath: render.filePath, isSourceMode: false,
+                embedImages: rendererFeatures.embedImages
+            ),
+            fileType: render.fileType
+        ) else { return }
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let completion = OneShotCompletion(continuation: continuation)
+            Task { @MainActor in
+                try? await Task.sleep(for: oneShotRenderTimeout)
+                completion.finish()
+            }
+
+            // viewer.html のロード完了を待つゲートは既存の pendingUpdate をそのまま使う
+            // (didFinish / ナビゲーション失敗のどちらでも必ず呼ばれる)。
+            let evaluate: @MainActor () -> Void = { [weak webView] in
+                _ = Task { @MainActor in
+                    guard let webView else {
+                        completion.finish()
+                        return
+                    }
+                    if render.truncation.isTruncated {
+                        // async 文脈では completionHandler 版を明示しないと throwing/async の
+                        // オーバーロードが選ばれてしまうため、nil を明示して同期版へ固定する。
+                        webView.evaluateJavaScript(
+                            ViewerBridge.truncatedScript(
+                                true, lineCount: render.truncation.lineCount,
+                                failed: render.truncation.failed
+                            ),
+                            completionHandler: nil
+                        )
+                    }
+                    _ = try? await webView.callAsyncJavaScript(script, in: nil, contentWorld: .page)
+                    completion.finish()
+                }
+            }
+            if isReady {
+                evaluate()
+            } else {
+                pendingUpdate = evaluate
+            }
+        }
+    }
+}
+
+/// one-shot 描画の待ち合わせを 1 回だけ再開するための箱。
+/// 描画完了とタイムアウトのどちらが先に来ても安全に解決できるようにする
+/// (CheckedContinuation の二重再開はクラッシュするため)。
+@MainActor
+private final class OneShotCompletion {
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    init(continuation: CheckedContinuation<Void, Never>) {
+        self.continuation = continuation
+    }
+
+    func finish() {
+        continuation?.resume()
+        continuation = nil
     }
 }

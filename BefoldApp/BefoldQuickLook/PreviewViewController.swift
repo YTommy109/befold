@@ -1,38 +1,54 @@
 import AppKit
 import BefoldKit
-import OSLog
+import BefoldRenderKit
 import Quartz
 
 /// QuickLook 拡張のプレビュー本体。
-/// TASK-72.1 時点では「appex ホストから BefoldKit のリソースが解決できるか」を
-/// 実機確認するための最小実装で、解決結果をテキスト表示するだけに留める。
-/// 実際の描画(loadOneShot 呼び出し)は TASK-72.5 で入れる。
+/// レンダリングロジックは一切持たず、対象外拡張子の早期 reject と
+/// ViewerRenderer.loadOneShot の呼び出し、その結果のビュー埋め込みだけを行う。
 final class PreviewViewController: NSViewController, QLPreviewingController {
-    private let label = NSTextField(labelWithString: "")
+    private let renderer = ViewerRenderer()
 
     override func loadView() {
-        view = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.lineBreakMode = .byWordWrapping
-        label.maximumNumberOfLines = 0
-        view.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -16),
-            label.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
-        ])
+        view = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
     }
 
     func preparePreviewOfFile(at url: URL) async throws {
-        let bundle = Bundle.befoldKitResources
-        let viewerHTML = bundle.url(forResource: "viewer", withExtension: "html")
-        let summary = """
-        file: \(url.lastPathComponent)
-        befoldKitResources: \(bundle.bundlePath)
-        viewer.html: \(viewerHTML?.path ?? "NOT FOUND")
-        """
-        Logger(subsystem: "com.degino.befold.quicklook", category: "probe")
-            .notice("\(summary, privacy: .public)")
-        label.stringValue = summary
+        // Info.plist の QLSupportedContentTypes は UTI 単位のため、UTI が一致しても
+        // befold が扱わない拡張子のファイルが渡りうる(例: public.source-code に
+        // 適合するが codeExtensionLanguages に無い拡張子)。FileType の分類を
+        // 単一情報源として、対象外なら QuickLook の既定のプレビューへ委ねる。
+        guard FileType.quickLookSupportedExtensions.contains(url.pathExtension.lowercased()) else {
+            throw CocoaError(.featureUnsupported)
+        }
+
+        renderer.rendererFeatures = .quickLookRestricted
+        let result = await renderer.loadOneShot(url: url)
+
+        if let rejectReason = result.rejectReason {
+            embed(makeMessageView(rejectReason.localizedMessage))
+        } else {
+            embed(result.webView)
+        }
+    }
+
+    /// サイズ超過・バイナリ等でコンテンツを描画しない場合の代替表示。
+    private func makeMessageView(_ message: String) -> NSView {
+        let label = NSTextField(labelWithString: message)
+        label.alignment = .center
+        label.lineBreakMode = .byWordWrapping
+        label.maximumNumberOfLines = 0
+        return label
+    }
+
+    private func embed(_ subview: NSView) {
+        subview.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(subview)
+        NSLayoutConstraint.activate([
+            subview.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            subview.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            subview.topAnchor.constraint(equalTo: view.topAnchor),
+            subview.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
     }
 }

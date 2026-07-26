@@ -72,6 +72,19 @@ public enum ViewerBridge {
         contentCallScript(function: "render", content: content, fileType: fileType)
     }
 
+    /// render() の完了を待つ `callAsyncJavaScript` 用の関数本体を組み立てる。
+    /// render は async 関数で内部の mermaid 描画完了まで await 済みのため、
+    /// 返る Promise の解決がそのまま描画完了になる(JS 側に完了通知の仕組みを
+    /// 足す必要がない)。1 回描画ホスト(QuickLook 拡張)が使う。
+    ///
+    /// requestAnimationFrame でペイントまで待つことはしない。rAF はウィンドウに
+    /// 載っていない WebView では発火しないため、待つと描画完了を検知できず
+    /// 常にタイムアウトまで待たされる。DOM 更新の完了までを完了とみなす。
+    public static func awaitRenderScript(content: String, fileType: FileType) -> String? {
+        guard let call = renderScript(content: content, fileType: fileType) else { return nil }
+        return "await \(call);"
+    }
+
     /// fn(content, type[, lang]) 形式の JS 呼び出しを組み立てる共通実装。
     /// renderScript / appendChunkScript が委譲する。
     private static func contentCallScript(
