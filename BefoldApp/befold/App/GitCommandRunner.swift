@@ -87,6 +87,10 @@ struct GitCommandRunner: Sendable {
         // 標準入力を待って止まらないよう明示的に閉じておく(ビューアは何も送らない)。
         process.standardInput = FileHandle.nullDevice
         do { try process.run() } catch { return .unavailable }
+        // 打ち切り用のプロセスグループは、子が確実に生きているこの時点で控える。
+        // 打ち切り時に採り直すと、その頃には子が終了して Foundation に reap 済みかもしれず、
+        // 空いた pid を別プロセスが再利用していると無関係なグループを殺しうる。
+        let processGroup = terminableProcessGroup(of: process)
 
         // 読み取りは別スレッドで行い、呼び出し元は timeout までしか待たない。
         // readDataToEndOfFile を呼び出しスレッドで回して watchdog から terminate() する形だと、
@@ -103,8 +107,8 @@ struct GitCommandRunner: Sendable {
         // 丸ごと死ぬ形の赤になった。予算を延ばしても直らない種類の詰まりのため、
         // 共有プールに依存しない専用スレッドで確実に読み始める。
         //
-        // 打ち切り時に残留したときも、共有プールの 1 本を恒久的に食い潰す旧実装と違って
-        // 影響がこのスレッド 1 本に閉じる利点がある。
+        // 打ち切っても、この後の `terminate(_:fallingBackTo:)` がパイプの書き込み端を
+        // 持つプロセスを一掃するので、read は EOF に達してこのスレッドは必ず終わる。
         // stackSize は既定(512KB)のまま触らない。このスレッドでは `waitUntilExit()` の
         // ラン・ループや、fd 破壊時の `NSFileHandleOperationException` のバックトレース
         // 採取も走るため、切り詰めても仮想アドレス空間しか節約できない一方で
@@ -118,19 +122,56 @@ struct GitCommandRunner: Sendable {
             done.signal()
         }
         reader.name = "GitCommandRunner.read"
-        reader.stackSize = 64 * 1024
         reader.start()
         guard done.wait(timeout: .now() + timeout) == .success else {
-            // 打ち切りは呼び出し元(索引のロックを持つ)を解放するだけに留め、読み取り端は閉じない。
-            // 読み取りスレッドは孫プロセスが標準出力を離すまで残りうるが、閉じる方が危険:
-            // read に入る前に閉じると EBADF で `NSFileHandleOperationException` が飛び、
-            // Swift からは catch できないのでプロセスごと落ちる。閉じた fd 番号が別の
-            // ファイルへ再利用されれば無関係な読み取りまで壊す。しかも read 中の close は
-            // Darwin では読み取りを中断しないため、解放したいスレッドは結局残る。
-            process.terminate()
+            // 読み取り端は決して閉じない。read に入る前に閉じると EBADF で
+            // `NSFileHandleOperationException` が飛び、Swift からは catch できないので
+            // プロセスごと落ちる。閉じた fd 番号が別のファイルへ再利用されれば無関係な
+            // 読み取りまで壊す。しかも read 中の close は Darwin では読み取りを中断しない
+            // ため、解放したいスレッドは結局残る。
+            //
+            // 代わりに書き込み側を根こそぎ消す。git 単体への SIGTERM だと、git が孫プロセス
+            // (フック/エイリアス経由の子)へ標準出力を渡していて、その孫が SIGTERM に
+            // 応じないときにパイプの書き込み端が残る。git は素直に死ぬ子なら道連れに畳んで
+            // くれるが、伏せられると自分も子を待ったまま死ねず、git・シェル・孫の全員が
+            // 書き込み端を握ったまま残る(実測)。こうなると read は EOF に達せず、
+            // 読み取りスレッド 1 本と Pipe の fd が孫の終了まで残留する。索引の warm は
+            // ファイルを開くたび・タブを切り替えるたびに走るので、応答しないリポジトリでは
+            // 残留が積み上がって fd 上限に届きうる。
+            // プロセスグループごと消せば書き込み端の持ち主が全員いなくなり、read が EOF で
+            // 自然終了して、スレッド・fd・Process がまとめて解放される。
+            terminate(processGroup, fallingBackTo: process)
             return .unavailable
         }
         return output.outcome()
+    }
+
+    /// 打ち切り時にまとめて消してよいプロセスグループ ID を返す。判断できなければ nil。
+    ///
+    /// macOS の `Process` は子を「子自身をリーダーとする新しいプロセスグループ」へ置く。
+    /// その前提が成り立つこと(pgid == pid)を確かめてから使う。前提が崩れた環境で
+    /// 素朴にグループを殺すと、子が呼び出し元と同じグループに居た場合に befold 自身を
+    /// 巻き込んで落とすため、確認できないときは何も返さない。
+    private func terminableProcessGroup(of process: Process) -> pid_t? {
+        let pid = process.processIdentifier
+        guard pid > 0 else { return nil }
+        let group = getpgid(pid)
+        guard group == pid, group != getpgid(0) else { return nil }
+        return group
+    }
+
+    /// プロセスグループごと打ち切る。グループを特定できていなければ git 単体を終了させる。
+    ///
+    /// SIGTERM ではなく SIGKILL を使うのは、無視できない signal であることが
+    /// 「必ず書き込み端が閉じる」保証そのものだから。猶予を与えて後始末させる必要も無い:
+    /// このランナーが実行するのは読み取り専用のクエリ(rev-parse / ls-files)だけで、
+    /// フックは `hardeningOptions` で無効化済みのため、中断で壊れる書きかけの状態が無い。
+    private func terminate(_ processGroup: pid_t?, fallingBackTo process: Process) {
+        guard let processGroup else {
+            process.terminate()
+            return
+        }
+        kill(-processGroup, SIGKILL)
     }
 
     /// 読み取りスレッドから呼び出しスレッドへ結果を渡すだけの小箱。
