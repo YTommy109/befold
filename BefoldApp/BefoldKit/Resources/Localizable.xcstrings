@@ -52,6 +52,23 @@
         }
       }
     },
+    "quicklook.rendering": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rendering…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "レンダリング中…"
+          }
+        }
+      }
+    },
     "viewer.find.close": {
       "comment": "「Esc」は viewer.html の document keydown ハンドラ（e.key === 'Escape' && _mmdFindIsOpen()）と一致させること。",
       "extractionState": "manual",

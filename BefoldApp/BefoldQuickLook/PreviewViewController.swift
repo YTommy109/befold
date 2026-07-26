@@ -2,6 +2,7 @@ import AppKit
 import BefoldKit
 import BefoldRenderKit
 import Quartz
+import WebKit
 
 /// QuickLook 拡張のプレビュー本体。
 /// レンダリングロジックは一切持たず、対象外拡張子の早期 reject と
@@ -26,9 +27,37 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
         let result = await renderer.loadOneShot(url: url)
 
         if let rejectReason = result.rejectReason {
-            embed(makeMessageView(rejectReason.localizedMessage))
+            fill(with: makeMessageView(rejectReason.localizedMessage))
         } else {
-            embed(result.webView)
+            fill(with: result.webView)
+            showRenderingIndicatorUntilIdle(of: result.webView)
+        }
+        // バッジは最後に載せて、描画中表示より前面に来るようにする。
+        addBadge()
+    }
+
+    /// 描画が loadOneShot のタイムアウト内に終わらなかった場合、プレビューは
+    /// 空白のまま数秒放置される。ユーザーが「表示できていない」と誤解するため、
+    /// 描画中であることを明示し、完了したら取り除く。
+    ///
+    /// 完了判定に evaluateJavaScript を使う: markdown-it / mermaid の描画は JS の
+    /// メインスレッドを占有するため、投げた評価が返ってきた時点で描画は終わっている。
+    /// 既に描画が終わっていれば即座に返るため、軽いファイルでは事実上表示されない。
+    private func showRenderingIndicatorUntilIdle(of webView: WKWebView) {
+        let indicator = makeMessageView(
+            String(localized: "quicklook.rendering", bundle: .befoldKitResources)
+        )
+        indicator.alphaValue = 0.7
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(indicator)
+        NSLayoutConstraint.activate([
+            indicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            indicator.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        ])
+
+        Task { @MainActor [weak indicator] in
+            _ = try? await webView.evaluateJavaScript("1")
+            indicator?.removeFromSuperview()
         }
     }
 
@@ -41,7 +70,7 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
         return label
     }
 
-    private func embed(_ subview: NSView) {
+    private func fill(with subview: NSView) {
         subview.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(subview)
         NSLayoutConstraint.activate([
@@ -50,7 +79,6 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
             subview.topAnchor.constraint(equalTo: view.topAnchor),
             subview.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
-        addBadge()
     }
 
     /// どの QuickLook 拡張がプレビューを担当したかを見分けるための表示。
