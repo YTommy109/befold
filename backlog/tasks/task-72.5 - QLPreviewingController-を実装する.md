@@ -1,11 +1,11 @@
 ---
 id: TASK-72.5
 title: QLPreviewingController を実装する
-status: In Progress
+status: To Do
 assignee:
   - '@tokutomi'
 created_date: '2026-07-19 06:44'
-updated_date: '2026-07-26 06:00'
+updated_date: '2026-07-26 06:06'
 labels: []
 dependencies: []
 parent_task_id: TASK-72
@@ -83,4 +83,19 @@ QuickLook 拡張が既にこの実機に入っているため。QuickLook は 1 
 これは befold 側のコードの不具合ではなく、環境側の競合。
 AC#1 は mermaid/swift/json では満たせているが、md/svg/html/csv では
 この実機では検証できない。またレンダリング結果の目視確認は未実施。
+
+## 中断(2026-07-26)
+実装・テスト・コミットは完了しているが、AC#1 は未達のまま中断する。
+ユーザー判断により、UTI 競合の扱いを設計し直すまで先へ進めない。
+
+再開の条件: 「同じ UTI を宣言する他の QuickLook 拡張との競合をどう扱うか」の
+方針が決まること。決めるべき論点は下記の通り。
+1. 競合する種別(md/svg/html/csv)を befold の QuickLook 対象から外すか、
+   宣言は残したうえで「環境によっては選ばれない」と割り切るか
+2. 割り切る場合、ユーザーへどう伝えるか(設定画面での競合検知・警告など)
+3. .svg を public.svg-image で宣言し続けるか(TASK-72.4 で一度決めた判断の再検討。
+   システム標準の画像プレビューに勝てないため実効性がない可能性がある)
+
+方針が決まったら、TASK-72.4 の QLSupportedContentTypes と
+親タスク TASK-72 の AC#1 を併せて見直すこと。
 <!-- SECTION:NOTES:END -->
