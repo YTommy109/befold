@@ -1,11 +1,11 @@
 ---
 id: TASK-72
 title: QuickLook 拡張を実装する
-status: To Do
+status: In Progress
 assignee:
   - '@tokutomi'
 created_date: '2026-07-19 06:38'
-updated_date: '2026-07-25 00:27'
+updated_date: '2026-07-26 04:59'
 labels: []
 dependencies: []
 ordinal: 210000

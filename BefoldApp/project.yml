@@ -72,6 +72,36 @@ targets:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.cli
       PRODUCT_NAME: BefoldCLI
       GENERATE_INFOPLIST_FILE: true
+  BefoldQuickLook:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: BefoldQuickLook
+        excludes:
+          - Info.plist
+          - BefoldQuickLook.entitlements
+    dependencies:
+      - target: BefoldKit
+        embed: false
+      - target: BefoldRenderKit
+        embed: false
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.quicklook
+      PRODUCT_NAME: BefoldQuickLook
+      # appex の CFBundleVersion / CFBundleShortVersionString は親アプリと一致させる
+      # 必要がある(不一致だと ValidateEmbeddedBinary が警告し、公証で弾かれる)。
+      MARKETING_VERSION: "1.7.2"
+      CURRENT_PROJECT_VERSION: "543"
+      INFOPLIST_FILE: BefoldQuickLook/Info.plist
+      CODE_SIGN_ENTITLEMENTS: BefoldQuickLook/BefoldQuickLook.entitlements
+      ENABLE_HARDENED_RUNTIME: true
+      GENERATE_INFOPLIST_FILE: false
+      SKIP_INSTALL: true
+      # フレームワークは befold.app の Contents/Frameworks に同梱されるため、
+      # appex 実行ファイル(Contents/PlugIns/*.appex/Contents/MacOS/)から
+      # 4 階層上のアプリバンドル直下を辿って参照する。
+      LD_RUNPATH_SEARCH_PATHS:
+        - "@executable_path/../../../../Frameworks"
   befold:
     type: application
     platform: macOS
@@ -109,6 +139,11 @@ targets:
         codeSign: true
         copy:
           destination: executables
+      # QuickLook 拡張を Contents/PlugIns へ同梱する。
+      - target: BefoldQuickLook
+        embed: true
+        link: false
+        codeSign: true
       - package: Sparkle
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold
