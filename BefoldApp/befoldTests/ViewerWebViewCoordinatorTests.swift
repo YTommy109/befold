@@ -130,9 +130,7 @@ struct ViewerWebViewCoordinatorTests {
 
     @Test("allowsInteractiveBridging: false では referenceActivated/loadMoreLines を登録しない(多層防御)")
     func messageHandlerNamesExcludesInteractiveHandlersWhenDisabled() {
-        let features = RendererFeatures(
-            allowDirectHTML: false, embedImages: false, allowsInteractiveBridging: false
-        )
+        let features = RendererFeatures.quickLookRestricted
         let names = ViewerRenderer.messageHandlerNames(for: features)
 
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))

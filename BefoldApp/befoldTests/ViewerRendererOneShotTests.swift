@@ -114,9 +114,7 @@ struct ViewerRendererOneShotTests {
     @MainActor
     func loadOneShotBuildsWebViewAndReportsReject() async {
         let renderer = ViewerRenderer()
-        renderer.rendererFeatures = RendererFeatures(
-            allowDirectHTML: false, embedImages: false, allowsInteractiveBridging: false
-        )
+        renderer.rendererFeatures = RendererFeatures.quickLookRestricted
 
         let url = URL(fileURLWithPath: "/tmp/oneshot-api.md")
         let fileReader = InMemoryFileReader(files: [url.path: "# ok\n"])
@@ -137,9 +135,7 @@ struct ViewerRendererOneShotTests {
     @MainActor
     func loadOneShotReportsRejectForBinary() async {
         let renderer = ViewerRenderer()
-        renderer.rendererFeatures = RendererFeatures(
-            allowDirectHTML: false, embedImages: false, allowsInteractiveBridging: false
-        )
+        renderer.rendererFeatures = RendererFeatures.quickLookRestricted
 
         let url = URL(fileURLWithPath: "/tmp/oneshot-binary.md")
         let fileReader = InMemoryFileReader(files: [url.path: "binary-ish"])
