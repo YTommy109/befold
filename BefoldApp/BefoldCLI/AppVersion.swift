@@ -4,7 +4,7 @@ import Foundation
 /// `_NSGetExecutablePath` で実バイナリのパスを取得し、`.app` バンドルの Info.plist から
 /// CFBundleShortVersionString を読む。バンドル外(SPM 単体ビルド等)では `fallback` を使う。
 public enum AppVersion {
-    public static let fallback = "1.7.3"
+    public static let fallback = "1.8.0"
 
     public static var current: String {
         resolved(infoDictionary: currentBundleInfoDictionary())
