@@ -7,12 +7,21 @@ import Foundation
 /// 大きなリポジトリでは解決バッチごとに O(候補数) の再構築が走る)。
 public protocol GitFileIndexing: Sendable {
     func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex?
+    /// url を含むリポジトリの作業ツリールート。git 管理外・判定不能なら nil。
+    /// 追跡ファイル索引と同じ解決結果を使い回せるよう、実装は `trackedFileIndex` と
+    /// ルート解決を共有する(呼び出し側が別途 rev-parse を重ねなくて済む)。
+    /// git を扱わない実装(索引を持たないシーム)では既定で nil を返す。
+    func repositoryRoot(forFileAt url: URL) -> URL?
     /// 解決要求より前に索引を用意しておく(ファイルを開いた/切り替えた契機で呼ぶ)。
     /// 索引の準備は最適化であって解決の前提ではないため、既定は何もしない。
     func warm(forFileAt url: URL)
 }
 
 public extension GitFileIndexing {
+    func repositoryRoot(forFileAt _: URL) -> URL? {
+        nil
+    }
+
     func warm(forFileAt _: URL) {}
 }
 

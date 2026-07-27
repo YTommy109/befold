@@ -71,12 +71,16 @@ public struct QuickOpenCandidateSet: Equatable, Sendable {
 /// git 追跡ファイル索引・ディレクトリ走査・履歴・ブックマークを 1 つの候補集合にまとめる。
 public enum QuickOpenCandidates {
     /// - Parameters:
-    ///   - root: 表示パスの基準。git 管理下ならリポジトリルート、そうでなければ走査の起点。
+    ///   - root: 表示パスの基準であり、git 管理外のときの走査の起点。
+    ///   - anchorFile: 追跡ファイル索引を引く起点となる「開いているファイル」。`gitIndex` は
+    ///     ファイルの所属リポジトリを解決するため、ここには走査対象のルート(ディレクトリ)ではなく
+    ///     ファイル URL を渡す。ルートを渡すと索引がルートの親を起点に解決し、常に取りこぼす。
     ///   - gitIndex: 追跡ファイル索引。nil を返す(= git 管理外)なら `scanner` に切り替える。
     ///   - includingHiddenFiles: 隠しファイルを候補に含めるか。独自設定を持たず、
     ///     呼び出し元(`HiddenFilesPreference`)の値をそのまま渡す。
     public static func collect(
         root: URL,
+        anchorFile: URL,
         gitIndex: any GitFileIndexing,
         scanner: DirectoryFileScanner,
         recentURLs: [URL],
@@ -85,7 +89,7 @@ public enum QuickOpenCandidates {
     ) -> QuickOpenCandidateSet {
         let indexed: [URL]
         let isTruncated: Bool
-        if let trackedIndex = gitIndex.trackedFileIndex(forFileAt: root) {
+        if let trackedIndex = gitIndex.trackedFileIndex(forFileAt: anchorFile) {
             indexed = trackedIndex.allCandidates
             isTruncated = false
         } else {

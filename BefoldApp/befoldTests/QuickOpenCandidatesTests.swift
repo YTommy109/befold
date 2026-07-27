@@ -5,11 +5,19 @@ import Testing
 
 /// git 索引はスタブを注入し、走査だけ実ファイルツリーで確かめる。
 struct QuickOpenCandidatesTests {
-    private struct StubGitIndex: GitFileIndexing {
+    /// `trackedFileIndex(forFileAt:)` に渡された URL を記録し、collect が索引へ
+    /// 「開いているファイル」を渡しているか(= ルートのディレクトリを渡す誤用でないか)を検証させる。
+    private final class StubGitIndex: GitFileIndexing, @unchecked Sendable {
         let tracked: [URL]?
+        private(set) var requestedURL: URL?
 
-        func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
-            tracked.map { SuffixPathIndex(candidates: $0) }
+        init(tracked: [URL]?) {
+            self.tracked = tracked
+        }
+
+        func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
+            requestedURL = url
+            return tracked.map { SuffixPathIndex(candidates: $0) }
         }
     }
 
@@ -19,6 +27,7 @@ struct QuickOpenCandidatesTests {
 
     private func collect(
         root: URL,
+        anchorFile: URL? = nil,
         tracked: [URL]?,
         recent: [URL] = [],
         bookmarks: [URL] = [],
@@ -27,12 +36,31 @@ struct QuickOpenCandidatesTests {
     ) -> QuickOpenCandidateSet {
         QuickOpenCandidates.collect(
             root: root,
+            anchorFile: anchorFile ?? root.appendingPathComponent("anchor.md"),
             gitIndex: StubGitIndex(tracked: tracked),
             scanner: scanner,
             recentURLs: recent,
             bookmarkedURLs: bookmarks,
             includingHiddenFiles: includingHiddenFiles
         )
+    }
+
+    @Test("git 索引にはルートのディレクトリではなく開いているファイルを渡す")
+    func passesAnchorFileToGitIndex() {
+        let stub = StubGitIndex(tracked: [url("/repo/a.md")])
+        _ = QuickOpenCandidates.collect(
+            root: url("/repo"),
+            anchorFile: url("/repo/docs/x.md"),
+            gitIndex: stub,
+            scanner: DirectoryFileScanner(),
+            recentURLs: [],
+            bookmarkedURLs: [],
+            includingHiddenFiles: false
+        )
+
+        #expect(stub.requestedURL == url("/repo/docs/x.md"))
+        // ルートのディレクトリを渡す誤用(修正前の挙動)を検知する。
+        #expect(stub.requestedURL != url("/repo"))
     }
 
     @Test("git 索引があれば追跡ファイルを候補にする")

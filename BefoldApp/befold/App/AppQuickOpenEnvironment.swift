@@ -11,7 +11,6 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
     private let recentDocumentsStore: RecentDocumentsStore
     private let bookmarkStore: BookmarkStore
     private let hiddenFilesPreference: HiddenFilesPreference
-    private let repository: any GitRepositoryReading
     private let fileReader: any FileReading
     /// いま開いているファイル。ウィンドウが 1 枚も無ければ nil。
     private let currentFileURL: URL?
@@ -22,7 +21,6 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
         bookmarkStore: BookmarkStore,
         hiddenFilesPreference: HiddenFilesPreference,
         currentFileURL: URL?,
-        repository: any GitRepositoryReading = GitRepository(),
         fileReader: any FileReading = DefaultFileReader()
     ) {
         self.gitIndex = gitIndex
@@ -30,7 +28,6 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
         self.bookmarkStore = bookmarkStore
         self.hiddenFilesPreference = hiddenFilesPreference
         self.currentFileURL = currentFileURL
-        self.repository = repository
         self.fileReader = fileReader
     }
 
@@ -43,10 +40,12 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
     }
 
     func candidateSet() -> QuickOpenCandidateSet {
-        guard let root = searchRoot else {
+        guard let currentFileURL else {
             // 開いているファイルが無ければ探す起点も無い。履歴とブックマークだけを出す。
+            let home = FileManager.default.homeDirectoryForCurrentUser
             return QuickOpenCandidates.collect(
-                root: FileManager.default.homeDirectoryForCurrentUser,
+                root: home,
+                anchorFile: home,
                 gitIndex: DisabledGitFileIndex(),
                 scanner: DirectoryFileScanner(maximumDepth: 0),
                 recentURLs: recentDocumentsStore.recentURLs(),
@@ -54,8 +53,13 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
                 includingHiddenFiles: includingHiddenFiles
             )
         }
+        // ルート解決は索引に一本化する。ここで別の GitRepository を new して rev-parse を
+        // 重ねず、collect が引く追跡ファイル索引と同じ 1 回の解決結果を共有する。
+        let root = gitIndex.repositoryRoot(forFileAt: currentFileURL)
+            ?? currentFileURL.deletingLastPathComponent()
         return QuickOpenCandidates.collect(
             root: root,
+            anchorFile: currentFileURL,
             gitIndex: gitIndex,
             scanner: DirectoryFileScanner(),
             recentURLs: recentDocumentsStore.recentURLs(),
@@ -77,12 +81,5 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
 
     func resolveFileToOpen(at url: URL) -> URL? {
         SupportedFileResolver.resolveFileToOpen(at: url, fileReader: fileReader)
-    }
-
-    /// 候補を集める起点。git 管理下ならリポジトリルート、そうでなければ開いているファイルのディレクトリ。
-    private var searchRoot: URL? {
-        guard let currentFileURL else { return nil }
-        return repository.root(forFileAt: currentFileURL).foundRoot
-            ?? currentFileURL.deletingLastPathComponent()
     }
 }
