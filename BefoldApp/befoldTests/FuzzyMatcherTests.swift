@@ -122,4 +122,14 @@ struct FuzzyMatcherTests {
     func matchedIndicesEmptyWhenNoMatch() {
         #expect(FuzzyMatcher.matchedIndices(query: "xyz", text: "abc.swift").isEmpty)
     }
+
+    @Test("スコアリングが採用した連続一致と同じ位置を強調する")
+    func matchedIndicesFollowsScoringAlignment() {
+        // "IsolatedDefaults.swift" には末尾 "Isolated" の d と、
+        // 単語境界の "Default" の両方に d がある。貪欲だと前者の d(7) を拾って
+        // 飛び飛びになるが、スコアリングは連続する "Default"(8..14) を採用する。
+        // ハイライトもそのアライメントに一致しなければならない。
+        let indices = FuzzyMatcher.matchedIndices(query: "default", text: "IsolatedDefaults.swift")
+        #expect(indices == [8, 9, 10, 11, 12, 13, 14])
+    }
 }
