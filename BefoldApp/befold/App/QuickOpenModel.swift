@@ -107,6 +107,32 @@ final class QuickOpenModel {
         queryText = completed
     }
 
+    /// 現在の入力に対して、候補の `displayPath` 上で強調表示すべき文字インデックス。
+    /// fuzzy は一致文字、パスモードは末尾断片に一致するファイル名の先頭を返す。空入力は空。
+    func highlightedIndices(in candidate: QuickOpenCandidate) -> [Int] {
+        switch QuickOpenQuery.classify(queryText) {
+        case .empty:
+            []
+        case let .fuzzy(query):
+            FuzzyMatcher.matchedIndices(query: query, text: candidate.displayPath)
+        case let .path(path):
+            pathHighlightIndices(path: path, in: candidate)
+        }
+    }
+
+    /// パスモードの前方一致は「ファイル名の先頭 fragment 文字」に相当する。
+    /// displayPath 上でファイル名が始まる位置から、断片の長さぶんを強調位置として返す。
+    private func pathHighlightIndices(path: String, in candidate: QuickOpenCandidate) -> [Int] {
+        guard let split = PathModeSplit(path: path, baseDirectory: environment.baseDirectory),
+              !split.fragment.isEmpty
+        else { return [] }
+        let name = candidate.url.lastPathComponent
+        let nameStart = candidate.displayPath.count - name.count
+        guard nameStart >= 0 else { return [] }
+        let length = min(split.fragment.count, name.count)
+        return Array(nameStart ..< (nameStart + length))
+    }
+
     // MARK: - Private
 
     private var isPathMode: Bool {

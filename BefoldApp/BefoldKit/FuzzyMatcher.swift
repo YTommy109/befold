@@ -51,6 +51,41 @@ public enum FuzzyMatcher {
         return bestAlignmentScore(foldedQuery: foldedQuery, text: Array(text[filenameStart...]))
     }
 
+    /// `query` が `text` に部分列として現れるときの、一致した `text` の文字インデックス集合。
+    /// 強調表示(ハイライト)用。`score(query:text:)` と同じく大小を無視し、`/` を含まない入力は
+    /// ファイル名部分だけで一致するならそこ(先頭からのオフセット付き)を返す。並び・スコアには
+    /// 影響しない読み出し専用の補助。左から貪欲に詰めた有効な部分列を返す(一致しなければ空)。
+    public static func matchedIndices(query: String, text: String) -> [Int] {
+        let foldedQuery = caseFolded(Array(query))
+        guard !foldedQuery.isEmpty else { return [] }
+
+        let textCharacters = Array(text)
+        // ファイル名部分だけで一致するなら、そのオフセット付き位置を優先する(score と同じ分岐)。
+        if !query.contains("/"), let filenameStart = filenameStartIndex(of: textCharacters) {
+            let filename = Array(textCharacters[filenameStart...])
+            if let indices = greedySubsequenceIndices(query: foldedQuery, text: filename) {
+                return indices.map { $0 + filenameStart }
+            }
+        }
+        return greedySubsequenceIndices(query: foldedQuery, text: textCharacters) ?? []
+    }
+
+    /// 折り畳み済みの `query` を `text` に左から貪欲に部分列一致させ、一致した位置を返す。
+    /// 部分列でなければ nil。
+    private static func greedySubsequenceIndices(query: [Character], text: [Character]) -> [Int]? {
+        let folded = caseFolded(text)
+        var queryIndex = 0
+        var indices: [Int] = []
+        for (textIndex, character) in folded.enumerated() {
+            guard queryIndex < query.count else { break }
+            if character == query[queryIndex] {
+                indices.append(textIndex)
+                queryIndex += 1
+            }
+        }
+        return queryIndex == query.count ? indices : nil
+    }
+
     // MARK: - Private
 
     /// 大文字小文字を無視するための唯一の畳み込み。部分列判定と DP の双方がこの結果を使い、

@@ -90,14 +90,21 @@ struct QuickOpenView: View {
     }
 
     private func row(_ candidate: QuickOpenCandidate, isSelected: Bool) -> some View {
-        HStack(spacing: 8) {
+        // 一致位置は displayPath 上のインデックス。ファイル名は displayPath の末尾なので
+        // 名前側にはオフセットを引いて、名前部分に落ちる一致だけを強調する。
+        let highlights = Set(model.highlightedIndices(in: candidate))
+        let name = candidate.url.lastPathComponent
+        let nameStart = candidate.displayPath.count - name.count
+        let nameHighlights = Set(highlights.compactMap { $0 >= nameStart ? $0 - nameStart : nil })
+
+        return HStack(spacing: 8) {
             Image(systemName: iconName(for: candidate.origin))
                 .foregroundStyle(.secondary)
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 1) {
-                Text(candidate.url.lastPathComponent)
+                Text(highlighted(name, indices: nameHighlights))
                     .lineLimit(1)
-                Text(candidate.displayPath)
+                Text(highlighted(candidate.displayPath, indices: highlights))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -110,6 +117,22 @@ struct QuickOpenView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(isSelected ? Color.accentColor.opacity(0.25) : .clear)
         .contentShape(Rectangle())
+    }
+
+    /// 文字列を AttributedString にし、`indices`(Character 単位)の文字を強調する。
+    /// 基底フォントの大きさは変えず、色(accentColor)と太字だけを載せる。
+    private func highlighted(_ text: String, indices: Set<Int>) -> AttributedString {
+        guard !indices.isEmpty else { return AttributedString(text) }
+        var result = AttributedString()
+        for (index, character) in text.enumerated() {
+            var piece = AttributedString(String(character))
+            if indices.contains(index) {
+                piece.foregroundColor = .accentColor
+                piece.inlinePresentationIntent = .stronglyEmphasized
+            }
+            result.append(piece)
+        }
+        return result
     }
 
     private func iconName(for origin: QuickOpenCandidate.Origin) -> String {

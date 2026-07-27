@@ -87,4 +87,39 @@ struct FuzzyMatcherTests {
     func emptyQueryMatchesEverything() {
         #expect(rankedTexts("", ["b.txt", "a.txt"]) == ["a.txt", "b.txt"])
     }
+
+    // MARK: - matchedIndices(強調位置)
+
+    @Test("連続一致の位置を返す")
+    func matchedIndicesConsecutive() {
+        #expect(FuzzyMatcher.matchedIndices(query: "abc", text: "abcxxx") == [0, 1, 2])
+    }
+
+    @Test("飛び飛びの一致でもそれぞれの位置を返す")
+    func matchedIndicesScattered() {
+        #expect(FuzzyMatcher.matchedIndices(query: "abc", text: "axbxcx") == [0, 2, 4])
+    }
+
+    @Test("単語境界の一致位置を返す(大小無視)")
+    func matchedIndicesWordBoundary() {
+        // quick_open.swift の q(0) と open の o(6)
+        #expect(FuzzyMatcher.matchedIndices(query: "QO", text: "quick_open.swift") == [0, 6])
+    }
+
+    @Test("/ を含まない入力はファイル名部分の位置(オフセット付き)を返す")
+    func matchedIndicesUsesFilenameOffset() {
+        // "util" はディレクトリ名にもあるが、ファイル名 util.swift 側で一致する
+        let indices = FuzzyMatcher.matchedIndices(query: "util", text: "src/util.swift")
+        #expect(indices == [4, 5, 6, 7]) // "util" of util.swift(src/ の後)
+    }
+
+    @Test("/ を含む入力はパス全体で一致位置を返す")
+    func matchedIndicesWholePathForSlashQuery() {
+        #expect(FuzzyMatcher.matchedIndices(query: "s/u", text: "src/util.swift") == [0, 3, 4])
+    }
+
+    @Test("一致しなければ空を返す")
+    func matchedIndicesEmptyWhenNoMatch() {
+        #expect(FuzzyMatcher.matchedIndices(query: "xyz", text: "abc.swift").isEmpty)
+    }
 }
