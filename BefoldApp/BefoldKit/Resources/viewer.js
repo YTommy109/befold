@@ -243,41 +243,104 @@ function reflowSpanBalancedLines(codeHtml) {
   return result;
 }
 
-// 行ごとに分割した HTML を行番号付き <tr> 列(文字列連結)に組み立てる。
+// インデントガイド(縦線)の桁幅。ガイドはこの桁数ごとに 1 本引く。
+// style.css の tab-size と必ず一致させること。
+var CODE_TAB_SIZE = 4;
+
+// プレーンな文字列の先頭空白をタブ幅換算の桁数に変換する。タブは次の
+// tab-stop まで、スペースは +1。非空白に達したら打ち切る。
+function indentColumns(text, tabSize) {
+  var cols = 0;
+  for (var i = 0; i < text.length; i++) {
+    var ch = text[i];
+    if (ch === '\t') {
+      cols += tabSize - (cols % tabSize);
+    } else if (ch === ' ') {
+      cols += 1;
+    } else {
+      break;
+    }
+  }
+  return cols;
+}
+
+// ハイライト済みの 1 行 HTML から、インデントガイド描画用の情報を求める。
+// reflow が前置する開き <span> タグを飛ばしてから先頭空白を桁数換算する。
+// cols=先頭インデント桁数、depth=引くガイド本数(floor(cols/tabSize))。
+// 非空白を含まない行(空行・空白のみ)はガイドを引かない(depth 0)。
+function leadingIndentInfo(lineHtml, tabSize) {
+  var rest = lineHtml;
+  var openTag = /^<span\b[^>]*>/;
+  var match;
+  while ((match = openTag.exec(rest)) !== null) {
+    rest = rest.slice(match[0].length);
+  }
+  var cols = 0;
+  var hasContent = false;
+  for (var i = 0; i < rest.length; i++) {
+    var ch = rest[i];
+    if (ch === '\t') {
+      cols += tabSize - (cols % tabSize);
+    } else if (ch === ' ') {
+      cols += 1;
+    } else {
+      hasContent = true;
+      break;
+    }
+  }
+  if (!hasContent) { return { cols: 0, depth: 0 }; }
+  return { cols: cols, depth: Math.floor(cols / tabSize) };
+}
+
+// 1 行分の <td class="line-content"> を組み立てる。インデントがある行には
+// ハンギングインデントとガイド描画用の CSS 変数を付与する(depth 0 の行は付けない)。
+function lineContentCell(lineHtml) {
+  var info = leadingIndentInfo(lineHtml, CODE_TAB_SIZE);
+  var style = info.depth > 0
+    ? ' style="--indent-cols:' + info.cols + ';--indent-depth:' + info.depth + '"'
+    : '';
+  return '<td class="line-content"' + style + '>' + lineHtml + '</td>';
+}
+
+// 行ごとに分割した HTML を <tr> 列(文字列連結)に組み立てる。
+// showLineNumbers が false でない限り行番号セルを付ける(既定は付ける)。
 // 行番号は startLine から振る(チャンク追記では既存行数 + 1 を渡す)。
-function buildLineNumberRows(codeHtml, startLine) {
+function buildLineNumberRows(codeHtml, startLine, showLineNumbers) {
+  var withNumbers = showLineNumbers !== false;
   var lines = reflowSpanBalancedLines(codeHtml);
   var rows = '';
   for (var i = 0; i < lines.length; i++) {
-    rows += '<tr><td class="line-number">' + (startLine + i)
-      + '</td><td class="line-content">' + lines[i] + '</td></tr>';
+    var numberCell = withNumbers
+      ? '<td class="line-number">' + (startLine + i) + '</td>'
+      : '';
+    rows += '<tr>' + numberCell + lineContentCell(lines[i]) + '</tr>';
   }
   return rows;
 }
 
-// コード全文を行番号付き <table> で包む(初回描画用)。
-function wrapWithLineNumbers(codeHtml) {
-  return '<table class="code-table">' + buildLineNumberRows(codeHtml, 1) + '</table>';
+// コード全文を行単位の <table> で包む(初回描画用)。
+// 行番号有無に関わらず常にこの行単位構造を使い、インデントガイドを描けるようにする。
+function wrapWithLineNumbers(codeHtml, showLineNumbers) {
+  return '<table class="code-table">'
+    + buildLineNumberRows(codeHtml, 1, showLineNumbers) + '</table>';
 }
 
 // 単一コードファイル全文のハイライト HTML を組み立てる。
 // highlightCode() を再利用し、未対応言語・hljs 不在・例外時は
-// エスケープ済みプレーン <pre><code> にフォールバックする。
-// showLineNumbers が true のとき、内容を行番号付き <table> で包む。
+// エスケープ済みプレーンへフォールバックする。行番号有無に関わらず、内容は常に
+// 行単位 <table> で包む(インデントガイドを両パスで描くため)。
 function renderCodeHtml(hljs, str, lang, showLineNumbers) {
+  // 省略時は行番号なし(従来の既定)。行番号セルの有無だけが変わり、行単位構造は共通。
+  var withNumbers = showLineNumbers === true;
   var highlighted = highlightCode(hljs, str, lang);
-  if (showLineNumbers) {
-    if (highlighted) {
-      // <pre><code ...>CONTENT</code></pre> の CONTENT だけを行番号テーブルで包む
-      var match = highlighted.match(/^(<pre><code[^>]*>)([\s\S]*)(<\/code><\/pre>)$/);
-      if (match) {
-        return match[1] + wrapWithLineNumbers(match[2]) + match[3];
-      }
+  if (highlighted) {
+    // <pre><code ...>CONTENT</code></pre> の CONTENT だけを行単位テーブルで包む
+    var match = highlighted.match(/^(<pre><code[^>]*>)([\s\S]*)(<\/code><\/pre>)$/);
+    if (match) {
+      return match[1] + wrapWithLineNumbers(match[2], withNumbers) + match[3];
     }
-    return '<pre><code>' + wrapWithLineNumbers(escapeHtml(str)) + '</code></pre>';
   }
-  if (highlighted) { return highlighted; }
-  return '<pre><code>' + escapeHtml(str) + '</code></pre>';
+  return '<pre><code>' + wrapWithLineNumbers(escapeHtml(str), withNumbers) + '</code></pre>';
 }
 
 // RFC 4180 準拠の状態マシンベース CSV/TSV トークナイザー。
@@ -562,6 +625,10 @@ if (typeof module !== 'undefined' && module.exports) {
     renderCodeHtml: renderCodeHtml,
     wrapWithLineNumbers: wrapWithLineNumbers,
     buildLineNumberRows: buildLineNumberRows,
+    indentColumns: indentColumns,
+    leadingIndentInfo: leadingIndentInfo,
+    lineContentCell: lineContentCell,
+    CODE_TAB_SIZE: CODE_TAB_SIZE,
     reflowSpanBalancedLines: reflowSpanBalancedLines,
     csvRowsHtml: csvRowsHtml,
     codeChunkInnerHtml: codeChunkInnerHtml,

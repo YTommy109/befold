@@ -692,8 +692,9 @@ describe('カラースキーム変更時の再描画', () => {
 });
 
 describe('行番号表示の反映', () => {
+  // 行単位テーブルは行番号の有無に関わらず常に使うため、行番号セルの有無で判定する。
   const hasLineNumbers = (document) =>
-    document.querySelector('#diagram-wrap table.code-table') !== null;
+    document.querySelector('#diagram-wrap td.line-number') !== null;
 
   test('無効にすると次の描画で行番号が付かない', async () => {
     const { main, document } = loadViewerMain({});
@@ -715,6 +716,25 @@ describe('行番号表示の反映', () => {
     await main.render('a,b\n', 'csv', ',');
 
     expect(hasLineNumbers(document)).toBe(true);
+  });
+});
+
+describe('インデントガイド(end-to-end)', () => {
+  test('インデントされたコード行に --indent-cols / --indent-depth が乗る', async () => {
+    const { main, document } = loadViewerMain({});
+    // 行番号なしでも(統一した行単位構造なので)ガイド変数が付く。
+    main.setLineNumbers(false);
+    await main.render('function f() {\n    return 1;\n}', 'code', 'js');
+
+    const cells = document.querySelectorAll('#diagram-wrap .line-content');
+    // 2 行目(4 スペースインデント)のセルにガイド変数が乗っている。
+    const indented = Array.from(cells).find(
+      (c) => c.getAttribute('style') && c.getAttribute('style').includes('--indent-cols:4')
+    );
+    expect(indented).toBeTruthy();
+    expect(indented.getAttribute('style')).toContain('--indent-depth:1');
+    // 行番号セルは付かない。
+    expect(document.querySelector('#diagram-wrap td.line-number')).toBeNull();
   });
 });
 

@@ -17,7 +17,7 @@ struct ViewerWindowManagerBookmarkTests {
     func addBookmarksUpdatesStoreAndOpenWindowToolbar() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "CLIBookmarkToolbarRefresh")
         fixture.manager.openViewer(for: file)
-        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey])
+        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
         let toolbar = try #require(controller.window?.toolbar)
         let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("bookmark") })
         let button = try #require(liveItem.view as? NSButton)
@@ -34,7 +34,7 @@ struct ViewerWindowManagerBookmarkTests {
     func addBookmarksForUnrelatedFileLeavesToolbarUntouched() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "CLIBookmarkUnrelated")
         fixture.manager.openViewer(for: file)
-        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey])
+        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
         let toolbar = try #require(controller.window?.toolbar)
         let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("bookmark") })
         let button = try #require(liveItem.view as? NSButton)

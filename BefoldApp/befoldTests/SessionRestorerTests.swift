@@ -46,7 +46,7 @@ struct SessionRestorerTests {
         restorer.captureSavedState()
         restorer.restoreLastSession(options: CLIOpenOptions(showLineNumbers: true))
 
-        let controller = fixture.manager.controllers[file.normalizedPathKey]
+        let controller = fixture.manager.controllers[file.normalizedPathKey]?.first
         #expect(controller?.store.showLineNumbers == true)
         fixture.closeAll()
     }

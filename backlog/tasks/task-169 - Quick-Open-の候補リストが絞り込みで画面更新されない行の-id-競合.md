@@ -1,11 +1,11 @@
 ---
 id: TASK-169
 title: Quick Open の候補リストが絞り込みで画面更新されない(行の id 競合)
-status: To Do
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-07-27 10:38'
-updated_date: '2026-07-27 10:38'
+updated_date: '2026-07-27 11:24'
 labels:
   - quick-open
   - bug
@@ -39,11 +39,19 @@ BefoldApp/befold/App/QuickOpenView.swift(resultList の ForEach と onChange)
 <!-- AC:BEGIN -->
 - [x] #1 ファイル名をタイプすると候補リストが実際に画面上で絞り込まれる(実機で確認。例: 'beta'→beta.md が先頭)
 - [x] #2 行の identity が ForEach の identity(候補 URL)と一致し、位置 index による別 id を付けていない
-- [ ] #3 選択移動時の scrollTo が引き続き機能する(選択行が隠れない)
+- [x] #3 選択移動時の scrollTo が引き続き機能する(選択行が隠れない)
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 実機確認(System Events + screencapture): query 'beta' でリスト先頭が beta.md(doc アイコン・選択)、続けて task134.mmd/ok.md 等の fuzzy 一致に更新されることを確認。二分探索で resultList を Text('count=… first=…')に差し替えると 'count=50 first=beta.md' と更新される一方、ForEach 行は alpha.md のまま固まることから ForEach の id 競合を特定。全736テスト+lint通過。AC#3(scrollTo)はコードで url ベースへ移行済み、選択移動の手動確認は要フォロー。
+
+AC#3 実機確認(xcodebuild + System Events): Quick Open で Down 15-25回/Up 40回の選択移動後もscreencapture上で選択行(ok.md/AGENTS.md等)が常に表示範囲内に留まることを確認。scrollToが双方向で正常動作。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ForEach 行の .id(index) を .id(candidate.url) に統一し、候補入れ替え時にSwiftUIが行を再利用して固まる不具合を修正済み(実装は既存コミットb969a2b0)。今回AC#3(選択移動時のscrollTo)を実機GUIテストで検証し完了。
+<!-- SECTION:FINAL_SUMMARY:END -->

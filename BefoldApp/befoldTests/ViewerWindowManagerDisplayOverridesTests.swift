@@ -27,7 +27,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
             showLineNumbers: true, sourceMode: true, sortOrder: .alphabetical, showSidebar: nil
         )
 
-        for controller in fixture.manager.controllers.values {
+        for controller in fixture.manager.allControllers {
             #expect(controller.store.showLineNumbers)
             #expect(controller.isSourceMode)
             #expect(controller.fileListModel.sortOrder == .alphabetical)
@@ -41,7 +41,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
             files: [file], prefix: "ViewerWindowManagerDisplayOverridesTests"
         )
         fixture.manager.openViewer(for: file)
-        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey])
+        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
         let originalSortOrder = controller.fileListModel.sortOrder
         let originalSourceMode = controller.isSourceMode
 
@@ -59,7 +59,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
     func applyDisplayOverridesRefreshesLineNumbersToolbarItem() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "LineNumbersToolbarRefresh")
         fixture.manager.openViewer(for: file)
-        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey])
+        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
         let toolbar = try #require(controller.window?.toolbar)
         let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("lineNumbers") })
         let button = try #require(liveItem.view as? NSButton)

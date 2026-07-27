@@ -43,6 +43,10 @@ const {
   prevMatchIndex,
   keptMatchIndex,
   buildLineNumberRows,
+  indentColumns,
+  leadingIndentInfo,
+  lineContentCell,
+  CODE_TAB_SIZE,
   reflowSpanBalancedLines,
   csvRowsHtml,
   codeChunkInnerHtml,
@@ -597,14 +601,26 @@ describe('renderCodeHtml', () => {
     expect(result.endsWith('</code></pre>')).toBe(true);
   });
 
-  test('unsupported language falls back to escaped plain block', () => {
-    const result = renderCodeHtml(hljs, '<b>raw</b>', 'no-such-lang-xyz');
-    expect(result).toBe('<pre><code>&lt;b&gt;raw&lt;/b&gt;</code></pre>');
+  test('行番号なしでも行単位テーブル構造で包む(ガイド描画のため統一)', () => {
+    const result = renderCodeHtml(hljs, 'let x = 1', 'swift');
+    expect(result).toContain('<table class="code-table">');
+    expect(result).toContain('<td class="line-content"');
+    // 行番号セルは付かない
+    expect(result).not.toContain('<td class="line-number">');
   });
 
-  test('missing hljs falls back to escaped plain block', () => {
+  test('unsupported language falls back to escaped line-based block', () => {
+    const result = renderCodeHtml(hljs, '<b>raw</b>', 'no-such-lang-xyz');
+    expect(result.startsWith('<pre><code>')).toBe(true);
+    expect(result).toContain('<table class="code-table">');
+    expect(result).toContain('&lt;b&gt;raw&lt;/b&gt;');
+    expect(result).not.toContain('<td class="line-number">');
+  });
+
+  test('missing hljs falls back to escaped line-based block', () => {
     const result = renderCodeHtml(null, 'const x = 1;', 'javascript');
-    expect(result).toBe('<pre><code>const x = 1;</code></pre>');
+    expect(result).toContain('<table class="code-table">');
+    expect(result).toContain('const x = 1;');
   });
 
   test('escapes HTML in fallback path (XSS)', () => {
@@ -626,15 +642,17 @@ describe('renderCodeHtml with line numbers', () => {
     expect(result).toContain('<td class="line-content">');
   });
 
-  test('showLineNumbers=false returns plain pre/code (existing behavior)', () => {
+  test('showLineNumbers=false は行番号セルなしの行単位テーブルを返す', () => {
     const result = renderCodeHtml(hljs, 'let x = 1', 'swift', false);
-    expect(result).not.toContain('code-table');
+    expect(result).toContain('<table class="code-table">');
+    expect(result).toContain('<td class="line-content"');
+    expect(result).not.toContain('<td class="line-number">');
     expect(result).toContain('<pre><code');
   });
 
-  test('showLineNumbers defaults to false when omitted', () => {
+  test('showLineNumbers 省略時は行番号セルを付けない', () => {
     const result = renderCodeHtml(hljs, 'let x = 1', 'swift');
-    expect(result).not.toContain('code-table');
+    expect(result).not.toContain('<td class="line-number">');
   });
 
   test('single line produces one row', () => {
@@ -1085,6 +1103,80 @@ describe('buildLineNumberRows', () => {
     expect(wrapWithLineNumbers(input)).toBe(
       '<table class="code-table">' + buildLineNumberRows(input, 1) + '</table>'
     );
+  });
+
+  test('showLineNumbers=false は行番号セルを付けず line-content のみ', () => {
+    const rows = buildLineNumberRows('a\nb', 1, false);
+    expect(rows).toBe('<tr><td class="line-content">a</td></tr><tr><td class="line-content">b</td></tr>');
+  });
+});
+
+describe('indentColumns', () => {
+  const TAB = CODE_TAB_SIZE;
+
+  test('スペースは 1 桁ずつ数える', () => {
+    expect(indentColumns('    code', TAB)).toBe(4);
+    expect(indentColumns('  code', TAB)).toBe(2);
+  });
+
+  test('タブは次の tab-stop まで進む', () => {
+    expect(indentColumns('\tcode', TAB)).toBe(4);
+    expect(indentColumns('\t\tcode', TAB)).toBe(8);
+  });
+
+  test('タブとスペースの混在を tab-stop 境界で正しく換算する', () => {
+    // スペース2 → 桁2、タブ → 次の tab-stop(4)まで = 桁4、合計インデント桁4
+    expect(indentColumns('  \tcode', TAB)).toBe(4);
+    // タブ(→4) + スペース2 = 桁6
+    expect(indentColumns('\t  code', TAB)).toBe(6);
+  });
+
+  test('先頭が非空白なら 0', () => {
+    expect(indentColumns('code', TAB)).toBe(0);
+  });
+});
+
+describe('leadingIndentInfo(インデントガイド用)', () => {
+  const TAB = CODE_TAB_SIZE;
+
+  test('インデント桁とガイド本数(depth)を返す', () => {
+    expect(leadingIndentInfo('        code', TAB)).toEqual({ cols: 8, depth: 2 });
+    expect(leadingIndentInfo('    code', TAB)).toEqual({ cols: 4, depth: 1 });
+    expect(leadingIndentInfo('code', TAB)).toEqual({ cols: 0, depth: 0 });
+  });
+
+  test('先頭の開き span タグを飛ばしてから空白を数える', () => {
+    // reflow が前置した開き span の後ろにインデントがある場合
+    expect(leadingIndentInfo('<span class="hljs-comment">    body', TAB)).toEqual({ cols: 4, depth: 1 });
+    // インデントの後にトークン span が来る場合(空白はタグの手前)
+    expect(leadingIndentInfo('        <span class="hljs-keyword">let</span>', TAB))
+      .toEqual({ cols: 8, depth: 2 });
+  });
+
+  test('空行・空白のみの行はガイドを引かない(depth 0)', () => {
+    expect(leadingIndentInfo('', TAB)).toEqual({ cols: 0, depth: 0 });
+    expect(leadingIndentInfo('    ', TAB)).toEqual({ cols: 0, depth: 0 });
+  });
+
+  test('半端なインデント(tab-stop 未満)は端数を切り捨てて depth を決める', () => {
+    // 桁6 は depth 1(4桁で1レベル、残り2桁は端数)
+    expect(leadingIndentInfo('      code', TAB)).toEqual({ cols: 6, depth: 1 });
+  });
+});
+
+describe('lineContentCell(ガイド用 CSS 変数の付与)', () => {
+  test('インデントのある行に --indent-cols / --indent-depth を付ける', () => {
+    expect(lineContentCell('        code'))
+      .toBe('<td class="line-content" style="--indent-cols:8;--indent-depth:2">        code</td>');
+  });
+
+  test('インデント 0 の行には style を付けない', () => {
+    expect(lineContentCell('code')).toBe('<td class="line-content">code</td>');
+  });
+
+  test('buildLineNumberRows がインデント行に CSS 変数を乗せる', () => {
+    const rows = buildLineNumberRows('    x', 1);
+    expect(rows).toContain('<td class="line-content" style="--indent-cols:4;--indent-depth:1">    x</td>');
   });
 });
 

@@ -85,6 +85,6 @@ struct MockedViewerWindowManager {
 
     /// テスト終了時にウィンドウを閉じる。openViewer した全テストで呼ぶこと。
     func closeAll() {
-        manager.controllers.values.forEach { $0.close() }
+        manager.allControllers.forEach { $0.close() }
     }
 }

@@ -5,7 +5,19 @@ import BefoldKit
 /// ウィンドウイベント(クローズ・rename・キー化)に伴うセッション記録の更新を担う。
 @MainActor
 final class ViewerWindowManager {
-    private(set) var controllers: [String: ViewerWindowController] = [:]
+    /// 正規化パス → そのファイルを表示中のコントローラ群。
+    /// 操作中(アクティブ)のウィンドウのサイドバー切替を最優先するため、同一ファイルを
+    /// 複数ウィンドウで開くことを許す(1 対 1 ではない)。Finder/CLI からの再オープンは
+    /// 依然として既存ウィンドウを前面化して重複を作らないが、ウィンドウ内のファイル切替では
+    /// 他ウィンドウの有無に関わらず自ウィンドウを切り替える。
+    private(set) var controllers: [String: [ViewerWindowController]] = [:]
+
+    /// 開いている全コントローラ(同一ファイルの重複ウィンドウも含む)。
+    /// 全ウィンドウへの一括反映(サイドバー・ツールバー再同期など)はこれを走査する。
+    var allControllers: [ViewerWindowController] {
+        controllers.values.flatMap(\.self)
+    }
+
     private let sessionStore: SessionStore
     private let recentDocumentsStore: RecentDocumentsStore
     private let hiddenFilesPreference: HiddenFilesPreference
@@ -78,7 +90,7 @@ final class ViewerWindowManager {
 
     /// 開いている全ウィンドウのサイドバー(ファイル一覧)を再読み込みする。
     private func refreshAllSidebars() {
-        for controller in controllers.values {
+        for controller in allControllers {
             controller.sidebar.refreshFileList()
         }
     }
@@ -97,7 +109,7 @@ final class ViewerWindowManager {
 
     /// 開いている全ウィンドウのツールバーを現在状態へ再同期する。
     private func refreshAllToolbars() {
-        for controller in controllers.values {
+        for controller in allControllers {
             controller.refreshToolbarState()
         }
     }
@@ -109,7 +121,7 @@ final class ViewerWindowManager {
     func applyDisplayOverrides(
         showLineNumbers: Bool?, sourceMode: Bool?, sortOrder: SortOrder?, showSidebar: Bool?
     ) {
-        for controller in controllers.values {
+        for controller in allControllers {
             if let showLineNumbers { controller.store.applyShowLineNumbersOverride(showLineNumbers) }
             if let sourceMode { controller.setSourceMode(sourceMode) }
             if let sortOrder {
@@ -139,7 +151,9 @@ final class ViewerWindowManager {
         }
 
         let key = url.normalizedPathKey
-        if let existing = controllers[key] {
+        // Finder/CLI/リンクからの再オープンは重複ウィンドウを作らず既存を前面化する。
+        // (ウィンドウ内のサイドバー切替だけは他ウィンドウを無視して自ウィンドウを切り替える)
+        if let existing = controllers[key]?.first {
             NSApp.activate()
             existing.focusWindow()
             return
@@ -179,7 +193,7 @@ final class ViewerWindowManager {
             directoryLister: directoryLister,
             openFileInNewWindow: { [weak self] fileURL in self?.openViewer(for: fileURL) }
         )
-        controllers[key] = controller
+        controllers[key, default: []].append(controller)
         controller.delegate = self
         NSApp.activate()
         controller.showWindow(nil)
@@ -198,7 +212,7 @@ final class ViewerWindowManager {
     /// 復元ウィンドウがどの Space にも属さず不可視になることがある(再 orderFront で復旧する)。
     /// 起動直後にのみ呼ぶこと(ユーザーが他 Space に移した後のウィンドウに触れないように)。
     func rescueWindowsDetachedFromSpace() {
-        for controller in controllers.values {
+        for controller in allControllers {
             guard let window = controller.window,
                   Self.isDetachedFromSpace(
                       isVisible: window.isVisible, isOnActiveSpace: window.isOnActiveSpace
@@ -209,8 +223,16 @@ final class ViewerWindowManager {
     }
 
     /// 指定の正規化パスに対応する開状態のウィンドウを返す。
+    /// 同一ファイルを複数ウィンドウで開いている場合は、そのいずれか(先頭)を返す。
     func window(forPath path: String) -> NSWindow? {
-        controllers[path]?.window
+        controllers[path]?.first?.window
+    }
+
+    /// controller を key のコントローラ群から取り除き、空になったキーは辞書から消す。
+    private func detach(_ controller: ViewerWindowController, fromKey key: String) {
+        guard var list = controllers[key] else { return }
+        list.removeAll { $0 === controller }
+        controllers[key] = list.isEmpty ? nil : list
     }
 
     /// ビューアウィンドウなら対応するファイルの正規化パスを返す。
@@ -227,10 +249,8 @@ final class ViewerWindowManager {
     ) {
         let oldKey = oldURL.normalizedPathKey
         let newKey = newURL.normalizedPathKey
-        if controllers[oldKey] === controller {
-            controllers.removeValue(forKey: oldKey)
-        }
-        controllers[newKey] = controller
+        detach(controller, fromKey: oldKey)
+        controllers[newKey, default: []].append(controller)
         if isRename {
             sessionStore.noteRenamed(from: oldURL, to: newURL)
         }
@@ -250,10 +270,7 @@ final class ViewerWindowManager {
 
 extension ViewerWindowManager: ViewerWindowControllerDelegate {
     func viewerWindowWillClose(_ controller: ViewerWindowController) {
-        let key = controller.fileURL.normalizedPathKey
-        if controllers[key] === controller {
-            controllers.removeValue(forKey: key)
-        }
+        detach(controller, fromKey: controller.fileURL.normalizedPathKey)
         sessionStore.noteClosed(controller.fileURL)
     }
 
@@ -271,15 +288,6 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
         _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
     ) {
         remapController(controller, from: oldURL, to: newURL, isRename: false)
-    }
-
-    /// url を controller 以外のウィンドウが開いていれば、そのコントローラを返す。
-    /// 判定と前面化対象の解決を兼ねるため、辞書 lookup は 1 回で済む。
-    func viewerWindow(
-        _ controller: ViewerWindowController, windowShowingFileElsewhere url: URL
-    ) -> ViewerWindowController? {
-        guard let existing = controllers[url.normalizedPathKey], existing !== controller else { return nil }
-        return existing
     }
 
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
