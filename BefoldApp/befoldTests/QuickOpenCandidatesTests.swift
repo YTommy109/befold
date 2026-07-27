@@ -164,6 +164,25 @@ struct QuickOpenCandidatesTests {
         #expect(set.matches(query: "x", limit: 10).map(\.displayPath) == ["b/x.md", "a/x.md"])
     }
 
+    @Test("同点タイブレークは事前計算した sortKey を使い、比較子は url(FS)を見ない")
+    func tiebreakUsesPrecomputedSortKey() {
+        // displayPath が同じ("x.md")ため fuzzy スコアは同点。url のパス順なら /a < /z で
+        // b が先になるが、sortKey は逆順に振ってある。比較子が url.normalizedPathKey を
+        // 計算し直していれば b→a に、保存済み sortKey を見ていれば a→b になる。
+        let earlier = QuickOpenCandidate(url: url("/z/x.md"), displayPath: "x.md", origin: .indexed, sortKey: "0-first")
+        let later = QuickOpenCandidate(url: url("/a/x.md"), displayPath: "x.md", origin: .indexed, sortKey: "1-second")
+        let set = QuickOpenCandidateSet(candidates: [earlier, later], isTruncated: false)
+
+        #expect(set.matches(query: "x", limit: 10).map(\.sortKey) == ["0-first", "1-second"])
+    }
+
+    @Test("collect は sortKey に正規化パスキーを事前計算して持たせる")
+    func collectPrecomputesSortKey() {
+        let set = collect(root: url("/repo"), tracked: [url("/repo/src/a.swift")])
+
+        #expect(set.candidates.first?.sortKey == url("/repo/src/a.swift").normalizedPathKey)
+    }
+
     @Test("fuzzy 検索は一致しない候補を落とし上限で打ち切る")
     func matchesFilterAndLimit() {
         let root = url("/repo")

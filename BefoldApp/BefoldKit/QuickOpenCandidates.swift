@@ -15,11 +15,17 @@ public struct QuickOpenCandidate: Equatable, Sendable {
     /// fuzzy 検索の照合対象もこの文字列で、表示と一致の対象をずらさない。
     public let displayPath: String
     public let origin: Origin
+    /// 同点タイブレーク用に事前計算した正規化パスキー。`normalizedPathKey` は
+    /// `resolvingSymlinksInPath()`(構成要素ぶんの FS I/O)を伴うため、キーストロークごとに
+    /// 走る `matches()` の比較子内では計算せず、生成時に一度だけ求めた値をここで持ち回る。
+    public let sortKey: String
 
-    public init(url: URL, displayPath: String, origin: Origin) {
+    public init(url: URL, displayPath: String, origin: Origin, sortKey: String? = nil) {
         self.url = url
         self.displayPath = displayPath
         self.origin = origin
+        // 呼び出し元が重複除去などで既に計算済みならその値を使い、二重計算を避ける。
+        self.sortKey = sortKey ?? url.normalizedPathKey
     }
 }
 
@@ -50,7 +56,7 @@ public struct QuickOpenCandidateSet: Equatable, Sendable {
         }
         scored.sort { lhs, rhs in
             lhs.score == rhs.score
-                ? lhs.candidate.url.normalizedPathKey < rhs.candidate.url.normalizedPathKey
+                ? lhs.candidate.sortKey < rhs.candidate.sortKey
                 : lhs.score > rhs.score
         }
         return scored.prefix(limit).map(\.candidate)
@@ -118,9 +124,13 @@ public enum QuickOpenCandidates {
             (sortedBookmarks, .bookmark),
             (visibleIndexed, .indexed),
         ] {
-            for url in urls where seen.insert(url.normalizedPathKey).inserted {
+            for url in urls {
+                // 重複除去のキーと同点タイブレークのソートキーは同じ正規化パス。
+                // ここで一度だけ計算し、候補に持たせて比較子内での再計算(FS I/O)をなくす。
+                let key = url.normalizedPathKey
+                guard seen.insert(key).inserted else { continue }
                 candidates.append(QuickOpenCandidate(
-                    url: url, displayPath: displayPath(of: url, root: root), origin: origin
+                    url: url, displayPath: displayPath(of: url, root: root), origin: origin, sortKey: key
                 ))
             }
         }
