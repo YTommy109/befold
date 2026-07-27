@@ -123,7 +123,7 @@ struct MainMenuBuilderTests {
         (
             submenuKey: "menu.file.title",
             selector: #selector(ViewerWindowController.printDocument(_:)),
-            key: "P", modifiers: NSEvent.ModifierFlags?.some([.command, .shift])
+            key: "p", modifiers: NSEvent.ModifierFlags?.some([.command, .shift])
         ), // Quick Open に ⌘P を譲り、Print は ⇧⌘P へ移した
     ])
     func menuItemHasKeyEquivalent(

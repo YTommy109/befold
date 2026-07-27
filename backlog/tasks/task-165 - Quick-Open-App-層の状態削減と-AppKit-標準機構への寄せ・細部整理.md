@@ -1,9 +1,11 @@
 ---
 id: TASK-165
 title: Quick Open App 層の状態削減と AppKit 標準機構への寄せ・細部整理
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-07-27 05:49'
+updated_date: '2026-07-27 06:45'
 labels: []
 dependencies: []
 priority: low

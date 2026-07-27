@@ -69,7 +69,15 @@ public struct DirectoryFileScanner: Sendable {
             at: directory,
             includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
             options: []
-        ) else { return }
+        ) else {
+            // 「存在するのに列挙できない」(権限なし等)は候補を黙って切り捨てない方針に従い
+            // truncated 扱いにし、末尾の打ち切り表示で「ここに出ていないものがある」と伝える。
+            // 存在しないディレクトリは切り捨てではなく単に空なので truncated にしない。
+            if FileManager.default.fileExists(atPath: directory.path) {
+                state.isTruncated = true
+            }
+            return
+        }
 
         for entry in contents.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             guard !state.hasReachedCountLimit else { return }

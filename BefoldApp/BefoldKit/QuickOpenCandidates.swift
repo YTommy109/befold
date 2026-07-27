@@ -42,13 +42,14 @@ public struct QuickOpenCandidateSet: Equatable, Sendable {
     }
 
     /// 空入力時に出す一覧。履歴を上に、続けてブックマークを並べる。
-    public func initialCandidates(limit: Int = 20) -> [QuickOpenCandidate] {
+    /// 上限は呼び出し元(`QuickOpenModel`)が単一情報源として持つため、既定値は設けない。
+    public func initialCandidates(limit: Int) -> [QuickOpenCandidate] {
         Array(candidates.filter { $0.origin != .indexed }.prefix(limit))
     }
 
     /// 入力で候補を絞り込み、スコア降順に並べて返す。
     /// 同点は正規化パス昇順で確定させ、同じ入力に常に同じ並びを返す。
-    public func matches(query: String, limit: Int = 50) -> [QuickOpenCandidate] {
+    public func matches(query: String, limit: Int) -> [QuickOpenCandidate] {
         var scored: [(candidate: QuickOpenCandidate, score: Int)] = []
         for candidate in candidates {
             guard let score = FuzzyMatcher.score(query: query, text: candidate.displayPath) else { continue }
@@ -63,8 +64,10 @@ public struct QuickOpenCandidateSet: Equatable, Sendable {
     }
 
     /// 一度開いた/印を付けたファイルは次も選ばれやすい、という前提の加点。
-    /// 一致の質(連続一致や単語境界)を覆すほどではない大きさに抑え、
-    /// 打った入力によく合う候補が履歴に押しのけられないようにしている。
+    /// 値はファイル名一致の加点(`filenameBonus` = 1000)より桁違いに小さく、複数文字の
+    /// 一致で積み上がる基礎点・連続点にもすぐ埋もれるため、実質的にはスコアが拮抗した
+    /// 候補どうしの並びを履歴・ブックマーク優先で決めるだけに働く。
+    /// (単一文字の連続点+境界点=27 は上回るので、ごく短い入力では履歴が前に出うる。)
     private static func originBonus(_ origin: QuickOpenCandidate.Origin) -> Int {
         switch origin {
         case .recent: 30

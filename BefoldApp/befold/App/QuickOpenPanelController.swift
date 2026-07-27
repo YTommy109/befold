@@ -32,7 +32,9 @@ final class QuickOpenPanelController: NSObject {
     }
 
     func dismiss() {
-        panel?.orderOut(nil)
+        // isReleasedWhenClosed=false のため close() は安全で、AppKit のウィンドウ終了経路
+        // (windowWillClose 通知・ウィンドウリスト登録解除)に正しく乗る。
+        panel?.close()
         panel = nil
     }
 
@@ -66,7 +68,6 @@ final class QuickOpenPanelController: NSObject {
         panel.isMovableByWindowBackground = true
         panel.isFloatingPanel = true
         panel.level = .floating
-        panel.hidesOnDeactivate = true
         panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear
         panel.delegate = self

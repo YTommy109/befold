@@ -34,16 +34,12 @@ final class QuickOpenModel {
     /// パネルを開いた時点で 1 度だけ取る。入力のたびに索引を取り直さない。
     private let candidateSet: QuickOpenCandidateSet
 
-    private var storedQueryText = ""
-
-    /// 入力欄の文字列。絞り込みの起動を格納プロパティの `didSet` に頼らず、
-    /// 明示的な setter から呼ぶ。`@Observable` は格納プロパティを get/set へ
-    /// 書き換えるため、観測子の発火タイミングを暗黙に当てにしない。
-    var queryText: String {
-        get { storedQueryText }
-        set {
-            guard newValue != storedQueryText else { return }
-            storedQueryText = newValue
+    /// 入力欄の文字列。変化のたびに絞り込みを走らせる。
+    /// `@Observable` は格納プロパティの willSet/didSet を保持する(ドキュメント化された挙動)ため、
+    /// 監視子で refresh を起動してよい。
+    var queryText = "" {
+        didSet {
+            guard queryText != oldValue else { return }
             refresh()
         }
     }
