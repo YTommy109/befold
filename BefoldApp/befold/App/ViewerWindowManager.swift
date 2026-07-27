@@ -25,6 +25,12 @@ final class ViewerWindowManager {
     /// (モノレポではウィンドウごとの複製が無視できない大きさになる)。
     private let gitFileIndex: any GitFileIndexing
 
+    /// Quick Open が候補源として使うための読み出し口。索引を作り直さず、
+    /// ウィンドウが温めた同じインスタンスをそのまま共有する。
+    var sharedGitFileIndex: any GitFileIndexing {
+        gitFileIndex
+    }
+
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
