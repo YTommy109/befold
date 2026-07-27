@@ -36,12 +36,10 @@ final class QuickOpenModel {
 
     private var storedQueryText = ""
 
-    /// 入力欄の文字列。絞り込みの起動は didSet ではなく明示的な setter から行う。
-    /// `@Observable` + 格納プロパティの `didSet` は Swift の直接代入では発火するが、
-    /// SwiftUI の `TextField` が `@Bindable` の `$model.queryText` binding 経由で書き込む
-    /// 経路では発火せず `refresh()` が呼ばれない(タイプしても候補が絞り込まれない退行になる)。
-    /// ユニットテストは直接代入のため didSet でも通ってしまい退行を検知できないので、
-    /// binding 経由でも確実に走る明示 setter を使う。詳細は TASK-166。
+    /// 入力欄の文字列。値が変わるたびに `refresh()` で候補を絞り込み直す。
+    /// setter に処理を書く形でも、`@Observable` プロパティに `didSet` を付ける形でも
+    /// SwiftUI の `TextField`(`@Bindable` の `$model.queryText`)経由で発火するため
+    /// どちらでも動く。ここでは絞り込みの起動点を setter に明示しておく。
     var queryText: String {
         get { storedQueryText }
         set {
