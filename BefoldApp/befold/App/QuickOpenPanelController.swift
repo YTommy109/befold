@@ -82,7 +82,13 @@ final class QuickOpenPanelController: NSObject {
     private func position(_ panel: NSPanel) {
         let reference = NSApp.keyWindow?.frame ?? NSScreen.main?.visibleFrame
         guard let reference else { return }
+        // layoutIfNeeded() だけでは NSHostingController の preferredContentSize が
+        // まだパネルへ伝わっておらず frame.size がほぼ空のまま原点計算に使われる。
+        // SwiftUI 側の要求サイズを先にパネルへ確定させてから原点を求める。
         panel.layoutIfNeeded()
+        if let contentView = panel.contentViewController?.view {
+            panel.setContentSize(contentView.fittingSize)
+        }
         let size = panel.frame.size
         panel.setFrameOrigin(NSPoint(
             x: reference.midX - size.width / 2,
