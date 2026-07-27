@@ -94,7 +94,7 @@ public extension ViewerRenderer {
         fileType: FileType? = nil,
         fileReader: any FileReading = DefaultFileReader(),
         chunkedReaderFactory: @escaping ViewerLoadPipeline.ChunkedReaderFactory = { cache, fileType in
-            StringChunkReader(cache: cache, respectsCSVQuotes: fileType.csvDelimiter != nil)
+            StringChunkReader(cache: cache, boundary: ChunkBoundary(fileType: fileType))
         },
         initialZoom: Double = 1.0
     ) async -> OneShotResult {

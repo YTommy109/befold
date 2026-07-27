@@ -70,6 +70,13 @@ function loadViewerMain(options) {
   if (opts.initialFindOptions !== undefined) { window._mmdInitialFindOptions = opts.initialFindOptions; }
   if (opts.findStrings !== undefined) { window._mmdFindStrings = opts.findStrings; }
   if (opts.bannerStrings !== undefined) { window._mmdBannerStrings = opts.bannerStrings; }
+  // 既定では viewer.html のベンダー script を読まないため markdownit / DOMPurify は
+  // 未定義で、Markdown 経路は縮退表示になる。実際の描画結果を検証したいテストだけが
+  // npm 版を注入して本番と同じ経路(md.render → DOMPurify)を通す。
+  if (opts.withMarkdown) {
+    window.markdownit = require('markdown-it');
+    window.DOMPurify = require('dompurify')(window);
+  }
 
   // module を window 上に置くことでエクスポート境界を有効にする。両ファイルが
   // 同じ module を共有しないよう、評価ごとに差し替えて回収する。

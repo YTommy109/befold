@@ -330,11 +330,13 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
-    @Test("非行指向テキストが 10MB を超えると fileTooLarge")
-    func nonLineOrientedTextOverLimitIsRejected() async {
-        let file = URL(fileURLWithPath: "/files/huge.md")
+    /// markdown はチャンク読み込みの対象になったため(Issue #307)、10MB 上限が
+    /// 残るのはチャンク非対応(mmd/svg/html)だけになった。
+    @Test("チャンク非対応テキストが 10MB を超えると fileTooLarge")
+    func nonChunkableTextOverLimitIsRejected() async {
+        let file = URL(fileURLWithPath: "/files/huge.html")
         let reader = InMemoryFileReader()
-        reader.setFile("# Big", at: file)
+        reader.setFile("<h1>Big</h1>", at: file)
         reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)

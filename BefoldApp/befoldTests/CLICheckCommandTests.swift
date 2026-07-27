@@ -15,7 +15,7 @@ struct CLICheckCommandTests {
     /// fileTooLarge で拒否する。--check がサイズ 0 とみなして openable と報告してはならない。
     @Test("サイズを取得できない超過ファイルを openable と報告しない")
     func fileSizeUnknownOversizedFileIsRejected() async {
-        let url = URL(fileURLWithPath: "/tmp/huge.md")
+        let url = URL(fileURLWithPath: "/tmp/huge.html")
         let oversized = String(repeating: "a", count: ContentLoader.maxTextFileSizeBytes + 1)
         let reader = InMemoryFileReader(files: [url.path: oversized])
         reader.setSizeUnknown(true, at: url)
@@ -33,7 +33,7 @@ struct CLICheckCommandTests {
     /// raw バイト数だけを見る判定では上限内に見えても GUI は拒否する。
     @Test("raw サイズは上限内でもデコード後に超過する Shift_JIS ファイルを拒否する")
     func shiftJISFileExceedingLimitAfterDecodeIsRejected() async throws {
-        let url = URL(fileURLWithPath: "/tmp/sjis.md")
+        let url = URL(fileURLWithPath: "/tmp/sjis.html")
         // 4.5M 文字: Shift_JIS で 9MB(上限内)、UTF-8 デコード後は 13.5MB(上限超過)。
         let japanese = String(repeating: "あ", count: 4_500_000)
         let sjis = try #require(japanese.data(using: .shiftJIS))
@@ -78,8 +78,8 @@ struct CLICheckCommandTests {
 
     @Test("サイズ上限を超えるテキストファイルは理由付きで開けないと判定される")
     func oversizedTextFileIsRejected() async {
-        let url = URL(fileURLWithPath: "/tmp/big.md")
-        let reader = InMemoryFileReader(files: [url.path: "# big"])
+        let url = URL(fileURLWithPath: "/tmp/big.html")
+        let reader = InMemoryFileReader(files: [url.path: "<h1>big</h1>"])
         reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: url)
 
         let result = await CLICheckCommand.run(

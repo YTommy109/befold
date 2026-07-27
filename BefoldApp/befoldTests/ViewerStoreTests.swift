@@ -160,9 +160,9 @@ struct ViewerStoreTests {
 
     @Test
     func openOversizedFileMarksUnsupportedWithoutLoading() async {
-        let file = URL(fileURLWithPath: "/files/huge.md")
+        let file = URL(fileURLWithPath: "/files/huge.html")
         let reader = InMemoryFileReader()
-        reader.setFile("# Hello", at: file)
+        reader.setFile("<h1>Hello</h1>", at: file)
         reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
 
         let store = makeStore(reader: reader)
@@ -192,7 +192,7 @@ struct ViewerStoreTests {
 
     @Test
     func switchingFromOversizedToNormalResetsUnsupported() async {
-        let hugeFile = URL(fileURLWithPath: "/files/huge.md")
+        let hugeFile = URL(fileURLWithPath: "/files/huge.html")
         let normalFile = URL(fileURLWithPath: "/files/readme.md")
         let reader = InMemoryFileReader()
         reader.setFile("x", at: hugeFile)
@@ -404,9 +404,9 @@ struct ViewerStoreTests {
     /// ファイルサイズ超過 → 縮小のような、isRejected が変化する再読込でも発火することを確認する。
     @Test
     func watcherCallbackFiresOnContentReloadedWhenUnsupportedChanges() async {
-        let file = URL(fileURLWithPath: "/files/huge.md")
+        let file = URL(fileURLWithPath: "/files/huge.html")
         let reader = InMemoryFileReader()
-        reader.setFile("# Hello", at: file)
+        reader.setFile("<h1>Hello</h1>", at: file)
         reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
 
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)

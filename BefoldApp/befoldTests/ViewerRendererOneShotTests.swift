@@ -9,7 +9,7 @@ import WebKit
 @Suite
 struct ViewerRendererOneShotTests {
     private let chunkedReaderFactory: ViewerLoadPipeline.ChunkedReaderFactory = { cache, fileType in
-        StringChunkReader(cache: cache, respectsCSVQuotes: fileType.csvDelimiter != nil)
+        StringChunkReader(cache: cache, boundary: ChunkBoundary(fileType: fileType))
     }
 
     // MARK: - Outcome → OneShotRender 変換

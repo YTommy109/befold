@@ -110,7 +110,8 @@ public extension ViewerRenderer {
                 ) {
                     applyAppend(
                         webView: webView, chunk: pending.chunk, contentRevision: contentRevision,
-                        fileType: fileType, filePath: filePath, truncation: truncation
+                        fileType: fileType, filePath: filePath, isSourceMode: isSourceMode,
+                        truncation: truncation
                     )
                     return
                 }

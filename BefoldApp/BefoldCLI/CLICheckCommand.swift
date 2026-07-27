@@ -64,7 +64,7 @@ public enum CLICheckCommand {
             fileReader: fileReader,
             contentLoader: ContentLoader(fileReader: fileReader),
             chunkedReaderFactory: { cache, fileType in
-                StringChunkReader(cache: cache, respectsCSVQuotes: fileType.csvDelimiter != nil)
+                StringChunkReader(cache: cache, boundary: ChunkBoundary(fileType: fileType))
             },
             oneShotLoad: true,
             embedLocalImages: false

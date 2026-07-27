@@ -1080,3 +1080,48 @@ describe('パス参照の表示時解決', () => {
     expect(loaded.document.getElementById('dead').hasAttribute('title')).toBe(false);
   });
 });
+
+describe('Markdown のチャンク追記(Issue #307)', () => {
+  const wrap = (document) => document.getElementById('diagram-wrap');
+
+  test('追記したチャンクが末尾にレンダリングされる', async () => {
+    const { main, document } = loadViewerMain({ withMarkdown: true });
+    await main.render('# first\n\n', 'md');
+
+    main.appendChunk('## second\n\n', 'md');
+
+    expect(wrap(document).querySelector('h1').textContent).toBe('first');
+    expect(wrap(document).querySelector('h2').textContent).toBe('second');
+  });
+
+  test('追記しても先頭チャンクの DOM を作り直さない', async () => {
+    const { main, document } = loadViewerMain({ withMarkdown: true });
+    await main.render('# first\n\n', 'md');
+    const firstHeading = wrap(document).querySelector('h1');
+
+    main.appendChunk('## second\n\n', 'md');
+
+    // 全文を再レンダリングしていれば h1 は別ノードに置き換わる。
+    expect(wrap(document).querySelector('h1')).toBe(firstHeading);
+  });
+
+  test('追記チャンクも DOMPurify でサニタイズされる', async () => {
+    const { main, document } = loadViewerMain({ withMarkdown: true });
+    await main.render('# first\n\n', 'md');
+
+    main.appendChunk('<img src=x onerror="alert(1)">\n\n', 'md');
+
+    const img = wrap(document).querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img.getAttribute('onerror')).toBeNull();
+  });
+
+  test('追記した内容も検索対象の本文に含まれる', async () => {
+    const { main, document } = loadViewerMain({ withMarkdown: true });
+    await main.render('# first\n\n', 'md');
+
+    main.appendChunk('needle text\n\n', 'md');
+
+    expect(wrap(document).textContent).toContain('needle text');
+  });
+});
