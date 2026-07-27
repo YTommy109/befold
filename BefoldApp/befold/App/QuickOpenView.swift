@@ -69,7 +69,10 @@ struct QuickOpenView: View {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(model.candidates.enumerated()), id: \.element.url) { index, candidate in
                             row(candidate, isSelected: index == model.selectedIndex)
-                                .id(index)
+                                // 行の identity は ForEach と同じ候補 URL に揃える。
+                                // 位置 index を id にすると、絞り込みで候補が入れ替わっても
+                                // SwiftUI が同じ行を使い回して内容を更新しない(リストが固まる)。
+                                .id(candidate.url)
                         }
                         if model.showsTruncationNotice {
                             notice(String(localized: "quickOpen.truncated", bundle: .l10n))
@@ -79,7 +82,8 @@ struct QuickOpenView: View {
                 .frame(maxHeight: 360)
                 // キーボードで選択を動かしたとき、選択行が隠れたままにならないようにする。
                 .onChange(of: model.selectedIndex) { _, index in
-                    proxy.scrollTo(index)
+                    guard model.candidates.indices.contains(index) else { return }
+                    proxy.scrollTo(model.candidates[index].url)
                 }
             }
         }
