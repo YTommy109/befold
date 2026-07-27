@@ -60,6 +60,9 @@
      半透明ティントに合わせる) */
   --csv-th-bg: rgba(0, 0, 0, 0.06);
   --csv-th-fg: var(--fg);
+
+  /* コードのインデントガイド(縦線)。シンタックス色と衝突しないよう低コントラストにする。 */
+  --indent-guide: rgba(0, 0, 0, 0.13);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -81,6 +84,8 @@
 
     --csv-th-bg: rgba(255, 255, 255, 0.08);
     --csv-th-fg: var(--fg);
+
+    --indent-guide: rgba(255, 255, 255, 0.14);
   }
 }
 
@@ -243,6 +248,9 @@ body {
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-all;
+  /* タブ幅を固定。viewer.js の CODE_TAB_SIZE と必ず一致させること。 */
+  tab-size: 4;
+  -moz-tab-size: 4;
 }
 
 /* ── 行番号テーブル ── */
@@ -267,6 +275,24 @@ body {
   white-space: pre-wrap;
   word-break: break-all;
   width: 100%;
+  /* ── インデントガイド(縦線) ──
+     各行に付く --indent-cols(先頭インデント桁数) / --indent-depth(ガイド本数)を使う。
+     ハンギングインデント(padding-left + 負の text-indent)で、折り返した継続行を
+     その行のインデント位置へ揃える。ガイドは左パディング領域の背景として描くため、
+     折り返しで行の高さが増えてもブロック全体を覆いズレない。
+     --indent-depth が未指定/0 の行は background-size が 0 になりガイドを描かない。 */
+  padding-left: calc(var(--indent-cols, 0) * 1ch);
+  text-indent: calc(var(--indent-cols, 0) * -1ch);
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--indent-guide) 0,
+    var(--indent-guide) 1px,
+    transparent 1px,
+    transparent 4ch
+  );
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  background-size: calc(var(--indent-depth, 0) * 4ch) 100%;
 }
 
 /* 画像表示。wrap をビューポートいっぱいにして中で img を中央寄せし、

@@ -1236,7 +1236,7 @@
         // なく前チャンク最終行の続きなので、生成した最初の行分を <tr> ごと追加
         // せず既存の最終行セルへ結合する(行番号の重複を防ぐ)。
         var startLine = codeTable.rows.length + (_mmdChunkTail.endedWithNewline() ? 1 : 0);
-        var rowsHtml = buildLineNumberRows(inner, startLine);
+        var rowsHtml = buildLineNumberRows(inner, startLine, _mmdViewOptions.lineNumbers());
         if (!_mmdChunkTail.endedWithNewline() && codeTable.rows.length > 0) {
           var pendingRows = document.createElement('tbody');
           pendingRows.innerHTML = rowsHtml;
