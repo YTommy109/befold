@@ -1,9 +1,11 @@
 ---
 id: TASK-164
 title: Quick Open の文字列照合を Foundation 標準 API と単一の case fold に寄せる
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@Tommy109'
 created_date: '2026-07-27 05:49'
+updated_date: '2026-07-27 06:44'
 labels: []
 dependencies: []
 priority: low
@@ -29,8 +31,20 @@ ordinal: 239000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 commonPrefix と前方一致が Foundation 標準 API（commonPrefix(with:options:) / range(of:options:)）経由になり、既存の QuickOpenModelTests が通る
-- [ ] #2 FuzzyMatcher の大小無視が単一の fold 実装に一本化され、部分列判定と DP が同じ folded 配列を使う
-- [ ] #3 FuzzyMatcher.rank が削除または matches との共通コアに統合され、順位付けロジックの二重実装が解消される
-- [ ] #4 既存の FuzzyMatcherTests の期待順序（連続一致・単語境界・ファイル名優先・同点安定）が変更後も全て通る
+- [x] #1 commonPrefix と前方一致が Foundation 標準 API（commonPrefix(with:options:) / range(of:options:)）経由になり、既存の QuickOpenModelTests が通る
+- [x] #2 FuzzyMatcher の大小無視が単一の fold 実装に一本化され、部分列判定と DP が同じ folded 配列を使う
+- [x] #3 FuzzyMatcher.rank が削除または matches との共通コアに統合され、順位付けロジックの二重実装が解消される
+- [x] #4 既存の FuzzyMatcherTests の期待順序（連続一致・単語境界・ファイル名優先・同点安定）が変更後も全て通る
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+(1) commonPrefix を String.commonPrefix(with:options:.caseInsensitive) の reduce 1 行に、前方一致を range(of:options:[.caseInsensitive,.anchored]) に置換(空断片は range(of:"")が nil のため fragment.isEmpty で明示)。(2) FuzzyMatcher に caseFolded を新設し query/text の fold を1回に集約、isSubsequence と DP が同じ folded 配列を使用。Character($0.lowercased()) の trap を $0.lowercased().first ?? $0 に修正。(3) 未使用の rank と、それだけが使っていた FuzzyMatch 構造体を削除(順位付けは matches に一本化)。テストの rankedTexts ヘルパーを score 経由のローカル実装に置換。swift test 全736パス、lint クリーン。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Quick Open の自前文字列処理を標準 API と単一 case fold に整理。commonPrefix/前方一致を Foundation の commonPrefix(with:options:)/range(of:options:) へ、FuzzyMatcher の大小無視を caseFolded 1 箇所へ集約(部分列判定と DP が共有、trap する Character 初期化子も除去)、未使用 rank と FuzzyMatch を削除し順位付けを matches に一本化。FuzzyMatcherTests/QuickOpenModelTests で期待順序を固定、全736パス。
+<!-- SECTION:FINAL_SUMMARY:END -->

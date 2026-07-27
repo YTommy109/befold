@@ -5,8 +5,21 @@ import Testing
 /// スコアの絶対値は検証しない(チューニングのたびに壊れるため)。
 /// 検証対象は「どちらが上位に来るか」という順序と、一致/不一致の判定に限る。
 struct FuzzyMatcherTests {
+    /// score() の相対値が期待する並び(スコア降順・同点はテキスト昇順)になるかを検証する
+    /// ためのヘルパー。順位付けの実体は本番では QuickOpenCandidateSet.matches が持つため、
+    /// ここではテスト内で同じ規則を組み立てて score() の出力だけを確かめる。
     private func rankedTexts(_ query: String, _ texts: [String], limit: Int? = nil) -> [String] {
-        FuzzyMatcher.rank(query: query, texts: texts, limit: limit).map(\.text)
+        var scored: [(text: String, score: Int)] = []
+        for text in texts {
+            guard let score = FuzzyMatcher.score(query: query, text: text) else { continue }
+            scored.append((text, score))
+        }
+        scored.sort { lhs, rhs in
+            lhs.score == rhs.score ? lhs.text < rhs.text : lhs.score > rhs.score
+        }
+        let ordered = scored.map(\.text)
+        guard let limit else { return ordered }
+        return Array(ordered.prefix(limit))
     }
 
     @Test("部分列でない入力は一致しない")

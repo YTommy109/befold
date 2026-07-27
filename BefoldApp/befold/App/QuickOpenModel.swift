@@ -140,23 +140,22 @@ final class QuickOpenModel {
             .filter { entry in
                 let name = entry.lastPathComponent
                 guard includesHidden || !HiddenFileRule.isHidden(component: name) else { return false }
-                return name.lowercased().hasPrefix(fragment)
+                // 空断片(末尾スラッシュ)は絞り込みなしで全件。range(of:"") は nil を返すため明示する。
+                return fragment.isEmpty
+                    || name.range(of: fragment, options: [.caseInsensitive, .anchored]) != nil
             }
             .map { QuickOpenCandidate(url: $0, displayPath: $0.path, origin: .indexed) }
     }
 
     /// 大文字小文字を無視した共通接頭辞。表記は最初の候補のものを採る
     /// (打ち直しでケースが揺れないよう、実在するファイル名の綴りに寄せる)。
+    /// Foundation の commonPrefix(with:options:) は「大小無視で比較し表記はレシーバ側」を
+    /// そのまま実装しており、合成文字・正規化の扱いも標準側に寄せられる。
     private func commonPrefix(of names: [String]) -> String? {
         guard let first = names.first else { return nil }
-        var length = first.count
-        for name in names.dropFirst() {
-            let common = zip(first.lowercased(), name.lowercased())
-                .prefix { $0 == $1 }
-                .count
-            length = min(length, common)
+        return names.dropFirst().reduce(first) {
+            $0.commonPrefix(with: $1, options: .caseInsensitive)
         }
-        return String(first.prefix(length))
     }
 }
 
