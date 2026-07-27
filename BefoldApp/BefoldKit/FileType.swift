@@ -175,13 +175,14 @@ public enum FileType: Sendable, Equatable {
         isRenderable && !isBinaryContent
     }
 
-    /// 行指向の形式かどうか。チャンク読み込みの対象判定に使う。
-    /// CSV/TSV とコード(プレーンテキスト含む)が該当する。
-    /// Markdown/Mermaid/HTML/SVG は途中切断で描画が壊れるため対象外。
-    public var isLineOriented: Bool {
+    /// チャンク読み込みで先頭から段階的に描画できる形式かどうか。
+    /// CSV/TSV とコード(プレーンテキスト含む)は行単位、Markdown はブロック単位
+    /// (コードフェンス外の空行)で安全に区切れる(ChunkBoundary 参照)。
+    /// Mermaid/HTML/SVG は文書全体で 1 つの構造をなし、途中で切ると描画が壊れるため対象外。
+    public var isChunkable: Bool {
         switch self {
-        case .csv, .code: true
-        case .mmd, .markdown, .svg, .html, .image, .pdf: false
+        case .csv, .code, .markdown: true
+        case .mmd, .svg, .html, .image, .pdf: false
         }
     }
 }

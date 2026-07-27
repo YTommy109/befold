@@ -55,9 +55,9 @@ public enum ViewerLoadPipeline {
             )
         }
 
-        let sizeLimit = fileType.isLineOriented
+        let sizeLimit = fileType.isChunkable
             ? NormalizedTextCache.maxFileSizeBytes
-            : nonLineOrientedSizeLimit(oneShotLoad: oneShotLoad)
+            : nonChunkableSizeLimit(oneShotLoad: oneShotLoad)
         if let size = fileReader.fileSize(at: resolved), size > sizeLimit {
             return .full(
                 ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
@@ -68,23 +68,26 @@ public enum ViewerLoadPipeline {
         do {
             let data = try fileReader.readData(from: resolved)
 
-            if fileType.isLineOriented {
+            if fileType.isChunkable {
                 // 先頭チャンク描画に必要な範囲だけを正規化・行分割する
                 // (ファイル全体を materialize しない。100MB 級ファイルでの
                 // ピークメモリ・CPU 削減のため。詳細は NormalizedTextCache 参照)。
                 let cache = try NormalizedTextCache(data: data, normalizeFully: false, oneShotLoad: oneShotLoad)
                 let reader = try chunkedReaderFactory(cache, fileType)
                 let firstChunk = try await reader.readNextChunk()
+                if embedLocalImages, fileType == .markdown {
+                    // markdown もチャンク読み込みの対象になったため(Issue #307)、
+                    // ウォームアップは先頭チャンクに対して行う。後続チャンクの画像は
+                    // 追記時(applyAppend)に埋め込まれる。
+                    // render 経路と同じキャッシュを温めるため、同一インスタンス(本番は .shared)を経由すること。
+                    _ = imageEmbedder.embedLocalImages(in: firstChunk.text, baseURL: resolved)
+                }
                 return .chunked(
                     session: reader, cache: cache,
                     firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
                 )
             } else {
-                return try loadFull(
-                    data: data, resolved: resolved, fileType: fileType,
-                    oneShotLoad: oneShotLoad, embedLocalImages: embedLocalImages,
-                    imageEmbedder: imageEmbedder
-                )
+                return try loadFull(data: data, oneShotLoad: oneShotLoad)
             }
         } catch {
             if !fileReader.fileExists(at: resolved) { return .missing }
@@ -99,34 +102,25 @@ public enum ViewerLoadPipeline {
         }
     }
 
-    /// 非行指向(markdown/mmd/svg/html)のサイズ上限。
+    /// チャンク読み込みできない形式(mmd/svg/html)のサイズ上限。
     /// 静的1回描画ホスト(QuickLook 拡張)ではより厳しい上限を使う。
-    /// 非行指向はチャンク読み込みが効かず全量を DOM 化するため、WebContent の
-    /// メモリと描画時間がサイズにほぼ比例して伸びるため(詳細は定数側のコメント)。
-    static func nonLineOrientedSizeLimit(oneShotLoad: Bool) -> Int {
+    /// これらは全量を一括で DOM 化するため、WebContent のメモリと描画時間が
+    /// サイズにほぼ比例して伸びる(詳細は定数側のコメント)。
+    static func nonChunkableSizeLimit(oneShotLoad: Bool) -> Int {
         oneShotLoad
             ? ContentLoader.maxOneShotTextFileSizeBytes
             : ContentLoader.maxTextFileSizeBytes
     }
 
-    /// 非行指向(markdown/mmd/svg/html)の全量読み込み。markdown の場合、embedLocalImages が
-    /// true なら render 直前の MarkdownImageEmbedder 呼び出しに先立ちキャッシュをウォームアップする
-    /// (詳細は load のドキュメントコメント参照)。
-    private static func loadFull(
-        data: Data, resolved: URL, fileType: FileType,
-        oneShotLoad: Bool, embedLocalImages: Bool,
-        imageEmbedder: MarkdownImageEmbedder
-    ) throws -> Outcome {
+    /// チャンク非対応(mmd/svg/html)の全量読み込み。
+    /// 画像埋め込みのウォームアップはチャンク経路(markdown)側で行うため、ここでは不要。
+    private static func loadFull(data: Data, oneShotLoad: Bool) throws -> Outcome {
         let cache = try NormalizedTextCache(data: data, oneShotLoad: oneShotLoad)
-        if cache.text.utf8.count > nonLineOrientedSizeLimit(oneShotLoad: oneShotLoad) {
+        if cache.text.utf8.count > nonChunkableSizeLimit(oneShotLoad: oneShotLoad) {
             return .full(
                 ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
                 cache: nil
             )
-        }
-        if embedLocalImages, fileType == .markdown {
-            // render 経路と同じキャッシュを温めるため、同一インスタンス(本番は .shared)を経由すること。
-            _ = imageEmbedder.embedLocalImages(in: cache.text, baseURL: resolved)
         }
         return .full(
             ContentLoader.LoadedContent(rejectReason: nil, content: cache.text),

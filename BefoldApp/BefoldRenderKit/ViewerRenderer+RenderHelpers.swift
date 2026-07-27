@@ -29,10 +29,19 @@ extension ViewerRenderer {
     /// chunk が空(チャンク読込エラーのセンチネル)の場合は追記せず、切り詰めバナーだけ更新する。
     func applyAppend(
         webView: WKWebView, chunk: String, contentRevision: Int,
-        fileType: FileType, filePath: URL?, truncation: TruncationState
+        fileType: FileType, filePath: URL?, isSourceMode: Bool, truncation: TruncationState
     ) {
         rendered.truncation = truncation
-        if !chunk.isEmpty, let script = ViewerBridge.appendChunkScript(chunk: chunk, fileType: fileType) {
+        // 追記チャンクも初回描画と同じ加工を通す。markdown をチャンク読み込みの
+        // 対象にしたため(Issue #307)、ここを素通しすると 2 チャンク目以降の
+        // ローカル画像だけが data URI に差し替わらず画像割れになる。
+        let renderable = Self.renderableContent(
+            chunk, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode,
+            embedImages: rendererFeatures.embedImages
+        )
+        if !renderable.isEmpty,
+           let script = ViewerBridge.appendChunkScript(chunk: renderable, fileType: fileType)
+        {
             webView.evaluateJavaScript(script)
         }
         webView.evaluateJavaScript(

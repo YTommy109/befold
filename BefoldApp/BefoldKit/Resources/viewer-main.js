@@ -1190,7 +1190,18 @@
     // 異なる(#diagram-wrap 直下が <table><tbody> か <pre><code class="csv-source">
     // か)ため、実際の DOM を見て分岐する。
     var csvSourceEl = type === 'csv' ? diagramWrap.querySelector('pre code.csv-source') : null;
-    if (type === 'csv' && !csvSourceEl) {
+    if (type === 'md') {
+      // Markdown はチャンク境界がブロック境界(コードフェンス外の空行)に揃えられて
+      // いるため(StringChunkReader の markdownBlocks)、チャンク単体を描画して
+      // 末尾へ足せる。全文を再描画すると巨大ファイルで DOM を作り直すことになり、
+      // 段階読み込みの意味がなくなる。
+      if (!md) { return; }
+      diagramWrap.insertAdjacentHTML('beforeend', md.render(text));
+      _annotatePathRefs();
+      // 追記分に ```mermaid フェンスがあれば描画する。render() と違い appendChunk は
+      // 同期関数のため await せず、描画済みの図は対象外にする(全図の再描画を避ける)。
+      _mmdRunMermaid(diagramWrap, true);
+    } else if (type === 'csv' && !csvSourceEl) {
       var csvRows = parseCsv(text, lang || ',');
       var tbody = diagramWrap.querySelector('tbody');
       if (!tbody) { return; }
@@ -1399,13 +1410,16 @@
 
   // 描画後の DOM に .mermaid があれば mermaid を実行し、ズーム用ラッパーで包む。
   // mmd 直接表示だけでなく Markdown 内の ```mermaid フェンスもここを通る。
-  async function _mmdRunMermaid(diagramWrap) {
-    var elements = diagramWrap.querySelectorAll('.mermaid');
+  // onlyUnprocessed が true の場合、まだ描画していない図だけを対象にする
+  // (チャンク追記時に既存の図まで作り直さないため)。
+  async function _mmdRunMermaid(diagramWrap, onlyUnprocessed) {
+    var selector = onlyUnprocessed ? '.mermaid:not([data-processed])' : '.mermaid';
+    var elements = diagramWrap.querySelectorAll(selector);
     if (elements.length === 0) { return; }
     try {
       await _mmdEnsureMermaidLoaded();
       elements.forEach(function(el, i) {
-        el.removeAttribute('data-processed');
+        if (!onlyUnprocessed) { el.removeAttribute('data-processed'); }
         el.id = 'mmd-' + i + '-' + Date.now();
       });
       await mermaid.run({ nodes: Array.from(elements) });

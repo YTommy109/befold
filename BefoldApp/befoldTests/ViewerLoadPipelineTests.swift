@@ -12,7 +12,7 @@ import Testing
 @Suite
 struct ViewerLoadPipelineTests {
     private let chunkedReaderFactory: ViewerLoadPipeline.ChunkedReaderFactory = { cache, fileType in
-        StringChunkReader(cache: cache, respectsCSVQuotes: fileType.csvDelimiter != nil)
+        StringChunkReader(cache: cache, boundary: ChunkBoundary(fileType: fileType))
     }
 
     @Test("oneShotLoad: true では行指向ファイル(chunked)経路で dataHash が nil になる")
@@ -37,15 +37,17 @@ struct ViewerLoadPipelineTests {
         #expect(cache.dataHash == nil)
     }
 
-    @Test("oneShotLoad: true では非行指向ファイル(full)経路で dataHash が nil になる")
+    /// markdown はチャンク対象になったため(Issue #307)、full 経路の確認には
+    /// チャンク非対応の型(html)を使う。
+    @Test("oneShotLoad: true ではチャンク非対応ファイル(full)経路で dataHash が nil になる")
     func oneShotLoadSkipsHashForFullOutcome() async {
-        let url = URL(fileURLWithPath: "/tmp/oneshot.md")
-        let fileReader = InMemoryFileReader(files: [url.path: "# hello\n"])
+        let url = URL(fileURLWithPath: "/tmp/oneshot.html")
+        let fileReader = InMemoryFileReader(files: [url.path: "<h1>hello</h1>\n"])
         let contentLoader = ContentLoader(fileReader: fileReader)
 
         let outcome = await ViewerLoadPipeline.load(
             resolved: url,
-            fileType: .markdown,
+            fileType: .html,
             fileReader: fileReader,
             contentLoader: contentLoader,
             chunkedReaderFactory: chunkedReaderFactory,
@@ -142,15 +144,15 @@ struct ViewerLoadPipelineTests {
     /// 非行指向はチャンク読み込みが効かず全量を DOM 化するため、静的1回描画
     /// (QuickLook)では通常より厳しい上限を使う。実測では 4MB 以上で描画が
     /// 3 秒以内に終わらず、プレビューが長時間空白のままになった。
-    @Test("oneShotLoad: true では非行指向の上限が 2MB に下がる")
+    @Test("oneShotLoad: true ではチャンク非対応の上限が 2MB に下がる")
     func oneShotLoadUsesSmallerLimitForNonLineOriented() async {
-        let url = URL(fileURLWithPath: "/tmp/big.md")
+        let url = URL(fileURLWithPath: "/tmp/big.html")
         let content = String(repeating: "a", count: ContentLoader.maxOneShotTextFileSizeBytes + 1)
         let fileReader = InMemoryFileReader(files: [url.path: content])
 
         let outcome = await ViewerLoadPipeline.load(
             resolved: url,
-            fileType: .markdown,
+            fileType: .html,
             fileReader: fileReader,
             contentLoader: ContentLoader(fileReader: fileReader),
             chunkedReaderFactory: chunkedReaderFactory,
@@ -166,15 +168,15 @@ struct ViewerLoadPipelineTests {
 
     /// 通常のアプリ本体(oneShotLoad: false)は従来どおり 10MB まで扱う。
     /// QuickLook 側の上限を下げたことで本体の挙動が変わっていないことを担保する。
-    @Test("oneShotLoad: false では 2MB 超の非行指向でも従来どおり読み込める")
+    @Test("oneShotLoad: false では 2MB 超のチャンク非対応でも従来どおり読み込める")
     func regularLoadKeepsLargerLimitForNonLineOriented() async {
-        let url = URL(fileURLWithPath: "/tmp/big.md")
+        let url = URL(fileURLWithPath: "/tmp/big.html")
         let content = String(repeating: "a", count: ContentLoader.maxOneShotTextFileSizeBytes + 1)
         let fileReader = InMemoryFileReader(files: [url.path: content])
 
         let outcome = await ViewerLoadPipeline.load(
             resolved: url,
-            fileType: .markdown,
+            fileType: .html,
             fileReader: fileReader,
             contentLoader: ContentLoader(fileReader: fileReader),
             chunkedReaderFactory: chunkedReaderFactory,

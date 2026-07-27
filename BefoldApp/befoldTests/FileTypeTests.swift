@@ -182,14 +182,17 @@ struct FileTypeTests {
         (FileType.code(language: "swift"), true),
         (FileType.code(language: "plaintext"), true),
         (FileType.mmd, false),
-        (FileType.markdown, false),
+        // markdown はブロック境界(コードフェンス外の空行)で安全に区切れるため
+        // チャンク読み込みの対象(Issue #307)。mmd/svg/html は文書全体で 1 つの
+        // 構造をなすため対象外のまま。
+        (FileType.markdown, true),
         (FileType.svg, false),
         (FileType.html, false),
         (FileType.image(mimeType: "image/png"), false),
         (FileType.pdf, false),
     ])
-    func isLineOriented(fileType: FileType, expected: Bool) {
-        #expect(fileType.isLineOriented == expected)
+    func isChunkable(fileType: FileType, expected: Bool) {
+        #expect(fileType.isChunkable == expected)
     }
 
     /// 拡張子リストに重複がないこと（対応表と mermaid/markdown/svg/html の衝突検知）
