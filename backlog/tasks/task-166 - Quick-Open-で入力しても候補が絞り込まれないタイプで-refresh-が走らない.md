@@ -1,10 +1,11 @@
 ---
 id: TASK-166
 title: Quick Open で入力しても候補が絞り込まれない(タイプで refresh が走らない)
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@Tommy109'
 created_date: '2026-07-27 08:36'
-updated_date: '2026-07-27 08:36'
+updated_date: '2026-07-27 08:47'
 labels:
   - quick-open
   - bug
@@ -39,8 +40,22 @@ queryText を明示 computed setter(setter 内で refresh を呼ぶ形)に戻す
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 タイプするたびに候補が絞り込まれる(fuzzy/パスモードとも)。git リポジトリで 'viewer' 等を入力し一致ファイルが現れることを running app で手動確認
-- [ ] #2 queryText の変更が @Bindable($model.queryText)binding 経由でも確実に refresh を起動する実装になっている
-- [ ] #3 didSet へ戻すと同じ退行が起きる旨と、SwiftUI binding 経由では didSet 発火に依存できない理由をコメントで残す
-- [ ] #4 QuickOpenModelTests(直接代入)は引き続き通る。binding 経由の退行はユニットで再現困難なため手動確認手順を実装メモに残す
+- [x] #1 タイプするたびに候補が絞り込まれる(fuzzy/パスモードとも)。git リポジトリで 'viewer' 等を入力し一致ファイルが現れることを running app で手動確認
+- [x] #2 queryText の変更が @Bindable($model.queryText)binding 経由でも確実に refresh を起動する実装になっている
+- [x] #3 didSet へ戻すと同じ退行が起きる旨と、SwiftUI binding 経由では didSet 発火に依存できない理由をコメントで残す
+- [x] #4 QuickOpenModelTests(直接代入)は引き続き通る。binding 経由の退行はユニットで再現困難なため手動確認手順を実装メモに残す
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+修正: QuickOpenModel.queryText を格納プロパティ+didSet から明示 computed setter(storedQueryText + setter 内で refresh())へ戻した。didSet に依存できない理由(SwiftUI @Bindable binding 経由では発火しない)をコメントで明記。
+検証: swift test 全736パス(QuickOpenModelTests 21含む)、swiftformat lint クリーン。GUI は診断フェーズの A/B(キー入力が届いていた段階)で、同一の明示 setter コードが 'viewer' 入力で ViewerStore.md を候補に出す=絞り込み動作を running app+System Events で確認済み。didSet 版では出ないことも同条件で確認。仕上げ段階の再確認は自動化環境の keystroke 送出が不安定化し実施できず。
+手動確認手順(binding 経由の退行はユニットで再現困難): git 管理下のファイルを開き Cmd+P → ファイル名の一部をタイプ → キーごとに候補が絞り込まれること。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Cmd+P で入力しても候補が絞り込まれない退行を修正。原因は TASK-165(5) が queryText を明示 setter から didSet に変えたこと。@Observable の didSet は直接代入では発火する(ユニットテストは素通り)が、SwiftUI @Bindable binding 経由では発火せず refresh() が呼ばれない。明示 computed setter に戻し、理由をコメントで固定。全736テスト+lint通過、絞り込み動作は診断 A/B で実機確認済み。
+<!-- SECTION:FINAL_SUMMARY:END -->
