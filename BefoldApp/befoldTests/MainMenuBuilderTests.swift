@@ -117,9 +117,14 @@ struct MainMenuBuilderTests {
         ), // View メニューに Bookmark(⌘D) がある
         (
             submenuKey: "menu.file.title",
+            selector: #selector(AppDelegate.showQuickOpen(_:)),
+            key: "p", modifiers: NSEvent.ModifierFlags?.some(.command)
+        ), // File メニューに Quick Open(⌘P) がある
+        (
+            submenuKey: "menu.file.title",
             selector: #selector(ViewerWindowController.printDocument(_:)),
-            key: "p", modifiers: nil
-        ), // File メニューに Print(⌘P) がある
+            key: "P", modifiers: NSEvent.ModifierFlags?.some([.command, .shift])
+        ), // Quick Open に ⌘P を譲り、Print は ⇧⌘P へ移した
     ])
     func menuItemHasKeyEquivalent(
         submenuKey: String, selector: Selector, key: String, modifiers: NSEvent.ModifierFlags?

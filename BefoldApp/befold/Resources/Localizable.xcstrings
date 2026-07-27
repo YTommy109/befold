@@ -511,6 +511,23 @@
         }
       }
     },
+    "menu.file.quickOpen": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Open…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クイックオープン…"
+          }
+        }
+      }
+    },
     "menu.file.title": {
       "extractionState": "manual",
       "localizations": {
@@ -966,6 +983,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "拡大/縮小"
+          }
+        }
+      }
+    },
+    "quickOpen.noMatches": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matches"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一致なし"
+          }
+        }
+      }
+    },
+    "quickOpen.placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type a path or file name"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パスまたはファイル名を入力"
+          }
+        }
+      }
+    },
+    "quickOpen.truncated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too many files — showing partial results"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "候補が多いため一部のみ表示しています"
           }
         }
       }

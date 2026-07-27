@@ -84,6 +84,11 @@ enum MainMenuBuilder {
             action: openAction,
             keyEquivalent: "o"
         )
+        menu.addItem(
+            withTitle: String(localized: "menu.file.quickOpen", bundle: .l10n),
+            action: #selector(AppDelegate.showQuickOpen(_:)),
+            keyEquivalent: "p"
+        )
 
         let recentTitle = String(localized: "menu.file.openRecent", bundle: .l10n)
         let recentItem = NSMenuItem(title: recentTitle, action: nil, keyEquivalent: "")
@@ -106,11 +111,13 @@ enum MainMenuBuilder {
             keyEquivalent: "w"
         )
         menu.addItem(.separator())
-        menu.addItem(
+        // ⌘P は Quick Open に譲り、Print は ⇧⌘P へ移す。
+        let print = menu.addItem(
             withTitle: String(localized: "menu.file.print", bundle: .l10n),
             action: #selector(ViewerWindowController.printDocument(_:)),
-            keyEquivalent: "p"
+            keyEquivalent: "P"
         )
+        print.keyEquivalentModifierMask = [.command, .shift]
         return item
     }
 

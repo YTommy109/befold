@@ -1,0 +1,208 @@
+import BefoldKit
+import Foundation
+
+/// Quick Open が外の世界に触れる口。候補源・ファイルシステム・現在の表示位置を
+/// プロトコル越しに受けることで、モデルをウィンドウにもパネルにも依存させない。
+@MainActor
+protocol QuickOpenEnvironment: AnyObject {
+    /// 相対パス(`./` `../`)の基準になる、いま開いているファイルのディレクトリ。
+    /// ウィンドウが 1 枚も無ければ nil。
+    var baseDirectory: URL? { get }
+    /// 隠しファイルを出すか。Quick Open は独自設定を持たず `HiddenFilesPreference` に従う。
+    var includingHiddenFiles: Bool { get }
+    /// fuzzy 検索の候補集合。パネルを開いた時点の索引を使う。
+    func candidateSet() -> QuickOpenCandidateSet
+    /// ディレクトリ直下のエントリ(隠しファイルを含む全件)。
+    func directoryEntries(in directory: URL) -> [URL]
+    func isDirectory(_ url: URL) -> Bool
+    /// ディレクトリなら中の 1 ファイル、ファイルならそれ自身。開けなければ nil。
+    func resolveFileToOpen(at url: URL) -> URL?
+}
+
+/// 入力から候補配列を導き、決定を注入されたクロージャへ渡す。
+/// パネルの見た目やキーイベントの配線は持たず、判断だけを受け持つ。
+@MainActor
+@Observable
+final class QuickOpenModel {
+    /// fuzzy 検索の表示上限。
+    private static let fuzzyLimit = 50
+    /// 空入力時に出す履歴 + ブックマークの上限。
+    private static let historyLimit = 20
+
+    private let environment: any QuickOpenEnvironment
+    private let onOpen: (URL) -> Void
+    /// パネルを開いた時点で 1 度だけ取る。入力のたびに索引を取り直さない。
+    private let candidateSet: QuickOpenCandidateSet
+
+    private var storedQueryText = ""
+
+    /// 入力欄の文字列。絞り込みの起動を格納プロパティの `didSet` に頼らず、
+    /// 明示的な setter から呼ぶ。`@Observable` は格納プロパティを get/set へ
+    /// 書き換えるため、観測子の発火タイミングを暗黙に当てにしない。
+    var queryText: String {
+        get { storedQueryText }
+        set {
+            guard newValue != storedQueryText else { return }
+            storedQueryText = newValue
+            refresh()
+        }
+    }
+
+    /// いまリストに出す候補。
+    private(set) var candidates: [QuickOpenCandidate] = []
+    /// リスト内の選択位置。候補が空なら 0。
+    private(set) var selectedIndex = 0
+
+    /// 一致なしの表示を出すか。候補ゼロは正常な状態で、アラートは出さない。
+    var showsNoMatches: Bool {
+        candidates.isEmpty
+    }
+
+    /// 候補が上限で打ち切られた旨をリスト末尾に出すか。黙って切り捨てない。
+    /// パスモードは親ディレクトリを列挙するだけで上限を持たないため出さない。
+    var showsTruncationNotice: Bool {
+        candidateSet.isTruncated && !isPathMode
+    }
+
+    init(environment: any QuickOpenEnvironment, onOpen: @escaping (URL) -> Void) {
+        self.environment = environment
+        self.onOpen = onOpen
+        candidateSet = environment.candidateSet()
+        refresh()
+    }
+
+    /// 選択を上下に動かす。両端では止まり、巻き戻らない。
+    func moveSelection(by offset: Int) {
+        guard !candidates.isEmpty else {
+            selectedIndex = 0
+            return
+        }
+        selectedIndex = min(max(selectedIndex + offset, 0), candidates.count - 1)
+    }
+
+    /// 選択中の候補を開く。開ける対象が無ければ何もしない。
+    func commitSelection() {
+        guard candidates.indices.contains(selectedIndex) else { return }
+        guard let target = environment.resolveFileToOpen(at: candidates[selectedIndex].url) else { return }
+        onOpen(target)
+    }
+
+    /// パスモードで候補の共通接頭辞まで補完する。
+    /// 候補が 1 件だけでそれがディレクトリなら、末尾に `/` を付けて次の階層へ進む。
+    /// パスモード以外では何もしない。
+    func completePath() {
+        guard case let .path(path) = QuickOpenQuery.classify(queryText),
+              let split = PathModeSplit(path: path, baseDirectory: environment.baseDirectory),
+              !candidates.isEmpty
+        else { return }
+
+        let names = candidates.map(\.url.lastPathComponent)
+        guard let completion = commonPrefix(of: names) else { return }
+
+        var completed = split.parentText + completion
+        if candidates.count == 1, environment.isDirectory(candidates[0].url) {
+            completed += "/"
+        }
+        queryText = completed
+    }
+
+    // MARK: - Private
+
+    private var isPathMode: Bool {
+        if case .path = QuickOpenQuery.classify(queryText) { return true }
+        return false
+    }
+
+    private func refresh() {
+        candidates = makeCandidates()
+        selectedIndex = 0
+    }
+
+    private func makeCandidates() -> [QuickOpenCandidate] {
+        switch QuickOpenQuery.classify(queryText) {
+        case .empty:
+            candidateSet.initialCandidates(limit: Self.historyLimit)
+        case let .fuzzy(query):
+            candidateSet.matches(query: query, limit: Self.fuzzyLimit)
+        case let .path(path):
+            pathCandidates(for: path)
+        }
+    }
+
+    /// 親ディレクトリの中身を末尾断片で前方一致(大文字小文字を無視)して絞り込む。
+    private func pathCandidates(for path: String) -> [QuickOpenCandidate] {
+        guard let split = PathModeSplit(path: path, baseDirectory: environment.baseDirectory) else { return [] }
+        let fragment = split.fragment.lowercased()
+        // 断片自体がドット始まりなら、隠しファイルを狙って打っているとみなして出す。
+        let includesHidden = environment.includingHiddenFiles || fragment.hasPrefix(".")
+
+        return environment.directoryEntries(in: split.parentDirectory)
+            .filter { entry in
+                let name = entry.lastPathComponent
+                guard includesHidden || !name.hasPrefix(".") else { return false }
+                return name.lowercased().hasPrefix(fragment)
+            }
+            .map { QuickOpenCandidate(url: $0, displayPath: $0.path, origin: .indexed) }
+    }
+
+    /// 大文字小文字を無視した共通接頭辞。表記は最初の候補のものを採る
+    /// (打ち直しでケースが揺れないよう、実在するファイル名の綴りに寄せる)。
+    private func commonPrefix(of names: [String]) -> String? {
+        guard let first = names.first else { return nil }
+        var length = first.count
+        for name in names.dropFirst() {
+            let common = zip(first.lowercased(), name.lowercased())
+                .prefix { $0 == $1 }
+                .count
+            length = min(length, common)
+        }
+        return String(first.prefix(length))
+    }
+}
+
+/// パス入力を「確定した親ディレクトリ」と「未確定の末尾断片」に分ける。
+///
+/// 分解は文字列の最後の `/` で行い、ファイルシステムには触らない。
+/// 親ディレクトリだけを解決対象にすることで、打ちかけの断片が
+/// ディレクトリとして解決されてしまうのを防ぐ。
+private struct PathModeSplit {
+    /// 入力のうち親ディレクトリにあたる部分(末尾の `/` を含む)。補完で前置きに使う。
+    let parentText: String
+    let parentDirectory: URL
+    let fragment: String
+
+    /// 親ディレクトリを解決できない場合は nil。
+    init?(path: String, baseDirectory: URL?) {
+        // `~` 単独はホームディレクトリの中身を出す意図とみなし、断片なしとして扱う。
+        let normalized = path == "~" ? "~/" : path
+
+        if let slashIndex = normalized.lastIndex(of: "/") {
+            let boundary = normalized.index(after: slashIndex)
+            parentText = String(normalized[..<boundary])
+            fragment = String(normalized[boundary...])
+        } else {
+            // `/` を含まない `.` や `.gitignore` は、開いているファイルのディレクトリを探す。
+            parentText = ""
+            fragment = normalized
+        }
+
+        guard let directory = Self.resolve(directoryText: parentText, baseDirectory: baseDirectory) else {
+            return nil
+        }
+        parentDirectory = directory
+    }
+
+    private static func resolve(directoryText: String, baseDirectory: URL?) -> URL? {
+        if directoryText.isEmpty { return baseDirectory }
+        if directoryText.hasPrefix("~") {
+            return URL(fileURLWithPath: NSString(string: directoryText).expandingTildeInPath).standardizedFileURL
+        }
+        if directoryText.hasPrefix("/") {
+            return URL(fileURLWithPath: directoryText).standardizedFileURL
+        }
+        guard let baseDirectory else { return nil }
+        // `relativeTo:` は基準 URL を「ファイル」とみなして最後の構成要素を差し替えてしまうため、
+        // 基準ディレクトリに継ぎ足してから正規化する(`./` で 1 段上がってしまうのを防ぐ)。
+        return baseDirectory.appendingPathComponent(directoryText).standardizedFileURL
+    }
+}

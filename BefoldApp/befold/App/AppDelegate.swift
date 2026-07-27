@@ -20,6 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let recentDocumentsStore: RecentDocumentsStore
     private let bookmarkStore: BookmarkStore
     private var cliRequestDeduplicator = CLIRequestDeduplicator()
+    /// Quick Open を開いた時点のウィンドウ。決定時の切り替え先として捕まえておく。
+    /// パネルがキーウィンドウを奪うため、決定時に引き直すと元のウィンドウを見失う。
+    private weak var quickOpenOriginController: ViewerWindowController?
     private lazy var recentDocumentsMenuController = RecentDocumentsMenuController(
         recentURLs: { [weak self] in self?.recentDocumentsStore.recentURLs() ?? [] },
         openHandler: { [weak self] url in self?.openViewer(for: url) },
@@ -31,6 +34,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var bookmarksMenuController = BookmarksMenuController(
         bookmarkedURLs: { [weak self] in self?.bookmarkStore.bookmarkedURLs() ?? [] },
         openHandler: { [weak self] url in self?.openViewer(for: url) }
+    )
+    private lazy var quickOpenPanelController = QuickOpenPanelController(
+        makeEnvironment: { [weak self] in self?.makeQuickOpenEnvironment() },
+        onOpen: { [weak self] url in self?.openFromQuickOpen(url) }
     )
 
     override init() {
@@ -288,6 +295,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// View > Show/Hide Hidden Files(⌘⌃H)。不可視ファイル表示を全ウィンドウで一括切替する。
     @objc func toggleHiddenFiles(_ sender: Any?) {
         windowManager.toggleHiddenFiles()
+    }
+
+    /// File > Quick Open(⌘P)。パス入力と fuzzy 検索のパネルを開く。
+    @objc func showQuickOpen(_ sender: Any?) {
+        quickOpenPanelController.toggle()
+    }
+
+    /// パネルを開いた時点のアプリ状態から候補源を組み立てる。
+    /// 索引はウィンドウと共有し、パネルを開くたびに `git ls-files` をやり直さない。
+    private func makeQuickOpenEnvironment() -> AppQuickOpenEnvironment {
+        // 決定時にはパネル自身がキーウィンドウになっているため、ここで切り替え先の
+        // ウィンドウを捕まえておく。決定時に NSApp.keyWindow を見ると常にパネルが返り、
+        // 既存ウィンドウでの切り替えにならない。
+        quickOpenOriginController = NSApp.keyWindow?.windowController as? ViewerWindowController
+        let currentFileURL = quickOpenOriginController?.fileURL
+        if let currentFileURL {
+            windowManager.sharedGitFileIndex.warm(forFileAt: currentFileURL)
+        }
+        return AppQuickOpenEnvironment(
+            gitIndex: windowManager.sharedGitFileIndex,
+            recentDocumentsStore: recentDocumentsStore,
+            bookmarkStore: bookmarkStore,
+            hiddenFilesPreference: hiddenFilesPreference,
+            currentFileURL: currentFileURL
+        )
+    }
+
+    /// Quick Open の決定先を開く。パネルを開いた時点のウィンドウで切り替え、
+    /// ウィンドウが 1 枚も無いときだけ新規ウィンドウを開く。
+    private func openFromQuickOpen(_ url: URL) {
+        guard let controller = quickOpenOriginController else {
+            openViewer(for: url)
+            return
+        }
+        controller.focusWindow()
+        controller.switchFile(to: url)
     }
 }
 
