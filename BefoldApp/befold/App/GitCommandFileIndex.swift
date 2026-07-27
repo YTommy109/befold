@@ -42,21 +42,15 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
         self.repository = repository
     }
 
-    func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
-        let dirKey = url.deletingLastPathComponent().normalizedPathKey
+    func repositoryRoot(forFileAt url: URL) -> URL? {
+        lock.lock(); defer { lock.unlock() }
+        return resolvedRootLocked(forFileAt: url)
+    }
 
+    func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
         lock.lock(); defer { lock.unlock() }
 
-        let lookup: GitRootLookup
-        if let cached = rootByDir[dirKey] {
-            lookup = cached
-        } else {
-            lookup = repository.root(forFileAt: url)
-            // 確定した答えだけを覚える。git を実行できなかっただけの結果を覚えると、
-            // 一時的な失敗がアプリ寿命の間「git 管理外」として固定されてしまう。
-            if lookup != .undetermined { rootByDir[dirKey] = lookup }
-        }
-        guard case let .root(root) = lookup else { return nil }
+        guard let root = resolvedRootLocked(forFileAt: url) else { return nil }
 
         // root は rev-parse 由来だが、GitRepositoryReading の契約は正規化を保証しない。
         // dirKey と同じ規約のキーに揃え、別表記の root が別エントリに割れないようにする。
@@ -82,6 +76,24 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
         entryByRoot[rootKey] = (fingerprint, index)
         touch(rootKey)
         return index
+    }
+
+    /// url を含むリポジトリの作業ツリールート。git 管理外・判定不能なら nil。
+    /// ディレクトリ単位で結果をキャッシュするため、同じファイル(や同ディレクトリの別ファイル)への
+    /// `repositoryRoot` と `trackedFileIndex` は rev-parse を 1 度しか払わない。
+    /// lock を保持した状態で呼ぶこと。
+    private func resolvedRootLocked(forFileAt url: URL) -> URL? {
+        let dirKey = url.deletingLastPathComponent().normalizedPathKey
+        let lookup: GitRootLookup
+        if let cached = rootByDir[dirKey] {
+            lookup = cached
+        } else {
+            lookup = repository.root(forFileAt: url)
+            // 確定した答えだけを覚える。git を実行できなかっただけの結果を覚えると、
+            // 一時的な失敗がアプリ寿命の間「git 管理外」として固定されてしまう。
+            if lookup != .undetermined { rootByDir[dirKey] = lookup }
+        }
+        return lookup.foundRoot
     }
 
     /// root を最近使ったものとして記録し、上限を超えた分を古い方から捨てる。

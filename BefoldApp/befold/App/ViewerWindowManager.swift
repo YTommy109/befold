@@ -21,15 +21,11 @@ final class ViewerWindowManager {
     /// 同コントローラのサイドバー初期一覧の取得口。既定は実 FS を列挙する DirectoryLister.listEntries。
     private let directoryLister: (URL, SortOrder, Bool) -> [FileListEntry]
     /// 生成する全ウィンドウで共有する git 追跡ファイルの索引。同じリポジトリのファイルを
-    /// 複数ウィンドウで開いても `git ls-files` は 1 回で済み、照合索引の実体も 1 つで済む
-    /// (モノレポではウィンドウごとの複製が無視できない大きさになる)。
-    private let gitFileIndex: any GitFileIndexing
-
-    /// Quick Open が候補源として使うための読み出し口。索引を作り直さず、
-    /// ウィンドウが温めた同じインスタンスをそのまま共有する。
-    var sharedGitFileIndex: any GitFileIndexing {
-        gitFileIndex
-    }
+    /// 全ウィンドウ・Quick Open で共有する追跡ファイル索引。複数ウィンドウで開いても
+    /// `git ls-files` は 1 回で済み、照合索引の実体も 1 つで済む(モノレポでは
+    /// ウィンドウごとの複製が無視できない大きさになる)。ウィンドウが温めた同じ
+    /// インスタンスを Quick Open の候補源もそのまま使う。
+    let gitFileIndex: any GitFileIndexing
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。

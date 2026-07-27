@@ -58,6 +58,18 @@ enum DirectoryLister {
         return entries
     }
 
+    /// ディレクトリ直下の全エントリ(フォルダ+ファイル混在、隠しファイル含む)を、
+    /// ファイル名の localizedStandardCompare 昇順で 1 本のリストにして返す。
+    /// Quick Open のパスモードは隠しファイルの出し分けを呼び出し側(入力の断片)で
+    /// 決めるため、ここではフィルタせず全件を返す。列挙・ソートの単一情報源に寄せ、
+    /// 呼び出し側が FileManager を直接叩いて未定義順の結果を得るのを防ぐ。
+    static func allEntriesSorted(in directory: URL, fileReader: any FileReading = Self.fileReader) -> [URL] {
+        let (folders, files) = sortedContents(in: directory, showHiddenFiles: true, fileReader: fileReader)
+        return (folders + files).sorted {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+        }
+    }
+
     static func containsSupportedFile(in directory: URL) -> Bool {
         firstSupportedFile(in: directory) != nil
     }

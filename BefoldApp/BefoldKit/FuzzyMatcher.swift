@@ -1,17 +1,6 @@
 import Foundation
 
-/// fuzzy 一致した 1 件。`text` は照合対象に渡した文字列そのもの。
-public struct FuzzyMatch: Equatable, Sendable {
-    public let text: String
-    public let score: Int
-
-    public init(text: String, score: Int) {
-        self.text = text
-        self.score = score
-    }
-}
-
-/// 入力を部分列として照合し、順位付きの複数候補を返す。
+/// 入力を部分列として照合し、候補ごとのスコアを返す。
 ///
 /// 既存の `SuffixPathMatcher` は「構成要素単位のサフィックス一致で最良 1 件」を返す設計で、
 /// 候補リストの表示には使えない。文書内リンク解決の挙動を変えないため照合規則は共有せず、
@@ -43,36 +32,34 @@ public enum FuzzyMatcher {
         guard !queryCharacters.isEmpty else { return 0 }
 
         let textCharacters = Array(text)
-        if let filenameScore = filenameOnlyScore(query: queryCharacters, text: textCharacters) {
+        let foldedQuery = caseFolded(queryCharacters)
+        if let filenameScore = filenameOnlyScore(
+            query: queryCharacters, foldedQuery: foldedQuery, text: textCharacters
+        ) {
             return filenameScore + filenameBonus
         }
-        return bestAlignmentScore(query: queryCharacters, text: textCharacters)
+        return bestAlignmentScore(foldedQuery: foldedQuery, text: textCharacters)
     }
 
     /// ファイル名部分だけで一致が成立するならそのスコア。
     /// 入力が `/` を含む場合はパス全体で照合すべきなので、ここでは常に nil を返す。
-    private static func filenameOnlyScore(query: [Character], text: [Character]) -> Int? {
+    private static func filenameOnlyScore(
+        query: [Character], foldedQuery: [Character], text: [Character]
+    ) -> Int? {
         guard !query.contains("/") else { return nil }
         guard let filenameStart = filenameStartIndex(of: text) else { return nil }
-        return bestAlignmentScore(query: query, text: Array(text[filenameStart...]))
-    }
-
-    /// 一致した候補をスコア降順、同点は `text` 昇順で返す。
-    /// 同点の並びを固定することで、同じ入力に対して常に同じ順序になる。
-    public static func rank(query: String, texts: [String], limit: Int? = nil) -> [FuzzyMatch] {
-        var matches: [FuzzyMatch] = []
-        for text in texts {
-            guard let score = score(query: query, text: text) else { continue }
-            matches.append(FuzzyMatch(text: text, score: score))
-        }
-        matches.sort { lhs, rhs in
-            lhs.score == rhs.score ? lhs.text < rhs.text : lhs.score > rhs.score
-        }
-        guard let limit else { return matches }
-        return Array(matches.prefix(limit))
+        return bestAlignmentScore(foldedQuery: foldedQuery, text: Array(text[filenameStart...]))
     }
 
     // MARK: - Private
+
+    /// 大文字小文字を無視するための唯一の畳み込み。部分列判定と DP の双方がこの結果を使い、
+    /// 照合ごとに文字単位で `lowercased()` の String を作り直す割り当てを避ける。
+    /// `Character($0.lowercased())` は結果が 1 書記素でないと trap するため、
+    /// 先頭書記素を採り(無ければ元の文字)安全側に倒す。
+    private static func caseFolded(_ characters: [Character]) -> [Character] {
+        characters.map { $0.lowercased().first ?? $0 }
+    }
 
     /// 最後の `/` の次の位置。`/` が無ければ先頭。構成要素を持たない文字列では nil。
     private static func filenameStartIndex(of text: [Character]) -> Int? {
@@ -87,11 +74,12 @@ public enum FuzzyMatcher {
     /// 貪欲に左から詰めると「後ろに出てくる連続一致」を取り逃すため、
     /// query × text の動的計画法で最良の対応付けを選ぶ。text 長に比例した
     /// 事前の部分列判定で大半の候補を弾いてから DP に入る。
-    private static func bestAlignmentScore(query: [Character], text: [Character]) -> Int? {
-        guard isSubsequence(query: query, text: text) else { return nil }
+    private static func bestAlignmentScore(foldedQuery: [Character], text: [Character]) -> Int? {
+        // fold は 1 度だけ。部分列判定と DP のマッチング比較の双方でこの配列を使う。
+        let folded = caseFolded(text)
+        guard isSubsequence(query: foldedQuery, text: folded) else { return nil }
 
-        let folded = text.map { Character($0.lowercased()) }
-        let foldedQuery = query.map { Character($0.lowercased()) }
+        // 単語境界(キャメルケース)判定は大小を見るため、畳み込み前の text を使う。
         let boundaries = (0 ..< text.count).map { isWordBoundary(text, at: $0) }
 
         // previous[j] = query の 1 つ前までを text[j] で終える形に対応付けた最良スコア。
@@ -136,12 +124,13 @@ public enum FuzzyMatcher {
         return previous.compactMap(\.self).max()
     }
 
-    /// `query` が `text` の部分列か(大文字小文字を無視)。
+    /// `query` が `text` の部分列か。両者は `caseFolded` 済みで渡されるため、
+    /// ここでは文字を直接比較するだけ(照合ごとの String 生成をしない)。
     private static func isSubsequence(query: [Character], text: [Character]) -> Bool {
         var queryIndex = 0
         for character in text {
             guard queryIndex < query.count else { break }
-            if String(character).lowercased() == String(query[queryIndex]).lowercased() {
+            if character == query[queryIndex] {
                 queryIndex += 1
             }
         }

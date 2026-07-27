@@ -20,9 +20,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let recentDocumentsStore: RecentDocumentsStore
     private let bookmarkStore: BookmarkStore
     private var cliRequestDeduplicator = CLIRequestDeduplicator()
-    /// Quick Open を開いた時点のウィンドウ。決定時の切り替え先として捕まえておく。
-    /// パネルがキーウィンドウを奪うため、決定時に引き直すと元のウィンドウを見失う。
-    private weak var quickOpenOriginController: ViewerWindowController?
     private lazy var recentDocumentsMenuController = RecentDocumentsMenuController(
         recentURLs: { [weak self] in self?.recentDocumentsStore.recentURLs() ?? [] },
         openHandler: { [weak self] url in self?.openViewer(for: url) },
@@ -176,10 +173,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    /// いま操作対象になっているビューアウィンドウのコントローラ。
+    /// Quick Open パネル(NSPanel, canBecomeMain=false)がキーを奪っている間も
+    /// NSApp.mainWindow は元のビューアウィンドウを指し続けるため、パネル表示中でも
+    /// 正しい元ウィンドウを引ける。元ウィンドウが閉じられていれば残存ウィンドウを返す。
+    private var activeViewerController: ViewerWindowController? {
+        NSApp.mainWindow?.windowController as? ViewerWindowController
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if let keyWindow = NSApp.keyWindow,
-           let controller = keyWindow.windowController as? ViewerWindowController
-        {
+        if let controller = activeViewerController {
             sessionStore.noteActivated(controller.fileURL)
         }
         sessionStore.saveLayout(sessionRestorer.currentSessionLayout())
@@ -243,7 +246,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 初期ディレクトリはキーウィンドウが表示中のファイルのディレクトリ、
     /// 無ければ（未オープン含む）ホームディレクトリを使う。
     @objc func showOpenPanel() {
-        let controller = NSApp.keyWindow?.windowController as? ViewerWindowController
+        let controller = activeViewerController
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.directoryURL = OpenPanelDirectoryResolver.resolve(
@@ -305,16 +308,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// パネルを開いた時点のアプリ状態から候補源を組み立てる。
     /// 索引はウィンドウと共有し、パネルを開くたびに `git ls-files` をやり直さない。
     private func makeQuickOpenEnvironment() -> AppQuickOpenEnvironment {
-        // 決定時にはパネル自身がキーウィンドウになっているため、ここで切り替え先の
-        // ウィンドウを捕まえておく。決定時に NSApp.keyWindow を見ると常にパネルが返り、
-        // 既存ウィンドウでの切り替えにならない。
-        quickOpenOriginController = NSApp.keyWindow?.windowController as? ViewerWindowController
-        let currentFileURL = quickOpenOriginController?.fileURL
+        // パネルは canBecomeMain=false のため、表示中でも mainWindow は元のビューアの
+        // まま。専用の状態を持たず activeViewerController から都度引く。
+        let currentFileURL = activeViewerController?.fileURL
         if let currentFileURL {
-            windowManager.sharedGitFileIndex.warm(forFileAt: currentFileURL)
+            windowManager.gitFileIndex.warm(forFileAt: currentFileURL)
         }
         return AppQuickOpenEnvironment(
-            gitIndex: windowManager.sharedGitFileIndex,
+            gitIndex: windowManager.gitFileIndex,
             recentDocumentsStore: recentDocumentsStore,
             bookmarkStore: bookmarkStore,
             hiddenFilesPreference: hiddenFilesPreference,
@@ -322,10 +323,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    /// Quick Open の決定先を開く。パネルを開いた時点のウィンドウで切り替え、
-    /// ウィンドウが 1 枚も無いときだけ新規ウィンドウを開く。
+    /// Quick Open の決定先を開く。決定時点で操作対象のビューアウィンドウがあればそこで
+    /// 切り替え、無ければ(全ウィンドウを閉じた場合など)新規ウィンドウを開く。
+    /// 決定経路(onOpen)はパネルを畳んでから呼ばれるため、mainWindow は残存ビューアを指す。
     private func openFromQuickOpen(_ url: URL) {
-        guard let controller = quickOpenOriginController else {
+        guard let controller = activeViewerController else {
             openViewer(for: url)
             return
         }

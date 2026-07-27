@@ -115,8 +115,9 @@ enum MainMenuBuilder {
         let print = menu.addItem(
             withTitle: String(localized: "menu.file.print", bundle: .l10n),
             action: #selector(ViewerWindowController.printDocument(_:)),
-            keyEquivalent: "P"
+            keyEquivalent: "p"
         )
+        // 小文字 + shift マスクで統一する(同ファイルの redo / findPrevious / hideOthers と同方式)。
         print.keyEquivalentModifierMask = [.command, .shift]
         return item
     }

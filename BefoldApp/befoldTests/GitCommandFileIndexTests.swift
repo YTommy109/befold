@@ -123,9 +123,88 @@ private final class PathDerivedRepository: GitRepositoryReading, @unchecked Send
     }
 }
 
+/// 指定ルート配下のディレクトリで問い合わせたときだけルートを返し、ルートの親(や外)では
+/// `.notARepository` を返すフェイク。GitRepository と同じく `url` の親ディレクトリで
+/// rev-parse する前提を模し、「ファイルではなくルートのディレクトリを渡す」誤用を落とす。
+private final class RootScopedRepository: GitRepositoryReading, @unchecked Sendable {
+    private let root: URL
+    private let files: [URL]
+
+    init(root: URL, files: [URL]) {
+        self.root = root
+        self.files = files
+    }
+
+    func root(forFileAt url: URL) -> GitRootLookup {
+        let dir = url.deletingLastPathComponent().standardizedFileURL.path
+        let rootPath = root.standardizedFileURL.path
+        let insideRepo = dir == rootPath || dir.hasPrefix(rootPath + "/")
+        return insideRepo ? .root(root) : .notARepository
+    }
+
+    func trackedFiles(at _: URL) -> [URL]? {
+        files
+    }
+
+    func indexFingerprint(at _: URL) -> Date? {
+        Date(timeIntervalSince1970: 1)
+    }
+}
+
 struct GitCommandFileIndexTests {
     private func url(_ path: String) -> URL {
         URL(fileURLWithPath: path)
+    }
+
+    @Test("Quick Open の候補は追跡ファイル索引由来になる(ルートのディレクトリではなくファイルで解決する)")
+    func quickOpenCollectsFromTrackedIndexForFileInRepo() {
+        let root = url("/repo")
+        let repo = RootScopedRepository(
+            root: root,
+            files: [url("/repo/a.swift"), url("/repo/docs/x.md")]
+        )
+        let index = GitCommandFileIndex(repository: repo)
+
+        // collect には開いているファイル(ルート配下)を anchorFile として渡す。
+        // ルートのディレクトリを渡していた修正前は、索引がルートの親で rev-parse して
+        // .notARepository → nil となり、ディレクトリ走査へフォールバックしていた。
+        let set = QuickOpenCandidates.collect(
+            root: root,
+            anchorFile: url("/repo/docs/x.md"),
+            gitIndex: index,
+            scanner: DirectoryFileScanner(),
+            recentURLs: [],
+            bookmarkedURLs: [],
+            includingHiddenFiles: false
+        )
+
+        #expect(set.candidates.map(\.origin) == [.indexed, .indexed])
+        #expect(set.candidates.map(\.displayPath).sorted() == ["a.swift", "docs/x.md"])
+        #expect(set.isTruncated == false)
+    }
+
+    @Test("repositoryRoot と trackedFileIndex は同じ 1 回の rev-parse を共有する")
+    func repositoryRootAndIndexShareSingleRevParse() {
+        let repo = FakeRepository(
+            root: .root(url("/repo")),
+            fingerprint: Date(timeIntervalSince1970: 1),
+            files: [url("/repo/a.swift")]
+        )
+        let sut = GitCommandFileIndex(repository: repo)
+
+        let root = sut.repositoryRoot(forFileAt: url("/repo/docs/x.md"))
+        let index = sut.trackedFileIndex(forFileAt: url("/repo/docs/x.md"))
+
+        #expect(root == url("/repo"))
+        #expect(index != nil)
+        // 同一ディレクトリのファイルなら root 解決はキャッシュ済みで、rev-parse は 1 度だけ。
+        #expect(repo.rootCallCount == 1)
+    }
+
+    @Test("git 管理外は repositoryRoot も nil")
+    func repositoryRootIsNilOutsideRepo() {
+        let repo = FakeRepository(root: .notARepository, fingerprint: nil, files: [])
+        #expect(GitCommandFileIndex(repository: repo).repositoryRoot(forFileAt: url("/x/y.md")) == nil)
     }
 
     /// 索引は候補一覧を公開しないため、書かれたパスの解決結果という観測できる振る舞いで中身を見る。

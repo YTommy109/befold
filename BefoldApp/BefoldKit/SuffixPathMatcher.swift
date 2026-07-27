@@ -98,6 +98,10 @@ public struct SuffixPathIndex: Sendable {
     /// そのまま畳んで返す。辞書の反復順は安定しないので、`bestMatch` のタイブレークと
     /// 同じ正規化パス昇順に並べ直して決定論的にする。
     /// 照合には一切関与しないため、既存の解決挙動は変わらない。
+    ///
+    /// 呼ぶたびに畳み込みとソートを行うため計算量は O(n log n)(n = 取り込んだ候補数)。
+    /// 繰り返し要るなら呼び出し側で結果を保持すること。また、構成要素を持たない候補
+    /// (ルート等)は `init` の時点で落とすため、この一覧にも現れない。
     public var allCandidates: [URL] {
         candidatesByLastComponent.values
             .flatMap(\.self)

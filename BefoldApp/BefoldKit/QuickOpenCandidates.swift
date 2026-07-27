@@ -15,11 +15,17 @@ public struct QuickOpenCandidate: Equatable, Sendable {
     /// fuzzy 検索の照合対象もこの文字列で、表示と一致の対象をずらさない。
     public let displayPath: String
     public let origin: Origin
+    /// 同点タイブレーク用に事前計算した正規化パスキー。`normalizedPathKey` は
+    /// `resolvingSymlinksInPath()`(構成要素ぶんの FS I/O)を伴うため、キーストロークごとに
+    /// 走る `matches()` の比較子内では計算せず、生成時に一度だけ求めた値をここで持ち回る。
+    public let sortKey: String
 
-    public init(url: URL, displayPath: String, origin: Origin) {
+    public init(url: URL, displayPath: String, origin: Origin, sortKey: String? = nil) {
         self.url = url
         self.displayPath = displayPath
         self.origin = origin
+        // 呼び出し元が重複除去などで既に計算済みならその値を使い、二重計算を避ける。
+        self.sortKey = sortKey ?? url.normalizedPathKey
     }
 }
 
@@ -36,13 +42,14 @@ public struct QuickOpenCandidateSet: Equatable, Sendable {
     }
 
     /// 空入力時に出す一覧。履歴を上に、続けてブックマークを並べる。
-    public func initialCandidates(limit: Int = 20) -> [QuickOpenCandidate] {
+    /// 上限は呼び出し元(`QuickOpenModel`)が単一情報源として持つため、既定値は設けない。
+    public func initialCandidates(limit: Int) -> [QuickOpenCandidate] {
         Array(candidates.filter { $0.origin != .indexed }.prefix(limit))
     }
 
     /// 入力で候補を絞り込み、スコア降順に並べて返す。
     /// 同点は正規化パス昇順で確定させ、同じ入力に常に同じ並びを返す。
-    public func matches(query: String, limit: Int = 50) -> [QuickOpenCandidate] {
+    public func matches(query: String, limit: Int) -> [QuickOpenCandidate] {
         var scored: [(candidate: QuickOpenCandidate, score: Int)] = []
         for candidate in candidates {
             guard let score = FuzzyMatcher.score(query: query, text: candidate.displayPath) else { continue }
@@ -50,15 +57,17 @@ public struct QuickOpenCandidateSet: Equatable, Sendable {
         }
         scored.sort { lhs, rhs in
             lhs.score == rhs.score
-                ? lhs.candidate.url.normalizedPathKey < rhs.candidate.url.normalizedPathKey
+                ? lhs.candidate.sortKey < rhs.candidate.sortKey
                 : lhs.score > rhs.score
         }
         return scored.prefix(limit).map(\.candidate)
     }
 
     /// 一度開いた/印を付けたファイルは次も選ばれやすい、という前提の加点。
-    /// 一致の質(連続一致や単語境界)を覆すほどではない大きさに抑え、
-    /// 打った入力によく合う候補が履歴に押しのけられないようにしている。
+    /// 値はファイル名一致の加点(`filenameBonus` = 1000)より桁違いに小さく、複数文字の
+    /// 一致で積み上がる基礎点・連続点にもすぐ埋もれるため、実質的にはスコアが拮抗した
+    /// 候補どうしの並びを履歴・ブックマーク優先で決めるだけに働く。
+    /// (単一文字の連続点+境界点=27 は上回るので、ごく短い入力では履歴が前に出うる。)
     private static func originBonus(_ origin: QuickOpenCandidate.Origin) -> Int {
         switch origin {
         case .recent: 30
@@ -71,12 +80,16 @@ public struct QuickOpenCandidateSet: Equatable, Sendable {
 /// git 追跡ファイル索引・ディレクトリ走査・履歴・ブックマークを 1 つの候補集合にまとめる。
 public enum QuickOpenCandidates {
     /// - Parameters:
-    ///   - root: 表示パスの基準。git 管理下ならリポジトリルート、そうでなければ走査の起点。
+    ///   - root: 表示パスの基準であり、git 管理外のときの走査の起点。
+    ///   - anchorFile: 追跡ファイル索引を引く起点となる「開いているファイル」。`gitIndex` は
+    ///     ファイルの所属リポジトリを解決するため、ここには走査対象のルート(ディレクトリ)ではなく
+    ///     ファイル URL を渡す。ルートを渡すと索引がルートの親を起点に解決し、常に取りこぼす。
     ///   - gitIndex: 追跡ファイル索引。nil を返す(= git 管理外)なら `scanner` に切り替える。
     ///   - includingHiddenFiles: 隠しファイルを候補に含めるか。独自設定を持たず、
     ///     呼び出し元(`HiddenFilesPreference`)の値をそのまま渡す。
     public static func collect(
         root: URL,
+        anchorFile: URL,
         gitIndex: any GitFileIndexing,
         scanner: DirectoryFileScanner,
         recentURLs: [URL],
@@ -85,7 +98,7 @@ public enum QuickOpenCandidates {
     ) -> QuickOpenCandidateSet {
         let indexed: [URL]
         let isTruncated: Bool
-        if let trackedIndex = gitIndex.trackedFileIndex(forFileAt: root) {
+        if let trackedIndex = gitIndex.trackedFileIndex(forFileAt: anchorFile) {
             indexed = trackedIndex.allCandidates
             isTruncated = false
         } else {
@@ -114,9 +127,13 @@ public enum QuickOpenCandidates {
             (sortedBookmarks, .bookmark),
             (visibleIndexed, .indexed),
         ] {
-            for url in urls where seen.insert(url.normalizedPathKey).inserted {
+            for url in urls {
+                // 重複除去のキーと同点タイブレークのソートキーは同じ正規化パス。
+                // ここで一度だけ計算し、候補に持たせて比較子内での再計算(FS I/O)をなくす。
+                let key = url.normalizedPathKey
+                guard seen.insert(key).inserted else { continue }
                 candidates.append(QuickOpenCandidate(
-                    url: url, displayPath: displayPath(of: url, root: root), origin: origin
+                    url: url, displayPath: displayPath(of: url, root: root), origin: origin, sortKey: key
                 ))
             }
         }
@@ -130,10 +147,10 @@ public enum QuickOpenCandidates {
     }
 
     /// root からの相対部分に、ドット始まりの構成要素が 1 つでもあるか。
-    /// root 自体がドット始まりのディレクトリでも(例: `~/.config` を開いた場合)
-    /// 配下が丸ごと隠し扱いにならないよう、判定は相対部分だけを見る。
+    /// 判定の実体は `HiddenFileRule` に集約し、走査・索引・パスモードで同じ意味に揃える。
     private static func isHidden(_ url: URL, below root: URL) -> Bool {
-        let relative = PathRelativizer.relativePath(of: url, relativeTo: root)
-        return relative.split(separator: "/").contains { $0.hasPrefix(".") }
+        HiddenFileRule.containsHiddenComponent(
+            inRelativePath: PathRelativizer.relativePath(of: url, relativeTo: root)
+        )
     }
 }

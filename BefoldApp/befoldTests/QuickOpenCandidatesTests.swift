@@ -5,11 +5,19 @@ import Testing
 
 /// git 索引はスタブを注入し、走査だけ実ファイルツリーで確かめる。
 struct QuickOpenCandidatesTests {
-    private struct StubGitIndex: GitFileIndexing {
+    /// `trackedFileIndex(forFileAt:)` に渡された URL を記録し、collect が索引へ
+    /// 「開いているファイル」を渡しているか(= ルートのディレクトリを渡す誤用でないか)を検証させる。
+    private final class StubGitIndex: GitFileIndexing, @unchecked Sendable {
         let tracked: [URL]?
+        private(set) var requestedURL: URL?
 
-        func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
-            tracked.map { SuffixPathIndex(candidates: $0) }
+        init(tracked: [URL]?) {
+            self.tracked = tracked
+        }
+
+        func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
+            requestedURL = url
+            return tracked.map { SuffixPathIndex(candidates: $0) }
         }
     }
 
@@ -19,6 +27,7 @@ struct QuickOpenCandidatesTests {
 
     private func collect(
         root: URL,
+        anchorFile: URL? = nil,
         tracked: [URL]?,
         recent: [URL] = [],
         bookmarks: [URL] = [],
@@ -27,12 +36,31 @@ struct QuickOpenCandidatesTests {
     ) -> QuickOpenCandidateSet {
         QuickOpenCandidates.collect(
             root: root,
+            anchorFile: anchorFile ?? root.appendingPathComponent("anchor.md"),
             gitIndex: StubGitIndex(tracked: tracked),
             scanner: scanner,
             recentURLs: recent,
             bookmarkedURLs: bookmarks,
             includingHiddenFiles: includingHiddenFiles
         )
+    }
+
+    @Test("git 索引にはルートのディレクトリではなく開いているファイルを渡す")
+    func passesAnchorFileToGitIndex() {
+        let stub = StubGitIndex(tracked: [url("/repo/a.md")])
+        _ = QuickOpenCandidates.collect(
+            root: url("/repo"),
+            anchorFile: url("/repo/docs/x.md"),
+            gitIndex: stub,
+            scanner: DirectoryFileScanner(),
+            recentURLs: [],
+            bookmarkedURLs: [],
+            includingHiddenFiles: false
+        )
+
+        #expect(stub.requestedURL == url("/repo/docs/x.md"))
+        // ルートのディレクトリを渡す誤用(修正前の挙動)を検知する。
+        #expect(stub.requestedURL != url("/repo"))
     }
 
     @Test("git 索引があれば追跡ファイルを候補にする")
@@ -134,6 +162,25 @@ struct QuickOpenCandidatesTests {
 
         // ファイル名が同じでスコアは同点。パス昇順なら a/x.md が先だが、履歴加点で逆転する。
         #expect(set.matches(query: "x", limit: 10).map(\.displayPath) == ["b/x.md", "a/x.md"])
+    }
+
+    @Test("同点タイブレークは事前計算した sortKey を使い、比較子は url(FS)を見ない")
+    func tiebreakUsesPrecomputedSortKey() {
+        // displayPath が同じ("x.md")ため fuzzy スコアは同点。url のパス順なら /a < /z で
+        // b が先になるが、sortKey は逆順に振ってある。比較子が url.normalizedPathKey を
+        // 計算し直していれば b→a に、保存済み sortKey を見ていれば a→b になる。
+        let earlier = QuickOpenCandidate(url: url("/z/x.md"), displayPath: "x.md", origin: .indexed, sortKey: "0-first")
+        let later = QuickOpenCandidate(url: url("/a/x.md"), displayPath: "x.md", origin: .indexed, sortKey: "1-second")
+        let set = QuickOpenCandidateSet(candidates: [earlier, later], isTruncated: false)
+
+        #expect(set.matches(query: "x", limit: 10).map(\.sortKey) == ["0-first", "1-second"])
+    }
+
+    @Test("collect は sortKey に正規化パスキーを事前計算して持たせる")
+    func collectPrecomputesSortKey() {
+        let set = collect(root: url("/repo"), tracked: [url("/repo/src/a.swift")])
+
+        #expect(set.candidates.first?.sortKey == url("/repo/src/a.swift").normalizedPathKey)
     }
 
     @Test("fuzzy 検索は一致しない候補を落とし上限で打ち切る")

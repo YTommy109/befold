@@ -34,16 +34,12 @@ final class QuickOpenModel {
     /// パネルを開いた時点で 1 度だけ取る。入力のたびに索引を取り直さない。
     private let candidateSet: QuickOpenCandidateSet
 
-    private var storedQueryText = ""
-
-    /// 入力欄の文字列。絞り込みの起動を格納プロパティの `didSet` に頼らず、
-    /// 明示的な setter から呼ぶ。`@Observable` は格納プロパティを get/set へ
-    /// 書き換えるため、観測子の発火タイミングを暗黙に当てにしない。
-    var queryText: String {
-        get { storedQueryText }
-        set {
-            guard newValue != storedQueryText else { return }
-            storedQueryText = newValue
+    /// 入力欄の文字列。変化のたびに絞り込みを走らせる。
+    /// `@Observable` は格納プロパティの willSet/didSet を保持する(ドキュメント化された挙動)ため、
+    /// 監視子で refresh を起動してよい。
+    var queryText = "" {
+        didSet {
+            guard queryText != oldValue else { return }
             refresh()
         }
     }
@@ -134,29 +130,28 @@ final class QuickOpenModel {
         guard let split = PathModeSplit(path: path, baseDirectory: environment.baseDirectory) else { return [] }
         let fragment = split.fragment.lowercased()
         // 断片自体がドット始まりなら、隠しファイルを狙って打っているとみなして出す。
-        let includesHidden = environment.includingHiddenFiles || fragment.hasPrefix(".")
+        let includesHidden = environment.includingHiddenFiles || HiddenFileRule.isHidden(component: fragment)
 
         return environment.directoryEntries(in: split.parentDirectory)
             .filter { entry in
                 let name = entry.lastPathComponent
-                guard includesHidden || !name.hasPrefix(".") else { return false }
-                return name.lowercased().hasPrefix(fragment)
+                guard includesHidden || !HiddenFileRule.isHidden(component: name) else { return false }
+                // 空断片(末尾スラッシュ)は絞り込みなしで全件。range(of:"") は nil を返すため明示する。
+                return fragment.isEmpty
+                    || name.range(of: fragment, options: [.caseInsensitive, .anchored]) != nil
             }
             .map { QuickOpenCandidate(url: $0, displayPath: $0.path, origin: .indexed) }
     }
 
     /// 大文字小文字を無視した共通接頭辞。表記は最初の候補のものを採る
     /// (打ち直しでケースが揺れないよう、実在するファイル名の綴りに寄せる)。
+    /// Foundation の commonPrefix(with:options:) は「大小無視で比較し表記はレシーバ側」を
+    /// そのまま実装しており、合成文字・正規化の扱いも標準側に寄せられる。
     private func commonPrefix(of names: [String]) -> String? {
         guard let first = names.first else { return nil }
-        var length = first.count
-        for name in names.dropFirst() {
-            let common = zip(first.lowercased(), name.lowercased())
-                .prefix { $0 == $1 }
-                .count
-            length = min(length, common)
+        return names.dropFirst().reduce(first) {
+            $0.commonPrefix(with: $1, options: .caseInsensitive)
         }
-        return String(first.prefix(length))
     }
 }
 

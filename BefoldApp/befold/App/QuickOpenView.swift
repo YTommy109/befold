@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Quick Open パネルの中身。入力欄と候補リストだけを持ち、判断は `QuickOpenModel` に委ねる。
 struct QuickOpenView: View {
-    let model: QuickOpenModel
+    @Bindable var model: QuickOpenModel
     /// Esc で閉じる。パネルのライフサイクルは `QuickOpenPanelController` が持つ。
     let onDismiss: () -> Void
 
@@ -27,14 +27,16 @@ struct QuickOpenView: View {
                 .foregroundStyle(.secondary)
             TextField(
                 String(localized: "quickOpen.placeholder", bundle: .l10n),
-                text: Binding(get: { model.queryText }, set: { model.queryText = $0 })
+                text: $model.queryText
             )
             .textFieldStyle(.plain)
             .font(.system(size: 20))
             .focused($isFieldFocused)
             .onSubmit {
+                // パネルを閉じるのは決定経路(onOpen 内の dismiss)だけに一本化する。
+                // ここで無条件に閉じると、開ける対象が無い Enter でもパネルが黙って
+                // 消えてしまう。開けたときは onOpen が畳んでから開く。
                 model.commitSelection()
-                onDismiss()
             }
             .onKeyPress(.upArrow) {
                 model.moveSelection(by: -1)
