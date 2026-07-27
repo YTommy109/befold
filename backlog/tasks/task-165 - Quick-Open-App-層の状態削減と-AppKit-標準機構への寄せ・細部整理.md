@@ -1,11 +1,11 @@
 ---
 id: TASK-165
 title: Quick Open App 層の状態削減と AppKit 標準機構への寄せ・細部整理
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-07-27 05:49'
-updated_date: '2026-07-27 06:45'
+updated_date: '2026-07-27 07:35'
 labels: []
 dependencies: []
 priority: low
@@ -41,10 +41,26 @@ ordinal: 240000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 quickOpenOriginController が削除され、切り替え先の解決が NSApp.mainWindow 経由になる（パネル表示中に元ウィンドウを閉じても残存ウィンドウへ切り替わることをテストまたは手動確認で検証）
-- [ ] #2 keyWindow/mainWindow → ViewerWindowController の変換が1箇所に共通化される
-- [ ] #3 hidesOnDeactivate の削除・close() への変更後も、Esc/フォーカス喪失/再オープンの動作が手動確認で維持されている
-- [ ] #4 queryText が didSet + @Bindable の標準形になり QuickOpenModelTests が通る
-- [ ] #5 上限値のデフォルト引数二重定義と sharedGitFileIndex の別名が解消される
-- [ ] #6 ドキュメント系(9)と手動チェック項目(10)が反映される
+- [x] #1 quickOpenOriginController が削除され、切り替え先の解決が NSApp.mainWindow 経由になる（パネル表示中に元ウィンドウを閉じても残存ウィンドウへ切り替わることをテストまたは手動確認で検証）
+- [x] #2 keyWindow/mainWindow → ViewerWindowController の変換が1箇所に共通化される
+- [x] #3 hidesOnDeactivate の削除・close() への変更後も、Esc/フォーカス喪失/再オープンの動作が手動確認で維持されている
+- [x] #4 queryText が didSet + @Bindable の標準形になり QuickOpenModelTests が通る
+- [x] #5 上限値のデフォルト引数二重定義と sharedGitFileIndex の別名が解消される
+- [x] #6 ドキュメント系(9)と手動チェック項目(10)が反映される
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+コード変更完了・swift test 全736パス・lint クリーン(commit 5d4f1383)。検証済み: AC#2(activeViewerController computed property に3箇所集約)/AC#4(queryText を didSet に戻し QuickOpenView を @Bindable+$、QuickOpenModelTests パス)/AC#5(initialCandidates/matches の既定 limit 撤去・sharedGitFileIndex 別名を internal gitFileIndex に一本化)/AC#6(allCandidates の O(n log n)・構成要素なし除外、originBonus コメント修正、DirectoryFileScanner の存在するのに不可読を truncated 扱い、手動チェック項目(10)追加)。未検証: AC#1(元ウィンドウを閉じても残存ウィンドウへ切替)と AC#3(Esc/フォーカス喪失/再オープンで close() 後も動作維持)は GUI 手動確認が必要でエージェント環境では実行不可。ユーザー確認待ち。
+
+GUI 手動確認(System Events, debug ビルドを起動)で AC#1/#3 を検証:
+- AC#3: Cmd+P でパネル出現(1→2窓)、Esc で閉(2→1)、再 Cmd+P で再出現(1→2, close() 後も再オープン可)、Finder を前面にしてフォーカス喪失させるとパネルのみ閉じメインウィンドウは残存(再アクティブ化で 1 窓=alpha.md)。
+- AC#1: alpha/beta の 2 窓で alpha を前面にし Cmd+P(3窓)→パネル表示中に alpha を閉じ(2窓=beta+パネル)→'gamma' 入力して Enter→結果 1 窓=gamma.md。旧実装なら閉じた origin が nil で新規ウィンドウ(2窓)になるはずが、残存 beta ウィンドウが gamma.md へ切り替わった=mainWindow 経由の解決が意図どおり機能。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+レビュー指摘10項目を是正: quickOpenOriginController(weak状態)を mainWindow ベースの activeViewerController に一本化(keyWindow→VWC 3箇所を集約)、hidesOnDeactivate 削除・dismiss を close() 化、queryText を didSet+@Bindable に、sharedGitFileIndex 別名を internal gitFileIndex に、Print キーを小文字統一、initialCandidates/matches の既定 limit 撤去、ドキュメント整備(allCandidates O(n log n)/originBonus/走査失敗の truncated 化)と手動チェック項目追加。swift test 全736パス+lint クリーン、AC#1/#3 は起動して System Events で GUI 手動確認済み。
+<!-- SECTION:FINAL_SUMMARY:END -->
