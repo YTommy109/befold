@@ -1,9 +1,11 @@
 ---
 id: TASK-159
 title: Quick Open（Cmd+P）でパス入力と fuzzy 検索からファイルを開けるようにする
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-07-26 06:03'
+updated_date: '2026-07-27 01:16'
 labels: []
 dependencies: []
 ordinal: 234000
@@ -31,3 +33,18 @@ VSCode の Cmd+P に相当する Quick Open を導入する。Spotlight 風の�
 - [ ] #12 Print のショートカットが Shift+Cmd+P に移り、Cmd+P が Quick Open に割り当てられる
 - [ ] #13 QuickOpenQuery / FuzzyMatcher / DirectoryFileScanner / QuickOpenCandidates / QuickOpenModel に自動テストがあり swift test が通る
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. QuickOpenQuery（BefoldKit）: 入力を .empty/.path/.fuzzy に分類する純粋ロジック＋テスト
+2. FuzzyMatcher（BefoldKit）: 部分列 DP による順位付き照合。連続一致・単語境界・ファイル名一致を加点、同点は text 昇順＋テスト
+3. SuffixPathIndex.allCandidates（BefoldKit）: 読み取り専用で候補 URL を読み出す口を追加。既存の格納をそのまま畳んで返し、二重保持しない（照合規則は不変）
+4. DirectoryFileScanner（BefoldKit）: 非 Git 時の再帰走査。深さ8・件数10000・.git/node_modules/.build 除外・隠しファイル設定・打ち切りフラグ＋テスト
+5. QuickOpenCandidates（BefoldKit）: 索引/走査/履歴/ブックマークをマージ。normalizedPathKey で重複除去、履歴加点、上限と打ち切り＋テスト
+6. QuickOpenModel（App, @MainActor @Observable）: 入力→候補配列、決定を注入クロージャへ。パスモードは親ディレクトリ列挙＋前方一致、Tab は共通接頭辞補完＋テスト
+7. QuickOpenPanelController + QuickOpenView（App）: NSPanel と SwiftUI。判断ロジックを持たない。自動テスト対象外
+8. MainMenuBuilder: Quick Open を Cmd+P、Print を Shift+Cmd+P へ。Localizable.xcstrings に文言追加＋テスト更新
+9. AppDelegate 配線: lazy + クロージャ注入で QuickOpen コーディネータを保持。決定時は NSApp.keyWindow の ViewerWindowController.switchFile(to:)、無ければ openViewer(for:)
+10. 手動チェック（パネル表示/Esc/フォーカス喪失/上下キー/Shift+Cmd+P 印刷）
+<!-- SECTION:PLAN:END -->

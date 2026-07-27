@@ -92,6 +92,19 @@ public struct SuffixPathIndex: Sendable {
         candidatesByLastComponent = grouped
     }
 
+    /// 取り込んだ候補を正規化パス昇順で返す(照合ではなく一覧が要る呼び出し元のための読み出し口)。
+    ///
+    /// 候補を別途配列で抱えると同じ URL 群を二重に持つことになるため、照合用の格納を
+    /// そのまま畳んで返す。辞書の反復順は安定しないので、`bestMatch` のタイブレークと
+    /// 同じ正規化パス昇順に並べ直して決定論的にする。
+    /// 照合には一切関与しないため、既存の解決挙動は変わらない。
+    public var allCandidates: [URL] {
+        candidatesByLastComponent.values
+            .flatMap(\.self)
+            .sorted { $0.standardizedPath < $1.standardizedPath }
+            .map(\.url)
+    }
+
     /// 距離最小 → up 段数最小 → 正規化パス昇順 で最良の 1 件を返す。
     public func bestMatch(writtenPath: String, baseURL: URL) -> URL? {
         let needle = SuffixPathMatcher.meaningfulComponents(writtenPath)
