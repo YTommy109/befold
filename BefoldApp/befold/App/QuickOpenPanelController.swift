@@ -46,11 +46,13 @@ final class QuickOpenPanelController: NSObject {
             self?.dismiss()
             self?.onOpen(url)
         }
-        // contentViewController に載せることで、候補の増減に合わせて
-        // パネルの高さが SwiftUI 側の要求サイズへ追従する。
         let hosting = NSHostingController(
             rootView: QuickOpenView(model: model) { [weak self] in self?.dismiss() }
         )
+        // これが無いとパネルは生成時の高さのまま固定され、候補リストが
+        // 一切見えなくなる(入力欄だけのパネルになる)。preferredContentSize を
+        // SwiftUI の要求サイズへ追従させ、NSWindow 側にそれを拾わせる。
+        hosting.sizingOptions = [.preferredContentSize]
 
         let panel = NSPanel(
             contentRect: .zero,
