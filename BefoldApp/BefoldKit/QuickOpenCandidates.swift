@@ -144,10 +144,10 @@ public enum QuickOpenCandidates {
     }
 
     /// root からの相対部分に、ドット始まりの構成要素が 1 つでもあるか。
-    /// root 自体がドット始まりのディレクトリでも(例: `~/.config` を開いた場合)
-    /// 配下が丸ごと隠し扱いにならないよう、判定は相対部分だけを見る。
+    /// 判定の実体は `HiddenFileRule` に集約し、走査・索引・パスモードで同じ意味に揃える。
     private static func isHidden(_ url: URL, below root: URL) -> Bool {
-        let relative = PathRelativizer.relativePath(of: url, relativeTo: root)
-        return relative.split(separator: "/").contains { $0.hasPrefix(".") }
+        HiddenFileRule.containsHiddenComponent(
+            inRelativePath: PathRelativizer.relativePath(of: url, relativeTo: root)
+        )
     }
 }

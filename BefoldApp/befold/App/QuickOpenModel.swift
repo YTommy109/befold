@@ -134,12 +134,12 @@ final class QuickOpenModel {
         guard let split = PathModeSplit(path: path, baseDirectory: environment.baseDirectory) else { return [] }
         let fragment = split.fragment.lowercased()
         // 断片自体がドット始まりなら、隠しファイルを狙って打っているとみなして出す。
-        let includesHidden = environment.includingHiddenFiles || fragment.hasPrefix(".")
+        let includesHidden = environment.includingHiddenFiles || HiddenFileRule.isHidden(component: fragment)
 
         return environment.directoryEntries(in: split.parentDirectory)
             .filter { entry in
                 let name = entry.lastPathComponent
-                guard includesHidden || !name.hasPrefix(".") else { return false }
+                guard includesHidden || !HiddenFileRule.isHidden(component: name) else { return false }
                 return name.lowercased().hasPrefix(fragment)
             }
             .map { QuickOpenCandidate(url: $0, displayPath: $0.path, origin: .indexed) }

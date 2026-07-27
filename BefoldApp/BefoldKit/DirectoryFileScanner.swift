@@ -74,7 +74,7 @@ public struct DirectoryFileScanner: Sendable {
         for entry in contents.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             guard !state.hasReachedCountLimit else { return }
             let name = entry.lastPathComponent
-            if !includingHiddenFiles, name.hasPrefix(".") { continue }
+            if !includingHiddenFiles, HiddenFileRule.isHidden(component: name) { continue }
 
             if isTraversableDirectory(entry) {
                 guard !excludedDirectoryNames.contains(name) else { continue }
