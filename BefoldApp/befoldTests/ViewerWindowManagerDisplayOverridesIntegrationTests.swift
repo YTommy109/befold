@@ -31,7 +31,7 @@ struct ViewerWindowManagerDisplayOverridesIntegrationTests {
         let file = try tmp.file(named: "aaa-file.md", contents: "# hello")
         let manager = makeManager()
         manager.openViewer(for: file, forceSidebarVisible: true)
-        let controller = try #require(manager.controllers[file.normalizedPathKey])
+        let controller = try #require(manager.controllers[file.normalizedPathKey]?.first)
         await controller.sidebar.pendingListingTask?.value
         #expect(controller.fileListModel.entries.map(\.kind) == [.folder, .file])
 
@@ -42,6 +42,6 @@ struct ViewerWindowManagerDisplayOverridesIntegrationTests {
 
         #expect(controller.fileListModel.sortOrder == .alphabetical)
         #expect(controller.fileListModel.entries.map(\.kind) == [.file, .folder])
-        manager.controllers.values.forEach { $0.close() }
+        manager.allControllers.forEach { $0.close() }
     }
 }

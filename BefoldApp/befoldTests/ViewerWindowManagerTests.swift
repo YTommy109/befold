@@ -65,7 +65,7 @@ struct ViewerWindowManagerTests {
         fixture.manager.openViewer(for: file)
         #expect(fixture.sessionStore.savedURLs().map(\.normalizedPathKey) == [file.normalizedPathKey])
 
-        fixture.manager.controllers[file.normalizedPathKey]?.close()
+        fixture.manager.controllers[file.normalizedPathKey]?.first?.close()
 
         #expect(fixture.manager.controllers.isEmpty)
         #expect(fixture.sessionStore.savedURLs().isEmpty)
@@ -88,7 +88,7 @@ struct ViewerWindowManagerTests {
         let fixture = MockedViewerWindowManager(files: [old, renamed])
         fixture.manager.openViewer(for: old)
 
-        let controller = try #require(fixture.manager.controllers[old.normalizedPathKey])
+        let controller = try #require(fixture.manager.controllers[old.normalizedPathKey]?.first)
         fixture.manager.viewerWindow(controller, didRenameFrom: old, to: renamed)
 
         #expect(fixture.recentDocumentsStore.recentURLs().map(\.path) == [renamed.normalizedPathKey])
@@ -111,7 +111,7 @@ struct ViewerWindowManagerTests {
         let fixture = MockedViewerWindowManager(files: [file1, file2])
 
         fixture.manager.openViewer(for: file1)
-        let controller = try #require(fixture.manager.controllers[file1.normalizedPathKey])
+        let controller = try #require(fixture.manager.controllers[file1.normalizedPathKey]?.first)
         fixture.manager.viewerWindow(controller, didSwitchFileFrom: file1, to: file2)
 
         #expect(fixture.manager.controllers[file1.normalizedPathKey] == nil)
@@ -122,59 +122,65 @@ struct ViewerWindowManagerTests {
         fixture.closeAll()
     }
 
-    @Test("別ウィンドウで開いているファイルへの切替は中止され重複ウィンドウを作らない")
-    func switchToFileOpenInAnotherWindowIsRejected() throws {
+    @Test("別ウィンドウで開いているファイルへも、アクティブウィンドウ側で切り替わる")
+    func switchToFileOpenInAnotherWindowSwitchesActiveWindow() throws {
         let fixture = MockedViewerWindowManager(files: [file1, file2])
         fixture.manager.openViewer(for: file1)
         fixture.manager.openViewer(for: file2)
-        let first = try #require(fixture.manager.controllers[file1.normalizedPathKey])
+        let first = try #require(fixture.manager.controllers[file1.normalizedPathKey]?.first)
+        let second = try #require(fixture.manager.controllers[file2.normalizedPathKey]?.first)
 
-        // file2 は別ウィンドウで開いているため、切替は中止され file1 のまま残る。
+        // file2 が別ウィンドウ(second)で開いていても、操作中の first がそのまま file2 へ切り替わる。
+        // 「1ファイル1ウィンドウ」制約は撤廃したため、file2 は 2 ウィンドウに映る。
         first.switchFile(to: file2)
 
-        #expect(fixture.manager.controllers.count == 2)
-        #expect(fixture.manager.controllers[file1.normalizedPathKey] === first)
-        #expect(first.fileURL == file1)
+        #expect(first.fileURL == file2)
+        // file2 のキーに first と second の両方が登録される(前面化・切替中止はしない)。
+        let file2Controllers = try #require(fixture.manager.controllers[file2.normalizedPathKey])
+        #expect(file2Controllers.count == 2)
+        #expect(file2Controllers.contains { $0 === first })
+        #expect(file2Controllers.contains { $0 === second })
+        // 元の file1 のキーからは first が外れる。
+        #expect(fixture.manager.controllers[file1.normalizedPathKey] == nil)
         fixture.closeAll()
     }
 
-    @Test("別ウィンドウで開いているファイルへの切替は、前面化対象のウィンドウを結果として返す")
-    func performFileSwitchReportsWindowAlreadyShowingFile() throws {
+    @Test("performFileSwitch は別ウィンドウで開いていても切替を完了する")
+    func performFileSwitchSwitchesEvenWhenOpenElsewhere() throws {
         let fixture = MockedViewerWindowManager(files: [file1, file2])
         fixture.manager.openViewer(for: file1)
         fixture.manager.openViewer(for: file2)
-        let first = try #require(fixture.manager.controllers[file1.normalizedPathKey])
-        let second = try #require(fixture.manager.controllers[file2.normalizedPathKey])
+        let first = try #require(fixture.manager.controllers[file1.normalizedPathKey]?.first)
 
-        // 前面化そのものは AppKit 依存(非アクティブなテストプロセスでは isKeyWindow が
-        // 立たない)ため、前面化対象の解決結果だけを検証する。
         let outcome = first.performFileSwitch(to: file2)
 
-        guard case let .openInAnotherWindow(other) = outcome else {
-            Issue.record("別ウィンドウで開いている場合は .openInAnotherWindow を返すべき: \(outcome)")
+        guard case .switched = outcome else {
+            Issue.record("別ウィンドウで開いていても切替は完了(.switched)すべき: \(outcome)")
             fixture.closeAll()
             return
         }
-        #expect(other === second)
-        #expect(first.fileURL == file1)
+        #expect(first.fileURL == file2)
         fixture.closeAll()
     }
 
-    @Test("履歴で戻る先が別ウィンドウで開かれていた場合、中止するが前面化はしない")
-    func historyNavigationToFileOpenElsewhereIsAbortedWithoutFocusing() throws {
+    @Test("履歴で戻る先が別ウィンドウで開かれていても、前面化せず自ウィンドウで戻る")
+    func historyNavigationToFileOpenElsewhereSwitchesWithoutFocusing() throws {
         let fixture = MockedViewerWindowManager(files: [file1, file2])
         fixture.manager.openViewer(for: file1)
-        let first = try #require(fixture.manager.controllers[file1.normalizedPathKey])
+        let first = try #require(fixture.manager.controllers[file1.normalizedPathKey]?.first)
         // file1 -> file2 の切替で file1 が履歴に残る。
         first.switchFile(to: file2)
         // 戻る先(file1)を別ウィンドウで開いてから戻ろうとする。
         fixture.manager.openViewer(for: file1)
-        let second = try #require(fixture.manager.controllers[file1.normalizedPathKey])
+        let second = try #require(
+            fixture.manager.controllers[file1.normalizedPathKey]?.first { $0 !== first }
+        )
         first.window?.makeKeyAndOrderFront(nil)
 
         first.navigateHistory(by: -1)
 
-        #expect(first.fileURL.normalizedPathKey == file2.normalizedPathKey)
+        // 自ウィンドウ(first)が file1 へ戻り、別ウィンドウ(second)は前面化しない。
+        #expect(first.fileURL.normalizedPathKey == file1.normalizedPathKey)
         #expect(second.window?.isKeyWindow == false)
         fixture.closeAll()
     }

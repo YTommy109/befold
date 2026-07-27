@@ -31,14 +31,14 @@ struct ViewerWindowManagerIntegrationTests {
         let manager = makeManager()
 
         manager.openViewer(for: visible)
-        let controller = try #require(manager.controllers[visible.normalizedPathKey])
+        let controller = try #require(manager.controllers[visible.normalizedPathKey]?.first)
         #expect(!controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
 
         manager.toggleHiddenFiles()
         await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
-        manager.controllers.values.forEach { $0.close() }
+        manager.allControllers.forEach { $0.close() }
     }
 
     @Test("toggleHiddenFiles は複数の開いているウィンドウすべてへ同時に反映する")
@@ -53,14 +53,14 @@ struct ViewerWindowManagerIntegrationTests {
         manager.openViewer(for: file2)
 
         manager.toggleHiddenFiles()
-        for controller in manager.controllers.values {
+        for controller in manager.allControllers {
             await controller.sidebar.pendingListingTask?.value
         }
 
-        for controller in manager.controllers.values {
+        for controller in manager.allControllers {
             #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
         }
-        manager.controllers.values.forEach { $0.close() }
+        manager.allControllers.forEach { $0.close() }
     }
 
     @Test("ウィンドウのアイコンボタン操作(onToggleHiddenFiles)でも全ウィンドウが同期する")
@@ -73,17 +73,17 @@ struct ViewerWindowManagerIntegrationTests {
         let manager = makeManager()
         manager.openViewer(for: file1)
         manager.openViewer(for: file2)
-        let first = try #require(manager.controllers[file1.normalizedPathKey])
+        let first = try #require(manager.controllers[file1.normalizedPathKey]?.first)
 
         manager.viewerWindowDidToggleHiddenFiles(first)
-        for controller in manager.controllers.values {
+        for controller in manager.allControllers {
             await controller.sidebar.pendingListingTask?.value
         }
 
-        for controller in manager.controllers.values {
+        for controller in manager.allControllers {
             #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
         }
-        manager.controllers.values.forEach { $0.close() }
+        manager.allControllers.forEach { $0.close() }
     }
 
     @Test("setHiddenFiles は指定値を反映し開いているサイドバーへ即座に反映する(--hidden-files)")
@@ -94,13 +94,13 @@ struct ViewerWindowManagerIntegrationTests {
         let visible = try tmp.file(named: "visible.mmd", contents: "graph TD;")
         let manager = makeManager()
         manager.openViewer(for: visible)
-        let controller = try #require(manager.controllers[visible.normalizedPathKey])
+        let controller = try #require(manager.controllers[visible.normalizedPathKey]?.first)
 
         manager.setHiddenFiles(true)
         await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
-        manager.controllers.values.forEach { $0.close() }
+        manager.allControllers.forEach { $0.close() }
     }
 
     @Test("CLI から複数ファイル/フォルダーを指定した起動を模すと、それぞれ別ウィンドウで開く")
@@ -123,6 +123,6 @@ struct ViewerWindowManagerIntegrationTests {
         #expect(manager.controllers.count == 2)
         #expect(manager.controllers[file1.normalizedPathKey] != nil)
         #expect(manager.controllers[folderFile.normalizedPathKey] != nil)
-        manager.controllers.values.forEach { $0.close() }
+        manager.allControllers.forEach { $0.close() }
     }
 }

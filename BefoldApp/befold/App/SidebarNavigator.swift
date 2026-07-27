@@ -237,12 +237,11 @@ final class SidebarNavigator {
         guard let host else { return false }
         let dirChanged = entry.directory.normalizedPathKey
             != fileListModel.currentDirectory.normalizedPathKey
-        // 存在しないファイルや別ウィンドウで開かれているファイルへは切替できず、
-        // performFileSwitch が .switched 以外を返す。currentDirectory の書き換えより先に
-        // 切替を試み、失敗時は状態を一切変えずに return して部分適用による不整合
-        // (dir だけ変わって file list 未更新)を防ぐ。
-        // 明示的なファイル選択と違い、履歴移動では既存ウィンドウの前面化はしない
-        // (利用者はこのウィンドウの履歴を辿っているだけなので、他ウィンドウを奪わない)。
+        // 存在しないファイルへは切替できず performFileSwitch が .failed を返す。
+        // currentDirectory の書き換えより先に切替を試み、失敗時は状態を一切変えずに
+        // return して部分適用による不整合(dir だけ変わって file list 未更新)を防ぐ。
+        // 別ウィンドウが同じファイルを開いていても自ウィンドウで切り替える(他ウィンドウの
+        // 前面化はしない)。利用者はこのウィンドウの履歴を辿っているだけなので奪わない。
         if let file = entry.file,
            file.normalizedPathKey != host.currentFileURL.normalizedPathKey
         {

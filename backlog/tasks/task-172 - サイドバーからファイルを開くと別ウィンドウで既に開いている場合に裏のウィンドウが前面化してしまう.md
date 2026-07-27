@@ -1,9 +1,11 @@
 ---
 id: TASK-172
 title: サイドバーからファイルを開くと別ウィンドウで既に開いている場合に裏のウィンドウが前面化してしまう
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@Tommy109'
 created_date: '2026-07-27 11:42'
+updated_date: '2026-07-27 14:36'
 labels: []
 dependencies: []
 ordinal: 247000
@@ -25,7 +27,29 @@ ordinal: 247000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 フロントウィンドウのサイドバーから、他の(裏の)ウィンドウで既に開いているファイルを選択しても、裏のウィンドウが前面化してユーザーのフォーカスを奪わない
-- [ ] #2 既存の『1ファイル1ウィンドウ』の重複防止ポリシー(同じファイルを二重にウィンドウ表示しない)は維持される、または意図的に変更する場合はその理由が明記される
-- [ ] #3 ViewerWindowControllerToolbarTests 等の既存ウィンドウ管理関連テストが引き続きパスする
+- [x] #1 フロントウィンドウのサイドバーから、他の(裏の)ウィンドウで既に開いているファイルを選択しても、裏のウィンドウが前面化してユーザーのフォーカスを奪わない
+- [x] #2 既存の『1ファイル1ウィンドウ』の重複防止ポリシー(同じファイルを二重にウィンドウ表示しない)は維持される、または意図的に変更する場合はその理由が明記される
+- [x] #3 ViewerWindowControllerToolbarTests 等の既存ウィンドウ管理関連テストが引き続きパスする
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 制約の由来を git 調査(結論: 意図的仕様でなくコミット834065aeで switchFile が rename処理コピーだった名残)
+2. 登録簿 controllers を [String:[ViewerWindowController]] へ多対応化し allControllers/detach を追加
+3. switchFile/performFileSwitch の切替中止・他ウィンドウ前面化(windowShowingFileElsewhere/openInAnotherWindow)を撤廃
+4. openViewer の新規オープン時重複防止は維持(Finder/CLI 再オープンは既存を前面化)
+5. テスト多対応化・新挙動テスト追加、全テスト green
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+ユーザー確認で『操作中のアクティブウィンドウ最優先』方針を採用。git 調査により『1ファイル1ウィンドウ』はコミット834065ae(#95)で switchFile が handleRename のコピーだった副産物と判明(元の switchFile eb3a6b71 は制約なしで単純にフロント切替)。controllers を多対応辞書化し、ウィンドウ内切替は他ウィンドウの有無に関わらず自ウィンドウを切り替える。新規オープン(openViewer)の重複ウィンドウ防止は維持。ViewerWindowManagerTests に新挙動3件を追加、全800テスト green。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+サイドバーからのファイル切替で、対象を別ウィンドウが開いていると裏ウィンドウが前面化しフロントのフォーカスを奪う問題を解消。git 調査で当該『1ファイル1ウィンドウ』制約が意図的仕様でなく switchFile が rename 処理のコピーだった副産物(コミット834065ae)と判明したため、制約を撤廃。登録簿 controllers を [String:[ViewerWindowController]] へ多対応化(allControllers/detach 追加)し、performFileSwitch から他ウィンドウ前面化・切替中止(windowShowingFileElsewhere/openInAnotherWindow)を削除。操作中のアクティブウィンドウがそのまま切り替わる。新規オープン時の重複防止は openViewer 側で維持。ViewerWindowManagerTests に新挙動テストを追加し swift test 全800件 green で検証。
+<!-- SECTION:FINAL_SUMMARY:END -->
