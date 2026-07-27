@@ -33,8 +33,10 @@ struct QuickOpenView: View {
             .font(.system(size: 20))
             .focused($isFieldFocused)
             .onSubmit {
+                // パネルを閉じるのは決定経路(onOpen 内の dismiss)だけに一本化する。
+                // ここで無条件に閉じると、開ける対象が無い Enter でもパネルが黙って
+                // 消えてしまう。開けたときは onOpen が畳んでから開く。
                 model.commitSelection()
-                onDismiss()
             }
             .onKeyPress(.upArrow) {
                 model.moveSelection(by: -1)

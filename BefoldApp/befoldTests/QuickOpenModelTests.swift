@@ -323,4 +323,23 @@ struct QuickOpenModelTests {
 
         #expect(opened.isEmpty)
     }
+
+    @Test("開けない候補で決定しても onOpen を呼ばず候補表示を保つ(パネルは閉じない)")
+    func commitOnUnopenableTargetKeepsCandidates() {
+        // パネルを閉じるのは onOpen 経由の dismiss だけなので、onOpen が呼ばれない
+        // = パネルは閉じない。開けない対象で Enter しても候補一覧が保たれることを固定する。
+        let environment = StubEnvironment()
+        environment.entries["/dev"] = [url("/dev/empty")]
+        environment.directories = ["/dev/empty"] // resolvedFile 未設定 → 解決不能
+        var opened: [URL] = []
+        let model = makeModel(environment) { opened.append($0) }
+        model.queryText = "/dev/em"
+        let before = model.candidates.map(\.url)
+
+        model.commitSelection()
+
+        #expect(opened.isEmpty)
+        #expect(model.candidates.map(\.url) == before)
+        #expect(!model.candidates.isEmpty)
+    }
 }

@@ -69,10 +69,11 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
     }
 
     func directoryEntries(in directory: URL) -> [URL] {
-        // 隠しファイルの出し分けは QuickOpenModel が入力に応じて決めるため、ここでは全件返す。
-        (try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil, options: []
-        )) ?? []
+        // 列挙とソートは DirectoryLister の単一情報源へ委譲する。自前で
+        // FileManager を叩くと返却順が未定義になり、候補順・選択位置・補完表記が
+        // 非決定的になる。隠しファイルの出し分けは QuickOpenModel が入力に応じて
+        // 決めるため、ここでは隠しファイルも含めた全件を名前昇順で返す。
+        DirectoryLister.allEntriesSorted(in: directory)
     }
 
     func isDirectory(_ url: URL) -> Bool {

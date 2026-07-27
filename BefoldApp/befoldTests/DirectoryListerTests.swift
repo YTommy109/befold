@@ -53,6 +53,25 @@ private struct ExclusionFileReader: FileReading {
 
 @Suite
 struct DirectoryListerTests {
+    @Test("全エントリを隠しファイル込みで localizedStandardCompare 昇順に返す")
+    func allEntriesSortedOrdersNaturallyIncludingHidden() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        _ = try tmp.file(named: "file10.md", contents: "")
+        _ = try tmp.file(named: "file2.md", contents: "")
+        _ = try tmp.file(named: ".hidden.md", contents: "")
+        _ = try tmp.file(atPath: "sub/inner.md", contents: "") // sub フォルダを作る
+
+        let names = DirectoryLister.allEntriesSorted(in: tmp.url).map(\.lastPathComponent)
+
+        // 隠しファイルとサブフォルダも含め全件返る。
+        #expect(Set(names) == [".hidden.md", "file2.md", "file10.md", "sub"])
+        // 数値を考慮した順序(plain な文字列比較なら file10.md が file2.md より前に来る)。
+        let index2 = try #require(names.firstIndex(of: "file2.md"))
+        let index10 = try #require(names.firstIndex(of: "file10.md"))
+        #expect(index2 < index10)
+    }
+
     @Test("拡張子によらず全ファイルが返される")
     func listFilesReturnsAllFilesRegardlessOfExtension() throws {
         let tmp = try TempDir()
