@@ -56,24 +56,22 @@ final class QuickOpenPanelController: NSObject {
         // SwiftUI の要求サイズへ追従させ、NSWindow 側にそれを拾わせる。
         hosting.sizingOptions = [.preferredContentSize]
 
-        let panel = NSPanel(
+        // borderless にしてタイトルバーとその境界線(グレーの横線)を無くす。ただし素の
+        // borderless NSPanel は key になれず TextField にフォーカスが移らないため、
+        // canBecomeKey を上書きした専用サブクラスを使う(Spotlight 型パネルの定石)。
+        let panel = KeyableBorderlessPanel(
             contentRect: .zero,
-            styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         panel.contentViewController = hosting
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
         panel.isMovableByWindowBackground = true
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear
         panel.delegate = self
-        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            panel.standardWindowButton(button)?.isHidden = true
-        }
 
         self.panel = panel
         position(panel)
@@ -97,5 +95,15 @@ extension QuickOpenPanelController: NSWindowDelegate {
     /// フォーカスを失ったら閉じる(Spotlight と同じ振る舞い)。
     func windowDidResignKey(_: Notification) {
         dismiss()
+    }
+}
+
+/// borderless でもキーウィンドウになれる `NSPanel`。
+/// 素の borderless ウィンドウは `canBecomeKey` が false のため、入力欄にフォーカスが
+/// 移らず文字を打てない。タイトルバー(とその境界線)を持たずに検索フィールドへ
+/// キー入力を受けるため、`canBecomeKey` を true に上書きする。
+private final class KeyableBorderlessPanel: NSPanel {
+    override var canBecomeKey: Bool {
+        true
     }
 }

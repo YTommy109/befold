@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-07-27 08:36'
-updated_date: '2026-07-27 08:47'
+updated_date: '2026-07-27 10:00'
 labels:
   - quick-open
   - bug
@@ -52,6 +52,8 @@ queryText を明示 computed setter(setter 内で refresh を呼ぶ形)に戻す
 修正: QuickOpenModel.queryText を格納プロパティ+didSet から明示 computed setter(storedQueryText + setter 内で refresh())へ戻した。didSet に依存できない理由(SwiftUI @Bindable binding 経由では発火しない)をコメントで明記。
 検証: swift test 全736パス(QuickOpenModelTests 21含む)、swiftformat lint クリーン。GUI は診断フェーズの A/B(キー入力が届いていた段階)で、同一の明示 setter コードが 'viewer' 入力で ViewerStore.md を候補に出す=絞り込み動作を running app+System Events で確認済み。didSet 版では出ないことも同条件で確認。仕上げ段階の再確認は自動化環境の keystroke 送出が不安定化し実施できず。
 手動確認手順(binding 経由の退行はユニットで再現困難): git 管理下のファイルを開き Cmd+P → ファイル名の一部をタイプ → キーごとに候補が絞り込まれること。
+
+【訂正/後日判明】本タスクの診断は誤りだった。NSLog で計測した結果、didSet 版でも didSet は SwiftUI @Bindable binding 経由で発火し refresh が走る。setter 版も didSet 版もモデルは正しく絞り込む(例: 'beta'→beta.md 先頭、'view'→3件、パネル高さも追従)。前回『絞り込まれない』と判断したのは浮動パネルの screencapture が古いピクセルを返すため。よって『didSet は binding で発火しない』という前提は誤りで、setter 化は実質 no-op。害はないため PR #312(マージ済み)はそのまま残し、QuickOpenModel の誤ったコメントのみ後続ブランチ fix/quick-open-panel で訂正した。ユーザーが見た絞り込み不具合が本当に存在するかは要再確認。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
