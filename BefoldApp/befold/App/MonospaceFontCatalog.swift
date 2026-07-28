@@ -15,8 +15,8 @@ enum MonospaceFontCatalog {
             guard let members = manager.availableMembers(ofFontFamily: family) else { return false }
             // メンバのいずれかが固定幅トレイトを持てば等幅ファミリーとみなす。
             return members.contains { member in
-                guard member.count >= 4, let traits = member[3] as? UInt else { return false }
-                return NSFontTraitMask(rawValue: traits).contains(.fixedPitchFontMask)
+                guard member.count >= 4, let traits = member[3] as? Int else { return false }
+                return NSFontTraitMask(rawValue: UInt(traits)).contains(.fixedPitchFontMask)
             }
         }
         return names(from: raw)
