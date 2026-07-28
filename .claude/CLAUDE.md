@@ -100,3 +100,10 @@ feat: Mermaid ビューア画面を追加する
 fix: ファイル変更検知が2回通知される問題を修正する
 chore: XcodeGen 設定を更新する
 ```
+
+## フィーチャーゲート（開発中機能の dev 限定露出）
+
+- 未完成機能は `FeatureGate.inProgressFeaturesEnabled` で囲い、dev/DEBUG ビルドでのみ露出する。
+  判定は「バージョン文字列のプレリリース接尾辞（`-dev.N`）」由来で、`UpdateChannel`（ユーザー設定）は流用しない。
+- フラグは一時的な足場。stable に載せると決めた時点で分岐を撤去しデフォルト有効化し、撤去タスクを backlog に登録する。
+- 検証は「ロジックはユニットテスト、ON は dev リリースの dogfood、OFF は次回 stable リリース」で担保する。
