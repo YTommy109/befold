@@ -8,6 +8,18 @@ import Foundation
 public enum AppVersion {
     public static let fallback = "1.9.0"
 
+    /// バージョン文字列が SemVer のプレリリース（ハイフン接尾辞）かどうか。
+    /// dev リリースは `release.yml` がタグ名 `v1.4.10-dev.N` から MARKETING_VERSION を
+    /// 注入するため、実行時にこの接尾辞で dev ビルドを判別できる。
+    public static func isPrerelease(_ version: String) -> Bool {
+        version.contains("-")
+    }
+
+    /// 実行中ビルドの `current` がプレリリースか。
+    public static var isCurrentPrerelease: Bool {
+        isPrerelease(current)
+    }
+
     /// マーケティングバージョンのみ(例: `1.9.1-dev.5`)。
     public static var current: String {
         resolved(infoDictionary: currentBundleInfoDictionary())
