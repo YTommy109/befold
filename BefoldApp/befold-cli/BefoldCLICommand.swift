@@ -14,7 +14,7 @@ struct BefoldCLICommand: AsyncParsableCommand {
         To open a path starting with a hyphen, use `--` to treat everything after it \
         as paths (e.g. befold -- -notes.md).
         """,
-        version: AppVersion.current
+        version: AppVersion.currentWithBuild
     )
 
     @Flag(name: .customLong("check"), help: "Check whether the given paths can be opened, instead of opening them.")

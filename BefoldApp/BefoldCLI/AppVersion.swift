@@ -1,13 +1,22 @@
+import BefoldKit
 import Foundation
 
 /// アプリのバージョン文字列。
 /// `_NSGetExecutablePath` で実バイナリのパスを取得し、`.app` バンドルの Info.plist から
-/// CFBundleShortVersionString を読む。バンドル外(SPM 単体ビルド等)では `fallback` を使う。
+/// CFBundleShortVersionString / CFBundleVersion を読む。バンドル外(SPM 単体ビルド等)では
+/// `fallback` を使う。
 public enum AppVersion {
     public static let fallback = "1.9.0"
 
+    /// マーケティングバージョンのみ(例: `1.9.1-dev.5`)。
     public static var current: String {
         resolved(infoDictionary: currentBundleInfoDictionary())
+    }
+
+    /// ビルド番号付き(例: `1.9.1-dev.5 (801)`)。GUI の About パネル表記と同体裁。
+    /// CLI(`--version`)はこちらを使い、GUI とバージョン表記を揃える。
+    public static var currentWithBuild: String {
+        resolvedWithBuild(infoDictionary: currentBundleInfoDictionary())
     }
 
     public static func resolved(infoDictionary: [String: Any]?) -> String {
@@ -18,6 +27,15 @@ public enum AppVersion {
             return version
         }
         return fallback
+    }
+
+    /// `resolved` の短縮バージョンに CFBundleVersion を括弧付きで付す。
+    /// ビルド番号が取得できない場合は短縮バージョンのみを返す(`VersionFormatting` に委譲)。
+    public static func resolvedWithBuild(infoDictionary: [String: Any]?) -> String {
+        VersionFormatting.versionString(
+            short: resolved(infoDictionary: infoDictionary),
+            build: infoDictionary?["CFBundleVersion"] as? String
+        )
     }
 
     /// 実行ファイルパス(`Contents/MacOS/<exe>`)から、その親の `.app` バンドルのパスを返す。
