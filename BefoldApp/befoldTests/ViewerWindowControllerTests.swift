@@ -105,6 +105,7 @@ struct ViewerWindowControllerTests {
         let perFileState = PerFileStateStore(defaults: defaults)
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults, perFileState: perFileState,
+            bookmarkStore: BookmarkStore(defaults: defaults),
             store: makeMockStore(defaults: defaults), directoryLister: noEntries
         )
         defer { controller.close() }
@@ -122,6 +123,7 @@ struct ViewerWindowControllerTests {
         let perFileState = PerFileStateStore(defaults: defaults)
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults, perFileState: perFileState,
+            bookmarkStore: BookmarkStore(defaults: defaults),
             store: makeMockStore(defaults: defaults), directoryLister: noEntries
         )
         let frame = NSRect(x: 160, y: 180, width: 800, height: 650)
@@ -145,6 +147,7 @@ struct ViewerWindowControllerTests {
 
         let second = ViewerWindowController(
             fileURL: file, defaults: defaults, perFileState: PerFileStateStore(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults),
             initialFrameDescriptor: descriptor,
             store: makeMockStore(defaults: defaults), directoryLister: noEntries
         )

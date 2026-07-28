@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldKit
 import BefoldTestSupport
 import Foundation
 import Testing
@@ -39,6 +40,7 @@ struct ViewerWindowControllerSourceModeTests {
                 sidebar: SidebarStateStore(defaults: defaults),
                 windowFrame: WindowFrameStore(defaults: defaults)
             ),
+            bookmarkStore: BookmarkStore(defaults: defaults),
             store: ViewerStore(
                 watcherFactory: { _, _, _ in MockFileWatcher() },
                 fileReader: InMemoryFileReader(files: files),

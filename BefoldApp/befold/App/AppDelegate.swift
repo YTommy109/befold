@@ -40,7 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     override init() {
         let sessionStore = SessionStore()
         let recentDocumentsStore = RecentDocumentsStore()
-        let bookmarkStore = BookmarkStore()
+        let bookmarkStore = BookmarkStore(defaults: .standard)
         let hiddenFilesPreference = HiddenFilesPreference()
         let findOptionsPreference = FindOptionsPreference()
         let perFileState = PerFileStateStore()

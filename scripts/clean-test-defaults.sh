@@ -7,8 +7,10 @@
 # 使い方: scripts/clean-test-defaults.sh [--force]
 #   （引数なし）: dry-run。対象の件数と接頭辞ごとの内訳の表示のみ（既定・安全側）
 #   --force     : 実際に削除する
-# 対象は「<接頭辞>-<正準形式の UUID>.plist」に一致するファイルのみ。実在アプリの
-# 設定ドメインは逆 DNS 形式で UUID 接尾辞を持たないため、巻き込んで消すことはない。
+# 対象は「<接頭辞><区切り><正準形式の UUID>.plist」に一致するファイルのみ。
+# 区切りが "-" の場合は接頭辞を問わない。"." の場合は接頭辞にドットを含まないものに限定し、
+# 逆 DNS 形式(com.example.App)の実在アプリドメインを巻き込まない（旧 ephemeralDefaults は
+# "<接頭辞>.<UUID>" のドット区切りで永続スイートを作っていたため対象に含める）。
 set -euo pipefail
 
 PREFS_DIR="$HOME/Library/Preferences"
@@ -32,7 +34,13 @@ done
 # 対象は数万件になりうるため、走査は 1 回だけ行って一覧を使い回す。
 LIST=$(mktemp -t befold-test-defaults)
 trap 'rm -f "$LIST"' EXIT
-find "$PREFS_DIR" -maxdepth 1 -type f -regex ".*-${UUID_RE}\.plist" > "$LIST" 2>/dev/null || true
+# ハイフン区切り(旧 makeIsolatedDefaults)と、接頭辞にドットを含まないドット区切り
+# (旧 ephemeralDefaults の "<接頭辞>.<UUID>")の両方を対象にする。後者は接頭辞を
+# `[^./]*`(ドットなし)に限定することで、`com.openai.chat.Foo.<UUID>.plist` のような
+# 逆 DNS 形式の実在アプリドメインを巻き込まない。
+find "$PREFS_DIR" -maxdepth 1 -type f \
+  \( -regex ".*-${UUID_RE}\.plist" -o -regex ".*/[^./]*\.${UUID_RE}\.plist" \) \
+  > "$LIST" 2>/dev/null || true
 
 count=$(wc -l < "$LIST" | tr -d ' ')
 
@@ -43,7 +51,7 @@ fi
 
 echo "対象: ${count} 個"
 echo "内訳（接頭辞ごとの上位 10 件）:"
-sed -E "s|.*/||; s/-[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\.plist$//" "$LIST" \
+sed -E "s|.*/||; s/[-.][0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\.plist$//" "$LIST" \
   | sort | uniq -c | sort -rn | head -10 \
   | sed 's/^/  /'
 

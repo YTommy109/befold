@@ -1,5 +1,6 @@
 import BefoldKit
 @testable import BefoldRenderKit
+import BefoldTestSupport
 import Testing
 import WebKit
 
@@ -316,8 +317,9 @@ struct ViewerRendererMessageHandlingTests {
     }
 
     /// テストごとに独立したサンドボックスの UserDefaults を返す(標準ドメインを汚さない)。
+    /// 永続ドメイン(`UserDefaults(suiteName:)`)は ~/Library/Preferences に plist を残すため、
+    /// メモリ隔離の `makeIsolatedDefaults` を用いて実行後に何も残さない。
     private static func ephemeralDefaults() -> UserDefaults {
-        let suiteName = "ViewerRendererMessageHandlingTests.\(UUID().uuidString)"
-        return UserDefaults(suiteName: suiteName) ?? .standard
+        makeIsolatedDefaults(prefix: "ViewerRendererMessageHandlingTests")
     }
 }

@@ -49,7 +49,8 @@ struct ViewerWindowControllerIntegrationTests {
             fileURL: visible,
             defaults: defaults,
             hiddenFilesPreference: preference,
-            perFileState: PerFileStateStore(defaults: defaults)
+            perFileState: PerFileStateStore(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults)
         )
         defer { controller.close() }
 
@@ -71,7 +72,8 @@ struct ViewerWindowControllerIntegrationTests {
             fileURL: visible,
             defaults: defaults,
             hiddenFilesPreference: preference,
-            perFileState: PerFileStateStore(defaults: defaults)
+            perFileState: PerFileStateStore(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults)
         )
         defer { controller.close() }
 
@@ -117,7 +119,8 @@ extension ViewerWindowControllerIntegrationTests {
         _ = try tmp.file(named: "sub/child.mmd", contents: "graph LR;")
         let controller = ViewerWindowController(
             fileURL: file,
-            perFileState: PerFileStateStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
+            perFileState: PerFileStateStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")),
+            bookmarkStore: BookmarkStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
         )
         defer { controller.close() }
 

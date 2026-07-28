@@ -99,4 +99,23 @@ struct BookmarkStoreTests {
 
         #expect(relaunched.isBookmarked(url("a.mmd")))
     }
+
+    /// 汚染回帰ガード(TASK-175): 隔離 defaults 上のブックマーク操作一式が、本番アプリの
+    /// UserDefaults.standard("BookmarkedPaths")を一切書き換えないことを保証する。
+    /// BookmarkStore.init(defaults:) の既定 .standard を復活させたり、注入を書き忘れて
+    /// .standard へフォールバックする経路が再発した場合にここで検知する。
+    @Test("隔離 defaults 上のブックマーク操作は本番 standard の BookmarkedPaths を汚染しない")
+    func isolatedBookmarkOperationsDoNotTouchProductionStandard() {
+        let productionKey = "BookmarkedPaths"
+        let before = UserDefaults.standard.stringArray(forKey: productionKey)
+
+        let store = BookmarkStore(defaults: makeIsolatedDefaults(prefix: "ContaminationGuard"))
+        store.add(url("guard-a.mmd"))
+        store.toggle(url("guard-b.md"))
+        store.noteRenamed(from: url("guard-a.mmd"), to: url("guard-a2.mmd"))
+
+        let after = UserDefaults.standard.stringArray(forKey: productionKey)
+        #expect(before == after)
+        #expect(after?.contains(url("guard-a2.mmd").normalizedPathKey) != true)
+    }
 }
