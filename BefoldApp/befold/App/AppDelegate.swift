@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sessionStore: SessionStore
     private let windowManager: ViewerWindowManager
     private let hiddenFilesPreference: HiddenFilesPreference
+    private let codeFontPreference: CodeFontPreference
     private let sessionRestorer: SessionRestorer
     private lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: false,
@@ -43,12 +44,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let bookmarkStore = BookmarkStore(defaults: .standard)
         let hiddenFilesPreference = HiddenFilesPreference()
         let findOptionsPreference = FindOptionsPreference()
+        let codeFontPreference = CodeFontPreference()
         let perFileState = PerFileStateStore()
         let windowManager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
             hiddenFilesPreference: hiddenFilesPreference,
             findOptionsPreference: findOptionsPreference,
+            codeFontPreference: codeFontPreference,
             perFileState: perFileState,
             bookmarkStore: bookmarkStore
         )
@@ -57,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.bookmarkStore = bookmarkStore
         self.windowManager = windowManager
         self.hiddenFilesPreference = hiddenFilesPreference
+        self.codeFontPreference = codeFontPreference
         sessionRestorer = SessionRestorer(sessionStore: sessionStore, windowManager: windowManager)
         super.init()
         DistributedNotificationCenter.default().addObserver(

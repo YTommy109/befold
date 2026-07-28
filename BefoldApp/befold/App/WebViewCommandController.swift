@@ -44,6 +44,13 @@ final class WebViewCommandController {
         evaluate(ViewerBridge.applyZoomScript(perFileState.zoom.zoom(for: currentURL())))
     }
 
+    // MARK: - Code font
+
+    /// 設定変更時に等幅フォント設定を注入し直して即時反映する。
+    func applyCodeFont(family: String?, points: Double) {
+        evaluate(ViewerBridge.applyCodeFontScript(family: family, points: points))
+    }
+
     /// 直接 HTML モードでは pageZoom を transform で変換して保存し、
     /// それ以外は viewer.js のズーム実装(script)へ委譲する。
     private func performZoom(directHTML transform: (Double) -> Double, script: String) {
