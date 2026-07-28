@@ -31,7 +31,8 @@ public struct QuickOpenCandidate: Equatable, Sendable {
 
 /// 重複除去済みの候補集合。入力に応じた絞り込みはここが受け持つ。
 public struct QuickOpenCandidateSet: Equatable, Sendable {
-    /// 履歴 → ブックマーク → 索引/走査 の順に並んだ候補。
+    /// 索引に載っている履歴(recency 順) → 索引/走査(ブックマーク印つき) の順に並んだ候補。
+    /// 履歴・ブックマークは候補ソースにはせず、索引に載っているファイルへ origin を付けるだけ。
     public let candidates: [QuickOpenCandidate]
     /// 走査が上限で打ち切られたか。リスト末尾にその旨を出すために使う。
     public let isTruncated: Bool
@@ -41,10 +42,11 @@ public struct QuickOpenCandidateSet: Equatable, Sendable {
         self.isTruncated = isTruncated
     }
 
-    /// 空入力時に出す一覧。履歴を上に、続けてブックマークを並べる。
+    /// 空入力時に出す一覧。索引に載っている履歴(recent)のみを新しい順で返す。
+    /// ブックマーク専用・索引外の履歴は出さず、羅列ノイズを避ける。
     /// 上限は呼び出し元(`QuickOpenModel`)が単一情報源として持つため、既定値は設けない。
     public func initialCandidates(limit: Int) -> [QuickOpenCandidate] {
-        Array(candidates.filter { $0.origin != .indexed }.prefix(limit))
+        Array(candidates.filter { $0.origin == .recent }.prefix(limit))
     }
 
     /// 入力で候補を絞り込み、スコア降順に並べて返す。
@@ -113,31 +115,44 @@ public enum QuickOpenCandidates {
             ? indexed
             : indexed.filter { !isHidden($0, below: root) }
 
-        // ブックマークは保存順を持たないため、表示パス昇順に固定して並びをぶれさせない。
-        let sortedBookmarks = bookmarkedURLs.sorted {
-            displayPath(of: $0, root: root) < displayPath(of: $1, root: root)
+        // 候補ソースは索引/走査由来のファイルだけにする。履歴・ブックマークは候補として
+        // 注入せず、索引に載っているファイルへ origin を付与するだけにする(専用エントリの
+        // 羅列を避ける)。origin の優先度は recent > bookmark > indexed。
+        let bookmarkKeys = Set(bookmarkedURLs.map(\.normalizedPathKey))
+
+        // 索引を正規化パスキーで重複除去しつつ索引順を保つ。key は重複除去・同点タイブレーク・
+        // membership 判定を兼ねるため、ここで一度だけ計算して持ち回る(比較子内の FS I/O をなくす)。
+        var indexedByKey: [String: URL] = [:]
+        var indexedOrder: [String] = []
+        for url in visibleIndexed where indexedByKey[url.normalizedPathKey] == nil {
+            let key = url.normalizedPathKey
+            indexedByKey[key] = url
+            indexedOrder.append(key)
         }
 
         var seen: Set<String> = []
-        var candidates: [QuickOpenCandidate] = []
-        // 先に入れた出自が残る。履歴を先頭に置くことで、索引にも載っている
-        // ファイルが履歴としての加点を失わないようにしている。
-        for (urls, origin) in [
-            (recentURLs, QuickOpenCandidate.Origin.recent),
-            (sortedBookmarks, .bookmark),
-            (visibleIndexed, .indexed),
-        ] {
-            for url in urls {
-                // 重複除去のキーと同点タイブレークのソートキーは同じ正規化パス。
-                // ここで一度だけ計算し、候補に持たせて比較子内での再計算(FS I/O)をなくす。
-                let key = url.normalizedPathKey
-                guard seen.insert(key).inserted else { continue }
-                candidates.append(QuickOpenCandidate(
-                    url: url, displayPath: displayPath(of: url, root: root), origin: origin, sortKey: key
-                ))
-            }
+        // 履歴かつ索引にあるファイルを recency 順で先頭に置く。空入力時の一覧
+        // (initialCandidates)がこの並びをそのまま使うため、履歴の新しい順を保つ。
+        var recentCandidates: [QuickOpenCandidate] = []
+        for url in recentURLs {
+            let key = url.normalizedPathKey
+            guard let indexedURL = indexedByKey[key], seen.insert(key).inserted else { continue }
+            recentCandidates.append(QuickOpenCandidate(
+                url: indexedURL, displayPath: displayPath(of: indexedURL, root: root), origin: .recent, sortKey: key
+            ))
         }
-        return QuickOpenCandidateSet(candidates: candidates, isTruncated: isTruncated)
+
+        // 残りの索引ファイルを索引順で。ブックマークに載っていれば bookmark を付ける。
+        var otherCandidates: [QuickOpenCandidate] = []
+        for key in indexedOrder {
+            guard seen.insert(key).inserted, let url = indexedByKey[key] else { continue }
+            let origin: QuickOpenCandidate.Origin = bookmarkKeys.contains(key) ? .bookmark : .indexed
+            otherCandidates.append(QuickOpenCandidate(
+                url: url, displayPath: displayPath(of: url, root: root), origin: origin, sortKey: key
+            ))
+        }
+
+        return QuickOpenCandidateSet(candidates: recentCandidates + otherCandidates, isTruncated: isTruncated)
     }
 
     // MARK: - Private

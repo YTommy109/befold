@@ -55,8 +55,8 @@ struct QuickOpenModelTests {
 
     // MARK: - 空入力
 
-    @Test("空入力では履歴とブックマークを出す")
-    func emptyQueryShowsRecentsAndBookmarks() {
+    @Test("空入力では索引に載っている履歴のみを出す")
+    func emptyQueryShowsRecentsOnly() {
         let environment = StubEnvironment()
         environment.candidates = [
             candidate("/repo/r.md", "r.md", .recent),
@@ -65,7 +65,8 @@ struct QuickOpenModelTests {
         ]
         let model = makeModel(environment)
 
-        #expect(model.candidates.map(\.displayPath) == ["r.md", "m.md"])
+        // 空入力では recent(時計)のみ。bookmark・indexed は羅列しない。
+        #expect(model.candidates.map(\.displayPath) == ["r.md"])
     }
 
     // MARK: - fuzzy 検索

@@ -85,21 +85,28 @@ struct QuickOpenCandidatesTests {
         #expect(set.isTruncated)
     }
 
-    @Test("履歴とブックマークを候補に混ぜる")
-    func mergesRecentAndBookmarks() {
+    @Test("履歴・ブックマークは索引に載っているファイルにだけ origin を付け、専用エントリは候補にしない")
+    func tagsIndexedFilesAndDropsStandaloneRecentBookmark() {
         let root = url("/repo")
         let set = collect(
             root: root,
-            tracked: [url("/repo/tracked.md")],
-            recent: [url("/repo/recent.md")],
-            bookmarks: [url("/repo/marked.md")]
+            tracked: [url("/repo/tracked.md"), url("/repo/recent.md"), url("/repo/marked.md")],
+            recent: [url("/repo/recent.md"), url("/repo/gone.md")], // gone.md は索引外
+            bookmarks: [url("/repo/marked.md"), url("/repo/faves.md")] // faves.md は索引外
         )
 
-        #expect(Set(set.candidates.map(\.displayPath)) == ["tracked.md", "recent.md", "marked.md"])
+        let byPath = Dictionary(uniqueKeysWithValues: set.candidates.map { ($0.displayPath, $0.origin) })
+        // 索引に載っているファイルには履歴・ブックマークの origin(=アイコン)が付く。
+        #expect(byPath["recent.md"] == .recent)
+        #expect(byPath["marked.md"] == .bookmark)
+        #expect(byPath["tracked.md"] == .indexed)
+        // 索引に無い履歴・ブックマーク専用エントリは候補に出ない。
+        #expect(byPath["gone.md"] == nil)
+        #expect(byPath["faves.md"] == nil)
     }
 
-    @Test("同一ファイルは normalizedPathKey で重複除去し履歴側を残す")
-    func deduplicatesByNormalizedPathKey() {
+    @Test("履歴かつブックマークの索引ファイルは origin が履歴優先(時計)になる")
+    func recentTakesPriorityOverBookmarkForIcon() {
         let root = url("/repo")
         let set = collect(
             root: root,
@@ -116,8 +123,7 @@ struct QuickOpenCandidatesTests {
     func buildsDisplayPaths() {
         let set = collect(
             root: url("/repo"),
-            tracked: [url("/repo/src/a.swift")],
-            recent: [url("/elsewhere/outside.md")]
+            tracked: [url("/repo/src/a.swift"), url("/elsewhere/outside.md")]
         )
 
         let byPath = Dictionary(uniqueKeysWithValues: set.candidates.map { ($0.url, $0.displayPath) })
@@ -137,18 +143,19 @@ struct QuickOpenCandidatesTests {
         #expect(included.candidates.count == 3)
     }
 
-    @Test("空入力の一覧は履歴→ブックマークの順で上限まで返す")
+    @Test("空入力の一覧は索引に載っている履歴のみを新しい順で返す")
     func initialCandidatesOrdering() {
         let root = url("/repo")
         let set = collect(
             root: root,
-            tracked: [url("/repo/tracked.md")],
-            recent: [url("/repo/r1.md"), url("/repo/r2.md")],
-            bookmarks: [url("/repo/m1.md")]
+            tracked: [url("/repo/r1.md"), url("/repo/r2.md"), url("/repo/tracked.md")],
+            recent: [url("/repo/r1.md"), url("/repo/r2.md"), url("/repo/gone.md")],
+            bookmarks: [url("/repo/tracked.md")] // ブックマークは空入力に出ない
         )
 
-        #expect(set.initialCandidates(limit: 10).map(\.displayPath) == ["r1.md", "r2.md", "m1.md"])
-        #expect(set.initialCandidates(limit: 2).map(\.displayPath) == ["r1.md", "r2.md"])
+        // 履歴(索引内)を新しい順で。ブックマーク・素の索引・索引外の履歴は空入力に出ない。
+        #expect(set.initialCandidates(limit: 10).map(\.displayPath) == ["r1.md", "r2.md"])
+        #expect(set.initialCandidates(limit: 1).map(\.displayPath) == ["r1.md"])
     }
 
     @Test("fuzzy 検索では履歴の加点が同点の候補を押し上げる")
@@ -156,7 +163,7 @@ struct QuickOpenCandidatesTests {
         let root = url("/repo")
         let set = collect(
             root: root,
-            tracked: [url("/repo/a/x.md")],
+            tracked: [url("/repo/a/x.md"), url("/repo/b/x.md")],
             recent: [url("/repo/b/x.md")]
         )
 
