@@ -8,7 +8,7 @@ final class CodeFontSettingsWindowController: NSWindowController {
         let view = CodeFontSettingsView(preference: preference, onChange: onChange)
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)
-        window.title = String(localized: "settings.codeFont.windowTitle", bundle: .l10n)
+        window.title = String(localized: "settings.windowTitle", bundle: .l10n)
         window.styleMask = [.titled, .closable]
         self.init(window: window)
     }

@@ -1157,6 +1157,22 @@
         }
       }
     },
+    "settings.windowTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定"
+          }
+        }
+      }
+    },
     "sidebar.context.copy": {
       "extractionState": "manual",
       "localizations": {
