@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldKit
 import BefoldTestSupport
 import Foundation
 import Testing
@@ -18,7 +19,8 @@ struct ViewerWindowManagerIntegrationTests {
             sessionStore: SessionStore(defaults: defaults),
             recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
             hiddenFilesPreference: HiddenFilesPreference(defaults: defaults),
-            perFileState: PerFileStateStore(defaults: defaults)
+            perFileState: PerFileStateStore(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults)
         )
     }
 

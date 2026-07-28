@@ -44,4 +44,45 @@ struct AppVersionTests {
         #expect(path != nil)
         #expect(path?.isEmpty == false)
     }
+
+    // MARK: - ビルド番号付き表記(GUI 表記との統一 / TASK-174)
+
+    @Test("short と build が揃えば \"<short> (<build>)\" 形式で返す(GUI About と同体裁)")
+    func resolvedWithBuildFormatsShortAndBuild() {
+        let resolved = AppVersion.resolvedWithBuild(infoDictionary: [
+            "CFBundleShortVersionString": "9.9.9-dev.1",
+            "CFBundleVersion": "801",
+        ])
+        #expect(resolved == "9.9.9-dev.1 (801)")
+    }
+
+    @Test("CFBundleVersion が無ければ短縮バージョンのみを返す(空括弧にしない)")
+    func resolvedWithBuildOmitsMissingBuild() {
+        let resolved = AppVersion.resolvedWithBuild(infoDictionary: ["CFBundleShortVersionString": "9.9.9-dev.1"])
+        #expect(resolved == "9.9.9-dev.1")
+    }
+
+    @Test("CFBundleVersion が空文字なら短縮バージョンのみを返す(空括弧にしない)")
+    func resolvedWithBuildOmitsEmptyBuild() {
+        let resolved = AppVersion.resolvedWithBuild(infoDictionary: [
+            "CFBundleShortVersionString": "9.9.9-dev.1",
+            "CFBundleVersion": "",
+        ])
+        #expect(resolved == "9.9.9-dev.1")
+    }
+
+    @Test("CFBundleVersion が未置換プレースホルダなら短縮バージョンのみを返す")
+    func resolvedWithBuildOmitsPlaceholderBuild() {
+        let resolved = AppVersion.resolvedWithBuild(infoDictionary: [
+            "CFBundleShortVersionString": "9.9.9-dev.1",
+            "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
+        ])
+        #expect(resolved == "9.9.9-dev.1")
+    }
+
+    @Test("infoDictionary が nil ならフォールバック定数のみ(ビルド番号なし)を返す")
+    func resolvedWithBuildFallsBackWithoutBuildWhenNil() {
+        let resolved = AppVersion.resolvedWithBuild(infoDictionary: nil)
+        #expect(resolved == AppVersion.fallback)
+    }
 }

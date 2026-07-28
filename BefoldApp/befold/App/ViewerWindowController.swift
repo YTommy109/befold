@@ -112,7 +112,7 @@ final class ViewerWindowController: NSWindowController {
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
-        bookmarkStore: BookmarkStore = BookmarkStore(),
+        bookmarkStore: BookmarkStore,
         gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
         initialSidebarCollapsed: Bool = true,
         initialFrameDescriptor: String? = nil,

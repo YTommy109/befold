@@ -67,7 +67,22 @@ public extension ViewerRenderer {
                 isReady = false
                 // 直接ロードする HTML 内の <script> 実行を無効化する（設計スコープ外）。
                 webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = false
-                webView.loadFileURL(filePath, allowingReadAccessTo: filePath.deletingLastPathComponent())
+                // charset 宣言(BOM/<meta charset>)のある HTML は WebKit の解釈で正しく読めるため、
+                // 相対リソースを読める loadFileURL のまま。宣言の無い HTML だけは WebKit が既定
+                // エンコーディングを誤推定して文字化けするので、実エンコーディングを判定し UTF-8 へ
+                // 正規化した文字列を明示エンコーディングでロードする。loadData は allowingReadAccessTo を
+                // 伴わず宣言なし HTML から相対参照した兄弟リソースは読めなくなるが、宣言なし HTML は
+                // 簡易な断片が大半で影響は小さい。
+                if let data = try? Data(contentsOf: filePath),
+                   let normalizedHTML = HTMLCharsetNormalizer.utf8NormalizedHTML(for: data)
+                {
+                    webView.load(
+                        Data(normalizedHTML.utf8), mimeType: "text/html",
+                        characterEncodingName: "UTF-8", baseURL: filePath
+                    )
+                } else {
+                    webView.loadFileURL(filePath, allowingReadAccessTo: filePath.deletingLastPathComponent())
+                }
                 return
             }
 

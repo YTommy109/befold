@@ -1,9 +1,10 @@
 ---
 id: TASK-173
 title: コードブロック表示にインデントガイド(縦線)を追加する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-27 11:55'
+updated_date: '2026-07-28 07:37'
 labels: []
 dependencies: []
 ordinal: 248000
@@ -31,8 +32,20 @@ Zed や VS Code のように、ソースコード表示でインデントの深�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 コードブロック表示(行番号あり/なし双方)でインデントの深さに応じた縦のガイド線が表示される
-- [ ] #2 タブとスペースが混在するソースファイルでもガイド線の位置がずれない
-- [ ] #3 長い行が折り返し表示される場合でもガイド線が崩れない、または折り返し時の扱いが明文化されている
-- [ ] #4 ライト/ダークいずれのテーマでもガイド線が視認でき、既存のシンタックスハイライト色と衝突しない
+- [x] #1 コードブロック表示(行番号あり/なし双方)でインデントの深さに応じた縦のガイド線が表示される
+- [x] #2 タブとスペースが混在するソースファイルでもガイド線の位置がずれない
+- [x] #3 長い行が折り返し表示される場合でもガイド線が崩れない、または折り返し時の扱いが明文化されている
+- [x] #4 ライト/ダークいずれのテーマでもガイド線が視認でき、既存のシンタックスハイライト色と衝突しない
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+ステータス未更新のまま実装が完了していたため事後にクローズ。検証は committed 実装(ddccadb4)のコード確認による。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+コミット ddccadb4 で実装済み。行番号あり/なし双方のコード表示を行単位DOMに統合し、viewer.js の indentColumns() で先頭空白の桁数を計算(tab-size=4 固定)、各行に --indent-cols/--indent-depth を付与。style.css の repeating-linear-gradient で縦ガイドを描画し、ハンギングインデントで折り返し継続行を整列。--indent-guide 変数をライト/ダーク別に定義。実装コードとコミット差分で全4基準の充足を確認。
+<!-- SECTION:FINAL_SUMMARY:END -->

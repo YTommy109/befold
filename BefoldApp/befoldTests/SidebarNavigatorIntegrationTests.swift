@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldKit
 import BefoldTestSupport
 import Foundation
 import Testing
@@ -14,7 +15,8 @@ struct SidebarNavigatorIntegrationTests {
         ViewerWindowController(
             fileURL: file,
             defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests"),
-            perFileState: PerFileStateStore(defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests"))
+            perFileState: PerFileStateStore(defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests")),
+            bookmarkStore: BookmarkStore(defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests"))
         )
     }
 

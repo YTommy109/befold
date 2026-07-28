@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldKit
 import BefoldTestSupport
 import Foundation
 import Testing
@@ -55,6 +56,7 @@ struct ViewerWindowControllerCLIOptionsTests {
 
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults, perFileState: perFileState,
+            bookmarkStore: BookmarkStore(defaults: defaults),
             sourceModeOverride: true,
             store: makeMockStore(defaults: defaults),
             directoryLister: noEntries
@@ -81,6 +83,7 @@ struct ViewerWindowControllerCLIOptionsTests {
 
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults, perFileState: perFileState,
+            bookmarkStore: BookmarkStore(defaults: defaults),
             store: makeMockStore(defaults: defaults),
             directoryLister: noEntries
         )
@@ -96,6 +99,7 @@ struct ViewerWindowControllerCLIOptionsTests {
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults,
             perFileState: makePerFileState(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults),
             showLineNumbersOverride: true,
             store: makeMockStore(defaults: defaults),
             directoryLister: noEntries
@@ -113,6 +117,7 @@ struct ViewerWindowControllerCLIOptionsTests {
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults,
             perFileState: makePerFileState(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults),
             showLineNumbersOverride: true,
             store: makeMockStore(defaults: defaults),
             directoryLister: noEntries
@@ -131,6 +136,7 @@ struct ViewerWindowControllerCLIOptionsTests {
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults,
             perFileState: makePerFileState(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults),
             store: makeMockStore(defaults: defaults),
             directoryLister: noEntries
         )
@@ -148,6 +154,7 @@ struct ViewerWindowControllerCLIOptionsTests {
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults,
             perFileState: makePerFileState(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults),
             showLineNumbersOverride: true,
             store: injectedStore,
             directoryLister: noEntries
@@ -166,6 +173,7 @@ struct ViewerWindowControllerCLIOptionsTests {
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults,
             perFileState: makePerFileState(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults),
             initialSortOrder: .alphabetical,
             store: makeMockStore(defaults: defaults),
             directoryLister: { _, sortOrder, _ in
