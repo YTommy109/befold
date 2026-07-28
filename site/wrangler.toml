@@ -1,0 +1,16 @@
+name = "befold-site"
+main = "src/index.ts"
+compatibility_date = "2026-07-28"
+compatibility_flags = ["nodejs_compat"]
+
+# database_id はプレースホルダ。実デプロイ前に
+# `wrangler d1 create befold-analytics` で払い出した ID に差し替える
+# （ローカル開発・テストでは ID は使われない）。
+[[d1_databases]]
+binding = "DB"
+database_name = "befold-analytics"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[observability]
+enabled = true

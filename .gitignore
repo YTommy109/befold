@@ -1,6 +1,10 @@
 # Node.js (Jest)
 BefoldApp/node_modules/
 
+# Cloudflare Worker 配布サイト (site/)
+site/node_modules/
+site/.wrangler/
+
 # Swift / Xcode
 BefoldApp/.build/
 BefoldApp/build/
