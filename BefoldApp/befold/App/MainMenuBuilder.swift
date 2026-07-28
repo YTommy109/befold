@@ -41,6 +41,14 @@ enum MainMenuBuilder {
             action: #selector(AppDelegate.installCLI(_:)),
             keyEquivalent: ""
         )
+        if FeatureGate.inProgressFeaturesEnabled {
+            let settings = menu.addItem(
+                withTitle: String(localized: "menu.app.settings", bundle: .l10n),
+                action: #selector(AppDelegate.showSettings(_:)),
+                keyEquivalent: ","
+            )
+            settings.keyEquivalentModifierMask = [.command]
+        }
         menu.addItem(.separator())
         let servicesTitle = String(localized: "menu.app.services", bundle: .l10n)
         let servicesItem = NSMenuItem(title: servicesTitle, action: nil, keyEquivalent: "")
