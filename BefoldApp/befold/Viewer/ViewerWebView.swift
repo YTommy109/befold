@@ -34,6 +34,10 @@ struct ViewerWebView: NSViewRepresentable {
     let loadFailed: Bool
     /// ロード時に JS へ注入するファイル毎の初期倍率。
     let initialZoom: Double
+    /// ロード時に JS へ注入するソースビュー等幅フォントファミリー名。nil はシステム既定。
+    let codeFontFamily: String?
+    /// ロード時に JS へ注入するソースビューのコードフォントサイズ(pt)。
+    let codeFontSizePoints: Double
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
     let scrollPositionToRestore: Double
     /// JS 側の出来事(倍率・スクロール位置・リンク・パス解決・続きを読み込む)の通知先。
@@ -56,7 +60,10 @@ struct ViewerWebView: NSViewRepresentable {
         renderer.delegate = rendererDelegate.value
         renderer.rendererFeatures = rendererFeatures
 
-        let webView = renderer.makeWebView(initialZoom: initialZoom, findOptionsPreference: findOptionsPreference)
+        let webView = renderer.makeWebView(
+            initialZoom: initialZoom, findOptionsPreference: findOptionsPreference,
+            codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints
+        )
         renderer.webViewProxy = webViewProxy
         webViewProxy.webView = webView
 

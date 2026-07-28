@@ -168,4 +168,19 @@ struct ViewerRendererContentUpdateTests {
 
         #expect(canConsume == false)
     }
+
+    @Test("makeWebView がコードフォント設定をロード前スクリプトへ注入する")
+    @MainActor
+    func makeWebViewInjectsCodeFontScripts() {
+        let renderer = ViewerRenderer()
+        let webView = renderer.makeWebView(
+            initialZoom: 1.0, findOptionsPreference: nil,
+            codeFontFamily: "Menlo", codeFontSizePoints: 14
+        )
+
+        let sources = webView.configuration.userContentController.userScripts.map(\.source)
+
+        #expect(sources.contains { $0.contains("_mmdMonoFontFamily") && $0.contains("Menlo") })
+        #expect(sources.contains { $0.contains("_mmdCodeFontSize") && $0.contains("14.0") })
+    }
 }
