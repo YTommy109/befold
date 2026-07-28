@@ -34,4 +34,27 @@ struct PathRelativizerTests {
 
         #expect(PathRelativizer.relativePath(of: base, relativeTo: base) == "")
     }
+
+    @Test("git root があれば git root 基準の相対パスになる")
+    func gitRootTakesPrecedenceOverWorkspaceRoot() {
+        let workspaceRoot = URL(fileURLWithPath: "/Users/tester/project/docs")
+        let gitRoot = URL(fileURLWithPath: "/Users/tester/project")
+        let url = URL(fileURLWithPath: "/Users/tester/project/docs/spec.md")
+
+        #expect(
+            PathRelativizer.relativePath(of: url, workspaceRoot: workspaceRoot, gitRoot: gitRoot)
+                == "docs/spec.md"
+        )
+    }
+
+    @Test("git root が nil ならワークスペースルート基準の相対パスになる")
+    func nilGitRootFallsBackToWorkspaceRoot() {
+        let workspaceRoot = URL(fileURLWithPath: "/Users/tester/project/docs")
+        let url = URL(fileURLWithPath: "/Users/tester/project/docs/spec.md")
+
+        #expect(
+            PathRelativizer.relativePath(of: url, workspaceRoot: workspaceRoot, gitRoot: nil)
+                == "spec.md"
+        )
+    }
 }

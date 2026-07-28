@@ -12,4 +12,11 @@ public enum PathRelativizer {
         }
         return urlComponents.dropFirst(baseComponents.count).joined(separator: "/")
     }
+
+    /// `url` の相対パスを、git 管理下なら `gitRoot`、そうでなければ `workspaceRoot` を
+    /// 基準にして返す。git リポジトリのファイルはリポジトリルート基準の相対パスになり、
+    /// リポジトリ外のファイルは従来どおりウィンドウの最上位ディレクトリ基準のままになる。
+    public static func relativePath(of url: URL, workspaceRoot: URL, gitRoot: URL?) -> String {
+        relativePath(of: url, relativeTo: gitRoot ?? workspaceRoot)
+    }
 }

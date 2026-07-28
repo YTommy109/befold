@@ -9,6 +9,9 @@ struct FileListView: View {
     let onSortOrderChanged: (SortOrder) -> Void
     let onOpenInNewWindow: (URL) -> Void
     var onToggleHiddenFiles: (() -> Void)?
+    /// 対象ファイルを含む git リポジトリの作業ツリールート。git 管理外・未設定なら nil。
+    /// 相対パスコピーの基準を git 管理下では git root にするために使う。
+    var resolveGitRoot: ((URL) -> URL?)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -133,7 +136,11 @@ struct FileListView: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(
-            PathRelativizer.relativePath(of: url, relativeTo: model.rootDirectory),
+            PathRelativizer.relativePath(
+                of: url,
+                workspaceRoot: model.rootDirectory,
+                gitRoot: resolveGitRoot?(url)
+            ),
             forType: .string
         )
     }
