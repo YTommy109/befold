@@ -195,6 +195,8 @@ body {
 #diagram-wrap.markdown-body samp,
 #diagram-wrap.markdown-body pre {
   font-size: 0.75em;
+  /* fallback の inherit は必ず残すこと(未設定時は本文フォントを継承させる) */
+  font-family: var(--mmd-mono-font-family, inherit);
 }
 
 /* pre 内の code が 0.75em × 0.75em と二重に縮まないよう
@@ -244,7 +246,9 @@ body {
   height: 100%;
   overflow: auto;
   padding: 0.25em 0.5ch;
-  font-size: calc(var(--mmd-markdown-font-size, 16px) * 0.75);
+  font-size: var(--mmd-code-font-size, calc(var(--mmd-markdown-font-size, 16px) * 0.75));
+  /* fallback の inherit は必ず残すこと(未設定時は本文フォントを継承させる) */
+  font-family: var(--mmd-mono-font-family, inherit);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-all;
