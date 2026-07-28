@@ -3,6 +3,13 @@ main = "src/index.ts"
 compatibility_date = "2026-07-28"
 compatibility_flags = ["nodejs_compat"]
 
+# LP の CSS / JS / スクリーンショットは静的アセットとして配信する。
+# ルーティングは Worker 優先（LP 本体や計測ルートは Worker が返す）。
+[assets]
+directory = "public"
+not_found_handling = "none"
+run_worker_first = false
+
 # database_id はプレースホルダ。実デプロイ前に
 # `wrangler d1 create befold-analytics` で払い出した ID に差し替える
 # （ローカル開発・テストでは ID は使われない）。

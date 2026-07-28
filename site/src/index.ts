@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { publicRoutes } from './routes/public'
 
 /**
  * Worker のバインディング型。`Env` は wrangler types が
@@ -8,7 +9,7 @@ export type AppEnv = { Bindings: Env }
 
 const app = new Hono<AppEnv>()
 
-// 公開ルート（LP / download / appcast）とダッシュボードは TASK-182.2 以降で実装する。
 app.get('/healthz', (c) => c.text('ok'))
+app.route('/', publicRoutes)
 
 export default app
