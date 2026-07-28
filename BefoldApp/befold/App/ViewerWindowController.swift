@@ -269,6 +269,9 @@ final class ViewerWindowController: NSWindowController {
             onToggleHiddenFiles: { [weak self] in
                 guard let self else { return }
                 delegate?.viewerWindowDidToggleHiddenFiles(self)
+            },
+            resolveGitRoot: { [gitFileIndex] url in
+                gitFileIndex.repositoryRoot(forFileAt: url)
             }
         )
         let splitViewController = ViewerSplitViewController(
