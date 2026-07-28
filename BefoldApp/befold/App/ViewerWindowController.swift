@@ -38,6 +38,7 @@ final class ViewerWindowController: NSWindowController {
     private let perFileState: PerFileStateStore
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
+    private let codeFontPreference: CodeFontPreference
     private let bookmarkStore: BookmarkStore
     /// ウィンドウ生成時のサイドバー初期開閉状態。解決(記憶の引き継ぎ・CLI からの強制表示など)は
     /// ViewerWindowManager.openViewer が行い、ここでは結果を受け取って渡すだけにする。
@@ -111,6 +112,7 @@ final class ViewerWindowController: NSWindowController {
         fileURL: URL, defaults: UserDefaults = .standard,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
+        codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore,
         gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
@@ -128,6 +130,7 @@ final class ViewerWindowController: NSWindowController {
         self.defaults = defaults
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
+        self.codeFontPreference = codeFontPreference
         self.bookmarkStore = bookmarkStore
         self.gitFileIndex = gitFileIndex
         self.initialSidebarCollapsed = initialSidebarCollapsed
@@ -248,6 +251,8 @@ final class ViewerWindowController: NSWindowController {
             zoomStore: perFileState.zoom,
             scrollPositionStore: perFileState.scrollPosition,
             findOptionsPreference: findOptionsPreference,
+            codeFontFamily: codeFontPreference.fontFamily,
+            codeFontSizePoints: codeFontPreference.fontSizePoints,
             fileListModel: fileListModel,
             rendererDelegate: WeakRendererDelegate(self),
             onSelectFile: onSelectFile,
@@ -448,6 +453,14 @@ extension ViewerWindowController: SidebarNavigatorHost {
     /// (ViewerWindowManager.applyDisplayOverrides)のような外部要因からも呼ばれる。
     func refreshToolbarState() {
         toolbarController.refreshToolbarState()
+    }
+
+    /// 現在の codeFontPreference の値を WebView へ注入し直して即時反映する。
+    /// フォント設定変更時に ViewerWindowManager.applyCodeFontToAllWindows から呼ばれる。
+    func applyCodeFontFromPreference() {
+        webViewCommands.applyCodeFont(
+            family: codeFontPreference.fontFamily, points: codeFontPreference.fontSizePoints
+        )
     }
 }
 

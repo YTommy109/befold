@@ -114,7 +114,13 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// - Parameters:
     ///   - initialZoom: ロード前に JS へ注入する初期倍率。
     ///   - findOptionsPreference: 検索バー3トグルの永続化ストア。QuickLook 等では nil を渡す。
-    public func makeWebView(initialZoom: Double, findOptionsPreference: FindOptionsPreference?) -> WKWebView {
+    ///   - codeFontFamily: ロード前に JS へ注入するソースビュー等幅フォントファミリー名。
+    ///     nil はシステム既定(QuickLook 等では nil を渡す)。
+    ///   - codeFontSizePoints: ロード前に JS へ注入するソースビューのコードフォントサイズ(pt)。
+    public func makeWebView(
+        initialZoom: Double, findOptionsPreference: FindOptionsPreference?,
+        codeFontFamily: String? = nil, codeFontSizePoints: Double = 10
+    ) -> WKWebView {
         let config = WKWebViewConfiguration()
         #if DEBUG
             // Web インスペクタを有効化する（公開 API がないため KVC を使用）。
@@ -130,6 +136,8 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
             ViewerBridge.systemFontSizeScript(
                 NSFont.preferredFont(forTextStyle: .body).pointSize
             ),
+            ViewerBridge.monoFontFamilyScript(codeFontFamily),
+            ViewerBridge.codeFontSizeScript(codeFontSizePoints),
             ViewerBridge.initialFindOptionsScript(
                 ViewerBridge.FindOptions(
                     caseSensitive: findOptionsPreference?.caseSensitive ?? false,

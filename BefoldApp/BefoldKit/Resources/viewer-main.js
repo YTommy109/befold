@@ -84,6 +84,28 @@
     );
   }
 
+  // Swift が注入した等幅フォント設定を CSS 変数へ反映する。
+  //  --mmd-mono-font-family: ソースビュー＋プレビュー内コード両方（ファミリーのみ）
+  //  --mmd-code-font-size:   ソースビューのみ（絶対サイズ、px）
+  function _mmdInitCodeFont() {
+    var root = document.documentElement;
+    var family = window._mmdMonoFontFamily || '';
+    if (family) {
+      // CSS quoted-string 内で壊れないよう " と \ をエスケープする。
+      var safe = family.replace(/[\\"]/g, '\\$&');
+      root.style.setProperty('--mmd-mono-font-family',
+        '"' + safe + '", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace');
+    } else {
+      root.style.removeProperty('--mmd-mono-font-family');
+    }
+    var pt = window._mmdCodeFontSize;
+    if (typeof pt === 'number' && pt > 0) {
+      root.style.setProperty('--mmd-code-font-size', (pt * 16 / 13) + 'px');
+    } else {
+      root.style.removeProperty('--mmd-code-font-size');
+    }
+  }
+
   function _mmdApplyZoom() {
     var zoom = _mmdZoom.value();
     var wrap = document.getElementById('diagram-wrap');
@@ -1528,6 +1550,7 @@
     _mmdInitLoadMore();
     _mmdInitZoom();
     _mmdInitFontSize();
+    _mmdInitCodeFont();
     _mmdInitFind();
   }
 
@@ -1539,6 +1562,7 @@
       _mmdInit: _mmdInit,
       _mmdInitZoom: _mmdInitZoom,
       _mmdInitFontSize: _mmdInitFontSize,
+      _mmdInitCodeFont: _mmdInitCodeFont,
       _mmdInitFind: _mmdInitFind,
       _mmdPostMessage: _mmdPostMessage,
       _mmdApplyZoom: _mmdApplyZoom,

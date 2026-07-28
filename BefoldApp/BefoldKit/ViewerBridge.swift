@@ -29,6 +29,8 @@ public enum ViewerBridge {
         case openFind = "_mmdOpenFind"
         case findNextIfOpen = "_mmdFindNextIfOpen"
         case findPrevIfOpen = "_mmdFindPrevIfOpen"
+        /// 注入済みの等幅フォント設定を読んで CSS 変数へ反映する(applyCodeFontScript が使う)。
+        case initCodeFont = "_mmdInitCodeFont"
 
         /// `_mmdZoomIn()` 形式の呼び出しスクリプト。
         public var callScript: String {
@@ -60,6 +62,26 @@ public enum ViewerBridge {
     /// viewer.html 側は _mmdInitFontSize() が読んで CSS 変数へ反映する。
     public static func systemFontSizeScript(_ size: Double) -> String {
         "window._mmdSystemFontSize = \(size);"
+    }
+
+    /// ロード時に等幅フォントファミリー名を注入するスクリプト。JSONEncoder で
+    /// エスケープし、JS インジェクションを防ぐ。nil は空文字として注入する
+    /// (viewer.html 側はこれをシステム既定へのフォールバックとして扱う)。
+    public static func monoFontFamilyScript(_ family: String?) -> String {
+        let encoded = (try? JSONEncoder().encode(family ?? "")).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
+        return "window._mmdMonoFontFamily = \(encoded);"
+    }
+
+    /// ロード時にコードフォントサイズ(pt)を注入するスクリプト。
+    public static func codeFontSizeScript(_ points: Double) -> String {
+        "window._mmdCodeFontSize = \(points);"
+    }
+
+    /// 表示中ファイルの切り替え時などに、等幅フォント設定を注入し直して即時反映する
+    /// スクリプト。viewer.html 側は _mmdInitCodeFont() が注入値を読んで CSS 変数へ反映する。
+    public static func applyCodeFontScript(family: String?, points: Double) -> String {
+        monoFontFamilyScript(family) + " " + codeFontSizeScript(points) + " "
+            + PlainFunction.initCodeFont.callScript + ";"
     }
 
     /// render(content, type[, lang]) 呼び出しを組み立てる。

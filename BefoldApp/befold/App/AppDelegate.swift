@@ -11,7 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sessionStore: SessionStore
     private let windowManager: ViewerWindowManager
     private let hiddenFilesPreference: HiddenFilesPreference
+    private let codeFontPreference: CodeFontPreference
     private let sessionRestorer: SessionRestorer
+    private var codeFontSettingsWindowController: CodeFontSettingsWindowController?
     private lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: false,
         updaterDelegate: self,
@@ -43,12 +45,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let bookmarkStore = BookmarkStore(defaults: .standard)
         let hiddenFilesPreference = HiddenFilesPreference()
         let findOptionsPreference = FindOptionsPreference()
+        let codeFontPreference = CodeFontPreference()
         let perFileState = PerFileStateStore()
         let windowManager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
             hiddenFilesPreference: hiddenFilesPreference,
             findOptionsPreference: findOptionsPreference,
+            codeFontPreference: codeFontPreference,
             perFileState: perFileState,
             bookmarkStore: bookmarkStore
         )
@@ -57,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.bookmarkStore = bookmarkStore
         self.windowManager = windowManager
         self.hiddenFilesPreference = hiddenFilesPreference
+        self.codeFontPreference = codeFontPreference
         sessionRestorer = SessionRestorer(sessionStore: sessionStore, windowManager: windowManager)
         super.init()
         DistributedNotificationCenter.default().addObserver(
@@ -298,6 +303,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// View > Show/Hide Hidden Files(⌘⌃H)。不可視ファイル表示を全ウィンドウで一括切替する。
     @objc func toggleHiddenFiles(_ sender: Any?) {
         windowManager.toggleHiddenFiles()
+    }
+
+    /// App > Settings…(⌘,)。FeatureGate 有効時のみメニューに現れる。単一インスタンスで、
+    /// 既に開いていれば前面化するだけにする。
+    @objc func showSettings(_ sender: Any?) {
+        let controller = codeFontSettingsWindowController ?? CodeFontSettingsWindowController(
+            preference: codeFontPreference,
+            onChange: { [weak windowManager] in windowManager?.applyCodeFontToAllWindows() }
+        )
+        codeFontSettingsWindowController = controller
+        controller.showAndActivate()
     }
 
     /// File > Quick Open(⌘P)。パス入力と fuzzy 検索のパネルを開く。

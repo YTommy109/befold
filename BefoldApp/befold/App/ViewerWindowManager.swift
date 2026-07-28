@@ -22,6 +22,7 @@ final class ViewerWindowManager {
     private let recentDocumentsStore: RecentDocumentsStore
     private let hiddenFilesPreference: HiddenFilesPreference
     private let findOptionsPreference: FindOptionsPreference
+    private let codeFontPreference: CodeFontPreference
     private let perFileState: PerFileStateStore
     private let bookmarkStore: BookmarkStore
     /// openViewer のファイル存在ガードが使う I/O 抽象。静的な DefaultFileReader を直接叩かず
@@ -55,6 +56,7 @@ final class ViewerWindowManager {
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
+        codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore,
         fileReader: any FileReading = DefaultFileReader(),
@@ -67,6 +69,7 @@ final class ViewerWindowManager {
         self.recentDocumentsStore = recentDocumentsStore
         self.hiddenFilesPreference = hiddenFilesPreference
         self.findOptionsPreference = findOptionsPreference
+        self.codeFontPreference = codeFontPreference
         self.perFileState = perFileState
         self.bookmarkStore = bookmarkStore
         self.fileReader = fileReader
@@ -111,6 +114,14 @@ final class ViewerWindowManager {
     private func refreshAllToolbars() {
         for controller in allControllers {
             controller.refreshToolbarState()
+        }
+    }
+
+    /// codeFontPreference の現在値を、開いている全ウィンドウの WebView へ即座に反映する。
+    /// フォント設定変更(環境設定 UI 等)から呼ばれる。
+    func applyCodeFontToAllWindows() {
+        for controller in allControllers {
+            controller.applyCodeFontFromPreference()
         }
     }
 
@@ -181,6 +192,7 @@ final class ViewerWindowManager {
             fileURL: url,
             hiddenFilesPreference: hiddenFilesPreference,
             findOptionsPreference: findOptionsPreference,
+            codeFontPreference: codeFontPreference,
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             gitFileIndex: gitFileIndex,

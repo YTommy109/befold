@@ -131,6 +131,26 @@ struct ViewerBridgeTests {
         #expect(!ViewerBridge.loadMoreLinesMessageName.isEmpty)
     }
 
+    @Test("フォントファミリーは JSON エスケープして注入する")
+    func monoFontFamilyEscapes() {
+        #expect(ViewerBridge.monoFontFamilyScript("SF Mono") == "window._mmdMonoFontFamily = \"SF Mono\";")
+    }
+
+    @Test("ファミリー nil のときは空文字を注入する")
+    func monoFontFamilyNilIsEmpty() {
+        #expect(ViewerBridge.monoFontFamilyScript(nil) == "window._mmdMonoFontFamily = \"\";")
+    }
+
+    @Test("引用符を含むフォント名でも壊れない（エスケープされる）")
+    func monoFontFamilyWithQuote() {
+        #expect(ViewerBridge.monoFontFamilyScript("a\"b") == "window._mmdMonoFontFamily = \"a\\\"b\";")
+    }
+
+    @Test("コードフォントサイズを pt 値として注入する")
+    func codeFontSizeScriptEmitsPoints() {
+        #expect(ViewerBridge.codeFontSizeScript(11) == "window._mmdCodeFontSize = 11.0;")
+    }
+
     @Test("hostFeaturesScript が window._mmdHostFeatures への代入文を生成する")
     func hostFeaturesScriptAssignsHostFeaturesGlobal() throws {
         let script = ViewerBridge.hostFeaturesScript(

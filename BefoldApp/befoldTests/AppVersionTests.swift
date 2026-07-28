@@ -85,4 +85,21 @@ struct AppVersionTests {
         let resolved = AppVersion.resolvedWithBuild(infoDictionary: nil)
         #expect(resolved == AppVersion.fallback)
     }
+
+    // MARK: - プレリリース判定（フィーチャーゲート土台 / TASK-180）
+
+    @Test("`-dev.N` を含むバージョンはプレリリースと判定する")
+    func detectsDevPrerelease() {
+        #expect(AppVersion.isPrerelease("1.4.10-dev.1") == true)
+    }
+
+    @Test("接尾辞のない通常バージョンはプレリリースではない")
+    func stableVersionIsNotPrerelease() {
+        #expect(AppVersion.isPrerelease("1.4.10") == false)
+    }
+
+    @Test("ハイフンを含む任意のプレリリース表記も true")
+    func anyHyphenSuffixIsPrerelease() {
+        #expect(AppVersion.isPrerelease("2.0.0-beta") == true)
+    }
 }

@@ -7,6 +7,10 @@ struct ViewerContentView: View {
     let zoomStore: ZoomStore
     let scrollPositionStore: ScrollPositionStore
     let findOptionsPreference: FindOptionsPreference
+    /// ロード時に JS へ注入するソースビュー等幅フォントファミリー名。nil はシステム既定。
+    let codeFontFamily: String?
+    /// ロード時に JS へ注入するソースビューのコードフォントサイズ(pt)。
+    let codeFontSizePoints: Double
     let fileListModel: FileListModel
     /// JS 側の出来事の通知先(倍率・スクロール位置・リンク・パス解決・続きを読み込む)。
     let rendererDelegate: WeakRendererDelegate
@@ -54,6 +58,8 @@ struct ViewerContentView: View {
                     lineCount: store.displayedLineCount,
                     loadFailed: store.loadFailed,
                     initialZoom: currentZoom,
+                    codeFontFamily: codeFontFamily,
+                    codeFontSizePoints: codeFontSizePoints,
                     scrollPositionToRestore: currentScrollPosition,
                     rendererDelegate: rendererDelegate,
                     findOptionsPreference: findOptionsPreference,

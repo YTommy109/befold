@@ -195,6 +195,9 @@ body {
 #diagram-wrap.markdown-body samp,
 #diagram-wrap.markdown-body pre {
   font-size: 0.75em;
+  /* fallback は未設定時の既定挙動を保つ monospace スタック
+     (inherit にすると .markdown-body の本文フォントが継承され非等幅になる) */
+  font-family: var(--mmd-mono-font-family, ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace);
 }
 
 /* pre 内の code が 0.75em × 0.75em と二重に縮まないよう
@@ -244,7 +247,10 @@ body {
   height: 100%;
   overflow: auto;
   padding: 0.25em 0.5ch;
-  font-size: calc(var(--mmd-markdown-font-size, 16px) * 0.75);
+  font-size: var(--mmd-code-font-size, calc(var(--mmd-markdown-font-size, 16px) * 0.75));
+  /* fallback は未設定時の既定挙動を保つ monospace スタック
+     (inherit にすると本文フォントが継承され非等幅になる) */
+  font-family: var(--mmd-mono-font-family, ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-all;
