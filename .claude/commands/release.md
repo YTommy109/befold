@@ -1,3 +1,7 @@
+---
+argument-hint: patch | minor | major | dev
+---
+
 # /release — バージョン bump & GitHub リリース作成
 
 引数: $ARGUMENTS（patch | minor | major | dev）
