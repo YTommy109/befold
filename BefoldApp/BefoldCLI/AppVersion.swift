@@ -6,7 +6,7 @@ import Foundation
 /// CFBundleShortVersionString / CFBundleVersion を読む。バンドル外(SPM 単体ビルド等)では
 /// `fallback` を使う。
 public enum AppVersion {
-    public static let fallback = "1.9.0"
+    public static let fallback = "1.10.0"
 
     /// マーケティングバージョンのみ(例: `1.9.1-dev.5`)。
     public static var current: String {
