@@ -11,15 +11,28 @@ final class QuickOpenPanelController: NSObject {
 
     private let makeEnvironment: () -> (any QuickOpenEnvironment)?
     private let onOpen: (URL) -> Void
+    private let notificationCenter: NotificationCenter
     private var panel: NSPanel?
+
+    /// パネルが表示中かどうか。表示状態を外部(テスト)から観測するためのシーム。
+    var isPresented: Bool {
+        panel != nil
+    }
 
     /// - Parameters:
     ///   - makeEnvironment: 候補源。パネルを開くたびに作り直し、その時点の索引と
     ///     現在開いているファイルを反映させる。組み立てられなければ nil を返し、パネルは開かない。
     ///   - onOpen: 決定した URL の開き先。
-    init(makeEnvironment: @escaping () -> (any QuickOpenEnvironment)?, onOpen: @escaping (URL) -> Void) {
+    ///   - notificationCenter: 非アクティブ化通知(`didResignActiveNotification`)の購読先。
+    ///     既定は `.default`(本番)。テストは独自 center を注入して通知を直接ポストできる。
+    init(
+        makeEnvironment: @escaping () -> (any QuickOpenEnvironment)?,
+        onOpen: @escaping (URL) -> Void,
+        notificationCenter: NotificationCenter = .default
+    ) {
         self.makeEnvironment = makeEnvironment
         self.onOpen = onOpen
+        self.notificationCenter = notificationCenter
     }
 
     /// 表示中なら閉じ、そうでなければ開く(⌘P の再押下で引っ込む)。
@@ -32,10 +45,20 @@ final class QuickOpenPanelController: NSObject {
     }
 
     func dismiss() {
+        // 非アクティブ化の購読は present 中だけ有効にする。閉じるときに必ず解除して、
+        // 未表示時にアプリが非アクティブ化しても余計な dismiss が走らないようにする。
+        notificationCenter.removeObserver(self, name: NSApplication.didResignActiveNotification, object: nil)
         // isReleasedWhenClosed=false のため close() は安全で、AppKit のウィンドウ終了経路
         // (windowWillClose 通知・ウィンドウリスト登録解除)に正しく乗る。
         panel?.close()
         panel = nil
+    }
+
+    /// 他アプリへ切り替えて befold が非アクティブ化したら閉じる(Spotlight と同じ振る舞い)。
+    /// `.nonactivatingPanel` のフローティングパネルはアプリ非アクティブ化をまたいで残るため、
+    /// `windowDidResignKey` だけでは他アプリ切替時に閉じない。それをここで補う。
+    @objc private func handleAppDidResignActive() {
+        dismiss()
     }
 
     // MARK: - Private
@@ -74,6 +97,11 @@ final class QuickOpenPanelController: NSObject {
         panel.delegate = self
 
         self.panel = panel
+        // 他アプリへ切り替えて befold が非アクティブ化したら閉じる。present 中だけ購読する。
+        notificationCenter.addObserver(
+            self, selector: #selector(handleAppDidResignActive),
+            name: NSApplication.didResignActiveNotification, object: nil
+        )
         position(panel)
         panel.makeKeyAndOrderFront(nil)
     }
