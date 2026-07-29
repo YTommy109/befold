@@ -4,16 +4,39 @@ argument-hint: patch | minor | major | dev
 
 # /release — バージョン bump & GitHub リリース作成
 
-引数: $ARGUMENTS（patch | minor | major | dev）
+引数: $ARGUMENTS（patch | minor | major | dev、省略可）
 
 ## 手順
 
+### 0. 引数省略時のレベル自動判定
+
+`$ARGUMENTS` が空の場合、以下の方針でレベルを決める。
+**stable（patch/minor/major）へのバンプはリリースタイミングの意図的な判断
+であるため自動選択しない。省略時は原則 `dev` とする。**
+
+1. 直前のタグ（stable/dev 問わず最新）から `HEAD` までのコミットを確認する:
+
+   ```bash
+   git log $(git describe --tags --abbrev=0)..HEAD --pretty=%s
+   ```
+
+2. `docs:` / `chore:` / `test:` / `ci:` のみで、アプリの挙動に影響する
+   コミット（`feat:` / `fix:` / `refactor:` などプロダクトコードの変更）が
+   1件もない場合は、**リリース不要と判断してここで中断する**。中断する
+   旨と該当コミット一覧をユーザーに報告して終了する。
+3. アプリに影響する変更が1件でもあれば、レベルは `dev` とする。
+
+`$ARGUMENTS` が明示的に `patch` / `minor` / `major` 指定された場合のみ、
+その値で stable リリースを行う（この場合は手順0を行わず、ユーザー指定の
+レベルをそのまま使う）。
+
 ### 1. バージョン bump（またはdev タグ作成）
 
-`/bump` コマンドと同じ手順で bump する:
+`/bump` コマンドと同じ手順で bump する（レベルは `$ARGUMENTS` が指定されて
+いればそれを、省略時は手順0で決定した `dev` を使う）:
 
 ```bash
-scripts/bump.sh $ARGUMENTS
+scripts/bump.sh <レベル>
 ```
 
 エラー終了した場合はここで停止する（リカバリーしない）。
