@@ -5,7 +5,7 @@
 befold の配布 LP・ダウンロード計測・appcast プロキシ・分析ダッシュボードを
 1 つの Cloudflare Worker（Hono / TypeScript）で提供する。
 
-公開 URL: <https://befold-site.tokutomi.workers.dev>（独自ドメインは使わない）
+公開 URL: <https://befold.tommy109.workers.dev>（独自ドメインは使わない）
 
 ## ルート
 

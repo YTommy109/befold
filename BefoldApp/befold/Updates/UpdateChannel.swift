@@ -18,9 +18,9 @@ enum UpdateChannel: String, Sendable {
     var feedURLString: String {
         switch self {
         case .stable:
-            "https://befold-site.tokutomi.workers.dev/appcast.xml"
+            "https://befold.tommy109.workers.dev/appcast.xml"
         case .develop:
-            "https://befold-site.tokutomi.workers.dev/appcast-develop.xml"
+            "https://befold.tommy109.workers.dev/appcast-develop.xml"
         }
     }
 }
