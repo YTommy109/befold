@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { basicAuth } from 'hono/basic-auth'
 import type { AppEnv } from '../index'
 import { eventsAfter, maxEventId, summarize } from '../analytics'
 import { Dashboard } from '../views/dashboard'
@@ -10,17 +11,21 @@ const MAX_STREAM_MS = 10 * 60 * 1000
 export const dashboardRoutes = new Hono<AppEnv>()
 
 /**
- * Cloudflare Access の通過を確認する。
+ * ダッシュボードを所有者だけに限定する。
  *
- * 認可そのものは Access のポリシー（所有者メールのみ許可）が担い、Worker は
- * ポリシー内容を持たない。ここで見るのは Access が付与する JWT ヘッダの有無だけで、
- * Access を経由しない経路（*.workers.dev への直アクセス等）を塞ぐための多層防御。
+ * 配信先が *.workers.dev（Cloudflare 所有ドメイン）で Cloudflare Access を
+ * 設定できないため、Worker 側の Basic 認証で保護する。パスワードは
+ * `wrangler secret put DASHBOARD_PASSWORD` で設定し、コードには持たない。
+ * 未設定のまま公開されると素通しになるので、その場合は 503 で閉じる。
  */
 dashboardRoutes.use('*', async (c, next) => {
-  if (c.req.header('Cf-Access-Jwt-Assertion') === undefined) {
-    return c.text('forbidden', 403)
+  const password = c.env.DASHBOARD_PASSWORD
+  if (password === undefined || password.length === 0) {
+    return c.text('dashboard password is not configured', 503)
   }
-  await next()
+
+  const auth = basicAuth({ username: c.env.DASHBOARD_USER ?? 'owner', password })
+  return await auth(c, next)
 })
 
 dashboardRoutes.get('/', async (c) => {

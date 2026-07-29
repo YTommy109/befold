@@ -13,7 +13,12 @@ export default defineConfig({
         singleWorker: true,
         wrangler: { configPath: './wrangler.toml' },
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations },
+          // .dev.vars は gitignore 対象なので、テスト用の認証情報はここで固定する。
+          bindings: {
+            TEST_MIGRATIONS: migrations,
+            DASHBOARD_USER: 'owner',
+            DASHBOARD_PASSWORD: 'test-password',
+          },
         },
       }
     }),

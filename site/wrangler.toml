@@ -3,9 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2026-07-28"
 compatibility_flags = ["nodejs_compat"]
 
-# *.workers.dev には Cloudflare Access が掛からないため、その経路自体を塞ぐ。
-# 公開は Access を設定したカスタムドメイン経由のみとする。
-workers_dev = false
+# 独自ドメインは使わず、Cloudflare が用意する *.workers.dev で公開する。
+# workers.dev には Cloudflare Access を設定できないため、ダッシュボードは
+# Worker 側の Basic 認証（シークレット DASHBOARD_PASSWORD）で保護する。
+workers_dev = true
 
 # LP の CSS / JS / スクリーンショットは静的アセットとして配信する。
 # ルーティングは Worker 優先（LP 本体や計測ルートは Worker が返す）。

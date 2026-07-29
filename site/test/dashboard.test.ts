@@ -2,12 +2,16 @@ import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:
 import { afterEach, describe, expect, it } from 'vitest'
 import app from '../src/index'
 
-const ACCESS_HEADERS = { 'Cf-Access-Jwt-Assertion': 'dummy-token' }
+const AUTH_HEADERS = { Authorization: `Basic ${btoa('owner:test-password')}` }
 
-async function call(path: string, headers: Record<string, string> = {}): Promise<Response> {
+async function call(
+  path: string,
+  headers: Record<string, string> = {},
+  overrides: Partial<Env> = {},
+): Promise<Response> {
   const request = new Request(`https://befold.example${path}`, { headers })
   const ctx = createExecutionContext()
-  const response = await app.fetch(request, env, ctx)
+  const response = await app.fetch(request, { ...env, ...overrides }, ctx)
   await waitOnExecutionContext(ctx)
   return response
 }
@@ -38,17 +42,34 @@ afterEach(async () => {
   await env.DB.prepare('DELETE FROM events').run()
 })
 
-describe('Access 保護', () => {
-  it('Access のヘッダが無ければ 403 を返す', async () => {
-    expect((await call('/dashboard')).status).toBe(403)
-    expect((await call('/dashboard/stream')).status).toBe(403)
+describe('Basic 認証による保護', () => {
+  it('認証情報が無ければ 401 と WWW-Authenticate を返す', async () => {
+    const response = await call('/dashboard')
+
+    expect(response.status).toBe(401)
+    expect(response.headers.get('WWW-Authenticate')).toContain('Basic')
+    expect((await call('/dashboard/stream')).status).toBe(401)
   })
 
-  it('Access を通過していれば 200 を返す', async () => {
-    expect((await call('/dashboard', ACCESS_HEADERS)).status).toBe(200)
+  it('パスワードが違えば 401 を返す', async () => {
+    const wrong = { Authorization: `Basic ${btoa('owner:wrong')}` }
+
+    expect((await call('/dashboard', wrong)).status).toBe(401)
   })
 
-  it('公開ルートは Access ヘッダ無しでも 200 のままである', async () => {
+  it('パスワード未設定なら 503 で閉じる（素通しさせない）', async () => {
+    const response = await call('/dashboard', AUTH_HEADERS, {
+      DASHBOARD_PASSWORD: '',
+    } as Partial<Env>)
+
+    expect(response.status).toBe(503)
+  })
+
+  it('正しい認証情報なら 200 を返す', async () => {
+    expect((await call('/dashboard', AUTH_HEADERS)).status).toBe(200)
+  })
+
+  it('公開ルートは認証情報が無くても 200 のままである', async () => {
     expect((await call('/')).status).toBe(200)
   })
 })
@@ -61,7 +82,7 @@ describe('集計の表示', () => {
     await seed('download', { version: 'v1.10.0', country: 'JP', os: 'macOS 14.5' })
     await seed('update_check', { country: 'JP', os: 'macOS 14.5' })
 
-    const body = await (await call('/dashboard', ACCESS_HEADERS)).text()
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     expect(body).toContain('<span class="value" id="count-visit">2</span>')
     expect(body).toContain('<span class="value" id="count-download">2</span>')
@@ -74,7 +95,7 @@ describe('集計の表示', () => {
   })
 
   it('イベントが無くてもエラーにならない', async () => {
-    const body = await (await call('/dashboard', ACCESS_HEADERS)).text()
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     expect(body).toContain('<span class="value" id="count-visit">0</span>')
     expect(body).toContain('データなし')
@@ -86,7 +107,7 @@ describe('SSE ストリーム', () => {
     const oldId = await seed('visit')
     await seed('download', { version: 'v1.10.0' })
 
-    const response = await call(`/dashboard/stream?after=${oldId}`, ACCESS_HEADERS)
+    const response = await call(`/dashboard/stream?after=${oldId}`, AUTH_HEADERS)
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toContain('text/event-stream')

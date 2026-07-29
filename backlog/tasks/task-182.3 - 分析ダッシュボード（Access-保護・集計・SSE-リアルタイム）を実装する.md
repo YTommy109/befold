@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-07-28 13:35'
-updated_date: '2026-07-28 17:11'
+updated_date: '2026-07-29 11:30'
 labels: []
 dependencies: []
 documentation:
@@ -60,10 +60,18 @@ GET /dashboard を Cloudflare Access で所有者のみに保護し、日別 DL�
 - htmx + SSE 拡張ではなく素の EventSource（約 20 行）で実装した。受信するのは JSON 差分でありサーバ側 HTML 断片の差し替えが不要なため、htmx と拡張を vendoring する必要がない。
 - SSE は 2.5s ポーリング、1 接続あたり最大 10 分で自動終了（ブラウザが再接続）。Last-Event-ID とクエリ after の両方で再開位置を受け取る。
 - 集計は breakdown() のカラムを固定の union 型に限定し、kind はバインド変数で渡して SQL への外部入力混入を避けた。
+
+【方針変更 2026-07-29】独自ドメインを取得せず *.workers.dev で公開する方針が確定したため、認可方式を Cloudflare Access から Worker 側の Basic 認証へ変更した。
+理由: Access のアプリケーションは自アカウントのゾーンのホスト名にしか設定できず、Cloudflare 所有ドメインである workers.dev は保護対象にできないため。
+- /dashboard・/dashboard/stream を hono/basic-auth で保護。パスワードはシークレット DASHBOARD_PASSWORD（未設定時は素通しさせず 503）。
+- workers_dev = false → true に戻した。
+- EventSource はヘッダを設定できないが、ブラウザは認証済みオリジンへ Basic 認証情報を自動送出するため SSE もそのまま動作する（wrangler dev で確認済み）。
+- テスト用の認証情報は .dev.vars（gitignore）ではなく vitest.config.ts の miniflare bindings に固定し、クリーンな clone でもテストが通るようにした。
+再検証: vitest 25 passed（401/誤パスワード 401/未設定 503/正しい認証 200 を追加）、tsc クリーン、wrangler dev で 401→200・SSE の live push・公開ルート 200 を確認。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-分析ダッシュボード（GET /dashboard）と D1 ポーリング型 SSE（GET /dashboard/stream）を実装した。集計は種別ごとの合計・ユニーク訪問者・日別 DL(14 日)・バージョン別・国別・OS 別・最新イベント一覧。認可は Cloudflare Access に委ね（設定手順は site/README.md）、Worker は Access ヘッダ不在を 403 で弾き、workers_dev = false で Access を迂回する経路を塞いだ。vitest 23 件と wrangler dev での実機確認（403/200、集計描画、接続後イベントの live push）で検証済み。
+分析ダッシュボード（GET /dashboard）と D1 ポーリング型 SSE（GET /dashboard/stream）を実装した。集計は種別ごとの合計・ユニーク訪問者・日別 DL(14 日)・バージョン別・国別・OS 別・最新イベント一覧。*.workers.dev で公開する方針のため Cloudflare Access は使えず、認可は Worker 側の Basic 認証（シークレット DASHBOARD_PASSWORD、未設定時は 503）で実装した。vitest 25 件と wrangler dev での実機確認（401/200、集計描画、接続後イベントの live push）で検証済み。設定手順は site/README.md に記載。
 <!-- SECTION:FINAL_SUMMARY:END -->

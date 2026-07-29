@@ -13,8 +13,8 @@ befold の配布 LP・ダウンロード計測・appcast プロキシ・分析�
 | `GET /download` | 公開 | 最新リリースの DMG へ 302。`download` を記録 |
 | `GET /appcast.xml` | 公開 | GitHub の appcast をプロキシ。`update_check` を記録 |
 | `GET /appcast-develop.xml` | 公開 | 同上（develop チャンネル） |
-| `GET /dashboard` | Access | 集計ダッシュボード |
-| `GET /dashboard/stream` | Access | SSE（D1 ポーリング型）で新着イベントを push |
+| `GET /dashboard` | Basic 認証 | 集計ダッシュボード |
+| `GET /dashboard/stream` | Basic 認証 | SSE（D1 ポーリング型）で新着イベントを push |
 
 ## 開発
 
@@ -26,10 +26,11 @@ npm test                # vitest（@cloudflare/vitest-pool-workers）
 npm run typecheck
 ```
 
-ダッシュボードはローカルでは Access を通らないため、ヘッダを自分で付けて確認する。
+ローカルの認証情報は `.dev.vars`（gitignore 対象）に置く。`.dev.vars.example` をコピーして使う。
 
 ```bash
-curl -H 'Cf-Access-Jwt-Assertion: local' http://127.0.0.1:8787/dashboard
+cp .dev.vars.example .dev.vars
+curl -u owner:local-dev-password http://127.0.0.1:8787/dashboard
 ```
 
 ## スキーマ変更（Atlas）
@@ -51,19 +52,26 @@ npm run migrate:remote                     # 本番 D1 へ適用
    ```
 
 2. マイグレーションを本番 D1 へ適用する（`npm run migrate:remote`）。
-3. カスタムドメインのルートを設定する（`*.workers.dev` は `workers_dev = false` で無効化済み。
-   Access が掛からない経路を残さないため）。
-4. Cloudflare Access（Zero Trust）で `/dashboard` を保護する。
+3. ダッシュボードのパスワードをシークレットとして登録する（**デプロイ前に必須**）。
 
-### Cloudflare Access の設定手順
+   ```bash
+   npx wrangler secret put DASHBOARD_PASSWORD
+   npx wrangler secret put DASHBOARD_USER   # 省略時は owner
+   ```
 
-Zero Trust ダッシュボード → **Access → Applications → Add an application → Self-hosted**:
+4. `npx wrangler deploy` でデプロイする。公開 URL は
+   `https://befold-site.<アカウントのサブドメイン>.workers.dev`。
 
-- **Application name**: `befold analytics`
-- **Session duration**: 任意（既定の 24h で可）
-- **Public hostname**: 配布サイトのドメイン、**Path**: `dashboard`
-  （`/dashboard` と `/dashboard/stream` の両方が配下に入る）
-- **Policy**: Action = `Allow`、Include = `Emails` → 所有者のメールアドレスのみ
+## ダッシュボードの認証方式
 
-Worker 側はポリシー内容を持たない。Access が付与する `Cf-Access-Jwt-Assertion`
-ヘッダの有無だけを確認し、Access を経由しないアクセスを 403 で拒否する（多層防御）。
+独自ドメインを使わず `*.workers.dev` で公開するため、Cloudflare Access は使えない
+（Access のアプリケーションは自アカウントのゾーンのホスト名にしか設定できず、
+workers.dev は Cloudflare 所有のドメインであるため）。代わりに Worker 側の
+Basic 認証で `/dashboard` と `/dashboard/stream` を保護する。
+
+- パスワードはシークレット `DASHBOARD_PASSWORD`。コードや wrangler.toml には置かない。
+- 未設定のままデプロイされた場合は素通しさせず 503 で閉じる。
+- ブラウザは一度認証すると同一オリジンの後続リクエストにも認証情報を送るため、
+  ヘッダを設定できない `EventSource`（SSE）もそのまま動作する。
+- 将来 Cloudflare 管理下のドメインを使う場合は、Access（所有者メールのみ許可）へ
+  切り替えたうえでこの Basic 認証を撤去できる。
