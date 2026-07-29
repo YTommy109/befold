@@ -11,12 +11,16 @@ enum UpdateChannel: String, Sendable {
     }
 
     /// Sparkle が参照する appcast フィード URL。
+    ///
+    /// 配布サイト(Cloudflare Worker)が GitHub の appcast をプロキシしつつ
+    /// アップデートチェックを計測する。appcast の実体と DMG は従来どおり
+    /// GitHub Releases にあり、旧 URL を見る既存ユーザーも壊れない。
     var feedURLString: String {
         switch self {
         case .stable:
-            "https://github.com/YTommy109/befold/releases/download/appcast/appcast.xml"
+            "https://befold-site.tokutomi.workers.dev/appcast.xml"
         case .develop:
-            "https://github.com/YTommy109/befold/releases/download/appcast/appcast-develop.xml"
+            "https://befold-site.tokutomi.workers.dev/appcast-develop.xml"
         }
     }
 }
