@@ -24,6 +24,7 @@ export type Summary = {
   byVersion: Count[]
   byCountry: Count[]
   byOS: Count[]
+  byReferrer: Count[]
   recent: RecentEvent[]
 }
 
@@ -75,7 +76,7 @@ export async function dailyDownloads(db: D1Database, now: number): Promise<Count
 }
 
 /** 内訳を取れるカラム。SQL へ差し込むため、外部入力を受けない固定の集合に限る。 */
-type BreakdownColumn = 'version' | 'country' | 'os'
+type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer'
 
 /** 指定カラムの内訳（上位 N 件、NULL は除外）。 */
 async function breakdown(
@@ -116,16 +117,25 @@ export async function recentEvents(db: D1Database, afterId = 0): Promise<RecentE
 
 /** ダッシュボード初期表示用の集計一式。 */
 export async function summarize(db: D1Database, now: number): Promise<Summary> {
-  const [aggregate, daily, byVersion, byCountry, byOS, recent] = await Promise.all([
+  const [aggregate, daily, byVersion, byCountry, byOS, byReferrer, recent] = await Promise.all([
     totals(db),
     dailyDownloads(db, now),
     breakdown(db, 'version', 'download'),
     breakdown(db, 'country'),
     breakdown(db, 'os'),
+    breakdown(db, 'referrer'),
     recentEvents(db),
   ])
 
-  return { totals: aggregate, dailyDownloads: daily, byVersion, byCountry, byOS, recent }
+  return {
+    totals: aggregate,
+    dailyDownloads: daily,
+    byVersion,
+    byCountry,
+    byOS,
+    byReferrer,
+    recent,
+  }
 }
 
 /** SSE で push する新着イベント（古い順）。 */

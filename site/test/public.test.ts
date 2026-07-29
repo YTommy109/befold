@@ -26,11 +26,12 @@ type EventRow = {
   os: string | null
   ua_summary: string | null
   visitor_day: string | null
+  referrer: string | null
 }
 
 async function latestEvent(): Promise<EventRow | null> {
   return await env.DB.prepare(
-    'SELECT kind, version, channel, country, os, ua_summary, visitor_day' +
+    'SELECT kind, version, channel, country, os, ua_summary, visitor_day, referrer' +
       ' FROM events ORDER BY id DESC LIMIT 1',
   ).first<EventRow>()
 }
@@ -67,6 +68,34 @@ describe('GET /', () => {
     const event = await latestEvent()
     expect(event?.kind).toBe('visit')
     expect(event?.country).toBe('JP')
+  })
+})
+
+describe('参照元の記録', () => {
+  it('?ref= が付いていればその値を記録する', async () => {
+    await call('/?ref=gh-pages')
+
+    expect((await latestEvent())?.referrer).toBe('gh-pages')
+  })
+
+  it('?ref= が無ければ Referer のオリジンだけを記録する', async () => {
+    await call('/', { Referer: 'https://news.ycombinator.com/item?id=123' })
+
+    expect((await latestEvent())?.referrer).toBe('https://news.ycombinator.com')
+  })
+
+  it('自サイト内の遷移は参照元として記録しない', async () => {
+    await call('/', { Referer: 'https://befold.example/' })
+
+    expect((await latestEvent())?.referrer).toBeNull()
+  })
+
+  it('参照元が無い直接アクセスでもイベント自体は記録される', async () => {
+    await call('/')
+
+    const event = await latestEvent()
+    expect(event?.kind).toBe('visit')
+    expect(event?.referrer).toBeNull()
   })
 })
 

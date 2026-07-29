@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import type { AppEnv } from './index'
 import { eventSchema, type EventKind } from './schema'
+import { resolveReferrer } from './lib/referrer'
 import { summarizeOS, summarizeUA, visitorDayHash } from './lib/visitor'
 
 /** 呼び出し側が指定するイベント固有の属性。 */
@@ -11,8 +12,9 @@ export type EventAttributes = {
 }
 
 const INSERT_SQL =
-  'INSERT INTO events (ts, kind, version, channel, country, os, ua_summary, visitor_day)' +
-  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  'INSERT INTO events' +
+  ' (ts, kind, version, channel, country, os, ua_summary, visitor_day, referrer)' +
+  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
 
 /**
  * リクエストから計測イベントを組み立てて D1 に記録する。
@@ -39,6 +41,11 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
       os: summarizeOS(ua),
       uaSummary: summarizeUA(ua),
       visitorDay: await visitorDayHash(ip, ua, ts),
+      referrer: resolveReferrer(
+        c.req.query('ref') ?? null,
+        c.req.header('Referer') ?? null,
+        new URL(c.req.url).host,
+      ),
     })
 
     await c.env.DB.prepare(INSERT_SQL)
@@ -51,6 +58,7 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
         event.os,
         event.uaSummary,
         event.visitorDay,
+        event.referrer,
       )
       .run()
   } catch (error) {

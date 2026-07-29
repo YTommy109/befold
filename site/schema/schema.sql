@@ -10,7 +10,8 @@ CREATE TABLE events (
   country     TEXT,
   os          TEXT,
   ua_summary  TEXT,
-  visitor_day TEXT
+  visitor_day TEXT,
+  referrer    TEXT
 );
 
 CREATE INDEX idx_events_ts ON events (ts);

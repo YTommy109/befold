@@ -4,9 +4,10 @@ title: 配布参照を新 URL へ更新し docs/ の LP を縮退する
 status: To Do
 assignee: []
 created_date: '2026-07-28 13:36'
+updated_date: '2026-07-29 14:49'
 labels: []
 dependencies:
-  - TASK-182.3
+  - TASK-182.6
 documentation:
   - >-
     docs/superpowers/specs/2026-07-28-cloudflare-distribution-analytics-design.md

@@ -19,11 +19,19 @@ async function call(
 /** テスト用のイベントを 1 件投入し、その id を返す。 */
 async function seed(
   kind: string,
-  extra: { version?: string; country?: string; os?: string; visitorDay?: string; ts?: number } = {},
+  extra: {
+    version?: string
+    country?: string
+    os?: string
+    visitorDay?: string
+    ts?: number
+    referrer?: string
+  } = {},
 ): Promise<number> {
   const result = await env.DB.prepare(
-    'INSERT INTO events (ts, kind, version, channel, country, os, ua_summary, visitor_day)' +
-      " VALUES (?, ?, ?, 'stable', ?, ?, 'Safari', ?) RETURNING id",
+    'INSERT INTO events' +
+      ' (ts, kind, version, channel, country, os, ua_summary, visitor_day, referrer)' +
+      " VALUES (?, ?, ?, 'stable', ?, ?, 'Safari', ?, ?) RETURNING id",
   )
     .bind(
       extra.ts ?? Date.now(),
@@ -32,6 +40,7 @@ async function seed(
       extra.country ?? null,
       extra.os ?? null,
       extra.visitorDay ?? 'hash-a',
+      extra.referrer ?? null,
     )
     .first<{ id: number }>()
 
@@ -92,6 +101,20 @@ describe('集計の表示', () => {
     expect(body).toContain('v1.10.0')
     expect(body).toContain('macOS 15.0')
     expect(body).toContain('日別ダウンロード（14 日）')
+  })
+
+  it('参照元別が上位順で描画され、参照元なしは集計から除かれる', async () => {
+    await seed('visit', { referrer: 'gh-pages' })
+    await seed('visit', { referrer: 'gh-pages' })
+    await seed('visit', { referrer: 'https://news.ycombinator.com' })
+    await seed('visit')
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('参照元別')
+    expect(body).toContain('gh-pages')
+    expect(body).toContain('https://news.ycombinator.com')
+    expect(body.indexOf('gh-pages')).toBeLessThan(body.indexOf('https://news.ycombinator.com'))
   })
 
   it('イベントが無くてもエラーにならない', async () => {
