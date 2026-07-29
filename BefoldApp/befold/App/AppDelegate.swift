@@ -306,14 +306,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// App > Settings…(⌘,)。FeatureGate 有効時のみメニューに現れる。単一インスタンスで、
-    /// 既に開いていれば前面化するだけにする。
+    /// 最前面なら閉じ、そうでなければ開く/前面化するトグル動作にする。
     @objc func showSettings(_ sender: Any?) {
         let controller = codeFontSettingsWindowController ?? CodeFontSettingsWindowController(
             preference: codeFontPreference,
             onChange: { [weak windowManager] in windowManager?.applyCodeFontToAllWindows() }
         )
         codeFontSettingsWindowController = controller
-        controller.showAndActivate()
+        controller.toggle()
     }
 
     /// File > Quick Open(⌘P)。パス入力と fuzzy 検索のパネルを開く。
