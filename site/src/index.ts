@@ -14,4 +14,7 @@ app.get('/healthz', (c) => c.text('ok'))
 app.route('/dashboard', dashboardRoutes)
 app.route('/', publicRoutes)
 
+// Worker がルートを持たないパスは静的アセット（public/）に委譲する。
+app.notFound((c) => c.env.ASSETS.fetch(c.req.raw))
+
 export default app

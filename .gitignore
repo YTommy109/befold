@@ -3,7 +3,7 @@ BefoldApp/node_modules/
 
 # Cloudflare Worker 配布サイト (site/)
 site/node_modules/
-site/.wrangler/
+.wrangler/
 
 # Swift / Xcode
 BefoldApp/.build/

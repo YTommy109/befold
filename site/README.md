@@ -5,6 +5,8 @@
 befold の配布 LP・ダウンロード計測・appcast プロキシ・分析ダッシュボードを
 1 つの Cloudflare Worker（Hono / TypeScript）で提供する。
 
+公開 URL: <https://befold-site.tokutomi.workers.dev>（独自ドメインは使わない）
+
 ## ルート
 
 | パス | 認証 | 内容 |
@@ -59,8 +61,11 @@ npm run migrate:remote                     # 本番 D1 へ適用
    npx wrangler secret put DASHBOARD_USER   # 省略時は owner
    ```
 
-4. `npx wrangler deploy` でデプロイする。公開 URL は
-   `https://befold-site.<アカウントのサブドメイン>.workers.dev`。
+4. `npx wrangler deploy` でデプロイする。
+
+   `wrangler secret put` を非対話シェル（Claude Code の `!` 実行など）で走らせると
+   入力を受け取れず空の値が登録される。ダッシュボードが 503 を返す場合はこれを疑い、
+   対話的なターミナルで登録し直す。
 
 ## ダッシュボードの認証方式
 
