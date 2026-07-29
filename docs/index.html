@@ -3,196 +3,55 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>befold — File Viewer for macOS</title>
-  <meta name="description" content="befold is a lightweight file viewer for macOS that renders Mermaid diagrams, Markdown, SVG, HTML, CSV, and more with live reload.">
-  <link rel="stylesheet" href="style.css?v=9115af92">
+  <title>befold — 移転しました</title>
+  <meta name="description" content="befold の紹介ページは https://befold.tommy109.workers.dev/ へ移転しました。">
+  <!--
+    紹介 LP の実体は site/ の Cloudflare Worker に移した。ここはリダイレクト専用。
+    GitHub Pages は静的ホスティングで 301 を返せないため、meta refresh と JS の
+    両方を置き、どちらも効かない場合に手動リンクが残るようにしている。
+    ?ref=gh-pages は配布サイト側で Pages 経由の流入を数えるための印。
+  -->
+  <meta http-equiv="refresh" content="0; url=https://befold.tommy109.workers.dev/?ref=gh-pages">
+  <link rel="canonical" href="https://befold.tommy109.workers.dev/">
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      background: #f6f7f9;
+      color: #24292f;
+      text-align: center;
+      line-height: 1.7;
+    }
+
+    main { padding: 2rem; }
+
+    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem; }
+
+    a { color: #0969da; }
+
+    @media (prefers-color-scheme: dark) {
+      body { background: #0d1117; color: #e6edf3; }
+      a { color: #4493f8; }
+    }
+  </style>
 </head>
 <body>
 
-<a class="github-ribbon" href="https://github.com/YTommy109/befold" target="_blank" rel="noopener" aria-label="View source on GitHub">
-  <span>GitHub</span>
-</a>
-
-<header>
-  <h1>befold</h1>
-  <div class="lang-switcher">
-    <button class="lang-btn active" onclick="switchLang('ja')">🇯🇵</button>
-    <button class="lang-btn" onclick="switchLang('en')">EN</button>
-  </div>
-</header>
-
 <main>
-  <!-- Hero -->
-  <section class="hero">
-    <div lang="ja">
-      <h2>ファイルを開くだけ。即レンダリング。</h2>
-      <p>Mermaid・Markdown・SVG・HTML・CSV など多彩なフォーマットをリアルタイムにプレビュー</p>
-    </div>
-    <div lang="en" hidden>
-      <h2>Open a file. Instant rendering.</h2>
-      <p>Live preview for Mermaid, Markdown, SVG, HTML, CSV, and many more formats</p>
-    </div>
-    <a href="https://github.com/YTommy109/befold/releases/latest" class="btn-primary">
-      <span lang="ja">ダウンロード</span>
-      <span lang="en" hidden>Download</span>
-    </a>
-  </section>
-
-  <!-- Philosophy -->
-  <section class="philosophy">
-    <div lang="ja">
-      <p class="philosophy-lead">AI がコードを書く時代。</p>
-      <p class="philosophy-body">開発者に必要なのは、もう一つのエディタではない。<br>読むことに集中できる、静かで快適なビューア。<br>befold はコードレビューを心地よくするために作られた。</p>
-    </div>
-    <div lang="en" hidden>
-      <p class="philosophy-lead">In the age of AI-written code.</p>
-      <p class="philosophy-body">What developers need isn't another editor.<br>It's a quiet, comfortable viewer for focused reading.<br>befold is built to make code review a pleasure.</p>
-    </div>
-  </section>
-
-  <!-- Screenshot -->
-  <section class="screenshot">
-    <div class="carousel">
-      <div class="carousel-track">
-        <div class="carousel-slide">
-          <img src="images/screenshot-1.png" alt="Mermaid flowchart in befold">
-          <p class="carousel-caption">Mermaid</p>
-        </div>
-        <div class="carousel-slide">
-          <img src="images/screenshot-2.png" alt="SVG diagram rendering in befold" loading="lazy">
-          <p class="carousel-caption">SVG</p>
-        </div>
-        <div class="carousel-slide">
-          <img src="images/screenshot-3.png" alt="Markdown preview in befold" loading="lazy">
-          <p class="carousel-caption">Markdown</p>
-        </div>
-        <div class="carousel-slide">
-          <img src="images/screenshot-4.png" alt="CSV table view in befold" loading="lazy">
-          <p class="carousel-caption">CSV</p>
-        </div>
-        <div class="carousel-slide">
-          <img src="images/screenshot-5.png" alt="Source code view in befold" loading="lazy">
-          <p class="carousel-caption"><span lang="ja">ソースコード</span><span lang="en" hidden>Source Code</span></p>
-        </div>
-      </div>
-      <button class="carousel-prev" type="button" aria-label="Previous screenshot">‹</button>
-      <button class="carousel-next" type="button" aria-label="Next screenshot">›</button>
-      <div class="carousel-dots"></div>
-    </div>
-  </section>
-
-  <!-- Features -->
-  <section class="features">
-    <div lang="ja">
-      <h3>機能</h3>
-    </div>
-    <div lang="en" hidden>
-      <h3>Features</h3>
-    </div>
-    <div class="feature-grid">
-
-      <div class="feature-card">
-        <h4 lang="ja">多彩なフォーマット対応</h4>
-        <h4 lang="en" hidden>Wide Format Support</h4>
-        <p lang="ja">.mmd, .md, .svg, .html, .csv, .tsv のレンダリング表示に加え、.png, .jpg, .gif, .webp, .pdf, ソースコード（50以上の言語）にも対応</p>
-        <p lang="en" hidden>Renders .mmd, .md, .svg, .html, .csv, .tsv — plus displays .png, .jpg, .gif, .webp, .pdf, and source code in 50+ languages</p>
-      </div>
-
-      <div class="feature-card">
-        <h4 lang="ja">レンダリング / ソース切替</h4>
-        <h4 lang="en" hidden>Rendered / Source Toggle</h4>
-        <p lang="ja">⌘U でレンダリング表示とソース表示をワンタッチ切替。ソースはシンタックスハイライト付き</p>
-        <p lang="en" hidden>Toggle between rendered and source view with ⌘U. Source view includes syntax highlighting</p>
-      </div>
-
-      <div class="feature-card">
-        <h4 lang="ja">ライブリロード</h4>
-        <h4 lang="en" hidden>Live Reload</h4>
-        <p lang="ja">AI がファイルを書き換えると、その内容を即座にプレビューに反映</p>
-        <p lang="en" hidden>Instantly reflects every change the AI makes to your files in the preview</p>
-      </div>
-
-      <div class="feature-card">
-        <h4 lang="ja">タブ & セッション復元</h4>
-        <h4 lang="en" hidden>Tabs & Session Restore</h4>
-        <p lang="ja">macOS ネイティブのタブ対応。前回のタブ構成は次回起動時に自動復元</p>
-        <p lang="en" hidden>Native macOS tab support. Previous tab layout is automatically restored on next launch</p>
-      </div>
-
-      <div class="feature-card">
-        <h4 lang="ja">ズーム & ダークモード</h4>
-        <h4 lang="en" hidden>Zoom & Dark Mode</h4>
-        <p lang="ja">⌘+/⌘-/⌘0 でズーム操作。macOS のダークモードに自動追従</p>
-        <p lang="en" hidden>Zoom with ⌘+/⌘-/⌘0. Automatically follows macOS dark mode</p>
-      </div>
-
-      <div class="feature-card">
-        <h4 lang="ja">アプリ内アップデート</h4>
-        <h4 lang="en" hidden>In-App Updates</h4>
-        <p lang="ja">新しいバージョンが利用可能になると通知。ワンクリックで更新</p>
-        <p lang="en" hidden>Notifies when a new version is available. One-click update</p>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- Requirements -->
-  <section class="requirements">
-    <div lang="ja">
-      <h3>動作要件</h3>
-      <p>macOS 14 (Sonoma) 以降</p>
-    </div>
-    <div lang="en" hidden>
-      <h3>Requirements</h3>
-      <p>macOS 14 (Sonoma) or later</p>
-    </div>
-  </section>
-
-  <!-- Install -->
-  <section class="install">
-    <div lang="ja">
-      <h3>インストール</h3>
-      <ol>
-        <li><a href="https://github.com/YTommy109/befold/releases/latest">GitHub Releases</a> から <code>befold-vX.Y.Z.dmg</code> をダウンロード</li>
-        <li>DMG を開き、<code>befold.app</code> を <code>/Applications</code> にコピーして起動</li>
-      </ol>
-    </div>
-    <div lang="en" hidden>
-      <h3>Installation</h3>
-      <ol>
-        <li>Download <code>befold-vX.Y.Z.dmg</code> from <a href="https://github.com/YTommy109/befold/releases/latest">GitHub Releases</a></li>
-        <li>Open the DMG and copy <code>befold.app</code> to <code>/Applications</code> to launch</li>
-      </ol>
-    </div>
-  </section>
+  <h1>befold</h1>
+  <p>紹介ページは移転しました。</p>
+  <p>
+    <a href="https://befold.tommy109.workers.dev/?ref=gh-pages">https://befold.tommy109.workers.dev/</a>
+  </p>
 </main>
 
-<footer>
-  <p>
-    <a href="https://github.com/YTommy109/befold">GitHub</a> · MIT License · © 2026 <a href="https://github.com/YTommy109">Tommy109</a>
-  </p>
-</footer>
-
-<script src="carousel.js?v=189db4f6"></script>
 <script>
-function switchLang(lang) {
-  document.querySelectorAll('[lang]').forEach(function(el) {
-    if (el.tagName === 'HTML') return;
-    el.hidden = el.getAttribute('lang') !== lang;
-  });
-  document.querySelectorAll('.lang-btn').forEach(function(btn) {
-    btn.classList.toggle('active', btn.textContent.trim() === (lang === 'ja' ? '🇯🇵' : 'EN'));
-  });
-  document.documentElement.lang = lang;
-  localStorage.setItem('befold-lang', lang);
-}
-
-(function() {
-  var saved = localStorage.getItem('befold-lang');
-  if (saved && saved !== 'ja') {
-    switchLang(saved);
-  }
-})();
+  // meta refresh は履歴に残るブラウザがあるため、JS が使えるときは replace で置き換える。
+  location.replace('https://befold.tommy109.workers.dev/?ref=gh-pages');
 </script>
 
 </body>

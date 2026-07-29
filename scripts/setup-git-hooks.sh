@@ -29,4 +29,4 @@ install_hook post-checkout scripts/worktree-init.sh
 # block-main-commits.sh を先に実行し、main への直接コミットは他のチェックより
 # 前に弾く(無駄な処理をさせない)。swiftformat-lint.sh は CI の build-and-test
 # ジョブと同じ SwiftFormat チェックをコミット時点で検知する。
-install_hook pre-commit scripts/block-main-commits.sh scripts/swiftformat-lint.sh scripts/cache-bust-docs.sh
+install_hook pre-commit scripts/block-main-commits.sh scripts/swiftformat-lint.sh
