@@ -2,12 +2,19 @@ import type { FC } from 'hono/jsx'
 import { html, raw } from 'hono/html'
 import type { Count, Summary } from '../analytics'
 
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000
+
+/** UTC のエポックミリ秒を JST の 'YYYY-MM-DD HH:mm:ss' 表記に変換する。 */
+const formatJst = (ts: number): string =>
+  new Date(ts + JST_OFFSET_MS).toISOString().replace('T', ' ').slice(0, 19)
+
 /** SSE で受信した新着イベントをカウンタと一覧へ反映する。 */
 const STREAM_SCRIPT = `
 (function () {
   var source = new EventSource('/dashboard/stream?after=' + document.body.dataset.lastId);
   var list = document.getElementById('recent-body');
   var status = document.getElementById('stream-status');
+  var JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
   source.addEventListener('open', function () { status.textContent = 'live'; });
   source.addEventListener('error', function () { status.textContent = 'reconnecting…'; });
@@ -19,7 +26,7 @@ const STREAM_SCRIPT = `
 
     var row = document.createElement('tr');
     row.innerHTML =
-      '<td>' + new Date(event.ts).toISOString().replace('T', ' ').slice(0, 19) + '</td>' +
+      '<td>' + new Date(new Date(event.ts).getTime() + JST_OFFSET_MS).toISOString().replace('T', ' ').slice(0, 19) + '</td>' +
       '<td>' + event.kind + '</td>' +
       '<td>' + (event.version || '') + '</td>' +
       '<td>' + (event.country || '') + '</td>' +
@@ -124,7 +131,7 @@ export const Dashboard: FC<{ summary: Summary; lastId: number }> = ({ summary, l
         <table>
           <thead>
             <tr>
-              <th>時刻 (UTC)</th>
+              <th>時刻 (JST)</th>
               <th>種別</th>
               <th>バージョン</th>
               <th>国</th>
@@ -134,7 +141,7 @@ export const Dashboard: FC<{ summary: Summary; lastId: number }> = ({ summary, l
           <tbody id="recent-body">
             {summary.recent.map((event) => (
               <tr>
-                <td>{new Date(event.ts).toISOString().replace('T', ' ').slice(0, 19)}</td>
+                <td>{formatJst(event.ts)}</td>
                 <td>{event.kind}</td>
                 <td>{event.version ?? ''}</td>
                 <td>{event.country ?? ''}</td>
