@@ -159,6 +159,20 @@ struct MainMenuBuilderTests {
         #expect(help.items.contains { $0.action == #selector(AppDelegate.openHelp(_:)) })
     }
 
+    /// 設定は dev 限定のフィーチャーゲートを外して stable でも常に出す(TASK-184)。
+    @Test("App メニューに Settings…(⌘,) 項目がビルド種別に関わらずある")
+    func appMenuHasSettingsItem() throws {
+        let mainMenu = buildMenu()
+        let appMenu = try #require(mainMenu.items.first?.submenu)
+
+        let settings = try #require(
+            appMenu.items.first { $0.action == #selector(AppDelegate.showSettings(_:)) }
+        )
+        #expect(settings.title == localizedTitle("menu.app.settings"))
+        #expect(settings.keyEquivalent == ",")
+        #expect(settings.keyEquivalentModifierMask == [.command])
+    }
+
     @Test("App メニューに Install CLI 項目がある")
     func appMenuHasInstallCLIItem() throws {
         let mainMenu = buildMenu()

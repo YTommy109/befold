@@ -305,7 +305,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowManager.toggleHiddenFiles()
     }
 
-    /// App > Settings…(⌘,)。FeatureGate 有効時のみメニューに現れる。単一インスタンスで、
+    /// App > Settings…(⌘,)。単一インスタンスで、
     /// 最前面なら閉じ、そうでなければ開く/前面化するトグル動作にする。
     @objc func showSettings(_ sender: Any?) {
         let controller = codeFontSettingsWindowController ?? CodeFontSettingsWindowController(

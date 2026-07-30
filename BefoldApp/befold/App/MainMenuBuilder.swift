@@ -32,15 +32,13 @@ enum MainMenuBuilder {
             keyEquivalent: ""
         )
         // 設定は macOS 標準どおり About の直後(⌘,)に置く。
-        if FeatureGate.inProgressFeaturesEnabled {
-            menu.addItem(.separator())
-            let settings = menu.addItem(
-                withTitle: String(localized: "menu.app.settings", bundle: .l10n),
-                action: #selector(AppDelegate.showSettings(_:)),
-                keyEquivalent: ","
-            )
-            settings.keyEquivalentModifierMask = [.command]
-        }
+        menu.addItem(.separator())
+        let settings = menu.addItem(
+            withTitle: String(localized: "menu.app.settings", bundle: .l10n),
+            action: #selector(AppDelegate.showSettings(_:)),
+            keyEquivalent: ","
+        )
+        settings.keyEquivalentModifierMask = [.command]
         menu.addItem(.separator())
         menu.addItem(
             withTitle: String(localized: "menu.app.checkForUpdates", bundle: .l10n),
