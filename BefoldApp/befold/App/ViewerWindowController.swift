@@ -80,6 +80,10 @@ final class ViewerWindowController: NSWindowController {
     /// ウィンドウイベントの通知先。ViewerWindowManager が実装する。
     weak var delegate: ViewerWindowControllerDelegate?
 
+    /// このウィンドウが属する git リポジトリ(worktree の場合はそのルート)。
+    /// 非 git ファイルの場合は nil。ViewerWindowManager.openViewer が解決結果を設定する。
+    var repositoryRoot: URL?
+
     /// git 追跡ファイルの索引。本番では ViewerWindowManager が持つ単一インスタンスが
     /// 注入され、全ウィンドウで共有する。
     private let gitFileIndex: any GitFileIndexing
