@@ -141,4 +141,26 @@ struct SidebarNavigatorIntegrationTests {
             .map(\.url.lastPathComponent)
         #expect(names == ["fileB.mmd"])
     }
+
+    @Test("フォルダー移動後もファイル名フィルターの文字列が保持される(task-185)")
+    func filterTextPersistsAcrossFolderNavigation() async throws {
+        let base = try makeHomeTempDir()
+        defer { withExtendedLifetime(base) {} }
+
+        // base/(fileA.mmd, dirB/(fileB.mmd))
+        let fileA = base.url.appendingPathComponent("fileA.mmd")
+        try "graph TD; A-->B".write(to: fileA, atomically: true, encoding: .utf8)
+        let dirB = base.url.appendingPathComponent("dirB", isDirectory: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+
+        let controller = makeController(file: fileA)
+        defer { controller.close() }
+
+        controller.fileListModel.filterText = "fileA"
+        controller.navigateToFolder(dirB)
+        await controller.sidebar.pendingListingTask?.value
+
+        #expect(controller.fileListModel.currentDirectory.standardizedFileURL == dirB.standardizedFileURL)
+        #expect(controller.fileListModel.filterText == "fileA")
+    }
 }

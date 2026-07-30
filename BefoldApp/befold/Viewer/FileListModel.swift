@@ -19,6 +19,11 @@ final class FileListModel {
     /// 永続化・真実の源は HiddenFilesPreference。SidebarNavigator が
     /// refreshFileList()/navigateToFolder(_:) のたびに同期する。
     var showHiddenFiles: Bool = false
+    /// ファイル名フィルターの検索文字列。フォルダ移動をまたいで保持し、
+    /// アプリ再起動時は初期値(空文字列)に戻る(永続化しない)。
+    var filterText: String = ""
+    /// フィルターフィールドの開閉状態。true の間は navigationHeader 直下に検索欄を表示する。
+    var isFilterActive: Bool = false
     /// 相対パスコピー・Quick Open の基準ディレクトリ。ヘッダーのインジケータ表示に使う。
     /// git ルートの解決は subprocess を伴うため View の body では行わず、
     /// SidebarNavigator が一覧更新と同じ契機でメイン外から解決して書き込む。
@@ -45,6 +50,17 @@ final class FileListModel {
             return
         }
         window.makeFirstResponder(tableView)
+    }
+
+    /// フィルター適用後にサイドバーへ表示するエントリ。`entries`(ディスク由来の一覧)は
+    /// 保持したまま、この算出側だけで絞り込む。`.parentNavigation` はフィルター文字列に
+    /// 関わらず常に含める(上位フォルダへの移動手段を残すため)。
+    var visibleEntries: [FileListEntry] {
+        guard !filterText.isEmpty else { return entries }
+        return entries.filter {
+            $0.kind == .parentNavigation
+                || WildcardMatcher.matches(pattern: filterText, in: $0.url.lastPathComponent)
+        }
     }
 
     var canGoBack: Bool {
