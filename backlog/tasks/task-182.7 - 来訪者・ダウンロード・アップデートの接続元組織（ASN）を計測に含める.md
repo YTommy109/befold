@@ -1,9 +1,11 @@
 ---
 id: TASK-182.7
 title: 来訪者・ダウンロード・アップデートの接続元組織（ASN）を計測に含める
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@tokutomi'
 created_date: '2026-07-30 02:03'
+updated_date: '2026-07-30 02:26'
 labels: []
 dependencies: []
 documentation:
@@ -30,9 +32,34 @@ ordinal: 281000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 events テーブルに接続元組織を保存するカラムが追加され、マイグレーションが Atlas 経由で生成・適用される
-- [ ] #2 visit / download / update_check の 3 種すべてで接続元組織が記録される
-- [ ] #3 request.cf が利用できない環境（ローカル・テスト）でも記録処理が失敗せずイベント自体は残る
-- [ ] #4 ダッシュボードに接続元組織別の上位集計が表示される
-- [ ] #5 保存する情報の粒度がプライバシー方針（生 IP を保存しない・UA は要約のみ）と整合していることが README に記載される
+- [x] #1 events テーブルに接続元組織を保存するカラムが追加され、マイグレーションが Atlas 経由で生成・適用される
+- [x] #2 visit / download / update_check の 3 種すべてで接続元組織が記録される
+- [x] #3 request.cf が利用できない環境（ローカル・テスト）でも記録処理が失敗せずイベント自体は残る
+- [x] #4 ダッシュボードに接続元組織別の上位集計が表示される
+- [x] #5 保存する情報の粒度がプライバシー方針（生 IP を保存しない・UA は要約のみ）と整合していることが README に記載される
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. schema/schema.sql に as_org カラムを追加し、atlas migrate diff でマイグレーション生成、wrangler d1 migrations apply --local で適用
+2. src/schema.ts の eventSchema に asOrg を追加
+3. src/events.ts の insertEvent で c.req.raw.cf?.asOrganization ?? null を取得し記録（cf 未定義でも例外にならない形）。INSERT_SQL に as_org を追加
+4. src/analytics.ts の BreakdownColumn に 'as_org' を追加、Summary/summarize に byAsOrg を追加
+5. src/views/dashboard.tsx に「接続元組織別」の CountTable を追加
+6. test/public.test.ts の call() ヘルパーで cf を注入できるようにし、asOrganization ありなし双方のケース（cf 未定義でもイベントが記録されること含む）をテスト
+7. README.md に asOrganization の粒度がプライバシー方針と整合する旨を追記
+8. npm test / npm run typecheck で検証
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+実装: schema/schema.sql に as_org 列を追加し atlas migrate diff で migrations/20260730022424_add_as_org.sql を生成、migrate:local で適用。events.ts で c.req.raw.cf?.asOrganization ?? null を記録（cf 未定義でもイベントは記録継続）。analytics.ts/dashboard.tsx に接続元組織別の上位集計を追加。README に粒度とプライバシー方針の整合性を明記。検証: npm test (42 passed, 5 files) / npm run typecheck 両方成功。事前確認: 「asOrganization のみ採用」「既存プライバシー方針と整合する」の2点をユーザーに確認済み。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+visitor_day 由来の visit/download/update_check 全イベントに request.cf.asOrganization を as_org カラムとして記録し、ダッシュボードに接続元組織別の上位集計を追加した。request.cf が無い環境でもイベント記録は継続する。README にプライバシー方針との整合性を追記。npm test（42件）・npm run typecheck で検証済み。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -116,6 +116,7 @@ export const Dashboard: FC<{ summary: Summary; lastId: number }> = ({ summary, l
         <CountTable title="国別" rows={summary.byCountry} />
         <CountTable title="OS 別" rows={summary.byOS} />
         <CountTable title="参照元別" rows={summary.byReferrer} />
+        <CountTable title="接続元組織別" rows={summary.byAsOrg} />
       </div>
 
       <section>

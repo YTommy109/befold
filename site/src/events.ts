@@ -13,8 +13,8 @@ export type EventAttributes = {
 
 const INSERT_SQL =
   'INSERT INTO events' +
-  ' (ts, kind, version, channel, country, os, ua_summary, visitor_day, referrer)' +
-  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ' (ts, kind, version, channel, country, os, ua_summary, visitor_day, referrer, as_org)' +
+  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 
 /**
  * リクエストから計測イベントを組み立てて D1 に記録する。
@@ -46,6 +46,9 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
         c.req.header('Referer') ?? null,
         new URL(c.req.url).host,
       ),
+      // request.cf は Cloudflare の実行環境でのみ付与される。ローカル/テストでは
+      // undefined になり得るため、欠落時は記録処理自体を止めず null にする。
+      asOrg: c.req.raw.cf?.asOrganization ?? null,
     })
 
     await c.env.DB.prepare(INSERT_SQL)
@@ -59,6 +62,7 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
         event.uaSummary,
         event.visitorDay,
         event.referrer,
+        event.asOrg,
       )
       .run()
   } catch (error) {

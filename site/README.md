@@ -138,6 +138,20 @@ Preview URL（`wrangler versions upload --preview-alias`）はこの環境の代
 `[env.staging]` 側に再指定しないと引き継がれない（アセット配信や D1 バインディングが
 欠落した Worker ができる）。
 
+## 接続元組織（ASN）の計測
+
+`request.cf.asOrganization`（Cloudflare が解決する AS 保有組織名、例: Google Cloud）を
+visit / download / update_check の全イベントで記録する。追加のサブリクエストは発生しない。
+
+- 保存するのは組織名のみで、IP アドレスや厳密な逆引きドメイン（PTR）は使わない。
+- 個人の家庭回線では ISP 名（例: NTT Communications）程度の粗い粒度に留まるため、
+  生 IP を保存しない・UA は要約のみという既存のプライバシー方針と整合する。
+- 企業・クラウド経由の接続では組織名から接続元が推測できる場合がある。これは
+  この粒度で許容する仕様上の限界として扱う。
+- `request.cf` はローカル開発環境やテストでは付与されないため、未取得時は
+  `as_org` を `null` として記録し、イベント自体の記録は継続する
+  （`src/events.ts` の `insertEvent`）。
+
 ## ダッシュボードの認証方式
 
 独自ドメインを使わず `*.workers.dev` で公開するため、Cloudflare Access は使えない

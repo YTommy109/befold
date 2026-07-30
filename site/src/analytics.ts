@@ -25,6 +25,7 @@ export type Summary = {
   byCountry: Count[]
   byOS: Count[]
   byReferrer: Count[]
+  byAsOrg: Count[]
   recent: RecentEvent[]
 }
 
@@ -76,7 +77,7 @@ export async function dailyDownloads(db: D1Database, now: number): Promise<Count
 }
 
 /** 内訳を取れるカラム。SQL へ差し込むため、外部入力を受けない固定の集合に限る。 */
-type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer'
+type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer' | 'as_org'
 
 /** 指定カラムの内訳（上位 N 件、NULL は除外）。 */
 async function breakdown(
@@ -117,15 +118,17 @@ export async function recentEvents(db: D1Database, afterId = 0): Promise<RecentE
 
 /** ダッシュボード初期表示用の集計一式。 */
 export async function summarize(db: D1Database, now: number): Promise<Summary> {
-  const [aggregate, daily, byVersion, byCountry, byOS, byReferrer, recent] = await Promise.all([
-    totals(db),
-    dailyDownloads(db, now),
-    breakdown(db, 'version', 'download'),
-    breakdown(db, 'country'),
-    breakdown(db, 'os'),
-    breakdown(db, 'referrer'),
-    recentEvents(db),
-  ])
+  const [aggregate, daily, byVersion, byCountry, byOS, byReferrer, byAsOrg, recent] =
+    await Promise.all([
+      totals(db),
+      dailyDownloads(db, now),
+      breakdown(db, 'version', 'download'),
+      breakdown(db, 'country'),
+      breakdown(db, 'os'),
+      breakdown(db, 'referrer'),
+      breakdown(db, 'as_org'),
+      recentEvents(db),
+    ])
 
   return {
     totals: aggregate,
@@ -134,6 +137,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     byCountry,
     byOS,
     byReferrer,
+    byAsOrg,
     recent,
   }
 }
