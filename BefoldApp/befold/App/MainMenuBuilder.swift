@@ -102,6 +102,10 @@ enum MainMenuBuilder {
             keyEquivalent: "p"
         )
 
+        // 「開くコマンド」と「記憶済みリストから選ぶ」を区切る。
+        // リストは履歴(Open Recent / Recent Repositories)を隣接させ、手動登録の Bookmarks を末尾に置く。
+        menu.addItem(.separator())
+
         let recentTitle = String(localized: "menu.file.openRecent", bundle: .l10n)
         let recentItem = NSMenuItem(title: recentTitle, action: nil, keyEquivalent: "")
         let recentMenu = NSMenu(title: recentTitle)
@@ -109,19 +113,19 @@ enum MainMenuBuilder {
         recentItem.submenu = recentMenu
         menu.addItem(recentItem)
 
-        let bookmarksTitle = String(localized: "menu.file.bookmarks", bundle: .l10n)
-        let bookmarksItem = NSMenuItem(title: bookmarksTitle, action: nil, keyEquivalent: "")
-        let bookmarksMenu = NSMenu(title: bookmarksTitle)
-        bookmarksMenu.delegate = bookmarksMenuDelegate
-        bookmarksItem.submenu = bookmarksMenu
-        menu.addItem(bookmarksItem)
-
         let recentRepositoriesTitle = String(localized: "menu.file.recentRepositories", bundle: .l10n)
         let recentRepositoriesItem = NSMenuItem(title: recentRepositoriesTitle, action: nil, keyEquivalent: "")
         let recentRepositoriesMenu = NSMenu(title: recentRepositoriesTitle)
         recentRepositoriesMenu.delegate = recentRepositoriesMenuDelegate
         recentRepositoriesItem.submenu = recentRepositoriesMenu
         menu.addItem(recentRepositoriesItem)
+
+        let bookmarksTitle = String(localized: "menu.file.bookmarks", bundle: .l10n)
+        let bookmarksItem = NSMenuItem(title: bookmarksTitle, action: nil, keyEquivalent: "")
+        let bookmarksMenu = NSMenu(title: bookmarksTitle)
+        bookmarksMenu.delegate = bookmarksMenuDelegate
+        bookmarksItem.submenu = bookmarksMenu
+        menu.addItem(bookmarksItem)
 
         menu.addItem(.separator())
         menu.addItem(

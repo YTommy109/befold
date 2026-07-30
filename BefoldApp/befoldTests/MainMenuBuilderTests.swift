@@ -51,18 +51,25 @@ struct MainMenuBuilderTests {
         #expect(titles.contains(localizedTitle("menu.help.title")))
     }
 
-    @Test("File メニューに Open Recent と並んで Bookmarks サブメニューがある")
-    func fileMenuHasBookmarksSubmenu() throws {
+    @Test("File メニューの記憶済みリストは 履歴2つ → Bookmarks の順で並ぶ")
+    func fileMenuListsHistoriesBeforeBookmarks() throws {
         let mainMenu = buildMenu()
         let file = try #require(submenu(titledKey: "menu.file.title", in: mainMenu))
 
-        let recentItem = try #require(file.items.first {
+        let recentIndex = try #require(file.items.firstIndex {
             $0.submenu?.title == localizedTitle("menu.file.openRecent")
         })
-        let bookmarksItem = try #require(file.items.first {
+        let recentRepositoriesIndex = try #require(file.items.firstIndex {
+            $0.submenu?.title == localizedTitle("menu.file.recentRepositories")
+        })
+        let bookmarksIndex = try #require(file.items.firstIndex {
             $0.submenu?.title == localizedTitle("menu.file.bookmarks")
         })
-        #expect(file.items.firstIndex(of: bookmarksItem) == file.items.firstIndex(of: recentItem)! + 1)
+        #expect(recentRepositoriesIndex == recentIndex + 1)
+        #expect(bookmarksIndex == recentRepositoriesIndex + 1)
+        // 「開くコマンド」群とは区切り線で分かれ、リスト群の直後も区切り線で閉じる。
+        #expect(file.items[recentIndex - 1].isSeparatorItem)
+        #expect(file.items[bookmarksIndex + 1].isSeparatorItem)
     }
 
     @Test("File メニューに Recent Repositories サブメニューがある")
@@ -73,16 +80,10 @@ struct MainMenuBuilderTests {
         let mainMenu = buildMenu(recentRepositoriesMenuDelegate: delegate)
         let file = try #require(submenu(titledKey: "menu.file.title", in: mainMenu))
 
-        let bookmarksItem = try #require(file.items.first {
-            $0.submenu?.title == localizedTitle("menu.file.bookmarks")
-        })
         let recentRepositoriesItem = try #require(file.items.first {
             $0.submenu?.title == localizedTitle("menu.file.recentRepositories")
         })
         #expect(recentRepositoriesItem.submenu?.delegate === delegate)
-        let recentRepositoriesIndex = try #require(file.items.firstIndex(of: recentRepositoriesItem))
-        #expect(recentRepositoriesIndex == file.items.firstIndex(of: bookmarksItem)! + 1)
-        #expect(file.items[recentRepositoriesIndex + 1].isSeparatorItem)
     }
 
     @Test("Edit メニューに Copy(⌘C) と Select All(⌘A) がある")
