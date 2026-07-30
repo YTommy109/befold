@@ -69,6 +69,28 @@ final class SessionRestorer {
         return SessionLayout(groups: groups)
     }
 
+    /// 「最近使ったリポジトリ」から選ばれたリポジトリを開く。
+    /// savedTabGroup があり実在するパスが残っていればタブ構成ごと復元し、
+    /// 無い/全て消えている場合はルートフォルダをサイドバー表示で開くフォールバックへ縮退する。
+    func openRepository(
+        root: URL, savedTabGroup: SessionLayout.TabGroup?, options: CLIOpenOptions = CLIOpenOptions()
+    ) {
+        guard let savedTabGroup else {
+            windowManager.openViewer(for: root, forceSidebarVisible: true)
+            return
+        }
+        let existingPaths = Set(savedTabGroup.paths.filter { path in
+            fileReader.isExistingFile(at: URL(fileURLWithPath: path))
+        })
+        let filtered = SessionLayout(groups: [savedTabGroup]).filtered(to: existingPaths)
+        guard let group = filtered.groups.first else {
+            windowManager.openViewer(for: root, forceSidebarVisible: true)
+            return
+        }
+        let urlByPath = Dictionary(group.paths.map { ($0, URL(fileURLWithPath: $0)) }) { first, _ in first }
+        restoreTabGroup(group, urlByPath: urlByPath, options: options)
+    }
+
     /// 前回セッションで開いていたファイルを再オープンする。存在しなくなったファイルは記録からも取り除く。
     /// SessionLayout があればタブグループ構成・タブ順・選択タブを再現し、無ければ従来どおり開いた順に開く。
     /// 最後に前回アクティブだったファイルをキーウィンドウにする。

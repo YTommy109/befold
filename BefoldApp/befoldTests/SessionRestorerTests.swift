@@ -64,4 +64,66 @@ struct SessionRestorerTests {
         #expect(fixture.manager.controllers[file.normalizedPathKey] != nil)
         fixture.closeAll()
     }
+
+    @Test("保存済みタブ構成が全て実在すればタブごと復元する")
+    func openRepositoryRestoresSavedTabGroupWhenAllPathsExist() {
+        let fileA = URL(fileURLWithPath: "/repo/a.md")
+        let fileB = URL(fileURLWithPath: "/repo/b.md")
+        let fixture = MockedViewerWindowManager(files: [fileA, fileB], prefix: "SessionRestorerOpenRepo")
+        let restorer = makeRestorer(fixture)
+        let group = SessionLayout.TabGroup(
+            paths: [fileA.normalizedPathKey, fileB.normalizedPathKey], selectedPath: fileB.normalizedPathKey
+        )
+
+        restorer.openRepository(root: URL(fileURLWithPath: "/repo"), savedTabGroup: group)
+
+        #expect(fixture.manager.controllers[fileA.normalizedPathKey] != nil)
+        #expect(fixture.manager.controllers[fileB.normalizedPathKey] != nil)
+        fixture.closeAll()
+    }
+
+    @Test("保存済みタブ構成の一部が消えていれば残存パスだけで復元する")
+    func openRepositoryFiltersMissingPathsFromSavedTabGroup() {
+        let fileA = URL(fileURLWithPath: "/repo/a.md")
+        let missing = URL(fileURLWithPath: "/repo/gone.md")
+        let fixture = MockedViewerWindowManager(files: [fileA], prefix: "SessionRestorerOpenRepo")
+        let restorer = makeRestorer(fixture)
+        let group = SessionLayout.TabGroup(
+            paths: [fileA.normalizedPathKey, missing.normalizedPathKey], selectedPath: missing.normalizedPathKey
+        )
+
+        restorer.openRepository(root: URL(fileURLWithPath: "/repo"), savedTabGroup: group)
+
+        #expect(fixture.manager.controllers[fileA.normalizedPathKey] != nil)
+        #expect(fixture.manager.controllers[missing.normalizedPathKey] == nil)
+        fixture.closeAll()
+    }
+
+    @Test("保存済みタブ構成が無ければルートフォルダをサイドバー表示で開く")
+    func openRepositoryFallsBackToFolderWhenNoSavedTabGroup() {
+        let root = URL(fileURLWithPath: "/repo")
+        let entry = URL(fileURLWithPath: "/repo/a.md")
+        let fixture = MockedViewerWindowManager(files: [root, entry], prefix: "SessionRestorerOpenRepo")
+        let restorer = makeRestorer(fixture)
+
+        restorer.openRepository(root: root, savedTabGroup: nil)
+
+        #expect(fixture.manager.controllers[root.normalizedPathKey] != nil)
+        fixture.closeAll()
+    }
+
+    @Test("保存済みタブ構成の全パスが消えていればルートフォルダにフォールバックする")
+    func openRepositoryFallsBackToFolderWhenAllSavedPathsAreMissing() {
+        let root = URL(fileURLWithPath: "/repo")
+        let fixture = MockedViewerWindowManager(files: [root], prefix: "SessionRestorerOpenRepo")
+        let restorer = makeRestorer(fixture)
+        let group = SessionLayout.TabGroup(
+            paths: [URL(fileURLWithPath: "/repo/gone.md").normalizedPathKey], selectedPath: nil
+        )
+
+        restorer.openRepository(root: root, savedTabGroup: group)
+
+        #expect(fixture.manager.controllers[root.normalizedPathKey] != nil)
+        fixture.closeAll()
+    }
 }
