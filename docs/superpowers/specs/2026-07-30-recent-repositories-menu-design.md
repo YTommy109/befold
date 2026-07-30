@@ -36,7 +36,7 @@
   そのルートを新規ウィンドウで開く。**そのリポジトリの最後のタブ構成が記憶されていれば
   それを復元し、無ければ従来どおりルートフォルダをサイドバー表示で開く**
   （既存の「フォルダを開く」経路 / `SessionRestorer` のタブグループ復元ロジックに乗せる）
-- リポジトリのウィンドウが閉じるたびに、そのリポジトリの最後のタブ構成を記憶する
+- リポジトリのウィンドウの最後のタブ構成を記憶する（アクティブ化・クローズ・アプリ終了時）
 - 本体リポジトリと worktree をメニュー上のラベルで区別
 - 保持件数上限（10件）超過時の自動追い出し、重複排除、手動クリア
 - worktree がメニュー表示時点で存在しない場合の自動的な一覧メンテナンス
@@ -60,11 +60,16 @@
 - **worktree ラベル表記**: worktree ディレクトリ名を併記する（例: `befold (olla-rattler)`）。
   ブランチ名は頻繁に切り替わり表示の安定性を欠くため採用しない。本体リポジトリは
   接尾辞なし（例: `befold`）
-- **タブ構成の記録タイミング**: リポジトリに属するウィンドウが閉じるたび
-  （`viewerWindowWillClose`）に、そのリポジトリの最新状態として上書き保存する。
-  専用の「アプリ終了時に一括保存」のような別経路は設けず、既存の `noteClosed` と
-  同じイベントに載せることで実装を小さく保つ（単純化）。同一リポジトリを複数ウィンドウで
-  同時に開いていた場合は、最後に閉じたウィンドウの状態が残る（レアケースとして許容）
+- **タブ構成の記録タイミング**: ウィンドウのアクティブ化（`viewerWindowDidBecomeKey`）・
+  クローズ（`viewerWindowWillClose`）・アプリ終了（`applicationShouldTerminate`）の3点で記録する。
+  当初は close 時のみとしていたが、`windowWillClose` の時点では AppKit が既に当該ウィンドウを
+  タブグループから外しており（`window.tabGroup == nil`）、閉じる1枚分の構成しか組み立てられない。
+  タブ構成を正しく観測できるのはウィンドウが生きている間だけのため、アクティブ化を主たる
+  記録契機とする（セッション記録の `noteActivated` と同じイベントに載る）。
+  また、アプリ終了時には `windowWillClose` が発火しないことがあるため、終了時に
+  開いている全ウィンドウの構成を一括で記録する。
+  同一リポジトリを複数ウィンドウで同時に開いていた場合は、最後に記録したウィンドウの状態が残る
+  （レアケースとして許容）
 
 ## アーキテクチャ
 
@@ -93,6 +98,12 @@ final class RecentRepositoriesStore {
 `record` は既存エントリがあれば `lastTabGroup` を保持したまま先頭へ移動し、無ければ
 `lastTabGroup: nil` で新規追加する（重複排除・最終利用順の維持）。`updateLastTabGroup` は
 該当エントリの `lastTabGroup` のみを上書きし、並び順（利用順）は変更しない。
+
+`updateLastTabGroup(root:_:force:)` は、`force` が false のとき「保存済み構成の真部分集合」への
+縮小だけの書き込みを拒否する。タブは1枚ずつ閉じるため、close の連鎖では縮んでいく構成が
+次々に届き、素直に上書きするとタブ1枚まで潰れてしまうためである。セッション中の記録は
+「増える方向のみ」となり、ユーザーが意図的にタブを減らした結果は終了時の一括記録
+（`force: true`）が正として上書きする。
 
 ### GitRepository の拡張
 
@@ -124,20 +135,26 @@ final class RecentRepositoriesMenuController: NSObject, NSMenuDelegate {
 ### ViewerWindowController / ViewerWindowManager（既存を拡張）
 
 `ViewerWindowController` に `repositoryRoot: URL?`（新規プロパティ）を追加する。
-`ViewerWindowManager.openViewer(...)` がウィンドウ生成時に `GitRepository.root(forFileAt:)` を
-1回呼んで解決した結果（`recentRepositoriesStore.record(...)` に使うのと同じ呼び出し）を
-そのままこのプロパティにキャッシュする。これにより、ウィンドウが閉じる際に git を
-再度呼ばずに済む（既存の1回の解決を再利用する簡素化）。
+`ViewerWindowManager.openViewer(...)` がウィンドウ生成時に root を1回解決した結果
+（`recentRepositoriesStore.record(...)` に使うのと同じ呼び出し）をそのままこのプロパティに
+キャッシュする。これにより、ウィンドウが閉じる際に git を再度呼ばずに済む。
 
-`ViewerWindowManager` の `ViewerWindowControllerDelegate.viewerWindowWillClose` 実装
-（既存の `sessionStore.noteClosed(...)` を呼んでいる箇所）に処理を追加する。
-`controller.repositoryRoot` が非 nil であれば、そのウィンドウのタブ構成
-（`SessionRestorer` が `currentSessionLayout()` で使っているのと同じ
-「1ウィンドウ分の `TabGroup` を組み立てるロジック」を再利用する、
-`tabGroup(for window:)` として切り出す）を組み立て、
-`recentRepositoriesStore.updateLastTabGroup(root:, group)` を呼ぶ。
+root 解決とラベル解決はどちらも git の subprocess を待ち、`GitCommandFileIndex` の共有ロックの
+内側で直列化されるため、MainActor で同期実行するとウィンドウを開くたびに UI が止まる。
+解決は `Task.detached` で行い、結果の反映（`repositoryRoot` の代入と `record`）だけ MainActor へ
+戻す（`SidebarNavigator` の `resolveGitRoot` と同じ方針）。解決完了前にウィンドウが閉じられた
+場合、そのウィンドウ分の記録は行われない（次に開いたときに記録されるため許容する）。
+
+`ViewerWindowManager` は `controller.repositoryRoot` が非 nil のとき、そのウィンドウのタブ構成
+（`SessionRestorer` が `currentSessionLayout()` で使っているのと同じ「1ウィンドウ分の
+`TabGroup` を組み立てるロジック」を `tabGroup(of window:)` として切り出す）を組み立て、
+`recentRepositoriesStore.updateLastTabGroup(root:_:force:)` を呼ぶ。呼ぶ契機は
+`viewerWindowDidBecomeKey`（force なし）・`viewerWindowWillClose`（force なし）・
+`AppDelegate.applicationShouldTerminate` からの `recordAllRecentRepositoryTabGroups()`
+（force あり、全ウィンドウ分）の3つ。
 この処理は `SessionStore.isFrozen` の状態に関係なく常に実行する
-（グローバルセッションの終了時凍結とは別目的のため）。
+（グローバルセッションの終了時凍結とは別目的のため）。終了時の一括記録は
+`sessionStore.freeze()` より前、セッションレイアウトのスナップショットと同じ位置で行う。
 
 ### SessionRestorer（既存を拡張）
 

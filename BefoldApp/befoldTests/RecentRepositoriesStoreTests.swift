@@ -108,6 +108,58 @@ struct RecentRepositoriesStoreTests {
         #expect(store.entries().first { $0.label == "repoA" }?.lastTabGroup == group)
     }
 
+    /// 「repoA に paths のタブ構成が保存されている」状態を作る。
+    private func makeStoreWithTabGroup(paths: [String]) -> RecentRepositoriesStore {
+        let store = makeStore()
+        store.record(root: url("repoA"), label: "repoA")
+        store.updateLastTabGroup(
+            root: url("repoA"), SessionLayout.TabGroup(paths: paths, selectedPath: paths.first)
+        )
+        return store
+    }
+
+    @Test("保存済みタブ構成の真部分集合への縮小は拒否する")
+    func updateLastTabGroupRefusesStrictSubset() {
+        let store = makeStoreWithTabGroup(paths: ["/a", "/b"])
+
+        store.updateLastTabGroup(root: url("repoA"), SessionLayout.TabGroup(paths: ["/b"], selectedPath: "/b"))
+
+        #expect(store.entries().first?.lastTabGroup?.paths == ["/a", "/b"])
+    }
+
+    @Test("同じパス集合なら選択タブの変更が書き込まれる")
+    func updateLastTabGroupWritesWhenPathsAreUnchanged() {
+        let store = makeStoreWithTabGroup(paths: ["/a", "/b"])
+
+        store.updateLastTabGroup(
+            root: url("repoA"), SessionLayout.TabGroup(paths: ["/a", "/b"], selectedPath: "/b")
+        )
+
+        #expect(store.entries().first?.lastTabGroup?.selectedPath == "/b")
+    }
+
+    @Test("新しいパスを含むタブ構成は書き込まれる")
+    func updateLastTabGroupWritesWhenPathsAreAdded() {
+        let store = makeStoreWithTabGroup(paths: ["/a", "/b"])
+
+        store.updateLastTabGroup(
+            root: url("repoA"), SessionLayout.TabGroup(paths: ["/b", "/c"], selectedPath: "/c")
+        )
+
+        #expect(store.entries().first?.lastTabGroup?.paths == ["/b", "/c"])
+    }
+
+    @Test("force 付きなら真部分集合でも書き込まれる")
+    func updateLastTabGroupForceOverridesRefusal() {
+        let store = makeStoreWithTabGroup(paths: ["/a", "/b"])
+
+        store.updateLastTabGroup(
+            root: url("repoA"), SessionLayout.TabGroup(paths: ["/b"], selectedPath: "/b"), force: true
+        )
+
+        #expect(store.entries().first?.lastTabGroup?.paths == ["/b"])
+    }
+
     @Test("記録されていないルートへの updateLastTabGroup は何もしない")
     func updateLastTabGroupIgnoresUnknownRoot() {
         let store = makeStore()

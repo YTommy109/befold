@@ -203,6 +203,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let controller = activeViewerController {
             sessionStore.noteActivated(controller.fileURL)
         }
+        // 終了時は windowWillClose が発火しないことがあるため、リポジトリ単位のタブ構成も
+        // セッション全体のレイアウトと同じタイミングでスナップショットしておく。
+        windowManager.recordAllRecentRepositoryTabGroups()
         sessionStore.saveLayout(sessionRestorer.currentSessionLayout())
         sessionStore.freeze()
         return .terminateNow

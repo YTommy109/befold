@@ -61,10 +61,23 @@ final class RecentRepositoriesStore {
 
     /// 該当ルートのエントリの lastTabGroup のみ上書きする(並び順は変えない)。
     /// 記録されていないルートを渡された場合は何もしない。
-    func updateLastTabGroup(root: URL, _ group: SessionLayout.TabGroup) {
+    ///
+    /// タブは1枚ずつ閉じるため、3タブのウィンドウを閉じると
+    /// [A,B,C] → [B,C] → [C] と連続で呼ばれる。素直に上書きすると最後の1枚だけが
+    /// 残ってしまうので、`force` が false のときは「保存済み構成の真部分集合」への
+    /// 縮小だけの書き込みを拒否する(連鎖の最初の書き込みが完全な構成を捉えている)。
+    /// 同じ集合(選択タブだけの変化)や新しいパスを含む場合は従来どおり書き込む。
+    /// - Parameter force: true なら部分集合でも常に上書きする。アプリ終了時の一括記録が
+    ///   使い、ユーザーが実際に開いていた構成(意図的に減らしたタブも含む)を正とする。
+    func updateLastTabGroup(root: URL, _ group: SessionLayout.TabGroup, force: Bool = false) {
         let path = root.normalizedPathKey
         var entries = savedEntries()
         guard let index = entries.firstIndex(where: { $0.rootPath == path }) else { return }
+        if !force, let stored = entries[index].lastTabGroup,
+           Set(group.paths).isStrictSubset(of: Set(stored.paths))
+        {
+            return
+        }
         entries[index].lastTabGroup = group
         save(entries)
     }
