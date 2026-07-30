@@ -93,26 +93,16 @@ export const Dashboard: FC<{ summary: Summary; lastId: number }> = ({ summary, l
       </p>
 
       <div class="totals">
+        {summary.perKind.map((entry) => (
+          <div class="card">
+            <span class="value" id={`count-${entry.kind}`}>
+              {entry.total}
+            </span>
+            <span class="label">{entry.label}</span>
+          </div>
+        ))}
         <div class="card">
-          <span class="value" id="count-visit">
-            {summary.totals.visits}
-          </span>
-          <span class="label">訪問</span>
-        </div>
-        <div class="card">
-          <span class="value" id="count-download">
-            {summary.totals.downloads}
-          </span>
-          <span class="label">ダウンロード</span>
-        </div>
-        <div class="card">
-          <span class="value" id="count-update_check">
-            {summary.totals.updateChecks}
-          </span>
-          <span class="label">アップデート確認</span>
-        </div>
-        <div class="card">
-          <span class="value">{summary.totals.uniqueVisitorDays}</span>
+          <span class="value">{summary.uniqueVisitorDays}</span>
           <span class="label">ユニーク訪問者（日次）</span>
         </div>
       </div>
@@ -121,9 +111,11 @@ export const Dashboard: FC<{ summary: Summary; lastId: number }> = ({ summary, l
         <CountTable title="日別ダウンロード（14 日）" rows={summary.dailyDownloads} />
         <CountTable title="バージョン別ダウンロード" rows={summary.byVersion} />
         <CountTable title="国別" rows={summary.byCountry} />
-        <CountTable title="OS 別" rows={summary.byOS} />
         <CountTable title="参照元別" rows={summary.byReferrer} />
-        <CountTable title="接続元組織別" rows={summary.byAsOrg} />
+        {summary.perKind.map((entry) => [
+          <CountTable title={`${entry.label}: OS 別`} rows={entry.byOS} />,
+          <CountTable title={`${entry.label}: 接続元組織別`} rows={entry.byAsOrg} />,
+        ])}
       </div>
 
       <section>

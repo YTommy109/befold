@@ -133,6 +133,46 @@ describe('集計の表示', () => {
     expect(body.indexOf('Google LLC')).toBeLessThan(body.indexOf('NTT Communications'))
   })
 
+  it('OS 別が 3 指標それぞれに分かれて集計される', async () => {
+    await seed('visit', { os: 'macOS 14.5' })
+    await seed('download', { os: 'macOS 15.0' })
+    await seed('update_check', { os: 'macOS 13.6' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    const visitOS = body.indexOf('ページアクセス: OS 別')
+    const downloadOS = body.indexOf('ダウンロード: OS 別')
+    const updateOS = body.indexOf('アップデート確認: OS 別')
+    expect(visitOS).toBeGreaterThan(-1)
+    expect(downloadOS).toBeGreaterThan(visitOS)
+    expect(updateOS).toBeGreaterThan(downloadOS)
+    // 各指標の表には、その指標のイベントの OS だけが現れる
+    expect(body.slice(visitOS, downloadOS)).toContain('macOS 14.5')
+    expect(body.slice(visitOS, downloadOS)).not.toContain('macOS 15.0')
+    expect(body.slice(downloadOS, updateOS)).toContain('macOS 15.0')
+    expect(body.slice(downloadOS, updateOS)).not.toContain('macOS 13.6')
+    expect(body.slice(updateOS)).toContain('macOS 13.6')
+  })
+
+  it('接続元組織別が 3 指標それぞれに分かれて集計される', async () => {
+    await seed('visit', { asOrg: 'Google LLC' })
+    await seed('download', { asOrg: 'NTT Communications' })
+    await seed('update_check', { asOrg: 'KDDI CORPORATION' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    const visitOrg = body.indexOf('ページアクセス: 接続元組織別')
+    const downloadOrg = body.indexOf('ダウンロード: 接続元組織別')
+    const updateOrg = body.indexOf('アップデート確認: 接続元組織別')
+    expect(visitOrg).toBeGreaterThan(-1)
+    expect(downloadOrg).toBeGreaterThan(visitOrg)
+    expect(updateOrg).toBeGreaterThan(downloadOrg)
+    expect(body.slice(visitOrg, downloadOrg)).toContain('Google LLC')
+    expect(body.slice(visitOrg, downloadOrg)).not.toContain('NTT Communications')
+    expect(body.slice(downloadOrg, updateOrg)).toContain('NTT Communications')
+    expect(body.slice(updateOrg)).toContain('KDDI CORPORATION')
+  })
+
   it('イベントが無くてもエラーにならない', async () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 

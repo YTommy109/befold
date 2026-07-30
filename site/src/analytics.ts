@@ -1,5 +1,7 @@
 /** ダッシュボード向けの集計。規模が小さいため都度 GROUP BY で算出する。 */
 
+import type { EventKind } from './schema'
+
 export type Count = { label: string; count: number }
 
 export type RecentEvent = {
@@ -12,22 +14,35 @@ export type RecentEvent = {
 }
 
 export type Totals = {
-  visits: number
-  downloads: number
-  updateChecks: number
+  counts: Record<EventKind, number>
   uniqueVisitorDays: number
 }
 
+/** 1 指標（イベント種別）ごとの総数と内訳。合算せず指標別に見せるための単位。 */
+export type KindBreakdown = {
+  kind: EventKind
+  label: string
+  total: number
+  byOS: Count[]
+  byAsOrg: Count[]
+}
+
 export type Summary = {
-  totals: Totals
+  uniqueVisitorDays: number
   dailyDownloads: Count[]
   byVersion: Count[]
   byCountry: Count[]
-  byOS: Count[]
   byReferrer: Count[]
-  byAsOrg: Count[]
+  perKind: KindBreakdown[]
   recent: RecentEvent[]
 }
+
+/** 指標として並べる順序と表示名。ページ表示・集計の双方でこの順を使う。 */
+const KIND_LABELS: { kind: EventKind; label: string }[] = [
+  { kind: 'visit', label: 'ページアクセス' },
+  { kind: 'download', label: 'ダウンロード' },
+  { kind: 'update_check', label: 'アップデート確認' },
+]
 
 const DAILY_WINDOW_DAYS = 14
 const TOP_N = 10
@@ -52,9 +67,11 @@ export async function totals(db: D1Database): Promise<Totals> {
     }>()
 
   return {
-    visits: row?.visits ?? 0,
-    downloads: row?.downloads ?? 0,
-    updateChecks: row?.update_checks ?? 0,
+    counts: {
+      visit: row?.visits ?? 0,
+      download: row?.downloads ?? 0,
+      update_check: row?.update_checks ?? 0,
+    },
     uniqueVisitorDays: row?.unique_visitor_days ?? 0,
   }
 }
@@ -83,7 +100,7 @@ type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer' | 'as_org'
 async function breakdown(
   db: D1Database,
   column: BreakdownColumn,
-  kind: string | null = null,
+  kind: EventKind | null = null,
 ): Promise<Count[]> {
   const { results } = await db
     .prepare(
@@ -116,28 +133,39 @@ export async function recentEvents(db: D1Database, afterId = 0): Promise<RecentE
   return results
 }
 
+/** 1 指標の OS 別・接続元組織別の内訳。合算しないため指標の意味が混ざらない。 */
+async function kindBreakdown(
+  db: D1Database,
+  { kind, label }: { kind: EventKind; label: string },
+): Promise<Omit<KindBreakdown, 'total'>> {
+  const [byOS, byAsOrg] = await Promise.all([
+    breakdown(db, 'os', kind),
+    breakdown(db, 'as_org', kind),
+  ])
+
+  return { kind, label, byOS, byAsOrg }
+}
+
 /** ダッシュボード初期表示用の集計一式。 */
 export async function summarize(db: D1Database, now: number): Promise<Summary> {
-  const [aggregate, daily, byVersion, byCountry, byOS, byReferrer, byAsOrg, recent] =
+  const [aggregate, daily, byVersion, byCountry, byReferrer, breakdowns, recent] =
     await Promise.all([
       totals(db),
       dailyDownloads(db, now),
       breakdown(db, 'version', 'download'),
       breakdown(db, 'country'),
-      breakdown(db, 'os'),
       breakdown(db, 'referrer'),
-      breakdown(db, 'as_org'),
+      Promise.all(KIND_LABELS.map((entry) => kindBreakdown(db, entry))),
       recentEvents(db),
     ])
 
   return {
-    totals: aggregate,
+    uniqueVisitorDays: aggregate.uniqueVisitorDays,
     dailyDownloads: daily,
     byVersion,
     byCountry,
-    byOS,
     byReferrer,
-    byAsOrg,
+    perKind: breakdowns.map((entry) => ({ ...entry, total: aggregate.counts[entry.kind] })),
     recent,
   }
 }
