@@ -1,11 +1,11 @@
 ---
 id: TASK-195
 title: CI で site/ の Worker のテストと型チェックを実行する
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-07-30 00:06'
-updated_date: '2026-07-30 00:14'
+updated_date: '2026-07-30 00:22'
 labels: []
 dependencies: []
 priority: high
@@ -24,7 +24,7 @@ Swift 側と同様に CI で自動実行し、site/ に変更がある PR で必
 <!-- AC:BEGIN -->
 - [x] #1 site/ に変更がある PR で vitest が CI 上で実行され、失敗時にジョブが赤くなる
 - [x] #2 site/ に変更がある PR で tsc --noEmit が CI 上で実行される
-- [ ] #3 site/ に変更が無い PR では該当ジョブがスキップされ、CI 時間を無駄に消費しない
+- [x] #3 site/ に変更が無い PR では該当ジョブがスキップされ、CI 時間を無駄に消費しない
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -50,4 +50,16 @@ Swift 側と同様に CI で自動実行し、site/ に変更がある PR で必
 AC#3 は未チェック。この PR 内では原理的に検証できない。pull_request イベントの paths フィルタは PR 全体の差分（base...head）に対して評価されるため、当 PR は site/ を含む以上どのコミットでも Site CI が起動する。また main には site/ も site.yml も存在せず、ワークフローは head ref に存在しないと実行されないため、比較対象を作れない。
 
 AC#3 の着手条件: PR #321 が main にマージされ、その後 site/ を含まない PR または push が発生した時点で、Site CI が起動していないことを gh run list で確認すればよい。
+
+AC#3 を実測で確定（2026-07-30）。PR #321 マージ後、backlog/ の 2 ファイルのみを変更する PR #322（branch docs/post-merge-verification）を作成して検証した。
+
+結果: gh run list --branch docs/post-merge-verification が空（起動した run なし）、gh pr checks 322 は 'no checks reported'。Site CI（paths: site/** と .github/workflows/site.yml）も CI（paths: BefoldApp/** と .github/workflows/ci.yml）も起動せず、両ワークフローの paths フィルタが意図どおり機能していることを確認した。
+
+参考: PR #321 での Site CI 実行時間は 18 秒で、CI 全体（build-and-test 3m7s）への影響は小さい。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+.github/workflows/site.yml を新設し、site/ の vitest 39 件と tsc --noEmit を CI で実行するようにした。ci.yml への job 追加ではなく独立ワークフローにしたのは、ci.yml の paths が BefoldApp/** に絞られており job を足しても site/ 変更では起動せず、paths に site/** を足すと site だけの変更で高コストな macOS ランナーまで走るため。PR #321 の実 CI 実行（Site CI = SUCCESS、18 秒）で npm ci → typecheck → 39 件 passed を確認し、失敗時の非ゼロ終了もローカルで確認（npm test = 1、typecheck = 2）。site/ を含まない PR #322 でワークフローが 1 件も起動しないことも実測済み。
+<!-- SECTION:FINAL_SUMMARY:END -->
