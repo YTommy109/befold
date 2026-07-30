@@ -67,6 +67,43 @@ npm run migrate:remote                     # 本番 D1 へ適用
    入力を受け取れず空の値が登録される。ダッシュボードが 503 を返す場合はこれを疑い、
    対話的なターミナルで登録し直す。
 
+## 本番デプロイ（自動）
+
+`main` へのマージで `.github/workflows/site.yml` の `deploy` ジョブが走り、
+**D1 マイグレーション適用 → Worker デプロイ** の順に実行される。テスト
+（`test` ジョブ）の通過が前提条件。`site/` に変更が無いマージでは起動しない。
+
+手動運用ではこの順序を守り続けられないため CI に固定している。逆順だと
+新コードの INSERT がカラム不足で失敗し、`insertEvent` は例外を飲む設計なので
+計測が無言で欠落する。
+
+### 必要なシークレット
+
+GitHub リポジトリの Secrets に `CLOUDFLARE_API_TOKEN` を登録する。トークンには
+以下の権限が必要。
+
+| 権限 | 用途 |
+| ---- | ---- |
+| Account / Workers Scripts / Edit | Worker のデプロイ、アセットのアップロード |
+| Account / D1 / Edit | マイグレーションの適用 |
+
+### 破壊的なマイグレーションは自動適用されない
+
+`scripts/check-destructive-migrations.sh` が **本番に未適用の**マイグレーションを
+走査し、`DROP` / `RENAME` / `DELETE FROM` / `TRUNCATE` を含む場合はデプロイを
+失敗させる。D1 は自動バックアップからの巻き戻しが常に間に合うとは限らないため、
+取り返しのつかない適用を CI に任せない。
+
+検査対象を未適用のものだけに絞っているので、内容を確認して手動で適用すれば
+次回から通るようになる。
+
+```bash
+cd site && npm run migrate:remote
+```
+
+Atlas はカラム型変更をテーブル再構築（新テーブル作成 → コピー → `DROP` →
+`RENAME`）として出力するため、型変更もこの検査で捕捉される。
+
 ## staging 環境
 
 公開 URL: <https://befold-staging.tommy109.workers.dev>
