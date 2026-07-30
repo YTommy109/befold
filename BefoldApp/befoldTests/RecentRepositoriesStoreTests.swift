@@ -4,6 +4,35 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
+/// pruneMissing が「変更が無ければ書き込まない」ことを検証するための、
+/// 書き込み回数を数える UserDefaults ラッパー。makeIsolatedDefaults(InMemoryUserDefaults)と
+/// 同じくディスクに触れない実装(プリミティブを上書き)にした上で書き込み回数だけ記録する。
+private final class WriteCountingUserDefaults: UserDefaults {
+    private let lock = NSLock()
+    private var storage: [String: Any] = [:]
+    private(set) var writeCount = 0
+
+    override func object(forKey defaultName: String) -> Any? {
+        lock.lock(); defer { lock.unlock() }
+        return storage[defaultName]
+    }
+
+    override func set(_ value: Any?, forKey defaultName: String) {
+        lock.lock(); defer { lock.unlock() }
+        writeCount += 1
+        if let value {
+            storage[defaultName] = value
+        } else {
+            storage.removeValue(forKey: defaultName)
+        }
+    }
+
+    override func removeObject(forKey defaultName: String) {
+        lock.lock(); defer { lock.unlock() }
+        storage.removeValue(forKey: defaultName)
+    }
+}
+
 @Suite
 @MainActor
 struct RecentRepositoriesStoreTests {
@@ -120,5 +149,30 @@ struct RecentRepositoriesStoreTests {
         store.pruneMissing()
 
         #expect(store.entries().map(\.label) == ["kept"])
+    }
+
+    @Test("pruneMissing はデコード不能な保存データを空リストで上書きしない")
+    func pruneMissingLeavesCorruptedDataUntouched() {
+        let store = makeStore()
+        let corrupted = Data("not valid json".utf8)
+        defaults.set(corrupted, forKey: "RecentRepositories")
+
+        store.pruneMissing()
+
+        #expect(defaults.data(forKey: "RecentRepositories") == corrupted)
+    }
+
+    @Test("pruneMissing は取り除く対象が無ければ defaults へ書き込まない")
+    func pruneMissingSkipsWriteWhenNothingIsMissing() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        let spyDefaults = WriteCountingUserDefaults()
+        let store = RecentRepositoriesStore(defaults: spyDefaults, fileReader: DefaultFileReader())
+        store.record(root: temp.url, label: "kept")
+        let writesAfterRecord = spyDefaults.writeCount
+
+        store.pruneMissing()
+
+        #expect(spyDefaults.writeCount == writesAfterRecord)
     }
 }
