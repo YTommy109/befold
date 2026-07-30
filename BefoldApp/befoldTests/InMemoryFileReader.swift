@@ -8,13 +8,17 @@ import Foundation
 /// テキストもバイナリも単一の Data ストアで管理する。
 final class InMemoryFileReader: FileReading, Sendable {
     private let files: LockedBox<[String: Data]>
+    private let directories: LockedBox<Set<String>>
     private let binaryPaths: LockedBox<Set<String>>
     private let readErrorPaths: LockedBox<Set<String>>
     private let sizeOverrides: LockedBox<[String: Int]>
     private let modificationDates: LockedBox<[String: Date]>
 
-    init(files: [String: String] = [:]) {
+    /// - Parameter directories: 存在するディレクトリとして扱う URL.path の集合。
+    ///   省略時は空集合(=ディレクトリを持たない、従来どおりの挙動)で、既存の呼び出し元は変更不要。
+    init(files: [String: String] = [:], directories: Set<String> = []) {
         self.files = LockedBox(files.mapValues { Data($0.utf8) })
+        self.directories = LockedBox(directories)
         binaryPaths = LockedBox([])
         readErrorPaths = LockedBox([])
         sizeOverrides = LockedBox([:])
@@ -60,17 +64,17 @@ final class InMemoryFileReader: FileReading, Sendable {
     }
 
     func fileExists(at url: URL) -> Bool {
-        files.get()[url.path] != nil
+        files.get()[url.path] != nil || directories.get().contains(url.path)
     }
 
-    /// メモリ上のストアはディレクトリを持たないため常に false。
-    func isDirectory(at _: URL) -> Bool {
-        false
+    /// init の directories に含まれるパスのみ true。未指定なら常に false(従来どおり)。
+    func isDirectory(at url: URL) -> Bool {
+        directories.get().contains(url.path)
     }
 
-    /// ディレクトリを持たないため、存在すれば通常ファイル扱い。
+    /// 存在し、かつディレクトリでないパスのみ true。
     func isExistingFile(at url: URL) -> Bool {
-        fileExists(at: url)
+        fileExists(at: url) && !isDirectory(at: url)
     }
 
     func readString(from url: URL) throws -> String {

@@ -8,6 +8,11 @@ final class SessionRestorer {
     private let sessionStore: SessionStore
     private let windowManager: ViewerWindowManager
     private let fileReader: any FileReading
+    /// openRootFallback の解決シーム。既定は DirectoryLister.resolveFileToOpen(実 FileManager でのディレクトリ
+    /// 列挙)だが、テストでは仮想パスを実 FS 抜きで解決したスタブに差し替えられるようにする
+    /// (DirectoryLister.resolveFileToOpen は内部でディレクトリ列挙に実 FileManager を使うため、
+    /// InMemoryFileReader だけの仮想パスでは検証できない)。
+    private let resolveFileToOpen: (URL) -> URL?
     /// 前回セッションで開いていたファイル。起動イベントで開かれるファイルの記録と混ざらないよう
     /// captureSavedState で読み取り、restoreLastSession で復元する。
     private var urlsToRestore: [URL] = []
@@ -19,11 +24,13 @@ final class SessionRestorer {
     init(
         sessionStore: SessionStore,
         windowManager: ViewerWindowManager,
-        fileReader: any FileReading = DefaultFileReader()
+        fileReader: any FileReading = DefaultFileReader(),
+        resolveFileToOpen: @escaping (URL) -> URL? = { DirectoryLister.resolveFileToOpen(at: $0) }
     ) {
         self.sessionStore = sessionStore
         self.windowManager = windowManager
         self.fileReader = fileReader
+        self.resolveFileToOpen = resolveFileToOpen
     }
 
     /// 保存済みのセッション状態を先読みする。applicationWillFinishLaunching で呼ぶ。
@@ -76,7 +83,7 @@ final class SessionRestorer {
         root: URL, savedTabGroup: SessionLayout.TabGroup?, options: CLIOpenOptions = CLIOpenOptions()
     ) {
         guard let savedTabGroup else {
-            windowManager.openViewer(for: root, forceSidebarVisible: true)
+            openRootFallback(root: root, options: options)
             return
         }
         let existingPaths = Set(savedTabGroup.paths.filter { path in
@@ -84,11 +91,22 @@ final class SessionRestorer {
         })
         let filtered = SessionLayout(groups: [savedTabGroup]).filtered(to: existingPaths)
         guard let group = filtered.groups.first else {
-            windowManager.openViewer(for: root, forceSidebarVisible: true)
+            openRootFallback(root: root, options: options)
             return
         }
         let urlByPath = Dictionary(group.paths.map { ($0, URL(fileURLWithPath: $0)) }) { first, _ in first }
         restoreTabGroup(group, urlByPath: urlByPath, options: options)
+    }
+
+    /// タブ構成を復元できない場合のフォールバック。root はディレクトリなので、
+    /// AppDelegate.openViewer(for:options:) と同じ経路(既定は DirectoryLister.resolveFileToOpen)で
+    /// 中の対応ファイルへ解決してから開く。ViewerWindowManager.openViewer はファイルを渡す前提のため、
+    /// ディレクトリをそのまま渡すと壊れたウィンドウになる(サイドバーが親ディレクトリを指す等)。
+    /// 対応ファイルが1つも無い(空フォルダ等)場合は、壊れたウィンドウを開くより何もしない方を選ぶ
+    /// (AppDelegate 側のノーファイルアラートは CLI 起動専用の導線のため、ここでは踏襲しない)。
+    private func openRootFallback(root: URL, options: CLIOpenOptions) {
+        guard let target = resolveFileToOpen(root) else { return }
+        openViewer(for: target, options: options, forceSidebarVisible: true)
     }
 
     /// 前回セッションで開いていたファイルを再オープンする。存在しなくなったファイルは記録からも取り除く。
@@ -143,11 +161,13 @@ final class SessionRestorer {
     }
 
     /// CLI 起動オプションの上書きをまとめてウィンドウ生成へ引き渡す。
-    /// restoreLastSession とタブグループ復元の両方から呼ぶことで、
-    /// CLIOpenOptions にオーバーライドが追加されても転送漏れが起きないようにする。
-    private func openViewer(for url: URL, options: CLIOpenOptions) {
+    /// restoreLastSession・タブグループ復元・ルートフォルダのフォールバックの
+    /// いずれからも呼ぶことで、CLIOpenOptions にオーバーライドが追加されても転送漏れが起きないようにする。
+    /// forceSidebarVisible はフォルダーオープン相当(openRootFallback)でのみ true にする。
+    private func openViewer(for url: URL, options: CLIOpenOptions, forceSidebarVisible: Bool = false) {
         windowManager.openViewer(
-            for: url, sidebarVisibleOverride: options.showSidebar,
+            for: url, forceSidebarVisible: forceSidebarVisible,
+            sidebarVisibleOverride: options.showSidebar,
             initialSortOrder: options.viewerSortOrder,
             showLineNumbersOverride: options.showLineNumbers, sourceModeOverride: options.sourceMode
         )

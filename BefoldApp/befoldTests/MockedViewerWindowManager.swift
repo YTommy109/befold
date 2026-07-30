@@ -48,12 +48,18 @@ struct MockedViewerWindowManager {
     let recentRepositoriesStore: RecentRepositoriesStore
     let manager: ViewerWindowManager
 
-    /// - Parameter files: 存在するものとして扱う URL。VWM の存在ガードと、
-    ///   生成される ViewerStore の読込の双方が同じ InMemoryFileReader を共有する。
-    init(files: [URL], prefix: String = "ViewerWindowManagerTests", contents: String = "graph TD;") {
+    /// - Parameters:
+    ///   - files: 存在するものとして扱う URL。VWM の存在ガードと、
+    ///     生成される ViewerStore の読込の双方が同じ InMemoryFileReader を共有する。
+    ///   - directories: 存在するディレクトリとして扱う URL(例: フォルダーオープンのフォールバック検証)。
+    init(
+        files: [URL], directories: [URL] = [], prefix: String = "ViewerWindowManagerTests",
+        contents: String = "graph TD;"
+    ) {
         let defaults = makeIsolatedDefaults(prefix: prefix)
         let fileReader = InMemoryFileReader(
-            files: Dictionary(uniqueKeysWithValues: files.map { ($0.path, contents) })
+            files: Dictionary(uniqueKeysWithValues: files.map { ($0.path, contents) }),
+            directories: Set(directories.map(\.path))
         )
         self.defaults = defaults
         self.fileReader = fileReader

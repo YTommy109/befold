@@ -150,8 +150,11 @@ func openRepository(root: URL, savedTabGroup: SessionLayout.TabGroup?, options: 
 ```
 
 `savedTabGroup` を実在パスに `filtered` した結果が空でなければ `restoreTabGroup` で
-タブ構成ごと新規ウィンドウとして開く。`nil` または空になった場合は
-`windowManager.openViewer(for: root, forceSidebarVisible: true, ...)` にフォールバックする。
+タブ構成ごと新規ウィンドウとして開く。`nil` または空になった場合は、`root`(ディレクトリ)を
+`DirectoryLister.resolveFileToOpen(at:)` で中の対応ファイルへ解決してから
+`windowManager.openViewer(for:, forceSidebarVisible: true, ...)` を呼ぶフォールバックへ縮退する
+(`openViewer` はファイルを渡す前提のため、ディレクトリをそのまま渡すと壊れたウィンドウになる)。
+対応ファイルが1つも無い場合は何もしない。
 
 ### MainMenuBuilder / AppDelegate（既存を拡張）
 
@@ -185,7 +188,9 @@ AppDelegate.openViewer(for:options:)
 メニュー選択時:
   openHandler(entry) → sessionRestorer.openRepository(root: entry.root, savedTabGroup: entry.lastTabGroup)
     → savedTabGroup があり実在パスが残っていれば restoreTabGroup でタブごと復元
-    → 無ければ windowManager.openViewer(for: root, forceSidebarVisible: true, ...) にフォールバック
+    → 無ければ root を DirectoryLister.resolveFileToOpen(at:) で中の対応ファイルへ解決し、
+      windowManager.openViewer(for: 解決したファイル, forceSidebarVisible: true, ...) を呼ぶ
+      (対応ファイルが1つも無ければ何もしない)
 ```
 
 ## エラー処理
