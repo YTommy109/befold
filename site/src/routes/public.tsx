@@ -9,7 +9,7 @@ export const publicRoutes = new Hono<AppEnv>()
 
 publicRoutes.get('/', (c) => {
   recordEvent(c, { kind: 'visit' })
-  return c.html(<Landing />)
+  return c.html(<Landing origin={new URL(c.req.url).origin} />)
 })
 
 publicRoutes.get('/download', async (c) => {

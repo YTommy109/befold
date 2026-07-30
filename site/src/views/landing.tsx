@@ -171,17 +171,38 @@ const SCREENSHOTS: {
   },
 ]
 
-/** 配布 LP。ダウンロードは計測用の /download 経由にする。 */
-export const Landing: FC = () => (
+/** og:title / og:description を <title> / description と二重管理しないための定数。 */
+const PAGE_TITLE = 'befold — File Viewer for macOS'
+const PAGE_DESCRIPTION =
+  'befold is a lightweight macOS viewer for reviewing the Markdown that terminal coding agents like Claude Code and Codex generate. Open any file from the CLI or with ⌘P — including git worktrees — and read Mermaid, Markdown, SVG, HTML and CSV with live reload.'
+
+/**
+ * 配布 LP。ダウンロードは計測用の /download 経由にする。
+ *
+ * origin を受け取るのは、OGP のクローラが絶対 URL しか解決できない一方で、
+ * ホスト名をハードコードすると staging が本番の URL を指してしまうため。
+ */
+export const Landing: FC<{ origin: string }> = ({ origin }) => (
   <html lang="ja">
     <head>
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>befold — File Viewer for macOS</title>
+      <title>{PAGE_TITLE}</title>
+      <meta name="description" content={PAGE_DESCRIPTION} />
+      <link rel="canonical" href={`${origin}/`} />
+      <meta property="og:type" content="website" />
+      <meta property="og:site_name" content="befold" />
+      <meta property="og:title" content={PAGE_TITLE} />
+      <meta property="og:description" content={PAGE_DESCRIPTION} />
+      <meta property="og:url" content={`${origin}/`} />
+      <meta property="og:image" content={`${origin}/images/ogp.png`} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
       <meta
-        name="description"
-        content="befold is a lightweight macOS viewer for reviewing the Markdown that terminal coding agents like Claude Code and Codex generate. Open any file from the CLI or with ⌘P — including git worktrees — and read Mermaid, Markdown, SVG, HTML and CSV with live reload."
+        property="og:image:alt"
+        content="befold — a macOS file viewer showing a rendered Mermaid diagram"
       />
+      <meta name="twitter:card" content="summary_large_image" />
       <link rel="stylesheet" href="/style.css" />
     </head>
     <body>
