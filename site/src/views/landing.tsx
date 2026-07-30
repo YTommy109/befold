@@ -200,7 +200,7 @@ export const Landing: FC<{ origin: string }> = ({ origin }) => (
       <meta property="og:image:height" content="630" />
       <meta
         property="og:image:alt"
-        content="befold — a macOS file viewer showing a rendered Mermaid diagram"
+        content="befold — a macOS file viewer showing a Markdown document with an embedded Mermaid diagram"
       />
       <meta name="twitter:card" content="summary_large_image" />
       <link rel="stylesheet" href="/style.css" />

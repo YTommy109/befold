@@ -5,6 +5,11 @@
 ## ogp-template.html
 
 OGP 画像 `public/images/ogp.png` の元テンプレート。
+右側に置くアプリ画面は `ogp-screenshot.png`（1280×800）で、これも
+このディレクトリにある。LP のカルーセル用スクリーンショットとは
+用途が違う（あちらは形式ごとの紹介、こちらは Markdown に Mermaid を
+埋め込んだ「よくある読み物」の絵）ので流用せず別に持つ。
+
 中身を変えたら、以下を実行して PNG を作り直しコミットする。
 
     cd site

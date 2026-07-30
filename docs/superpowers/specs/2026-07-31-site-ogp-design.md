@@ -22,7 +22,7 @@
 | ---- | ---- |
 | 画像の用意 | 専用の静的 PNG を 1 枚作り、リポジトリにコミットする |
 | 絵柄 | 左にコピー、右にアプリ画面 |
-| 素材 | 既存の `site/public/images/screenshot-1.png`（Mermaid）を流用 |
+| 素材 | Markdown に Mermaid を埋め込んだ画面を撮り下ろす（`site/tools/ogp-screenshot.png`） |
 | 言語 | 英語（画像内コピー・`og:title`・`og:description` すべて） |
 | 生成方法 | HTML テンプレート → ヘッドレス Chrome で撮影 → PNG をコミット |
 
