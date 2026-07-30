@@ -18,4 +18,16 @@ struct AppLinksTests {
 
         #expect(query?.first { $0.name == "ref" }?.value == "about")
     }
+
+    @Test("help は GitHub ではなく配布サイト Worker を指す")
+    func helpPointsToDistributionSite() {
+        #expect(AppLinks.help.host == "befold.tommy109.workers.dev")
+    }
+
+    @Test("help は参照元集計のための ref=help を持つ")
+    func helpCarriesReferrerMarker() {
+        let query = URLComponents(url: AppLinks.help, resolvingAgainstBaseURL: false)?.queryItems
+
+        #expect(query?.first { $0.name == "ref" }?.value == "help")
+    }
 }
