@@ -223,3 +223,46 @@ describe('プライバシー', () => {
     expect(event?.visitor_day).toMatch(/^[0-9a-f]{64}$/)
   })
 })
+
+describe('OGP メタタグ', () => {
+  it('og:image と og:url をリクエストの origin から絶対 URL で出す', async () => {
+    const html = await (await call('/')).text()
+
+    expect(html).toContain(
+      '<meta property="og:image" content="https://befold.example/images/ogp.png"/>',
+    )
+    expect(html).toContain('<meta property="og:url" content="https://befold.example/"/>')
+  })
+
+  it('twitter:card は大判カードにする', async () => {
+    const html = await (await call('/')).text()
+
+    expect(html).toContain('<meta name="twitter:card" content="summary_large_image"/>')
+  })
+
+  it('ホストが変わっても og:url がそのホストを指す（ハードコードしない）', async () => {
+    const request = new Request('https://befold-staging.example/', {
+      headers: { 'User-Agent': UA, 'CF-Connecting-IP': IP, 'CF-IPCountry': 'JP' },
+    })
+    const ctx = createExecutionContext()
+    const html = await (await app.fetch(request, env, ctx)).text()
+    await waitOnExecutionContext(ctx)
+
+    expect(html).toContain('<meta property="og:url" content="https://befold-staging.example/"/>')
+    expect(html).toContain(
+      '<meta property="og:image" content="https://befold-staging.example/images/ogp.png"/>',
+    )
+  })
+
+  it('og:title と og:description は title / description と同じ文字列にする', async () => {
+    const html = await (await call('/')).text()
+
+    const title = html.match(/<title>(.*?)<\/title>/)?.[1]
+    const description = html.match(/<meta name="description" content="(.*?)"\/>/)?.[1]
+
+    expect(title).toBeTruthy()
+    expect(description).toBeTruthy()
+    expect(html).toContain(`<meta property="og:title" content="${title}"/>`)
+    expect(html).toContain(`<meta property="og:description" content="${description}"/>`)
+  })
+})
