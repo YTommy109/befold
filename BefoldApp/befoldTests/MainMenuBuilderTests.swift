@@ -7,15 +7,23 @@ import Testing
 struct MainMenuBuilderTests {
     private final class StubMenuDelegate: NSObject, NSMenuDelegate {}
 
-    private func buildMenu() -> NSMenu {
+    // NSMenu.delegate は weak。buildMenu() 呼び出し中だけの一時インスタンスだと、
+    // 代入直後に解放されて delegate が nil に化ける(トラップ)。struct のプロパティとして
+    // 保持し、テスト実行(assert 時点)まで生存させる。recentRepositoriesMenuDelegate だけは
+    // 呼び出し側で識別を検証したいケースがあるため、そちらは引数として個別に受け取る。
+    private let recentMenuDelegate = StubMenuDelegate()
+    private let bookmarksMenuDelegate = StubMenuDelegate()
+
+    private func buildMenu(recentRepositoriesMenuDelegate: NSMenuDelegate = StubMenuDelegate()) -> NSMenu {
         // swift test のプロセスでは NSApp が未初期化のため、
         // MainMenuBuilder が参照する前に NSApplication.shared で初期化する
         _ = NSApplication.shared
         return MainMenuBuilder.build(
             openAction: #selector(AppDelegate.showOpenPanel),
             helpAction: #selector(AppDelegate.openHelp(_:)),
-            recentMenuDelegate: StubMenuDelegate(),
-            bookmarksMenuDelegate: StubMenuDelegate()
+            recentMenuDelegate: recentMenuDelegate,
+            bookmarksMenuDelegate: bookmarksMenuDelegate,
+            recentRepositoriesMenuDelegate: recentRepositoriesMenuDelegate
         )
     }
 
@@ -43,18 +51,39 @@ struct MainMenuBuilderTests {
         #expect(titles.contains(localizedTitle("menu.help.title")))
     }
 
-    @Test("File メニューに Open Recent と並んで Bookmarks サブメニューがある")
-    func fileMenuHasBookmarksSubmenu() throws {
+    @Test("File メニューの記憶済みリストは 履歴2つ → Bookmarks の順で並ぶ")
+    func fileMenuListsHistoriesBeforeBookmarks() throws {
         let mainMenu = buildMenu()
         let file = try #require(submenu(titledKey: "menu.file.title", in: mainMenu))
 
-        let recentItem = try #require(file.items.first {
+        let recentIndex = try #require(file.items.firstIndex {
             $0.submenu?.title == localizedTitle("menu.file.openRecent")
         })
-        let bookmarksItem = try #require(file.items.first {
+        let recentRepositoriesIndex = try #require(file.items.firstIndex {
+            $0.submenu?.title == localizedTitle("menu.file.recentRepositories")
+        })
+        let bookmarksIndex = try #require(file.items.firstIndex {
             $0.submenu?.title == localizedTitle("menu.file.bookmarks")
         })
-        #expect(file.items.firstIndex(of: bookmarksItem) == file.items.firstIndex(of: recentItem)! + 1)
+        #expect(recentRepositoriesIndex == recentIndex + 1)
+        #expect(bookmarksIndex == recentRepositoriesIndex + 1)
+        // 「開くコマンド」群とは区切り線で分かれ、リスト群の直後も区切り線で閉じる。
+        #expect(file.items[recentIndex - 1].isSeparatorItem)
+        #expect(file.items[bookmarksIndex + 1].isSeparatorItem)
+    }
+
+    @Test("File メニューに Recent Repositories サブメニューがある")
+    func fileMenuHasRecentRepositoriesSubmenu() throws {
+        // NSMenu.delegate は weak のため、テストのスコープ内で強参照を保持しておく
+        // (build() 呼び出し中だけの参照だと、代入直後に解放されて nil になる)。
+        let delegate = StubMenuDelegate()
+        let mainMenu = buildMenu(recentRepositoriesMenuDelegate: delegate)
+        let file = try #require(submenu(titledKey: "menu.file.title", in: mainMenu))
+
+        let recentRepositoriesItem = try #require(file.items.first {
+            $0.submenu?.title == localizedTitle("menu.file.recentRepositories")
+        })
+        #expect(recentRepositoriesItem.submenu?.delegate === delegate)
     }
 
     @Test("Edit メニューに Copy(⌘C) と Select All(⌘A) がある")

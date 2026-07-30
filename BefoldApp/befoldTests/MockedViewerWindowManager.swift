@@ -45,14 +45,21 @@ struct MockedViewerWindowManager {
     let bookmarkStore: BookmarkStore
     /// 生成される全ウィンドウが共有する git 索引。実 `git` を起動しない記録用フェイク。
     let gitFileIndex: RecordingGitFileIndex
+    let recentRepositoriesStore: RecentRepositoriesStore
     let manager: ViewerWindowManager
 
-    /// - Parameter files: 存在するものとして扱う URL。VWM の存在ガードと、
-    ///   生成される ViewerStore の読込の双方が同じ InMemoryFileReader を共有する。
-    init(files: [URL], prefix: String = "ViewerWindowManagerTests", contents: String = "graph TD;") {
+    /// - Parameters:
+    ///   - files: 存在するものとして扱う URL。VWM の存在ガードと、
+    ///     生成される ViewerStore の読込の双方が同じ InMemoryFileReader を共有する。
+    ///   - directories: 存在するディレクトリとして扱う URL(例: フォルダーオープンのフォールバック検証)。
+    init(
+        files: [URL], directories: [URL] = [], prefix: String = "ViewerWindowManagerTests",
+        contents: String = "graph TD;"
+    ) {
         let defaults = makeIsolatedDefaults(prefix: prefix)
         let fileReader = InMemoryFileReader(
-            files: Dictionary(uniqueKeysWithValues: files.map { ($0.path, contents) })
+            files: Dictionary(uniqueKeysWithValues: files.map { ($0.path, contents) }),
+            directories: Set(directories.map(\.path))
         )
         self.defaults = defaults
         self.fileReader = fileReader
@@ -64,6 +71,8 @@ struct MockedViewerWindowManager {
         self.bookmarkStore = bookmarkStore
         let gitFileIndex = RecordingGitFileIndex()
         self.gitFileIndex = gitFileIndex
+        let recentRepositoriesStore = RecentRepositoriesStore(defaults: defaults)
+        self.recentRepositoriesStore = recentRepositoriesStore
         manager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
@@ -79,7 +88,8 @@ struct MockedViewerWindowManager {
                 )
             },
             directoryLister: { _, _, _ in [] },
-            gitFileIndex: gitFileIndex
+            gitFileIndex: gitFileIndex,
+            recentRepositoriesStore: recentRepositoriesStore
         )
     }
 

@@ -545,6 +545,23 @@
         }
       }
     },
+    "menu.file.recentRepositories": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent Repositories"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近使ったリポジトリ"
+          }
+        }
+      }
+    },
     "menu.file.title": {
       "extractionState": "manual",
       "localizations": {
