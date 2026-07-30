@@ -47,3 +47,45 @@ jobs:
       # テスト専用の D1 に migrations/ を適用して実行する
       - name: テストを実行する
         run: npm test
+
+  # main へのマージで本番へ反映する。手作業では順序を守り続けられないため
+  # CI に固定する。マイグレーションを先に当てないと新コードの INSERT が
+  # カラム不足で失敗し、insertEvent は例外を飲む設計なので計測が無言で欠落する。
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    # 同時実行を 1 本に絞る。並行デプロイでマイグレーションと Worker の
+    # 版が食い違うのを防ぐため、test 側の concurrency とは別グループにする。
+    concurrency:
+      group: site-deploy
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: site
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: 依存をインストールする
+        run: npm ci
+
+      # 取り返しのつかない適用を CI に任せない歯止め。未適用のマイグレーションに
+      # DROP / RENAME / DELETE / TRUNCATE が含まれていたらここで落ちる。
+      # 手動適用すれば未適用でなくなり、次回から通る。
+      - name: 破壊的なマイグレーションが無いか確認する
+        working-directory: .
+        run: scripts/check-destructive-migrations.sh
+
+      - name: D1 マイグレーションを適用する
+        run: npm run migrate:remote
+
+      - name: Worker をデプロイする
+        run: npm run deploy
