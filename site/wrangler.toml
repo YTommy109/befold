@@ -1,0 +1,26 @@
+name = "befold"
+main = "src/index.ts"
+compatibility_date = "2026-07-28"
+compatibility_flags = ["nodejs_compat"]
+
+# 独自ドメインは使わず、Cloudflare が用意する *.workers.dev で公開する。
+# workers.dev には Cloudflare Access を設定できないため、ダッシュボードは
+# Worker 側の Basic 認証（シークレット DASHBOARD_PASSWORD）で保護する。
+workers_dev = true
+
+# LP の CSS / JS / スクリーンショットは静的アセットとして配信する。
+# 必ず Worker を先に通し（計測ルートを取りこぼさないため）、Worker が
+# ルートを持たないパスだけを ASSETS バインディングへ委譲する。
+[assets]
+directory = "public"
+binding = "ASSETS"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "befold-analytics"
+database_id = "5b7d03ff-d15d-45db-8b58-12639f31578c"
+migrations_dir = "migrations"
+
+[observability]
+enabled = true

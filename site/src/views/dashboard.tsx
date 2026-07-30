@@ -1,0 +1,152 @@
+import type { FC } from 'hono/jsx'
+import { html, raw } from 'hono/html'
+import type { Count, Summary } from '../analytics'
+
+/** SSE で受信した新着イベントをカウンタと一覧へ反映する。 */
+const STREAM_SCRIPT = `
+(function () {
+  var source = new EventSource('/dashboard/stream?after=' + document.body.dataset.lastId);
+  var list = document.getElementById('recent-body');
+  var status = document.getElementById('stream-status');
+
+  source.addEventListener('open', function () { status.textContent = 'live'; });
+  source.addEventListener('error', function () { status.textContent = 'reconnecting…'; });
+
+  source.addEventListener('event', function (message) {
+    var event = JSON.parse(message.data);
+    var counter = document.getElementById('count-' + event.kind);
+    if (counter) counter.textContent = String(Number(counter.textContent) + 1);
+
+    var row = document.createElement('tr');
+    row.innerHTML =
+      '<td>' + new Date(event.ts).toISOString().replace('T', ' ').slice(0, 19) + '</td>' +
+      '<td>' + event.kind + '</td>' +
+      '<td>' + (event.version || '') + '</td>' +
+      '<td>' + (event.country || '') + '</td>' +
+      '<td>' + (event.os || '') + '</td>';
+    list.prepend(row);
+    while (list.children.length > 20) list.removeChild(list.lastChild);
+  });
+})();
+`
+
+const STYLE = `
+:root { color-scheme: light dark; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  margin: 0 auto; max-width: 60rem; padding: 2rem 1rem; line-height: 1.6; }
+h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+.status { font-size: 0.85rem; opacity: 0.7; margin-bottom: 1.5rem; }
+.totals { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  margin-bottom: 2rem; }
+.card { border: 1px solid rgba(128,128,128,0.3); border-radius: 0.5rem; padding: 1rem; }
+.card .value { font-size: 2rem; font-weight: 600; display: block; }
+.card .label { font-size: 0.8rem; opacity: 0.7; }
+.grid { display: grid; gap: 2rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; padding: 0.3rem 0.5rem; border-bottom: 1px solid rgba(128,128,128,0.2); }
+h2 { font-size: 1rem; margin: 0 0 0.5rem; }
+.empty { opacity: 0.6; font-size: 0.9rem; }
+`
+
+const CountTable: FC<{ title: string; rows: Count[] }> = ({ title, rows }) => (
+  <section>
+    <h2>{title}</h2>
+    {rows.length === 0 ? (
+      <p class="empty">データなし</p>
+    ) : (
+      <table>
+        <tbody>
+          {rows.map((row) => (
+            <tr>
+              <td>{row.label}</td>
+              <td>{row.count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </section>
+)
+
+/** 所有者だけが見る分析ダッシュボード（Cloudflare Access の背後）。 */
+export const Dashboard: FC<{ summary: Summary; lastId: number }> = ({ summary, lastId }) => (
+  <html lang="ja">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>befold analytics</title>
+      {html`<style>
+        ${raw(STYLE)}
+      </style>`}
+    </head>
+    <body data-last-id={String(lastId)}>
+      <h1>befold analytics</h1>
+      <p class="status">
+        SSE: <span id="stream-status">connecting…</span>
+      </p>
+
+      <div class="totals">
+        <div class="card">
+          <span class="value" id="count-visit">
+            {summary.totals.visits}
+          </span>
+          <span class="label">訪問</span>
+        </div>
+        <div class="card">
+          <span class="value" id="count-download">
+            {summary.totals.downloads}
+          </span>
+          <span class="label">ダウンロード</span>
+        </div>
+        <div class="card">
+          <span class="value" id="count-update_check">
+            {summary.totals.updateChecks}
+          </span>
+          <span class="label">アップデート確認</span>
+        </div>
+        <div class="card">
+          <span class="value">{summary.totals.uniqueVisitorDays}</span>
+          <span class="label">ユニーク訪問者（日次）</span>
+        </div>
+      </div>
+
+      <div class="grid">
+        <CountTable title="日別ダウンロード（14 日）" rows={summary.dailyDownloads} />
+        <CountTable title="バージョン別ダウンロード" rows={summary.byVersion} />
+        <CountTable title="国別" rows={summary.byCountry} />
+        <CountTable title="OS 別" rows={summary.byOS} />
+        <CountTable title="参照元別" rows={summary.byReferrer} />
+      </div>
+
+      <section>
+        <h2>最新イベント</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>時刻 (UTC)</th>
+              <th>種別</th>
+              <th>バージョン</th>
+              <th>国</th>
+              <th>OS</th>
+            </tr>
+          </thead>
+          <tbody id="recent-body">
+            {summary.recent.map((event) => (
+              <tr>
+                <td>{new Date(event.ts).toISOString().replace('T', ' ').slice(0, 19)}</td>
+                <td>{event.kind}</td>
+                <td>{event.version ?? ''}</td>
+                <td>{event.country ?? ''}</td>
+                <td>{event.os ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {html`<script>
+        ${raw(STREAM_SCRIPT)}
+      </script>`}
+    </body>
+  </html>
+)

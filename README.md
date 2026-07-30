@@ -3,7 +3,7 @@
 macOS 向けファイルビューアアプリ。
 多彩なフォーマットを開くだけで即座にレンダリング・プレビューする。
 
-📖 **[紹介ページ（GitHub Pages）](https://ytommy109.github.io/befold/)**
+📖 **[紹介ページ](https://befold.tommy109.workers.dev/?ref=readme)**
 
 ## 機能
 
@@ -21,7 +21,7 @@ macOS 向けファイルビューアアプリ。
 
 ## インストール
 
-1. [GitHub Releases](https://github.com/YTommy109/befold/releases/latest) から `befold-vX.Y.Z.dmg` をダウンロード
+1. [最新版をダウンロード](https://befold.tommy109.workers.dev/download?ref=readme)（[GitHub Releases](https://github.com/YTommy109/befold/releases/latest) から直接取得も可）
 2. DMG を開き、`befold.app` を `/Applications` にコピーして起動
 
 ## コマンドラインからの利用

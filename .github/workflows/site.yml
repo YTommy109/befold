@@ -1,0 +1,49 @@
+name: Site CI
+
+# 配布サイト Worker (site/) の検証。ci.yml とは別ワークフローにしている。
+# ci.yml は on.paths が BefoldApp/** に絞られており job を足しても site/ の
+# 変更では起動せず、paths に site/** を足すと site だけの変更で高コストな
+# macOS ランナー(swift build / test)まで走ってしまうため。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+
+# 連続 push / force-push で古い実行を打ち切る
+concurrency:
+  group: site-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: 依存をインストールする
+        run: npm ci
+
+      # 型エラーは安価に落ちるのでテストより先に回す
+      - name: 型チェックを実行する
+        run: npm run typecheck
+
+      # vitest は @cloudflare/vitest-pool-workers で workerd を起動し、
+      # テスト専用の D1 に migrations/ を適用して実行する
+      - name: テストを実行する
+        run: npm test

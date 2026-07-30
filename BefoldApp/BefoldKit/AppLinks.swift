@@ -4,8 +4,10 @@ import Foundation
 /// アプリ本体(About パネル)と QuickLook 拡張(バッジ)の双方から参照するため、
 /// どちらからも import できる BefoldKit に置く。
 public enum AppLinks {
-    /// befold の公開サイト。
-    public static let homepage = URL(string: "https://ytommy109.github.io/befold/")!
+    /// befold の公開サイト（配布サイト Worker）。
+    /// `?ref=about` は流入元の内訳を配布サイト側で集計するための印。
+    /// 既存ユーザーが About から見に来た分を、新規流入と切り分けて数えられる。
+    public static let homepage = URL(string: "https://befold.tommy109.workers.dev/?ref=about")!
 }
 
 /// QuickLook 拡張のプレビュー右下に重ねるバッジの表示文字列。

@@ -1,0 +1,41 @@
+import { env } from 'cloudflare:test'
+import { describe, expect, it } from 'vitest'
+import { eventSchema } from '../src/schema'
+
+describe('events テーブル', () => {
+  it('マイグレーション適用後に INSERT / SELECT できる', async () => {
+    const event = eventSchema.parse({
+      ts: 1_700_000_000_000,
+      kind: 'download',
+      version: '1.2.3',
+      channel: 'stable',
+      country: 'JP',
+    })
+
+    await env.DB.prepare(
+      'INSERT INTO events (ts, kind, version, channel, country, os, ua_summary, visitor_day)' +
+        ' VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+      .bind(
+        event.ts,
+        event.kind,
+        event.version,
+        event.channel,
+        event.country,
+        event.os,
+        event.uaSummary,
+        event.visitorDay,
+      )
+      .run()
+
+    const row = await env.DB.prepare(
+      'SELECT kind, version, channel, country FROM events ORDER BY id DESC LIMIT 1',
+    ).first()
+
+    expect(row).toEqual({ kind: 'download', version: '1.2.3', channel: 'stable', country: 'JP' })
+  })
+
+  it('未知の kind を弾く', () => {
+    expect(() => eventSchema.parse({ ts: 0, kind: 'unknown' })).toThrow()
+  })
+})
