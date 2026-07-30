@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private let recentDocumentsStore: RecentDocumentsStore
     private let bookmarkStore: BookmarkStore
+    private let recentRepositoriesStore: RecentRepositoriesStore
     private var cliRequestDeduplicator = CLIRequestDeduplicator()
     private lazy var recentDocumentsMenuController = RecentDocumentsMenuController(
         recentURLs: { [weak self] in self?.recentDocumentsStore.recentURLs() ?? [] },
@@ -34,6 +35,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         bookmarkedURLs: { [weak self] in self?.bookmarkStore.bookmarkedURLs() ?? [] },
         openHandler: { [weak self] url in self?.openViewer(for: url) }
     )
+    private lazy var recentRepositoriesMenuController = RecentRepositoriesMenuController(
+        pruneMissing: { [weak self] in self?.recentRepositoriesStore.pruneMissing() },
+        entries: { [weak self] in self?.recentRepositoriesStore.entries() ?? [] },
+        openHandler: { [weak self] entry in
+            self?.sessionRestorer.openRepository(root: entry.root, savedTabGroup: entry.lastTabGroup)
+        },
+        clearHandler: { [weak self] in self?.recentRepositoriesStore.clear() }
+    )
     private lazy var quickOpenPanelController = QuickOpenPanelController(
         makeEnvironment: { [weak self] in self?.makeQuickOpenEnvironment() },
         onOpen: { [weak self] url in self?.openFromQuickOpen(url) }
@@ -43,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let sessionStore = SessionStore()
         let recentDocumentsStore = RecentDocumentsStore()
         let bookmarkStore = BookmarkStore(defaults: .standard)
+        let recentRepositoriesStore = RecentRepositoriesStore()
         let hiddenFilesPreference = HiddenFilesPreference()
         let findOptionsPreference = FindOptionsPreference()
         let codeFontPreference = CodeFontPreference()
@@ -54,11 +64,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             findOptionsPreference: findOptionsPreference,
             codeFontPreference: codeFontPreference,
             perFileState: perFileState,
-            bookmarkStore: bookmarkStore
+            bookmarkStore: bookmarkStore,
+            recentRepositoriesStore: recentRepositoriesStore
         )
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
         self.bookmarkStore = bookmarkStore
+        self.recentRepositoriesStore = recentRepositoriesStore
         self.windowManager = windowManager
         self.hiddenFilesPreference = hiddenFilesPreference
         self.codeFontPreference = codeFontPreference
@@ -116,7 +128,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openAction: #selector(showOpenPanel),
             helpAction: #selector(openHelp(_:)),
             recentMenuDelegate: recentDocumentsMenuController,
-            bookmarksMenuDelegate: bookmarksMenuController
+            bookmarksMenuDelegate: bookmarksMenuController,
+            recentRepositoriesMenuDelegate: recentRepositoriesMenuController
         )
         UNUserNotificationCenter.current().delegate = self
         sessionRestorer.restoreLastSession()
