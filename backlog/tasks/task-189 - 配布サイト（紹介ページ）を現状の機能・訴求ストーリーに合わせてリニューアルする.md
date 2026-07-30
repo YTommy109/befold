@@ -1,11 +1,11 @@
 ---
 id: TASK-189
 title: 配布サイト（紹介ページ）を現状の機能・訴求ストーリーに合わせてリニューアルする
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-07-28 14:30'
-updated_date: '2026-07-30 14:33'
+updated_date: '2026-07-30 15:08'
 labels: []
 dependencies:
   - TASK-182
@@ -36,7 +36,7 @@ ordinal: 265000
 - [x] #1 紹介ページの特徴一覧が現在の befold の機能実態と一致している
 - [x] #2 「大量の markdown を行き来するユーザー」向けの訴求が含まれる
 - [x] #3 「worktree ユーザー」向けの訴求（Obsidian/vault 登録の手間との対比、CLI からの手軽表示）が含まれる
-- [ ] #4 Cloudflare Workers 移行後の新サイト基盤上で公開されている
+- [x] #4 Cloudflare Workers 移行後の新サイト基盤上で公開されている
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -93,3 +93,19 @@ Quick Open はファイル形式ではないため、SCREENSHOTS に kind:'featu
 
 カードの見出しを「スペースキーでプレビュー」→「QuickLook 対応」に変更（ユーザー指摘）。EN も操作の説明ではなく機能名に揃えて 'Preview with the Space Bar' → 'QuickLook Support' とした。スペースキーで開ける旨は本文に残っている。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+配布サイトの紹介ページを、現在の befold の機能実態と、ターミナルでコーディングエージェントを使う層に向けた訴求ストーリーに合わせて刷新した。
+
+コピー面では、ヒーローを「Markdown を行き来する。快適に。」に変え、hero 直下に AI レビューのセクション（「Claude が設計する。私は befold でレビューする。」）を新設、従来の philosophy を worktree ユーザー向けストーリー（Obsidian の vault 登録の手間との対比、CLI からの手軽表示）に書き換えた。特徴一覧は実装の棚卸しに基づいて更新し、差別化要素 6 件をカード・残り 6 件を列挙とする 2 層構成にした（掲載情報は削っていない）。ダウンロード導線は配布サイトの絶対 URL に統一し、計測できない GitHub Releases への直リンクを外した。
+
+不具合も 3 件直した。カルーセルの loading=lazy により 1 枚目以外の画像が永久に読み込まれていない問題、本文リンクがブラウザ既定色で暗背景に埋もれる問題、撮影スクリプトのサイドバー指定が ⌘B のままでリサイズ直後の撮影がレイアウト混在になる問題。
+
+サンプルはエージェントの成果物風に刷新し（sample.md を設計 spec、flowchart.mmd を判定フロー、sample.csv を計測ログ、diagram.svg を構成図）、diagram.svg に焼き込まれていた旧キャッチコピーを除去。スクリーンショット 6 枚を撮り直し、Quick Open の 1 枚を追加した。
+
+検証: npm run typecheck / npm test（5 files, 44 tests）通過。wrangler dev で JA/EN 両言語の全セクション・カルーセル 6 スライド・機能カードと列挙・インストール手順をブラウザで目視確認。カルーセル全 6 枚が complete:true / naturalWidth:1280 になることを DOM で確認。生成した 6 枚の PNG も画像として確認した。
+
+受入条件 #4（新サイト基盤上での公開）は PR #341 のマージ時に site.yml が自動デプロイして満たされる。ユーザー判断により、マージ前に完了扱いとした。
+<!-- SECTION:FINAL_SUMMARY:END -->
