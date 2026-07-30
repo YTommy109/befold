@@ -3,6 +3,9 @@ import { html, raw } from 'hono/html'
 
 const REPO_URL = 'https://github.com/YTommy109/befold'
 
+/** ダウンロード導線は配布サイトの絶対 URL に揃える。 */
+const DOWNLOAD_URL = 'https://befold.tommy109.workers.dev/download'
+
 const LANG_SCRIPT = `
 function switchLang(lang) {
   document.querySelectorAll('[lang]').forEach(function(el) {
@@ -29,41 +32,117 @@ type Feature = { ja: [string, string]; en: [string, string] }
 const FEATURES: Feature[] = [
   {
     ja: [
+      'Quick Open (⌘P)',
+      'ファイル名のあいまい検索で目的のファイルへ一息で。空欄なら最近開いたファイルとブックマークが並び、./ や ../ のパス入力にも対応',
+    ],
+    en: [
+      'Quick Open (⌘P)',
+      'Fuzzy-search filenames to jump straight to a file. An empty query lists recents and bookmarks, and ./ or ../ path input works too',
+    ],
+  },
+  {
+    ja: [
+      'サイドバー & スワイプ',
+      '⌘S でサイドバーを開き、フォルダを辿って名前で絞り込む。⌘[ / ⌘] とトラックパッドの2本指スワイプで読んだファイルを行き来できる',
+    ],
+    en: [
+      'Sidebar & Swipe',
+      'Open the sidebar with ⌘S to walk folders and filter by name. Move between files you have read with ⌘[ / ⌘] or a two-finger trackpad swipe',
+    ],
+  },
+  {
+    ja: [
+      'CLI から開く',
+      'befold path/... で複数ファイルをまとめて開く。--sidebar / --source / --line-numbers などの表示指定、表示可否だけを確かめる --check、--bookmark も使える',
+    ],
+    en: [
+      'Open from the CLI',
+      'befold path/... opens several files at once. Display flags like --sidebar, --source and --line-numbers, plus --check to verify a file opens and --bookmark',
+    ],
+  },
+  {
+    ja: [
+      'ライブリロード',
+      '外部のエディタや AI がファイルを書き換えると即座にプレビューへ反映。保存時に作り直されるファイルやリネーム・移動にも追従する',
+    ],
+    en: [
+      'Live Reload',
+      'Every change from an external editor or an AI lands in the preview instantly — including files recreated on save, renames and moves',
+    ],
+  },
+  {
+    ja: [
+      '大きなファイルも開ける',
+      'Markdown・CSV/TSV・ソースコードは分割して読み込むので、最大 100MB のファイルも待たされずに開ける。続きは「さらに読み込む」で',
+    ],
+    en: [
+      'Large Files, Too',
+      'Markdown, CSV/TSV and source code load in chunks, so files up to 100MB open without a wait. Pull in the rest with “Load More”',
+    ],
+  },
+  {
+    ja: [
+      'QuickLook 対応',
+      'QuickLook 拡張を同梱。Finder でファイルを選んでスペースキーを押すだけで、アプリを開かずに Mermaid や Markdown をレンダリング表示できる',
+    ],
+    en: [
+      'QuickLook Support',
+      'Ships a QuickLook extension. Select a file in Finder and hit space to see Mermaid or Markdown rendered — no need to open the app',
+    ],
+  },
+]
+
+/** Features グリッドの下に列挙する、際立たせるほどではない機能。 */
+const MORE_FEATURES: Feature[] = [
+  {
+    ja: [
+      'git を知っているリンク解決',
+      'Markdown 内のパスは実在するものだけリンクになる。相対パスで見つからなければ git の追跡ファイルから探し当て、worktree やブランチを切り替えても追従する',
+    ],
+    en: [
+      'Git-Aware Link Resolution',
+      'Only paths that really exist become links. When a relative path misses, befold finds the file among git-tracked ones — and keeps up when you switch worktrees or branches',
+    ],
+  },
+  {
+    ja: [
       '多彩なフォーマット対応',
-      '.mmd, .md, .svg, .html, .csv, .tsv のレンダリング表示に加え、.png, .jpg, .gif, .webp, .pdf, ソースコード（50以上の言語）にも対応',
+      '.mmd, .md, .svg, .html, .csv, .tsv のレンダリング表示に加え、.png, .jpg, .gif, .webp, .pdf, ソースコード（50以上の言語）にも対応。文字コードは UTF-8/16/32・Shift_JIS・EUC-JP を自動判別',
     ],
     en: [
       'Wide Format Support',
-      'Renders .mmd, .md, .svg, .html, .csv, .tsv — plus displays .png, .jpg, .gif, .webp, .pdf, and source code in 50+ languages',
+      'Renders .mmd, .md, .svg, .html, .csv, .tsv — plus displays .png, .jpg, .gif, .webp, .pdf, and source code in 50+ languages. Detects UTF-8/16/32, Shift_JIS and EUC-JP automatically',
     ],
   },
   {
     ja: [
       'レンダリング / ソース切替',
-      '⌘U でレンダリング表示とソース表示をワンタッチ切替。ソースはシンタックスハイライト付き',
+      '⌘U でレンダリング表示とソース表示をワンタッチ切替。ソースはシンタックスハイライトと ⌘L の行番号付き。⌘F の検索は正規表現・大文字小文字・単語単位に対応',
     ],
     en: [
       'Rendered / Source Toggle',
-      'Toggle between rendered and source view with ⌘U. Source view includes syntax highlighting',
+      'Switch between rendered and source view with ⌘U. Source view has syntax highlighting and line numbers via ⌘L. Find (⌘F) supports regex, case and whole-word matching',
     ],
-  },
-  {
-    ja: ['ライブリロード', 'AI がファイルを書き換えると、その内容を即座にプレビューに反映'],
-    en: ['Live Reload', 'Instantly reflects every change the AI makes to your files in the preview'],
   },
   {
     ja: [
       'タブ & セッション復元',
-      'macOS ネイティブのタブ対応。前回のタブ構成は次回起動時に自動復元',
+      'macOS ネイティブのタブ対応。前回のタブ構成は次回起動時に自動復元され、ズーム率・表示モード・スクロール位置はファイルごとに記憶する',
     ],
     en: [
       'Tabs & Session Restore',
-      'Native macOS tab support. Previous tab layout is automatically restored on next launch',
+      'Native macOS tabs. Your previous tab layout is restored on next launch, and zoom, view mode and scroll position are remembered per file',
     ],
   },
   {
-    ja: ['ズーム & ダークモード', '⌘+/⌘-/⌘0 でズーム操作。macOS のダークモードに自動追従'],
-    en: ['Zoom & Dark Mode', 'Zoom with ⌘+/⌘-/⌘0. Automatically follows macOS dark mode'],
+    ja: [
+      'ズーム & ダークモード',
+      '⌘+/⌘-/⌘0 でズーム操作。macOS のダークモードに自動追従し、ソース表示のフォントは設定から変更できる',
+    ],
+    en: [
+      'Zoom & Dark Mode',
+      'Zoom with ⌘+/⌘-/⌘0. Follows macOS dark mode automatically, and the source-view font is configurable in Settings',
+    ],
   },
   {
     ja: ['アプリ内アップデート', '新しいバージョンが利用可能になると通知。ワンクリックで更新'],
@@ -71,16 +150,24 @@ const FEATURES: Feature[] = [
   },
 ]
 
-const SCREENSHOTS: { src: string; alt: string; caption: string; captionEn?: string }[] = [
+/** kind: 'feature' はファイル形式ではなく機能の紹介なので、キャプションにラベルを添える。 */
+const SCREENSHOTS: {
+  src: string
+  alt: string
+  caption: string
+  captionEn?: string
+  kind?: 'feature'
+}[] = [
   { src: '/images/screenshot-1.png', alt: 'Mermaid flowchart in befold', caption: 'Mermaid' },
   { src: '/images/screenshot-2.png', alt: 'SVG diagram rendering in befold', caption: 'SVG' },
   { src: '/images/screenshot-3.png', alt: 'Markdown preview in befold', caption: 'Markdown' },
   { src: '/images/screenshot-4.png', alt: 'CSV table view in befold', caption: 'CSV' },
+  { src: '/images/screenshot-5.png', alt: 'Source code view in befold', caption: 'Source Code' },
   {
-    src: '/images/screenshot-5.png',
-    alt: 'Source code view in befold',
-    caption: 'ソースコード',
-    captionEn: 'Source Code',
+    src: '/images/screenshot-6.png',
+    alt: 'Quick Open fuzzy search panel in befold',
+    caption: 'Quick Open',
+    kind: 'feature',
   },
 ]
 
@@ -93,7 +180,7 @@ export const Landing: FC = () => (
       <title>befold — File Viewer for macOS</title>
       <meta
         name="description"
-        content="befold is a lightweight file viewer for macOS that renders Mermaid diagrams, Markdown, SVG, HTML, CSV, and more with live reload."
+        content="befold is a lightweight macOS viewer for reviewing the Markdown that terminal coding agents like Claude Code and Codex generate. Open any file from the CLI or with ⌘P — including git worktrees — and read Mermaid, Markdown, SVG, HTML and CSV with live reload."
       />
       <link rel="stylesheet" href="/style.css" />
     </head>
@@ -123,14 +210,14 @@ export const Landing: FC = () => (
       <main>
         <section class="hero">
           <div lang="ja">
-            <h2>ファイルを開くだけ。即レンダリング。</h2>
-            <p>Mermaid・Markdown・SVG・HTML・CSV など多彩なフォーマットをリアルタイムにプレビュー</p>
+            <h2>Markdown を行き来する。快適に。</h2>
+            <p>数百のファイルを抱えたリポジトリのための軽量ビューア。</p>
           </div>
           <div lang="en" hidden>
-            <h2>Open a file. Instant rendering.</h2>
-            <p>Live preview for Mermaid, Markdown, SVG, HTML, CSV, and many more formats</p>
+            <h2>Move through Markdown, comfortably.</h2>
+            <p>A lightweight viewer for repositories that hold hundreds of files.</p>
           </div>
-          <a href="/download" class="btn-primary">
+          <a href={DOWNLOAD_URL} class="btn-primary">
             <span lang="ja">ダウンロード</span>
             <span lang="en" hidden>
               Download
@@ -138,25 +225,50 @@ export const Landing: FC = () => (
           </a>
         </section>
 
-        <section class="philosophy">
+        <section class="philosophy review">
           <div lang="ja">
-            <p class="philosophy-lead">AI がコードを書く時代。</p>
+            <p class="philosophy-lead">Claude が設計する。私は befold でレビューする。</p>
             <p class="philosophy-body">
-              開発者に必要なのは、もう一つのエディタではない。
+              Claude Code や Codex に設計を任せると、Markdown のドキュメントがたくさん作られる。
               <br />
-              読むことに集中できる、静かで快適なビューア。
+              ドキュメントを直せば、AI が作るコードは良くなる。
               <br />
-              befold はコードレビューを心地よくするために作られた。
+              befold は「読む」を快適にする。
             </p>
           </div>
           <div lang="en" hidden>
-            <p class="philosophy-lead">In the age of AI-written code.</p>
+            <p class="philosophy-lead">Claude designs. I review in befold.</p>
             <p class="philosophy-body">
-              What developers need isn't another editor.
+              Hand the design to Claude Code or Codex, and a lot of Markdown documents get written.
               <br />
-              It's a quiet, comfortable viewer for focused reading.
+              Fix the documents, and the code the AI writes gets better.
               <br />
-              befold is built to make code review a pleasure.
+              befold makes reading them comfortable.
+            </p>
+          </div>
+        </section>
+
+        <section class="philosophy">
+          <div lang="ja">
+            <p class="philosophy-lead">vault に登録しなくていい。</p>
+            <p class="philosophy-body">
+              Obsidian は Markdown を快適に読ませてくれる。
+              <br />
+              けど worktree まで、vault へ登録してられない。
+              <br />
+              befold なら <code>befold .</code> と打つだけ。切ったばかりの worktree の
+              Markdown も、その場で読める。
+            </p>
+          </div>
+          <div lang="en" hidden>
+            <p class="philosophy-lead">No vault to register.</p>
+            <p class="philosophy-body">
+              Obsidian reads Markdown beautifully.
+              <br />
+              But I'm not registering every worktree as a vault.
+              <br />
+              With befold, <code>befold .</code> is all it takes — the Markdown in a worktree you
+              just created opens right there.
             </p>
           </div>
         </section>
@@ -164,14 +276,17 @@ export const Landing: FC = () => (
         <section class="screenshot">
           <div class="carousel">
             <div class="carousel-track">
-              {SCREENSHOTS.map((shot, index) => (
+              {SCREENSHOTS.map((shot) => (
                 <div class="carousel-slide">
-                  <img
-                    src={shot.src}
-                    alt={shot.alt}
-                    {...(index === 0 ? {} : { loading: 'lazy' })}
-                  />
-                  <p class="carousel-caption">
+                  {/* loading="lazy" は付けない。スライドは overflow:hidden の中を
+                      transform で動かすため、Chrome がビューポート付近と判定せず
+                      2 枚目以降が永久に読み込まれない。 */}
+                  <img src={shot.src} alt={shot.alt} decoding="async" />
+                  <p
+                    class={
+                      shot.kind === 'feature' ? 'carousel-caption feature' : 'carousel-caption'
+                    }
+                  >
                     {shot.captionEn === undefined ? (
                       shot.caption
                     ) : (
@@ -217,6 +332,18 @@ export const Landing: FC = () => (
               </div>
             ))}
           </div>
+          <ul class="feature-list">
+            {MORE_FEATURES.map((feature) => (
+              <li>
+                <span lang="ja">
+                  <strong>{feature.ja[0]}</strong> — {feature.ja[1]}
+                </span>
+                <span lang="en" hidden>
+                  <strong>{feature.en[0]}</strong> — {feature.en[1]}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section class="requirements">
@@ -235,7 +362,7 @@ export const Landing: FC = () => (
             <h3>インストール</h3>
             <ol>
               <li>
-                <a href="/download">ダウンロード</a>から <code>befold-vX.Y.Z.dmg</code> を取得
+                <a href={DOWNLOAD_URL}>最新版をダウンロード</a>
               </li>
               <li>
                 DMG を開き、<code>befold.app</code> を <code>/Applications</code>{' '}
@@ -247,7 +374,7 @@ export const Landing: FC = () => (
             <h3>Installation</h3>
             <ol>
               <li>
-                <a href="/download">Download</a> <code>befold-vX.Y.Z.dmg</code>
+                <a href={DOWNLOAD_URL}>Download the latest version</a>
               </li>
               <li>
                 Open the DMG and copy <code>befold.app</code> to <code>/Applications</code> to

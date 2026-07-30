@@ -1,14 +1,70 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
-  <g transform="scale(3)">
-    <rect width="400" height="300" fill="#1a1a1a" rx="12"/>
-    <rect x="24" y="24" width="352" height="252" rx="8" fill="#2a2a2a" stroke="#3a3a3a" stroke-width="1.5"/>
-    <line x1="24" y1="60" x2="376" y2="60" stroke="#3a3a3a" stroke-width="1"/>
-    <g transform="translate(150, 110)">
-      <circle cx="50" cy="50" r="48" fill="none" stroke="#4da6ff" stroke-width="6"/>
-      <path d="M 50 20 A 30 30 0 1 1 20 50" fill="none" stroke="#4da6ff" stroke-width="6" stroke-linecap="round"/>
-      <path d="M 20 50 L 10 38 L 30 34 Z" fill="#4da6ff"/>
-    </g>
-    <text x="200" y="250" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="20" font-weight="600" fill="#f0f0f0">befold</text>
-    <text x="200" y="272" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#aaa">Open a file. Instant rendering.</text>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="716" viewBox="0 0 900 520">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4da6ff"/>
+    </marker>
+    <style>
+      .box { fill: #2a2a2a; stroke: #3a3a3a; stroke-width: 1.5; }
+      .accent { stroke: #4da6ff; }
+      .name { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 15px; font-weight: 600; fill: #f0f0f0; }
+      .sub { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 11px; fill: #9aa0a6; }
+      .title { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 19px; font-weight: 600; fill: #f0f0f0; }
+      .band { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; font-weight: 600; fill: #d0d0d0; }
+      .note { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 12px; fill: #aaa; }
+      .flow { stroke: #4da6ff; stroke-width: 2; fill: none; }
+      .divider { stroke: #333; stroke-width: 1; }
+    </style>
+  </defs>
+
+  <rect width="900" height="520" rx="12" fill="#1a1a1a"/>
+  <text x="50" y="56" class="title">読み込みパイプライン</text>
+
+  <rect x="50" y="110" width="170" height="64" rx="8" class="box"/>
+  <text x="135" y="138" text-anchor="middle" class="name">FileWatcher</text>
+  <text x="135" y="157" text-anchor="middle" class="sub">DispatchSource</text>
+
+  <rect x="260" y="110" width="170" height="64" rx="8" class="box"/>
+  <text x="345" y="138" text-anchor="middle" class="name">Debouncer</text>
+  <text x="345" y="157" text-anchor="middle" class="sub">0.2s</text>
+
+  <rect x="470" y="110" width="170" height="64" rx="8" class="box accent"/>
+  <text x="555" y="138" text-anchor="middle" class="name">ViewerStore</text>
+  <text x="555" y="157" text-anchor="middle" class="sub">@MainActor @Observable</text>
+
+  <rect x="680" y="110" width="170" height="64" rx="8" class="box"/>
+  <text x="765" y="138" text-anchor="middle" class="name">WKWebView</text>
+  <text x="765" y="157" text-anchor="middle" class="sub">mermaid / markdown-it</text>
+
+  <line x1="220" y1="142" x2="256" y2="142" class="flow" marker-end="url(#arrow)"/>
+  <line x1="430" y1="142" x2="466" y2="142" class="flow" marker-end="url(#arrow)"/>
+  <line x1="640" y1="142" x2="676" y2="142" class="flow" marker-end="url(#arrow)"/>
+
+  <rect x="470" y="230" width="170" height="64" rx="8" class="box"/>
+  <text x="555" y="258" text-anchor="middle" class="name">ContentLoader</text>
+  <text x="555" y="277" text-anchor="middle" class="sub">チャンク読み込み</text>
+
+  <line x1="555" y1="230" x2="555" y2="178" class="flow" marker-end="url(#arrow)"/>
+
+  <text x="660" y="256" class="note">分割できる形式は先頭チャンクのみ返す</text>
+  <text x="660" y="276" class="note">（上限 100MB / 分割不可は 10MB）</text>
+
+  <line x1="50" y1="330" x2="850" y2="330" class="divider"/>
+  <text x="50" y="366" class="band">続きを読む経路</text>
+
+  <rect x="50" y="392" width="200" height="64" rx="8" class="box"/>
+  <text x="150" y="420" text-anchor="middle" class="name">先頭チャンクを描画</text>
+  <text x="150" y="439" text-anchor="middle" class="sub">残りは保持しない</text>
+
+  <rect x="310" y="392" width="200" height="64" rx="8" class="box"/>
+  <text x="410" y="420" text-anchor="middle" class="name">truncated バナー</text>
+  <text x="410" y="439" text-anchor="middle" class="sub">「さらに読み込む」</text>
+
+  <rect x="570" y="392" width="200" height="64" rx="8" class="box"/>
+  <text x="670" y="420" text-anchor="middle" class="name">次のチャンクを追加</text>
+  <text x="670" y="439" text-anchor="middle" class="sub">appendChild で足す</text>
+
+  <line x1="250" y1="424" x2="306" y2="424" class="flow" marker-end="url(#arrow)"/>
+  <line x1="510" y1="424" x2="566" y2="424" class="flow" marker-end="url(#arrow)"/>
+
+  <text x="50" y="492" class="note">変更検知から再描画までは同一プロセス内で伝搬する。追加読み込みはスクロール位置を保つため全体を再描画しない。</text>
 </svg>
