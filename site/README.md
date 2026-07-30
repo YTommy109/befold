@@ -67,6 +67,40 @@ npm run migrate:remote                     # 本番 D1 へ適用
    入力を受け取れず空の値が登録される。ダッシュボードが 503 を返す場合はこれを疑い、
    対話的なターミナルで登録し直す。
 
+## staging 環境
+
+公開 URL: <https://befold-staging.tommy109.workers.dev>
+
+本番の分析データを汚さずに、シークレット・バインディング・実 D1・マイグレーション
+適用順序といった「本番にしか存在しない条件」を確認するための環境。デプロイ後の
+疎通確認はここで行い、本番への確認は記録が走っても意味を持つもの（appcast の
+byte 一致など）に絞る。
+
+```bash
+npm run migrate:staging   # staging D1 (befold-analytics-staging) へ適用
+npm run deploy:staging    # wrangler deploy --env staging
+```
+
+**マイグレーションは必ずデプロイより先に当てる。** 順序が逆だと新コードの INSERT が
+カラム不足で失敗し、`insertEvent` は例外を飲む設計のため計測が無言で欠落する。
+
+シークレットは Worker 単位なので、staging にも別途登録が必要（未登録だと
+`/dashboard` は 503）。
+
+```bash
+npx wrangler secret put DASHBOARD_PASSWORD --env staging
+```
+
+`--env staging` を付け忘れると本番の値を上書きしてしまうので注意する。
+
+Preview URL（`wrangler versions upload --preview-alias`）はこの環境の代わりに
+ならない。バインディングは deploy 対象の設定が使われるため、プレビュー URL でも
+書き込み先は本番 D1 になる。データを分離するには環境を分けるしかない。
+
+`wrangler.toml` の `assets` / `d1_databases` / `observability` は非継承キーで、
+`[env.staging]` 側に再指定しないと引き継がれない（アセット配信や D1 バインディングが
+欠落した Worker ができる）。
+
 ## ダッシュボードの認証方式
 
 独自ドメインを使わず `*.workers.dev` で公開するため、Cloudflare Access は使えない
