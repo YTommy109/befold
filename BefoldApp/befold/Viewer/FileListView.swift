@@ -13,6 +13,8 @@ struct FileListView: View {
     /// 相対パスコピーの基準を git 管理下では git root にするために使う。
     var resolveGitRoot: ((URL) -> URL?)?
 
+    @FocusState private var isFilterFieldFocused: Bool
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -24,9 +26,33 @@ struct FileListView: View {
         VStack(alignment: .leading, spacing: 2) {
             baseDirectoryIndicator
             navigationHeader
+            if model.isFilterActive {
+                filterField
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+    }
+
+    private var filterField: some View {
+        TextField(
+            String(localized: "sidebar.filter.placeholder", bundle: .l10n),
+            text: $model.filterText
+        )
+        .textFieldStyle(.plain)
+        .focused($isFilterFieldFocused)
+        .onAppear { isFilterFieldFocused = true }
+        .onKeyPress(.escape) {
+            closeFilter()
+            return .handled
+        }
+    }
+
+    /// フィルターフィールドを閉じ、フィルター文字列を解除する。
+    /// アイコン再押下・esc のどちらからも同じ挙動にするための共通口。
+    private func closeFilter() {
+        model.isFilterActive = false
+        model.filterText = ""
     }
 
     /// 基準ディレクトリの解決前(初回表示直後の一瞬)は行を出さない。
@@ -67,11 +93,27 @@ struct FileListView: View {
             .help(model.showHiddenFiles
                 ? String(localized: "sidebar.hiddenFiles.hide", bundle: .l10n)
                 : String(localized: "sidebar.hiddenFiles.show", bundle: .l10n))
+
+            Button {
+                if model.isFilterActive {
+                    closeFilter()
+                } else {
+                    model.isFilterActive = true
+                }
+            } label: {
+                Image(systemName: model.filterText.isEmpty
+                    ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                    .foregroundStyle(model.filterText.isEmpty ? .secondary : .primary)
+            }
+            .buttonStyle(.borderless)
+            .help(model.isFilterActive
+                ? String(localized: "sidebar.filter.hide", bundle: .l10n)
+                : String(localized: "sidebar.filter.show", bundle: .l10n))
         }
     }
 
     private var entryList: some View {
-        List(model.entries, selection: $model.selection) { entry in
+        List(model.visibleEntries, selection: $model.selection) { entry in
             // 行インセットをゼロにして同等のパディングを行コンテンツ側へ移し、
             // contentShape が行の全幅を覆うようにする。インセット部分をダブル
             // クリックしたとき選択だけされて移動しない取りこぼしを防ぐ。
@@ -88,7 +130,7 @@ struct FileListView: View {
                 .simultaneousGesture(doubleTapGesture(for: entry))
         }
         .overlay {
-            if model.entries.allSatisfy({ $0.kind == .parentNavigation }) {
+            if model.visibleEntries.allSatisfy({ $0.kind == .parentNavigation }) {
                 ContentUnavailableView(
                     String(localized: "sidebar.empty", bundle: .l10n),
                     systemImage: "doc.questionmark",
@@ -235,17 +277,17 @@ struct FileListView: View {
     /// 選択を次のエントリへ進める。テストから直接呼べるよう internal。
     func selectNext() -> KeyPress.Result {
         guard let current = model.selection,
-              let index = model.entries.firstIndex(where: { $0.id == current }),
-              index + 1 < model.entries.count
+              let index = model.visibleEntries.firstIndex(where: { $0.id == current }),
+              index + 1 < model.visibleEntries.count
         else {
-            if model.selection == nil, let first = model.entries.first {
+            if model.selection == nil, let first = model.visibleEntries.first {
                 model.selection = first.id
                 openIfFile(first)
                 return .handled
             }
             return .ignored
         }
-        let next = model.entries[index + 1]
+        let next = model.visibleEntries[index + 1]
         model.selection = next.id
         openIfFile(next)
         return .handled
@@ -254,12 +296,12 @@ struct FileListView: View {
     /// 選択を前のエントリへ戻す。テストから直接呼べるよう internal。
     func selectPrevious() -> KeyPress.Result {
         guard let current = model.selection,
-              let index = model.entries.firstIndex(where: { $0.id == current }),
+              let index = model.visibleEntries.firstIndex(where: { $0.id == current }),
               index > 0
         else {
             return .ignored
         }
-        let previous = model.entries[index - 1]
+        let previous = model.visibleEntries[index - 1]
         model.selection = previous.id
         openIfFile(previous)
         return .handled
@@ -267,7 +309,7 @@ struct FileListView: View {
 
     private func enterSelected() -> KeyPress.Result {
         guard let current = model.selection,
-              let entry = model.entries.first(where: { $0.id == current })
+              let entry = model.visibleEntries.first(where: { $0.id == current })
         else {
             return .ignored
         }
@@ -282,7 +324,7 @@ struct FileListView: View {
     }
 
     private func navigateToParent() -> KeyPress.Result {
-        if let parent = model.entries.first(where: { $0.kind == .parentNavigation }) {
+        if let parent = model.visibleEntries.first(where: { $0.kind == .parentNavigation }) {
             onNavigate(parent.url)
             return .handled
         }

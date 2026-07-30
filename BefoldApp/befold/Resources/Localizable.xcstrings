@@ -1309,6 +1309,57 @@
         }
       }
     },
+    "sidebar.filter.hide": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Filter"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フィルターを隠す"
+          }
+        }
+      }
+    },
+    "sidebar.filter.placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter by name"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前で絞り込む"
+          }
+        }
+      }
+    },
+    "sidebar.filter.show": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Filter"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フィルターを表示"
+          }
+        }
+      }
+    },
     "sidebar.hiddenFiles.hide": {
       "extractionState": "manual",
       "localizations": {
