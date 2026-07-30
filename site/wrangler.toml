@@ -24,3 +24,31 @@ migrations_dir = "migrations"
 
 [observability]
 enabled = true
+
+# 本番の分析データを汚さずに、シークレット・バインディング・実 D1・
+# マイグレーション適用順序といった「本番にしか存在しない条件」を確認するための
+# 環境。デプロイ後の疎通確認はここで行う。
+#
+# assets / d1_databases / observability は wrangler の非継承キーで、環境ごとに
+# 再指定しないと staging に引き継がれない（アセット配信や D1 バインディングが
+# 欠落した Worker ができてしまう）。
+#
+# Preview URL（wrangler versions upload --preview-alias）はこの代わりにならない。
+# バインディングは deploy 対象の設定が使われるため、書き込み先は本番 D1 になる。
+[env.staging]
+name = "befold-staging"
+workers_dev = true
+
+[env.staging.assets]
+directory = "public"
+binding = "ASSETS"
+run_worker_first = true
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "befold-analytics-staging"
+database_id = "185c1ea1-3cbf-4b39-8d5e-d94e87a12c30"
+migrations_dir = "migrations"
+
+[env.staging.observability]
+enabled = true

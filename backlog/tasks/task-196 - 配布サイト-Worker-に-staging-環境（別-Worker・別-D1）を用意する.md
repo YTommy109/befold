@@ -1,9 +1,11 @@
 ---
 id: TASK-196
 title: 配布サイト Worker に staging 環境（別 Worker・別 D1）を用意する
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-07-30 00:06'
+updated_date: '2026-07-30 00:26'
 labels: []
 dependencies: []
 priority: medium
@@ -27,3 +29,15 @@ wrangler.toml に [env.staging] を追加し、別名 Worker（befold-staging）
 - [ ] #3 staging でもダッシュボードの Basic 認証が機能する（シークレットが環境ごとに登録されている）
 - [ ] #4 site/README.md に staging の用途とデプロイ手順が記載される
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. wrangler d1 create befold-analytics-staging で staging 用 D1 を作る。
+2. wrangler.toml に [env.staging] を追加する。assets / d1_databases / observability は wrangler の非継承キーなので env 側に再指定する（欠けるとアセット配信や D1 バインディングが無い Worker になる）。
+3. package.json に deploy:staging と migrate:staging を追加し、本番と同じ「マイグレーション → デプロイ」の順序を script として固定する。
+4. deploy --env staging --dry-run でバインディングが staging の D1 を指すことを確認してから適用・デプロイする。
+5. 本番のイベント数を事前に記録し、staging へ疎通確認を投げた後で本番が無変化であることを確認して分離を実証する。
+6. site/README.md に staging の用途・手順・落とし穴（--env 付け忘れ、Preview URL では分離できない、非継承キー）を記載する。
+7. シークレット登録は対話シェルが必要なためユーザーに依頼する（AC#3）。
+<!-- SECTION:PLAN:END -->

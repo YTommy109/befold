@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "migrate:diff": "atlas migrate diff --env local",
     "migrate:local": "wrangler d1 migrations apply befold-analytics --local",
-    "migrate:remote": "wrangler d1 migrations apply befold-analytics --remote"
+    "migrate:remote": "wrangler d1 migrations apply befold-analytics --remote",
+    "migrate:staging": "wrangler d1 migrations apply befold-analytics-staging --remote --env staging"
   },
   "dependencies": {
     "hono": "^4.6.14",
