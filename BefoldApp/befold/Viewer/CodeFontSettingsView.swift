@@ -15,7 +15,7 @@ struct CodeFontSettingsView: View {
         self.preference = preference
         self.onChange = onChange
         _fontFamily = State(initialValue: preference.fontFamily)
-        _fontSizePoints = State(initialValue: preference.fontSizePoints)
+        _fontSizePoints = State(initialValue: preference.fontSizePoints ?? CodeFontPreference.defaultPoints)
         familyNames = MonospaceFontCatalog.systemMonospaceFamilyNames()
     }
 
@@ -45,7 +45,7 @@ struct CodeFontSettingsView: View {
                     }
                     .onChange(of: fontSizePoints) { _, newValue in
                         preference.fontSizePoints = newValue
-                        fontSizePoints = preference.fontSizePoints
+                        fontSizePoints = preference.fontSizePoints ?? CodeFontPreference.defaultPoints
                         onChange()
                     }
                 }

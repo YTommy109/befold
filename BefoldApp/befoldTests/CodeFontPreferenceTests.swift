@@ -12,11 +12,11 @@ struct CodeFontPreferenceTests {
         return defaults
     }
 
-    @Test("初期状態はファミリー nil・既定サイズ")
+    @Test("初期状態はファミリー・サイズともに nil(未カスタマイズ)")
     func defaultsWhenUnset() {
         let pref = CodeFontPreference(defaults: makeDefaults())
         #expect(pref.fontFamily == nil)
-        #expect(pref.fontSizePoints == CodeFontPreference.defaultPoints)
+        #expect(pref.fontSizePoints == nil)
     }
 
     @Test("設定値が UserDefaults に永続化され再読込で復元される")

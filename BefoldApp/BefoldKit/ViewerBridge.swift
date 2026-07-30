@@ -72,14 +72,16 @@ public enum ViewerBridge {
         return "window._mmdMonoFontFamily = \(encoded);"
     }
 
-    /// ロード時にコードフォントサイズ(pt)を注入するスクリプト。
-    public static func codeFontSizeScript(_ points: Double) -> String {
-        "window._mmdCodeFontSize = \(points);"
+    /// ロード時にコードフォントサイズ(pt)を注入するスクリプト。nil は未カスタマイズを表す
+    /// null を注入し、viewer.html 側で CSS 変数 --mmd-code-font-size を未設定のままにする
+    /// (calc(本文*0.75) フォールバックへ委ね、アクセシビリティ文字サイズに追従する)。
+    public static func codeFontSizeScript(_ points: Double?) -> String {
+        "window._mmdCodeFontSize = \(points.map { String($0) } ?? "null");"
     }
 
     /// 表示中ファイルの切り替え時などに、等幅フォント設定を注入し直して即時反映する
     /// スクリプト。viewer.html 側は _mmdInitCodeFont() が注入値を読んで CSS 変数へ反映する。
-    public static func applyCodeFontScript(family: String?, points: Double) -> String {
+    public static func applyCodeFontScript(family: String?, points: Double?) -> String {
         monoFontFamilyScript(family) + " " + codeFontSizeScript(points) + " "
             + PlainFunction.initCodeFont.callScript + ";"
     }

@@ -47,7 +47,7 @@ final class WebViewCommandController {
     // MARK: - Code font
 
     /// 設定変更時に等幅フォント設定を注入し直して即時反映する。
-    func applyCodeFont(family: String?, points: Double) {
+    func applyCodeFont(family: String?, points: Double?) {
         evaluate(ViewerBridge.applyCodeFontScript(family: family, points: points))
     }
 

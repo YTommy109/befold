@@ -18,18 +18,27 @@ final class CodeFontPreference {
         didSet { defaults.set(fontFamily, forKey: Self.familyKey) }
     }
 
-    var fontSizePoints: Double {
+    /// nil は未カスタマイズ（CSS 側の calc(本文*0.75) フォールバックへ委ね、
+    /// アクセシビリティ文字サイズへの追従を保つ）。設定 UI で明示的に変更した場合のみ値を持つ。
+    var fontSizePoints: Double? {
         didSet {
-            fontSizePoints = Self.clamp(fontSizePoints)
-            defaults.set(fontSizePoints, forKey: Self.sizeKey)
+            guard let points = fontSizePoints else {
+                defaults.removeObject(forKey: Self.sizeKey)
+                return
+            }
+            let clamped = Self.clamp(points)
+            guard clamped == points else {
+                fontSizePoints = clamped
+                return
+            }
+            defaults.set(clamped, forKey: Self.sizeKey)
         }
     }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         fontFamily = defaults.string(forKey: Self.familyKey)
-        let stored = defaults.object(forKey: Self.sizeKey) as? Double
-        fontSizePoints = stored.map(Self.clamp) ?? Self.defaultPoints
+        fontSizePoints = (defaults.object(forKey: Self.sizeKey) as? Double).map(Self.clamp)
     }
 
     private static func clamp(_ points: Double) -> Double {

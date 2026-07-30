@@ -9,8 +9,9 @@ struct ViewerContentView: View {
     let findOptionsPreference: FindOptionsPreference
     /// ロード時に JS へ注入するソースビュー等幅フォントファミリー名。nil はシステム既定。
     let codeFontFamily: String?
-    /// ロード時に JS へ注入するソースビューのコードフォントサイズ(pt)。
-    let codeFontSizePoints: Double
+    /// ロード時に JS へ注入するソースビューのコードフォントサイズ(pt)。nil は未カスタマイズ
+    /// (CSS 側の calc(本文*0.75) フォールバックへ委ね、アクセシビリティ文字サイズに追従する)。
+    let codeFontSizePoints: Double?
     let fileListModel: FileListModel
     /// JS 側の出来事の通知先(倍率・スクロール位置・リンク・パス解決・続きを読み込む)。
     let rendererDelegate: WeakRendererDelegate

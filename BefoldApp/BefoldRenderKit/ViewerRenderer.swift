@@ -117,9 +117,11 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     ///   - codeFontFamily: ロード前に JS へ注入するソースビュー等幅フォントファミリー名。
     ///     nil はシステム既定(QuickLook 等では nil を渡す)。
     ///   - codeFontSizePoints: ロード前に JS へ注入するソースビューのコードフォントサイズ(pt)。
+    ///     nil は未カスタマイズ(CSS 側の calc(本文*0.75) フォールバックへ委ね、
+    ///     アクセシビリティ文字サイズに追従する)。
     public func makeWebView(
         initialZoom: Double, findOptionsPreference: FindOptionsPreference?,
-        codeFontFamily: String? = nil, codeFontSizePoints: Double = 10
+        codeFontFamily: String? = nil, codeFontSizePoints: Double? = nil
     ) -> WKWebView {
         let config = WKWebViewConfiguration()
         #if DEBUG
