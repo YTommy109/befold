@@ -16,6 +16,7 @@ export const eventSchema = z.object({
   uaSummary: z.string().nullable().default(null),
   visitorDay: z.string().nullable().default(null),
   referrer: z.string().nullable().default(null),
+  asOrg: z.string().nullable().default(null),
 })
 
 export type AnalyticsEvent = z.infer<typeof eventSchema>

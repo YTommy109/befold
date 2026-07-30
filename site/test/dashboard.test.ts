@@ -26,12 +26,13 @@ async function seed(
     visitorDay?: string
     ts?: number
     referrer?: string
+    asOrg?: string
   } = {},
 ): Promise<number> {
   const result = await env.DB.prepare(
     'INSERT INTO events' +
-      ' (ts, kind, version, channel, country, os, ua_summary, visitor_day, referrer)' +
-      " VALUES (?, ?, ?, 'stable', ?, ?, 'Safari', ?, ?) RETURNING id",
+      ' (ts, kind, version, channel, country, os, ua_summary, visitor_day, referrer, as_org)' +
+      " VALUES (?, ?, ?, 'stable', ?, ?, 'Safari', ?, ?, ?) RETURNING id",
   )
     .bind(
       extra.ts ?? Date.now(),
@@ -41,6 +42,7 @@ async function seed(
       extra.os ?? null,
       extra.visitorDay ?? 'hash-a',
       extra.referrer ?? null,
+      extra.asOrg ?? null,
     )
     .first<{ id: number }>()
 
@@ -115,6 +117,20 @@ describe('集計の表示', () => {
     expect(body).toContain('gh-pages')
     expect(body).toContain('https://news.ycombinator.com')
     expect(body.indexOf('gh-pages')).toBeLessThan(body.indexOf('https://news.ycombinator.com'))
+  })
+
+  it('接続元組織別が上位順で描画され、組織なしは集計から除かれる', async () => {
+    await seed('visit', { asOrg: 'Google LLC' })
+    await seed('visit', { asOrg: 'Google LLC' })
+    await seed('visit', { asOrg: 'NTT Communications' })
+    await seed('visit')
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('接続元組織別')
+    expect(body).toContain('Google LLC')
+    expect(body).toContain('NTT Communications')
+    expect(body.indexOf('Google LLC')).toBeLessThan(body.indexOf('NTT Communications'))
   })
 
   it('イベントが無くてもエラーにならない', async () => {

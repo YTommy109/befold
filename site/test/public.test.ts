@@ -7,10 +7,15 @@ const IP = '203.0.113.5'
 const APPCAST_XML = '<?xml version="1.0"?><rss><channel><title>befold</title></channel></rss>'
 
 /** 実リクエストと同じヘッダ構成でルートを叩き、waitUntil の完了まで待つ。 */
-async function call(path: string, headers: Record<string, string> = {}): Promise<Response> {
+async function call(
+  path: string,
+  headers: Record<string, string> = {},
+  cf?: IncomingRequestCfProperties,
+): Promise<Response> {
   const request = new Request(`https://befold.example${path}`, {
     headers: { 'User-Agent': UA, 'CF-Connecting-IP': IP, 'CF-IPCountry': 'JP', ...headers },
     redirect: 'manual',
+    ...(cf === undefined ? {} : { cf }),
   })
   const ctx = createExecutionContext()
   const response = await app.fetch(request, env, ctx)
@@ -27,11 +32,12 @@ type EventRow = {
   ua_summary: string | null
   visitor_day: string | null
   referrer: string | null
+  as_org: string | null
 }
 
 async function latestEvent(): Promise<EventRow | null> {
   return await env.DB.prepare(
-    'SELECT kind, version, channel, country, os, ua_summary, visitor_day, referrer' +
+    'SELECT kind, version, channel, country, os, ua_summary, visitor_day, referrer, as_org' +
       ' FROM events ORDER BY id DESC LIMIT 1',
   ).first<EventRow>()
 }
@@ -96,6 +102,21 @@ describe('参照元の記録', () => {
     const event = await latestEvent()
     expect(event?.kind).toBe('visit')
     expect(event?.referrer).toBeNull()
+  })
+})
+
+describe('接続元組織（ASN）の記録', () => {
+  it('request.cf.asOrganization があれば記録する', async () => {
+    await call('/', {}, { asOrganization: 'Google LLC' } as IncomingRequestCfProperties)
+
+    expect((await latestEvent())?.as_org).toBe('Google LLC')
+  })
+
+  it('request.cf が無い（ローカル・テスト相当）環境でもイベント自体は記録される', async () => {
+    const response = await call('/')
+
+    expect(response.status).toBe(200)
+    expect((await latestEvent())?.as_org).toBeNull()
   })
 })
 

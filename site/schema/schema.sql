@@ -11,7 +11,8 @@ CREATE TABLE events (
   os          TEXT,
   ua_summary  TEXT,
   visitor_day TEXT,
-  referrer    TEXT
+  referrer    TEXT,
+  as_org      TEXT
 );
 
 CREATE INDEX idx_events_ts ON events (ts);
