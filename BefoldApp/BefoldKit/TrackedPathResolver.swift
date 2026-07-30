@@ -23,6 +23,16 @@ public extension GitFileIndexing {
     }
 
     func warm(forFileAt _: URL) {}
+
+    /// ディレクトリ**そのもの**が属するリポジトリの作業ツリールート。
+    ///
+    /// `repositoryRoot(forFileAt:)` は引数をファイルとみなして末尾要素を落とし、その親で
+    /// 判定する。ディレクトリをそのまま渡すと 1 階層上で解決してしまい、リポジトリルートを
+    /// 開いているときにルート外(= nil や外側のリポジトリ)を返す。ダミーの子要素を足して
+    /// 意味を合わせる処理をここへ閉じ込め、呼び出し側がこの契約差を気にしなくて済むようにする。
+    func repositoryRoot(forDirectoryAt url: URL) -> URL? {
+        repositoryRoot(forFileAt: url.appendingPathComponent("_"))
+    }
 }
 
 /// パス参照の解決結果。

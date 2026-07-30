@@ -10,7 +10,7 @@ dependencies: []
 documentation:
   - docs/superpowers/specs/2026-07-28-sidebar-git-status-design.md
 priority: medium
-ordinal: 261200
+ordinal: 263000
 ---
 
 ## Description

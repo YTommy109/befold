@@ -1,4 +1,5 @@
 import AppKit
+import BefoldKit
 import Foundation
 
 /// サイドバーのファイル一覧と選択状態を保持する監視可能モデル。
@@ -18,6 +19,11 @@ final class FileListModel {
     /// 永続化・真実の源は HiddenFilesPreference。SidebarNavigator が
     /// refreshFileList()/navigateToFolder(_:) のたびに同期する。
     var showHiddenFiles: Bool = false
+    /// 相対パスコピー・Quick Open の基準ディレクトリ。ヘッダーのインジケータ表示に使う。
+    /// git ルートの解決は subprocess を伴うため View の body では行わず、
+    /// SidebarNavigator が一覧更新と同じ契機でメイン外から解決して書き込む。
+    /// 解決前(初回表示直後)は nil でインジケータを出さない。
+    var baseDirectory: BaseDirectoryDescriptor?
 
     /// サイドバー行から見つかった NSTableView への弱参照。SidebarTableViewLocator が
     /// 行描画時に設定する。クリック時に first responder へ昇格させるためだけの

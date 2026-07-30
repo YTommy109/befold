@@ -9,7 +9,7 @@ dependencies:
   - TASK-186
 documentation:
   - docs/superpowers/specs/2026-07-28-sidebar-git-status-design.md
-ordinal: 270000
+ordinal: 267000
 ---
 
 ## Description

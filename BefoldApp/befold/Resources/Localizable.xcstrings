@@ -1173,6 +1173,57 @@
         }
       }
     },
+    "sidebar.baseDirectory.caption": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base for relative paths and Quick Open"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相対パスと Quick Open の基準"
+          }
+        }
+      }
+    },
+    "sidebar.baseDirectory.gitRepository": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git repository"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git リポジトリ"
+          }
+        }
+      }
+    },
+    "sidebar.baseDirectory.plainFolder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通常フォルダ"
+          }
+        }
+      }
+    },
     "sidebar.context.copy": {
       "extractionState": "manual",
       "localizations": {
