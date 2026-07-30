@@ -21,7 +21,7 @@ macOS 向けファイルビューアアプリ。
 
 ## インストール
 
-1. [最新版をダウンロード](https://befold.tommy109.workers.dev/download?ref=readme)（[GitHub Releases](https://github.com/YTommy109/befold/releases/latest) から直接取得も可）
+1. [最新版をダウンロード](https://befold.tommy109.workers.dev/download?ref=readme)
 2. DMG を開き、`befold.app` を `/Applications` にコピーして起動
 
 ## コマンドラインからの利用

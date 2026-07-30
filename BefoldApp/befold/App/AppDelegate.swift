@@ -266,10 +266,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Help > befold Help。GitHub の README をブラウザで開く。
+    /// Help > befold Help。配布サイトをブラウザで開く。
     @objc func openHelp(_ sender: Any?) {
-        guard let url = URL(string: "https://github.com/YTommy109/befold#readme") else { return }
-        NSWorkspace.shared.open(url)
+        NSWorkspace.shared.open(AppLinks.help)
     }
 
     @objc func showAbout(_ sender: Any?) {

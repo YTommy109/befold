@@ -8,6 +8,11 @@ public enum AppLinks {
     /// `?ref=about` は流入元の内訳を配布サイト側で集計するための印。
     /// 既存ユーザーが About から見に来た分を、新規流入と切り分けて数えられる。
     public static let homepage = URL(string: "https://befold.tommy109.workers.dev/?ref=about")!
+
+    /// Help > befold ヘルプ の遷移先。
+    /// GitHub の README ではなく配布サイトへ送る。GitHub のページには Releases への
+    /// 導線が常に出ており、そこから DMG を直接取得されると配布サイトの統計に載らないため。
+    public static let help = URL(string: "https://befold.tommy109.workers.dev/?ref=help")!
 }
 
 /// QuickLook 拡張のプレビュー右下に重ねるバッジの表示文字列。
