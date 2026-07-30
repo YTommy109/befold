@@ -1,117 +1,113 @@
-# Markdown サンプル
+# 大きな Markdown を待たされずに開く
 
-befold の Markdown プレビュー機能を確認するためのサンプルファイル。
-見出し・表・箇条書きといった基本要素に加え、Mermaid 図やコードブロックまで、
-befold が対応する主要なレンダリング機能をひととおり確認できる。
+9MB の Markdown を開くと初回描画までに十数秒かかり、常駐メモリが 3GB 近くまで
+膨らんでいた。全文を一度に WKWebView へ渡していたことが原因なので、読み込みを
+チャンクに分割する。
 
-## テーブル
+## 計測
 
-| ファイル形式 | 拡張子 | レンダラー |
-| --- | --- | --- |
-| Mermaid | `.mmd` | mermaid.js |
-| Markdown | `.md` | markdown-it.js |
-| Markdown + Mermaid | `.md` | 両方 |
+手元の M2 (16GB) で、`ContentLoader` を通した実測値。
 
-## 箇条書き
+| ファイル | サイズ | 行数 | 初回描画 | 常駐メモリ |
+| --- | ---: | ---: | ---: | ---: |
+| `CHANGELOG.md` | 82KB | 1,204 | 0.1s | 48MB |
+| `api-reference.md` | 2.1MB | 31,802 | 2.4s | 620MB |
+| `dump.md` | 9.4MB | 142,517 | 13.8s | 2,940MB |
 
-- ファイル変更をリアルタイムに検知する
-- Mermaid と Markdown の両方に対応する
-- ウィンドウ位置・サイズをファイル毎に保存する
-  - 起動時にタブ構成も復元する
+9MB を超えると実用に耐えない。2MB 前後でも体感で引っかかる。
 
-## 番号付き箇条書き
+## 採用案
 
-1. `.mmd` または `.md` ファイルを befold で開く
-2. エディタでファイルを編集して保存する
-3. プレビューが自動的に更新されるのを確認する
+ブロック単位のチャンク読み込みにする。先頭チャンクだけを描画して残りは保持せず、
+続きは利用者の操作で追加する。
 
-## 引用
+- 行指向（CSV/TSV・ソースコード）は行境界で切る
+- ブロック指向（Markdown）は空行境界で切る。表やコードフェンスの内側では切らない
+- 分割できない形式は従来どおり全文を読む
+  - Mermaid は図の定義全体が揃っていないと描画できない
+  - SVG / HTML も同じ理由で分割不可
 
-> ファイル変更は `FileWatcher → ViewerStore → evaluateJavaScript` の
-> 同一プロセス内伝搬で反映する。
+> 分割できない形式には 10MB の上限を残す。上限に当たった場合は描画を諦めるのではなく、
+> 「truncated」バナーを出して利用者に判断を委ねる。
 
-## 画像表示
+## 構成図
 
-Markdown の画像記法(`![alt](path)`)で SVG ファイルを参照した例。
+![読み込みパイプラインの構成](diagram.svg)
 
-![befold のアイコン風サンプル図](diagram.svg)
+## 伝搬経路
 
-画像の表示可否はレンダラーの実装に依存する。SVG そのものの見た目を
-確認したい場合は `diagram.svg` を単体で開くとよい。
-
-## Mermaid ダイアグラム
-
-```mermaid
-sequenceDiagram
-    participant U as ユーザー
-    participant W as FileWatcher
-    participant S as ViewerStore
-    participant V as WKWebView
-
-    U->>W: ファイルを保存
-    W->>W: 0.2s デバウンス
-    W->>S: 変更を通知
-    S->>V: render(content, type)
-    V-->>U: プレビュー更新
-```
-
-ファイル変更は同一プロセス内で伝搬する。全体の流れは次のとおり。
+ファイル変更は同一プロセス内で伝搬する。
 
 ```mermaid
 flowchart LR
-    A[ファイル保存] --> B[FileWatcher]
-    B --> C[0.2s デバウンス]
-    C --> D[ViewerStore]
-    D --> E[WKWebView 再描画]
+    A[FileWatcher] --> B[Debouncer 0.2s]
+    B --> C[ViewerStore]
+    C --> D{分割できる形式?}
+    D -- はい --> E[先頭チャンクのみ]
+    D -- いいえ --> F[全文]
+    E --> G[WKWebView]
+    F --> G
 ```
 
-## Swift コード
+続きを読む操作は、描画済みの末尾位置を起点に次のチャンクだけを渡す。
+
+```mermaid
+sequenceDiagram
+    participant U as 利用者
+    participant V as WKWebView
+    participant S as ViewerStore
+    participant C as ContentLoader
+
+    U->>V: 「さらに読み込む」を押す
+    V->>S: requestMoreContent(offset)
+    S->>C: nextChunk(from: offset)
+    C-->>S: chunk, isTruncated
+    S->>V: appendContent(chunk)
+    V-->>U: 続きを描画
+```
+
+## 実装
+
+上限判定は形式ごとに分ける。分割できる形式だけ上限を広げる。
 
 ```swift
-import Foundation
+enum ContentLoader {
+    static let binaryLimit = 50 * 1024 * 1024
+    static let nonChunkableTextLimit = 10 * 1024 * 1024
+    static let chunkableTextLimit = 100 * 1024 * 1024
 
-@MainActor
-@Observable
-final class ViewerStore {
-    private(set) var content: String = ""
-    private(set) var error: String?
-
-    func update(content: String) {
-        self.content = content
-        self.error = nil
+    static func limit(for type: FileType) -> Int {
+        if type.isBinaryPreview { return binaryLimit }
+        return type.isChunkable ? chunkableTextLimit : nonChunkableTextLimit
     }
 }
 ```
 
-## コードブロック
-
-言語指定付きはシンタックスハイライトされる:
-
-```swift
-import Foundation
-
-@MainActor @Observable
-final class ViewerStore {
-    private(set) var content: String = ""
-
-    func update(content: String) {
-        self.content = content
-    }
-}
-```
+ビューア側は末尾のバナーだけを差し替える。全体を再描画すると
+スクロール位置が飛ぶので、`appendChild` で足す。
 
 ```javascript
-function highlightCode(hljs, str, lang) {
-  if (hljs && lang && hljs.getLanguage(lang)) {
-    return hljs.highlight(str, { language: lang }).value;
+function appendChunk(chunk, isTruncated) {
+  const banner = document.querySelector('.truncation-banner');
+  banner.remove();
+  document.querySelector('#content').insertAdjacentHTML('beforeend', chunk);
+  if (isTruncated) {
+    renderTruncationBanner();
   }
-  return '';
 }
 ```
 
-言語指定なしはプレーン表示のまま:
+## 検証
+
+`dump.md`（9.4MB）で再計測した結果。
 
 ```
-plain text block
-no highlighting here
+初回描画   13.8s -> 0.2s
+常駐メモリ 2940MB -> 71MB
 ```
+
+## 未解決
+
+- チャンク境界をまたぐ検索がヒットしない。描画済みの範囲しか検索できない旨を
+  バナーに出すか、境界をまたいで再検索するかは決めていない
+- 追加読み込み中に元ファイルが書き換えられた場合、オフセットが無効になる

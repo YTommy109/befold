@@ -125,6 +125,12 @@ main {
   border-bottom: 1px solid var(--color-border);
 }
 
+/* hero 直下の 1 つ目は下の philosophy と 1 ブロックに見せる（罫線は最後だけ）。 */
+.philosophy.review {
+  border-bottom: none;
+  padding-bottom: 1rem;
+}
+
 .philosophy-lead {
   font-size: 1.5rem;
   font-weight: 600;
@@ -135,6 +141,15 @@ main {
   font-size: 1.125rem;
   line-height: 2;
   color: var(--color-text-secondary);
+}
+
+.philosophy-body code {
+  background: var(--color-code-bg);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 0.9375rem;
+  white-space: nowrap;
 }
 
 .screenshot {
@@ -187,6 +202,13 @@ main {
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
   background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
   pointer-events: none;
+}
+
+/* ファイル形式ではなく機能を紹介するスライドは、位置と色で区別する
+   （形式名は右下・白、機能は左下・アクセント色）。 */
+.carousel-caption.feature {
+  text-align: left;
+  color: var(--color-accent);
 }
 
 .carousel-prev,
@@ -273,6 +295,26 @@ main {
   font-size: 0.875rem;
 }
 
+/* カードで際立たせるほどではない機能は、グリッドの下に列挙する。 */
+.feature-list {
+  list-style: none;
+  margin-top: 1.5rem;
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.feature-list li {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.feature-list strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
 section.requirements,
 section.install {
   padding: 3rem 0;
@@ -284,14 +326,29 @@ section h3 {
   margin-bottom: 1rem;
 }
 
+/* 本文中のリンク。色指定がないとブラウザ既定の #0000EE になり暗背景で読めない
+   （.btn-primary や .github-ribbon はクラス側の指定が優先される）。 */
+main a {
+  color: var(--color-accent);
+}
+
+/* 手順の中で使う短いパスなので、ブロックではなくインラインで見せる。 */
 .install code {
-  display: block;
   background: var(--color-code-bg);
-  padding: 1rem;
-  border-radius: var(--radius);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
   font-family: "SF Mono", Menlo, monospace;
-  font-size: 0.875rem;
-  overflow-x: auto;
+  font-size: 0.9375em;
+  white-space: nowrap;
+}
+
+.install ol {
+  padding-left: 1.25rem;
+}
+
+.install li {
+  margin-bottom: 0.5rem;
+  line-height: 1.9;
 }
 
 .note {
@@ -388,4 +445,5 @@ footer a:hover {
     padding: 2rem 1rem 1rem;
     font-size: 1.75rem;
   }
+
 }

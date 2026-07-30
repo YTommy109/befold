@@ -69,7 +69,7 @@ describe('GET /', () => {
     expect(response.status).toBe(200)
     const body = await response.text()
     expect(body).toContain('befold')
-    expect(body).toContain('href="/download"')
+    expect(body).toContain('href="https://befold.tommy109.workers.dev/download"')
 
     const event = await latestEvent()
     expect(event?.kind).toBe('visit')
