@@ -152,6 +152,22 @@ visit / download / update_check の全イベントで記録する。追加のサ
   `as_org` を `null` として記録し、イベント自体の記録は継続する
   （`src/events.ts` の `insertEvent`）。
 
+## ダッシュボードの指標の分け方
+
+<!-- constrained-by ../docs/superpowers/specs/2026-07-28-cloudflare-distribution-analytics-design.md -->
+
+アクセスを単一の指標として合算せず、`visit` / `download` / `update_check` の
+3 指標に分けて表示する。3 つは意味が異なり、合算した数値は解釈できないため
+（`visit` はサイト閲覧、`download` は新規獲得、`update_check` は継続利用）。
+
+- OS 別・接続元組織別の内訳は、指標ごとに独立した表として出す
+  （例: 「ページアクセス: OS 別」「ダウンロード: 接続元組織別」）。
+  3 種を合算した「OS 別」「接続元組織別」の表は**廃止した**（置き換え）。
+- 国別・参照元別は「どこから来訪したか」を見る軸で、指標を分けても
+  読み取れる情報が増えないため 3 種合算のまま残している。
+- 指標の並び順と表示名は `src/analytics.ts` の `KIND_LABELS` が唯一の定義で、
+  カード・表の両方がこの順に従う。
+
 ## ダッシュボードの認証方式
 
 独自ドメインを使わず `*.workers.dev` で公開するため、Cloudflare Access は使えない
