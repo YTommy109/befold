@@ -7,6 +7,13 @@ import Testing
 struct MainMenuBuilderTests {
     private final class StubMenuDelegate: NSObject, NSMenuDelegate {}
 
+    // NSMenu.delegate は weak。buildMenu() 呼び出し中だけの一時インスタンスだと、
+    // 代入直後に解放されて delegate が nil に化ける(トラップ)。struct のプロパティとして
+    // 保持し、テスト実行(assert 時点)まで生存させる。recentRepositoriesMenuDelegate だけは
+    // 呼び出し側で識別を検証したいケースがあるため、そちらは引数として個別に受け取る。
+    private let recentMenuDelegate = StubMenuDelegate()
+    private let bookmarksMenuDelegate = StubMenuDelegate()
+
     private func buildMenu(recentRepositoriesMenuDelegate: NSMenuDelegate = StubMenuDelegate()) -> NSMenu {
         // swift test のプロセスでは NSApp が未初期化のため、
         // MainMenuBuilder が参照する前に NSApplication.shared で初期化する
@@ -14,8 +21,8 @@ struct MainMenuBuilderTests {
         return MainMenuBuilder.build(
             openAction: #selector(AppDelegate.showOpenPanel),
             helpAction: #selector(AppDelegate.openHelp(_:)),
-            recentMenuDelegate: StubMenuDelegate(),
-            bookmarksMenuDelegate: StubMenuDelegate(),
+            recentMenuDelegate: recentMenuDelegate,
+            bookmarksMenuDelegate: bookmarksMenuDelegate,
             recentRepositoriesMenuDelegate: recentRepositoriesMenuDelegate
         )
     }
@@ -66,10 +73,16 @@ struct MainMenuBuilderTests {
         let mainMenu = buildMenu(recentRepositoriesMenuDelegate: delegate)
         let file = try #require(submenu(titledKey: "menu.file.title", in: mainMenu))
 
+        let bookmarksItem = try #require(file.items.first {
+            $0.submenu?.title == localizedTitle("menu.file.bookmarks")
+        })
         let recentRepositoriesItem = try #require(file.items.first {
             $0.submenu?.title == localizedTitle("menu.file.recentRepositories")
         })
         #expect(recentRepositoriesItem.submenu?.delegate === delegate)
+        let recentRepositoriesIndex = try #require(file.items.firstIndex(of: recentRepositoriesItem))
+        #expect(recentRepositoriesIndex == file.items.firstIndex(of: bookmarksItem)! + 1)
+        #expect(file.items[recentRepositoriesIndex + 1].isSeparatorItem)
     }
 
     @Test("Edit メニューに Copy(⌘C) と Select All(⌘A) がある")
