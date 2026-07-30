@@ -7,7 +7,7 @@ import Testing
 struct MainMenuBuilderTests {
     private final class StubMenuDelegate: NSObject, NSMenuDelegate {}
 
-    private func buildMenu() -> NSMenu {
+    private func buildMenu(recentRepositoriesMenuDelegate: NSMenuDelegate = StubMenuDelegate()) -> NSMenu {
         // swift test のプロセスでは NSApp が未初期化のため、
         // MainMenuBuilder が参照する前に NSApplication.shared で初期化する
         _ = NSApplication.shared
@@ -16,7 +16,7 @@ struct MainMenuBuilderTests {
             helpAction: #selector(AppDelegate.openHelp(_:)),
             recentMenuDelegate: StubMenuDelegate(),
             bookmarksMenuDelegate: StubMenuDelegate(),
-            recentRepositoriesMenuDelegate: StubMenuDelegate()
+            recentRepositoriesMenuDelegate: recentRepositoriesMenuDelegate
         )
     }
 
@@ -60,13 +60,16 @@ struct MainMenuBuilderTests {
 
     @Test("File メニューに Recent Repositories サブメニューがある")
     func fileMenuHasRecentRepositoriesSubmenu() throws {
-        let mainMenu = buildMenu()
+        // NSMenu.delegate は weak のため、テストのスコープ内で強参照を保持しておく
+        // (build() 呼び出し中だけの参照だと、代入直後に解放されて nil になる)。
+        let delegate = StubMenuDelegate()
+        let mainMenu = buildMenu(recentRepositoriesMenuDelegate: delegate)
         let file = try #require(submenu(titledKey: "menu.file.title", in: mainMenu))
 
         let recentRepositoriesItem = try #require(file.items.first {
             $0.submenu?.title == localizedTitle("menu.file.recentRepositories")
         })
-        #expect(recentRepositoriesItem.submenu?.delegate != nil)
+        #expect(recentRepositoriesItem.submenu?.delegate === delegate)
     }
 
     @Test("Edit メニューに Copy(⌘C) と Select All(⌘A) がある")
