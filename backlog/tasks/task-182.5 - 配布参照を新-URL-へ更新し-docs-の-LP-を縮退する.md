@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-07-28 13:36'
-updated_date: '2026-07-29 23:59'
+updated_date: '2026-07-30 00:20'
 labels: []
 dependencies:
   - TASK-182.6
@@ -53,6 +53,8 @@ README.md の紹介ページリンクを新 URL（?ref=readme）へ、インス�
 検証: docs/ をローカル配信（python3 -m http.server）して Chrome で実際に開き、https://befold.tommy109.workers.dev/?ref=gh-pages へ遷移して LP が表示されることをスクリーンショットで確認した。本番 D1 に id 39 visit referrer=gh-pages が記録され、README 導線側も id 38 download referrer=readme を確認。/download?ref=readme は 302 で v1.10.0 の DMG へ転送されることを curl で確認済み。
 
 未検証: GitHub Pages 上の実物（https://ytommy109.github.io/befold/）でのリダイレクトは、Pages が main の docs/ から配信されるため main へマージされるまで確認できない。マージ後に実 URL で再確認すること。
+
+マージ後の残作業を消化（2026-07-30、main f801bd68）。GitHub Pages 実物 https://ytommy109.github.io/befold/ を Chrome で開き、https://befold.tommy109.workers.dev/?ref=gh-pages へ実際にリダイレクトして LP が表示されることを確認した。本番 D1 に id 46 visit referrer=gh-pages が記録され、Pages 経由の流入が計測されることも確認済み。これで当タスクの未検証項目は残っていない。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
