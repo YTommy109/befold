@@ -105,6 +105,45 @@ struct GitRepositoryTests {
         #expect(after != before)
     }
 
+    @Test("本体リポジトリのラベルは接尾辞なしのディレクトリ名になる")
+    func repositoryLabelForMainRepository() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        try makeRepo(temp.url)
+
+        let label = makeRepository().repositoryLabel(forRoot: temp.url)
+
+        #expect(label == temp.url.standardizedFileURL.lastPathComponent)
+    }
+
+    @Test("worktree のラベルは本体名とworktreeディレクトリ名を併記する")
+    func repositoryLabelForWorktree() throws {
+        let main = try TempDir(prefix: "main-repo")
+        defer { withExtendedLifetime(main) {} }
+        try makeRepo(main.url)
+        let worktreeParent = try TempDir(prefix: "worktree-parent")
+        defer { withExtendedLifetime(worktreeParent) {} }
+        let worktreeDir = worktreeParent.url.appendingPathComponent("feature-x")
+        git(main.url, ["worktree", "add", worktreeDir.path, "-b", "feature-x"])
+
+        let label = makeRepository().repositoryLabel(forRoot: worktreeDir)
+
+        let mainName = main.url.standardizedFileURL.lastPathComponent
+        #expect(label == "\(mainName) (feature-x)")
+    }
+
+    @Test("git を実行できない場合はディレクトリ名のみに縮退する")
+    func repositoryLabelFallsBackWhenGitUnavailable() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        try makeRepo(temp.url)
+        let repo = GitRepository(runner: GitCommandRunner(timeout: 0.001))
+
+        let label = repo.repositoryLabel(forRoot: temp.url)
+
+        #expect(label == temp.url.standardizedFileURL.lastPathComponent)
+    }
+
     @Test("worktree 形式の .git ファイルは gitdir を辿って index を見る")
     func resolvesWorktreeGitFile() throws {
         let gitdir = try TempDir() // 実 gitdir 相当

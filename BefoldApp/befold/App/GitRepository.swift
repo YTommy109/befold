@@ -69,6 +69,25 @@ struct GitRepository: GitRepositoryReading {
         fileReader.modificationDate(at: gitDirectory(at: root).appendingPathComponent("index"))
     }
 
+    /// メニュー表示用のリポジトリラベルを返す。本体なら "<ディレクトリ名>"、worktree なら
+    /// "<本体のディレクトリ名> (<このworktreeのディレクトリ名>)"。
+    /// `--git-common-dir` と `--git-dir` を比較し、一致すれば本体、不一致なら worktree と判定する
+    /// (worktree の `.git` はファイルで実 gitdir を指すため両者が食い違う)。
+    /// git 呼び出しに失敗した場合はディレクトリ名のみ(本体扱い)に縮退する。
+    func repositoryLabel(forRoot root: URL) -> String {
+        let directoryName = root.standardizedFileURL.lastPathComponent
+        guard case let .output(data) = runner.run(["rev-parse", "--git-common-dir", "--git-dir"], in: root),
+              let text = String(data: data, encoding: .utf8)
+        else { return directoryName }
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+        guard lines.count == 2 else { return directoryName }
+        let commonDir = URL(fileURLWithPath: lines[0], relativeTo: root).standardizedFileURL
+        let gitDir = URL(fileURLWithPath: lines[1], relativeTo: root).standardizedFileURL
+        guard commonDir.path != gitDir.path else { return directoryName }
+        let mainRepositoryName = commonDir.deletingLastPathComponent().lastPathComponent
+        return "\(mainRepositoryName) (\(directoryName))"
+    }
+
     /// root/.git がディレクトリならそれ、ファイル(worktree/submodule)なら
     /// `gitdir: <path>` を解決した実 gitdir を返す。
     private func gitDirectory(at root: URL) -> URL {
