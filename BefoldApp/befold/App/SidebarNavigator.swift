@@ -35,6 +35,15 @@ final class SidebarNavigator {
     private var listingGeneration = 0
     /// 直近に発行した一覧取得タスク。テストから完了を待つために公開する。
     private(set) var pendingListingTask: Task<Void, Never>?
+    /// 現在のディレクトリが属する git リポジトリの作業ツリールート。git 管理外なら nil。
+    /// 未命中時に `git rev-parse` の subprocess を待つため async にし、
+    /// メインスレッド(SwiftUI の body 評価)で解決しないようにしている。
+    private let resolveGitRoot: @Sendable (URL) async -> URL?
+    /// baseDirectory 更新タスクの世代番号。一覧取得(listingGeneration)とは
+    /// 完了タイミングが独立するため、別の世代で古い結果を捨てる。
+    private var baseDirectoryGeneration = 0
+    /// 直近に発行した基準ディレクトリ解決タスク。テストから完了を待つために公開する。
+    private(set) var pendingBaseDirectoryTask: Task<Void, Never>?
 
     /// ファイル切替・現在ファイル参照の委譲先。循環参照を避けるため weak。
     private weak var host: SidebarNavigatorHost?
@@ -46,10 +55,12 @@ final class SidebarNavigator {
         hiddenFilesPreference: HiddenFilesPreference,
         sortOrder: SortOrder = .foldersFirst,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]
-            = DirectoryLister.listEntriesAsync
+            = DirectoryLister.listEntriesAsync,
+        resolveGitRoot: @escaping @Sendable (URL) async -> URL? = { _ in nil }
     ) {
         self.hiddenFilesPreference = hiddenFilesPreference
         self.directoryLister = directoryLister
+        self.resolveGitRoot = resolveGitRoot
         fileListModel = FileListModel(
             currentDirectory: currentDirectory,
             entries: entries,
@@ -57,6 +68,27 @@ final class SidebarNavigator {
             sortOrder: sortOrder
         )
         syncShowHiddenFiles()
+        refreshBaseDirectory()
+    }
+
+    // MARK: - Base Directory
+
+    /// 相対パスコピー・Quick Open の基準ディレクトリを取り直して fileListModel へ反映する。
+    /// git ルートの解決はメイン外で行い、完了後にメインアクターへ戻して書き込む。
+    /// ディレクトリが変わる契機(初期化・一覧更新・フォルダ移動)ごとに呼ぶ。
+    private func refreshBaseDirectory() {
+        let directory = fileListModel.currentDirectory
+        let workspaceRoot = fileListModel.rootDirectory
+        baseDirectoryGeneration += 1
+        let generation = baseDirectoryGeneration
+        pendingBaseDirectoryTask = Task {
+            let gitRoot = await self.resolveGitRoot(directory)
+            guard generation == self.baseDirectoryGeneration else { return }
+            self.fileListModel.baseDirectory = BaseDirectoryDescriptor(
+                gitRoot: gitRoot,
+                workspaceRoot: workspaceRoot
+            )
+        }
     }
 
     /// fileListModel.showHiddenFiles を真実の源(hiddenFilesPreference)へ同期し、
@@ -84,6 +116,7 @@ final class SidebarNavigator {
     ///   「上へ移動」後の親フォルダ選択復元に使う。
     func refreshFileList(applyCustomSelection: (() -> Bool)? = nil) {
         guard host != nil else { return }
+        refreshBaseDirectory()
         let showHiddenFiles = syncShowHiddenFiles()
         let directory = fileListModel.currentDirectory
         let sortOrder = fileListModel.sortOrder
@@ -115,6 +148,8 @@ final class SidebarNavigator {
     func cancelPendingListing() {
         pendingListingTask?.cancel()
         pendingListingTask = nil
+        pendingBaseDirectoryTask?.cancel()
+        pendingBaseDirectoryTask = nil
     }
 
     /// エントリ一覧に現在のファイルが含まれていなければ末尾に追加する。
@@ -161,6 +196,7 @@ final class SidebarNavigator {
         let previous = fileListModel.currentDirectory
         fileListModel.currentDirectory = url
         updateRootDirectory(with: target)
+        refreshBaseDirectory()
         let showHiddenFiles = syncShowHiddenFiles()
         let sortOrder = fileListModel.sortOrder
         listingGeneration += 1

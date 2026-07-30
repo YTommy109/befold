@@ -21,6 +21,23 @@ struct FileListView: View {
     }
 
     private var header: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            baseDirectoryIndicator
+            navigationHeader
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    /// 基準ディレクトリの解決前(初回表示直後の一瞬)は行を出さない。
+    @ViewBuilder
+    private var baseDirectoryIndicator: some View {
+        if let base = model.baseDirectory {
+            BaseDirectoryIndicator(base: base)
+        }
+    }
+
+    private var navigationHeader: some View {
         HStack {
             Text(model.currentDirectory.lastPathComponent)
                 .font(.headline)
@@ -51,8 +68,6 @@ struct FileListView: View {
                 ? String(localized: "sidebar.hiddenFiles.hide", bundle: .l10n)
                 : String(localized: "sidebar.hiddenFiles.show", bundle: .l10n))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
     }
 
     private var entryList: some View {

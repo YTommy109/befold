@@ -151,7 +151,13 @@ final class ViewerWindowController: NSWindowController {
         )
         sidebar = SidebarNavigator(
             currentDirectory: parentDir, entries: entries, selection: fileURL,
-            hiddenFilesPreference: hiddenFilesPreference, sortOrder: initialSortOrder
+            hiddenFilesPreference: hiddenFilesPreference, sortOrder: initialSortOrder,
+            // 未命中時は `git rev-parse` の subprocess を同期で待つため、
+            // メインアクターを離して解決する(サイドバーのヘッダー表示のためだけに
+            // フォルダ移動のたびメインスレッドを止めないため)。
+            resolveGitRoot: { [gitFileIndex] directory in
+                await Task.detached { gitFileIndex.repositoryRoot(forDirectoryAt: directory) }.value
+            }
         )
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、
