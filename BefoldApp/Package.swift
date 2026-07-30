@@ -37,6 +37,7 @@ let package = Package(
                 .copy("Resources/github.css"),
                 .copy("Resources/github-dark.css"),
                 .copy("Resources/github-markdown.css"),
+                .copy("Resources/THIRD_PARTY_LICENSES.md"),
             ],
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
