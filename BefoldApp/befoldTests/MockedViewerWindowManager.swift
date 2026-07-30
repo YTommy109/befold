@@ -45,6 +45,7 @@ struct MockedViewerWindowManager {
     let bookmarkStore: BookmarkStore
     /// 生成される全ウィンドウが共有する git 索引。実 `git` を起動しない記録用フェイク。
     let gitFileIndex: RecordingGitFileIndex
+    let recentRepositoriesStore: RecentRepositoriesStore
     let manager: ViewerWindowManager
 
     /// - Parameter files: 存在するものとして扱う URL。VWM の存在ガードと、
@@ -64,6 +65,8 @@ struct MockedViewerWindowManager {
         self.bookmarkStore = bookmarkStore
         let gitFileIndex = RecordingGitFileIndex()
         self.gitFileIndex = gitFileIndex
+        let recentRepositoriesStore = RecentRepositoriesStore(defaults: defaults)
+        self.recentRepositoriesStore = recentRepositoriesStore
         manager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
@@ -79,7 +82,8 @@ struct MockedViewerWindowManager {
                 )
             },
             directoryLister: { _, _, _ in [] },
-            gitFileIndex: gitFileIndex
+            gitFileIndex: gitFileIndex,
+            recentRepositoriesStore: recentRepositoriesStore
         )
     }
 

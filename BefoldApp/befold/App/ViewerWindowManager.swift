@@ -39,6 +39,12 @@ final class ViewerWindowManager {
     /// ウィンドウごとの複製が無視できない大きさになる)。ウィンドウが温めた同じ
     /// インスタンスを Quick Open の候補源もそのまま使う。
     let gitFileIndex: any GitFileIndexing
+    /// 「最近使ったリポジトリ」の記録先。git ルートを持つファイルを開いた際に record、
+    /// そのウィンドウが閉じるたびに updateLastTabGroup で最新のタブ構成へ更新する。
+    private let recentRepositoriesStore: RecentRepositoriesStore
+    /// root からメニュー表示用ラベルを解決する。既定は実 GitRepository。
+    /// テストは実 git を起動しないフェイクへ差し替える。
+    private let repositoryLabelResolver: (URL) -> String
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
@@ -62,7 +68,9 @@ final class ViewerWindowManager {
         fileReader: any FileReading = DefaultFileReader(),
         makeStore: ((URL) -> ViewerStore)? = nil,
         directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
-        gitFileIndex: any GitFileIndexing = GitCommandFileIndex()
+        gitFileIndex: any GitFileIndexing = GitCommandFileIndex(),
+        recentRepositoriesStore: RecentRepositoriesStore = RecentRepositoriesStore(),
+        repositoryLabelResolver: @escaping (URL) -> String = { GitRepository().repositoryLabel(forRoot: $0) }
     ) {
         self.gitFileIndex = gitFileIndex
         self.sessionStore = sessionStore
@@ -75,6 +83,8 @@ final class ViewerWindowManager {
         self.fileReader = fileReader
         self.makeStore = makeStore
         self.directoryLister = directoryLister
+        self.recentRepositoriesStore = recentRepositoriesStore
+        self.repositoryLabelResolver = repositoryLabelResolver
     }
 
     /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
@@ -212,6 +222,7 @@ final class ViewerWindowManager {
         sessionStore.noteOpened(url)
         recentDocumentsStore.noteOpened(url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
+        recordRecentRepositoryIfNeeded(for: url, controller: controller)
     }
 
     /// ウィンドウが「表示中のはずなのにアクティブ Space に居ない」状態かを判定する。
@@ -232,6 +243,26 @@ final class ViewerWindowManager {
             else { continue }
             window.orderFront(nil)
         }
+    }
+
+    /// url が git リポジトリ内なら「最近使ったリポジトリ」に記録し、ウィンドウへ
+    /// ルートをキャッシュする(ウィンドウを閉じる際に再度 git を呼ばずに済ませるため)。
+    /// git 呼び出しはウィンドウ生成という一度きりのコストとして同期的に払う
+    /// (ViewerWindowController.init が directoryLister を同期取得しているのと同じ方針)。
+    private func recordRecentRepositoryIfNeeded(for url: URL, controller: ViewerWindowController) {
+        guard let root = gitFileIndex.repositoryRoot(forFileAt: url) else { return }
+        controller.repositoryRoot = root
+        recentRepositoriesStore.record(root: root, label: repositoryLabelResolver(root))
+    }
+
+    /// window(自身のタブグループ)を SessionLayout.TabGroup として組み立てる。
+    /// タブが1枚も無ければ nil(ビューアウィンドウでない・既に全タブが閉じた等)。
+    private func tabGroup(of window: NSWindow) -> SessionLayout.TabGroup? {
+        let tabWindows = window.tabGroup?.windows ?? [window]
+        let paths = tabWindows.compactMap(viewerPath(of:))
+        guard !paths.isEmpty else { return nil }
+        let selectedWindow = window.tabGroup?.selectedWindow ?? window
+        return SessionLayout.TabGroup(paths: paths, selectedPath: viewerPath(of: selectedWindow))
     }
 
     /// 指定の正規化パスに対応する開状態のウィンドウを返す。
@@ -282,6 +313,11 @@ final class ViewerWindowManager {
 
 extension ViewerWindowManager: ViewerWindowControllerDelegate {
     func viewerWindowWillClose(_ controller: ViewerWindowController) {
+        if let root = controller.repositoryRoot, let window = controller.window,
+           let group = tabGroup(of: window)
+        {
+            recentRepositoriesStore.updateLastTabGroup(root: root, group)
+        }
         detach(controller, fromKey: controller.fileURL.normalizedPathKey)
         sessionStore.noteClosed(controller.fileURL)
     }
