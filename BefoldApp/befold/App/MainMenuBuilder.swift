@@ -6,14 +6,16 @@ enum MainMenuBuilder {
         openAction: Selector,
         helpAction: Selector,
         recentMenuDelegate: NSMenuDelegate,
-        bookmarksMenuDelegate: NSMenuDelegate
+        bookmarksMenuDelegate: NSMenuDelegate,
+        recentRepositoriesMenuDelegate: NSMenuDelegate
     ) -> NSMenu {
         let mainMenu = NSMenu()
         mainMenu.addItem(makeAppMenuItem())
         mainMenu.addItem(makeFileMenuItem(
             openAction: openAction,
             recentMenuDelegate: recentMenuDelegate,
-            bookmarksMenuDelegate: bookmarksMenuDelegate
+            bookmarksMenuDelegate: bookmarksMenuDelegate,
+            recentRepositoriesMenuDelegate: recentRepositoriesMenuDelegate
         ))
         mainMenu.addItem(makeEditMenuItem())
         mainMenu.addItem(makeViewMenuItem())
@@ -83,7 +85,8 @@ enum MainMenuBuilder {
     }
 
     private static func makeFileMenuItem(
-        openAction: Selector, recentMenuDelegate: NSMenuDelegate, bookmarksMenuDelegate: NSMenuDelegate
+        openAction: Selector, recentMenuDelegate: NSMenuDelegate, bookmarksMenuDelegate: NSMenuDelegate,
+        recentRepositoriesMenuDelegate: NSMenuDelegate
     ) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.file.title", bundle: .l10n))
@@ -112,6 +115,13 @@ enum MainMenuBuilder {
         bookmarksMenu.delegate = bookmarksMenuDelegate
         bookmarksItem.submenu = bookmarksMenu
         menu.addItem(bookmarksItem)
+
+        let recentRepositoriesTitle = String(localized: "menu.file.recentRepositories", bundle: .l10n)
+        let recentRepositoriesItem = NSMenuItem(title: recentRepositoriesTitle, action: nil, keyEquivalent: "")
+        let recentRepositoriesMenu = NSMenu(title: recentRepositoriesTitle)
+        recentRepositoriesMenu.delegate = recentRepositoriesMenuDelegate
+        recentRepositoriesItem.submenu = recentRepositoriesMenu
+        menu.addItem(recentRepositoriesItem)
 
         menu.addItem(.separator())
         menu.addItem(
