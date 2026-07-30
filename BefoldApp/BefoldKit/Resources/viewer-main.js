@@ -676,25 +676,111 @@
     // このリストは大文字で保持しつつ、比較側で toUpperCase() して正規化する。
     var skipTags = ['MARK', 'SVG', 'STYLE', 'SCRIPT'];
 
-    // 前回検索でハイライトした <mark> を平文へ復元する(次の検索前に必ず呼ぶ)。
+    // 前回検索でハイライトした <mark> を復元する(次の検索前に必ず呼ぶ)。
+    // span 境界をまたぐマッチは <mark> の中に元の <span> 構造を保持したまま挿入して
+    // いるため、単純に textContent で潰すとシンタックスハイライトの構造が壊れる。
+    // mark を子ノードで置き換える(unwrap)ことで元の構造を保ったまま平文表示に戻す。
     // normalize() は親ごとに1回だけ呼ぶ(同じ親に複数の <mark> がある場合の重複呼び出しを避ける)。
     function clearMarks() {
       var marks = document.querySelectorAll('#diagram-wrap mark.mmd-find-match');
       var parents = new Set();
       marks.forEach(function(mark) {
-        var text = document.createTextNode(mark.textContent);
         var parent = mark.parentNode;
         if (!parent) return;
-        parent.replaceChild(text, mark);
+        while (mark.firstChild) {
+          parent.insertBefore(mark.firstChild, mark);
+        }
+        parent.removeChild(mark);
         parents.add(parent);
       });
       parents.forEach(function(parent) { parent.normalize(); });
     }
 
-    // 1つのテキストノード内のマッチをすべて <mark> に置換し、found に追加する。
+    // マッチをまたいでよい(連結対象の)インライン要素。シンタックスハイライトの
+    // <span> やパス参照・通常リンクの <a>、Markdown の強調表現などはトークンを
+    // 分割するだけで論理的には1つの地の文なので、テキストノードを連結してよい。
+    // 見出し・段落・リスト項目・テーブル行/セルなど、ここに挙げていない要素は
+    // すべて「またいではいけない境界」として扱う(collectScopes 参照)。
+    var bridgeTags = [
+      'SPAN', 'A', 'CODE', 'EM', 'STRONG', 'B', 'I', 'U', 'S', 'DEL', 'INS',
+      'SMALL', 'SUB', 'SUP', 'ABBR', 'KBD', 'SAMP', 'VAR', 'Q', 'CITE', 'TIME', 'LABEL'
+    ];
+
+    function isBridgeable(node) {
+      return node.nodeType === 1 && bridgeTags.indexOf(node.tagName.toUpperCase()) !== -1;
+    }
+
+    // #diagram-wrap 配下(skipTags 除く)を再帰し、bridgeTags で連結できる範囲だけを
+    // 1つの「スコープ」(テキストノードの配列)としてまとめる。見出し・段落・リスト
+    // 項目・テーブル行/セルなど bridgeTags 以外の要素に出会うたびにスコープを区切る
+    // ことで、シンタックスハイライトの <span> 境界はまたぎつつ、行番号付きコード
+    // ブロックの <tr>/<td> のような構造上の境界はまたがないようにする(またぐと
+    // Range.extractContents() がテーブル構造を破壊してレイアウトが崩れる)。
+    // スコープはすべて document 順で返す。
+    function collectScopes(root) {
+      var scopes = [];
+      var current = [];
+      function flush() {
+        if (current.length > 0) {
+          scopes.push(current);
+          current = [];
+        }
+      }
+      function recurse(node) {
+        var children = node.childNodes;
+        for (var i = 0; i < children.length; i++) {
+          var child = children[i];
+          if (child.nodeType === 3) {
+            current.push(child);
+          } else if (child.nodeType === 1 && skipTags.indexOf(child.tagName.toUpperCase()) === -1) {
+            if (isBridgeable(child)) {
+              recurse(child);
+            } else {
+              flush();
+              recurse(child);
+              flush();
+            }
+          }
+        }
+      }
+      recurse(root);
+      flush();
+      return scopes;
+    }
+
+    // 連結文字列上のオフセットを (テキストノード, ノード内オフセット) に逆引きする。
+    // textNodes[i] は連結文字列上で [starts[i], starts[i] + textNodes[i].length) を占める。
+    //
+    // ノードの継ぎ目ちょうどのオフセット(前ノードの終端 === 次ノードの先頭)は
+    // DOM 上は同じ位置を指すが、Range の「祖先を完全に含むか」の判定はどちらの
+    // ノードを境界に使うかで変わる。開始側は次ノードの先頭(offset 0)、終了側は
+    // 前ノードの終端を使わないと、実際にはマッチしていない隣接 <span> まで
+    // 「部分的に含む」扱いになり、意図せず分割・複製されてしまう
+    // (isStart=true: 継ぎ目では後方のノードを優先。isStart=false: 前方のノードを優先)。
+    function locate(textNodes, starts, offset, isStart) {
+      for (var i = 0; i < textNodes.length; i++) {
+        var start = starts[i];
+        var length = textNodes[i].length;
+        var fits = isStart ? (offset < start + length) : (offset <= start + length);
+        if (fits) {
+          return { node: textNodes[i], localOffset: offset - start };
+        }
+      }
+      var last = textNodes.length - 1;
+      return { node: textNodes[last], localOffset: textNodes[last].length };
+    }
+
+    // 1スコープ(bridgeTags でつながった範囲)のテキストを連結してマッチさせ、マッチ
+    // 位置を (textNode, localOffset) に逆引きして Range を組み、<mark> で置き換える。
     // ゼロ幅マッチ(例: 正規表現 "a*" の空文字一致)は無限ループを避けるため読み飛ばす。
-    function walkText(node, regex, found) {
-      var text = node.textContent;
+    function matchScope(root, textNodeList, regex, found) {
+      var starts = [];
+      var text = '';
+      textNodeList.forEach(function(node) {
+        starts.push(text.length);
+        text += node.textContent;
+      });
+
       regex.lastIndex = 0;
       var ranges = [];
       var match;
@@ -704,39 +790,55 @@
           if (regex.lastIndex > text.length) break;
           continue;
         }
-        ranges.push({ index: match.index, text: match[0] });
+        ranges.push({ start: match.index, end: match.index + match[0].length });
       }
       if (ranges.length === 0) return;
-      var frag = document.createDocumentFragment();
-      var lastIndex = 0;
-      ranges.forEach(function(range) {
-        if (range.index > lastIndex) {
-          frag.appendChild(document.createTextNode(text.slice(lastIndex, range.index)));
-        }
+
+      var scopeFound = [];
+      // Range 構築中に DOM を書き換えるとテキストノードがずれるため、末尾側から処理する。
+      ranges.reverse().forEach(function(range) {
+        var start = locate(textNodeList, starts, range.start, true);
+        var end = locate(textNodeList, starts, range.end, false);
+        // extractContents() は境界をまたぐマッチの端で、部分的にしか含まれない祖先要素
+        // (例: <span>foo</span> の "foo" 全体が対象でも境界が offset 0 なので「完全に
+        // 含まれる」扱いにならない)を空のまま DOM に残す。参照はここで取っておき、
+        // 抽出後に空になっていれば取り除く(そうしないと再検索のたびに空 <span> が
+        // 増殖し、シンタックスハイライトの構造が壊れていく)。
+        var startAncestor = start.node.parentNode;
+        var endAncestor = end.node.parentNode;
+        var domRange = document.createRange();
+        domRange.setStart(start.node, start.localOffset);
+        domRange.setEnd(end.node, end.localOffset);
+
         var mark = document.createElement('mark');
         mark.className = 'mmd-find-match';
-        mark.textContent = range.text;
-        frag.appendChild(mark);
-        found.push(mark);
-        lastIndex = range.index + range.text.length;
+        mark.appendChild(domRange.extractContents());
+        domRange.insertNode(mark);
+        scopeFound.unshift(mark);
+
+        pruneEmptyAncestors(startAncestor, root);
+        pruneEmptyAncestors(endAncestor, root);
       });
-      if (lastIndex < text.length) {
-        frag.appendChild(document.createTextNode(text.slice(lastIndex)));
-      }
-      node.parentNode.replaceChild(frag, node);
+      found.push.apply(found, scopeFound);
     }
 
-    // #diagram-wrap 配下のテキストノードを再帰的に歩き、マッチを <mark> に置換する。
-    // 既知の制約: シンタックスハイライトの <span> 境界やパス参照 <span> の境界をまたぐ
-    // 一致は検出しない(_PATH_RE の制約と同じ考え方)。
-    function walk(node, regex, found) {
-      if (node.nodeType === 3) {
-        walkText(node, regex, found);
-      } else if (node.nodeType === 1 && skipTags.indexOf(node.tagName.toUpperCase()) === -1) {
-        var children = Array.prototype.slice.call(node.childNodes);
-        for (var i = 0; i < children.length; i++) {
-          walk(children[i], regex, found);
-        }
+    // #diagram-wrap 配下をスコープ(bridgeTags でつながった範囲)に分割し、スコープ
+    // ごとにマッチさせる。document 順のまま found に積む。
+    function walk(root, regex, found) {
+      collectScopes(root).forEach(function(textNodeList) {
+        matchScope(root, textNodeList, regex, found);
+      });
+    }
+
+    // node から祖先方向へ、内容が空になった要素を取り除く(root には触れない)。
+    // extractContents() は境界の Text ノードを削除せず長さ0のまま残すため、
+    // hasChildNodes() ではなく textContent で空判定する。
+    function pruneEmptyAncestors(node, root) {
+      while (node && node !== root && node.nodeType === 1 && node.textContent === '') {
+        var parent = node.parentNode;
+        if (!parent) break;
+        parent.removeChild(node);
+        node = parent;
       }
     }
 

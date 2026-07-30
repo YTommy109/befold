@@ -439,6 +439,144 @@ describe('検索ナビゲーション', () => {
     expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
     expect(document.getElementById('diagram-wrap').textContent).toBe('x a x b x');
   });
+
+  // シンタックスハイライトの <span> 境界(や _PATH_RE のリンク化)でテキストノードが
+  // 分割されていても、その境界をまたぐ文字列を検索できることを検証する(Issue #336)。
+  function openFindOnHtml(html, query) {
+    const loaded = loadViewerMain({});
+    loaded.document.getElementById('diagram-wrap').innerHTML = html;
+    loaded.main._mmdOpenFind();
+    const input = loaded.document.getElementById('mmd-find-input');
+    input.value = query;
+    input.dispatchEvent(new loaded.window.Event('input'));
+    return loaded;
+  }
+
+  test('span 境界をまたぐ foo.bar がデフォルトモードでヒットする', () => {
+    const { document } = openFindOnHtml(
+      '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
+      'foo.bar'
+    );
+
+    expect(count(document)).toBe('1/1');
+    const mark = document.querySelector('mark.mmd-find-match');
+    expect(mark.textContent).toBe('foo.bar');
+  });
+
+  test('span 境界をまたぐ .bar が先頭ドットだけでもヒットする', () => {
+    const { document } = openFindOnHtml(
+      '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
+      '.bar'
+    );
+
+    expect(count(document)).toBe('1/1');
+    expect(document.querySelector('mark.mmd-find-match').textContent).toBe('.bar');
+  });
+
+  test('span 境界をまたぐ foo. が末尾ドットだけでもヒットする', () => {
+    const { document } = openFindOnHtml(
+      '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
+      'foo.'
+    );
+
+    expect(count(document)).toBe('1/1');
+    expect(document.querySelector('mark.mmd-find-match').textContent).toBe('foo.');
+  });
+
+  test('span 境界をまたぐマッチはトグル(大小文字・単語一致・正規表現)を有効にしても検出できる', () => {
+    const { document } = openFindOnHtml(
+      '<span class="hljs-title">Foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">Bar</span>',
+      ''
+    );
+    document.getElementById('mmd-find-case').click();
+    document.getElementById('mmd-find-word').click();
+    document.getElementById('mmd-find-regex').click();
+    const input = document.getElementById('mmd-find-input');
+    input.value = 'Foo\\.Bar';
+    input.dispatchEvent(new document.defaultView.Event('input'));
+
+    expect(count(document)).toBe('1/1');
+    expect(document.querySelector('mark.mmd-find-match').textContent).toBe('Foo.Bar');
+  });
+
+  test('span をまたいだハイライト解除後もテキスト内容が保たれる', () => {
+    const { document, main } = openFindOnHtml(
+      '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
+      'foo.bar'
+    );
+
+    main._mmdCloseFind();
+
+    expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
+    expect(document.querySelector('#diagram-wrap').textContent).toBe('foo.bar');
+  });
+
+  // extractContents() は境界をまたぐマッチの端で、部分的にしか含まれない祖先 <span> を
+  // 空のまま残す。1打鍵ごとに run() が呼ばれるため、これを放置すると空 <span> が
+  // 際限なく増殖してレイアウトが壊れる(タイプするたびに崩れる、という形で顕在化した回帰)。
+  test('span 境界をまたぐ検索を連続して打鍵しても空の span が増殖しない', () => {
+    const { document, window } = openFindOnHtml(
+      '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
+      ''
+    );
+    const input = document.getElementById('mmd-find-input');
+    const queries = ['f', 'fo', 'foo', 'foo.', 'foo.b', 'foo.ba', 'foo.bar', 'foo.ba', 'foo.b', 'foo.', 'foo', 'fo', 'f', ''];
+
+    queries.forEach((q) => {
+      input.value = q;
+      input.dispatchEvent(new window.Event('input'));
+    });
+
+    const emptySpans = Array.from(document.querySelectorAll('#diagram-wrap span'))
+      .filter((span) => span.textContent === '');
+    expect(emptySpans.length).toBe(0);
+    expect(document.querySelector('#diagram-wrap').textContent).toBe('foo.bar');
+  });
+
+  // マッチが1つの <span> 内に収まっている(境界をまたがない)場合は、その span 自体を
+  // 分割・複製してはいけない。Range の境界オフセットを前後どちらのテキストノードに
+  // 解決するかを誤ると、実際にはマッチしていない隣接 span まで巻き込んで割れてしまう
+  // (README 検索でヒット箇所が「b e f o l d」のように分断された回帰の再現)。
+  test('マッチが1つの span 内に収まる場合はその span を分割しない', () => {
+    const { document } = openFindOnHtml(
+      'DMG を開き、<span class="hljs-title">befold</span><span class="hljs-punctuation">.</span><span class="hljs-property">app</span> を配置',
+      'b'
+    );
+
+    const titleSpans = document.querySelectorAll('#diagram-wrap span.hljs-title');
+    expect(titleSpans.length).toBe(1);
+    expect(titleSpans[0].textContent).toBe('befold');
+    expect(document.querySelector('mark.mmd-find-match').textContent).toBe('b');
+  });
+
+  // 行番号付きコードブロックは行ごとに <tr><td class="line-content"> で区切られる。
+  // ブロック境界(見出し・リスト項目・テーブル行/セルなど)をまたいでテキストノードを
+  // 連結してしまうと、複数行にまたがる Range の抽出でテーブル構造そのものが壊れる
+  // (Markdown プレビュー全体のレイアウトが崩れた回帰の再現)。
+  test('リストとテーブル行をまたいで検索してもテーブル構造が壊れない', () => {
+    const { document, window } = openFindOnHtml(
+      '<ul><li>DMG を開き、<span class="hljs-title">befold</span><span class="hljs-punctuation">.</span>'
+        + '<span class="hljs-property">app</span> を配置</li></ul>'
+        + '<pre><code class="hljs"><table class="code-table">'
+        + '<tr><td class="line-number">1</td><td class="line-content">'
+        + '<span class="hljs-title">befold</span> path/to/diagram.mmd</td></tr>'
+        + '<tr><td class="line-number">2</td><td class="line-content">'
+        + '<span class="hljs-title">befold</span> --help</td></tr>'
+        + '</table></code></pre>',
+      ''
+    );
+    const input = document.getElementById('mmd-find-input');
+
+    ['b', 'be', 'bef', 'befo', 'befol', 'befold'].forEach((q) => {
+      input.value = q;
+      input.dispatchEvent(new window.Event('input'));
+    });
+
+    const rows = document.querySelectorAll('#diagram-wrap table.code-table tr');
+    expect(rows.length).toBe(2);
+    expect(rows[0].querySelector('.line-content').textContent).toBe('befold path/to/diagram.mmd');
+    expect(rows[1].querySelector('.line-content').textContent).toBe('befold --help');
+  });
 });
 
 describe('_mmdFindRefresh の現在位置維持', () => {
