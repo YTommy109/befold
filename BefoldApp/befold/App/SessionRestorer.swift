@@ -78,7 +78,8 @@ final class SessionRestorer {
 
     /// 「最近使ったリポジトリ」から選ばれたリポジトリを開く。
     /// savedTabGroup があり実在するパスが残っていればタブ構成ごと復元し、
-    /// 無い/全て消えている場合はルートフォルダをサイドバー表示で開くフォールバックへ縮退する。
+    /// 無い/全て消えている場合はルート内の対応ファイルを解決してサイドバー表示で開く
+    /// フォールバック(openRootFallback)へ縮退する。
     func openRepository(
         root: URL, savedTabGroup: SessionLayout.TabGroup?, options: CLIOpenOptions = CLIOpenOptions()
     ) {
