@@ -10,11 +10,21 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/site.yml'
+      # deploy ジョブが実行時に依存するスクリプト。ここに含めないと安全装置を
+      # 変更しても CI が回らず、壊れても次の site/ 変更まで気づけない。
+      # scripts/** ではなく個別指定にしているのは、worktree-clean.sh などの
+      # 無関係なスクリプト変更で本番デプロイを走らせないため。
+      - 'scripts/check-destructive-migrations.sh'
   pull_request:
     branches: [main]
     paths:
       - 'site/**'
       - '.github/workflows/site.yml'
+      # deploy ジョブが実行時に依存するスクリプト。ここに含めないと安全装置を
+      # 変更しても CI が回らず、壊れても次の site/ 変更まで気づけない。
+      # scripts/** ではなく個別指定にしているのは、worktree-clean.sh などの
+      # 無関係なスクリプト変更で本番デプロイを走らせないため。
+      - 'scripts/check-destructive-migrations.sh'
 
 # 連続 push / force-push で古い実行を打ち切る
 concurrency:
