@@ -1,11 +1,11 @@
 ---
 id: TASK-190
 title: 「最近使ったリポジトリを開く」メニューを追加する
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-07-28 14:35'
-updated_date: '2026-07-30 17:17'
+updated_date: '2026-07-30 23:25'
 labels: []
 dependencies: []
 ordinal: 264000
@@ -55,4 +55,12 @@ docs/superpowers/plans/2026-07-30-recent-repositories-menu.md の 8 タスク構
 実装完了(コミット b28340dd..73b6259c、全14コミット)。検証: swift test フルスイート 904/904 PASS。AC対応の証跡: #1/#5 ViewerWindowManagerRecentRepositoriesTests、#2/#8 SessionRestorerTests(openRepository系5件)、#3 GitRepositoryTests(実git worktreeでのラベル検証)、#4/#6 RecentRepositoriesStoreTests、#7 closingTabsOneByOneKeepsFullTabGroup ほか。
 設計判断の変更(最終レビュー起点・ユーザー承認済み): (1) フォールバックはルートを DirectoryLister.resolveFileToOpen で中のファイルへ解決してから開く (2) タブ構成記録は didBecomeKey+close の縮小拒否書き込み+applicationShouldTerminate での強制スナップショット(windowWillClose 時は tabGroup が既に nil になる AppKit 実挙動のため) (3) git 呼び出し(root+ラベル解決)は Task.detached で非同期化 (4) pruneMissing はデコード不能データを温存。design doc も更新済み。
 残: 計画 Task 8 Step 4 の手動スモークテスト(GUI 目視確認)が未実施 — これが完了すれば Done にできる。
+
+手動スモークテスト実施済み(ユーザー確認)。併せて File メニューの並びを見直し、「開くコマンド(Open…/Quick Open)」と「記憶済みリスト(Open Recent/Recent Repositories/Bookmarks)」を区切り線で分け、履歴2つを隣接させた(commit 2f7ec778)。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+git リポジトリ内のファイルを開くとリポジトリ/worktree ルートを自動記憶し、File > Recent Repositories から最後のタブ構成ごと復元できるようにした(記憶が無ければルート内のファイルをサイドバー表示で開く)。RecentRepositoriesStore(UserDefaults永続化・上限10件・最終利用順)と RecentRepositoriesMenuController を RecentDocuments 系と同型で新設し、GitRepository に --git-common-dir/--git-dir 比較による worktree ラベル解決を追加。タブ構成は didBecomeKey/close の縮小拒否書き込みと終了時の強制スナップショットで保持する(windowWillClose 時点では tabGroup が既に nil になる AppKit 挙動への対応)。git 呼び出しは Task.detached でメインスレッド外へ。検証: swift test 904/904 PASS + 手動スモークテスト。
+<!-- SECTION:FINAL_SUMMARY:END -->
