@@ -35,6 +35,7 @@ struct FileListEntryRow: View {
                     .foregroundStyle(.tertiary)
                     .font(.caption)
             }
+            .help(entry.url.lastPathComponent)
         case .file:
             HStack {
                 Label {
@@ -49,6 +50,7 @@ struct FileListEntryRow: View {
                 }
                 Spacer()
             }
+            .help(entry.url.lastPathComponent)
         }
     }
 }

@@ -9,6 +9,14 @@ protocol SidebarCollapsible: AnyObject {
 }
 
 final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitViewController {
+    static var defaultSidebarWidth: CGFloat {
+        220
+    }
+
+    private static var autosaveDefaultsKey: String {
+        "NSSplitView Subview Frames ViewerSplitView"
+    }
+
     private let sidebarItem: NSSplitViewItem
     private var didForceInitialCollapse = false
     private let initialCollapsed: Bool
@@ -26,8 +34,8 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         sidebarItem = NSSplitViewItem(sidebarWithViewController: NSHostingController(rootView: sidebar))
         super.init(nibName: nil, bundle: nil)
 
-        sidebarItem.minimumThickness = 150
-        sidebarItem.maximumThickness = 300
+        sidebarItem.minimumThickness = 200
+        sidebarItem.maximumThickness = 360
         sidebarItem.canCollapse = true
 
         let contentItem = NSSplitViewItem(viewController: NSHostingController(rootView: content))
@@ -43,6 +51,12 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
 
     override func viewWillAppear() {
         super.viewWillAppear()
+        // autosave の記憶がない(初回起動)場合のみ、デフォルト幅を明示適用する。
+        // 記憶がある場合は autosave の復元をそのまま尊重し、上書きしない(AC#4)。
+        if UserDefaults.standard.object(forKey: Self.autosaveDefaultsKey) == nil {
+            splitView.setPosition(Self.defaultSidebarWidth, ofDividerAt: 0)
+        }
+
         // autosave の復元が開閉状態も引き継ぐため、初回表示の直前に必ず確定させる。
         // 開閉状態(記憶の引き継ぎ・CLI からの強制表示など)の解決は呼び出し側が行い、
         // ここでは initialCollapsed をそのまま適用するだけにする。
