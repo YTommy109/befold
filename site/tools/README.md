@@ -18,3 +18,13 @@ OGP 画像 `public/images/ogp.png` の元テンプレート。
     sips -g pixelWidth -g pixelHeight public/images/ogp.png
 
 サイズは必ず 1200×630 であること。Worker の実行時には一切関与しない。
+
+## ogp-preview.html
+
+再生成した `ogp.png` が各 SNS でどう切り抜かれるかを並べて確認するページ。
+
+    open tools/ogp-preview.html
+
+枠は近似なので、実際の切り抜きを保証するものではない。文字が切れないか、
+小さいサムネイルでも読めるかを素早く見るために使う。最終確認は
+デプロイ後の URL を各 SNS のカードデバッガに入れて行う。

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>OGP プレビュー — befold</title>
+<style>
+  /* 各 SNS のカード枠を近似して ogp.png の切り抜かれ方を並べて見るための、
+     手作業確認用ページ。Worker からは配信されない（public/ の外にある）。 */
+  :root {
+    --bg: #f2f3f5;
+    --card-bg: #ffffff;
+    --border: #cfd9de;
+    --text: #0f1419;
+    --muted: #536471;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15202b;
+      --card-bg: #1e2732;
+      --border: #38444d;
+      --text: #e7e9ea;
+      --muted: #8b98a5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+    line-height: 1.6;
+  }
+  .page { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .lead { color: var(--muted); font-size: 14px; margin: 0 0 8px; max-width: 760px; }
+  .warn {
+    margin: 0 0 32px;
+    padding: 10px 14px;
+    border-left: 3px solid #e0a800;
+    background: rgba(224, 168, 0, 0.12);
+    font-size: 13px;
+    max-width: 760px;
+  }
+  .grid { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; }
+  .item { }
+  .item > h2 { font-size: 13px; font-weight: 600; margin: 0 0 2px; }
+  .item > .note { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+
+  /* 画像の切り抜きは object-fit: cover で再現する。各 SNS が中央基準で
+     アスペクト比に合わせて切るため。 */
+  .shot { width: 100%; display: block; object-fit: cover; background: #fff; }
+
+  /* X / Facebook / LinkedIn: summary_large_image は 1.91:1。切り抜きは起きない。 */
+  .card-x {
+    width: 504px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--card-bg);
+  }
+  .card-x .shot { aspect-ratio: 1.91 / 1; }
+  .card-x .body { padding: 12px; font-size: 13px; }
+  .card-x .domain { color: var(--muted); }
+  .card-x .title { font-weight: 400; margin-top: 2px; }
+  .card-x .desc {
+    color: var(--muted);
+    margin-top: 2px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Slack: 左に色帯、画像は本文の下に幅広で入る。 */
+  .card-slack {
+    width: 440px;
+    border-left: 4px solid #0066cc;
+    padding-left: 12px;
+    font-size: 14px;
+  }
+  .card-slack .site { font-size: 12px; color: var(--muted); font-weight: 700; }
+  .card-slack .title { color: #1264a3; font-weight: 700; }
+  .card-slack .desc { color: var(--muted); font-size: 13px; }
+  .card-slack .shot { margin-top: 8px; border-radius: 8px; aspect-ratio: 1.91 / 1; }
+
+  /* 正方形に切る配信面（一部のモバイルクライアント・チャットのサムネ）。
+     ここで文字が欠けないかが、実際に一番危ういところ。 */
+  .card-square {
+    width: 300px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--card-bg);
+  }
+  .card-square .shot { aspect-ratio: 1 / 1; }
+
+  /* 小さいサムネイル。読めるかどうかの下限確認用。 */
+  .card-thumb {
+    width: 160px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--card-bg);
+  }
+  .card-thumb .shot { aspect-ratio: 1.91 / 1; }
+
+  .raw { margin-top: 56px; }
+  .raw img { max-width: 100%; border: 1px solid var(--border); display: block; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>OGP プレビュー</h1>
+  <p class="lead">
+    <code>public/images/ogp.png</code> が各配信面でどう切り抜かれるかを並べたもの。
+    枠は近似なので、余白やフォントは実物と厳密には一致しない。
+  </p>
+  <p class="warn">
+    実際の切り抜きを保証するのは各 SNS のカードデバッガだけ。
+    このページは「文字が切れないか」「小さくても読めるか」を素早く見るためのもの。
+  </p>
+
+  <div class="grid">
+    <div class="item">
+      <h2>X / Facebook / LinkedIn</h2>
+      <p class="note">summary_large_image · 1.91:1 · 切り抜きなし</p>
+      <div class="card-x">
+        <img class="shot" src="../public/images/ogp.png" alt="" />
+        <div class="body">
+          <div class="domain">befold.tommy109.workers.dev</div>
+          <div class="title">befold — File Viewer for macOS</div>
+          <div class="desc">befold is a lightweight macOS viewer for reviewing the Markdown that terminal coding agents like Claude Code and Codex generate.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="item">
+      <h2>Slack</h2>
+      <p class="note">unfurl · 1.91:1 · 幅が狭い</p>
+      <div class="card-slack">
+        <div class="site">befold</div>
+        <div class="title">befold — File Viewer for macOS</div>
+        <div class="desc">befold is a lightweight macOS viewer for reviewing the Markdown that terminal coding agents generate.</div>
+        <img class="shot" src="../public/images/ogp.png" alt="" />
+      </div>
+    </div>
+
+    <div class="item">
+      <h2>正方形に切られる場合</h2>
+      <p class="note">1:1 · 中央基準 · 左右が落ちる</p>
+      <div class="card-square">
+        <img class="shot" src="../public/images/ogp.png" alt="" />
+      </div>
+    </div>
+
+    <div class="item">
+      <h2>小さいサムネイル</h2>
+      <p class="note">1.91:1 · 160px · 可読性の下限</p>
+      <div class="card-thumb">
+        <img class="shot" src="../public/images/ogp.png" alt="" />
+      </div>
+    </div>
+  </div>
+
+  <div class="raw">
+    <h2>原寸（1200×630）</h2>
+    <img src="../public/images/ogp.png" alt="OGP 画像の原寸" />
+  </div>
+</div>
+</body>
+</html>

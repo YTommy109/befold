@@ -42,7 +42,7 @@ Worker 実行時の画像生成は行わない。ページが実質トップ 1 �
 ┌──────────────────────────────────────────┐
 │  befold                    ╔════════════╗ │
 │                            ║            ║ │
-│  Move through Markdown,    ║  アプリ画面  ║ │
+│  Read Markdown             ║  アプリ画面  ║ │
 │  comfortably.              ║ (screenshot ║ │
 │                            ║     -1)     ║ │
 │  macOS 14+ · Free          ╚════════════╝ │
