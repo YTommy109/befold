@@ -169,13 +169,16 @@ struct FileListView: View {
             bundle: .l10n
         )
         if entry.kind == .folder {
-            let hasFile = DirectoryLister.containsSupportedFile(in: entry.url)
+            let folder = entry.url
             Button(label) {
-                if let first = DirectoryLister.firstSupportedFile(in: entry.url) {
-                    onOpenInNewWindow(first)
+                Task {
+                    let detached = Task.detached { DirectoryLister.firstSupportedFile(in: folder) }
+                    if let first = await detached.value {
+                        onOpenInNewWindow(first)
+                    }
                 }
             }
-            .disabled(!hasFile)
+            .disabled(!entry.containsSupportedFile)
         } else {
             Button(label) {
                 onOpenInNewWindow(entry.url)
