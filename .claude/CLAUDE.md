@@ -1,35 +1,30 @@
 # befold
 
-macOS 向け Mermaid ダイアグラム・ビューアアプリ。
-`.mmd` / `.md` ファイルを監視し、mermaid.js でリアルタイムにプレビューする。
+macOS 向けのドキュメント・ダイアグラムビューアアプリ。
+`.mmd` / `.md` を中心に SVG / HTML / CSV・TSV / 画像 / PDF / ソースコードを
+プレビューし、ファイル変更を監視してプロセス内でリアルタイム更新する。
 
 ## アーキテクチャ
 
-```
-befold.app (Swift / AppKit + SwiftUI)
-  ├── AppDelegate            # ライフサイクル・メニュー・各コーディネータの束ね
-  │     ├── ViewerWindowManager    # ウィンドウ生成・管理とセッション記録の更新
-  │     └── SessionRestorer        # 前回セッションのタブ構成の保存/復元
-  ├── FileWatcher        # DispatchSource によるファイル監視（0.2s デバウンス）
-  ├── ViewerStore        # @Observable 表示状態（content / rejectReason / isTruncated、FileReading + ChunkedTextReading で読込を抽象化）
-  └── ViewerWebView      # WKWebView（NSViewRepresentable）
-        ├── 同梱アセット（viewer.html / viewer.js / mermaid.min.js / markdown-it.min.js / style.css）
-        └── JS ブリッジ: ViewerBridge 経由で evaluateJavaScript("render(content, type)")
+**詳細な構成図・モジュールツリー・コンポーネント一覧は
+[`docs/dev/native-app-design.md`](../docs/dev/native-app-design.md) が単一の情報源。
+ここには最低限の見取り図だけを置く（同じ内容を二重管理しない）。**
 
-befold-cli (Swift executable)
-  └── BefoldCLICommand    # ArgumentParser エントリポイント（--check/--bookmark/paths）
-        └── CLIAppLauncher      # befold.app への起動委譲（CLIInstanceRouter 経由）
+ソースはすべて `BefoldApp/` 配下にあり、主要ターゲットは次のとおり。
 
-BefoldCLI (Swift ライブラリ、befold.app / befold-cli 双方から参照)
-  ├── AppVersion / CLIInstanceRouter / CLIInstaller / CLIOpenOptions
-  ├── CLIBookmarkCommand / CLICheckCommand / CLICommandResult
-  └── ShellQuoting
-```
+| ターゲット | 責務 |
+|---|---|
+| `befold/` | 本体アプリ（AppKit + SwiftUI）。`App/`（ライフサイクル・ウィンドウ管理・各種永続化ストア）、`Viewer/`（`ViewerStore` / `ViewerWebView` / サイドバー・検索）、`FileWatching/`（`FileWatcher` / `Debouncer`）、`Updates/`（`UpdateChannel`） |
+| `BefoldKit/` | コアロジック＋レンダリングアセット（`ContentLoader` / `FileType` / `ViewerBridge` / `RendererFeatures` ほか、`Resources/` に viewer.html・mermaid・markdown-it 等を同梱） |
+| `BefoldRenderKit/` | 描画エンジン `ViewerRenderer`（WKWebView ドライバ）。本体アプリと QuickLook 拡張で共有 |
+| `BefoldQuickLook/` | QuickLook 拡張（appex）。`ViewerRenderer` を直接使い 1 回描画 |
+| `BefoldCLI/` / `befold-cli/` | CLI 共有ライブラリと `befold` 実行ファイル |
+| `BefoldTestSupport/` / `befoldTests/` / `befoldCLITests/` | テスト共有ヘルパーと Swift Testing テスト |
 
-ファイル変更は `FileWatcher → ViewerStore → evaluateJavaScript` の
-同一プロセス内伝搬で反映する。
-
-CLI からの起動は `befold-cli (BefoldCLICommand) → BefoldCLI (CLIAppLauncher / CLIInstanceRouter) → befold.app` で伝搬する。
+- ファイル変更は `FileWatcher → ViewerStore → ViewerRenderer(evaluateJavaScript)` の
+  同一プロセス内伝搬で反映する。
+- CLI 起動は `befold-cli → BefoldCLI → befold.app` で伝搬する。
+- 自動アップデートは Sparkle 2（`AppDelegate` が `SPUStandardUpdaterController` を保持）。
 
 ## 技術スタック
 
@@ -37,26 +32,6 @@ CLI からの起動は `befold-cli (BefoldCLICommand) → BefoldCLI (CLIAppLaunc
 - WKWebView（mermaid.js / markdown-it.js レンダリング）
 - DispatchSource（ファイル監視）
 - XcodeGen（プロジェクト生成）/ Swift Package Manager（ビルド）
-
-## プロジェクト構成
-
-```
-BefoldApp/
-├── project.yml              # XcodeGen 定義
-├── Package.swift            # SPM ビルド用
-├── befold/
-│   ├── App/                 # AppDelegate, DocumentController, ViewerWindowController, ReferenceResolutionCoordinator, GitRepository
-│   ├── Viewer/              # ViewerStore, ViewerWebView, ViewerContentView
-│   ├── FileWatching/        # FileWatcher, Debouncer
-│   └── Updates/             # UpdateChannel ほか自動更新系（Sparkle 2）
-├── BefoldKit/               # 純粋ロジックライブラリ（MarkdownImageEmbedder, PathRelativizer, ReferenceResolver, TrackedPathResolver, SuffixPathMatcher, TextEncoding, StringChunkReader, ContentLoader, FileType）
-│   └── Resources/           # viewer.html, viewer.js, style.css, mermaid.min.js, markdown-it.min.js, DOMPurify, highlight.js, github-markdown-css
-├── BefoldCLI/               # CLI 共通ロジックライブラリ（AppVersion, CLIBookmarkCommand, CLICheckCommand, CLICommandResult, CLIInstaller, CLIInstanceRouter, CLIOpenOptions, ShellQuoting）
-├── befold-cli/              # CLI 実行ファイル（BefoldCLICommand, CLIAppLauncher）
-├── BefoldTestSupport/       # テスト共有ヘルパー（TempDir, LockedBox, makeIsolatedDefaults, waitUntil 系）。依存は Foundation と Testing のみ（テストターゲットからのみリンクする）
-├── befoldTests/            # Swift Testing テスト
-└── befoldCLITests/         # befold-cli の Swift Testing テスト
-```
 
 ## コマンド
 
