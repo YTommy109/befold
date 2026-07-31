@@ -77,16 +77,53 @@ final class SessionRestorer {
             openRootFallback(root: root, options: options)
             return
         }
-        let existingPaths = Set(savedTabGroup.paths.filter { path in
-            fileReader.isExistingFile(at: URL(fileURLWithPath: path))
-        })
-        let filtered = SessionLayout(groups: [savedTabGroup]).filtered(to: existingPaths)
-        guard let group = filtered.groups.first else {
+        let restoration = restoreLayout(
+            SessionLayout(groups: [savedTabGroup]),
+            candidates: savedTabGroup.paths.map { (key: $0, url: URL(fileURLWithPath: $0)) },
+            options: options
+        )
+        // 実在するパスが 1 つも残らなければタブ構成は復元できていない。
+        if restoration.restoredPaths.isEmpty {
             openRootFallback(root: root, options: options)
-            return
         }
-        let urlByPath = Dictionary(group.paths.map { ($0, URL(fileURLWithPath: $0)) }) { first, _ in first }
-        restoreTabGroup(group, urlByPath: urlByPath, options: options)
+    }
+
+    /// レイアウト復元の結果。
+    private struct LayoutRestoration {
+        /// 実在が確認できた候補。渡された順を保つ(復元順・追加オープン順の基準)。
+        let existing: [(key: String, url: URL)]
+        /// 実際に復元したタブのパスキー。
+        let restoredPaths: Set<String>
+    }
+
+    /// 「候補を実在ファイルで絞る → パスキーで URL を引ける形にする → レイアウトを絞る →
+    /// タブグループを順に復元する」という復元経路の単一の実装元。
+    /// セッション復元(restoreLastSession)と最近使ったリポジトリ(openRepository)で共有する。
+    /// - Parameter candidates: (レイアウト上のパスキー, 開く URL) の組。キーは呼び出し元が決める
+    ///   (保存済みレイアウトのパス文字列と一致させる必要があるため、ここで正規化し直さない)。
+    /// - Parameter onMissing: 実在しなかった候補ごとに、ウィンドウを 1 つも開く前に呼ぶ。
+    ///   セッション記録から消えたファイルを取り除くのに使う。
+    private func restoreLayout(
+        _ layout: SessionLayout,
+        candidates: [(key: String, url: URL)],
+        options: CLIOpenOptions,
+        onMissing: (URL) -> Void = { _ in }
+    ) -> LayoutRestoration {
+        let existing = candidates.filter { candidate in
+            guard fileReader.isExistingFile(at: candidate.url) else {
+                onMissing(candidate.url)
+                return false
+            }
+            return true
+        }
+        let urlByPath = Dictionary(existing.map { ($0.key, $0.url) }) { first, _ in first }
+
+        var restoredPaths: Set<String> = []
+        for group in layout.filtered(to: Set(urlByPath.keys)).groups {
+            restoreTabGroup(group, urlByPath: urlByPath, options: options)
+            restoredPaths.formUnion(group.paths)
+        }
+        return LayoutRestoration(existing: existing, restoredPaths: restoredPaths)
     }
 
     /// タブ構成を復元できない場合のフォールバック。root はディレクトリなので、
@@ -117,29 +154,18 @@ final class SessionRestorer {
         NSWindow.allowsAutomaticWindowTabbing = false
         defer { NSWindow.allowsAutomaticWindowTabbing = allowsTabbing }
 
-        let existingURLs = urlsToRestore.filter { url in
-            guard fileReader.isExistingFile(at: url) else {
-                sessionStore.noteClosed(url)
-                return false
-            }
-            return true
-        }
+        let restoration = restoreLayout(
+            layoutToRestore ?? SessionLayout(groups: []),
+            candidates: urlsToRestore.map { (key: $0.normalizedPathKey, url: $0) },
+            options: options,
+            onMissing: { [sessionStore] url in sessionStore.noteClosed(url) }
+        )
         urlsToRestore = []
-
-        let urlByPath = Dictionary(existingURLs.map { ($0.normalizedPathKey, $0) }) { first, _ in first }
-        var restoredPaths: Set<String> = []
-
-        if let layout = layoutToRestore?.filtered(to: Set(urlByPath.keys)) {
-            for group in layout.groups {
-                restoreTabGroup(group, urlByPath: urlByPath, options: options)
-                restoredPaths.formUnion(group.paths)
-            }
-        }
         layoutToRestore = nil
 
         // レイアウトに無いファイル(クラッシュ後に開いたもの等)は従来どおり開いた順に開く
-        for url in existingURLs where !restoredPaths.contains(url.normalizedPathKey) {
-            openViewer(for: url, options: options)
+        for candidate in restoration.existing where !restoration.restoredPaths.contains(candidate.key) {
+            openViewer(for: candidate.url, options: options)
         }
 
         // 前回アクティブだったファイルをキーウィンドウにする(開けていなければ成り行きのまま)
