@@ -194,9 +194,7 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
         // オン状態はボタンの塗り潰し(.pushOnPushOff)ではなくシンボルの
         // アクセント色で示し、隣のモード切替セグメントと色味を揃える
         button.contentTintColor = host.store.showLineNumbers ? .controlAccentColor : nil
-        item.toolTip = host.store.showLineNumbers
-            ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
-            : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
+        item.toolTip = ViewerCommandTitles.lineNumbers(isShown: host.store.showLineNumbers)
     }
 
     /// ブックマークアイテムのアイコン(bookmark/bookmark.fill)・色・ツールチップを
@@ -204,9 +202,7 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     private func applyBookmarkState(to item: NSToolbarItem) {
         guard let host, let button = item.view as? NSButton else { return }
         let isBookmarked = host.isBookmarked
-        let label = isBookmarked
-            ? String(localized: "menu.view.removeBookmark", bundle: .l10n)
-            : String(localized: "menu.view.addBookmark", bundle: .l10n)
+        let label = ViewerCommandTitles.bookmark(isBookmarked: isBookmarked)
         button.image = NSImage(
             systemSymbolName: isBookmarked ? "bookmark.fill" : "bookmark", accessibilityDescription: label
         )

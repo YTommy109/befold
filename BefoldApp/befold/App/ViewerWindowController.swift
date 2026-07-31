@@ -713,21 +713,15 @@ extension ViewerWindowController: NSWindowDelegate {
 
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleSourceView(_:)) {
-            menuItem.title = isSourceMode
-                ? String(localized: "menu.view.showRendered", bundle: .l10n)
-                : String(localized: "menu.view.toggleSource", bundle: .l10n)
+            menuItem.title = ViewerCommandTitles.sourceView(isSourceMode: isSourceMode)
             return canToggleSourceMode
         }
         if menuItem.action == #selector(toggleLineNumbers(_:)) {
-            menuItem.title = store.showLineNumbers
-                ? String(localized: "menu.view.hideLineNumbers", bundle: .l10n)
-                : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
+            menuItem.title = ViewerCommandTitles.lineNumbers(isShown: store.showLineNumbers)
             return store.showsCodeContent
         }
         if menuItem.action == #selector(toggleBookmark(_:)) {
-            menuItem.title = isBookmarked
-                ? String(localized: "menu.view.removeBookmark", bundle: .l10n)
-                : String(localized: "menu.view.addBookmark", bundle: .l10n)
+            menuItem.title = ViewerCommandTitles.bookmark(isBookmarked: isBookmarked)
             return true
         }
         if menuItem.action == #selector(goBack(_:)) {

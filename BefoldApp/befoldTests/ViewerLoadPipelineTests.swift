@@ -12,7 +12,7 @@ import Testing
 @Suite
 struct ViewerLoadPipelineTests {
     private let chunkedReaderFactory: ViewerLoadPipeline.ChunkedReaderFactory = { cache, fileType in
-        StringChunkReader(cache: cache, boundary: ChunkBoundary(fileType: fileType))
+        try ViewerLoadPipeline.defaultChunkedReaderFactory(cache, fileType)
     }
 
     @Test("oneShotLoad: true では行指向ファイル(chunked)経路で dataHash が nil になる")

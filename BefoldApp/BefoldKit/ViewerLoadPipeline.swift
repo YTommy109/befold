@@ -8,6 +8,13 @@ public enum ViewerLoadPipeline {
     /// バックグラウンドの読み込みタスクから呼ばれるため、アクター隔離しない。
     public typealias ChunkedReaderFactory = @Sendable (NormalizedTextCache, FileType) throws -> any ChunkedTextReading
 
+    /// 既定のチャンクリーダー生成。GUI 本体(ViewerStore)・QuickLook 拡張(loadOneShot)・
+    /// CLI(`--check`)がすべてこれを使う。ここが分岐すると「GUI では開けるのに --check が
+    /// 開けないと言う」といったホスト間のドリフトになるため、生成規則は 1 箇所に置く。
+    public static let defaultChunkedReaderFactory: ChunkedReaderFactory = { cache, fileType in
+        StringChunkReader(cache: cache, boundary: ChunkBoundary(fileType: fileType))
+    }
+
     /// 読み込みの結果。呼び出し側(ViewerStore)がメインアクターへ持ち帰って一括適用する。
     public enum Outcome: Sendable {
         /// ファイルが存在しない(削除グレース期間を開始する)。
