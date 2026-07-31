@@ -3,6 +3,7 @@
 現在のブランチを push し、`gh pr create` でプルリクエストを作成してください。
 
 手順:
+
 1. `git log origin/main..HEAD --oneline` で PR に含まれるコミットを確認する
 2. 未 push のコミットがあれば `git push -u origin <ブランチ名>` する
 3. PR タイトルの Conventional Commits type（`feat` / `fix` / `chore` / `refactor` / `docs` / `test` / `ci` / `perf`）に対応するラベルを 1 つ選ぶ
@@ -31,6 +32,7 @@ Issue 番号が見つかった場合、本文の「概要」節の直後に `Clo
 ```
 
 注意:
+
 - ベースブランチは `main`
 - 複数コミットの場合はタイトルをブランチ全体の目的に合わせる(先頭コミットの丸写しにしない)
 - ラベルは PR タイトルの type と一致する 1 つのみ付与する(複数 type にまたがる場合はブランチ全体で最も主要な変更の type を選ぶ)

@@ -13,10 +13,12 @@ Read a Markdown doc the way dagayn indexes it: load its dependency graph first, 
 1. Confirm `[doc path]` was provided. If not, ask the user before continuing.
 2. Run `get_minimal_context_tool(task="read <doc path>")` once to check graph freshness. If it reports the graph is missing or stale — **or** the doc's mtime (`stat <path>`) is newer than the graph's last update — rebuild via the CLI (`dagayn tool build_or_update_graph_tool`) and wait for it to finish before Stage 1.
 3. **Skip-to-prose shortcut.** Run a quick check:
-   ```
+
+   ```bash
    wc -l <path>
    rg -n '<!--|`[^`]+`|]\(' <path> | wc -l
    ```
+
    If line count < 100 **and** the second grep returns 0, jump straight to Stage 3 — there are no graph-relevant constructs to pre-read.
 
 ## Stage 1 — Graph snapshot
@@ -36,7 +38,7 @@ Tool-call budget for Stage 1: ≤ 4 calls plus ≤ 1 `implementations_of` call f
 
 The directives, links, and code-spans in the doc itself are the authoritative outbound-edge list. Before reading prose, scan the raw file with one pass and build a per-edge-type triage list:
 
-```
+```bash
 rg -n '<!-- *(constrained-by|blocked-by|supersedes|derived-from)' <path>   # DEPENDS_ON / IMPORTS_FROM
 rg -n 'dagayn:' <path>                                                     # CROSS_ARTIFACT documentation directives
 rg -n '\[[^]]+\]\([^)]+\)' <path>                                          # IMPORTS_FROM / REFERENCES

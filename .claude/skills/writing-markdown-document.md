@@ -45,11 +45,13 @@ dagayn's Markdown parser extracts edges from these constructs. Use them delibera
 Directive kinds: `constrained-by`, `blocked-by`, `supersedes`, `derived-from`. All four emit identical edge kinds — the kind is preserved as metadata.
 
 Directive / link target shapes:
+
 - `#Section` — local section in the same doc (slug after `#` is itself slugified, so `#My Section` and `#my-section` are equivalent)
 - `./relative/path.md` — whole-file dependency
 - `./relative/path.md#Section` — specific section in another doc
 
 **Slug rules**:
+
 - Alphanumerics are lowercased.
 - Spaces and hyphens both become `-`.
 - Underscores are **preserved** (not converted to `-`).
@@ -57,12 +59,14 @@ Directive / link target shapes:
 - Duplicate headings get `-1`, `-2`, … suffixes appended in document order.
 
 Worked examples:
+
 - `## API Reference` → `api-reference`
 - `## user_id lookup` → `user_id-lookup`
 - `## What's new?` → `whats-new`
 - `## Stage 1 — Outline` → `stage-1--outline` (em-dash stripped, two surrounding spaces both become `-`)
 
 **Code-span identifier rules**:
+
 - Regex: `^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$` — dots only allowed *between* identifier segments (so `module.Class` is fine, `..foo` or `foo.` are not).
 - Identifiers shorter than 3 chars are skipped.
 - Identifiers without `_` or `.` need ≥ 10 chars (filters generic English words like `list` / `parser`).
@@ -87,6 +91,7 @@ Direction rule: the source should be the artifact that owns the assertion.
 Supported directive kinds are `implemented-by`, `implements`, `explained-by`, `has-runbook`, `problem-described-by`, `discussed-by`, `discusses`, `discusses-artifact`, `raises-issue-for`, `describes`, and `describes-symbol`.
 
 Target rules:
+
 - Markdown → code point: prefer a concrete graph node target in `path::symbol` form, e.g. `BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore.updateContent`. Verify the exact node exists before writing the directive. A bare symbol target is allowed but starts LOW/0.2 as `<unresolved:Symbol>` until postprocessing finds exactly one non-Markdown node with that `name`.
 - Code → Markdown section: always include a Markdown path plus `#Heading`, e.g. `docs/dev/coding_rule.md#Render Pipeline` or `../docs/dev/coding_rule.md#Render Pipeline`. The parser slugifies the heading and stores the target as `docs/dev/coding_rule.md::render-pipeline`.
 - In `dagayn:` directives, `./` and `../` paths are resolved relative to the source file; other file paths are treated as repo-root-relative and normalized.
@@ -94,6 +99,7 @@ Target rules:
 - Code-authored line comments are extracted from source-file comments in the languages your dagayn install supports; confirm the edge landed (rebuild, then `docs_for` / `implementations_of`) rather than assuming a given language is parsed. Put the directive inside the implementation node or directly above the following declaration (type / function / property); the parser attaches it to the nearest enclosing node or a following node within 3 lines.
 
 Verification rules:
+
 - Starting from a Markdown contract section, run `query_graph_tool(pattern="implementations_of", target="<doc.md>::<section-slug>", detail_level="minimal")` and check both doc-authored `implemented_by` and code-authored `implements_contract` edges. Treat those as `authored` contract evidence.
 - Starting from a code point, run `query_graph_tool(pattern="docs_for", target="<path::symbol>", detail_level="minimal")` to find specs, explanations, runbooks, and issue notes linked by documentation roles. Check each result's `evidence_type`: explanatory roles are usually `extracted`, and unresolved/low-confidence links are `heuristic_reachable`.
 - If a verification query returns zero results or `status="not_found"`, keep its `zero_result_reason`, `next_action`, and `missingness` in the draft notes instead of assuming the target or relationship cannot exist.

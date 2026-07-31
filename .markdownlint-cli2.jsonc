@@ -1,0 +1,55 @@
+// markdownlint-cli2 設定（TASK-219）
+//
+// 方針: 既定ルールのままでは対象 Markdown で 326 件のエラーが出るため、
+// 「日本語ドキュメントの実態と衝突するルール」を明示的に無効化し、
+// 残りを採用したうえで既存違反を解消した状態を維持する。
+// 実行方法は .claude/CLAUDE.md の「コマンド」節を参照。
+{
+  // 手書きで管理している Markdown のみを対象にする。
+  "globs": [
+    "*.md",
+    ".claude/CLAUDE.md",
+    "docs/adr/**/*.md",
+    "docs/dev/**/*.md",
+    // Claude Code が読み込む指示ファイル群（手書き管理）
+    ".claude/agents/*.md",
+    ".claude/commands/*.md",
+    ".claude/skills/*.md",
+    "site/**/*.md"
+  ],
+  "ignores": [
+    // backlog CLI が生成・管理するファイル（手で整形しない）
+    "backlog/**",
+    // superpowers スキルが生成する plans/specs（成果物であり手書き文書ではない）
+    "docs/superpowers/**",
+    // リリース自動化（.claude/skills/changelog.md）が生成する
+    "CHANGELOG.md",
+    "node_modules/**",
+    ".claude/worktrees/**"
+  ],
+  "config": {
+    "default": true,
+
+    // --- 無効化するルール（理由付き） ---
+
+    // MD013/line-length: 既定 80 文字上限。日本語ドキュメントでは 1 行の
+    // 情報量が多く実質的に守れない（対象範囲で 114 件違反）。行幅は
+    // エディタの折り返しに委ねる。
+    "MD013": false,
+
+    // MD060/table-column-style: テーブルのパイプ前後の空白揃え。日本語と
+    // 英数字が混在すると桁揃えが崩れ、機械的な整形も効かない
+    // （対象範囲で 116 件違反）。
+    "MD060": false,
+
+    // MD041/first-line-heading: 先頭行を H1 にする。CLAUDE.md / AGENTS.md は
+    // ツールが読み込む指示ファイルで H1 タイトルを持たない構造のため除外。
+    "MD041": false
+
+    // --- 以下は既定どおり採用（違反は本タスクで解消済み） ---
+    // MD040/fenced-code-language: コードブロックの言語指定（実益あり）
+    // MD007/ul-indent, MD005/list-indent: 箇条書きインデントの一貫性
+    // MD032/blanks-around-lists, MD022/blanks-around-headings: 描画崩れ防止
+    // MD024/no-duplicate-heading: 見出しアンカーの重複防止
+  }
+}

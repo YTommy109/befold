@@ -30,7 +30,7 @@ description: Localizable.xcstrings の en/ja 翻訳漏れ・整合性をチェ�
 
 ### 出力フォーマット
 
-```
+```markdown
 ## L10n Check 結果
 
 ### 翻訳漏れ (問題がある場合)

@@ -12,6 +12,7 @@ swift scripts/webview-smoke.swift
 ```
 
 検証項目:
+
 1. CSP 下でローカルスクリプト（viewer.js / mermaid / markdown-it）がロードされる
 2. `.mmd` が mermaid で SVG 描画される
 3. `.md` が markdown-it で描画される

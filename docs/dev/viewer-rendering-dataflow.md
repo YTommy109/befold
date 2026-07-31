@@ -105,7 +105,7 @@ viewer-main.js` の順で同梱アセットを読み込む。mermaid.min.js の�
 
 ファイル変更 1 回が画面更新に至るまでの呼び出しチェーン（関数名レベル）:
 
-```
+```text
 FileWatcher(onChange:)                         [befold/FileWatching/FileWatcher.swift]
   ▼
 ViewerStore.loadContent()  → loadGeneration++  [befold/Viewer/ViewerStore.swift]

@@ -3,13 +3,15 @@
 `git diff --staged` を確認し、Conventional Commits 形式で日本語コミットメッセージを提案してください。
 
 フォーマット:
-```
+
+```text
 <type>: <変更内容を動詞で始める日本語>
 
 [body: 必要な場合のみ]
 ```
 
 type の選択:
+
 - `feat`: 新機能
 - `fix`: バグ修正
 - `chore`: ビルド・設定・依存関係
