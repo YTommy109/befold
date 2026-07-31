@@ -37,35 +37,31 @@ final class SessionStore {
     private static let activeKey = "SessionActiveFilePath"
 
     private let defaults: UserDefaults
+    private let openFilePaths: PathListDefaults
     /// アプリ終了処理中はウィンドウクローズを記録しない(リストが空になるのを防ぐ)。
     private var isFrozen = false
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        openFilePaths = PathListDefaults(defaults: defaults, key: Self.defaultsKey)
     }
 
     /// 前回セッションで開いていたファイルの URL 一覧を開いた順で返す。
     func savedURLs() -> [URL] {
-        savedPaths().map { URL(fileURLWithPath: $0) }
+        openFilePaths.urls
     }
 
     /// ファイルが開かれたことを記録する。既に記録済みの場合は順序を維持したまま何もしない。
     func noteOpened(_ url: URL) {
-        let path = url.normalizedPathKey
-        var paths = savedPaths()
-        guard !paths.contains(path) else { return }
-        paths.append(path)
-        defaults.set(paths, forKey: Self.defaultsKey)
+        openFilePaths.appendIfAbsent(url)
     }
 
     /// ファイルが閉じられたことを記録する。freeze 後は無視する。
     /// 閉じたファイルがアクティブ記録と一致する場合は記録もクリアする。
     func noteClosed(_ url: URL) {
         guard !isFrozen else { return }
-        let path = url.normalizedPathKey
-        let paths = savedPaths().filter { $0 != path }
-        defaults.set(paths, forKey: Self.defaultsKey)
-        if savedActivePath() == path {
+        openFilePaths.remove(url)
+        if savedActivePath() == url.normalizedPathKey {
             defaults.removeObject(forKey: Self.activeKey)
         }
     }
@@ -121,9 +117,5 @@ final class SessionStore {
             }
         }
         saveLayout(layout)
-    }
-
-    private func savedPaths() -> [String] {
-        defaults.stringArray(forKey: Self.defaultsKey) ?? []
     }
 }

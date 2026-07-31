@@ -8,58 +8,35 @@ import Foundation
 public final class BookmarkStore {
     private static let defaultsKey = "BookmarkedPaths"
 
-    private let defaults: UserDefaults
+    private let bookmarkedPaths: PathListDefaults
 
     public init(defaults: UserDefaults) {
-        self.defaults = defaults
+        bookmarkedPaths = PathListDefaults(defaults: defaults, key: Self.defaultsKey)
     }
 
     /// 指定 URL がブックマーク済みかどうかを返す。
     public func isBookmarked(_ url: URL) -> Bool {
-        savedPaths().contains(url.normalizedPathKey)
+        bookmarkedPaths.contains(url)
     }
 
     /// 指定 URL をブックマークに追加する。既に追加済みなら何もしない(冪等)。
     /// `befold bookmark add` サブコマンドから呼ばれる。
     public func add(_ url: URL) {
-        let path = url.normalizedPathKey
-        var paths = savedPaths()
-        guard !paths.contains(path) else { return }
-        paths.append(path)
-        save(paths)
+        bookmarkedPaths.appendIfAbsent(url)
     }
 
     /// ブックマークの有無を反転させる。
     public func toggle(_ url: URL) {
-        let path = url.normalizedPathKey
-        var paths = savedPaths()
-        if let index = paths.firstIndex(of: path) {
-            paths.remove(at: index)
-        } else {
-            paths.append(path)
-        }
-        save(paths)
+        bookmarkedPaths.toggle(url)
     }
 
     /// ブックマーク済みの URL を返す(順序は保持しない。表示時にソートする)。
     public func bookmarkedURLs() -> [URL] {
-        savedPaths().map { URL(fileURLWithPath: $0) }
+        bookmarkedPaths.urls
     }
 
     /// rename / move をブックマーク状態に反映する。ブックマークされていなければ何もしない。
     public func noteRenamed(from oldURL: URL, to newURL: URL) {
-        let oldPath = oldURL.normalizedPathKey
-        var paths = savedPaths()
-        guard let index = paths.firstIndex(of: oldPath) else { return }
-        paths[index] = newURL.normalizedPathKey
-        save(paths)
-    }
-
-    private func savedPaths() -> [String] {
-        defaults.stringArray(forKey: Self.defaultsKey) ?? []
-    }
-
-    private func save(_ paths: [String]) {
-        defaults.set(paths, forKey: Self.defaultsKey)
+        bookmarkedPaths.replace(oldURL, with: newURL)
     }
 }
