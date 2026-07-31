@@ -54,6 +54,7 @@ enum ViewerRendererMessageStubs {
         var onOpenReference: ((String, OpenDisposition) -> Void)?
         var onResolveReferences: (([String]) async -> [String: String])?
         var onLoadMoreLines: (() async -> LoadMoreLinesResult?)?
+        var onContextMenu: ((String) -> Void)?
 
         func renderer(_: ViewerRenderer, didChangeZoom zoom: Double) {
             onZoomChanged?(zoom)
@@ -75,6 +76,10 @@ enum ViewerRendererMessageStubs {
 
         func rendererDidRequestMoreLines(_: ViewerRenderer) async -> LoadMoreLinesResult? {
             await onLoadMoreLines?() ?? nil
+        }
+
+        func renderer(_: ViewerRenderer, didRequestContextMenuFor href: String) {
+            onContextMenu?(href)
         }
     }
 

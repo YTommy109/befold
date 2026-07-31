@@ -74,7 +74,7 @@ enum ReferenceContextMenu {
             )
             menuItem.target = target
             menuItem.isEnabled = item.isEnabled
-            menuItem.representedObject = ReferenceMenuInvocation(url: url, action: item.action)
+            menuItem.representedObject = ReferenceMenuInvocation(url: url, action: item.action, isExternal: isExternal)
             menu.addItem(menuItem)
             if item.isSeparatorAfter {
                 menu.addItem(.separator())
@@ -90,9 +90,13 @@ enum ReferenceContextMenu {
 final class ReferenceMenuInvocation: NSObject {
     let url: URL
     let action: ReferenceContextMenu.Action
+    /// 対象が http/https の外部 URL か。`.open(_)` の実行時に、外部 URL を
+    /// ファイルビューア経路(switchFile/openFileElsewhere)へ渡さずブラウザへ送るために使う。
+    let isExternal: Bool
 
-    init(url: URL, action: ReferenceContextMenu.Action) {
+    init(url: URL, action: ReferenceContextMenu.Action, isExternal: Bool) {
         self.url = url
         self.action = action
+        self.isExternal = isExternal
     }
 }

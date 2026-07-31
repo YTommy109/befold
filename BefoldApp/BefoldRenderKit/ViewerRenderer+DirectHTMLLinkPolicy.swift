@@ -66,6 +66,13 @@ public extension ViewerRenderer {
         currentURL: URL?,
         modifierFlags: NSEvent.ModifierFlags
     ) -> DirectHTMLLinkAction {
+        // ctrl はコンテキストメニュー扱い(OpenDisposition のドキュメント参照)であり、
+        // このメソッドの呼び出し元(decidePolicyFor)にはコンテキストメニュー経路が無いため、
+        // ここでは遷移させず無視する。
+        if modifierFlags.contains(.control) {
+            return .ignore
+        }
+
         if let fragment = url.fragment, !fragment.isEmpty,
            let currentURL,
            url.deletingFragment() == currentURL.deletingFragment()

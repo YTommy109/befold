@@ -545,7 +545,14 @@ extension ViewerWindowController: ReferenceResolutionHost {
         guard let invocation = sender.representedObject as? ReferenceMenuInvocation else { return }
         switch invocation.action {
         case let .open(disposition):
-            openReference(invocation.url, disposition: disposition)
+            // 外部 URL(http/https)はファイルビューア経路(switchFile/openFileElsewhere)に
+            // ローカルパスが無く、渡すと「ファイルが見つかりません」になる。修飾キーに
+            // かかわらずブラウザで開く(通常クリック・cmd+クリックと同じ扱いに揃える)。
+            if invocation.isExternal {
+                NSWorkspace.shared.open(invocation.url)
+            } else {
+                openReference(invocation.url, disposition: disposition)
+            }
         case .revealInFinder:
             NSWorkspace.shared.activateFileViewerSelecting([invocation.url])
         case .copyName:

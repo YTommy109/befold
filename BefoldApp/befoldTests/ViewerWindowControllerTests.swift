@@ -584,4 +584,35 @@ extension ViewerWindowControllerTests {
         #expect(received.map(\.disposition) == [.newTab])
         #expect(received.first?.source === controller.window)
     }
+
+    /// 外部 URL(http/https)のコンテキストメニュー「開く」系は、ファイルビューア経路
+    /// (switchFile/openFileElsewhere)に流すと存在確認に失敗して「ファイルが見つかりません」に
+    /// なる(review 指摘)。修飾キーによらずブラウザで開くことをここで固定する。
+    @Test("外部 URL のコンテキストメニュー「開く」はファイルビューア経路を経由しない")
+    func externalURLContextMenuOpenSkipsFileViewer() throws {
+        let file = URL(fileURLWithPath: "/mock/a.md")
+        var openedElsewhere: [URL] = []
+        let controller = makeSwitchController(
+            primary: file,
+            defaults: makeIsolatedDefaults(prefix: "ExternalURLContextMenu"),
+            openFileElsewhere: { url, _, _ in openedElsewhere.append(url) }
+        )
+        defer { controller.close() }
+        let externalURL = try #require(URL(string: "https://example.com/docs"))
+
+        for disposition: OpenDisposition in [.currentTab, .newTab, .newWindow] {
+            let menu = ReferenceContextMenu.makeMenu(
+                for: externalURL, isExternal: true, target: controller,
+                action: Selector(("performReferenceMenuAction:"))
+            )
+            let openItem = menu.items.first {
+                ($0.representedObject as? ReferenceMenuInvocation)?.action == .open(disposition)
+            }
+            _ = openItem?.target?.perform(openItem?.action, with: openItem)
+        }
+
+        #expect(openedElsewhere.isEmpty)
+        // switchFile 経由(.currentTab)なら fileURL が書き換わるが、外部 URL では現在ファイルのまま。
+        #expect(controller.fileURL == file)
+    }
 }

@@ -88,6 +88,24 @@ struct DirectHTMLLinkPolicyTests {
         #expect(result == .openLocalFile(url: expected, disposition: .currentTab))
     }
 
+    @Test("ctrl+クリックはコンテキストメニュー扱いで ignore を返す(遷移させない)")
+    func ctrlClickIsIgnored() {
+        let url = URL(fileURLWithPath: "/tmp/test/other.md")
+        let result = ViewerRenderer.directHTMLLinkPolicy(
+            url: url, currentURL: currentURL, modifierFlags: .control
+        )
+        #expect(result == .ignore)
+    }
+
+    @Test("cmd+ctrl+クリックも ignore を返す(ctrl が優先される)")
+    func commandCtrlClickIsIgnored() {
+        let url = URL(fileURLWithPath: "/tmp/test/other.md")
+        let result = ViewerRenderer.directHTMLLinkPolicy(
+            url: url, currentURL: currentURL, modifierFlags: [.command, .control]
+        )
+        #expect(result == .ignore)
+    }
+
     @Test("直接 HTML モードでも cmd+クリックは別タブ、cmd+shift+クリックは新規ウィンドウになる")
     func directHTMLLinkUsesSharedDispositionTable() {
         let target = URL(fileURLWithPath: "/repo/docs/a.html")

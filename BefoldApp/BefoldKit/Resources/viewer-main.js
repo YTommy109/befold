@@ -235,6 +235,12 @@
       // ユーザー起因のイベントのみ処理する。
       if (!e.isTrusted) return;
 
+      // ctrl+クリック(右クリック以外のボタンも含む)はコンテキストメニュー扱い。
+      // macOS の WebKit は ctrl+左クリックで contextmenu に加え ctrlKey===true の
+      // click も発火しうるため、ここで弾かないと NSMenu 表示と同時に現在タブの
+      // 遷移も走ってしまう(OpenDisposition のドキュメント参照)。
+      if (e.ctrlKey || e.button !== 0) return;
+
       var href = _mmdReferenceTargetHref(e);
       if (!href) return;
 

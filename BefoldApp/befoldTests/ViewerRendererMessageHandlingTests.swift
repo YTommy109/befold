@@ -65,6 +65,38 @@ struct ViewerRendererMessageHandlingTests {
         #expect(received?.disposition == .newWindow)
     }
 
+    @Test("referenceContextMenu が href を onContextMenu へ渡す")
+    func referenceContextMenuDispatchesHref() {
+        let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
+        var received: String?
+        delegate.onContextMenu = { received = $0 }
+
+        dispatch(
+            renderer, name: ViewerBridge.referenceContextMenuMessageName,
+            body: ["href": "./other.md"]
+        )
+
+        #expect(received == "./other.md")
+    }
+
+    @Test("referenceContextMenu の href が文字列でなければ onContextMenu を呼ばない")
+    func referenceContextMenuIgnoresWrongTypedHref() {
+        let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
+        var called = false
+        delegate.onContextMenu = { _ in called = true }
+
+        dispatch(
+            renderer, name: ViewerBridge.referenceContextMenuMessageName,
+            body: ["href": 123]
+        )
+
+        #expect(!called)
+    }
+
     @Test("scrollPositionChanged が onScrollPositionChanged へ位置/モードを渡す")
     func scrollPositionChangedDispatchesPositionAndMode() {
         let renderer = ViewerRenderer()

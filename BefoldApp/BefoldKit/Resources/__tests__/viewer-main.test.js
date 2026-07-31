@@ -1118,6 +1118,17 @@ describe('パス参照の表示時解決', () => {
       ]);
   });
 
+  test('ctrlKey が押された click では referenceActivated を送らない(コンテキストメニュー扱い)', async () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    await loaded.main.render('src/a.swift\n', 'code', 'txt');
+    loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
+
+    click(loaded, '#diagram-wrap .befold-path-ref', { ctrlKey: true });
+
+    expect(received.filter((m) => m.name === 'referenceActivated')).toEqual([]);
+  });
+
   test('外部 URL と # アンカーは中立化せず従来どおり動く', () => {
     const loaded = loadViewerMain({});
     const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
