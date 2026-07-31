@@ -41,7 +41,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openHandler: { [weak self] url in self?.openViewer(for: url) }
     )
     private lazy var recentRepositoriesMenuController = RecentRepositoriesMenuController(
-        pruneMissing: { [weak self] in self?.recentRepositoriesStore.pruneMissing() },
         entries: { [weak self] in self?.recentRepositoriesStore.entries() ?? [] },
         openHandler: { [weak self] entry in
             self?.sessionRestorer.openRepository(root: entry.root, savedTabGroup: entry.lastTabGroup)
@@ -160,6 +159,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             updaterController.updater.checkForUpdatesInBackground()
         }
         notifyIfCLIShimIsStale()
+        // 「最近使ったリポジトリ」メニューは保存済みリストをそのまま表示するため、
+        // 存在しなくなった worktree 等の整理は起動時にここで1回だけ非同期に行う。
+        Task { [recentRepositoriesStore] in
+            await recentRepositoriesStore.pruneMissingAsync()
+        }
     }
 
     /// 起動時に一度だけ /usr/local/bin/befold の状態を読み取り専用でチェックし、

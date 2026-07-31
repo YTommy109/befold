@@ -8,12 +8,11 @@ import Testing
 struct RecentRepositoriesMenuControllerTests {
     private func makeController(
         entries: [RecentRepositoryEntry],
-        onPrune: @escaping () -> Void = {},
         onOpen: @escaping (RecentRepositoryEntry) -> Void = { _ in },
         onClear: @escaping () -> Void = {}
     ) -> RecentRepositoriesMenuController {
         RecentRepositoriesMenuController(
-            pruneMissing: onPrune, entries: { entries }, openHandler: onOpen, clearHandler: onClear
+            entries: { entries }, openHandler: onOpen, clearHandler: onClear
         )
     }
 
@@ -35,18 +34,6 @@ struct RecentRepositoriesMenuControllerTests {
         #expect(menu.items[0].representedObject as? RecentRepositoryEntry == entries[0])
         #expect(menu.items[2].isSeparatorItem)
         #expect(menu.items[3].title == String(localized: "menu.file.clearMenu", bundle: .l10n))
-    }
-
-    @Test("表示直前に毎回 pruneMissing が呼ばれる")
-    func callsPruneMissingOnEveryUpdate() {
-        var pruneCount = 0
-        let controller = makeController(entries: [], onPrune: { pruneCount += 1 })
-        let menu = NSMenu(title: "Recent Repositories")
-
-        controller.menuNeedsUpdate(menu)
-        controller.menuNeedsUpdate(menu)
-
-        #expect(pruneCount == 2)
     }
 
     @Test("一覧が空でも Clear Menu だけは表示される")
