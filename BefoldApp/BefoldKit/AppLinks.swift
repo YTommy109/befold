@@ -13,6 +13,9 @@ public enum AppLinks {
     /// GitHub の README ではなく配布サイトへ送る。GitHub のページには Releases への
     /// 導線が常に出ており、そこから DMG を直接取得されると配布サイトの統計に載らないため。
     public static let help = URL(string: "https://befold.tommy109.workers.dev/?ref=help")!
+
+    /// 作者(tommy109)の GitHub プロフィール。About パネルのクレジット表記から遷移する。
+    public static let author = URL(string: "https://github.com/YTommy109")!
 }
 
 /// QuickLook 拡張のプレビュー右下に重ねるバッジの表示文字列。
