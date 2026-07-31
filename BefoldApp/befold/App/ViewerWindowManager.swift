@@ -175,6 +175,9 @@ final class ViewerWindowManager {
         let key = url.normalizedPathKey
         // Finder/CLI/リンクからの再オープンは重複ウィンドウを作らず既存を前面化する。
         // (ウィンドウ内のサイドバー切替だけは他ウィンドウを無視して自ウィンドウを切り替える)
+        // この早期 return は disposition の分岐より前にあるため、既に別ウィンドウで
+        // 開いているファイルへの cmd+クリック(.newTab/.newWindow)も新規タブ/ウィンドウには
+        // ならず、そのウィンドウの前面化になる(重複抑止を新規オープンの意図より優先する)。
         if let existing = controllers[key]?.first {
             NSApp.activate()
             existing.focusWindow()
@@ -221,6 +224,8 @@ final class ViewerWindowManager {
         controller.delegate = self
         NSApp.activate()
         controller.showWindow(nil)
+        // window が nil(生成直後で取得できない等)ならタブ結合をあきらめ独立ウィンドウのまま
+        // 表示する(attachAsTab と同じ「開けないよりタブにならない」への縮退)。
         if disposition == .newTab, let window = controller.window {
             attachAsTab(window, to: sourceWindow, select: true)
         }

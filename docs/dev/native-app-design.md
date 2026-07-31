@@ -56,6 +56,10 @@ BefoldApp/
 │   ├── FileReading.swift / StringChunkReader.swift      # 読込抽象化・チャンク読み
 │   ├── FileType.swift              # 拡張子→種別マッピングとレンダリング可否判定
 │   ├── ViewerBridge.swift          # viewer.html との JS 関数名・メッセージ契約の集約
+│   │                               # （`referenceContextMenu` 等のブリッジメッセージ名もここ）
+│   ├── OpenDisposition.swift       # 修飾キー→「開き方」(現在タブ/新規タブ/新規ウィンドウ)の対応表。
+│   │                               # JS ブリッジ経由のクリックと直接 HTML モードの
+│   │                               # decidePolicyFor が共通で通る単一の解釈元
 │   ├── RendererFeatures.swift      # 本体 / QuickLook の機能プリセット
 │   ├── BundleAccessor.swift        # `Bundle.befoldKitResources`。SPM ビルドは
 │   │                               # `.module`、Xcode ビルド（framework）は
@@ -106,6 +110,7 @@ BefoldApp/
 | `CLIInstaller` | `/usr/local/bin/befold` に CLI 実行ファイルへの symlink を設置（詳細は [CLI 起動経路](./cli-launch.md#cliinstaller-が設置する-shim)） |
 | `ViewerWindowController` | 1 ウィンドウ分のビューア制御（メニュー・ツールバー・WebView・サイドバーの統括） |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController` |
+| `ReferenceContextMenu` | ビューア本文のリンク/パス参照の ctrl+クリック(右クリック)で出す `NSMenu` の項目定義。並び・文言はサイドバーのコンテキストメニューと揃える |
 
 ---
 

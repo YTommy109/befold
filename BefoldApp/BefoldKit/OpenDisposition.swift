@@ -8,6 +8,7 @@ public enum OpenDisposition: Equatable, Sendable {
     case currentTab
     /// 同じウィンドウのタブグループへ追加し、そのタブを前面にする。
     case newTab
+    /// 新規ウィンドウで開く。
     case newWindow
 
     /// 修飾キーの押下状態からの解釈。cmd+shift > cmd > それ以外の順に判定する。
