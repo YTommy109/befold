@@ -7,6 +7,14 @@ befold は macOS 向けの Mermaid ダイアグラム・ビューアアプリで
 - `.mmd` / `.md` を中心に、SVG / HTML / CSV・TSV / 画像 / PDF / 各種ソースコードをプレビュー表示する
 - ファイル変更を監視し、`WKWebView` 上のレンダリング結果をプロセス内でリアルタイム更新する
 - HTTP サーバーやポート管理を持たない、プロセス内完結の構成
+- 同じ描画エンジンを Finder の QuickLook 拡張でも共有する
+
+本文書はアプリ全体の総覧・索引を担う。サブシステム別の詳細は次を参照:
+
+- [ビューア描画データフロー](./viewer-rendering-dataflow.md) — ファイル種別ごとの描画差異と、監視 → Store → WebView → JS の一気通貫
+- [テキスト読み込みデータフロー](./text-loading-dataflow.md) — Swift 側の読み込み（チャンク分割・エンコーディング・サイズ制限）
+- [QuickLook 拡張の仕様と実現方法](./quicklook.md) — appex 構成・サンドボックス制約・描画エンジン共有
+- [CLI 起動経路とワイヤプロトコル](./cli-launch.md) — `befold` コマンドから本体アプリへの起動・転送
 
 ---
 
@@ -17,18 +25,23 @@ befold.app (Swift 6 / AppKit + SwiftUI, macOS 14+)
   ├── AppDelegate                # ライフサイクル・メニュー・各コーディネータの束ね
   │     ├── ViewerWindowManager      # ウィンドウ生成・管理とセッション記録の更新
   │     ├── SessionRestorer          # 前回セッションのウィンドウ/タブ構成の保存・復元
-  │     └── UpdateCheckCoordinator   # 更新チェックの実行と表示ポリシー
+  │     └── SPUStandardUpdaterController  # Sparkle アップデータの保持と起動
   ├── FileWatcher                # DispatchSource によるファイル監視（0.2s デバウンス）
   ├── ViewerStore                # @Observable 表示状態（content / rejectReason / isTruncated）
-  ├── ViewerWebView               # WKWebView（NSViewRepresentable）
-  └── Updates/                    # GitHub Releases 経由の自動アップデート（自前実装）
+  ├── ViewerWebView               # WKWebView（NSViewRepresentable、ViewerRenderer を保持）
+  └── Sparkle 2                   # 自動アップデート（appcast フィード経由）
+
+BefoldQuickLook.appex (QuickLook 拡張)
+  └── PreviewViewController        # ViewerRenderer を直接使い 1 回描画（詳細は quicklook.md）
 ```
 
-BefoldKit（フレームワークターゲット）にはビューアのコアロジックとレンダリングアセットを切り出し、
-`befold` 本体と `befoldTests` の双方から参照する。
+描画エンジン `ViewerRenderer`（+ `viewer.html`）は `BefoldRenderKit` に切り出し、
+本体アプリの `ViewerWebView` と QuickLook 拡張の双方から共有する。
+コアロジックとレンダリングアセットは `BefoldKit` に置き、各ターゲットから参照する。
 
 ファイル変更は `FileWatcher → ViewerStore → evaluateJavaScript` という
-同一プロセス内の伝搬で反映する。
+同一プロセス内の伝搬で反映する（詳細は
+[ビューア描画データフロー](./viewer-rendering-dataflow.md#監視--store--webview--js-の一気通貫)）。
 
 ---
 
@@ -36,23 +49,30 @@ BefoldKit（フレームワークターゲット）にはビューアのコア�
 
 ```
 BefoldApp/
-├── project.yml                # XcodeGen 定義
-├── Package.swift               # SPM ビルド用（BefoldKit / befold / befoldTests）
-├── BefoldKit/                  # フレームワークターゲット（com.degino.befold.kit）
-│   ├── ContentLoader.swift        # ファイル種別・サイズに応じた読込可否とコンテンツ生成
-│   ├── FileReading.swift          # ファイル読込の抽象化（エンコーディング判定・バイナリ判定）
-│   ├── FileType.swift             # 拡張子→種別マッピングとレンダリング可否判定
-│   ├── ViewerBridge.swift         # viewer.html との JS 関数名・メッセージ契約の集約
-│   ├── BundleAccessor.swift       # SPM/Xcode 両ビルドでのリソースバンドル解決
-│   └── Resources/                 # viewer.html / viewer.js / mermaid.min.js /
-│                                   # markdown-it.min.js / highlight.min.js / style.css 等
-├── befold/
+├── project.yml                # XcodeGen 定義（全ターゲットの単一定義元）
+├── Package.swift               # SPM ビルド用
+├── BefoldKit/                  # コアロジック＋レンダリングアセット（com.degino.befold.kit）
+│   ├── ContentLoader.swift / ViewerLoadPipeline.swift  # 読込可否・種別分岐
+│   ├── FileReading.swift / StringChunkReader.swift      # 読込抽象化・チャンク読み
+│   ├── FileType.swift              # 拡張子→種別マッピングとレンダリング可否判定
+│   ├── ViewerBridge.swift          # viewer.html との JS 関数名・メッセージ契約の集約
+│   ├── RendererFeatures.swift      # 本体 / QuickLook の機能プリセット
+│   └── Resources/                  # viewer.html / viewer.js / viewer-main.js /
+│                                    # mermaid / markdown-it / highlight.js / DOMPurify 等
+├── BefoldRenderKit/            # 描画エンジン（本体 / QuickLook で共有）
+│   └── ViewerRenderer.swift + ViewerRenderer+*.swift    # WKWebView ドライバ
+├── befold/                     # 本体アプリ（com.degino.befold）
 │   ├── App/                    # ライフサイクル・ウィンドウ管理・メニュー・各種永続化ストア
-│   ├── Viewer/                 # ビューア本体（WebView・サイドバー・検索・ナビゲーション）
+│   ├── Viewer/                 # ビューア本体（ViewerWebView・サイドバー・検索・ナビゲーション）
 │   ├── FileWatching/           # FileWatcher, Debouncer
-│   ├── Updates/                # 自動アップデート
+│   ├── Updates/                # UpdateChannel（Sparkle の appcast フィード切替）
 │   └── Resources/               # AppIcon.icns, Localizable.xcstrings
-└── befoldTests/                # Swift Testing テスト
+├── BefoldQuickLook/            # QuickLook 拡張（app-extension、com.degino.befold.quicklook）
+├── BefoldCLI/                  # CLI 共有ライブラリ（送受信両用のワイヤ表現・要求型）
+├── befold-cli/                 # CLI 実行ファイル（befold コマンド。Contents/MacOS/befold-cli）
+├── BefoldTestSupport/          # テスト共有ヘルパー
+├── befoldTests/                # 本体・BefoldKit の Swift Testing テスト
+└── befoldCLITests/             # CLI・QuickLook 関連の Swift Testing テスト
 ```
 
 ---
@@ -64,7 +84,7 @@ BefoldApp/
 | `AppDelegate` | アプリライフサイクル全体の起点。各ストア・コーディネータの生成と保持 |
 | `ViewerWindowManager` | ビューアウィンドウ（正規化パス → コントローラ）の生成・破棄、close/rename/key イベントに伴うセッション更新 |
 | `SessionRestorer` | 前回セッションのウィンドウ/タブ構成のスナップショット保存と復元 |
-| `UpdateCheckCoordinator` | 更新チェックの実行と表示ポリシー（自動チェックは更新ありの時のみ、同一バージョンはセッション中1回のみ通知） |
+| `SPUStandardUpdaterController` / `SPUUpdaterDelegate` | Sparkle アップデータの保持・起動と、チャンネル別 appcast フィード URL の供給（詳細は「自動アップデート」節） |
 | `DocumentController` | `NSDocumentController` のサブクラス。Recent Documents からのオープンを `AppDelegate` に委譲 |
 | `MainMenuBuilder` | メインメニューをコードで構築 |
 | `RecentDocumentsStore` / `RecentDocumentsMenuController` | 最近使ったファイルを UserDefaults に自前で永続化しメニュー描画（ad-hoc 署名では OS 標準の Recent Documents が更新のたびにリセットされるため） |
@@ -77,7 +97,7 @@ BefoldApp/
 | `NavigationHistory` | タブごとの戻る/進む履歴スタック（非永続） |
 | `SwipeHistoryNavigation` | トラックパッド水平スワイプから履歴移動方向を判定する純粋ロジック |
 | `SidebarNavigator` | サイドバー選択・履歴からのファイル切替を仲介 |
-| `CLIInstaller` | PATH に `befold` コマンドを設置する shim スクリプトを生成 |
+| `CLIInstaller` | `/usr/local/bin/befold` に CLI 実行ファイルへの symlink を設置（詳細は [CLI 起動経路](./cli-launch.md#cliinstaller-が設置する-shim)） |
 | `ViewerWindowController` | 1 ウィンドウ分のビューア制御（メニュー・ツールバー・WebView・サイドバーの統括） |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController` |
 
@@ -139,22 +159,23 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
 
 ## 自動アップデート
 
-Sparkle 等の外部フレームワークは使わず、GitHub Releases API を用いた自前実装で完結する（`Updates/`）。
+自動アップデートは **Sparkle 2**（`sparkle-project/Sparkle`）を用いる。`AppDelegate`
+が `SPUStandardUpdaterController` を保持し、`SPUUpdaterDelegate` として appcast の
+フィード URL を供給する。
 
-| コンポーネント | 役割 |
+| 要素 | 役割 |
 |---|---|
-| `GitHubRelease` | GitHub Releases API のレスポンス型（Decodable） |
-| `UpdateChannel` | stable / develop の2チャンネル切替（UserDefaults） |
-| `ReleaseFetcher`（`GitHubReleaseFetcher`） | stable は `/releases/latest`、develop は `/releases?per_page=10` を取得 |
-| `UpdateChecker` | `AppVersion` によるバージョン比較。結果を TTL 1時間キャッシュし、同時実行は合流する |
-| `UpdateDownloader` | DMG のダウンロード（進捗コールバック付き） |
-| `DMGMounter` | `hdiutil` による DMG のマウント/アンマウント |
-| `CodeSignatureVerifier` | ダウンロードした `.app` が実行中アプリと同一 Team ID で署名されているかを `Security` フレームワークで検証 |
-| `UpdateInstaller` | アップデータ用 bash スクリプトを生成し実行（旧プロセス終了待ち → ステージングコピー → 旧アプリ削除 → リネーム → quarantine 解除 → 再起動） |
-| `UpdateFlowController` | 確認ダイアログ → ダウンロード → 署名検証 → インストールスクリプト起動 → `exit(0)` までの GUI フロー全体を統括 |
-| `AppVersion` | SemVer 相当のパース・比較 |
+| `SPUStandardUpdaterController` | Sparkle 標準のアップデータ本体（`AppDelegate` が `startingUpdater: false` で生成し、起動時に `updater.start()`） |
+| `AppDelegate: SPUUpdaterDelegate` | `feedURLString(for:)` で現在のチャンネルの appcast URL を返す |
+| `UpdateChannel`（`befold/Updates/`） | stable / develop の 2 チャンネル切替（UserDefaults）。チャンネルごとに appcast フィード URL を持つ |
 
-`UpdateCheckCoordinator` が自動チェックの実行タイミングと通知要否（更新ありの場合のみ、同一バージョンはセッション中1回）を制御する。
+appcast の実体と DMG は配布サイト（Cloudflare Worker）が GitHub をプロキシしつつ
+アップデートチェックを計測する構成。ダウンロード・署名検証・インストール・再起動は
+Sparkle が担当する。
+
+> 補足: 以前は GitHub Releases API を用いた自前実装だったが、Sparkle 2 へ移行済み。
+> ライフサイクル所有権と Sparkle 結合の背景は
+> [ADR 0001](../adr/0001-keep-appkit-app-lifecycle.md) を参照。
 
 ---
 
