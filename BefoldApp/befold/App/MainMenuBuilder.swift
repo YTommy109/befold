@@ -37,30 +37,18 @@ enum MainMenuBuilder {
         let item = NSMenuItem()
         let menu = NSMenu()
         item.submenu = menu
-        menu.addItem(
-            withTitle: String(localized: "menu.app.about", bundle: .l10n),
-            action: #selector(AppDelegate.showAbout(_:)),
-            keyEquivalent: ""
-        )
+        menu.addLocalizedItem("menu.app.about", action: #selector(AppDelegate.showAbout(_:)))
         // 設定は macOS 標準どおり About の直後(⌘,)に置く。
         menu.addItem(.separator())
-        let settings = menu.addItem(
-            withTitle: String(localized: "menu.app.settings", bundle: .l10n),
+        menu.addLocalizedItem(
+            "menu.app.settings",
             action: #selector(AppDelegate.showSettings(_:)),
-            keyEquivalent: ","
+            keyEquivalent: ",",
+            modifiers: [.command]
         )
-        settings.keyEquivalentModifierMask = [.command]
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: String(localized: "menu.app.checkForUpdates", bundle: .l10n),
-            action: #selector(AppDelegate.checkForUpdates(_:)),
-            keyEquivalent: ""
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.app.installCLI", bundle: .l10n),
-            action: #selector(AppDelegate.installCLI(_:)),
-            keyEquivalent: ""
-        )
+        menu.addLocalizedItem("menu.app.checkForUpdates", action: #selector(AppDelegate.checkForUpdates(_:)))
+        menu.addLocalizedItem("menu.app.installCLI", action: #selector(AppDelegate.installCLI(_:)))
         menu.addItem(.separator())
         let servicesTitle = String(localized: "menu.app.services", bundle: .l10n)
         let servicesItem = NSMenuItem(title: servicesTitle, action: nil, keyEquivalent: "")
@@ -68,28 +56,16 @@ enum MainMenuBuilder {
         NSApp.servicesMenu = servicesItem.submenu
         menu.addItem(servicesItem)
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: String(localized: "menu.app.hide", bundle: .l10n),
-            action: #selector(NSApplication.hide(_:)),
-            keyEquivalent: "h"
-        )
-        let hideOthers = menu.addItem(
-            withTitle: String(localized: "menu.app.hideOthers", bundle: .l10n),
+        menu.addLocalizedItem("menu.app.hide", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        menu.addLocalizedItem(
+            "menu.app.hideOthers",
             action: #selector(NSApplication.hideOtherApplications(_:)),
-            keyEquivalent: "h"
+            keyEquivalent: "h",
+            modifiers: [.command, .option]
         )
-        hideOthers.keyEquivalentModifierMask = [.command, .option]
-        menu.addItem(
-            withTitle: String(localized: "menu.app.showAll", bundle: .l10n),
-            action: #selector(NSApplication.unhideAllApplications(_:)),
-            keyEquivalent: ""
-        )
+        menu.addLocalizedItem("menu.app.showAll", action: #selector(NSApplication.unhideAllApplications(_:)))
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: String(localized: "menu.app.quit", bundle: .l10n),
-            action: #selector(NSApplication.terminate(_:)),
-            keyEquivalent: "q"
-        )
+        menu.addLocalizedItem("menu.app.quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         return item
     }
 
@@ -100,13 +76,9 @@ enum MainMenuBuilder {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.file.title", bundle: .l10n))
         item.submenu = menu
-        menu.addItem(
-            withTitle: String(localized: "menu.file.open", bundle: .l10n),
-            action: openAction,
-            keyEquivalent: "o"
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.file.quickOpen", bundle: .l10n),
+        menu.addLocalizedItem("menu.file.open", action: openAction, keyEquivalent: "o")
+        menu.addLocalizedItem(
+            "menu.file.quickOpen",
             action: #selector(AppDelegate.showQuickOpen(_:)),
             keyEquivalent: "p"
         )
@@ -115,42 +87,21 @@ enum MainMenuBuilder {
         // リストは履歴(Open Recent / Recent Repositories)を隣接させ、手動登録の Bookmarks を末尾に置く。
         menu.addItem(.separator())
 
-        let recentTitle = String(localized: "menu.file.openRecent", bundle: .l10n)
-        let recentItem = NSMenuItem(title: recentTitle, action: nil, keyEquivalent: "")
-        let recentMenu = NSMenu(title: recentTitle)
-        recentMenu.delegate = recentMenuDelegate
-        recentItem.submenu = recentMenu
-        menu.addItem(recentItem)
-
-        let recentRepositoriesTitle = String(localized: "menu.file.recentRepositories", bundle: .l10n)
-        let recentRepositoriesItem = NSMenuItem(title: recentRepositoriesTitle, action: nil, keyEquivalent: "")
-        let recentRepositoriesMenu = NSMenu(title: recentRepositoriesTitle)
-        recentRepositoriesMenu.delegate = recentRepositoriesMenuDelegate
-        recentRepositoriesItem.submenu = recentRepositoriesMenu
-        menu.addItem(recentRepositoriesItem)
-
-        let bookmarksTitle = String(localized: "menu.file.bookmarks", bundle: .l10n)
-        let bookmarksItem = NSMenuItem(title: bookmarksTitle, action: nil, keyEquivalent: "")
-        let bookmarksMenu = NSMenu(title: bookmarksTitle)
-        bookmarksMenu.delegate = bookmarksMenuDelegate
-        bookmarksItem.submenu = bookmarksMenu
-        menu.addItem(bookmarksItem)
+        menu.addLocalizedSubmenu("menu.file.openRecent", delegate: recentMenuDelegate)
+        menu.addLocalizedSubmenu("menu.file.recentRepositories", delegate: recentRepositoriesMenuDelegate)
+        menu.addLocalizedSubmenu("menu.file.bookmarks", delegate: bookmarksMenuDelegate)
 
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: String(localized: "menu.file.close", bundle: .l10n),
-            action: #selector(NSWindow.performClose(_:)),
-            keyEquivalent: "w"
-        )
+        menu.addLocalizedItem("menu.file.close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         menu.addItem(.separator())
         // ⌘P は Quick Open に譲り、Print は ⇧⌘P へ移す。
-        let print = menu.addItem(
-            withTitle: String(localized: "menu.file.print", bundle: .l10n),
-            action: #selector(ViewerWindowController.printDocument(_:)),
-            keyEquivalent: "p"
-        )
         // 小文字 + shift マスクで統一する(同ファイルの redo / findPrevious / hideOthers と同方式)。
-        print.keyEquivalentModifierMask = [.command, .shift]
+        menu.addLocalizedItem(
+            "menu.file.print",
+            action: #selector(ViewerWindowController.printDocument(_:)),
+            keyEquivalent: "p",
+            modifiers: [.command, .shift]
+        )
         return item
     }
 
@@ -166,62 +117,34 @@ enum MainMenuBuilder {
         item.submenu = menu
         // undo:/redo: は NSUndoManager が実装時のみ応答するセレクタで #selector による
         // コンパイル時チェック対象の宣言が存在しないため、文字列セレクタで指定する。
-        menu.addItem(
-            withTitle: String(localized: "menu.edit.undo", bundle: .l10n),
-            action: Selector(("undo:")),
-            keyEquivalent: "z"
-        )
-        let redo = menu.addItem(
-            withTitle: String(localized: "menu.edit.redo", bundle: .l10n),
-            action: Selector(("redo:")),
-            keyEquivalent: "z"
-        )
+        menu.addLocalizedItem("menu.edit.undo", action: Selector(("undo:")), keyEquivalent: "z")
         // redo は macOS 標準どおり undo と同じキー(z)に shift を重ねて区別する。
-        redo.keyEquivalentModifierMask = [.command, .shift]
-        menu.addItem(.separator())
-        menu.addItem(
-            withTitle: String(localized: "menu.edit.cut", bundle: .l10n),
-            action: #selector(NSText.cut(_:)),
-            keyEquivalent: "x"
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.edit.copy", bundle: .l10n),
-            action: #selector(NSText.copy(_:)),
-            keyEquivalent: "c"
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.edit.paste", bundle: .l10n),
-            action: #selector(NSText.paste(_:)),
-            keyEquivalent: "v"
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.edit.delete", bundle: .l10n),
-            action: #selector(NSText.delete(_:)),
-            keyEquivalent: ""
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.edit.selectAll", bundle: .l10n),
-            action: #selector(NSText.selectAll(_:)),
-            keyEquivalent: "a"
+        menu.addLocalizedItem(
+            "menu.edit.redo",
+            action: Selector(("redo:")),
+            keyEquivalent: "z",
+            modifiers: [.command, .shift]
         )
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: String(localized: "menu.edit.find", bundle: .l10n),
-            action: #selector(ViewerWindowController.find(_:)),
-            keyEquivalent: "f"
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.edit.findNext", bundle: .l10n),
+        menu.addLocalizedItem("menu.edit.cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        menu.addLocalizedItem("menu.edit.copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        menu.addLocalizedItem("menu.edit.paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        menu.addLocalizedItem("menu.edit.delete", action: #selector(NSText.delete(_:)))
+        menu.addLocalizedItem("menu.edit.selectAll", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        menu.addItem(.separator())
+        menu.addLocalizedItem("menu.edit.find", action: #selector(ViewerWindowController.find(_:)), keyEquivalent: "f")
+        menu.addLocalizedItem(
+            "menu.edit.findNext",
             action: #selector(ViewerWindowController.findNext(_:)),
             keyEquivalent: "g"
         )
-        let findPrevious = menu.addItem(
-            withTitle: String(localized: "menu.edit.findPrevious", bundle: .l10n),
-            action: #selector(ViewerWindowController.findPrevious(_:)),
-            keyEquivalent: "g"
-        )
         // findNext と同じキー(g)に shift を重ねて逆方向を表す(Safari 等と同じ慣習)。
-        findPrevious.keyEquivalentModifierMask = [.command, .shift]
+        menu.addLocalizedItem(
+            "menu.edit.findPrevious",
+            action: #selector(ViewerWindowController.findPrevious(_:)),
+            keyEquivalent: "g",
+            modifiers: [.command, .shift]
+        )
         return item
     }
 
@@ -233,73 +156,73 @@ enum MainMenuBuilder {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.view.title", bundle: .l10n))
         item.submenu = menu
-        menu.addItem(
-            withTitle: String(localized: "menu.view.actualSize", bundle: .l10n),
+        menu.addLocalizedItem(
+            "menu.view.actualSize",
             action: #selector(ViewerWindowController.resetZoom(_:)),
             keyEquivalent: "0"
         )
-        menu.addItem(
-            withTitle: String(localized: "menu.view.zoomIn", bundle: .l10n),
+        menu.addLocalizedItem(
+            "menu.view.zoomIn",
             action: #selector(ViewerWindowController.zoomIn(_:)),
             keyEquivalent: "+"
         )
-        menu.addItem(
-            withTitle: String(localized: "menu.view.zoomOut", bundle: .l10n),
+        menu.addLocalizedItem(
+            "menu.view.zoomOut",
             action: #selector(ViewerWindowController.zoomOut(_:)),
             keyEquivalent: "-"
         )
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: String(localized: "menu.view.toggleSource", bundle: .l10n),
+        menu.addLocalizedItem(
+            "menu.view.toggleSource",
             action: #selector(ViewerWindowController.toggleSourceView(_:)),
             keyEquivalent: "u"
         )
-        menu.addItem(
-            withTitle: String(localized: "menu.view.showLineNumbers", bundle: .l10n),
+        menu.addLocalizedItem(
+            "menu.view.showLineNumbers",
             action: #selector(ViewerWindowController.toggleLineNumbers(_:)),
             keyEquivalent: "l"
         )
-        menu.addItem(
-            withTitle: String(localized: "menu.view.addBookmark", bundle: .l10n),
+        menu.addLocalizedItem(
+            "menu.view.addBookmark",
             action: #selector(ViewerWindowController.toggleBookmark(_:)),
             keyEquivalent: "d"
         )
         menu.addItem(.separator())
-        let toggleSidebar = menu.addItem(
-            withTitle: String(localized: "menu.view.toggleSidebar", bundle: .l10n),
+        // キー等価を与えたときの既定修飾キーは [.command] だが、意図を明示するため
+        // 明示的に指定している(挙動は変わらない)。
+        menu.addLocalizedItem(
+            "menu.view.toggleSidebar",
             action: #selector(NSSplitViewController.toggleSidebar(_:)),
-            keyEquivalent: "s"
+            keyEquivalent: "s",
+            modifiers: [.command]
         )
-        // addItem(withTitle:...) の既定修飾キーは [.command] だが、意図を明示するため
-        // 明示的に上書きしている(挙動は変わらない)。
-        toggleSidebar.keyEquivalentModifierMask = [.command]
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: String(localized: "menu.view.goBack", bundle: .l10n),
+        menu.addLocalizedItem(
+            "menu.view.goBack",
             action: #selector(ViewerWindowController.goBack(_:)),
             keyEquivalent: "["
         )
-        menu.addItem(
-            withTitle: String(localized: "menu.view.goForward", bundle: .l10n),
+        menu.addLocalizedItem(
+            "menu.view.goForward",
             action: #selector(ViewerWindowController.goForward(_:)),
             keyEquivalent: "]"
         )
         menu.addItem(.separator())
-        let toggleHiddenFiles = menu.addItem(
-            withTitle: String(localized: "menu.view.showHiddenFiles", bundle: .l10n),
-            action: #selector(AppDelegate.toggleHiddenFiles(_:)),
-            keyEquivalent: "h"
-        )
         // 素の ⌘H は App メニューの Hide(NSApplication.hide)と衝突するため、
         // control を重ねて区別する。
-        toggleHiddenFiles.keyEquivalentModifierMask = [.command, .control]
-        let fullScreen = menu.addItem(
-            withTitle: String(localized: "menu.view.enterFullScreen", bundle: .l10n),
-            action: #selector(NSWindow.toggleFullScreen(_:)),
-            keyEquivalent: "f"
+        menu.addLocalizedItem(
+            "menu.view.showHiddenFiles",
+            action: #selector(AppDelegate.toggleHiddenFiles(_:)),
+            keyEquivalent: "h",
+            modifiers: [.command, .control]
         )
         // macOS 標準のフルスクリーン切替ショートカット(⌃⌘F)に合わせる。
-        fullScreen.keyEquivalentModifierMask = [.control, .command]
+        menu.addLocalizedItem(
+            "menu.view.enterFullScreen",
+            action: #selector(NSWindow.toggleFullScreen(_:)),
+            keyEquivalent: "f",
+            modifiers: [.control, .command]
+        )
         return item
     }
 
@@ -307,43 +230,19 @@ enum MainMenuBuilder {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.window.title", bundle: .l10n))
         item.submenu = menu
-        menu.addItem(
-            withTitle: String(localized: "menu.window.minimize", bundle: .l10n),
+        menu.addLocalizedItem(
+            "menu.window.minimize",
             action: #selector(NSWindow.performMiniaturize(_:)),
             keyEquivalent: "m"
         )
-        menu.addItem(
-            withTitle: String(localized: "menu.window.zoom", bundle: .l10n),
-            action: #selector(NSWindow.performZoom(_:)),
-            keyEquivalent: ""
-        )
+        menu.addLocalizedItem("menu.window.zoom", action: #selector(NSWindow.performZoom(_:)))
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: String(localized: "menu.window.showPreviousTab", bundle: .l10n),
-            action: #selector(NSWindow.selectPreviousTab(_:)),
-            keyEquivalent: ""
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.window.showNextTab", bundle: .l10n),
-            action: #selector(NSWindow.selectNextTab(_:)),
-            keyEquivalent: ""
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.window.moveTabToNewWindow", bundle: .l10n),
-            action: #selector(NSWindow.moveTabToNewWindow(_:)),
-            keyEquivalent: ""
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.window.mergeAllWindows", bundle: .l10n),
-            action: #selector(NSWindow.mergeAllWindows(_:)),
-            keyEquivalent: ""
-        )
+        menu.addLocalizedItem("menu.window.showPreviousTab", action: #selector(NSWindow.selectPreviousTab(_:)))
+        menu.addLocalizedItem("menu.window.showNextTab", action: #selector(NSWindow.selectNextTab(_:)))
+        menu.addLocalizedItem("menu.window.moveTabToNewWindow", action: #selector(NSWindow.moveTabToNewWindow(_:)))
+        menu.addLocalizedItem("menu.window.mergeAllWindows", action: #selector(NSWindow.mergeAllWindows(_:)))
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: String(localized: "menu.window.bringAllToFront", bundle: .l10n),
-            action: #selector(NSApplication.arrangeInFront(_:)),
-            keyEquivalent: ""
-        )
+        menu.addLocalizedItem("menu.window.bringAllToFront", action: #selector(NSApplication.arrangeInFront(_:)))
         NSApp.windowsMenu = menu
         return item
     }
@@ -352,32 +251,12 @@ enum MainMenuBuilder {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.help.title", bundle: .l10n))
         item.submenu = menu
-        menu.addItem(
-            withTitle: String(localized: "menu.help.featureOverview", bundle: .l10n),
-            action: actions.featureOverview,
-            keyEquivalent: ""
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.help.keyboardShortcuts", bundle: .l10n),
-            action: actions.keyboardShortcuts,
-            keyEquivalent: ""
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.help.aiIntegration", bundle: .l10n),
-            action: actions.aiIntegration,
-            keyEquivalent: ""
-        )
+        menu.addLocalizedItem("menu.help.featureOverview", action: actions.featureOverview)
+        menu.addLocalizedItem("menu.help.keyboardShortcuts", action: actions.keyboardShortcuts)
+        menu.addLocalizedItem("menu.help.aiIntegration", action: actions.aiIntegration)
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: String(localized: "menu.help.visitWebsite", bundle: .l10n),
-            action: actions.visitWebsite,
-            keyEquivalent: "?"
-        )
-        menu.addItem(
-            withTitle: String(localized: "menu.help.ossAcknowledgements", bundle: .l10n),
-            action: actions.ossAcknowledgements,
-            keyEquivalent: ""
-        )
+        menu.addLocalizedItem("menu.help.visitWebsite", action: actions.visitWebsite, keyEquivalent: "?")
+        menu.addLocalizedItem("menu.help.ossAcknowledgements", action: actions.ossAcknowledgements)
         NSApp.helpMenu = menu
         return item
     }

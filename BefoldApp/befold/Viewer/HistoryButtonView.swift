@@ -80,15 +80,10 @@ final class HistoryButtonView: NSButton {
         let direction = primaryOffset < 0 ? -1 : 1
         for (index, entry) in entries.enumerated() {
             let (title, icon) = Self.menuLabel(for: entry)
-            let item = NSMenuItem(
-                title: title,
-                action: #selector(menuItemClicked(_:)),
-                keyEquivalent: ""
+            menu.addActionItem(
+                title: title, action: #selector(menuItemClicked(_:)), target: self,
+                image: icon, tag: direction * (index + 1)
             )
-            item.image = icon
-            item.target = self
-            item.tag = direction * (index + 1)
-            menu.addItem(item)
         }
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: bounds.height + 2), in: self)
     }
@@ -102,9 +97,7 @@ final class HistoryButtonView: NSButton {
         } else {
             entry.directory.lastPathComponent
         }
-        let icon = NSWorkspace.shared.icon(forFile: target.path)
-        icon.size = NSSize(width: 16, height: 16)
-        return (title, icon)
+        return (title, NSMenuItem.icon(forFile: target.path))
     }
 
     @objc private func menuItemClicked(_ sender: NSMenuItem) {
