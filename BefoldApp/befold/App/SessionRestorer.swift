@@ -43,37 +43,27 @@ final class SessionRestorer {
     /// 現在のウィンドウ/タブ構成をスナップショットする。
     /// NSApp.orderedWindows は前面から順に返るため、グループの並びも前面優先で保存される。
     func currentSessionLayout() -> SessionLayout {
-        var groups: [SessionLayout.TabGroup] = []
         var seenWindows: Set<ObjectIdentifier> = []
 
-        func appendGroup(for window: NSWindow) {
+        func group(for window: NSWindow) -> SessionLayout.TabGroup? {
             guard !seenWindows.contains(ObjectIdentifier(window)),
-                  windowManager.viewerPath(of: window) != nil else { return }
+                  windowManager.viewerPath(of: window) != nil else { return nil }
 
             let tabWindows = window.tabGroup?.windows ?? [window]
-            for tabWindow in tabWindows {
-                seenWindows.insert(ObjectIdentifier(tabWindow))
-            }
+            seenWindows.formUnion(tabWindows.map(ObjectIdentifier.init))
 
             let paths = tabWindows.compactMap { windowManager.viewerPath(of: $0) }
-            guard !paths.isEmpty else { return }
+            guard !paths.isEmpty else { return nil }
             let selectedWindow = window.tabGroup?.selectedWindow ?? window
-            groups.append(
-                SessionLayout.TabGroup(
-                    paths: paths, selectedPath: windowManager.viewerPath(of: selectedWindow)
-                )
+            return SessionLayout.TabGroup(
+                paths: paths, selectedPath: windowManager.viewerPath(of: selectedWindow)
             )
         }
 
-        for window in NSApp.orderedWindows {
-            appendGroup(for: window)
-        }
         // orderedWindows は最小化(Dock 収納)・非表示のウィンドウを含まないため、
-        // NSApp.windows で残りのビューアウィンドウのグループを末尾に補完する
-        for window in NSApp.windows {
-            appendGroup(for: window)
-        }
-        return SessionLayout(groups: groups)
+        // NSApp.windows を後ろに連結し、残りのビューアウィンドウのグループを末尾に補完する。
+        // compactMap は前から順に評価するため、seenWindows による重複除去はこの並びのまま効く。
+        return SessionLayout(groups: (NSApp.orderedWindows + NSApp.windows).compactMap(group(for:)))
     }
 
     /// 「最近使ったリポジトリ」から選ばれたリポジトリを開く。

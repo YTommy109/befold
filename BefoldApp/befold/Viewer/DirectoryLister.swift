@@ -45,14 +45,13 @@ enum DirectoryLister {
             entries += folders.map { FileListEntry(url: $0, kind: .folder) }
             entries += files.map { FileListEntry(url: $0, kind: .file) }
         case .alphabetical:
-            var mixed = folders.map { FileListEntry(url: $0, kind: .folder) }
-                + files.map { FileListEntry(url: $0, kind: .file) }
-            mixed.sort {
-                $0.url.lastPathComponent.localizedStandardCompare(
-                    $1.url.lastPathComponent
-                ) == .orderedAscending
-            }
-            entries += mixed
+            entries += (folders.map { FileListEntry(url: $0, kind: .folder) }
+                + files.map { FileListEntry(url: $0, kind: .file) })
+                .sorted {
+                    $0.url.lastPathComponent.localizedStandardCompare(
+                        $1.url.lastPathComponent
+                    ) == .orderedAscending
+                }
         }
 
         return entries

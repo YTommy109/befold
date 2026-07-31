@@ -17,12 +17,11 @@ struct SessionLayout: Codable, Equatable {
     /// 存在するパスだけに絞り込む。空になったグループは取り除き、
     /// 選択タブが消えた場合はグループ先頭で代替する。
     func filtered(to availablePaths: Set<String>) -> SessionLayout {
-        var filteredGroups: [TabGroup] = []
-        for group in groups {
+        let filteredGroups = groups.compactMap { group -> TabGroup? in
             let paths = group.paths.filter { availablePaths.contains($0) }
-            guard !paths.isEmpty else { continue }
+            guard !paths.isEmpty else { return nil }
             let selectedPath = group.selectedPath.flatMap { paths.contains($0) ? $0 : nil } ?? paths.first
-            filteredGroups.append(TabGroup(paths: paths, selectedPath: selectedPath))
+            return TabGroup(paths: paths, selectedPath: selectedPath)
         }
         return SessionLayout(groups: filteredGroups)
     }
@@ -113,14 +112,14 @@ final class SessionStore {
         if savedActivePath() == oldPath {
             defaults.set(newPath, forKey: Self.activeKey)
         }
-        guard var layout = savedLayout() else { return }
-        for index in layout.groups.indices {
-            layout.groups[index].paths = layout.groups[index].paths.map { $0 == oldPath ? newPath : $0 }
-            if layout.groups[index].selectedPath == oldPath {
-                layout.groups[index].selectedPath = newPath
-            }
+        guard let layout = savedLayout() else { return }
+        let renamed = layout.groups.map { group in
+            SessionLayout.TabGroup(
+                paths: group.paths.map { $0 == oldPath ? newPath : $0 },
+                selectedPath: group.selectedPath == oldPath ? newPath : group.selectedPath
+            )
         }
-        saveLayout(layout)
+        saveLayout(SessionLayout(groups: renamed))
     }
 
     private func savedPaths() -> [String] {

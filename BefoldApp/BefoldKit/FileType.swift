@@ -60,36 +60,20 @@ public enum FileType: Sendable, Equatable {
     /// 未知の拡張子に対するフォールバック種別。
     public static let plaintextFallback: FileType = .code(language: "plaintext")
     /// 拡張子 → FileType の単一対応表。`init(url:)` と `allExtensions` の唯一の情報源。
+    /// `uniqueKeysWithValues` を使うため、拡張子を 2 つの種別に重複登録すると
+    /// 実行時に trap する(意図しない上書きを黙って通さないための選択)。
     private static let typeByExtension: [String: FileType] = {
-        var map: [String: FileType] = [:]
-        for ext in mermaidExtensions {
-            map[ext] = .mmd
-        }
-        for ext in markdownExtensions {
-            map[ext] = .markdown
-        }
-        for ext in svgExtensions {
-            map[ext] = .svg
-        }
-        for ext in htmlExtensions {
-            map[ext] = .html
-        }
-        for ext in csvExtensions {
-            map[ext] = .csv(delimiter: ",")
-        }
-        for ext in tsvExtensions {
-            map[ext] = .csv(delimiter: "\t")
-        }
-        for (ext, mime) in imageExtensionMimeTypes {
-            map[ext] = .image(mimeType: mime)
-        }
-        for ext in pdfExtensions {
-            map[ext] = .pdf
-        }
-        for (ext, lang) in codeExtensionLanguages {
-            map[ext] = .code(language: lang)
-        }
-        return map
+        let pairs: [(String, FileType)] =
+            mermaidExtensions.map { ($0, .mmd) }
+                + markdownExtensions.map { ($0, .markdown) }
+                + svgExtensions.map { ($0, .svg) }
+                + htmlExtensions.map { ($0, .html) }
+                + csvExtensions.map { ($0, .csv(delimiter: ",")) }
+                + tsvExtensions.map { ($0, .csv(delimiter: "\t")) }
+                + imageExtensionMimeTypes.map { ($0.key, .image(mimeType: $0.value)) }
+                + pdfExtensions.map { ($0, .pdf) }
+                + codeExtensionLanguages.map { ($0.key, .code(language: $0.value)) }
+        return Dictionary(uniqueKeysWithValues: pairs)
     }()
 
     /// 対応する全拡張子。
