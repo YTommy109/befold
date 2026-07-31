@@ -356,6 +356,18 @@ describe('render の型ディスパッチ', () => {
     expect(bodyClasses(document)).toEqual(['csv-body', 'markdown-body']);
   });
 
+  test('ソース表示へ切り替えると前回の型別クラスが残らない', async () => {
+    const { document, main } = loadViewerMain({});
+
+    await main.render('a,b\n', 'csv', ',');
+    expect(bodyClasses(document)).toEqual(['csv-body', 'markdown-body']);
+
+    main.setViewMode('source');
+    await main.render('a,b\n', 'csv', ',');
+
+    expect(bodyClasses(document)).toEqual(['code-body']);
+  });
+
   test('描画のたびにエラーパネルを消す', async () => {
     const { document, main } = loadViewerMain({});
     const panel = document.getElementById('mmd-error');

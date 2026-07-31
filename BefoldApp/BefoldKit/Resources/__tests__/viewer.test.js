@@ -1068,13 +1068,13 @@ describe('buildFindRegExp', () => {
 
 describe('buildLineNumberRows', () => {
   test('numbers rows from startLine', () => {
-    const rows = buildLineNumberRows('a\nb', 42);
+    const rows = buildLineNumberRows('a\nb', 42, true);
     expect(rows).toContain('<td class="line-number">42</td><td class="line-content">a</td>');
     expect(rows).toContain('<td class="line-number">43</td><td class="line-content">b</td>');
   });
 
   test('multi-line span spanning 3 lines is closed and reopened per row starting at 42', () => {
-    const rows = buildLineNumberRows('<span class="hljs-comment">/*\nbody\n*/</span>', 42);
+    const rows = buildLineNumberRows('<span class="hljs-comment">/*\nbody\n*/</span>', 42, true);
     expect(rows).toContain(
       '<tr><td class="line-number">42</td><td class="line-content"><span class="hljs-comment">/*</span></td></tr>'
     );
@@ -1096,6 +1096,12 @@ describe('buildLineNumberRows', () => {
   test('drops a single trailing empty line (highlight.js trailing newline)', () => {
     const rows = buildLineNumberRows('a\nb\n', 1);
     expect((rows.match(/<tr>/g) || []).length).toBe(2);
+  });
+
+  test('omitting showLineNumbers means no line numbers (same rule as renderCodeHtml)', () => {
+    expect(buildLineNumberRows('a\nb', 1)).not.toContain('line-number');
+    expect(wrapWithLineNumbers('a\nb')).not.toContain('line-number');
+    expect(buildLineNumberRows('a\nb', 1, true)).toContain('line-number');
   });
 
   test('wrapWithLineNumbers equals code-table wrapper around buildLineNumberRows from line 1', () => {
