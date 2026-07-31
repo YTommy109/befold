@@ -27,6 +27,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let recentDocumentsStore: RecentDocumentsStore
     private let bookmarkStore: BookmarkStore
     private let recentRepositoriesStore: RecentRepositoriesStore
+    /// 「最近使ったリポジトリ」メニューの階層化に使う worktree 一覧キャッシュ。
+    /// git 呼び出しは起動時と新規リポジトリ記録時の非同期解決だけで、メニュー構築では読むだけ。
+    private let worktreeCatalog: WorktreeCatalog
     private var cliRequestDeduplicator = CLIRequestDeduplicator()
     private lazy var recentDocumentsMenuController = RecentDocumentsMenuController(
         recentURLs: { [weak self] in self?.recentDocumentsStore.recentURLs() ?? [] },
@@ -42,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private lazy var recentRepositoriesMenuController = RecentRepositoriesMenuController(
         entries: { [weak self] in self?.recentRepositoriesStore.entries() ?? [] },
+        worktrees: { [weak self] root in self?.worktreeCatalog.worktrees(forMainRoot: root) ?? [] },
         openHandler: { [weak self] entry in
             self?.sessionRestorer.openRepository(root: entry.root, savedTabGroup: entry.lastTabGroup)
         },
@@ -61,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let findOptionsPreference = FindOptionsPreference()
         let codeFontPreference = CodeFontPreference()
         let perFileState = PerFileStateStore()
+        let worktreeCatalog = WorktreeCatalog()
         let windowManager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
@@ -69,8 +74,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             codeFontPreference: codeFontPreference,
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
-            recentRepositoriesStore: recentRepositoriesStore
+            recentRepositoriesStore: recentRepositoriesStore,
+            // リポジトリを記録したら、その本体ルートの worktree 一覧も裏で解決し直しておく。
+            // 次にメニューを開いた時点でキャッシュに載っていれば階層表示になる。
+            onRepositoryRecorded: { mainRoot in
+                Task { await worktreeCatalog.refresh(mainRoots: [mainRoot]) }
+            }
         )
+        self.worktreeCatalog = worktreeCatalog
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
         self.bookmarkStore = bookmarkStore
@@ -161,8 +172,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notifyIfCLIShimIsStale()
         // 「最近使ったリポジトリ」メニューは保存済みリストをそのまま表示するため、
         // 存在しなくなった worktree 等の整理は起動時にここで1回だけ非同期に行う。
-        Task { [recentRepositoriesStore] in
+        // 併せて、残ったエントリの本体ルートごとに worktree 一覧を解決してキャッシュへ載せる
+        // (メニュー表示時には git を呼ばず、このキャッシュを読むだけにするため)。
+        Task { [recentRepositoriesStore, worktreeCatalog] in
             await recentRepositoriesStore.pruneMissingAsync()
+            let mainRootPaths = Set(recentRepositoriesStore.entries().map { $0.mainRootPath ?? $0.rootPath })
+            await worktreeCatalog.refresh(mainRoots: mainRootPaths.map { URL(fileURLWithPath: $0) })
         }
     }
 

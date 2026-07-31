@@ -235,3 +235,24 @@ AppDelegate.openViewer(for:options:)
 - WebView を伴わない純粋な AppKit メニュー・ウィンドウ構築のため、GUI 自動テストは対象外
   （リリース前に目視確認: 本体で開く／worktree で開く／worktree 削除後の一覧更新／
   タブ構成の記憶と復元／保存済みタブの一部ファイル削除後の縮退）
+
+## 追記: worktree のメニュー階層化（TASK-204）
+
+<!-- derived-from #スコープ -->
+
+本設計は「1リポジトリ = 1メニュー項目」のフラットな一覧を前提としていたが、worktree を
+多く持つリポジトリで項目が増えて見通しが悪くなるため、TASK-204 で階層化した。
+
+- worktree を持つリポジトリは**親項目（見出しのみ・選択しても何も開かない）＋サブメニュー**に畳む。
+  worktree を持たないリポジトリは従来どおりフラットな1項目。
+- サブメニューには `git worktree list --porcelain` で得たそのリポジトリの**全 worktree** を並べる
+  （まだ開いたことのない worktree も含む）。記憶が無い worktree は `lastTabGroup` なしの
+  エントリとして扱われ、既存のルートフォルダを開くフォールバック経路に乗る。
+- 所属関係は `RecentRepositoryEntry.mainRootPath`（optional・worktree のときのみ保持）で永続化する。
+  この値が無い旧データは自身の `rootPath` をグループキーにフォールバックする。
+- `git worktree list` をメニュー表示直前に同期実行すると subprocess 待ちが UI の固まりになるため、
+  `WorktreeCatalog` が本体ルートごとの一覧を非同期（`Task.detached`）で解決してキャッシュし、
+  `menuNeedsUpdate` はキャッシュを同期で読むだけにする。未解決のリポジトリはフラット表示に縮退する。
+  キャッシュは起動時（`pruneMissingAsync` と同じ箇所）とリポジトリ記録時に更新する。
+- ラベル生成の途中で判明していた本体ルートを捨てないよう、`repositoryLabel(forRoot:)` は
+  `repositoryIdentity(forRoot:) -> RepositoryIdentity（label + mainRoot）` の薄いラッパにした。
