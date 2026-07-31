@@ -1,9 +1,11 @@
 ---
 id: TASK-214
 title: docs/dev の実装と矛盾する記述を修正する（code-review 指摘の高優先分）
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-07-31 03:12'
+updated_date: '2026-07-31 08:13'
 labels: []
 dependencies: []
 priority: high
@@ -25,9 +27,33 @@ doc/improve_doc ブランチのコミット 9a555c9 に対する高精度コー�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 cli-launch.md の Step 6 とフローチャートが「パス指定なし・デフォルトオプション時は forward しない」実装どおりの分岐を記述している
-- [ ] #2 viewer-rendering-dataflow.md の 3 分類表に行指向テキストの 100MB 上限が明記されている
-- [ ] #3 native-app-design.md の技術スタック表の SPM 行が実際のターゲット構成と一致している
-- [ ] #4 native-app-design.md のテストツリーで QuickLook 関連テストの帰属先が実際のターゲットと一致している
-- [ ] #5 BundleAccessor（SPM/Xcode 両ビルドのリソースバンドル解決）の説明が native-app-design.md に復元されている
+- [x] #1 cli-launch.md の Step 6 とフローチャートが「パス指定なし・デフォルトオプション時は forward しない」実装どおりの分岐を記述している
+- [x] #2 viewer-rendering-dataflow.md の 3 分類表に行指向テキストの 100MB 上限が明記されている
+- [x] #3 native-app-design.md の技術スタック表の SPM 行が実際のターゲット構成と一致している
+- [x] #4 native-app-design.md のテストツリーで QuickLook 関連テストの帰属先が実際のターゲットと一致している
+- [x] #5 BundleAccessor（SPM/Xcode 両ビルドのリソースバンドル解決）の説明が native-app-design.md に復元されている
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 実装を読んで5件の現状を確認する（CLIAppLauncher.run / ViewerLoadPipeline + NormalizedTextCache / Package.swift / befoldTests・befoldCLITests の実ファイル / BundleAccessor.swift）
+2. cli-launch.md: Step 6 を「コールドローンチ後、paths 空かつオプション既定なら forward せず 0 で終了。それ以外はポーリングして forward」に修正し、mermaid フローチャートにも同分岐を追加
+3. viewer-rendering-dataflow.md: 3 分類表の行指向テキスト行のサイズ上限を 100MB（NormalizedTextCache.maxFileSizeBytes）と明記
+4. native-app-design.md: 技術スタック表の SPM 行を実際の 8 ターゲット構成に更新（この行のみ変更）
+5. native-app-design.md: テストツリーの befoldTests / befoldCLITests のコメントを実際の帰属に修正
+6. native-app-design.md: BefoldKit ツリーに BundleAccessor.swift（SPM/Xcode 両ビルドのリソースバンドル解決）を復元
+7. 各 AC を検証してコミット（docs:）
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+検証: (1) CLIAppLauncher.run の guard !paths.isEmpty || options != CLIOpenOptions() else { return 0 } を確認し Step 6/7 とフローチャートの分岐を実装に一致させた。(2) ViewerLoadPipeline.swift の isChunkable 時の上限が NormalizedTextCache.maxFileSizeBytes、同 15 行で 100MB、超過時 .fileTooLarge を確認。(3) Package.swift のターゲット宣言 8 件（BefoldCLI/BefoldKit/BefoldRenderKit/befold/befold-cli/BefoldTestSupport/befoldTests/befoldCLITests）と一致させた。(4) ViewerRendererOneShotTests/RendererFeaturesTests/QuickLookBadgeTests が befoldTests/、befoldCLITests/ には QuickLookInfoPlistTests のみを確認。(5) BefoldApp/BefoldKit/BundleAccessor.swift が現存し SWIFT_PACKAGE で .module / それ以外で Bundle(for:) を返すことを確認しツリーに復元。ドキュメントのみの変更のためビルド/テストへの影響なし。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+docs/dev の実装と矛盾する 5 件を修正した。cli-launch.md はコールドローンチ後に引数がなければ転送しない分岐を Step とフローチャートへ反映、viewer-rendering-dataflow.md は行指向テキストの 100MB 上限を明記、native-app-design.md は SPM 8 ターゲット構成・QuickLook テストの帰属先・BundleAccessor.swift の説明を修正/復元。各項目は該当 Swift ソースと Package.swift、テストディレクトリの実ファイルを読んで確認した（実装側は未変更）。
+<!-- SECTION:FINAL_SUMMARY:END -->
