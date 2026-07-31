@@ -4,22 +4,75 @@ import Foundation
 /// ここの文字列を変更する場合は viewer.html 側の定義とあわせて変更すること
 /// (整合性は ViewerBridgeTests がソースを読んで検証する)。
 public enum ViewerBridge {
+    /// JS → Swift の postMessage メッセージ。ハンドラの登録側(`messageHandlerNames`)と
+    /// 受信側のルーティングをここから導出し、両者が同期を要求される 2 つのリストに
+    /// 分かれるのを防ぐ(登録したのにルーティングを書き忘れて無反応、を型で潰す)。
+    public enum BridgeMessage: String, CaseIterable, Sendable {
+        /// JS 側でスクロール位置が変わったとき。payload: { position: Double, mode: String }
+        case scrollPositionChanged
+
+        /// JS 側で全体ズーム倍率が変わったとき。payload: 裸の数値。
+        case zoomChanged
+
+        /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったとき。
+        /// payload: { caseSensitive: Bool, wholeWord: Bool, useRegex: Bool }
+        case findOptionsChanged
+
+        /// リンクやパス参照がクリックされたとき。
+        /// 修飾キーの解釈は Swift 側(OpenDisposition)が行うため、JS は押下状態のみ送る。
+        /// payload: { href: String, metaKey: Bool, shiftKey: Bool }
+        case referenceActivated
+
+        /// リンクやパス参照の上で ctrl+クリック(右クリック)されたとき。
+        /// Swift 側が NSMenu を表示する。payload: { href: String }
+        case referenceContextMenu
+
+        /// JS 側「続きを読み込む」ボタン押下時。payload: なし(空オブジェクト)。
+        case loadMoreLines
+
+        /// JS 側が検出したパス参照の解決を要求するとき。payload: { paths: [String] }
+        case resolveReferences
+
+        /// ホストの対話的ブリッジ(`RendererFeatures.allowsInteractiveBridging`)を要するか。
+        /// false のホスト(QuickLook 拡張等の静的 1 回描画)では、これが true のものを
+        /// そもそも登録しない(多層防御: XSS が postMessage を直接呼んでも Swift へ届かない)。
+        public var requiresInteractiveBridging: Bool {
+            switch self {
+            case .scrollPositionChanged, .zoomChanged, .findOptionsChanged:
+                false
+            case .referenceActivated, .referenceContextMenu, .loadMoreLines, .resolveReferences:
+                true
+            }
+        }
+
+        /// JS がオブジェクトとして送るペイロードのキー集合。裸の値を送る場合は nil。
+        /// 契約テストはこの表と JS 側の postMessage 呼び出しを突合するため、
+        /// メッセージを追加するとこの switch がコンパイルエラーになって登録漏れを防ぐ。
+        var payloadKeys: Set<String>? {
+            switch self {
+            case .zoomChanged: nil
+            case .scrollPositionChanged: Set(PayloadKey.ScrollPositionChanged.allCases.map(\.rawValue))
+            case .findOptionsChanged: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue))
+            case .referenceActivated: Set(PayloadKey.ReferenceActivated.allCases.map(\.rawValue))
+            case .referenceContextMenu: Set(PayloadKey.ReferenceContextMenu.allCases.map(\.rawValue))
+            case .loadMoreLines: []
+            case .resolveReferences: Set(PayloadKey.ResolveReferences.allCases.map(\.rawValue))
+            }
+        }
+    }
+
     /// JS 側でスクロール位置が変わったときに postMessage されるメッセージハンドラ名。
-    /// payload: { position: Double, mode: String }
-    public static let scrollPositionChangedMessageName = "scrollPositionChanged"
+    public static let scrollPositionChangedMessageName = BridgeMessage.scrollPositionChanged.rawValue
 
     /// JS 側で全体ズーム倍率が変わったときに postMessage されるメッセージハンドラ名。
-    public static let zoomChangedMessageName = "zoomChanged"
+    public static let zoomChangedMessageName = BridgeMessage.zoomChanged.rawValue
 
     /// リンクやパス参照がクリックされたときに postMessage されるメッセージハンドラ名。
-    /// 修飾キーの解釈は Swift 側(OpenDisposition)が行うため、JS は押下状態のみ送る。
-    /// payload: { href: String, metaKey: Bool, shiftKey: Bool }
-    public static let referenceActivatedMessageName = "referenceActivated"
+    public static let referenceActivatedMessageName = BridgeMessage.referenceActivated.rawValue
 
     /// リンクやパス参照の上で ctrl+クリック(右クリック)されたときに postMessage される
-    /// メッセージハンドラ名。Swift 側が NSMenu を表示する。
-    /// payload: { href: String }
-    public static let referenceContextMenuMessageName = "referenceContextMenu"
+    /// メッセージハンドラ名。
+    public static let referenceContextMenuMessageName = BridgeMessage.referenceContextMenu.rawValue
 
     /// Swift から引数なしで呼び出す JS 関数。呼び出しスクリプト文字列と、JS 側の定義
     /// トークン(存在検証に使う)をこの 1 箇所から導出し、生リテラルの二重管理をなくす。
@@ -193,11 +246,10 @@ public enum ViewerBridge {
     }
 
     /// JS 側「続きを読み込む」ボタン押下時に postMessage されるメッセージハンドラ名。
-    public static let loadMoreLinesMessageName = "loadMoreLines"
+    public static let loadMoreLinesMessageName = BridgeMessage.loadMoreLines.rawValue
 
     /// JS 側が検出したパス参照の解決を要求するときに postMessage されるメッセージハンドラ名。
-    /// payload: { paths: [String] }
-    public static let resolveReferencesMessageName = "resolveReferences"
+    public static let resolveReferencesMessageName = BridgeMessage.resolveReferences.rawValue
 
     /// 解決結果(書かれたパス -> 解決済み絶対パス。未解決は含めない)を JS へ適用する
     /// スクリプトを組み立てる。viewer.html 側は _mmdApplyResolvedReferences() が受け取り、
@@ -251,7 +303,7 @@ public enum ViewerBridge {
 
     /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったときに
     /// postMessage されるメッセージハンドラ名。
-    public static let findOptionsChangedMessageName = "findOptionsChanged"
+    public static let findOptionsChangedMessageName = BridgeMessage.findOptionsChanged.rawValue
 
     /// 検索の3トグルの状態。
     public struct FindOptions: Equatable, Encodable {
@@ -329,14 +381,12 @@ public enum ViewerBridge {
 
     /// メッセージ名 → JS がオブジェクトとして送るペイロードのキー集合。
     /// zoomChanged は裸の数値を送るためキーを持たず、この表には登録しない。
-    /// 契約テストは JS 側の全 postMessage 呼び出しを走査してこの表と突合するため、
-    /// オブジェクトを送るメッセージを JS 側に追加してここへ登録しないとテストが失敗する。
-    public static let payloadKeysByMessageName: [String: Set<String>] = [
-        referenceActivatedMessageName: Set(PayloadKey.ReferenceActivated.allCases.map(\.rawValue)),
-        scrollPositionChangedMessageName: Set(PayloadKey.ScrollPositionChanged.allCases.map(\.rawValue)),
-        findOptionsChangedMessageName: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue)),
-        loadMoreLinesMessageName: [],
-        resolveReferencesMessageName: Set(PayloadKey.ResolveReferences.allCases.map(\.rawValue)),
-        referenceContextMenuMessageName: Set(PayloadKey.ReferenceContextMenu.allCases.map(\.rawValue)),
-    ]
+    /// 契約テストは JS 側の全 postMessage 呼び出しを走査してこの表と突合する。
+    /// 実体は `BridgeMessage.payloadKeys` の網羅 switch なので、メッセージを追加すると
+    /// キー宣言を書くまでコンパイルが通らない。
+    public static let payloadKeysByMessageName: [String: Set<String>] = Dictionary(
+        uniqueKeysWithValues: BridgeMessage.allCases.compactMap { message in
+            message.payloadKeys.map { (message.rawValue, $0) }
+        }
+    )
 }
