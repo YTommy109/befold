@@ -124,8 +124,11 @@ public enum QuickOpenCandidates {
         // membership 判定を兼ねるため、ここで一度だけ計算して持ち回る(比較子内の FS I/O をなくす)。
         var indexedByKey: [String: URL] = [:]
         var indexedOrder: [String] = []
-        for url in visibleIndexed where indexedByKey[url.normalizedPathKey] == nil {
+        for url in visibleIndexed {
+            // where 節で key を引くと本体でもう一度計算することになる(= 候補ごとに 2 回の FS I/O)。
+            // 先に 1 回だけ計算し、既出判定にもその値を使う。
             let key = url.normalizedPathKey
+            guard indexedByKey[key] == nil else { continue }
             indexedByKey[key] = url
             indexedOrder.append(key)
         }

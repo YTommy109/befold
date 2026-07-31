@@ -11,9 +11,11 @@ protocol QuickOpenEnvironment: AnyObject {
     /// 隠しファイルを出すか。Quick Open は独自設定を持たず `HiddenFilesPreference` に従う。
     var includingHiddenFiles: Bool { get }
     /// fuzzy 検索の候補集合。パネルを開いた時点の索引を使う。
-    func candidateSet() -> QuickOpenCandidateSet
+    /// git サブプロセスとディレクトリ再帰走査を伴うため、実装は MainActor を離れて構築する。
+    func candidateSet() async -> QuickOpenCandidateSet
     /// ディレクトリ直下のエントリ(隠しファイルを含む全件)。
-    func directoryEntries(in directory: URL) -> [URL]
+    /// 応答しないボリュームでは列挙自体が待たされるため、実装は MainActor を離れて行う。
+    func directoryEntries(in directory: URL) async -> [URL]
     func isDirectory(_ url: URL) -> Bool
     /// ディレクトリなら中の 1 ファイル、ファイルならそれ自身。開けなければ nil。
     func resolveFileToOpen(at url: URL) -> URL?
@@ -32,7 +34,15 @@ final class QuickOpenModel {
     private let environment: any QuickOpenEnvironment
     private let onOpen: (URL) -> Void
     /// パネルを開いた時点で 1 度だけ取る。入力のたびに索引を取り直さない。
-    private let candidateSet: QuickOpenCandidateSet
+    /// 構築は MainActor の外で走るため、到着するまでは空集合で振る舞う。
+    private var candidateSet = QuickOpenCandidateSet(candidates: [], isTruncated: false)
+
+    /// 候補集合の取得タスク。init で 1 度だけ起動し、到着後に表示を差し替える。
+    private var loadTask: Task<Void, Never>?
+    /// 進行中の絞り込みタスク(パスモードのみ非同期)。
+    private var refreshTask: Task<Void, Never>?
+    /// 絞り込みの世代番号。遅れて返ってきた古い結果を捨てるために使う。
+    private var refreshGeneration = 0
 
     private var storedQueryText = ""
 
@@ -65,11 +75,27 @@ final class QuickOpenModel {
         candidateSet.isTruncated && !isPathMode
     }
 
+    /// init は同期で完了する。候補集合の構築(git サブプロセス・再帰走査)を待たないため、
+    /// パネルは即時表示でき、集合の到着後に候補表示だけが差し替わる。
     init(environment: any QuickOpenEnvironment, onOpen: @escaping (URL) -> Void) {
         self.environment = environment
         self.onOpen = onOpen
-        candidateSet = environment.candidateSet()
         refresh()
+        loadTask = Task { [weak self] in
+            guard let self else { return }
+            let set = await environment.candidateSet()
+            guard !Task.isCancelled else { return }
+            candidateSet = set
+            // 集合の到着時点の入力に対して絞り込み直す。到着までに打たれた文字も反映される。
+            refresh()
+        }
+    }
+
+    /// 進行中の候補読み込み・絞り込みが落ち着くまで待つ。
+    /// 非同期化した収集ロジックを決定的に検証するためのシーム。
+    func waitForPendingWork() async {
+        await loadTask?.value
+        await refreshTask?.value
     }
 
     /// 選択を上下に動かす。両端では止まり、巻き戻らない。
@@ -140,30 +166,42 @@ final class QuickOpenModel {
         return false
     }
 
+    /// 絞り込みの起動点。空入力・fuzzy はメモリ上の候補集合に対する純粋な計算なので同期で確定させ、
+    /// ディレクトリ列挙を伴うパスモードだけをタスクに逃がす。遅れて返った古い世代の結果は捨てる。
     private func refresh() {
-        candidates = makeCandidates()
-        selectedIndex = 0
-    }
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        refreshTask?.cancel()
+        refreshTask = nil
 
-    private func makeCandidates() -> [QuickOpenCandidate] {
         switch QuickOpenQuery.classify(queryText) {
         case .empty:
-            candidateSet.initialCandidates(limit: Self.historyLimit)
+            apply(candidateSet.initialCandidates(limit: Self.historyLimit))
         case let .fuzzy(query):
-            candidateSet.matches(query: query, limit: Self.fuzzyLimit)
+            apply(candidateSet.matches(query: query, limit: Self.fuzzyLimit))
         case let .path(path):
-            pathCandidates(for: path)
+            refreshTask = Task { [weak self] in
+                guard let self else { return }
+                let result = await pathCandidates(for: path)
+                guard !Task.isCancelled, generation == refreshGeneration else { return }
+                apply(result)
+            }
         }
     }
 
+    private func apply(_ newCandidates: [QuickOpenCandidate]) {
+        candidates = newCandidates
+        selectedIndex = 0
+    }
+
     /// 親ディレクトリの中身を末尾断片で前方一致(大文字小文字を無視)して絞り込む。
-    private func pathCandidates(for path: String) -> [QuickOpenCandidate] {
+    private func pathCandidates(for path: String) async -> [QuickOpenCandidate] {
         guard let split = PathModeSplit(path: path, baseDirectory: environment.baseDirectory) else { return [] }
         let fragment = split.fragment.lowercased()
         // 断片自体がドット始まりなら、隠しファイルを狙って打っているとみなして出す。
         let includesHidden = environment.includingHiddenFiles || HiddenFileRule.isHidden(component: fragment)
 
-        return environment.directoryEntries(in: split.parentDirectory)
+        return await environment.directoryEntries(in: split.parentDirectory)
             .filter { entry in
                 let name = entry.lastPathComponent
                 guard includesHidden || !HiddenFileRule.isHidden(component: name) else { return false }
