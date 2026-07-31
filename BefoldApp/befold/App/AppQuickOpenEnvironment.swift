@@ -93,11 +93,20 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
         }.value
     }
 
-    func isDirectory(_ url: URL) -> Bool {
-        fileReader.isDirectory(at: url)
+    /// Enter/Tab はキー入力のたびに走るため、stat を MainActor の外へ逃がす。
+    func isDirectory(_ url: URL) async -> Bool {
+        let fileReader = fileReader
+        return await Task.detached(priority: .userInitiated) {
+            fileReader.isDirectory(at: url)
+        }.value
     }
 
-    func resolveFileToOpen(at url: URL) -> URL? {
-        SupportedFileResolver.resolveFileToOpen(at: url, fileReader: fileReader)
+    /// Enter で確定したときのみ走る(ディレクトリ列挙を伴いうる)ため、
+    /// stat の繰り返しを MainActor の外へ逃がす。
+    func resolveFileToOpen(at url: URL) async -> URL? {
+        let fileReader = fileReader
+        return await Task.detached(priority: .userInitiated) {
+            SupportedFileResolver.resolveFileToOpen(at: url, fileReader: fileReader)
+        }.value
     }
 }

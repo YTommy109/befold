@@ -22,6 +22,9 @@ struct ViewerWebView: NSViewRepresentable {
     let fileType: FileType
     /// レンダリング対象のファイルパス。HTML ファイルは loadFileURL による直接ロードに使う。
     let filePath: URL?
+    /// HTML の charset 宣言(BOM/meta charset)有無。HTML 直接ロードモードで
+    /// webView.load(正規化文字列を注入)/loadFileURL(WebKit に委ねる)の分岐に使う。
+    let hasDeclaredHTMLCharset: Bool?
     /// ソース表示中かどうか。true の間 HTML ファイルも viewer.html でレンダリングする。
     let isSourceMode: Bool
     /// ソース表示中に行番号を表示するかどうか。
@@ -82,6 +85,7 @@ struct ViewerWebView: NSViewRepresentable {
             contentRevision: contentRevision,
             fileType: fileType,
             filePath: filePath,
+            hasDeclaredHTMLCharset: hasDeclaredHTMLCharset,
             isSourceMode: isSourceMode,
             showLineNumbers: showLineNumbers,
             truncation: ViewerRenderer.TruncationState(

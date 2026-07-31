@@ -13,6 +13,10 @@ final class SessionRestorer {
     /// (DirectoryLister.resolveFileToOpen は内部でディレクトリ列挙に実 FileManager を使うため、
     /// InMemoryFileReader だけの仮想パスでは検証できない)。
     private let resolveFileToOpen: (URL) -> URL?
+    /// openRootFallback が対応ファイルを解決できなかった場合の通知シーム。既定は実際に
+    /// モーダルアラートを表示する FileNotFoundUI.present だが、テストでは実アラートを
+    /// 出さずに呼び出しだけ記録するスタブに差し替えられるようにする。
+    private let presentFileNotFound: (URL) -> Void
     /// 前回セッションで開いていたファイル。起動イベントで開かれるファイルの記録と混ざらないよう
     /// captureSavedState で読み取り、restoreLastSession で復元する。
     private var urlsToRestore: [URL] = []
@@ -25,12 +29,14 @@ final class SessionRestorer {
         sessionStore: SessionStore,
         windowManager: ViewerWindowManager,
         fileReader: any FileReading = DefaultFileReader(),
-        resolveFileToOpen: @escaping (URL) -> URL? = { DirectoryLister.resolveFileToOpen(at: $0) }
+        resolveFileToOpen: @escaping (URL) -> URL? = { DirectoryLister.resolveFileToOpen(at: $0) },
+        presentFileNotFound: @escaping (URL) -> Void = { FileNotFoundUI.present(url: $0, over: nil) }
     ) {
         self.sessionStore = sessionStore
         self.windowManager = windowManager
         self.fileReader = fileReader
         self.resolveFileToOpen = resolveFileToOpen
+        self.presentFileNotFound = presentFileNotFound
     }
 
     /// 保存済みのセッション状態を先読みする。applicationWillFinishLaunching で呼ぶ。
@@ -126,10 +132,14 @@ final class SessionRestorer {
     /// AppDelegate.openViewer(for:options:) と同じ経路(既定は DirectoryLister.resolveFileToOpen)で
     /// 中の対応ファイルへ解決してから開く。ViewerWindowManager.openViewer はファイルを渡す前提のため、
     /// ディレクトリをそのまま渡すと壊れたウィンドウになる(サイドバーが親ディレクトリを指す等)。
-    /// 対応ファイルが1つも無い(空フォルダ等)場合は、壊れたウィンドウを開くより何もしない方を選ぶ
-    /// (AppDelegate 側のノーファイルアラートは CLI 起動専用の導線のため、ここでは踏襲しない)。
+    /// root 自体が消えている(worktree 削除等)場合は resolveFileToOpen が nil を返すため、
+    /// ViewerWindowManager.openViewer と同じ FileNotFoundUI で通知する(空フォルダ等、root は
+    /// 実在するが対応ファイルが1つも無いケースと区別しない。どちらも「開けなかった」と伝わればよい)。
     private func openRootFallback(root: URL, options: CLIOpenOptions) {
-        guard let target = resolveFileToOpen(root) else { return }
+        guard let target = resolveFileToOpen(root) else {
+            presentFileNotFound(root)
+            return
+        }
         openViewer(for: target, options: options, forceSidebarVisible: true)
     }
 

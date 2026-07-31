@@ -85,10 +85,17 @@ final class RecentRepositoriesStore {
     /// もはやディレクトリとして存在しないルート(worktree 削除など)を一覧から取り除く。
     /// 保存データがデコードできない(将来スキーマ・部分書き込み等)場合は空リストへ置き換えず、
     /// そのまま保持する(壊れたデータを空配列で上書きして履歴を失わないため)。
-    /// 除外対象が無い場合も書き込みをスキップする(メニューを開くたびの無駄な永続化を避ける)。
-    func pruneMissing() {
+    /// 除外対象が無い場合も書き込みをスキップする(呼び出しごとの無駄な永続化を避ける)。
+    ///
+    /// エントリ数ぶんの isDirectory(stat)はアンマウント済み/応答しないネットワークマウントでは
+    /// 待たされうるため、MainActor 外(Task.detached)で行う。呼び出しは起動時1回で足り、
+    /// メニュー表示(menuNeedsUpdate)からは呼ばない(保存済みリストをそのまま出す)。
+    func pruneMissingAsync() async {
         guard case let .decoded(entries) = loadEntries() else { return }
-        let filtered = entries.filter { fileReader.isDirectory(at: URL(fileURLWithPath: $0.rootPath)) }
+        let fileReader = fileReader
+        let filtered = await Task.detached(priority: .utility) {
+            entries.filter { fileReader.isDirectory(at: URL(fileURLWithPath: $0.rootPath)) }
+        }.value
         guard filtered.count != entries.count else { return }
         save(filtered)
     }

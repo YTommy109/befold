@@ -22,11 +22,11 @@ struct QuickOpenPanelControllerTests {
             []
         }
 
-        func isDirectory(_: URL) -> Bool {
+        func isDirectory(_: URL) async -> Bool {
             false
         }
 
-        func resolveFileToOpen(at _: URL) -> URL? {
+        func resolveFileToOpen(at _: URL) async -> URL? {
             nil
         }
     }

@@ -189,8 +189,8 @@ struct RecentRepositoriesStoreTests {
         #expect(relaunched.entries().map(\.label) == ["repoA"])
     }
 
-    @Test("pruneMissing は存在しないルートを取り除く")
-    func pruneMissingRemovesNonExistentRoots() throws {
+    @Test("pruneMissingAsync は存在しないルートを取り除く")
+    func pruneMissingRemovesNonExistentRoots() async throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
         let missing = temp.url.appendingPathComponent("gone")
@@ -198,24 +198,24 @@ struct RecentRepositoriesStoreTests {
         store.record(root: temp.url, label: "kept")
         store.record(root: missing, label: "gone")
 
-        store.pruneMissing()
+        await store.pruneMissingAsync()
 
         #expect(store.entries().map(\.label) == ["kept"])
     }
 
-    @Test("pruneMissing はデコード不能な保存データを空リストで上書きしない")
-    func pruneMissingLeavesCorruptedDataUntouched() {
+    @Test("pruneMissingAsync はデコード不能な保存データを空リストで上書きしない")
+    func pruneMissingLeavesCorruptedDataUntouched() async {
         let store = makeStore()
         let corrupted = Data("not valid json".utf8)
         defaults.set(corrupted, forKey: "RecentRepositories")
 
-        store.pruneMissing()
+        await store.pruneMissingAsync()
 
         #expect(defaults.data(forKey: "RecentRepositories") == corrupted)
     }
 
-    @Test("pruneMissing は取り除く対象が無ければ defaults へ書き込まない")
-    func pruneMissingSkipsWriteWhenNothingIsMissing() throws {
+    @Test("pruneMissingAsync は取り除く対象が無ければ defaults へ書き込まない")
+    func pruneMissingSkipsWriteWhenNothingIsMissing() async throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
         let spyDefaults = WriteCountingUserDefaults()
@@ -223,7 +223,7 @@ struct RecentRepositoriesStoreTests {
         store.record(root: temp.url, label: "kept")
         let writesAfterRecord = spyDefaults.writeCount
 
-        store.pruneMissing()
+        await store.pruneMissingAsync()
 
         #expect(spyDefaults.writeCount == writesAfterRecord)
     }

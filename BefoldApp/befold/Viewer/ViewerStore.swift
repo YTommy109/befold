@@ -38,6 +38,10 @@ final class ViewerStore {
     /// UI 側は content が空でまだ何も表示できていない間だけこれを見てインジケータを出す。
     private(set) var isLoading: Bool = false
     private(set) var filePath: URL?
+    /// HTML の charset 宣言(BOM/meta charset)有無。HTML 直接ロードモードで
+    /// webView.load(正規化文字列を注入)/loadFileURL(WebKit に委ねる)を分岐するために使う。
+    /// fileType が .html 以外、またはロード失敗時は nil。
+    private(set) var hasDeclaredHTMLCharset: Bool?
 
     /// openFile / handleRename で即時更新する、読み込み対象の URL。バックグラウンド読み込み
     /// (loadContent → performLoad)へ渡すために使い、公開の filePath とは異なりロード完了を待たない。
@@ -312,7 +316,8 @@ final class ViewerStore {
                 rejectReason: nil,
                 isTruncated: !isAtEnd,
                 content: firstChunk,
-                tracksLineCount: true
+                tracksLineCount: true,
+                hasDeclaredHTMLCharset: nil
             )
         case let .full(loaded, cache):
             state = DisplayState(
@@ -322,7 +327,8 @@ final class ViewerStore {
                 rejectReason: loaded.rejectReason,
                 isTruncated: false,
                 content: loaded.content,
-                tracksLineCount: false
+                tracksLineCount: false,
+                hasDeclaredHTMLCharset: loaded.hasDeclaredHTMLCharset
             )
         }
         guard applyDisplayState(state) else { return }
@@ -347,6 +353,8 @@ final class ViewerStore {
         /// バナー表示に行数を使うため true、全文読込は行数を表示しないため false
         /// (カウンタは 0 にリセットされる)。
         let tracksLineCount: Bool
+        /// HTML の charset 宣言有無。.chunked(HTML は非対応)は常に nil。
+        let hasDeclaredHTMLCharset: Bool?
     }
 
     /// 表示状態を一括更新する。同一内容(dataHash・fileType が一致し、直前のチャンク読込も
@@ -365,6 +373,7 @@ final class ViewerStore {
         isTruncated = state.isTruncated
         loadFailed = false
         content = state.content
+        hasDeclaredHTMLCharset = state.hasDeclaredHTMLCharset
         contentRevision += 1
         if state.tracksLineCount {
             newlineCount = state.content.utf8.count(where: { $0 == 0x0A })

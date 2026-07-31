@@ -54,12 +54,12 @@ struct QuickOpenModelTests {
             entries[directory.normalizedPathKey] ?? []
         }
 
-        func isDirectory(_ url: URL) -> Bool {
+        func isDirectory(_ url: URL) async -> Bool {
             directories.contains(url.normalizedPathKey)
         }
 
-        func resolveFileToOpen(at url: URL) -> URL? {
-            isDirectory(url) ? resolvedFile[url.normalizedPathKey] : url
+        func resolveFileToOpen(at url: URL) async -> URL? {
+            await isDirectory(url) ? resolvedFile[url.normalizedPathKey] : url
         }
     }
 
@@ -288,7 +288,7 @@ struct QuickOpenModelTests {
         model.queryText = "/dev/b"
         await model.waitForPendingWork()
 
-        model.completePath()
+        await model.completePath()
 
         // befold と before の共通接頭辞は "befo"
         #expect(model.queryText == "/dev/befo")
@@ -303,7 +303,7 @@ struct QuickOpenModelTests {
         model.queryText = "/dev/be"
         await model.waitForPendingWork()
 
-        model.completePath()
+        await model.completePath()
 
         #expect(model.queryText == "/dev/befold/")
     }
@@ -316,7 +316,7 @@ struct QuickOpenModelTests {
         model.queryText = "/dev/no"
         await model.waitForPendingWork()
 
-        model.completePath()
+        await model.completePath()
 
         #expect(model.queryText == "/dev/notes.md")
     }
@@ -329,7 +329,7 @@ struct QuickOpenModelTests {
         model.queryText = "alp"
         await model.waitForPendingWork()
 
-        model.completePath()
+        await model.completePath()
 
         #expect(model.queryText == "alp")
     }
@@ -381,7 +381,7 @@ struct QuickOpenModelTests {
         let model = await makeModel(environment) { opened.append($0) }
         model.moveSelection(by: 1)
 
-        model.commitSelection()
+        await model.commitSelection()
 
         #expect(opened == [url("/repo/b.md")])
     }
@@ -397,7 +397,7 @@ struct QuickOpenModelTests {
         model.queryText = "/dev/do"
         await model.waitForPendingWork()
 
-        model.commitSelection()
+        await model.commitSelection()
 
         #expect(opened == [url("/dev/docs/index.md")])
     }
@@ -410,7 +410,7 @@ struct QuickOpenModelTests {
         model.queryText = "/nope/x"
         await model.waitForPendingWork()
 
-        model.commitSelection()
+        await model.commitSelection()
 
         #expect(opened.isEmpty)
     }
@@ -425,7 +425,7 @@ struct QuickOpenModelTests {
         model.queryText = "/dev/em"
         await model.waitForPendingWork()
 
-        model.commitSelection()
+        await model.commitSelection()
 
         #expect(opened.isEmpty)
     }
@@ -443,7 +443,7 @@ struct QuickOpenModelTests {
         await model.waitForPendingWork()
         let before = model.candidates.map(\.url)
 
-        model.commitSelection()
+        await model.commitSelection()
 
         #expect(opened.isEmpty)
         #expect(model.candidates.map(\.url) == before)

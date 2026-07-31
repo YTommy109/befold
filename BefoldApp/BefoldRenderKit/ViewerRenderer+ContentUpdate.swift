@@ -5,6 +5,9 @@ import WebKit
 
 extension ViewerRenderer {
     /// applyRender の引数をまとめた入力(function_parameter_count 対策)。
+    /// generation は呼び出し時点の contentUpdateGeneration のスナップショット。画像埋め込み
+    /// (MainActor 外)から戻った際にこの値と現在値を比較し、後続の updateContent 呼び出しに
+    /// 追い越されていないかを確認する。
     struct RenderRequest {
         let content: String
         let contentRevision: Int
@@ -13,6 +16,35 @@ extension ViewerRenderer {
         let isSourceMode: Bool
         let showLineNumbers: Bool
         let truncation: TruncationState
+        let generation: Int
+    }
+
+    /// applyAppend の引数をまとめた入力(function_parameter_count 対策)。RenderRequest 参照。
+    struct AppendRequest {
+        let chunk: String
+        let contentRevision: Int
+        let fileType: FileType
+        let filePath: URL?
+        let isSourceMode: Bool
+        let truncation: TruncationState
+        let generation: Int
+    }
+
+    /// applyRender を非同期 Task で起動する(doUpdate 内の重複削減)。
+    private func scheduleRender(webView: WKWebView, request: RenderRequest, restoreFromPersistedPosition: Bool) {
+        Task { @MainActor in
+            await self.applyRender(
+                webView: webView, request: request,
+                restoreFromPersistedPosition: restoreFromPersistedPosition
+            )
+        }
+    }
+
+    /// applyAppend を非同期 Task で起動する(doUpdate 内の重複削減)。
+    private func scheduleAppend(webView: WKWebView, request: AppendRequest) {
+        Task { @MainActor in
+            await self.applyAppend(webView: webView, request: request)
+        }
     }
 }
 
@@ -37,10 +69,16 @@ public extension ViewerRenderer {
         contentRevision: Int,
         fileType: FileType,
         filePath: URL?,
+        hasDeclaredHTMLCharset: Bool?,
         isSourceMode: Bool,
         showLineNumbers: Bool,
         truncation: TruncationState
     ) {
+        // この呼び出し固有の世代番号。applyRender/applyAppend は画像埋め込み(MainActor 外)から
+        // 戻った際にこの値を渡し、後続の updateContent 呼び出しに追い越されていないかを確認する。
+        contentUpdateGeneration += 1
+        let generation = contentUpdateGeneration
+
         let doUpdate = { [weak self] in
             guard let self, let webView else { return }
 
@@ -69,15 +107,14 @@ public extension ViewerRenderer {
                 webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = false
                 // charset 宣言(BOM/<meta charset>)のある HTML は WebKit の解釈で正しく読めるため、
                 // 相対リソースを読める loadFileURL のまま。宣言の無い HTML だけは WebKit が既定
-                // エンコーディングを誤推定して文字化けするので、実エンコーディングを判定し UTF-8 へ
-                // 正規化した文字列を明示エンコーディングでロードする。loadData は allowingReadAccessTo を
-                // 伴わず宣言なし HTML から相対参照した兄弟リソースは読めなくなるが、宣言なし HTML は
-                // 簡易な断片が大半で影響は小さい。
-                if let data = try? Data(contentsOf: filePath),
-                   let normalizedHTML = HTMLCharsetNormalizer.utf8NormalizedHTML(for: data)
-                {
+                // エンコーディングを誤推定して文字化けするので、ViewerLoadPipeline が MainActor 外で
+                // 判定・UTF-8 正規化済みの content を明示エンコーディングでロードする。loadData は
+                // allowingReadAccessTo を伴わず宣言なし HTML から相対参照した兄弟リソースは読めなく
+                // なるが、宣言なし HTML は簡易な断片が大半で影響は小さい。判定不能(nil)時は
+                // loadFileURL へフォールバックする。
+                if hasDeclaredHTMLCharset == false {
                     webView.load(
-                        Data(normalizedHTML.utf8), mimeType: "text/html",
+                        Data(content.utf8), mimeType: "text/html",
                         characterEncodingName: "UTF-8", baseURL: filePath
                     )
                 } else {
@@ -97,10 +134,10 @@ public extension ViewerRenderer {
                 let request = RenderRequest(
                     content: content, contentRevision: contentRevision, fileType: fileType,
                     filePath: filePath, isSourceMode: isSourceMode, showLineNumbers: showLineNumbers,
-                    truncation: truncation
+                    truncation: truncation, generation: generation
                 )
                 exitDirectHTMLMode(webView: webView) {
-                    self.applyRender(
+                    self.scheduleRender(
                         webView: webView, request: request,
                         restoreFromPersistedPosition: restoreFromPersistedPosition
                     )
@@ -123,10 +160,13 @@ public extension ViewerRenderer {
                     ),
                     rendered: rendered
                 ) {
-                    applyAppend(
-                        webView: webView, chunk: pending.chunk, contentRevision: contentRevision,
-                        fileType: fileType, filePath: filePath, isSourceMode: isSourceMode,
-                        truncation: truncation
+                    scheduleAppend(
+                        webView: webView,
+                        request: AppendRequest(
+                            chunk: pending.chunk, contentRevision: contentRevision,
+                            fileType: fileType, filePath: filePath, isSourceMode: isSourceMode,
+                            truncation: truncation, generation: generation
+                        )
                     )
                     return
                 }
@@ -147,12 +187,12 @@ public extension ViewerRenderer {
                 filePath: filePath, isSourceMode: isSourceMode,
                 lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
             )
-            applyRender(
+            scheduleRender(
                 webView: webView,
                 request: RenderRequest(
                     content: content, contentRevision: contentRevision, fileType: fileType,
                     filePath: filePath, isSourceMode: isSourceMode, showLineNumbers: showLineNumbers,
-                    truncation: truncation
+                    truncation: truncation, generation: generation
                 ),
                 restoreFromPersistedPosition: restoreFromPersistedPosition
             )

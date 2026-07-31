@@ -24,31 +24,53 @@ extension ViewerRenderer {
         }
     }
 
+    /// content の埋め込み加工(markdown ローカル画像の data URI 差し替え)を MainActor 外へ逃がす。
+    /// MarkdownImageEmbedder は Sendable かつ内部キャッシュが NSLock 保護のため並行呼び出し可。
+    func embeddedContent(
+        _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool
+    ) async -> String {
+        let embedImages = rendererFeatures.embedImages
+        let embedder = imageEmbedder
+        return await Task.detached(priority: .userInitiated) {
+            Self.renderableContent(
+                content, fileType: fileType, filePath: filePath,
+                isSourceMode: isSourceMode, embedImages: embedImages, imageEmbedder: embedder
+            )
+        }.value
+    }
+
     /// pendingAppend を消費して次チャンクを増分追記する(全文 render しない)。
     /// truncation は updateContent が受け取った現在値をそのまま使う。
     /// chunk が空(チャンク読込エラーのセンチネル)の場合は追記せず、切り詰めバナーだけ更新する。
-    func applyAppend(
-        webView: WKWebView, chunk: String, contentRevision: Int,
-        fileType: FileType, filePath: URL?, isSourceMode: Bool, truncation: TruncationState
-    ) {
-        rendered.truncation = truncation
-        // 追記チャンクも初回描画と同じ加工を通す。markdown をチャンク読み込みの
-        // 対象にしたため(Issue #307)、ここを素通しすると 2 チャンク目以降の
-        // ローカル画像だけが data URI に差し替わらず画像割れになる。
-        let renderable = Self.renderableContent(
-            chunk, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode,
-            embedImages: rendererFeatures.embedImages
+    /// 画像埋め込み(embeddedContent)は MainActor 外で行うため、完了後に
+    /// contentUpdateGeneration が呼び出し時から変わっていないか確認してから
+    /// evaluateJavaScript/recordRendered を行う(後続の updateContent に追い越された場合は破棄)。
+    func applyAppend(webView: WKWebView, request: AppendRequest) async {
+        let (chunk, contentRevision, fileType, filePath, isSourceMode, truncation, generation) = (
+            request.chunk, request.contentRevision, request.fileType, request.filePath,
+            request.isSourceMode, request.truncation, request.generation
         )
-        if !renderable.isEmpty,
-           let script = ViewerBridge.appendChunkScript(chunk: renderable, fileType: fileType)
-        {
-            webView.evaluateJavaScript(script)
-        }
+        rendered.truncation = truncation
         webView.evaluateJavaScript(
             ViewerBridge.truncatedScript(
                 truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.failed
-            )
+            ),
+            completionHandler: nil
         )
+
+        // 追記チャンクも初回描画と同じ加工を通す。markdown をチャンク読み込みの
+        // 対象にしたため(Issue #307)、ここを素通しすると 2 チャンク目以降の
+        // ローカル画像だけが data URI に差し替わらず画像割れになる。
+        let renderable = await embeddedContent(
+            chunk, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+        )
+        guard generation == contentUpdateGeneration else { return }
+
+        if !renderable.isEmpty,
+           let script = ViewerBridge.appendChunkScript(chunk: renderable, fileType: fileType)
+        {
+            webView.evaluateJavaScript(script, completionHandler: nil)
+        }
         recordRendered(contentRevision: contentRevision, fileType: fileType, filePath: filePath)
     }
 
@@ -57,22 +79,25 @@ extension ViewerRenderer {
     /// evaluateJavaScript した後にのみ呼ぶ(呼び出し側で先行確定しないこと。直接 HTML
     /// モード離脱時のように呼び出しが pendingUpdate 経由で遅延・破棄されうる場合、
     /// 先行確定するとミラーが「描画済み」と偽り、以後の再描画が需要判定で握り潰される)。
+    /// 画像埋め込み(embeddedContent)は MainActor 外で行うため、完了後に
+    /// contentUpdateGeneration が呼び出し時から変わっていないか確認してから
+    /// evaluateJavaScript/recordRendered を行う(後続の updateContent に追い越された場合は破棄)。
     /// - Parameter restoreFromPersistedPosition: `isFileOrModeSwitch` 参照。
     func applyRender(
         webView: WKWebView, request: RenderRequest,
         restoreFromPersistedPosition: Bool
-    ) {
-        let (content, contentRevision, fileType, filePath, isSourceMode, showLineNumbers, truncation) = (
+    ) async {
+        let (content, contentRevision, fileType, filePath, isSourceMode, showLineNumbers, truncation, generation) = (
             request.content, request.contentRevision, request.fileType, request.filePath,
-            request.isSourceMode, request.showLineNumbers, request.truncation
+            request.isSourceMode, request.showLineNumbers, request.truncation, request.generation
         )
         if showLineNumbers != rendered.showLineNumbers {
-            webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers))
+            webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers), completionHandler: nil)
             rendered.showLineNumbers = showLineNumbers
         }
         if isSourceMode != rendered.isSourceMode {
             webView.evaluateJavaScript(
-                ViewerBridge.viewModeScript(.init(isSourceMode: isSourceMode))
+                ViewerBridge.viewModeScript(.init(isSourceMode: isSourceMode)), completionHandler: nil
             )
             rendered.isSourceMode = isSourceMode
         }
@@ -80,22 +105,24 @@ extension ViewerRenderer {
             webView.evaluateJavaScript(
                 ViewerBridge.truncatedScript(
                     truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.failed
-                )
+                ),
+                completionHandler: nil
             )
             rendered.truncation = truncation
         }
-        guard let script = ViewerBridge.renderScript(
-            content: Self.renderableContent(
-                content, fileType: fileType,
-                filePath: filePath, isSourceMode: isSourceMode,
-                embedImages: rendererFeatures.embedImages
-            ),
-            fileType: fileType
-        ) else { return }
+
+        let renderable = await embeddedContent(
+            content, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+        )
+        guard generation == contentUpdateGeneration else { return }
+
+        guard let script = ViewerBridge.renderScript(content: renderable, fileType: fileType) else { return }
         if restoreFromPersistedPosition {
-            webView.evaluateJavaScript(ViewerBridge.restoreScrollPositionScript(scrollPositionToRestore))
+            webView.evaluateJavaScript(
+                ViewerBridge.restoreScrollPositionScript(scrollPositionToRestore), completionHandler: nil
+            )
         }
-        webView.evaluateJavaScript(script)
+        webView.evaluateJavaScript(script, completionHandler: nil)
         recordRendered(contentRevision: contentRevision, fileType: fileType, filePath: filePath)
     }
 

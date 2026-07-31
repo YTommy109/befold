@@ -20,13 +20,15 @@ struct SessionRestorerTests {
     ///   スタブを渡す。
     private func makeRestorer(
         _ fixture: MockedViewerWindowManager,
-        resolveFileToOpen: @escaping (URL) -> URL? = { DirectoryLister.resolveFileToOpen(at: $0) }
+        resolveFileToOpen: @escaping (URL) -> URL? = { DirectoryLister.resolveFileToOpen(at: $0) },
+        presentFileNotFound: @escaping (URL) -> Void = { _ in }
     ) -> SessionRestorer {
         SessionRestorer(
             sessionStore: fixture.sessionStore,
             windowManager: fixture.manager,
             fileReader: fixture.fileReader,
-            resolveFileToOpen: resolveFileToOpen
+            resolveFileToOpen: resolveFileToOpen,
+            presentFileNotFound: presentFileNotFound
         )
     }
 
@@ -155,15 +157,20 @@ struct SessionRestorerTests {
         fixture.closeAll()
     }
 
-    @Test("フォールバック解決が対応ファイル無しで nil を返せば、壊れたウィンドウを開かず何もしない")
-    func openRepositoryFallbackOpensNothingWhenResolutionReturnsNil() {
+    @Test("フォールバック解決が対応ファイル無しで nil を返せば、壊れたウィンドウを開かず FileNotFound で通知する")
+    func openRepositoryFallbackNotifiesFileNotFoundWhenResolutionReturnsNil() {
         let root = URL(fileURLWithPath: "/repo")
         let fixture = MockedViewerWindowManager(files: [], prefix: "SessionRestorerOpenRepo")
-        let restorer = makeRestorer(fixture, resolveFileToOpen: { _ in nil })
+        var notifiedURLs: [URL] = []
+        let restorer = makeRestorer(
+            fixture, resolveFileToOpen: { _ in nil },
+            presentFileNotFound: { notifiedURLs.append($0) }
+        )
 
         restorer.openRepository(root: root, savedTabGroup: nil)
 
         #expect(fixture.manager.allControllers.isEmpty)
+        #expect(notifiedURLs == [root])
         fixture.closeAll()
     }
 }
