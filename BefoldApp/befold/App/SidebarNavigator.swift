@@ -116,15 +116,8 @@ final class SidebarNavigator {
     ///   「上へ移動」後の親フォルダ選択復元に使う。
     func refreshFileList(applyCustomSelection: (() -> Bool)? = nil) {
         guard host != nil else { return }
-        refreshBaseDirectory()
-        let showHiddenFiles = syncShowHiddenFiles()
-        let directory = fileListModel.currentDirectory
-        let sortOrder = fileListModel.sortOrder
-        listingGeneration += 1
-        let generation = listingGeneration
-        pendingListingTask = Task {
-            var entries = await self.directoryLister(directory, sortOrder, showHiddenFiles)
-            guard generation == self.listingGeneration, let host = self.host else { return }
+        performListing(of: fileListModel.currentDirectory) { host, entries in
+            var entries = entries
             self.ensureCurrentFile(in: &entries, currentFile: host.currentFileURL)
             self.fileListModel.entries = entries
 
@@ -141,6 +134,28 @@ final class SidebarNavigator {
             } ?? false
             guard !selectionStillValid else { return }
             self.fileListModel.selection = self.matchingEntryURL(for: host.currentFileURL)
+        }
+    }
+
+    /// 世代ガード付きの一覧取得パイプライン。refreshFileList / navigateToFolder が共有する。
+    /// 「基準ディレクトリ更新 → 不可視ファイル設定同期 → 世代更新 → メイン外で列挙 →
+    /// 世代・host guard」までを担い、一覧の反映と選択の決定は onApplied に委ねる。
+    /// - Parameters:
+    ///   - directory: 列挙対象のディレクトリ。
+    ///   - onApplied: 列挙結果が最新世代かつ host が生存しているときにメインアクターで呼ばれる。
+    private func performListing(
+        of directory: URL,
+        onApplied: @escaping @MainActor (SidebarNavigatorHost, [FileListEntry]) -> Void
+    ) {
+        refreshBaseDirectory()
+        let showHiddenFiles = syncShowHiddenFiles()
+        let sortOrder = fileListModel.sortOrder
+        listingGeneration += 1
+        let generation = listingGeneration
+        pendingListingTask = Task {
+            let entries = await self.directoryLister(directory, sortOrder, showHiddenFiles)
+            guard generation == self.listingGeneration, let host = self.host else { return }
+            onApplied(host, entries)
         }
     }
 
@@ -196,14 +211,7 @@ final class SidebarNavigator {
         let previous = fileListModel.currentDirectory
         fileListModel.currentDirectory = url
         updateRootDirectory(with: target)
-        refreshBaseDirectory()
-        let showHiddenFiles = syncShowHiddenFiles()
-        let sortOrder = fileListModel.sortOrder
-        listingGeneration += 1
-        let generation = listingGeneration
-        pendingListingTask = Task {
-            let entries = await self.directoryLister(url, sortOrder, showHiddenFiles)
-            guard generation == self.listingGeneration, self.host != nil else { return }
+        performListing(of: url) { _, entries in
             self.fileListModel.entries = entries
             let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
                 .normalizedPathKey
