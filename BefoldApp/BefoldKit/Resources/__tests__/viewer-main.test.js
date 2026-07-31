@@ -1035,8 +1035,8 @@ describe('パス参照の表示時解決', () => {
     return Array.from(loaded.document.querySelector(selector).classList).sort();
   }
 
-  function click(loaded, selector) {
-    dispatchTrustedClick(loaded.window, loaded.document.querySelector(selector));
+  function click(loaded, selector, init) {
+    dispatchTrustedClick(loaded.window, loaded.document.querySelector(selector), init);
   }
 
   test('描画後にローカルパス候補を一意化して resolveReferences を送る', async () => {
@@ -1099,7 +1099,23 @@ describe('パス参照の表示時解決', () => {
     click(loaded, '#diagram-wrap .befold-path-ref');
 
     expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload))
-      .toEqual([{ href: 'src/a.swift', newWindow: false }]);
+      .toEqual([{ href: 'src/a.swift', metaKey: false, shiftKey: false }]);
+  });
+
+  test('修飾キーの押下状態をそのまま referenceActivated に載せる', async () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    await loaded.main.render('src/a.swift\n', 'code', 'txt');
+    loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
+
+    click(loaded, '#diagram-wrap .befold-path-ref', { metaKey: true });
+    click(loaded, '#diagram-wrap .befold-path-ref', { metaKey: true, shiftKey: true });
+
+    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload))
+      .toEqual([
+        { href: 'src/a.swift', metaKey: true, shiftKey: false },
+        { href: 'src/a.swift', metaKey: true, shiftKey: true },
+      ]);
   });
 
   test('外部 URL と # アンカーは中立化せず従来どおり動く', () => {
@@ -1118,7 +1134,7 @@ describe('パス参照の表示時解決', () => {
     ['#ext', '#mail', '#anchor'].forEach((sel) => expect(classesOf(loaded, sel)).toEqual([]));
     click(loaded, '#ext');
     expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload))
-      .toEqual([{ href: 'https://example.com/a.md', newWindow: false }]);
+      .toEqual([{ href: 'https://example.com/a.md', metaKey: false, shiftKey: false }]);
   });
 
   test('コロン付きの行番号参照はスキームと誤認せず解決要求に含める', () => {

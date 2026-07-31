@@ -37,7 +37,12 @@ extension ViewerRenderer {
         case .allowNativeNavigation:
             return .allow
         case let .openLocalFile(fileURL, newWindow):
-            delegate?.renderer(self, didActivateReference: fileURL.path, newWindow: newWindow)
+            // TODO: 直接 HTMLモードの修飾キー対応表整備は Task 4 の範囲。ここでは既存の
+            // newWindow 真偽値を OpenDisposition へそのまま写像するだけに留める。
+            delegate?.renderer(
+                self, didActivateReference: fileURL.path,
+                disposition: newWindow ? .newWindow : .currentTab
+            )
             return .cancel
         case let .openExternal(externalURL):
             NSWorkspace.shared.open(externalURL)

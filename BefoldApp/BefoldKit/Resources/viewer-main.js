@@ -245,10 +245,12 @@
       // ここで抑止する(Swift 側もハンドラ未登録。ViewerWebView.messageHandlerNames 参照)。
       if (!isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')) { return; }
 
-      // <a> / .befold-path-ref とも同じ挙動: 無修飾=同一ウィンドウ, cmd=新規ウィンドウ
+      // <a> / .befold-path-ref とも同じ挙動。修飾キーの解釈は Swift 側(OpenDisposition)に
+      // 集約しているため、ここでは押下状態をそのまま送るだけにする。
       _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, {
         href: href,
-        newWindow: e.metaKey
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey
       });
     });
   }

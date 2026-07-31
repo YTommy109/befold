@@ -12,8 +12,8 @@ public enum ViewerBridge {
     public static let zoomChangedMessageName = "zoomChanged"
 
     /// リンクやパス参照がクリックされたときに postMessage されるメッセージハンドラ名。
-    /// 無修飾クリックで同一ウィンドウ遷移、cmd+click で新規ウィンドウ遷移。
-    /// payload: { href: String, newWindow: Bool }
+    /// 修飾キーの解釈は Swift 側(OpenDisposition)が行うため、JS は押下状態のみ送る。
+    /// payload: { href: String, metaKey: Bool, shiftKey: Bool }
     public static let referenceActivatedMessageName = "referenceActivated"
 
     /// Swift から引数なしで呼び出す JS 関数。呼び出しスクリプト文字列と、JS 側の定義
@@ -287,7 +287,8 @@ public enum ViewerBridge {
         /// referenceActivated のキー。
         public enum ReferenceActivated: String, CaseIterable, Sendable {
             case href
-            case newWindow
+            case metaKey
+            case shiftKey
         }
 
         /// scrollPositionChanged のキー。

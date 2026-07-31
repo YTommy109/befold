@@ -31,21 +31,38 @@ struct ViewerRendererMessageHandlingTests {
         #expect(received == 1.75)
     }
 
-    @Test("referenceActivated が onOpenReference へ href/newWindow を渡す")
+    @Test("referenceActivated が href と修飾キーから開き方を決めて onOpenReference へ渡す")
     func referenceActivatedDispatchesReference() {
         let renderer = ViewerRenderer()
         let delegate = Stubs.Delegate()
         renderer.delegate = delegate
-        var received: (href: String, newWindow: Bool)?
+        var received: (href: String, disposition: OpenDisposition)?
         delegate.onOpenReference = { received = ($0, $1) }
 
         dispatch(
             renderer, name: ViewerBridge.referenceActivatedMessageName,
-            body: ["href": "./other.md", "newWindow": true]
+            body: ["href": "./other.md", "metaKey": true, "shiftKey": false]
         )
 
         #expect(received?.href == "./other.md")
-        #expect(received?.newWindow == true)
+        #expect(received?.disposition == .newTab)
+    }
+
+    @Test("referenceActivated の cmd+shift は newWindow を渡す")
+    func referenceActivatedWithCommandAndShiftDispatchesNewWindow() {
+        let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
+        var received: (href: String, disposition: OpenDisposition)?
+        delegate.onOpenReference = { received = ($0, $1) }
+
+        dispatch(
+            renderer, name: ViewerBridge.referenceActivatedMessageName,
+            body: ["href": "./other.md", "metaKey": true, "shiftKey": true]
+        )
+
+        #expect(received?.href == "./other.md")
+        #expect(received?.disposition == .newWindow)
     }
 
     @Test("scrollPositionChanged が onScrollPositionChanged へ位置/モードを渡す")
@@ -213,10 +230,10 @@ struct ViewerRendererMessageHandlingTests {
         var called = false
         delegate.onOpenReference = { _, _ in called = true }
 
-        // newWindow が欠落
+        // shiftKey が欠落
         dispatch(
             renderer, name: ViewerBridge.referenceActivatedMessageName,
-            body: ["href": "./other.md"]
+            body: ["href": "./other.md", "metaKey": true]
         )
 
         #expect(called == false)
@@ -232,7 +249,7 @@ struct ViewerRendererMessageHandlingTests {
 
         dispatch(
             renderer, name: ViewerBridge.referenceActivatedMessageName,
-            body: ["href": 42, "newWindow": true]
+            body: ["href": 42, "metaKey": true, "shiftKey": false]
         )
 
         #expect(called == false)

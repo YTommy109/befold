@@ -213,7 +213,9 @@ final class ViewerWindowManager {
             showLineNumbersOverride: showLineNumbersOverride,
             sourceModeOverride: sourceModeOverride,
             store: makeStore?(url),
-            openFileInNewWindow: { [weak self] fileURL in self?.openViewer(for: fileURL) }
+            openFileElsewhere: { [weak self] fileURL, disposition, sourceWindow in
+                self?.openViewer(for: fileURL, disposition: disposition, relativeTo: sourceWindow)
+            }
         )
         controllers[key, default: []].append(controller)
         controller.delegate = self

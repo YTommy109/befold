@@ -254,7 +254,7 @@ extension ViewerWindowControllerIntegrationTests {
         defer { controller.close() }
         let originalDirectory = controller.fileListModel.currentDirectory
 
-        controller.handleOpenReference(href: "sub/target.md", newWindow: false)
+        controller.handleOpenReference(href: "sub/target.md", disposition: .currentTab)
         await controller.referenceCoordinator.pendingOpenReferenceTask?.value
 
         #expect(controller.fileURL.lastPathComponent == "target.md")

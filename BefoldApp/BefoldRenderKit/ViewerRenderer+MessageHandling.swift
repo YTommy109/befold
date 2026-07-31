@@ -39,9 +39,13 @@ extension ViewerRenderer {
         } else if message.name == ViewerBridge.referenceActivatedMessageName,
                   let body = message.body as? [String: Any],
                   let href = body[ReferenceKey.href.rawValue] as? String,
-                  let newWindow = body[ReferenceKey.newWindow.rawValue] as? Bool
+                  let metaKey = body[ReferenceKey.metaKey.rawValue] as? Bool,
+                  let shiftKey = body[ReferenceKey.shiftKey.rawValue] as? Bool
         {
-            delegate?.renderer(self, didActivateReference: href, newWindow: newWindow)
+            delegate?.renderer(
+                self, didActivateReference: href,
+                disposition: OpenDisposition(commandKey: metaKey, shiftKey: shiftKey)
+            )
         } else if message.name == ViewerBridge.scrollPositionChangedMessageName,
                   let body = message.body as? [String: Any],
                   let position = (body[ScrollKey.position.rawValue] as? NSNumber)?.doubleValue,

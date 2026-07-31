@@ -234,6 +234,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await openViewer(for: url, options: CLIOpenOptions()) }
     }
 
+    /// 参照クリック由来のオープン。disposition/relativeTo をそのまま ViewerWindowManager へ通す。
+    func openViewer(for url: URL, disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?) {
+        Task {
+            await openViewer(
+                for: url, options: CLIOpenOptions(),
+                disposition: disposition, relativeTo: sourceWindow
+            )
+        }
+    }
+
     /// CLI から渡されたパス群を、表示オプション付きでそれぞれ別ウィンドウに開く。
     /// `--hidden-files`/`--no-hidden-files` はウィンドウ単位ではなくアプリ全体の設定のため、先に一度だけ反映する。
     /// パス無し起動(`befold --line-numbers` 等)は新規に開くウィンドウが無いため、
@@ -262,7 +272,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// ディレクトリ判定とオープン対象の解決は実 FS の存在確認・列挙を伴い、ネットワーク
     /// ボリューム上ではウィンドウを出す前に停止しうる。解決だけメインアクターの外へ逃がし、
     /// ウィンドウ生成は戻ってから行う。
-    private func openViewer(for url: URL, options: CLIOpenOptions) async {
+    private func openViewer(
+        for url: URL, options: CLIOpenOptions,
+        disposition: OpenDisposition = .currentTab, relativeTo sourceWindow: NSWindow? = nil
+    ) async {
         let resolved = await Task.detached {
             (isDirectory: DirectoryLister.isDirectory(url), target: DirectoryLister.resolveFileToOpen(at: url))
         }.value
@@ -272,7 +285,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         windowManager.openViewer(
-            for: target, forceSidebarVisible: isDirectory,
+            for: target, disposition: disposition, relativeTo: sourceWindow,
+            forceSidebarVisible: isDirectory,
             sidebarVisibleOverride: options.showSidebar,
             initialSortOrder: options.viewerSortOrder,
             showLineNumbersOverride: options.showLineNumbers,

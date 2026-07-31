@@ -213,7 +213,7 @@ struct ViewerBridgeContractTests {
         let source = try String(contentsOf: resourceURL("viewer-main.js"), encoding: .utf8)
         let messageNames = try messageNamesByJSConstant(in: source)
 
-        // 例: _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, { href: href, newWindow: e.metaKey });
+        // 例: _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, { href: href, metaKey: e.metaKey, shiftKey: e.shiftKey });
         // ペイロードはネストしないオブジェクトリテラルのみを対象にする。
         let pattern = #"_mmdPostMessage\(\s*(_MSG_[A-Z_]+)\s*,\s*\{([^}]*)\}"#
         return try matches(of: pattern, in: source).map { groups in
@@ -234,7 +234,7 @@ struct ViewerBridgeContractTests {
         return Dictionary(uniqueKeysWithValues: pairs)
     }
 
-    /// オブジェクトリテラルの中身(`href: href, newWindow: e.metaKey`)からキー名を取り出す。
+    /// オブジェクトリテラルの中身(`href: href, metaKey: e.metaKey, shiftKey: e.shiftKey`)からキー名を取り出す。
     private static func objectKeys(in body: String) throws -> Set<String> {
         let pattern = #"([A-Za-z_$][A-Za-z0-9_$]*)\s*:"#
         return try Set(matches(of: pattern, in: body).map { $0[1] })

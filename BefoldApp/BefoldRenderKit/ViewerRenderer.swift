@@ -14,7 +14,7 @@ public protocol ViewerRendererDelegate: AnyObject {
         _ renderer: ViewerRenderer, didChangeScrollPosition position: Double, mode: ViewerBridge.ViewMode
     )
     /// リンクまたはパス参照がアクティベートされた。
-    func renderer(_ renderer: ViewerRenderer, didActivateReference href: String, newWindow: Bool)
+    func renderer(_ renderer: ViewerRenderer, didActivateReference href: String, disposition: OpenDisposition)
     /// JS が検出したパス参照群の解決を要求した。
     /// 戻り値: 書かれたパス -> 解決済み絶対パス(実在するもののみ)。
     /// 解決は git subprocess を伴いうるため非同期。実装は MainActor をブロックせずに返すこと。
@@ -26,7 +26,7 @@ public protocol ViewerRendererDelegate: AnyObject {
 public extension ViewerRendererDelegate {
     func renderer(_: ViewerRenderer, didChangeZoom _: Double) {}
     func renderer(_: ViewerRenderer, didChangeScrollPosition _: Double, mode _: ViewerBridge.ViewMode) {}
-    func renderer(_: ViewerRenderer, didActivateReference _: String, newWindow _: Bool) {}
+    func renderer(_: ViewerRenderer, didActivateReference _: String, disposition _: OpenDisposition) {}
     func renderer(_: ViewerRenderer, resolveReferences _: [String]) async -> [String: String] {
         [:]
     }
