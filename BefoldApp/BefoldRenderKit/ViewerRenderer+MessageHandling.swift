@@ -8,6 +8,7 @@ extension ViewerRenderer {
     private typealias ScrollKey = ViewerBridge.PayloadKey.ScrollPositionChanged
     private typealias FindKey = ViewerBridge.PayloadKey.FindOptionsChanged
     private typealias ResolveKey = ViewerBridge.PayloadKey.ResolveReferences
+    private typealias ContextMenuKey = ViewerBridge.PayloadKey.ReferenceContextMenu
 
     /// WKUserContentController はハンドラを強参照するため、ViewerRenderer への参照を弱めて
     /// dismantle の呼び出しに依存せずリークを防ぐプロキシ。
@@ -66,6 +67,11 @@ extension ViewerRenderer {
             handleLoadMoreLines()
         } else if message.name == ViewerBridge.resolveReferencesMessageName {
             handleResolveReferences(body: message.body)
+        } else if message.name == ViewerBridge.referenceContextMenuMessageName,
+                  let body = message.body as? [String: Any],
+                  let href = body[ContextMenuKey.href.rawValue] as? String
+        {
+            delegate?.renderer(self, didRequestContextMenuFor: href)
         }
     }
 

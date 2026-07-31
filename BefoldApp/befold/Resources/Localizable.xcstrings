@@ -1666,6 +1666,40 @@
         }
       }
     },
+    "sidebar.context.open": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開く"
+          }
+        }
+      }
+    },
+    "sidebar.context.openInNewTab": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in New Tab"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別タブで開く"
+          }
+        }
+      }
+    },
     "sidebar.context.openInNewWindow": {
       "extractionState": "manual",
       "localizations": {

@@ -490,6 +490,10 @@ extension ViewerWindowController: ViewerRendererDelegate {
         handleOpenReference(href: href, disposition: disposition)
     }
 
+    func renderer(_: ViewerRenderer, didRequestContextMenuFor href: String) {
+        referenceCoordinator.handleContextMenu(href: href)
+    }
+
     func renderer(_: ViewerRenderer, resolveReferences paths: [String]) async -> [String: String] {
         await resolveReferences(paths)
     }
@@ -521,6 +525,41 @@ extension ViewerWindowController: ReferenceResolutionHost {
     /// window があればシート、無ければモーダルで表示する(判定は FileNotFoundUI 側)。
     func presentReferenceNotFound(url: URL) {
         FileNotFoundUI.present(url: url, over: window)
+    }
+
+    /// リンク/パス参照の ctrl+クリック(右クリック)で NSMenu を表示する。
+    /// 表示位置は JS の座標ではなく現在のマウス位置を使う(WKWebView の CSS ピクセルと
+    /// NSView 座標の変換、ページズームの影響を避けるため)。
+    func presentReferenceContextMenu(for url: URL, isExternal: Bool) {
+        guard let contentView = window?.contentView,
+              let location = window?.mouseLocationOutsideOfEventStream
+        else { return }
+        let menu = ReferenceContextMenu.makeMenu(
+            for: url, isExternal: isExternal, target: self, action: #selector(performReferenceMenuAction(_:))
+        )
+        menu.popUp(positioning: nil, at: contentView.convert(location, from: nil), in: contentView)
+    }
+
+    /// コンテキストメニューの各項目の実行を、既存の遷移・Finder・クリップボード処理へ委譲する。
+    @objc private func performReferenceMenuAction(_ sender: NSMenuItem) {
+        guard let invocation = sender.representedObject as? ReferenceMenuInvocation else { return }
+        switch invocation.action {
+        case let .open(disposition):
+            openReference(invocation.url, disposition: disposition)
+        case .revealInFinder:
+            NSWorkspace.shared.activateFileViewerSelecting([invocation.url])
+        case .copyName:
+            writeToPasteboard(invocation.url.lastPathComponent)
+        case .copyRelativePath:
+            writeToPasteboard(PathRelativizer.relativePath(of: invocation.url, relativeTo: referenceBaseURL))
+        }
+    }
+
+    /// NSPasteboard.general へ文字列を書き込む(FileListView の copyPath と同じ処理)。
+    private func writeToPasteboard(_ string: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(string, forType: .string)
     }
 }
 

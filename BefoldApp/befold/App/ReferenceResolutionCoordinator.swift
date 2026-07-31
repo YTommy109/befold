@@ -13,6 +13,8 @@ protocol ReferenceResolutionHost: AnyObject {
     func openReference(_ url: URL, disposition: OpenDisposition)
     /// 解決できなかったパス参照をユーザーに知らせる。
     func presentReferenceNotFound(url: URL)
+    /// 解決できたパス参照/外部 URL に対するコンテキストメニューを表示する。
+    func presentReferenceContextMenu(for url: URL, isExternal: Bool)
 }
 
 /// git 連携を持たない索引。パス参照は相対解決だけで済ませる。
@@ -76,6 +78,28 @@ final class ReferenceResolutionCoordinator {
                     host.presentReferenceNotFound(url: url)
                 }
             case .ignored:
+                break
+            }
+        }
+    }
+
+    /// コンテキストメニュー要求を処理する。解決できない参照ではメニューを出さない
+    /// (クリックが無反応なのと揃える)。
+    func handleContextMenu(href: String) {
+        guard let host else { return }
+        let resolver = resolver
+        let baseURL = host.referenceBaseURL
+        Task {
+            let reference = await Task.detached(priority: .userInitiated) {
+                resolver.resolve(href: href, baseURL: baseURL)
+            }.value
+            guard let host = self.host else { return }
+            switch reference {
+            case let .external(url):
+                host.presentReferenceContextMenu(for: url, isExternal: true)
+            case let .resolved(url):
+                host.presentReferenceContextMenu(for: url, isExternal: false)
+            case .unresolved, .ignored:
                 break
             }
         }

@@ -1,6 +1,7 @@
   // Swift ブリッジメッセージ名（ViewerBridge.swift と同期）
   var _MSG_ZOOM_CHANGED = 'zoomChanged';
   var _MSG_REFERENCE_ACTIVATED = 'referenceActivated';
+  var _MSG_REFERENCE_CONTEXT_MENU = 'referenceContextMenu';
   var _MSG_FIND_OPTIONS_CHANGED = 'findOptionsChanged';
   var _MSG_SCROLL_POSITION_CHANGED = 'scrollPositionChanged';
   var _MSG_LOAD_MORE_LINES = 'loadMoreLines';
@@ -208,25 +209,33 @@
   }
 
   // --- リンク・パス参照クリック ---
+
+  // クリック/contextmenu で共有する要素判定。<a> / .befold-path-ref を対象にし、
+  // 解決待ち(pending)・解決失敗(dead)のパス参照は操作不可(通常テキスト扱い)として
+  // 除外する。対象外・href 無しなら null を返す。
+  function _mmdReferenceTargetHref(e) {
+    var anchor = e.target.closest('a');
+    var pathRef = e.target.closest('.befold-path-ref');
+    var target = anchor || pathRef;
+    if (!target) return null;
+
+    if (target.classList.contains('befold-link-pending') ||
+        target.classList.contains('befold-link-dead')) {
+      return null;
+    }
+
+    return anchor ? anchor.getAttribute('href') : pathRef.dataset.path;
+  }
+
   function _mmdInitReferenceClicks() {
-    document.getElementById('diagram-wrap').addEventListener('click', function(e) {
+    var wrap = document.getElementById('diagram-wrap');
+
+    wrap.addEventListener('click', function(e) {
       // XSS から postMessage を自動発火させる攻撃を防ぐため、
       // ユーザー起因のイベントのみ処理する。
       if (!e.isTrusted) return;
 
-      var anchor = e.target.closest('a');
-      var pathRef = e.target.closest('.befold-path-ref');
-      var target = anchor || pathRef;
-      if (!target) return;
-
-      // 解決待ち(pending)・解決失敗(dead)のパス参照はクリック不可(通常テキスト扱い)。
-      // 外部 URL・# アンカーは中立化の対象外でこれらのクラスを持たないため影響しない。
-      if (target.classList.contains('befold-link-pending') ||
-          target.classList.contains('befold-link-dead')) {
-        return;
-      }
-
-      var href = anchor ? anchor.getAttribute('href') : pathRef.dataset.path;
+      var href = _mmdReferenceTargetHref(e);
       if (!href) return;
 
       // # で始まるアンカーリンクは JS 側で明示的にスクロールする
@@ -252,6 +261,16 @@
         metaKey: e.metaKey,
         shiftKey: e.shiftKey
       });
+    });
+
+    wrap.addEventListener('contextmenu', function(e) {
+      if (!e.isTrusted) return;
+      if (!isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')) { return; }
+      var href = _mmdReferenceTargetHref(e);
+      // リンク/パス参照の上でなければ WKWebView 既定のメニューに任せる。
+      if (!href || href.charAt(0) === '#') { return; }
+      e.preventDefault();
+      _mmdPostMessage(_MSG_REFERENCE_CONTEXT_MENU, { href: href });
     });
   }
 
