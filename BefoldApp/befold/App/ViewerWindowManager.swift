@@ -157,7 +157,10 @@ final class ViewerWindowManager {
     /// 指定 URL のファイルをビューアウィンドウで開く。
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
     func openViewer(
-        for url: URL, forceSidebarVisible: Bool = false,
+        for url: URL,
+        disposition: OpenDisposition = .currentTab,
+        relativeTo sourceWindow: NSWindow? = nil,
+        forceSidebarVisible: Bool = false,
         sidebarVisibleOverride: Bool? = nil,
         initialSortOrder: SortOrder = .foldersFirst,
         showLineNumbersOverride: Bool? = nil,
@@ -216,10 +219,26 @@ final class ViewerWindowManager {
         controller.delegate = self
         NSApp.activate()
         controller.showWindow(nil)
+        if disposition == .newTab, let window = controller.window {
+            attachAsTab(window, to: sourceWindow, select: true)
+        }
         sessionStore.noteOpened(url)
         recentDocumentsStore.noteOpened(url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         recordRecentRepositoryIfNeeded(for: url, controller: controller)
+    }
+
+    /// window を baseWindow のタブグループへ結合する。タブ結合の手続きはここが単一の実装元で、
+    /// セッション復元(SessionRestorer.restoreTabGroup)も同じ経路を通る。
+    /// baseWindow が nil のときは何もしない = 独立したウィンドウのままにする
+    /// (「開けない」より「タブにならない」へ縮退させる)。
+    /// - Parameter select: 結合したタブを選択状態にするか。復元時は元の選択タブを別途決めるため false。
+    func attachAsTab(_ window: NSWindow, to baseWindow: NSWindow?, select: Bool) {
+        guard let baseWindow, baseWindow !== window else { return }
+        baseWindow.addTabbedWindow(window, ordered: .above)
+        if select {
+            window.tabGroup?.selectedWindow = window
+        }
     }
 
     /// ウィンドウが「表示中のはずなのにアクティブ Space に居ない」状態かを判定する。

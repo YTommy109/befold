@@ -196,7 +196,7 @@ final class SessionRestorer {
             openViewer(for: url, options: options)
             guard let window = windowManager.window(forPath: path) else { continue }
             // システムの「書類を開くときはタブで開く」設定に依存しないよう明示的にタブ化する
-            previousWindow?.addTabbedWindow(window, ordered: .above)
+            windowManager.attachAsTab(window, to: previousWindow, select: false)
             previousWindow = window
         }
         if let selectedPath = group.selectedPath,
