@@ -218,7 +218,8 @@ extension ViewerWindowControllerTests {
         contents: String = "graph TD;",
         zoomStore: ZoomStore? = nil,
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"),
-        openFileInNewWindow: @escaping (URL) -> Void = { _ in }
+        openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { _, _, _ in },
+        externalOpener: @escaping (URL) -> Void = { _ in }
     ) -> ViewerWindowController {
         var dict: [String: String] = [:]
         for url in [primary] + others {
@@ -240,7 +241,8 @@ extension ViewerWindowControllerTests {
                 fileReader: InMemoryFileReader(files: dict),
                 defaults: defaults
             ),
-            openFileInNewWindow: openFileInNewWindow
+            openFileElsewhere: openFileElsewhere,
+            externalOpener: externalOpener
         )
     }
 
@@ -395,7 +397,7 @@ extension ViewerWindowControllerTests {
         )
         defer { controller.close() }
 
-        controller.handleOpenReference(href: "b.md", newWindow: false)
+        controller.handleOpenReference(href: "b.md", disposition: .currentTab)
         await controller.referenceCoordinator.pendingOpenReferenceTask?.value
 
         #expect(controller.fileURL.lastPathComponent == "b.md")
@@ -490,7 +492,7 @@ extension ViewerWindowControllerTests {
             gitIndex: ThreadRecordingGitIndex(wasMainThread: wasMainThread)
         )
 
-        controller.handleOpenReference(href: "utils.swift", newWindow: false)
+        controller.handleOpenReference(href: "utils.swift", disposition: .currentTab)
         await controller.referenceCoordinator.pendingOpenReferenceTask?.value
 
         #expect(wasMainThread.get() == false, "git 索引を MainActor 上で触っている")
@@ -514,7 +516,7 @@ extension ViewerWindowControllerTests {
         let controller = makeSwitchController(
             primary: base, contents: "# doc",
             defaults: makeIsolatedDefaults(prefix: "ResolveAgreement"),
-            openFileInNewWindow: { openedInNewWindow.append($0) }
+            openFileElsewhere: { url, _, _ in openedInNewWindow.append(url) }
         )
         defer { controller.close() }
         // 相対解決では見つからず、git 追跡ファイルのサフィックス一致でのみ解決できる状態。
@@ -524,8 +526,8 @@ extension ViewerWindowControllerTests {
         )
 
         let resolved = await controller.resolveReferences(["utils.swift"])["utils.swift"]
-        // newWindow: true でクリックすると、開く先の URL がそのまま観測できる。
-        controller.handleOpenReference(href: "utils.swift", newWindow: true)
+        // disposition: .newWindow でクリックすると、開く先の URL がそのまま観測できる。
+        controller.handleOpenReference(href: "utils.swift", disposition: .newWindow)
         await controller.referenceCoordinator.pendingOpenReferenceTask?.value
 
         #expect(resolved == tracked.path)
@@ -533,12 +535,12 @@ extension ViewerWindowControllerTests {
         // 表示時にリンク化しなかった参照は、クリックしても遷移しない(逆方向の一致)。
         let unresolved = await controller.resolveReferences(["nope.swift"])
         #expect(unresolved.isEmpty)
-        controller.handleOpenReference(href: "nope.swift", newWindow: true)
+        controller.handleOpenReference(href: "nope.swift", disposition: .newWindow)
         await controller.referenceCoordinator.pendingOpenReferenceTask?.value
         #expect(openedInNewWindow.map(\.path) == [tracked.path])
     }
 
-    @Test("newWindow: true 経路では元ウィンドウの状態が変化しない")
+    @Test("disposition: .newWindow 経路では元ウィンドウの状態が変化しない")
     func handleOpenReferenceWithNewWindowLeavesOriginalWindowUnchanged() async {
         let fileA = URL(fileURLWithPath: "/mock/a.md")
         let fileB = URL(fileURLWithPath: "/mock/b.md")
@@ -546,16 +548,77 @@ extension ViewerWindowControllerTests {
         let controller = makeSwitchController(
             primary: fileA, others: [fileB], contents: "# doc",
             defaults: makeIsolatedDefaults(prefix: "OpenReference"),
-            openFileInNewWindow: { openedInNewWindow.append($0) }
+            openFileElsewhere: { url, _, _ in openedInNewWindow.append(url) }
         )
         defer { controller.close() }
 
-        controller.handleOpenReference(href: "b.md", newWindow: true)
+        controller.handleOpenReference(href: "b.md", disposition: .newWindow)
         await controller.referenceCoordinator.pendingOpenReferenceTask?.value
 
         // 新規ウィンドウへの委譲のみで、現在のウィンドウは switchFile を経由しない。
         #expect(openedInNewWindow.map(\.lastPathComponent) == ["b.md"])
         #expect(controller.fileURL.lastPathComponent == "a.md")
         #expect(controller.fileListModel.canGoBack == false)
+    }
+
+    /// disposition が openReference から openFileElsewhere まで書き換えられずに届くこと、
+    /// かつタブ結合の基準になる自ウィンドウ(source)も一緒に渡ることを固定する。
+    /// ここを捨てるスタブのままだと、.newTab と .newWindow の実装取り違えが
+    /// 他のテストを緑のまま素通りしてしまう(review 指摘)。
+    @Test("openReference は disposition と起点ウィンドウをそのまま openFileElsewhere へ渡す")
+    func openReferencePassesDispositionAndSourceWindowThrough() async {
+        let fileA = URL(fileURLWithPath: "/mock/a.md")
+        let fileB = URL(fileURLWithPath: "/mock/b.md")
+        var received: [(url: URL, disposition: OpenDisposition, source: NSWindow?)] = []
+        let controller = makeSwitchController(
+            primary: fileA, others: [fileB], contents: "# doc",
+            defaults: makeIsolatedDefaults(prefix: "OpenReferenceDisposition"),
+            openFileElsewhere: { url, disposition, source in
+                received.append((url, disposition, source))
+            }
+        )
+        defer { controller.close() }
+
+        controller.handleOpenReference(href: "b.md", disposition: .newTab)
+        await controller.referenceCoordinator.pendingOpenReferenceTask?.value
+
+        #expect(received.map(\.url.lastPathComponent) == ["b.md"])
+        #expect(received.map(\.disposition) == [.newTab])
+        #expect(received.first?.source === controller.window)
+    }
+
+    /// 外部 URL(http/https)のコンテキストメニュー「開く」系は、ファイルビューア経路
+    /// (switchFile/openFileElsewhere)に流すと存在確認に失敗して「ファイルが見つかりません」に
+    /// なる(review 指摘)。修飾キーによらずブラウザで開くことをここで固定する。
+    @Test("外部 URL のコンテキストメニュー「開く」はファイルビューア経路を経由しない")
+    func externalURLContextMenuOpenSkipsFileViewer() throws {
+        let file = URL(fileURLWithPath: "/mock/a.md")
+        var openedElsewhere: [URL] = []
+        var openedExternally: [URL] = []
+        let controller = makeSwitchController(
+            primary: file,
+            defaults: makeIsolatedDefaults(prefix: "ExternalURLContextMenu"),
+            openFileElsewhere: { url, _, _ in openedElsewhere.append(url) },
+            externalOpener: { url in openedExternally.append(url) }
+        )
+        defer { controller.close() }
+        let externalURL = try #require(URL(string: "https://example.com/docs"))
+
+        for disposition: OpenDisposition in [.currentTab, .newTab, .newWindow] {
+            let menu = ReferenceContextMenu.makeMenu(
+                for: externalURL, isExternal: true, target: controller,
+                action: Selector(("performReferenceMenuAction:"))
+            )
+            let openItem = menu.items.first {
+                ($0.representedObject as? ReferenceMenuInvocation)?.action == .open(disposition)
+            }
+            _ = openItem?.target?.perform(openItem?.action, with: openItem)
+        }
+
+        #expect(openedElsewhere.isEmpty)
+        // switchFile 経由(.currentTab)なら fileURL が書き換わるが、外部 URL では現在ファイルのまま。
+        #expect(controller.fileURL == file)
+        // 3 disposition すべてで、実ブラウザを起動せず externalOpener 経由でブラウザ経路に渡ったことを確認する。
+        #expect(openedExternally == [externalURL, externalURL, externalURL])
     }
 }

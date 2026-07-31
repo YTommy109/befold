@@ -12,9 +12,14 @@ public enum ViewerBridge {
     public static let zoomChangedMessageName = "zoomChanged"
 
     /// リンクやパス参照がクリックされたときに postMessage されるメッセージハンドラ名。
-    /// 無修飾クリックで同一ウィンドウ遷移、cmd+click で新規ウィンドウ遷移。
-    /// payload: { href: String, newWindow: Bool }
+    /// 修飾キーの解釈は Swift 側(OpenDisposition)が行うため、JS は押下状態のみ送る。
+    /// payload: { href: String, metaKey: Bool, shiftKey: Bool }
     public static let referenceActivatedMessageName = "referenceActivated"
+
+    /// リンクやパス参照の上で ctrl+クリック(右クリック)されたときに postMessage される
+    /// メッセージハンドラ名。Swift 側が NSMenu を表示する。
+    /// payload: { href: String }
+    public static let referenceContextMenuMessageName = "referenceContextMenu"
 
     /// Swift から引数なしで呼び出す JS 関数。呼び出しスクリプト文字列と、JS 側の定義
     /// トークン(存在検証に使う)をこの 1 箇所から導出し、生リテラルの二重管理をなくす。
@@ -287,7 +292,8 @@ public enum ViewerBridge {
         /// referenceActivated のキー。
         public enum ReferenceActivated: String, CaseIterable, Sendable {
             case href
-            case newWindow
+            case metaKey
+            case shiftKey
         }
 
         /// scrollPositionChanged のキー。
@@ -307,6 +313,11 @@ public enum ViewerBridge {
         public enum ResolveReferences: String, CaseIterable, Sendable {
             case paths
         }
+
+        /// referenceContextMenu のキー。
+        public enum ReferenceContextMenu: String, CaseIterable, Sendable {
+            case href
+        }
     }
 
     /// メッセージ名 → JS がオブジェクトとして送るペイロードのキー集合。
@@ -319,5 +330,6 @@ public enum ViewerBridge {
         findOptionsChangedMessageName: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue)),
         loadMoreLinesMessageName: [],
         resolveReferencesMessageName: Set(PayloadKey.ResolveReferences.allCases.map(\.rawValue)),
+        referenceContextMenuMessageName: Set(PayloadKey.ReferenceContextMenu.allCases.map(\.rawValue)),
     ]
 }

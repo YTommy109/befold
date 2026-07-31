@@ -3,7 +3,7 @@
 // 読み込み・初期化・単体呼び出しできることを確認する。
 
 const {
-  loadViewerMain, captureBridgeMessages, dispatchTrustedClick,
+  loadViewerMain, captureBridgeMessages, dispatchTrustedClick, dispatchTrustedContextMenu,
 } = require('./support/viewerMainHarness');
 
 // カラースキーム変更を発火できる matchMedia に差し替える。ハーネス既定のスタブは
@@ -1035,8 +1035,8 @@ describe('パス参照の表示時解決', () => {
     return Array.from(loaded.document.querySelector(selector).classList).sort();
   }
 
-  function click(loaded, selector) {
-    dispatchTrustedClick(loaded.window, loaded.document.querySelector(selector));
+  function click(loaded, selector, init) {
+    dispatchTrustedClick(loaded.window, loaded.document.querySelector(selector), init);
   }
 
   test('描画後にローカルパス候補を一意化して resolveReferences を送る', async () => {
@@ -1099,7 +1099,34 @@ describe('パス参照の表示時解決', () => {
     click(loaded, '#diagram-wrap .befold-path-ref');
 
     expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload))
-      .toEqual([{ href: 'src/a.swift', newWindow: false }]);
+      .toEqual([{ href: 'src/a.swift', metaKey: false, shiftKey: false }]);
+  });
+
+  test('修飾キーの押下状態をそのまま referenceActivated に載せる', async () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    await loaded.main.render('src/a.swift\n', 'code', 'txt');
+    loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
+
+    click(loaded, '#diagram-wrap .befold-path-ref', { metaKey: true });
+    click(loaded, '#diagram-wrap .befold-path-ref', { metaKey: true, shiftKey: true });
+
+    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload))
+      .toEqual([
+        { href: 'src/a.swift', metaKey: true, shiftKey: false },
+        { href: 'src/a.swift', metaKey: true, shiftKey: true },
+      ]);
+  });
+
+  test('ctrlKey が押された click では referenceActivated を送らない(コンテキストメニュー扱い)', async () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    await loaded.main.render('src/a.swift\n', 'code', 'txt');
+    loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
+
+    click(loaded, '#diagram-wrap .befold-path-ref', { ctrlKey: true });
+
+    expect(received.filter((m) => m.name === 'referenceActivated')).toEqual([]);
   });
 
   test('外部 URL と # アンカーは中立化せず従来どおり動く', () => {
@@ -1118,7 +1145,7 @@ describe('パス参照の表示時解決', () => {
     ['#ext', '#mail', '#anchor'].forEach((sel) => expect(classesOf(loaded, sel)).toEqual([]));
     click(loaded, '#ext');
     expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload))
-      .toEqual([{ href: 'https://example.com/a.md', newWindow: false }]);
+      .toEqual([{ href: 'https://example.com/a.md', metaKey: false, shiftKey: false }]);
   });
 
   test('コロン付きの行番号参照はスキームと誤認せず解決要求に含める', () => {
@@ -1236,6 +1263,34 @@ describe('パス参照の表示時解決', () => {
 
     expect(loaded.document.getElementById('fake').getAttribute('title')).toBe('/repo/secret.md');
     expect(loaded.document.getElementById('dead').hasAttribute('title')).toBe(false);
+  });
+
+  test('リンク上の contextmenu は既定メニューを抑止して referenceContextMenu を送る', async () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceContextMenu']);
+    await loaded.main.render('src/a.swift\n', 'code', 'txt');
+    loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
+
+    const event = dispatchTrustedContextMenu(
+      loaded.window, loaded.document.querySelector('#diagram-wrap .befold-path-ref')
+    );
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(received.filter((m) => m.name === 'referenceContextMenu').map((m) => m.payload))
+      .toEqual([{ href: 'src/a.swift' }]);
+  });
+
+  test('リンク以外の contextmenu は既定メニューのまま何も送らない', async () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['referenceContextMenu']);
+    await loaded.main.render('ただの本文\n', 'code', 'txt');
+
+    const event = dispatchTrustedContextMenu(
+      loaded.window, loaded.document.getElementById('diagram-wrap')
+    );
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(received).toEqual([]);
   });
 });
 

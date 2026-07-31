@@ -10,9 +10,11 @@ protocol ReferenceResolutionHost: AnyObject {
     /// 切替・リネームで変化するため都度参照する。
     var referenceBaseURL: URL { get }
     /// 解決できたパス参照を開く。
-    func openReference(_ url: URL, inNewWindow: Bool)
+    func openReference(_ url: URL, disposition: OpenDisposition)
     /// 解決できなかったパス参照をユーザーに知らせる。
     func presentReferenceNotFound(url: URL)
+    /// 解決できたパス参照/外部 URL に対するコンテキストメニューを表示する。
+    func presentReferenceContextMenu(for url: URL, isExternal: Bool)
 }
 
 /// git 連携を持たない索引。パス参照は相対解決だけで済ませる。
@@ -56,7 +58,7 @@ final class ReferenceResolutionCoordinator {
     /// リンク/パス参照のアクティベーションを処理する。
     /// 解決はキャッシュ未命中時に `git ls-files` の subprocess を待つため、resolveReferences と
     /// 同じ方針で MainActor を離して行い、host への通知だけメインアクターへ戻す。
-    func handleOpenReference(href: String, newWindow: Bool) {
+    func handleOpenReference(href: String, disposition: OpenDisposition) {
         guard let host else { return }
         let resolver = resolver
         let baseURL = host.referenceBaseURL
@@ -69,13 +71,35 @@ final class ReferenceResolutionCoordinator {
             case let .external(url):
                 NSWorkspace.shared.open(url)
             case let .resolved(url):
-                host.openReference(url, inNewWindow: newWindow)
+                host.openReference(url, disposition: disposition)
             case .unresolved:
                 // 解決できなかったパスは、素朴な相対解決結果を「見つかりません」表示に使う。
                 if case let .localFile(url) = ReferenceResolver.resolve(href: href, baseURL: baseURL) {
                     host.presentReferenceNotFound(url: url)
                 }
             case .ignored:
+                break
+            }
+        }
+    }
+
+    /// コンテキストメニュー要求を処理する。解決できない参照ではメニューを出さない
+    /// (クリックが無反応なのと揃える)。
+    func handleContextMenu(href: String) {
+        guard let host else { return }
+        let resolver = resolver
+        let baseURL = host.referenceBaseURL
+        Task {
+            let reference = await Task.detached(priority: .userInitiated) {
+                resolver.resolve(href: href, baseURL: baseURL)
+            }.value
+            guard let host = self.host else { return }
+            switch reference {
+            case let .external(url):
+                host.presentReferenceContextMenu(for: url, isExternal: true)
+            case let .resolved(url):
+                host.presentReferenceContextMenu(for: url, isExternal: false)
+            case .unresolved, .ignored:
                 break
             }
         }

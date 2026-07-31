@@ -1,4 +1,5 @@
 import AppKit
+import BefoldKit
 import WebKit
 
 // MARK: - Direct HTML link policy
@@ -36,8 +37,8 @@ extension ViewerRenderer {
         switch action {
         case .allowNativeNavigation:
             return .allow
-        case let .openLocalFile(fileURL, newWindow):
-            delegate?.renderer(self, didActivateReference: fileURL.path, newWindow: newWindow)
+        case let .openLocalFile(fileURL, disposition):
+            delegate?.renderer(self, didActivateReference: fileURL.path, disposition: disposition)
             return .cancel
         case let .openExternal(externalURL):
             NSWorkspace.shared.open(externalURL)
@@ -52,19 +53,26 @@ public extension ViewerRenderer {
     /// 直接 HTML モードでのリンククリックに対する挙動分類。
     enum DirectHTMLLinkAction: Equatable {
         case allowNativeNavigation
-        case openLocalFile(url: URL, newWindow: Bool)
+        case openLocalFile(url: URL, disposition: OpenDisposition)
         case openExternal(url: URL)
         case ignore
     }
 
     /// クリックされたリンク URL を分類する純関数。
     /// 同一文書内フラグメントはネイティブのスクロールに任せ、それ以外のローカルファイルは
-    /// フラグメントを除去した上で cmd 修飾の有無に応じて同一/新規ウィンドウを判断する。
+    /// フラグメントを除去する。修飾キーの解釈は OpenDisposition に委ねる。
     nonisolated static func directHTMLLinkPolicy(
         url: URL,
         currentURL: URL?,
         modifierFlags: NSEvent.ModifierFlags
     ) -> DirectHTMLLinkAction {
+        // ctrl はコンテキストメニュー扱い(OpenDisposition のドキュメント参照)であり、
+        // このメソッドの呼び出し元(decidePolicyFor)にはコンテキストメニュー経路が無いため、
+        // ここでは遷移させず無視する。
+        if modifierFlags.contains(.control) {
+            return .ignore
+        }
+
         if let fragment = url.fragment, !fragment.isEmpty,
            let currentURL,
            url.deletingFragment() == currentURL.deletingFragment()
@@ -79,8 +87,7 @@ public extension ViewerRenderer {
 
         if url.isFileURL {
             let cleanURL = url.fragment != nil ? url.deletingFragment() : url
-            let newWindow = modifierFlags.contains(.command)
-            return .openLocalFile(url: cleanURL, newWindow: newWindow)
+            return .openLocalFile(url: cleanURL, disposition: OpenDisposition(modifiers: modifierFlags))
         }
 
         return .ignore

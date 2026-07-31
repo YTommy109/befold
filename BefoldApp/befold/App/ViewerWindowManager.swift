@@ -162,7 +162,10 @@ final class ViewerWindowManager {
     /// 指定 URL のファイルをビューアウィンドウで開く。
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
     func openViewer(
-        for url: URL, forceSidebarVisible: Bool = false,
+        for url: URL,
+        disposition: OpenDisposition = .currentTab,
+        relativeTo sourceWindow: NSWindow? = nil,
+        forceSidebarVisible: Bool = false,
         sidebarVisibleOverride: Bool? = nil,
         initialSortOrder: SortOrder = .foldersFirst,
         showLineNumbersOverride: Bool? = nil,
@@ -177,6 +180,9 @@ final class ViewerWindowManager {
         let key = url.normalizedPathKey
         // Finder/CLI/リンクからの再オープンは重複ウィンドウを作らず既存を前面化する。
         // (ウィンドウ内のサイドバー切替だけは他ウィンドウを無視して自ウィンドウを切り替える)
+        // この早期 return は disposition の分岐より前にあるため、既に別ウィンドウで
+        // 開いているファイルへの cmd+クリック(.newTab/.newWindow)も新規タブ/ウィンドウには
+        // ならず、そのウィンドウの前面化になる(重複抑止を新規オープンの意図より優先する)。
         if let existing = controllers[key]?.first {
             NSApp.activate()
             existing.focusWindow()
@@ -215,16 +221,36 @@ final class ViewerWindowManager {
             showLineNumbersOverride: showLineNumbersOverride,
             sourceModeOverride: sourceModeOverride,
             store: makeStore?(url),
-            openFileInNewWindow: { [weak self] fileURL in self?.openViewer(for: fileURL) }
+            openFileElsewhere: { [weak self] fileURL, disposition, sourceWindow in
+                self?.openViewer(for: fileURL, disposition: disposition, relativeTo: sourceWindow)
+            }
         )
         controllers[key, default: []].append(controller)
         controller.delegate = self
         NSApp.activate()
         controller.showWindow(nil)
+        // window が nil(生成直後で取得できない等)ならタブ結合をあきらめ独立ウィンドウのまま
+        // 表示する(attachAsTab と同じ「開けないよりタブにならない」への縮退)。
+        if disposition == .newTab, let window = controller.window {
+            attachAsTab(window, to: sourceWindow, select: true)
+        }
         sessionStore.noteOpened(url)
         recentDocumentsStore.noteOpened(url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         recordRecentRepositoryIfNeeded(for: url, controller: controller)
+    }
+
+    /// window を baseWindow のタブグループへ結合する。タブ結合の手続きはここが単一の実装元で、
+    /// セッション復元(SessionRestorer.restoreTabGroup)も同じ経路を通る。
+    /// baseWindow が nil のときは何もしない = 独立したウィンドウのままにする
+    /// (「開けない」より「タブにならない」へ縮退させる)。
+    /// - Parameter select: 結合したタブを選択状態にするか。復元時は元の選択タブを別途決めるため false。
+    func attachAsTab(_ window: NSWindow, to baseWindow: NSWindow?, select: Bool) {
+        guard let baseWindow, baseWindow !== window else { return }
+        baseWindow.addTabbedWindow(window, ordered: .above)
+        if select {
+            window.tabGroup?.selectedWindow = window
+        }
     }
 
     /// ウィンドウが「表示中のはずなのにアクティブ Space に居ない」状態かを判定する。

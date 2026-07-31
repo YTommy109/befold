@@ -122,10 +122,11 @@ struct ViewerWebViewCoordinatorTests {
         #expect(names.contains(ViewerBridge.referenceActivatedMessageName))
         #expect(names.contains(ViewerBridge.loadMoreLinesMessageName))
         #expect(names.contains(ViewerBridge.resolveReferencesMessageName))
+        #expect(names.contains(ViewerBridge.referenceContextMenuMessageName))
         #expect(names.contains(ViewerBridge.zoomChangedMessageName))
         #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
         #expect(names.contains(ViewerBridge.scrollPositionChangedMessageName))
-        #expect(names.count == 6)
+        #expect(names.count == 7)
     }
 
     @Test("allowsInteractiveBridging: false では referenceActivated/loadMoreLines を登録しない(多層防御)")

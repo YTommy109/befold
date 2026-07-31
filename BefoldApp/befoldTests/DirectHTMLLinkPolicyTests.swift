@@ -33,22 +33,22 @@ struct DirectHTMLLinkPolicyTests {
         #expect(result == .allowNativeNavigation)
     }
 
-    @Test("ローカルファイル cmd 無しは openLocalFile sameWindow を返す")
+    @Test("ローカルファイル cmd 無しは openLocalFile currentTab を返す")
     func localFileSameWindow() {
         let url = URL(fileURLWithPath: "/tmp/test/other.md")
         let result = ViewerRenderer.directHTMLLinkPolicy(
             url: url, currentURL: currentURL, modifierFlags: []
         )
-        #expect(result == .openLocalFile(url: url, newWindow: false))
+        #expect(result == .openLocalFile(url: url, disposition: .currentTab))
     }
 
-    @Test("ローカルファイル cmd ありは openLocalFile newWindow を返す")
+    @Test("ローカルファイル cmd ありは openLocalFile newTab を返す")
     func localFileNewWindow() {
         let url = URL(fileURLWithPath: "/tmp/test/other.md")
         let result = ViewerRenderer.directHTMLLinkPolicy(
             url: url, currentURL: currentURL, modifierFlags: .command
         )
-        #expect(result == .openLocalFile(url: url, newWindow: true))
+        #expect(result == .openLocalFile(url: url, disposition: .newTab))
     }
 
     @Test("http URL は openExternal を返す")
@@ -85,6 +85,42 @@ struct DirectHTMLLinkPolicyTests {
             url: url, currentURL: currentURL, modifierFlags: []
         )
         let expected = URL(fileURLWithPath: "/tmp/test/other.md")
-        #expect(result == .openLocalFile(url: expected, newWindow: false))
+        #expect(result == .openLocalFile(url: expected, disposition: .currentTab))
+    }
+
+    @Test("ctrl+クリックはコンテキストメニュー扱いで ignore を返す(遷移させない)")
+    func ctrlClickIsIgnored() {
+        let url = URL(fileURLWithPath: "/tmp/test/other.md")
+        let result = ViewerRenderer.directHTMLLinkPolicy(
+            url: url, currentURL: currentURL, modifierFlags: .control
+        )
+        #expect(result == .ignore)
+    }
+
+    @Test("cmd+ctrl+クリックも ignore を返す(ctrl が優先される)")
+    func commandCtrlClickIsIgnored() {
+        let url = URL(fileURLWithPath: "/tmp/test/other.md")
+        let result = ViewerRenderer.directHTMLLinkPolicy(
+            url: url, currentURL: currentURL, modifierFlags: [.command, .control]
+        )
+        #expect(result == .ignore)
+    }
+
+    @Test("直接 HTML モードでも cmd+クリックは別タブ、cmd+shift+クリックは新規ウィンドウになる")
+    func directHTMLLinkUsesSharedDispositionTable() {
+        let target = URL(fileURLWithPath: "/repo/docs/a.html")
+
+        #expect(
+            ViewerRenderer.directHTMLLinkPolicy(url: target, currentURL: nil, modifierFlags: [.command])
+                == .openLocalFile(url: target, disposition: .newTab)
+        )
+        #expect(
+            ViewerRenderer.directHTMLLinkPolicy(url: target, currentURL: nil, modifierFlags: [.command, .shift])
+                == .openLocalFile(url: target, disposition: .newWindow)
+        )
+        #expect(
+            ViewerRenderer.directHTMLLinkPolicy(url: target, currentURL: nil, modifierFlags: [])
+                == .openLocalFile(url: target, disposition: .currentTab)
+        )
     }
 }

@@ -43,8 +43,12 @@ final class ViewerWindowController: NSWindowController {
     /// ウィンドウ生成時のサイドバー初期開閉状態。解決(記憶の引き継ぎ・CLI からの強制表示など)は
     /// ViewerWindowManager.openViewer が行い、ここでは結果を受け取って渡すだけにする。
     private let initialSidebarCollapsed: Bool
-    /// 別ウィンドウでファイルを開く処理。本番では AppDelegate.shared?.openViewer(for:) を注入する。
-    private let openFileInNewWindow: (URL) -> Void
+    /// 別のタブ/ウィンドウでファイルを開く処理。タブ結合の基準にするため自分のウィンドウも渡す。
+    /// 本番では ViewerWindowManager 経由で注入する。
+    private let openFileElsewhere: (URL, OpenDisposition, NSWindow?) -> Void
+    /// 外部 URL(http/https)をブラウザで開く処理。本番では NSWorkspace 経由。
+    /// テストが実ブラウザを起動せずに済むよう注入可能にしている。
+    private let externalOpener: (URL) -> Void
     /// 生成した SplitViewController への型消去参照。contentViewController が保持するため weak。
     /// CLI の `--sidebar`/`--no-sidebar` を既存ウィンドウへ適用する際に使う。
     private weak var sidebarCollapsible: (any SidebarCollapsible)?
@@ -110,7 +114,8 @@ final class ViewerWindowController: NSWindowController {
     ///   デフォルトにすると、注入を書き忘れたときに共有されない別個体が静かに生まれ、
     ///   ウィンドウごとに `git ls-files` を重複実行してしまう。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
-    /// - Parameter openFileInNewWindow: 同上。別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
+    /// - Parameter openFileElsewhere: 同上。別タブ/別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
+    /// - Parameter externalOpener: 同上。外部 URL(http/https)を開く処理。デフォルトは NSWorkspace 経由。
     init(
         fileURL: URL, defaults: UserDefaults = .standard,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
@@ -125,7 +130,10 @@ final class ViewerWindowController: NSWindowController {
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         store: ViewerStore? = nil,
-        openFileInNewWindow: @escaping (URL) -> Void = { AppDelegate.shared?.openViewer(for: $0) }
+        openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { url, disposition, source in
+            AppDelegate.shared?.openViewer(for: url, disposition: disposition, relativeTo: source)
+        },
+        externalOpener: @escaping (URL) -> Void = { url in NSWorkspace.shared.open(url) }
     ) {
         initialFileURL = fileURL
         self.perFileState = perFileState
@@ -143,7 +151,8 @@ final class ViewerWindowController: NSWindowController {
             store.applyShowLineNumbersOverride(showLineNumbersOverride)
         }
         self.store = store
-        self.openFileInNewWindow = openFileInNewWindow
+        self.openFileElsewhere = openFileElsewhere
+        self.externalOpener = externalOpener
         let parentDir = fileURL.deletingLastPathComponent()
         // 初期一覧は空で始め、attach 直後の refreshFileList()(非同期の DirectoryLister.listEntriesAsync)に
         // 埋めさせる。ウィンドウ生成時だけ同期列挙する経路を持たないことで、ネットワーク
@@ -276,7 +285,8 @@ final class ViewerWindowController: NSWindowController {
                 sidebar.refreshFileList()
             },
             onOpenInNewWindow: { [weak self] url in
-                self?.openFileInNewWindow(url)
+                guard let self else { return }
+                openFileElsewhere(url, .newWindow, window)
             },
             onToggleHiddenFiles: { [weak self] in
                 guard let self else { return }
@@ -306,8 +316,8 @@ final class ViewerWindowController: NSWindowController {
 
     /// リンク/パス参照のアクティベーションを処理する。
     /// テスト(@testable import)から回帰テストとして直接呼べるよう internal にする（外部公開はしない）。
-    func handleOpenReference(href: String, newWindow: Bool) {
-        referenceCoordinator.handleOpenReference(href: href, newWindow: newWindow)
+    func handleOpenReference(href: String, disposition: OpenDisposition) {
+        referenceCoordinator.handleOpenReference(href: href, disposition: disposition)
     }
 
     /// パス参照群を解決し、実在するものだけ「書かれたパス→解決済み絶対パス」で返す(表示時解決用)。
@@ -482,8 +492,12 @@ extension ViewerWindowController: ViewerRendererDelegate {
         perFileState.scrollPosition.setScrollPosition(position, for: fileURL, mode: mode)
     }
 
-    func renderer(_: ViewerRenderer, didActivateReference href: String, newWindow: Bool) {
-        handleOpenReference(href: href, newWindow: newWindow)
+    func renderer(_: ViewerRenderer, didActivateReference href: String, disposition: OpenDisposition) {
+        handleOpenReference(href: href, disposition: disposition)
+    }
+
+    func renderer(_: ViewerRenderer, didRequestContextMenuFor href: String) {
+        referenceCoordinator.handleContextMenu(href: href)
     }
 
     func renderer(_: ViewerRenderer, resolveReferences paths: [String]) async -> [String: String] {
@@ -503,12 +517,13 @@ extension ViewerWindowController: ReferenceResolutionHost {
         fileURL
     }
 
-    /// 解決できたパス参照を、このウィンドウで開くか別ウィンドウで開く。
-    func openReference(_ url: URL, inNewWindow: Bool) {
-        if inNewWindow {
-            openFileInNewWindow(url)
-        } else {
+    /// 解決できたパス参照を、開き方(disposition)に応じてこのウィンドウ/別タブ/別ウィンドウで開く。
+    func openReference(_ url: URL, disposition: OpenDisposition) {
+        switch disposition {
+        case .currentTab:
             switchFile(to: url)
+        case .newTab, .newWindow:
+            openFileElsewhere(url, disposition, window)
         }
     }
 
@@ -516,6 +531,48 @@ extension ViewerWindowController: ReferenceResolutionHost {
     /// window があればシート、無ければモーダルで表示する(判定は FileNotFoundUI 側)。
     func presentReferenceNotFound(url: URL) {
         FileNotFoundUI.present(url: url, over: window)
+    }
+
+    /// リンク/パス参照の ctrl+クリック(右クリック)で NSMenu を表示する。
+    /// 表示位置は JS の座標ではなく現在のマウス位置を使う(WKWebView の CSS ピクセルと
+    /// NSView 座標の変換、ページズームの影響を避けるため)。
+    func presentReferenceContextMenu(for url: URL, isExternal: Bool) {
+        guard let contentView = window?.contentView,
+              let location = window?.mouseLocationOutsideOfEventStream
+        else { return }
+        let menu = ReferenceContextMenu.makeMenu(
+            for: url, isExternal: isExternal, target: self, action: #selector(performReferenceMenuAction(_:))
+        )
+        menu.popUp(positioning: nil, at: contentView.convert(location, from: nil), in: contentView)
+    }
+
+    /// コンテキストメニューの各項目の実行を、既存の遷移・Finder・クリップボード処理へ委譲する。
+    @objc private func performReferenceMenuAction(_ sender: NSMenuItem) {
+        guard let invocation = sender.representedObject as? ReferenceMenuInvocation else { return }
+        switch invocation.action {
+        case let .open(disposition):
+            // 外部 URL(http/https)はファイルビューア経路(switchFile/openFileElsewhere)に
+            // ローカルパスが無く、渡すと「ファイルが見つかりません」になる。修飾キーに
+            // かかわらずブラウザで開く(通常クリック・cmd+クリックと同じ扱いに揃える)。
+            if invocation.isExternal {
+                externalOpener(invocation.url)
+            } else {
+                openReference(invocation.url, disposition: disposition)
+            }
+        case .revealInFinder:
+            NSWorkspace.shared.activateFileViewerSelecting([invocation.url])
+        case .copyName:
+            writeToPasteboard(invocation.url.lastPathComponent)
+        case .copyRelativePath:
+            writeToPasteboard(PathRelativizer.relativePath(of: invocation.url, relativeTo: referenceBaseURL))
+        }
+    }
+
+    /// NSPasteboard.general へ文字列を書き込む(FileListView の copyPath と同じ処理)。
+    private func writeToPasteboard(_ string: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(string, forType: .string)
     }
 }
 
