@@ -1,4 +1,5 @@
 import AppKit
+import BefoldKit
 import WebKit
 
 // MARK: - Direct HTML link policy
@@ -36,13 +37,8 @@ extension ViewerRenderer {
         switch action {
         case .allowNativeNavigation:
             return .allow
-        case let .openLocalFile(fileURL, newWindow):
-            // TODO: 直接 HTMLモードの修飾キー対応表整備は Task 4 の範囲。ここでは既存の
-            // newWindow 真偽値を OpenDisposition へそのまま写像するだけに留める。
-            delegate?.renderer(
-                self, didActivateReference: fileURL.path,
-                disposition: newWindow ? .newWindow : .currentTab
-            )
+        case let .openLocalFile(fileURL, disposition):
+            delegate?.renderer(self, didActivateReference: fileURL.path, disposition: disposition)
             return .cancel
         case let .openExternal(externalURL):
             NSWorkspace.shared.open(externalURL)
@@ -57,14 +53,14 @@ public extension ViewerRenderer {
     /// 直接 HTML モードでのリンククリックに対する挙動分類。
     enum DirectHTMLLinkAction: Equatable {
         case allowNativeNavigation
-        case openLocalFile(url: URL, newWindow: Bool)
+        case openLocalFile(url: URL, disposition: OpenDisposition)
         case openExternal(url: URL)
         case ignore
     }
 
     /// クリックされたリンク URL を分類する純関数。
     /// 同一文書内フラグメントはネイティブのスクロールに任せ、それ以外のローカルファイルは
-    /// フラグメントを除去した上で cmd 修飾の有無に応じて同一/新規ウィンドウを判断する。
+    /// フラグメントを除去する。修飾キーの解釈は OpenDisposition に委ねる。
     nonisolated static func directHTMLLinkPolicy(
         url: URL,
         currentURL: URL?,
@@ -84,8 +80,7 @@ public extension ViewerRenderer {
 
         if url.isFileURL {
             let cleanURL = url.fragment != nil ? url.deletingFragment() : url
-            let newWindow = modifierFlags.contains(.command)
-            return .openLocalFile(url: cleanURL, newWindow: newWindow)
+            return .openLocalFile(url: cleanURL, disposition: OpenDisposition(modifiers: modifierFlags))
         }
 
         return .ignore
