@@ -19,13 +19,16 @@ struct AboutView: View {
                     .frame(width: 64, height: 64)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("befold")
+                    Link("befold", destination: AppLinks.homepage)
                         .font(.headline)
                     Text(versionText)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Link("Copyright © 2026 Tommy109", destination: AppLinks.homepage)
-                        .font(.footnote)
+                    HStack(spacing: 4) {
+                        Text("Copyright © 2026")
+                        Link("Tommy109", destination: AppLinks.author)
+                    }
+                    .font(.footnote)
                 }
             }
         }
