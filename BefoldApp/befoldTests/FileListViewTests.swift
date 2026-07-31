@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldKit
 import BefoldTestSupport
 import Foundation
 import SwiftUI
@@ -27,6 +28,31 @@ struct FileListViewTests {
             onSortOrderChanged: { _ in },
             onOpenInNewWindow: { _ in }
         )
+    }
+
+    @Test("relativePathForCopy は baseDirectory(git ルート)を基準に相対パスを返す")
+    func relativePathForCopyUsesGitRootBaseDirectory() {
+        let view = makeView(entries: [], selection: nil, onSelect: { _ in })
+        view.model.rootDirectory = URL(fileURLWithPath: "/tmp/FileListViewTests")
+        view.model.baseDirectory = BaseDirectoryDescriptor(
+            gitRoot: URL(fileURLWithPath: "/tmp/repo"),
+            workspaceRoot: view.model.rootDirectory
+        )
+
+        let path = view.relativePathForCopy(URL(fileURLWithPath: "/tmp/repo/src/a.swift"))
+
+        #expect(path == "src/a.swift")
+    }
+
+    @Test("relativePathForCopy は baseDirectory 未解決なら rootDirectory を基準にする")
+    func relativePathForCopyFallsBackToRootDirectoryWhenBaseDirectoryUnresolved() {
+        let view = makeView(entries: [], selection: nil, onSelect: { _ in })
+        view.model.rootDirectory = URL(fileURLWithPath: "/tmp/FileListViewTests")
+        view.model.baseDirectory = nil
+
+        let path = view.relativePathForCopy(URL(fileURLWithPath: "/tmp/FileListViewTests/sub/a.swift"))
+
+        #expect(path == "sub/a.swift")
     }
 
     /// selectNext / selectPrevious / downArrow ルーティングの各テストで共通して使う

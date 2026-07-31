@@ -9,9 +9,6 @@ struct FileListView: View {
     let onSortOrderChanged: (SortOrder) -> Void
     let onOpenInNewWindow: (URL) -> Void
     var onToggleHiddenFiles: (() -> Void)?
-    /// 対象ファイルを含む git リポジトリの作業ツリールート。git 管理外・未設定なら nil。
-    /// 相対パスコピーの基準を git 管理下では git root にするために使う。
-    var resolveGitRoot: ((URL) -> URL?)?
 
     @FocusState private var isFilterFieldFocused: Bool
 
@@ -169,13 +166,16 @@ struct FileListView: View {
             bundle: .l10n
         )
         if entry.kind == .folder {
-            let hasFile = DirectoryLister.containsSupportedFile(in: entry.url)
+            let folder = entry.url
             Button(label) {
-                if let first = DirectoryLister.firstSupportedFile(in: entry.url) {
-                    onOpenInNewWindow(first)
+                Task {
+                    let detached = Task.detached { DirectoryLister.firstSupportedFile(in: folder) }
+                    if let first = await detached.value {
+                        onOpenInNewWindow(first)
+                    }
                 }
             }
-            .disabled(!hasFile)
+            .disabled(!entry.containsSupportedFile)
         } else {
             Button(label) {
                 onOpenInNewWindow(entry.url)
@@ -192,14 +192,16 @@ struct FileListView: View {
     private func copyPath(_ url: URL) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(
-            PathRelativizer.relativePath(
-                of: url,
-                workspaceRoot: model.rootDirectory,
-                gitRoot: resolveGitRoot?(url)
-            ),
-            forType: .string
-        )
+        pasteboard.setString(relativePathForCopy(url), forType: .string)
+    }
+
+    /// コピー対象の相対パス。基準は model.baseDirectory(SidebarNavigator がメイン外で
+    /// 解決済みの `gitRoot ?? workspaceRoot`)、未解決なら rootDirectory にフォールバックする。
+    /// PathRelativizer.relativePath(workspaceRoot:gitRoot:) と同じ規則(BaseDirectoryDescriptor
+    /// のドキュメント参照)なので、git subprocess をここで新たに走らせる必要がない。
+    /// テストから直接呼べるよう internal にする。
+    func relativePathForCopy(_ url: URL) -> String {
+        PathRelativizer.relativePath(of: url, relativeTo: model.baseDirectory?.url ?? model.rootDirectory)
     }
 
     private func revealInFinder(_ url: URL) {

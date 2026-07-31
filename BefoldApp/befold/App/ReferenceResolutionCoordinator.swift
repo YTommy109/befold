@@ -38,6 +38,10 @@ final class ReferenceResolutionCoordinator {
     /// 遷移・現在ファイル参照の委譲先。循環参照を避けるため weak。
     private weak var host: ReferenceResolutionHost?
 
+    /// 直近のクリック解決タスク。テストが完了を待つためのシーム(SidebarNavigator.pendingBaseDirectoryTask
+    /// と同じ方針)。呼び出し元が結果を待つ必要はないため戻り値は使わない。
+    private(set) var pendingOpenReferenceTask: Task<Void, Never>?
+
     init(host: ReferenceResolutionHost, fileReader: any FileReading, gitIndex: any GitFileIndexing) {
         self.host = host
         self.gitIndex = gitIndex
@@ -50,21 +54,30 @@ final class ReferenceResolutionCoordinator {
     }
 
     /// リンク/パス参照のアクティベーションを処理する。
+    /// 解決はキャッシュ未命中時に `git ls-files` の subprocess を待つため、resolveReferences と
+    /// 同じ方針で MainActor を離して行い、host への通知だけメインアクターへ戻す。
     func handleOpenReference(href: String, newWindow: Bool) {
         guard let host else { return }
+        let resolver = resolver
         let baseURL = host.referenceBaseURL
-        switch resolver.resolve(href: href, baseURL: baseURL) {
-        case let .external(url):
-            NSWorkspace.shared.open(url)
-        case let .resolved(url):
-            host.openReference(url, inNewWindow: newWindow)
-        case .unresolved:
-            // 解決できなかったパスは、素朴な相対解決結果を「見つかりません」表示に使う。
-            if case let .localFile(url) = ReferenceResolver.resolve(href: href, baseURL: baseURL) {
-                host.presentReferenceNotFound(url: url)
+        pendingOpenReferenceTask = Task {
+            let reference = await Task.detached(priority: .userInitiated) {
+                resolver.resolve(href: href, baseURL: baseURL)
+            }.value
+            guard let host = self.host else { return }
+            switch reference {
+            case let .external(url):
+                NSWorkspace.shared.open(url)
+            case let .resolved(url):
+                host.openReference(url, inNewWindow: newWindow)
+            case .unresolved:
+                // 解決できなかったパスは、素朴な相対解決結果を「見つかりません」表示に使う。
+                if case let .localFile(url) = ReferenceResolver.resolve(href: href, baseURL: baseURL) {
+                    host.presentReferenceNotFound(url: url)
+                }
+            case .ignored:
+                break
             }
-        case .ignored:
-            break
         }
     }
 

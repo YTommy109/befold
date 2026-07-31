@@ -15,6 +15,16 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
 
     let url: URL
     let kind: Kind
+    /// フォルダー配下に対応形式ファイルがあるか(`.folder` のときのみ意味を持つ)。
+    /// 一覧構築(DirectoryLister.buildEntries)の時点で事前計算し、「新しいウィンドウで
+    /// 開く」の disabled 判定・実行時のディレクトリ列挙を MainActor から追い出す。
+    let containsSupportedFile: Bool
+
+    init(url: URL, kind: Kind, containsSupportedFile: Bool = false) {
+        self.url = url
+        self.kind = kind
+        self.containsSupportedFile = containsSupportedFile
+    }
 
     var id: URL {
         url

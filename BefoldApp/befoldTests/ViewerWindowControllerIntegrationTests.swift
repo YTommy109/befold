@@ -244,7 +244,7 @@ extension ViewerWindowControllerIntegrationTests {
 /// currentDirectory の追従は実 FS のディレクトリ列挙に依存するため Integration。
 extension ViewerWindowControllerIntegrationTests {
     @Test("別ディレクトリへのリンク遷移でサイドバーのディレクトリが追従し、戻ると復帰する")
-    func handleOpenReferenceToOtherDirectoryFollowsSidebarAndBackRestores() throws {
+    func handleOpenReferenceToOtherDirectoryFollowsSidebarAndBackRestores() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let fileA = try tmp.file(named: "a.md", contents: "# A")
@@ -255,6 +255,7 @@ extension ViewerWindowControllerIntegrationTests {
         let originalDirectory = controller.fileListModel.currentDirectory
 
         controller.handleOpenReference(href: "sub/target.md", newWindow: false)
+        await controller.referenceCoordinator.pendingOpenReferenceTask?.value
 
         #expect(controller.fileURL.lastPathComponent == "target.md")
         #expect(controller.fileListModel.currentDirectory.standardizedFileURL == subDir.standardizedFileURL)

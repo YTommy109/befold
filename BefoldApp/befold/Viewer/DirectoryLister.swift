@@ -40,13 +40,17 @@ enum DirectoryLister {
             entries.append(FileListEntry(url: parent, kind: .parentNavigation))
         }
 
+        let folderEntries = folders.map {
+            FileListEntry(url: $0, kind: .folder, containsSupportedFile: containsSupportedFile(in: $0))
+        }
+        let fileEntries = files.map { FileListEntry(url: $0, kind: .file) }
+
         switch sortOrder {
         case .foldersFirst:
-            entries += folders.map { FileListEntry(url: $0, kind: .folder) }
-            entries += files.map { FileListEntry(url: $0, kind: .file) }
+            entries += folderEntries
+            entries += fileEntries
         case .alphabetical:
-            entries += (folders.map { FileListEntry(url: $0, kind: .folder) }
-                + files.map { FileListEntry(url: $0, kind: .file) })
+            entries += (folderEntries + fileEntries)
                 .sorted {
                     $0.url.lastPathComponent.localizedStandardCompare(
                         $1.url.lastPathComponent

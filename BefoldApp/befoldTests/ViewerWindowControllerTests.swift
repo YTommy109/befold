@@ -386,7 +386,7 @@ extension ViewerWindowControllerTests {
     }
 
     @Test("リンク遷移で履歴が積まれ、戻る操作で復帰する")
-    func handleOpenReferenceRecordsHistoryAndBackRestores() {
+    func handleOpenReferenceRecordsHistoryAndBackRestores() async {
         let fileA = URL(fileURLWithPath: "/mock/a.md")
         let fileB = URL(fileURLWithPath: "/mock/b.md")
         let controller = makeSwitchController(
@@ -396,6 +396,7 @@ extension ViewerWindowControllerTests {
         defer { controller.close() }
 
         controller.handleOpenReference(href: "b.md", newWindow: false)
+        await controller.referenceCoordinator.pendingOpenReferenceTask?.value
 
         #expect(controller.fileURL.lastPathComponent == "b.md")
         #expect(controller.fileListModel.canGoBack == true)
@@ -464,6 +465,37 @@ extension ViewerWindowControllerTests {
         #expect(wasMainThread.get() == false, "git 索引を MainActor 上で触っている")
     }
 
+    /// クリック時解決(handleOpenReference)も表示時解決と同じく、キャッシュ未命中時は
+    /// `git ls-files` の subprocess を待つ。resolveReferences と同じ方針で MainActor を
+    /// 離して解決することを、git 索引側から観測して固定する(task-222 の回帰テスト)。
+    @Test("クリック時解決の git 索引アクセスはメインスレッド上で行われない")
+    func handleOpenReferenceTouchesGitIndexOffMainThread() async {
+        struct ThreadRecordingGitIndex: GitFileIndexing {
+            let wasMainThread: LockedBox<Bool?>
+            func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
+                wasMainThread.set(Thread.isMainThread)
+                return SuffixPathIndex(candidates: [])
+            }
+        }
+        let base = URL(fileURLWithPath: "/mock/docs/guide.md")
+        let wasMainThread = LockedBox<Bool?>(nil)
+        let controller = makeSwitchController(
+            primary: base, contents: "# doc",
+            defaults: makeIsolatedDefaults(prefix: "OpenReferenceOffMain")
+        )
+        defer { controller.close() }
+        // 相対解決では見つからないパスを渡し、必ず git 索引フォールバックへ入らせる。
+        controller.referenceCoordinator.resolver = TrackedPathResolver(
+            fileReader: InMemoryFileReader(files: [base.path: "# doc"]),
+            gitIndex: ThreadRecordingGitIndex(wasMainThread: wasMainThread)
+        )
+
+        controller.handleOpenReference(href: "utils.swift", newWindow: false)
+        await controller.referenceCoordinator.pendingOpenReferenceTask?.value
+
+        #expect(wasMainThread.get() == false, "git 索引を MainActor 上で触っている")
+    }
+
     /// 表示時解決とクリック時解決が同じ入力に一致することを固定する。
     /// 「リンク化したものは必ずそのリンク先へ開ける」がこの機能の中心的な不変条件であり、
     /// 現状は同じ pathResolver を通ることで成立しているが、片方だけを変える将来の変更で
@@ -494,6 +526,7 @@ extension ViewerWindowControllerTests {
         let resolved = await controller.resolveReferences(["utils.swift"])["utils.swift"]
         // newWindow: true でクリックすると、開く先の URL がそのまま観測できる。
         controller.handleOpenReference(href: "utils.swift", newWindow: true)
+        await controller.referenceCoordinator.pendingOpenReferenceTask?.value
 
         #expect(resolved == tracked.path)
         #expect(openedInNewWindow.map(\.path) == [tracked.path])
@@ -501,11 +534,12 @@ extension ViewerWindowControllerTests {
         let unresolved = await controller.resolveReferences(["nope.swift"])
         #expect(unresolved.isEmpty)
         controller.handleOpenReference(href: "nope.swift", newWindow: true)
+        await controller.referenceCoordinator.pendingOpenReferenceTask?.value
         #expect(openedInNewWindow.map(\.path) == [tracked.path])
     }
 
     @Test("newWindow: true 経路では元ウィンドウの状態が変化しない")
-    func handleOpenReferenceWithNewWindowLeavesOriginalWindowUnchanged() {
+    func handleOpenReferenceWithNewWindowLeavesOriginalWindowUnchanged() async {
         let fileA = URL(fileURLWithPath: "/mock/a.md")
         let fileB = URL(fileURLWithPath: "/mock/b.md")
         var openedInNewWindow: [URL] = []
@@ -517,6 +551,7 @@ extension ViewerWindowControllerTests {
         defer { controller.close() }
 
         controller.handleOpenReference(href: "b.md", newWindow: true)
+        await controller.referenceCoordinator.pendingOpenReferenceTask?.value
 
         // 新規ウィンドウへの委譲のみで、現在のウィンドウは switchFile を経由しない。
         #expect(openedInNewWindow.map(\.lastPathComponent) == ["b.md"])
