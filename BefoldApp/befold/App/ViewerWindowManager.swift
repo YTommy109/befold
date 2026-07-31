@@ -302,14 +302,33 @@ final class ViewerWindowManager {
         }
     }
 
+    /// window が属するタブグループのウィンドウ群。タブ化されていなければ自身のみ。
+    /// タブ構成のスナップショットを取る側(セッション保存・最近使ったリポジトリ)が
+    /// 同じ解釈を共有するための単一の入口。
+    static func tabWindows(of window: NSWindow) -> [NSWindow] {
+        window.tabGroup?.windows ?? [window]
+    }
+
+    /// タブ構成スナップショットの組み立て本体(NSWindow に依存しない純粋関数)。
+    /// 「終了時レイアウト」と「最近使ったリポジトリのタブ構成」は同じ形式で相互に
+    /// 保存・復元されるため、組み立て規則はここ 1 箇所だけに置く。
+    /// ビューアパスを 1 つも持たなければ nil(ビューアウィンドウでない・全タブが閉じた等)。
+    static func makeTabGroup<Window>(
+        tabWindows: [Window], selectedWindow: Window, viewerPath: (Window) -> String?
+    ) -> SessionLayout.TabGroup? {
+        let paths = tabWindows.compactMap(viewerPath)
+        guard !paths.isEmpty else { return nil }
+        return SessionLayout.TabGroup(paths: paths, selectedPath: viewerPath(selectedWindow))
+    }
+
     /// window(自身のタブグループ)を SessionLayout.TabGroup として組み立てる。
     /// タブが1枚も無ければ nil(ビューアウィンドウでない・既に全タブが閉じた等)。
-    private func tabGroup(of window: NSWindow) -> SessionLayout.TabGroup? {
-        let tabWindows = window.tabGroup?.windows ?? [window]
-        let paths = tabWindows.compactMap(viewerPath(of:))
-        guard !paths.isEmpty else { return nil }
-        let selectedWindow = window.tabGroup?.selectedWindow ?? window
-        return SessionLayout.TabGroup(paths: paths, selectedPath: viewerPath(of: selectedWindow))
+    func tabGroup(of window: NSWindow) -> SessionLayout.TabGroup? {
+        Self.makeTabGroup(
+            tabWindows: Self.tabWindows(of: window),
+            selectedWindow: window.tabGroup?.selectedWindow ?? window,
+            viewerPath: viewerPath(of:)
+        )
     }
 
     /// 指定の正規化パスに対応する開状態のウィンドウを返す。

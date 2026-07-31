@@ -50,19 +50,14 @@ final class SessionRestorer {
             guard !seenWindows.contains(ObjectIdentifier(window)),
                   windowManager.viewerPath(of: window) != nil else { return }
 
-            let tabWindows = window.tabGroup?.windows ?? [window]
-            for tabWindow in tabWindows {
+            for tabWindow in ViewerWindowManager.tabWindows(of: window) {
                 seenWindows.insert(ObjectIdentifier(tabWindow))
             }
 
-            let paths = tabWindows.compactMap { windowManager.viewerPath(of: $0) }
-            guard !paths.isEmpty else { return }
-            let selectedWindow = window.tabGroup?.selectedWindow ?? window
-            groups.append(
-                SessionLayout.TabGroup(
-                    paths: paths, selectedPath: windowManager.viewerPath(of: selectedWindow)
-                )
-            )
+            // 組み立て規則は ViewerWindowManager.tabGroup(of:) に一本化してある
+            // (「最近使ったリポジトリ」のタブ構成と同じ形式で相互に復元されるため)
+            guard let group = windowManager.tabGroup(of: window) else { return }
+            groups.append(group)
         }
 
         for window in NSApp.orderedWindows {
