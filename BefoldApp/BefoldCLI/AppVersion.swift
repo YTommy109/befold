@@ -32,13 +32,7 @@ public enum AppVersion {
     }
 
     public static func resolved(infoDictionary: [String: Any]?) -> String {
-        if let version = infoDictionary?["CFBundleShortVersionString"] as? String,
-           !version.isEmpty,
-           !version.hasPrefix("$(")
-        {
-            return version
-        }
-        return fallback
+        VersionFormatting.shortVersion(infoDictionary: infoDictionary) ?? fallback
     }
 
     /// `resolved` の短縮バージョンに CFBundleVersion を括弧付きで付す。
@@ -46,7 +40,7 @@ public enum AppVersion {
     public static func resolvedWithBuild(infoDictionary: [String: Any]?) -> String {
         VersionFormatting.versionString(
             short: resolved(infoDictionary: infoDictionary),
-            build: infoDictionary?["CFBundleVersion"] as? String
+            build: VersionFormatting.buildNumber(infoDictionary: infoDictionary)
         )
     }
 

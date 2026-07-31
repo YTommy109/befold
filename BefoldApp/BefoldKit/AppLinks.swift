@@ -32,10 +32,9 @@ public enum QuickLookBadge {
     /// project.yml の settings.base で本体と同じ値が焼き込まれる。
     /// バージョンが取れない場合も、どの拡張が担当したかの識別だけは残す。
     public static func text(infoDictionary: [String: Any]?) -> String {
-        let build = infoDictionary?["CFBundleVersion"] as? String
-        guard let short = infoDictionary?["CFBundleShortVersionString"] as? String else {
+        guard let version = VersionFormatting.versionString(infoDictionary: infoDictionary) else {
             return "befold QL"
         }
-        return "befold QL, version " + VersionFormatting.versionString(short: short, build: build)
+        return "befold QL, version " + version
     }
 }
