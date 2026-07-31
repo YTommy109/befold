@@ -73,6 +73,9 @@ enum OpenDisposition {
     case newWindow
 
     /// 修飾キーからの解釈。開き方を決める唯一の対応表。
+    /// JS ブリッジは真偽値、AppKit 側はイベントのフラグと入口が 2 つあるため
+    /// 初期化子も 2 つ持つが、判定規則は commandKey/shiftKey の側 1 つに閉じる。
+    init(commandKey: Bool, shiftKey: Bool)
     init(modifiers: NSEvent.ModifierFlags)
 }
 ```
@@ -95,7 +98,20 @@ enum OpenDisposition {
 外部 URL（`.external`）は従来どおり修飾キーによらず `NSWorkspace.shared.open` で開き、
 解決待ち・解決失敗のパス参照が反応しない点も変えない。
 
-### 3. 「別タブで開く」の実装
+### 3. 直接 HTML モードのリンク
+
+`.html` ファイルを直接ロードしているときは JS ブリッジを通らず、
+`ViewerRenderer.decidePolicyForDirectHTMLAware` が `WKNavigationAction.modifierFlags` から
+開き方を決めている（現状は `modifierFlags.contains(.command)` で新規ウィンドウ判定）。
+ここも `OpenDisposition(modifiers:)` へ合流させ、同じ対応表を通す。
+`DirectHTMLLinkAction.openLocalFile` の付随値も `newWindow: Bool` から
+`disposition: OpenDisposition` へ変える。
+
+このモードでのコンテキストメニューは対象外とする（WKWebView 既定のメニューのまま）。
+`viewer.html` を介さないため JS の `contextmenu` フックを差し込めず、
+対応するには別の仕組みが要るため。
+
+### 4. 「別タブで開く」の実装
 
 `ViewerWindowManager.openViewer` に「どのウィンドウのタブグループへ入れるか」を渡せるようにし、
 生成したウィンドウを `addTabbedWindow(_:ordered: .above)` してから
@@ -107,12 +123,16 @@ enum OpenDisposition {
 
 タブグループの基準ウィンドウは、リンクをクリックしたビューアのウィンドウとする。
 
-### 4. コンテキストメニュー
+### 5. コンテキストメニュー
 
 JS の `contextmenu` イベントでリンク／パス参照を検出し、`preventDefault()` で
-WKWebView 既定メニューを抑止したうえで、href とビュー座標を新しいメッセージ
-（`referenceContextMenu`）で Swift へ送る。Swift 側は href を既存の resolver で解決し、
+WKWebView 既定メニューを抑止したうえで、href を新しいメッセージ（`referenceContextMenu`）で
+Swift へ送る。Swift 側は href を既存の resolver で解決し、
 `NSMenu.popUp(positioning:at:in:)` で表示する。
+
+表示位置に JS 側の座標は使わない。WKWebView の CSS ピクセルと `NSView` 座標系の変換に加えて
+ページズームの影響を受けるため、`window.mouseLocationOutsideOfEventStream`（＝実際のマウス位置）を
+使うほうが単純で、ズーム時にもずれない。このためペイロードは `{ href }` だけで足りる。
 
 ```text
 開く
