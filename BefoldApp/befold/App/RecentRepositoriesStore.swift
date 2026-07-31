@@ -14,9 +14,19 @@ struct RecentRepositoryEntry: Codable, Equatable {
     var rootPath: String
     var label: String
     var lastTabGroup: SessionLayout.TabGroup?
+    /// このエントリが属する本体リポジトリのルート。worktree の場合のみ本体側を指し、
+    /// 本体そのもの・git 管理外・解決失敗では nil。
+    var mainRootPath: String?
 
     var root: URL {
         URL(fileURLWithPath: rootPath)
+    }
+}
+
+extension RecentRepositoryEntry {
+    /// グループ化キー。mainRootPath が無い旧データは自身の rootPath にフォールバックする。
+    var groupKey: String {
+        URL(fileURLWithPath: mainRootPath ?? rootPath).normalizedPathKey
     }
 }
 
@@ -48,13 +58,22 @@ final class RecentRepositoriesStore {
     /// リポジトリが開かれたことを記録する。既存の同一ルートは先頭へ移動し
     /// (lastTabGroup は保持したまま)、無ければ lastTabGroup なしで新規追加する。
     /// 上限を超えた分は古い方から捨てる。
-    func record(root: URL, label: String) {
+    /// - Parameter mainRoot: worktree の場合の本体リポジトリのルート。渡された場合は
+    ///   既存エントリの値を更新し、nil の場合は既存値を保持する
+    ///   (解決に失敗しただけで記録済みの所属情報を失わせないため)。
+    func record(root: URL, label: String, mainRoot: URL? = nil) {
         let path = root.normalizedPathKey
         var entries = savedEntries()
-        let existingLastTabGroup = entries.first { $0.rootPath == path }?.lastTabGroup
+        let existing = entries.first { $0.rootPath == path }
         entries.removeAll { $0.rootPath == path }
         entries.insert(
-            RecentRepositoryEntry(rootPath: path, label: label, lastTabGroup: existingLastTabGroup), at: 0
+            RecentRepositoryEntry(
+                rootPath: path,
+                label: label,
+                lastTabGroup: existing?.lastTabGroup,
+                mainRootPath: mainRoot?.normalizedPathKey ?? existing?.mainRootPath
+            ),
+            at: 0
         )
         save(Array(entries.prefix(maximumCount)))
     }

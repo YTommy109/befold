@@ -15,6 +15,33 @@ enum GitRootLookup: Sendable, Equatable {
     }
 }
 
+/// リポジトリの表示 identity。ラベルと、本体(main)リポジトリのルート URL を併せて持つ。
+/// worktree を開いている場合でも本体を起点に兄弟 worktree を列挙できるようにするため、
+/// ラベル生成の途中で判明する本体ルートを捨てずに公開する。
+struct RepositoryIdentity: Sendable, Equatable {
+    var label: String
+    var mainRoot: URL
+}
+
+/// リポジトリに属する作業ツリー 1 件。
+struct GitWorktree: Sendable, Equatable {
+    var root: URL
+    /// 本体リポジトリの作業ツリーなら true(`git worktree list` の先頭)。
+    var isMain: Bool
+    /// チェックアウト中のブランチ名(`refs/heads/` を除いた短縮形)。
+    /// detached HEAD や bare では nil。
+    var branch: String?
+
+    /// メニュー表示名。ディレクトリ名が `etc` のように機械的なこともあるため
+    /// ブランチ名を主軸にし、ディレクトリ名を括弧で併記する(本体ラベルの表記と揃える)。
+    /// ブランチが無い(detached/bare)場合はディレクトリ名だけにする。
+    var displayName: String {
+        let directoryName = root.lastPathComponent
+        guard let branch else { return directoryName }
+        return "\(branch) (\(directoryName))"
+    }
+}
+
 /// git リポジトリの検出・identity・追跡ファイル列挙を提供する読み取りシーム。
 /// 差し替え可能にしてキャッシュ層(GitCommandFileIndex)を純粋にテストできるようにする。
 protocol GitRepositoryReading: Sendable {
@@ -71,21 +98,63 @@ struct GitRepository: GitRepositoryReading {
 
     /// メニュー表示用のリポジトリラベルを返す。本体なら "<ディレクトリ名>"、worktree なら
     /// "<本体のディレクトリ名> (<このworktreeのディレクトリ名>)"。
+    /// 判定は `repositoryIdentity(forRoot:)` に委ねる。
+    func repositoryLabel(forRoot root: URL) -> String {
+        repositoryIdentity(forRoot: root).label
+    }
+
+    /// メニュー表示用のラベルと本体リポジトリのルートを返す。
     /// `--git-common-dir` と `--git-dir` を比較し、一致すれば本体、不一致なら worktree と判定する
     /// (worktree の `.git` はファイルで実 gitdir を指すため両者が食い違う)。
-    /// git 呼び出しに失敗した場合はディレクトリ名のみ(本体扱い)に縮退する。
-    func repositoryLabel(forRoot root: URL) -> String {
-        let directoryName = root.standardizedFileURL.lastPathComponent
+    /// worktree の場合、本体ルートは共通 gitdir の親ディレクトリ。
+    /// git 呼び出しに失敗した場合は本体扱い(ディレクトリ名 + 自身のルート)に縮退する。
+    func repositoryIdentity(forRoot root: URL) -> RepositoryIdentity {
+        let standardizedRoot = root.standardizedFileURL
+        let asMainRepository = RepositoryIdentity(
+            label: standardizedRoot.lastPathComponent, mainRoot: standardizedRoot
+        )
         guard case let .output(data) = runner.run(["rev-parse", "--git-common-dir", "--git-dir"], in: root),
               let text = String(data: data, encoding: .utf8)
-        else { return directoryName }
+        else { return asMainRepository }
         let lines = text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-        guard lines.count == 2 else { return directoryName }
+        guard lines.count == 2 else { return asMainRepository }
         let commonDir = URL(fileURLWithPath: lines[0], relativeTo: root).standardizedFileURL
         let gitDir = URL(fileURLWithPath: lines[1], relativeTo: root).standardizedFileURL
-        guard commonDir.path != gitDir.path else { return directoryName }
-        let mainRepositoryName = commonDir.deletingLastPathComponent().lastPathComponent
-        return "\(mainRepositoryName) (\(directoryName))"
+        guard commonDir.path != gitDir.path else { return asMainRepository }
+        let mainRoot = commonDir.deletingLastPathComponent().standardizedFileURL
+        return RepositoryIdentity(
+            label: "\(mainRoot.lastPathComponent) (\(standardizedRoot.lastPathComponent))",
+            mainRoot: mainRoot
+        )
+    }
+
+    /// root が属するリポジトリの作業ツリー一覧を返す。先頭(本体)が `isMain == true`。
+    /// git を実行できない・出力を解釈できない場合は空配列に縮退し、
+    /// 呼び出し側が worktree 非表示のフラット表示へ落とせるようにする。
+    func worktrees(forRoot root: URL) -> [GitWorktree] {
+        guard case let .output(data) = runner.run(["worktree", "list", "--porcelain"], in: root),
+              let text = String(data: data, encoding: .utf8)
+        else { return [] }
+        // porcelain 形式は 1 エントリが `worktree <path>` 行で始まり、続く属性行
+        // (HEAD/branch/bare/detached)を経て空行で区切られる。表示に使うのは path と branch のみ。
+        var result: [GitWorktree] = []
+        for line in text.split(separator: "\n") {
+            if line.hasPrefix("worktree ") {
+                let path = String(line.dropFirst("worktree ".count)).trimmingCharacters(in: .whitespaces)
+                guard !path.isEmpty else { continue }
+                result.append(
+                    GitWorktree(
+                        root: URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL,
+                        isMain: result.isEmpty
+                    )
+                )
+            } else if line.hasPrefix("branch "), !result.isEmpty {
+                let ref = String(line.dropFirst("branch ".count)).trimmingCharacters(in: .whitespaces)
+                let name = ref.hasPrefix("refs/heads/") ? String(ref.dropFirst("refs/heads/".count)) : ref
+                result[result.count - 1].branch = name.isEmpty ? nil : name
+            }
+        }
+        return result
     }
 
     /// root/.git がディレクトリならそれ、ファイル(worktree/submodule)なら

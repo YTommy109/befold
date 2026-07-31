@@ -144,6 +144,127 @@ struct GitRepositoryTests {
         #expect(label == temp.url.standardizedFileURL.lastPathComponent)
     }
 
+    @Test("本体リポジトリの identity はディレクトリ名と自身のルートを返す")
+    func repositoryIdentityForMainRepository() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        try makeRepo(temp.url)
+
+        let identity = makeRepository().repositoryIdentity(forRoot: temp.url)
+
+        #expect(identity.label == temp.url.standardizedFileURL.lastPathComponent)
+        #expect(identity.mainRoot.resolvingSymlinksInPath() == temp.url.resolvingSymlinksInPath())
+    }
+
+    @Test("worktree の identity は本体ルートを指す")
+    func repositoryIdentityForWorktree() throws {
+        let main = try TempDir(prefix: "main-repo")
+        defer { withExtendedLifetime(main) {} }
+        try makeRepo(main.url)
+        let worktreeParent = try TempDir(prefix: "worktree-parent")
+        defer { withExtendedLifetime(worktreeParent) {} }
+        let worktreeDir = worktreeParent.url.appendingPathComponent("feature-x")
+        git(main.url, ["worktree", "add", worktreeDir.path, "-b", "feature-x"])
+
+        let identity = makeRepository().repositoryIdentity(forRoot: worktreeDir)
+
+        #expect(identity.label == "\(main.url.standardizedFileURL.lastPathComponent) (feature-x)")
+        #expect(identity.mainRoot.resolvingSymlinksInPath() == main.url.resolvingSymlinksInPath())
+    }
+
+    @Test("worktree の無いリポジトリでは本体 1 件だけが返る")
+    func worktreesForMainOnlyRepository() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        try makeRepo(temp.url)
+
+        let worktrees = makeRepository().worktrees(forRoot: temp.url)
+
+        #expect(worktrees.count == 1)
+        #expect(worktrees.first?.isMain == true)
+        #expect(worktrees.first?.root.resolvingSymlinksInPath() == temp.url.resolvingSymlinksInPath())
+    }
+
+    @Test("worktree を追加すると本体と worktree が区別されて列挙される")
+    func worktreesIncludeAddedWorktree() throws {
+        let main = try TempDir(prefix: "main-repo")
+        defer { withExtendedLifetime(main) {} }
+        try makeRepo(main.url)
+        let worktreeParent = try TempDir(prefix: "worktree-parent")
+        defer { withExtendedLifetime(worktreeParent) {} }
+        let worktreeDir = worktreeParent.url.appendingPathComponent("feature-x")
+        git(main.url, ["worktree", "add", worktreeDir.path, "-b", "feature-x"])
+
+        let worktrees = makeRepository().worktrees(forRoot: main.url)
+
+        #expect(worktrees.count == 2)
+        #expect(worktrees.first?.isMain == true)
+        #expect(worktrees.first?.root.resolvingSymlinksInPath() == main.url.resolvingSymlinksInPath())
+        #expect(worktrees.last?.isMain == false)
+        #expect(worktrees.last?.root.resolvingSymlinksInPath() == worktreeDir.resolvingSymlinksInPath())
+    }
+
+    @Test("列挙結果はチェックアウト中のブランチ名を短縮形で持つ")
+    func worktreesCarryShortBranchNames() throws {
+        let main = try TempDir(prefix: "main-repo")
+        defer { withExtendedLifetime(main) {} }
+        try makeRepo(main.url)
+        let worktreeParent = try TempDir(prefix: "worktree-parent")
+        defer { withExtendedLifetime(worktreeParent) {} }
+        // ディレクトリ名とブランチ名を意図的にずらし、ブランチ側を拾っていることを確かめる。
+        let worktreeDir = worktreeParent.url.appendingPathComponent("etc002")
+        git(main.url, ["worktree", "add", worktreeDir.path, "-b", "feat/repository"])
+
+        let worktrees = makeRepository().worktrees(forRoot: main.url)
+
+        #expect(worktrees.last?.branch == "feat/repository")
+        #expect(worktrees.last?.displayName == "feat/repository (etc002)")
+        // 本体側もブランチ名を持つ(既定ブランチ名は環境依存なので nil でないことだけ見る)。
+        #expect(worktrees.first?.branch != nil)
+    }
+
+    @Test("detached HEAD の worktree はディレクトリ名だけで表示する")
+    func detachedWorktreeFallsBackToDirectoryName() throws {
+        let main = try TempDir(prefix: "main-repo")
+        defer { withExtendedLifetime(main) {} }
+        try makeRepo(main.url)
+        let worktreeParent = try TempDir(prefix: "worktree-parent")
+        defer { withExtendedLifetime(worktreeParent) {} }
+        let worktreeDir = worktreeParent.url.appendingPathComponent("detached-wt")
+        git(main.url, ["worktree", "add", "--detach", worktreeDir.path])
+
+        let worktrees = makeRepository().worktrees(forRoot: main.url)
+
+        #expect(worktrees.last?.branch == nil)
+        #expect(worktrees.last?.displayName == "detached-wt")
+    }
+
+    @Test("worktree 側から列挙しても本体が先頭に来る")
+    func worktreesEnumeratedFromWorktreeStartWithMain() throws {
+        let main = try TempDir(prefix: "main-repo")
+        defer { withExtendedLifetime(main) {} }
+        try makeRepo(main.url)
+        let worktreeParent = try TempDir(prefix: "worktree-parent")
+        defer { withExtendedLifetime(worktreeParent) {} }
+        let worktreeDir = worktreeParent.url.appendingPathComponent("feature-x")
+        git(main.url, ["worktree", "add", worktreeDir.path, "-b", "feature-x"])
+
+        let worktrees = makeRepository().worktrees(forRoot: worktreeDir)
+
+        #expect(worktrees.map(\.isMain) == [true, false])
+        #expect(worktrees.first?.root.resolvingSymlinksInPath() == main.url.resolvingSymlinksInPath())
+    }
+
+    @Test("git を実行できない場合の worktree 一覧は空になる")
+    func worktreesFallBackToEmptyWhenGitUnavailable() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        try makeRepo(temp.url)
+        let repo = GitRepository(runner: GitCommandRunner(timeout: 0.001))
+
+        #expect(repo.worktrees(forRoot: temp.url).isEmpty)
+    }
+
     @Test("worktree 形式の .git ファイルは gitdir を辿って index を見る")
     func resolvesWorktreeGitFile() throws {
         let gitdir = try TempDir() // 実 gitdir 相当

@@ -40,10 +40,13 @@ final class ViewerWindowManager {
     /// 「最近使ったリポジトリ」の記録先。git ルートを持つファイルを開いた際に record、
     /// そのウィンドウが閉じるたび・アプリ終了時に updateLastTabGroup でタブ構成を更新する。
     private let recentRepositoriesStore: RecentRepositoriesStore
-    /// root からメニュー表示用ラベルを解決する。既定は実 GitRepository。
+    /// root からメニュー表示用ラベルと本体リポジトリのルートを解決する。既定は実 GitRepository。
     /// 解決は MainActor の外(detached タスク)で走るため @Sendable が要る。
     /// テストは実 git を起動しないフェイクへ差し替える。
-    private let repositoryLabelResolver: @Sendable (URL) -> String
+    private let repositoryIdentityResolver: @Sendable (URL) -> RepositoryIdentity
+    /// 「最近使ったリポジトリ」へ新しい本体ルートを記録した直後に呼ばれる。
+    /// AppDelegate が WorktreeCatalog を追随させるために使う。
+    private let onRepositoryRecorded: (URL) -> Void
 
     /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
@@ -67,9 +70,10 @@ final class ViewerWindowManager {
         makeStore: ((URL) -> ViewerStore)? = nil,
         gitFileIndex: any GitFileIndexing = GitCommandFileIndex(),
         recentRepositoriesStore: RecentRepositoriesStore = RecentRepositoriesStore(),
-        repositoryLabelResolver: @escaping @Sendable (URL) -> String = {
-            GitRepository().repositoryLabel(forRoot: $0)
-        }
+        repositoryIdentityResolver: @escaping @Sendable (URL) -> RepositoryIdentity = {
+            GitRepository().repositoryIdentity(forRoot: $0)
+        },
+        onRepositoryRecorded: @escaping (URL) -> Void = { _ in }
     ) {
         self.gitFileIndex = gitFileIndex
         self.sessionStore = sessionStore
@@ -82,7 +86,8 @@ final class ViewerWindowManager {
         self.fileReader = fileReader
         self.makeStore = makeStore
         self.recentRepositoriesStore = recentRepositoriesStore
-        self.repositoryLabelResolver = repositoryLabelResolver
+        self.repositoryIdentityResolver = repositoryIdentityResolver
+        self.onRepositoryRecorded = onRepositoryRecorded
     }
 
     /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
@@ -253,20 +258,27 @@ final class ViewerWindowManager {
     /// (履歴が1件増えないだけで、次に開いたときに記録されるため許容する)。
     private func recordRecentRepositoryIfNeeded(for url: URL, controller: ViewerWindowController) {
         let gitFileIndex = gitFileIndex
-        let resolveLabel = repositoryLabelResolver
+        let resolveIdentity = repositoryIdentityResolver
         Task.detached { [weak self, weak controller] in
             guard let root = gitFileIndex.repositoryRoot(forFileAt: url) else { return }
-            let label = resolveLabel(root)
-            await self?.applyRecentRepository(root: root, label: label, to: controller)
+            let identity = resolveIdentity(root)
+            await self?.applyRecentRepository(root: root, identity: identity, to: controller)
         }
     }
 
-    /// detached タスクで解決した git ルート/ラベルを MainActor 上で反映する。
+    /// detached タスクで解決した git ルート/identity を MainActor 上で反映する。
     /// ウィンドウが既に閉じられていれば(controller == nil)何もしない。
-    private func applyRecentRepository(root: URL, label: String, to controller: ViewerWindowController?) {
+    /// mainRoot は worktree のときだけ渡す(本体そのものなら nil。RecentRepositoryEntry の規約)。
+    private func applyRecentRepository(
+        root: URL, identity: RepositoryIdentity, to controller: ViewerWindowController?
+    ) {
         guard let controller else { return }
         controller.repositoryRoot = root
-        recentRepositoriesStore.record(root: root, label: label)
+        let isMainRepository = identity.mainRoot.normalizedPathKey == root.normalizedPathKey
+        recentRepositoriesStore.record(
+            root: root, label: identity.label, mainRoot: isMainRepository ? nil : identity.mainRoot
+        )
+        onRepositoryRecorded(identity.mainRoot)
     }
 
     /// controller のウィンドウ(自身のタブグループ)の構成を「最近使ったリポジトリ」へ記録する。

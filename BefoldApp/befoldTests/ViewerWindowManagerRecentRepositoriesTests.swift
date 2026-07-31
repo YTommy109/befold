@@ -66,7 +66,9 @@ struct ViewerWindowManagerRecentRepositoriesTests {
             },
             gitFileIndex: gitFileIndex,
             recentRepositoriesStore: recentRepositoriesStore,
-            repositoryLabelResolver: { $0.lastPathComponent }
+            repositoryIdentityResolver: {
+                RepositoryIdentity(label: $0.lastPathComponent, mainRoot: $0)
+            }
         )
         return Fixture(manager: manager, store: recentRepositoriesStore, gitFileIndex: gitFileIndex)
     }

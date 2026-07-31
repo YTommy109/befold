@@ -95,6 +95,60 @@ struct RecentRepositoriesStoreTests {
         #expect(store.entries().first?.lastTabGroup == group)
     }
 
+    @Test("record は渡された mainRoot を保存する")
+    func recordStoresMainRoot() {
+        let store = makeStore()
+
+        store.record(root: url("repoA-wt"), label: "repoA-wt", mainRoot: url("repoA"))
+
+        #expect(store.entries().first?.mainRootPath == url("repoA").normalizedPathKey)
+    }
+
+    @Test("record は mainRoot 未指定なら既存の mainRootPath を保持する")
+    func recordPreservesExistingMainRootWhenNotGiven() {
+        let store = makeStore()
+        store.record(root: url("repoA-wt"), label: "repoA-wt", mainRoot: url("repoA"))
+
+        store.record(root: url("repoA-wt"), label: "repoA-wt")
+
+        #expect(store.entries().first?.mainRootPath == url("repoA").normalizedPathKey)
+    }
+
+    @Test("record は新しい mainRoot が渡されたら既存値を更新する")
+    func recordUpdatesMainRootWhenGiven() {
+        let store = makeStore()
+        store.record(root: url("repoA-wt"), label: "repoA-wt", mainRoot: url("repoA"))
+
+        store.record(root: url("repoA-wt"), label: "repoA-wt", mainRoot: url("repoZ"))
+
+        #expect(store.entries().first?.mainRootPath == url("repoZ").normalizedPathKey)
+    }
+
+    @Test("mainRootPath を持たない旧データもデコードでき nil になる")
+    func decodesLegacyEntryWithoutMainRootPath() {
+        let legacy = Data(#"[{"rootPath":"/Users/test/repoA","label":"repoA"}]"#.utf8)
+        defaults.set(legacy, forKey: "RecentRepositories")
+
+        let entries = makeStore().entries()
+
+        #expect(entries.map(\.label) == ["repoA"])
+        #expect(entries.first?.mainRootPath == nil)
+    }
+
+    @Test("groupKey は mainRootPath があればそれを、無ければ rootPath を正規化して返す")
+    func groupKeyFallsBackToRootPath() {
+        let grouped = RecentRepositoryEntry(
+            rootPath: "/Users/test/repoA-wt", label: "wt", lastTabGroup: nil,
+            mainRootPath: "/Users/test/repoA"
+        )
+        let standalone = RecentRepositoryEntry(
+            rootPath: "/Users/test/repoA", label: "repoA", lastTabGroup: nil, mainRootPath: nil
+        )
+
+        #expect(grouped.groupKey == url("repoA").normalizedPathKey)
+        #expect(standalone.groupKey == url("repoA").normalizedPathKey)
+    }
+
     @Test("updateLastTabGroup は該当エントリのタブ構成のみ更新し並び順は変えない")
     func updateLastTabGroupUpdatesWithoutReordering() {
         let store = makeStore()
