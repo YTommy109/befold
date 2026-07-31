@@ -36,7 +36,7 @@ struct ViewerWindowControllerIntegrationTests {
     }
 
     @Test("hiddenFilesPreference.showHiddenFiles が true のときサイドバーに不可視ファイルが含まれる")
-    func sidebarIncludesHiddenFilesWhenPreferenceIsOn() throws {
+    func sidebarIncludesHiddenFilesWhenPreferenceIsOn() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
@@ -54,13 +54,15 @@ struct ViewerWindowControllerIntegrationTests {
         )
         defer { controller.close() }
 
+        // 初期一覧は init 内の refreshFileList()(非同期)で埋まるため、完了を待ってから見る。
+        await controller.sidebar.pendingListingTask?.value
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
         #expect(names.contains(".hidden.mmd"))
         #expect(controller.fileListModel.showHiddenFiles)
     }
 
     @Test("hiddenFilesPreference.showHiddenFiles が false(デフォルト)のとき不可視ファイルは含まれない")
-    func sidebarExcludesHiddenFilesWhenPreferenceIsOff() throws {
+    func sidebarExcludesHiddenFilesWhenPreferenceIsOff() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
@@ -77,7 +79,9 @@ struct ViewerWindowControllerIntegrationTests {
         )
         defer { controller.close() }
 
+        await controller.sidebar.pendingListingTask?.value
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
+        #expect(names.contains("visible.mmd"))
         #expect(!names.contains(".hidden.mmd"))
         #expect(!controller.fileListModel.showHiddenFiles)
     }

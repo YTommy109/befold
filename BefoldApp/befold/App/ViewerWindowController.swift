@@ -110,7 +110,6 @@ final class ViewerWindowController: NSWindowController {
     ///   デフォルトにすると、注入を書き忘れたときに共有されない別個体が静かに生まれ、
     ///   ウィンドウごとに `git ls-files` を重複実行してしまう。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
-    /// - Parameter directoryLister: 同上。サイドバー初期一覧の取得元。テストで差し替え可能にする。
     /// - Parameter openFileInNewWindow: 同上。別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
     init(
         fileURL: URL, defaults: UserDefaults = .standard,
@@ -126,7 +125,6 @@ final class ViewerWindowController: NSWindowController {
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         store: ViewerStore? = nil,
-        directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
         openFileInNewWindow: @escaping (URL) -> Void = { AppDelegate.shared?.openViewer(for: $0) }
     ) {
         initialFileURL = fileURL
@@ -147,14 +145,11 @@ final class ViewerWindowController: NSWindowController {
         self.store = store
         self.openFileInNewWindow = openFileInNewWindow
         let parentDir = fileURL.deletingLastPathComponent()
-        // ウィンドウ生成は一回限りであり、表示前に一覧が必要なためここだけは同期で取得する。
-        // 反復して呼ばれる refreshFileList / navigateToFolder は SidebarNavigator 内で
-        // 既定の非同期版(DirectoryLister.listEntriesAsync)を使う。
-        let entries = directoryLister(
-            parentDir, initialSortOrder, hiddenFilesPreference.showHiddenFiles
-        )
+        // 初期一覧は空で始め、attach 直後の refreshFileList()(非同期の DirectoryLister.listEntriesAsync)に
+        // 埋めさせる。ウィンドウ生成時だけ同期列挙する経路を持たないことで、ネットワーク
+        // ボリューム上のフォルダでもウィンドウ表示がディレクトリ列挙を待たない。
         sidebar = SidebarNavigator(
-            currentDirectory: parentDir, entries: entries, selection: fileURL,
+            currentDirectory: parentDir, entries: [], selection: fileURL,
             hiddenFilesPreference: hiddenFilesPreference, sortOrder: initialSortOrder,
             // 未命中時は `git rev-parse` の subprocess を同期で待つため、
             // メインアクターを離して解決する(サイドバーのヘッダー表示のためだけに
@@ -233,6 +228,8 @@ final class ViewerWindowController: NSWindowController {
         swipeMonitor.start()
 
         sidebar.attach(to: self)
+        // 空で作ったサイドバー一覧をここで埋める(列挙はメインアクター外で走る)。
+        sidebar.refreshFileList()
         store.onFileGone = { [weak self] in
             self?.window?.close()
         }

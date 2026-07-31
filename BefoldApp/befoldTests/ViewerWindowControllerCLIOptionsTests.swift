@@ -9,16 +9,13 @@ import Testing
 /// ウィンドウオープン時に適用されることを検証する。
 ///
 /// これらは init 時のオプション適用のみが検証対象で、実ファイル内容には依存しないため、
-/// store に InMemoryFileReader + MockFileWatcher を注入し、directoryLister も差し替えて
+/// store に InMemoryFileReader + MockFileWatcher を注入して
 /// 実 FS を使わない unit テストとして構成する。
 @Suite
 @MainActor
 struct ViewerWindowControllerCLIOptionsTests {
     /// 実在しない合成パス。InMemoryFileReader にだけ登録する。
     private let file = URL(fileURLWithPath: "/mock/note.md")
-
-    /// サイドバー初期一覧の取得を実 FS に触れさせないための空リスター。
-    private let noEntries: (URL, befold.SortOrder, Bool) -> [FileListEntry] = { _, _, _ in [] }
 
     private func makePerFileState(
         defaults: UserDefaults
@@ -58,8 +55,7 @@ struct ViewerWindowControllerCLIOptionsTests {
             fileURL: file, defaults: defaults, perFileState: perFileState,
             bookmarkStore: BookmarkStore(defaults: defaults),
             sourceModeOverride: true,
-            store: makeMockStore(defaults: defaults),
-            directoryLister: noEntries
+            store: makeMockStore(defaults: defaults)
         )
         defer { controller.close() }
 
@@ -84,8 +80,7 @@ struct ViewerWindowControllerCLIOptionsTests {
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults, perFileState: perFileState,
             bookmarkStore: BookmarkStore(defaults: defaults),
-            store: makeMockStore(defaults: defaults),
-            directoryLister: noEntries
+            store: makeMockStore(defaults: defaults)
         )
         defer { controller.close() }
 
@@ -101,8 +96,7 @@ struct ViewerWindowControllerCLIOptionsTests {
             perFileState: makePerFileState(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             showLineNumbersOverride: true,
-            store: makeMockStore(defaults: defaults),
-            directoryLister: noEntries
+            store: makeMockStore(defaults: defaults)
         )
         defer { controller.close() }
 
@@ -119,8 +113,7 @@ struct ViewerWindowControllerCLIOptionsTests {
             perFileState: makePerFileState(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             showLineNumbersOverride: true,
-            store: makeMockStore(defaults: defaults),
-            directoryLister: noEntries
+            store: makeMockStore(defaults: defaults)
         )
         defer { controller.close() }
 
@@ -137,8 +130,7 @@ struct ViewerWindowControllerCLIOptionsTests {
             fileURL: file, defaults: defaults,
             perFileState: makePerFileState(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
-            store: makeMockStore(defaults: defaults),
-            directoryLister: noEntries
+            store: makeMockStore(defaults: defaults)
         )
         defer { controller.close() }
 
@@ -156,8 +148,7 @@ struct ViewerWindowControllerCLIOptionsTests {
             perFileState: makePerFileState(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             showLineNumbersOverride: true,
-            store: injectedStore,
-            directoryLister: noEntries
+            store: injectedStore
         )
         defer { controller.close() }
 
@@ -168,22 +159,18 @@ struct ViewerWindowControllerCLIOptionsTests {
     @Test("CLI の --sort 指定はサイドバーの並び順(FileListModel.sortOrder)に反映される")
     func sortOrderOverrideIsAppliedToFileListModel() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
-        var receivedSortOrder: befold.SortOrder?
 
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults,
             perFileState: makePerFileState(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             initialSortOrder: .alphabetical,
-            store: makeMockStore(defaults: defaults),
-            directoryLister: { _, sortOrder, _ in
-                receivedSortOrder = sortOrder
-                return []
-            }
+            store: makeMockStore(defaults: defaults)
         )
         defer { controller.close() }
 
-        #expect(receivedSortOrder == .alphabetical)
+        // 一覧の取得自体は非同期(SidebarNavigator)へ寄せたため、ここでは並び順が
+        // サイドバーのモデルへ届いていることを見る。実際の並べ替えは DirectoryLister 側のテストが担う。
         #expect(controller.fileListModel.sortOrder == .alphabetical)
     }
 }

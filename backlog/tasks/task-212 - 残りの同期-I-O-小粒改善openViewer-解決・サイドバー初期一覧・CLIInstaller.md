@@ -1,9 +1,11 @@
 ---
 id: TASK-212
 title: 残りの同期 I/O 小粒改善(openViewer 解決・サイドバー初期一覧・CLIInstaller)
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-07-31 02:57'
+updated_date: '2026-07-31 07:33'
 labels:
   - refactoring
   - performance
@@ -29,3 +31,12 @@ ordinal: 292000
 - [ ] #3 CLI インストールの管理者認証待ちがメインスレッドをブロックしない
 - [ ] #4 既存テストが通る
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. CLIInstaller: AppDelegate.installCLI で install() を Task.detached へ逃がし、結果ダイアログのみ MainActor で出す(NSAppleScript は detached 側で生成・実行し単一スレッド利用を保つ)
+2. openViewer: isDirectory + resolveFileToOpen を Task.detached へ。複数パスの起動順を崩さないよう async 版 openViewer を用意し、openPaths / application(_:open:) は 1 本の Task 内で逐次 await する
+3. サイドバー初期一覧: ViewerWindowController.init の同期 directoryLister 呼び出しを廃止し、空一覧で生成 → attach 後に sidebar.refreshFileList()(既存の非同期経路)で埋める。ViewerWindowManager / VWC の directoryLister 注入シームと関連テスト引数を削除
+4. swift build / swift test / swiftformat --lint
+<!-- SECTION:PLAN:END -->

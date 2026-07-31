@@ -6,15 +6,12 @@ import Foundation
 import Testing
 
 /// ツールバー項目の構成・状態・ファイル切替に伴うライブ更新を検証する unit テスト。
-/// store に InMemoryFileReader + MockFileWatcher を注入し、directoryLister も差し替える。
+/// store に InMemoryFileReader + MockFileWatcher を注入する。
 /// switchFile の存在ガードが store.fileReader 経由になった(TASK-116.12)ため、
 /// 切替時のツールバー更新も InMemoryFileReader でモック化して unit で検証する。
 @Suite(testTimeLimit())
 @MainActor
 struct ViewerWindowControllerToolbarTests {
-    /// サイドバー初期一覧の取得を実 FS に触れさせないための空リスター。
-    private let noEntries: (URL, befold.SortOrder, Bool) -> [FileListEntry] = { _, _, _ in [] }
-
     private func makeController(
         file: URL, contents: String = "graph TD;", extraFiles: [URL] = [],
         bookmarkStore: BookmarkStore? = nil
@@ -33,8 +30,7 @@ struct ViewerWindowControllerToolbarTests {
                 watcherFactory: { _, _, _ in MockFileWatcher() },
                 fileReader: InMemoryFileReader(files: files),
                 defaults: defaults
-            ),
-            directoryLister: noEntries
+            )
         )
     }
 

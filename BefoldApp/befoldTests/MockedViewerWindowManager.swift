@@ -28,7 +28,7 @@ final nonisolated class RecordingGitFileIndex: GitFileIndexing, @unchecked Senda
 ///
 /// openViewer が生成する ViewerWindowController は既定では実 FileWatcher・実ファイル読込・
 /// 実ディレクトリ列挙を踏むため、そのままでは Integration にせざるを得なかった。
-/// ViewerWindowManager の makeStore / directoryLister シーム(TASK-116.13)へ
+/// ViewerWindowManager の makeStore シーム(TASK-116.13)へ
 /// InMemoryFileReader + MockFileWatcher + 空の列挙を渡すことで、生成パイプラインごと unit 化する。
 ///
 /// サイドバーの entries を検証するテストには使えない(列挙は常に空)。
@@ -87,7 +87,6 @@ struct MockedViewerWindowManager {
                     defaults: defaults
                 )
             },
-            directoryLister: { _, _, _ in [] },
             gitFileIndex: gitFileIndex,
             recentRepositoriesStore: recentRepositoriesStore
         )

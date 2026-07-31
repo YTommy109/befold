@@ -64,7 +64,6 @@ struct ViewerWindowManagerRecentRepositoriesTests {
                     defaults: defaults
                 )
             },
-            directoryLister: { _, _, _ in [] },
             gitFileIndex: gitFileIndex,
             recentRepositoriesStore: recentRepositoriesStore,
             repositoryLabelResolver: { $0.lastPathComponent }
