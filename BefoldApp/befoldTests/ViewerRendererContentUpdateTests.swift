@@ -48,6 +48,11 @@ struct ViewerRendererContentUpdateTests {
         while !renderer.isReady {
             await Task.yield()
         }
+        // applyRender の画像埋め込み(Task.detached)は isReady 復帰後に別 Task で完了するため、
+        // ミラー反映を待つ。
+        while renderer.rendered.contentRevision == nil {
+            await Task.yield()
+        }
 
         // 再ロード完了後、上書きされて残った2回目の更新が実描画され、ミラーが正しく更新される。
         #expect(renderer.rendered.contentRevision == 7)
@@ -56,7 +61,7 @@ struct ViewerRendererContentUpdateTests {
 
     @Test("同一revisionでもfilePathが変われば新ファイル基準で再描画される")
     @MainActor
-    func needsRenderDetectsFilePathChangeEvenWithSameRevision() {
+    func needsRenderDetectsFilePathChangeEvenWithSameRevision() async {
         let renderer = ViewerRenderer()
         renderer.webView = WKWebView()
         renderer.isReady = true
@@ -78,8 +83,51 @@ struct ViewerRendererContentUpdateTests {
             "# same content", contentRevision: 3, fileType: .markdown, filePath: fileB,
             hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false, truncation: Self.truncation
         )
+        // applyRender の画像埋め込み(Task.detached)は別 Task で完了するため、ミラー反映を待つ。
+        while renderer.rendered.filePath != fileB {
+            await Task.yield()
+        }
 
         #expect(renderer.rendered.filePath == fileB)
+    }
+
+    @Test("画像埋め込みが遅延した古いupdateContentの結果は新しい呼び出しを上書きしない")
+    @MainActor
+    func staleImageEmbedDoesNotClobberNewerRender() async {
+        let renderer = ViewerRenderer()
+        _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        while !renderer.isReady {
+            await Task.yield()
+        }
+
+        let dir = URL(fileURLWithPath: "/tmp/task224-race")
+        let imageURL = dir.appendingPathComponent("slow.png")
+        let markdownURL = dir.appendingPathComponent("doc.md")
+        let pngData = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        let fileReader = InMemoryFileReader(files: [markdownURL.path: "unused"])
+        fileReader.setDataFile(pngData, at: imageURL)
+        renderer.imageEmbedder = MarkdownImageEmbedder(fileReader: SlowFileReader(base: fileReader))
+
+        // 1回目: 画像参照ありの content。埋め込みが SlowFileReader の遅延で完了が遅れる。
+        renderer.updateContent(
+            "![alt](slow.png)", contentRevision: 1, fileType: .markdown, filePath: markdownURL,
+            hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false, truncation: Self.truncation
+        )
+        // 2回目: 画像参照なしの content。埋め込みが速く完了し、1回目より先に rendered を更新する。
+        renderer.updateContent(
+            "no image here", contentRevision: 2, fileType: .markdown, filePath: markdownURL,
+            hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false, truncation: Self.truncation
+        )
+
+        // 2回目(遅延なし)が先に完了するのを待つ。
+        while renderer.rendered.contentRevision == nil {
+            await Task.yield()
+        }
+        #expect(renderer.rendered.contentRevision == 2)
+
+        // 1回目の遅延埋め込みが完了するまで十分待ってから、上書きされていないことを確認する。
+        try? await Task.sleep(for: .milliseconds(500))
+        #expect(renderer.rendered.contentRevision == 2)
     }
 
     // MARK: - pendingAppend 消費判定(showLineNumbers 不一致は全文 render に倒す)
@@ -182,5 +230,44 @@ struct ViewerRendererContentUpdateTests {
 
         #expect(sources.contains { $0.contains("_mmdMonoFontFamily") && $0.contains("Menlo") })
         #expect(sources.contains { $0.contains("_mmdCodeFontSize") && $0.contains("14.0") })
+    }
+}
+
+/// readData を意図的に遅延させ、embedLocalImages(Task.detached 内)の完了タイミングを
+/// テストから制御するためのフェイク。他のメソッドは base にそのまま委譲する。
+private struct SlowFileReader: FileReading {
+    let base: InMemoryFileReader
+
+    func fileExists(at url: URL) -> Bool {
+        base.fileExists(at: url)
+    }
+
+    func isDirectory(at url: URL) -> Bool {
+        base.isDirectory(at: url)
+    }
+
+    func isExistingFile(at url: URL) -> Bool {
+        base.isExistingFile(at: url)
+    }
+
+    func readString(from url: URL) throws -> String {
+        try base.readString(from: url)
+    }
+
+    func isBinary(at url: URL) -> Bool {
+        base.isBinary(at: url)
+    }
+
+    func fileSize(at url: URL) -> Int? {
+        base.fileSize(at: url)
+    }
+
+    func modificationDate(at url: URL) -> Date? {
+        base.modificationDate(at: url)
+    }
+
+    func readData(from url: URL) throws -> Data {
+        Thread.sleep(forTimeInterval: 0.1)
+        return try base.readData(from: url)
     }
 }

@@ -59,6 +59,11 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     public var findOptionsPreference: FindOptionsPreference?
     /// 直接 HTML モード・相対画像埋め込みの有効/無効フラグ。
     public var rendererFeatures: RendererFeatures = .allEnabled
+    /// applyRender/applyAppend の画像埋め込み(embeddedContent)が使うインスタンス。
+    /// render 経路とロード時ウォームアップ(ViewerLoadPipeline)が同じキャッシュを
+    /// 引くため、本番は既定の .shared のまま使うこと。テストでは低速な FileReading を
+    /// 注入したフェイクに差し替え、Task.detached の完了タイミングを制御する。
+    var imageEmbedder: MarkdownImageEmbedder = .shared
     /// 呼び出し側から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
     public var initialPageZoom: Double = 1.0
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
@@ -72,6 +77,11 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     var pendingPageZoom: Double?
     var isReady = false
     var pendingUpdate: (() -> Void)?
+    /// updateContent 呼び出しごとに増分する世代番号。applyRender/applyAppend は画像埋め込み
+    /// (MainActor 外)の完了後、この値が呼び出し時と変わっていないかを確認してから
+    /// evaluateJavaScript/recordRendered を行う。後続の updateContent に追い越された古い
+    /// 埋め込み結果が rendered ミラーを巻き戻すのを防ぐ(ViewerStore.loadGeneration と同じ idiom)。
+    var contentUpdateGeneration = 0
     /// 直近に描画した表示状態のミラー。呼び出し側 content の全文を保持せず、
     /// contentRevision の整数比較で再描画要否を判定することで重複バッファを避ける。
     /// viewer.html 再ロード時は 6 値を必ずセットで破棄する必要があるため、

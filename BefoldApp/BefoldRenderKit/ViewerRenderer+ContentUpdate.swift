@@ -5,6 +5,9 @@ import WebKit
 
 extension ViewerRenderer {
     /// applyRender の引数をまとめた入力(function_parameter_count 対策)。
+    /// generation は呼び出し時点の contentUpdateGeneration のスナップショット。画像埋め込み
+    /// (MainActor 外)から戻った際にこの値と現在値を比較し、後続の updateContent 呼び出しに
+    /// 追い越されていないかを確認する。
     struct RenderRequest {
         let content: String
         let contentRevision: Int
@@ -13,6 +16,35 @@ extension ViewerRenderer {
         let isSourceMode: Bool
         let showLineNumbers: Bool
         let truncation: TruncationState
+        let generation: Int
+    }
+
+    /// applyAppend の引数をまとめた入力(function_parameter_count 対策)。RenderRequest 参照。
+    struct AppendRequest {
+        let chunk: String
+        let contentRevision: Int
+        let fileType: FileType
+        let filePath: URL?
+        let isSourceMode: Bool
+        let truncation: TruncationState
+        let generation: Int
+    }
+
+    /// applyRender を非同期 Task で起動する(doUpdate 内の重複削減)。
+    private func scheduleRender(webView: WKWebView, request: RenderRequest, restoreFromPersistedPosition: Bool) {
+        Task { @MainActor in
+            await self.applyRender(
+                webView: webView, request: request,
+                restoreFromPersistedPosition: restoreFromPersistedPosition
+            )
+        }
+    }
+
+    /// applyAppend を非同期 Task で起動する(doUpdate 内の重複削減)。
+    private func scheduleAppend(webView: WKWebView, request: AppendRequest) {
+        Task { @MainActor in
+            await self.applyAppend(webView: webView, request: request)
+        }
     }
 }
 
@@ -42,6 +74,11 @@ public extension ViewerRenderer {
         showLineNumbers: Bool,
         truncation: TruncationState
     ) {
+        // この呼び出し固有の世代番号。applyRender/applyAppend は画像埋め込み(MainActor 外)から
+        // 戻った際にこの値を渡し、後続の updateContent 呼び出しに追い越されていないかを確認する。
+        contentUpdateGeneration += 1
+        let generation = contentUpdateGeneration
+
         let doUpdate = { [weak self] in
             guard let self, let webView else { return }
 
@@ -97,10 +134,10 @@ public extension ViewerRenderer {
                 let request = RenderRequest(
                     content: content, contentRevision: contentRevision, fileType: fileType,
                     filePath: filePath, isSourceMode: isSourceMode, showLineNumbers: showLineNumbers,
-                    truncation: truncation
+                    truncation: truncation, generation: generation
                 )
                 exitDirectHTMLMode(webView: webView) {
-                    self.applyRender(
+                    self.scheduleRender(
                         webView: webView, request: request,
                         restoreFromPersistedPosition: restoreFromPersistedPosition
                     )
@@ -123,10 +160,13 @@ public extension ViewerRenderer {
                     ),
                     rendered: rendered
                 ) {
-                    applyAppend(
-                        webView: webView, chunk: pending.chunk, contentRevision: contentRevision,
-                        fileType: fileType, filePath: filePath, isSourceMode: isSourceMode,
-                        truncation: truncation
+                    scheduleAppend(
+                        webView: webView,
+                        request: AppendRequest(
+                            chunk: pending.chunk, contentRevision: contentRevision,
+                            fileType: fileType, filePath: filePath, isSourceMode: isSourceMode,
+                            truncation: truncation, generation: generation
+                        )
                     )
                     return
                 }
@@ -147,12 +187,12 @@ public extension ViewerRenderer {
                 filePath: filePath, isSourceMode: isSourceMode,
                 lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
             )
-            applyRender(
+            scheduleRender(
                 webView: webView,
                 request: RenderRequest(
                     content: content, contentRevision: contentRevision, fileType: fileType,
                     filePath: filePath, isSourceMode: isSourceMode, showLineNumbers: showLineNumbers,
-                    truncation: truncation
+                    truncation: truncation, generation: generation
                 ),
                 restoreFromPersistedPosition: restoreFromPersistedPosition
             )
