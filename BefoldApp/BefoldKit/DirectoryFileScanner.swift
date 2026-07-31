@@ -18,6 +18,16 @@ public struct DirectoryScanResult: Equatable, Sendable {
 /// git 管理下では `GitFileIndexing` の追跡ファイルを使うため、この型は
 /// そのフォールバックにあたる。無制限に潜ると巨大なツリーで固まるため、
 /// 深さと件数の上限、および除外ディレクトリを必ず持つ。
+///
+/// サイドバー/CLI 側の列挙は `DirectoryEnumeration` が単一の実装元だが、この型は
+/// **意図的に統合していない**(TASK-218 で検討済み)。要件が次の 4 点で食い違い、
+/// 共通化するとどちらの呼び出し元にも無関係なパラメータが増えるため。
+/// - 走査範囲: 直下 1 階層・失敗は空 / 再帰・深さと件数の上限・失敗は `isTruncated` で報告
+/// - 隠し判定: FileManager の `.skipsHiddenFiles`(chflags 込み) / `HiddenFileRule`
+///   (ドット始まりのみ。理由は `HiddenFileRule` のコメントを参照)
+/// - シンボリックリンク: 実体を追ってディレクトリ扱い / 追わずファイル候補 1 件として扱う
+/// - 並び: `localizedStandardCompare` の自然順(表示順) / ロケール非依存比較
+///   (打ち切り位置を実行環境で変えないため。最終表示順はスコアリングが決める)
 public struct DirectoryFileScanner: Sendable {
     private let maximumDepth: Int
     private let maximumCount: Int
