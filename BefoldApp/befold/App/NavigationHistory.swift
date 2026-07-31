@@ -77,17 +77,16 @@ final class NavigationHistory {
     }
 
     /// 隣接する同一エントリを除去し、currentIndex を調整する。
+    /// 「生き残る index の集合」を先に決め、新しい entries も新しい currentIndex も
+    /// そこから導く(除去とインデックス補正を同じループで絡ませない)。
     private func deduplicateAdjacentEntries() {
-        var deduplicated: [HistoryEntry] = []
-        var newIndex = currentIndex
-        for (offset, entry) in entries.enumerated() {
-            if let last = deduplicated.last, last == entry {
-                if offset <= currentIndex { newIndex -= 1 }
-            } else {
-                deduplicated.append(entry)
-            }
+        let surviving = entries.indices.filter { index in
+            index == 0 || entries[index] != entries[index - 1]
         }
-        entries = deduplicated
-        currentIndex = max(0, min(newIndex, entries.count - 1))
+        // 現在位置は「自分以前に生き残った数 - 1」へ移る。
+        let keptUpToCurrent = surviving.count { $0 <= currentIndex }
+
+        entries = surviving.map { entries[$0] }
+        currentIndex = max(0, min(keptUpToCurrent - 1, entries.count - 1))
     }
 }

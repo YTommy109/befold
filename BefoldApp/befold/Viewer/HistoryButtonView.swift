@@ -93,19 +93,18 @@ final class HistoryButtonView: NSButton {
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: bounds.height + 2), in: self)
     }
 
+    /// アイコンはエントリが指すパス(ファイルがあればファイル、無ければディレクトリ)から
+    /// 作る。分岐するのはタイトルだけなので、アイコン生成は共通のまま 1 度だけ書く。
     private static func menuLabel(for entry: HistoryEntry) -> (String, NSImage) {
-        if let file = entry.file {
-            let dirName = entry.directory.lastPathComponent
-            let title = "\(file.lastPathComponent) — \(dirName)"
-            let icon = NSWorkspace.shared.icon(forFile: file.path)
-            icon.size = NSSize(width: 16, height: 16)
-            return (title, icon)
+        let target = entry.file ?? entry.directory
+        let title = if let file = entry.file {
+            "\(file.lastPathComponent) — \(entry.directory.lastPathComponent)"
         } else {
-            let title = entry.directory.lastPathComponent
-            let icon = NSWorkspace.shared.icon(forFile: entry.directory.path)
-            icon.size = NSSize(width: 16, height: 16)
-            return (title, icon)
+            entry.directory.lastPathComponent
         }
+        let icon = NSWorkspace.shared.icon(forFile: target.path)
+        icon.size = NSSize(width: 16, height: 16)
+        return (title, icon)
     }
 
     @objc private func menuItemClicked(_ sender: NSMenuItem) {

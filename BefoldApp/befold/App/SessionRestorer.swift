@@ -111,21 +111,22 @@ final class SessionRestorer {
         options: CLIOpenOptions,
         onMissing: (URL) -> Void = { _ in }
     ) -> LayoutRestoration {
-        let existing = candidates.filter { candidate in
-            guard fileReader.isExistingFile(at: candidate.url) else {
-                onMissing(candidate.url)
-                return false
-            }
-            return true
+        // 実在判定は 1 度だけ行い、その結果から「開く候補」と「消えた候補の通知」を分ける。
+        // filter の述語内で onMissing を呼ぶと、lazy 化や短絡評価が入った途端に
+        // 通知が走らなくなる(セッション記録から消えたファイルが取り除かれない)。
+        let checked = candidates.map { (candidate: $0, exists: fileReader.isExistingFile(at: $0.url)) }
+        for entry in checked where !entry.exists {
+            onMissing(entry.candidate.url)
         }
+        let existing = checked.filter(\.exists).map(\.candidate)
+
         let urlByPath = Dictionary(existing.map { ($0.key, $0.url) }) { first, _ in first }
 
-        var restoredPaths: Set<String> = []
-        for group in layout.filtered(to: Set(urlByPath.keys)).groups {
+        let groups = layout.filtered(to: Set(urlByPath.keys)).groups
+        for group in groups {
             restoreTabGroup(group, urlByPath: urlByPath, options: options)
-            restoredPaths.formUnion(group.paths)
         }
-        return LayoutRestoration(existing: existing, restoredPaths: restoredPaths)
+        return LayoutRestoration(existing: existing, restoredPaths: Set(groups.flatMap(\.paths)))
     }
 
     /// タブ構成を復元できない場合のフォールバック。root はディレクトリなので、
