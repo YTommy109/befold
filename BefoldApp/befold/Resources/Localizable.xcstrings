@@ -245,13 +245,30 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Give an agent like Claude Code a skill file that runs the `befold` CLI to open the file being reviewed, so you can watch the rendered diagram update live while the agent comments. Save the following as e.g. ~/.claude/skills/befold-review/SKILL.md:"
+            "value": "Give an agent like Claude Code a skill file so that, just before it asks you to review a Markdown or Mermaid file it wrote, it opens that file with the `befold` CLI. You judge the rendered document instead of raw source, and it updates live as the agent revises the file. Save the following as e.g. ~/.claude/skills/befold-review/SKILL.md:"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code などのエージェントに、レビュー対象ファイルを befold CLI で開く skill ファイルを与えると、エージェントのコメントを見ながら描画結果をリアルタイムに確認できます。例えば以下の内容を ~/.claude/skills/befold-review/SKILL.md として保存してください:"
+            "value": "Claude Code などのエージェントに次の skill ファイルを与えると、エージェントが書いた Markdown・Mermaid ファイルのレビューを依頼してくる直前に、そのファイルを befold CLI で開くようになります。raw の Markdown ではなくレンダリング結果を見て判断でき、エージェントが修正するたびにプレビューも自動更新されます。例えば以下の内容を ~/.claude/skills/befold-review/SKILL.md として保存してください:"
+          }
+        }
+      }
+    },
+    "aiIntegration.loadFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load the example skill file."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サンプル skill ファイルの読み込みに失敗しました。"
           }
         }
       }

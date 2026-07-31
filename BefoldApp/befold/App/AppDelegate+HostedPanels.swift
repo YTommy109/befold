@@ -51,8 +51,8 @@ extension AppDelegate {
                 rootView: AIIntegrationView(),
                 title: String(localized: "aiIntegration.windowTitle", bundle: .l10n),
                 resizable: true,
-                contentSize: NSSize(width: 480, height: 360),
-                minSize: NSSize(width: 400, height: 300)
+                contentSize: NSSize(width: 520, height: 560),
+                minSize: NSSize(width: 440, height: 320)
             )
         case .ossLicenses:
             HostedPanelWindowController(

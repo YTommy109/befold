@@ -63,6 +63,7 @@ let package = Package(
             exclude: ["Info.plist", "befold.entitlements"],
             resources: [
                 .process("Resources/Localizable.xcstrings"),
+                .copy("Resources/befold-review-skill.md"),
                 .copy("Resources/AppIcon.icns"),
                 .copy("Resources/AboutOGP.png"),
             ],

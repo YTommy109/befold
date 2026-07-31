@@ -2,14 +2,17 @@ import SwiftUI
 
 /// Help > AI コーディングエージェント連携 の中身。
 struct AIIntegrationView: View {
-    private let exampleSkill = """
-    ---
-    name: befold-review
-    description: Open the reviewed .md/.mmd file in befold before commenting on it.
-    ---
+    private let exampleSkill: String
 
-    command -v befold >/dev/null 2>&1 && befold <path1> [<path2> ...]
-    """
+    init() {
+        if let url = Bundle.appResources.url(forResource: "befold-review-skill", withExtension: "md"),
+           let text = try? String(contentsOf: url, encoding: .utf8)
+        {
+            exampleSkill = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            exampleSkill = String(localized: "aiIntegration.loadFailed", bundle: .l10n)
+        }
+    }
 
     var body: some View {
         ScrollView {
