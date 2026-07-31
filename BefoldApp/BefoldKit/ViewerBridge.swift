@@ -4,22 +4,75 @@ import Foundation
 /// ここの文字列を変更する場合は viewer.html 側の定義とあわせて変更すること
 /// (整合性は ViewerBridgeTests がソースを読んで検証する)。
 public enum ViewerBridge {
+    /// JS → Swift の postMessage メッセージ。ハンドラの登録側(`messageHandlerNames`)と
+    /// 受信側のルーティングをここから導出し、両者が同期を要求される 2 つのリストに
+    /// 分かれるのを防ぐ(登録したのにルーティングを書き忘れて無反応、を型で潰す)。
+    public enum BridgeMessage: String, CaseIterable, Sendable {
+        /// JS 側でスクロール位置が変わったとき。payload: { position: Double, mode: String }
+        case scrollPositionChanged
+
+        /// JS 側で全体ズーム倍率が変わったとき。payload: 裸の数値。
+        case zoomChanged
+
+        /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったとき。
+        /// payload: { caseSensitive: Bool, wholeWord: Bool, useRegex: Bool }
+        case findOptionsChanged
+
+        /// リンクやパス参照がクリックされたとき。
+        /// 修飾キーの解釈は Swift 側(OpenDisposition)が行うため、JS は押下状態のみ送る。
+        /// payload: { href: String, metaKey: Bool, shiftKey: Bool }
+        case referenceActivated
+
+        /// リンクやパス参照の上で ctrl+クリック(右クリック)されたとき。
+        /// Swift 側が NSMenu を表示する。payload: { href: String }
+        case referenceContextMenu
+
+        /// JS 側「続きを読み込む」ボタン押下時。payload: なし(空オブジェクト)。
+        case loadMoreLines
+
+        /// JS 側が検出したパス参照の解決を要求するとき。payload: { paths: [String] }
+        case resolveReferences
+
+        /// ホストの対話的ブリッジ(`RendererFeatures.allowsInteractiveBridging`)を要するか。
+        /// false のホスト(QuickLook 拡張等の静的 1 回描画)では、これが true のものを
+        /// そもそも登録しない(多層防御: XSS が postMessage を直接呼んでも Swift へ届かない)。
+        public var requiresInteractiveBridging: Bool {
+            switch self {
+            case .scrollPositionChanged, .zoomChanged, .findOptionsChanged:
+                false
+            case .referenceActivated, .referenceContextMenu, .loadMoreLines, .resolveReferences:
+                true
+            }
+        }
+
+        /// JS がオブジェクトとして送るペイロードのキー集合。裸の値を送る場合は nil。
+        /// 契約テストはこの表と JS 側の postMessage 呼び出しを突合するため、
+        /// メッセージを追加するとこの switch がコンパイルエラーになって登録漏れを防ぐ。
+        var payloadKeys: Set<String>? {
+            switch self {
+            case .zoomChanged: nil
+            case .scrollPositionChanged: Set(PayloadKey.ScrollPositionChanged.allCases.map(\.rawValue))
+            case .findOptionsChanged: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue))
+            case .referenceActivated: Set(PayloadKey.ReferenceActivated.allCases.map(\.rawValue))
+            case .referenceContextMenu: Set(PayloadKey.ReferenceContextMenu.allCases.map(\.rawValue))
+            case .loadMoreLines: []
+            case .resolveReferences: Set(PayloadKey.ResolveReferences.allCases.map(\.rawValue))
+            }
+        }
+    }
+
     /// JS 側でスクロール位置が変わったときに postMessage されるメッセージハンドラ名。
-    /// payload: { position: Double, mode: String }
-    public static let scrollPositionChangedMessageName = "scrollPositionChanged"
+    public static let scrollPositionChangedMessageName = BridgeMessage.scrollPositionChanged.rawValue
 
     /// JS 側で全体ズーム倍率が変わったときに postMessage されるメッセージハンドラ名。
-    public static let zoomChangedMessageName = "zoomChanged"
+    public static let zoomChangedMessageName = BridgeMessage.zoomChanged.rawValue
 
     /// リンクやパス参照がクリックされたときに postMessage されるメッセージハンドラ名。
-    /// 修飾キーの解釈は Swift 側(OpenDisposition)が行うため、JS は押下状態のみ送る。
-    /// payload: { href: String, metaKey: Bool, shiftKey: Bool }
-    public static let referenceActivatedMessageName = "referenceActivated"
+    public static let referenceActivatedMessageName = BridgeMessage.referenceActivated.rawValue
 
     /// リンクやパス参照の上で ctrl+クリック(右クリック)されたときに postMessage される
-    /// メッセージハンドラ名。Swift 側が NSMenu を表示する。
-    /// payload: { href: String }
-    public static let referenceContextMenuMessageName = "referenceContextMenu"
+    /// メッセージハンドラ名。
+    public static let referenceContextMenuMessageName = BridgeMessage.referenceContextMenu.rawValue
 
     /// Swift から引数なしで呼び出す JS 関数。呼び出しスクリプト文字列と、JS 側の定義
     /// トークン(存在検証に使う)をこの 1 箇所から導出し、生リテラルの二重管理をなくす。
@@ -54,7 +107,7 @@ public enum ViewerBridge {
 
     /// ロード時にファイル毎の初期倍率を注入するスクリプト。
     public static func initialZoomScript(_ zoom: Double) -> String {
-        "window._mmdInitialZoom = \(zoom);"
+        assignGlobalScript("window._mmdInitialZoom", zoom, fallback: scalarFallback)
     }
 
     /// 表示中ファイルの切り替え時などに、保存済み倍率を注入し直して即時反映する
@@ -66,22 +119,21 @@ public enum ViewerBridge {
     /// ロード時にシステム本文フォントサイズ(pt)を注入するスクリプト。
     /// viewer.html 側は _mmdInitFontSize() が読んで CSS 変数へ反映する。
     public static func systemFontSizeScript(_ size: Double) -> String {
-        "window._mmdSystemFontSize = \(size);"
+        assignGlobalScript("window._mmdSystemFontSize", size, fallback: scalarFallback)
     }
 
     /// ロード時に等幅フォントファミリー名を注入するスクリプト。JSONEncoder で
     /// エスケープし、JS インジェクションを防ぐ。nil は空文字として注入する
     /// (viewer.html 側はこれをシステム既定へのフォールバックとして扱う)。
     public static func monoFontFamilyScript(_ family: String?) -> String {
-        let encoded = (try? JSONEncoder().encode(family ?? "")).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
-        return "window._mmdMonoFontFamily = \(encoded);"
+        assignGlobalScript("window._mmdMonoFontFamily", family ?? "", fallback: "\"\"")
     }
 
     /// ロード時にコードフォントサイズ(pt)を注入するスクリプト。nil は未カスタマイズを表す
     /// null を注入し、viewer.html 側で CSS 変数 --mmd-code-font-size を未設定のままにする
     /// (calc(本文*0.75) フォールバックへ委ね、アクセシビリティ文字サイズに追従する)。
     public static func codeFontSizeScript(_ points: Double?) -> String {
-        "window._mmdCodeFontSize = \(points.map { String($0) } ?? "null");"
+        assignGlobalScript("window._mmdCodeFontSize", points, fallback: scalarFallback)
     }
 
     /// 表示中ファイルの切り替え時などに、等幅フォント設定を注入し直して即時反映する
@@ -134,10 +186,19 @@ public enum ViewerBridge {
         return String(data: jsonData, encoding: .utf8)
     }
 
+    /// エンコード失敗時にスカラー値の注入が使うフォールバック。JS 側はいずれの
+    /// グローバルも「未注入なら既定値」と解釈するため、null を入れれば既定へ落ちる
+    /// (Double は NaN/Infinity で JSONEncoder が失敗しうるため実際に到達する)。
+    private static let scalarFallback = "null"
+
     /// `global = <JSON>;` 形式のグローバル代入スクリプトを組み立てる。
-    /// エンコードに失敗した場合は空オブジェクト `{}` へフォールバックする。
-    private static func assignGlobalScript(_ global: String, _ value: some Encodable) -> String {
-        "\(global) = \(jsonLiteral(value) ?? "{}");"
+    /// JS へ値を注入する経路はすべてこれを通し、JSON エンコードによる
+    /// エスケープを必ず経由させる(インジェクション対策の単一経路)。
+    /// エンコードに失敗した場合は `fallback`(既定は空オブジェクト `{}`)を入れる。
+    private static func assignGlobalScript(
+        _ global: String, _ value: some Encodable, fallback: String = "{}"
+    ) -> String {
+        "\(global) = \(jsonLiteral(value) ?? fallback);"
     }
 
     /// render() 呼び出しの直前に評価し、次に復元すべきスクロール位置(scrollTop)を
@@ -185,11 +246,10 @@ public enum ViewerBridge {
     }
 
     /// JS 側「続きを読み込む」ボタン押下時に postMessage されるメッセージハンドラ名。
-    public static let loadMoreLinesMessageName = "loadMoreLines"
+    public static let loadMoreLinesMessageName = BridgeMessage.loadMoreLines.rawValue
 
     /// JS 側が検出したパス参照の解決を要求するときに postMessage されるメッセージハンドラ名。
-    /// payload: { paths: [String] }
-    public static let resolveReferencesMessageName = "resolveReferences"
+    public static let resolveReferencesMessageName = BridgeMessage.resolveReferences.rawValue
 
     /// 解決結果(書かれたパス -> 解決済み絶対パス。未解決は含めない)を JS へ適用する
     /// スクリプトを組み立てる。viewer.html 側は _mmdApplyResolvedReferences() が受け取り、
@@ -243,10 +303,10 @@ public enum ViewerBridge {
 
     /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったときに
     /// postMessage されるメッセージハンドラ名。
-    public static let findOptionsChangedMessageName = "findOptionsChanged"
+    public static let findOptionsChangedMessageName = BridgeMessage.findOptionsChanged.rawValue
 
     /// 検索の3トグルの状態。
-    public struct FindOptions: Equatable {
+    public struct FindOptions: Equatable, Encodable {
         public var caseSensitive: Bool
         public var wholeWord: Bool
         public var useRegex: Bool
@@ -261,8 +321,7 @@ public enum ViewerBridge {
     /// ロード時に検索トグルの保存済み状態を注入するスクリプト。
     /// viewer.html 側は _mmdInitFind() が window._mmdInitialFindOptions を読んで適用する。
     public static func initialFindOptionsScript(_ options: FindOptions) -> String {
-        "window._mmdInitialFindOptions = { caseSensitive: \(options.caseSensitive), " +
-            "wholeWord: \(options.wholeWord), useRegex: \(options.useRegex) };"
+        assignGlobalScript("window._mmdInitialFindOptions", options)
     }
 
     /// ロード時に検索バーのローカライズ済み文字列を注入するスクリプト。
@@ -322,14 +381,12 @@ public enum ViewerBridge {
 
     /// メッセージ名 → JS がオブジェクトとして送るペイロードのキー集合。
     /// zoomChanged は裸の数値を送るためキーを持たず、この表には登録しない。
-    /// 契約テストは JS 側の全 postMessage 呼び出しを走査してこの表と突合するため、
-    /// オブジェクトを送るメッセージを JS 側に追加してここへ登録しないとテストが失敗する。
-    public static let payloadKeysByMessageName: [String: Set<String>] = [
-        referenceActivatedMessageName: Set(PayloadKey.ReferenceActivated.allCases.map(\.rawValue)),
-        scrollPositionChangedMessageName: Set(PayloadKey.ScrollPositionChanged.allCases.map(\.rawValue)),
-        findOptionsChangedMessageName: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue)),
-        loadMoreLinesMessageName: [],
-        resolveReferencesMessageName: Set(PayloadKey.ResolveReferences.allCases.map(\.rawValue)),
-        referenceContextMenuMessageName: Set(PayloadKey.ReferenceContextMenu.allCases.map(\.rawValue)),
-    ]
+    /// 契約テストは JS 側の全 postMessage 呼び出しを走査してこの表と突合する。
+    /// 実体は `BridgeMessage.payloadKeys` の網羅 switch なので、メッセージを追加すると
+    /// キー宣言を書くまでコンパイルが通らない。
+    public static let payloadKeysByMessageName: [String: Set<String>] = Dictionary(
+        uniqueKeysWithValues: BridgeMessage.allCases.compactMap { message in
+            message.payloadKeys.map { (message.rawValue, $0) }
+        }
+    )
 }

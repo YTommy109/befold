@@ -120,14 +120,11 @@ final class ReferenceResolutionCoordinator {
         let resolver = resolver
         let baseURL = host.referenceBaseURL
         return await Task.detached(priority: .userInitiated) {
-            var result: [String: String] = [:]
             // バッチ一括で解決し、git 追跡ファイルの索引構築を 1 度に抑える。
-            for (path, reference) in resolver.resolveAll(hrefs: paths, baseURL: baseURL) {
-                if case let .resolved(url) = reference {
-                    result[path] = url.path
-                }
+            // 解決できたものだけを残す(未解決は JS 側へ渡さない)。
+            resolver.resolveAll(hrefs: paths, baseURL: baseURL).compactMapValues { reference in
+                if case let .resolved(url) = reference { url.path } else { nil }
             }
-            return result
         }.value
     }
 }

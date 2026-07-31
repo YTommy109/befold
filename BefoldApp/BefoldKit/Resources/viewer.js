@@ -303,10 +303,12 @@ function lineContentCell(lineHtml) {
 }
 
 // 行ごとに分割した HTML を <tr> 列(文字列連結)に組み立てる。
-// showLineNumbers が false でない限り行番号セルを付ける(既定は付ける)。
+// 行番号セルは showLineNumbers === true のときだけ付ける(省略時は付けない)。
+// この「明示的に true のときだけ」という規則を行番号系の関数すべてで共有する
+// (省略時の解釈が関数ごとに違うと、呼び出し漏れが表示差になって現れるため)。
 // 行番号は startLine から振る(チャンク追記では既存行数 + 1 を渡す)。
 function buildLineNumberRows(codeHtml, startLine, showLineNumbers) {
-  var withNumbers = showLineNumbers !== false;
+  var withNumbers = showLineNumbers === true;
   var lines = reflowSpanBalancedLines(codeHtml);
   var rows = '';
   for (var i = 0; i < lines.length; i++) {
@@ -500,8 +502,8 @@ function csvSourceInnerHtml(content, delimiter) {
 function renderCsvSourceHtml(content, delimiter, showLineNumbers) {
   if (!content) { return '<pre><code class="csv-source"></code></pre>'; }
   var body = csvSourceInnerHtml(content, delimiter);
-  if (showLineNumbers) {
-    body = wrapWithLineNumbers(body);
+  if (showLineNumbers === true) {
+    body = wrapWithLineNumbers(body, true);
   }
   return '<pre><code class="csv-source">' + body + '</code></pre>';
 }

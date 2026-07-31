@@ -45,7 +45,13 @@ struct ViewerBridgeTests {
 
     @Test
     func systemFontSizeScriptEmbedsValue() {
-        #expect(ViewerBridge.systemFontSizeScript(13.0) == "window._mmdSystemFontSize = 13.0;")
+        #expect(ViewerBridge.systemFontSizeScript(13.0) == "window._mmdSystemFontSize = 13;")
+    }
+
+    @Test("非有限値は不正な JS リテラルを吐かず null へフォールバックする")
+    func nonFiniteScalarsFallBackToNull() {
+        #expect(ViewerBridge.initialZoomScript(.nan) == "window._mmdInitialZoom = null;")
+        #expect(ViewerBridge.systemFontSizeScript(.infinity) == "window._mmdSystemFontSize = null;")
     }
 
     @Test("applyZoomScript は倍率注入と _mmdInitZoom() 呼び出しを組み合わせる")
@@ -148,7 +154,7 @@ struct ViewerBridgeTests {
 
     @Test("コードフォントサイズを pt 値として注入する")
     func codeFontSizeScriptEmitsPoints() {
-        #expect(ViewerBridge.codeFontSizeScript(11) == "window._mmdCodeFontSize = 11.0;")
+        #expect(ViewerBridge.codeFontSizeScript(11) == "window._mmdCodeFontSize = 11;")
     }
 
     @Test("hostFeaturesScript が window._mmdHostFeatures への代入文を生成する")
@@ -213,13 +219,21 @@ struct ViewerBridgeTests {
     }
 
     @Test("initialFindOptionsScript がトグル値を埋め込む")
-    func initialFindOptionsScriptEmbedsValues() {
+    func initialFindOptionsScriptEmbedsValues() throws {
         let options = ViewerBridge.FindOptions(caseSensitive: true, wholeWord: false, useRegex: true)
+        let script = ViewerBridge.initialFindOptionsScript(options)
 
-        #expect(
-            ViewerBridge.initialFindOptionsScript(options)
-                == "window._mmdInitialFindOptions = { caseSensitive: true, wholeWord: false, useRegex: true };"
-        )
+        #expect(script.hasPrefix("window._mmdInitialFindOptions = "))
+        #expect(script.hasSuffix(";"))
+
+        let jsonPart = script
+            .replacingOccurrences(of: "window._mmdInitialFindOptions = ", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ";"))
+        let data = try #require(jsonPart.data(using: .utf8))
+        let decoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Bool])
+        #expect(decoded["caseSensitive"] == true)
+        #expect(decoded["wholeWord"] == false)
+        #expect(decoded["useRegex"] == true)
     }
 
     @Test("findStringsScript が window._mmdFindStrings への代入文を生成する")

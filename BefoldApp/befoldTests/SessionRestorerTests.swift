@@ -59,6 +59,22 @@ struct SessionRestorerTests {
         fixture.closeAll()
     }
 
+    /// 復元経路は options をそのまま ViewerWindowManager へ渡す。フィールド単位の
+    /// 手写しに戻ると、この経路だけ並び順の指定が落ちる形の欠落が起きうる。
+    @Test("パス無しCLI起動の --sort alphabetical は復元されるウィンドウへ適用される")
+    func sortOrderOptionAppliesToRestoredWindow() {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
+        let restorer = makeRestorer(fixture)
+        fixture.sessionStore.noteOpened(file)
+
+        restorer.captureSavedState()
+        restorer.restoreLastSession(options: CLIOpenOptions(sortOrder: .alphabetical))
+
+        let controller = fixture.manager.controllers[file.normalizedPathKey]?.first
+        #expect(controller?.fileListModel.sortOrder == .alphabetical)
+        fixture.closeAll()
+    }
+
     @Test("オプション未指定時は従来どおり復元される(既定のフォルダー優先ソート)")
     func noOptionsPreservesDefaultRestoreBehavior() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")

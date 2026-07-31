@@ -25,4 +25,31 @@ struct VersionFormattingTests {
         let formatted = VersionFormatting.versionString(short: "1.9.1-dev.5", build: "$(CURRENT_PROJECT_VERSION)")
         #expect(formatted == "1.9.1-dev.5")
     }
+
+    @Test("Info.plist から整形済みバージョンを組み立てる")
+    func buildsFromInfoDictionary() {
+        let formatted = VersionFormatting.versionString(infoDictionary: [
+            "CFBundleShortVersionString": "1.9.1-dev.5",
+            "CFBundleVersion": "801",
+        ])
+        #expect(formatted == "1.9.1-dev.5 (801)")
+    }
+
+    @Test("短縮バージョンが取れなければ nil(フォールバックは呼び出し側の判断)")
+    func returnsNilWithoutShortVersion() {
+        #expect(VersionFormatting.versionString(infoDictionary: ["CFBundleVersion": "801"]) == nil)
+        #expect(VersionFormatting.versionString(infoDictionary: nil) == nil)
+    }
+
+    @Test("空文字・未置換プレースホルダは値なしとして扱う")
+    func treatsEmptyAndPlaceholderAsMissing() {
+        #expect(VersionFormatting.shortVersion(infoDictionary: ["CFBundleShortVersionString": ""]) == nil)
+        #expect(
+            VersionFormatting.shortVersion(
+                infoDictionary: ["CFBundleShortVersionString": "$(MARKETING_VERSION)"]
+            ) == nil
+        )
+        #expect(VersionFormatting.buildNumber(infoDictionary: ["CFBundleVersion": ""]) == nil)
+        #expect(VersionFormatting.buildNumber(infoDictionary: ["CFBundleVersion": "801"]) == "801")
+    }
 }

@@ -165,15 +165,17 @@ struct GitRepository: GitRepositoryReading {
         guard fileReader.isExistingFile(at: dotGit),
               let content = try? fileReader.readString(from: dotGit)
         else { return dotGit }
-        for line in content.split(separator: "\n") {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard trimmed.hasPrefix("gitdir:") else { continue }
-            let path = String(trimmed.dropFirst("gitdir:".count)).trimmingCharacters(in: .whitespaces)
-            if path.hasPrefix("/") {
-                return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
-            }
-            return root.appendingPathComponent(path).standardizedFileURL
-        }
-        return dotGit
+        // 「gitdir: 行を探す」と「その行を解釈する」を分ける。
+        let gitdirLine = content
+            .split(separator: "\n")
+            .lazy
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { $0.hasPrefix("gitdir:") }
+        guard let gitdirLine else { return dotGit }
+
+        let path = String(gitdirLine.dropFirst("gitdir:".count)).trimmingCharacters(in: .whitespaces)
+        return path.hasPrefix("/")
+            ? URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+            : root.appendingPathComponent(path).standardizedFileURL
     }
 }

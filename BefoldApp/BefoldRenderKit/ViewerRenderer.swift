@@ -216,18 +216,9 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// (QuickLook 拡張等の静的1回描画ホストを想定した)場合、そもそも登録しない
     /// (多層防御: XSS が postMessage を直接呼んでもハンドラ未登録のため Swift 側に届かない)。
     public nonisolated static func messageHandlerNames(for features: RendererFeatures) -> [String] {
-        var names = [
-            ViewerBridge.findOptionsChangedMessageName,
-            ViewerBridge.zoomChangedMessageName,
-            ViewerBridge.scrollPositionChangedMessageName,
-        ]
-        if features.allowsInteractiveBridging {
-            names.append(ViewerBridge.loadMoreLinesMessageName)
-            names.append(ViewerBridge.referenceActivatedMessageName)
-            names.append(ViewerBridge.resolveReferencesMessageName)
-            names.append(ViewerBridge.referenceContextMenuMessageName)
-        }
-        return names
+        ViewerBridge.BridgeMessage.allCases
+            .filter { features.allowsInteractiveBridging || !$0.requiresInteractiveBridging }
+            .map(\.rawValue)
     }
 
     /// makeWebView で登録した postMessage ハンドラを解除する。

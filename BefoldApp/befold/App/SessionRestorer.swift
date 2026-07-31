@@ -111,21 +111,22 @@ final class SessionRestorer {
         options: CLIOpenOptions,
         onMissing: (URL) -> Void = { _ in }
     ) -> LayoutRestoration {
-        let existing = candidates.filter { candidate in
-            guard fileReader.isExistingFile(at: candidate.url) else {
-                onMissing(candidate.url)
-                return false
-            }
-            return true
+        // 実在判定は 1 度だけ行い、その結果から「開く候補」と「消えた候補の通知」を分ける。
+        // filter の述語内で onMissing を呼ぶと、lazy 化や短絡評価が入った途端に
+        // 通知が走らなくなる(セッション記録から消えたファイルが取り除かれない)。
+        let checked = candidates.map { (candidate: $0, exists: fileReader.isExistingFile(at: $0.url)) }
+        for entry in checked where !entry.exists {
+            onMissing(entry.candidate.url)
         }
+        let existing = checked.filter(\.exists).map(\.candidate)
+
         let urlByPath = Dictionary(existing.map { ($0.key, $0.url) }) { first, _ in first }
 
-        var restoredPaths: Set<String> = []
-        for group in layout.filtered(to: Set(urlByPath.keys)).groups {
+        let groups = layout.filtered(to: Set(urlByPath.keys)).groups
+        for group in groups {
             restoreTabGroup(group, urlByPath: urlByPath, options: options)
-            restoredPaths.formUnion(group.paths)
         }
-        return LayoutRestoration(existing: existing, restoredPaths: restoredPaths)
+        return LayoutRestoration(existing: existing, restoredPaths: Set(groups.flatMap(\.paths)))
     }
 
     /// タブ構成を復元できない場合のフォールバック。root はディレクトリなので、
@@ -183,17 +184,10 @@ final class SessionRestorer {
         activePathToRestore = nil
     }
 
-    /// CLI 起動オプションの上書きをまとめてウィンドウ生成へ引き渡す。
-    /// restoreLastSession・タブグループ復元・ルートフォルダのフォールバックの
-    /// いずれからも呼ぶことで、CLIOpenOptions にオーバーライドが追加されても転送漏れが起きないようにする。
+    /// CLI 起動オプションをまとめてウィンドウ生成へ引き渡す。
     /// forceSidebarVisible はフォルダーオープン相当(openRootFallback)でのみ true にする。
     private func openViewer(for url: URL, options: CLIOpenOptions, forceSidebarVisible: Bool = false) {
-        windowManager.openViewer(
-            for: url, forceSidebarVisible: forceSidebarVisible,
-            sidebarVisibleOverride: options.showSidebar,
-            initialSortOrder: options.viewerSortOrder,
-            showLineNumbersOverride: options.showLineNumbers, sourceModeOverride: options.sourceMode
-        )
+        windowManager.openViewer(for: url, options: options, forceSidebarVisible: forceSidebarVisible)
     }
 
     /// 1 つのタブグループを復元する。先頭のウィンドウに残りを順にタブ連結し、選択タブを再現する。

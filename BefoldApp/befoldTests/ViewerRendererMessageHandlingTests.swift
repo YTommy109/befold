@@ -338,6 +338,23 @@ struct ViewerRendererMessageHandlingTests {
         #expect(called == false)
     }
 
+    // MARK: - 登録リストとルーティングの単一情報源
+
+    /// 登録リストが BridgeMessage から導出されていることを固定する。
+    /// 手書きの配列に戻ると、enum に足したメッセージが登録されないまま気付けなくなる。
+    @Test("登録するハンドラ名は BridgeMessage の rawValue から導出される")
+    func handlerNamesAreDerivedFromBridgeMessage() {
+        let all = Set(ViewerBridge.BridgeMessage.allCases.map(\.rawValue))
+        let interactiveOnly = Set(
+            ViewerBridge.BridgeMessage.allCases
+                .filter { !$0.requiresInteractiveBridging }
+                .map(\.rawValue)
+        )
+
+        #expect(Set(ViewerRenderer.messageHandlerNames(for: .allEnabled)) == all)
+        #expect(Set(ViewerRenderer.messageHandlerNames(for: .quickLookRestricted)) == interactiveOnly)
+    }
+
     // MARK: - allowsInteractiveBridging によるハンドラ登録の多層防御
 
     @Test("allEnabled では 5 種すべてのハンドラ名が登録される")

@@ -151,9 +151,7 @@ final class ViewerStore {
         makeWatcher = watcherFactory ?? { url, onChange, onRename in
             FileWatcher(path: url, onChange: onChange, onRename: onRename)
         }
-        makeChunkedReader = chunkedReaderFactory ?? { cache, fileType in
-            StringChunkReader(cache: cache, boundary: ChunkBoundary(fileType: fileType))
-        }
+        makeChunkedReader = chunkedReaderFactory ?? ViewerLoadPipeline.defaultChunkedReaderFactory
         self.fileReader = fileReader
         contentLoader = ContentLoader(fileReader: fileReader)
         self.clock = clock
@@ -253,11 +251,10 @@ final class ViewerStore {
         }
     }
 
-    /// 蓄積済み content の改行数から表示行数を再計算する。
-    /// 末尾が改行で終わらない場合、その途中の行(強制分割チャンク末尾・最終行)も
-    /// 表示中の 1 行として数える(改行なしの巨大単一行が「0 行」と表示されないように)。
+    /// 蓄積済み content の改行数から表示行数を再計算する。数え方の規則は
+    /// DisplayedLineCount(1 回描画ホストと共有する単一情報源)に委ねる。
     private func updateDisplayedLineCount() {
-        displayedLineCount = newlineCount + (!content.isEmpty && content.utf8.last != 0x0A ? 1 : 0)
+        displayedLineCount = DisplayedLineCount.count(newlines: newlineCount, in: content)
     }
 
     /// pendingURL の読み込みを予約する。I/O・デコードはバックグラウンドで行い、

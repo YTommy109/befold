@@ -52,9 +52,7 @@ extension ViewerRenderer {
         )
         rendered.truncation = truncation
         webView.evaluateJavaScript(
-            ViewerBridge.truncatedScript(
-                truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.failed
-            ),
+            truncation.script,
             completionHandler: nil
         )
 
@@ -103,9 +101,7 @@ extension ViewerRenderer {
         }
         if truncation != rendered.truncation {
             webView.evaluateJavaScript(
-                ViewerBridge.truncatedScript(
-                    truncation.isTruncated, lineCount: truncation.lineCount, failed: truncation.failed
-                ),
+                truncation.script,
                 completionHandler: nil
             )
             rendered.truncation = truncation

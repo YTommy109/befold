@@ -56,7 +56,7 @@ public extension ViewerRenderer {
                 rejectReason: nil,
                 truncation: TruncationState(
                     isTruncated: !isAtEnd,
-                    lineCount: displayedLineCount(of: firstChunk),
+                    lineCount: DisplayedLineCount.count(of: firstChunk),
                     failed: false
                 )
             )
@@ -67,14 +67,6 @@ public extension ViewerRenderer {
                 truncation: TruncationState(isTruncated: false, lineCount: 0, failed: false)
             )
         }
-    }
-
-    /// 蓄積済み content の改行数から表示行数を求める(ViewerStore.updateDisplayedLineCount と同じ規則)。
-    /// 末尾が改行で終わらない場合、その途中の行も表示中の1行として数える。
-    nonisolated static func displayedLineCount(of content: String) -> Int {
-        let newlines = content.utf8.count(where: { $0 == 0x0A })
-        let hasTrailingPartialLine = !content.isEmpty && content.utf8.last != 0x0A
-        return newlines + (hasTrailingPartialLine ? 1 : 0)
     }
 
     /// ファイル URL から WebView 構成と初回描画までを1呼び出しで行う one-shot 合成 API。
@@ -93,9 +85,8 @@ public extension ViewerRenderer {
         url: URL,
         fileType: FileType? = nil,
         fileReader: any FileReading = DefaultFileReader(),
-        chunkedReaderFactory: @escaping ViewerLoadPipeline.ChunkedReaderFactory = { cache, fileType in
-            StringChunkReader(cache: cache, boundary: ChunkBoundary(fileType: fileType))
-        },
+        chunkedReaderFactory: @escaping ViewerLoadPipeline.ChunkedReaderFactory =
+            ViewerLoadPipeline.defaultChunkedReaderFactory,
         initialZoom: Double = 1.0
     ) async -> OneShotResult {
         let resolvedFileType = fileType ?? FileType(url: url)
@@ -151,10 +142,7 @@ public extension ViewerRenderer {
                         // async 文脈では completionHandler 版を明示しないと throwing/async の
                         // オーバーロードが選ばれてしまうため、nil を明示して同期版へ固定する。
                         webView.evaluateJavaScript(
-                            ViewerBridge.truncatedScript(
-                                true, lineCount: render.truncation.lineCount,
-                                failed: render.truncation.failed
-                            ),
+                            render.truncation.script,
                             completionHandler: nil
                         )
                     }

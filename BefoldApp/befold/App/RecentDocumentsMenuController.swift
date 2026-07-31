@@ -23,28 +23,18 @@ final class RecentDocumentsMenuController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
         let urls = recentURLs()
         for url in urls {
-            let item = NSMenuItem(
-                title: url.lastPathComponent,
-                action: #selector(openRecentDocument(_:)),
-                keyEquivalent: ""
+            menu.addFileItem(
+                title: url.lastPathComponent, filePath: url.path,
+                action: #selector(openRecentDocument(_:)), target: self, representedObject: url
             )
-            item.target = self
-            item.representedObject = url
-            let icon = NSWorkspace.shared.icon(forFile: url.path)
-            icon.size = NSSize(width: 16, height: 16)
-            item.image = icon
-            menu.addItem(item)
         }
         if !urls.isEmpty {
             menu.addItem(.separator())
         }
-        let clearItem = NSMenuItem(
+        menu.addActionItem(
             title: String(localized: "menu.file.clearMenu", bundle: .l10n),
-            action: #selector(clearRecentDocuments(_:)),
-            keyEquivalent: ""
+            action: #selector(clearRecentDocuments(_:)), target: self
         )
-        clearItem.target = self
-        menu.addItem(clearItem)
     }
 
     @objc private func openRecentDocument(_ sender: NSMenuItem) {

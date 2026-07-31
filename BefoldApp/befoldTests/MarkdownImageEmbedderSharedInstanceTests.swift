@@ -40,7 +40,7 @@ struct MarkdownImageEmbedderSharedInstanceTests {
             fileReader: fileReader,
             contentLoader: ContentLoader(fileReader: fileReader),
             chunkedReaderFactory: { cache, fileType in
-                StringChunkReader(cache: cache, boundary: ChunkBoundary(fileType: fileType))
+                try ViewerLoadPipeline.defaultChunkedReaderFactory(cache, fileType)
             },
             embedLocalImages: true
         )

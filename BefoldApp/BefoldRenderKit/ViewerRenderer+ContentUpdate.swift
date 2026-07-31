@@ -61,6 +61,12 @@ public extension ViewerRenderer {
             self.lineCount = isTruncated ? lineCount : 0
             self.failed = failed
         }
+
+        /// この状態を JS へ反映するスクリプト。3 つのフィールドを呼び出し側で
+        /// 手ばらしすると、フィールドが増えたときに渡し漏れる。
+        public var script: String {
+            ViewerBridge.truncatedScript(isTruncated, lineCount: lineCount, failed: failed)
+        }
     }
 
     /// type_body_length 対策で ViewerRenderer 本体の外の extension に分離している。

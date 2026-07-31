@@ -1580,6 +1580,21 @@
     _mmdWrapDiagrams(diagramWrap);
   }
 
+  // #diagram-wrap に付く「表示種別」クラスの全集合。表示種別を追加したらここに足す。
+  // 付け替えは必ず _mmdSetBodyClasses 経由にする(外す側の一覧が複数箇所に手写しされて
+  // いると、追加時の更新漏れで前の型のスタイルが残る)。
+  var BODY_CLASSES = [
+    'markdown-body', 'code-body', 'html-body', 'csv-body', 'image-body', 'pdf-body',
+  ];
+
+  // 表示種別クラスを一括で付け替える。keep に挙げたものだけが残る。
+  function _mmdSetBodyClasses(el /*, ...keep */) {
+    var keep = Array.prototype.slice.call(arguments, 1);
+    BODY_CLASSES.forEach(function(name) {
+      el.classList.toggle(name, keep.indexOf(name) >= 0);
+    });
+  }
+
   async function render(content, type, lang) {
     _mmdScroll.beginRender();
     // DOM を書き換える前に、内部再描画(カラースキーム変更時など)向けの
@@ -1606,7 +1621,7 @@
     }
 
     // 分岐前に一括で外し、各分岐は自分のクラスを add するだけにする。
-    diagramWrap.classList.remove('markdown-body', 'code-body', 'html-body', 'csv-body', 'image-body', 'pdf-body');
+    _mmdSetBodyClasses(diagramWrap);
 
     // 前回の PDF 表示で生成した blob URL を解放する(PDF 以外への切替も含む)。
     _mmdPdfBlob.release();
@@ -1642,8 +1657,7 @@
 
   function _renderSource(content, type, lang) {
     var diagramWrap = document.getElementById('diagram-wrap');
-    diagramWrap.classList.remove('markdown-body', 'html-body', 'csv-body', 'image-body', 'pdf-body');
-    diagramWrap.classList.add('code-body');
+    _mmdSetBodyClasses(diagramWrap, 'code-body');
     if (type === 'csv') {
       diagramWrap.innerHTML = renderCsvSourceHtml(content, lang || ',', _mmdViewOptions.lineNumbers());
     } else {

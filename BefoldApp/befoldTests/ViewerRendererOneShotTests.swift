@@ -9,7 +9,7 @@ import WebKit
 @Suite
 struct ViewerRendererOneShotTests {
     private let chunkedReaderFactory: ViewerLoadPipeline.ChunkedReaderFactory = { cache, fileType in
-        StringChunkReader(cache: cache, boundary: ChunkBoundary(fileType: fileType))
+        try ViewerLoadPipeline.defaultChunkedReaderFactory(cache, fileType)
     }
 
     // MARK: - Outcome → OneShotRender 変換
@@ -94,18 +94,6 @@ struct ViewerRendererOneShotTests {
 
         #expect(render.rejectReason == .unsupportedFormat)
         #expect(render.content.isEmpty)
-    }
-
-    // MARK: - displayedLineCount ヘルパ
-
-    @Test("空文字列の表示行数は 0")
-    func displayedLineCountForEmptyIsZero() {
-        #expect(ViewerRenderer.displayedLineCount(of: "") == 0)
-    }
-
-    @Test("末尾改行なしの単一行は 1 行として数える")
-    func displayedLineCountForSingleLineWithoutNewline() {
-        #expect(ViewerRenderer.displayedLineCount(of: "single line") == 1)
     }
 
     // MARK: - loadOneShot 合成 API(ブリッジ無効構成)

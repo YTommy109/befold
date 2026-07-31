@@ -29,50 +29,68 @@ extension ViewerRenderer {
         }
     }
 
+    /// 受信メッセージを BridgeMessage へ写して分岐する。網羅 switch なので、
+    /// メッセージを追加してルーティングを書き忘れるとコンパイルエラーになる。
+    /// ペイロードの取り出しは各ケース内で行い、不正なら早期 return する
+    /// (名前判定と混ぜると、body が不正なだけで次の分岐へ静かに落ちてしまう)。
     public func userContentController(
         _ userContentController: WKUserContentController,
         didReceive message: WKScriptMessage
     ) {
-        if message.name == ViewerBridge.zoomChangedMessageName,
-           let zoom = (message.body as? NSNumber)?.doubleValue
-        {
-            delegate?.renderer(self, didChangeZoom: zoom)
-        } else if message.name == ViewerBridge.referenceActivatedMessageName,
-                  let body = message.body as? [String: Any],
-                  let href = body[ReferenceKey.href.rawValue] as? String,
-                  let metaKey = body[ReferenceKey.metaKey.rawValue] as? Bool,
-                  let shiftKey = body[ReferenceKey.shiftKey.rawValue] as? Bool
-        {
-            delegate?.renderer(
-                self, didActivateReference: href,
-                disposition: OpenDisposition(commandKey: metaKey, shiftKey: shiftKey)
-            )
-        } else if message.name == ViewerBridge.scrollPositionChangedMessageName,
-                  let body = message.body as? [String: Any],
-                  let position = (body[ScrollKey.position.rawValue] as? NSNumber)?.doubleValue,
-                  let modeString = body[ScrollKey.mode.rawValue] as? String,
-                  let mode = ViewerBridge.ViewMode(rawValue: modeString)
-        {
-            delegate?.renderer(self, didChangeScrollPosition: position, mode: mode)
-        } else if message.name == ViewerBridge.findOptionsChangedMessageName,
-                  let body = message.body as? [String: Any],
-                  let caseSensitive = body[FindKey.caseSensitive.rawValue] as? Bool,
-                  let wholeWord = body[FindKey.wholeWord.rawValue] as? Bool,
-                  let useRegex = body[FindKey.useRegex.rawValue] as? Bool
-        {
-            findOptionsPreference?.caseSensitive = caseSensitive
-            findOptionsPreference?.wholeWord = wholeWord
-            findOptionsPreference?.useRegex = useRegex
-        } else if message.name == ViewerBridge.loadMoreLinesMessageName {
-            handleLoadMoreLines()
-        } else if message.name == ViewerBridge.resolveReferencesMessageName {
-            handleResolveReferences(body: message.body)
-        } else if message.name == ViewerBridge.referenceContextMenuMessageName,
-                  let body = message.body as? [String: Any],
-                  let href = body[ContextMenuKey.href.rawValue] as? String
-        {
-            delegate?.renderer(self, didRequestContextMenuFor: href)
+        guard let kind = ViewerBridge.BridgeMessage(rawValue: message.name) else { return }
+        switch kind {
+        case .zoomChanged: handleZoomChanged(body: message.body)
+        case .referenceActivated: handleReferenceActivated(body: message.body)
+        case .referenceContextMenu: handleReferenceContextMenu(body: message.body)
+        case .scrollPositionChanged: handleScrollPositionChanged(body: message.body)
+        case .findOptionsChanged: handleFindOptionsChanged(body: message.body)
+        case .loadMoreLines: handleLoadMoreLines()
+        case .resolveReferences: handleResolveReferences(body: message.body)
         }
+    }
+
+    private func handleZoomChanged(body: Any) {
+        guard let zoom = (body as? NSNumber)?.doubleValue else { return }
+        delegate?.renderer(self, didChangeZoom: zoom)
+    }
+
+    private func handleReferenceActivated(body: Any) {
+        guard let payload = body as? [String: Any],
+              let href = payload[ReferenceKey.href.rawValue] as? String,
+              let metaKey = payload[ReferenceKey.metaKey.rawValue] as? Bool,
+              let shiftKey = payload[ReferenceKey.shiftKey.rawValue] as? Bool
+        else { return }
+        delegate?.renderer(
+            self, didActivateReference: href,
+            disposition: OpenDisposition(commandKey: metaKey, shiftKey: shiftKey)
+        )
+    }
+
+    private func handleReferenceContextMenu(body: Any) {
+        guard let payload = body as? [String: Any],
+              let href = payload[ContextMenuKey.href.rawValue] as? String
+        else { return }
+        delegate?.renderer(self, didRequestContextMenuFor: href)
+    }
+
+    private func handleScrollPositionChanged(body: Any) {
+        guard let payload = body as? [String: Any],
+              let position = (payload[ScrollKey.position.rawValue] as? NSNumber)?.doubleValue,
+              let modeString = payload[ScrollKey.mode.rawValue] as? String,
+              let mode = ViewerBridge.ViewMode(rawValue: modeString)
+        else { return }
+        delegate?.renderer(self, didChangeScrollPosition: position, mode: mode)
+    }
+
+    private func handleFindOptionsChanged(body: Any) {
+        guard let payload = body as? [String: Any],
+              let caseSensitive = payload[FindKey.caseSensitive.rawValue] as? Bool,
+              let wholeWord = payload[FindKey.wholeWord.rawValue] as? Bool,
+              let useRegex = payload[FindKey.useRegex.rawValue] as? Bool
+        else { return }
+        findOptionsPreference?.caseSensitive = caseSensitive
+        findOptionsPreference?.wholeWord = wholeWord
+        findOptionsPreference?.useRegex = useRegex
     }
 
     /// JS 側は応答を要求へ FIFO で対応づける(_mmdApplyResolvedReferences が最も古い

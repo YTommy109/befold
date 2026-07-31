@@ -1,12 +1,27 @@
 import AppKit
+import BefoldCLI
 import BefoldKit
 import SwiftUI
 
 /// About ウィンドウの中身。OGP 画像とアプリ情報を表示する。
 struct AboutView: View {
+    /// OGP 画像。body で読むとビューの再評価ごとにディスクを読み直すため、
+    /// 生成時に 1 度だけ読み込んで保持する。
+    private let ogpImage: NSImage
+
+    /// 表示用バージョン。取得経路は CLI(`--version`)と同じ AppVersion に寄せ、
+    /// Info.plist が読めない場合も既知の版へフォールバックして空表示にしない。
+    private let versionText: String
+
+    init() {
+        let path = Bundle.main.path(forResource: "AboutOGP", ofType: "png")
+        ogpImage = path.flatMap { NSImage(contentsOfFile: $0) } ?? NSImage()
+        versionText = AppVersion.resolvedWithBuild(infoDictionary: Bundle.main.infoDictionary)
+    }
+
     var body: some View {
         VStack(spacing: 16) {
-            Image(nsImage: NSImage(contentsOfFile: ogpImagePath) ?? NSImage())
+            Image(nsImage: ogpImage)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -34,16 +49,5 @@ struct AboutView: View {
         }
         .padding(20)
         .frame(minWidth: 360, minHeight: 260)
-    }
-
-    private var ogpImagePath: String {
-        Bundle.main.path(forResource: "AboutOGP", ofType: "png") ?? ""
-    }
-
-    private var versionText: String {
-        let info = Bundle.main.infoDictionary
-        let short = info?["CFBundleShortVersionString"] as? String
-        let build = info?["CFBundleVersion"] as? String
-        return VersionFormatting.versionString(short: short ?? "", build: build)
     }
 }

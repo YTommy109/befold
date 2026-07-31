@@ -1,4 +1,5 @@
 import AppKit
+import BefoldCLI
 import BefoldKit
 
 /// ビューアウィンドウの生成・管理(正規化パス → コントローラ辞書)と、
@@ -142,17 +143,19 @@ final class ViewerWindowManager {
     /// 新規ウィンドウ生成時は initialSortOrder/showLineNumbersOverride/sourceModeOverride で
     /// 個別に適用できるが、パス無し起動では開くべき新規ウィンドウが無いため、既存の全ウィンドウへ
     /// 直接反映する(task-82)。隠しファイル表示は setHiddenFiles が別途アプリ全体へ反映するため対象外。
-    func applyDisplayOverrides(
-        showLineNumbers: Bool?, sourceMode: Bool?, sortOrder: SortOrder?, showSidebar: Bool?
-    ) {
+    func applyDisplayOverrides(_ options: CLIOpenOptions) {
         for controller in allControllers {
-            if let showLineNumbers { controller.store.applyShowLineNumbersOverride(showLineNumbers) }
-            if let sourceMode { controller.setSourceMode(sourceMode) }
-            if let sortOrder {
-                controller.fileListModel.sortOrder = sortOrder
+            if let showLineNumbers = options.showLineNumbers {
+                controller.store.applyShowLineNumbersOverride(showLineNumbers)
+            }
+            if let sourceMode = options.sourceMode { controller.setSourceMode(sourceMode) }
+            // 並び順は「指定があったときだけ」触る。viewerSortOrder は未指定でも既定値を
+            // 返すため、指定の有無は sortOrder の nil 判定で見る。
+            if options.sortOrder != nil {
+                controller.fileListModel.sortOrder = options.viewerSortOrder
                 controller.sidebar.refreshFileList()
             }
-            if let showSidebar { controller.setSidebarCollapsed(!showSidebar) }
+            if let showSidebar = options.showSidebar { controller.setSidebarCollapsed(!showSidebar) }
             // store の直接書き換え(行番号の上書き)はツールバーへ通知されないため、
             // 他経路の間接発火に頼らずここで明示的に再同期する。
             controller.refreshToolbarState()
@@ -161,15 +164,16 @@ final class ViewerWindowManager {
 
     /// 指定 URL のファイルをビューアウィンドウで開く。
     /// 同じファイルが既に開かれている場合は既存ウィンドウを前面に表示する。
+    ///
+    /// CLI 由来の表示オーバーライドは `options` ごとそのまま受け取る。呼び出し側で
+    /// フィールドを手写しして渡すと、`CLIOpenOptions` にオプションを足したときに
+    /// 特定経路(セッション復元など)だけ転送漏れする。
     func openViewer(
         for url: URL,
+        options: CLIOpenOptions = CLIOpenOptions(),
         disposition: OpenDisposition = .currentTab,
         relativeTo sourceWindow: NSWindow? = nil,
-        forceSidebarVisible: Bool = false,
-        sidebarVisibleOverride: Bool? = nil,
-        initialSortOrder: SortOrder = .foldersFirst,
-        showLineNumbersOverride: Bool? = nil,
-        sourceModeOverride: Bool? = nil
+        forceSidebarVisible: Bool = false
     ) {
         guard fileReader.fileExists(at: url) else {
             // 新規オープン時点ではまだ親ウィンドウが無いため over: nil でモーダル表示する。
@@ -191,8 +195,8 @@ final class ViewerWindowManager {
 
         let lastActivePathKey = sessionStore.savedActivePath()
         // 開閉の解決順: CLI の明示指定(--sidebar/--no-sidebar) > フォルダーオープンによる強制表示 > 記憶の引き継ぎ。
-        let initialSidebarCollapsed: Bool = if let sidebarVisibleOverride {
-            !sidebarVisibleOverride
+        let initialSidebarCollapsed: Bool = if let showSidebar = options.showSidebar {
+            !showSidebar
         } else if forceSidebarVisible {
             false
         } else {
@@ -217,9 +221,9 @@ final class ViewerWindowManager {
             gitFileIndex: gitFileIndex,
             initialSidebarCollapsed: initialSidebarCollapsed,
             initialFrameDescriptor: initialFrameDescriptor,
-            initialSortOrder: initialSortOrder,
-            showLineNumbersOverride: showLineNumbersOverride,
-            sourceModeOverride: sourceModeOverride,
+            initialSortOrder: options.viewerSortOrder,
+            showLineNumbersOverride: options.showLineNumbers,
+            sourceModeOverride: options.sourceMode,
             store: makeStore?(url),
             openFileElsewhere: { [weak self] fileURL, disposition, sourceWindow in
                 self?.openViewer(for: fileURL, disposition: disposition, relativeTo: sourceWindow)

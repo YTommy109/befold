@@ -17,17 +17,10 @@ final class BookmarksMenuController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
         let urls = bookmarkedURLs().sorted { $0.lastPathComponent < $1.lastPathComponent }
         for url in urls {
-            let item = NSMenuItem(
-                title: url.lastPathComponent,
-                action: #selector(openBookmark(_:)),
-                keyEquivalent: ""
+            menu.addFileItem(
+                title: url.lastPathComponent, filePath: url.path,
+                action: #selector(openBookmark(_:)), target: self, representedObject: url
             )
-            item.target = self
-            item.representedObject = url
-            let icon = NSWorkspace.shared.icon(forFile: url.path)
-            icon.size = NSSize(width: 16, height: 16)
-            item.image = icon
-            menu.addItem(item)
         }
     }
 

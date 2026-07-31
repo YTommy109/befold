@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldCLI
 import BefoldKit
 import BefoldTestSupport
 import Foundation
@@ -37,9 +38,7 @@ struct ViewerWindowManagerDisplayOverridesIntegrationTests {
         await controller.sidebar.pendingListingTask?.value
         #expect(controller.fileListModel.entries.map(\.kind) == [.folder, .file])
 
-        manager.applyDisplayOverrides(
-            showLineNumbers: nil, sourceMode: nil, sortOrder: .alphabetical, showSidebar: nil
-        )
+        manager.applyDisplayOverrides(CLIOpenOptions(sortOrder: .alphabetical))
         await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.sortOrder == .alphabetical)

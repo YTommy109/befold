@@ -63,9 +63,7 @@ public enum CLICheckCommand {
             fileType: fileType,
             fileReader: fileReader,
             contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: { cache, fileType in
-                StringChunkReader(cache: cache, boundary: ChunkBoundary(fileType: fileType))
-            },
+            chunkedReaderFactory: ViewerLoadPipeline.defaultChunkedReaderFactory,
             oneShotLoad: true,
             embedLocalImages: false
         )

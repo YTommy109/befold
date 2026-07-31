@@ -38,21 +38,17 @@ final class RecentRepositoriesMenuController: NSObject, NSMenuDelegate {
         // パス毎の NSWorkspace.icon(forFile:) はディスク I/O を伴い、応答しないネットワーク
         // マウント上の worktree で固まりうるため使わない。リポジトリのルートは常にフォルダーなので、
         // パスに依存しない汎用フォルダーアイコンで足りる。
-        let folderIcon = NSWorkspace.shared.icon(for: .folder)
-        folderIcon.size = NSSize(width: 16, height: 16)
+        let folderIcon = NSWorkspace.shared.icon(for: .folder).sizedForMenuItem()
         for group in groups(of: currentEntries) {
             addItems(for: group, to: menu, icon: folderIcon)
         }
         if !currentEntries.isEmpty {
             menu.addItem(.separator())
         }
-        let clearItem = NSMenuItem(
+        menu.addActionItem(
             title: String(localized: "menu.file.clearMenu", bundle: .l10n),
-            action: #selector(clearRecentRepositories(_:)),
-            keyEquivalent: ""
+            action: #selector(clearRecentRepositories(_:)), target: self
         )
-        clearItem.target = self
-        menu.addItem(clearItem)
     }
 
     // MARK: - 構築
@@ -117,11 +113,10 @@ final class RecentRepositoriesMenuController: NSObject, NSMenuDelegate {
     }
 
     private func openItem(title: String, entry: RecentRepositoryEntry, icon: NSImage) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: #selector(openRecentRepository(_:)), keyEquivalent: "")
-        item.target = self
-        item.representedObject = entry
-        item.image = icon
-        return item
+        .action(
+            title: title, action: #selector(openRecentRepository(_:)), target: self,
+            representedObject: entry, image: icon
+        )
     }
 
     @objc private func openRecentRepository(_ sender: NSMenuItem) {
