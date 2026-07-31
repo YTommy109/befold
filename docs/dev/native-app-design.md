@@ -206,6 +206,10 @@ Info.plist で以下を宣言する。
 | mermaid.min.js（同梱） | Mermaid SVG レンダリング |
 | markdown-it.min.js（同梱） | `.md` ファイルの markdown → HTML 変換 |
 | highlight.min.js（同梱） | ソースコードのシンタックスハイライト |
+| dompurify.min.js（同梱） | markdown → HTML 変換結果のサニタイズ |
+| github-markdown.css / github.css / github-dark.css（同梱） | Markdown 本文とコードハイライトのテーマ |
+| Sparkle 2（SPM 依存） | 自動アップデート（appcast 取得・署名検証・インストール） |
+| swift-argument-parser（SPM 依存） | `befold-cli` の引数解析 |
 | XcodeGen | `.xcodeproj` 生成（`project.yml` が単一の定義元） |
 | Swift Package Manager | ビルド（`BefoldKit` / `BefoldRenderKit` / `BefoldCLI` / `befold` / `befold-cli` / `BefoldTestSupport` / `befoldTests` / `befoldCLITests` の 8 ターゲット） |
 | SwiftLint / SwiftFormat | ビルドプラグインとして実行 |
@@ -218,8 +222,9 @@ Info.plist で以下を宣言する。
 「ロジックは厚く、GUI/OS 層は薄く」の方針を採る。
 
 - **ユニットテスト（Swift Testing）**: FileWatcher（デバウンス・atomic save・シンボリックリンク・
-  削除検知）、Debouncer、ViewerStore の状態遷移、Updates/ 配下の各コンポーネント、
-  App/ 配下の各種永続化ストアなど、ロジック層は `befoldTests/` で網羅する
+  削除検知）、Debouncer、ViewerStore の状態遷移、`UpdateChannel`（`Updates/` はこの 1
+  ファイルのみ。Sparkle 本体の挙動は自動テスト対象外）、App/ 配下の各種永続化ストアなど、
+  ロジック層は `befoldTests/` で網羅する
 - **WebView 連携**: viewer.html の JS（ズーム・検索・エラーパネル）は `WKWebView` と
   Swift Testing を組み合わせて検証する
 - **GUI/OS 層**（メニュー・State Restoration・ウィンドウ管理の見た目）は自動テスト対象外とし、

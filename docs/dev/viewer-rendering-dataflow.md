@@ -19,16 +19,19 @@ code(language:)`）。plaintext は独立ケースではなく `.code(language: 
 として表現する。拡張子→種別は `typeByExtension`（唯一の情報源）で決まり、未知
 拡張子は plaintext へフォールバックする。`jsValue` が JS へ渡す type 文字列。
 
-| FileType | 代表拡張子 | `jsValue` | JS 描画関数 | レンダラ / 同梱アセット |
-|---|---|---|---|---|
-| `.mmd` | mmd, mermaid | `mmd` | `_renderMmd` → `_mmdRunMermaid` | mermaid.min.js（遅延ロード） |
-| `.markdown` | md, markdown | `md` | `_renderMarkdown`（既定分岐） | markdown-it + DOMPurify + highlight.js |
-| `.svg` | svg | `svg` | `_renderSvg` | `svgDataURI()` で `<img>` 化（外部ライブラリ無し） |
-| `.html` | html, htm | `html` | `_renderHtml`（sandbox iframe） | 無し（別途「直接 HTML モード」あり） |
-| `.csv` | csv / tsv | `csv` | `_renderCsv` / `renderCsvSourceHtml` | viewer.js の `parseCsv` / `buildTableHtml`（自前） |
-| `.image` | png, jpg, gif, webp, bmp, ico | `image` | `_renderImage` | `imageDataURI()` で base64 `<img>`（自前） |
-| `.pdf` | pdf | `pdf` | `_renderPdf` | `base64ToBytes` → Blob → iframe |
-| `.code` | swift, py, go, ts, json, yaml…（40+ 種） | `code` | `_renderCode` → `renderCodeHtml` | highlight.min.js |
+| FileType | 代表拡張子 | `jsValue` | レンダラ / 同梱アセット |
+|---|---|---|---|
+| `.mmd` | mmd, mermaid | `mmd` | mermaid.min.js（遅延ロード） |
+| `.markdown` | md, markdown | `md` | markdown-it + DOMPurify + highlight.js |
+| `.svg` | svg | `svg` | `svgDataURI()` で `<img>` 化（外部ライブラリ無し） |
+| `.html` | html, htm | `html` | 無し（別途「直接 HTML モード」あり） |
+| `.csv` | csv / tsv | `csv` | viewer.js の `parseCsv` / `buildTableHtml`（自前） |
+| `.image` | png, jpg, gif, webp, bmp, ico | `image` | `imageDataURI()` で base64 `<img>`（自前） |
+| `.pdf` | pdf | `pdf` | `base64ToBytes` → Blob → iframe |
+| `.code` | swift, py, go, ts, json, yaml…（40+ 種） | `code` | highlight.min.js |
+
+`jsValue` から呼ばれる JS 描画関数（ビルダー）の対応は
+[viewer.html の JS 分岐](#viewerhtml-の-js-分岐)の表を唯一の情報源とする。
 
 種別が描画方針を分岐させるプロパティ:
 
@@ -52,6 +55,8 @@ code(language:)`）。plaintext は独立ケースではなく `.code(language: 
 | 行指向テキスト | csv / code / markdown | `StringChunkReader` で先頭チャンク → `.chunked` | 100MB（`NormalizedTextCache.maxFileSizeBytes`。超過時は `fileTooLarge` で reject） |
 
 ## viewer.html の JS 分岐
+
+<!-- derived-from #filetype--種別レンダラ同梱アセット対応 -->
 
 同梱アセットは責務で 2 分割されている。
 
