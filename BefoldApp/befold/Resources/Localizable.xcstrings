@@ -256,6 +256,23 @@
         }
       }
     },
+    "aiIntegration.loadFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load the example skill file."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サンプル skill ファイルの読み込みに失敗しました。"
+          }
+        }
+      }
+    },
     "keyboardShortcuts.windowTitle": {
       "extractionState": "manual",
       "localizations": {
