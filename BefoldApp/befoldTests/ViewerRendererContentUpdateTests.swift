@@ -229,7 +229,7 @@ struct ViewerRendererContentUpdateTests {
         let sources = webView.configuration.userContentController.userScripts.map(\.source)
 
         #expect(sources.contains { $0.contains("_mmdMonoFontFamily") && $0.contains("Menlo") })
-        #expect(sources.contains { $0.contains("_mmdCodeFontSize") && $0.contains("14.0") })
+        #expect(sources.contains { $0.contains("_mmdCodeFontSize") && $0.contains("14") })
     }
 }
 

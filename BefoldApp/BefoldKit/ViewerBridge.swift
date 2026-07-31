@@ -54,7 +54,7 @@ public enum ViewerBridge {
 
     /// ロード時にファイル毎の初期倍率を注入するスクリプト。
     public static func initialZoomScript(_ zoom: Double) -> String {
-        "window._mmdInitialZoom = \(zoom);"
+        assignGlobalScript("window._mmdInitialZoom", zoom, fallback: scalarFallback)
     }
 
     /// 表示中ファイルの切り替え時などに、保存済み倍率を注入し直して即時反映する
@@ -66,22 +66,21 @@ public enum ViewerBridge {
     /// ロード時にシステム本文フォントサイズ(pt)を注入するスクリプト。
     /// viewer.html 側は _mmdInitFontSize() が読んで CSS 変数へ反映する。
     public static func systemFontSizeScript(_ size: Double) -> String {
-        "window._mmdSystemFontSize = \(size);"
+        assignGlobalScript("window._mmdSystemFontSize", size, fallback: scalarFallback)
     }
 
     /// ロード時に等幅フォントファミリー名を注入するスクリプト。JSONEncoder で
     /// エスケープし、JS インジェクションを防ぐ。nil は空文字として注入する
     /// (viewer.html 側はこれをシステム既定へのフォールバックとして扱う)。
     public static func monoFontFamilyScript(_ family: String?) -> String {
-        let encoded = (try? JSONEncoder().encode(family ?? "")).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
-        return "window._mmdMonoFontFamily = \(encoded);"
+        assignGlobalScript("window._mmdMonoFontFamily", family ?? "", fallback: "\"\"")
     }
 
     /// ロード時にコードフォントサイズ(pt)を注入するスクリプト。nil は未カスタマイズを表す
     /// null を注入し、viewer.html 側で CSS 変数 --mmd-code-font-size を未設定のままにする
     /// (calc(本文*0.75) フォールバックへ委ね、アクセシビリティ文字サイズに追従する)。
     public static func codeFontSizeScript(_ points: Double?) -> String {
-        "window._mmdCodeFontSize = \(points.map { String($0) } ?? "null");"
+        assignGlobalScript("window._mmdCodeFontSize", points, fallback: scalarFallback)
     }
 
     /// 表示中ファイルの切り替え時などに、等幅フォント設定を注入し直して即時反映する
@@ -134,10 +133,19 @@ public enum ViewerBridge {
         return String(data: jsonData, encoding: .utf8)
     }
 
+    /// エンコード失敗時にスカラー値の注入が使うフォールバック。JS 側はいずれの
+    /// グローバルも「未注入なら既定値」と解釈するため、null を入れれば既定へ落ちる
+    /// (Double は NaN/Infinity で JSONEncoder が失敗しうるため実際に到達する)。
+    private static let scalarFallback = "null"
+
     /// `global = <JSON>;` 形式のグローバル代入スクリプトを組み立てる。
-    /// エンコードに失敗した場合は空オブジェクト `{}` へフォールバックする。
-    private static func assignGlobalScript(_ global: String, _ value: some Encodable) -> String {
-        "\(global) = \(jsonLiteral(value) ?? "{}");"
+    /// JS へ値を注入する経路はすべてこれを通し、JSON エンコードによる
+    /// エスケープを必ず経由させる(インジェクション対策の単一経路)。
+    /// エンコードに失敗した場合は `fallback`(既定は空オブジェクト `{}`)を入れる。
+    private static func assignGlobalScript(
+        _ global: String, _ value: some Encodable, fallback: String = "{}"
+    ) -> String {
+        "\(global) = \(jsonLiteral(value) ?? fallback);"
     }
 
     /// render() 呼び出しの直前に評価し、次に復元すべきスクロール位置(scrollTop)を
@@ -246,7 +254,7 @@ public enum ViewerBridge {
     public static let findOptionsChangedMessageName = "findOptionsChanged"
 
     /// 検索の3トグルの状態。
-    public struct FindOptions: Equatable {
+    public struct FindOptions: Equatable, Encodable {
         public var caseSensitive: Bool
         public var wholeWord: Bool
         public var useRegex: Bool
@@ -261,8 +269,7 @@ public enum ViewerBridge {
     /// ロード時に検索トグルの保存済み状態を注入するスクリプト。
     /// viewer.html 側は _mmdInitFind() が window._mmdInitialFindOptions を読んで適用する。
     public static func initialFindOptionsScript(_ options: FindOptions) -> String {
-        "window._mmdInitialFindOptions = { caseSensitive: \(options.caseSensitive), " +
-            "wholeWord: \(options.wholeWord), useRegex: \(options.useRegex) };"
+        assignGlobalScript("window._mmdInitialFindOptions", options)
     }
 
     /// ロード時に検索バーのローカライズ済み文字列を注入するスクリプト。
