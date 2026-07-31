@@ -10,6 +10,11 @@ macOS 向けのドキュメント・ダイアグラムビューアアプリ。
 [`docs/dev/native-app-design.md`](../docs/dev/native-app-design.md) が単一の情報源。
 ここには最低限の見取り図だけを置く（同じ内容を二重管理しない）。**
 
+> このリンクは常に**現在作業中のワークツリー（worktree）内**の同名ファイルを指す。
+> worktree で作業している場合、セッション起動時の「Primary working directory」
+> （通常は main のパス）を起点に絶対パスを組み立てて開いてはならない。
+> 必ず現在の cwd／`git rev-parse --show-toplevel` を起点に解決すること。
+
 ソースはすべて `BefoldApp/` 配下にあり、主要ターゲットは次のとおり。
 
 | ターゲット | 責務 |
