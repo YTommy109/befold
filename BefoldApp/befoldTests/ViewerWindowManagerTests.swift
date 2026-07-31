@@ -268,4 +268,52 @@ struct ViewerWindowManagerTests {
         #expect(fixture.perFileState.windowFrame.frameDescriptor(for: file) == nil)
         fixture.closeAll()
     }
+
+    // MARK: - makeTabGroup(タブ構成スナップショットの組み立て)
+
+    @Test("ビューアパスを持つタブが1枚も無ければタブグループを作らない")
+    func makeTabGroupReturnsNilWhenNoViewerTabs() {
+        let group = ViewerWindowManager.makeTabGroup(
+            tabWindows: ["a", "b"], selectedWindow: "a", viewerPath: { _ in nil }
+        )
+
+        #expect(group == nil)
+    }
+
+    @Test("単独ウィンドウは自身を選択タブとする1枚のグループになる")
+    func makeTabGroupForSingleWindow() throws {
+        let group = try #require(
+            ViewerWindowManager.makeTabGroup(
+                tabWindows: ["/a.mmd"], selectedWindow: "/a.mmd", viewerPath: { $0 }
+            )
+        )
+
+        #expect(group.paths == ["/a.mmd"])
+        #expect(group.selectedPath == "/a.mmd")
+    }
+
+    @Test("タブ順は保たれ、選択タブのパスが selectedPath になる")
+    func makeTabGroupKeepsTabOrderAndSelection() throws {
+        let group = try #require(
+            ViewerWindowManager.makeTabGroup(
+                tabWindows: ["/a.mmd", "/b.mmd", "/c.mmd"], selectedWindow: "/b.mmd", viewerPath: { $0 }
+            )
+        )
+
+        #expect(group.paths == ["/a.mmd", "/b.mmd", "/c.mmd"])
+        #expect(group.selectedPath == "/b.mmd")
+    }
+
+    @Test("ビューアでないタブは除外され、選択タブがビューアでなければ selectedPath は nil になる")
+    func makeTabGroupSkipsNonViewerTabs() throws {
+        let group = try #require(
+            ViewerWindowManager.makeTabGroup(
+                tabWindows: ["/a.mmd", "other", "/c.mmd"], selectedWindow: "other",
+                viewerPath: { $0.hasPrefix("/") ? $0 : nil }
+            )
+        )
+
+        #expect(group.paths == ["/a.mmd", "/c.mmd"])
+        #expect(group.selectedPath == nil)
+    }
 }

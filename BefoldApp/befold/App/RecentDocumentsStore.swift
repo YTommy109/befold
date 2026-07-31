@@ -9,51 +9,37 @@ import Foundation
 final class RecentDocumentsStore {
     private static let defaultsKey = "RecentDocumentPaths"
 
-    private let defaults: UserDefaults
-    private let maximumCount: Int
+    private let recentPaths: PathListDefaults
 
     init(defaults: UserDefaults = .standard, maximumCount: Int = 10) {
-        self.defaults = defaults
-        self.maximumCount = maximumCount
+        recentPaths = PathListDefaults(defaults: defaults, key: Self.defaultsKey, limit: maximumCount)
     }
 
     /// 履歴の URL を新しい順で返す。
     func recentURLs() -> [URL] {
-        savedPaths().map { URL(fileURLWithPath: $0) }
+        recentPaths.urls
     }
 
     /// ファイルが開かれたことを記録する。既存の同一パスは先頭へ移動し、
     /// 上限を超えた分は古い方から捨てる。
     func noteOpened(_ url: URL) {
-        let path = url.normalizedPathKey
-        var paths = savedPaths().filter { $0 != path }
-        paths.insert(path, at: 0)
-        save(paths)
+        recentPaths.moveToFront(url)
     }
 
     /// rename / move を履歴に反映する。旧パスを取り除き、新パスを先頭に記録する。
     func noteRenamed(from oldURL: URL, to newURL: URL) {
-        let oldPath = oldURL.normalizedPathKey
-        save(savedPaths().filter { $0 != oldPath })
-        noteOpened(newURL)
+        recentPaths.remove(oldURL)
+        recentPaths.moveToFront(newURL)
     }
 
     /// 履歴を全て消す(Clear Menu)。空配列を保存するため、以降の seedIfNeeded は無効になる。
     func clear() {
-        save([])
+        recentPaths.replaceAll(with: [])
     }
 
     /// 一度も記録がない初回起動時のみ、システム管理の履歴(移行元)を取り込む。
     func seedIfNeeded(with urls: [URL]) {
-        guard defaults.object(forKey: Self.defaultsKey) == nil else { return }
-        save(urls.map(\.normalizedPathKey))
-    }
-
-    private func savedPaths() -> [String] {
-        defaults.stringArray(forKey: Self.defaultsKey) ?? []
-    }
-
-    private func save(_ paths: [String]) {
-        defaults.set(Array(paths.prefix(maximumCount)), forKey: Self.defaultsKey)
+        guard !recentPaths.hasStoredValue else { return }
+        recentPaths.replaceAll(withURLs: urls)
     }
 }

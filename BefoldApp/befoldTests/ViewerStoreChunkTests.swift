@@ -257,6 +257,34 @@ struct ViewerStoreChunkTests {
         store.close()
     }
 
+    @Test("チャンク読込は同一内容の再読込で表示状態を書き換えない")
+    func chunkedReloadWithIdenticalContentSkipsUpdate() async {
+        let file = URL(fileURLWithPath: "/files/data.csv")
+        let reader = InMemoryFileReader()
+        reader.setFile("a,b\n1,2\n3,4", at: file)
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let store = makeStore(
+            reader: reader,
+            onChangeBox: onChangeBox,
+            chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["a,b\n1,2\n", "3,4"]) }
+        )
+        await openAndLoad(store, file)
+        _ = await store.loadMoreLines()
+        let revisionAfterLoadMore = store.contentRevision
+        #expect(store.isTruncated == false)
+
+        onChangeBox.get()?()
+        await awaitLoad(store)
+
+        // dataHash・fileType が一致し loadFailed でもないため、表示状態は据え置く。
+        #expect(store.contentRevision == revisionAfterLoadMore)
+        #expect(store.content == "a,b\n1,2\n3,4")
+        #expect(store.isTruncated == false)
+        #expect(store.displayedLineCount == 3)
+
+        store.close()
+    }
+
     @Test("chunkedReaderFactory はファイル種別を受け取る(CSV 判定に使う)")
     func chunkedReaderFactoryReceivesFileType() async {
         let file = URL(fileURLWithPath: "/files/data.csv")

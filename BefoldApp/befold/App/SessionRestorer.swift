@@ -49,15 +49,11 @@ final class SessionRestorer {
             guard !seenWindows.contains(ObjectIdentifier(window)),
                   windowManager.viewerPath(of: window) != nil else { return nil }
 
-            let tabWindows = window.tabGroup?.windows ?? [window]
-            seenWindows.formUnion(tabWindows.map(ObjectIdentifier.init))
+            seenWindows.formUnion(ViewerWindowManager.tabWindows(of: window).map(ObjectIdentifier.init))
 
-            let paths = tabWindows.compactMap { windowManager.viewerPath(of: $0) }
-            guard !paths.isEmpty else { return nil }
-            let selectedWindow = window.tabGroup?.selectedWindow ?? window
-            return SessionLayout.TabGroup(
-                paths: paths, selectedPath: windowManager.viewerPath(of: selectedWindow)
-            )
+            // 組み立て規則は ViewerWindowManager.tabGroup(of:) に一本化してある
+            // (「最近使ったリポジトリ」のタブ構成と同じ形式で相互に復元されるため)
+            return windowManager.tabGroup(of: window)
         }
 
         // orderedWindows は最小化(Dock 収納)・非表示のウィンドウを含まないため、

@@ -10,6 +10,8 @@ enum DirectoryLister {
         sortedContents(in: directory, fileReader: fileReader).files
     }
 
+    /// 一覧構築ロジックの同期版。本番の経路は非同期版(listEntriesAsync)のみを使うため、
+    /// ここは並べ替え・隠しファイル・親移動エントリの規則を直接検証するテスト用の入口。
     static func listEntries(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
     ) -> [FileListEntry] {
@@ -17,11 +19,9 @@ enum DirectoryLister {
     }
 
     /// listEntries と同一ロジックを、呼び出し元アクターを離れて実行する版。
-    /// nonisolated async のため、windowDidBecomeKey / navigateToFolder のような
-    /// 反復して呼ばれる経路からの利用時に FileManager 列挙でメインスレッドを
-    /// 塞がない(ViewerLoadPipeline.load と同じパターン)。ウィンドウ生成時の
-    /// 一回限りの初期一覧取得(ViewerWindowController.init)は同期のままで十分なため
-    /// listEntries を継続利用する。
+    /// nonisolated async のため、ウィンドウ生成直後の初期一覧・windowDidBecomeKey・
+    /// navigateToFolder のいずれの経路でも FileManager 列挙がメインスレッドを塞がない
+    /// (ViewerLoadPipeline.load と同じパターン)。サイドバーの一覧取得はこの 1 本に揃えている。
     static func listEntriesAsync(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
     ) async -> [FileListEntry] {
@@ -64,17 +64,16 @@ enum DirectoryLister {
     /// 呼び出し側が FileManager を直接叩いて未定義順の結果を得るのを防ぐ。
     static func allEntriesSorted(in directory: URL, fileReader: any FileReading = Self.fileReader) -> [URL] {
         let (folders, files) = sortedContents(in: directory, showHiddenFiles: true, fileReader: fileReader)
-        return (folders + files).sorted {
-            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
-        }
+        return (folders + files).sortedByFileName()
     }
 
     static func containsSupportedFile(in directory: URL) -> Bool {
         firstSupportedFile(in: directory) != nil
     }
 
+    /// 先頭の対応形式ファイル。判定は BefoldKit.DirectoryEnumeration(単一の実装元)に委譲する。
     static func firstSupportedFile(in directory: URL, fileReader: any FileReading = Self.fileReader) -> URL? {
-        listFiles(in: directory, fileReader: fileReader).first(where: FileType.isSupported)
+        DirectoryEnumeration.firstSupportedFile(in: directory, fileReader: fileReader)
     }
 
     /// 指定 URL がホームディレクトリ自身、またはその配下かどうかを判定する。
@@ -111,39 +110,13 @@ enum DirectoryLister {
 
     // MARK: - Private
 
-    /// ディレクトリ内容を列挙し、フォルダーとファイルに分類してファイル名ソート済みで返す。
+    /// ディレクトリ内容の列挙・分類・ソートは BefoldKit.DirectoryEnumeration
+    /// (単一の実装元)に委譲する。
     private static func sortedContents(
         in directory: URL, showHiddenFiles: Bool = false, fileReader: any FileReading = Self.fileReader
     ) -> (folders: [URL], files: [URL]) {
-        let options: FileManager.DirectoryEnumerationOptions = showHiddenFiles ? [] : [.skipsHiddenFiles]
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: nil,
-            options: options
-        ) else {
-            return ([], [])
-        }
-
-        var folders: [URL] = []
-        var files: [URL] = []
-
-        for url in contents {
-            if fileReader.isDirectory(at: url) {
-                folders.append(url)
-            } else {
-                // 実体が存在しないダングリングシンボリックリンク等の非通常エントリも
-                // files に算入する。サイレントに一覧から消さず、開こうとした時点で
-                // 既存のオープン/エラー表示フローに委譲する。
-                files.append(url)
-            }
-        }
-
-        return (folders.sortedByFileName(), files.sortedByFileName())
-    }
-}
-
-private extension [URL] {
-    func sortedByFileName() -> [URL] {
-        sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+        DirectoryEnumeration.sortedContents(
+            in: directory, showHiddenFiles: showHiddenFiles, fileReader: fileReader
+        )
     }
 }
