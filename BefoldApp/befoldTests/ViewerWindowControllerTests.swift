@@ -218,7 +218,8 @@ extension ViewerWindowControllerTests {
         contents: String = "graph TD;",
         zoomStore: ZoomStore? = nil,
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"),
-        openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { _, _, _ in }
+        openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { _, _, _ in },
+        externalOpener: @escaping (URL) -> Void = { _ in }
     ) -> ViewerWindowController {
         var dict: [String: String] = [:]
         for url in [primary] + others {
@@ -240,7 +241,8 @@ extension ViewerWindowControllerTests {
                 fileReader: InMemoryFileReader(files: dict),
                 defaults: defaults
             ),
-            openFileElsewhere: openFileElsewhere
+            openFileElsewhere: openFileElsewhere,
+            externalOpener: externalOpener
         )
     }
 
@@ -592,10 +594,12 @@ extension ViewerWindowControllerTests {
     func externalURLContextMenuOpenSkipsFileViewer() throws {
         let file = URL(fileURLWithPath: "/mock/a.md")
         var openedElsewhere: [URL] = []
+        var openedExternally: [URL] = []
         let controller = makeSwitchController(
             primary: file,
             defaults: makeIsolatedDefaults(prefix: "ExternalURLContextMenu"),
-            openFileElsewhere: { url, _, _ in openedElsewhere.append(url) }
+            openFileElsewhere: { url, _, _ in openedElsewhere.append(url) },
+            externalOpener: { url in openedExternally.append(url) }
         )
         defer { controller.close() }
         let externalURL = try #require(URL(string: "https://example.com/docs"))
@@ -614,5 +618,7 @@ extension ViewerWindowControllerTests {
         #expect(openedElsewhere.isEmpty)
         // switchFile 経由(.currentTab)なら fileURL が書き換わるが、外部 URL では現在ファイルのまま。
         #expect(controller.fileURL == file)
+        // 3 disposition すべてで、実ブラウザを起動せず externalOpener 経由でブラウザ経路に渡ったことを確認する。
+        #expect(openedExternally == [externalURL, externalURL, externalURL])
     }
 }

@@ -46,6 +46,9 @@ final class ViewerWindowController: NSWindowController {
     /// 別のタブ/ウィンドウでファイルを開く処理。タブ結合の基準にするため自分のウィンドウも渡す。
     /// 本番では ViewerWindowManager 経由で注入する。
     private let openFileElsewhere: (URL, OpenDisposition, NSWindow?) -> Void
+    /// 外部 URL(http/https)をブラウザで開く処理。本番では NSWorkspace 経由。
+    /// テストが実ブラウザを起動せずに済むよう注入可能にしている。
+    private let externalOpener: (URL) -> Void
     /// 生成した SplitViewController への型消去参照。contentViewController が保持するため weak。
     /// CLI の `--sidebar`/`--no-sidebar` を既存ウィンドウへ適用する際に使う。
     private weak var sidebarCollapsible: (any SidebarCollapsible)?
@@ -112,6 +115,7 @@ final class ViewerWindowController: NSWindowController {
     ///   ウィンドウごとに `git ls-files` を重複実行してしまう。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
     /// - Parameter openFileElsewhere: 同上。別タブ/別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
+    /// - Parameter externalOpener: 同上。外部 URL(http/https)を開く処理。デフォルトは NSWorkspace 経由。
     init(
         fileURL: URL, defaults: UserDefaults = .standard,
         hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
@@ -128,7 +132,8 @@ final class ViewerWindowController: NSWindowController {
         store: ViewerStore? = nil,
         openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { url, disposition, source in
             AppDelegate.shared?.openViewer(for: url, disposition: disposition, relativeTo: source)
-        }
+        },
+        externalOpener: @escaping (URL) -> Void = { url in NSWorkspace.shared.open(url) }
     ) {
         initialFileURL = fileURL
         self.perFileState = perFileState
@@ -147,6 +152,7 @@ final class ViewerWindowController: NSWindowController {
         }
         self.store = store
         self.openFileElsewhere = openFileElsewhere
+        self.externalOpener = externalOpener
         let parentDir = fileURL.deletingLastPathComponent()
         // 初期一覧は空で始め、attach 直後の refreshFileList()(非同期の DirectoryLister.listEntriesAsync)に
         // 埋めさせる。ウィンドウ生成時だけ同期列挙する経路を持たないことで、ネットワーク
@@ -549,7 +555,7 @@ extension ViewerWindowController: ReferenceResolutionHost {
             // ローカルパスが無く、渡すと「ファイルが見つかりません」になる。修飾キーに
             // かかわらずブラウザで開く(通常クリック・cmd+クリックと同じ扱いに揃える)。
             if invocation.isExternal {
-                NSWorkspace.shared.open(invocation.url)
+                externalOpener(invocation.url)
             } else {
                 openReference(invocation.url, disposition: disposition)
             }
