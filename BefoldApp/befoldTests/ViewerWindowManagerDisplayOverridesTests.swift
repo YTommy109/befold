@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldCLI
 import BefoldTestSupport
 import Foundation
 import Testing
@@ -24,7 +25,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
         fixture.manager.openViewer(for: markdownFile)
 
         fixture.manager.applyDisplayOverrides(
-            showLineNumbers: true, sourceMode: true, sortOrder: .alphabetical, showSidebar: nil
+            CLIOpenOptions(sortOrder: .alphabetical, showLineNumbers: true, sourceMode: true)
         )
 
         for controller in fixture.manager.allControllers {
@@ -45,9 +46,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
         let originalSortOrder = controller.fileListModel.sortOrder
         let originalSourceMode = controller.isSourceMode
 
-        fixture.manager.applyDisplayOverrides(
-            showLineNumbers: true, sourceMode: nil, sortOrder: nil, showSidebar: nil
-        )
+        fixture.manager.applyDisplayOverrides(CLIOpenOptions(showLineNumbers: true))
 
         #expect(controller.store.showLineNumbers)
         #expect(controller.isSourceMode == originalSourceMode)
@@ -66,16 +65,14 @@ struct ViewerWindowManagerDisplayOverridesTests {
         #expect(button.contentTintColor == nil)
 
         // sourceMode を渡さず行番号のみを上書きする(間接発火に頼れない経路)。
-        fixture.manager.applyDisplayOverrides(
-            showLineNumbers: true, sourceMode: nil, sortOrder: nil, showSidebar: nil
-        )
+        fixture.manager.applyDisplayOverrides(CLIOpenOptions(showLineNumbers: true))
 
         #expect(button.contentTintColor == .controlAccentColor)
         fixture.closeAll()
     }
 
     @Test(
-        "新規ウィンドウは sidebarVisibleOverride に従って開閉状態が決まる",
+        "新規ウィンドウは options.showSidebar に従って開閉状態が決まる",
         arguments: [(true, false), (false, true)]
     )
     func sidebarVisibleOverrideDeterminesInitialCollapse(visible: Bool, expectedCollapsed: Bool) {
@@ -83,19 +80,19 @@ struct ViewerWindowManagerDisplayOverridesTests {
             files: [file], prefix: "SidebarOverrideInitial-\(visible)"
         )
 
-        fixture.manager.openViewer(for: file, sidebarVisibleOverride: visible)
+        fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: visible))
 
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == expectedCollapsed)
         fixture.closeAll()
     }
 
-    @Test("sidebarVisibleOverride 未指定(nil)なら保存済み開閉状態を維持する")
+    @Test("showSidebar 未指定(nil)なら保存済み開閉状態を維持する")
     func sidebarVisibleOverrideNilKeepsSavedState() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SidebarOverrideNil")
         // 事前に「開いた状態(collapsed=false)」を保存しておく。
         fixture.perFileState.sidebar.setCollapsed(false, for: file)
 
-        fixture.manager.openViewer(for: file, sidebarVisibleOverride: nil)
+        fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: nil))
 
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
         fixture.closeAll()
@@ -105,12 +102,10 @@ struct ViewerWindowManagerDisplayOverridesTests {
     func applyDisplayOverridesTogglesSidebarOnOpenWindow() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SidebarOverrideApply")
         // 閉じた状態で開く。
-        fixture.manager.openViewer(for: file, sidebarVisibleOverride: false)
+        fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: false))
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == true)
 
-        fixture.manager.applyDisplayOverrides(
-            showLineNumbers: nil, sourceMode: nil, sortOrder: nil, showSidebar: true
-        )
+        fixture.manager.applyDisplayOverrides(CLIOpenOptions(showSidebar: true))
 
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
         fixture.closeAll()

@@ -183,17 +183,10 @@ final class SessionRestorer {
         activePathToRestore = nil
     }
 
-    /// CLI 起動オプションの上書きをまとめてウィンドウ生成へ引き渡す。
-    /// restoreLastSession・タブグループ復元・ルートフォルダのフォールバックの
-    /// いずれからも呼ぶことで、CLIOpenOptions にオーバーライドが追加されても転送漏れが起きないようにする。
+    /// CLI 起動オプションをまとめてウィンドウ生成へ引き渡す。
     /// forceSidebarVisible はフォルダーオープン相当(openRootFallback)でのみ true にする。
     private func openViewer(for url: URL, options: CLIOpenOptions, forceSidebarVisible: Bool = false) {
-        windowManager.openViewer(
-            for: url, forceSidebarVisible: forceSidebarVisible,
-            sidebarVisibleOverride: options.showSidebar,
-            initialSortOrder: options.viewerSortOrder,
-            showLineNumbersOverride: options.showLineNumbers, sourceModeOverride: options.sourceMode
-        )
+        windowManager.openViewer(for: url, options: options, forceSidebarVisible: forceSidebarVisible)
     }
 
     /// 1 つのタブグループを復元する。先頭のウィンドウに残りを順にタブ連結し、選択タブを再現する。

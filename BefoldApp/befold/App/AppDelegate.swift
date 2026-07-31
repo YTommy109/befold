@@ -272,12 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             windowManager.setHiddenFiles(showHiddenFiles)
         }
         guard !paths.isEmpty else {
-            windowManager.applyDisplayOverrides(
-                showLineNumbers: options.showLineNumbers,
-                sourceMode: options.sourceMode,
-                sortOrder: options.sortOrder.map { _ in options.viewerSortOrder },
-                showSidebar: options.showSidebar
-            )
+            windowManager.applyDisplayOverrides(options)
             return
         }
         // 同上。解決を待つ間に順序が入れ替わらないよう、1 本の Task 内で逐次に開く。
@@ -304,12 +299,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         windowManager.openViewer(
-            for: target, disposition: disposition, relativeTo: sourceWindow,
-            forceSidebarVisible: isDirectory,
-            sidebarVisibleOverride: options.showSidebar,
-            initialSortOrder: options.viewerSortOrder,
-            showLineNumbersOverride: options.showLineNumbers,
-            sourceModeOverride: options.sourceMode
+            for: target, options: options, disposition: disposition, relativeTo: sourceWindow,
+            forceSidebarVisible: isDirectory
         )
     }
 
