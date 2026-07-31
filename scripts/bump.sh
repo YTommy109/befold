@@ -58,7 +58,9 @@ if [ "$LEVEL" = "dev" ]; then
   fi
 
   git -C "$ROOT" tag "$DEV_TAG"
-  git -C "$ROOT" push --tags
+  # --tags はローカルの全タグを送るため使わない。4個以上のタグを同時に push すると
+  # GitHub が push イベントを生成せず、Release ワークフローが起動しない
+  git -C "$ROOT" push origin "$DEV_TAG"
   echo "${DEV_TAG} をプッシュしました"
   exit 0
 fi
@@ -114,6 +116,7 @@ git -C "$ROOT" add "$PROJECT_YML" "$APP_VERSION_SWIFT"
 ALLOW_MAIN_COMMIT=1 git -C "$ROOT" commit -m "chore: バージョンを ${OLD_VERSION} から ${NEW_VERSION} に更新する"
 git -C "$ROOT" tag "v${NEW_VERSION}"
 git -C "$ROOT" push
-git -C "$ROOT" push --tags
+# --tags はローカルの全タグを送るため使わない（dev タグ側のコメント参照）
+git -C "$ROOT" push origin "v${NEW_VERSION}"
 
 echo "v${OLD_VERSION} → v${NEW_VERSION}（ビルド番号 ${NEW_BUILD}）をリリースタグと共にプッシュしました"
