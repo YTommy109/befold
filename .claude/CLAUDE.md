@@ -42,6 +42,9 @@ swift build                  # ビルド
 swift test                   # テスト（要 Xcode.app）
 xcodegen generate            # .xcodeproj を再生成
 xcodebuild build -scheme befold  # Xcode ビルド（要 Xcode.app）
+
+# Markdown リンタ（リポジトリルートで実行。設定は .markdownlint-cli2.jsonc）
+markdownlint-cli2          # docs 変更時に実行（--fix で自動修正）
 ```
 
 ## Swift コーディング規約
@@ -70,7 +73,7 @@ xcodebuild build -scheme befold  # Xcode ビルド（要 Xcode.app）
 
 Conventional Commits + 日本語:
 
-```
+```text
 feat: Mermaid ビューア画面を追加する
 fix: ファイル変更検知が2回通知される問題を修正する
 chore: XcodeGen 設定を更新する

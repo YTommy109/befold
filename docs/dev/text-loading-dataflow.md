@@ -16,9 +16,9 @@
 
 ## 現行フロー（LineChunkReader ベース）
 
-### 全体図
+### 全体図（現行フロー）
 
-```
+```text
 ViewerStore.reload()
   └─ computeLoad(url, fileType, ...)
        ├─ ファイル不在 → .missing
@@ -40,7 +40,7 @@ ViewerStore.reload()
 
 ### LineChunkReader の内部フロー
 
-```
+```text
 init(url, encoding)
   ├─ FileHandle.init(forReadingFrom:)
   ├─ 先頭4バイト読込 → TextEncoding.detectBOM()
@@ -73,7 +73,7 @@ readNextChunk()
 
 ### 検索フロー（現行）
 
-```
+```text
 Cmd+F → _mmdOpenFind()
   ├─ _mmdIsTruncated == false
   │    └─ _mmdFindRun() → DOM TreeWalker で全文検索
@@ -91,7 +91,7 @@ Cmd+F → _mmdOpenFind()
 
 ### apply のフロー
 
-```
+```text
 apply(outcome)
   ├─ .missing → scheduleFileGone()
   ├─ .chunked(session, firstChunk, isAtEnd)
@@ -109,9 +109,9 @@ apply(outcome)
 
 ## 新フロー（NormalizedTextCache + StringChunkReader ベース）
 
-### 全体図
+### 全体図（新フロー）
 
-```
+```text
 ViewerStore.reload()
   └─ computeLoad(url, fileType, ...)
        ├─ ファイル不在 → .missing
@@ -138,7 +138,7 @@ ViewerStore.reload()
 
 ### NormalizedTextCache の内部フロー
 
-```
+```text
 init(data:)
   ├─ data.isEmpty → text="", lineStartIndices=[], return
   ├─ dataHash = data のハッシュ値
@@ -157,7 +157,7 @@ init(data:)
 
 ### StringChunkReader の内部フロー
 
-```
+```text
 readNextChunk()
   ├─ currentLine >= lineCount → ("", true)
   ├─ startIndex = lineStartIndices[currentLine]
@@ -177,7 +177,7 @@ readNextChunk()
 
 ### 検索フロー（新）
 
-```
+```text
 Cmd+F → _mmdOpenFind()
   └─ _mmdFindRun()
        DOM TreeWalker で表示済み範囲のみ検索
@@ -190,7 +190,7 @@ Cmd+F → _mmdOpenFind()
 
 ### apply のフロー（新）
 
-```
+```text
 apply(outcome)
   ├─ .missing → scheduleFileGone()
   ├─ .chunked(session, cache, firstChunk, isAtEnd)

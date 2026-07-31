@@ -31,9 +31,11 @@ SessionStart 表示でも埋め込みは空になる。
 ## Steps
 
 1. **Check graph status** with the CLI (the stats tool is not exposed over MCP):
+
    ```bash
    dagayn status
    ```
+
    - If the graph has never been built, proceed with a full build.
    - If the graph exists, proceed with an incremental update.
 

@@ -40,10 +40,12 @@ Agent ツールを `model: "opus"` で1件起動し、以下を渡す:
 - `docs/dev/coding_rule.md` の全文
 
 観点は2つ:
+
 1. 正しさ・簡潔性・効率性（`/code-review` 相当の一般的な品質観点）
 2. `docs/dev/coding_rule.md` の各項目への準拠
 
 出力は指摘リスト。各指摘に以下を含めること:
+
 - 種別タグ: `rule-violation`（coding_rule.md 準拠違反）/ `bug` / `simplification` / `efficiency` のいずれか
 - ファイルパス・行番号
 - 指摘理由
@@ -87,6 +89,7 @@ Fix + Verify が成功したら、Agent ツールを `model: "sonnet"` で1件�
 このラウンドは Opus を使わないこと。
 
 指摘ゼロなら「Final Confirmation」に進む。指摘が残る場合:
+
 - 現在のラウンドが Round 2（iteration=2）なら、Fix → Verify のあと
   Round 3（iteration=3）の Re-review を実行する
 - 現在のラウンドが Round 3（iteration=3）なら、これが最大イテレーションの

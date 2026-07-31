@@ -20,7 +20,7 @@ befold は macOS 向けの Mermaid ダイアグラム・ビューアアプリで
 
 ## アーキテクチャ
 
-```
+```text
 befold.app (Swift 6 / AppKit + SwiftUI, macOS 14+)
   ├── AppDelegate                # ライフサイクル・メニュー・各コーディネータの束ね
   │     ├── ViewerWindowManager      # ウィンドウ生成・管理とセッション記録の更新
@@ -47,7 +47,7 @@ BefoldQuickLook.appex (QuickLook 拡張)
 
 ## モジュール構成
 
-```
+```text
 BefoldApp/
 ├── project.yml                # XcodeGen 定義（全ターゲットの単一定義元）
 ├── Package.swift               # SPM ビルド用

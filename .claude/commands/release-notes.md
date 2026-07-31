@@ -65,9 +65,9 @@ Markdown 形式で出力する:
    画面など）を実際に grep して FeatureGate 配下かどうかを確認する
    （例: `grep -rn "FeatureGate.inProgressFeaturesEnabled" BefoldApp/befold`）。
 3. 判断に迷うコミットはユーザー影響がないものとして除外する（安全側に倒す）。
-3. 除外したコミットがある場合は、リリースノート生成後にユーザーへ一覧を
+4. 除外したコミットがある場合は、リリースノート生成後にユーザーへ一覧を
    提示し、含めるべきか確認する。
-4. 残ったコミットを Markdown 形式で出力する:
+5. 残ったコミットを Markdown 形式で出力する:
 
 ```markdown
 ## {最新タグ}

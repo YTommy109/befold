@@ -29,7 +29,7 @@ xcodebuild build -scheme befold
 
 ## アーキテクチャ
 
-```
+```text
 befold.app (Swift / AppKit + SwiftUI)
   ├── AppDelegate            # ライフサイクル・メニュー・各コーディネータの束ね
   │     ├── ViewerWindowManager    # ウィンドウ生成・管理とセッション記録の更新

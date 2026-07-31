@@ -33,7 +33,7 @@ description: 変更・新規の Swift ファイルに対する Swift Testing テ
 
 ### 出力フォーマット
 
-```
+```markdown
 ## <対象ファイル>
 
 ### 既存テスト

@@ -37,7 +37,7 @@ CI の `thread-sanitizer` ジョブで `FileWatcherIntegrationTests` が断続�
 
 このテストの流れと時間予算:
 
-```
+```text
 0.3s 待ち → 削除 → 0.5s 待ち → 再作成 → 0.5s 待ち → armed=true → 書き込み(1回) → 3s 待ち
 ```
 
