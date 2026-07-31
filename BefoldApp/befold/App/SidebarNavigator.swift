@@ -130,7 +130,7 @@ final class SidebarNavigator {
             // ここで currentFileURL への一致を強制してはならない(issue #161)。
             let selectionStillValid = self.fileListModel.selection.map { selection in
                 let selectionKey = selection.normalizedPathKey
-                return entries.contains { $0.url.normalizedPathKey == selectionKey }
+                return entries.contains { $0.pathKey == selectionKey }
             } ?? false
             guard !selectionStillValid else { return }
             self.fileListModel.selection = self.matchingEntryURL(for: host.currentFileURL)
@@ -176,7 +176,7 @@ final class SidebarNavigator {
             return
         }
         let key = currentFile.normalizedPathKey
-        if !entries.contains(where: { $0.url.normalizedPathKey == key }) {
+        if !entries.contains(where: { $0.pathKey == key }) {
             entries.append(FileListEntry(url: currentFile, kind: .file))
         }
     }
@@ -184,7 +184,7 @@ final class SidebarNavigator {
     /// エントリ一覧からフォルダーの正規化キーが一致するものを返す。
     private func folderEntryURL(forKey key: String) -> URL? {
         fileListModel.entries.first {
-            $0.kind == .folder && $0.url.normalizedPathKey == key
+            $0.kind == .folder && $0.pathKey == key
         }?.url
     }
 
@@ -193,7 +193,7 @@ final class SidebarNavigator {
     func matchingEntryURL(for url: URL) -> URL {
         let key = url.normalizedPathKey
         return fileListModel.entries.first {
-            $0.url.normalizedPathKey == key
+            $0.pathKey == key
         }?.url ?? url
     }
 

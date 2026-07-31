@@ -19,11 +19,16 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
     /// 一覧構築(DirectoryLister.buildEntries)の時点で事前計算し、「新しいウィンドウで
     /// 開く」の disabled 判定・実行時のディレクトリ列挙を MainActor から追い出す。
     let containsSupportedFile: Bool
+    /// url.normalizedPathKey(resolvingSymlinksInPath の syscall)を構築時に事前計算した値。
+    /// SidebarNavigator の選択維持判定(entries.contains { $0.pathKey == key })がエントリ数ぶんの
+    /// stat を MainActor 上で行わずに済むようにする。
+    let pathKey: String
 
     init(url: URL, kind: Kind, containsSupportedFile: Bool = false) {
         self.url = url
         self.kind = kind
         self.containsSupportedFile = containsSupportedFile
+        pathKey = url.normalizedPathKey
     }
 
     var id: URL {
