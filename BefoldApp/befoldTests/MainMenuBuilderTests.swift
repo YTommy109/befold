@@ -20,7 +20,13 @@ struct MainMenuBuilderTests {
         _ = NSApplication.shared
         return MainMenuBuilder.build(
             openAction: #selector(AppDelegate.showOpenPanel),
-            helpAction: #selector(AppDelegate.openHelp(_:)),
+            helpActions: MainMenuHelpActions(
+                visitWebsite: #selector(AppDelegate.openHelp(_:)),
+                featureOverview: #selector(AppDelegate.showFeatureOverview(_:)),
+                keyboardShortcuts: #selector(AppDelegate.showKeyboardShortcuts(_:)),
+                aiIntegration: #selector(AppDelegate.showAIIntegration(_:)),
+                ossAcknowledgements: #selector(AppDelegate.showOSSLicenses(_:))
+            ),
             recentMenuDelegate: recentMenuDelegate,
             bookmarksMenuDelegate: bookmarksMenuDelegate,
             recentRepositoriesMenuDelegate: recentRepositoriesMenuDelegate

@@ -14,6 +14,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let codeFontPreference: CodeFontPreference
     private let sessionRestorer: SessionRestorer
     private var codeFontSettingsWindowController: CodeFontSettingsWindowController?
+    private var aboutWindowController: AboutWindowController?
+    private var featureOverviewWindowController: FeatureOverviewWindowController?
+    private var keyboardShortcutsWindowController: KeyboardShortcutsWindowController?
+    private var ossLicensesWindowController: OSSLicensesWindowController?
+    private var aiIntegrationWindowController: AIIntegrationWindowController?
     private lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: false,
         updaterDelegate: self,
@@ -126,7 +131,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         recentDocumentsStore.seedIfNeeded(with: NSDocumentController.shared.recentDocumentURLs)
         NSApp.mainMenu = MainMenuBuilder.build(
             openAction: #selector(showOpenPanel),
-            helpAction: #selector(openHelp(_:)),
+            helpActions: MainMenuHelpActions(
+                visitWebsite: #selector(openHelp(_:)),
+                featureOverview: #selector(showFeatureOverview(_:)),
+                keyboardShortcuts: #selector(showKeyboardShortcuts(_:)),
+                aiIntegration: #selector(showAIIntegration(_:)),
+                ossAcknowledgements: #selector(showOSSLicenses(_:))
+            ),
             recentMenuDelegate: recentDocumentsMenuController,
             bookmarksMenuDelegate: bookmarksMenuController,
             recentRepositoriesMenuDelegate: recentRepositoriesMenuController
@@ -282,18 +293,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Help > befold Help。配布サイトをブラウザで開く。
+    /// Help > Visit Website。配布サイトをブラウザで開く。
     @objc func openHelp(_ sender: Any?) {
         NSWorkspace.shared.open(AppLinks.help)
     }
 
     @objc func showAbout(_ sender: Any?) {
-        NSApp.orderFrontStandardAboutPanel(options: aboutPanelOptions)
+        let controller = aboutWindowController ?? AboutWindowController()
+        aboutWindowController = controller
+        controller.toggle()
     }
 
-    private var aboutPanelOptions: [NSApplication.AboutPanelOptionKey: Any] {
-        let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-        return [.credits: AboutPanelCredits.make(font: font)]
+    /// Help > 機能説明。
+    @objc func showFeatureOverview(_ sender: Any?) {
+        let controller = featureOverviewWindowController ?? FeatureOverviewWindowController()
+        featureOverviewWindowController = controller
+        controller.toggle()
+    }
+
+    /// Help > キーボードショートカット。
+    @objc func showKeyboardShortcuts(_ sender: Any?) {
+        let controller = keyboardShortcutsWindowController ?? KeyboardShortcutsWindowController()
+        keyboardShortcutsWindowController = controller
+        controller.toggle()
+    }
+
+    /// Help > AI コーディングエージェント連携。
+    @objc func showAIIntegration(_ sender: Any?) {
+        let controller = aiIntegrationWindowController ?? AIIntegrationWindowController()
+        aiIntegrationWindowController = controller
+        controller.toggle()
+    }
+
+    /// Help > OSS 謝辞。
+    @objc func showOSSLicenses(_ sender: Any?) {
+        let controller = ossLicensesWindowController ?? OSSLicensesWindowController()
+        ossLicensesWindowController = controller
+        controller.toggle()
     }
 
     @objc func checkForUpdates(_ sender: Any?) {

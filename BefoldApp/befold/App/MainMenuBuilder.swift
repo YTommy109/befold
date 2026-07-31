@@ -1,10 +1,19 @@
 import AppKit
 
+/// Help メニュー配下の各項目のアクション。パラメータ数を抑えるために 1 つにまとめる。
+struct MainMenuHelpActions {
+    let visitWebsite: Selector
+    let featureOverview: Selector
+    let keyboardShortcuts: Selector
+    let aiIntegration: Selector
+    let ossAcknowledgements: Selector
+}
+
 @MainActor
 enum MainMenuBuilder {
     static func build(
         openAction: Selector,
-        helpAction: Selector,
+        helpActions: MainMenuHelpActions,
         recentMenuDelegate: NSMenuDelegate,
         bookmarksMenuDelegate: NSMenuDelegate,
         recentRepositoriesMenuDelegate: NSMenuDelegate
@@ -20,7 +29,7 @@ enum MainMenuBuilder {
         mainMenu.addItem(makeEditMenuItem())
         mainMenu.addItem(makeViewMenuItem())
         mainMenu.addItem(makeWindowMenuItem())
-        mainMenu.addItem(makeHelpMenuItem(helpAction: helpAction))
+        mainMenu.addItem(makeHelpMenuItem(helpActions))
         return mainMenu
     }
 
@@ -339,14 +348,35 @@ enum MainMenuBuilder {
         return item
     }
 
-    private static func makeHelpMenuItem(helpAction: Selector) -> NSMenuItem {
+    private static func makeHelpMenuItem(_ actions: MainMenuHelpActions) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.help.title", bundle: .l10n))
         item.submenu = menu
         menu.addItem(
-            withTitle: String(localized: "menu.help.appHelp", bundle: .l10n),
-            action: helpAction,
+            withTitle: String(localized: "menu.help.featureOverview", bundle: .l10n),
+            action: actions.featureOverview,
+            keyEquivalent: ""
+        )
+        menu.addItem(
+            withTitle: String(localized: "menu.help.keyboardShortcuts", bundle: .l10n),
+            action: actions.keyboardShortcuts,
+            keyEquivalent: ""
+        )
+        menu.addItem(
+            withTitle: String(localized: "menu.help.aiIntegration", bundle: .l10n),
+            action: actions.aiIntegration,
+            keyEquivalent: ""
+        )
+        menu.addItem(.separator())
+        menu.addItem(
+            withTitle: String(localized: "menu.help.visitWebsite", bundle: .l10n),
+            action: actions.visitWebsite,
             keyEquivalent: "?"
+        )
+        menu.addItem(
+            withTitle: String(localized: "menu.help.ossAcknowledgements", bundle: .l10n),
+            action: actions.ossAcknowledgements,
+            keyEquivalent: ""
         )
         NSApp.helpMenu = menu
         return item
