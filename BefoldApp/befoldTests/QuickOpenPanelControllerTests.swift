@@ -14,11 +14,11 @@ struct QuickOpenPanelControllerTests {
         var baseDirectory: URL?
         var includingHiddenFiles = false
 
-        func candidateSet() -> QuickOpenCandidateSet {
+        func candidateSet() async -> QuickOpenCandidateSet {
             QuickOpenCandidateSet(candidates: [], isTruncated: false)
         }
 
-        func directoryEntries(in _: URL) -> [URL] {
+        func directoryEntries(in _: URL) async -> [URL] {
             []
         }
 

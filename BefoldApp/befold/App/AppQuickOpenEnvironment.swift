@@ -39,41 +39,58 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
         hiddenFilesPreference.showHiddenFiles
     }
 
-    func candidateSet() -> QuickOpenCandidateSet {
+    /// 候補集合の構築は `git rev-parse` / `git ls-files` のサブプロセス待ちと
+    /// ディレクトリ再帰走査、候補ごとの `normalizedPathKey`(FS I/O)を伴うため、
+    /// MainActor では走らせない(応答しないボリュームでは秒単位で止まる)。
+    /// UserDefaults から取るだけの履歴・ブックマークと設定値は MainActor 上で捕捉し、
+    /// Sendable な値だけを持って detached タスクへ渡す。
+    func candidateSet() async -> QuickOpenCandidateSet {
+        let recentURLs = recentDocumentsStore.recentURLs()
+        let bookmarkedURLs = bookmarkStore.bookmarkedURLs()
+        let includingHiddenFiles = includingHiddenFiles
+        let gitIndex = gitIndex
+
         guard let currentFileURL else {
             // 開いているファイルが無ければ探す起点も無い。履歴とブックマークだけを出す。
-            let home = FileManager.default.homeDirectoryForCurrentUser
+            return await Task.detached(priority: .userInitiated) {
+                let home = FileManager.default.homeDirectoryForCurrentUser
+                return QuickOpenCandidates.collect(
+                    root: home,
+                    anchorFile: home,
+                    gitIndex: DisabledGitFileIndex(),
+                    scanner: DirectoryFileScanner(maximumDepth: 0),
+                    recentURLs: recentURLs,
+                    bookmarkedURLs: bookmarkedURLs,
+                    includingHiddenFiles: includingHiddenFiles
+                )
+            }.value
+        }
+        return await Task.detached(priority: .userInitiated) {
+            // ルート解決は索引に一本化する。ここで別の GitRepository を new して rev-parse を
+            // 重ねず、collect が引く追跡ファイル索引と同じ 1 回の解決結果を共有する。
+            let root = gitIndex.repositoryRoot(forFileAt: currentFileURL)
+                ?? currentFileURL.deletingLastPathComponent()
             return QuickOpenCandidates.collect(
-                root: home,
-                anchorFile: home,
-                gitIndex: DisabledGitFileIndex(),
-                scanner: DirectoryFileScanner(maximumDepth: 0),
-                recentURLs: recentDocumentsStore.recentURLs(),
-                bookmarkedURLs: bookmarkStore.bookmarkedURLs(),
+                root: root,
+                anchorFile: currentFileURL,
+                gitIndex: gitIndex,
+                scanner: DirectoryFileScanner(),
+                recentURLs: recentURLs,
+                bookmarkedURLs: bookmarkedURLs,
                 includingHiddenFiles: includingHiddenFiles
             )
-        }
-        // ルート解決は索引に一本化する。ここで別の GitRepository を new して rev-parse を
-        // 重ねず、collect が引く追跡ファイル索引と同じ 1 回の解決結果を共有する。
-        let root = gitIndex.repositoryRoot(forFileAt: currentFileURL)
-            ?? currentFileURL.deletingLastPathComponent()
-        return QuickOpenCandidates.collect(
-            root: root,
-            anchorFile: currentFileURL,
-            gitIndex: gitIndex,
-            scanner: DirectoryFileScanner(),
-            recentURLs: recentDocumentsStore.recentURLs(),
-            bookmarkedURLs: bookmarkStore.bookmarkedURLs(),
-            includingHiddenFiles: includingHiddenFiles
-        )
+        }.value
     }
 
-    func directoryEntries(in directory: URL) -> [URL] {
+    func directoryEntries(in directory: URL) async -> [URL] {
         // 列挙とソートは DirectoryLister の単一情報源へ委譲する。自前で
         // FileManager を叩くと返却順が未定義になり、候補順・選択位置・補完表記が
         // 非決定的になる。隠しファイルの出し分けは QuickOpenModel が入力に応じて
         // 決めるため、ここでは隠しファイルも含めた全件を名前昇順で返す。
-        DirectoryLister.allEntriesSorted(in: directory)
+        // キーストロークごとに走るため、列挙自体は MainActor の外で行う。
+        await Task.detached(priority: .userInitiated) {
+            DirectoryLister.allEntriesSorted(in: directory)
+        }.value
     }
 
     func isDirectory(_ url: URL) -> Bool {
