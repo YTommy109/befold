@@ -9,16 +9,13 @@ import UserNotifications
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) static var shared: AppDelegate?
     private let sessionStore: SessionStore
-    private let windowManager: ViewerWindowManager
+    let windowManager: ViewerWindowManager
     private let hiddenFilesPreference: HiddenFilesPreference
-    private let codeFontPreference: CodeFontPreference
+    let codeFontPreference: CodeFontPreference
     private let sessionRestorer: SessionRestorer
-    private var codeFontSettingsWindowController: CodeFontSettingsWindowController?
-    private var aboutWindowController: AboutWindowController?
-    private var featureOverviewWindowController: FeatureOverviewWindowController?
-    private var keyboardShortcutsWindowController: KeyboardShortcutsWindowController?
-    private var ossLicensesWindowController: OSSLicensesWindowController?
-    private var aiIntegrationWindowController: AIIntegrationWindowController?
+    /// 単一インスタンスのパネルウィンドウ(About・設定・Help 配下)。初回のトグルで生成し、
+    /// 以降は同じインスタンスを使い回す。
+    var hostedPanels: [HostedPanel: HostedPanelWindowController] = [:]
     private lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: false,
         updaterDelegate: self,
@@ -335,37 +332,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func showAbout(_ sender: Any?) {
-        let controller = aboutWindowController ?? AboutWindowController()
-        aboutWindowController = controller
-        controller.toggle()
+        togglePanel(.about)
     }
 
     /// Help > 機能説明。
     @objc func showFeatureOverview(_ sender: Any?) {
-        let controller = featureOverviewWindowController ?? FeatureOverviewWindowController()
-        featureOverviewWindowController = controller
-        controller.toggle()
+        togglePanel(.featureOverview)
     }
 
     /// Help > キーボードショートカット。
     @objc func showKeyboardShortcuts(_ sender: Any?) {
-        let controller = keyboardShortcutsWindowController ?? KeyboardShortcutsWindowController()
-        keyboardShortcutsWindowController = controller
-        controller.toggle()
+        togglePanel(.keyboardShortcuts)
     }
 
     /// Help > AI コーディングエージェント連携。
     @objc func showAIIntegration(_ sender: Any?) {
-        let controller = aiIntegrationWindowController ?? AIIntegrationWindowController()
-        aiIntegrationWindowController = controller
-        controller.toggle()
+        togglePanel(.aiIntegration)
     }
 
     /// Help > OSS 謝辞。
     @objc func showOSSLicenses(_ sender: Any?) {
-        let controller = ossLicensesWindowController ?? OSSLicensesWindowController()
-        ossLicensesWindowController = controller
-        controller.toggle()
+        togglePanel(.ossLicenses)
     }
 
     @objc func checkForUpdates(_ sender: Any?) {
@@ -410,12 +397,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// App > Settings…(⌘,)。単一インスタンスで、
     /// 最前面なら閉じ、そうでなければ開く/前面化するトグル動作にする。
     @objc func showSettings(_ sender: Any?) {
-        let controller = codeFontSettingsWindowController ?? CodeFontSettingsWindowController(
-            preference: codeFontPreference,
-            onChange: { [weak windowManager] in windowManager?.applyCodeFontToAllWindows() }
-        )
-        codeFontSettingsWindowController = controller
-        controller.toggle()
+        togglePanel(.settings)
     }
 
     /// File > Quick Open(⌘P)。パス入力と fuzzy 検索のパネルを開く。
