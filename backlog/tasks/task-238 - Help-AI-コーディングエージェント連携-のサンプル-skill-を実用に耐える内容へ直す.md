@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-07-31 12:21'
-updated_date: '2026-07-31 23:14'
+updated_date: '2026-07-31 23:22'
 labels:
   - refactor
 dependencies: []
@@ -43,6 +43,8 @@ Help メニューの「AI コーディングエージェント連携」パネル
 
 <!-- SECTION:NOTES:BEGIN -->
 サンプルは運用中の ~/.claude/skills/befold-review/SKILL.md を圧縮した内容にした(frontmatter の description に Use when 条件、本文に When to use / Steps)。1 行 58 文字以内に折り返し、パネルの contentSize を 520x560 / minSize 440x320 に拡大。Debug ビルドを起動し Help > AI Coding Agent Integration をスクリプトで開いてスクリーンショット確認: 折り返し・スクロールなしで全文が収まる。swift test 1001 件パス。
+
+追加対応: サンプル skill を Swift の文字列リテラルから befold/Resources/befold-review-skill.md に切り出し、OSSLicensesView と同じくバンドルから実行時ロードする方式に統一した(Bundle.appResources / 読み込み失敗時は aiIntegration.loadFailed)。今後は文言修正でコンパイル対象が変わらない。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
