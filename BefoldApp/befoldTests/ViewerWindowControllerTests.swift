@@ -39,7 +39,7 @@ private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDe
 
 /// ViewerWindowController のうち、実ファイルシステムに依存しない振る舞い
 /// (ウィンドウフレーム記録・デリゲート通知・メニュー状態など)を検証する unit テスト。
-/// store に InMemoryFileReader + MockFileWatcher を注入し、directoryLister も差し替えて
+/// store に InMemoryFileReader + MockFileWatcher を注入して
 /// 実 FS を使わない。実 rename/switch/navigate/隠しファイルフィルタに依存するテストは
 /// ViewerWindowControllerIntegrationTests へ移した。
 @Suite
@@ -47,9 +47,6 @@ private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDe
 struct ViewerWindowControllerTests {
     /// 実在しない合成パス。InMemoryFileReader にだけ登録する。
     private let file = URL(fileURLWithPath: "/mock/diagram.mmd")
-
-    /// サイドバー初期一覧の取得を実 FS に触れさせないための空リスター。
-    private let noEntries: (URL, befold.SortOrder, Bool) -> [FileListEntry] = { _, _, _ in [] }
 
     /// 実ファイル内容・実 watcher を必要としない、モック済みの ViewerStore を作る。
     private func makeMockStore(defaults: UserDefaults, contents: String = "graph TD;") -> ViewerStore {
@@ -60,7 +57,7 @@ struct ViewerWindowControllerTests {
         )
     }
 
-    /// テスト用に隔離済み UserDefaults とモック済み store / directoryLister を注入したコントローラーを作る。
+    /// テスト用に隔離済み UserDefaults とモック済み store を注入したコントローラーを作る。
     private func makeController(
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
     ) -> ViewerWindowController {
@@ -69,8 +66,7 @@ struct ViewerWindowControllerTests {
             defaults: defaults,
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
-            store: makeMockStore(defaults: defaults),
-            directoryLister: noEntries
+            store: makeMockStore(defaults: defaults)
         )
     }
 
@@ -106,7 +102,7 @@ struct ViewerWindowControllerTests {
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults, perFileState: perFileState,
             bookmarkStore: BookmarkStore(defaults: defaults),
-            store: makeMockStore(defaults: defaults), directoryLister: noEntries
+            store: makeMockStore(defaults: defaults)
         )
         defer { controller.close() }
         let frame = NSRect(x: 120, y: 140, width: 900, height: 700)
@@ -124,7 +120,7 @@ struct ViewerWindowControllerTests {
         let controller = ViewerWindowController(
             fileURL: file, defaults: defaults, perFileState: perFileState,
             bookmarkStore: BookmarkStore(defaults: defaults),
-            store: makeMockStore(defaults: defaults), directoryLister: noEntries
+            store: makeMockStore(defaults: defaults)
         )
         let frame = NSRect(x: 160, y: 180, width: 800, height: 650)
         controller.window?.setFrame(frame, display: false)
@@ -149,7 +145,7 @@ struct ViewerWindowControllerTests {
             fileURL: file, defaults: defaults, perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             initialFrameDescriptor: descriptor,
-            store: makeMockStore(defaults: defaults), directoryLister: noEntries
+            store: makeMockStore(defaults: defaults)
         )
         defer { second.close() }
 
@@ -244,7 +240,6 @@ extension ViewerWindowControllerTests {
                 fileReader: InMemoryFileReader(files: dict),
                 defaults: defaults
             ),
-            directoryLister: noEntries,
             openFileInNewWindow: openFileInNewWindow
         )
     }

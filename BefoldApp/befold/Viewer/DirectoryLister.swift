@@ -10,6 +10,8 @@ enum DirectoryLister {
         sortedContents(in: directory, fileReader: fileReader).files
     }
 
+    /// 一覧構築ロジックの同期版。本番の経路は非同期版(listEntriesAsync)のみを使うため、
+    /// ここは並べ替え・隠しファイル・親移動エントリの規則を直接検証するテスト用の入口。
     static func listEntries(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
     ) -> [FileListEntry] {
@@ -17,11 +19,9 @@ enum DirectoryLister {
     }
 
     /// listEntries と同一ロジックを、呼び出し元アクターを離れて実行する版。
-    /// nonisolated async のため、windowDidBecomeKey / navigateToFolder のような
-    /// 反復して呼ばれる経路からの利用時に FileManager 列挙でメインスレッドを
-    /// 塞がない(ViewerLoadPipeline.load と同じパターン)。ウィンドウ生成時の
-    /// 一回限りの初期一覧取得(ViewerWindowController.init)は同期のままで十分なため
-    /// listEntries を継続利用する。
+    /// nonisolated async のため、ウィンドウ生成直後の初期一覧・windowDidBecomeKey・
+    /// navigateToFolder のいずれの経路でも FileManager 列挙がメインスレッドを塞がない
+    /// (ViewerLoadPipeline.load と同じパターン)。サイドバーの一覧取得はこの 1 本に揃えている。
     static func listEntriesAsync(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
     ) async -> [FileListEntry] {
@@ -45,14 +45,13 @@ enum DirectoryLister {
             entries += folders.map { FileListEntry(url: $0, kind: .folder) }
             entries += files.map { FileListEntry(url: $0, kind: .file) }
         case .alphabetical:
-            var mixed = folders.map { FileListEntry(url: $0, kind: .folder) }
-                + files.map { FileListEntry(url: $0, kind: .file) }
-            mixed.sort {
-                $0.url.lastPathComponent.localizedStandardCompare(
-                    $1.url.lastPathComponent
-                ) == .orderedAscending
-            }
-            entries += mixed
+            entries += (folders.map { FileListEntry(url: $0, kind: .folder) }
+                + files.map { FileListEntry(url: $0, kind: .file) })
+                .sorted {
+                    $0.url.lastPathComponent.localizedStandardCompare(
+                        $1.url.lastPathComponent
+                    ) == .orderedAscending
+                }
         }
 
         return entries

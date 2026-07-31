@@ -52,17 +52,18 @@ public struct QuickOpenCandidateSet: Equatable, Sendable {
     /// 入力で候補を絞り込み、スコア降順に並べて返す。
     /// 同点は正規化パス昇順で確定させ、同じ入力に常に同じ並びを返す。
     public func matches(query: String, limit: Int) -> [QuickOpenCandidate] {
-        var scored: [(candidate: QuickOpenCandidate, score: Int)] = []
-        for candidate in candidates {
-            guard let score = FuzzyMatcher.score(query: query, text: candidate.displayPath) else { continue }
-            scored.append((candidate, score + Self.originBonus(candidate.origin)))
-        }
-        scored.sort { lhs, rhs in
-            lhs.score == rhs.score
-                ? lhs.candidate.sortKey < rhs.candidate.sortKey
-                : lhs.score > rhs.score
-        }
-        return scored.prefix(limit).map(\.candidate)
+        candidates
+            .compactMap { candidate -> (candidate: QuickOpenCandidate, score: Int)? in
+                guard let score = FuzzyMatcher.score(query: query, text: candidate.displayPath) else { return nil }
+                return (candidate, score + Self.originBonus(candidate.origin))
+            }
+            .sorted { lhs, rhs in
+                lhs.score == rhs.score
+                    ? lhs.candidate.sortKey < rhs.candidate.sortKey
+                    : lhs.score > rhs.score
+            }
+            .prefix(limit)
+            .map(\.candidate)
     }
 
     /// 一度開いた/印を付けたファイルは次も選ばれやすい、という前提の加点。

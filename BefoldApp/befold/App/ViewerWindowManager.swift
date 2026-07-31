@@ -31,8 +31,6 @@ final class ViewerWindowManager {
     /// openViewer が生成するコントローラへ渡す ViewerStore の差し替え口。nil なら
     /// ViewerWindowController が従来どおり自前で生成する(本番の既定)。
     private let makeStore: ((URL) -> ViewerStore)?
-    /// 同コントローラのサイドバー初期一覧の取得口。既定は実 FS を列挙する DirectoryLister.listEntries。
-    private let directoryLister: (URL, SortOrder, Bool) -> [FileListEntry]
     /// 生成する全ウィンドウで共有する git 追跡ファイルの索引。同じリポジトリのファイルを
     /// 全ウィンドウ・Quick Open で共有する追跡ファイル索引。複数ウィンドウで開いても
     /// `git ls-files` は 1 回で済み、照合索引の実体も 1 つで済む(モノレポでは
@@ -56,7 +54,6 @@ final class ViewerWindowManager {
     /// - Parameter makeStore: 生成するコントローラの ViewerStore を差し替える。既定の nil では
     ///   コントローラが自前で生成するため本番挙動は変わらない。テストが実 FileWatcher と
     ///   実ファイル読込を避けて生成パイプラインごと unit 化するための唯一のシーム。
-    /// - Parameter directoryLister: 同コントローラのサイドバー初期一覧の取得口。既定は実 FS 列挙。
     /// - Parameter gitFileIndex: 生成する全ウィンドウで共有する git 追跡ファイルの索引。
     ///   既定は実 `git` を実行する実装。テストは実 subprocess を避けるため差し替えられる。
     init(
@@ -68,7 +65,6 @@ final class ViewerWindowManager {
         bookmarkStore: BookmarkStore,
         fileReader: any FileReading = DefaultFileReader(),
         makeStore: ((URL) -> ViewerStore)? = nil,
-        directoryLister: @escaping (URL, SortOrder, Bool) -> [FileListEntry] = DirectoryLister.listEntries,
         gitFileIndex: any GitFileIndexing = GitCommandFileIndex(),
         recentRepositoriesStore: RecentRepositoriesStore = RecentRepositoriesStore(),
         repositoryLabelResolver: @escaping @Sendable (URL) -> String = {
@@ -85,7 +81,6 @@ final class ViewerWindowManager {
         self.bookmarkStore = bookmarkStore
         self.fileReader = fileReader
         self.makeStore = makeStore
-        self.directoryLister = directoryLister
         self.recentRepositoriesStore = recentRepositoriesStore
         self.repositoryLabelResolver = repositoryLabelResolver
     }
@@ -215,7 +210,6 @@ final class ViewerWindowManager {
             showLineNumbersOverride: showLineNumbersOverride,
             sourceModeOverride: sourceModeOverride,
             store: makeStore?(url),
-            directoryLister: directoryLister,
             openFileInNewWindow: { [weak self] fileURL in self?.openViewer(for: fileURL) }
         )
         controllers[key, default: []].append(controller)

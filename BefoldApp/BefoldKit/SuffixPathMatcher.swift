@@ -76,20 +76,21 @@ public struct SuffixPathIndex: Sendable {
     private let candidatesByLastComponent: [String: [Candidate]]
 
     public init(candidates: [URL]) {
-        var grouped: [String: [Candidate]] = [:]
-        for url in candidates {
+        let prepared = candidates.compactMap { url -> (lastComponent: String, candidate: Candidate)? in
             let standardized = url.standardizedFileURL
             let components = SuffixPathMatcher.components(ofStandardized: standardized)
             // 構成要素を持たない候補(ルート)はどんな needle にも一致しないため落とす。
-            guard let lastComponent = components.last else { continue }
-            grouped[lastComponent, default: []].append(Candidate(
+            guard let lastComponent = components.last else { return nil }
+            return (lastComponent, Candidate(
                 url: url,
                 components: components,
                 directoryComponents: SuffixPathMatcher.components(of: url.deletingLastPathComponent()),
                 standardizedPath: standardized.path
             ))
         }
-        candidatesByLastComponent = grouped
+        // Dictionary(grouping:) は各バケット内で元の順序を保つため、従来の逐次 append と同じ並びになる。
+        candidatesByLastComponent = Dictionary(grouping: prepared, by: \.lastComponent)
+            .mapValues { $0.map(\.candidate) }
     }
 
     /// 取り込んだ候補を正規化パス昇順で返す(照合ではなく一覧が要る呼び出し元のための読み出し口)。
@@ -117,20 +118,11 @@ public struct SuffixPathIndex: Sendable {
         else { return nil }
         let baseDirectory = SuffixPathMatcher.components(of: baseURL.deletingLastPathComponent())
 
-        var best: (candidate: Candidate, distance: (total: Int, up: Int))?
-        for candidate in bucket {
-            guard SuffixPathMatcher.hasComponentSuffix(candidate.components, needle) else { continue }
-            let distance = SuffixPathMatcher.distance(baseDirectory, candidate.directoryComponents)
-            // 同点では先に現れた候補を残し、min(by:) と同じ結果に揃える。
-            guard let current = best else {
-                best = (candidate, distance)
-                continue
-            }
-            if isBetter(candidate, distance, than: current.candidate, current.distance) {
-                best = (candidate, distance)
-            }
-        }
-        return best?.candidate.url
+        return bucket.lazy
+            .filter { SuffixPathMatcher.hasComponentSuffix($0.components, needle) }
+            .map { (candidate: $0, distance: SuffixPathMatcher.distance(baseDirectory, $0.directoryComponents)) }
+            .min { isBetter($0.candidate, $0.distance, than: $1.candidate, $1.distance) }?
+            .candidate.url
     }
 
     private func isBetter(

@@ -193,8 +193,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls {
-            openViewer(for: url)
+        // 解決は非同期のため、渡された順にウィンドウが出るよう 1 本の Task で逐次に開く。
+        Task {
+            for url in urls {
+                await openViewer(for: url, options: CLIOpenOptions())
+            }
         }
     }
 
@@ -228,7 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// ディレクトリが渡された場合は、フォルダー内最初のファイルを開く(CLI シム経由の想定)。
     /// 拡張子を問わずウィンドウは開かれ、未対応の内容ならビューア側でプレースホルダー表示する。
     func openViewer(for url: URL) {
-        openViewer(for: url, options: CLIOpenOptions())
+        Task { await openViewer(for: url, options: CLIOpenOptions()) }
     }
 
     /// CLI から渡されたパス群を、表示オプション付きでそれぞれ別ウィンドウに開く。
@@ -248,14 +251,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             return
         }
-        for path in paths {
-            openViewer(for: URL(fileURLWithPath: path), options: options)
+        // 同上。解決を待つ間に順序が入れ替わらないよう、1 本の Task 内で逐次に開く。
+        Task {
+            for path in paths {
+                await openViewer(for: URL(fileURLWithPath: path), options: options)
+            }
         }
     }
 
-    private func openViewer(for url: URL, options: CLIOpenOptions) {
-        let isDirectory = DirectoryLister.isDirectory(url)
-        guard let target = DirectoryLister.resolveFileToOpen(at: url) else {
+    /// ディレクトリ判定とオープン対象の解決は実 FS の存在確認・列挙を伴い、ネットワーク
+    /// ボリューム上ではウィンドウを出す前に停止しうる。解決だけメインアクターの外へ逃がし、
+    /// ウィンドウ生成は戻ってから行う。
+    private func openViewer(for url: URL, options: CLIOpenOptions) async {
+        let resolved = await Task.detached {
+            (isDirectory: DirectoryLister.isDirectory(url), target: DirectoryLister.resolveFileToOpen(at: url))
+        }.value
+        let isDirectory = resolved.isDirectory
+        guard let target = resolved.target else {
             presentNoFileAlert()
             return
         }
@@ -337,9 +349,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// メニューの「Install 'befold' command in PATH」。/usr/local/bin に CLI コマンドの symlink を設置する。
+    ///
+    /// 書き込みは管理者認証(AppleScript の `with administrator privileges`)へフォールバックしうる。
+    /// 認証ダイアログはユーザーがパスワードを入力し終えるまで戻らないため、メインアクターで待つと
+    /// その間 CLI 転送の ACK 応答まで止まる。設置処理そのものをメインアクター外へ逃がし、
+    /// 結果の案内だけを戻ってから出す(NSAppleScript の生成・実行はどちらも同じ detached タスク内で
+    /// 完結するため、単一スレッドからの利用という前提は保たれる)。
     @objc func installCLI(_ sender: Any?) {
         let installPath = CLIInstaller.defaultInstallPath
-        let result = CLIInstaller.install(bundlePath: Bundle.main.bundlePath, installPath: installPath)
+        let bundlePath = Bundle.main.bundlePath
+        Task {
+            let result = await Task.detached {
+                CLIInstaller.install(bundlePath: bundlePath, installPath: installPath)
+            }.value
+            presentInstallResult(result)
+        }
+    }
+
+    private func presentInstallResult(_ result: Result<Void, CLIInstallError>) {
         switch result {
         case .success:
             CLIInstallUI.presentInstallSucceeded()

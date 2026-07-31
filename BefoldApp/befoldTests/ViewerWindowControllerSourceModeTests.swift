@@ -6,7 +6,7 @@ import Foundation
 import Testing
 
 /// ソース表示モードの復元・保持(SourceModeStore 連携)を検証する unit テスト。
-/// store に InMemoryFileReader + MockFileWatcher を注入し、directoryLister も差し替える。
+/// store に InMemoryFileReader + MockFileWatcher を注入する。
 /// switchFile の存在ガードが store.fileReader 経由になった(TASK-116.12)ため、
 /// 切替経由の復元・保持も InMemoryFileReader でモック化して unit で検証する。
 @Suite
@@ -16,9 +16,6 @@ struct ViewerWindowControllerSourceModeTests {
     private let file = URL(fileURLWithPath: "/mock/note.md")
     private let file1 = URL(fileURLWithPath: "/mock/first.md")
     private let file2 = URL(fileURLWithPath: "/mock/second.md")
-
-    /// サイドバー初期一覧の取得を実 FS に触れさせないための空リスター。
-    private let noEntries: (URL, befold.SortOrder, Bool) -> [FileListEntry] = { _, _, _ in [] }
 
     private func makeController(
         file: URL,
@@ -45,8 +42,7 @@ struct ViewerWindowControllerSourceModeTests {
                 watcherFactory: { _, _, _ in MockFileWatcher() },
                 fileReader: InMemoryFileReader(files: files),
                 defaults: defaults
-            ),
-            directoryLister: noEntries
+            )
         )
     }
 

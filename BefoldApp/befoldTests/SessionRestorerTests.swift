@@ -71,6 +71,25 @@ struct SessionRestorerTests {
         fixture.closeAll()
     }
 
+    @Test("復元時に消えていたファイルはウィンドウを開かずセッション記録からも取り除かれる")
+    func restoreLastSessionDropsMissingFilesFromRecord() {
+        let missing = URL(fileURLWithPath: "/mock/gone.mmd")
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
+        let restorer = makeRestorer(fixture)
+        fixture.sessionStore.noteOpened(missing)
+        fixture.sessionStore.noteOpened(file)
+
+        restorer.captureSavedState()
+        restorer.restoreLastSession()
+
+        #expect(fixture.manager.controllers[file.normalizedPathKey] != nil)
+        #expect(fixture.manager.controllers[missing.normalizedPathKey] == nil)
+        let savedPaths = fixture.sessionStore.savedURLs().map(\.normalizedPathKey)
+        #expect(!savedPaths.contains(missing.normalizedPathKey))
+        #expect(savedPaths.contains(file.normalizedPathKey))
+        fixture.closeAll()
+    }
+
     @Test("保存済みタブ構成が全て実在すればタブごと復元する")
     func openRepositoryRestoresSavedTabGroupWhenAllPathsExist() {
         let fileA = URL(fileURLWithPath: "/repo/a.md")

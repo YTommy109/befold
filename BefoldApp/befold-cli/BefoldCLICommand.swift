@@ -63,22 +63,35 @@ struct BefoldCLICommand: AsyncParsableCommand {
 
         var anyFailed = false
         if check {
-            for path in paths {
-                // 判定は GUI と同じ ViewerLoadPipeline へ委譲する(CLICheckCommand 参照)。
-                // I/O とデコードは nonisolated な pipeline 側で行われ、メインスレッドは塞がない。
-                let result = await CLICheckCommand.run(path)
-                printResult(result)
-                if result.exitCode != 0 { anyFailed = true }
-            }
+            // 判定は GUI と同じ ViewerLoadPipeline へ委譲する(CLICheckCommand 参照)。
+            // I/O とデコードは nonisolated な pipeline 側で行われ、メインスレッドは塞がない。
+            let failed = await runForEachPath(printResult: printResult) { await CLICheckCommand.run($0) }
+            anyFailed = anyFailed || failed
         }
         if bookmark {
-            for path in paths {
-                let result = await CLIBookmarkCommand.run(path, addBookmark: addBookmark)
-                printResult(result)
-                if result.exitCode != 0 { anyFailed = true }
+            let failed = await runForEachPath(printResult: printResult) {
+                await CLIBookmarkCommand.run($0, addBookmark: addBookmark)
             }
+            anyFailed = anyFailed || failed
         }
         throw ExitCode(anyFailed ? 1 : 0)
+    }
+
+    /// 全パスへ `command` を順に適用し、結果を都度出力しながら「1 つでも失敗したか」を返す。
+    /// 失敗したパスがあっても打ち切らず、最後まで実行してから終了コードへ集約する
+    /// (`--check` と `--bookmark` で結果集約の約束を 1 箇所に固定するための共通経路)。
+    @MainActor
+    private func runForEachPath(
+        printResult: (CLICommandResult) -> Void,
+        command: @MainActor (String) async -> CLICommandResult
+    ) async -> Bool {
+        var anyFailed = false
+        for path in paths {
+            let result = await command(path)
+            printResult(result)
+            if result.exitCode != 0 { anyFailed = true }
+        }
+        return anyFailed
     }
 
     /// `--bookmark` 実行時、GUI アプリを起動せずに直接 GUI と同じ UserDefaults 領域へ

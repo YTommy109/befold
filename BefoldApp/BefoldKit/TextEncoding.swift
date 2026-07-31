@@ -20,23 +20,19 @@ public enum TextEncoding: Sendable {
     /// UTF-32 の BOM(4 バイト)は UTF-16 LE と先頭が同じなので先に判定する。
     public static func detectBOM(_ data: Data) -> (encoding: String.Encoding, bomLength: Int)? {
         let bytes = [UInt8](data.prefix(4))
-        if bytes.count >= 4 {
-            if bytes[0] == 0x00, bytes[1] == 0x00, bytes[2] == 0xFE, bytes[3] == 0xFF {
-                return (.utf32BigEndian, 4)
-            }
-            if bytes[0] == 0xFF, bytes[1] == 0xFE, bytes[2] == 0x00, bytes[3] == 0x00 {
-                return (.utf32LittleEndian, 4)
-            }
-        }
-        if bytes.count >= 2 {
-            if bytes[0] == 0xFE, bytes[1] == 0xFF { return (.utf16BigEndian, 2) }
-            if bytes[0] == 0xFF, bytes[1] == 0xFE { return (.utf16LittleEndian, 2) }
-        }
-        if bytes.count >= 3, bytes[0] == 0xEF, bytes[1] == 0xBB, bytes[2] == 0xBF {
-            return (.utf8, 3)
-        }
-        return nil
+        guard let bom = bomTable.first(where: { bytes.starts(with: $0.bytes) }) else { return nil }
+        return (bom.encoding, bom.bytes.count)
     }
+
+    /// BOM のバイト列 → エンコーディング。長い BOM を先に置き、
+    /// UTF-32 の BOM(4 バイト)が UTF-16 の BOM(先頭 2 バイトが同じ)に食われないようにする。
+    private static let bomTable: [(bytes: [UInt8], encoding: String.Encoding)] = [
+        ([0x00, 0x00, 0xFE, 0xFF], .utf32BigEndian),
+        ([0xFF, 0xFE, 0x00, 0x00], .utf32LittleEndian),
+        ([0xEF, 0xBB, 0xBF], .utf8),
+        ([0xFE, 0xFF], .utf16BigEndian),
+        ([0xFF, 0xFE], .utf16LittleEndian),
+    ]
 
     /// BOM またはヒューリスティックでエンコーディングを推定する(復号はしない)。
     /// BOM がある場合はその bomLength を、それ以外は 0 を返す
