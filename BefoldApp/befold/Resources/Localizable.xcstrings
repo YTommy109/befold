@@ -1,6 +1,329 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "featureOverview.windowTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feature Overview"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機能説明"
+          }
+        }
+      }
+    },
+    "featureOverview.livePreview.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live Preview"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リアルタイムプレビュー"
+          }
+        }
+      }
+    },
+    "featureOverview.livePreview.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watches .mmd/.md files and re-renders automatically when they change."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ".mmd / .md ファイルを監視し、変更されると自動的に再描画します。"
+          }
+        }
+      }
+    },
+    "featureOverview.tabs.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tabs & Session Restore"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タブとセッション復元"
+          }
+        }
+      }
+    },
+    "featureOverview.tabs.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open multiple files as tabs; the last session's tabs restore automatically on launch."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複数ファイルをタブとして開けます。前回のタブ構成は起動時に自動復元されます。"
+          }
+        }
+      }
+    },
+    "featureOverview.bookmarks.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmarks"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマーク"
+          }
+        }
+      }
+    },
+    "featureOverview.bookmarks.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark frequently visited files with ⌘D and jump back to them quickly."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "よく開くファイルを ⌘D でブックマークし、すぐに開き直せます。"
+          }
+        }
+      }
+    },
+    "featureOverview.quickOpen.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Open"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Open"
+          }
+        }
+      }
+    },
+    "featureOverview.quickOpen.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press ⌘P to fuzzy-search and open files by path without leaving the keyboard."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘P でパスをあいまい検索し、キーボードだけでファイルを開けます。"
+          }
+        }
+      }
+    },
+    "featureOverview.hiddenFiles.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hidden Files Toggle"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隠しファイル表示切替"
+          }
+        }
+      }
+    },
+    "featureOverview.hiddenFiles.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show or hide dotfiles in the sidebar with ⌃⌘H."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌃⌘H でサイドバーのドットファイル表示・非表示を切り替えられます。"
+          }
+        }
+      }
+    },
+    "featureOverview.sourceToggle.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source / Preview Toggle"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ソース/プレビュー切替"
+          }
+        }
+      }
+    },
+    "featureOverview.sourceToggle.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle between the rendered preview and raw source with ⌘U."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘U でレンダリング結果とソース表示を切り替えられます。"
+          }
+        }
+      }
+    },
+    "aiIntegration.windowTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI Coding Agent Integration"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI コーディングエージェント連携"
+          }
+        }
+      }
+    },
+    "aiIntegration.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Give an agent like Claude Code a skill file that runs the `befold` CLI to open the file being reviewed, so you can watch the rendered diagram update live while the agent comments. Save the following as e.g. ~/.claude/skills/befold-review/SKILL.md:"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code などのエージェントに、レビュー対象ファイルを befold CLI で開く skill ファイルを与えると、エージェントのコメントを見ながら描画結果をリアルタイムに確認できます。例えば以下の内容を ~/.claude/skills/befold-review/SKILL.md として保存してください:"
+          }
+        }
+      }
+    },
+    "keyboardShortcuts.windowTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard Shortcuts"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キーボードショートカット"
+          }
+        }
+      }
+    },
+    "ossLicenses.windowTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Source Acknowledgements"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オープンソースソフトウェア謝辞"
+          }
+        }
+      }
+    },
+    "ossLicenses.loadFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load license information."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライセンス情報の読み込みに失敗しました。"
+          }
+        }
+      }
+    },
+    "about.windowTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About befold"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "befold について"
+          }
+        }
+      }
+    },
     "cli.folder.noFile": {
       "extractionState": "manual",
       "localizations": {
@@ -579,19 +902,87 @@
         }
       }
     },
-    "menu.help.appHelp": {
+    "menu.help.featureOverview": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "befold Help"
+            "value": "Feature Overview"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "befold ヘルプ"
+            "value": "機能説明"
+          }
+        }
+      }
+    },
+    "menu.help.keyboardShortcuts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard Shortcuts"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キーボードショートカット"
+          }
+        }
+      }
+    },
+    "menu.help.aiIntegration": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI Coding Agent Integration"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI コーディングエージェント連携"
+          }
+        }
+      }
+    },
+    "menu.help.ossAcknowledgements": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Source Acknowledgements"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オープンソースソフトウェア謝辞"
+          }
+        }
+      }
+    },
+    "menu.help.visitWebsite": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visit Website"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web サイトを開く"
           }
         }
       }
