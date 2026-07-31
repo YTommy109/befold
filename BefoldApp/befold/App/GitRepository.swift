@@ -28,6 +28,18 @@ struct GitWorktree: Sendable, Equatable {
     var root: URL
     /// 本体リポジトリの作業ツリーなら true(`git worktree list` の先頭)。
     var isMain: Bool
+    /// チェックアウト中のブランチ名(`refs/heads/` を除いた短縮形)。
+    /// detached HEAD や bare では nil。
+    var branch: String?
+
+    /// メニュー表示名。ディレクトリ名が `etc` のように機械的なこともあるため
+    /// ブランチ名を主軸にし、ディレクトリ名を括弧で併記する(本体ラベルの表記と揃える)。
+    /// ブランチが無い(detached/bare)場合はディレクトリ名だけにする。
+    var displayName: String {
+        let directoryName = root.lastPathComponent
+        guard let branch else { return directoryName }
+        return "\(branch) (\(directoryName))"
+    }
 }
 
 /// git リポジトリの検出・identity・追跡ファイル列挙を提供する読み取りシーム。
@@ -123,20 +135,26 @@ struct GitRepository: GitRepositoryReading {
         guard case let .output(data) = runner.run(["worktree", "list", "--porcelain"], in: root),
               let text = String(data: data, encoding: .utf8)
         else { return [] }
-        // porcelain 形式は 1 エントリが `worktree <path>` 行で始まり、空行で区切られる。
-        // 属性行(HEAD/branch/bare/detached)は表示に使わないので `worktree` 行だけ拾う。
-        return text.split(separator: "\n").compactMap { line -> String? in
-            guard line.hasPrefix("worktree ") else { return nil }
-            let path = String(line.dropFirst("worktree ".count)).trimmingCharacters(in: .whitespaces)
-            return path.isEmpty ? nil : path
+        // porcelain 形式は 1 エントリが `worktree <path>` 行で始まり、続く属性行
+        // (HEAD/branch/bare/detached)を経て空行で区切られる。表示に使うのは path と branch のみ。
+        var result: [GitWorktree] = []
+        for line in text.split(separator: "\n") {
+            if line.hasPrefix("worktree ") {
+                let path = String(line.dropFirst("worktree ".count)).trimmingCharacters(in: .whitespaces)
+                guard !path.isEmpty else { continue }
+                result.append(
+                    GitWorktree(
+                        root: URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL,
+                        isMain: result.isEmpty
+                    )
+                )
+            } else if line.hasPrefix("branch "), !result.isEmpty {
+                let ref = String(line.dropFirst("branch ".count)).trimmingCharacters(in: .whitespaces)
+                let name = ref.hasPrefix("refs/heads/") ? String(ref.dropFirst("refs/heads/".count)) : ref
+                result[result.count - 1].branch = name.isEmpty ? nil : name
+            }
         }
-        .enumerated()
-        .map { index, path in
-            GitWorktree(
-                root: URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL,
-                isMain: index == 0
-            )
-        }
+        return result
     }
 
     /// root/.git がディレクトリならそれ、ファイル(worktree/submodule)なら

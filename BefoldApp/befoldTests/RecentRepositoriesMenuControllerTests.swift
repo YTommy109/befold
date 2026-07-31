@@ -36,8 +36,30 @@ struct RecentRepositoriesMenuControllerTests {
         )
     }
 
-    private func worktree(_ path: String, isMain: Bool = false) -> GitWorktree {
-        GitWorktree(root: URL(fileURLWithPath: path), isMain: isMain)
+    private func worktree(_ path: String, isMain: Bool = false, branch: String? = nil) -> GitWorktree {
+        GitWorktree(root: URL(fileURLWithPath: path), isMain: isMain, branch: branch)
+    }
+
+    @Test("サブメニューはブランチ名(ディレクトリ名)で表示する")
+    func showsBranchNameWithDirectoryNameInSubmenu() {
+        // ディレクトリ名が etc / etc002 のように機械的でも、ブランチ名で見分けられるようにする。
+        let controller = makeController(
+            entries: [worktreeEntry("etc", mainRoot: "/tmp/befold"), entry("befold")],
+            worktrees: [
+                "/tmp/befold": [
+                    worktree("/tmp/befold", isMain: true, branch: "main"),
+                    worktree("/tmp/etc", branch: "feat/repository"),
+                    worktree("/tmp/etc002", branch: "feat/linkt_click"),
+                ],
+            ]
+        )
+        let menu = NSMenu(title: "Recent Repositories")
+
+        controller.menuNeedsUpdate(menu)
+
+        #expect(menu.items[0].submenu?.items.map(\.title) == [
+            "main (befold)", "feat/repository (etc)", "feat/linkt_click (etc002)",
+        ])
     }
 
     @Test("ラベルでメニュー項目が構築される")

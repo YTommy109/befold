@@ -100,13 +100,13 @@ final class RecentRepositoriesMenuController: NSObject, NSMenuDelegate {
             // ルートフォルダーを開くフォールバックにする。
             let entry = index.map { remaining.remove(at: $0) } ?? RecentRepositoryEntry(
                 rootPath: key,
-                label: worktree.root.lastPathComponent,
+                label: worktree.displayName,
                 lastTabGroup: nil,
                 mainRootPath: worktree.isMain ? nil : group.mainRoot.normalizedPathKey
             )
-            submenu.addItem(
-                openItem(title: worktree.root.lastPathComponent, entry: entry, icon: icon)
-            )
+            // 記憶済みエントリの label は本体基準の表記(`befold (etc)`)なので、
+            // サブメニュー内では常に worktree 側の表記(`feat/repository (etc)`)を使う。
+            submenu.addItem(openItem(title: worktree.displayName, entry: entry, icon: icon))
         }
         // カタログに載っていない記憶済みエントリ(削除された worktree 等)も取りこぼさない。
         for entry in remaining {

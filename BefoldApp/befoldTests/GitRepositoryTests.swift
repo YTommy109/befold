@@ -204,6 +204,41 @@ struct GitRepositoryTests {
         #expect(worktrees.last?.root.resolvingSymlinksInPath() == worktreeDir.resolvingSymlinksInPath())
     }
 
+    @Test("列挙結果はチェックアウト中のブランチ名を短縮形で持つ")
+    func worktreesCarryShortBranchNames() throws {
+        let main = try TempDir(prefix: "main-repo")
+        defer { withExtendedLifetime(main) {} }
+        try makeRepo(main.url)
+        let worktreeParent = try TempDir(prefix: "worktree-parent")
+        defer { withExtendedLifetime(worktreeParent) {} }
+        // ディレクトリ名とブランチ名を意図的にずらし、ブランチ側を拾っていることを確かめる。
+        let worktreeDir = worktreeParent.url.appendingPathComponent("etc002")
+        git(main.url, ["worktree", "add", worktreeDir.path, "-b", "feat/repository"])
+
+        let worktrees = makeRepository().worktrees(forRoot: main.url)
+
+        #expect(worktrees.last?.branch == "feat/repository")
+        #expect(worktrees.last?.displayName == "feat/repository (etc002)")
+        // 本体側もブランチ名を持つ(既定ブランチ名は環境依存なので nil でないことだけ見る)。
+        #expect(worktrees.first?.branch != nil)
+    }
+
+    @Test("detached HEAD の worktree はディレクトリ名だけで表示する")
+    func detachedWorktreeFallsBackToDirectoryName() throws {
+        let main = try TempDir(prefix: "main-repo")
+        defer { withExtendedLifetime(main) {} }
+        try makeRepo(main.url)
+        let worktreeParent = try TempDir(prefix: "worktree-parent")
+        defer { withExtendedLifetime(worktreeParent) {} }
+        let worktreeDir = worktreeParent.url.appendingPathComponent("detached-wt")
+        git(main.url, ["worktree", "add", "--detach", worktreeDir.path])
+
+        let worktrees = makeRepository().worktrees(forRoot: main.url)
+
+        #expect(worktrees.last?.branch == nil)
+        #expect(worktrees.last?.displayName == "detached-wt")
+    }
+
     @Test("worktree 側から列挙しても本体が先頭に来る")
     func worktreesEnumeratedFromWorktreeStartWithMain() throws {
         let main = try TempDir(prefix: "main-repo")
