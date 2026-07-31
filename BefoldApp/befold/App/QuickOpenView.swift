@@ -36,7 +36,7 @@ struct QuickOpenView: View {
                 // パネルを閉じるのは決定経路(onOpen 内の dismiss)だけに一本化する。
                 // ここで無条件に閉じると、開ける対象が無い Enter でもパネルが黙って
                 // 消えてしまう。開けたときは onOpen が畳んでから開く。
-                model.commitSelection()
+                Task { await model.commitSelection() }
             }
             .onKeyPress(.upArrow) {
                 model.moveSelection(by: -1)
@@ -47,7 +47,7 @@ struct QuickOpenView: View {
                 return .handled
             }
             .onKeyPress(.tab) {
-                model.completePath()
+                Task { await model.completePath() }
                 return .handled
             }
             .onKeyPress(.escape) {

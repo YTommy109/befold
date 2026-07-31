@@ -16,9 +16,11 @@ protocol QuickOpenEnvironment: AnyObject {
     /// ディレクトリ直下のエントリ(隠しファイルを含む全件)。
     /// 応答しないボリュームでは列挙自体が待たされるため、実装は MainActor を離れて行う。
     func directoryEntries(in directory: URL) async -> [URL]
-    func isDirectory(_ url: URL) -> Bool
+    /// 応答しないボリュームでは stat 自体が待たされるため、実装は MainActor を離れて行う。
+    func isDirectory(_ url: URL) async -> Bool
     /// ディレクトリなら中の 1 ファイル、ファイルならそれ自身。開けなければ nil。
-    func resolveFileToOpen(at url: URL) -> URL?
+    /// ディレクトリ列挙(stat の繰り返し)を伴うため、実装は MainActor を離れて行う。
+    func resolveFileToOpen(at url: URL) async -> URL?
 }
 
 /// 入力から候補配列を導き、決定を注入されたクロージャへ渡す。
@@ -108,16 +110,16 @@ final class QuickOpenModel {
     }
 
     /// 選択中の候補を開く。開ける対象が無ければ何もしない。
-    func commitSelection() {
+    func commitSelection() async {
         guard candidates.indices.contains(selectedIndex) else { return }
-        guard let target = environment.resolveFileToOpen(at: candidates[selectedIndex].url) else { return }
+        guard let target = await environment.resolveFileToOpen(at: candidates[selectedIndex].url) else { return }
         onOpen(target)
     }
 
     /// パスモードで候補の共通接頭辞まで補完する。
     /// 候補が 1 件だけでそれがディレクトリなら、末尾に `/` を付けて次の階層へ進む。
     /// パスモード以外では何もしない。
-    func completePath() {
+    func completePath() async {
         guard case let .path(path) = QuickOpenQuery.classify(queryText),
               let split = PathModeSplit(path: path, baseDirectory: environment.baseDirectory),
               !candidates.isEmpty
@@ -127,7 +129,7 @@ final class QuickOpenModel {
         guard let completion = commonPrefix(of: names) else { return }
 
         var completed = split.parentText + completion
-        if candidates.count == 1, environment.isDirectory(candidates[0].url) {
+        if candidates.count == 1, await environment.isDirectory(candidates[0].url) {
             completed += "/"
         }
         queryText = completed
