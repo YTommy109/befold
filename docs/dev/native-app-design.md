@@ -57,6 +57,10 @@ BefoldApp/
 │   ├── FileType.swift              # 拡張子→種別マッピングとレンダリング可否判定
 │   ├── ViewerBridge.swift          # viewer.html との JS 関数名・メッセージ契約の集約
 │   ├── RendererFeatures.swift      # 本体 / QuickLook の機能プリセット
+│   ├── BundleAccessor.swift        # `Bundle.befoldKitResources`。SPM ビルドは
+│   │                               # `.module`、Xcode ビルド（framework）は
+│   │                               # `Bundle(for:)` を返し、両ビルドで Resources/ の
+│   │                               # 解決先を一本化する
 │   └── Resources/                  # viewer.html / viewer.js / viewer-main.js /
 │                                    # mermaid / markdown-it / highlight.js / DOMPurify 等
 ├── BefoldRenderKit/            # 描画エンジン（本体 / QuickLook で共有）
@@ -71,8 +75,10 @@ BefoldApp/
 ├── BefoldCLI/                  # CLI 共有ライブラリ（送受信両用のワイヤ表現・要求型）
 ├── befold-cli/                 # CLI 実行ファイル（befold コマンド。Contents/MacOS/befold-cli）
 ├── BefoldTestSupport/          # テスト共有ヘルパー
-├── befoldTests/                # 本体・BefoldKit の Swift Testing テスト
-└── befoldCLITests/             # CLI・QuickLook 関連の Swift Testing テスト
+├── befoldTests/                # 本体・BefoldKit・BefoldRenderKit の Swift Testing テスト
+│                               # （QuickLook 1 回描画・バッジ・機能プリセットもここ）
+└── befoldCLITests/             # CLI の Swift Testing テスト
+                                # （QuickLook 関連は拡張の Info.plist 検証のみ）
 ```
 
 ---
@@ -201,7 +207,7 @@ Info.plist で以下を宣言する。
 | markdown-it.min.js（同梱） | `.md` ファイルの markdown → HTML 変換 |
 | highlight.min.js（同梱） | ソースコードのシンタックスハイライト |
 | XcodeGen | `.xcodeproj` 生成（`project.yml` が単一の定義元） |
-| Swift Package Manager | ビルド（`BefoldKit` / `befold` / `befoldTests` の3ターゲット） |
+| Swift Package Manager | ビルド（`BefoldKit` / `BefoldRenderKit` / `BefoldCLI` / `befold` / `befold-cli` / `BefoldTestSupport` / `befoldTests` / `befoldCLITests` の 8 ターゲット） |
 | SwiftLint / SwiftFormat | ビルドプラグインとして実行 |
 | Swift Testing | ユニットテスト |
 

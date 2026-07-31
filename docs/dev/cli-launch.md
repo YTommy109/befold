@@ -39,8 +39,11 @@ OpenCLIOptions`、位置引数は `@Argument var paths: [String]`。
 4. **既存あり かつ 引数あり** → `CLIRequestForwarder.forward(...)` へ転送する
 5. **既存なし** → `/usr/bin/open -a <bundlePath>` で起動する。bundlePath は
    `AppVersion.actualExecutablePath()` → `bundlePath(fromExecutablePath:)` で解決
-6. 起動後、0.1s 間隔・10s タイムアウトで `runningInstance()` をポーリングし、
-   出現したら `forward(...)` する
+6. 起動後、**paths 空・オプション既定なら転送せずそのまま終了（0）**。素の
+   `befold` 実行では Distributed Notification は送られない
+7. paths かオプションがある場合のみ、0.1s 間隔・10s タイムアウトで
+   `runningInstance()` をポーリングし、出現したら `forward(...)` する
+   （タイムアウトしたらエラーを出力して 1 を返す）
 
 ```mermaid
 flowchart TD
@@ -49,10 +52,13 @@ flowchart TD
   B -- "--bookmark" --> D["CLIBookmarkRouter"]
   B -- なし --> E["CLIAppLauncher.run"]
   E --> F{"既存インスタンスあり?"}
-  F -- "なし" --> G["/usr/bin/open -a<br/>起動 → ポーリング"]
+  F -- "なし" --> G["/usr/bin/open -a<br/>で起動"]
   F -- "あり + 引数なし" --> H["running.activate()<br/>前面化のみ"]
   F -- "あり + 引数あり" --> I["CLIRequestForwarder.forward"]
-  G --> I
+  G --> G2{"paths か<br/>オプション指定あり?"}
+  G2 -- "なし" --> G3["転送せず終了（0）"]
+  G2 -- "あり" --> G4["ポーリングで<br/>起動待ち"]
+  G4 --> I
   I --> J["Distributed Notification<br/>dev.befold.cli.openRequest"]
   J --> K["AppDelegate.handleCLIOpenRequest<br/>→ openPaths → NSApp.activate()"]
 ```

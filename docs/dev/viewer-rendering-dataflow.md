@@ -49,7 +49,7 @@ code(language:)`）。plaintext は独立ケースではなく `.code(language: 
 |---|---|---|---|
 | バイナリ | image / pdf | `ContentLoader.load` で base64 → `.full` | 50MB |
 | 非行指向テキスト | mmd / svg / html | 全量読込 → `.full` | 10MB（QuickLook 1 回描画時は 2MB） |
-| 行指向テキスト | csv / code / markdown | `StringChunkReader` で先頭チャンク → `.chunked` | 段階読込 |
+| 行指向テキスト | csv / code / markdown | `StringChunkReader` で先頭チャンク → `.chunked` | 100MB（`NormalizedTextCache.maxFileSizeBytes`。超過時は `fileTooLarge` で reject） |
 
 ## viewer.html の JS 分岐
 
