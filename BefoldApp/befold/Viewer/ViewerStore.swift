@@ -291,50 +291,89 @@ final class ViewerStore {
     }
 
     /// 読み込み結果を表示状態(filePath / fileType / content / rejectReason / isTruncated /
-    /// 行数カウンタ / chunkSession)へ一括適用する。表示状態のタプルを書き換えるのはここだけにする。
+    /// 行数カウンタ / chunkSession)へ一括適用する。読み込み結果の種別ごとの差分は
+    /// DisplayState の組み立てだけに閉じ込め、実際の書き換えは applyDisplayState に一本化する。
     /// filePath / fileType を content と同時にここで確定させることで、旧ファイルの content に
     /// 新ファイルの filePath や fileType が組み合わさった中間状態が描画されないようにする
     /// (task: HTML 表示直後の切替で空白表示になる不具合の再発防止)。
     private func apply(_ outcome: ViewerLoadPipeline.Outcome, url: URL, fileType: FileType) {
         isLoading = false
         filePath = url
+        let state: DisplayState
         switch outcome {
         case .missing:
             scheduleFileGone()
             return
         case let .chunked(session, cache, firstChunk, isAtEnd):
-            if cache.dataHash == contentHash, fileType == self.fileType, !loadFailed {
-                return
-            }
-            self.fileType = fileType
-            contentHash = cache.dataHash
-            chunkSession = session
-            rejectReason = nil
-            isTruncated = !isAtEnd
-            loadFailed = false
-            content = firstChunk
-            contentRevision += 1
-            newlineCount = firstChunk.utf8.count(where: { $0 == 0x0A })
-            updateDisplayedLineCount()
+            state = DisplayState(
+                fileType: fileType,
+                contentHash: cache.dataHash,
+                chunkSession: session,
+                rejectReason: nil,
+                isTruncated: !isAtEnd,
+                content: firstChunk,
+                tracksLineCount: true
+            )
         case let .full(loaded, cache):
-            if let cache, cache.dataHash == contentHash, fileType == self.fileType, !loadFailed {
-                return
-            }
-            self.fileType = fileType
-            contentHash = cache?.dataHash
-            chunkSession = nil
-            rejectReason = loaded.rejectReason
-            isTruncated = false
-            loadFailed = false
-            content = loaded.content
-            contentRevision += 1
-            newlineCount = 0
-            displayedLineCount = 0
+            state = DisplayState(
+                fileType: fileType,
+                contentHash: cache?.dataHash,
+                chunkSession: nil,
+                rejectReason: loaded.rejectReason,
+                isTruncated: false,
+                content: loaded.content,
+                tracksLineCount: false
+            )
         }
+        guard applyDisplayState(state) else { return }
         fileGoneTask?.cancel()
         fileGoneTask = nil
         // rejectReason / content(表示状態)が確定した後に通知する。
         onContentReloaded?()
+    }
+
+    /// apply() が一括適用する表示状態の組。読み込み結果の種別(.chunked / .full)ごとに
+    /// 値を詰め替えるだけにして、フィールドを増やしたときに片方の分岐だけ更新し忘れる
+    /// 事故を構造的に防ぐ。
+    private struct DisplayState {
+        let fileType: FileType
+        /// 同一内容スキップの比較に使う dataHash。全文読込でキャッシュがない場合は nil。
+        let contentHash: Int?
+        let chunkSession: (any ChunkedTextReading)?
+        let rejectReason: RejectReason?
+        let isTruncated: Bool
+        let content: String
+        /// content から行数カウンタを追従させるかどうか。段階読み込み(.chunked)は
+        /// バナー表示に行数を使うため true、全文読込は行数を表示しないため false
+        /// (カウンタは 0 にリセットされる)。
+        let tracksLineCount: Bool
+    }
+
+    /// 表示状態を一括更新する。同一内容(dataHash・fileType が一致し、直前のチャンク読込も
+    /// 失敗していない)の再読込では何も書き換えず false を返す。
+    /// 表示状態のタプルを書き換えるのはこのメソッドだけにする。
+    private func applyDisplayState(_ state: DisplayState) -> Bool {
+        if let newHash = state.contentHash,
+           newHash == contentHash, state.fileType == fileType, !loadFailed
+        {
+            return false
+        }
+        fileType = state.fileType
+        contentHash = state.contentHash
+        chunkSession = state.chunkSession
+        rejectReason = state.rejectReason
+        isTruncated = state.isTruncated
+        loadFailed = false
+        content = state.content
+        contentRevision += 1
+        if state.tracksLineCount {
+            newlineCount = state.content.utf8.count(where: { $0 == 0x0A })
+            updateDisplayedLineCount()
+        } else {
+            newlineCount = 0
+            displayedLineCount = 0
+        }
+        return true
     }
 
     /// FileWatcher のデバウンス既定値に余裕を持たせたグレース期間。
