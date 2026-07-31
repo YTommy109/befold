@@ -37,6 +37,7 @@ public extension ViewerRenderer {
         contentRevision: Int,
         fileType: FileType,
         filePath: URL?,
+        hasDeclaredHTMLCharset: Bool?,
         isSourceMode: Bool,
         showLineNumbers: Bool,
         truncation: TruncationState
@@ -69,15 +70,14 @@ public extension ViewerRenderer {
                 webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = false
                 // charset 宣言(BOM/<meta charset>)のある HTML は WebKit の解釈で正しく読めるため、
                 // 相対リソースを読める loadFileURL のまま。宣言の無い HTML だけは WebKit が既定
-                // エンコーディングを誤推定して文字化けするので、実エンコーディングを判定し UTF-8 へ
-                // 正規化した文字列を明示エンコーディングでロードする。loadData は allowingReadAccessTo を
-                // 伴わず宣言なし HTML から相対参照した兄弟リソースは読めなくなるが、宣言なし HTML は
-                // 簡易な断片が大半で影響は小さい。
-                if let data = try? Data(contentsOf: filePath),
-                   let normalizedHTML = HTMLCharsetNormalizer.utf8NormalizedHTML(for: data)
-                {
+                // エンコーディングを誤推定して文字化けするので、ViewerLoadPipeline が MainActor 外で
+                // 判定・UTF-8 正規化済みの content を明示エンコーディングでロードする。loadData は
+                // allowingReadAccessTo を伴わず宣言なし HTML から相対参照した兄弟リソースは読めなく
+                // なるが、宣言なし HTML は簡易な断片が大半で影響は小さい。判定不能(nil)時は
+                // loadFileURL へフォールバックする。
+                if hasDeclaredHTMLCharset == false {
                     webView.load(
-                        Data(normalizedHTML.utf8), mimeType: "text/html",
+                        Data(content.utf8), mimeType: "text/html",
                         characterEncodingName: "UTF-8", baseURL: filePath
                     )
                 } else {

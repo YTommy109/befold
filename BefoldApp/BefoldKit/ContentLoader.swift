@@ -24,10 +24,14 @@ public struct ContentLoader: Sendable {
     public struct LoadedContent: Sendable, Equatable {
         public let rejectReason: RejectReason?
         public let content: String
+        /// HTML の charset 宣言(BOM/meta charset)有無。fileType が .html かつ
+        /// 全量読込に成功した場合のみ non-nil。それ以外は常に nil。
+        public let hasDeclaredHTMLCharset: Bool?
 
-        public init(rejectReason: RejectReason?, content: String) {
+        public init(rejectReason: RejectReason?, content: String, hasDeclaredHTMLCharset: Bool? = nil) {
             self.rejectReason = rejectReason
             self.content = content
+            self.hasDeclaredHTMLCharset = hasDeclaredHTMLCharset
         }
     }
 

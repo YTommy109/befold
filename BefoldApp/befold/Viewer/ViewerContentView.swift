@@ -53,6 +53,7 @@ struct ViewerContentView: View {
                     contentRevision: store.contentRevision,
                     fileType: store.fileType,
                     filePath: store.filePath,
+                    hasDeclaredHTMLCharset: store.hasDeclaredHTMLCharset,
                     isSourceMode: store.isSourceMode,
                     showLineNumbers: store.showLineNumbers,
                     isTruncated: store.isTruncated,

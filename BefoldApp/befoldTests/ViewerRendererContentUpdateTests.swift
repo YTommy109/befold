@@ -31,7 +31,7 @@ struct ViewerRendererContentUpdateTests {
         // 1回目: 直接HTMLモードから離脱し、viewer.html の再ロードを開始する。
         renderer.updateContent(
             "# hello", contentRevision: 7, fileType: .markdown, filePath: fileA,
-            isSourceMode: false, showLineNumbers: false, truncation: Self.truncation
+            hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false, truncation: Self.truncation
         )
         #expect(renderer.isReady == false)
 
@@ -39,7 +39,7 @@ struct ViewerRendererContentUpdateTests {
         // (FileWatcher の onChange や isLoading トグル等による再発火を模す)。
         renderer.updateContent(
             "# hello", contentRevision: 7, fileType: .markdown, filePath: fileA,
-            isSourceMode: false, showLineNumbers: false, truncation: Self.truncation
+            hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false, truncation: Self.truncation
         )
 
         // 再ロード完了前は、描画ミラーが「描画済み」だと先行確定していないことを確認する。
@@ -76,7 +76,7 @@ struct ViewerRendererContentUpdateTests {
         // (revision が fileA と同じ 3 のまま据え置かれるケースを模す)。
         renderer.updateContent(
             "# same content", contentRevision: 3, fileType: .markdown, filePath: fileB,
-            isSourceMode: false, showLineNumbers: false, truncation: Self.truncation
+            hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false, truncation: Self.truncation
         )
 
         #expect(renderer.rendered.filePath == fileB)

@@ -87,7 +87,7 @@ public enum ViewerLoadPipeline {
                     firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
                 )
             } else {
-                return try loadFull(data: data, oneShotLoad: oneShotLoad)
+                return try loadFull(data: data, fileType: fileType, oneShotLoad: oneShotLoad)
             }
         } catch {
             if !fileReader.fileExists(at: resolved) { return .missing }
@@ -114,7 +114,7 @@ public enum ViewerLoadPipeline {
 
     /// チャンク非対応(mmd/svg/html)の全量読み込み。
     /// 画像埋め込みのウォームアップはチャンク経路(markdown)側で行うため、ここでは不要。
-    private static func loadFull(data: Data, oneShotLoad: Bool) throws -> Outcome {
+    private static func loadFull(data: Data, fileType: FileType, oneShotLoad: Bool) throws -> Outcome {
         let cache = try NormalizedTextCache(data: data, oneShotLoad: oneShotLoad)
         if cache.text.utf8.count > nonChunkableSizeLimit(oneShotLoad: oneShotLoad) {
             return .full(
@@ -122,8 +122,11 @@ public enum ViewerLoadPipeline {
                 cache: nil
             )
         }
+        let hasDeclaredHTMLCharset = fileType == .html ? HTMLCharsetNormalizer.hasCharsetDeclaration(data) : nil
         return .full(
-            ContentLoader.LoadedContent(rejectReason: nil, content: cache.text),
+            ContentLoader.LoadedContent(
+                rejectReason: nil, content: cache.text, hasDeclaredHTMLCharset: hasDeclaredHTMLCharset
+            ),
             cache: cache
         )
     }
