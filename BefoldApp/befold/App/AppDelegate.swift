@@ -136,7 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         recentDocumentsStore.seedIfNeeded(with: NSDocumentController.shared.recentDocumentURLs)
-        NSApp.mainMenu = MainMenuBuilder.build(
+        let mainMenu = MainMenuBuilder.build(
             openAction: #selector(showOpenPanel),
             helpActions: MainMenuHelpActions(
                 visitWebsite: #selector(openHelp(_:)),
@@ -149,6 +149,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             bookmarksMenuDelegate: bookmarksMenuController,
             recentRepositoriesMenuDelegate: recentRepositoriesMenuController
         )
+        // AppKit は mainMenu に設定した後、Close All や Start Dictation などの項目を
+        // 勝手に差し込む。Help のショートカット一覧には自前で定義したものだけを載せたいので、
+        // 設定する前のメニューから抽出しておく。
+        MenuShortcutCatalog.snapshot = MenuShortcutCatalog.groups(from: mainMenu, appMenuTitle: "befold")
+        NSApp.mainMenu = mainMenu
         UNUserNotificationCenter.current().delegate = self
         sessionRestorer.restoreLastSession()
         NSApp.activate()
