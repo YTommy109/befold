@@ -23,27 +23,10 @@ struct ViewerWindowControllerSourceModeTests {
         sourceModeStore: SourceModeStore? = nil,
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests")
     ) -> ViewerWindowController {
-        var files = [file.path: "# hi"]
-        for extra in extraFiles {
-            files[extra.path] = "# hi"
-        }
-        return ViewerWindowController(
-            fileURL: file,
-            defaults: defaults,
-            perFileState: PerFileStateStore(
-                zoom: ZoomStore(defaults: defaults),
-                sourceMode: sourceModeStore ?? SourceModeStore(defaults: defaults),
-                scrollPosition: ScrollPositionStore(defaults: defaults),
-                sidebar: SidebarStateStore(defaults: defaults),
-                windowFrame: WindowFrameStore(defaults: defaults)
-            ),
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            store: ViewerStore(
-                watcherFactory: { _, _, _, _ in MockFileWatcher() },
-                fileReader: InMemoryFileReader(files: files),
-                defaults: defaults
-            )
-        )
+        ViewerWindowControllerFixture(
+            file: file, extraFiles: extraFiles, contents: "# hi",
+            defaults: defaults, sourceModeStore: sourceModeStore
+        ).controller
     }
 
     @Test("直接開いた場合も保存済みのソース表示モードが復元される")

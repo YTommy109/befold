@@ -12,12 +12,9 @@ import Testing
 @MainActor
 struct SidebarNavigatorIntegrationTests {
     private func makeController(file: URL) -> ViewerWindowController {
-        ViewerWindowController(
-            fileURL: file,
-            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests"),
-            perFileState: PerFileStateStore(defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests")),
-            bookmarkStore: BookmarkStore(defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests"))
-        )
+        ViewerWindowControllerFixture(
+            file: file, realFileSystem: true, prefix: "SidebarNavigatorIntegrationTests"
+        ).controller
     }
 
     @Test("symlink 経由の別表記パスへの切替でも同一ディレクトリと判定され再読込が発生しない")

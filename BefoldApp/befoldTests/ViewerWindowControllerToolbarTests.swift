@@ -16,22 +16,10 @@ struct ViewerWindowControllerToolbarTests {
         file: URL, contents: String = "graph TD;", extraFiles: [URL] = [],
         bookmarkStore: BookmarkStore? = nil
     ) -> ViewerWindowController {
-        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerToolbarTests")
-        var files = [file.path: contents]
-        for extra in extraFiles {
-            files[extra.path] = contents
-        }
-        return ViewerWindowController(
-            fileURL: file,
-            defaults: defaults,
-            perFileState: PerFileStateStore(defaults: defaults),
-            bookmarkStore: bookmarkStore ?? BookmarkStore(defaults: defaults),
-            store: ViewerStore(
-                watcherFactory: { _, _, _, _ in MockFileWatcher() },
-                fileReader: InMemoryFileReader(files: files),
-                defaults: defaults
-            )
-        )
+        ViewerWindowControllerFixture(
+            file: file, extraFiles: extraFiles, contents: contents,
+            prefix: "ViewerWindowControllerToolbarTests", bookmarkStore: bookmarkStore
+        ).controller
     }
 
     @Test("既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/行番号/モード切替/ブックマーク の順")

@@ -9,54 +9,24 @@ import Testing
 /// ウィンドウオープン時に適用されることを検証する。
 ///
 /// これらは init 時のオプション適用のみが検証対象で、実ファイル内容には依存しないため、
-/// store に InMemoryFileReader + MockFileWatcher を注入して
-/// 実 FS を使わない unit テストとして構成する。
+/// ViewerWindowControllerFixture(実 WKWebView 無し、InMemoryFileReader + MockFileWatcher)を使う
+/// unit テストとして構成する。
 @Suite
 @MainActor
 struct ViewerWindowControllerCLIOptionsTests {
     /// 実在しない合成パス。InMemoryFileReader にだけ登録する。
     private let file = URL(fileURLWithPath: "/mock/note.md")
 
-    private func makePerFileState(
-        defaults: UserDefaults
-    ) -> PerFileStateStore {
-        PerFileStateStore(
-            zoom: ZoomStore(defaults: defaults),
-            sourceMode: SourceModeStore(defaults: defaults),
-            scrollPosition: ScrollPositionStore(defaults: defaults),
-            sidebar: SidebarStateStore(defaults: defaults),
-            windowFrame: WindowFrameStore(defaults: defaults)
-        )
-    }
-
-    /// 実ファイル内容・実 watcher を必要としない、モック済みの ViewerStore を作る。
-    private func makeMockStore(defaults: UserDefaults, contents: String = "# hi") -> ViewerStore {
-        ViewerStore(
-            watcherFactory: { _, _, _, _ in MockFileWatcher() },
-            fileReader: InMemoryFileReader(files: [file.path: contents]),
-            defaults: defaults
-        )
-    }
-
     @Test("CLI の --source/--preview 指定は保存済みのソース表示モードより優先される")
     func sourceModeOverrideTakesPrecedenceOverSavedValue() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
         let sourceModeStore = SourceModeStore(defaults: defaults)
         sourceModeStore.setSourceMode(false, for: file)
-        let perFileState = PerFileStateStore(
-            zoom: ZoomStore(defaults: defaults),
-            sourceMode: sourceModeStore,
-            scrollPosition: ScrollPositionStore(defaults: defaults),
-            sidebar: SidebarStateStore(defaults: defaults),
-            windowFrame: WindowFrameStore(defaults: defaults)
-        )
 
-        let controller = ViewerWindowController(
-            fileURL: file, defaults: defaults, perFileState: perFileState,
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            sourceModeOverride: true,
-            store: makeMockStore(defaults: defaults)
-        )
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "# hi", defaults: defaults,
+            sourceModeStore: sourceModeStore, sourceModeOverride: true
+        ).controller
         defer { controller.close() }
 
         #expect(controller.isSourceMode)
@@ -69,19 +39,10 @@ struct ViewerWindowControllerCLIOptionsTests {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
         let sourceModeStore = SourceModeStore(defaults: defaults)
         sourceModeStore.setSourceMode(true, for: file)
-        let perFileState = PerFileStateStore(
-            zoom: ZoomStore(defaults: defaults),
-            sourceMode: sourceModeStore,
-            scrollPosition: ScrollPositionStore(defaults: defaults),
-            sidebar: SidebarStateStore(defaults: defaults),
-            windowFrame: WindowFrameStore(defaults: defaults)
-        )
 
-        let controller = ViewerWindowController(
-            fileURL: file, defaults: defaults, perFileState: perFileState,
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            store: makeMockStore(defaults: defaults)
-        )
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "# hi", defaults: defaults, sourceModeStore: sourceModeStore
+        ).controller
         defer { controller.close() }
 
         #expect(controller.isSourceMode)
@@ -91,13 +52,9 @@ struct ViewerWindowControllerCLIOptionsTests {
     func lineNumbersOverrideIsAppliedToStore() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
 
-        let controller = ViewerWindowController(
-            fileURL: file, defaults: defaults,
-            perFileState: makePerFileState(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            showLineNumbersOverride: true,
-            store: makeMockStore(defaults: defaults)
-        )
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "# hi", defaults: defaults, showLineNumbersOverride: true
+        ).controller
         defer { controller.close() }
 
         #expect(controller.store.showLineNumbers)
@@ -108,13 +65,9 @@ struct ViewerWindowControllerCLIOptionsTests {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
         defaults.set(false, forKey: "ShowLineNumbers")
 
-        let controller = ViewerWindowController(
-            fileURL: file, defaults: defaults,
-            perFileState: makePerFileState(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            showLineNumbersOverride: true,
-            store: makeMockStore(defaults: defaults)
-        )
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "# hi", defaults: defaults, showLineNumbersOverride: true
+        ).controller
         defer { controller.close() }
 
         #expect(controller.store.showLineNumbers)
@@ -126,12 +79,9 @@ struct ViewerWindowControllerCLIOptionsTests {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
         defaults.set(true, forKey: "ShowLineNumbers")
 
-        let controller = ViewerWindowController(
-            fileURL: file, defaults: defaults,
-            perFileState: makePerFileState(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            store: makeMockStore(defaults: defaults)
-        )
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "# hi", defaults: defaults
+        ).controller
         defer { controller.close() }
 
         #expect(controller.store.showLineNumbers)
@@ -139,17 +89,14 @@ struct ViewerWindowControllerCLIOptionsTests {
 
     @Test("store を明示注入した場合でも --line-numbers 指定が反映される")
     func lineNumbersOverrideIsAppliedEvenWithExplicitStore() {
+        // fixture は既定で InMemoryFileReader + MockFileWatcher の store を自前生成して
+        // 注入するため、これは実質「注入経路そのもの」を検証している。
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
         defaults.set(false, forKey: "ShowLineNumbers")
-        let injectedStore = makeMockStore(defaults: defaults)
 
-        let controller = ViewerWindowController(
-            fileURL: file, defaults: defaults,
-            perFileState: makePerFileState(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            showLineNumbersOverride: true,
-            store: injectedStore
-        )
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "# hi", defaults: defaults, showLineNumbersOverride: true
+        ).controller
         defer { controller.close() }
 
         #expect(controller.store.showLineNumbers)
@@ -160,13 +107,9 @@ struct ViewerWindowControllerCLIOptionsTests {
     func sortOrderOverrideIsAppliedToFileListModel() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
 
-        let controller = ViewerWindowController(
-            fileURL: file, defaults: defaults,
-            perFileState: makePerFileState(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            initialSortOrder: .alphabetical,
-            store: makeMockStore(defaults: defaults)
-        )
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "# hi", defaults: defaults, initialSortOrder: .alphabetical
+        ).controller
         defer { controller.close() }
 
         // 一覧の取得自体は非同期(SidebarNavigator)へ寄せたため、ここでは並び順が
