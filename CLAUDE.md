@@ -14,6 +14,7 @@
   3. 着手可能な backlog タスクのうち、着手順（登録順・依存関係）が早いもの
   この基準で決められない場合のみユーザーに確認する。
 - **タスク作成時のボード表示順**: backlog board の表示順は ordinal 順（priority 順ではない）。タスク作成後、既存タスクの ordinal を確認し、priority に応じた位置になるよう `backlog task edit --ordinal` で調整する。特に HIGH タスクが MEDIUM/LOW より上に来るようにする。
+- **タスク ID の採番**: `backlog/config.yml` で `check_active_branches: true` / `remote_operations: true` が有効なため、`backlog task create` は他ブランチ上のタスクも含めて次の ID を採番する。ローカルのファイル一覧より大きい ID が振られるのは正常な動作であり、衝突回避のための ID 手動指定やファイルリネームは不要。
 
 <!-- BACKLOG.MD GUIDELINES START -->
 <!-- backlog.md-instructions-version: 1.48.0 -->
