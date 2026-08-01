@@ -17,8 +17,9 @@ import Testing
 /// 2. プローブ書き込みのデバウンス残コールバックが後続の検証を汚さないよう、
 ///    コールバック数が `quiescePeriod` の間ひとつも増えなくなるまで待つ。
 ///
-/// - Parameter quiescePeriod: 静穏判定の待機時間。既定 0.3s はテスト用 debounce 0.05s の
-///   6 倍で、最後のプローブ書き込みのデバウンス発火を十分に取り込める。
+/// - Parameter quiescePeriod: 静穏判定の待機時間。既定 0.15s はテスト用 debounce 0.05s の
+///   3 倍で、DebouncerTests の settlePeriod(= delay * 3)と同じ基準。
+///   最後のプローブ書き込みのデバウンス発火を十分に取り込める。
 /// - Returns: 静穏化後のコールバック回数。以降は「操作後の発火」を
 ///   この基準値との比較（`callbackCount.get() > baseline`）で判定する。
 /// `confirmWatcherArmed` の静穏化待ちを打ち切る秒数。
@@ -34,7 +35,7 @@ func quiesceCutoffSeconds(quiescePeriod: TimeInterval) -> TimeInterval {
 func confirmWatcherArmed(
     file: URL,
     callbackCount: LockedBox<Int>,
-    quiescePeriod: TimeInterval = 0.3,
+    quiescePeriod: TimeInterval = 0.15,
     sourceLocation: SourceLocation = #_sourceLocation
 ) async -> Int {
     // arm 自体が失敗したらこの時点で失敗が記録される（waitUntilWithRetry が報告する）。

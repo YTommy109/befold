@@ -117,6 +117,11 @@ final class ViewerStore {
     private let defaults: UserDefaults
     /// グレース期間の待機に使うクロック。テストでは仮想時刻を注入して実時間依存を排除する。
     private let clock: any Clock<Duration>
+    /// FileWatcher のデバウンス既定値に余裕を持たせたグレース期間。
+    /// 環境依存のタイミング問題による検知遅延に対応する。
+    /// watcherFactory に注入された debounce 間隔から導出するため、テストで短い debounce を
+    /// 注入すればグレース期間も自動的に短縮される(プロダクト既定 0.2s なら従来どおり 1.0s)。
+    private let fileGoneGracePeriod: TimeInterval
 
     private static let showLineNumbersKey = "ShowLineNumbers"
 
@@ -140,8 +145,12 @@ final class ViewerStore {
         return false
     }
 
+    /// - Parameter watcherDebounceDelay: fileGoneGracePeriod の導出にのみ使う、
+    ///   watcherFactory が内部で使う debounce 間隔の申告値。watcherFactory に実際に渡す
+    ///   debounceDelay と揃えること(実測はできないため呼び出し側の責務)。
     init(
         watcherFactory: WatcherFactory? = nil,
+        watcherDebounceDelay: TimeInterval = FileWatcher.defaultDebounceDelay,
         fileReader: any FileReading = DefaultFileReader(),
         chunkedReaderFactory: ChunkedReaderFactory? = nil,
         defaults: UserDefaults = .standard,
@@ -155,6 +164,7 @@ final class ViewerStore {
         self.fileReader = fileReader
         contentLoader = ContentLoader(fileReader: fileReader)
         self.clock = clock
+        fileGoneGracePeriod = watcherDebounceDelay * 5
         _showLineNumbers = defaults.bool(forKey: Self.showLineNumbersKey)
     }
 
@@ -382,10 +392,6 @@ final class ViewerStore {
         return true
     }
 
-    /// FileWatcher のデバウンス既定値に余裕を持たせたグレース期間。
-    /// 環境依存のタイミング問題による検知遅延に対応する。
-    private static let fileGoneGracePeriod = FileWatcher.defaultDebounceDelay * 5
-
     /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
     /// 常に張り直す(古いタスクをキャンセルして置き換える)ことで、発火せず完了した
     /// タスクが残って以後の検知を塞ぐことを防ぐ。
@@ -395,8 +401,8 @@ final class ViewerStore {
     /// 新しいパスが存在する場合、ウィンドウを閉じずに監視を継続するため。
     private func scheduleFileGone() {
         fileGoneTask?.cancel()
-        fileGoneTask = Task { @MainActor [weak self, clock] in
-            try? await clock.sleep(for: .seconds(Self.fileGoneGracePeriod))
+        fileGoneTask = Task { @MainActor [weak self, clock, fileGoneGracePeriod] in
+            try? await clock.sleep(for: .seconds(fileGoneGracePeriod))
             guard let self, !Task.isCancelled else { return }
             guard let filePath else { return }
             guard !fileReader.fileExists(at: filePath.resolvingSymlinksInPath()) else { return }

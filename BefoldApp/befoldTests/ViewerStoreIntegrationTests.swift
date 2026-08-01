@@ -3,6 +3,12 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
+/// 統合テスト用の短い debounce。プロダクト既定の 0.2s では TSan スローダウン下で
+/// 伝搬チェーンが長くなりタイムアウトしやすいため、テストでは短い値を注入して
+/// 所要時間とマージンを改善する。ViewerStore の watcherDebounceDelay にも同じ値を渡し、
+/// fileGoneGracePeriod(watcherDebounceDelay の 5 倍)を連動して短縮させる。
+private let testDebounceDelay: TimeInterval = 0.05
+
 /// 実ファイルシステム + 実 FileWatcher を使うため直列化する。
 /// 並列実行では複数の GCD キュー・DispatchSource が CI の少コアランナー上で
 /// リソースを奪い合い、イベント配送が遅れてフレーキーになるため。
@@ -10,11 +16,15 @@ import Testing
 @MainActor
 struct ViewerStoreIntegrationTests {
     /// 実 FileWatcher を短い debounce で生成する watcherFactory。
-    /// プロダクト既定の 0.2s では TSan スローダウン下で伝搬が遅れるため、
-    /// テストでは短い値を注入して所要時間とマージンを改善する。
     private static func fastWatcherFactory() -> ViewerStore.WatcherFactory {
         { url, onChange, onRename in
-            FileWatcher(path: url, debounceDelay: 0.05, renameSettleDelay: 0.05, onChange: onChange, onRename: onRename)
+            FileWatcher(
+                path: url,
+                debounceDelay: testDebounceDelay,
+                renameSettleDelay: testDebounceDelay,
+                onChange: onChange,
+                onRename: onRename
+            )
         }
     }
 
@@ -24,7 +34,7 @@ struct ViewerStoreIntegrationTests {
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
-        let store = ViewerStore(watcherFactory: Self.fastWatcherFactory())
+        let store = ViewerStore(watcherFactory: Self.fastWatcherFactory(), watcherDebounceDelay: testDebounceDelay)
         let firedCount = LockedBox(0)
         store.onFileGone = { firedCount.update { $0 += 1 } }
         store.openFile(file)
@@ -59,7 +69,7 @@ struct ViewerStoreIntegrationTests {
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
-        let store = ViewerStore(watcherFactory: Self.fastWatcherFactory())
+        let store = ViewerStore(watcherFactory: Self.fastWatcherFactory(), watcherDebounceDelay: testDebounceDelay)
         store.openFile(file)
         // 読み込みは非同期のため、完了を待ってから検証する。
         await store.loadTask?.value
@@ -83,7 +93,7 @@ struct ViewerStoreIntegrationTests {
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
 
-        let store = ViewerStore(watcherFactory: Self.fastWatcherFactory())
+        let store = ViewerStore(watcherFactory: Self.fastWatcherFactory(), watcherDebounceDelay: testDebounceDelay)
         store.openFile(file)
         // 読み込みは非同期のため、完了を待ってから検証する。
         await store.loadTask?.value
@@ -94,8 +104,10 @@ struct ViewerStoreIntegrationTests {
 
         try "graph TD; X-->Y".write(to: file, atomically: true, encoding: .utf8)
 
-        // close 後は変更が反映されないこと（発火しないことの確認なので固定待ち）
-        try await Task.sleep(for: .seconds(1))
+        // close 後は変更が反映されないこと（発火しないことの確認なので固定待ち）。
+        // 発火するとすればテスト debounce(testDebounceDelay)後なので、時限の境界を
+        // 確実に跨ぐよう + 0.3s の余裕を持たせる(docs/dev/coding_rule.md 参照)。
+        try await Task.sleep(for: .seconds(testDebounceDelay + 0.3))
         #expect(store.content == "graph TD; A-->B")
     }
 }
