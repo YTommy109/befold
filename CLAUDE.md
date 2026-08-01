@@ -14,6 +14,7 @@
   3. 着手可能な backlog タスクのうち、着手順（登録順・依存関係）が早いもの
   この基準で決められない場合のみユーザーに確認する。
 - **タスク作成時のボード表示順**: backlog board の表示順は ordinal 順（priority 順ではない）。タスク作成後、既存タスクの ordinal を確認し、priority に応じた位置になるよう `backlog task edit --ordinal` で調整する。特に HIGH タスクが MEDIUM/LOW より上に来るようにする。
+- **タスクファイルは git 管理対象**: `backlog/tasks/*.md` はリポジトリに含まれる。起票・更新・完了処理を行ったら、関連する実装と同じ PR に含めてコミットする。`backlog` CLI はファイルを書くだけで git 操作はしないため、PR 作成時に未コミットのまま取り残されやすい（`/pr` の直前に `git status` で確認する）。
 
 <!-- BACKLOG.MD GUIDELINES START -->
 <!-- backlog.md-instructions-version: 1.48.0 -->
