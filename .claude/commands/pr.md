@@ -1,14 +1,21 @@
 # /pr — push & プルリクエスト作成
 
 現在のブランチを push し、`gh pr create` でプルリクエストを作成してください。
+既に PR がある場合は新規作成せず、その PR を更新します。
 
 手順:
 
-1. `git log origin/main..HEAD --oneline` で PR に含まれるコミットを確認する
-2. 未 push のコミットがあれば `git push -u origin <ブランチ名>` する
-3. PR タイトルの Conventional Commits type（`feat` / `fix` / `chore` / `refactor` / `docs` / `test` / `ci` / `perf`）に対応するラベルを 1 つ選ぶ
-4. 対応する backlog タスクの `References` に GitHub Issue の URL が記載されていれば、その Issue 番号を控える（`backlog task view <ID> --plain` で確認）
-5. `gh pr create --label <type> --assignee YTommy109` で PR を作成し、URL を報告する
+1. `gh pr list --head <ブランチ名> --json number,state` で既存の open な PR を確認する
+   - **既に open な PR がある場合**: 新規作成しない。push 後に `gh pr edit <番号> --body`
+     で本文をブランチ全体の内容に更新する（追加コミット分を「変更内容」「検証」に反映する）。
+     タイトル・ラベルはブランチ全体の主眼が変わった場合のみ更新する
+   - **無い場合**: 以降の手順で新規作成する
+2. `git log origin/main..HEAD --oneline` で PR に含まれるコミットを確認する
+   - コミットが 0 件の場合は、未コミットの変更を先にコミットしてよいかユーザーに確認する
+3. 未 push のコミットがあれば `git push -u origin <ブランチ名>` する
+4. PR タイトルの Conventional Commits type（`feat` / `fix` / `chore` / `refactor` / `docs` / `test` / `ci` / `perf`）に対応するラベルを 1 つ選ぶ
+5. 対応する backlog タスクの `References` に GitHub Issue の URL が記載されていれば、その Issue 番号を控える（`backlog task view <ID> --plain` で確認）
+6. `gh pr create --label <type> --assignee YTommy109` で PR を作成し、URL を報告する
 
 Issue 番号が見つかった場合、本文の「概要」節の直後に `Closes #<番号>`（複数あれば `Closes #A, Closes #B` のように列挙）を必ず入れる。マージ時に GitHub が自動で Issue をクローズするため、Final Summary や検証節への言及だけで済ませない。
 
