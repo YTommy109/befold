@@ -5,23 +5,35 @@ import Testing
 
 /// 統合テスト用の短い debounce。プロダクト既定の 0.2s では TSan スローダウン下で
 /// 伝搬チェーンが長くなりタイムアウトしやすいため、テストでは短い値を注入して
-/// 所要時間とマージンを改善する。ViewerStore の watcherDebounceDelay にも同じ値を渡し、
-/// fileGoneGracePeriod(watcherDebounceDelay の 5 倍)を連動して短縮させる。
+/// 所要時間とマージンを改善する。ViewerStore の watcherDebounceDelay に渡すと、
+/// makeWatcher(WatcherFactory)の第 2 引数として同じ値が渡ってくるため、
+/// fastWatcherFactory 側で値を再度ハードコードする必要はない
+/// (fileGoneGracePeriod もこの値の 5 倍として連動して短縮される)。
 private let testDebounceDelay: TimeInterval = 0.05
 
 /// 実ファイルシステム + 実 FileWatcher を使うため直列化する。
 /// 並列実行では複数の GCD キュー・DispatchSource が CI の少コアランナー上で
-/// リソースを奪い合い、イベント配送が遅れてフレーキーになるため。
+/// リソースを奪い合い、イベント配送が遅れてフレーキーになるため
+/// (docs/dev/flaky-test-filewatcher-investigation.md「追加対策 6」)。
+///
+/// 注: この根拠は FileWatcherIntegrationTests(本タスクで .serialized を解除済み)と
+/// 同一であり、両スイートを構造的に区別する固有の理由は見つかっていない
+/// (このドキュメントの調査時点では両方に同じ理由で .serialized を付与していた)。
+/// FileWatcherIntegrationTests 側は今回 3 回連続実行(--filter 単独 + フル swift test)で
+/// 安定を確認した上で解除したが、ViewerStoreIntegrationTests 側は本タスクのスコープでは
+/// 未検証のため、予防的に直列のまま維持する。
 @Suite(.serialized)
 @MainActor
 struct ViewerStoreIntegrationTests {
     /// 実 FileWatcher を短い debounce で生成する watcherFactory。
+    /// debounceDelay は ViewerStore から渡された値(watcherDebounceDelay と同一)を
+    /// そのまま使う。
     private static func fastWatcherFactory() -> ViewerStore.WatcherFactory {
-        { url, onChange, onRename in
+        { url, debounceDelay, onChange, onRename in
             FileWatcher(
                 path: url,
-                debounceDelay: testDebounceDelay,
-                renameSettleDelay: testDebounceDelay,
+                debounceDelay: debounceDelay,
+                renameSettleDelay: debounceDelay,
                 onChange: onChange,
                 onRename: onRename
             )
@@ -105,9 +117,12 @@ struct ViewerStoreIntegrationTests {
         try "graph TD; X-->Y".write(to: file, atomically: true, encoding: .utf8)
 
         // close 後は変更が反映されないこと（発火しないことの確認なので固定待ち）。
-        // 発火するとすればテスト debounce(testDebounceDelay)後なので、時限の境界を
-        // 確実に跨ぐよう + 0.3s の余裕を持たせる(docs/dev/coding_rule.md 参照)。
-        try await Task.sleep(for: .seconds(testDebounceDelay + 0.3))
+        // atomically: true の書き込みは rename 経由(renameSettleDelay → debounce → MainActor、
+        // FileWatcher.swift:108-160)で、さらに万一 onChange が発火すれば ViewerStore の
+        // 非同期再読込(loadContent → apply)が後段に乗る。万一 close() のリークで発火しても
+        // 反映され得る最大経路長 testDebounceDelay(renameSettleDelay) + testDebounceDelay(debounce)
+        // を基準に + 0.3s の余裕を持たせ、時限の境界を確実に跨ぐ(docs/dev/coding_rule.md 参照)。
+        try await Task.sleep(for: .seconds(testDebounceDelay + testDebounceDelay + 0.3))
         #expect(store.content == "graph TD; A-->B")
     }
 }

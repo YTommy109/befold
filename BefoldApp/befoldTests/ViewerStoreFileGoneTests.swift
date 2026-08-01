@@ -214,7 +214,13 @@ struct ViewerStoreFileGoneTests {
     func openNonexistentFileFiresOnFileGoneAfterGrace() async {
         let clock = TestClock()
         let file = URL(fileURLWithPath: "/files/missing.mmd")
-        let store = makeStore(reader: InMemoryFileReader(), clock: clock)
+        // 999ms/1ms のグレース期間境界を検証するため、fileGoneGracePeriod が
+        // 1.0s(= FileWatcher.defaultDebounceDelay の 5 倍)になるよう明示的に指定する。
+        let store = makeStore(
+            reader: InMemoryFileReader(),
+            clock: clock,
+            watcherDebounceDelay: FileWatcher.defaultDebounceDelay
+        )
 
         nonisolated(unsafe) var firedCount = 0
         store.onFileGone = { firedCount += 1 }
@@ -299,7 +305,14 @@ struct ViewerStoreFileGoneTests {
         reader.setFile("graph TD; A-->B", at: file)
 
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
-        let store = makeStore(reader: reader, onChangeBox: onChangeBox, clock: clock)
+        // 999ms/1ms のグレース期間境界を検証するため、fileGoneGracePeriod が
+        // 1.0s(= FileWatcher.defaultDebounceDelay の 5 倍)になるよう明示的に指定する。
+        let store = makeStore(
+            reader: reader,
+            onChangeBox: onChangeBox,
+            clock: clock,
+            watcherDebounceDelay: FileWatcher.defaultDebounceDelay
+        )
 
         nonisolated(unsafe) var firedCount = 0
         store.onFileGone = { firedCount += 1 }

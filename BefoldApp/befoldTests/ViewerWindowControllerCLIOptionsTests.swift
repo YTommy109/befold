@@ -32,7 +32,7 @@ struct ViewerWindowControllerCLIOptionsTests {
     /// 実ファイル内容・実 watcher を必要としない、モック済みの ViewerStore を作る。
     private func makeMockStore(defaults: UserDefaults, contents: String = "# hi") -> ViewerStore {
         ViewerStore(
-            watcherFactory: { _, _, _ in MockFileWatcher() },
+            watcherFactory: { _, _, _, _ in MockFileWatcher() },
             fileReader: InMemoryFileReader(files: [file.path: contents]),
             defaults: defaults
         )

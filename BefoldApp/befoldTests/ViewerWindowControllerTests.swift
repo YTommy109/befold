@@ -51,7 +51,7 @@ struct ViewerWindowControllerTests {
     /// 実ファイル内容・実 watcher を必要としない、モック済みの ViewerStore を作る。
     private func makeMockStore(defaults: UserDefaults, contents: String = "graph TD;") -> ViewerStore {
         ViewerStore(
-            watcherFactory: { _, _, _ in MockFileWatcher() },
+            watcherFactory: { _, _, _, _ in MockFileWatcher() },
             fileReader: InMemoryFileReader(files: [file.path: contents]),
             defaults: defaults
         )
@@ -237,7 +237,7 @@ extension ViewerWindowControllerTests {
             ),
             bookmarkStore: BookmarkStore(defaults: defaults),
             store: ViewerStore(
-                watcherFactory: { _, _, _ in MockFileWatcher() },
+                watcherFactory: { _, _, _, _ in MockFileWatcher() },
                 fileReader: InMemoryFileReader(files: dict),
                 defaults: defaults
             ),

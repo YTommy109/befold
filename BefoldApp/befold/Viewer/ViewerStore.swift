@@ -7,8 +7,11 @@ import Foundation
 @MainActor
 @Observable
 final class ViewerStore {
+    /// debounceDelay を引数に含めることで、fileGoneGracePeriod の導出元(watcherDebounceDelay)と
+    /// 実際に watcher が使う debounce を型で一致させる(呼び出し側の「揃える」努力に頼らない)。
     typealias WatcherFactory = @MainActor @Sendable (
         URL,
+        TimeInterval,
         @escaping @MainActor @Sendable () -> Void,
         (@MainActor @Sendable (URL) -> Void)?
     ) -> FileWatching
@@ -109,6 +112,8 @@ final class ViewerStore {
 
     private var fileWatcher: FileWatching?
     private let makeWatcher: WatcherFactory
+    /// makeWatcher(openFile 時)へ渡す debounce 間隔。fileGoneGracePeriod の導出元でもある。
+    private let watcherDebounceDelay: TimeInterval
     private let makeChunkedReader: ChunkedReaderFactory
     /// 注入された fileReader。ウィンドウ層(ViewerWindowController)が pathResolver の構築に
     /// 同一インスタンスを共有できるよう、fileExists/isExistingFile 越しだけでなく直接公開する。
@@ -145,9 +150,9 @@ final class ViewerStore {
         return false
     }
 
-    /// - Parameter watcherDebounceDelay: fileGoneGracePeriod の導出にのみ使う、
-    ///   watcherFactory が内部で使う debounce 間隔の申告値。watcherFactory に実際に渡す
-    ///   debounceDelay と揃えること(実測はできないため呼び出し側の責務)。
+    /// - Parameter watcherDebounceDelay: makeWatcher(openFile 時)へ渡す debounce 間隔。
+    ///   fileGoneGracePeriod(この値の 5 倍)の導出にも使うため、実際に watcher が使う
+    ///   debounce と乖離しない(WatcherFactory の引数として型で渡すため、値の不一致は起きない)。
     init(
         watcherFactory: WatcherFactory? = nil,
         watcherDebounceDelay: TimeInterval = FileWatcher.defaultDebounceDelay,
@@ -157,9 +162,10 @@ final class ViewerStore {
         clock: any Clock<Duration> = ContinuousClock()
     ) {
         self.defaults = defaults
-        makeWatcher = watcherFactory ?? { url, onChange, onRename in
-            FileWatcher(path: url, onChange: onChange, onRename: onRename)
+        makeWatcher = watcherFactory ?? { url, debounceDelay, onChange, onRename in
+            FileWatcher(path: url, debounceDelay: debounceDelay, onChange: onChange, onRename: onRename)
         }
+        self.watcherDebounceDelay = watcherDebounceDelay
         makeChunkedReader = chunkedReaderFactory ?? ViewerLoadPipeline.defaultChunkedReaderFactory
         self.fileReader = fileReader
         contentLoader = ContentLoader(fileReader: fileReader)
@@ -188,7 +194,7 @@ final class ViewerStore {
         pendingFileType = FileType(url: url)
         loadContent()
 
-        fileWatcher = makeWatcher(url, { [weak self] in
+        fileWatcher = makeWatcher(url, watcherDebounceDelay, { [weak self] in
             self?.loadContent()
         }, { [weak self] newURL in
             self?.handleRename(to: newURL)

@@ -31,20 +31,26 @@ final class MockChunkedReader: ChunkedTextReading, @unchecked Sendable {
 /// テストごとに使い捨てのスイートを注入して密閉性を保つ。
 /// `onChangeBox` / `onRenameBox` を渡すと watcherFactory に渡されたコールバックを捕捉し、
 /// テストから手動で発火できるようにする(ファイル監視イベントのシミュレート用)。
+/// - Parameter watcherDebounceDelay: fileGoneGracePeriod(この値の 5 倍)の導出に使う。
+///   既定は FileWatcher.defaultDebounceDelay(プロダクト既定 0.2s)であり、
+///   ViewerStoreFileGoneTests の 999ms/1ms グレース期間境界テストは
+///   グレース期間が 1.0s になることに明示的に依存している(暗黙の既定一致に頼らない)。
 @MainActor
 func makeStore(
     reader: InMemoryFileReader,
     onChangeBox: LockedBox<(@MainActor @Sendable () -> Void)?>? = nil,
     onRenameBox: LockedBox<(@MainActor @Sendable (URL) -> Void)?>? = nil,
     chunkedReaderFactory: ViewerStore.ChunkedReaderFactory? = nil,
-    clock: any Clock<Duration> = ContinuousClock()
+    clock: any Clock<Duration> = ContinuousClock(),
+    watcherDebounceDelay: TimeInterval = FileWatcher.defaultDebounceDelay
 ) -> ViewerStore {
     ViewerStore(
-        watcherFactory: { _, onChange, onRename in
+        watcherFactory: { _, _, onChange, onRename in
             onChangeBox?.set(onChange)
             onRenameBox?.set(onRename)
             return MockFileWatcher()
         },
+        watcherDebounceDelay: watcherDebounceDelay,
         fileReader: reader,
         chunkedReaderFactory: chunkedReaderFactory,
         defaults: makeIsolatedDefaults(prefix: "ViewerStoreTests"),
@@ -459,7 +465,7 @@ struct ViewerStoreTests {
         reader.setFile("B", at: URL(fileURLWithPath: "/files/b.mmd"))
 
         nonisolated(unsafe) var stopCount = 0
-        let store = ViewerStore(watcherFactory: { _, _, _ in
+        let store = ViewerStore(watcherFactory: { _, _, _, _ in
             StopCountingWatcher { stopCount += 1 }
         }, fileReader: reader)
 
@@ -484,7 +490,7 @@ struct ViewerStoreTests {
     func showLineNumbersPersistedToUserDefaults() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerStoreTests-showLineNumbers")
         let store = ViewerStore(
-            watcherFactory: { _, _, _ in MockFileWatcher() },
+            watcherFactory: { _, _, _, _ in MockFileWatcher() },
             fileReader: InMemoryFileReader(),
             defaults: defaults
         )

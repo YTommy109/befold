@@ -59,7 +59,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
             fileReader: fileReader,
             makeStore: { _ in
                 ViewerStore(
-                    watcherFactory: { _, _, _ in MockFileWatcher() },
+                    watcherFactory: { _, _, _, _ in MockFileWatcher() },
                     fileReader: fileReader,
                     defaults: defaults
                 )

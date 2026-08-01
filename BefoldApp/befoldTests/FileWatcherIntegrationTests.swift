@@ -258,9 +258,12 @@ struct FileWatcherIntegrationTests {
         try "graph TD; A-->C".write(to: file, atomically: true, encoding: .utf8)
 
         // 十分待ってもコールバックが呼ばれないこと（発火しないことの確認なので固定待ち）。
-        // 発火するとすればテスト debounce(testDebounceDelay)後なので、時限の境界を
-        // 確実に跨ぐよう + 0.3s の余裕を持たせる(docs/dev/coding_rule.md 参照)。
-        try? await Task.sleep(for: .seconds(testDebounceDelay + 0.3))
+        // atomically: true の書き込みは rename 経由(.rename → renameSettleDelay →
+        // resolveRename → scheduleNotify → debounce → MainActor、FileWatcher.swift:108-160)
+        // のため、万一 stop() がリークしても発火し得る最大経路長
+        // testRenameSettleDelay + testDebounceDelay を基準に + 0.3s の余裕を持たせ、
+        // 時限の境界を確実に跨ぐ(docs/dev/coding_rule.md 参照)。
+        try? await Task.sleep(for: .seconds(testRenameSettleDelay + testDebounceDelay + 0.3))
         #expect(!callbackFired.get())
     }
 }

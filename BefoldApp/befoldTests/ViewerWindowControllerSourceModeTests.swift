@@ -39,7 +39,7 @@ struct ViewerWindowControllerSourceModeTests {
             ),
             bookmarkStore: BookmarkStore(defaults: defaults),
             store: ViewerStore(
-                watcherFactory: { _, _, _ in MockFileWatcher() },
+                watcherFactory: { _, _, _, _ in MockFileWatcher() },
                 fileReader: InMemoryFileReader(files: files),
                 defaults: defaults
             )
