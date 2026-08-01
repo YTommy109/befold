@@ -87,6 +87,7 @@ struct MockedViewerWindowManager {
                     defaults: defaults
                 )
             },
+            makeContentView: placeholderViewerContent,
             gitFileIndex: gitFileIndex,
             recentRepositoriesStore: recentRepositoriesStore
         )

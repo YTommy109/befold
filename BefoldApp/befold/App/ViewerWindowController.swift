@@ -130,6 +130,9 @@ final class ViewerWindowController: NSWindowController {
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         store: ViewerStore? = nil,
+        // テスト専用シーム: コンテンツペイン(ViewerContentView / 実 WKWebView)を差し替える。
+        // 既定の nil は本番経路。サイドバー(FileListView)と分割ビュー配線は差し替え対象外。
+        makeContentView: (() -> AnyView)? = nil,
         openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { url, disposition, source in
             AppDelegate.shared?.openViewer(for: url, disposition: disposition, relativeTo: source)
         },
@@ -215,7 +218,7 @@ final class ViewerWindowController: NSWindowController {
         // リサイズされるため、フレームの確定はその後に行う。
         // frameDescriptor はフレーム座標系で保存・復元されるため、
         // タイトルバー高さの混入によるサイズのずれは起きない
-        window.contentViewController = makeSplitViewController()
+        window.contentViewController = makeSplitViewController(contentOverride: makeContentView)
         if let descriptor = initialFrameDescriptor {
             window.setFrame(from: descriptor)
             // 自身の保存値・引き継ぎ値のどちらでも、既存ウィンドウと位置が
@@ -259,10 +262,10 @@ final class ViewerWindowController: NSWindowController {
     }
 
     /// サイドバー(ファイル一覧)とコンテンツ(WebView/フォルダー一覧)を並べる split view controller を組み立てる。
-    private func makeSplitViewController() -> NSViewController {
+    private func makeSplitViewController(contentOverride: (() -> AnyView)?) -> NSViewController {
         let onSelectFile: (URL) -> Void = { [weak self] url in self?.switchFile(to: url) }
         let onNavigateToFolder: (URL) -> Void = { [weak self] url in self?.navigateToFolder(url) }
-        let contentView = ViewerContentView(
+        let content: AnyView = contentOverride?() ?? AnyView(ViewerContentView(
             store: store,
             zoomStore: perFileState.zoom,
             scrollPositionStore: perFileState.scrollPosition,
@@ -274,7 +277,7 @@ final class ViewerWindowController: NSWindowController {
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
             webViewProxy: webViewProxy
-        )
+        ))
         let fileListView = FileListView(
             model: fileListModel,
             onSelect: onSelectFile,
@@ -295,7 +298,7 @@ final class ViewerWindowController: NSWindowController {
         )
         let splitViewController = ViewerSplitViewController(
             sidebar: fileListView,
-            content: contentView,
+            content: content,
             initialCollapsed: initialSidebarCollapsed,
             onCollapsedChange: { [weak self] collapsed in
                 guard let self else { return }

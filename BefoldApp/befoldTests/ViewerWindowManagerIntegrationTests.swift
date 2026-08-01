@@ -20,7 +20,8 @@ struct ViewerWindowManagerIntegrationTests {
             recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
             hiddenFilesPreference: HiddenFilesPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults)
+            bookmarkStore: BookmarkStore(defaults: defaults),
+            makeContentView: placeholderViewerContent
         )
     }
 

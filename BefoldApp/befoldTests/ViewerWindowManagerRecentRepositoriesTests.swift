@@ -64,6 +64,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
                     defaults: defaults
                 )
             },
+            makeContentView: placeholderViewerContent,
             gitFileIndex: gitFileIndex,
             recentRepositoriesStore: recentRepositoriesStore,
             repositoryIdentityResolver: {
