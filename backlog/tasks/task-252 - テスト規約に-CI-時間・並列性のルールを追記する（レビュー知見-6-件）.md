@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-01 11:09'
-updated_date: '2026-08-01 23:16'
+updated_date: '2026-08-01 23:23'
 labels: []
 dependencies: []
 priority: medium
@@ -43,3 +43,9 @@ ordinal: 450100
 - 既存の「発火しない検証は時限+0.3s」ルール（L643-646）と番宗優先の関係を明記して矛盾を回避
 - markdownlint-cli2 で確認してからコミット
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+レビュー修正ラウンド1: Important-1(番兵方式の限界を明記), E-1(実UIフル構築禁止をUnit/Integration節へ), E-2(競合テストの一般則), E-3(未文書化挙動をAPI側///にも明文化), Minor-1(N合算ルールを非同期コールバックテスト節へ移設し新節はリンクのみに), Minor-2(L643-646のハードコード参照をアンカーリンク+derived-fromディレクティブへ), Minor-3(@MainActor判定基準に境界の目安を追記) を反映。markdownlint-cli2 0 issues。
+<!-- SECTION:NOTES:END -->
