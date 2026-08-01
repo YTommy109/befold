@@ -135,8 +135,14 @@ struct GitRepository: GitRepositoryReading {
         guard case let .output(data) = runner.run(["worktree", "list", "--porcelain"], in: root),
               let text = String(data: data, encoding: .utf8)
         else { return [] }
-        // porcelain 形式は 1 エントリが `worktree <path>` 行で始まり、続く属性行
-        // (HEAD/branch/bare/detached)を経て空行で区切られる。表示に使うのは path と branch のみ。
+        return Self.parseWorktreeList(text)
+    }
+
+    /// `git worktree list --porcelain` の出力をパースする純関数。git 実行を経ないため
+    /// インメモリのフィクスチャで網羅的に検証できる(実 git の spawn はスモーク 1 本に任せる)。
+    /// porcelain 形式は 1 エントリが `worktree <path>` 行で始まり、続く属性行
+    /// (HEAD/branch/bare/detached)を経て空行で区切られる。表示に使うのは path と branch のみ。
+    static func parseWorktreeList(_ text: String) -> [GitWorktree] {
         var result: [GitWorktree] = []
         for line in text.split(separator: "\n") {
             if line.hasPrefix("worktree ") {

@@ -70,7 +70,7 @@ private func hangingAliasArguments(_ sleeper: URL) -> [String] {
 ///   プロセスを殺し切れない」状況(自分を daemon 化するフックなど)の再現に使う。
 ///   `setsid(1)` は macOS に無いため、常にある perl から `POSIX::setsid` を呼ぶ。
 private func makeHangingRepo(in dir: URL, escapesProcessGroup: Bool = false) throws -> URL {
-    rawGit(dir, ["init"])
+    GitTestRepo.run(["init"], in: dir)
     let sleepForever = escapesProcessGroup
         // 末尾の "$0"(スクリプト自身のパス)は perl からは使わない。argv に混ぜて
         // `pgrep -f` の対象に含めるためのマーカー。
@@ -154,11 +154,6 @@ private func threadName(_ thread: thread_t) -> String {
     }
 }
 
-/// 無害化オプションを通さずに git を実行する(対照用)。
-private func rawGit(_ dir: URL, _ args: [String]) {
-    _ = runTool("/usr/bin/env", ["git"] + args, in: dir)
-}
-
 /// 補助ツールを同期実行して終了コードを返す。spawn に失敗したら `Issue` として記録し nil を返す。
 ///
 /// 起動できなかった `Process` へ `waitUntilExit()` / `terminationStatus` を呼ぶと、Swift から
@@ -190,19 +185,15 @@ private func runTool(
 /// marker を作るだけのフックを `core.fsmonitor` に仕込んだリポジトリを作る
 /// (`.git/` 込みのアーカイブを展開して開いた状況の再現)。
 private func makeRepoWithFsmonitor(_ dir: URL, marker: URL) throws {
-    rawGit(dir, ["init"])
-    rawGit(dir, ["config", "user.email", "t@example.com"])
-    rawGit(dir, ["config", "user.name", "t"])
-    try "print(1)".write(to: dir.appendingPathComponent("main.swift"), atomically: true, encoding: .utf8)
-    rawGit(dir, ["add", "main.swift"])
-    rawGit(dir, ["commit", "-m", "init"])
+    GitTestRepo.initRepository(at: dir)
+    try GitTestRepo.commitFile(in: dir)
 
     let hook = dir.appendingPathComponent("fsmonitor-hook.sh")
     // exit 1 で git にフック未対応を伝え、監視結果の解釈まで進ませない。
     try "#!/bin/sh\ntouch \"\(marker.path)\"\nexit 1\n"
         .write(to: hook, atomically: true, encoding: .utf8)
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hook.path)
-    rawGit(dir, ["config", "core.fsmonitor", hook.path])
+    GitTestRepo.run(["config", "core.fsmonitor", hook.path], in: dir)
 }
 
 /// `GitCommandRunner` が全 git 呼び出しへ無害化オプションを前置することを固定する。
@@ -283,7 +274,7 @@ struct GitCommandRunnerResourceLeakTests {
         // 対照: 無害化しない生の git では実際に実行されることを確かめる。ここが再現しない
         // 環境(fsmonitor 未対応の git など)ではこのテストは検証力を持たないため、
         // 引数構築テスト(alwaysPrependsFsmonitorHardening)側の固定に委ねて抜ける。
-        rawGit(temp.url, ["ls-files", "-z"])
+        GitTestRepo.run(["ls-files", "-z"], in: temp.url)
         guard FileManager.default.fileExists(atPath: marker.path) else { return }
         try FileManager.default.removeItem(at: marker)
 
