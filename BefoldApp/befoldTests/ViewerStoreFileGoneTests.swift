@@ -346,7 +346,14 @@ struct ViewerStoreFileGoneTests {
         reader.setFile("graph TD; A-->B", at: file)
 
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
-        let store = makeStore(reader: reader, onChangeBox: onChangeBox, clock: clock)
+        // clock.advance(by: .seconds(1)) の判定が grace ≤ 1.0s(= FileWatcher.defaultDebounceDelay
+        // の 5 倍)に暗黙依存しているため、他のグレース期間境界テストと揃えて明示する。
+        let store = makeStore(
+            reader: reader,
+            onChangeBox: onChangeBox,
+            clock: clock,
+            watcherDebounceDelay: FileWatcher.defaultDebounceDelay
+        )
 
         nonisolated(unsafe) var firedCount = 0
         store.onFileGone = { firedCount += 1 }

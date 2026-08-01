@@ -91,6 +91,13 @@ TSan スローダウン + 8 テスト並列の負荷でディレクトリイベ�
    TSan 環境での CPU 競合と MainActor 混雑が減り、失敗モード 2 が緩和する。
    直列化で総時間は延びるが、各テスト 5 秒弱 × 8 本で 40 秒程度に収まる。
    （実測では遅延パラメータ化と併せて非 TSan ローカルで約 7.2s → 約 2.5s に短縮した。）
+   **2026-08-01 追記**: TASK-243 で `FileWatcherIntegrationTests` の `.serialized` は解除した。
+   arm 確認プローブ・書き込みリトライ・タイムアウト延長など後続対策(下記「追加対策」)が
+   積み重なった結果、直列化なしでもフル `swift test` を 3 回連続実行してフレークしないことを
+   確認できたため。`ViewerStoreIntegrationTests` も本来は同じ理由で `.serialized` を
+   付与されたスイートであり、両者を構造的に区別する固有の理由は見つかっていないが、
+   TASK-243 の検証スコープでは `ViewerStoreIntegrationTests` 側の解除検証を行っていないため、
+   予防的に直列のまま維持している。
 3. （補助）`waitUntil` のタイムアウトを TSan ジョブ向けに延長する（実装済み）。
    環境変数 `BEFOLD_TEST_TIMEOUT_SECONDS` で上書き可能にし、CI の
    thread-sanitizer ジョブで 30 秒に設定した。
@@ -132,13 +139,19 @@ TSan スローダウン + 8 テスト並列の負荷でディレクトリイベ�
    `atomically: false` の書き込みを繰り返して最初のコールバック到達を待ち、file source の
    kevent 登録完了を観測する（`atomically: true` は rename 経由で監視を張り直し登録レースを
    再発させるため使わない）。その後、プローブ書き込みのデバウンス残コールバックが検証を
-   汚さないよう、コールバック数が一定時間（0.3s = テスト用 debounce 0.05s の 6 倍）
-   増えなくなるまで静穏化を待ち、静穏化後のカウントを基準値として「操作後の発火」を
+   汚さないよう、コールバック数が一定時間（既定 0.35s、`quiescePeriod`）増えなくなるまで
+   静穏化を待ち、静穏化後のカウントを基準値として「操作後の発火」を
    `count > baseline` で判定する。削除・rename・move・save-by-rename・再作成前削除の
    各テストに適用した。`ViewerStoreIntegrationTests.deletingWatchedFileFiresOnFileGone`
    では content 更新の観測で arm を確認する（content 更新は onFileGone に影響しないため
    静穏化不要）。この arm 確認により、`saveByRenameIsTreatedAsChangeNotRename` が
    rename イベント喪失時に `renamed == nil` を偽陽性でパスする問題も解消する。
+   **2026-08-01 追記**: `quiescePeriod` の既定値は当初 0.3s（テスト用 debounce 0.05s の 6 倍）
+   だったが、TASK-243 で 0.35s（`testDebounceDelay + 0.3`）へ変更した。根拠も
+   「debounce 遅延の定数倍」ではなく、kevent 配送 → 監視キュー → デバウンサー →
+   `@MainActor` ホップまでを含む経路全体に対する余裕(MainActor 混雑時の遅延を吸収する分)
+   に変わっている。「6 倍」を典拠に戻さないこと(詳細は `TestSupport.swift` の
+   `confirmWatcherArmed` doc comment を参照)。
 
 5. **TSan 実行時のタイムアウト延長**。
    `waitUntil` / `waitUntilOnMainActor` の既定タイムアウトを
