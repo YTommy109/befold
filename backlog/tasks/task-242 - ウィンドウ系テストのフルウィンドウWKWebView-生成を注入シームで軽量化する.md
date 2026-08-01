@@ -1,11 +1,11 @@
 ---
 id: TASK-242
 title: ウィンドウ系テストのフルウィンドウ+WKWebView 生成を注入シームで軽量化する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-01 10:44'
-updated_date: '2026-08-01 12:55'
+updated_date: '2026-08-01 13:06'
 labels: []
 dependencies: []
 priority: high
@@ -27,7 +27,7 @@ ViewerWindowController.init(BefoldApp/befold/App/ViewerWindowController.swift:17
 - [x] #1 モデル状態のみを検証するウィンドウ系テストが WKWebView 生成・viewer.html ロードなしで実行される
 - [x] #2 WebView が本質のテストは引き続き実描画経路で検証される
 - [x] #3 コントローラ生成ファクトリが共有フィクスチャへ集約される
-- [ ] #4 swift test が全てグリーンで、CI の swift test ステップ時間の短縮が実測で確認できる
+- [x] #4 swift test が全てグリーンで、CI の swift test ステップ時間の短縮が実測で確認できる
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -55,6 +55,8 @@ ViewerWindowController.init(BefoldApp/befold/App/ViewerWindowController.swift:17
 検証: swift build 警告なし、swift test 1007 tests/134 suites グリーン(実装者・レビュー担当の双方が実行)、ViewerRendererOneShotTests は差分ゼロで実 WebView 検証を維持。
 
 AC #4 の CI 実測は未 push のため保留。PR 作成後に build-and-test の swift test ステップ時間を確認して確定する(ローカル実測は完了済み)。
+
+CI 実測(PR #380): 2 回ともグリーン。キャッシュが温まった attempt 2 で swift test 63s(ベースライン main は 69s、build はいずれも 41s で同条件)。本タスク単独の寄与は切り分けていないが、TASK-243 と合わせて 6s(約 9%)短縮。ローカル単独実行では ViewerWindowControllerTests が 11.3s→1.93s(約 83% 短縮)。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
