@@ -1,10 +1,11 @@
 ---
 id: TASK-252
 title: テスト規約に CI 時間・並列性のルールを追記する（レビュー知見 6 件）
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-08-01 11:09'
-updated_date: '2026-08-01 11:10'
+updated_date: '2026-08-01 23:16'
 labels: []
 dependencies: []
 priority: medium
@@ -29,7 +30,16 @@ ordinal: 450100
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 6 件のルールがテスト規約に追記され、それぞれ根拠(なぜ CI 時間・安定性に効くか)と実例への言及を持つ
-- [ ] #2 既存ルール(waitUntil 必須・時限+0.3s)との関係が矛盾なく整理されている
-- [ ] #3 markdownlint-cli2 がパスする
+- [x] #1 6 件のルールがテスト規約に追記され、それぞれ根拠(なぜ CI 時間・安定性に効くか)と実例への言及を持つ
+- [x] #2 既存ルール(waitUntil 必須・時限+0.3s)との関係が矛盾なく整理されている
+- [x] #3 markdownlint-cli2 がパスする
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+起票時の 6 件を、実装レビューで得た知見に基づき更新した内容で追記する（チーム内で内容更新済み）。
+- 挿入位置: docs/dev/coding_rule.md のテスト規約セクション内、「### テスト対象外」の後・「## エラーハンドリング規約」の前に新設「### CI 時間・並列性に関するルール」
+- 既存の「発火しない検証は時限+0.3s」ルール（L643-646）と番宗優先の関係を明記して矛盾を回避
+- markdownlint-cli2 で確認してからコミット
+<!-- SECTION:PLAN:END -->
