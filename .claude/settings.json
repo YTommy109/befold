@@ -65,6 +65,16 @@
             "type": "command",
             "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.github/workflows/*.yml|*.github/workflows/*.yaml) cd \"${CLAUDE_PROJECT_DIR:-.}\"; command -v actionlint >/dev/null || { echo 'actionlint 未インストール: brew install actionlint'; exit 0; }; { out=$(actionlint 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
             "statusMessage": "actionlint"
+          },
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.md) cd \"${CLAUDE_PROJECT_DIR:-.}\"; command -v markdownlint-cli2 >/dev/null || { echo 'markdownlint-cli2 未インストールのためスキップ' >&2; exit 0; }; { out=$(markdownlint-cli2 \"$f\" 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "statusMessage": "markdownlint-cli2"
+          },
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *project.yml) cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(xcodegen generate 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "statusMessage": "xcodegen generate (project.yml 変更検出)"
           }
         ]
       }
