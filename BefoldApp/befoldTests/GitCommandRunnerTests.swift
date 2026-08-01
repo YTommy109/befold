@@ -203,6 +203,12 @@ private func makeRepoWithFsmonitor(_ dir: URL, marker: URL) throws {
 /// プロセス全体の基準線(`openPipeCount` / `readerThreadCount`)を読む資源残留系テストは
 /// [`GitCommandRunnerResourceLeakTests`] に分離してあるため、ここは並列実行できる
 /// (各テストが自己完結で、他テストの計測に影響する共有状態を持たない)。
+///
+/// `GitCommandRunner` を実行するテスト(`.run()` を呼ぶもの)はここへ置かない。並列実行中に
+/// pipe / リーダースレッドを一時的に生成すると、`GitCommandRunnerResourceLeakTests` 側が
+/// 開始時点で 1 回だけ読む基準線を水増しし、検証力を落とす(`GitCommandRunnerResourceLeakTests`
+/// の型コメント参照)。`GitCommandRunner` を実行するテストは全て `GitCommandRunnerResourceLeakTests`
+/// へ置くこと。
 struct GitCommandRunnerTests {
     @Test("git 呼び出しには常に core.fsmonitor 無効化が前置される")
     func alwaysPrependsFsmonitorHardening() {
