@@ -9,7 +9,9 @@ import Testing
 /// ナビゲーションなど、実ファイルシステムの挙動そのものを検証するテスト。DirectoryLister は
 /// FileManager を直接列挙するため InMemoryFileReader でモック化できず Integration として分離する。
 /// (存在ガードのみに依存する switch/rename/history/リンク遷移の unit テストは
-/// ViewerWindowControllerTests へ戻した。)
+/// ViewerWindowControllerTests へ戻した。navigateToFolder の選択ポリシー(ホーム上限ガード・
+/// 子フォルダーでの自動選択抑止・親フォルダーへ戻った際の選択復元)は実列挙結果自体が本質でないため
+/// SidebarNavigatorFolderNavigationTests(unit)へ移設済み。)
 /// realFileSystem: true でも content ペインはプレースホルダ(ViewerWindowControllerFixture)のため、
 /// WebView に依存する検証はこのスイートに置かない(実コンテンツ経路は末尾のカナリアのみが例外)。
 @Suite
@@ -135,107 +137,6 @@ extension ViewerWindowControllerIntegrationTests {
         #expect(controller.fileListModel.currentDirectory.standardizedFileURL == subDir.standardizedFileURL)
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
         #expect(names.contains("child.mmd"))
-    }
-
-    @Test("navigateToFolder で親フォルダーへ移動できる")
-    func navigateToFolderToParentWorks() throws {
-        let tmp = try makeHomeTempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
-        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
-        let file = try tmp.file(named: "sub/child.mmd", contents: "graph TD;")
-        let controller = makeController(file: file)
-        defer { controller.close() }
-
-        controller.navigateToFolder(tmp.url)
-
-        #expect(controller.fileListModel.currentDirectory.standardizedFileURL == tmp.url.standardizedFileURL)
-    }
-
-    @Test("navigateToFolder はホームディレクトリより上には移動しない")
-    func navigateToFolderRefusesAboveHomeDirectory() throws {
-        let tmp = try makeHomeTempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
-        let controller = makeController(file: file)
-        defer { controller.close() }
-        let before = controller.fileListModel.currentDirectory
-        let aboveHome = FileManager.default.homeDirectoryForCurrentUser
-            .deletingLastPathComponent()
-
-        controller.navigateToFolder(aboveHome)
-
-        #expect(controller.fileListModel.currentDirectory == before)
-    }
-
-    @Test("子フォルダーへの移動では自動選択されない")
-    func navigateToChildDoesNotAutoSelect() async throws {
-        let tmp = try makeHomeTempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
-        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
-        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
-        let grandChild = subDir.appendingPathComponent("grandchild", isDirectory: true)
-        try FileManager.default.createDirectory(at: grandChild, withIntermediateDirectories: true)
-        _ = try tmp.file(named: "sub/child.mmd", contents: "graph LR;")
-        let controller = makeController(file: file)
-        defer { controller.close() }
-
-        controller.navigateToFolder(subDir)
-        await controller.sidebar.pendingListingTask?.value
-
-        #expect(controller.fileListModel.selection == nil)
-    }
-
-    @Test("子フォルダーへの移動ではファイルが自動的に開かれない")
-    func navigateToChildDoesNotAutoOpenFile() async throws {
-        let tmp = try makeHomeTempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
-        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
-        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
-        _ = try tmp.file(named: "sub/child.mmd", contents: "graph LR;")
-        let controller = makeController(file: file)
-        defer { controller.close() }
-
-        controller.navigateToFolder(subDir)
-        await controller.sidebar.pendingListingTask?.value
-
-        #expect(controller.fileURL.lastPathComponent == "diagram.mmd")
-    }
-
-    @Test("ファイルのない子フォルダーへの移動では何も選択されない")
-    func navigateToChildWithoutFilesClearsSelection() async throws {
-        let tmp = try makeHomeTempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
-        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
-        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
-        let grandChild = subDir.appendingPathComponent("grandchild", isDirectory: true)
-        try FileManager.default.createDirectory(at: grandChild, withIntermediateDirectories: true)
-        let controller = makeController(file: file)
-        defer { controller.close() }
-
-        controller.navigateToFolder(subDir)
-        await controller.sidebar.pendingListingTask?.value
-
-        #expect(controller.fileListModel.selection == nil)
-    }
-
-    @Test("親フォルダーへの移動では直前の子フォルダーが選択される")
-    func navigateToParentSelectsPreviousChild() async throws {
-        let tmp = try makeHomeTempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
-        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
-        let file = try tmp.file(named: "sub/child.mmd", contents: "graph TD;")
-        let controller = makeController(file: file)
-        defer { controller.close() }
-
-        controller.navigateToFolder(tmp.url)
-        await controller.sidebar.pendingListingTask?.value
-
-        #expect(controller.fileListModel.selection?.lastPathComponent == "sub")
     }
 }
 

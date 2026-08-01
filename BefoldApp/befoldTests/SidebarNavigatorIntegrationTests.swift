@@ -5,9 +5,12 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// SidebarNavigator のディレクトリ比較が symlink 経由でも一貫するかを実 FS で検証する。
-/// `standardizedFileURL`(symlink 解決なし)と `normalizedPathKey`(symlink 解決あり)の
-/// 混在で /tmp ↔ /private/tmp のようなケースが割れる問題の回帰テスト。
+/// SidebarNavigator のうち、実ディレクトリ構造(symlink 解決・実際の親子関係)が本質のテスト。
+/// symlink 祖先経由の別表記パスでも同一ディレクトリと判定されるかは `standardizedFileURL`
+/// (symlink 解決なし)と `normalizedPathKey`(symlink 解決あり)の混在で /tmp ↔ /private/tmp の
+/// ようなケースが割れる問題の回帰テスト。rootDirectory の追従・フォルダー選択の保持も実ディレクトリの
+/// 階層関係に依存するためここに残す。世代ガード競合・フィルタ持続など、実列挙結果そのものが本質でない
+/// 選択ポリシー検証は SidebarNavigatorGenerationTests(unit)へ移設済み。
 /// realFileSystem: true でも content ペインはプレースホルダ(ViewerWindowControllerFixture)のため、
 /// WebView に依存する検証はこのスイートに置かない。
 @Suite
@@ -110,56 +113,5 @@ struct SidebarNavigatorIntegrationTests {
         await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.selection == sub)
-    }
-
-    @Test("連続する navigateToFolder では古い列挙結果が新しい結果を上書きしない")
-    func rapidNavigateToFolderDiscardsStaleResult() async throws {
-        let base = try makeHomeTempDir()
-        defer { withExtendedLifetime(base) {} }
-
-        // base/(fileA.mmd, dirB/(fileB.mmd))
-        let fileA = base.url.appendingPathComponent("fileA.mmd")
-        try "graph TD; A-->B".write(to: fileA, atomically: true, encoding: .utf8)
-        let dirB = base.url.appendingPathComponent("dirB", isDirectory: true)
-        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
-        let fileB = dirB.appendingPathComponent("fileB.mmd")
-        try "graph TD; C-->D".write(to: fileB, atomically: true, encoding: .utf8)
-
-        let controller = makeController(file: fileA)
-        defer { controller.close() }
-
-        // 1 回目の navigateToFolder が完了する前に 2 回目を発行する。
-        // 世代ガードにより、後から発行した dirB の結果だけが最終的に反映されるべき。
-        controller.navigateToFolder(base.url)
-        controller.navigateToFolder(dirB)
-        await controller.sidebar.pendingListingTask?.value
-
-        #expect(controller.fileListModel.currentDirectory.standardizedFileURL == dirB.standardizedFileURL)
-        let names = controller.fileListModel.entries
-            .filter { $0.kind != .parentNavigation }
-            .map(\.url.lastPathComponent)
-        #expect(names == ["fileB.mmd"])
-    }
-
-    @Test("フォルダー移動後もファイル名フィルターの文字列が保持される(task-185)")
-    func filterTextPersistsAcrossFolderNavigation() async throws {
-        let base = try makeHomeTempDir()
-        defer { withExtendedLifetime(base) {} }
-
-        // base/(fileA.mmd, dirB/(fileB.mmd))
-        let fileA = base.url.appendingPathComponent("fileA.mmd")
-        try "graph TD; A-->B".write(to: fileA, atomically: true, encoding: .utf8)
-        let dirB = base.url.appendingPathComponent("dirB", isDirectory: true)
-        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
-
-        let controller = makeController(file: fileA)
-        defer { controller.close() }
-
-        controller.fileListModel.filterText = "fileA"
-        controller.navigateToFolder(dirB)
-        await controller.sidebar.pendingListingTask?.value
-
-        #expect(controller.fileListModel.currentDirectory.standardizedFileURL == dirB.standardizedFileURL)
-        #expect(controller.fileListModel.filterText == "fileA")
     }
 }
