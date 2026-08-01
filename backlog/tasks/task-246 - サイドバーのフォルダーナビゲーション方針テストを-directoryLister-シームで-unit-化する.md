@@ -1,11 +1,11 @@
 ---
 id: TASK-246
 title: サイドバーのフォルダーナビゲーション方針テストを directoryLister シームで unit 化する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-01 10:45'
-updated_date: '2026-08-01 22:50'
+updated_date: '2026-08-01 23:09'
 labels: []
 dependencies: []
 priority: medium
@@ -23,10 +23,10 @@ SidebarNavigator には directoryLister: (URL, SortOrder, Bool) async -> [FileLi
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 対象 8 テストがスタブ lister による unit テストへ移行し、TempDir とフルウィンドウ生成が不要になる
-- [ ] #2 Integration 側には実 FS が本質のテストのみが残る
-- [ ] #3 競合(世代ガード)テストが sleep なしで決定的に検証される
-- [ ] #4 swift test が全てグリーン
+- [x] #1 対象 8 テストがスタブ lister による unit テストへ移行し、TempDir とフルウィンドウ生成が不要になる
+- [x] #2 Integration 側には実 FS が本質のテストのみが残る
+- [x] #3 競合(世代ガード)テストが sleep なしで決定的に検証される
+- [x] #4 swift test が全てグリーン
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -55,3 +55,17 @@ SidebarNavigator には directoryLister: (URL, SortOrder, Bool) async -> [FileLi
 4. セルフレビュー: 移設前後で不変条件(選択が nil のまま/保持される、performFileSwitch 未呼出、
    世代ガードで古い結果が破棄される、filterText 保持)が失われていないか確認してからコミットする。
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+SidebarNavigatorFolderNavigationTests.swift(6テスト)/SidebarNavigatorGenerationTests.swift(2テスト)を新設し、対象8テストを directoryLister スタブ+StubHost で unit 化。世代ガード競合は AsyncGate.wait()/open() で決定的に再現(sleep 不使用)。移設元2ファイルからは対象テストを削除しヘッダーコメントを実態に合わせて更新。swift build 警告なし、swift test 全体 1006 tests green(新設8テストは各 0.002 秒、旧来の TempDir+フルウィンドウは不要に)。
+
+修正ラウンド1(レビュー反映): (1)世代ガード競合テストの順序を staleTask/freshTask 明示待ちに変更し、performListing の generation ガードを一時的に外すと確実に落ちる(1 issue)ことを確認してから元に戻した。(2)navigateToChildDoesNotAutoSelect に選択候補のファイル(child.mmd)を追加し、ClearsSelection テストと区別が付く強度に戻した。(3)StubHost を SidebarNavigatorTestStubs.swift の SidebarNavigatorStubHost に集約し 3 スイートの重複を解消。検証: swift build 警告なし、swift test 全体 1006 tests green。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+SidebarNavigator.navigateToFolder の選択ポリシー検証8テスト(旧 ViewerWindowControllerIntegrationTests 6件・SidebarNavigatorIntegrationTests 2件)を、既存の directoryLister 注入シームを使い SidebarNavigatorFolderNavigationTests.swift / SidebarNavigatorGenerationTests.swift(いずれも unit)へ移設。世代ガード競合は AsyncGate で決定的に検証。実 FS(symlink 解決・隠しファイル出現・rename後の実列挙等)が本質のテストのみ Integration に残した。swift build(警告なし)・swift test(1006 tests green)で検証済み。
+<!-- SECTION:FINAL_SUMMARY:END -->

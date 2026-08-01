@@ -13,24 +13,6 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorFolderNavigationTests {
-    /// performFileSwitch の呼び出し有無を記録するダミー host。
-    /// navigateToFolder はファイル切替を一切行わないはずなので、呼ばれていないことの確認に使う。
-    private final class StubHost: SidebarNavigatorHost {
-        let currentFileURL: URL
-        private(set) var performFileSwitchCallCount = 0
-
-        init(currentFileURL: URL) {
-            self.currentFileURL = currentFileURL
-        }
-
-        func performFileSwitch(to _: URL) -> FileSwitchOutcome {
-            performFileSwitchCallCount += 1
-            return .switched
-        }
-
-        func historyStateDidChange() {}
-    }
-
     private static let home = FileManager.default.homeDirectoryForCurrentUser
 
     /// directoryLister をディレクトリの pathKey で固定エントリを返すスタブに差し替えたナビゲーターを作る。
@@ -39,7 +21,7 @@ struct SidebarNavigatorFolderNavigationTests {
         currentDirectory: URL,
         selection: URL?,
         listings: [String: [FileListEntry]]
-    ) -> (SidebarNavigator, StubHost) {
+    ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
             entries: listings[currentDirectory.normalizedPathKey] ?? [],
@@ -50,7 +32,9 @@ struct SidebarNavigatorFolderNavigationTests {
             directoryLister: { url, _, _ in listings[url.normalizedPathKey] ?? [] },
             resolveGitRoot: { _ in nil }
         )
-        let host = StubHost(currentFileURL: currentDirectory.appendingPathComponent("diagram.mmd"))
+        let host = SidebarNavigatorStubHost(
+            currentFileURL: currentDirectory.appendingPathComponent("diagram.mmd")
+        )
         navigator.attach(to: host)
         return (navigator, host)
     }
@@ -90,10 +74,19 @@ struct SidebarNavigatorFolderNavigationTests {
         let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-noselect")
         let sub = tmp.appendingPathComponent("sub", isDirectory: true)
         let grandChild = sub.appendingPathComponent("grandchild", isDirectory: true)
+        let child = sub.appendingPathComponent("child.mmd")
+        // 選択候補になり得るファイル(child.mmd)があっても自動選択しないことを固定する。
+        // フォルダーのみ(選択候補が無い)だと navigateToChildWithoutFilesClearsSelection と
+        // 区別が付かなくなる。
         let (navigator, host) = makeNavigator(
             currentDirectory: tmp,
             selection: nil,
-            listings: [sub.normalizedPathKey: [FileListEntry(url: grandChild, kind: .folder)]]
+            listings: [
+                sub.normalizedPathKey: [
+                    FileListEntry(url: grandChild, kind: .folder),
+                    FileListEntry(url: child, kind: .file),
+                ],
+            ]
         )
         defer { withExtendedLifetime(host) {} }
 

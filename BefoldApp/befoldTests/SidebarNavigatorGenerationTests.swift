@@ -13,26 +13,12 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorGenerationTests {
-    private final class StubHost: SidebarNavigatorHost {
-        let currentFileURL: URL
-
-        init(currentFileURL: URL) {
-            self.currentFileURL = currentFileURL
-        }
-
-        func performFileSwitch(to _: URL) -> FileSwitchOutcome {
-            .switched
-        }
-
-        func historyStateDidChange() {}
-    }
-
     private static let home = FileManager.default.homeDirectoryForCurrentUser
 
     private func makeNavigator(
         currentDirectory: URL,
         directoryLister: @escaping @Sendable (URL, befold.SortOrder, Bool) async -> [FileListEntry]
-    ) -> (SidebarNavigator, StubHost) {
+    ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
             entries: [],
@@ -43,7 +29,7 @@ struct SidebarNavigatorGenerationTests {
             directoryLister: directoryLister,
             resolveGitRoot: { _ in nil }
         )
-        let host = StubHost(currentFileURL: currentDirectory.appendingPathComponent("fileA.mmd"))
+        let host = SidebarNavigatorStubHost(currentFileURL: currentDirectory.appendingPathComponent("fileA.mmd"))
         navigator.attach(to: host)
         return (navigator, host)
     }
@@ -68,9 +54,17 @@ struct SidebarNavigatorGenerationTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.navigateToFolder(base)
+        let staleTask = navigator.pendingListingTask
         navigator.navigateToFolder(dirB)
+        let freshTask = navigator.pendingListingTask
+
+        // 新しい結果(dirB)を先に確定させてから、足止めしていた古い結果(base)を後から
+        // 返す。これにより「先に発行したタスクの結果が後から返る」という競合の順序自体を
+        // 固定できる。世代ガード(SidebarNavigator.performListing の generation チェック)を
+        // 外すと、この staleTask の完了によって dirB の反映が上書きされ、このテストは失敗する。
+        await freshTask?.value
         staleGate.open()
-        await navigator.pendingListingTask?.value
+        await staleTask?.value
 
         #expect(navigator.fileListModel.currentDirectory.standardizedFileURL == dirB.standardizedFileURL)
         let names = navigator.fileListModel.entries
