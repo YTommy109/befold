@@ -1,11 +1,11 @@
 ---
 id: TASK-243
 title: FileWatcher/ViewerStore 統合テストの固定待ちと直列化を見直し数秒短縮する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-01 10:44'
-updated_date: '2026-08-01 12:13'
+updated_date: '2026-08-01 13:06'
 labels: []
 dependencies: []
 priority: high
@@ -30,7 +30,7 @@ CI レビューで、FileWatcher/ViewerStore 統合テストに規約(発火し�
 <!-- AC:BEGIN -->
 - [x] #1 発火しない検証の待機が規約の時限+0.3s に短縮され、待機時間の根拠コメントが付く
 - [x] #2 fileGoneGracePeriod が注入 debounce から導出され、統合テストの実待ちが短縮される
-- [ ] #3 FileWatcherIntegrationTests の .serialized を解除して CI で実測し、フレークする場合のみ根拠コメント付きで復活させる
+- [x] #3 FileWatcherIntegrationTests の .serialized を解除して CI で実測し、フレークする場合のみ根拠コメント付きで復活させる
 - [x] #4 手組み一時パスと反復セットアップが TempDir / private ファクトリへ統一される
 - [x] #5 swift test が全てグリーン
 <!-- AC:END -->
@@ -57,12 +57,15 @@ CI レビューで、FileWatcher/ViewerStore 統合テストに規約(発火し�
 - ViewerStoreIntegrationTests の .serialized は維持。FileWatcherIntegrationTests と構造的な区別理由は見つからなかったが、解除検証をしていないため予防的に維持する旨をコメントと調査ドキュメント双方に明記
 検証: ローカル swift test フル実行を実装者3回+レビュー担当3回+最終1回の計7回実施し全てグリーン(1006 tests/134 suites)。swiftformat 差分なし、swift build 警告なし、markdownlint-cli2 0 issues。
 AC #3 の CI 実測は未実施(未 push のため)。PR 作成後に build-and-test と thread-sanitizer の結果を確認し、フレークする場合は根拠コメント付きで .serialized を復活させる。
+
+CI 実測(PR #380): 2 回実行して両方グリーン、FileWatcherIntegrationTests のフレークなし。.serialized 解除を維持する。キャッシュが温まった attempt 2 は build 41s / swift test 63s で、ベースライン(main: build 41s / swift test 69s)と同条件比較。attempt 1 は新規ブランチでキャッシュが冷えており build 82s / test 91s のため比較対象外。thread-sanitizer ジョブは PR では実行されない設定のため、TSan 下での解除挙動はマージ後の main push で確認する。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-FileWatcher/ViewerStore 統合テストの固定待ちと直列化を見直し、ローカル実測で FileWatcherIntegrationTests を 14.2s→約 10s に短縮した(全体 14.2s→13.4s。全体はスコープ外の GitCommandRunnerTests が新たな律速)。
-変更点: (1) ViewerStore の fileGoneGracePeriod を static 定数から watcherFactory に渡す debounce の導出値へ変更し、シグネチャに debounceDelay を含めることで申告ズレを型で防止 (2) confirmWatcherArmed の静穏待ちを経路根拠(kevent 配送〜MainActor ホップ)に基づく 0.35s へ (3) 「発火しない」検証の待機を rename 経路を数えた N+0.3s へ修正 (4) 手組み一時パスを TempDir へ、watcher セットアップ 6 回反復を private ファクトリへ (5) FileWatcherIntegrationTests の .serialized を解除。
-検証: ローカル swift test フル実行 7 回すべてグリーン(1006 tests)、swiftformat/SwiftLint/markdownlint クリーン。CI 実測(AC #3)は PR 作成後に確認する。
+FileWatcher/ViewerStore 統合テストの固定待ちと直列化を見直した。
+変更点: (1) ViewerStore の fileGoneGracePeriod を static 定数から watcherFactory に渡す debounce の導出値へ変更し、シグネチャに debounceDelay を含めて申告ズレを型で防止 (2) confirmWatcherArmed の静穏待ちを経路根拠(kevent 配送〜MainActor ホップ)に基づく 0.35s へ (3) 「発火しない」検証の待機を rename 経路を数えた N+0.3s へ修正 (4) 手組み一時パスを TempDir へ、watcher セットアップ 6 回反復を private ファクトリへ (5) FileWatcherIntegrationTests の .serialized を解除。
+効果: ローカルで FileWatcherIntegrationTests 14.2s→約 10s。CI(PR #380) は同条件比較で swift test 69s→63s。
+検証: ローカル swift test フル実行 7 回 + CI 2 回すべてグリーン(1007 tests)、フレークなし。swiftformat/SwiftLint/markdownlint クリーン。レビュー承認済み(指摘 9 件すべて解消)。
 <!-- SECTION:FINAL_SUMMARY:END -->
