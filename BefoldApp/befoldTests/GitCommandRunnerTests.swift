@@ -245,7 +245,34 @@ struct GitCommandRunnerTests {
         #expect(environment["PATH"] == "/usr/bin:/bin:/usr/sbin:/sbin")
         #expect(environment["GIT_TERMINAL_PROMPT"] == "0")
     }
+}
 
+/// プロセス全体の基準線(`openPipeCount` / `readerThreadCount`)を読む資源残留系テストの
+/// 直列化専用スイート。同じスイートには共有ワーカープールを 64 本埋めるテストや、
+/// 打ち切った git のリーダースレッドを猶予いっぱい保持するテストがあり、並列に走ると
+/// 残留の基準線がそれらのノイズで揺れる。数え方を対象限定にした上で
+/// (`openPipeCount` / `readerThreadCount`)、同居ノイズも直列化で断つ。
+///
+/// `openPipeCount` / `readerThreadCount` を直接読むテストだけでなく、`GitCommandRunner` を
+/// 1 回でも実行するテストは全てここに置く。理由は基準線側の性質にある:
+/// `repeatedTimeoutsDoNotAccumulateResources` / `releasesResourcesWhenWriteEndSurvivesTermination`
+/// は開始時点の pipe / リーダースレッド数を 1 回だけサンプリングして基準線とするため、その瞬間に
+/// 別テストが `GitCommandRunner` を動かして pipe やリーダースレッドを一時的に生成していると
+/// 基準線が水増しされ、閾値判定が緩んで検証力を失う(落ちる方向ではなく通ってしまう方向の
+/// 劣化なので気づきにくい)。これは並列スイート側の見かけの実行時間とは無関係な理由なので、
+/// `GitCommandRunner` を全く実行しない引数構築・環境変数テストのみを `GitCommandRunnerTests`
+/// (並列)側に残し、それ以外は実行時間に関わらずこちらへ寄せる。
+/// (`readsOutputWhileGlobalQueueIsSaturated` は基準線を読まないが、`DispatchQueue.global` を
+/// プロセス全体で飽和させる副作用があり、他 2 テストの `readerThreadCount()` 計測へノイズを
+/// 乗せうるため、同じ理由でこのスイートに残す。)
+///
+/// `.serialized` はスイート内しか直列化しないため、`GitCommandRunnerTests` (並列実行) と
+/// 同時に走ることはある。しかしその並列側は `GitCommandRunner` を一切実行しないので、
+/// pipe / リーダースレッドの基準線を動かさない。基準線ノイズの吸収は他スイート由来の分として
+/// 許容幅(`slack`)側に持たせたままでよく(`repeatedTimeoutsDoNotAccumulateResources` 参照)、
+/// 分割前と検証力は変わらない。
+@Suite(.serialized)
+struct GitCommandRunnerResourceLeakTests {
     @Test("core.fsmonitor を仕込んだリポジトリでもコマンドが実行されない")
     func doesNotExecuteRepositoryFsmonitorCommand() throws {
         let temp = try TempDir()
@@ -267,7 +294,7 @@ struct GitCommandRunnerTests {
 
     /// 索引はロックを保持したまま git を待つため、git が返らないと他ウィンドウの
     /// パス解決まで巻き添えで止まる。タイムアウトで必ず打ち切ることを固定する。
-    @Test("返ってこない git はタイムアウトで打ち切られる", .timeLimit(.minutes(1)))
+    @Test("返ってこない git はタイムアウトで打ち切られる", testTimeLimit())
     func abortsHangingGit() {
         let started = Date()
         // シェルエイリアス経由で 30 秒眠る git を作る(git 自体が返ってこない状況の再現)。
@@ -286,7 +313,7 @@ struct GitCommandRunnerTests {
     /// (a) まだ read に入っていなければ EBADF で `NSFileHandleOperationException` が飛び、
     /// 誰も catch できないのでアプリごと落ちる。(b) 閉じた番号が別ファイルに再利用されると
     /// 無関係な読み取りを壊す。CI では実際に SIGABRT でテストプロセスが落ちた。
-    @Test("打ち切り後に読み取りスレッドが動いてもクラッシュしない", .timeLimit(.minutes(1)))
+    @Test("打ち切り後に読み取りスレッドが動いてもクラッシュしない", testTimeLimit())
     func survivesTimeoutBeforeReadStarts() async {
         // 読み取りスレッドが起動する前に打ち切りへ入りやすいよう予算 0 で回す。
         // どちらが先着するかは競争なので 1 回ごとの結果は固定できない(読み取りが
@@ -295,7 +322,9 @@ struct GitCommandRunnerTests {
         //
         // 20 回は互いに独立な試行なので `runInBackground` と同じ要領で並行に投げ、
         // ウォールクロックを 1 回ぶんへ畳む(逐次だと git --version の起動コストが
-        // 20 回積み上がり 1〜2 秒かかっていた)。
+        // 20 回積み上がり 1〜2 秒かかっていた)。20 本同時 spawn は pipe / リーダースレッドの
+        // バーストを生むため、このテストは直列スイート側に置き、資源残留系テストの
+        // 基準線サンプリングと重ならないようにする。
         let results = LockedBox<[GitCommandOutcome]>([])
         for _ in 0 ..< 20 {
             Thread {
@@ -336,25 +365,7 @@ struct GitCommandRunnerTests {
         // 一時ディレクトリ名が一意なので、他テストの sleeper とは取り違えない。
         await waitUntil { processExists(matching: sleeper.path) == false }
     }
-}
 
-/// プロセス全体の基準線(`openPipeCount` / `readerThreadCount`)を読む資源残留系テストの
-/// 直列化専用スイート。同じスイートには共有ワーカープールを 64 本埋めるテストや、
-/// 打ち切った git のリーダースレッドを猶予いっぱい保持するテストがあり、並列に走ると
-/// 残留の基準線がそれらのノイズで揺れる。数え方を対象限定にした上で
-/// (`openPipeCount` / `readerThreadCount`)、同居ノイズも直列化で断つ。
-///
-/// `readsOutputWhileGlobalQueueIsSaturated` 自身は基準線を読まないが、プロセス全体の
-/// `DispatchQueue.global` を飽和させる副作用があり、`repeatedTimeoutsDoNotAccumulateResources`
-/// らの `readerThreadCount()` 計測に無関係なノイズを乗せうるため、このスイートに残す。
-///
-/// `.serialized` はスイート内しか直列化しないため、`GitCommandRunnerTests` (並列実行) と
-/// 同時に走ることはある。基準線ノイズの吸収は許容幅(`slack`)側で既に持たせてあり
-/// (`repeatedTimeoutsDoNotAccumulateResources` 参照)、`GitCommandRunnerTests` 側のテストは
-/// pipe / リーダースレッドを恒常的に保持しない自己完結なテストのみなので、分割しても
-/// 検証力は変わらない。
-@Suite(.serialized)
-struct GitCommandRunnerResourceLeakTests {
     /// 読み取りを `DispatchQueue.global` に投げていると、共有ワーカープールが他所の
     /// ブロッキング処理で埋まっているときに読み取り自体が起動できず、git が正常終了
     /// していても毎回タイムアウトして `.unavailable` になる(CI で実際に発生した)。
