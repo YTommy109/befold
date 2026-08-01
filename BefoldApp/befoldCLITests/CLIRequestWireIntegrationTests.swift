@@ -11,7 +11,9 @@ import Testing
 ///
 /// 通知名は本番の値ではなくテスト専用の名前を使う。本番の名前で post すると、開発機で
 /// 起動中の befold.app が要求を受け取ってファイルを開いてしまうため。
-@Suite
+/// 配送が来ないまま待ち続ける退行で実行が止まらないよう、待機予算の単一情報源から
+/// スイート全体のタイムリミットを与える。
+@Suite(testTimeLimit())
 struct CLIRequestWireIntegrationTests {
     private static let testNotificationName = Notification.Name("dev.befold.test.cliRequestWire")
 

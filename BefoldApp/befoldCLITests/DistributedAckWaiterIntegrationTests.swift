@@ -6,7 +6,9 @@ import Testing
 
 /// 実際の DistributedNotificationCenter を通して ACK 待ち受けの取りこぼしを検証する。
 /// プロセス間通知の実挙動が結果を左右するため Integration。
-@Suite
+/// 配送が来ないまま待ち続ける退行で実行が止まらないよう、待機予算の単一情報源から
+/// スイート全体のタイムリミットを与える。
+@Suite(testTimeLimit())
 struct DistributedAckWaiterIntegrationTests {
     /// 旧実装は post の後に observer を登録していたため、この窓に返った ACK を取りこぼしていた。
     /// 待ち受けを生成した時点から観測が始まっていることを、wait より前に ACK を投げて確かめる。
