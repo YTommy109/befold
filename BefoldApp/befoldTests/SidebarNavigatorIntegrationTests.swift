@@ -8,16 +8,15 @@ import Testing
 /// SidebarNavigator のディレクトリ比較が symlink 経由でも一貫するかを実 FS で検証する。
 /// `standardizedFileURL`(symlink 解決なし)と `normalizedPathKey`(symlink 解決あり)の
 /// 混在で /tmp ↔ /private/tmp のようなケースが割れる問題の回帰テスト。
+/// realFileSystem: true でも content ペインはプレースホルダ(ViewerWindowControllerFixture)のため、
+/// WebView に依存する検証はこのスイートに置かない。
 @Suite
 @MainActor
 struct SidebarNavigatorIntegrationTests {
     private func makeController(file: URL) -> ViewerWindowController {
-        ViewerWindowController(
-            fileURL: file,
-            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests"),
-            perFileState: PerFileStateStore(defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests")),
-            bookmarkStore: BookmarkStore(defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorIntegrationTests"))
-        )
+        ViewerWindowControllerFixture(
+            file: file, realFileSystem: true, prefix: "SidebarNavigatorIntegrationTests"
+        ).controller
     }
 
     @Test("symlink 経由の別表記パスへの切替でも同一ディレクトリと判定され再読込が発生しない")

@@ -42,32 +42,19 @@ private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDe
 /// store に InMemoryFileReader + MockFileWatcher を注入して
 /// 実 FS を使わない。実 rename/switch/navigate/隠しファイルフィルタに依存するテストは
 /// ViewerWindowControllerIntegrationTests へ移した。
+/// コンテンツペインはプレースホルダ(ViewerWindowControllerFixture)のため、
+/// WebView に依存する検証(検索・印刷・ズームなど)はこのスイートに置かない。
 @Suite
 @MainActor
 struct ViewerWindowControllerTests {
     /// 実在しない合成パス。InMemoryFileReader にだけ登録する。
     private let file = URL(fileURLWithPath: "/mock/diagram.mmd")
 
-    /// 実ファイル内容・実 watcher を必要としない、モック済みの ViewerStore を作る。
-    private func makeMockStore(defaults: UserDefaults, contents: String = "graph TD;") -> ViewerStore {
-        ViewerStore(
-            watcherFactory: { _, _, _ in MockFileWatcher() },
-            fileReader: InMemoryFileReader(files: [file.path: contents]),
-            defaults: defaults
-        )
-    }
-
-    /// テスト用に隔離済み UserDefaults とモック済み store を注入したコントローラーを作る。
+    /// テスト用に隔離済み UserDefaults とモック済み store(実 WKWebView 無し)を注入したコントローラーを作る。
     private func makeController(
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
     ) -> ViewerWindowController {
-        ViewerWindowController(
-            fileURL: file,
-            defaults: defaults,
-            perFileState: PerFileStateStore(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            store: makeMockStore(defaults: defaults)
-        )
+        ViewerWindowControllerFixture(file: file, defaults: defaults).controller
     }
 
     @Test("ファイル別の frameAutosaveName は設定されない")
@@ -98,30 +85,22 @@ struct ViewerWindowControllerTests {
     @Test("リサイズ完了時に WindowFrameStore へフレームが記録される")
     func windowFrameIsRecordedOnResize() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
-        let perFileState = PerFileStateStore(defaults: defaults)
-        let controller = ViewerWindowController(
-            fileURL: file, defaults: defaults, perFileState: perFileState,
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            store: makeMockStore(defaults: defaults)
-        )
+        let fixture = ViewerWindowControllerFixture(file: file, defaults: defaults)
+        let controller = fixture.controller
         defer { controller.close() }
         let frame = NSRect(x: 120, y: 140, width: 900, height: 700)
         controller.window?.setFrame(frame, display: false)
 
         controller.windowDidEndLiveResize(Notification(name: NSWindow.didEndLiveResizeNotification))
 
-        #expect(perFileState.windowFrame.frameDescriptor(for: file) == controller.window?.frameDescriptor)
+        #expect(fixture.perFileState.windowFrame.frameDescriptor(for: file) == controller.window?.frameDescriptor)
     }
 
     @Test("ウィンドウを閉じたときにも WindowFrameStore へフレームが記録される")
     func windowFrameIsRecordedOnClose() throws {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
-        let perFileState = PerFileStateStore(defaults: defaults)
-        let controller = ViewerWindowController(
-            fileURL: file, defaults: defaults, perFileState: perFileState,
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            store: makeMockStore(defaults: defaults)
-        )
+        let fixture = ViewerWindowControllerFixture(file: file, defaults: defaults)
+        let controller = fixture.controller
         let frame = NSRect(x: 160, y: 180, width: 800, height: 650)
         controller.window?.setFrame(frame, display: false)
         let descriptor = try #require(controller.window?.frameDescriptor)
@@ -129,7 +108,7 @@ struct ViewerWindowControllerTests {
         controller.windowWillClose(Notification(name: NSWindow.willCloseNotification))
         controller.close()
 
-        #expect(perFileState.windowFrame.frameDescriptor(for: file) == descriptor)
+        #expect(fixture.perFileState.windowFrame.frameDescriptor(for: file) == descriptor)
     }
 
     @Test("initialFrameDescriptor を渡すとそのフレームで開く")
@@ -141,12 +120,9 @@ struct ViewerWindowControllerTests {
         let descriptor = try #require(first.window?.frameDescriptor)
         first.close()
 
-        let second = ViewerWindowController(
-            fileURL: file, defaults: defaults, perFileState: PerFileStateStore(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            initialFrameDescriptor: descriptor,
-            store: makeMockStore(defaults: defaults)
-        )
+        let second = ViewerWindowControllerFixture(
+            file: file, defaults: defaults, initialFrameDescriptor: descriptor
+        ).controller
         defer { second.close() }
 
         #expect(second.window?.frame == frame)
@@ -221,29 +197,15 @@ extension ViewerWindowControllerTests {
         openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { _, _, _ in },
         externalOpener: @escaping (URL) -> Void = { _ in }
     ) -> ViewerWindowController {
-        var dict: [String: String] = [:]
-        for url in [primary] + others {
-            dict[url.path] = contents
-        }
-        return ViewerWindowController(
-            fileURL: primary,
+        ViewerWindowControllerFixture(
+            file: primary,
+            extraFiles: others,
+            contents: contents,
             defaults: defaults,
-            perFileState: PerFileStateStore(
-                zoom: zoomStore ?? ZoomStore(defaults: defaults),
-                sourceMode: SourceModeStore(defaults: defaults),
-                scrollPosition: ScrollPositionStore(defaults: defaults),
-                sidebar: SidebarStateStore(defaults: defaults),
-                windowFrame: WindowFrameStore(defaults: defaults)
-            ),
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            store: ViewerStore(
-                watcherFactory: { _, _, _ in MockFileWatcher() },
-                fileReader: InMemoryFileReader(files: dict),
-                defaults: defaults
-            ),
+            zoomStore: zoomStore,
             openFileElsewhere: openFileElsewhere,
             externalOpener: externalOpener
-        )
+        ).controller
     }
 
     @Test("switchFile でファイル URL とウィンドウタイトルが更新される")

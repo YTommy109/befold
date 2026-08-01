@@ -9,6 +9,8 @@ import Testing
 /// store に InMemoryFileReader + MockFileWatcher を注入する。
 /// switchFile の存在ガードが store.fileReader 経由になった(TASK-116.12)ため、
 /// 切替経由の復元・保持も InMemoryFileReader でモック化して unit で検証する。
+/// コンテンツペインはプレースホルダ(ViewerWindowControllerFixture)のため、
+/// WebView に依存する検証はこのスイートに置かない。
 @Suite
 @MainActor
 struct ViewerWindowControllerSourceModeTests {
@@ -23,27 +25,10 @@ struct ViewerWindowControllerSourceModeTests {
         sourceModeStore: SourceModeStore? = nil,
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests")
     ) -> ViewerWindowController {
-        var files = [file.path: "# hi"]
-        for extra in extraFiles {
-            files[extra.path] = "# hi"
-        }
-        return ViewerWindowController(
-            fileURL: file,
-            defaults: defaults,
-            perFileState: PerFileStateStore(
-                zoom: ZoomStore(defaults: defaults),
-                sourceMode: sourceModeStore ?? SourceModeStore(defaults: defaults),
-                scrollPosition: ScrollPositionStore(defaults: defaults),
-                sidebar: SidebarStateStore(defaults: defaults),
-                windowFrame: WindowFrameStore(defaults: defaults)
-            ),
-            bookmarkStore: BookmarkStore(defaults: defaults),
-            store: ViewerStore(
-                watcherFactory: { _, _, _ in MockFileWatcher() },
-                fileReader: InMemoryFileReader(files: files),
-                defaults: defaults
-            )
-        )
+        ViewerWindowControllerFixture(
+            file: file, extraFiles: extraFiles, contents: "# hi",
+            defaults: defaults, sourceModeStore: sourceModeStore
+        ).controller
     }
 
     @Test("直接開いた場合も保存済みのソース表示モードが復元される")

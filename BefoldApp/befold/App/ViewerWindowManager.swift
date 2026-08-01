@@ -1,6 +1,7 @@
 import AppKit
 import BefoldCLI
 import BefoldKit
+import SwiftUI
 
 /// ビューアウィンドウの生成・管理(正規化パス → コントローラ辞書)と、
 /// ウィンドウイベント(クローズ・rename・キー化)に伴うセッション記録の更新を担う。
@@ -32,6 +33,9 @@ final class ViewerWindowManager {
     /// openViewer が生成するコントローラへ渡す ViewerStore の差し替え口。nil なら
     /// ViewerWindowController が従来どおり自前で生成する(本番の既定)。
     private let makeStore: ((URL) -> ViewerStore)?
+    /// openViewer が生成するコントローラへ渡すコンテンツペインの差し替え口。nil なら
+    /// ViewerWindowController が従来どおり実 ViewerContentView(実 WKWebView)を生成する(本番の既定)。
+    private let makeContentView: (() -> AnyView)?
     /// 生成する全ウィンドウで共有する git 追跡ファイルの索引。同じリポジトリのファイルを
     /// 全ウィンドウ・Quick Open で共有する追跡ファイル索引。複数ウィンドウで開いても
     /// `git ls-files` は 1 回で済み、照合索引の実体も 1 つで済む(モノレポでは
@@ -58,6 +62,8 @@ final class ViewerWindowManager {
     /// - Parameter makeStore: 生成するコントローラの ViewerStore を差し替える。既定の nil では
     ///   コントローラが自前で生成するため本番挙動は変わらない。テストが実 FileWatcher と
     ///   実ファイル読込を避けて生成パイプラインごと unit 化するための唯一のシーム。
+    /// - Parameter makeContentView: テスト専用シーム。生成するコントローラのコンテンツペイン
+    ///   (実 WKWebView)を差し替える。既定の nil は本番経路(実 WKWebView を生成する)。
     /// - Parameter gitFileIndex: 生成する全ウィンドウで共有する git 追跡ファイルの索引。
     ///   既定は実 `git` を実行する実装。テストは実 subprocess を避けるため差し替えられる。
     init(
@@ -69,6 +75,7 @@ final class ViewerWindowManager {
         bookmarkStore: BookmarkStore,
         fileReader: any FileReading = DefaultFileReader(),
         makeStore: ((URL) -> ViewerStore)? = nil,
+        makeContentView: (() -> AnyView)? = nil,
         gitFileIndex: any GitFileIndexing = GitCommandFileIndex(),
         recentRepositoriesStore: RecentRepositoriesStore = RecentRepositoriesStore(),
         repositoryIdentityResolver: @escaping @Sendable (URL) -> RepositoryIdentity = {
@@ -86,6 +93,7 @@ final class ViewerWindowManager {
         self.bookmarkStore = bookmarkStore
         self.fileReader = fileReader
         self.makeStore = makeStore
+        self.makeContentView = makeContentView
         self.recentRepositoriesStore = recentRepositoriesStore
         self.repositoryIdentityResolver = repositoryIdentityResolver
         self.onRepositoryRecorded = onRepositoryRecorded
@@ -225,6 +233,7 @@ final class ViewerWindowManager {
             showLineNumbersOverride: options.showLineNumbers,
             sourceModeOverride: options.sourceMode,
             store: makeStore?(url),
+            makeContentView: makeContentView,
             openFileElsewhere: { [weak self] fileURL, disposition, sourceWindow in
                 self?.openViewer(for: fileURL, disposition: disposition, relativeTo: sourceWindow)
             }

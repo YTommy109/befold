@@ -10,6 +10,8 @@ import Testing
 /// FileManager を直接列挙するため InMemoryFileReader でモック化できず Integration として分離する。
 /// (存在ガードのみに依存する switch/rename/history/リンク遷移の unit テストは
 /// ViewerWindowControllerTests へ戻した。)
+/// realFileSystem: true でも content ペインはプレースホルダ(ViewerWindowControllerFixture)のため、
+/// WebView に依存する検証はこのスイートに置かない(実コンテンツ経路は末尾のカナリアのみが例外)。
 @Suite
 @MainActor
 struct ViewerWindowControllerIntegrationTests {
@@ -21,18 +23,10 @@ struct ViewerWindowControllerIntegrationTests {
         sourceModeStore: SourceModeStore? = nil,
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
     ) -> ViewerWindowController {
-        ViewerWindowController(
-            fileURL: file,
-            defaults: defaults,
-            perFileState: PerFileStateStore(
-                zoom: zoomStore ?? ZoomStore(defaults: defaults),
-                sourceMode: sourceModeStore ?? SourceModeStore(defaults: defaults),
-                scrollPosition: ScrollPositionStore(defaults: defaults),
-                sidebar: SidebarStateStore(defaults: defaults),
-                windowFrame: WindowFrameStore(defaults: defaults)
-            ),
-            bookmarkStore: BookmarkStore(defaults: defaults)
-        )
+        ViewerWindowControllerFixture(
+            file: file, realFileSystem: true, defaults: defaults,
+            zoomStore: zoomStore, sourceModeStore: sourceModeStore
+        ).controller
     }
 
     @Test("hiddenFilesPreference.showHiddenFiles が true のときサイドバーに不可視ファイルが含まれる")
@@ -45,13 +39,9 @@ struct ViewerWindowControllerIntegrationTests {
         let preference = HiddenFilesPreference(defaults: defaults)
         preference.showHiddenFiles = true
 
-        let controller = ViewerWindowController(
-            fileURL: visible,
-            defaults: defaults,
-            hiddenFilesPreference: preference,
-            perFileState: PerFileStateStore(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults)
-        )
+        let controller = ViewerWindowControllerFixture(
+            file: visible, realFileSystem: true, defaults: defaults, hiddenFilesPreference: preference
+        ).controller
         defer { controller.close() }
 
         // 初期一覧は init 内の refreshFileList()(非同期)で埋まるため、完了を待ってから見る。
@@ -70,13 +60,9 @@ struct ViewerWindowControllerIntegrationTests {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
         let preference = HiddenFilesPreference(defaults: defaults)
 
-        let controller = ViewerWindowController(
-            fileURL: visible,
-            defaults: defaults,
-            hiddenFilesPreference: preference,
-            perFileState: PerFileStateStore(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults)
-        )
+        let controller = ViewerWindowControllerFixture(
+            file: visible, realFileSystem: true, defaults: defaults, hiddenFilesPreference: preference
+        ).controller
         defer { controller.close() }
 
         await controller.sidebar.pendingListingTask?.value
@@ -108,6 +94,23 @@ struct ViewerWindowControllerIntegrationTests {
         #expect(names.contains("new.mmd"))
         #expect(!names.contains("old.mmd"))
     }
+
+    /// このスイートの他テストはすべて ViewerWindowControllerFixture(実 WKWebView 無し)を使うが、
+    /// 既定(実コンテンツ)経路そのものが壊れていないことも別途固定しておく実経路カナリア。
+    @Test("既定(実コンテンツ)構成でもウィンドウが構築・クローズできる")
+    func defaultContentPathBuildsWindow() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "smoke.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "Smoke")
+        let controller = ViewerWindowController(
+            fileURL: file,
+            perFileState: PerFileStateStore(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults)
+        )
+        defer { controller.close() }
+        #expect(controller.window != nil)
+    }
 }
 
 // MARK: - Folder Navigation
@@ -121,11 +124,9 @@ extension ViewerWindowControllerIntegrationTests {
         let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)
         try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
         _ = try tmp.file(named: "sub/child.mmd", contents: "graph LR;")
-        let controller = ViewerWindowController(
-            fileURL: file,
-            perFileState: PerFileStateStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")),
-            bookmarkStore: BookmarkStore(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"))
-        )
+        let controller = ViewerWindowControllerFixture(
+            file: file, realFileSystem: true, prefix: "ViewerWindowControllerTests"
+        ).controller
         defer { controller.close() }
 
         controller.navigateToFolder(subDir)

@@ -114,6 +114,9 @@ final class ViewerWindowController: NSWindowController {
     ///   デフォルトにすると、注入を書き忘れたときに共有されない別個体が静かに生まれ、
     ///   ウィンドウごとに `git ls-files` を重複実行してしまう。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
+    /// - Parameter makeContentView: テスト専用シーム。コンテンツペイン(ViewerContentView / 実 WKWebView)を
+    ///   差し替える。既定の nil は本番経路(実 WKWebView を生成する)。サイドバー(FileListView)と
+    ///   分割ビュー配線は差し替え対象外。
     /// - Parameter openFileElsewhere: 同上。別タブ/別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
     /// - Parameter externalOpener: 同上。外部 URL(http/https)を開く処理。デフォルトは NSWorkspace 経由。
     init(
@@ -130,6 +133,7 @@ final class ViewerWindowController: NSWindowController {
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         store: ViewerStore? = nil,
+        makeContentView: (() -> AnyView)? = nil,
         openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { url, disposition, source in
             AppDelegate.shared?.openViewer(for: url, disposition: disposition, relativeTo: source)
         },
@@ -215,7 +219,7 @@ final class ViewerWindowController: NSWindowController {
         // リサイズされるため、フレームの確定はその後に行う。
         // frameDescriptor はフレーム座標系で保存・復元されるため、
         // タイトルバー高さの混入によるサイズのずれは起きない
-        window.contentViewController = makeSplitViewController()
+        window.contentViewController = makeSplitViewController(contentOverride: makeContentView)
         if let descriptor = initialFrameDescriptor {
             window.setFrame(from: descriptor)
             // 自身の保存値・引き継ぎ値のどちらでも、既存ウィンドウと位置が
@@ -259,10 +263,10 @@ final class ViewerWindowController: NSWindowController {
     }
 
     /// サイドバー(ファイル一覧)とコンテンツ(WebView/フォルダー一覧)を並べる split view controller を組み立てる。
-    private func makeSplitViewController() -> NSViewController {
+    private func makeSplitViewController(contentOverride: (() -> AnyView)?) -> NSViewController {
         let onSelectFile: (URL) -> Void = { [weak self] url in self?.switchFile(to: url) }
         let onNavigateToFolder: (URL) -> Void = { [weak self] url in self?.navigateToFolder(url) }
-        let contentView = ViewerContentView(
+        let content: AnyView = contentOverride?() ?? AnyView(ViewerContentView(
             store: store,
             zoomStore: perFileState.zoom,
             scrollPositionStore: perFileState.scrollPosition,
@@ -274,7 +278,7 @@ final class ViewerWindowController: NSWindowController {
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
             webViewProxy: webViewProxy
-        )
+        ))
         let fileListView = FileListView(
             model: fileListModel,
             onSelect: onSelectFile,
@@ -295,7 +299,7 @@ final class ViewerWindowController: NSWindowController {
         )
         let splitViewController = ViewerSplitViewController(
             sidebar: fileListView,
-            content: contentView,
+            content: content,
             initialCollapsed: initialSidebarCollapsed,
             onCollapsedChange: { [weak self] collapsed in
                 guard let self else { return }

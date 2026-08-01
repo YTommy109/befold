@@ -7,8 +7,11 @@ import Foundation
 @MainActor
 @Observable
 final class ViewerStore {
+    /// debounceDelay を引数に含めることで、fileGoneGracePeriod の導出元(watcherDebounceDelay)と
+    /// 実際に watcher が使う debounce を型で一致させる(呼び出し側の「揃える」努力に頼らない)。
     typealias WatcherFactory = @MainActor @Sendable (
         URL,
+        TimeInterval,
         @escaping @MainActor @Sendable () -> Void,
         (@MainActor @Sendable (URL) -> Void)?
     ) -> FileWatching
@@ -109,6 +112,8 @@ final class ViewerStore {
 
     private var fileWatcher: FileWatching?
     private let makeWatcher: WatcherFactory
+    /// makeWatcher(openFile 時)へ渡す debounce 間隔。fileGoneGracePeriod の導出元でもある。
+    private let watcherDebounceDelay: TimeInterval
     private let makeChunkedReader: ChunkedReaderFactory
     /// 注入された fileReader。ウィンドウ層(ViewerWindowController)が pathResolver の構築に
     /// 同一インスタンスを共有できるよう、fileExists/isExistingFile 越しだけでなく直接公開する。
@@ -117,6 +122,11 @@ final class ViewerStore {
     private let defaults: UserDefaults
     /// グレース期間の待機に使うクロック。テストでは仮想時刻を注入して実時間依存を排除する。
     private let clock: any Clock<Duration>
+    /// FileWatcher のデバウンス既定値に余裕を持たせたグレース期間。
+    /// 環境依存のタイミング問題による検知遅延に対応する。
+    /// watcherFactory に注入された debounce 間隔から導出するため、テストで短い debounce を
+    /// 注入すればグレース期間も自動的に短縮される(プロダクト既定 0.2s なら従来どおり 1.0s)。
+    private let fileGoneGracePeriod: TimeInterval
 
     private static let showLineNumbersKey = "ShowLineNumbers"
 
@@ -140,21 +150,27 @@ final class ViewerStore {
         return false
     }
 
+    /// - Parameter watcherDebounceDelay: makeWatcher(openFile 時)へ渡す debounce 間隔。
+    ///   fileGoneGracePeriod(この値の 5 倍)の導出にも使うため、実際に watcher が使う
+    ///   debounce と乖離しない(WatcherFactory の引数として型で渡すため、値の不一致は起きない)。
     init(
         watcherFactory: WatcherFactory? = nil,
+        watcherDebounceDelay: TimeInterval = FileWatcher.defaultDebounceDelay,
         fileReader: any FileReading = DefaultFileReader(),
         chunkedReaderFactory: ChunkedReaderFactory? = nil,
         defaults: UserDefaults = .standard,
         clock: any Clock<Duration> = ContinuousClock()
     ) {
         self.defaults = defaults
-        makeWatcher = watcherFactory ?? { url, onChange, onRename in
-            FileWatcher(path: url, onChange: onChange, onRename: onRename)
+        makeWatcher = watcherFactory ?? { url, debounceDelay, onChange, onRename in
+            FileWatcher(path: url, debounceDelay: debounceDelay, onChange: onChange, onRename: onRename)
         }
+        self.watcherDebounceDelay = watcherDebounceDelay
         makeChunkedReader = chunkedReaderFactory ?? ViewerLoadPipeline.defaultChunkedReaderFactory
         self.fileReader = fileReader
         contentLoader = ContentLoader(fileReader: fileReader)
         self.clock = clock
+        fileGoneGracePeriod = watcherDebounceDelay * 5
         _showLineNumbers = defaults.bool(forKey: Self.showLineNumbersKey)
     }
 
@@ -178,7 +194,7 @@ final class ViewerStore {
         pendingFileType = FileType(url: url)
         loadContent()
 
-        fileWatcher = makeWatcher(url, { [weak self] in
+        fileWatcher = makeWatcher(url, watcherDebounceDelay, { [weak self] in
             self?.loadContent()
         }, { [weak self] newURL in
             self?.handleRename(to: newURL)
@@ -382,10 +398,6 @@ final class ViewerStore {
         return true
     }
 
-    /// FileWatcher のデバウンス既定値に余裕を持たせたグレース期間。
-    /// 環境依存のタイミング問題による検知遅延に対応する。
-    private static let fileGoneGracePeriod = FileWatcher.defaultDebounceDelay * 5
-
     /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
     /// 常に張り直す(古いタスクをキャンセルして置き換える)ことで、発火せず完了した
     /// タスクが残って以後の検知を塞ぐことを防ぐ。
@@ -395,8 +407,8 @@ final class ViewerStore {
     /// 新しいパスが存在する場合、ウィンドウを閉じずに監視を継続するため。
     private func scheduleFileGone() {
         fileGoneTask?.cancel()
-        fileGoneTask = Task { @MainActor [weak self, clock] in
-            try? await clock.sleep(for: .seconds(Self.fileGoneGracePeriod))
+        fileGoneTask = Task { @MainActor [weak self, clock, fileGoneGracePeriod] in
+            try? await clock.sleep(for: .seconds(fileGoneGracePeriod))
             guard let self, !Task.isCancelled else { return }
             guard let filePath else { return }
             guard !fileReader.fileExists(at: filePath.resolvingSymlinksInPath()) else { return }
