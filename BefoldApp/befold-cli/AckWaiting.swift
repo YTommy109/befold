@@ -9,6 +9,8 @@ import Foundation
 public protocol AckWaiting {
     /// ACK を最大 `timeout` 秒待つ。生成後〜この呼び出しより前に届いた ACK も観測済みとして true を返す。
     ///
+    /// `timeout: 0` はポーリングを一切行わず、呼び出し時点の観測状態をそのまま返す。
+    ///
     /// 待機は必ず async にする。CLI の実行経路(ArgumentParser の async main →
     /// `@MainActor run() async`)は Swift 並行処理のコンテキストであり、そこで
     /// `RunLoop.run(_:before:)` を同期的に回すと Distributed Notification が配送されない
