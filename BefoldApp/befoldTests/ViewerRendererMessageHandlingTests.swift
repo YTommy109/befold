@@ -31,8 +31,14 @@ struct ViewerRendererMessageHandlingTests {
         #expect(received == 1.75)
     }
 
-    @Test("referenceActivated が href と修飾キーから開き方を決めて onOpenReference へ渡す")
-    func referenceActivatedDispatchesReference() {
+    @Test("referenceActivated が href と修飾キーから開き方を決めて onOpenReference へ渡す", arguments: [
+        // (metaKey, shiftKey, 期待する開き方)
+        (metaKey: false, shiftKey: false, expected: OpenDisposition.currentTab),
+        (false, true, .currentTab), // cmd を伴わない shift だけでは currentTab のまま
+        (true, false, .newTab),
+        (true, true, .newWindow),
+    ])
+    func referenceActivatedDispatchesReference(metaKey: Bool, shiftKey: Bool, expected: OpenDisposition) {
         let renderer = ViewerRenderer()
         let delegate = Stubs.Delegate()
         renderer.delegate = delegate
@@ -41,28 +47,11 @@ struct ViewerRendererMessageHandlingTests {
 
         dispatch(
             renderer, name: ViewerBridge.referenceActivatedMessageName,
-            body: ["href": "./other.md", "metaKey": true, "shiftKey": false]
+            body: ["href": "./other.md", "metaKey": metaKey, "shiftKey": shiftKey]
         )
 
         #expect(received?.href == "./other.md")
-        #expect(received?.disposition == .newTab)
-    }
-
-    @Test("referenceActivated の cmd+shift は newWindow を渡す")
-    func referenceActivatedWithCommandAndShiftDispatchesNewWindow() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
-        var received: (href: String, disposition: OpenDisposition)?
-        delegate.onOpenReference = { received = ($0, $1) }
-
-        dispatch(
-            renderer, name: ViewerBridge.referenceActivatedMessageName,
-            body: ["href": "./other.md", "metaKey": true, "shiftKey": true]
-        )
-
-        #expect(received?.href == "./other.md")
-        #expect(received?.disposition == .newWindow)
+        #expect(received?.disposition == expected)
     }
 
     @Test("referenceContextMenu が href を onContextMenu へ渡す")

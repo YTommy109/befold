@@ -48,84 +48,34 @@ struct ViewerRendererContentUpdateTests {
     // 同一 revision の pending append と行番号トグルが1つの @Observable サイクルに合体すると
     // トグルが1周期失われうる問題への回帰テスト。
 
-    @Test("revision・ファイル・showLineNumbers が全て一致すれば増分追記できる")
-    func canConsumePendingAppendAllowsWhenEverythingMatches() {
-        let url = URL(fileURLWithPath: "/tmp/a.md")
+    @Test("revision・ファイル・showLineNumbers の一致/不一致で増分追記の可否が決まる", arguments: [
+        // (直近描画の showLineNumbers, pending の revision, チェック側の revision・ファイル, 期待値)
+        (renderedShowLineNumbers: true, pendingRevision: 5, checkRevision: 5, checkFile: "a.md", expected: true),
+        // showLineNumbers が直近描画から変化(revision と pending append の合体)していれば全文 render に倒す
+        (false, 5, 5, "a.md", false),
+        (true, 4, 5, "a.md", false), // revision が不一致なら全文 render に倒す
+        (true, 5, 5, "b.md", false), // ファイル切替を伴うなら全文 render に倒す
+    ])
+    func canConsumePendingAppend(
+        renderedShowLineNumbers: Bool, pendingRevision: Int, checkRevision: Int,
+        checkFile: String, expected: Bool
+    ) {
+        let renderedURL = URL(fileURLWithPath: "/tmp/a.md")
         var rendered = ViewerRenderer.RenderedStateMirror()
-        rendered.filePath = url
+        rendered.filePath = renderedURL
         rendered.isSourceMode = false
-        rendered.showLineNumbers = true
-        let pending = ViewerRenderer.PendingAppend(chunk: "next", revision: 5)
+        rendered.showLineNumbers = renderedShowLineNumbers
+        let pending = ViewerRenderer.PendingAppend(chunk: "next", revision: pendingRevision)
 
         let canConsume = ViewerRenderer.canConsumePendingAppend(
             pending,
             ViewerRenderer.PendingAppendCheck(
-                contentRevision: 5, showLineNumbers: true, filePath: url, isSourceMode: false
+                contentRevision: checkRevision, showLineNumbers: true,
+                filePath: URL(fileURLWithPath: "/tmp/\(checkFile)"), isSourceMode: false
             ),
             rendered: rendered
         )
 
-        #expect(canConsume == true)
-    }
-
-    @Test("showLineNumbers が直近描画から変化していれば全文 render に倒す")
-    func canConsumePendingAppendRejectsWhenShowLineNumbersChanged() {
-        let url = URL(fileURLWithPath: "/tmp/a.md")
-        var rendered = ViewerRenderer.RenderedStateMirror()
-        rendered.filePath = url
-        rendered.isSourceMode = false
-        rendered.showLineNumbers = false
-        let pending = ViewerRenderer.PendingAppend(chunk: "next", revision: 5)
-
-        // 同一 revision の pending append と行番号トグルが1サイクルに合体したケース。
-        let canConsume = ViewerRenderer.canConsumePendingAppend(
-            pending,
-            ViewerRenderer.PendingAppendCheck(
-                contentRevision: 5, showLineNumbers: true, filePath: url, isSourceMode: false
-            ),
-            rendered: rendered
-        )
-
-        #expect(canConsume == false)
-    }
-
-    @Test("revision が不一致なら全文 render に倒す")
-    func canConsumePendingAppendRejectsWhenRevisionMismatches() {
-        let url = URL(fileURLWithPath: "/tmp/a.md")
-        var rendered = ViewerRenderer.RenderedStateMirror()
-        rendered.filePath = url
-        rendered.isSourceMode = false
-        rendered.showLineNumbers = true
-        let pending = ViewerRenderer.PendingAppend(chunk: "next", revision: 4)
-
-        let canConsume = ViewerRenderer.canConsumePendingAppend(
-            pending,
-            ViewerRenderer.PendingAppendCheck(
-                contentRevision: 5, showLineNumbers: true, filePath: url, isSourceMode: false
-            ),
-            rendered: rendered
-        )
-
-        #expect(canConsume == false)
-    }
-
-    @Test("ファイル切替を伴うなら全文 render に倒す")
-    func canConsumePendingAppendRejectsWhenFileSwitches() {
-        var rendered = ViewerRenderer.RenderedStateMirror()
-        rendered.filePath = URL(fileURLWithPath: "/tmp/a.md")
-        rendered.isSourceMode = false
-        rendered.showLineNumbers = true
-        let pending = ViewerRenderer.PendingAppend(chunk: "next", revision: 5)
-
-        let canConsume = ViewerRenderer.canConsumePendingAppend(
-            pending,
-            ViewerRenderer.PendingAppendCheck(
-                contentRevision: 5, showLineNumbers: true,
-                filePath: URL(fileURLWithPath: "/tmp/b.md"), isSourceMode: false
-            ),
-            rendered: rendered
-        )
-
-        #expect(canConsume == false)
+        #expect(canConsume == expected)
     }
 }

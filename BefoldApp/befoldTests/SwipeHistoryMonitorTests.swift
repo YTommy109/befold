@@ -14,30 +14,20 @@ struct SwipeHistoryMonitorTests {
         return SwipeHistoryMonitor(window: window, onNavigate: onNavigate)
     }
 
-    @Test(".began 〜 .changed の積算がしきい値を超えると .ended で戻る(-1)を通知する")
-    func rightSwipeAboveThresholdNavigatesBack() {
+    @Test(".began 〜 .changed の積算がしきい値を超えると .ended で戻る/進むを通知する", arguments: [
+        (deltaX: CGFloat(30), secondDeltaX: CGFloat(20), expected: -1), // 正のデルタ(右方向)は戻る
+        (-30, -20, 1), // 負のデルタ(左方向)は進む
+    ])
+    func swipeAboveThresholdNavigates(deltaX: CGFloat, secondDeltaX: CGFloat, expected: Int) {
         var offsets: [Int] = []
         let monitor = makeMonitor { offsets.append($0) }
 
         monitor.handlePhase(.began, deltaX: 0, deltaY: 0)
-        monitor.handlePhase(.changed, deltaX: 30, deltaY: 0)
-        monitor.handlePhase(.changed, deltaX: 20, deltaY: 0)
+        monitor.handlePhase(.changed, deltaX: deltaX, deltaY: 0)
+        monitor.handlePhase(.changed, deltaX: secondDeltaX, deltaY: 0)
         monitor.handlePhase(.ended, deltaX: 0, deltaY: 0)
 
-        #expect(offsets == [-1])
-    }
-
-    @Test(".began 〜 .changed の積算がしきい値を超える負のデルタは .ended で進む(+1)を通知する")
-    func leftSwipeAboveThresholdNavigatesForward() {
-        var offsets: [Int] = []
-        let monitor = makeMonitor { offsets.append($0) }
-
-        monitor.handlePhase(.began, deltaX: 0, deltaY: 0)
-        monitor.handlePhase(.changed, deltaX: -30, deltaY: 0)
-        monitor.handlePhase(.changed, deltaX: -20, deltaY: 0)
-        monitor.handlePhase(.ended, deltaX: 0, deltaY: 0)
-
-        #expect(offsets == [1])
+        #expect(offsets == [expected])
     }
 
     @Test("しきい値未満の積算では .ended で通知しない")

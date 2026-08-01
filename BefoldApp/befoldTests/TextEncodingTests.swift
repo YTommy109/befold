@@ -4,36 +4,16 @@ import Testing
 
 @Suite
 struct TextEncodingTests {
-    @Test("UTF-8 BOM を検出する")
-    func detectsUtf8Bom() {
-        let data = Data([0xEF, 0xBB, 0xBF]) + Data("hello".utf8)
+    @Test("BOM を検出しエンコーディングとバイト長を返す", arguments: [
+        (data: Data([0xEF, 0xBB, 0xBF]) + Data("hello".utf8), encoding: String.Encoding.utf8, bomLength: 3),
+        (Data([0xFF, 0xFE, 0x41, 0x00]), .utf16LittleEndian, 2),
+        (Data([0xFE, 0xFF, 0x00, 0x41]), .utf16BigEndian, 2),
+        (Data([0xFF, 0xFE, 0x00, 0x00]), .utf32LittleEndian, 4),
+    ])
+    func detectsBom(data: Data, encoding: String.Encoding, bomLength: Int) {
         let bom = TextEncoding.detectBOM(data)
-        #expect(bom?.encoding == .utf8)
-        #expect(bom?.bomLength == 3)
-    }
-
-    @Test("UTF-16 LE BOM を検出する")
-    func detectsUtf16LeBom() {
-        let data = Data([0xFF, 0xFE, 0x41, 0x00])
-        let bom = TextEncoding.detectBOM(data)
-        #expect(bom?.encoding == .utf16LittleEndian)
-        #expect(bom?.bomLength == 2)
-    }
-
-    @Test("UTF-16 BE BOM を検出する")
-    func detectsUtf16BeBom() {
-        let data = Data([0xFE, 0xFF, 0x00, 0x41])
-        let bom = TextEncoding.detectBOM(data)
-        #expect(bom?.encoding == .utf16BigEndian)
-        #expect(bom?.bomLength == 2)
-    }
-
-    @Test("UTF-32 LE BOM を検出する")
-    func detectsUtf32LeBom() {
-        let data = Data([0xFF, 0xFE, 0x00, 0x00])
-        let bom = TextEncoding.detectBOM(data)
-        #expect(bom?.encoding == .utf32LittleEndian)
-        #expect(bom?.bomLength == 4)
+        #expect(bom?.encoding == encoding)
+        #expect(bom?.bomLength == bomLength)
     }
 
     @Test("BOM がなければ nil を返す")

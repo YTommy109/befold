@@ -14,64 +14,22 @@ struct NormalizedTextCacheTests {
         #expect(cache.lineCount == 3)
     }
 
-    @Test("UTF-8 BOM を除去してデコードする")
-    func utf8BomStripped() throws {
-        var data = Data([0xEF, 0xBB, 0xBF])
-        data.append(Data("hello\n".utf8))
+    @Test("BOM 有無を問わず様々なエンコーディングのテキストを正しくデコードする", arguments: [
+        (bom: [UInt8]([0xEF, 0xBB, 0xBF]), encoding: String.Encoding.utf8, text: "hello\n", expected: "hello\n"),
+        ([0xFF, 0xFE], .utf16LittleEndian, "line1\r\nline2\n", "line1\nline2\n"),
+        ([0xFE, 0xFF], .utf16BigEndian, "abc\n", "abc\n"),
+        ([0xFF, 0xFE, 0x00, 0x00], .utf32LittleEndian, "test\n", "test\n"),
+        ([0x00, 0x00, 0xFE, 0xFF], .utf32BigEndian, "test\n", "test\n"),
+        ([], .shiftJIS, "日本語テスト\n", "日本語テスト\n"), // BOM 無し
+        ([], .japaneseEUC, "日本語テスト\n", "日本語テスト\n"), // BOM 無し
+    ])
+    func bomAndEncodingVariantsDecodeCorrectly(
+        bom: [UInt8], encoding: String.Encoding, text: String, expected: String
+    ) throws {
+        var data = Data(bom)
+        try data.append(#require(text.data(using: encoding)))
         let cache = try NormalizedTextCache(data: data)
-        #expect(cache.text == "hello\n")
-    }
-
-    @Test("UTF-16 LE BOM 付きテキストをデコードする")
-    func utf16LEBom() throws {
-        var data = Data([0xFF, 0xFE])
-        let encoded = try #require("line1\r\nline2\n".data(using: .utf16LittleEndian))
-        data.append(encoded)
-        let cache = try NormalizedTextCache(data: data)
-        #expect(cache.text == "line1\nline2\n")
-    }
-
-    @Test("UTF-16 BE BOM 付きテキストをデコードする")
-    func utf16BEBom() throws {
-        var data = Data([0xFE, 0xFF])
-        let encoded = try #require("abc\n".data(using: .utf16BigEndian))
-        data.append(encoded)
-        let cache = try NormalizedTextCache(data: data)
-        #expect(cache.text == "abc\n")
-    }
-
-    @Test("UTF-32 LE BOM 付きテキストをデコードする")
-    func utf32LEBom() throws {
-        var data = Data([0xFF, 0xFE, 0x00, 0x00])
-        let encoded = try #require("test\n".data(using: .utf32LittleEndian))
-        data.append(encoded)
-        let cache = try NormalizedTextCache(data: data)
-        #expect(cache.text == "test\n")
-    }
-
-    @Test("UTF-32 BE BOM 付きテキストをデコードする")
-    func utf32BEBom() throws {
-        var data = Data([0x00, 0x00, 0xFE, 0xFF])
-        let encoded = try #require("test\n".data(using: .utf32BigEndian))
-        data.append(encoded)
-        let cache = try NormalizedTextCache(data: data)
-        #expect(cache.text == "test\n")
-    }
-
-    @Test("Shift_JIS テキストをデコードする")
-    func shiftJIS() throws {
-        let text = "日本語テスト\n"
-        let data = try #require(text.data(using: .shiftJIS))
-        let cache = try NormalizedTextCache(data: data)
-        #expect(cache.text == text)
-    }
-
-    @Test("EUC-JP テキストをデコードする")
-    func eucJP() throws {
-        let text = "日本語テスト\n"
-        let data = try #require(text.data(using: .japaneseEUC))
-        let cache = try NormalizedTextCache(data: data)
-        #expect(cache.text == text)
+        #expect(cache.text == expected)
     }
 
     // MARK: - 改行正規化

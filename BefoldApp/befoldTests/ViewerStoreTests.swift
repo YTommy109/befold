@@ -129,17 +129,42 @@ struct ViewerStoreTests {
         store.close()
     }
 
-    @Test
-    func openBinaryFileMarksUnsupported() async {
-        let file = URL(fileURLWithPath: "/files/data.bin")
+    /// 非対応ファイルの1ケース。`configure` がバイナリ/サイズ超過などの非対応条件を注入する。
+    private struct UnsupportedFileCase: Sendable, CustomTestStringConvertible {
+        let name: String
+        let filename: String
+        let content: String
+        let configure: @Sendable (InMemoryFileReader, URL) -> Void
+        let expectedReason: RejectReason
+        var testDescription: String {
+            name
+        }
+    }
+
+    private nonisolated static let unsupportedFileCases: [UnsupportedFileCase] = [
+        UnsupportedFileCase(
+            name: "バイナリファイル", filename: "data.bin", content: "binary-ish",
+            configure: { reader, url in reader.setBinary(true, at: url) },
+            expectedReason: .unsupportedFormat
+        ),
+        UnsupportedFileCase(
+            name: "サイズ超過ファイル", filename: "huge.html", content: "<h1>Hello</h1>",
+            configure: { reader, url in reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: url) },
+            expectedReason: .fileTooLarge
+        ),
+    ]
+
+    @Test("非対応ファイルを開くと reject 理由が設定されコンテンツは読み込まれない", arguments: unsupportedFileCases)
+    private func openUnsupportedFileMarksUnsupported(_ testCase: UnsupportedFileCase) async {
+        let file = URL(fileURLWithPath: "/files/\(testCase.filename)")
         let reader = InMemoryFileReader()
-        reader.setFile("binary-ish", at: file)
-        reader.setBinary(true, at: file)
+        reader.setFile(testCase.content, at: file)
+        testCase.configure(reader, file)
 
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(store.rejectReason == .unsupportedFormat)
+        #expect(store.rejectReason == testCase.expectedReason)
         #expect(store.content == "")
 
         store.close()
@@ -196,40 +221,20 @@ struct ViewerStoreTests {
         store.close()
     }
 
-    @Test
-    func switchingFromOversizedToNormalResetsUnsupported() async {
-        let hugeFile = URL(fileURLWithPath: "/files/huge.html")
+    @Test("非対応ファイルから通常ファイルへ切り替えると unsupported 状態が解除される", arguments: unsupportedFileCases)
+    private func switchingFromUnsupportedToNormalResetsUnsupported(_ testCase: UnsupportedFileCase) async {
+        let rejectedFile = URL(fileURLWithPath: "/files/\(testCase.filename)")
         let normalFile = URL(fileURLWithPath: "/files/readme.md")
         let reader = InMemoryFileReader()
-        reader.setFile("x", at: hugeFile)
-        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: hugeFile)
+        reader.setFile(testCase.content, at: rejectedFile)
+        testCase.configure(reader, rejectedFile)
         reader.setFile("# Hello", at: normalFile)
 
         let store = makeStore(reader: reader)
-        await openAndLoad(store, hugeFile)
+        await openAndLoad(store, rejectedFile)
         #expect(store.isRejected)
 
         await openAndLoad(store, normalFile)
-        #expect(!store.isRejected)
-        #expect(store.content == "# Hello")
-
-        store.close()
-    }
-
-    @Test
-    func switchingFromBinaryToTextResetsUnsupported() async {
-        let binaryFile = URL(fileURLWithPath: "/files/data.bin")
-        let textFile = URL(fileURLWithPath: "/files/readme.md")
-        let reader = InMemoryFileReader()
-        reader.setFile("binary-ish", at: binaryFile)
-        reader.setBinary(true, at: binaryFile)
-        reader.setFile("# Hello", at: textFile)
-
-        let store = makeStore(reader: reader)
-        await openAndLoad(store, binaryFile)
-        #expect(store.isRejected)
-
-        await openAndLoad(store, textFile)
         #expect(!store.isRejected)
         #expect(store.content == "# Hello")
 
