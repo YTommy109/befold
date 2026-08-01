@@ -62,6 +62,8 @@ final class ViewerWindowManager {
     /// - Parameter makeStore: 生成するコントローラの ViewerStore を差し替える。既定の nil では
     ///   コントローラが自前で生成するため本番挙動は変わらない。テストが実 FileWatcher と
     ///   実ファイル読込を避けて生成パイプラインごと unit 化するための唯一のシーム。
+    /// - Parameter makeContentView: テスト専用シーム。生成するコントローラのコンテンツペイン
+    ///   (実 WKWebView)を差し替える。既定の nil は本番経路(実 WKWebView を生成する)。
     /// - Parameter gitFileIndex: 生成する全ウィンドウで共有する git 追跡ファイルの索引。
     ///   既定は実 `git` を実行する実装。テストは実 subprocess を避けるため差し替えられる。
     init(
@@ -73,8 +75,6 @@ final class ViewerWindowManager {
         bookmarkStore: BookmarkStore,
         fileReader: any FileReading = DefaultFileReader(),
         makeStore: ((URL) -> ViewerStore)? = nil,
-        // テスト専用シーム。生成するコントローラのコンテンツペイン(実 WKWebView)を差し替える。
-        // 既定の nil は本番経路。
         makeContentView: (() -> AnyView)? = nil,
         gitFileIndex: any GitFileIndexing = GitCommandFileIndex(),
         recentRepositoriesStore: RecentRepositoriesStore = RecentRepositoriesStore(),

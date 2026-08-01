@@ -42,6 +42,8 @@ private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDe
 /// store に InMemoryFileReader + MockFileWatcher を注入して
 /// 実 FS を使わない。実 rename/switch/navigate/隠しファイルフィルタに依存するテストは
 /// ViewerWindowControllerIntegrationTests へ移した。
+/// コンテンツペインはプレースホルダ(ViewerWindowControllerFixture)のため、
+/// WebView に依存する検証(検索・印刷・ズームなど)はこのスイートに置かない。
 @Suite
 @MainActor
 struct ViewerWindowControllerTests {

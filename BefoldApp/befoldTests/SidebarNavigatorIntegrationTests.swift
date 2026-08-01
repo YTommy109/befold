@@ -8,6 +8,8 @@ import Testing
 /// SidebarNavigator のディレクトリ比較が symlink 経由でも一貫するかを実 FS で検証する。
 /// `standardizedFileURL`(symlink 解決なし)と `normalizedPathKey`(symlink 解決あり)の
 /// 混在で /tmp ↔ /private/tmp のようなケースが割れる問題の回帰テスト。
+/// realFileSystem: true でも content ペインはプレースホルダ(ViewerWindowControllerFixture)のため、
+/// WebView に依存する検証はこのスイートに置かない。
 @Suite
 @MainActor
 struct SidebarNavigatorIntegrationTests {

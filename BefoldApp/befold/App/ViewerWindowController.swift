@@ -114,6 +114,9 @@ final class ViewerWindowController: NSWindowController {
     ///   デフォルトにすると、注入を書き忘れたときに共有されない別個体が静かに生まれ、
     ///   ウィンドウごとに `git ls-files` を重複実行してしまう。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
+    /// - Parameter makeContentView: テスト専用シーム。コンテンツペイン(ViewerContentView / 実 WKWebView)を
+    ///   差し替える。既定の nil は本番経路(実 WKWebView を生成する)。サイドバー(FileListView)と
+    ///   分割ビュー配線は差し替え対象外。
     /// - Parameter openFileElsewhere: 同上。別タブ/別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
     /// - Parameter externalOpener: 同上。外部 URL(http/https)を開く処理。デフォルトは NSWorkspace 経由。
     init(
@@ -130,8 +133,6 @@ final class ViewerWindowController: NSWindowController {
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         store: ViewerStore? = nil,
-        // テスト専用シーム: コンテンツペイン(ViewerContentView / 実 WKWebView)を差し替える。
-        // 既定の nil は本番経路。サイドバー(FileListView)と分割ビュー配線は差し替え対象外。
         makeContentView: (() -> AnyView)? = nil,
         openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { url, disposition, source in
             AppDelegate.shared?.openViewer(for: url, disposition: disposition, relativeTo: source)

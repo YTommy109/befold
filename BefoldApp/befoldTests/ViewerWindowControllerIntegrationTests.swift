@@ -10,6 +10,8 @@ import Testing
 /// FileManager を直接列挙するため InMemoryFileReader でモック化できず Integration として分離する。
 /// (存在ガードのみに依存する switch/rename/history/リンク遷移の unit テストは
 /// ViewerWindowControllerTests へ戻した。)
+/// realFileSystem: true でも content ペインはプレースホルダ(ViewerWindowControllerFixture)のため、
+/// WebView に依存する検証はこのスイートに置かない(実コンテンツ経路は末尾のカナリアのみが例外)。
 @Suite
 @MainActor
 struct ViewerWindowControllerIntegrationTests {
@@ -100,10 +102,11 @@ struct ViewerWindowControllerIntegrationTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "smoke.mmd", contents: "graph TD;")
+        let defaults = makeIsolatedDefaults(prefix: "Smoke")
         let controller = ViewerWindowController(
             fileURL: file,
-            perFileState: PerFileStateStore(defaults: makeIsolatedDefaults(prefix: "Smoke")),
-            bookmarkStore: BookmarkStore(defaults: makeIsolatedDefaults(prefix: "Smoke"))
+            perFileState: PerFileStateStore(defaults: defaults),
+            bookmarkStore: BookmarkStore(defaults: defaults)
         )
         defer { controller.close() }
         #expect(controller.window != nil)

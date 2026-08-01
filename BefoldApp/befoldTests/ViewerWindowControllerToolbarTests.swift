@@ -9,6 +9,8 @@ import Testing
 /// store に InMemoryFileReader + MockFileWatcher を注入する。
 /// switchFile の存在ガードが store.fileReader 経由になった(TASK-116.12)ため、
 /// 切替時のツールバー更新も InMemoryFileReader でモック化して unit で検証する。
+/// コンテンツペインはプレースホルダ(ViewerWindowControllerFixture)のため、
+/// WebView に依存する検証はこのスイートに置かない。
 @Suite(testTimeLimit())
 @MainActor
 struct ViewerWindowControllerToolbarTests {
