@@ -1,19 +1,27 @@
 import Foundation
 
 /// 実 git を叩く Integration テスト向けの共通ヘルパー。`GitRepositoryIntegrationTests` /
-/// `GitCommandRunnerIntegrationTests` の双方で「リポジトリを作る」実装が別々に育たないよう、
-/// ここへ単一情報源化する。プロダクトコードの `GitCommandRunner` が前置する無害化オプションを
-/// あえて経由しない生の git 実行のため、対照実験(無害化なしでは再現する挙動)にも使える。
+/// `GitCommandRunnerTests`(GitCommandRunner を実行するテスト群)の双方で「リポジトリを作る」
+/// 実装が別々に育たないよう、ここへ単一情報源化する。プロダクトコードの `GitCommandRunner` が
+/// 前置する無害化オプションをあえて経由しない生の git 実行のため、対照実験
+/// (無害化なしでは再現する挙動)にも使える。
+/// `GitCommandRunnerTests` 側は TASK-244 の直列化制約(`GitCommandRunner` を実行する全テストを
+/// 資源残留系の直列スイートへ寄せる)により `〜IntegrationTests.swift` へは分離していない。
 public enum GitTestRepo {
     /// 無害化オプションを通さず git を実行する。テストのセットアップ用途のため、
     /// 失敗は無視して呼び出し側の後続アサーションに委ねる。
+    ///
+    /// 起動できなかった `Process` へ `waitUntilExit()` を呼ぶと、Swift から捕捉できない
+    /// `NSInvalidArgumentException` が飛んでテストプロセスごと落ちる。spawn 失敗は fd リーク
+    /// 退行の検証中(EMFILE)にこそ起きやすく、そこでクラッシュすると呼び出し元の defer による
+    /// 後始末まで飛ばしかねないため、起動できたときだけ待つ。
     public static func run(_ args: [String], in dir: URL) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["git", "-C", dir.path] + args
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        try? process.run()
+        do { try process.run() } catch { return }
         process.waitUntilExit()
     }
 

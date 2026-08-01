@@ -7,12 +7,10 @@ import Testing
 /// インメモリのフィクスチャで網羅する(実 git を通す検証は `GitRepositoryIntegrationTests` の
 /// スモーク 1 本に任せる)。gitdir 解決系は実ファイルシステム操作のみでプロセスは起動しない。
 struct GitRepositoryTests {
-    /// 実 git を叩くテスト用のリポジトリ。git 1 回あたりの予算は他のポーリング待機と同じ
-    /// 単一情報源(`BEFOLD_TEST_TIMEOUT_SECONDS`)から採る。少コアの CI で数百テストを
-    /// 並行実行すると git の起動自体が遅れうるため、本番既定の 10 秒に縛らず
-    /// CI 側から延ばせるようにしておく。
+    /// このファイルの残り 2 テスト(resolvesRelativeGitdirFile / resolvesWorktreeGitFile)が
+    /// 呼ぶ `indexFingerprint` はファイル stat のみで git を起動しないため、既定生成で足りる。
     private func makeRepository() -> GitRepository {
-        GitRepository(runner: GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10)))
+        GitRepository()
     }
 
     /// worktree porcelain 出力 1 件のパース期待値。
@@ -20,6 +18,7 @@ struct GitRepositoryTests {
         var path: String
         var isMain: Bool
         var branch: String?
+        var displayName: String
     }
 
     private struct ParseWorktreeListCase: Sendable, CustomTestStringConvertible {
@@ -32,7 +31,9 @@ struct GitRepositoryTests {
         ParseWorktreeListCase(
             testDescription: "本体のみ",
             text: "worktree /repo/main\nHEAD abc123\nbranch refs/heads/main\n",
-            expected: [WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main")]
+            expected: [
+                WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main", displayName: "main (main)"),
+            ]
         ),
         ParseWorktreeListCase(
             testDescription: "本体 + worktree(ブランチあり)",
@@ -46,12 +47,14 @@ struct GitRepositoryTests {
             branch refs/heads/feature-x
             """,
             expected: [
-                WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main"),
-                WorktreeExpectation(path: "/repo/wt", isMain: false, branch: "feature-x"),
+                WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main", displayName: "main (main)"),
+                WorktreeExpectation(
+                    path: "/repo/wt", isMain: false, branch: "feature-x", displayName: "feature-x (wt)"
+                ),
             ]
         ),
         ParseWorktreeListCase(
-            testDescription: "detached はブランチ無し",
+            testDescription: "detached はブランチ無しでディレクトリ名だけの表示になる",
             text: """
             worktree /repo/main
             HEAD abc123
@@ -62,8 +65,17 @@ struct GitRepositoryTests {
             detached
             """,
             expected: [
-                WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main"),
-                WorktreeExpectation(path: "/repo/detached", isMain: false, branch: nil),
+                WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main", displayName: "main (main)"),
+                WorktreeExpectation(
+                    path: "/repo/detached", isMain: false, branch: nil, displayName: "detached"
+                ),
+            ]
+        ),
+        ParseWorktreeListCase(
+            testDescription: "bare リポジトリはブランチ無しでディレクトリ名だけの表示になる",
+            text: "worktree /repo/bare\nbare\n",
+            expected: [
+                WorktreeExpectation(path: "/repo/bare", isMain: true, branch: nil, displayName: "bare"),
             ]
         ),
         ParseWorktreeListCase(
@@ -82,15 +94,29 @@ struct GitRepositoryTests {
             detached
             """,
             expected: [
-                WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main"),
-                WorktreeExpectation(path: "/repo/a", isMain: false, branch: "feature-a"),
-                WorktreeExpectation(path: "/repo/b", isMain: false, branch: nil),
+                WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main", displayName: "main (main)"),
+                WorktreeExpectation(
+                    path: "/repo/a", isMain: false, branch: "feature-a", displayName: "feature-a (a)"
+                ),
+                WorktreeExpectation(path: "/repo/b", isMain: false, branch: nil, displayName: "b"),
             ]
         ),
         ParseWorktreeListCase(
             testDescription: "worktree 行が無ければ空",
             text: "HEAD abc123\nbranch refs/heads/main\n",
             expected: []
+        ),
+        ParseWorktreeListCase(
+            testDescription: "空パスの worktree 行は無視される",
+            text: "worktree \nHEAD abc123\nbranch refs/heads/main\n",
+            expected: []
+        ),
+        ParseWorktreeListCase(
+            testDescription: "branch 行の値が空ならブランチ無し扱い",
+            text: "worktree /repo/main\nbranch \n",
+            expected: [
+                WorktreeExpectation(path: "/repo/main", isMain: true, branch: nil, displayName: "main"),
+            ]
         ),
     ]
 
@@ -103,6 +129,7 @@ struct GitRepositoryTests {
         })
         #expect(result.map(\.isMain) == testCase.expected.map(\.isMain))
         #expect(result.map(\.branch) == testCase.expected.map(\.branch))
+        #expect(result.map(\.displayName) == testCase.expected.map(\.displayName))
     }
 
     /// submodule の `.git` ファイルは `gitdir: ../.git/modules/<name>` のように

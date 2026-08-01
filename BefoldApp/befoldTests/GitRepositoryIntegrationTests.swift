@@ -157,18 +157,28 @@ struct GitRepositoryIntegrationTests {
         // ディレクトリ名とブランチ名を意図的にずらし、ブランチ側を拾っていることを確かめる。
         let worktreeDir = worktreeParent.url.appendingPathComponent("etc002")
         GitTestRepo.run(["worktree", "add", worktreeDir.path, "-b", "feat/repository"], in: main.url)
+        // detached では git が branch 行を出さない。インメモリのフィクスチャが前提にしている
+        // この出力形を、実 git の出力に結びつけて固定する。
+        let detachedDir = worktreeParent.url.appendingPathComponent("detached-wt")
+        GitTestRepo.run(["worktree", "add", "--detach", detachedDir.path], in: main.url)
 
         let fromMain = makeRepository().worktrees(forRoot: main.url)
-        #expect(fromMain.map(\.isMain) == [true, false])
+        #expect(fromMain.map(\.isMain) == [true, false, false])
         #expect(fromMain.first?.root.resolvingSymlinksInPath() == main.url.resolvingSymlinksInPath())
         #expect(fromMain.first?.branch != nil)
-        #expect(fromMain.last?.root.resolvingSymlinksInPath() == worktreeDir.resolvingSymlinksInPath())
-        #expect(fromMain.last?.branch == "feat/repository")
-        #expect(fromMain.last?.displayName == "feat/repository (etc002)")
+
+        let branched = fromMain.first { $0.root.resolvingSymlinksInPath() == worktreeDir.resolvingSymlinksInPath() }
+        #expect(branched?.branch == "feat/repository")
+        #expect(branched?.displayName == "feat/repository (etc002)")
+
+        let detached = fromMain.first { $0.root.resolvingSymlinksInPath() == detachedDir.resolvingSymlinksInPath() }
+        #expect(detached?.branch == nil)
+        #expect(detached?.displayName == "detached-wt")
 
         // worktree 側から列挙しても本体が先頭に来る。
         let fromWorktree = makeRepository().worktrees(forRoot: worktreeDir)
-        #expect(fromWorktree.map(\.isMain) == [true, false])
+        #expect(fromWorktree.map(\.isMain) == [true, false, false])
+        #expect(fromWorktree.first?.root.resolvingSymlinksInPath() == main.url.resolvingSymlinksInPath())
     }
 
     @Test("git を実行できない場合の worktree 一覧は空になる")
