@@ -23,8 +23,10 @@ concurrency:
 # detectsFileDeletion 等の一発イベント検出テストは CI ランナーの一時的な
 # 低速化(コンパイル直後の CPU 輻輳等)でデフォルトの 10秒待機予算を超過する
 # ことがある(task-50)。thread-sanitizer ジョブはジョブレベル env で上書き。
+# 30 秒でも build-and-test で lineNumbers テスト(非同期の読み込み完了を
+# waitUntilOnMainActor でポーリングする)が予算切れで落ちたため 60 秒へ引き上げる。
 env:
-  BEFOLD_TEST_TIMEOUT_SECONDS: 30
+  BEFOLD_TEST_TIMEOUT_SECONDS: 60
 
 jobs:
   build-and-test:
