@@ -26,26 +26,37 @@ struct DistributedAckWaiterIntegrationTests {
         #expect(await waiter.wait(timeout: testTimeoutSeconds(fallback: 5)))
     }
 
+    /// 「取りこぼしていないから観測しなかった」ことを確かめたいが、否定は固定時間待っても
+    /// 「まだ来ていないだけ」と区別が付かない。そこで同一通知が複数 observer に配送される
+    /// 性質を使い、別の requestID を持つ番兵 waiter で配送完了を先に肯定確認してから、
+    /// 対象 waiter が(配送済みの時点で)未観測であることを wait(timeout: 0) で見る。
     @Test("別の requestID の ACK は観測しない")
     func ackForDifferentRequestIDIsIgnored() async {
+        let otherID = UUID().uuidString
         let waiter = DistributedAckWaiter(requestID: UUID().uuidString)
         defer { waiter.cancel() }
+        let sentinel = DistributedAckWaiter(requestID: otherID)
+        defer { sentinel.cancel() }
 
-        CLIRequestWire.sendAck(requestID: UUID().uuidString)
+        CLIRequestWire.sendAck(requestID: otherID)
 
-        let acked = await waiter.wait(timeout: 0.5)
-        #expect(!acked)
+        await #expect(sentinel.wait(timeout: testTimeoutSeconds(fallback: 5)))
+        await #expect(!waiter.wait(timeout: 0))
     }
 
+    /// 上と同じ理由で番兵方式にする。cancel していない同一 requestID の番兵で配送完了を
+    /// 確認してから、cancel 済み側が未観測であることを見る。
     @Test("cancel 後に届いた ACK は観測しない")
     func ackAfterCancelIsIgnored() async {
         let requestID = UUID().uuidString
         let waiter = DistributedAckWaiter(requestID: requestID)
         waiter.cancel()
+        let sentinel = DistributedAckWaiter(requestID: requestID)
+        defer { sentinel.cancel() }
 
         CLIRequestWire.sendAck(requestID: requestID)
 
-        let acked = await waiter.wait(timeout: 0.5)
-        #expect(!acked)
+        await #expect(sentinel.wait(timeout: testTimeoutSeconds(fallback: 5)))
+        await #expect(!waiter.wait(timeout: 0))
     }
 }
