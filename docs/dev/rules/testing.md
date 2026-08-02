@@ -391,9 +391,8 @@ assert する。最新のみを公開するプロパティ（`pendingListingTask
   ロードする `static let`** にする。以後書き換えないので並列実行下でも競合しない
 - **`static var` + 遅延書き込み（初回アクセス時にキャッシュへ代入）は禁止**。swift-testing は
   既定でテストを並列実行するため、複数テストが同時に書き込み、非 Sendable な値
-  （`[String: Any]` 等）ではシグナル 6 でクラッシュする（実例: Info.plist テストでキャッシュを
-  可変 `static var` + 遅延書き込みで実装したところ、並列実行下で複数テストが同時書き込み
-  してシグナル 6 でクラッシュした）
+  （`[String: Any]` 等）ではシグナル 6 でクラッシュする
+  （実例: `QuickLookInfoPlistTests` を可変 `static var` + 遅延ロードで実装して踏んだ）
 - 遅延・可変がどうしても必要なら共有ヘルパーの `LockedBox`（[共有テストヘルパー](#共有テストヘルパーbefoldtestsupport)節）を使う。
   `nonisolated(unsafe)` を付けるのは「以後書き換えない」ことがコード上明らかな場合に限り、
   その理由を `///` に書く
