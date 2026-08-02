@@ -4,12 +4,16 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// SidebarNavigator.navigateToFolder の選択ポリシー(ホーム上限ガード・子フォルダーへの
-/// 移動で自動選択/自動オープンしない・親フォルダーへ戻ると直前の子フォルダーが選ばれる)を、
-/// 実ディレクトリ列挙もフルウィンドウ生成も伴わずに検証する。実 FS の列挙結果自体は本質でないため、
+/// SidebarNavigator.navigateToFolder / refreshFileList の選択・rootDirectory ポリシー
+/// (ホーム上限ガード・子フォルダーへの移動で自動選択/自動オープンしない・親フォルダーへ
+/// 戻ると直前の子フォルダーが選ばれる・上位移動で rootDirectory が最上位へ更新される・
+/// refreshFileList でフォルダー選択が保持される)を、実ディレクトリ列挙もフルウィンドウ
+/// 生成も伴わずに検証する。実 FS の列挙結果自体は本質でないため、
 /// directoryLister をディレクトリごとの固定エントリで差し替える
 /// (前例: SidebarNavigatorBaseDirectoryTests)。移設元:
-/// ViewerWindowControllerIntegrationTests.swift(navigateToFolderToParentWorks 等 6 テスト、旧 139-238 行)。
+/// ViewerWindowControllerIntegrationTests.swift(navigateToFolderToParentWorks 等 6 テスト、旧 139-238 行)、
+/// SidebarNavigatorIntegrationTests.swift(navigatingUpUpdatesRootDirectory /
+/// refreshFileListPreservesFolderSelection、実 FS を使わず directoryLister スタブで検証可能と判明したため移設)。
 @Suite
 @MainActor
 struct SidebarNavigatorFolderNavigationTests {
@@ -146,5 +150,54 @@ struct SidebarNavigatorFolderNavigationTests {
         await navigator.pendingListingTask?.value
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "sub")
+    }
+
+    @Test("親ディレクトリへ移動すると rootDirectory が最上位に更新される")
+    func navigatingUpUpdatesRootDirectory() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-root")
+        let level1 = tmp.appendingPathComponent("level1", isDirectory: true)
+        let level2 = level1.appendingPathComponent("level2", isDirectory: true)
+        let level3 = level2.appendingPathComponent("level3", isDirectory: true)
+        let (navigator, host) = makeNavigator(
+            currentDirectory: level3,
+            selection: nil,
+            listings: [
+                level2.normalizedPathKey: [],
+                level3.normalizedPathKey: [],
+            ]
+        )
+        defer { withExtendedLifetime(host) {} }
+
+        // 初期状態では rootDirectory はファイルの親ディレクトリ(level3)。
+        #expect(navigator.fileListModel.rootDirectory.path == level3.path)
+
+        // level2 へ上に移動すると、そこが新たな最上位として rootDirectory に反映される。
+        navigator.navigateToFolder(level2)
+        await navigator.pendingListingTask?.value
+        #expect(navigator.fileListModel.rootDirectory.path == level2.path)
+
+        // level3 へ戻っても、既に到達した最上位(level2)は保持される。
+        navigator.navigateToFolder(level3)
+        await navigator.pendingListingTask?.value
+        #expect(navigator.fileListModel.rootDirectory.path == level2.path)
+    }
+
+    @Test("フォルダーを選択した状態で refreshFileList してもフォルダー選択が保持される")
+    func refreshFileListPreservesFolderSelection() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-refresh")
+        let sub = tmp.appendingPathComponent("sub", isDirectory: true)
+        // ファイルではなくフォルダーをサイドバーで選択した状態を再現する(host.currentFileURL とは無関係)。
+        let (navigator, host) = makeNavigator(
+            currentDirectory: tmp,
+            selection: sub,
+            listings: [tmp.normalizedPathKey: [FileListEntry(url: sub, kind: .folder)]]
+        )
+        defer { withExtendedLifetime(host) {} }
+
+        // 他アプリへ切り替えて戻ってきた際に windowDidBecomeKey から呼ばれる処理を再現する。
+        navigator.refreshFileList()
+        await navigator.pendingListingTask?.value
+
+        #expect(navigator.fileListModel.selection == sub)
     }
 }
