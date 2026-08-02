@@ -16,6 +16,14 @@ private let leakPollingBudget: Double = 30
 /// git は別プロセスなのでサニタイザによる減速の影響を受けず、CI 予算に連動させる必要はない。
 private let hangingBudget: TimeInterval = 2
 
+/// 打ち切りを試みてから読み取りスレッドが EOF を諦めるまでの猶予に注入する短縮値(秒)。
+///
+/// `releasesResourcesWhenWriteEndSurvivesTermination` は「猶予切れで確実に資源が返る」こと
+/// 自体を検証するため、猶予の満了を待つことが検証の一部であり待ち時間を省略できない。
+/// 本番既定の 5 秒のままだと構造的に遅いテストになるため、猶予の長さに依存しない同じ
+/// 不変条件(猶予切れで fd・スレッドが返る)を短い猶予でも検証する。
+private let shortTerminationGrace: TimeInterval = 0.5
+
 /// 実 git を叩くテスト用のランナー。git 1 回あたりの予算は他のポーリング待機と同じ
 /// 単一情報源(`BEFOLD_TEST_TIMEOUT_SECONDS`)から採る。少コアの CI で数百テストを
 /// 並行実行すると git の起動自体が遅れうるため、本番既定の 10 秒に縛らない。
@@ -454,7 +462,11 @@ struct GitCommandRunnerResourceLeakTests {
         let baselinePipes = openPipeCount()
         let baselineReaders = readerThreadCount()
 
-        let results = runInBackground(GitCommandRunner(timeout: hangingBudget), sleeper, in: temp.url)
+        // 猶予切れで資源が返ることの検証は猶予の満了そのものを待つため、この待ちだけは
+        // テスト側の工夫では縮められない。既定の 5 秒だと構造的に遅いテストになるので、
+        // 短い猶予を注入して「猶予切れで返る」という不変条件だけを短時間で固定する。
+        let runner = GitCommandRunner(timeout: hangingBudget, terminationGrace: shortTerminationGrace)
+        let results = runInBackground(runner, sleeper, in: temp.url)
         #expect(await waitUntil { processExists(matching: sleeper.path) == true })
         #expect(await waitUntil { results.get() == [GitCommandOutcome.unavailable] })
 

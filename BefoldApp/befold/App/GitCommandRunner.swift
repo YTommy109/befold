@@ -31,10 +31,15 @@ struct GitCommandRunner: Sendable {
     /// そこで無期限に待たないことが、スレッドと fd を必ず返す保証になっている。
     /// SIGKILL の配送と数十 KB のパイプの吸い出しには桁違いに余裕のある幅を採り、
     /// 負荷の高い環境で正常な巻き取りを取りこぼさないようにする。
-    private static let terminationGrace: TimeInterval = 5
+    ///
+    /// テストでは「猶予切れで確実に資源が返る」こと自体を検証するために猶予の満了を
+    /// 待つ必要があり、既定の 5 秒だとテストが構造的に遅くなる。差し替え可能かつ
+    /// 呼び出しごとに閉じた値(状態を共有しない)のため、デフォルト引数での注入を許容する。
+    private let terminationGrace: TimeInterval
 
-    init(timeout: TimeInterval = 10) {
+    init(timeout: TimeInterval = 10, terminationGrace: TimeInterval = 5) {
         self.timeout = timeout
+        self.terminationGrace = terminationGrace
     }
 
     /// 全 git 呼び出しに前置する無害化オプション。
@@ -128,7 +133,7 @@ struct GitCommandRunner: Sendable {
         // stackSize は既定(512KB)のまま触らない。このスレッドでは `waitUntilExit()` の
         // ラン・ループも走るため、切り詰めても仮想アドレス空間しか節約できない一方で
         // 溢れたときは診断しにくい SIGSEGV に化ける。
-        let deadline = ContinuousClock.now.advanced(by: .seconds(timeout + Self.terminationGrace))
+        let deadline = ContinuousClock.now.advanced(by: .seconds(timeout + terminationGrace))
         let output = OutputBox()
         let done = DispatchSemaphore(value: 0)
         let reader = Thread {
