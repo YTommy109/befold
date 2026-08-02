@@ -52,12 +52,16 @@ macOS 向けのドキュメント・ダイアグラムビューアアプリ。
 cd BefoldApp
 swift build                  # ビルド
 swift test                   # テスト（要 Xcode.app）
-xcodegen generate            # .xcodeproj を再生成
+xcodegen generate            # .xcodeproj を再生成（新規ファイルの追加・削除後は必須）
 xcodebuild build -scheme befold  # Xcode ビルド（要 Xcode.app）
 
 # Markdown リンタ（リポジトリルートで実行。設定は .markdownlint-cli2.jsonc）
 markdownlint-cli2          # docs 変更時に実行（--fix で自動修正）
 ```
+
+ファイルを新規追加したら `xcodegen generate` を忘れないこと。`swift build` は
+SPM がディレクトリを走査するため通ってしまい、`.app` バンドルを作る `xcodebuild` だけが
+`cannot find 'X' in scope` で落ちる（実機確認の直前に気付くことになる）。
 
 ## Swift コーディング規約
 
@@ -65,6 +69,11 @@ markdownlint-cli2          # docs 変更時に実行（--fix で自動修正）
 - `@MainActor @Observable` を ViewerStore に使用
 - FileWatcher は `@unchecked Sendable`（内部 GCD キューでスレッド安全性を保証）
 - UI コンポーネントは SwiftUI、ウィンドウ管理は AppKit（NSWindowController）
+- 複数行にまたがる `if` / `guard` の条件は、`guard ... else { return }` の 1 行化か
+  ヘルパー抽出で避ける。swiftformat が `{` を独立行へ送り、swiftlint の `opening_brace` が
+  新規警告になる（両者の設定が衝突する箇所であり、どちらかを直すと他方が鳴る）
+- swiftlint は警告の絶対数では判定できない（main 時点で 80 件ほどある）。
+  変更前後で一覧を取り、**main とのベースライン差分がゼロ**であることを確認する
 
 ## テスト規約
 
