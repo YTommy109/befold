@@ -24,9 +24,13 @@ struct CLIRequestWireIntegrationTests {
             sourceMode: true, showSidebar: false
         )
         let request = CLIRequest.open(paths: ["/tmp/a.mmd", "/tmp/b.md"], options: options)
-        let userInfo = try #require(
+        let wireUserInfo = try #require(
             CLIRequestWire.userInfo(for: request, requestID: "integration-id")
         )
+        // 再送クロージャへ渡すため Sendable な形に写す。ワイヤ表現の値は全て String なので
+        // 写した結果は元と等価（欠落していないことを件数で担保する）。
+        let userInfo = wireUserInfo.compactMapValues { $0 as? String }
+        #expect(userInfo.count == wireUserInfo.count)
 
         let received = LockedBox<[String: String]?>(nil)
         let center = DistributedNotificationCenter.default()
@@ -42,10 +46,21 @@ struct CLIRequestWireIntegrationTests {
         }
         defer { center.removeObserver(observer) }
 
-        center.postNotificationName(
-            Self.testNotificationName, object: nil, userInfo: userInfo, deliverImmediately: true
+        // addObserver は distnoted への非同期登録であり、登録完了前の post は配送先が
+        // 存在せず捨てられる。1 回だけ post して待つ形だとその窓に入ると永久に届かないため、
+        // 届くまで post を再試行する。テスト専用の通知名かつ観測側は上書きするだけなので
+        // 再送は冪等。
+        #expect(
+            await waitUntilWithRetry {
+                center.postNotificationName(
+                    Self.testNotificationName, object: nil, userInfo: userInfo,
+                    deliverImmediately: true
+                )
+            } until: {
+                received.get() != nil
+            },
+            "テスト通知が配送されなかった"
         )
-        #expect(await waitUntil { received.get() != nil }, "テスト通知が配送されなかった")
 
         let delivered = try #require(received.get())
         #expect(CLIRequestWire.decode(userInfo: delivered) == request)
