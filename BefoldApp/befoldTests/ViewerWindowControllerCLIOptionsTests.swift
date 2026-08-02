@@ -50,13 +50,12 @@ struct ViewerWindowControllerCLIOptionsTests {
 
     @Test("CLI の --line-numbers 指定の有無で showLineNumbers・保存値への反映が決まる", arguments: [
         // (保存済みの値, CLI override, 期待する showLineNumbers, 期待する保存値)
-        (saved: Bool?.none, override: Bool?.some(true), expectStore: true, expectSaved: Bool?.none),
+        (saved: Bool?.none, override: Bool?.some (true), expectStore: true, expectSaved: Bool?.none),
+        // fixture は既定で InMemoryFileReader + MockFileWatcher の store を自前生成して
+        // 注入するため、このケースは「注入経路そのもの」の検証も兼ねている。
         (false, true, true, false), // override は保存済みグローバル設定を書き換えない
         (true, nil, true, nil), // 未指定時は保存済みの設定がそのまま復元される(true 方向)
         (false, nil, false, nil), // 未指定時は保存済みの設定がそのまま復元される(false 方向)
-        // fixture は既定で InMemoryFileReader + MockFileWatcher の store を自前生成して
-        // 注入するため、これは実質「注入経路そのもの」を検証している。
-        (false, true, true, false),
     ])
     func lineNumbersOverride(
         saved: Bool?, override: Bool?, expectStore: Bool, expectSaved: Bool?
