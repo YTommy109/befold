@@ -63,7 +63,9 @@ struct GitStatusReaderIntegrationTests {
                 defaults: makeIsolatedDefaults(prefix: "GitStatusReaderIntegrationTests")
             ),
             directoryLister: { _, _, _ in [] },
-            loadGitStatuses: { await store.statuses(forDirectoryAt: $0) }
+            loadGitStatuses: { directory, policy in
+                await store.statuses(forDirectoryAt: directory, policy: policy)
+            }
         )
         let host = SidebarNavigatorStubHost(currentFileURL: temp.url.appendingPathComponent("a.md"))
         navigator.attach(to: host)
@@ -74,6 +76,69 @@ struct GitStatusReaderIntegrationTests {
 
         let key = temp.url.appendingPathComponent("a.md").normalizedPathKey
         #expect(navigator.fileListModel.gitStatuses[key]?.worktreeChange == .modified)
+    }
+
+    /// TASK-186.2 の中核。`.git/index` の監視から状態の取り直しまでを実物どうしで繋ぎ、
+    /// 「git 操作のあと、明示 refresh なしにバッジが変わる」ことを確認する。
+    @MainActor
+    @Test("git add の後、明示 refresh なしでサイドバーの状態が更新される", .timeLimit(.minutes(1)))
+    func updatesWithoutExplicitRefreshAfterStaging() async throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "a.md", in: temp.url)
+        try GitTestRepo.modifyWithoutStaging("a.md", in: temp.url)
+
+        let gitFileIndex = GitCommandFileIndex()
+        let store = GitStatusStore(
+            reader: makeReader(),
+            resolveRepositoryRoot: { gitFileIndex.repositoryRoot(forDirectoryAt: $0) }
+        )
+        let navigator = SidebarNavigator(
+            currentDirectory: temp.url,
+            entries: [],
+            selection: nil,
+            hiddenFilesPreference: HiddenFilesPreference(
+                defaults: makeIsolatedDefaults(prefix: "GitStatusIndexWatch")
+            ),
+            directoryLister: { _, _, _ in [] },
+            loadGitStatuses: { directory, policy in
+                await store.statuses(forDirectoryAt: directory, policy: policy)
+            }
+        )
+        let host = SidebarNavigatorStubHost(currentFileURL: temp.url.appendingPathComponent("a.md"))
+        navigator.attach(to: host)
+        defer { withExtendedLifetime(host) {} }
+        defer { navigator.cancelPendingListing() }
+
+        navigator.refreshFileList()
+        await navigator.pendingGitStatusTask?.value
+        let key = temp.url.appendingPathComponent("a.md").normalizedPathKey
+        #expect(navigator.fileListModel.gitStatuses[key]?.worktreeChange == .modified)
+
+        // ここから先は明示的な refresh を一切呼ばない。`.git/index` の監視だけが契機。
+        GitTestRepo.run(["add", "a.md"], in: temp.url)
+
+        await waitUntilOnMainActor { navigator.fileListModel.gitStatuses[key]?.indexChange == .modified }
+        #expect(navigator.fileListModel.gitStatuses[key]?.worktreeChange == nil)
+    }
+
+    /// 自己励振の防止線。`git status` は既定で index を refresh して mtime を書き換えうるため、
+    /// `--no-optional-locks` を外すと「status → index 変化 → 監視発火 → status」の輪ができる。
+    @Test("status 実行は .git/index の fingerprint を変えない")
+    func statusDoesNotDisturbIndexFingerprint() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "a.md", in: temp.url)
+        try GitTestRepo.modifyWithoutStaging("a.md", in: temp.url)
+        let reader = makeReader()
+        let before = reader.indexFingerprint(forRepositoryAt: temp.url)
+
+        _ = reader.status(forRepositoryAt: temp.url)
+        _ = reader.status(forRepositoryAt: temp.url)
+
+        #expect(reader.indexFingerprint(forRepositoryAt: temp.url) == before)
     }
 
     @Test("変更が無いリポジトリでは空のスナップショットを返す")

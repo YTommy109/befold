@@ -7,6 +7,7 @@ import Testing
 /// Sendable なルート解決クロージャから参照するため、MainActor 隔離される型の
 /// 静的プロパティではなくファイルスコープに置く。
 private let testRepositoryRoot = URL(fileURLWithPath: "/repos/befold")
+private let testIndexURL = URL(fileURLWithPath: "/repos/befold/.git/index")
 
 /// GitStatusStore のキャッシュ・縮退・重複実行の畳み込みを、実 git を起動せずに検証する。
 @Suite
@@ -29,12 +30,18 @@ struct GitStatusStoreTests {
         /// 呼び出しの中で待機する(nil なら待たない)。
         private let block: DispatchSemaphore?
 
+        /// `indexFingerprint(forRepositoryAt:)` が返す値。差し替えて index の動きを模す。
+        private var fingerprint: Date?
+        private var fingerprintCalls = 0
+
         init(
             results: [GitStatusSnapshot?],
+            fingerprint: Date? = nil,
             onCall: (@Sendable (Int) -> Void)? = nil,
             block: DispatchSemaphore? = nil
         ) {
             self.results = results
+            self.fingerprint = fingerprint
             self.onCall = onCall
             self.block = block
         }
@@ -42,6 +49,17 @@ struct GitStatusStoreTests {
         var callCount: Int {
             lock.lock(); defer { lock.unlock() }
             return calls
+        }
+
+        func setFingerprint(_ date: Date?) {
+            lock.lock(); defer { lock.unlock() }
+            fingerprint = date
+        }
+
+        func indexFingerprint(forRepositoryAt _: URL) -> Date? {
+            lock.lock(); defer { lock.unlock() }
+            fingerprintCalls += 1
+            return fingerprint
         }
 
         func status(forRepositoryAt _: URL) -> GitStatusSnapshot? {
@@ -57,8 +75,12 @@ struct GitStatusStoreTests {
         }
     }
 
-    private func snapshot(_ statuses: [String: GitFileStatus]) -> GitStatusSnapshot {
-        GitStatusSnapshot(statuses: statuses, indexFingerprint: nil)
+    private func snapshot(
+        _ statuses: [String: GitFileStatus], indexFingerprint: Date? = nil
+    ) -> GitStatusSnapshot {
+        GitStatusSnapshot(
+            statuses: statuses, indexFingerprint: indexFingerprint, indexURL: testIndexURL
+        )
     }
 
     private func makeStore(_ reader: FakeReader, resolvesRoot: Bool = true) -> GitStatusStore {
@@ -77,7 +99,7 @@ struct GitStatusStoreTests {
         let reader = FakeReader(results: [snapshot(modifiedStatus)])
         let store = makeStore(reader, resolvesRoot: false)
 
-        let statuses = await store.statuses(forDirectoryAt: directory)
+        let statuses = await store.statuses(forDirectoryAt: directory).statuses
 
         #expect(statuses.isEmpty)
         #expect(reader.callCount == 0)
@@ -88,7 +110,7 @@ struct GitStatusStoreTests {
         let reader = FakeReader(results: [snapshot(modifiedStatus)])
         let store = makeStore(reader)
 
-        let statuses = await store.statuses(forDirectoryAt: directory)
+        let statuses = await store.statuses(forDirectoryAt: directory).statuses
 
         #expect(statuses == modifiedStatus)
         #expect(store.cachedSnapshot(forRepositoryRoot: root)?.statuses == modifiedStatus)
@@ -103,7 +125,7 @@ struct GitStatusStoreTests {
         let store = makeStore(reader)
 
         _ = await store.statuses(forDirectoryAt: directory)
-        let second = await store.statuses(forDirectoryAt: directory)
+        let second = await store.statuses(forDirectoryAt: directory).statuses
 
         #expect(second == updated)
         #expect(reader.callCount == 2)
@@ -117,7 +139,7 @@ struct GitStatusStoreTests {
         let store = makeStore(reader)
 
         _ = await store.statuses(forDirectoryAt: directory)
-        let afterFailure = await store.statuses(forDirectoryAt: directory)
+        let afterFailure = await store.statuses(forDirectoryAt: directory).statuses
 
         #expect(afterFailure == modifiedStatus)
     }
@@ -127,10 +149,57 @@ struct GitStatusStoreTests {
         let reader = FakeReader(results: [nil])
         let store = makeStore(reader)
 
-        let statuses = await store.statuses(forDirectoryAt: directory)
+        let statuses = await store.statuses(forDirectoryAt: directory).statuses
 
         #expect(statuses.isEmpty)
         #expect(store.cachedSnapshot(forRepositoryRoot: root) == nil)
+    }
+
+    /// `.git` 配下への書き込み通知は index 以外の理由でも来る。index が動いていないなら
+    /// status を取り直す理由はないので、git を起こさずキャッシュを返す(TASK-186.2)。
+    @Test("onlyIfIndexChanged: fingerprint 無変化なら git を呼ばずキャッシュを返す")
+    func skipsGitWhenIndexFingerprintIsUnchanged() async {
+        let stamp = Date(timeIntervalSince1970: 1000)
+        let reader = FakeReader(results: [snapshot(modifiedStatus, indexFingerprint: stamp)], fingerprint: stamp)
+        let store = makeStore(reader)
+        _ = await store.statuses(forDirectoryAt: directory)
+
+        let result = await store.statuses(forDirectoryAt: directory, policy: .onlyIfIndexChanged)
+
+        #expect(result.statuses == modifiedStatus)
+        #expect(result.indexURL == testIndexURL)
+        #expect(reader.callCount == 1)
+    }
+
+    @Test("onlyIfIndexChanged: fingerprint が変わっていれば取り直す")
+    func refetchesWhenIndexFingerprintChanged() async {
+        let first = Date(timeIntervalSince1970: 1000)
+        let second = Date(timeIntervalSince1970: 2000)
+        let staged = ["/repos/befold/docs/a.md": GitFileStatus(indexChange: .modified, worktreeChange: nil)]
+        let reader = FakeReader(
+            results: [snapshot(modifiedStatus, indexFingerprint: first), snapshot(staged, indexFingerprint: second)],
+            fingerprint: first
+        )
+        let store = makeStore(reader)
+        _ = await store.statuses(forDirectoryAt: directory)
+        reader.setFingerprint(second)
+
+        let result = await store.statuses(forDirectoryAt: directory, policy: .onlyIfIndexChanged)
+
+        #expect(result.statuses == staged)
+        #expect(reader.callCount == 2)
+    }
+
+    /// キャッシュが無い(初回)なら、fingerprint を見るまでもなく取りに行く。
+    @Test("onlyIfIndexChanged: キャッシュが無ければ取得する")
+    func fetchesOnFirstRequestEvenWithIndexPolicy() async {
+        let reader = FakeReader(results: [snapshot(modifiedStatus)])
+        let store = makeStore(reader)
+
+        let result = await store.statuses(forDirectoryAt: directory, policy: .onlyIfIndexChanged)
+
+        #expect(result.statuses == modifiedStatus)
+        #expect(reader.callCount == 1)
     }
 
     /// 同じルートへの要求が重なったときに git を 2 回起こさないこと(in-flight の畳み込み)。
@@ -160,9 +229,9 @@ struct GitStatusStoreTests {
             }
         )
 
-        let first = Task { await store.statuses(forDirectoryAt: directory) }
+        let first = Task { await store.statuses(forDirectoryAt: directory).statuses }
         await readerEntered.wait()
-        let second = Task { await store.statuses(forDirectoryAt: directory) }
+        let second = Task { await store.statuses(forDirectoryAt: directory).statuses }
         await secondRootResolved.wait()
         release.signal()
 

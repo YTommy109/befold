@@ -11,9 +11,9 @@ import WebKit
 @MainActor
 private func makeSidebarGitStatusLoader(
     _ store: GitStatusStore
-) -> (URL) async -> [String: GitFileStatus] {
-    guard FeatureGate.inProgressFeaturesEnabled else { return { _ in [:] } }
-    return { await store.statuses(forDirectoryAt: $0) }
+) -> (URL, GitStatusRefreshPolicy) async -> GitStatusResult {
+    guard FeatureGate.inProgressFeaturesEnabled else { return { _, _ in .empty } }
+    return { directory, policy in await store.statuses(forDirectoryAt: directory, policy: policy) }
 }
 
 /// ViewerWindowController のウィンドウイベント(クローズ・rename・キー化など)を
@@ -260,15 +260,7 @@ final class ViewerWindowController: NSWindowController {
         sidebar.attach(to: self)
         // 空で作ったサイドバー一覧をここで埋める(列挙はメインアクター外で走る)。
         sidebar.refreshFileList()
-        store.onFileGone = { [weak self] in
-            self?.window?.close()
-        }
-        store.onFileRenamed = { [weak self] oldURL, newURL in
-            self?.handleRename(from: oldURL, to: newURL)
-        }
-        store.onContentReloaded = { [weak self] in
-            self?.refreshToolbarState()
-        }
+        wireStoreCallbacks()
         store.openFile(fileURL)
         // クリック時解決(pathResolver)の git 追跡ファイル索引を先読みしておく。
         referenceCoordinator.warm(forFileAt: fileURL)
@@ -778,5 +770,30 @@ extension ViewerWindowController: NSWindowDelegate {
     /// ドラッグ移動やタイリングでの位置変更は windowWillClose 時にまとめて保存される。
     func windowDidEndLiveResize(_ notification: Notification) {
         saveWindowFrame()
+    }
+}
+
+// MARK: - ViewerStore Callbacks
+
+private extension ViewerWindowController {
+    /// ViewerStore からの通知(ファイル消失・rename・再読込)をウィンドウ側の処理へ繋ぐ。
+    ///
+    /// クラス本体ではなく extension に置くのは、init を読むときに「何を購読するか」が
+    /// 1 行(`wireStoreCallbacks()`)に畳まれ、購読内容の追加でウィンドウ生成手順の
+    /// 見通しが悪くならないようにするため。
+    func wireStoreCallbacks() {
+        store.onFileGone = { [weak self] in
+            self?.window?.close()
+        }
+        store.onFileRenamed = { [weak self] oldURL, newURL in
+            self?.handleRename(from: oldURL, to: newURL)
+        }
+        store.onContentReloaded = { [weak self] in
+            self?.refreshToolbarState()
+            // 表示中ファイルの保存に git バッジを追従させる。作業ツリーの編集は
+            // `.git/index` を動かさないため index 監視では拾えず、ここが唯一の契機になる。
+            // 再読込は FileWatcher のデバウンス後に 1 回来るので、連打にはならない。
+            self?.sidebar.refreshGitStatuses()
+        }
     }
 }

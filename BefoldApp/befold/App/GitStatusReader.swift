@@ -12,10 +12,15 @@ struct GitStatusSnapshot: Equatable, Sendable {
     /// ファイルシステムに触るため。取得を担うこの型はメインアクター外で動くので、
     /// 変換をここで済ませてメインスレッドでの stat を避ける。
     var statuses: [String: GitFileStatus]
-    /// 取得時点の `.git/index` の最終更新日時。Phase 2 でキャッシュ無効化に使う。
+    /// 取得時点の `.git/index` の最終更新日時。index を動かす操作(add / commit / checkout)の
+    /// 検出とキャッシュの妥当性判定に使う。**素の作業ツリー編集では変化しない**ため、
+    /// 編集への追従をこの値に頼ってはならない。
     var indexFingerprint: Date?
+    /// 監視対象にする `.git/index` の実パス。worktree では `.git` がファイルで実 gitdir を
+    /// 指すため、呼び出し側が自力で組み立てられない。取得できなければ nil。
+    var indexURL: URL?
 
-    static let empty = GitStatusSnapshot(statuses: [:], indexFingerprint: nil)
+    static let empty = GitStatusSnapshot(statuses: [:], indexFingerprint: nil, indexURL: nil)
 }
 
 /// リポジトリルート単位で git の状態を取得する。
@@ -27,6 +32,9 @@ protocol GitStatusReading: Sendable {
     ///   「動いた結果、変更が無い/リポジトリではない」は空のスナップショットで返る。
     ///   呼び出し側はこの区別でキャッシュの可否を決める(nil はキャッシュしてはならない)。
     func status(forRepositoryAt root: URL) -> GitStatusSnapshot?
+    /// `.git/index` の最終更新日時。git を起動せずファイル stat だけで得られるため、
+    /// 「index が動いたときだけ status を取り直す」判定に使う。
+    func indexFingerprint(forRepositoryAt root: URL) -> Date?
 }
 
 /// `git status --porcelain=v2` で状態を読む本番実装。
@@ -37,6 +45,10 @@ struct GitStatusReader: GitStatusReading {
     init(runner: GitCommandRunner = GitCommandRunner(), repository: any GitRepositoryReading = GitRepository()) {
         self.runner = runner
         self.repository = repository
+    }
+
+    func indexFingerprint(forRepositoryAt root: URL) -> Date? {
+        repository.indexFingerprint(at: root)
     }
 
     func status(forRepositoryAt root: URL) -> GitStatusSnapshot? {
@@ -56,7 +68,9 @@ struct GitStatusReader: GitStatusReading {
                 statuses[url.normalizedPathKey] = status
             }
             return GitStatusSnapshot(
-                statuses: statuses, indexFingerprint: repository.indexFingerprint(at: root)
+                statuses: statuses,
+                indexFingerprint: repository.indexFingerprint(at: root),
+                indexURL: repository.indexURL(at: root)
             )
         case .rejected:
             // 実行できて非 0(リポジトリ外など)。答えとして確定しているのでキャッシュしてよい。

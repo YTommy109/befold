@@ -1,6 +1,25 @@
 import BefoldKit
 import Foundation
 
+/// 状態取得の結果。バッジ描画用のマップと、更新契機に使う `.git/index` の実パスを返す。
+struct GitStatusResult: Equatable, Sendable {
+    var statuses: [String: GitFileStatus] = [:]
+    /// 監視すべき `.git/index` のパス。git 管理外・取得失敗時は nil。
+    var indexURL: URL?
+
+    static let empty = GitStatusResult()
+}
+
+/// 状態を取り直す条件。
+enum GitStatusRefreshPolicy: Sendable {
+    /// 常に取り直す。作業ツリーの編集は `.git/index` を動かさないため、
+    /// ユーザー操作・表示中ファイルの保存を契機にする場合はこちら。
+    case always
+    /// `.git/index` の fingerprint が前回取得時から変わっているときだけ取り直す。
+    /// `.git` 配下の書き込み(index 以外の一時ファイル等)で無駄に git を起こさないための門番。
+    case onlyIfIndexChanged
+}
+
 /// リポジトリルート単位で `GitStatusSnapshot` をキャッシュし、全ウィンドウで共有する。
 ///
 /// 先例は `WorktreeCatalog`(@MainActor キャッシュ + `Task.detached` で git 実行 +
@@ -38,12 +57,38 @@ final class GitStatusStore {
     ///
     /// ルート解決と git 実行はどちらもメインアクターの外で行い、結果だけを戻す。
     /// 呼び出し側(SidebarNavigator)は世代ガードで古い結果を捨てる。
-    func statuses(forDirectoryAt directory: URL) async -> [String: GitFileStatus] {
+    func statuses(
+        forDirectoryAt directory: URL, policy: GitStatusRefreshPolicy = .always
+    ) async -> GitStatusResult {
         let resolveRepositoryRoot = resolveRepositoryRoot
         guard let root = await Task.detached(priority: .utility, operation: {
             resolveRepositoryRoot(directory)
-        }).value else { return [:] }
-        return await snapshot(forRepositoryAt: root)?.statuses ?? [:]
+        }).value else { return .empty }
+        // index が動いていないなら git を起こす理由がない。`.git` 配下への index 以外の
+        // 書き込み(参照更新・一時ファイル)で status を連打しないための門番。
+        if let reusable = await cachedResultIfIndexUnchanged(at: root, policy: policy) {
+            return reusable
+        }
+        guard let snapshot = await snapshot(forRepositoryAt: root) else { return .empty }
+        return GitStatusResult(statuses: snapshot.statuses, indexURL: snapshot.indexURL)
+    }
+
+    /// `.onlyIfIndexChanged` かつ前回取得時から `.git/index` が動いていなければ、
+    /// キャッシュ済みの結果を返す(= git を起こさない)。それ以外は nil を返して取得へ進む。
+    /// fingerprint の取得は stat 1 回だけだが、ネットワークボリュームでも詰まらないよう
+    /// 他の git 呼び出しと同じくメインアクターの外で行う。
+    private func cachedResultIfIndexUnchanged(
+        at root: URL, policy: GitStatusRefreshPolicy
+    ) async -> GitStatusResult? {
+        guard policy == .onlyIfIndexChanged, let cached = cache[root.normalizedPathKey] else {
+            return nil
+        }
+        let reader = reader
+        let current = await Task.detached(priority: .utility) {
+            reader.indexFingerprint(forRepositoryAt: root)
+        }.value
+        guard current == cached.indexFingerprint else { return nil }
+        return GitStatusResult(statuses: cached.statuses, indexURL: cached.indexURL)
     }
 
     /// ルート単位のスナップショットを取り直す。取得できなければ(git を動かせなければ)nil。

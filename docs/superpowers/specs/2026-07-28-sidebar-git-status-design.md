@@ -219,6 +219,23 @@ fingerprint ポーリングと素朴に組み合わせると
 「status 実行 → fingerprint 変化 → 再取得 → …」の**自己励振ループ**になる。
 これを避けるため status 実行には必ず `--no-optional-locks` を付ける。
 
+### Phase 2 実装で採った形（2026-08-02）
+
+ポーリングは一切行わない。契機は次の 2 つだけで、どちらもイベント駆動。
+
+1. **`.git/index` の監視**（`SidebarNavigator` が状態取得のたびに対象を張り直す）
+   — `add` / `commit` / `checkout` は index を置き換えるので拾える。`FileWatcher` は
+   アトミック保存に追従するため親（`.git` ディレクトリ）も見ており、index の差し替えを
+   取りこぼさない。監視対象パスは `GitStatusSnapshot.indexURL`（worktree では `.git` が
+   ファイルなので呼び出し側では組み立てられない）を通じて渡す。
+   通知は `.onlyIfIndexChanged` で受け、fingerprint が動いていなければ git を起こさない。
+2. **表示中ファイルの再読込**（`ViewerStore.onContentReloaded`）
+   — 作業ツリーの編集は index を動かさないため、1 では拾えない。既存の
+   FileWatcher → 再読込の経路に相乗りするだけで済み、監視を追加しない。
+
+ディレクトリ監視は追加していない。1・2 とウィンドウのキー化（Phase 1）で
+受け入れ条件を満たせるため、監視対象を増やす理由がなかった。
+
 ## エラー処理・縮退
 
 - git 不在 / 非リポジトリ / コマンド reject → status 無し（バッジ非表示）
