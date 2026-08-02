@@ -67,6 +67,13 @@ struct GitStatusReader: GitStatusReading {
                 let url = root.appendingPathComponent(relativePath)
                 statuses[url.normalizedPathKey] = status
             }
+            // base ブランチからのコミット済み変更。検出できない場合(デフォルトブランチが
+            // 分からない・履歴が繋がっていない)は branchModified だけを諦め、
+            // staged / unstaged / untracked の表示は続ける。
+            for relativePath in branchModifiedPaths(forRepositoryAt: root) {
+                let key = root.appendingPathComponent(relativePath).normalizedPathKey
+                statuses[key, default: GitFileStatus()].isBranchModified = true
+            }
             return GitStatusSnapshot(
                 statuses: statuses,
                 indexFingerprint: repository.indexFingerprint(at: root),
@@ -80,9 +87,79 @@ struct GitStatusReader: GitStatusReading {
         }
     }
 
+    // MARK: - Branch Diff
+
+    /// 現在のブランチが base ブランチから変更したコミット済みファイル(ルート相対パス)。
+    /// デフォルトブランチを特定できない場合は空を返す(この機能だけを諦める)。
+    private func branchModifiedPaths(forRepositoryAt root: URL) -> [String] {
+        guard let defaultBranch = defaultBranch(forRepositoryAt: root),
+              case let .output(baseData) = runner.run(["merge-base", "HEAD", defaultBranch], in: root),
+              let base = String(bytes: baseData, encoding: .utf8)?
+              .trimmingCharacters(in: .whitespacesAndNewlines),
+              !base.isEmpty,
+              case let .output(diffData) = runner.run(
+                  ["diff", "--name-status", "-z", base, "HEAD"], in: root
+              )
+        else { return [] }
+        return Self.parseNameStatus(diffData)
+    }
+
+    /// base として使うデフォルトブランチ名。
+    ///
+    /// まず `origin/HEAD` の指す先(クローン時に決まる本来のデフォルト)を見る。
+    /// 無い場合(origin 無し・`--single-branch` クローンなど)はローカルの慣例名を試す。
+    /// どれも無ければ nil = 「base が分からない」。
+    private func defaultBranch(forRepositoryAt root: URL) -> String? {
+        if let name = originHeadBranch(forRepositoryAt: root) { return name }
+        return ["main", "master"].first { name in
+            if case .output = runner.run(["rev-parse", "--verify", "--quiet", name], in: root) {
+                return true
+            }
+            return false
+        }
+    }
+
+    /// `origin/HEAD` が指すブランチ名(例: `origin/main`)。解決できなければ nil。
+    private func originHeadBranch(forRepositoryAt root: URL) -> String? {
+        guard case let .output(data) = runner.run(
+            ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], in: root
+        ),
+            let name = String(bytes: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !name.isEmpty
+        else { return nil }
+        return name
+    }
+
+    /// `git diff --name-status -z` の出力から変更後のパスを取り出す。
+    ///
+    /// `-z` では「状態」と「パス」が別々の NUL 区切りフィールドとして並ぶ。
+    /// 改名・複製(`R100` / `C75`)だけはパスが 2 つ(元 → 先)続くため、
+    /// 読み進める数を状態で変える必要がある。
+    static func parseNameStatus(_ data: Data) -> [String] {
+        let fields = data.split(separator: 0, omittingEmptySubsequences: false).map {
+            String(bytes: $0, encoding: .utf8) ?? ""
+        }
+        var paths: [String] = []
+        var index = 0
+        while index < fields.count {
+            let status = fields[index]
+            index += 1
+            guard let kind = status.first else { continue }
+            // 改名・複製は「元パス」「変更後パス」の順。表示対象は変更後だけ。
+            let pathCount = (kind == "R" || kind == "C") ? 2 : 1
+            guard index + pathCount <= fields.count else { break }
+            let path = fields[index + pathCount - 1]
+            index += pathCount
+            guard !path.isEmpty else { continue }
+            paths.append(path)
+        }
+        return paths
+    }
+
     // MARK: - Parsing
 
-    /// パース結果 1 件。パスはリポジトリルート相対。
+    /// パース結果 1 件。パスはルート相対。
     typealias Entry = (path: String, status: GitFileStatus)
 
     /// `git status --porcelain=v2 -z` の出力をリポジトリルート相対パス → 状態へ変換する。

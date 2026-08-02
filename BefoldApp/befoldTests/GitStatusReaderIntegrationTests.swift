@@ -141,6 +141,69 @@ struct GitStatusReaderIntegrationTests {
         #expect(reader.indexFingerprint(forRepositoryAt: temp.url) == before)
     }
 
+    // MARK: - Branch Diff (TASK-186.3)
+
+    /// ブランチ内でコミット済み・作業ツリーはクリーンなファイルに branchModified が付く。
+    @Test("base ブランチからのコミット済み変更に branchModified が付く")
+    func marksFilesChangedInCurrentBranch() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "base.md", contents: "base", in: temp.url)
+        try GitTestRepo.commitFile(named: "changed.md", contents: "before", in: temp.url)
+        // 既定ブランチ名は git のバージョン/設定で master にも main にもなりうるため、
+        // 検出は実装(origin/HEAD → main → master)に委ね、ここでは分岐だけ作る。
+        GitTestRepo.createBranch(named: "feature", in: temp.url)
+        try GitTestRepo.commitChange(to: "changed.md", contents: "after", in: temp.url)
+
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+
+        func status(_ name: String) -> GitFileStatus? {
+            snapshot.statuses[temp.url.appendingPathComponent(name).normalizedPathKey]
+        }
+        #expect(status("changed.md")?.isBranchModified == true)
+        #expect(status("base.md") == nil)
+    }
+
+    /// worktree の変更は branchModified と両立する。バッジは worktree 側が優先されるが
+    /// (`GitStatusBadgeTests`)、状態としては両方立っていること自体を固定する。
+    @Test("ブランチ内変更と worktree の変更は両立する")
+    func combinesBranchModifiedWithWorktreeChange() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "a.md", contents: "base", in: temp.url)
+        GitTestRepo.createBranch(named: "feature", in: temp.url)
+        try GitTestRepo.commitChange(to: "a.md", contents: "committed", in: temp.url)
+        try GitTestRepo.modifyWithoutStaging("a.md", contents: "dirty", in: temp.url)
+
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let status = snapshot.statuses[temp.url.appendingPathComponent("a.md").normalizedPathKey]
+
+        #expect(status?.isBranchModified == true)
+        #expect(status?.worktreeChange == .modified)
+    }
+
+    /// デフォルトブランチを特定できない場合(origin が無く main/master も無い)は
+    /// branchModified だけを諦め、他の状態は出し続ける。
+    @Test("デフォルトブランチ検出不可なら branchModified のみ無効化する")
+    func disablesOnlyBranchModifiedWhenDefaultBranchIsUnknown() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        // main / master のどちらでもないブランチだけを持たせ、origin も付けない。
+        GitTestRepo.run(["checkout", "-b", "topic"], in: temp.url)
+        try GitTestRepo.commitFile(named: "a.md", contents: "base", in: temp.url)
+        try GitTestRepo.commitChange(to: "a.md", contents: "committed", in: temp.url)
+        try GitTestRepo.modifyWithoutStaging("a.md", contents: "dirty", in: temp.url)
+
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let status = snapshot.statuses[temp.url.appendingPathComponent("a.md").normalizedPathKey]
+
+        #expect(status?.worktreeChange == .modified)
+        #expect(status?.isBranchModified == false)
+    }
+
     @Test("変更が無いリポジトリでは空のスナップショットを返す")
     func returnsEmptySnapshotForCleanRepository() throws {
         let temp = try TempDir()

@@ -93,6 +93,16 @@ protocol GitStatusReading: Sendable {
 - `git diff --name-status -z <mergeBase> HEAD`
   → ブランチ内でコミット済みの変更ファイル（branchModified）
 
+Phase 3 実装時の確定事項（2026-08-02）:
+
+- デフォルトブランチの検出順は `origin/HEAD` → ローカル `main` → ローカル `master`。
+  どれも解決できなければ branchModified だけを諦める（他の状態はそのまま出す）。
+- ブランチ差分の取得は status 1 回につき最大 3 プロセス（`symbolic-ref` または
+  `rev-parse` / `merge-base` / `diff`）を追加する。契機がイベント駆動（Phase 2）で
+  連打されないこと、`GitStatusStore` が in-flight を畳むことが前提。
+- `--name-status -z` は「状態」と「パス」が別フィールドで並び、改名・複製だけ
+  パスが 2 つ続く。読み進める数を状態で変えないと以降の対応がずれる。
+
 すべて `GitCommandRunner.hardeningOptions` を通す。`GitCommandOutcome` の扱いは
 既存規約（`GitCommandFileIndex`）を踏襲し、**`.rejected`（実行できたが非 0）は結果として
 キャッシュしてよいが、`.unavailable`（起動不能・タイムアウト）はキャッシュしない**。

@@ -73,6 +73,30 @@ struct GitStatusReaderTests {
         #expect(parsed["conflict.swift"] == GitFileStatus(indexChange: .unmerged, worktreeChange: .unmerged))
     }
 
+    // MARK: - Branch Diff (TASK-186.3)
+
+    @Test("name-status: 変更後のパスを列挙する")
+    func parsesNameStatusPaths() {
+        let paths = GitStatusReader.parseNameStatus(porcelain(["M", "changed.swift", "A", "added.swift"]))
+
+        #expect(paths == ["changed.swift", "added.swift"])
+    }
+
+    /// 改名・複製だけはパスが 2 つ続く。読み進める数を間違えると以降が丸ごとずれる。
+    @Test("name-status: 改名・複製は変更後のパスだけを採り、後続がずれない")
+    func parsesRenameAndCopyEntries() {
+        let paths = GitStatusReader.parseNameStatus(
+            porcelain(["R100", "old.swift", "new.swift", "C75", "src.swift", "copy.swift", "M", "after.swift"])
+        )
+
+        #expect(paths == ["new.swift", "copy.swift", "after.swift"])
+    }
+
+    @Test("name-status: 空の出力は空の一覧になる")
+    func parsesEmptyNameStatus() {
+        #expect(GitStatusReader.parseNameStatus(Data()).isEmpty)
+    }
+
     @Test("スペースを含むファイル名でもパスが欠けない")
     func keepsPathsContainingSpaces() {
         let parsed = statuses([
