@@ -22,12 +22,6 @@ public protocol FileReading: Sendable {
 public struct DefaultFileReader: FileReading {
     public init() {}
 
-    /// BOM なし UTF-16 とみなす NUL パリティ偏りの許容比。
-    /// 少数側 / 多数側の NUL 数がこの比未満なら、NUL が偶数位置か奇数位置の
-    /// 一方にほぼ揃っており UTF-16 テキストと判断する
-    /// (実バイナリは NUL が散在し、この比は大きくなる)。
-    private static let utf16NulParitySkewRatio = 0.1
-
     public func fileExists(at url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.path)
     }
@@ -87,7 +81,7 @@ public struct DefaultFileReader: FileReading {
         // UTF-16 / UTF-32 の BOM があればテキスト。
         if TextEncoding.detectBOM(data) != nil { return false }
         // BOM なしでも NUL が片側の位置に偏っていれば UTF-16 テキストとみなす。
-        if Self.looksLikeUTF16(data) { return false }
+        if TextEncoding.looksLikeBOMlessUTF16(data) { return false }
         return true
     }
 
@@ -95,15 +89,5 @@ public struct DefaultFileReader: FileReading {
     /// および Shift_JIS / EUC-JP 等を判定して復号する。復号に失敗した場合は nil。
     private static func decodeUnicodeText(_ data: Data) -> String? {
         TextEncoding.decodeText(data)
-    }
-
-    /// NUL バイトが偶数位置・奇数位置のどちらか一方にほぼ偏っていれば
-    /// BOM なし UTF-16 テキストとみなす(実バイナリは NUL が散在する)。
-    private static func looksLikeUTF16(_ data: Data) -> Bool {
-        let parity = TextEncoding.nulParity(data)
-        let majority = max(parity.even, parity.odd)
-        guard majority > 0 else { return false }
-        let minority = min(parity.even, parity.odd)
-        return Double(minority) / Double(majority) < utf16NulParitySkewRatio
     }
 }
