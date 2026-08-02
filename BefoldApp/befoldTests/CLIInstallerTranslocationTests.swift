@@ -38,6 +38,7 @@ struct CLIInstallerTranslocationTests {
     @Test("translocated なバンドルからの install は書き込まずに専用エラーを返す")
     func installRefusesTranslocatedBundleWithoutWriting() throws {
         let tmp = try TempDir(prefix: "CLIInstallerTranslocationTests")
+        defer { withExtendedLifetime(tmp) {} }
         let installPath = tmp.url.appendingPathComponent("befold")
         let translocated =
             "/private/var/folders/7x/2m9d0000gn/T/AppTranslocation/"

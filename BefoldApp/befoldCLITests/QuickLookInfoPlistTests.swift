@@ -35,8 +35,11 @@ struct QuickLookInfoPlistTests {
         return cache
     }()
 
+    /// - Note: relativePath は plistCache の一括ロードリストに事前登録されている前提。
+    ///   未登録のパスを渡すとファイルが実在しても「読み込めない」に見えるので、
+    ///   #require が落ちたらまずリストへの登録漏れを疑うこと。
     private static func plist(at relativePath: String) throws -> [String: Any] {
-        try #require(plistCache[relativePath], "\(relativePath) を読み込めない")
+        try #require(plistCache[relativePath], "\(relativePath) を読み込めない(キャッシュ対象リストに含まれているか確認)")
     }
 
     /// appex の NSExtensionAttributes.QLSupportedContentTypes。

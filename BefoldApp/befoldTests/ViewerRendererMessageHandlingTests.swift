@@ -103,7 +103,8 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("findOptionsChanged が findOptionsPreference へ3トグルを書き戻す")
     func findOptionsChangedWritesBackPreference() {
-        let (renderer, _) = makeSUT()
+        let (renderer, delegate) = makeSUT()
+        defer { withExtendedLifetime(delegate) {} } // renderer.delegate は weak
         let preference =
             FindOptionsPreference(defaults: makeIsolatedDefaults(prefix: "ViewerRendererMessageHandlingTests"))
         preference.caseSensitive = false
@@ -123,7 +124,8 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("loadMoreLines が handleLoadMoreLines を起動する(isLoadingMoreLines が立つ)")
     func loadMoreLinesInvokesHandler() {
-        let (renderer, _) = makeSUT()
+        let (renderer, delegate) = makeSUT()
+        defer { withExtendedLifetime(delegate) {} } // renderer.delegate は weak
         #expect(renderer.isLoadingMoreLines == false)
 
         dispatch(renderer, name: ViewerBridge.loadMoreLinesMessageName, body: [])
@@ -267,7 +269,8 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("findOptionsChanged の値が Bool でなければ preference を書き換えない")
     func findOptionsChangedIgnoresNonBoolValues() {
-        let (renderer, _) = makeSUT()
+        let (renderer, delegate) = makeSUT()
+        defer { withExtendedLifetime(delegate) {} } // renderer.delegate は weak
         let preference =
             FindOptionsPreference(defaults: makeIsolatedDefaults(prefix: "ViewerRendererMessageHandlingTests"))
         preference.caseSensitive = false
