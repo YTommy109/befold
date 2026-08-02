@@ -52,6 +52,18 @@ protocol GitRepositoryReading: Sendable {
     func trackedFiles(at root: URL) -> [URL]?
     /// 追跡集合が変わると変化する軽量シグネチャ(.git/index の最終更新日時)。
     func indexFingerprint(at root: URL) -> Date?
+    /// `.git/index` の実パス。worktree では `.git` がファイルで実 gitdir を指すため、
+    /// 呼び出し側が `root/.git/index` と組み立てても当たらない。監視対象の指定に使う。
+    func indexURL(at root: URL) -> URL
+}
+
+extension GitRepositoryReading {
+    /// 通常のリポジトリ配置(`<root>/.git/index`)を仮定した既定。worktree / submodule の
+    /// `.git` ファイル経由の解決が要る実装(`GitRepository`)だけが上書きする。
+    /// テスト用フェイクがこの一点のために実装を持たされるのを避けるための既定でもある。
+    func indexURL(at root: URL) -> URL {
+        root.appendingPathComponent(".git").appendingPathComponent("index")
+    }
 }
 
 /// git コマンド + ファイル stat による GitRepositoryReading 実装。
@@ -93,7 +105,11 @@ struct GitRepository: GitRepositoryReading {
     /// キャッシュ無効化シグネチャに使う。外部のブランチ/ワークツリー切替を subprocess
     /// なしのファイル stat だけで検知できる。
     func indexFingerprint(at root: URL) -> Date? {
-        fileReader.modificationDate(at: gitDirectory(at: root).appendingPathComponent("index"))
+        fileReader.modificationDate(at: indexURL(at: root))
+    }
+
+    func indexURL(at root: URL) -> URL {
+        gitDirectory(at: root).appendingPathComponent("index")
     }
 
     /// メニュー表示用のリポジトリラベルを返す。本体なら "<ディレクトリ名>"、worktree なら

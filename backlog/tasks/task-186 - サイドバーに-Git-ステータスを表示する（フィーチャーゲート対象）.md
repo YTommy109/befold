@@ -1,10 +1,10 @@
 ---
 id: TASK-186
 title: サイドバーに Git ステータスを表示する（フィーチャーゲート対象）
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-28 14:22'
-updated_date: '2026-08-02 08:01'
+updated_date: '2026-08-02 10:01'
 labels: []
 dependencies: []
 documentation:
@@ -21,11 +21,11 @@ Git リポジトリ内のサイドバーファイル一覧で、変更ファイ�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Git リポジトリ内でサイドバー行の右端に状態バッジが表示される
-- [ ] #2 staged / unstaged / untracked / branchModified を区別できる
-- [ ] #3 staged+unstaged 両立時は index 側コードを優先表示しつつ色で worktree 変更も示す
-- [ ] #4 非 Git・git 不在・status 取得失敗・変更なし ではバッジ非表示に縮退する
-- [ ] #5 露出は FeatureGate.inProgressFeaturesEnabled で制御される
+- [x] #1 Git リポジトリ内でサイドバー行の右端に状態バッジが表示される
+- [x] #2 staged / unstaged / untracked / branchModified を区別できる
+- [x] #3 staged+unstaged 両立時は index 側コードを優先表示しつつ色で worktree 変更も示す
+- [x] #4 非 Git・git 不在・status 取得失敗・変更なし ではバッジ非表示に縮退する
+- [x] #5 露出は FeatureGate.inProgressFeaturesEnabled で制御される
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -50,4 +50,23 @@ Git リポジトリ内のサイドバーファイル一覧で、変更ファイ�
 - Phase 1 で BefoldTestSupport/GitTestRepo に staged/unstaged/untracked/ブランチ分岐のヘルパーを追加する。
 
 未対応（実装時に判断）: docs/dev/native-app-design.md に Git 系コンポーネントと FeatureGate の記述が一切ない（既存の欠落）。task-186 実装時に追記するのが妥当。
+
+Phase 1〜3 を完了(2026-08-02)。コミット: 65963d2f(Phase1) / 89f2fd71(Phase2) / 71c19c7a(Phase3)。
+
+受け入れ条件の裏取り:
+#1 サイドバー行右端のバッジ描画 → Debug ビルドの実起動+スクリーンショット(3 フェーズそれぞれで確認)。
+#2 staged/unstaged/untracked/branchModified の区別 → GitStatusReaderTests(porcelain・name-status のフィクスチャ)と実 git の統合テスト。
+#3 staged+unstaged 両立時の index 優先＋色でのアクセント → GitStatusBadgeTests(純粋写像)。
+#4 非 Git / git 不在 / 取得失敗 / 変更なしでの縮退 → GitStatusStoreTests(unavailable はキャッシュせず空へ縮退・rejected は空スナップショット)と統合テスト。
+#5 FeatureGate による露出制御 → 判定は ViewerWindowController.makeSidebarGitStatusLoader の 1 箇所のみ(stable 昇格時は task-187 でこの guard を消す)。
+
+残る手動確認: 撤去(task-187)まではバッジは dev/DEBUG ビルドのみで露出する。
+
+既知の不安定テスト(本タスクとは無関係、2026-08-02 に特定): CLIRequestWireIntegrationTests「全オプション付きの要求が実際の Distributed Notification を通って復元できる」がフルスイート実行時に約 5〜8 回に 1 回失敗する（waitUntil で通知が届かずタイムアウト）。単体実行(--filter)では 6/6 成功するため、フルスイート並行実行時の Distributed Notification 配送遅延が原因と推定。本タスクの差分は CLI/通知経路に一切触れておらず(git diff origin/main で当該テストと BefoldCLI に変更なし)、既存の不安定性。別タスクとして起票するかはユーザー判断待ち。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+サイドバーのファイル一覧に git 状態バッジを実装した。Phase 1 で porcelain v2 による staged/unstaged/untracked の表示（GitStatusReader / GitStatusStore / バッジ写像 / FeatureGate 制御）、Phase 2 で .git/index 監視と表示中ファイル再読込による自動更新（ポーリングなし・自己励振なし）、Phase 3 で merge-base 差分によるブランチ内変更（青 M）を追加。swift test 990 件パス、swiftformat/swiftlint はベースライン差分なし、各フェーズで Debug ビルドを実起動して描画と自動更新を目視確認した。
+<!-- SECTION:FINAL_SUMMARY:END -->

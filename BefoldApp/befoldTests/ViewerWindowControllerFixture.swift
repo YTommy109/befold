@@ -39,6 +39,7 @@ struct ViewerWindowControllerFixture {
         initialSortOrder: befold.SortOrder = .foldersFirst,
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
+        gitStatusStore: GitStatusStore = GitStatusStore(),
         openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { _, _, _ in },
         externalOpener: @escaping (URL) -> Void = { _ in }
     ) {
@@ -80,6 +81,7 @@ struct ViewerWindowControllerFixture {
             hiddenFilesPreference: hiddenFilesPreference ?? HiddenFilesPreference(defaults: defaults),
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
+            gitStatusStore: gitStatusStore,
             initialFrameDescriptor: initialFrameDescriptor,
             initialSortOrder: initialSortOrder,
             showLineNumbersOverride: showLineNumbersOverride,

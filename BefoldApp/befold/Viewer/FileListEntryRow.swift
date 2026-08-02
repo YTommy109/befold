@@ -5,6 +5,13 @@ import SwiftUI
 /// 共有する行表示。ここを一箇所にすることで両者の見た目の基準を一致させる。
 struct FileListEntryRow: View {
     let entry: FileListEntry
+    /// この行の git 状態を返すクロージャ。バッジを出さない画面(FolderListingView)は既定の nil。
+    ///
+    /// 状態そのものではなくクロージャを受け取るのは、`List` の行ビルダーが
+    /// (NSTableView 裏打ちのため)遅延評価され、呼び出し側で `model.gitStatuses` を読むと
+    /// 観測トラッキングのスコープ外になるため。**body の中で評価**することで行ごとに
+    /// 観測が登録され、状態マップだけを差し替えても行が描き直される。
+    var gitStatus: (() -> GitFileStatus?)?
 
     var body: some View {
         switch entry.kind {
@@ -49,6 +56,9 @@ struct FileListEntryRow: View {
                         .frame(width: 16, height: 16)
                 }
                 Spacer()
+                if let status = gitStatus?(), let appearance = GitStatusBadge.appearance(for: status) {
+                    GitStatusBadgeView(appearance: appearance)
+                }
             }
             .help(entry.url.lastPathComponent)
         }

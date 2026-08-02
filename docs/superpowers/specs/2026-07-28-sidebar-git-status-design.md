@@ -48,7 +48,10 @@ stable 昇格までは dev / DEBUG ビルドでのみ露出する。
 
 **staged + unstaged 両立時**: バッジ文字は **index 側を優先表示**しつつ、
 色で worktree 変更も示す（例: 文字は緑の index コード、加えて橙のアクセントを添える）。
-具体的な色トークンとアクセント表現は実装時に既存 UI のカラーに合わせて決める。
+
+Phase 1 実装では、アクセントを**文字の左に置く直径 4pt の橙の丸**にした
+（文字を 2 つ並べると行幅を食い、ファイル名の切り詰めが早まるため）。
+バッジ文字は 10pt の等幅セミボールド。
 
 バッジ非表示となるのは: 非 Git リポジトリ / git 不在 / status 取得失敗 / 変更なし。
 
@@ -90,6 +93,16 @@ protocol GitStatusReading: Sendable {
 - `git diff --name-status -z <mergeBase> HEAD`
   → ブランチ内でコミット済みの変更ファイル（branchModified）
 
+Phase 3 実装時の確定事項（2026-08-02）:
+
+- デフォルトブランチの検出順は `origin/HEAD` → ローカル `main` → ローカル `master`。
+  どれも解決できなければ branchModified だけを諦める（他の状態はそのまま出す）。
+- ブランチ差分の取得は status 1 回につき最大 3 プロセス（`symbolic-ref` または
+  `rev-parse` / `merge-base` / `diff`）を追加する。契機がイベント駆動（Phase 2）で
+  連打されないこと、`GitStatusStore` が in-flight を畳むことが前提。
+- `--name-status -z` は「状態」と「パス」が別フィールドで並び、改名・複製だけ
+  パスが 2 つ続く。読み進める数を状態で変えないと以降の対応がずれる。
+
 すべて `GitCommandRunner.hardeningOptions` を通す。`GitCommandOutcome` の扱いは
 既存規約（`GitCommandFileIndex`）を踏襲し、**`.rejected`（実行できたが非 0）は結果として
 キャッシュしてよいが、`.unavailable`（起動不能・タイムアウト）はキャッシュしない**。
@@ -103,8 +116,13 @@ protocol GitStatusReading: Sendable {
 
 ### GitFileStatus（新規）
 
-各ファイルの状態を表す値型。`OptionSet` で staged / unstaged / untracked / branchModified の
-組み合わせを表現し、表示層で「バッジ文字 + 色」へ写像する（写像は表示側の純粋関数）。
+各ファイルの状態を表す値型。表示層で「バッジ文字 + 色」へ写像する（写像は表示側の純粋関数）。
+
+当初は `OptionSet` を想定していたが、**Phase 1 実装時に構造体へ変更した**。バッジ文字は
+「index 側の変更種別（A / M / D …）そのもの」を出す仕様であり、フラグの集合からは
+文字を復元できないため。実際の形は
+`indexChange: Change?` / `worktreeChange: Change?` / `isUntracked` / `isBranchModified` で、
+組み合わせ（staged かつ unstaged など）は「どちらの辺が nil でないか」で表現する。
 
 ### GitStatusSnapshot（新規）
 
@@ -114,6 +132,11 @@ protocol GitStatusReading: Sendable {
 キーは **`URL` ではなく `normalizedPathKey`（String）** とする。リポジトリ全体の規約
 （`PathKeyedDictionary` / `WorktreeCatalog` / `FileListEntry.pathKey`）に合わせるため。
 URL をキーにすると symlink 経由の別表記で一致せず、`FileListEntry` との突合が落ちる。
+
+キーは**リポジトリルート相対ではなく解決済みの絶対パス**にする（Phase 1 実装時に確定）。
+`normalizedPathKey` は `resolvingSymlinksInPath()` でファイルシステムに触るため、
+メインアクター外で動く Reader 側で変換を済ませ、メインスレッドでの stat を避ける。
+`FileListEntry.pathKey` と同じ形になるので、表示側は絞り込みも変換もなしに引ける。
 
 ### GitStatusStore（新規、@MainActor @Observable）
 
@@ -140,6 +163,12 @@ no-op 実装（常に nil を返す）を既定値に用意する。
 `ViewerWindowController` へ forward → `SidebarNavigator` へは `resolveGitRoot` と同型の
 クロージャで注入する（SidebarNavigator が git 型に直接依存せず、既存テストが壊れない）。
 `ViewerWindowController` の既定値は no-op 実装とし、テストが git を spawn しないことを保証する。
+
+Store が要る共有 `gitFileIndex` の実体は `ViewerWindowManager` が握っている（既定引数で
+生成される）ため、`AppDelegate` は **windowManager を生成した直後にルート解決付きの
+Store を差し込む**形にする（`windowManager.gitStatusStore = GitStatusStore(...)`）。
+`ViewerWindowManager` / `ViewerWindowController` の既定値はルート解決が常に nil を返す
+無効化状態で、注入を省略したテストは git を起動しない。
 
 ### FileListModel / FileListEntryRow（既存を拡張）
 
@@ -199,6 +228,23 @@ fingerprint は *`git add` / commit / checkout など index を動かす操作�
 fingerprint ポーリングと素朴に組み合わせると
 「status 実行 → fingerprint 変化 → 再取得 → …」の**自己励振ループ**になる。
 これを避けるため status 実行には必ず `--no-optional-locks` を付ける。
+
+### Phase 2 実装で採った形（2026-08-02）
+
+ポーリングは一切行わない。契機は次の 2 つだけで、どちらもイベント駆動。
+
+1. **`.git/index` の監視**（`SidebarNavigator` が状態取得のたびに対象を張り直す）
+   — `add` / `commit` / `checkout` は index を置き換えるので拾える。`FileWatcher` は
+   アトミック保存に追従するため親（`.git` ディレクトリ）も見ており、index の差し替えを
+   取りこぼさない。監視対象パスは `GitStatusSnapshot.indexURL`（worktree では `.git` が
+   ファイルなので呼び出し側では組み立てられない）を通じて渡す。
+   通知は `.onlyIfIndexChanged` で受け、fingerprint が動いていなければ git を起こさない。
+2. **表示中ファイルの再読込**（`ViewerStore.onContentReloaded`）
+   — 作業ツリーの編集は index を動かさないため、1 では拾えない。既存の
+   FileWatcher → 再読込の経路に相乗りするだけで済み、監視を追加しない。
+
+ディレクトリ監視は追加していない。1・2 とウィンドウのキー化（Phase 1）で
+受け入れ条件を満たせるため、監視対象を増やす理由がなかった。
 
 ## エラー処理・縮退
 

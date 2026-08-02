@@ -2192,6 +2192,91 @@
           }
         }
       }
+    },
+    "sidebar.gitStatus.staged": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Staged"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ステージ済み"
+          }
+        }
+      }
+    },
+    "sidebar.gitStatus.stagedAndUnstaged": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Staged, with unstaged changes"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ステージ済み（未ステージの変更あり）"
+          }
+        }
+      }
+    },
+    "sidebar.gitStatus.unstaged": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modified, not staged"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未ステージの変更"
+          }
+        }
+      }
+    },
+    "sidebar.gitStatus.untracked": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untracked"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未追跡"
+          }
+        }
+      }
+    },
+    "sidebar.gitStatus.branchModified": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changed in this branch"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このブランチでの変更"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
