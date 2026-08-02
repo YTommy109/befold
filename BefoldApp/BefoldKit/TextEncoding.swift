@@ -11,6 +11,18 @@ public enum TextEncoding: Sendable {
     /// バイナリ判定・エンコーディング判定に見る先頭バイト数。
     public static let sniffLength = 8192
 
+    /// BOM なし UTF-16 とみなす NUL パリティ偏りの許容比。
+    /// 少数側 / 多数側の NUL 数がこの比未満なら、NUL が偶数位置か奇数位置の
+    /// 一方にほぼ揃っており UTF-16 テキストと判断する
+    /// (実バイナリは NUL が散在し、この比は大きくなる)。
+    private static let utf16NulParitySkewRatio = 0.1
+
+    /// BOM なし UTF-16 と判断するために必要な NUL の最小個数(多い方の位置での個数)。
+    /// 1〜数個の孤立した NUL は必ず偏り比 0 になり誤って UTF-16 と判定されるため、
+    /// 偏り比だけでなく個数でも足切りする(実際の UTF-16 テキストは sniffLength の
+    /// 窓内に NUL が多数現れる)。
+    private static let minimumNulCountForUTF16Heuristic = 8
+
     /// 静的1回読込(QuickLook 等)でレガシーエンコーディング判定が先頭 sniffLength バイトで
     /// 確定しなかった場合に、全データの代わりに使うフォールバック判定窓の上限。
     /// sniffLength より大きく、かつ 100MB 級ファイルでも即応できる範囲に収める。
@@ -52,7 +64,7 @@ public enum TextEncoding: Sendable {
             return (bom.encoding, bom.bomLength, nil)
         }
         let nulCheckWindow = data.prefix(sniffLength)
-        if nulCheckWindow.contains(0) {
+        if looksLikeBOMlessUTF16(nulCheckWindow) {
             let encoding: String.Encoding = looksLittleEndianUTF16(nulCheckWindow)
                 ? .utf16LittleEndian : .utf16BigEndian
             return (encoding, 0, nil)
@@ -151,5 +163,17 @@ public enum TextEncoding: Sendable {
     static func looksLittleEndianUTF16(_ data: Data) -> Bool {
         let parity = nulParity(data)
         return parity.odd >= parity.even
+    }
+
+    /// NUL バイトの個数と位置的偏りから、BOM なし UTF-16 テキストらしいかを判定する。
+    /// 実バイナリは NUL が散在し偏り比が大きくなるため偏り比で弾き、UTF-8 中の
+    /// 孤立した NUL(誤って混入した1個等)は偏り比だけでは弾けない(必ず 0 になる)ため、
+    /// 最小個数でも足切りする(実際の UTF-16 テキストは判定窓内に NUL が多数現れる)。
+    static func looksLikeBOMlessUTF16(_ data: Data) -> Bool {
+        let parity = nulParity(data)
+        let majority = max(parity.even, parity.odd)
+        guard majority >= minimumNulCountForUTF16Heuristic else { return false }
+        let minority = min(parity.even, parity.odd)
+        return Double(minority) / Double(majority) < utf16NulParitySkewRatio
     }
 }

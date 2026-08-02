@@ -88,6 +88,18 @@ struct TextEncodingTests {
         #expect(detected?.encoding != .utf16BigEndian)
     }
 
+    @Test("先頭8KB以内に孤立したNULが1個だけあるUTF-8テキストはUTF-16と誤判定されずそのまま復号される")
+    func decodesUTF8WithSingleStrayNulInSniffWindowWithoutMisdetection() throws {
+        let text = "見出し\0本文の続き\n2行目です。"
+        let data = try #require(text.data(using: .utf8))
+
+        let detected = TextEncoding.detectEncoding(data)
+        #expect(detected?.encoding == .utf8)
+
+        let decoded = TextEncoding.decodeText(data)
+        #expect(decoded == text)
+    }
+
     @Test("2バイト文字がsniffLength境界をまたぐShift_JISファイルを正しくデコードする")
     func decodesShiftJISWithMultiByteCharacterCrossingSniffBoundary() throws {
         let line = "日本語のテスト文字列です。"
