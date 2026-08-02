@@ -1,9 +1,10 @@
 ---
 id: TASK-259
 title: CLIRequestWireIntegrationTests が Distributed Notification の配送レースで flaky
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-02 10:04'
+updated_date: '2026-08-02 13:25'
 labels:
   - test
 dependencies: []
@@ -24,7 +25,19 @@ befoldCLITests/CLIRequestWireIntegrationTests.swift の「全オプション付�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 フルスイート（swift test）を 10 回連続実行して当該テストが 1 度も失敗しない
-- [ ] #2 配送されないまま待ち続ける形ではなく、届くまで post を再試行する形（BefoldTestSupport の waitUntilWithRetry 相当）になっている
-- [ ] #3 修正後も「実 DistributedNotificationCenter を通した往復を検証する」というテストの意図が保たれている（ワイヤ表現の encode/decode だけを検証する形に退化していない）
+- [x] #1 フルスイート（swift test）を 10 回連続実行して当該テストが 1 度も失敗しない
+- [x] #2 配送されないまま待ち続ける形ではなく、届くまで post を再試行する形（BefoldTestSupport の waitUntilWithRetry 相当）になっている
+- [x] #3 修正後も「実 DistributedNotificationCenter を通した往復を検証する」というテストの意図が保たれている（ワイヤ表現の encode/decode だけを検証する形に退化していない）
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+既存の waitUntilWithRetry を使い、届くまで post を再試行する形へ変更（新しい状態や分岐は追加せず既存ヘルパーの流用のみ）。Sendable 制約のため userInfo を [String: String] へ写し、件数一致で欠落がないことを担保。実 DistributedNotificationCenter 往復の検証意図は維持。検証: swift test（フルスイート）10 回連続で全て成功。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+CLIRequestWireIntegrationTests の単発 post + waitUntil を waitUntilWithRetry による post 再送へ変更し、distnoted のオブザーバ登録レースで通知が捨てられても回復するようにした。swift test を 10 回連続実行して全て成功。
+<!-- SECTION:FINAL_SUMMARY:END -->
