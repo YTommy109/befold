@@ -28,9 +28,17 @@ public final class DistributedAckWaiter: AckWaiting, @unchecked Sendable {
     private let lock = NSLock()
     private var acked = false
     private var observer: (any NSObjectProtocol)?
+    private let center: NotificationCenter
 
-    public init(requestID: String) {
-        observer = DistributedNotificationCenter.default().addObserver(
+    /// - Parameter center: 観測対象の通知センター。既定は本番と同じ
+    ///   `DistributedNotificationCenter`。テストではローカルの `NotificationCenter()` を
+    ///   注入することで、IPC・メインランループを介さない同期配送に対して
+    ///   requestID フィルタと cancel() の解除だけを検証できる
+    ///   (`AckWaitingTests` を参照。ここが検証しているのは実配送の挙動ではなく
+    ///   waiter 自身のロジックなので、注入シームで unit 化する対象)。
+    public init(requestID: String, center: NotificationCenter = DistributedNotificationCenter.default()) {
+        self.center = center
+        observer = center.addObserver(
             forName: CLIRequestWire.ackNotificationName, object: nil, queue: nil
         ) { [weak self] notification in
             guard CLIRequestWire.ackRequestID(from: notification.userInfo) == requestID else { return }
