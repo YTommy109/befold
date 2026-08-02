@@ -4,6 +4,12 @@ stable リリースのユーザー影響のある変更を記録する。
 dev リリースの全変更履歴は [GitHub Releases](https://github.com/YTommy109/befold/releases) を参照。
 v1.5.0 より前の履歴は GitHub Releases の各タグページを参照。
 
+## v1.11.4
+
+### 新機能
+- AI 連携画面に skill ファイルのコピーボタンを追加しました。
+- OSS 謝辞を Markdown としてレンダリング表示するようにしました。
+
 ## v1.11.1
 
 ### 新機能
