@@ -4,7 +4,7 @@ title: サイドバーに Git ステータスを表示する（フィーチャ�
 status: Done
 assignee: []
 created_date: '2026-07-28 14:22'
-updated_date: '2026-08-02 09:58'
+updated_date: '2026-08-02 10:01'
 labels: []
 dependencies: []
 documentation:
@@ -61,6 +61,8 @@ Phase 1〜3 を完了(2026-08-02)。コミット: 65963d2f(Phase1) / 89f2fd71(Ph
 #5 FeatureGate による露出制御 → 判定は ViewerWindowController.makeSidebarGitStatusLoader の 1 箇所のみ(stable 昇格時は task-187 でこの guard を消す)。
 
 残る手動確認: 撤去(task-187)まではバッジは dev/DEBUG ビルドのみで露出する。
+
+既知の不安定テスト(本タスクとは無関係、2026-08-02 に特定): CLIRequestWireIntegrationTests「全オプション付きの要求が実際の Distributed Notification を通って復元できる」がフルスイート実行時に約 5〜8 回に 1 回失敗する（waitUntil で通知が届かずタイムアウト）。単体実行(--filter)では 6/6 成功するため、フルスイート並行実行時の Distributed Notification 配送遅延が原因と推定。本タスクの差分は CLI/通知経路に一切触れておらず(git diff origin/main で当該テストと BefoldCLI に変更なし)、既存の不安定性。別タスクとして起票するかはユーザー判断待ち。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
