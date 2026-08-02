@@ -74,6 +74,6 @@ public final class DistributedAckWaiter: AckWaiting, @unchecked Sendable {
         self.observer = nil
         lock.unlock()
         guard let observer else { return }
-        DistributedNotificationCenter.default().removeObserver(observer)
+        center.removeObserver(observer)
     }
 }

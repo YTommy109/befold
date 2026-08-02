@@ -38,25 +38,17 @@ public enum CLIRequestWire {
         userInfo?[Key.requestID] as? String
     }
 
+    /// ACK 通知の userInfo をエンコードする(送信側・テストの双方から参照する単一情報源)。
+    public static func ackUserInfo(requestID: String) -> [AnyHashable: Any] {
+        [Key.requestID: requestID]
+    }
+
     /// 受信側が要求を受け取ったことを ACK 通知で送り返す。
-    ///
-    /// - Parameter center: 投稿先の通知センター。既定は本番と同じ
-    ///   `DistributedNotificationCenter`(`deliverImmediately: true` でコアレッシングを
-    ///   避ける)。テストでローカルの `NotificationCenter()` を注入した場合は、
-    ///   `deliverImmediately` を持たない標準の `post(name:object:userInfo:)` を使う
-    ///   (ローカル配送は post が戻る前に同期的に全 observer を呼び切るため、
-    ///   コアレッシング回避の指定自体が不要)。
-    public static func sendAck(
-        requestID: String, center: NotificationCenter = DistributedNotificationCenter.default()
-    ) {
-        let userInfo: [AnyHashable: Any] = [Key.requestID: requestID]
-        if let distributedCenter = center as? DistributedNotificationCenter {
-            distributedCenter.postNotificationName(
-                ackNotificationName, object: nil, userInfo: userInfo, deliverImmediately: true
-            )
-        } else {
-            center.post(name: ackNotificationName, object: nil, userInfo: userInfo)
-        }
+    public static func sendAck(requestID: String) {
+        DistributedNotificationCenter.default().postNotificationName(
+            ackNotificationName, object: nil,
+            userInfo: ackUserInfo(requestID: requestID), deliverImmediately: true
+        )
     }
 
     /// ACK 通知の userInfo から requestID を取り出す(送信側の待ち受け用)。
