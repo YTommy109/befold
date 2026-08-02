@@ -4,6 +4,11 @@ stable リリースのユーザー影響のある変更を記録する。
 dev リリースの全変更履歴は [GitHub Releases](https://github.com/YTommy109/befold/releases) を参照。
 v1.5.0 より前の履歴は GitHub Releases の各タグページを参照。
 
+## v1.11.6
+
+### 修正
+- ファイルに NUL バイトが混入していると、内容が文字化けして表示される問題を修正
+
 ## v1.11.4
 
 ### 新機能
