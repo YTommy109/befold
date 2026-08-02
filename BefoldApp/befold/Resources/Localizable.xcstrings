@@ -2277,6 +2277,57 @@
           }
         }
       }
+    },
+    "aiIntegration.copySkill": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy skill file"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "skill ファイルをコピーする"
+          }
+        }
+      }
+    },
+    "aiIntegration.copySkill.done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コピーしました"
+          }
+        }
+      }
+    },
+    "aiIntegration.copySkill.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copies the skill file contents below to the clipboard"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下の skill ファイルの内容をクリップボードにコピーします"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

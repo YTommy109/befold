@@ -31,4 +31,19 @@ struct HelpPanelResourceTests {
         // コピーボタンが載せる内容。skill として成立する最低限（front matter の name）を確認する。
         #expect(text.contains("name: befold-review"))
     }
+
+    /// コピーボタンが載せるのは skill ファイル本体であって、画面の説明文や
+    /// 保存先パスの手順ではない。クリップボードの中身そのものは GUI 操作を伴うため
+    /// 手動チェックに委ね、ここでは「何をコピー対象に選んでいるか」を固定する。
+    @MainActor
+    @Test("AI 連携画面が保持するコピー対象は skill ファイル本体そのもの")
+    func copyTargetIsTheSkillFileItself() throws {
+        let url = try #require(
+            Bundle.appResources.url(forResource: "befold-review-skill", withExtension: "md")
+        )
+        let expected = try String(contentsOf: url, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        #expect(AIIntegrationView().exampleSkill == expected)
+    }
 }
