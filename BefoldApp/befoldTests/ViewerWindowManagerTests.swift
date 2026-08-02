@@ -280,28 +280,47 @@ struct ViewerWindowManagerTests {
         #expect(group == nil)
     }
 
-    @Test("単独ウィンドウは自身を選択タブとする1枚のグループになる")
-    func makeTabGroupForSingleWindow() throws {
-        let group = try #require(
-            ViewerWindowManager.makeTabGroup(
-                tabWindows: ["/a.mmd"], selectedWindow: "/a.mmd", viewerPath: { $0 }
-            )
-        )
-
-        #expect(group.paths == ["/a.mmd"])
-        #expect(group.selectedPath == "/a.mmd")
+    /// タブがすべてビューアの場合の入力と期待値。
+    struct TabGroupCase: Sendable, CustomTestStringConvertible {
+        let name: String
+        let tabWindows: [String]
+        let selectedWindow: String
+        let expectedPaths: [String]
+        let expectedSelectedPath: String
+        var testDescription: String {
+            name
+        }
     }
 
-    @Test("タブ順は保たれ、選択タブのパスが selectedPath になる")
-    func makeTabGroupKeepsTabOrderAndSelection() throws {
+    /// 単独ウィンドウは「全タブがビューア」の縮退ケースなので同じ表で回す。
+    private nonisolated static let tabGroupCases: [TabGroupCase] = [
+        TabGroupCase(
+            name: "単独ウィンドウ",
+            tabWindows: ["/a.mmd"], selectedWindow: "/a.mmd",
+            expectedPaths: ["/a.mmd"], expectedSelectedPath: "/a.mmd"
+        ),
+        TabGroupCase(
+            name: "先頭が選択されている3タブ",
+            tabWindows: ["/a.mmd", "/b.mmd", "/c.mmd"], selectedWindow: "/a.mmd",
+            expectedPaths: ["/a.mmd", "/b.mmd", "/c.mmd"], expectedSelectedPath: "/a.mmd"
+        ),
+        TabGroupCase(
+            name: "中央が選択されている3タブ",
+            tabWindows: ["/a.mmd", "/b.mmd", "/c.mmd"], selectedWindow: "/b.mmd",
+            expectedPaths: ["/a.mmd", "/b.mmd", "/c.mmd"], expectedSelectedPath: "/b.mmd"
+        ),
+    ]
+
+    @Test("タブ順は保たれ、選択タブのパスが selectedPath になる", arguments: tabGroupCases)
+    func makeTabGroupKeepsTabOrderAndSelection(_ testCase: TabGroupCase) throws {
         let group = try #require(
             ViewerWindowManager.makeTabGroup(
-                tabWindows: ["/a.mmd", "/b.mmd", "/c.mmd"], selectedWindow: "/b.mmd", viewerPath: { $0 }
+                tabWindows: testCase.tabWindows, selectedWindow: testCase.selectedWindow, viewerPath: { $0 }
             )
         )
 
-        #expect(group.paths == ["/a.mmd", "/b.mmd", "/c.mmd"])
-        #expect(group.selectedPath == "/b.mmd")
+        #expect(group.paths == testCase.expectedPaths)
+        #expect(group.selectedPath == testCase.expectedSelectedPath)
     }
 
     @Test("ビューアでないタブは除外され、選択タブがビューアでなければ selectedPath は nil になる")

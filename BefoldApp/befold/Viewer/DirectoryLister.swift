@@ -6,16 +6,29 @@ enum DirectoryLister {
     /// DefaultFileReader に集約し、ここではそこへ委譲する。
     private static let fileReader: any FileReading = DefaultFileReader()
 
+    /// 親移動エントリを許可する上限(ホームディレクトリ)の本番既定値。
+    /// FileReading は「存在・種別・内容の読み取り」に責務を絞っており、
+    /// ホームの所在はそこに属さないため、独立した既定値として持つ。
+    static var defaultHome: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+    }
+
     static func listFiles(in directory: URL, fileReader: any FileReading = Self.fileReader) -> [URL] {
         sortedContents(in: directory, fileReader: fileReader).files
     }
 
     /// 一覧構築ロジックの同期版。本番の経路は非同期版(listEntriesAsync)のみを使うため、
     /// ここは並べ替え・隠しファイル・親移動エントリの規則を直接検証するテスト用の入口。
+    /// - Parameter home: 親移動エントリを許可する上限(ホームディレクトリ)。
+    ///   既定は実ユーザーのホーム。テストは一時ディレクトリを渡して実ホームの
+    ///   内容に依存せずに親移動エントリの規則を検証する。
     static func listEntries(
-        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
+        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false,
+        home: URL = defaultHome
     ) -> [FileListEntry] {
-        buildEntries(in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
+        buildEntries(
+            in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles, home: home
+        )
     }
 
     /// listEntries と同一ロジックを、呼び出し元アクターを離れて実行する版。
@@ -25,18 +38,20 @@ enum DirectoryLister {
     static func listEntriesAsync(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
     ) async -> [FileListEntry] {
-        buildEntries(in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
+        buildEntries(
+            in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles, home: defaultHome
+        )
     }
 
     private static func buildEntries(
-        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool
+        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool, home: URL
     ) -> [FileListEntry] {
         let (folders, files) = sortedContents(in: directory, showHiddenFiles: showHiddenFiles)
 
         var entries: [FileListEntry] = []
 
         let parent = directory.deletingLastPathComponent()
-        if isWithinHome(parent) {
+        if isWithinHome(parent, home: home) {
             entries.append(FileListEntry(url: parent, kind: .parentNavigation))
         }
 
@@ -84,10 +99,12 @@ enum DirectoryLister {
     /// symlink を解決した normalizedPathKey で比較し、パス表記の揺れを吸収する。
     /// 前方一致だけの兄弟パス(例: ホームが `/Users/xxx` のとき `/Users/xxx2`)を
     /// 誤って含めないよう、区切り文字 `/` を含めて比較する。
-    static func isWithinHome(_ url: URL) -> Bool {
-        let home = FileManager.default.homeDirectoryForCurrentUser.normalizedPathKey
+    /// - Parameter home: 比較の基準となるホームディレクトリ。既定は実ユーザーのホーム。
+    ///   テストは一時ディレクトリを渡し、実ホームに依存せず判定規則だけを検証する。
+    static func isWithinHome(_ url: URL, home: URL = defaultHome) -> Bool {
+        let homeKey = home.normalizedPathKey
         let target = url.normalizedPathKey
-        return target == home || target.hasPrefix(home + "/")
+        return target == homeKey || target.hasPrefix(homeKey + "/")
     }
 
     /// 指定パスが存在するファイル(ディレクトリでない)かどうかを判定する。

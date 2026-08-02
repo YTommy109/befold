@@ -8,48 +8,10 @@ import Testing
 @Suite
 @MainActor
 struct MenuShortcutCatalogTests {
-    private final class StubMenuDelegate: NSObject, NSMenuDelegate {}
-
-    /// 1 テスト内で groups()/entries() を複数回呼んでも、entries→groups→buildMenu の
-    /// フルメニュー構築(@MainActor 直列区間)を毎回繰り返さないようにキャッシュする。
-    /// MainActor 隔離のテストからのみ参照するため box 自体に Sendable 制約は不要。
-    private final class MenuCache {
-        var menu: NSMenu?
-    }
-
-    // NSMenu.delegate は weak のため、テスト実行中は強参照を保持しておく。
-    private let recentMenuDelegate = StubMenuDelegate()
-    private let bookmarksMenuDelegate = StubMenuDelegate()
-    private let recentRepositoriesMenuDelegate = StubMenuDelegate()
-    private let menuCache = MenuCache()
-
-    private func buildMenu() -> NSMenu {
-        if let cached = menuCache.menu { return cached }
-        // swift test のプロセスでは NSApp が未初期化のため先に生成する。
-        _ = NSApplication.shared
-        let menu = MainMenuBuilder.build(
-            openAction: #selector(AppDelegate.showOpenPanel),
-            helpActions: MainMenuHelpActions(
-                visitWebsite: #selector(AppDelegate.openHelp(_:)),
-                featureOverview: #selector(AppDelegate.showFeatureOverview(_:)),
-                keyboardShortcuts: #selector(AppDelegate.showKeyboardShortcuts(_:)),
-                aiIntegration: #selector(AppDelegate.showAIIntegration(_:)),
-                ossAcknowledgements: #selector(AppDelegate.showOSSLicenses(_:))
-            ),
-            recentMenuDelegate: recentMenuDelegate,
-            bookmarksMenuDelegate: bookmarksMenuDelegate,
-            recentRepositoriesMenuDelegate: recentRepositoriesMenuDelegate
-        )
-        menuCache.menu = menu
-        return menu
-    }
+    private let fixture = MainMenuFixture()
 
     private func groups() -> [MenuShortcutCatalog.Group] {
-        MenuShortcutCatalog.groups(from: buildMenu(), appMenuTitle: "befold")
-    }
-
-    private func localizedTitle(_ key: String.LocalizationValue) -> String {
-        String(localized: key, bundle: .l10n)
+        MenuShortcutCatalog.groups(from: fixture.menu(), appMenuTitle: "befold")
     }
 
     private func entries(inGroupTitled title: String) -> [MenuShortcutCatalog.Entry] {
@@ -62,11 +24,11 @@ struct MenuShortcutCatalogTests {
 
         #expect(titles == [
             "befold",
-            localizedTitle("menu.file.title"),
-            localizedTitle("menu.edit.title"),
-            localizedTitle("menu.view.title"),
-            localizedTitle("menu.window.title"),
-            localizedTitle("menu.help.title"),
+            fixture.localizedTitle("menu.file.title"),
+            fixture.localizedTitle("menu.edit.title"),
+            fixture.localizedTitle("menu.view.title"),
+            fixture.localizedTitle("menu.window.title"),
+            fixture.localizedTitle("menu.help.title"),
         ])
     }
 
@@ -75,19 +37,19 @@ struct MenuShortcutCatalogTests {
         let appEntries = entries(inGroupTitled: "befold")
 
         // About / Check for Updates / Install CLI はショートカット未割り当て。
-        #expect(!appEntries.contains { $0.title == localizedTitle("menu.app.about") })
-        #expect(!appEntries.contains { $0.title == localizedTitle("menu.app.checkForUpdates") })
-        #expect(!appEntries.contains { $0.title == localizedTitle("menu.app.installCLI") })
-        #expect(appEntries.contains { $0.title == localizedTitle("menu.app.quit") })
+        #expect(!appEntries.contains { $0.title == fixture.localizedTitle("menu.app.about") })
+        #expect(!appEntries.contains { $0.title == fixture.localizedTitle("menu.app.checkForUpdates") })
+        #expect(!appEntries.contains { $0.title == fixture.localizedTitle("menu.app.installCLI") })
+        #expect(appEntries.contains { $0.title == fixture.localizedTitle("menu.app.quit") })
     }
 
     @Test("区切り線と動的サブメニューは一覧に出ない")
     func separatorsAndDynamicSubmenusAreExcluded() {
-        let fileEntries = entries(inGroupTitled: localizedTitle("menu.file.title"))
+        let fileEntries = entries(inGroupTitled: fixture.localizedTitle("menu.file.title"))
 
         #expect(!fileEntries.contains { $0.title.isEmpty })
-        #expect(!fileEntries.contains { $0.title == localizedTitle("menu.file.openRecent") })
-        #expect(!fileEntries.contains { $0.title == localizedTitle("menu.file.bookmarks") })
+        #expect(!fileEntries.contains { $0.title == fixture.localizedTitle("menu.file.openRecent") })
+        #expect(!fileEntries.contains { $0.title == fixture.localizedTitle("menu.file.bookmarks") })
     }
 
     /// 修飾キーは macOS 標準の ⌃⌥⇧⌘ 順で表記し、英字は大文字にする。
@@ -106,10 +68,10 @@ struct MenuShortcutCatalogTests {
         // アプリメニューだけはメニュー自体にタイトルが無いため、呼び出し側が与えた名前で引く。
         let groupTitle = groupKey == "menu.app.title"
             ? "befold"
-            : localizedTitle(String.LocalizationValue(groupKey))
+            : fixture.localizedTitle(String.LocalizationValue(groupKey))
         let entry = try #require(
             entries(inGroupTitled: groupTitle)
-                .first { $0.title == localizedTitle(String.LocalizationValue(titleKey)) }
+                .first { $0.title == fixture.localizedTitle(String.LocalizationValue(titleKey)) }
         )
 
         #expect(entry.key == key)
@@ -117,7 +79,7 @@ struct MenuShortcutCatalogTests {
 
     @Test("メニューに割り当てた全ショートカットが一覧に現れる")
     func everyAssignedShortcutAppears() {
-        let mainMenu = buildMenu()
+        let mainMenu = fixture.menu()
         let assigned = mainMenu.items
             .compactMap(\.submenu)
             .flatMap(\.items)

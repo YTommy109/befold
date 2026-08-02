@@ -5,71 +5,33 @@ import Testing
 @Suite
 @MainActor
 struct MainMenuBuilderTests {
-    private final class StubMenuDelegate: NSObject, NSMenuDelegate {}
-
-    // NSMenu.delegate は weak。buildMenu() 呼び出し中だけの一時インスタンスだと、
-    // 代入直後に解放されて delegate が nil に化ける(トラップ)。struct のプロパティとして
-    // 保持し、テスト実行(assert 時点)まで生存させる。recentRepositoriesMenuDelegate だけは
-    // 呼び出し側で識別を検証したいケースがあるため、そちらは引数として個別に受け取る。
-    private let recentMenuDelegate = StubMenuDelegate()
-    private let bookmarksMenuDelegate = StubMenuDelegate()
-
-    private func buildMenu(recentRepositoriesMenuDelegate: NSMenuDelegate = StubMenuDelegate()) -> NSMenu {
-        // swift test のプロセスでは NSApp が未初期化のため、
-        // MainMenuBuilder が参照する前に NSApplication.shared で初期化する
-        _ = NSApplication.shared
-        return MainMenuBuilder.build(
-            openAction: #selector(AppDelegate.showOpenPanel),
-            helpActions: MainMenuHelpActions(
-                visitWebsite: #selector(AppDelegate.openHelp(_:)),
-                featureOverview: #selector(AppDelegate.showFeatureOverview(_:)),
-                keyboardShortcuts: #selector(AppDelegate.showKeyboardShortcuts(_:)),
-                aiIntegration: #selector(AppDelegate.showAIIntegration(_:)),
-                ossAcknowledgements: #selector(AppDelegate.showOSSLicenses(_:))
-            ),
-            recentMenuDelegate: recentMenuDelegate,
-            bookmarksMenuDelegate: bookmarksMenuDelegate,
-            recentRepositoriesMenuDelegate: recentRepositoriesMenuDelegate
-        )
-    }
-
-    /// メニュータイトルは実行環境の言語で解決されるため、
-    /// テストも Localizable.xcstrings 経由で期待値を得る。
-    private func localizedTitle(_ key: String.LocalizationValue) -> String {
-        String(localized: key, bundle: .l10n)
-    }
-
-    private func submenu(titledKey key: String.LocalizationValue, in mainMenu: NSMenu) -> NSMenu? {
-        let title = localizedTitle(key)
-        return mainMenu.items.first { $0.submenu?.title == title }?.submenu
-    }
+    private let fixture = MainMenuFixture()
 
     @Test("トップレベルは App/File/Edit/View/Window/Help の 6 メニュー")
     func topLevelMenusArePresent() {
-        let mainMenu = buildMenu()
+        let mainMenu = fixture.menu()
 
         #expect(mainMenu.items.count == 6)
         let titles = mainMenu.items.compactMap(\.submenu?.title)
-        #expect(titles.contains(localizedTitle("menu.file.title")))
-        #expect(titles.contains(localizedTitle("menu.edit.title")))
-        #expect(titles.contains(localizedTitle("menu.view.title")))
-        #expect(titles.contains(localizedTitle("menu.window.title")))
-        #expect(titles.contains(localizedTitle("menu.help.title")))
+        #expect(titles.contains(fixture.localizedTitle("menu.file.title")))
+        #expect(titles.contains(fixture.localizedTitle("menu.edit.title")))
+        #expect(titles.contains(fixture.localizedTitle("menu.view.title")))
+        #expect(titles.contains(fixture.localizedTitle("menu.window.title")))
+        #expect(titles.contains(fixture.localizedTitle("menu.help.title")))
     }
 
     @Test("File メニューの記憶済みリストは 履歴2つ → Bookmarks の順で並ぶ")
     func fileMenuListsHistoriesBeforeBookmarks() throws {
-        let mainMenu = buildMenu()
-        let file = try #require(submenu(titledKey: "menu.file.title", in: mainMenu))
+        let file = try #require(fixture.submenu(titledKey: "menu.file.title"))
 
         let recentIndex = try #require(file.items.firstIndex {
-            $0.submenu?.title == localizedTitle("menu.file.openRecent")
+            $0.submenu?.title == fixture.localizedTitle("menu.file.openRecent")
         })
         let recentRepositoriesIndex = try #require(file.items.firstIndex {
-            $0.submenu?.title == localizedTitle("menu.file.recentRepositories")
+            $0.submenu?.title == fixture.localizedTitle("menu.file.recentRepositories")
         })
         let bookmarksIndex = try #require(file.items.firstIndex {
-            $0.submenu?.title == localizedTitle("menu.file.bookmarks")
+            $0.submenu?.title == fixture.localizedTitle("menu.file.bookmarks")
         })
         #expect(recentRepositoriesIndex == recentIndex + 1)
         #expect(bookmarksIndex == recentRepositoriesIndex + 1)
@@ -80,22 +42,21 @@ struct MainMenuBuilderTests {
 
     @Test("File メニューに Recent Repositories サブメニューがある")
     func fileMenuHasRecentRepositoriesSubmenu() throws {
-        // NSMenu.delegate は weak のため、テストのスコープ内で強参照を保持しておく
+        // NSMenu.delegate は weak のため、フィクスチャに強参照を持たせて識別する
         // (build() 呼び出し中だけの参照だと、代入直後に解放されて nil になる)。
-        let delegate = StubMenuDelegate()
-        let mainMenu = buildMenu(recentRepositoriesMenuDelegate: delegate)
-        let file = try #require(submenu(titledKey: "menu.file.title", in: mainMenu))
+        let delegate = MainMenuFixture.StubMenuDelegate()
+        let injectedFixture = MainMenuFixture(recentRepositoriesMenuDelegate: delegate)
+        let file = try #require(injectedFixture.submenu(titledKey: "menu.file.title"))
 
         let recentRepositoriesItem = try #require(file.items.first {
-            $0.submenu?.title == localizedTitle("menu.file.recentRepositories")
+            $0.submenu?.title == injectedFixture.localizedTitle("menu.file.recentRepositories")
         })
         #expect(recentRepositoriesItem.submenu?.delegate === delegate)
     }
 
     @Test("Edit メニューに Copy(⌘C) と Select All(⌘A) がある")
     func editMenuEnablesCopyAndSelectAll() throws {
-        let mainMenu = buildMenu()
-        let edit = try #require(submenu(titledKey: "menu.edit.title", in: mainMenu))
+        let edit = try #require(fixture.submenu(titledKey: "menu.edit.title"))
 
         let copy = try #require(edit.items.first { $0.action == #selector(NSText.copy(_:)) })
         #expect(copy.keyEquivalent == "c")
@@ -105,8 +66,7 @@ struct MainMenuBuilderTests {
 
     @Test("View メニューにズームとフルスクリーンがある")
     func viewMenuHasZoomAndFullScreen() throws {
-        let mainMenu = buildMenu()
-        let view = try #require(submenu(titledKey: "menu.view.title", in: mainMenu))
+        let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
 
         #expect(view.items.contains { $0.action == #selector(ViewerWindowController.zoomIn(_:)) })
         #expect(view.items.contains { $0.action == #selector(ViewerWindowController.zoomOut(_:)) })
@@ -164,8 +124,7 @@ struct MainMenuBuilderTests {
     func menuItemHasKeyEquivalent(
         submenuKey: String, selector: Selector, key: String, modifiers: NSEvent.ModifierFlags?
     ) throws {
-        let mainMenu = buildMenu()
-        let menu = try #require(submenu(titledKey: String.LocalizationValue(submenuKey), in: mainMenu))
+        let menu = try #require(fixture.submenu(titledKey: String.LocalizationValue(submenuKey)))
 
         let item = try #require(menu.items.first { $0.action == selector })
         #expect(item.keyEquivalent == key)
@@ -176,8 +135,7 @@ struct MainMenuBuilderTests {
 
     @Test("Window メニューにタブ操作項目がある")
     func windowMenuHasTabItems() throws {
-        let mainMenu = buildMenu()
-        let window = try #require(submenu(titledKey: "menu.window.title", in: mainMenu))
+        let window = try #require(fixture.submenu(titledKey: "menu.window.title"))
 
         #expect(window.items.contains { $0.action == #selector(NSWindow.selectNextTab(_:)) })
         #expect(window.items.contains { $0.action == #selector(NSWindow.selectPreviousTab(_:)) })
@@ -187,8 +145,7 @@ struct MainMenuBuilderTests {
 
     @Test("Help メニューが NSApp.helpMenu に登録される")
     func helpMenuIsRegistered() throws {
-        let mainMenu = buildMenu()
-        let help = try #require(submenu(titledKey: "menu.help.title", in: mainMenu))
+        let help = try #require(fixture.submenu(titledKey: "menu.help.title"))
 
         #expect(NSApp.helpMenu === help)
         #expect(help.items.contains { $0.action == #selector(AppDelegate.openHelp(_:)) })
@@ -197,25 +154,25 @@ struct MainMenuBuilderTests {
     /// 設定は dev 限定のフィーチャーゲートを外して stable でも常に出す(TASK-184)。
     @Test("App メニューに Settings…(⌘,) 項目がビルド種別に関わらずある")
     func appMenuHasSettingsItem() throws {
-        let mainMenu = buildMenu()
+        let mainMenu = fixture.menu()
         let appMenu = try #require(mainMenu.items.first?.submenu)
 
         let settings = try #require(
             appMenu.items.first { $0.action == #selector(AppDelegate.showSettings(_:)) }
         )
-        #expect(settings.title == localizedTitle("menu.app.settings"))
+        #expect(settings.title == fixture.localizedTitle("menu.app.settings"))
         #expect(settings.keyEquivalent == ",")
         #expect(settings.keyEquivalentModifierMask == [.command])
     }
 
     @Test("App メニューに Install CLI 項目がある")
     func appMenuHasInstallCLIItem() throws {
-        let mainMenu = buildMenu()
+        let mainMenu = fixture.menu()
         let appMenu = try #require(mainMenu.items.first?.submenu)
 
         let installItem = try #require(
             appMenu.items.first { $0.action == #selector(AppDelegate.installCLI(_:)) }
         )
-        #expect(installItem.title == localizedTitle("menu.app.installCLI"))
+        #expect(installItem.title == fixture.localizedTitle("menu.app.installCLI"))
     }
 }

@@ -243,13 +243,25 @@ struct RecentRepositoriesStoreTests {
         #expect(relaunched.entries().map(\.label) == ["repoA"])
     }
 
+    /// pruneMissing が見るのは fileReader.isDirectory だけなので、実ファイルシステムは
+    /// 検証価値を持たない。存在するディレクトリだけを持つインメモリ実装で置き換える。
+    private func makeStore(
+        defaults: UserDefaults? = nil, existingDirectories: [URL]
+    ) -> RecentRepositoriesStore {
+        RecentRepositoriesStore(
+            defaults: defaults ?? self.defaults,
+            fileReader: InMemoryFileReader(
+                directories: Set(existingDirectories.map(\.normalizedPathKey))
+            )
+        )
+    }
+
     @Test("pruneMissingAsync は存在しないルートを取り除く")
-    func pruneMissingRemovesNonExistentRoots() async throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        let missing = temp.url.appendingPathComponent("gone")
-        let store = RecentRepositoriesStore(defaults: defaults, fileReader: DefaultFileReader())
-        store.record(root: temp.url, label: "kept")
+    func pruneMissingRemovesNonExistentRoots() async {
+        let present = url("present")
+        let missing = url("present/gone")
+        let store = makeStore(existingDirectories: [present])
+        store.record(root: present, label: "kept")
         store.record(root: missing, label: "gone")
 
         await store.pruneMissingAsync()
@@ -269,12 +281,11 @@ struct RecentRepositoriesStoreTests {
     }
 
     @Test("pruneMissingAsync は取り除く対象が無ければ defaults へ書き込まない")
-    func pruneMissingSkipsWriteWhenNothingIsMissing() async throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
+    func pruneMissingSkipsWriteWhenNothingIsMissing() async {
+        let present = url("present")
         let spyDefaults = WriteCountingUserDefaults()
-        let store = RecentRepositoriesStore(defaults: spyDefaults, fileReader: DefaultFileReader())
-        store.record(root: temp.url, label: "kept")
+        let store = makeStore(defaults: spyDefaults, existingDirectories: [present])
+        store.record(root: present, label: "kept")
         let writesAfterRecord = spyDefaults.writeCount
 
         await store.pruneMissingAsync()
