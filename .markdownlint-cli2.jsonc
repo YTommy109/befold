@@ -24,7 +24,10 @@
     "docs/superpowers/**",
     // リリース自動化（.claude/skills/changelog.md）が生成する
     "CHANGELOG.md",
-    "node_modules/**",
+    // 依存パッケージ同梱の Markdown。site/node_modules のようにネストした
+    // 位置にもあるため、先頭の "**/" でどの階層でも除外する
+    // （"node_modules/**" だけではリポジトリ直下しか一致しない）。
+    "**/node_modules/**",
     ".claude/worktrees/**"
   ],
   "config": {
