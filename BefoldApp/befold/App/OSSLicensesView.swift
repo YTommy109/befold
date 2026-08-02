@@ -1,27 +1,30 @@
 import BefoldKit
 import SwiftUI
 
-/// Help > OSS 謝辞 の中身。BefoldKit に同梱の THIRD_PARTY_LICENSES.md をそのまま表示する。
+/// Help > OSS 謝辞 の中身。BefoldKit に同梱の THIRD_PARTY_LICENSES.md を、
+/// ビューア本体と同じレンダリング経路で表示する（Markdown で書かれた文書のため）。
 struct OSSLicensesView: View {
-    private let content: String
+    private let documentURL: URL?
 
     init() {
-        if let url = Bundle.befoldKitResources.url(forResource: "THIRD_PARTY_LICENSES", withExtension: "md"),
-           let text = try? String(contentsOf: url, encoding: .utf8)
-        {
-            content = text
-        } else {
-            content = String(localized: "ossLicenses.loadFailed", bundle: .l10n)
-        }
+        documentURL = Bundle.befoldKitResources.url(
+            forResource: "THIRD_PARTY_LICENSES", withExtension: "md"
+        )
     }
 
     var body: some View {
-        ScrollView {
-            Text(content)
-                .font(.system(.body, design: .monospaced))
-                .textSelection(.enabled)
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        Group {
+            if let documentURL {
+                RenderedMarkdownView(
+                    url: documentURL,
+                    failureMessage: String(localized: "ossLicenses.loadFailed", bundle: .l10n)
+                )
+            } else {
+                // リソースが見つからない場合。描画器まで行かずにここで縮退させる。
+                Text("ossLicenses.loadFailed", bundle: .l10n)
+                    .foregroundStyle(.secondary)
+                    .padding(20)
+            }
         }
         .frame(minWidth: 420, minHeight: 320)
     }
