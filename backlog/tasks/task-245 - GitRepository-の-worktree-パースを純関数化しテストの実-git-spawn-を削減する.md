@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-01 10:45'
-updated_date: '2026-08-01 13:40'
+updated_date: '2026-08-01 15:00'
 labels: []
 dependencies: []
 priority: medium
@@ -49,10 +49,23 @@ GitRepositoryTests.swift:119-256 の worktree 系 6 テストが毎回リポジ�
 
 <!-- SECTION:NOTES:BEGIN -->
 GitRepository.worktrees(forRoot:) の porcelain パースを static parseWorktreeList(_:) として抽出し、GitRepositoryTests を純関数のインメモリ @Test(arguments:) 主体(5 ケース)へ作り替え。実 git 依存テストは GitRepositoryIntegrationTests.swift へ分離(worktree 系 6 テスト→スモーク1本+フォールバック1本に統合)。リポジトリ構築ヘルパーは BefoldTestSupport/GitTestRepo.swift へ一本化し、GitRepositoryIntegrationTests・GitCommandRunnerTests の両方から使用(rawGit/makeRepoWithFsmonitor の重複実装を解消)。spawn 回数目安: GitRepositoryTests.swift(unit)は 0、worktree 系の実 git テストは 14 spawn(旧 42 相当→大幅減)。GitCommandRunnerTests.swift の doesNotExecuteRepositoryFsmonitorCommand は GitCommandRunnerResourceLeakTests(TASK-244 で直列化済み)に残し Integration 分離は見送り:資源残留系テストの基準線サンプリング直列化という別の設計制約と結合しており、ファイル分割すると TASK-244 の意図(GitCommandRunner を実行する全テストを直列スイートへ寄せる)と衝突するため。作業中に他エージェントが同ファイルを並行編集していたため一時待機し、コミット確認後に再開した。swift build 警告なし、swift test 936件グリーン、swiftformat/swiftlint 新規違反なし。
+
+見送り事項の明記: GitCommandRunnerTests.swift の rawGit/makeRepoWithFsmonitor を GitTestRepo へ寄せる作業、および doesNotExecuteRepositoryFsmonitorCommand の Integration 分離は、TASK-244 の並行作業(GitCommandRunner を実行する全テストを直列スイートへ寄せる改修)と競合するため今回は見送った。GitCommandRunnerTests 側の作業完了後、team-lead から追加ラウンドとして依頼される想定。AC#4(リポジトリ構築ヘルパーの BefoldTestSupport 単一情報源化)はその追加ラウンドまで未達扱いとし、今回はチェックしない。
+
+team-lead 確認結果: ヘルパー共通化(AC#4)は既に 42a2053 で実施済み(GitCommandRunnerTests の rawGit/makeRepoWithFsmonitor を BefoldTestSupport/GitTestRepo へ寄せ、GitRepositoryIntegrationTests と共通化)。AC#3 のうち GitCommandRunnerTests.swift の Integration 命名分離は見送り: 直前の TASK-244 が『GitCommandRunner を実行する全テストを直列スイートへ寄せる』基準で整理した直後であり、unit/integration 軸での再分割がその基準と衝突しうるため。GitRepository 側(GitRepositoryTests.swift → GitRepositoryIntegrationTests.swift)の分離は実施済み。AC のチェックは team-lead 側で行うため、このタスクではチェックしない。
+
+AC#3(GitCommandRunnerTests の Integration 命名分離)は設計上やらない(won-t do)として確定クローズする。フォローアップ課題としても残さない。
+理由: .serialized はスイート内しか直列化しないため、doesNotExecuteRepositoryFsmonitorCommand を Integration ファイルへ移すと必然的に別スイートとなり GitCommandRunnerResourceLeakTests と並列実行される。このテストは GitCommandRunner を実行して pipe と read スレッドを生成するため、TASK-244 で修正した「資源残留テストの基準線が並列側のノイズで水増しされ、リーク退行を静かに見逃す」問題をそのまま再導入する。命名規約より GitCommandRunnerResourceLeakTests の型コメントが定める制約(GitCommandRunner を実行するテストは全てそこへ置く)が優先される。GitRepository 側の Integration 分離は実施済み。
+AC#2 の実数(レビュー指摘により訂正): 実 git テスト 11 本は削除ではなく新ファイルへ移動しただけで、GitRepositoryIntegrationTests は makeRepo(6 spawn)を 9 テストで呼ぶため依然 70〜80 spawn 規模。実際に減ったのは統合で消えた worktree 系 4 テスト分(約 28 spawn)で、2 ファイル合計では 90 超→60 台が正確。
+実測: このファイル群は元々クリティカルパスから遠い(unit 0.107s / integration 0.216s、全体の律速は GitCommandRunnerResourceLeakTests の約 13s)。並列実行のため spawn 数はウォールクロックにほぼ現れない。本タスクの価値は実行時間短縮ではなく、パースを実 git 抜きで網羅検証できる構造とヘルパーの単一情報源化にある。
+修正ラウンド1(edee648、実装エージェントのセッション上限によりメインが引き継ぎ): GitTestRepo.run の起動失敗時クラッシュ経路を塞ぐ / displayName のブランチ無し経路をインメモリ 5 ケースで検証 / スモークに --detach worktree を追加し detached の出力形を実 git に結びつけ / bare・空パス等のケース追加 / doc の是正。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-GitRepository.swift の worktree porcelain パースを static parseWorktreeList(_:) として抽出。GitRepositoryTests.swift はインメモリ @Test(arguments:) 5 ケースへ作り替え(実 git spawn 0)。実 git 依存テストは新設 GitRepositoryIntegrationTests.swift へ分離し、worktree 系 6 テストをスモーク1本+フォールバック1本(計14 spawn)へ統合。リポジトリ構築ヘルパーは BefoldTestSupport/GitTestRepo.swift へ単一情報源化し、GitRepositoryIntegrationTests と GitCommandRunnerTests の双方(rawGit/makeRepoWithFsmonitor)から利用。GitCommandRunnerTests のタイムアウト/資源残留系テストは Integration 分離を見送り(TASK-244 の直列化設計と結合しているため)。検証: swift build 警告なし、swift test 936 件グリーン、swiftformat/swiftlint 新規違反なし。
+GitRepository.worktrees の porcelain パースを static parseWorktreeList へ純関数抽出し、branch あり/detached/bare/空パス/並び順を 8 ケースのインメモリ @Test(arguments:) で検証できるようにした。実 git 依存テストは GitRepositoryIntegrationTests へ分離し、worktree 系は実出力との結合を担保するスモーク 1 本(ブランチ有り + detached)へ統合。リポジトリ構築ヘルパーを BefoldTestSupport/GitTestRepo へ単一情報源化した。
+git spawn は 2 ファイル合計で 90 超→60 台(worktree 系の統合で約 28 減)。ただし実測ではこのファイル群は元々クリティカルパスから遠く(unit 0.107s / integration 0.216s)、実行時間短縮の効果はほぼ無い。価値は構造改善(実 git 抜きで網羅検証できるパース、ヘルパーの単一情報源化)にある。
+AC#3 は GitCommandRunnerTests について won-t do として確定クローズ(TASK-244 の直列化制約と衝突し、リーク検証の偽陰性を再導入するため)。
+検証: swift test 1006 tests / 138 suites グリーン、swiftformat 差分なし、swift build 警告なし。レビュー指摘 Important 3 件 + Minor 5 件を反映済み。
 <!-- SECTION:FINAL_SUMMARY:END -->

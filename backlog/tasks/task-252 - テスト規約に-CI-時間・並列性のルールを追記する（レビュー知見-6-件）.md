@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-01 11:09'
-updated_date: '2026-08-02 00:33'
+updated_date: '2026-08-02 00:51'
 labels: []
 dependencies: []
 priority: medium
@@ -62,6 +62,10 @@ ordinal: 450100
 見出しも本文の優先順位に合わせて修正した(番兵優先 → 配送機構の差し替え優先)。
 
 追加ラウンド: testing.md へ「テスト内キャッシュは immutable な static let で持つ」節を追記(static var+遅延書き込みでのシグナル6クラッシュ実例、LockedBox/nonisolated(unsafe)/#require フォールバック禁止)。workflow.md の品質チェック手順へ「テスト結果をパイプ越しに判定しない」を追記。testing.md 側からworkflow.mdへアンカーリンク追加。markdownlint 0 issues。
+
+追加ラウンド(a47c3d1 + 表記調整): 実装作業中に見つかった 2 件の落とし穴を規約化した。
+1. テスト内のキャッシュは immutable な static let で持つ(testing.md): static var + 遅延書き込みは swift-testing の並列実行下で複数テストが同時書き込みし、非 Sendable な値ではシグナル 6 でクラッシュする(QuickLookInfoPlistTests で実際に発生)。可変が必要なら LockedBox、nonisolated(unsafe) は不変が自明な場合に限る。あわせて読み込み失敗を空値へフォールバックさせず #require で落とす
+2. テスト結果をパイプ越しに判定しない(workflow.md): swift test | tail の終了コードは tail のもので、テストが落ちていても 0 になる。set -o pipefail か終了コードの明示記録 + 要約行の確認の両方を根拠にする。実際に実装者が 2 回グリーンと誤認し、レビュー担当も「Test run with 行を見ていたから気づけたが、パイプの exit code を信じていたら見逃していた」と述べている
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
