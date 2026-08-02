@@ -22,8 +22,8 @@ settings:
     # ターゲットごとに書くとドリフトする。scripts/bump.sh もこの 1 行を書き換える。
     # BefoldCLI/AppVersion.swift の `AppVersion.current` と値を一致させる
     # (BefoldCLICommandTests.projectYmlMarketingVersionMatchesAppVersionConstant で照合)
-    MARKETING_VERSION: "1.11.2"
-    CURRENT_PROJECT_VERSION: "916"
+    MARKETING_VERSION: "1.11.4"
+    CURRENT_PROJECT_VERSION: "1105"
 schemes:
   befold:
     build:
