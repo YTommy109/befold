@@ -14,6 +14,7 @@ struct ViewerWindowManagerTabTests {
         let first = URL(fileURLWithPath: "/mock/first.md")
         let second = URL(fileURLWithPath: "/mock/second.md")
         let fixture = MockedViewerWindowManager(files: [first, second], prefix: "ViewerWindowManagerTabTests")
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: first)
         let firstWindow = fixture.manager.window(forPath: first.normalizedPathKey)
@@ -23,18 +24,17 @@ struct ViewerWindowManagerTabTests {
         #expect(secondWindow?.tabGroup != nil)
         #expect(secondWindow?.tabGroup === firstWindow?.tabGroup)
         #expect(secondWindow?.tabGroup?.selectedWindow === secondWindow)
-        fixture.closeAll()
     }
 
     @Test("起点ウィンドウが無ければ独立したウィンドウとして開く")
     func newTabWithoutSourceFallsBackToWindow() {
         let file = URL(fileURLWithPath: "/mock/only.md")
         let fixture = MockedViewerWindowManager(files: [file], prefix: "ViewerWindowManagerTabTests")
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file, disposition: .newTab, relativeTo: nil)
 
         #expect(fixture.manager.window(forPath: file.normalizedPathKey) != nil)
-        fixture.closeAll()
     }
 
     @Test("newWindow は起点ウィンドウを渡してもタブ結合しない")
@@ -42,6 +42,7 @@ struct ViewerWindowManagerTabTests {
         let first = URL(fileURLWithPath: "/mock/first.md")
         let second = URL(fileURLWithPath: "/mock/second.md")
         let fixture = MockedViewerWindowManager(files: [first, second], prefix: "ViewerWindowManagerTabTests")
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: first)
         let firstWindow = fixture.manager.window(forPath: first.normalizedPathKey)
@@ -49,6 +50,5 @@ struct ViewerWindowManagerTabTests {
         let secondWindow = fixture.manager.window(forPath: second.normalizedPathKey)
 
         #expect(secondWindow?.tabGroup?.windows.contains(where: { $0 === firstWindow }) != true)
-        fixture.closeAll()
     }
 }

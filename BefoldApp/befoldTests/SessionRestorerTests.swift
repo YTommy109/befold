@@ -35,6 +35,7 @@ struct SessionRestorerTests {
     @Test("パス無しCLI起動の --hidden-files は復元直後に全体設定へ反映される")
     func hiddenFilesOptionAppliesOnRestore() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
+        defer { fixture.closeAll() }
         let restorer = makeRestorer(fixture)
         fixture.sessionStore.noteOpened(file)
 
@@ -42,12 +43,12 @@ struct SessionRestorerTests {
         restorer.restoreLastSession(options: CLIOpenOptions(showHiddenFiles: true))
 
         #expect(fixture.hiddenFilesPreference.showHiddenFiles)
-        fixture.closeAll()
     }
 
     @Test("パス無しCLI起動の --line-numbers は復元されるウィンドウへ適用される")
     func lineNumbersOptionAppliesToRestoredWindow() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
+        defer { fixture.closeAll() }
         let restorer = makeRestorer(fixture)
         fixture.sessionStore.noteOpened(file)
 
@@ -56,7 +57,6 @@ struct SessionRestorerTests {
 
         let controller = fixture.manager.controllers[file.normalizedPathKey]?.first
         #expect(controller?.store.showLineNumbers == true)
-        fixture.closeAll()
     }
 
     /// 復元経路は options をそのまま ViewerWindowManager へ渡す。フィールド単位の
@@ -64,6 +64,7 @@ struct SessionRestorerTests {
     @Test("パス無しCLI起動の --sort alphabetical は復元されるウィンドウへ適用される")
     func sortOrderOptionAppliesToRestoredWindow() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
+        defer { fixture.closeAll() }
         let restorer = makeRestorer(fixture)
         fixture.sessionStore.noteOpened(file)
 
@@ -72,12 +73,12 @@ struct SessionRestorerTests {
 
         let controller = fixture.manager.controllers[file.normalizedPathKey]?.first
         #expect(controller?.fileListModel.sortOrder == .alphabetical)
-        fixture.closeAll()
     }
 
     @Test("オプション未指定時は従来どおり復元される(既定のフォルダー優先ソート)")
     func noOptionsPreservesDefaultRestoreBehavior() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
+        defer { fixture.closeAll() }
         let restorer = makeRestorer(fixture)
         fixture.sessionStore.noteOpened(file)
 
@@ -86,13 +87,13 @@ struct SessionRestorerTests {
 
         #expect(!fixture.hiddenFilesPreference.showHiddenFiles)
         #expect(fixture.manager.controllers[file.normalizedPathKey] != nil)
-        fixture.closeAll()
     }
 
     @Test("復元時に消えていたファイルはウィンドウを開かずセッション記録からも取り除かれる")
     func restoreLastSessionDropsMissingFilesFromRecord() {
         let missing = URL(fileURLWithPath: "/mock/gone.mmd")
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
+        defer { fixture.closeAll() }
         let restorer = makeRestorer(fixture)
         fixture.sessionStore.noteOpened(missing)
         fixture.sessionStore.noteOpened(file)
@@ -105,7 +106,6 @@ struct SessionRestorerTests {
         let savedPaths = fixture.sessionStore.savedURLs().map(\.normalizedPathKey)
         #expect(!savedPaths.contains(missing.normalizedPathKey))
         #expect(savedPaths.contains(file.normalizedPathKey))
-        fixture.closeAll()
     }
 
     @Test("保存済みタブ構成が全て実在すればタブごと復元する")
@@ -113,6 +113,7 @@ struct SessionRestorerTests {
         let fileA = URL(fileURLWithPath: "/repo/a.md")
         let fileB = URL(fileURLWithPath: "/repo/b.md")
         let fixture = MockedViewerWindowManager(files: [fileA, fileB], prefix: "SessionRestorerOpenRepo")
+        defer { fixture.closeAll() }
         let restorer = makeRestorer(fixture)
         let group = SessionLayout.TabGroup(
             paths: [fileA.normalizedPathKey, fileB.normalizedPathKey], selectedPath: fileB.normalizedPathKey
@@ -122,7 +123,6 @@ struct SessionRestorerTests {
 
         #expect(fixture.manager.controllers[fileA.normalizedPathKey] != nil)
         #expect(fixture.manager.controllers[fileB.normalizedPathKey] != nil)
-        fixture.closeAll()
     }
 
     @Test("保存済みタブ構成の一部が消えていれば残存パスだけで復元する")
@@ -130,6 +130,7 @@ struct SessionRestorerTests {
         let fileA = URL(fileURLWithPath: "/repo/a.md")
         let missing = URL(fileURLWithPath: "/repo/gone.md")
         let fixture = MockedViewerWindowManager(files: [fileA], prefix: "SessionRestorerOpenRepo")
+        defer { fixture.closeAll() }
         let restorer = makeRestorer(fixture)
         let group = SessionLayout.TabGroup(
             paths: [fileA.normalizedPathKey, missing.normalizedPathKey], selectedPath: missing.normalizedPathKey
@@ -139,7 +140,6 @@ struct SessionRestorerTests {
 
         #expect(fixture.manager.controllers[fileA.normalizedPathKey] != nil)
         #expect(fixture.manager.controllers[missing.normalizedPathKey] == nil)
-        fixture.closeAll()
     }
 
     @Test("保存済みタブ構成が無ければルートフォルダ内の対応ファイルを解決して開く(ディレクトリ自体は開かない)")
@@ -147,13 +147,13 @@ struct SessionRestorerTests {
         let root = URL(fileURLWithPath: "/repo")
         let entry = URL(fileURLWithPath: "/repo/a.md")
         let fixture = MockedViewerWindowManager(files: [entry], prefix: "SessionRestorerOpenRepo")
+        defer { fixture.closeAll() }
         let restorer = makeRestorer(fixture, resolveFileToOpen: { $0 == root ? entry : nil })
 
         restorer.openRepository(root: root, savedTabGroup: nil)
 
         #expect(fixture.manager.controllers[entry.normalizedPathKey] != nil)
         #expect(fixture.manager.controllers[root.normalizedPathKey] == nil)
-        fixture.closeAll()
     }
 
     @Test("保存済みタブ構成の全パスが消えていればルートフォルダ内の対応ファイルへフォールバックする(ディレクトリ自体は開かない)")
@@ -161,6 +161,7 @@ struct SessionRestorerTests {
         let root = URL(fileURLWithPath: "/repo")
         let entry = URL(fileURLWithPath: "/repo/a.md")
         let fixture = MockedViewerWindowManager(files: [entry], prefix: "SessionRestorerOpenRepo")
+        defer { fixture.closeAll() }
         let restorer = makeRestorer(fixture, resolveFileToOpen: { $0 == root ? entry : nil })
         let group = SessionLayout.TabGroup(
             paths: [URL(fileURLWithPath: "/repo/gone.md").normalizedPathKey], selectedPath: nil
@@ -170,13 +171,13 @@ struct SessionRestorerTests {
 
         #expect(fixture.manager.controllers[entry.normalizedPathKey] != nil)
         #expect(fixture.manager.controllers[root.normalizedPathKey] == nil)
-        fixture.closeAll()
     }
 
     @Test("フォールバック解決が対応ファイル無しで nil を返せば、壊れたウィンドウを開かず FileNotFound で通知する")
     func openRepositoryFallbackNotifiesFileNotFoundWhenResolutionReturnsNil() {
         let root = URL(fileURLWithPath: "/repo")
         let fixture = MockedViewerWindowManager(files: [], prefix: "SessionRestorerOpenRepo")
+        defer { fixture.closeAll() }
         var notifiedURLs: [URL] = []
         let restorer = makeRestorer(
             fixture, resolveFileToOpen: { _ in nil },
@@ -187,6 +188,5 @@ struct SessionRestorerTests {
 
         #expect(fixture.manager.allControllers.isEmpty)
         #expect(notifiedURLs == [root])
-        fixture.closeAll()
     }
 }

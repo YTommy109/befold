@@ -21,6 +21,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
         let fixture = MockedViewerWindowManager(
             files: [file, markdownFile], prefix: "ViewerWindowManagerDisplayOverridesTests"
         )
+        defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file)
         fixture.manager.openViewer(for: markdownFile)
 
@@ -33,7 +34,6 @@ struct ViewerWindowManagerDisplayOverridesTests {
             #expect(controller.isSourceMode)
             #expect(controller.fileListModel.sortOrder == .alphabetical)
         }
-        fixture.closeAll()
     }
 
     @Test("nil を渡したオーバーライドは既存ウィンドウの状態を変更しない")
@@ -41,6 +41,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
         let fixture = MockedViewerWindowManager(
             files: [file], prefix: "ViewerWindowManagerDisplayOverridesTests"
         )
+        defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file)
         let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
         let originalSortOrder = controller.fileListModel.sortOrder
@@ -51,12 +52,12 @@ struct ViewerWindowManagerDisplayOverridesTests {
         #expect(controller.store.showLineNumbers)
         #expect(controller.isSourceMode == originalSourceMode)
         #expect(controller.fileListModel.sortOrder == originalSortOrder)
-        fixture.closeAll()
     }
 
     @Test("行番号オーバーライドは既存ウィンドウのツールバーアイテムへも反映される")
     func applyDisplayOverridesRefreshesLineNumbersToolbarItem() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "LineNumbersToolbarRefresh")
+        defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file)
         let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
         let toolbar = try #require(controller.window?.toolbar)
@@ -68,7 +69,6 @@ struct ViewerWindowManagerDisplayOverridesTests {
         fixture.manager.applyDisplayOverrides(CLIOpenOptions(showLineNumbers: true))
 
         #expect(button.contentTintColor == .controlAccentColor)
-        fixture.closeAll()
     }
 
     @Test(
@@ -79,28 +79,29 @@ struct ViewerWindowManagerDisplayOverridesTests {
         let fixture = MockedViewerWindowManager(
             files: [file], prefix: "SidebarOverrideInitial-\(visible)"
         )
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: visible))
 
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == expectedCollapsed)
-        fixture.closeAll()
     }
 
     @Test("showSidebar 未指定(nil)なら保存済み開閉状態を維持する")
     func sidebarVisibleOverrideNilKeepsSavedState() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SidebarOverrideNil")
+        defer { fixture.closeAll() }
         // 事前に「開いた状態(collapsed=false)」を保存しておく。
         fixture.perFileState.sidebar.setCollapsed(false, for: file)
 
         fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: nil))
 
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
-        fixture.closeAll()
     }
 
     @Test("既存ウィンドウへ showSidebar を反映して開閉状態を切り替える")
     func applyDisplayOverridesTogglesSidebarOnOpenWindow() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SidebarOverrideApply")
+        defer { fixture.closeAll() }
         // 閉じた状態で開く。
         fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: false))
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == true)
@@ -108,6 +109,5 @@ struct ViewerWindowManagerDisplayOverridesTests {
         fixture.manager.applyDisplayOverrides(CLIOpenOptions(showSidebar: true))
 
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
-        fixture.closeAll()
     }
 }

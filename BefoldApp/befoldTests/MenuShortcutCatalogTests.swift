@@ -10,15 +10,24 @@ import Testing
 struct MenuShortcutCatalogTests {
     private final class StubMenuDelegate: NSObject, NSMenuDelegate {}
 
+    /// 1 テスト内で groups()/entries() を複数回呼んでも、entries→groups→buildMenu の
+    /// フルメニュー構築(@MainActor 直列区間)を毎回繰り返さないようにキャッシュする。
+    /// MainActor 隔離のテストからのみ参照するため box 自体に Sendable 制約は不要。
+    private final class MenuCache {
+        var menu: NSMenu?
+    }
+
     // NSMenu.delegate は weak のため、テスト実行中は強参照を保持しておく。
     private let recentMenuDelegate = StubMenuDelegate()
     private let bookmarksMenuDelegate = StubMenuDelegate()
     private let recentRepositoriesMenuDelegate = StubMenuDelegate()
+    private let menuCache = MenuCache()
 
     private func buildMenu() -> NSMenu {
+        if let cached = menuCache.menu { return cached }
         // swift test のプロセスでは NSApp が未初期化のため先に生成する。
         _ = NSApplication.shared
-        return MainMenuBuilder.build(
+        let menu = MainMenuBuilder.build(
             openAction: #selector(AppDelegate.showOpenPanel),
             helpActions: MainMenuHelpActions(
                 visitWebsite: #selector(AppDelegate.openHelp(_:)),
@@ -31,6 +40,8 @@ struct MenuShortcutCatalogTests {
             bookmarksMenuDelegate: bookmarksMenuDelegate,
             recentRepositoriesMenuDelegate: recentRepositoriesMenuDelegate
         )
+        menuCache.menu = menu
+        return menu
     }
 
     private func groups() -> [MenuShortcutCatalog.Group] {

@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -10,9 +11,7 @@ import Testing
 @Suite
 struct HostedPanelWindowControllerTests {
     private func makeController() -> HostedPanelWindowController {
-        let suite = "HostedPanelWindowControllerTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        let defaults = makeIsolatedDefaults(prefix: "HostedPanelWindowControllerTests")
         return HostedPanelWindowController(
             rootView: CodeFontSettingsView(
                 preference: CodeFontPreference(defaults: defaults),

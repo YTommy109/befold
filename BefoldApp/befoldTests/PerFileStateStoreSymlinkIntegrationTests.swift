@@ -13,7 +13,7 @@ import Testing
 struct PerFileStateStoreSymlinkIntegrationTests {
     @Test("BookmarkStore: シンボリックリンク経由で add しても実体パスで isBookmarked と判定される")
     func bookmarkResolvesSymlinkToRealPath() throws {
-        let store = BookmarkStore(defaults: makeIsolatedDefaults(prefix: "BookmarkStoreTests"))
+        let store = BookmarkStore(defaults: makeIsolatedDefaults(prefix: "BookmarkStoreSymlinkTests"))
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let (real, link) = try tmp.symlinkedFile()

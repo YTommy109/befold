@@ -16,6 +16,7 @@ struct ViewerWindowManagerBookmarkTests {
     @Test("CLI からのブックマーク追加はストアと表示中ウィンドウのツールバーへ即座に反映される")
     func addBookmarksUpdatesStoreAndOpenWindowToolbar() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "CLIBookmarkToolbarRefresh")
+        defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file)
         let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
         let toolbar = try #require(controller.window?.toolbar)
@@ -27,12 +28,12 @@ struct ViewerWindowManagerBookmarkTests {
 
         #expect(fixture.bookmarkStore.isBookmarked(file))
         #expect(button.contentTintColor == .controlAccentColor)
-        fixture.closeAll()
     }
 
     @Test("表示中でないファイルのブックマーク追加は開いているウィンドウのアイコンを変えない")
     func addBookmarksForUnrelatedFileLeavesToolbarUntouched() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "CLIBookmarkUnrelated")
+        defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file)
         let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
         let toolbar = try #require(controller.window?.toolbar)
@@ -43,6 +44,5 @@ struct ViewerWindowManagerBookmarkTests {
 
         #expect(fixture.bookmarkStore.isBookmarked(otherFile))
         #expect(button.contentTintColor == nil)
-        fixture.closeAll()
     }
 }
