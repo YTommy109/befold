@@ -175,6 +175,13 @@ struct ViewerWindowControllerToolbarTests {
 
         // ファイル切替で履歴ができると戻るアイテムが有効になる(即時反映)
         #expect(historyButton.isEnabled == true)
+        // toolbar(_:itemForItemIdentifier:willBeInsertedIntoToolbar:) は呼び出しごとに
+        // 現在の store 状態から新規にアイテムを生成する。ツールバーのカスタマイズ等で
+        // アイテムが再生成される経路でも、履歴あり状態が反映されることを確認する。
+        let recreatedHistoryItem = try #require(controller.toolbarController.toolbar(
+            toolbar, itemForItemIdentifier: .init("historyBack"), willBeInsertedIntoToolbar: false
+        ))
+        #expect((recreatedHistoryItem.view as? HistoryButtonView)?.isEnabled == true)
         // onContentReloaded はファイル読み込み完了後に非同期で発火するため、ブックマークの
         // 反映のみポーリングで待つ。
         await waitUntilOnMainActor { bookmarkButton.contentTintColor == nil }

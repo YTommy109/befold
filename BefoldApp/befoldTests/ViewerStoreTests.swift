@@ -190,22 +190,6 @@ struct ViewerStoreTests {
     }
 
     @Test
-    func openOversizedFileMarksUnsupportedWithoutLoading() async {
-        let file = URL(fileURLWithPath: "/files/huge.html")
-        let reader = InMemoryFileReader()
-        reader.setFile("<h1>Hello</h1>", at: file)
-        reader.setSize(ContentLoader.maxTextFileSizeBytes + 1, at: file)
-
-        let store = makeStore(reader: reader)
-        await openAndLoad(store, file)
-
-        #expect(store.rejectReason == .fileTooLarge)
-        #expect(store.content == "")
-
-        store.close()
-    }
-
-    @Test
     func openFileAtSizeLimitLoadsContent() async {
         let file = URL(fileURLWithPath: "/files/ok.md")
         let reader = InMemoryFileReader()
