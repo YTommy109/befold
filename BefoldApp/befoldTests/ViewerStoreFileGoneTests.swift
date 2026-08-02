@@ -4,41 +4,6 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// open() されるまで待機者をサスペンドさせるゲート。
-/// スピン(yield ループ)ではなく continuation で待つため、並列実行中の
-/// 他テストから CPU を奪わない。
-private final class AsyncGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var opened = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-
-    /// ゲートを開き、待機中の全員を再開する。以後の wait() は即座に戻る。
-    func open() {
-        lock.lock()
-        opened = true
-        let pending = waiters
-        waiters = []
-        lock.unlock()
-        for waiter in pending {
-            waiter.resume()
-        }
-    }
-
-    /// ゲートが開くまでサスペンドする。
-    func wait() async {
-        await withCheckedContinuation { continuation in
-            lock.lock()
-            if opened {
-                lock.unlock()
-                continuation.resume()
-                return
-            }
-            waiters.append(continuation)
-            lock.unlock()
-        }
-    }
-}
-
 /// readNextChunk をゲートが開くまで待たせるモック(遅い読み込み・待機中の競合のシミュレート用)。
 /// `entered` で待機開始を観測し、`gate.open()` で読み込みを完了させる。
 private final class GatedChunkedReader: ChunkedTextReading, @unchecked Sendable {

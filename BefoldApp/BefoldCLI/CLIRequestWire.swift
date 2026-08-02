@@ -38,11 +38,16 @@ public enum CLIRequestWire {
         userInfo?[Key.requestID] as? String
     }
 
+    /// ACK 通知の userInfo をエンコードする(送信側・テストの双方から参照する単一情報源)。
+    public static func ackUserInfo(requestID: String) -> [AnyHashable: Any] {
+        [Key.requestID: requestID]
+    }
+
     /// 受信側が要求を受け取ったことを ACK 通知で送り返す。
     public static func sendAck(requestID: String) {
         DistributedNotificationCenter.default().postNotificationName(
             ackNotificationName, object: nil,
-            userInfo: [Key.requestID: requestID], deliverImmediately: true
+            userInfo: ackUserInfo(requestID: requestID), deliverImmediately: true
         )
     }
 

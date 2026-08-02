@@ -57,23 +57,47 @@ struct ViewerWindowControllerTests {
         ViewerWindowControllerFixture(file: file, defaults: defaults).controller
     }
 
-    @Test("ファイル別の frameAutosaveName は設定されない")
-    func noPerFileFrameAutosave() {
+    /// 互いに独立した(状態を共有・変更し合わない)初期状態の検証をまとめて
+    /// 1つのウィンドウ生成で行う: frameAutosaveName 未設定・デフォルトコンテンツサイズ・
+    /// windowDidBecomeKey 通知・switchFile の同一ファイル無視・初期履歴が空・
+    /// ブックマークメニューのトグル。
+    @Test("新規ウィンドウの初期状態(フレーム・デリゲート通知・履歴・メニュー)を検証する")
+    func newWindowInitialState() {
         let controller = makeController()
         defer { controller.close() }
 
+        // ファイル別の frameAutosaveName は設定されない
         #expect(controller.windowFrameAutosaveName == "")
-    }
 
-    @Test("保存されたフレームがなければデフォルトのコンテンツサイズで開く")
-    func windowOpensAtDefaultSizeWithoutSavedFrame() {
-        let controller = makeController()
-        defer { controller.close() }
-
+        // 保存されたフレームがなければデフォルトのコンテンツサイズで開く
         let contentSize = controller.window.map {
             $0.contentRect(forFrameRect: $0.frame).size
         } ?? .zero
         #expect(contentSize == NSSize(width: 1100, height: 850))
+
+        // windowDidBecomeKey でデリゲートが呼ばれる
+        let mock = MockViewerWindowControllerDelegate()
+        controller.delegate = mock
+        controller.windowDidBecomeKey(Notification(name: NSWindow.didBecomeKeyNotification))
+        #expect(mock.becomeKeyCalled)
+
+        // switchFile で同じファイルを選んでも何も起きない
+        controller.switchFile(to: file)
+        #expect(mock.switchFileArgs == nil)
+
+        // 初期状態では戻る履歴がない
+        #expect(controller.fileListModel.canGoBack == false)
+        #expect(controller.fileListModel.canGoForward == false)
+
+        // ブックマークメニューはブックマーク状態に応じてタイトルが切り替わる
+        let bookmarkItem = NSMenuItem(
+            title: "", action: #selector(ViewerWindowController.toggleBookmark(_:)), keyEquivalent: ""
+        )
+        #expect(controller.validateMenuItem(bookmarkItem) == true)
+        #expect(bookmarkItem.title == String(localized: "menu.view.addBookmark", bundle: .l10n))
+        controller.toggleBookmark(nil)
+        #expect(controller.validateMenuItem(bookmarkItem) == true)
+        #expect(bookmarkItem.title == String(localized: "menu.view.removeBookmark", bundle: .l10n))
     }
 
     // フレームの「次のウィンドウへの引き継ぎ」自体は ViewerWindowManager.openViewer が
@@ -126,56 +150,6 @@ struct ViewerWindowControllerTests {
         defer { second.close() }
 
         #expect(second.window?.frame == frame)
-    }
-
-    @Test("windowDidBecomeKey でデリゲートが呼ばれる")
-    func windowDidBecomeKeyInvokesDelegate() {
-        let controller = makeController()
-        defer { controller.close() }
-        let mock = MockViewerWindowControllerDelegate()
-        controller.delegate = mock
-
-        controller.windowDidBecomeKey(Notification(name: NSWindow.didBecomeKeyNotification))
-
-        #expect(mock.becomeKeyCalled)
-    }
-
-    @Test("switchFile で同じファイルを選んでも何も起きない")
-    func switchFileIgnoresSameFile() {
-        let controller = makeController()
-        defer { controller.close() }
-        let mock = MockViewerWindowControllerDelegate()
-        controller.delegate = mock
-
-        controller.switchFile(to: file)
-
-        #expect(mock.switchFileArgs == nil)
-    }
-
-    @Test("初期状態では戻る履歴がない")
-    func historyStartsEmpty() {
-        let controller = makeController(defaults: makeIsolatedDefaults(prefix: "History"))
-        defer { controller.close() }
-
-        #expect(controller.fileListModel.canGoBack == false)
-        #expect(controller.fileListModel.canGoForward == false)
-    }
-
-    @Test("ブックマークメニューはブックマーク状態に応じてタイトルが切り替わる")
-    func toggleBookmarkMenuItemTitleReflectsState() {
-        let controller = makeController()
-        defer { controller.close() }
-        let bookmarkItem = NSMenuItem(
-            title: "", action: #selector(ViewerWindowController.toggleBookmark(_:)), keyEquivalent: ""
-        )
-
-        #expect(controller.validateMenuItem(bookmarkItem) == true)
-        #expect(bookmarkItem.title == String(localized: "menu.view.addBookmark", bundle: .l10n))
-
-        controller.toggleBookmark(nil)
-
-        #expect(controller.validateMenuItem(bookmarkItem) == true)
-        #expect(bookmarkItem.title == String(localized: "menu.view.removeBookmark", bundle: .l10n))
     }
 }
 
@@ -257,33 +231,22 @@ extension ViewerWindowControllerTests {
         #expect(zoomStore.zoom(for: file2) == 0.75)
     }
 
-    @Test("対応形式への rename ではソース表示が維持される")
-    func renameToRenderableKeepsSourceMode() {
-        let file = URL(fileURLWithPath: "/mock/note.md")
-        let controller = makeSwitchController(primary: file, contents: "# hi")
-        defer { controller.close() }
-        controller.toggleSourceView(nil)
-        #expect(controller.isSourceMode)
-        let renamed = URL(fileURLWithPath: "/mock/note.markdown")
-
-        controller.handleRename(from: controller.fileURL, to: renamed)
-
-        #expect(controller.isSourceMode)
-    }
-
-    @Test("非対応形式への rename ではソース表示が解除される")
-    func renameToNonRenderableResetsSourceMode() {
-        let file = URL(fileURLWithPath: "/mock/note.md")
-        let controller = makeSwitchController(primary: file, contents: "# hi")
-        defer { controller.close() }
-        controller.toggleSourceView(nil)
-        #expect(controller.isSourceMode)
-        let renamed = URL(fileURLWithPath: "/mock/note.swift")
-
-        controller.handleRename(from: controller.fileURL, to: renamed)
-
+    @Test("rename 先の拡張子が対応形式かどうかでソース表示の維持/解除が決まる", arguments: [
+        ("note.markdown", true), // 対応形式への rename ではソース表示が維持される
         // .swift は supportsSourceMode == false のため、ソース表示トグルが成立せずリセットする。
-        #expect(!controller.isSourceMode)
+        ("note.swift", false), // 非対応形式への rename ではソース表示が解除される
+    ])
+    func renameChangesSourceModeByRenderability(renamedFilename: String, expectedSourceMode: Bool) {
+        let file = URL(fileURLWithPath: "/mock/note.md")
+        let controller = makeSwitchController(primary: file, contents: "# hi")
+        defer { controller.close() }
+        controller.toggleSourceView(nil)
+        #expect(controller.isSourceMode)
+        let renamed = URL(fileURLWithPath: "/mock/\(renamedFilename)")
+
+        controller.handleRename(from: controller.fileURL, to: renamed)
+
+        #expect(controller.isSourceMode == expectedSourceMode)
     }
 
     @Test("switchFile で履歴が積まれ戻ると元ファイルに復帰する")

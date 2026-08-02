@@ -25,49 +25,31 @@ struct ViewerWindowManagerIntegrationTests {
         )
     }
 
-    @Test("toggleHiddenFiles は状態を反転し開いているサイドバーへ反映する")
-    func toggleHiddenFilesRefreshesOpenSidebar() async throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
-        let visible = try tmp.file(named: "visible.mmd", contents: "graph TD;")
-        let manager = makeManager()
-
-        manager.openViewer(for: visible)
-        let controller = try #require(manager.controllers[visible.normalizedPathKey]?.first)
-        #expect(!controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
-
-        manager.toggleHiddenFiles()
-        await controller.sidebar.pendingListingTask?.value
-
-        #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
-        manager.allControllers.forEach { $0.close() }
+    /// 隠しファイル表示のトリガー経路。全経路が「開いている全ウィンドウのサイドバーへ
+    /// 同時に反映される」という同じ結果に至ることを、複数ウィンドウのセットアップに
+    /// 統一して検証する(単一ウィンドウでの反映は複数ウィンドウの結果に包含される)。
+    private struct HiddenFilesTrigger: Sendable, CustomTestStringConvertible {
+        let name: String
+        let trigger: @MainActor @Sendable (ViewerWindowManager, ViewerWindowController) -> Void
+        var testDescription: String {
+            name
+        }
     }
 
-    @Test("toggleHiddenFiles は複数の開いているウィンドウすべてへ同時に反映する")
-    func toggleHiddenFilesAffectsAllOpenWindows() async throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
-        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
-        let file2 = try tmp.file(named: "second.mmd", contents: "graph TD;")
-        let manager = makeManager()
-        manager.openViewer(for: file1)
-        manager.openViewer(for: file2)
+    private nonisolated static let hiddenFilesTriggers: [HiddenFilesTrigger] = [
+        HiddenFilesTrigger(name: "toggleHiddenFiles", trigger: { manager, _ in manager.toggleHiddenFiles() }),
+        HiddenFilesTrigger(
+            name: "onToggleHiddenFiles コールバック(アイコンボタン操作)",
+            trigger: { manager, first in manager.viewerWindowDidToggleHiddenFiles(first) }
+        ),
+        HiddenFilesTrigger(
+            name: "setHiddenFiles(true)(--hidden-files)",
+            trigger: { manager, _ in manager.setHiddenFiles(true) }
+        ),
+    ]
 
-        manager.toggleHiddenFiles()
-        for controller in manager.allControllers {
-            await controller.sidebar.pendingListingTask?.value
-        }
-
-        for controller in manager.allControllers {
-            #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
-        }
-        manager.allControllers.forEach { $0.close() }
-    }
-
-    @Test("ウィンドウのアイコンボタン操作(onToggleHiddenFiles)でも全ウィンドウが同期する")
-    func onToggleHiddenFilesCallbackTogglesAllWindows() async throws {
+    @Test("隠しファイル表示のトリガー経路によらず、開いている全ウィンドウへ同時に反映される", arguments: hiddenFilesTriggers)
+    private func hiddenFilesTriggerRefreshesAllOpenWindows(_ testCase: HiddenFilesTrigger) async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
@@ -77,8 +59,11 @@ struct ViewerWindowManagerIntegrationTests {
         manager.openViewer(for: file1)
         manager.openViewer(for: file2)
         let first = try #require(manager.controllers[file1.normalizedPathKey]?.first)
+        for controller in manager.allControllers {
+            #expect(!controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
+        }
 
-        manager.viewerWindowDidToggleHiddenFiles(first)
+        testCase.trigger(manager, first)
         for controller in manager.allControllers {
             await controller.sidebar.pendingListingTask?.value
         }
@@ -86,23 +71,6 @@ struct ViewerWindowManagerIntegrationTests {
         for controller in manager.allControllers {
             #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
         }
-        manager.allControllers.forEach { $0.close() }
-    }
-
-    @Test("setHiddenFiles は指定値を反映し開いているサイドバーへ即座に反映する(--hidden-files)")
-    func setHiddenFilesAppliesGivenValueAndRefreshesOpenSidebar() async throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
-        let visible = try tmp.file(named: "visible.mmd", contents: "graph TD;")
-        let manager = makeManager()
-        manager.openViewer(for: visible)
-        let controller = try #require(manager.controllers[visible.normalizedPathKey]?.first)
-
-        manager.setHiddenFiles(true)
-        await controller.sidebar.pendingListingTask?.value
-
-        #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
         manager.allControllers.forEach { $0.close() }
     }
 

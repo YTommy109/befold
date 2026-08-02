@@ -1,5 +1,6 @@
 import BefoldKit
 @testable import BefoldRenderKit
+import BefoldTestSupport
 import Testing
 import WebKit
 
@@ -50,11 +51,13 @@ struct ViewerRendererResolveReferencesTests {
         let firstResult = ["./slow.md": "/repo/slow.md"]
         let secondResult = ["./fast.md": "/repo/fast.md"]
         var isFirstRequest = true
+        // 1 件目の解決をゲートで止め、2 件目のディスパッチ後に解放する。固定 sleep で
+        // 「この程度待てば追い越すはず」と期待する代わりに、追い越しの状況を決定的に作る。
+        let slowResolution = AsyncGate()
         delegate.onResolveReferences = { _ in
             guard isFirstRequest else { return secondResult }
             isFirstRequest = false
-            // 1 件目の解決だけ遅らせ、2 件目が追い越しうる状況を作る。
-            try? await Task.sleep(for: .milliseconds(50))
+            await slowResolution.wait()
             return firstResult
         }
 
@@ -66,6 +69,7 @@ struct ViewerRendererResolveReferencesTests {
             renderer, name: ViewerBridge.resolveReferencesMessageName,
             body: ["paths": ["./fast.md"]]
         )
+        slowResolution.open()
         await renderer.resolveResponseChain?.value
 
         #expect(

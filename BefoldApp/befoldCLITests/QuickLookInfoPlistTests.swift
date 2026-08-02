@@ -13,11 +13,33 @@ struct QuickLookInfoPlistTests {
             .deletingLastPathComponent() // BefoldApp/
     }
 
+    /// plist はテストごとに再パースせず、プロセス起動時に一度だけ読む。
+    /// static let で以後書き換えないため、swift-testing の並列実行下でも競合しない
+    /// (可変 static var + 遅延ロードだと、並列テストからの同時書き込みでクラッシュした)。
+    /// 読めなかったパスはキーごと欠落させ、利用側の #require で即座に失敗させる。
+    private nonisolated(unsafe) static let plistCache: [String: [String: Any]] = {
+        let relativePaths = [
+            "BefoldQuickLook/Info.plist",
+            "befold/Info.plist",
+            "BefoldQuickLook/BefoldQuickLook.entitlements",
+        ]
+        var cache: [String: [String: Any]] = [:]
+        for relativePath in relativePaths {
+            let url = appDirectory.appendingPathComponent(relativePath)
+            guard let data = try? Data(contentsOf: url),
+                  let parsed = try? PropertyListSerialization.propertyList(from: data, format: nil),
+                  let dict = parsed as? [String: Any]
+            else { continue }
+            cache[relativePath] = dict
+        }
+        return cache
+    }()
+
+    /// - Note: relativePath は plistCache の一括ロードリストに事前登録されている前提。
+    ///   未登録のパスを渡すとファイルが実在しても「読み込めない」に見えるので、
+    ///   #require が落ちたらまずリストへの登録漏れを疑うこと。
     private static func plist(at relativePath: String) throws -> [String: Any] {
-        let url = appDirectory.appendingPathComponent(relativePath)
-        let data = try Data(contentsOf: url)
-        let parsed = try PropertyListSerialization.propertyList(from: data, format: nil)
-        return try #require(parsed as? [String: Any])
+        try #require(plistCache[relativePath], "\(relativePath) を読み込めない(キャッシュ対象リストに含まれているか確認)")
     }
 
     /// appex の NSExtensionAttributes.QLSupportedContentTypes。

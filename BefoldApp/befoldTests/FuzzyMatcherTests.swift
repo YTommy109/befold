@@ -90,46 +90,22 @@ struct FuzzyMatcherTests {
 
     // MARK: - matchedIndices(強調位置)
 
-    @Test("連続一致の位置を返す")
-    func matchedIndicesConsecutive() {
-        #expect(FuzzyMatcher.matchedIndices(query: "abc", text: "abcxxx") == [0, 1, 2])
-    }
-
-    @Test("飛び飛びの一致でもそれぞれの位置を返す")
-    func matchedIndicesScattered() {
-        #expect(FuzzyMatcher.matchedIndices(query: "abc", text: "axbxcx") == [0, 2, 4])
-    }
-
-    @Test("単語境界の一致位置を返す(大小無視)")
-    func matchedIndicesWordBoundary() {
-        // quick_open.swift の q(0) と open の o(6)
-        #expect(FuzzyMatcher.matchedIndices(query: "QO", text: "quick_open.swift") == [0, 6])
-    }
-
-    @Test("/ を含まない入力はファイル名部分の位置(オフセット付き)を返す")
-    func matchedIndicesUsesFilenameOffset() {
-        // "util" はディレクトリ名にもあるが、ファイル名 util.swift 側で一致する
-        let indices = FuzzyMatcher.matchedIndices(query: "util", text: "src/util.swift")
-        #expect(indices == [4, 5, 6, 7]) // "util" of util.swift(src/ の後)
-    }
-
-    @Test("/ を含む入力はパス全体で一致位置を返す")
-    func matchedIndicesWholePathForSlashQuery() {
-        #expect(FuzzyMatcher.matchedIndices(query: "s/u", text: "src/util.swift") == [0, 3, 4])
-    }
-
-    @Test("一致しなければ空を返す")
-    func matchedIndicesEmptyWhenNoMatch() {
-        #expect(FuzzyMatcher.matchedIndices(query: "xyz", text: "abc.swift").isEmpty)
-    }
-
-    @Test("スコアリングが採用した連続一致と同じ位置を強調する")
-    func matchedIndicesFollowsScoringAlignment() {
-        // "IsolatedDefaults.swift" には末尾 "Isolated" の d と、
-        // 単語境界の "Default" の両方に d がある。貪欲だと前者の d(7) を拾って
-        // 飛び飛びになるが、スコアリングは連続する "Default"(8..14) を採用する。
-        // ハイライトもそのアライメントに一致しなければならない。
-        let indices = FuzzyMatcher.matchedIndices(query: "default", text: "IsolatedDefaults.swift")
-        #expect(indices == [8, 9, 10, 11, 12, 13, 14])
+    @Test("クエリに対する一致位置を返す", arguments: [
+        (query: "abc", text: "abcxxx", expected: [0, 1, 2]), // 連続一致の位置を返す
+        ("abc", "axbxcx", [0, 2, 4]), // 飛び飛びの一致でもそれぞれの位置を返す
+        ("QO", "quick_open.swift", [0, 6]), // 単語境界の一致位置を返す(大小無視。q(0) と open の o(6))
+        // / を含まない入力はファイル名部分の位置(オフセット付き)を返す。
+        // "util" はディレクトリ名にもあるが、ファイル名 util.swift 側(src/ の後)で一致する。
+        ("util", "src/util.swift", [4, 5, 6, 7]),
+        ("s/u", "src/util.swift", [0, 3, 4]), // / を含む入力はパス全体で一致位置を返す
+        ("xyz", "abc.swift", []), // 一致しなければ空を返す
+        // スコアリングが採用した連続一致と同じ位置を強調する。
+        // "IsolatedDefaults.swift" には末尾 "Isolated" の d と、単語境界の "Default" の
+        // 両方に d がある。貪欲だと前者の d(7) を拾って飛び飛びになるが、
+        // スコアリングは連続する "Default"(8..14) を採用するため、ハイライトも一致する。
+        ("default", "IsolatedDefaults.swift", [8, 9, 10, 11, 12, 13, 14]),
+    ])
+    func matchedIndices(query: String, text: String, expected: [Int]) {
+        #expect(FuzzyMatcher.matchedIndices(query: query, text: text) == expected)
     }
 }

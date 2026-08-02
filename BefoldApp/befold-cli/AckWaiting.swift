@@ -9,6 +9,8 @@ import Foundation
 public protocol AckWaiting {
     /// ACK を最大 `timeout` 秒待つ。生成後〜この呼び出しより前に届いた ACK も観測済みとして true を返す。
     ///
+    /// `timeout: 0` はポーリングを一切行わず、呼び出し時点の観測状態をそのまま返す。
+    ///
     /// 待機は必ず async にする。CLI の実行経路(ArgumentParser の async main →
     /// `@MainActor run() async`)は Swift 並行処理のコンテキストであり、そこで
     /// `RunLoop.run(_:before:)` を同期的に回すと Distributed Notification が配送されない
@@ -26,9 +28,17 @@ public final class DistributedAckWaiter: AckWaiting, @unchecked Sendable {
     private let lock = NSLock()
     private var acked = false
     private var observer: (any NSObjectProtocol)?
+    private let center: NotificationCenter
 
-    public init(requestID: String) {
-        observer = DistributedNotificationCenter.default().addObserver(
+    /// - Parameter center: 観測対象の通知センター。既定は本番と同じ
+    ///   `DistributedNotificationCenter`。テストではローカルの `NotificationCenter()` を
+    ///   注入することで、IPC・メインランループを介さない同期配送に対して
+    ///   requestID フィルタと cancel() の解除だけを検証できる
+    ///   (`AckWaitingTests` を参照。ここが検証しているのは実配送の挙動ではなく
+    ///   waiter 自身のロジックなので、注入シームで unit 化する対象)。
+    public init(requestID: String, center: NotificationCenter = DistributedNotificationCenter.default()) {
+        self.center = center
+        observer = center.addObserver(
             forName: CLIRequestWire.ackNotificationName, object: nil, queue: nil
         ) { [weak self] notification in
             guard CLIRequestWire.ackRequestID(from: notification.userInfo) == requestID else { return }
@@ -64,6 +74,6 @@ public final class DistributedAckWaiter: AckWaiting, @unchecked Sendable {
         self.observer = nil
         lock.unlock()
         guard let observer else { return }
-        DistributedNotificationCenter.default().removeObserver(observer)
+        center.removeObserver(observer)
     }
 }

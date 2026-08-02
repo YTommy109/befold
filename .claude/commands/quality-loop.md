@@ -2,9 +2,9 @@
 
 実装が完了し PR を作る前に手動実行する品質チェックループです。
 現在のブランチの diff を対象に、正しさ・簡潔性のレビューと
-`docs/dev/coding_rule.md` への準拠チェックを行い、指摘がなくなるまで
-Agent ツールで自動修正を繰り返します。収束後は `docs/dev/coding_rule.md`
-自体の改善提案（Retrospective）まで行います。
+`docs/dev/coding_rule.md`（分割後の `docs/dev/rules/` 配下 4 ファイル）への
+準拠チェックを行い、指摘がなくなるまで Agent ツールで自動修正を繰り返します。
+収束後は分割後ファイル自体の改善提案（Retrospective）まで行います。
 
 以下のワークフローを順に実行してください。
 
@@ -37,12 +37,13 @@ iteration=3。Round 4 は存在しない。
 Agent ツールを `model: "opus"` で1件起動し、以下を渡す:
 
 - `git diff main...HEAD` の出力
-- `docs/dev/coding_rule.md` の全文
+- `docs/dev/rules/product-code.md` / `testing.md` / `comments.md` / `workflow.md` の全文
+  （`docs/dev/coding_rule.md` はこれらへのインデックスなので本文は含まない）
 
 観点は2つ:
 
 1. 正しさ・簡潔性・効率性（`/code-review` 相当の一般的な品質観点）
-2. `docs/dev/coding_rule.md` の各項目への準拠
+2. `docs/dev/rules/` 配下の各規約ファイルの各項目への準拠
 
 出力は指摘リスト。各指摘に以下を含めること:
 
@@ -82,7 +83,7 @@ Fix + Verify が成功したら、Agent ツールを `model: "sonnet"` で1件�
 
 - 直前の Fix で変更した diff
 - Round 1 の指摘リスト（元の指摘）
-- `docs/dev/coding_rule.md` の全文
+- `docs/dev/rules/product-code.md` / `testing.md` / `comments.md` / `workflow.md` の全文
 
 「元の指摘に対応できているか」「新たな規約違反を生んでいないか」を
 自己チェックさせる。出力形式は Round 1 の Review と同じ（種別タグ付き指摘リスト）。
@@ -117,14 +118,14 @@ Final Confirmation が指摘ゼロで終わった場合のみ実行する。た�
 集約し、Agent ツールを `model: "opus"` で1件起動する。渡す内容:
 
 - 集約した `rule-violation` タグの指摘一覧（種別・ファイル・理由・修正方針）
-- `docs/dev/coding_rule.md` の全文
+- `docs/dev/rules/product-code.md` / `testing.md` / `comments.md` / `workflow.md` の全文
 
-依頼内容: 繰り返し発生した違反パターンや、`coding_rule.md` に明文化されて
-いなかった暗黙のルールを洗い出し、`docs/dev/coding_rule.md` への追記・修正を
-Markdown diff 形式の提案として作成する。
+依頼内容: 繰り返し発生した違反パターンや、規約ファイルに明文化されて
+いなかった暗黙のルールを洗い出し、該当する `docs/dev/rules/` 配下のファイルへの
+追記・修正を Markdown diff 形式の提案として作成する。
 
 出力された差分案をユーザーに提示する。ユーザーが承認した場合のみ
-`docs/dev/coding_rule.md` を Edit で更新する。自動追記はしない。
+対象の `docs/dev/rules/*.md` を Edit で更新する。自動追記はしない。
 コミットするかどうかは別途ユーザーに確認する。
 
 ## 安全弁

@@ -16,13 +16,19 @@ struct ViewerRendererMessageHandlingTests {
         Stubs.dispatch(renderer, name: name, body: body)
     }
 
+    /// renderer と delegate を組み立てて配線する。ほぼ全テストの先頭 3 行だった定型セットアップの集約先。
+    private func makeSUT() -> (renderer: ViewerRenderer, delegate: Stubs.Delegate) {
+        let renderer = ViewerRenderer()
+        let delegate = Stubs.Delegate()
+        renderer.delegate = delegate
+        return (renderer, delegate)
+    }
+
     // MARK: - デコードとディスパッチ(正常系)
 
     @Test("zoomChanged が onZoomChanged へ倍率を渡す")
     func zoomChangedDispatchesZoom() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         var received: Double?
         delegate.onZoomChanged = { received = $0 }
 
@@ -31,45 +37,30 @@ struct ViewerRendererMessageHandlingTests {
         #expect(received == 1.75)
     }
 
-    @Test("referenceActivated が href と修飾キーから開き方を決めて onOpenReference へ渡す")
-    func referenceActivatedDispatchesReference() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+    @Test("referenceActivated が href と修飾キーから開き方を決めて onOpenReference へ渡す", arguments: [
+        // (metaKey, shiftKey, 期待する開き方)
+        (metaKey: false, shiftKey: false, expected: OpenDisposition.currentTab),
+        (false, true, .currentTab), // cmd を伴わない shift だけでは currentTab のまま
+        (true, false, .newTab),
+        (true, true, .newWindow),
+    ])
+    func referenceActivatedDispatchesReference(metaKey: Bool, shiftKey: Bool, expected: OpenDisposition) {
+        let (renderer, delegate) = makeSUT()
         var received: (href: String, disposition: OpenDisposition)?
         delegate.onOpenReference = { received = ($0, $1) }
 
         dispatch(
             renderer, name: ViewerBridge.referenceActivatedMessageName,
-            body: ["href": "./other.md", "metaKey": true, "shiftKey": false]
+            body: ["href": "./other.md", "metaKey": metaKey, "shiftKey": shiftKey]
         )
 
         #expect(received?.href == "./other.md")
-        #expect(received?.disposition == .newTab)
-    }
-
-    @Test("referenceActivated の cmd+shift は newWindow を渡す")
-    func referenceActivatedWithCommandAndShiftDispatchesNewWindow() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
-        var received: (href: String, disposition: OpenDisposition)?
-        delegate.onOpenReference = { received = ($0, $1) }
-
-        dispatch(
-            renderer, name: ViewerBridge.referenceActivatedMessageName,
-            body: ["href": "./other.md", "metaKey": true, "shiftKey": true]
-        )
-
-        #expect(received?.href == "./other.md")
-        #expect(received?.disposition == .newWindow)
+        #expect(received?.disposition == expected)
     }
 
     @Test("referenceContextMenu が href を onContextMenu へ渡す")
     func referenceContextMenuDispatchesHref() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         var received: String?
         delegate.onContextMenu = { received = $0 }
 
@@ -83,9 +74,7 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("referenceContextMenu の href が文字列でなければ onContextMenu を呼ばない")
     func referenceContextMenuIgnoresWrongTypedHref() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         var called = false
         delegate.onContextMenu = { _ in called = true }
 
@@ -99,9 +88,7 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("scrollPositionChanged が onScrollPositionChanged へ位置/モードを渡す")
     func scrollPositionChangedDispatchesPositionAndMode() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         var received: (position: Double, mode: ViewerBridge.ViewMode)?
         delegate.onScrollPositionChanged = { received = ($0, $1) }
 
@@ -116,10 +103,10 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("findOptionsChanged が findOptionsPreference へ3トグルを書き戻す")
     func findOptionsChangedWritesBackPreference() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
-        let preference = FindOptionsPreference(defaults: Self.ephemeralDefaults())
+        let (renderer, delegate) = makeSUT()
+        defer { withExtendedLifetime(delegate) {} } // renderer.delegate は weak
+        let preference =
+            FindOptionsPreference(defaults: makeIsolatedDefaults(prefix: "ViewerRendererMessageHandlingTests"))
         preference.caseSensitive = false
         preference.wholeWord = false
         preference.useRegex = false
@@ -137,9 +124,8 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("loadMoreLines が handleLoadMoreLines を起動する(isLoadingMoreLines が立つ)")
     func loadMoreLinesInvokesHandler() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
+        defer { withExtendedLifetime(delegate) {} } // renderer.delegate は weak
         #expect(renderer.isLoadingMoreLines == false)
 
         dispatch(renderer, name: ViewerBridge.loadMoreLinesMessageName, body: [])
@@ -151,9 +137,7 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("handleLoadMoreLines は onLoadMoreLines の結果を pendingAppend にステージする")
     func handleLoadMoreLinesStagesPendingAppend() async {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         delegate.onLoadMoreLines = {
             LoadMoreLinesResult(
                 chunk: "row2\n", isTruncated: true, lineCount: 2,
@@ -163,9 +147,7 @@ struct ViewerRendererMessageHandlingTests {
 
         renderer.handleLoadMoreLines()
         // spawn した非同期 Task の完了(isLoadingMoreLines が false に戻る)を待つ。
-        while renderer.isLoadingMoreLines {
-            await Task.yield()
-        }
+        await waitUntilYielding { !renderer.isLoadingMoreLines }
 
         // 描画はここでは行わず(全文 render も appendChunk も評価しない)、次チャンクを
         // ステージするだけ。実描画は updateContent が pendingAppend を消費して行う。
@@ -175,9 +157,7 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("未消費の pendingAppend がある間の続き読み込みはチャンクを累積する")
     func handleLoadMoreLinesAccumulatesUnconsumedChunks() async {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         var revision = 1
         delegate.onLoadMoreLines = {
             revision += 1
@@ -189,13 +169,9 @@ struct ViewerRendererMessageHandlingTests {
 
         // updateContent が消費する前に 2 回続けてステージする(SwiftUI 更新の合体を模す)。
         renderer.handleLoadMoreLines()
-        while renderer.isLoadingMoreLines {
-            await Task.yield()
-        }
+        await waitUntilYielding { !renderer.isLoadingMoreLines }
         renderer.handleLoadMoreLines()
-        while renderer.isLoadingMoreLines {
-            await Task.yield()
-        }
+        await waitUntilYielding { !renderer.isLoadingMoreLines }
 
         // 上書きせず累積し、DOM への追記漏れを防ぐ。revision は最新を採る。
         #expect(renderer.pendingAppend?.chunk == "AB")
@@ -204,15 +180,11 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("onLoadMoreLines が nil を返すと pendingAppend はステージされない")
     func handleLoadMoreLinesNilResultDoesNotStage() async {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         delegate.onLoadMoreLines = { nil }
 
         renderer.handleLoadMoreLines()
-        while renderer.isLoadingMoreLines {
-            await Task.yield()
-        }
+        await waitUntilYielding { !renderer.isLoadingMoreLines }
 
         #expect(renderer.pendingAppend == nil)
     }
@@ -243,9 +215,7 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("zoomChanged の body が数値でなければ onZoomChanged を呼ばない")
     func zoomChangedIgnoresNonNumberBody() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         var called = false
         delegate.onZoomChanged = { _ in called = true }
 
@@ -256,9 +226,7 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("referenceActivated の必須キーが欠けていれば onOpenReference を呼ばない")
     func referenceActivatedIgnoresMissingKeys() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         var called = false
         delegate.onOpenReference = { _, _ in called = true }
 
@@ -273,9 +241,7 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("referenceActivated の href が文字列でなければ onOpenReference を呼ばない")
     func referenceActivatedIgnoresWrongTypedHref() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         var called = false
         delegate.onOpenReference = { _, _ in called = true }
 
@@ -289,9 +255,7 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("scrollPositionChanged の mode が不正な文字列なら onScrollPositionChanged を呼ばない")
     func scrollPositionChangedIgnoresInvalidMode() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         var called = false
         delegate.onScrollPositionChanged = { _, _ in called = true }
 
@@ -305,10 +269,10 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("findOptionsChanged の値が Bool でなければ preference を書き換えない")
     func findOptionsChangedIgnoresNonBoolValues() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
-        let preference = FindOptionsPreference(defaults: Self.ephemeralDefaults())
+        let (renderer, delegate) = makeSUT()
+        defer { withExtendedLifetime(delegate) {} } // renderer.delegate は weak
+        let preference =
+            FindOptionsPreference(defaults: makeIsolatedDefaults(prefix: "ViewerRendererMessageHandlingTests"))
         preference.caseSensitive = false
         preference.wholeWord = true
         preference.useRegex = false
@@ -327,9 +291,7 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("未知のメッセージ名は無視される")
     func unknownMessageNameIsIgnored() {
-        let renderer = ViewerRenderer()
-        let delegate = Stubs.Delegate()
-        renderer.delegate = delegate
+        let (renderer, delegate) = makeSUT()
         var called = false
         delegate.onZoomChanged = { _ in called = true }
 
@@ -380,12 +342,5 @@ struct ViewerRendererMessageHandlingTests {
         // 攻撃面となる 2 種は登録されない
         #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
-    }
-
-    /// テストごとに独立したサンドボックスの UserDefaults を返す(標準ドメインを汚さない)。
-    /// 永続ドメイン(`UserDefaults(suiteName:)`)は ~/Library/Preferences に plist を残すため、
-    /// メモリ隔離の `makeIsolatedDefaults` を用いて実行後に何も残さない。
-    private static func ephemeralDefaults() -> UserDefaults {
-        makeIsolatedDefaults(prefix: "ViewerRendererMessageHandlingTests")
     }
 }

@@ -48,59 +48,32 @@ struct ViewerWindowControllerCLIOptionsTests {
         #expect(controller.isSourceMode)
     }
 
-    @Test("CLI の --line-numbers 指定は showLineNumbers に反映される")
-    func lineNumbersOverrideIsAppliedToStore() {
-        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
-
-        let controller = ViewerWindowControllerFixture(
-            file: file, contents: "# hi", defaults: defaults, showLineNumbersOverride: true
-        ).controller
-        defer { controller.close() }
-
-        #expect(controller.store.showLineNumbers)
-    }
-
-    @Test("CLI の --line-numbers 指定は保存済みのグローバル設定を書き換えない")
-    func lineNumbersOverrideDoesNotPersistToUserDefaults() {
-        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
-        defaults.set(false, forKey: "ShowLineNumbers")
-
-        let controller = ViewerWindowControllerFixture(
-            file: file, contents: "# hi", defaults: defaults, showLineNumbersOverride: true
-        ).controller
-        defer { controller.close() }
-
-        #expect(controller.store.showLineNumbers)
-        #expect(!defaults.bool(forKey: "ShowLineNumbers"))
-    }
-
-    @Test("CLI のオプション未指定時は保存済みの行番号設定がそのまま復元される")
-    func noLineNumbersOverridePreservesSavedValue() {
-        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
-        defaults.set(true, forKey: "ShowLineNumbers")
-
-        let controller = ViewerWindowControllerFixture(
-            file: file, contents: "# hi", defaults: defaults
-        ).controller
-        defer { controller.close() }
-
-        #expect(controller.store.showLineNumbers)
-    }
-
-    @Test("store を明示注入した場合でも --line-numbers 指定が反映される")
-    func lineNumbersOverrideIsAppliedEvenWithExplicitStore() {
+    @Test("CLI の --line-numbers 指定の有無で showLineNumbers・保存値への反映が決まる", arguments: [
+        // (保存済みの値, CLI override, 期待する showLineNumbers, 期待する保存値)
+        (saved: Bool?.none, override: Bool?.some (true), expectStore: true, expectSaved: Bool?.none),
         // fixture は既定で InMemoryFileReader + MockFileWatcher の store を自前生成して
-        // 注入するため、これは実質「注入経路そのもの」を検証している。
+        // 注入するため、このケースは「注入経路そのもの」の検証も兼ねている。
+        (false, true, true, false), // override は保存済みグローバル設定を書き換えない
+        (true, nil, true, nil), // 未指定時は保存済みの設定がそのまま復元される(true 方向)
+        (false, nil, false, nil), // 未指定時は保存済みの設定がそのまま復元される(false 方向)
+    ])
+    func lineNumbersOverride(
+        saved: Bool?, override: Bool?, expectStore: Bool, expectSaved: Bool?
+    ) {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
-        defaults.set(false, forKey: "ShowLineNumbers")
+        if let saved {
+            defaults.set(saved, forKey: "ShowLineNumbers")
+        }
 
         let controller = ViewerWindowControllerFixture(
-            file: file, contents: "# hi", defaults: defaults, showLineNumbersOverride: true
+            file: file, contents: "# hi", defaults: defaults, showLineNumbersOverride: override
         ).controller
         defer { controller.close() }
 
-        #expect(controller.store.showLineNumbers)
-        #expect(!defaults.bool(forKey: "ShowLineNumbers"))
+        #expect(controller.store.showLineNumbers == expectStore)
+        if let expectSaved {
+            #expect(defaults.bool(forKey: "ShowLineNumbers") == expectSaved)
+        }
     }
 
     @Test("CLI の --sort 指定はサイドバーの並び順(FileListModel.sortOrder)に反映される")

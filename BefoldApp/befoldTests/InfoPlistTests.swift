@@ -9,7 +9,11 @@ import Testing
 /// ことを回帰テストとして固定する。
 @Suite
 struct InfoPlistTests {
-    private func loadPlist() -> [String: Any] {
+    /// Info.plist はテストごとに再パースせず、プロセス内で一度だけ読む。
+    /// 読めなかった場合は nil のまま保持し、利用側の #require で即座に失敗させる
+    /// (loadPlist が空辞書を返して「型が見つからない」と誤読させていた挙動をやめる)。
+    /// 読み込み専用の let で以後変更しないため、非 Sendable な [String: Any]? でも安全。
+    private nonisolated(unsafe) static let cachedPlist: [String: Any]? = {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // befoldTests/
             .deletingLastPathComponent() // BefoldApp/
@@ -17,20 +21,24 @@ struct InfoPlistTests {
         guard let data = try? Data(contentsOf: url),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
               let dict = plist as? [String: Any]
-        else { return [:] }
+        else { return nil }
         return dict
+    }()
+
+    private func loadPlist() throws -> [String: Any] {
+        try #require(Self.cachedPlist, "befold/Info.plist を読み込めない")
     }
 
-    private var documentTypes: [[String: Any]] {
-        loadPlist()["CFBundleDocumentTypes"] as? [[String: Any]] ?? []
+    private func documentTypes() throws -> [[String: Any]] {
+        try loadPlist()["CFBundleDocumentTypes"] as? [[String: Any]] ?? []
     }
 
-    private var importedTypes: [[String: Any]] {
-        loadPlist()["UTImportedTypeDeclarations"] as? [[String: Any]] ?? []
+    private func importedTypes() throws -> [[String: Any]] {
+        try loadPlist()["UTImportedTypeDeclarations"] as? [[String: Any]] ?? []
     }
 
-    private func claimedContentTypes() -> Set<String> {
-        Set(documentTypes.flatMap { $0["LSItemContentTypes"] as? [String] ?? [] })
+    private func claimedContentTypes() throws -> Set<String> {
+        try Set(documentTypes().flatMap { $0["LSItemContentTypes"] as? [String] ?? [] })
     }
 
     /// befold 自身が net.daringfireball.markdown を宣言していること。
@@ -38,7 +46,7 @@ struct InfoPlistTests {
     @Test
     func importsDaringfireballMarkdownType() throws {
         let markdown = try #require(
-            importedTypes.first { ($0["UTTypeIdentifier"] as? String) == "net.daringfireball.markdown" }
+            importedTypes().first { ($0["UTTypeIdentifier"] as? String) == "net.daringfireball.markdown" }
         )
         let tags = try #require(markdown["UTTypeTagSpecification"] as? [String: Any])
         let extensions = try #require(tags["public.filename-extension"] as? [String])
@@ -51,8 +59,8 @@ struct InfoPlistTests {
     /// Markdown のドキュメントタイプが実勢 UTI（com.unknown.md 含む）を claim していること。
     /// .md のバインドがどの UTI に転んでも「このアプリで開く」に載るようにする。
     @Test
-    func claimsKnownMarkdownContentTypes() {
-        let claimed = claimedContentTypes()
+    func claimsKnownMarkdownContentTypes() throws {
+        let claimed = try claimedContentTypes()
         #expect(claimed.contains("net.daringfireball.markdown"))
         #expect(claimed.contains("net.ia.markdown"))
         #expect(claimed.contains("com.unknown.md"))
@@ -62,7 +70,7 @@ struct InfoPlistTests {
     @Test
     func claimsMermaidDiagramTypeAsOwner() throws {
         let mermaid = try #require(
-            documentTypes.first {
+            documentTypes().first {
                 ($0["LSItemContentTypes"] as? [String])?.contains("com.degino.befold.mermaid-diagram") == true
             }
         )
@@ -74,7 +82,7 @@ struct InfoPlistTests {
     @Test("All code extensions are declared in source-code UTI")
     func importsSourceCodeTypeCoveringAllCodeExtensions() throws {
         let source = try #require(
-            importedTypes.first {
+            importedTypes().first {
                 ($0["UTTypeIdentifier"] as? String) == "com.degino.befold.source-code"
             }
         )
@@ -89,8 +97,8 @@ struct InfoPlistTests {
 
     /// Source Code のドキュメントタイプが自前 UTI と実勢システム UTI を claim していること。
     @Test("Source code document type claims required UTIs")
-    func claimsSourceCodeContentTypes() {
-        let claimed = claimedContentTypes()
+    func claimsSourceCodeContentTypes() throws {
+        let claimed = try claimedContentTypes()
         #expect(claimed.contains("com.degino.befold.source-code"))
         #expect(claimed.contains("public.source-code"))
         #expect(claimed.contains("public.swift-source"))
@@ -101,20 +109,20 @@ struct InfoPlistTests {
 
     /// CSV/TSV のドキュメントタイプが宣言されていること。
     @Test("CSV/TSV のドキュメントタイプが宣言されている")
-    func claimsCsvTsvContentTypes() {
+    func claimsCsvTsvContentTypes() throws {
         let expectedUTIs: Set = [
             "public.comma-separated-values-text",
             "public.tab-separated-values-text",
         ]
-        let claimed = claimedContentTypes()
+        let claimed = try claimedContentTypes()
         for uti in expectedUTIs {
             #expect(claimed.contains(uti), "Missing UTI: \(uti)")
         }
     }
 
     @Test("HTML のドキュメントタイプが宣言されている")
-    func claimsHtmlContentType() {
-        let claimed = claimedContentTypes()
+    func claimsHtmlContentType() throws {
+        let claimed = try claimedContentTypes()
         #expect(claimed.contains("public.html"))
     }
 }

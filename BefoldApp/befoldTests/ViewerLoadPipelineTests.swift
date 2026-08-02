@@ -213,14 +213,24 @@ struct ViewerLoadPipelineTests {
         }
     }
 
-    @Test("charset 宣言の無い HTML は hasDeclaredHTMLCharset が false になる")
-    func loadReportsUndeclaredHTMLCharset() async {
-        let url = URL(fileURLWithPath: "/tmp/undeclared.html")
-        let fileReader = InMemoryFileReader(files: [url.path: "<h1>hello</h1>"])
+    @Test("hasDeclaredHTMLCharset は charset 宣言の有無とファイル種別で決まる", arguments: [
+        // (ファイル名, 種別, 内容, 期待値)
+        ("undeclared.html", FileType.html, "<h1>hello</h1>", Bool?.some (false)), // charset 宣言の無い HTML
+        (
+            "declared.html", .html,
+            "<html><head><meta charset=\"UTF-8\"></head><body>hello</body></html>", true
+        ), // meta charset 宣言のある HTML
+        ("plain.mmd", .mmd, "graph TD;A-->B;", nil), // HTML 以外は常に nil
+    ])
+    func loadReportsHasDeclaredHTMLCharset(
+        name: String, fileType: FileType, contents: String, expected: Bool?
+    ) async {
+        let url = URL(fileURLWithPath: "/tmp/\(name)")
+        let fileReader = InMemoryFileReader(files: [url.path: contents])
 
         let outcome = await ViewerLoadPipeline.load(
             resolved: url,
-            fileType: .html,
+            fileType: fileType,
             fileReader: fileReader,
             contentLoader: ContentLoader(fileReader: fileReader),
             chunkedReaderFactory: chunkedReaderFactory
@@ -230,47 +240,6 @@ struct ViewerLoadPipelineTests {
             Issue.record("full outcome を期待したが \(outcome) だった")
             return
         }
-        #expect(loaded.hasDeclaredHTMLCharset == false)
-    }
-
-    @Test("meta charset 宣言のある HTML は hasDeclaredHTMLCharset が true になる")
-    func loadReportsDeclaredHTMLCharset() async {
-        let url = URL(fileURLWithPath: "/tmp/declared.html")
-        let html = "<html><head><meta charset=\"UTF-8\"></head><body>hello</body></html>"
-        let fileReader = InMemoryFileReader(files: [url.path: html])
-
-        let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .html,
-            fileReader: fileReader,
-            contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: chunkedReaderFactory
-        )
-
-        guard case let .full(loaded, _) = outcome else {
-            Issue.record("full outcome を期待したが \(outcome) だった")
-            return
-        }
-        #expect(loaded.hasDeclaredHTMLCharset == true)
-    }
-
-    @Test("HTML 以外は hasDeclaredHTMLCharset が常に nil になる")
-    func loadOmitsHTMLCharsetFlagForNonHTML() async {
-        let url = URL(fileURLWithPath: "/tmp/plain.mmd")
-        let fileReader = InMemoryFileReader(files: [url.path: "graph TD;A-->B;"])
-
-        let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .mmd,
-            fileReader: fileReader,
-            contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: chunkedReaderFactory
-        )
-
-        guard case let .full(loaded, _) = outcome else {
-            Issue.record("full outcome を期待したが \(outcome) だった")
-            return
-        }
-        #expect(loaded.hasDeclaredHTMLCharset == nil)
+        #expect(loaded.hasDeclaredHTMLCharset == expected)
     }
 }

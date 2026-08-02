@@ -24,19 +24,33 @@ struct ViewerWindowControllerToolbarTests {
         ).controller
     }
 
-    @Test("既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/行番号/モード切替/ブックマーク の順")
-    func defaultItemsPlaceHistoryButtonsAfterTrackingSeparator() throws {
+    @Test(
+        "既定アイテム順・戻る/進むアイテムの isNavigational・初期無効状態を1つのウィンドウで検証する"
+    )
+    func defaultItemsAreOrderedNavigationalAndInitiallyDisabled() throws {
         let controller = makeController(file: URL(fileURLWithPath: "/mock/a.mmd"))
         defer { controller.close() }
         let toolbar = try #require(controller.window?.toolbar)
 
+        // 既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/行番号/モード切替/ブックマーク の順
         let identifiers = controller.toolbarController.toolbarDefaultItemIdentifiers(toolbar)
-
         #expect(identifiers == [
             .toggleSidebar, .sidebarTrackingSeparator,
             .init("historyBack"), .init("historyForward"),
             .flexibleSpace, .init("lineNumbers"), .init("modeToggle"), .init("bookmark"),
         ])
+
+        for identifier in ["historyBack", "historyForward"] {
+            let item = try #require(controller.toolbarController.toolbar(
+                toolbar, itemForItemIdentifier: .init(identifier), willBeInsertedIntoToolbar: false
+            ))
+            // 戻る・進むアイテムはナビゲーション項目としてタイトルより先頭側に配置される
+            #expect(item.isNavigational, "\(identifier) は isNavigational であるべき")
+
+            // 履歴が無い間、戻る・進むアイテムは無効
+            let button = try #require(item.view as? HistoryButtonView)
+            #expect(button.isEnabled == false, "\(identifier) は初期状態で無効のはず")
+        }
     }
 
     @Test("ブックマークボタンをクリックすると状態がトグルされアイコン・色に反映される")
@@ -93,35 +107,6 @@ struct ViewerWindowControllerToolbarTests {
         #expect(previewButton.isEnabled == false)
     }
 
-    @Test("戻る・進むアイテムはナビゲーション項目としてタイトルより先頭側に配置される")
-    func historyItemsAreNavigational() throws {
-        let controller = makeController(file: URL(fileURLWithPath: "/mock/a.mmd"))
-        defer { controller.close() }
-        let toolbar = try #require(controller.window?.toolbar)
-
-        for identifier in ["historyBack", "historyForward"] {
-            let item = try #require(controller.toolbarController.toolbar(
-                toolbar, itemForItemIdentifier: .init(identifier), willBeInsertedIntoToolbar: false
-            ))
-            #expect(item.isNavigational, "\(identifier) は isNavigational であるべき")
-        }
-    }
-
-    @Test("履歴が無い間、戻る・進むアイテムは無効")
-    func historyItemsDisabledWithoutHistory() throws {
-        let controller = makeController(file: URL(fileURLWithPath: "/mock/a.mmd"))
-        defer { controller.close() }
-        let toolbar = try #require(controller.window?.toolbar)
-
-        for identifier in ["historyBack", "historyForward"] {
-            let item = try #require(controller.toolbarController.toolbar(
-                toolbar, itemForItemIdentifier: .init(identifier), willBeInsertedIntoToolbar: false
-            ))
-            let button = try #require(item.view as? HistoryButtonView)
-            #expect(button.isEnabled == false, "\(identifier) は初期状態で無効のはず")
-        }
-    }
-
     @Test("モード切替セグメントの有効状態と選択はファイル種別で決まる", arguments: [
         // (ファイル名, 内容, プレビュー有効, ソース有効, ソース側が選択済み)
         ("a.mmd", "graph TD;", true, true, false), // レンダリング可能なテキスト: 両方有効・プレビュー選択
@@ -169,62 +154,40 @@ struct ViewerWindowControllerToolbarTests {
 
     // MARK: - ファイル切替に伴うライブ更新
 
-    @Test("ファイル切替でブックマークボタンが新しいファイルの状態に更新される")
-    func bookmarkItemUpdatesOnFileSwitch() async throws {
+    @Test("ファイル切替でブックマークボタンが新ファイルの状態に、戻るアイテムが履歴の有無に更新される")
+    func fileSwitchUpdatesBookmarkAndHistoryToolbarItemsLive() async throws {
         let fileA = URL(fileURLWithPath: "/mock/a.mmd")
         let fileB = URL(fileURLWithPath: "/mock/b.mmd")
         let controller = makeController(file: fileA, extraFiles: [fileB])
         defer { controller.close() }
         let toolbar = try #require(controller.window?.toolbar)
 
-        let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("bookmark") })
-        let button = try #require(liveItem.view as? NSButton)
+        let bookmarkItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("bookmark") })
+        let bookmarkButton = try #require(bookmarkItem.view as? NSButton)
+        let historyItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("historyBack") })
+        let historyButton = try #require(historyItem.view as? HistoryButtonView)
+        #expect(historyButton.isEnabled == false)
 
         controller.toggleBookmark(nil)
-        #expect(button.contentTintColor == .controlAccentColor)
+        #expect(bookmarkButton.contentTintColor == .controlAccentColor)
 
         controller.switchFile(to: fileB)
 
-        // onContentReloaded はファイル読み込み完了後に非同期で発火するため、反映をポーリングで待つ。
-        await waitUntilOnMainActor { button.contentTintColor == nil }
-        #expect(button.contentTintColor == nil)
-    }
-
-    @Test("ファイル切替で履歴ができると戻るアイテムが有効になる")
-    func backItemEnabledAfterFileSwitch() throws {
-        let fileA = URL(fileURLWithPath: "/mock/a.mmd")
-        let fileB = URL(fileURLWithPath: "/mock/b.mmd")
-        let controller = makeController(file: fileA, extraFiles: [fileB])
-        defer { controller.close() }
-        let toolbar = try #require(controller.window?.toolbar)
-
-        controller.switchFile(to: fileB)
-
-        let item = try #require(controller.toolbarController.toolbar(
+        // ファイル切替で履歴ができると戻るアイテムが有効になる(即時反映)
+        #expect(historyButton.isEnabled == true)
+        // toolbar(_:itemForItemIdentifier:willBeInsertedIntoToolbar:) は呼び出しごとに
+        // 現在の store 状態から新規にアイテムを生成する。ツールバーのカスタマイズ等で
+        // アイテムが再生成される経路でも、履歴あり状態が反映されることを確認する。
+        let recreatedHistoryItem = try #require(controller.toolbarController.toolbar(
             toolbar, itemForItemIdentifier: .init("historyBack"), willBeInsertedIntoToolbar: false
         ))
-        let button = try #require(item.view as? HistoryButtonView)
-        #expect(button.isEnabled == true)
-    }
-
-    @Test("履歴状態の変化がツールバー上の実アイテムにライブ反映される")
-    func historyBackButtonUpdatesLiveToolbarItemOnFileSwitch() throws {
-        let fileA = URL(fileURLWithPath: "/mock/a.mmd")
-        let fileB = URL(fileURLWithPath: "/mock/b.mmd")
-        let controller = makeController(file: fileA, extraFiles: [fileB])
-        defer { controller.close() }
-        let toolbar = try #require(controller.window?.toolbar)
-
-        let liveItem = try #require(toolbar.items.first {
-            $0.itemIdentifier == .init("historyBack")
-        })
-        let button = try #require(liveItem.view as? HistoryButtonView)
-        #expect(button.isEnabled == false)
-
-        controller.switchFile(to: fileB)
-        #expect(button.isEnabled == true)
+        #expect((recreatedHistoryItem.view as? HistoryButtonView)?.isEnabled == true)
+        // onContentReloaded はファイル読み込み完了後に非同期で発火するため、ブックマークの
+        // 反映のみポーリングで待つ。
+        await waitUntilOnMainActor { bookmarkButton.contentTintColor == nil }
+        #expect(bookmarkButton.contentTintColor == nil)
 
         controller.navigateHistory(by: -1)
-        #expect(button.isEnabled == false)
+        #expect(historyButton.isEnabled == false)
     }
 }

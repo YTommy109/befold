@@ -9,25 +9,10 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorBaseDirectoryTests {
-    /// ファイル切替を行わないダミーの host。基準ディレクトリの更新だけを見る。
-    private final class StubHost: SidebarNavigatorHost {
-        let currentFileURL: URL
-
-        init(currentFileURL: URL) {
-            self.currentFileURL = currentFileURL
-        }
-
-        func performFileSwitch(to _: URL) -> FileSwitchOutcome {
-            .switched
-        }
-
-        func historyStateDidChange() {}
-    }
-
     private func makeNavigator(
         currentDirectory: URL,
         gitRoot: URL?
-    ) -> (SidebarNavigator, StubHost) {
+    ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
             entries: [],
@@ -38,7 +23,7 @@ struct SidebarNavigatorBaseDirectoryTests {
             directoryLister: { _, _, _ in [] },
             resolveGitRoot: { _ in gitRoot }
         )
-        let host = StubHost(currentFileURL: currentDirectory.appendingPathComponent("a.md"))
+        let host = SidebarNavigatorStubHost(currentFileURL: currentDirectory.appendingPathComponent("a.md"))
         navigator.attach(to: host)
         return (navigator, host)
     }

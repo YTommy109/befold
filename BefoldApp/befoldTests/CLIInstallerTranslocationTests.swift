@@ -1,4 +1,5 @@
 @testable import BefoldCLI
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -36,11 +37,9 @@ struct CLIInstallerTranslocationTests {
     /// 専用のエラーを返すことを、書き込み可能な installPath を渡した状態で確かめる。
     @Test("translocated なバンドルからの install は書き込まずに専用エラーを返す")
     func installRefusesTranslocatedBundleWithoutWriting() throws {
-        let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CLIInstallerTranslocationTests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tmp) }
-        let installPath = tmp.appendingPathComponent("befold")
+        let tmp = try TempDir(prefix: "CLIInstallerTranslocationTests")
+        defer { withExtendedLifetime(tmp) {} }
+        let installPath = tmp.url.appendingPathComponent("befold")
         let translocated =
             "/private/var/folders/7x/2m9d0000gn/T/AppTranslocation/"
                 + "A1B2C3D4-0000-1111-2222-333344445555/d/befold.app"

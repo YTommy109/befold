@@ -31,44 +31,15 @@ private final class CountingGitIndex: GitFileIndexing, @unchecked Sendable {
     }
 }
 
-private struct FakeFileReader: FileReading {
-    let existing: Set<String>
-    func fileExists(at url: URL) -> Bool {
-        existing.contains(url.standardizedFileURL.path)
-    }
-
-    func isDirectory(at url: URL) -> Bool {
-        false
-    }
-
-    func isExistingFile(at url: URL) -> Bool {
-        existing.contains(url.standardizedFileURL.path)
-    }
-
-    func readString(from url: URL) throws -> String {
-        ""
-    }
-
-    func readData(from url: URL) throws -> Data {
-        Data()
-    }
-
-    func isBinary(at url: URL) -> Bool {
-        false
-    }
-
-    func fileSize(at url: URL) -> Int? {
-        nil
-    }
-
-    func modificationDate(at url: URL) -> Date? {
-        nil
-    }
-}
-
 struct TrackedPathResolverTests {
     private func url(_ path: String) -> URL {
         URL(fileURLWithPath: path)
+    }
+
+    /// 指定した URL だけが存在するファイルとして解決される InMemoryFileReader を組み立てる。
+    /// 中身は判定に使わないため空文字で埋める。
+    private func fileReader(existing: [URL]) -> InMemoryFileReader {
+        InMemoryFileReader(files: Dictionary(uniqueKeysWithValues: existing.map { ($0.path, "") }))
     }
 
     @Test("相対で実在すればそのまま解決する(git を見ない)")
@@ -76,7 +47,7 @@ struct TrackedPathResolverTests {
         let base = url("/repo/docs/guide.md")
         let target = url("/repo/docs/img.png")
         let sut = TrackedPathResolver(
-            fileReader: FakeFileReader(existing: [target.path]),
+            fileReader: fileReader(existing: [target]),
             gitIndex: FakeGitIndex(files: nil)
         )
         #expect(sut.resolve(href: "img.png", baseURL: base) == .resolved(target))
@@ -87,7 +58,7 @@ struct TrackedPathResolverTests {
         let base = url("/repo/docs/guide.md")
         let tracked = url("/repo/src/utils.swift")
         let sut = TrackedPathResolver(
-            fileReader: FakeFileReader(existing: [tracked.path]),
+            fileReader: fileReader(existing: [tracked]),
             gitIndex: FakeGitIndex(files: [tracked])
         )
         #expect(sut.resolve(href: "utils.swift", baseURL: base) == .resolved(tracked))
@@ -101,7 +72,7 @@ struct TrackedPathResolverTests {
         let base = url("/repo/docs/guide.md")
         let tracked = url("/repo/src/utils.swift")
         let sut = TrackedPathResolver(
-            fileReader: FakeFileReader(existing: []),
+            fileReader: fileReader(existing: []),
             gitIndex: FakeGitIndex(files: [tracked])
         )
         #expect(sut.resolve(href: "utils.swift", baseURL: base) == .unresolved)
@@ -110,7 +81,7 @@ struct TrackedPathResolverTests {
     @Test("git 管理外かつ相対で実在しなければ unresolved")
     func unresolvedWithoutGit() {
         let sut = TrackedPathResolver(
-            fileReader: FakeFileReader(existing: []),
+            fileReader: fileReader(existing: []),
             gitIndex: FakeGitIndex(files: nil)
         )
         #expect(sut.resolve(href: "utils.swift", baseURL: url("/repo/x.md")) == .unresolved)
@@ -119,7 +90,7 @@ struct TrackedPathResolverTests {
     @Test("外部 URL は external、アンカー/空は ignored")
     func classifiesExternalAndIgnored() throws {
         let sut = TrackedPathResolver(
-            fileReader: FakeFileReader(existing: []),
+            fileReader: fileReader(existing: []),
             gitIndex: FakeGitIndex(files: nil)
         )
         let base = url("/repo/x.md")
@@ -136,7 +107,7 @@ struct TrackedPathResolverTests {
         let hrefs = ["utils.swift", "img.png", "nope.swift", "https://example.com", "#section"]
         let makeSUT = {
             TrackedPathResolver(
-                fileReader: FakeFileReader(existing: [existing.path, tracked.path]),
+                fileReader: fileReader(existing: [existing, tracked]),
                 gitIndex: CountingGitIndex(files: [tracked])
             )
         }
@@ -152,7 +123,7 @@ struct TrackedPathResolverTests {
     @Test("resolveAll は git 追跡ファイルの取得をバッチで 1 度に抑える")
     func resolveAllFetchesTrackedFilesOnce() {
         let index = CountingGitIndex(files: [url("/repo/src/utils.swift")])
-        let sut = TrackedPathResolver(fileReader: FakeFileReader(existing: []), gitIndex: index)
+        let sut = TrackedPathResolver(fileReader: fileReader(existing: []), gitIndex: index)
 
         _ = sut.resolveAll(
             hrefs: ["utils.swift", "other.swift", "third.swift"],
@@ -167,7 +138,7 @@ struct TrackedPathResolverTests {
         let existing = url("/repo/docs/img.png")
         let index = CountingGitIndex(files: [url("/repo/src/utils.swift")])
         let sut = TrackedPathResolver(
-            fileReader: FakeFileReader(existing: [existing.path]), gitIndex: index
+            fileReader: fileReader(existing: [existing]), gitIndex: index
         )
 
         _ = sut.resolveAll(hrefs: ["img.png", "https://example.com"], baseURL: url("/repo/docs/guide.md"))
@@ -180,7 +151,7 @@ struct TrackedPathResolverTests {
         let base = url("/repo/docs/guide.md")
         let tracked = url("/repo/src/utils.swift")
         let sut = TrackedPathResolver(
-            fileReader: FakeFileReader(existing: [tracked.path]),
+            fileReader: fileReader(existing: [tracked]),
             gitIndex: FakeGitIndex(files: [tracked])
         )
         #expect(sut.resolve(href: "utils.swift:42", baseURL: base) == .resolved(tracked))

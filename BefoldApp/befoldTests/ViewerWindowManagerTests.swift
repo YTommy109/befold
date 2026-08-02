@@ -28,39 +28,40 @@ struct ViewerWindowManagerTests {
     @Test("生成したウィンドウには共有の git 索引が注入される")
     func openViewerInjectsSharedGitFileIndex() {
         let fixture = MockedViewerWindowManager(files: [file1, file2])
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file1)
         fixture.manager.openViewer(for: file2)
 
         // 2 ウィンドウ分の先読みが同じ 1 個の索引に届いている。
         #expect(fixture.gitFileIndex.warmedPaths.map(\.path) == [file1.path, file2.path])
-        fixture.closeAll()
     }
 
     @Test("同じファイルを二度開いてもウィンドウは 1 つに集約される")
     func openViewerReusesControllerForSamePath() {
         let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file)
         fixture.manager.openViewer(for: file)
 
         #expect(fixture.manager.controllers.count == 1)
-        fixture.closeAll()
     }
 
     @Test("単一ファイル指定では従来通りウィンドウは1つだけ開く(回帰確認)")
     func singleCLITargetOpensExactlyOneWindow() {
         let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file)
 
         #expect(fixture.manager.controllers.count == 1)
-        fixture.closeAll()
     }
 
     @Test("ウィンドウクローズで管理辞書から除去されセッション記録も閉じられる")
     func closingWindowRemovesControllerAndNotesClosed() {
         let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file)
         #expect(fixture.sessionStore.savedURLs().map(\.normalizedPathKey) == [file.normalizedPathKey])
@@ -74,11 +75,11 @@ struct ViewerWindowManagerTests {
     @Test("ファイルを開くと Open Recent 履歴に記録される")
     func openViewerRecordsRecentDocument() {
         let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file)
 
         #expect(fixture.recentDocumentsStore.recentURLs().map(\.path) == [file.normalizedPathKey])
-        fixture.closeAll()
     }
 
     @Test("rename が Open Recent 履歴に反映される")
@@ -86,29 +87,30 @@ struct ViewerWindowManagerTests {
         let old = URL(fileURLWithPath: "/mock/old.mmd")
         let renamed = URL(fileURLWithPath: "/mock/new.mmd")
         let fixture = MockedViewerWindowManager(files: [old, renamed])
+        defer { fixture.closeAll() }
         fixture.manager.openViewer(for: old)
 
         let controller = try #require(fixture.manager.controllers[old.normalizedPathKey]?.first)
         fixture.manager.viewerWindow(controller, didRenameFrom: old, to: renamed)
 
         #expect(fixture.recentDocumentsStore.recentURLs().map(\.path) == [renamed.normalizedPathKey])
-        fixture.closeAll()
     }
 
     @Test("window(forPath:) が開いたウィンドウを返す")
     func windowForPathReturnsOpenWindow() throws {
         let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file)
 
         let window = try #require(fixture.manager.window(forPath: file.normalizedPathKey))
         #expect(fixture.manager.viewerPath(of: window) == file.normalizedPathKey)
-        fixture.closeAll()
     }
 
     @Test("switchFile で管理辞書のキーが付け替わりセッション記録が更新される")
     func switchFileUpdatesControllerKeyAndSession() throws {
         let fixture = MockedViewerWindowManager(files: [file1, file2])
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file1)
         let controller = try #require(fixture.manager.controllers[file1.normalizedPathKey]?.first)
@@ -119,12 +121,12 @@ struct ViewerWindowManagerTests {
         let savedPaths = fixture.sessionStore.savedURLs().map(\.normalizedPathKey)
         #expect(savedPaths.contains(file2.normalizedPathKey))
         #expect(!savedPaths.contains(file1.normalizedPathKey))
-        fixture.closeAll()
     }
 
     @Test("別ウィンドウで開いているファイルへも、アクティブウィンドウ側で切り替わる")
     func switchToFileOpenInAnotherWindowSwitchesActiveWindow() throws {
         let fixture = MockedViewerWindowManager(files: [file1, file2])
+        defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file1)
         fixture.manager.openViewer(for: file2)
         let first = try #require(fixture.manager.controllers[file1.normalizedPathKey]?.first)
@@ -142,12 +144,12 @@ struct ViewerWindowManagerTests {
         #expect(file2Controllers.contains { $0 === second })
         // 元の file1 のキーからは first が外れる。
         #expect(fixture.manager.controllers[file1.normalizedPathKey] == nil)
-        fixture.closeAll()
     }
 
     @Test("performFileSwitch は別ウィンドウで開いていても切替を完了する")
     func performFileSwitchSwitchesEvenWhenOpenElsewhere() throws {
         let fixture = MockedViewerWindowManager(files: [file1, file2])
+        defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file1)
         fixture.manager.openViewer(for: file2)
         let first = try #require(fixture.manager.controllers[file1.normalizedPathKey]?.first)
@@ -156,16 +158,15 @@ struct ViewerWindowManagerTests {
 
         guard case .switched = outcome else {
             Issue.record("別ウィンドウで開いていても切替は完了(.switched)すべき: \(outcome)")
-            fixture.closeAll()
             return
         }
         #expect(first.fileURL == file2)
-        fixture.closeAll()
     }
 
     @Test("履歴で戻る先が別ウィンドウで開かれていても、前面化せず自ウィンドウで戻る")
     func historyNavigationToFileOpenElsewhereSwitchesWithoutFocusing() throws {
         let fixture = MockedViewerWindowManager(files: [file1, file2])
+        defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file1)
         let first = try #require(fixture.manager.controllers[file1.normalizedPathKey]?.first)
         // file1 -> file2 の切替で file1 が履歴に残る。
@@ -182,28 +183,27 @@ struct ViewerWindowManagerTests {
         // 自ウィンドウ(first)が file1 へ戻り、別ウィンドウ(second)は前面化しない。
         #expect(first.fileURL.normalizedPathKey == file1.normalizedPathKey)
         #expect(second.window?.isKeyWindow == false)
-        fixture.closeAll()
     }
 
     @Test("新規ファイルを開くと、記録がなければ既定(閉じた状態)がサイドバー状態として記録される")
     func openViewerPersistsDefaultClosedSidebarStateForNewFile() {
         let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file)
 
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == true)
-        fixture.closeAll()
     }
 
     @Test("既に保存済みのサイドバー状態があるファイルを開いても保存値は上書きされない")
     func openViewerKeepsOwnSavedSidebarState() {
         let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
         fixture.perFileState.sidebar.setCollapsed(false, for: file)
 
         fixture.manager.openViewer(for: file)
 
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
-        fixture.closeAll()
     }
 
     @Test("初めて開くファイルは直近アクティブだったウィンドウのサイドバー状態を引き継ぐ")
@@ -211,28 +211,29 @@ struct ViewerWindowManagerTests {
         let activeFile = URL(fileURLWithPath: "/mock/active.mmd")
         let newFile = URL(fileURLWithPath: "/mock/new.mmd")
         let fixture = MockedViewerWindowManager(files: [activeFile, newFile])
+        defer { fixture.closeAll() }
         fixture.perFileState.sidebar.setCollapsed(false, for: activeFile)
         fixture.sessionStore.noteActivated(activeFile)
 
         fixture.manager.openViewer(for: newFile)
 
         #expect(fixture.perFileState.sidebar.isCollapsed(for: newFile) == false)
-        fixture.closeAll()
     }
 
     @Test("forceSidebarVisible は保存済み・引き継ぎ値より優先され、結果も記録される")
     func openViewerForceSidebarVisibleOverridesResolvedDefault() {
         let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file, forceSidebarVisible: true)
 
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
-        fixture.closeAll()
     }
 
     @Test("既に保存済みのウィンドウフレームがあるファイルを開いても保存値は上書きされない")
     func openViewerKeepsOwnSavedWindowFrame() {
         let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
         fixture.perFileState.windowFrame.setFrameDescriptor("200 200 900 700 0 0 1920 1080", for: file)
 
         fixture.manager.openViewer(for: file)
@@ -240,7 +241,6 @@ struct ViewerWindowManagerTests {
         #expect(
             fixture.perFileState.windowFrame.frameDescriptor(for: file) == "200 200 900 700 0 0 1920 1080"
         )
-        fixture.closeAll()
     }
 
     @Test("初めて開くファイルは直近アクティブだったウィンドウのフレームを引き継ぐ")
@@ -248,6 +248,7 @@ struct ViewerWindowManagerTests {
         let activeFile = URL(fileURLWithPath: "/mock/active.mmd")
         let newFile = URL(fileURLWithPath: "/mock/new.mmd")
         let fixture = MockedViewerWindowManager(files: [activeFile, newFile])
+        defer { fixture.closeAll() }
         fixture.perFileState.windowFrame.setFrameDescriptor("50 50 700 500 0 0 1920 1080", for: activeFile)
         fixture.sessionStore.noteActivated(activeFile)
 
@@ -256,17 +257,16 @@ struct ViewerWindowManagerTests {
         #expect(
             fixture.perFileState.windowFrame.frameDescriptor(for: newFile) == "50 50 700 500 0 0 1920 1080"
         )
-        fixture.closeAll()
     }
 
     @Test("記録が何もない新規ファイルはウィンドウフレームを記録しない(既定のカスケード配置に任せる)")
     func openViewerLeavesWindowFrameUnsetWhenNothingToInherit() {
         let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file)
 
         #expect(fixture.perFileState.windowFrame.frameDescriptor(for: file) == nil)
-        fixture.closeAll()
     }
 
     // MARK: - makeTabGroup(タブ構成スナップショットの組み立て)
@@ -280,28 +280,47 @@ struct ViewerWindowManagerTests {
         #expect(group == nil)
     }
 
-    @Test("単独ウィンドウは自身を選択タブとする1枚のグループになる")
-    func makeTabGroupForSingleWindow() throws {
-        let group = try #require(
-            ViewerWindowManager.makeTabGroup(
-                tabWindows: ["/a.mmd"], selectedWindow: "/a.mmd", viewerPath: { $0 }
-            )
-        )
-
-        #expect(group.paths == ["/a.mmd"])
-        #expect(group.selectedPath == "/a.mmd")
+    /// タブがすべてビューアの場合の入力と期待値。
+    struct TabGroupCase: Sendable, CustomTestStringConvertible {
+        let name: String
+        let tabWindows: [String]
+        let selectedWindow: String
+        let expectedPaths: [String]
+        let expectedSelectedPath: String
+        var testDescription: String {
+            name
+        }
     }
 
-    @Test("タブ順は保たれ、選択タブのパスが selectedPath になる")
-    func makeTabGroupKeepsTabOrderAndSelection() throws {
+    /// 単独ウィンドウは「全タブがビューア」の縮退ケースなので同じ表で回す。
+    private nonisolated static let tabGroupCases: [TabGroupCase] = [
+        TabGroupCase(
+            name: "単独ウィンドウ",
+            tabWindows: ["/a.mmd"], selectedWindow: "/a.mmd",
+            expectedPaths: ["/a.mmd"], expectedSelectedPath: "/a.mmd"
+        ),
+        TabGroupCase(
+            name: "先頭が選択されている3タブ",
+            tabWindows: ["/a.mmd", "/b.mmd", "/c.mmd"], selectedWindow: "/a.mmd",
+            expectedPaths: ["/a.mmd", "/b.mmd", "/c.mmd"], expectedSelectedPath: "/a.mmd"
+        ),
+        TabGroupCase(
+            name: "中央が選択されている3タブ",
+            tabWindows: ["/a.mmd", "/b.mmd", "/c.mmd"], selectedWindow: "/b.mmd",
+            expectedPaths: ["/a.mmd", "/b.mmd", "/c.mmd"], expectedSelectedPath: "/b.mmd"
+        ),
+    ]
+
+    @Test("タブ順は保たれ、選択タブのパスが selectedPath になる", arguments: tabGroupCases)
+    func makeTabGroupKeepsTabOrderAndSelection(_ testCase: TabGroupCase) throws {
         let group = try #require(
             ViewerWindowManager.makeTabGroup(
-                tabWindows: ["/a.mmd", "/b.mmd", "/c.mmd"], selectedWindow: "/b.mmd", viewerPath: { $0 }
+                tabWindows: testCase.tabWindows, selectedWindow: testCase.selectedWindow, viewerPath: { $0 }
             )
         )
 
-        #expect(group.paths == ["/a.mmd", "/b.mmd", "/c.mmd"])
-        #expect(group.selectedPath == "/b.mmd")
+        #expect(group.paths == testCase.expectedPaths)
+        #expect(group.selectedPath == testCase.expectedSelectedPath)
     }
 
     @Test("ビューアでないタブは除外され、選択タブがビューアでなければ selectedPath は nil になる")
