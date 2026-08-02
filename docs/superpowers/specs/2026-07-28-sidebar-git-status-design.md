@@ -48,7 +48,10 @@ stable 昇格までは dev / DEBUG ビルドでのみ露出する。
 
 **staged + unstaged 両立時**: バッジ文字は **index 側を優先表示**しつつ、
 色で worktree 変更も示す（例: 文字は緑の index コード、加えて橙のアクセントを添える）。
-具体的な色トークンとアクセント表現は実装時に既存 UI のカラーに合わせて決める。
+
+Phase 1 実装では、アクセントを**文字の左に置く直径 4pt の橙の丸**にした
+（文字を 2 つ並べると行幅を食い、ファイル名の切り詰めが早まるため）。
+バッジ文字は 10pt の等幅セミボールド。
 
 バッジ非表示となるのは: 非 Git リポジトリ / git 不在 / status 取得失敗 / 変更なし。
 
@@ -103,8 +106,13 @@ protocol GitStatusReading: Sendable {
 
 ### GitFileStatus（新規）
 
-各ファイルの状態を表す値型。`OptionSet` で staged / unstaged / untracked / branchModified の
-組み合わせを表現し、表示層で「バッジ文字 + 色」へ写像する（写像は表示側の純粋関数）。
+各ファイルの状態を表す値型。表示層で「バッジ文字 + 色」へ写像する（写像は表示側の純粋関数）。
+
+当初は `OptionSet` を想定していたが、**Phase 1 実装時に構造体へ変更した**。バッジ文字は
+「index 側の変更種別（A / M / D …）そのもの」を出す仕様であり、フラグの集合からは
+文字を復元できないため。実際の形は
+`indexChange: Change?` / `worktreeChange: Change?` / `isUntracked` / `isBranchModified` で、
+組み合わせ（staged かつ unstaged など）は「どちらの辺が nil でないか」で表現する。
 
 ### GitStatusSnapshot（新規）
 
@@ -114,6 +122,11 @@ protocol GitStatusReading: Sendable {
 キーは **`URL` ではなく `normalizedPathKey`（String）** とする。リポジトリ全体の規約
 （`PathKeyedDictionary` / `WorktreeCatalog` / `FileListEntry.pathKey`）に合わせるため。
 URL をキーにすると symlink 経由の別表記で一致せず、`FileListEntry` との突合が落ちる。
+
+キーは**リポジトリルート相対ではなく解決済みの絶対パス**にする（Phase 1 実装時に確定）。
+`normalizedPathKey` は `resolvingSymlinksInPath()` でファイルシステムに触るため、
+メインアクター外で動く Reader 側で変換を済ませ、メインスレッドでの stat を避ける。
+`FileListEntry.pathKey` と同じ形になるので、表示側は絞り込みも変換もなしに引ける。
 
 ### GitStatusStore（新規、@MainActor @Observable）
 
@@ -140,6 +153,12 @@ no-op 実装（常に nil を返す）を既定値に用意する。
 `ViewerWindowController` へ forward → `SidebarNavigator` へは `resolveGitRoot` と同型の
 クロージャで注入する（SidebarNavigator が git 型に直接依存せず、既存テストが壊れない）。
 `ViewerWindowController` の既定値は no-op 実装とし、テストが git を spawn しないことを保証する。
+
+Store が要る共有 `gitFileIndex` の実体は `ViewerWindowManager` が握っている（既定引数で
+生成される）ため、`AppDelegate` は **windowManager を生成した直後にルート解決付きの
+Store を差し込む**形にする（`windowManager.gitStatusStore = GitStatusStore(...)`）。
+`ViewerWindowManager` / `ViewerWindowController` の既定値はルート解決が常に nil を返す
+無効化状態で、注入を省略したテストは git を起動しない。
 
 ### FileListModel / FileListEntryRow（既存を拡張）
 

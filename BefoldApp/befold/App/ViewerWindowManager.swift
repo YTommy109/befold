@@ -42,6 +42,10 @@ final class ViewerWindowManager {
     /// ウィンドウごとの複製が無視できない大きさになる)。ウィンドウが温めた同じ
     /// インスタンスを Quick Open の候補源もそのまま使う。
     let gitFileIndex: any GitFileIndexing
+    /// サイドバーの git 状態バッジの取得元。全ウィンドウで 1 個を共有し、同じリポジトリを
+    /// 開いた複数ウィンドウで `git status` の実行とキャッシュをまとめる。
+    /// 既定は無効化状態(常に空)で、本番のルート解決付きインスタンスは AppDelegate が差し込む。
+    var gitStatusStore = GitStatusStore()
     /// 「最近使ったリポジトリ」の記録先。git ルートを持つファイルを開いた際に record、
     /// そのウィンドウが閉じるたび・アプリ終了時に updateLastTabGroup でタブ構成を更新する。
     private let recentRepositoriesStore: RecentRepositoriesStore
@@ -227,6 +231,7 @@ final class ViewerWindowManager {
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             gitFileIndex: gitFileIndex,
+            gitStatusStore: gitStatusStore,
             initialSidebarCollapsed: initialSidebarCollapsed,
             initialFrameDescriptor: initialFrameDescriptor,
             initialSortOrder: options.viewerSortOrder,

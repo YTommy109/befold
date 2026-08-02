@@ -1,10 +1,10 @@
 ---
 id: TASK-186
 title: サイドバーに Git ステータスを表示する（フィーチャーゲート対象）
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-07-28 14:22'
-updated_date: '2026-08-02 08:01'
+updated_date: '2026-08-02 08:28'
 labels: []
 dependencies: []
 documentation:

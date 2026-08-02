@@ -42,4 +42,40 @@ public enum GitTestRepo {
         run(["add", name], in: dir)
         run(["commit", "-m", "init"], in: dir)
     }
+
+    /// 既存ファイルを書き換えて `git add` まで済ませる(index にのみ変更がある状態)。
+    public static func stageChange(
+        to name: String, contents: String = "print(2)", in dir: URL
+    ) throws {
+        try contents.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        run(["add", name], in: dir)
+    }
+
+    /// 既存ファイルを書き換えるだけで add はしない(worktree にのみ変更がある状態)。
+    public static func modifyWithoutStaging(
+        _ name: String, contents: String = "print(3)", in dir: URL
+    ) throws {
+        try contents.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+    }
+
+    /// 追跡されていない新規ファイルを作る。
+    public static func addUntrackedFile(
+        named name: String, contents: String = "untracked", in dir: URL
+    ) throws {
+        try contents.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+    }
+
+    /// 新しいブランチを作って切り替える(base からの分岐を作るため)。
+    public static func createBranch(named name: String, in dir: URL) {
+        run(["checkout", "-b", name], in: dir)
+    }
+
+    /// ファイルを書き換えてコミットする(ブランチ内のコミット済み変更を作る)。
+    public static func commitChange(
+        to name: String, contents: String, message: String = "change", in dir: URL
+    ) throws {
+        try contents.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        run(["add", name], in: dir)
+        run(["commit", "-m", message], in: dir)
+    }
 }

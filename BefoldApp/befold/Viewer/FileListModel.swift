@@ -29,6 +29,10 @@ final class FileListModel {
     /// SidebarNavigator が一覧更新と同じ契機でメイン外から解決して書き込む。
     /// 解決前(初回表示直後)は nil でインジケータを出さない。
     var baseDirectory: BaseDirectoryDescriptor?
+    /// 表示中ディレクトリのファイルに対する git 状態。キーは `FileListEntry.pathKey`
+    /// (正規化済み絶対パス)。git 管理外・取得失敗・機能無効時は空のまま。
+    /// 取得は subprocess を伴うため SidebarNavigator が一覧更新と同じ契機でメイン外から行う。
+    var gitStatuses: [String: GitFileStatus] = [:]
 
     /// サイドバー行から見つかった NSTableView への弱参照。SidebarTableViewLocator が
     /// 行描画時に設定する。クリック時に first responder へ昇格させるためだけの

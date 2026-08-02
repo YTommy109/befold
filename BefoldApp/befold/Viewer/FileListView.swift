@@ -114,7 +114,7 @@ struct FileListView: View {
             // 行インセットをゼロにして同等のパディングを行コンテンツ側へ移し、
             // contentShape が行の全幅を覆うようにする。インセット部分をダブル
             // クリックしたとき選択だけされて移動しない取りこぼしを防ぐ。
-            FileListEntryRow(entry: entry)
+            FileListEntryRow(entry: entry, gitStatus: { model.gitStatuses[entry.pathKey] })
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
                 .listRowInsets(EdgeInsets())

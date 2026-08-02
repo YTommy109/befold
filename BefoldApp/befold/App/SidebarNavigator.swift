@@ -44,6 +44,14 @@ final class SidebarNavigator {
     private var baseDirectoryGeneration = 0
     /// 直近に発行した基準ディレクトリ解決タスク。テストから完了を待つために公開する。
     private(set) var pendingBaseDirectoryTask: Task<Void, Never>?
+    /// 表示中ディレクトリのファイルに対する git 状態を取得する。既定は常に空(機能無効)。
+    /// git 型に直接依存しないよう、`resolveGitRoot` と同型のクロージャで注入する。
+    private let loadGitStatuses: (URL) async -> [String: GitFileStatus]
+    /// git 状態取得タスクの世代番号。一覧取得・基準ディレクトリ解決とは完了タイミングが
+    /// 独立する(subprocess の所要時間が別)ため、第 3 の世代として分けて古い結果を捨てる。
+    private var gitStatusGeneration = 0
+    /// 直近に発行した git 状態取得タスク。テストから完了を待つために公開する。
+    private(set) var pendingGitStatusTask: Task<Void, Never>?
 
     /// ファイル切替・現在ファイル参照の委譲先。循環参照を避けるため weak。
     private weak var host: SidebarNavigatorHost?
@@ -56,11 +64,13 @@ final class SidebarNavigator {
         sortOrder: SortOrder = .foldersFirst,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]
             = DirectoryLister.listEntriesAsync,
-        resolveGitRoot: @escaping @Sendable (URL) async -> URL? = { _ in nil }
+        resolveGitRoot: @escaping @Sendable (URL) async -> URL? = { _ in nil },
+        loadGitStatuses: @escaping (URL) async -> [String: GitFileStatus] = { _ in [:] }
     ) {
         self.hiddenFilesPreference = hiddenFilesPreference
         self.directoryLister = directoryLister
         self.resolveGitRoot = resolveGitRoot
+        self.loadGitStatuses = loadGitStatuses
         fileListModel = FileListModel(
             currentDirectory: currentDirectory,
             entries: entries,
@@ -88,6 +98,22 @@ final class SidebarNavigator {
                 gitRoot: gitRoot,
                 workspaceRoot: workspaceRoot
             )
+        }
+    }
+
+    // MARK: - Git Status
+
+    /// 表示中ディレクトリの git 状態を取り直して fileListModel へ反映する。
+    /// 取得(ルート解決 + git 実行)はメイン外で行い、完了後にメインアクターへ戻して書き込む。
+    /// 機能が無効なら注入クロージャが常に空を返すため、git は起動しない。
+    private func refreshGitStatuses() {
+        let directory = fileListModel.currentDirectory
+        gitStatusGeneration += 1
+        let generation = gitStatusGeneration
+        pendingGitStatusTask = Task {
+            let statuses = await self.loadGitStatuses(directory)
+            guard generation == self.gitStatusGeneration else { return }
+            self.fileListModel.gitStatuses = statuses
         }
     }
 
@@ -148,6 +174,7 @@ final class SidebarNavigator {
         onApplied: @escaping @MainActor (SidebarNavigatorHost, [FileListEntry]) -> Void
     ) {
         refreshBaseDirectory()
+        refreshGitStatuses()
         let showHiddenFiles = syncShowHiddenFiles()
         let sortOrder = fileListModel.sortOrder
         listingGeneration += 1
@@ -165,6 +192,8 @@ final class SidebarNavigator {
         pendingListingTask = nil
         pendingBaseDirectoryTask?.cancel()
         pendingBaseDirectoryTask = nil
+        pendingGitStatusTask?.cancel()
+        pendingGitStatusTask = nil
     }
 
     /// エントリ一覧に現在のファイルが含まれていなければ末尾に追加する。

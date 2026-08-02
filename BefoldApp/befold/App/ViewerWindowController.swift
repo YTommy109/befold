@@ -4,6 +4,18 @@ import BefoldRenderKit
 import SwiftUI
 import WebKit
 
+/// サイドバーへ渡す git 状態の取得クロージャを作る。
+///
+/// **フィーチャーゲートの判定はこの 1 箇所だけ**で行う(ロジック自体は常時ビルドし、
+/// 露出点だけを囲う)。stable 昇格時はこの guard を消して常に store を引く形にすればよい。
+@MainActor
+private func makeSidebarGitStatusLoader(
+    _ store: GitStatusStore
+) -> (URL) async -> [String: GitFileStatus] {
+    guard FeatureGate.inProgressFeaturesEnabled else { return { _ in [:] } }
+    return { await store.statuses(forDirectoryAt: $0) }
+}
+
 /// ViewerWindowController のウィンドウイベント(クローズ・rename・キー化など)を
 /// 上位のウィンドウ管理層へ通知するプロトコル。ViewerWindowManager が実装する。
 @MainActor
@@ -113,6 +125,9 @@ final class ViewerWindowController: NSWindowController {
     ///   パス解決に無関心なテストが省略できるようにするためのもの。実インスタンスを
     ///   デフォルトにすると、注入を書き忘れたときに共有されない別個体が静かに生まれ、
     ///   ウィンドウごとに `git ls-files` を重複実行してしまう。
+    /// - Parameter gitStatusStore: サイドバーの git 状態バッジの取得元。本番では AppDelegate が
+    ///   生成した単一インスタンスを渡す。デフォルトはルート解決が常に nil を返す無効化状態で、
+    ///   注入を省略したテストが git を起動しないことを保証する。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
     /// - Parameter makeContentView: テスト専用シーム。コンテンツペイン(ViewerContentView / 実 WKWebView)を
     ///   差し替える。既定の nil は本番経路(実 WKWebView を生成する)。サイドバー(FileListView)と
@@ -127,6 +142,7 @@ final class ViewerWindowController: NSWindowController {
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore,
         gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
+        gitStatusStore: GitStatusStore = GitStatusStore(),
         initialSidebarCollapsed: Bool = true,
         initialFrameDescriptor: String? = nil,
         initialSortOrder: SortOrder = .foldersFirst,
@@ -169,7 +185,8 @@ final class ViewerWindowController: NSWindowController {
             // フォルダ移動のたびメインスレッドを止めないため)。
             resolveGitRoot: { [gitFileIndex] directory in
                 await Task.detached { gitFileIndex.repositoryRoot(forDirectoryAt: directory) }.value
-            }
+            },
+            loadGitStatuses: makeSidebarGitStatusLoader(gitStatusStore)
         )
 
         // ウィンドウの実サイズは contentViewController 設定後に確定させるため、

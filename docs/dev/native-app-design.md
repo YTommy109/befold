@@ -111,6 +111,12 @@ BefoldApp/
 | `ViewerWindowController` | 1 ウィンドウ分のビューア制御（メニュー・ツールバー・WebView・サイドバーの統括） |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController` |
 | `ReferenceContextMenu` | ビューア本文のリンク/パス参照の ctrl+クリック(右クリック)で出す `NSMenu` の項目定義。並び・文言はサイドバーのコンテキストメニューと揃える |
+| `GitCommandRunner` | git 実行を一元化する薄い `Process` ラッパ（無害化オプション前置・タイムアウト・プロセスグループ打ち切り）。git を呼ぶ全機能の共通土台 |
+| `GitRepository` | ルート解決・追跡ファイル列挙・worktree 一覧・`.git/index` fingerprint の問い合わせ |
+| `GitCommandFileIndex` | 追跡ファイル索引のキャッシュ。全ウィンドウ・Quick Open で 1 個を共有し `git ls-files` の重複実行を防ぐ |
+| `WorktreeCatalog` | 本体リポジトリごとの worktree 一覧キャッシュ（「最近使ったリポジトリ」メニューの階層表示用） |
+| `GitStatusReader` / `GitStatusStore` | `git status --porcelain=v2` によるファイル状態の取得と、リポジトリルート単位のキャッシュ（サイドバーの状態バッジの供給元。`FeatureGate` 配下） |
+| `FeatureGate` | 開発中機能を露出してよいか（dev リリース or DEBUG ビルド）を判定する単一窓口 |
 
 ---
 
@@ -129,6 +135,8 @@ BefoldApp/
 | `DirectoryLister` | サイドバー用のディレクトリ内ファイル/フォルダ一覧化 |
 | `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ） |
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |
+| `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
+| `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す |
 | `SidebarTableViewLocator` | SwiftUI List の内部 NSTableView を取得するブリッジ |
 | `UnsupportedFileView` | バイナリ等非対応ファイル用のプレースホルダービュー |
 
