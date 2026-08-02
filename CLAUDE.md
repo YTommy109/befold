@@ -13,6 +13,7 @@
   2. 着手可能な backlog タスクのうち、他の作業をブロックしているもの
   3. 着手可能な backlog タスクのうち、着手順（登録順・依存関係）が早いもの
   この基準で決められない場合のみユーザーに確認する。
+- **Notes に否定的な結論が記録されたタスク**: 「実施非推奨」「前提が誤り」等が実測付きで記録されているタスクの着手を指示された場合、記載どおりに実装せず、着手前に方針（縮小版で実施 / 記載どおり実施 / 見送り）をユーザーに確認する。Notes の記録は前回の調査結果であり、起票時の Description より新しい判断であることが多い。方針が決まったら、実態に合わなくなった Acceptance Criteria も `backlog task edit --acceptance-criteria` で書き換える。
 - **タスク作成時のボード表示順**: backlog board の表示順は ordinal 順（priority 順ではない）。タスク作成後、既存タスクの ordinal を確認し、priority に応じた位置になるよう `backlog task edit --ordinal` で調整する。特に HIGH タスクが MEDIUM/LOW より上に来るようにする。
 - **タスク ID の採番**: `backlog/config.yml` で `check_active_branches: true` / `remote_operations: true` が有効なため、`backlog task create` は他ブランチ上のタスクも含めて次の ID を採番する。ローカルのファイル一覧より大きい ID が振られるのは正常な動作であり、衝突回避のための ID 手動指定やファイルリネームは不要。
 - **タスクファイルは git 管理対象**: `backlog/tasks/*.md` はリポジトリに含まれる。起票・更新・完了処理を行ったら、関連する実装と同じ PR に含めてコミットする。`backlog` CLI はファイルを書くだけで git 操作はしないため、PR 作成時に未コミットのまま取り残されやすい（`/pr` の直前に `git status` で確認する）。
