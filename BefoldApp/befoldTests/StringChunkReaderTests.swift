@@ -163,6 +163,8 @@ struct StringChunkReaderTests {
 
     @Test("改行なしの巨大1行ファイルでもチャンクサイズが上限内に収まる")
     func noNewlineHugeSingleLineIsChunked() async throws {
+        // 改行が無いので分割は必ずバイト上限で起きる。「2 チャンク以上に分かれる」ことを
+        // 見るのが目的なので、maxChunkBytes をはっきり超えていればサイズは十分。
         let text = String(repeating: "A", count: StringChunkReader.maxChunkBytes + 500_000)
         let cache = try makeCache(text)
         let reader = StringChunkReader(cache: cache)
@@ -264,6 +266,8 @@ struct StringChunkReaderTests {
 
     @Test("1MB超の単一行日本語テキストの強制分割がマルチバイト文字境界を尊重する")
     func forcedSplitRespectsMultibyteCharacterBoundary() async throws {
+        // 「あ」は 3 バイトなので、繰り返し回数 = maxChunkBytes でバイト長は上限の 3 倍になり、
+        // 強制分割が確実に複数回起きる。3 の倍数判定を成立させるため文字は「あ」だけにする。
         let text = String(repeating: "あ", count: StringChunkReader.maxChunkBytes)
         let cache = try makeCache(text)
         let reader = StringChunkReader(cache: cache)
