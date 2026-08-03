@@ -77,6 +77,16 @@ final class ViewerWindowController: NSWindowController {
         store.isSourceMode
     }
 
+    /// プレビュー領域がフォルダー一覧を出しているか。判定は ViewerContentView と同じ
+    /// PreviewTargetResolver に委ね、専用の状態を持たない。
+    var isPreviewingFolder: Bool {
+        PreviewTargetResolver.resolve(
+            selection: fileListModel.selection,
+            entries: fileListModel.entries,
+            currentDirectory: fileListModel.currentDirectory
+        ).folderURL != nil
+    }
+
     /// ウィンドウ起動時の初期ファイル URL。可変な現在 URL の唯一の保持先は store.currentURL であり、
     /// これは store がまだ URL を持たない init 直後の一瞬(実際には store.openFile 済みのため到達しない)を
     /// 型的に埋めるためのブートストラップ定数。rename / switch では更新しない。
@@ -229,7 +239,10 @@ final class ViewerWindowController: NSWindowController {
             webViewProxy: webViewProxy,
             perFileState: perFileState,
             // 現在 URL は rename/switch で書き換わるため、旧値を捕捉せず self 経由で参照する。
-            currentURL: { [weak self] in self?.fileURL ?? fileURL }
+            currentURL: { [weak self] in self?.fileURL ?? fileURL },
+            // フォルダー一覧を表示している間は WKWebView が背後に生き続ける(TASK-266)。
+            // 見えていない文書に対する印刷・検索・ズームを止めるのはここが唯一の判断元。
+            isPreviewingFolder: { [weak self] in self?.isPreviewingFolder ?? false }
         )
 
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
@@ -745,7 +758,15 @@ extension ViewerWindowController: NSWindowDelegate {
         }
         let findActions: [Selector] = [#selector(find(_:)), #selector(findNext(_:)), #selector(findPrevious(_:))]
         if let action = menuItem.action, findActions.contains(action) {
-            return !webViewCommands.isDirectHTMLMode
+            return webViewCommands.canOperateOnVisibleDocument && !webViewCommands.isDirectHTMLMode
+        }
+        // 印刷・ズームは「見えている文書」に対する操作。フォルダー一覧を出している間は
+        // 背後の WebView に効かせないので、実行できないことをメニューの状態でも見せる。
+        let documentActions: [Selector] = [
+            #selector(printDocument(_:)), #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(resetZoom(_:)),
+        ]
+        if let action = menuItem.action, documentActions.contains(action) {
+            return webViewCommands.canOperateOnVisibleDocument
         }
         return true
     }

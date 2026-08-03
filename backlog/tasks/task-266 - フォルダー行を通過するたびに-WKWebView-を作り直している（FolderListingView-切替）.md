@@ -1,9 +1,11 @@
 ---
 id: TASK-266
 title: フォルダー行を通過するたびに WKWebView を作り直している（FolderListingView 切替）
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-03 13:32'
+updated_date: '2026-08-03 14:34'
 labels:
   - performance
 dependencies: []

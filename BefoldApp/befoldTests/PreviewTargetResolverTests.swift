@@ -50,4 +50,10 @@ struct PreviewTargetResolverTests {
         )
         #expect(target == .folder(currentDirectory))
     }
+
+    @Test("folderURL はフォルダー表示のときだけ対象ディレクトリを返す")
+    func folderURLIsOnlySetForFolderTarget() {
+        #expect(PreviewTarget.folder(currentDirectory).folderURL == currentDirectory)
+        #expect(PreviewTarget.file.folderURL == nil)
+    }
 }

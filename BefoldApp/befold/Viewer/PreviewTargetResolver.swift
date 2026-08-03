@@ -5,6 +5,13 @@ import Foundation
 enum PreviewTarget: Equatable {
     case file
     case folder(URL)
+
+    /// フォルダー表示のときの対象ディレクトリ。ViewerContentView は
+    /// ViewerWebView を常駐させたまま一覧を重ねるため、switch ではなくこの値で分岐する。
+    var folderURL: URL? {
+        guard case let .folder(url) = self else { return nil }
+        return url
+    }
 }
 
 /// サイドバーの選択状態からプレビュー対象を決める純粋ロジック。

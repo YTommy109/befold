@@ -13,15 +13,28 @@ final class WebViewCommandController {
     private let perFileState: PerFileStateStore
     /// 現在表示中ファイルの URL。rename/switch で書き換わるため値を捕捉せず都度取得する。
     private let currentURL: () -> URL
+    /// プレビュー領域がフォルダー一覧を表示しているか。true の間、WKWebView は
+    /// 背後に生きているが画面には出ていない(TASK-266)。
+    private let isPreviewingFolder: () -> Bool
 
     init(
         webViewProxy: WebViewProxy,
         perFileState: PerFileStateStore,
-        currentURL: @escaping () -> URL
+        currentURL: @escaping () -> URL,
+        isPreviewingFolder: @escaping () -> Bool = { false }
     ) {
         self.webViewProxy = webViewProxy
         self.perFileState = perFileState
         self.currentURL = currentURL
+        self.isPreviewingFolder = isPreviewingFolder
+    }
+
+    /// ユーザー操作(印刷・検索・ズーム)を見えている文書にだけ効かせてよいか。
+    /// フォルダー一覧の表示中は、背後の WKWebView に届かせない。
+    /// 設定の反映(applyStoredZoom/applyCodeFont)はここで止めない。止めると、
+    /// フォルダーを見ている間の設定変更が常駐 WebView に入らないまま取り残される。
+    var canOperateOnVisibleDocument: Bool {
+        webViewProxy.webView != nil && !isPreviewingFolder()
     }
 
     /// find/findNext/findPrevious の有効判定に使う。HTML 直接ロード中は viewer.html の
@@ -54,7 +67,7 @@ final class WebViewCommandController {
     /// 直接 HTML モードでは pageZoom を transform で変換して保存し、
     /// それ以外は viewer.js のズーム実装(script)へ委譲する。
     private func performZoom(directHTML transform: (Double) -> Double, script: String) {
-        guard let webView = webViewProxy.webView else { return }
+        guard canOperateOnVisibleDocument, let webView = webViewProxy.webView else { return }
         if webViewProxy.isDirectHTMLMode {
             let newZoom = transform(webView.pageZoom)
             webView.pageZoom = newZoom
@@ -89,7 +102,7 @@ final class WebViewCommandController {
 
     /// WebView の描画内容を指定ウィンドウ上のシートとして印刷する。
     func printDocument(over window: NSWindow?) {
-        guard let window, let webView = webViewProxy.webView else { return }
+        guard canOperateOnVisibleDocument, let window, let webView = webViewProxy.webView else { return }
         let printInfo = NSPrintInfo()
         printInfo.horizontalPagination = .automatic
         printInfo.verticalPagination = .automatic
@@ -119,7 +132,7 @@ final class WebViewCommandController {
     /// find/findNext/findPrevious 共通のガードと JS 実行。
     /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないためスキップする。
     private func runFindScript(_ script: String) {
-        guard !webViewProxy.isDirectHTMLMode else { return }
+        guard canOperateOnVisibleDocument, !webViewProxy.isDirectHTMLMode else { return }
         evaluate(script)
     }
 

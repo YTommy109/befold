@@ -42,48 +42,59 @@ struct ViewerContentView: View {
     }
 
     var body: some View {
-        switch previewTarget {
-        case .file:
-            // ViewerWebView は常に生かしておき(ビュー同一性を維持)、非対応時は
-            // 上に UnsupportedFileView を重ねる。テキスト↔バイナリの切替で WKWebView が
-            // 破棄・再生成されて白フラッシュや stale な initialZoom が起きるのを防ぐ。
-            ZStack {
-                ViewerWebView(
-                    content: store.content,
-                    contentRevision: store.contentRevision,
-                    fileType: store.fileType,
-                    filePath: store.filePath,
-                    hasDeclaredHTMLCharset: store.hasDeclaredHTMLCharset,
-                    isSourceMode: store.isSourceMode,
-                    showLineNumbers: store.showLineNumbers,
-                    isTruncated: store.isTruncated,
-                    lineCount: store.displayedLineCount,
-                    loadFailed: store.loadFailed,
-                    initialZoom: currentZoom,
-                    codeFontFamily: codeFontFamily,
-                    codeFontSizePoints: codeFontSizePoints,
-                    scrollPositionToRestore: currentScrollPosition,
-                    rendererDelegate: rendererDelegate,
-                    findOptionsPreference: findOptionsPreference,
-                    webViewProxy: webViewProxy,
-                    rendererFeatures: .allEnabled
-                )
-                .opacity(store.isRejected ? 0 : 1)
+        // フォルダー表示でも ViewerWebView を階層に残す。差し替えにすると行を通過する
+        // たびに WKWebView が破棄・再生成され、フォーカス移動が待たされる(TASK-266)。
+        let folderURL = previewTarget.folderURL
+        ZStack {
+            filePreview
+                .opacity(folderURL == nil ? 1 : 0)
+                .accessibilityHidden(folderURL != nil)
+                .allowsHitTesting(folderURL == nil)
 
-                if let reason = store.rejectReason {
-                    UnsupportedFileView(fileURL: store.filePath, rejectReason: reason)
-                } else if store.isLoading, store.content.isEmpty {
-                    LoadingIndicatorView()
-                }
+            if let folderURL {
+                FolderListingView(
+                    directory: folderURL,
+                    sortOrder: fileListModel.sortOrder,
+                    showHiddenFiles: fileListModel.showHiddenFiles,
+                    onSelectFile: onSelectFile,
+                    onNavigateToFolder: onNavigateToFolder
+                )
             }
-        case let .folder(url):
-            FolderListingView(
-                directory: url,
-                sortOrder: fileListModel.sortOrder,
-                showHiddenFiles: fileListModel.showHiddenFiles,
-                onSelectFile: onSelectFile,
-                onNavigateToFolder: onNavigateToFolder
+        }
+    }
+
+    /// 表示中ファイルのプレビュー。ViewerWebView は常に生かしておき(ビュー同一性を維持)、
+    /// 非対応時は上に UnsupportedFileView を重ねる。テキスト↔バイナリの切替で WKWebView が
+    /// 破棄・再生成されて白フラッシュや stale な initialZoom が起きるのを防ぐ。
+    private var filePreview: some View {
+        ZStack {
+            ViewerWebView(
+                content: store.content,
+                contentRevision: store.contentRevision,
+                fileType: store.fileType,
+                filePath: store.filePath,
+                hasDeclaredHTMLCharset: store.hasDeclaredHTMLCharset,
+                isSourceMode: store.isSourceMode,
+                showLineNumbers: store.showLineNumbers,
+                isTruncated: store.isTruncated,
+                lineCount: store.displayedLineCount,
+                loadFailed: store.loadFailed,
+                initialZoom: currentZoom,
+                codeFontFamily: codeFontFamily,
+                codeFontSizePoints: codeFontSizePoints,
+                scrollPositionToRestore: currentScrollPosition,
+                rendererDelegate: rendererDelegate,
+                findOptionsPreference: findOptionsPreference,
+                webViewProxy: webViewProxy,
+                rendererFeatures: .allEnabled
             )
+            .opacity(store.isRejected ? 0 : 1)
+
+            if let reason = store.rejectReason {
+                UnsupportedFileView(fileURL: store.filePath, rejectReason: reason)
+            } else if store.isLoading, store.content.isEmpty {
+                LoadingIndicatorView()
+            }
         }
     }
 }
