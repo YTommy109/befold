@@ -4,7 +4,7 @@ title: ファイル数の多いフォルダーでサイドバーがフリーズ�
 status: To Do
 assignee: []
 created_date: '2026-08-03 12:32'
-updated_date: '2026-08-03 12:32'
+updated_date: '2026-08-03 12:46'
 labels: []
 dependencies: []
 priority: high
@@ -55,4 +55,19 @@ ordinal: 320000
 - [ ] #3 改善前後を同一フォルダーで実測し、メインスレッド占有時間の比較値を Notes に残す
 - [ ] #4 選択状態の維持（フォルダー移動・リネーム追従・戻る/進む）が従来どおり動作し、既存テストが green
 - [ ] #5 ファイル名が非 ASCII（日本語）でも ASCII でも一覧・選択が正しく機能する
+- [ ] #6 backlog のように直下の項目数が少ないフォルダーでも、カーソルを大量ファイルのフォルダー行（tasks）に乗せて通過する操作が待たされない
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 2 つ目の再現経路（2026-08-03 追記・原因は同一）
+
+フォルダーに入らず、カーソルを乗せて通過するだけでも遅い。選択が変わると ViewerContentView が PreviewTargetResolver 経由で .folder(...) と判定し、プレビュー領域に FolderListingView を描画する（ViewerContentView.swift:79-86）。これは FileListEntryRow を並べた同じ List で、行 ID も同じ FileListEntry.id = URL なので、サイドバー側と同じ diffRows → ForEachState → URL の正規化ハッシュを踏む。行に乗せるたびにその中身ぶんのリストを 1 つ組み立てるため、次の行へフォーカスが移るのが待たされる。
+
+したがって修正対象は FileListEntry の ID 型（および URL の裏打ち）であり、サイドバー・FolderListingView の両方が同時に直る見込み。逆に、サイドバー側だけを最適化する対処では本経路が残る。
+
+ディレクトリ列挙自体は FolderListingView の .task から listEntriesAsync でメイン外に出ており無関係（343 件で列挙 12ms + ソート 10ms 程度）。
+
+補足: この操作そのものの sample 採取はスクリプトからのキー入力がサイドバーに届かず失敗した。根拠は 343 行リストの実測サンプル（Description 参照）と上記コード経路。
+<!-- SECTION:NOTES:END -->
