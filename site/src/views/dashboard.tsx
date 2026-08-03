@@ -8,31 +8,23 @@ const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 const formatJst = (ts: number): string =>
   new Date(ts + JST_OFFSET_MS).toISOString().replace('T', ' ').slice(0, 19)
 
-/** SSE で受信した新着イベントをカウンタと一覧へ反映する。 */
+/**
+ * SSE で配信される集計 HTML をそのまま差し替える。
+ *
+ * 集計は summarize() だけが持ち、クライアントは描画済み HTML を置くだけにする
+ * （JST 日付バケットや上位 N 件の並べ替えを JS に二重実装しないため）。
+ */
 const STREAM_SCRIPT = `
 (function () {
   var source = new EventSource('/dashboard/stream?after=' + document.body.dataset.lastId);
-  var list = document.getElementById('recent-body');
+  var summary = document.getElementById('summary');
   var status = document.getElementById('stream-status');
-  var JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
   source.addEventListener('open', function () { status.textContent = 'live'; });
   source.addEventListener('error', function () { status.textContent = 'reconnecting…'; });
 
-  source.addEventListener('event', function (message) {
-    var event = JSON.parse(message.data);
-    var counter = document.getElementById('count-' + event.kind);
-    if (counter) counter.textContent = String(Number(counter.textContent) + 1);
-
-    var row = document.createElement('tr');
-    row.innerHTML =
-      '<td>' + new Date(new Date(event.ts).getTime() + JST_OFFSET_MS).toISOString().replace('T', ' ').slice(0, 19) + '</td>' +
-      '<td>' + event.kind + '</td>' +
-      '<td>' + (event.version || '') + '</td>' +
-      '<td>' + (event.country || '') + '</td>' +
-      '<td>' + (event.os || '') + '</td>';
-    list.prepend(row);
-    while (list.children.length > 20) list.removeChild(list.lastChild);
+  source.addEventListener('summary', function (message) {
+    summary.innerHTML = JSON.parse(message.data);
   });
 })();
 `
@@ -75,6 +67,71 @@ const CountTable: FC<{ title: string; rows: Count[] }> = ({ title, rows }) => (
   </section>
 )
 
+/**
+ * 集計セクション（合計カード・各集計表・最新イベント）。
+ *
+ * 初期レンダリングと SSE 配信の両方がこれを使う。
+ */
+export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => (
+  <>
+    <div class="totals">
+      {summary.perKind.map((entry) => (
+        <div class="card">
+          <span class="value" id={`count-${entry.kind}`}>
+            {entry.total}
+          </span>
+          <span class="label">{entry.label}</span>
+        </div>
+      ))}
+      <div class="card">
+        <span class="value">{summary.uniqueVisitorDays}</span>
+        <span class="label">ユニーク訪問者（日次）</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <CountTable title="日別ダウンロード（14 日）" rows={summary.dailyDownloads} />
+      <CountTable title="バージョン別ダウンロード" rows={summary.byVersion} />
+      <CountTable title="国別" rows={summary.byCountry} />
+      <CountTable title="参照元別" rows={summary.byReferrer} />
+      {summary.perKind.map((entry) => [
+        <CountTable title={`${entry.label}: OS 別`} rows={entry.byOS} />,
+        <CountTable title={`${entry.label}: 接続元組織別`} rows={entry.byAsOrg} />,
+      ])}
+    </div>
+
+    <section>
+      <h2>最新イベント</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>時刻 (JST)</th>
+            <th>種別</th>
+            <th>バージョン</th>
+            <th>国</th>
+            <th>OS</th>
+          </tr>
+        </thead>
+        <tbody id="recent-body">
+          {summary.recent.map((event) => (
+            <tr>
+              <td>{formatJst(event.ts)}</td>
+              <td>{event.kind}</td>
+              <td>{event.version ?? ''}</td>
+              <td>{event.country ?? ''}</td>
+              <td>{event.os ?? ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  </>
+)
+
+/** 集計セクションを HTML 文字列にする（SSE 配信用）。 */
+export const renderSummarySections = (summary: Summary): string =>
+  (<SummarySections summary={summary} />).toString()
+
 /** 所有者だけが見る分析ダッシュボード（Cloudflare Access の背後）。 */
 export const Dashboard: FC<{ summary: Summary; lastId: number }> = ({ summary, lastId }) => (
   <html lang="ja">
@@ -92,57 +149,9 @@ export const Dashboard: FC<{ summary: Summary; lastId: number }> = ({ summary, l
         SSE: <span id="stream-status">connecting…</span>
       </p>
 
-      <div class="totals">
-        {summary.perKind.map((entry) => (
-          <div class="card">
-            <span class="value" id={`count-${entry.kind}`}>
-              {entry.total}
-            </span>
-            <span class="label">{entry.label}</span>
-          </div>
-        ))}
-        <div class="card">
-          <span class="value">{summary.uniqueVisitorDays}</span>
-          <span class="label">ユニーク訪問者（日次）</span>
-        </div>
+      <div id="summary">
+        <SummarySections summary={summary} />
       </div>
-
-      <div class="grid">
-        <CountTable title="日別ダウンロード（14 日）" rows={summary.dailyDownloads} />
-        <CountTable title="バージョン別ダウンロード" rows={summary.byVersion} />
-        <CountTable title="国別" rows={summary.byCountry} />
-        <CountTable title="参照元別" rows={summary.byReferrer} />
-        {summary.perKind.map((entry) => [
-          <CountTable title={`${entry.label}: OS 別`} rows={entry.byOS} />,
-          <CountTable title={`${entry.label}: 接続元組織別`} rows={entry.byAsOrg} />,
-        ])}
-      </div>
-
-      <section>
-        <h2>最新イベント</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>時刻 (JST)</th>
-              <th>種別</th>
-              <th>バージョン</th>
-              <th>国</th>
-              <th>OS</th>
-            </tr>
-          </thead>
-          <tbody id="recent-body">
-            {summary.recent.map((event) => (
-              <tr>
-                <td>{formatJst(event.ts)}</td>
-                <td>{event.kind}</td>
-                <td>{event.version ?? ''}</td>
-                <td>{event.country ?? ''}</td>
-                <td>{event.os ?? ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
 
       {html`<script>
         ${raw(STREAM_SCRIPT)}

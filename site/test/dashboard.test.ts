@@ -209,4 +209,47 @@ describe('SSE ストリーム', () => {
     // after より前のイベントは含まない
     expect(received).not.toContain('"kind":"visit"')
   })
+
+  it('新着イベントがあれば集計セクションの HTML を summary イベントで配信する', async () => {
+    const oldId = await seed('visit')
+    await seed('download', { version: 'v1.10.0', country: 'JP', os: 'macOS 15.0' })
+
+    const response = await call(`/dashboard/stream?after=${oldId}`, AUTH_HEADERS)
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let received = ''
+    while (!received.includes('keep-alive')) {
+      const { value, done } = await reader.read()
+      if (done) break
+      received += decoder.decode(value, { stream: true })
+    }
+    await reader.cancel()
+
+    expect(received).toContain('event: summary')
+    const dataLine = received.split('event: summary\ndata: ')[1]?.split('\n')[0] ?? ''
+    const html = JSON.parse(dataLine) as string
+    // サーバー側で描画済みの集計表がそのまま届く（クライアントは差し替えるだけ）。
+    expect(html).toContain('日別ダウンロード（14 日）')
+    expect(html).toContain('v1.10.0')
+    expect(html).toContain('<span class="value" id="count-download">1</span>')
+    // data 行は 1 行に収まっている
+    expect(html).not.toContain('\n')
+  })
+
+  it('新着イベントが無いポーリング周期では summary を配信しない', async () => {
+    const lastId = await seed('visit')
+
+    const response = await call(`/dashboard/stream?after=${lastId}`, AUTH_HEADERS)
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let received = ''
+    while (!received.includes('keep-alive')) {
+      const { value, done } = await reader.read()
+      if (done) break
+      received += decoder.decode(value, { stream: true })
+    }
+    await reader.cancel()
+
+    expect(received).not.toContain('event: summary')
+  })
 })

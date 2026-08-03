@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { basicAuth } from 'hono/basic-auth'
 import type { AppEnv } from '../index'
 import { eventsAfter, maxEventId, summarize } from '../analytics'
-import { Dashboard } from '../views/dashboard'
+import { Dashboard, renderSummarySections } from '../views/dashboard'
 
 /** SSE のポーリング間隔と、1 接続あたりの最大保持時間。 */
 const POLL_INTERVAL_MS = 2500
@@ -50,11 +50,19 @@ dashboardRoutes.get('/stream', (c) => {
 
       try {
         while (Date.now() < deadline) {
-          for (const event of await eventsAfter(db, lastId)) {
+          const events = await eventsAfter(db, lastId)
+          for (const event of events) {
             lastId = event.id
             controller.enqueue(
               encoder.encode(`id: ${event.id}\nevent: event\ndata: ${JSON.stringify(event)}\n\n`),
             )
+          }
+          // 集計は summarize() の再実行結果をそのまま流す。D1 クエリを伴うため
+          // 新着があったポーリング周期でのみ行う。data 行は改行を含められないので
+          // HTML は JSON 文字列にして送る。
+          if (events.length > 0) {
+            const html = renderSummarySections(await summarize(db, Date.now()))
+            controller.enqueue(encoder.encode(`event: summary\ndata: ${JSON.stringify(html)}\n\n`))
           }
           // 接続維持用のコメント（プロキシのアイドルタイムアウト対策）。
           controller.enqueue(encoder.encode(': keep-alive\n\n'))
