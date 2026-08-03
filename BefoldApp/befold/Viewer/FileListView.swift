@@ -114,17 +114,20 @@ struct FileListView: View {
             // 行インセットをゼロにして同等のパディングを行コンテンツ側へ移し、
             // contentShape が行の全幅を覆うようにする。インセット部分をダブル
             // クリックしたとき選択だけされて移動しない取りこぼしを防ぐ。
-            FileListEntryRow(entry: entry, gitStatus: { model.gitStatuses[entry.pathKey] })
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .listRowInsets(EdgeInsets())
-                .contentShape(.rect)
-                .background(SidebarTableViewLocator { tableView in
-                    model.sidebarTableView = tableView
-                })
-                .contextMenu { contextMenuItems(for: entry) }
-                .simultaneousGesture(singleTapGesture(for: entry))
-                .simultaneousGesture(doubleTapGesture(for: entry))
+            FileListEntryRow(
+                entry: entry, gitStatus: { model.gitStatuses[entry.pathKey] },
+                gitFolderStatus: { model.gitFolderStatuses[entry.pathKey] }
+            )
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .listRowInsets(EdgeInsets())
+            .contentShape(.rect)
+            .background(SidebarTableViewLocator { tableView in
+                model.sidebarTableView = tableView
+            })
+            .contextMenu { contextMenuItems(for: entry) }
+            .simultaneousGesture(singleTapGesture(for: entry))
+            .simultaneousGesture(doubleTapGesture(for: entry))
         }
         .overlay {
             if model.visibleEntries.allSatisfy({ $0.kind == .parentNavigation }) {

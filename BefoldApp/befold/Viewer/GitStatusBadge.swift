@@ -60,6 +60,35 @@ enum GitStatusBadge {
         }
         return nil
     }
+
+    /// フォルダー配下の集約からバッジを決める。配下に変更が無ければ nil。
+    ///
+    /// 配下には複数種類が混在しうるため、ファイル行のように「変更種別の文字」は出せない。
+    /// 記号を `•` に固定してファイル行(A/M/D/?)と区別し、種別は色で示す。優先順位の
+    /// 高いものを主色に、次点をアクセント(小さな丸)にして「混在している」ことを伝える。
+    static func appearance(forFolder status: GitFolderStatus) -> Appearance? {
+        let tints = presentTints(in: status)
+        guard let primary = tints.first else { return nil }
+        return Appearance(
+            character: "•",
+            tint: primary,
+            accent: tints.dropFirst().first,
+            descriptionKey: "sidebar.gitStatus.folderChanges"
+        )
+    }
+
+    /// 配下に存在する種別を優先順位の高い順に並べる。
+    /// staged / unstaged を untracked より前に置くのは、追跡中ファイルへの変更のほうが
+    /// 「取り込み忘れ」の危険が大きく、未追跡ファイル 1 個で覆い隠されると困るため。
+    private static func presentTints(in status: GitFolderStatus) -> [Tint] {
+        let candidates: [(Bool, Tint)] = [
+            (status.hasStaged, .staged),
+            (status.hasUnstaged, .unstaged),
+            (status.hasUntracked, .untracked),
+            (status.hasBranchModified, .branchModified),
+        ]
+        return candidates.filter(\.0).map(\.1)
+    }
 }
 
 /// サイドバー行右端の git 状態バッジ。

@@ -33,6 +33,10 @@ final class FileListModel {
     /// (正規化済み絶対パス)。git 管理外・取得失敗・機能無効時は空のまま。
     /// 取得は subprocess を伴うため SidebarNavigator が一覧更新と同じ契機でメイン外から行う。
     var gitStatuses: [String: GitFileStatus] = [:]
+    /// フォルダー行のバッジ用に、配下(再帰的)の変更を集約した結果。キーは同じく
+    /// `FileListEntry.pathKey`。`gitStatuses` から純関数で導けるが、行ごとに配下を
+    /// 走査させないよう SidebarNavigator が同じ契機で一度だけ写像して持たせる。
+    var gitFolderStatuses: [String: GitFolderStatus] = [:]
 
     /// サイドバー行から見つかった NSTableView への弱参照。SidebarTableViewLocator が
     /// 行描画時に設定する。クリック時に first responder へ昇格させるためだけの

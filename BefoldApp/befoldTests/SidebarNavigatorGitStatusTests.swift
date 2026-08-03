@@ -81,6 +81,24 @@ struct SidebarNavigatorGitStatusTests {
         #expect(navigator.fileListModel.gitStatuses == statuses)
     }
 
+    /// フォルダー行のバッジは配下の集約なので、状態マップと同じ契機で写像まで済ませる
+    /// (行ごとに配下を走査させない)。
+    @Test("取得した git 状態からフォルダー配下の集約も FileListModel に反映される")
+    func appliesFolderAggregatesToModel() async throws {
+        let base = Self.home.appendingPathComponent("SidebarNavigatorGitStatusTests-folder")
+        let statuses = ["\(base.path)/sub/deep/a.md": status(.modified)]
+        let (navigator, host) = makeNavigator(currentDirectory: base) { _, _ in
+            GitStatusResult(statuses: statuses, indexURL: nil)
+        }
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.refreshFileList()
+        await navigator.pendingGitStatusTask?.value
+
+        let folder = try #require(navigator.fileListModel.gitFolderStatuses["\(base.path)/sub"])
+        #expect(folder.hasUnstaged)
+    }
+
     /// 状態取得は一覧列挙とは別プロセス(git)の所要時間に左右されるため、
     /// 一覧の世代とは独立した世代で古い結果を捨てる必要がある。
     @Test("連続する更新では古い git 状態が新しい結果を上書きしない")
