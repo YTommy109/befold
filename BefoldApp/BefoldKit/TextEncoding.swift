@@ -51,6 +51,11 @@ public enum TextEncoding: Sendable {
     /// (呼び出し元が復号時にスキップすべきバイト数の単一情報源)。
     /// BOM なしで NUL を含む場合は UTF-16 とみなし、NUL の位置から endian を推定する。
     /// detectAndDecodeText と同じ2段階フォールバック戦略を共有する。
+    ///
+    /// 本番の経路は復号まで行う `detectAndDecodeText` のみを使う。ここは判定部
+    /// (detectWithFallback)だけを復号なしで検証するテスト用の入口である。
+    /// 「判定コストがデータ量に比例しない」ことは、常に全データを復号する
+    /// detectAndDecodeText 経由では測れないため、この入口を残す必要がある。
     public static func detectEncoding(_ data: Data) -> (encoding: String.Encoding, bomLength: Int)? {
         detectWithFallback(data).map { (encoding: $0.encoding, bomLength: $0.bomLength) }
     }

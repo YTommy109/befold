@@ -112,13 +112,6 @@ struct GitRepository: GitRepositoryReading {
         gitDirectory(at: root).appendingPathComponent("index")
     }
 
-    /// メニュー表示用のリポジトリラベルを返す。本体なら "<ディレクトリ名>"、worktree なら
-    /// "<本体のディレクトリ名> (<このworktreeのディレクトリ名>)"。
-    /// 判定は `repositoryIdentity(forRoot:)` に委ねる。
-    func repositoryLabel(forRoot root: URL) -> String {
-        repositoryIdentity(forRoot: root).label
-    }
-
     /// メニュー表示用のラベルと本体リポジトリのルートを返す。
     /// `--git-common-dir` と `--git-dir` を比較し、一致すれば本体、不一致なら worktree と判定する
     /// (worktree の `.git` はファイルで実 gitdir を指すため両者が食い違う)。

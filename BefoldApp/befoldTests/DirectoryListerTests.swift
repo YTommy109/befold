@@ -7,7 +7,7 @@ import Testing
 /// DirectoryLister への fileReader 注入を検証するためだけの薄いラッパー。
 /// DefaultFileReader へ委譲しつつ、指定したファイル名だけ「ディレクトリ」と報告する。
 /// DirectoryLister の分類は isDirectory を参照するため、注入した fileReader が
-/// 実際に使われていれば、そのファイルはフォルダー扱いになり listFiles から外れる。
+/// 実際に使われていれば、そのファイルはフォルダー扱いになり候補から外れる。
 /// (ファイル名で比較するのは、tmp ディレクトリのシンボリックリンク解決有無により
 /// FileManager 列挙結果と作成時 URL の path 文字列表現が食い違いうるため)
 private struct ExclusionFileReader: FileReading {
@@ -72,55 +72,6 @@ struct DirectoryListerTests {
         #expect(index2 < index10)
     }
 
-    @Test("拡張子によらず全ファイルが返される")
-    func listFilesReturnsAllFilesRegardlessOfExtension() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        _ = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
-        _ = try tmp.file(named: "readme.md", contents: "# Hi")
-        _ = try tmp.file(named: "photo.png", contents: "binary")
-        _ = try tmp.file(named: "data.csv", contents: "a,b")
-
-        let result = DirectoryLister.listFiles(in: tmp.url)
-
-        let names = result.map(\.lastPathComponent)
-        #expect(names.contains("diagram.mmd"))
-        #expect(names.contains("readme.md"))
-        #expect(names.contains("photo.png"))
-        #expect(names.contains("data.csv"))
-    }
-
-    @Test("サブディレクトリは一覧から除外される")
-    func listFilesExcludesDirectories() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        _ = try tmp.file(named: "visible.mmd", contents: "")
-        try FileManager.default.createDirectory(
-            at: tmp.url.appendingPathComponent("subdir"),
-            withIntermediateDirectories: true
-        )
-
-        let result = DirectoryLister.listFiles(in: tmp.url)
-
-        #expect(result.map(\.lastPathComponent) == ["visible.mmd"])
-    }
-
-    @Test("ダングリングシンボリックリンクも一覧に含まれる")
-    func listFilesIncludesDanglingSymlink() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        _ = try tmp.file(named: "real.mmd", contents: "graph TD;")
-        try FileManager.default.createSymbolicLink(
-            at: tmp.url.appendingPathComponent("broken.mmd"),
-            withDestinationURL: tmp.url.appendingPathComponent("does-not-exist.mmd")
-        )
-
-        let names = DirectoryLister.listFiles(in: tmp.url).map(\.lastPathComponent)
-
-        #expect(names.contains("broken.mmd"))
-        #expect(names.contains("real.mmd"))
-    }
-
     @Test("listEntries はダングリングシンボリックリンクを file として含める")
     func listEntriesIncludesDanglingSymlinkAsFile() throws {
         let tmp = try TempDir()
@@ -134,39 +85,6 @@ struct DirectoryListerTests {
         let broken = entries.first { $0.url.lastPathComponent == "broken.mmd" }
 
         #expect(broken?.kind == .file)
-    }
-
-    @Test("結果がファイル名でローカライズソートされる")
-    func listFilesSortsByName() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        _ = try tmp.file(named: "c.mmd", contents: "")
-        _ = try tmp.file(named: "a.mmd", contents: "")
-        _ = try tmp.file(named: "b.mmd", contents: "")
-
-        let result = DirectoryLister.listFiles(in: tmp.url)
-
-        #expect(result.map(\.lastPathComponent) == ["a.mmd", "b.mmd", "c.mmd"])
-    }
-
-    @Test("隠しファイルは除外される")
-    func listFilesExcludesHidden() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        _ = try tmp.file(named: ".hidden.mmd", contents: "")
-        _ = try tmp.file(named: "visible.mmd", contents: "")
-
-        let result = DirectoryLister.listFiles(in: tmp.url)
-
-        let names: [String] = result.map(\.lastPathComponent)
-        #expect(names == ["visible.mmd"])
-    }
-
-    @Test("存在しないディレクトリでは空配列を返す")
-    func listFilesReturnsEmptyForMissingDir() {
-        let missing = URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)")
-        let result = DirectoryLister.listFiles(in: missing)
-        #expect(result.isEmpty)
     }
 
     @Test("listEntries はフォルダーと拡張子を問わず全ファイルを返す")
@@ -394,7 +312,7 @@ struct DirectoryListerTests {
         #expect(result == missing)
     }
 
-    @Test("listFiles/firstSupportedFile/resolveFileToOpen は fileReader を注入できる")
+    @Test("firstSupportedFile/resolveFileToOpen は fileReader を注入できる")
     func resolveFileToOpenHonorsInjectedFileReader() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -402,14 +320,12 @@ struct DirectoryListerTests {
         _ = try tmp.file(named: "b.md", contents: "# b")
         // DefaultFileReader をラップし、特定のファイル名だけ「ディレクトリ」と報告する fileReader を注入する。
         // 分類は isDirectory を参照するため、注入が実際に使われていれば a.md はフォルダー扱いになり
-        // listFiles から外れる(無視して常に DefaultFileReader を使っていれば a.md も一覧に含まれてしまう)。
+        // 候補から外れる(無視して常に DefaultFileReader を使っていれば a.md が選ばれてしまう)。
         let reader = ExclusionFileReader(treatingAsDirectory: ["a.md"])
 
-        let files = DirectoryLister.listFiles(in: tmp.url, fileReader: reader)
         let firstSupported = DirectoryLister.firstSupportedFile(in: tmp.url, fileReader: reader)
         let resolved = DirectoryLister.resolveFileToOpen(at: tmp.url, fileReader: reader)
 
-        #expect(files.map(\.lastPathComponent) == ["b.md"])
         #expect(firstSupported?.lastPathComponent == "b.md")
         #expect(resolved?.lastPathComponent == "b.md")
     }

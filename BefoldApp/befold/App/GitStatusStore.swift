@@ -107,9 +107,4 @@ final class GitStatusStore {
         if let snapshot { cache[key] = snapshot }
         return snapshot ?? cache[key]
     }
-
-    /// 既に取得済みのスナップショット(あれば)。Phase 2 でのキャッシュ妥当性判定に使う。
-    func cachedSnapshot(forRepositoryRoot root: URL) -> GitStatusSnapshot? {
-        cache[root.normalizedPathKey]
-    }
 }

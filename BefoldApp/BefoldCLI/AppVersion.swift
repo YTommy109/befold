@@ -15,11 +15,6 @@ public enum AppVersion {
         version.contains("-")
     }
 
-    /// 実行中ビルドの `current` がプレリリースか。
-    public static var isCurrentPrerelease: Bool {
-        isPrerelease(current)
-    }
-
     /// マーケティングバージョンのみ(例: `1.9.1-dev.5`)。
     public static var current: String {
         resolved(infoDictionary: currentBundleInfoDictionary())
