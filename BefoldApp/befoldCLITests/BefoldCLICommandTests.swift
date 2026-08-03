@@ -253,6 +253,7 @@ struct RejectReasonCLIMessageTests {
         arguments: [
             (RejectReason.unsupportedFormat, "This file format is not supported for preview."),
             (RejectReason.fileTooLarge, "This file is too large to display."),
+            (RejectReason.binaryContent, "This file contains NUL bytes and is treated as binary."),
         ]
     )
     func cliMessageIsEnglish(reason: RejectReason, expected: String) {

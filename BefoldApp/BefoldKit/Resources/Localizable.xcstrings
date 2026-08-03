@@ -209,6 +209,24 @@
         }
       }
     },
+    "viewer.unsupported.binary": {
+      "comment": "NUL バイトを含むためバイナリと判定して表示を拒否した場合のメッセージ。原因(NUL の混入)を追跡できるよう、汎用の viewer.unsupported.format とは区別して具体的に述べる。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file contains NUL bytes and is treated as binary."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NUL バイトを含むため、バイナリファイルとして扱いました"
+          }
+        }
+      }
+    },
     "viewer.unsupported.format": {
       "extractionState": "manual",
       "localizations": {

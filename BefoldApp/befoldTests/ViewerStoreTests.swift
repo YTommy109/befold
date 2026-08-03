@@ -145,7 +145,7 @@ struct ViewerStoreTests {
         UnsupportedFileCase(
             name: "バイナリファイル", filename: "data.bin", content: "binary-ish",
             configure: { reader, url in reader.setBinary(true, at: url) },
-            expectedReason: .unsupportedFormat
+            expectedReason: .binaryContent
         ),
         UnsupportedFileCase(
             name: "サイズ超過ファイル", filename: "huge.html", content: "<h1>Hello</h1>",
