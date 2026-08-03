@@ -74,6 +74,21 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
   新規警告になる（両者の設定が衝突する箇所であり、どちらかを直すと他方が鳴る）
 - swiftlint は警告の絶対数では判定できない（main 時点で 80 件ほどある）。
   変更前後で一覧を取り、**main とのベースライン差分がゼロ**であることを確認する
+  - swiftlint は `Package.swift` の `SwiftLintPlugins` がビルド時に実行するもので、
+    単体ではインストールされていない（`brew install` すると CI とバージョンがずれる）。
+    手元で一覧を取るにはプラグイン同梱のバイナリを直接呼ぶ:
+    `BefoldApp/.build/artifacts/swiftlintplugins/SwiftLintBinary/SwiftLintBinary.artifactbundle/macos/swiftlint lint --quiet`
+  - 比較時は行番号がずれただけの差分を除くため、`sed -E 's/:[0-9]+:[0-9]+:/:/'` で
+    正規化してから diff する
+
+## 知識グラフ（dagayn）の Swift での限界
+
+`refactor_tool(mode="dead_code")` はこのリポジトリでは使えない。Swift のプロトコル
+準拠メソッド（NSApplicationDelegate / NSViewRepresentable / WKNavigationDelegate /
+NSWindowDelegate / ArgumentParser など）は静的な呼び出し元を持たないため、実測で
+1126 件中ほぼ全件が偽陽性になる。デッドコード判定は `rg` でトークン出現数を数え、
+宣言 1 箇所のものだけを候補にして個別に除外条件を確認する。関係の追跡
+（callers_of / tests_for など）は有効なので、そちらは従来どおり使う。
 
 ## テスト規約
 
