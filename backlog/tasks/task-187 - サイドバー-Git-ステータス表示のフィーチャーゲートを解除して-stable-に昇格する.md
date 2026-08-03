@@ -4,6 +4,7 @@ title: サイドバー Git ステータス表示のフィーチャーゲート�
 status: To Do
 assignee: []
 created_date: '2026-07-28 14:23'
+updated_date: '2026-08-03 11:25'
 labels: []
 dependencies:
   - TASK-186
@@ -23,3 +24,9 @@ TASK-186（Phase1〜3）が dev で dogfood され安定したら、サイドバ
 - [ ] #1 サイドバー Git ステータス表示の露出を包む FeatureGate 分岐が撤去され、stable ビルドで常時表示される
 - [ ] #2 撤去後もユニットテスト・手動チェックが通る
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-08-03: 追加された TASK-263（フォルダー行の集約バッジ）/ TASK-264（変更ファイルのみ表示フィルター）も同じ FeatureGate 配下に入る。解除時は makeSidebarGitStatusLoader の guard に加えて TASK-264 のトグル UI 側のゲート分岐も撤去対象になる。
+<!-- SECTION:NOTES:END -->
