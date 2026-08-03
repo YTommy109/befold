@@ -77,14 +77,10 @@ final class ViewerWindowController: NSWindowController {
         store.isSourceMode
     }
 
-    /// プレビュー領域がフォルダー一覧を出しているか。判定は ViewerContentView と同じ
-    /// PreviewTargetResolver に委ね、専用の状態を持たない。
+    /// プレビュー領域がフォルダー一覧を出しているか。ViewerContentView と同じ
+    /// fileListModel.previewTarget を見る(導出点は 1 つ。ADR 0002)。
     var isPreviewingFolder: Bool {
-        PreviewTargetResolver.resolve(
-            selection: fileListModel.selection,
-            entries: fileListModel.entries,
-            currentDirectory: fileListModel.currentDirectory
-        ).folderURL != nil
+        fileListModel.previewTarget.folderURL != nil
     }
 
     /// ウィンドウ起動時の初期ファイル URL。可変な現在 URL の唯一の保持先は store.currentURL であり、

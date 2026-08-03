@@ -1,9 +1,11 @@
 ---
 id: TASK-275
 title: '段1: 提示状態を 1 つの値にする（ViewerSession）'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-03 15:35'
+updated_date: '2026-08-03 15:35'
 labels:
   - architecture
 dependencies: []

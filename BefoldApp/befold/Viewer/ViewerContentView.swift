@@ -32,13 +32,9 @@ struct ViewerContentView: View {
         return scrollPositionStore.scrollPosition(for: url, mode: .init(isSourceMode: store.isSourceMode))
     }
 
-    /// サイドバーの選択状態から、プレビューエリアが表示すべき対象を決める。
+    /// プレビューエリアが表示すべき対象。導出は FileListModel に 1 つだけ置く(ADR 0002)。
     private var previewTarget: PreviewTarget {
-        PreviewTargetResolver.resolve(
-            selection: fileListModel.selection,
-            entries: fileListModel.entries,
-            currentDirectory: fileListModel.currentDirectory
-        )
+        fileListModel.previewTarget
     }
 
     var body: some View {

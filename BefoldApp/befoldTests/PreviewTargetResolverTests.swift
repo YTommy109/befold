@@ -55,5 +55,41 @@ struct PreviewTargetResolverTests {
     func folderURLIsOnlySetForFolderTarget() {
         #expect(PreviewTarget.folder(currentDirectory).folderURL == currentDirectory)
         #expect(PreviewTarget.file.folderURL == nil)
+        #expect(PreviewTarget.undetermined.folderURL == nil)
+    }
+
+    @Test("一覧が届く前に選択が一覧に無いのは「未確定」であってフォルダー表示ではない")
+    func selectionBeforeFirstListingIsUndetermined() {
+        let target = PreviewTargetResolver.resolve(
+            selection: currentDirectory.appendingPathComponent("opening.mmd"),
+            entries: [],
+            currentDirectory: currentDirectory,
+            hasLoadedEntries: false
+        )
+        #expect(target == .undetermined)
+    }
+
+    @Test("一覧が届いた後に選択が見つからなければ、従来どおり現在ディレクトリの一覧へ落とす")
+    func staleSelectionAfterListingFallsBackToFolder() {
+        let target = PreviewTargetResolver.resolve(
+            selection: currentDirectory.appendingPathComponent("gone.mmd"),
+            entries: [FileListEntry(url: currentDirectory.appendingPathComponent("other.mmd"), kind: .file)],
+            currentDirectory: currentDirectory,
+            hasLoadedEntries: true
+        )
+        #expect(target == .folder(currentDirectory))
+    }
+
+    @Test("選択が nil なら、一覧の有無にかかわらず現在ディレクトリの一覧を出す(navigateToFolder の指示)")
+    func clearedSelectionAlwaysShowsCurrentDirectory() {
+        for hasLoadedEntries in [true, false] {
+            let target = PreviewTargetResolver.resolve(
+                selection: nil,
+                entries: [],
+                currentDirectory: currentDirectory,
+                hasLoadedEntries: hasLoadedEntries
+            )
+            #expect(target == .folder(currentDirectory))
+        }
     }
 }
