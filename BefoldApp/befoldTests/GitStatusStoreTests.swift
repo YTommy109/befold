@@ -105,15 +105,14 @@ struct GitStatusStoreTests {
         #expect(reader.callCount == 0)
     }
 
-    @Test("取得した状態をそのまま返し、ルート単位でキャッシュする")
-    func returnsAndCachesSnapshot() async {
+    @Test("取得した状態をそのまま返す")
+    func returnsSnapshot() async {
         let reader = FakeReader(results: [snapshot(modifiedStatus)])
         let store = makeStore(reader)
 
         let statuses = await store.statuses(forDirectoryAt: directory).statuses
 
         #expect(statuses == modifiedStatus)
-        #expect(store.cachedSnapshot(forRepositoryRoot: root)?.statuses == modifiedStatus)
     }
 
     /// 状態は編集のたびに変わるため、キャッシュは「取れなかったときの保険」であって
@@ -152,7 +151,6 @@ struct GitStatusStoreTests {
         let statuses = await store.statuses(forDirectoryAt: directory).statuses
 
         #expect(statuses.isEmpty)
-        #expect(store.cachedSnapshot(forRepositoryRoot: root) == nil)
     }
 
     /// `.git` 配下への書き込み通知は index 以外の理由でも来る。index が動いていないなら

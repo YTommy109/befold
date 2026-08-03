@@ -13,10 +13,6 @@ enum DirectoryLister {
         FileManager.default.homeDirectoryForCurrentUser
     }
 
-    static func listFiles(in directory: URL, fileReader: any FileReading = Self.fileReader) -> [URL] {
-        sortedContents(in: directory, fileReader: fileReader).files
-    }
-
     /// 一覧構築ロジックの同期版。本番の経路は非同期版(listEntriesAsync)のみを使うため、
     /// ここは並べ替え・隠しファイル・親移動エントリの規則を直接検証するテスト用の入口。
     /// - Parameter home: 親移動エントリを許可する上限(ホームディレクトリ)。

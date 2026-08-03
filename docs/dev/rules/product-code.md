@@ -177,7 +177,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 | 拡張子→FileType のマッピング | `FileType.typeByExtension`（`init(url:)` と `allExtensions` の双方がここから導出。拡張子追加は辞書への 1 行追加で完結する） |
 | BOM 検出（バイトパターン→エンコーディング） | `TextEncoding.detectBOM(_:)`（`decodeText` / `detectEncoding`（内部の `detectEncodingAndDecode` 経由）と `DefaultFileReader.isBinary` の双方がここに委譲） |
 | テキスト復号（BOM / UTF-16 / UTF-8 / レガシーエンコーディング） | `TextEncoding.decodeText(_:)` / `detectAndDecodeText(_:)`（`DefaultFileReader.readString` と `NormalizedTextCache.init(data:)` の双方がここに委譲。行チャンク読み込みを担う `StringChunkReader` は `NormalizedTextCache` が復号済みの文字列を読むだけで、自前のエンコーディング判定は行わない） |
-| ディレクトリ列挙（ソート・フィルタ込み） | `DirectoryLister.sortedContents(in:showHiddenFiles:)`（`listFiles` / `listEntries` / `firstSupportedFile` / `allEntriesSorted` が委譲） |
+| ディレクトリ列挙（ソート・フィルタ込み） | `DirectoryLister.sortedContents(in:showHiddenFiles:)`（`listEntries` / `firstSupportedFile` / `allEntriesSorted` が委譲） |
 | ドット始まり（隠しファイル）判定 | `HiddenFileRule.isHidden(component:)` / `containsHiddenComponent(inRelativePath:)`（Quick Open の走査 `DirectoryFileScanner`・索引 `QuickOpenCandidates`・パスモード `QuickOpenModel` が委譲。`name.hasPrefix(".")` を各所で組み立て直さない。サイドバー系が使う FileManager の `.skipsHiddenFiles` は chflags hidden も隠すため定義が異なる。使い分けの理由は `HiddenFileRule` の `///` を参照） |
 | Sparkle フィード URL | `UpdateChannel.feedURLString`（`SPUUpdaterDelegate.feedURLString(for:)` 経由で Sparkle に提供。Info.plist の `SUFeedURL` は使用しない） |
 

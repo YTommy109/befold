@@ -17,12 +17,4 @@ public enum HTMLCharsetNormalizer {
         let head = String(data: data.prefix(1024), encoding: .isoLatin1) ?? ""
         return head.range(of: "charset=", options: .caseInsensitive) != nil
     }
-
-    /// charset 宣言が無ければ実エンコーディングを判定して UTF-8 文字列へ正規化して返す。
-    /// 宣言があれば nil を返す(呼び出し元は `loadFileURL` で相対リソースごと読ませる)。
-    /// エンコーディングを判定できない場合も nil(従来の直接ロードにフォールバックさせる)。
-    public static func utf8NormalizedHTML(for data: Data) -> String? {
-        guard !hasCharsetDeclaration(data) else { return nil }
-        return TextEncoding.decodeText(data)
-    }
 }

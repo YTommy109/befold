@@ -14,7 +14,6 @@ struct HTMLCharsetNormalizerTests {
         let data = try #require(html.data(using: .utf8))
 
         #expect(!HTMLCharsetNormalizer.hasCharsetDeclaration(data))
-        #expect(HTMLCharsetNormalizer.utf8NormalizedHTML(for: data) == html)
     }
 
     @Test("charset 宣言のある HTML は正規化せず nil を返す(loadFileURL に委ねる)")
@@ -23,7 +22,6 @@ struct HTMLCharsetNormalizerTests {
         let data = try #require(html.data(using: .utf8))
 
         #expect(HTMLCharsetNormalizer.hasCharsetDeclaration(data))
-        #expect(HTMLCharsetNormalizer.utf8NormalizedHTML(for: data) == nil)
     }
 
     @Test("charset 宣言の無い Shift_JIS HTML は正しく復号して UTF-8 文字列にする")
@@ -32,7 +30,6 @@ struct HTMLCharsetNormalizerTests {
         let data = try #require(html.data(using: .shiftJIS))
 
         #expect(!HTMLCharsetNormalizer.hasCharsetDeclaration(data))
-        #expect(HTMLCharsetNormalizer.utf8NormalizedHTML(for: data) == html)
     }
 
     @Test("charset を Shift_JIS と宣言した HTML は正規化せず nil(WebKit の宣言解釈に委ねる)")
@@ -41,7 +38,6 @@ struct HTMLCharsetNormalizerTests {
         let data = try #require(html.data(using: .shiftJIS))
 
         #expect(HTMLCharsetNormalizer.hasCharsetDeclaration(data))
-        #expect(HTMLCharsetNormalizer.utf8NormalizedHTML(for: data) == nil)
     }
 
     @Test("UTF-8 BOM 付き HTML は宣言ありとみなし nil を返す")
@@ -50,6 +46,5 @@ struct HTMLCharsetNormalizerTests {
         try data.append(#require("<h1>\(japanese)</h1>".data(using: .utf8)))
 
         #expect(HTMLCharsetNormalizer.hasCharsetDeclaration(data))
-        #expect(HTMLCharsetNormalizer.utf8NormalizedHTML(for: data) == nil)
     }
 }
