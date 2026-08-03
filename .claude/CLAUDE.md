@@ -80,6 +80,11 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
     `BefoldApp/.build/artifacts/swiftlintplugins/SwiftLintBinary/SwiftLintBinary.artifactbundle/macos/swiftlint lint --quiet`
   - 比較時は行番号がずれただけの差分を除くため、`sed -E 's/:[0-9]+:[0-9]+:/:/'` で
     正規化してから diff する
+  - **ベースライン（main 側）を取るのに `git stash` を使わない。** stash は worktree 間で
+    共有されるため、作業ツリーが clean だと `git stash push -u` が何も退避せず、続く
+    `git stash pop` が**別のセッション・別プロジェクトの stash** を取り出して
+    コンフリクトさせる。`git archive origin/main | tar -x -C <スクラッチパッド>` で
+    別ディレクトリへ展開し、そちらで測る
 
 ## 知識グラフ（dagayn）の Swift での限界
 
