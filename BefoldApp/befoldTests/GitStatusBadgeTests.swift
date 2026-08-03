@@ -82,4 +82,58 @@ struct GitStatusBadgeTests {
     func noBadgeForCleanStatus() {
         #expect(GitStatusBadge.appearance(for: GitFileStatus()) == nil)
     }
+
+    // MARK: - フォルダー行
+
+    /// フォルダーのバッジは配下の集約なので、ファイル行の A/M/D/? とは別の記号にする。
+    @Test("フォルダーのバッジはファイル行と区別できる記号を使う")
+    func folderBadgeUsesDistinctSymbol() throws {
+        let appearance = try #require(
+            GitStatusBadge.appearance(forFolder: GitFolderStatus(hasUnstaged: true))
+        )
+
+        #expect(appearance.character == "•")
+        #expect(appearance.tint == .unstaged)
+        #expect(appearance.accent == nil)
+    }
+
+    @Test("配下に変更が無いフォルダーはバッジを出さない")
+    func noFolderBadgeWithoutChanges() {
+        #expect(GitStatusBadge.appearance(forFolder: GitFolderStatus()) == nil)
+    }
+
+    /// 混在時は優先順位の高い種別を主色にし、次点をアクセントで示す(ファイル行と同じ語彙)。
+    @Test("複数種類が混在するフォルダーは主色と次点のアクセントで示す")
+    func folderBadgeShowsSecondTintAsAccent() throws {
+        let appearance = try #require(
+            GitStatusBadge.appearance(
+                forFolder: GitFolderStatus(hasStaged: true, hasUnstaged: true, hasUntracked: true)
+            )
+        )
+
+        #expect(appearance.tint == .staged)
+        #expect(appearance.accent == .unstaged)
+    }
+
+    @Test(
+        "フォルダーの主色は staged > unstaged > untracked > branchModified の順で決まる",
+        arguments: [
+            (GitFolderStatus(hasStaged: true, hasBranchModified: true), GitStatusBadge.Tint.staged),
+            (GitFolderStatus(hasUnstaged: true, hasUntracked: true), .unstaged),
+            (GitFolderStatus(hasUntracked: true, hasBranchModified: true), .untracked),
+            (GitFolderStatus(hasBranchModified: true), .branchModified),
+        ]
+    )
+    func folderTintPrecedence(status: GitFolderStatus, expected: GitStatusBadge.Tint) throws {
+        #expect(try #require(GitStatusBadge.appearance(forFolder: status)).tint == expected)
+    }
+
+    @Test("単一種類のフォルダーにはアクセントを付けない")
+    func noAccentForSingleKind() throws {
+        let appearance = try #require(
+            GitStatusBadge.appearance(forFolder: GitFolderStatus(hasUntracked: true))
+        )
+
+        #expect(appearance.accent == nil)
+    }
 }

@@ -12,6 +12,15 @@ struct FileListEntryRow: View {
     /// 観測トラッキングのスコープ外になるため。**body の中で評価**することで行ごとに
     /// 観測が登録され、状態マップだけを差し替えても行が描き直される。
     var gitStatus: (() -> GitFileStatus?)?
+    /// このフォルダー行の配下(再帰的)の git 状態を返すクロージャ。`gitStatus` と同じ理由で
+    /// 状態そのものではなくクロージャを受け取り、body の中で評価する。
+    var gitFolderStatus: (() -> GitFolderStatus?)?
+
+    /// フォルダー行のバッジ。配下に変更が無ければ nil。
+    private func folderBadgeAppearance() -> GitStatusBadge.Appearance? {
+        guard let status = gitFolderStatus?() else { return nil }
+        return GitStatusBadge.appearance(forFolder: status)
+    }
 
     var body: some View {
         switch entry.kind {
@@ -38,6 +47,9 @@ struct FileListEntryRow: View {
                         .frame(width: 16, height: 16)
                 }
                 Spacer()
+                if let appearance = folderBadgeAppearance() {
+                    GitStatusBadgeView(appearance: appearance)
+                }
                 Image(systemName: "chevron.right")
                     .foregroundStyle(.tertiary)
                     .font(.caption)

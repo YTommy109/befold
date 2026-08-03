@@ -2278,6 +2278,23 @@
         }
       }
     },
+    "sidebar.gitStatus.folderChanges": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contains changes"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配下に変更あり"
+          }
+        }
+      }
+    },
     "aiIntegration.copySkill": {
       "extractionState": "manual",
       "localizations": {

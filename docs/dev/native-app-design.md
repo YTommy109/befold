@@ -116,6 +116,7 @@ BefoldApp/
 | `GitCommandFileIndex` | 追跡ファイル索引のキャッシュ。全ウィンドウ・Quick Open で 1 個を共有し `git ls-files` の重複実行を防ぐ |
 | `WorktreeCatalog` | 本体リポジトリごとの worktree 一覧キャッシュ（「最近使ったリポジトリ」メニューの階層表示用） |
 | `GitStatusReader` / `GitStatusStore` | `git status --porcelain=v2` によるファイル状態の取得と、リポジトリルート単位のキャッシュ（サイドバーの状態バッジの供給元。`FeatureGate` 配下） |
+| `GitFolderStatus` | ファイル単位の状態から、フォルダー配下（再帰的）の変更有無を集約する純関数と値型（フォルダー行のバッジ用。git は呼ばない） |
 | `FeatureGate` | 開発中機能を露出してよいか（dev リリース or DEBUG ビルド）を判定する単一窓口 |
 
 ---
@@ -136,7 +137,7 @@ BefoldApp/
 | `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ） |
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
-| `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す |
+| `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` / `GitFolderStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す（ファイル行は変更種別の文字、フォルダー行は集約を示す `•`） |
 | `SidebarTableViewLocator` | SwiftUI List の内部 NSTableView を取得するブリッジ |
 | `UnsupportedFileView` | バイナリ等非対応ファイル用のプレースホルダービュー |
 
