@@ -1,11 +1,11 @@
 ---
 id: TASK-265
 title: ファイル数の多いフォルダーでサイドバーがフリーズする（URL をリスト ID にしたことによる正規化ハッシュ）
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-03 12:32'
-updated_date: '2026-08-03 13:26'
+updated_date: '2026-08-03 13:32'
 labels: []
 dependencies: []
 priority: high
@@ -51,12 +51,12 @@ ordinal: 320000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 サイドバーで 300 ファイル規模のフォルダー（例: backlog/tasks）へ移動しても、レインボーカーソルが出ずに一覧が表示される
-- [ ] #2 移動後のスクロール・選択・キーボード操作でもメインスレッドが目に見えて詰まらない
+- [x] #1 サイドバーで 300 ファイル規模のフォルダー（例: backlog/tasks）へ移動しても、レインボーカーソルが出ずに一覧が表示される
+- [x] #2 移動後のスクロール・選択・キーボード操作でもメインスレッドが目に見えて詰まらない
 - [x] #3 改善前後を同一フォルダーで実測し、メインスレッド占有時間の比較値を Notes に残す
 - [x] #4 選択状態の維持（フォルダー移動・リネーム追従・戻る/進む）が従来どおり動作し、既存テストが green
 - [x] #5 ファイル名が非 ASCII（日本語）でも ASCII でも一覧・選択が正しく機能する
-- [ ] #6 backlog のように直下の項目数が少ないフォルダーでも、カーソルを大量ファイルのフォルダー行（tasks）に乗せて通過する操作が待たされない
+- [x] #6 backlog のように直下の項目数が少ないフォルダーでも、カーソルを大量ファイルのフォルダー行（tasks）に乗せて通過する操作が待たされない
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -108,4 +108,32 @@ Description の本命案（事前計算ハッシュの ID 型）は FileListMode
 - xcodebuild build -scheme befold 成功
 
 ### 残: GUI での手動確認（AC #1 / #2 / #6）
+
+## GUI 実測（2026-08-03・sample 1ms・修正前後を同一手順で採取）
+
+修正前の実測は、同じ手元で FileListEntry.init の 1 行だけを修正前に戻して Debug ビルドし直して採った（Description の起票時サンプルとは別に取り直した比較値）。
+
+### シナリオ A: backlog/tasks（344 件）を開き、下矢印 40 回（AC #1 / #2）
+修正後のメインスレッド 3078 サンプル中、待機（mach_msg2_trap）2632 = 85% が idle。diffRows 216（7%）、_normalizedHash 2（0.06%）。レインボーカーソルは出ず、キー入力に追従した。トップ・オブ・スタックからは起票時に上位を占めた _CFStringCheckAndGetCharacterAtIndex / characterAtIndex / _withNFCCodeUnits が消え、最上位は Hasher.combine(bytes:)（native の高速経路）になった。
+
+### シナリオ B: backlog/ でカーソルを tasks 行に乗せて往復（下↑上を 12 往復 = 24 回の選択変更 / 約 3.6 秒）（AC #6）
+| | メインスレッド総数 | idle | busy | diffRows | _normalizedHash |
+|---|---|---|---|---|---|
+| 修正前 | 2737 | 65 (2.4%) | 2672 (97.6%) | 2477 | 1887 (69%) |
+| 修正後 | 2774 | 614 (22%) | 2160 (78%) | 1395 | 8 (0.3%) |
+
+本件の原因である URL の正規化ハッシュは 69% → 0.3% で実質消滅した。
+
+### 残るコスト（本件とは別原因）
+修正後に残る 78% は SwiftUI の 344 行リスト再構築そのもので、アプリ側の内訳は ViewerWebView.makeNSView 209 サンプル（選択が folder/file で切り替わるたびに WKWebView を作り直している）と FileListEntryRow.body 189。毎秒 6.7 回という機械的な連打での値であり、正規化ハッシュのような支配的ホットスポットは残っていない。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+FileListEntry.init で URL を native 裏打ち（連続 UTF-8）に揃え、SwiftUI の ForEach が行 ID として URL を辞書キーにするたびに走っていた 1 文字ずつの Unicode 正規化を解消した（BefoldKit に URL.nativeBackedFileURL を追加、変更点は init の 1 行）。
+
+検証: 344 件のマイクロベンチで 10.34ms/パス → 0.49ms/パス。GUI は修正前後を同一手順の sample(1ms) で比較し、tasks 行往復シナリオでメインスレッド占有 97.6% → 78%、うち原因である _normalizedHash は 69% → 0.3%。tasks を開いて下矢印 40 回のシナリオではメインスレッドの 85% が idle でレインボーカーソルは出ない。swift test 1005 tests green（FileManager 由来 URL・日本語名の実 FS テストを追加）、swiftlint ベースライン差分ゼロ、xcodebuild 成功。
+
+残コスト（別原因の WKWebView 再生成）は TASK-266 として起票した。
+<!-- SECTION:FINAL_SUMMARY:END -->
