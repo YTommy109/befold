@@ -25,7 +25,10 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
     let pathKey: String
 
     init(url: URL, kind: Kind, containsSupportedFile: Bool = false) {
-        self.url = url
+        // id が URL のため、SwiftUI の ForEach は行 ID を辞書キーにするたびに URL の
+        // Hashable を走らせる。FileManager 由来の NSString 裏打ちのままだと 1 文字ずつの
+        // Unicode 正規化になり一覧が固まるので、構築時に native 裏打ちへ揃える。
+        self.url = url.nativeBackedFileURL
         self.kind = kind
         self.containsSupportedFile = containsSupportedFile
         pathKey = url.normalizedPathKey

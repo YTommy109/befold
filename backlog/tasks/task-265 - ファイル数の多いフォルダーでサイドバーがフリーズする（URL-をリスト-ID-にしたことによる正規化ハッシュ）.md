@@ -1,10 +1,11 @@
 ---
 id: TASK-265
 title: ファイル数の多いフォルダーでサイドバーがフリーズする（URL をリスト ID にしたことによる正規化ハッシュ）
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-03 12:32'
-updated_date: '2026-08-03 12:46'
+updated_date: '2026-08-03 13:26'
 labels: []
 dependencies: []
 priority: high
@@ -52,11 +53,21 @@ ordinal: 320000
 <!-- AC:BEGIN -->
 - [ ] #1 サイドバーで 300 ファイル規模のフォルダー（例: backlog/tasks）へ移動しても、レインボーカーソルが出ずに一覧が表示される
 - [ ] #2 移動後のスクロール・選択・キーボード操作でもメインスレッドが目に見えて詰まらない
-- [ ] #3 改善前後を同一フォルダーで実測し、メインスレッド占有時間の比較値を Notes に残す
-- [ ] #4 選択状態の維持（フォルダー移動・リネーム追従・戻る/進む）が従来どおり動作し、既存テストが green
-- [ ] #5 ファイル名が非 ASCII（日本語）でも ASCII でも一覧・選択が正しく機能する
+- [x] #3 改善前後を同一フォルダーで実測し、メインスレッド占有時間の比較値を Notes に残す
+- [x] #4 選択状態の維持（フォルダー移動・リネーム追従・戻る/進む）が従来どおり動作し、既存テストが green
+- [x] #5 ファイル名が非 ASCII（日本語）でも ASCII でも一覧・選択が正しく機能する
 - [ ] #6 backlog のように直下の項目数が少ないフォルダーでも、カーソルを大量ファイルのフォルダー行（tasks）に乗せて通過する操作が待たされない
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 実測で方針を決める（URL 再構築のみで足りるか、ID 型新設が要るか）
+2. 足りるなら URL.nativeBackedFileURL を BefoldKit に追加し、FileListEntry.init で適用（変更点 1 箇所）
+3. FileManager 由来 URL でも native 裏打ちかつ元 URL と等価になるテストを先に書く
+4. 全テスト green・swiftlint ベースライン差分ゼロ・xcodebuild 成功を確認
+5. dev ビルドで backlog/tasks の移動・通過を手で確認
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
@@ -70,4 +81,31 @@ ordinal: 320000
 ディレクトリ列挙自体は FolderListingView の .task から listEntriesAsync でメイン外に出ており無関係（343 件で列挙 12ms + ソート 10ms 程度）。
 
 補足: この操作そのものの sample 採取はスクリプトからのキー入力がサイドバーに届かず失敗した。根拠は 343 行リストの実測サンプル（Description 参照）と上記コード経路。
+
+## 修正方針と実測（2026-08-03）
+
+### 単純化の検討
+Description の本命案（事前計算ハッシュの ID 型）は FileListModel.selection / SidebarNavigator / PreviewTargetResolver / FolderListingView へ波及する。先に案 2（URL の裏打ちを native String に直す）を実測したところ十分な効果があり、変更点が FileListEntry.init の 1 箇所で済むためこちらを採用した。
+
+### 実測（本リポジトリ backlog/tasks・344 件、辞書へ挿入＋全件参照を 1 パス、5 回の最良値）
+| キー | 時間/パス |
+|---|---|
+| FileManager 由来 URL（修正前） | 10.34 ms |
+| native 裏打ちに直した URL（修正後） | 0.49 ms |
+| path String そのまま | 5.84 ms |
+| 事前計算ハッシュ ID（不採用案） | 0.21 ms |
+
+修正前後で **約 21 倍**。ID 型新設まで行っても 0.49→0.21 ms の差にとどまるため、波及に見合わないと判断した。
+
+### 実装
+- BefoldKit/URL+NormalizedPathKey.swift に `nativeBackedFileURL` を追加（既に連続 UTF-8 なら自身を返す。isDirectory: hasDirectoryPath で末尾スラッシュの意味を保つ）
+- FileListEntry.init で `self.url = url.nativeBackedFileURL`。id / pathKey / == の意味は変わらないため呼び出し側の変更は不要で、サイドバーと FolderListingView が同時に直る
+- 判明した前提: URL(fileURLWithPath:) で作った URL のパスは連続 UTF-8 になる。非連続になるのは FileManager 列挙由来のものだけで、テストは実ファイルシステム（日本語名）で前提ごと検証している
+
+### 確認済み
+- swift test 全体 green（1005 tests / 150 suites）
+- swiftlint: 変更ファイルの警告は既存の identifier_name('id') のみでベースライン差分ゼロ
+- xcodebuild build -scheme befold 成功
+
+### 残: GUI での手動確認（AC #1 / #2 / #6）
 <!-- SECTION:NOTES:END -->

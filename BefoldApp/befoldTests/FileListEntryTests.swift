@@ -18,4 +18,24 @@ struct FileListEntryTests {
         let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
         #expect(FileListEntry(url: url, kind: .file).pathKey == url.normalizedPathKey)
     }
+
+    @Test("FileManager 由来の URL でも url は native 裏打ちに揃い、元の URL と等しい")
+    func urlIsNativeBackedEvenFromFileManager() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FileListEntryTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("日本語ファイル.md")
+        try Data().write(to: file)
+
+        let listed = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        let source = try #require(listed.first)
+        // 前提: FileManager 由来の URL は NSString 裏打ちで、Hashable が遅い正規化経路を通る
+        #expect(source.path.isContiguousUTF8 == false)
+
+        let entry = FileListEntry(url: source, kind: .file)
+        #expect(entry.url.path.isContiguousUTF8)
+        #expect(entry.url == source)
+        #expect(entry.pathKey == source.normalizedPathKey)
+    }
 }

@@ -7,4 +7,16 @@ public extension URL {
     var normalizedPathKey: String {
         resolvingSymlinksInPath().path
     }
+
+    /// パス文字列を native な連続 UTF-8 に揃えた、同値の file URL。
+    /// FileManager 由来の URL はパスが NSString 裏打ちで、URL の Hashable が
+    /// 1 文字ずつ ObjC を呼ぶ Unicode 正規化経路（`-[__NSCFString characterAtIndex:]`）に
+    /// 落ちる。SwiftUI の ForEach は行 ID を辞書キーにするたびにこれを走らせるため、
+    /// 300 件規模の一覧でメインスレッドが詰まる（344 件の実測で 10.3ms → 0.5ms）。
+    var nativeBackedFileURL: URL {
+        var path = path
+        guard !path.isContiguousUTF8 else { return self }
+        path.makeContiguousUTF8()
+        return URL(fileURLWithPath: path, isDirectory: hasDirectoryPath)
+    }
 }
