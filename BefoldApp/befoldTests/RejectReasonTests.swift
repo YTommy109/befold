@@ -9,13 +9,31 @@ struct RejectReasonTests {
     func localizedMessageIsNotEmpty() {
         #expect(!RejectReason.unsupportedFormat.localizedMessage.isEmpty)
         #expect(!RejectReason.fileTooLarge.localizedMessage.isEmpty)
+        #expect(!RejectReason.binaryContent.localizedMessage.isEmpty)
     }
 
     @Test("理由ごとに異なる文言を返す")
     func localizedMessageDiffersByReason() {
-        #expect(
-            RejectReason.unsupportedFormat.localizedMessage
-                != RejectReason.fileTooLarge.localizedMessage
-        )
+        let messages = [
+            RejectReason.unsupportedFormat.localizedMessage,
+            RejectReason.fileTooLarge.localizedMessage,
+            RejectReason.binaryContent.localizedMessage,
+        ]
+
+        #expect(Set(messages).count == messages.count)
+    }
+
+    /// バイナリ拒否は「形式が非対応」と区別できることに意味があるため、
+    /// 汎用文言との差異を CLI 出力側でも固定する(TASK-260)。
+    @Test("cliMessage も理由ごとに異なる文言を返す")
+    func cliMessageDiffersByReason() {
+        let messages = [
+            RejectReason.unsupportedFormat.cliMessage,
+            RejectReason.fileTooLarge.cliMessage,
+            RejectReason.binaryContent.cliMessage,
+        ]
+
+        #expect(Set(messages).count == messages.count)
+        #expect(messages.allSatisfy { !$0.isEmpty })
     }
 }

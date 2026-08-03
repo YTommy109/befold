@@ -90,7 +90,7 @@ struct CLICheckCommandTests {
         #expect(result.message.contains(RejectReason.fileTooLarge.cliMessage))
     }
 
-    @Test("拡張子は既知だが内容がバイナリのファイルは未対応形式として開けないと判定される")
+    @Test("拡張子は既知だが内容がバイナリのファイルはバイナリを理由に開けないと判定される")
     func binaryContentForTextExtensionIsRejected() async {
         let url = URL(fileURLWithPath: "/tmp/note.md")
         let reader = InMemoryFileReader(files: [url.path: "not really markdown"])
@@ -101,7 +101,7 @@ struct CLICheckCommandTests {
         )
 
         #expect(result.exitCode != 0)
-        #expect(result.message.contains(RejectReason.unsupportedFormat.cliMessage))
+        #expect(result.message.contains(RejectReason.binaryContent.cliMessage))
     }
 
     @Test("サイズ超過かつ内容がバイナリの場合、実際のオープン経路と同じくバイナリ判定を優先する")
@@ -116,7 +116,7 @@ struct CLICheckCommandTests {
         )
 
         #expect(result.exitCode != 0)
-        #expect(result.message.contains(RejectReason.unsupportedFormat.cliMessage))
+        #expect(result.message.contains(RejectReason.binaryContent.cliMessage))
         #expect(!result.message.contains(RejectReason.fileTooLarge.cliMessage))
     }
 }

@@ -55,9 +55,13 @@ public enum ViewerLoadPipeline {
             return .full(contentLoader.load(from: resolved, fileType: fileType), cache: nil)
         }
 
+        // 拒否理由を binaryContent として区別するのは、ここに来るのが必ず
+        // 「NUL を含み、BOM も UTF-16 のパリティも持たない」ファイルだから
+        // (isBinary の判定条件)。汎用の unsupportedFormat に丸めると、
+        // テキストのはずのファイルに NUL が混入した事故を追跡できない。
         if fileReader.isBinary(at: resolved) {
             return .full(
-                ContentLoader.LoadedContent(rejectReason: .unsupportedFormat, content: ""),
+                ContentLoader.LoadedContent(rejectReason: .binaryContent, content: ""),
                 cache: nil
             )
         }

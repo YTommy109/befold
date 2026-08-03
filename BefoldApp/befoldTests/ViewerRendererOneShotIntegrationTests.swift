@@ -44,14 +44,14 @@ struct ViewerRendererOneShotIntegrationTests {
 
         let url = URL(fileURLWithPath: "/tmp/oneshot-binary.md")
         let fileReader = InMemoryFileReader(files: [url.path: "binary-ish"])
-        // バイナリ判定された非対応ファイルは unsupportedFormat になる。
+        // QuickLook でもバイナリ拒否の理由が汎用文言に丸められないこと(TASK-260)。
         fileReader.setBinary(true, at: url)
 
         let result = await renderer.loadOneShot(
             url: url, fileReader: fileReader, chunkedReaderFactory: chunkedReaderFactory
         )
 
-        #expect(result.rejectReason == .unsupportedFormat)
+        #expect(result.rejectReason == .binaryContent)
     }
 
     /// loadOneShot が「描画を予約して即 return」ではなく、実際の描画完了まで待つこと。
