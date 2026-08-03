@@ -21,6 +21,10 @@ public extension URL {
     /// 開けなくなる（344 件の実測でコストは 0.7ms、`URL(string:)` 経由の 2.9ms より安い）。
     ///
     /// file URL でない場合は何もせず自身を返す（scheme や query を書き換えないため）。
+    ///
+    /// macOS 14 では URL の実装が異なり、作り直しても裏打ちは揃わない（no-op になる）。
+    /// ただしそこでは遅い経路自体が存在しない（344 件のハッシュが macOS 14 で 0.33ms、
+    /// 同じ計測が macOS 26 では 11.6ms）。TASK-269 で CI ランナー実測により確認済み。
     var nativeBackedFileURL: URL {
         guard isFileURL, !path.isContiguousUTF8 else { return self }
         return withUnsafeFileSystemRepresentation { pointer in
