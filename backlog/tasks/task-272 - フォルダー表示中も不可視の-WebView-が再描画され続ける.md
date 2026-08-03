@@ -4,6 +4,7 @@ title: フォルダー表示中も不可視の WebView が再描画され続け�
 status: To Do
 assignee: []
 created_date: '2026-08-03 15:22'
+updated_date: '2026-08-03 15:35'
 labels:
   - performance
 dependencies: []
@@ -28,3 +29,9 @@ code-review high で CONFIRMED。TASK-266 以前は、フォルダー選択中�
 - [ ] #2 ファイル表示へ戻った時点で最新の内容が 1 度で反映される（取りこぼしがない）
 - [ ] #3 大きめのファイルを外部から連続更新しながらフォルダーを操作し、修正前後のメインスレッド占有を実測して Notes に残す
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+ADR 0002 の段 5。可視性の判定は macOS の NSWindowOcclusionStateVisible（windowDidChangeOcclusionState）が正式な手段。不可視の間は更新をコアレスし、可視化時に 1 度だけ適用する。
+<!-- SECTION:NOTES:END -->

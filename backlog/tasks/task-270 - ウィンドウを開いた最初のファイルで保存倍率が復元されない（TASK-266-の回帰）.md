@@ -4,6 +4,7 @@ title: ウィンドウを開いた最初のファイルで保存倍率が復元�
 status: To Do
 assignee: []
 created_date: '2026-08-03 15:21'
+updated_date: '2026-08-03 15:35'
 labels:
   - bug
   - regression
@@ -37,3 +38,9 @@ code-review high で CONFIRMED。TASK-266 で ViewerWebView を常駐させた�
 - [ ] #2 フォルダー→ファイルの切替、ファイル→ファイルの切替でも従来どおり保存倍率が復元される
 - [ ] #3 回帰を捉えるテストがある（倍率の適用経路が初回ファイルでも通ることを検証する）
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+ADR 0002 の段 3（representable を投影に徹させ、初期値を updateNSView へ移す）として実施する。段 1（TASK-275）の提示状態が入った後に着手する。
+<!-- SECTION:NOTES:END -->

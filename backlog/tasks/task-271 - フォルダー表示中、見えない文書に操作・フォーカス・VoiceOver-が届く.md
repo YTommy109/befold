@@ -4,6 +4,7 @@ title: フォルダー表示中、見えない文書に操作・フォーカス�
 status: To Do
 assignee: []
 created_date: '2026-08-03 15:21'
+updated_date: '2026-08-03 15:35'
 labels:
   - bug
   - regression
@@ -41,3 +42,9 @@ accessibilityHidden(true) は NSViewRepresentable のラッパーに付くが、
 - [ ] #3 VoiceOver を有効にした実機で、フォルダー表示中に不可視の文書が読み上げられないことを確認する
 - [ ] #4 上記のガードを検証するテストがある
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+ADR 0002 の段 2（能力を状態から導出する関数へ集約）として実施する。調査で判明した追加事実: validateMenuItem を通らないコマンド経路が 4 本ある（ツールバーの view ベース項目 ViewerToolbarController.swift:76-94、オーバーフロー（»）メニュー :61-65、サイドバーの onKeyPress FileListView.swift:142、ツールバーのフィルタ/ソート/隠しファイル FileListView.swift:70-108）。TASK-266 で入れた canOperateOnVisibleDocument は validate 側にしかないため、これらは素通りする。導出関数へ集約する際に 4 本すべてを通すこと。
+<!-- SECTION:NOTES:END -->
