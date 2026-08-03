@@ -14,7 +14,10 @@ final class FileListModel {
     var rootDirectory: URL
     /// サイドバーの一覧。代入をもって「一覧が届いた」とみなす(hasLoadedEntries)。
     var entries: [FileListEntry] {
-        didSet { hasLoadedEntries = true }
+        didSet {
+            hasLoadedEntries = true
+            onPresentationTargetChange?()
+        }
     }
 
     /// 一覧が一度でも反映されたか。ウィンドウは一覧を空で作って非同期に埋めるため、
@@ -43,7 +46,14 @@ final class FileListModel {
         set { storedSelection = newValue?.nativeBackedFileURL }
     }
 
-    private var storedSelection: FileListEntry.ID?
+    private var storedSelection: FileListEntry.ID? {
+        didSet { onPresentationTargetChange?() }
+    }
+
+    /// 提示対象(previewTarget)が変わりうる書き換えのあとに呼ばれる。
+    /// ツールバーの view ベースアイテムは AppKit の validate を通らず、明示的に
+    /// 再同期しないと古い有効状態のまま残るため、その通知点として使う(ADR 0002)。
+    @ObservationIgnored var onPresentationTargetChange: (() -> Void)?
     var sortOrder: SortOrder
     /// サイドバーのアイコンボタン・メニュー・ショートカットの見た目に使う現在値。
     /// 永続化・真実の源は HiddenFilesPreference。SidebarNavigator が

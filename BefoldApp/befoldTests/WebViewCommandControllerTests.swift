@@ -14,38 +14,30 @@ struct WebViewCommandControllerTests {
     private func makeController(
         proxy: WebViewProxy = WebViewProxy(),
         url: URL = URL(fileURLWithPath: "/tmp/a.md"),
-        isPreviewingFolder: @escaping () -> Bool = { false }
+        capabilities: @escaping () -> ViewerCapabilities = { .allEnabledForTesting }
     ) -> WebViewCommandController {
         let defaults = makeIsolatedDefaults(prefix: "WebViewCommandControllerTests")
         return WebViewCommandController(
             webViewProxy: proxy,
             perFileState: PerFileStateStore(defaults: defaults),
             currentURL: { url },
-            isPreviewingFolder: isPreviewingFolder
+            capabilities: capabilities
         )
     }
 
-    @Test("フォルダー一覧の表示中は、生きている WebView があっても文書操作を許さない")
-    func blocksDocumentCommandsWhilePreviewingFolder() {
+    @Test("能力が無ければ、生きている WebView があってもコマンドは何もしない")
+    func blocksDocumentCommandsWithoutCapability() {
+        let webView = WKWebView()
         let proxy = WebViewProxy()
-        proxy.webView = WKWebView()
-        var isPreviewingFolder = false
-        let controller = makeController(proxy: proxy, isPreviewingFolder: { isPreviewingFolder })
+        proxy.webView = webView
 
-        #expect(controller.canOperateOnVisibleDocument)
+        let controller = makeController(proxy: proxy, capabilities: { .none })
 
-        isPreviewingFolder = true
-        #expect(!controller.canOperateOnVisibleDocument)
-
-        // フォルダー表示中はコマンドを呼んでも何も起きない(クラッシュもしない)
+        // 能力が無い状態でコマンドを呼んでも何も起きない(クラッシュもしない)
         controller.zoomIn()
         controller.openFind()
         controller.printDocument(over: nil)
-    }
-
-    @Test("WebView が無ければフォルダー表示でなくても文書操作は不可")
-    func requiresLiveWebView() {
-        #expect(!makeController().canOperateOnVisibleDocument)
+        #expect(proxy.webView === webView)
     }
 
     @Test("isDirectHTMLMode は webViewProxy の値をそのまま反映する")

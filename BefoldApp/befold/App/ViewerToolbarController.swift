@@ -8,6 +8,8 @@ protocol ViewerToolbarHost: AnyObject {
     var fileListModel: FileListModel { get }
     /// 表示状態(ファイル種別・ソース表示可否・行番号表示)。
     var store: ViewerStore { get }
+    /// いま何ができるか。ツールバーの有効/無効はここだけを見る(ADR 0002)。
+    var capabilities: ViewerCapabilities { get }
     /// モード切替セグメントの選択変更を反映する。
     func setSourceMode(_ newValue: Bool)
     /// 戻る/進むアイテム・メニュー表現から呼ばれる履歴ナビゲーション。
@@ -176,13 +178,9 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     /// バイナリ種別(画像・PDF)ではプレビュー側を、それぞれ選択済み・唯一の有効状態にする。
     private func applyModeToggleState(to item: NSToolbarItem) {
         guard let host, let segmentedControl = item.view as? NSSegmentedControl else { return }
-        let isEnabled = !host.store.isRejected
-        segmentedControl.setEnabled(
-            host.store.fileType.isRenderable && isEnabled, forSegment: ModeSegment.preview.rawValue
-        )
-        segmentedControl.setEnabled(
-            !host.store.fileType.isBinaryContent && isEnabled, forSegment: ModeSegment.source.rawValue
-        )
+        let capabilities = host.capabilities
+        segmentedControl.setEnabled(capabilities.canSelectPreviewMode, forSegment: ModeSegment.preview.rawValue)
+        segmentedControl.setEnabled(capabilities.canSelectSourceMode, forSegment: ModeSegment.source.rawValue)
         segmentedControl.selectedSegment = (host.store.showsCodeContent ? ModeSegment.source : ModeSegment.preview)
             .rawValue
     }
@@ -190,7 +188,7 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     /// 行番号アイテムの有効/無効・オンオフ表示・ツールチップを現在の表示状態に合わせて反映する。
     private func applyLineNumbersState(to item: NSToolbarItem) {
         guard let host, let button = item.view as? NSButton else { return }
-        button.isEnabled = host.store.showsCodeContent
+        button.isEnabled = host.capabilities.canToggleLineNumbers
         // オン状態はボタンの塗り潰し(.pushOnPushOff)ではなくシンボルの
         // アクセント色で示し、隣のモード切替セグメントと色味を揃える
         button.contentTintColor = host.store.showLineNumbers ? .controlAccentColor : nil
@@ -201,6 +199,7 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     /// 現在ファイルのブックマーク状態に合わせて反映する。
     private func applyBookmarkState(to item: NSToolbarItem) {
         guard let host, let button = item.view as? NSButton else { return }
+        button.isEnabled = host.capabilities.canBookmark
         let isBookmarked = host.isBookmarked
         let label = ViewerCommandTitles.bookmark(isBookmarked: isBookmarked)
         button.image = NSImage(

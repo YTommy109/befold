@@ -1,10 +1,11 @@
 ---
 id: TASK-271
 title: フォルダー表示中、見えない文書に操作・フォーカス・VoiceOver が届く
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-03 15:21'
-updated_date: '2026-08-03 15:35'
+updated_date: '2026-08-03 15:46'
 labels:
   - bug
   - regression

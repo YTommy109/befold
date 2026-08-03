@@ -46,6 +46,35 @@ struct ViewerWindowControllerPreviewTargetTests {
         #expect(controller.fileListModel.previewTarget == .folder(folder))
     }
 
+    @Test("フォルダー提示中は、ソース表示・行番号・ブックマークが実行されない")
+    func blocksDocumentCommandsWhilePresentingFolder() {
+        let controller = makeController()
+        defer { controller.close() }
+        let folder = URL(fileURLWithPath: "/mock/sub")
+        controller.fileListModel.entries = [
+            FileListEntry(url: file, kind: .file), FileListEntry(url: folder, kind: .folder),
+        ]
+
+        controller.fileListModel.selection = file
+        let sourceModeBefore = controller.isSourceMode
+        let lineNumbersBefore = controller.store.showLineNumbers
+        let bookmarkedBefore = controller.isBookmarked
+
+        controller.fileListModel.selection = folder
+        #expect(!controller.capabilities.canToggleSourceMode)
+        #expect(!controller.capabilities.canToggleLineNumbers)
+        #expect(!controller.capabilities.canBookmark)
+
+        // メニューを通らない経路(ツールバー・オーバーフロー)と同じく実処理を直接呼ぶ
+        controller.setSourceMode(!sourceModeBefore)
+        controller.toggleLineNumbers(nil)
+        controller.toggleBookmark(nil)
+
+        #expect(controller.isSourceMode == sourceModeBefore)
+        #expect(controller.store.showLineNumbers == lineNumbersBefore)
+        #expect(controller.isBookmarked == bookmarkedBefore)
+    }
+
     @Test("一覧が届いた後にファイル行が選ばれていればフォルダー提示ではない")
     func reportsFilePreviewForSelectedFile() {
         let controller = makeController()
