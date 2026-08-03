@@ -31,7 +31,9 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
         self.url = url.nativeBackedFileURL
         self.kind = kind
         self.containsSupportedFile = containsSupportedFile
-        pathKey = url.normalizedPathKey
+        // pathKey も git 状態の辞書引き(行ごとに 2 回)とサイドバーの選択維持判定で
+        // ハッシュされるため、引数ではなく native 裏打ちに揃えた self.url から作る。
+        pathKey = self.url.normalizedPathKey
     }
 
     var id: URL {

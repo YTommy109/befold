@@ -25,16 +25,16 @@ struct FileListEntryTests {
             .appendingPathComponent("FileListEntryTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let file = directory.appendingPathComponent("日本語ファイル.md")
-        try Data().write(to: file)
+        try Data().write(to: directory.appendingPathComponent("日本語ファイル.md"))
 
         let listed = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-        let source = try #require(listed.first)
-        // 前提: FileManager 由来の URL は NSString 裏打ちで、Hashable が遅い正規化経路を通る
-        #expect(source.path.isContiguousUTF8 == false)
+        let source = try #require(listed.first { $0.pathExtension == "md" })
 
+        // FileManager 由来の URL は NSString 裏打ちで Hashable が遅い正規化経路を通る。
+        // id・pathKey ともに native 裏打ちへ揃っていること（値は元の URL と同じまま）を見る。
         let entry = FileListEntry(url: source, kind: .file)
         #expect(entry.url.path.isContiguousUTF8)
+        #expect(entry.pathKey.isContiguousUTF8)
         #expect(entry.url == source)
         #expect(entry.pathKey == source.normalizedPathKey)
     }

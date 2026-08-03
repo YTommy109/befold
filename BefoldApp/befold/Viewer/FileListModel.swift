@@ -13,7 +13,17 @@ final class FileListModel {
     /// パスコピー機能の相対パス基準として使う(SidebarNavigator.navigateToFolder が更新)。
     var rootDirectory: URL
     var entries: [FileListEntry]
-    var selection: FileListEntry.ID?
+    /// 選択中の行の ID(= URL)。Finder/CLI から開いたファイルの URL や
+    /// restoreSelection のように、一覧を経由しない生の URL が入ってくる経路があるため、
+    /// 書き込み時に native 裏打ちへ揃える。PreviewTargetResolver は body 評価のたびに
+    /// `entries.first { $0.id == selection }` を走らせ、片側が NSString 裏打ちだと
+    /// 比較のたびに Unicode 正規化が走る(344 件の実測で 1.93ms → 0.035ms)。
+    var selection: FileListEntry.ID? {
+        get { storedSelection }
+        set { storedSelection = newValue?.nativeBackedFileURL }
+    }
+
+    private var storedSelection: FileListEntry.ID?
     var sortOrder: SortOrder
     /// サイドバーのアイコンボタン・メニュー・ショートカットの見た目に使う現在値。
     /// 永続化・真実の源は HiddenFilesPreference。SidebarNavigator が
@@ -89,7 +99,7 @@ final class FileListModel {
         self.currentDirectory = currentDirectory
         rootDirectory = currentDirectory
         self.entries = entries
-        self.selection = selection
+        storedSelection = selection?.nativeBackedFileURL
         self.sortOrder = sortOrder
     }
 }
