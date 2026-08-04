@@ -69,6 +69,45 @@ public enum DirectoryEnumeration {
     }
 }
 
+public extension Array {
+    /// ファイル名順にソート済みの 2 列を、順序を保ったままひと続きにする。
+    ///
+    /// `sortedContents` は既にフォルダー・ファイルそれぞれをソートして返す。
+    /// 連結してソートし直すと、ロケール依存で重い localizedStandardCompare を
+    /// O(n log n) 回払い直すことになるため、比較 O(n) のマージで済ませる。
+    ///
+    /// - Parameter name: 比較に使うファイル名(URL なら lastPathComponent)。
+    static func mergedByFileName(
+        _ lhs: [Element], _ rhs: [Element], name: (Element) -> String
+    ) -> [Element] {
+        var merged: [Element] = []
+        merged.reserveCapacity(lhs.count + rhs.count)
+        var left = lhs.makeIterator()
+        var right = rhs.makeIterator()
+        var pendingLeft = left.next()
+        var pendingRight = right.next()
+        while let leftElement = pendingLeft, let rightElement = pendingRight {
+            // 同順(orderedSame)のときは左を先に出し、連結の前後関係を保つ。
+            if name(rightElement).localizedStandardCompare(name(leftElement)) == .orderedAscending {
+                merged.append(rightElement)
+                pendingRight = right.next()
+            } else {
+                merged.append(leftElement)
+                pendingLeft = left.next()
+            }
+        }
+        while let leftElement = pendingLeft {
+            merged.append(leftElement)
+            pendingLeft = left.next()
+        }
+        while let rightElement = pendingRight {
+            merged.append(rightElement)
+            pendingRight = right.next()
+        }
+        return merged
+    }
+}
+
 extension [URL] {
     /// ファイル名(lastPathComponent)の localizedStandardCompare 昇順ソート。
     /// 列挙結果の並びを一箇所に固定するため、呼び出し側で個別に sorted を書かない。

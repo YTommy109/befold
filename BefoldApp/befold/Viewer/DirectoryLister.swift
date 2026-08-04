@@ -61,12 +61,9 @@ enum DirectoryLister {
             entries += folderEntries
             entries += fileEntries
         case .alphabetical:
-            entries += (folderEntries + fileEntries)
-                .sorted {
-                    $0.url.lastPathComponent.localizedStandardCompare(
-                        $1.url.lastPathComponent
-                    ) == .orderedAscending
-                }
+            entries += [FileListEntry].mergedByFileName(
+                folderEntries, fileEntries, name: \.url.lastPathComponent
+            )
         }
 
         return entries
@@ -81,7 +78,8 @@ enum DirectoryLister {
         let (folders, files) = sortedContents(in: directory, showHiddenFiles: true, fileReader: fileReader)
         // Quick Open は候補 URL をそのまま行 ID・正規化キーとしてハッシュするため、
         // ここで native 裏打ちへ揃える(列挙側では揃えない。TASK-273)。
-        return (folders + files).sortedByFileName().map(\.nativeBackedFileURL)
+        return [URL].mergedByFileName(folders, files, name: \.lastPathComponent)
+            .map(\.nativeBackedFileURL)
     }
 
     static func containsSupportedFile(in directory: URL) -> Bool {

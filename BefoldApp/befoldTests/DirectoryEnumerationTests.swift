@@ -94,4 +94,30 @@ struct DirectoryEnumerationTests {
                 .lastPathComponent == "a.bin"
         )
     }
+
+    @Test("ソート済み 2 列のマージは、連結してソートし直した並びと一致する")
+    func mergeMatchesFullSort() {
+        // 数字の桁・大文字小文字・非 ASCII・拡張子の有無を混ぜ、localizedStandardCompare の
+        // 効き方が並びに出るようにする。フォルダー側とファイル側が交互に来る組にしている。
+        let folderNames = ["Apple", "file2", "ふぉるだ", "z-dir", "項目10"]
+        let fileNames = ["apple.md", "file10.md", "file2.md", "ふぁいる.md", "項目2.md"]
+        let base = URL(fileURLWithPath: "/tmp/merge-by-file-name")
+        let folders = folderNames.map { base.appendingPathComponent($0) }.sortedByFileName()
+        let files = fileNames.map { base.appendingPathComponent($0) }.sortedByFileName()
+
+        let merged = [URL].mergedByFileName(folders, files, name: \.lastPathComponent)
+
+        #expect(merged.map(\.lastPathComponent) == (folders + files).sortedByFileName().map(\.lastPathComponent))
+        #expect(merged.count == folders.count + files.count)
+    }
+
+    @Test("マージは片側が空でも、もう片側の並びをそのまま返す")
+    func mergeHandlesEmptySide() {
+        let base = URL(fileURLWithPath: "/tmp/merge-by-file-name")
+        let files = ["b.md", "a.md"].map { base.appendingPathComponent($0) }.sortedByFileName()
+
+        #expect([URL].mergedByFileName([], files, name: \.lastPathComponent) == files)
+        #expect([URL].mergedByFileName(files, [], name: \.lastPathComponent) == files)
+        #expect([URL].mergedByFileName([], [], name: \.lastPathComponent).isEmpty)
+    }
 }
