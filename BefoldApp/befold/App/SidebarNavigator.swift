@@ -141,10 +141,15 @@ final class SidebarNavigator {
         return showHiddenFiles
     }
 
-    /// 「変更ファイルのみ表示」トグル時に呼ぶ。表示述語を同期し、git 状態だけ取り直す(再列挙はしない)。
-    /// 作業ツリーの編集は index も windowDidBecomeKey も動かさず、古い状態で絞り込まれるため(TASK-296)。
+    /// 「変更ファイルのみ表示」トグル時に呼ぶ。表示述語を同期し、ON になったときだけ
+    /// git 状態を取り直す(再列挙はしない)。
+    /// ON で取り直すのは、作業ツリーの編集が index も windowDidBecomeKey も動かさず、
+    /// 古い状態で絞り込まれてしまうため(TASK-296)。
+    /// OFF は絞り込みをやめるだけで新しい git 状態を必要とせず、バッジは手元のスナップショットで
+    /// 足りる。方向を見ずに取り直すと、開いているウィンドウ数だけ git status が同時に走る(TASK-303)。
     func applyChangedFilesOnlyToggle() {
         syncDisplayPreferences()
+        guard fileListModel.showChangedFilesOnly else { return }
         refreshGitStatuses()
     }
 

@@ -222,6 +222,12 @@ struct SidebarNavigatorGitStatusTests {
     /// トグル用に git 状態の取り直しを伴うもの(applyChangedFilesOnlyToggle)を同じ計測で比べる。
     private struct ChangedFilesOnlyApply: CustomTestStringConvertible {
         let name: String
+        /// 一時ディレクトリ名に使う ASCII 識別子(ケースごとに一意)。
+        let key: String
+        /// 初期読み込み時点の「変更ファイルのみ表示」。
+        let initialState: Bool
+        /// 適用後の「変更ファイルのみ表示」。
+        let targetState: Bool
         let apply: @MainActor (SidebarNavigator) -> Void
         /// 適用後に増える git 取得回数。
         let expectedGitCalls: Int
@@ -235,13 +241,22 @@ struct SidebarNavigatorGitStatusTests {
         // 不可視ファイル表示と同じ再読み込みを流用すると、トグルのたびに全ウィンドウで
         // ディレクトリ全列挙と git status が走る(実測でウィンドウ 3 枚 ≒ 380ms / TASK-291)。
         ChangedFilesOnlyApply(
-            name: "表示設定の同期のみ", apply: { $0.syncDisplayPreferences() }, expectedGitCalls: 0
+            name: "表示設定の同期のみ", key: "sync", initialState: false, targetState: true,
+            apply: { $0.syncDisplayPreferences() }, expectedGitCalls: 0
         ),
         // 作業ツリーの編集は `.git/index` を動かさないため index 監視では発火せず、キーウィンドウの
         // ままなら windowDidBecomeKey も再発火しない。トグル時に取り直さないと古いスナップショットの
         // まま絞り込まれる(TASK-296)。再列挙が増えないことは TASK-291 の性質の維持を意味する。
         ChangedFilesOnlyApply(
-            name: "トグル適用", apply: { $0.applyChangedFilesOnlyToggle() }, expectedGitCalls: 1
+            name: "ON へのトグル適用", key: "toggle-on", initialState: false, targetState: true,
+            apply: { $0.applyChangedFilesOnlyToggle() }, expectedGitCalls: 1
+        ),
+        // OFF への切り替えは絞り込みをやめるだけで、新しい git 状態を必要としない。バッジは
+        // 手元のスナップショットで足りる。方向を見ずに取り直すと、トグルのたびに開いている
+        // ウィンドウ数だけ git status サブプロセスが同時に起動する(TASK-303)。
+        ChangedFilesOnlyApply(
+            name: "OFF へのトグル適用", key: "toggle-off", initialState: true, targetState: false,
+            apply: { $0.applyChangedFilesOnlyToggle() }, expectedGitCalls: 0
         ),
     ]
 
@@ -250,7 +265,7 @@ struct SidebarNavigatorGitStatusTests {
         arguments: changedFilesOnlyApplies
     )
     private func applyingChangedFilesOnlyPreference(_ testCase: ChangedFilesOnlyApply) async {
-        let prefix = "SidebarNavigatorGitStatusTests-toggle-\(testCase.expectedGitCalls)"
+        let prefix = "SidebarNavigatorGitStatusTests-\(testCase.key)"
         let base = Self.home.appendingPathComponent(prefix)
         let listings = LockedBox<Int>(0)
         let gitCalls = LockedBox<Int>(0)
@@ -258,6 +273,7 @@ struct SidebarNavigatorGitStatusTests {
             defaults: makeIsolatedDefaults(prefix: prefix),
             isChangedFilesOnlyAvailable: true
         )
+        preference.showChangedFilesOnly = testCase.initialState
         let navigator = SidebarNavigator(
             currentDirectory: base,
             entries: [],
@@ -283,13 +299,13 @@ struct SidebarNavigatorGitStatusTests {
         let listingsAfterLoad = listings.get()
         let gitCallsAfterLoad = gitCalls.get()
 
-        preference.showChangedFilesOnly = true
+        preference.showChangedFilesOnly = testCase.targetState
         testCase.apply(navigator)
         // 取得は非同期なので、発行されていれば待つと件数が増える。増えなければ発行されていない。
         await navigator.pendingListingTask?.value
         await navigator.pendingGitStatusTask?.value
 
-        #expect(navigator.fileListModel.showChangedFilesOnly)
+        #expect(navigator.fileListModel.showChangedFilesOnly == testCase.targetState)
         #expect(listings.get() == listingsAfterLoad)
         #expect(gitCalls.get() == gitCallsAfterLoad + testCase.expectedGitCalls)
     }
