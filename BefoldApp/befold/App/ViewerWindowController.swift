@@ -226,7 +226,8 @@ final class ViewerWindowController: NSWindowController {
         window.toolbar = toolbar
 
         webViewCommands = WebViewCommandController(
-            webViewProxy: webViewProxy,
+            // WKWebView と JS の詳細は adapter に閉じる(ADR 0002 段 4)。
+            renderer: WebViewDocumentRenderer(webViewProxy: webViewProxy),
             perFileState: perFileState,
             // 現在 URL は rename/switch で書き換わるため、旧値を捕捉せず self 経由で参照する。
             currentURL: { [weak self] in self?.fileURL ?? fileURL },
