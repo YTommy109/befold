@@ -313,4 +313,28 @@ struct SidebarNavigatorGitStatusTests {
         gate.open()
         await task?.value
     }
+
+    /// 絞り込み OFF の git 取得は一覧と別タスクで着地する(TASK-297)。キャンセルは協調的で、
+    /// 実行中の loadGitStatuses は完了して結果を返しうる。世代を進めずに閉じると、その結果が
+    /// applyGitStatus を通り抜けて `.git/index` の監視を閉じたウィンドウのために張り直す。
+    @Test("cancelPendingListing 後に着地した git 状態は index 監視を張り直さない")
+    func cancelPendingListingPreventsWatcherRearm() async {
+        let base = Self.home.appendingPathComponent("SidebarNavigatorGitStatusTests-rearm")
+        let indexURL = base.appendingPathComponent(".git/index")
+        let gate = AsyncGate()
+        let watchers = LockedBox<[RecordingWatcher]>([])
+        let (navigator, host) = makeNavigator(currentDirectory: base, watchers: watchers) { _, _ in
+            await gate.wait()
+            return GitStatusResult(statuses: [:], indexURL: indexURL, repositoryRoot: base)
+        }
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.refreshFileList()
+        let task = navigator.pendingGitStatusTask
+        navigator.cancelPendingListing()
+        gate.open()
+        await task?.value
+
+        #expect(watchers.get().isEmpty)
+    }
 }

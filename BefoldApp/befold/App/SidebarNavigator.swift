@@ -257,7 +257,13 @@ final class SidebarNavigator {
     }
 
     /// 進行中の一覧取得タスクを破棄する。ウィンドウを閉じるときに呼ぶ。
+    /// キャンセルは協調的で、走り出した subprocess は完了して結果を返しうる。世代を進めておかないと
+    /// その結果が反映ガードを通り抜け、閉じたウィンドウのために `.git/index` 監視を張り直す
+    /// (以後リポジトリを触るたび git が起動し続ける / TASK-300)。
     func cancelPendingListing() {
+        listingGeneration += 1
+        gitStatusGeneration += 1
+        baseDirectoryGeneration += 1
         pendingListingTask?.cancel()
         pendingListingTask = nil
         pendingBaseDirectoryTask?.cancel()
