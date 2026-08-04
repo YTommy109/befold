@@ -59,6 +59,12 @@ final class SidebarNavigator {
     /// git 状態取得タスクの世代番号。一覧取得・基準ディレクトリ解決とは完了タイミングが
     /// 独立する(subprocess の所要時間が別)ため、第 3 の世代として分けて古い結果を捨てる。
     private var gitStatusGeneration = 0
+    /// 直近に **反映した** git 状態の世代番号。反映の可否はこれとの比較で決める(TASK-299)。
+    /// 「最新世代と一致」で判定すると、一覧と対で取った結果を捨てないために世代を強制的に
+    /// 進める必要が生じ、後から始まった取得の新しい結果を古いスナップショットで上書きしてしまう。
+    /// 「これより新しい世代なら反映する」なら、結合結果も後発の単発取得もどちらも
+    /// 「最後に開始した取得が勝つ」不変条件のまま扱える。
+    private var appliedGitStatusGeneration = 0
     /// 直近に発行した git 状態取得タスク。テストから完了を待つために公開する。
     private(set) var pendingGitStatusTask: Task<Void, Never>?
 
@@ -226,9 +232,10 @@ final class SidebarNavigator {
             guard generation == self.listingGeneration, let host = self.host else { return }
             if let result {
                 // 最新の一覧と対の結果なので、待ち合わせ中に単発 refreshGitStatuses が世代を
-                // 進めていても捨ててはならない(捨てると絞り込みが外れる / TASK-294)。
-                self.gitStatusGeneration += 1
-                self.applyGitStatus(result, for: directory, generation: self.gitStatusGeneration)
+                // 進めていても、まだ何も反映されていなければ捨ててはならない
+                // (捨てると絞り込みが外れる / TASK-294)。一方で世代を偽って進めもしない。
+                // 単発の新しい結果が先に着いていれば、そちらのほうが一覧と対にふさわしい。
+                self.applyGitStatus(result, for: directory, generation: gitGeneration)
             }
             onApplied(host, entries)
         }
@@ -250,11 +257,14 @@ final class SidebarNavigator {
         await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
     }
 
-    /// 取得した git 状態を最新世代のときだけ反映し、index の監視対象を合わせる。
+    /// 取得した git 状態を、既に反映済みのものより新しいときだけ反映し、index の監視対象を合わせる。
+    /// 判定を「最新世代と一致」ではなく「反映済みより新しい」とすることで、一覧と対で取った
+    /// 結果(後発の単発取得に世代を追い越されている)も、まだ何も反映されていなければ通る。
     private func applyGitStatus(
         _ result: GitStatusResult, for directory: URL, generation: Int
     ) {
-        guard generation == gitStatusGeneration else { return }
+        guard generation > appliedGitStatusGeneration else { return }
+        appliedGitStatusGeneration = generation
         fileListModel.applyGitStatus(
             SidebarGitStatus(directory: directory, result: result), for: directory
         )
@@ -268,6 +278,9 @@ final class SidebarNavigator {
     func cancelPendingListing() {
         listingGeneration += 1
         gitStatusGeneration += 1
+        // 反映済み世代を発行済みの先頭へ揃えることで、進行中の取得を一括で無効化する
+        // (世代が「反映済みより新しい」ものだけを通すため / TASK-299)。
+        appliedGitStatusGeneration = gitStatusGeneration
         baseDirectoryGeneration += 1
         pendingListingTask?.cancel()
         pendingListingTask = nil

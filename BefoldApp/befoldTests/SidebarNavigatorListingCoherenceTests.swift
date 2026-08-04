@@ -176,4 +176,101 @@ struct SidebarNavigatorListingCoherenceTests {
             navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"]
         )
     }
+
+    /// 結合適用は「一覧と対だから捨てない」だけでよく、後から始まった取得より新しいふりを
+    /// してはならない(TASK-299)。世代を強制的に進めると、待ち合わせ中に届いた新しい
+    /// git 状態を古いスナップショットで上書きしてしまう。
+    @Test("結合適用は、後から始まって先に届いた新しい git 状態を上書きしない")
+    func doesNotOverwriteNewerGitStatusAppliedWhileCoupledFetchIsPending() async {
+        let base = Self.home.appendingPathComponent("SidebarNavigatorListingCoherenceTests-stale")
+        let dirB = base.appendingPathComponent("dirB", isDirectory: true)
+        let navigator = Self.makeRaceNavigator(
+            base: base, dirB: dirB, prefix: "SidebarNavigatorListingCoherenceTests-stale",
+            slowPolicy: .always
+        )
+        let host = SidebarNavigatorStubHost(currentFileURL: base.appendingPathComponent("a.md"))
+        navigator.attach(to: host)
+        defer { withExtendedLifetime(host) {} }
+        defer { navigator.cancelPendingListing() }
+
+        navigator.navigateToFolder(dirB)
+        let listingTask = navigator.pendingListingTask
+        // 移動の待ち合わせ中に外部で git 状態が変わり、`.git/index` 監視が新しい状態を先に適用する。
+        navigator.refreshGitStatuses(policy: .onlyIfIndexChanged)
+        await navigator.pendingGitStatusTask?.value
+        await listingTask?.value
+
+        #expect(navigator.fileListModel.entries.count == 2)
+        #expect(
+            navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["clean.md"]
+        )
+    }
+
+    /// 逆順(単発が後着)でも、後から始まった取得の結果は破棄してはならない(TASK-299)。
+    @Test("結合適用のあとに着地した、より新しい git 状態が破棄されない")
+    func appliesNewerGitStatusArrivingAfterCoupledApply() async {
+        let base = Self.home.appendingPathComponent("SidebarNavigatorListingCoherenceTests-late")
+        let dirB = base.appendingPathComponent("dirB", isDirectory: true)
+        let navigator = Self.makeRaceNavigator(
+            base: base, dirB: dirB, prefix: "SidebarNavigatorListingCoherenceTests-late",
+            slowPolicy: .onlyIfIndexChanged
+        )
+        let host = SidebarNavigatorStubHost(currentFileURL: base.appendingPathComponent("a.md"))
+        navigator.attach(to: host)
+        defer { withExtendedLifetime(host) {} }
+        defer { navigator.cancelPendingListing() }
+
+        navigator.navigateToFolder(dirB)
+        let listingTask = navigator.pendingListingTask
+        navigator.refreshGitStatuses(policy: .onlyIfIndexChanged)
+        let singleTask = navigator.pendingGitStatusTask
+        await listingTask?.value
+        #expect(
+            navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"]
+        )
+
+        await singleTask?.value
+        #expect(
+            navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["clean.md"]
+        )
+    }
+
+    /// 結合取得(`.always`)と単発取得(`.onlyIfIndexChanged`)が別の結論を返し、
+    /// どちらが遅れて返るかだけを変えられるナビゲータを作る。
+    /// 結合は changed.md のみ変更、単発(= より新しい外部の変更)は clean.md のみ変更を返す。
+    private static func makeRaceNavigator(
+        base: URL, dirB: URL, prefix: String, slowPolicy: GitStatusRefreshPolicy
+    ) -> SidebarNavigator {
+        let changed = dirB.appendingPathComponent("changed.md")
+        let clean = dirB.appendingPathComponent("clean.md")
+        let preference = SidebarDisplayPreference(
+            defaults: makeIsolatedDefaults(prefix: prefix),
+            isChangedFilesOnlyAvailable: true
+        )
+        preference.showChangedFilesOnly = true
+        return SidebarNavigator(
+            currentDirectory: base,
+            entries: [],
+            selection: nil,
+            sidebarDisplayPreference: preference,
+            directoryLister: { _, _, _ in
+                [FileListEntry(url: changed, kind: .file), FileListEntry(url: clean, kind: .file)]
+            },
+            loadGitStatuses: { directory, policy in
+                if policy == slowPolicy {
+                    for _ in 0 ..< 50 {
+                        await Task.yield()
+                    }
+                }
+                guard directory.normalizedPathKey == dirB.normalizedPathKey else { return .empty }
+                let modified = GitFileStatus(indexChange: nil, worktreeChange: .modified)
+                let target = policy == .always ? changed : clean
+                return GitStatusResult(
+                    statuses: [target.normalizedPathKey: modified],
+                    indexURL: nil,
+                    repositoryRoot: base
+                )
+            }
+        )
+    }
 }
