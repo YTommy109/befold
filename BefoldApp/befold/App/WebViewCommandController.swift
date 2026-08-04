@@ -1,138 +1,110 @@
 import AppKit
 import BefoldKit
-import BefoldRenderKit
-import WebKit
 
-/// ViewerWindowController のメニュー/ツールバーから届く WebView 操作コマンド
-/// (ズーム・印刷・検索・スクロール位置保存)の実処理を担う。
-/// webViewProxy 越しの `guard let webView` + `evaluateJavaScript` の反復を
-/// evaluate ヘルパーへ畳み、ウィンドウコントローラ本体を GUI 結線に専念させる。
+/// ViewerWindowController のメニュー/ツールバーから届く文書操作コマンド
+/// (ズーム・印刷・検索・スクロール位置保存)の方針を担う。
+///
+/// ここが持つのは「その操作が許されるか(capabilities)」と「結果をどこへ保存するか
+/// (perFileState)」だけで、どう実現するかは `DocumentRendering` の実装(adapter)に委ねる。
+/// WKWebView と JS 文字列はこの層に現れない(ADR 0002 段 4)。
 @MainActor
 final class WebViewCommandController {
-    private let webViewProxy: WebViewProxy
+    private let renderer: any DocumentRendering
     private let perFileState: PerFileStateStore
     /// 現在表示中ファイルの URL。rename/switch で書き換わるため値を捕捉せず都度取得する。
     private let currentURL: () -> URL
+    /// いま何ができるか。判断は ViewerWindowController.capabilities が唯一の導出元で、
+    /// ここでは受け取った値を使うだけ(ADR 0002)。
+    private let capabilities: () -> ViewerCapabilities
 
     init(
-        webViewProxy: WebViewProxy,
+        renderer: any DocumentRendering,
         perFileState: PerFileStateStore,
-        currentURL: @escaping () -> URL
+        currentURL: @escaping () -> URL,
+        capabilities: @escaping () -> ViewerCapabilities = { .none }
     ) {
-        self.webViewProxy = webViewProxy
+        self.renderer = renderer
         self.perFileState = perFileState
         self.currentURL = currentURL
+        self.capabilities = capabilities
     }
+
+    // 設定の反映(applyStoredZoom/applyCodeFont)は能力で止めない。止めると、
+    // フォルダーを見ている間の設定変更が常駐 WebView に入らないまま取り残される。
+    // 止めるのはユーザー操作(印刷・検索・ズーム)だけ。
 
     /// find/findNext/findPrevious の有効判定に使う。HTML 直接ロード中は viewer.html の
     /// JS が存在しないため検索系メニューを無効化する。
     var isDirectHTMLMode: Bool {
-        webViewProxy.isDirectHTMLMode
-    }
-
-    /// webView が生存していれば script を評価する。生存前・破棄後は無視する。
-    private func evaluate(_ script: String) {
-        guard let webView = webViewProxy.webView else { return }
-        webView.evaluateJavaScript(script)
+        renderer.isDirectHTMLMode
     }
 
     // MARK: - Zoom
 
-    /// 現在のファイルの保存倍率を WebView に適用する。
-    /// 初期ロード時の倍率注入(ViewerBridge.applyZoomScript)と同じ経路で反映させる。
+    /// 現在のファイルの保存倍率を適用する。
     func applyStoredZoom() {
-        evaluate(ViewerBridge.applyZoomScript(perFileState.zoom.zoom(for: currentURL())))
+        renderer.applyZoom(perFileState.zoom.zoom(for: currentURL()))
     }
 
     // MARK: - Code font
 
     /// 設定変更時に等幅フォント設定を注入し直して即時反映する。
     func applyCodeFont(family: String?, points: Double?) {
-        evaluate(ViewerBridge.applyCodeFontScript(family: family, points: points))
+        renderer.applyCodeFont(family: family, points: points)
     }
 
-    /// 直接 HTML モードでは pageZoom を transform で変換して保存し、
-    /// それ以外は viewer.js のズーム実装(script)へ委譲する。
-    private func performZoom(directHTML transform: (Double) -> Double, script: String) {
-        guard let webView = webViewProxy.webView else { return }
-        if webViewProxy.isDirectHTMLMode {
-            let newZoom = transform(webView.pageZoom)
-            webView.pageZoom = newZoom
-            perFileState.zoom.setZoom(newZoom, for: currentURL())
-        } else {
-            webView.evaluateJavaScript(script)
-        }
+    /// 倍率を 1 段変える。直接 HTML モードは viewer.js を経由しないため、
+    /// 適用後の倍率が返り、その保存だけをここで行う(通常モードは JS からの通知で保存される)。
+    private func changeZoom(_ change: ZoomChange) {
+        guard capabilities().canZoom else { return }
+        guard let newZoom = renderer.changeZoom(change) else { return }
+        perFileState.zoom.setZoom(newZoom, for: currentURL())
     }
 
     func zoomIn() {
-        performZoom(
-            directHTML: { min(ZoomStore.maxZoom, $0 + ZoomStore.zoomStep) },
-            script: ViewerBridge.zoomInScript
-        )
+        changeZoom(.zoomIn)
     }
 
     func zoomOut() {
-        performZoom(
-            directHTML: { max(ZoomStore.minZoom, $0 - ZoomStore.zoomStep) },
-            script: ViewerBridge.zoomOutScript
-        )
+        changeZoom(.zoomOut)
     }
 
     func resetZoom() {
-        performZoom(
-            directHTML: { _ in ZoomStore.defaultZoom },
-            script: ViewerBridge.zoomResetScript
-        )
+        changeZoom(.reset)
     }
 
     // MARK: - Print
 
-    /// WebView の描画内容を指定ウィンドウ上のシートとして印刷する。
     func printDocument(over window: NSWindow?) {
-        guard let window, let webView = webViewProxy.webView else { return }
-        let printInfo = NSPrintInfo()
-        printInfo.horizontalPagination = .automatic
-        printInfo.verticalPagination = .automatic
-        printInfo.isHorizontallyCentered = true
-        printInfo.isVerticallyCentered = false
-        let operation = webView.printOperation(with: printInfo)
-        // WKWebView の printOperation はビューのフレームが zero のままだと
-        // 白紙になるため、印刷対象の用紙サイズを明示する
-        operation.view?.frame = NSRect(origin: .zero, size: printInfo.paperSize)
-        operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+        guard capabilities().canPrint else { return }
+        renderer.printDocument(over: window)
     }
 
     // MARK: - Find
 
     func openFind() {
-        runFindScript(ViewerBridge.openFindScript)
+        guard capabilities().canFind else { return }
+        renderer.openFind()
     }
 
     func findNext() {
-        runFindScript(ViewerBridge.findNextScript)
+        guard capabilities().canFind else { return }
+        renderer.findNext()
     }
 
     func findPrevious() {
-        runFindScript(ViewerBridge.findPrevScript)
-    }
-
-    /// find/findNext/findPrevious 共通のガードと JS 実行。
-    /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないためスキップする。
-    private func runFindScript(_ script: String) {
-        guard !webViewProxy.isDirectHTMLMode else { return }
-        evaluate(script)
+        guard capabilities().canFind else { return }
+        renderer.findPrevious()
     }
 
     // MARK: - Scroll position
 
-    /// WebView に現在のスクロール位置を問い合わせ、指定した URL・モードのキーへ保存する。
+    /// 現在のスクロール位置を問い合わせ、指定した URL・モードのキーへ保存する。
     /// 現在の表示状態に依存せず呼び出し側が指定したキーへ書くだけで、いつ呼ぶべきか
     /// (切替前でなければならない)の判断は呼び出し側が負う
     /// (ViewerWindowController.saveScrollPositionBeforeTransition 参照)。
     func saveCurrentScrollPosition(for url: URL, mode: ViewerBridge.ViewMode) {
-        guard let webView = webViewProxy.webView else { return }
-        webView.evaluateJavaScript(ViewerBridge.currentScrollPositionScript) { [perFileState] result, _ in
-            guard let position = (result as? NSNumber)?.doubleValue else { return }
+        renderer.currentScrollPosition { [perFileState] position in
             perFileState.scrollPosition.setScrollPosition(position, for: url, mode: mode)
         }
     }

@@ -7,4 +7,33 @@ public extension URL {
     var normalizedPathKey: String {
         resolvingSymlinksInPath().path
     }
+
+    /// パスのバイト列は変えずに、文字列の裏打ちだけを native な連続 UTF-8 に揃えた同値の file URL。
+    ///
+    /// FileManager 由来の URL はパスが NSString 裏打ちで、URL の Hashable が
+    /// 1 文字ずつ ObjC を呼ぶ Unicode 正規化経路（`-[__NSCFString characterAtIndex:]`）に
+    /// 落ちる。SwiftUI の ForEach は行 ID を辞書キーにするたびにこれを走らせるため、
+    /// 300 件規模の一覧でメインスレッドが詰まる（344 件の実測で 11.3ms → 0.3ms）。
+    ///
+    /// 作り直しはファイルシステム表現（ディスク上のバイト列そのもの）を通す。
+    /// `URL(fileURLWithPath:)` はパスを再解釈するため精密合成（NFC）の名前を NFD へ
+    /// 分解してしまい、正規化に敏感なボリューム（SMB/NFS/exFAT）上のファイルを
+    /// 開けなくなる（344 件の実測でコストは 0.7ms、`URL(string:)` 経由の 2.9ms より安い）。
+    ///
+    /// file URL でない場合は何もせず自身を返す（scheme や query を書き換えないため）。
+    ///
+    /// macOS 14 では URL の実装が異なり、作り直しても裏打ちは揃わない（no-op になる）。
+    /// ただしそこでは遅い経路自体が存在しない（344 件のハッシュが macOS 14 で 0.33ms、
+    /// 同じ計測が macOS 26 では 11.6ms）。TASK-269 で CI ランナー実測により確認済み。
+    var nativeBackedFileURL: URL {
+        guard isFileURL, !path.isContiguousUTF8 else { return self }
+        return withUnsafeFileSystemRepresentation { pointer in
+            guard let pointer else { return self }
+            return URL(
+                fileURLWithFileSystemRepresentation: pointer,
+                isDirectory: hasDirectoryPath,
+                relativeTo: nil
+            )
+        }
+    }
 }

@@ -80,6 +80,10 @@ public extension ViewerRenderer {
         showLineNumbers: Bool,
         truncation: TruncationState
     ) {
+        // 見えていない間は描画しない。描画済みミラー(rendered)も更新しないので、
+        // 見える状態へ戻ってホストが呼び直したときに、最新の内容で 1 度だけ描画される。
+        guard isVisible else { return }
+
         // この呼び出し固有の世代番号。applyRender/applyAppend は画像埋め込み(MainActor 外)から
         // 戻った際にこの値を渡し、後続の updateContent 呼び出しに追い越されていないかを確認する。
         contentUpdateGeneration += 1
@@ -109,6 +113,8 @@ public extension ViewerRenderer {
                 isDirectHTMLMode = true
                 webViewProxy?.isDirectHTMLMode = true
                 isReady = false
+                // 直接ロードへ入ると viewer.js が居なくなる。復帰時に再適用させる。
+                appliedPageZoom = nil
                 // 直接ロードする HTML 内の <script> 実行を無効化する（設計スコープ外）。
                 webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = false
                 // charset 宣言(BOM/<meta charset>)のある HTML は WebKit の解釈で正しく読めるため、

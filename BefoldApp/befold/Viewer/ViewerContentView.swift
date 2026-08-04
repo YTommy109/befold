@@ -32,58 +32,66 @@ struct ViewerContentView: View {
         return scrollPositionStore.scrollPosition(for: url, mode: .init(isSourceMode: store.isSourceMode))
     }
 
-    /// サイドバーの選択状態から、プレビューエリアが表示すべき対象を決める。
+    /// プレビューエリアが表示すべき対象。導出は FileListModel に 1 つだけ置く(ADR 0002)。
     private var previewTarget: PreviewTarget {
-        PreviewTargetResolver.resolve(
-            selection: fileListModel.selection,
-            entries: fileListModel.entries,
-            currentDirectory: fileListModel.currentDirectory
-        )
+        fileListModel.previewTarget
     }
 
     var body: some View {
-        switch previewTarget {
-        case .file:
-            // ViewerWebView は常に生かしておき(ビュー同一性を維持)、非対応時は
-            // 上に UnsupportedFileView を重ねる。テキスト↔バイナリの切替で WKWebView が
-            // 破棄・再生成されて白フラッシュや stale な initialZoom が起きるのを防ぐ。
-            ZStack {
-                ViewerWebView(
-                    content: store.content,
-                    contentRevision: store.contentRevision,
-                    fileType: store.fileType,
-                    filePath: store.filePath,
-                    hasDeclaredHTMLCharset: store.hasDeclaredHTMLCharset,
-                    isSourceMode: store.isSourceMode,
-                    showLineNumbers: store.showLineNumbers,
-                    isTruncated: store.isTruncated,
-                    lineCount: store.displayedLineCount,
-                    loadFailed: store.loadFailed,
-                    initialZoom: currentZoom,
-                    codeFontFamily: codeFontFamily,
-                    codeFontSizePoints: codeFontSizePoints,
-                    scrollPositionToRestore: currentScrollPosition,
-                    rendererDelegate: rendererDelegate,
-                    findOptionsPreference: findOptionsPreference,
-                    webViewProxy: webViewProxy,
-                    rendererFeatures: .allEnabled
-                )
-                .opacity(store.isRejected ? 0 : 1)
+        // フォルダー表示でも ViewerWebView を階層に残す。差し替えにすると行を通過する
+        // たびに WKWebView が破棄・再生成され、フォーカス移動が待たされる(TASK-266)。
+        let folderURL = previewTarget.folderURL
+        ZStack {
+            filePreview(isVisible: folderURL == nil)
+                .opacity(folderURL == nil ? 1 : 0)
+                .accessibilityHidden(folderURL != nil)
+                .allowsHitTesting(folderURL == nil)
 
-                if let reason = store.rejectReason {
-                    UnsupportedFileView(fileURL: store.filePath, rejectReason: reason)
-                } else if store.isLoading, store.content.isEmpty {
-                    LoadingIndicatorView()
-                }
+            if let folderURL {
+                FolderListingView(
+                    directory: folderURL,
+                    sortOrder: fileListModel.sortOrder,
+                    showHiddenFiles: fileListModel.showHiddenFiles,
+                    onSelectFile: onSelectFile,
+                    onNavigateToFolder: onNavigateToFolder
+                )
             }
-        case let .folder(url):
-            FolderListingView(
-                directory: url,
-                sortOrder: fileListModel.sortOrder,
-                showHiddenFiles: fileListModel.showHiddenFiles,
-                onSelectFile: onSelectFile,
-                onNavigateToFolder: onNavigateToFolder
+        }
+    }
+
+    /// 表示中ファイルのプレビュー。ViewerWebView は常に生かしておき(ビュー同一性を維持)、
+    /// 非対応時は上に UnsupportedFileView を重ねる。テキスト↔バイナリの切替で WKWebView が
+    /// 破棄・再生成されて白フラッシュや stale な initialZoom が起きるのを防ぐ。
+    private func filePreview(isVisible: Bool) -> some View {
+        ZStack {
+            ViewerWebView(
+                content: store.content,
+                contentRevision: store.contentRevision,
+                fileType: store.fileType,
+                filePath: store.filePath,
+                hasDeclaredHTMLCharset: store.hasDeclaredHTMLCharset,
+                isSourceMode: store.isSourceMode,
+                showLineNumbers: store.showLineNumbers,
+                isTruncated: store.isTruncated,
+                lineCount: store.displayedLineCount,
+                loadFailed: store.loadFailed,
+                isVisible: isVisible,
+                initialZoom: currentZoom,
+                codeFontFamily: codeFontFamily,
+                codeFontSizePoints: codeFontSizePoints,
+                scrollPositionToRestore: currentScrollPosition,
+                rendererDelegate: rendererDelegate,
+                findOptionsPreference: findOptionsPreference,
+                webViewProxy: webViewProxy,
+                rendererFeatures: .allEnabled
             )
+            .opacity(store.isRejected ? 0 : 1)
+
+            if let reason = store.rejectReason {
+                UnsupportedFileView(fileURL: store.filePath, rejectReason: reason)
+            } else if store.isLoading, store.content.isEmpty {
+                LoadingIndicatorView()
+            }
         }
     }
 }

@@ -35,6 +35,11 @@ struct ViewerWebView: NSViewRepresentable {
     let lineCount: Int
     /// 直近のチャンク読込がエラーで打ち切られたかどうか。
     let loadFailed: Bool
+    /// この文書が画面に出ているか。フォルダー一覧を重ねている間は false になる。
+    /// 見えていない文書の再描画(監視対象ファイルの更新に伴う全再レイアウト)を止めるために使う。
+    /// 見える状態へ戻った時点で SwiftUI が最新の値で updateNSView を呼び直すため、
+    /// 抑止した更新は自動的に 1 回へ畳まれる(ADR 0002 段 5)。
+    let isVisible: Bool
     /// ロード時に JS へ注入するファイル毎の初期倍率。
     let initialZoom: Double
     /// ロード時に JS へ注入するソースビュー等幅フォントファミリー名。nil はシステム既定。
@@ -80,6 +85,9 @@ struct ViewerWebView: NSViewRepresentable {
         renderer.initialPageZoom = initialZoom
         renderer.scrollPositionToRestore = scrollPositionToRestore
         renderer.rendererFeatures = rendererFeatures
+        // 設定の反映(倍率・フォント・検索オプション)は隠れていても通す。止めると
+        // フォルダーを見ている間の設定変更が取り残される。重い再描画だけを renderer 側で止める。
+        renderer.isVisible = isVisible
         renderer.updateContent(
             content,
             contentRevision: contentRevision,

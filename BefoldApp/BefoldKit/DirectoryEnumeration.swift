@@ -28,7 +28,11 @@ public enum DirectoryEnumeration {
 
         var folders: [URL] = []
         var files: [URL] = []
-        for url in contents {
+        // 列挙の出口で裏打ちを揃える。FileManager が返す URL は NSString 裏打ちで、
+        // SwiftUI の行 ID やパスの辞書キーとしてハッシュされるたびに 1 文字ずつの
+        // Unicode 正規化が走る。ここが URL がアプリへ入る境界なので、消費側
+        // (サイドバー一覧・Quick Open の候補)ごとに揃え直す必要をなくす。
+        for url in contents.map(\.nativeBackedFileURL) {
             if fileReader.isDirectory(at: url) {
                 folders.append(url)
             } else {

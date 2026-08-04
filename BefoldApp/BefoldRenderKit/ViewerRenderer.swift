@@ -68,7 +68,19 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// 注入したフェイクに差し替え、Task.detached の完了タイミングを制御する。
     var imageEmbedder: MarkdownImageEmbedder = .shared
     /// 呼び出し側から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
-    public var initialPageZoom: Double = 1.0
+    ///
+    /// 生成時のユーザースクリプト(atDocumentStart)に焼き込むだけでは、ウィンドウの生成が
+    /// 表示対象の確定より先に走ったときに既定倍率のまま取り残される。値の変化と
+    /// viewer.html の準備完了の双方で適用し直し、「状態の投影」として扱う(ADR 0002 / TASK-270)。
+    public var initialPageZoom: Double = 1.0 {
+        didSet {
+            guard initialPageZoom != oldValue else { return }
+            applyInitialPageZoomIfReady()
+        }
+    }
+
+    /// viewer.js へ適用済みの倍率。同じ値を何度も評価しないための記録。
+    var appliedPageZoom: Double?
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
     public var scrollPositionToRestore: Double = 0
     /// loadOneShot が描画完了(mermaid 等の非同期描画を含む)を待つ上限。
@@ -79,6 +91,12 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// HTML 直接ロード完了後に適用する pageZoom。適用後は nil に戻す。
     var pendingPageZoom: Double?
     var isReady = false
+    /// この文書が画面に出ているか。ホスト(ViewerWebView)が毎回の更新で流し込む。
+    /// false の間は再描画を行わない。見えていない文書の再レイアウトは、外部エディタや
+    /// ビルドがファイルを書き換えるたびに走ってメインスレッドを使うだけで、誰も見ない。
+    /// 見える状態へ戻ると、ホストが最新の内容で updateContent を呼び直すため、
+    /// 抑止した更新は 1 回に畳まれる(ADR 0002 段 5)。
+    public var isVisible = true
     var pendingUpdate: (() -> Void)?
     /// updateContent 呼び出しごとに増分する世代番号。applyRender/applyAppend は画像埋め込み
     /// (MainActor 外)の完了後、この値が呼び出し時と変わっていないかを確認してから
@@ -236,6 +254,7 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
             webView.pageZoom = zoom
             pendingPageZoom = nil
         }
+        applyInitialPageZoomIfReady()
         pendingUpdate?()
         pendingUpdate = nil
     }
@@ -264,6 +283,15 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     }
 
     /// 直接 HTML モードを解除し、viewer.html へ復帰する。
+    /// 現在の initialPageZoom を viewer.js へ適用する。viewer.html の準備前・
+    /// HTML 直接ロード中(viewer.js が無い)・同じ値を適用済みのときは何もしない。
+    func applyInitialPageZoomIfReady() {
+        guard isReady, !isDirectHTMLMode, let webView else { return }
+        guard appliedPageZoom != initialPageZoom else { return }
+        appliedPageZoom = initialPageZoom
+        webView.evaluateJavaScript(ViewerBridge.applyZoomScript(initialPageZoom))
+    }
+
     /// 直接 HTML モードの判定状態(`isDirectHTMLMode` / `webViewProxy?.isDirectHTMLMode` /
     /// `lastDirectHTMLPath`)と、`rendered` ミラー 6 値を必ずセットで破棄してから
     /// viewer.html を再ロードする。ミラーは `rendered.reset()` で一括リセットする
@@ -276,6 +304,8 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     func exitDirectHTMLMode(webView: WKWebView, completion: @escaping () -> Void) {
         isDirectHTMLMode = false
         webViewProxy?.isDirectHTMLMode = false
+        // viewer.html を読み直すと JS 側の倍率も初期化されるため、適用済みの記録も捨てる。
+        appliedPageZoom = nil
         lastDirectHTMLPath = nil
         rendered.reset()
         pendingAppend = nil

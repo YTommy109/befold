@@ -1,10 +1,11 @@
 ---
 id: TASK-265
 title: ファイル数の多いフォルダーでサイドバーがフリーズする（URL をリスト ID にしたことによる正規化ハッシュ）
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-03 12:32'
-updated_date: '2026-08-03 12:46'
+updated_date: '2026-08-03 13:32'
 labels: []
 dependencies: []
 priority: high
@@ -50,13 +51,23 @@ ordinal: 320000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 サイドバーで 300 ファイル規模のフォルダー（例: backlog/tasks）へ移動しても、レインボーカーソルが出ずに一覧が表示される
-- [ ] #2 移動後のスクロール・選択・キーボード操作でもメインスレッドが目に見えて詰まらない
-- [ ] #3 改善前後を同一フォルダーで実測し、メインスレッド占有時間の比較値を Notes に残す
-- [ ] #4 選択状態の維持（フォルダー移動・リネーム追従・戻る/進む）が従来どおり動作し、既存テストが green
-- [ ] #5 ファイル名が非 ASCII（日本語）でも ASCII でも一覧・選択が正しく機能する
-- [ ] #6 backlog のように直下の項目数が少ないフォルダーでも、カーソルを大量ファイルのフォルダー行（tasks）に乗せて通過する操作が待たされない
+- [x] #1 サイドバーで 300 ファイル規模のフォルダー（例: backlog/tasks）へ移動しても、レインボーカーソルが出ずに一覧が表示される
+- [x] #2 移動後のスクロール・選択・キーボード操作でもメインスレッドが目に見えて詰まらない
+- [x] #3 改善前後を同一フォルダーで実測し、メインスレッド占有時間の比較値を Notes に残す
+- [x] #4 選択状態の維持（フォルダー移動・リネーム追従・戻る/進む）が従来どおり動作し、既存テストが green
+- [x] #5 ファイル名が非 ASCII（日本語）でも ASCII でも一覧・選択が正しく機能する
+- [x] #6 backlog のように直下の項目数が少ないフォルダーでも、カーソルを大量ファイルのフォルダー行（tasks）に乗せて通過する操作が待たされない
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 実測で方針を決める（URL 再構築のみで足りるか、ID 型新設が要るか）
+2. 足りるなら URL.nativeBackedFileURL を BefoldKit に追加し、FileListEntry.init で適用（変更点 1 箇所）
+3. FileManager 由来 URL でも native 裏打ちかつ元 URL と等価になるテストを先に書く
+4. 全テスト green・swiftlint ベースライン差分ゼロ・xcodebuild 成功を確認
+5. dev ビルドで backlog/tasks の移動・通過を手で確認
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
@@ -70,4 +81,59 @@ ordinal: 320000
 ディレクトリ列挙自体は FolderListingView の .task から listEntriesAsync でメイン外に出ており無関係（343 件で列挙 12ms + ソート 10ms 程度）。
 
 補足: この操作そのものの sample 採取はスクリプトからのキー入力がサイドバーに届かず失敗した。根拠は 343 行リストの実測サンプル（Description 参照）と上記コード経路。
+
+## 修正方針と実測（2026-08-03）
+
+### 単純化の検討
+Description の本命案（事前計算ハッシュの ID 型）は FileListModel.selection / SidebarNavigator / PreviewTargetResolver / FolderListingView へ波及する。先に案 2（URL の裏打ちを native String に直す）を実測したところ十分な効果があり、変更点が FileListEntry.init の 1 箇所で済むためこちらを採用した。
+
+### 実測（本リポジトリ backlog/tasks・344 件、辞書へ挿入＋全件参照を 1 パス、5 回の最良値）
+| キー | 時間/パス |
+|---|---|
+| FileManager 由来 URL（修正前） | 10.34 ms |
+| native 裏打ちに直した URL（修正後） | 0.49 ms |
+| path String そのまま | 5.84 ms |
+| 事前計算ハッシュ ID（不採用案） | 0.21 ms |
+
+修正前後で **約 21 倍**。ID 型新設まで行っても 0.49→0.21 ms の差にとどまるため、波及に見合わないと判断した。
+
+### 実装
+- BefoldKit/URL+NormalizedPathKey.swift に `nativeBackedFileURL` を追加（既に連続 UTF-8 なら自身を返す。isDirectory: hasDirectoryPath で末尾スラッシュの意味を保つ）
+- FileListEntry.init で `self.url = url.nativeBackedFileURL`。id / pathKey / == の意味は変わらないため呼び出し側の変更は不要で、サイドバーと FolderListingView が同時に直る
+- 判明した前提: URL(fileURLWithPath:) で作った URL のパスは連続 UTF-8 になる。非連続になるのは FileManager 列挙由来のものだけで、テストは実ファイルシステム（日本語名）で前提ごと検証している
+
+### 確認済み
+- swift test 全体 green（1005 tests / 150 suites）
+- swiftlint: 変更ファイルの警告は既存の identifier_name('id') のみでベースライン差分ゼロ
+- xcodebuild build -scheme befold 成功
+
+### 残: GUI での手動確認（AC #1 / #2 / #6）
+
+## GUI 実測（2026-08-03・sample 1ms・修正前後を同一手順で採取）
+
+修正前の実測は、同じ手元で FileListEntry.init の 1 行だけを修正前に戻して Debug ビルドし直して採った（Description の起票時サンプルとは別に取り直した比較値）。
+
+### シナリオ A: backlog/tasks（344 件）を開き、下矢印 40 回（AC #1 / #2）
+修正後のメインスレッド 3078 サンプル中、待機（mach_msg2_trap）2632 = 85% が idle。diffRows 216（7%）、_normalizedHash 2（0.06%）。レインボーカーソルは出ず、キー入力に追従した。トップ・オブ・スタックからは起票時に上位を占めた _CFStringCheckAndGetCharacterAtIndex / characterAtIndex / _withNFCCodeUnits が消え、最上位は Hasher.combine(bytes:)（native の高速経路）になった。
+
+### シナリオ B: backlog/ でカーソルを tasks 行に乗せて往復（下↑上を 12 往復 = 24 回の選択変更 / 約 3.6 秒）（AC #6）
+| | メインスレッド総数 | idle | busy | diffRows | _normalizedHash |
+|---|---|---|---|---|---|
+| 修正前 | 2737 | 65 (2.4%) | 2672 (97.6%) | 2477 | 1887 (69%) |
+| 修正後 | 2774 | 614 (22%) | 2160 (78%) | 1395 | 8 (0.3%) |
+
+本件の原因である URL の正規化ハッシュは 69% → 0.3% で実質消滅した。
+
+### 残るコスト（本件とは別原因）
+修正後に残る 78% は SwiftUI の 344 行リスト再構築そのもので、アプリ側の内訳は ViewerWebView.makeNSView 209 サンプル（選択が folder/file で切り替わるたびに WKWebView を作り直している）と FileListEntryRow.body 189。毎秒 6.7 回という機械的な連打での値であり、正規化ハッシュのような支配的ホットスポットは残っていない。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+FileListEntry.init で URL を native 裏打ち（連続 UTF-8）に揃え、SwiftUI の ForEach が行 ID として URL を辞書キーにするたびに走っていた 1 文字ずつの Unicode 正規化を解消した（BefoldKit に URL.nativeBackedFileURL を追加、変更点は init の 1 行）。
+
+検証: 344 件のマイクロベンチで 10.34ms/パス → 0.49ms/パス。GUI は修正前後を同一手順の sample(1ms) で比較し、tasks 行往復シナリオでメインスレッド占有 97.6% → 78%、うち原因である _normalizedHash は 69% → 0.3%。tasks を開いて下矢印 40 回のシナリオではメインスレッドの 85% が idle でレインボーカーソルは出ない。swift test 1005 tests green（FileManager 由来 URL・日本語名の実 FS テストを追加）、swiftlint ベースライン差分ゼロ、xcodebuild 成功。
+
+残コスト（別原因の WKWebView 再生成）は TASK-266 として起票した。
+<!-- SECTION:FINAL_SUMMARY:END -->

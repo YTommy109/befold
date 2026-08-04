@@ -12,8 +12,48 @@ final class FileListModel {
     /// このウィンドウでこれまでにアクティブになった最上位のディレクトリ。
     /// パスコピー機能の相対パス基準として使う(SidebarNavigator.navigateToFolder が更新)。
     var rootDirectory: URL
-    var entries: [FileListEntry]
-    var selection: FileListEntry.ID?
+    /// サイドバーの一覧。代入をもって「一覧が届いた」とみなす(hasLoadedEntries)。
+    var entries: [FileListEntry] {
+        didSet {
+            hasLoadedEntries = true
+            onPresentationTargetChange?()
+        }
+    }
+
+    /// 一覧が一度でも反映されたか。ウィンドウは一覧を空で作って非同期に埋めるため、
+    /// それまでは「選択が一覧に無い」が「対象が確定していない」を意味する。
+    /// 「選択を消してフォルダーを表示している」状態と取り違えないための区別に使う。
+    private(set) var hasLoadedEntries: Bool = false
+
+    /// プレビュー領域が提示すべき対象。ViewerContentView と ViewerWindowController が
+    /// 同じ値を見るための単一の導出点(ADR 0002)。
+    var previewTarget: PreviewTarget {
+        PreviewTargetResolver.resolve(
+            selection: selection,
+            entries: entries,
+            currentDirectory: currentDirectory,
+            hasLoadedEntries: hasLoadedEntries
+        )
+    }
+
+    /// 選択中の行の ID(= URL)。Finder/CLI から開いたファイルの URL や
+    /// restoreSelection のように、一覧を経由しない生の URL が入ってくる経路があるため、
+    /// 書き込み時に native 裏打ちへ揃える。PreviewTargetResolver は body 評価のたびに
+    /// `entries.first { $0.id == selection }` を走らせ、片側が NSString 裏打ちだと
+    /// 比較のたびに Unicode 正規化が走る(344 件の実測で 1.93ms → 0.035ms)。
+    var selection: FileListEntry.ID? {
+        get { storedSelection }
+        set { storedSelection = newValue?.nativeBackedFileURL }
+    }
+
+    private var storedSelection: FileListEntry.ID? {
+        didSet { onPresentationTargetChange?() }
+    }
+
+    /// 提示対象(previewTarget)が変わりうる書き換えのあとに呼ばれる。
+    /// ツールバーの view ベースアイテムは AppKit の validate を通らず、明示的に
+    /// 再同期しないと古い有効状態のまま残るため、その通知点として使う(ADR 0002)。
+    @ObservationIgnored var onPresentationTargetChange: (() -> Void)?
     var sortOrder: SortOrder
     /// サイドバーのアイコンボタン・メニュー・ショートカットの見た目に使う現在値。
     /// 永続化・真実の源は HiddenFilesPreference。SidebarNavigator が
@@ -89,7 +129,7 @@ final class FileListModel {
         self.currentDirectory = currentDirectory
         rootDirectory = currentDirectory
         self.entries = entries
-        self.selection = selection
+        storedSelection = selection?.nativeBackedFileURL
         self.sortOrder = sortOrder
     }
 }

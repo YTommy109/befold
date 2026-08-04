@@ -226,10 +226,14 @@ final class ViewerWindowController: NSWindowController {
         window.toolbar = toolbar
 
         webViewCommands = WebViewCommandController(
-            webViewProxy: webViewProxy,
+            // WKWebView と JS の詳細は adapter に閉じる(ADR 0002 段 4)。
+            renderer: WebViewDocumentRenderer(webViewProxy: webViewProxy),
             perFileState: perFileState,
             // 現在 URL は rename/switch で書き換わるため、旧値を捕捉せず self 経由で参照する。
-            currentURL: { [weak self] in self?.fileURL ?? fileURL }
+            currentURL: { [weak self] in self?.fileURL ?? fileURL },
+            // 実行可否は capabilities に集約する(ADR 0002)。フォルダー一覧を表示している間も
+            // WKWebView は背後に生き続けるため、見えていない文書への操作はここで止まる。
+            capabilities: { [weak self] in self?.capabilities ?? .none }
         )
 
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
@@ -257,6 +261,14 @@ final class ViewerWindowController: NSWindowController {
         }
         swipeMonitor.start()
 
+        // ツールバーの view ベースアイテムは validate を通らないため、提示対象が
+        // 変わったら明示的に再同期する(ADR 0002)。フォルダー一覧へ切り替わったときは
+        // キー入力の宛先も一覧へ移す(背後の見えない文書がキーを受け取り続けるのを防ぐ)。
+        fileListModel.onPresentationTargetChange = { [weak self] in
+            guard let self else { return }
+            refreshToolbarState()
+            if isPreviewingFolder { fileListModel.focusSidebarTable() }
+        }
         sidebar.attach(to: self)
         // 空で作ったサイドバー一覧をここで埋める(列挙はメインアクター外で走る)。
         sidebar.refreshFileList()
@@ -612,6 +624,9 @@ extension ViewerWindowController {
     /// isSourceMode を変更し、store・永続化・モード切替セグメントの表示更新までを一貫して行う。
     /// ツールバーのモード切替セグメント(ViewerToolbarController)からも ViewerToolbarHost 経由で呼ばれる。
     func setSourceMode(_ newValue: Bool) {
+        // validate を通らない経路(ツールバーのセグメント・オーバーフローメニュー)も
+        // ここへ来るため、能力の確認は実行側にも置く(ADR 0002)。
+        guard capabilities.canToggleSourceMode else { return }
         if newValue != isSourceMode {
             saveScrollPositionBeforeTransition()
         }
@@ -642,6 +657,30 @@ extension ViewerWindowController {
     /// サイズ超過などで非対応表示になっている間は切り替え先が不可視なため無効にする。
     var canToggleSourceMode: Bool {
         store.fileType.supportsSourceMode && !store.isRejected
+    }
+}
+
+// MARK: - Presentation State / Capabilities
+
+extension ViewerWindowController {
+    /// プレビュー領域がフォルダー一覧を出しているか。ViewerContentView と同じ
+    /// fileListModel.previewTarget を見る(導出点は 1 つ。ADR 0002)。
+    var isPreviewingFolder: Bool {
+        fileListModel.previewTarget.folderURL != nil
+    }
+
+    /// いま何ができるか。メニュー・ツールバー・コマンド実行はすべてこの値だけを見る(ADR 0002)。
+    /// 条件をここ以外に書かないことで、「メニューは無効なのに別経路では通る」を作らない。
+    var capabilities: ViewerCapabilities {
+        ViewerCapabilities(
+            isPresentingDocument: !isPreviewingFolder,
+            isRejected: store.isRejected,
+            isRenderable: store.fileType.isRenderable,
+            isBinaryContent: store.fileType.isBinaryContent,
+            showsCodeContent: store.showsCodeContent,
+            supportsSourceMode: store.fileType.supportsSourceMode,
+            isDirectHTMLMode: webViewProxy.isDirectHTMLMode
+        )
     }
 }
 
@@ -694,6 +733,7 @@ extension ViewerWindowController: NSWindowDelegate {
 
     /// View > Toggle Line Numbers / ツールバーの行番号ボタン。行番号表示の有無を切り替える。
     @objc func toggleLineNumbers(_ sender: Any?) {
+        guard capabilities.canToggleLineNumbers else { return }
         store.showLineNumbers.toggle()
         refreshToolbarState()
     }
@@ -705,6 +745,7 @@ extension ViewerWindowController: NSWindowDelegate {
 
     /// View > Bookmark / ツールバーのブックマークボタン。現在ファイルのブックマーク状態を切り替える。
     @objc func toggleBookmark(_ sender: Any?) {
+        guard capabilities.canBookmark else { return }
         bookmarkStore.toggle(fileURL)
         refreshToolbarState()
     }
@@ -724,18 +765,20 @@ extension ViewerWindowController: NSWindowDelegate {
         navigateHistory(by: 1)
     }
 
+    /// 有効判定は capabilities(提示状態からの導出)だけを見る。ここでの分岐は
+    /// 「どのセレクタがどの能力に対応するか」の対応表であって、条件そのものは書かない(ADR 0002)。
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleSourceView(_:)) {
             menuItem.title = ViewerCommandTitles.sourceView(isSourceMode: isSourceMode)
-            return canToggleSourceMode
+            return capabilities.canToggleSourceMode
         }
         if menuItem.action == #selector(toggleLineNumbers(_:)) {
             menuItem.title = ViewerCommandTitles.lineNumbers(isShown: store.showLineNumbers)
-            return store.showsCodeContent
+            return capabilities.canToggleLineNumbers
         }
         if menuItem.action == #selector(toggleBookmark(_:)) {
             menuItem.title = ViewerCommandTitles.bookmark(isBookmarked: isBookmarked)
-            return true
+            return capabilities.canBookmark
         }
         if menuItem.action == #selector(goBack(_:)) {
             return fileListModel.canGoBack
@@ -745,7 +788,14 @@ extension ViewerWindowController: NSWindowDelegate {
         }
         let findActions: [Selector] = [#selector(find(_:)), #selector(findNext(_:)), #selector(findPrevious(_:))]
         if let action = menuItem.action, findActions.contains(action) {
-            return !webViewCommands.isDirectHTMLMode
+            return capabilities.canFind
+        }
+        if menuItem.action == #selector(printDocument(_:)) {
+            return capabilities.canPrint
+        }
+        let zoomActions: [Selector] = [#selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(resetZoom(_:))]
+        if let action = menuItem.action, zoomActions.contains(action) {
+            return capabilities.canZoom
         }
         return true
     }
