@@ -33,11 +33,14 @@ struct FileListEntryTests {
 
         // FileManager 由来の URL は NSString 裏打ちで Hashable が遅い正規化経路を通る。
         // id・pathKey ともに native 裏打ちへ揃っていること（値は元の URL と同じまま）を見る。
+        // 裏打ちが揃うかは OS の実装によるため、この環境で実測した結果と一致するかで判定する。
+        // アサートを飛ばさずに突き合わせることで、「揃う環境なのに揃っていない」だけでなく
+        // 「揃わない環境なのに揃った」も捕まえる。id と pathKey は別の API を通るので、
+        // それぞれ対応する観測値と比べる。
+        let backing = try URLBackingSupport.observed()
         let entry = FileListEntry(url: source, kind: .file)
-        if URLBackingSupport.rebuildYieldsContiguousUTF8 {
-            #expect(entry.url.path.isContiguousUTF8)
-            #expect(entry.pathKey.isContiguousUTF8)
-        }
+        #expect(entry.url.path.isContiguousUTF8 == backing.rebuiltPathIsContiguousUTF8)
+        #expect(entry.pathKey.isContiguousUTF8 == backing.resolvedPathIsContiguousUTF8)
         #expect(entry.url == source)
         #expect(entry.pathKey == source.normalizedPathKey)
     }
