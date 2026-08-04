@@ -42,7 +42,7 @@ struct ViewerContentView: View {
         // たびに WKWebView が破棄・再生成され、フォーカス移動が待たされる(TASK-266)。
         let folderURL = previewTarget.folderURL
         ZStack {
-            filePreview
+            filePreview(isVisible: folderURL == nil)
                 .opacity(folderURL == nil ? 1 : 0)
                 .accessibilityHidden(folderURL != nil)
                 .allowsHitTesting(folderURL == nil)
@@ -62,7 +62,7 @@ struct ViewerContentView: View {
     /// 表示中ファイルのプレビュー。ViewerWebView は常に生かしておき(ビュー同一性を維持)、
     /// 非対応時は上に UnsupportedFileView を重ねる。テキスト↔バイナリの切替で WKWebView が
     /// 破棄・再生成されて白フラッシュや stale な initialZoom が起きるのを防ぐ。
-    private var filePreview: some View {
+    private func filePreview(isVisible: Bool) -> some View {
         ZStack {
             ViewerWebView(
                 content: store.content,
@@ -75,6 +75,7 @@ struct ViewerContentView: View {
                 isTruncated: store.isTruncated,
                 lineCount: store.displayedLineCount,
                 loadFailed: store.loadFailed,
+                isVisible: isVisible,
                 initialZoom: currentZoom,
                 codeFontFamily: codeFontFamily,
                 codeFontSizePoints: codeFontSizePoints,

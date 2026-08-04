@@ -1,10 +1,11 @@
 ---
 id: TASK-272
 title: フォルダー表示中も不可視の WebView が再描画され続ける
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-03 15:22'
-updated_date: '2026-08-03 15:35'
+updated_date: '2026-08-04 00:49'
 labels:
   - performance
 dependencies: []

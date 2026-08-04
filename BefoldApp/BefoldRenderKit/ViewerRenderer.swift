@@ -91,6 +91,12 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// HTML 直接ロード完了後に適用する pageZoom。適用後は nil に戻す。
     var pendingPageZoom: Double?
     var isReady = false
+    /// この文書が画面に出ているか。ホスト(ViewerWebView)が毎回の更新で流し込む。
+    /// false の間は再描画を行わない。見えていない文書の再レイアウトは、外部エディタや
+    /// ビルドがファイルを書き換えるたびに走ってメインスレッドを使うだけで、誰も見ない。
+    /// 見える状態へ戻ると、ホストが最新の内容で updateContent を呼び直すため、
+    /// 抑止した更新は 1 回に畳まれる(ADR 0002 段 5)。
+    public var isVisible = true
     var pendingUpdate: (() -> Void)?
     /// updateContent 呼び出しごとに増分する世代番号。applyRender/applyAppend は画像埋め込み
     /// (MainActor 外)の完了後、この値が呼び出し時と変わっていないかを確認してから
