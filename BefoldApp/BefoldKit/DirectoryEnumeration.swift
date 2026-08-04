@@ -31,8 +31,9 @@ public enum DirectoryEnumeration {
         // ここでは裏打ち(nativeBackedFileURL)を揃えない。この列挙は
         // containsSupportedFile / firstSupportedFile など「1 件だけ見て残りを捨てる」
         // 経路の入口でもあり、フォルダー行ごとに全件ぶんの URL 再構築を払うことになる。
-        // 揃えるのは実際に URL をハッシュキーにする消費側(FileListEntry.init と
-        // DirectoryLister.allEntriesSorted)に置く(TASK-273)。
+        // 揃えるのは実際に URL をハッシュキーにする消費側(サイドバー一覧は
+        // FileListEntry.init と DirectoryLister.allEntriesSorted、開く対象は
+        // ViewerStore が文書 URL を保持するところ)に置く(TASK-273 / TASK-279)。
         for url in contents {
             if fileReader.isDirectory(at: url) {
                 folders.append(url)

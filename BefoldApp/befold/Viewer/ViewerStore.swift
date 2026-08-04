@@ -58,6 +58,18 @@ final class ViewerStore {
         pendingURL
     }
 
+    /// 対象ファイル URL を差し替える唯一の入口。値(パスのバイト列)は変えずに、
+    /// 文字列の裏打ちだけ native な連続 UTF-8 へ揃える。
+    ///
+    /// 開く対象は CLI 引数・セッション復元・Quick Open・フォルダー解決(resolveFileToOpen)と
+    /// 出所がばらばらで、FileManager 由来のものは NSString 裏打ちのまま入ってくる。
+    /// この URL はサイドバーの選択や一覧の行と突き合わされ、URL のハッシュ・等値を通る。
+    /// 消費側それぞれが防御的に揃え直すのではなく、文書 URL の保持先であるここで
+    /// 1 度だけ揃える(TASK-279)。
+    private func setPendingURL(_ url: URL) {
+        pendingURL = url.nativeBackedFileURL
+    }
+
     /// pendingURL が指す読み込み対象ファイルの種別。openFile / handleRename で pendingURL と
     /// 同時に即時更新する内部値。バックグラウンド読み込み(loadContent → performLoad)へ渡すために使い、
     /// 公開の fileType とは異なりロード完了を待たない。
@@ -190,7 +202,7 @@ final class ViewerStore {
         fileGoneTask?.cancel()
         fileGoneTask = nil
         fileWatcher?.stop()
-        pendingURL = url
+        setPendingURL(url)
         pendingFileType = FileType(url: url)
         loadContent()
 
@@ -220,7 +232,7 @@ final class ViewerStore {
     /// apply() で content と同時にのみ更新する(上の pendingURL / pendingFileType 参照)。
     private func handleRename(to newURL: URL) {
         let oldURL = pendingURL
-        pendingURL = newURL
+        setPendingURL(newURL)
         pendingFileType = FileType(url: newURL)
         loadContent()
         if let oldURL {
