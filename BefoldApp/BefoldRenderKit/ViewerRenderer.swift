@@ -68,7 +68,19 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// 注入したフェイクに差し替え、Task.detached の完了タイミングを制御する。
     var imageEmbedder: MarkdownImageEmbedder = .shared
     /// 呼び出し側から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
-    public var initialPageZoom: Double = 1.0
+    ///
+    /// 生成時のユーザースクリプト(atDocumentStart)に焼き込むだけでは、ウィンドウの生成が
+    /// 表示対象の確定より先に走ったときに既定倍率のまま取り残される。値の変化と
+    /// viewer.html の準備完了の双方で適用し直し、「状態の投影」として扱う(ADR 0002 / TASK-270)。
+    public var initialPageZoom: Double = 1.0 {
+        didSet {
+            guard initialPageZoom != oldValue else { return }
+            applyInitialPageZoomIfReady()
+        }
+    }
+
+    /// viewer.js へ適用済みの倍率。同じ値を何度も評価しないための記録。
+    var appliedPageZoom: Double?
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
     public var scrollPositionToRestore: Double = 0
     /// loadOneShot が描画完了(mermaid 等の非同期描画を含む)を待つ上限。
@@ -236,6 +248,7 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
             webView.pageZoom = zoom
             pendingPageZoom = nil
         }
+        applyInitialPageZoomIfReady()
         pendingUpdate?()
         pendingUpdate = nil
     }
@@ -264,6 +277,15 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     }
 
     /// 直接 HTML モードを解除し、viewer.html へ復帰する。
+    /// 現在の initialPageZoom を viewer.js へ適用する。viewer.html の準備前・
+    /// HTML 直接ロード中(viewer.js が無い)・同じ値を適用済みのときは何もしない。
+    func applyInitialPageZoomIfReady() {
+        guard isReady, !isDirectHTMLMode, let webView else { return }
+        guard appliedPageZoom != initialPageZoom else { return }
+        appliedPageZoom = initialPageZoom
+        webView.evaluateJavaScript(ViewerBridge.applyZoomScript(initialPageZoom))
+    }
+
     /// 直接 HTML モードの判定状態(`isDirectHTMLMode` / `webViewProxy?.isDirectHTMLMode` /
     /// `lastDirectHTMLPath`)と、`rendered` ミラー 6 値を必ずセットで破棄してから
     /// viewer.html を再ロードする。ミラーは `rendered.reset()` で一括リセットする
@@ -276,6 +298,8 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     func exitDirectHTMLMode(webView: WKWebView, completion: @escaping () -> Void) {
         isDirectHTMLMode = false
         webViewProxy?.isDirectHTMLMode = false
+        // viewer.html を読み直すと JS 側の倍率も初期化されるため、適用済みの記録も捨てる。
+        appliedPageZoom = nil
         lastDirectHTMLPath = nil
         rendered.reset()
         pendingAppend = nil

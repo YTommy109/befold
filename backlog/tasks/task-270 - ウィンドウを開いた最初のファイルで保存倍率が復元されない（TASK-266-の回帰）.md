@@ -1,10 +1,11 @@
 ---
 id: TASK-270
 title: ウィンドウを開いた最初のファイルで保存倍率が復元されない（TASK-266 の回帰）
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-03 15:21'
-updated_date: '2026-08-03 15:35'
+updated_date: '2026-08-03 23:54'
 labels:
   - bug
   - regression

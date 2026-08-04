@@ -109,6 +109,8 @@ public extension ViewerRenderer {
                 isDirectHTMLMode = true
                 webViewProxy?.isDirectHTMLMode = true
                 isReady = false
+                // 直接ロードへ入ると viewer.js が居なくなる。復帰時に再適用させる。
+                appliedPageZoom = nil
                 // 直接ロードする HTML 内の <script> 実行を無効化する（設計スコープ外）。
                 webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = false
                 // charset 宣言(BOM/<meta charset>)のある HTML は WebKit の解釈で正しく読めるため、

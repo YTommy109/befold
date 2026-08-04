@@ -34,9 +34,26 @@ enum PreviewTargetResolver {
     ) -> PreviewTarget {
         // 選択を消してあるのは navigateToFolder の意図的な指示。現在ディレクトリの一覧を出す。
         guard let selection else { return .folder(currentDirectory) }
-        guard let entry = entries.first(where: { $0.id == selection }) else {
+        guard let entry = matchingEntry(for: selection, in: entries) else {
             return hasLoadedEntries ? .folder(currentDirectory) : .undetermined
         }
         return entry.kind == .file ? .file : .folder(entry.url)
+    }
+
+    /// 選択に対応する行。まず ID(URL)で照合し、外れたときだけ正規化パスキーで照合し直す。
+    ///
+    /// シンボリックリンク経由のパス(`/tmp/...` と `/private/tmp/...` など)で開かれると、
+    /// 一覧の URL と選択の URL は同じファイルを指しながら文字列としては一致しない。
+    /// 一方 SidebarNavigator の選択維持判定は正規化キーで比較して「選択は有効」と結論するため、
+    /// 両者が食い違うと、**選択は保持されたまま提示対象だけがフォルダーへ落ちる**
+    /// (文書を開いたのに一覧が出る)。照合の基準をここで揃える(ADR 0002)。
+    ///
+    /// 正規化は syscall を伴うため、一致する通常の経路では走らせない。
+    private static func matchingEntry(
+        for selection: FileListEntry.ID, in entries: [FileListEntry]
+    ) -> FileListEntry? {
+        if let entry = entries.first(where: { $0.id == selection }) { return entry }
+        let selectionKey = selection.normalizedPathKey
+        return entries.first { $0.pathKey == selectionKey }
     }
 }

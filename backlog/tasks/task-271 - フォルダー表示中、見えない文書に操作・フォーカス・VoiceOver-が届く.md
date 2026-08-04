@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@Tommy109'
 created_date: '2026-08-03 15:21'
-updated_date: '2026-08-03 15:46'
+updated_date: '2026-08-03 16:00'
 labels:
   - bug
   - regression
@@ -38,14 +38,43 @@ accessibilityHidden(true) は NSViewRepresentable のラッパーに付くが、
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 フォルダー一覧の表示中は、ソース表示・行番号・ブックマークがメニューでもツールバーでも実行されず、無効であることが見て分かる
-- [ ] #2 フォルダー表示へ切り替わったとき、キーボード操作の対象が一覧側に移る（矢印キー・Space が不可視の文書をスクロールしない）
+- [x] #1 フォルダー一覧の表示中は、ソース表示・行番号・ブックマークがメニューでもツールバーでも実行されず、無効であることが見て分かる
+- [x] #2 フォルダー表示へ切り替わったとき、キーボード操作の対象が一覧側に移る（矢印キー・Space が不可視の文書をスクロールしない）
 - [ ] #3 VoiceOver を有効にした実機で、フォルダー表示中に不可視の文書が読み上げられないことを確認する
-- [ ] #4 上記のガードを検証するテストがある
+- [x] #4 上記のガードを検証するテストがある
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 ADR 0002 の段 2（能力を状態から導出する関数へ集約）として実施する。調査で判明した追加事実: validateMenuItem を通らないコマンド経路が 4 本ある（ツールバーの view ベース項目 ViewerToolbarController.swift:76-94、オーバーフロー（»）メニュー :61-65、サイドバーの onKeyPress FileListView.swift:142、ツールバーのフィルタ/ソート/隠しファイル FileListView.swift:70-108）。TASK-266 で入れた canOperateOnVisibleDocument は validate 側にしかないため、これらは素通りする。導出関数へ集約する際に 4 本すべてを通すこと。
+
+## 実装（2026-08-04・ADR 0002 段 2）
+
+判断を ViewerCapabilities（提示状態と種別から導出する純粋な型）に集約し、validateMenuItem・ツールバーの applyState・WebViewCommandController のすべてがそこだけを見るようにした。条件を 1 箇所にしたので「メニューは無効なのに別経路では通る」が構造的に作れない。
+
+- **実行側にもガードを置いた**: setSourceMode / toggleLineNumbers / toggleBookmark。validate を通らない経路（ツールバーの view ベースアイテム、オーバーフローメニュー）も必ずここを通るため。
+- **ツールバーの push 漏れを塞いだ**: FileListModel.onPresentationTargetChange を新設し、選択・一覧の変化でツールバーを再同期する。従来 refreshToolbarState は明示呼び出しのみで、サイドバーの選択変更では走らなかった。
+- **フォーカス**: フォルダー提示に切り替わったら fileListModel.focusSidebarTable() を呼ぶ。
+
+## AX による実測（dev ビルド）
+| ツールバー項目 | ファイル行選択中 | フォルダー行選択中 |
+|---|---|---|
+| 行番号を表示 | enabled | **DISABLED** |
+| ソース | enabled | **DISABLED** |
+| ブックマークする | enabled | **DISABLED** |
+| プレビュー | DISABLED（.ts のため正しい） | DISABLED |
+
+修正前はフォルダー行を選んでも 3 項目とも有効のままだった。
+
+フォーカスは、フォルダー提示中に AXFocusedUIElement が「AXOutline サイドバー」であることを確認。ただし**指摘にあった前提（文書内にフォーカスがある状態）は再現できなかった**: 文書領域のクリックでも ⌘F でも、フォーカスは常にサイドバーの AXOutline のままだった。今回の focusSidebarTable 呼び出しは、その前提が成立する経路が将来できたときの保険として入れてある。
+
+## テスト
+- ViewerCapabilitiesTests（7 件）: 提示状態・種別・直接 HTML モードごとの導出規則
+- ViewerWindowControllerPreviewTargetTests: フォルダー提示中に setSourceMode / toggleLineNumbers / toggleBookmark を直接呼んでも状態が変わらないこと
+- WebViewCommandControllerTests: 能力が無ければ生きた WebView があってもコマンドが何もしないこと（従来の canOperateOnVisibleDocument ベースから置き換え）
+- swift test 1027 tests green / swiftlint ベースライン差分ゼロ / xcodebuild 成功
+
+## 残: AC #3（VoiceOver 実機確認）
+AX ツリー上はフォルダー提示中に web area が現れない（webAreas=0）ことを確認済みで、VoiceOver はこの木を辿るため到達しない見込み。ただし VoiceOver を実際に有効化しての確認は未実施（読み上げが始まるため環境を占有する）。手元で VoiceOver を入れて確認いただくのが確実。
 <!-- SECTION:NOTES:END -->
