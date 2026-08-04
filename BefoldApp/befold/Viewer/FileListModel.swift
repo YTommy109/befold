@@ -116,14 +116,13 @@ final class FileListModel {
     /// SidebarNavigator が一覧更新と同じ契機でメイン外から解決して書き込む。
     /// 解決前(初回表示直後)は nil でインジケータを出さない。
     var baseDirectory: BaseDirectoryDescriptor?
-    /// 表示中ディレクトリのファイルに対する git 状態。キーは `FileListEntry.pathKey`
-    /// (正規化済み絶対パス)。git 管理外・取得失敗・機能無効時は空のまま。
+    /// 表示中ディレクトリの git 状態。バッジも「変更のみ表示」の絞り込みもここだけを見る。
+    ///
+    /// nil は「リポジトリを解決できていない」= git 管理外・取得失敗・機能無効・まだ届いて
+    /// いない、のいずれか。**空の値と nil を区別すること**が要点で、変更が 1 つも無い
+    /// リポジトリは「空の SidebarGitStatus」であって nil ではない(TASK-285)。
     /// 取得は subprocess を伴うため SidebarNavigator が一覧更新と同じ契機でメイン外から行う。
-    var gitStatuses: [String: GitFileStatus] = [:]
-    /// フォルダー行のバッジ用に、配下(再帰的)の変更を集約した結果。キーは同じく
-    /// `FileListEntry.pathKey`。`gitStatuses` から純関数で導けるが、行ごとに配下を
-    /// 走査させないよう SidebarNavigator が同じ契機で一度だけ写像して持たせる。
-    var gitFolderStatuses: [String: GitFolderStatus] = [:]
+    var gitStatus: SidebarGitStatus?
 
     /// サイドバー行から見つかった NSTableView への弱参照。SidebarTableViewLocator が
     /// 行描画時に設定する。クリック時に first responder へ昇格させるためだけの
@@ -152,29 +151,30 @@ final class FileListModel {
     /// 関わらず常に含める(上位フォルダへの移動手段を残すため)。
     /// git 変更での絞り込み(showChangedFilesOnly)も AND で併用する。
     var visibleEntries: [FileListEntry] {
-        let filtersByGitChange = isGitChangeFilterEffective
-        guard !filterText.isEmpty || filtersByGitChange else { return entries }
-        return entries.filter { entry in
-            guard entry.kind != .parentNavigation else { return true }
-            guard filterText.isEmpty
-                || WildcardMatcher.matches(pattern: filterText, in: entry.url.lastPathComponent)
-            else { return false }
-            return !filtersByGitChange || hasGitChange(entry)
-        }
+        listFilter.apply(to: entries, in: currentDirectory)
     }
 
-    /// git 状態がまったく無い(非 git ディレクトリ・取得失敗・機能無効)ときは、絞り込みを
-    /// かけると一覧が空になってしまうため、フィルター無効として縮退させる。
-    private var isGitChangeFilterEffective: Bool {
-        showChangedFilesOnly
-            && (!gitFolderStatuses.isEmpty || gitStatuses.values.contains { !$0.isClean })
+    /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧
+    /// (FolderListingView)も同じ値を受け取り、同じ関数で適用する。表示設定は
+    /// ここ 1 箇所に集約し、増えたときに片側だけ取り残されないようにする(TASK-288)。
+    var listFilter: FileListFilter {
+        FileListFilter(
+            filterText: filterText,
+            gitStatus: showChangedFilesOnly ? gitStatus : nil,
+            presentedPathKey: storedSelectionPathKey
+        )
     }
 
-    /// 行にバッジが付く(= git 変更がある)エントリか。ファイルは gitStatuses、
-    /// フォルダーは配下を集約した gitFolderStatuses が真実の源。
-    private func hasGitChange(_ entry: FileListEntry) -> Bool {
-        if let status = gitStatuses[entry.pathKey], !status.isClean { return true }
-        return gitFolderStatuses[entry.pathKey] != nil
+    /// いま適用できる git 絞り込み。次のいずれかなら nil(= 絞り込まない)。
+    ///
+    /// - トグルが OFF。
+    /// - `gitStatus` が nil(git 管理外・取得失敗・機能無効)。**空の状態は nil ではない**ため、
+    ///   変更が 1 つも無いリポジトリではきちんと絞り込みが効く。
+    /// - 状態が別のディレクトリのもの。一覧の取得と git の取得は別タスクで、完了順が
+    ///   保証されない。移動直後に前のリポジトリの状態で絞り込むと一覧が一瞬消えるため、
+    ///   届いている状態が表示中ディレクトリのものであることを条件にする(TASK-285)。
+    var activeGitChangeFilter: SidebarGitStatus? {
+        listFilter.gitChangeFilter(for: currentDirectory)
     }
 
     var canGoBack: Bool {

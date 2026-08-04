@@ -6,6 +6,12 @@ struct GitStatusResult: Equatable, Sendable {
     var statuses: [String: GitFileStatus] = [:]
     /// 監視すべき `.git/index` のパス。git 管理外・取得失敗時は nil。
     var indexURL: URL?
+    /// 解決できたリポジトリのルート。git 管理外なら nil。
+    ///
+    /// 「変更が 1 つも無いリポジトリ」と「git 管理外」はどちらも `statuses` が空になるため、
+    /// 呼び出し側は空かどうかでは区別できない。区別できないと、綺麗なリポジトリで
+    /// 「変更のみ表示」が黙って無効化される(TASK-285)。
+    var repositoryRoot: URL?
 
     static let empty = GitStatusResult()
 }
@@ -69,8 +75,13 @@ final class GitStatusStore {
         if let reusable = await cachedResultIfIndexUnchanged(at: root, policy: policy) {
             return reusable
         }
-        guard let snapshot = await snapshot(forRepositoryAt: root) else { return .empty }
-        return GitStatusResult(statuses: snapshot.statuses, indexURL: snapshot.indexURL)
+        // ルートは解決できているため、status が空でも(取得失敗でも)リポジトリの事実は返す。
+        guard let snapshot = await snapshot(forRepositoryAt: root) else {
+            return GitStatusResult(repositoryRoot: root)
+        }
+        return GitStatusResult(
+            statuses: snapshot.statuses, indexURL: snapshot.indexURL, repositoryRoot: root
+        )
     }
 
     /// `.onlyIfIndexChanged` かつ前回取得時から `.git/index` が動いていなければ、
@@ -88,7 +99,9 @@ final class GitStatusStore {
             reader.indexFingerprint(forRepositoryAt: root)
         }.value
         guard current == cached.indexFingerprint else { return nil }
-        return GitStatusResult(statuses: cached.statuses, indexURL: cached.indexURL)
+        return GitStatusResult(
+            statuses: cached.statuses, indexURL: cached.indexURL, repositoryRoot: root
+        )
     }
 
     /// ルート単位のスナップショットを取り直す。取得できなければ(git を動かせなければ)nil。
