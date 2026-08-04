@@ -27,6 +27,7 @@ protocol ViewerWindowControllerDelegate: AnyObject {
         _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
     )
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
+    func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController)
 }
 
 /// performFileSwitch の結果。呼び出し元(明示的なファイル選択と履歴ナビゲーション)が
@@ -316,7 +317,8 @@ final class ViewerWindowController: NSWindowController {
             onToggleHiddenFiles: { [weak self] in
                 guard let self else { return }
                 delegate?.viewerWindowDidToggleHiddenFiles(self)
-            }
+            },
+            onToggleChangedFilesOnly: makeChangedFilesOnlyToggle()
         )
         let splitViewController = ViewerSplitViewController(
             sidebar: fileListView,
@@ -332,6 +334,18 @@ final class ViewerWindowController: NSWindowController {
         )
         sidebarCollapsible = splitViewController
         return splitViewController
+    }
+
+    /// サイドバーヘッダーの「変更されたファイルのみ表示」ボタンの動作を作る。
+    ///
+    /// git ステータスと同じ開発中機能の露出点であり、無効なら nil を返して
+    /// ボタン自体を出さない(FileListView 側が nil で非表示にする)。
+    private func makeChangedFilesOnlyToggle() -> (() -> Void)? {
+        guard FeatureGate.inProgressFeaturesEnabled else { return nil }
+        return { [weak self] in
+            guard let self else { return }
+            delegate?.viewerWindowDidToggleChangedFilesOnly(self)
+        }
     }
 
     /// CLI の `--sidebar`/`--no-sidebar` から、この既存ウィンドウのサイドバー開閉を設定する。

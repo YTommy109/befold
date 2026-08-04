@@ -74,8 +74,34 @@ struct ViewerWindowManagerIntegrationTests {
         manager.allControllers.forEach { $0.close() }
     }
 
-    @Test("git 変更のみ表示のトグルは、開いている全ウィンドウのサイドバーへ反映される")
-    func changedFilesOnlyToggleReachesAllOpenWindows() async throws {
+    /// git 変更のみ表示のトリガー経路。メニュー(⌘⌃G)とサイドバーのアイコンボタンの
+    /// どちらからでも、開いている全ウィンドウへ同じ結果が届くことを検証する。
+    private struct ChangedFilesOnlyTrigger: Sendable, CustomTestStringConvertible {
+        let name: String
+        let trigger: @MainActor @Sendable (ViewerWindowManager, ViewerWindowController) -> Void
+        var testDescription: String {
+            name
+        }
+    }
+
+    private nonisolated static let changedFilesOnlyTriggers: [ChangedFilesOnlyTrigger] = [
+        ChangedFilesOnlyTrigger(
+            name: "toggleChangedFilesOnly(メニュー ⌘⌃G)",
+            trigger: { manager, _ in manager.toggleChangedFilesOnly() }
+        ),
+        ChangedFilesOnlyTrigger(
+            name: "onToggleChangedFilesOnly コールバック(アイコンボタン操作)",
+            trigger: { manager, first in manager.viewerWindowDidToggleChangedFilesOnly(first) }
+        ),
+    ]
+
+    @Test(
+        "git 変更のみ表示は経路によらず、開いている全ウィンドウのサイドバーへ反映される",
+        arguments: changedFilesOnlyTriggers
+    )
+    private func changedFilesOnlyToggleReachesAllOpenWindows(
+        _ testCase: ChangedFilesOnlyTrigger
+    ) async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
@@ -83,11 +109,12 @@ struct ViewerWindowManagerIntegrationTests {
         let manager = makeManager()
         manager.openViewer(for: file1)
         manager.openViewer(for: file2)
+        let first = try #require(manager.controllers[file1.normalizedPathKey]?.first)
         for controller in manager.allControllers {
             #expect(!controller.fileListModel.showChangedFilesOnly)
         }
 
-        manager.toggleChangedFilesOnly()
+        testCase.trigger(manager, first)
         for controller in manager.allControllers {
             await controller.sidebar.pendingListingTask?.value
         }

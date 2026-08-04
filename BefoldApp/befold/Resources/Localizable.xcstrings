@@ -1836,6 +1836,40 @@
         }
       }
     },
+    "sidebar.changedFilesOnly.hide": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show All Files"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのファイルを表示"
+          }
+        }
+      }
+    },
+    "sidebar.changedFilesOnly.show": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Changed Files Only"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更されたファイルのみ表示"
+          }
+        }
+      }
+    },
     "sidebar.hiddenFiles.hide": {
       "extractionState": "manual",
       "localizations": {

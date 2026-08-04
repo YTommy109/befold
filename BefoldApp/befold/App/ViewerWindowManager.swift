@@ -462,4 +462,8 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
         toggleHiddenFiles()
     }
+
+    func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {
+        toggleChangedFilesOnly()
+    }
 }

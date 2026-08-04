@@ -11,6 +11,7 @@ private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDe
     var renameArgs: (old: URL, new: URL)?
     var switchFileArgs: (old: URL, new: URL)?
     var toggleHiddenFilesCalled = false
+    var toggleChangedFilesOnlyCalled = false
 
     func viewerWindowWillClose(_ controller: ViewerWindowController) {
         closeCalled = true
@@ -34,6 +35,10 @@ private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDe
 
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
         toggleHiddenFilesCalled = true
+    }
+
+    func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {
+        toggleChangedFilesOnlyCalled = true
     }
 }
 
