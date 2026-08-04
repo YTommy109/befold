@@ -109,10 +109,10 @@ final class ViewerWindowManager {
         refreshAllSidebars()
     }
 
-    /// git 変更ファイルのみ表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
+    /// git 変更ファイルのみ表示のON/OFFを反転し、開いている全ウィンドウへ即座に反映する。一覧は取り直さない。
     func toggleChangedFilesOnly() {
         sidebarDisplayPreference.showChangedFilesOnly.toggle()
-        refreshAllSidebars()
+        allControllers.forEach { _ = $0.sidebar.syncDisplayPreferences() }
     }
 
     /// CLI の `--hidden-files`/`--no-hidden-files` から呼ばれる。値を直接設定し、

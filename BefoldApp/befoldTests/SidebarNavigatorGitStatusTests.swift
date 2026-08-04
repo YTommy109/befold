@@ -216,6 +216,56 @@ struct SidebarNavigatorGitStatusTests {
         #expect(watchers.get()[0].isStopped)
     }
 
+    // MARK: - Changed-Files-Only Toggle (TASK-291)
+
+    /// 「変更ファイルのみ表示」は手元の一覧と git 状態に対する表示述語でしかない。
+    /// 不可視ファイル表示と同じ再読み込みを流用すると、トグルのたびに全ウィンドウで
+    /// ディレクトリ全列挙と git status が走る(実測でウィンドウ 3 枚 ≒ 380ms)。
+    @Test("表示設定の反映では再列挙も git 実行も走らない")
+    func applyingChangedFilesOnlyPreferenceDoesNotReload() async {
+        let base = Self.home.appendingPathComponent("SidebarNavigatorGitStatusTests-toggle")
+        let listings = LockedBox<Int>(0)
+        let gitCalls = LockedBox<Int>(0)
+        let preference = SidebarDisplayPreference(
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorGitStatusTests-toggle"),
+            isChangedFilesOnlyAvailable: true
+        )
+        let navigator = SidebarNavigator(
+            currentDirectory: base,
+            entries: [],
+            selection: nil,
+            sidebarDisplayPreference: preference,
+            directoryLister: { _, _, _ in
+                listings.update { $0 += 1 }
+                return []
+            },
+            loadGitStatuses: { _, _ in
+                gitCalls.update { $0 += 1 }
+                return .empty
+            },
+            makeGitIndexWatcher: { url, onChange in RecordingWatcher(path: url, fire: onChange) }
+        )
+        let host = SidebarNavigatorStubHost(currentFileURL: base.appendingPathComponent("a.md"))
+        navigator.attach(to: host)
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.refreshFileList()
+        await navigator.pendingListingTask?.value
+        await navigator.pendingGitStatusTask?.value
+        let listingsAfterLoad = listings.get()
+        let gitCallsAfterLoad = gitCalls.get()
+
+        preference.showChangedFilesOnly = true
+        navigator.syncDisplayPreferences()
+        // 取得は非同期なので、発行されていれば待つと件数が増える。増えなければ発行されていない。
+        await navigator.pendingListingTask?.value
+        await navigator.pendingGitStatusTask?.value
+
+        #expect(navigator.fileListModel.showChangedFilesOnly)
+        #expect(listings.get() == listingsAfterLoad)
+        #expect(gitCalls.get() == gitCallsAfterLoad)
+    }
+
     @Test("cancelPendingListing で git 状態取得タスクも破棄される")
     func cancelPendingListingCancelsStatusTask() async {
         let base = Self.home.appendingPathComponent("SidebarNavigatorGitStatusTests-cancel")

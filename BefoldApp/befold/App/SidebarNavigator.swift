@@ -164,8 +164,11 @@ final class SidebarNavigator {
     /// fileListModel 側の表示設定ミラーを真実の源(sidebarDisplayPreference)へ同期し、
     /// showHiddenFiles を返す。DirectoryLister 呼び出し前後の重複読み取りを避けるため、
     /// この値を呼び出し側で再利用する。
+    /// 「変更ファイルのみ表示」のトグルはこれだけで足りる。手元の entries と gitStatus に対する
+    /// 表示述語でしかなく列挙の入力にも git にも関わらないため(不可視ファイル表示は列挙の入力が
+    /// 変わるので refreshFileList が要る)。git 状態の鮮度は別経路で保たれる(TASK-291)。
     @discardableResult
-    private func syncDisplayPreferences() -> Bool {
+    func syncDisplayPreferences() -> Bool {
         let showHiddenFiles = sidebarDisplayPreference.showHiddenFiles
         fileListModel.showHiddenFiles = showHiddenFiles
         fileListModel.showChangedFilesOnly = sidebarDisplayPreference.showChangedFilesOnly
