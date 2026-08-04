@@ -22,38 +22,33 @@ enum PreviewTarget: Equatable {
 
 /// サイドバーの選択状態からプレビュー対象を決める純粋ロジック。
 /// FileListModel/SidebarNavigator の状態をそのまま参照し、独自の状態を持たない。
+///
+/// 引数だけから結果が決まる(ファイルシステムを読まない)ことが、この型の要件である。
+/// 選択の正規化パスキーは呼び出し側が選択の書き込み時に採った値を渡す。ここで
+/// `resolvingSymlinksInPath` を呼ぶと、結果がディスクの状態に依存して読み出しのたびに
+/// 変わりうるため、呼び出し側は結果を持ち回れなくなる(TASK-278)。
 enum PreviewTargetResolver {
-    /// - Parameter hasLoadedEntries: 一覧が一度でも反映されたか。選択が一覧に見つからない
-    ///   ときの意味がこれで変わる。反映済みなら「選択が古い(削除・移動)」ので現在ディレクトリの
-    ///   一覧へ落とすのが正しく、未反映なら「まだ分からない」であって、フォルダー提示ではない。
+    /// - Parameters:
+    ///   - selectionPathKey: 選択の `normalizedPathKey`。`selection` が nil なら使わない。
+    ///   - entryIndex: 一覧の索引。選択に対応する行を O(1) で引く。
+    ///   - hasLoadedEntries: 一覧が一度でも反映されたか。選択が一覧に見つからない
+    ///     ときの意味がこれで変わる。反映済みなら「選択が古い(削除・移動)」ので現在ディレクトリの
+    ///     一覧へ落とすのが正しく、未反映なら「まだ分からない」であって、フォルダー提示ではない。
     static func resolve(
         selection: FileListEntry.ID?,
-        entries: [FileListEntry],
+        selectionPathKey: String?,
+        entryIndex: FileListEntryIndex,
         currentDirectory: URL,
         hasLoadedEntries: Bool = true
     ) -> PreviewTarget {
         // 選択を消してあるのは navigateToFolder の意図的な指示。現在ディレクトリの一覧を出す。
         guard let selection else { return .folder(currentDirectory) }
-        guard let entry = matchingEntry(for: selection, in: entries) else {
+        let entry = entryIndex.entry(
+            for: selection, selectionPathKey: selectionPathKey ?? selection.path
+        )
+        guard let entry else {
             return hasLoadedEntries ? .folder(currentDirectory) : .undetermined
         }
         return entry.kind == .file ? .file : .folder(entry.url)
-    }
-
-    /// 選択に対応する行。まず ID(URL)で照合し、外れたときだけ正規化パスキーで照合し直す。
-    ///
-    /// シンボリックリンク経由のパス(`/tmp/...` と `/private/tmp/...` など)で開かれると、
-    /// 一覧の URL と選択の URL は同じファイルを指しながら文字列としては一致しない。
-    /// 一方 SidebarNavigator の選択維持判定は正規化キーで比較して「選択は有効」と結論するため、
-    /// 両者が食い違うと、**選択は保持されたまま提示対象だけがフォルダーへ落ちる**
-    /// (文書を開いたのに一覧が出る)。照合の基準をここで揃える(ADR 0002)。
-    ///
-    /// 正規化は syscall を伴うため、一致する通常の経路では走らせない。
-    private static func matchingEntry(
-        for selection: FileListEntry.ID, in entries: [FileListEntry]
-    ) -> FileListEntry? {
-        if let entry = entries.first(where: { $0.id == selection }) { return entry }
-        let selectionKey = selection.normalizedPathKey
-        return entries.first { $0.pathKey == selectionKey }
     }
 }

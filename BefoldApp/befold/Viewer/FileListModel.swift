@@ -9,7 +9,7 @@ import Foundation
 @Observable
 final class FileListModel {
     var currentDirectory: URL {
-        didSet { updatePreviewTarget() }
+        didSet { notifyPresentationTargetChangeIfNeeded() }
     }
 
     /// このウィンドウでこれまでにアクティブになった最上位のディレクトリ。
@@ -19,10 +19,18 @@ final class FileListModel {
     var entries: [FileListEntry] {
         didSet {
             hasLoadedEntries = true
-            updatePreviewTarget()
-            onPresentationTargetChange?()
+            entryIndex = FileListEntryIndex(entries: entries)
+            notifyPresentationTargetChangeIfNeeded()
         }
     }
+
+    /// `entries` を選択から引くための索引。一覧の代入と同時に作り直す。
+    /// 提示対象の導出はこれを介して O(1) で行う(FileListEntryIndex)。
+    ///
+    /// 観測対象から外してはならない。previewTarget は導出値であり、View が
+    /// それを読んだときに依存として登録されるのはここで触れた保存値だけなので、
+    /// 外すと「一覧が変わって提示対象も変わったのに再描画されない」が起きる。
+    private var entryIndex: FileListEntryIndex
 
     /// 一覧が一度でも反映されたか。ウィンドウは一覧を空で作って非同期に埋めるため、
     /// それまでは「選択が一覧に無い」が「対象が確定していない」を意味する。
@@ -32,16 +40,15 @@ final class FileListModel {
     /// プレビュー領域が提示すべき対象。ViewerContentView と ViewerWindowController が
     /// 同じ値を見るための単一の導出点(ADR 0002)。
     ///
-    /// 導出は entries / selection / currentDirectory が変わったときだけ行い、結果を持つ。
     /// 読み出し側は menu validation(1 回のメニュー表示で 7 セレクタぶん)・ツールバー同期・
-    /// View の body 評価と多く、そのたびに `entries.first(where:)` の線形走査を回すと
-    /// 数万件のディレクトリでメインスレッドが詰まる(TASK-273)。
-    private(set) var previewTarget: PreviewTarget = .undetermined
-
-    private func updatePreviewTarget() {
-        previewTarget = PreviewTargetResolver.resolve(
+    /// View の body 評価と多いが、索引(entryIndex)と選択の pathKey を持っているので
+    /// 1 回の導出は O(1) で済む。結果を持たずそのつど導くため、状態が増えず、
+    /// ディスク側の変化で持ち回った値が古くなることもない(TASK-273 / TASK-278)。
+    var previewTarget: PreviewTarget {
+        PreviewTargetResolver.resolve(
             selection: storedSelection,
-            entries: entries,
+            selectionPathKey: storedSelectionPathKey,
+            entryIndex: entryIndex,
             currentDirectory: currentDirectory,
             hasLoadedEntries: hasLoadedEntries
         )
@@ -54,20 +61,43 @@ final class FileListModel {
     /// 比較のたびに Unicode 正規化が走る(344 件の実測で 1.93ms → 0.035ms)。
     var selection: FileListEntry.ID? {
         get { storedSelection }
-        set { storedSelection = newValue?.nativeBackedFileURL }
-    }
-
-    private var storedSelection: FileListEntry.ID? {
-        didSet {
-            updatePreviewTarget()
-            onPresentationTargetChange?()
+        set {
+            let normalized = newValue?.nativeBackedFileURL
+            // 正規化キーは書き込み時に採る。一覧側(FileListEntry.pathKey)も構築時の
+            // スナップショットであり、導出のたびに片側だけディスクを読み直すと、
+            // 同じ入力から違う答えが出る(TASK-278)。
+            storedSelectionPathKey = normalized?.normalizedPathKey
+            storedSelection = normalized
         }
     }
 
-    /// 提示対象(previewTarget)が変わりうる書き換えのあとに呼ばれる。
+    private var storedSelection: FileListEntry.ID? {
+        didSet { notifyPresentationTargetChangeIfNeeded() }
+    }
+
+    /// `storedSelection` の `normalizedPathKey`。選択の書き込みと同時に更新する。
+    @ObservationIgnored private var storedSelectionPathKey: String?
+
+    /// 提示対象(previewTarget)が変わったときに呼ばれる。
     /// ツールバーの view ベースアイテムは AppKit の validate を通らず、明示的に
     /// 再同期しないと古い有効状態のまま残るため、その通知点として使う(ADR 0002)。
     @ObservationIgnored var onPresentationTargetChange: (() -> Void)?
+
+    /// 直前に通知した提示対象。通知を「変化したときだけ」に絞るための比較用であり、
+    /// 提示対象の真実の源ではない(真実の源は previewTarget の導出そのもの)。
+    @ObservationIgnored private var lastNotifiedTarget: PreviewTarget
+
+    /// 提示対象が変わりうる書き換えのあとに呼ぶ。実際に変わったときだけ通知する。
+    /// currentDirectory / entries / storedSelection の 3 つとも同じここを通す。
+    /// フォルダー移動は 3 つを続けて書き換えるため、素通しで通知すると
+    /// ツールバーの再同期が 1 回の移動で何度も走る(TASK-278)。
+    private func notifyPresentationTargetChangeIfNeeded() {
+        let target = previewTarget
+        guard target != lastNotifiedTarget else { return }
+        lastNotifiedTarget = target
+        onPresentationTargetChange?()
+    }
+
     var sortOrder: SortOrder
     /// サイドバーのアイコンボタン・メニュー・ショートカットの見た目に使う現在値。
     /// 永続化・真実の源は HiddenFilesPreference。SidebarNavigator が
@@ -143,9 +173,13 @@ final class FileListModel {
         self.currentDirectory = currentDirectory
         rootDirectory = currentDirectory
         self.entries = entries
-        storedSelection = selection?.nativeBackedFileURL
+        let normalizedSelection = selection?.nativeBackedFileURL
+        storedSelection = normalizedSelection
+        storedSelectionPathKey = normalizedSelection?.normalizedPathKey
         self.sortOrder = sortOrder
-        // 各プロパティの didSet は init 中には走らないため、初期値をここで揃える。
-        updatePreviewTarget()
+        // 各プロパティの didSet は init 中には走らないため、派生する値をここで揃える。
+        entryIndex = FileListEntryIndex(entries: entries)
+        lastNotifiedTarget = .undetermined
+        lastNotifiedTarget = previewTarget
     }
 }
