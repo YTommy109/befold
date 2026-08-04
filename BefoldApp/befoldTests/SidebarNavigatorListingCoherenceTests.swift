@@ -62,4 +62,66 @@ struct SidebarNavigatorListingCoherenceTests {
             navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"]
         )
     }
+
+    /// `.git/index` の更新とフォルダー移動が同時に起きる状況(TASK-294)。
+    /// 移動の待ち合わせ中に単発の refreshGitStatuses が世代を進めても、一覧と対で取った
+    /// git 状態は捨ててはならない。捨てると一覧だけが新しいディレクトリのものになり、
+    /// 単発の取得が返るまで絞り込みの外れた全件が表示される。
+    @Test("移動中に .git/index 由来の取得が割り込んでも一覧と対の git 状態を捨てない")
+    func keepsPairedGitStatusWhenSingleRefreshInterleaves() async {
+        let base = Self.home.appendingPathComponent("SidebarNavigatorListingCoherenceTests-race")
+        let dirB = base.appendingPathComponent("dirB", isDirectory: true)
+        let changed = dirB.appendingPathComponent("changed.md")
+        let clean = dirB.appendingPathComponent("clean.md")
+        let preference = SidebarDisplayPreference(
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorListingCoherenceTests-race"),
+            isChangedFilesOnlyAvailable: true
+        )
+        preference.showChangedFilesOnly = true
+        let navigator = SidebarNavigator(
+            currentDirectory: base,
+            entries: [],
+            selection: nil,
+            sidebarDisplayPreference: preference,
+            directoryLister: { _, _, _ in
+                [FileListEntry(url: changed, kind: .file), FileListEntry(url: clean, kind: .file)]
+            },
+            loadGitStatuses: { directory, policy in
+                // 割り込む単発の取得。返らないまま結果を待たせ、一覧と対の結果だけで
+                // 絞り込みが成立することを見る。
+                guard policy == .always else {
+                    while !Task.isCancelled {
+                        await Task.yield()
+                    }
+                    return .empty
+                }
+                guard directory.normalizedPathKey == dirB.normalizedPathKey else { return .empty }
+                for _ in 0 ..< 50 {
+                    await Task.yield()
+                }
+                let status = GitFileStatus(indexChange: nil, worktreeChange: .modified)
+                return GitStatusResult(
+                    statuses: [changed.normalizedPathKey: status],
+                    indexURL: nil,
+                    repositoryRoot: base
+                )
+            }
+        )
+        let host = SidebarNavigatorStubHost(currentFileURL: base.appendingPathComponent("a.md"))
+        navigator.attach(to: host)
+        defer { withExtendedLifetime(host) {} }
+        defer { navigator.cancelPendingListing() }
+
+        navigator.navigateToFolder(dirB)
+        let listingTask = navigator.pendingListingTask
+        // 移動の待ち合わせ中に `.git/index` の発火が届く。
+        navigator.refreshGitStatuses(policy: .onlyIfIndexChanged)
+        await listingTask?.value
+
+        #expect(navigator.fileListModel.entries.count == 2)
+        #expect(navigator.fileListModel.activeGitChangeFilter != nil)
+        #expect(
+            navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"]
+        )
+    }
 }

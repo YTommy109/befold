@@ -204,7 +204,6 @@ final class SidebarNavigator {
         listingGeneration += 1
         gitStatusGeneration += 1
         let generation = listingGeneration
-        let gitGeneration = gitStatusGeneration
         // 先に git 側のタスクを起こしてから列挙を待つ。どちらも本体は nonisolated async で
         // 走るため、待ち時間は直列にならず遅いほうに揃う。
         let gitTask = Task { await self.loadGitStatuses(directory, .always) }
@@ -217,7 +216,10 @@ final class SidebarNavigator {
                 gitTask.cancel()
             }
             guard generation == self.listingGeneration, let host = self.host else { return }
-            self.applyGitStatus(result, for: directory, generation: gitGeneration)
+            // 最新の一覧と対の結果なので、待ち合わせ中に単発 refreshGitStatuses が世代を
+            // 進めていても捨ててはならない(捨てると絞り込みが外れる / TASK-294)。
+            self.gitStatusGeneration += 1
+            self.applyGitStatus(result, for: directory, generation: self.gitStatusGeneration)
             onApplied(host, entries)
         }
         pendingListingTask = task
