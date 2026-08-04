@@ -26,9 +26,17 @@ struct SidebarDisplayPreferenceTests {
         #expect(SidebarDisplayPreference(defaults: defaults).showHiddenFiles == true)
     }
 
+    /// 機能の有無は別テストで固定する。ここは永続化だけを見たいので、周囲の
+    /// FeatureGate 値(DEBUG かどうか)に結果が左右されないよう常に注入する(TASK-290)。
+    private func makePreference(
+        defaults: UserDefaults, available: Bool = true
+    ) -> SidebarDisplayPreference {
+        SidebarDisplayPreference(defaults: defaults, isChangedFilesOnlyAvailable: available)
+    }
+
     @Test("変更ファイル絞り込みのデフォルトは OFF")
     func changedFilesOnlyDefaultsToOff() {
-        let preference = SidebarDisplayPreference(defaults: makeDefaults())
+        let preference = makePreference(defaults: makeDefaults())
 
         #expect(preference.showChangedFilesOnly == false)
     }
@@ -37,9 +45,9 @@ struct SidebarDisplayPreferenceTests {
     func changedFilesOnlyPersistsAcrossInstances() {
         let defaults = makeDefaults()
 
-        SidebarDisplayPreference(defaults: defaults).showChangedFilesOnly = true
+        makePreference(defaults: defaults).showChangedFilesOnly = true
 
-        #expect(SidebarDisplayPreference(defaults: defaults).showChangedFilesOnly == true)
+        #expect(makePreference(defaults: defaults).showChangedFilesOnly == true)
     }
 
     /// 機能が無効なビルドでは切り替える手段が露出しないため、保存値が ON でも
@@ -65,9 +73,9 @@ struct SidebarDisplayPreferenceTests {
     func settingsArePersistedIndependently() {
         let defaults = makeDefaults()
 
-        SidebarDisplayPreference(defaults: defaults).showChangedFilesOnly = true
+        makePreference(defaults: defaults).showChangedFilesOnly = true
 
-        let restored = SidebarDisplayPreference(defaults: defaults)
+        let restored = makePreference(defaults: defaults)
         #expect(restored.showHiddenFiles == false)
         #expect(restored.showChangedFilesOnly == true)
     }
