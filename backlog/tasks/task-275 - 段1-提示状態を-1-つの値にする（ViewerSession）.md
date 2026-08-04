@@ -1,11 +1,11 @@
 ---
 id: TASK-275
 title: '段1: 提示状態を 1 つの値にする（ViewerSession）'
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-03 15:35'
-updated_date: '2026-08-03 15:35'
+updated_date: '2026-08-04 00:08'
 labels:
   - architecture
 dependencies: []
@@ -34,8 +34,14 @@ PreviewTargetResolver.resolve は選択が一覧に無いとき .folder(currentD
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 「一覧取得前」が提示状態の値として表現され、起動直後に印刷・検索・ズームが誤って無効化されない
-- [ ] #2 選択 nil による意図的なフォルダー表示と、一覧未取得が型で区別されている
-- [ ] #3 ViewerContentView と ViewerWindowController が同じ提示状態の値を見る（同じ導出を別々に呼ばない）
-- [ ] #4 起動直後・フォルダー選択中・ファイル切替中それぞれの状態遷移を検証するテストがある
+- [x] #1 「一覧取得前」が提示状態の値として表現され、起動直後に印刷・検索・ズームが誤って無効化されない
+- [x] #2 選択 nil による意図的なフォルダー表示と、一覧未取得が型で区別されている
+- [x] #3 ViewerContentView と ViewerWindowController が同じ提示状態の値を見る（同じ導出を別々に呼ばない）
+- [x] #4 起動直後・フォルダー選択中・ファイル切替中それぞれの状態遷移を検証するテストがある
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+PreviewTarget に .undetermined を追加して「一覧未取得」と「フォルダー提示」を型で分離し、導出を FileListModel.previewTarget の 1 箇所に集約した。起動直後に印刷・検索・ズームが誤って無効化される問題が解消。選択の照合基準の食い違い（TASK-270 で発見）もここで揃えた。swift test green。
+<!-- SECTION:FINAL_SUMMARY:END -->
