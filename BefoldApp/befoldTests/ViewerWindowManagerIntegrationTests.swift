@@ -18,7 +18,7 @@ struct ViewerWindowManagerIntegrationTests {
         ViewerWindowManager(
             sessionStore: SessionStore(defaults: defaults),
             recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
-            hiddenFilesPreference: HiddenFilesPreference(defaults: defaults),
+            sidebarDisplayPreference: SidebarDisplayPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             makeContentView: placeholderViewerContent
@@ -70,6 +70,57 @@ struct ViewerWindowManagerIntegrationTests {
 
         for controller in manager.allControllers {
             #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
+        }
+        manager.allControllers.forEach { $0.close() }
+    }
+
+    /// git 変更のみ表示のトリガー経路。メニュー(⌘⌃G)とサイドバーのアイコンボタンの
+    /// どちらからでも、開いている全ウィンドウへ同じ結果が届くことを検証する。
+    private struct ChangedFilesOnlyTrigger: Sendable, CustomTestStringConvertible {
+        let name: String
+        let trigger: @MainActor @Sendable (ViewerWindowManager, ViewerWindowController) -> Void
+        var testDescription: String {
+            name
+        }
+    }
+
+    private nonisolated static let changedFilesOnlyTriggers: [ChangedFilesOnlyTrigger] = [
+        ChangedFilesOnlyTrigger(
+            name: "toggleChangedFilesOnly(メニュー ⌘⌃G)",
+            trigger: { manager, _ in manager.toggleChangedFilesOnly() }
+        ),
+        ChangedFilesOnlyTrigger(
+            name: "onToggleChangedFilesOnly コールバック(アイコンボタン操作)",
+            trigger: { manager, first in manager.viewerWindowDidToggleChangedFilesOnly(first) }
+        ),
+    ]
+
+    @Test(
+        "git 変更のみ表示は経路によらず、開いている全ウィンドウのサイドバーへ反映される",
+        arguments: changedFilesOnlyTriggers
+    )
+    private func changedFilesOnlyToggleReachesAllOpenWindows(
+        _ testCase: ChangedFilesOnlyTrigger
+    ) async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
+        let file2 = try tmp.file(named: "second.mmd", contents: "graph TD;")
+        let manager = makeManager()
+        manager.openViewer(for: file1)
+        manager.openViewer(for: file2)
+        let first = try #require(manager.controllers[file1.normalizedPathKey]?.first)
+        for controller in manager.allControllers {
+            #expect(!controller.fileListModel.showChangedFilesOnly)
+        }
+
+        testCase.trigger(manager, first)
+        for controller in manager.allControllers {
+            await controller.sidebar.pendingListingTask?.value
+        }
+
+        for controller in manager.allControllers {
+            #expect(controller.fileListModel.showChangedFilesOnly)
         }
         manager.allControllers.forEach { $0.close() }
     }

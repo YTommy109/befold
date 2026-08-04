@@ -10,7 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) static var shared: AppDelegate?
     private let sessionStore: SessionStore
     let windowManager: ViewerWindowManager
-    private let hiddenFilesPreference: HiddenFilesPreference
+    private let sidebarDisplayPreference: SidebarDisplayPreference
     let codeFontPreference: CodeFontPreference
     private let sessionRestorer: SessionRestorer
     /// 単一インスタンスのパネルウィンドウ(About・設定・Help 配下)。初回のトグルで生成し、
@@ -58,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let recentDocumentsStore = RecentDocumentsStore()
         let bookmarkStore = BookmarkStore(defaults: .standard)
         let recentRepositoriesStore = RecentRepositoriesStore()
-        let hiddenFilesPreference = HiddenFilesPreference()
+        let sidebarDisplayPreference = SidebarDisplayPreference()
         let findOptionsPreference = FindOptionsPreference()
         let codeFontPreference = CodeFontPreference()
         let perFileState = PerFileStateStore()
@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let windowManager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
-            hiddenFilesPreference: hiddenFilesPreference,
+            sidebarDisplayPreference: sidebarDisplayPreference,
             findOptionsPreference: findOptionsPreference,
             codeFontPreference: codeFontPreference,
             perFileState: perFileState,
@@ -92,7 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.bookmarkStore = bookmarkStore
         self.recentRepositoriesStore = recentRepositoriesStore
         self.windowManager = windowManager
-        self.hiddenFilesPreference = hiddenFilesPreference
+        self.sidebarDisplayPreference = sidebarDisplayPreference
         self.codeFontPreference = codeFontPreference
         sessionRestorer = SessionRestorer(sessionStore: sessionStore, windowManager: windowManager)
         super.init()
@@ -407,6 +407,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowManager.toggleHiddenFiles()
     }
 
+    /// View > Show Changed Files Only(⌘⌃G)。git 変更ファイルのみの絞り込みを全ウィンドウで一括切替する。
+    @objc func toggleChangedFilesOnly(_ sender: Any?) {
+        windowManager.toggleChangedFilesOnly()
+    }
+
     /// App > Settings…(⌘,)。単一インスタンスで、
     /// 最前面なら閉じ、そうでなければ開く/前面化するトグル動作にする。
     @objc func showSettings(_ sender: Any?) {
@@ -431,7 +436,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             gitIndex: windowManager.gitFileIndex,
             recentDocumentsStore: recentDocumentsStore,
             bookmarkStore: bookmarkStore,
-            hiddenFilesPreference: hiddenFilesPreference,
+            sidebarDisplayPreference: sidebarDisplayPreference,
             currentFileURL: currentFileURL
         )
     }
@@ -462,9 +467,12 @@ extension AppDelegate: SPUUpdaterDelegate {
 extension AppDelegate: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleHiddenFiles(_:)) {
-            menuItem.title = hiddenFilesPreference.showHiddenFiles
+            menuItem.title = sidebarDisplayPreference.showHiddenFiles
                 ? String(localized: "menu.view.hideHiddenFiles", bundle: .l10n)
                 : String(localized: "menu.view.showHiddenFiles", bundle: .l10n)
+        }
+        if menuItem.action == #selector(toggleChangedFilesOnly(_:)) {
+            menuItem.state = sidebarDisplayPreference.showChangedFilesOnly ? .on : .off
         }
         return true
     }

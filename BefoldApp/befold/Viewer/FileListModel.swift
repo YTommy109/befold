@@ -100,9 +100,12 @@ final class FileListModel {
 
     var sortOrder: SortOrder
     /// サイドバーのアイコンボタン・メニュー・ショートカットの見た目に使う現在値。
-    /// 永続化・真実の源は HiddenFilesPreference。SidebarNavigator が
+    /// 永続化・真実の源は SidebarDisplayPreference。SidebarNavigator が
     /// refreshFileList()/navigateToFolder(_:) のたびに同期する。
     var showHiddenFiles: Bool = false
+    /// git 変更のあるエントリだけに絞るか。永続化・真実の源は SidebarDisplayPreference で、
+    /// showHiddenFiles と同じ契機で SidebarNavigator が同期する。
+    var showChangedFilesOnly: Bool = false
     /// ファイル名フィルターの検索文字列。フォルダ移動をまたいで保持し、
     /// アプリ再起動時は初期値(空文字列)に戻る(永続化しない)。
     var filterText: String = ""
@@ -147,12 +150,31 @@ final class FileListModel {
     /// フィルター適用後にサイドバーへ表示するエントリ。`entries`(ディスク由来の一覧)は
     /// 保持したまま、この算出側だけで絞り込む。`.parentNavigation` はフィルター文字列に
     /// 関わらず常に含める(上位フォルダへの移動手段を残すため)。
+    /// git 変更での絞り込み(showChangedFilesOnly)も AND で併用する。
     var visibleEntries: [FileListEntry] {
-        guard !filterText.isEmpty else { return entries }
-        return entries.filter {
-            $0.kind == .parentNavigation
-                || WildcardMatcher.matches(pattern: filterText, in: $0.url.lastPathComponent)
+        let filtersByGitChange = isGitChangeFilterEffective
+        guard !filterText.isEmpty || filtersByGitChange else { return entries }
+        return entries.filter { entry in
+            guard entry.kind != .parentNavigation else { return true }
+            guard filterText.isEmpty
+                || WildcardMatcher.matches(pattern: filterText, in: entry.url.lastPathComponent)
+            else { return false }
+            return !filtersByGitChange || hasGitChange(entry)
         }
+    }
+
+    /// git 状態がまったく無い(非 git ディレクトリ・取得失敗・機能無効)ときは、絞り込みを
+    /// かけると一覧が空になってしまうため、フィルター無効として縮退させる。
+    private var isGitChangeFilterEffective: Bool {
+        showChangedFilesOnly
+            && (!gitFolderStatuses.isEmpty || gitStatuses.values.contains { !$0.isClean })
+    }
+
+    /// 行にバッジが付く(= git 変更がある)エントリか。ファイルは gitStatuses、
+    /// フォルダーは配下を集約した gitFolderStatuses が真実の源。
+    private func hasGitChange(_ entry: FileListEntry) -> Bool {
+        if let status = gitStatuses[entry.pathKey], !status.isClean { return true }
+        return gitFolderStatuses[entry.pathKey] != nil
     }
 
     var canGoBack: Bool {

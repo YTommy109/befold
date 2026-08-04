@@ -89,7 +89,7 @@ public enum QuickOpenCandidates {
     ///     ファイル URL を渡す。ルートを渡すと索引がルートの親を起点に解決し、常に取りこぼす。
     ///   - gitIndex: 追跡ファイル索引。nil を返す(= git 管理外)なら `scanner` に切り替える。
     ///   - includingHiddenFiles: 隠しファイルを候補に含めるか。独自設定を持たず、
-    ///     呼び出し元(`HiddenFilesPreference`)の値をそのまま渡す。
+    ///     呼び出し元(`SidebarDisplayPreference`)の値をそのまま渡す。
     public static func collect(
         root: URL,
         anchorFile: URL,

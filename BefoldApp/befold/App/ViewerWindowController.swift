@@ -6,8 +6,9 @@ import WebKit
 
 /// サイドバーへ渡す git 状態の取得クロージャを作る。
 ///
-/// **フィーチャーゲートの判定はこの 1 箇所だけ**で行う(ロジック自体は常時ビルドし、
-/// 露出点だけを囲う)。stable 昇格時はこの guard を消して常に store を引く形にすればよい。
+/// ロジック自体は常時ビルドし、露出点だけを囲う(無効時は機能を消すのではなく空を返す)。
+/// git ステータス系の露出点はここを含めて 3 箇所あり、一覧は FeatureGate の宣言にある。
+/// stable 昇格(TASK-187)ではこの guard を消して常に store を引く形にすればよい。
 @MainActor
 private func makeSidebarGitStatusLoader(
     _ store: GitStatusStore
@@ -27,6 +28,7 @@ protocol ViewerWindowControllerDelegate: AnyObject {
         _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
     )
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
+    func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController)
 }
 
 /// performFileSwitch の結果。呼び出し元(明示的なファイル選択と履歴ナビゲーション)が
@@ -48,7 +50,7 @@ final class ViewerWindowController: NSWindowController {
     let store: ViewerStore
     /// ファイル毎の永続表示状態(倍率・ソース表示モード・スクロール位置)の束。
     private let perFileState: PerFileStateStore
-    private let hiddenFilesPreference: HiddenFilesPreference
+    private let sidebarDisplayPreference: SidebarDisplayPreference
     private let findOptionsPreference: FindOptionsPreference
     private let codeFontPreference: CodeFontPreference
     private let bookmarkStore: BookmarkStore
@@ -112,7 +114,7 @@ final class ViewerWindowController: NSWindowController {
 
     // MARK: - Initialization
 
-    /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate → ViewerWindowManager から
+    /// - Parameter sidebarDisplayPreference: 本番では必ず AppDelegate → ViewerWindowManager から
     ///   注入される単一の共有インスタンスを渡すこと。デフォルト値は、不可視ファイル挙動に
     ///   無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
@@ -136,7 +138,7 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter externalOpener: 同上。外部 URL(http/https)を開く処理。デフォルトは NSWorkspace 経由。
     init(
         fileURL: URL, defaults: UserDefaults = .standard,
-        hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
+        sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
@@ -158,7 +160,7 @@ final class ViewerWindowController: NSWindowController {
         initialFileURL = fileURL
         self.perFileState = perFileState
         self.defaults = defaults
-        self.hiddenFilesPreference = hiddenFilesPreference
+        self.sidebarDisplayPreference = sidebarDisplayPreference
         self.findOptionsPreference = findOptionsPreference
         self.codeFontPreference = codeFontPreference
         self.bookmarkStore = bookmarkStore
@@ -179,7 +181,7 @@ final class ViewerWindowController: NSWindowController {
         // ボリューム上のフォルダでもウィンドウ表示がディレクトリ列挙を待たない。
         sidebar = SidebarNavigator(
             currentDirectory: parentDir, entries: [], selection: fileURL,
-            hiddenFilesPreference: hiddenFilesPreference, sortOrder: initialSortOrder,
+            sidebarDisplayPreference: sidebarDisplayPreference, sortOrder: initialSortOrder,
             // 未命中時は `git rev-parse` の subprocess を同期で待つため、
             // メインアクターを離して解決する(サイドバーのヘッダー表示のためだけに
             // フォルダ移動のたびメインスレッドを止めないため)。
@@ -316,7 +318,8 @@ final class ViewerWindowController: NSWindowController {
             onToggleHiddenFiles: { [weak self] in
                 guard let self else { return }
                 delegate?.viewerWindowDidToggleHiddenFiles(self)
-            }
+            },
+            onToggleChangedFilesOnly: makeChangedFilesOnlyToggle()
         )
         let splitViewController = ViewerSplitViewController(
             sidebar: fileListView,
@@ -332,6 +335,18 @@ final class ViewerWindowController: NSWindowController {
         )
         sidebarCollapsible = splitViewController
         return splitViewController
+    }
+
+    /// サイドバーヘッダーの「変更されたファイルのみ表示」ボタンの動作を作る。
+    ///
+    /// git ステータスと同じ開発中機能の露出点であり、無効なら nil を返して
+    /// ボタン自体を出さない(FileListView 側が nil で非表示にする)。
+    private func makeChangedFilesOnlyToggle() -> (() -> Void)? {
+        guard FeatureGate.inProgressFeaturesEnabled else { return nil }
+        return { [weak self] in
+            guard let self else { return }
+            delegate?.viewerWindowDidToggleChangedFilesOnly(self)
+        }
     }
 
     /// CLI の `--sidebar`/`--no-sidebar` から、この既存ウィンドウのサイドバー開閉を設定する。

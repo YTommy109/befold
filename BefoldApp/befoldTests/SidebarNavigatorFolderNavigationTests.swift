@@ -30,7 +30,7 @@ struct SidebarNavigatorFolderNavigationTests {
             currentDirectory: currentDirectory,
             entries: listings[currentDirectory.normalizedPathKey] ?? [],
             selection: selection,
-            hiddenFilesPreference: HiddenFilesPreference(
+            sidebarDisplayPreference: SidebarDisplayPreference(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorFolderNavigationTests")
             ),
             directoryLister: { url, _, _ in listings[url.normalizedPathKey] ?? [] },

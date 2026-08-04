@@ -9,6 +9,9 @@ struct FileListView: View {
     let onSortOrderChanged: (SortOrder) -> Void
     let onOpenInNewWindow: (URL) -> Void
     var onToggleHiddenFiles: (() -> Void)?
+    /// nil のときはヘッダーに git 変更のみ表示のボタンを出さない。
+    /// 開発中機能の露出点(ViewerWindowController が FeatureGate で決める)。
+    var onToggleChangedFilesOnly: (() -> Void)?
 
     @FocusState private var isFilterFieldFocused: Bool
 
@@ -91,6 +94,8 @@ struct FileListView: View {
                 ? String(localized: "sidebar.hiddenFiles.hide", bundle: .l10n)
                 : String(localized: "sidebar.hiddenFiles.show", bundle: .l10n))
 
+            changedFilesOnlyButton
+
             Button {
                 if model.isFilterActive {
                     closeFilter()
@@ -106,6 +111,22 @@ struct FileListView: View {
             .help(model.isFilterActive
                 ? String(localized: "sidebar.filter.hide", bundle: .l10n)
                 : String(localized: "sidebar.filter.show", bundle: .l10n))
+        }
+    }
+
+    /// git 変更のあるファイルのみに絞るトグル。不可視ファイルのトグルとは独立した軸のため、
+    /// 1 クリックで往復でき、両方の状態が同時に見えるよう別ボタンにしている(TASK-282)。
+    @ViewBuilder
+    private var changedFilesOnlyButton: some View {
+        if let onToggleChangedFilesOnly {
+            Button(action: onToggleChangedFilesOnly) {
+                Image(systemName: "arrow.triangle.branch")
+                    .foregroundStyle(model.showChangedFilesOnly ? .primary : .secondary)
+            }
+            .buttonStyle(.borderless)
+            .help(model.showChangedFilesOnly
+                ? String(localized: "sidebar.changedFilesOnly.hide", bundle: .l10n)
+                : String(localized: "sidebar.changedFilesOnly.show", bundle: .l10n))
         }
     }
 

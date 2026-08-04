@@ -133,6 +133,20 @@ struct MainMenuBuilderTests {
         }
     }
 
+    /// git 変更のみ表示は開発中機能(サイドバーの git ステータス)に依存するため、
+    /// 露出はフィーチャーゲートと一致しなければならない(TASK-264、解除は TASK-187)。
+    @Test("View メニューの「変更されたファイルのみ表示」はフィーチャーゲートと同じ有無になる")
+    func viewMenuGatesChangedFilesOnlyItem() throws {
+        let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
+
+        let item = view.items.first { $0.action == #selector(AppDelegate.toggleChangedFilesOnly(_:)) }
+        #expect((item != nil) == FeatureGate.inProgressFeaturesEnabled)
+        if let item {
+            #expect(item.keyEquivalent == "g")
+            #expect(item.keyEquivalentModifierMask == [.command, .control])
+        }
+    }
+
     @Test("Window メニューにタブ操作項目がある")
     func windowMenuHasTabItems() throws {
         let window = try #require(fixture.submenu(titledKey: "menu.window.title"))

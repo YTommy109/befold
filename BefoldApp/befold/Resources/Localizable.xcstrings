@@ -1157,6 +1157,23 @@
         }
       }
     },
+    "menu.view.showChangedFilesOnly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Changed Files Only"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更されたファイルのみ表示"
+          }
+        }
+      }
+    },
     "menu.view.showHiddenFiles": {
       "extractionState": "manual",
       "localizations": {
@@ -1815,6 +1832,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "フィルターを表示"
+          }
+        }
+      }
+    },
+    "sidebar.changedFilesOnly.hide": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show All Files"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのファイルを表示"
+          }
+        }
+      }
+    },
+    "sidebar.changedFilesOnly.show": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Changed Files Only"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更されたファイルのみ表示"
           }
         }
       }

@@ -25,7 +25,7 @@ final class SidebarNavigator {
     /// このタブの戻る/進むナビゲーション履歴(メモリ内のみ)。
     let history = NavigationHistory()
     /// 不可視ファイル表示設定。全ウィンドウで共有される単一の真実の源を都度参照する。
-    private let hiddenFilesPreference: HiddenFilesPreference
+    private let sidebarDisplayPreference: SidebarDisplayPreference
     /// ファイル一覧の再取得元。既定は DirectoryLister.listEntriesAsync(nonisolated async)だが、
     /// 再読込経路をテストで差し替えられるよう注入可能にする。async のため呼び出し元アクター
     /// (MainActor)を離れて実行され、巨大ディレクトリでもメインスレッドを塞がない。
@@ -68,7 +68,7 @@ final class SidebarNavigator {
 
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: URL?,
-        hiddenFilesPreference: HiddenFilesPreference,
+        sidebarDisplayPreference: SidebarDisplayPreference,
         sortOrder: SortOrder = .foldersFirst,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]
             = DirectoryLister.listEntriesAsync,
@@ -79,7 +79,7 @@ final class SidebarNavigator {
             = { url, onChange in FileWatcher(path: url, onChange: onChange) }
     ) {
         self.makeGitIndexWatcher = makeGitIndexWatcher
-        self.hiddenFilesPreference = hiddenFilesPreference
+        self.sidebarDisplayPreference = sidebarDisplayPreference
         self.directoryLister = directoryLister
         self.resolveGitRoot = resolveGitRoot
         self.loadGitStatuses = loadGitStatuses
@@ -89,7 +89,7 @@ final class SidebarNavigator {
             selection: selection,
             sortOrder: sortOrder
         )
-        syncShowHiddenFiles()
+        syncDisplayPreferences()
         refreshBaseDirectory()
     }
 
@@ -162,13 +162,14 @@ final class SidebarNavigator {
         watchedGitIndexPath = nil
     }
 
-    /// fileListModel.showHiddenFiles を真実の源(hiddenFilesPreference)へ同期し、
-    /// 同期後の値を返す。DirectoryLister 呼び出し前後の重複読み取りを避けるため、
+    /// fileListModel 側の表示設定ミラーを真実の源(sidebarDisplayPreference)へ同期し、
+    /// showHiddenFiles を返す。DirectoryLister 呼び出し前後の重複読み取りを避けるため、
     /// この値を呼び出し側で再利用する。
     @discardableResult
-    private func syncShowHiddenFiles() -> Bool {
-        let showHiddenFiles = hiddenFilesPreference.showHiddenFiles
+    private func syncDisplayPreferences() -> Bool {
+        let showHiddenFiles = sidebarDisplayPreference.showHiddenFiles
         fileListModel.showHiddenFiles = showHiddenFiles
+        fileListModel.showChangedFilesOnly = sidebarDisplayPreference.showChangedFilesOnly
         return showHiddenFiles
     }
 
@@ -220,7 +221,7 @@ final class SidebarNavigator {
     ) {
         refreshBaseDirectory()
         refreshGitStatuses()
-        let showHiddenFiles = syncShowHiddenFiles()
+        let showHiddenFiles = syncDisplayPreferences()
         let sortOrder = fileListModel.sortOrder
         listingGeneration += 1
         let generation = listingGeneration

@@ -22,7 +22,7 @@ final class ViewerWindowManager {
 
     private let sessionStore: SessionStore
     private let recentDocumentsStore: RecentDocumentsStore
-    private let hiddenFilesPreference: HiddenFilesPreference
+    private let sidebarDisplayPreference: SidebarDisplayPreference
     private let findOptionsPreference: FindOptionsPreference
     private let codeFontPreference: CodeFontPreference
     private let perFileState: PerFileStateStore
@@ -57,7 +57,7 @@ final class ViewerWindowManager {
     /// AppDelegate が WorktreeCatalog を追随させるために使う。
     private let onRepositoryRecorded: (URL) -> Void
 
-    /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
+    /// - Parameter sidebarDisplayPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
     /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
@@ -72,7 +72,7 @@ final class ViewerWindowManager {
     ///   既定は実 `git` を実行する実装。テストは実 subprocess を避けるため差し替えられる。
     init(
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
-        hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
+        sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
@@ -90,7 +90,7 @@ final class ViewerWindowManager {
         self.gitFileIndex = gitFileIndex
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
-        self.hiddenFilesPreference = hiddenFilesPreference
+        self.sidebarDisplayPreference = sidebarDisplayPreference
         self.findOptionsPreference = findOptionsPreference
         self.codeFontPreference = codeFontPreference
         self.perFileState = perFileState
@@ -105,15 +105,21 @@ final class ViewerWindowManager {
 
     /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
     func toggleHiddenFiles() {
-        hiddenFilesPreference.showHiddenFiles.toggle()
+        sidebarDisplayPreference.showHiddenFiles.toggle()
+        refreshAllSidebars()
+    }
+
+    /// git 変更ファイルのみ表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
+    func toggleChangedFilesOnly() {
+        sidebarDisplayPreference.showChangedFilesOnly.toggle()
         refreshAllSidebars()
     }
 
     /// CLI の `--hidden-files`/`--no-hidden-files` から呼ばれる。値を直接設定し、
     /// 開いている全ウィンドウのサイドバーへ即座に反映する。
     func setHiddenFiles(_ value: Bool) {
-        guard hiddenFilesPreference.showHiddenFiles != value else { return }
-        hiddenFilesPreference.showHiddenFiles = value
+        guard sidebarDisplayPreference.showHiddenFiles != value else { return }
+        sidebarDisplayPreference.showHiddenFiles = value
         refreshAllSidebars()
     }
 
@@ -225,7 +231,7 @@ final class ViewerWindowManager {
 
         let controller = ViewerWindowController(
             fileURL: url,
-            hiddenFilesPreference: hiddenFilesPreference,
+            sidebarDisplayPreference: sidebarDisplayPreference,
             findOptionsPreference: findOptionsPreference,
             codeFontPreference: codeFontPreference,
             perFileState: perFileState,
@@ -455,5 +461,9 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
 
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
         toggleHiddenFiles()
+    }
+
+    func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {
+        toggleChangedFilesOnly()
     }
 }

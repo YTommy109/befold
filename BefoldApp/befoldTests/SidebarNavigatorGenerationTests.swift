@@ -23,7 +23,7 @@ struct SidebarNavigatorGenerationTests {
             currentDirectory: currentDirectory,
             entries: [],
             selection: nil,
-            hiddenFilesPreference: HiddenFilesPreference(
+            sidebarDisplayPreference: SidebarDisplayPreference(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorGenerationTests")
             ),
             directoryLister: directoryLister,
