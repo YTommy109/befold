@@ -136,14 +136,28 @@ struct FolderListingViewFilterTests {
 
     /// 移動要求で currentDirectory だけが先に進んでいる間は「まだ手元に無い」を返す。
     /// ここで移動元の一覧を渡すと、別フォルダーの中身が一瞬見えることになる。
-    @Test("一覧が届く前は、表示中ディレクトリのプレビューへ何も渡さない")
+    /// git 絞り込みが ON の間は、対になる git 状態が届くまで待たせる必要がある。
+    @Test("絞り込み ON なら、一覧が届く前は表示中ディレクトリのプレビューへ何も渡さない")
     func sharesNothingBeforeEntriesArrive() {
         let model = makeModel(entries: [])
+        model.showChangedFilesOnly = true
         model.entries = [makeEntry("a.md")]
         let next = directory.appendingPathComponent("sub", isDirectory: true)
         model.currentDirectory = next
 
         #expect(model.listingSource(for: next) == .shared(nil))
+    }
+
+    /// 絞り込みが OFF なら対にすべき git 状態が無いので待つ理由がない。待たせると
+    /// プレビュー中のサブフォルダーへ移動した瞬間に一覧が空へ落ちる(TASK-295)。
+    @Test("絞り込み OFF なら、一覧が届く前のプレビューは自前で列挙する")
+    func fallsBackToOwnListingWhileWaitingWithoutGitFilter() {
+        let model = makeModel(entries: [])
+        model.entries = [makeEntry("a.md")]
+        let next = directory.appendingPathComponent("sub", isDirectory: true)
+        model.currentDirectory = next
+
+        #expect(model.listingSource(for: next) == .ownListing)
     }
 
     /// 選択中のサブフォルダーは手元に一覧が無いので自前で列挙させる。
@@ -157,16 +171,14 @@ struct FolderListingViewFilterTests {
 
     // MARK: - Source Switching (TASK-295)
 
-    /// プレビュー中のサブフォルダーへ移動すると、currentDirectory だけが先に進んで
-    /// 供給元が .shared(nil) になる。ここで手元の自前列挙を捨てると、一覧が届くまでの間
-    /// プレビューが空へ落ちる(同じディレクトリを列挙した結果なので捨てる理由がない)。
-    @Test("一覧がまだ届かない間は、自前で列挙した同じディレクトリの一覧を出し続ける")
-    func keepsOwnListingWhileSharedEntriesAreMissing() {
+    /// `.shared(nil)` は「git 状態と対になった一覧を待て」の意味。手元の自前列挙へ退避すると、
+    /// 絞り込み前の全件が一瞬描画され(TASK-293 の回帰)、列挙し直さないため削除済みの
+    /// ファイルも残る。待たなくてよい場面では供給元自体が `.ownListing` になる(TASK-301)。
+    @Test("一覧の到着待ちでは、自前列挙のキャッシュへ退避しない")
+    func doesNotFallBackToCachedEntriesWhileWaiting() {
         let cached = [makeEntry("a.md"), makeEntry("b.md")]
 
-        let resolved = FolderListingView.resolveEntries(source: .shared(nil), cached: cached)
-
-        #expect(resolved?.map(\.id) == cached.map(\.id))
+        #expect(FolderListingView.resolveEntries(source: .shared(nil), cached: cached) == nil)
     }
 
     /// サイドバーの一覧が届いたらそちらが優先される(git 状態と揃った一覧はこちらだけ)。
@@ -226,6 +238,19 @@ struct FolderListingViewFilterTests {
         )
 
         #expect(view.visibleEntries(from: listed).map(\.url.lastPathComponent) == ["a.md"])
+    }
+
+    /// 一覧がまだ手元に無い間に「開いているファイル」を足すと、本来ブランクであるべき
+    /// 読み込み中に 1 行だけの幻リストが出て、全件一覧へ差し替わる形でチラつく(TASK-301)。
+    @Test("一覧の到着待ちでは、開いているファイル 1 行だけのリストを出さない")
+    func showsNothingWhileWaitingEvenWithOpenFile() {
+        let openFile = directory.appendingPathComponent("notes.xyz")
+        let view = makeView(
+            directory: directory, filter: FileListFilter(), source: .shared(nil),
+            openFile: openFile
+        )
+
+        #expect(view.displayedEntries == nil)
     }
 
     /// 別フォルダーのファイルを開いているときに、その行がここへ現れてはならない。

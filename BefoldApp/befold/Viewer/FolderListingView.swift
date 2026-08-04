@@ -75,16 +75,16 @@ struct FolderListingView: View {
 
     /// 手元にある一覧。nil は「未取得」で、空一覧(= 絞り込みで全部消えた)と区別する。
     ///
-    /// サイドバーの一覧(.shared)を優先し、まだ届いていないとき(.shared(nil))は
-    /// 自前で列挙した一覧へ退避する。cachedEntries は `.id(directory)` でこのビューごと
-    /// 作り直されるため、**必ず同じディレクトリを列挙した結果**であり、別フォルダーの中身が
-    /// 見えることはない。退避が無いと、プレビュー中のサブフォルダーへ移動した瞬間に
-    /// (currentDirectory だけが先に進み entriesDirectory とずれる間)一覧が空へ落ちる(TASK-295)。
+    /// 供給元が指した一覧をそのまま使い、退避先は持たない。`.shared(nil)`(= 一覧がまだ
+    /// 届いていない)は「git 状態と対になった一覧を待て」の意味であり、ここで自前列挙の
+    /// キャッシュへ退避すると、絞り込み前の全件が一瞬描画され(TASK-293 の回帰)、
+    /// 列挙し直さないため削除済みのファイルも残る(TASK-301)。待たなくてよい場面では
+    /// 供給元自体が `.ownListing` になる(FileListModel.listingSource)。
     static func resolveEntries(
         source: FolderListingSource, cached: [FileListEntry]?
     ) -> [FileListEntry]? {
         switch source {
-        case let .shared(entries): entries ?? cached
+        case let .shared(entries): entries
         case .ownListing: cached
         }
     }
@@ -93,9 +93,18 @@ struct FolderListingView: View {
         Self.resolveEntries(source: source, cached: cachedEntries)
     }
 
+    /// List へ渡す一覧。nil は「未取得」で、この間は 1 行も描かない。
+    ///
+    /// 未取得を空配列へ潰して `visibleEntries(from:)` に通してはならない。
+    /// `appendingOpenFile` が開いているファイルを足すため、一覧の到着待ちに
+    /// 「開いているファイル 1 行だけの幻リスト」が出る(TASK-301)。
+    var displayedEntries: [FileListEntry]? {
+        loadedEntries.map(visibleEntries(from:))
+    }
+
     var body: some View {
-        let entries = visibleEntries(from: loadedEntries ?? [])
-        List(entries, selection: $localSelection) { entry in
+        let entries = displayedEntries
+        List(entries ?? [], selection: $localSelection) { entry in
             FileListEntryRow(entry: entry)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
@@ -106,8 +115,9 @@ struct FolderListingView: View {
         }
         .overlay {
             // 空状態は絞り込み後の一覧で判定する。絞り込みで全部消えたときも
-            // 「何もない」と伝えないと、無言の空リストになる。
-            if loadedEntries != nil, entries.allSatisfy({ $0.kind == .parentNavigation }) {
+            // 「何もない」と伝えないと、無言の空リストになる。到着待ち(nil)の間は
+            // まだ答えが出ていないので何も言わない。
+            if let entries, entries.allSatisfy({ $0.kind == .parentNavigation }) {
                 ContentUnavailableView(
                     String(localized: "sidebar.empty", bundle: .l10n),
                     systemImage: "doc.questionmark",

@@ -211,11 +211,22 @@ final class FileListModel {
     /// そのまま使わせる。プレビューが自前で列挙すると完了順が揃わず、絞り込みが効く前の
     /// 全件が一瞬描画される(TASK-293)。選択中のサブフォルダーを見ているときは手元に
     /// その一覧が無いので自前で列挙させる(そちらは git 状態の対象外で絞り込み自体が働かない)。
+    ///
+    /// 表示中ディレクトリの一覧がまだ届いていない間(移動要求で currentDirectory だけが
+    /// 先に進んでいる間)の扱いは、**git 絞り込みが ON かどうか**で分かれる。
+    ///
+    /// - ON: `.shared(nil)` を返して待たせる。自前で列挙させると git 状態と対になっていない
+    ///   全件が一瞬描画される(TASK-293 の回帰)。
+    /// - OFF: `.ownListing` を返してその場で列挙させる。対にすべき git 状態が無いので待つ
+    ///   理由がなく、待たせると移動直後にプレビューが空へ落ちる(TASK-295)。
+    ///
+    /// ビュー側で「古い自前列挙を出し続ける」形にすると、待つべき場面でも全件が出てしまい、
+    /// 列挙し直さないため削除済みのファイルも残る(TASK-301)。判断材料をここに置く。
     func listingSource(for directory: URL) -> FolderListingSource {
         let key = directory.normalizedPathKey
         guard key == currentDirectory.normalizedPathKey else { return .ownListing }
         guard hasLoadedEntries, key == entriesDirectory.normalizedPathKey else {
-            return .shared(nil)
+            return showChangedFilesOnly ? .shared(nil) : .ownListing
         }
         return .shared(entries)
     }
