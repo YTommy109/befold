@@ -1,9 +1,11 @@
 ---
 id: TASK-283
 title: FeatureGate の露出点コメントを実態（3 箇所）に合わせる
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-08-04 06:46'
+updated_date: '2026-08-04 06:54'
 labels: []
 dependencies: []
 priority: low
@@ -20,7 +22,19 @@ ViewerWindowController.swift:9-10 の 'フィーチャーゲートの判定は�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 露出点が 3 箇所であることと、それぞれの場所がコメントから辿れる
-- [ ] #2 ゲート対象が git ステータス系に限られ、git 実行全般ではないことがコメントから読み取れる
-- [ ] #3 TASK-187（ゲート解除）で消すべき箇所が漏れなく分かる
+- [x] #1 露出点が 3 箇所であることと、それぞれの場所がコメントから辿れる
+- [x] #2 ゲート対象が git ステータス系に限られ、git 実行全般ではないことがコメントから読み取れる
+- [x] #3 TASK-187（ゲート解除）で消すべき箇所が漏れなく分かる
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+露出点の一覧は FeatureGate の宣言コメント 1 箇所に集約し、ViewerWindowController 側は「ここを含めて 3 箇所、一覧は FeatureGate にある」と参照する形にした（同じ列挙を 3 箇所に書くと必ずずれるため）。ゲート対象が git ステータス系に限られること、基準ディレクトリ表示・Quick Open・最近使ったリポジトリ・WorktreeCatalog は公開済みで stable でも git を動かすことも明記した。検証: swift build 成功、swiftformat 0 件（コメントのみの変更）。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+FeatureGate の宣言コメントに露出点 3 箇所（git status ローダー / ヘッダーボタン / View メニュー項目）の一覧と、ゲート対象が git ステータス系に限られる旨を記載し、ViewerWindowController の「判定はこの 1 箇所だけ」という記述をその参照へ書き換えた。コメントのみの変更で swift build と swiftformat で確認した。
+<!-- SECTION:FINAL_SUMMARY:END -->

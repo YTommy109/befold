@@ -6,8 +6,9 @@ import WebKit
 
 /// サイドバーへ渡す git 状態の取得クロージャを作る。
 ///
-/// **フィーチャーゲートの判定はこの 1 箇所だけ**で行う(ロジック自体は常時ビルドし、
-/// 露出点だけを囲う)。stable 昇格時はこの guard を消して常に store を引く形にすればよい。
+/// ロジック自体は常時ビルドし、露出点だけを囲う(無効時は機能を消すのではなく空を返す)。
+/// git ステータス系の露出点はここを含めて 3 箇所あり、一覧は FeatureGate の宣言にある。
+/// stable 昇格(TASK-187)ではこの guard を消して常に store を引く形にすればよい。
 @MainActor
 private func makeSidebarGitStatusLoader(
     _ store: GitStatusStore
