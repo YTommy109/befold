@@ -151,16 +151,18 @@ final class FileListModel {
     /// 関わらず常に含める(上位フォルダへの移動手段を残すため)。
     /// git 変更での絞り込み(showChangedFilesOnly)も AND で併用する。
     var visibleEntries: [FileListEntry] {
-        let gitFilter = activeGitChangeFilter
-        guard !filterText.isEmpty || gitFilter != nil else { return entries }
-        return entries.filter { entry in
-            guard entry.kind != .parentNavigation else { return true }
-            guard filterText.isEmpty
-                || WildcardMatcher.matches(pattern: filterText, in: entry.url.lastPathComponent)
-            else { return false }
-            guard let gitFilter else { return true }
-            return gitFilter.hasChange(at: entry.pathKey) || isPresentedEntry(entry)
-        }
+        listFilter.apply(to: entries, in: currentDirectory)
+    }
+
+    /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧
+    /// (FolderListingView)も同じ値を受け取り、同じ関数で適用する。表示設定は
+    /// ここ 1 箇所に集約し、増えたときに片側だけ取り残されないようにする(TASK-288)。
+    var listFilter: FileListFilter {
+        FileListFilter(
+            filterText: filterText,
+            gitStatus: showChangedFilesOnly ? gitStatus : nil,
+            presentedPathKey: storedSelectionPathKey
+        )
     }
 
     /// いま適用できる git 絞り込み。次のいずれかなら nil(= 絞り込まない)。
@@ -172,19 +174,7 @@ final class FileListModel {
     ///   保証されない。移動直後に前のリポジトリの状態で絞り込むと一覧が一瞬消えるため、
     ///   届いている状態が表示中ディレクトリのものであることを条件にする(TASK-285)。
     var activeGitChangeFilter: SidebarGitStatus? {
-        guard showChangedFilesOnly, let gitStatus,
-              gitStatus.directoryKey == currentDirectory.normalizedPathKey
-        else { return nil }
-        return gitStatus
-    }
-
-    /// いま提示している対象の行か。git 絞り込みでは変更が無くてもこの行を残す。
-    ///
-    /// `filterText` はユーザーが自分で打った条件なので、一致しない行が消えるのは納得できる。
-    /// 一方 git 絞り込みは状態由来で消えるため、開いている文書が黙って一覧から消え、
-    /// 選択ハイライトと矢印キー移動が一覧と食い違う(TASK-286)。
-    private func isPresentedEntry(_ entry: FileListEntry) -> Bool {
-        entry.pathKey == storedSelectionPathKey
+        listFilter.gitChangeFilter(for: currentDirectory)
     }
 
     var canGoBack: Bool {

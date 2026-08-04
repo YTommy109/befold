@@ -3,12 +3,15 @@ import SwiftUI
 
 /// サイドバーでフォルダーが選択された際にプレビューエリアへ表示する、
 /// そのフォルダー直下の一覧。WKWebView を使わず SwiftUI の List で完結させる。
-/// 隠しファイル表示・並び順はサイドバー(FileListModel)の現在値をそのまま渡してもらい、
+/// 隠しファイル表示・並び順・絞り込みはサイドバー(FileListModel)の現在値をそのまま渡してもらい、
 /// このビュー自身は独自の設定を持たない。
 struct FolderListingView: View {
     let directory: URL
     let sortOrder: SortOrder
     let showHiddenFiles: Bool
+    /// サイドバーと共通の絞り込み(FileListModel.listFilter)。ディスク列挙のあとに
+    /// 適用するため、`sortOrder`/`showHiddenFiles` と違い再取得のキーには含めない。
+    let filter: FileListFilter
     let onSelectFile: (URL) -> Void
     let onNavigateToFolder: (URL) -> Void
 
@@ -33,8 +36,16 @@ struct FolderListingView: View {
         ListingKey(directory: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
     }
 
+    /// ディスクから引いた一覧に表示設定を適用した結果。サイドバー
+    /// (FileListModel.visibleEntries)と同じ FileListFilter を同じ関数で適用するため、
+    /// 同じディレクトリを見ているときは両者が必ず一致する(TASK-288)。
+    func visibleEntries(from entries: [FileListEntry]) -> [FileListEntry] {
+        filter.apply(to: entries, in: directory)
+    }
+
     var body: some View {
-        List(cachedEntries ?? [], selection: $localSelection) { entry in
+        let entries = visibleEntries(from: cachedEntries ?? [])
+        List(entries, selection: $localSelection) { entry in
             FileListEntryRow(entry: entry)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
@@ -44,7 +55,9 @@ struct FolderListingView: View {
                 .simultaneousGesture(doubleTapGesture(for: entry))
         }
         .overlay {
-            if let cachedEntries, cachedEntries.allSatisfy({ $0.kind == .parentNavigation }) {
+            // 空状態は絞り込み後の一覧で判定する。絞り込みで全部消えたときも
+            // 「何もない」と伝えないと、無言の空リストになる。
+            if cachedEntries != nil, entries.allSatisfy({ $0.kind == .parentNavigation }) {
                 ContentUnavailableView(
                     String(localized: "sidebar.empty", bundle: .l10n),
                     systemImage: "doc.questionmark",
