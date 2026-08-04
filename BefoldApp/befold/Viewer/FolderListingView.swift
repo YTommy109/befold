@@ -1,6 +1,16 @@
 import BefoldKit
 import SwiftUI
 
+/// フォルダー一覧の供給元。表示中ディレクトリを見ているときは、サイドバー
+/// (FileListModel)が git 状態と一緒に揃えた一覧をそのまま使う。自前で列挙すると
+/// git 状態との完了順が揃わず、絞り込みが効く前の全件が一瞬描画される(TASK-293)。
+enum FolderListingSource: Equatable {
+    /// サイドバーと同じ一覧。nil は「このディレクトリの一覧がまだ手元に無い」。
+    case shared([FileListEntry]?)
+    /// このビューが自前で列挙する。選択中のサブフォルダーを見ているときに使う。
+    case ownListing
+}
+
 /// サイドバーでフォルダーが選択された際にプレビューエリアへ表示する、
 /// そのフォルダー直下の一覧。WKWebView を使わず SwiftUI の List で完結させる。
 /// 隠しファイル表示・並び順・絞り込みはサイドバー(FileListModel)の現在値をそのまま渡してもらい、
@@ -12,6 +22,8 @@ struct FolderListingView: View {
     /// サイドバーと共通の絞り込み(FileListModel.listFilter)。ディスク列挙のあとに
     /// 適用するため、`sortOrder`/`showHiddenFiles` と違い再取得のキーには含めない。
     let filter: FileListFilter
+    /// 一覧の供給元。既定は自前列挙(サブフォルダーのプレビューと単体テスト)。
+    var source: FolderListingSource = .ownListing
     let onSelectFile: (URL) -> Void
     let onNavigateToFolder: (URL) -> Void
 
@@ -43,8 +55,16 @@ struct FolderListingView: View {
         filter.apply(to: entries, in: directory)
     }
 
+    /// 手元にある一覧。nil は「未取得」で、空一覧(= 絞り込みで全部消えた)と区別する。
+    private var loadedEntries: [FileListEntry]? {
+        switch source {
+        case let .shared(entries): entries
+        case .ownListing: cachedEntries
+        }
+    }
+
     var body: some View {
-        let entries = visibleEntries(from: cachedEntries ?? [])
+        let entries = visibleEntries(from: loadedEntries ?? [])
         List(entries, selection: $localSelection) { entry in
             FileListEntryRow(entry: entry)
                 .padding(.horizontal, 8)
@@ -57,7 +77,7 @@ struct FolderListingView: View {
         .overlay {
             // 空状態は絞り込み後の一覧で判定する。絞り込みで全部消えたときも
             // 「何もない」と伝えないと、無言の空リストになる。
-            if cachedEntries != nil, entries.allSatisfy({ $0.kind == .parentNavigation }) {
+            if loadedEntries != nil, entries.allSatisfy({ $0.kind == .parentNavigation }) {
                 ContentUnavailableView(
                     String(localized: "sidebar.empty", bundle: .l10n),
                     systemImage: "doc.questionmark",
@@ -67,6 +87,7 @@ struct FolderListingView: View {
             }
         }
         .task(id: listingKey) {
+            guard source == .ownListing else { return }
             cachedEntries = await DirectoryLister.listEntriesAsync(
                 in: directory,
                 sortOrder: sortOrder,

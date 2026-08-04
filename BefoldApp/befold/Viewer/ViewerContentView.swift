@@ -53,6 +53,7 @@ struct ViewerContentView: View {
                     sortOrder: fileListModel.sortOrder,
                     showHiddenFiles: fileListModel.showHiddenFiles,
                     filter: fileListModel.listFilter,
+                    source: fileListModel.listingSource(for: folderURL),
                     onSelectFile: onSelectFile,
                     onNavigateToFolder: onNavigateToFolder
                 )

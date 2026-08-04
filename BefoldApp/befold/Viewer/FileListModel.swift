@@ -19,10 +19,22 @@ final class FileListModel {
     var entries: [FileListEntry] {
         didSet {
             hasLoadedEntries = true
+            entriesDirectory = currentDirectory
+            promotePendingGitStatusIfNeeded()
             entryIndex = FileListEntryIndex(entries: entries)
             notifyPresentationTargetChangeIfNeeded()
         }
     }
+
+    /// `entries` がどのディレクトリを列挙した結果か。一覧は必ず「そのとき表示中だった
+    /// ディレクトリ」の結果として代入されるため、代入と同時に記録すれば足りる。
+    ///
+    /// 絞り込みは `currentDirectory` ではなく **この値** と突き合わせる。移動要求は
+    /// currentDirectory を先に進めるので、一覧が届くまでの間 currentDirectory と
+    /// 手元の一覧は別のディレクトリを指す。currentDirectory で突き合わせると、その間だけ
+    /// 「状態が別ディレクトリのもの」と判定されて絞り込みが外れ、直前のフォルダーの一覧が
+    /// 全件表示される(TASK-293)。
+    private(set) var entriesDirectory: URL
 
     /// `entries` を選択から引くための索引。一覧の代入と同時に作り直す。
     /// 提示対象の導出はこれを介して O(1) で行う(FileListEntryIndex)。
@@ -122,7 +134,46 @@ final class FileListModel {
     /// いない、のいずれか。**空の値と nil を区別すること**が要点で、変更が 1 つも無い
     /// リポジトリは「空の SidebarGitStatus」であって nil ではない(TASK-285)。
     /// 取得は subprocess を伴うため SidebarNavigator が一覧更新と同じ契機でメイン外から行う。
-    var gitStatus: SidebarGitStatus?
+    /// 書き込みは applyGitStatus(_:for:) だけを通す。
+    private(set) var gitStatus: SidebarGitStatus?
+
+    /// まだ手元に一覧が無いディレクトリの git 状態。届いた順に入れてしまうと、画面に出ている
+    /// 一覧に対応する状態が失われて絞り込みが一瞬外れるため、一覧が届くまでここで待たせる。
+    @ObservationIgnored private var pendingGitStatus: PendingGitStatus?
+
+    /// 保留中の git 状態。**状態が nil(git 管理外・取得失敗)でも「どのディレクトリの結論か」を
+    /// 持たせる**のが要点で、これが無いと非 git フォルダーへ移動したときに
+    /// 「まだ届いていない」と区別できない。
+    private struct PendingGitStatus {
+        let directoryKey: String
+        let status: SidebarGitStatus?
+    }
+
+    /// `directory` の git 状態を反映する。
+    ///
+    /// 手元の一覧がまだ別のディレクトリのものなら、その一覧が届くまで保留する。移動先の
+    /// 状態を先に入れると、画面に出ている一覧(移動元)と突き合わせられなくなって絞り込みが
+    /// 外れ、全件が一瞬表示される。実測では `.git/index` 監視や再読込を契機とする単独の
+    /// 取得が、移動先を対象に一覧より先に着地していた(TASK-293)。
+    func applyGitStatus(_ status: SidebarGitStatus?, for directory: URL) {
+        let key = directory.normalizedPathKey
+        guard key == entriesDirectory.normalizedPathKey else {
+            pendingGitStatus = PendingGitStatus(directoryKey: key, status: status)
+            return
+        }
+        pendingGitStatus = nil
+        gitStatus = status
+    }
+
+    /// 一覧が入れ替わったら、その一覧のディレクトリに対する保留があれば同時に反映する。
+    /// entries の代入と同じ実行で書くため、View からは 1 回の更新として見える。
+    private func promotePendingGitStatusIfNeeded() {
+        guard let pending = pendingGitStatus,
+              pending.directoryKey == entriesDirectory.normalizedPathKey
+        else { return }
+        pendingGitStatus = nil
+        gitStatus = pending.status
+    }
 
     /// サイドバー行から見つかった NSTableView への弱参照。SidebarTableViewLocator が
     /// 行描画時に設定する。クリック時に first responder へ昇格させるためだけの
@@ -151,7 +202,22 @@ final class FileListModel {
     /// 関わらず常に含める(上位フォルダへの移動手段を残すため)。
     /// git 変更での絞り込み(showChangedFilesOnly)も AND で併用する。
     var visibleEntries: [FileListEntry] {
-        listFilter.apply(to: entries, in: currentDirectory)
+        listFilter.apply(to: entries, in: entriesDirectory)
+    }
+
+    /// `directory` のフォルダー一覧(FolderListingView)へ渡す供給元。
+    ///
+    /// 表示中ディレクトリを見ているときは、サイドバーが git 状態と一緒に揃えた一覧を
+    /// そのまま使わせる。プレビューが自前で列挙すると完了順が揃わず、絞り込みが効く前の
+    /// 全件が一瞬描画される(TASK-293)。選択中のサブフォルダーを見ているときは手元に
+    /// その一覧が無いので自前で列挙させる(そちらは git 状態の対象外で絞り込み自体が働かない)。
+    func listingSource(for directory: URL) -> FolderListingSource {
+        let key = directory.normalizedPathKey
+        guard key == currentDirectory.normalizedPathKey else { return .ownListing }
+        guard hasLoadedEntries, key == entriesDirectory.normalizedPathKey else {
+            return .shared(nil)
+        }
+        return .shared(entries)
     }
 
     /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧
@@ -173,8 +239,11 @@ final class FileListModel {
     /// - 状態が別のディレクトリのもの。一覧の取得と git の取得は別タスクで、完了順が
     ///   保証されない。移動直後に前のリポジトリの状態で絞り込むと一覧が一瞬消えるため、
     ///   届いている状態が表示中ディレクトリのものであることを条件にする(TASK-285)。
+    /// - 状態が手元の一覧のディレクトリのものでない。突き合わせ先は visibleEntries と
+    ///   同じ `entriesDirectory` にする。空状態の文言はその一覧に対する説明なので、
+    ///   片方だけ currentDirectory を見ると「絞り込みで空」と「対応ファイルなし」が入れ替わる。
     var activeGitChangeFilter: SidebarGitStatus? {
-        listFilter.gitChangeFilter(for: currentDirectory)
+        listFilter.gitChangeFilter(for: entriesDirectory)
     }
 
     var canGoBack: Bool {
@@ -194,6 +263,7 @@ final class FileListModel {
     ) {
         self.currentDirectory = currentDirectory
         rootDirectory = currentDirectory
+        entriesDirectory = currentDirectory
         self.entries = entries
         let normalizedSelection = selection?.nativeBackedFileURL
         storedSelection = normalizedSelection

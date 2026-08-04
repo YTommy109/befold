@@ -42,8 +42,9 @@ struct FolderListingViewFilterTests {
         let changed = makeEntry("changed.md")
         let entries = [changed, makeEntry("clean.md")]
         let model = makeModel(entries: entries)
-        model.gitStatus = SidebarGitStatus(
-            directoryKey: directory.normalizedPathKey, statuses: [changed.pathKey: modifiedStatus()]
+        model.applyGitStatus(
+            SidebarGitStatus(directoryKey: directory.normalizedPathKey, statuses: [changed.pathKey: modifiedStatus()]),
+            for: directory
         )
         model.showChangedFilesOnly = true
 
@@ -61,9 +62,12 @@ struct FolderListingViewFilterTests {
         ]
         let model = makeModel(entries: entries)
         let nested = folder.url.appendingPathComponent("inner.md").normalizedPathKey
-        model.gitStatus = SidebarGitStatus(
-            directoryKey: directory.normalizedPathKey,
-            statuses: [changed.pathKey: modifiedStatus(), nested: modifiedStatus()]
+        model.applyGitStatus(
+            SidebarGitStatus(
+                directoryKey: directory.normalizedPathKey,
+                statuses: [changed.pathKey: modifiedStatus(), nested: modifiedStatus()]
+            ),
+            for: directory
         )
         model.showChangedFilesOnly = true
         model.filterText = "*.md"
@@ -92,9 +96,12 @@ struct FolderListingViewFilterTests {
         let sibling = folder.url.appendingPathComponent("untouched.md")
         // 状態は表示中ディレクトリのもの。サブフォルダー配下の行とは突き合わせられないため、
         // ここで絞り込むと一覧が丸ごと消える。
-        model.gitStatus = SidebarGitStatus(
-            directoryKey: directory.normalizedPathKey,
-            statuses: [child.normalizedPathKey: modifiedStatus()]
+        model.applyGitStatus(
+            SidebarGitStatus(
+                directoryKey: directory.normalizedPathKey,
+                statuses: [child.normalizedPathKey: modifiedStatus()]
+            ),
+            for: directory
         )
         model.showChangedFilesOnly = true
 
@@ -107,5 +114,41 @@ struct FolderListingViewFilterTests {
             view.visibleEntries(from: childEntries).map(\.url.lastPathComponent)
                 == ["inner.md", "untouched.md"]
         )
+    }
+
+    // MARK: - Listing Source (TASK-293)
+
+    /// 表示中ディレクトリのプレビューは自前で列挙してはいけない。列挙と git 状態の完了順が
+    /// 揃わず、絞り込みが効く前の全件が一瞬描画される。サイドバーが git 状態と一緒に
+    /// 揃えた一覧をそのまま使う。
+    @Test("表示中ディレクトリのプレビューはサイドバーの一覧をそのまま使う")
+    func usesSidebarEntriesForCurrentDirectory() {
+        let entries = [makeEntry("a.md"), makeEntry("b.md")]
+        let model = makeModel(entries: [])
+        // ウィンドウは一覧を空で作って非同期に埋める。本番と同じ経路で入れる。
+        model.entries = entries
+
+        #expect(model.listingSource(for: directory) == .shared(entries))
+    }
+
+    /// 移動要求で currentDirectory だけが先に進んでいる間は「まだ手元に無い」を返す。
+    /// ここで移動元の一覧を渡すと、別フォルダーの中身が一瞬見えることになる。
+    @Test("一覧が届く前は、表示中ディレクトリのプレビューへ何も渡さない")
+    func sharesNothingBeforeEntriesArrive() {
+        let model = makeModel(entries: [])
+        model.entries = [makeEntry("a.md")]
+        let next = directory.appendingPathComponent("sub", isDirectory: true)
+        model.currentDirectory = next
+
+        #expect(model.listingSource(for: next) == .shared(nil))
+    }
+
+    /// 選択中のサブフォルダーは手元に一覧が無いので自前で列挙させる。
+    /// そちらは git 状態の対象外であり、絞り込み自体が働かない。
+    @Test("選択中のサブフォルダーのプレビューは自前で列挙する")
+    func usesOwnListingForSubfolder() {
+        let model = makeModel(entries: [makeEntry("src", kind: .folder)])
+
+        #expect(model.listingSource(for: directory.appendingPathComponent("src")) == .ownListing)
     }
 }

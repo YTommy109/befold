@@ -55,9 +55,10 @@ struct FileListModelFilterTests {
     private func applyGitStatus(
         _ statuses: [String: GitFileStatus], to model: FileListModel, directory: URL? = nil
     ) {
-        model.gitStatus = SidebarGitStatus(
-            directoryKey: (directory ?? model.currentDirectory).normalizedPathKey,
-            statuses: statuses
+        let target = directory ?? model.currentDirectory
+        model.applyGitStatus(
+            SidebarGitStatus(directoryKey: target.normalizedPathKey, statuses: statuses),
+            for: target
         )
     }
 
@@ -189,5 +190,47 @@ struct FileListModelFilterTests {
         model.filterText = "notes*"
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["notes.txt"])
+    }
+
+    /// フォルダー移動は currentDirectory を先に進め、一覧は後から届く。その間に
+    /// currentDirectory と突き合わせると「状態が別ディレクトリのもの」と判定されて
+    /// 絞り込みが外れ、移動元の一覧が全件表示される(TASK-293)。突き合わせ先は
+    /// 手元の一覧が由来するディレクトリ(entriesDirectory)でなければならない。
+    @Test("移動先へ currentDirectory だけが進んでも、手元の一覧の絞り込みは外れない")
+    func keepsFilteringWhileCurrentDirectoryRunsAhead() {
+        let changed = makeEntry("changed.md")
+        let model = makeModel(entries: [changed, makeEntry("clean.md")])
+        applyGitStatus([changed.pathKey: modifiedStatus()], to: model)
+        model.showChangedFilesOnly = true
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
+
+        model.currentDirectory = URL(fileURLWithPath: "/tmp/FileListModelFilterTests/sub")
+
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
+    }
+
+    /// 実測された順序(TASK-293)。`.git/index` 監視や再読込を契機とする単独の取得は、
+    /// 一覧より先に移動先の状態を持ってくる。素直に入れ替えると、画面に出ている一覧
+    /// (移動元)に対応する状態が失われて絞り込みが外れ、全件が一瞬表示される。
+    @Test("移動先の git 状態が一覧より先に届いても、手元の一覧の絞り込みは外れない")
+    func holdsIncomingStatusUntilItsEntriesArrive() {
+        let changed = makeEntry("changed.md")
+        let model = makeModel(entries: [])
+        model.entries = [changed, makeEntry("clean.md")]
+        applyGitStatus([changed.pathKey: modifiedStatus()], to: model)
+        model.showChangedFilesOnly = true
+
+        // 移動要求。一覧はまだ移動元のものが出ている。
+        let next = URL(fileURLWithPath: "/tmp/FileListModelFilterTests/sub")
+        model.currentDirectory = next
+        let nextChanged = FileListEntry(url: next.appendingPathComponent("new.md"), kind: .file)
+        applyGitStatus([nextChanged.pathKey: modifiedStatus()], to: model, directory: next)
+
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
+
+        // 一覧が届いた時点で、保留していた移動先の状態が同時に効く。
+        model.entries = [nextChanged, FileListEntry(url: next.appendingPathComponent("old.md"), kind: .file)]
+
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["new.md"])
     }
 }
