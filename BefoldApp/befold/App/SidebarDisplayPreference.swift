@@ -17,15 +17,24 @@ final class SidebarDisplayPreference {
     }
 
     /// git 変更のあるファイルだけに一覧を絞るか。
+    /// 機能が無効なビルドでは切り替える手段(メニュー・ヘッダーボタン)が露出しないため、
+    /// 保存値が ON でも起動時に OFF として読む。保存値そのものは書き換えないので、
+    /// dev ビルドへ戻れば ON のまま復帰する(TASK-284)。
     var showChangedFilesOnly: Bool {
         didSet {
             defaults.set(showChangedFilesOnly, forKey: Self.showChangedFilesOnlyKey)
         }
     }
 
-    init(defaults: UserDefaults = .standard) {
+    /// - Parameter isChangedFilesOnlyAvailable: 既定はフィーチャーゲートの判定。
+    ///   テストから両方の状態を作れるようにするためだけの注入点で、本番では省略する。
+    init(
+        defaults: UserDefaults = .standard,
+        isChangedFilesOnlyAvailable: Bool = FeatureGate.inProgressFeaturesEnabled
+    ) {
         self.defaults = defaults
         showHiddenFiles = defaults.bool(forKey: Self.showHiddenFilesKey)
-        showChangedFilesOnly = defaults.bool(forKey: Self.showChangedFilesOnlyKey)
+        showChangedFilesOnly = isChangedFilesOnlyAvailable
+            && defaults.bool(forKey: Self.showChangedFilesOnlyKey)
     }
 }
