@@ -18,7 +18,7 @@ struct ViewerWindowManagerIntegrationTests {
         ViewerWindowManager(
             sessionStore: SessionStore(defaults: defaults),
             recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
-            hiddenFilesPreference: HiddenFilesPreference(defaults: defaults),
+            sidebarDisplayPreference: SidebarDisplayPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             makeContentView: placeholderViewerContent
@@ -70,6 +70,30 @@ struct ViewerWindowManagerIntegrationTests {
 
         for controller in manager.allControllers {
             #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
+        }
+        manager.allControllers.forEach { $0.close() }
+    }
+
+    @Test("git 変更のみ表示のトグルは、開いている全ウィンドウのサイドバーへ反映される")
+    func changedFilesOnlyToggleReachesAllOpenWindows() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
+        let file2 = try tmp.file(named: "second.mmd", contents: "graph TD;")
+        let manager = makeManager()
+        manager.openViewer(for: file1)
+        manager.openViewer(for: file2)
+        for controller in manager.allControllers {
+            #expect(!controller.fileListModel.showChangedFilesOnly)
+        }
+
+        manager.toggleChangedFilesOnly()
+        for controller in manager.allControllers {
+            await controller.sidebar.pendingListingTask?.value
+        }
+
+        for controller in manager.allControllers {
+            #expect(controller.fileListModel.showChangedFilesOnly)
         }
         manager.allControllers.forEach { $0.close() }
     }

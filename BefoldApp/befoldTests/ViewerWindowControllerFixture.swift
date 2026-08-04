@@ -34,7 +34,7 @@ struct ViewerWindowControllerFixture {
         zoomStore: ZoomStore? = nil,
         sourceModeStore: SourceModeStore? = nil,
         bookmarkStore: BookmarkStore? = nil,
-        hiddenFilesPreference: HiddenFilesPreference? = nil,
+        sidebarDisplayPreference: SidebarDisplayPreference? = nil,
         initialFrameDescriptor: String? = nil,
         initialSortOrder: befold.SortOrder = .foldersFirst,
         showLineNumbersOverride: Bool? = nil,
@@ -78,7 +78,7 @@ struct ViewerWindowControllerFixture {
         controller = ViewerWindowController(
             fileURL: file,
             defaults: defaults,
-            hiddenFilesPreference: hiddenFilesPreference ?? HiddenFilesPreference(defaults: defaults),
+            sidebarDisplayPreference: sidebarDisplayPreference ?? SidebarDisplayPreference(defaults: defaults),
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             gitStatusStore: gitStatusStore,

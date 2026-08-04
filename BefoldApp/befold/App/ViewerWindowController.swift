@@ -48,7 +48,7 @@ final class ViewerWindowController: NSWindowController {
     let store: ViewerStore
     /// ファイル毎の永続表示状態(倍率・ソース表示モード・スクロール位置)の束。
     private let perFileState: PerFileStateStore
-    private let hiddenFilesPreference: HiddenFilesPreference
+    private let sidebarDisplayPreference: SidebarDisplayPreference
     private let findOptionsPreference: FindOptionsPreference
     private let codeFontPreference: CodeFontPreference
     private let bookmarkStore: BookmarkStore
@@ -112,7 +112,7 @@ final class ViewerWindowController: NSWindowController {
 
     // MARK: - Initialization
 
-    /// - Parameter hiddenFilesPreference: 本番では必ず AppDelegate → ViewerWindowManager から
+    /// - Parameter sidebarDisplayPreference: 本番では必ず AppDelegate → ViewerWindowManager から
     ///   注入される単一の共有インスタンスを渡すこと。デフォルト値は、不可視ファイル挙動に
     ///   無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
@@ -136,7 +136,7 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter externalOpener: 同上。外部 URL(http/https)を開く処理。デフォルトは NSWorkspace 経由。
     init(
         fileURL: URL, defaults: UserDefaults = .standard,
-        hiddenFilesPreference: HiddenFilesPreference = HiddenFilesPreference(),
+        sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
@@ -158,7 +158,7 @@ final class ViewerWindowController: NSWindowController {
         initialFileURL = fileURL
         self.perFileState = perFileState
         self.defaults = defaults
-        self.hiddenFilesPreference = hiddenFilesPreference
+        self.sidebarDisplayPreference = sidebarDisplayPreference
         self.findOptionsPreference = findOptionsPreference
         self.codeFontPreference = codeFontPreference
         self.bookmarkStore = bookmarkStore
@@ -179,7 +179,7 @@ final class ViewerWindowController: NSWindowController {
         // ボリューム上のフォルダでもウィンドウ表示がディレクトリ列挙を待たない。
         sidebar = SidebarNavigator(
             currentDirectory: parentDir, entries: [], selection: fileURL,
-            hiddenFilesPreference: hiddenFilesPreference, sortOrder: initialSortOrder,
+            sidebarDisplayPreference: sidebarDisplayPreference, sortOrder: initialSortOrder,
             // 未命中時は `git rev-parse` の subprocess を同期で待つため、
             // メインアクターを離して解決する(サイドバーのヘッダー表示のためだけに
             // フォルダ移動のたびメインスレッドを止めないため)。

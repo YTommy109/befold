@@ -19,7 +19,7 @@ struct ViewerWindowManagerDisplayOverridesIntegrationTests {
         ViewerWindowManager(
             sessionStore: SessionStore(defaults: defaults),
             recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
-            hiddenFilesPreference: HiddenFilesPreference(defaults: defaults),
+            sidebarDisplayPreference: SidebarDisplayPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             makeContentView: placeholderViewerContent

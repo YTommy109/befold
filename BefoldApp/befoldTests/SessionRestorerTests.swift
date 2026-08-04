@@ -42,7 +42,7 @@ struct SessionRestorerTests {
         restorer.captureSavedState()
         restorer.restoreLastSession(options: CLIOpenOptions(showHiddenFiles: true))
 
-        #expect(fixture.hiddenFilesPreference.showHiddenFiles)
+        #expect(fixture.sidebarDisplayPreference.showHiddenFiles)
     }
 
     @Test("パス無しCLI起動の --line-numbers は復元されるウィンドウへ適用される")
@@ -85,7 +85,7 @@ struct SessionRestorerTests {
         restorer.captureSavedState()
         restorer.restoreLastSession()
 
-        #expect(!fixture.hiddenFilesPreference.showHiddenFiles)
+        #expect(!fixture.sidebarDisplayPreference.showHiddenFiles)
         #expect(fixture.manager.controllers[file.normalizedPathKey] != nil)
     }
 

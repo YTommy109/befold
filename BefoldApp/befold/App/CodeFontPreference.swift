@@ -1,7 +1,7 @@
 import Foundation
 
 /// ソースコードビューの等幅フォント設定（ファミリー・サイズ）を UserDefaults に永続化する。
-/// HiddenFilesPreference と同じ「注入して全ウィンドウで共有する」パターン。
+/// SidebarDisplayPreference と同じ「注入して全ウィンドウで共有する」パターン。
 @MainActor
 final class CodeFontPreference {
     static let minPoints: Double = 6

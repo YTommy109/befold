@@ -216,6 +216,16 @@ enum MainMenuBuilder {
             keyEquivalent: "h",
             modifiers: [.command, .control]
         )
+        // 開発中機能(サイドバーの git ステータス)に依存するため、露出点でゲートする。
+        // 素の ⌘G / ⇧⌘G は Edit メニューの検索送りと衝突するため、control を重ねて区別する。
+        if FeatureGate.inProgressFeaturesEnabled {
+            menu.addLocalizedItem(
+                "menu.view.showChangedFilesOnly",
+                action: #selector(AppDelegate.toggleChangedFilesOnly(_:)),
+                keyEquivalent: "g",
+                modifiers: [.command, .control]
+            )
+        }
         // macOS 標準のフルスクリーン切替ショートカット(⌃⌘F)に合わせる。
         menu.addLocalizedItem(
             "menu.view.enterFullScreen",

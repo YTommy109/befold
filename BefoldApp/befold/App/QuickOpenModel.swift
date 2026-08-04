@@ -8,7 +8,7 @@ protocol QuickOpenEnvironment: AnyObject {
     /// 相対パス(`./` `../`)の基準になる、いま開いているファイルのディレクトリ。
     /// ウィンドウが 1 枚も無ければ nil。
     var baseDirectory: URL? { get }
-    /// 隠しファイルを出すか。Quick Open は独自設定を持たず `HiddenFilesPreference` に従う。
+    /// 隠しファイルを出すか。Quick Open は独自設定を持たず `SidebarDisplayPreference` に従う。
     var includingHiddenFiles: Bool { get }
     /// fuzzy 検索の候補集合。パネルを開いた時点の索引を使う。
     /// git サブプロセスとディレクトリ再帰走査を伴うため、実装は MainActor を離れて構築する。

@@ -40,7 +40,7 @@ struct MockedViewerWindowManager {
     let sessionStore: SessionStore
     let recentDocumentsStore: RecentDocumentsStore
     let perFileState: PerFileStateStore
-    let hiddenFilesPreference: HiddenFilesPreference
+    let sidebarDisplayPreference: SidebarDisplayPreference
     /// 本番 UserDefaults へ書かないよう、隔離 defaults で明示的に生成して注入する。
     let bookmarkStore: BookmarkStore
     /// 生成される全ウィンドウが共有する git 索引。実 `git` を起動しない記録用フェイク。
@@ -66,7 +66,7 @@ struct MockedViewerWindowManager {
         sessionStore = SessionStore(defaults: defaults)
         recentDocumentsStore = RecentDocumentsStore(defaults: defaults)
         perFileState = PerFileStateStore(defaults: defaults)
-        hiddenFilesPreference = HiddenFilesPreference(defaults: defaults)
+        sidebarDisplayPreference = SidebarDisplayPreference(defaults: defaults)
         let bookmarkStore = BookmarkStore(defaults: defaults)
         self.bookmarkStore = bookmarkStore
         let gitFileIndex = RecordingGitFileIndex()
@@ -76,7 +76,7 @@ struct MockedViewerWindowManager {
         manager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
-            hiddenFilesPreference: hiddenFilesPreference,
+            sidebarDisplayPreference: sidebarDisplayPreference,
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             fileReader: fileReader,
