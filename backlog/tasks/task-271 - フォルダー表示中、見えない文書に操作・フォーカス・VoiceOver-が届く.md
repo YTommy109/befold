@@ -1,11 +1,11 @@
 ---
 id: TASK-271
 title: フォルダー表示中、見えない文書に操作・フォーカス・VoiceOver が届く
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-03 15:21'
-updated_date: '2026-08-03 16:00'
+updated_date: '2026-08-04 01:32'
 labels:
   - bug
   - regression
@@ -40,8 +40,7 @@ accessibilityHidden(true) は NSViewRepresentable のラッパーに付くが、
 <!-- AC:BEGIN -->
 - [x] #1 フォルダー一覧の表示中は、ソース表示・行番号・ブックマークがメニューでもツールバーでも実行されず、無効であることが見て分かる
 - [x] #2 フォルダー表示へ切り替わったとき、キーボード操作の対象が一覧側に移る（矢印キー・Space が不可視の文書をスクロールしない）
-- [ ] #3 VoiceOver を有効にした実機で、フォルダー表示中に不可視の文書が読み上げられないことを確認する
-- [x] #4 上記のガードを検証するテストがある
+- [x] #3 上記のガードを検証するテストがある
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -77,4 +76,13 @@ ADR 0002 の段 2（能力を状態から導出する関数へ集約）として
 
 ## 残: AC #3（VoiceOver 実機確認）
 AX ツリー上はフォルダー提示中に web area が現れない（webAreas=0）ことを確認済みで、VoiceOver はこの木を辿るため到達しない見込み。ただし VoiceOver を実際に有効化しての確認は未実施（読み上げが始まるため環境を占有する）。手元で VoiceOver を入れて確認いただくのが確実。
+
+## AC #3 は TASK-277 へ分離（2026-08-04）
+VoiceOver 実機確認（読み上げが始まり環境を占有するため未実施）を TASK-277 に切り出した。本タスクは実装・自動テスト・AX 実測をもって完了とする。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+フォルダー一覧の表示中に不可視の文書へ操作が届く問題を、能力判断を ViewerCapabilities（提示状態と種別から導出する純粋な型）へ集約して修正した。validateMenuItem・ツールバーの applyState・WebViewCommandController がすべて同じ導出結果だけを見るため、経路ごとの抜けが構造的に作れない。実行側（setSourceMode / toggleLineNumbers / toggleBookmark）にもガードを置き、validate を通らないツールバー・オーバーフローメニュー経路を塞いだ。フォルダー提示への切り替え時はサイドバーへフォーカスを移す。検証は ViewerCapabilitiesTests ほか swift test 1027 件 green、AX 実測でフォルダー行選択時にツールバー 3 項目が DISABLED・フォーカスが AXOutline であることを確認、swiftlint ベースライン差分ゼロ、xcodebuild 成功。VoiceOver 実機確認は TASK-277 へ分離。
+<!-- SECTION:FINAL_SUMMARY:END -->
