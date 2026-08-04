@@ -188,10 +188,15 @@ final class SidebarNavigator {
     /// 「基準ディレクトリ更新 → 不可視ファイル設定同期 → 世代更新 → メイン外で列挙と git 状態取得 →
     /// 世代・host guard」までを担い、一覧の反映と選択の決定は onApplied に委ねる。
     ///
-    /// 一覧と git 状態は **同じタスクで並行に取り、同じメインアクター実行で一緒に反映する**。
-    /// 別タスクに分けると完了順が保証されず、新しいディレクトリの一覧だけが先に描画される
-    /// 間だけ絞り込みが縮退して(状態が別ディレクトリのものなので絞り込まない)、全件が
-    /// 一瞬見えてから絞り込まれる(TASK-293)。取得自体は並行なので待ちは遅いほうに揃う。
+    /// 絞り込み(showChangedFilesOnly)が ON のときは、一覧と git 状態を **同じタスクで並行に
+    /// 取り、同じメインアクター実行で一緒に反映する**。別タスクに分けると完了順が保証されず、
+    /// 新しいディレクトリの一覧だけが先に描画される間だけ絞り込みが縮退して(状態が別
+    /// ディレクトリのものなので絞り込まない)、全件が一瞬見えてから絞り込まれる(TASK-293)。
+    ///
+    /// OFF のときは揃える理由が無い(絞り込まないので縮退しようがなく、git 状態はバッジに
+    /// しか効かない)。それでも待つと、絞り込みを使っていない利用者までフォルダー移動・
+    /// フォーカス復帰・ソート変更のたびに git subprocess の完了を待たされるため、一覧は
+    /// 列挙が終わり次第反映し、git 状態は単発取得と同じ世代ガードで遅れて反映する(TASK-297)。
     /// - Parameters:
     ///   - directory: 列挙対象のディレクトリ。
     ///   - onApplied: 列挙結果が最新世代かつ host が生存しているときにメインアクターで呼ばれる。
@@ -201,31 +206,43 @@ final class SidebarNavigator {
     ) {
         refreshBaseDirectory()
         let showHiddenFiles = syncDisplayPreferences()
+        let couplesGitStatus = fileListModel.showChangedFilesOnly
         let sortOrder = fileListModel.sortOrder
         listingGeneration += 1
         gitStatusGeneration += 1
         let generation = listingGeneration
+        let gitGeneration = gitStatusGeneration
         // 先に git 側のタスクを起こしてから列挙を待つ。どちらも本体は nonisolated async で
         // 走るため、待ち時間は直列にならず遅いほうに揃う。
         let gitTask = Task { await self.loadGitStatuses(directory, .always) }
         let task = Task {
             let entries = await self.directoryLister(directory, sortOrder, showHiddenFiles)
-            // この待ち合わせのキャンセルを git 側の取得へも伝える(ウィンドウを閉じたとき)。
-            let result = await withTaskCancellationHandler {
-                await gitTask.value
-            } onCancel: {
-                gitTask.cancel()
-            }
+            let result = couplesGitStatus ? await Self.awaitingCancellable(gitTask) : nil
             guard generation == self.listingGeneration, let host = self.host else { return }
-            // 最新の一覧と対の結果なので、待ち合わせ中に単発 refreshGitStatuses が世代を
-            // 進めていても捨ててはならない(捨てると絞り込みが外れる / TASK-294)。
-            self.gitStatusGeneration += 1
-            self.applyGitStatus(result, for: directory, generation: self.gitStatusGeneration)
+            if let result {
+                // 最新の一覧と対の結果なので、待ち合わせ中に単発 refreshGitStatuses が世代を
+                // 進めていても捨ててはならない(捨てると絞り込みが外れる / TASK-294)。
+                self.gitStatusGeneration += 1
+                self.applyGitStatus(result, for: directory, generation: self.gitStatusGeneration)
+            }
             onApplied(host, entries)
         }
         pendingListingTask = task
-        // git 状態の取得もこのタスクに含まれるため、git 側の待ち合わせ点としても公開する。
-        pendingGitStatusTask = task
+        // git 状態の待ち合わせ点。ON なら一覧タスクに含まれるのでそれ自体を、OFF なら
+        // 一覧と切り離した反映タスクを公開する(一覧より遅れて着地しても FileListModel の
+        // 保留機構が一覧と突き合わせるため、先着後着どちらでも整合は崩れない)。
+        pendingGitStatusTask = couplesGitStatus ? task : Task {
+            let result = await Self.awaitingCancellable(gitTask)
+            self.applyGitStatus(result, for: directory, generation: gitGeneration)
+        }
+    }
+
+    /// git 取得タスクの完了を待つ。待ち側のキャンセル(ウィンドウを閉じたとき)を
+    /// 取得側へも伝えるため、素の `await task.value` ではなくこちらを通す。
+    private static func awaitingCancellable(
+        _ task: Task<GitStatusResult, Never>
+    ) async -> GitStatusResult {
+        await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
     }
 
     /// 取得した git 状態を最新世代のときだけ反映し、index の監視対象を合わせる。
@@ -333,9 +350,14 @@ final class SidebarNavigator {
     func restoreSelection(to url: URL) {
         fileListModel.selection = url
     }
+}
 
-    // MARK: - Navigation History
+// MARK: - Navigation History
 
+/// 戻る/進む履歴の記録と適用。一覧・git 状態の取得とは独立した関心事なので
+/// 本体から切り出す(NavigationHistory と fileListModel/host の橋渡しだけを担う)。
+@MainActor
+extension SidebarNavigator {
     /// サイドバーの戻る/進む・履歴メニューから呼ばれる。offset 負=戻る / 正=進む。
     func navigateHistory(by offset: Int) {
         guard let entry = history.move(by: offset) else { return }

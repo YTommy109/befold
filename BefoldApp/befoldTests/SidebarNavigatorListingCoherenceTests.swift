@@ -63,6 +63,58 @@ struct SidebarNavigatorListingCoherenceTests {
         )
     }
 
+    /// 絞り込みが OFF のときは一覧を git 状態と揃える理由が無い(縮退しようがない)。
+    /// それでも待つと、絞り込みを使っていない利用者までフォルダー移動のたびに
+    /// git subprocess の完了を待たされる(TASK-297)。
+    @Test("絞り込み OFF のフォルダー移動は git 状態の完了を待たずに一覧を反映する")
+    func appliesListingWithoutWaitingForGitWhenFilterIsOff() async {
+        let base = Self.home.appendingPathComponent("SidebarNavigatorListingCoherenceTests-off")
+        let dirB = base.appendingPathComponent("dirB", isDirectory: true)
+        let changed = dirB.appendingPathComponent("changed.md")
+        let clean = dirB.appendingPathComponent("clean.md")
+        let preference = SidebarDisplayPreference(
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorListingCoherenceTests-off"),
+            isChangedFilesOnlyAvailable: true
+        )
+        preference.showChangedFilesOnly = false
+        let navigator = SidebarNavigator(
+            currentDirectory: base,
+            entries: [],
+            selection: nil,
+            sidebarDisplayPreference: preference,
+            directoryLister: { _, _, _ in
+                [FileListEntry(url: changed, kind: .file), FileListEntry(url: clean, kind: .file)]
+            },
+            loadGitStatuses: { directory, _ in
+                guard directory.normalizedPathKey == dirB.normalizedPathKey else { return .empty }
+                for _ in 0 ..< 200 {
+                    await Task.yield()
+                }
+                let status = GitFileStatus(indexChange: nil, worktreeChange: .modified)
+                return GitStatusResult(
+                    statuses: [changed.normalizedPathKey: status],
+                    indexURL: nil,
+                    repositoryRoot: base
+                )
+            }
+        )
+        let host = SidebarNavigatorStubHost(currentFileURL: base.appendingPathComponent("a.md"))
+        navigator.attach(to: host)
+        defer { withExtendedLifetime(host) {} }
+        defer { navigator.cancelPendingListing() }
+
+        navigator.navigateToFolder(dirB)
+        await navigator.pendingListingTask?.value
+
+        // 一覧は git より先に反映される。git 状態はまだ届いていない。
+        #expect(navigator.fileListModel.entries.count == 2)
+        #expect(navigator.fileListModel.gitStatus == nil)
+
+        // 遅れて届いた git 状態は、そのあときちんと反映される(バッジ用)。
+        await navigator.pendingGitStatusTask?.value
+        #expect(navigator.fileListModel.gitStatus?.files.isEmpty == false)
+    }
+
     /// `.git/index` の更新とフォルダー移動が同時に起きる状況(TASK-294)。
     /// 移動の待ち合わせ中に単発の refreshGitStatuses が世代を進めても、一覧と対で取った
     /// git 状態は捨ててはならない。捨てると一覧だけが新しいディレクトリのものになり、
