@@ -116,13 +116,10 @@ final class SidebarNavigator {
 
     // MARK: - Git Status
 
-    /// 表示中ディレクトリの git 状態を取り直して fileListModel へ反映する。
-    /// 取得(ルート解決 + git 実行)はメイン外で行い、完了後にメインアクターへ戻して書き込む。
-    /// 機能が無効なら注入クロージャが常に空を返すため、git は起動しない。
-    ///
-    /// - Parameter policy: `.onlyIfIndexChanged` を渡すと `.git/index` が動いていないときに
-    ///   git を起こさない。`.git` 配下の書き込み通知を契機にする場合に使う。
-    ///   作業ツリーの編集は index を動かさないため、それ以外の契機では `.always` を使うこと。
+    /// 表示中ディレクトリの git 状態を取り直して fileListModel へ反映する。取得(ルート解決 +
+    /// git 実行)はメイン外で行う。機能が無効なら注入クロージャが常に空を返すため git は起動しない。
+    /// - Parameter policy: `.onlyIfIndexChanged` は `.git/index` が動いていないとき git を起こさない
+    ///   (`.git` 配下の書き込み通知が契機のとき用)。それ以外の契機では `.always` を使うこと。
     func refreshGitStatuses(policy: GitStatusRefreshPolicy = .always) {
         let directory = fileListModel.currentDirectory
         gitStatusGeneration += 1
@@ -134,17 +131,21 @@ final class SidebarNavigator {
     }
 
     /// fileListModel 側の表示設定ミラーを真実の源(sidebarDisplayPreference)へ同期し、
-    /// showHiddenFiles を返す。DirectoryLister 呼び出し前後の重複読み取りを避けるため、
-    /// この値を呼び出し側で再利用する。
-    /// 「変更ファイルのみ表示」のトグルはこれだけで足りる。手元の entries と gitStatus に対する
-    /// 表示述語でしかなく列挙の入力にも git にも関わらないため(不可視ファイル表示は列挙の入力が
-    /// 変わるので refreshFileList が要る)。git 状態の鮮度は別経路で保たれる(TASK-291)。
+    /// showHiddenFiles を返す(DirectoryLister 呼び出し前後の重複読み取りを避けるため)。
+    /// 「変更ファイルのみ表示」のトグルは applyChangedFilesOnlyToggle() を使うこと。
     @discardableResult
     func syncDisplayPreferences() -> Bool {
         let showHiddenFiles = sidebarDisplayPreference.showHiddenFiles
         fileListModel.showHiddenFiles = showHiddenFiles
         fileListModel.showChangedFilesOnly = sidebarDisplayPreference.showChangedFilesOnly
         return showHiddenFiles
+    }
+
+    /// 「変更ファイルのみ表示」トグル時に呼ぶ。表示述語を同期し、git 状態だけ取り直す(再列挙はしない)。
+    /// 作業ツリーの編集は index も windowDidBecomeKey も動かさず、古い状態で絞り込まれるため(TASK-296)。
+    func applyChangedFilesOnlyToggle() {
+        syncDisplayPreferences()
+        refreshGitStatuses()
     }
 
     /// host を接続する。ViewerWindowController が super.init 後に呼ぶ。
