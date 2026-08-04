@@ -8,7 +8,10 @@ import Foundation
 @MainActor
 @Observable
 final class FileListModel {
-    var currentDirectory: URL
+    var currentDirectory: URL {
+        didSet { updatePreviewTarget() }
+    }
+
     /// このウィンドウでこれまでにアクティブになった最上位のディレクトリ。
     /// パスコピー機能の相対パス基準として使う(SidebarNavigator.navigateToFolder が更新)。
     var rootDirectory: URL
@@ -16,6 +19,7 @@ final class FileListModel {
     var entries: [FileListEntry] {
         didSet {
             hasLoadedEntries = true
+            updatePreviewTarget()
             onPresentationTargetChange?()
         }
     }
@@ -27,9 +31,16 @@ final class FileListModel {
 
     /// プレビュー領域が提示すべき対象。ViewerContentView と ViewerWindowController が
     /// 同じ値を見るための単一の導出点(ADR 0002)。
-    var previewTarget: PreviewTarget {
-        PreviewTargetResolver.resolve(
-            selection: selection,
+    ///
+    /// 導出は entries / selection / currentDirectory が変わったときだけ行い、結果を持つ。
+    /// 読み出し側は menu validation(1 回のメニュー表示で 7 セレクタぶん)・ツールバー同期・
+    /// View の body 評価と多く、そのたびに `entries.first(where:)` の線形走査を回すと
+    /// 数万件のディレクトリでメインスレッドが詰まる(TASK-273)。
+    private(set) var previewTarget: PreviewTarget = .undetermined
+
+    private func updatePreviewTarget() {
+        previewTarget = PreviewTargetResolver.resolve(
+            selection: storedSelection,
             entries: entries,
             currentDirectory: currentDirectory,
             hasLoadedEntries: hasLoadedEntries
@@ -47,7 +58,10 @@ final class FileListModel {
     }
 
     private var storedSelection: FileListEntry.ID? {
-        didSet { onPresentationTargetChange?() }
+        didSet {
+            updatePreviewTarget()
+            onPresentationTargetChange?()
+        }
     }
 
     /// 提示対象(previewTarget)が変わりうる書き換えのあとに呼ばれる。
@@ -131,5 +145,7 @@ final class FileListModel {
         self.entries = entries
         storedSelection = selection?.nativeBackedFileURL
         self.sortOrder = sortOrder
+        // 各プロパティの didSet は init 中には走らないため、初期値をここで揃える。
+        updatePreviewTarget()
     }
 }
