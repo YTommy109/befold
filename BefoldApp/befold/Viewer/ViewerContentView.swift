@@ -54,6 +54,7 @@ struct ViewerContentView: View {
                     showHiddenFiles: fileListModel.showHiddenFiles,
                     filter: fileListModel.listFilter,
                     source: fileListModel.listingSource(for: folderURL),
+                    openFile: store.filePath,
                     onSelectFile: onSelectFile,
                     onNavigateToFolder: onNavigateToFolder
                 )

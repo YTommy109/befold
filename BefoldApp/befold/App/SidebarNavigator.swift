@@ -250,17 +250,12 @@ final class SidebarNavigator {
     }
 
     /// エントリ一覧に現在のファイルが含まれていなければ末尾に追加する。
-    /// allExtensions に含まれない拡張子(plaintext フォールバック)のファイルが
-    /// サイドバーから消える回帰を防ぐ。
+    /// 規則そのものは DirectoryLister.appendingOpenFile に置き、プレビューの
+    /// フォルダー一覧と同じ実装を共有する(TASK-295)。
     private func ensureCurrentFile(in entries: inout [FileListEntry], currentFile: URL) {
-        let dirKey = currentFile.deletingLastPathComponent().normalizedPathKey
-        guard dirKey == fileListModel.currentDirectory.normalizedPathKey else {
-            return
-        }
-        let key = currentFile.normalizedPathKey
-        if !entries.contains(where: { $0.pathKey == key }) {
-            entries.append(FileListEntry(url: currentFile, kind: .file))
-        }
+        entries = DirectoryLister.appendingOpenFile(
+            currentFile, to: entries, in: fileListModel.currentDirectory
+        )
     }
 
     /// エントリ一覧からフォルダーの正規化キーが一致するものを返す。

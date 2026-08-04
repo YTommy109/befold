@@ -21,13 +21,16 @@ struct FolderListingViewFilterTests {
     }
 
     private func makeView(
-        directory: URL, filter: FileListFilter
+        directory: URL, filter: FileListFilter,
+        source: FolderListingSource = .ownListing, openFile: URL? = nil
     ) -> FolderListingView {
         FolderListingView(
             directory: directory,
             sortOrder: .foldersFirst,
             showHiddenFiles: false,
             filter: filter,
+            source: source,
+            openFile: openFile,
             onSelectFile: { _ in },
             onNavigateToFolder: { _ in }
         )
@@ -150,5 +153,90 @@ struct FolderListingViewFilterTests {
         let model = makeModel(entries: [makeEntry("src", kind: .folder)])
 
         #expect(model.listingSource(for: directory.appendingPathComponent("src")) == .ownListing)
+    }
+
+    // MARK: - Source Switching (TASK-295)
+
+    /// プレビュー中のサブフォルダーへ移動すると、currentDirectory だけが先に進んで
+    /// 供給元が .shared(nil) になる。ここで手元の自前列挙を捨てると、一覧が届くまでの間
+    /// プレビューが空へ落ちる(同じディレクトリを列挙した結果なので捨てる理由がない)。
+    @Test("一覧がまだ届かない間は、自前で列挙した同じディレクトリの一覧を出し続ける")
+    func keepsOwnListingWhileSharedEntriesAreMissing() {
+        let cached = [makeEntry("a.md"), makeEntry("b.md")]
+
+        let resolved = FolderListingView.resolveEntries(source: .shared(nil), cached: cached)
+
+        #expect(resolved?.map(\.id) == cached.map(\.id))
+    }
+
+    /// サイドバーの一覧が届いたらそちらが優先される(git 状態と揃った一覧はこちらだけ)。
+    @Test("サイドバーの一覧が届いたら自前の列挙より優先する")
+    func sharedEntriesWinOverOwnListing() {
+        let shared = [makeEntry("shared.md")]
+
+        let resolved = FolderListingView.resolveEntries(
+            source: .shared(shared), cached: [makeEntry("stale.md")]
+        )
+
+        #expect(resolved?.map(\.url.lastPathComponent) == ["shared.md"])
+    }
+
+    /// 手元に何も無ければ「未取得」のまま。空一覧と取り違えると空状態の文言が先に出る。
+    @Test("供給元も自前列挙も無ければ未取得のまま")
+    func staysUnloadedWithoutAnyEntries() {
+        #expect(FolderListingView.resolveEntries(source: .shared(nil), cached: nil) == nil)
+    }
+
+    /// ディレクトリが据え置きのまま .shared → .ownListing へ切り替わることがある。
+    /// 再取得のキーが変わらないと列挙が一度も走らず、プレビューが恒久的に空になる。
+    @Test("供給元が切り替わったら、ディレクトリが同じでも一覧を取り直す")
+    func listingKeyChangesWhenSourceSwitches() {
+        let filter = FileListFilter()
+        let shared = makeView(directory: directory, filter: filter, source: .shared([]))
+        let own = makeView(directory: directory, filter: filter, source: .ownListing)
+
+        #expect(shared.listingKey != own.listingKey)
+    }
+
+    // MARK: - Open File (TASK-295)
+
+    /// 列挙に載らない拡張子のファイルを開いていると、サイドバーだけが末尾へ足していた。
+    /// 同じフォルダーでも見る経路によって中身が食い違わないよう、プレビューも同じ規則を通す。
+    @Test("開いているファイルは、どちらの供給元から見ても一覧に現れる")
+    func openFileAppearsRegardlessOfSource() {
+        let openFile = directory.appendingPathComponent("notes.xyz")
+        let listed = [makeEntry("a.md")]
+        let view = makeView(
+            directory: directory, filter: FileListFilter(), openFile: openFile
+        )
+
+        #expect(
+            view.visibleEntries(from: listed).map(\.url.lastPathComponent) == ["a.md", "notes.xyz"]
+        )
+    }
+
+    /// サイドバーの一覧には既に入っているため、二重に足してはならない。
+    @Test("開いているファイルが既に一覧にあれば重複させない")
+    func openFileIsNotDuplicated() {
+        let openFile = directory.appendingPathComponent("a.md")
+        let listed = [makeEntry("a.md")]
+        let view = makeView(
+            directory: directory, filter: FileListFilter(), source: .shared(listed),
+            openFile: openFile
+        )
+
+        #expect(view.visibleEntries(from: listed).map(\.url.lastPathComponent) == ["a.md"])
+    }
+
+    /// 別フォルダーのファイルを開いているときに、その行がここへ現れてはならない。
+    @Test("別フォルダーのファイルを開いていても一覧には足さない")
+    func openFileOutsideDirectoryIsIgnored() {
+        let openFile = directory.appendingPathComponent("src/inner.xyz")
+        let listed = [makeEntry("a.md")]
+        let view = makeView(
+            directory: directory, filter: FileListFilter(), openFile: openFile
+        )
+
+        #expect(view.visibleEntries(from: listed).map(\.url.lastPathComponent) == ["a.md"])
     }
 }

@@ -24,6 +24,10 @@ struct FolderListingView: View {
     let filter: FileListFilter
     /// 一覧の供給元。既定は自前列挙(サブフォルダーのプレビューと単体テスト)。
     var source: FolderListingSource = .ownListing
+    /// いま開いているファイル。このフォルダー直下にあれば、列挙に載らない拡張子でも
+    /// 一覧へ足す(DirectoryLister.appendingOpenFile)。サイドバーと同じ規則を通すため、
+    /// 供給元が .shared でも .ownListing でも同じ結果になる(TASK-295)。
+    var openFile: URL?
     let onSelectFile: (URL) -> Void
     let onNavigateToFolder: (URL) -> Void
 
@@ -38,29 +42,55 @@ struct FolderListingView: View {
 
     /// .task(id:) のキー。directory だけでなく sortOrder・showHiddenFiles の変更でも
     /// 一覧を再取得させるため、3値をまとめた Hashable な複合キーにする。
-    private struct ListingKey: Hashable {
+    ///
+    /// 供給元が自前列挙かどうかも含める。ディレクトリが据え置きのまま
+    /// .shared → .ownListing へ切り替わることがあり(サイドバーが別のディレクトリへ移り、
+    /// このフォルダーが「選択中のサブフォルダー」側になったとき)、キーに入れていないと
+    /// 列挙が一度も走らずプレビューが空のままになる(TASK-295)。
+    struct ListingKey: Hashable {
         let directory: URL
         let sortOrder: SortOrder
         let showHiddenFiles: Bool
+        let usesOwnListing: Bool
     }
 
-    private var listingKey: ListingKey {
-        ListingKey(directory: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
+    var listingKey: ListingKey {
+        ListingKey(
+            directory: directory,
+            sortOrder: sortOrder,
+            showHiddenFiles: showHiddenFiles,
+            usesOwnListing: source == .ownListing
+        )
     }
 
     /// ディスクから引いた一覧に表示設定を適用した結果。サイドバー
     /// (FileListModel.visibleEntries)と同じ FileListFilter を同じ関数で適用するため、
     /// 同じディレクトリを見ているときは両者が必ず一致する(TASK-288)。
     func visibleEntries(from entries: [FileListEntry]) -> [FileListEntry] {
-        filter.apply(to: entries, in: directory)
+        filter.apply(
+            to: DirectoryLister.appendingOpenFile(openFile, to: entries, in: directory),
+            in: directory
+        )
     }
 
     /// 手元にある一覧。nil は「未取得」で、空一覧(= 絞り込みで全部消えた)と区別する。
-    private var loadedEntries: [FileListEntry]? {
+    ///
+    /// サイドバーの一覧(.shared)を優先し、まだ届いていないとき(.shared(nil))は
+    /// 自前で列挙した一覧へ退避する。cachedEntries は `.id(directory)` でこのビューごと
+    /// 作り直されるため、**必ず同じディレクトリを列挙した結果**であり、別フォルダーの中身が
+    /// 見えることはない。退避が無いと、プレビュー中のサブフォルダーへ移動した瞬間に
+    /// (currentDirectory だけが先に進み entriesDirectory とずれる間)一覧が空へ落ちる(TASK-295)。
+    static func resolveEntries(
+        source: FolderListingSource, cached: [FileListEntry]?
+    ) -> [FileListEntry]? {
         switch source {
-        case let .shared(entries): entries
-        case .ownListing: cachedEntries
+        case let .shared(entries): entries ?? cached
+        case .ownListing: cached
         }
+    }
+
+    private var loadedEntries: [FileListEntry]? {
+        Self.resolveEntries(source: source, cached: cachedEntries)
     }
 
     var body: some View {
