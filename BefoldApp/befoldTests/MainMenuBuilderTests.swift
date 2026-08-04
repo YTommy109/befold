@@ -140,7 +140,7 @@ struct MainMenuBuilderTests {
         let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
 
         let item = view.items.first { $0.action == #selector(AppDelegate.toggleChangedFilesOnly(_:)) }
-        #expect((item != nil) == FeatureGate.inProgressFeaturesEnabled)
+        #expect((item != nil) == FeatureGate.isSidebarGitStatusEnabled)
         if let item {
             #expect(item.keyEquivalent == "g")
             #expect(item.keyEquivalentModifierMask == [.command, .control])

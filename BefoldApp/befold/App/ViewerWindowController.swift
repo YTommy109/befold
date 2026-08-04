@@ -13,7 +13,7 @@ import WebKit
 private func makeSidebarGitStatusLoader(
     _ store: GitStatusStore
 ) -> (URL, GitStatusRefreshPolicy) async -> GitStatusResult {
-    guard FeatureGate.inProgressFeaturesEnabled else { return { _, _ in .empty } }
+    guard FeatureGate.isSidebarGitStatusEnabled else { return { _, _ in .empty } }
     return { directory, policy in await store.statuses(forDirectoryAt: directory, policy: policy) }
 }
 
@@ -342,7 +342,7 @@ final class ViewerWindowController: NSWindowController {
     /// git ステータスと同じ開発中機能の露出点であり、無効なら nil を返して
     /// ボタン自体を出さない(FileListView 側が nil で非表示にする)。
     private func makeChangedFilesOnlyToggle() -> (() -> Void)? {
-        guard FeatureGate.inProgressFeaturesEnabled else { return nil }
+        guard FeatureGate.isSidebarGitStatusEnabled else { return nil }
         return { [weak self] in
             guard let self else { return }
             delegate?.viewerWindowDidToggleChangedFilesOnly(self)

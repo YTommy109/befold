@@ -30,7 +30,7 @@ final class SidebarDisplayPreference {
     ///   テストから両方の状態を作れるようにするためだけの注入点で、本番では省略する。
     init(
         defaults: UserDefaults = .standard,
-        isChangedFilesOnlyAvailable: Bool = FeatureGate.inProgressFeaturesEnabled
+        isChangedFilesOnlyAvailable: Bool = FeatureGate.isSidebarGitStatusEnabled
     ) {
         self.defaults = defaults
         showHiddenFiles = defaults.bool(forKey: Self.showHiddenFilesKey)

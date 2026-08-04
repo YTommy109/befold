@@ -218,7 +218,7 @@ enum MainMenuBuilder {
         )
         // 開発中機能(サイドバーの git ステータス)に依存するため、露出点でゲートする。
         // 素の ⌘G / ⇧⌘G は Edit メニューの検索送りと衝突するため、control を重ねて区別する。
-        if FeatureGate.inProgressFeaturesEnabled {
+        if FeatureGate.isSidebarGitStatusEnabled {
             menu.addLocalizedItem(
                 "menu.view.showChangedFilesOnly",
                 action: #selector(AppDelegate.toggleChangedFilesOnly(_:)),
