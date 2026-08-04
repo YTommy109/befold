@@ -129,8 +129,7 @@ final class SidebarNavigator {
         pendingGitStatusTask = Task {
             let result = await self.loadGitStatuses(directory, policy)
             guard generation == self.gitStatusGeneration else { return }
-            self.fileListModel.gitStatuses = result.statuses
-            self.fileListModel.gitFolderStatuses = GitFolderStatus.aggregate(statuses: result.statuses)
+            self.fileListModel.gitStatus = SidebarGitStatus(directory: directory, result: result)
             self.updateGitIndexWatcher(indexURL: result.indexURL)
         }
     }

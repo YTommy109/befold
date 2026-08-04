@@ -114,6 +114,30 @@ struct FileListView: View {
         }
     }
 
+    /// 一覧が空のときの案内。空になった理由で文言を変える。
+    ///
+    /// 「変更のみ表示」で空になった場合に「対応ファイルがありません」と出すと、開ける文書で
+    /// 満たされたフォルダーでも読み込みに失敗したように読める(TASK-287)。絞り込みが
+    /// 効いていること自体を伝え、解除すれば見えると分かる文言にする。
+    @ViewBuilder
+    private var emptyStateView: some View {
+        if model.activeGitChangeFilter != nil {
+            ContentUnavailableView(
+                String(localized: "sidebar.empty.changedFilesOnly", bundle: .l10n),
+                systemImage: "arrow.triangle.branch",
+                description: Text(
+                    String(localized: "sidebar.empty.changedFilesOnly.description", bundle: .l10n)
+                )
+            )
+        } else {
+            ContentUnavailableView(
+                String(localized: "sidebar.empty", bundle: .l10n),
+                systemImage: "doc.questionmark",
+                description: Text(model.currentDirectory.lastPathComponent)
+            )
+        }
+    }
+
     /// git 変更のあるファイルのみに絞るトグル。不可視ファイルのトグルとは独立した軸のため、
     /// 1 クリックで往復でき、両方の状態が同時に見えるよう別ボタンにしている(TASK-282)。
     @ViewBuilder
@@ -136,8 +160,8 @@ struct FileListView: View {
             // contentShape が行の全幅を覆うようにする。インセット部分をダブル
             // クリックしたとき選択だけされて移動しない取りこぼしを防ぐ。
             FileListEntryRow(
-                entry: entry, gitStatus: { model.gitStatuses[entry.pathKey] },
-                gitFolderStatus: { model.gitFolderStatuses[entry.pathKey] }
+                entry: entry, gitStatus: { model.gitStatus?.fileStatus(at: entry.pathKey) },
+                gitFolderStatus: { model.gitStatus?.folderStatus(at: entry.pathKey) }
             )
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
@@ -152,12 +176,8 @@ struct FileListView: View {
         }
         .overlay {
             if model.visibleEntries.allSatisfy({ $0.kind == .parentNavigation }) {
-                ContentUnavailableView(
-                    String(localized: "sidebar.empty", bundle: .l10n),
-                    systemImage: "doc.questionmark",
-                    description: Text(model.currentDirectory.lastPathComponent)
-                )
-                .allowsHitTesting(false)
+                emptyStateView
+                    .allowsHitTesting(false)
             }
         }
         .onKeyPress { keyPress in

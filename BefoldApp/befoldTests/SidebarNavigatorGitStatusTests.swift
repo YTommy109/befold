@@ -71,14 +71,14 @@ struct SidebarNavigatorGitStatusTests {
         let base = Self.home.appendingPathComponent("SidebarNavigatorGitStatusTests-apply")
         let statuses = ["\(base.path)/a.md": status(.modified)]
         let (navigator, host) = makeNavigator(currentDirectory: base) { _, _ in
-            GitStatusResult(statuses: statuses, indexURL: nil)
+            GitStatusResult(statuses: statuses, indexURL: nil, repositoryRoot: base)
         }
         defer { withExtendedLifetime(host) {} }
 
         navigator.refreshFileList()
         await navigator.pendingGitStatusTask?.value
 
-        #expect(navigator.fileListModel.gitStatuses == statuses)
+        #expect(navigator.fileListModel.gitStatus?.files == statuses)
     }
 
     /// フォルダー行のバッジは配下の集約なので、状態マップと同じ契機で写像まで済ませる
@@ -88,14 +88,14 @@ struct SidebarNavigatorGitStatusTests {
         let base = Self.home.appendingPathComponent("SidebarNavigatorGitStatusTests-folder")
         let statuses = ["\(base.path)/sub/deep/a.md": status(.modified)]
         let (navigator, host) = makeNavigator(currentDirectory: base) { _, _ in
-            GitStatusResult(statuses: statuses, indexURL: nil)
+            GitStatusResult(statuses: statuses, indexURL: nil, repositoryRoot: base)
         }
         defer { withExtendedLifetime(host) {} }
 
         navigator.refreshFileList()
         await navigator.pendingGitStatusTask?.value
 
-        let folder = try #require(navigator.fileListModel.gitFolderStatuses["\(base.path)/sub"])
+        let folder = try #require(navigator.fileListModel.gitStatus?.folderStatus(at: "\(base.path)/sub"))
         #expect(folder.hasUnstaged)
     }
 
@@ -110,10 +110,10 @@ struct SidebarNavigatorGitStatusTests {
         let staleStatuses = ["\(base.path)/a.md": status(.deleted)]
         let (navigator, host) = makeNavigator(currentDirectory: base) { directory, _ in
             guard directory.normalizedPathKey != dirB.normalizedPathKey else {
-                return GitStatusResult(statuses: freshStatuses, indexURL: nil)
+                return GitStatusResult(statuses: freshStatuses, indexURL: nil, repositoryRoot: base)
             }
             await staleGate.wait()
-            return GitStatusResult(statuses: staleStatuses, indexURL: nil)
+            return GitStatusResult(statuses: staleStatuses, indexURL: nil, repositoryRoot: base)
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -127,7 +127,7 @@ struct SidebarNavigatorGitStatusTests {
         staleGate.open()
         await staleTask?.value
 
-        #expect(navigator.fileListModel.gitStatuses == freshStatuses)
+        #expect(navigator.fileListModel.gitStatus?.files == freshStatuses)
     }
 
     // MARK: - Index Watching (TASK-186.2)
@@ -140,7 +140,7 @@ struct SidebarNavigatorGitStatusTests {
         let watchers = LockedBox<[RecordingWatcher]>([])
         let (navigator, host) = makeNavigator(currentDirectory: base, watchers: watchers) { _, policy in
             policies.update { $0.append(policy) }
-            return GitStatusResult(statuses: [:], indexURL: indexURL)
+            return GitStatusResult(statuses: [:], indexURL: indexURL, repositoryRoot: base)
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -166,7 +166,7 @@ struct SidebarNavigatorGitStatusTests {
         let indexURL = base.appendingPathComponent(".git/index")
         let watchers = LockedBox<[RecordingWatcher]>([])
         let (navigator, host) = makeNavigator(currentDirectory: base, watchers: watchers) { _, _ in
-            GitStatusResult(statuses: [:], indexURL: indexURL)
+            GitStatusResult(statuses: [:], indexURL: indexURL, repositoryRoot: base)
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -186,7 +186,7 @@ struct SidebarNavigatorGitStatusTests {
         let watchers = LockedBox<[RecordingWatcher]>([])
         let (navigator, host) = makeNavigator(currentDirectory: base, watchers: watchers) { directory, _ in
             guard directory.normalizedPathKey == base.normalizedPathKey else { return .empty }
-            return GitStatusResult(statuses: [:], indexURL: indexURL)
+            return GitStatusResult(statuses: [:], indexURL: indexURL, repositoryRoot: base)
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -205,7 +205,7 @@ struct SidebarNavigatorGitStatusTests {
         let indexURL = base.appendingPathComponent(".git/index")
         let watchers = LockedBox<[RecordingWatcher]>([])
         let (navigator, host) = makeNavigator(currentDirectory: base, watchers: watchers) { _, _ in
-            GitStatusResult(statuses: [:], indexURL: indexURL)
+            GitStatusResult(statuses: [:], indexURL: indexURL, repositoryRoot: base)
         }
         defer { withExtendedLifetime(host) {} }
 

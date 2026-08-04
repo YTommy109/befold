@@ -60,6 +60,6 @@ struct ViewerWindowControllerGitStatusTests {
         await controller.sidebar.pendingGitStatusTask?.value
 
         #expect(reader.callCount > callsBeforeReload)
-        #expect(controller.sidebar.fileListModel.gitStatuses == statuses)
+        #expect(controller.sidebar.fileListModel.gitStatus?.files == statuses)
     }
 }

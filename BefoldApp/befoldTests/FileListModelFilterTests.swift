@@ -50,11 +50,22 @@ struct FileListModelFilterTests {
         GitFileStatus(indexChange: nil, worktreeChange: .modified)
     }
 
+    /// 本番と同じ経路で状態を組む。SidebarNavigator は必ず SidebarGitStatus を通して
+    /// ファイル状態とフォルダー集約を同時に作るため、テストもそこを通す(TASK-290)。
+    private func applyGitStatus(
+        _ statuses: [String: GitFileStatus], to model: FileListModel, directory: URL? = nil
+    ) {
+        model.gitStatus = SidebarGitStatus(
+            directoryKey: (directory ?? model.currentDirectory).normalizedPathKey,
+            statuses: statuses
+        )
+    }
+
     @Test("変更のみ表示 ON で、git 変更のあるファイルだけが残る")
     func changedFilesOnlyKeepsChangedFiles() {
         let changed = makeEntry("changed.md")
         let model = makeModel(entries: [changed, makeEntry("clean.md")])
-        model.gitStatuses = [changed.pathKey: modifiedStatus()]
+        applyGitStatus([changed.pathKey: modifiedStatus()], to: model)
         model.showChangedFilesOnly = true
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
@@ -66,7 +77,8 @@ struct FileListModelFilterTests {
         let folder = makeEntry("src", kind: .folder)
         let cleanFolder = makeEntry("docs", kind: .folder)
         let model = makeModel(entries: [parent, folder, cleanFolder])
-        model.gitFolderStatuses = [folder.pathKey: GitFolderStatus(hasUnstaged: true)]
+        let nested = folder.url.appendingPathComponent("inner.md").normalizedPathKey
+        applyGitStatus([nested: modifiedStatus()], to: model)
         model.showChangedFilesOnly = true
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["..", "src"])
@@ -77,41 +89,105 @@ struct FileListModelFilterTests {
         let changedMatching = makeEntry("README.md")
         let changedOther = makeEntry("notes.txt")
         let model = makeModel(entries: [changedMatching, changedOther, makeEntry("read-only.md")])
-        model.gitStatuses = [
-            changedMatching.pathKey: modifiedStatus(),
-            changedOther.pathKey: modifiedStatus(),
-        ]
+        applyGitStatus(
+            [changedMatching.pathKey: modifiedStatus(), changedOther.pathKey: modifiedStatus()],
+            to: model
+        )
         model.showChangedFilesOnly = true
         model.filterText = "read*"
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["README.md"])
     }
 
-    @Test("git 状態が無い(非 git・取得失敗)ときはフィルター無効として全件を返す")
-    func changedFilesOnlyDegradesWithoutGitStatuses() {
+    @Test("git 管理外(状態が未解決)ならフィルター無効として全件を返す")
+    func changedFilesOnlyDegradesOutsideRepository() {
         let entries = [makeEntry("a.md"), makeEntry("b.md")]
         let model = makeModel(entries: entries)
+        model.showChangedFilesOnly = true
+
+        #expect(model.gitStatus == nil)
+        #expect(model.visibleEntries.map(\.id) == entries.map(\.id))
+    }
+
+    /// 変更ゼロのリポジトリは「空の状態」であって未解決ではない。ここを取り違えると
+    /// トグルが黙って効かなくなる(TASK-285)。
+    @Test("変更が 1 つも無いリポジトリでも絞り込みは効く(全件表示に戻らない)")
+    func changedFilesOnlyAppliesInCleanRepository() {
+        let parent = makeEntry("..", kind: .parentNavigation)
+        let model = makeModel(entries: [parent, makeEntry("a.md"), makeEntry("b.md")])
+        applyGitStatus([:], to: model)
+        model.showChangedFilesOnly = true
+
+        #expect(model.visibleEntries.map(\.kind) == [.parentNavigation])
+    }
+
+    /// 一覧と git 状態は別タスクで届く。別ディレクトリのものが残っている間は
+    /// 絞り込まない(移動直後に一覧が消えるのを防ぐ)。
+    @Test("状態が別ディレクトリのものなら絞り込まない")
+    func changedFilesOnlyIgnoresStatusFromAnotherDirectory() {
+        let entries = [makeEntry("a.md"), makeEntry("b.md")]
+        let model = makeModel(entries: entries)
+        applyGitStatus([:], to: model, directory: URL(fileURLWithPath: "/tmp/OtherRepository"))
         model.showChangedFilesOnly = true
 
         #expect(model.visibleEntries.map(\.id) == entries.map(\.id))
     }
 
-    @Test("clean な状態しか無いときもフィルター無効として全件を返す")
-    func changedFilesOnlyDegradesWhenAllStatusesAreClean() {
-        let entries = [makeEntry("a.md"), makeEntry("b.md")]
-        let model = makeModel(entries: entries)
-        model.gitStatuses = [entries[0].pathKey: GitFileStatus()]
+    /// porcelain の既定は未追跡ディレクトリを `dir/` 1 レコードへ畳む。配下のファイルは
+    /// 状態マップにキーを持たないが、未追跡であることに変わりはない(TASK-285)。
+    @Test("未追跡ディレクトリ配下のファイルは、個別のキーが無くても残る")
+    func changedFilesOnlyKeepsFilesUnderFoldedUntrackedDirectory() {
+        let directory = URL(fileURLWithPath: "/tmp/FileListModelFilterTests/newdir")
+        let inside = FileListEntry(url: directory.appendingPathComponent("b.md"), kind: .file)
+        let model = FileListModel(currentDirectory: directory, entries: [inside], selection: nil)
+        applyGitStatus([directory.normalizedPathKey: GitFileStatus(isUntracked: true)], to: model)
         model.showChangedFilesOnly = true
 
-        #expect(model.visibleEntries.map(\.id) == entries.map(\.id))
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["b.md"])
     }
 
     @Test("変更のみ表示 OFF なら git 状態があっても絞り込まれない")
     func changedFilesOnlyOffKeepsAllEntries() {
         let entries = [makeEntry("changed.md"), makeEntry("clean.md")]
         let model = makeModel(entries: entries)
-        model.gitStatuses = [entries[0].pathKey: modifiedStatus()]
+        applyGitStatus([entries[0].pathKey: modifiedStatus()], to: model)
 
         #expect(model.visibleEntries.map(\.id) == entries.map(\.id))
+    }
+
+    // MARK: - 表示中の対象を残す(task-286)
+
+    @Test("変更のみ表示 ON でも、選択中(表示中)の未変更ファイルは残る")
+    func changedFilesOnlyKeepsPresentedEntry() {
+        let changed = makeEntry("changed.md")
+        let opened = makeEntry("README.md")
+        let model = makeModel(entries: [changed, opened, makeEntry("other.md")])
+        applyGitStatus([changed.pathKey: modifiedStatus()], to: model)
+        model.selection = opened.id
+        model.showChangedFilesOnly = true
+
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md", "README.md"])
+    }
+
+    @Test("選択が無ければ未変更ファイルは残らない")
+    func changedFilesOnlyDropsUnchangedWithoutSelection() {
+        let changed = makeEntry("changed.md")
+        let model = makeModel(entries: [changed, makeEntry("README.md")])
+        applyGitStatus([changed.pathKey: modifiedStatus()], to: model)
+        model.showChangedFilesOnly = true
+
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
+    }
+
+    /// filterText はユーザーが自分で打った条件なので、選択中でも一致しなければ消える。
+    /// git 絞り込み(状態由来)との扱いの違いを固定する(TASK-286)。
+    @Test("filterText では選択中でも一致しない行は消える")
+    func filterTextDropsPresentedEntry() {
+        let opened = makeEntry("README.md")
+        let model = makeModel(entries: [opened, makeEntry("notes.txt")])
+        model.selection = opened.id
+        model.filterText = "notes*"
+
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["notes.txt"])
     }
 }

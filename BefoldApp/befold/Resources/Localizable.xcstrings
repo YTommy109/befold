@@ -1768,6 +1768,40 @@
         }
       }
     },
+    "sidebar.empty.changedFilesOnly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Changed Files"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更されたファイルはありません"
+          }
+        }
+      }
+    },
+    "sidebar.empty.changedFilesOnly.description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn off Show Changed Files Only to see all files."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「変更されたファイルのみ表示」を解除すると、すべてのファイルが表示されます。"
+          }
+        }
+      }
+    },
     "sidebar.empty": {
       "extractionState": "manual",
       "localizations": {
