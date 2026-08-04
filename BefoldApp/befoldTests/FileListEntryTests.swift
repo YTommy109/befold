@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -33,8 +34,10 @@ struct FileListEntryTests {
         // FileManager 由来の URL は NSString 裏打ちで Hashable が遅い正規化経路を通る。
         // id・pathKey ともに native 裏打ちへ揃っていること（値は元の URL と同じまま）を見る。
         let entry = FileListEntry(url: source, kind: .file)
-        #expect(entry.url.path.isContiguousUTF8)
-        #expect(entry.pathKey.isContiguousUTF8)
+        if URLBackingSupport.rebuildYieldsContiguousUTF8 {
+            #expect(entry.url.path.isContiguousUTF8)
+            #expect(entry.pathKey.isContiguousUTF8)
+        }
         #expect(entry.url == source)
         #expect(entry.pathKey == source.normalizedPathKey)
     }

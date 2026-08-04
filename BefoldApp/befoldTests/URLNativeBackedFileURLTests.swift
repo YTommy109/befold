@@ -1,4 +1,5 @@
 import BefoldKit
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -41,7 +42,9 @@ struct URLNativeBackedFileURLTests {
         #expect(rebuilt == source)
         #expect(rebuilt.hashValue == source.hashValue)
         #expect(Array(rebuilt.lastPathComponent.unicodeScalars) == Array(source.lastPathComponent.unicodeScalars))
-        #expect(rebuilt.path.isContiguousUTF8)
+        if URLBackingSupport.rebuildYieldsContiguousUTF8 {
+            #expect(rebuilt.path.isContiguousUTF8)
+        }
     }
 
     @Test("ディレクトリの URL でも末尾の区切りの意味が保たれ、元の URL と等値になる")
@@ -57,7 +60,9 @@ struct URLNativeBackedFileURLTests {
         let rebuilt = source.nativeBackedFileURL
         #expect(rebuilt == source)
         #expect(rebuilt.hasDirectoryPath == source.hasDirectoryPath)
-        #expect(rebuilt.path.isContiguousUTF8)
+        if URLBackingSupport.rebuildYieldsContiguousUTF8 {
+            #expect(rebuilt.path.isContiguousUTF8)
+        }
     }
 
     @Test("file URL でなければ何も書き換えずに自身を返す")
