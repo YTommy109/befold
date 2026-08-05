@@ -81,7 +81,7 @@ struct GitStatusReaderIntegrationTests {
     /// TASK-186.2 の中核。`.git/index` の監視から状態の取り直しまでを実物どうしで繋ぎ、
     /// 「git 操作のあと、明示 refresh なしにバッジが変わる」ことを確認する。
     @MainActor
-    @Test("git add の後、明示 refresh なしでサイドバーの状態が更新される", .timeLimit(.minutes(1)))
+    @Test("git add の後、明示 refresh なしでサイドバーの状態が更新される", testTimeLimit())
     func updatesWithoutExplicitRefreshAfterStaging() async throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
