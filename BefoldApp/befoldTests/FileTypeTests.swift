@@ -56,6 +56,9 @@ struct FileTypeTests {
         ("go", "go"),
         ("rs", "rust"),
         ("mjs", "javascript"),
+        // .ts はシステム UTI が動画(public.mpeg-2-transport-stream)に解決されるため
+        // QuickLook では扱えない(TASK-261)。拡張子で引く本体アプリ側は扱えることを固定する。
+        ("ts", "typescript"),
         ("tsx", "typescript"),
         ("kt", "kotlin"),
         ("hpp", "cpp"),
