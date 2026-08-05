@@ -58,12 +58,16 @@ Markdown 形式で出力する:
      および `feat:`/`fix:` であっても内部実装・開発体験・CI・テストのみに
      関する変更（例: 「quality-loop のイテレーション上限を明確化する」
      「コーディング規約を更新する」）
-2. `feat:`/`fix:` の対象が `FeatureGate.inProgressFeaturesEnabled` で
-   ガードされた機能（開発中機能）を指していないか確認する。ガード配下の
-   機能は stable ビルドでは露出しないため、たとえユーザー影響のある文言
-   でも除外する。判断が付かない場合は該当コード（呼び出し元のメニュー項目・
-   画面など）を実際に grep して FeatureGate 配下かどうかを確認する
-   （例: `grep -rn "FeatureGate.inProgressFeaturesEnabled" BefoldApp/befold`）。
+2. `feat(gate):` / `fix(gate):` のスコープが付いたコミットは、
+   FeatureGate 配下の開発中機能を指すため無条件で除外する（stable
+   ビルドでは露出しないため、ユーザー影響のある文言でも除外する）。
+   このスコープは CLAUDE.md のコミット規約に基づき、FeatureGate 配下の
+   コードを変更する commit に著者が付与する運用のため、コード側を
+   grep して間接的に判定する必要はない。
+   スコープが付いていないのに FeatureGate 関連ファイル
+   （`FeatureGate.swift` や、そこから `guard FeatureGate.xxxEnabled`
+   を参照している箇所）を変更しているコミットを見つけた場合は、
+   スコープ漏れの可能性があるためユーザーに確認する。
 3. 判断に迷うコミットはユーザー影響がないものとして除外する（安全側に倒す）。
 4. 除外したコミットがある場合は、リリースノート生成後にユーザーへ一覧を
    提示し、含めるべきか確認する。

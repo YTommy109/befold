@@ -132,9 +132,21 @@ fix: ファイル変更検知が2回通知される問題を修正する
 chore: XcodeGen 設定を更新する
 ```
 
+- **FeatureGate 配下のコードを変更する commit には `(gate)` スコープを付ける**
+  （例: `feat(gate): 変更ファイル絞り込みのトグルボタンを追加する`）。
+  `/release-notes stable` はこのスコープをコミット件名だけで機械的に判定して
+  除外する。スコープを付け忘れると、stable では露出しない機能がリリースノートに
+  漏れる（過去に `FeatureGate.isSidebarGitStatusEnabled` という別名のゲート関数を
+  grep で見逃し、実際に混入した）。判断基準は「変更箇所が `FeatureGate.swift` の
+  いずれかの `Bool` を経由してのみ有効化されるか」。
+
 ## フィーチャーゲート（開発中機能の dev 限定露出）
 
 - 未完成機能は `FeatureGate.inProgressFeaturesEnabled` で囲い、dev/DEBUG ビルドでのみ露出する。
   判定は「バージョン文字列のプレリリース接尾辞（`-dev.N`）」由来で、`UpdateChannel`（ユーザー設定）は流用しない。
+  直接 `inProgressFeaturesEnabled` を参照せず、機能ごとの別名 computed property
+  （例: `isSidebarGitStatusEnabled`）を経由することがあるため、ゲート判定は
+  `FeatureGate.swift` 内の宣言一覧を基準にする（コード全体を `inProgressFeaturesEnabled`
+  で grep しても別名のゲートは見つからない）。
 - フラグは一時的な足場。stable に載せると決めた時点で分岐を撤去しデフォルト有効化し、撤去タスクを backlog に登録する。
 - 検証は「ロジックはユニットテスト、ON は dev リリースの dogfood、OFF は次回 stable リリース」で担保する。
