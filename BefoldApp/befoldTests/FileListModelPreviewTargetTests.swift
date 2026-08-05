@@ -73,6 +73,43 @@ struct FileListModelPreviewTargetTests {
         #expect(notifications == 1)
     }
 
+    @Test("先頭行を選んで一覧を提示するときも、通知は 1 回に収まる")
+    func selectingWhilePresentingListingNotifiesOnce() throws {
+        // navigateToFolder の下位・横移動と同じ順序・同じ書き換え(TASK-310)。
+        // 選択を先に書いてからフラグを立てると、先頭行のファイル提示が一瞬挟まって
+        // 通知が 2 回になる。順序をここで固定する。
+        let file = directory.appendingPathComponent("opening.mmd")
+        let model = makeModel(selection: file)
+        model.entries = [FileListEntry(url: file, kind: .file)]
+        try #require(model.previewTarget == .file)
+
+        var notifications = 0
+        model.onPresentationTargetChange = { notifications += 1 }
+
+        let destination = directory.appendingPathComponent("sub")
+        let head = FileListEntry(url: destination.appendingPathComponent("a.md"), kind: .file)
+        model.currentDirectory = destination
+        model.entries = [head]
+        model.selectPresentingDirectoryListing(model.firstSelectableEntryURL)
+
+        #expect(model.selection == head.url)
+        #expect(model.previewTarget == .folder(destination))
+        #expect(notifications == 1)
+    }
+
+    @Test("一覧を提示したまま選び直すと、その行の提示へ切り替わる")
+    func writingSelectionClearsTheListingPresentation() {
+        let model = makeModel(selection: nil)
+        let head = FileListEntry(url: directory.appendingPathComponent("a.md"), kind: .file)
+        model.entries = [head]
+        model.selectPresentingDirectoryListing(head.url)
+        #expect(model.previewTarget == .folder(directory))
+
+        model.selection = head.url
+
+        #expect(model.previewTarget == .file)
+    }
+
     @Test("提示対象が変わらない書き換えでは通知しない")
     func doesNotNotifyWhenTargetIsUnchanged() {
         let file = directory.appendingPathComponent("opening.mmd")

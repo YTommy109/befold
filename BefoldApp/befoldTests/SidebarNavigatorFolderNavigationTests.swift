@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 /// SidebarNavigator.navigateToFolder / refreshFileList の選択・rootDirectory ポリシー
-/// (ホーム上限ガード・子フォルダーへの移動で自動選択/自動オープンしない・親フォルダーへ
+/// (ホーム上限ガード・子フォルダーへ降りたら先頭行を選ぶがプレビューは一覧のまま・親フォルダーへ
 /// 戻ると直前の子フォルダーが選ばれる・上位移動で rootDirectory が最上位へ更新される・
 /// refreshFileList でフォルダー選択が保持される)を、実ディレクトリ列挙もフルウィンドウ
 /// 生成も伴わずに検証する。実 FS の列挙結果自体は本質でないため、
@@ -73,15 +73,12 @@ struct SidebarNavigatorFolderNavigationTests {
         #expect(navigator.fileListModel.currentDirectory == before)
     }
 
-    @Test("子フォルダーへの移動では自動選択されない")
-    func navigateToChildDoesNotAutoSelect() async {
-        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-noselect")
+    @Test("子フォルダーへ降りると一覧の先頭が選択される")
+    func navigateToChildSelectsFirstEntry() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-first")
         let sub = tmp.appendingPathComponent("sub", isDirectory: true)
         let grandChild = sub.appendingPathComponent("grandchild", isDirectory: true)
         let child = sub.appendingPathComponent("child.mmd")
-        // 選択候補になり得るファイル(child.mmd)があっても自動選択しないことを固定する。
-        // フォルダーのみ(選択候補が無い)だと navigateToChildWithoutFilesClearsSelection と
-        // 区別が付かなくなる。
         let (navigator, host) = makeNavigator(
             currentDirectory: tmp,
             selection: nil,
@@ -97,7 +94,76 @@ struct SidebarNavigatorFolderNavigationTests {
         navigator.navigateToFolder(sub)
         await navigator.pendingListingTask?.value
 
-        #expect(navigator.fileListModel.selection == nil)
+        #expect(navigator.fileListModel.selection?.lastPathComponent == "grandchild")
+    }
+
+    @Test("先頭が選択されても、プレビューは移動先ディレクトリの一覧のままである")
+    func navigateToChildKeepsPreviewOnDirectoryListing() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-listing")
+        let sub = tmp.appendingPathComponent("sub", isDirectory: true)
+        let child = sub.appendingPathComponent("child.mmd")
+        // 先頭がファイルでも、その中身をプレビューへ出してはならない(TASK-61 の挙動)。
+        let (navigator, host) = makeNavigator(
+            currentDirectory: tmp,
+            selection: nil,
+            listings: [sub.normalizedPathKey: [FileListEntry(url: child, kind: .file)]]
+        )
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.navigateToFolder(sub)
+        await navigator.pendingListingTask?.value
+
+        #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
+        #expect(navigator.fileListModel.previewTarget == .folder(sub))
+    }
+
+    @Test("降りた先で利用者が選び直すと、その行がプレビュー対象になる")
+    func selectingAfterDescendingPresentsThatEntry() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-reselect")
+        let sub = tmp.appendingPathComponent("sub", isDirectory: true)
+        let first = sub.appendingPathComponent("a.mmd")
+        let second = sub.appendingPathComponent("b.mmd")
+        let (navigator, host) = makeNavigator(
+            currentDirectory: tmp,
+            selection: nil,
+            listings: [
+                sub.normalizedPathKey: [
+                    FileListEntry(url: first, kind: .file),
+                    FileListEntry(url: second, kind: .file),
+                ],
+            ]
+        )
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.navigateToFolder(sub)
+        await navigator.pendingListingTask?.value
+        // 一覧に留める指示は選択の書き込みで倒れる。自動選択と同じ行を選び直しても同じ。
+        navigator.fileListModel.selection = first
+
+        #expect(navigator.fileListModel.previewTarget == .file)
+    }
+
+    @Test("親ナビゲーション行は自動選択の対象にしない")
+    func navigateToChildSkipsParentNavigationRow() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-skipparent")
+        let sub = tmp.appendingPathComponent("sub", isDirectory: true)
+        let child = sub.appendingPathComponent("child.mmd")
+        let (navigator, host) = makeNavigator(
+            currentDirectory: tmp,
+            selection: nil,
+            listings: [
+                sub.normalizedPathKey: [
+                    FileListEntry(url: tmp, kind: .parentNavigation),
+                    FileListEntry(url: child, kind: .file),
+                ],
+            ]
+        )
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.navigateToFolder(sub)
+        await navigator.pendingListingTask?.value
+
+        #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
     }
 
     @Test("子フォルダーへの移動ではファイルが自動的に開かれない")
@@ -133,6 +199,7 @@ struct SidebarNavigatorFolderNavigationTests {
         await navigator.pendingListingTask?.value
 
         #expect(navigator.fileListModel.selection == nil)
+        #expect(navigator.fileListModel.previewTarget == .folder(sub))
     }
 
     @Test("親フォルダーへの移動では直前の子フォルダーが選択される")

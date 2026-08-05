@@ -107,6 +107,25 @@ struct FileListViewTests {
         #expect(selected.get() == fixture.file1.url)
     }
 
+    @Test("フォルダーを降りた直後のハイライトから、そのまま矢印キー操作を続けられる")
+    func keyboardNavigationStartsFromTheDescendHighlight() {
+        // navigateToFolder が先頭行をハイライトした状態(選択はあるがプレビューは一覧)。
+        // ここから ↓ を押した利用者は 2 行目へ進めなければならない(TASK-310 AC#3)。
+        let fixture = StandardEntries()
+        let selected = LockedBox<URL?>(nil)
+        let view = makeView(entries: fixture.all, selection: nil) { url in selected.set(url) }
+        view.model.selectPresentingDirectoryListing(view.model.firstSelectableEntryURL)
+        #expect(view.model.selection == fixture.file0.id)
+
+        let result = view.selectNext()
+
+        #expect(result == .handled)
+        #expect(view.model.selection == fixture.folder.id)
+        // 移った先はフォルダーなので開かない。提示対象はそのフォルダーの一覧へ移る。
+        #expect(selected.get() == nil)
+        #expect(view.model.previewTarget == .folder(fixture.folder.url))
+    }
+
     @Test("選択が nil の状態で selectNext を呼ぶと先頭エントリが選択され onSelect が呼ばれる")
     func selectNextFromNilSelectionSelectsFirstEntryAndCallsOnSelect() {
         let firstFile = FileListEntry(url: URL(fileURLWithPath: "/tmp/FileListViewTests/first.mmd"), kind: .file)

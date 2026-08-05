@@ -34,13 +34,19 @@ enum PreviewTargetResolver {
     ///   - hasLoadedEntries: 一覧が一度でも反映されたか。選択が一覧に見つからない
     ///     ときの意味がこれで変わる。反映済みなら「選択が古い(削除・移動)」ので現在ディレクトリの
     ///     一覧へ落とすのが正しく、未反映なら「まだ分からない」であって、フォルダー提示ではない。
+    ///   - presentsDirectoryListing: 選択はサイドバーのハイライトだけを表し、プレビューは
+    ///     現在ディレクトリの一覧に留めるか。フォルダーを降りたとき、先頭行を選んだうえで
+    ///     一覧表示を保つために navigateToFolder が立てる(TASK-310)。
     static func resolve(
         selection: FileListEntry.ID?,
         selectionPathKey: String?,
         entryIndex: FileListEntryIndex,
         currentDirectory: URL,
-        hasLoadedEntries: Bool = true
+        hasLoadedEntries: Bool = true,
+        presentsDirectoryListing: Bool = false
     ) -> PreviewTarget {
+        // ハイライトと提示対象を分ける唯一の指示。選択の中身より先に見る。
+        guard !presentsDirectoryListing else { return .folder(currentDirectory) }
         // 選択を消してあるのは navigateToFolder の意図的な指示。現在ディレクトリの一覧を出す。
         guard let selection else { return .folder(currentDirectory) }
         let entry = entryIndex.entry(

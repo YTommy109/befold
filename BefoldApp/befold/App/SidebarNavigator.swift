@@ -309,8 +309,11 @@ final class SidebarNavigator {
     /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
     /// 列挙はメイン外で行い、完了後にメインアクターへ一括反映する(呼び出し自体は非 async)。
     /// 移動先に最初から自動的にファイルを開くことはしない(#folder-preview-listing)。
-    /// 選択を空にすることで、プレビューエリアには新しいディレクトリの一覧が表示される
-    /// (PreviewTargetResolver.resolve が selection == nil を currentDirectory の一覧として扱う)。
+    ///
+    /// 下位・横へ移動したときは、一覧の先頭行をハイライトしたうえでプレビューには新しい
+    /// ディレクトリの一覧を出す(TASK-310)。ハイライトは矢印キー・Enter の起点にするための
+    /// もので、提示対象ではない。両者は selectPresentingDirectoryListing(_:) が分けており、
+    /// 続けて選択が書き込まれた時点(クリック・キー操作)で提示対象がその行へ移る。
     func navigateToFolder(_ url: URL) {
         guard host != nil else { return }
         let target = url.standardizedFileURL
@@ -325,7 +328,9 @@ final class SidebarNavigator {
             if isGoingUp {
                 self.fileListModel.selection = self.folderEntryURL(forKey: previous.normalizedPathKey)
             } else {
-                self.fileListModel.selection = nil
+                self.fileListModel.selectPresentingDirectoryListing(
+                    self.fileListModel.firstSelectableEntryURL
+                )
             }
             self.recordHistory()
         }
