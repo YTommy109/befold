@@ -4,6 +4,7 @@ title: CLIRequestWireIntegrationTests が全体実行時にまれに失敗する
 status: To Do
 assignee: []
 created_date: '2026-08-05 17:07'
+updated_date: '2026-08-05 17:16'
 labels:
   - test
   - flaky
@@ -33,3 +34,9 @@ TASK-319 の作業中に遭遇。`swift test` の全体実行で「全オプシ�
 - [ ] #1 全体実行を 10 回繰り返しても当該テストが失敗しない
 - [ ] #2 失敗が負荷・並列度のどちらに起因するかが実測で示されている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-08-06: 同種の不安定さを ViewerWindowControllerToolbarTests「行番号アイテムはコード表示中のみ有効」（ViewerWindowControllerToolbarTests.swift:98、`(codeButton.isEnabled → false) == true`）でも観測した。単独実行と再実行では通る。全体実行時の負荷・並列度に依存する点が CLIRequestWire と共通のため、調査は 2 件まとめて行うのがよい。
+<!-- SECTION:NOTES:END -->
