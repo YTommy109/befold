@@ -299,16 +299,20 @@ struct FileListView: View {
 
     /// サイドバーがアクティブなときのキー操作を処理する。
     func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
-        handleKey(keyPress.key)
+        handleKey(keyPress.key, modifiers: keyPress.modifiers)
     }
 
     /// キーとアクションの対応付け。`KeyPress` は公開イニシャライザがなくテストで
-    /// 直接構築できないため、`KeyEquivalent` だけを受け取るこの関数を internal にして
-    /// テストから直接呼べるようにしている。
-    func handleKey(_ key: KeyEquivalent) -> KeyPress.Result {
+    /// 直接構築できないため、`KeyEquivalent` と修飾キーだけを受け取るこの関数を
+    /// internal にしてテストから直接呼べるようにしている。
+    func handleKey(_ key: KeyEquivalent, modifiers: EventModifiers = []) -> KeyPress.Result {
         switch key {
         case "j", .downArrow:
             selectNext()
+        // Finder 準拠の「上のフォルダーへ移動」。修飾キーなしの ↑ / k(選択移動)と
+        // 衝突させないため、下の `.upArrow` より前に置く。
+        case .upArrow where modifiers.contains(.command):
+            navigateToParent()
         case "k", .upArrow:
             selectPrevious()
         case .return, .rightArrow, "l":
