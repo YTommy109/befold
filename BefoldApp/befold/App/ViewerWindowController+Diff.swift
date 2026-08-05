@@ -14,19 +14,30 @@ extension ViewerWindowController {
     /// 表示中ファイルの差分を取り直して store へ反映する。
     ///
     /// 取得は非同期のため、戻ってきた時点で表示対象が変わっていないかを URL で確認する
-    /// (ファイルを切り替えた直後に前のファイルの差分が着地するのを防ぐ)。
+    /// (遅れて着地した結果が現在の表示を壊すのを防ぐ)。切替時に古い差分を捨てる側は
+    /// `ViewerStore.openFile` が担う(着地時の確認だけでは切替直後の残留を防げない)。
+    ///
+    /// リポジトリルートの解決も差分取得と同じ detached タスクの中で行う。キャッシュに
+    /// 無いディレクトリでは `git rev-parse` のサブプロセスが起きるため、メインアクター上で
+    /// 同期に呼ぶとコンテンツ再読込のたびに UI が止まりうる(遅いボリュームでは
+    /// GitCommandRunner のタイムアウト分まで)。
     func refreshDiff() {
         guard let loader = diffLoader, diffDisplayPreference.isEnabled else {
             store.diffText = nil
             return
         }
         let url = fileURL
-        guard let root = gitFileIndex.repositoryRoot(forDirectoryAt: url.deletingLastPathComponent())
-        else {
-            store.diffText = nil
-            return
-        }
+        let directory = url.deletingLastPathComponent()
+        let index = gitFileIndex
         Task { @MainActor [weak self] in
+            let root = await Task.detached(priority: .utility) {
+                index.repositoryRoot(forDirectoryAt: directory)
+            }.value
+            guard let root else {
+                guard let self, fileURL == url else { return }
+                store.diffText = nil
+                return
+            }
             let result = await loader.diff(forFileAt: url, in: root)
             guard let self, fileURL == url else { return }
             store.diffText = Self.displayableDiff(result)

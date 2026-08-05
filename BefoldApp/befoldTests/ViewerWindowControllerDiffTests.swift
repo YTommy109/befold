@@ -8,6 +8,37 @@ import Testing
 /// 差分表示のトグルが「いま何ができるか」(ViewerCapabilities)だけを見ていることを確かめる。
 /// フォルダー一覧を出している間に効いてしまうと、見えていない文書に対する操作になる
 /// (TASK-271 と同じ形の穴)。
+/// ルート解決に時間がかかる索引。`git rev-parse` のサブプロセスが遅い状況
+/// (ネットワークボリューム・応答しない git)を、実 git を起こさずに作る。
+private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
+    private let delay: TimeInterval
+
+    init(delay: TimeInterval) {
+        self.delay = delay
+    }
+
+    func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
+        nil
+    }
+
+    /// `repositoryRoot(forDirectoryAt:)` はプロトコル拡張だけの実装（静的ディスパッチ）で、
+    /// ここで上書きしても `any GitFileIndexing` 越しには呼ばれない。プロトコル要件である
+    /// こちらを遅くすることで、拡張経由の解決も遅くなる。
+    func repositoryRoot(forFileAt url: URL) -> URL? {
+        Thread.sleep(forTimeInterval: delay)
+        return url.deletingLastPathComponent()
+    }
+}
+
+/// 常に同じ結果を返す取得器。git は起こさない。
+private struct StubDiffReader: GitDiffReading {
+    let result: GitFileDiff?
+
+    func diff(forFileAt _: URL, in _: URL) -> GitFileDiff? {
+        result
+    }
+}
+
 @Suite
 @MainActor
 struct ViewerWindowControllerDiffTests {
@@ -99,6 +130,31 @@ struct ViewerWindowControllerDiffTests {
 
         #expect(preference.isEnabled == false)
         #expect(controller.store.diffText == nil)
+    }
+
+    /// ルート解決は差分取得と同じく git のサブプロセスを起こしうるため、メインアクター上で
+    /// 同期に呼ぶとコンテンツ再読込のたびに UI が止まる。refreshDiff がすぐ戻ることで測る。
+    @Test("差分の取り直しはリポジトリルート解決でメインアクターを止めない")
+    func refreshDiffDoesNotBlockMainActorOnRootResolution() {
+        let preference = makePreference()
+        preference.isEnabled = true
+        let delay: TimeInterval = 0.5
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "let a = 1",
+            defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerDiffTests.slowRoot"),
+            diffDisplayPreference: preference,
+            gitFileIndex: SlowRootGitFileIndex(delay: delay)
+        ).controller
+        defer { controller.close() }
+        // 機能ゲートが無効なビルドでは diffLoader が nil で、refreshDiff が
+        // ルート解決へ到達しない(それでは何も測れない)。取得器を明示的に注入する。
+        controller.diffLoader = GitDiffLoader(reader: StubDiffReader(result: .noChanges))
+
+        let started = Date()
+        controller.refreshDiff()
+        let elapsed = Date().timeIntervalSince(started)
+
+        #expect(elapsed < delay / 2)
     }
 
     /// 生成経路(ViewerWindowManager)が共有インスタンスを渡していることの固定。

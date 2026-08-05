@@ -41,6 +41,7 @@ struct ViewerWindowControllerFixture {
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         gitStatusStore: GitStatusStore = GitStatusStore(),
+        gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
         openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { _, _, _ in },
         externalOpener: @escaping (URL) -> Void = { _ in }
     ) {
@@ -84,6 +85,7 @@ struct ViewerWindowControllerFixture {
                 ?? DiffDisplayPreference(defaults: defaults, isAvailable: true),
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
+            gitFileIndex: gitFileIndex,
             gitStatusStore: gitStatusStore,
             initialFrameDescriptor: initialFrameDescriptor,
             initialSortOrder: initialSortOrder,
