@@ -50,8 +50,18 @@ enum DirectoryLister {
         _ openFile: URL?, to entries: [FileListEntry], in directory: URL
     ) -> [FileListEntry] {
         guard let openFile else { return entries }
-        guard openFile.deletingLastPathComponent().normalizedPathKey == directory.normalizedPathKey
-        else { return entries }
+        let openFileParent = openFile.deletingLastPathComponent()
+        // まず解決なしの生パスで比較する。両者が文字列として一致するなら、同じ変換
+        // (resolvingSymlinksInPath)を通しても結果は一致するため、シンボリックリンク解決の
+        // ファイルシステム呼び出し(normalizedPathKey)を省ける。このビューはこの関数を
+        // body 評価のたびに呼ぶため、一致して抜けられる通常時(directory の中身をそのまま
+        // 見ている間)は毎回 syscall 無しで済む。生パスが食い違う場合だけ、シンボリックリンク
+        // 越しに同じディレクトリを指している可能性があるので、正規化して確定させる。
+        let sameDirectory = openFileParent.path == directory.path
+            || openFileParent.normalizedPathKey == directory.normalizedPathKey
+        guard sameDirectory else { return entries }
+        // 重複判定も同じ理由で、まず生パスの一致を試してから正規化キーに落ちる。
+        guard !entries.contains(where: { $0.url.path == openFile.path }) else { return entries }
         let key = openFile.normalizedPathKey
         guard !entries.contains(where: { $0.pathKey == key }) else { return entries }
         return entries + [FileListEntry(url: openFile, kind: .file)]

@@ -16,18 +16,19 @@ final class FileListModel {
     /// パスコピー機能の相対パス基準として使う(SidebarNavigator.navigateToFolder が更新)。
     var rootDirectory: URL
     /// サイドバーの一覧。代入をもって「一覧が届いた」とみなす(hasLoadedEntries)。
+    /// 直接代入すると `entriesDirectory` は前回のままになる。列挙したディレクトリと
+    /// 一緒に反映するには `setEntries(_:for:)` を使うこと。
     var entries: [FileListEntry] {
         didSet {
             hasLoadedEntries = true
-            entriesDirectory = currentDirectory
             promotePendingGitStatusIfNeeded()
             entryIndex = FileListEntryIndex(entries: entries)
             notifyPresentationTargetChangeIfNeeded()
         }
     }
 
-    /// `entries` がどのディレクトリを列挙した結果か。一覧は必ず「そのとき表示中だった
-    /// ディレクトリ」の結果として代入されるため、代入と同時に記録すれば足りる。
+    /// `entries` がどのディレクトリを列挙した結果か。`setEntries(_:for:)` の呼び出し元が
+    /// 列挙時に確定させた値をそのまま持たせる。
     ///
     /// 絞り込みは `currentDirectory` ではなく **この値** と突き合わせる。移動要求は
     /// currentDirectory を先に進めるので、一覧が届くまでの間 currentDirectory と
@@ -35,6 +36,16 @@ final class FileListModel {
     /// 「状態が別ディレクトリのもの」と判定されて絞り込みが外れ、直前のフォルダーの一覧が
     /// 全件表示される(TASK-293)。
     private(set) var entriesDirectory: URL
+
+    /// `entries` を、それを列挙したディレクトリと一緒に反映する。ディレクトリは
+    /// 呼び出し元(SidebarNavigator.performListing)が列挙時に確定させたものをそのまま渡す。
+    /// `currentDirectory` からの導出に頼ると、「currentDirectory を書き換える全箇所が
+    /// 事前に listingGeneration を進めている」という呼び出し元側の不変条件に依存してしまう
+    /// (TASK-298)。ここでは列挙した側の値を直接受け取ることで不変条件をローカルに閉じる。
+    func setEntries(_ newEntries: [FileListEntry], for directory: URL) {
+        entriesDirectory = directory
+        entries = newEntries
+    }
 
     /// `entries` を選択から引くための索引。一覧の代入と同時に作り直す。
     /// 提示対象の導出はこれを介して O(1) で行う(FileListEntryIndex)。
@@ -256,7 +267,9 @@ final class FileListModel {
         guard hasLoadedEntries, key == entriesDirectory.normalizedPathKey else {
             return showChangedFilesOnly ? .shared(nil) : .ownListing
         }
-        return .shared(entries)
+        // 絞り込み済みの一覧を渡す。FolderListingView 側はこれを再度 filter.apply に
+        // 通さない(FolderListingView.visibleEntries を参照。TASK-298)。
+        return .shared(visibleEntries)
     }
 
     /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧

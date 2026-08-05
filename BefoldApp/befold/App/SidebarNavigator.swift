@@ -55,7 +55,7 @@ final class SidebarNavigator {
 
     /// `.git/index` を監視するウォッチャの生成器。既定は実 FileWatcher。
     /// テストは実ファイルシステム監視を避けるため差し替える。
-    private let makeGitIndexWatcher: (URL, @escaping @MainActor @Sendable () -> Void) -> FileWatching
+    private let makeGitIndexWatcher: GitIndexWatch.WatcherFactory
     /// git 状態取得タスクの発行順序(sequence)の採番器。一覧取得・基準ディレクトリ解決とは完了
     /// タイミングが独立する(subprocess の所要時間が別)ため、第 3 の世代として分けて発行する。
     /// 反映の可否判定(recency ガード)は持たず、採番だけを担う(ADR 0003)。
@@ -78,7 +78,7 @@ final class SidebarNavigator {
         resolveGitRoot: @escaping @Sendable (URL) async -> URL? = { _ in nil },
         loadGitStatuses: @escaping (URL, GitStatusRefreshPolicy) async -> GitStatusResult
             = { _, _ in .empty },
-        makeGitIndexWatcher: @escaping (URL, @escaping @MainActor @Sendable () -> Void) -> FileWatching
+        makeGitIndexWatcher: @escaping GitIndexWatch.WatcherFactory
             = { url, onChange in FileWatcher(path: url, onChange: onChange) }
     ) {
         self.makeGitIndexWatcher = makeGitIndexWatcher
@@ -170,10 +170,9 @@ final class SidebarNavigator {
     ///   「上へ移動」後の親フォルダ選択復元に使う。
     func refreshFileList(applyCustomSelection: (() -> Bool)? = nil) {
         guard host != nil else { return }
-        performListing(of: fileListModel.currentDirectory) { host, entries in
-            var entries = entries
-            self.ensureCurrentFile(in: &entries, currentFile: host.currentFileURL)
-            self.fileListModel.entries = entries
+        performListing(of: fileListModel.currentDirectory) { host, directory, entries in
+            let entries = DirectoryLister.appendingOpenFile(host.currentFileURL, to: entries, in: directory)
+            self.fileListModel.setEntries(entries, for: directory)
 
             if let applyCustomSelection, applyCustomSelection() {
                 return
@@ -207,9 +206,11 @@ final class SidebarNavigator {
     /// - Parameters:
     ///   - directory: 列挙対象のディレクトリ。
     ///   - onApplied: 列挙結果が最新世代かつ host が生存しているときにメインアクターで呼ばれる。
+    ///     列挙対象のディレクトリを一緒に渡すため、呼び出し元は `fileListModel.currentDirectory`
+    ///     の現在値を読み直さずに `FileListModel.setEntries(_:for:)` へそのまま渡せる(TASK-298)。
     private func performListing(
         of directory: URL,
-        onApplied: @escaping @MainActor (SidebarNavigatorHost, [FileListEntry]) -> Void
+        onApplied: @escaping @MainActor (SidebarNavigatorHost, URL, [FileListEntry]) -> Void
     ) {
         refreshBaseDirectory()
         let showHiddenFiles = syncDisplayPreferences()
@@ -233,7 +234,7 @@ final class SidebarNavigator {
                 // 単発の新しい結果が先に着いていれば、そちらのほうが一覧と対にふさわしい。
                 self.applyGitStatus(result, for: directory, generation: gitGeneration)
             }
-            onApplied(host, entries)
+            onApplied(host, directory, entries)
         }
         pendingListingTask = task
         // git 状態の待ち合わせ点。ON なら一覧タスクに含まれるのでそれ自体を、OFF なら
@@ -286,15 +287,6 @@ final class SidebarNavigator {
         gitIndexWatch.stop()
     }
 
-    /// エントリ一覧に現在のファイルが含まれていなければ末尾に追加する。
-    /// 規則そのものは DirectoryLister.appendingOpenFile に置き、プレビューの
-    /// フォルダー一覧と同じ実装を共有する(TASK-295)。
-    private func ensureCurrentFile(in entries: inout [FileListEntry], currentFile: URL) {
-        entries = DirectoryLister.appendingOpenFile(
-            currentFile, to: entries, in: fileListModel.currentDirectory
-        )
-    }
-
     /// エントリ一覧からフォルダーの正規化キーが一致するものを返す。
     /// SidebarNavigator+History.swift の履歴適用からも参照するため internal。
     func folderEntryURL(forKey key: String) -> URL? {
@@ -326,8 +318,8 @@ final class SidebarNavigator {
         let previous = fileListModel.currentDirectory
         fileListModel.currentDirectory = url
         updateRootDirectory(with: target)
-        performListing(of: url) { _, entries in
-            self.fileListModel.entries = entries
+        performListing(of: url) { _, directory, entries in
+            self.fileListModel.setEntries(entries, for: directory)
             let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
                 .normalizedPathKey
             if isGoingUp {
