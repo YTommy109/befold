@@ -10,9 +10,10 @@ argument-hint: patch | minor | major | dev
 
 ### 0. 引数省略時のレベル自動判定
 
-`$ARGUMENTS` が空の場合、以下の方針でレベルを決める。
-**stable（patch/minor/major）へのバンプはリリースタイミングの意図的な判断
-であるため自動選択しない。省略時は原則 `dev` とする。**
+`$ARGUMENTS` が空の場合、以下の方針でレベルを自動決定し、確認を挟まず
+そのまま手順1以降を実行する。**`major` だけは commit 件名から機械的に
+判定できない（破壊的変更の判断は意図的な人間の判断が必要）ため、自動選択
+の対象外とし、明示的に `major` を指定された場合のみ扱う。**
 
 1. 直前のタグ（stable/dev 問わず最新）から `HEAD` までのコミットを確認する:
 
@@ -24,11 +25,29 @@ argument-hint: patch | minor | major | dev
    コミット（`feat:` / `fix:` / `refactor:` などプロダクトコードの変更）が
    1件もない場合は、**リリース不要と判断してここで中断する**。中断する
    旨と該当コミット一覧をユーザーに報告して終了する。
-3. アプリに影響する変更が1件でもあれば、レベルは `dev` とする。
+3. アプリに影響する変更が1件でもあれば、次に stable 化すべきかを判定する。
+   直前の **stable** タグ（`-` を含まないタグのうち最新のもの）から `HEAD`
+   までのコミットを確認する:
 
-`$ARGUMENTS` が明示的に `patch` / `minor` / `major` 指定された場合のみ、
-その値で stable リリースを行う（この場合は手順0を行わず、ユーザー指定の
-レベルをそのまま使う）。
+   ```bash
+   git tag --sort=-v:refname | grep -v -- '-' | head -1
+   git log <直前の stable タグ>..HEAD --pretty=%s
+   ```
+
+   このコミット群から、`/release-notes stable` の除外方針
+   （`docs:`/`chore:`/`test:`/`ci:`/`refactor:`/`style:`、内部実装のみの
+   `feat:`/`fix:`、`feat(gate):`/`fix(gate):` スコープの FeatureGate 配下）
+   を適用してユーザー影響のある commit だけを残す。
+   - 残った commit が 0 件 → レベルは `dev`
+   - 残った commit に `feat:`（ユーザー影響のある新機能）が 1 件以上ある
+     → レベルは `minor`
+   - `feat:` は無いが `fix:`（ユーザー影響のある不具合修正）がある
+     → レベルは `patch`
+4. 決定したレベルをユーザーに一言報告し（例:「stable 化条件を満たしたため
+   minor でリリースします」）、承認を待たずそのまま手順1へ進む。
+
+`$ARGUMENTS` が明示的に `patch` / `minor` / `major` / `dev` 指定された場合は
+手順0を行わず、ユーザー指定のレベルをそのまま使う。
 
 ### 1. バージョン bump（またはdev タグ作成）
 
