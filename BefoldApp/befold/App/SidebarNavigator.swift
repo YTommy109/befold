@@ -24,6 +24,11 @@ final class SidebarNavigator {
     let fileListModel: FileListModel
     /// このタブの戻る/進むナビゲーション履歴(メモリ内のみ)。
     let history = NavigationHistory()
+    /// ディレクトリごとの「そこを離れる直前に選択していた項目」(正規化キー → URL)。
+    /// 再びそのフォルダーへ入ったときの選択復元だけに使う(TASK-309)。
+    /// 履歴(NavigationHistory)と同じくメモリ内のみで、ウィンドウの生存期間で自然に消える。
+    /// 読み書きは SidebarNavigator+SelectionMemory.swift の 2 つのヘルパーだけが行う。
+    var selectionMemory: [String: URL] = [:]
     /// 不可視ファイル表示設定。全ウィンドウで共有される単一の真実の源を都度参照する。
     private let sidebarDisplayPreference: SidebarDisplayPreference
     /// ファイル一覧の再取得元。既定は DirectoryLister.listEntriesAsync(nonisolated async)だが、
@@ -319,30 +324,32 @@ final class SidebarNavigator {
         let target = url.standardizedFileURL
         guard DirectoryLister.isWithinHome(target) else { return }
         let previous = fileListModel.currentDirectory
+        rememberSelection(in: previous)
         fileListModel.currentDirectory = url
         updateRootDirectory(with: target)
         performListing(of: url) { host, directory, entries in
             self.fileListModel.setEntries(entries, for: directory)
             let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
                 .normalizedPathKey
-            if isGoingUp {
+            if let remembered = self.rememberedSelectionURL(in: directory) {
+                self.select(remembered, presentingWith: host)
+            } else if isGoingUp {
                 self.fileListModel.selection = self.folderEntryURL(forKey: previous.normalizedPathKey)
             } else {
-                self.selectHeadEntry(presentingWith: host)
+                self.select(self.fileListModel.firstSelectableEntryURL, presentingWith: host)
             }
             self.recordHistory()
         }
     }
 
-    /// 移動先の一覧の先頭行を選び、それがファイルならプレビューの中身も揃える。
+    /// 移動先で選ぶ行を反映し、それがファイルならプレビューの中身も揃える。
     /// 切替に失敗した(ファイルが消えている)ときは選択を戻さず外し、移動先ディレクトリの
     /// 一覧を出す。存在しない行をハイライトしたまま残すより、一覧へ落ちるほうが実態に近い。
-    private func selectHeadEntry(presentingWith host: SidebarNavigatorHost) {
-        let head = fileListModel.firstSelectableEntryURL
-        fileListModel.selection = head
-        guard let head, fileListModel.entries.first(where: { $0.url == head })?.kind == .file
+    private func select(_ url: URL?, presentingWith host: SidebarNavigatorHost) {
+        fileListModel.selection = url
+        guard let url, fileListModel.entries.first(where: { $0.url == url })?.kind == .file
         else { return }
-        if case .failed = host.performFileSwitch(to: head) {
+        if case .failed = host.performFileSwitch(to: url) {
             fileListModel.selection = nil
         }
     }
