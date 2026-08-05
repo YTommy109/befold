@@ -90,6 +90,10 @@ final class ViewerStore {
     /// ソース表示へ重ねる git 差分の本文（unified diff）。取得は
     /// `ViewerWindowController` が行い、ここへ結果だけを置く。差分が無い・
     /// 取得できない・機能が無効ならすべて nil で、表示は通常のソース表示になる。
+    ///
+    /// 値は常に「いま開いているファイル」の差分であり、対象が変わる `openFile` で
+    /// 捨てる。取得は非同期なので、着地時の URL 一致確認（呼び出し側）だけでは
+    /// 切替直後に前のファイルの差分が残る（開始時の無効化と着地時の確認は別物）。
     var diffText: String?
 
     /// 開いているファイルが rename / move されたときに旧 URL と新 URL を通知する。
@@ -207,6 +211,10 @@ final class ViewerStore {
         fileGoneTask?.cancel()
         fileGoneTask = nil
         fileWatcher?.stop()
+        // 差分は表示中ファイルに紐づくため、対象が変わった時点で捨てる。
+        // 取得は非同期で、着地までの間ここに残っていると前のファイルの差分が
+        // 新しいファイルの内容として描画される。
+        diffText = nil
         setPendingURL(url)
         pendingFileType = FileType(url: url)
         loadContent()
