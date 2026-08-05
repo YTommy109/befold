@@ -45,6 +45,9 @@ struct AboutView: View {
                     }
                     .font(.footnote)
                 }
+                // バージョン・著作権表記は不具合報告で書き写す対象になるため、
+                // 情報テキストはまとめて選択・コピーできるようにする。
+                .textSelection(.enabled)
             }
         }
         .padding(20)

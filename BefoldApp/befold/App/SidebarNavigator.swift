@@ -47,22 +47,30 @@ final class SidebarNavigator {
     /// 表示中ディレクトリのファイルに対する git 状態を取得する。既定は常に空(機能無効)。
     /// git 型に直接依存しないよう、`resolveGitRoot` と同型のクロージャで注入する。
     private let loadGitStatuses: (URL, GitStatusRefreshPolicy) async -> GitStatusResult
+    /// `.git/index` の監視。対象パスの管理は GitIndexWatch が持つ。
+    /// init で self を渡せないため、attach 前の最初の取得までに解決できるよう遅延で作る。
+    private lazy var gitIndexWatch = GitIndexWatch(makeWatcher: makeGitIndexWatcher) { [weak self] in
+        self?.refreshGitStatuses(policy: .onlyIfIndexChanged)
+    }
+
     /// `.git/index` を監視するウォッチャの生成器。既定は実 FileWatcher。
     /// テストは実ファイルシステム監視を避けるため差し替える。
     private let makeGitIndexWatcher: (URL, @escaping @MainActor @Sendable () -> Void) -> FileWatching
-    /// `.git/index` の監視。add / commit / checkout など index を動かす操作を検知する。
-    /// 監視対象は状態取得のたびに判明するため、パスが変わったときだけ張り直す。
-    private var gitIndexWatcher: FileWatching?
-    /// 現在監視中の `.git/index` のパス。同じパスへの張り直しを避ける判定に使う。
-    private var watchedGitIndexPath: String?
     /// git 状態取得タスクの世代番号。一覧取得・基準ディレクトリ解決とは完了タイミングが
     /// 独立する(subprocess の所要時間が別)ため、第 3 の世代として分けて古い結果を捨てる。
     private var gitStatusGeneration = 0
+    /// 直近に **反映した** git 状態の世代番号。反映の可否はこれとの比較で決める(TASK-299)。
+    /// 「最新世代と一致」で判定すると、一覧と対で取った結果を捨てないために世代を強制的に
+    /// 進める必要が生じ、後から始まった取得の新しい結果を古いスナップショットで上書きしてしまう。
+    /// 「これより新しい世代なら反映する」なら、結合結果も後発の単発取得もどちらも
+    /// 「最後に開始した取得が勝つ」不変条件のまま扱える。
+    private var appliedGitStatusGeneration = 0
     /// 直近に発行した git 状態取得タスク。テストから完了を待つために公開する。
     private(set) var pendingGitStatusTask: Task<Void, Never>?
 
     /// ファイル切替・現在ファイル参照の委譲先。循環参照を避けるため weak。
-    private weak var host: SidebarNavigatorHost?
+    /// SidebarNavigator+History.swift の履歴適用からも参照するため internal。
+    private(set) weak var host: SidebarNavigatorHost?
 
     // MARK: - Initialization
 
@@ -115,64 +123,41 @@ final class SidebarNavigator {
 
     // MARK: - Git Status
 
-    /// 表示中ディレクトリの git 状態を取り直して fileListModel へ反映する。
-    /// 取得(ルート解決 + git 実行)はメイン外で行い、完了後にメインアクターへ戻して書き込む。
-    /// 機能が無効なら注入クロージャが常に空を返すため、git は起動しない。
-    ///
-    /// - Parameter policy: `.onlyIfIndexChanged` を渡すと `.git/index` が動いていないときに
-    ///   git を起こさない。`.git` 配下の書き込み通知を契機にする場合に使う。
-    ///   作業ツリーの編集は index を動かさないため、それ以外の契機では `.always` を使うこと。
+    /// 表示中ディレクトリの git 状態を取り直して fileListModel へ反映する。取得(ルート解決 +
+    /// git 実行)はメイン外で行う。機能が無効なら注入クロージャが常に空を返すため git は起動しない。
+    /// - Parameter policy: `.onlyIfIndexChanged` は `.git/index` が動いていないとき git を起こさない
+    ///   (`.git` 配下の書き込み通知が契機のとき用)。それ以外の契機では `.always` を使うこと。
     func refreshGitStatuses(policy: GitStatusRefreshPolicy = .always) {
         let directory = fileListModel.currentDirectory
         gitStatusGeneration += 1
         let generation = gitStatusGeneration
         pendingGitStatusTask = Task {
             let result = await self.loadGitStatuses(directory, policy)
-            guard generation == self.gitStatusGeneration else { return }
-            self.fileListModel.gitStatus = SidebarGitStatus(directory: directory, result: result)
-            self.updateGitIndexWatcher(indexURL: result.indexURL)
+            self.applyGitStatus(result, for: directory, generation: generation)
         }
-    }
-
-    /// `.git/index` の監視を最新の対象へ合わせる。
-    ///
-    /// index そのものだけでなく、その親(`.git` ディレクトリ)への書き込みでも通知が来る
-    /// (`FileWatcher` はアトミック保存に追従するため親ディレクトリも見ている)。
-    /// `git add` / `commit` / `checkout` はいずれも index を置き換えるので、これで拾える。
-    /// 通知は `.onlyIfIndexChanged` で受けるため、`.git` 配下の無関係な書き込みでは
-    /// git を起こさない。
-    private func updateGitIndexWatcher(indexURL: URL?) {
-        guard let indexURL else {
-            stopGitIndexWatcher()
-            return
-        }
-        let path = indexURL.normalizedPathKey
-        guard path != watchedGitIndexPath else { return }
-        gitIndexWatcher?.stop()
-        watchedGitIndexPath = path
-        gitIndexWatcher = makeGitIndexWatcher(indexURL) { [weak self] in
-            self?.refreshGitStatuses(policy: .onlyIfIndexChanged)
-        }
-    }
-
-    private func stopGitIndexWatcher() {
-        gitIndexWatcher?.stop()
-        gitIndexWatcher = nil
-        watchedGitIndexPath = nil
     }
 
     /// fileListModel 側の表示設定ミラーを真実の源(sidebarDisplayPreference)へ同期し、
-    /// showHiddenFiles を返す。DirectoryLister 呼び出し前後の重複読み取りを避けるため、
-    /// この値を呼び出し側で再利用する。
-    /// 「変更ファイルのみ表示」のトグルはこれだけで足りる。手元の entries と gitStatus に対する
-    /// 表示述語でしかなく列挙の入力にも git にも関わらないため(不可視ファイル表示は列挙の入力が
-    /// 変わるので refreshFileList が要る)。git 状態の鮮度は別経路で保たれる(TASK-291)。
+    /// showHiddenFiles を返す(DirectoryLister 呼び出し前後の重複読み取りを避けるため)。
+    /// 「変更ファイルのみ表示」のトグルは applyChangedFilesOnlyToggle() を使うこと。
     @discardableResult
     func syncDisplayPreferences() -> Bool {
         let showHiddenFiles = sidebarDisplayPreference.showHiddenFiles
         fileListModel.showHiddenFiles = showHiddenFiles
         fileListModel.showChangedFilesOnly = sidebarDisplayPreference.showChangedFilesOnly
         return showHiddenFiles
+    }
+
+    /// 「変更ファイルのみ表示」トグル時に呼ぶ。表示述語を同期し、ON になったときだけ
+    /// git 状態を取り直す(再列挙はしない)。
+    /// ON で取り直すのは、作業ツリーの編集が index も windowDidBecomeKey も動かさず、
+    /// 古い状態で絞り込まれてしまうため(TASK-296)。
+    /// OFF は絞り込みをやめるだけで新しい git 状態を必要とせず、バッジは手元のスナップショットで
+    /// 足りる。方向を見ずに取り直すと、開いているウィンドウ数だけ git status が同時に走る(TASK-303)。
+    func applyChangedFilesOnlyToggle() {
+        syncDisplayPreferences()
+        guard fileListModel.showChangedFilesOnly else { return }
+        refreshGitStatuses()
     }
 
     /// host を接続する。ViewerWindowController が super.init 後に呼ぶ。
@@ -212,8 +197,18 @@ final class SidebarNavigator {
     }
 
     /// 世代ガード付きの一覧取得パイプライン。refreshFileList / navigateToFolder が共有する。
-    /// 「基準ディレクトリ更新 → 不可視ファイル設定同期 → 世代更新 → メイン外で列挙 →
+    /// 「基準ディレクトリ更新 → 不可視ファイル設定同期 → 世代更新 → メイン外で列挙と git 状態取得 →
     /// 世代・host guard」までを担い、一覧の反映と選択の決定は onApplied に委ねる。
+    ///
+    /// 絞り込み(showChangedFilesOnly)が ON のときは、一覧と git 状態を **同じタスクで並行に
+    /// 取り、同じメインアクター実行で一緒に反映する**。別タスクに分けると完了順が保証されず、
+    /// 新しいディレクトリの一覧だけが先に描画される間だけ絞り込みが縮退して(状態が別
+    /// ディレクトリのものなので絞り込まない)、全件が一瞬見えてから絞り込まれる(TASK-293)。
+    ///
+    /// OFF のときは揃える理由が無い(絞り込まないので縮退しようがなく、git 状態はバッジに
+    /// しか効かない)。それでも待つと、絞り込みを使っていない利用者までフォルダー移動・
+    /// フォーカス復帰・ソート変更のたびに git subprocess の完了を待たされるため、一覧は
+    /// 列挙が終わり次第反映し、git 状態は単発取得と同じ世代ガードで遅れて反映する(TASK-297)。
     /// - Parameters:
     ///   - directory: 列挙対象のディレクトリ。
     ///   - onApplied: 列挙結果が最新世代かつ host が生存しているときにメインアクターで呼ばれる。
@@ -222,45 +217,93 @@ final class SidebarNavigator {
         onApplied: @escaping @MainActor (SidebarNavigatorHost, [FileListEntry]) -> Void
     ) {
         refreshBaseDirectory()
-        refreshGitStatuses()
         let showHiddenFiles = syncDisplayPreferences()
+        let couplesGitStatus = fileListModel.showChangedFilesOnly
         let sortOrder = fileListModel.sortOrder
         listingGeneration += 1
+        gitStatusGeneration += 1
         let generation = listingGeneration
-        pendingListingTask = Task {
+        let gitGeneration = gitStatusGeneration
+        // 先に git 側のタスクを起こしてから列挙を待つ。どちらも本体は nonisolated async で
+        // 走るため、待ち時間は直列にならず遅いほうに揃う。
+        let gitTask = Task { await self.loadGitStatuses(directory, .always) }
+        let task = Task {
             let entries = await self.directoryLister(directory, sortOrder, showHiddenFiles)
+            let result = couplesGitStatus ? await Self.awaitingCancellable(gitTask) : nil
             guard generation == self.listingGeneration, let host = self.host else { return }
+            if let result {
+                // 最新の一覧と対の結果なので、待ち合わせ中に単発 refreshGitStatuses が世代を
+                // 進めていても、まだ何も反映されていなければ捨ててはならない
+                // (捨てると絞り込みが外れる / TASK-294)。一方で世代を偽って進めもしない。
+                // 単発の新しい結果が先に着いていれば、そちらのほうが一覧と対にふさわしい。
+                self.applyGitStatus(result, for: directory, generation: gitGeneration)
+            }
             onApplied(host, entries)
+        }
+        pendingListingTask = task
+        // git 状態の待ち合わせ点。ON なら一覧タスクに含まれるのでそれ自体を、OFF なら
+        // 一覧と切り離した反映タスクを公開する(一覧より遅れて着地しても FileListModel の
+        // 保留機構が一覧と突き合わせるため、先着後着どちらでも整合は崩れない)。
+        pendingGitStatusTask = couplesGitStatus ? task : Task {
+            let result = await Self.awaitingCancellable(gitTask)
+            self.applyGitStatus(result, for: directory, generation: gitGeneration)
         }
     }
 
+    /// git 取得タスクの完了を待つ。待ち側のキャンセル(ウィンドウを閉じたとき)を
+    /// 取得側へも伝えるため、素の `await task.value` ではなくこちらを通す。
+    private static func awaitingCancellable(
+        _ task: Task<GitStatusResult, Never>
+    ) async -> GitStatusResult {
+        await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+    }
+
+    /// 取得した git 状態を、既に反映済みのものより新しいときだけ反映し、index の監視対象を合わせる。
+    /// 判定を「最新世代と一致」ではなく「反映済みより新しい」とすることで、一覧と対で取った
+    /// 結果(後発の単発取得に世代を追い越されている)も、まだ何も反映されていなければ通る。
+    private func applyGitStatus(
+        _ result: GitStatusResult, for directory: URL, generation: Int
+    ) {
+        guard generation > appliedGitStatusGeneration else { return }
+        appliedGitStatusGeneration = generation
+        fileListModel.applyGitStatus(
+            SidebarGitStatus(directory: directory, result: result), for: directory
+        )
+        gitIndexWatch.update(indexURL: result.indexURL)
+    }
+
     /// 進行中の一覧取得タスクを破棄する。ウィンドウを閉じるときに呼ぶ。
+    /// キャンセルは協調的で、走り出した subprocess は完了して結果を返しうる。世代を進めておかないと
+    /// その結果が反映ガードを通り抜け、閉じたウィンドウのために `.git/index` 監視を張り直す
+    /// (以後リポジトリを触るたび git が起動し続ける / TASK-300)。
     func cancelPendingListing() {
+        listingGeneration += 1
+        gitStatusGeneration += 1
+        // 反映済み世代を発行済みの先頭へ揃えることで、進行中の取得を一括で無効化する
+        // (世代が「反映済みより新しい」ものだけを通すため / TASK-299)。
+        appliedGitStatusGeneration = gitStatusGeneration
+        baseDirectoryGeneration += 1
         pendingListingTask?.cancel()
         pendingListingTask = nil
         pendingBaseDirectoryTask?.cancel()
         pendingBaseDirectoryTask = nil
         pendingGitStatusTask?.cancel()
         pendingGitStatusTask = nil
-        stopGitIndexWatcher()
+        gitIndexWatch.stop()
     }
 
     /// エントリ一覧に現在のファイルが含まれていなければ末尾に追加する。
-    /// allExtensions に含まれない拡張子(plaintext フォールバック)のファイルが
-    /// サイドバーから消える回帰を防ぐ。
+    /// 規則そのものは DirectoryLister.appendingOpenFile に置き、プレビューの
+    /// フォルダー一覧と同じ実装を共有する(TASK-295)。
     private func ensureCurrentFile(in entries: inout [FileListEntry], currentFile: URL) {
-        let dirKey = currentFile.deletingLastPathComponent().normalizedPathKey
-        guard dirKey == fileListModel.currentDirectory.normalizedPathKey else {
-            return
-        }
-        let key = currentFile.normalizedPathKey
-        if !entries.contains(where: { $0.pathKey == key }) {
-            entries.append(FileListEntry(url: currentFile, kind: .file))
-        }
+        entries = DirectoryLister.appendingOpenFile(
+            currentFile, to: entries, in: fileListModel.currentDirectory
+        )
     }
 
     /// エントリ一覧からフォルダーの正規化キーが一致するものを返す。
-    private func folderEntryURL(forKey key: String) -> URL? {
+    /// SidebarNavigator+History.swift の履歴適用からも参照するため internal。
+    func folderEntryURL(forKey key: String) -> URL? {
         fileListModel.entries.first {
             $0.kind == .folder && $0.pathKey == key
         }?.url
@@ -332,69 +375,5 @@ final class SidebarNavigator {
     /// ファイル切替が別ウィンドウ移譲・失敗で成立しなかったときに選択を元へ戻す。
     func restoreSelection(to url: URL) {
         fileListModel.selection = url
-    }
-
-    // MARK: - Navigation History
-
-    /// サイドバーの戻る/進む・履歴メニューから呼ばれる。offset 負=戻る / 正=進む。
-    func navigateHistory(by offset: Int) {
-        guard let entry = history.move(by: offset) else { return }
-        if !applyHistoryEntry(entry) {
-            _ = history.move(by: -offset)
-        }
-        refreshHistoryState()
-    }
-
-    /// 現在の表示状態(ディレクトリ＋ファイル)を履歴に記録する。
-    /// push は現在エントリと同一なら無視する。
-    func recordHistory() {
-        guard let host else { return }
-        history.push(HistoryEntry(directory: fileListModel.currentDirectory, file: host.currentFileURL))
-        refreshHistoryState()
-    }
-
-    /// 履歴エントリを表示へ適用する。適用できなかった場合は false を返す。
-    @discardableResult
-    private func applyHistoryEntry(_ entry: HistoryEntry) -> Bool {
-        guard let host else { return false }
-        let dirChanged = entry.directory.normalizedPathKey
-            != fileListModel.currentDirectory.normalizedPathKey
-        // 存在しないファイルへは切替できず performFileSwitch が .failed を返す。
-        // currentDirectory の書き換えより先に切替を試み、失敗時は状態を一切変えずに
-        // return して部分適用による不整合(dir だけ変わって file list 未更新)を防ぐ。
-        // 別ウィンドウが同じファイルを開いていても自ウィンドウで切り替える(他ウィンドウの
-        // 前面化はしない)。利用者はこのウィンドウの履歴を辿っているだけなので奪わない。
-        if let file = entry.file,
-           file.normalizedPathKey != host.currentFileURL.normalizedPathKey
-        {
-            guard case .switched = host.performFileSwitch(to: file) else { return false }
-        }
-        if dirChanged {
-            fileListModel.currentDirectory = entry.directory
-            // ファイルがディレクトリ外(上へ移動で記録されたエントリ)の場合、
-            // ファイルの親フォルダを選択して元の状態を復元する(一覧反映後に判定する)。
-            let fileDir = host.currentFileURL.deletingLastPathComponent().normalizedPathKey
-            refreshFileList { [weak self] in
-                guard let self, fileDir != fileListModel.currentDirectory.normalizedPathKey else { return false }
-                fileListModel.selection = folderEntryURL(forKey: fileDir)
-                return true
-            }
-        } else {
-            fileListModel.selection = matchingEntryURL(for: host.currentFileURL)
-        }
-        return true
-    }
-
-    /// rename/move を履歴へ反映し、履歴状態を更新する。
-    func applyRename(from oldURL: URL, to newURL: URL) {
-        history.renameOccurred(from: oldURL, to: newURL)
-        refreshHistoryState()
-    }
-
-    /// 履歴状態をサイドバー(FileListModel)とホスト(ツールバー)へ反映する。
-    private func refreshHistoryState() {
-        fileListModel.backHistory = history.backEntries()
-        fileListModel.forwardHistory = history.forwardEntries()
-        host?.historyStateDidChange()
     }
 }

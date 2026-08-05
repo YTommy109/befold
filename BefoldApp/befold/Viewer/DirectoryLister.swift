@@ -39,6 +39,24 @@ enum DirectoryLister {
         )
     }
 
+    /// 開いているファイルが、そのファイルの入っているフォルダーの一覧に無ければ末尾へ足す。
+    ///
+    /// allExtensions に含まれない拡張子(plaintext フォールバック)のファイルは列挙に載らない
+    /// ため、そのままだと「いま開いている文書」が一覧から消える。サイドバー
+    /// (SidebarNavigator)とプレビューのフォルダー一覧(FolderListingView)の **両方** が
+    /// ここを通す。片側だけに適用していた頃は、同じフォルダーでもカレントディレクトリとして
+    /// 見たときにだけこの行が現れ、親から選んで見たときには消えていた(TASK-295)。
+    static func appendingOpenFile(
+        _ openFile: URL?, to entries: [FileListEntry], in directory: URL
+    ) -> [FileListEntry] {
+        guard let openFile else { return entries }
+        guard openFile.deletingLastPathComponent().normalizedPathKey == directory.normalizedPathKey
+        else { return entries }
+        let key = openFile.normalizedPathKey
+        guard !entries.contains(where: { $0.pathKey == key }) else { return entries }
+        return entries + [FileListEntry(url: openFile, kind: .file)]
+    }
+
     private static func buildEntries(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool, home: URL
     ) -> [FileListEntry] {
