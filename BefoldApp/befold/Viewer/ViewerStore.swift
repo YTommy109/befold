@@ -87,6 +87,11 @@ final class ViewerStore {
     /// 更新サイクルをトリガーし ViewerWebView.updateContent での分岐に使われる。
     var isSourceMode: Bool = false
 
+    /// ソース表示へ重ねる git 差分の本文（unified diff）。取得は
+    /// `ViewerWindowController` が行い、ここへ結果だけを置く。差分が無い・
+    /// 取得できない・機能が無効ならすべて nil で、表示は通常のソース表示になる。
+    var diffText: String?
+
     /// 開いているファイルが rename / move されたときに旧 URL と新 URL を通知する。
     /// ウィンドウ側がタイトル・representedURL・セッション記録・per-file 状態の移行を
     /// 更新するために使う。旧 URL は store が握る唯一の現在 URL(currentURL)であり、

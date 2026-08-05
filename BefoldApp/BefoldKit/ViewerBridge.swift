@@ -181,7 +181,7 @@ public enum ViewerBridge {
 
     /// Encodable 値を JSON リテラル文字列へ変換する(JS へ埋め込む際の
     /// 共通処理)。エンコードに失敗した場合は nil。
-    private static func jsonLiteral(_ value: some Encodable) -> String? {
+    static func jsonLiteral(_ value: some Encodable) -> String? {
         guard let jsonData = try? JSONEncoder().encode(value) else { return nil }
         return String(data: jsonData, encoding: .utf8)
     }

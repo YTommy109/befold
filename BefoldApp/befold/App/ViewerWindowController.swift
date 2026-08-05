@@ -51,6 +51,11 @@ final class ViewerWindowController: NSWindowController {
     /// ファイル毎の永続表示状態(倍率・ソース表示モード・スクロール位置)の束。
     private let perFileState: PerFileStateStore
     private let sidebarDisplayPreference: SidebarDisplayPreference
+    /// 差分表示の設定(ON/OFF とレイアウト)。全ウィンドウ共有。
+    /// 参照は `ViewerWindowController+Diff.swift` に集約している。
+    let diffDisplayPreference: DiffDisplayPreference
+    /// 差分の取得元。機能が無効なビルドでは nil で、git diff を一切実行しない。
+    lazy var diffLoader: GitDiffLoader? = Self.makeDiffLoader()
     private let findOptionsPreference: FindOptionsPreference
     private let codeFontPreference: CodeFontPreference
     private let bookmarkStore: BookmarkStore
@@ -104,7 +109,7 @@ final class ViewerWindowController: NSWindowController {
 
     /// git 追跡ファイルの索引。本番では ViewerWindowManager が持つ単一インスタンスが
     /// 注入され、全ウィンドウで共有する。
-    private let gitFileIndex: any GitFileIndexing
+    let gitFileIndex: any GitFileIndexing
     /// パス参照の解決(索引の先読み・クリック時のオープン・表示時の一括解決)を担う。
     /// fileReader は store と共有する(既存の fileExists/isExistingFile 共有と同じ理由で
     /// InMemoryFileReader 注入テストと整合させる)。
@@ -139,6 +144,7 @@ final class ViewerWindowController: NSWindowController {
     init(
         fileURL: URL, defaults: UserDefaults = .standard,
         sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
+        diffDisplayPreference: DiffDisplayPreference = DiffDisplayPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
@@ -161,6 +167,7 @@ final class ViewerWindowController: NSWindowController {
         self.perFileState = perFileState
         self.defaults = defaults
         self.sidebarDisplayPreference = sidebarDisplayPreference
+        self.diffDisplayPreference = diffDisplayPreference
         self.findOptionsPreference = findOptionsPreference
         self.codeFontPreference = codeFontPreference
         self.bookmarkStore = bookmarkStore
@@ -300,7 +307,8 @@ final class ViewerWindowController: NSWindowController {
             rendererDelegate: WeakRendererDelegate(self),
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
-            webViewProxy: webViewProxy
+            webViewProxy: webViewProxy,
+            diffDisplayPreference: diffDisplayPreference
         ))
         let fileListView = FileListView(
             model: fileListModel,
@@ -791,6 +799,14 @@ extension ViewerWindowController: NSWindowDelegate {
             menuItem.title = ViewerCommandTitles.lineNumbers(isShown: store.showLineNumbers)
             return capabilities.canToggleLineNumbers
         }
+        if menuItem.action == #selector(toggleSourceDiff(_:)) {
+            menuItem.state = isSourceDiffEnabled ? .on : .off
+            return capabilities.canToggleDiff
+        }
+        if menuItem.action == #selector(toggleDiffLayout(_:)) {
+            menuItem.state = isDiffLayoutSideBySide ? .on : .off
+            return capabilities.canToggleDiff && isSourceDiffEnabled
+        }
         if menuItem.action == #selector(toggleBookmark(_:)) {
             menuItem.title = ViewerCommandTitles.bookmark(isBookmarked: isBookmarked)
             return capabilities.canBookmark
@@ -859,6 +875,8 @@ private extension ViewerWindowController {
             // `.git/index` を動かさないため index 監視では拾えず、ここが唯一の契機になる。
             // 再読込は FileWatcher のデバウンス後に 1 回来るので、連打にはならない。
             self?.sidebar.refreshGitStatuses()
+            // 差分も同じ契機で取り直す(バッジと差分がずれないよう契機を 1 つにする)。
+            self?.refreshDiff()
         }
     }
 }

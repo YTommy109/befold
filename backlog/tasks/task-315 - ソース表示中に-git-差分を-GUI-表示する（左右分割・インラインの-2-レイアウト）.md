@@ -1,9 +1,10 @@
 ---
 id: TASK-315
 title: ソース表示中に git 差分を GUI 表示する（左右分割・インラインの 2 レイアウト）
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-05 14:45'
+updated_date: '2026-08-05 15:46'
 labels: []
 dependencies: []
 priority: medium
@@ -45,9 +46,21 @@ FeatureGate 配下の機能として実装する（dev/DEBUG のみ露出）。
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ソース表示中のファイルに未コミット変更があるとき、差分が GUI で表示される
-- [ ] #2 左右分割とインラインの 2 レイアウトを切り替えられる
-- [ ] #3 行番号・インデントガイド・シンタックスハイライト・検索が差分表示中も従来どおり効く
-- [ ] #4 FeatureGate 配下で dev/DEBUG のみ露出し、FeatureGate.swift の露出点列挙とテストが更新されている
-- [ ] #5 git 実行がメインアクター外で行われ、差分取得の失敗・タイムアウト時に表示が壊れない
+- [x] #1 ソース表示中のファイルに未コミット変更があるとき、差分が GUI で表示される
+- [x] #2 左右分割とインラインの 2 レイアウトを切り替えられる
+- [x] #3 行番号・インデントガイド・シンタックスハイライト・検索が差分表示中も従来どおり効く
+- [x] #4 FeatureGate 配下で dev/DEBUG のみ露出し、FeatureGate.swift の露出点列挙とテストが更新されている
+- [x] #5 git 実行がメインアクター外で行われ、差分取得の失敗・タイムアウト時に表示が壊れない
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+3 つのサブタスク（315.1 取得 / 315.2 インライン描画 / 315.3 左右分割と UI）で実装完了。実機で両レイアウトを確認済み。差分が取れない理由の表示分けは未実施（315.3 の Notes に積み残しとして記録）。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ソース表示中に git 差分を GUI 表示する機能を FeatureGate 配下で実装した。外部ライブラリは導入せず、git diff HEAD の unified diff を自前でパースし、既存のソース表示と同じ code-table 構造へ載せることで、行番号・インデントガイド・シンタックスハイライト・検索がそのまま効く。インラインと左右分割の 2 レイアウトを View メニューから切り替えられ、設定はアプリ全体で永続化する。検証は swift test 1057 / jest 368 / webview-smoke PASS と、実機での両レイアウトの目視確認。
+<!-- SECTION:FINAL_SUMMARY:END -->

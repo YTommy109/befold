@@ -4,9 +4,10 @@ import BefoldCLI
 /// dev リリース（バージョンがプレリリース）または DEBUG ビルドでのみ true。
 /// stable 昇格時は該当機能の分岐を撤去してデフォルト有効化すること（撤去タスクを backlog 登録）。
 ///
-/// 現在ゲートしている機能は**サイドバーの git ステータス系だけ**で、
-/// 参照はすべて `isSidebarGitStatusEnabled` を経由する。露出点は次のとおりで、
-/// TASK-187（stable 昇格）ではこれらの分岐を撤去する。
+/// ゲートしている機能は 2 つで、参照はすべて機能ごとの名前付きプロパティを経由する。
+///
+/// ## サイドバーの git ステータス系（`isSidebarGitStatusEnabled`）
+/// 露出点は次のとおりで、TASK-187（stable 昇格）ではこれらの分岐を撤去する。
 ///
 /// - `ViewerWindowController.makeSidebarGitStatusLoader(_:)`
 ///   — 状態取得そのもの。無効時は空を返すため、バッジ（ファイル行・フォルダー行）も
@@ -16,6 +17,15 @@ import BefoldCLI
 /// - `MainMenuBuilder.makeViewMenuItem()`
 ///   — View メニューの「変更されたファイルのみ表示」項目。
 /// - `SidebarDisplayPreference.init(defaults:isChangedFilesOnlyAvailable:)`
+///   — 保存値の読み出し。無効時は保存値 ON でも OFF として読む。
+///
+/// ## ソース表示の git 差分（`isSourceDiffEnabled`）
+///
+/// - `ViewerWindowController+Diff.makeDiffLoader()`
+///   — 差分取得そのもの。無効時は nil で、git diff を一切実行しない。
+/// - `MainMenuBuilder.makeViewMenuItem()`
+///   — View メニューの「差分を表示」「差分を左右に並べる」項目。
+/// - `DiffDisplayPreference.init(defaults:isAvailable:)`
 ///   — 保存値の読み出し。無効時は保存値 ON でも OFF として読む。
 ///
 /// この列挙は `FeatureGateEnumerationTests` がソース走査と突き合わせており、
@@ -37,6 +47,12 @@ enum FeatureGate {
     /// サイドバーの git ステータス系（バッジ・変更ファイル絞り込み）を露出してよいか。
     /// 呼び出し側はこの名前付きプロパティだけを参照する（露出点は型の doc コメントを参照）。
     static var isSidebarGitStatusEnabled: Bool {
+        inProgressFeaturesEnabled
+    }
+
+    /// ソース表示中の git 差分表示を露出してよいか。
+    /// 呼び出し側はこの名前付きプロパティだけを参照する（露出点は型の doc コメントを参照）。
+    static var isSourceDiffEnabled: Bool {
         inProgressFeaturesEnabled
     }
 

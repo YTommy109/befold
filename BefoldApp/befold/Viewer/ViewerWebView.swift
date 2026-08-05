@@ -29,6 +29,8 @@ struct ViewerWebView: NSViewRepresentable {
     let isSourceMode: Bool
     /// ソース表示中に行番号を表示するかどうか。
     let showLineNumbers: Bool
+    /// ソース表示へ重ねる git 差分（本文とレイアウト）。差分を出さないときは `.none`。
+    let diffState: ViewerRenderer.DiffState
     /// ファイルの一部だけを読み込んでいる(段階読み込み中)かどうか。
     let isTruncated: Bool
     /// 現在表示している累積行数(段階読み込みのバナー表示に使う)。
@@ -68,6 +70,7 @@ struct ViewerWebView: NSViewRepresentable {
         // 通知先は 1 度結び付ければよい(weak なので更新サイクルごとの張り直しは不要)。
         renderer.delegate = rendererDelegate.value
         renderer.rendererFeatures = rendererFeatures
+        renderer.diffState = diffState
 
         let webView = renderer.makeWebView(
             initialZoom: initialZoom, findOptionsPreference: findOptionsPreference,
@@ -85,6 +88,7 @@ struct ViewerWebView: NSViewRepresentable {
         renderer.initialPageZoom = initialZoom
         renderer.scrollPositionToRestore = scrollPositionToRestore
         renderer.rendererFeatures = rendererFeatures
+        renderer.diffState = diffState
         // 設定の反映(倍率・フォント・検索オプション)は隠れていても通す。止めると
         // フォルダーを見ている間の設定変更が取り残される。重い再描画だけを renderer 側で止める。
         renderer.isVisible = isVisible

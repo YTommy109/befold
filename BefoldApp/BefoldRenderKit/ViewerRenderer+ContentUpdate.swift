@@ -49,6 +49,20 @@ extension ViewerRenderer {
 }
 
 public extension ViewerRenderer {
+    /// ソース表示へ重ねる git 差分の状態。本文とレイアウトは必ず一緒に動くため
+    /// 1 つの値として持つ(片方だけ送られて、旧レイアウトで新しい差分が描かれるのを防ぐ)。
+    struct DiffState: Equatable, Sendable {
+        public let text: String?
+        public let layout: ViewerBridge.DiffLayout
+        public init(text: String?, layout: ViewerBridge.DiffLayout) {
+            self.text = text
+            self.layout = layout
+        }
+
+        /// 差分を出さない状態。
+        public static let none = DiffState(text: nil, layout: .inline)
+    }
+
     /// _mmdSetTruncated へ送る切り詰め状態と表示行数のペア。非切り詰め時の
     /// 行数は 0 に正規化する(切り詰め有無だけが意味を持つ)。failed はチャンク
     /// 読込エラーによる打ち切りを示す(通常の再描画経路からは常に false)。
@@ -186,14 +200,18 @@ public extension ViewerRenderer {
 
             // content・fileType だけでなく isSourceMode の変化でも再描画する。
             // (例: notes.md → notes.txt のように内容が同じでも種別が変わる切替、
-            // ソース/レンダリング表示の切替も同じ content から異なる文字列を描画し直す必要がある)
-            let needsRender = contentRevision != rendered.contentRevision
-                || fileType != rendered.fileType
-                || filePath != rendered.filePath
-                || showLineNumbers != rendered.showLineNumbers
-                || isSourceMode != rendered.isSourceMode
-                || truncation != rendered.truncation
-            guard needsRender else { return }
+            // ソース/レンダリング表示の切替も同じ content から異なる文字列を描画し直す必要がある。
+            // 差分の到着・レイアウト変更も同様に別の DOM を作り直す)
+            //
+            // 個々のフィールドを並べて比較せず、描画済みミラーと同じ形の値を組んで
+            // 丸ごと比較する。列挙にすると、ミラーへフィールドを足したときに
+            // ここへの追加だけ漏れて「状態は変わったのに再描画されない」形の穴が空く。
+            let incoming = RenderedStateMirror(
+                contentRevision: contentRevision, fileType: fileType, filePath: filePath,
+                showLineNumbers: showLineNumbers, isSourceMode: isSourceMode,
+                truncation: truncation, diffState: diffState
+            )
+            guard incoming != rendered else { return }
 
             let restoreFromPersistedPosition = Self.isFileOrModeSwitch(
                 filePath: filePath, isSourceMode: isSourceMode,

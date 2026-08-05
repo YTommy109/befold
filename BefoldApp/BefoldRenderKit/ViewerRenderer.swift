@@ -107,7 +107,10 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// contentRevision の整数比較で再描画要否を判定することで重複バッファを避ける。
     /// viewer.html 再ロード時は 6 値を必ずセットで破棄する必要があるため、
     /// 個別フィールドではなく 1 つの struct にまとめ `reset()` で一括リセットする。
-    struct RenderedStateMirror {
+    /// Equatable にしているのは「描画済みの状態と今回の入力が違うか」を
+    /// フィールドの列挙ではなく型の比較で判定するため(updateContent 参照)。
+    /// ここへフィールドを足すと再描画の判定にも自動で入る。
+    struct RenderedStateMirror: Equatable {
         /// 直近に描画した content の世代番号。
         var contentRevision: Int?
         var fileType: FileType?
@@ -117,6 +120,8 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
         /// 最後に _mmdSetTruncated へ送った切り詰め状態と表示行数
         /// (再読込での行数だけの変化もバナー更新できるよう両方をセットで保持する)。
         var truncation: TruncationState?
+        /// 最後に setDiff / setDiffLayout へ送った差分表示の状態。
+        var diffState: DiffState?
 
         /// viewer.html 再ロードで JS 側状態が初期化されるのに合わせて全ミラーを破棄する。
         mutating func reset() {
@@ -125,6 +130,11 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     }
 
     var rendered = RenderedStateMirror()
+
+    /// ソース表示へ重ねる git 差分。ホストが更新のたびに設定する
+    /// (updateContent の引数にせず、rendererFeatures や initialPageZoom と同じ
+    /// 「レンダラの設定」として持つ。QuickLook 等のホストは既定の .none のまま)。
+    public var diffState: DiffState = .none
 
     /// 段階読み込み(loadMoreLines)でステージされた次チャンク。実際の増分描画は
     /// @Observable 変更が駆動する updateContent(唯一の描画 sink)が消費して行う。

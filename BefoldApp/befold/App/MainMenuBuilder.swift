@@ -182,6 +182,7 @@ enum MainMenuBuilder {
             action: #selector(ViewerWindowController.toggleLineNumbers(_:)),
             keyEquivalent: "l"
         )
+        addDiffItems(to: menu)
         menu.addLocalizedItem(
             "menu.view.addBookmark",
             action: #selector(ViewerWindowController.toggleBookmark(_:)),
@@ -269,5 +270,22 @@ enum MainMenuBuilder {
         menu.addLocalizedItem("menu.help.ossAcknowledgements", action: actions.ossAcknowledgements)
         NSApp.helpMenu = menu
         return item
+    }
+
+    /// ソース表示の git 差分に関する項目。フィーチャーゲートが無効なビルドでは足さない。
+    private static func addDiffItems(to menu: NSMenu) {
+        guard FeatureGate.isSourceDiffEnabled else { return }
+        menu.addLocalizedItem(
+            "menu.view.showDiff",
+            action: #selector(ViewerWindowController.toggleSourceDiff(_:)),
+            keyEquivalent: "j",
+            modifiers: [.command, .control]
+        )
+        menu.addLocalizedItem(
+            "menu.view.diffSideBySide",
+            action: #selector(ViewerWindowController.toggleDiffLayout(_:)),
+            keyEquivalent: "j",
+            modifiers: [.command, .control, .shift]
+        )
     }
 }

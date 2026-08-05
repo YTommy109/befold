@@ -1,4 +1,6 @@
-const { parseUnifiedDiff, renderInlineDiffHtml } = require('../viewer.js');
+const {
+  parseUnifiedDiff, renderInlineDiffHtml, pairDiffLines, renderSideBySideDiffHtml, renderDiffHtml,
+} = require('../viewer.js');
 
 const SIMPLE_DIFF = [
   'diff --git a/a.swift b/a.swift',
@@ -197,5 +199,92 @@ describe('renderInlineDiffHtml', () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0]).toBe('let a = 1\nlet b = 2\nlet b = 3\nlet c = 4');
+  });
+});
+
+describe('pairDiffLines', () => {
+  const lines = (types) => types.map((t, i) => ({ type: t, text: String(i) }));
+
+  test('文脈行は左右同じ行に並ぶ', () => {
+    expect(pairDiffLines(lines(['context', 'context']))).toEqual([
+      { left: 0, right: 0 }, { left: 1, right: 1 },
+    ]);
+  });
+
+  test('連続する削除と追加を対にする', () => {
+    expect(pairDiffLines(lines(['del', 'del', 'add', 'add']))).toEqual([
+      { left: 0, right: 2 }, { left: 1, right: 3 },
+    ]);
+  });
+
+  // 片側が多い場合、余った行は反対側を空にして並べる(行を詰めない)。
+  test('数が揃わない場合は空マスで埋める', () => {
+    expect(pairDiffLines(lines(['del', 'add', 'add']))).toEqual([
+      { left: 0, right: 1 }, { left: null, right: 2 },
+    ]);
+    expect(pairDiffLines(lines(['del', 'del', 'add']))).toEqual([
+      { left: 0, right: 2 }, { left: 1, right: null },
+    ]);
+  });
+
+  test('追加だけ・削除だけのブロックも扱える', () => {
+    expect(pairDiffLines(lines(['add']))).toEqual([{ left: null, right: 0 }]);
+    expect(pairDiffLines(lines(['del']))).toEqual([{ left: 0, right: null }]);
+  });
+});
+
+describe('renderSideBySideDiffHtml', () => {
+  test('左右 2 列の構造になる', () => {
+    const html = renderSideBySideDiffHtml(null, SIMPLE_DIFF, 'swift', false);
+
+    expect(html).toContain('diff-split');
+    expect(html).toContain('diff-side-left');
+    expect(html).toContain('diff-side-right');
+  });
+
+  // 変更行は同じ <tr> に左右で並ぶ(対応が目で追える)。
+  test('削除と追加が同じ行に並ぶ', () => {
+    const html = renderSideBySideDiffHtml(null, SIMPLE_DIFF, 'swift', false);
+    const rows = html.split('<tr class="diff-line">').slice(1);
+
+    const changed = rows.find((r) => r.includes('let b = 2'));
+    expect(changed).toContain('let b = 3');
+  });
+
+  test('対応する行が無い側は空マスになる', () => {
+    const diff = [
+      'diff --git a/a.txt b/a.txt',
+      '--- a/a.txt',
+      '+++ b/a.txt',
+      '@@ -1,1 +1,2 @@',
+      ' one',
+      '+two',
+      '',
+    ].join('\n');
+
+    const html = renderSideBySideDiffHtml(null, diff, 'plaintext', false);
+
+    expect(html).toContain('diff-marker diff-empty');
+    expect(html).toContain('line-content diff-empty');
+  });
+
+  test('ハンクヘッダーの colspan が左右 2 列分になる', () => {
+    expect(renderSideBySideDiffHtml(null, SIMPLE_DIFF, 'swift', true)).toContain('colspan="6"');
+    expect(renderSideBySideDiffHtml(null, SIMPLE_DIFF, 'swift', false)).toContain('colspan="4"');
+  });
+
+  test('ハンクが無ければ空文字列を返す', () => {
+    expect(renderSideBySideDiffHtml(null, '', 'swift', false)).toBe('');
+  });
+});
+
+describe('renderDiffHtml', () => {
+  test('レイアウト名で 2 つの描画を選ぶ', () => {
+    expect(renderDiffHtml(null, SIMPLE_DIFF, 'swift', false, 'side-by-side')).toContain('diff-split');
+    expect(renderDiffHtml(null, SIMPLE_DIFF, 'swift', false, 'inline')).not.toContain('diff-split');
+  });
+
+  test('未知のレイアウトはインラインとして扱う', () => {
+    expect(renderDiffHtml(null, SIMPLE_DIFF, 'swift', false, 'bogus')).not.toContain('diff-split');
   });
 });

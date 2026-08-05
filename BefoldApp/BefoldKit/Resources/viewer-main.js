@@ -1153,6 +1153,8 @@
     var lineNumbers = false;
     // ソース表示中に差し込む unified diff。null なら差分表示をしない。
     var diff = null;
+    // 差分のレイアウト。'inline'(1 列) と 'side-by-side'(左右分割)。
+    var diffLayout = 'inline';
 
     return {
       mode: function() { return mode; },
@@ -1165,6 +1167,11 @@
       setLineNumbers: function(show) { lineNumbers = show; },
       diff: function() { return diff; },
       setDiff: function(text) { diff = (typeof text === 'string' && text !== '') ? text : null; },
+      diffLayout: function() { return diffLayout; },
+      setDiffLayout: function(layout) {
+        if (layout !== 'inline' && layout !== 'side-by-side') { return; }
+        diffLayout = layout;
+      },
     };
   }
 
@@ -1702,8 +1709,9 @@
     var diff = _mmdViewOptions.diff();
     if (diff === null || type === 'csv') { return ''; }
     try {
-      return renderInlineDiffHtml(
-        window.hljs, diff, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers()
+      return renderDiffHtml(
+        window.hljs, diff, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers(),
+        _mmdViewOptions.diffLayout()
       );
     } catch (e) {
       return '';
@@ -1721,6 +1729,11 @@
   // 再描画はしない(呼び出し側が直後に render() を送る)。
   function setDiff(text) {
     _mmdViewOptions.setDiff(text);
+  }
+
+  // 差分のレイアウトを切り替える。こちらも状態を持つだけ(再描画は呼び出し側)。
+  function setDiffLayout(layout) {
+    _mmdViewOptions.setDiffLayout(layout);
   }
 
   // --- 初期化 ---
@@ -1788,6 +1801,7 @@
       setLineNumbers: setLineNumbers,
       setViewMode: setViewMode,
       setDiff: setDiff,
+      setDiffLayout: setDiffLayout,
       appendChunk: appendChunk,
       render: render,
     };

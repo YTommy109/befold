@@ -35,6 +35,7 @@ struct ViewerWindowControllerFixture {
         sourceModeStore: SourceModeStore? = nil,
         bookmarkStore: BookmarkStore? = nil,
         sidebarDisplayPreference: SidebarDisplayPreference? = nil,
+        diffDisplayPreference: DiffDisplayPreference? = nil,
         initialFrameDescriptor: String? = nil,
         initialSortOrder: befold.SortOrder = .foldersFirst,
         showLineNumbersOverride: Bool? = nil,
@@ -79,6 +80,8 @@ struct ViewerWindowControllerFixture {
             fileURL: file,
             defaults: defaults,
             sidebarDisplayPreference: sidebarDisplayPreference ?? SidebarDisplayPreference(defaults: defaults),
+            diffDisplayPreference: diffDisplayPreference
+                ?? DiffDisplayPreference(defaults: defaults, isAvailable: true),
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             gitStatusStore: gitStatusStore,

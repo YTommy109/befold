@@ -471,6 +471,101 @@ function renderInlineDiffHtml(hljs, diffText, lang, showLineNumbers) {
   return '<pre><code class="hljs"><table class="code-table diff-table">' + rows + '</table></code></pre>';
 }
 
+// 左右分割表示のために、ハンクの行を「旧側 / 新側」の対へ畳む。
+// 連続する削除と追加は同じ行に並べる(エディタの差分表示と同じ見え方)。
+// 返すのは行オブジェクトではなく `hunk.lines` の添字。ハイライト済み HTML を
+// 添字で引くため(ハンク単位でまとめてハイライトする方針を崩さない)。
+function pairDiffLines(lines) {
+  var pairs = [];
+  var i = 0;
+  while (i < lines.length) {
+    if (lines[i].type === 'context') {
+      pairs.push({ left: i, right: i });
+      i += 1;
+      continue;
+    }
+    var dels = [];
+    var adds = [];
+    while (i < lines.length && lines[i].type === 'del') { dels.push(i); i += 1; }
+    while (i < lines.length && lines[i].type === 'add') { adds.push(i); i += 1; }
+    var count = Math.max(dels.length, adds.length);
+    for (var k = 0; k < count; k++) {
+      pairs.push({
+        left: k < dels.length ? dels[k] : null,
+        right: k < adds.length ? adds[k] : null,
+      });
+    }
+  }
+  return pairs;
+}
+
+// 左右分割の片側 1 マス分(行番号・記号・内容)。行が無い側は空マスで埋める
+// (対応する行が無いことを見せるため、行自体を詰めない)。
+function diffSideCells(line, lineHtml, showLineNumbers, side) {
+  var numberClass = side === 'left' ? 'diff-old' : 'diff-new';
+  if (line === null) {
+    var emptyNumber = showLineNumbers === true
+      ? '<td class="line-number ' + numberClass + '"></td>' : '';
+    return emptyNumber + '<td class="diff-marker diff-empty" aria-hidden="true"></td>'
+      + '<td class="line-content diff-empty"></td>';
+  }
+  var number = showLineNumbers === true
+    ? '<td class="line-number ' + numberClass + '">'
+      + (side === 'left' ? line.oldNumber : line.newNumber) + '</td>'
+    : '';
+  var marker = line.type === 'add' ? '+' : (line.type === 'del' ? '-' : ' ');
+  return number + '<td class="diff-marker" aria-hidden="true">' + marker + '</td>'
+    + lineContentCell(lineHtml);
+}
+
+// 左右分割(side-by-side)の差分表示 HTML。インライン表示と同じ code-table 構造・
+// 同じハイライト結果を使い、行の並べ方だけが違う。
+function renderSideBySideDiffHtml(hljs, diffText, lang, showLineNumbers) {
+  var files = parseUnifiedDiff(diffText);
+  var span = showLineNumbers === true ? 6 : 4;
+  var rows = '';
+  for (var f = 0; f < files.length; f++) {
+    var hunks = files[f].hunks;
+    for (var h = 0; h < hunks.length; h++) {
+      var hunk = hunks[h];
+      var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+      rows += '<tr class="diff-hunk"><td class="diff-hunk-header" colspan="' + span + '">'
+        + escapeHtml(hunk.header) + '</td></tr>';
+      var pairs = pairDiffLines(hunk.lines);
+      for (var p = 0; p < pairs.length; p++) {
+        var left = pairs[p].left;
+        var right = pairs[p].right;
+        var leftClass = left === null ? 'diff-empty' : 'diff-' + hunk.lines[left].type;
+        var rightClass = right === null ? 'diff-empty' : 'diff-' + hunk.lines[right].type;
+        rows += '<tr class="diff-line">'
+          + '<td class="diff-side diff-side-left ' + leftClass + '"><table class="diff-side-table"><tr>'
+          + diffSideCells(
+            left === null ? null : hunk.lines[left], left === null ? '' : lineHtmls[left],
+            showLineNumbers, 'left'
+          )
+          + '</tr></table></td>'
+          + '<td class="diff-side diff-side-right ' + rightClass + '"><table class="diff-side-table"><tr>'
+          + diffSideCells(
+            right === null ? null : hunk.lines[right], right === null ? '' : lineHtmls[right],
+            showLineNumbers, 'right'
+          )
+          + '</tr></table></td></tr>';
+      }
+    }
+  }
+  if (rows === '') { return ''; }
+  return '<pre><code class="hljs"><table class="code-table diff-table diff-split">'
+    + rows + '</table></code></pre>';
+}
+
+// レイアウト名から差分表示 HTML を組み立てる。呼び出し側(viewer-main.js)が
+// レイアウトごとに分岐を持たないよう、選択をここへ閉じる。
+function renderDiffHtml(hljs, diffText, lang, showLineNumbers, layout) {
+  return layout === 'side-by-side'
+    ? renderSideBySideDiffHtml(hljs, diffText, lang, showLineNumbers)
+    : renderInlineDiffHtml(hljs, diffText, lang, showLineNumbers);
+}
+
 // RFC 4180 準拠の状態マシンベース CSV/TSV トークナイザー。
 // クオート内のデリミタ・改行・エスケープされたクオート("")を正しく扱う。
 // 各セルについて、デコード済みの値(value)とソース上の生テキスト(raw、
@@ -767,6 +862,9 @@ if (typeof module !== 'undefined' && module.exports) {
     renderCsvSourceHtml: renderCsvSourceHtml,
     parseUnifiedDiff: parseUnifiedDiff,
     renderInlineDiffHtml: renderInlineDiffHtml,
+    pairDiffLines: pairDiffLines,
+    renderSideBySideDiffHtml: renderSideBySideDiffHtml,
+    renderDiffHtml: renderDiffHtml,
     csvSourceInnerHtml: csvSourceInnerHtml,
     CSV_COL_COUNT: CSV_COL_COUNT,
     buildFindRegExp: buildFindRegExp,

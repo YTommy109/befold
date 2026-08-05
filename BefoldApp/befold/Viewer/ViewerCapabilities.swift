@@ -26,6 +26,8 @@ struct ViewerCapabilities: Equatable {
     let canToggleLineNumbers: Bool
     /// ブックマークの付け外し。対象は「いま見えている文書」。
     let canBookmark: Bool
+    /// git 差分表示の切替。行番号と同じく「いまソース相当の内容を出している」ときだけ意味を持つ。
+    let canToggleDiff: Bool
 
     /// - Parameters:
     ///   - isPresentingDocument: 文書を提示しているか。フォルダー一覧を出している間は false。
@@ -54,6 +56,7 @@ struct ViewerCapabilities: Equatable {
         canSelectSourceMode = onDocument && !isBinaryContent
         canToggleLineNumbers = isPresentingDocument && showsCodeContent
         canBookmark = isPresentingDocument
+        canToggleDiff = isPresentingDocument && showsCodeContent
     }
 
     /// 何もできない状態(文書を提示していない)。テストとフォールバックの既定値。
