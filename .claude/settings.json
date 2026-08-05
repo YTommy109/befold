@@ -8,7 +8,25 @@
       "Bash(pkill -x befold)",
       "Bash(log show:*)",
       "Bash(xcodegen generate)",
-      "Bash(xcodebuild:*)"
+      "Bash(xcodebuild:*)",
+      "Bash(backlog instructions:*)",
+      "Bash(backlog task view:*)",
+      "Bash(backlog task list:*)",
+      "Bash(backlog search:*)",
+      "Bash(swift test:*)",
+      "Bash(swift build:*)",
+      "Bash(swift package plugin --allow-writing-to-package-directory swiftformat -- --lint)",
+      "Bash(markdownlint-cli2)",
+      "Bash(scripts/worktree-status.sh:*)",
+      "Bash(scripts/worktree-clean.sh)",
+      "mcp__dagayn__get_minimal_context_tool",
+      "mcp__dagayn__query_graph_tool",
+      "mcp__dagayn__semantic_search_nodes_tool",
+      "mcp__dagayn__review_tool",
+      "mcp__dagayn__flow_tool",
+      "mcp__dagayn__architecture_analysis_tool",
+      "Read(/private/tmp/claude-501/**)",
+      "Read(/Users/tokutomi/.claude/projects/*/memory/**)"
     ]
   },
   "hooks": {
