@@ -12,7 +12,7 @@ dependencies:
   - TASK-241
 priority: medium
 type: task
-ordinal: 330000
+ordinal: 506500
 ---
 
 ## Description
