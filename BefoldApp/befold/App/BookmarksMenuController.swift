@@ -16,12 +16,7 @@ final class BookmarksMenuController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let urls = bookmarkedURLs().sorted { $0.lastPathComponent < $1.lastPathComponent }
-        for url in urls {
-            menu.addFileItem(
-                title: url.lastPathComponent, filePath: url.path,
-                action: #selector(openBookmark(_:)), target: self, representedObject: url
-            )
-        }
+        menu.addFileItems(urls: urls, action: #selector(openBookmark(_:)), target: self)
     }
 
     @objc private func openBookmark(_ sender: NSMenuItem) {
