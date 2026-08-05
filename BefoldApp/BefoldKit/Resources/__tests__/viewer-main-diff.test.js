@@ -4,6 +4,21 @@
 
 const { loadViewerMain } = require('./support/viewerMainHarness');
 
+// カラースキーム変更を発火できる matchMedia に差し替える（ハーネス既定のスタブは
+// addEventListener が空実装のため）。蓄積済み内容からの描き直しを観測するのに使う。
+function installColorSchemeStub(window) {
+  const listeners = [];
+  window.matchMedia = function(query) {
+    return {
+      media: query,
+      matches: false,
+      addEventListener: function(type, fn) { listeners.push(fn); },
+      removeEventListener: function() {},
+    };
+  };
+  return { fireChange: () => listeners.forEach((fn) => fn()) };
+}
+
 const DIFF = [
   'diff --git a/a.swift b/a.swift',
   '--- a/a.swift',
@@ -31,6 +46,40 @@ describe('ソース表示への差分の差し込み', () => {
     expect(table).not.toBeNull();
     expect(document.querySelectorAll('#diagram-wrap tr.diff-add')).toHaveLength(1);
     expect(document.querySelectorAll('#diagram-wrap tr.diff-del')).toHaveLength(1);
+  });
+
+  // 差分テーブルも class に code-table を持つため、追記先を探すセレクタに
+  // 引っかかる。通常のソース行(1 本ガター)を差分テーブル(記号 + 2 本ガター)へ
+  // 混ぜると桁がずれ、行数から求める行番号の基準も狂う。
+  test('差分表示中はチャンクを DOM へ追記しない', async () => {
+    const { document, main } = loadViewerMain({});
+
+    main.setDiff(DIFF);
+    await renderSource(main, 'let x = 2\nlet y = 3', 'code', 'swift');
+    const before = document.querySelectorAll('#diagram-wrap table.diff-table tr').length;
+
+    main.appendChunk('let z = 4\n', 'code', 'swift');
+
+    const rows = document.querySelectorAll('#diagram-wrap table.diff-table tr');
+    expect(rows).toHaveLength(before);
+    expect(document.querySelector('#diagram-wrap').textContent).not.toContain('let z = 4');
+  });
+
+  // DOM への追記は止めるが、蓄積そのものは続ける。止めると、蓄積済み内容から
+  // 描き直す経路(カラースキーム変更)で追記分が失われる。
+  test('差分表示中に追記したチャンクも蓄積されている', async () => {
+    const loaded = loadViewerMain({ init: false });
+    const colorScheme = installColorSchemeStub(loaded.window);
+    loaded.main._mmdInit();
+    loaded.main.setDiff(DIFF);
+    await renderSource(loaded.main, 'let x = 2\n', 'code', 'swift');
+    loaded.main.appendChunk('let z = 4\n', 'code', 'swift');
+    loaded.main.setDiff(null);
+    loaded.document.getElementById('diagram-wrap').innerHTML = '';
+
+    colorScheme.fireChange();
+
+    expect(loaded.document.querySelector('#diagram-wrap').textContent).toContain('let z = 4');
   });
 
   test('差分が無ければ通常のソース表示のまま', async () => {

@@ -1348,6 +1348,11 @@
     var highlightContext = (_mmdChunkTail.endedWithNewline() && _mmdDocument.content())
       ? lastLines(_mmdDocument.content(), CODE_CHUNK_CONTEXT_LINES) : '';
     _mmdDocument.append(text);
+    // 差分を表示している間は DOM へ追記しない。画面にあるのは差分テーブルであり、
+    // 通常のソース行(1 本ガター)を混ぜると桁がずれ、行番号の基準も狂う。
+    // 蓄積は上の _mmdDocument.append で済んでいるため、差分を解除した時点の
+    // 全体再描画で追記分もそろって出る。
+    if (_mmdViewOptions.diff() !== null) { return; }
     // CSV は「レンダリング表示(テーブル)」と「ソース表示(レインボー)」で DOM 構造が
     // 異なる(#diagram-wrap 直下が <table><tbody> か <pre><code class="csv-source">
     // か)ため、実際の DOM を見て分岐する。
