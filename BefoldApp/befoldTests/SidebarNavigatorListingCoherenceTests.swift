@@ -77,6 +77,7 @@ struct SidebarNavigatorListingCoherenceTests {
             isChangedFilesOnlyAvailable: true
         )
         preference.showChangedFilesOnly = false
+        let gate = AsyncGate()
         let navigator = SidebarNavigator(
             currentDirectory: base,
             entries: [],
@@ -87,9 +88,7 @@ struct SidebarNavigatorListingCoherenceTests {
             },
             loadGitStatuses: { directory, _ in
                 guard directory.normalizedPathKey == dirB.normalizedPathKey else { return .empty }
-                for _ in 0 ..< 200 {
-                    await Task.yield()
-                }
+                await gate.wait()
                 let status = GitFileStatus(indexChange: nil, worktreeChange: .modified)
                 return GitStatusResult(
                     statuses: [changed.normalizedPathKey: status],
@@ -104,13 +103,22 @@ struct SidebarNavigatorListingCoherenceTests {
         defer { navigator.cancelPendingListing() }
 
         navigator.navigateToFolder(dirB)
-        await navigator.pendingListingTask?.value
 
-        // 一覧は git より先に反映される。git 状態はまだ届いていない。
+        // git はゲートで足止めしたまま一覧の反映だけを待つ。`pendingListingTask?.value` を
+        // 直接 await すると、退行で一覧が git 完了待ちに変わったとき(ゲートは後述の
+        // gate.open() でしか開かない)テストごと無限に停止してしまう
+        // (`Task<Void, Never>` は Failure が無く、外側のキャンセルでは中断できない)。
+        // タイムアウト付きポーリングにすることで、退行時は待ちきれず確実に失敗させる。
+        await waitUntilOnMainActor {
+            navigator.fileListModel.entries.count == 2
+        }
+
+        // 一覧は git より先に反映される。git 状態はまだ届いていない(ゲートで足止め中)。
         #expect(navigator.fileListModel.entries.count == 2)
         #expect(navigator.fileListModel.gitStatus == nil)
 
         // 遅れて届いた git 状態は、そのあときちんと反映される(バッジ用)。
+        gate.open()
         await navigator.pendingGitStatusTask?.value
         #expect(navigator.fileListModel.gitStatus?.files.isEmpty == false)
     }
