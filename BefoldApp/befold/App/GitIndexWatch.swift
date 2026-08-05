@@ -13,14 +13,18 @@ import Foundation
 /// 書き込みでは git を起こさない。
 @MainActor
 final class GitIndexWatch {
-    private let makeWatcher: (URL, @escaping @MainActor @Sendable () -> Void) -> FileWatching
+    /// ウォッチャの生成器の型。GitIndexWatch 自身と、それを保持する SidebarNavigator の
+    /// 両方で直書きされていたクロージャ型を 1 箇所へまとめる(TASK-298)。
+    typealias WatcherFactory = (URL, @escaping @MainActor @Sendable () -> Void) -> FileWatching
+
+    private let makeWatcher: WatcherFactory
     private let onChange: @MainActor @Sendable () -> Void
     private var watcher: FileWatching?
     /// 現在監視中のパス。同じパスへの張り直しを避ける判定に使う。
     private var watchedPath: String?
 
     init(
-        makeWatcher: @escaping (URL, @escaping @MainActor @Sendable () -> Void) -> FileWatching,
+        makeWatcher: @escaping WatcherFactory,
         onChange: @escaping @MainActor @Sendable () -> Void
     ) {
         self.makeWatcher = makeWatcher

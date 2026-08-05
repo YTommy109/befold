@@ -47,7 +47,7 @@ struct FolderListingViewFilterTests {
         let model = makeModel(entries: entries)
         model.applyGitStatus(
             SidebarGitStatus(directoryKey: directory.normalizedPathKey, statuses: [changed.pathKey: modifiedStatus()]),
-            for: directory
+            for: directory, sequence: 1
         )
         model.showChangedFilesOnly = true
 
@@ -70,7 +70,7 @@ struct FolderListingViewFilterTests {
                 directoryKey: directory.normalizedPathKey,
                 statuses: [changed.pathKey: modifiedStatus(), nested: modifiedStatus()]
             ),
-            for: directory
+            for: directory, sequence: 1
         )
         model.showChangedFilesOnly = true
         model.filterText = "*.md"
@@ -104,7 +104,7 @@ struct FolderListingViewFilterTests {
                 directoryKey: directory.normalizedPathKey,
                 statuses: [child.normalizedPathKey: modifiedStatus()]
             ),
-            for: directory
+            for: directory, sequence: 1
         )
         model.showChangedFilesOnly = true
 
@@ -132,6 +132,21 @@ struct FolderListingViewFilterTests {
         model.entries = entries
 
         #expect(model.listingSource(for: directory) == .shared(entries))
+    }
+
+    /// `.shared` の payload は生の entries ではなく、絞り込み済みの visibleEntries でなければ
+    /// ならない(TASK-298)。そうでないと FolderListingView 側が再度絞り込みを行う必要が生じ、
+    /// サイドバーと同じ filter.apply が二重に走ってしまう。
+    @Test(".shared は絞り込み済みの一覧(visibleEntries)を渡す")
+    func sharedListingSourceCarriesFilteredEntries() {
+        let kept = makeEntry("kept.md")
+        let dropped = makeEntry("dropped.md")
+        let model = makeModel(entries: [])
+        model.entries = [kept, dropped]
+        model.filterText = "kept"
+
+        #expect(model.listingSource(for: directory) == .shared([kept]))
+        #expect(model.listingSource(for: directory) != .shared([kept, dropped]))
     }
 
     /// 移動要求で currentDirectory だけが先に進んでいる間は「まだ手元に無い」を返す。
@@ -263,5 +278,54 @@ struct FolderListingViewFilterTests {
         )
 
         #expect(view.visibleEntries(from: listed).map(\.url.lastPathComponent) == ["a.md"])
+    }
+
+    // MARK: - .shared の絞り込み再実行を避ける(TASK-298)
+
+    /// `.shared` はサイドバー(FileListModel.visibleEntries)が同じ filter/directory で
+    /// 既に絞り込んだ一覧を渡してくる。開いているファイルの追記が起きなければ、その一覧を
+    /// そのまま使い、filter.apply を再実行しない。ここでは filter を再適用したら弾かれる
+    /// はずのエントリ(filterText 不一致)をあえて `.shared` の入力に混ぜ、
+    /// それでも結果に残ることで「再適用していない」ことを確かめる。
+    @Test(".shared は追記が無ければ渡された一覧をそのまま使い、フィルターを再適用しない")
+    func sharedSourceDoesNotReapplyFilterWithoutAppend() {
+        let alreadyFiltered = [makeEntry("kept-by-caller-even-though-filter-would-drop-it.md")]
+        let filter = FileListFilter(filterText: "no-match")
+        let view = makeView(
+            directory: directory, filter: filter, source: .shared(alreadyFiltered)
+        )
+
+        #expect(
+            view.visibleEntries(from: alreadyFiltered).map(\.url.lastPathComponent)
+                == ["kept-by-caller-even-though-filter-would-drop-it.md"]
+        )
+    }
+
+    /// 追記が起きた場合(フォルダー移動直後などで手元の一覧が openFile にまだ追従して
+    /// いない)は、新規追加分の判定のため filter.apply を通す必要がある。filterText に
+    /// 一致しない追記は、通常の(.ownListing の)絞り込みと同じく除外されることを確かめる。
+    @Test(".shared でも追記が起きたときはフィルターが効く")
+    func sharedSourceStillFiltersAppendedOpenFile() {
+        let listed = [makeEntry("kept.md")]
+        let openFile = directory.appendingPathComponent("notes.xyz")
+        let filter = FileListFilter(filterText: "kept")
+        let view = makeView(
+            directory: directory, filter: filter, source: .shared(listed), openFile: openFile
+        )
+
+        #expect(view.visibleEntries(from: listed).map(\.url.lastPathComponent) == ["kept.md"])
+    }
+
+    /// 追記が起きたとき、追記分自体がフィルターに一致すれば残る。
+    @Test(".shared での追記もフィルターに一致すれば残る")
+    func sharedSourceKeepsAppendedOpenFileMatchingFilter() {
+        let listed = [makeEntry("kept.md")]
+        let openFile = directory.appendingPathComponent("notes.xyz")
+        let filter = FileListFilter(filterText: "notes")
+        let view = makeView(
+            directory: directory, filter: filter, source: .shared(listed), openFile: openFile
+        )
+
+        #expect(view.visibleEntries(from: listed).map(\.url.lastPathComponent) == ["notes.xyz"])
     }
 }

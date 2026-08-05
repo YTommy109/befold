@@ -50,6 +50,18 @@ struct FileListModelFilterTests {
         GitFileStatus(indexChange: nil, worktreeChange: .modified)
     }
 
+    /// FileListModel.applyGitStatus の sequence は「発行順」の連番であることが前提(ADR 0003)。
+    /// テストは複数回の取得を模すため、呼ぶたびに新しい番号を払い出す。
+    private final class GitStatusSequence {
+        private var value = 0
+        func next() -> Int {
+            value += 1
+            return value
+        }
+    }
+
+    private let gitStatusSequence = GitStatusSequence()
+
     /// 本番と同じ経路で状態を組む。SidebarNavigator は必ず SidebarGitStatus を通して
     /// ファイル状態とフォルダー集約を同時に作るため、テストもそこを通す(TASK-290)。
     private func applyGitStatus(
@@ -58,7 +70,7 @@ struct FileListModelFilterTests {
         let target = directory ?? model.currentDirectory
         model.applyGitStatus(
             SidebarGitStatus(directoryKey: target.normalizedPathKey, statuses: statuses),
-            for: target
+            for: target, sequence: gitStatusSequence.next()
         )
     }
 
@@ -228,9 +240,42 @@ struct FileListModelFilterTests {
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
 
-        // 一覧が届いた時点で、保留していた移動先の状態が同時に効く。
-        model.entries = [nextChanged, FileListEntry(url: next.appendingPathComponent("old.md"), kind: .file)]
+        // 一覧が届いた時点で、保留していた移動先の状態が同時に効く。本番と同じく、
+        // 列挙したディレクトリ(next)を setEntries(_:for:) で明示的に渡す。
+        model.setEntries(
+            [nextChanged, FileListEntry(url: next.appendingPathComponent("old.md"), kind: .file)], for: next
+        )
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["new.md"])
+    }
+
+    // MARK: - setEntries(_:for:) (TASK-298)
+
+    /// `entriesDirectory` は列挙した側(呼び出し元)が明示的に渡した値になる。
+    /// `currentDirectory` が別の値を指していても、`setEntries` に渡したディレクトリが
+    /// そのまま使われる(currentDirectory からの暗黙の導出に頼らない)。
+    @Test("setEntries は渡されたディレクトリを entriesDirectory として使う")
+    func setEntriesUsesGivenDirectoryRegardlessOfCurrentDirectory() {
+        let model = makeModel(entries: [])
+        let enumerated = URL(fileURLWithPath: "/tmp/FileListModelFilterTests/sub")
+        let entry = FileListEntry(url: enumerated.appendingPathComponent("a.md"), kind: .file)
+
+        model.setEntries([entry], for: enumerated)
+
+        #expect(model.entriesDirectory == enumerated)
+        #expect(model.entries.map(\.id) == [entry].map(\.id))
+    }
+
+    /// `entries` への直接代入は `entriesDirectory` を書き換えない(setEntries(_:for:) の
+    /// 責務であることを固定する)。
+    @Test("entries への直接代入では entriesDirectory は変わらない")
+    func directEntriesAssignmentDoesNotChangeEntriesDirectory() {
+        let model = makeModel(entries: [])
+        let original = model.entriesDirectory
+        model.currentDirectory = URL(fileURLWithPath: "/tmp/FileListModelFilterTests/sub")
+
+        model.entries = [makeEntry("a.md")]
+
+        #expect(model.entriesDirectory == original)
     }
 }

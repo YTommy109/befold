@@ -55,16 +55,11 @@ final class SidebarNavigator {
 
     /// `.git/index` を監視するウォッチャの生成器。既定は実 FileWatcher。
     /// テストは実ファイルシステム監視を避けるため差し替える。
-    private let makeGitIndexWatcher: (URL, @escaping @MainActor @Sendable () -> Void) -> FileWatching
-    /// git 状態取得タスクの世代番号。一覧取得・基準ディレクトリ解決とは完了タイミングが
-    /// 独立する(subprocess の所要時間が別)ため、第 3 の世代として分けて古い結果を捨てる。
+    private let makeGitIndexWatcher: GitIndexWatch.WatcherFactory
+    /// git 状態取得タスクの発行順序(sequence)の採番器。一覧取得・基準ディレクトリ解決とは完了
+    /// タイミングが独立する(subprocess の所要時間が別)ため、第 3 の世代として分けて発行する。
+    /// 反映の可否判定(recency ガード)は持たず、採番だけを担う(ADR 0003)。
     private var gitStatusGeneration = 0
-    /// 直近に **反映した** git 状態の世代番号。反映の可否はこれとの比較で決める(TASK-299)。
-    /// 「最新世代と一致」で判定すると、一覧と対で取った結果を捨てないために世代を強制的に
-    /// 進める必要が生じ、後から始まった取得の新しい結果を古いスナップショットで上書きしてしまう。
-    /// 「これより新しい世代なら反映する」なら、結合結果も後発の単発取得もどちらも
-    /// 「最後に開始した取得が勝つ」不変条件のまま扱える。
-    private var appliedGitStatusGeneration = 0
     /// 直近に発行した git 状態取得タスク。テストから完了を待つために公開する。
     private(set) var pendingGitStatusTask: Task<Void, Never>?
 
@@ -83,7 +78,7 @@ final class SidebarNavigator {
         resolveGitRoot: @escaping @Sendable (URL) async -> URL? = { _ in nil },
         loadGitStatuses: @escaping (URL, GitStatusRefreshPolicy) async -> GitStatusResult
             = { _, _ in .empty },
-        makeGitIndexWatcher: @escaping (URL, @escaping @MainActor @Sendable () -> Void) -> FileWatching
+        makeGitIndexWatcher: @escaping GitIndexWatch.WatcherFactory
             = { url, onChange in FileWatcher(path: url, onChange: onChange) }
     ) {
         self.makeGitIndexWatcher = makeGitIndexWatcher
@@ -175,10 +170,9 @@ final class SidebarNavigator {
     ///   「上へ移動」後の親フォルダ選択復元に使う。
     func refreshFileList(applyCustomSelection: (() -> Bool)? = nil) {
         guard host != nil else { return }
-        performListing(of: fileListModel.currentDirectory) { host, entries in
-            var entries = entries
-            self.ensureCurrentFile(in: &entries, currentFile: host.currentFileURL)
-            self.fileListModel.entries = entries
+        performListing(of: fileListModel.currentDirectory) { host, directory, entries in
+            let entries = DirectoryLister.appendingOpenFile(host.currentFileURL, to: entries, in: directory)
+            self.fileListModel.setEntries(entries, for: directory)
 
             if let applyCustomSelection, applyCustomSelection() {
                 return
@@ -212,9 +206,11 @@ final class SidebarNavigator {
     /// - Parameters:
     ///   - directory: 列挙対象のディレクトリ。
     ///   - onApplied: 列挙結果が最新世代かつ host が生存しているときにメインアクターで呼ばれる。
+    ///     列挙対象のディレクトリを一緒に渡すため、呼び出し元は `fileListModel.currentDirectory`
+    ///     の現在値を読み直さずに `FileListModel.setEntries(_:for:)` へそのまま渡せる(TASK-298)。
     private func performListing(
         of directory: URL,
-        onApplied: @escaping @MainActor (SidebarNavigatorHost, [FileListEntry]) -> Void
+        onApplied: @escaping @MainActor (SidebarNavigatorHost, URL, [FileListEntry]) -> Void
     ) {
         refreshBaseDirectory()
         let showHiddenFiles = syncDisplayPreferences()
@@ -238,7 +234,7 @@ final class SidebarNavigator {
                 // 単発の新しい結果が先に着いていれば、そちらのほうが一覧と対にふさわしい。
                 self.applyGitStatus(result, for: directory, generation: gitGeneration)
             }
-            onApplied(host, entries)
+            onApplied(host, directory, entries)
         }
         pendingListingTask = task
         // git 状態の待ち合わせ点。ON なら一覧タスクに含まれるのでそれ自体を、OFF なら
@@ -258,17 +254,16 @@ final class SidebarNavigator {
         await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
     }
 
-    /// 取得した git 状態を、既に反映済みのものより新しいときだけ反映し、index の監視対象を合わせる。
-    /// 判定を「最新世代と一致」ではなく「反映済みより新しい」とすることで、一覧と対で取った
-    /// 結果(後発の単発取得に世代を追い越されている)も、まだ何も反映されていなければ通る。
+    /// 取得した git 状態を FileListModel へ渡す。反映の可否(発行順序・ディレクトリ対付け)は
+    /// FileListModel.applyGitStatus が一括判定する(ADR 0003)。受け付けられたときだけ
+    /// index の監視対象を合わせる(古い結果で監視を張り直してはならない)。
     private func applyGitStatus(
         _ result: GitStatusResult, for directory: URL, generation: Int
     ) {
-        guard generation > appliedGitStatusGeneration else { return }
-        appliedGitStatusGeneration = generation
-        fileListModel.applyGitStatus(
-            SidebarGitStatus(directory: directory, result: result), for: directory
+        let accepted = fileListModel.applyGitStatus(
+            SidebarGitStatus(directory: directory, result: result), for: directory, sequence: generation
         )
+        guard accepted else { return }
         gitIndexWatch.update(indexURL: result.indexURL)
     }
 
@@ -279,9 +274,9 @@ final class SidebarNavigator {
     func cancelPendingListing() {
         listingGeneration += 1
         gitStatusGeneration += 1
-        // 反映済み世代を発行済みの先頭へ揃えることで、進行中の取得を一括で無効化する
-        // (世代が「反映済みより新しい」ものだけを通すため / TASK-299)。
-        appliedGitStatusGeneration = gitStatusGeneration
+        // 反映済み sequence を発行済みの先頭へ揃えることで、進行中の取得を一括で無効化する
+        // (FileListModel 側で「反映済みより新しい」ものだけを通すため / ADR 0003, 元 TASK-299)。
+        fileListModel.invalidatePendingGitStatus(upTo: gitStatusGeneration)
         baseDirectoryGeneration += 1
         pendingListingTask?.cancel()
         pendingListingTask = nil
@@ -290,15 +285,6 @@ final class SidebarNavigator {
         pendingGitStatusTask?.cancel()
         pendingGitStatusTask = nil
         gitIndexWatch.stop()
-    }
-
-    /// エントリ一覧に現在のファイルが含まれていなければ末尾に追加する。
-    /// 規則そのものは DirectoryLister.appendingOpenFile に置き、プレビューの
-    /// フォルダー一覧と同じ実装を共有する(TASK-295)。
-    private func ensureCurrentFile(in entries: inout [FileListEntry], currentFile: URL) {
-        entries = DirectoryLister.appendingOpenFile(
-            currentFile, to: entries, in: fileListModel.currentDirectory
-        )
     }
 
     /// エントリ一覧からフォルダーの正規化キーが一致するものを返す。
@@ -332,8 +318,8 @@ final class SidebarNavigator {
         let previous = fileListModel.currentDirectory
         fileListModel.currentDirectory = url
         updateRootDirectory(with: target)
-        performListing(of: url) { _, entries in
-            self.fileListModel.entries = entries
+        performListing(of: url) { _, directory, entries in
+            self.fileListModel.setEntries(entries, for: directory)
             let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
                 .normalizedPathKey
             if isGoingUp {

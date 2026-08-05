@@ -66,11 +66,20 @@ struct FolderListingView: View {
     /// ディスクから引いた一覧に表示設定を適用した結果。サイドバー
     /// (FileListModel.visibleEntries)と同じ FileListFilter を同じ関数で適用するため、
     /// 同じディレクトリを見ているときは両者が必ず一致する(TASK-288)。
+    ///
+    /// `.shared` の場合、`entries` はサイドバー(FileListModel.visibleEntries)が同じ
+    /// filter・directory で既に絞り込んだ一覧である。開いているファイルの追記
+    /// (appendingOpenFile)で件数が増えなければ、その一覧がそのまま最終結果であり、
+    /// 同じ filter.apply を body 評価のたびに再実行する必要がない(TASK-298)。追記が
+    /// 起きた場合(フォルダー移動直後など、手元の一覧が openFile の変化にまだ追従して
+    /// いない)だけ apply を通す。filter.apply は同じ入力に対して冪等なので、既に
+    /// 絞り込み済みの分がもう一度通っても結果は変わらない。
     func visibleEntries(from entries: [FileListEntry]) -> [FileListEntry] {
-        filter.apply(
-            to: DirectoryLister.appendingOpenFile(openFile, to: entries, in: directory),
-            in: directory
-        )
+        let appended = DirectoryLister.appendingOpenFile(openFile, to: entries, in: directory)
+        guard case .shared = source, appended.count == entries.count else {
+            return filter.apply(to: appended, in: directory)
+        }
+        return appended
     }
 
     /// 手元にある一覧。nil は「未取得」で、空一覧(= 絞り込みで全部消えた)と区別する。

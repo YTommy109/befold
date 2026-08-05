@@ -16,18 +16,19 @@ final class FileListModel {
     /// パスコピー機能の相対パス基準として使う(SidebarNavigator.navigateToFolder が更新)。
     var rootDirectory: URL
     /// サイドバーの一覧。代入をもって「一覧が届いた」とみなす(hasLoadedEntries)。
+    /// 直接代入すると `entriesDirectory` は前回のままになる。列挙したディレクトリと
+    /// 一緒に反映するには `setEntries(_:for:)` を使うこと。
     var entries: [FileListEntry] {
         didSet {
             hasLoadedEntries = true
-            entriesDirectory = currentDirectory
             promotePendingGitStatusIfNeeded()
             entryIndex = FileListEntryIndex(entries: entries)
             notifyPresentationTargetChangeIfNeeded()
         }
     }
 
-    /// `entries` がどのディレクトリを列挙した結果か。一覧は必ず「そのとき表示中だった
-    /// ディレクトリ」の結果として代入されるため、代入と同時に記録すれば足りる。
+    /// `entries` がどのディレクトリを列挙した結果か。`setEntries(_:for:)` の呼び出し元が
+    /// 列挙時に確定させた値をそのまま持たせる。
     ///
     /// 絞り込みは `currentDirectory` ではなく **この値** と突き合わせる。移動要求は
     /// currentDirectory を先に進めるので、一覧が届くまでの間 currentDirectory と
@@ -35,6 +36,16 @@ final class FileListModel {
     /// 「状態が別ディレクトリのもの」と判定されて絞り込みが外れ、直前のフォルダーの一覧が
     /// 全件表示される(TASK-293)。
     private(set) var entriesDirectory: URL
+
+    /// `entries` を、それを列挙したディレクトリと一緒に反映する。ディレクトリは
+    /// 呼び出し元(SidebarNavigator.performListing)が列挙時に確定させたものをそのまま渡す。
+    /// `currentDirectory` からの導出に頼ると、「currentDirectory を書き換える全箇所が
+    /// 事前に listingGeneration を進めている」という呼び出し元側の不変条件に依存してしまう
+    /// (TASK-298)。ここでは列挙した側の値を直接受け取ることで不変条件をローカルに閉じる。
+    func setEntries(_ newEntries: [FileListEntry], for directory: URL) {
+        entriesDirectory = directory
+        entries = newEntries
+    }
 
     /// `entries` を選択から引くための索引。一覧の代入と同時に作り直す。
     /// 提示対象の導出はこれを介して O(1) で行う(FileListEntryIndex)。
@@ -141,6 +152,14 @@ final class FileListModel {
     /// 一覧に対応する状態が失われて絞り込みが一瞬外れるため、一覧が届くまでここで待たせる。
     @ObservationIgnored private var pendingGitStatus: PendingGitStatus?
 
+    /// 直近に**反映を受け付けた** git 状態の発行順序(sequence)。反映の可否はこれとの比較で
+    /// 決める(ADR 0003)。「最新の発行と一致」で判定すると、一覧と対で取った結果を捨てないために
+    /// sequence を強制的に進める必要が生じ、後から始まった取得の新しい結果を古いスナップショットで
+    /// 上書きしてしまう。「これより新しい sequence なら受け付ける」なら、結合取得も後発の単発取得も
+    /// どちらも「最後に発行された取得が勝つ」不変条件のまま扱える。sequence の採番元は
+    /// SidebarNavigator の gitStatusGeneration。
+    @ObservationIgnored private var appliedGitStatusSequence = 0
+
     /// 保留中の git 状態。**状態が nil(git 管理外・取得失敗)でも「どのディレクトリの結論か」を
     /// 持たせる**のが要点で、これが無いと非 git フォルダーへ移動したときに
     /// 「まだ届いていない」と区別できない。
@@ -149,20 +168,40 @@ final class FileListModel {
         let status: SidebarGitStatus?
     }
 
-    /// `directory` の git 状態を反映する。
+    /// `directory` の git 状態を反映する。発行順序(recency)とディレクトリ対付けの両方をここで
+    /// 一括判定する(ADR 0003)。呼び出し元(SidebarNavigator)は sequence の採番だけを担い、
+    /// 反映可否の判定には関与しない。
     ///
-    /// 手元の一覧がまだ別のディレクトリのものなら、その一覧が届くまで保留する。移動先の
-    /// 状態を先に入れると、画面に出ている一覧(移動元)と突き合わせられなくなって絞り込みが
+    /// recency: `sequence` が直近に受け付けた発行順序より新しくなければ、既に新しい結果が
+    /// 反映済み(または反映待ち)であり、この結果は古いので無視する。
+    ///
+    /// ディレクトリ対付け: 手元の一覧がまだ別のディレクトリのものなら、その一覧が届くまで保留する。
+    /// 移動先の状態を先に入れると、画面に出ている一覧(移動元)と突き合わせられなくなって絞り込みが
     /// 外れ、全件が一瞬表示される。実測では `.git/index` 監視や再読込を契機とする単独の
     /// 取得が、移動先を対象に一覧より先に着地していた(TASK-293)。
-    func applyGitStatus(_ status: SidebarGitStatus?, for directory: URL) {
+    ///
+    /// - Returns: 受け付けた(反映または保留した)なら true。古い発行順序として無視したなら false。
+    ///   呼び出し元はこれを見て `.git/index` 監視の張り直し可否を決める。
+    @discardableResult
+    func applyGitStatus(_ status: SidebarGitStatus?, for directory: URL, sequence: Int) -> Bool {
+        guard sequence > appliedGitStatusSequence else { return false }
+        appliedGitStatusSequence = sequence
         let key = directory.normalizedPathKey
         guard key == entriesDirectory.normalizedPathKey else {
             pendingGitStatus = PendingGitStatus(directoryKey: key, status: status)
-            return
+            return true
         }
         pendingGitStatus = nil
         gitStatus = status
+        return true
+    }
+
+    /// `sequence` 以前に発行されたすべての取得結果を無効化する。ウィンドウを閉じるときに呼ぶ
+    /// (TASK-300)。キャンセルは協調的で、走り出した subprocess は完了して結果を返しうる。
+    /// 反映済み sequence を発行済みの先頭へ揃えておかないと、その結果が反映ガードを通り抜け、
+    /// 閉じたウィンドウのために `.git/index` 監視を張り直してしまう。
+    func invalidatePendingGitStatus(upTo sequence: Int) {
+        appliedGitStatusSequence = max(appliedGitStatusSequence, sequence)
     }
 
     /// 一覧が入れ替わったら、その一覧のディレクトリに対する保留があれば同時に反映する。
@@ -228,7 +267,9 @@ final class FileListModel {
         guard hasLoadedEntries, key == entriesDirectory.normalizedPathKey else {
             return showChangedFilesOnly ? .shared(nil) : .ownListing
         }
-        return .shared(entries)
+        // 絞り込み済みの一覧を渡す。FolderListingView 側はこれを再度 filter.apply に
+        // 通さない(FolderListingView.visibleEntries を参照。TASK-298)。
+        return .shared(visibleEntries)
     }
 
     /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧
