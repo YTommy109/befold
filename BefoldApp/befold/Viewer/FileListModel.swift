@@ -244,6 +244,16 @@ final class FileListModel {
         listFilter.apply(to: entries, in: entriesDirectory)
     }
 
+    /// フォルダーを降りた直後に選ぶ行の URL。一覧が空(または `..` しかない)なら nil。
+    ///
+    /// `.parentNavigation` は上位フォルダーへの移動手段であって一覧の項目ではないため飛ばす。
+    /// 選んでしまうと、そのまま Enter や → を押した利用者が今降りてきたばかりの階層へ
+    /// 押し戻される。絞り込みは移動をまたいで残るので、`entries` ではなく実際に見えている
+    /// `visibleEntries` の先頭を採る。
+    var firstSelectableEntryURL: FileListEntry.ID? {
+        visibleEntries.first { $0.kind != .parentNavigation }?.url
+    }
+
     /// `directory` のフォルダー一覧(FolderListingView)へ渡す供給元。
     ///
     /// 表示中ディレクトリを見ているときは、サイドバーが git 状態と一緒に揃えた一覧を

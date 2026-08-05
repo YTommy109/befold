@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 /// SidebarNavigator.navigateToFolder / refreshFileList の選択・rootDirectory ポリシー
-/// (ホーム上限ガード・子フォルダーへの移動で自動選択/自動オープンしない・親フォルダーへ
+/// (ホーム上限ガード・子フォルダーへ降りたら先頭行を選ぶがプレビューは一覧のまま・親フォルダーへ
 /// 戻ると直前の子フォルダーが選ばれる・上位移動で rootDirectory が最上位へ更新される・
 /// refreshFileList でフォルダー選択が保持される)を、実ディレクトリ列挙もフルウィンドウ
 /// 生成も伴わずに検証する。実 FS の列挙結果自体は本質でないため、
@@ -73,15 +73,12 @@ struct SidebarNavigatorFolderNavigationTests {
         #expect(navigator.fileListModel.currentDirectory == before)
     }
 
-    @Test("子フォルダーへの移動では自動選択されない")
-    func navigateToChildDoesNotAutoSelect() async {
-        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-noselect")
+    @Test("子フォルダーへ降りると一覧の先頭が選択される")
+    func navigateToChildSelectsFirstEntry() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-first")
         let sub = tmp.appendingPathComponent("sub", isDirectory: true)
         let grandChild = sub.appendingPathComponent("grandchild", isDirectory: true)
         let child = sub.appendingPathComponent("child.mmd")
-        // 選択候補になり得るファイル(child.mmd)があっても自動選択しないことを固定する。
-        // フォルダーのみ(選択候補が無い)だと navigateToChildWithoutFilesClearsSelection と
-        // 区別が付かなくなる。
         let (navigator, host) = makeNavigator(
             currentDirectory: tmp,
             selection: nil,
@@ -97,12 +94,12 @@ struct SidebarNavigatorFolderNavigationTests {
         navigator.navigateToFolder(sub)
         await navigator.pendingListingTask?.value
 
-        #expect(navigator.fileListModel.selection == nil)
+        #expect(navigator.fileListModel.selection?.lastPathComponent == "grandchild")
     }
 
-    @Test("子フォルダーへの移動ではファイルが自動的に開かれない")
-    func navigateToChildDoesNotAutoOpenFile() async {
-        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-noopen")
+    @Test("先頭がファイルなら、その中身がプレビューに出る")
+    func navigateToChildPresentsHeadFileContent() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-listing")
         let sub = tmp.appendingPathComponent("sub", isDirectory: true)
         let child = sub.appendingPathComponent("child.mmd")
         let (navigator, host) = makeNavigator(
@@ -115,7 +112,81 @@ struct SidebarNavigatorFolderNavigationTests {
         navigator.navigateToFolder(sub)
         await navigator.pendingListingTask?.value
 
+        #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
+        #expect(navigator.fileListModel.previewTarget == .file)
+        // 選択を書くだけでは ViewerStore が前のファイルを保持したままで中身が変わらない。
+        // 提示対象が .file になることと、実際に切り替わることの両方が要る(TASK-310)。
+        #expect(host.performFileSwitchCallCount == 1)
+        #expect(host.currentFileURL == child)
+    }
+
+    @Test("先頭がフォルダーなら、そのフォルダーの一覧がプレビューに出る(ファイルは開かない)")
+    func navigateToChildPresentsHeadFolderListing() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-headfolder")
+        let sub = tmp.appendingPathComponent("sub", isDirectory: true)
+        let grandChild = sub.appendingPathComponent("grandchild", isDirectory: true)
+        let child = sub.appendingPathComponent("child.mmd")
+        let (navigator, host) = makeNavigator(
+            currentDirectory: tmp,
+            selection: nil,
+            listings: [
+                sub.normalizedPathKey: [
+                    FileListEntry(url: grandChild, kind: .folder),
+                    FileListEntry(url: child, kind: .file),
+                ],
+            ]
+        )
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.navigateToFolder(sub)
+        await navigator.pendingListingTask?.value
+
+        #expect(navigator.fileListModel.previewTarget == .folder(grandChild))
         #expect(host.performFileSwitchCallCount == 0)
+    }
+
+    @Test("先頭のファイルを開けなかったら選択を外し、移動先の一覧を出す")
+    func navigateToChildFallsBackToListingWhenHeadFileCannotOpen() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-failopen")
+        let sub = tmp.appendingPathComponent("sub", isDirectory: true)
+        let child = sub.appendingPathComponent("child.mmd")
+        let (navigator, host) = makeNavigator(
+            currentDirectory: tmp,
+            selection: nil,
+            listings: [sub.normalizedPathKey: [FileListEntry(url: child, kind: .file)]]
+        )
+        defer { withExtendedLifetime(host) {} }
+        // 列挙とプレビュー切替の間にファイルが消えた場合(performFileSwitch が .failed)。
+        host.fileSwitchOutcome = .failed
+
+        navigator.navigateToFolder(sub)
+        await navigator.pendingListingTask?.value
+
+        #expect(navigator.fileListModel.selection == nil)
+        #expect(navigator.fileListModel.previewTarget == .folder(sub))
+    }
+
+    @Test("親ナビゲーション行は自動選択の対象にしない")
+    func navigateToChildSkipsParentNavigationRow() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-skipparent")
+        let sub = tmp.appendingPathComponent("sub", isDirectory: true)
+        let child = sub.appendingPathComponent("child.mmd")
+        let (navigator, host) = makeNavigator(
+            currentDirectory: tmp,
+            selection: nil,
+            listings: [
+                sub.normalizedPathKey: [
+                    FileListEntry(url: tmp, kind: .parentNavigation),
+                    FileListEntry(url: child, kind: .file),
+                ],
+            ]
+        )
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.navigateToFolder(sub)
+        await navigator.pendingListingTask?.value
+
+        #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
     }
 
     @Test("ファイルのない子フォルダーへの移動では何も選択されない")
@@ -133,6 +204,7 @@ struct SidebarNavigatorFolderNavigationTests {
         await navigator.pendingListingTask?.value
 
         #expect(navigator.fileListModel.selection == nil)
+        #expect(navigator.fileListModel.previewTarget == .folder(sub))
     }
 
     @Test("親フォルダーへの移動では直前の子フォルダーが選択される")
