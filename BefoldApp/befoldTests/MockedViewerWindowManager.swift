@@ -41,6 +41,9 @@ struct MockedViewerWindowManager {
     let recentDocumentsStore: RecentDocumentsStore
     let perFileState: PerFileStateStore
     let sidebarDisplayPreference: SidebarDisplayPreference
+    /// 生成される全ウィンドウが共有する差分表示設定。機能ゲートに依存しないよう
+    /// isAvailable を明示して、dev/stable いずれのビルドでも同じ挙動でテストする。
+    let diffDisplayPreference: DiffDisplayPreference
     /// 本番 UserDefaults へ書かないよう、隔離 defaults で明示的に生成して注入する。
     let bookmarkStore: BookmarkStore
     /// 生成される全ウィンドウが共有する git 索引。実 `git` を起動しない記録用フェイク。
@@ -67,6 +70,8 @@ struct MockedViewerWindowManager {
         recentDocumentsStore = RecentDocumentsStore(defaults: defaults)
         perFileState = PerFileStateStore(defaults: defaults)
         sidebarDisplayPreference = SidebarDisplayPreference(defaults: defaults)
+        let diffDisplayPreference = DiffDisplayPreference(defaults: defaults, isAvailable: true)
+        self.diffDisplayPreference = diffDisplayPreference
         let bookmarkStore = BookmarkStore(defaults: defaults)
         self.bookmarkStore = bookmarkStore
         let gitFileIndex = RecordingGitFileIndex()
@@ -77,6 +82,7 @@ struct MockedViewerWindowManager {
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
             sidebarDisplayPreference: sidebarDisplayPreference,
+            diffDisplayPreference: diffDisplayPreference,
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             fileReader: fileReader,

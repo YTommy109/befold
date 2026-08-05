@@ -23,6 +23,9 @@ final class ViewerWindowManager {
     private let sessionStore: SessionStore
     private let recentDocumentsStore: RecentDocumentsStore
     private let sidebarDisplayPreference: SidebarDisplayPreference
+    /// 全ウィンドウで共有する差分表示設定。ここで 1 つ持って openViewer で渡すことが、
+    /// 「粒度はアプリ全体」(DiffDisplayPreference の doc コメント)を成立させている。
+    private let diffDisplayPreference: DiffDisplayPreference
     private let findOptionsPreference: FindOptionsPreference
     private let codeFontPreference: CodeFontPreference
     private let perFileState: PerFileStateStore
@@ -59,6 +62,8 @@ final class ViewerWindowManager {
 
     /// - Parameter sidebarDisplayPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
+    /// - Parameter diffDisplayPreference: 同上。差分表示は全ウィンドウで同じ答えになる必要があるため、
+    ///   ここで受けた 1 つを openViewer が全コントローラへ渡す（省略時もマネージャ内で 1 つに揃う）。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
     /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
     ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
@@ -73,6 +78,7 @@ final class ViewerWindowManager {
     init(
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
         sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
+        diffDisplayPreference: DiffDisplayPreference = DiffDisplayPreference(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
@@ -91,6 +97,7 @@ final class ViewerWindowManager {
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
         self.sidebarDisplayPreference = sidebarDisplayPreference
+        self.diffDisplayPreference = diffDisplayPreference
         self.findOptionsPreference = findOptionsPreference
         self.codeFontPreference = codeFontPreference
         self.perFileState = perFileState
@@ -233,6 +240,7 @@ final class ViewerWindowManager {
         let controller = ViewerWindowController(
             fileURL: url,
             sidebarDisplayPreference: sidebarDisplayPreference,
+            diffDisplayPreference: diffDisplayPreference,
             findOptionsPreference: findOptionsPreference,
             codeFontPreference: codeFontPreference,
             perFileState: perFileState,

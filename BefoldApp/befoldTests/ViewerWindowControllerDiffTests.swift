@@ -100,4 +100,27 @@ struct ViewerWindowControllerDiffTests {
         #expect(preference.isEnabled == false)
         #expect(controller.store.diffText == nil)
     }
+
+    /// 生成経路(ViewerWindowManager)が共有インスタンスを渡していることの固定。
+    /// 窓をまたぐ設定なのでコントローラ単体テストでは捕まえられない。
+    @Test("生成したウィンドウは差分表示設定を共有する")
+    func openViewerSharesDiffDisplayPreference() {
+        let first = URL(fileURLWithPath: "/mock/first.swift")
+        let second = URL(fileURLWithPath: "/mock/second.swift")
+        let fixture = MockedViewerWindowManager(files: [first, second])
+        defer { fixture.closeAll() }
+        fixture.manager.openViewer(for: first)
+        fixture.manager.openViewer(for: second)
+        let controllers = fixture.manager.allControllers
+        #expect(controllers.count == 2)
+
+        // 共有インスタンスを動かして観測する。メニュー操作(toggleSourceDiff)経由だと
+        // フィーチャーゲート無効時に両方 false のまま一致し、共有していなくても通る。
+        fixture.diffDisplayPreference.isEnabled = true
+
+        let enabled = controllers.filter(\.isSourceDiffEnabled)
+        #expect(enabled.count == controllers.count)
+        let shared = controllers.filter { $0.diffDisplayPreference === fixture.diffDisplayPreference }
+        #expect(shared.count == controllers.count)
+    }
 }
