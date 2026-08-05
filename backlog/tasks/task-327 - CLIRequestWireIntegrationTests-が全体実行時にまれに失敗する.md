@@ -4,7 +4,7 @@ title: CLIRequestWireIntegrationTests が全体実行時にまれに失敗する
 status: To Do
 assignee: []
 created_date: '2026-08-05 17:07'
-updated_date: '2026-08-05 17:16'
+updated_date: '2026-08-05 18:28'
 labels:
   - test
   - flaky
@@ -39,4 +39,6 @@ TASK-319 の作業中に遭遇。`swift test` の全体実行で「全オプシ�
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-08-06: 同種の不安定さを ViewerWindowControllerToolbarTests「行番号アイテムはコード表示中のみ有効」（ViewerWindowControllerToolbarTests.swift:98、`(codeButton.isEnabled → false) == true`）でも観測した。単独実行と再実行では通る。全体実行時の負荷・並列度に依存する点が CLIRequestWire と共通のため、調査は 2 件まとめて行うのがよい。
+
+2026-08-06: 全体実行が**終わらない**（テストバイナリが 100% 超の CPU を 20 分以上回し続ける）事象も 2 回連続で観測した。`sample` で採取したスタックは、多数のワーカースレッドが `-[NSAnimation _runBlocking]` → `CFRunLoopRun` で待っている状態で、メインスレッドは `swift_task_asyncMainDrainQueue` → `CFRunLoopRun`。当該セッションの変更（GitDiffLoader）とは無関係な AppKit のウィンドウアニメーション待ちに見える。プロセスを kill して再実行すると 1150 tests が 18.7 秒で通過した。ハング時の sample は scratchpad に採取したが永続化していないため、次回再現時に `sample <pid>` を取り直して保存すること。
 <!-- SECTION:NOTES:END -->
