@@ -118,6 +118,23 @@ private func openPipeCount() -> Int {
     return count
 }
 
+/// 特定の pipe を「同じ pipe のまま開いている」と言い切れる同一性。
+///
+/// fd 番号だけでは足りない。閉じた番号は即座に別の用途へ再利用されるため、番号が
+/// pipe を指したままでも中身が入れ替わっていることがある。macOS の pipe は端ごとに
+/// 一意な inode を持つので、番号と inode の組で「あの pipe そのもの」を指せる。
+private struct PipeIdentity: Equatable {
+    let descriptor: Int32
+    let inode: UInt64
+}
+
+/// `descriptor` が今まさに pipe を指しているならその同一性。pipe でなければ nil。
+private func pipeIdentity(of descriptor: Int32) -> PipeIdentity? {
+    var status = stat()
+    guard fstat(descriptor, &status) == 0, status.st_mode & S_IFMT == S_IFIFO else { return nil }
+    return PipeIdentity(descriptor: descriptor, inode: status.st_ino)
+}
+
 /// `GitCommandRunner` の読み取りスレッドの本数。
 ///
 /// 全スレッドを数えると GCD のワーカー本数の増減が基準線に乗ってしまうため、
@@ -459,20 +476,31 @@ struct GitCommandRunnerResourceLeakTests {
         defer { withExtendedLifetime(temp) {} }
         let sleeper = try makeHangingRepo(in: temp.url, escapesProcessGroup: true)
         defer { killSleepers(matching: sleeper.path) }
-        let baselinePipes = openPipeCount()
         let baselineReaders = readerThreadCount()
 
         // 猶予切れで資源が返ることの検証は猶予の満了そのものを待つため、この待ちだけは
         // テスト側の工夫では縮められない。既定の 5 秒だと構造的に遅いテストになるので、
         // 短い猶予を注入して「猶予切れで返る」という不変条件だけを短時間で固定する。
-        let runner = GitCommandRunner(timeout: hangingBudget, terminationGrace: shortTerminationGrace)
+        // ランナーが開いた pipe そのものを控える。プロセス全体の pipe 数と基準線を比べる形は
+        // 使えない。並行実行中の他スイートが基準線の後に開いて開いたままにする pipe が
+        // 1 本でもあれば条件は恒久的に成立しなくなり、予算を使い切って落ちるため
+        // (CI で実際に起き、予算を延ばしても直らない形の失敗になった)。
+        let observed = LockedBox<PipeIdentity?>(nil)
+        let runner = GitCommandRunner(
+            timeout: hangingBudget, terminationGrace: shortTerminationGrace,
+            pipeObserver: { descriptor in observed.update { $0 = pipeIdentity(of: descriptor) } }
+        )
         let results = runInBackground(runner, sleeper, in: temp.url)
         #expect(await waitUntil { processExists(matching: sleeper.path) == true })
         #expect(await waitUntil { results.get() == [GitCommandOutcome.unavailable] })
 
+        // 開いていた pipe を捉えられていなければ、以降の「消えたか」は空成立する。
+        let opened = try #require(observed.get(), "ランナーが開いた pipe を観測できていない")
+
         // 孫は生き残るので EOF は永遠に来ない。それでも資源は返らなければならない。
+        // 番号が再利用されて別の pipe になった場合も inode が変わるので「返った」と判定できる。
         let budget = testTimeout(fallback: leakPollingBudget)
-        await waitUntil(timeout: budget) { openPipeCount() <= baselinePipes }
+        await waitUntil(timeout: budget) { pipeIdentity(of: opened.descriptor) != opened }
         await waitUntil(timeout: budget) { readerThreadCount() <= baselineReaders }
         #expect(processExists(matching: sleeper.path) == true, "この経路では孫が残るのが仕様")
     }

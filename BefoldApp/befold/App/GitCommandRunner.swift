@@ -37,9 +37,23 @@ struct GitCommandRunner: Sendable {
     /// 呼び出しごとに閉じた値(状態を共有しない)のため、デフォルト引数での注入を許容する。
     private let terminationGrace: TimeInterval
 
-    init(timeout: TimeInterval = 10, terminationGrace: TimeInterval = 5) {
+    /// 標準出力用の `Pipe` を作った直後に、その読み取り端の fd を通知する観測点。
+    ///
+    /// 資源が返ることの検証は「この呼び出しが開いた pipe が閉じたか」でしか行えない。
+    /// プロセス全体の pipe を数える形だと、並行実行中の他テストが開いた pipe が基準線に
+    /// 混ざり、基準線を採った後に開かれて開きっぱなしのものが 1 本でもあれば条件は
+    /// 恒久的に成立しなくなる(CI で予算 60 秒を使い切って落ちた。予算を延ばしても直らない)。
+    /// 読み取りスレッドに名前を付けて数える対象を絞っているのと同じ理由で、pipe 側にも
+    /// 自分のものだと分かる手掛かりを出す。
+    private let pipeObserver: (@Sendable (Int32) -> Void)?
+
+    init(
+        timeout: TimeInterval = 10, terminationGrace: TimeInterval = 5,
+        pipeObserver: (@Sendable (Int32) -> Void)? = nil
+    ) {
         self.timeout = timeout
         self.terminationGrace = terminationGrace
+        self.pipeObserver = pipeObserver
     }
 
     /// 全 git 呼び出しに前置する無害化オプション。
@@ -97,6 +111,7 @@ struct GitCommandRunner: Sendable {
         process.environment = Self.processEnvironment()
         if let workingDirectory { process.currentDirectoryURL = workingDirectory }
         let pipe = Pipe()
+        pipeObserver?(pipe.fileHandleForReading.fileDescriptor)
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
         // 標準入力を待って止まらないよう明示的に閉じておく(ビューアは何も送らない)。
