@@ -7,7 +7,7 @@ import Testing
 ///
 /// in-process で検証できることはここでは扱わない。実バイナリでしか確かめられない
 /// 「起動して名乗るバージョン」と「カレントディレクトリ基準のパス解決」に絞る。
-@Suite(.timeLimit(.minutes(1)))
+@Suite(testTimeLimit())
 struct BefoldCLIIntegrationTests {
     @Test("befold-cli --version は標準出力にバージョン文字列を印字し終了コード 0 で終了する")
     func versionFlagPrintsVersionAndExitsSuccessfully() throws {
