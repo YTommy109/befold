@@ -27,8 +27,10 @@ struct RecentDocumentsMenuControllerTests {
         controller.menuNeedsUpdate(menu)
 
         #expect(menu.items.count == 4)
-        #expect(menu.items[0].title == "diagram.mmd")
-        #expect(menu.items[1].title == "note.md")
+        #expect(menu.items[0].title == "diagram.mmd\t/tmp")
+        #expect(menu.items[1].title == "note.md\t/tmp")
+        // ファイル名(左)とパス(右)がタブストップで 2 列に分かれる。
+        #expect(menu.items[0].attributedTitle?.string == "diagram.mmd\t/tmp")
         #expect(menu.items[0].representedObject as? URL == urls[0])
         #expect(menu.items[0].image != nil)
         #expect(menu.items[2].isSeparatorItem)
@@ -70,7 +72,7 @@ struct RecentDocumentsMenuControllerTests {
         controller.menuNeedsUpdate(menu)
 
         #expect(menu.items.count == 3)
-        #expect(menu.items[0].title == "diagram.mmd")
+        #expect(menu.items[0].title == "diagram.mmd\t/tmp")
     }
 
     @Test

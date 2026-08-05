@@ -25,8 +25,9 @@ struct BookmarksMenuControllerTests {
         controller.menuNeedsUpdate(menu)
 
         #expect(menu.items.count == 2)
-        #expect(menu.items[0].title == "apple.md")
-        #expect(menu.items[1].title == "zebra.mmd")
+        #expect(menu.items[0].title == "apple.md\t/tmp")
+        #expect(menu.items[1].title == "zebra.mmd\t/tmp")
+        #expect(menu.items[0].attributedTitle?.string == "apple.md\t/tmp")
         #expect(menu.items[0].representedObject as? URL == urls[1])
         #expect(menu.items[0].image != nil)
     }
@@ -51,7 +52,7 @@ struct BookmarksMenuControllerTests {
         controller.menuNeedsUpdate(menu)
 
         #expect(menu.items.count == 1)
-        #expect(menu.items[0].title == "diagram.mmd")
+        #expect(menu.items[0].title == "diagram.mmd\t/tmp")
     }
 
     @Test("メニュー項目を選択すると openHandler に URL が渡される")
