@@ -1,9 +1,10 @@
 ---
 id: TASK-313
 title: repeatedTimeoutsDoNotAccumulateResources の pipe 判定も自ランナーの pipe に絞る
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-05 05:34'
+updated_date: '2026-08-05 10:42'
 labels: []
 dependencies: []
 priority: low
@@ -25,7 +26,15 @@ pipeObserver は複数回の呼び出しでも使えるので、20 本ぶんの 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 repeatedTimeoutsDoNotAccumulateResources の pipe 判定が pipeObserver 由来の PipeIdentity 集合ベースになっている
-- [ ] #2 openPipeCount() が未使用になったことを確認し削除している
-- [ ] #3 実装を意図的に壊すと当該テストが失敗することを実測で確認している
+- [x] #1 repeatedTimeoutsDoNotAccumulateResources の pipe 判定が pipeObserver 由来の PipeIdentity 集合ベースになっている
+- [x] #2 openPipeCount() が未使用になったことを確認し削除している
+- [x] #3 実装を意図的に壊すと当該テストが失敗することを実測で確認している
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+repeatedTimeoutsDoNotAccumulateResources の pipe 判定を pipeObserver 由来の PipeIdentity 集合へ切り替えた。20 ラウンドぶんの読み取り端を控え、全て「同じ pipe のままではない」ことを待つ形にしたため、他スイートが開きっぱなしにする pipe の影響を原理的に受けなくなった。openPipeCount() は未使用になったので削除し、スイートの型コメントからも参照を除いた。リーダースレッドの判定はプロセス全体でしか数えられないため slack 3 のまま残す。
+
+実測: GitCommandRunner.run で作った Pipe をグローバルへ保持して解放を止めると、当該テストが GitCommandRunnerTests.swift:466(新しい pipe 同一性の待ち)で失敗することを確認。サボタージュを戻すと GitCommandRunnerResourceLeakTests は 7 件全て通る。
+<!-- SECTION:NOTES:END -->

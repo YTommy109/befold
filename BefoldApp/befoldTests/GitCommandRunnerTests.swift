@@ -103,21 +103,6 @@ private func processExists(matching pattern: String) -> Bool? {
     runTool("/usr/bin/pgrep", ["-f", pattern]).map { $0 == 0 }
 }
 
-/// このプロセスが開いている pipe の fd 数。
-///
-/// fd を全部数えると、並行実行中の他スイートが開くファイルやソケットが基準線に混ざる。
-/// 残したくないのは打ち切った git の `Pipe` なので、種別を pipe に絞って数える。
-private func openPipeCount() -> Int {
-    var count = 0
-    for descriptor in 0 ..< getdtablesize() {
-        var status = stat()
-        if fstat(descriptor, &status) == 0, status.st_mode & S_IFMT == S_IFIFO {
-            count += 1
-        }
-    }
-    return count
-}
-
 /// 特定の pipe を「同じ pipe のまま開いている」と言い切れる同一性。
 ///
 /// fd 番号だけでは足りない。閉じた番号は即座に別の用途へ再利用されるため、番号が
@@ -225,12 +210,12 @@ private func makeRepoWithFsmonitor(_ dir: URL, marker: URL) throws {
 /// 開いた文書のリポジトリ設定(`core.fsmonitor`)による任意コマンド実行を防ぐ要のため、
 /// 将来のリファクタで静かに落ちないよう引数構築と実挙動の両方で押さえる。
 ///
-/// プロセス全体の基準線(`openPipeCount` / `readerThreadCount`)を読む資源残留系テストは
+/// プロセス全体の基準線(`readerThreadCount`)を読む資源残留系テストは
 /// [`GitCommandRunnerResourceLeakTests`] に分離してあるため、ここは並列実行できる
 /// (各テストが自己完結で、他テストの計測に影響する共有状態を持たない)。
 ///
 /// `GitCommandRunner` を実行するテスト(`.run()` を呼ぶもの)はここへ置かない。並列実行中に
-/// pipe / リーダースレッドを一時的に生成すると、`GitCommandRunnerResourceLeakTests` 側が
+/// リーダースレッドを一時的に生成すると、`GitCommandRunnerResourceLeakTests` 側が
 /// 開始時点で 1 回だけ読む基準線を水増しし、検証力を落とす(`GitCommandRunnerResourceLeakTests`
 /// の型コメント参照)。`GitCommandRunner` を実行するテストは全て `GitCommandRunnerResourceLeakTests`
 /// へ置くこと。
@@ -269,17 +254,19 @@ struct GitCommandRunnerTests {
     }
 }
 
-/// プロセス全体の基準線(`openPipeCount` / `readerThreadCount`)を読む資源残留系テストの
+/// プロセス全体の基準線(`readerThreadCount`)を読む資源残留系テストの
 /// 直列化専用スイート。同じスイートには共有ワーカープールを 64 本埋めるテストや、
 /// 打ち切った git のリーダースレッドを猶予いっぱい保持するテストがあり、並列に走ると
 /// 残留の基準線がそれらのノイズで揺れる。数え方を対象限定にした上で
-/// (`openPipeCount` / `readerThreadCount`)、同居ノイズも直列化で断つ。
+/// (`readerThreadCount`)、同居ノイズも直列化で断つ。
+/// (pipe の残留判定は基準線を使わず、`pipeObserver` で通知された自ランナーの pipe の
+/// 同一性(`PipeIdentity`)だけを見るため、他スイートのノイズを原理的に受けない。)
 ///
-/// `openPipeCount` / `readerThreadCount` を直接読むテストだけでなく、`GitCommandRunner` を
+/// `readerThreadCount` を直接読むテストだけでなく、`GitCommandRunner` を
 /// 1 回でも実行するテストは全てここに置く。理由は基準線側の性質にある:
 /// `repeatedTimeoutsDoNotAccumulateResources` / `releasesResourcesWhenWriteEndSurvivesTermination`
-/// は開始時点の pipe / リーダースレッド数を 1 回だけサンプリングして基準線とするため、その瞬間に
-/// 別テストが `GitCommandRunner` を動かして pipe やリーダースレッドを一時的に生成していると
+/// は開始時点のリーダースレッド数を 1 回だけサンプリングして基準線とするため、その瞬間に
+/// 別テストが `GitCommandRunner` を動かしてリーダースレッドを一時的に生成していると
 /// 基準線が水増しされ、閾値判定が緩んで検証力を失う(落ちる方向ではなく通ってしまう方向の
 /// 劣化なので気づきにくい)。これは並列スイート側の見かけの実行時間とは無関係な理由なので、
 /// `GitCommandRunner` を全く実行しない引数構築・環境変数テストのみを `GitCommandRunnerTests`
@@ -290,7 +277,7 @@ struct GitCommandRunnerTests {
 ///
 /// `.serialized` はスイート内しか直列化しないため、`GitCommandRunnerTests` (並列実行) と
 /// 同時に走ることはある。しかしその並列側は `GitCommandRunner` を一切実行しないので、
-/// pipe / リーダースレッドの基準線を動かさない。基準線ノイズの吸収は他スイート由来の分として
+/// リーダースレッドの基準線を動かさない。基準線ノイズの吸収は他スイート由来の分として
 /// 許容幅(`slack`)側に持たせたままでよく(`repeatedTimeoutsDoNotAccumulateResources` 参照)、
 /// 分割前と検証力は変わらない。
 @Suite(.serialized)
@@ -439,11 +426,20 @@ struct GitCommandRunnerResourceLeakTests {
         defer { withExtendedLifetime(temp) {} }
         let sleeper = try makeHangingRepo(in: temp.url)
         defer { killSleepers(matching: sleeper.path) }
-        let runner = GitCommandRunner(timeout: hangingBudget)
+        // ランナーが開いた pipe そのものを控える。プロセス全体の pipe 数と基準線を比べる形は
+        // 使えない。並行実行中の他スイートが基準線の後に開いて開いたままにする pipe が
+        // 1 本でもあれば条件は恒久的に成立しなくなり、予算を使い切って落ちるため。
+        let observed = LockedBox<[PipeIdentity]>([])
+        let runner = GitCommandRunner(
+            timeout: hangingBudget,
+            pipeObserver: { descriptor in
+                guard let identity = pipeIdentity(of: descriptor) else { return }
+                observed.update { $0.append(identity) }
+            }
+        )
 
-        // 数えるのは pipe の fd と `GitCommandRunner.read` という名前のスレッドだけなので、
-        // Thread や Process の一度きりの確保はそもそも数に入らない。空打ちのウォームアップは要らない。
-        let baselinePipes = openPipeCount()
+        // 数えるのは `GitCommandRunner.read` という名前のスレッドだけなので、Thread や Process の
+        // 一度きりの確保はそもそも数に入らない。空打ちのウォームアップは要らない。
         let baselineReaders = readerThreadCount()
 
         // 逐次に回すと 1 ラウンドぶんの予算をラウンド数だけ積むことになる。打ち切りは互いに
@@ -456,14 +452,18 @@ struct GitCommandRunnerResourceLeakTests {
         #expect(await waitUntil { results.get().count == rounds })
         #expect(results.get().allSatisfy { $0 == .unavailable })
 
+        // 開いていた pipe を全ラウンドぶん捉えられていなければ、以降の「消えたか」は空成立する。
+        let opened = observed.get()
+        #expect(opened.count == rounds, "ランナーが開いた pipe を \(rounds) 本ぶん観測できていない")
+
         // 解放は読み取りスレッドが EOF に達してから起きるのでポーリングで待つ。
-        // 許容幅は他スイートの git 呼び出しが一瞬だけ立てる pipe / リーダースレッドを吸収する
-        // ためのもの。残留があればラウンド数(20)ぶん積み上がるので、許容幅 3 に対して
-        // 検出マージンは約 6.7 倍あり、幅を狭めても検証力は落ちない。
-        // 待つほど条件が満たされやすくなる形なので、一時的なノイズで落ちることもない。
+        // 番号が再利用されて別の pipe になった場合も inode が変わるので「返った」と判定できる。
+        // リーダースレッドはプロセス全体の本数でしか数えられないため、他スイートの git 呼び出しが
+        // 一瞬だけ立てる分を吸収する許容幅を残す。残留があればラウンド数(20)ぶん積み上がるので、
+        // 許容幅 3 に対して検出マージンは約 6.7 倍あり、幅を狭めても検証力は落ちない。
         let slack = 3
         let budget = testTimeout(fallback: leakPollingBudget)
-        await waitUntil(timeout: budget) { openPipeCount() <= baselinePipes + slack }
+        await waitUntil(timeout: budget) { opened.allSatisfy { pipeIdentity(of: $0.descriptor) != $0 } }
         await waitUntil(timeout: budget) { readerThreadCount() <= baselineReaders + slack }
     }
 
