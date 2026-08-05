@@ -308,12 +308,12 @@ final class SidebarNavigator {
 
     /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
     /// 列挙はメイン外で行い、完了後にメインアクターへ一括反映する(呼び出し自体は非 async)。
-    /// 移動先に最初から自動的にファイルを開くことはしない(#folder-preview-listing)。
     ///
-    /// 下位・横へ移動したときは、一覧の先頭行をハイライトしたうえでプレビューには新しい
-    /// ディレクトリの一覧を出す(TASK-310)。ハイライトは矢印キー・Enter の起点にするための
-    /// もので、提示対象ではない。両者は selectPresentingDirectoryListing(_:) が分けており、
-    /// 続けて選択が書き込まれた時点(クリック・キー操作)で提示対象がその行へ移る。
+    /// 下位・横へ移動したときは一覧の先頭行を選ぶ(TASK-310)。プレビューは選択に追従するので、
+    /// 先頭がファイルならその中身、フォルダーならそのフォルダーの一覧が出る。
+    /// **選択を書くだけでは追従しない**ことに注意する。previewTarget が `.file` になっても
+    /// ViewerWebView が出すのは ViewerStore が保持している「前に開いていたファイル」であり、
+    /// ハイライトだけが動いて中身が変わらない。先頭がファイルのときは切替まで行うこと。
     func navigateToFolder(_ url: URL) {
         guard host != nil else { return }
         let target = url.standardizedFileURL
@@ -321,18 +321,29 @@ final class SidebarNavigator {
         let previous = fileListModel.currentDirectory
         fileListModel.currentDirectory = url
         updateRootDirectory(with: target)
-        performListing(of: url) { _, directory, entries in
+        performListing(of: url) { host, directory, entries in
             self.fileListModel.setEntries(entries, for: directory)
             let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
                 .normalizedPathKey
             if isGoingUp {
                 self.fileListModel.selection = self.folderEntryURL(forKey: previous.normalizedPathKey)
             } else {
-                self.fileListModel.selectPresentingDirectoryListing(
-                    self.fileListModel.firstSelectableEntryURL
-                )
+                self.selectHeadEntry(presentingWith: host)
             }
             self.recordHistory()
+        }
+    }
+
+    /// 移動先の一覧の先頭行を選び、それがファイルならプレビューの中身も揃える。
+    /// 切替に失敗した(ファイルが消えている)ときは選択を戻さず外し、移動先ディレクトリの
+    /// 一覧を出す。存在しない行をハイライトしたまま残すより、一覧へ落ちるほうが実態に近い。
+    private func selectHeadEntry(presentingWith host: SidebarNavigatorHost) {
+        let head = fileListModel.firstSelectableEntryURL
+        fileListModel.selection = head
+        guard let head, fileListModel.entries.first(where: { $0.url == head })?.kind == .file
+        else { return }
+        if case .failed = host.performFileSwitch(to: head) {
+            fileListModel.selection = nil
         }
     }
 

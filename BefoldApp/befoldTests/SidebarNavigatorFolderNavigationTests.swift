@@ -97,12 +97,11 @@ struct SidebarNavigatorFolderNavigationTests {
         #expect(navigator.fileListModel.selection?.lastPathComponent == "grandchild")
     }
 
-    @Test("先頭が選択されても、プレビューは移動先ディレクトリの一覧のままである")
-    func navigateToChildKeepsPreviewOnDirectoryListing() async {
+    @Test("先頭がファイルなら、その中身がプレビューに出る")
+    func navigateToChildPresentsHeadFileContent() async {
         let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-listing")
         let sub = tmp.appendingPathComponent("sub", isDirectory: true)
         let child = sub.appendingPathComponent("child.mmd")
-        // 先頭がファイルでも、その中身をプレビューへ出してはならない(TASK-61 の挙動)。
         let (navigator, host) = makeNavigator(
             currentDirectory: tmp,
             selection: nil,
@@ -114,22 +113,26 @@ struct SidebarNavigatorFolderNavigationTests {
         await navigator.pendingListingTask?.value
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
-        #expect(navigator.fileListModel.previewTarget == .folder(sub))
+        #expect(navigator.fileListModel.previewTarget == .file)
+        // 選択を書くだけでは ViewerStore が前のファイルを保持したままで中身が変わらない。
+        // 提示対象が .file になることと、実際に切り替わることの両方が要る(TASK-310)。
+        #expect(host.performFileSwitchCallCount == 1)
+        #expect(host.currentFileURL == child)
     }
 
-    @Test("降りた先で利用者が選び直すと、その行がプレビュー対象になる")
-    func selectingAfterDescendingPresentsThatEntry() async {
-        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-reselect")
+    @Test("先頭がフォルダーなら、そのフォルダーの一覧がプレビューに出る(ファイルは開かない)")
+    func navigateToChildPresentsHeadFolderListing() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-headfolder")
         let sub = tmp.appendingPathComponent("sub", isDirectory: true)
-        let first = sub.appendingPathComponent("a.mmd")
-        let second = sub.appendingPathComponent("b.mmd")
+        let grandChild = sub.appendingPathComponent("grandchild", isDirectory: true)
+        let child = sub.appendingPathComponent("child.mmd")
         let (navigator, host) = makeNavigator(
             currentDirectory: tmp,
             selection: nil,
             listings: [
                 sub.normalizedPathKey: [
-                    FileListEntry(url: first, kind: .file),
-                    FileListEntry(url: second, kind: .file),
+                    FileListEntry(url: grandChild, kind: .folder),
+                    FileListEntry(url: child, kind: .file),
                 ],
             ]
         )
@@ -137,10 +140,30 @@ struct SidebarNavigatorFolderNavigationTests {
 
         navigator.navigateToFolder(sub)
         await navigator.pendingListingTask?.value
-        // 一覧に留める指示は選択の書き込みで倒れる。自動選択と同じ行を選び直しても同じ。
-        navigator.fileListModel.selection = first
 
-        #expect(navigator.fileListModel.previewTarget == .file)
+        #expect(navigator.fileListModel.previewTarget == .folder(grandChild))
+        #expect(host.performFileSwitchCallCount == 0)
+    }
+
+    @Test("先頭のファイルを開けなかったら選択を外し、移動先の一覧を出す")
+    func navigateToChildFallsBackToListingWhenHeadFileCannotOpen() async {
+        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-failopen")
+        let sub = tmp.appendingPathComponent("sub", isDirectory: true)
+        let child = sub.appendingPathComponent("child.mmd")
+        let (navigator, host) = makeNavigator(
+            currentDirectory: tmp,
+            selection: nil,
+            listings: [sub.normalizedPathKey: [FileListEntry(url: child, kind: .file)]]
+        )
+        defer { withExtendedLifetime(host) {} }
+        // 列挙とプレビュー切替の間にファイルが消えた場合(performFileSwitch が .failed)。
+        host.fileSwitchOutcome = .failed
+
+        navigator.navigateToFolder(sub)
+        await navigator.pendingListingTask?.value
+
+        #expect(navigator.fileListModel.selection == nil)
+        #expect(navigator.fileListModel.previewTarget == .folder(sub))
     }
 
     @Test("親ナビゲーション行は自動選択の対象にしない")
@@ -164,24 +187,6 @@ struct SidebarNavigatorFolderNavigationTests {
         await navigator.pendingListingTask?.value
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
-    }
-
-    @Test("子フォルダーへの移動ではファイルが自動的に開かれない")
-    func navigateToChildDoesNotAutoOpenFile() async {
-        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-noopen")
-        let sub = tmp.appendingPathComponent("sub", isDirectory: true)
-        let child = sub.appendingPathComponent("child.mmd")
-        let (navigator, host) = makeNavigator(
-            currentDirectory: tmp,
-            selection: nil,
-            listings: [sub.normalizedPathKey: [FileListEntry(url: child, kind: .file)]]
-        )
-        defer { withExtendedLifetime(host) {} }
-
-        navigator.navigateToFolder(sub)
-        await navigator.pendingListingTask?.value
-
-        #expect(host.performFileSwitchCallCount == 0)
     }
 
     @Test("ファイルのない子フォルダーへの移動では何も選択されない")

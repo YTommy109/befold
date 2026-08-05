@@ -7,16 +7,21 @@ import Foundation
 /// SidebarNavigatorGenerationTests の 3 スイートで重複していたものを集約した。
 @MainActor
 final class SidebarNavigatorStubHost: SidebarNavigatorHost {
-    let currentFileURL: URL
-    /// navigateToFolder がファイル切替を一切行わないはずのケースの検証に使う。
+    /// 本番同様、切替が成立したら追従する(SidebarNavigator は切替後にこの値を読む)。
+    private(set) var currentFileURL: URL
+    /// ファイル切替が何回起きたかの検証に使う。
     private(set) var performFileSwitchCallCount = 0
+    /// 切替を失敗させたいテスト用。既定は常に成功。
+    var fileSwitchOutcome: FileSwitchOutcome = .switched
 
     init(currentFileURL: URL) {
         self.currentFileURL = currentFileURL
     }
 
-    func performFileSwitch(to _: URL) -> FileSwitchOutcome {
+    func performFileSwitch(to url: URL) -> FileSwitchOutcome {
         performFileSwitchCallCount += 1
+        guard case .switched = fileSwitchOutcome else { return fileSwitchOutcome }
+        currentFileURL = url
         return .switched
     }
 

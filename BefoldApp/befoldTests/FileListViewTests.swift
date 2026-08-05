@@ -114,7 +114,7 @@ struct FileListViewTests {
         let fixture = StandardEntries()
         let selected = LockedBox<URL?>(nil)
         let view = makeView(entries: fixture.all, selection: nil) { url in selected.set(url) }
-        view.model.selectPresentingDirectoryListing(view.model.firstSelectableEntryURL)
+        view.model.selection = view.model.firstSelectableEntryURL
         #expect(view.model.selection == fixture.file0.id)
 
         let result = view.selectNext()

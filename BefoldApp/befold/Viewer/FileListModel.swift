@@ -73,20 +73,9 @@ final class FileListModel {
             selectionPathKey: storedSelectionPathKey,
             entryIndex: entryIndex,
             currentDirectory: currentDirectory,
-            hasLoadedEntries: hasLoadedEntries,
-            presentsDirectoryListing: presentsDirectoryListing
+            hasLoadedEntries: hasLoadedEntries
         )
     }
-
-    /// 選択がサイドバーのハイライトだけを表し、プレビューは現在ディレクトリの一覧に留まるか。
-    /// フォルダーを降りたときに先頭行を選びつつ一覧表示を保つための指示で、
-    /// `selectPresentingDirectoryListing(_:)` だけが立て、選択の書き込みで必ず倒れる(TASK-310)。
-    ///
-    /// 「選択が nil なら一覧」という含意に相乗りせず独立した値にしてあるのは、ハイライトの
-    /// 有無と提示対象がこの状態でだけ食い違うため。空いているかどうかではなく、指示が
-    /// 出ているかどうかで判定する。didSet は付けない(通知は storedSelection の書き込みに
-    /// 揃えて 1 回にする。下の 2 つの書き込み経路がどちらもフラグを先に置く)。
-    private var presentsDirectoryListing = false
 
     /// 選択中の行の ID(= URL)。Finder/CLI から開いたファイルの URL や
     /// restoreSelection のように、一覧を経由しない生の URL が入ってくる経路があるため、
@@ -101,23 +90,8 @@ final class FileListModel {
             // スナップショットであり、導出のたびに片側だけディスクを読み直すと、
             // 同じ入力から違う答えが出る(TASK-278)。
             storedSelectionPathKey = normalized?.normalizedPathKey
-            // 一覧に留める指示はここで倒す。選択の書き込みは全経路がこの setter を通るので、
-            // 個々の呼び出し元(クリック・キー操作・履歴適用・一覧更新)に後始末を配らずに済む。
-            presentsDirectoryListing = false
             storedSelection = normalized
         }
-    }
-
-    /// 行をハイライトしつつ、プレビューは現在ディレクトリの一覧のままにする。
-    /// フォルダーを降りた直後に先頭行を選ぶために SidebarNavigator が使う(TASK-310)。
-    /// `nil` を渡せば選択なしのまま一覧を出す(空フォルダー)。
-    func selectPresentingDirectoryListing(_ url: FileListEntry.ID?) {
-        let normalized = url?.nativeBackedFileURL
-        storedSelectionPathKey = normalized?.normalizedPathKey
-        presentsDirectoryListing = true
-        // フラグを立ててから書く。逆順にすると、選択だけが入った一瞬を提示対象の変化として
-        // 通知してしまう(1 回の移動で通知を増やさない / TASK-278)。
-        storedSelection = normalized
     }
 
     private var storedSelection: FileListEntry.ID? {
@@ -270,7 +244,7 @@ final class FileListModel {
         listFilter.apply(to: entries, in: entriesDirectory)
     }
 
-    /// サイドバーで最初に選ぶべき行の URL。一覧が空(または `..` しかない)なら nil。
+    /// フォルダーを降りた直後に選ぶ行の URL。一覧が空(または `..` しかない)なら nil。
     ///
     /// `.parentNavigation` は上位フォルダーへの移動手段であって一覧の項目ではないため飛ばす。
     /// 選んでしまうと、そのまま Enter や → を押した利用者が今降りてきたばかりの階層へ
@@ -315,10 +289,7 @@ final class FileListModel {
         FileListFilter(
             filterText: filterText,
             gitStatus: showChangedFilesOnly ? gitStatus : nil,
-            // 提示しているのが現在ディレクトリの一覧なら、提示中の行は無い。選択はサイドバーの
-            // ハイライトでしかないので、git 絞り込みから守る理由も無い(守ると、フォルダーへ
-            // 降りるたびに未変更の先頭行が 1 件だけ「変更のみ表示」に残る / TASK-310)。
-            presentedPathKey: presentsDirectoryListing ? nil : storedSelectionPathKey
+            presentedPathKey: storedSelectionPathKey
         )
     }
 

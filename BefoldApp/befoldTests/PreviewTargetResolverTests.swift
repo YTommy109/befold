@@ -12,35 +12,15 @@ struct PreviewTargetResolverTests {
         selection: FileListEntry.ID?,
         entries: [FileListEntry],
         currentDirectory: URL? = nil,
-        hasLoadedEntries: Bool = true,
-        presentsDirectoryListing: Bool = false
+        hasLoadedEntries: Bool = true
     ) -> PreviewTarget {
         PreviewTargetResolver.resolve(
             selection: selection,
             selectionPathKey: selection?.normalizedPathKey,
             entryIndex: FileListEntryIndex(entries: entries),
             currentDirectory: currentDirectory ?? self.currentDirectory,
-            hasLoadedEntries: hasLoadedEntries,
-            presentsDirectoryListing: presentsDirectoryListing
+            hasLoadedEntries: hasLoadedEntries
         )
-    }
-
-    @Test("一覧提示の指示があるときは、選択がファイルでも現在のディレクトリの一覧を対象にする")
-    func directoryListingFlagOverridesFileSelection() {
-        let file = FileListEntry(url: currentDirectory.appendingPathComponent("a.mmd"), kind: .file)
-        let target = resolve(
-            selection: file.id, entries: [file], presentsDirectoryListing: true
-        )
-        #expect(target == .folder(currentDirectory))
-    }
-
-    @Test("一覧提示の指示があるときは、選択がフォルダーでも現在のディレクトリの一覧を対象にする")
-    func directoryListingFlagOverridesFolderSelection() {
-        let folder = FileListEntry(url: currentDirectory.appendingPathComponent("sub"), kind: .folder)
-        let target = resolve(
-            selection: folder.id, entries: [folder], presentsDirectoryListing: true
-        )
-        #expect(target == .folder(currentDirectory))
     }
 
     @Test("選択が nil のときは現在のディレクトリの一覧を対象にする")
