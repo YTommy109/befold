@@ -370,11 +370,15 @@ function parseUnifiedDiff(text) {
       continue;
     }
     if (file === null) { continue; }
-    if (line.indexOf('--- ') === 0) { file.oldPath = diffPath(line.slice(4)); continue; }
-    if (line.indexOf('+++ ') === 0) { file.newPath = diffPath(line.slice(4)); continue; }
-    if (line.indexOf('Binary files ') === 0 || line.indexOf('GIT binary patch') === 0) {
-      file.isBinary = true;
-      continue;
+    // ヘッダ類はハンクが始まる前にしか現れない。ハンク内で同じ接頭辞を持つ行は
+    // 本文（`-- ` で始まる SQL コメントの削除など）なので、ここで消費しない。
+    if (hunk === null) {
+      if (line.indexOf('--- ') === 0) { file.oldPath = diffPath(line.slice(4)); continue; }
+      if (line.indexOf('+++ ') === 0) { file.newPath = diffPath(line.slice(4)); continue; }
+      if (line.indexOf('Binary files ') === 0 || line.indexOf('GIT binary patch') === 0) {
+        file.isBinary = true;
+        continue;
+      }
     }
     var header = line.match(DIFF_HUNK_HEADER);
     if (header) {

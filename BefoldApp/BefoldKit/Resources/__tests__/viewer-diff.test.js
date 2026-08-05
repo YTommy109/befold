@@ -31,6 +31,56 @@ describe('parseUnifiedDiff', () => {
     ]);
   });
 
+  // SQL や Lua のコメントはハイフン 2 個で始まるため、削除されると
+  // 行頭のマーカーと合わせてファイルヘッダと同じ形になる。文脈（ハンクの
+  // 内か外か）を見ずに接頭辞だけで判定すると、その行が消えて以降の
+  // 旧側行番号が 1 つずれる。
+  test('ハンク内のヘッダと同じ形の行を本文として扱う', () => {
+    const diff = [
+      'diff --git a/q.sql b/q.sql',
+      '--- a/q.sql',
+      '+++ b/q.sql',
+      '@@ -1,3 +1,3 @@',
+      ' SELECT 1;',
+      '--- old comment',
+      '+++ new comment',
+      ' SELECT 2;',
+      '',
+    ].join('\n');
+
+    const file = parseUnifiedDiff(diff)[0];
+
+    expect(file.oldPath).toBe('q.sql');
+    expect(file.newPath).toBe('q.sql');
+    expect(file.hunks[0].lines.map((l) => l.type)).toEqual([
+      'context', 'del', 'add', 'context',
+    ]);
+    expect(file.hunks[0].lines.map((l) => l.text)).toEqual([
+      'SELECT 1;', '-- old comment', '++ new comment', 'SELECT 2;',
+    ]);
+    expect(file.hunks[0].lines.map((l) => l.oldNumber)).toEqual([1, 2, null, 3]);
+  });
+
+  // パーサの取りこぼしは両レイアウトの描画に伝わるため、両方で本文が出ることを見る。
+  test.each([
+    ['インライン', renderInlineDiffHtml],
+    ['左右分割', renderSideBySideDiffHtml],
+  ])('%s でハンク内のヘッダと同じ形の行を描画する', (_name, render) => {
+    const diff = [
+      'diff --git a/q.sql b/q.sql',
+      '--- a/q.sql',
+      '+++ b/q.sql',
+      '@@ -1,2 +1,2 @@',
+      ' SELECT 1;',
+      '--- old comment',
+      '',
+    ].join('\n');
+
+    const html = render(null, diff, 'sql', true);
+
+    expect(html).toContain('old comment');
+  });
+
   // 旧側・新側で番号の進み方が違う。片側にしか無い行はもう一方が null になる。
   test('旧側と新側の行番号をそれぞれ振る', () => {
     const lines = parseUnifiedDiff(SIMPLE_DIFF)[0].hunks[0].lines;
