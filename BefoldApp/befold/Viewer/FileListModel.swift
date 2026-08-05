@@ -95,7 +95,10 @@ final class FileListModel {
     }
 
     private var storedSelection: FileListEntry.ID? {
-        didSet { notifyPresentationTargetChangeIfNeeded() }
+        didSet {
+            notifyPresentationTargetChangeIfNeeded()
+            scrollSelectionIntoView()
+        }
     }
 
     /// `storedSelection` の `normalizedPathKey`。選択の書き込みと同時に更新する。
@@ -234,6 +237,29 @@ final class FileListModel {
             return
         }
         window.makeFirstResponder(tableView)
+    }
+
+    /// 選択行を可視領域へ入れる。選択の書き込み点(storedSelection.didSet)だけを通すので、
+    /// 矢印キー・クリック・フィルター・フォルダー再訪時の選択復元が同じ経路で追従する。
+    ///
+    /// 矢印キーは FileListView.handleKey が `.handled` で受け切っており、裏の NSTableView に
+    /// 届かないため AppKit 標準の自動スクロール(選択移動に伴う scrollRowToVisible)は走らない。
+    /// SwiftUI の List も、選択バインディングが外から書き換わっただけではスクロールしない(#414)。
+    ///
+    /// 一覧の差し替えより先に選択を書く経路(選択復元)があるため、NSTableView が新しい行を
+    /// 反映したあとになるよう次のランループへ遅らせる(固定待ちは不要)。
+    private func scrollSelectionIntoView() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let row = selectedRow() else { return }
+            sidebarTableView?.scrollRowToVisible(row)
+        }
+    }
+
+    /// 選択中のエントリが `visibleEntries` の何番目か。List は visibleEntries を 1 セクションで
+    /// そのまま描くため、この添字が NSTableView の行番号と一致する。
+    private func selectedRow() -> Int? {
+        guard let selection = storedSelection else { return nil }
+        return visibleEntries.firstIndex { $0.id == selection }
     }
 
     /// フィルター適用後にサイドバーへ表示するエントリ。`entries`(ディスク由来の一覧)は
