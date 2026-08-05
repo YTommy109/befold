@@ -47,7 +47,7 @@ struct FolderListingViewFilterTests {
         let model = makeModel(entries: entries)
         model.applyGitStatus(
             SidebarGitStatus(directoryKey: directory.normalizedPathKey, statuses: [changed.pathKey: modifiedStatus()]),
-            for: directory
+            for: directory, sequence: 1
         )
         model.showChangedFilesOnly = true
 
@@ -70,7 +70,7 @@ struct FolderListingViewFilterTests {
                 directoryKey: directory.normalizedPathKey,
                 statuses: [changed.pathKey: modifiedStatus(), nested: modifiedStatus()]
             ),
-            for: directory
+            for: directory, sequence: 1
         )
         model.showChangedFilesOnly = true
         model.filterText = "*.md"
@@ -104,7 +104,7 @@ struct FolderListingViewFilterTests {
                 directoryKey: directory.normalizedPathKey,
                 statuses: [child.normalizedPathKey: modifiedStatus()]
             ),
-            for: directory
+            for: directory, sequence: 1
         )
         model.showChangedFilesOnly = true
 

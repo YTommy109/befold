@@ -50,6 +50,18 @@ struct FileListModelFilterTests {
         GitFileStatus(indexChange: nil, worktreeChange: .modified)
     }
 
+    /// FileListModel.applyGitStatus の sequence は「発行順」の連番であることが前提(ADR 0003)。
+    /// テストは複数回の取得を模すため、呼ぶたびに新しい番号を払い出す。
+    private final class GitStatusSequence {
+        private var value = 0
+        func next() -> Int {
+            value += 1
+            return value
+        }
+    }
+
+    private let gitStatusSequence = GitStatusSequence()
+
     /// 本番と同じ経路で状態を組む。SidebarNavigator は必ず SidebarGitStatus を通して
     /// ファイル状態とフォルダー集約を同時に作るため、テストもそこを通す(TASK-290)。
     private func applyGitStatus(
@@ -58,7 +70,7 @@ struct FileListModelFilterTests {
         let target = directory ?? model.currentDirectory
         model.applyGitStatus(
             SidebarGitStatus(directoryKey: target.normalizedPathKey, statuses: statuses),
-            for: target
+            for: target, sequence: gitStatusSequence.next()
         )
     }
 
