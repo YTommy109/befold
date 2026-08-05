@@ -63,6 +63,13 @@
 
   /* コードのインデントガイド(縦線)。シンタックス色と衝突しないよう低コントラストにする。 */
   --indent-guide: rgba(0, 0, 0, 0.13);
+
+  /* git 差分の地色。シンタックスハイライトの上に重ねるため半透明ティントにする。 */
+  --diff-add-bg: rgba(46, 160, 67, 0.15);
+  --diff-del-bg: rgba(248, 81, 73, 0.15);
+  --diff-add-fg: #1a7f37;
+  --diff-del-fg: #cf222e;
+  --diff-hunk-bg: rgba(0, 0, 0, 0.06);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -86,6 +93,12 @@
     --csv-th-fg: var(--fg);
 
     --indent-guide: rgba(255, 255, 255, 0.14);
+
+    --diff-add-bg: rgba(63, 185, 80, 0.15);
+    --diff-del-bg: rgba(248, 81, 73, 0.15);
+    --diff-add-fg: #3fb950;
+    --diff-del-fg: #f85149;
+    --diff-hunk-bg: rgba(255, 255, 255, 0.06);
   }
 }
 
@@ -299,6 +312,48 @@ body {
   background-repeat: no-repeat;
   background-position: 0 0;
   background-size: calc(var(--indent-depth, 0) * 4ch) 100%;
+}
+
+/* ── git 差分表示 ──
+   追加・削除の地色は半透明ティントで重ねる(キャンバス色を書かない設計に従う)。
+   色だけに頼らないよう、行頭に +/- の記号セルを必ず置く(viewer.js の diffRow)。 */
+.diff-table {
+  width: 100%;
+}
+
+.diff-marker {
+  width: 2ch;
+  padding-right: 0.5ch;
+  color: var(--fg-muted);
+  vertical-align: top;
+  white-space: pre;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.diff-add {
+  background-color: var(--diff-add-bg);
+}
+
+.diff-del {
+  background-color: var(--diff-del-bg);
+}
+
+.diff-add > .diff-marker {
+  color: var(--diff-add-fg);
+}
+
+.diff-del > .diff-marker {
+  color: var(--diff-del-fg);
+}
+
+.diff-hunk-header {
+  padding: 0.4em 1ch;
+  color: var(--fg-muted);
+  background-color: var(--diff-hunk-bg);
+  white-space: pre-wrap;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* 画像表示。wrap をビューポートいっぱいにして中で img を中央寄せし、

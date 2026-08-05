@@ -345,6 +345,132 @@ function renderCodeHtml(hljs, str, lang, showLineNumbers) {
   return '<pre><code>' + wrapWithLineNumbers(escapeHtml(str), withNumbers) + '</code></pre>';
 }
 
+// ── git 差分表示 ──
+
+// unified diff の 1 ハンクのヘッダー。`@@ -12,7 +12,9 @@ ...` の数値部だけを見る。
+var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
+// unified diff をファイル → ハンク → 行の構造へ分解する。
+// 行の種別は 'context' / 'add' / 'del' の 3 つで、旧側・新側の行番号を各行に付ける
+// (描画側で 2 本のガターに出すため。片側にしか無い行はもう一方が null)。
+// `\ No newline at end of file` は直前の行に対する注記であり、行としては数えない。
+function parseUnifiedDiff(text) {
+  var files = [];
+  var file = null;
+  var hunk = null;
+  var oldNumber = 0;
+  var newNumber = 0;
+  var lines = String(text == null ? '' : text).split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (line.indexOf('diff --git ') === 0) {
+      file = { oldPath: null, newPath: null, isBinary: false, hunks: [] };
+      files.push(file);
+      hunk = null;
+      continue;
+    }
+    if (file === null) { continue; }
+    if (line.indexOf('--- ') === 0) { file.oldPath = diffPath(line.slice(4)); continue; }
+    if (line.indexOf('+++ ') === 0) { file.newPath = diffPath(line.slice(4)); continue; }
+    if (line.indexOf('Binary files ') === 0 || line.indexOf('GIT binary patch') === 0) {
+      file.isBinary = true;
+      continue;
+    }
+    var header = line.match(DIFF_HUNK_HEADER);
+    if (header) {
+      oldNumber = parseInt(header[1], 10);
+      newNumber = parseInt(header[3], 10);
+      hunk = { header: line, oldStart: oldNumber, newStart: newNumber, lines: [] };
+      file.hunks.push(hunk);
+      continue;
+    }
+    if (hunk === null) { continue; }
+    if (line.indexOf('\\') === 0) { continue; }
+    var marker = line.charAt(0);
+    var body = line.slice(1);
+    if (marker === '+') {
+      hunk.lines.push({ type: 'add', text: body, oldNumber: null, newNumber: newNumber });
+      newNumber += 1;
+    } else if (marker === '-') {
+      hunk.lines.push({ type: 'del', text: body, oldNumber: oldNumber, newNumber: null });
+      oldNumber += 1;
+    } else if (marker === ' ') {
+      // 空文字列の行は本文ではない(git は空の文脈行も先頭 1 文字の空白を付けて出す)。
+      // 末尾の改行で生じる空要素を文脈行として数えると、以降の行番号が 1 つずれる。
+      hunk.lines.push({ type: 'context', text: body, oldNumber: oldNumber, newNumber: newNumber });
+      oldNumber += 1;
+      newNumber += 1;
+    }
+  }
+  return files;
+}
+
+// `a/path/to/file.swift` の接頭辞を落とす。`/dev/null` はそのまま返す(新規・削除の印)。
+function diffPath(raw) {
+  var path = raw.split('\t')[0];
+  if (path === '/dev/null') { return path; }
+  return path.replace(/^[ab]\//, '');
+}
+
+// ハンク 1 つ分の本文をまとめてハイライトし、行ごとの HTML 配列で返す。
+// 1 行ずつ hljs へ渡すとブロックコメントや複数行文字列で字句状態が切れるため、
+// ハンクを 1 ブロックとして扱う(行をまたぐトークンはハンク内で閉じる)。
+function highlightedDiffLines(hljs, hunk, lang) {
+  var texts = [];
+  for (var i = 0; i < hunk.lines.length; i++) { texts.push(hunk.lines[i].text); }
+  var joined = texts.join('\n');
+  var highlighted = highlightCode(hljs, joined, lang);
+  if (highlighted) {
+    var match = highlighted.match(/^<pre><code[^>]*>([\s\S]*)<\/code><\/pre>$/);
+    if (match) { return reflowSpanBalancedLines(match[1]); }
+  }
+  return reflowSpanBalancedLines(escapeHtml(joined));
+}
+
+// 1 行分の <tr>。種別クラスと、色に依存しない記号セルを必ず持たせる
+// (背景色だけだと色覚特性やハイコントラスト設定で追加・削除を区別できない)。
+function diffRow(line, lineHtml, showLineNumbers) {
+  var marker = line.type === 'add' ? '+' : (line.type === 'del' ? '-' : ' ');
+  var numbers = '';
+  if (showLineNumbers === true) {
+    numbers = '<td class="line-number diff-old">' + (line.oldNumber === null ? '' : line.oldNumber)
+      + '</td><td class="line-number diff-new">' + (line.newNumber === null ? '' : line.newNumber)
+      + '</td>';
+  }
+  return '<tr class="diff-line diff-' + line.type + '">' + numbers
+    + '<td class="diff-marker" aria-hidden="true">' + marker + '</td>'
+    + lineContentCell(lineHtml) + '</tr>';
+}
+
+// ハンクの区切り行(`@@ -1,3 +1,4 @@`)。行番号ガターの有無で桁数が変わる。
+function diffHunkHeaderRow(hunk, showLineNumbers) {
+  var span = showLineNumbers === true ? 4 : 2;
+  return '<tr class="diff-hunk"><td class="diff-hunk-header" colspan="' + span + '">'
+    + escapeHtml(hunk.header) + '</td></tr>';
+}
+
+// unified diff を 1 列(インライン)の差分表示 HTML へ組み立てる。
+// 既存のソース表示と同じ <table class="code-table"> 構造に載せるため、行番号・
+// インデントガイド・シンタックスハイライト・検索がそのまま効く。
+// 差分が 1 つも無ければ空文字列を返し、呼び出し側は通常のソース表示へ戻す。
+function renderInlineDiffHtml(hljs, diffText, lang, showLineNumbers) {
+  var files = parseUnifiedDiff(diffText);
+  var rows = '';
+  for (var f = 0; f < files.length; f++) {
+    var hunks = files[f].hunks;
+    for (var h = 0; h < hunks.length; h++) {
+      var hunk = hunks[h];
+      var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+      rows += diffHunkHeaderRow(hunk, showLineNumbers);
+      for (var i = 0; i < hunk.lines.length; i++) {
+        rows += diffRow(hunk.lines[i], lineHtmls[i] === undefined ? '' : lineHtmls[i], showLineNumbers);
+      }
+    }
+  }
+  if (rows === '') { return ''; }
+  return '<pre><code class="hljs"><table class="code-table diff-table">' + rows + '</table></code></pre>';
+}
+
 // RFC 4180 準拠の状態マシンベース CSV/TSV トークナイザー。
 // クオート内のデリミタ・改行・エスケープされたクオート("")を正しく扱う。
 // 各セルについて、デコード済みの値(value)とソース上の生テキスト(raw、
@@ -639,6 +765,8 @@ if (typeof module !== 'undefined' && module.exports) {
     parseCsv: parseCsv,
     buildTableHtml: buildTableHtml,
     renderCsvSourceHtml: renderCsvSourceHtml,
+    parseUnifiedDiff: parseUnifiedDiff,
+    renderInlineDiffHtml: renderInlineDiffHtml,
     csvSourceInnerHtml: csvSourceInnerHtml,
     CSV_COL_COUNT: CSV_COL_COUNT,
     buildFindRegExp: buildFindRegExp,
