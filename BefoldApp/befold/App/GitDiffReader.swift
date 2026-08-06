@@ -18,6 +18,11 @@ struct GitDiffReader: GitDiffReading {
     /// そのまま WebView へ送るとメインスレッドが張り付く。上限は表示側の判断材料として返す。
     static let maxDiffBytes = 1 << 20
 
+    /// `-U` に渡す文脈行数。ファイル全体が 1 つのハンクに収まる十分な大きさにする
+    /// (変更の周辺だけを抜き出すと、ビューアとして前後が読めなくなるため)。
+    /// これより行数の多いファイルは上限バイト数で先に弾かれる。
+    static let wholeFileContextLines = 1_000_000
+
     private let runner: GitCommandRunner
 
     init(runner: GitCommandRunner = GitCommandRunner()) {
@@ -32,8 +37,13 @@ struct GitDiffReader: GitDiffReading {
         //
         // `--no-optional-locks` は status と同じ理由で必須(index の refresh で `.git/index` の
         // mtime が動くと、それを監視している側と自己励振ループになる)。
+        // 文脈行は全文を含む大きさにする。ビューアは「ファイルを読む」ための画面で、
+        // 変更の周辺だけを抜き出すと前後が飛んで読めなくなる。全文を 1 つのハンクに
+        // 収めることで、通常のソース表示と同じ見え方のまま変更行に印が付く
+        // (結果としてハンクの区切りも出なくなる)。
         let arguments = [
-            "--no-optional-locks", "diff", "--no-color", "--no-ext-diff", "-U3", "HEAD",
+            "--no-optional-locks", "diff", "--no-color", "--no-ext-diff",
+            "-U\(Self.wholeFileContextLines)", "HEAD",
             "--", url.path,
         ]
         switch runner.run(arguments, in: root) {

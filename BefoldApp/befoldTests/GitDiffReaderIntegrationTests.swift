@@ -34,6 +34,30 @@ struct GitDiffReaderIntegrationTests {
         #expect(text.contains("+let a = 2"))
     }
 
+    /// ビューアは「ファイルを読む」画面なので、変更の周辺だけを抜き出すと前後が飛んで
+    /// 読めなくなる。既定の -U3 では 3 行を超えて離れた行が落ちるため、全文を出す。
+    @Test("変更から離れた行も含めてファイル全体が差分に載る")
+    func includesWholeFileNotJustChangedNeighborhood() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        // 1 行目だけを変更し、-U3 の文脈からは外れる 10 行目以降まで用意する。
+        let original = (1 ... 12).map { "let v\($0) = \($0)\n" }.joined()
+        let modified = original.replacingOccurrences(of: "let v1 = 1\n", with: "let v1 = 99\n")
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "a.swift", contents: original, in: temp.url)
+        try GitTestRepo.modifyWithoutStaging("a.swift", contents: modified, in: temp.url)
+
+        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+
+        guard case let .diff(text) = result else {
+            Issue.record("差分が返らなかった: \(String(describing: result))")
+            return
+        }
+        #expect(text.contains(" let v12 = 12"))
+        // 全文が 1 つのハンクに収まるので、ハンクの区切りも 1 つだけになる。
+        #expect(text.components(separatedBy: "@@ -").count - 1 == 1)
+    }
+
     /// 比較対象を index ではなく HEAD にした理由そのもの。`git diff`(index 比較)だと
     /// ステージ済みの変更が差分から消え、バッジと表示が食い違う。
     @Test("ステージ済みの変更も差分に含まれる")
