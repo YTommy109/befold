@@ -1,5 +1,6 @@
 const {
   parseUnifiedDiff, renderInlineDiffHtml, pairDiffLines, renderSideBySideDiffHtml, renderDiffHtml,
+  highlightedDiffLines,
 } = require('../viewer.js');
 
 const SIMPLE_DIFF = [
@@ -29,6 +30,31 @@ const TWO_HUNK_DIFF = [
   '+eleven',
   '',
 ].join('\n');
+
+// 末尾が空行のファイル（`alpha\nbeta\n\n`）。ハンクの最終行が「テキストが空の
+// 文脈行」になり、ハンクをまとめてハイライトすると末尾に空要素が出る。
+const TRAILING_BLANK_DIFF = [
+  'diff --git a/a.txt b/a.txt',
+  '--- a/a.txt',
+  '+++ b/a.txt',
+  '@@ -1,3 +1,3 @@',
+  ' alpha',
+  '-beta',
+  '+BETA',
+  ' ',
+  '',
+].join('\n');
+
+describe('highlightedDiffLines', () => {
+  // 行 HTML は添字で引かれるため、要素数がハンクの行数より少ないと
+  // 左右分割の描画が undefined を掴んで落ちる。長さは常に一致させる。
+  test('末尾が空行でもハンクの行数と同じ長さの配列を返す', () => {
+    const hunk = parseUnifiedDiff(TRAILING_BLANK_DIFF)[0].hunks[0];
+
+    expect(hunk.lines).toHaveLength(4);
+    expect(highlightedDiffLines(null, hunk, 'plaintext')).toHaveLength(4);
+  });
+});
 
 describe('parseUnifiedDiff', () => {
   test('ファイル・ハンク・行種別へ分解する', () => {
@@ -362,6 +388,15 @@ describe('renderSideBySideDiffHtml', () => {
 
   test('ハンクが無ければ空文字列を返す', () => {
     expect(renderSideBySideDiffHtml(null, '', 'swift', false)).toBe('');
+  });
+
+  // 例外は呼び出し側の catch に飲まれて空文字になるため、落ちると
+  // 「⇧⌘D だけ何も起きない」という形でしか現れない。
+  test('末尾が空行のファイルでも描画できる', () => {
+    const html = renderSideBySideDiffHtml(null, TRAILING_BLANK_DIFF, 'plaintext', true);
+
+    expect(html).toContain('diff-split');
+    expect(html.split('diff-side-left').length - 1).toBe(3);
   });
 });
 

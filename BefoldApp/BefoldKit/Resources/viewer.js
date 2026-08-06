@@ -419,16 +419,23 @@ function diffPath(raw) {
 // ハンク 1 つ分の本文をまとめてハイライトし、行ごとの HTML 配列で返す。
 // 1 行ずつ hljs へ渡すとブロックコメントや複数行文字列で字句状態が切れるため、
 // ハンクを 1 ブロックとして扱う(行をまたぐトークンはハンク内で閉じる)。
+// 戻り値は必ず hunk.lines と同じ長さにする。呼び出し側は行 HTML を添字で引く
+// (左右分割は対の添字で引く)ため、長さがずれると undefined を掴んで落ちる。
+// reflowSpanBalancedLines は highlight.js が付ける末尾の \n を落とす作りなので、
+// ハンクの最終行が空行(末尾が空行のファイル)だと本物の行まで消える。
 function highlightedDiffLines(hljs, hunk, lang) {
   var texts = [];
   for (var i = 0; i < hunk.lines.length; i++) { texts.push(hunk.lines[i].text); }
   var joined = texts.join('\n');
+  var lineHtmls = null;
   var highlighted = highlightCode(hljs, joined, lang);
   if (highlighted) {
     var match = highlighted.match(/^<pre><code[^>]*>([\s\S]*)<\/code><\/pre>$/);
-    if (match) { return reflowSpanBalancedLines(match[1]); }
+    if (match) { lineHtmls = reflowSpanBalancedLines(match[1]); }
   }
-  return reflowSpanBalancedLines(escapeHtml(joined));
+  if (lineHtmls === null) { lineHtmls = reflowSpanBalancedLines(escapeHtml(joined)); }
+  while (lineHtmls.length < hunk.lines.length) { lineHtmls.push(''); }
+  return lineHtmls.slice(0, hunk.lines.length);
 }
 
 // 1 行分の <tr>。種別クラスと、色に依存しない記号セルを必ず持たせる
@@ -469,7 +476,7 @@ function renderInlineDiffHtml(hljs, diffText, lang, showLineNumbers) {
       // 先頭には区切りを置かない(境目が無いところに帯だけが出るため)。
       if (rows !== '') { rows += diffHunkSeparatorRow(showLineNumbers === true ? 4 : 2); }
       for (var i = 0; i < hunk.lines.length; i++) {
-        rows += diffRow(hunk.lines[i], lineHtmls[i] === undefined ? '' : lineHtmls[i], showLineNumbers);
+        rows += diffRow(hunk.lines[i], lineHtmls[i], showLineNumbers);
       }
     }
   }
@@ -866,6 +873,7 @@ if (typeof module !== 'undefined' && module.exports) {
     buildTableHtml: buildTableHtml,
     renderCsvSourceHtml: renderCsvSourceHtml,
     parseUnifiedDiff: parseUnifiedDiff,
+    highlightedDiffLines: highlightedDiffLines,
     renderInlineDiffHtml: renderInlineDiffHtml,
     pairDiffLines: pairDiffLines,
     renderSideBySideDiffHtml: renderSideBySideDiffHtml,
