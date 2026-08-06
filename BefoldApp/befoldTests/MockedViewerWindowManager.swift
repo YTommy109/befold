@@ -57,6 +57,10 @@ struct MockedViewerWindowManager {
     /// 生成される全ウィンドウが共有する差分表示設定。機能ゲートに依存しないよう
     /// isAvailable を明示して、dev/stable いずれのビルドでも同じ挙動でテストする。
     let diffDisplayPreference: DiffDisplayPreference
+    /// 生成される全ウィンドウが共有する差分の取得元。既定は nil(差分を取りに行かない)で、
+    /// 差分に無関心なテストが実 `git diff` を起こさないことを保証する。
+    /// 差分を測るテストは init の diffReader へスタブを渡す。
+    let diffLoader: GitDiffLoader?
     /// 本番 UserDefaults へ書かないよう、隔離 defaults で明示的に生成して注入する。
     let bookmarkStore: BookmarkStore
     /// 生成される全ウィンドウが共有する git 索引。実 `git` を起動しない記録用フェイク。
@@ -68,9 +72,12 @@ struct MockedViewerWindowManager {
     ///   - files: 存在するものとして扱う URL。VWM の存在ガードと、
     ///     生成される ViewerStore の読込の双方が同じ InMemoryFileReader を共有する。
     ///   - directories: 存在するディレクトリとして扱う URL(例: フォルダーオープンのフォールバック検証)。
+    ///   - diffReader: 渡すと、生成される全ウィンドウが共有する GitDiffLoader をこの取得器で作る。
+    ///     既定の nil はローダー自体を持たない(差分を取りに行かない)。
     init(
         files: [URL], directories: [URL] = [], prefix: String = "ViewerWindowManagerTests",
-        contents: String = "graph TD;", repositoryRoot: URL? = nil
+        contents: String = "graph TD;", repositoryRoot: URL? = nil,
+        diffReader: (any GitDiffReading)? = nil
     ) {
         let defaults = makeIsolatedDefaults(prefix: prefix)
         let fileReader = InMemoryFileReader(
@@ -85,6 +92,8 @@ struct MockedViewerWindowManager {
         sidebarDisplayPreference = SidebarDisplayPreference(defaults: defaults)
         let diffDisplayPreference = DiffDisplayPreference(defaults: defaults, isAvailable: true)
         self.diffDisplayPreference = diffDisplayPreference
+        let diffLoader = diffReader.map { GitDiffLoader(reader: $0) }
+        self.diffLoader = diffLoader
         let bookmarkStore = BookmarkStore(defaults: defaults)
         self.bookmarkStore = bookmarkStore
         let gitFileIndex = RecordingGitFileIndex(repositoryRoot: repositoryRoot)
@@ -96,6 +105,7 @@ struct MockedViewerWindowManager {
             recentDocumentsStore: recentDocumentsStore,
             sidebarDisplayPreference: sidebarDisplayPreference,
             diffDisplayPreference: diffDisplayPreference,
+            diffLoader: diffLoader,
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             fileReader: fileReader,

@@ -6,11 +6,6 @@ import Foundation
 /// 本体(ViewerWindowController.swift)の行数上限を超えないよう extension に分けている。
 @MainActor
 extension ViewerWindowController {
-    /// 差分の取得元。機能が無効なら nil を返し、git diff を一切実行しない。
-    static func makeDiffLoader() -> GitDiffLoader? {
-        FeatureGate.isSourceDiffEnabled ? GitDiffLoader() : nil
-    }
-
     /// 表示中ファイルの差分を取り直して store へ反映する。
     ///
     /// 取得は非同期のため、戻ってきた時点で表示対象が変わっていないかを URL で確認する
@@ -31,6 +26,10 @@ extension ViewerWindowController {
         let url = fileURL
         let directory = url.deletingLastPathComponent()
         let index = gitFileIndex
+        // 要求の順番は契機のここで取る。ルート解決の await より後(取得の直前)に取ると、
+        // 同じファイル変更イベントから出た他ウィンドウの要求が「先行取得の開始より後」と
+        // 判定されて合流できず、窓の数だけ git が起動する(TASK-325)。
+        let requestTicket = loader.takeRequestTicket()
         Task { @MainActor [weak self] in
             let root = await Task.detached(priority: .utility) {
                 index.repositoryRoot(forDirectoryAt: directory)
@@ -40,7 +39,7 @@ extension ViewerWindowController {
                 store.diffText = nil
                 return
             }
-            let result = await loader.diff(forFileAt: url, in: root)
+            let result = await loader.diff(forFileAt: url, in: root, requestedAt: requestTicket)
             // 取得中に OFF へ切り替わっていたら書き戻さない。表示は ViewerContentView の
             // ゲートで隠れるが、store.diffText に古い本文が残ると次に ON にした瞬間だけ
             // 取り直し前の差分が見える。

@@ -21,8 +21,11 @@ import BefoldCLI
 ///
 /// ## ソース表示の git 差分（`isSourceDiffEnabled`）
 ///
-/// - `ViewerWindowController+Diff.makeDiffLoader()`
+/// - `ViewerWindowManager.makeDiffLoader()`
 ///   — 差分取得そのもの。無効時は nil で、git diff を一切実行しない。
+///     全ウィンドウで共有する 1 個をここで作る（生成点はここだけ）。
+/// - `ViewerWindowController+Diff.isDiffShown`
+///   — ユーザー設定(差分表示の ON/OFF)とビルドゲートが別物であることの注記のみ。
 /// - `MainMenuBuilder.makeViewMenuItem()`
 ///   — View メニューの「差分を表示」「差分を左右に並べる」項目。
 /// - `DiffDisplayPreference.init(defaults:isAvailable:)`

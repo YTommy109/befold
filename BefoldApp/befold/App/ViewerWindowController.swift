@@ -55,8 +55,9 @@ final class ViewerWindowController: NSWindowController {
     /// 差分表示の設定(ON/OFF とレイアウト)。全ウィンドウ共有。
     /// 参照は `ViewerWindowController+Diff.swift` に集約している。
     let diffDisplayPreference: DiffDisplayPreference
-    /// 差分の取得元。機能が無効なビルドでは nil で、git diff を一切実行しない。
-    lazy var diffLoader: GitDiffLoader? = Self.makeDiffLoader()
+    /// 差分の取得元。全ウィンドウで 1 個を共有する(生成元は ViewerWindowManager 一箇所)。
+    /// 機能が無効なビルドでは nil で、git diff を一切実行しない。
+    let diffLoader: GitDiffLoader?
     private let findOptionsPreference: FindOptionsPreference
     private let codeFontPreference: CodeFontPreference
     private let bookmarkStore: BookmarkStore
@@ -146,6 +147,7 @@ final class ViewerWindowController: NSWindowController {
         fileURL: URL, defaults: UserDefaults = .standard,
         sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
         diffDisplayPreference: DiffDisplayPreference = DiffDisplayPreference(),
+        diffLoader: GitDiffLoader? = nil,
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
@@ -169,6 +171,7 @@ final class ViewerWindowController: NSWindowController {
         self.defaults = defaults
         self.sidebarDisplayPreference = sidebarDisplayPreference
         self.diffDisplayPreference = diffDisplayPreference
+        self.diffLoader = diffLoader
         self.findOptionsPreference = findOptionsPreference
         self.codeFontPreference = codeFontPreference
         self.bookmarkStore = bookmarkStore

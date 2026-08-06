@@ -26,6 +26,12 @@ final class ViewerWindowManager {
     /// 全ウィンドウで共有する差分表示設定。ここで 1 つ持って openViewer で渡すことが、
     /// 「粒度はアプリ全体」(DiffDisplayPreference の doc コメント)を成立させている。
     private let diffDisplayPreference: DiffDisplayPreference
+    /// 全ウィンドウで共有する差分の取得元。ここで 1 つ持つことが、GitDiffLoader の
+    /// 「同じ要求が重なったら git を二重起動しない」を窓をまたいで成立させている。
+    /// 窓ごとに持つと、同じファイルを 2 窓で開いた状態の 1 回の保存で
+    /// `git diff` が窓の数だけ起動する(TASK-325)。
+    /// 機能ゲートが無効なビルドでは nil で、git diff を一切実行しない。
+    let diffLoader: GitDiffLoader?
     private let findOptionsPreference: FindOptionsPreference
     private let codeFontPreference: CodeFontPreference
     private let perFileState: PerFileStateStore
@@ -79,6 +85,7 @@ final class ViewerWindowManager {
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
         sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
         diffDisplayPreference: DiffDisplayPreference = DiffDisplayPreference(),
+        diffLoader: GitDiffLoader? = ViewerWindowManager.makeDiffLoader(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
@@ -98,6 +105,7 @@ final class ViewerWindowManager {
         self.recentDocumentsStore = recentDocumentsStore
         self.sidebarDisplayPreference = sidebarDisplayPreference
         self.diffDisplayPreference = diffDisplayPreference
+        self.diffLoader = diffLoader
         self.findOptionsPreference = findOptionsPreference
         self.codeFontPreference = codeFontPreference
         self.perFileState = perFileState
@@ -108,6 +116,12 @@ final class ViewerWindowManager {
         self.recentRepositoriesStore = recentRepositoriesStore
         self.repositoryIdentityResolver = repositoryIdentityResolver
         self.onRepositoryRecorded = onRepositoryRecorded
+    }
+
+    /// 差分の取得元を 1 つ作る。機能ゲートが無効なら nil で、git diff を一切実行しない。
+    /// 生成をここへ限ることで、ウィンドウ側が自前で作る経路を無くしている。
+    static func makeDiffLoader() -> GitDiffLoader? {
+        FeatureGate.isSourceDiffEnabled ? GitDiffLoader() : nil
     }
 
     /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
@@ -249,6 +263,7 @@ final class ViewerWindowManager {
             fileURL: url,
             sidebarDisplayPreference: sidebarDisplayPreference,
             diffDisplayPreference: diffDisplayPreference,
+            diffLoader: diffLoader,
             findOptionsPreference: findOptionsPreference,
             codeFontPreference: codeFontPreference,
             perFileState: perFileState,
