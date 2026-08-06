@@ -43,6 +43,6 @@ struct GitFolderStatus: Equatable, Sendable {
         hasStaged = hasStaged || status.indexChange != nil
         hasUnstaged = hasUnstaged || status.worktreeChange != nil
         hasUntracked = hasUntracked || status.isUntracked
-        hasBranchModified = hasBranchModified || status.isBranchModified
+        hasBranchModified = hasBranchModified || status.branchChange != nil
     }
 }

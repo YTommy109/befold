@@ -1,6 +1,11 @@
 @testable import befold
 import Testing
 
+/// ブランチ内変更として出しうる種別と、期待するバッジ文字。
+private let branchChangeCodes: [(GitFileStatus.Change, Character)] = [
+    (.added, "A"), (.modified, "M"), (.deleted, "D"), (.renamed, "R"),
+]
+
 /// `GitFileStatus` → バッジ(文字・色)の写像。表示層の純粋関数なので git も UI も要らない。
 struct GitStatusBadgeTests {
     @Test("staged は index 側のコードを緑で出す")
@@ -49,17 +54,19 @@ struct GitStatusBadgeTests {
         #expect(appearance.tint == .untracked)
     }
 
-    @Test("branchModified 単独は青の M を出す")
-    func branchModifiedUsesBlueModified() throws {
+    /// ブランチ内変更も種別をそのまま出す。以前は真偽値 1 個しか持たず、ブランチで
+    /// 新規追加したファイルまで M になっていた(TASK-344)。
+    @Test("branchModified 単独は変更種別の文字を青で出す", arguments: branchChangeCodes)
+    func branchChangeUsesItsOwnCode(change: GitFileStatus.Change, expected: Character) throws {
         let appearance = try #require(
             GitStatusBadge.appearance(
                 for: GitFileStatus(
-                    indexChange: nil, worktreeChange: nil, isUntracked: false, isBranchModified: true
+                    indexChange: nil, worktreeChange: nil, isUntracked: false, branchChange: change
                 )
             )
         )
 
-        #expect(appearance.character == "M")
+        #expect(appearance.character == expected)
         #expect(appearance.tint == .branchModified)
     }
 
@@ -70,7 +77,7 @@ struct GitStatusBadgeTests {
         let appearance = try #require(
             GitStatusBadge.appearance(
                 for: GitFileStatus(
-                    indexChange: nil, worktreeChange: .modified, isUntracked: false, isBranchModified: true
+                    indexChange: nil, worktreeChange: .modified, isUntracked: false, branchChange: .modified
                 )
             )
         )

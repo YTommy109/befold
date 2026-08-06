@@ -68,11 +68,11 @@ struct GitStatusReader: GitStatusReading {
                 statuses[url.normalizedPathKey] = status
             }
             // base ブランチからのコミット済み変更。検出できない場合(デフォルトブランチが
-            // 分からない・履歴が繋がっていない)は branchModified だけを諦め、
+            // 分からない・履歴が繋がっていない)はブランチ内変更だけを諦め、
             // staged / unstaged / untracked の表示は続ける。
-            for relativePath in branchModifiedPaths(forRepositoryAt: root) {
+            for (relativePath, change) in branchChanges(forRepositoryAt: root) {
                 let key = root.appendingPathComponent(relativePath).normalizedPathKey
-                statuses[key, default: GitFileStatus()].isBranchModified = true
+                statuses[key, default: GitFileStatus()].branchChange = change
             }
             return GitStatusSnapshot(
                 statuses: statuses,
@@ -89,9 +89,9 @@ struct GitStatusReader: GitStatusReading {
 
     // MARK: - Branch Diff
 
-    /// 現在のブランチが base ブランチから変更したコミット済みファイル(ルート相対パス)。
+    /// 現在のブランチが base ブランチから変更したコミット済みファイル(ルート相対パス → 変更種別)。
     /// デフォルトブランチを特定できない場合は空を返す(この機能だけを諦める)。
-    private func branchModifiedPaths(forRepositoryAt root: URL) -> [String] {
+    private func branchChanges(forRepositoryAt root: URL) -> [String: GitFileStatus.Change] {
         guard let defaultBranch = defaultBranch(forRepositoryAt: root),
               case let .output(baseData) = runner.run(["merge-base", "HEAD", defaultBranch], in: root),
               let base = String(bytes: baseData, encoding: .utf8)?
@@ -100,7 +100,7 @@ struct GitStatusReader: GitStatusReading {
               case let .output(diffData) = runner.run(
                   ["diff", "--name-status", "-z", base, "HEAD"], in: root
               )
-        else { return [] }
+        else { return [:] }
         return Self.parseNameStatus(diffData)
     }
 
@@ -131,30 +131,35 @@ struct GitStatusReader: GitStatusReading {
         return name
     }
 
-    /// `git diff --name-status -z` の出力から変更後のパスを取り出す。
+    /// `git diff --name-status -z` の出力から、変更後のパスと変更種別を取り出す。
     ///
     /// `-z` では「状態」と「パス」が別々の NUL 区切りフィールドとして並ぶ。
     /// 改名・複製(`R100` / `C75`)だけはパスが 2 つ(元 → 先)続くため、
     /// 読み進める数を状態で変える必要がある。
-    static func parseNameStatus(_ data: Data) -> [String] {
+    ///
+    /// 種別まで持ち帰るのは、表示側が真偽値から文字を決め打ちできないようにするため。
+    /// 以前はパスだけを返しており、ブランチで追加したファイルも M で出ていた(TASK-344)。
+    static func parseNameStatus(_ data: Data) -> [String: GitFileStatus.Change] {
         let fields = data.split(separator: 0, omittingEmptySubsequences: false).map {
             String(bytes: $0, encoding: .utf8) ?? ""
         }
-        var paths: [String] = []
+        var changes: [String: GitFileStatus.Change] = [:]
         var index = 0
         while index < fields.count {
             let status = fields[index]
             index += 1
-            guard let kind = status.first else { continue }
+            guard let code = status.first else { continue }
             // 改名・複製は「元パス」「変更後パス」の順。表示対象は変更後だけ。
-            let pathCount = (kind == "R" || kind == "C") ? 2 : 1
+            let pathCount = (code == "R" || code == "C") ? 2 : 1
             guard index + pathCount <= fields.count else { break }
             let path = fields[index + pathCount - 1]
             index += pathCount
             guard !path.isEmpty else { continue }
-            paths.append(path)
+            // 解釈できないコード(git の `X`=unknown / `B`=pairing broken)でもエントリは捨てない。
+            // 捨てると「変更あり」が「変更なし」と同じ無表示に縮退するため、種別だけを諦める。
+            changes[path] = GitFileStatus.Change(porcelainCode: code) ?? .modified
         }
-        return paths
+        return changes
     }
 
     // MARK: - Parsing

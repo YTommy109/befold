@@ -31,31 +31,41 @@ struct SidebarGitStatus: Equatable, Sendable {
     }
 
     /// ファイル行のバッジに使う状態。変更が無ければ nil。
+    ///
+    /// 畳み込み(下記)の配下は `files` にキーを持たないため、辞書を引くだけでは
+    /// バッジが出ない。祖先が未追跡なら、その配下も未追跡として組み立てて返す。
     func fileStatus(at pathKey: String) -> GitFileStatus? {
-        guard let status = files[pathKey], !status.isClean else { return nil }
-        return status
+        if let status = files[pathKey] { return status.isClean ? nil : status }
+        return hasUntrackedAncestor(of: pathKey) ? GitFileStatus(isUntracked: true) : nil
     }
 
     /// フォルダー行のバッジに使う集約。配下に変更が無ければ nil。
+    ///
+    /// ファイル行と同じ理由で、畳み込みの配下にあるサブフォルダーも集約を持たない。
+    /// 配下が全て未追跡であることは祖先から分かるので、そのぶんだけ組み立てて返す。
     func folderStatus(at pathKey: String) -> GitFolderStatus? {
-        folders[pathKey]
+        if let status = folders[pathKey] { return status }
+        return hasUntrackedAncestor(of: pathKey) ? GitFolderStatus(hasUntracked: true) : nil
     }
 
     /// この行に git 変更があるか(= バッジが付く行か)。
     ///
+    /// 絞り込み(`FileListFilter`)とバッジ描画が食い違わないよう、**判定を持たず**
+    /// バッジの引き当てそのものに委ねる。ここに独自の条件を足すと、絞り込みには
+    /// 出るのにバッジが無い行が生まれる(TASK-345)。
+    func hasChange(at pathKey: String) -> Bool {
+        fileStatus(at: pathKey) != nil || folderStatus(at: pathKey) != nil
+    }
+
+    /// 畳み込まれた未追跡ディレクトリの配下か。
+    ///
     /// porcelain の既定(`-unormal`)は未追跡ディレクトリを `dir/` の 1 レコードへ畳むため、
-    /// 新規フォルダー配下のファイルは `files` にキーを持たない。祖先が未追跡ディレクトリ
-    /// として記録されていれば、その配下は全て未追跡とみなす(TASK-285)。
+    /// 新規フォルダー配下は `files` にも `folders` にもキーを持たない。祖先が未追跡
+    /// ディレクトリとして記録されていれば、その配下は全て未追跡とみなす(TASK-285)。
     ///
     /// 祖先の判定に `folders[ancestor]?.hasUntracked` は使えない。未追跡ファイルを 1 つ
     /// 含むだけのフォルダーでも真になり、同じフォルダー内の追跡済みで未変更のファイルまで
     /// 変更ありと誤判定するため。畳み込みの事実そのもの(`files[ancestor].isUntracked`)を見る。
-    func hasChange(at pathKey: String) -> Bool {
-        if fileStatus(at: pathKey) != nil { return true }
-        if folders[pathKey] != nil { return true }
-        return hasUntrackedAncestor(of: pathKey)
-    }
-
     private func hasUntrackedAncestor(of pathKey: String) -> Bool {
         var current = pathKey
         while let parent = Self.ancestor(of: current) {

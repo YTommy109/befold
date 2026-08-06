@@ -161,8 +161,25 @@ struct GitStatusReaderIntegrationTests {
         func status(_ name: String) -> GitFileStatus? {
             snapshot.statuses[temp.url.appendingPathComponent(name).normalizedPathKey]
         }
-        #expect(status("changed.md")?.isBranchModified == true)
+        #expect(status("changed.md")?.branchChange == .modified)
         #expect(status("base.md") == nil)
+    }
+
+    /// ブランチで**追加**したファイルは A であって M ではない。以前は真偽値 1 個しか
+    /// 持ち帰っておらず、追加も変更も一律 M で表示されていた(TASK-344)。
+    @Test("ブランチで新規追加したコミット済みファイルは added になる")
+    func marksFilesAddedInCurrentBranch() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "base.md", contents: "base", in: temp.url)
+        GitTestRepo.createBranch(named: "feature", in: temp.url)
+        try GitTestRepo.commitFile(named: "added.md", contents: "new", in: temp.url)
+
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let key = temp.url.appendingPathComponent("added.md").normalizedPathKey
+
+        #expect(snapshot.statuses[key]?.branchChange == .added)
     }
 
     /// worktree の変更は branchModified と両立する。バッジは worktree 側が優先されるが
@@ -180,7 +197,7 @@ struct GitStatusReaderIntegrationTests {
         let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
         let status = snapshot.statuses[temp.url.appendingPathComponent("a.md").normalizedPathKey]
 
-        #expect(status?.isBranchModified == true)
+        #expect(status?.branchChange == .modified)
         #expect(status?.worktreeChange == .modified)
     }
 
@@ -201,7 +218,7 @@ struct GitStatusReaderIntegrationTests {
         let status = snapshot.statuses[temp.url.appendingPathComponent("a.md").normalizedPathKey]
 
         #expect(status?.worktreeChange == .modified)
-        #expect(status?.isBranchModified == false)
+        #expect(status?.branchChange == nil)
     }
 
     @Test("変更が無いリポジトリでは空のスナップショットを返す")
