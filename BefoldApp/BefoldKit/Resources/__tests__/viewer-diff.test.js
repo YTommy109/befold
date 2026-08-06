@@ -15,6 +15,21 @@ const SIMPLE_DIFF = [
   '',
 ].join('\n');
 
+// 連続していない 2 つのハンク。区切り行の有無・位置を見るのに使う。
+const TWO_HUNK_DIFF = [
+  'diff --git a/a.txt b/a.txt',
+  '--- a/a.txt',
+  '+++ b/a.txt',
+  '@@ -1,2 +1,2 @@',
+  '-one',
+  '+ONE',
+  ' two',
+  '@@ -10,2 +10,3 @@',
+  ' ten',
+  '+eleven',
+  '',
+].join('\n');
+
 describe('parseUnifiedDiff', () => {
   test('ファイル・ハンク・行種別へ分解する', () => {
     const files = parseUnifiedDiff(SIMPLE_DIFF);
@@ -207,9 +222,28 @@ describe('renderInlineDiffHtml', () => {
     expect(withoutNumbers).not.toContain('line-number');
   });
 
-  test('ハンクヘッダーの colspan がガター数に合う', () => {
-    expect(renderInlineDiffHtml(null, SIMPLE_DIFF, 'swift', true)).toContain('colspan="4"');
-    expect(renderInlineDiffHtml(null, SIMPLE_DIFF, 'swift', false)).toContain('colspan="2"');
+  // 位置情報(`@@ -1,3 +1,4 @@`)は出さない。どこの行かはガターが持っており重複するため。
+  test('ハンクの位置情報を描画しない', () => {
+    const html = renderInlineDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', true);
+
+    expect(html).not.toContain('@@');
+  });
+
+  // 連続していない範囲の境目は残す(消すと離れた行が地続きに見える)。
+  test('ハンクの区切り行は 2 つ目以降の前にだけ入り colspan がガター数に合う', () => {
+    const withNumbers = renderInlineDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', true);
+    const withoutNumbers = renderInlineDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', false);
+    const separators = (html) => html.split('diff-hunk-separator').length - 1;
+
+    expect(separators(withNumbers)).toBe(1);
+    expect(withNumbers).toContain('colspan="4"');
+    expect(withoutNumbers).toContain('colspan="2"');
+    // 先頭に区切りを置くと、境目が無いところに帯だけが出る。
+    expect(withNumbers.indexOf('diff-hunk-separator')).toBeGreaterThan(withNumbers.indexOf('diff-line'));
+  });
+
+  test('ハンクが 1 つだけなら区切り行を出さない', () => {
+    expect(renderInlineDiffHtml(null, SIMPLE_DIFF, 'swift', true)).not.toContain('diff-hunk-separator');
   });
 
   test('差分本文の HTML をエスケープする', () => {
@@ -318,9 +352,12 @@ describe('renderSideBySideDiffHtml', () => {
     expect(html).toContain('line-content diff-empty');
   });
 
-  test('ハンクヘッダーの colspan が左右 2 列分になる', () => {
-    expect(renderSideBySideDiffHtml(null, SIMPLE_DIFF, 'swift', true)).toContain('colspan="6"');
-    expect(renderSideBySideDiffHtml(null, SIMPLE_DIFF, 'swift', false)).toContain('colspan="4"');
+  test('ハンクの区切り行の colspan が左右 2 列分になり、位置情報は出ない', () => {
+    const withNumbers = renderSideBySideDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', true);
+
+    expect(withNumbers).toContain('colspan="6"');
+    expect(renderSideBySideDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', false)).toContain('colspan="4"');
+    expect(withNumbers).not.toContain('@@');
   });
 
   test('ハンクが無ければ空文字列を返す', () => {

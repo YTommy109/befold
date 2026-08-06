@@ -372,11 +372,11 @@ body {
   background-color: var(--diff-empty-bg);
 }
 
-.diff-hunk-header {
-  padding: 0.4em 1ch;
-  color: var(--fg-muted);
+/* 連続していないハンクの境目。位置情報は出さず、帯だけで range の切れ目を示す
+   (どこの行かは両側のガターが持っている)。 */
+.diff-hunk-separator {
+  padding: 0.35em 0;
   background-color: var(--diff-hunk-bg);
-  white-space: pre-wrap;
   user-select: none;
   -webkit-user-select: none;
 }

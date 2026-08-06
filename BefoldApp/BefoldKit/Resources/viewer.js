@@ -384,7 +384,7 @@ function parseUnifiedDiff(text) {
     if (header) {
       oldNumber = parseInt(header[1], 10);
       newNumber = parseInt(header[3], 10);
-      hunk = { header: line, oldStart: oldNumber, newStart: newNumber, lines: [] };
+      hunk = { oldStart: oldNumber, newStart: newNumber, lines: [] };
       file.hunks.push(hunk);
       continue;
     }
@@ -446,11 +446,12 @@ function diffRow(line, lineHtml, showLineNumbers) {
     + lineContentCell(lineHtml) + '</tr>';
 }
 
-// ハンクの区切り行(`@@ -1,3 +1,4 @@`)。行番号ガターの有無で桁数が変わる。
-function diffHunkHeaderRow(hunk, showLineNumbers) {
-  var span = showLineNumbers === true ? 4 : 2;
-  return '<tr class="diff-hunk"><td class="diff-hunk-header" colspan="' + span + '">'
-    + escapeHtml(hunk.header) + '</td></tr>';
+// ハンクの区切り行。`@@ -1,3 +1,4 @@` の位置情報は出さず、連続していない範囲の
+// 境目だけを示す。どこの行かは両側のガターが持っているため、位置情報は重複した情報になる。
+// 桁数はレイアウトと行番号ガターの有無で変わるため、colspan は呼び出し側が決める。
+function diffHunkSeparatorRow(colspan) {
+  return '<tr class="diff-hunk" aria-hidden="true">'
+    + '<td class="diff-hunk-separator" colspan="' + colspan + '"></td></tr>';
 }
 
 // unified diff を 1 列(インライン)の差分表示 HTML へ組み立てる。
@@ -465,7 +466,8 @@ function renderInlineDiffHtml(hljs, diffText, lang, showLineNumbers) {
     for (var h = 0; h < hunks.length; h++) {
       var hunk = hunks[h];
       var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
-      rows += diffHunkHeaderRow(hunk, showLineNumbers);
+      // 先頭には区切りを置かない(境目が無いところに帯だけが出るため)。
+      if (rows !== '') { rows += diffHunkSeparatorRow(showLineNumbers === true ? 4 : 2); }
       for (var i = 0; i < hunk.lines.length; i++) {
         rows += diffRow(hunk.lines[i], lineHtmls[i] === undefined ? '' : lineHtmls[i], showLineNumbers);
       }
@@ -533,8 +535,7 @@ function renderSideBySideDiffHtml(hljs, diffText, lang, showLineNumbers) {
     for (var h = 0; h < hunks.length; h++) {
       var hunk = hunks[h];
       var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
-      rows += '<tr class="diff-hunk"><td class="diff-hunk-header" colspan="' + span + '">'
-        + escapeHtml(hunk.header) + '</td></tr>';
+      if (rows !== '') { rows += diffHunkSeparatorRow(span); }
       var pairs = pairDiffLines(hunk.lines);
       for (var p = 0; p < pairs.length; p++) {
         var left = pairs[p].left;
