@@ -214,6 +214,46 @@ struct ViewerWindowControllerDiffTests {
         #expect(controller.store.diffText == nil)
     }
 
+    /// Markdown/SVG/HTML は「ソース表示中」でないと差分を描けないため、レンダリング表示中の
+    /// refreshDiff は取得せず diffText を捨てる。モード切替が差分の取り直しを起こさないと、
+    /// ソース表示へ切り替えても差分が出ず、保存・`.git/index` 変更など無関係な契機が
+    /// 来るまで素のソースのままになる(TASK-337)。
+    @Test("ソース表示へ切り替えたら差分を取り直す")
+    func refreshesDiffWhenSwitchingToSourceMode() async {
+        let markdown = URL(fileURLWithPath: "/mock/note.md")
+        let preference = makePreference()
+        preference.isEnabled = true
+        let reader = RecordingDiffReader()
+        let controller = ViewerWindowControllerFixture(
+            file: markdown, contents: "# note",
+            defaults: makeIsolatedDefaults(prefix: "DiffTests.sourceModeSwitch"),
+            diffDisplayPreference: preference,
+            diffLoader: GitDiffLoader(reader: reader),
+            // 既定の索引は /mock 配下でリポジトリルートを返さず、取得へ到達しない。
+            gitFileIndex: SlowRootGitFileIndex(delay: 0)
+        ).controller
+        defer { controller.close() }
+        // presentDocument はソース表示にしてしまうため、提示状態だけを作る
+        // (レンダリング表示のまま切り替えることがこのテストの前提)。
+        controller.fileListModel.entries = [FileListEntry(url: markdown, kind: .file)]
+        controller.fileListModel.selection = markdown
+        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+            controller.store.fileType == .markdown
+        }
+        // 前提: レンダリング表示中は差分を出せない = ここでは取得も起きない。
+        #expect(!controller.capabilities.canToggleDiff)
+        controller.refreshDiff()
+        #expect(reader.callCount == 0)
+
+        controller.setSourceMode(true)
+
+        #expect(controller.capabilities.canToggleDiff)
+        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+            reader.callCount == 1
+        }
+        #expect(reader.callCount == 1)
+    }
+
     /// ルート解決は差分取得と同じく git のサブプロセスを起こしうるため、メインアクター上で
     /// 同期に呼ぶとコンテンツ再読込のたびに UI が止まる。refreshDiff がすぐ戻ることで測る。
     @Test("差分の取り直しはリポジトリルート解決でメインアクターを止めない")
