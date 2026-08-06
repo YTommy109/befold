@@ -50,7 +50,8 @@ extension ViewerRenderer {
             request.chunk, request.contentRevision, request.fileType, request.filePath,
             request.isSourceMode, request.truncation, request.generation
         )
-        rendered.truncation = truncation
+        // applyRender と同じ理由で、送るのは今・ミラーへの確定は追記を評価した後
+        // （await 中に再入した updateContent へ「反映済み」と誤って見せない）。
         webView.evaluateJavaScript(
             truncation.script,
             completionHandler: nil
@@ -69,7 +70,12 @@ extension ViewerRenderer {
         {
             webView.evaluateJavaScript(script, completionHandler: nil)
         }
-        recordRendered(contentRevision: contentRevision, fileType: fileType, filePath: filePath)
+        var state = rendered
+        state.contentRevision = contentRevision
+        state.fileType = fileType
+        state.filePath = filePath
+        state.truncation = truncation
+        recordRendered(state)
     }
 
     /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
@@ -89,31 +95,34 @@ extension ViewerRenderer {
             request.content, request.contentRevision, request.fileType, request.filePath,
             request.isSourceMode, request.showLineNumbers, request.truncation, request.generation
         )
+        // 送るのは「変わったときだけ」だが、送った事実をミラーへ確定させるのは render を
+        // 実際に評価した後（下の recordRendered）。ここで先に確定すると、await 中に再入した
+        // updateContent が incoming == rendered と判定して描画を握り潰し、同時に世代を進める
+        // ため、中断から戻ったこちらも世代ガードで抜けて render が一度も走らなくなる
+        // （差分テキストは JS 側に入っているのに素のソースのまま。TASK-334）。
+        // 送信自体は冪等なので、確定前に再送されても害はない。
+        let sentDiffState = diffState
         if showLineNumbers != rendered.showLineNumbers {
             webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers), completionHandler: nil)
-            rendered.showLineNumbers = showLineNumbers
         }
         if isSourceMode != rendered.isSourceMode {
             webView.evaluateJavaScript(
                 ViewerBridge.viewModeScript(.init(isSourceMode: isSourceMode)), completionHandler: nil
             )
-            rendered.isSourceMode = isSourceMode
         }
         // 差分は本文とレイアウトを 1 つの値として比較し、変わったときだけ両方送る。
         // 直後の render で JS 側が読み出すため、ここでは送るだけ(再描画はしない)。
-        if diffState != rendered.diffState {
-            webView.evaluateJavaScript(ViewerBridge.diffScript(diffState.text), completionHandler: nil)
+        if sentDiffState != rendered.diffState {
+            webView.evaluateJavaScript(ViewerBridge.diffScript(sentDiffState.text), completionHandler: nil)
             webView.evaluateJavaScript(
-                ViewerBridge.diffLayoutScript(diffState.layout), completionHandler: nil
+                ViewerBridge.diffLayoutScript(sentDiffState.layout), completionHandler: nil
             )
-            rendered.diffState = diffState
         }
         if truncation != rendered.truncation {
             webView.evaluateJavaScript(
                 truncation.script,
                 completionHandler: nil
             )
-            rendered.truncation = truncation
         }
 
         let renderable = await embeddedContent(
@@ -128,7 +137,21 @@ extension ViewerRenderer {
             )
         }
         webView.evaluateJavaScript(script, completionHandler: nil)
-        recordRendered(contentRevision: contentRevision, fileType: fileType, filePath: filePath)
+        recordRendered(
+            RenderedStateMirror(
+                contentRevision: contentRevision, fileType: fileType, filePath: filePath,
+                showLineNumbers: showLineNumbers, isSourceMode: isSourceMode,
+                truncation: truncation, diffState: sentDiffState
+            )
+        )
+    }
+
+    /// 描画済みキャッシュをまるごと確定させる。render()/append() を実際に
+    /// evaluateJavaScript した後にだけ呼ぶこと（`applyRender` の解説を参照）。
+    /// フィールドを並べず丸ごと差し替えるため、ミラーへフィールドを足したときに
+    /// 確定漏れが起きない。
+    func recordRendered(_ state: RenderedStateMirror) {
+        rendered = state
     }
 
     /// 描画済みキャッシュを更新する。content 全文は保持せず contentRevision だけを
