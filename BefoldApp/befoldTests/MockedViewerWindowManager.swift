@@ -9,6 +9,19 @@ import Foundation
 final nonisolated class RecordingGitFileIndex: GitFileIndexing, @unchecked Sendable {
     private let lock = NSLock()
     private var _warmedPaths: [URL] = []
+    /// 解決させたいリポジトリルート。既定の nil は「git 管理外」で、実 `git` は起こさない。
+    /// 差分取得のようにルート解決が前提の経路をテストするときだけ渡す。
+    private let repositoryRootOverride: URL?
+
+    init(repositoryRoot: URL? = nil) {
+        repositoryRootOverride = repositoryRoot
+    }
+
+    /// プロトコル要件はこちら(`forDirectoryAt:` は拡張の静的ディスパッチで、
+    /// `any GitFileIndexing` 越しには上書きが効かない)。
+    func repositoryRoot(forFileAt _: URL) -> URL? {
+        repositoryRootOverride
+    }
 
     var warmedPaths: [URL] {
         lock.lock(); defer { lock.unlock() }; return _warmedPaths
@@ -57,7 +70,7 @@ struct MockedViewerWindowManager {
     ///   - directories: 存在するディレクトリとして扱う URL(例: フォルダーオープンのフォールバック検証)。
     init(
         files: [URL], directories: [URL] = [], prefix: String = "ViewerWindowManagerTests",
-        contents: String = "graph TD;"
+        contents: String = "graph TD;", repositoryRoot: URL? = nil
     ) {
         let defaults = makeIsolatedDefaults(prefix: prefix)
         let fileReader = InMemoryFileReader(
@@ -74,7 +87,7 @@ struct MockedViewerWindowManager {
         self.diffDisplayPreference = diffDisplayPreference
         let bookmarkStore = BookmarkStore(defaults: defaults)
         self.bookmarkStore = bookmarkStore
-        let gitFileIndex = RecordingGitFileIndex()
+        let gitFileIndex = RecordingGitFileIndex(repositoryRoot: repositoryRoot)
         self.gitFileIndex = gitFileIndex
         let recentRepositoriesStore = RecentRepositoriesStore(defaults: defaults)
         self.recentRepositoriesStore = recentRepositoriesStore

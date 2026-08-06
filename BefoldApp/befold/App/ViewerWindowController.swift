@@ -29,6 +29,7 @@ protocol ViewerWindowControllerDelegate: AnyObject {
     )
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController)
+    func viewerWindowDidToggleSourceDiff(_ controller: ViewerWindowController)
 }
 
 /// performFileSwitch の結果。呼び出し元(明示的なファイル選択と履歴ナビゲーション)が
@@ -510,6 +511,13 @@ extension ViewerWindowController: SidebarNavigatorHost {
         refreshToolbarState()
     }
 
+    /// git バッジが更新されたら、同じ契機で表示中ファイルの差分も取り直す。
+    /// 差分側だけを別の契機で呼ばないこと(保存・`.git/index` 変更・キーウィンドウ化・
+    /// 絞り込みトグルのどれかが片方にしか届かなくなる / TASK-330)。
+    func gitStatusDidApply() {
+        refreshDiff()
+    }
+
     /// 現在の表示状態をツールバーの全アイテムへ再同期する。
     /// ウィンドウ内部の状態変更に加え、CLI からの表示オプション上書き
     /// (ViewerWindowManager.applyDisplayOverrides)のような外部要因からも呼ばれる。
@@ -874,9 +882,9 @@ private extension ViewerWindowController {
             // 表示中ファイルの保存に git バッジを追従させる。作業ツリーの編集は
             // `.git/index` を動かさないため index 監視では拾えず、ここが唯一の契機になる。
             // 再読込は FileWatcher のデバウンス後に 1 回来るので、連打にはならない。
+            // 差分はここでは呼ばない。git 状態が反映された時点(gitStatusDidApply)で
+            // 取り直すことで、バッジの全契機に差分が自動的に追従する(TASK-330)。
             self?.sidebar.refreshGitStatuses()
-            // 差分も同じ契機で取り直す(バッジと差分がずれないよう契機を 1 つにする)。
-            self?.refreshDiff()
         }
     }
 }

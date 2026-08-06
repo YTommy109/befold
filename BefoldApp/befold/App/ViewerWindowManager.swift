@@ -123,6 +123,14 @@ final class ViewerWindowManager {
         allControllers.forEach { $0.sidebar.applyChangedFilesOnlyToggle() }
     }
 
+    /// ソース差分表示のON/OFFを反転し、開いている全ウィンドウで差分を取り直す。
+    /// 設定(diffDisplayPreference)はアプリ全体で共有されるため、反転したウィンドウだけが
+    /// 取り直すと、他ウィンドウはメニューのチェックだけ変わって画面が変わらない(TASK-330)。
+    func toggleSourceDiff() {
+        diffDisplayPreference.isEnabled.toggle()
+        allControllers.forEach { $0.refreshDiff() }
+    }
+
     /// CLI の `--hidden-files`/`--no-hidden-files` から呼ばれる。値を直接設定し、
     /// 開いている全ウィンドウのサイドバーへ即座に反映する。
     func setHiddenFiles(_ value: Bool) {
@@ -474,5 +482,9 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
 
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {
         toggleChangedFilesOnly()
+    }
+
+    func viewerWindowDidToggleSourceDiff(_ controller: ViewerWindowController) {
+        toggleSourceDiff()
     }
 }

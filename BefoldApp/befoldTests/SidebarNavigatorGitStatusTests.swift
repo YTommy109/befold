@@ -157,6 +157,9 @@ struct SidebarNavigatorGitStatusTests {
         await navigator.pendingGitStatusTask?.value
 
         #expect(policies.get() == [.always, .onlyIfIndexChanged])
+        // 差分表示もこの契機にぶら下げてある(TASK-330)。ここが host へ届かないと、
+        // git commit / checkout 後もコミット済みの差分が残り続ける。
+        #expect(host.gitStatusDidApplyCallCount == 2)
     }
 
     /// 監視の張り直しは対象パスが変わったときだけ。毎回の refresh で張り直すと
