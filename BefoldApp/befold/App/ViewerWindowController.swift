@@ -723,7 +723,11 @@ extension ViewerWindowController {
             isBinaryContent: store.fileType.isBinaryContent,
             showsCodeContent: store.showsCodeContent,
             supportsSourceMode: store.fileType.supportsSourceMode,
-            supportsDiffDisplay: store.fileType.supportsDiffDisplay,
+            // 差分の種別ゲートだけは、いま表示中の URL から直接導く。store.fileType は
+            // 非同期のコンテンツロード完了まで旧ファイルの値を保つため、切替中に届いた
+            // 取得契機(`.git/index` 変更・他ウィンドウの保存)が旧ファイルの種別で通り、
+            // 差分を描けない CSV/TSV に対して git を起こしてしまう(TASK-338)。
+            supportsDiffDisplay: FileType(url: fileURL).supportsDiffDisplay,
             isDirectHTMLMode: webViewProxy.isDirectHTMLMode
         )
     }
