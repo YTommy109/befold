@@ -136,4 +136,30 @@ describe('ソース表示への差分の差し込み', () => {
 
     expect(document.querySelector('#diagram-wrap table.diff-table')).toBeNull();
   });
+
+  // 差分は表示モード・種別を問わず取得されるため、差分表示を行わない経路でも
+  // diff() は非 null になる。そこで追記を止めると、変更済みの大きな .md /
+  // .csv で 2 チャンク目以降が永久に出なくなる。
+  test('レンダリング表示の Markdown は差分が届いていてもチャンクを追記する', async () => {
+    const { document, main } = loadViewerMain({ withMarkdown: true });
+
+    main.setDiff(DIFF);
+    main.setViewMode('rendered');
+    await main.render('# Title', 'md');
+
+    main.appendChunk('追記された段落\n', 'md');
+
+    expect(document.querySelector('#diagram-wrap').textContent).toContain('追記された段落');
+  });
+
+  test('CSV のソース表示は差分が届いていてもチャンクを追記する', async () => {
+    const { document, main } = loadViewerMain({});
+
+    main.setDiff(DIFF);
+    await renderSource(main, 'a,b\n1,2\n', 'csv', ',');
+
+    main.appendChunk('3,4\n', 'csv', ',');
+
+    expect(document.querySelector('#diagram-wrap').textContent).toContain('3,4');
+  });
 });
