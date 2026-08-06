@@ -12,6 +12,7 @@ struct ViewerCapabilitiesTests {
         isBinaryContent: Bool = false,
         showsCodeContent: Bool = true,
         supportsSourceMode: Bool = true,
+        supportsDiffDisplay: Bool = true,
         isDirectHTMLMode: Bool = false
     ) -> ViewerCapabilities {
         ViewerCapabilities(
@@ -21,6 +22,7 @@ struct ViewerCapabilitiesTests {
             isBinaryContent: isBinaryContent,
             showsCodeContent: showsCodeContent,
             supportsSourceMode: supportsSourceMode,
+            supportsDiffDisplay: supportsDiffDisplay,
             isDirectHTMLMode: isDirectHTMLMode
         )
     }
@@ -83,12 +85,21 @@ struct ViewerCapabilitiesTests {
         #expect(!makeCapabilities(showsCodeContent: false).canToggleLineNumbers)
     }
 
+    /// CSV/TSV は viewer 側が差分を描かない(viewer-main.js の type === "csv" 分岐)。
+    /// ここで許すと、描かれない差分のために git のサブプロセスだけが走る(TASK-324)。
+    @Test("差分は種別が差分表示に対応しているときだけ切り替えられる")
+    func diffFollowsDiffDisplaySupport() {
+        #expect(makeCapabilities(supportsDiffDisplay: true).canToggleDiff)
+        #expect(!makeCapabilities(supportsDiffDisplay: false).canToggleDiff)
+        #expect(!makeCapabilities(showsCodeContent: false).canToggleDiff)
+    }
+
     @Test("何も提示していない既定値はすべて不可")
     func noneDeniesEverything() {
         #expect(ViewerCapabilities.none == ViewerCapabilities(
             isPresentingDocument: false, isRejected: false, isRenderable: false,
             isBinaryContent: false, showsCodeContent: false, supportsSourceMode: false,
-            isDirectHTMLMode: false
+            supportsDiffDisplay: false, isDirectHTMLMode: false
         ))
         #expect(!ViewerCapabilities.none.canPrint)
     }
@@ -103,6 +114,7 @@ extension ViewerCapabilities {
         isBinaryContent: false,
         showsCodeContent: true,
         supportsSourceMode: true,
+        supportsDiffDisplay: true,
         isDirectHTMLMode: false
     )
 }

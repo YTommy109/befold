@@ -710,6 +710,7 @@ extension ViewerWindowController {
             isBinaryContent: store.fileType.isBinaryContent,
             showsCodeContent: store.showsCodeContent,
             supportsSourceMode: store.fileType.supportsSourceMode,
+            supportsDiffDisplay: store.fileType.supportsDiffDisplay,
             isDirectHTMLMode: webViewProxy.isDirectHTMLMode
         )
     }

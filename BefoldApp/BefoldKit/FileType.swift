@@ -159,6 +159,17 @@ public enum FileType: Sendable, Equatable {
         isRenderable && !isBinaryContent
     }
 
+    /// ソース表示へ git 差分を重ねられる種別かどうか。
+    /// CSV/TSV のソース表示は独自の列構造を持つため viewer 側が差分を描かない
+    /// (viewer-main.js の `_renderDiffHtmlIfAvailable` が type === "csv" で空を返す)。
+    /// ここで弾かないと、描かれない差分のために git のサブプロセスだけが走る。
+    public var supportsDiffDisplay: Bool {
+        switch self {
+        case .csv: false
+        case .mmd, .markdown, .svg, .html, .image, .pdf, .code: true
+        }
+    }
+
     /// チャンク読み込みで先頭から段階的に描画できる形式かどうか。
     /// CSV/TSV とコード(プレーンテキスト含む)は行単位、Markdown はブロック単位
     /// (コードフェンス外の空行)で安全に区切れる(ChunkBoundary 参照)。

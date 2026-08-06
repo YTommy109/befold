@@ -80,9 +80,11 @@ private final class RecordingDiffToggleDelegate: ViewerWindowControllerDelegate 
 struct ViewerWindowControllerDiffTests {
     private let file = URL(fileURLWithPath: "/mock/note.swift")
 
-    private func makeController(preference: DiffDisplayPreference) -> ViewerWindowController {
+    private func makeController(
+        preference: DiffDisplayPreference, file: URL? = nil
+    ) -> ViewerWindowController {
         ViewerWindowControllerFixture(
-            file: file, contents: "let a = 1",
+            file: file ?? self.file, contents: "let a = 1",
             defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerDiffTests"),
             diffDisplayPreference: preference
         ).controller
@@ -244,6 +246,34 @@ struct ViewerWindowControllerDiffTests {
         let controller = makeController(preference: preference)
         defer { controller.close() }
         // 文書を提示していない(= canToggleDiff が false)状態。
+        #expect(!controller.capabilities.canToggleDiff)
+        let reader = RecordingDiffReader()
+        controller.diffLoader = GitDiffLoader(reader: reader)
+        controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
+
+        controller.refreshDiff()
+
+        #expect(reader.callCount == 0)
+        #expect(controller.store.diffText == nil)
+    }
+
+    /// CSV/TSV は文書を提示していてソース表示中でも差分を描けない(viewer 側が
+    /// type === "csv" で空を返す)。ここが true に戻ると、⌘D はチェックだけ付いて
+    /// 表示は変わらないまま、保存のたびに git のサブプロセスが走る(TASK-324)。
+    @Test("CSV のソース表示では差分を取得しない")
+    func skipsFetchForCSVSourceView() async {
+        let csv = URL(fileURLWithPath: "/mock/table.csv")
+        let preference = makePreference()
+        preference.isEnabled = true
+        let controller = makeController(preference: preference, file: csv)
+        defer { controller.close() }
+        presentDocument(in: controller, file: csv)
+        // 種別は読み込み完了時に確定する。ここを待たないと既定の .mmd のまま測ってしまい、
+        // canToggleDiff が false でも「CSV だから」ではなくなる。
+        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+            controller.store.fileType == .csv(delimiter: ",")
+        }
+        #expect(controller.store.showsCodeContent)
         #expect(!controller.capabilities.canToggleDiff)
         let reader = RecordingDiffReader()
         controller.diffLoader = GitDiffLoader(reader: reader)
