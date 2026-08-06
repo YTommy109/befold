@@ -118,11 +118,16 @@ public extension ViewerRenderer {
                 // ライブリロード（同一ファイルの content 変更）では現在の倍率を維持する。
                 let isFirstLoadOrSwitch = !isDirectHTMLMode || pathChanged
                 pendingPageZoom = isFirstLoadOrSwitch ? initialPageZoom : webView.pageZoom
-                recordRendered(
-                    contentRevision: contentRevision,
-                    fileType: fileType, filePath: filePath
-                )
-                rendered.isSourceMode = isSourceMode
+                // 直接ロードでは viewer.js が居らず行番号・切り詰め・差分は適用されないため、
+                // それらは現在のミラー値のまま持ち越す(復帰時に exitDirectHTMLMode が
+                // rendered.reset() で一括破棄する)。フィールドを並べず現在値から組み立てて
+                // 丸ごと確定させるのは、ミラーへフィールドを足したときの確定漏れを防ぐため。
+                var state = rendered
+                state.contentRevision = contentRevision
+                state.fileType = fileType
+                state.filePath = filePath
+                state.isSourceMode = isSourceMode
+                recordRendered(state)
                 lastDirectHTMLPath = filePath
                 isDirectHTMLMode = true
                 webViewProxy?.isDirectHTMLMode = true
