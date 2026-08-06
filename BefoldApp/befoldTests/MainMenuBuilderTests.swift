@@ -108,8 +108,8 @@ struct MainMenuBuilderTests {
         (
             submenuKey: "menu.view.title",
             selector: #selector(ViewerWindowController.toggleBookmark(_:)),
-            key: "d", modifiers: NSEvent.ModifierFlags?.some(.command)
-        ), // View メニューに Bookmark(⌘D) がある
+            key: "b", modifiers: NSEvent.ModifierFlags?.some(.command)
+        ), // View メニューに Bookmark(⌘B) がある。⌘D は高頻度の差分表示へ譲った
         (
             submenuKey: "menu.file.title",
             selector: #selector(AppDelegate.showQuickOpen(_:)),
@@ -144,6 +144,27 @@ struct MainMenuBuilderTests {
         if let item {
             #expect(item.keyEquivalent == "g")
             #expect(item.keyEquivalentModifierMask == [.command, .control])
+        }
+    }
+
+    /// 差分表示はソース表示中に何度も切り替えるため、単独の ⌘D / ⇧⌘D を割り当てている
+    /// (ブラウザ習慣の「⌘D = ブックマーク」より優先し、ブックマークは ⌘B へ移した)。
+    /// 露出はフィーチャーゲートと一致しなければならない(解除タスクは未起票)。
+    @Test("View メニューの差分項目はフィーチャーゲートと同じ有無で ⌘D / ⇧⌘D を持つ")
+    func viewMenuGatesDiffItemsWithCommandD() throws {
+        let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
+
+        let show = view.items.first { $0.action == #selector(ViewerWindowController.toggleSourceDiff(_:)) }
+        let layout = view.items.first { $0.action == #selector(ViewerWindowController.toggleDiffLayout(_:)) }
+        #expect((show != nil) == FeatureGate.isSourceDiffEnabled)
+        #expect((layout != nil) == FeatureGate.isSourceDiffEnabled)
+        if let show {
+            #expect(show.keyEquivalent == "d")
+            #expect(show.keyEquivalentModifierMask == [.command])
+        }
+        if let layout {
+            #expect(layout.keyEquivalent == "d")
+            #expect(layout.keyEquivalentModifierMask == [.command, .shift])
         }
     }
 
