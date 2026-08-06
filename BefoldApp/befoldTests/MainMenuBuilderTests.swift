@@ -106,11 +106,6 @@ struct MainMenuBuilderTests {
             key: "h", modifiers: NSEvent.ModifierFlags?.some([.command, .control])
         ), // View メニューに Show Hidden Files(⌘⌃H) がある
         (
-            submenuKey: "menu.view.title",
-            selector: #selector(ViewerWindowController.toggleBookmark(_:)),
-            key: "b", modifiers: NSEvent.ModifierFlags?.some(.command)
-        ), // View メニューに Bookmark(⌘B) がある。⌘D は高頻度の差分表示へ譲った
-        (
             submenuKey: "menu.file.title",
             selector: #selector(AppDelegate.showQuickOpen(_:)),
             key: "p", modifiers: NSEvent.ModifierFlags?.some(.command)
@@ -166,6 +161,33 @@ struct MainMenuBuilderTests {
             #expect(layout.keyEquivalent == "d")
             #expect(layout.keyEquivalentModifierMask == [.command, .shift])
         }
+    }
+
+    /// ブックマークを ⌘B へ移す理由は「⌘D を差分表示へ譲る」ことだけなので、差分項目が
+    /// 出ないビルド（stable）では ⌘D のままでなければならない。無条件に ⌘B へ移すと、
+    /// stable では ⌘D が誰にも割り当たらないままブックマークだけが黙って動く（TASK-333）。
+    @Test("ブックマークのキーはフィーチャーゲートに合わせて ⌘D / ⌘B を切り替える")
+    func viewMenuBookmarkKeyFollowsDiffGate() throws {
+        let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
+
+        let item = try #require(view.items.first { $0.action == #selector(ViewerWindowController.toggleBookmark(_:)) })
+        #expect(item.keyEquivalent == BookmarkShortcut.keyEquivalent)
+        #expect(item.keyEquivalentModifierMask == .command)
+        // ⌘D を持つ項目はビルドを通じて常にちょうど 1 つ（差分表示 or ブックマーク）。
+        let commandD = view.items.filter { $0.keyEquivalent == "d" && $0.keyEquivalentModifierMask == .command }
+        #expect(commandD.count == 1)
+    }
+
+    /// 実ビルドではゲートが片側に固定されるため、両分岐は純粋判定で押さえる。
+    @Test("差分を露出しないビルドではブックマークが ⌘D のまま", arguments: [
+        (isSourceDiffEnabled: true, key: "b", display: "⌘B"),
+        (isSourceDiffEnabled: false, key: "d", display: "⌘D"),
+    ])
+    func bookmarkShortcutFollowsGateInBothDirections(
+        isSourceDiffEnabled: Bool, key: String, display: String
+    ) {
+        #expect(BookmarkShortcut.keyEquivalent(isSourceDiffEnabled: isSourceDiffEnabled) == key)
+        #expect(BookmarkShortcut.displayName(isSourceDiffEnabled: isSourceDiffEnabled) == display)
     }
 
     @Test("Window メニューにタブ操作項目がある")

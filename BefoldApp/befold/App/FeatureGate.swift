@@ -27,6 +27,9 @@ import BefoldCLI
 ///   — View メニューの「差分を表示」「差分を左右に並べる」項目。
 /// - `DiffDisplayPreference.init(defaults:isAvailable:)`
 ///   — 保存値の読み出し。無効時は保存値 ON でも OFF として読む。
+/// - `BookmarkShortcut.keyEquivalent`
+///   — ブックマークのキー等価。差分（⌘D）を露出するビルドでだけ ⌘B へ譲る。
+///     無効時は従来どおり ⌘D のまま（メニューとヘルプ表記の双方がここを読む）。
 ///
 /// この列挙は `FeatureGateEnumerationTests` がソース走査と突き合わせており、
 /// 参照を足して列挙を更新し忘れるとテストが落ちる。
