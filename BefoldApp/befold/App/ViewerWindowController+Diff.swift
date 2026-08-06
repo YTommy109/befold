@@ -6,11 +6,6 @@ import Foundation
 /// 本体(ViewerWindowController.swift)の行数上限を超えないよう extension に分けている。
 @MainActor
 extension ViewerWindowController {
-    /// 差分の取得元。機能が無効なら nil を返し、git diff を一切実行しない。
-    static func makeDiffLoader() -> GitDiffLoader? {
-        FeatureGate.isSourceDiffEnabled ? GitDiffLoader() : nil
-    }
-
     /// 表示中ファイルの差分を取り直して store へ反映する。
     ///
     /// 取得は非同期のため、戻ってきた時点で表示対象が変わっていないかを URL で確認する
@@ -21,14 +16,20 @@ extension ViewerWindowController {
     /// 無いディレクトリでは `git rev-parse` のサブプロセスが起きるため、メインアクター上で
     /// 同期に呼ぶとコンテンツ再読込のたびに UI が止まりうる(遅いボリュームでは
     /// GitCommandRunner のタイムアウト分まで)。
+    /// 差分を出せない種別(画像・PDF・文書を出していない状態)では git を起こさない。
+    /// 表示側(ViewerContentView)が捨てるだけでは、契機の数だけ subprocess が走る。
     func refreshDiff() {
-        guard let loader = diffLoader, diffDisplayPreference.isEnabled else {
+        guard let loader = diffLoader, diffDisplayPreference.isEnabled, capabilities.canToggleDiff else {
             store.diffText = nil
             return
         }
         let url = fileURL
         let directory = url.deletingLastPathComponent()
         let index = gitFileIndex
+        // 要求の順番は契機のここで取る。ルート解決の await より後(取得の直前)に取ると、
+        // 同じファイル変更イベントから出た他ウィンドウの要求が「先行取得の開始より後」と
+        // 判定されて合流できず、窓の数だけ git が起動する(TASK-325)。
+        let requestTicket = loader.takeRequestTicket()
         Task { @MainActor [weak self] in
             let root = await Task.detached(priority: .utility) {
                 index.repositoryRoot(forDirectoryAt: directory)
@@ -38,8 +39,11 @@ extension ViewerWindowController {
                 store.diffText = nil
                 return
             }
-            let result = await loader.diff(forFileAt: url, in: root)
-            guard let self, fileURL == url else { return }
+            let result = await loader.diff(forFileAt: url, in: root, requestedAt: requestTicket)
+            // 取得中に OFF へ切り替わっていたら書き戻さない。表示は ViewerContentView の
+            // ゲートで隠れるが、store.diffText に古い本文が残ると次に ON にした瞬間だけ
+            // 取り直し前の差分が見える。
+            guard let self, fileURL == url, diffDisplayPreference.isEnabled else { return }
             store.diffText = Self.displayableDiff(result)
         }
     }
@@ -53,10 +57,14 @@ extension ViewerWindowController {
     }
 
     /// View メニュー > 差分を表示。ソース表示に git 差分を重ねるかを切り替える。
+    ///
+    /// 設定はアプリ全体で共有されるため、反転と全ウィンドウへの反映は
+    /// ViewerWindowManager が担う(不可視ファイル表示・変更ファイルのみ表示と同型)。
+    /// ここで自ウィンドウだけ反転すると、他ウィンドウはメニューのチェックだけ変わって
+    /// 差分を取りに行かない(TASK-330)。
     @objc func toggleSourceDiff(_ sender: Any?) {
         guard capabilities.canToggleDiff else { return }
-        diffDisplayPreference.isEnabled.toggle()
-        refreshDiff()
+        delegate?.viewerWindowDidToggleSourceDiff(self)
     }
 
     /// View メニュー > 差分を左右に並べる。インラインと左右分割を切り替える。
@@ -66,7 +74,10 @@ extension ViewerWindowController {
     }
 
     /// 差分表示が ON かどうか(メニューのチェック表示に使う)。
-    var isSourceDiffEnabled: Bool {
+    ///
+    /// ユーザー設定であり、ビルドゲートの `FeatureGate.isSourceDiffEnabled` とは別物。
+    /// 同名にすると無修飾参照でどちらにも解決しうるため、名前を分けている(TASK-323)。
+    var isDiffShown: Bool {
         diffDisplayPreference.isEnabled
     }
 

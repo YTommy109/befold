@@ -29,6 +29,7 @@ protocol ViewerWindowControllerDelegate: AnyObject {
     )
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController)
+    func viewerWindowDidToggleSourceDiff(_ controller: ViewerWindowController)
 }
 
 /// performFileSwitch の結果。呼び出し元(明示的なファイル選択と履歴ナビゲーション)が
@@ -54,8 +55,9 @@ final class ViewerWindowController: NSWindowController {
     /// 差分表示の設定(ON/OFF とレイアウト)。全ウィンドウ共有。
     /// 参照は `ViewerWindowController+Diff.swift` に集約している。
     let diffDisplayPreference: DiffDisplayPreference
-    /// 差分の取得元。機能が無効なビルドでは nil で、git diff を一切実行しない。
-    lazy var diffLoader: GitDiffLoader? = Self.makeDiffLoader()
+    /// 差分の取得元。全ウィンドウで 1 個を共有する(生成元は ViewerWindowManager 一箇所)。
+    /// 機能が無効なビルドでは nil で、git diff を一切実行しない。
+    let diffLoader: GitDiffLoader?
     private let findOptionsPreference: FindOptionsPreference
     private let codeFontPreference: CodeFontPreference
     private let bookmarkStore: BookmarkStore
@@ -145,6 +147,7 @@ final class ViewerWindowController: NSWindowController {
         fileURL: URL, defaults: UserDefaults = .standard,
         sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
         diffDisplayPreference: DiffDisplayPreference = DiffDisplayPreference(),
+        diffLoader: GitDiffLoader? = nil,
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
@@ -168,6 +171,7 @@ final class ViewerWindowController: NSWindowController {
         self.defaults = defaults
         self.sidebarDisplayPreference = sidebarDisplayPreference
         self.diffDisplayPreference = diffDisplayPreference
+        self.diffLoader = diffLoader
         self.findOptionsPreference = findOptionsPreference
         self.codeFontPreference = codeFontPreference
         self.bookmarkStore = bookmarkStore
@@ -510,6 +514,13 @@ extension ViewerWindowController: SidebarNavigatorHost {
         refreshToolbarState()
     }
 
+    /// git バッジが更新されたら、同じ契機で表示中ファイルの差分も取り直す。
+    /// 差分側だけを別の契機で呼ばないこと(保存・`.git/index` 変更・キーウィンドウ化・
+    /// 絞り込みトグルのどれかが片方にしか届かなくなる / TASK-330)。
+    func gitStatusDidApply() {
+        refreshDiff()
+    }
+
     /// 現在の表示状態をツールバーの全アイテムへ再同期する。
     /// ウィンドウ内部の状態変更に加え、CLI からの表示オプション上書き
     /// (ViewerWindowManager.applyDisplayOverrides)のような外部要因からも呼ばれる。
@@ -702,6 +713,7 @@ extension ViewerWindowController {
             isBinaryContent: store.fileType.isBinaryContent,
             showsCodeContent: store.showsCodeContent,
             supportsSourceMode: store.fileType.supportsSourceMode,
+            supportsDiffDisplay: store.fileType.supportsDiffDisplay,
             isDirectHTMLMode: webViewProxy.isDirectHTMLMode
         )
     }
@@ -800,12 +812,12 @@ extension ViewerWindowController: NSWindowDelegate {
             return capabilities.canToggleLineNumbers
         }
         if menuItem.action == #selector(toggleSourceDiff(_:)) {
-            menuItem.state = isSourceDiffEnabled ? .on : .off
+            menuItem.state = isDiffShown ? .on : .off
             return capabilities.canToggleDiff
         }
         if menuItem.action == #selector(toggleDiffLayout(_:)) {
             menuItem.state = isDiffLayoutSideBySide ? .on : .off
-            return capabilities.canToggleDiff && isSourceDiffEnabled
+            return capabilities.canToggleDiff && isDiffShown
         }
         if menuItem.action == #selector(toggleBookmark(_:)) {
             menuItem.title = ViewerCommandTitles.bookmark(isBookmarked: isBookmarked)
@@ -874,9 +886,9 @@ private extension ViewerWindowController {
             // 表示中ファイルの保存に git バッジを追従させる。作業ツリーの編集は
             // `.git/index` を動かさないため index 監視では拾えず、ここが唯一の契機になる。
             // 再読込は FileWatcher のデバウンス後に 1 回来るので、連打にはならない。
+            // 差分はここでは呼ばない。git 状態が反映された時点(gitStatusDidApply)で
+            // 取り直すことで、バッジの全契機に差分が自動的に追従する(TASK-330)。
             self?.sidebar.refreshGitStatuses()
-            // 差分も同じ契機で取り直す(バッジと差分がずれないよう契機を 1 つにする)。
-            self?.refreshDiff()
         }
     }
 }

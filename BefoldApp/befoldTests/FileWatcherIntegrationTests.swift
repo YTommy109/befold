@@ -46,7 +46,7 @@ struct FileWatcherIntegrationTests {
         try FileManager.default.removeItem(at: file)
 
         // 削除後の発火（基準値からの増加）を待つ
-        await waitUntil { count.get() > baseline }
+        await waitForMainActorDelivery { count.get() > baseline }
         #expect(count.get() > baseline)
     }
 
@@ -59,7 +59,7 @@ struct FileWatcherIntegrationTests {
 
         // アトミック保存（一時ファイル → rename）を発火するまで繰り返す。
         // 毎回一時ファイルを作り直すので再試行しても冪等で、arm レースも救済される。
-        await waitUntilWithRetry(action: {
+        await waitForMainActorDelivery(action: {
             let tmpFile = tmp.url.appendingPathComponent(".test.mmd.tmp")
             try? "graph TD; X-->\(Int.random(in: 0 ... 999))"
                 .write(to: tmpFile, atomically: false, encoding: .utf8)
@@ -86,7 +86,7 @@ struct FileWatcherIntegrationTests {
         // 解放が反映されるまで（コールバック増加）を待ってから再作成する。
         let beforeDelete = count.get()
         try FileManager.default.removeItem(at: file)
-        await waitUntil { count.get() > beforeDelete }
+        await waitForMainActorDelivery { count.get() > beforeDelete }
 
         // 同名で再作成（ディレクトリ監視が検知してファイル監視を再開する）。
         // ディレクトリソースは file source より前に登録されるため、arm 確認済みなら
@@ -101,7 +101,7 @@ struct FileWatcherIntegrationTests {
         let baseline = count.get()
 
         // 監視再開が遅れてもリトライで検知できるよう、発火するまで書き込みを繰り返す
-        await waitUntilWithRetry(action: {
+        await waitForMainActorDelivery(action: {
             try? "graph TD; A-->\(Int.random(in: 0 ... 999))"
                 .write(to: file, atomically: false, encoding: .utf8)
         }, until: {
@@ -132,13 +132,13 @@ struct FileWatcherIntegrationTests {
         try FileManager.default.moveItem(at: file, to: newFile)
 
         // rename 通知を待つ
-        await waitUntil { renamed.get() != nil }
+        await waitForMainActorDelivery { renamed.get() != nil }
         #expect(renamed.get()?.lastPathComponent == "renamed.mmd")
 
         // 追従後（監視は新パスへ張り直され再び登録レースが発生する）の変更を、
         // 発火するまで書き込みを繰り返して検知する
         let baseline = count.get()
-        await waitUntilWithRetry(action: {
+        await waitForMainActorDelivery(action: {
             try? "graph TD; A-->\(Int.random(in: 0 ... 999))"
                 .write(to: newFile, atomically: false, encoding: .utf8)
         }, until: {
@@ -183,13 +183,13 @@ struct FileWatcherIntegrationTests {
         try FileManager.default.moveItem(at: file, to: moved)
 
         // rename 通知を待つ
-        await waitUntil { renamed.get() != nil }
+        await waitForMainActorDelivery { renamed.get() != nil }
         #expect(renamed.get()?.path == moved.resolvingSymlinksInPath().path)
 
         // 新しい親ディレクトリ基準で監視が張り直され、移動後の変更を
         // 発火するまで書き込みを繰り返して検知する
         let baseline = count.get()
-        await waitUntilWithRetry(action: {
+        await waitForMainActorDelivery(action: {
             try? "graph TD; A-->\(Int.random(in: 0 ... 999))"
                 .write(to: moved, atomically: false, encoding: .utf8)
         }, until: {
@@ -223,7 +223,7 @@ struct FileWatcherIntegrationTests {
         let backup = tmp.url.appendingPathComponent("test.mmd.bak")
         try FileManager.default.moveItem(at: file, to: backup)
         try "graph TD; X-->Y".write(to: file, atomically: false, encoding: .utf8)
-        await waitUntilWithRetry(action: {
+        await waitForMainActorDelivery(action: {
             try? "graph TD; X-->\(Int.random(in: 0 ... 999))"
                 .write(to: file, atomically: false, encoding: .utf8)
         }, until: {

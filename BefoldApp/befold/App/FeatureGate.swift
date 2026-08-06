@@ -21,12 +21,18 @@ import BefoldCLI
 ///
 /// ## ソース表示の git 差分（`isSourceDiffEnabled`）
 ///
-/// - `ViewerWindowController+Diff.makeDiffLoader()`
+/// - `ViewerWindowManager.makeDiffLoader()`
 ///   — 差分取得そのもの。無効時は nil で、git diff を一切実行しない。
+///     全ウィンドウで共有する 1 個をここで作る（生成点はここだけ）。
+/// - `ViewerWindowController+Diff.isDiffShown`
+///   — ユーザー設定(差分表示の ON/OFF)とビルドゲートが別物であることの注記のみ。
 /// - `MainMenuBuilder.makeViewMenuItem()`
 ///   — View メニューの「差分を表示」「差分を左右に並べる」項目。
 /// - `DiffDisplayPreference.init(defaults:isAvailable:)`
 ///   — 保存値の読み出し。無効時は保存値 ON でも OFF として読む。
+/// - `BookmarkShortcut.keyEquivalent`
+///   — ブックマークのキー等価。差分（⌘D）を露出するビルドでだけ ⌘B へ譲る。
+///     無効時は従来どおり ⌘D のまま（メニューとヘルプ表記の双方がここを読む）。
 ///
 /// この列挙は `FeatureGateEnumerationTests` がソース走査と突き合わせており、
 /// 参照を足して列挙を更新し忘れるとテストが落ちる。

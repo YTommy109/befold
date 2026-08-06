@@ -11,8 +11,23 @@ import Foundation
 /// 要求より前の作業ツリーを読んでいるため、そこへ相乗りすると変更前の差分が返り、
 /// 再取得の契機も無いまま表示が固まる(キャッシュしない理由と同じ「保存したのに
 /// 古い差分が出る」が、合流を経由して起きる形)。
+///
+/// 要求の順番(`Ticket`)は**契機の時点で**呼び出し側が取る。取得の直前に取ると、
+/// 同じファイル変更イベントから出た兄弟要求(複数ウィンドウ)が、先行ウィンドウの
+/// 取得開始より後の要求として扱われて合流できず、窓の数だけ git が起動する
+/// (リポジトリルート解決の await を挟むぶん到着がずれるため = TASK-325)。
+///
+/// 全ウィンドウで 1 個を共有すること。窓ごとに持つと畳み込みが窓の中でしか効かない。
+/// 生成は ViewerWindowManager に集約してあり、ここを破ると
+/// `ViewerWindowControllerDiffTests.openViewerSharesDiffLoader` が落ちる。
 @MainActor
 final class GitDiffLoader {
+    /// 要求の順番。契機の時点で発行し、取得へ持ち回る。
+    /// 生成を `takeTicket()` に限ることで、呼び出し側が数値を組み立てられないようにする。
+    struct Ticket {
+        let value: Int
+    }
+
     /// 走行中の取得。`ticket` は取得を開始した順番で、要求の到着順と突き合わせて
     /// 「その結果が要求より新しいか」を判定するために持つ。
     private struct Running {
@@ -30,14 +45,21 @@ final class GitDiffLoader {
         self.reader = reader
     }
 
+    /// 要求の順番を発行する。**取得を起こす契機の時点で**呼ぶこと(ファイル変更の検知直後など)。
+    /// リポジトリルート解決などの await を挟んだ後に取ると、同じ契機の兄弟要求どうしが
+    /// 合流できなくなる。
+    func takeRequestTicket() -> Ticket {
+        Ticket(value: takeTicket())
+    }
+
+    /// - Parameter requestedAt: `takeRequestTicket()` で契機の時点に取った順番。
     /// - Returns: 取得結果。git を動かせなかった場合は nil。
-    func diff(forFileAt url: URL, in root: URL) async -> GitFileDiff? {
+    func diff(forFileAt url: URL, in root: URL, requestedAt requestTicket: Ticket) async -> GitFileDiff? {
         let key = "\(root.normalizedPathKey)\u{0}\(url.normalizedPathKey)"
-        let requestTicket = takeTicket()
 
         while let running = inFlight[key] {
             // 自分より後に始まった取得なら、読んでいるツリーは自分の要求以降。相乗りしてよい。
-            if running.ticket > requestTicket { return await running.task.value }
+            if running.ticket > requestTicket.value { return await running.task.value }
             // 自分より前に始まった取得は結果が古い。終わるのを待ってから取り直す。
             // 走行中の登録は完了前に自分で取り下げるため(start 参照)、ここへ戻ってきた
             // 時点で同じ登録が残り続けることはない。

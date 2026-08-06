@@ -77,24 +77,19 @@ struct ViewerWindowControllerToolbarTests {
         let codeController = makeController(file: URL(fileURLWithPath: "/mock/a.swift"), contents: "let x = 1")
         defer { codeController.close() }
         let codeToolbar = try #require(codeController.window?.toolbar)
-        // toolbar(_:itemForItemIdentifier:willBeInsertedIntoToolbar:) は呼び出しごとに
-        // 現在の store 状態から新しいアイテムを生成するため、都度呼び直してポーリングする。
-        // fileType は非同期読み込みの完了(apply())と同時にのみ確定するため、
-        // 読み込み完了(onContentReloaded による toolbar 更新)を待ってから検証する。
-        // ポーリングで true を確認した後に取得し直すと、await の再開点を挟んだ別呼び出しに
-        // なり、その間の状態変化と競合しうる。ポーリング中に取得したボタンをそのまま使う。
-        func makeCodeButton() -> NSButton? {
-            (codeController.toolbarController.toolbar(
-                codeToolbar, itemForItemIdentifier: .init("lineNumbers"), willBeInsertedIntoToolbar: false
-            )?.view as? NSButton)
-        }
-        var codeButtonBox: NSButton?
-        await waitUntilOnMainActor {
-            let button = makeCodeButton()
-            codeButtonBox = button
-            return button?.isEnabled == true
-        }
-        let codeButton = try #require(codeButtonBox)
+        // fileType は非同期読み込みの完了(apply())と同時にのみ確定するため、完了を待つ。
+        // 壁時計予算のポーリング(waitUntilOnMainActor)ではなく loadTask を await する。
+        // full suite では多数の `@MainActor` スイートがメインアクターを占有するため、
+        // メインアクターの一巡に 5〜8 秒かかることがあり(TASK-327 の実測)、10 秒予算の
+        // ポーリングは負荷次第で読み込み完了前に尽きて失敗していた。await なら混雑は
+        // 遅延になるだけで失敗にはならない(上限はスイートの .timeLimit が担保する)。
+        await codeController.store.loadTask?.value
+
+        codeController.toolbarController.refreshToolbarState()
+
+        let codeButton = try #require(codeController.toolbarController.toolbar(
+            codeToolbar, itemForItemIdentifier: .init("lineNumbers"), willBeInsertedIntoToolbar: false
+        )?.view as? NSButton)
         #expect(codeButton.isEnabled == true)
 
         let previewController = makeController(file: URL(fileURLWithPath: "/mock/b.mmd"))

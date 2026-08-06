@@ -184,11 +184,12 @@ enum MainMenuBuilder {
         )
         addDiffItems(to: menu)
         // ⌘D はブラウザ習慣ではブックマークだが、このアプリでは差分表示のほうが
-        // 圧倒的に高頻度なので差分へ譲り、ブックマークは ⌘B へ移した。
+        // 圧倒的に高頻度なので差分へ譲り、ブックマークは ⌘B へ移した。ただし差分項目は
+        // フィーチャーゲートの内側にしか無いため、譲るかどうかは BookmarkShortcut が決める。
         menu.addLocalizedItem(
             "menu.view.addBookmark",
             action: #selector(ViewerWindowController.toggleBookmark(_:)),
-            keyEquivalent: "b"
+            keyEquivalent: BookmarkShortcut.keyEquivalent
         )
         menu.addItem(.separator())
         // キー等価を与えたときの既定修飾キーは [.command] だが、意図を明示するため

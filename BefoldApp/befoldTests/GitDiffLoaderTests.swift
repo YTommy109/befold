@@ -38,6 +38,14 @@ private final class SequenceDiffReader: GitDiffReading, @unchecked Sendable {
     private var index = 0
     private let delay: TimeInterval
 
+    /// 呼び出し回数。用意した結果を使い切っても増え続けるため、
+    /// 「取り直したか」を結果の中身と独立に測れる。
+    var calls: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return index
+    }
+
     init(results: [GitFileDiff?], delay: TimeInterval = 0) {
         self.results = results
         self.delay = delay
@@ -61,44 +69,60 @@ struct GitDiffLoaderTests {
     @Test("読み取り結果をそのまま返す")
     func returnsReaderResult() async {
         let reader = CountingDiffReader(result: .diff("@@ -1 +1 @@\n"))
+        let loader = GitDiffLoader(reader: reader)
 
-        let result = await GitDiffLoader(reader: reader).diff(forFileAt: file, in: root)
+        let result = await loader.diff(
+            forFileAt: file, in: root, requestedAt: loader.takeRequestTicket()
+        )
 
         #expect(result == .diff("@@ -1 +1 @@\n"))
         #expect(reader.calls == 1)
     }
 
-    /// 走行中の取得は要求より前のツリーを読んでいるため相乗りできない(相乗りすると
-    /// 保存直後の要求へ変更前の差分が返る)。重なった要求は、走行中の完了後に
-    /// **1 回だけ**取り直してまとめて返す。git が同時に 2 つ走ることはない。
-    @Test("重なった要求は走行後の 1 回の再取得にまとめられる")
-    func collapsesOverlappingRequestsIntoOneRefetch() async {
+    /// AC#1: 同じ契機(1 回のファイル変更イベント)から出た兄弟要求は、取得 1 回に合流する。
+    /// 契機の時点でチケットを取っているため、先行の取得はどの要求より後に始まっており、
+    /// 全員が相乗りできる。窓ごとにローダーを持つ・チケットを取得直前に取る、の
+    /// どちらへ戻しても要求の数だけ git が起動してここが落ちる(TASK-325)。
+    @Test("同じ契機から出た要求は 1 回の取得に合流する")
+    func collapsesSiblingRequestsIntoOneFetch() async {
         let reader = CountingDiffReader(result: .noChanges, delay: 0.2)
         let loader = GitDiffLoader(reader: reader)
+        // 3 窓が同じファイル変更イベントを受け取った状態。取得より前に順番が確定する。
+        let tickets = (0 ..< 3).map { _ in loader.takeRequestTicket() }
 
-        async let first = loader.diff(forFileAt: file, in: root)
-        async let second = loader.diff(forFileAt: file, in: root)
-        async let third = loader.diff(forFileAt: file, in: root)
+        async let first = loader.diff(forFileAt: file, in: root, requestedAt: tickets[0])
+        async let second = loader.diff(forFileAt: file, in: root, requestedAt: tickets[1])
+        async let third = loader.diff(forFileAt: file, in: root, requestedAt: tickets[2])
         let results = await [first, second, third]
 
         #expect(results == [.noChanges, .noChanges, .noChanges])
-        // 先行の 1 回 + 後から重なった 2 件をまとめた再取得 1 回。要求ごとには増えない。
-        #expect(reader.calls == 2)
+        #expect(reader.calls == 1)
     }
 
     /// 走行中のタスクへ相乗りさせると、その結果は要求より前のツリーのもので、
-    /// 再取得の契機も無いまま古い差分が表示され続ける(「保存したのに古い差分が出る」)。
+    /// 再取得の契機も無いまま古い差分が表示され続ける(「保存したのに古い差分が出る」
+    /// = TASK-321)。取得が始まった**後**に生まれた要求は、取り直した結果を受け取る。
     @Test("走行中に届いた要求へは、走行後に取り直した新しい結果を返す")
-    func overlappingRequestGetsFreshResult() async {
+    func laterRequestGetsFreshResult() async {
         let reader = SequenceDiffReader(results: [.diff("旧"), .diff("新")], delay: 0.2)
         let loader = GitDiffLoader(reader: reader)
 
-        async let running = loader.diff(forFileAt: file, in: root)
-        async let overlapping = loader.diff(forFileAt: file, in: root)
-        let results = await [running, overlapping]
+        async let running = loader.diff(
+            forFileAt: file, in: root, requestedAt: loader.takeRequestTicket()
+        )
+        // 取得が始まってから 2 件目の要求を作る。始まる前にチケットを取ると
+        // 兄弟要求(上のテスト)になってしまい、測りたい状況と別物になる。
+        while reader.calls == 0 {
+            await Task.yield()
+        }
+        async let later = loader.diff(
+            forFileAt: file, in: root, requestedAt: loader.takeRequestTicket()
+        )
+        let results = await [running, later]
 
         #expect(results[0] == .diff("旧"))
         #expect(results[1] == .diff("新"))
+        #expect(reader.calls == 2)
     }
 
     /// 作業ツリーの編集は `.git/index` を動かさないため、キャッシュすると必ず陳腐化する。
@@ -108,8 +132,8 @@ struct GitDiffLoaderTests {
         let reader = CountingDiffReader(result: .noChanges)
         let loader = GitDiffLoader(reader: reader)
 
-        _ = await loader.diff(forFileAt: file, in: root)
-        _ = await loader.diff(forFileAt: file, in: root)
+        _ = await loader.diff(forFileAt: file, in: root, requestedAt: loader.takeRequestTicket())
+        _ = await loader.diff(forFileAt: file, in: root, requestedAt: loader.takeRequestTicket())
 
         #expect(reader.calls == 2)
     }
@@ -117,7 +141,12 @@ struct GitDiffLoaderTests {
     @Test("取得できなかった場合は nil を返す")
     func propagatesUnavailable() async {
         let reader = CountingDiffReader(result: nil)
+        let loader = GitDiffLoader(reader: reader)
 
-        #expect(await GitDiffLoader(reader: reader).diff(forFileAt: file, in: root) == nil)
+        let result = await loader.diff(
+            forFileAt: file, in: root, requestedAt: loader.takeRequestTicket()
+        )
+
+        #expect(result == nil)
     }
 }

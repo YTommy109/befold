@@ -37,6 +37,7 @@ struct ViewerCapabilities: Equatable {
     ///   - isBinaryContent: テキストソースを持たない種別(画像・PDF)か。
     ///   - showsCodeContent: いまソース相当の内容を表示しているか。
     ///   - supportsSourceMode: ソース表示への切替を持つ種別か。
+    ///   - supportsDiffDisplay: ソース表示へ差分を重ねられる種別か(CSV/TSV は不可)。
     ///   - isDirectHTMLMode: HTML を直接ロードして表示しているか。
     init(
         isPresentingDocument: Bool,
@@ -45,6 +46,7 @@ struct ViewerCapabilities: Equatable {
         isBinaryContent: Bool,
         showsCodeContent: Bool,
         supportsSourceMode: Bool,
+        supportsDiffDisplay: Bool,
         isDirectHTMLMode: Bool
     ) {
         let onDocument = isPresentingDocument && !isRejected
@@ -56,7 +58,7 @@ struct ViewerCapabilities: Equatable {
         canSelectSourceMode = onDocument && !isBinaryContent
         canToggleLineNumbers = isPresentingDocument && showsCodeContent
         canBookmark = isPresentingDocument
-        canToggleDiff = isPresentingDocument && showsCodeContent
+        canToggleDiff = isPresentingDocument && showsCodeContent && supportsDiffDisplay
     }
 
     /// 何もできない状態(文書を提示していない)。テストとフォールバックの既定値。
@@ -67,6 +69,7 @@ struct ViewerCapabilities: Equatable {
         isBinaryContent: false,
         showsCodeContent: false,
         supportsSourceMode: false,
+        supportsDiffDisplay: false,
         isDirectHTMLMode: false
     )
 }

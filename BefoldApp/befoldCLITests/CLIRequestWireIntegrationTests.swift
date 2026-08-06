@@ -34,8 +34,14 @@ struct CLIRequestWireIntegrationTests {
 
         let received = LockedBox<[String: String]?>(nil)
         let center = DistributedNotificationCenter.default()
+        // queue は nil(= 配送側スレッドで即実行)にする。`.main` を渡すと配送ブロックが
+        // メインキューへ積まれるが、full suite 実行では多数の `@MainActor` スイートが
+        // メインアクターを占有し続けるため、そこへ積んだ仕事が待機予算(15 秒)の間
+        // 一度も走らないことがある。実測(TASK-327): 検知用に 1 秒ごとに `MainActor.run`
+        // を投げると、成功した回でも到達まで 5〜8 秒、失敗した回は 15 秒間で 1 度も
+        // 到達しなかった。`received` は LockedBox なので任意スレッドから安全に書ける。
         let observer = center.addObserver(
-            forName: Self.testNotificationName, object: nil, queue: .main
+            forName: Self.testNotificationName, object: nil, queue: nil
         ) { notification in
             // 配送された userInfo を Sendable な形(全て String)に写して受け渡す。
             received.set(notification.userInfo?.reduce(into: [String: String]()) { result, entry in

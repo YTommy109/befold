@@ -72,6 +72,21 @@ struct LocalizationTests {
         }
     }
 
+    /// ブックマークのキー表記はビルド（`FeatureGate.isSourceDiffEnabled`）で ⌘D / ⌘B が
+    /// 変わるため、説明文へ直書きすると片方のビルドで説明だけが古くなる。文言は %@ で
+    /// 受け、`FeatureOverviewView` が `BookmarkShortcut` の実際の割り当てを差し込む。
+    @Test("ブックマークの説明文はキー表記を直書きせず引数で受ける")
+    func bookmarksDetailTakesShortcutAsArgument() throws {
+        let catalog = try Self.cachedCatalog(bundle: .l10n)
+        let translations = try #require(catalog["featureOverview.bookmarks.detail"])
+
+        for language in Self.languages {
+            let value = try #require(translations[language])
+            #expect(value.contains("%@"), "\(language) の訳が引数を受け取っていません")
+            #expect(!value.contains("⌘"), "\(language) の訳にキー表記が直書きされています")
+        }
+    }
+
     /// パース済みカタログの static キャッシュ。代表キー検証をパラメタライズしたことで
     /// 同じ bundle のカタログをケースごとに読み直すことになるため、bundle 単位で使い回す。
     private static let catalogCache = LockedBox<[ObjectIdentifier: [String: [String: String]]]>([:])

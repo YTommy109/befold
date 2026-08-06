@@ -5,9 +5,6 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// 差分表示のトグルが「いま何ができるか」(ViewerCapabilities)だけを見ていることを確かめる。
-/// フォルダー一覧を出している間に効いてしまうと、見えていない文書に対する操作になる
-/// (TASK-271 と同じ形の穴)。
 /// ルート解決に時間がかかる索引。`git rev-parse` のサブプロセスが遅い状況
 /// (ネットワークボリューム・応答しない git)を、実 git を起こさずに作る。
 private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
@@ -30,25 +27,45 @@ private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
     }
 }
 
-/// 常に同じ結果を返す取得器。git は起こさない。
-private struct StubDiffReader: GitDiffReading {
-    let result: GitFileDiff?
+/// 差分トグルの通知だけを数える delegate。反転と全ウィンドウへの反映は
+/// ViewerWindowManager の責務なので、コントローラ単体では「通知したか」で測る。
+@MainActor
+private final class RecordingDiffToggleDelegate: ViewerWindowControllerDelegate {
+    private(set) var toggleSourceDiffCallCount = 0
 
-    func diff(forFileAt _: URL, in _: URL) -> GitFileDiff? {
-        result
+    func viewerWindowWillClose(_ controller: ViewerWindowController) {}
+    func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {}
+    func viewerWindow(_ controller: ViewerWindowController, didRenameFrom oldURL: URL, to newURL: URL) {}
+    func viewerWindow(
+        _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
+    ) {}
+    func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {}
+    func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {}
+
+    func viewerWindowDidToggleSourceDiff(_ controller: ViewerWindowController) {
+        toggleSourceDiffCallCount += 1
     }
 }
 
+/// 差分表示のトグルが「いま何ができるか」(ViewerCapabilities)だけを見ていることを確かめる。
+/// フォルダー一覧を出している間に効いてしまうと、見えていない文書に対する操作になる
+/// (TASK-271 と同じ形の穴)。
+///
+/// ウィンドウ生成経路(共有インスタンスの配線・窓をまたぐ挙動)は
+/// ViewerWindowManagerDiffTests が受け持つ。
 @Suite
 @MainActor
 struct ViewerWindowControllerDiffTests {
     private let file = URL(fileURLWithPath: "/mock/note.swift")
 
-    private func makeController(preference: DiffDisplayPreference) -> ViewerWindowController {
+    private func makeController(
+        preference: DiffDisplayPreference, file: URL? = nil, diffReader: (any GitDiffReading)? = nil
+    ) -> ViewerWindowController {
         ViewerWindowControllerFixture(
-            file: file, contents: "let a = 1",
+            file: file ?? self.file, contents: "let a = 1",
             defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerDiffTests"),
-            diffDisplayPreference: preference
+            diffDisplayPreference: preference,
+            diffLoader: diffReader.map { GitDiffLoader(reader: $0) }
         ).controller
     }
 
@@ -63,6 +80,8 @@ struct ViewerWindowControllerDiffTests {
     func togglesWhilePresentingDocument() {
         let preference = makePreference()
         let controller = makeController(preference: preference)
+        let delegate = RecordingDiffToggleDelegate()
+        controller.delegate = delegate
         defer { controller.close() }
         controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
         controller.fileListModel.selection = file
@@ -73,13 +92,18 @@ struct ViewerWindowControllerDiffTests {
 
         controller.toggleSourceDiff(nil)
 
-        #expect(preference.isEnabled)
+        // 反転そのものは ViewerWindowManager が全ウィンドウまとめて行う(TASK-330)。
+        // ここで自分だけ反転すると他ウィンドウが取り直さないため、通知だけを確かめる。
+        #expect(delegate.toggleSourceDiffCallCount == 1)
+        #expect(preference.isEnabled == false)
     }
 
     @Test("フォルダー提示中はトグルが効かない")
     func ignoresToggleWhilePreviewingFolder() {
         let preference = makePreference()
         let controller = makeController(preference: preference)
+        let delegate = RecordingDiffToggleDelegate()
+        controller.delegate = delegate
         defer { controller.close() }
         let folder = URL(fileURLWithPath: "/mock/sub")
         controller.fileListModel.entries = [
@@ -94,6 +118,7 @@ struct ViewerWindowControllerDiffTests {
         controller.toggleDiffLayout(nil)
 
         #expect(controller.isPreviewingFolder)
+        #expect(delegate.toggleSourceDiffCallCount == 0)
         #expect(preference.isEnabled == false)
         #expect(preference.layout == .inline)
     }
@@ -114,21 +139,78 @@ struct ViewerWindowControllerDiffTests {
         #expect(preference.layout == .inline)
     }
 
-    /// 設定が OFF なら、以前の取得結果が残っていても差分は出さない。
-    @Test("差分表示を OFF にすると本文が捨てられる")
-    func clearsDiffTextWhenDisabled() {
+    /// AC#2 / AC#3: バッジの更新契機(`.git/index` 変更・キーウィンドウ化・保存)は
+    /// すべて git 状態の反映を通るため、そこに差分をぶら下げてある。
+    /// git commit 後にコミット済みの差分が消えるのは、この経路が動くことに依存する。
+    @Test("git 状態が反映されたら差分も取り直す")
+    func refreshesDiffWhenGitStatusApplied() async {
         let preference = makePreference()
         preference.isEnabled = true
-        let controller = makeController(preference: preference)
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "let a = 1",
+            defaults: makeIsolatedDefaults(prefix: "DiffTests.gitStatusApplied"),
+            diffDisplayPreference: preference,
+            // コミット後を模す。差分が無くなった結果を返す取得器を注入する。
+            diffLoader: GitDiffLoader(reader: StubDiffReader(result: .noChanges)),
+            gitFileIndex: SlowRootGitFileIndex(delay: 0)
+        ).controller
         defer { controller.close() }
-        controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
-        controller.fileListModel.selection = file
-        controller.store.isSourceMode = true
+        presentDocument(in: controller, file: file)
         controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
 
-        controller.toggleSourceDiff(nil)
+        // SidebarNavigator が git 状態を反映したときに呼ぶ経路(protocol 必須メソッド)。
+        controller.gitStatusDidApply()
 
-        #expect(preference.isEnabled == false)
+        // 取得は detached の utility タスクを経由するため、全スイート並列実行では
+        // 協調スレッドの空き待ちで数秒かかる(単体では 0.2 秒)。既定の 10 秒では足りない。
+        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+            controller.store.diffText == nil
+        }
+    }
+
+    /// 差分を描けない種別(画像・PDF など)では git を起こさない。契機がバッジと同数へ
+    /// 増えたため、表示側で捨てるだけでは `.git` の書き込みごとに subprocess が走る。
+    @Test("差分を出せない状態では取得しない")
+    func skipsFetchWhenDiffCannotBeShown() {
+        let preference = makePreference()
+        preference.isEnabled = true
+        let reader = RecordingDiffReader()
+        let controller = makeController(preference: preference, diffReader: reader)
+        defer { controller.close() }
+        // 文書を提示していない(= canToggleDiff が false)状態。
+        #expect(!controller.capabilities.canToggleDiff)
+        controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
+
+        controller.refreshDiff()
+
+        #expect(reader.callCount == 0)
+        #expect(controller.store.diffText == nil)
+    }
+
+    /// CSV/TSV は文書を提示していてソース表示中でも差分を描けない(viewer 側が
+    /// type === "csv" で空を返す)。ここが true に戻ると、⌘D はチェックだけ付いて
+    /// 表示は変わらないまま、保存のたびに git のサブプロセスが走る(TASK-324)。
+    @Test("CSV のソース表示では差分を取得しない")
+    func skipsFetchForCSVSourceView() async {
+        let csv = URL(fileURLWithPath: "/mock/table.csv")
+        let preference = makePreference()
+        preference.isEnabled = true
+        let reader = RecordingDiffReader()
+        let controller = makeController(preference: preference, file: csv, diffReader: reader)
+        defer { controller.close() }
+        presentDocument(in: controller, file: csv)
+        // 種別は読み込み完了時に確定する。ここを待たないと既定の .mmd のまま測ってしまい、
+        // canToggleDiff が false でも「CSV だから」ではなくなる。
+        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+            controller.store.fileType == .csv(delimiter: ",")
+        }
+        #expect(controller.store.showsCodeContent)
+        #expect(!controller.capabilities.canToggleDiff)
+        controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
+
+        controller.refreshDiff()
+
+        #expect(reader.callCount == 0)
         #expect(controller.store.diffText == nil)
     }
 
@@ -143,40 +225,17 @@ struct ViewerWindowControllerDiffTests {
             file: file, contents: "let a = 1",
             defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerDiffTests.slowRoot"),
             diffDisplayPreference: preference,
+            // 機能ゲートが無効なビルドでは既定の diffLoader が nil で、refreshDiff が
+            // ルート解決へ到達しない(それでは何も測れない)。取得器を明示的に注入する。
+            diffLoader: GitDiffLoader(reader: StubDiffReader(result: .noChanges)),
             gitFileIndex: SlowRootGitFileIndex(delay: delay)
         ).controller
         defer { controller.close() }
-        // 機能ゲートが無効なビルドでは diffLoader が nil で、refreshDiff が
-        // ルート解決へ到達しない(それでは何も測れない)。取得器を明示的に注入する。
-        controller.diffLoader = GitDiffLoader(reader: StubDiffReader(result: .noChanges))
 
         let started = Date()
         controller.refreshDiff()
         let elapsed = Date().timeIntervalSince(started)
 
         #expect(elapsed < delay / 2)
-    }
-
-    /// 生成経路(ViewerWindowManager)が共有インスタンスを渡していることの固定。
-    /// 窓をまたぐ設定なのでコントローラ単体テストでは捕まえられない。
-    @Test("生成したウィンドウは差分表示設定を共有する")
-    func openViewerSharesDiffDisplayPreference() {
-        let first = URL(fileURLWithPath: "/mock/first.swift")
-        let second = URL(fileURLWithPath: "/mock/second.swift")
-        let fixture = MockedViewerWindowManager(files: [first, second])
-        defer { fixture.closeAll() }
-        fixture.manager.openViewer(for: first)
-        fixture.manager.openViewer(for: second)
-        let controllers = fixture.manager.allControllers
-        #expect(controllers.count == 2)
-
-        // 共有インスタンスを動かして観測する。メニュー操作(toggleSourceDiff)経由だと
-        // フィーチャーゲート無効時に両方 false のまま一致し、共有していなくても通る。
-        fixture.diffDisplayPreference.isEnabled = true
-
-        let enabled = controllers.filter(\.isSourceDiffEnabled)
-        #expect(enabled.count == controllers.count)
-        let shared = controllers.filter { $0.diffDisplayPreference === fixture.diffDisplayPreference }
-        #expect(shared.count == controllers.count)
     }
 }

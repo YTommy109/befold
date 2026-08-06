@@ -5,17 +5,31 @@ struct FeatureOverviewView: View {
     private struct Feature: Identifiable {
         let id = UUID()
         let title: LocalizedStringResource
-        let detail: LocalizedStringResource
+        let detail: String
+    }
+
+    /// ブックマークの説明文はキー表記を含むため、実際の割り当て（`BookmarkShortcut`）を
+    /// 差し込む。文言側に ⌘D を直書きすると、差分表示を露出するビルドで ⌘B へ移った
+    /// ときに説明だけが古いまま残る。
+    static func bookmarksDetail(shortcut: String = BookmarkShortcut.displayName) -> String {
+        String(format: String(localized: "featureOverview.bookmarks.detail", bundle: .l10n), shortcut)
     }
 
     private let features: [Feature] = [
-        Feature(title: "featureOverview.livePreview.title", detail: "featureOverview.livePreview.detail"),
-        Feature(title: "featureOverview.tabs.title", detail: "featureOverview.tabs.detail"),
-        Feature(title: "featureOverview.bookmarks.title", detail: "featureOverview.bookmarks.detail"),
-        Feature(title: "featureOverview.quickOpen.title", detail: "featureOverview.quickOpen.detail"),
-        Feature(title: "featureOverview.hiddenFiles.title", detail: "featureOverview.hiddenFiles.detail"),
-        Feature(title: "featureOverview.sourceToggle.title", detail: "featureOverview.sourceToggle.detail"),
+        Feature(title: "featureOverview.livePreview.title", detail: Self.text("featureOverview.livePreview.detail")),
+        Feature(title: "featureOverview.tabs.title", detail: Self.text("featureOverview.tabs.detail")),
+        Feature(title: "featureOverview.bookmarks.title", detail: FeatureOverviewView.bookmarksDetail()),
+        Feature(title: "featureOverview.quickOpen.title", detail: Self.text("featureOverview.quickOpen.detail")),
+        Feature(title: "featureOverview.hiddenFiles.title", detail: Self.text("featureOverview.hiddenFiles.detail")),
+        Feature(
+            title: "featureOverview.sourceToggle.title",
+            detail: Self.text("featureOverview.sourceToggle.detail")
+        ),
     ]
+
+    private static func text(_ key: String.LocalizationValue) -> String {
+        String(localized: key, bundle: .l10n)
+    }
 
     var body: some View {
         ScrollView {

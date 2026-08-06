@@ -109,13 +109,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mark frequently visited files with ⌘D and jump back to them quickly."
+            "value": "Mark frequently visited files with %@ and jump back to them quickly."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "よく開くファイルを ⌘D でブックマークし、すぐに開き直せます。"
+            "value": "よく開くファイルを %@ でブックマークし、すぐに開き直せます。"
           }
         }
       }

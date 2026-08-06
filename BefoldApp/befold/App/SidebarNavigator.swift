@@ -13,6 +13,12 @@ protocol SidebarNavigatorHost: AnyObject {
     func performFileSwitch(to url: URL) -> FileSwitchOutcome
     /// 戻る/進む履歴の状態が変化した。AppKit 側 UI(ツールバー)の更新契機。
     func historyStateDidChange()
+    /// git 状態(サイドバーのバッジ)が反映された。表示中ファイルの差分など、
+    /// バッジと同じ契機で取り直すべきものの更新点。
+    ///
+    /// 「バッジと差分の更新契機を 1 つにする」判断を、コンパイル時に守らせるための必須メソッド。
+    /// 呼び分けを増やすと、契機がまた片方だけに増える(TASK-330)。
+    func gitStatusDidApply()
 }
 
 /// サイドバー(ファイル一覧・選択同期・フォルダ移動)と戻る/進む履歴を管理する。
@@ -270,6 +276,10 @@ final class SidebarNavigator {
         )
         guard accepted else { return }
         gitIndexWatch.update(indexURL: result.indexURL)
+        // バッジが動いたら、同じ契機で表示中ファイルの差分も取り直す。
+        // 捨てられた(accepted == false)のは「より新しい結果が既に反映済み」のときだけで、
+        // その結果自身がここを通っているため取り残しは起きない。
+        host?.gitStatusDidApply()
     }
 
     /// 進行中の一覧取得タスクを破棄する。ウィンドウを閉じるときに呼ぶ。

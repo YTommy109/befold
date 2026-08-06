@@ -71,6 +71,75 @@ struct ViewerRendererContentUpdateIntegrationTests {
         #expect(renderer.rendered.filePath == fileA)
     }
 
+    /// 差分の到着で始まった applyRender が embeddedContent で中断している間に、その差分を
+    /// 「反映済み」としてミラーへ先行確定してはならない。先行確定すると、同じ入力で再入した
+    /// updateContent が `incoming == rendered` と判定して描画を握り潰し、同時に世代を進めるため、
+    /// 中断から戻った applyRender も世代ガードで抜ける。結果、差分テキストは JS 側に入って
+    /// いるのに render() が一度も走らない（TASK-334）。
+    ///
+    /// 中断の発生は画像埋め込みのゲートで制御する（`Task.yield()` 頼みの再現は 3 回中 1 回
+    /// 素通りして未修正でも通ってしまうため、判定に使わない）。ゲートを効かせられるのは
+    /// 画像埋め込みを通る markdown のレンダリング表示だけなので、判定は DOM ではなく
+    /// 「握り潰しの原因になるミラーの先行確定」に置く。
+    @Test("画像埋め込みでの中断中は差分を「反映済み」として先行確定しない")
+    func diffStateIsNotConfirmedBeforeRender() async {
+        let renderer = ViewerRenderer()
+        _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        await Self.waitForWebViewLoad { renderer.isReady }
+
+        let dir = URL(fileURLWithPath: "/tmp/task334-diff")
+        let imageURL = dir.appendingPathComponent("gated.png")
+        let markdownURL = dir.appendingPathComponent("doc.md")
+        let fileReader = InMemoryFileReader(files: [markdownURL.path: "unused"])
+        fileReader.setDataFile(Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), at: imageURL)
+        let content = "![alt](gated.png)"
+        let update = {
+            renderer.updateContent(
+                content, contentRevision: 1, fileType: .markdown, filePath: markdownURL,
+                hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false,
+                truncation: Self.truncation
+            )
+        }
+
+        // 1 回目は素通しさせ、描画を完了させる（以降 contentRevision は変わらない）。
+        let openGate = DispatchSemaphore(value: 1)
+        renderer.imageEmbedder = MarkdownImageEmbedder(
+            fileReader: SlowFileReader(base: fileReader, releaseGate: openGate, completed: LockedBox(false))
+        )
+        update()
+        await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 1 }
+        // 消費したカウントを戻す（減ったまま解放された DispatchSemaphore は
+        // libdispatch のチェックに引っかかってプロセスごと落ちる）。
+        openGate.signal()
+
+        // 2 回目は差分が届いた状態で、埋め込みを閉じたゲートで止める
+        // （埋め込みキャッシュを避けるため embedder ごと差し替える）。
+        let gate = DispatchSemaphore(value: 0)
+        let entered = LockedBox(false)
+        renderer.imageEmbedder = MarkdownImageEmbedder(
+            fileReader: SlowFileReader(
+                base: fileReader, releaseGate: gate, completed: LockedBox(false), entered: entered
+            )
+        )
+        let diff = ViewerRenderer.DiffState(
+            text: "diff --git a/doc.md b/doc.md\n--- a/doc.md\n+++ b/doc.md\n@@ -1 +1 @@\n-old\n+new\n",
+            layout: .inline
+        )
+        renderer.diffState = diff
+        update()
+        await Self.waitForWebViewLoad { entered.get() }
+
+        // 中断中はまだ「反映済み」ではない（1 回目の描画で確定した .none のまま）。
+        // ここで新しい差分を先行確定していると、次の更新が握り潰される。
+        #expect(renderer.rendered.diffState == ViewerRenderer.DiffState.none)
+
+        // 実機の updateNSView 再入を模した、同じ入力での再呼び出し。
+        update()
+        gate.signal()
+        // 再入で握り潰されず、最終的に差分が反映される。
+        await Self.waitForWebViewLoad { renderer.rendered.diffState == diff }
+    }
+
     @Test("画像埋め込みが遅延した古いupdateContentの結果は新しい呼び出しを上書きしない")
     func staleImageEmbedDoesNotClobberNewerRender() async {
         let renderer = ViewerRenderer()
@@ -164,7 +233,11 @@ private struct SlowFileReader: FileReading {
         base.modificationDate(at: url)
     }
 
+    /// readData へ入った（＝呼び出し元が埋め込みで中断した）ことをテストへ知らせる。
+    var entered: LockedBox<Bool>?
+
     func readData(from url: URL) throws -> Data {
+        entered?.set(true)
         releaseGate.wait()
         let data = try base.readData(from: url)
         completed.set(true)

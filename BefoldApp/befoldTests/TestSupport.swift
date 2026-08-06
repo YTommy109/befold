@@ -42,8 +42,9 @@ func confirmWatcherArmed(
     quiescePeriod: TimeInterval = 0.35,
     sourceLocation: SourceLocation = #_sourceLocation
 ) async -> Int {
-    // arm 自体が失敗したらこの時点で失敗が記録される（waitUntilWithRetry が報告する）。
-    await waitUntilWithRetry(sourceLocation: sourceLocation, action: {
+    // arm の観測はコールバック（`@MainActor` へホップして届く）の到達を待つため、
+    // 壁時計予算を持たない待機を使う（理由は waitForMainActorDelivery を参照）。
+    await waitForMainActorDelivery(action: {
         try? "arm-probe-\(Int.random(in: 0 ... 999))"
             .write(to: file, atomically: false, encoding: .utf8)
     }, until: {
