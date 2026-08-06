@@ -42,40 +42,75 @@ struct ViewerRendererContentUpdateTests {
         #expect(renderer.rendered.filePath == fileB)
     }
 
-    // MARK: - pendingAppend 消費判定(showLineNumbers 不一致は全文 render に倒す)
+    // MARK: - pendingAppend 消費判定(追記で更新できない差があれば全文 render に倒す)
 
-    // pendingAppend 消費経路のガードが showLineNumbers を見ておらず、
-    // 同一 revision の pending append と行番号トグルが1つの @Observable サイクルに合体すると
-    // トグルが1周期失われうる問題への回帰テスト。
+    // 追記経路はチャンクと切り詰め状態しか送らないため、それ以外の状態が同一サイクルで
+    // 変わったのに追記へ吸収されると、その変化が 1 周期失われる。行番号トグルで一度
+    // (TASK-68)、差分トグルでもう一度(TASK-320)起きた形の回帰テスト。
 
-    @Test("revision・ファイル・showLineNumbers の一致/不一致で増分追記の可否が決まる", arguments: [
-        // (直近描画の showLineNumbers, pending の revision, チェック側の revision・ファイル, 期待値)
-        (renderedShowLineNumbers: true, pendingRevision: 5, checkRevision: 5, checkFile: "a.md", expected: true),
-        // showLineNumbers が直近描画から変化(revision と pending append の合体)していれば全文 render に倒す
-        (false, 5, 5, "a.md", false),
-        (true, 4, 5, "a.md", false), // revision が不一致なら全文 render に倒す
-        (true, 5, 5, "b.md", false), // ファイル切替を伴うなら全文 render に倒す
-    ])
-    func canConsumePendingAppend(
-        renderedShowLineNumbers: Bool, pendingRevision: Int, checkRevision: Int,
-        checkFile: String, expected: Bool
-    ) {
-        let renderedURL = URL(fileURLWithPath: "/tmp/a.md")
-        var rendered = ViewerRenderer.RenderedStateMirror()
-        rendered.filePath = renderedURL
-        rendered.isSourceMode = false
-        rendered.showLineNumbers = renderedShowLineNumbers
-        let pending = ViewerRenderer.PendingAppend(chunk: "next", revision: pendingRevision)
+    /// 直近描画の状態。各ケースはここから 1 点だけ動かした「更新後」を作る。
+    private static func renderedMirror() -> ViewerRenderer.RenderedStateMirror {
+        ViewerRenderer.RenderedStateMirror(
+            contentRevision: 5, fileType: .markdown, filePath: URL(fileURLWithPath: "/tmp/a.md"),
+            showLineNumbers: true, isSourceMode: false,
+            truncation: ViewerRenderer.TruncationState(isTruncated: true, lineCount: 100, failed: false),
+            diffState: ViewerRenderer.DiffState.none
+        )
+    }
+
+    struct AppendCase: Sendable, CustomTestStringConvertible {
+        let label: String
+        let pendingRevision: Int
+        /// 直近描画から動かす 1 点。
+        let mutate: @Sendable (inout ViewerRenderer.RenderedStateMirror) -> Void
+        let expected: Bool
+        var testDescription: String {
+            label
+        }
+    }
+
+    private static let appendCases: [AppendCase] = [
+        AppendCase(label: "追記だけの差(世代と切り詰め)なら増分追記できる", pendingRevision: 6, mutate: {
+            $0.contentRevision = 6
+            $0.truncation = ViewerRenderer.TruncationState(isTruncated: true, lineCount: 200, failed: false)
+        }, expected: true),
+        AppendCase(label: "pending の世代が更新後と食い違えば全文 render", pendingRevision: 4, mutate: {
+            $0.contentRevision = 6
+        }, expected: false),
+        AppendCase(label: "行番号トグルが同じサイクルに合体したら全文 render", pendingRevision: 6, mutate: {
+            $0.contentRevision = 6
+            $0.showLineNumbers = false
+        }, expected: false),
+        // 追記経路は setDiff / setDiffLayout を送らないため、差分の変化を吸収させてはいけない。
+        AppendCase(label: "差分トグルが同じサイクルに合体したら全文 render", pendingRevision: 6, mutate: {
+            $0.contentRevision = 6
+            $0.diffState = ViewerRenderer.DiffState(text: "@@ -1 +1 @@", layout: .inline)
+        }, expected: false),
+        AppendCase(label: "差分レイアウトの変更も全文 render", pendingRevision: 6, mutate: {
+            $0.contentRevision = 6
+            $0.diffState = ViewerRenderer.DiffState(text: nil, layout: .sideBySide)
+        }, expected: false),
+        AppendCase(label: "ファイル切替を伴うなら全文 render", pendingRevision: 6, mutate: {
+            $0.contentRevision = 6
+            $0.filePath = URL(fileURLWithPath: "/tmp/b.md")
+        }, expected: false),
+        AppendCase(label: "ソース表示への切替を伴うなら全文 render", pendingRevision: 6, mutate: {
+            $0.contentRevision = 6
+            $0.isSourceMode = true
+        }, expected: false),
+    ]
+
+    @Test("追記で更新できる差だけのときに増分追記できる", arguments: appendCases)
+    func canConsumePendingAppend(testCase: AppendCase) {
+        let rendered = Self.renderedMirror()
+        var incoming = rendered
+        testCase.mutate(&incoming)
+        let pending = ViewerRenderer.PendingAppend(chunk: "next", revision: testCase.pendingRevision)
 
         let canConsume = ViewerRenderer.canConsumePendingAppend(
-            pending,
-            ViewerRenderer.PendingAppendCheck(
-                contentRevision: checkRevision, showLineNumbers: true,
-                filePath: URL(fileURLWithPath: "/tmp/\(checkFile)"), isSourceMode: false
-            ),
-            rendered: rendered
+            pending, incoming: incoming, rendered: rendered
         )
 
-        #expect(canConsume == expected)
+        #expect(canConsume == testCase.expected)
     }
 }

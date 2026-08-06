@@ -1191,6 +1191,40 @@
         }
       }
     },
+    "menu.view.diffSideBySide": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Diff Side by Side"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差分を左右に並べる"
+          }
+        }
+      }
+    },
+    "menu.view.showDiff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Changes"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更を表示"
+          }
+        }
+      }
+    },
     "menu.view.showLineNumbers": {
       "extractionState": "manual",
       "localizations": {

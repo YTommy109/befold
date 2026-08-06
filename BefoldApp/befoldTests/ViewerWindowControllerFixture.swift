@@ -35,11 +35,13 @@ struct ViewerWindowControllerFixture {
         sourceModeStore: SourceModeStore? = nil,
         bookmarkStore: BookmarkStore? = nil,
         sidebarDisplayPreference: SidebarDisplayPreference? = nil,
+        diffDisplayPreference: DiffDisplayPreference? = nil,
         initialFrameDescriptor: String? = nil,
         initialSortOrder: befold.SortOrder = .foldersFirst,
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         gitStatusStore: GitStatusStore = GitStatusStore(),
+        gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
         openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { _, _, _ in },
         externalOpener: @escaping (URL) -> Void = { _ in }
     ) {
@@ -79,8 +81,11 @@ struct ViewerWindowControllerFixture {
             fileURL: file,
             defaults: defaults,
             sidebarDisplayPreference: sidebarDisplayPreference ?? SidebarDisplayPreference(defaults: defaults),
+            diffDisplayPreference: diffDisplayPreference
+                ?? DiffDisplayPreference(defaults: defaults, isAvailable: true),
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
+            gitFileIndex: gitFileIndex,
             gitStatusStore: gitStatusStore,
             initialFrameDescriptor: initialFrameDescriptor,
             initialSortOrder: initialSortOrder,

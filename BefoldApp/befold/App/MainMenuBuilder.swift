@@ -182,10 +182,13 @@ enum MainMenuBuilder {
             action: #selector(ViewerWindowController.toggleLineNumbers(_:)),
             keyEquivalent: "l"
         )
+        addDiffItems(to: menu)
+        // ⌘D はブラウザ習慣ではブックマークだが、このアプリでは差分表示のほうが
+        // 圧倒的に高頻度なので差分へ譲り、ブックマークは ⌘B へ移した。
         menu.addLocalizedItem(
             "menu.view.addBookmark",
             action: #selector(ViewerWindowController.toggleBookmark(_:)),
-            keyEquivalent: "d"
+            keyEquivalent: "b"
         )
         menu.addItem(.separator())
         // キー等価を与えたときの既定修飾キーは [.command] だが、意図を明示するため
@@ -269,5 +272,22 @@ enum MainMenuBuilder {
         menu.addLocalizedItem("menu.help.ossAcknowledgements", action: actions.ossAcknowledgements)
         NSApp.helpMenu = menu
         return item
+    }
+
+    /// ソース表示の git 差分に関する項目。フィーチャーゲートが無効なビルドでは足さない。
+    private static func addDiffItems(to menu: NSMenu) {
+        guard FeatureGate.isSourceDiffEnabled else { return }
+        menu.addLocalizedItem(
+            "menu.view.showDiff",
+            action: #selector(ViewerWindowController.toggleSourceDiff(_:)),
+            keyEquivalent: "d",
+            modifiers: [.command]
+        )
+        menu.addLocalizedItem(
+            "menu.view.diffSideBySide",
+            action: #selector(ViewerWindowController.toggleDiffLayout(_:)),
+            keyEquivalent: "d",
+            modifiers: [.command, .shift]
+        )
     }
 }

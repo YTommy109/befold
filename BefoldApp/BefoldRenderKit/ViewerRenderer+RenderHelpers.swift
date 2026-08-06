@@ -99,6 +99,15 @@ extension ViewerRenderer {
             )
             rendered.isSourceMode = isSourceMode
         }
+        // 差分は本文とレイアウトを 1 つの値として比較し、変わったときだけ両方送る。
+        // 直後の render で JS 側が読み出すため、ここでは送るだけ(再描画はしない)。
+        if diffState != rendered.diffState {
+            webView.evaluateJavaScript(ViewerBridge.diffScript(diffState.text), completionHandler: nil)
+            webView.evaluateJavaScript(
+                ViewerBridge.diffLayoutScript(diffState.layout), completionHandler: nil
+            )
+            rendered.diffState = diffState
+        }
         if truncation != rendered.truncation {
             webView.evaluateJavaScript(
                 truncation.script,
@@ -132,30 +141,25 @@ extension ViewerRenderer {
         rendered.filePath = filePath
     }
 
-    /// pendingAppend の消費可否判定に必要な、更新後の描画条件をまとめた入力
-    /// (function_parameter_count 対策)。
-    struct PendingAppendCheck {
-        let contentRevision: Int
-        let showLineNumbers: Bool
-        let filePath: URL?
-        let isSourceMode: Bool
-    }
-
     /// pendingAppend(段階読み込みでステージされた次チャンク)を全文 render せず増分描画して
-    /// よいかどうかを判定する。revision 不一致・ファイル/モード切替に加え、直近描画時から
-    /// showLineNumbers が変化している場合も全文 render 側へ倒す。同一 revision で pending
-    /// append と行番号トグルが1つの @Observable サイクルに合体すると、増分追記だけを行い
-    /// setLineNumbers() の注入が起きない applyAppend 経路へ吸収されてしまい、トグルが
-    /// 1周期失われるため。
+    /// よいかどうかを判定する。
+    ///
+    /// 追記経路が JS へ送るのはチャンクと切り詰め状態だけで、行番号・モード・差分などの
+    /// 注入は行わない。よって「追記が正しく更新できる 2 つ(contentRevision と truncation)を
+    /// 除いて、更新後の状態が描画済みと一致している」ときだけ消費してよい。
+    ///
+    /// 比較する条件を並べず、ミラー同士を丸ごと突き合わせる形にしているのは、
+    /// 列挙にするとミラーへフィールドを足したときにここへの追加だけ漏れ、その状態変化が
+    /// 追記経路に吸収されて 1 周期失われるため(行番号トグルで一度、差分トグルで
+    /// もう一度起きた形 = TASK-320)。
     nonisolated static func canConsumePendingAppend(
-        _ pending: PendingAppend, _ current: PendingAppendCheck, rendered: RenderedStateMirror
+        _ pending: PendingAppend, incoming: RenderedStateMirror, rendered: RenderedStateMirror
     ) -> Bool {
-        pending.revision == current.contentRevision
-            && current.showLineNumbers == rendered.showLineNumbers
-            && !isFileOrModeSwitch(
-                filePath: current.filePath, isSourceMode: current.isSourceMode,
-                lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
-            )
+        guard pending.revision == incoming.contentRevision else { return false }
+        var comparable = incoming
+        comparable.contentRevision = rendered.contentRevision
+        comparable.truncation = rendered.truncation
+        return comparable == rendered
     }
 
     /// 呼び出し前に `exitDirectHTMLMode` が `rendered.reset()` でミラーを一括破棄済みである

@@ -63,6 +63,14 @@
 
   /* コードのインデントガイド(縦線)。シンタックス色と衝突しないよう低コントラストにする。 */
   --indent-guide: rgba(0, 0, 0, 0.13);
+
+  /* git 差分の地色。シンタックスハイライトの上に重ねるため半透明ティントにする。 */
+  --diff-add-bg: rgba(46, 160, 67, 0.15);
+  --diff-del-bg: rgba(248, 81, 73, 0.15);
+  --diff-add-fg: #1a7f37;
+  --diff-del-fg: #cf222e;
+  --diff-hunk-bg: rgba(0, 0, 0, 0.06);
+  --diff-empty-bg: rgba(0, 0, 0, 0.03);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -86,6 +94,13 @@
     --csv-th-fg: var(--fg);
 
     --indent-guide: rgba(255, 255, 255, 0.14);
+
+    --diff-add-bg: rgba(63, 185, 80, 0.15);
+    --diff-del-bg: rgba(248, 81, 73, 0.15);
+    --diff-add-fg: #3fb950;
+    --diff-del-fg: #f85149;
+    --diff-hunk-bg: rgba(255, 255, 255, 0.06);
+    --diff-empty-bg: rgba(255, 255, 255, 0.03);
   }
 }
 
@@ -299,6 +314,71 @@ body {
   background-repeat: no-repeat;
   background-position: 0 0;
   background-size: calc(var(--indent-depth, 0) * 4ch) 100%;
+}
+
+/* ── git 差分表示 ──
+   追加・削除の地色は半透明ティントで重ねる(キャンバス色を書かない設計に従う)。
+   色だけに頼らないよう、行頭に +/- の記号セルを必ず置く(viewer.js の diffRow)。 */
+.diff-table {
+  width: 100%;
+}
+
+.diff-marker {
+  width: 2ch;
+  padding-right: 0.5ch;
+  color: var(--fg-muted);
+  vertical-align: top;
+  white-space: pre;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.diff-add {
+  background-color: var(--diff-add-bg);
+}
+
+.diff-del {
+  background-color: var(--diff-del-bg);
+}
+
+.diff-add > .diff-marker {
+  color: var(--diff-add-fg);
+}
+
+.diff-del > .diff-marker {
+  color: var(--diff-del-fg);
+}
+
+/* 左右分割。外側の 2 マスで幅を半々に割り、各マス内の入れ子テーブルで
+   行番号・記号・内容の桁を揃える(左右で行の高さが揃うよう vertical-align は top)。 */
+.diff-split .diff-side {
+  width: 50%;
+  vertical-align: top;
+  padding: 0;
+}
+
+.diff-split .diff-side-left {
+  border-right: 1px solid var(--panel-border);
+}
+
+.diff-side-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+/* 対応する行が無い側。内容が無いことが分かるよう薄く塗る。 */
+.diff-empty {
+  background-color: var(--diff-empty-bg);
+}
+
+/* 連続していないハンクの境目。位置情報は出さず、帯だけで range の切れ目を示す
+   (どこの行かは両側のガターが持っている)。 */
+.diff-hunk-separator {
+  padding: 0.35em 0;
+  background-color: var(--diff-hunk-bg);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* 画像表示。wrap をビューポートいっぱいにして中で img を中央寄せし、

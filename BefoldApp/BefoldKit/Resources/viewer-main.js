@@ -1151,6 +1151,10 @@
   function _createViewOptions() {
     var mode = 'rendered';
     var lineNumbers = false;
+    // ソース表示中に差し込む unified diff。null なら差分表示をしない。
+    var diff = null;
+    // 差分のレイアウト。'inline'(1 列) と 'side-by-side'(左右分割)。
+    var diffLayout = 'inline';
 
     return {
       mode: function() { return mode; },
@@ -1161,6 +1165,13 @@
       },
       lineNumbers: function() { return lineNumbers; },
       setLineNumbers: function(show) { lineNumbers = show; },
+      diff: function() { return diff; },
+      setDiff: function(text) { diff = (typeof text === 'string' && text !== '') ? text : null; },
+      diffLayout: function() { return diffLayout; },
+      setDiffLayout: function(layout) {
+        if (layout !== 'inline' && layout !== 'side-by-side') { return; }
+        diffLayout = layout;
+      },
     };
   }
 
@@ -1337,6 +1348,11 @@
     var highlightContext = (_mmdChunkTail.endedWithNewline() && _mmdDocument.content())
       ? lastLines(_mmdDocument.content(), CODE_CHUNK_CONTEXT_LINES) : '';
     _mmdDocument.append(text);
+    // 差分を表示している間は DOM へ追記しない。画面にあるのは差分テーブルであり、
+    // 通常のソース行(1 本ガター)を混ぜると桁がずれ、行番号の基準も狂う。
+    // 蓄積は上の _mmdDocument.append で済んでいるため、差分を解除した時点の
+    // 全体再描画で追記分もそろって出る。
+    if (_mmdViewOptions.diff() !== null) { return; }
     // CSV は「レンダリング表示(テーブル)」と「ソース表示(レインボー)」で DOM 構造が
     // 異なる(#diagram-wrap 直下が <table><tbody> か <pre><code class="csv-source">
     // か)ため、実際の DOM を見て分岐する。
@@ -1542,7 +1558,13 @@
     // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
     // レイアウトは style.css の .code-body が担う。
     diagramWrap.classList.add('code-body');
-    diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, lang, _mmdViewOptions.lineNumbers());
+    // コードファイルは常にソース表示のため、差分が届いていればここでも差し込む
+    // (ソース表示の入口は _renderSource と _renderCode の 2 つあり、片方だけに
+    // 足すと「.md では差分が出るのに .swift では出ない」形の抜けになる)。
+    var diffHtml = _renderDiffHtmlIfAvailable('code', lang);
+    diagramWrap.innerHTML = diffHtml !== ''
+      ? diffHtml
+      : renderCodeHtml(window.hljs, content, lang, _mmdViewOptions.lineNumbers());
   }
 
   // markdown-it 未ロード時は false を返す。呼び出し側(render)はそこで打ち切り、
@@ -1658,6 +1680,15 @@
   function _renderSource(content, type, lang) {
     var diagramWrap = document.getElementById('diagram-wrap');
     _mmdSetBodyClasses(diagramWrap, 'code-body');
+    // 差分が届いていれば差分表示を優先する。パースできず空文字列が返った場合は
+    // 通常のソース表示へ落ちる(差分が壊れていても内容は必ず読める)。
+    var diffHtml = _renderDiffHtmlIfAvailable(type, lang);
+    if (diffHtml !== '') {
+      diagramWrap.innerHTML = diffHtml;
+      _mmdFindRefreshAfterRender();
+      _mmdApplyZoom();
+      return;
+    }
     if (type === 'csv') {
       diagramWrap.innerHTML = renderCsvSourceHtml(content, lang || ',', _mmdViewOptions.lineNumbers());
     } else {
@@ -1670,11 +1701,44 @@
     _mmdApplyZoom();
   }
 
+  // ソース表示の言語決定。差分表示と通常表示で同じ規則を使う。
+  function _sourceLanguage(type, lang) {
+    if (type === 'svg' || type === 'html') { return 'xml'; }
+    if (type === 'md') { return 'markdown'; }
+    return lang || 'plaintext';
+  }
+
+  // 差分が届いていればインライン差分の HTML を返す。無ければ空文字列。
+  // CSV/TSV のソース表示は独自の列構造を持つため、差分表示の対象にしない。
+  function _renderDiffHtmlIfAvailable(type, lang) {
+    var diff = _mmdViewOptions.diff();
+    if (diff === null || type === 'csv') { return ''; }
+    try {
+      return renderDiffHtml(
+        window.hljs, diff, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers(),
+        _mmdViewOptions.diffLayout()
+      );
+    } catch (e) {
+      return '';
+    }
+  }
+
   // モードを切り替えるだけで再描画はしない: 呼び出し側(Swift)が
   // 常にこの直後に render() を送るため、ここで再描画すると
   // 古い内容による二重描画が発生する。
   function setViewMode(mode) {
     _mmdViewOptions.setMode(mode);
+  }
+
+  // 差分本文を差し込む。setViewMode / setLineNumbers と同じく状態を持つだけで
+  // 再描画はしない(呼び出し側が直後に render() を送る)。
+  function setDiff(text) {
+    _mmdViewOptions.setDiff(text);
+  }
+
+  // 差分のレイアウトを切り替える。こちらも状態を持つだけ(再描画は呼び出し側)。
+  function setDiffLayout(layout) {
+    _mmdViewOptions.setDiffLayout(layout);
   }
 
   // --- 初期化 ---
@@ -1741,6 +1805,8 @@
       _mmdLoadMore: _mmdLoadMore,
       setLineNumbers: setLineNumbers,
       setViewMode: setViewMode,
+      setDiff: setDiff,
+      setDiffLayout: setDiffLayout,
       appendChunk: appendChunk,
       render: render,
     };
