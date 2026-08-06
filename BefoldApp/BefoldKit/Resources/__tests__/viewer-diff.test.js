@@ -54,6 +54,39 @@ describe('highlightedDiffLines', () => {
     expect(hunk.lines).toHaveLength(4);
     expect(highlightedDiffLines(null, hunk, 'plaintext')).toHaveLength(4);
   });
+
+  // 旧版と新版を 1 ブロックに連結すると、文字列リテラルを書き換えただけの差分でも
+  // クォートの数が合わなくなり、変更行より後ろのハイライトが総崩れになる。
+  // 複数行文字列の開始行を書き換えると、旧版と新版を連結した並びではクォートの
+  // 対応が崩れ（開始行が 2 本並ぶ）、以降の行がすべて文字列として着色される。
+  test('複数行文字列の開始行を書き換えても後続行のハイライトが壊れない', () => {
+    const hljs = require('highlight.js');
+    const diff = [
+      'diff --git a/a.py b/a.py',
+      '--- a/a.py',
+      '+++ b/a.py',
+      '@@ -1,3 +1,3 @@',
+      '-s = """hello',
+      '+s = """hi',
+      ' world"""',
+      ' import os',
+      '',
+    ].join('\n');
+    const hunk = parseUnifiedDiff(diff)[0].hunks[0];
+
+    const htmls = highlightedDiffLines(hljs, hunk, 'python');
+
+    // 変更行より後ろの文脈行は、旧版だけ／新版だけを描いたときと同じ色付けになる。
+    const plain = highlightedDiffLines(hljs, {
+      lines: [
+        { type: 'context', text: 's = """hi' },
+        { type: 'context', text: 'world"""' },
+        { type: 'context', text: 'import os' },
+      ],
+    }, 'python');
+    expect(htmls[3]).toBe(plain[2]);
+    expect(htmls[3]).toContain('hljs-keyword');
+  });
 });
 
 describe('parseUnifiedDiff', () => {
@@ -293,9 +326,11 @@ describe('renderInlineDiffHtml', () => {
     expect(renderInlineDiffHtml(null, '', 'swift', false)).toBe('');
   });
 
-  // hljs があるときは 1 行ずつではなくハンク単位でハイライトする。
+  // hljs があるときは 1 行ずつではなくまとめてハイライトする。
   // 1 行ずつだとブロックコメントや複数行文字列で字句状態が切れる。
-  test('hljs へはハンク単位でまとめて渡す', () => {
+  // ただしハンク全体を 1 ブロックにすると旧版と新版が連結されて字句状態が壊れるため、
+  // 旧版(文脈+削除)と新版(文脈+追加)の 2 ブロックに分ける。
+  test('hljs へは旧版・新版それぞれをまとめて渡す', () => {
     const calls = [];
     const hljs = {
       getLanguage: () => true,
@@ -307,8 +342,9 @@ describe('renderInlineDiffHtml', () => {
 
     renderInlineDiffHtml(hljs, SIMPLE_DIFF, 'swift', false);
 
-    expect(calls).toHaveLength(1);
-    expect(calls[0]).toBe('let a = 1\nlet b = 2\nlet b = 3\nlet c = 4');
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toBe('let a = 1\nlet b = 2\nlet c = 4');
+    expect(calls[1]).toBe('let a = 1\nlet b = 3\nlet c = 4');
   });
 });
 
