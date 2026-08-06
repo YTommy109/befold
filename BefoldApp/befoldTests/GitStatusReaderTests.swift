@@ -75,21 +75,32 @@ struct GitStatusReaderTests {
 
     // MARK: - Branch Diff (TASK-186.3)
 
-    @Test("name-status: 変更後のパスを列挙する")
+    /// 状態文字を捨ててしまうと、ブランチで追加したファイルまで一律 M として表示される
+    /// (TASK-344)。パスと一緒に種別も持ち帰ること自体を固定する。
+    @Test("name-status: 変更後のパスを変更種別つきで返す")
     func parsesNameStatusPaths() {
-        let paths = GitStatusReader.parseNameStatus(porcelain(["M", "changed.swift", "A", "added.swift"]))
+        let changes = GitStatusReader.parseNameStatus(porcelain(["M", "changed.swift", "A", "added.swift"]))
 
-        #expect(paths == ["changed.swift", "added.swift"])
+        #expect(changes == ["changed.swift": .modified, "added.swift": .added])
     }
 
     /// 改名・複製だけはパスが 2 つ続く。読み進める数を間違えると以降が丸ごとずれる。
     @Test("name-status: 改名・複製は変更後のパスだけを採り、後続がずれない")
     func parsesRenameAndCopyEntries() {
-        let paths = GitStatusReader.parseNameStatus(
+        let changes = GitStatusReader.parseNameStatus(
             porcelain(["R100", "old.swift", "new.swift", "C75", "src.swift", "copy.swift", "M", "after.swift"])
         )
 
-        #expect(paths == ["new.swift", "copy.swift", "after.swift"])
+        #expect(changes == ["new.swift": .renamed, "copy.swift": .copied, "after.swift": .modified])
+    }
+
+    /// 未知のコード(git の `X`=unknown / `B`=pairing broken)でエントリごと捨てると、
+    /// 「変更あり」が「変更なし」と同じ無表示に縮退する。種別だけを諦めて M にする。
+    @Test("name-status: 解釈できないコードは種別だけ諦めて modified にする")
+    func fallsBackToModifiedForUnknownCode() {
+        let changes = GitStatusReader.parseNameStatus(porcelain(["X", "odd.swift", "M", "after.swift"]))
+
+        #expect(changes == ["odd.swift": .modified, "after.swift": .modified])
     }
 
     @Test("name-status: 空の出力は空の一覧になる")

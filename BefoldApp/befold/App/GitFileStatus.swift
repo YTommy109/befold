@@ -29,11 +29,14 @@ struct GitFileStatus: Equatable, Sendable {
     var worktreeChange: Change?
     /// 未追跡ファイル(`?`)。
     var isUntracked: Bool = false
-    /// base ブランチからのコミット済み変更(Phase 3 で設定する)。Phase 1 では常に false。
-    var isBranchModified: Bool = false
+    /// base ブランチからのコミット済み変更の種別。ブランチ内で変わっていなければ nil。
+    ///
+    /// 真偽値ではなく種別を持つ。真偽値だと表示側が「変更あり」を 1 種類の文字へ
+    /// 決め打ちするしかなく、ブランチで**追加**したファイルまで M になっていた(TASK-344)。
+    var branchChange: Change?
 
     /// 何の変更も持たない(= バッジを出す理由がない)状態か。
     var isClean: Bool {
-        indexChange == nil && worktreeChange == nil && !isUntracked && !isBranchModified
+        indexChange == nil && worktreeChange == nil && !isUntracked && branchChange == nil
     }
 }

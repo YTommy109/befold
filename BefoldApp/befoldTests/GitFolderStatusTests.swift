@@ -61,7 +61,7 @@ struct GitFolderStatusTests {
         statuses["\(root)/src/a.swift"] = GitFileStatus(indexChange: .added)
         statuses["\(root)/src/b.swift"] = GitFileStatus(worktreeChange: .modified)
         statuses["\(root)/src/c.swift"] = GitFileStatus(isUntracked: true)
-        statuses["\(root)/src/d.swift"] = GitFileStatus(isBranchModified: true)
+        statuses["\(root)/src/d.swift"] = GitFileStatus(branchChange: .modified)
         let result = aggregate(statuses)
 
         let folder = try #require(result["\(root)/src"])

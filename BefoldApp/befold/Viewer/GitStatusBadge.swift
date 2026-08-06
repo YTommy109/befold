@@ -52,9 +52,9 @@ enum GitStatusBadge {
                 descriptionKey: "sidebar.gitStatus.unstaged"
             )
         }
-        if status.isBranchModified {
+        if let branchChange = status.branchChange {
             return Appearance(
-                character: GitFileStatus.Change.modified.rawValue, tint: .branchModified, accent: nil,
+                character: branchChange.rawValue, tint: .branchModified, accent: nil,
                 descriptionKey: "sidebar.gitStatus.branchModified"
             )
         }
