@@ -75,7 +75,10 @@ extension ViewerWindowController {
     }
 
     /// 差分表示が ON かどうか(メニューのチェック表示に使う)。
-    var isSourceDiffEnabled: Bool {
+    ///
+    /// ユーザー設定であり、ビルドゲートの `FeatureGate.isSourceDiffEnabled` とは別物。
+    /// 同名にすると無修飾参照でどちらにも解決しうるため、名前を分けている(TASK-323)。
+    var isDiffShown: Bool {
         diffDisplayPreference.isEnabled
     }
 

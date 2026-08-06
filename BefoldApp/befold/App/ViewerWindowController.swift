@@ -808,12 +808,12 @@ extension ViewerWindowController: NSWindowDelegate {
             return capabilities.canToggleLineNumbers
         }
         if menuItem.action == #selector(toggleSourceDiff(_:)) {
-            menuItem.state = isSourceDiffEnabled ? .on : .off
+            menuItem.state = isDiffShown ? .on : .off
             return capabilities.canToggleDiff
         }
         if menuItem.action == #selector(toggleDiffLayout(_:)) {
             menuItem.state = isDiffLayoutSideBySide ? .on : .off
-            return capabilities.canToggleDiff && isSourceDiffEnabled
+            return capabilities.canToggleDiff && isDiffShown
         }
         if menuItem.action == #selector(toggleBookmark(_:)) {
             menuItem.title = ViewerCommandTitles.bookmark(isBookmarked: isBookmarked)

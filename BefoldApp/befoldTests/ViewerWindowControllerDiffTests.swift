@@ -305,7 +305,7 @@ struct ViewerWindowControllerDiffTests {
         // フィーチャーゲート無効時に両方 false のまま一致し、共有していなくても通る。
         fixture.diffDisplayPreference.isEnabled = true
 
-        let enabled = controllers.filter(\.isSourceDiffEnabled)
+        let enabled = controllers.filter(\.isDiffShown)
         #expect(enabled.count == controllers.count)
         let shared = controllers.filter { $0.diffDisplayPreference === fixture.diffDisplayPreference }
         #expect(shared.count == controllers.count)
