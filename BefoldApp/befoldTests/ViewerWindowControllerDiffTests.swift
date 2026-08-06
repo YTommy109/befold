@@ -27,25 +27,9 @@ private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
     }
 }
 
-/// 差分トグルの通知だけを数える delegate。反転と全ウィンドウへの反映は
-/// ViewerWindowManager の責務なので、コントローラ単体では「通知したか」で測る。
-@MainActor
-private final class RecordingDiffToggleDelegate: ViewerWindowControllerDelegate {
-    private(set) var toggleSourceDiffCallCount = 0
-
-    func viewerWindowWillClose(_ controller: ViewerWindowController) {}
-    func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {}
-    func viewerWindow(_ controller: ViewerWindowController, didRenameFrom oldURL: URL, to newURL: URL) {}
-    func viewerWindow(
-        _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
-    ) {}
-    func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {}
-    func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {}
-
-    func viewerWindowDidToggleSourceDiff(_ controller: ViewerWindowController) {
-        toggleSourceDiffCallCount += 1
-    }
-}
+// 差分トグルの通知は MockViewerWindowControllerDelegate
+// (ViewerWindowControllerTests.swift)で数える。反転と全ウィンドウへの反映は
+// ViewerWindowManager の責務なので、コントローラ単体では「通知したか」で測る。
 
 /// 差分表示のトグルが「いま何ができるか」(ViewerCapabilities)だけを見ていることを確かめる。
 /// フォルダー一覧を出している間に効いてしまうと、見えていない文書に対する操作になる
@@ -80,7 +64,7 @@ struct ViewerWindowControllerDiffTests {
     func togglesWhilePresentingDocument() {
         let preference = makePreference()
         let controller = makeController(preference: preference)
-        let delegate = RecordingDiffToggleDelegate()
+        let delegate = MockViewerWindowControllerDelegate()
         controller.delegate = delegate
         defer { controller.close() }
         controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
@@ -102,7 +86,7 @@ struct ViewerWindowControllerDiffTests {
     func ignoresToggleWhilePreviewingFolder() {
         let preference = makePreference()
         let controller = makeController(preference: preference)
-        let delegate = RecordingDiffToggleDelegate()
+        let delegate = MockViewerWindowControllerDelegate()
         controller.delegate = delegate
         defer { controller.close() }
         let folder = URL(fileURLWithPath: "/mock/sub")
@@ -212,6 +196,89 @@ struct ViewerWindowControllerDiffTests {
 
         #expect(reader.callCount == 0)
         #expect(controller.store.diffText == nil)
+    }
+
+    /// 種別ゲート(CSV/TSV)は切替**先**のファイルで判定する。`store.fileType` は
+    /// 非同期のコンテンツロード完了まで旧ファイルの値を保つため、それを見ていると
+    /// 切替直後に届いた取得契機(`.git/index` 変更・他ウィンドウの保存)が旧ファイルの
+    /// 種別でゲートを通り、CSV に対して git を起こしてしまう(TASK-338)。
+    @Test("ファイル切替直後の取得契機でも切替先の種別でゲートする")
+    func gatesByDestinationFileTypeDuringSwitch() async {
+        let csv = URL(fileURLWithPath: "/mock/table.csv")
+        let preference = makePreference()
+        preference.isEnabled = true
+        let reader = RecordingDiffReader()
+        let controller = ViewerWindowControllerFixture(
+            file: file, extraFiles: [csv], contents: "let a = 1",
+            defaults: makeIsolatedDefaults(prefix: "DiffTests.switchGate"),
+            diffDisplayPreference: preference,
+            diffLoader: GitDiffLoader(reader: reader),
+            // 既定の索引は /mock 配下でリポジトリルートを返さず、取得へ到達しない。
+            gitFileIndex: SlowRootGitFileIndex(delay: 0)
+        ).controller
+        defer { controller.close() }
+        presentDocument(in: controller, file: file)
+        // 前提: 切替前の .swift のロードが確定し、差分を出せる状態になっている。
+        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+            controller.store.filePath == file
+        }
+        #expect(controller.capabilities.canToggleDiff)
+
+        // 切替直後(ロード確定前)に取得契機が届く状況を作る。
+        controller.performFileSwitch(to: csv)
+        #expect(controller.fileURL == csv)
+        // CSV 側もソース表示で開く(保存済みの表示モードが ON のケース)。
+        controller.store.isSourceMode = true
+        // 種別はまだ旧ファイルのもの = ここが「すり抜け」の入口。
+        #expect(controller.store.fileType.supportsDiffDisplay)
+        controller.gitStatusDidApply()
+
+        // ロードが確定しても取得が起きないことまで見る(確定後は fileType 経由でも弾かれる
+        // ため、確定前の 1 回を取りこぼさないよう待ってから測る)。
+        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+            controller.store.fileType == .csv(delimiter: ",")
+        }
+        #expect(reader.callCount == 0)
+    }
+
+    /// Markdown/SVG/HTML は「ソース表示中」でないと差分を描けないため、レンダリング表示中の
+    /// refreshDiff は取得せず diffText を捨てる。モード切替が差分の取り直しを起こさないと、
+    /// ソース表示へ切り替えても差分が出ず、保存・`.git/index` 変更など無関係な契機が
+    /// 来るまで素のソースのままになる(TASK-337)。
+    @Test("ソース表示へ切り替えたら差分を取り直す")
+    func refreshesDiffWhenSwitchingToSourceMode() async {
+        let markdown = URL(fileURLWithPath: "/mock/note.md")
+        let preference = makePreference()
+        preference.isEnabled = true
+        let reader = RecordingDiffReader()
+        let controller = ViewerWindowControllerFixture(
+            file: markdown, contents: "# note",
+            defaults: makeIsolatedDefaults(prefix: "DiffTests.sourceModeSwitch"),
+            diffDisplayPreference: preference,
+            diffLoader: GitDiffLoader(reader: reader),
+            // 既定の索引は /mock 配下でリポジトリルートを返さず、取得へ到達しない。
+            gitFileIndex: SlowRootGitFileIndex(delay: 0)
+        ).controller
+        defer { controller.close() }
+        // presentDocument はソース表示にしてしまうため、提示状態だけを作る
+        // (レンダリング表示のまま切り替えることがこのテストの前提)。
+        controller.fileListModel.entries = [FileListEntry(url: markdown, kind: .file)]
+        controller.fileListModel.selection = markdown
+        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+            controller.store.fileType == .markdown
+        }
+        // 前提: レンダリング表示中は差分を出せない = ここでは取得も起きない。
+        #expect(!controller.capabilities.canToggleDiff)
+        controller.refreshDiff()
+        #expect(reader.callCount == 0)
+
+        controller.setSourceMode(true)
+
+        #expect(controller.capabilities.canToggleDiff)
+        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+            reader.callCount == 1
+        }
+        #expect(reader.callCount == 1)
     }
 
     /// ルート解決は差分取得と同じく git のサブプロセスを起こしうるため、メインアクター上で

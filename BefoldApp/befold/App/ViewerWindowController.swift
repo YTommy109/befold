@@ -661,11 +661,21 @@ extension ViewerWindowController {
         // validate を通らない経路(ツールバーのセグメント・オーバーフローメニュー)も
         // ここへ来るため、能力の確認は実行側にも置く(ADR 0002)。
         guard capabilities.canToggleSourceMode else { return }
-        if newValue != isSourceMode {
+        let didChange = newValue != isSourceMode
+        if didChange {
             saveScrollPositionBeforeTransition()
         }
         applySourceMode(newValue)
         perFileState.sourceMode.setSourceMode(isSourceMode, for: fileURL)
+        // 差分を取れるかどうか(capabilities.canToggleDiff)は表示モードに依存する。
+        // レンダリング表示中の refreshDiff は差分を捨てるため、モードが変わった契機で
+        // 取り直さないとソース表示へ切り替えても差分が出ない(TASK-337)。
+        // applySourceMode ではなくここに置くのは、モードだけが変わる呼び出し元が
+        // setSourceMode だけだから(performFileSwitch は URL 更新前に呼ぶため、
+        // そちらへ置くと切替前ファイルに対して git を起こす)。
+        if didChange {
+            refreshDiff()
+        }
     }
 
     /// isSourceMode を変更し、store への反映とツールバーの表示更新までを一貫して行う。
@@ -713,7 +723,11 @@ extension ViewerWindowController {
             isBinaryContent: store.fileType.isBinaryContent,
             showsCodeContent: store.showsCodeContent,
             supportsSourceMode: store.fileType.supportsSourceMode,
-            supportsDiffDisplay: store.fileType.supportsDiffDisplay,
+            // 差分の種別ゲートだけは、いま表示中の URL から直接導く。store.fileType は
+            // 非同期のコンテンツロード完了まで旧ファイルの値を保つため、切替中に届いた
+            // 取得契機(`.git/index` 変更・他ウィンドウの保存)が旧ファイルの種別で通り、
+            // 差分を描けない CSV/TSV に対して git を起こしてしまう(TASK-338)。
+            supportsDiffDisplay: FileType(url: fileURL).supportsDiffDisplay,
             isDirectHTMLMode: webViewProxy.isDirectHTMLMode
         )
     }

@@ -162,4 +162,19 @@ describe('ソース表示への差分の差し込み', () => {
 
     expect(document.querySelector('#diagram-wrap').textContent).toContain('3,4');
   });
+
+  // 抑止の判定を DOM(table.diff-table の有無)で行うと、markdown-it が html:true で
+  // 通したユーザーコンテンツ内の同名テーブルにも一致し、先頭チャンクの描画以降の
+  // 追記がすべて捨てられて文書が黙って途切れる(TASK-339)。
+  test('ユーザーコンテンツの diff-table では追記を止めない', async () => {
+    const { document, main } = loadViewerMain({ withMarkdown: true });
+
+    main.setViewMode('rendered');
+    await main.render('<table class="diff-table"><tr><td>a</td></tr></table>\n', 'md');
+    expect(document.querySelector('#diagram-wrap table.diff-table')).not.toBeNull();
+
+    main.appendChunk('追記された段落\n', 'md');
+
+    expect(document.querySelector('#diagram-wrap').textContent).toContain('追記された段落');
+  });
 });

@@ -31,6 +31,60 @@ public func testTimeLimit(pollingBudgetFallback seconds: Double = 15) -> TimeLim
     return .timeLimit(.minutes(minutes))
 }
 
+/// すべてのポーリングヘルパーが共有する内側ループ。条件が成立するか、`deadline` を
+/// 過ぎるか、**タスクがキャンセルされる**まで 50ms 刻みで待つ。
+///
+/// キャンセルの扱いをここ 1 箇所に閉じるための共通化(TASK-340)。`try? await Task.sleep`
+/// はキャンセル後に即時 throw を繰り返すため、ループ条件でキャンセルを見ないと
+/// `.timeLimit` による打ち切り後もホットスピンし続ける(壁時計予算を持たない
+/// `waitForMainActorDelivery` では永久に回り、CPU 100% のまま CI の
+/// ジョブタイムアウトまで走る)。
+///
+/// `isolation:` の既定 `#isolation` で呼び出し元の隔離を引き継ぐ。`@MainActor` 版の
+/// ヘルパーが渡す非 Sendable なクロージャも同じ実装で扱えるようにするため。
+///
+/// - Parameter deadline: 壁時計の期限。`nil` なら期限を持たない。
+/// - Returns: 条件が成立したら true。期限切れ・キャンセルなら false。
+private func pollUntil(
+    deadline: ContinuousClock.Instant?,
+    isolation: isolated (any Actor)? = #isolation,
+    _ condition: () -> Bool
+) async -> Bool {
+    while !condition() {
+        if let deadline, ContinuousClock.now >= deadline { return false }
+        if Task.isCancelled { return false }
+        do {
+            try await Task.sleep(for: .milliseconds(50))
+        } catch {
+            return condition()
+        }
+    }
+    return true
+}
+
+/// `action` を `interval` ごとに再実行しながら条件成立を待つ共通ループ。
+/// 待機そのものは `pollUntil` に委ねるため、キャンセル対応はここにも自動的に効く。
+///
+/// - Parameter deadline: 壁時計の期限。`nil` なら期限を持たない。
+/// - Returns: 条件が成立したら true。期限切れ・キャンセルなら false。
+private func pollWithRetry(
+    deadline: ContinuousClock.Instant?,
+    interval: TimeInterval,
+    isolation: isolated (any Actor)? = #isolation,
+    action: () -> Void,
+    until condition: () -> Bool
+) async -> Bool {
+    while !condition() {
+        if let deadline, ContinuousClock.now >= deadline { return false }
+        if Task.isCancelled { return false }
+        action()
+        var retryDeadline = ContinuousClock.now.advanced(by: .seconds(interval))
+        if let deadline, deadline < retryDeadline { retryDeadline = deadline }
+        if await pollUntil(deadline: retryDeadline, condition) { return true }
+    }
+    return true
+}
+
 // 以下のポーリングヘルパーは、条件が成立しないままタイムアウトしたとき必ず
 // `Issue.record` でテストを失敗させる。呼び出し側の `#expect` に頼らないのは、
 // アサーションを書き忘れた箇所が「所定秒数を丸ごと浪費した上でグリーン」に
@@ -45,12 +99,11 @@ public func waitUntil(
     sourceLocation: SourceLocation = #_sourceLocation,
     _ condition: @escaping @Sendable () -> Bool
 ) async -> Bool {
-    let deadline = ContinuousClock.now.advanced(by: timeout)
-    while ContinuousClock.now < deadline {
-        if condition() { return true }
-        try? await Task.sleep(for: .milliseconds(50))
-    }
+    if await pollUntil(deadline: .now.advanced(by: timeout), condition) { return true }
     if condition() { return true }
+    // キャンセルでの離脱は予算超過ではない(報告するとテスト打ち切りの巻き添えで
+    // 無関係な失敗が増える)。呼び出し側は戻り値 false だけを受け取る。
+    if Task.isCancelled { return false }
     Issue.record(
         "waitUntil が \(timeout) 以内に条件を満たさなかった", sourceLocation: sourceLocation
     )
@@ -66,12 +119,11 @@ public func waitUntilOnMainActor(
     sourceLocation: SourceLocation = #_sourceLocation,
     _ condition: () -> Bool
 ) async -> Bool {
-    let deadline = ContinuousClock.now.advanced(by: timeout)
-    while ContinuousClock.now < deadline {
-        if condition() { return true }
-        try? await Task.sleep(for: .milliseconds(50))
-    }
+    if await pollUntil(deadline: .now.advanced(by: timeout), condition) { return true }
     if condition() { return true }
+    // キャンセルでの離脱は予算超過ではない(報告するとテスト打ち切りの巻き添えで
+    // 無関係な失敗が増える)。呼び出し側は戻り値 false だけを受け取る。
+    if Task.isCancelled { return false }
     Issue.record(
         "waitUntilOnMainActor が \(timeout) 以内に条件を満たさなかった",
         sourceLocation: sourceLocation
@@ -92,15 +144,14 @@ public func waitUntilWithRetry(
     action: @escaping @Sendable () -> Void,
     until condition: @escaping @Sendable () -> Bool
 ) async -> Bool {
-    let deadline = Date().addingTimeInterval(timeout)
-    while !condition(), Date() < deadline {
-        action()
-        let retryDeadline = Date().addingTimeInterval(interval)
-        while !condition(), Date() < retryDeadline {
-            try? await Task.sleep(for: .seconds(0.05))
-        }
+    let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
+    if await pollWithRetry(deadline: deadline, interval: interval, action: action, until: condition) {
+        return true
     }
     if condition() { return true }
+    // キャンセルでの離脱は予算超過ではない(報告するとテスト打ち切りの巻き添えで
+    // 無関係な失敗が増える)。呼び出し側は戻り値 false だけを受け取る。
+    if Task.isCancelled { return false }
     Issue.record(
         "waitUntilWithRetry が \(timeout) 秒以内に条件を満たさなかった",
         sourceLocation: sourceLocation
@@ -121,7 +172,9 @@ public func waitUntilWithRetry(
 /// 委ねる**。こうすると混雑は遅延になるだけで失敗にはならない
 /// （TASK-327 で ViewerWindowControllerToolbarTests に適用したのと同じ方針）。
 ///
-/// 条件が本当に成立しない回帰では、この関数は戻らず `.timeLimit` で打ち切られる。
+/// 条件が本当に成立しない回帰では、この関数は条件成立を待ち続け、`.timeLimit` が
+/// テストタスクをキャンセルした時点で戻る(共通ループ `pollWithRetry` がキャンセルを
+/// 見るため、打ち切り後に `action` を回し続けることはない / TASK-340)。
 /// 予算超過を `Issue.record` の 1 行で報告する `waitUntil` 系より診断は粗いので、
 /// **`@MainActor` 配送を待つ箇所にだけ**使うこと。
 public func waitForMainActorDelivery(
@@ -129,13 +182,9 @@ public func waitForMainActorDelivery(
     action: (@Sendable () -> Void)? = nil,
     until condition: @escaping @Sendable () -> Bool
 ) async {
-    while !condition() {
-        action?()
-        let retryDeadline = Date().addingTimeInterval(interval)
-        while !condition(), Date() < retryDeadline {
-            try? await Task.sleep(for: .seconds(0.05))
-        }
-    }
+    _ = await pollWithRetry(
+        deadline: nil, interval: interval, action: { action?() }, until: condition
+    )
 }
 
 /// `waitUntilWithRetry` の MainActor 版。`@Observable` ストアなど MainActor 隔離の
@@ -149,15 +198,14 @@ public func waitUntilWithRetryOnMainActor(
     action: () -> Void,
     until condition: () -> Bool
 ) async -> Bool {
-    let deadline = Date().addingTimeInterval(timeout)
-    while !condition(), Date() < deadline {
-        action()
-        let retryDeadline = Date().addingTimeInterval(interval)
-        while !condition(), Date() < retryDeadline {
-            try? await Task.sleep(for: .seconds(0.05))
-        }
+    let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
+    if await pollWithRetry(deadline: deadline, interval: interval, action: action, until: condition) {
+        return true
     }
     if condition() { return true }
+    // キャンセルでの離脱は予算超過ではない(報告するとテスト打ち切りの巻き添えで
+    // 無関係な失敗が増える)。呼び出し側は戻り値 false だけを受け取る。
+    if Task.isCancelled { return false }
     Issue.record(
         "waitUntilWithRetryOnMainActor が \(timeout) 秒以内に条件を満たさなかった",
         sourceLocation: sourceLocation

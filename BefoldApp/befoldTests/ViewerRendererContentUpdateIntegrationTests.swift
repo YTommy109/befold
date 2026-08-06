@@ -31,6 +31,15 @@ struct ViewerRendererContentUpdateIntegrationTests {
 
     private static let truncation = ViewerRenderer.TruncationState(isTruncated: false, lineCount: 0, failed: false)
 
+    /// `![alt](gated.png)` を含む markdown の画像埋め込みを SlowFileReader でゲートできる
+    /// ファイル読み出しを作る。中断の発生をテストから制御できる経路は画像埋め込みだけ。
+    private static func makeGatedImageFileReader(markdownURL: URL) -> InMemoryFileReader {
+        let imageURL = markdownURL.deletingLastPathComponent().appendingPathComponent("gated.png")
+        let fileReader = InMemoryFileReader(files: [markdownURL.path: "unused"])
+        fileReader.setDataFile(Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), at: imageURL)
+        return fileReader
+    }
+
     @Test("直接HTMLモード離脱の再ロード中にupdateContentが再発火しても最終的に描画される")
     func directHTMLExitSurvivesRaceDuringReload() async {
         let renderer = ViewerRenderer()
@@ -138,6 +147,78 @@ struct ViewerRendererContentUpdateIntegrationTests {
         gate.signal()
         // 再入で握り潰されず、最終的に差分が反映される。
         await Self.waitForWebViewLoad { renderer.rendered.diffState == diff }
+    }
+
+    /// 中断された applyRender は、表示オプションを JS へ送ってはならない。送ってから
+    /// 世代ガードで抜けるとミラーへ確定されず、以後の applyRender が「ミラーと同値」と
+    /// 見て再送をスキップするため、JS 側に中断時の値が残り続ける(TASK-336)。
+    ///
+    /// 描画中に差分表示を ON→OFF した状況を作り、JS が保持する差分を直接読んで測る。
+    /// ミラーだけを見ると「.none のまま」で両実装が同じに見えるため、判定は JS 側に置く。
+    @Test("中断された描画は表示オプションを JS へ送り残さない")
+    func abortedRenderDoesNotLeaveOptionsInJS() async throws {
+        let renderer = ViewerRenderer()
+        let webView = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        await Self.waitForWebViewLoad { renderer.isReady }
+
+        let markdownURL = URL(fileURLWithPath: "/tmp/task336-abort/doc.md")
+        let fileReader = Self.makeGatedImageFileReader(markdownURL: markdownURL)
+        let content = "![alt](gated.png)"
+        let update = {
+            renderer.updateContent(
+                content, contentRevision: 1, fileType: .markdown, filePath: markdownURL,
+                hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false,
+                truncation: Self.truncation
+            )
+        }
+
+        // 1 回目は素通しさせ、差分なしの状態で描画を完了させる。
+        let openGate = DispatchSemaphore(value: 1)
+        renderer.imageEmbedder = MarkdownImageEmbedder(
+            fileReader: SlowFileReader(base: fileReader, releaseGate: openGate, completed: LockedBox(false))
+        )
+        update()
+        await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 1 }
+        openGate.signal()
+
+        // 2 回目: 差分 ON で描画を始め、画像埋め込みのゲートで中断させる。
+        let gate = DispatchSemaphore(value: 0)
+        let entered = LockedBox(false)
+        renderer.imageEmbedder = MarkdownImageEmbedder(
+            fileReader: SlowFileReader(
+                base: fileReader, releaseGate: gate, completed: LockedBox(false), entered: entered
+            )
+        )
+        let diffText = "diff --git a/doc.md b/doc.md\n--- a/doc.md\n+++ b/doc.md\n@@ -1 +1 @@\n-old\n+new\n"
+        renderer.diffState = ViewerRenderer.DiffState(text: diffText, layout: .inline)
+        update()
+        await Self.waitForWebViewLoad { entered.get() }
+
+        // 中断中に差分を OFF へ戻す。この更新は incoming == rendered(差分なしのまま)で
+        // 早期 return するが、世代だけは進むため、中断していた 2 回目は世代ガードで抜ける。
+        renderer.diffState = .none
+        update()
+        gate.signal()
+        await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 1 }
+        await yieldMainActor()
+
+        // ミラーは「差分なし」を指している。JS も同じでなければ、次の描画で
+        // 再送がスキップされて中断時の差分が描かれる。
+        #expect(renderer.rendered.diffState == ViewerRenderer.DiffState.none)
+        let diffInJS = try await webView.evaluateJavaScript("String(_mmdViewOptions.diff())")
+        #expect(diffInJS as? String == "null")
+
+        // 上の判定が「JS を読めていないだけ」で通っていないことを、同じ読み出しで確かめる
+        // (差分を実際に反映させれば同じ式が本文を返す)。
+        renderer.diffState = ViewerRenderer.DiffState(text: diffText, layout: .inline)
+        renderer.updateContent(
+            content, contentRevision: 2, fileType: .markdown, filePath: markdownURL,
+            hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false,
+            truncation: Self.truncation
+        )
+        await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 2 }
+        let appliedDiffInJS = try await webView.evaluateJavaScript("String(_mmdViewOptions.diff())")
+        #expect(appliedDiffInJS as? String == diffText)
     }
 
     @Test("画像埋め込みが遅延した古いupdateContentの結果は新しい呼び出しを上書きしない")

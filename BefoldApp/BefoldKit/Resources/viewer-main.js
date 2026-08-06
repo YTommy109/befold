@@ -1177,6 +1177,11 @@
 
   var _mmdViewOptions = _createViewOptions();
 
+  // 直前の描画が差分テーブルを DOM へ出したか。render() の入口で false に戻し、
+  // 差分 HTML を組み立てた _renderDiffHtmlIfAvailable だけが true にする。
+  // appendChunk の抑止判定はこの値だけを見る(DOM 検索は使わない / TASK-339)。
+  var _mmdDiffInDom = false;
+
   // チャンク境界の持ち越し。render()(初回チャンク)と appendChunk()(追記)が
   // record() で更新し、次の appendChunk() だけが endedWithNewline() で読む。
   // 強制分割で改行なしに切れたチャンクの続きを、前の行に連結すべきかの判定に使う。
@@ -1352,11 +1357,12 @@
     // (1 本ガター)を混ぜると桁がずれ、行番号の基準も狂う。蓄積は上の
     // _mmdDocument.append で済んでいるため、差分を解除した時点の全体再描画で
     // 追記分もそろって出る。
-    // 判定は実際の DOM を見る。差分は表示モード・ファイル種別を問わず取得される
-    // ため、差分表示を行わない経路(レンダリング表示の Markdown、CSV/TSV)でも
-    // diff() は非 null になりうる。「差分の有無」で分岐すると、それらの
-    // ファイルでチャンク追記が丸ごと捨てられる。
-    if (diagramWrap.querySelector('table.diff-table')) { return; }
+    // 判定は「直前の描画が差分テーブルを出したか」という内部状態で行う。差分は
+    // 表示モード・ファイル種別を問わず取得されるため「差分の有無(diff())」では
+    // 分岐できず、かといって DOM(table.diff-table)を探すと markdown-it が
+    // html:true で通したユーザーコンテンツの同名テーブルにも一致してしまう
+    // (先頭チャンク以降の追記が黙って捨てられる / TASK-339)。
+    if (_mmdDiffInDom) { return; }
     // CSV は「レンダリング表示(テーブル)」と「ソース表示(レインボー)」で DOM 構造が
     // 異なる(#diagram-wrap 直下が <table><tbody> か <pre><code class="csv-source">
     // か)ため、実際の DOM を見て分岐する。
@@ -1632,6 +1638,10 @@
     // appendChunk と同じ判定式で実際の末尾を見る(true 固定だと最初の強制分割で
     // 継続行の結合判定を誤る)。
     _mmdChunkTail.record(content);
+    // 差分テーブルの有無はこの描画で決まり直す。差分を出さない経路(レンダリング表示・
+    // CSV/TSV・画像)は _renderDiffHtmlIfAvailable を通らないため、ここで戻さないと
+    // 前回の値が残って追記が止まったままになる。
+    _mmdDiffInDom = false;
     // 以降で #diagram-wrap を作り直すため、旧 DOM を指す未応答の解決バッチを無効化する。
     _mmdInvalidatePendingRefs();
     var errorPanel = document.getElementById('mmd-error');
@@ -1718,10 +1728,14 @@
     var diff = _mmdViewOptions.diff();
     if (diff === null || type === 'csv') { return ''; }
     try {
-      return renderDiffHtml(
+      var html = renderDiffHtml(
         window.hljs, diff, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers(),
         _mmdViewOptions.diffLayout()
       );
+      // 呼び出し元(_renderCode / _renderSource)は空でなければ必ずこれを挿入するため、
+      // 「差分テーブルが画面に出ているか」はここで確定できる(appendChunk が見る)。
+      _mmdDiffInDom = html !== '';
+      return html;
     } catch (e) {
       return '';
     }

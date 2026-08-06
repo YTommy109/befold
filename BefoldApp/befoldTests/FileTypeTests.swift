@@ -182,9 +182,12 @@ struct FileTypeTests {
     /// CSV/TSV のソース表示は独自の列構造を持ち、viewer 側が差分を描かない
     /// (viewer-main.js の `_renderDiffHtmlIfAvailable` が type === "csv" で空を返す)。
     /// true に戻すと、描かれない差分のために git のサブプロセスだけが走る(TASK-324)。
-    @Test("差分表示の可否は CSV/TSV だけが false", arguments: [
+    /// 画像・PDF はテキストソース自体を持たないため同じく false(TASK-341)。
+    @Test("差分表示の可否は CSV/TSV とバイナリが false", arguments: [
         (FileType.csv(delimiter: ","), false),
         (FileType.csv(delimiter: "\t"), false),
+        (FileType.image(mimeType: "image/png"), false),
+        (FileType.pdf, false),
         (FileType.code(language: "swift"), true),
         (FileType.markdown, true),
         (FileType.mmd, true),

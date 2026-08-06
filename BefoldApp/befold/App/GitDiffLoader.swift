@@ -19,7 +19,7 @@ import Foundation
 ///
 /// 全ウィンドウで 1 個を共有すること。窓ごとに持つと畳み込みが窓の中でしか効かない。
 /// 生成は ViewerWindowManager に集約してあり、ここを破ると
-/// `ViewerWindowControllerDiffTests.openViewerSharesDiffLoader` が落ちる。
+/// `ViewerWindowManagerDiffTests.openViewerSharesDiffLoader` が落ちる。
 @MainActor
 final class GitDiffLoader {
     /// 要求の順番。契機の時点で発行し、取得へ持ち回る。

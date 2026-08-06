@@ -78,14 +78,14 @@ extension ViewerRenderer {
         recordRendered(state)
     }
 
-    /// last* キャッシュとの差分を見て lineNumbers / viewMode を同期し、
-    /// scrollKey 予告 + render を評価する。recordRendered は render スクリプトを実際に
-    /// evaluateJavaScript した後にのみ呼ぶ(呼び出し側で先行確定しないこと。直接 HTML
-    /// モード離脱時のように呼び出しが pendingUpdate 経由で遅延・破棄されうる場合、
-    /// 先行確定するとミラーが「描画済み」と偽り、以後の再描画が需要判定で握り潰される)。
+    /// last* キャッシュとの差分を見て lineNumbers / viewMode / 差分 / 切り詰めを同期し、
+    /// scrollKey 予告 + render を評価する。
+    ///
     /// 画像埋め込み(embeddedContent)は MainActor 外で行うため、完了後に
     /// contentUpdateGeneration が呼び出し時から変わっていないか確認してから
     /// evaluateJavaScript/recordRendered を行う(後続の updateContent に追い越された場合は破棄)。
+    /// **表示オプションの送信・render の評価・recordRendered はこの世代ガードより後ろに
+    /// 一続きで並べ、間に await を挟まないこと**(理由は本文中のコメント)。
     /// - Parameter restoreFromPersistedPosition: `isFileOrModeSwitch` 参照。
     func applyRender(
         webView: WKWebView, request: RenderRequest,
@@ -95,12 +95,20 @@ extension ViewerRenderer {
             request.content, request.contentRevision, request.fileType, request.filePath,
             request.isSourceMode, request.showLineNumbers, request.truncation, request.generation
         )
-        // 送るのは「変わったときだけ」だが、送った事実をミラーへ確定させるのは render を
-        // 実際に評価した後（下の recordRendered）。ここで先に確定すると、await 中に再入した
-        // updateContent が incoming == rendered と判定して描画を握り潰し、同時に世代を進める
-        // ため、中断から戻ったこちらも世代ガードで抜けて render が一度も走らなくなる
-        // （差分テキストは JS 側に入っているのに素のソースのまま。TASK-334）。
-        // 送信自体は冪等なので、確定前に再送されても害はない。
+        let renderable = await embeddedContent(
+            content, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
+        )
+        guard generation == contentUpdateGeneration else { return }
+
+        guard let script = ViewerBridge.renderScript(content: renderable, fileType: fileType) else { return }
+
+        // 表示オプションの送信・render の評価・ミラーへの確定を、await を挟まずここへ並べる。
+        // 「送るのは変わったときだけ」なので、送信とミラー確定の間に suspension point を置くと
+        // 中断された呼び出しが「送ったが記録していない」状態を残し、以後の呼び出しが
+        // ミラーと同値と見て再送をスキップして JS 側に中断時の値が残る(TASK-336)。
+        // 逆に送信前へ確定を移すと、await 中に再入した updateContent が
+        // incoming == rendered と判定して描画を握り潰す(TASK-334)。両方を避けられるのは、
+        // 送信と確定を同じ同期区間に閉じ込めるこの位置だけ。
         let sentDiffState = diffState
         if showLineNumbers != rendered.showLineNumbers {
             webView.evaluateJavaScript(ViewerBridge.lineNumbersScript(showLineNumbers), completionHandler: nil)
@@ -124,13 +132,6 @@ extension ViewerRenderer {
                 completionHandler: nil
             )
         }
-
-        let renderable = await embeddedContent(
-            content, fileType: fileType, filePath: filePath, isSourceMode: isSourceMode
-        )
-        guard generation == contentUpdateGeneration else { return }
-
-        guard let script = ViewerBridge.renderScript(content: renderable, fileType: fileType) else { return }
         if restoreFromPersistedPosition {
             webView.evaluateJavaScript(
                 ViewerBridge.restoreScrollPositionScript(scrollPositionToRestore), completionHandler: nil
@@ -148,20 +149,14 @@ extension ViewerRenderer {
 
     /// 描画済みキャッシュをまるごと確定させる。render()/append() を実際に
     /// evaluateJavaScript した後にだけ呼ぶこと（`applyRender` の解説を参照）。
-    /// フィールドを並べず丸ごと差し替えるため、ミラーへフィールドを足したときに
-    /// 確定漏れが起きない。
+    /// content 全文は保持せず contentRevision だけを比較用に保存する。
+    ///
+    /// 確定の入口はこの 1 つだけにしてある。フィールドを部分更新できる入口を残すと、
+    /// ミラーへフィールドを足したときにそこだけ確定漏れが起き、状態変化が 1 周期
+    /// 失われる(TASK-320 / TASK-334 で 2 度起きた形)。一部のフィールドだけを
+    /// 変えたい呼び出し元は、現在の `rendered` を複製して書き換えてから渡すこと。
     func recordRendered(_ state: RenderedStateMirror) {
         rendered = state
-    }
-
-    /// 描画済みキャッシュを更新する。content 全文は保持せず contentRevision だけを
-    /// 比較用に保存する。
-    func recordRendered(
-        contentRevision: Int, fileType: FileType, filePath: URL?
-    ) {
-        rendered.contentRevision = contentRevision
-        rendered.fileType = fileType
-        rendered.filePath = filePath
     }
 
     /// pendingAppend(段階読み込みでステージされた次チャンク)を全文 render せず増分描画して
