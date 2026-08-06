@@ -27,25 +27,9 @@ private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
     }
 }
 
-/// 差分トグルの通知だけを数える delegate。反転と全ウィンドウへの反映は
-/// ViewerWindowManager の責務なので、コントローラ単体では「通知したか」で測る。
-@MainActor
-private final class RecordingDiffToggleDelegate: ViewerWindowControllerDelegate {
-    private(set) var toggleSourceDiffCallCount = 0
-
-    func viewerWindowWillClose(_ controller: ViewerWindowController) {}
-    func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {}
-    func viewerWindow(_ controller: ViewerWindowController, didRenameFrom oldURL: URL, to newURL: URL) {}
-    func viewerWindow(
-        _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
-    ) {}
-    func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {}
-    func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {}
-
-    func viewerWindowDidToggleSourceDiff(_ controller: ViewerWindowController) {
-        toggleSourceDiffCallCount += 1
-    }
-}
+// 差分トグルの通知は MockViewerWindowControllerDelegate
+// (ViewerWindowControllerTests.swift)で数える。反転と全ウィンドウへの反映は
+// ViewerWindowManager の責務なので、コントローラ単体では「通知したか」で測る。
 
 /// 差分表示のトグルが「いま何ができるか」(ViewerCapabilities)だけを見ていることを確かめる。
 /// フォルダー一覧を出している間に効いてしまうと、見えていない文書に対する操作になる
@@ -80,7 +64,7 @@ struct ViewerWindowControllerDiffTests {
     func togglesWhilePresentingDocument() {
         let preference = makePreference()
         let controller = makeController(preference: preference)
-        let delegate = RecordingDiffToggleDelegate()
+        let delegate = MockViewerWindowControllerDelegate()
         controller.delegate = delegate
         defer { controller.close() }
         controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
@@ -102,7 +86,7 @@ struct ViewerWindowControllerDiffTests {
     func ignoresToggleWhilePreviewingFolder() {
         let preference = makePreference()
         let controller = makeController(preference: preference)
-        let delegate = RecordingDiffToggleDelegate()
+        let delegate = MockViewerWindowControllerDelegate()
         controller.delegate = delegate
         defer { controller.close() }
         let folder = URL(fileURLWithPath: "/mock/sub")

@@ -3,32 +3,7 @@ import BefoldKit
 import Foundation
 import Testing
 
-/// 呼び出し回数を数えるスタブ。git は起こさない。
-private final class CountingDiffReader: GitDiffReading, @unchecked Sendable {
-    private let lock = NSLock()
-    private var _calls = 0
-    private let result: GitFileDiff?
-    private let delay: TimeInterval
-
-    var calls: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return _calls
-    }
-
-    init(result: GitFileDiff?, delay: TimeInterval = 0) {
-        self.result = result
-        self.delay = delay
-    }
-
-    func diff(forFileAt _: URL, in _: URL) -> GitFileDiff? {
-        lock.lock()
-        _calls += 1
-        lock.unlock()
-        if delay > 0 { Thread.sleep(forTimeInterval: delay) }
-        return result
-    }
-}
+// 呼び出し回数を数えるスタブは DiffTestSupport.swift の RecordingDiffReader を共有する。
 
 /// 呼ばれるたびに次の結果を返すスタブ。「取得のたびに作業ツリーが変わっている」状況を作る。
 /// 用意した結果を使い切ったら最後の値を返し続ける。
@@ -68,7 +43,7 @@ struct GitDiffLoaderTests {
 
     @Test("読み取り結果をそのまま返す")
     func returnsReaderResult() async {
-        let reader = CountingDiffReader(result: .diff("@@ -1 +1 @@\n"))
+        let reader = RecordingDiffReader(result: .diff("@@ -1 +1 @@\n"))
         let loader = GitDiffLoader(reader: reader)
 
         let result = await loader.diff(
@@ -76,7 +51,7 @@ struct GitDiffLoaderTests {
         )
 
         #expect(result == .diff("@@ -1 +1 @@\n"))
-        #expect(reader.calls == 1)
+        #expect(reader.callCount == 1)
     }
 
     /// AC#1: 同じ契機(1 回のファイル変更イベント)から出た兄弟要求は、取得 1 回に合流する。
@@ -85,7 +60,7 @@ struct GitDiffLoaderTests {
     /// どちらへ戻しても要求の数だけ git が起動してここが落ちる(TASK-325)。
     @Test("同じ契機から出た要求は 1 回の取得に合流する")
     func collapsesSiblingRequestsIntoOneFetch() async {
-        let reader = CountingDiffReader(result: .noChanges, delay: 0.2)
+        let reader = RecordingDiffReader(result: .noChanges, delay: 0.2)
         let loader = GitDiffLoader(reader: reader)
         // 3 窓が同じファイル変更イベントを受け取った状態。取得より前に順番が確定する。
         let tickets = (0 ..< 3).map { _ in loader.takeRequestTicket() }
@@ -96,7 +71,7 @@ struct GitDiffLoaderTests {
         let results = await [first, second, third]
 
         #expect(results == [.noChanges, .noChanges, .noChanges])
-        #expect(reader.calls == 1)
+        #expect(reader.callCount == 1)
     }
 
     /// 走行中のタスクへ相乗りさせると、その結果は要求より前のツリーのもので、
@@ -129,18 +104,18 @@ struct GitDiffLoaderTests {
     /// 「2 回目も読み直す」ことが仕様であり、キャッシュを足したらここが落ちる。
     @Test("結果をキャッシュせず、要求のたびに読み直す")
     func doesNotCacheResults() async {
-        let reader = CountingDiffReader(result: .noChanges)
+        let reader = RecordingDiffReader(result: .noChanges)
         let loader = GitDiffLoader(reader: reader)
 
         _ = await loader.diff(forFileAt: file, in: root, requestedAt: loader.takeRequestTicket())
         _ = await loader.diff(forFileAt: file, in: root, requestedAt: loader.takeRequestTicket())
 
-        #expect(reader.calls == 2)
+        #expect(reader.callCount == 2)
     }
 
     @Test("取得できなかった場合は nil を返す")
     func propagatesUnavailable() async {
-        let reader = CountingDiffReader(result: nil)
+        let reader = RecordingDiffReader(result: nil)
         let loader = GitDiffLoader(reader: reader)
 
         let result = await loader.diff(

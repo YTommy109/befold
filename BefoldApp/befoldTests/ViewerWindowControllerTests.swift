@@ -5,14 +5,19 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
+/// ViewerWindowControllerDelegate の通知を記録するスタブ。
+/// 差分トグルの検証(ViewerWindowControllerDiffTests)からも使うため、
+/// スイート内 private にせず befoldTests 内で共有する。
+final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
     var becomeKeyCalled = false
     var closeCalled = false
     var renameArgs: (old: URL, new: URL)?
     var switchFileArgs: (old: URL, new: URL)?
     var toggleHiddenFilesCalled = false
     var toggleChangedFilesOnlyCalled = false
-    var toggleSourceDiffCalled = false
+    /// 差分トグルは「通知したか」だけでなく回数で測る(反転は ViewerWindowManager の責務で、
+    /// コントローラ側が二重に通知していないことを見たいため)。
+    private(set) var toggleSourceDiffCallCount = 0
 
     func viewerWindowWillClose(_ controller: ViewerWindowController) {
         closeCalled = true
@@ -43,7 +48,7 @@ private final class MockViewerWindowControllerDelegate: ViewerWindowControllerDe
     }
 
     func viewerWindowDidToggleSourceDiff(_ controller: ViewerWindowController) {
-        toggleSourceDiffCalled = true
+        toggleSourceDiffCallCount += 1
     }
 }
 
