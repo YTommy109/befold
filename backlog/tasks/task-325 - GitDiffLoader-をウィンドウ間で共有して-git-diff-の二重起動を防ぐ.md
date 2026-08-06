@@ -4,6 +4,7 @@ title: GitDiffLoader をウィンドウ間で共有して git diff の二重起�
 status: To Do
 assignee: []
 created_date: '2026-08-05 16:09'
+updated_date: '2026-08-06 01:49'
 labels:
   - feature-gate
   - diff-view
@@ -30,3 +31,9 @@ GitDiffLoader はウィンドウごとに生成される（ViewerWindowControlle
 - [ ] #1 同じファイルを 2 窓で開いた状態のファイル変更イベントで、git diff の起動が 1 回に合流する
 - [ ] #2 ウィンドウを閉じても他窓の差分取得に影響しない
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+コードレビュー(2026-08-06, high)で CONFIRMED として再検出。ViewerWindowController.swift:58 の lazy var diffLoader が窓ごとに生成され、同一ファイルを 3 タブで開くと 1 回の保存で git diff HEAD -- <path> が 3 プロセス起動する。DiffDisplayPreference は同じ理由で共有化済み（TASK-319）。
+<!-- SECTION:NOTES:END -->
