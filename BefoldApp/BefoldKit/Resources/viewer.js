@@ -558,7 +558,10 @@ function diffSideCells(line, lineHtml, showLineNumbers, side) {
 // 同じハイライト結果を使い、行の並べ方だけが違う。
 function renderSideBySideDiffHtml(hljs, diffText, lang, showLineNumbers) {
   var files = parseUnifiedDiff(diffText);
-  var span = showLineNumbers === true ? 6 : 4;
+  // 外側の diff-split テーブルは 1 行あたり左右 2 セルしか持たない(行番号・記号・
+  // 内容は各側の diff-side-table に入る)。区切り行だけ 6 列にすると表全体が 6 列と
+  // みなされ、.diff-split .diff-side { width: 50% } が効かず左右のペインが潰れる。
+  var span = 2;
   var rows = '';
   for (var f = 0; f < files.length; f++) {
     var hunks = files[f].hunks;

@@ -414,11 +414,19 @@ describe('renderSideBySideDiffHtml', () => {
     expect(html).toContain('line-content diff-empty');
   });
 
-  test('ハンクの区切り行の colspan が左右 2 列分になり、位置情報は出ない', () => {
+  // 外側テーブルの 1 行は左右 2 セル。行番号の有無で変わるのは各側の内側テーブルの
+  // 列数であって外側ではないため、colspan は常に 2。ずれると外側が余分な列を持つ表
+  // としてレイアウトされ、左右 50% 幅が効かなくなる。
+  test('ハンクの区切り行の colspan が外側テーブルの列数(常に 2)と一致し、位置情報は出ない', () => {
     const withNumbers = renderSideBySideDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', true);
+    const withoutNumbers = renderSideBySideDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', false);
+    // 外側テーブル 1 行分の td 数（内側テーブルの td は数えない）。
+    const outerCells = (html) => html.split('<td class="diff-side ').length - 1;
 
-    expect(withNumbers).toContain('colspan="6"');
-    expect(renderSideBySideDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', false)).toContain('colspan="4"');
+    expect(withNumbers).toContain('colspan="2"');
+    expect(withoutNumbers).toContain('colspan="2"');
+    expect(outerCells(withNumbers) / 4).toBe(2);
+    expect(outerCells(withoutNumbers) / 4).toBe(2);
     expect(withNumbers).not.toContain('@@');
   });
 
