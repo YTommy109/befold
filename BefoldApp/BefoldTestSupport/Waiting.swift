@@ -108,6 +108,36 @@ public func waitUntilWithRetry(
     return false
 }
 
+/// `@MainActor` へホップして届くコールバックを、壁時計予算を持たずに待つ。
+/// `action` を渡すと、条件が成立するまで `interval` ごとに再実行する
+/// （`waitUntilWithRetry` と同じく、イベント取りこぼしを冪等な再試行で救済するため）。
+///
+/// 壁時計予算を持たないのは、full suite 実行では多数の `@MainActor` スイートが
+/// メインアクターを占有し続け、メインアクターへの一巡そのものが待機予算を
+/// 超えうるため。実測(TASK-335): FileWatcher の rename 判定は監視キュー上で
+/// 即座に成立しているのに、`@MainActor` へホップしたコールバックが走るまで
+/// 6 回中 6 回とも 10.6〜11.7 秒かかった(予算は 15 秒)。予算を延ばしても
+/// 混雑の度合い次第で再発するため、**上限は持たずスイートの `.timeLimit` に
+/// 委ねる**。こうすると混雑は遅延になるだけで失敗にはならない
+/// （TASK-327 で ViewerWindowControllerToolbarTests に適用したのと同じ方針）。
+///
+/// 条件が本当に成立しない回帰では、この関数は戻らず `.timeLimit` で打ち切られる。
+/// 予算超過を `Issue.record` の 1 行で報告する `waitUntil` 系より診断は粗いので、
+/// **`@MainActor` 配送を待つ箇所にだけ**使うこと。
+public func waitForMainActorDelivery(
+    interval: TimeInterval = 0.5,
+    action: (@Sendable () -> Void)? = nil,
+    until condition: @escaping @Sendable () -> Bool
+) async {
+    while !condition() {
+        action?()
+        let retryDeadline = Date().addingTimeInterval(interval)
+        while !condition(), Date() < retryDeadline {
+            try? await Task.sleep(for: .seconds(0.05))
+        }
+    }
+}
+
 /// `waitUntilWithRetry` の MainActor 版。`@Observable` ストアなど MainActor 隔離の
 /// プロパティを条件・アクションから参照する場合に使う。
 @MainActor
