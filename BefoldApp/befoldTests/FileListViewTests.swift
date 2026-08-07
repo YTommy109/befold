@@ -27,7 +27,16 @@ struct FileListViewTests {
             onSelect: onSelect,
             onNavigate: onNavigate,
             onSortOrderChanged: { _ in },
-            onOpenInNewWindow: { _ in }
+            onOpenElsewhere: { _, _ in }
+        )
+    }
+
+    @Test("サイドバーの「別の場所で開く」項目は新しいタブと新しいウィンドウの両方を持つ")
+    func openElsewhereEntriesCoverTabAndWindow() {
+        #expect(FileListView.openElsewhereEntries.map(\.disposition) == [.newTab, .newWindow])
+        #expect(
+            FileListView.openElsewhereEntries.map(\.titleKey)
+                == ["sidebar.context.openInNewTab", "sidebar.context.openInNewWindow"]
         )
     }
 

@@ -230,12 +230,12 @@ final class ViewerWindowManager {
         }
 
         let key = url.normalizedPathKey
-        // Finder/CLI/リンクからの再オープンは重複ウィンドウを作らず既存を前面化する。
+        // Finder/CLI/リンクからの再オープン(.currentTab)は重複ウィンドウを作らず既存を前面化する。
         // (ウィンドウ内のサイドバー切替だけは他ウィンドウを無視して自ウィンドウを切り替える)
-        // この早期 return は disposition の分岐より前にあるため、既に別ウィンドウで
-        // 開いているファイルへの cmd+クリック(.newTab/.newWindow)も新規タブ/ウィンドウには
-        // ならず、そのウィンドウの前面化になる(重複抑止を新規オープンの意図より優先する)。
-        if let existing = controllers[key]?.first {
+        // 一方 .newTab/.newWindow は cmd+クリックやコンテキストメニューでユーザーが
+        // 明示的に新規オープンを求めた経路なので、重複抑止より意図を優先して素通しする
+        // (既に開いているファイルで「新しいウィンドウで開く」が無反応に見える問題: issue #431)。
+        if disposition == .currentTab, let existing = controllers[key]?.first {
             NSApp.activate()
             existing.focusWindow()
             return
