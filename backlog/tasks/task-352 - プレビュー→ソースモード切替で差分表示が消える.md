@@ -1,11 +1,11 @@
 ---
 id: TASK-352
 title: サイドバーのバッジと差分ビューアが別の基準で比較している
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-07 04:49'
-updated_date: '2026-08-07 05:37'
+updated_date: '2026-08-07 13:50'
 labels:
   - bug
   - diff
@@ -98,4 +98,12 @@ Swift の配線とモード切替は正常。markdown をレンダリング表�
 - diff 本体: 11.5 ms/回
 
 差分取得 1 回あたり 11.5 ms → 約 30 ms（2.6 倍）。メインアクターの外で走るため UI は止まらない。キャッシュは入れていない（simplify 優先）。効かせるなら `defaultBranch`（symbolic-ref 側 7.7 ms）が候補で、こちらは安定した値なのでキャッシュしても陳腐化しない。実害が出たら検討する。
+
+2026-08-07 完了確認: 実装は PR #433 (723c385 fix(gate): 差分の比較基準をサイドバーのバッジと揃える) で main へマージ済み。マージ後の main (0d914b4) で swift test 全体を再実行し 1190 tests passed（13.4 秒）。GitComparisonBase 関連の結合テストを含め失敗ゼロ。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+比較基準の解決を GitComparisonBase（GitComparisonBaseResolving / GitComparisonBaseResolver）へ切り出し、GitStatusReader と GitDiffReader が同じ merge-base(HEAD, defaultBranch) を使うようにした。GitDiffReader は base が解決できたかどうかで判定し、解決できない場合のみ HEAD へ縮退する（差分が空かどうかでは判定しない）。merge-base はコミット・チェックアウトで動くためキャッシュしない。検証: 新規結合テスト 4 件（ブランチのコミット済み変更・デフォルトブランチ上・base 不明時の縮退・バッジと差分の一致）と、基準を HEAD へ戻すと 2 件が落ちる検知能力を実測で確認。マージ後の main で swift test 全体 1190 件通過。swiftlint は origin/main とのベースライン差分ゼロ、xcodegen generate 実行済み。
+<!-- SECTION:FINAL_SUMMARY:END -->
