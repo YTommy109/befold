@@ -7,7 +7,10 @@ struct FileListView: View {
     let onSelect: (URL) -> Void
     let onNavigate: (URL) -> Void
     let onSortOrderChanged: (SortOrder) -> Void
-    let onOpenInNewWindow: (URL) -> Void
+    /// 選択行を別のタブ/ウィンドウで開く。disposition ごとにクロージャを分けず
+    /// 1 本にまとめることで、開き先を増やしても配線が増えない
+    /// (受け側の ViewerWindowController.openFileElsewhere も disposition を取る)。
+    let onOpenElsewhere: (URL, OpenDisposition) -> Void
     var onToggleHiddenFiles: (() -> Void)?
 
     @FocusState private var isFilterFieldFocused: Bool
@@ -149,7 +152,7 @@ struct FileListView: View {
             Button(String(localized: "sidebar.context.copy", bundle: .l10n)) {
                 copyFileReference(entry.url)
             }
-            openInNewWindowButton(for: entry)
+            openElsewhereButtons(for: entry)
             Button(String(localized: "sidebar.context.copyPath", bundle: .l10n)) {
                 copyPath(entry.url)
             }
@@ -159,26 +162,40 @@ struct FileListView: View {
         }
     }
 
+    /// 「別の場所で開く」系の項目定義(並び・文言キー・開き先)。項目を数える単一情報源を
+    /// ここに置き、片方の開き先だけメニューから抜け落ちるのを防ぐ。
+    static let openElsewhereEntries: [(titleKey: String, disposition: OpenDisposition)] = [
+        ("sidebar.context.openInNewTab", .newTab),
+        ("sidebar.context.openInNewWindow", .newWindow),
+    ]
+
+    private func openElsewhereButtons(for entry: FileListEntry) -> some View {
+        ForEach(Self.openElsewhereEntries, id: \.titleKey) { item in
+            openElsewhereButton(for: entry, titleKey: item.titleKey, disposition: item.disposition)
+        }
+    }
+
+    /// フォルダー行では「そのフォルダーで最初に開けるファイル」を開き先にする。
+    /// 走査はメインを止めないよう detached で行い、開けるファイルが無い行は無効化する。
     @ViewBuilder
-    private func openInNewWindowButton(for entry: FileListEntry) -> some View {
-        let label = String(
-            localized: "sidebar.context.openInNewWindow",
-            bundle: .l10n
-        )
+    private func openElsewhereButton(
+        for entry: FileListEntry, titleKey: String, disposition: OpenDisposition
+    ) -> some View {
+        let label = String(localized: String.LocalizationValue(titleKey), bundle: .l10n)
         if entry.kind == .folder {
             let folder = entry.url
             Button(label) {
                 Task {
                     let detached = Task.detached { DirectoryLister.firstSupportedFile(in: folder) }
                     if let first = await detached.value {
-                        onOpenInNewWindow(first)
+                        onOpenElsewhere(first, disposition)
                     }
                 }
             }
             .disabled(!entry.containsSupportedFile)
         } else {
             Button(label) {
-                onOpenInNewWindow(entry.url)
+                onOpenElsewhere(entry.url, disposition)
             }
         }
     }

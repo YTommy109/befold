@@ -284,9 +284,9 @@ final class ViewerWindowController: NSWindowController {
                 fileListModel.sortOrder = order
                 sidebar.refreshFileList()
             },
-            onOpenInNewWindow: { [weak self] url in
+            onOpenElsewhere: { [weak self] url, disposition in
                 guard let self else { return }
-                openFileElsewhere(url, .newWindow, window)
+                openFileElsewhere(url, disposition, window)
             },
             onToggleHiddenFiles: { [weak self] in
                 guard let self else { return }
