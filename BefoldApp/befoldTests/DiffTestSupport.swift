@@ -20,6 +20,7 @@ struct StubDiffReader: GitDiffReading {
 final class RecordingDiffReader: GitDiffReading, @unchecked Sendable {
     private let lock = NSLock()
     private var calls = 0
+    private var requested: [URL] = []
     private let result: GitFileDiff?
     private let delay: TimeInterval
 
@@ -32,9 +33,16 @@ final class RecordingDiffReader: GitDiffReading, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }; return calls
     }
 
-    func diff(forFileAt _: URL, in _: URL) -> GitFileDiff? {
+    /// 取得を要求されたファイル。件数だけでは「どのファイルに git を起こしたか」が
+    /// 分からず、種別ゲートの検証が無関係な取得まで数えてしまう(TASK-347)。
+    var requestedFiles: [URL] {
+        lock.lock(); defer { lock.unlock() }; return requested
+    }
+
+    func diff(forFileAt url: URL, in _: URL) -> GitFileDiff? {
         lock.lock()
         calls += 1
+        requested.append(url)
         lock.unlock()
         if delay > 0 { Thread.sleep(forTimeInterval: delay) }
         return result

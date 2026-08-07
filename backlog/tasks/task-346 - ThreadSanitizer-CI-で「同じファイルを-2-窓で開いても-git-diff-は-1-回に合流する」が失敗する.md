@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-07 00:53'
-updated_date: '2026-08-07 01:34'
+updated_date: '2026-08-07 01:46'
 labels:
   - test
   - flaky
@@ -110,4 +110,6 @@ main の CI（run 31080059382, 2026-08-06 push）の ThreadSanitizer ジョブ�
 - swiftformat: fix モードで 1 ファイル整形済み。新規ファイルなしのため xcodegen は不要。
 
 テスト側の変更: 当該テストから `Task.sleep(600ms)` と `RecordingDiffReader(delay: 0.2)` を撤去した。取得のたびに違う本文を返す `SequenceDiffReader` を DiffTestSupport へ移して共有し、「2 窓が同じ本文を受け取ったか」で合流を判定する。合流に失敗すると本文が食い違うため、実行順がどうずれても結論が変わらない。実行時間は 15.5 秒から 1.2 秒になった。
+
+2026-08-07: この変更で取得までの await のホップ数が減り、既存の flaky テスト ViewerWindowControllerDiffTests「ファイル切替直後の取得契機でも切替先の種別でゲートする」（:241）の失敗率が上がって CI build-and-test が落ちた。origin/main でも単体実行 5 回中 4 回落ちる（実測）ため不安定さ自体は先行するが、CI を通らなくした責任は本変更にある。TASK-347 として起票し、同じ PR #427 の中で対処する。
 <!-- SECTION:NOTES:END -->
