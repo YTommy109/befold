@@ -187,6 +187,23 @@ public func waitForMainActorDelivery(
     )
 }
 
+/// `waitForMainActorDelivery` の `@MainActor` 版。`@Observable` ストアなど MainActor 隔離の
+/// プロパティを条件から参照する場合に使う（`@Sendable` クロージャにできないため分けている。
+/// `waitUntil` に対する `waitUntilOnMainActor` と同じ理由）。
+///
+/// 壁時計予算を持たない理由も既存版と同じ。加えて、swift-testing が報告する
+/// テスト所要時間は「そのテスト自身の作業時間」ではなく**テスト開始からの壁時計**であり、
+/// 全テストが一斉に開始されて `@MainActor` で直列化される full suite では、ほぼ全件が
+/// 実行全体の長さを報告する（実測 TASK-354: TSan 付き全体実行 42.8 秒で 1367 件中 625 件が
+/// 30 秒超を報告。await を 1 つも含まないテストも 38.5 秒と報告した）。
+/// つまり待機に壁時計予算を持たせると、それは操作にかかった時間ではなく
+/// **順番待ちの時間**を測ることになり、実行全体が長引くほど操作の成否と無関係に
+/// 予算切れが起きる。上限はスイートの `.timeLimit` に委ねること。
+@MainActor
+public func waitForDeliveryOnMainActor(until condition: () -> Bool) async {
+    _ = await pollUntil(deadline: nil, condition)
+}
+
 /// `waitUntilWithRetry` の MainActor 版。`@Observable` ストアなど MainActor 隔離の
 /// プロパティを条件・アクションから参照する場合に使う。
 @MainActor
