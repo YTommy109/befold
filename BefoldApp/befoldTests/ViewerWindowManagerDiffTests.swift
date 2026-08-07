@@ -109,9 +109,12 @@ struct ViewerWindowManagerDiffTests {
     func sharesOneFetchAcrossWindowsShowingTheSameFile() async throws {
         let shared = URL(fileURLWithPath: "/mock/shared.swift")
         let other = URL(fileURLWithPath: "/mock/other.swift")
-        // 取得に時間をかけて、2 窓ぶんの要求が確実に重なるようにする。即答だと
-        // 1 窓目が終わってから 2 窓目が届くことがあり、測りたい重なりが起きない。
-        let reader = RecordingDiffReader(result: .diff("DIFF"), delay: 0.2)
+        // 取得のたびに違う本文を返す。合流していれば 2 窓は同じ本文を受け取り、
+        // 合流に失敗していれば食い違う。待ち時間ではなく本文の一致で判定できるため、
+        // 負荷でどれだけ実行順がずれても結論が変わらない(TASK-346)。
+        let reader = SequenceDiffReader(
+            results: [.diff("取得1"), .diff("取得2"), .diff("取得3"), .diff("取得4")]
+        )
         let fixture = MockedViewerWindowManager(
             files: [shared, other], prefix: "DiffTests.oneFetch",
             contents: "let a = 1", repositoryRoot: URL(fileURLWithPath: "/mock"),
@@ -134,9 +137,9 @@ struct ViewerWindowManagerDiffTests {
         // ウィンドウ生成・切替そのものも差分を取りに行くため、それが片付くまで待つ。
         // 走行中の取得が残ったまま測ると、合流できたかどうかと区別が付かない。
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controllers.allSatisfy { $0.store.diffText == "DIFF" }
+            controllers.allSatisfy { $0.store.diffText != nil }
         }
-        let before = reader.callCount
+        let before = reader.calls
 
         // 1 回のファイル変更イベントが全ウィンドウへ配られる経路と同じ形。
         for controller in controllers {
@@ -144,12 +147,13 @@ struct ViewerWindowManagerDiffTests {
         }
 
         // 2 窓ぶんの要求が 1 回の取得へ合流する。窓ごとにローダーを持つ形へ戻すと 2 回になる。
+        let expected = "取得\(before + 1)"
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            reader.callCount > before
+            controllers.allSatisfy { $0.store.diffText == expected }
         }
-        // 遅れて 2 回目が走らないことまで見る(取得は 0.2 秒かかる)。
-        try await Task.sleep(for: .milliseconds(600))
-        #expect(reader.callCount == before + 1)
+        // 合流していなければ 2 窓は別々の本文を受け取るため、上の待機が揃わずに落ちる。
+        // 取得回数でも裏を取る(本文が偶然揃う経路を残さない)。
+        #expect(reader.calls == before + 1)
     }
 
     /// AC#2: 取得元はマネージャが握っているため、1 窓を閉じても残る窓の取得は動く。
