@@ -112,9 +112,9 @@ struct ViewerWindowManagerDiffTests {
         // 取得のたびに違う本文を返す。合流していれば 2 窓は同じ本文を受け取り、
         // 合流に失敗していれば食い違う。待ち時間ではなく本文の一致で判定できるため、
         // 負荷でどれだけ実行順がずれても結論が変わらない(TASK-346)。
-        let reader = SequenceDiffReader(
-            results: [.diff("取得1"), .diff("取得2"), .diff("取得3"), .diff("取得4")]
-        )
+        // 末尾に張り付くと別々の取得が同じ本文になり、食い違いを見逃す。セットアップの
+        // 契機は数回で収まるため、余裕を持って使い切らない長さにしておく。
+        let reader = SequenceDiffReader(results: (1 ... 20).map { .diff("取得\($0)") })
         let fixture = MockedViewerWindowManager(
             files: [shared, other], prefix: "DiffTests.oneFetch",
             contents: "let a = 1", repositoryRoot: URL(fileURLWithPath: "/mock"),
@@ -134,26 +134,31 @@ struct ViewerWindowManagerDiffTests {
             presentDocument(in: controller, file: shared)
         }
         #expect(controllers.allSatisfy { $0.fileURL == shared })
-        // ウィンドウ生成・切替そのものも差分を取りに行くため、それが片付くまで待つ。
-        // 走行中の取得が残ったまま測ると、合流できたかどうかと区別が付かない。
+        // ウィンドウ生成・切替そのものも差分を取りに行くため、本文が入るまで待つ。
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
             controllers.allSatisfy { $0.store.diffText != nil }
         }
-        let before = reader.calls
+        let before = controllers.map(\.store.diffText)
 
         // 1 回のファイル変更イベントが全ウィンドウへ配られる経路と同じ形。
         for controller in controllers {
             controller.refreshDiff()
         }
 
-        // 2 窓ぶんの要求が 1 回の取得へ合流する。窓ごとにローダーを持つ形へ戻すと 2 回になる。
-        let expected = "取得\(before + 1)"
+        // まず両窓が取り直しの結果を受け取るまで待つ。合流の成否に関わらずここは満たされる
+        // (合流しなければ別々の結果を、合流すれば同じ結果を受け取る)。
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controllers.allSatisfy { $0.store.diffText == expected }
+            zip(before, controllers).allSatisfy { $0 != $1.store.diffText }
         }
-        // 合流していなければ 2 窓は別々の本文を受け取るため、上の待機が揃わずに落ちる。
-        // 取得回数でも裏を取る(本文が偶然揃う経路を残さない)。
-        #expect(reader.calls == before + 1)
+
+        // 合流の成否はここで分かれる。1 回の取得に合流していれば 2 窓は同じ本文を受け取り、
+        // 窓ごとに取得が走れば別々の本文になる。
+        //
+        // 取得回数では測らない。セットアップ由来の取得が何回走るかは契機の重なり方で変わり、
+        // 「静止した」と言える瞬間が無いため、回数の算術は実行順に左右される(CI で実際に
+        // 落ちた = TASK-346)。取得回数そのものの検証は GitDiffLoaderTests が決定的に行う。
+        let texts = controllers.map(\.store.diffText)
+        #expect(texts[0] == texts[1])
     }
 
     /// AC#2: 取得元はマネージャが握っているため、1 窓を閉じても残る窓の取得は動く。
