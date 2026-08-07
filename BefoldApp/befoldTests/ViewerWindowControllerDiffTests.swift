@@ -238,7 +238,10 @@ struct ViewerWindowControllerDiffTests {
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
             controller.store.fileType == .csv(delimiter: ",")
         }
-        #expect(reader.callCount == 0)
+        // 測るのは「切替先へ git を起こしたか」であって取得の総数ではない。総数で測ると、
+        // 切替前の .swift に対する正当な取得まで数えてしまい、その回数は契機の重なり方で
+        // 変わるため結論が実行順に左右される(TASK-347)。
+        #expect(reader.requestedFiles.contains(csv) == false)
     }
 
     /// Markdown/SVG/HTML は「ソース表示中」でないと差分を描けないため、レンダリング表示中の

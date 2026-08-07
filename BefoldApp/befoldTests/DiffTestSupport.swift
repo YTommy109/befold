@@ -20,6 +20,7 @@ struct StubDiffReader: GitDiffReading {
 final class RecordingDiffReader: GitDiffReading, @unchecked Sendable {
     private let lock = NSLock()
     private var calls = 0
+    private var requested: [URL] = []
     private let result: GitFileDiff?
     private let delay: TimeInterval
 
@@ -32,11 +33,49 @@ final class RecordingDiffReader: GitDiffReading, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }; return calls
     }
 
-    func diff(forFileAt _: URL, in _: URL) -> GitFileDiff? {
+    /// 取得を要求されたファイル。件数だけでは「どのファイルに git を起こしたか」が
+    /// 分からず、種別ゲートの検証が無関係な取得まで数えてしまう(TASK-347)。
+    var requestedFiles: [URL] {
+        lock.lock(); defer { lock.unlock() }; return requested
+    }
+
+    func diff(forFileAt url: URL, in _: URL) -> GitFileDiff? {
         lock.lock()
         calls += 1
+        requested.append(url)
         lock.unlock()
         if delay > 0 { Thread.sleep(forTimeInterval: delay) }
+        return result
+    }
+}
+
+/// 呼ばれるたびに次の結果を返す取得器。「取得のたびに作業ツリーが変わっている」状況を作る。
+/// 用意した結果を使い切ったら最後の値を返し続ける。
+///
+/// 合流の検証では、これを使うと**待ち時間に頼らずに**合流の成否が読める。合流していれば
+/// 相乗りした全員が同じ値を受け取り、合流に失敗していれば受け取る値が食い違う。
+final class SequenceDiffReader: GitDiffReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var results: [GitFileDiff?]
+    private var index = 0
+
+    /// 呼び出し回数。用意した結果を使い切っても増え続けるため、
+    /// 「取り直したか」を結果の中身と独立に測れる。
+    var calls: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return index
+    }
+
+    init(results: [GitFileDiff?]) {
+        self.results = results
+    }
+
+    func diff(forFileAt _: URL, in _: URL) -> GitFileDiff? {
+        lock.lock()
+        defer { lock.unlock() }
+        let result = results[min(index, results.count - 1)]
+        index += 1
         return result
     }
 }

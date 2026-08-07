@@ -12,10 +12,12 @@ extension ViewerWindowController {
     /// (遅れて着地した結果が現在の表示を壊すのを防ぐ)。切替時に古い差分を捨てる側は
     /// `ViewerStore.openFile` が担う(着地時の確認だけでは切替直後の残留を防げない)。
     ///
-    /// リポジトリルートの解決も差分取得と同じ detached タスクの中で行う。キャッシュに
-    /// 無いディレクトリでは `git rev-parse` のサブプロセスが起きるため、メインアクター上で
-    /// 同期に呼ぶとコンテンツ再読込のたびに UI が止まりうる(遅いボリュームでは
-    /// GitCommandRunner のタイムアウト分まで)。
+    /// リポジトリルートの解決はクロージャで `GitDiffLoader` へ渡し、差分取得と同じ
+    /// detached タスクの中で行わせる。キャッシュに無いディレクトリでは `git rev-parse` の
+    /// サブプロセスが起きるため、メインアクター上で同期に呼ぶとコンテンツ再読込のたびに
+    /// UI が止まりうる(遅いボリュームでは GitCommandRunner のタイムアウト分まで)。
+    /// ここで解決を待ってからローダーを呼ぶ形へ戻すと、登録が契機のターンから外れて
+    /// 兄弟要求が合流できなくなる(TASK-346)。
     /// 差分を出せない種別(画像・PDF・文書を出していない状態)では git を起こさない。
     /// 表示側(ViewerContentView)が捨てるだけでは、契機の数だけ subprocess が走る。
     func refreshDiff() {
@@ -26,20 +28,13 @@ extension ViewerWindowController {
         let url = fileURL
         let directory = url.deletingLastPathComponent()
         let index = gitFileIndex
-        // 要求の順番は契機のここで取る。ルート解決の await より後(取得の直前)に取ると、
-        // 同じファイル変更イベントから出た他ウィンドウの要求が「先行取得の開始より後」と
-        // 判定されて合流できず、窓の数だけ git が起動する(TASK-325)。
-        let requestTicket = loader.takeRequestTicket()
+        // 取得の登録は契機のここで**同期に**行う。await を挟んだ後に登録すると、同じ
+        // ファイル変更イベントから出た他ウィンドウの要求が別のターンへ散り、合流できずに
+        // 窓の数だけ git が起動する(TASK-325 / TASK-346)。ルート解決はローダーが
+        // 取得タスクの中(メインアクターの外)で行う。
+        let fetch = loader.diff(forFileAt: url) { index.repositoryRoot(forDirectoryAt: directory) }
         Task { @MainActor [weak self] in
-            let root = await Task.detached(priority: .utility) {
-                index.repositoryRoot(forDirectoryAt: directory)
-            }.value
-            guard let root else {
-                guard let self, fileURL == url else { return }
-                store.diffText = nil
-                return
-            }
-            let result = await loader.diff(forFileAt: url, in: root, requestedAt: requestTicket)
+            let result = await fetch.value
             // 取得中に OFF へ切り替わっていたら書き戻さない。表示は ViewerContentView の
             // ゲートで隠れるが、store.diffText に古い本文が残ると次に ON にした瞬間だけ
             // 取り直し前の差分が見える。
