@@ -51,4 +51,44 @@ struct ViewerWindowManagerTabTests {
         #expect(secondWindow?.tabGroup?.windows.contains(where: { $0 === firstWindow }) != true)
         fixture.closeAll()
     }
+
+    @Test("既に開いているファイルでも newWindow なら新しいウィンドウを開く")
+    func newWindowOpensDuplicateForAlreadyOpenFile() {
+        let file = URL(fileURLWithPath: "/mock/only.md")
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "ViewerWindowManagerTabTests")
+
+        fixture.manager.openViewer(for: file)
+        let firstWindow = fixture.manager.window(forPath: file.normalizedPathKey)
+        fixture.manager.openViewer(for: file, disposition: .newWindow, relativeTo: firstWindow)
+
+        #expect(fixture.manager.controllers[file.normalizedPathKey]?.count == 2)
+        fixture.closeAll()
+    }
+
+    @Test("既に開いているファイルでも newTab なら起点のタブグループへ新しいタブを開く")
+    func newTabOpensDuplicateForAlreadyOpenFile() {
+        let file = URL(fileURLWithPath: "/mock/only.md")
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "ViewerWindowManagerTabTests")
+
+        fixture.manager.openViewer(for: file)
+        let firstWindow = fixture.manager.window(forPath: file.normalizedPathKey)
+        fixture.manager.openViewer(for: file, disposition: .newTab, relativeTo: firstWindow)
+
+        let opened = fixture.manager.controllers[file.normalizedPathKey] ?? []
+        #expect(opened.count == 2)
+        #expect(opened.last?.window?.tabGroup === firstWindow?.tabGroup)
+        fixture.closeAll()
+    }
+
+    @Test("Finder/CLI 由来の再オープン(currentTab)は重複ウィンドウを作らない")
+    func currentTabReopenReusesExistingWindow() {
+        let file = URL(fileURLWithPath: "/mock/only.md")
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "ViewerWindowManagerTabTests")
+
+        fixture.manager.openViewer(for: file)
+        fixture.manager.openViewer(for: file)
+
+        #expect(fixture.manager.controllers[file.normalizedPathKey]?.count == 1)
+        fixture.closeAll()
+    }
 }
