@@ -30,15 +30,44 @@ struct WaitingTests {
             finished.set(true)
         }
         // 待機が始まっている(= action が動いている)ことを確かめてから止める。
-        await waitUntil { actionCount.get() > 0 }
+        await waitForMainActorDelivery { actionCount.get() > 0 }
 
         task.cancel()
 
-        // 修正前はここが成立せず、キャンセル後も action が回り続ける。
-        #expect(await waitUntil(timeout: .seconds(5)) { finished.get() })
+        // 修正前はここで戻ってこず、キャンセル後も action が回り続ける。
+        // 壁時計予算のポーリングで待たない(理由は下の注記)。上限は `.timeLimit` が担う。
+        await task.value
+        #expect(finished.get())
         let afterReturn = actionCount.get()
         try? await Task.sleep(for: .milliseconds(200))
         #expect(actionCount.get() == afterReturn)
+    }
+
+    /// `@MainActor` 版も同じ性質を持つ。こちらも壁時計予算を持たないため、キャンセルを
+    /// 見なければ `.timeLimit` の打ち切り後もメインアクター上で回り続ける(TASK-354)。
+    ///
+    /// 「戻ってきたこと」の確認に壁時計予算のポーリングを使わないこと。full suite では
+    /// 待機タスクがメインアクターの順番待ちに積まれるため、予算は操作にかかった時間では
+    /// なく順番待ちの時間を測ることになり、正しく戻ってくる実装でも落ちる(実測: 予算 5 秒の
+    /// `waitUntil` で書いたところ TSan 付き全体実行 10 回中 1 回落ちた)。タスクを直接
+    /// `await` すれば混雑は遅延になるだけで、戻らない回帰はスイートの `.timeLimit` が捕まえる。
+    @Test("MainActor 版の予算なし待機もキャンセルで抜ける", testTimeLimit())
+    @MainActor
+    func waitForDeliveryOnMainActorReturnsOnCancellation() async {
+        let finished = LockedBox(false)
+        let stopSpinning = LockedBox(false)
+        defer { stopSpinning.set(true) }
+        let task = Task { @MainActor in
+            await waitForDeliveryOnMainActor { stopSpinning.get() }
+            finished.set(true)
+        }
+        // 待機が始まるのを待ってから止める(即キャンセルだと開始前に抜けうる)。
+        try? await Task.sleep(for: .milliseconds(50))
+
+        task.cancel()
+
+        await task.value
+        #expect(finished.get())
     }
 
     /// 期限付きの待機もキャンセルで抜ける(共通ループを通るため同じ性質を持つ)。
@@ -60,6 +89,7 @@ struct WaitingTests {
 
         task.cancel()
 
-        #expect(await waitUntil(timeout: .seconds(5)) { finished.get() })
+        await task.value
+        #expect(finished.get())
     }
 }

@@ -7,7 +7,12 @@ import Testing
 
 /// ウィンドウ生成経路(ViewerWindowManager)が差分まわりの共有インスタンスを配線しているか、
 /// および窓をまたぐ挙動を確かめる。コントローラ単体テストでは捕まえられない層。
-@Suite
+///
+/// 差分の着地待ちは壁時計予算を持たない `waitForDeliveryOnMainActor` で行い、上限は
+/// スイートの `testTimeLimit()` が担う。予算付きのポーリングに戻すと、full suite では
+/// 予算が「操作にかかった時間」ではなく「順番待ちの時間」を測ることになり、実行全体が
+/// 長引いただけで落ちる(TASK-354。TSan 付き CI で 3 件が同時に予算切れした)。
+@Suite(testTimeLimit())
 @MainActor
 struct ViewerWindowManagerDiffTests {
     private let file = URL(fileURLWithPath: "/mock/note.swift")
@@ -54,8 +59,8 @@ struct ViewerWindowManagerDiffTests {
         controllers[0].toggleSourceDiff(nil)
 
         #expect(fixture.diffDisplayPreference.isEnabled)
-        // 2 窓ぶんの取得が detached の utility タスクを経由するため長めに待つ。
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+        // 2 窓ぶんの取得が detached のタスクを経由するため、着地するまで待つ。
+        await waitForDeliveryOnMainActor {
             controllers.allSatisfy { $0.store.diffText == "DIFF" }
         }
     }
@@ -135,7 +140,7 @@ struct ViewerWindowManagerDiffTests {
         }
         #expect(controllers.allSatisfy { $0.fileURL == shared })
         // ウィンドウ生成・切替そのものも差分を取りに行くため、本文が入るまで待つ。
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+        await waitForDeliveryOnMainActor {
             controllers.allSatisfy { $0.store.diffText != nil }
         }
         let before = controllers.map(\.store.diffText)
@@ -147,7 +152,7 @@ struct ViewerWindowManagerDiffTests {
 
         // まず両窓が取り直しの結果を受け取るまで待つ。合流の成否に関わらずここは満たされる
         // (合流しなければ別々の結果を、合流すれば同じ結果を受け取る)。
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+        await waitForDeliveryOnMainActor {
             zip(before, controllers).allSatisfy { $0 != $1.store.diffText }
         }
 
@@ -184,7 +189,7 @@ struct ViewerWindowManagerDiffTests {
         controllers[0].close()
         survivor.refreshDiff()
 
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+        await waitForDeliveryOnMainActor {
             survivor.store.diffText == "DIFF"
         }
     }

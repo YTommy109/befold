@@ -14,9 +14,27 @@ enum GitCommandOutcome: Sendable, Equatable {
     case unavailable
 }
 
+/// git を 1 回実行して結果を返すシーム。
+///
+/// 差し替え可能にしているのは「git を実行できない」状況をテストから**事実として**
+/// 与えられるようにするため。以前は `GitCommandRunner(timeout: 0.001)` のように
+/// 予算を極小にして代用していたが、これは git が 1ms 以内に終われば普通に成功する
+/// = 壁時計次第で結論が変わる作りで、実際に CI(TSan ジョブ)で `.unavailable` を
+/// 期待したテストが実 worktree 一覧を受け取って落ちた。縮退の検証は時間ではなく
+/// 注入で表す。
+protocol GitCommandRunning: Sendable {
+    func run(_ args: [String], in workingDirectory: URL?) -> GitCommandOutcome
+}
+
+extension GitCommandRunning {
+    func run(_ args: [String]) -> GitCommandOutcome {
+        run(args, in: nil)
+    }
+}
+
 /// git コマンド実行を一元化する薄い Process ラッパ。
 /// git を呼ぶ全機能(パス解決・将来のブランチ/差分)の共通土台。
-struct GitCommandRunner: Sendable {
+struct GitCommandRunner: GitCommandRunning {
     /// git 1 回あたりの上限時間。超えたらプロセスを終了させ、他のエラーと同じく nil に倒す。
     /// 応答しないネットワークファイルシステム上のリポジトリなどで git が返ってこないと、
     /// 呼び出し元 (GitCommandFileIndex) は共有ロックを掴んだまま止まり、

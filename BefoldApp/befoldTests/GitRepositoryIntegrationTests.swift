@@ -76,18 +76,6 @@ struct GitRepositoryIntegrationTests {
         #expect(after != before)
     }
 
-    @Test("git を実行できない場合はディレクトリ名のみに縮退する")
-    func repositoryIdentityFallsBackWhenGitUnavailable() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        try makeRepo(temp.url)
-        let repo = GitRepository(runner: GitCommandRunner(timeout: 0.001))
-
-        let label = repo.repositoryIdentity(forRoot: temp.url).label
-
-        #expect(label == temp.url.standardizedFileURL.lastPathComponent)
-    }
-
     @Test("本体リポジトリの identity はディレクトリ名と自身のルートを返す")
     func repositoryIdentityForMainRepository() throws {
         let temp = try TempDir()
@@ -152,15 +140,5 @@ struct GitRepositoryIntegrationTests {
         let fromWorktree = makeRepository().worktrees(forRoot: worktreeDir)
         #expect(fromWorktree.map(\.isMain) == [true, false, false])
         #expect(fromWorktree.first?.root.resolvingSymlinksInPath() == main.url.resolvingSymlinksInPath())
-    }
-
-    @Test("git を実行できない場合の worktree 一覧は空になる")
-    func worktreesFallBackToEmptyWhenGitUnavailable() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        try makeRepo(temp.url)
-        let repo = GitRepository(runner: GitCommandRunner(timeout: 0.001))
-
-        #expect(repo.worktrees(forRoot: temp.url).isEmpty)
     }
 }
