@@ -57,6 +57,13 @@ struct ViewerWindowControllerGitStatusTests {
         // ViewerStore がファイル変更を検知して再読込したときに呼ばれるクロージャ。
         // ここを直接叩くことで、実 FileWatcher とデバウンスを待たずに配線だけを確かめる。
         controller.store.onContentReloaded?()
+        // 取り直しが観測できるまで待つ。`pendingGitStatusTask` を await するだけでは、
+        // 再読込の契機がまだタスクを差し込む前だと「今は無い(または前回の完了済み)」を
+        // 待って即座に戻り、取り直しが起きる前に測ってしまう。負荷が高いほどこの窓が
+        // 広がり、TSan 付きの CI で実際に落ちた(TASK-351)。
+        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
+            reader.callCount > callsBeforeReload
+        }
         await controller.sidebar.pendingGitStatusTask?.value
 
         #expect(reader.callCount > callsBeforeReload)
