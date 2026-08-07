@@ -41,10 +41,18 @@ protocol GitStatusReading: Sendable {
 struct GitStatusReader: GitStatusReading {
     private let runner: GitCommandRunner
     private let repository: any GitRepositoryReading
+    private let comparisonBase: any GitComparisonBaseResolving
 
-    init(runner: GitCommandRunner = GitCommandRunner(), repository: any GitRepositoryReading = GitRepository()) {
+    init(
+        runner: GitCommandRunner = GitCommandRunner(),
+        repository: any GitRepositoryReading = GitRepository(),
+        comparisonBase: (any GitComparisonBaseResolving)? = nil
+    ) {
         self.runner = runner
         self.repository = repository
+        // 既定は runner を共有する。別の runner を渡された経路(テスト・タイムアウト調整)で
+        // 基準の解決だけが本番の runner を使うと、そこだけ別のタイムアウトで動く。
+        self.comparisonBase = comparisonBase ?? GitComparisonBaseResolver(runner: runner)
     }
 
     func indexFingerprint(forRepositoryAt root: URL) -> Date? {
@@ -91,44 +99,15 @@ struct GitStatusReader: GitStatusReading {
 
     /// 現在のブランチが base ブランチから変更したコミット済みファイル(ルート相対パス → 変更種別)。
     /// デフォルトブランチを特定できない場合は空を返す(この機能だけを諦める)。
+    /// 基準の解決は `GitComparisonBaseResolving` に集約してある。差分ビューアと
+    /// 同じ起点を使うことが、バッジと差分の食い違いを防ぐ唯一の担保(TASK-352)。
     private func branchChanges(forRepositoryAt root: URL) -> [String: GitFileStatus.Change] {
-        guard let defaultBranch = defaultBranch(forRepositoryAt: root),
-              case let .output(baseData) = runner.run(["merge-base", "HEAD", defaultBranch], in: root),
-              let base = String(bytes: baseData, encoding: .utf8)?
-              .trimmingCharacters(in: .whitespacesAndNewlines),
-              !base.isEmpty,
+        guard let base = comparisonBase.comparisonBase(forRepositoryAt: root),
               case let .output(diffData) = runner.run(
                   ["diff", "--name-status", "-z", base, "HEAD"], in: root
               )
         else { return [:] }
         return Self.parseNameStatus(diffData)
-    }
-
-    /// base として使うデフォルトブランチ名。
-    ///
-    /// まず `origin/HEAD` の指す先(クローン時に決まる本来のデフォルト)を見る。
-    /// 無い場合(origin 無し・`--single-branch` クローンなど)はローカルの慣例名を試す。
-    /// どれも無ければ nil = 「base が分からない」。
-    private func defaultBranch(forRepositoryAt root: URL) -> String? {
-        if let name = originHeadBranch(forRepositoryAt: root) { return name }
-        return ["main", "master"].first { name in
-            if case .output = runner.run(["rev-parse", "--verify", "--quiet", name], in: root) {
-                return true
-            }
-            return false
-        }
-    }
-
-    /// `origin/HEAD` が指すブランチ名(例: `origin/main`)。解決できなければ nil。
-    private func originHeadBranch(forRepositoryAt root: URL) -> String? {
-        guard case let .output(data) = runner.run(
-            ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], in: root
-        ),
-            let name = String(bytes: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !name.isEmpty
-        else { return nil }
-        return name
     }
 
     /// `git diff --name-status -z` の出力から、変更後のパスと変更種別を取り出す。

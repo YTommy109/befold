@@ -160,6 +160,103 @@ struct GitDiffReaderIntegrationTests {
     }
 }
 
+/// 比較の起点がサイドバーのバッジと揃っていることを実 git で確かめる。
+///
+/// バッジ(`GitStatusReader.branchChanges`)は `merge-base HEAD <defaultBranch>` から
+/// HEAD までを見て「ブランチで変えたもの」を出す。差分ビューアが HEAD 基準のままだと、
+/// ブランチでコミット済み・作業ツリーがきれいなファイルで「バッジは M なのに差分は空」に
+/// なる(TASK-352)。ここが落ちたら基準がずれている。
+struct GitDiffComparisonBaseIntegrationTests {
+    private func makeReader() -> GitDiffReader {
+        GitDiffReader(runner: GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10)))
+    }
+
+    private func makeStatusReader() -> GitStatusReader {
+        let runner = GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10))
+        return GitStatusReader(runner: runner, repository: GitRepository(runner: runner))
+    }
+
+    /// AC#1: ブランチでコミット済み・作業ツリーがきれいでも差分が出る。
+    @Test("ブランチでコミットした変更が、作業ツリーがきれいでも差分に出る")
+    func showsBranchCommittedChangeWithCleanWorktree() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "a.swift", contents: "let a = 1\n", in: temp.url)
+        GitTestRepo.createBranch(named: "feature", in: temp.url)
+        try GitTestRepo.commitChange(to: "a.swift", contents: "let a = 2\n", in: temp.url)
+
+        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+
+        guard case let .diff(text) = result else {
+            Issue.record("差分が返らなかった: \(String(describing: result))")
+            return
+        }
+        #expect(text.contains("-let a = 1"))
+        #expect(text.contains("+let a = 2"))
+    }
+
+    /// AC#5: バッジと差分の一致。バッジが「ブランチで変えた」と言うファイルには
+    /// 必ず差分がある。片方だけ基準を変えるとここが落ちる。
+    @Test("バッジがブランチ変更を示すファイルには差分がある")
+    func badgeAndDiffAgreeOnBranchChange() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "a.swift", contents: "let a = 1\n", in: temp.url)
+        GitTestRepo.createBranch(named: "feature", in: temp.url)
+        try GitTestRepo.commitChange(to: "a.swift", contents: "let a = 2\n", in: temp.url)
+        let file = temp.url.appendingPathComponent("a.swift")
+
+        let snapshot = try #require(makeStatusReader().status(forRepositoryAt: temp.url))
+        let status = try #require(snapshot.statuses[file.normalizedPathKey])
+        #expect(status.branchChange != nil)
+
+        let result = makeReader().diff(forFileAt: file, in: temp.url)
+        if case .diff = result {} else {
+            Issue.record("バッジは変更ありなのに差分が空: \(String(describing: result))")
+        }
+    }
+
+    /// AC#2: デフォルトブランチの上では merge-base が HEAD 自身になるため、
+    /// コミット済みの変更は差分に出ない(従来どおり「未コミットの変更」を見る)。
+    @Test("デフォルトブランチ上ではコミット済みの変更は差分に出ない")
+    func doesNotShowCommittedChangeOnDefaultBranch() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "a.swift", contents: "let a = 1\n", in: temp.url)
+        try GitTestRepo.commitChange(to: "a.swift", contents: "let a = 2\n", in: temp.url)
+
+        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+
+        #expect(result == .noChanges)
+    }
+
+    /// AC#3: 起点を特定できないときは HEAD へ落とす。差分が空だったから落とす、ではない。
+    /// デフォルトブランチ名でも origin/HEAD でもないブランチしか無いリポジトリで測る。
+    @Test("デフォルトブランチを特定できないときは HEAD 基準へ落ちる")
+    func fallsBackToHeadWhenDefaultBranchIsUnknown() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "a.swift", contents: "let a = 1\n", in: temp.url)
+        // main / master / origin/HEAD のいずれでもない名前だけにする。
+        GitTestRepo.run(["branch", "-m", "trunk"], in: temp.url)
+        try GitTestRepo.commitChange(to: "a.swift", contents: "let a = 2\n", in: temp.url)
+
+        let file = temp.url.appendingPathComponent("a.swift")
+        // HEAD 基準なので、コミット済みの変更は出ない。
+        #expect(makeReader().diff(forFileAt: file, in: temp.url) == .noChanges)
+
+        // 未コミットの変更は HEAD 基準でも出る(機能全体が死んでいないことの確認)。
+        try GitTestRepo.modifyWithoutStaging("a.swift", contents: "let a = 3\n", in: temp.url)
+        if case .diff = makeReader().diff(forFileAt: file, in: temp.url) {} else {
+            Issue.record("HEAD 基準の差分すら出なかった")
+        }
+    }
+}
+
 /// 本文からのバイナリ判定だけは、実 git を起こさず書式で固定する。
 struct GitDiffBinaryDetectionTests {
     @Test("Binary files 行を含む差分をバイナリと判定する")

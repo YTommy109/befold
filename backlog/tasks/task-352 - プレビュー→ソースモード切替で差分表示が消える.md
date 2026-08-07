@@ -1,10 +1,11 @@
 ---
 id: TASK-352
-title: プレビュー→ソースモード切替で差分表示が消える
-status: To Do
-assignee: []
+title: サイドバーのバッジと差分ビューアが別の基準で比較している
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-08-07 04:49'
-updated_date: '2026-08-07 04:50'
+updated_date: '2026-08-07 05:37'
 labels:
   - bug
   - diff
@@ -18,64 +19,83 @@ ordinal: 612000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 ## 症状（ユーザー報告）
 
-markdown ファイルをプレビューモードで開き、差分表示(View > 差分を表示)をONにした状態で
-ソースモードへ切り替えると、差分が表示されなくなる。build 1.12.2-dev.3 (build 1282) で発生。
+worktree 内の markdown ファイルで、サイドバーに M バッジが出ているのに、ソース表示へ切り替えても差分表示にならない。「差分を左右に並べる」を実行してもレイアウトが変わらない。build 1.12.2-dev.3 (build 1282)。再起動しても M は出たまま。
 
-## 調査結果（コード参照、静的読解のみ）
+対象ファイルは**ブランチでコミット済み**で、作業ツリーはきれい（`git status --porcelain` と `git diff HEAD --stat` がどちらも空。ユーザー実測）。
 
-同じ症状のバグは TASK-337 で既に修正されたはずになっている。
+## 原因（コード参照で確定）
 
-- `BefoldApp/befold/App/ViewerWindowController.swift:660-679` の `setSourceMode` は、
-  `didChange` のとき `applySourceMode(newValue)` で `store.isSourceMode` を同期更新した後、
-  `refreshDiff()` を呼んでいる（TASK-337 のコメントあり）。
-- `refreshDiff()`（`ViewerWindowController+Diff.swift:23-44`）は `capabilities.canToggleDiff`
-  を確認してから非同期で `git diff` を取得し、`store.diffText` に反映する。
-- `ViewerContentView.diffState`（`ViewerContentView.swift:29-33`）は
-  `diffDisplayPreference.isEnabled && store.diffText != nil` のときのみ差分状態を返す。
+**バッジと差分ビューアが別の基準で比較している。**
 
-静的に読む限り経路は正しく配線されており、TASK-337 の修正が既に main（HEAD 9ccc8861 相当、
-build 1282 に含まれる）に入っている。にもかかわらずユーザーは症状を再現しているため、
-以下のいずれかを疑う必要がある。
+- サイドバーのバッジ（`GitStatusReader.swift:95-104`）は、ワーキングツリーの状態に加えて `branchChange` を持つ。`git merge-base HEAD <defaultBranch>` で base を求め、`git diff --name-status -z <base> HEAD` を読む。つまり**このブランチでコミットされた変更**を M / A として出す
+- 差分ビューア（`GitDiffReader.swift:13,45`）は `git diff HEAD -- <path>`。つまり**作業ツリー vs HEAD**。ブランチでコミット済み・作業ツリーがきれいなファイルでは空になる
 
-- TASK-346/TASK-349（差分取得の合流ウィンドウ変更、2026-08-07 対処）に起因する新しい
-  タイミング回帰（`refreshDiff` の非同期取得が別の契機と競合し、古い結果で上書きされる等）
-- JS 側（`viewer-main.js` の `_renderDiffHtmlIfAvailable` / `render()` の再描画契機）が
-  `store.diffText` の遅延到着を正しく拾えていない
-- 特定のファイル種別・リポジトリ状態（未追跡ファイル・.git 未検出など）でのみ起きる条件
+どちらも自分の基準では正しく、基準が揃っていないだけ。バッジが「変更あり」と言っているファイルに差分が出ないのはこの食い違いによる。
 
-## 次のアクション
+「markdown 限定かも」に見えたのは、その markdown がブランチでコミット済みで、比較対象の .swift には未コミットの編集があったためと思われる。
 
-- 実機での再現手順を確定する（プレビューで差分ONにしてからソースへ切替、の具体的な
-  タイミングと対象ファイルの git 状態）
-- 再現できたら、`refreshDiff` の呼び出しと `store.diffText` 反映のタイミングをログで実測する
-  （固定間隔の推測ではなく実測。CLAUDE.md「固定間隔の性能計測は結論が逆転する」参照）
-- TASK-346/349 で変更された合流タイミングとの関連を優先して疑う（直近の変更のため）
+## 切り分け済み（実測、ヘッドレス）
 
-## 前提（未確認）
+Swift の配線とモード切替は正常。markdown をレンダリング表示から差分 ON でソース表示へ切り替える経路を再現し、`renderModeCanToggle=false sourceModeCanToggle=true fetches=1 diffText=set isDiffShown=true` を確認した。TASK-337 の修正は効いている。JS 側（`viewer-main.js` の `render` / `_renderSource` / `_renderDiffHtmlIfAvailable` / `_sourceLanguage`）も markdown を除外していない。
 
-- ユーザーが「差分表示トグルは有効化された状態だった」ことは確認済み（本人回答）
-- 「最初からソースモードで開いた場合」と「プレビューから切り替えた場合」の切り分けは未確認
-- 差分パネル自体が非表示になるのか、パネルは出るが空になるのかは未確認
+## 方針（ユーザー承認済み）
+
+差分ビューアの基準をバッジと揃える。`git diff <merge-base HEAD defaultBranch> -- <path>` にする。
+
+- フィーチャーブランチでは、ブランチでコミットした変更＋ステージ済み＋未ステージが 1 つの差分として出る。バッジが出ているファイルには必ず差分がある、という一貫性が生まれる
+- main 上では `merge-base(HEAD, main) == HEAD` なので現在の挙動と同じ
+
+検討が要る点:
+
+1. コスト: 取得のたびに `merge-base` と `origin/HEAD` の解決が増える。`GitStatusReader` は毎回引いているので、キャッシュの置き場を揃えるか判断する
+2. 縮退: `defaultBranch` を解決できない場合（detached HEAD、`origin/HEAD` 未設定、リモート無し）。「解決できたか」という事実で判定し、できなければ `HEAD` へ落とす。空になったから落とす、にはしない
+3. 基準の集約: 今回の食い違いは、基準が `GitStatusReader` と `GitDiffReader` に二重に実装されていることから来ている。同じ穴を塞ぐには基準の解決を 1 箇所へ寄せる
+
+「未コミットの変更」と「ブランチの変更」を切り替える表示設定は本タスクに含めない（別タスクへ）。
+
+## スコープ
+
+`FeatureGate.isSourceDiffEnabled` / `isSidebarGitStatusEnabled` の配下。コミット件名には `(gate)` を付けること。
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 実機で再現手順が確定している(対象ファイル・git状態・操作順序)
-- [ ] #2 refreshDiff呼び出しとstore.diffText反映のタイミングを実測したログがある
-- [ ] #3 根本原因がTASK-346/349由来のタイミング回帰かJS描画側の問題か切り分けられている
-- [ ] #4 原因箇所に対する修正とテストが追加されている
+- [x] #1 ブランチでコミット済み・作業ツリーがきれいなファイルでも、ソース表示で差分が出る
+- [x] #2 main 上（merge-base == HEAD）では従来と同じ差分が出る
+- [x] #3 defaultBranch を解決できない場合は HEAD 基準へ落ちる。判定は「解決できたか」という事実で行い、差分が空かどうかでは判定しない
+- [x] #4 比較基準の解決が 1 箇所に集約され、GitStatusReader と GitDiffReader が同じ基準を使っている
+- [x] #5 基準がずれたら落ちるテストがある
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 基準の解決を `GitComparisonBaseResolving` / `GitComparisonBaseResolver` として切り出し、`GitStatusReader` の private 実装（defaultBranch / originHeadBranch / merge-base）をそこへ移す。
+2. `GitStatusReader.branchChanges` を解決器経由にする。base が nil なら従来どおり空（ブランチ差分を諦める）。
+3. `GitDiffReader` を解決器経由にする。base が nil のときだけ HEAD へ落とす。
+4. 実 git の結合テストで、ブランチのコミット済み変更・デフォルトブランチ上・base 不明時の 3 ケースと、バッジと差分の一致を固定する。
+5. 追加コストを実測する。xcodegen generate（新規ファイルのため必須）。swiftlint のベースライン差分ゼロを確認する。
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-追加報告: 「差分を左右に並べる」(toggleDiffLayout) を実行してもレイアウトが変わらず
-インライン(シングル)のまま。toggleDiffLayout は capabilities.canToggleDiff を通過すれば
-diffDisplayPreference.layout を反転するだけ(ViewerWindowController+Diff.swift:66-68)なので、
-以下のいずれかが疑われる。
-- そもそも diffState.text が nil で表示するものが無いため、レイアウトを変えても見た目が
-  変わらない(本タスクの主症状と同一原因の可能性が高い)
-- layout の反転自体は効いているが、JS側の再描画契機(_renderDiffHtmlIfAvailable /
-  renderSideBySideDiffHtml)がレイアウト変更だけでは再描画されない
-実機再現の際はこの2点目もあわせて確認する。
+2026-08-07 実装:
+
+- `GitComparisonBase.swift` を新設し、`defaultBranch` / `originHeadBranch` / `merge-base` の解決を `GitStatusReader` の private から移した。両 reader が同じ解決器を使う（既定は渡された runner を共有するので、テストで縮めたタイムアウトが基準の解決にも効く）。
+- `GitDiffReader` は `git diff <base> -- <path>`。base が nil のときだけ `HEAD` へ落とす（差分が空だったから落とす、ではない）。
+- merge-base はコミット・チェックアウトで動くため**キャッシュしない**。保持すると `GitStatusStore` が fingerprint で避けている陳腐化を持ち込む。doc コメントに明記した。
+
+検証（すべて実測）:
+- 新規テスト 4 件が通る。`swift test` 全体 1186 件通過（20.5 秒）。
+- 検知能力: 基準を `HEAD` へ戻すと「ブランチでコミットした変更が…差分に出る」と「バッジがブランチ変更を示すファイルには差分がある」の 2 件が落ちる。縮退の 2 件（デフォルトブランチ上・base 不明時）は戻しても通るのが正しい。
+- swiftlint: origin/main とのベースライン差分ゼロ（両者 78 件）。
+- xcodegen generate 実行済み（新規ファイルのため）。
+
+コスト実測（このリポジトリ、20 回平均）:
+- symbolic-ref: 7.7 ms/回
+- merge-base: 9.6 ms/回
+- diff 本体: 11.5 ms/回
+
+差分取得 1 回あたり 11.5 ms → 約 30 ms（2.6 倍）。メインアクターの外で走るため UI は止まらない。キャッシュは入れていない（simplify 優先）。効かせるなら `defaultBranch`（symbolic-ref 側 7.7 ms）が候補で、こちらは安定した値なのでキャッシュしても陳腐化しない。実害が出たら検討する。
 <!-- SECTION:NOTES:END -->

@@ -10,7 +10,8 @@ protocol GitDiffReading: Sendable {
     func diff(forFileAt url: URL, in root: URL) -> GitFileDiff?
 }
 
-/// `git diff HEAD -- <path>` で unified diff を読む本番実装。
+/// `git diff <比較の起点> -- <path>` で unified diff を読む本番実装。
+/// 起点の決め方は `GitComparisonBaseResolving` が持つ(サイドバーのバッジと同じもの)。
 struct GitDiffReader: GitDiffReading {
     /// 描画に載せる差分の上限バイト数。
     ///
@@ -24,17 +25,27 @@ struct GitDiffReader: GitDiffReading {
     static let wholeFileContextLines = 1_000_000
 
     private let runner: GitCommandRunner
+    private let comparisonBase: any GitComparisonBaseResolving
 
-    init(runner: GitCommandRunner = GitCommandRunner()) {
+    init(
+        runner: GitCommandRunner = GitCommandRunner(),
+        comparisonBase: (any GitComparisonBaseResolving)? = nil
+    ) {
         self.runner = runner
+        // 既定は runner を共有する。基準の解決だけ別の runner になると、
+        // テストで縮めたタイムアウトがそこにだけ効かない。
+        self.comparisonBase = comparisonBase ?? GitComparisonBaseResolver(runner: runner)
     }
 
     func diff(forFileAt url: URL, in root: URL) -> GitFileDiff? {
-        // 比較対象を index ではなく HEAD にしている。ビューアが表示しているのは作業ツリーの
-        // 内容で、ユーザーが見たいのは「最後のコミットから何を変えたか」。index 比較だと
-        // ステージ済みの変更が差分から消え、サイドバーのバッジが変更ありを示しているのに
-        // 差分だけ空、という食い違いになる。
+        // 比較の起点はサイドバーのバッジと同じものを使う。ここを独自に決めると
+        // 「バッジは変更ありなのに差分は空」が生まれる。過去 2 度それが起きている
+        // (index 比較でステージ済みが消えた件と、HEAD 比較でブランチのコミット済み
+        // 変更が消えた TASK-352)。
         //
+        // 起点が分からないとき(デフォルトブランチを特定できない・リモートが無い・
+        // detached HEAD)だけ HEAD へ落とす。差分が空だったから落とす、ではない。
+        let base = comparisonBase.comparisonBase(forRepositoryAt: root) ?? "HEAD"
         // `--no-optional-locks` は status と同じ理由で必須(index の refresh で `.git/index` の
         // mtime が動くと、それを監視している側と自己励振ループになる)。
         // 文脈行は全文を含む大きさにする。ビューアは「ファイルを読む」ための画面で、
@@ -43,7 +54,7 @@ struct GitDiffReader: GitDiffReading {
         // (結果としてハンクの区切りも出なくなる)。
         let arguments = [
             "--no-optional-locks", "diff", "--no-color", "--no-ext-diff",
-            "-U\(Self.wholeFileContextLines)", "HEAD",
+            "-U\(Self.wholeFileContextLines)", base,
             "--", url.path,
         ]
         switch runner.run(arguments, in: root) {
