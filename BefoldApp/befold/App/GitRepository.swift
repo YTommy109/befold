@@ -69,10 +69,10 @@ extension GitRepositoryReading {
 /// git コマンド + ファイル stat による GitRepositoryReading 実装。
 /// ブランチ/ワークツリー切替・差分など将来の git 機能の拡張点。
 struct GitRepository: GitRepositoryReading {
-    private let runner: GitCommandRunner
+    private let runner: any GitCommandRunning
     private let fileReader: FileReading
 
-    init(runner: GitCommandRunner = GitCommandRunner(), fileReader: FileReading = DefaultFileReader()) {
+    init(runner: any GitCommandRunning = GitCommandRunner(), fileReader: FileReading = DefaultFileReader()) {
         self.runner = runner
         self.fileReader = fileReader
     }
