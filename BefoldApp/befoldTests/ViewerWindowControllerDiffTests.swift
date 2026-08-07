@@ -278,10 +278,13 @@ struct ViewerWindowControllerDiffTests {
         controller.setSourceMode(true)
 
         #expect(controller.capabilities.canToggleDiff)
+        // 測るのは「取り直しが起きたか」。回数は固定しない。ソース表示への切替と
+        // git 状態の反映が別のターンに分かれると、それぞれが別の契機として取得を起こす
+        // （契機ごとに読み直すのは仕様。合流するのは同じ契機の兄弟要求だけ = TASK-346）。
+        // 回数で測ると、契機がどう重なったかで結論が変わる（CI で実際に落ちた = TASK-348）。
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            reader.callCount == 1
+            reader.callCount > 0
         }
-        #expect(reader.callCount == 1)
     }
 
     /// ルート解決は差分取得と同じく git のサブプロセスを起こしうるため、メインアクター上で
