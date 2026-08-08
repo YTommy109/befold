@@ -20,8 +20,11 @@ final class DisplayModeStore {
     private let isSourceDiffEnabled: Bool
 
     /// 表示モードを 1 値で持つ以前に使っていた「ソース表示 Bool」の保存キー。
-    /// 新キーが未設定のときだけ読み、`true` を `.source` として引き継ぐ。
+    /// 新キーが未設定のときだけ読み、`true` を `.source`（旧・差分 ON なら `.diff`）として引き継ぐ。
     private static let legacySourceModeKey = "ViewerSourceModes"
+    /// 差分の ON/OFF をアプリ全体で持っていた頃（`DiffDisplayPreference.isEnabled`）の保存キー。
+    /// 読み手はもう居ないので、移行で読んだあと必ず defaults から消す。
+    private static let legacyDiffEnabledKey = "SourceDiffEnabled"
     private static let key = "ViewerDisplayModes"
 
     /// - Parameter isSourceDiffEnabled: 差分表示のフィーチャーゲート。本番では
@@ -83,11 +86,17 @@ final class DisplayModeStore {
 
     /// 旧キーの「ソース表示 Bool」辞書を新キーの表示モード辞書へ 1 度だけ写す。
     /// 新キーが既にあれば何もしない（以後は新キーだけが真実の源になる）。
+    ///
+    /// 旧状態の「差分 ON」はアプリ全体の別キーに載っていたため、ソース表示だったファイルは
+    /// `.source` ではなく `.diff` として引き継ぐ（そうしないと更新後に差分が消えて見える）。
+    /// 旧キー自体は移行の有無にかかわらず消す。読み手が居ないまま残しても誤解の種にしかならない。
     private static func migrateLegacySourceModesIfNeeded(defaults: UserDefaults) {
+        defer { defaults.removeObject(forKey: legacyDiffEnabledKey) }
         guard defaults.dictionary(forKey: key) == nil,
               let legacy = defaults.dictionary(forKey: legacySourceModeKey) as? [String: Bool]
         else { return }
-        let migrated = legacy.mapValues { $0 ? ViewerDisplayMode.source.rawValue : ViewerDisplayMode.rendered.rawValue }
+        let sourceMode: ViewerDisplayMode = defaults.bool(forKey: legacyDiffEnabledKey) ? .diff : .source
+        let migrated = legacy.mapValues { $0 ? sourceMode.rawValue : ViewerDisplayMode.rendered.rawValue }
         defaults.set(migrated, forKey: key)
     }
 }

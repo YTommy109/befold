@@ -88,6 +88,37 @@ struct DisplayModeStoreTests {
         #expect(store.displayMode(for: csv) == .rendered)
     }
 
+    /// 旧状態の「差分 ON」はアプリ全体の別キーに載っていた。ソース表示だったファイルは
+    /// `.source` ではなく `.diff` として引き継がないと、更新後に差分が消えて見える。
+    @Test("旧アプリ全体の差分 ON はソース表示のファイルを差分として引き継ぐ", arguments: [true, false])
+    func migratesLegacyDiffEnabled(wasDiffEnabled: Bool) {
+        let defaults = makeIsolatedDefaults(prefix: "DisplayModeStore.legacyDiff.\(wasDiffEnabled)")
+        defaults.set(
+            [markdown.normalizedPathKey: true, csv.normalizedPathKey: false], forKey: "ViewerSourceModes"
+        )
+        defaults.set(wasDiffEnabled, forKey: "SourceDiffEnabled")
+
+        let store = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+
+        #expect(store.displayMode(for: markdown) == (wasDiffEnabled ? .diff : .source))
+        // 旧状態でレンダリング表示だったファイルは差分 ON でもレンダリング表示のまま。
+        #expect(store.displayMode(for: csv) == .rendered)
+    }
+
+    /// 読み手の居なくなった旧キーを残さない(移行が走らない場合も含む)。
+    @Test("移行後に旧の差分 ON キーが defaults から消える", arguments: [true, false])
+    func removesLegacyDiffEnabledKey(hasNewKey: Bool) {
+        let defaults = makeIsolatedDefaults(prefix: "DisplayModeStore.legacyDiffCleanup.\(hasNewKey)")
+        if hasNewKey {
+            DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true).setDisplayMode(.rendered, for: markdown)
+        }
+        defaults.set(true, forKey: "SourceDiffEnabled")
+
+        _ = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+
+        #expect(defaults.object(forKey: "SourceDiffEnabled") == nil)
+    }
+
     /// 新キーが既にあるなら旧キーは見ない(移行は 1 度きり)。
     @Test("新キーがあれば旧キーで上書きしない")
     func doesNotOverwriteExistingModes() {
