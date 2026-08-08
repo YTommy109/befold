@@ -80,6 +80,11 @@ final class ViewerWindowController: NSWindowController {
     private let webViewProxy = WebViewProxy()
     /// WebView 操作系メニューアクション(ズーム・印刷・検索・スクロール位置保存)の実処理。
     private var webViewCommands: WebViewCommandController!
+    /// cmd+U でソース系モードを離れた直前の「どのソース系モードだったか」と、その時のファイル。
+    /// レンダリング表示中しか値を持たない(ソース系モードへ入った時点で setDisplayMode が捨てる)。
+    /// 保存値からは復元できない: 離脱側の cmd+U が保存値を `.rendered` で上書きするため、
+    /// 戻る側が保存値を読むと必ず `.source` に落ちる(TASK-370)。
+    private var sourceToggleReturn: (pathKey: String, mode: ViewerDisplayMode)?
     /// 表示モードの唯一の真実の源は store。二重保持を避けるため委譲する。
     var displayMode: ViewerDisplayMode {
         store.displayMode
@@ -680,6 +685,9 @@ extension ViewerWindowController {
         // rendered キーへ退避したまま空の source キーから復元するので先頭へ飛び、
         // 意味の無い .source が永続化される(TASK-368)。
         guard newValue != effectiveDisplayMode else { return }
+        // ソース系モードへ入った時点で、cmd+U の戻り先の記憶は役目を終える。残しておくと
+        // 「diff → cmd+U → cmd+2(source) → cmd+U → cmd+U」で diff へ戻ってしまう。
+        if newValue.isSourceMode { sourceToggleReturn = nil }
         saveScrollPositionBeforeTransition()
         applyDisplayMode(newValue)
         perFileState.displayMode.setDisplayMode(displayMode, for: fileURL)
@@ -814,7 +822,23 @@ extension ViewerWindowController: NSWindowDelegate {
     /// View メニュー > ソース表示トグル(⌘U)。レンダリング表示とソース表示を往復する。
     /// ⌘1〜⌘3 の「指定」に対し、こちらは「往復」で動作が違うため両方を残している。
     @objc func toggleSourceView(_ sender: Any?) {
-        setDisplayMode(isSourceMode ? .rendered : .source)
+        guard isSourceMode else {
+            setDisplayMode(sourceToggleTarget)
+            return
+        }
+        // 離れる直前のソース系モードを覚えてからレンダリングへ移る。記憶と消費が
+        // この 1 メソッドに閉じるため、他の入口(⌘1〜⌘3・ツールバー)は関与しない。
+        sourceToggleReturn = (fileURL.normalizedPathKey, effectiveDisplayMode)
+        setDisplayMode(.rendered)
+    }
+
+    /// cmd+U でレンダリング表示から戻る先。直前に cmd+U で離れた同じファイルなら
+    /// そのモード(差分表示なら差分)、それ以外・選べなくなっている場合は `.source`。
+    private var sourceToggleTarget: ViewerDisplayMode {
+        guard let last = sourceToggleReturn, last.pathKey == fileURL.normalizedPathKey,
+              canSelect(last.mode)
+        else { return .source }
+        return last.mode
     }
 
     /// View メニュー > レンダリング / ソース / 差分(⌘1〜⌘3)。

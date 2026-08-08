@@ -159,4 +159,78 @@ struct ViewerWindowControllerSourceModeTests {
         #expect(controller.displayMode == .diff)
         #expect(displayModeStore.displayMode(for: code) == .diff)
     }
+
+    /// TASK-370: cmd+U は「往復」であって「.source の指定」ではない。離脱側の cmd+U が
+    /// 保存値を .rendered で上書きするため、戻り先を保存値から読むと必ず .source に落ち、
+    /// そのファイルの .diff が永久に失われる。戻り先の記憶が壊れたらここが落ちる。
+    @Test("差分表示中の cmd+U 往復で差分表示に戻り、保存値の .diff も残る")
+    func toggleSourceViewRoundTripPreservesDiffMode() throws {
+        try #require(FeatureGate.isSourceDiffEnabled)
+        let code = URL(fileURLWithPath: "/mock/sample.swift")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.roundTrip")
+        let displayModeStore = DisplayModeStore(defaults: defaults)
+        let controller = ViewerWindowControllerFixture(
+            file: code, contents: "let a = 1", defaults: defaults, displayModeStore: displayModeStore
+        ).controller
+        defer { controller.close() }
+
+        controller.setDisplayMode(.diff)
+        #expect(controller.displayMode == .diff)
+
+        controller.toggleSourceView(nil)
+        #expect(controller.displayMode == .rendered)
+
+        controller.toggleSourceView(nil)
+
+        #expect(controller.displayMode == .diff)
+        #expect(displayModeStore.displayMode(for: code) == .diff)
+    }
+
+    /// 戻り先の記憶はソース系モードへ入った時点で捨てる。捨てないと、往復の間に
+    /// ⌘2 で source を選び直しても次の往復が差分へ戻ってしまう。
+    @Test("往復の間に source を明示選択したら、その後の cmd+U は差分へ戻らない")
+    func explicitSourceSelectionClearsRememberedDiffTarget() throws {
+        try #require(FeatureGate.isSourceDiffEnabled)
+        let code = URL(fileURLWithPath: "/mock/sample.swift")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.clearTarget")
+        let controller = ViewerWindowControllerFixture(
+            file: code, contents: "let a = 1", defaults: defaults,
+            displayModeStore: DisplayModeStore(defaults: defaults)
+        ).controller
+        defer { controller.close() }
+
+        controller.setDisplayMode(.diff)
+        controller.toggleSourceView(nil)
+        controller.setDisplayMode(.source)
+        controller.toggleSourceView(nil)
+        #expect(controller.displayMode == .rendered)
+
+        controller.toggleSourceView(nil)
+
+        #expect(controller.displayMode == .source)
+    }
+
+    /// 記憶はファイル単位。別ファイルへ移った先で cmd+U が前のファイルの差分表示を
+    /// 引き継がないこと(粒度が壊れたらここが落ちる)。
+    @Test("cmd+U の戻り先は別ファイルへ引き継がれない")
+    func rememberedToggleTargetDoesNotLeakAcrossFiles() throws {
+        try #require(FeatureGate.isSourceDiffEnabled)
+        let swift1 = URL(fileURLWithPath: "/mock/first.swift")
+        let swift2 = URL(fileURLWithPath: "/mock/second.swift")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.leak")
+        let controller = ViewerWindowControllerFixture(
+            file: swift1, extraFiles: [swift2], contents: "let a = 1", defaults: defaults,
+            displayModeStore: DisplayModeStore(defaults: defaults)
+        ).controller
+        defer { controller.close() }
+
+        controller.setDisplayMode(.diff)
+        controller.toggleSourceView(nil)
+        controller.switchFile(to: swift2)
+        #expect(controller.displayMode == .rendered)
+
+        controller.toggleSourceView(nil)
+
+        #expect(controller.displayMode == .source)
+    }
 }
