@@ -29,10 +29,22 @@ npm run typecheck
 ```
 
 ローカルの認証情報は `.dev.vars`（gitignore 対象）に置く。`.dev.vars.example` をコピーして使う。
+未設定のままだと `/dashboard` は 503 を返す。
 
 ```bash
 cp .dev.vars.example .dev.vars
 curl -u owner:local-dev-password http://127.0.0.1:8787/dashboard
+```
+
+worktree では `scripts/worktree-init.sh` がメインリポジトリの `site/.dev.vars` へ
+シンボリックリンクを張るため、worktree ごとに作り直す必要はない。実体はメイン側に
+1 つだけ置く。
+
+ダッシュボードの見た目を確認するにはデータが要る。ローカル D1 は `site/.wrangler`
+配下にあり **worktree ごとに別**なので、worktree を切ったらサンプルデータを入れ直す。
+
+```bash
+npm run seed:local   # 直近 14 日ぶんを投入（既存行は削除される）
 ```
 
 ## スキーマ変更（Atlas）
