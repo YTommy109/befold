@@ -1,0 +1,112 @@
+name: Site Migrate
+
+# D1 マイグレーションだけを手動で適用する。
+#
+# site.yml の deploy は、未適用のマイグレーションに DROP / RENAME / DELETE /
+# TRUNCATE が含まれていると check-destructive-migrations.sh で止まる。その解除は
+# 「内容を確認して手動で適用する」ことだが、ローカルからの npm run migrate:remote
+# には wrangler の認証が要り、非対話シェル（Claude Code の ! 実行など）では
+# OAuth ログインを開けずに失敗する。
+#
+# このワークフローは CI 側の CLOUDFLARE_API_TOKEN でその手動適用を代行する。
+# **手動トリガーであること自体が「人が内容を確認した」証跡**であり、
+# site.yml 側の歯止めには一切手を入れていない（自動適用は引き続き止まる）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 適用先
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+        default: staging
+      mode:
+        description: plan は未適用の一覧を出すだけ / apply が実際に適用する
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+        default: plan
+      confirm:
+        description: 本番へ apply するときのみ、データベース名 befold-analytics を入力する
+        required: false
+        type: string
+
+# デプロイと同じグループにする。マイグレーションと Worker のデプロイが同時に
+# 走ると、スキーマと配信中のコードの版が食い違うため。
+concurrency:
+  group: site-deploy
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      # on: が workflow_dispatch だけなので通常は到達しない。将来 push などの
+      # トリガーを足された場合に、黙って自動適用へ変わらないための歯止め。
+      - name: 手動実行であることを確認する
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          echo "このワークフローは手動実行専用です（event: ${{ github.event_name }}）。" >&2
+          echo "自動適用が必要な変更なら、site.yml の deploy 経路を使ってください。" >&2
+          exit 1
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: 依存をインストールする
+        run: npm ci
+
+      # 本番だけ確認入力を課す。inputs は式で直接展開せず env 経由で渡す
+      # （入力値がそのままシェルに入るとスクリプトインジェクションになるため）。
+      - name: 本番への適用を確認する
+        if: inputs.mode == 'apply' && inputs.environment == 'production'
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "befold-analytics" ]; then
+            echo "本番へ適用するには confirm に befold-analytics を入力してください。" >&2
+            exit 1
+          fi
+
+      # apply と同じコマンドで一覧を出す。plan で見たものと当たるものが
+      # ずれないよう、情報源を分けない。
+      - name: 未適用のマイグレーションを一覧する
+        run: |
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            npm run migrate:list
+          else
+            npm run migrate:list:staging
+          fi
+
+      - name: マイグレーションを適用する
+        if: inputs.mode == 'apply'
+        run: |
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            npm run migrate:remote
+          else
+            npm run migrate:staging
+          fi
+
+      - name: 結果を要約する
+        run: |
+          if [ "${{ inputs.mode }}" = "plan" ]; then
+            echo "plan のみ実行しました。適用するには mode: apply で再実行してください。"
+          else
+            echo "${{ inputs.environment }} へ適用しました。"
+            echo "続けて Worker を反映する場合は Site CI を再実行してください。"
+          fi

@@ -14,6 +14,8 @@
     "migrate:hash": "atlas migrate hash --env local",
     "migrate:local": "wrangler d1 migrations apply befold-analytics --local",
     "migrate:remote": "wrangler d1 migrations apply befold-analytics --remote",
+    "migrate:list": "wrangler d1 migrations list befold-analytics --remote",
+    "migrate:list:staging": "wrangler d1 migrations list befold-analytics-staging --remote --env staging",
     "seed:local": "node tools/seed-local.mjs",
     "migrate:staging": "wrangler d1 migrations apply befold-analytics-staging --remote --env staging"
   },
