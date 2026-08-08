@@ -57,7 +57,16 @@ xcodebuild build -scheme befold  # Xcode ビルド（要 Xcode.app）
 
 # Markdown リンタ（リポジトリルートで実行。設定は .markdownlint-cli2.jsonc）
 markdownlint-cli2          # docs 変更時に実行（--fix で自動修正）
+
+# 規約文書が引用するシンボルの実在チェック（pre-commit フックでも自動実行）
+scripts/check-doc-symbols.sh              # CLAUDE.md 内の 型.メンバ 形式の引用を検査
+scripts/check-doc-symbols.sh --self-test  # 検知が働くことだけを確認
 ```
+
+このチェックは 型.メンバ / 型.メンバ(ラベル:) 形式の引用だけを見る（単独の型名や
+コマンドまで広げると誤検知の除外リストのほうが重くなるため）。実在しない引用を検知したら、
+直すのは文書側。例示のための架空名・外部フレームワークの API に限り
+`scripts/doc-symbol-allowlist.txt` へ追記する。
 
 ファイルを新規追加したら `xcodegen generate` を忘れないこと。`swift build` は
 SPM がディレクトリを走査するため通ってしまい、`.app` バンドルを作る `xcodebuild` だけが
@@ -235,8 +244,7 @@ chore: XcodeGen 設定を更新する
   `.app` は同梱フレームワークと署名の Team ID が合わず起動できない
   （`Library not loaded: @rpath/BefoldKit.framework` / `different Team IDs`）。
   代わりに**ゲート値を引数で受ける純粋関数へ切り出し、ON/OFF 両方向をユニットテストで
-  押さえる**。`BookmarkShortcut.keyEquivalent(isSourceDiffEnabled:)` /
-  `ModeSegments.modes(isSourceDiffEnabled:)` /
+  押さえる**。`ModeSegments.modes(isSourceDiffEnabled:)` /
   `MainMenuBuilder.addDisplayModeItems(to:isSourceDiffEnabled:)` がこの形。
   ゲート越しに参照する形だけを残すと、動いているビルドの側しか検証されない
   （AC に「stable では 2 択になること」があっても、実機で確かめる手段が無いまま
