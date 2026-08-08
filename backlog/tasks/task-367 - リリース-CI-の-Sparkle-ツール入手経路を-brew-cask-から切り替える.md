@@ -1,11 +1,11 @@
 ---
 id: TASK-367
 title: リリース CI の Sparkle ツール入手経路を brew cask から切り替える
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-08 08:59'
-updated_date: '2026-08-08 09:20'
+updated_date: '2026-08-08 09:39'
 labels: []
 dependencies: []
 priority: high
@@ -29,9 +29,9 @@ release.yml が `brew install sparkle` で generate_appcast を入手してい�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 release.yml が brew cask に依存せず generate_appcast を入手する
-- [ ] #2 取得する Sparkle のバージョンがワークフロー内で固定されている
-- [ ] #3 dev タグでリリースワークフローを 1 回通し、appcast が生成されることを実測で確認する
+- [x] #1 release.yml が brew cask に依存せず generate_appcast を入手する
+- [x] #2 取得する Sparkle のバージョンがワークフロー内で固定されている
+- [x] #3 dev タグでリリースワークフローを 1 回通し、appcast が生成されることを実測で確認する
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -74,4 +74,14 @@ AC#3（dev タグでの実測）は未了。リリースワークフローを 1 
 PR #443 を作成した（https://github.com/YTommy109/befold/pull/443）。main + 1 コミットで、R2 移行（TASK-355）とは独立してマージできる。verify チェック pass（42s）。
 
 AC#3（dev タグでリリースワークフローを 1 回通す）はマージ後の dev リリースで実測する。TASK-355 の AC#1・#2 と同じ dev リリースで兼ねられる。
+
+## AC#3 の実測（2026-08-08）
+
+v1.12.3-dev.2 のリリースワークフロー（run 31250794505）で 'Sparkle ツールをインストールする' → success、続く 'appcast を生成する' → success。公式 tarball 経由の generate_appcast が CI で機能することを実測した。生成された appcast は Worker/R2 経由で配信され、DMG の EdDSA 署名検証も通っている（詳細は TASK-355 の Notes）。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+release.yml の Sparkle ツール入手を Homebrew の sparkle カスクから公式リリースの tar.xz 取得へ切り替えた。カスクは Gatekeeper 検証に通らないため deprecated（2026-09-01 に disable）となり、加えて generate_appcast が既にカスクから取り除かれていた。バージョンはアプリが SPM で解決する 2.9.4 に固定し、ツールが欠けたまま進まないよう test -x で存在を確認する。手元で取得・展開・実行を再現したうえで、v1.12.3-dev.2 のリリースワークフローで実際に appcast 生成まで成功することを確認した（PR #443）。
+<!-- SECTION:FINAL_SUMMARY:END -->

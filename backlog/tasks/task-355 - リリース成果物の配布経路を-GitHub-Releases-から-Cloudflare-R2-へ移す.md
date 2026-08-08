@@ -1,11 +1,11 @@
 ---
 id: TASK-355
 title: リリース成果物の配布経路を GitHub Releases から Cloudflare R2 へ移す
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-08 01:21'
-updated_date: '2026-08-08 09:20'
+updated_date: '2026-08-08 09:43'
 labels: []
 dependencies: []
 priority: medium
@@ -34,14 +34,14 @@ ordinal: 614000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 リリースワークフローが署名・公証済みの DMG と appcast.xml を Cloudflare R2 へアップロードする（R2 への put 失敗はジョブ失敗として扱う）
-- [ ] #2 appcast の enclosure が Worker 経由の R2 配信 URL になった状態で、dev ビルドの旧バージョンから新バージョンへの Sparkle 自動アップデートが EdDSA 検証を通って実機で成功する
-- [ ] #3 v1.10.0 以前の配布済みバージョンが参照する GitHub 直の appcast URL が更新され続け、自動アップデートが壊れない
-- [ ] #4 ダウンロード数を確認できる手段が用意されている
-- [ ] #5 LP 経由のダウンロードと Sparkle の自動更新ダウンロードがダッシュボードで区別して集計される
-- [ ] #6 Sparkle の EdDSA 秘密鍵と Developer ID 証明書が Cloudflare 側に配置されていない（CI の Cloudflare トークンは R2 書き込みのみのスコープ）
-- [ ] #7 /dl のパス検証により、R2 バケット内の DMG 以外のオブジェクトが読み出せないことをテストで担保する
-- [ ] #8 配布手順の変更が docs 配下のリリース手順と配布設計書に反映されている
+- [x] #1 リリースワークフローが署名・公証済みの DMG と appcast.xml を Cloudflare R2 へアップロードする（R2 への put 失敗はジョブ失敗として扱う）
+- [x] #2 appcast の enclosure が Worker 経由の R2 配信 URL になった状態で、dev ビルドの旧バージョンから新バージョンへの Sparkle 自動アップデートが EdDSA 検証を通って実機で成功する
+- [x] #3 v1.10.0 以前の配布済みバージョンが参照する GitHub 直の appcast URL が更新され続け、自動アップデートが壊れない
+- [x] #4 ダウンロード数を確認できる手段が用意されている
+- [x] #5 LP 経由のダウンロードと Sparkle の自動更新ダウンロードがダッシュボードで区別して集計される
+- [x] #6 Sparkle の EdDSA 秘密鍵と Developer ID 証明書が Cloudflare 側に配置されていない（CI の Cloudflare トークンは R2 書き込みのみのスコープ）
+- [x] #7 /dl のパス検証により、R2 バケット内の DMG 以外のオブジェクトが読み出せないことをテストで担保する
+- [x] #8 配布手順の変更が docs 配下のリリース手順と配布設計書に反映されている
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -196,4 +196,112 @@ CLOUDFLARE_API_TOKEN のスコープは API から読めないため、リリー
 なお、この preflight はローカルの OAuth トークンで検証したものであり、**CI が使う CLOUDFLARE_API_TOKEN で通るかは未確認**。権限が足りなければリリース時にこのステップが落ちる（ただしビルド前なので実害は最小）。
 
 TASK-367 を PR #443 として分離・提出した。R2 とは独立してマージできる。TASK-355 側（feat/route_deploy）は未 push。
+
+## マージと本番デプロイ（2026-08-08）
+
+- PR #443（TASK-367 / Sparkle ツール）をマージ。verify pass
+- PR #444（本タスク / R2 移行）を作成。test pass・verify pass を確認してマージ
+- main へのマージで site.yml の deploy が起動。**D1 マイグレーション適用は成功**、Worker デプロイで失敗
+
+### 失敗の原因（実測で確定）
+
+CLOUDFLARE_API_TOKEN に R2 の権限が無い。
+
+  A request to the Cloudflare API (/accounts/96b3602a71be49f99732550f9f3dedad/r2/buckets/befold-dist) failed.
+  Authentication error [code: 10000]
+
+これまで「未確認」としてきたトークン権限の件が、ここで確定した。
+
+### 副次的に解決した未確認事項
+
+「バインディング先のバケットが存在しないと wrangler deploy が落ちる」は推論のままだったが、**wrangler deploy が実際に /r2/buckets/<name> を叩いてバインディングを検証している**ことがこのログで判明した。バケット不在でも同じ経路で失敗する。推論の機序は正しかった。
+
+### 本番への影響: なし
+
+デプロイが失敗したため旧バージョンの Worker が稼働継続している。実測:
+- GET / → 200
+- GET /appcast.xml → 200
+- GET /download → 302
+- GET /healthz → 200
+
+旧コードは source 列を使わないため、先に適用された D1 マイグレーション（ADD COLUMN）とも矛盾しない。
+
+### 解消に必要な作業（ユーザ）
+
+Cloudflare ダッシュボード（https://dash.cloudflare.com/profile/api-tokens）で CLOUDFLARE_API_TOKEN に **Account / Workers R2 Storage / Edit** を追加する。追加後、site.yml の deploy を再実行すれば通る（gh run rerun）。
+
+これが済むまで dev リリースは打たない。打っても preflight ステップが同じ理由でビルド前に落ちる（そう設計した）。
+
+## dev リリース v1.12.3-dev.2 による実測（2026-08-08）
+
+ユーザが CLOUDFLARE_API_TOKEN に R2 権限を追加。site.yml の deploy 再実行が success となり、Worker が R2 バインディング付きで本番反映された。その後 v1.12.3-dev.2 タグを打ってリリースワークフローを実行した。
+
+### リリースワークフロー: 全ステップ success（run 31250794505）
+
+- R2 へ書き込めることを確認する → success（preflight。トークン権限の確定）
+- DMG を R2 へアップロードする → success
+- appcast を生成する → success
+- appcast を固定リリースにアップロードする → success（GitHub 側の後方互換も維持）
+- appcast を R2 へアップロードする → success
+- stable の最新ポインタを R2 へ配置する → skipped（prerelease のため。意図どおり）
+
+### AC#1 の実測
+
+R2 に署名・公証済みの DMG と appcast が配置された。Worker が返す appcast-develop.xml の enclosure:
+
+- 新エントリ: https://befold.tommy109.workers.dev/dl/v1.12.3-dev.2/befold-v1.12.3-dev.2.dmg
+- v1.12.3-dev.1 / v1.12.2 の過去エントリ: GitHub 直リンクのまま（事前実験どおり書き換わらない）
+
+### AC#2 の実測（GUI 操作を除く全経路）
+
+- GET /dl/v1.12.3-dev.2/befold-v1.12.3-dev.2.dmg → 200、7,113,222 バイト、Content-Type application/x-apple-diskimage。appcast の length と完全一致
+- sha256 が GitHub Release の同名アセットと完全一致: bdc1ab308c24dc62cb9415eb1bb6c34640104a32fba61c58e21d5061a720942e
+- DMG をマウントして codesign --verify --deep --strict 通過、spctl -a --type execute → accepted / source=Notarized Developer ID / origin=Developer ID Application: Yuichi Tokutomi (X3587J4U72)
+- CFBundleShortVersionString = 1.12.3-dev.2
+- **EdDSA 署名検証**: appcast の sparkle:edSignature（64 バイト）を、アプリ内蔵の SUPublicEDKey（ktKZ4ysV5yIdgGkTTkpD4aSs/soC1qksE4vvQ7S9Z78=）で openssl pkeyutl -verify（Ed25519 raw）した結果 'Signature Verified Successfully'。Sparkle がインストール前に行う検証と同じもの
+
+### AC#5 の実測（本番）
+
+- GET /download → source='lp'、GET /dl/... → source='sparkle' として D1 に記録されることを本番で確認
+- ダッシュボードは「ダウンロード」と「自動アップデート適用」を別指標として集計する
+
+### 検証で生じたデータの後始末
+
+- R2 のスモークテスト用オブジェクト（releases/v0.0.1-dev.1/... と releases/latest.json）を削除
+- curl による計測イベント計 13 件を D1 から削除
+
+### 残るもの
+
+AC#2 の文言のうち「実機で成功する」の GUI 操作部分（旧 dev ビルドを起動し Sparkle にアップデートさせる）のみ未実施。CLAUDE.md のテスト規約で GUI 層は自動テスト対象外・リリース前手動チェックと定めているため、ユーザによる dogfood で確認する。配信・署名・検証の経路はすべて上記で実測済み。
+
+## AC#2 の実機検証（2026-08-08 18:41 JST）
+
+この Mac に v1.12.3-dev.1 が develop チャンネルで稼働していたため、そのまま実機の dogfood として検証した。
+
+1. アプリメニューの 'Check for Updates…' を実行
+2. Sparkle が 'Software Update' ウィンドウを表示: 'befold 1.12.3-dev.2 is now available—you have 1.12.3-dev.1.'
+   → Worker/R2 経由の appcast-develop.xml から新バージョンを検知できている
+3. 'Install Update' をクリック → 'Updating befold' でダウンロード・検証・インストールが進行
+4. アプリが自動再起動（PID 16562 → 59645）
+5. /Applications/befold.app の CFBundleShortVersionString = **1.12.3-dev.2**
+
+EdDSA 検証は Sparkle がインストール前に必ず行うもので、署名が不正なら手順 3 で失敗する。完了して再起動しているため検証を通過している（事前に openssl で同じ署名を Ed25519 検証済み）。
+
+計測にも実データとして記録された:
+- update_check / channel=develop / ua_summary=Sparkle（18:41:19）
+- download / version=v1.12.3-dev.2 / channel=develop / **source=sparkle** / ua_summary=Sparkle（18:41:39）
+
+これは Sparkle の実ダウンロードが /dl 経由で計測されることの実証でもあり、本タスクで新設した source 列の分離（AC#5）が実運用データで機能していることを示す。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+リリース成果物（DMG）と Sparkle の appcast の配信元を GitHub Releases から Cloudflare R2 へ移し、配布サイト Worker から配信するようにした。署名・公証は従来どおり GitHub Actions 上で行い、署名済みの成果物だけを R2 へ配置する（Cloudflare 側に鍵は置かない）。
+
+主な設計判断: (1) appcast の enclosure を Worker 配下の /dl/<tag>/<file> に向け、Sparkle の実ダウンロードも計測できるようにした。(2) それに伴い LP 経由の新規獲得と自動更新が同じ kind='download' に混ざるため events に source 列を追加し、COALESCE(source,'lp') で過去データの系列を保ったまま分離した。(3) /dl はタグとファイル名を検証してから R2 キーを組み立てる（バケット内の配信対象外オブジェクトを読み出せないようにする）。(4) R2 に無いオブジェクトは 404 ではなく GitHub Releases へ 302 する（Sparkle は enclosure の 404 を更新失敗として扱うため）。(5) R2 への put 失敗はジョブ失敗とし、ジョブ冒頭に権限の preflight を置いた（put は GitHub Release 公開より後に来るため、権限不足だと中途半端な公開状態で失敗する）。
+
+検証: site のテスト 86 passed（74 から +12）、typecheck・markdownlint・atlas migrate lint いずれも通過。dev リリース v1.12.3-dev.2 でリリースワークフローを実行し全ステップ success。配信された DMG は GitHub Release の成果物と sha256 完全一致、codesign / spctl（Notarized Developer ID）通過、appcast の EdDSA 署名をアプリ内蔵の SUPublicEDKey で Ed25519 検証して成功。実機の v1.12.3-dev.1 から Sparkle の自動アップデートを実行し 1.12.3-dev.2 への更新が成功、その実ダウンロードが source=sparkle として D1 に記録されることも確認した。
+
+未実測として残るもの: 「バインディング先の R2 バケットが存在しないと wrangler deploy が落ちる」は推論だったが、権限不足時のデプロイ失敗ログで wrangler が /r2/buckets/<name> を検証していることが判明し機序は裏付けられた。後続として TASK-365（appcast の配信一致検証を R2 基準へ）と TASK-366（appcast 応答の Worker 側キャッシュ）を起票済み。
+<!-- SECTION:FINAL_SUMMARY:END -->
