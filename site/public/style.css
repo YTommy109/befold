@@ -119,6 +119,12 @@ main {
   background: var(--color-accent-hover);
 }
 
+/* ダウンロードボタン直下の動作要件。リード文より小さく、控えめに置く。 */
+.hero .hero-note {
+  font-size: 0.9375rem;
+  margin: 1rem 0 0;
+}
+
 .philosophy {
   text-align: center;
   padding: 2rem 0 3rem;

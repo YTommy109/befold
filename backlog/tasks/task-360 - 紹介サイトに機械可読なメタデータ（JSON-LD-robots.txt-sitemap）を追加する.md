@@ -1,9 +1,11 @@
 ---
 id: TASK-360
 title: 紹介サイトに機械可読なメタデータ（JSON-LD / robots.txt / sitemap）を追加する
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-08-08 05:02'
+updated_date: '2026-08-08 05:33'
 labels:
   - site
 dependencies:
@@ -27,10 +29,32 @@ ordinal: 622000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ランディングページに SoftwareApplication の JSON-LD が埋め込まれ、operatingSystem に macOS、applicationCategory、downloadUrl が含まれる
-- [ ] #2 JSON-LD の記述内容が本文・title・og の文言と矛盾しない（特に対応 OS が macOS 専用であること。TASK-358 の文言修正と整合させる）
-- [ ] #3 robots.txt を配信し、/dashboard をクロール対象から外したうえで sitemap.xml を参照している
-- [ ] #4 sitemap.xml を配信し、公開ページのみを列挙している（/dashboard や /healthz を含めない）
-- [ ] #5 各エンドポイントが 200 と正しい Content-Type を返すテストがある
-- [ ] #6 llms.txt は本タスクでは追加しない（判断の根拠は Description に記載）
+- [x] #1 ランディングページに SoftwareApplication の JSON-LD が埋め込まれ、operatingSystem に macOS、applicationCategory、downloadUrl が含まれる
+- [x] #2 JSON-LD の記述内容が本文・title・og の文言と矛盾しない（特に対応 OS が macOS 専用であること。TASK-358 の文言修正と整合させる）
+- [x] #3 robots.txt を配信し、/dashboard をクロール対象から外したうえで sitemap.xml を参照している
+- [x] #4 sitemap.xml を配信し、公開ページのみを列挙している（/dashboard や /healthz を含めない）
+- [x] #5 各エンドポイントが 200 と正しい Content-Type を返すテストがある
+- [x] #6 llms.txt は本タスクでは追加しない（判断の根拠は Description に記載）
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Landing の head に SoftwareApplication の JSON-LD を埋め込む（operatingSystem: macOS 14 以降 / applicationCategory / downloadUrl / offers price 0）
+2. publicRoutes に /robots.txt を追加（Disallow: /dashboard、Sitemap 参照）
+3. publicRoutes に /sitemap.xml を追加（公開ページ / のみ列挙）
+4. test/public.test.ts に 200 と Content-Type、および JSON-LD の内容を検証するテストを追加
+5. llms.txt は追加しない
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Landing の head に SoftwareApplication の JSON-LD（operatingSystem: 'macOS 14 (Sonoma) or later'、applicationCategory: DeveloperApplication、downloadUrl、offers price 0、description は PAGE_DESCRIPTION を再利用）を追加。robots.txt / sitemap.xml は静的アセットではなく publicRoutes のルートとして実装した（origin をリクエストから取り、staging が本番 URL を指さないようにするため。og:url と同じ方針）。sitemap は公開ページ / のみ。recordEvent は呼ばないので visit を汚染しない。llms.txt は Description の根拠どおり追加していない。検証: npx vitest run で 57 passed（新規 7 件: JSON-LD 2 / robots・sitemap 3 / 対象 OS 2）、npx tsc --noEmit エラーなし。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+配布サイトに SoftwareApplication の JSON-LD、/robots.txt（/dashboard を除外し sitemap を参照）、/sitemap.xml（公開ページのみ）を追加した。robots/sitemap は origin をハードコードしないよう Worker ルートとして配信。ステータスコード・Content-Type・JSON-LD 内容・visit を記録しないことをテストで検証（vitest 57 件 pass、tsc エラーなし）。llms.txt は当初方針どおり対象外。
+<!-- SECTION:FINAL_SUMMARY:END -->

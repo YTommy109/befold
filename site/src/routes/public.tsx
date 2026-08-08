@@ -19,6 +19,31 @@ publicRoutes.get('/download', async (c) => {
   return c.redirect(dmg?.url ?? RELEASES_LATEST_URL, 302)
 })
 
+// クロールさせるのは公開 LP だけ。/dashboard は認証付きの管理画面、
+// /healthz と appcast は人間向けのページではないので列挙しない。
+publicRoutes.get('/robots.txt', (c) => {
+  const { origin } = new URL(c.req.url)
+  const lines = ['User-agent: *', 'Allow: /', 'Disallow: /dashboard', '']
+  const body = `${lines.join('\n')}Sitemap: ${origin}/sitemap.xml\n`
+  return c.text(body, 200, { 'Cache-Control': 'public, max-age=3600' })
+})
+
+publicRoutes.get('/sitemap.xml', (c) => {
+  const { origin } = new URL(c.req.url)
+  const body =
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    `  <url><loc>${origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n` +
+    '</urlset>\n'
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/xml; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600',
+    },
+  })
+})
+
 publicRoutes.get('/appcast.xml', (c) => proxyAppcast(c, 'stable'))
 publicRoutes.get('/appcast-develop.xml', (c) => proxyAppcast(c, 'develop'))
 
