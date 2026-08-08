@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-08 01:21'
-updated_date: '2026-08-08 08:55'
+updated_date: '2026-08-08 08:57'
 labels: []
 dependencies: []
 priority: medium
@@ -134,4 +134,16 @@ wrangler deploy は存在しない R2 バケットへのバインディングを
 - AC#2（実機の Sparkle 自動アップデート）はバケット作成後の dev リリースで検証する。
 
 レビューで切り出しと決めた 2 件を起票: TASK-365（appcast の配信一致検証を R2 基準へ）、TASK-366（appcast 応答の Worker 側キャッシュ）。
+
+## ブロッカーの切り分け（実測）
+
+2 系統の認証で同じ結果を確認した。トークンのスコープ不足ではなく、アカウントで R2 自体が未有効化。
+
+- MCP（cloudflare-bindings）: r2_buckets_list → 403 code 10042 'Please enable R2 through the Cloudflare Dashboard.'
+- ローカル OAuth トークン（tokutomi@degino.com / account 96b3602a71be49f99732550f9f3dedad）: npx wrangler r2 bucket list → 同じ code 10042
+- 参考: 同トークンの権限一覧（wrangler whoami）に r2 スコープが無い。ただし権限不足なら code 7403 が返るため、10042 は未有効化を指す
+
+R2 の有効化は従量課金への同意を伴うダッシュボード操作であり、アカウント所有者にしか実施できない。AC#1・#2 はここが解消するまで実測できない。
+
+訂正: 「main へマージすると site.yml の deploy が失敗する」は推論であって実測していない（R2 未有効化のため wrangler deploy を試せない）。バケット作成後に確認すること。
 <!-- SECTION:NOTES:END -->
