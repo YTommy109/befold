@@ -15,6 +15,8 @@ on:
       # scripts/** ではなく個別指定にしているのは、worktree-clean.sh などの
       # 無関係なスクリプト変更で本番デプロイを走らせないため。
       - 'scripts/check-destructive-migrations.sh'
+      # 上記スクリプトが source する共通処理。同じ理由でここに含める。
+      - 'scripts/lib/d1-pending-migrations.sh'
   pull_request:
     branches: [main]
     paths:
@@ -25,6 +27,8 @@ on:
       # scripts/** ではなく個別指定にしているのは、worktree-clean.sh などの
       # 無関係なスクリプト変更で本番デプロイを走らせないため。
       - 'scripts/check-destructive-migrations.sh'
+      # 上記スクリプトが source する共通処理。同じ理由でここに含める。
+      - 'scripts/lib/d1-pending-migrations.sh'
 
 # 連続 push / force-push で古い実行を打ち切る
 concurrency:
