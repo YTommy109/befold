@@ -100,7 +100,10 @@ App/ 配下 1 ファイル:
 
 既存フロー（DMG 作成 → notarize → staple → codesign 検証 → GitHub Release 公開）の後に追加:
 
-1. **Sparkle ツールのインストール**: `brew install sparkle` で `generate_appcast` / `sparkle sign` CLI を取得
+1. **Sparkle ツールのインストール**: ~~`brew install sparkle`~~ で `generate_appcast` / `sparkle sign` CLI を取得
+   → TASK-367 で公式リリースの tarball 取得へ変更。Homebrew の sparkle カスクは
+   Gatekeeper 検証に通らないため deprecated となり、`generate_appcast` が
+   カスクから取り除かれた。
 2. **DMG に EdDSA 署名**: `sparkle sign <dmg>` で署名生成。`SPARKLE_PRIVATE_KEY` シークレットを環境変数に設定
 3. **appcast 更新（インクリメンタル方式）**:
    - 固定リリース（タグ `appcast`）から既存の `appcast.xml` と `appcast-develop.xml` をダウンロード（初回は空ファイルから開始）
