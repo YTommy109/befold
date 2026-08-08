@@ -48,6 +48,40 @@ struct ViewerWindowControllerCLIOptionsTests {
         #expect(controller.isSourceMode)
     }
 
+    @Test("CLI の --source 上書き中にリネームされても、新 URL が対応形式ならソース表示が維持される")
+    func sourceModeOverrideSurvivesRename() {
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
+        let displayModeStore = DisplayModeStore(defaults: defaults)
+        displayModeStore.setDisplayMode(.rendered, for: file)
+
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "# hi", defaults: defaults,
+            displayModeStore: displayModeStore, sourceModeOverride: true
+        ).controller
+        defer { controller.close() }
+        #expect(controller.isSourceMode)
+
+        // 保存値(.rendered)ではなく、いま表示中のモード(.source)が引き継がれる。
+        controller.handleRename(from: file, to: URL(fileURLWithPath: "/mock/note.markdown"))
+
+        #expect(controller.isSourceMode)
+    }
+
+    @Test("CLI の --source 上書き中でも、リネーム先が非対応形式ならソース表示は解除される")
+    func sourceModeOverrideIsDemotedOnUnsupportedRename() {
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "# hi", defaults: defaults, sourceModeOverride: true
+        ).controller
+        defer { controller.close() }
+        #expect(controller.isSourceMode)
+
+        // .swift は supportsSourceMode == false のため降格する。
+        controller.handleRename(from: file, to: URL(fileURLWithPath: "/mock/note.swift"))
+
+        #expect(controller.isSourceMode == false)
+    }
+
     @Test("CLI の --line-numbers 指定の有無で showLineNumbers・保存値への反映が決まる", arguments: [
         // (保存済みの値, CLI override, 期待する showLineNumbers, 期待する保存値)
         (saved: Bool?.none, override: Bool?.some (true), expectStore: true, expectSaved: Bool?.none),

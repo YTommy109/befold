@@ -401,11 +401,13 @@ final class ViewerWindowController: NSWindowController {
         // 発火してツールバーが追従するため、ここでの明示的な
         // refreshToolbarState() 呼び出しは不要
         // (resetSourceMode() が走る場合は applySourceMode 内で再同期される)。
-        // 降格の規則は DisplayModeStore.restoredDisplayMode に 1 つだけ置く。ここで
+        // 降格の規則は DisplayModeStore.supportedDisplayMode に 1 つだけ置く。ここで
         // 「supportsSourceMode でなければレンダリングへ戻す」と書き下すと、コード種別の
         // 差分表示まで巻き添えで落ちる(同じ判定を 2 箇所に持つと片方だけ直る)。
-        // 保存値は migrate 済みなので、新パスの保存値を読めばよい。
-        applyDisplayMode(perFileState.displayMode.restoredDisplayMode(for: newURL))
+        // 引き継ぐのは保存値ではなく「いま表示中のモード」。保存値を読み直すと、
+        // 永続化されていないライブなモード(CLI --source/--preview のこの起動限りの
+        // 上書き)がリネームで破棄される。
+        applyDisplayMode(perFileState.displayMode.supportedDisplayMode(displayMode, for: newURL))
         let newDir = newURL.deletingLastPathComponent()
         if newDir.normalizedPathKey
             != fileListModel.currentDirectory.normalizedPathKey

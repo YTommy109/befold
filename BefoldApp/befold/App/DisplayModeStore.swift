@@ -42,9 +42,19 @@ final class DisplayModeStore {
     ///
     /// 降格しても保存値は書き換えない。dev ビルドへ戻れば `.diff` のまま復帰する。
     func restoredDisplayMode(for url: URL) -> ViewerDisplayMode {
+        supportedDisplayMode(displayMode(for: url), for: url)
+    }
+
+    /// 任意のモード（保存値とは限らない）を、その種別・ビルドで成立するモードまで降格して返す。
+    ///
+    /// リネームのように「いま表示中のモードを引き継ぎたい」経路は、保存値ではなくこちらを使う。
+    /// 保存値を読み直すと、永続化されていないライブなモード
+    /// （CLI `--source`/`--preview` によるこの起動限りの上書き）が破棄される。
+    /// 降格の規則はこの 1 箇所だけに置く（restoredDisplayMode もここを通る）。
+    func supportedDisplayMode(_ mode: ViewerDisplayMode, for url: URL) -> ViewerDisplayMode {
         let fileType = FileType(url: url)
         let sourceOrRendered: ViewerDisplayMode = fileType.supportsSourceMode ? .source : .rendered
-        switch displayMode(for: url) {
+        switch mode {
         case .rendered:
             return .rendered
         case .source:
