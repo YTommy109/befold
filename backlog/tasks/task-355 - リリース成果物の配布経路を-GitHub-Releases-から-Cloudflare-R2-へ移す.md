@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-08 01:21'
-updated_date: '2026-08-08 09:18'
+updated_date: '2026-08-08 09:20'
 labels: []
 dependencies: []
 priority: medium
@@ -194,4 +194,6 @@ CLOUDFLARE_API_TOKEN のスコープは API から読めないため、リリー
 実測: 同じコマンド列（wrangler@4 r2 object put --remote → delete --remote）を手元で実行し、put/delete とも成功することを確認。実行後に wrangler r2 bucket info で object_count: 0 を確認し、バケットに残骸が無いことも確かめた。
 
 なお、この preflight はローカルの OAuth トークンで検証したものであり、**CI が使う CLOUDFLARE_API_TOKEN で通るかは未確認**。権限が足りなければリリース時にこのステップが落ちる（ただしビルド前なので実害は最小）。
+
+TASK-367 を PR #443 として分離・提出した。R2 とは独立してマージできる。TASK-355 側（feat/route_deploy）は未 push。
 <!-- SECTION:NOTES:END -->

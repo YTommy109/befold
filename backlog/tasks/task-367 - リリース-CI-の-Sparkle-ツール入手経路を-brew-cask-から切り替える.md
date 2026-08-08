@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-08 08:59'
-updated_date: '2026-08-08 09:03'
+updated_date: '2026-08-08 09:20'
 labels: []
 dependencies: []
 priority: high
@@ -70,4 +70,8 @@ release.yml:215-237 の 'Sparkle ツールをインストールする' を brew 
 docs/superpowers/specs/2026-07-12-sparkle-migration-design.md の 'brew install sparkle' の記述にも変更を追記した。
 
 AC#3（dev タグでの実測）は未了。リリースワークフローを 1 回通す必要があり、TASK-355 の AC#2 検証と同じ dev リリースで兼ねられる。
+
+PR #443 を作成した（https://github.com/YTommy109/befold/pull/443）。main + 1 コミットで、R2 移行（TASK-355）とは独立してマージできる。verify チェック pass（42s）。
+
+AC#3（dev タグでリリースワークフローを 1 回通す）はマージ後の dev リリースで実測する。TASK-355 の AC#1・#2 と同じ dev リリースで兼ねられる。
 <!-- SECTION:NOTES:END -->
