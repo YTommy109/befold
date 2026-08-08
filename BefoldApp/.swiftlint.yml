@@ -46,3 +46,26 @@ custom_rules:
     regex: '\.timeLimit\(\.'
     message: "テストの打ち切りは testTimeLimit() を使う（BefoldTestSupport/Waiting.swift）"
     severity: error
+
+  # ゲート値は composition root（配線点）で 1 度だけ読み、以降は引数で渡す。
+  # 直読みした箇所は OFF 側（stable）の挙動をユニットテストできなくなる。
+  # 方針は .claude/CLAUDE.md に明文化済みだったが、同じブランチで 3 箇所が違反した
+  # （TASK-373）ため lint で強制する。excluded は配線点の allowlist であり、
+  # FeatureGateEnumerationTests が「実際に参照しているファイル集合」と一致することを
+  # 検証している（stale なエントリ・先回りの追加は落ちる）。
+  # 判定はコメント中の言及も含む（列挙テストと同じ substring 判定に揃えるため）。
+  feature_gate_direct_reference:
+    name: "FeatureGate の直接参照"
+    included: "BefoldApp/befold/.*\\.swift$"
+    excluded:
+      - "BefoldApp/befold/App/FeatureGate\\.swift$"
+      - "BefoldApp/befold/App/MainMenuBuilder\\.swift$"
+      - "BefoldApp/befold/App/PerFileStateStore\\.swift$"
+      - "BefoldApp/befold/App/SidebarDisplayPreference\\.swift$"
+      - "BefoldApp/befold/App/ViewerToolbarController\\.swift$"
+      - "BefoldApp/befold/App/ViewerWindowController\\.swift$"
+      - "BefoldApp/befold/App/ViewerWindowController\\+Diff\\.swift$"
+      - "BefoldApp/befold/App/ViewerWindowManager\\.swift$"
+    regex: 'FeatureGate\.'
+    message: "ゲート値は配線点で読み、引数で注入する（.claude/CLAUDE.md「フィーチャーゲート」節）"
+    severity: error

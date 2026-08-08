@@ -249,3 +249,12 @@ chore: XcodeGen 設定を更新する
   ゲート越しに参照する形だけを残すと、動いているビルドの側しか検証されない
   （AC に「stable では 2 択になること」があっても、実機で確かめる手段が無いまま
   マージされる）。
+- **この注入方針は swiftlint の custom rule `feature_gate_direct_reference` で強制する。**
+  `befold` ターゲット配下で `FeatureGate.` を直接参照できるのは、`.swiftlint.yml` の
+  `excluded` に列挙した配線点だけ（それ以外は error）。allowlist へ追加してよいのは
+  **ゲート値をそこで読んで下位へ引数で渡す composition root** に限る
+  （`PerFileStateStore` がゲート値を読んで `DisplayModeStore` へ注入する形）。
+  「その場で分岐したいから」は追加理由にならない。ゲート値を引数で受ける関数へ切り出し、
+  呼び出し元（既存の配線点）から渡すこと。allowlist の中身は
+  `FeatureGateEnumerationTests` が実際の参照ファイル集合と突き合わせており、
+  使われなくなったエントリも、先回りして足したエントリも落ちる。
