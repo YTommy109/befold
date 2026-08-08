@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-08 01:21'
-updated_date: '2026-08-08 08:57'
+updated_date: '2026-08-08 08:59'
 labels: []
 dependencies: []
 priority: medium
@@ -146,4 +146,15 @@ wrangler deploy は存在しない R2 バケットへのバインディングを
 R2 の有効化は従量課金への同意を伴うダッシュボード操作であり、アカウント所有者にしか実施できない。AC#1・#2 はここが解消するまで実測できない。
 
 訂正: 「main へマージすると site.yml の deploy が失敗する」は推論であって実測していない（R2 未有効化のため wrangler deploy を試せない）。バケット作成後に確認すること。
+
+## generate_appcast の前提検証（実測できず）
+
+brew install --cask sparkle を実行して generate_appcast の挙動（既存 appcast の過去エントリの enclosure URL を書き換えるか）を確かめようとしたが、**カスクに generate_appcast が含まれていなかった**ため実測できなかった。この前提は未確認のまま残る。
+
+ただし設計上ブロッカーにはならない。全エントリの URL が /dl/<tag>/ へ書き換わったとしても、R2 に無いタグは GitHub Releases の同名アセットへ 302 されるため更新経路は切れない（test/public.test.ts の 'R2 に無ければ 404 ではなく GitHub Releases へ 302 する' で担保済み）。
+
+この調査の副産物として、より差し迫った問題を発見し TASK-367 として起票した:
+Homebrew の sparkle カスクが Gatekeeper 検証を理由に deprecated となり 2026-09-01 に disable される。加えて現時点で既に generate_appcast がカスクから削除されており、release.yml:215-219 の appcast 生成が次のリリースで失敗する可能性がある。TASK-355 の検証（AC#2 の dev リリース）にも影響するため、先に TASK-367 を片付ける必要がある。
+
+検証に使った sparkle カスクはアンインストール済み（環境を元に戻した）。
 <!-- SECTION:NOTES:END -->
