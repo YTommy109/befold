@@ -80,6 +80,41 @@ defaults delete com.degino.befold UpdateChannel
 N は既存の dev タグから自動算出される。CI が DMG をビルドして GitHub の
 pre-release に添付する。
 
+### 配布経路（成果物の置き場所）
+
+<!-- constrained-by ../superpowers/specs/2026-07-28-cloudflare-distribution-analytics-design.md -->
+
+署名・公証は従来どおり GitHub Actions（macOS ランナー）上で行い、**署名済みの
+成果物だけ**を Cloudflare R2 へ配置する。Sparkle の EdDSA 秘密鍵と Developer ID
+証明書は GitHub Secrets に閉じており、Cloudflare 側には置かない。
+
+| 成果物 | R2 のキー | 配信ルート |
+|---|---|---|
+| DMG | `releases/<tag>/befold-<tag>.dmg` | `GET /dl/<tag>/<file>`（appcast の enclosure） |
+| appcast（stable） | `appcast.xml` | `GET /appcast.xml` |
+| appcast（develop） | `appcast-develop.xml` | `GET /appcast-develop.xml` |
+| stable の最新ポインタ | `releases/latest.json` | `GET /download`（LP のボタン） |
+
+`release.yml` のステップ順には依存関係がある。**DMG の R2 配置 → appcast 生成 →
+appcast の R2 配置**の順を崩さないこと。enclosure が指す実体が R2 に無い状態で
+フィードを公開すると、Sparkle が更新に失敗する。R2 への put が失敗したら
+ジョブごと落とす（GitHub にだけ置かれた状態を成功として通すと、Worker が
+古い成果物を返し続ける）。
+
+GitHub Releases への添付も当面続ける。v1.10.0 以前の配布済みバージョンは
+GitHub 直の appcast URL を見ており（フィード URL の Worker 切替は v1.10.1 以降）、
+そこからたどれる成果物が必要なため。Worker は R2 に目的のオブジェクトが無いとき
+404 ではなく GitHub Releases の同名アセットへ 302 する（Sparkle は enclosure の
+404 を更新失敗として扱う）。
+
+必要な GitHub Secrets は `CLOUDFLARE_API_TOKEN`（R2 の書き込み権限を含むこと）と
+`CLOUDFLARE_ACCOUNT_ID`。
+
+ダウンロードは発生経路で区別して計測する。`source='lp'` が配布 LP の
+`/download` 経由（新規獲得）、`source='sparkle'` が自動アップデート経由
+（既存ユーザの更新）。ダッシュボードでは前者を「ダウンロード」、後者を
+「自動アップデート適用」として別々に並べる。
+
 ## 関連ドキュメント
 
 - [コーディング規約](./coding_rule.md)

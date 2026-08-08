@@ -14,6 +14,18 @@ export const APPCAST_UPSTREAM = {
 
 export type Channel = keyof typeof APPCAST_UPSTREAM
 
+/**
+ * GitHub Releases 上の成果物 URL。R2 に目的のオブジェクトが無いときの
+ * フォールバック先で、移行期の後方互換のために残している。
+ *
+ * ここで 404 を返さず GitHub へ送るのは Sparkle のため。Sparkle は
+ * enclosure の 404 をアップデート失敗として扱うので、R2 への配置が
+ * 間に合っていない過去バージョンでも更新経路を切らさないようにする。
+ */
+export function releaseAssetURL(tag: string, file: string): string {
+  return `https://github.com/${REPO}/releases/download/${tag}/${file}`
+}
+
 export type DMGAsset = { version: string; url: string }
 
 type LatestRelease = {

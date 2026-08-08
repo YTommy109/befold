@@ -36,8 +36,12 @@ GitHub Pages は配布に関与せず LP 専用。DMG の署名・公証（notar
 
 ### 対象外
 
-- DMG 実体の R2 移行（GitHub Releases に残す）
-- GitHub の署名・公証・リリースワークフロー（`release.yml`）の変更
+- ~~DMG 実体の R2 移行（GitHub Releases に残す）~~
+  → TASK-355 で移行済み。成果物と appcast は R2 を正とし、Worker が配信する。
+  GitHub Releases への配置は後方互換のため継続。手順は
+  [開発ガイドの「配布経路」](../../dev/development.md#配布経路成果物の置き場所)を参照。
+- ~~GitHub の署名・公証・リリースワークフロー（`release.yml`）の変更~~
+  → TASK-355 で R2 へのアップロード手順を追加した。署名・公証の手順自体は変えていない。
 - 既存 `docs/`（LP）の即時削除（Worker 稼働確認後に別途縮退）
 
 ## ディレクトリ構成

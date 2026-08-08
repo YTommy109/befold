@@ -6,7 +6,7 @@
  * idx_events_kind が効く形を保つ。
  */
 
-import type { EventKind } from './schema'
+import type { DownloadSource, EventKind } from './schema'
 import { JST_DAY_EXPR, JST_HOUR_EXPR, jstDayStart, jstDaysInWindow, jstWindowStart } from './lib/jst'
 
 export type Count = { label: string; count: number }
@@ -20,8 +20,35 @@ export type RecentEvent = {
   os: string | null
 }
 
-/** イベント種別ごとの件数。 */
-export type KindCounts = Record<EventKind, number>
+/**
+ * ダッシュボードで並べる指標。イベント種別と 1 対 1 ではない。
+ *
+ * `download` は配布 LP 経由の新規ダウンロード、`update_download` は Sparkle の
+ * 自動アップデートによるダウンロード。どちらも events では kind='download' だが、
+ * 前者は新規獲得、後者は既存ユーザの更新であり、混ぜると LP のダウンロード数が
+ * 意味を失う。成果物を R2 へ移して enclosure が Worker を通るようになった
+ * TASK-355 以降、後者が記録され始めた。
+ */
+export type MetricKey = EventKind | 'update_download'
+
+/**
+ * 指標を events の行へ落とすための述語。
+ *
+ * `source` が NULL の行は source 列の導入前に記録されたもので、当時 Worker を
+ * 通るダウンロードは LP 経由しか存在しなかった。`COALESCE(source, 'lp')` は
+ * その事実を表しており、過去データを含めた `download` 系列の意味を保つ。
+ */
+type MetricFilter = { kind: EventKind; source: DownloadSource | null }
+
+const METRIC_FILTERS: Record<MetricKey, MetricFilter> = {
+  visit: { kind: 'visit', source: null },
+  download: { kind: 'download', source: 'lp' },
+  update_download: { kind: 'download', source: 'sparkle' },
+  update_check: { kind: 'update_check', source: null },
+}
+
+/** 指標ごとの件数。 */
+export type KindCounts = Record<MetricKey, number>
 
 /**
  * 全期間の累計。
@@ -44,7 +71,7 @@ export type HourlyPoint = { hour: number; counts: KindCounts }
 
 /** 1 指標（イベント種別）ごとの総数と内訳。合算せず指標別に見せるための単位。 */
 export type KindBreakdown = {
-  kind: EventKind
+  kind: MetricKey
   label: string
   total: number
   byOS: Count[]
@@ -66,10 +93,11 @@ export type Summary = {
 }
 
 /** 指標として並べる順序と表示名。ページ表示・集計の双方でこの順を使う。 */
-const KIND_LABELS: { kind: EventKind; label: string }[] = [
+const KIND_LABELS: { kind: MetricKey; label: string }[] = [
   { kind: 'visit', label: 'ページアクセス' },
   { kind: 'download', label: 'ダウンロード' },
   { kind: 'update_check', label: 'アップデート確認' },
+  { kind: 'update_download', label: '自動アップデート適用' },
 ]
 
 /** 日別推移・時間帯分布が対象にする窓（当日を含む直近 N 日）。 */
@@ -80,12 +108,14 @@ const RECENT_LIMIT = 20
 /** 種別ごとの件数を 1 行から取り出すための SELECT 句。 */
 const KIND_COUNT_COLUMNS =
   `SUM(kind = 'visit')        AS visits,
-   SUM(kind = 'download')     AS downloads,
+   SUM(kind = 'download' AND COALESCE(source, 'lp') = 'lp')      AS downloads,
+   SUM(kind = 'download' AND COALESCE(source, 'lp') = 'sparkle') AS update_downloads,
    SUM(kind = 'update_check') AS update_checks`
 
 type KindCountRow = {
   visits: number | null
   downloads: number | null
+  update_downloads: number | null
   update_checks: number | null
 }
 
@@ -93,6 +123,7 @@ function toKindCounts(row: KindCountRow | null): KindCounts {
   return {
     visit: row?.visits ?? 0,
     download: row?.downloads ?? 0,
+    update_download: row?.update_downloads ?? 0,
     update_check: row?.update_checks ?? 0,
   }
 }
@@ -185,18 +216,22 @@ type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer' | 'as_org' | 'u
 async function breakdown(
   db: D1Database,
   column: BreakdownColumn,
-  kind: EventKind | null = null,
+  metric: MetricKey | null = null,
 ): Promise<Count[]> {
+  const filter = metric === null ? null : METRIC_FILTERS[metric]
+
   const { results } = await db
     .prepare(
       `SELECT ${column} AS label, COUNT(*) AS count
        FROM events
-       WHERE ${column} IS NOT NULL AND (?1 IS NULL OR kind = ?1)
+       WHERE ${column} IS NOT NULL
+         AND (?1 IS NULL OR kind = ?1)
+         AND (?2 IS NULL OR COALESCE(source, 'lp') = ?2)
        GROUP BY label
        ORDER BY count DESC, label
        LIMIT ${TOP_N}`,
     )
-    .bind(kind)
+    .bind(filter?.kind ?? null, filter?.source ?? null)
     .all<Count>()
 
   return results
@@ -221,7 +256,7 @@ export async function recentEvents(db: D1Database, afterId = 0): Promise<RecentE
 /** 1 指標の OS 別・接続元組織別の内訳。合算しないため指標の意味が混ざらない。 */
 async function kindBreakdown(
   db: D1Database,
-  { kind, label }: { kind: EventKind; label: string },
+  { kind, label }: { kind: MetricKey; label: string },
 ): Promise<Omit<KindBreakdown, 'total'>> {
   const [byOS, byAsOrg] = await Promise.all([
     breakdown(db, 'os', kind),

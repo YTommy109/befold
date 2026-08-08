@@ -1,6 +1,6 @@
 import type { Context } from 'hono'
 import type { AppEnv } from './index'
-import { eventSchema, type EventKind } from './schema'
+import { eventSchema, type DownloadSource, type EventKind } from './schema'
 import { resolveReferrer } from './lib/referrer'
 import { summarizeOS, summarizeUA, visitorTokenHash } from './lib/visitor'
 
@@ -9,12 +9,14 @@ export type EventAttributes = {
   kind: EventKind
   version?: string | null
   channel?: 'stable' | 'develop' | null
+  /** kind='download' のときのみ指定する発生経路。 */
+  source?: DownloadSource | null
 }
 
 const INSERT_SQL =
   'INSERT INTO events' +
-  ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org)' +
-  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org, source)' +
+  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 
 /**
  * リクエストから計測イベントを組み立てて D1 に記録する。
@@ -49,6 +51,7 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
       // request.cf は Cloudflare の実行環境でのみ付与される。ローカル/テストでは
       // undefined になり得るため、欠落時は記録処理自体を止めず null にする。
       asOrg: c.req.raw.cf?.asOrganization ?? null,
+      source: attributes.source ?? null,
     })
 
     await c.env.DB.prepare(INSERT_SQL)
@@ -63,6 +66,7 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
         event.visitorToken,
         event.referrer,
         event.asOrg,
+        event.source,
       )
       .run()
   } catch (error) {

@@ -33,11 +33,12 @@ type EventRow = {
   visitor_token: string | null
   referrer: string | null
   as_org: string | null
+  source: string | null
 }
 
 async function latestEvent(): Promise<EventRow | null> {
   return await env.DB.prepare(
-    'SELECT kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org' +
+    'SELECT kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org, source' +
       ' FROM events ORDER BY id DESC LIMIT 1',
   ).first<EventRow>()
 }
@@ -60,6 +61,9 @@ const APPCAST_DEVELOP_URL =
 afterEach(async () => {
   vi.unstubAllGlobals()
   await env.DB.prepare('DELETE FROM events').run()
+
+  const { objects } = await env.DIST.list()
+  await Promise.all(objects.map((object) => env.DIST.delete(object.key)))
 })
 
 describe('GET /', () => {
@@ -153,6 +157,89 @@ describe('GET /download', () => {
     )
     expect((await latestEvent())?.version).toBeNull()
   })
+
+  it('R2 に最新ポインタがあれば DMG を直接返し source=lp を記録する', async () => {
+    await env.DIST.put(
+      'releases/latest.json',
+      JSON.stringify({ version: 'v1.2.3', file: 'befold-v1.2.3.dmg' }),
+    )
+    await env.DIST.put('releases/v1.2.3/befold-v1.2.3.dmg', 'DMG-BODY')
+
+    const response = await call('/download')
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('DMG-BODY')
+    expect(response.headers.get('Content-Disposition')).toContain('befold-v1.2.3.dmg')
+
+    const event = await latestEvent()
+    expect(event?.kind).toBe('download')
+    expect(event?.version).toBe('v1.2.3')
+    expect(event?.source).toBe('lp')
+  })
+
+  it('latest.json が壊れていれば GitHub 解決へ落とす', async () => {
+    await env.DIST.put('releases/latest.json', '{"version":"not-a-tag"}')
+    mockUpstream({ [LATEST_RELEASE_URL]: new Response('boom', { status: 500 }) })
+
+    const response = await call('/download')
+
+    expect(response.status).toBe(302)
+    expect((await latestEvent())?.source).toBe('lp')
+  })
+})
+
+describe('GET /dl/:tag/:file', () => {
+  it('R2 の DMG を返し source=sparkle を記録する', async () => {
+    await env.DIST.put('releases/v1.2.3/befold-v1.2.3.dmg', 'DMG-BODY')
+
+    const response = await call('/dl/v1.2.3/befold-v1.2.3.dmg')
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('DMG-BODY')
+
+    const event = await latestEvent()
+    expect(event?.kind).toBe('download')
+    expect(event?.version).toBe('v1.2.3')
+    expect(event?.channel).toBe('stable')
+    expect(event?.source).toBe('sparkle')
+  })
+
+  it('dev タグは develop チャンネルとして記録する', async () => {
+    await env.DIST.put('releases/v1.2.3-dev.1/befold-v1.2.3-dev.1.dmg', 'DMG-BODY')
+
+    const response = await call('/dl/v1.2.3-dev.1/befold-v1.2.3-dev.1.dmg')
+
+    expect(response.status).toBe(200)
+    expect((await latestEvent())?.channel).toBe('develop')
+  })
+
+  it('R2 に無ければ 404 ではなく GitHub Releases へ 302 する', async () => {
+    const response = await call('/dl/v1.2.3/befold-v1.2.3.dmg')
+
+    // Sparkle は enclosure の 404 を更新失敗として扱うため、404 は返さない。
+    expect(response.status).toBe(302)
+    expect(response.headers.get('Location')).toBe(
+      'https://github.com/YTommy109/befold/releases/download/v1.2.3/befold-v1.2.3.dmg',
+    )
+  })
+
+  it('DMG 以外のオブジェクトはパス検証で弾き R2 を読まない', async () => {
+    await env.DIST.put('releases/latest.json', '{"version":"v1.2.3","file":"befold-v1.2.3.dmg"}')
+
+    const response = await call('/dl/v1.2.3/..%2Flatest.json')
+
+    expect(response.status).toBe(302)
+    expect(await response.text()).not.toContain('v1.2.3')
+  })
+
+  it('タグの形が合わないリクエストは R2 を読まない', async () => {
+    await env.DIST.put('releases/v1.2.3/befold-v1.2.3.dmg', 'DMG-BODY')
+
+    const response = await call('/dl/appcast/befold-v1.2.3.dmg')
+
+    expect(response.status).toBe(302)
+    expect(await response.text()).not.toBe('DMG-BODY')
+  })
 })
 
 describe('appcast プロキシ', () => {
@@ -186,6 +273,29 @@ describe('appcast プロキシ', () => {
     const response = await call('/appcast.xml')
 
     expect(response.status).toBe(502)
+  })
+
+  it('R2 に appcast があれば GitHub を読まずにそちらを返す', async () => {
+    const r2Body = '<?xml version="1.0"?><rss><channel><title>from-r2</title></channel></rss>'
+    await env.DIST.put('appcast.xml', r2Body)
+    // GitHub への fetch が起きたらこのスタブが例外を投げる。
+    mockUpstream({})
+
+    const response = await call('/appcast.xml')
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe(r2Body)
+    expect((await latestEvent())?.kind).toBe('update_check')
+  })
+
+  it('develop チャンネルも R2 の appcast-develop.xml を見る', async () => {
+    await env.DIST.put('appcast-develop.xml', APPCAST_XML)
+    mockUpstream({})
+
+    const response = await call('/appcast-develop.xml')
+
+    expect(response.status).toBe(200)
+    expect((await latestEvent())?.channel).toBe('develop')
   })
 })
 
