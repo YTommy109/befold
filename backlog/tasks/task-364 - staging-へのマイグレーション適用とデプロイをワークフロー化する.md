@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-08 08:09'
-updated_date: '2026-08-08 08:17'
+updated_date: '2026-08-08 08:24'
 labels: []
 dependencies: []
 priority: medium
@@ -100,6 +100,16 @@ workflow_dispatch と schedule はデフォルトブランチ（main）にワー
 ## 前提（未確認のまま）
 
 staging の Worker が現在どのコミットで動いているかは確認していない（wrangler の認証がこの環境で通らないため）。マージ後の初回実行で最新に揃うので、確認せずに進めた。
+
+## マージ後の検証（2026-08-08、完了）
+
+PR #441 マージ後、実認証で両ジョブを確認した。
+
+- deploy（run 31248254542、main、workflow_dispatch）: success（31s）。型チェック → テスト → migrate:staging → deploy:staging が順に成功。Version ID cb2b0281-b978-41ba-8dd0-08032e73a0fa を https://befold-staging.tommy109.workers.dev へデプロイ。drift は schedule 限定のため skipped。
+- **起票時に未適用だった 2 件は既に適用済みだった**（migrate:staging の出力は 'No migrations to apply!'）。TASK-362/363 の作業中に当たったものと見られる。したがって『未適用が溜まった状態を検知して落ちる』実データでの観測はできていない（スタブでの実測のみ）。
+- drift（run 31248306140）: 使い捨てブランチ tmp/verify-drift で if 条件だけ反転させ、実 CLOUDFLARE_API_TOKEN で 1 回実行。success、出力は 'befold-analytics-staging: 未適用のマイグレーションはありません。'。schedule 経路で使う wrangler d1 execute --env staging が実認証で通ることを確認した。検証後にブランチは削除済み。
+
+残る未検証: 未適用が実際に存在する状態での drift 失敗（スタブでは exit 1 と一覧出力を確認済み）。次回マイグレーション追加時に自然に確認できる。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
