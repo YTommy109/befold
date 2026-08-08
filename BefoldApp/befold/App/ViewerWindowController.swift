@@ -27,6 +27,15 @@ protocol ViewerWindowControllerDelegate: AnyObject {
     func viewerWindow(
         _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
     )
+    /// ユーザーが表示モードを選び直した(setDisplayMode を通った)ことを伝える。
+    ///
+    /// 同一ファイルを表示している窓は同じ表示モードを示す、という不変条件を成立させるための
+    /// 通知。対象は**永続化されるユーザー選択**に限る。CLI `--source`/`--preview` による
+    /// この起動限りの上書き(init 時の sourceModeOverride)は意図的に窓ごとで、同期しない。
+    /// ファイル切替・リネームに伴う適用も各窓が自分で保存値から復元するため通知しない。
+    func viewerWindow(
+        _ controller: ViewerWindowController, didChangeDisplayMode mode: ViewerDisplayMode
+    )
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController)
 }
@@ -696,6 +705,30 @@ extension ViewerWindowController {
         // 差分が出ない(TASK-337)。applyDisplayMode ではなくここに置くのは、モードだけが
         // 変わる呼び出し元が setDisplayMode だけだから(performFileSwitch は URL 更新前に
         // 呼ぶため、そちらへ置くと切替前ファイルに対して git を起こす)。
+        refreshDiff()
+        // 同一ファイルを開いている他ウィンドウへ同じモードを届ける。ここで通知することが
+        // 「同一ファイルの窓は同じ答えを示す」を成立させている(TASK-371)。
+        delegate?.viewerWindow(self, didChangeDisplayMode: displayMode)
+    }
+
+    /// 同一ファイルを表示している他ウィンドウへ、ユーザーが選んだ表示モードを反映する。
+    /// 呼び出し元は ViewerWindowManager だけで、対象は controllers のキー引きで求める。
+    ///
+    /// setDisplayMode との違いは 3 つで、いずれも「操作していない窓」であることに由来する。
+    ///
+    /// - delegate へ通知しない(通知すると broadcast が窓の間で往復する)
+    /// - 永続化しない(操作した窓が既に同じ値を書いている)
+    /// - スクロール位置を保存しない。ScrollPositionStore は (path, mode) 粒度でアプリ全体
+    ///   共有であり、保存は JS コールバック経由の非同期(WebViewCommandController)。
+    ///   2 窓が同じキーへ書くと勝者が非決定になるため、書き込みは操作した窓の 1 本に限る
+    ///
+    /// cmd+U の戻り先の記憶(sourceToggleReturn)は窓ごとの操作履歴なので同期しない。
+    /// ただし「ソース系モードへ入った時点で役目を終える」のは操作の有無に依らないため、
+    /// クリアだけは setDisplayMode と同じ理由でここでも行う。
+    func mirrorDisplayMode(_ newValue: ViewerDisplayMode) {
+        guard canSelect(newValue), newValue != effectiveDisplayMode else { return }
+        if newValue.isSourceMode { sourceToggleReturn = nil }
+        applyDisplayMode(newValue)
         refreshDiff()
     }
 

@@ -172,6 +172,21 @@ final class ViewerWindowManager {
         }
     }
 
+    /// 同一ファイルを表示している他ウィンドウへ、ユーザーが選んだ表示モードを反映する。
+    ///
+    /// 対象は controllers のキー引きで求める。allControllers を URL 比較で絞る形にしないのは、
+    /// 「別ファイルの窓は影響を受けない」をコード上の判定ではなく登録の構造で成立させるため。
+    ///
+    /// 反映はこの呼び出しの中で**同期に**行う。Task で包むと各窓の refreshDiff による
+    /// 取得登録が契機のターンから外れ、兄弟要求が合流できずに窓の数だけ git が起動する
+    /// (ViewerWindowController+Diff.refreshDiff / TASK-325・TASK-346)。
+    private func mirrorDisplayMode(_ mode: ViewerDisplayMode, from origin: ViewerWindowController) {
+        let peers = controllers[origin.fileURL.normalizedPathKey] ?? []
+        for peer in peers where peer !== origin {
+            peer.mirrorDisplayMode(mode)
+        }
+    }
+
     /// codeFontPreference の現在値を、開いている全ウィンドウの WebView へ即座に反映する。
     /// フォント設定変更(環境設定 UI 等)から呼ばれる。
     func applyCodeFontToAllWindows() {
@@ -482,6 +497,12 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
         _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
     ) {
         remapController(controller, from: oldURL, to: newURL, isRename: false)
+    }
+
+    func viewerWindow(
+        _ controller: ViewerWindowController, didChangeDisplayMode mode: ViewerDisplayMode
+    ) {
+        mirrorDisplayMode(mode, from: controller)
     }
 
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
