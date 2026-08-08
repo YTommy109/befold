@@ -177,6 +177,28 @@ const PAGE_DESCRIPTION =
   'befold is a lightweight macOS viewer for reviewing the Markdown that terminal coding agents like Claude Code and Codex generate. Open any file from the CLI or with ⌘P — including git worktrees — and read Mermaid, Markdown, SVG, HTML and CSV with live reload.'
 
 /**
+ * 検索エンジン・AI 検索が読む構造化データ。
+ * 対応 OS は本文の「動作要件」と同じ macOS 14 以降で揃える。
+ */
+function structuredData(origin: string): string {
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'befold',
+    description: PAGE_DESCRIPTION,
+    url: `${origin}/`,
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'macOS 14 (Sonoma) or later',
+    downloadUrl: DOWNLOAD_URL,
+    softwareHelp: REPO_URL,
+    image: `${origin}/images/ogp.png`,
+    license: 'https://opensource.org/licenses/MIT',
+    author: { '@type': 'Person', name: 'Tommy109', url: 'https://github.com/YTommy109' },
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  })
+}
+
+/**
  * 配布 LP。ダウンロードは計測用の /download 経由にする。
  *
  * origin を受け取るのは、OGP のクローラが絶対 URL しか解決できない一方で、
@@ -204,6 +226,9 @@ export const Landing: FC<{ origin: string }> = ({ origin }) => (
       />
       <meta name="twitter:card" content="summary_large_image" />
       <link rel="stylesheet" href="/style.css" />
+      {html`<script type="application/ld+json">
+        ${raw(structuredData(origin))}
+      </script>`}
     </head>
     <body>
       <a
@@ -232,18 +257,30 @@ export const Landing: FC<{ origin: string }> = ({ origin }) => (
         <section class="hero">
           <div lang="ja">
             <h2>Markdown を行き来する。快適に。</h2>
-            <p>数百のファイルを抱えたリポジトリのための軽量ビューア。</p>
+            <p>
+              数百のファイルを抱えたリポジトリのための、<strong>Mac 専用</strong>の軽量ビューア。
+            </p>
           </div>
           <div lang="en" hidden>
             <h2>Move through Markdown, comfortably.</h2>
-            <p>A lightweight viewer for repositories that hold hundreds of files.</p>
+            <p>
+              A lightweight <strong>Mac-only</strong> viewer for repositories that hold hundreds of
+              files.
+            </p>
           </div>
           <a href={DOWNLOAD_URL} class="btn-primary">
-            <span lang="ja">ダウンロード</span>
+            <span lang="ja">Mac 版をダウンロード</span>
             <span lang="en" hidden>
-              Download
+              Download for Mac
             </span>
           </a>
+          {/* ダウンロード前に対象 OS が伝わるよう、ボタン直下にも動作要件を置く。 */}
+          <p class="hero-note" lang="ja">
+            macOS 14 (Sonoma) 以降が必要です。Windows / Linux 版はありません。
+          </p>
+          <p class="hero-note" lang="en" hidden>
+            Requires macOS 14 (Sonoma) or later. There is no Windows or Linux version.
+          </p>
         </section>
 
         <section class="philosophy review">

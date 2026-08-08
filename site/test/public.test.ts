@@ -266,3 +266,77 @@ describe('OGP メタタグ', () => {
     expect(html).toContain(`<meta property="og:description" content="${description}"/>`)
   })
 })
+
+describe('対象 OS の明示', () => {
+  it('ファーストビューのリード文で日英とも Mac 専用だと分かる', async () => {
+    const html = await (await call('/')).text()
+    const hero = html.match(/<section class="hero">([\s\S]*?)<\/section>/)?.[1]
+
+    expect(hero).toBeTruthy()
+    expect(hero).toContain('Mac 専用')
+    expect(hero).toContain('Mac-only')
+  })
+
+  it('ダウンロードボタンの近辺で macOS 14 以降だと分かる', async () => {
+    const html = await (await call('/')).text()
+    const hero = html.match(/<section class="hero">([\s\S]*?)<\/section>/)?.[1] ?? ''
+
+    expect(hero).toContain('macOS 14 (Sonoma) 以降が必要です')
+    expect(hero).toContain('Requires macOS 14 (Sonoma) or later')
+    // 注記はボタンより後ろに置き、クリック前に目に入るようにする。
+    expect(hero.indexOf('btn-primary')).toBeLessThan(hero.indexOf('hero-note'))
+  })
+})
+
+describe('構造化データ (JSON-LD)', () => {
+  it('SoftwareApplication として macOS 専用・ダウンロード先を示す', async () => {
+    const html = await (await call('/')).text()
+    const json = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1]
+
+    expect(json).toBeTruthy()
+    const data = JSON.parse(json as string)
+    expect(data['@type']).toBe('SoftwareApplication')
+    expect(data.operatingSystem).toBe('macOS 14 (Sonoma) or later')
+    expect(data.applicationCategory).toBe('DeveloperApplication')
+    expect(data.downloadUrl).toBe('https://befold.tommy109.workers.dev/download')
+    expect(data.url).toBe('https://befold.example/')
+  })
+
+  it('description は <meta name="description"> と同じ文字列にする', async () => {
+    const html = await (await call('/')).text()
+    const description = html.match(/<meta name="description" content="(.*?)"\/>/)?.[1]
+    const json = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1]
+
+    expect(JSON.parse(json as string).description).toBe(description)
+  })
+})
+
+describe('robots.txt / sitemap.xml', () => {
+  it('robots.txt は 200 / text/plain で dashboard を除外し sitemap を指す', async () => {
+    const response = await call('/robots.txt')
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toContain('text/plain')
+    const body = await response.text()
+    expect(body).toContain('Disallow: /dashboard')
+    expect(body).toContain('Sitemap: https://befold.example/sitemap.xml')
+  })
+
+  it('sitemap.xml は 200 / application/xml で公開ページのみ列挙する', async () => {
+    const response = await call('/sitemap.xml')
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toContain('application/xml')
+    const body = await response.text()
+    expect(body).toContain('<loc>https://befold.example/</loc>')
+    expect(body).not.toContain('/dashboard')
+    expect(body).not.toContain('/healthz')
+  })
+
+  it('robots.txt / sitemap.xml はアクセスを visit として記録しない', async () => {
+    await call('/robots.txt')
+    await call('/sitemap.xml')
+
+    expect(await latestEvent()).toBeNull()
+  })
+})
