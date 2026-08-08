@@ -230,3 +230,14 @@ chore: XcodeGen 設定を更新する
   で grep しても別名のゲートは見つからない）。
 - フラグは一時的な足場。stable に載せると決めた時点で分岐を撤去しデフォルト有効化し、撤去タスクを backlog に登録する。
 - 検証は「ロジックはユニットテスト、ON は dev リリースの dogfood、OFF は次回 stable リリース」で担保する。
+- **OFF 側の実機確認をローカルの Release ビルドで行おうとしない。**
+  `xcodebuild build -scheme befold -configuration Release` 自体は成功するが、生成された
+  `.app` は同梱フレームワークと署名の Team ID が合わず起動できない
+  （`Library not loaded: @rpath/BefoldKit.framework` / `different Team IDs`）。
+  代わりに**ゲート値を引数で受ける純粋関数へ切り出し、ON/OFF 両方向をユニットテストで
+  押さえる**。`BookmarkShortcut.keyEquivalent(isSourceDiffEnabled:)` /
+  `ModeSegments.modes(isSourceDiffEnabled:)` /
+  `MainMenuBuilder.addDisplayModeItems(to:isSourceDiffEnabled:)` がこの形。
+  ゲート越しに参照する形だけを残すと、動いているビルドの側しか検証されない
+  （AC に「stable では 2 択になること」があっても、実機で確かめる手段が無いまま
+  マージされる）。
