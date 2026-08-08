@@ -57,7 +57,16 @@ xcodebuild build -scheme befold  # Xcode ビルド（要 Xcode.app）
 
 # Markdown リンタ（リポジトリルートで実行。設定は .markdownlint-cli2.jsonc）
 markdownlint-cli2          # docs 変更時に実行（--fix で自動修正）
+
+# 規約文書が引用するシンボルの実在チェック（pre-commit フックでも自動実行）
+scripts/check-doc-symbols.sh              # CLAUDE.md 内の 型.メンバ 形式の引用を検査
+scripts/check-doc-symbols.sh --self-test  # 検知が働くことだけを確認
 ```
+
+このチェックは 型.メンバ / 型.メンバ(ラベル:) 形式の引用だけを見る（単独の型名や
+コマンドまで広げると誤検知の除外リストのほうが重くなるため）。実在しない引用を検知したら、
+直すのは文書側。例示のための架空名・外部フレームワークの API に限り
+`scripts/doc-symbol-allowlist.txt` へ追記する。
 
 ファイルを新規追加したら `xcodegen generate` を忘れないこと。`swift build` は
 SPM がディレクトリを走査するため通ってしまい、`.app` バンドルを作る `xcodebuild` だけが
@@ -196,6 +205,41 @@ bug 7 件のうち 5 件（71%）は設計文の突き合わせで導ける型�
 形を変えて再発し、部分更新オーバーロードの撤去で終息した。どちらも 2 件目の時点で
 構造対策へ切り替えていれば 3 件目は生まれていない（計 2 件が防げた）。
 
+## UserDefaults キーの廃止・改名
+
+永続化キーを消す・改名する・意味を変える（値の型や粒度を変える、app-global を
+per-file へ移す等）変更では、**キーの読み手を消した時点で移行の可否を確定させる**。
+書き手だけを新キーへ差し替えて旧キーを放置すると、ビルドは通り、テストも通り、
+既存ユーザーの設定だけが黙って失われる。
+
+変更のたびに次を満たす。
+
+- **旧キーの読み手をすべて洗う。** 新キーを足したら `rg '"<旧キー名>"'` で旧キー
+  リテラルの出現箇所を数え、読み手が 0 になっていないかを確認する。0 になったキーは
+  「移行する」か「移行しない」のどちらかを**明示的に決める**（決めた結果を
+  タスクの Implementation Notes に残す）。判断を保留したまま次へ進まない。
+- **移行するなら、旧値の意味を保って新形式へ写す。** 旧キーが複数ある場合は
+  組み合わせを潰さない（例: app-global の「差分 ON」と per-file の「source 表示」の
+  積が `.diff` にあたる、という関係を落とさない）。
+- **移行経路は 1 本に畳む。** 既存の一度きり移行があるならそこへ合流させ、
+  キーごとに移行関数を増やさない。
+- **旧キーは `removeObject(forKey:)` で必ず削除する。** 移行がスキップされる経路
+  （新キーが既にある等の早期 return）でも消えるよう `defer` に置く。残した stale キーは
+  次に同名のキーを再利用したとき誤って読まれる。
+- **ユニットテストで担保する。** 最低 3 ケース——(a) 旧値あり → 新形式へ移行される、
+  (b) 旧値なし → 既定値のまま何も起きない、(c) 移行済み（新キーあり）→ 移行は
+  走らないが stale キーは消える。テストは `makeIsolatedDefaults(prefix:)` の
+  分離された `UserDefaults` 上で書く（standard を汚さない）。
+
+参考実装: `DisplayModeStore.migrateLegacySourceModesIfNeeded` が上記の形
+（合流した一度きり移行 + `defer` での stale キー削除 + 3 ケースのテスト）。
+
+根拠（TASK-372 の実測）: 差分表示のユーザー設定を app-global の `SourceDiffEnabled`
+から per-file の表示モードへ移す際、per-file の旧 source Bool だけを移行し、
+app-global キーの読み手が消えたまま残った。結果、旧状態で「差分 ON + source 表示」
+だったファイルが `.diff` として移行されず plain source で開き、stale キーも defaults に
+残り続けた。設計段階でこの節のチェックを 1 回通していれば実装前に気づけた型。
+
 ## 完了基準
 
 - タスク中に発見したリファクタリング課題は「次回触るときに」と後回しにせず、同じタスク内で完了する
@@ -230,3 +274,22 @@ chore: XcodeGen 設定を更新する
   で grep しても別名のゲートは見つからない）。
 - フラグは一時的な足場。stable に載せると決めた時点で分岐を撤去しデフォルト有効化し、撤去タスクを backlog に登録する。
 - 検証は「ロジックはユニットテスト、ON は dev リリースの dogfood、OFF は次回 stable リリース」で担保する。
+- **OFF 側の実機確認をローカルの Release ビルドで行おうとしない。**
+  `xcodebuild build -scheme befold -configuration Release` 自体は成功するが、生成された
+  `.app` は同梱フレームワークと署名の Team ID が合わず起動できない
+  （`Library not loaded: @rpath/BefoldKit.framework` / `different Team IDs`）。
+  代わりに**ゲート値を引数で受ける純粋関数へ切り出し、ON/OFF 両方向をユニットテストで
+  押さえる**。`ModeSegments.modes(isSourceDiffEnabled:)` /
+  `MainMenuBuilder.addDisplayModeItems(to:isSourceDiffEnabled:)` がこの形。
+  ゲート越しに参照する形だけを残すと、動いているビルドの側しか検証されない
+  （AC に「stable では 2 択になること」があっても、実機で確かめる手段が無いまま
+  マージされる）。
+- **この注入方針は swiftlint の custom rule `feature_gate_direct_reference` で強制する。**
+  `befold` ターゲット配下で `FeatureGate.` を直接参照できるのは、`.swiftlint.yml` の
+  `excluded` に列挙した配線点だけ（それ以外は error）。allowlist へ追加してよいのは
+  **ゲート値をそこで読んで下位へ引数で渡す composition root** に限る
+  （`PerFileStateStore.init(defaults:)` がゲート値を読んで `DisplayModeStore` へ注入する形）。
+  「その場で分岐したいから」は追加理由にならない。ゲート値を引数で受ける関数へ切り出し、
+  呼び出し元（既存の配線点）から渡すこと。allowlist の中身は
+  `FeatureGateEnumerationTests` が実際の参照ファイル集合と突き合わせており、
+  使われなくなったエントリも、先回りして足したエントリも落ちる。

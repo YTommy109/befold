@@ -27,9 +27,17 @@ protocol ViewerWindowControllerDelegate: AnyObject {
     func viewerWindow(
         _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
     )
+    /// ユーザーが表示モードを選び直した(setDisplayMode を通った)ことを伝える。
+    ///
+    /// 同一ファイルを表示している窓は同じ表示モードを示す、という不変条件を成立させるための
+    /// 通知。対象は**永続化されるユーザー選択**に限る。CLI `--source`/`--preview` による
+    /// この起動限りの上書き(init 時の sourceModeOverride)は意図的に窓ごとで、同期しない。
+    /// ファイル切替・リネームに伴う適用も各窓が自分で保存値から復元するため通知しない。
+    func viewerWindow(
+        _ controller: ViewerWindowController, didChangeDisplayMode mode: ViewerDisplayMode
+    )
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController)
-    func viewerWindowDidToggleSourceDiff(_ controller: ViewerWindowController)
 }
 
 /// performFileSwitch の結果。呼び出し元(明示的なファイル選択と履歴ナビゲーション)が
@@ -49,10 +57,10 @@ final class ViewerWindowController: NSWindowController {
     private let defaults: UserDefaults
     /// 表示状態(ファイル種別・ソース表示可否・行番号表示)。ViewerToolbarHost 経由でツールバーにも公開する。
     let store: ViewerStore
-    /// ファイル毎の永続表示状態(倍率・ソース表示モード・スクロール位置)の束。
+    /// ファイル毎の永続表示状態(倍率・表示モード・スクロール位置)の束。
     private let perFileState: PerFileStateStore
     private let sidebarDisplayPreference: SidebarDisplayPreference
-    /// 差分表示の設定(ON/OFF とレイアウト)。全ウィンドウ共有。
+    /// 差分のレイアウト設定。全ウィンドウ共有(差分を出すかどうかは store の表示モードが持つ)。
     /// 参照は `ViewerWindowController+Diff.swift` に集約している。
     let diffDisplayPreference: DiffDisplayPreference
     /// 差分の取得元。全ウィンドウで 1 個を共有する(生成元は ViewerWindowManager 一箇所)。
@@ -81,7 +89,21 @@ final class ViewerWindowController: NSWindowController {
     private let webViewProxy = WebViewProxy()
     /// WebView 操作系メニューアクション(ズーム・印刷・検索・スクロール位置保存)の実処理。
     private var webViewCommands: WebViewCommandController!
-    /// ソース表示モードの唯一の真実の源は store。二重保持を避けるため委譲する。
+    /// cmd+U でソース系モードを離れた直前の「どのソース系モードだったか」と、その時のファイル。
+    /// レンダリング表示中しか値を持たない(ソース系モードへ入った時点で setDisplayMode が捨てる)。
+    /// 保存値からは復元できない: 離脱側の cmd+U が保存値を `.rendered` で上書きするため、
+    /// 戻る側が保存値を読むと必ず `.source` に落ちる(TASK-370)。
+    private var sourceToggleReturn: (pathKey: String, mode: ViewerDisplayMode)?
+    /// 表示モードの唯一の真実の源は store。二重保持を避けるため委譲する。
+    var displayMode: ViewerDisplayMode {
+        store.displayMode
+    }
+
+    /// セグメント・メニューのチェックが指し示すモード(詳細は ViewerStore を参照)。
+    var effectiveDisplayMode: ViewerDisplayMode {
+        store.effectiveDisplayMode
+    }
+
     var isSourceMode: Bool {
         store.isSourceMode
     }
@@ -125,7 +147,7 @@ final class ViewerWindowController: NSWindowController {
     ///   注入される単一の共有インスタンスを渡すこと。デフォルト値は、不可視ファイル挙動に
     ///   無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
-    /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
+    /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・表示モード・
     ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
     /// - Parameter bookmarkStore: 同上。ブックマーク挙動に無関心なテストが省略できるようにする。
     /// - Parameter gitFileIndex: git 追跡ファイルの索引。本番では ViewerWindowManager が持つ
@@ -146,7 +168,7 @@ final class ViewerWindowController: NSWindowController {
     init(
         fileURL: URL, defaults: UserDefaults = .standard,
         sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
-        diffDisplayPreference: DiffDisplayPreference = DiffDisplayPreference(),
+        diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader? = nil,
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
@@ -292,7 +314,8 @@ final class ViewerWindowController: NSWindowController {
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
         // CLI から --source/--preview が指定された場合はそちらを優先し、保存値は書き換えない(この起動限りの上書き)。
         // applySourceMode が内部で refreshToolbarState() を呼ぶため、ここでの明示呼び出しは不要。
-        applySourceMode(sourceModeOverride ?? perFileState.sourceMode.restoredSourceMode(for: fileURL))
+        let restoredMode = perFileState.displayMode.restoredDisplayMode(for: fileURL)
+        applyDisplayMode(sourceModeOverride.map { $0 ? ViewerDisplayMode.source : .rendered } ?? restoredMode)
         sidebar.recordHistory()
     }
 
@@ -383,19 +406,22 @@ final class ViewerWindowController: NSWindowController {
         guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
         applyURLToWindow(newURL)
 
-        // 実体は同じファイルなので旧パスの表示状態(倍率・ソース表示モード・スクロール位置)を
+        // 実体は同じファイルなので旧パスの表示状態(倍率・表示モード・スクロール位置)を
         // 新パスへまとめて引き継ぐ(旧パスはもう存在しない)。
         perFileState.migrate(from: oldURL, to: newURL)
         // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
-        // (例: .md → .swift、.md → .png)ソース表示トグルが成立しなくなる
-        // 場合のみリセットする。
+        // (例: .md → .png)そのモードが成立しなくなる場合は降格する。
         // store.handleRename が予約した非同期読み込みの完了後に onContentReloaded が
         // 発火してツールバーが追従するため、ここでの明示的な
         // refreshToolbarState() 呼び出しは不要
         // (resetSourceMode() が走る場合は applySourceMode 内で再同期される)。
-        if isSourceMode, !FileType(url: newURL).supportsSourceMode {
-            resetSourceMode()
-        }
+        // 降格の規則は DisplayModeStore.supportedDisplayMode に 1 つだけ置く。ここで
+        // 「supportsSourceMode でなければレンダリングへ戻す」と書き下すと、コード種別の
+        // 差分表示まで巻き添えで落ちる(同じ判定を 2 箇所に持つと片方だけ直る)。
+        // 引き継ぐのは保存値ではなく「いま表示中のモード」。保存値を読み直すと、
+        // 永続化されていないライブなモード(CLI --source/--preview のこの起動限りの
+        // 上書き)がリネームで破棄される。
+        applyDisplayMode(perFileState.displayMode.supportedDisplayMode(displayMode, for: newURL))
         let newDir = newURL.deletingLastPathComponent()
         if newDir.normalizedPathKey
             != fileListModel.currentDirectory.normalizedPathKey
@@ -450,8 +476,7 @@ final class ViewerWindowController: NSWindowController {
         }
         let oldURL = fileURL
         saveScrollPositionBeforeTransition()
-        let restoredSourceMode = perFileState.sourceMode.restoredSourceMode(for: newURL)
-        applySourceMode(restoredSourceMode)
+        applyDisplayMode(perFileState.displayMode.restoredDisplayMode(for: newURL))
         applyURLToWindow(newURL)
         // fileExists を確認済みなので store.openFile が予約した非同期読み込みは必ず完了に達し、
         // その時点で onContentReloaded → refreshToolbarState() が発火する
@@ -648,53 +673,92 @@ extension ViewerWindowController {
     /// 切替後に保存すると、退場側の位置が入場側ファイル・入場側モードのキーへ誤って
     /// 保存されるため、必ず書き換え前に呼ぶこと。この save-before-mutate の順序制約を
     /// 負う入口はここだけで、呼び出し点はファイル切替(performFileSwitch)と
-    /// モード切替(setSourceMode)の 2 つ。
+    /// モード切替(setDisplayMode)の 2 つ。
     private func saveScrollPositionBeforeTransition() {
         webViewCommands.saveCurrentScrollPosition(
             for: fileURL, mode: ViewerBridge.ViewMode(isSourceMode: isSourceMode)
         )
     }
 
-    /// isSourceMode を変更し、store・永続化・モード切替セグメントの表示更新までを一貫して行う。
-    /// ツールバーのモード切替セグメント(ViewerToolbarController)からも ViewerToolbarHost 経由で呼ばれる。
-    func setSourceMode(_ newValue: Bool) {
+    /// 表示モードを変更し、store・永続化・ツールバーの表示更新までを一貫して行う。
+    /// ツールバーのモード切替セグメント(ViewerToolbarController)からも ViewerToolbarHost 経由で、
+    /// View メニューの ⌘1〜⌘3 からも呼ばれる。表示モードを変える入口はここだけ。
+    func setDisplayMode(_ newValue: ViewerDisplayMode) {
         // validate を通らない経路(ツールバーのセグメント・オーバーフローメニュー)も
         // ここへ来るため、能力の確認は実行側にも置く(ADR 0002)。
-        guard capabilities.canToggleSourceMode else { return }
-        let didChange = newValue != isSourceMode
-        if didChange {
-            saveScrollPositionBeforeTransition()
-        }
-        applySourceMode(newValue)
-        perFileState.sourceMode.setSourceMode(isSourceMode, for: fileURL)
-        // 差分を取れるかどうか(capabilities.canToggleDiff)は表示モードに依存する。
-        // レンダリング表示中の refreshDiff は差分を捨てるため、モードが変わった契機で
-        // 取り直さないとソース表示へ切り替えても差分が出ない(TASK-337)。
-        // applySourceMode ではなくここに置くのは、モードだけが変わる呼び出し元が
-        // setSourceMode だけだから(performFileSwitch は URL 更新前に呼ぶため、
-        // そちらへ置くと切替前ファイルに対して git を起こす)。
-        if didChange {
-            refreshDiff()
+        guard canSelect(newValue) else { return }
+        // 比較対象は保存値(displayMode)ではなく、いま実際に出しているモード
+        // (effectiveDisplayMode)。プレビューを持たない種別(.code)は保存値が .rendered の
+        // ままソースを出しているため、保存値と比べると「選択済みの source セグメント」への
+        // クリック・⌘2・パス無し `befold --source` が遷移扱いになる。スクロール位置を
+        // rendered キーへ退避したまま空の source キーから復元するので先頭へ飛び、
+        // 意味の無い .source が永続化される(TASK-368)。
+        guard newValue != effectiveDisplayMode else { return }
+        // ソース系モードへ入った時点で、cmd+U の戻り先の記憶は役目を終える。残しておくと
+        // 「diff → cmd+U → cmd+2(source) → cmd+U → cmd+U」で diff へ戻ってしまう。
+        if newValue.isSourceMode { sourceToggleReturn = nil }
+        saveScrollPositionBeforeTransition()
+        applyDisplayMode(newValue)
+        perFileState.displayMode.setDisplayMode(displayMode, for: fileURL)
+        // 差分を取れるかどうかは表示モードに依存する。レンダリング表示中の refreshDiff は
+        // 差分を捨てるため、モードが変わった契機で取り直さないとソース表示へ切り替えても
+        // 差分が出ない(TASK-337)。applyDisplayMode ではなくここに置くのは、モードだけが
+        // 変わる呼び出し元が setDisplayMode だけだから(performFileSwitch は URL 更新前に
+        // 呼ぶため、そちらへ置くと切替前ファイルに対して git を起こす)。
+        refreshDiff()
+        // 同一ファイルを開いている他ウィンドウへ同じモードを届ける。ここで通知することが
+        // 「同一ファイルの窓は同じ答えを示す」を成立させている(TASK-371)。
+        delegate?.viewerWindow(self, didChangeDisplayMode: displayMode)
+    }
+
+    /// 同一ファイルを表示している他ウィンドウへ、ユーザーが選んだ表示モードを反映する。
+    /// 呼び出し元は ViewerWindowManager だけで、対象は controllers のキー引きで求める。
+    ///
+    /// setDisplayMode との違いは 3 つで、いずれも「操作していない窓」であることに由来する。
+    ///
+    /// - delegate へ通知しない(通知すると broadcast が窓の間で往復する)
+    /// - 永続化しない(操作した窓が既に同じ値を書いている)
+    /// - スクロール位置を保存しない。ScrollPositionStore は (path, mode) 粒度でアプリ全体
+    ///   共有であり、保存は JS コールバック経由の非同期(WebViewCommandController)。
+    ///   2 窓が同じキーへ書くと勝者が非決定になるため、書き込みは操作した窓の 1 本に限る
+    ///
+    /// cmd+U の戻り先の記憶(sourceToggleReturn)は窓ごとの操作履歴なので同期しない。
+    /// ただし「ソース系モードへ入った時点で役目を終える」のは操作の有無に依らないため、
+    /// クリアだけは setDisplayMode と同じ理由でここでも行う。
+    func mirrorDisplayMode(_ newValue: ViewerDisplayMode) {
+        guard canSelect(newValue), newValue != effectiveDisplayMode else { return }
+        if newValue.isSourceMode { sourceToggleReturn = nil }
+        applyDisplayMode(newValue)
+        refreshDiff()
+    }
+
+    /// そのモードをいま選べるか。ツールバーのセグメントとメニューの有効判定が共有する。
+    func canSelect(_ mode: ViewerDisplayMode) -> Bool {
+        switch mode {
+        case .rendered: capabilities.canSelectPreviewMode
+        case .source: capabilities.canSelectSourceMode
+        case .diff: capabilities.canSelectDiffMode
         }
     }
 
-    /// isSourceMode を変更し、store への反映とツールバーの表示更新までを一貫して行う。
-    /// 永続化を伴わない復元・強制リセット(init・performFileSwitch・resetSourceMode)は
+    /// 表示モードを変更し、store への反映とツールバーの表示更新までを一貫して行う。
+    /// 永続化を伴わない復元(init・performFileSwitch・handleRename)は
     /// 保存値を書き換えないためこちらを使う。
-    /// isSourceMode の変更が store 経由で SwiftUI の更新サイクルをトリガーし、
+    /// store.displayMode の変更が SwiftUI の更新サイクルをトリガーし、
     /// ViewerWebView.updateNSView → updateContent が呼ばれ、
     /// 自動的にモード切替(必要なら再描画)が行われる。
-    private func applySourceMode(_ newValue: Bool) {
-        if isSourceMode != newValue {
-            store.isSourceMode = newValue
+    ///
+    /// 差分表示から離れるときは、取得済みの差分本文をここで捨てる。着地時の確認
+    /// (refreshDiff の URL・モード一致)だけでは、遅れて届く結果とは別に
+    /// 「既に store に載っている古い本文」が次に差分へ戻った瞬間に一瞬見える。
+    private func applyDisplayMode(_ newValue: ViewerDisplayMode) {
+        if displayMode != newValue {
+            store.displayMode = newValue
+            if !newValue.showsDiff {
+                store.diffText = nil
+            }
         }
         refreshToolbarState()
-    }
-
-    /// リネームで表示形式がソース表示非対応になったとき、レンダリング表示へ戻す。
-    /// 保存値は残す(リネーム時のキー付け替えは PerFileStateStore.migrate が行う)。
-    private func resetSourceMode() {
-        applySourceMode(false)
     }
 
     /// ソース表示トグルを有効にできるか。レンダリング可能な形式でも、
@@ -722,6 +786,7 @@ extension ViewerWindowController {
             isRenderable: store.fileType.isRenderable,
             isBinaryContent: store.fileType.isBinaryContent,
             showsCodeContent: store.showsCodeContent,
+            showsDiff: store.showsDiff,
             supportsSourceMode: store.fileType.supportsSourceMode,
             // 差分の種別ゲートだけは、いま表示中の URL から直接導く。store.fileType は
             // 非同期のコンテンツロード完了まで旧ファイルの値を保つため、切替中に届いた
@@ -787,9 +852,33 @@ extension ViewerWindowController: NSWindowDelegate {
         refreshToolbarState()
     }
 
-    /// View メニュー > ソース表示トグル。レンダリング表示とソース表示を切り替える。
+    /// View メニュー > ソース表示トグル(⌘U)。レンダリング表示とソース表示を往復する。
+    /// ⌘1〜⌘3 の「指定」に対し、こちらは「往復」で動作が違うため両方を残している。
     @objc func toggleSourceView(_ sender: Any?) {
-        setSourceMode(!isSourceMode)
+        guard isSourceMode else {
+            setDisplayMode(sourceToggleTarget)
+            return
+        }
+        // 離れる直前のソース系モードを覚えてからレンダリングへ移る。記憶と消費が
+        // この 1 メソッドに閉じるため、他の入口(⌘1〜⌘3・ツールバー)は関与しない。
+        sourceToggleReturn = (fileURL.normalizedPathKey, effectiveDisplayMode)
+        setDisplayMode(.rendered)
+    }
+
+    /// cmd+U でレンダリング表示から戻る先。直前に cmd+U で離れた同じファイルなら
+    /// そのモード(差分表示なら差分)、それ以外・選べなくなっている場合は `.source`。
+    private var sourceToggleTarget: ViewerDisplayMode {
+        guard let last = sourceToggleReturn, last.pathKey == fileURL.normalizedPathKey,
+              canSelect(last.mode)
+        else { return .source }
+        return last.mode
+    }
+
+    /// View メニュー > レンダリング / ソース / 差分(⌘1〜⌘3)。
+    /// どのモードを選ぶ項目かは NSMenuItem.tag が運ぶ(項目ごとに別セレクタを生やさない)。
+    @objc func selectDisplayMode(_ sender: Any?) {
+        guard let tag = (sender as? NSMenuItem)?.tag, let mode = ViewerDisplayMode(menuItemTag: tag) else { return }
+        setDisplayMode(mode)
     }
 
     /// View > Bookmark / ツールバーのブックマークボタン。現在ファイルのブックマーク状態を切り替える。
@@ -825,13 +914,8 @@ extension ViewerWindowController: NSWindowDelegate {
             menuItem.title = ViewerCommandTitles.lineNumbers(isShown: store.showLineNumbers)
             return capabilities.canToggleLineNumbers
         }
-        if menuItem.action == #selector(toggleSourceDiff(_:)) {
-            menuItem.state = isDiffShown ? .on : .off
-            return capabilities.canToggleDiff
-        }
-        if menuItem.action == #selector(toggleDiffLayout(_:)) {
-            menuItem.state = isDiffLayoutSideBySide ? .on : .off
-            return capabilities.canToggleDiff && isDiffShown
+        if let enabled = validateDisplayModeItem(menuItem) {
+            return enabled
         }
         if menuItem.action == #selector(toggleBookmark(_:)) {
             menuItem.title = ViewerCommandTitles.bookmark(isBookmarked: isBookmarked)

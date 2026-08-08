@@ -66,7 +66,7 @@ struct ViewerWindowControllerPreviewTargetTests {
         #expect(!controller.capabilities.canBookmark)
 
         // メニューを通らない経路(ツールバー・オーバーフロー)と同じく実処理を直接呼ぶ
-        controller.setSourceMode(!sourceModeBefore)
+        controller.setDisplayMode(sourceModeBefore ? .rendered : .source)
         controller.toggleLineNumbers(nil)
         controller.toggleBookmark(nil)
 

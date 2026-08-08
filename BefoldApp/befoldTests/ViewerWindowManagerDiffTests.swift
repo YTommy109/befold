@@ -19,28 +19,28 @@ struct ViewerWindowManagerDiffTests {
     private let first = URL(fileURLWithPath: "/mock/first.swift")
     private let second = URL(fileURLWithPath: "/mock/second.swift")
 
-    /// 設定が OFF なら、以前の取得結果が残っていても差分は出さない。
-    /// 反転は ViewerWindowManager 経由なので、そこから駆動して確かめる。
-    @Test("差分表示を OFF にすると本文が捨てられる")
-    func clearsDiffTextWhenDisabled() throws {
+    /// 差分表示を離れたら、以前の取得結果が残っていても差分は出さない。
+    /// 表示モードはファイル単位なので、反転はコントローラ自身が行う。
+    @Test("差分表示から離れると本文が捨てられる")
+    func clearsDiffTextWhenLeavingDiffMode() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "DiffTests.clear")
         defer { fixture.closeAll() }
-        fixture.diffDisplayPreference.isEnabled = true
         fixture.manager.openViewer(for: file)
         let controller = try #require(fixture.manager.allControllers.first)
         presentDocument(in: controller, file: file)
         controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
 
-        fixture.manager.toggleSourceDiff()
+        controller.setDisplayMode(.source)
 
-        #expect(fixture.diffDisplayPreference.isEnabled == false)
+        #expect(!controller.isDiffShown)
         #expect(controller.store.diffText == nil)
     }
 
-    /// 共有設定なので、片方のウィンドウの ⌘D は他方の差分まで取り直させる。
-    /// 反転したウィンドウだけが取り直すと、他方はメニューのチェックだけ変わる(TASK-330)。
-    @Test("片方のウィンドウのトグルが全ウィンドウの差分に届く")
-    func toggleReachesEveryWindow() async {
+    /// 差分表示はファイル単位の表示モードなので、片方のウィンドウで差分にしても
+    /// 他方のウィンドウ(別ファイル)は巻き込まれない。以前はアプリ全体の設定だったため、
+    /// 1 枚での切替が全ウィンドウへ波及していた(TASK-356 で粒度を揃えた)。
+    @Test("片方のウィンドウの差分表示は他方のウィンドウへ波及しない")
+    func diffModeStaysWithinWindow() async {
         let fixture = MockedViewerWindowManager(
             files: [first, second], prefix: "DiffTests.broadcast",
             contents: "let a = 1", repositoryRoot: URL(fileURLWithPath: "/mock"),
@@ -52,22 +52,27 @@ struct ViewerWindowManagerDiffTests {
         let controllers = fixture.manager.allControllers
         #expect(controllers.count == 2)
         for controller in controllers {
-            presentDocument(in: controller, file: controller.fileURL)
+            controller.fileListModel.entries = [FileListEntry(url: controller.fileURL, kind: .file)]
+            controller.fileListModel.selection = controller.fileURL
+            controller.store.displayMode = .source
         }
 
-        // 1 枚目のウィンドウのメニュー操作(⌘D)を再現する。
-        controllers[0].toggleSourceDiff(nil)
+        // 1 枚目のウィンドウのメニュー操作(⌘3)を再現する。
+        controllers[0].setDisplayMode(.diff)
 
-        #expect(fixture.diffDisplayPreference.isEnabled)
-        // 2 窓ぶんの取得が detached のタスクを経由するため、着地するまで待つ。
+        #expect(controllers[0].isDiffShown)
+        #expect(!controllers[1].isDiffShown)
         await waitForDeliveryOnMainActor {
-            controllers.allSatisfy { $0.store.diffText == "DIFF" }
+            controllers[0].store.diffText == "DIFF"
         }
+        #expect(controllers[1].store.diffText == nil)
     }
 
     /// 生成経路が共有インスタンスを渡していることの固定。
     /// 窓をまたぐ設定なのでコントローラ単体テストでは捕まえられない。
-    @Test("生成したウィンドウは差分表示設定を共有する")
+    /// レイアウトはアプリ全体の粒度のままなので、ここで共有が切れると 2 窓で
+    /// 上下/左右がずれる(デフォルト引数を撤去した理由でもある = TASK-319)。
+    @Test("生成したウィンドウは差分レイアウト設定を共有する")
     func openViewerSharesDiffDisplayPreference() {
         let fixture = MockedViewerWindowManager(files: [first, second])
         defer { fixture.closeAll() }
@@ -76,12 +81,10 @@ struct ViewerWindowManagerDiffTests {
         let controllers = fixture.manager.allControllers
         #expect(controllers.count == 2)
 
-        // 共有インスタンスを動かして観測する。メニュー操作(toggleSourceDiff)経由だと
-        // フィーチャーゲート無効時に両方 false のまま一致し、共有していなくても通る。
-        fixture.diffDisplayPreference.isEnabled = true
+        // 共有インスタンスを動かして観測する。
+        fixture.diffDisplayPreference.layout = .sideBySide
 
-        let enabled = controllers.filter(\.isDiffShown)
-        #expect(enabled.count == controllers.count)
+        #expect(controllers.filter(\.isDiffLayoutSideBySide).count == controllers.count)
         let shared = controllers.filter { $0.diffDisplayPreference === fixture.diffDisplayPreference }
         #expect(shared.count == controllers.count)
     }
@@ -126,7 +129,6 @@ struct ViewerWindowManagerDiffTests {
             diffReader: reader
         )
         defer { fixture.closeAll() }
-        fixture.diffDisplayPreference.isEnabled = true
         // openViewer は同じファイルの重複ウィンドウを作らない(既存を前面化する)ため、
         // 2 窓目は別ファイルで開いてからウィンドウ内で切り替える。実際に同一ファイルが
         // 2 窓に並ぶのもこの経路。
@@ -176,7 +178,6 @@ struct ViewerWindowManagerDiffTests {
             diffReader: StubDiffReader(result: .diff("DIFF"))
         )
         defer { fixture.closeAll() }
-        fixture.diffDisplayPreference.isEnabled = true
         fixture.manager.openViewer(for: first)
         fixture.manager.openViewer(for: second)
         let controllers = fixture.manager.allControllers

@@ -101,7 +101,7 @@ BefoldApp/
 | `SessionStore` | 終了時のウィンドウ/タブグループ構成（`SessionLayout`）の型 |
 | `ScrollPositionStore` | ファイルごとのスクロール位置を永続化（レンダリング/ソース表示を別々に保存） |
 | `ZoomStore` | ファイルごとのズーム倍率を永続化（0.5〜2.0、25% 刻み） |
-| `SourceModeStore` | ファイルごとのソース/レンダリング表示モードを永続化 |
+| `DisplayModeStore` | ファイルごとの表示モード（レンダリング/ソース/差分）を永続化。旧キー `ViewerSourceModes` の Bool 辞書から 1 度だけ移行する |
 | `HiddenFilesPreference` | 不可視ファイル表示 ON/OFF をアプリ全体で永続化 |
 | `FindOptionsPreference` | 検索の3トグル（大文字小文字区別・単語一致・正規表現）をアプリ全体で永続化 |
 | `NavigationHistory` | タブごとの戻る/進む履歴スタック（非永続） |
@@ -171,7 +171,11 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
 - **ズーム**: 0.5〜2.0（ボタン・キーは 25% 刻み、ホイールは連続）、基準スケール 0.75、
   `Cmd +/-`・`Ctrl + ホイール`・% 表示クリックでリセット。`ZoomStore` によりファイル単位で永続化
 - **検索**: 大文字小文字区別・単語一致・正規表現の3トグル、次/前移動
-- **ソース/レンダリング表示切替**: `SourceModeStore` でファイル単位に永続化。ソース表示時は行番号トグルを提供
+- **表示モード切替**: ツールバーの 3 択セグメント（レンダリング / ソース / 差分）と `⌘1`〜`⌘3`。
+  `DisplayModeStore` でファイル単位に永続化する。差分は `FeatureGate.isSourceDiffEnabled` の内側で、
+  stable ビルドでは 2 択になる。差分レイアウト（上下/左右）は `⌘4` とツールバーのトグルで切り替え、
+  好みの設定としてアプリ全体で共有する（`DiffDisplayPreference`）。ソース相当の内容を出している間は
+  行番号トグルを提供
 - **戻る/進むナビゲーション**: タブごとの履歴（`NavigationHistory`）、ツールバーボタン・履歴メニュー・
   トラックパッドスワイプ（`SwipeHistoryNavigation`）に対応
 - **エラーパネル**: `mermaid.parseError` で構文エラーの詳細メッセージを赤ボーダー・等幅フォントのパネルに表示

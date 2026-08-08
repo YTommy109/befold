@@ -26,8 +26,11 @@ struct ViewerCapabilities: Equatable {
     let canToggleLineNumbers: Bool
     /// ブックマークの付け外し。対象は「いま見えている文書」。
     let canBookmark: Bool
-    /// git 差分表示の切替。行番号と同じく「いまソース相当の内容を出している」ときだけ意味を持つ。
-    let canToggleDiff: Bool
+    /// モード切替のうち「差分表示」を選べるか。行番号と同じく
+    /// 「いまソース相当の内容を出している」ときだけ意味を持つ。
+    let canSelectDiffMode: Bool
+    /// 差分レイアウト(上下/左右)の切替。差分表示を選んでいる間だけ意味を持つ。
+    let canToggleDiffLayout: Bool
 
     /// - Parameters:
     ///   - isPresentingDocument: 文書を提示しているか。フォルダー一覧を出している間は false。
@@ -36,6 +39,7 @@ struct ViewerCapabilities: Equatable {
     ///   - isRenderable: プレビュー表示できる種別か。
     ///   - isBinaryContent: テキストソースを持たない種別(画像・PDF)か。
     ///   - showsCodeContent: いまソース相当の内容を表示しているか。
+    ///   - showsDiff: いま差分表示モードを選んでいるか。
     ///   - supportsSourceMode: ソース表示への切替を持つ種別か。
     ///   - supportsDiffDisplay: ソース表示へ差分を重ねられる種別か(CSV/TSV は不可)。
     ///   - isDirectHTMLMode: HTML を直接ロードして表示しているか。
@@ -45,6 +49,7 @@ struct ViewerCapabilities: Equatable {
         isRenderable: Bool,
         isBinaryContent: Bool,
         showsCodeContent: Bool,
+        showsDiff: Bool = false,
         supportsSourceMode: Bool,
         supportsDiffDisplay: Bool,
         isDirectHTMLMode: Bool
@@ -58,7 +63,12 @@ struct ViewerCapabilities: Equatable {
         canSelectSourceMode = onDocument && !isBinaryContent
         canToggleLineNumbers = isPresentingDocument && showsCodeContent
         canBookmark = isPresentingDocument
-        canToggleDiff = isPresentingDocument && showsCodeContent && supportsDiffDisplay
+        // 差分は「いまソースを出しているか」ではなく「その種別がソースと差分を出せるか」で
+        // 決める。差分を選ぶこと自体がソース表示へ移る操作なので、現在の表示内容で判定すると
+        // レンダリング表示中は差分セグメント(⌘3)が押せず、一度ソースへ寄ってからでないと
+        // 差分へ行けない。判定条件はソース表示の選択可否 + 差分を描ける種別か。
+        canSelectDiffMode = onDocument && !isBinaryContent && supportsDiffDisplay
+        canToggleDiffLayout = canSelectDiffMode && showsDiff
     }
 
     /// 何もできない状態(文書を提示していない)。テストとフォールバックの既定値。

@@ -11,6 +11,7 @@ struct ViewerCapabilitiesTests {
         isRenderable: Bool = true,
         isBinaryContent: Bool = false,
         showsCodeContent: Bool = true,
+        showsDiff: Bool = false,
         supportsSourceMode: Bool = true,
         supportsDiffDisplay: Bool = true,
         isDirectHTMLMode: Bool = false
@@ -21,6 +22,7 @@ struct ViewerCapabilitiesTests {
             isRenderable: isRenderable,
             isBinaryContent: isBinaryContent,
             showsCodeContent: showsCodeContent,
+            showsDiff: showsDiff,
             supportsSourceMode: supportsSourceMode,
             supportsDiffDisplay: supportsDiffDisplay,
             isDirectHTMLMode: isDirectHTMLMode
@@ -87,11 +89,28 @@ struct ViewerCapabilitiesTests {
 
     /// CSV/TSV は viewer 側が差分を描かない(viewer-main.js の type === "csv" 分岐)。
     /// ここで許すと、描かれない差分のために git のサブプロセスだけが走る(TASK-324)。
-    @Test("差分は種別が差分表示に対応しているときだけ切り替えられる")
+    @Test("差分は種別が差分表示に対応しているときだけ選べる")
     func diffFollowsDiffDisplaySupport() {
-        #expect(makeCapabilities(supportsDiffDisplay: true).canToggleDiff)
-        #expect(!makeCapabilities(supportsDiffDisplay: false).canToggleDiff)
-        #expect(!makeCapabilities(showsCodeContent: false).canToggleDiff)
+        #expect(makeCapabilities(supportsDiffDisplay: true).canSelectDiffMode)
+        #expect(!makeCapabilities(supportsDiffDisplay: false).canSelectDiffMode)
+        // テキストソースを持たない種別(画像・PDF)は差分も選べない。
+        #expect(!makeCapabilities(isBinaryContent: true, supportsDiffDisplay: true).canSelectDiffMode)
+    }
+
+    /// 差分を選ぶこと自体がソース表示へ移る操作なので、レンダリング表示中でも
+    /// 差分は選べなければならない。ここを「いまソースを出しているか」で判定すると、
+    /// ⌘3 が押せず一度 ⌘2 を経由しないと差分へ行けなくなる。
+    @Test("差分はレンダリング表示中でも選べる")
+    func diffSelectableWhileRendered() {
+        #expect(makeCapabilities(showsCodeContent: false, supportsDiffDisplay: true).canSelectDiffMode)
+    }
+
+    /// レイアウトの切替は差分を選んでいる間だけ意味を持つ(AC#3)。
+    @Test("差分レイアウトは差分表示中だけ切り替えられる")
+    func diffLayoutRequiresDiffMode() {
+        #expect(makeCapabilities(showsDiff: true, supportsDiffDisplay: true).canToggleDiffLayout)
+        #expect(!makeCapabilities(showsDiff: false, supportsDiffDisplay: true).canToggleDiffLayout)
+        #expect(!makeCapabilities(showsDiff: true, supportsDiffDisplay: false).canToggleDiffLayout)
     }
 
     @Test("何も提示していない既定値はすべて不可")

@@ -11,37 +11,21 @@ struct DiffDisplayPreferenceTests {
         return defaults
     }
 
-    @Test("既定は OFF・インライン")
-    func defaultsToDisabledInline() {
-        let preference = DiffDisplayPreference(defaults: makeDefaults(#function), isAvailable: true)
+    @Test("既定はインライン")
+    func defaultsToInline() {
+        let preference = DiffDisplayPreference(defaults: makeDefaults(#function))
 
-        #expect(preference.isEnabled == false)
         #expect(preference.layout == .inline)
     }
 
-    @Test("ON とレイアウトが永続化される")
-    func persistsEnabledAndLayout() {
+    @Test("レイアウトが永続化される")
+    func persistsLayout() {
         let defaults = makeDefaults(#function)
-        let preference = DiffDisplayPreference(defaults: defaults, isAvailable: true)
+        let preference = DiffDisplayPreference(defaults: defaults)
 
-        preference.isEnabled = true
         preference.layout = .sideBySide
 
-        let restored = DiffDisplayPreference(defaults: defaults, isAvailable: true)
-        #expect(restored.isEnabled)
-        #expect(restored.layout == .sideBySide)
-    }
-
-    /// 機能が無効なビルドでは切り替える手段が露出しないため、保存値 ON でも OFF として読む。
-    /// 保存値そのものは消さない(dev ビルドへ戻れば ON で復帰する)。
-    @Test("機能が無効なら保存値 ON でも OFF として読む")
-    func readsDisabledWhenFeatureUnavailable() {
-        let defaults = makeDefaults(#function)
-        DiffDisplayPreference(defaults: defaults, isAvailable: true).isEnabled = true
-
-        #expect(DiffDisplayPreference(defaults: defaults, isAvailable: false).isEnabled == false)
-        // 保存値は残っている
-        #expect(DiffDisplayPreference(defaults: defaults, isAvailable: true).isEnabled)
+        #expect(DiffDisplayPreference(defaults: defaults).layout == .sideBySide)
     }
 
     @Test("壊れたレイアウト保存値はインラインへ落ちる")
@@ -49,7 +33,7 @@ struct DiffDisplayPreferenceTests {
         let defaults = makeDefaults(#function)
         defaults.set("bogus", forKey: "SourceDiffLayout")
 
-        #expect(DiffDisplayPreference(defaults: defaults, isAvailable: true).layout == .inline)
+        #expect(DiffDisplayPreference(defaults: defaults).layout == .inline)
     }
 }
 

@@ -22,12 +22,12 @@ struct ViewerWindowControllerIntegrationTests {
     private func makeController(
         file: URL,
         zoomStore: ZoomStore? = nil,
-        sourceModeStore: SourceModeStore? = nil,
+        displayModeStore: DisplayModeStore? = nil,
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
     ) -> ViewerWindowController {
         ViewerWindowControllerFixture(
             file: file, realFileSystem: true, defaults: defaults,
-            zoomStore: zoomStore, sourceModeStore: sourceModeStore
+            zoomStore: zoomStore, displayModeStore: displayModeStore
         ).controller
     }
 
@@ -107,6 +107,7 @@ struct ViewerWindowControllerIntegrationTests {
         let defaults = makeIsolatedDefaults(prefix: "Smoke")
         let controller = ViewerWindowController(
             fileURL: file,
+            diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults)
         )

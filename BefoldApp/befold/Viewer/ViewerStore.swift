@@ -83,9 +83,34 @@ final class ViewerStore {
         rejectReason != nil
     }
 
-    /// ソース表示中かどうか。HTML 直接ロードモードでは、変更が SwiftUI の
-    /// 更新サイクルをトリガーし ViewerWebView.updateContent での分岐に使われる。
-    var isSourceMode: Bool = false
+    /// プレビューエリアの表示モード（レンダリング / ソース / 差分）。
+    /// 変更が SwiftUI の更新サイクルをトリガーし、ViewerWebView.updateContent での
+    /// 分岐（HTML 直接ロード判定など）と差分の描画可否に使われる。
+    ///
+    /// ソース表示と差分表示を別々の Bool で持たないのは、`.rendered` なのに差分だけ ON という
+    /// 不整合を状態として作れなくするため（`ViewerDisplayMode` の doc を参照）。
+    var displayMode: ViewerDisplayMode = .rendered
+
+    /// ソース表示中かどうか。レンダラ境界へ渡す Bool はここから導出する。
+    var isSourceMode: Bool {
+        displayMode.isSourceMode
+    }
+
+    /// git 差分を重ねて表示するモードかどうか。実際に差分が描けるかは `diffText` の有無にもよる。
+    var showsDiff: Bool {
+        displayMode.showsDiff
+    }
+
+    /// モード切替セグメント・メニューのチェックが指し示すべきモード。
+    ///
+    /// プレビューを持たない種別(.code)は `displayMode` が `.rendered` のままでも実際には
+    /// ソースを出している。保存値としての `.rendered` をそのまま選択位置に使うと、
+    /// 選べない(無効な)レンダリングセグメントが選択済みに見える。表示のためだけの導出で、
+    /// 保存値は書き換えない。
+    var effectiveDisplayMode: ViewerDisplayMode {
+        if displayMode == .rendered, showsCodeContent { return .source }
+        return displayMode
+    }
 
     /// ソース表示へ重ねる git 差分の本文（unified diff）。取得は
     /// `ViewerWindowController` が行い、ここへ結果だけを置く。差分が無い・

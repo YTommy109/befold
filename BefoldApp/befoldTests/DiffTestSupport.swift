@@ -80,10 +80,10 @@ final class SequenceDiffReader: GitDiffReading, @unchecked Sendable {
     }
 }
 
-/// 差分をトグルできる状態(文書を提示していて選択も現在ファイル)を作る。
+/// 差分を表示している状態(文書を提示していて選択も現在ファイル)を作る。
 @MainActor
 func presentDocument(in controller: ViewerWindowController, file: URL) {
     controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
     controller.fileListModel.selection = file
-    controller.store.isSourceMode = true
+    controller.store.displayMode = .diff
 }

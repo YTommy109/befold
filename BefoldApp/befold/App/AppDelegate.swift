@@ -67,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
             sidebarDisplayPreference: sidebarDisplayPreference,
+            diffDisplayPreference: DiffDisplayPreference(defaults: .standard),
             findOptionsPreference: findOptionsPreference,
             codeFontPreference: codeFontPreference,
             perFileState: perFileState,

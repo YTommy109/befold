@@ -54,40 +54,31 @@ struct ViewerWindowControllerDiffTests {
     }
 
     private func makePreference() -> DiffDisplayPreference {
-        DiffDisplayPreference(
-            defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerDiffTests.pref"),
-            isAvailable: true
-        )
+        DiffDisplayPreference(defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerDiffTests.pref"))
     }
 
-    @Test("文書を提示している間はトグルできる")
-    func togglesWhilePresentingDocument() {
+    @Test("文書を提示している間は差分モードを選べる")
+    func selectsDiffModeWhilePresentingDocument() {
         let preference = makePreference()
         let controller = makeController(preference: preference)
-        let delegate = MockViewerWindowControllerDelegate()
-        controller.delegate = delegate
         defer { controller.close() }
         controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
         controller.fileListModel.selection = file
-        controller.store.isSourceMode = true
-        // 前提そのものを固定する(能力が false のままだと、以下のトグルは
+        controller.store.displayMode = .source
+        // 前提そのものを固定する(能力が false のままだと、以下の切替は
         // 「効かなかった」のか「そもそも対象外だった」のか区別できない)。
-        #expect(controller.capabilities.canToggleDiff)
+        #expect(controller.capabilities.canSelectDiffMode)
 
-        controller.toggleSourceDiff(nil)
+        controller.setDisplayMode(.diff)
 
-        // 反転そのものは ViewerWindowManager が全ウィンドウまとめて行う(TASK-330)。
-        // ここで自分だけ反転すると他ウィンドウが取り直さないため、通知だけを確かめる。
-        #expect(delegate.toggleSourceDiffCallCount == 1)
-        #expect(preference.isEnabled == false)
+        #expect(controller.isDiffShown)
+        #expect(controller.displayMode == .diff)
     }
 
-    @Test("フォルダー提示中はトグルが効かない")
-    func ignoresToggleWhilePreviewingFolder() {
+    @Test("フォルダー提示中は差分モードもレイアウト切替も効かない")
+    func ignoresDiffWhilePreviewingFolder() {
         let preference = makePreference()
         let controller = makeController(preference: preference)
-        let delegate = MockViewerWindowControllerDelegate()
-        controller.delegate = delegate
         defer { controller.close() }
         let folder = URL(fileURLWithPath: "/mock/sub")
         controller.fileListModel.entries = [
@@ -95,15 +86,14 @@ struct ViewerWindowControllerDiffTests {
             FileListEntry(url: folder, kind: .folder),
         ]
         controller.fileListModel.selection = folder
-        controller.store.isSourceMode = true
-        #expect(!controller.capabilities.canToggleDiff)
+        controller.store.displayMode = .source
+        #expect(!controller.capabilities.canSelectDiffMode)
 
-        controller.toggleSourceDiff(nil)
+        controller.setDisplayMode(.diff)
         controller.toggleDiffLayout(nil)
 
         #expect(controller.isPreviewingFolder)
-        #expect(delegate.toggleSourceDiffCallCount == 0)
-        #expect(preference.isEnabled == false)
+        #expect(!controller.isDiffShown)
         #expect(preference.layout == .inline)
     }
 
@@ -114,7 +104,8 @@ struct ViewerWindowControllerDiffTests {
         defer { controller.close() }
         controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
         controller.fileListModel.selection = file
-        controller.store.isSourceMode = true
+        // レイアウトの切替は差分表示中だけ効く(AC#3)。
+        controller.store.displayMode = .diff
 
         controller.toggleDiffLayout(nil)
         #expect(preference.layout == .sideBySide)
@@ -129,7 +120,6 @@ struct ViewerWindowControllerDiffTests {
     @Test("git 状態が反映されたら差分も取り直す")
     func refreshesDiffWhenGitStatusApplied() async {
         let preference = makePreference()
-        preference.isEnabled = true
         let controller = ViewerWindowControllerFixture(
             file: file, contents: "let a = 1",
             defaults: makeIsolatedDefaults(prefix: "DiffTests.gitStatusApplied"),
@@ -152,21 +142,23 @@ struct ViewerWindowControllerDiffTests {
         }
     }
 
-    /// 差分を描けない種別(画像・PDF など)では git を起こさない。契機がバッジと同数へ
-    /// 増えたため、表示側で捨てるだけでは `.git` の書き込みごとに subprocess が走る。
-    @Test("差分を出せない状態では取得しない")
-    func skipsFetchWhenDiffCannotBeShown() {
+    /// 差分表示モードでなければ git を起こさない。契機がバッジと同数へ増えたため、
+    /// 表示側で捨てるだけでは `.git` の書き込みごとに subprocess が走る。
+    /// 併せて、差分表示を離れたときに取得済みの本文が捨てられることも測る(開始時の無効化)。
+    @Test("差分表示モードでなければ取得しない")
+    func skipsFetchWhenNotInDiffMode() {
         let preference = makePreference()
-        preference.isEnabled = true
         let reader = RecordingDiffReader()
         let controller = makeController(preference: preference, diffReader: reader)
         defer { controller.close() }
-        // 文書を提示していない(= canToggleDiff が false)状態。
-        #expect(!controller.capabilities.canToggleDiff)
+        presentDocument(in: controller, file: file)
         controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
 
-        controller.refreshDiff()
+        controller.setDisplayMode(.source)
 
+        #expect(!controller.isDiffShown)
+        #expect(controller.store.diffText == nil)
+        controller.refreshDiff()
         #expect(reader.callCount == 0)
         #expect(controller.store.diffText == nil)
     }
@@ -178,7 +170,6 @@ struct ViewerWindowControllerDiffTests {
     func skipsFetchForCSVSourceView() async {
         let csv = URL(fileURLWithPath: "/mock/table.csv")
         let preference = makePreference()
-        preference.isEnabled = true
         let reader = RecordingDiffReader()
         let controller = makeController(preference: preference, file: csv, diffReader: reader)
         defer { controller.close() }
@@ -189,7 +180,7 @@ struct ViewerWindowControllerDiffTests {
             controller.store.fileType == .csv(delimiter: ",")
         }
         #expect(controller.store.showsCodeContent)
-        #expect(!controller.capabilities.canToggleDiff)
+        #expect(!controller.capabilities.canSelectDiffMode)
         controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
 
         controller.refreshDiff()
@@ -206,7 +197,6 @@ struct ViewerWindowControllerDiffTests {
     func gatesByDestinationFileTypeDuringSwitch() async {
         let csv = URL(fileURLWithPath: "/mock/table.csv")
         let preference = makePreference()
-        preference.isEnabled = true
         let reader = RecordingDiffReader()
         let controller = ViewerWindowControllerFixture(
             file: file, extraFiles: [csv], contents: "let a = 1",
@@ -222,13 +212,13 @@ struct ViewerWindowControllerDiffTests {
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
             controller.store.filePath == file
         }
-        #expect(controller.capabilities.canToggleDiff)
+        #expect(controller.capabilities.canSelectDiffMode)
 
         // 切替直後(ロード確定前)に取得契機が届く状況を作る。
         controller.performFileSwitch(to: csv)
         #expect(controller.fileURL == csv)
         // CSV 側もソース表示で開く(保存済みの表示モードが ON のケース)。
-        controller.store.isSourceMode = true
+        controller.store.displayMode = .source
         // 種別はまだ旧ファイルのもの = ここが「すり抜け」の入口。
         #expect(controller.store.fileType.supportsDiffDisplay)
         controller.gitStatusDidApply()
@@ -248,11 +238,10 @@ struct ViewerWindowControllerDiffTests {
     /// refreshDiff は取得せず diffText を捨てる。モード切替が差分の取り直しを起こさないと、
     /// ソース表示へ切り替えても差分が出ず、保存・`.git/index` 変更など無関係な契機が
     /// 来るまで素のソースのままになる(TASK-337)。
-    @Test("ソース表示へ切り替えたら差分を取り直す")
-    func refreshesDiffWhenSwitchingToSourceMode() async {
+    @Test("差分表示へ切り替えたら差分を取り直す")
+    func refreshesDiffWhenSwitchingToDiffMode() async {
         let markdown = URL(fileURLWithPath: "/mock/note.md")
         let preference = makePreference()
-        preference.isEnabled = true
         let reader = RecordingDiffReader()
         let controller = ViewerWindowControllerFixture(
             file: markdown, contents: "# note",
@@ -263,21 +252,21 @@ struct ViewerWindowControllerDiffTests {
             gitFileIndex: SlowRootGitFileIndex(delay: 0)
         ).controller
         defer { controller.close() }
-        // presentDocument はソース表示にしてしまうため、提示状態だけを作る
+        // presentDocument は差分表示にしてしまうため、提示状態だけを作る
         // (レンダリング表示のまま切り替えることがこのテストの前提)。
         controller.fileListModel.entries = [FileListEntry(url: markdown, kind: .file)]
         controller.fileListModel.selection = markdown
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
             controller.store.fileType == .markdown
         }
-        // 前提: レンダリング表示中は差分を出せない = ここでは取得も起きない。
-        #expect(!controller.capabilities.canToggleDiff)
+        // 前提: レンダリング表示中は差分モードを選んでいない = ここでは取得も起きない。
+        #expect(!controller.isDiffShown)
         controller.refreshDiff()
         #expect(reader.callCount == 0)
 
-        controller.setSourceMode(true)
+        controller.setDisplayMode(.diff)
 
-        #expect(controller.capabilities.canToggleDiff)
+        #expect(controller.isDiffShown)
         // 測るのは「取り直しが起きたか」。回数は固定しない。ソース表示への切替と
         // git 状態の反映が別のターンに分かれると、それぞれが別の契機として取得を起こす
         // （契機ごとに読み直すのは仕様。合流するのは同じ契機の兄弟要求だけ = TASK-346）。
@@ -292,7 +281,6 @@ struct ViewerWindowControllerDiffTests {
     @Test("差分の取り直しはリポジトリルート解決でメインアクターを止めない")
     func refreshDiffDoesNotBlockMainActorOnRootResolution() {
         let preference = makePreference()
-        preference.isEnabled = true
         let delay: TimeInterval = 0.5
         let controller = ViewerWindowControllerFixture(
             file: file, contents: "let a = 1",

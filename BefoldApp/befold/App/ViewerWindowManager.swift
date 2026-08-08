@@ -68,10 +68,11 @@ final class ViewerWindowManager {
 
     /// - Parameter sidebarDisplayPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
-    /// - Parameter diffDisplayPreference: 同上。差分表示は全ウィンドウで同じ答えになる必要があるため、
-    ///   ここで受けた 1 つを openViewer が全コントローラへ渡す（省略時もマネージャ内で 1 つに揃う）。
+    /// - Parameter diffDisplayPreference: 差分レイアウトは全ウィンドウで同じ答えになる必要があるため、
+    ///   ここで受けた 1 つを openViewer が全コントローラへ渡す。既定値を持たせないのは、
+    ///   渡し忘れが静かに別インスタンスになるのを防ぐため（TASK-319）。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
-    /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・ソース表示モード・
+    /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・表示モード・
     ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
     /// - Parameter bookmarkStore: 同上。ブックマーク挙動に無関心なテストが省略できるようにする。
     /// - Parameter makeStore: 生成するコントローラの ViewerStore を差し替える。既定の nil では
@@ -84,7 +85,7 @@ final class ViewerWindowManager {
     init(
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
         sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
-        diffDisplayPreference: DiffDisplayPreference = DiffDisplayPreference(),
+        diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader? = ViewerWindowManager.makeDiffLoader(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
@@ -137,14 +138,6 @@ final class ViewerWindowManager {
         allControllers.forEach { $0.sidebar.applyChangedFilesOnlyToggle() }
     }
 
-    /// ソース差分表示のON/OFFを反転し、開いている全ウィンドウで差分を取り直す。
-    /// 設定(diffDisplayPreference)はアプリ全体で共有されるため、反転したウィンドウだけが
-    /// 取り直すと、他ウィンドウはメニューのチェックだけ変わって画面が変わらない(TASK-330)。
-    func toggleSourceDiff() {
-        diffDisplayPreference.isEnabled.toggle()
-        allControllers.forEach { $0.refreshDiff() }
-    }
-
     /// CLI の `--hidden-files`/`--no-hidden-files` から呼ばれる。値を直接設定し、
     /// 開いている全ウィンドウのサイドバーへ即座に反映する。
     func setHiddenFiles(_ value: Bool) {
@@ -179,6 +172,21 @@ final class ViewerWindowManager {
         }
     }
 
+    /// 同一ファイルを表示している他ウィンドウへ、ユーザーが選んだ表示モードを反映する。
+    ///
+    /// 対象は controllers のキー引きで求める。allControllers を URL 比較で絞る形にしないのは、
+    /// 「別ファイルの窓は影響を受けない」をコード上の判定ではなく登録の構造で成立させるため。
+    ///
+    /// 反映はこの呼び出しの中で**同期に**行う。Task で包むと各窓の refreshDiff による
+    /// 取得登録が契機のターンから外れ、兄弟要求が合流できずに窓の数だけ git が起動する
+    /// (ViewerWindowController+Diff.refreshDiff / TASK-325・TASK-346)。
+    private func mirrorDisplayMode(_ mode: ViewerDisplayMode, from origin: ViewerWindowController) {
+        let peers = controllers[origin.fileURL.normalizedPathKey] ?? []
+        for peer in peers where peer !== origin {
+            peer.mirrorDisplayMode(mode)
+        }
+    }
+
     /// codeFontPreference の現在値を、開いている全ウィンドウの WebView へ即座に反映する。
     /// フォント設定変更(環境設定 UI 等)から呼ばれる。
     func applyCodeFontToAllWindows() {
@@ -196,7 +204,7 @@ final class ViewerWindowManager {
             if let showLineNumbers = options.showLineNumbers {
                 controller.store.applyShowLineNumbersOverride(showLineNumbers)
             }
-            if let sourceMode = options.sourceMode { controller.setSourceMode(sourceMode) }
+            if let sourceMode = options.sourceMode { controller.setDisplayMode(sourceMode ? .source : .rendered) }
             // 並び順は「指定があったときだけ」触る。viewerSortOrder は未指定でも既定値を
             // 返すため、指定の有無は sortOrder の nil 判定で見る。
             if options.sortOrder != nil {
@@ -491,15 +499,17 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
         remapController(controller, from: oldURL, to: newURL, isRename: false)
     }
 
+    func viewerWindow(
+        _ controller: ViewerWindowController, didChangeDisplayMode mode: ViewerDisplayMode
+    ) {
+        mirrorDisplayMode(mode, from: controller)
+    }
+
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
         toggleHiddenFiles()
     }
 
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {
         toggleChangedFilesOnly()
-    }
-
-    func viewerWindowDidToggleSourceDiff(_ controller: ViewerWindowController) {
-        toggleSourceDiff()
     }
 }

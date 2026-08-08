@@ -31,6 +31,11 @@
 | いま表示している対象 | 5 | `ViewerStore.currentURL` / `ViewerStore.filePath` / `FileListModel.selection` / `window.representedURL` / `PreviewTargetResolver` の導出結果 |
 | 倍率 | 4 | `ZoomStore`（永続） / `WKWebView.pageZoom`（直接 HTML 時） / viewer.js 内部変数 / `ViewerRenderer.initialPageZoom`・`pendingPageZoom` |
 | ソース表示モード | 3 | `ViewerStore.isSourceMode`（実行時） / `SourceModeStore`（永続） / ツールバーの `selectedSegment` |
+
+> 補記（TASK-356）: 表示モードは `ViewerStore.displayMode`（`ViewerDisplayMode` の 1 値）と
+> `DisplayModeStore`（永続）に集約し、ツールバーの選択位置はそこから導出する形へ整理した。
+> 差分の ON/OFF を別の Bool で持たないため、「レンダリング表示なのに差分だけ ON」という
+> 不整合は状態として作れない。
 | 直接 HTML モード | 2 | `ViewerRenderer.isDirectHTMLMode` / `WebViewProxy.isDirectHTMLMode` |
 
 実行可否の判断も分散している。`ViewerWindowController.validateMenuItem` と
@@ -96,6 +101,123 @@ JS 契約のズレも呼び出し順の変更も「no-op が正常」として�
 （[Point-Free FAQ](https://www.pointfree.co/blog/posts/141-composable-architecture-frequently-asked-questions) 自身が
 「素の SwiftUI で始めて必要になったら移行してよい」としている）。
 ADR 0001 の決定（AppKit がライフサイクルを所有する）は維持し、本 ADR はその内側の状態設計だけを扱う。
+
+## 表示モードの遷移仕様
+
+<!-- derived-from #decision -->
+
+規約 2（能力は状態から導出する）を表示モード `ViewerDisplayMode` に適用した結果の仕様。
+`feat/preview_mode` のレビュー指摘 10 件中 4 件（TASK-368〜371）は、
+「モード × ファイル種別 × 入口」ごとの期待挙動が明文化されておらず、
+遷移・永続化・no-op がコードの成り行きで決まっていたことに起因した。
+以降の変更はこの節を基準に突き合わせる。
+
+### 用語
+
+- **保存値** = `ViewerStore.displayMode`（`DisplayModeStore` が永続化する値）
+- **実表示** = `ViewerStore.effectiveDisplayMode`。`保存値 == .rendered && showsCodeContent`
+  のときだけ `.source` を返す導出値で、保存値を書き換えない。
+  `.code` ファイルは「保存値 `.rendered` / 実表示 `.source`」という状態を常に取る。
+
+**判定はすべて実表示に対して行う。** 保存値と実表示の食い違いを無視して保存値だけで
+遷移を決めると、`.code` で「既にソース表示なのに rendered→source の完全遷移が走る」
+（TASK-368）。
+
+### 選択可能なモード（ファイル種別 × 能力）
+
+能力は `ViewerCapabilities` が状態から導出する。いずれも `onDocument`
+（文書を提示中かつ拒否されていない）を前提とする。
+
+| 種別 | `.rendered` | `.source` | `.diff` | cmd+U |
+|---|---|---|---|---|
+| `.markdown` / `.mmd` / `.svg` / `.html` | ○ | ○ | ○ | ○ |
+| `.csv` / `.tsv` | ○ | ○ | ×（差分非対応） | ○ |
+| `.code` | ×（非レンダラブル） | ○ | ○ | ×（`supportsSourceMode` = false） |
+| `.image` / `.pdf` | ○ | ×（バイナリ） | × | × |
+
+`.diff` の列は `canSelectDiffMode`（`onDocument && !isBinaryContent && supportsDiffDisplay`）
+であって、フィーチャーゲートを含まない。**ゲートは能力ではなく入口（メニュー項目・
+セグメント）を消すことで効かせる。** 能力側にゲートを混ぜると、能力の意味が
+「この文書に対して成立するか」から「いま押せるか」へずれる。
+
+### 遷移表
+
+各入口が「どのモードへ遷移するか」「保存値へ書くか」。
+
+| 入口 | 遷移先 | 永続化 | 備考 |
+|---|---|---|---|
+| セグメント選択 | 選択したモード | する | 選択位置は実表示から導出 |
+| cmd+1 / cmd+2 / cmd+3 | `.rendered` / `.source` / `.diff` | する | cmd+3 はゲート ON のときのみ項目が存在 |
+| cmd+4 | 遷移しない（差分レイアウト切替） | しない | ゲート ON のときのみ存在 |
+| cmd+U（レンダリング表示から） | 直前のソース系モード、無ければ `.source` | する | 下記「cmd+U の戻り先」 |
+| cmd+U（ソース系から） | `.rendered` | する | 離脱前の実表示を記憶する |
+| CLI `--source` / `--preview`（新規ウィンドウ） | `.source` / `.rendered` | **しない** | この起動限りの上書き |
+| CLI `--source` / `--preview`（パス無し・既存ウィンドウ） | 同上 | **する** | 明示的なユーザー操作として扱う |
+| ウィンドウ復元・起動 | 保存値（無ければ `.rendered`）を降格規則に通した値 | しない | |
+| ファイル切替 | 切替先の保存値を降格規則に通した値 | しない | |
+| リネーム | **いま表示中のモード**を降格規則に通した値 | しない | 保存値ではない（TASK-369） |
+| 他ウィンドウからの同期 | 同期されたモード | しない | 下記「複数ウィンドウ」 |
+
+**降格規則**（`DisplayModeStore.supportedDisplayMode(_:for:)` の 1 箇所に置く）:
+`.rendered` はそのまま、`.source` は `supportsSourceMode` でなければ `.rendered`、
+`.diff` は差分対応かつゲート ON でなければ `.source`（`.code` 以外）または `.rendered`。
+**降格しても保存値は書き換えない。** 対応する種別のファイルへ戻れば元のモードが復帰する。
+
+リネームで保存値を再適用すると、永続化されていないライブなモード
+（CLI 上書き）がリネームで破棄される（TASK-369）。リネームは
+「別のファイルを開く」ではなく「同じ文書の名前が変わる」操作であり、
+引き継ぐべきは保存値ではなく現在の表示である。
+
+**cmd+U の戻り先**: ソース系から離れる際に「離脱直前の実表示」をファイルパスをキーに
+記憶し、戻るときに使う。これが無いと `.diff` → cmd+U → cmd+U で `.source` に落ち、
+保存値の `.diff` も上書きで失われる（TASK-370）。記憶はソース系モードへ入る
+すべての経路（明示選択・他ウィンドウからの同期）で破棄する。
+記憶自体はウィンドウごとの操作履歴であり、永続化も同期もしない。
+
+### 永続化規則
+
+**保存値へ書くのは明示的なユーザーのモード選択だけ**（`setDisplayMode` の 1 経路）。
+次はいずれも書かない。
+
+- 復元・ファイル切替・リネームに伴う適用（`applyDisplayMode`）
+- 他ウィンドウからの同期（`mirrorDisplayMode`）
+- 新規ウィンドウ起動時の CLI `--source` / `--preview` の上書き
+- no-op と判定された選択（次項）
+
+### no-op 規則
+
+`setDisplayMode` は次のいずれかで、副作用を一切起こさず早期 return する。
+スクロール位置の退避・永続化・差分の再取得をまとめて行わない。
+
+1. `canSelect(新モード)` が false（そのファイル種別で成立しないモード）
+2. **新モード == 実表示**（保存値ではない）
+
+規則 2 により、`.code` ファイルで `.source` を選ぶ操作（セグメント・cmd+2・
+CLI `--source`）はすべて no-op になる。`.code` は既に実表示が `.source` であり、
+遷移を走らせるとスクロール位置が別のキーへ退避されて先頭へ飛び、
+意味のない `.source` が保存値に書かれる（TASK-368）。
+
+### 複数ウィンドウの不変条件
+
+**同一ファイルを開いているすべてのウィンドウは、同じ表示モードを示す。**
+
+この不変条件はかつて削除済みの `DiffDisplayPreference` の doc コメントにだけ
+書かれており、クラスの削除と共に失われた（TASK-371）。コードの一箇所にしか
+存在しない不変条件は、その箇所が消えるときに一緒に消える。
+
+適用範囲と実現方法:
+
+- 適用されるのは**永続化されるユーザー選択**のみ。新規ウィンドウ起動時の
+  CLI `--source` / `--preview` の上書きは、その起動のためのものなので同期しない。
+- 同期は `setDisplayMode` の完了後にデリゲート経由で行い、
+  受け側は永続化も再通知もしない（無限再帰を構造的に防ぐ）。
+- 対象ウィンドウはファイルパスをキーにした引きで求める。
+  全ウィンドウを走査して URL を比較する形にしない
+  （「別ファイルのウィンドウは影響を受けない」がキー引きから構造的に従う）。
+- 同期は呼び出しと同じ同期区間で行う（`Task {}` で包まない）。
+  2 窓の差分取得を 1 回へ合流させる条件がこれに依存する。
+- スクロール位置は同期しない。`(パス, モード)` 粒度でアプリ全体共有のため、
+  2 窓が同じキーへ書くと勝者が非決定になる。書き込みは操作した 1 窓に限る。
 
 ## Consequences
 

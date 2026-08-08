@@ -18,7 +18,7 @@ struct ViewerContentView: View {
     let onSelectFile: (URL) -> Void
     let onNavigateToFolder: (URL) -> Void
     let webViewProxy: WebViewProxy
-    /// 差分表示の設定(ON/OFF とレイアウト)。全ウィンドウ共有。
+    /// 差分のレイアウト設定。全ウィンドウ共有(差分を出すかどうかは store の表示モードが持つ)。
     let diffDisplayPreference: DiffDisplayPreference
 
     /// 表示中ファイルの保存倍率。ファイル切替(store.filePath 変化)で再評価され、
@@ -29,10 +29,10 @@ struct ViewerContentView: View {
         return zoomStore.zoom(for: url)
     }
 
-    /// レンダラへ渡す差分の状態。設定が OFF なら本文があっても差分を出さない
+    /// レンダラへ渡す差分の状態。差分表示モードでなければ本文があっても差分を出さない
     /// (取得側が止まっていても、表示側でも同じ答えになるようにする)。
     private var diffState: ViewerRenderer.DiffState {
-        guard diffDisplayPreference.isEnabled, let text = store.diffText else { return .none }
+        guard store.showsDiff, let text = store.diffText else { return .none }
         return ViewerRenderer.DiffState(text: text, layout: diffDisplayPreference.layout)
     }
 

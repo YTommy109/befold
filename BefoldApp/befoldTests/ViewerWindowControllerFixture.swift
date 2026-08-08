@@ -19,7 +19,7 @@ func placeholderViewerContent() -> AnyView {
 struct ViewerWindowControllerFixture {
     let defaults: UserDefaults
     let zoomStore: ZoomStore
-    let sourceModeStore: SourceModeStore
+    let displayModeStore: DisplayModeStore
     let perFileState: PerFileStateStore
     let bookmarkStore: BookmarkStore
     let controller: ViewerWindowController
@@ -32,7 +32,7 @@ struct ViewerWindowControllerFixture {
         prefix: String = "ViewerWindowControllerFixture",
         defaults: UserDefaults? = nil,
         zoomStore: ZoomStore? = nil,
-        sourceModeStore: SourceModeStore? = nil,
+        displayModeStore: DisplayModeStore? = nil,
         bookmarkStore: BookmarkStore? = nil,
         sidebarDisplayPreference: SidebarDisplayPreference? = nil,
         diffDisplayPreference: DiffDisplayPreference? = nil,
@@ -48,10 +48,10 @@ struct ViewerWindowControllerFixture {
     ) {
         let defaults = defaults ?? makeIsolatedDefaults(prefix: prefix)
         let zoomStore = zoomStore ?? ZoomStore(defaults: defaults)
-        let sourceModeStore = sourceModeStore ?? SourceModeStore(defaults: defaults)
+        let displayModeStore = displayModeStore ?? DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
         let perFileState = PerFileStateStore(
             zoom: zoomStore,
-            sourceMode: sourceModeStore,
+            displayMode: displayModeStore,
             scrollPosition: ScrollPositionStore(defaults: defaults),
             sidebar: SidebarStateStore(defaults: defaults),
             windowFrame: WindowFrameStore(defaults: defaults)
@@ -59,7 +59,7 @@ struct ViewerWindowControllerFixture {
         let bookmarkStore = bookmarkStore ?? BookmarkStore(defaults: defaults)
         self.defaults = defaults
         self.zoomStore = zoomStore
-        self.sourceModeStore = sourceModeStore
+        self.displayModeStore = displayModeStore
         self.perFileState = perFileState
         self.bookmarkStore = bookmarkStore
 
@@ -82,8 +82,7 @@ struct ViewerWindowControllerFixture {
             fileURL: file,
             defaults: defaults,
             sidebarDisplayPreference: sidebarDisplayPreference ?? SidebarDisplayPreference(defaults: defaults),
-            diffDisplayPreference: diffDisplayPreference
-                ?? DiffDisplayPreference(defaults: defaults, isAvailable: true),
+            diffDisplayPreference: diffDisplayPreference ?? DiffDisplayPreference(defaults: defaults),
             diffLoader: diffLoader,
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,

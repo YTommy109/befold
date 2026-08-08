@@ -15,9 +15,10 @@ final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
     var switchFileArgs: (old: URL, new: URL)?
     var toggleHiddenFilesCalled = false
     var toggleChangedFilesOnlyCalled = false
-    /// 差分トグルは「通知したか」だけでなく回数で測る(反転は ViewerWindowManager の責務で、
-    /// コントローラ側が二重に通知していないことを見たいため)。
-    private(set) var toggleSourceDiffCallCount = 0
+    /// 表示モード変更は「通知したか」だけでなく、届いたモードを順に記録する(同一ファイルの
+    /// 他ウィンドウへ配るのは ViewerWindowManager の責務で、コントローラ側が二重に通知して
+    /// いないこと・変化しない選択で通知していないことを見たいため)。
+    private(set) var displayModeNotifications: [ViewerDisplayMode] = []
 
     func viewerWindowWillClose(_ controller: ViewerWindowController) {
         closeCalled = true
@@ -47,8 +48,10 @@ final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
         toggleChangedFilesOnlyCalled = true
     }
 
-    func viewerWindowDidToggleSourceDiff(_ controller: ViewerWindowController) {
-        toggleSourceDiffCallCount += 1
+    func viewerWindow(
+        _ controller: ViewerWindowController, didChangeDisplayMode mode: ViewerDisplayMode
+    ) {
+        displayModeNotifications.append(mode)
     }
 }
 

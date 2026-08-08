@@ -14,6 +14,10 @@ struct FeatureGateEnumerationTests {
     private static let featureGatePath = sourceRoot
         .appendingPathComponent("App/FeatureGate.swift")
 
+    private static let swiftLintConfigPath = sourceRoot
+        .deletingLastPathComponent() // BefoldApp
+        .appendingPathComponent(".swiftlint.yml")
+
     /// befold ターゲット配下の Swift ファイル一覧。
     private static func swiftFiles() throws -> [URL] {
         let keys: [URLResourceKey] = [.isRegularFileKey]
@@ -60,7 +64,47 @@ struct FeatureGateEnumerationTests {
         #expect(offenders.isEmpty)
     }
 
+    /// `befold` ターゲット内での相対パス（`App/FeatureGate.swift` の形）。
+    private static func relativePath(of file: URL) -> String {
+        let root = sourceRoot.standardizedFileURL.path
+        let path = file.standardizedFileURL.path
+        guard path.hasPrefix(root + "/") else { return path }
+        return String(path.dropFirst(root.count + 1))
+    }
+
+    /// `.swiftlint.yml` の custom rule `feature_gate_direct_reference` の `excluded`
+    /// （＝ゲートを読んでよい配線点の allowlist）を相対パス集合として読む。
+    private static func lintAllowlist() throws -> Set<String> {
+        let source = try String(contentsOf: swiftLintConfigPath, encoding: .utf8)
+        guard let rule = source.range(of: "feature_gate_direct_reference:") else {
+            throw EnumerationError.lintRuleMissing
+        }
+        let prefix = "- \"BefoldApp/befold/"
+        var paths: Set<String> = []
+        for line in source[rule.upperBound...].split(separator: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("regex:") { break }
+            guard trimmed.hasPrefix(prefix), trimmed.hasSuffix("$\"") else { continue }
+            let body = trimmed.dropFirst(prefix.count).dropLast(2) // 末尾の `$"`
+            paths.insert(body.replacingOccurrences(of: "\\", with: ""))
+        }
+        return paths
+    }
+
+    @Test("swiftlint の配線点 allowlist が実際のゲート参照と一致する")
+    func lintAllowlistMatchesGateReferences() throws {
+        var referencing: Set<String> = []
+        referencing.insert("App/FeatureGate.swift")
+        for file in try Self.swiftFiles() {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            guard source.contains("FeatureGate.") else { continue }
+            referencing.insert(Self.relativePath(of: file))
+        }
+        #expect(try Self.lintAllowlist() == referencing)
+    }
+
     private enum EnumerationError: Error {
         case sourceRootUnreadable
+        case lintRuleMissing
     }
 }

@@ -54,6 +54,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         let manager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
+            diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             fileReader: fileReader,
