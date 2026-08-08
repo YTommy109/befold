@@ -132,4 +132,6 @@ wrangler deploy は存在しない R2 バケットへのバインディングを
 
 - generate_appcast が既存 appcast の過去エントリの enclosure URL を書き換えるかどうかは未確認（ローカルに sparkle 未インストール、which generate_appcast が not found）。ただし設計上ブロッカーにはならない: 全 URL が /dl/<tag>/ へ書き換わっても、R2 に無いタグは GitHub Releases の同名アセットへ 302 されるため更新経路は切れない（test/public.test.ts の 'R2 に無ければ 404 ではなく GitHub Releases へ 302 する' で担保）。
 - AC#2（実機の Sparkle 自動アップデート）はバケット作成後の dev リリースで検証する。
+
+レビューで切り出しと決めた 2 件を起票: TASK-365（appcast の配信一致検証を R2 基準へ）、TASK-366（appcast 応答の Worker 側キャッシュ）。
 <!-- SECTION:NOTES:END -->
