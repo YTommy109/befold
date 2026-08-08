@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-08 01:21'
-updated_date: '2026-08-08 09:03'
+updated_date: '2026-08-08 09:18'
 labels: []
 dependencies: []
 priority: medium
@@ -167,4 +167,31 @@ generate_appcast の前提を実測で確定した（TASK-367 で入手した公
 - 過去エントリ: url="https://github.com/YTommy109/befold/releases/download/v1.11.0/befold-v1.11.0.dmg"（維持）
 
 **既存エントリの enclosure URL は書き換えられない。** よって v1.10.0 以前の配布済みバージョンの更新経路は無傷で、AC#3 は R2 移行後も成立する。/dl の GitHub フォールバックは過去エントリのためには不要（保険として残す）。この前提は未確認リストから外す。
+
+## R2 有効化後の実測（2026-08-08）
+
+ユーザが R2 を有効化。以下を実施・確認した。
+
+- npx wrangler r2 bucket create befold-dist → 'Created bucket befold-dist with default storage class of Standard'
+- npx wrangler deploy --dry-run → バインディングが解決することを確認
+  env.DB (befold-analytics) D1 / env.DIST (befold-dist) R2 Bucket / env.ASSETS Assets
+- R2 の put / get / delete を実測（リリースワークフローと同じ wrangler r2 object put --remote の形）。テスト用オブジェクト _smoke/latest.json は削除済み
+- GitHub Secrets に CLOUDFLARE_ACCOUNT_ID を登録（値はアカウント ID で機密ではない）
+
+訂正の決着: 「バケット不在なら wrangler deploy が落ちる」は結局実測できていない（バケットを作成した後に確認したため）。Cloudflare のドキュメントにも明記が無い。この推論は未確認のまま残るが、バケットが存在する現状では影響しない。
+
+## 残作業
+
+- **CLOUDFLARE_API_TOKEN に R2 の書き込み権限があるか未確認**。トークンのスコープは API から読めないため、リリースワークフローの R2 put ステップが 403 で落ちるまで判別できない。Cloudflare ダッシュボードで Account / Workers R2 Storage / Edit が付いているか確認が必要（ユーザ作業）。
+- AC#1・#2 は dev リリースを 1 回打つことで実測する。release.yml はタグが指すコミットの内容で実行されるため、このブランチを main へマージしてからタグを打つ必要がある。TASK-367 の AC#3 も同じ dev リリースで兼ねられる。
+
+## R2 権限の preflight を追加
+
+CLOUDFLARE_API_TOKEN のスコープは API から読めないため、リリース実行前に権限不足を検出する手段が無かった。release.yml のジョブ冒頭（checkout 直後、Xcode セットアップより前）に put → delete の preflight ステップを入れた。
+
+これが無いと、権限不足は「DMG を GitHub Release へ公開した後」の R2 put で初めて露見する。その時点で失敗すると、成果物だけが公開され appcast は更新されず R2 は空、という中途半端な状態が残る。署名・公証に 20 分以上かけた後に落ちるのも避けたい。
+
+実測: 同じコマンド列（wrangler@4 r2 object put --remote → delete --remote）を手元で実行し、put/delete とも成功することを確認。実行後に wrangler r2 bucket info で object_count: 0 を確認し、バケットに残骸が無いことも確かめた。
+
+なお、この preflight はローカルの OAuth トークンで検証したものであり、**CI が使う CLOUDFLARE_API_TOKEN で通るかは未確認**。権限が足りなければリリース時にこのステップが落ちる（ただしビルド前なので実害は最小）。
 <!-- SECTION:NOTES:END -->

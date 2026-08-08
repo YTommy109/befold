@@ -24,6 +24,30 @@ jobs:
           # rev-list --count を正しく数えるため全履歴を取得する
           fetch-depth: 0
 
+      # R2 への書き込み可否をビルド前に確かめる。
+      #
+      # 成果物の配置は GitHub Release の公開より後に来るため、ここで検証しないと
+      # 「DMG は GitHub に公開されたが R2 は空で appcast も更新されない」という
+      # 中途半端な状態で失敗する。20 分以上かけて署名・公証を終えた後に
+      # 権限不足で落ちるのも避けたい。
+      #
+      # 存在しないキーの get は、権限があれば「オブジェクトが無い」、無ければ
+      # 認証エラーになる。バケットの中身を変えずに権限だけを判定できる。
+      - name: R2 へ書き込めることを確認する
+        working-directory: .
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          probe="$RUNNER_TEMP/r2-preflight"
+          echo "preflight ${GITHUB_REF_NAME}" > "$probe"
+          npx --yes wrangler@4 r2 object put \
+            "befold-dist/_preflight/${GITHUB_REF_NAME}" \
+            --file "$probe" --content-type text/plain --remote
+          npx --yes wrangler@4 r2 object delete \
+            "befold-dist/_preflight/${GITHUB_REF_NAME}" --remote
+
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '26.5'
