@@ -37,14 +37,28 @@ type_exists() {
 
 # 関数宣言を(複数行にまたがる引数リストごと)取り出す。宣言が改行で折り返される例があるため
 # -U で複数行にまたがって拾う(MainMenuBuilder.addDisplayModeItems が実際にこの形)。
+# イニシャライザは `func` が付かない(`init(defaults:)`)ため別パターンで探す。呼び出し側の
+# `Foo.init(` / `self.init(` を拾わないよう、行頭 + アクセス修飾子だけを前置として許し、
+# -r で修飾子を落として `init(...)` の形に揃える。
 func_decls() {
+  local pattern
+  if [ "$1" = "init" ]; then
+    pattern="^[[:space:]]*(?:(?:public|private|fileprivate|internal|open|required|convenience|override)[[:space:]]+)*(init\??\([^)]*\))"
+  else
+    pattern="(func[[:space:]]+$1\([^)]*\))"
+  fi
   # 折り返された宣言は複数行で返るため、1 宣言 1 行へ畳んでからラベルを見る。
-  rg -U --no-filename --type swift -o -e "func[[:space:]]+$1\([^)]*\)" "$SOURCE_DIR" \
-    | awk '/^func /{if (n++) printf "\n"; printf "%s", $0; next} {printf " %s", $0}
+  rg -U --no-filename --type swift -o -r '$1' -e "$pattern" "$SOURCE_DIR" \
+    | awk '/^(func |init)/{if (n++) printf "\n"; printf "%s", $0; next} {printf " %s", $0}
            END {if (n) printf "\n"}' || true
 }
 
 member_exists() {
+  # ラベルなしの `Type.init` 引用はイニシャライザ宣言の有無で判定する。
+  if [ "$1" = "init" ]; then
+    [ -n "$(func_decls init)" ]
+    return
+  fi
   rg -q --type swift -e "(var|let|case|func)[[:space:]]+$1\b" "$SOURCE_DIR"
 }
 
@@ -55,7 +69,11 @@ labels_match() {
   [ -n "$decls" ] || return 1
   if [ -z "$labels" ]; then
     # `Type.member()` は引数なしの宣言を要求する。
-    echo "$decls" | grep -q -E "func[[:space:]]+$member\([[:space:]]*\)"
+    if [ "$member" = "init" ]; then
+      echo "$decls" | grep -q -E "^init\??\([[:space:]]*\)"
+    else
+      echo "$decls" | grep -q -E "func[[:space:]]+$member\([[:space:]]*\)"
+    fi
     return
   fi
   local decl ok label
@@ -122,6 +140,8 @@ self_test() {
   cat > "$tmp" <<'EOF'
 削除済みの例: `BookmarkShortcut.keyEquivalent(isSourceDiffEnabled:)`
 実在する例: `ModeSegments.modes(isSourceDiffEnabled:)`
+実在する init: `PerFileStateStore.init(defaults:)`
+存在しないラベルの init: `PerFileStateStore.init(nonexistentLabel:)`
 EOF
   local out
   out="$(FAILED=0; check_doc "$tmp" 2>&1 1>/dev/null || true)"
@@ -129,12 +149,21 @@ EOF
     echo "self-test 失敗: 削除済みシンボルを検知できませんでした" >&2
     return 1
   fi
+  if ! echo "$out" | grep -q 'nonexistentLabel'; then
+    echo "self-test 失敗: 存在しないラベルの init 引用を検知できませんでした" >&2
+    return 1
+  fi
   if echo "$out" | grep -q 'ModeSegments'; then
     echo "self-test 失敗: 実在するシンボルを誤検知しました" >&2
     echo "$out" >&2
     return 1
   fi
-  echo "self-test OK: 削除済みシンボルを検知し、実在シンボルは通過しました"
+  if echo "$out" | grep -q 'init(defaults:)'; then
+    echo "self-test 失敗: 実在するイニシャライザを誤検知しました" >&2
+    echo "$out" >&2
+    return 1
+  fi
+  echo "self-test OK: 削除済みシンボル・存在しない init ラベルを検知し、実在シンボルは通過しました"
 }
 
 if [ "${1:-}" = "--self-test" ]; then
