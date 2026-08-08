@@ -132,15 +132,37 @@ GitHub リポジトリの Secrets に `CLOUDFLARE_API_TOKEN` を登録する。�
 失敗させる。D1 は自動バックアップからの巻き戻しが常に間に合うとは限らないため、
 取り返しのつかない適用を CI に任せない。
 
-検査対象を未適用のものだけに絞っているので、内容を確認して手動で適用すれば
-次回から通るようになる。
-
-```bash
-cd site && npm run migrate:remote
-```
-
 Atlas はカラム型変更をテーブル再構築（新テーブル作成 → コピー → `DROP` →
 `RENAME`）として出力するため、型変更もこの検査で捕捉される。
+
+検査対象を未適用のものだけに絞っているので、内容を確認して手動で適用すれば
+次回から通るようになる。適用手段は 2 つある。
+
+#### GitHub Actions から適用する（推奨）
+
+`Site Migrate` ワークフローを手動実行する（Actions タブ、または `gh`）。CI 側の
+`CLOUDFLARE_API_TOKEN` を使うため、手元の wrangler 認証が要らない。
+
+```bash
+gh workflow run site-migrate.yml -f environment=production -f mode=plan
+# 一覧を確認してから
+gh workflow run site-migrate.yml -f environment=production -f mode=apply -f confirm=befold-analytics
+```
+
+`mode: plan` は未適用の一覧を出すだけで、何も適用しない。本番へ `apply` する
+ときだけ `confirm` にデータベース名の入力を求める。適用後に Worker を反映する
+には `Site CI` を再実行する。
+
+#### ローカルから適用する
+
+```bash
+cd site && npm run migrate:list     # 未適用の一覧
+cd site && npm run migrate:remote   # 適用
+```
+
+`wrangler` の認証が要る。**非対話シェル（Claude Code の `!` 実行など）では
+OAuth ログインを開けず `CLOUDFLARE_API_TOKEN` の未設定で失敗する**ので、
+対話的なターミナルで `npx wrangler login` を済ませてから実行する。
 
 ## staging 環境
 
