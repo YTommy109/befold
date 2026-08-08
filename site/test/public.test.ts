@@ -486,6 +486,7 @@ describe('robots.txt / sitemap.xml', () => {
     expect(response.headers.get('Content-Type')).toContain('application/xml')
     const body = await response.text()
     expect(body).toContain('<loc>https://befold.example/</loc>')
+    expect(body).toContain('<loc>https://befold.example/features</loc>')
     expect(body).not.toContain('/dashboard')
     expect(body).not.toContain('/healthz')
   })
@@ -495,5 +496,77 @@ describe('robots.txt / sitemap.xml', () => {
     await call('/sitemap.xml')
 
     expect(await latestEvent()).toBeNull()
+  })
+})
+
+describe('GET /features', () => {
+  it('200 を返し、機能・対応ファイルタイプ・ショートカット・FAQ を含む', async () => {
+    const response = await call('/features')
+
+    expect(response.status).toBe(200)
+    const body = await response.text()
+    expect(body).toContain('対応ファイルタイプ')
+    expect(body).toContain('Supported File Types')
+    expect(body).toContain('キーボードショートカット')
+    expect(body).toContain('Keyboard Shortcuts')
+    expect(body).toContain('よくある質問')
+    expect(body).toContain('Frequently Asked Questions')
+  })
+
+  it('日英どちらの本文も DOM に含まれ、英語側は hidden で出す', async () => {
+    const body = await (await call('/features')).text()
+
+    // 言語切替は [lang] 属性 + hidden の付け外しで行うため、両方が出力されている必要がある。
+    expect(body).toContain('lang="ja"')
+    expect(body).toMatch(/lang="en"[^>]*hidden/)
+  })
+
+  it('対応ファイルタイプ表に主要な拡張子が並ぶ', async () => {
+    const body = await (await call('/features')).text()
+
+    for (const extension of ['.mmd', '.md', '.svg', '.html', '.csv', '.tsv', '.pdf', '.swift']) {
+      expect(body, `${extension} が表に無い`).toContain(extension)
+    }
+  })
+
+  it('canonical と og:url が /features を指す', async () => {
+    const body = await (await call('/features')).text()
+
+    expect(body).toContain('<link rel="canonical" href="https://befold.example/features"/>')
+    expect(body).toContain('content="https://befold.example/features"')
+  })
+
+  it('FAQPage の JSON-LD を出力する', async () => {
+    const body = await (await call('/features')).text()
+    const json = body.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1]
+
+    expect(json).toBeTruthy()
+    const data = JSON.parse(json as string)
+    expect(data['@type']).toBe('FAQPage')
+    expect(Array.isArray(data.mainEntity)).toBe(true)
+    expect(data.mainEntity.length).toBeGreaterThan(0)
+
+    for (const entry of data.mainEntity) {
+      expect(entry['@type']).toBe('Question')
+      expect(entry.name.length).toBeGreaterThan(0)
+      expect(entry.acceptedAnswer['@type']).toBe('Answer')
+      // 構造化データの答えはページ上に見えている必要がある。
+      expect(body).toContain(entry.acceptedAnswer.text.slice(0, 40))
+    }
+  })
+
+  it('visit として記録せず、キャッシュ可能なレスポンスにする', async () => {
+    const response = await call('/features')
+
+    expect(response.headers.get('Cache-Control')).toContain('max-age=3600')
+    expect(await latestEvent()).toBeNull()
+  })
+})
+
+describe('LP から詳細ページへの導線', () => {
+  it('LP に /features への内部リンクがある', async () => {
+    const body = await (await call('/')).text()
+
+    expect(body).toContain('href="/features"')
   })
 })

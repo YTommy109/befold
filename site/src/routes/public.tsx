@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { AppEnv } from '../index'
 import { recordEvent } from '../events'
+import { Features } from '../views/features'
 import { Landing } from '../views/landing'
 import {
   APPCAST_UPSTREAM,
@@ -17,6 +18,19 @@ export const publicRoutes = new Hono<AppEnv>()
 publicRoutes.get('/', (c) => {
   recordEvent(c, { kind: 'visit' })
   return c.html(<Landing origin={new URL(c.req.url).origin} />)
+})
+
+/**
+ * 機能・対応ファイルタイプの詳細ページ。
+ *
+ * visit として記録しない。events テーブルはページを区別する列を持たないため
+ * （src/schema.ts）、ここを計上すると LP からの新規獲得を測る指標に別ページの
+ * 訪問が混ざる。計測しない代わりに CDN・ブラウザキャッシュへ載せてよい。
+ */
+publicRoutes.get('/features', (c) => {
+  // c.header は後続の c.html に反映されるため、本文を作る前に設定する。
+  c.header('Cache-Control', 'public, max-age=3600')
+  return c.html(<Features origin={new URL(c.req.url).origin} />)
 })
 
 /**
@@ -102,6 +116,7 @@ publicRoutes.get('/sitemap.xml', (c) => {
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
     `  <url><loc>${origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n` +
+    `  <url><loc>${origin}/features</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>\n` +
     '</urlset>\n'
   return new Response(body, {
     status: 200,

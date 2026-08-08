@@ -453,3 +453,157 @@ footer a:hover {
   }
 
 }
+
+/* ---- 詳細ページ（/features） ---- */
+
+.breadcrumb {
+  padding: 1.5rem 1.5rem 0;
+  max-width: 900px;
+  margin: 0 auto;
+  font-size: 0.9375rem;
+}
+
+.breadcrumb a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.page-intro {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.page-intro h2 {
+  font-size: 1.875rem;
+  margin-bottom: 0.75rem;
+}
+
+.page-intro p {
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.section-more {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+.section-more a {
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.section-more a:hover {
+  text-decoration: underline;
+}
+
+.feature-defs {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.feature-defs dt {
+  font-weight: 600;
+  margin-top: 1.25rem;
+}
+
+.feature-defs dd {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.file-types,
+.shortcuts,
+.faq {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.file-types h3,
+.shortcuts h3,
+.faq h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+/* 拡張子の並びは横に長くなるため、ページ本体ではなく表だけを横スクロールさせる。 */
+.table-scroll {
+  overflow-x: auto;
+}
+
+.file-type-table,
+.shortcut-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.file-type-table th,
+.file-type-table td,
+.shortcut-table th,
+.shortcut-table td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.75rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.file-type-table thead th {
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.file-type-table tbody th,
+.shortcut-table th {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.file-type-table td.extensions {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.file-type-table td.extensions p {
+  margin-top: 0.5rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.shortcut-table kbd {
+  display: inline-block;
+  background: var(--color-code-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875rem;
+}
+
+.faq-item {
+  margin-bottom: 1.5rem;
+}
+
+.faq-item h4 {
+  font-size: 1.0625rem;
+  margin-bottom: 0.4rem;
+}
+
+.faq-item p {
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
