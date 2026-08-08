@@ -5,7 +5,7 @@ import { eventSchema } from '../src/schema'
 describe('events テーブル', () => {
   it('マイグレーション適用後に INSERT / SELECT できる', async () => {
     const event = eventSchema.parse({
-      ts: 1_700_000_000_000,
+      timestamp: 1_700_000_000_000,
       kind: 'download',
       version: '1.2.3',
       channel: 'stable',
@@ -13,18 +13,18 @@ describe('events テーブル', () => {
     })
 
     await env.DB.prepare(
-      'INSERT INTO events (ts, kind, version, channel, country, os, ua_summary, visitor_day)' +
+      'INSERT INTO events (timestamp, kind, version, channel, country, os, ua_summary, visitor_token)' +
         ' VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     )
       .bind(
-        event.ts,
+        event.timestamp,
         event.kind,
         event.version,
         event.channel,
         event.country,
         event.os,
         event.uaSummary,
-        event.visitorDay,
+        event.visitorToken,
       )
       .run()
 
@@ -36,6 +36,6 @@ describe('events テーブル', () => {
   })
 
   it('未知の kind を弾く', () => {
-    expect(() => eventSchema.parse({ ts: 0, kind: 'unknown' })).toThrow()
+    expect(() => eventSchema.parse({ timestamp: 0, kind: 'unknown' })).toThrow()
   })
 })

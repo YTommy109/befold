@@ -1,15 +1,27 @@
 /** 日次ユニーク推定と UA 要約。生 IP・完全 UA は一切保持しない。 */
 
-/** Unix epoch (ms) を UTC の YYYY-MM-DD に変換する。 */
+import { jstDayKey } from './jst'
+
+/**
+ * Unix epoch (ms) を JST の YYYY-MM-DD に変換する。
+ *
+ * 集計側の日付バケット（lib/jst.ts の JST_DAY_EXPR）と同じ基準にそろえる。
+ * TASK-359.1 で UTC から JST へ変更した。この切り替えを境に同一訪問者の
+ * visitor_day ハッシュが変わるため、切り替え日をまたぐ日次ユニークは
+ * 過去データと連続しない（遡及再計算はしない）。
+ */
 export function dayKey(ts: number): string {
-  return new Date(ts).toISOString().slice(0, 10)
+  return jstDayKey(ts)
 }
 
 /**
- * sha256(ip + ua + YYYY-MM-DD) を 16 進文字列で返す。
- * 同一日・同一訪問者なら決定的に同じ値になり、IP は復元できない。
+ * sha256(ip + ua + YYYY-MM-DD) を 16 進文字列で返す（events.visitor_token）。
+ *
+ * 同一日・同一訪問者なら決定的に同じ値になり、IP は復元できない。日付を材料に
+ * 混ぜているため翌日には別の値になり、日をまたぐ同一人物の追跡はできない。
+ * この性質が目的なので、ハッシュから日付だけを取り出す用途には使えない。
  */
-export async function visitorDayHash(ip: string, ua: string, ts: number): Promise<string> {
+export async function visitorTokenHash(ip: string, ua: string, ts: number): Promise<string> {
   const source = `${ip}\0${ua}\0${dayKey(ts)}`
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(source))
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
