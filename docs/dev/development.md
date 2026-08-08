@@ -115,6 +115,34 @@ GitHub 直の appcast URL を見ており（フィード URL の Worker 切替�
 （既存ユーザの更新）。ダッシュボードでは前者を「ダウンロード」、後者を
 「自動アップデート適用」として別々に並べる。
 
+### リリース後の疎通確認（appcast の配信一致）
+
+<!-- derived-from #配布経路成果物の置き場所 -->
+
+Worker が appcast を改変せずに返していることを、**配信の正である R2 のオブジェクト**と
+突き合わせて確認する。両チャンネルについて sha256 が完全一致すればよい。
+
+```bash
+# stable
+npx wrangler r2 object get befold-dist/appcast.xml --remote --pipe | shasum -a 256
+curl -fsS https://befold.tommy109.workers.dev/appcast.xml | shasum -a 256
+
+# develop
+npx wrangler r2 object get befold-dist/appcast-develop.xml --remote --pipe | shasum -a 256
+curl -fsS https://befold.tommy109.workers.dev/appcast-develop.xml | shasum -a 256
+```
+
+比較先を GitHub Releases 上の appcast にしてはならない。GitHub 直の appcast は
+v1.10.0 以前の配布済みバージョン向けに残しているだけで配信の正ではなく、R2 と
+乖離しても一致確認は通ってしまう（v1.10.1 以降のフィード URL は Worker を指す）。
+
+`wrangler` の認証が要る。非対話シェルでは OAuth ログインを開けないため、
+`CLOUDFLARE_API_TOKEN` を渡すか、対話的なターミナルで `npx wrangler login` を
+済ませてから実行する。
+
+この確認は本番へ実行してよい（`/appcast.xml` への curl は `update_check` として
+記録されるが、実配信の検証は記録が走っても意味を持つ確認にあたる）。
+
 ## 関連ドキュメント
 
 - [コーディング規約](./coding_rule.md)

@@ -121,10 +121,28 @@ publicRoutes.get('/appcast-develop.xml', (c) => proxyAppcast(c, 'develop'))
  * R2 を正とし、そこに無いときだけ GitHub をプロキシする。フォールバックは
  * 移行期の経路であって恒常的な二重の真実ではない（リリースワークフローは
  * R2 への put が失敗したらジョブごと失敗する）。
+ *
+ * 応答は caches.default に 300 秒入れる。Cache-Control だけではクライアント／
+ * 中間キャッシュにしか効かず、アップデートチェックのたびに R2 のクラス B
+ * 操作が発生するため。記録はキャッシュ判定より前に必ず行う（先にキャッシュを
+ * 返すとアップデート確認数が過小になる）。
  */
 async function proxyAppcast(c: Context<AppEnv>, channel: Channel): Promise<Response> {
   recordEvent(c, { kind: 'update_check', channel })
 
+  const cacheKey = new Request(new URL(c.req.url).toString(), { method: 'GET' })
+  const cached = await caches.default.match(cacheKey)
+  if (cached !== undefined) return cached
+
+  const response = await loadAppcast(c, channel)
+  if (response.status === 200) {
+    c.executionCtx.waitUntil(caches.default.put(cacheKey, response.clone()))
+  }
+  return response
+}
+
+/** appcast の本体を R2（無ければ GitHub）から読む。キャッシュ判定は呼び出し側。 */
+async function loadAppcast(c: Context<AppEnv>, channel: Channel): Promise<Response> {
   const object = await c.env.DIST.get(APPCAST_KEY[channel])
   if (object !== null) {
     return new Response(object.body, {

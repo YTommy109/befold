@@ -5,6 +5,7 @@ import app from '../src/index'
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15'
 const IP = '203.0.113.5'
 const APPCAST_XML = '<?xml version="1.0"?><rss><channel><title>befold</title></channel></rss>'
+const DEVELOP_XML = '<?xml version="1.0"?><rss><channel><title>befold-dev</title></channel></rss>'
 
 /** 実リクエストと同じヘッダ構成でルートを叩き、waitUntil の完了まで待つ。 */
 async function call(
@@ -64,6 +65,14 @@ afterEach(async () => {
 
   const { objects } = await env.DIST.list()
   await Promise.all(objects.map((object) => env.DIST.delete(object.key)))
+
+  // caches.default はテスト間で共有される。前のテストの appcast が残ると
+  // 次のテストが R2 を読まずにそれを返してしまう。
+  await Promise.all(
+    ['/appcast.xml', '/appcast-develop.xml'].map((path) =>
+      caches.default.delete(`https://befold.example${path}`),
+    ),
+  )
 })
 
 describe('GET /', () => {
@@ -296,6 +305,44 @@ describe('appcast プロキシ', () => {
 
     expect(response.status).toBe(200)
     expect((await latestEvent())?.channel).toBe('develop')
+  })
+
+  it('2 回目は Worker 側キャッシュから返し R2 を読まない', async () => {
+    await env.DIST.put('appcast.xml', APPCAST_XML)
+    mockUpstream({})
+
+    expect((await call('/appcast.xml')).status).toBe(200)
+
+    const get = vi.spyOn(env.DIST, 'get')
+    const second = await call('/appcast.xml')
+
+    expect(second.status).toBe(200)
+    expect(await second.text()).toBe(APPCAST_XML)
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it('キャッシュヒット時も update_check を記録する', async () => {
+    await env.DIST.put('appcast.xml', APPCAST_XML)
+    mockUpstream({})
+
+    await call('/appcast.xml')
+    await call('/appcast.xml')
+
+    const count = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM events WHERE kind = 'update_check'",
+    ).first<{ n: number }>()
+    expect(count?.n).toBe(2)
+  })
+
+  it('チャンネルごとに別のキャッシュを持つ', async () => {
+    await env.DIST.put('appcast.xml', APPCAST_XML)
+    await env.DIST.put('appcast-develop.xml', DEVELOP_XML)
+    mockUpstream({})
+
+    await call('/appcast.xml')
+    const develop = await call('/appcast-develop.xml')
+
+    expect(await develop.text()).toBe(DEVELOP_XML)
   })
 })
 
