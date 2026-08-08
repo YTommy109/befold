@@ -4,7 +4,7 @@ title: 集計層を再設計し、期間指定とタイムゾーン基準を通�
 status: To Do
 assignee: []
 created_date: '2026-08-08 04:55'
-updated_date: '2026-08-08 04:57'
+updated_date: '2026-08-08 05:02'
 labels:
   - site
   - analytics
@@ -40,4 +40,6 @@ site/src/analytics.ts の集計関数群を、期間（累計 / 当日 / 直近 
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-08-08 ユーザー判断: タイムゾーン基準は JST に統一する。集計の日付・時間帯バケットだけでなく、visitor_day のハッシュ日付 (src/lib/visitor.ts:12-16 の dayKey、現在は toISOString().slice(0,10) で UTC) も JST 日付へ変える。この変更を境に同一訪問者のハッシュが変わるため、切り替え日をまたぐ日次ユニークの連続性は失われる（過去データの遡及再計算はしない）。
+
+2026-08-08 追加観点: events.ua_summary はダッシュボードから一切参照されていない（デッドカラム相当）。AI クローラ（GPTBot / ClaudeBot 等）からのアクセス量を可視化できれば、TASK-360 で見送った llms.txt の要否を推測でなく実測で判断できる。集計層に UA 別の内訳を持たせるか検討すること。
 <!-- SECTION:NOTES:END -->
