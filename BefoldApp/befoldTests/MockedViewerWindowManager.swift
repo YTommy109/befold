@@ -90,7 +90,7 @@ struct MockedViewerWindowManager {
         recentDocumentsStore = RecentDocumentsStore(defaults: defaults)
         perFileState = PerFileStateStore(defaults: defaults)
         sidebarDisplayPreference = SidebarDisplayPreference(defaults: defaults)
-        let diffDisplayPreference = DiffDisplayPreference(defaults: defaults, isAvailable: true)
+        let diffDisplayPreference = DiffDisplayPreference(defaults: defaults)
         self.diffDisplayPreference = diffDisplayPreference
         let diffLoader = diffReader.map { GitDiffLoader(reader: $0) }
         self.diffLoader = diffLoader

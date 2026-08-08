@@ -32,13 +32,16 @@ struct ViewerWindowControllerToolbarTests {
         defer { controller.close() }
         let toolbar = try #require(controller.window?.toolbar)
 
-        // 既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/行番号/モード切替/ブックマーク の順
+        // 既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/行番号/モード切替/
+        // (差分レイアウト)/ブックマーク の順。差分レイアウトはフィーチャーゲートの内側にあり、
+        // stable ビルドでは構成に載らない(無効化ではなく不在)。
         let identifiers = controller.toolbarController.toolbarDefaultItemIdentifiers(toolbar)
+        let diffLayout: [NSToolbarItem.Identifier] = FeatureGate.isSourceDiffEnabled ? [.init("diffLayout")] : []
         #expect(identifiers == [
             .toggleSidebar, .sidebarTrackingSeparator,
             .init("historyBack"), .init("historyForward"),
-            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"), .init("bookmark"),
-        ])
+            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"),
+        ] + diffLayout + [.init("bookmark")])
 
         for identifier in ["historyBack", "historyForward"] {
             let item = try #require(controller.toolbarController.toolbar(
@@ -102,6 +105,8 @@ struct ViewerWindowControllerToolbarTests {
         #expect(previewButton.isEnabled == false)
     }
 
+    /// コード種別は保存モードが .rendered でも実際にはソースを出しているため、
+    /// 選べないプレビュー側が選択済みに見えないこと(effectiveDisplayMode)まで測る。
     @Test("モード切替セグメントの有効状態と選択はファイル種別で決まる", arguments: [
         // (ファイル名, 内容, プレビュー有効, ソース有効, ソース側が選択済み)
         ("a.mmd", "graph TD;", true, true, false), // レンダリング可能なテキスト: 両方有効・プレビュー選択
@@ -123,6 +128,31 @@ struct ViewerWindowControllerToolbarTests {
         #expect(segmented.isEnabled(forSegment: 0) == previewEnabled)
         #expect(segmented.isEnabled(forSegment: 1) == sourceEnabled)
         #expect(segmented.selectedSegment == (sourceSelected ? 1 : 0))
+        // 差分セグメントの有無はフィーチャーゲートと一致する(AC#1 / AC#2)。
+        #expect(segmented.segmentCount == (FeatureGate.isSourceDiffEnabled ? 3 : 2))
+    }
+
+    /// AC#3: レイアウトトグルは差分表示を選んでいない間は無効。出したまま無効にするのは、
+    /// 出現・消滅させるとツールバーの幅が動くため。
+    @Test("差分レイアウトトグルは差分表示中だけ有効になる")
+    func diffLayoutToggleEnabledOnlyInDiffMode() async throws {
+        try #require(FeatureGate.isSourceDiffEnabled)
+        let file = URL(fileURLWithPath: "/mock/a.swift")
+        let controller = makeController(file: file, contents: "let x = 1")
+        defer { controller.close() }
+        let toolbar = try #require(controller.window?.toolbar)
+        await controller.store.loadTask?.value
+        controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
+        controller.fileListModel.selection = file
+
+        controller.setDisplayMode(.source)
+        controller.toolbarController.refreshToolbarState()
+        let item = try #require(toolbar.items.first { $0.itemIdentifier == .init("diffLayout") })
+        #expect((item.view as? NSButton)?.isEnabled == false)
+
+        controller.setDisplayMode(.diff)
+        controller.toolbarController.refreshToolbarState()
+        #expect((item.view as? NSButton)?.isEnabled == true)
     }
 
     // MARK: - 外部からの状態変更に伴う再同期

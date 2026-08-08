@@ -142,52 +142,70 @@ struct MainMenuBuilderTests {
         }
     }
 
-    /// 差分表示はソース表示中に何度も切り替えるため、単独の ⌘D / ⇧⌘D を割り当てている
-    /// (ブラウザ習慣の「⌘D = ブックマーク」より優先し、ブックマークは ⌘B へ移した)。
+    /// 表示モードの選択(⌘1〜⌘3)とレイアウト切替(⌘4)。差分は開発中機能なので、
     /// 露出はフィーチャーゲートと一致しなければならない(解除タスクは未起票)。
-    @Test("View メニューの差分項目はフィーチャーゲートと同じ有無で ⌘D / ⇧⌘D を持つ")
-    func viewMenuGatesDiffItemsWithCommandD() throws {
+    @Test("View メニューの表示モード項目は ⌘1〜⌘3、差分とレイアウトはゲートと同じ有無になる")
+    func viewMenuHasDisplayModeItems() throws {
         let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
 
-        let show = view.items.first { $0.action == #selector(ViewerWindowController.toggleSourceDiff(_:)) }
-        let layout = view.items.first { $0.action == #selector(ViewerWindowController.toggleDiffLayout(_:)) }
-        #expect((show != nil) == FeatureGate.isSourceDiffEnabled)
-        #expect((layout != nil) == FeatureGate.isSourceDiffEnabled)
-        if let show {
-            #expect(show.keyEquivalent == "d")
-            #expect(show.keyEquivalentModifierMask == [.command])
+        let modeItems = view.items.filter { $0.action == #selector(ViewerWindowController.selectDisplayMode(_:)) }
+        let expectedModes: [ViewerDisplayMode] = FeatureGate.isSourceDiffEnabled
+            ? [.rendered, .source, .diff]
+            : [.rendered, .source]
+        #expect(modeItems.map(\.tag) == expectedModes.map(\.menuItemTag))
+        for (item, mode) in zip(modeItems, expectedModes) {
+            #expect(item.keyEquivalent == String(mode.menuItemTag))
+            #expect(item.keyEquivalentModifierMask == [.command])
         }
+
+        let layout = view.items.first { $0.action == #selector(ViewerWindowController.toggleDiffLayout(_:)) }
+        #expect((layout != nil) == FeatureGate.isSourceDiffEnabled)
         if let layout {
-            #expect(layout.keyEquivalent == "d")
-            #expect(layout.keyEquivalentModifierMask == [.command, .shift])
+            #expect(layout.keyEquivalent == "4")
+            #expect(layout.keyEquivalentModifierMask == [.command])
         }
     }
 
-    /// ブックマークを ⌘B へ移す理由は「⌘D を差分表示へ譲る」ことだけなので、差分項目が
-    /// 出ないビルド（stable）では ⌘D のままでなければならない。無条件に ⌘B へ移すと、
-    /// stable では ⌘D が誰にも割り当たらないままブックマークだけが黙って動く（TASK-333）。
-    @Test("ブックマークのキーはフィーチャーゲートに合わせて ⌘D / ⌘B を切り替える")
-    func viewMenuBookmarkKeyFollowsDiffGate() throws {
+    /// AC#2: stable ビルド(ゲート OFF)では差分セグメントとレイアウト項目が現れない。
+    /// 実ビルドではゲートが片側に固定されるため、両分岐は注入点で検証する
+    /// (ゲート越しの検証は動いているビルドの側しか通らない = BookmarkShortcut と同じ理由)。
+    @Test("表示モードの露出はフィーチャーゲートの両方向で正しい", arguments: [
+        (isSourceDiffEnabled: true, modeCount: 3, hasLayout: true),
+        (isSourceDiffEnabled: false, modeCount: 2, hasLayout: false),
+    ])
+    func displayModeExposureFollowsGateInBothDirections(
+        isSourceDiffEnabled: Bool, modeCount: Int, hasLayout: Bool
+    ) {
+        // セグメント側(ツールバー)の並びと個数。
+        let modes = ModeSegments.modes(isSourceDiffEnabled: isSourceDiffEnabled)
+        #expect(modes.count == modeCount)
+        #expect(modes.contains(.diff) == isSourceDiffEnabled)
+        #expect(Array(modes.prefix(2)) == [.rendered, .source])
+
+        // メニュー側。⌘1〜⌘3 とレイアウト(⌘4)の有無が同じ判定に従う。
+        let menu = NSMenu()
+        MainMenuBuilder.addDisplayModeItems(to: menu, isSourceDiffEnabled: isSourceDiffEnabled)
+        let modeItems = menu.items.filter { $0.action == #selector(ViewerWindowController.selectDisplayMode(_:)) }
+        #expect(modeItems.map(\.keyEquivalent) == modes.map { String($0.menuItemTag) })
+        let layout = menu.items.first { $0.action == #selector(ViewerWindowController.toggleDiffLayout(_:)) }
+        #expect((layout != nil) == hasLayout)
+        #expect(layout?.keyEquivalent == (hasLayout ? "4" : nil))
+    }
+
+    /// 差分が ⌘3 へ移ったので ⌘D は空き、ブックマークはビルド種別によらず ⌘D に固定される。
+    /// 以前は差分ゲートに応じて ⌘B / ⌘D を切り替えていたが、その分岐は撤去した(TASK-356)。
+    @Test("ブックマークのキーはビルド種別によらず ⌘D")
+    func viewMenuBookmarkAlwaysUsesCommandD() throws {
         let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
 
         let item = try #require(view.items.first { $0.action == #selector(ViewerWindowController.toggleBookmark(_:)) })
-        #expect(item.keyEquivalent == BookmarkShortcut.keyEquivalent)
+        #expect(item.keyEquivalent == "d")
         #expect(item.keyEquivalentModifierMask == .command)
-        // ⌘D を持つ項目はビルドを通じて常にちょうど 1 つ（差分表示 or ブックマーク）。
+        #expect(BookmarkShortcut.keyEquivalent == "d")
+        #expect(BookmarkShortcut.displayName == "⌘D")
+        // ⌘D を持つ項目はちょうど 1 つ（ブックマークだけ）。
         let commandD = view.items.filter { $0.keyEquivalent == "d" && $0.keyEquivalentModifierMask == .command }
         #expect(commandD.count == 1)
-    }
-
-    /// 実ビルドではゲートが片側に固定されるため、両分岐は純粋判定で押さえる。
-    @Test("差分を露出しないビルドではブックマークが ⌘D のまま", arguments: [
-        (isSourceDiffEnabled: true, key: "b", display: "⌘B"),
-        (isSourceDiffEnabled: false, key: "d", display: "⌘D"),
-    ])
-    func bookmarkShortcutFollowsGateInBothDirections(
-        isSourceDiffEnabled: Bool, key: String, display: String
-    ) {
-        #expect(BookmarkShortcut.keyEquivalent(isSourceDiffEnabled: isSourceDiffEnabled) == key)
-        #expect(BookmarkShortcut.displayName(isSourceDiffEnabled: isSourceDiffEnabled) == display)
     }
 
     @Test("Window メニューにタブ操作項目がある")

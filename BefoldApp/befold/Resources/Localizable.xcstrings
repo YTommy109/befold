@@ -1259,6 +1259,23 @@
         }
       }
     },
+    "menu.view.showSource": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Source"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ソース表示"
+          }
+        }
+      }
+    },
     "menu.view.title": {
       "extractionState": "manual",
       "localizations": {
@@ -2036,6 +2053,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "進む"
+          }
+        }
+      }
+    },
+    "toolbar.mode.diff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差分"
           }
         }
       }

@@ -172,6 +172,7 @@ enum MainMenuBuilder {
             keyEquivalent: "-"
         )
         menu.addItem(.separator())
+        addDisplayModeItems(to: menu)
         menu.addLocalizedItem(
             "menu.view.toggleSource",
             action: #selector(ViewerWindowController.toggleSourceView(_:)),
@@ -182,10 +183,6 @@ enum MainMenuBuilder {
             action: #selector(ViewerWindowController.toggleLineNumbers(_:)),
             keyEquivalent: "l"
         )
-        addDiffItems(to: menu)
-        // ⌘D はブラウザ習慣ではブックマークだが、このアプリでは差分表示のほうが
-        // 圧倒的に高頻度なので差分へ譲り、ブックマークは ⌘B へ移した。ただし差分項目は
-        // フィーチャーゲートの内側にしか無いため、譲るかどうかは BookmarkShortcut が決める。
         menu.addLocalizedItem(
             "menu.view.addBookmark",
             action: #selector(ViewerWindowController.toggleBookmark(_:)),
@@ -276,19 +273,30 @@ enum MainMenuBuilder {
     }
 
     /// ソース表示の git 差分に関する項目。フィーチャーゲートが無効なビルドでは足さない。
-    private static func addDiffItems(to menu: NSMenu) {
-        guard FeatureGate.isSourceDiffEnabled else { return }
-        menu.addLocalizedItem(
-            "menu.view.showDiff",
-            action: #selector(ViewerWindowController.toggleSourceDiff(_:)),
-            keyEquivalent: "d",
-            modifiers: [.command]
-        )
+    /// 表示モードの選択項目(⌘1〜⌘3)と差分レイアウトの切替(⌘4)を View メニューへ足す。
+    ///
+    /// どのモードを選ぶ項目かは NSMenuItem.tag が運ぶため、項目ごとにセレクタを増やさない。
+    /// 差分とレイアウトはフィーチャーゲートの内側で、stable ビルドでは項目自体が出ない。
+    /// - Parameter isSourceDiffEnabled: 既定はフィーチャーゲートの判定。テストから両分岐を
+    ///   作れるようにするためだけの注入点で、本番の呼び出し側は省略する。
+    static func addDisplayModeItems(
+        to menu: NSMenu, isSourceDiffEnabled: Bool = FeatureGate.isSourceDiffEnabled
+    ) {
+        for mode in ModeSegments.modes(isSourceDiffEnabled: isSourceDiffEnabled) {
+            let item = menu.addLocalizedItem(
+                mode.menuLabelKey,
+                action: #selector(ViewerWindowController.selectDisplayMode(_:)),
+                keyEquivalent: String(mode.menuItemTag),
+                modifiers: [.command]
+            )
+            item.tag = mode.menuItemTag
+        }
+        guard isSourceDiffEnabled else { return }
         menu.addLocalizedItem(
             "menu.view.diffSideBySide",
             action: #selector(ViewerWindowController.toggleDiffLayout(_:)),
-            keyEquivalent: "d",
-            modifiers: [.command, .shift]
+            keyEquivalent: "4",
+            modifiers: [.command]
         )
     }
 }
