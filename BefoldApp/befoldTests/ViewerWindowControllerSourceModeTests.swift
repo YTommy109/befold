@@ -112,4 +112,51 @@ struct ViewerWindowControllerSourceModeTests {
         #expect(controller.isDiffShown)
         #expect(displayModeStore.displayMode(for: swift1) == .diff)
     }
+
+    /// TASK-368: プレビューを持たない種別(.code)は保存値が `.rendered` のままソースを出している。
+    /// 遷移判定を保存値で行うと、選択済みの source セグメント・⌘2・パス無し `befold --source` が
+    /// 遷移扱いになり、スクロール位置が rendered キーへ退避されたまま空の source キーから
+    /// 復元されて先頭へ飛ぶ。判定を effectiveDisplayMode に寄せた結果がここで守られる。
+    @Test("コード種別で選択済みの source を選び直しても遷移せず、保存値も書かれない")
+    func selectingAlreadyShownSourceModeOnCodeFileIsNoOp() async {
+        let code = URL(fileURLWithPath: "/mock/sample.swift")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.code")
+        let displayModeStore = DisplayModeStore(defaults: defaults)
+        let controller = ViewerWindowControllerFixture(
+            file: code, contents: "let a = 1", defaults: defaults, displayModeStore: displayModeStore
+        ).controller
+        defer { controller.close() }
+        // fileType はロード完了時に確定する。確定前は showsCodeContent が false で
+        // effectiveDisplayMode も .rendered のままなので、再現条件が整うまで待つ。
+        await waitForDeliveryOnMainActor { controller.store.showsCodeContent }
+
+        // 保存値は .rendered のまま、表示は既にソース。
+        #expect(controller.displayMode == .rendered)
+        #expect(controller.effectiveDisplayMode == .source)
+
+        controller.setDisplayMode(.source)
+
+        #expect(controller.displayMode == .rendered)
+        #expect(controller.effectiveDisplayMode == .source)
+        // 意味の無い .source が永続化されていないこと(保存自体が起きていない)。
+        #expect(defaults.dictionary(forKey: "ViewerDisplayModes") == nil)
+    }
+
+    /// 上の no-op 化が、コード種別からの正当な遷移まで塞いでいないことを押さえる。
+    @Test("コード種別でも差分への遷移は従来どおり行われる")
+    func selectingDiffModeOnCodeFileStillTransitions() throws {
+        try #require(FeatureGate.isSourceDiffEnabled)
+        let code = URL(fileURLWithPath: "/mock/sample.swift")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.code")
+        let displayModeStore = DisplayModeStore(defaults: defaults)
+        let controller = ViewerWindowControllerFixture(
+            file: code, contents: "let a = 1", defaults: defaults, displayModeStore: displayModeStore
+        ).controller
+        defer { controller.close() }
+
+        controller.setDisplayMode(.diff)
+
+        #expect(controller.displayMode == .diff)
+        #expect(displayModeStore.displayMode(for: code) == .diff)
+    }
 }

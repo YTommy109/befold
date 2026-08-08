@@ -671,10 +671,14 @@ extension ViewerWindowController {
         // validate を通らない経路(ツールバーのセグメント・オーバーフローメニュー)も
         // ここへ来るため、能力の確認は実行側にも置く(ADR 0002)。
         guard canSelect(newValue) else { return }
-        let didChange = newValue != displayMode
-        if didChange {
-            saveScrollPositionBeforeTransition()
-        }
+        // 比較対象は保存値(displayMode)ではなく、いま実際に出しているモード
+        // (effectiveDisplayMode)。プレビューを持たない種別(.code)は保存値が .rendered の
+        // ままソースを出しているため、保存値と比べると「選択済みの source セグメント」への
+        // クリック・⌘2・パス無し `befold --source` が遷移扱いになる。スクロール位置を
+        // rendered キーへ退避したまま空の source キーから復元するので先頭へ飛び、
+        // 意味の無い .source が永続化される(TASK-368)。
+        guard newValue != effectiveDisplayMode else { return }
+        saveScrollPositionBeforeTransition()
         applyDisplayMode(newValue)
         perFileState.displayMode.setDisplayMode(displayMode, for: fileURL)
         // 差分を取れるかどうかは表示モードに依存する。レンダリング表示中の refreshDiff は
@@ -682,9 +686,7 @@ extension ViewerWindowController {
         // 差分が出ない(TASK-337)。applyDisplayMode ではなくここに置くのは、モードだけが
         // 変わる呼び出し元が setDisplayMode だけだから(performFileSwitch は URL 更新前に
         // 呼ぶため、そちらへ置くと切替前ファイルに対して git を起こす)。
-        if didChange {
-            refreshDiff()
-        }
+        refreshDiff()
     }
 
     /// そのモードをいま選べるか。ツールバーのセグメントとメニューの有効判定が共有する。
