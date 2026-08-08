@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-08 01:21'
-updated_date: '2026-08-08 08:59'
+updated_date: '2026-08-08 09:03'
 labels: []
 dependencies: []
 priority: medium
@@ -157,4 +157,14 @@ brew install --cask sparkle を実行して generate_appcast の挙動（既存 
 Homebrew の sparkle カスクが Gatekeeper 検証を理由に deprecated となり 2026-09-01 に disable される。加えて現時点で既に generate_appcast がカスクから削除されており、release.yml:215-219 の appcast 生成が次のリリースで失敗する可能性がある。TASK-355 の検証（AC#2 の dev リリース）にも影響するため、先に TASK-367 を片付ける必要がある。
 
 検証に使った sparkle カスクはアンインストール済み（環境を元に戻した）。
+
+generate_appcast の前提を実測で確定した（TASK-367 で入手した公式 tarball の generate_appcast 2.9.4 を使用）。
+
+再現手順: 過去エントリの enclosure が GitHub 直リンクの appcast.xml と、新バージョンの DMG（.app 同梱）を同じディレクトリに置き、--download-url-prefix に Worker の URL を与えて generate_appcast を実行。
+
+結果: 'Wrote 1 new update, updated 0 existing updates, and removed 0 old updates in appcast.xml'
+- 新エントリ: url="https://befold.tommy109.workers.dev/dl/v1.12.0/befold-v1.12.0.dmg"
+- 過去エントリ: url="https://github.com/YTommy109/befold/releases/download/v1.11.0/befold-v1.11.0.dmg"（維持）
+
+**既存エントリの enclosure URL は書き換えられない。** よって v1.10.0 以前の配布済みバージョンの更新経路は無傷で、AC#3 は R2 移行後も成立する。/dl の GitHub フォールバックは過去エントリのためには不要（保険として残す）。この前提は未確認リストから外す。
 <!-- SECTION:NOTES:END -->
