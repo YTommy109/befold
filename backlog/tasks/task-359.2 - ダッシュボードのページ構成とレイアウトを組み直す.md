@@ -4,6 +4,7 @@ title: ダッシュボードのページ構成とレイアウトを組み直す
 status: To Do
 assignee: []
 created_date: '2026-08-08 04:55'
+updated_date: '2026-08-08 04:57'
 labels:
   - site
   - analytics
@@ -27,3 +28,9 @@ site/src/views/dashboard.tsx は現在、カード群（全期間総数3枚＋�
 - [ ] #4 SSE による #summary 差し替えが新構成でも壊れず、既存の dashboard.test.ts の SSE テストが通る
 - [ ] #5 ダッシュボードが外部 JS/CSS を読み込まない自己完結 HTML のままである
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-08-08 タイムゾーン基準は JST（TASK-359.1 で集計側を JST 化する）。画面上に JST 基準である旨を明示すること。
+<!-- SECTION:NOTES:END -->
