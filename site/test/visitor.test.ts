@@ -4,18 +4,20 @@ import { dayKey, summarizeOS, summarizeUA, visitorDayHash } from '../src/lib/vis
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15'
 
 describe('visitorDayHash', () => {
-  it('同じ IP・UA・日付なら同じハッシュになる', async () => {
-    const ts = Date.parse('2026-07-28T01:00:00Z')
+  it('同じ IP・UA・日付（JST）なら同じハッシュになる', async () => {
+    // JST の同じ日に収まる 2 点（UTC では日をまたぐ）。
+    const ts = Date.parse('2026-07-27T15:00:00Z')
     const a = await visitorDayHash('203.0.113.5', UA, ts)
-    const b = await visitorDayHash('203.0.113.5', UA, Date.parse('2026-07-28T23:59:00Z'))
+    const b = await visitorDayHash('203.0.113.5', UA, Date.parse('2026-07-28T14:59:00Z'))
 
     expect(a).toBe(b)
     expect(a).toMatch(/^[0-9a-f]{64}$/)
   })
 
-  it('日付が変われば別のハッシュになる', async () => {
-    const a = await visitorDayHash('203.0.113.5', UA, Date.parse('2026-07-28T01:00:00Z'))
-    const b = await visitorDayHash('203.0.113.5', UA, Date.parse('2026-07-29T01:00:00Z'))
+  it('日付（JST）が変われば別のハッシュになる', async () => {
+    // JST の 0 時をまたぐ 1 分差。UTC 基準なら同じ日になってしまう組み合わせ。
+    const a = await visitorDayHash('203.0.113.5', UA, Date.parse('2026-07-28T14:59:00Z'))
+    const b = await visitorDayHash('203.0.113.5', UA, Date.parse('2026-07-28T15:00:00Z'))
 
     expect(a).not.toBe(b)
   })
@@ -31,8 +33,10 @@ describe('visitorDayHash', () => {
 })
 
 describe('dayKey', () => {
-  it('UTC の YYYY-MM-DD を返す', () => {
-    expect(dayKey(Date.parse('2026-07-28T23:30:00Z'))).toBe('2026-07-28')
+  it('JST の YYYY-MM-DD を返す（集計の日付バケットと同じ基準）', () => {
+    expect(dayKey(Date.parse('2026-07-28T23:30:00Z'))).toBe('2026-07-29')
+    expect(dayKey(Date.parse('2026-07-28T15:00:00Z'))).toBe('2026-07-29')
+    expect(dayKey(Date.parse('2026-07-28T14:59:59Z'))).toBe('2026-07-28')
   })
 })
 

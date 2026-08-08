@@ -1,12 +1,7 @@
 import type { FC } from 'hono/jsx'
 import { html, raw } from 'hono/html'
 import type { Count, Summary } from '../analytics'
-
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000
-
-/** UTC のエポックミリ秒を JST の 'YYYY-MM-DD HH:mm:ss' 表記に変換する。 */
-const formatJst = (ts: number): string =>
-  new Date(ts + JST_OFFSET_MS).toISOString().replace('T', ' ').slice(0, 19)
+import { formatJst } from '../lib/jst'
 
 /**
  * SSE で配信される集計 HTML をそのまま差し替える。
@@ -84,13 +79,24 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => (
         </div>
       ))}
       <div class="card">
-        <span class="value">{summary.uniqueVisitorDays}</span>
-        <span class="label">ユニーク訪問者（日次）</span>
+        <span class="value">{summary.cumulative.visitorDays}</span>
+        <span class="label">延べ訪問者（累計・訪問者 × 日）</span>
+      </div>
+      <div class="card">
+        <span class="value">{summary.today.uniqueVisitors}</span>
+        <span class="label">本日のユニーク訪問者（JST）</span>
       </div>
     </div>
 
     <div class="grid">
-      <CountTable title="日別ダウンロード（14 日）" rows={summary.dailyDownloads} />
+      <CountTable
+        title={`日別ダウンロード（${summary.windowDays} 日・JST）`}
+        rows={summary.daily.map((point) => ({
+          label: point.day,
+          count: point.counts.download,
+        }))}
+      />
+      <CountTable title="クライアント種別" rows={summary.byUA} />
       <CountTable title="バージョン別ダウンロード" rows={summary.byVersion} />
       <CountTable title="国別" rows={summary.byCountry} />
       <CountTable title="参照元別" rows={summary.byReferrer} />

@@ -1,6 +1,13 @@
-/** ダッシュボード向けの集計。規模が小さいため都度 GROUP BY で算出する。 */
+/**
+ * ダッシュボード向けの集計。規模が小さいため都度 GROUP BY で算出する。
+ *
+ * 日付・時間帯のバケットはすべて JST 基準（lib/jst.ts が唯一の定義元）。
+ * 期間の絞り込みは `WHERE ts >= ?` だけで行い、idx_events_ts /
+ * idx_events_kind が効く形を保つ。
+ */
 
 import type { EventKind } from './schema'
+import { JST_DAY_EXPR, JST_HOUR_EXPR, jstDayStart, jstDaysInWindow, jstWindowStart } from './lib/jst'
 
 export type Count = { label: string; count: number }
 
@@ -13,10 +20,27 @@ export type RecentEvent = {
   os: string | null
 }
 
-export type Totals = {
-  counts: Record<EventKind, number>
-  uniqueVisitorDays: number
-}
+/** イベント種別ごとの件数。 */
+export type KindCounts = Record<EventKind, number>
+
+/**
+ * 全期間の累計。
+ *
+ * `visitorDays` は visitor_day の異なり数、すなわち「訪問者 × 日」の延べ数で
+ * あって、ユニーク訪問者数ではない（visitor_day は日ごとに別ハッシュになる）。
+ * 当日集計の `uniqueVisitors` と名前を分けているのは、同じ SQL 断片が期間次第で
+ * 別の意味になり、混用しても値が返ってしまうため。
+ */
+export type CumulativeTotals = { counts: KindCounts; visitorDays: number }
+
+/** JST 当日（0 時以降）の集計。`uniqueVisitors` は当日のユニーク訪問者数。 */
+export type TodayTotals = { counts: KindCounts; uniqueVisitors: number }
+
+/** 日別推移の 1 点。データが無い日も 0 で埋めて返す。 */
+export type DailyPoint = { day: string; counts: KindCounts; uniqueVisitors: number }
+
+/** 時間帯分布の 1 点。0〜23 時が必ずそろう。 */
+export type HourlyPoint = { hour: number; counts: KindCounts }
 
 /** 1 指標（イベント種別）ごとの総数と内訳。合算せず指標別に見せるための単位。 */
 export type KindBreakdown = {
@@ -28,11 +52,15 @@ export type KindBreakdown = {
 }
 
 export type Summary = {
-  uniqueVisitorDays: number
-  dailyDownloads: Count[]
+  windowDays: number
+  cumulative: CumulativeTotals
+  today: TodayTotals
+  daily: DailyPoint[]
+  hourly: HourlyPoint[]
   byVersion: Count[]
   byCountry: Count[]
   byReferrer: Count[]
+  byUA: Count[]
   perKind: KindBreakdown[]
   recent: RecentEvent[]
 }
@@ -44,57 +72,114 @@ const KIND_LABELS: { kind: EventKind; label: string }[] = [
   { kind: 'update_check', label: 'アップデート確認' },
 ]
 
-const DAILY_WINDOW_DAYS = 14
+/** 日別推移・時間帯分布が対象にする窓（当日を含む直近 N 日）。 */
+export const DAILY_WINDOW_DAYS = 14
 const TOP_N = 10
 const RECENT_LIMIT = 20
 
-/** 種別ごとの総数と、日次ユニークビジター（visitor_day の異なり数）。 */
-export async function totals(db: D1Database): Promise<Totals> {
-  const row = await db
-    .prepare(
-      `SELECT
-         SUM(kind = 'visit')                AS visits,
-         SUM(kind = 'download')             AS downloads,
-         SUM(kind = 'update_check')         AS update_checks,
-         COUNT(DISTINCT visitor_day)        AS unique_visitor_days
-       FROM events`,
-    )
-    .first<{
-      visits: number | null
-      downloads: number | null
-      update_checks: number | null
-      unique_visitor_days: number | null
-    }>()
+/** 種別ごとの件数を 1 行から取り出すための SELECT 句。 */
+const KIND_COUNT_COLUMNS =
+  `SUM(kind = 'visit')        AS visits,
+   SUM(kind = 'download')     AS downloads,
+   SUM(kind = 'update_check') AS update_checks`
 
+type KindCountRow = {
+  visits: number | null
+  downloads: number | null
+  update_checks: number | null
+}
+
+function toKindCounts(row: KindCountRow | null): KindCounts {
   return {
-    counts: {
-      visit: row?.visits ?? 0,
-      download: row?.downloads ?? 0,
-      update_check: row?.update_checks ?? 0,
-    },
-    uniqueVisitorDays: row?.unique_visitor_days ?? 0,
+    visit: row?.visits ?? 0,
+    download: row?.downloads ?? 0,
+    update_check: row?.update_checks ?? 0,
   }
 }
 
-/** 直近 14 日の日別ダウンロード数（UTC 日付）。 */
-export async function dailyDownloads(db: D1Database, now: number): Promise<Count[]> {
-  const since = now - DAILY_WINDOW_DAYS * 24 * 60 * 60 * 1000
+/** 全期間の累計（種別ごとの件数と、訪問者 × 日の延べ数）。 */
+export async function cumulativeTotals(db: D1Database): Promise<CumulativeTotals> {
+  const row = await db
+    .prepare(
+      `SELECT ${KIND_COUNT_COLUMNS},
+              COUNT(DISTINCT visitor_day) AS visitor_days
+       FROM events`,
+    )
+    .first<KindCountRow & { visitor_days: number | null }>()
+
+  return { counts: toKindCounts(row), visitorDays: row?.visitor_days ?? 0 }
+}
+
+/** JST 当日ぶんの集計。全期間の延べ数ではなく、当日のみを数える。 */
+export async function todayTotals(db: D1Database, now: number): Promise<TodayTotals> {
+  const row = await db
+    .prepare(
+      `SELECT ${KIND_COUNT_COLUMNS},
+              COUNT(DISTINCT visitor_day) AS unique_visitors
+       FROM events
+       WHERE ts >= ?`,
+    )
+    .bind(jstDayStart(now))
+    .first<KindCountRow & { unique_visitors: number | null }>()
+
+  return { counts: toKindCounts(row), uniqueVisitors: row?.unique_visitors ?? 0 }
+}
+
+/** 当日を含む直近 N 日の日別推移（JST 日バケット、データが無い日は 0）。 */
+export async function dailySeries(
+  db: D1Database,
+  now: number,
+  days = DAILY_WINDOW_DAYS,
+): Promise<DailyPoint[]> {
   const { results } = await db
     .prepare(
-      `SELECT date(ts / 1000, 'unixepoch') AS label, COUNT(*) AS count
+      `SELECT ${JST_DAY_EXPR} AS day,
+              ${KIND_COUNT_COLUMNS},
+              COUNT(DISTINCT visitor_day) AS unique_visitors
        FROM events
-       WHERE kind = 'download' AND ts >= ?
-       GROUP BY label
-       ORDER BY label`,
+       WHERE ts >= ?
+       GROUP BY day
+       ORDER BY day`,
     )
-    .bind(since)
-    .all<Count>()
+    .bind(jstWindowStart(now, days))
+    .all<KindCountRow & { day: string; unique_visitors: number | null }>()
 
-  return results
+  const byDay = new Map(results.map((row) => [row.day, row]))
+
+  return jstDaysInWindow(now, days).map((day) => {
+    const row = byDay.get(day) ?? null
+    return { day, counts: toKindCounts(row), uniqueVisitors: row?.unique_visitors ?? 0 }
+  })
+}
+
+/** 当日を含む直近 N 日の時間帯分布（JST 時バケット、0〜23 時が必ずそろう）。 */
+export async function hourlyDistribution(
+  db: D1Database,
+  now: number,
+  days = DAILY_WINDOW_DAYS,
+): Promise<HourlyPoint[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT CAST(${JST_HOUR_EXPR} AS INTEGER) AS hour,
+              ${KIND_COUNT_COLUMNS}
+       FROM events
+       WHERE ts >= ?
+       GROUP BY hour
+       ORDER BY hour`,
+    )
+    .bind(jstWindowStart(now, days))
+    .all<KindCountRow & { hour: number }>()
+
+  const byHour = new Map(results.map((row) => [row.hour, row]))
+
+  return Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    counts: toKindCounts(byHour.get(hour) ?? null),
+  }))
 }
 
 /** 内訳を取れるカラム。SQL へ差し込むため、外部入力を受けない固定の集合に限る。 */
-type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer' | 'as_org'
+type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer' | 'as_org' | 'ua_summary'
 
 /** 指定カラムの内訳（上位 N 件、NULL は除外）。 */
 async function breakdown(
@@ -148,24 +233,33 @@ async function kindBreakdown(
 
 /** ダッシュボード初期表示用の集計一式。 */
 export async function summarize(db: D1Database, now: number): Promise<Summary> {
-  const [aggregate, daily, byVersion, byCountry, byReferrer, breakdowns, recent] =
+  const [cumulative, today, daily, hourly, byVersion, byCountry, byReferrer, byUA, breakdowns, recent] =
     await Promise.all([
-      totals(db),
-      dailyDownloads(db, now),
+      cumulativeTotals(db),
+      todayTotals(db, now),
+      dailySeries(db, now),
+      hourlyDistribution(db, now),
       breakdown(db, 'version', 'download'),
       breakdown(db, 'country'),
       breakdown(db, 'referrer'),
+      // ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を
+      // 実測するために持つ。TASK-360 で見送った llms.txt の要否判断に使う。
+      breakdown(db, 'ua_summary'),
       Promise.all(KIND_LABELS.map((entry) => kindBreakdown(db, entry))),
       recentEvents(db),
     ])
 
   return {
-    uniqueVisitorDays: aggregate.uniqueVisitorDays,
-    dailyDownloads: daily,
+    windowDays: DAILY_WINDOW_DAYS,
+    cumulative,
+    today,
+    daily,
+    hourly,
     byVersion,
     byCountry,
     byReferrer,
-    perKind: breakdowns.map((entry) => ({ ...entry, total: aggregate.counts[entry.kind] })),
+    byUA,
+    perKind: breakdowns.map((entry) => ({ ...entry, total: cumulative.counts[entry.kind] })),
     recent,
   }
 }

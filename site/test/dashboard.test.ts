@@ -98,11 +98,11 @@ describe('集計の表示', () => {
     expect(body).toContain('<span class="value" id="count-visit">2</span>')
     expect(body).toContain('<span class="value" id="count-download">2</span>')
     expect(body).toContain('<span class="value" id="count-update_check">1</span>')
-    // ユニーク訪問者は visitor_day の異なり数（hash-a / hash-b）
+    // 延べ訪問者は visitor_day の異なり数（hash-a / hash-b）
     expect(body).toContain('<span class="value">2</span>')
     expect(body).toContain('v1.10.0')
     expect(body).toContain('macOS 15.0')
-    expect(body).toContain('日別ダウンロード（14 日）')
+    expect(body).toContain('日別ダウンロード（14 日・JST）')
   })
 
   it('参照元別が上位順で描画され、参照元なしは集計から除かれる', async () => {
@@ -229,7 +229,7 @@ describe('SSE ストリーム', () => {
     const dataLine = received.split('event: summary\ndata: ')[1]?.split('\n')[0] ?? ''
     const html = JSON.parse(dataLine) as string
     // サーバー側で描画済みの集計表がそのまま届く（クライアントは差し替えるだけ）。
-    expect(html).toContain('日別ダウンロード（14 日）')
+    expect(html).toContain('日別ダウンロード（14 日・JST）')
     expect(html).toContain('v1.10.0')
     expect(html).toContain('<span class="value" id="count-download">1</span>')
     // data 行は 1 行に収まっている

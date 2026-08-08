@@ -1,8 +1,17 @@
 /** 日次ユニーク推定と UA 要約。生 IP・完全 UA は一切保持しない。 */
 
-/** Unix epoch (ms) を UTC の YYYY-MM-DD に変換する。 */
+import { jstDayKey } from './jst'
+
+/**
+ * Unix epoch (ms) を JST の YYYY-MM-DD に変換する。
+ *
+ * 集計側の日付バケット（lib/jst.ts の JST_DAY_EXPR）と同じ基準にそろえる。
+ * TASK-359.1 で UTC から JST へ変更した。この切り替えを境に同一訪問者の
+ * visitor_day ハッシュが変わるため、切り替え日をまたぐ日次ユニークは
+ * 過去データと連続しない（遡及再計算はしない）。
+ */
 export function dayKey(ts: number): string {
-  return new Date(ts).toISOString().slice(0, 10)
+  return jstDayKey(ts)
 }
 
 /**

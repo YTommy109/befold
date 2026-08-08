@@ -4,6 +4,7 @@ title: 日毎の推移と時間帯分布をグラフ描画する
 status: To Do
 assignee: []
 created_date: '2026-08-08 04:56'
+updated_date: '2026-08-08 06:35'
 labels:
   - site
   - analytics
@@ -26,4 +27,5 @@ ordinal: 621000
 - [ ] #2 時間帯（0-23 時）別のアクセス分布がグラフとして描画される
 - [ ] #3 外部ホストへのリクエストを発生させない（インライン化されている）
 - [ ] #4 データ 0 件・1 点のみ・全値同一 のケースで描画が壊れない
+- [ ] #5 SSE による summary の innerHTML 全置換（views/dashboard.tsx:32-34）でグラフ DOM が破棄されても、更新後にグラフが再描画される（TASK-359.1 からの申し送り）
 <!-- AC:END -->

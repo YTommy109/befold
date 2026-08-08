@@ -4,7 +4,7 @@ title: ダッシュボードのページ構成とレイアウトを組み直す
 status: To Do
 assignee: []
 created_date: '2026-08-08 04:55'
-updated_date: '2026-08-08 04:57'
+updated_date: '2026-08-08 06:35'
 labels:
   - site
   - analytics
@@ -27,6 +27,7 @@ site/src/views/dashboard.tsx は現在、カード群（全期間総数3枚＋�
 - [ ] #3 期間の切り替えが必要な指標について、切り替え手段が用意されているか、または固定である旨が明示されている
 - [ ] #4 SSE による #summary 差し替えが新構成でも壊れず、既存の dashboard.test.ts の SSE テストが通る
 - [ ] #5 ダッシュボードが外部 JS/CSS を読み込まない自己完結 HTML のままである
+- [ ] #6 JST 化の切替日より前の期間は visitor_day が UTC 日付ハッシュのままで日次ユニークが最大 2 倍に膨らむ。この不連続が画面上に注記として出ている（TASK-359.1 からの申し送り）
 <!-- AC:END -->
 
 ## Implementation Notes
