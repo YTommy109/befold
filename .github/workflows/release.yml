@@ -188,11 +188,29 @@ jobs:
           files: ${{ env.DMG_NAME }}
           prerelease: ${{ contains(github.ref_name, '-') }}
 
+      # 公式リリースの tarball から取る。Homebrew の sparkle カスクは Gatekeeper
+      # 検証に通らないことを理由に deprecated となり 2026-09-01 に disable される
+      # うえ、現時点で既に generate_appcast と generate_keys がカスクから
+      # 取り除かれている（実測: brew install --cask sparkle 後の bin/ に残るのは
+      # BinaryDelta と sign_update だけ）。
+      #
+      # バージョンはアプリが SPM で解決している Sparkle に合わせて固定する
+      # （BefoldApp/Package.resolved）。上げるときは両方を一緒に動かすこと。
       - name: Sparkle ツールをインストールする
+        working-directory: .
+        env:
+          SPARKLE_VERSION: '2.9.4'
         run: |
-          brew install sparkle
-          sparkle_bin="/opt/homebrew/Caskroom/sparkle/$(brew info sparkle --json=v2 | python3 -c 'import sys,json;print(json.load(sys.stdin)["casks"][0]["version"])')/bin"
-          echo "$sparkle_bin" >> "$GITHUB_PATH"
+          set -euo pipefail
+          sparkle_dir="$RUNNER_TEMP/sparkle"
+          mkdir -p "$sparkle_dir"
+          curl -fsSL -o "$RUNNER_TEMP/sparkle.tar.xz" \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$sparkle_dir"
+          # 取得先が変わってツールが欠けたまま進むと、appcast が更新されないのに
+          # ジョブは成功してしまう。存在をここで確かめる。
+          test -x "$sparkle_dir/bin/generate_appcast"
+          echo "$sparkle_dir/bin" >> "$GITHUB_PATH"
 
       - name: appcast を生成する
         env:
