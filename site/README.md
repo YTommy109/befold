@@ -41,9 +41,35 @@ curl -u owner:local-dev-password http://127.0.0.1:8787/dashboard
 
 ```bash
 npm run migrate:diff -- <migration_name>   # migrations/ に生成
+npm run migrate:lint                       # 生成物を検査（適用前に必ず実行）
 npm run migrate:local                      # ローカル D1 へ適用
 npm run migrate:remote                     # 本番 D1 へ適用
 ```
+
+Atlas は community 版（`nix`/home-manager 等）で足りる。使うのは SQLite ドライバと
+`migrate diff` / `lint` / `hash` / `validate` だけで、official 版が追加で持つ
+Atlas Cloud 連携や商用 DB ドライバは使わない。CI も atlas を呼ばない。
+
+### マイグレーションを手書きしたときは hash を打ち直す
+
+`migrations/atlas.sum` は全ファイルのチェックサムを持つ。手書きでファイルを足したり
+既存ファイルを編集したりすると次回の `migrate:diff` が checksum mismatch で落ちるため、
+`npm run migrate:hash` で打ち直す。`atlas migrate validate --env local` で検証できる。
+
+### RENAME COLUMN は lint が誤検知する
+
+`ALTER TABLE ... RENAME COLUMN` を手書きすると、lint が「列の削除」「非 NULL 列の追加」
+として報告する。Atlas が改名を状態差分（その名前の列が消えて別の名前の列が現れた）で
+解釈するためで、SQLite の `RENAME COLUMN` は実際にはデータを保持する。
+
+そのため lint の指摘は自動では信用せず、**適用前後の行数と代表値をローカル D1 で
+突き合わせて確認する**。実例は TASK-362（`ts` → `timestamp`、`visitor_day` →
+`visitor_token`）で、適用前後とも 344 行・`COUNT(DISTINCT visitor_token)` = 122 で
+一致することを確認してから本番へ回した。
+
+なお `migrate:diff` に生成させると、Atlas は改名をテーブル再構築
+（新テーブル作成 → コピー → `DROP` → `RENAME`）として出力する。改名だけが目的なら
+`RENAME COLUMN` を手書きするほうが軽く、既存の索引も貼り直さずに済む。
 
 ## デプロイ前の設定
 
