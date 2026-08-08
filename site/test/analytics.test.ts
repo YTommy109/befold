@@ -182,3 +182,45 @@ describe('summarize', () => {
     )
   })
 })
+
+describe('ダウンロード経路の分離', () => {
+  /** source を明示して 1 件記録する。source=null は列の導入前に記録された行。 */
+  async function insertDownload(source: string | null, version: string): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, version, source) VALUES (?, ?, ?, ?)',
+    )
+      .bind(NOW, 'download', version, source)
+      .run()
+  }
+
+  it('LP 経由と Sparkle 経由を別の指標として数える', async () => {
+    await insertDownload('lp', 'v1.2.3')
+    await insertDownload('sparkle', 'v1.2.3')
+    await insertDownload('sparkle', 'v1.2.4')
+
+    const totals = await cumulativeTotals(env.DB)
+
+    expect(totals.counts.download).toBe(1)
+    expect(totals.counts.update_download).toBe(2)
+  })
+
+  it('source 列の導入前に記録された行は LP 経由として数える', async () => {
+    // source が NULL の行は、Worker を通るダウンロードが LP 経由しか存在
+    // しなかった時期のもの。ここが崩れると過去の DL 数の系列が不連続になる。
+    await insertDownload(null, 'v1.2.3')
+
+    const totals = await cumulativeTotals(env.DB)
+
+    expect(totals.counts.download).toBe(1)
+    expect(totals.counts.update_download).toBe(0)
+  })
+
+  it('バージョン別内訳は LP 経由だけを対象にする', async () => {
+    await insertDownload('lp', 'v1.2.3')
+    await insertDownload('sparkle', 'v1.2.4')
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.byVersion).toEqual([{ label: 'v1.2.3', count: 1 }])
+  })
+})

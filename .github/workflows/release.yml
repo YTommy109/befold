@@ -182,11 +182,35 @@ jobs:
           test -x "$mount_point/befold.app/Contents/MacOS/befold-cli"
           test "$(readlink "$mount_point/Applications")" = "/Applications"
 
+      # GitHub Releases は移行期の後方互換とロールバックのために残す。
+      # v1.10.0 以前の配布済みバージョンは GitHub 直の appcast URL を見ており、
+      # そちらからたどれる成果物が必要（フィード URL の Worker 切替は v1.10.1 以降）。
       - name: GitHub Release を作成して DMG を添付する
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.DMG_NAME }}
           prerelease: ${{ contains(github.ref_name, '-') }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      # appcast より先に DMG を置く。appcast の enclosure が指す実体が R2 に
+      # 無い状態でフィードを公開すると、Sparkle が更新に失敗するため。
+      # ここが失敗したらジョブごと落とす（R2 を正とする以上、GitHub にだけ
+      # 置かれた状態を成功として通すと、Worker が古い成果物を返し続ける）。
+      - name: DMG を R2 へアップロードする
+        working-directory: .
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 r2 object put \
+            "befold-dist/releases/${GITHUB_REF_NAME}/${DMG_NAME}" \
+            --file "${DMG_NAME}" \
+            --content-type application/x-apple-diskimage \
+            --remote
 
       # 公式リリースの tarball から取る。Homebrew の sparkle カスクは Gatekeeper
       # 検証に通らないことを理由に deprecated となり 2026-09-01 に disable される
@@ -219,7 +243,11 @@ jobs:
         run: |
           tag_name="${GITHUB_REF_NAME}"
           is_prerelease=${{ contains(github.ref_name, '-') }}
-          download_url_prefix="https://github.com/YTommy109/befold/releases/download/${tag_name}/"
+          # enclosure は配布サイト Worker 配下にする。Worker は R2 の成果物を
+          # 返しつつダウンロードを計測し、R2 に無いときは GitHub Releases の
+          # 同名アセットへ 302 する（過去エントリの URL が書き換わっても
+          # 更新経路は切れない）。
+          download_url_prefix="https://befold.tommy109.workers.dev/dl/${tag_name}/"
 
           # EdDSA 秘密鍵をファイルに書き出す
           key_file="$RUNNER_TEMP/sparkle_eddsa_key"
@@ -262,3 +290,39 @@ jobs:
 
           # アセットをアップロード（既存があれば上書き）
           gh release upload appcast "$RUNNER_TEMP/appcast.xml" "$RUNNER_TEMP/appcast-develop.xml" --clobber
+
+      # appcast の正は R2 側。Worker は R2 にあればそれを返し、無いときだけ
+      # GitHub をプロキシする。put が失敗したまま成功扱いにすると、Worker が
+      # 古い appcast を返し続けて更新が止まるため、失敗はジョブ失敗にする。
+      - name: appcast を R2 へアップロードする
+        working-directory: .
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          for name in appcast.xml appcast-develop.xml; do
+            npx --yes wrangler@4 r2 object put \
+              "befold-dist/${name}" \
+              --file "$RUNNER_TEMP/${name}" \
+              --content-type 'application/xml; charset=utf-8' \
+              --remote
+          done
+
+      # 配布 LP の /download が参照する「stable の最新」。prerelease では
+      # 更新しない（GitHub の releases/latest と同じ意味論を保つ）。
+      - name: stable の最新ポインタを R2 へ配置する
+        if: ${{ !contains(github.ref_name, '-') }}
+        working-directory: .
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          pointer="$RUNNER_TEMP/latest.json"
+          printf '{"version":"%s","file":"%s"}\n' "$GITHUB_REF_NAME" "$DMG_NAME" > "$pointer"
+          npx --yes wrangler@4 r2 object put \
+            "befold-dist/releases/latest.json" \
+            --file "$pointer" \
+            --content-type 'application/json; charset=utf-8' \
+            --remote

@@ -22,6 +22,13 @@ database_name = "befold-analytics"
 database_id = "5b7d03ff-d15d-45db-8b58-12639f31578c"
 migrations_dir = "migrations"
 
+# リリース成果物（DMG）と appcast の配信元。リリースワークフローが
+# GitHub Actions 上で署名・公証したものだけを put する。Worker 側は読み取り
+# 専用で、書き込みは行わない（署名鍵は Cloudflare 側に一切置かない）。
+[[r2_buckets]]
+binding = "DIST"
+bucket_name = "befold-dist"
+
 [observability]
 enabled = true
 
@@ -49,6 +56,14 @@ binding = "DB"
 database_name = "befold-analytics-staging"
 database_id = "185c1ea1-3cbf-4b39-8d5e-d94e87a12c30"
 migrations_dir = "migrations"
+
+# staging は本番と同じバケットを読む。リリース CI は本番バケットにしか put
+# しないため、staging 専用バケットを用意すると常に空になり、R2 経路ではなく
+# GitHub フォールバックしか検証できなくなる。Worker は読み取りしかしないので
+# 本番成果物を staging が壊すことはない（D1 は従来どおり別インスタンス）。
+[[env.staging.r2_buckets]]
+binding = "DIST"
+bucket_name = "befold-dist"
 
 [env.staging.observability]
 enabled = true

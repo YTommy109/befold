@@ -12,8 +12,9 @@ befold の配布 LP・ダウンロード計測・appcast プロキシ・分析�
 | パス | 認証 | 内容 |
 | ---- | ---- | ---- |
 | `GET /` | 公開 | 配布 LP。`visit` を記録 |
-| `GET /download` | 公開 | 最新リリースの DMG へ 302。`download` を記録 |
-| `GET /appcast.xml` | 公開 | GitHub の appcast をプロキシ。`update_check` を記録 |
+| `GET /download` | 公開 | stable 最新の DMG を R2 から返す。`download`（`source=lp`）を記録 |
+| `GET /dl/:tag/:file` | 公開 | 指定タグの DMG を R2 から返す。appcast の enclosure が指す先。`download`（`source=sparkle`）を記録 |
+| `GET /appcast.xml` | 公開 | R2 の appcast を返す。`update_check` を記録 |
 | `GET /appcast-develop.xml` | 公開 | 同上（develop チャンネル） |
 | `GET /dashboard` | Basic 認証 | 集計ダッシュボード |
 | `GET /dashboard/stream` | Basic 認証 | SSE（D1 ポーリング型）で新着イベントを push |
@@ -91,15 +92,26 @@ Atlas Cloud 連携や商用 DB ドライバは使わない。CI も atlas を呼
    npx wrangler d1 create befold-analytics
    ```
 
-2. マイグレーションを本番 D1 へ適用する（`npm run migrate:remote`）。
-3. ダッシュボードのパスワードをシークレットとして登録する（**デプロイ前に必須**）。
+2. リリース成果物の配信元となる R2 バケットを作成する。
+
+   ```bash
+   npx wrangler r2 bucket create befold-dist
+   ```
+
+   staging も同じバケットを読む。リリース CI は本番バケットにしか put しない
+   ため、staging 専用バケットを用意すると常に空になり、R2 経路ではなく GitHub
+   フォールバックしか検証できなくなる。Worker は読み取りしかしないので、
+   staging が本番成果物を壊すことはない。
+
+3. マイグレーションを本番 D1 へ適用する（`npm run migrate:remote`）。
+4. ダッシュボードのパスワードをシークレットとして登録する（**デプロイ前に必須**）。
 
    ```bash
    npx wrangler secret put DASHBOARD_PASSWORD
    npx wrangler secret put DASHBOARD_USER   # 省略時は owner
    ```
 
-4. `npx wrangler deploy` でデプロイする。
+5. `npx wrangler deploy` でデプロイする。
 
    `wrangler secret put` を非対話シェル（Claude Code の `!` 実行など）で走らせると
    入力を受け取れず空の値が登録される。ダッシュボードが 503 を返す場合はこれを疑い、
@@ -124,6 +136,12 @@ GitHub リポジトリの Secrets に `CLOUDFLARE_API_TOKEN` を登録する。�
 | ---- | ---- |
 | Account / Workers Scripts / Edit | Worker のデプロイ、アセットのアップロード |
 | Account / D1 / Edit | マイグレーションの適用 |
+| Account / Workers R2 Storage / Edit | リリース成果物と appcast の配置（`release.yml`） |
+
+R2 への書き込みは `release.yml`（リリースタグの push）だけが行う。Worker 側の
+`DIST` バインディングは読み取りしか使わない。Sparkle の EdDSA 秘密鍵と
+Developer ID 証明書は GitHub Secrets に閉じており、Cloudflare 側には置かない。
+`release.yml` は `CLOUDFLARE_ACCOUNT_ID` も参照する。
 
 ### 破壊的なマイグレーションは自動適用されない
 
