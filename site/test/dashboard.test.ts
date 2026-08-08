@@ -1,6 +1,8 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { afterEach, describe, expect, it } from 'vitest'
 import app from '../src/index'
+import { summarize } from '../src/analytics'
+import { renderSummarySections } from '../src/views/dashboard'
 
 const AUTH_HEADERS = { Authorization: `Basic ${btoa('owner:test-password')}` }
 
@@ -86,6 +88,27 @@ describe('Basic 認証による保護', () => {
 })
 
 describe('集計の表示', () => {
+  it('JST 基準と visitor_day の不連続が注記として出る', async () => {
+    await seed('visit')
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('日付・時刻はすべて JST (UTC+9) 基準')
+    expect(body).toContain('class="notice"')
+    expect(body).toContain('最大 2 倍に膨らむ')
+  })
+
+  it('注記は SSE の差し替え範囲（#summary）の外に置く', async () => {
+    await seed('visit')
+
+    const summaryHtml = renderSummarySections(await summarize(env.DB, Date.now()))
+
+    // #summary は SSE が毎周期 innerHTML で丸ごと置き換えるため、
+    // 静的な注記を含めない（含めると毎回同じ文字列を送り直すことになる）。
+    expect(summaryHtml).not.toContain('class="notice"')
+    expect(summaryHtml).not.toContain('日付・時刻はすべて JST (UTC+9) 基準')
+  })
+
   it('種別ごとの合計・バージョン別・国別・OS 別が描画される', async () => {
     await seed('visit', { country: 'JP', os: 'macOS 14.5' })
     await seed('visit', { country: 'US', os: 'macOS 15.0', visitorDay: 'hash-b' })
@@ -102,7 +125,12 @@ describe('集計の表示', () => {
     expect(body).toContain('<span class="value">2</span>')
     expect(body).toContain('v1.10.0')
     expect(body).toContain('macOS 15.0')
-    expect(body).toContain('日別ダウンロード（14 日・JST）')
+    // セクション見出しから集計期間が読み取れる。
+    expect(body).toContain('<h2>累計（全期間）</h2>')
+    expect(body).toContain('<h2>本日（JST 0 時から）</h2>')
+    expect(body).toContain('<h2>日毎の推移（直近 14 日）</h2>')
+    expect(body).toContain('<h2>時間帯分布（直近 14 日・JST）</h2>')
+    expect(body).toContain('<h2>内訳（全期間の累計）</h2>')
   })
 
   it('参照元別が上位順で描画され、参照元なしは集計から除かれる', async () => {
@@ -229,7 +257,7 @@ describe('SSE ストリーム', () => {
     const dataLine = received.split('event: summary\ndata: ')[1]?.split('\n')[0] ?? ''
     const html = JSON.parse(dataLine) as string
     // サーバー側で描画済みの集計表がそのまま届く（クライアントは差し替えるだけ）。
-    expect(html).toContain('日別ダウンロード（14 日・JST）')
+    expect(html).toContain('<h2>日毎の推移（直近 14 日）</h2>')
     expect(html).toContain('v1.10.0')
     expect(html).toContain('<span class="value" id="count-download">1</span>')
     // data 行は 1 行に収まっている
