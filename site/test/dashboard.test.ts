@@ -281,3 +281,48 @@ describe('SSE ストリーム', () => {
     expect(received).not.toContain('event: summary')
   })
 })
+
+describe('グラフ描画', () => {
+  it('日毎の推移と時間帯分布がインライン SVG で描画される', async () => {
+    await seed('visit')
+    await seed('download')
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('<svg class="chart"')
+    expect(body).toContain('<rect class="chart-bar"')
+    // 外部ホストへのリクエストを発生させない（インライン化されている）。
+    expect(body).not.toMatch(/<(script|link|img)[^>]+(src|href)="https?:/)
+  })
+
+  it('SSE で配信される HTML にもグラフが含まれる（再描画フックが要らない）', async () => {
+    await seed('visit')
+
+    const summaryHtml = renderSummarySections(await summarize(env.DB, Date.now()))
+
+    expect(summaryHtml).toContain('<svg class="chart"')
+    expect(summaryHtml).toContain('<rect class="chart-bar"')
+  })
+
+  it('データが 0 件でも描画が壊れない', async () => {
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    // 全系列が 0 件なので棒は描かれず、空状態の文言になる。
+    expect(body).toContain('期間内のデータなし')
+    expect(body).not.toContain('NaN')
+    expect(body).not.toContain('<rect class="chart-bar"')
+  })
+
+  it('1 点のみ・全値同一でも棒の高さが NaN にならない', async () => {
+    // 同じ日・同じ時刻に同数のイベントを置き、最大値と各値が等しい状況にする。
+    await seed('visit')
+    await seed('visit')
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).not.toContain('NaN')
+    expect(body).toContain('<rect class="chart-bar"')
+    // 最大値と等しい棒はプロット高さいっぱいになる（126 = 140 - 14）。
+    expect(body).toContain('height="126"')
+  })
+})

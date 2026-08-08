@@ -45,6 +45,10 @@ h3 { font-size: 0.95rem; margin: 0 0 0.5rem; font-weight: 600; }
 .block .totals { margin-bottom: 0; }
 .empty { opacity: 0.6; font-size: 0.9rem; }
 .unit { font-size: 0.75rem; opacity: 0.6; }
+.chart { width: 100%; height: auto; margin-bottom: 0.5rem; overflow: visible; }
+.chart-bar { fill: currentColor; opacity: 0.65; }
+.chart-axis { stroke: currentColor; opacity: 0.35; }
+.chart-label { fill: currentColor; opacity: 0.6; font-size: 11px; }
 .notice { font-size: 0.8rem; opacity: 0.75; margin: 0 0 1.5rem;
   border-left: 3px solid rgba(128,128,128,0.4); padding: 0.25rem 0 0.25rem 0.75rem; }
 `
@@ -69,8 +73,86 @@ const CountTable: FC<{ title: string; rows: Count[] }> = ({ title, rows }) => (
   </section>
 )
 
-/** 期間内に 1 件も無いときだけ「データなし」を出す表。ゼロ埋め済みの系列用。 */
-const SeriesTable: FC<{ title: string; rows: Count[]; unit: string }> = ({ title, rows, unit }) => {
+/** 棒グラフの内部座標。viewBox で拡大縮小するため単位は px ではない。 */
+const CHART = { width: 640, height: 140, gap: 2, labelGap: 14 }
+
+/**
+ * インライン SVG の棒グラフ。
+ *
+ * クライアント JS で描かないのは、SSE が #summary を innerHTML で丸ごと
+ * 置き換えるため（views/dashboard.tsx の STREAM_SCRIPT）。サーバ側で
+ * SVG を描いておけば、置き換わる HTML そのものがグラフになり、再描画の
+ * フックを別に用意する必要がなくなる（書き忘れれば静かに消える類の穴を作らない）。
+ */
+const BarChart: FC<{ rows: Count[]; label: string; everyNthLabel?: number }> = ({
+  rows,
+  label,
+  everyNthLabel = 1,
+}) => {
+  const max = rows.reduce((peak, row) => Math.max(peak, row.count), 0)
+  // 全値 0 のときに高さを count / max で出すと 0 除算になる。棒を描かず軸だけ残す。
+  const plotHeight = CHART.height - CHART.labelGap
+  const slot = rows.length === 0 ? 0 : CHART.width / rows.length
+  const barWidth = Math.max(slot - CHART.gap, 1)
+
+  return (
+    <svg
+      class="chart"
+      viewBox={`0 0 ${CHART.width} ${CHART.height}`}
+      role="img"
+      aria-label={`${label}（最大 ${max}）`}
+    >
+      <line
+        x1="0"
+        y1={plotHeight}
+        x2={CHART.width}
+        y2={plotHeight}
+        class="chart-axis"
+        vector-effect="non-scaling-stroke"
+      />
+      {max === 0
+        ? null
+        : rows.map((row, index) => {
+            const height = (row.count / max) * plotHeight
+            return (
+              <rect
+                class="chart-bar"
+                x={index * slot + CHART.gap / 2}
+                y={plotHeight - height}
+                width={barWidth}
+                height={height}
+              >
+                <title>{`${row.label}: ${row.count}`}</title>
+              </rect>
+            )
+          })}
+      {rows.map((row, index) =>
+        index % everyNthLabel === 0 ? (
+          <text
+            class="chart-label"
+            x={index * slot + slot / 2}
+            y={CHART.height - 2}
+            text-anchor="middle"
+          >
+            {row.label}
+          </text>
+        ) : null,
+      )}
+    </svg>
+  )
+}
+
+/**
+ * ゼロ埋め済みの系列を、グラフ（概形）と表（正確な値）の 2 つで見せる。
+ * 期間内に 1 件も無いときだけ「データなし」にする。
+ */
+const SeriesTable: FC<{
+  title: string
+  rows: Count[]
+  unit: string
+  chartLabel?: (label: string) => string
+  everyNthLabel?: number
+}> = ({ title, rows, unit, chartLabel = (label) => label, everyNthLabel = 1 }) => {
   const total = rows.reduce((sum, row) => sum + row.count, 0)
 
   return (
@@ -79,19 +161,26 @@ const SeriesTable: FC<{ title: string; rows: Count[]; unit: string }> = ({ title
       {total === 0 ? (
         <p class="empty">期間内のデータなし</p>
       ) : (
-        <table>
-          <tbody>
-            {rows.map((row) => (
-              <tr>
-                <td>{row.label}</td>
-                <td>
-                  {row.count}
-                  <span class="unit"> {unit}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <>
+          <BarChart
+            label={title}
+            everyNthLabel={everyNthLabel}
+            rows={rows.map((row) => ({ label: chartLabel(row.label), count: row.count }))}
+          />
+          <table>
+            <tbody>
+              {rows.map((row) => (
+                <tr>
+                  <td>{row.label}</td>
+                  <td>
+                    {row.count}
+                    <span class="unit"> {unit}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </section>
   )
@@ -163,6 +252,8 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
             <SeriesTable
               title={entry.label}
               unit="件"
+              chartLabel={(day) => day.slice(5)}
+              everyNthLabel={3}
               rows={summary.daily.map((point) => ({
                 label: point.day,
                 count: point.counts[entry.kind],
@@ -172,6 +263,8 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
           <SeriesTable
             title="ユニーク訪問者"
             unit="人"
+            chartLabel={(day) => day.slice(5)}
+            everyNthLabel={3}
             rows={summary.daily.map((point) => ({
               label: point.day,
               count: point.uniqueVisitors,
@@ -187,6 +280,8 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
             <SeriesTable
               title={entry.label}
               unit="件"
+              chartLabel={(hour) => hour.slice(0, 2)}
+              everyNthLabel={3}
               rows={summary.hourly.map((point) => ({
                 label: `${String(point.hour).padStart(2, '0')} 時台`,
                 count: point.counts[entry.kind],
