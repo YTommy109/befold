@@ -56,6 +56,28 @@ struct ViewerWindowControllerToolbarTests {
         }
     }
 
+    /// ゲート OFF 相当(stable)のツールバー構成をライブなゲート値に依らず検証する。
+    /// ゲート越しの検証は動いているビルドの側しか通らないため、構成の両分岐はここで押さえる。
+    @Test(
+        "ツールバー構成は差分ゲートに応じて差分レイアウト項目とセグメント数を切り替える",
+        arguments: [true, false]
+    )
+    func toolbarCompositionFollowsSourceDiffGate(isSourceDiffEnabled: Bool) {
+        let identifiers = ViewerToolbarController.defaultItemIdentifiers(
+            isSourceDiffEnabled: isSourceDiffEnabled
+        )
+        let diffLayout: [NSToolbarItem.Identifier] = isSourceDiffEnabled ? [.init("diffLayout")] : []
+        #expect(identifiers == [
+            .toggleSidebar, .sidebarTrackingSeparator,
+            .init("historyBack"), .init("historyForward"),
+            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"),
+        ] + diffLayout + [.init("bookmark")])
+
+        let modes = ModeSegments.modes(isSourceDiffEnabled: isSourceDiffEnabled)
+        #expect(modes.count == (isSourceDiffEnabled ? 3 : 2))
+        #expect(modes.contains(.diff) == isSourceDiffEnabled)
+    }
+
     @Test("ブックマークボタンをクリックすると状態がトグルされアイコン・色に反映される")
     func bookmarkItemTogglesOnClick() throws {
         let controller = makeController(file: URL(fileURLWithPath: "/mock/a.mmd"))

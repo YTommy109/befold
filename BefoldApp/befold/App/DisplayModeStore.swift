@@ -10,15 +10,26 @@ import Foundation
 @MainActor
 final class DisplayModeStore {
     private let modes: PathKeyedDictionary<String>
+    /// 差分表示のフィーチャーゲート。実ビルドでは片側に固定されるため、
+    /// ゲートを直読みせず生成時に受け取る（そうしないと OFF 側の降格をテストできない）。
+    ///
+    /// 差分モードは UI（ツールバーのセグメント・View メニュー ⌘3）以外では
+    /// **保存値の復元でしか現れない**。その 1 経路がここなので、能力（`ViewerCapabilities`）
+    /// の側にゲートは置かない（置いても到達不能な状態への三重目のガードにしかならず、
+    /// 「能力は提示状態から導出する」という ADR 0002 段 2 にビルドフラグが混ざる）。
+    private let isSourceDiffEnabled: Bool
 
     /// 表示モードを 1 値で持つ以前に使っていた「ソース表示 Bool」の保存キー。
     /// 新キーが未設定のときだけ読み、`true` を `.source` として引き継ぐ。
     private static let legacySourceModeKey = "ViewerSourceModes"
     private static let key = "ViewerDisplayModes"
 
-    init(defaults: UserDefaults = .standard) {
+    /// - Parameter isSourceDiffEnabled: 差分表示のフィーチャーゲート。本番では
+    ///   `PerFileStateStore` がゲート判定を読んで渡す（このストアはゲートを直読みしない）。
+    init(defaults: UserDefaults = .standard, isSourceDiffEnabled: Bool) {
         Self.migrateLegacySourceModesIfNeeded(defaults: defaults)
         modes = PathKeyedDictionary(defaults: defaults, key: Self.key)
+        self.isSourceDiffEnabled = isSourceDiffEnabled
     }
 
     /// 指定ファイルの保存済み表示モードを返す。保存がなければレンダリング表示。
@@ -60,7 +71,7 @@ final class DisplayModeStore {
         case .source:
             return sourceOrRendered
         case .diff:
-            guard fileType.supportsDiffDisplay, FeatureGate.isSourceDiffEnabled else { return sourceOrRendered }
+            guard fileType.supportsDiffDisplay, isSourceDiffEnabled else { return sourceOrRendered }
             return .diff
         }
     }

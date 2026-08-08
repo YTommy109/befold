@@ -48,7 +48,7 @@ struct ViewerWindowControllerFixture {
     ) {
         let defaults = defaults ?? makeIsolatedDefaults(prefix: prefix)
         let zoomStore = zoomStore ?? ZoomStore(defaults: defaults)
-        let displayModeStore = displayModeStore ?? DisplayModeStore(defaults: defaults)
+        let displayModeStore = displayModeStore ?? DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
         let perFileState = PerFileStateStore(
             zoom: zoomStore,
             displayMode: displayModeStore,

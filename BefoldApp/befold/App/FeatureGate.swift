@@ -28,11 +28,12 @@ import BefoldCLI
 ///   — 表示モード(ファイル単位のユーザー選択)とビルドゲートが別物であることの注記のみ。
 /// - `MainMenuBuilder.addDisplayModeItems(to:)`
 ///   — View メニューの「差分を表示」(⌘3)「差分を左右に並べる」(⌘4)項目。
-/// - `ViewerToolbarController.ModeSegments`
+/// - `ViewerToolbarController.ModeSegments` / `ViewerToolbarController.layout(isSourceDiffEnabled:)`
 ///   — ツールバーのモード切替セグメントに差分を並べるか、および差分レイアウトの
 ///     トグルアイテムを構成に載せるか。無効時は 2 セグメントでトグルも存在しない。
-/// - `DisplayModeStore.restoredDisplayMode(for:)`
-///   — 保存値の読み出し。無効時は保存値が差分でもソース表示へ降格して読む
+/// - `PerFileStateStore.init(defaults:)`
+///   — `DisplayModeStore` へゲート値を注入する（ストア側はゲートを直読みしない）。
+///     無効時は保存値が差分でもソース表示へ降格して読む
 ///     （保存値そのものは書き換えないので、dev ビルドへ戻れば差分のまま復帰する）。
 ///
 /// この列挙は `FeatureGateEnumerationTests` がソース走査と突き合わせており、

@@ -126,60 +126,72 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     static let bookmarkItemIdentifier = NSToolbarItem.Identifier("bookmark")
     static let diffLayoutItemIdentifier = NSToolbarItem.Identifier("diffLayout")
 
-    /// ツールバー構成の唯一の情報源。この並びが既定の表示順になり、
-    /// 生成・再同期・許可アイテム一覧はすべてここから導出する。
-    private static let layout: [ToolbarEntry] = ([
-        .system(.toggleSidebar), .system(.sidebarTrackingSeparator),
-        .item(ToolbarItemSpec(
-            identifier: backItemIdentifier,
-            labelKey: "toolbar.back",
-            view: .historyButton(symbol: "chevron.left", offset: -1),
-            menuAction: #selector(goBackFromMenu(_:)),
-            // Finder と同じく、ナビゲーション項目としてウィンドウタイトル(ファイル名)より
-            // 先頭側(コンテンツ領域の左端)に配置する
-            isNavigational: true,
-            applyState: { $0.applyHistoryState(to: $1) }
-        )),
-        .item(ToolbarItemSpec(
-            identifier: forwardItemIdentifier,
-            labelKey: "toolbar.forward",
-            view: .historyButton(symbol: "chevron.right", offset: 1),
-            menuAction: #selector(goForwardFromMenu(_:)),
-            isNavigational: true,
-            applyState: { $0.applyHistoryState(to: $1) }
-        )),
-        .system(.flexibleSpace),
-        .item(ToolbarItemSpec(
-            identifier: lineNumbersItemIdentifier,
-            labelKey: "menu.view.showLineNumbers",
-            view: .button(symbol: "list.number", action: #selector(lineNumbersItemClicked(_:))),
-            menuAction: #selector(lineNumbersItemClicked(_:)),
-            applyState: { $0.applyLineNumbersState(to: $1) }
-        )),
-        .item(ToolbarItemSpec(
-            identifier: modeToggleItemIdentifier,
-            labelKey: "toolbar.mode.group",
-            view: .modeSegments,
-            menuAction: nil,
-            applyState: { $0.applyModeToggleState(to: $1) }
-        )),
-        // 差分レイアウトのトグルは差分機能そのものの一部なので、ゲートが無効なビルドでは
-        // layout に載せない(載せて無効化するのではなく、存在させない)。
-        FeatureGate.isSourceDiffEnabled ? .item(ToolbarItemSpec(
-            identifier: diffLayoutItemIdentifier,
-            labelKey: "menu.view.diffSideBySide",
-            view: .button(symbol: "rectangle.split.2x1", action: #selector(diffLayoutItemClicked(_:))),
-            menuAction: #selector(diffLayoutItemClicked(_:)),
-            applyState: { $0.applyDiffLayoutState(to: $1) }
-        )) : nil,
-        .item(ToolbarItemSpec(
-            identifier: bookmarkItemIdentifier,
-            labelKey: "menu.view.addBookmark",
-            view: .button(symbol: "bookmark", action: #selector(bookmarkItemClicked(_:))),
-            menuAction: #selector(bookmarkItemClicked(_:)),
-            applyState: { $0.applyBookmarkState(to: $1) }
-        )),
-    ] as [ToolbarEntry?]).compactMap(\.self)
+    /// 実ビルドのツールバー構成。生成・再同期・許可アイテム一覧はすべてここから導出する。
+    private static let layout: [ToolbarEntry] = layout(isSourceDiffEnabled: FeatureGate.isSourceDiffEnabled)
+
+    /// ゲート値を引数で受けるツールバー構成。この並びが既定の表示順になる。
+    /// 実ビルドではゲートが片側に固定されるため、両分岐はここで検証する
+    /// （`defaultItemIdentifiers(isSourceDiffEnabled:)` 経由）。
+    private static func layout(isSourceDiffEnabled: Bool) -> [ToolbarEntry] {
+        ([
+            .system(.toggleSidebar), .system(.sidebarTrackingSeparator),
+            .item(ToolbarItemSpec(
+                identifier: backItemIdentifier,
+                labelKey: "toolbar.back",
+                view: .historyButton(symbol: "chevron.left", offset: -1),
+                menuAction: #selector(goBackFromMenu(_:)),
+                // Finder と同じく、ナビゲーション項目としてウィンドウタイトル(ファイル名)より
+                // 先頭側(コンテンツ領域の左端)に配置する
+                isNavigational: true,
+                applyState: { $0.applyHistoryState(to: $1) }
+            )),
+            .item(ToolbarItemSpec(
+                identifier: forwardItemIdentifier,
+                labelKey: "toolbar.forward",
+                view: .historyButton(symbol: "chevron.right", offset: 1),
+                menuAction: #selector(goForwardFromMenu(_:)),
+                isNavigational: true,
+                applyState: { $0.applyHistoryState(to: $1) }
+            )),
+            .system(.flexibleSpace),
+            .item(ToolbarItemSpec(
+                identifier: lineNumbersItemIdentifier,
+                labelKey: "menu.view.showLineNumbers",
+                view: .button(symbol: "list.number", action: #selector(lineNumbersItemClicked(_:))),
+                menuAction: #selector(lineNumbersItemClicked(_:)),
+                applyState: { $0.applyLineNumbersState(to: $1) }
+            )),
+            .item(ToolbarItemSpec(
+                identifier: modeToggleItemIdentifier,
+                labelKey: "toolbar.mode.group",
+                view: .modeSegments,
+                menuAction: nil,
+                applyState: { $0.applyModeToggleState(to: $1) }
+            )),
+            // 差分レイアウトのトグルは差分機能そのものの一部なので、ゲートが無効なビルドでは
+            // layout に載せない(載せて無効化するのではなく、存在させない)。
+            isSourceDiffEnabled ? .item(ToolbarItemSpec(
+                identifier: diffLayoutItemIdentifier,
+                labelKey: "menu.view.diffSideBySide",
+                view: .button(symbol: "rectangle.split.2x1", action: #selector(diffLayoutItemClicked(_:))),
+                menuAction: #selector(diffLayoutItemClicked(_:)),
+                applyState: { $0.applyDiffLayoutState(to: $1) }
+            )) : nil,
+            .item(ToolbarItemSpec(
+                identifier: bookmarkItemIdentifier,
+                labelKey: "menu.view.addBookmark",
+                view: .button(symbol: "bookmark", action: #selector(bookmarkItemClicked(_:))),
+                menuAction: #selector(bookmarkItemClicked(_:)),
+                applyState: { $0.applyBookmarkState(to: $1) }
+            )),
+        ] as [ToolbarEntry?]).compactMap(\.self)
+    }
+
+    /// ゲート値ごとの既定アイテム並び。ゲート OFF 相当の構成
+    /// （差分レイアウト項目が存在しないこと）をライブなゲート値に依らず検証するための入口。
+    static func defaultItemIdentifiers(isSourceDiffEnabled: Bool) -> [NSToolbarItem.Identifier] {
+        layout(isSourceDiffEnabled: isSourceDiffEnabled).map(\.identifier)
+    }
 
     /// ツールバーが所属するウィンドウ。生成済みアイテムの検索(window.toolbar.items)に使う。
     private weak var window: NSWindow?

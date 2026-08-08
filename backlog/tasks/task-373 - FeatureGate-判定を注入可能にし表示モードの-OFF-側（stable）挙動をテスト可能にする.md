@@ -1,9 +1,11 @@
 ---
 id: TASK-373
 title: FeatureGate 判定を注入可能にし表示モードの OFF 側（stable）挙動をテスト可能にする
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-08-08 11:23'
+updated_date: '2026-08-08 12:44'
 labels: []
 dependencies: []
 references:
@@ -28,7 +30,21 @@ feat/preview_mode の /code-review (high) 指摘 3 件の統合（同型のゲ�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 restoredDisplayMode がゲート値を引数で受け、ON/OFF 両方向の降格挙動がユニットテストで検証される
-- [ ] #2 gate OFF 相当のツールバー構成（2 セグメント・diffLayout 項目無し）が live gate 値に依存しないユニットテストで検証される
-- [ ] #3 canSelectDiffMode（または setDisplayMode の executor ガード）が gate OFF で .diff を拒否し、ユニットテストで担保される
+- [x] #1 restoredDisplayMode がゲート値を引数で受け、ON/OFF 両方向の降格挙動がユニットテストで検証される
+- [x] #2 gate OFF 相当のツールバー構成（2 セグメント・diffLayout 項目無し）が live gate 値に依存しないユニットテストで検証される
+- [x] #3 canSelectDiffMode（または setDisplayMode の executor ガード）が gate OFF で .diff を拒否し、ユニットテストで担保される
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+実装: ゲート値を注入する形へ変更。(1) DisplayModeStore は init(defaults:isSourceDiffEnabled:) で受け取り FeatureGate 直読みを廃止（本番値は PerFileStateStore が注入）。デフォルト引数は置かず必須引数にした。(2) ViewerToolbarController.layout を layout(isSourceDiffEnabled:) へ切り出し、live 用は static let で 1 度だけ解決。テスト入口として defaultItemIdentifiers(isSourceDiffEnabled:) を追加。(3) ViewerCapabilities.init に必須引数 isSourceDiffEnabled を追加し canSelectDiffMode / canToggleDiffLayout をゲートで拒否（ViewerWindowController.capabilities が FeatureGate を渡す）。FeatureGate の露出点コメントも DisplayModeStore → PerFileStateStore / ViewerWindowController.capabilities へ更新（FeatureGateEnumerationTests が突き合わせる）。検証: swift test --skip Integration --skip FileWatcherTests で 1120 tests / 155 suites すべて成功。swiftlint（プラグイン同梱バイナリ）で変更ファイルの警告 0 件。
+
+AC#3 差し戻し: ViewerCapabilities へのゲート追加を撤回した。.diff が setDisplayMode / mirrorDisplayMode に届く経路を全数確認（ViewerWindowController.swift:686 / :730 の呼び出し元）した結果、UI 2 経路（ModeSegments.all・MainMenuBuilder.addDisplayModeItems）と保存値の復元 1 経路のみで、cmd+U の戻り先は effectiveDisplayMode 由来、他ウィンドウのミラーは同一ビルド、CLI は ViewerWindowManager.swift:207 のとおり .source/.rendered しか渡さない。UI 以外の唯一の経路は DisplayModeStore の復元であり、そこは AC#1 で塞がっている。能力側のゲートは到達不能な状態への三重目のガードで、ゲート読み出し箇所が 3 箇所に増え、『能力は提示状態から導出する』(ADR 0002 段 2) にビルドフラグが混ざる分だけ負債になる。元のレビュー指摘も PLAUSIBLE 判定だった。判断の根拠は DisplayModeStore の doc コメントに残した。検証: swift test で 1119 tests / 155 suites 成功。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+表示モードの差分ゲートのうち、DisplayModeStore の降格（UI 以外の唯一の経路）とツールバー構成を注入可能にし、ON/OFF 両分岐をパラメータ化テストで検証。live gate 値に依存したヘッジ式のアサーションを撤去した。ViewerCapabilities へのゲート追加（当初の AC#3）は、.diff の到達経路を全数確認した結果、到達不能な状態への三重目のガードだったため実施せず、判断の根拠を DisplayModeStore の doc コメントへ記録した。swift test 1119 件成功、変更ファイルの swiftlint 警告 0。
+<!-- SECTION:FINAL_SUMMARY:END -->

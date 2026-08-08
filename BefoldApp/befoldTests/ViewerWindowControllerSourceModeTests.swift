@@ -34,7 +34,7 @@ struct ViewerWindowControllerSourceModeTests {
     @Test("直接開いた場合も保存済みのソース表示モードが復元される")
     func openingFileDirectlyRestoresSavedSourceMode() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests")
-        let displayModeStore = DisplayModeStore(defaults: defaults)
+        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
         displayModeStore.setDisplayMode(.source, for: file)
 
         let controller = makeController(file: file, displayModeStore: displayModeStore, defaults: defaults)
@@ -63,7 +63,7 @@ struct ViewerWindowControllerSourceModeTests {
     @Test("switchFile は旧・新ファイルの保存済みソース表示モードを破壊しない")
     func switchFilePreservesSavedSourceModeForBothFiles() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests")
-        let displayModeStore = DisplayModeStore(defaults: defaults)
+        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
         displayModeStore.setDisplayMode(.source, for: file1)
         displayModeStore.setDisplayMode(.rendered, for: file2)
         let controller = makeController(
@@ -88,7 +88,7 @@ struct ViewerWindowControllerSourceModeTests {
         let swift1 = URL(fileURLWithPath: "/mock/first.swift")
         let swift2 = URL(fileURLWithPath: "/mock/second.swift")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.diff")
-        let displayModeStore = DisplayModeStore(defaults: defaults)
+        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
         let controller = ViewerWindowControllerFixture(
             file: swift1, extraFiles: [swift2], contents: "let a = 1",
             defaults: defaults, displayModeStore: displayModeStore
@@ -121,7 +121,7 @@ struct ViewerWindowControllerSourceModeTests {
     func selectingAlreadyShownSourceModeOnCodeFileIsNoOp() async {
         let code = URL(fileURLWithPath: "/mock/sample.swift")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.code")
-        let displayModeStore = DisplayModeStore(defaults: defaults)
+        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
         let controller = ViewerWindowControllerFixture(
             file: code, contents: "let a = 1", defaults: defaults, displayModeStore: displayModeStore
         ).controller
@@ -148,7 +148,7 @@ struct ViewerWindowControllerSourceModeTests {
         try #require(FeatureGate.isSourceDiffEnabled)
         let code = URL(fileURLWithPath: "/mock/sample.swift")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.code")
-        let displayModeStore = DisplayModeStore(defaults: defaults)
+        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
         let controller = ViewerWindowControllerFixture(
             file: code, contents: "let a = 1", defaults: defaults, displayModeStore: displayModeStore
         ).controller
@@ -168,7 +168,7 @@ struct ViewerWindowControllerSourceModeTests {
         try #require(FeatureGate.isSourceDiffEnabled)
         let code = URL(fileURLWithPath: "/mock/sample.swift")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.roundTrip")
-        let displayModeStore = DisplayModeStore(defaults: defaults)
+        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
         let controller = ViewerWindowControllerFixture(
             file: code, contents: "let a = 1", defaults: defaults, displayModeStore: displayModeStore
         ).controller
@@ -195,7 +195,7 @@ struct ViewerWindowControllerSourceModeTests {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.clearTarget")
         let controller = ViewerWindowControllerFixture(
             file: code, contents: "let a = 1", defaults: defaults,
-            displayModeStore: DisplayModeStore(defaults: defaults)
+            displayModeStore: DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
         ).controller
         defer { controller.close() }
 
@@ -220,7 +220,7 @@ struct ViewerWindowControllerSourceModeTests {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.leak")
         let controller = ViewerWindowControllerFixture(
             file: swift1, extraFiles: [swift2], contents: "let a = 1", defaults: defaults,
-            displayModeStore: DisplayModeStore(defaults: defaults)
+            displayModeStore: DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
         ).controller
         defer { controller.close() }
 
