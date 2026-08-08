@@ -2,7 +2,7 @@
  * ダッシュボード向けの集計。規模が小さいため都度 GROUP BY で算出する。
  *
  * 日付・時間帯のバケットはすべて JST 基準（lib/jst.ts が唯一の定義元）。
- * 期間の絞り込みは `WHERE ts >= ?` だけで行い、idx_events_ts /
+ * 期間の絞り込みは `WHERE timestamp >= ?` だけで行い、idx_events_timestamp /
  * idx_events_kind が効く形を保つ。
  */
 
@@ -13,7 +13,7 @@ export type Count = { label: string; count: number }
 
 export type RecentEvent = {
   id: number
-  ts: number
+  timestamp: number
   kind: string
   version: string | null
   country: string | null
@@ -26,8 +26,8 @@ export type KindCounts = Record<EventKind, number>
 /**
  * 全期間の累計。
  *
- * `visitorDays` は visitor_day の異なり数、すなわち「訪問者 × 日」の延べ数で
- * あって、ユニーク訪問者数ではない（visitor_day は日ごとに別ハッシュになる）。
+ * `visitorDays` は visitor_token の異なり数、すなわち「訪問者 × 日」の延べ数で
+ * あって、ユニーク訪問者数ではない（visitor_token は日ごとに別ハッシュになる）。
  * 当日集計の `uniqueVisitors` と名前を分けているのは、同じ SQL 断片が期間次第で
  * 別の意味になり、混用しても値が返ってしまうため。
  */
@@ -102,7 +102,7 @@ export async function cumulativeTotals(db: D1Database): Promise<CumulativeTotals
   const row = await db
     .prepare(
       `SELECT ${KIND_COUNT_COLUMNS},
-              COUNT(DISTINCT visitor_day) AS visitor_days
+              COUNT(DISTINCT visitor_token) AS visitor_days
        FROM events`,
     )
     .first<KindCountRow & { visitor_days: number | null }>()
@@ -115,9 +115,9 @@ export async function todayTotals(db: D1Database, now: number): Promise<TodayTot
   const row = await db
     .prepare(
       `SELECT ${KIND_COUNT_COLUMNS},
-              COUNT(DISTINCT visitor_day) AS unique_visitors
+              COUNT(DISTINCT visitor_token) AS unique_visitors
        FROM events
-       WHERE ts >= ?`,
+       WHERE timestamp >= ?`,
     )
     .bind(jstDayStart(now))
     .first<KindCountRow & { unique_visitors: number | null }>()
@@ -135,9 +135,9 @@ export async function dailySeries(
     .prepare(
       `SELECT ${JST_DAY_EXPR} AS day,
               ${KIND_COUNT_COLUMNS},
-              COUNT(DISTINCT visitor_day) AS unique_visitors
+              COUNT(DISTINCT visitor_token) AS unique_visitors
        FROM events
-       WHERE ts >= ?
+       WHERE timestamp >= ?
        GROUP BY day
        ORDER BY day`,
     )
@@ -163,7 +163,7 @@ export async function hourlyDistribution(
       `SELECT CAST(${JST_HOUR_EXPR} AS INTEGER) AS hour,
               ${KIND_COUNT_COLUMNS}
        FROM events
-       WHERE ts >= ?
+       WHERE timestamp >= ?
        GROUP BY hour
        ORDER BY hour`,
     )
@@ -206,7 +206,7 @@ async function breakdown(
 export async function recentEvents(db: D1Database, afterId = 0): Promise<RecentEvent[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, ts, kind, version, country, os
+      `SELECT id, timestamp, kind, version, country, os
        FROM events
        WHERE id > ?
        ORDER BY id DESC
@@ -268,7 +268,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
 export async function eventsAfter(db: D1Database, afterId: number): Promise<RecentEvent[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, ts, kind, version, country, os
+      `SELECT id, timestamp, kind, version, country, os
        FROM events
        WHERE id > ?
        ORDER BY id

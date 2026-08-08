@@ -1,7 +1,7 @@
 /**
  * 日付・時刻の基準タイムゾーン（JST = UTC+9）の唯一の定義元。
  *
- * 集計の日付バケット・時間帯バケット・visitor_day のハッシュ日付・
+ * 集計の日付バケット・時間帯バケット・visitor_token のハッシュ日付・
  * 画面表示の時刻をすべてこの基準にそろえる。SQL 側の補正を各クエリへ
  * 直書きすると、1 箇所書き忘れても SQL は valid のまま UTC の結果を
  * 静かに返すため、式ごと定数にして差し込む。
@@ -11,11 +11,11 @@ export const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** SQLite で ts (epoch ms) を JST の 'YYYY-MM-DD' にする式。 */
-export const JST_DAY_EXPR = "date(ts / 1000, 'unixepoch', '+9 hours')"
+/** SQLite で timestamp (epoch ms) を JST の 'YYYY-MM-DD' にする式。 */
+export const JST_DAY_EXPR = "date(timestamp / 1000, 'unixepoch', '+9 hours')"
 
-/** SQLite で ts (epoch ms) を JST の時（'00'〜'23'）にする式。 */
-export const JST_HOUR_EXPR = "strftime('%H', ts / 1000, 'unixepoch', '+9 hours')"
+/** SQLite で timestamp (epoch ms) を JST の時（'00'〜'23'）にする式。 */
+export const JST_HOUR_EXPR = "strftime('%H', timestamp / 1000, 'unixepoch', '+9 hours')"
 
 /** epoch ms を JST の 'YYYY-MM-DD' に変換する。 */
 export function jstDayKey(ts: number): string {

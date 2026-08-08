@@ -33,7 +33,7 @@ async function seed(
 ): Promise<number> {
   const result = await env.DB.prepare(
     'INSERT INTO events' +
-      ' (ts, kind, version, channel, country, os, ua_summary, visitor_day, referrer, as_org)' +
+      ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org)' +
       " VALUES (?, ?, ?, 'stable', ?, ?, 'Safari', ?, ?, ?) RETURNING id",
   )
     .bind(
@@ -88,24 +88,21 @@ describe('Basic 認証による保護', () => {
 })
 
 describe('集計の表示', () => {
-  it('JST 基準と visitor_day の不連続が注記として出る', async () => {
+  it('日付・時刻が JST 基準であることが画面に明示される', async () => {
     await seed('visit')
 
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     expect(body).toContain('日付・時刻はすべて JST (UTC+9) 基準')
-    expect(body).toContain('class="notice"')
-    expect(body).toContain('最大 2 倍に膨らむ')
   })
 
-  it('注記は SSE の差し替え範囲（#summary）の外に置く', async () => {
+  it('JST 基準の明示は SSE の差し替え範囲（#summary）の外に置く', async () => {
     await seed('visit')
 
     const summaryHtml = renderSummarySections(await summarize(env.DB, Date.now()))
 
     // #summary は SSE が毎周期 innerHTML で丸ごと置き換えるため、
-    // 静的な注記を含めない（含めると毎回同じ文字列を送り直すことになる）。
-    expect(summaryHtml).not.toContain('class="notice"')
+    // 静的なテキストを含めない（含めると毎回同じ文字列を送り直すことになる）。
     expect(summaryHtml).not.toContain('日付・時刻はすべて JST (UTC+9) 基準')
   })
 
@@ -121,7 +118,7 @@ describe('集計の表示', () => {
     expect(body).toContain('<span class="value" id="count-visit">2</span>')
     expect(body).toContain('<span class="value" id="count-download">2</span>')
     expect(body).toContain('<span class="value" id="count-update_check">1</span>')
-    // 延べ訪問者は visitor_day の異なり数（hash-a / hash-b）
+    // 延べ訪問者は visitor_token の異なり数（hash-a / hash-b）
     expect(body).toContain('<span class="value">2</span>')
     expect(body).toContain('v1.10.0')
     expect(body).toContain('macOS 15.0')

@@ -15,10 +15,13 @@ export function dayKey(ts: number): string {
 }
 
 /**
- * sha256(ip + ua + YYYY-MM-DD) を 16 進文字列で返す。
- * 同一日・同一訪問者なら決定的に同じ値になり、IP は復元できない。
+ * sha256(ip + ua + YYYY-MM-DD) を 16 進文字列で返す（events.visitor_token）。
+ *
+ * 同一日・同一訪問者なら決定的に同じ値になり、IP は復元できない。日付を材料に
+ * 混ぜているため翌日には別の値になり、日をまたぐ同一人物の追跡はできない。
+ * この性質が目的なので、ハッシュから日付だけを取り出す用途には使えない。
  */
-export async function visitorDayHash(ip: string, ua: string, ts: number): Promise<string> {
+export async function visitorTokenHash(ip: string, ua: string, ts: number): Promise<string> {
   const source = `${ip}\0${ua}\0${dayKey(ts)}`
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(source))
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')

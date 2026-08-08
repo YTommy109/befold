@@ -21,13 +21,13 @@ function jst(text: string): number {
 async function insert(
   ts: number,
   kind: EventKind,
-  visitorDay: string | null = 'visitor-a',
+  visitorToken: string | null = 'visitor-a',
   uaSummary: string | null = null,
 ): Promise<void> {
   await env.DB.prepare(
-    'INSERT INTO events (ts, kind, visitor_day, ua_summary) VALUES (?, ?, ?, ?)',
+    'INSERT INTO events (timestamp, kind, visitor_token, ua_summary) VALUES (?, ?, ?, ?)',
   )
-    .bind(ts, kind, visitorDay, uaSummary)
+    .bind(ts, kind, visitorToken, uaSummary)
     .run()
 }
 
@@ -52,12 +52,12 @@ describe('JST バケットの基準', () => {
     }
 
     const { results } = await env.DB.prepare(
-      `SELECT ts, ${JST_DAY_EXPR} AS day FROM events ORDER BY ts`,
-    ).all<{ ts: number; day: string }>()
+      `SELECT timestamp, ${JST_DAY_EXPR} AS day FROM events ORDER BY timestamp`,
+    ).all<{ timestamp: number; day: string }>()
 
     expect(results).toHaveLength(samples.length)
     for (const row of results) {
-      expect(row.day).toBe(jstDayKey(row.ts))
+      expect(row.day).toBe(jstDayKey(row.timestamp))
     }
   })
 
@@ -88,7 +88,7 @@ describe('todayTotals', () => {
   })
 
   it('日次ユニークが全期間の延べ数にならない', async () => {
-    // 同一訪問者でも日が違えば visitor_day は別ハッシュになる（延べ 3）。
+    // 同一訪問者でも日が違えば visitor_token は別ハッシュになる（延べ 3）。
     await insert(jst('2026-08-06 10:00'), 'visit', 'hash-0806')
     await insert(jst('2026-08-07 10:00'), 'visit', 'hash-0807')
     await insert(jst('2026-08-08 10:00'), 'visit', 'hash-0808')

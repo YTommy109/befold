@@ -30,14 +30,14 @@ type EventRow = {
   country: string | null
   os: string | null
   ua_summary: string | null
-  visitor_day: string | null
+  visitor_token: string | null
   referrer: string | null
   as_org: string | null
 }
 
 async function latestEvent(): Promise<EventRow | null> {
   return await env.DB.prepare(
-    'SELECT kind, version, channel, country, os, ua_summary, visitor_day, referrer, as_org' +
+    'SELECT kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org' +
       ' FROM events ORDER BY id DESC LIMIT 1',
   ).first<EventRow>()
 }
@@ -220,7 +220,7 @@ describe('プライバシー', () => {
     expect(stored).not.toContain('AppleWebKit')
     expect(event?.os).toBe('macOS 14.5')
     expect(event?.ua_summary).toBe('Safari')
-    expect(event?.visitor_day).toMatch(/^[0-9a-f]{64}$/)
+    expect(event?.visitor_token).toMatch(/^[0-9a-f]{64}$/)
   })
 })
 

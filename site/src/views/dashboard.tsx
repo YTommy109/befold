@@ -49,8 +49,6 @@ h3 { font-size: 0.95rem; margin: 0 0 0.5rem; font-weight: 600; }
 .chart-bar { fill: currentColor; opacity: 0.65; }
 .chart-axis { stroke: currentColor; opacity: 0.35; }
 .chart-label { fill: currentColor; opacity: 0.6; font-size: 11px; }
-.notice { font-size: 0.8rem; opacity: 0.75; margin: 0 0 1.5rem;
-  border-left: 3px solid rgba(128,128,128,0.4); padding: 0.25rem 0 0.25rem 0.75rem; }
 `
 
 const CountTable: FC<{ title: string; rows: Count[] }> = ({ title, rows }) => (
@@ -206,8 +204,8 @@ const Cards: FC<{ cards: { value: number; label: string; id?: string }[] }> = ({
 /**
  * 集計セクション（累計 / 本日 / 推移 / 時間帯 / 内訳 / 最新イベント）。
  *
- * 初期レンダリングと SSE 配信の両方がこれを使う。JST 基準の明示と
- * 不連続の注記は毎周期送り直す必要がないため、この外（ヘッダー）に置く。
+ * 初期レンダリングと SSE 配信の両方がこれを使う。JST 基準の明示など
+ * 毎周期送り直す必要のない静的テキストは、この外（ヘッダー）に置く。
  */
 export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
   const windowLabel = `直近 ${summary.windowDays} 日`
@@ -320,7 +318,7 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
           <tbody id="recent-body">
             {summary.recent.map((event) => (
               <tr>
-                <td>{formatJst(event.ts)}</td>
+                <td>{formatJst(event.timestamp)}</td>
                 <td>{event.kind}</td>
                 <td>{event.version ?? ''}</td>
                 <td>{event.country ?? ''}</td>
@@ -354,14 +352,6 @@ export const Dashboard: FC<{ summary: Summary; lastId: number }> = ({ summary, l
       <p class="status">
         SSE: <span id="stream-status">connecting…</span> · 日付・時刻はすべて JST (UTC+9) 基準
         · 期間は固定（累計 / 本日 / 直近 {summary.windowDays} 日）
-      </p>
-      {/* SSE は #summary を丸ごと差し替えるため、毎周期送り直す必要のない
-          静的な注記はその外に置く。 */}
-      <p class="notice">
-        訪問者の識別子は sha256(IP + UA + 日付) で、日付の基準を UTC から JST
-        へ変更した。切り替え日より前のデータは UTC 日付で計算されているため、
-        その期間のユニーク訪問者は同一人物が二重に数えられ、最大 2 倍に膨らむ。
-        過去データの再計算は行っていない。
       </p>
 
       <div id="summary">

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-08 04:55'
-updated_date: '2026-08-08 06:42'
+updated_date: '2026-08-08 07:19'
 labels:
   - site
   - analytics
@@ -61,6 +61,8 @@ site/src/views/dashboard.tsx は現在、カード群（全期間総数3枚＋�
 
 検証: npx vitest run で 70 passed / 6 files（新規 2 件を含む）、npx tsc --noEmit エラーなし。SSE テストは既存のまま通過。
 未検証: 実ブラウザでの表示確認（セクション間の余白、grid の折り返し）は未実施。
+
+2026-08-08 ユーザー判断により、AC #6 の『JST 化の不連続の注記』は TASK-362 で削除した。訪問者数がまだ少なく不連続を無視して差し支えないため。JST 基準である旨の明示（AC #2/#3 相当）はヘッダーに残している。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
