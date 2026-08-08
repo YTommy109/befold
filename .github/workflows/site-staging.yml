@@ -1,0 +1,100 @@
+name: Site Staging
+
+# staging（befold-staging / befold-analytics-staging）への反映をワークフロー化する。
+#
+# staging は「本番にしか存在しない条件（実 D1・シークレット・マイグレーション
+# 適用順序）を本番データを汚さずに確認する環境」として置いている。その staging
+# 自体が本番と違う手順で運用されていると、確認したい条件を再現できない。
+# 本番（site.yml の deploy）と同じく **マイグレーション → デプロイ** の順序を
+# CI に固定する。順序が逆だと旧コードの INSERT がカラム不足で失敗し、
+# insertEvent は例外を飲む設計のため計測が無言で欠落する。
+#
+# トリガーを workflow_dispatch にしているのは、staging が「main へマージする前に
+# 任意のブランチを実 D1 で確認する」場だから。実行するブランチとタイミングは
+# 人が選ぶ必要がある（Run workflow の Use workflow from branch で選ぶ）。
+#
+# 本番の自動デプロイ経路（site.yml）には手を入れていない。破壊的マイグレーションの
+# 歯止め check-destructive-migrations.sh も本番側に残したままで、この
+# ワークフローから迂回することはできない（対象データベースが別）。
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 週次で staging の未適用マイグレーションを見張る（適用はしない）。
+    # 毎週月曜 00:00 UTC（09:00 JST）。
+    - cron: '0 0 * * 1'
+
+# 本番の site-deploy とは別グループにする。staging と本番は Worker も D1 も
+# 別リソースなので、互いを待つ理由がない。staging 同士は直列にする
+# （並行実行するとスキーマと配信中のコードの版が食い違うため）。
+concurrency:
+  group: site-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  # 手動実行でのみ走る。テスト通過を前提にしてからマイグレーション → デプロイ。
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: 依存をインストールする
+        run: npm ci
+
+      # 任意のブランチから実行できるため、main の Site CI を通っていない
+      # コードが来る。安価な検証はここで自前に持つ。
+      - name: 型チェックを実行する
+        run: npm run typecheck
+
+      - name: テストを実行する
+        run: npm test
+
+      # 本番と違い、staging では破壊的マイグレーションを止めない。staging の
+      # データは使い捨てであり、むしろ DROP / RENAME を含むマイグレーションを
+      # 本番より先にここで当てて確かめるための環境だから。歯止めが要るのは
+      # 取り返しのつかない本番データのほうで、そちらは site.yml に残っている。
+      - name: staging D1 へマイグレーションを適用する
+        run: npm run migrate:staging
+
+      - name: staging へ Worker をデプロイする
+        run: npm run deploy:staging
+
+      - name: 結果を要約する
+        run: |
+          echo "staging へ ${{ github.ref_name }} を反映しました。"
+          echo "https://befold-staging.tommy109.workers.dev"
+
+  # 定期実行でのみ走る。適用はせず、溜まっていたらジョブを失敗させて
+  # GitHub の通知で気づけるようにする。
+  drift:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: 依存をインストールする
+        run: npm ci
+        working-directory: site
+
+      - name: staging に未適用のマイグレーションが無いか確認する
+        run: scripts/check-pending-migrations.sh befold-analytics-staging staging
