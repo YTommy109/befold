@@ -5,6 +5,10 @@ declare global {
   namespace Cloudflare {
     interface Env {
       TEST_MIGRATIONS: D1Migration[]
+      /** 対応ファイルタイプ表のずれ検知に使う BefoldKit のソース。 */
+      TEST_FILE_TYPE_SWIFT: string
+      TEST_CONTENT_LOADER_SWIFT: string
+      TEST_NORMALIZED_TEXT_CACHE_SWIFT: string
     }
   }
 }
