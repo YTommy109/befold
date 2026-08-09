@@ -13,7 +13,9 @@ public enum ViewerBridge {
         /// path は位置を読んだ時点で DOM に出ていた文書のパス(renderDocPathScript で予告した値)。
         case scrollPositionChanged
 
-        /// JS 側で全体ズーム倍率が変わったとき。payload: 裸の数値。
+        /// JS 側で全体ズーム倍率が変わったとき。
+        /// payload: { zoom: Double, path: String | null }
+        /// path は倍率を読んだ時点で DOM に出ていた文書のパス(renderDocPathScript で予告した値)。
         case zoomChanged
 
         /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったとき。
@@ -52,7 +54,7 @@ public enum ViewerBridge {
         /// メッセージを追加するとこの switch がコンパイルエラーになって登録漏れを防ぐ。
         var payloadKeys: Set<String>? {
             switch self {
-            case .zoomChanged: nil
+            case .zoomChanged: Set(PayloadKey.ZoomChanged.allCases.map(\.rawValue))
             case .scrollPositionChanged: Set(PayloadKey.ScrollPositionChanged.allCases.map(\.rawValue))
             case .findOptionsChanged: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue))
             case .referenceActivated: Set(PayloadKey.ReferenceActivated.allCases.map(\.rawValue))

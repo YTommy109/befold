@@ -6,6 +6,7 @@ import WebKit
 extension ViewerRenderer {
     private typealias ReferenceKey = ViewerBridge.PayloadKey.ReferenceActivated
     private typealias ScrollKey = ViewerBridge.PayloadKey.ScrollPositionChanged
+    private typealias ZoomKey = ViewerBridge.PayloadKey.ZoomChanged
     private typealias FindKey = ViewerBridge.PayloadKey.FindOptionsChanged
     private typealias ResolveKey = ViewerBridge.PayloadKey.ResolveReferences
     private typealias ContextMenuKey = ViewerBridge.PayloadKey.ReferenceContextMenu
@@ -50,8 +51,13 @@ extension ViewerRenderer {
     }
 
     private func handleZoomChanged(body: Any) {
-        guard let zoom = (body as? NSNumber)?.doubleValue else { return }
-        delegate?.renderer(self, didChangeZoom: zoom)
+        guard let payload = body as? [String: Any],
+              let zoom = (payload[ZoomKey.zoom.rawValue] as? NSNumber)?.doubleValue
+        else { return }
+        // キーにする文書は、スクロール位置と同じく JS が payload の path で申告する
+        // 「倍率を読んだ時点で DOM に出ていた文書」(理由は ViewerRendererDelegate の doc)。
+        let url = (payload[ZoomKey.path.rawValue] as? String).map { URL(fileURLWithPath: $0) }
+        delegate?.renderer(self, didChangeZoom: zoom, for: url)
     }
 
     private func handleReferenceActivated(body: Any) {

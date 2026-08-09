@@ -543,12 +543,19 @@ extension ViewerWindowController: SidebarNavigatorHost {
 // MARK: - ViewerRendererDelegate
 
 extension ViewerWindowController: ViewerRendererDelegate {
-    /// 現在の fileURL は rename で書き換わるため、旧値を捕捉せず呼び出しのたびに参照する。
+    /// 保存キーは現在表示中の fileURL ではなく、通知に載った「その倍率が属する文書」から
+    /// 決める(スクロール位置と同じ理由 / TASK-391)。nil の通知は捨てる。
+    ///
     /// ライブ値と保存値の両方を更新する。保存値は次にこの文書を開くときの既定値で、
-    /// いま画面に出ている倍率を決めるのはライブ値のほう(ADR 0002)。
-    func renderer(_: ViewerRenderer, didChangeZoom zoom: Double) {
-        store.zoom = zoom
-        perFileState.zoom.setZoom(zoom, for: fileURL)
+    /// いま画面に出ている倍率を決めるのはライブ値のほう(ADR 0002)。ただしライブ値は
+    /// 「いまこの窓が出している文書」の倍率なので、出所が現在の文書と違う遅延通知
+    /// (切替直後に届いた切替前の文書の通知)では更新しない。保存だけを出所のキーへ行う。
+    func renderer(_: ViewerRenderer, didChangeZoom zoom: Double, for url: URL?) {
+        guard let url else { return }
+        if url.normalizedPathKey == fileURL.normalizedPathKey {
+            store.zoom = zoom
+        }
+        perFileState.zoom.setZoom(zoom, for: url)
     }
 
     /// 保存キーは現在表示中の fileURL ではなく、通知に載った「その位置が属する文書」から

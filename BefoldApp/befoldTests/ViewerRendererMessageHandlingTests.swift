@@ -26,16 +26,7 @@ struct ViewerRendererMessageHandlingTests {
 
     // MARK: - デコードとディスパッチ(正常系)
 
-    @Test("zoomChanged が onZoomChanged へ倍率を渡す")
-    func zoomChangedDispatchesZoom() {
-        let (renderer, delegate) = makeSUT()
-        var received: Double?
-        delegate.onZoomChanged = { received = $0 }
-
-        dispatch(renderer, name: ViewerBridge.zoomChangedMessageName, body: NSNumber(value: 1.75))
-
-        #expect(received == 1.75)
-    }
+    // zoomChanged のデコードは ViewerRendererZoomMessageTests に分けている(file_length)。
 
     @Test("referenceActivated が href と修飾キーから開き方を決めて onOpenReference へ渡す", arguments: [
         // (metaKey, shiftKey, 期待する開き方)
@@ -249,17 +240,6 @@ struct ViewerRendererMessageHandlingTests {
 
     // MARK: - 不正 body(型不一致・キー欠落)は無視される
 
-    @Test("zoomChanged の body が数値でなければ onZoomChanged を呼ばない")
-    func zoomChangedIgnoresNonNumberBody() {
-        let (renderer, delegate) = makeSUT()
-        var called = false
-        delegate.onZoomChanged = { _ in called = true }
-
-        dispatch(renderer, name: ViewerBridge.zoomChangedMessageName, body: "1.5")
-
-        #expect(called == false)
-    }
-
     @Test("referenceActivated の必須キーが欠けていれば onOpenReference を呼ばない")
     func referenceActivatedIgnoresMissingKeys() {
         let (renderer, delegate) = makeSUT()
@@ -329,7 +309,7 @@ struct ViewerRendererMessageHandlingTests {
     func unknownMessageNameIsIgnored() {
         let (renderer, delegate) = makeSUT()
         var called = false
-        delegate.onZoomChanged = { _ in called = true }
+        delegate.onZoomChanged = { _, _ in called = true }
 
         dispatch(renderer, name: "somethingElse", body: NSNumber(value: 2.0))
 

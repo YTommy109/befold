@@ -65,7 +65,7 @@ describe('_mmdInitZoom', () => {
     main._mmdZoomReset();
 
     expect(received.length).toBe(1);
-    expect(received[0].payload).toBe(viewer.ZOOM_DEFAULT);
+    expect(received[0].payload.zoom).toBe(viewer.ZOOM_DEFAULT);
   });
 
   test('注入値と同じ倍率では zoomChanged を通知しない', () => {
@@ -85,7 +85,42 @@ describe('_mmdInitZoom', () => {
 
     expect(received.length).toBe(1);
     expect(received[0].name).toBe('zoomChanged');
-    expect(received[0].payload).toBeGreaterThan(1);
+    expect(received[0].payload.zoom).toBeGreaterThan(1);
+  });
+
+  // 倍率も per-file に保存されるため、スクロール位置と同じく「その倍率が属する文書」を
+  // 発火時に申告する。Swift 側の現在 URL を参照していた頃は、切替直後に配達された
+  // 通知が切替先のキーを汚した(TASK-391)。
+  test('zoomChanged に採用済みの文書パスを載せる', async () => {
+    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const received = captureBridgeMessages(window, ['zoomChanged']);
+    main._mmdSetRenderDocPath('/mock/a.md');
+    await main.render('a\nb\n', 'code', 'txt');
+
+    main._mmdZoomIn();
+
+    expect(received[received.length - 1].payload.path).toBe('/mock/a.md');
+  });
+
+  test('文書が定まらない間(描画前)の zoomChanged は path に null を送る', () => {
+    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const received = captureBridgeMessages(window, ['zoomChanged']);
+
+    main._mmdZoomIn();
+
+    expect(received[received.length - 1].payload.path).toBeNull();
+  });
+
+  test('rename 後の zoomChanged は新しいパスを載せる', async () => {
+    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const received = captureBridgeMessages(window, ['zoomChanged']);
+    main._mmdSetRenderDocPath('/mock/a.md');
+    await main.render('a\nb\n', 'code', 'txt');
+
+    main._mmdRenameDocPath('/mock/a.md', '/mock/b.md');
+    main._mmdZoomIn();
+
+    expect(received[received.length - 1].payload.path).toBe('/mock/b.md');
   });
 });
 
