@@ -92,14 +92,17 @@ struct ViewerWindowStateIndependenceTests {
             files: [shared], prefix: "DocumentStateIndependence.zoom", contents: "let a = 1"
         )
         defer { fixture.closeAll() }
+        // 提示開始で読む値と、その後に他窓が書く値を別にしておく。既定値のまま開くと
+        // 「読んでいない」と「読み直していない」を区別できない(このテストが空振りになる)。
+        fixture.perFileState.zoom.setZoom(1.25, for: shared)
         fixture.manager.openViewer(for: shared)
         let controller = try #require(fixture.manager.allControllers.first)
-        #expect(controller.store.zoom == ZoomStore.defaultZoom)
+        #expect(controller.store.zoom == 1.25)
 
         // 他窓が倍率を変えた状況(保存ストアはアプリ全体で 1 つ)。
         fixture.perFileState.zoom.setZoom(1.75, for: shared)
 
-        #expect(controller.store.zoom == ZoomStore.defaultZoom)
+        #expect(controller.store.zoom == 1.25)
     }
 
     /// AC#1 / AC#4: スクロール位置も同じ。保存値は「次に開くときの既定値」であって、
@@ -110,13 +113,16 @@ struct ViewerWindowStateIndependenceTests {
             files: [shared], prefix: "DocumentStateIndependence.scroll", contents: "let a = 1"
         )
         defer { fixture.closeAll() }
+        // 倍率と同じ理由で、提示開始時に読む値を 0 以外にしておく。
+        fixture.perFileState.scrollPosition.setScrollPosition(0.3, for: shared, mode: .rendered)
         fixture.manager.openViewer(for: shared)
         let controller = try #require(fixture.manager.allControllers.first)
         let mode = ViewerBridge.ViewMode(isSourceMode: controller.store.isSourceMode)
+        #expect(controller.store.scrollPositionToRestore == 0.3)
 
         fixture.perFileState.scrollPosition.setScrollPosition(0.6, for: shared, mode: mode)
 
-        #expect(controller.store.scrollPositionToRestore == 0)
+        #expect(controller.store.scrollPositionToRestore == 0.3)
     }
 
     /// AC#2: 窓を閉じて開き直すと、最後に設定した値(保存値)から始まる。ライブ値が窓の寿命で
