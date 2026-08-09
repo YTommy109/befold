@@ -45,11 +45,18 @@ h3 { font-size: 0.95rem; margin: 0 0 0.5rem; font-weight: 600; }
 .block .totals { margin-bottom: 0; }
 .empty { opacity: 0.6; font-size: 0.9rem; }
 .unit { font-size: 0.75rem; opacity: 0.6; }
+.note { font-size: 0.8rem; opacity: 0.7; margin: 0 0 1rem; }
 .chart { width: 100%; height: auto; margin-bottom: 0.5rem; overflow: visible; }
 .chart-bar { fill: currentColor; opacity: 0.65; }
 .chart-axis { stroke: currentColor; opacity: 0.35; }
 .chart-label { fill: currentColor; opacity: 0.6; font-size: 11px; }
 `
+
+/**
+ * ボット分類（TASK-386）を適用した日。過去データは遡って分類できないため、
+ * 内訳がこの日以降だけのものであることを画面に明示する。
+ */
+const BOT_CLASSIFICATION_START = '2026-08-09'
 
 const CountTable: FC<{ title: string; rows: Count[] }> = ({ title, rows }) => (
   <section>
@@ -295,11 +302,30 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
           <CountTable title="バージョン別ダウンロード" rows={summary.byVersion} />
           <CountTable title="国別" rows={summary.byCountry} />
           <CountTable title="参照元別" rows={summary.byReferrer} />
-          <CountTable title="クライアント種別" rows={summary.byUA} />
           {summary.perKind.map((entry) => [
             <CountTable title={`${entry.label}: OS 別`} rows={entry.byOS} />,
             <CountTable title={`${entry.label}: 接続元組織別`} rows={entry.byAsOrg} />,
           ])}
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>人間の訪問とロボットの巡回（全期間の累計）</h2>
+        <Cards
+          cards={[
+            { value: summary.ua.human, label: '人間のクライアント' },
+            { value: summary.ua.bot, label: 'ロボット（クローラ）' },
+          ]}
+        />
+        <p class="note">
+          判定は User-Agent のトークンによる（ADR 0004）。完全な UA は保存していないため、
+          種類別の内訳が出るのは分類を適用した {BOT_CLASSIFICATION_START} 以降に記録された
+          イベントだけで、それ以前のクローラの巡回は「other」に含まれたまま人間側に数えられる。
+          「bot:other」は既知トークンに当たらなかったボットで、ここが増え続けるなら分類漏れ。
+        </p>
+        <div class="grid">
+          <CountTable title="人間: クライアント種別" rows={summary.ua.byHuman} />
+          <CountTable title="ロボット: 種類別" rows={summary.ua.byBot} />
         </div>
       </section>
 

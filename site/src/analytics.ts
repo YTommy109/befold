@@ -8,6 +8,7 @@
 
 import type { DownloadSource, EventKind } from './schema'
 import { JST_DAY_EXPR, JST_HOUR_EXPR, jstDayStart, jstDaysInWindow, jstWindowStart } from './lib/jst'
+import { BOT_PREFIX } from './lib/visitor'
 
 export type Count = { label: string; count: number }
 
@@ -87,7 +88,7 @@ export type Summary = {
   byVersion: Count[]
   byCountry: Count[]
   byReferrer: Count[]
-  byUA: Count[]
+  ua: UASplit
   perKind: KindBreakdown[]
   recent: RecentEvent[]
 }
@@ -210,7 +211,7 @@ export async function hourlyDistribution(
 }
 
 /** 内訳を取れるカラム。SQL へ差し込むため、外部入力を受けない固定の集合に限る。 */
-type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer' | 'as_org' | 'ua_summary'
+type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer' | 'as_org'
 
 /** 指定カラムの内訳（上位 N 件、NULL は除外）。 */
 async function breakdown(
@@ -232,6 +233,58 @@ async function breakdown(
        LIMIT ${TOP_N}`,
     )
     .bind(filter?.kind ?? null, filter?.source ?? null)
+    .all<Count>()
+
+  return results
+}
+
+/**
+ * 人間の訪問とロボットの巡回の分離（全期間の累計）。
+ *
+ * `human` / `bot` は総数、`byHuman` / `byBot` は上位 N 件の内訳。総数を内訳の
+ * 合計から出さないのは、内訳が上位 N 件で切られており、種類が多いほど実際より
+ * 小さく見えるため。
+ */
+export type UASplit = { human: number; bot: number; byHuman: Count[]; byBot: Count[] }
+
+/** ボット判定の SQL 側の表現。値の列挙は持たず接頭辞だけで分ける（lib/visitor.ts）。 */
+const BOT_MATCH = `ua_summary LIKE '${BOT_PREFIX}%'`
+
+/** ua_summary をボットかどうかで分けた総数と内訳。 */
+export async function uaSplit(db: D1Database): Promise<UASplit> {
+  const [totals, byHuman, byBot] = await Promise.all([
+    db
+      .prepare(
+        `SELECT SUM(${BOT_MATCH})     AS bots,
+                SUM(NOT ${BOT_MATCH}) AS humans
+         FROM events
+         WHERE ua_summary IS NOT NULL`,
+      )
+      .first<{ bots: number | null; humans: number | null }>(),
+    uaBreakdown(db, false),
+    uaBreakdown(db, true),
+  ])
+
+  return {
+    human: totals?.humans ?? 0,
+    bot: totals?.bots ?? 0,
+    byHuman,
+    byBot,
+  }
+}
+
+/** ボット／人間のどちらかに絞った ua_summary の内訳（上位 N 件）。 */
+async function uaBreakdown(db: D1Database, bots: boolean): Promise<Count[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT ua_summary AS label, COUNT(*) AS count
+       FROM events
+       WHERE ua_summary IS NOT NULL
+         AND ${bots ? '' : 'NOT '}${BOT_MATCH}
+       GROUP BY label
+       ORDER BY count DESC, label
+       LIMIT ${TOP_N}`,
+    )
     .all<Count>()
 
   return results
@@ -268,7 +321,7 @@ async function kindBreakdown(
 
 /** ダッシュボード初期表示用の集計一式。 */
 export async function summarize(db: D1Database, now: number): Promise<Summary> {
-  const [cumulative, today, daily, hourly, byVersion, byCountry, byReferrer, byUA, breakdowns, recent] =
+  const [cumulative, today, daily, hourly, byVersion, byCountry, byReferrer, ua, breakdowns, recent] =
     await Promise.all([
       cumulativeTotals(db),
       todayTotals(db, now),
@@ -279,7 +332,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
       breakdown(db, 'referrer'),
       // ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を
       // 実測するために持つ。TASK-360 で見送った llms.txt の要否判断に使う。
-      breakdown(db, 'ua_summary'),
+      uaSplit(db),
       Promise.all(KIND_LABELS.map((entry) => kindBreakdown(db, entry))),
       recentEvents(db),
     ])
@@ -293,7 +346,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     byVersion,
     byCountry,
     byReferrer,
-    byUA,
+    ua,
     perKind: breakdowns.map((entry) => ({ ...entry, total: cumulative.counts[entry.kind] })),
     recent,
   }

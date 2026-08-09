@@ -29,12 +29,13 @@ async function seed(
     ts?: number
     referrer?: string
     asOrg?: string
+    uaSummary?: string
   } = {},
 ): Promise<number> {
   const result = await env.DB.prepare(
     'INSERT INTO events' +
       ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org)' +
-      " VALUES (?, ?, ?, 'stable', ?, ?, 'Safari', ?, ?, ?) RETURNING id",
+      " VALUES (?, ?, ?, 'stable', ?, ?, ?, ?, ?, ?) RETURNING id",
   )
     .bind(
       extra.ts ?? Date.now(),
@@ -42,6 +43,7 @@ async function seed(
       extra.version ?? null,
       extra.country ?? null,
       extra.os ?? null,
+      extra.uaSummary ?? 'Safari',
       extra.visitorDay ?? 'hash-a',
       extra.referrer ?? null,
       extra.asOrg ?? null,
@@ -156,6 +158,37 @@ describe('集計の表示', () => {
     expect(body).toContain('Google LLC')
     expect(body).toContain('NTT Communications')
     expect(body.indexOf('Google LLC')).toBeLessThan(body.indexOf('NTT Communications'))
+  })
+
+  it('人間の訪問とロボットの巡回が分離して描画され、ロボットは種類別に見える', async () => {
+    await seed('visit', { uaSummary: 'bot:GPTBot' })
+    await seed('visit', { uaSummary: 'bot:GPTBot' })
+    await seed('visit', { uaSummary: 'bot:other' })
+    await seed('visit', { uaSummary: 'Safari' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('<h2>人間の訪問とロボットの巡回（全期間の累計）</h2>')
+    expect(body).toContain('<span class="value">3</span><span class="label">ロボット（クローラ）</span>')
+    expect(body).toContain('<span class="value">1</span><span class="label">人間のクライアント</span>')
+
+    const humanTable = body.indexOf('人間: クライアント種別')
+    const botTable = body.indexOf('ロボット: 種類別')
+    expect(humanTable).toBeGreaterThan(-1)
+    expect(botTable).toBeGreaterThan(humanTable)
+    // 種類は人間側の表に混ざらず、ロボット側の表にだけ現れる。
+    expect(body.slice(humanTable, botTable)).not.toContain('bot:GPTBot')
+    expect(body.slice(botTable)).toContain('bot:GPTBot')
+    expect(body.slice(botTable)).toContain('bot:other')
+  })
+
+  it('過去データを遡って分類できないことが注記から読み取れる', async () => {
+    await seed('visit', { uaSummary: 'bot:GPTBot' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('2026-08-09')
+    expect(body).toContain('以降に記録された')
   })
 
   it('OS 別が 3 指標それぞれに分かれて集計される', async () => {
