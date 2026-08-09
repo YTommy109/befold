@@ -23,7 +23,10 @@
 - **Notes に否定的な結論が記録されたタスク**: 「実施非推奨」「前提が誤り」等が実測付きで記録されているタスクの着手を指示された場合、記載どおりに実装せず、着手前に方針（縮小版で実施 / 記載どおり実施 / 見送り）をユーザーに確認する。Notes の記録は前回の調査結果であり、起票時の Description より新しい判断であることが多い。方針が決まったら、実態に合わなくなった Acceptance Criteria も `backlog task edit --acceptance-criteria` で書き換える。
 - **タスク作成時のボード表示順**: backlog board の表示順は ordinal 順（priority 順ではない）。タスク作成後、既存タスクの ordinal を確認し、priority に応じた位置になるよう `backlog task edit --ordinal` で調整する。特に HIGH タスクが MEDIUM/LOW より上に来るようにする。
 - **タスク ID の採番**: `backlog/config.yml` で `check_active_branches: true` / `remote_operations: true` が有効なため、`backlog task create` は他ブランチ上のタスクも含めて次の ID を採番する。ローカルのファイル一覧より大きい ID が振られるのは正常な動作であり、衝突回避のための ID 手動指定やファイルリネームは不要。
-- **タスクファイルは git 管理対象**: `backlog/tasks/*.md` はリポジトリに含まれる。起票・更新・完了処理を行ったら、関連する実装と同じ PR に含めてコミットする。`backlog` CLI はファイルを書くだけで git 操作はしないため、PR 作成時に未コミットのまま取り残されやすい（`/pr` の直前に `git status` で確認する）。
+- **タスクファイルは git 管理対象**: `backlog/tasks/*.md` はリポジトリに含まれる。起票・更新・完了処理を行ったら、その場でコミットする。`backlog` CLI はファイルを書くだけで git 操作はしないため、未コミットのまま取り残されやすい（`/pr` の直前に `git status` で確認する）。どの PR に載せるかは次で判断する。
+  - **実装を伴う起票・更新・完了処理**: その実装と同じ PR に含める（タスクの状態変化と実装が 1 つの単位でレビューされる）
+  - **実装を伴わない起票のみ**: backlog（および ADR 等の関連ドキュメント）だけの PR にしてよい。実装ブランチを立てるまで手元に溜め込まない。実績: PR #448「chore: TASK-376 を起票する」
+  - どちらの形でも、**起票のみのコミットは実装コミットと分ける**。実装 PR の中に起票コミットが混ざるのは許容する（実績: PR #447 に起票のみのコミット 3 件）が、1 つのコミットに起票と実装を同居させない
 
 <!-- BACKLOG.MD GUIDELINES START -->
 <!-- backlog.md-instructions-version: 1.48.0 -->
