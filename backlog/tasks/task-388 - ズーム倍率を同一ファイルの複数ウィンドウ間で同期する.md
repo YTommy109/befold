@@ -1,10 +1,11 @@
 ---
 id: TASK-388
 title: 文書の状態を窓のライブ値優先にし、生きている間は保存値を読み直さない
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-09 10:12'
-updated_date: '2026-08-09 10:32'
+updated_date: '2026-08-09 11:12'
 labels: []
 dependencies:
   - TASK-382
@@ -44,8 +45,78 @@ ADR 0002「状態の所在」で決めた原則を実装へ反映する（TASK-3
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 同じファイルを 2 つのウィンドウで開き、片方でズーム・スクロール・表示モードを変えても、もう一方は変わらない（再ロードやファイル切替を挟んでも他窓の値を拾わない）
-- [ ] #2 ウィンドウを閉じて同じファイルを開き直すと、最後に設定した値（保存値）から始まる
-- [ ] #3 表示モードの窓間同期の経路（mirrorDisplayMode とデリゲート通知）が撤去され、同期を前提にしたテストが削除または書き換えられている
-- [ ] #4 上記の振る舞いが破れたら落ちるテストがある（生きている窓が保存値を読み直す経路が復活したら失敗する）
+- [x] #1 同じファイルを 2 つのウィンドウで開き、片方でズーム・スクロール・表示モードを変えても、もう一方は変わらない（再ロードやファイル切替を挟んでも他窓の値を拾わない）
+- [x] #2 ウィンドウを閉じて同じファイルを開き直すと、最後に設定した値（保存値）から始まる
+- [x] #3 表示モードの窓間同期の経路（mirrorDisplayMode とデリゲート通知）が撤去され、同期を前提にしたテストが削除または書き換えられている
+- [x] #4 上記の振る舞いが破れたら落ちるテストがある（生きている窓が保存値を読み直す経路が復活したら失敗する）
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+/review-design 実施済み。指摘を反映した方針。
+
+【原則】保存値（ZoomStore / ScrollPositionStore / DisplayModeStore）を読むのは窓が文書を提示し始めるときだけ。生きている間は窓のライブ値が有効。窓間の同期はしない。
+
+1. ライブ値の置き場は新設せず ViewerStore（既存の窓ごと @Observable）に置く。ADR が手本とする showLineNumbers と同じ場所。新しい型・新しい注入経路を増やさない。
+2. ViewerContentView から zoomStore / scrollPositionStore の引数自体を撤去する（渡らないから読めない構造にする＝項目 9 の担保）。ViewerWebView へは ViewerStore のライブ値を渡す。
+3. WebViewCommandController.applyStoredZoom() を撤去し、経路を 1 本にする（保存値の読み手が 2 箇所あるのをやめる＝項目 3）。
+4. 保存値を読む提示開始の契機は 3 つに限定する。
+   - ViewerWindowController.init（オープン）: ライブ倍率・ライブスクロール復元位置を保存値から設定
+   - performFileSwitch（ファイル切替）: 切替先 URL の保存値から設定（applyStoredZoom の代替）
+   - setDisplayMode（モード切替）: 切替先モードのスクロール復元位置を設定（restoreFromPersistedPosition が消費するのは isSourceMode の変化時のみ）
+   リネームでは読み直さない。ライブ値をそのまま引き継ぐ（表示モードが TASK-369 で同じ判断をしている）。
+5. ライブ値の更新は JS からの通知（renderer(_:didChangeZoom:) / didChangeScrollPosition）で保存と同時に行う。TASK-270（窓生成が対象確定より先だと既定倍率で取り残される）を再発させないため、値の変化で SwiftUI 再評価が走る形は維持する。
+6. 表示モードの窓間同期を撤去する。setDisplayMode 末尾の delegate 通知、ViewerWindowControllerDelegate.viewerWindow(_:didChangeDisplayMode:)、ViewerWindowManager.mirrorDisplayMode、ViewerWindowController.mirrorDisplayMode を削除。sourceToggleReturn のクリアは setDisplayMode 側に残る。
+7. テスト:
+   - ViewerWindowManagerDisplayModeSyncTests を「同期しないこと」を担保する形へ書き換える
+   - 保存値を書いても生きている窓のライブ値が変わらないことを ViewerStore 上で検証する（AC#4。読み直し経路が復活したら落ちる）
+   - WebViewCommandControllerTests の applyStoredZoom 依存を除去
+
+【別タスクへ切り出す】renderer(_:didChangeScrollPosition:) は fileURL を都度参照するため、ファイル切替直後に遅れて届いた通知が切替先のキーへ切替前の位置を書きうる（設計レビュー項目 8）。本タスクの原因とは別系統のため別途起票する。
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 実装
+
+原因は task 起票時の記述（ViewerWindowController.swift:491 の再ロード時 applyStoredZoom）ではなかった。:491 の applyStoredZoom は performFileSwitch 内、つまりファイル切替の契機であり原則上は許容される側だった。
+
+真の経路は SwiftUI 経由。ViewerContentView.currentZoom / currentScrollPosition が共有ストアを毎回の body 再評価で読み直す computed property で、窓 B が別要因（ライブリロード等）で再評価した瞬間に、窓 A が保存した値を拾って ViewerRenderer.initialPageZoom の didSet が即適用していた。ZoomStore は @Observable ではないため他窓の書き込み単独では発火しないが、再評価の契機は日常的に起きる。
+
+## 設計レビュー（/review-design）の結論と反映
+
+- 新しい @Observable 状態は導入しなかった。ADR が手本として挙げる ViewerStore.showLineNumbers と同じ場所（窓ごとの既存 @Observable である ViewerStore）へライブ値 zoom / scrollPositionToRestore を置いた。
+- 担保は「テスト」だけでなく「構造」でも取った。ViewerContentView から zoomStore / scrollPositionStore の引数自体を撤去したため、渡らないから読めない。読み直し経路を戻すにはシグネチャを戻す必要がある。
+- WebViewCommandController.applyStoredZoom() を撤去し、保存値の読み手を 2 箇所から 0 箇所（提示開始の明示呼び出しのみ）へ畳んだ。
+- WebViewCommandController.init の onZoomChanged は既定値を持たせていない。直接 HTML モードは viewer.js が居らず JS からの通知が来ないため、渡し忘れると静かにライブ値が取り残される（ADR 0002 / TASK-319 と同じ型の事故を構造で防ぐ）。
+- リネームでは保存値を読み直さない。表示モードが TASK-369 で同じ判断をしており、引き継ぐべきはライブ値。
+
+## 保存値を読む契機（3 つに限定）
+
+1. ViewerWindowController.init（オープン）→ beginPresentingDocument(at:)
+2. performFileSwitch（ファイル切替）→ beginPresentingDocument(at:)
+3. setDisplayMode（モード切替）→ 切替先モードのスクロール復元位置のみ
+
+## 検証（実測）
+
+- swift test: 1223 tests / 178 suites 全て成功（Integration 含む）
+- xcodebuild build -scheme befold: BUILD SUCCEEDED
+- swiftformat --lint: 0 files require formatting
+- swiftlint: origin/main とのベースライン差分は、既存警告の行数の増減のみで新規違反ゼロ（行数を正規化した diff が空）
+
+## UserDefaults キー
+
+廃止・改名・意味の変更なし。ZoomStore / ScrollPositionStore のキーも粒度もそのままで、変えたのは「いつ読むか」だけ。移行は不要。
+
+## 別タスクへ切り出した
+
+TASK-389: renderer(_:didChangeScrollPosition:) が fileURL を都度参照するため、切替直後に遅れて届いた通知が切替先のキーへ切替前の位置を書きうる（設計レビュー項目 8）。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+文書の状態（ズーム倍率・スクロール位置・表示モード）を窓ごとのライブ値優先へ変え、生きている窓が保存値を読み直す経路を塞いだ。ライブ値は新しい型を作らず既存の窓ごと @Observable である ViewerStore に置き（ADR が手本とする showLineNumbers と同じ場所）、ViewerContentView からは ZoomStore / ScrollPositionStore の引数自体を撤去して「渡らないから読めない」構造にした。保存値を読むのは提示開始の 3 契機（オープン・ファイル切替・モード切替）だけで、リネームではライブ値を引き継ぐ。表示モードの窓間同期（mirrorDisplayMode とデリゲート通知）は TASK-371 ごと撤去した。検証: swift test 1223 tests/178 suites 全成功、xcodebuild BUILD SUCCEEDED、swiftformat 0 files require formatting、swiftlint は origin/main とのベースライン差分で新規違反ゼロ。
+<!-- SECTION:FINAL_SUMMARY:END -->

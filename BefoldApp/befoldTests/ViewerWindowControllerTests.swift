@@ -18,10 +18,6 @@ final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
     /// 差分レイアウト切替の通知回数。全ウィンドウのツールバー再同期がこの通知に
     /// 乗っているため、「切り替えたのに通知されない」= アイコンが取り残される。
     private(set) var diffLayoutToggleCount = 0
-    /// 表示モード変更は「通知したか」だけでなく、届いたモードを順に記録する(同一ファイルの
-    /// 他ウィンドウへ配るのは ViewerWindowManager の責務で、コントローラ側が二重に通知して
-    /// いないこと・変化しない選択で通知していないことを見たいため)。
-    private(set) var displayModeNotifications: [ViewerDisplayMode] = []
 
     func viewerWindowWillClose(_ controller: ViewerWindowController) {
         closeCalled = true
@@ -53,12 +49,6 @@ final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
 
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {
         toggleChangedFilesOnlyCalled = true
-    }
-
-    func viewerWindow(
-        _ controller: ViewerWindowController, didChangeDisplayMode mode: ViewerDisplayMode
-    ) {
-        displayModeNotifications.append(mode)
     }
 }
 
