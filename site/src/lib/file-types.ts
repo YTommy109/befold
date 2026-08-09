@@ -180,8 +180,8 @@ export const FILE_TYPE_GROUPS: FileTypeGroup[] = [
     chunkable: true,
     maxSizeMB: SIZE_LIMITS_MB.chunkable,
     note: {
-      ja: 'シンタックスハイライトと行番号（cmd+L）付きで表示します。分割読み込みに対応します。',
-      en: 'Shown with syntax highlighting and line numbers (cmd+L). Loads in chunks.',
+      ja: 'シンタックスハイライトと行番号（⌘L）付きで表示します。分割読み込みに対応します。',
+      en: 'Shown with syntax highlighting and line numbers (⌘L). Loads in chunks.',
     },
   },
 ]

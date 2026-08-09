@@ -17,6 +17,14 @@ on:
       - 'scripts/check-destructive-migrations.sh'
       # 上記スクリプトが source する共通処理。同じ理由でここに含める。
       - 'scripts/lib/d1-pending-migrations.sh'
+      # ページの記載（対応ファイルタイプ表・ショートカット表）のずれ検知が
+      # 情報源として読む実装。ここに含めないと Swift 側だけを変えたときに
+      # 検証が回らず、次の site/ 変更まで乖離に気づけない。
+      - 'BefoldApp/BefoldKit/FileType.swift'
+      - 'BefoldApp/BefoldKit/ContentLoader.swift'
+      - 'BefoldApp/BefoldKit/NormalizedTextCache.swift'
+      - 'BefoldApp/befold/App/MainMenuBuilder.swift'
+      - 'BefoldApp/befold/App/BookmarkShortcut.swift'
   pull_request:
     branches: [main]
     paths:
@@ -29,6 +37,14 @@ on:
       - 'scripts/check-destructive-migrations.sh'
       # 上記スクリプトが source する共通処理。同じ理由でここに含める。
       - 'scripts/lib/d1-pending-migrations.sh'
+      # ページの記載（対応ファイルタイプ表・ショートカット表）のずれ検知が
+      # 情報源として読む実装。ここに含めないと Swift 側だけを変えたときに
+      # 検証が回らず、次の site/ 変更まで乖離に気づけない。
+      - 'BefoldApp/BefoldKit/FileType.swift'
+      - 'BefoldApp/BefoldKit/ContentLoader.swift'
+      - 'BefoldApp/BefoldKit/NormalizedTextCache.swift'
+      - 'BefoldApp/befold/App/MainMenuBuilder.swift'
+      - 'BefoldApp/befold/App/BookmarkShortcut.swift'
 
 # 連続 push / force-push で古い実行を打ち切る
 concurrency:
