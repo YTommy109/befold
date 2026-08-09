@@ -25,9 +25,15 @@ const STREAM_SCRIPT = `
 `
 
 const STYLE = `
-:root { color-scheme: light dark; }
+:root { color-scheme: light dark;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+  --series-4: #eda100; --series-5: #e87ba4; }
+@media (prefers-color-scheme: dark) {
+  :root { --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --series-4: #c98500; --series-5: #d55181; }
+}
 body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-  margin: 0 auto; max-width: 60rem; padding: 2rem 1rem; line-height: 1.6; }
+  margin: 0 auto; max-width: 76rem; padding: 2rem 1rem; line-height: 1.6; }
 h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
 .status { font-size: 0.85rem; opacity: 0.7; margin-bottom: 1.5rem; }
 .totals { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
@@ -46,10 +52,27 @@ h3 { font-size: 0.95rem; margin: 0 0 0.5rem; font-weight: 600; }
 .empty { opacity: 0.6; font-size: 0.9rem; }
 .unit { font-size: 0.75rem; opacity: 0.6; }
 .note { font-size: 0.8rem; opacity: 0.7; margin: 0 0 1rem; }
-.chart { width: 100%; height: auto; margin-bottom: 0.5rem; overflow: visible; }
-.chart-bar { fill: currentColor; opacity: 0.65; }
+.chart { width: 100%; height: auto; margin-bottom: 0.5rem; overflow: visible; display: block; }
+.chart-bar { fill: currentColor; }
+.chart-bar-1 { fill: var(--series-1); }
+.chart-bar-2 { fill: var(--series-2); }
+.chart-bar-3 { fill: var(--series-3); }
+.chart-bar-4 { fill: var(--series-4); }
+.chart-bar-5 { fill: var(--series-5); }
 .chart-axis { stroke: currentColor; opacity: 0.35; }
-.chart-label { fill: currentColor; opacity: 0.6; font-size: 11px; }
+.chart-peak { stroke: currentColor; opacity: 0.2; stroke-dasharray: 4 4; }
+.chart-label { fill: currentColor; opacity: 0.7; font-size: 13px; }
+.chart-peak-label { fill: currentColor; opacity: 0.55; font-size: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; list-style: none;
+  margin: 0 0 0.5rem; padding: 0; font-size: 0.85rem; }
+.legend li { display: flex; align-items: center; gap: 0.4rem; }
+.legend .swatch { width: 0.85rem; height: 0.85rem; border-radius: 0.15rem; flex: none; }
+.legend .order { opacity: 0.55; font-variant-numeric: tabular-nums; }
+.swatch-1 { background: var(--series-1); }
+.swatch-2 { background: var(--series-2); }
+.swatch-3 { background: var(--series-3); }
+.swatch-4 { background: var(--series-4); }
+.swatch-5 { background: var(--series-5); }
 `
 
 /**
@@ -79,33 +102,48 @@ const CountTable: FC<{ title: string; rows: Count[] }> = ({ title, rows }) => (
 )
 
 /** 棒グラフの内部座標。viewBox で拡大縮小するため単位は px ではない。 */
-const CHART = { width: 640, height: 140, gap: 2, labelGap: 14 }
+const CHART = { width: 960, height: 220, labelGap: 22, topGap: 18, groupGap: 10, barGap: 1 }
+
+/** 1 グループ内に 1 本ずつ並ぶ系列。values は labels と同じ長さ・同じ並び。 */
+type Series = { label: string; unit: string; values: number[] }
 
 /**
- * インライン SVG の棒グラフ。
+ * インライン SVG のグループ化バーグラフ。
  *
  * クライアント JS で描かないのは、SSE が #summary を innerHTML で丸ごと
  * 置き換えるため（views/dashboard.tsx の STREAM_SCRIPT）。サーバ側で
  * SVG を描いておけば、置き換わる HTML そのものがグラフになり、再描画の
  * フックを別に用意する必要がなくなる（書き忘れれば静かに消える類の穴を作らない）。
+ *
+ * 色（--series-1..5）は系列の宣言順にスロットを固定で割り当て、順番で回さない。
+ * 色は補助の手掛かりでしかなく、系列の同定は「凡例の並び順 = 1 グループ内の
+ * バーの並び順」と各バーの <title>（系列名と値）で色に依らず取れるようにしてある。
+ * 5 スロットを超える系列を足すときは色を生成せず、指標側をまとめること。
  */
-const BarChart: FC<{ rows: Count[]; label: string; everyNthLabel?: number }> = ({
-  rows,
-  label,
-  everyNthLabel = 1,
+const GroupedBarChart: FC<{ labels: string[]; series: Series[]; title: string }> = ({
+  labels,
+  series,
+  title,
 }) => {
-  const max = rows.reduce((peak, row) => Math.max(peak, row.count), 0)
-  // 全値 0 のときに高さを count / max で出すと 0 除算になる。棒を描かず軸だけ残す。
+  const max = series.reduce(
+    (peak, entry) => entry.values.reduce((inner, value) => Math.max(inner, value), peak),
+    0,
+  )
+  // 全値 0 のときに高さを value / max で出すと 0 除算になる。棒を描かず軸だけ残す。
   const plotHeight = CHART.height - CHART.labelGap
-  const slot = rows.length === 0 ? 0 : CHART.width / rows.length
-  const barWidth = Math.max(slot - CHART.gap, 1)
+  // 最大値の目盛りを最も高い棒に重ねないよう、上端に topGap ぶんの余白を残す。
+  const barHeight = plotHeight - CHART.topGap
+  const slot = labels.length === 0 ? 0 : CHART.width / labels.length
+  const groupWidth = Math.max(slot - CHART.groupGap, 1)
+  const lane = groupWidth / Math.max(series.length, 1)
+  const barWidth = Math.max(lane - CHART.barGap, 0.5)
 
   return (
     <svg
       class="chart"
       viewBox={`0 0 ${CHART.width} ${CHART.height}`}
       role="img"
-      aria-label={`${label}（最大 ${max}）`}
+      aria-label={`${title}（最大 ${max}）`}
     >
       <line
         x1="0"
@@ -115,79 +153,91 @@ const BarChart: FC<{ rows: Count[]; label: string; everyNthLabel?: number }> = (
         class="chart-axis"
         vector-effect="non-scaling-stroke"
       />
+      {max === 0 ? null : (
+        <>
+          <line
+            x1="0"
+            y1={CHART.topGap}
+            x2={CHART.width}
+            y2={CHART.topGap}
+            class="chart-peak"
+            vector-effect="non-scaling-stroke"
+          />
+          <text class="chart-peak-label" x="2" y={CHART.topGap - 4}>
+            {`最大 ${max}`}
+          </text>
+        </>
+      )}
       {max === 0
         ? null
-        : rows.map((row, index) => {
-            const height = (row.count / max) * plotHeight
-            return (
-              <rect
-                class="chart-bar"
-                x={index * slot + CHART.gap / 2}
-                y={plotHeight - height}
-                width={barWidth}
-                height={height}
-              >
-                <title>{`${row.label}: ${row.count}`}</title>
-              </rect>
-            )
-          })}
-      {rows.map((row, index) =>
-        index % everyNthLabel === 0 ? (
-          <text
-            class="chart-label"
-            x={index * slot + slot / 2}
-            y={CHART.height - 2}
-            text-anchor="middle"
-          >
-            {row.label}
-          </text>
-        ) : null,
-      )}
+        : series.map((entry, seriesIndex) =>
+            entry.values.map((value, index) => {
+              const height = (value / max) * barHeight
+              const x = index * slot + CHART.groupGap / 2 + seriesIndex * lane + CHART.barGap / 2
+              return (
+                <rect
+                  class={`chart-bar chart-bar-${seriesIndex + 1}`}
+                  x={x}
+                  y={plotHeight - height}
+                  width={barWidth}
+                  height={height}
+                >
+                  <title>{`${labels[index]}｜${entry.label}: ${value} ${entry.unit}`}</title>
+                </rect>
+              )
+            }),
+          )}
+      {labels.map((label, index) => (
+        <text
+          class="chart-label"
+          x={index * slot + slot / 2}
+          y={CHART.height - 4}
+          text-anchor="middle"
+        >
+          {label}
+        </text>
+      ))}
     </svg>
   )
 }
 
+/** 系列名と色の対応。並び順は 1 グループ内のバーの並び順と一致させる。 */
+const Legend: FC<{ series: Series[] }> = ({ series }) => (
+  <ul class="legend">
+    {series.map((entry, index) => (
+      <li>
+        <span class={`swatch swatch-${index + 1}`} aria-hidden="true" />
+        <span class="order">{index + 1}.</span>
+        <span>
+          {entry.label}
+          <span class="unit"> {entry.unit}</span>
+        </span>
+      </li>
+    ))}
+  </ul>
+)
+
 /**
- * ゼロ埋め済みの系列を、グラフ（概形）と表（正確な値）の 2 つで見せる。
+ * ゼロ埋め済みの系列を、凡例 + グループ化バーグラフ 1 枚で見せる。
  * 期間内に 1 件も無いときだけ「データなし」にする。
  */
-const SeriesTable: FC<{
-  title: string
-  rows: Count[]
-  unit: string
-  chartLabel?: (label: string) => string
-  everyNthLabel?: number
-}> = ({ title, rows, unit, chartLabel = (label) => label, everyNthLabel = 1 }) => {
-  const total = rows.reduce((sum, row) => sum + row.count, 0)
+const SeriesChart: FC<{ title: string; labels: string[]; series: Series[] }> = ({
+  title,
+  labels,
+  series,
+}) => {
+  const total = series.reduce(
+    (sum, entry) => entry.values.reduce((inner, value) => inner + value, sum),
+    0,
+  )
+
+  if (total === 0) return <p class="empty">期間内のデータなし</p>
 
   return (
-    <section>
-      <h3>{title}</h3>
-      {total === 0 ? (
-        <p class="empty">期間内のデータなし</p>
-      ) : (
-        <>
-          <BarChart
-            label={title}
-            everyNthLabel={everyNthLabel}
-            rows={rows.map((row) => ({ label: chartLabel(row.label), count: row.count }))}
-          />
-          <table>
-            <tbody>
-              {rows.map((row) => (
-                <tr>
-                  <td>{row.label}</td>
-                  <td>
-                    {row.count}
-                    <span class="unit"> {unit}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-    </section>
+    <>
+      <Legend series={series} />
+      <GroupedBarChart title={title} labels={labels} series={series} />
+    </>
   )
 }
 
@@ -252,48 +302,35 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
 
       <section class="block">
         <h2>日毎の推移（{windowLabel}）</h2>
-        <div class="grid">
-          {summary.perKind.map((entry) => (
-            <SeriesTable
-              title={entry.label}
-              unit="件"
-              chartLabel={(day) => day.slice(5)}
-              everyNthLabel={3}
-              rows={summary.daily.map((point) => ({
-                label: point.day,
-                count: point.counts[entry.kind],
-              }))}
-            />
-          ))}
-          <SeriesTable
-            title="ユニーク訪問者"
-            unit="人"
-            chartLabel={(day) => day.slice(5)}
-            everyNthLabel={3}
-            rows={summary.daily.map((point) => ({
-              label: point.day,
-              count: point.uniqueVisitors,
-            }))}
-          />
-        </div>
+        <SeriesChart
+          title={`日毎の推移（${windowLabel}）`}
+          labels={summary.daily.map((point) => point.day.slice(5))}
+          series={[
+            ...summary.perKind.map((entry) => ({
+              label: entry.label,
+              unit: '件',
+              values: summary.daily.map((point) => point.counts[entry.kind]),
+            })),
+            {
+              label: 'ユニーク訪問者',
+              unit: '人',
+              values: summary.daily.map((point) => point.uniqueVisitors),
+            },
+          ]}
+        />
       </section>
 
       <section class="block">
         <h2>時間帯分布（{windowLabel}・JST）</h2>
-        <div class="grid">
-          {summary.perKind.map((entry) => (
-            <SeriesTable
-              title={entry.label}
-              unit="件"
-              chartLabel={(hour) => hour.slice(0, 2)}
-              everyNthLabel={3}
-              rows={summary.hourly.map((point) => ({
-                label: `${String(point.hour).padStart(2, '0')} 時台`,
-                count: point.counts[entry.kind],
-              }))}
-            />
-          ))}
-        </div>
+        <SeriesChart
+          title={`時間帯分布（${windowLabel}・JST）`}
+          labels={summary.hourly.map((point) => String(point.hour).padStart(2, '0'))}
+          series={summary.perKind.map((entry) => ({
+            label: entry.label,
+            unit: '件',
+            values: summary.hourly.map((point) => point.counts[entry.kind]),
+          }))}
+        />
       </section>
 
       <section class="block">
