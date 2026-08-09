@@ -284,6 +284,25 @@ visit / download / update_check の全イベントで記録する。追加のサ
 - 指標の並び順と表示名は `src/analytics.ts` の `KIND_LABELS` が唯一の定義で、
   カード・表の両方がこの順に従う。
 
+## 人間の訪問とロボットの巡回の分離
+
+<!-- constrained-by ../docs/adr/0004-bot-detection-via-user-agent.md -->
+
+JS ビーコンを使わないサーバ側計測なので、クローラの巡回も `visit` として
+記録されている。ボットの判別は User-Agent のトークン判定で行う（ADR 0004）。
+
+- ボットと判定した `ua_summary` は `bot:` 接頭辞を付ける
+  （`bot:GPTBot` / `bot:Googlebot`、既知トークンに当たらないものは `bot:other`）。
+  集計側はボット名を列挙せず `ua_summary LIKE 'bot:%'` だけで分離するため、
+  `src/lib/visitor.ts` の `BOT_TOKENS` を増やしても集計側の同期漏れが起きない。
+- ボット判定はブラウザ判定より**先に**評価する。現行の Googlebot / Applebot の
+  UA は `Chrome/` や `Safari/` を含み、順序を逆にすると人間の訪問として計上される。
+- 完全な UA は保存していないため、**過去データは遡って分類できない**。内訳が出るのは
+  分類の適用日（2026-08-09）以降だけで、それ以前のクローラの巡回は `other` のまま
+  人間側に数えられる。この制約はダッシュボードの注記に出す。
+- `bot:other` の比率が高止まりするなら分類漏れのシグナル。トークンを足すか、
+  ADR 0004 のトリップワイヤに従って判定方式そのものを見直す。
+
 ## ダッシュボードの認証方式
 
 独自ドメインを使わず `*.workers.dev` で公開するため、Cloudflare Access は使えない

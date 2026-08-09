@@ -6,6 +6,7 @@ import {
   hourlyDistribution,
   summarize,
   todayTotals,
+  uaSplit,
 } from '../src/analytics'
 import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import type { EventKind } from '../src/schema'
@@ -162,7 +163,7 @@ describe('hourlyDistribution', () => {
 
 describe('summarize', () => {
   it('累計・当日・日別・時間帯・UA 内訳をまとめて返す', async () => {
-    await insert(jst('2026-08-08 10:00'), 'visit', 'visitor-a', 'ClaudeBot')
+    await insert(jst('2026-08-08 10:00'), 'visit', 'visitor-a', 'bot:ClaudeBot')
     await insert(jst('2026-08-07 10:00'), 'download', 'visitor-b', 'Safari')
 
     const summary = await summarize(env.DB, NOW)
@@ -174,12 +175,40 @@ describe('summarize', () => {
     expect(summary.today.uniqueVisitors).toBe(1)
     expect(summary.daily).toHaveLength(14)
     expect(summary.hourly).toHaveLength(24)
-    expect(summary.byUA).toEqual(
-      expect.arrayContaining([
-        { label: 'ClaudeBot', count: 1 },
-        { label: 'Safari', count: 1 },
-      ]),
-    )
+    expect(summary.ua.byBot).toEqual([{ label: 'bot:ClaudeBot', count: 1 }])
+    expect(summary.ua.byHuman).toEqual([{ label: 'Safari', count: 1 }])
+  })
+})
+
+describe('人間の訪問とロボットの巡回の分離', () => {
+  it('ua_summary の bot: 接頭辞で分離し、ロボットは種類別に数える', async () => {
+    await insert(jst('2026-08-08 10:00'), 'visit', 'visitor-a', 'bot:GPTBot')
+    await insert(jst('2026-08-08 10:01'), 'visit', 'visitor-b', 'bot:GPTBot')
+    await insert(jst('2026-08-08 10:02'), 'visit', 'visitor-c', 'bot:Googlebot')
+    await insert(jst('2026-08-08 10:03'), 'visit', 'visitor-d', 'bot:other')
+    await insert(jst('2026-08-08 10:04'), 'visit', 'visitor-e', 'Safari')
+    // 分類の適用前に記録された行。ボットも人間も 'other' に丸まっている。
+    await insert(jst('2026-08-01 10:00'), 'visit', 'visitor-f', 'other')
+    // ua_summary が NULL の行（UA ヘッダ無し）はどちらにも数えない。
+    await insert(jst('2026-08-08 10:05'), 'visit', 'visitor-g', null)
+
+    const split = await uaSplit(env.DB)
+
+    expect(split.bot).toBe(4)
+    expect(split.human).toBe(2)
+    expect(split.byBot).toEqual([
+      { label: 'bot:GPTBot', count: 2 },
+      { label: 'bot:Googlebot', count: 1 },
+      { label: 'bot:other', count: 1 },
+    ])
+    expect(split.byHuman).toEqual([
+      { label: 'Safari', count: 1 },
+      { label: 'other', count: 1 },
+    ])
+  })
+
+  it('データが無ければ 0 件と空の内訳を返す', async () => {
+    expect(await uaSplit(env.DB)).toEqual({ human: 0, bot: 0, byHuman: [], byBot: [] })
   })
 })
 

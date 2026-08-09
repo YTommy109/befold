@@ -39,9 +39,80 @@ export function summarizeOS(ua: string): string | null {
   return null
 }
 
+/**
+ * ボットとして分類した ua_summary に付ける接頭辞。
+ *
+ * 集計側（analytics.ts）は既知のボット名を列挙せず `LIKE 'bot:%'` だけで
+ * 人間の訪問と分離する。トークンを増やしても集計側の同期漏れが起きない。
+ */
+export const BOT_PREFIX = 'bot:'
+
+/** 既知トークンに当たらないボット様 UA の行き先。ここが増えるなら分類漏れ。 */
+export const BOT_OTHER = `${BOT_PREFIX}other`
+
+/**
+ * 既知クローラの UA トークンと分類名（ADR 0004）。
+ *
+ * 上から順に部分一致で評価するため、長いトークンを先に置く
+ * （`Applebot-Extended` は `Applebot` より前でなければ後者に吸われる）。
+ * 比較は小文字化した UA に対して行うので、トークンも小文字で持つ。
+ */
+const BOT_TOKENS: { token: string; label: string }[] = [
+  // AI クローラ（学習・検索・ユーザ起点の取得）。この計測の主目的。
+  { token: 'applebot-extended', label: 'Applebot-Extended' },
+  { token: 'google-extended', label: 'Google-Extended' },
+  { token: 'oai-searchbot', label: 'OAI-SearchBot' },
+  { token: 'chatgpt-user', label: 'ChatGPT-User' },
+  { token: 'gptbot', label: 'GPTBot' },
+  { token: 'claude-searchbot', label: 'Claude-SearchBot' },
+  { token: 'claude-user', label: 'Claude-User' },
+  { token: 'claudebot', label: 'ClaudeBot' },
+  { token: 'anthropic-ai', label: 'anthropic-ai' },
+  { token: 'perplexity-user', label: 'Perplexity-User' },
+  { token: 'perplexitybot', label: 'PerplexityBot' },
+  { token: 'meta-externalagent', label: 'Meta-ExternalAgent' },
+  { token: 'bytespider', label: 'Bytespider' },
+  { token: 'amazonbot', label: 'Amazonbot' },
+  { token: 'ccbot', label: 'CCBot' },
+  { token: 'cohere-ai', label: 'cohere-ai' },
+  { token: 'youbot', label: 'YouBot' },
+  { token: 'diffbot', label: 'Diffbot' },
+  // 検索クローラ。AI クローラと分けて読めるよう種類別に残す。
+  { token: 'googlebot', label: 'Googlebot' },
+  { token: 'bingbot', label: 'bingbot' },
+  { token: 'duckduckbot', label: 'DuckDuckBot' },
+  { token: 'yandexbot', label: 'YandexBot' },
+  { token: 'baiduspider', label: 'Baiduspider' },
+  { token: 'applebot', label: 'Applebot' },
+  // SNS のリンク展開。人間の閲覧ではないのでボット側に寄せる。
+  { token: 'facebookexternalhit', label: 'facebookexternalhit' },
+  { token: 'twitterbot', label: 'Twitterbot' },
+  { token: 'slackbot', label: 'Slackbot' },
+  { token: 'discordbot', label: 'Discordbot' },
+]
+
+/** 既知トークンに当たらなくてもボットと判断する一般的な語。 */
+const GENERIC_BOT_PATTERN = /bot\b|bot\/|crawler|crawling|spider|scraper|slurp|feedfetcher/
+
+/**
+ * UA がボットなら分類名を、そうでなければ null を返す。
+ *
+ * ブラウザ判定より先に評価する必要がある。現行の Googlebot / Applebot は
+ * `Chrome/` や `Safari/` を UA に含むため、順序を逆にすると人間の訪問として
+ * 計上され、到来量が測れなくなる。
+ */
+function summarizeBot(ua: string): string | null {
+  const lower = ua.toLowerCase()
+  const known = BOT_TOKENS.find((entry) => lower.includes(entry.token))
+  if (known !== undefined) return `${BOT_PREFIX}${known.label}`
+  return GENERIC_BOT_PATTERN.test(lower) ? BOT_OTHER : null
+}
+
 /** UA からクライアント種別だけを粗く抜き出す（バージョンや詳細は保持しない）。 */
 export function summarizeUA(ua: string): string | null {
   if (ua.length === 0) return null
+  const bot = summarizeBot(ua)
+  if (bot !== null) return bot
   if (ua.includes('Sparkle')) return 'Sparkle'
   if (ua.includes('Edg/')) return 'Edge'
   if (ua.includes('Firefox/')) return 'Firefox'
@@ -49,4 +120,14 @@ export function summarizeUA(ua: string): string | null {
   if (ua.includes('Safari/')) return 'Safari'
   if (ua.includes('curl/')) return 'curl'
   return 'other'
+}
+
+/**
+ * `ua_summary` の値がボットとして分類されたものかを返す。
+ *
+ * 分類の適用前に記録された行は種類が分からず `'other'` に丸まっている。
+ * それらは false（人間側）になる——遡って分類し直す材料が無いため。
+ */
+export function isBotSummary(uaSummary: string): boolean {
+  return uaSummary.startsWith(BOT_PREFIX)
 }

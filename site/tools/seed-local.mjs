@@ -55,7 +55,21 @@ function pickHour() {
 const COUNTRIES = ['JP', 'JP', 'JP', 'JP', 'JP', 'US', 'US', 'DE', 'GB', 'KR']
 const OSES = ['macOS 15.0', 'macOS 15.0', 'macOS 14.5', 'macOS 14.5', 'Windows', 'Linux', 'iOS']
 // AI クローラを混ぜるのは、クライアント種別の内訳が実運用でどう見えるかを確かめるため。
-const UAS = ['Safari', 'Safari', 'Chrome', 'Chrome', 'Sparkle', 'ClaudeBot', 'GPTBot', 'curl']
+// ボットは 'bot:' 接頭辞付き（lib/visitor.ts の BOT_PREFIX）。'other' は分類の
+// 適用前に記録された行を模したもので、人間側に数えられるのが正しい挙動。
+const UAS = [
+  'Safari',
+  'Safari',
+  'Chrome',
+  'Chrome',
+  'Sparkle',
+  'bot:ClaudeBot',
+  'bot:GPTBot',
+  'bot:Googlebot',
+  'bot:other',
+  'other',
+  'curl',
+]
 const REFERRERS = [null, null, null, 'gh-pages', 'https://news.ycombinator.com', 'google']
 const AS_ORGS = [null, null, 'NTT Communications', 'KDDI', 'SoftBank', 'Google LLC']
 const VERSIONS = ['v1.10.0', 'v1.10.0', 'v1.10.0', 'v1.9.0', 'v1.8.1']

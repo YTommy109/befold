@@ -29,12 +29,13 @@ async function seed(
     ts?: number
     referrer?: string
     asOrg?: string
+    uaSummary?: string
   } = {},
 ): Promise<number> {
   const result = await env.DB.prepare(
     'INSERT INTO events' +
       ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org)' +
-      " VALUES (?, ?, ?, 'stable', ?, ?, 'Safari', ?, ?, ?) RETURNING id",
+      " VALUES (?, ?, ?, 'stable', ?, ?, ?, ?, ?, ?) RETURNING id",
   )
     .bind(
       extra.ts ?? Date.now(),
@@ -42,6 +43,7 @@ async function seed(
       extra.version ?? null,
       extra.country ?? null,
       extra.os ?? null,
+      extra.uaSummary ?? 'Safari',
       extra.visitorDay ?? 'hash-a',
       extra.referrer ?? null,
       extra.asOrg ?? null,
@@ -156,6 +158,37 @@ describe('集計の表示', () => {
     expect(body).toContain('Google LLC')
     expect(body).toContain('NTT Communications')
     expect(body.indexOf('Google LLC')).toBeLessThan(body.indexOf('NTT Communications'))
+  })
+
+  it('人間の訪問とロボットの巡回が分離して描画され、ロボットは種類別に見える', async () => {
+    await seed('visit', { uaSummary: 'bot:GPTBot' })
+    await seed('visit', { uaSummary: 'bot:GPTBot' })
+    await seed('visit', { uaSummary: 'bot:other' })
+    await seed('visit', { uaSummary: 'Safari' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('<h2>人間の訪問とロボットの巡回（全期間の累計）</h2>')
+    expect(body).toContain('<span class="value">3</span><span class="label">ロボット（クローラ）</span>')
+    expect(body).toContain('<span class="value">1</span><span class="label">人間のクライアント</span>')
+
+    const humanTable = body.indexOf('人間: クライアント種別')
+    const botTable = body.indexOf('ロボット: 種類別')
+    expect(humanTable).toBeGreaterThan(-1)
+    expect(botTable).toBeGreaterThan(humanTable)
+    // 種類は人間側の表に混ざらず、ロボット側の表にだけ現れる。
+    expect(body.slice(humanTable, botTable)).not.toContain('bot:GPTBot')
+    expect(body.slice(botTable)).toContain('bot:GPTBot')
+    expect(body.slice(botTable)).toContain('bot:other')
+  })
+
+  it('過去データを遡って分類できないことが注記から読み取れる', async () => {
+    await seed('visit', { uaSummary: 'bot:GPTBot' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('2026-08-09')
+    expect(body).toContain('以降に記録された')
   })
 
   it('OS 別が 3 指標それぞれに分かれて集計される', async () => {
@@ -279,6 +312,15 @@ describe('SSE ストリーム', () => {
   })
 })
 
+/** `<h2>見出し` から次の `<h2>` 直前までを 1 節として切り出す。 */
+const section = (html: string, heading: string): string => {
+  const start = html.indexOf(`<h2>${heading}`)
+  expect(start).toBeGreaterThanOrEqual(0)
+  const rest = html.slice(start)
+  const end = rest.indexOf('<h2>', 1)
+  return end === -1 ? rest : rest.slice(0, end)
+}
+
 describe('グラフ描画', () => {
   it('日毎の推移と時間帯分布がインライン SVG で描画される', async () => {
     await seed('visit')
@@ -287,18 +329,65 @@ describe('グラフ描画', () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     expect(body).toContain('<svg class="chart"')
-    expect(body).toContain('<rect class="chart-bar"')
+    expect(body).toContain('<rect class="chart-bar chart-bar-1"')
     // 外部ホストへのリクエストを発生させない（インライン化されている）。
     expect(body).not.toMatch(/<(script|link|img)[^>]+(src|href)="https?:/)
   })
 
-  it('SSE で配信される HTML にもグラフが含まれる（再描画フックが要らない）', async () => {
+  it('系列ごとに別チャートを並べず、1 節 1 枚のグループ化バーチャートにまとめる', async () => {
+    await seed('visit')
+    await seed('download')
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const daily = section(body, '日毎の推移')
+    const hourly = section(body, '時間帯分布')
+
+    expect(daily.match(/<svg class="chart"/g)).toHaveLength(1)
+    expect(hourly.match(/<svg class="chart"/g)).toHaveLength(1)
+    // 日毎は 4 指標 + ユニーク訪問者の 5 系列、時間帯は 4 指標。
+    expect(daily).toContain('chart-bar-5')
+    expect(hourly).toContain('chart-bar-4')
+    expect(hourly).not.toContain('chart-bar-5')
+  })
+
+  it('チャートを持つ節には凡例があり、表は置かない', async () => {
+    await seed('visit')
+    await seed('download', { version: 'v1.10.0', country: 'JP', os: 'macOS 15.0' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const daily = section(body, '日毎の推移')
+    const hourly = section(body, '時間帯分布')
+
+    expect(daily).toContain('<ul class="legend">')
+    expect(daily).toContain('<span class="swatch swatch-5"')
+    expect(hourly).toContain('<ul class="legend">')
+    // 色以外の手掛かり（凡例の並び順 = グループ内のバーの並び順）を残す。
+    expect(daily).toContain('<span class="order">1.</span>')
+    expect(daily).not.toContain('<table>')
+    expect(hourly).not.toContain('<table>')
+    // チャートを持たない節の表は残す。
+    expect(section(body, '内訳')).toContain('<table>')
+    expect(section(body, '最新イベント')).toContain('<table>')
+  })
+
+  it('日付・時間帯のラベルを間引かずに全件描く', async () => {
+    await seed('visit')
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    // 直近 14 日 + 24 時間帯。
+    expect(section(body, '日毎の推移').match(/class="chart-label"/g)).toHaveLength(14)
+    expect(section(body, '時間帯分布').match(/class="chart-label"/g)).toHaveLength(24)
+  })
+
+  it('SSE で配信される HTML にもグラフと凡例が含まれる（再描画フックが要らない）', async () => {
     await seed('visit')
 
     const summaryHtml = renderSummarySections(await summarize(env.DB, Date.now()))
 
     expect(summaryHtml).toContain('<svg class="chart"')
-    expect(summaryHtml).toContain('<rect class="chart-bar"')
+    expect(summaryHtml).toContain('<rect class="chart-bar chart-bar-1"')
+    expect(summaryHtml).toContain('<ul class="legend">')
   })
 
   it('データが 0 件でも描画が壊れない', async () => {
@@ -307,7 +396,7 @@ describe('グラフ描画', () => {
     // 全系列が 0 件なので棒は描かれず、空状態の文言になる。
     expect(body).toContain('期間内のデータなし')
     expect(body).not.toContain('NaN')
-    expect(body).not.toContain('<rect class="chart-bar"')
+    expect(body).not.toContain('<rect class="chart-bar')
   })
 
   it('1 点のみ・全値同一でも棒の高さが NaN にならない', async () => {
@@ -318,8 +407,8 @@ describe('グラフ描画', () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     expect(body).not.toContain('NaN')
-    expect(body).toContain('<rect class="chart-bar"')
-    // 最大値と等しい棒はプロット高さいっぱいになる（126 = 140 - 14）。
-    expect(body).toContain('height="126"')
+    expect(body).toContain('<rect class="chart-bar chart-bar-1"')
+    // 最大値と等しい棒は棒の描画高さいっぱいになる（180 = 220 - 22 - 18）。
+    expect(body).toContain('height="180"')
   })
 })
