@@ -10,8 +10,15 @@ public protocol ViewerRendererDelegate: AnyObject {
     /// JS 側で表示倍率が変わった。
     func renderer(_ renderer: ViewerRenderer, didChangeZoom zoom: Double)
     /// JS 側でスクロール位置が変わった。
+    ///
+    /// `url` は **その位置が属する文書**(通知の時点で DOM に出ている文書 = 描画済みミラーの
+    /// filePath)。通知は JS 側で 200ms デバウンスされるため、ファイル切替の直後に
+    /// 切替前の文書の通知が届きうる。受け取り側は現在表示中の URL ではなく必ずこの `url` を
+    /// キーに使うこと(現在値を参照すると切替前の位置が切替先のキーへ保存される = TASK-389)。
+    /// 描画前・直接 HTML モードなど、出所の文書が定まらない場合は nil。
     func renderer(
-        _ renderer: ViewerRenderer, didChangeScrollPosition position: Double, mode: ViewerBridge.ViewMode
+        _ renderer: ViewerRenderer, didChangeScrollPosition position: Double, for url: URL?,
+        mode: ViewerBridge.ViewMode
     )
     /// リンクまたはパス参照がアクティベートされた。
     func renderer(_ renderer: ViewerRenderer, didActivateReference href: String, disposition: OpenDisposition)
@@ -27,7 +34,9 @@ public protocol ViewerRendererDelegate: AnyObject {
 
 public extension ViewerRendererDelegate {
     func renderer(_: ViewerRenderer, didChangeZoom _: Double) {}
-    func renderer(_: ViewerRenderer, didChangeScrollPosition _: Double, mode _: ViewerBridge.ViewMode) {}
+    func renderer(
+        _: ViewerRenderer, didChangeScrollPosition _: Double, for _: URL?, mode _: ViewerBridge.ViewMode
+    ) {}
     func renderer(_: ViewerRenderer, didActivateReference _: String, disposition _: OpenDisposition) {}
     func renderer(_: ViewerRenderer, didRequestContextMenuFor _: String) {}
     func renderer(_: ViewerRenderer, resolveReferences _: [String]) async -> [String: String] {

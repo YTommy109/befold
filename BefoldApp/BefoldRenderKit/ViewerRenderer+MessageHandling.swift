@@ -79,7 +79,9 @@ extension ViewerRenderer {
               let modeString = payload[ScrollKey.mode.rawValue] as? String,
               let mode = ViewerBridge.ViewMode(rawValue: modeString)
         else { return }
-        delegate?.renderer(self, didChangeScrollPosition: position, mode: mode)
+        // キーにする文書は、通知の出所である DOM が写している文書(描画済みミラー)。
+        // ホスト側の現在 URL ではない(理由は ViewerRendererDelegate の doc / TASK-389)。
+        delegate?.renderer(self, didChangeScrollPosition: position, for: rendered.filePath, mode: mode)
     }
 
     private func handleFindOptionsChanged(body: Any) {

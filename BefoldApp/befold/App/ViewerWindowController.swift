@@ -19,6 +19,10 @@ private func makeSidebarGitStatusLoader(
 
 /// ViewerWindowController のウィンドウイベント(クローズ・rename・キー化など)を
 /// 上位のウィンドウ管理層へ通知するプロトコル。ViewerWindowManager が実装する。
+///
+/// **表示モードの変更は通知しない。** 表示モードは「文書の状態」であり、窓が生きている間は
+/// その窓のライブ値が有効で、窓間の同期は行わない(ADR 0002「複数ウィンドウでの扱い」)。
+/// TASK-371 でここにあった didChangeDisplayMode は TASK-388 で撤去した。
 @MainActor
 protocol ViewerWindowControllerDelegate: AnyObject {
     func viewerWindowWillClose(_ controller: ViewerWindowController)
@@ -26,15 +30,6 @@ protocol ViewerWindowControllerDelegate: AnyObject {
     func viewerWindow(_ controller: ViewerWindowController, didRenameFrom oldURL: URL, to newURL: URL)
     func viewerWindow(
         _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
-    )
-    /// ユーザーが表示モードを選び直した(setDisplayMode を通った)ことを伝える。
-    ///
-    /// 同一ファイルを表示している窓は同じ表示モードを示す、という不変条件を成立させるための
-    /// 通知。対象は**永続化されるユーザー選択**に限る。CLI `--source`/`--preview` による
-    /// この起動限りの上書き(init 時の sourceModeOverride)は意図的に窓ごとで、同期しない。
-    /// ファイル切替・リネームに伴う適用も各窓が自分で保存値から復元するため通知しない。
-    func viewerWindow(
-        _ controller: ViewerWindowController, didChangeDisplayMode mode: ViewerDisplayMode
     )
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
     /// 差分レイアウトが切り替わったことを伝える。
@@ -272,6 +267,7 @@ final class ViewerWindowController: NSWindowController {
             perFileState: perFileState,
             // 現在 URL は rename/switch で書き換わるため、旧値を捕捉せず self 経由で参照する。
             currentURL: { [weak self] in self?.fileURL ?? fileURL },
+            onZoomChanged: { [weak self] zoom in self?.store.zoom = zoom },
             // 実行可否は capabilities に集約する(ADR 0002)。フォルダー一覧を表示している間も
             // WKWebView は背後に生き続けるため、見えていない文書への操作はここで止まる。
             capabilities: { [weak self] in self?.capabilities ?? .none }
@@ -322,6 +318,8 @@ final class ViewerWindowController: NSWindowController {
         // applySourceMode が内部で refreshToolbarState() を呼ぶため、ここでの明示呼び出しは不要。
         let restoredMode = perFileState.displayMode.restoredDisplayMode(for: fileURL)
         applyDisplayMode(sourceModeOverride.map { $0 ? ViewerDisplayMode.source : .rendered } ?? restoredMode)
+        // 提示開始(オープン)。倍率とスクロール位置の保存値を読むのはここと performFileSwitch だけ。
+        beginPresentingDocument(at: fileURL)
         sidebar.recordHistory()
     }
 
@@ -331,8 +329,6 @@ final class ViewerWindowController: NSWindowController {
         let onNavigateToFolder: (URL) -> Void = { [weak self] url in self?.navigateToFolder(url) }
         let content: AnyView = contentOverride?() ?? AnyView(ViewerContentView(
             store: store,
-            zoomStore: perFileState.zoom,
-            scrollPositionStore: perFileState.scrollPosition,
             findOptionsPreference: findOptionsPreference,
             codeFontFamily: codeFontPreference.fontFamily,
             codeFontSizePoints: codeFontPreference.fontSizePoints,
@@ -488,7 +484,9 @@ final class ViewerWindowController: NSWindowController {
         // その時点で onContentReloaded → refreshToolbarState() が発火する
         // (読み込み完了までは切替前の表示状態が残る)。ここでの明示呼び出しは不要。
         store.openFile(newURL)
-        webViewCommands.applyStoredZoom()
+        // 提示開始(ファイル切替)。applyDisplayMode の後に呼ぶこと。復元するスクロール位置は
+        // 切替先の表示モードに紐付くキーから引くため、モードが確定している必要がある。
+        beginPresentingDocument(at: newURL)
         delegate?.viewerWindow(self, didSwitchFileFrom: oldURL, to: newURL)
         return .switched
     }
@@ -572,14 +570,20 @@ extension ViewerWindowController: SidebarNavigatorHost {
 
 extension ViewerWindowController: ViewerRendererDelegate {
     /// 現在の fileURL は rename で書き換わるため、旧値を捕捉せず呼び出しのたびに参照する。
+    /// ライブ値と保存値の両方を更新する。保存値は次にこの文書を開くときの既定値で、
+    /// いま画面に出ている倍率を決めるのはライブ値のほう(ADR 0002)。
     func renderer(_: ViewerRenderer, didChangeZoom zoom: Double) {
+        store.zoom = zoom
         perFileState.zoom.setZoom(zoom, for: fileURL)
     }
 
+    /// 保存キーは現在表示中の fileURL ではなく、通知に載った「その位置が属する文書」から
+    /// 決める(理由は ViewerRendererDelegate の doc / TASK-389)。nil の通知は捨てる。
     func renderer(
-        _: ViewerRenderer, didChangeScrollPosition position: Double, mode: ViewerBridge.ViewMode
+        _: ViewerRenderer, didChangeScrollPosition position: Double, for url: URL?, mode: ViewerBridge.ViewMode
     ) {
-        perFileState.scrollPosition.setScrollPosition(position, for: fileURL, mode: mode)
+        guard let url else { return }
+        perFileState.scrollPosition.setScrollPosition(position, for: url, mode: mode)
     }
 
     func renderer(_: ViewerRenderer, didActivateReference href: String, disposition: OpenDisposition) {
@@ -686,6 +690,24 @@ extension ViewerWindowController {
         )
     }
 
+    /// **窓がその文書を提示し始めるとき**に、ファイル単位の保存値をこの窓のライブ値へ読み込む。
+    /// 呼んでよいのはオープン(init)とファイル切替(performFileSwitch)だけ
+    /// (ADR 0002「文書の状態の規則」1)。生きている窓が再ロードのついでにここを通ると、
+    /// 他窓が保存した倍率・位置を拾って勝手に動く(TASK-388)。リネームでも呼ばない
+    /// (引き継ぐのは保存値ではなくライブ値。表示モードが同じ理由で読まない = TASK-369)。
+    /// スクロール位置のキーは(パス, モード)粒度なので、表示モード確定後に呼ぶこと。
+    private func beginPresentingDocument(at url: URL) {
+        store.zoom = perFileState.zoom.zoom(for: url)
+        store.scrollPositionToRestore = restoredScrollPosition(for: url, isSourceMode: isSourceMode)
+    }
+
+    /// 指定したファイル・モードの保存済みスクロール位置。提示開始の 3 契機からだけ引く。
+    private func restoredScrollPosition(for url: URL, isSourceMode: Bool) -> Double {
+        perFileState.scrollPosition.scrollPosition(
+            for: url, mode: ViewerBridge.ViewMode(isSourceMode: isSourceMode)
+        )
+    }
+
     /// 表示モードを変更し、store・永続化・ツールバーの表示更新までを一貫して行う。
     /// ツールバーのモード切替セグメント(ViewerToolbarController)からも ViewerToolbarHost 経由で、
     /// View メニューの ⌘1〜⌘3 からも呼ばれる。表示モードを変える入口はここだけ。
@@ -705,6 +727,9 @@ extension ViewerWindowController {
         if newValue.isSourceMode { sourceToggleReturn = nil }
         saveScrollPositionBeforeTransition()
         applyDisplayMode(newValue)
+        // 提示開始(モード切替)。切替先モードのキーから復元位置を読む。ここも保存値を読んで
+        // よい 3 契機のひとつ(ADR 0002「文書の状態の規則」1)。
+        store.scrollPositionToRestore = restoredScrollPosition(for: fileURL, isSourceMode: isSourceMode)
         perFileState.displayMode.setDisplayMode(displayMode, for: fileURL)
         // 差分を取れるかどうかは表示モードに依存する。レンダリング表示中の refreshDiff は
         // 差分を捨てるため、モードが変わった契機で取り直さないとソース表示へ切り替えても
@@ -712,30 +737,7 @@ extension ViewerWindowController {
         // 変わる呼び出し元が setDisplayMode だけだから(performFileSwitch は URL 更新前に
         // 呼ぶため、そちらへ置くと切替前ファイルに対して git を起こす)。
         refreshDiff()
-        // 同一ファイルを開いている他ウィンドウへ同じモードを届ける。ここで通知することが
-        // 「同一ファイルの窓は同じ答えを示す」を成立させている(TASK-371)。
-        delegate?.viewerWindow(self, didChangeDisplayMode: displayMode)
-    }
-
-    /// 同一ファイルを表示している他ウィンドウへ、ユーザーが選んだ表示モードを反映する。
-    /// 呼び出し元は ViewerWindowManager だけで、対象は controllers のキー引きで求める。
-    ///
-    /// setDisplayMode との違いは 3 つで、いずれも「操作していない窓」であることに由来する。
-    ///
-    /// - delegate へ通知しない(通知すると broadcast が窓の間で往復する)
-    /// - 永続化しない(操作した窓が既に同じ値を書いている)
-    /// - スクロール位置を保存しない。ScrollPositionStore は (path, mode) 粒度でアプリ全体
-    ///   共有であり、保存は JS コールバック経由の非同期(WebViewCommandController)。
-    ///   2 窓が同じキーへ書くと勝者が非決定になるため、書き込みは操作した窓の 1 本に限る
-    ///
-    /// cmd+U の戻り先の記憶(sourceToggleReturn)は窓ごとの操作履歴なので同期しない。
-    /// ただし「ソース系モードへ入った時点で役目を終える」のは操作の有無に依らないため、
-    /// クリアだけは setDisplayMode と同じ理由でここでも行う。
-    func mirrorDisplayMode(_ newValue: ViewerDisplayMode) {
-        guard canSelect(newValue), newValue != effectiveDisplayMode else { return }
-        if newValue.isSourceMode { sourceToggleReturn = nil }
-        applyDisplayMode(newValue)
-        refreshDiff()
+        // 他ウィンドウへは通知しない(理由は ViewerWindowControllerDelegate の doc / TASK-388)。
     }
 
     /// そのモードをいま選べるか。ツールバーのセグメントとメニューの有効判定が共有する。

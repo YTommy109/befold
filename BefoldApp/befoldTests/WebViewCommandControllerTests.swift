@@ -72,9 +72,15 @@ extension ZoomChange: @retroactive Equatable {}
 struct WebViewCommandControllerTests {
     private let url = URL(fileURLWithPath: "/tmp/a.md")
 
+    /// 窓のライブ倍率の代役。onZoomChanged で流れてきた値を順に記録する。
+    private final class ZoomChangeRecorder {
+        var values: [Double] = []
+    }
+
     private func makeController(
         renderer: FakeDocumentRenderer,
         perFileState: PerFileStateStore? = nil,
+        zoomChanges: ZoomChangeRecorder = ZoomChangeRecorder(),
         capabilities: @escaping () -> ViewerCapabilities = { .allEnabledForTesting }
     ) -> WebViewCommandController {
         let defaults = makeIsolatedDefaults(prefix: "WebViewCommandControllerTests")
@@ -82,6 +88,7 @@ struct WebViewCommandControllerTests {
             renderer: renderer,
             perFileState: perFileState ?? PerFileStateStore(defaults: defaults),
             currentURL: { url },
+            onZoomChanged: { zoomChanges.values.append($0) },
             capabilities: capabilities
         )
     }
@@ -124,35 +131,35 @@ struct WebViewCommandControllerTests {
     @Test("設定の反映は能力で止めない(フォルダー表示中の設定変更を取り残さない)")
     func settingsAreAppliedRegardlessOfCapability() {
         let renderer = FakeDocumentRenderer()
-        let defaults = makeIsolatedDefaults(prefix: "WebViewCommandControllerTests")
-        let perFileState = PerFileStateStore(defaults: defaults)
-        perFileState.zoom.setZoom(1.5, for: url)
-        let controller = makeController(
-            renderer: renderer, perFileState: perFileState, capabilities: { .none }
-        )
+        let controller = makeController(renderer: renderer, capabilities: { .none })
 
-        controller.applyStoredZoom()
         controller.applyCodeFont(family: "Menlo", points: 12)
 
-        #expect(renderer.commands == [.applyZoom(1.5), .applyCodeFont(family: "Menlo", points: 12)])
+        #expect(renderer.commands == [.applyCodeFont(family: "Menlo", points: 12)])
     }
 
-    @Test("直接 HTML モードで返った倍率だけを保存する")
+    @Test("直接 HTML モードで返った倍率だけを、窓のライブ値と保存値の両方へ反映する")
     func persistsZoomReturnedByRenderer() {
         let renderer = FakeDocumentRenderer()
         let defaults = makeIsolatedDefaults(prefix: "WebViewCommandControllerTests")
         let perFileState = PerFileStateStore(defaults: defaults)
-        let controller = makeController(renderer: renderer, perFileState: perFileState)
+        let zoomChanges = ZoomChangeRecorder()
+        let controller = makeController(
+            renderer: renderer, perFileState: perFileState, zoomChanges: zoomChanges
+        )
 
-        // viewer.js が倍率を持つ通常モードでは nil が返り、保存は JS からの通知に任せる
+        // viewer.js が倍率を持つ通常モードでは nil が返り、保存も通知も JS からの経路に任せる
         renderer.zoomAfterChange = nil
         controller.zoomIn()
         #expect(perFileState.zoom.zoom(for: url) == ZoomStore.defaultZoom)
+        #expect(zoomChanges.values.isEmpty)
 
-        // 直接 HTML モードでは適用後の倍率が返るので、その値を保存する
+        // 直接 HTML モードでは適用後の倍率が返る。viewer.js からの通知が来ない経路なので、
+        // ここで窓のライブ値も更新しないと画面と食い違ったまま取り残される。
         renderer.zoomAfterChange = 1.25
         controller.zoomIn()
         #expect(perFileState.zoom.zoom(for: url) == 1.25)
+        #expect(zoomChanges.values == [1.25])
     }
 
     @Test("スクロール位置は、取得できた場合だけ指定キーへ保存する")

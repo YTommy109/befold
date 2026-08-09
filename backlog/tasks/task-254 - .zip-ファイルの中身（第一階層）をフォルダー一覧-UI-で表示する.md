@@ -4,9 +4,10 @@ title: .zip ファイルの中身（第一階層）をフォルダー一覧 UI �
 status: To Do
 assignee: []
 created_date: '2026-08-01 12:24'
+updated_date: '2026-08-09 11:57'
 labels: []
 dependencies: []
-priority: medium
+priority: low
 type: feature
 ordinal: 509000
 ---

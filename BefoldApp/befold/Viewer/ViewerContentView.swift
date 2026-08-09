@@ -3,9 +3,12 @@ import BefoldRenderKit
 import SwiftUI
 
 struct ViewerContentView: View {
+    /// 倍率・スクロール復元位置を含む、この窓のライブな表示状態。
+    /// ファイル単位の保存ストア(`ZoomStore` / `ScrollPositionStore`)は**ここへ渡さない**。
+    /// 渡すと body の再評価のたびに保存値を読み直すことになり、他窓が書いた値を
+    /// 生きている窓が拾ってしまう(ADR 0002「文書の状態の規則」1)。
+    /// 保存値を読む契機は ViewerWindowController 側の提示開始 3 箇所に限る。
     let store: ViewerStore
-    let zoomStore: ZoomStore
-    let scrollPositionStore: ScrollPositionStore
     let findOptionsPreference: FindOptionsPreference
     /// ロード時に JS へ注入するソースビュー等幅フォントファミリー名。nil はシステム既定。
     let codeFontFamily: String?
@@ -21,24 +24,11 @@ struct ViewerContentView: View {
     /// 差分のレイアウト設定。全ウィンドウ共有(差分を出すかどうかは store の表示モードが持つ)。
     let diffDisplayPreference: DiffDisplayPreference
 
-    /// 表示中ファイルの保存倍率。ファイル切替(store.filePath 変化)で再評価され、
-    /// 切替先ファイルの倍率が ViewerWebView の coordinator へ渡る。
-    /// これがないと初回ファイルの倍率がウィンドウ生存中ずっと固定されてしまう。
-    private var currentZoom: Double {
-        guard let url = store.filePath else { return ZoomStore.defaultZoom }
-        return zoomStore.zoom(for: url)
-    }
-
     /// レンダラへ渡す差分の状態。差分表示モードでなければ本文があっても差分を出さない
     /// (取得側が止まっていても、表示側でも同じ答えになるようにする)。
     private var diffState: ViewerRenderer.DiffState {
         guard store.showsDiff, let text = store.diffText else { return .none }
         return ViewerRenderer.DiffState(text: text, layout: diffDisplayPreference.layout)
-    }
-
-    private var currentScrollPosition: Double {
-        guard let url = store.filePath else { return 0 }
-        return scrollPositionStore.scrollPosition(for: url, mode: .init(isSourceMode: store.isSourceMode))
     }
 
     /// プレビューエリアが表示すべき対象。導出は FileListModel に 1 つだけ置く(ADR 0002)。
@@ -89,10 +79,10 @@ struct ViewerContentView: View {
                 lineCount: store.displayedLineCount,
                 loadFailed: store.loadFailed,
                 isVisible: isVisible,
-                initialZoom: currentZoom,
+                initialZoom: store.zoom,
                 codeFontFamily: codeFontFamily,
                 codeFontSizePoints: codeFontSizePoints,
-                scrollPositionToRestore: currentScrollPosition,
+                scrollPositionToRestore: store.scrollPositionToRestore,
                 rendererDelegate: rendererDelegate,
                 findOptionsPreference: findOptionsPreference,
                 webViewProxy: webViewProxy,
