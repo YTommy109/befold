@@ -82,10 +82,22 @@ struct WebViewCommandControllerTests {
         var values: [Double] = []
     }
 
+    /// 保存完了通知(位置・キー)を順に記録する。窓のライブ復元値の代役。
+    private final class ScrollSaveRecorder {
+        struct Save: Equatable {
+            let position: Double
+            let url: URL
+            let mode: ViewerBridge.ViewMode
+        }
+
+        var saves: [Save] = []
+    }
+
     private func makeController(
         renderer: FakeDocumentRenderer,
         perFileState: PerFileStateStore? = nil,
         zoomChanges: ZoomChangeRecorder = ZoomChangeRecorder(),
+        scrollSaves: ScrollSaveRecorder = ScrollSaveRecorder(),
         capabilities: @escaping () -> ViewerCapabilities = { .allEnabledForTesting }
     ) -> WebViewCommandController {
         let defaults = makeIsolatedDefaults(prefix: "WebViewCommandControllerTests")
@@ -94,6 +106,9 @@ struct WebViewCommandControllerTests {
             perFileState: perFileState ?? PerFileStateStore(defaults: defaults),
             currentURL: { url },
             onZoomChanged: { zoomChanges.values.append($0) },
+            onScrollPositionSaved: {
+                scrollSaves.saves.append(ScrollSaveRecorder.Save(position: $0, url: $1, mode: $2))
+            },
             capabilities: capabilities
         )
     }
@@ -181,6 +196,29 @@ struct WebViewCommandControllerTests {
         renderer.scrollPosition = 42
         controller.saveCurrentScrollPosition(for: url, mode: .rendered)
         #expect(perFileState.scrollPosition.scrollPosition(for: url, mode: .rendered) == 42)
+    }
+
+    /// 保存完了は「保存したキーと値」ごと窓へ伝える。窓はこれでライブな復元値を
+    /// 追いつかせるため、値を渡さず通知だけにすると窓が保存値を読み直す形になり、
+    /// 他窓の操作が後から効く経路になってしまう(ADR 0002 / TASK-394)。
+    @Test("保存が完了したら、保存したキーと値を窓へ伝える")
+    func reportsSavedScrollPositionWithItsKey() {
+        let renderer = FakeDocumentRenderer()
+        let scrollSaves = ScrollSaveRecorder()
+        let controller = makeController(renderer: renderer, scrollSaves: scrollSaves)
+
+        // 取得できなければ保存も通知もしない
+        renderer.scrollPosition = nil
+        controller.saveCurrentScrollPosition(for: url, mode: .rendered)
+        #expect(scrollSaves.saves.isEmpty)
+
+        renderer.scrollPosition = 42
+        controller.saveCurrentScrollPosition(for: url, mode: .source)
+
+        #expect(scrollSaves.saves.count == 1)
+        #expect(scrollSaves.saves.first?.position == 42)
+        #expect(scrollSaves.saves.first?.url == url)
+        #expect(scrollSaves.saves.first?.mode == .source)
     }
 
     @Test("rename の追随は状態の反映なので能力で止めない")

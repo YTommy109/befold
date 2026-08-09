@@ -21,18 +21,26 @@ final class WebViewCommandController {
     /// (直接 HTML モードは viewer.js が居らず、JS からの通知が来ないため
     /// ここだけが更新の契機になる = ADR 0002「文書の状態の規則」)。
     private let onZoomChanged: (Double) -> Void
+    /// スクロール位置の保存が完了したことを、保存したキーと値ごと窓へ伝える。
+    /// 位置の取得は JS のラウンドトリップを挟むため、切替の退場側で発行した保存は
+    /// 切替先の提示開始(保存値の同期読み取り)より後に完了しうる。窓はこの通知で
+    /// 「いま提示中の文書のものなら」ライブな復元値を追いつかせる(TASK-394)。
+    /// **既定値を与えない**。渡し忘れると往復時に古い位置を復元したままになる。
+    private let onScrollPositionSaved: (Double, URL, ViewerBridge.ViewMode) -> Void
 
     init(
         renderer: any DocumentRendering,
         perFileState: PerFileStateStore,
         currentURL: @escaping () -> URL,
         onZoomChanged: @escaping (Double) -> Void,
+        onScrollPositionSaved: @escaping (Double, URL, ViewerBridge.ViewMode) -> Void,
         capabilities: @escaping () -> ViewerCapabilities = { .none }
     ) {
         self.renderer = renderer
         self.perFileState = perFileState
         self.currentURL = currentURL
         self.onZoomChanged = onZoomChanged
+        self.onScrollPositionSaved = onScrollPositionSaved
         self.capabilities = capabilities
     }
 
@@ -111,8 +119,11 @@ final class WebViewCommandController {
     /// didChangeScrollPosition)も「その位置が属する文書」から決める。どちらも現在表示中の
     /// fileURL を参照しない(現在値を参照すると切替直後に別文書のキーへ書く = TASK-389)。
     func saveCurrentScrollPosition(for url: URL, mode: ViewerBridge.ViewMode) {
-        renderer.currentScrollPosition { [perFileState] position in
+        renderer.currentScrollPosition { [perFileState, onScrollPositionSaved] position in
             perFileState.scrollPosition.setScrollPosition(position, for: url, mode: mode)
+            // 保存したキーと値をそのまま渡す。窓が保存値を読み直す形にすると、
+            // 他窓の操作が後から効く経路を作ってしまう(ADR 0002「文書の状態の規則」1)。
+            onScrollPositionSaved(position, url, mode)
         }
     }
 
