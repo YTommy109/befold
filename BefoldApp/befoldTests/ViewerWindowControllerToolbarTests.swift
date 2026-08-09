@@ -16,11 +16,12 @@ import Testing
 struct ViewerWindowControllerToolbarTests {
     private func makeController(
         file: URL, contents: String = "graph TD;", extraFiles: [URL] = [],
-        bookmarkStore: BookmarkStore? = nil
+        bookmarkStore: BookmarkStore? = nil, diffDisplayPreference: DiffDisplayPreference? = nil
     ) -> ViewerWindowController {
         ViewerWindowControllerFixture(
             file: file, extraFiles: extraFiles, contents: contents,
-            prefix: "ViewerWindowControllerToolbarTests", bookmarkStore: bookmarkStore
+            prefix: "ViewerWindowControllerToolbarTests", bookmarkStore: bookmarkStore,
+            diffDisplayPreference: diffDisplayPreference
         ).controller
     }
 
@@ -33,15 +34,14 @@ struct ViewerWindowControllerToolbarTests {
         let toolbar = try #require(controller.window?.toolbar)
 
         // 既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/行番号/モード切替/
-        // (差分レイアウト)/ブックマーク の順。差分レイアウトはフィーチャーゲートの内側にあり、
-        // stable ビルドでは構成に載らない(無効化ではなく不在)。
+        // ブックマーク の順。差分レイアウトの切替は独立アイテムを持たず、モード切替
+        // セグメントの差分セグメント再クリックが担うため、構成はゲートで変わらない。
         let identifiers = controller.toolbarController.toolbarDefaultItemIdentifiers(toolbar)
-        let diffLayout: [NSToolbarItem.Identifier] = FeatureGate.isSourceDiffEnabled ? [.init("diffLayout")] : []
         #expect(identifiers == [
             .toggleSidebar, .sidebarTrackingSeparator,
             .init("historyBack"), .init("historyForward"),
-            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"),
-        ] + diffLayout + [.init("bookmark")])
+            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"), .init("bookmark"),
+        ])
 
         for identifier in ["historyBack", "historyForward"] {
             let item = try #require(controller.toolbarController.toolbar(
@@ -56,26 +56,40 @@ struct ViewerWindowControllerToolbarTests {
         }
     }
 
-    /// ゲート OFF 相当(stable)のツールバー構成をライブなゲート値に依らず検証する。
-    /// ゲート越しの検証は動いているビルドの側しか通らないため、構成の両分岐はここで押さえる。
-    @Test(
-        "ツールバー構成は差分ゲートに応じて差分レイアウト項目とセグメント数を切り替える",
-        arguments: [true, false]
-    )
-    func toolbarCompositionFollowsSourceDiffGate(isSourceDiffEnabled: Bool) {
-        let identifiers = ViewerToolbarController.defaultItemIdentifiers(
-            isSourceDiffEnabled: isSourceDiffEnabled
-        )
-        let diffLayout: [NSToolbarItem.Identifier] = isSourceDiffEnabled ? [.init("diffLayout")] : []
-        #expect(identifiers == [
-            .toggleSidebar, .sidebarTrackingSeparator,
-            .init("historyBack"), .init("historyForward"),
-            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"),
-        ] + diffLayout + [.init("bookmark")])
-
+    /// ゲート OFF 相当(stable)のセグメント構成をライブなゲート値に依らず検証する。
+    /// ゲート越しの検証は動いているビルドの側しか通らないため、両分岐はここで押さえる。
+    @Test("モード切替セグメントは差分ゲートに応じて差分セグメントの有無を変える", arguments: [true, false])
+    func modeSegmentsFollowSourceDiffGate(isSourceDiffEnabled: Bool) {
         let modes = ModeSegments.modes(isSourceDiffEnabled: isSourceDiffEnabled)
         #expect(modes.count == (isSourceDiffEnabled ? 3 : 2))
         #expect(modes.contains(.diff) == isSourceDiffEnabled)
+    }
+
+    /// 差分セグメントのアイコンは「いまどちらのレイアウトか」の唯一の表示なので、
+    /// レイアウトの 2 状態でシンボルが入れ替わることを固定する。
+    /// 他のモードはレイアウトに影響されない。
+    @Test("差分セグメントのシンボルは現在の差分レイアウトを表す")
+    func diffSegmentSymbolFollowsLayout() {
+        #expect(ModeSegments.symbol(for: .diff, isSideBySide: false) == "plus.forwardslash.minus")
+        #expect(ModeSegments.symbol(for: .diff, isSideBySide: true) == "rectangle.split.2x1")
+        for isSideBySide in [true, false] {
+            #expect(ModeSegments.symbol(for: .rendered, isSideBySide: isSideBySide) == "doc.richtext")
+            #expect(
+                ModeSegments.symbol(for: .source, isSideBySide: isSideBySide)
+                    == "chevron.left.forwardslash.chevron.right"
+            )
+        }
+    }
+
+    /// 差分セグメントの再クリックだけがレイアウト切替になる。AppKit のイベントを
+    /// 起こさずに両分岐を押さえるため、判定は純粋関数として検証する。
+    @Test("セグメントのクリックは、差分表示中の差分セグメントだけレイアウト切替になる")
+    func diffSegmentReclickTogglesLayout() {
+        #expect(ModeSegments.action(for: .diff, current: .diff) == .toggleDiffLayout)
+        #expect(ModeSegments.action(for: .diff, current: .source) == .select(.diff))
+        #expect(ModeSegments.action(for: .diff, current: .rendered) == .select(.diff))
+        #expect(ModeSegments.action(for: .source, current: .diff) == .select(.source))
+        #expect(ModeSegments.action(for: .rendered, current: .rendered) == .select(.rendered))
     }
 
     @Test("ブックマークボタンをクリックすると状態がトグルされアイコン・色に反映される")
@@ -154,27 +168,39 @@ struct ViewerWindowControllerToolbarTests {
         #expect(segmented.segmentCount == (FeatureGate.isSourceDiffEnabled ? 3 : 2))
     }
 
-    /// AC#3: レイアウトトグルは差分表示を選んでいない間は無効。出したまま無効にするのは、
-    /// 出現・消滅させるとツールバーの幅が動くため。
-    @Test("差分レイアウトトグルは差分表示中だけ有効になる")
-    func diffLayoutToggleEnabledOnlyInDiffMode() async throws {
+    /// ⌘\\ やメニューからレイアウトを変えたときも、実アイテムのアイコンが追従する。
+    /// view ベースのアイテムは validate を通らないため、再同期でしか更新されない(ADR 0002)。
+    @Test("差分レイアウトの変更がモード切替セグメントのアイコンへ反映される")
+    func diffLayoutChangeUpdatesSegmentImage() async throws {
         try #require(FeatureGate.isSourceDiffEnabled)
         let file = URL(fileURLWithPath: "/mock/a.swift")
-        let controller = makeController(file: file, contents: "let x = 1")
+        let preference = DiffDisplayPreference(defaults: makeIsolatedDefaults(prefix: "ToolbarDiffLayoutIcon"))
+        let controller = makeController(file: file, contents: "let x = 1", diffDisplayPreference: preference)
         defer { controller.close() }
         let toolbar = try #require(controller.window?.toolbar)
         await controller.store.loadTask?.value
-        controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
-        controller.fileListModel.selection = file
+        let item = try #require(toolbar.items.first { $0.itemIdentifier == .init("modeToggle") })
+        let segmented = try #require(item.view as? NSSegmentedControl)
+        let diffIndex = try #require(ModeSegments.all.firstIndex(of: .diff))
 
-        controller.setDisplayMode(.source)
+        preference.layout = .inline
         controller.toolbarController.refreshToolbarState()
-        let item = try #require(toolbar.items.first { $0.itemIdentifier == .init("diffLayout") })
-        #expect((item.view as? NSButton)?.isEnabled == false)
+        let inlineImage = try #require(segmented.image(forSegment: diffIndex))
+        #expect(inlineImage === ViewerToolbarController.segmentImage(for: .diff, isSideBySide: false, label: ""))
 
-        controller.setDisplayMode(.diff)
+        preference.layout = .sideBySide
         controller.toolbarController.refreshToolbarState()
-        #expect((item.view as? NSButton)?.isEnabled == true)
+        let sideBySideImage = try #require(segmented.image(forSegment: diffIndex))
+        #expect(sideBySideImage === ViewerToolbarController.segmentImage(for: .diff, isSideBySide: true, label: ""))
+        #expect(inlineImage !== sideBySideImage)
+
+        // レンダリング/ソースのアイコンはレイアウトで変わらない。
+        for (index, mode) in ModeSegments.all.enumerated() where mode != .diff {
+            #expect(
+                segmented.image(forSegment: index)
+                    === ViewerToolbarController.segmentImage(for: mode, isSideBySide: true, label: "")
+            )
+        }
     }
 
     // MARK: - 外部からの状態変更に伴う再同期

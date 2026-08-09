@@ -37,6 +37,12 @@ protocol ViewerWindowControllerDelegate: AnyObject {
         _ controller: ViewerWindowController, didChangeDisplayMode mode: ViewerDisplayMode
     )
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
+    /// 差分レイアウトが切り替わったことを伝える。
+    ///
+    /// レイアウトはアプリ全体で 1 個を共有する設定（`DiffDisplayPreference`）で、
+    /// モード切替セグメントの差分アイコンがその値を映す。ツールバーは view ベースで
+    /// validate を通らないため（ADR 0002）、操作した窓を含む全窓を再同期する必要がある。
+    func viewerWindowDidToggleDiffLayout(_ controller: ViewerWindowController)
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController)
 }
 

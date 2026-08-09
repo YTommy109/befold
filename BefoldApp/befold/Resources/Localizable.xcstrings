@@ -2074,6 +2074,40 @@
         }
       }
     },
+    "toolbar.mode.diff.inline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff (inline) — click again to split"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差分（インライン）— もう一度押すと左右に分割"
+          }
+        }
+      }
+    },
+    "toolbar.mode.diff.sideBySide": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff (side by side) — click again for inline"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "差分（左右に分割）— もう一度押すとインライン"
+          }
+        }
+      }
+    },
     "toolbar.mode.group": {
       "extractionState": "manual",
       "localizations": {

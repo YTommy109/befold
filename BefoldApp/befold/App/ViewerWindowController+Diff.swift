@@ -57,6 +57,10 @@ extension ViewerWindowController {
     @objc func toggleDiffLayout(_ sender: Any?) {
         guard capabilities.canToggleDiffLayout else { return }
         diffDisplayPreference.layout = diffDisplayPreference.layout == .sideBySide ? .inline : .sideBySide
+        // ツールバーの差分セグメントはこの値をアイコンで映すが、view ベースのアイテムは
+        // 状態変化で自動更新されない。設定はアプリ全体共有なので、自窓だけでなく
+        // 全窓を再同期する(委譲先: ViewerWindowManager)。
+        delegate?.viewerWindowDidToggleDiffLayout(self)
     }
 
     /// 差分表示モードかどうか(メニューのチェック表示に使う)。
