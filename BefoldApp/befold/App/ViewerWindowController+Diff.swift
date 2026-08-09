@@ -51,7 +51,7 @@ extension ViewerWindowController {
         return text
     }
 
-    /// View メニュー > 差分を左右に並べる（⌘4）。インラインと左右分割を切り替える。
+    /// View メニュー > 差分を左右に並べる（⌘\\）。インラインと左右分割を切り替える。
     /// レイアウトはアプリ全体で共有する好みの設定なので、差分表示中の全ウィンドウへ反映される
     /// （`DiffDisplayPreference` が `@Observable` で 1 個を共有しているため自動）。
     @objc func toggleDiffLayout(_ sender: Any?) {
@@ -73,7 +73,7 @@ extension ViewerWindowController {
         diffDisplayPreference.layout == .sideBySide
     }
 
-    /// 表示モード選択(⌘1〜⌘3)とレイアウト切替(⌘4)の validate。
+    /// 表示モード選択(⌘1〜⌘3)とレイアウト切替(⌘\\)の validate。
     /// 自分の担当外の項目には nil を返し、呼び出し側(validateMenuItem)の判定を続けさせる。
     func validateDisplayModeItem(_ menuItem: NSMenuItem) -> Bool? {
         if menuItem.action == #selector(selectDisplayMode(_:)) {

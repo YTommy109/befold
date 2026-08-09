@@ -26,7 +26,7 @@ const RENDER_MODE_LABEL: Record<RenderMode, { ja: string; en: string }> = {
 /**
  * キーボードショートカット。stable ビルドで必ず存在するものだけを載せる。
  *
- * 表示モードの ⌘1〜⌘4 はフィーチャーゲートで項目数が変わる（MainMenuBuilder の
+ * 表示モードの ⌘1〜⌘3 はフィーチャーゲートで項目数が変わる（MainMenuBuilder の
  * `addDisplayModeItems`）ため、確定するまでここには書かない。
  * 実装（MainMenuBuilder.swift）とのずれは test/shortcuts.test.ts が検知する。
  */

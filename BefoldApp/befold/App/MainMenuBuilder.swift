@@ -273,7 +273,7 @@ enum MainMenuBuilder {
     }
 
     /// ソース表示の git 差分に関する項目。フィーチャーゲートが無効なビルドでは足さない。
-    /// 表示モードの選択項目(⌘1〜⌘3)と差分レイアウトの切替(⌘4)を View メニューへ足す。
+    /// 表示モードの選択項目(⌘1〜⌘3)と差分レイアウトの切替(⌘\\)を View メニューへ足す。
     ///
     /// どのモードを選ぶ項目かは NSMenuItem.tag が運ぶため、項目ごとにセレクタを増やさない。
     /// 差分とレイアウトはフィーチャーゲートの内側で、stable ビルドでは項目自体が出ない。
@@ -295,7 +295,7 @@ enum MainMenuBuilder {
         menu.addLocalizedItem(
             "menu.view.diffSideBySide",
             action: #selector(ViewerWindowController.toggleDiffLayout(_:)),
-            keyEquivalent: "4",
+            keyEquivalent: "\\",
             modifiers: [.command]
         )
     }

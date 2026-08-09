@@ -27,7 +27,7 @@ import BefoldCLI
 /// - `ViewerWindowController+Diff.isDiffShown`
 ///   — 表示モード(ファイル単位のユーザー選択)とビルドゲートが別物であることの注記のみ。
 /// - `MainMenuBuilder.addDisplayModeItems(to:)`
-///   — View メニューの「差分を表示」(⌘3)「差分を左右に並べる」(⌘4)項目。
+///   — View メニューの「差分を表示」(⌘3)「差分を左右に並べる」(⌘\\)項目。
 /// - `ViewerToolbarController.ModeSegments` / `ViewerToolbarController.layout(isSourceDiffEnabled:)`
 ///   — ツールバーのモード切替セグメントに差分を並べるか、および差分レイアウトの
 ///     トグルアイテムを構成に載せるか。無効時は 2 セグメントでトグルも存在しない。

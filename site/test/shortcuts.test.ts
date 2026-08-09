@@ -89,7 +89,7 @@ const EXPECTED_MENU_ITEMS: {
   },
   {
     localizationKey: 'menu.view.diffSideBySide',
-    keyEquivalent: '"4"',
+    keyEquivalent: '"\\\\"',
     modifiers: ['.command'],
   },
 ]
@@ -103,7 +103,8 @@ const GATED_LOCALIZATION_KEYS = new Set(['menu.view.showChangedFilesOnly', 'menu
 /** `BookmarkShortcut.keyEquivalent` のような定数参照を、実際のキーへ解決する。 */
 function resolveKeyEquivalent(expression: string): string | null {
   const literal = /^"(.*)"$/.exec(expression)?.[1]
-  if (literal !== undefined) return literal
+  // Swift のエスケープを戻す（差分レイアウトの `"\\"` は 1 文字の `\`）。
+  if (literal !== undefined) return literal.replace(/\\(.)/g, '$1')
 
   const constant = /^BookmarkShortcut\.([A-Za-z0-9_]+)$/.exec(expression)?.[1]
   if (constant === undefined) return null

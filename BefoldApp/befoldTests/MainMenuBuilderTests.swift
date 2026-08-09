@@ -142,7 +142,7 @@ struct MainMenuBuilderTests {
         }
     }
 
-    /// 表示モードの選択(⌘1〜⌘3)とレイアウト切替(⌘4)。差分は開発中機能なので、
+    /// 表示モードの選択(⌘1〜⌘3)とレイアウト切替(⌘\\)。差分は開発中機能なので、
     /// 露出はフィーチャーゲートと一致しなければならない(解除タスクは未起票)。
     @Test("View メニューの表示モード項目は ⌘1〜⌘3、差分とレイアウトはゲートと同じ有無になる")
     func viewMenuHasDisplayModeItems() throws {
@@ -161,7 +161,7 @@ struct MainMenuBuilderTests {
         let layout = view.items.first { $0.action == #selector(ViewerWindowController.toggleDiffLayout(_:)) }
         #expect((layout != nil) == FeatureGate.isSourceDiffEnabled)
         if let layout {
-            #expect(layout.keyEquivalent == "4")
+            #expect(layout.keyEquivalent == "\\")
             #expect(layout.keyEquivalentModifierMask == [.command])
         }
     }
@@ -182,14 +182,14 @@ struct MainMenuBuilderTests {
         #expect(modes.contains(.diff) == isSourceDiffEnabled)
         #expect(Array(modes.prefix(2)) == [.rendered, .source])
 
-        // メニュー側。⌘1〜⌘3 とレイアウト(⌘4)の有無が同じ判定に従う。
+        // メニュー側。⌘1〜⌘3 とレイアウト(⌘\\)の有無が同じ判定に従う。
         let menu = NSMenu()
         MainMenuBuilder.addDisplayModeItems(to: menu, isSourceDiffEnabled: isSourceDiffEnabled)
         let modeItems = menu.items.filter { $0.action == #selector(ViewerWindowController.selectDisplayMode(_:)) }
         #expect(modeItems.map(\.keyEquivalent) == modes.map { String($0.menuItemTag) })
         let layout = menu.items.first { $0.action == #selector(ViewerWindowController.toggleDiffLayout(_:)) }
         #expect((layout != nil) == hasLayout)
-        #expect(layout?.keyEquivalent == (hasLayout ? "4" : nil))
+        #expect(layout?.keyEquivalent == (hasLayout ? "\\" : nil))
     }
 
     /// 差分が ⌘3 へ移ったので ⌘D は空き、ブックマークはビルド種別によらず ⌘D に固定される。
