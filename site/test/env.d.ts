@@ -9,6 +9,9 @@ declare global {
       TEST_FILE_TYPE_SWIFT: string
       TEST_CONTENT_LOADER_SWIFT: string
       TEST_NORMALIZED_TEXT_CACHE_SWIFT: string
+      /** ショートカット表のずれ検知に使う、メインメニュー定義とその参照先の定数。 */
+      TEST_MAIN_MENU_BUILDER_SWIFT: string
+      TEST_BOOKMARK_SHORTCUT_SWIFT: string
     }
   }
 }

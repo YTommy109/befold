@@ -26,9 +26,9 @@ const RENDER_MODE_LABEL: Record<RenderMode, { ja: string; en: string }> = {
 /**
  * キーボードショートカット。stable ビルドで必ず存在するものだけを載せる。
  *
- * 表示モードの ⌘1〜⌘4 はフィーチャーゲートで項目数が変わる（MainMenuBuilder の
+ * 表示モードの ⌘1〜⌘3 はフィーチャーゲートで項目数が変わる（MainMenuBuilder の
  * `addDisplayModeItems`）ため、確定するまでここには書かない。
- * 実装とのずれ検知は TASK-384 で入れる。
+ * 実装（MainMenuBuilder.swift）とのずれは test/shortcuts.test.ts が検知する。
  */
 export const SHORTCUTS: { keys: string; ja: string; en: string }[] = [
   { keys: '⌘O', ja: 'ファイル / フォルダを開く', en: 'Open a file or folder' },

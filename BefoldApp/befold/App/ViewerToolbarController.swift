@@ -16,9 +16,10 @@ protocol ViewerToolbarHost: AnyObject {
     func setDisplayMode(_ newValue: ViewerDisplayMode)
     /// そのモードをいま選べるか(セグメントごとの有効/無効に使う)。
     func canSelect(_ mode: ViewerDisplayMode) -> Bool
-    /// 差分レイアウト(上下/左右)の切替。ツールバーのレイアウトトグルから呼ばれる。
+    /// 差分レイアウト(インライン/左右分割)の切替。差分表示中に差分セグメントを
+    /// 再クリックしたときに呼ばれる。
     func toggleDiffLayout(_ sender: Any?)
-    /// 差分レイアウトが左右分割か。トグルのアイコン・色に使う。
+    /// 差分レイアウトが左右分割か。差分セグメントのアイコン・説明に使う。
     var isDiffLayoutSideBySide: Bool { get }
     /// 戻る/進むアイテム・メニュー表現から呼ばれる履歴ナビゲーション。
     func navigateHistory(by offset: Int)
@@ -28,40 +29,6 @@ protocol ViewerToolbarHost: AnyObject {
     var isBookmarked: Bool { get }
     /// ブックマークボタン・メニュー表現から呼ばれるブックマークトグル。
     func toggleBookmark(_ sender: Any?)
-}
-
-/// モード切替セグメントに並べる表示モードと、その順序。
-///
-/// セグメントの添字はこの配列の添字で解決し、`ViewerDisplayMode` の値そのものからは導かない。
-/// 差分セグメントはフィーチャーゲートが無効なビルドでは**存在しない**ため、
-/// モードと添字の対応が固定ではないからである(添字を列挙の rawValue に直結させると、
-/// stable ビルドでソースを選んだつもりで差分が選ばれるような静かな取り違えになる)。
-@MainActor
-enum ModeSegments {
-    static let all: [ViewerDisplayMode] = modes(isSourceDiffEnabled: FeatureGate.isSourceDiffEnabled)
-
-    /// テスト可能な純粋判定。実ビルドではゲートが片側に固定されるため、両分岐はここで検証する
-    /// （ゲート越しの検証は動いているビルドの側しか通らない）。
-    static func modes(isSourceDiffEnabled: Bool) -> [ViewerDisplayMode] {
-        isSourceDiffEnabled ? [.rendered, .source, .diff] : [.rendered, .source]
-    }
-
-    /// セグメントの表示に使う SF Symbol 名とツールチップのローカライズキー。
-    static func symbol(for mode: ViewerDisplayMode) -> String {
-        switch mode {
-        case .rendered: "doc.richtext"
-        case .source: "chevron.left.forwardslash.chevron.right"
-        case .diff: "plus.forwardslash.minus"
-        }
-    }
-
-    static func labelKey(for mode: ViewerDisplayMode) -> String.LocalizationValue {
-        switch mode {
-        case .rendered: "toolbar.mode.preview"
-        case .source: "toolbar.mode.source"
-        case .diff: "toolbar.mode.diff"
-        }
-    }
 }
 
 /// ツールバーアイテム 1 つの identity(識別子・シンボル・ラベル・アクション・状態反映規則)を
@@ -124,74 +91,56 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     static let forwardItemIdentifier = NSToolbarItem.Identifier("historyForward")
     static let lineNumbersItemIdentifier = NSToolbarItem.Identifier("lineNumbers")
     static let bookmarkItemIdentifier = NSToolbarItem.Identifier("bookmark")
-    static let diffLayoutItemIdentifier = NSToolbarItem.Identifier("diffLayout")
 
-    /// 実ビルドのツールバー構成。生成・再同期・許可アイテム一覧はすべてここから導出する。
-    private static let layout: [ToolbarEntry] = layout(isSourceDiffEnabled: FeatureGate.isSourceDiffEnabled)
-
-    /// ゲート値を引数で受けるツールバー構成。この並びが既定の表示順になる。
-    /// 実ビルドではゲートが片側に固定されるため、両分岐はここで検証する
-    /// （`defaultItemIdentifiers(isSourceDiffEnabled:)` 経由）。
-    private static func layout(isSourceDiffEnabled: Bool) -> [ToolbarEntry] {
-        ([
-            .system(.toggleSidebar), .system(.sidebarTrackingSeparator),
-            .item(ToolbarItemSpec(
-                identifier: backItemIdentifier,
-                labelKey: "toolbar.back",
-                view: .historyButton(symbol: "chevron.left", offset: -1),
-                menuAction: #selector(goBackFromMenu(_:)),
-                // Finder と同じく、ナビゲーション項目としてウィンドウタイトル(ファイル名)より
-                // 先頭側(コンテンツ領域の左端)に配置する
-                isNavigational: true,
-                applyState: { $0.applyHistoryState(to: $1) }
-            )),
-            .item(ToolbarItemSpec(
-                identifier: forwardItemIdentifier,
-                labelKey: "toolbar.forward",
-                view: .historyButton(symbol: "chevron.right", offset: 1),
-                menuAction: #selector(goForwardFromMenu(_:)),
-                isNavigational: true,
-                applyState: { $0.applyHistoryState(to: $1) }
-            )),
-            .system(.flexibleSpace),
-            .item(ToolbarItemSpec(
-                identifier: lineNumbersItemIdentifier,
-                labelKey: "menu.view.showLineNumbers",
-                view: .button(symbol: "list.number", action: #selector(lineNumbersItemClicked(_:))),
-                menuAction: #selector(lineNumbersItemClicked(_:)),
-                applyState: { $0.applyLineNumbersState(to: $1) }
-            )),
-            .item(ToolbarItemSpec(
-                identifier: modeToggleItemIdentifier,
-                labelKey: "toolbar.mode.group",
-                view: .modeSegments,
-                menuAction: nil,
-                applyState: { $0.applyModeToggleState(to: $1) }
-            )),
-            // 差分レイアウトのトグルは差分機能そのものの一部なので、ゲートが無効なビルドでは
-            // layout に載せない(載せて無効化するのではなく、存在させない)。
-            isSourceDiffEnabled ? .item(ToolbarItemSpec(
-                identifier: diffLayoutItemIdentifier,
-                labelKey: "menu.view.diffSideBySide",
-                view: .button(symbol: "rectangle.split.2x1", action: #selector(diffLayoutItemClicked(_:))),
-                menuAction: #selector(diffLayoutItemClicked(_:)),
-                applyState: { $0.applyDiffLayoutState(to: $1) }
-            )) : nil,
-            .item(ToolbarItemSpec(
-                identifier: bookmarkItemIdentifier,
-                labelKey: "menu.view.addBookmark",
-                view: .button(symbol: "bookmark", action: #selector(bookmarkItemClicked(_:))),
-                menuAction: #selector(bookmarkItemClicked(_:)),
-                applyState: { $0.applyBookmarkState(to: $1) }
-            )),
-        ] as [ToolbarEntry?]).compactMap(\.self)
-    }
-
-    /// ゲート値ごとの既定アイテム並び。ゲート OFF 相当の構成
-    /// （差分レイアウト項目が存在しないこと）をライブなゲート値に依らず検証するための入口。
-    static func defaultItemIdentifiers(isSourceDiffEnabled: Bool) -> [NSToolbarItem.Identifier] {
-        layout(isSourceDiffEnabled: isSourceDiffEnabled).map(\.identifier)
-    }
+    /// ツールバー構成。この並びが既定の表示順になり、生成・再同期・許可アイテム一覧は
+    /// すべてここから導出する。
+    ///
+    /// 差分機能のフィーチャーゲートはこの構成を変えない。差分レイアウトの切替は
+    /// 独立したアイテムではなくモード切替セグメント（差分セグメントの再クリック）が担い、
+    /// 差分セグメント自体の有無は `ModeSegments.modes(isSourceDiffEnabled:)` が決めるため。
+    private static let layout: [ToolbarEntry] = [
+        .system(.toggleSidebar), .system(.sidebarTrackingSeparator),
+        .item(ToolbarItemSpec(
+            identifier: backItemIdentifier,
+            labelKey: "toolbar.back",
+            view: .historyButton(symbol: "chevron.left", offset: -1),
+            menuAction: #selector(goBackFromMenu(_:)),
+            // Finder と同じく、ナビゲーション項目としてウィンドウタイトル(ファイル名)より
+            // 先頭側(コンテンツ領域の左端)に配置する
+            isNavigational: true,
+            applyState: { $0.applyHistoryState(to: $1) }
+        )),
+        .item(ToolbarItemSpec(
+            identifier: forwardItemIdentifier,
+            labelKey: "toolbar.forward",
+            view: .historyButton(symbol: "chevron.right", offset: 1),
+            menuAction: #selector(goForwardFromMenu(_:)),
+            isNavigational: true,
+            applyState: { $0.applyHistoryState(to: $1) }
+        )),
+        .system(.flexibleSpace),
+        .item(ToolbarItemSpec(
+            identifier: lineNumbersItemIdentifier,
+            labelKey: "menu.view.showLineNumbers",
+            view: .button(symbol: "list.number", action: #selector(lineNumbersItemClicked(_:))),
+            menuAction: #selector(lineNumbersItemClicked(_:)),
+            applyState: { $0.applyLineNumbersState(to: $1) }
+        )),
+        .item(ToolbarItemSpec(
+            identifier: modeToggleItemIdentifier,
+            labelKey: "toolbar.mode.group",
+            view: .modeSegments,
+            menuAction: nil,
+            applyState: { $0.applyModeToggleState(to: $1) }
+        )),
+        .item(ToolbarItemSpec(
+            identifier: bookmarkItemIdentifier,
+            labelKey: "menu.view.addBookmark",
+            view: .button(symbol: "bookmark", action: #selector(bookmarkItemClicked(_:))),
+            menuAction: #selector(bookmarkItemClicked(_:)),
+            applyState: { $0.applyBookmarkState(to: $1) }
+        )),
+    ]
 
     /// ツールバーが所属するウィンドウ。生成済みアイテムの検索(window.toolbar.items)に使う。
     private weak var window: NSWindow?
@@ -232,21 +181,45 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     /// モード切替セグメントの選択状態・有効/無効を現在のファイル種別に合わせて反映する。
     /// プレビューできない種別(.code)ではソース側を、テキストソースを持たない
     /// バイナリ種別(画像・PDF)ではプレビュー側を、それぞれ選択済み・唯一の有効状態にする。
+    /// 差分セグメントのアイコン・ツールチップは現在の差分レイアウトで変わるため、
+    /// 生成時だけでなく再同期のたびに入れ直す(⌘\\ やメニューからの変更に追従させる)。
     private func applyModeToggleState(to item: NSToolbarItem) {
         guard let host, let segmentedControl = item.view as? NSSegmentedControl else { return }
+        let isSideBySide = host.isDiffLayoutSideBySide
         for (index, mode) in ModeSegments.all.enumerated() {
             segmentedControl.setEnabled(host.canSelect(mode), forSegment: index)
+            let label = Self.segmentLabel(for: mode, isSideBySide: isSideBySide)
+            segmentedControl.setImage(
+                Self.segmentImage(for: mode, isSideBySide: isSideBySide, label: label),
+                forSegment: index
+            )
+            segmentedControl.setToolTip(label, forSegment: index)
         }
         segmentedControl.selectedSegment = ModeSegments.all.firstIndex(of: host.effectiveDisplayMode) ?? 0
     }
 
-    /// 差分レイアウトトグルの有効/無効・オンオフ表示・ツールチップを反映する。
-    /// 差分表示を選んでいない間は無効にする(消すとツールバーの幅が動くため、出したまま無効化する)。
-    private func applyDiffLayoutState(to item: NSToolbarItem) {
-        guard let host, let button = item.view as? NSButton else { return }
-        button.isEnabled = host.capabilities.canToggleDiffLayout
-        button.contentTintColor = host.isDiffLayoutSideBySide ? .controlAccentColor : nil
-        item.toolTip = String(localized: "menu.view.diffSideBySide", bundle: .l10n)
+    /// セグメントのツールチップ兼アクセシビリティ説明。差分だけは現在のレイアウトまで伝える。
+    private static func segmentLabel(for mode: ViewerDisplayMode, isSideBySide: Bool) -> String {
+        mode == .diff
+            ? ViewerCommandTitles.diffMode(isSideBySide: isSideBySide)
+            : String(localized: ModeSegments.labelKey(for: mode), bundle: .l10n)
+    }
+
+    /// セグメントのアイコン。`refreshToolbarState` は再読込のたびに走るため、
+    /// シンボル名ごとに 1 枚だけ作って使い回す。
+    private static var segmentImages: [String: NSImage] = [:]
+
+    /// シンボル名ごとに 1 枚だけ作って使い回すため、同じ (mode, isSideBySide) からは
+    /// 常に同一インスタンスが返る。テストはこの同一性でアイテムへの反映を確かめる。
+    static func segmentImage(for mode: ViewerDisplayMode, isSideBySide: Bool, label: String) -> NSImage {
+        let symbol = ModeSegments.symbol(for: mode, isSideBySide: isSideBySide)
+        if let cached = segmentImages[symbol] {
+            cached.accessibilityDescription = label
+            return cached
+        }
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)!
+        segmentImages[symbol] = image
+        return image
     }
 
     /// 行番号アイテムの有効/無効・オンオフ表示・ツールチップを現在の表示状態に合わせて反映する。
@@ -276,15 +249,17 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     // MARK: - Action Targets
 
     /// モード切替セグメントコントロールの選択変更を受けて呼ばれる。
+    /// 差分表示中に差分セグメントを押し直した場合だけ、モード選択ではなく
+    /// レイアウト切替として扱う。「すでに差分だったか」は host の状態で判定する
+    /// (sender.selectedSegment は AppKit がクリック時点で更新済みのため、
+    /// 押す前の状態を知る手掛かりにならない)。
     @objc private func modeSegmentChanged(_ sender: NSSegmentedControl) {
         let index = sender.selectedSegment
-        guard ModeSegments.all.indices.contains(index) else { return }
-        host?.setDisplayMode(ModeSegments.all[index])
-    }
-
-    /// 差分レイアウトボタン・メニュー表現の共通アクション。host へトグルを委譲する。
-    @objc private func diffLayoutItemClicked(_ sender: Any?) {
-        host?.toggleDiffLayout(sender)
+        guard ModeSegments.all.indices.contains(index), let host else { return }
+        switch ModeSegments.action(for: ModeSegments.all[index], current: host.effectiveDisplayMode) {
+        case .toggleDiffLayout: host.toggleDiffLayout(sender)
+        case let .select(mode): host.setDisplayMode(mode)
+        }
     }
 
     /// 行番号ボタン・メニュー表現の共通アクション。host へトグルを委譲する。
@@ -365,22 +340,28 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     /// レンダリング/ソース(/差分)のモード切替セグメントコントロールを生成する。
     /// セグメントの並びと個数は ModeSegments.all だけが決める。
     private func makeModeSegmentedControl() -> NSSegmentedControl {
-        let labels = ModeSegments.all.map { String(localized: ModeSegments.labelKey(for: $0), bundle: .l10n) }
+        let isSideBySide = host?.isDiffLayoutSideBySide ?? false
+        let labels = ModeSegments.all.map { Self.segmentLabel(for: $0, isSideBySide: isSideBySide) }
         let images = zip(ModeSegments.all, labels).map { mode, label in
-            NSImage(systemSymbolName: ModeSegments.symbol(for: mode), accessibilityDescription: label)!
+            Self.segmentImage(for: mode, isSideBySide: isSideBySide, label: label)
         }
-        // ラベル文字列は状態に関わらず固定なので、セグメント幅が切替でジッターしない。
         let segmentedControl = NSSegmentedControl(
             images: images,
             trackingMode: .selectOne,
             target: self,
             action: #selector(modeSegmentChanged(_:))
         )
+        // 差分セグメントはレイアウトでアイコンが入れ替わる。シンボルごとの
+        // 固有幅に引きずられてセグメント幅が動かないよう、幅を明示的に固定する。
         for (index, label) in labels.enumerated() {
+            segmentedControl.setWidth(Self.segmentWidth, forSegment: index)
             segmentedControl.setToolTip(label, forSegment: index)
         }
         return segmentedControl
     }
+
+    /// セグメント 1 つ分の幅。アイコンが入れ替わっても幅が動かないよう固定する。
+    private static let segmentWidth: CGFloat = 32
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         Self.layout.map(\.identifier)

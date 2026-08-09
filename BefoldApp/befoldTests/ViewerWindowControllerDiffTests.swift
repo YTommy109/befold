@@ -114,6 +114,30 @@ struct ViewerWindowControllerDiffTests {
         #expect(preference.layout == .inline)
     }
 
+    /// レイアウトはツールバーの差分セグメントのアイコンが映す唯一の値だが、view ベースの
+    /// アイテムは状態変化で自動更新されない(ADR 0002)。全ウィンドウの再同期はこの通知に
+    /// 乗っているため、通知が落ちるとアイコンだけ前のレイアウトのまま取り残される。
+    @Test("レイアウトを切り替えたらウィンドウ管理層へ通知する（効かなかったときは通知しない）")
+    func notifiesDelegateOnlyWhenLayoutActuallyToggles() {
+        let preference = makePreference()
+        let controller = makeController(preference: preference)
+        defer { controller.close() }
+        let delegate = MockViewerWindowControllerDelegate()
+        controller.delegate = delegate
+        controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
+        controller.fileListModel.selection = file
+
+        // 差分表示でないときは切り替わらないので、通知もしない。
+        controller.store.displayMode = .source
+        controller.toggleDiffLayout(nil)
+        #expect(delegate.diffLayoutToggleCount == 0)
+
+        controller.store.displayMode = .diff
+        controller.toggleDiffLayout(nil)
+        #expect(preference.layout == .sideBySide)
+        #expect(delegate.diffLayoutToggleCount == 1)
+    }
+
     /// AC#2 / AC#3: バッジの更新契機(`.git/index` 変更・キーウィンドウ化・保存)は
     /// すべて git 状態の反映を通るため、そこに差分をぶら下げてある。
     /// git commit 後にコミット済みの差分が消えるのは、この経路が動くことに依存する。

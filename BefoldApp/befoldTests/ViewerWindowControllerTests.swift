@@ -15,6 +15,9 @@ final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
     var switchFileArgs: (old: URL, new: URL)?
     var toggleHiddenFilesCalled = false
     var toggleChangedFilesOnlyCalled = false
+    /// 差分レイアウト切替の通知回数。全ウィンドウのツールバー再同期がこの通知に
+    /// 乗っているため、「切り替えたのに通知されない」= アイコンが取り残される。
+    private(set) var diffLayoutToggleCount = 0
     /// 表示モード変更は「通知したか」だけでなく、届いたモードを順に記録する(同一ファイルの
     /// 他ウィンドウへ配るのは ViewerWindowManager の責務で、コントローラ側が二重に通知して
     /// いないこと・変化しない選択で通知していないことを見たいため)。
@@ -42,6 +45,10 @@ final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
 
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
         toggleHiddenFilesCalled = true
+    }
+
+    func viewerWindowDidToggleDiffLayout(_ controller: ViewerWindowController) {
+        diffLayoutToggleCount += 1
     }
 
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {

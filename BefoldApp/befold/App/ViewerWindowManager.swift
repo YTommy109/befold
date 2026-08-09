@@ -512,4 +512,8 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {
         toggleChangedFilesOnly()
     }
+
+    func viewerWindowDidToggleDiffLayout(_ controller: ViewerWindowController) {
+        refreshAllToolbars()
+    }
 }

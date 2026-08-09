@@ -17,6 +17,11 @@ const FILE_TYPE_SWIFT = path.join(KIT, 'FileType.swift')
 const CONTENT_LOADER_SWIFT = path.join(KIT, 'ContentLoader.swift')
 const NORMALIZED_TEXT_CACHE_SWIFT = path.join(KIT, 'NormalizedTextCache.swift')
 
+/** キーボードショートカット表が参照する、メインメニュー定義とその参照先の定数。 */
+const APP = path.join(import.meta.dirname, '..', 'BefoldApp', 'befold', 'App')
+const MAIN_MENU_BUILDER_SWIFT = path.join(APP, 'MainMenuBuilder.swift')
+const BOOKMARK_SHORTCUT_SWIFT = path.join(APP, 'BookmarkShortcut.swift')
+
 export default defineConfig({
   plugins: [
     cloudflareTest(async () => {
@@ -26,6 +31,8 @@ export default defineConfig({
       const fileTypeSwift = await readFile(FILE_TYPE_SWIFT, 'utf8')
       const contentLoaderSwift = await readFile(CONTENT_LOADER_SWIFT, 'utf8')
       const normalizedTextCacheSwift = await readFile(NORMALIZED_TEXT_CACHE_SWIFT, 'utf8')
+      const mainMenuBuilderSwift = await readFile(MAIN_MENU_BUILDER_SWIFT, 'utf8')
+      const bookmarkShortcutSwift = await readFile(BOOKMARK_SHORTCUT_SWIFT, 'utf8')
 
       return {
         singleWorker: true,
@@ -37,6 +44,8 @@ export default defineConfig({
             TEST_FILE_TYPE_SWIFT: fileTypeSwift,
             TEST_CONTENT_LOADER_SWIFT: contentLoaderSwift,
             TEST_NORMALIZED_TEXT_CACHE_SWIFT: normalizedTextCacheSwift,
+            TEST_MAIN_MENU_BUILDER_SWIFT: mainMenuBuilderSwift,
+            TEST_BOOKMARK_SHORTCUT_SWIFT: bookmarkShortcutSwift,
             DASHBOARD_USER: 'owner',
             DASHBOARD_PASSWORD: 'test-password',
           },

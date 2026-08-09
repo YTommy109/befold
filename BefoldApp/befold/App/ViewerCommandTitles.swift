@@ -20,6 +20,15 @@ enum ViewerCommandTitles {
             : String(localized: "menu.view.addBookmark", bundle: .l10n)
     }
 
+    /// モード切替セグメントの差分。現在のレイアウト（インライン / 左右分割）まで伝える。
+    /// セグメントは選択中に再クリックするとレイアウトが切り替わるため、
+    /// 「いまどちらか」を説明とツールチップで示す必要がある。
+    static func diffMode(isSideBySide: Bool) -> String {
+        isSideBySide
+            ? String(localized: "toolbar.mode.diff.sideBySide", bundle: .l10n)
+            : String(localized: "toolbar.mode.diff.inline", bundle: .l10n)
+    }
+
     /// View > ソース表示。ソース表示中なら「レンダリング表示へ」、それ以外なら「ソース表示へ」。
     static func sourceView(isSourceMode: Bool) -> String {
         isSourceMode
