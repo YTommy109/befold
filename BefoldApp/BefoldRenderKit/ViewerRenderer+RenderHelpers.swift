@@ -132,6 +132,11 @@ extension ViewerRenderer {
                 completionHandler: nil
             )
         }
+        // 次の render が表示する文書パスの予告。JS は render 開始時に採用し、以後の
+        // スクロール通知の保存キー(payload の path)として位置と同じターンで読んで返す。
+        // 切替以外の再描画でも毎回送る(viewer.html 再ロードで JS 状態が飛んでも
+        // 次の render で自己修復させるため)。
+        webView.evaluateJavaScript(ViewerBridge.renderDocPathScript(filePath), completionHandler: nil)
         if restoreFromPersistedPosition {
             webView.evaluateJavaScript(
                 ViewerBridge.restoreScrollPositionScript(scrollPositionToRestore), completionHandler: nil
@@ -157,6 +162,29 @@ extension ViewerRenderer {
     /// 変えたい呼び出し元は、現在の `rendered` を複製して書き換えてから渡すこと。
     func recordRendered(_ state: RenderedStateMirror) {
         rendered = state
+    }
+
+    /// ファイルの rename / move を描画状態へ追随させる。DOM は同一文書のまま名前だけが
+    /// 変わるため、再描画はせず「描画済みミラーの filePath」と「JS 側の文書パス」を
+    /// 同じ同期区間で差し替える。
+    ///
+    /// - ミラーが新パスを指すことで、後続の再ロードは同一ファイルの再描画になり
+    ///   (`isFileOrModeSwitch` が false)、保存済みスクロール位置は注入されない。
+    ///   viewer.js は render 直前の scrollTop を fallback に使うため現在位置がそのまま保たれる
+    ///   (提示開始時の保存値へ巻き戻さない = TASK-390)。
+    /// - JS 側の文書パスも即時に差し替えるため、リネーム再描画の確定前に発火した
+    ///   スクロール通知も新パスをキーに保存される(旧パスのキーは
+    ///   `perFileState.migrate` 済みで、もう読まれない = TASK-393)。
+    ///
+    /// 描画済みの文書が oldURL と別(未描画・別文書へ切替中)の場合は何もしない。
+    public func handleRename(from oldURL: URL, to newURL: URL) {
+        guard rendered.filePath?.normalizedPathKey == oldURL.normalizedPathKey else { return }
+        var state = rendered
+        state.filePath = newURL
+        recordRendered(state)
+        webView?.evaluateJavaScript(
+            ViewerBridge.renameDocPathScript(from: oldURL, to: newURL), completionHandler: nil
+        )
     }
 
     /// pendingAppend(段階読み込みでステージされた次チャンク)を全文 render せず増分描画して

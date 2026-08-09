@@ -1,6 +1,7 @@
 import AppKit
 @testable import befold
 import BefoldKit
+@testable import BefoldRenderKit
 import BefoldTestSupport
 import Foundation
 import Testing
@@ -262,6 +263,26 @@ extension ViewerWindowControllerTests {
         controller.handleRename(from: controller.fileURL, to: renamed)
 
         #expect(controller.isSourceMode == expectedSourceMode)
+    }
+
+    /// handleRename → webViewCommands.noteRename → WebViewProxy.renderer の配線を固定する。
+    /// この配線が切れると、リネーム再ロードがファイル切替として扱われて保存済み
+    /// スクロール位置が注入され、現在位置が提示開始時の値へ巻き戻る(TASK-390)。
+    /// また再描画確定までのスクロール通知が migrate 済みの旧パスのキーへ保存される(TASK-393)。
+    @Test("handleRename が描画済みミラーの filePath を新パスへ追随させる")
+    func renameRetargetsRendererMirrorFilePath() {
+        let file = URL(fileURLWithPath: "/mock/note.md")
+        let controller = makeSwitchController(primary: file, contents: "# hi")
+        defer { controller.close() }
+        // 本番では ViewerWebView.makeNSView が結ぶ renderer を、テストでは直接差し込む。
+        let renderer = ViewerRenderer()
+        renderer.rendered.filePath = file
+        controller.webViewProxy.renderer = renderer
+        let renamed = URL(fileURLWithPath: "/mock/renamed.md")
+
+        controller.handleRename(from: file, to: renamed)
+
+        #expect(renderer.rendered.filePath == renamed)
     }
 
     @Test("switchFile で履歴が積まれ戻ると元ファイルに復帰する")

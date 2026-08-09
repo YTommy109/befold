@@ -79,9 +79,11 @@ extension ViewerRenderer {
               let modeString = payload[ScrollKey.mode.rawValue] as? String,
               let mode = ViewerBridge.ViewMode(rawValue: modeString)
         else { return }
-        // キーにする文書は、通知の出所である DOM が写している文書(描画済みミラー)。
-        // ホスト側の現在 URL ではない(理由は ViewerRendererDelegate の doc / TASK-389)。
-        delegate?.renderer(self, didChangeScrollPosition: position, for: rendered.filePath, mode: mode)
+        // キーにする文書は、JS が payload の path で申告する「位置を読んだ時点で DOM に
+        // 出ていた文書」。ホスト側の現在 URL(TASK-389)からも、Swift 側の描画済みミラー
+        // (キューや配達の遅延で実 DOM とずれる = TASK-393)からも推定しない。
+        let url = (payload[ScrollKey.path.rawValue] as? String).map { URL(fileURLWithPath: $0) }
+        delegate?.renderer(self, didChangeScrollPosition: position, for: url, mode: mode)
     }
 
     private func handleFindOptionsChanged(body: Any) {

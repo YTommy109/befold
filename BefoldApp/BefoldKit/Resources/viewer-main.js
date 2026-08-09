@@ -1199,14 +1199,22 @@
   // ようにするための固定サイズの先読み(詳細は codeChunkInnerHtml 参照)。
   var CODE_CHUNK_CONTEXT_LINES = 200;
 
-  // スクロール位置の受け渡しを 1 つの owner に閉じる。持つのは 2 つ:
+  // スクロール位置の受け渡しを 1 つの owner に閉じる。持つのは 3 つ:
   // - 注入された復元位置: Swift 側(ViewerWebView)が render() 呼び出しの直前に評価し、
   //   次の render() が復元すべき scrollTop を渡してくる。復元時に消費する。
   // - 通知デバウンスのタイマ: スクロールイベントを 200ms まとめて Swift へ送る。
-  // この 2 つは描画開始時に組み合わせて判定する(beginRender 参照)ため同じ owner に置く。
+  // - 文書パス: スクロール通知の保存キーになる「いま DOM に出ている文書」。
+  //   位置(scrollTop)と同じターンで読んで payload に載せるため、evaluateJavaScript の
+  //   キューや postMessage 配達の遅延と無関係に実 DOM と一致する(Swift 側の
+  //   描画済みミラーから配達時に推定するのをやめた理由 = TASK-393)。
+  // これらは描画開始時に組み合わせて判定・採用する(beginRender 参照)ため同じ owner に置く。
   function _createScrollSync(notify) {
     var pendingRestore = null;
     var debounceTimer = null;
+    var docPath = null;
+    // undefined = 予告なし(Swift を経由しない内部再描画)。null は「文書パス無し」の予告。
+    // 区別しないと、カラースキーム変更などの内部 render() が採用済みのパスを破棄してしまう。
+    var pendingDocPath;
 
     function cancelPendingNotify() {
       if (debounceTimer === null) { return; }
@@ -1216,12 +1224,31 @@
 
     return {
       setRestore: function(position) { pendingRestore = position; },
+      // 次の render() が表示する文書パスの予告。採用は beginRender で行う
+      // (ここで即時に切り替えると、render script の実行前にデバウンスが発火したとき
+      // 旧文書の位置が新パスのキーで通知される)。
+      setRenderDocPath: function(path) { pendingDocPath = path; },
+      // rename / move の追随。DOM は同一文書のまま名前だけ変わるため render を経ずに
+      // 即時差し替える。現在値・予告値のうち from に一致するものだけを書き換える
+      // (不一致 = 別文書へ切替中なら何もしない。誤った付け替えより、旧キーへの
+      // 短時間の保存のほうが安全)。
+      renameDocPath: function(from, to) {
+        if (docPath === from) { docPath = to; }
+        if (pendingDocPath === from) { pendingDocPath = to; }
+      },
+      docPath: function() { return docPath; },
       // 復元位置が注入されている(=Swift 主導のファイル/モード切替)ときだけ保留中の
       // デバウンス通知を破棄する。無条件に破棄すると、Swift を経由しない内部再描画
       // (カラースキーム変更時など、ファイル/モードは変わらない)で直前のスクロール確定
       // 保存が失われたまま二度と発火しなくなるため。
+      // 文書パスの採用も同じ時点で行う。破棄と採用が同時なので、旧文書の位置が
+      // 新パスのキーで通知されることはない。
       beginRender: function() {
         if (pendingRestore !== null) { cancelPendingNotify(); }
+        if (pendingDocPath !== undefined) {
+          docPath = pendingDocPath;
+          pendingDocPath = undefined;
+        }
       },
       // 注入された復元位置があればそれを、無ければ fallback を返して消費する。
       // fallback は Swift を経由しない内部再描画で現在位置を保つための値。
@@ -1246,15 +1273,26 @@
     _mmdScroll.setRestore(position);
   }
 
+  function _mmdSetRenderDocPath(path) {
+    _mmdScroll.setRenderDocPath(path);
+  }
+
+  function _mmdRenameDocPath(from, to) {
+    _mmdScroll.renameDocPath(from, to);
+  }
+
   // スクロール位置の変化を Swift 側へ通知する(継続的な保存用、200ms デバウンス経由でのみ呼ばれる)。
   // ファイル/モード切替直前の退場側位置は、Swift 側(ViewerWindowController)が
   // 切替処理の中で明示的に旧 URL・旧モードのキーへ確定保存するため、ここでは扱わない。
+  // path はこの位置が属する文書(いま DOM に出ている文書)。文書が定まらない間は null で、
+  // Swift 側はその通知を捨てる。
   function _mmdPostScrollPosition() {
     var el = _mmdScrollTarget();
     if (!el) return;
     _mmdPostMessage(_MSG_SCROLL_POSITION_CHANGED, {
       position: el.scrollTop,
-      mode: _mmdViewOptions.mode()
+      mode: _mmdViewOptions.mode(),
+      path: _mmdScroll.docPath()
     });
   }
 
@@ -1817,6 +1855,8 @@
       _mmdFindPrevIfOpen: _mmdFindPrevIfOpen,
       _mmdFindRefresh: _mmdFindRefresh,
       _mmdSetRestoreScroll: _mmdSetRestoreScroll,
+      _mmdSetRenderDocPath: _mmdSetRenderDocPath,
+      _mmdRenameDocPath: _mmdRenameDocPath,
       _mmdRestoreScrollPosition: _mmdRestoreScrollPosition,
       _mmdPostScrollPosition: _mmdPostScrollPosition,
       _mmdSetTruncated: _mmdSetTruncated,

@@ -61,6 +61,8 @@ struct ViewerBridgeContractTests {
         // 多層防御する(Swift 側はハンドラ未登録、JS 側はここで呼び出し自体を抑止)。
         #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')"))
         #expect(html.contains("function _mmdSetRestoreScroll(position)"))
+        #expect(html.contains("function _mmdSetRenderDocPath(path)"))
+        #expect(html.contains("function _mmdRenameDocPath(from, to)"))
         // _mmdCloseFind / _mmdLoadMore は Swift から呼ばない JS 内部専用の関数だが、
         // 検索バーの Esc・バナーのボタン配線が生きていることをここで確認する。
         #expect(html.contains("function _mmdCloseFind()"))

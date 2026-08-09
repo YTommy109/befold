@@ -87,7 +87,9 @@ final class ViewerWindowController: NSWindowController {
     private var swipeMonitor: SwipeHistoryMonitor!
     /// ツールバー(モード切替・戻る/進む・行番号)の構築とライブ状態更新を担う。
     private(set) var toolbarController: ViewerToolbarController!
-    private let webViewProxy = WebViewProxy()
+    /// テスト(@testable)が renderer を差し込んで rename 追随の配線を検証できるよう
+    /// private にしない(本体アプリのコードからは ViewerWebView の配線経由でのみ使う)。
+    let webViewProxy = WebViewProxy()
     /// WebView 操作系メニューアクション(ズーム・印刷・検索・スクロール位置保存)の実処理。
     private var webViewCommands: WebViewCommandController!
     /// cmd+U でソース系モードを離れた直前の「どのソース系モードだったか」と、その時のファイル。
@@ -411,6 +413,11 @@ final class ViewerWindowController: NSWindowController {
         // 実体は同じファイルなので旧パスの表示状態(倍率・表示モード・スクロール位置)を
         // 新パスへまとめて引き継ぐ(旧パスはもう存在しない)。
         perFileState.migrate(from: oldURL, to: newURL)
+        // 描画状態(描画済みミラー・JS 側の文書パス)も同じ同期区間で新パスへ追随させる。
+        // 呼ばないと、リネーム再描画がファイル切替として扱われてスクロール位置が
+        // 提示開始時の保存値へ巻き戻り(TASK-390)、再描画確定までのスクロール通知が
+        // migrate 済みの旧パスのキーへ保存される(TASK-393)。
+        webViewCommands.noteRename(from: oldURL, to: newURL)
         // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
         // (例: .md → .png)そのモードが成立しなくなる場合は降格する。
         // store.handleRename が予約した非同期読み込みの完了後に onContentReloaded が
@@ -494,39 +501,6 @@ final class ViewerWindowController: NSWindowController {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError()
-    }
-}
-
-// MARK: - Window / Content Helpers
-
-extension ViewerWindowController {
-    /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
-    /// handleRename / switchFile 共通の表示更新。現在 URL 自体は store が保持するため
-    /// ここでは複製・代入せず、ウィンドウの見た目だけを追従させる。
-    private func applyURLToWindow(_ newURL: URL) {
-        guard let window else { return }
-        window.title = newURL.lastPathComponent
-        window.representedURL = newURL
-    }
-
-    /// 既存のビューアウィンドウと位置が完全に一致する場合だけ、標準のカスケード量ずらす。
-    /// cascadeTopLeft(from:) は移動先を戻り値で返すため、戻り値を自分に適用する。
-    /// ずらした先が別ウィンドウと一致することがあるので、重ならなくなるまで繰り返す。
-    private func offsetFrameToAvoidOverlap(_ window: NSWindow) {
-        func overlapsExisting() -> Bool {
-            NSApp.windows.contains { other in
-                other !== window
-                    && other.isVisible
-                    && other.windowController is ViewerWindowController
-                    && other.frame.origin == window.frame.origin
-            }
-        }
-        var attempts = 0
-        while overlapsExisting(), attempts < 20 {
-            let shifted = window.cascadeTopLeft(from: NSPoint(x: window.frame.minX, y: window.frame.maxY))
-            window.setFrameTopLeftPoint(shifted)
-            attempts += 1
-        }
     }
 }
 

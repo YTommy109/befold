@@ -20,6 +20,7 @@ private final class FakeDocumentRenderer: DocumentRendering {
         case findPrevious
         case print
         case currentScrollPosition
+        case noteRename(old: URL, new: URL)
     }
 
     private(set) var commands: [Command] = []
@@ -62,6 +63,10 @@ private final class FakeDocumentRenderer: DocumentRendering {
         commands.append(.currentScrollPosition)
         guard let scrollPosition else { return }
         completion(scrollPosition)
+    }
+
+    func noteRename(from oldURL: URL, to newURL: URL) {
+        commands.append(.noteRename(old: oldURL, new: newURL))
     }
 }
 
@@ -176,6 +181,17 @@ struct WebViewCommandControllerTests {
         renderer.scrollPosition = 42
         controller.saveCurrentScrollPosition(for: url, mode: .rendered)
         #expect(perFileState.scrollPosition.scrollPosition(for: url, mode: .rendered) == 42)
+    }
+
+    @Test("rename の追随は状態の反映なので能力で止めない")
+    func noteRenameIsForwardedRegardlessOfCapability() {
+        let renderer = FakeDocumentRenderer()
+        let controller = makeController(renderer: renderer, capabilities: { .none })
+        let renamed = URL(fileURLWithPath: "/tmp/b.md")
+
+        controller.noteRename(from: url, to: renamed)
+
+        #expect(renderer.commands == [.noteRename(old: url, new: renamed)])
     }
 
     @Test("isDirectHTMLMode はレンダラの値をそのまま反映する")

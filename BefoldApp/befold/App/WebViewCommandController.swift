@@ -115,4 +115,12 @@ final class WebViewCommandController {
             perFileState.scrollPosition.setScrollPosition(position, for: url, mode: mode)
         }
     }
+
+    // MARK: - Rename
+
+    /// ファイルの rename / move を描画状態へ追随させる(詳細は DocumentRendering.noteRename)。
+    /// ユーザー操作ではなく状態の追随なので、applyCodeFont と同じく能力では止めない。
+    func noteRename(from oldURL: URL, to newURL: URL) {
+        renderer.noteRename(from: oldURL, to: newURL)
+    }
 }

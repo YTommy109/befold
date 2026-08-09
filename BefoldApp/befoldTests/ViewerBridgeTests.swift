@@ -85,6 +85,25 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.scrollPositionChangedMessageName == "scrollPositionChanged")
     }
 
+    @Test("renderDocPathScript がパスを JSON エスケープして埋め込み、nil は null を予告する")
+    func renderDocPathScriptEmbedsEscapedPath() {
+        // 実在しないパス(/mock)は resolvingSymlinksInPath が書き換えないため出力が安定する
+        #expect(
+            ViewerBridge.renderDocPathScript(URL(fileURLWithPath: "/mock/a \"b\".md"))
+                == #"_mmdSetRenderDocPath("\/mock\/a \"b\".md")"#
+        )
+        #expect(ViewerBridge.renderDocPathScript(nil) == "_mmdSetRenderDocPath(null)")
+    }
+
+    @Test("renameDocPathScript が新旧パスを JSON エスケープして埋め込む")
+    func renameDocPathScriptEmbedsBothPaths() {
+        #expect(
+            ViewerBridge.renameDocPathScript(
+                from: URL(fileURLWithPath: "/mock/a.md"), to: URL(fileURLWithPath: "/mock/b.md")
+            ) == #"_mmdRenameDocPath("\/mock\/a.md", "\/mock\/b.md")"#
+        )
+    }
+
     @Test("ViewMode(isSourceMode:) が Bool をモードへ写す")
     func viewModeFromIsSourceMode() {
         #expect(ViewerBridge.ViewMode(isSourceMode: true) == .source)

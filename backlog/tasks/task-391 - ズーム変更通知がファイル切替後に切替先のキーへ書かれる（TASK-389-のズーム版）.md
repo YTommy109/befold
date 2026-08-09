@@ -4,6 +4,7 @@ title: ズーム変更通知がファイル切替後に切替先のキーへ書�
 status: To Do
 assignee: []
 created_date: '2026-08-09 13:32'
+updated_date: '2026-08-09 14:14'
 labels: []
 dependencies: []
 priority: medium
@@ -27,3 +28,9 @@ ordinal: 647000
 - [ ] #2 切替直後に届いた旧文書の zoomChanged が切替先のライブ zoom（store.zoom）を上書きしない
 - [ ] #3 scroll 側（TASK-389 修正）と同じ構造で実装されており、レースを再現するテストがある
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-393 で scrollPositionChanged の保存キーを「JS が payload の path で申告する」構造へ移した。zoom の修正時はこの構造を再利用すること(zoomChanged payload に path を載せ、native 側の現在 URL 参照をやめる)。個別ガードを足さない。
+<!-- SECTION:NOTES:END -->

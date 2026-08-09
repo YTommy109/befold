@@ -78,6 +78,8 @@ struct ViewerWebView: NSViewRepresentable {
         )
         renderer.webViewProxy = webViewProxy
         webViewProxy.webView = webView
+        // AppKit 側(rename の追随など)が描画状態へ届くための逆向きの橋渡し(weak)。
+        webViewProxy.renderer = renderer
 
         return webView
     }
