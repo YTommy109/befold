@@ -106,6 +106,10 @@ final class WebViewCommandController {
     /// 現在の表示状態に依存せず呼び出し側が指定したキーへ書くだけで、いつ呼ぶべきか
     /// (切替前でなければならない)の判断は呼び出し側が負う
     /// (ViewerWindowController.saveScrollPositionBeforeTransition 参照)。
+    ///
+    /// スクロール位置の保存キーは、この経路も JS からの通知経路(ViewerRendererDelegate の
+    /// didChangeScrollPosition)も「その位置が属する文書」から決める。どちらも現在表示中の
+    /// fileURL を参照しない(現在値を参照すると切替直後に別文書のキーへ書く = TASK-389)。
     func saveCurrentScrollPosition(for url: URL, mode: ViewerBridge.ViewMode) {
         renderer.currentScrollPosition { [perFileState] position in
             perFileState.scrollPosition.setScrollPosition(position, for: url, mode: mode)

@@ -90,7 +90,7 @@ struct ViewerRendererMessageHandlingTests {
     func scrollPositionChangedDispatchesPositionAndMode() {
         let (renderer, delegate) = makeSUT()
         var received: (position: Double, mode: ViewerBridge.ViewMode)?
-        delegate.onScrollPositionChanged = { received = ($0, $1) }
+        delegate.onScrollPositionChanged = { position, _, mode in received = (position, mode) }
 
         dispatch(
             renderer, name: ViewerBridge.scrollPositionChangedMessageName,
@@ -99,6 +99,25 @@ struct ViewerRendererMessageHandlingTests {
 
         #expect(received?.position == 320.5)
         #expect(received?.mode == .source)
+    }
+
+    /// 通知に載る文書は「いま DOM に出ている文書」= 描画済みミラーの filePath。
+    /// ホスト側の現在 URL を使うと、切替直後に届いた古い通知が切替先のキーへ
+    /// 保存される(TASK-389)。ここが現在値参照へ戻ると落ちる。
+    @Test("scrollPositionChanged は描画済みミラーの filePath を通知に載せる")
+    func scrollPositionChangedCarriesRenderedFilePath() {
+        let (renderer, delegate) = makeSUT()
+        let renderedURL = URL(fileURLWithPath: "/tmp/rendered-doc.md")
+        renderer.rendered.filePath = renderedURL
+        var receivedURL: URL?
+        delegate.onScrollPositionChanged = { _, url, _ in receivedURL = url }
+
+        dispatch(
+            renderer, name: ViewerBridge.scrollPositionChangedMessageName,
+            body: ["position": NSNumber(value: 12.0), "mode": "rendered"]
+        )
+
+        #expect(receivedURL == renderedURL)
     }
 
     @Test("findOptionsChanged が findOptionsPreference へ3トグルを書き戻す")
@@ -257,7 +276,7 @@ struct ViewerRendererMessageHandlingTests {
     func scrollPositionChangedIgnoresInvalidMode() {
         let (renderer, delegate) = makeSUT()
         var called = false
-        delegate.onScrollPositionChanged = { _, _ in called = true }
+        delegate.onScrollPositionChanged = { _, _, _ in called = true }
 
         dispatch(
             renderer, name: ViewerBridge.scrollPositionChangedMessageName,

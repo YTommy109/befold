@@ -577,10 +577,13 @@ extension ViewerWindowController: ViewerRendererDelegate {
         perFileState.zoom.setZoom(zoom, for: fileURL)
     }
 
+    /// 保存キーは現在表示中の fileURL ではなく、通知に載った「その位置が属する文書」から
+    /// 決める(理由は ViewerRendererDelegate の doc / TASK-389)。nil の通知は捨てる。
     func renderer(
-        _: ViewerRenderer, didChangeScrollPosition position: Double, mode: ViewerBridge.ViewMode
+        _: ViewerRenderer, didChangeScrollPosition position: Double, for url: URL?, mode: ViewerBridge.ViewMode
     ) {
-        perFileState.scrollPosition.setScrollPosition(position, for: fileURL, mode: mode)
+        guard let url else { return }
+        perFileState.scrollPosition.setScrollPosition(position, for: url, mode: mode)
     }
 
     func renderer(_: ViewerRenderer, didActivateReference href: String, disposition: OpenDisposition) {
