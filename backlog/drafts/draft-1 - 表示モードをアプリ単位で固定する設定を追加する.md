@@ -1,5 +1,5 @@
 ---
-id: TASK-357
+id: DRAFT-1
 title: 表示モードをアプリ単位で固定する設定を追加する
 status: To Do
 assignee: []
