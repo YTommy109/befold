@@ -47,8 +47,8 @@ enum GitLibrary {
     /// **`GIT_CONFIG_LEVEL_GLOBAL`(`~/.gitconfig`)は意図して無効化しない。**
     /// 無効化すると `core.excludesFile` によるグローバルな ignore 設定が効かなくなり、
     /// ユーザーが除外したつもりのファイルがサイドバーに untracked として現れる。
-    /// 外部 git プロセス方式でも `HOME` を意図的に引き継いで `~/.gitconfig` を有効にしており
-    /// (`GitCommandRunner.processEnvironment`)、その挙動をここでも保つ。
+    /// 撤去した外部 git プロセス方式でも `HOME` を意図的に引き継いで `~/.gitconfig` を
+    /// 有効にしており、その挙動をここでも保つ。
     /// この判断は `GitLibraryTests.keepsGlobalConfigSearchPathEnabled` が守る。
     static let disabledConfigLevels: [git_config_level_t] = [
         GIT_CONFIG_LEVEL_SYSTEM,

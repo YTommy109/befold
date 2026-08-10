@@ -111,7 +111,20 @@ master に `Package.swift` が無く SPM 非対応、approve 済み・CI green �
 befold に実際に当たるのは **partial clone と reftable の 2 つだけ**であり、これは
 下記のフォールバック方針で扱う。
 
-配布形態は static XCFramework とする。brew + `.systemLibrary` は dylib パスと
+配布形態は **SPM のソースターゲット**とする（`ibrahimcetin/libgit2` を exact 1.9.2 で
+依存に加え、libgit2 の C ソースを SPM ターゲットとしてビルドする）。
+
+<!-- derived-from #consequences -->
+
+> **2026-08-11 追記（実装時の変更）**: 本 ADR は当初 static XCFramework +
+> `.binaryTarget` を選んだが、実装（TASK-435.1）で SPM ソースターゲットへ変更した。
+> cmake を要さず、XCFramework のビルドと更新を自前で回すコストが丸ごと不要になる。
+> 版を `exact` で固定するのは、API/ABI ではなく**リポジトリ形式の対応範囲**が
+> 版で変わるため（partial clone / reftable の可否が挙動として効く）。
+> Xcode の SPM 統合は C ターゲットへ依存パッケージのヘッダ検索パスを自動では通さないため、
+> `project.yml` の `CGitShim` ターゲットへ `HEADER_SEARCH_PATHS` を明示する必要がある。
+
+brew + `.systemLibrary` は dylib パスと
 サンドボックスで破綻する。ライセンス（GPLv2 with linking exception）は
 "the compiled version" に unlimited permission を与えており、静的リンク・
 クローズドソース・MAS 配布のいずれも可能。制約が残るのは libgit2 自体を改変した場合と
@@ -125,8 +138,22 @@ befold に実際に当たるのは **partial clone と reftable の 2 つだけ*
 
 - `GitCommandRunner` の外部プロセス起因の手当て（上記 4 項目）が丸ごと不要になる。
   TASK-226（async 化）も、subprocess 待ちが消えることで前提から見直せる。
-- ユーザー環境の git バージョン・`~/.gitconfig` への依存が切れる。
-  起動時に `GIT_OPT_SET_SEARCH_PATH` で global/system/xdg config を明示無効化するのが定石。
+- ユーザー環境の git バージョンへの依存が切れる。
+  起動時に `GIT_OPT_SET_SEARCH_PATH` で config の検索パスを無効化する。
+
+  > **2026-08-11 追記（実装時の変更）**: 無効化するのは **system と xdg の 2 つだけ**で、
+  > global（`~/.gitconfig`）は意図して有効のままにする。無効化すると
+  > `core.excludesFile` によるグローバルな ignore 設定が効かなくなり、ユーザーが
+  > 除外したつもりのファイルがサイドバーに untracked として現れる（実測で libgit2 が
+  > `.gitignore` / `.git/info/exclude` / `core.excludesFile` の 3 経路すべてを見ることを
+  > 確認済み）。撤去した外部 git プロセス方式も `HOME` を意図的に引き継いで
+  > `~/.gitconfig` を有効にしており、その挙動を保つ。
+  >
+  > また、**無効化の目的は「決定性の確保」であって「任意コマンド実行の遮断」ではない**。
+  > 外部プロセス方式では `core.fsmonitor` / `core.hooksPath` が任意コマンドの起動経路に
+  > なるため遮断が必須だったが、libgit2 はフックも textconv も外部 diff driver も
+  > 実行しないため、その動機は消える。
+  > この判断は `GitLibraryTests.keepsGlobalConfigSearchPathEnabled` が守る。
 - MAS 配布の最大の障害が外れる（残る障害はサンドボックスと CLI。TASK-397 を参照）。
 
 ### 失うもの・引き受けるコスト
@@ -138,9 +165,12 @@ befold に実際に当たるのは **partial clone と reftable の 2 つだけ*
 - **`diff.algorithm` / textconv / 外部 diff driver は config ごと無視**される。
   word-diff も無い。現状これらを使う機能はないが、ユーザーの設定が反映されなくなる。
 - **partial clone と reftable 形式のリポジトリは開けない**。今後 git の既定が変わると効く
+  （reftable 対応は 2026-08 に libgit2 の main へマージされたが、**未リリース**。
+  本 ADR が固定している 1.9.2 には入っていない）
   （下記フォールバック方針で扱う）。
 - per-worktree config/refs を扱うには **libgit2 v1.8 以上**が必要。
-- 直接方式を採る場合、**XCFramework のビルドと更新を自前で回す**ことになる。
+- ~~直接方式を採る場合、**XCFramework のビルドと更新を自前で回す**ことになる。~~
+  → SPM ソースターゲットへ変更したため解消（上記の追記を参照）。
 
 ### 影響を受けない箇所
 
@@ -183,3 +213,12 @@ libgit2 がリポジトリを開けない場合（partial clone、reftable、将
 - `.git` 配下の flock / rename のサンドボックス下での挙動
 - `.gitignore` 判定が `core.excludesFile` / `info/exclude` を見るか
 - libgit2 起因の App Store リジェクト事例の有無
+
+> **2026-08-11 追記**: 移行（TASK-435）完了時点で解消しているのは 3 番目だけである。
+> libgit2 は `.gitignore` / `.git/info/exclude` / `core.excludesFile` の 3 経路すべてを
+> 見ることを実測で確認し、その結果 global config を無効化しない判断に至った（上記）。
+>
+> 残る 3 点はいずれも **App Sandbox を有効にして初めて確かめられる**もので、
+> 本移行の範囲外である。befold は現時点でサンドボックス化されておらず
+> （security-scoped bookmark は 0 件）、MAS 配布には他の障害（Sparkle 撤去、CLI の扱い）も
+> 残る。MAS 対応に着手する際の前提条件として TASK-397 が引き取る。

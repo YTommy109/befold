@@ -4,10 +4,11 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// 実 git を spawn する Integration テスト。porcelain の書式網羅は
-/// `GitStatusReaderTests`(フィクスチャ)に任せ、ここでは「実 git の出力を実際に
-/// 解釈でき、絶対パスのキーで引ける」ことのスモークに絞る(実 git を起動するテストは
-/// `GitCommandRunnerResourceLeakTests` の基準線にノイズを乗せるため本数を絞る規約)。
+/// 実 git が作ったリポジトリを `GitStatusReader`(libgit2 実装)が読めることの
+/// Integration テスト。
+///
+/// libgit2 化で「git の出力テキストをパースする純関数」が無くなったため、状態の
+/// 網羅もここが担う(フィクスチャで代替できる部分は無い)。
 struct GitStatusReaderIntegrationTests {
     private func makeReader() -> GitStatusReader {
         GitStatusReader()

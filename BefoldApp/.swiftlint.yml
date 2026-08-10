@@ -96,10 +96,6 @@ custom_rules:
   unbounded_semaphore_wait:
     name: "上限のない同期待機"
     included: "BefoldApp/.*Tests.*\\.swift$"
-    excluded:
-      # 非協調の DispatchQueue.global ワーカーを意図的に飽和させるテスト。
-      # defer で投げた本数だけ signal するため回収が保証されている。
-      - "BefoldApp/befoldTests/GitCommandRunnerTests\\.swift$"
     regex: '(?<!await )\b[A-Za-z_]\w*\??\.wait\(\)'
     message: "waitOrRecordTimeout を使う（BefoldTestSupport/BlockingWait.swift）"
     severity: error
