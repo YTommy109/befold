@@ -39,6 +39,44 @@ struct GitStatusReaderIntegrationTests {
         #expect(snapshot.indexFingerprint != nil)
     }
 
+    /// 境界の検出は 3 系統の和で、フィクスチャで押さえられるのはパースまで。
+    /// 「clean なサブモジュールは status に 1 行も出ない」「ネストしたリポジトリは
+    /// 未追跡ディレクトリ 1 件へ畳まれる」という git 側の挙動そのものに依存するため、
+    /// 実 git で 1 本だけ通しで確かめる(TASK-403)。
+    @Test("clean なサブモジュールとネストしたリポジトリを境界として検出する")
+    func detectsSubmoduleAndNestedRepositoryBoundaries() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        let child = try TempDir()
+        defer { withExtendedLifetime(child) {} }
+        GitTestRepo.initRepository(at: child.url)
+        try GitTestRepo.commitFile(named: "a.txt", in: child.url)
+
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "root.txt", in: temp.url)
+        // file:// 越しの submodule add は既定で拒否されるため明示的に許可する。
+        GitTestRepo.run(
+            ["-c", "protocol.file.allow=always", "submodule", "add", child.url.path, "sub"],
+            in: temp.url
+        )
+        GitTestRepo.run(["commit", "-m", "add submodule"], in: temp.url)
+        // 親から見て未追跡ディレクトリ 1 件へ畳まれる、独立したリポジトリ。
+        let nested = temp.url.appendingPathComponent("nested")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        GitTestRepo.initRepository(at: nested)
+        try GitTestRepo.commitFile(named: "b.txt", in: nested)
+
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+
+        #expect(snapshot.indeterminateRoots.contains(
+            temp.url.appendingPathComponent("sub").normalizedPathKey
+        ))
+        #expect(snapshot.indeterminateRoots.contains(nested.normalizedPathKey))
+        // サブモジュールは clean なので status に 1 行も出ない = 検出の出所は
+        // `.gitmodules` 側であることの確認(ここが空でも境界は立っている)。
+        #expect(snapshot.statuses[temp.url.appendingPathComponent("sub").normalizedPathKey] == nil)
+    }
+
     /// Reader / Store / SidebarNavigator を本番と同じ組み合わせで繋ぎ、実リポジトリの
     /// 変更がサイドバーのモデルまで届くことを確認する(描画そのものは手動チェック対象)。
     @MainActor

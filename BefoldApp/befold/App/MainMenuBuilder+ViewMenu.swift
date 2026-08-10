@@ -1,0 +1,116 @@
+import AppKit
+
+/// View メニューの構築。MainMenuBuilder 本体から分けているのは、swiftlint の
+/// type_body_length を超えないようにするため(他のメニュー構築と同じ粒度で切り出す)。
+extension MainMenuBuilder {
+    static func makeViewMenuItem() -> NSMenuItem {
+        let item = NSMenuItem()
+        let menu = NSMenu(title: String(localized: "menu.view.title", bundle: .l10n))
+        item.submenu = menu
+        addZoomItems(to: menu)
+        menu.addItem(.separator())
+        addDisplayModeItems(to: menu)
+        menu.addLocalizedItem(
+            "menu.view.toggleSource",
+            action: #selector(ViewerWindowController.toggleSourceView(_:)),
+            keyEquivalent: "u"
+        )
+        menu.addLocalizedItem(
+            "menu.view.showLineNumbers",
+            action: #selector(ViewerWindowController.toggleLineNumbers(_:)),
+            keyEquivalent: "l"
+        )
+        menu.addLocalizedItem(
+            "menu.view.addBookmark",
+            action: #selector(ViewerWindowController.toggleBookmark(_:)),
+            keyEquivalent: BookmarkShortcut.keyEquivalent
+        )
+        menu.addItem(.separator())
+        // キー等価を与えたときの既定修飾キーは [.command] だが、意図を明示するため
+        // 明示的に指定している(挙動は変わらない)。
+        menu.addLocalizedItem(
+            "menu.view.toggleSidebar",
+            action: #selector(NSSplitViewController.toggleSidebar(_:)),
+            keyEquivalent: "s",
+            modifiers: [.command]
+        )
+        menu.addItem(.separator())
+        menu.addLocalizedItem(
+            "menu.view.goBack",
+            action: #selector(ViewerWindowController.goBack(_:)),
+            keyEquivalent: "["
+        )
+        menu.addLocalizedItem(
+            "menu.view.goForward",
+            action: #selector(ViewerWindowController.goForward(_:)),
+            keyEquivalent: "]"
+        )
+        menu.addItem(.separator())
+        addSidebarItems(to: menu)
+        // macOS 標準のフルスクリーン切替ショートカット(⌃⌘F)に合わせる。
+        menu.addLocalizedItem(
+            "menu.view.enterFullScreen",
+            action: #selector(NSWindow.toggleFullScreen(_:)),
+            keyEquivalent: "f",
+            modifiers: [.control, .command]
+        )
+        return item
+    }
+
+    /// サイドバーのツリー表示の切替項目。開発中機能(TASK-361)なので露出点でゲートする。
+    /// ショートカットは付けない。⌘1〜4 はプレビューの表示モードに割り当て済み(TASK-356)。
+    /// - Parameter isTreeLayoutAvailable: ゲート値。テストから両方向を確かめられるよう引数で受ける。
+    static func addSidebarTreeLayoutItem(
+        to menu: NSMenu, isTreeLayoutAvailable: Bool = FeatureGate.isSidebarTreeEnabled
+    ) {
+        guard isTreeLayoutAvailable else { return }
+        menu.addLocalizedItem(
+            "menu.view.sidebarTreeLayout",
+            action: #selector(AppDelegate.toggleSidebarTreeLayout(_:))
+        )
+    }
+
+    /// View メニューのサイドバー関連項目(不可視ファイル・変更のみ表示・ツリー表示)。
+    /// makeViewMenuItem から切り出しているのは、1 関数が長くなりすぎないようにするため。
+    static func addSidebarItems(to menu: NSMenu) {
+        // 素の ⌘H は App メニューの Hide(NSApplication.hide)と衝突するため、
+        // control を重ねて区別する。
+        menu.addLocalizedItem(
+            "menu.view.showHiddenFiles",
+            action: #selector(AppDelegate.toggleHiddenFiles(_:)),
+            keyEquivalent: "h",
+            modifiers: [.command, .control]
+        )
+        // 開発中機能(サイドバーの git ステータス)に依存するため、露出点でゲートする。
+        // 素の ⌘G / ⇧⌘G は Edit メニューの検索送りと衝突するため、control を重ねて区別する。
+        if FeatureGate.isSidebarGitStatusEnabled {
+            menu.addLocalizedItem(
+                "menu.view.showChangedFilesOnly",
+                action: #selector(AppDelegate.toggleChangedFilesOnly(_:)),
+                keyEquivalent: "g",
+                modifiers: [.command, .control]
+            )
+        }
+        addSidebarTreeLayoutItem(to: menu)
+    }
+
+    /// 表示倍率の項目(実寸・拡大・縮小)。makeViewMenuItem から切り出しているのは、
+    /// 1 関数が長くなりすぎないようにするため。
+    static func addZoomItems(to menu: NSMenu) {
+        menu.addLocalizedItem(
+            "menu.view.actualSize",
+            action: #selector(ViewerWindowController.resetZoom(_:)),
+            keyEquivalent: "0"
+        )
+        menu.addLocalizedItem(
+            "menu.view.zoomIn",
+            action: #selector(ViewerWindowController.zoomIn(_:)),
+            keyEquivalent: "+"
+        )
+        menu.addLocalizedItem(
+            "menu.view.zoomOut",
+            action: #selector(ViewerWindowController.zoomOut(_:)),
+            keyEquivalent: "-"
+        )
+    }
+}

@@ -132,6 +132,10 @@ final class FileListModel {
     /// git 変更のあるエントリだけに絞るか。永続化・真実の源は SidebarDisplayPreference で、
     /// showHiddenFiles と同じ契機で SidebarNavigator が同期する。
     var showChangedFilesOnly: Bool = false
+    /// 行の並べ方(ドリルダウン / ツリー展開)。永続化・真実の源は SidebarDisplayPreference で、
+    /// showHiddenFiles と同じ契機で SidebarNavigator が同期する。
+    /// View はキー操作の割り当てをこの値で切り替える。
+    var layoutMode: SidebarLayoutMode = .drillDown
     /// ファイル名フィルターの検索文字列。フォルダ移動をまたいで保持し、
     /// アプリ再起動時は初期値(空文字列)に戻る(永続化しない)。
     var filterText: String = ""
@@ -267,6 +271,21 @@ final class FileListModel {
     /// 関わらず常に含める(上位フォルダへの移動手段を残すため)。
     /// git 変更での絞り込み(showChangedFilesOnly)も AND で併用する。
     var visibleEntries: [FileListEntry] {
+        // 順序が意味を持つ。祖先を足し戻してから開閉三角を確定させること。
+        // 逆にすると、「名前は一致するが子が全部消えたフォルダ」の判定が、あとから
+        // 足し戻した祖先を子として数えてしまう余地が残る。
+        SidebarDisclosureResolver.resolving(
+            SidebarTreeFilter.keepingAncestors(of: filteredEntries, in: entries)
+        )
+    }
+
+    /// 絞り込みだけを適用した一覧(祖先の足し戻し・開閉三角の確定を含まない)。
+    ///
+    /// プレビューのフォルダー一覧へはこちらを渡す。祖先を足し戻した配列を渡すと、
+    /// 「条件に一致しないフォルダ」がプレビューにも現れる一方、同じフォルダを
+    /// 自前列挙する経路では消えるため、1 ウィンドウ内に絞り込みの答えが 2 つ並ぶ
+    /// (サイドバーとプレビューで答えを 1 つにする TASK-288 の巻き戻し)。
+    private var filteredEntries: [FileListEntry] {
         listFilter.apply(to: entries, in: entriesDirectory)
     }
 
@@ -275,9 +294,16 @@ final class FileListModel {
     /// `.parentNavigation` は上位フォルダーへの移動手段であって一覧の項目ではないため飛ばす。
     /// 選んでしまうと、そのまま Enter や → を押した利用者が今降りてきたばかりの階層へ
     /// 押し戻される。絞り込みは移動をまたいで残るので、`entries` ではなく実際に見えている
-    /// `visibleEntries` の先頭を採る。
+    /// 行から採る。ただし**一致した行を優先し、祖先として足し戻されただけの行
+    /// (`SidebarTreeFilter`)は飛ばす**(TASK-406)。ツリー表示では一致行の祖先フォルダが
+    /// 自分は一致しないまま残るので、見えている先頭をそのまま採ると絞り込みの答えでない行が
+    /// 初期選択になり、探していた行まで矢印キーで降りることになる。一致行が 1 つも無い場合
+    /// (祖先保持の性質上、通常は起こらない)だけ従来どおり先頭を採る(無選択へは落とさない)。
     var firstSelectableEntryURL: FileListEntry.ID? {
-        visibleEntries.first { $0.kind != .parentNavigation }?.url
+        let selectable = visibleEntries.filter { $0.kind != .parentNavigation }
+        let matched = Set(filteredEntries.map(\.id))
+        let entry = selectable.first { matched.contains($0.id) } ?? selectable.first
+        return entry?.url
     }
 
     /// `directory` のフォルダー一覧(FolderListingView)へ渡す供給元。
@@ -305,7 +331,16 @@ final class FileListModel {
         }
         // 絞り込み済みの一覧を渡す。FolderListingView 側はこれを再度 filter.apply に
         // 通さない(FolderListingView.visibleEntries を参照。TASK-298)。
-        return .shared(visibleEntries)
+        //
+        // **depth 0 の行だけを渡す**。プレビューが見せるのは `directory` 直下であって、
+        // サイドバーで展開したその配下ではない。ツリー展開が入ると visibleEntries には
+        // 孫以降の行が混ざるため(TASK-361.1)、そのまま渡すと「このフォルダーの中身」
+        // として別階層のファイルが並ぶ。ドリルダウンでは全行 depth 0 なので素通し。
+        //
+        // 祖先を足し戻す**前**の配列(filteredEntries)から採る。足し戻した配列を渡すと、
+        // 条件に一致しないフォルダがプレビューにも現れる一方、同じフォルダを自前列挙する
+        // 経路では消えるため、1 ウィンドウ内に絞り込みの答えが 2 つ並ぶ(TASK-288 の巻き戻し)。
+        return .shared(filteredEntries.filter { $0.depth == 0 })
     }
 
     /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧

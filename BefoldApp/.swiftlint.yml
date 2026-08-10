@@ -60,6 +60,7 @@ custom_rules:
     excluded:
       - "BefoldApp/befold/App/FeatureGate\\.swift$"
       - "BefoldApp/befold/App/MainMenuBuilder\\.swift$"
+      - "BefoldApp/befold/App/MainMenuBuilder\\+ViewMenu\\.swift$"
       - "BefoldApp/befold/App/ModeSegments\\.swift$"
       - "BefoldApp/befold/App/PerFileStateStore\\.swift$"
       - "BefoldApp/befold/App/SidebarDisplayPreference\\.swift$"

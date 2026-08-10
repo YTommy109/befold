@@ -72,7 +72,9 @@ struct SidebarNavigatorGitStatusTests {
         let base = Self.home.appendingPathComponent("SidebarNavigatorGitStatusTests-apply")
         let statuses = ["\(base.path)/a.md": status(.modified)]
         let (navigator, host) = makeNavigator(currentDirectory: base) { _, _ in
-            GitStatusResult(statuses: statuses, indexURL: nil, repositoryRoot: base)
+            GitStatusResult(
+                snapshot: GitStatusSnapshot(statuses: statuses, indexURL: nil), repositoryRoot: base
+            )
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -89,7 +91,9 @@ struct SidebarNavigatorGitStatusTests {
         let base = Self.home.appendingPathComponent("SidebarNavigatorGitStatusTests-folder")
         let statuses = ["\(base.path)/sub/deep/a.md": status(.modified)]
         let (navigator, host) = makeNavigator(currentDirectory: base) { _, _ in
-            GitStatusResult(statuses: statuses, indexURL: nil, repositoryRoot: base)
+            GitStatusResult(
+                snapshot: GitStatusSnapshot(statuses: statuses, indexURL: nil), repositoryRoot: base
+            )
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -111,10 +115,14 @@ struct SidebarNavigatorGitStatusTests {
         let staleStatuses = ["\(base.path)/a.md": status(.deleted)]
         let (navigator, host) = makeNavigator(currentDirectory: base) { directory, _ in
             guard directory.normalizedPathKey != dirB.normalizedPathKey else {
-                return GitStatusResult(statuses: freshStatuses, indexURL: nil, repositoryRoot: base)
+                return GitStatusResult(
+                    snapshot: GitStatusSnapshot(statuses: freshStatuses, indexURL: nil), repositoryRoot: base
+                )
             }
             await staleGate.wait()
-            return GitStatusResult(statuses: staleStatuses, indexURL: nil, repositoryRoot: base)
+            return GitStatusResult(
+                snapshot: GitStatusSnapshot(statuses: staleStatuses, indexURL: nil), repositoryRoot: base
+            )
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -141,7 +149,9 @@ struct SidebarNavigatorGitStatusTests {
         let watchers = LockedBox<[RecordingWatcher]>([])
         let (navigator, host) = makeNavigator(currentDirectory: base, watchers: watchers) { _, policy in
             policies.update { $0.append(policy) }
-            return GitStatusResult(statuses: [:], indexURL: indexURL, repositoryRoot: base)
+            return GitStatusResult(
+                snapshot: GitStatusSnapshot(statuses: [:], indexURL: indexURL), repositoryRoot: base
+            )
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -170,7 +180,9 @@ struct SidebarNavigatorGitStatusTests {
         let indexURL = base.appendingPathComponent(".git/index")
         let watchers = LockedBox<[RecordingWatcher]>([])
         let (navigator, host) = makeNavigator(currentDirectory: base, watchers: watchers) { _, _ in
-            GitStatusResult(statuses: [:], indexURL: indexURL, repositoryRoot: base)
+            GitStatusResult(
+                snapshot: GitStatusSnapshot(statuses: [:], indexURL: indexURL), repositoryRoot: base
+            )
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -190,7 +202,9 @@ struct SidebarNavigatorGitStatusTests {
         let watchers = LockedBox<[RecordingWatcher]>([])
         let (navigator, host) = makeNavigator(currentDirectory: base, watchers: watchers) { directory, _ in
             guard directory.normalizedPathKey == base.normalizedPathKey else { return .empty }
-            return GitStatusResult(statuses: [:], indexURL: indexURL, repositoryRoot: base)
+            return GitStatusResult(
+                snapshot: GitStatusSnapshot(statuses: [:], indexURL: indexURL), repositoryRoot: base
+            )
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -209,7 +223,9 @@ struct SidebarNavigatorGitStatusTests {
         let indexURL = base.appendingPathComponent(".git/index")
         let watchers = LockedBox<[RecordingWatcher]>([])
         let (navigator, host) = makeNavigator(currentDirectory: base, watchers: watchers) { _, _ in
-            GitStatusResult(statuses: [:], indexURL: indexURL, repositoryRoot: base)
+            GitStatusResult(
+                snapshot: GitStatusSnapshot(statuses: [:], indexURL: indexURL), repositoryRoot: base
+            )
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -251,7 +267,9 @@ struct SidebarNavigatorGitStatusTests {
         let watchers = LockedBox<[RecordingWatcher]>([])
         let (navigator, host) = makeNavigator(currentDirectory: base, watchers: watchers) { _, _ in
             await gate.wait()
-            return GitStatusResult(statuses: [:], indexURL: indexURL, repositoryRoot: base)
+            return GitStatusResult(
+                snapshot: GitStatusSnapshot(statuses: [:], indexURL: indexURL), repositoryRoot: base
+            )
         }
         defer { withExtendedLifetime(host) {} }
 

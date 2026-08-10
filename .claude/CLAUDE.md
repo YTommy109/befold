@@ -103,6 +103,19 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
     `git stash pop` が**別のセッション・別プロジェクトの stash** を取り出して
     コンフリクトさせる。`git archive origin/main | tar -x -C <スクラッチパッド>` で
     別ディレクトリへ展開し、そちらで測る（手順は `/swiftlint-baseline` にまとめてある）
+- **機能を足すと既存ファイルが `file_length` / `type_body_length` /
+  `cyclomatic_complexity` を超えることがある。** 閾値を緩めるのではなく、
+  `Type+Feature.swift` の extension へ分割する（前例: `SidebarNavigator+History` /
+  `+SelectionMemory` / `+Expansion` / `+FolderNavigation`、`MainMenuBuilder+ViewMenu`。
+  テストは `DirectoryListerAppendingOpenFileTests` が同じ理由で分かれている）
+  - **Swift の `private` はファイルスコープ**なので、分割した extension からは
+    参照できない。移すメソッド本体だけでなく、**それが触る stored property・
+    ヘルパーも internal へ上げる**必要がある。上げたものには
+    「外から呼んでよいのはどれか」を doc コメントで明示して補う
+    （実測: TASK-361 の分割 6 回のうち 3 回、この取りこぼしでビルドを往復した）
+  - 分割は新規ファイルの追加なので `xcodegen generate` を忘れない
+  - 分割先が `FeatureGate.` を参照する場合は、下の「フィーチャーゲート」節の
+    2 箇所（`.swiftlint.yml` の allowlist と `FeatureGate.swift` の doc）を更新する
 - **`Localizable.xcstrings` に文字列を追加するときはキー順にソートし直さない。**
   Xcode の出力は厳密なキー順ではないため、sort すると 200 行超の無関係な並べ替え差分が出る。
   既存の並び順を保ち、近縁キー（同じ prefix のもの）の直後に挿入する
@@ -293,3 +306,11 @@ chore: XcodeGen 設定を更新する
   呼び出し元（既存の配線点）から渡すこと。allowlist の中身は
   `FeatureGateEnumerationTests` が実際の参照ファイル集合と突き合わせており、
   使われなくなったエントリも、先回りして足したエントリも落ちる。
+- **`FeatureGateEnumerationTests` が突き合わせるのは allowlist だけではない。**
+  `FeatureGate` 型の doc コメントの `## 節` に列挙した**型名の集合**も、実際に
+  `FeatureGate.` を参照するファイル名と一致していなければ落ちる。ゲートを新設する、
+  または参照を新しいファイルへ移すときは **`.swiftlint.yml` の `excluded` と
+  `FeatureGate.swift` の doc の両方**を更新する。
+  - 特に、ファイルを extension へ分割すると型名が `MainMenuBuilder` →
+    `MainMenuBuilder+ViewMenu` のように変わる。doc 側の露出点の記載も追随させること
+    （実測: TASK-361 で、allowlist だけ・doc だけの更新で 2 回続けて落とした）

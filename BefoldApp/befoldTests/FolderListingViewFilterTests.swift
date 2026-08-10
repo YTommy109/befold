@@ -46,7 +46,10 @@ struct FolderListingViewFilterTests {
         let entries = [changed, makeEntry("clean.md")]
         let model = makeModel(entries: entries)
         model.applyGitStatus(
-            SidebarGitStatus(directoryKey: directory.normalizedPathKey, statuses: [changed.pathKey: modifiedStatus()]),
+            SidebarGitStatus(
+                repositoryRootKey: directory.normalizedPathKey,
+                statuses: [changed.pathKey: modifiedStatus()]
+            ),
             for: directory, sequence: 1
         )
         model.showChangedFilesOnly = true
@@ -54,6 +57,26 @@ struct FolderListingViewFilterTests {
         let view = makeView(directory: directory, filter: model.listFilter)
 
         #expect(view.visibleEntries(from: entries).map(\.url.lastPathComponent) == ["changed.md"])
+    }
+
+    /// TASK-403 で最初に到達する経路。サブモジュールのフォルダーを選ぶと、親の
+    /// `git status` には配下のファイルが 1 件も出ないため、「変更のみ表示」で
+    /// 一覧が丸ごと空になっていた。
+    @Test("変更のみ表示 ON でも、サブモジュール配下のプレビュー一覧は空にならない")
+    func changedFilesOnlyKeepsSubmoduleDescendants() {
+        let submodule = directory.appendingPathComponent("sub")
+        let inner = FileListEntry(url: submodule.appendingPathComponent("a.txt"), kind: .file)
+        let filter = FileListFilter(
+            gitStatus: SidebarGitStatus(
+                repositoryRootKey: directory.normalizedPathKey,
+                statuses: [submodule.normalizedPathKey: modifiedStatus()],
+                indeterminateRoots: [submodule.normalizedPathKey]
+            )
+        )
+
+        let view = makeView(directory: submodule, filter: filter)
+
+        #expect(view.visibleEntries(from: [inner]).map(\.url.lastPathComponent) == ["a.txt"])
     }
 
     @Test("表示中ディレクトリを提示しているとき、プレビュー一覧はサイドバーと完全に一致する")
@@ -67,7 +90,7 @@ struct FolderListingViewFilterTests {
         let nested = folder.url.appendingPathComponent("inner.md").normalizedPathKey
         model.applyGitStatus(
             SidebarGitStatus(
-                directoryKey: directory.normalizedPathKey,
+                repositoryRootKey: directory.normalizedPathKey,
                 statuses: [changed.pathKey: modifiedStatus(), nested: modifiedStatus()]
             ),
             for: directory, sequence: 1
@@ -89,34 +112,6 @@ struct FolderListingViewFilterTests {
         let view = makeView(directory: directory, filter: model.listFilter)
 
         #expect(view.visibleEntries(from: entries).map(\.id) == entries.map(\.id))
-    }
-
-    @Test("選択中のサブフォルダーを提示しているときは、別ディレクトリの git 絞り込みが効かない")
-    func gitFilterDoesNotApplyToSubfolderListing() {
-        let folder = makeEntry("src", kind: .folder)
-        let model = makeModel(entries: [folder])
-        let child = folder.url.appendingPathComponent("inner.md")
-        let sibling = folder.url.appendingPathComponent("untouched.md")
-        // 状態は表示中ディレクトリのもの。サブフォルダー配下の行とは突き合わせられないため、
-        // ここで絞り込むと一覧が丸ごと消える。
-        model.applyGitStatus(
-            SidebarGitStatus(
-                directoryKey: directory.normalizedPathKey,
-                statuses: [child.normalizedPathKey: modifiedStatus()]
-            ),
-            for: directory, sequence: 1
-        )
-        model.showChangedFilesOnly = true
-
-        let childEntries = [
-            FileListEntry(url: child, kind: .file), FileListEntry(url: sibling, kind: .file),
-        ]
-        let view = makeView(directory: folder.url, filter: model.listFilter)
-
-        #expect(
-            view.visibleEntries(from: childEntries).map(\.url.lastPathComponent)
-                == ["inner.md", "untouched.md"]
-        )
     }
 
     // MARK: - Listing Source (TASK-293)
@@ -147,6 +142,27 @@ struct FolderListingViewFilterTests {
 
         #expect(model.listingSource(for: directory) == .shared([kept]))
         #expect(model.listingSource(for: directory) != .shared([kept, dropped]))
+    }
+
+    /// プレビューが見せるのは `directory` 直下であって、サイドバーで展開したその配下ではない。
+    /// ツリー展開が入ると visibleEntries には孫以降の行が混ざるため(TASK-361.1)、
+    /// そのまま渡すと「このフォルダーの中身」として別階層のファイルが並ぶ。
+    ///
+    /// FileListEntry の等値は depth を見ないので、`== .shared([...])` では深い行が
+    /// 落ちたことを検出できない。件数で確かめる。
+    @Test(".shared は depth 0 の行だけを渡す")
+    func sharedListingSourceCarriesOnlyTopLevelRows() {
+        let top = makeEntry("top.md")
+        let nested = makeEntry("nested.md").indented(to: 1)
+        let model = makeModel(entries: [])
+        model.entries = [top, nested]
+
+        guard case let .shared(shared) = model.listingSource(for: directory) else {
+            Issue.record("listingSource が .shared ではない")
+            return
+        }
+        #expect(shared?.count == 1)
+        #expect(shared?.first?.url.lastPathComponent == "top.md")
     }
 
     /// 移動要求で currentDirectory だけが先に進んでいる間は「まだ手元に無い」を返す。

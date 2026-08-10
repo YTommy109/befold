@@ -23,6 +23,61 @@ struct FileListEntryRow: View {
     }
 
     var body: some View {
+        // インデントは行の**中身**へ入れる。ヒット領域は呼び出し側が
+        // `.padding(...).contentShape(.rect)` で行の外側に張っており(FileListView)、
+        // 行ビュー自体の幅はここでの leading 分では変わらないため、インデントした
+        // 子行でも行全幅のダブルクリックが従来どおり効く。
+        // ドリルダウン表示では depth が全て 0 なので 0pt となり見た目は変わらない。
+        HStack(spacing: 2) {
+            disclosureIndicator
+            content
+        }
+        .padding(.leading, SidebarRowIndent.leadingInset(forDepth: entry.depth))
+    }
+
+    /// ツリー表示のフォルダ行の開閉三角。`entry.disclosure` が nil のとき
+    /// (ドリルダウン表示・プレビュー内のフォルダー一覧・ファイル行)は何も出さないので、
+    /// 従来の見た目がそのまま保たれる。
+    @ViewBuilder
+    private var disclosureIndicator: some View {
+        switch entry.disclosure {
+        case .none:
+            EmptyView()
+        case .collapsed:
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+        case .loadingChildren:
+            // 「展開したが子がまだ届いていない」。空のフォルダ(下向きの三角)と
+            // 見た目で区別できるようにする。
+            ProgressView()
+                .controlSize(.mini)
+                .frame(width: 12)
+        case .expanded:
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+        case .expandedEmpty:
+            // 開いたが見えるものが無い。三角は下向きのまま薄くする。
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .frame(width: 12)
+        case .expandedFailed:
+            // 列挙に失敗した。空のフォルダ(薄い下向き三角)と取り違えられないよう、
+            // 三角ではなく警告の記号を出す。理由は help に出す。
+            Image(systemName: "exclamationmark.triangle")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+                .help(String(localized: "sidebar.tree.enumerationFailed", bundle: .l10n))
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch entry.kind {
         case .parentNavigation:
             HStack {
@@ -50,9 +105,13 @@ struct FileListEntryRow: View {
                 if let appearance = folderBadgeAppearance() {
                     GitStatusBadgeView(appearance: appearance)
                 }
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(.tertiary)
-                    .font(.caption)
+                if entry.disclosure == nil {
+                    // ドリルダウン表示でのみ「この行を開くと下の階層へ移動する」を示す。
+                    // ツリー表示では左の開閉三角が同じ役割を担うため出さない(Finder と同じ)。
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.tertiary)
+                        .font(.caption)
+                }
             }
             .help(entry.url.lastPathComponent)
         case .file:

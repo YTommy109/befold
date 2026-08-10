@@ -11,19 +11,23 @@ public enum DirectoryEnumeration {
     /// それぞれファイル名の localizedStandardCompare 昇順で返す。
     /// 実体が存在しないダングリングシンボリックリンク等の非通常エントリも files に算入する
     /// (サイレントに一覧から消さず、開こうとした時点で既存のオープン/エラー表示フローに委譲する)。
-    /// 列挙に失敗した場合は空の組を返す。
+    /// **列挙に失敗した場合は nil を返す**(権限が無い・消えた・ディレクトリでない)。
+    /// 空の組を返して握り潰さないのが要点で、`([], [])` は「読めて、中身が空だった」
+    /// だけを意味する。両者を同じ値にすると、呼び出し側は権限の無いフォルダを
+    /// 「空のフォルダ」として確定表示するしかなくなる(TASK-404)。
+    /// 区別が要らない呼び出し側は、**その場で明示的に畳んで理由を書く**こと。
     public static func sortedContents(
         in directory: URL,
         showHiddenFiles: Bool = false,
         fileReader: any FileReading
-    ) -> (folders: [URL], files: [URL]) {
+    ) -> (folders: [URL], files: [URL])? {
         let options: FileManager.DirectoryEnumerationOptions = showHiddenFiles ? [] : [.skipsHiddenFiles]
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: nil,
             options: options
         ) else {
-            return ([], [])
+            return nil
         }
 
         var folders: [URL] = []
@@ -45,21 +49,30 @@ public enum DirectoryEnumeration {
     }
 
     /// ディレクトリ直下の非ディレクトリエントリを、ファイル名の自然順でソートして返す。
+    /// 列挙に失敗した場合は nil(`sortedContents` と同じ意味)。
     public static func sortedFiles(
         in directory: URL,
         showHiddenFiles: Bool = false,
         fileReader: any FileReading
-    ) -> [URL] {
-        sortedContents(in: directory, showHiddenFiles: showHiddenFiles, fileReader: fileReader).files
+    ) -> [URL]? {
+        sortedContents(in: directory, showHiddenFiles: showHiddenFiles, fileReader: fileReader)?.files
     }
 
     /// ディレクトリ直下の最初の対応形式(`FileType.isSupported`)ファイル。無ければ nil。
+    ///
+    /// **列挙失敗もここで nil へ畳む。** この関数の消費側(`containsSupportedFile` による
+    /// 「新しいウィンドウで開く」の可否判定と `SupportedFileResolver`)が問うのは
+    /// 「開けるファイルが 1 つ取れるか」だけで、取れない理由(空だったか、読めなかったか)で
+    /// 振る舞いが変わらない。区別が要る消費側は `sortedContents` を直接使うこと。
     public static func firstSupportedFile(
         in directory: URL,
         showHiddenFiles: Bool = false,
         fileReader: any FileReading
     ) -> URL? {
-        sortedFiles(in: directory, showHiddenFiles: showHiddenFiles, fileReader: fileReader).firstSupported()
+        guard let files = sortedFiles(
+            in: directory, showHiddenFiles: showHiddenFiles, fileReader: fileReader
+        ) else { return nil }
+        return files.firstSupported()
     }
 
     /// 「フォルダを開いたとき最初に開くファイル」の選択規則の単一の実装元。

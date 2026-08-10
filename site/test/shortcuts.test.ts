@@ -19,7 +19,11 @@ import { SHORTCUTS } from '../src/views/features'
 const parsed = parseSwiftMenuShortcuts(env.TEST_MAIN_MENU_BUILDER_SWIFT)
 
 /**
- * MainMenuBuilder.swift でキー等価を与えている項目の全件（ソース順）。
+ * MainMenuBuilder*.swift でキー等価を与えている項目の全件。
+ *
+ * 定義は extension（`MainMenuBuilder+ViewMenu.swift`）へ分割されるため、ソース順は
+ * ファイル分割のたびに変わる。並びではなく集合を固定したいので、突き合わせる前に
+ * 両辺をローカライズキーで整列する。
  *
  * サイトに載せている分だけを突き合わせると、実装側でキーが変わった項目が
  * 「サイトに書いていない」という理由で検証をすり抜ける。項目の一覧そのものを
@@ -156,9 +160,14 @@ function sorted(values: Iterable<string>): string[] {
   return [...values].sort()
 }
 
+/** ファイル分割によるソース順の違いを無視するため、ローカライズキーで整列する。 */
+function byLocalizationKey<T extends { localizationKey: string }>(items: readonly T[]): T[] {
+  return [...items].sort((left, right) => left.localizationKey.localeCompare(right.localizationKey))
+}
+
 describe('MainMenuBuilder.swift のパース', () => {
   it('キー等価を持つ項目を全件拾う（割り当てが変わったら落ちる）', () => {
-    expect(parsed).toEqual(EXPECTED_MENU_ITEMS)
+    expect(byLocalizationKey(parsed)).toEqual(byLocalizationKey(EXPECTED_MENU_ITEMS))
   })
 
   it('キー等価がリテラルまたは既知の定数参照として解決できる', () => {

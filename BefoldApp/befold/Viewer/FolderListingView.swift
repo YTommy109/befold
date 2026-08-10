@@ -9,6 +9,22 @@ enum FolderListingSource: Equatable {
     case shared([FileListEntry]?)
     /// このビューが自前で列挙する。選択中のサブフォルダーを見ているときに使う。
     case ownListing
+
+    /// `.shared` の比較は **行の同一性(id = url)だけ**で行う。プレビューが見せるのは
+    /// 「このフォルダーに何が並ぶか」であって、サイドバー側のインデントや開閉三角
+    /// (`FileListEntry.depth` / `.disclosure`)ではない。これらは `FileListEntry` の
+    /// 等値に含まれる(サイドバーの行を描き直させるために必要)ので、ここで合成の
+    /// Equatable に任せると、サイドバーの表示モードを切り替えただけでプレビューが
+    /// 別の一覧に変わったと判定される。**逆向きに `FileListEntry` の等値を弱めない**
+    /// (TASK-361.1 の回帰。FileListEntry の `==` の doc を参照)。
+    static func == (lhs: FolderListingSource, rhs: FolderListingSource) -> Bool {
+        switch (lhs, rhs) {
+        case (.ownListing, .ownListing): true
+        case let (.shared(lhsEntries), .shared(rhsEntries)):
+            lhsEntries?.map(\.id) == rhsEntries?.map(\.id)
+        default: false
+        }
+    }
 }
 
 /// サイドバーでフォルダーが選択された際にプレビューエリアへ表示する、
@@ -127,10 +143,13 @@ struct FolderListingView: View {
             // 「何もない」と伝えないと、無言の空リストになる。到着待ち(nil)の間は
             // まだ答えが出ていないので何も言わない。
             if let entries, entries.allSatisfy({ $0.kind == .parentNavigation }) {
-                ContentUnavailableView(
-                    String(localized: "sidebar.empty", bundle: .l10n),
-                    systemImage: "doc.questionmark",
-                    description: Text(directory.lastPathComponent)
+                // 絞り込みで空になったのかを、サイドバーと同じ実装で出し分ける。
+                // git 絞り込みはリポジトリ配下のどの階層にも効くため、この一覧が
+                // サブフォルダーのものでも絞り込みによる空が起こりうる(TASK-361.2)。
+                SidebarEmptyState(
+                    activeGitChangeFilter: filter.gitChangeFilter(for: directory),
+                    filterText: filter.filterText,
+                    directoryName: directory.lastPathComponent
                 )
                 .allowsHitTesting(false)
             }

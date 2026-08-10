@@ -12,8 +12,28 @@ struct GitStatusResult: Equatable, Sendable {
     /// 呼び出し側は空かどうかでは区別できない。区別できないと、綺麗なリポジトリで
     /// 「変更のみ表示」が黙って無効化される(TASK-285)。
     var repositoryRoot: URL?
+    /// 親リポジトリの `git status` では配下を答えられない境界のルート。
+    /// 詳細は `GitStatusSnapshot.indeterminateRoots`。
+    var indeterminateRoots: Set<String> = []
 
     static let empty = GitStatusResult()
+
+    /// スナップショットと解決済みルートから結果を組み立てる。
+    ///
+    /// **フィールドを個別に写す経路をここ 1 本に畳んである。** 以前は取得直後と
+    /// キャッシュ再利用の 2 箇所で個別に詰めており、フィールドを足したときに
+    /// 片方だけ埋める取り残しが起きる形だった(TASK-320 と同型)。
+    init(snapshot: GitStatusSnapshot, repositoryRoot: URL) {
+        statuses = snapshot.statuses
+        indexURL = snapshot.indexURL
+        self.repositoryRoot = repositoryRoot
+        indeterminateRoots = snapshot.indeterminateRoots
+    }
+
+    /// 取得できなかった場合(ルートだけ分かっている・git 管理外)に使う。
+    init(repositoryRoot: URL? = nil) {
+        self.repositoryRoot = repositoryRoot
+    }
 }
 
 /// 状態を取り直す条件。
@@ -79,9 +99,7 @@ final class GitStatusStore {
         guard let snapshot = await snapshot(forRepositoryAt: root) else {
             return GitStatusResult(repositoryRoot: root)
         }
-        return GitStatusResult(
-            statuses: snapshot.statuses, indexURL: snapshot.indexURL, repositoryRoot: root
-        )
+        return GitStatusResult(snapshot: snapshot, repositoryRoot: root)
     }
 
     /// `.onlyIfIndexChanged` かつ前回取得時から `.git/index` が動いていなければ、
@@ -99,9 +117,7 @@ final class GitStatusStore {
             reader.indexFingerprint(forRepositoryAt: root)
         }.value
         guard current == cached.indexFingerprint else { return nil }
-        return GitStatusResult(
-            statuses: cached.statuses, indexURL: cached.indexURL, repositoryRoot: root
-        )
+        return GitStatusResult(snapshot: cached, repositoryRoot: root)
     }
 
     /// ルート単位のスナップショットを取り直す。取得できなければ(git を動かせなければ)nil。

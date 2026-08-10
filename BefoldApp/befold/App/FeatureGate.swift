@@ -4,7 +4,7 @@ import BefoldCLI
 /// dev リリース（バージョンがプレリリース）または DEBUG ビルドでのみ true。
 /// stable 昇格時は該当機能の分岐を撤去してデフォルト有効化すること（撤去タスクを backlog 登録）。
 ///
-/// ゲートしている機能は 2 つで、参照はすべて機能ごとの名前付きプロパティを経由する。
+/// ゲートしている機能は 3 つで、参照はすべて機能ごとの名前付きプロパティを経由する。
 ///
 /// ## サイドバーの git ステータス系（`isSidebarGitStatusEnabled`）
 /// 露出点は次のとおりで、TASK-187（stable 昇格）ではこれらの分岐を撤去する。
@@ -14,7 +14,7 @@ import BefoldCLI
 ///     `.git/index` の監視も止まる。
 /// - `ViewerWindowController.makeChangedFilesOnlyToggle()`
 ///   — サイドバーヘッダーの「変更されたファイルのみ表示」ボタン。無効時は nil で非表示。
-/// - `MainMenuBuilder.makeViewMenuItem()`
+/// - `MainMenuBuilder+ViewMenu.makeViewMenuItem()`
 ///   — View メニューの「変更されたファイルのみ表示」項目。
 /// - `SidebarDisplayPreference.init(defaults:isChangedFilesOnlyAvailable:)`
 ///   — 保存値の読み出し。無効時は保存値 ON でも OFF として読む。
@@ -37,6 +37,14 @@ import BefoldCLI
 ///     無効時は保存値が差分でもソース表示へ降格して読む
 ///     （保存値そのものは書き換えないので、dev ビルドへ戻れば差分のまま復帰する）。
 ///
+/// ## サイドバーのツリー展開（`isSidebarTreeEnabled`）
+///
+/// - `SidebarDisplayPreference.init(defaults:isChangedFilesOnlyAvailable:isTreeLayoutAvailable:)`
+///   — 保存値の読み出し。無効時は保存値がツリーでもドリルダウンへ降格して読む
+///     （保存値そのものは書き換えないので、dev ビルドへ戻ればツリーのまま復帰する）。
+/// - `MainMenuBuilder+ViewMenu.addSidebarTreeLayoutItem(to:isTreeLayoutAvailable:)`
+///   — View メニューの「ツリー表示」項目。無効時は項目自体を出さない。
+///
 /// この列挙は `FeatureGateEnumerationTests` がソース走査と突き合わせており、
 /// 参照を足して列挙を更新し忘れるとテストが落ちる。
 ///
@@ -56,6 +64,12 @@ enum FeatureGate {
     /// サイドバーの git ステータス系（バッジ・変更ファイル絞り込み）を露出してよいか。
     /// 呼び出し側はこの名前付きプロパティだけを参照する（露出点は型の doc コメントを参照）。
     static var isSidebarGitStatusEnabled: Bool {
+        inProgressFeaturesEnabled
+    }
+
+    /// サイドバーのツリー展開(Finder のリスト表示相当)を露出してよいか。
+    /// 呼び出し側はこの名前付きプロパティだけを参照する(露出点は型の doc コメントを参照)。
+    static var isSidebarTreeEnabled: Bool {
         inProgressFeaturesEnabled
     }
 

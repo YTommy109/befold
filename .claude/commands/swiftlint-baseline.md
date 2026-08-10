@@ -22,14 +22,31 @@ git -C "$ROOT" archive origin/main | tar -x -C "$SCRATCH/main-baseline"
 
 # 3. 比較
 diff "$SCRATCH/lint-main.txt" "$SCRATCH/lint-head.txt"
+
+# 4. 件数だけの増減を除き、「ルール × ファイル」の組で比較する
+#    （既存違反の行数が 312 → 300 のように動いただけの差分を機械的に除く）
+norm() { sed -E 's/currently [a-z ]*[0-9]+ lines//; s/currently contains [0-9]+//; s/currently complexity is [0-9]+//' "$1" | sort -u; }
+norm "$SCRATCH/lint-main.txt" > "$SCRATCH/n-main.txt"
+norm "$SCRATCH/lint-head.txt" > "$SCRATCH/n-head.txt"
+echo "=== 真の新規 ==="; comm -13 "$SCRATCH/n-main.txt" "$SCRATCH/n-head.txt"
+echo "=== 解消したもの ==="; comm -23 "$SCRATCH/n-main.txt" "$SCRATCH/n-head.txt"
 ```
 
 判定:
 
-- diff が空 → 合格。「新規違反ゼロ」と報告する
-- **既存の違反行が数値だけ変わった差分**（`type_body_length` の行数が増減した等）は、
-  違反の種類が増えていないので合格扱いにしてよい。ただし何がどう増えたかを報告に明記する
+- **手順 4 の「真の新規」が空 → 合格。**「新規違反ゼロ」と報告する
+- 手順 3 の `diff` に差分があっても、**既存の違反行が数値だけ変わったもの**
+  （`type_body_length` の行数が増減した等）は違反の種類が増えていないので合格扱いにしてよい。
+  ただし何がどう増減したかを報告に明記する
 - 新しいファイル・新しいルールの行が増えていたら不合格。修正してから再実行する
+
+手順 3 の生の `diff` だけで判定しない。機能を足すと既存の大きいファイルの行数が動き、
+**合格すべき差分が毎回 10 行前後出る**。目視で「これは数値だけ」と選り分けていると、
+その中に紛れた本物の新規違反を見落とす（TASK-361 では 5 サブタスクで 4 回この選別が
+必要になり、手順 4 の正規化を毎回その場で書き直していた）。
+
+手順 4 の「解消したもの」も報告に含める。分割やリファクタで既存違反が減ったことは
+成果なので、黙って捨てない。
 
 注意:
 

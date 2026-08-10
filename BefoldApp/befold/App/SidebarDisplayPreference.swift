@@ -8,6 +8,7 @@ final class SidebarDisplayPreference {
     private let defaults: UserDefaults
     private static let showHiddenFilesKey = "ShowHiddenFiles"
     private static let showChangedFilesOnlyKey = "ShowChangedFilesOnly"
+    private static let layoutModeKey = "SidebarLayoutMode"
 
     /// 不可視ファイル(ドットファイル)を一覧に出すか。
     var showHiddenFiles: Bool {
@@ -26,15 +27,31 @@ final class SidebarDisplayPreference {
         }
     }
 
-    /// - Parameter isChangedFilesOnlyAvailable: 既定はフィーチャーゲートの判定。
-    ///   テストから両方の状態を作れるようにするためだけの注入点で、本番では省略する。
+    /// サイドバーの行の並べ方(ドリルダウン / ツリー展開)。
+    /// showChangedFilesOnly と同じく、機能が無効なビルドでは保存値がツリーでも
+    /// ドリルダウンとして読む。保存値そのものは書き換えないので、dev ビルドへ戻れば
+    /// ツリーのまま復帰する(TASK-284 と同じ形)。
+    var layoutMode: SidebarLayoutMode {
+        didSet {
+            defaults.set(layoutMode.rawValue, forKey: Self.layoutModeKey)
+        }
+    }
+
+    /// - Parameters:
+    ///   - isChangedFilesOnlyAvailable: 既定はフィーチャーゲートの判定。
+    ///     テストから両方の状態を作れるようにするためだけの注入点で、本番では省略する。
+    ///   - isTreeLayoutAvailable: 同上(サイドバーのツリー展開)。
     init(
         defaults: UserDefaults = .standard,
-        isChangedFilesOnlyAvailable: Bool = FeatureGate.isSidebarGitStatusEnabled
+        isChangedFilesOnlyAvailable: Bool = FeatureGate.isSidebarGitStatusEnabled,
+        isTreeLayoutAvailable: Bool = FeatureGate.isSidebarTreeEnabled
     ) {
         self.defaults = defaults
         showHiddenFiles = defaults.bool(forKey: Self.showHiddenFilesKey)
         showChangedFilesOnly = isChangedFilesOnlyAvailable
             && defaults.bool(forKey: Self.showChangedFilesOnlyKey)
+        // init 内の代入では didSet が走らないため、降格して読んでも保存値は書き換わらない。
+        let stored = SidebarLayoutMode.stored(defaults.string(forKey: Self.layoutModeKey))
+        layoutMode = isTreeLayoutAvailable ? stored : .drillDown
     }
 }

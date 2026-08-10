@@ -10,10 +10,58 @@ struct GitStatusReaderTests {
         Data(records.joined(separator: "\u{0}").utf8) + Data([0])
     }
 
+    private func submodulePaths(_ records: [String]) -> [String] {
+        GitStatusReader.parsePorcelainV2(porcelain(records)).submodulePaths
+    }
+
+    /// `<sub>` が `S` 始まりのレコードは、親リポジトリが配下について何も答えていない
+    /// 境界を表す(TASK-403)。
+    @Test("サブモジュールのレコードを <sub> フィールドから拾う")
+    func detectsSubmoduleRecords() {
+        #expect(
+            submodulePaths([
+                "1 .M S.MU 160000 160000 160000 aaa aaa sub",
+                "1 .M N... 100644 100644 100644 aaa bbb plain.swift",
+                "? child/",
+            ]) == ["sub"]
+        )
+    }
+
+    /// XY が clean で表示対象にならないレコードでも境界は境界。表示対象かどうかで
+    /// 検出を左右させると、バッジの出ないサブモジュールの配下だけが黙って消える。
+    @Test("表示対象にならないサブモジュールのレコードでも境界として拾う")
+    func detectsCleanSubmoduleRecord() {
+        #expect(submodulePaths(["1 .. S... 160000 160000 160000 aaa aaa sub"]) == ["sub"])
+        #expect(statuses(["1 .. S... 160000 160000 160000 aaa aaa sub"])["sub"] == nil)
+    }
+
+    /// 改名レコードは「元パス」が次のフィールドとして続く。境界の検出でも同じ
+    /// 読み飛ばしに乗らないと、以降のレコードとの対応がずれる。
+    @Test("改名されたサブモジュールでも変更後のパスを拾う")
+    func detectsRenamedSubmodule() {
+        #expect(
+            submodulePaths([
+                "2 R. S... 160000 160000 160000 aaa aaa R100 moved",
+                "old",
+                "1 .M N... 100644 100644 100644 aaa bbb plain.swift",
+            ]) == ["moved"]
+        )
+    }
+
+    /// `.gitmodules` の登録は `git config -z --get-regexp` で読む。1 レコードは
+    /// `<キー>\n<値>` で、レコード間が NUL 区切り。
+    @Test("git config -z の出力から値だけを取り出す")
+    func parsesConfigValues() {
+        let data = Data("submodule.a.path\nlibs/a\u{0}submodule.b.path\nvendor/b\u{0}".utf8)
+
+        #expect(GitStatusReader.parseConfigValues(data) == ["libs/a", "vendor/b"])
+        #expect(GitStatusReader.parseConfigValues(Data()).isEmpty)
+    }
+
     private func statuses(_ records: [String]) -> [String: GitFileStatus] {
         Dictionary(
             uniqueKeysWithValues: GitStatusReader.parsePorcelainV2(porcelain(records))
-                .map { ($0.path, $0.status) }
+                .entries.map { ($0.path, $0.status) }
         )
     }
 

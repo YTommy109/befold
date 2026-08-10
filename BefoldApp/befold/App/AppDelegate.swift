@@ -413,6 +413,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowManager.toggleChangedFilesOnly()
     }
 
+    /// View > サイドバーをツリー表示(ショートカットなし)。表示モードを全ウィンドウで一括切替する。
+    @objc func toggleSidebarTreeLayout(_ sender: Any?) {
+        windowManager.toggleSidebarLayoutMode()
+    }
+
     /// App > Settings…(⌘,)。単一インスタンスで、
     /// 最前面なら閉じ、そうでなければ開く/前面化するトグル動作にする。
     @objc func showSettings(_ sender: Any?) {
@@ -474,6 +479,9 @@ extension AppDelegate: NSMenuItemValidation {
         }
         if menuItem.action == #selector(toggleChangedFilesOnly(_:)) {
             menuItem.state = sidebarDisplayPreference.showChangedFilesOnly ? .on : .off
+        }
+        if menuItem.action == #selector(toggleSidebarTreeLayout(_:)) {
+            menuItem.state = sidebarDisplayPreference.layoutMode == .tree ? .on : .off
         }
         return true
     }

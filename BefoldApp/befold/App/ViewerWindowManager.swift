@@ -138,6 +138,22 @@ final class ViewerWindowManager {
         allControllers.forEach { $0.sidebar.applyChangedFilesOnlyToggle() }
     }
 
+    /// サイドバーの表示モード(ドリルダウン / ツリー展開)を反転し、開いている全ウィンドウへ
+    /// 即座に反映する。表示モードは行配列そのものを変えるため、各ウィンドウで行を組み直す
+    /// 必要がある。ツリーからドリルダウンへ戻すときは展開状態も捨てる
+    /// (捨てないと、モードを戻したのに展開したままの行が残る)。
+    func toggleSidebarLayoutMode() {
+        let next: SidebarLayoutMode =
+            sidebarDisplayPreference.layoutMode == .tree ? .drillDown : .tree
+        sidebarDisplayPreference.layoutMode = next
+        if next == .drillDown {
+            allControllers.forEach { $0.sidebar.expansion.invalidateAll() }
+        }
+        // 行の組み直しは refreshFileList の経路へ合流させる。rebuildRows を直接叩くと
+        // 「ルートの一覧が届く前に行を組み直さない」不変条件を迂回することになる。
+        refreshAllSidebars()
+    }
+
     /// CLI の `--hidden-files`/`--no-hidden-files` から呼ばれる。値を直接設定し、
     /// 開いている全ウィンドウのサイドバーへ即座に反映する。
     func setHiddenFiles(_ value: Bool) {

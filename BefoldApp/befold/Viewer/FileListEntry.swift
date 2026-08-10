@@ -24,6 +24,23 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
     /// stat を MainActor 上で行わずに済むようにする。
     let pathKey: String
 
+    /// ルート(列挙の起点ディレクトリ)からの相対深さ。ルート直下 = 0、`.parentNavigation` も 0。
+    /// 行の左インデント量だけがこの値を読む(SidebarRowIndent.leadingInset(forDepth:))。
+    ///
+    /// **init の引数にしていない**のが要点。デフォルト引数にすると渡し忘れが
+    /// コンパイルエラーにならず静かに 0 になり、96 箇所ある `FileListEntry(...)` の
+    /// どこからでも深さを詐称できてしまう(TASK-319 と同型)。値を変えられるのは
+    /// `indented(to:)` だけで、本番でそれを呼ぶのは SidebarRowBuilder 1 箇所に閉じる。
+    private(set) var depth: Int = 0
+
+    /// ツリー表示のフォルダ行に出す開閉三角の状態。ドリルダウン表示・プレビュー内の
+    /// フォルダー一覧・ファイル行では nil で、従来どおりの見た目になる。
+    ///
+    /// depth と同じく **init の引数にはしない**。書けるのは `disclosing(_:)` だけで、
+    /// 本番でそれを呼ぶのは行を組み立てる SidebarRowBuilder と、絞り込み後に
+    /// 「見えている子が 0 か」を確定させる SidebarDisclosureResolver の 2 箇所に閉じる。
+    private(set) var disclosure: SidebarDisclosureState?
+
     init(url: URL, kind: Kind, containsSupportedFile: Bool = false) {
         // id が URL のため、SwiftUI の ForEach は行 ID を辞書キーにするたびに URL の
         // Hashable を走らせる。FileManager 由来の NSString 裏打ちのままだと 1 文字ずつの
@@ -39,6 +56,31 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
     var id: URL {
         url
     }
+
+    /// 深さだけを差し替えた同じ行。SidebarRowBuilder が展開した子行を深くするために使う。
+    func indented(to depth: Int) -> FileListEntry {
+        var copy = self
+        copy.depth = depth
+        return copy
+    }
+
+    /// 開閉三角の状態だけを差し替えた同じ行。
+    func disclosing(_ state: SidebarDisclosureState?) -> FileListEntry {
+        var copy = self
+        copy.disclosure = state
+        return copy
+    }
+
+    // 等値・ハッシュは **合成のまま**にする(全 stored property が参加し、depth と
+    // disclosure も含まれる)。この 2 つは `FileListEntryRow` の見た目(インデント量・
+    // 開閉三角・ドリルダウンの ">")を決めるため、外すと SwiftUI が「行の内容は
+    // 変わっていない」と判定して描き直さない。表示モードをツリー⇄ドリルダウンで
+    // 切り替えても、同じディレクトリのままだと一覧が丸ごと等しくなり、モードの
+    // 切り替わりが画面に出ない(TASK-361.1 の回帰)。
+    //
+    // 「同一性は url であって深さではない」を要求するのは
+    // `FolderListingSource.shared([FileListEntry]?)` の比較だけなので、そちらは
+    // FolderListingView 側で id 比較の `==` を持つ。ここを弱めて解決しない。
 
     /// 拡張子が `FileType.allExtensions` に無い、未知の拡張子のファイルかどうか。
     /// 未知の拡張子でも `FileType.init(url:)` は plaintext としてフォールバックし表示自体は可能なため、
