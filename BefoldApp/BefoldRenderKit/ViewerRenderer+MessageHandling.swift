@@ -123,6 +123,9 @@ extension ViewerRenderer {
             requestedPaths = paths
         }
         let previous = resolveResponseChain
+        // 要求を受けた時点のページ世代。解決を待つ間にページが差し替わったら、JS 側の
+        // キューは空になっているため、この応答を評価してはならない(TASK-421)。
+        let generation = pageGeneration
         resolveResponseChain = Task { @MainActor [weak self] in
             await previous?.value
             guard let self else { return }
@@ -130,6 +133,9 @@ extension ViewerRenderer {
             if let requestedPaths {
                 resolutions = await delegate?.renderer(self, resolveReferences: requestedPaths) ?? [:]
             }
+            // 判定はここ 1 箇所。解決(git subprocess を伴いうる)を待つ間にもページは
+            // 差し替わるため、要求受付時ではなく評価の直前に見る必要がある。
+            guard pageGeneration == generation else { return }
             // async 文脈では completionHandler 版を明示しないと throwing/async の
             // オーバーロードが選ばれてしまうため、nil を明示して同期版へ固定する。
             webView?.evaluateJavaScript(
