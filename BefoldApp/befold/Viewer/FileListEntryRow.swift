@@ -28,8 +28,44 @@ struct FileListEntryRow: View {
         // 行ビュー自体の幅はここでの leading 分では変わらないため、インデントした
         // 子行でも行全幅のダブルクリックが従来どおり効く。
         // ドリルダウン表示では depth が全て 0 なので 0pt となり見た目は変わらない。
-        content
-            .padding(.leading, SidebarRowIndent.leadingInset(forDepth: entry.depth))
+        HStack(spacing: 2) {
+            disclosureIndicator
+            content
+        }
+        .padding(.leading, SidebarRowIndent.leadingInset(forDepth: entry.depth))
+    }
+
+    /// ツリー表示のフォルダ行の開閉三角。`entry.disclosure` が nil のとき
+    /// (ドリルダウン表示・プレビュー内のフォルダー一覧・ファイル行)は何も出さないので、
+    /// 従来の見た目がそのまま保たれる。
+    @ViewBuilder
+    private var disclosureIndicator: some View {
+        switch entry.disclosure {
+        case .none:
+            EmptyView()
+        case .collapsed:
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+        case .loadingChildren:
+            // 「展開したが子がまだ届いていない」。空のフォルダ(下向きの三角)と
+            // 見た目で区別できるようにする。
+            ProgressView()
+                .controlSize(.mini)
+                .frame(width: 12)
+        case .expanded:
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+        case .expandedEmpty:
+            // 開いたが見えるものが無い。三角は下向きのまま薄くする。
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .frame(width: 12)
+        }
     }
 
     @ViewBuilder

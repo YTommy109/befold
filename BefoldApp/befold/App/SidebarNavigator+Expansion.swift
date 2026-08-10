@@ -25,11 +25,16 @@ extension SidebarNavigator {
         // (ホームの外では出ないため「先頭が必ず `..`」とは限らない)。
         let parentEntry = rootRows.first { $0.kind == .parentNavigation }
         let rootChildren = rootRows.filter { $0.kind != .parentNavigation }
+        let isTree = fileListModel.layoutMode == .tree
         let rows = SidebarRowBuilder.rows(
             parentEntry: parentEntry,
             rootChildren: rootChildren,
-            expanded: material.expanded,
-            childrenByPathKey: material.childrenByPathKey
+            // ドリルダウン表示では展開の材料を渡さない。展開状態が残っていても
+            // 行は 1 階層ぶんに戻る(モードを戻したのにツリーのままになるのを防ぐ)。
+            expanded: isTree ? material.expanded : [],
+            childrenByPathKey: isTree ? material.childrenByPathKey : [:],
+            loading: isTree ? material.loading : [],
+            showsDisclosure: isTree
         )
         fileListModel.setEntries(rows, for: directory)
         return rows

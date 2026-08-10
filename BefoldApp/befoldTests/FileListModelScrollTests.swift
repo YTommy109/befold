@@ -93,6 +93,31 @@ struct FileListModelScrollTests {
         #expect(tableView.scrolledRows == [2])
     }
 
+    /// ツリー表示では、開閉三角の状態を確定させるために visibleEntries が
+    /// SidebarDisclosureResolver を通る。行の並びが変わらないことを、選択した深い行への
+    /// スクロール要求が正しい行番号になることで押さえる(TASK-361.4 の AC #5)。
+    @Test("開閉三角を持つ行配列でも、深い行の選択が正しい行番号へスクロールする")
+    func scrollFollowsSelectionInTreeRows() async {
+        let dirA = FileListEntry(url: directory.appendingPathComponent("a"), kind: .folder)
+        let dirB = FileListEntry(url: directory.appendingPathComponent("a/b"), kind: .folder)
+        let leaf = FileListEntry(url: directory.appendingPathComponent("a/b/deep.mmd"), kind: .file)
+        let tail = FileListEntry(url: directory.appendingPathComponent("z.mmd"), kind: .file)
+        let entries = SidebarRowBuilder.rows(
+            parentEntry: nil, rootChildren: [dirA, tail],
+            expanded: [dirA.pathKey, dirB.pathKey],
+            childrenByPathKey: [dirA.pathKey: [dirB], dirB.pathKey: [leaf]],
+            showsDisclosure: true
+        )
+        let (model, tableView) = makeModel(entries: entries)
+
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["a", "b", "deep.mmd", "z.mmd"])
+
+        model.selection = leaf.id
+        await drainMainQueue()
+
+        #expect(tableView.scrolledRows == [2])
+    }
+
     @Test("選択を消したときはスクロールを要求しない")
     func clearingSelectionDoesNotScroll() async {
         let entries = makeEntries(10)

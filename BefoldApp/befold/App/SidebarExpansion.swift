@@ -52,15 +52,29 @@ final class SidebarExpansion {
     /// 展開集合は **`.loaded` になっているキーだけ**に絞る。こうすると「展開したが
     /// 子がまだ届いていない」間は行が増えず、読み込み中のプレースホルダ行を
     /// 設計しなくて済む(三角の見た目で表すのは TASK-361.4 の担当)。
-    var material: (expanded: Set<String>, childrenByPathKey: [String: [FileListEntry]]) {
-        var expanded: Set<String> = []
-        var loaded: [String: [FileListEntry]] = [:]
+    /// - Note: 子が未到着のキーは `loading` に入れて別に返す。行は増やせない(並べる子が
+    ///   無い)が、開閉三角を「読み込み中」にする材料は要る。ここを返さないと、
+    ///   展開したのに何も起きていないように見える状態と「空のフォルダ」が区別できない。
+    var material: Material {
+        var result = Material()
         for key in expandedKeys {
-            guard case let .loaded(entries) = children[key] else { continue }
-            expanded.insert(key)
-            loaded[key] = entries
+            guard case let .loaded(entries) = children[key] else {
+                result.loading.insert(key)
+                continue
+            }
+            result.expanded.insert(key)
+            result.childrenByPathKey[key] = entries
         }
-        return (expanded, loaded)
+        return result
+    }
+
+    /// 行の組み立てへ渡す材料一式。
+    struct Material {
+        /// 子が届いていて、実際に行を並べられるフォルダ。
+        var expanded: Set<String> = []
+        var childrenByPathKey: [String: [FileListEntry]] = [:]
+        /// 展開する意図はあるが、子がまだ届いていないフォルダ。
+        var loading: Set<String> = []
     }
 
     /// 展開を開始する。既に展開済みなら何もしない(再列挙しない)。

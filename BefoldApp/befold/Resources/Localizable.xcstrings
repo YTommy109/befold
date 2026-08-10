@@ -1157,6 +1157,23 @@
         }
       }
     },
+    "menu.view.sidebarTreeLayout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sidebar Tree View"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サイドバーをツリー表示"
+          }
+        }
+      }
+    },
     "menu.view.showChangedFilesOnly": {
       "extractionState": "manual",
       "localizations": {

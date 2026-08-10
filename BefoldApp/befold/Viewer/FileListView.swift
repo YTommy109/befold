@@ -11,6 +11,11 @@ struct FileListView: View {
     /// 1 本にまとめることで、開き先を増やしても配線が増えない
     /// (受け側の ViewerWindowController.openFileElsewhere も disposition を取る)。
     let onOpenElsewhere: (URL, OpenDisposition) -> Void
+    /// ツリー表示でフォルダ行を展開する。既定は何もしない(ドリルダウン表示・テスト用)。
+    /// 実際の列挙と行の組み直しは SidebarNavigator.expandFolder が行う。
+    var onExpandFolder: ((FileListEntry) -> Void)?
+    /// ツリー表示でフォルダ行を畳む。既定は何もしない。
+    var onCollapseFolder: ((FileListEntry) -> Void)?
     var onToggleHiddenFiles: (() -> Void)?
     /// nil のときはヘッダーに git 変更のみ表示のボタンを出さない。
     /// 開発中機能の露出点(ViewerWindowController が FeatureGate で決める)。
@@ -288,99 +293,26 @@ struct FileListView: View {
         for entry: FileListEntry
     ) -> some Gesture {
         TapGesture(count: 2).onEnded {
-            if entry.kind == .parentNavigation || entry.kind == .folder {
-                // List が 2 クリック目のイベント処理を終える前に entries を
-                // 差し替えないよう、次のランループまで遅延する(固定待ちは不要)。
-                DispatchQueue.main.async {
+            // return キーと同じ判断源を通す。別々に分岐を書くと、片方だけツリー対応して
+            // 「ダブルクリックでは展開できない」という穴が残る(TASK-320 と同型)。
+            let action = SidebarKeyAction.doubleClickAction(
+                target: SidebarKeyAction.Target(entry: entry), mode: model.layoutMode
+            )
+            // List が 2 クリック目のイベント処理を終える前に entries を
+            // 差し替えないよう、次のランループまで遅延する(固定待ちは不要)。
+            DispatchQueue.main.async {
+                switch action {
+                case .navigateInto:
                     onNavigate(entry.url)
+                case .expand:
+                    onExpandFolder?(entry)
+                // 展開済みのフォルダをダブルクリックしたら畳む(開閉のトグル)。
+                case .selectNext:
+                    onCollapseFolder?(entry)
+                default:
+                    break
                 }
             }
         }
-    }
-
-    // MARK: - Keyboard Navigation
-
-    /// サイドバーがアクティブなときのキー操作を処理する。
-    func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
-        handleKey(keyPress.key, modifiers: keyPress.modifiers)
-    }
-
-    /// キーとアクションの対応付け。`KeyPress` は公開イニシャライザがなくテストで
-    /// 直接構築できないため、`KeyEquivalent` と修飾キーだけを受け取るこの関数を
-    /// internal にしてテストから直接呼べるようにしている。
-    func handleKey(_ key: KeyEquivalent, modifiers: EventModifiers = []) -> KeyPress.Result {
-        switch key {
-        case "j", .downArrow:
-            selectNext()
-        // Finder 準拠の「上のフォルダーへ移動」。修飾キーなしの ↑ / k(選択移動)と
-        // 衝突させないため、下の `.upArrow` より前に置く。
-        case .upArrow where modifiers.contains(.command):
-            navigateToParent()
-        case "k", .upArrow:
-            selectPrevious()
-        case .return, .rightArrow, "l":
-            enterSelected()
-        case .leftArrow, "h", .delete:
-            navigateToParent()
-        default:
-            .ignored
-        }
-    }
-
-    /// 選択を次のエントリへ進める。テストから直接呼べるよう internal。
-    func selectNext() -> KeyPress.Result {
-        guard let current = model.selection,
-              let index = model.visibleEntries.firstIndex(where: { $0.id == current }),
-              index + 1 < model.visibleEntries.count
-        else {
-            if model.selection == nil, let first = model.visibleEntries.first {
-                model.selection = first.id
-                openIfFile(first)
-                return .handled
-            }
-            return .ignored
-        }
-        let next = model.visibleEntries[index + 1]
-        model.selection = next.id
-        openIfFile(next)
-        return .handled
-    }
-
-    /// 選択を前のエントリへ戻す。テストから直接呼べるよう internal。
-    func selectPrevious() -> KeyPress.Result {
-        guard let current = model.selection,
-              let index = model.visibleEntries.firstIndex(where: { $0.id == current }),
-              index > 0
-        else {
-            return .ignored
-        }
-        let previous = model.visibleEntries[index - 1]
-        model.selection = previous.id
-        openIfFile(previous)
-        return .handled
-    }
-
-    private func enterSelected() -> KeyPress.Result {
-        guard let current = model.selection,
-              let entry = model.visibleEntries.first(where: { $0.id == current })
-        else {
-            return .ignored
-        }
-        switch entry.kind {
-        case .parentNavigation, .folder:
-            onNavigate(entry.url)
-            return .handled
-        case .file:
-            openIfFile(entry)
-            return .handled
-        }
-    }
-
-    private func navigateToParent() -> KeyPress.Result {
-        if let parent = model.visibleEntries.first(where: { $0.kind == .parentNavigation }) {
-            onNavigate(parent.url)
-            return .handled
-        }
-        return .ignored
     }
 }

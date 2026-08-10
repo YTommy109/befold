@@ -19,13 +19,18 @@ struct SidebarNavigatorExpansionTests {
         rootEntries: [FileListEntry],
         childrenLister: @escaping @Sendable (URL, befold.SortOrder, Bool) async -> [FileListEntry]
     ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
+        // 展開はツリー表示のときだけ行に出る。ドリルダウンでは展開の材料を渡さないので、
+        // このスイートは常にツリー表示で回す。
+        let preference = SidebarDisplayPreference(
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorExpansionTests"),
+            isTreeLayoutAvailable: true
+        )
+        preference.layoutMode = .tree
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: SidebarDisplayPreference(
-                defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorExpansionTests")
-            ),
+            sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in rootEntries },
             childrenLister: childrenLister,
             resolveGitRoot: { _ in nil }

@@ -132,6 +132,10 @@ final class FileListModel {
     /// git 変更のあるエントリだけに絞るか。永続化・真実の源は SidebarDisplayPreference で、
     /// showHiddenFiles と同じ契機で SidebarNavigator が同期する。
     var showChangedFilesOnly: Bool = false
+    /// 行の並べ方(ドリルダウン / ツリー展開)。永続化・真実の源は SidebarDisplayPreference で、
+    /// showHiddenFiles と同じ契機で SidebarNavigator が同期する。
+    /// View はキー操作の割り当てをこの値で切り替える。
+    var layoutMode: SidebarLayoutMode = .drillDown
     /// ファイル名フィルターの検索文字列。フォルダ移動をまたいで保持し、
     /// アプリ再起動時は初期値(空文字列)に戻る(永続化しない)。
     var filterText: String = ""
@@ -267,7 +271,10 @@ final class FileListModel {
     /// 関わらず常に含める(上位フォルダへの移動手段を残すため)。
     /// git 変更での絞り込み(showChangedFilesOnly)も AND で併用する。
     var visibleEntries: [FileListEntry] {
-        listFilter.apply(to: entries, in: entriesDirectory)
+        // 開閉三角の「見えている子が 0」は絞り込みの結果でしか分からないため、
+        // 絞り込んだあとの配列に対して確定させる(SidebarDisclosureResolver)。
+        // ドリルダウン表示では三角そのものが無く、resolver は素通しで返る。
+        SidebarDisclosureResolver.resolving(listFilter.apply(to: entries, in: entriesDirectory))
     }
 
     /// フォルダーを降りた直後に選ぶ行の URL。一覧が空(または `..` しかない)なら nil。

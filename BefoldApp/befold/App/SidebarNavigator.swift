@@ -164,6 +164,7 @@ final class SidebarNavigator {
         let showHiddenFiles = sidebarDisplayPreference.showHiddenFiles
         fileListModel.showHiddenFiles = showHiddenFiles
         fileListModel.showChangedFilesOnly = sidebarDisplayPreference.showChangedFilesOnly
+        fileListModel.layoutMode = sidebarDisplayPreference.layoutMode
         return showHiddenFiles
     }
 

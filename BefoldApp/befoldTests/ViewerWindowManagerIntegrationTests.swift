@@ -126,6 +126,41 @@ struct ViewerWindowManagerIntegrationTests {
         manager.allControllers.forEach { $0.close() }
     }
 
+    /// 表示モードは「アプリ全体で 1 つ」。ウィンドウごとに別インスタンスを持たせる
+    /// 改修が入ると、片方の窓だけツリーになってここが落ちる(TASK-319 と同型の穴を塞ぐ)。
+    @Test("サイドバーの表示モードは、開いている全ウィンドウへ同時に反映される")
+    func layoutModeToggleReachesAllOpenWindows() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
+        let file2 = try tmp.file(named: "second.mmd", contents: "graph TD;")
+        let manager = makeManager()
+        manager.openViewer(for: file1)
+        manager.openViewer(for: file2)
+        for controller in manager.allControllers {
+            #expect(controller.fileListModel.layoutMode == .drillDown)
+        }
+
+        manager.toggleSidebarLayoutMode()
+        for controller in manager.allControllers {
+            await controller.sidebar.pendingListingTask?.value
+        }
+
+        for controller in manager.allControllers {
+            #expect(controller.fileListModel.layoutMode == .tree)
+        }
+
+        // 戻したときも全ウィンドウへ届く。
+        manager.toggleSidebarLayoutMode()
+        for controller in manager.allControllers {
+            await controller.sidebar.pendingListingTask?.value
+        }
+        for controller in manager.allControllers {
+            #expect(controller.fileListModel.layoutMode == .drillDown)
+        }
+        manager.allControllers.forEach { $0.close() }
+    }
+
     @Test("CLI から複数ファイル/フォルダーを指定した起動を模すと、それぞれ別ウィンドウで開く")
     func multipleCLITargetsEachOpenSeparateWindow() throws {
         let tmp = try TempDir()

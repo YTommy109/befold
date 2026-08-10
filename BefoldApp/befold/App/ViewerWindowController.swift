@@ -362,6 +362,8 @@ final class ViewerWindowController: NSWindowController {
                 guard let self else { return }
                 openFileElsewhere(url, disposition, window)
             },
+            onExpandFolder: makeExpandFolderHandler(),
+            onCollapseFolder: makeCollapseFolderHandler(),
             onToggleHiddenFiles: { [weak self] in
                 guard let self else { return }
                 delegate?.viewerWindowDidToggleHiddenFiles(self)
@@ -388,6 +390,19 @@ final class ViewerWindowController: NSWindowController {
     ///
     /// git ステータスと同じ開発中機能の露出点であり、無効なら nil を返して
     /// ボタン自体を出さない(FileListView 側が nil で非表示にする)。
+    /// ツリー表示の展開/畳みを SidebarNavigator へ渡す口。行の組み直しはあちらが行う。
+    private func makeExpandFolderHandler() -> (FileListEntry) -> Void {
+        { [weak self] entry in
+            self?.sidebar.expandFolder(entry.pathKey, at: entry.url)
+        }
+    }
+
+    private func makeCollapseFolderHandler() -> (FileListEntry) -> Void {
+        { [weak self] entry in
+            self?.sidebar.collapseFolder(entry.pathKey)
+        }
+    }
+
     private func makeChangedFilesOnlyToggle() -> (() -> Void)? {
         guard FeatureGate.isSidebarGitStatusEnabled else { return nil }
         return { [weak self] in

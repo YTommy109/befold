@@ -26,13 +26,23 @@ enum SidebarRowBuilder {
     ///     空ならドリルダウンと同じ出力になる。
     ///   - childrenByPathKey: フォルダの `pathKey` から、その直下の行への対応。
     ///     展開されているのに材料が無いフォルダは、子を持たない行として扱う。
+    ///   - loading: 展開する意図はあるが、子リストがまだ届いていないフォルダの pathKey。
+    ///     `expanded` とは互いに素。開閉三角を「読み込み中」にするためだけに使い、
+    ///     行は増やさない(届いていない子は並べようがない)。
+    ///   - showsDisclosure: 開閉三角を出すか。ドリルダウン表示では false にして、
+    ///     フォルダ行の見た目を従来のまま(`disclosure` が nil)にする。
     static func rows(
         parentEntry: FileListEntry?,
         rootChildren: [FileListEntry],
         expanded: Set<String>,
-        childrenByPathKey: [String: [FileListEntry]]
+        childrenByPathKey: [String: [FileListEntry]],
+        loading: Set<String> = [],
+        showsDisclosure: Bool = false
     ) -> [FileListEntry] {
-        var flattening = Flattening(expanded: expanded, childrenByPathKey: childrenByPathKey)
+        var flattening = Flattening(
+            expanded: expanded, childrenByPathKey: childrenByPathKey,
+            loading: loading, showsDisclosure: showsDisclosure
+        )
         if let parentEntry {
             flattening.rows.append(parentEntry.indented(to: 0))
         }
@@ -53,18 +63,37 @@ enum SidebarRowBuilder {
         private var visited: Set<String> = []
         var rows: [FileListEntry] = []
 
-        init(expanded: Set<String>, childrenByPathKey: [String: [FileListEntry]]) {
+        let loading: Set<String>
+        let showsDisclosure: Bool
+
+        init(
+            expanded: Set<String>, childrenByPathKey: [String: [FileListEntry]],
+            loading: Set<String>, showsDisclosure: Bool
+        ) {
             self.expanded = expanded
             self.childrenByPathKey = childrenByPathKey
+            self.loading = loading
+            self.showsDisclosure = showsDisclosure
         }
 
         mutating func append(_ entries: [FileListEntry], depth: Int) {
             for entry in entries {
-                rows.append(entry.indented(to: depth))
+                rows.append(entry.indented(to: depth).disclosing(disclosure(for: entry)))
                 guard entry.kind == .folder, expanded.contains(entry.pathKey) else { continue }
                 guard visited.insert(entry.pathKey).inserted else { continue }
                 append(childrenByPathKey[entry.pathKey] ?? [], depth: depth + 1)
             }
+        }
+
+        /// この行に出す開閉三角。ここで決まるのは絞り込み**前**の状態で、
+        /// 「絞り込みで見えている子が 0 になった」の確定は SidebarDisclosureResolver が行う。
+        private func disclosure(for entry: FileListEntry) -> SidebarDisclosureState? {
+            guard showsDisclosure, entry.kind == .folder else { return nil }
+            return SidebarDisclosure.state(
+                isExpanded: expanded.contains(entry.pathKey) || loading.contains(entry.pathKey),
+                loadedChildCount: childrenByPathKey[entry.pathKey]?.count,
+                visibleChildCount: childrenByPathKey[entry.pathKey]?.count ?? 0
+            )
         }
     }
 }

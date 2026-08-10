@@ -33,6 +33,14 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
     /// `indented(to:)` だけで、本番でそれを呼ぶのは SidebarRowBuilder 1 箇所に閉じる。
     private(set) var depth: Int = 0
 
+    /// ツリー表示のフォルダ行に出す開閉三角の状態。ドリルダウン表示・プレビュー内の
+    /// フォルダー一覧・ファイル行では nil で、従来どおりの見た目になる。
+    ///
+    /// depth と同じく **init の引数にはしない**。書けるのは `disclosing(_:)` だけで、
+    /// 本番でそれを呼ぶのは行を組み立てる SidebarRowBuilder と、絞り込み後に
+    /// 「見えている子が 0 か」を確定させる SidebarDisclosureResolver の 2 箇所に閉じる。
+    private(set) var disclosure: SidebarDisclosureState?
+
     init(url: URL, kind: Kind, containsSupportedFile: Bool = false) {
         // id が URL のため、SwiftUI の ForEach は行 ID を辞書キーにするたびに URL の
         // Hashable を走らせる。FileManager 由来の NSString 裏打ちのままだと 1 文字ずつの
@@ -53,6 +61,13 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
     func indented(to depth: Int) -> FileListEntry {
         var copy = self
         copy.depth = depth
+        return copy
+    }
+
+    /// 開閉三角の状態だけを差し替えた同じ行。
+    func disclosing(_ state: SidebarDisclosureState?) -> FileListEntry {
+        var copy = self
+        copy.disclosure = state
         return copy
     }
 
