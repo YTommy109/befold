@@ -123,8 +123,13 @@ final class SessionRestorer {
         let urlByPath = Dictionary(existing.map { ($0.key, $0.url) }) { first, _ in first }
 
         let groups = layout.filtered(to: Set(urlByPath.keys)).groups
+        // 同じパスが複数グループに現れる場合に、2 件目以降を新しいウィンドウとして開くための
+        // 追跡。グループをまたいで持ち回る必要があるため、restoreTabGroup の外に置く。
+        var openedPaths: Set<String> = []
         for group in groups {
-            restoreTabGroup(group, urlByPath: urlByPath, options: options)
+            restoreTabGroup(
+                group, urlByPath: urlByPath, options: options, openedPaths: &openedPaths
+            )
         }
         return LayoutRestoration(existing: existing, restoredPaths: Set(groups.flatMap(\.paths)))
     }
@@ -194,22 +199,36 @@ final class SessionRestorer {
     }
 
     /// 1 つのタブグループを復元する。先頭のウィンドウに残りを順にタブ連結し、選択タブを再現する。
+    ///
+    /// ウィンドウは `openViewer` の戻り値で受け取り、`window(forPath:)` では引き直さない。
+    /// `controllers` は 1 パスに複数のコントローラを持つ多重マップなので、引き直すと同じパスの
+    /// 別ウィンドウ(先に復元した他グループのもの)を掴み、`addTabbedWindow` がその生きている
+    /// ウィンドウを前のグループから奪う(TASK-415)。選択タブも同じ理由で、パスではなく
+    /// このループで開いたウィンドウの同一性で決める。
+    ///
+    /// - Parameter openedPaths: この復元で既にウィンドウを開いたパス。同じパスが複数の
+    ///   グループ(または同一グループ内)に現れる保存レイアウトは正当なので、2 件目以降は
+    ///   `.newWindow` で新しいウィンドウとして復元する(`.currentTab` の重複抑止に当たると
+    ///   ウィンドウが作られず、保存時より 1 つ少ないタブ構成になる)。
     private func restoreTabGroup(
-        _ group: SessionLayout.TabGroup, urlByPath: [String: URL], options: CLIOpenOptions
+        _ group: SessionLayout.TabGroup, urlByPath: [String: URL], options: CLIOpenOptions,
+        openedPaths: inout Set<String>
     ) {
         var previousWindow: NSWindow?
+        var selectedWindow: NSWindow?
         for path in group.paths {
             guard let url = urlByPath[path] else { continue }
-            openViewer(for: url, options: options)
-            guard let window = windowManager.window(forPath: path) else { continue }
+            let disposition: OpenDisposition = openedPaths.contains(path) ? .newWindow : .currentTab
+            let controller = windowManager.openViewer(
+                for: url, options: options, disposition: disposition
+            )
+            openedPaths.insert(path)
+            guard let window = controller?.window else { continue }
             // システムの「書類を開くときはタブで開く」設定に依存しないよう明示的にタブ化する
             windowManager.attachAsTab(window, to: previousWindow, select: false)
             previousWindow = window
+            if path == group.selectedPath { selectedWindow = window }
         }
-        if let selectedPath = group.selectedPath,
-           let selectedWindow = windowManager.window(forPath: selectedPath)
-        {
-            selectedWindow.tabGroup?.selectedWindow = selectedWindow
-        }
+        selectedWindow?.tabGroup?.selectedWindow = selectedWindow
     }
 }

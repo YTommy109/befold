@@ -189,4 +189,105 @@ struct SessionRestorerTests {
         #expect(fixture.manager.allControllers.isEmpty)
         #expect(notifiedURLs == [root])
     }
+
+    /// 同じファイルを別々のタブグループで開くのは設計上許容しており、保存レイアウトにも
+    /// そのまま記録される。2 件目の復元で既存ウィンドウを引き当てると、addTabbedWindow が
+    /// その生きているウィンドウを前のグループから奪い、グループの構成が崩れる。
+    @Test("同じパスが 2 つのタブグループにあっても、既存のウィンドウを奪わない")
+    func restoreDoesNotStealWindowForPathInTwoGroups() {
+        let shared = URL(fileURLWithPath: "/dup-repo/shared.md")
+        let onlyA = URL(fileURLWithPath: "/dup-repo/only-a.md")
+        let onlyB = URL(fileURLWithPath: "/dup-repo/only-b.md")
+        let fixture = MockedViewerWindowManager(
+            files: [shared, onlyA, onlyB], prefix: "SessionRestorerDuplicate"
+        )
+        defer { fixture.closeAll() }
+        let restorer = makeRestorer(fixture)
+        for url in [shared, onlyA, onlyB] {
+            fixture.sessionStore.noteOpened(url)
+        }
+        fixture.sessionStore.saveLayout(
+            SessionLayout(groups: [
+                SessionLayout.TabGroup(
+                    paths: [shared.normalizedPathKey, onlyA.normalizedPathKey],
+                    selectedPath: shared.normalizedPathKey
+                ),
+                SessionLayout.TabGroup(
+                    paths: [onlyB.normalizedPathKey, shared.normalizedPathKey],
+                    selectedPath: onlyB.normalizedPathKey
+                ),
+            ])
+        )
+
+        restorer.captureSavedState()
+        restorer.restoreLastSession()
+
+        // 保存レイアウトが shared を 2 度含む以上、復元後も 2 つのウィンドウが要る。
+        // 1 つしか無い状態は「2 件目が既存ウィンドウを奪った」ことを意味する。
+        #expect(fixture.manager.controllers[shared.normalizedPathKey]?.count == 2)
+    }
+
+    /// 症状は「終了と再起動のたびに再発する」ため、1 往復で一致しても足りない。
+    /// 保存 → 復元を 2 回繰り返しても、各グループのパス構成が保存時と同じであることを見る。
+    @Test("重複パスを含む構成は、終了と再起動を 2 回繰り返しても保存時と一致する")
+    func restoreKeepsTabGroupsStableAcrossTwoRestarts() {
+        let shared = URL(fileURLWithPath: "/restart-repo/shared.md")
+        let onlyA = URL(fileURLWithPath: "/restart-repo/only-a.md")
+        let onlyB = URL(fileURLWithPath: "/restart-repo/only-b.md")
+        let fixture = MockedViewerWindowManager(
+            files: [shared, onlyA, onlyB], prefix: "SessionRestorerDuplicate"
+        )
+        defer { fixture.closeAll() }
+        let restorer = makeRestorer(fixture)
+        for url in [shared, onlyA, onlyB] {
+            fixture.sessionStore.noteOpened(url)
+        }
+        let saved = SessionLayout(groups: [
+            SessionLayout.TabGroup(
+                paths: [shared.normalizedPathKey, onlyA.normalizedPathKey],
+                selectedPath: shared.normalizedPathKey
+            ),
+            SessionLayout.TabGroup(
+                paths: [onlyB.normalizedPathKey, shared.normalizedPathKey],
+                selectedPath: onlyB.normalizedPathKey
+            ),
+        ])
+        // 並び(前面から順)はウィンドウの重なりに左右されるため、グループの集合として比べる。
+        let expected = Set(saved.groups.map { Set($0.paths) })
+        // currentSessionLayout は NSApp のウィンドウを全て見るため、フルスイート実行では
+        // 他テストのウィンドウも混ざる。このテストが開いた 3 パスに関係するグループだけを取る。
+        let ownPaths = Set([shared, onlyA, onlyB].map(\.normalizedPathKey))
+        func ownGroups(of layout: SessionLayout) -> Set<Set<String>> {
+            Set(layout.groups.map { Set($0.paths) }.filter { !$0.isDisjoint(with: ownPaths) })
+        }
+
+        fixture.sessionStore.saveLayout(saved)
+        restorer.captureSavedState()
+        restorer.restoreLastSession()
+        let afterFirst = restorer.currentSessionLayout()
+        #expect(
+            ownGroups(of: afterFirst) == expected,
+            "1 回目の復元でタブ構成が保存時と違う: \(afterFirst.groups.map(\.paths))"
+        )
+
+        // 2 回目の起動。プロセスをまたいで運ばれるのは保存されたレイアウトと URL だけなので、
+        // 別フィクスチャ(=別プロセス相当)へ 1 回目の保存結果を渡して同じことを繰り返す。
+        let restarted = MockedViewerWindowManager(
+            files: [shared, onlyA, onlyB], prefix: "SessionRestorerDuplicateRestart"
+        )
+        defer { restarted.closeAll() }
+        let restartedRestorer = makeRestorer(restarted)
+        for url in [shared, onlyA, onlyB] {
+            restarted.sessionStore.noteOpened(url)
+        }
+        restarted.sessionStore.saveLayout(afterFirst)
+        restartedRestorer.captureSavedState()
+        restartedRestorer.restoreLastSession()
+
+        let afterSecond = restartedRestorer.currentSessionLayout()
+        #expect(
+            ownGroups(of: afterSecond) == expected,
+            "2 回目の復元でタブ構成が保存時と違う: \(afterSecond.groups.map(\.paths))"
+        )
+    }
 }
