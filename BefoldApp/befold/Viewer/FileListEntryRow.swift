@@ -97,9 +97,13 @@ struct FileListEntryRow: View {
                 if let appearance = folderBadgeAppearance() {
                     GitStatusBadgeView(appearance: appearance)
                 }
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(.tertiary)
-                    .font(.caption)
+                if entry.disclosure == nil {
+                    // ドリルダウン表示でのみ「この行を開くと下の階層へ移動する」を示す。
+                    // ツリー表示では左の開閉三角が同じ役割を担うため出さない(Finder と同じ)。
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.tertiary)
+                        .font(.caption)
+                }
             }
             .help(entry.url.lastPathComponent)
         case .file:

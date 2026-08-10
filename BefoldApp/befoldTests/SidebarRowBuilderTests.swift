@@ -106,13 +106,19 @@ struct SidebarRowBuilderTests {
         #expect(rows.map(\.depth) == [0, 1, 2])
     }
 
-    @Test("depth は等値・ハッシュに参加しない")
-    func depthDoesNotParticipateInEquality() {
+    /// depth / disclosure は行の見た目(インデント量・開閉三角・ドリルダウンの ">")を
+    /// 決めるため、等値から外すと SwiftUI が行を描き直さず、表示モードの切り替えが
+    /// 同じディレクトリのままだと画面に出ない。identity 比較が要るのは
+    /// `FolderListingSource` だけで、そちらは自前の `==` を持つ。
+    @Test("depth と disclosure は等値・ハッシュに参加する")
+    func depthAndDisclosureParticipateInEquality() {
         let entry = file("/root/a.md")
         let indented = entry.indented(to: 3)
+        let disclosed = entry.disclosing(.collapsed)
 
-        #expect(entry == indented)
-        #expect(Set([entry, indented]).count == 1)
+        #expect(entry != indented)
+        #expect(entry != disclosed)
+        #expect(Set([entry, indented, disclosed]).count == 3)
         #expect(indented.depth == 3)
     }
 }

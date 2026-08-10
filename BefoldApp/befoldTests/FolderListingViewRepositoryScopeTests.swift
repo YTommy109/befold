@@ -108,14 +108,16 @@ struct FolderListingViewRepositoryScopeTests {
         #expect(view.visibleEntries(from: rows).map(\.url.lastPathComponent) == ["note.md"])
     }
 
-    /// TASK-361.1 で FileListEntry の等値から depth を外した前提の固定。
-    /// FolderListingSource は Equatable で `case shared([FileListEntry]?)` を持つため、
-    /// 合成の等値へ戻すと深さの違いだけで別物と判定される。
-    @Test("FolderListingSource の比較は行の depth の違いで別物にならない")
+    /// `.shared` の比較は行の同一性(id)だけを見る。`FileListEntry` の等値は depth /
+    /// disclosure を含む(サイドバーの行を描き直させるために必要)ので、合成の Equatable へ
+    /// 戻すとサイドバーの表示モード切り替えだけでプレビューが別の一覧と判定される。
+    @Test("FolderListingSource の比較は行の depth・disclosure の違いで別物にならない")
     func sharedSourceEqualityIgnoresDepth() {
         let entry = makeEntry("a.md", kind: .file)
 
         #expect(FolderListingSource.shared([entry]) == .shared([entry.indented(to: 2)]))
+        #expect(FolderListingSource.shared([entry]) == .shared([entry.disclosing(.collapsed)]))
         #expect(FolderListingSource.shared([entry]) != .ownListing)
+        #expect(FolderListingSource.shared([entry]) != .shared(nil))
     }
 }

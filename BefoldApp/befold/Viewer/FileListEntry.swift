@@ -71,23 +71,16 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
         return copy
     }
 
-    /// 等値・ハッシュから **depth を外す**。同一性は「どのファイルの行か」であって
-    /// 「どこにインデントされているか」ではなく、`id`(= url)・FileListEntryIndex の
-    /// byID / byPathKey もその意味で作られている。
-    ///
-    /// 合成のままにすると `FolderListingSource`(FolderListingView の `case shared([FileListEntry]?)`)の
-    /// Equatable が要素比較へ降りるため、同じ一覧が深さの違いだけで別物と判定される。
-    static func == (lhs: FileListEntry, rhs: FileListEntry) -> Bool {
-        lhs.url == rhs.url && lhs.kind == rhs.kind
-            && lhs.containsSupportedFile == rhs.containsSupportedFile && lhs.pathKey == rhs.pathKey
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(url)
-        hasher.combine(kind)
-        hasher.combine(containsSupportedFile)
-        hasher.combine(pathKey)
-    }
+    // 等値・ハッシュは **合成のまま**にする(全 stored property が参加し、depth と
+    // disclosure も含まれる)。この 2 つは `FileListEntryRow` の見た目(インデント量・
+    // 開閉三角・ドリルダウンの ">")を決めるため、外すと SwiftUI が「行の内容は
+    // 変わっていない」と判定して描き直さない。表示モードをツリー⇄ドリルダウンで
+    // 切り替えても、同じディレクトリのままだと一覧が丸ごと等しくなり、モードの
+    // 切り替わりが画面に出ない(TASK-361.1 の回帰)。
+    //
+    // 「同一性は url であって深さではない」を要求するのは
+    // `FolderListingSource.shared([FileListEntry]?)` の比較だけなので、そちらは
+    // FolderListingView 側で id 比較の `==` を持つ。ここを弱めて解決しない。
 
     /// 拡張子が `FileType.allExtensions` に無い、未知の拡張子のファイルかどうか。
     /// 未知の拡張子でも `FileType.init(url:)` は plaintext としてフォールバックし表示自体は可能なため、
