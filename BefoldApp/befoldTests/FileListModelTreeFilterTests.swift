@@ -111,6 +111,45 @@ struct FileListModelTreeFilterTests {
         #expect(model.visibleEntries.first?.disclosure == .expanded)
     }
 
+    // MARK: - フォルダー移動直後の初期選択(task-406)
+
+    /// 祖先として残っただけのフォルダは、見えていても初期選択にしない。ここを
+    /// 「見えている先頭」に戻すと、絞り込み中にフォルダを降りた利用者は毎回
+    /// 一致行まで矢印キーで降りることになる。
+    @Test("ツリー表示 + 名前フィルタでは、祖先が先頭でも一致した行が初期選択になる")
+    func firstSelectableEntrySkipsAncestorsKeptByFilter() {
+        let root = URL(fileURLWithPath: "/tmp/FileListModelFilterTests")
+        let dirA = FileListEntry(url: root.appendingPathComponent("src"), kind: .folder)
+        let nested = FileListEntry(url: root.appendingPathComponent("src/note.md"), kind: .file)
+        let model = makeModel(entries: [])
+        model.entries = SidebarRowBuilder.rows(
+            parentEntry: nil, rootChildren: [dirA], expanded: [dirA.pathKey],
+            childrenByPathKey: [dirA.pathKey: [nested]], showsDisclosure: true
+        )
+        model.filterText = "note*"
+
+        // 見えている先頭は "src"(一致していない祖先)。
+        #expect(model.visibleEntries.first?.url == dirA.url)
+        #expect(model.firstSelectableEntryURL == nested.url)
+    }
+
+    /// 一致行の優先が「祖先を常に飛ばす」形へ退化していないこと。絞り込みが無ければ
+    /// 全行が一致行なので、従来どおり見えている先頭(`..` は除く)を採る。
+    @Test("絞り込みが無ければ、初期選択は `..` を除く見えている先頭のまま")
+    func firstSelectableEntryPrefersVisibleHeadWithoutFilter() {
+        let root = URL(fileURLWithPath: "/tmp/FileListModelFilterTests")
+        let dirA = FileListEntry(url: root.appendingPathComponent("src"), kind: .folder)
+        let nested = FileListEntry(url: root.appendingPathComponent("src/note.md"), kind: .file)
+        let parent = FileListEntry(url: root.deletingLastPathComponent(), kind: .parentNavigation)
+        let model = makeModel(entries: [])
+        model.entries = SidebarRowBuilder.rows(
+            parentEntry: parent, rootChildren: [dirA], expanded: [dirA.pathKey],
+            childrenByPathKey: [dirA.pathKey: [nested]], showsDisclosure: true
+        )
+
+        #expect(model.firstSelectableEntryURL == dirA.url)
+    }
+
     /// 一致が 1 つも無ければ祖先も残らない。祖先保持が「常に全フォルダを残す」形に
     /// 退化していないことを押さえる。
     @Test("一致が 1 つも無ければ、祖先フォルダも残らない")

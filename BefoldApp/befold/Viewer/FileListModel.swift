@@ -294,9 +294,16 @@ final class FileListModel {
     /// `.parentNavigation` は上位フォルダーへの移動手段であって一覧の項目ではないため飛ばす。
     /// 選んでしまうと、そのまま Enter や → を押した利用者が今降りてきたばかりの階層へ
     /// 押し戻される。絞り込みは移動をまたいで残るので、`entries` ではなく実際に見えている
-    /// `visibleEntries` の先頭を採る。
+    /// 行から採る。ただし**一致した行を優先し、祖先として足し戻されただけの行
+    /// (`SidebarTreeFilter`)は飛ばす**(TASK-406)。ツリー表示では一致行の祖先フォルダが
+    /// 自分は一致しないまま残るので、見えている先頭をそのまま採ると絞り込みの答えでない行が
+    /// 初期選択になり、探していた行まで矢印キーで降りることになる。一致行が 1 つも無い場合
+    /// (祖先保持の性質上、通常は起こらない)だけ従来どおり先頭を採る(無選択へは落とさない)。
     var firstSelectableEntryURL: FileListEntry.ID? {
-        visibleEntries.first { $0.kind != .parentNavigation }?.url
+        let selectable = visibleEntries.filter { $0.kind != .parentNavigation }
+        let matched = Set(filteredEntries.map(\.id))
+        let entry = selectable.first { matched.contains($0.id) } ?? selectable.first
+        return entry?.url
     }
 
     /// `directory` のフォルダー一覧(FolderListingView)へ渡す供給元。
