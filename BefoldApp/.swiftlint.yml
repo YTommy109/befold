@@ -71,6 +71,21 @@ custom_rules:
     message: "ゲート値は配線点で読み、引数で注入する（.claude/CLAUDE.md「フィーチャーゲート」節）"
     severity: error
 
+  # libgit2 でリポジトリを開けなかったときの写像（管理外＝確定・キャッシュ可 /
+  # 使用不可＝不明・キャッシュ不可）を 1 箇所に保つ。partial clone・reftable・未知の
+  # `extensions.*` はいずれも同じエラーへ収束するため、判定が散ると必ずどこかで
+  # 「不明」を「確定」として覚え、一時的な失敗が固定化する（ADR 0005 の Fallback 節）。
+  # libgit2 の他の API（status / diff / worktree など）は各実装が直接呼んでよい。
+  # 禁止するのは「開く」ことだけ。
+  git_repository_open_outside_git_library:
+    name: "GitLibrary 以外でのリポジトリオープン"
+    included: "BefoldApp/befold/.*\\.swift$"
+    excluded:
+      - "BefoldApp/befold/App/GitLibrary\\.swift$"
+    regex: 'git_repository_open'
+    message: "リポジトリを開くのは GitLibrary.withRepository(at:_:) だけ（ADR 0005）"
+    severity: error
+
   # 上限なしの `DispatchSemaphore.wait()` は、待つ間そのスレッドを協調スレッド
   # プールから外す。プール幅はコア数で決まるため、ローカル（10 コア）では表面化
   # せず、CI の macOS ランナー（3〜4 コア）で埋まり切るとテストプロセス全体が

@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@Tommy109'
 created_date: '2026-08-10 13:13'
-updated_date: '2026-08-10 15:01'
+updated_date: '2026-08-10 15:33'
 labels:
   - refactor
 dependencies: []
@@ -36,7 +36,7 @@ befold の git 連携（サイドバーのステータスバッジ、差分表�
 - [ ] #4 porcelain=v2 相当のステータス取得が再実装され、GitStatusReader の既存テストが同等の期待値で通る
 - [ ] #5 worktree 列挙・submodule 境界検出・比較起点の解決が従来と同じ結果を返す
 - [ ] #6 GitCommandRunner の外部プロセス起因の手当て（fsmonitor/hooksPath 遮断・環境変数遮断・プロセスグループ kill）が不要になったぶん撤去されている
-- [ ] #7 起動時に GIT_OPT_SET_SEARCH_PATH で global/system/xdg config を無効化し、ユーザーの ~/.gitconfig に依存しないことがテストで担保されている
+- [ ] #7 起動時に GIT_OPT_SET_SEARCH_PATH で system/xdg の config を無効化し、global（~/.gitconfig）は core.excludesFile によるグローバル ignore を保つため意図して有効のままにする。両方の判断がテストで担保されている
 - [ ] #8 SwiftGitX を先に評価し、必要な API が塞げるかの判断結果（採用したバインディングとその理由）が Implementation Notes に記録されている
 - [ ] #9 libgit2 が開けないリポジトリ（partial clone / reftable）を模したフィクスチャで、クラッシュせず・モーダルを出さず・通常のビューアとして動作することがテストで担保されている
 - [ ] #10 リポジトリを開けなかった場合に .unavailable 相当へ写像する箇所が 1 関数に集約されている

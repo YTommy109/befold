@@ -37,19 +37,30 @@ struct GitLibraryTests {
         )
     }
 
-    // MARK: - AC #7: グローバル config の無効化
+    // MARK: - config 検索パスの有効・無効
 
     /// 無効化が外れたらここが落ちる。
     ///
-    /// 「偽ホームを置いて `~/.gitconfig` が読まれないこと」を直接測る形にはしない。
+    /// 「偽ホームを置いて config が読まれないこと」を直接測る形にはしない。
     /// libgit2 の検索パスはプロセス全体の設定であり、テスト中に `HOME` を差し替えると
     /// 並行実行中の他テスト(`homeDirectoryForCurrentUser` を使う `DirectoryListerTests` や
     /// `TempDir(base:)` など多数)の前提を壊す。無効化そのものを観測すれば、外れた瞬間に落ちる。
-    @Test("bootstrap 後は system/xdg/global の config 検索パスが無効化されている")
-    func disablesGlobalConfigSearchPaths() {
+    @Test("bootstrap 後は system/xdg の config 検索パスが無効化されている")
+    func disablesSystemAndXdgConfigSearchPaths() {
+        #expect(GitLibrary.disabledConfigLevels.count == 2)
         for level in GitLibrary.disabledConfigLevels {
             #expect(GitLibrary.configSearchPath(for: level) == "", "level=\(level.rawValue)")
         }
+    }
+
+    /// `~/.gitconfig` は意図して有効なままにしている。ここを無効化すると
+    /// `core.excludesFile` によるグローバルな ignore 設定が効かなくなり、除外したつもりの
+    /// ファイルが untracked として現れる。先回りで無効化リストへ足したらこのテストが落ちる。
+    @Test("global の config 検索パスは無効化しない")
+    func keepsGlobalConfigSearchPathEnabled() throws {
+        #expect(!GitLibrary.disabledConfigLevels.contains(GIT_CONFIG_LEVEL_GLOBAL))
+        let home = try #require(ProcessInfo.processInfo.environment["HOME"])
+        #expect(GitLibrary.configSearchPath(for: GIT_CONFIG_LEVEL_GLOBAL) == home)
     }
 
     /// 無効化しすぎていないことの担保。リポジトリ内の config は引き続き読めなければならない。

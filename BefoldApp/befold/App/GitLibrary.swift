@@ -37,18 +37,22 @@ enum GitLibrary {
         case unusable
     }
 
-    /// 無効化する config レベル。ユーザー環境の `~/.gitconfig` や `/etc/gitconfig` に
-    /// 挙動を左右されないようにする。
+    /// 無効化する config レベル。マシン全体の設定(`/etc/gitconfig`)と XDG 配下の設定を
+    /// 読まないようにして、環境ごとの差で挙動が変わらないようにする。
     ///
     /// 目的は決定性であって、任意コマンド実行の遮断ではない。外部 git プロセス方式では
     /// `core.fsmonitor` / `core.hooksPath` が任意コマンドの起動経路になるため遮断が必須だったが、
     /// libgit2 はフックも textconv も外部 diff driver も実行しない。
     ///
-    /// 代償として `core.excludesFile`(グローバルな ignore 設定)が効かなくなる。
+    /// **`GIT_CONFIG_LEVEL_GLOBAL`(`~/.gitconfig`)は意図して無効化しない。**
+    /// 無効化すると `core.excludesFile` によるグローバルな ignore 設定が効かなくなり、
+    /// ユーザーが除外したつもりのファイルがサイドバーに untracked として現れる。
+    /// 外部 git プロセス方式でも `HOME` を意図的に引き継いで `~/.gitconfig` を有効にしており
+    /// (`GitCommandRunner.processEnvironment`)、その挙動をここでも保つ。
+    /// この判断は `GitLibraryTests.keepsGlobalConfigSearchPathEnabled` が守る。
     static let disabledConfigLevels: [git_config_level_t] = [
         GIT_CONFIG_LEVEL_SYSTEM,
         GIT_CONFIG_LEVEL_XDG,
-        GIT_CONFIG_LEVEL_GLOBAL,
     ]
 
     /// プロセスで一度だけ走る初期化。`static let` は swift_once で保護される。

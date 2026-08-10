@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@Tommy109'
 created_date: '2026-08-10 15:01'
-updated_date: '2026-08-10 15:28'
+updated_date: '2026-08-10 15:34'
 labels:
   - refactor
 dependencies: []
@@ -36,10 +36,11 @@ TASK-435（git 連携の libgit2 移行）の基盤サブタスク。個別の�
 <!-- AC:BEGIN -->
 - [ ] #1 libgit2 パッケージが Package.swift と project.yml の両方に追加され、`swift build` と `xcodebuild build -scheme befold` の両方が通る
 - [ ] #2 git_libgit2_opts を固定引数で呼ぶ C シムターゲットが追加され、Swift から呼べることがテストで確認されている
-- [ ] #3 起動時に GIT_OPT_SET_SEARCH_PATH で system/xdg/global の config 検索パスを無効化する処理が 1 箇所に置かれ、無効化後にユーザーの ~/.gitconfig が読まれないことがテストで担保されている（AC #7）
+- [ ] #3 起動時に GIT_OPT_SET_SEARCH_PATH で system/xdg の config 検索パスを無効化し、global（~/.gitconfig）は有効のままにする。両方がテストで担保されている（AC #7）
 - [ ] #4 リポジトリを開いて後始末する処理が 1 関数に集約され、開けない場合に .unavailable 相当を返すことがテストで担保されている（AC #10）
-- [ ] #5 開けないリポジトリのフィクスチャ（extensions.partialclone / 未知の extensions）を BefoldTestSupport に用意し、クラッシュせずモーダルも出さずに .unavailable 相当へ落ちることがテストで担保されている（AC #9）
+- [ ] #5 開けないリポジトリのフィクスチャ（extensions.partialclone / 未知の extensions）を用意し、クラッシュせずモーダルも出さずに .unavailable 相当へ落ちることがテストで担保されている（AC #9）
 - [ ] #6 libgit2 の初期化と終了（git_libgit2_init / git_libgit2_shutdown）の呼び出し回数と寿命が明示的に決められ、doc コメントに根拠が書かれている
+- [ ] #7 「リポジトリを開くのは GitLibrary だけ」が swiftlint の custom rule で強制され、違反を検知することが自己テストで確認されている
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -105,4 +106,24 @@ Xcode の SPM 統合は、**C ターゲットへ依存パッケージのヘッ�
 `.swiftlint.yml` への custom rule `git_repository_open_outside_git_library` の追加（計画 5 / F3）は、
 PreToolUse フックが `.swiftlint.yml` の編集をユーザーの明示指示なしにブロックするため保留。
 ユーザーの許可待ち。ルールが入るまで「開くのは GitLibrary だけ」は doc コメントだけで守られている状態。
+
+## 方針変更（2026-08-11、ユーザー判断）
+
+**AC #7 の「global config も無効化する」を撤回し、`~/.gitconfig` は有効のままにする。**
+
+理由: 無効化すると `core.excludesFile` によるグローバルな ignore 設定が効かなくなり、
+ユーザーが除外したつもりのファイルがサイドバーに untracked として現れる（実測で
+libgit2 が .gitignore / .git/info/exclude / core.excludesFile の 3 経路を見ることを確認済み）。
+外部 git プロセス方式でも `GitCommandRunner.processEnvironment` が HOME を意図的に
+引き継いで `~/.gitconfig` を有効にしており、その挙動を保つ。
+
+無効化するのは `GIT_CONFIG_LEVEL_SYSTEM` と `GIT_CONFIG_LEVEL_XDG` の 2 つ。
+この判断は `GitLibraryTests.keepsGlobalConfigSearchPathEnabled` が守る
+（先回りで無効化リストへ足したら落ちる）。TASK-435 の AC #7 も書き換え済み。
+
+## swiftlint custom rule（ユーザー承認済み）
+
+`git_repository_open_outside_git_library` を `.swiftlint.yml` へ追加した。
+自己テスト: `befold/App/` に `git_repository_open` を含む一時ファイルを置いて lint すると
+**1 件検知**、削除後の全体走査では **0 件**、総指摘数は 72 件のまま（追加前と同数）。
 <!-- SECTION:NOTES:END -->
