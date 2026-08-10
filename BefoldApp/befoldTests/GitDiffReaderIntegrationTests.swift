@@ -173,7 +173,7 @@ struct GitDiffComparisonBaseIntegrationTests {
 
     private func makeStatusReader() -> GitStatusReader {
         let runner = GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10))
-        return GitStatusReader(runner: runner, repository: GitRepository())
+        return GitStatusReader(comparisonBase: GitComparisonBaseResolver(runner: runner))
     }
 
     /// AC#1: ブランチでコミット済み・作業ツリーがきれいでも差分が出る。
