@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers'
 import { defineConfig } from 'vitest/config'
@@ -25,8 +25,23 @@ const ANALYTICS_TS = path.join(import.meta.dirname, 'src', 'analytics.ts')
 
 /** キーボードショートカット表が参照する、メインメニュー定義とその参照先の定数。 */
 const APP = path.join(import.meta.dirname, '..', 'BefoldApp', 'befold', 'App')
-const MAIN_MENU_BUILDER_SWIFT = path.join(APP, 'MainMenuBuilder.swift')
 const BOOKMARK_SHORTCUT_SWIFT = path.join(APP, 'BookmarkShortcut.swift')
+
+/**
+ * メニュー定義は `MainMenuBuilder+ViewMenu.swift` のように extension へ分割される
+ * （SwiftLint の file_length 対策）。1 ファイルだけを読むと、分割で移動した項目が
+ * 「実装に存在しない」と見なされて検証が壊れるため、`MainMenuBuilder*.swift` を
+ * すべて読んで連結する。1 件も見つからなければ throw して黙って無効化させない。
+ */
+async function readMainMenuBuilderSwift(): Promise<string> {
+  const names = (await readdir(APP))
+    .filter((name) => name.startsWith('MainMenuBuilder') && name.endsWith('.swift'))
+    .sort()
+  if (names.length === 0) throw new Error(`MainMenuBuilder*.swift が見つからない: ${APP}`)
+
+  const sources = await Promise.all(names.map((name) => readFile(path.join(APP, name), 'utf8')))
+  return sources.join('\n')
+}
 
 export default defineConfig({
   plugins: [
@@ -37,7 +52,7 @@ export default defineConfig({
       const fileTypeSwift = await readFile(FILE_TYPE_SWIFT, 'utf8')
       const contentLoaderSwift = await readFile(CONTENT_LOADER_SWIFT, 'utf8')
       const normalizedTextCacheSwift = await readFile(NORMALIZED_TEXT_CACHE_SWIFT, 'utf8')
-      const mainMenuBuilderSwift = await readFile(MAIN_MENU_BUILDER_SWIFT, 'utf8')
+      const mainMenuBuilderSwift = await readMainMenuBuilderSwift()
       const bookmarkShortcutSwift = await readFile(BOOKMARK_SHORTCUT_SWIFT, 'utf8')
       const analyticsSource = await readFile(ANALYTICS_TS, 'utf8')
 
