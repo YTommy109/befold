@@ -70,3 +70,21 @@ custom_rules:
     regex: 'FeatureGate\.'
     message: "ゲート値は配線点で読み、引数で注入する（.claude/CLAUDE.md「フィーチャーゲート」節）"
     severity: error
+
+  # 上限なしの `DispatchSemaphore.wait()` は、待つ間そのスレッドを協調スレッド
+  # プールから外す。プール幅はコア数で決まるため、ローカル（10 コア）では表面化
+  # せず、CI の macOS ランナー（3〜4 コア）で埋まり切るとテストプロセス全体が
+  # 停止する（TASK-424。2026-08-07 / 08-09 の CI が数十分〜数時間ハングした）。
+  # 予算付きで待って超過を失敗として記録する waitOrRecordTimeout を使うこと
+  # （BefoldTestSupport/BlockingWait.swift）。`await` を伴う AsyncGate.wait() は
+  # スレッドを塞がないため対象外。
+  unbounded_semaphore_wait:
+    name: "上限のない同期待機"
+    included: "BefoldApp/.*Tests.*\\.swift$"
+    excluded:
+      # 非協調の DispatchQueue.global ワーカーを意図的に飽和させるテスト。
+      # defer で投げた本数だけ signal するため回収が保証されている。
+      - "BefoldApp/befoldTests/GitCommandRunnerTests\\.swift$"
+    regex: '(?<!await )\b[A-Za-z_]\w*\??\.wait\(\)'
+    message: "waitOrRecordTimeout を使う（BefoldTestSupport/BlockingWait.swift）"
+    severity: error
