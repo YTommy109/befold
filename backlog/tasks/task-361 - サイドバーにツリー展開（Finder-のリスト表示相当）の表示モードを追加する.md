@@ -4,6 +4,7 @@ title: サイドバーにツリー展開（Finder のリスト表示相当）の
 status: To Do
 assignee: []
 created_date: '2026-08-08 06:00'
+updated_date: '2026-08-10 01:58'
 labels: []
 dependencies: []
 priority: medium
@@ -61,3 +62,31 @@ ordinal: 615500
 - [ ] #7 ツリー展開時に選択したファイルへスクロールが正しく追従する（行番号の算出がフラット配列前提のままになっていない）
 - [ ] #8 従来のドリルダウン表示の既存の振る舞いと既存テストが壊れていない
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 調査（2026-08-10）
+
+Description の「現状（2026-08-08）」に書いた 12 の主張を HEAD a3202d4 で再検証し、**すべて現在も成立**することを確認した（行番号のズレも無し。FileListView.swift:161 の List(model.visibleEntries, selection:) も一致、OutlineGroup / DisclosureGroup の使用は全体で 0 件）。
+
+## 単純化の検討 → サブタスクへ分割
+
+「構造上の論点」8 件のうち、次の 3 件は **ツリーを別モードとして並置する場合にのみ発生する**。行モデルを「ルート + 展開集合から生成される depth 付きフラット配列」へ一本化し、ドリルダウンをその縮退形（展開集合が空）として通せば、論点自体が消える。
+
+- スクロール行番号 = visibleEntries の添字前提（FileListModel.swift:258-260）
+- キーボード移動の前後添字前提（FileListView.swift:346-372）
+- previewTarget の FileListEntryIndex 依存（FileListModel.swift:70）
+
+一方、単純化しても残る本質的な設計変更は次の 3 件。
+
+- git 状態の単一 directoryKey 前提（SidebarGitStatus.swift:16 / FileListFilter.swift:47 / FileListModel.swift:193,214）
+- performListing のサイドバー全体 1 世代ガード（SidebarNavigator.swift:222-240）
+- 名前フィルタのツリー時の意味（FileListFilter.swift:27）
+
+この整理に沿って TASK-361.1〜361.5 へ分割した（361.1 が土台、361.2/361.3 が並行可能、361.4 で初めてユーザーに見える、361.5 が仕上げ）。親タスクの AC はサブタスク側の AC で満たされる。
+
+## 確定した制約
+
+- TASK-356（cmd+1〜4 をプレビュー表示モードへ割り当て）は **Done**。「使ってはならない」は予定でなく確定事項として 361.4 の AC に入れた。
+<!-- SECTION:NOTES:END -->
