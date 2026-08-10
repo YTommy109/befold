@@ -236,17 +236,23 @@ final class ViewerWindowManager {
     /// CLI 由来の表示オーバーライドは `options` ごとそのまま受け取る。呼び出し側で
     /// フィールドを手写しして渡すと、`CLIOpenOptions` にオプションを足したときに
     /// 特定経路(セッション復元など)だけ転送漏れする。
+    ///
+    /// 戻り値は、この呼び出しが対象としたコントローラ(新規生成、または前面化した既存)。
+    /// 開けなかった場合は nil。`controllers` は 1 パスに複数のコントローラを持ちうる
+    /// 多重マップなので、呼び出し直後に `window(forPath:)` で引き直すと**別のウィンドウ**を
+    /// 掴む(TASK-415)。開いたウィンドウに続けて触る呼び出し元はこの戻り値を使うこと。
+    @discardableResult
     func openViewer(
         for url: URL,
         options: CLIOpenOptions = CLIOpenOptions(),
         disposition: OpenDisposition = .currentTab,
         relativeTo sourceWindow: NSWindow? = nil,
         forceSidebarVisible: Bool = false
-    ) {
+    ) -> ViewerWindowController? {
         guard fileReader.fileExists(at: url) else {
             // 新規オープン時点ではまだ親ウィンドウが無いため over: nil でモーダル表示する。
             FileNotFoundUI.present(url: url, over: nil)
-            return
+            return nil
         }
 
         let key = url.normalizedPathKey
@@ -257,7 +263,7 @@ final class ViewerWindowManager {
         // (既に開いているファイルで「新しいウィンドウで開く」が無反応に見える問題: issue #431)。
         if disposition == .currentTab, let existing = controllers[key]?.first {
             reopenExistingWindow(existing, options: options, forceSidebarVisible: forceSidebarVisible)
-            return
+            return existing
         }
 
         let lastActivePathKey = sessionStore.savedActivePath()
@@ -313,6 +319,7 @@ final class ViewerWindowManager {
         recentDocumentsStore.noteOpened(url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         recordRecentRepositoryIfNeeded(for: url, controller: controller)
+        return controller
     }
 
     /// window を baseWindow のタブグループへ結合する。タブ結合の手続きはここが単一の実装元で、
