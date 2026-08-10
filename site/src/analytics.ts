@@ -48,6 +48,20 @@ const METRIC_FILTERS: Record<MetricKey, MetricFilter> = {
   update_check: { kind: 'update_check', source: null },
 }
 
+/**
+ * 指標を SQL 側で判定する式（どの指標にも当たらない行は NULL）。
+ *
+ * 内訳を指標ごとに 1 本ずつ引くと指標の数だけ全表スキャンが増えるため、指標を行に
+ * 持たせて 1 本にまとめるための式。埋め込む値は `METRIC_FILTERS` の定数だけで、
+ * 外部入力は入らない。判定の定義元を二重に持たないよう、条件はここで組み立てる。
+ */
+const METRIC_EXPR = `CASE ${Object.entries(METRIC_FILTERS)
+  .map(([metric, { kind, source }]) => {
+    const bySource = source === null ? '' : ` AND COALESCE(source, 'lp') = '${source}'`
+    return `WHEN kind = '${kind}'${bySource} THEN '${metric}'`
+  })
+  .join(' ')} END`
+
 /** 指標ごとの件数。 */
 export type KindCounts = Record<MetricKey, number>
 
@@ -239,27 +253,37 @@ export async function hourlyDistribution(
 /** 内訳を取れるカラム。SQL へ差し込むため、外部入力を受けない固定の集合に限る。 */
 type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer' | 'as_org'
 
+/**
+ * 指標を WHERE 句へ落とす（指標を指定しなければ空）。
+ *
+ * `(? IS NULL OR kind = ?)` の形で無条件を表さないこと。この形は kind が定数に
+ * ならず idx_events_kind が効かなくなるため、条件そのものを組み立てて外す。
+ * 埋め込む値は `METRIC_FILTERS` の定数だけで、外部入力は入らない。
+ */
+function metricCondition(metric: MetricKey | null): string {
+  if (metric === null) return ''
+
+  const { kind, source } = METRIC_FILTERS[metric]
+  const bySource = source === null ? '' : ` AND COALESCE(source, 'lp') = '${source}'`
+  return ` AND kind = '${kind}'${bySource}`
+}
+
 /** 指定カラムの内訳（上位 N 件、NULL は除外）。 */
 async function breakdown(
   db: D1Database,
   column: BreakdownColumn,
   metric: MetricKey | null = null,
 ): Promise<Count[]> {
-  const filter = metric === null ? null : METRIC_FILTERS[metric]
-
   const { results } = await db
     .prepare(
       `SELECT ${column} AS label, COUNT(*) AS count
        FROM events
        WHERE ${column} IS NOT NULL
-         AND ${HUMAN_ONLY}
-         AND (?1 IS NULL OR kind = ?1)
-         AND (?2 IS NULL OR COALESCE(source, 'lp') = ?2)
+         AND ${HUMAN_ONLY}${metricCondition(metric)}
        GROUP BY label
        ORDER BY count DESC, label
        LIMIT ${TOP_N}`,
     )
-    .bind(filter?.kind ?? null, filter?.source ?? null)
     .all<Count>()
 
   return results
@@ -330,17 +354,61 @@ export async function recentEvents(db: D1Database, afterId = 0): Promise<RecentE
   return results
 }
 
-/** 1 指標の OS 別・接続元組織別の内訳。合算しないため指標の意味が混ざらない。 */
-async function kindBreakdown(
+/**
+ * 全指標ぶんの内訳を 1 本のクエリで取る（指標ごとに上位 N 件）。
+ *
+ * 指標ごとに引くと `(?1 IS NULL OR kind = ?1)` の形の述語で全表スキャンが指標の数
+ * だけ並ぶ。指標を行に持たせて 1 本にまとめ、上位 N 件の切り出しは
+ * `ROW_NUMBER()` の窓で指標ごとに行う（LIMIT だと 1 指標ぶんしか取れない）。
+ */
+async function metricBreakdown(
   db: D1Database,
-  { kind, label }: { kind: MetricKey; label: string },
-): Promise<Omit<KindBreakdown, 'total'>> {
+  column: Extract<BreakdownColumn, 'os' | 'as_org'>,
+): Promise<Map<MetricKey, Count[]>> {
+  const { results } = await db
+    .prepare(
+      `WITH grouped AS (
+         SELECT ${METRIC_EXPR} AS metric, ${column} AS label, COUNT(*) AS count
+         FROM events
+         WHERE ${column} IS NOT NULL AND ${HUMAN_ONLY}
+         GROUP BY metric, label
+       ),
+       ranked AS (
+         SELECT metric, label, count,
+                ROW_NUMBER() OVER (PARTITION BY metric ORDER BY count DESC, label) AS position
+         FROM grouped
+         WHERE metric IS NOT NULL
+       )
+       SELECT metric, label, count
+       FROM ranked
+       WHERE position <= ${TOP_N}
+       ORDER BY metric, position`,
+    )
+    .all<Count & { metric: MetricKey }>()
+
+  const byMetric = new Map<MetricKey, Count[]>()
+  for (const { metric, label, count } of results) {
+    const counts = byMetric.get(metric) ?? []
+    counts.push({ label, count })
+    byMetric.set(metric, counts)
+  }
+
+  return byMetric
+}
+
+/** 指標ごとの OS 別・接続元組織別の内訳。合算しないため指標の意味が混ざらない。 */
+async function kindBreakdowns(db: D1Database): Promise<Omit<KindBreakdown, 'total'>[]> {
   const [byOS, byAsOrg] = await Promise.all([
-    breakdown(db, 'os', kind),
-    breakdown(db, 'as_org', kind),
+    metricBreakdown(db, 'os'),
+    metricBreakdown(db, 'as_org'),
   ])
 
-  return { kind, label, byOS, byAsOrg }
+  return KIND_LABELS.map(({ kind, label }) => ({
+    kind,
+    label,
+    byOS: byOS.get(kind) ?? [],
+    byAsOrg: byAsOrg.get(kind) ?? [],
+  }))
 }
 
 /** ダッシュボード初期表示用の集計一式。 */
@@ -357,7 +425,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
       // ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を
       // 実測するために持つ。TASK-360 で見送った llms.txt の要否判断に使う。
       uaSplit(db),
-      Promise.all(KIND_LABELS.map((entry) => kindBreakdown(db, entry))),
+      kindBreakdowns(db),
       recentEvents(db),
     ])
 
