@@ -1,20 +1,23 @@
 import Foundation
 
-/// 実 git を叩く Integration テスト向けの共通ヘルパー。`GitRepositoryIntegrationTests` /
-/// `GitCommandRunnerTests`(GitCommandRunner を実行するテスト群)の双方で「リポジトリを作る」
-/// 実装が別々に育たないよう、ここへ単一情報源化する。プロダクトコードの `GitCommandRunner` が
-/// 前置する無害化オプションをあえて経由しない生の git 実行のため、対照実験
-/// (無害化なしでは再現する挙動)にも使える。
-/// `GitCommandRunnerTests` 側は TASK-244 の直列化制約(`GitCommandRunner` を実行する全テストを
-/// 資源残留系の直列スイートへ寄せる)により `〜IntegrationTests.swift` へは分離していない。
+/// 実 git を叩く Integration テスト向けの共通ヘルパー。git 連携そのものは libgit2 実装に
+/// 移ったが(TASK-435)、**検証用のリポジトリを作る**手段としては実 git が要る。
+/// libgit2 の実装が実 git の生成物を正しく読めるかを確かめるのが目的であり、
+/// フィクスチャ側まで libgit2 で作ると同じ実装で書いて同じ実装で読むことになる。
+///
+/// 「リポジトリを作る」実装が各テストで別々に育たないよう、ここへ単一情報源化する。
 public enum GitTestRepo {
-    /// 無害化オプションを通さず git を実行する。テストのセットアップ用途のため、
-    /// 失敗は無視して呼び出し側の後続アサーションに委ねる。
+    /// git を実行する。テストのセットアップ用途のため、失敗は無視して
+    /// 呼び出し側の後続アサーションに委ねる。
     ///
     /// 起動できなかった `Process` へ `waitUntilExit()` を呼ぶと、Swift から捕捉できない
-    /// `NSInvalidArgumentException` が飛んでテストプロセスごと落ちる。spawn 失敗は fd リーク
-    /// 退行の検証中(EMFILE)にこそ起きやすく、そこでクラッシュすると呼び出し元の defer による
-    /// 後始末まで飛ばしかねないため、起動できたときだけ待つ。
+    /// `NSInvalidArgumentException` が飛んでテストプロセスごと落ちる。そこでクラッシュすると
+    /// 呼び出し元の defer による後始末まで飛ばしかねないため、起動できたときだけ待つ。
+    ///
+    /// 待ちには上限を付ける。`waitUntilExit()` は呼び出したスレッドを塞ぎ、Swift Testing の
+    /// テストは協調スレッドプール上で動くため、git が 1 つハングするとプール幅(コア数)ぶんで
+    /// テストプロセス全体が止まりうる(TASK-424 で `DispatchSemaphore.wait()` が
+    /// 少コアの CI を実際に停止させたのと同じ形)。猶予を過ぎたら終了させてから待つ。
     public static func run(_ args: [String], in dir: URL) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -22,7 +25,14 @@ public enum GitTestRepo {
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return }
+        let watchdog = DispatchWorkItem {
+            if process.isRunning { process.terminate() }
+        }
+        DispatchQueue.global(qos: .utility).asyncAfter(
+            deadline: .now() + testTimeoutSeconds(fallback: 30), execute: watchdog
+        )
         process.waitUntilExit()
+        watchdog.cancel()
     }
 
     /// dir を git リポジトリとして初期化し、コミットに必要な最低限の設定を入れる。

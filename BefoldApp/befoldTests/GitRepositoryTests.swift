@@ -3,174 +3,83 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// 実 git を要しない unit テスト。worktree porcelain パースは実 git の出力を経ずに
-/// インメモリのフィクスチャで網羅する(実 git を通す検証は `GitRepositoryIntegrationTests` の
-/// スモーク 1 本に任せる)。gitdir 解決系は実ファイルシステム操作のみでプロセスは起動しない。
+/// 実 git を起動しない `GitRepository` の unit テスト。
+///
+/// libgit2 化で「git の出力テキストをパースする純関数」が無くなったため、worktree 列挙の
+/// 網羅は実 git フィクスチャの `GitRepositoryIntegrationTests` が担う。ここに残るのは
+/// リポジトリを開けなかったときの縮退と、gitdir 解決(ファイル操作のみ)の 2 系統。
 struct GitRepositoryTests {
-    /// gitdir 解決系のテスト(resolvesRelativeGitdirFile / resolvesWorktreeGitFile)が
-    /// 呼ぶ `indexFingerprint` はファイル stat のみで git を起動しないため、既定生成で足りる。
+    /// gitdir 解決系のテストが呼ぶ `indexFingerprint` はファイル stat のみで
+    /// リポジトリを開かないため、既定生成で足りる。
     private func makeRepository() -> GitRepository {
         GitRepository()
     }
 
-    /// git を一度も起動せず、常に「実行できなかった」を返すランナー。
-    ///
-    /// 縮退の検証を実 git の予算(タイムアウト)で作らないための注入点。予算を極小にする
-    /// 方式は git が予算内に終われば普通に成功してしまい、結論が壁時計に左右される
-    /// (CI の TSan ジョブで実際に worktree 一覧が返って落ちた)。
-    private struct UnavailableGitCommandRunner: GitCommandRunning {
-        func run(_: [String], in _: URL?) -> GitCommandOutcome {
-            .unavailable
-        }
+    // MARK: - 開けないリポジトリでの縮退
+
+    /// 「libgit2 が開けないリポジトリ」を作る。実 git を起動せず `.git/` を手で組むため、
+    /// 縮退の検証が git のバージョンや壁時計(タイムアウト)に左右されない。
+    /// フィクスチャの中身は `GitLibraryTests` と共有する(同じ失敗を 2 通りに定義しない)。
+    private func makeUnopenableRepository(in directory: URL) throws {
+        try GitLibraryTests.makeUnopenableRepository(in: directory, extensionEntry: "partialclone = origin")
     }
 
-    @Test("git を実行できない場合の worktree 一覧は空になる")
-    func worktreesFallBackToEmptyWhenGitUnavailable() {
-        let repo = GitRepository(runner: UnavailableGitCommandRunner())
+    @Test("リポジトリを開けない場合の root 検出は「不明」であって「管理外」ではない")
+    func rootLookupIsUndeterminedWhenRepositoryUnopenable() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        try makeUnopenableRepository(in: temp.url)
 
-        #expect(repo.worktrees(forRoot: URL(fileURLWithPath: "/tmp/any", isDirectory: true)).isEmpty)
-    }
+        let lookup = makeRepository().root(forFileAt: temp.url.appendingPathComponent("main.swift"))
 
-    @Test("git を実行できない場合はディレクトリ名のみに縮退する")
-    func repositoryIdentityFallsBackWhenGitUnavailable() {
-        let root = URL(fileURLWithPath: "/tmp/any-repository", isDirectory: true)
-        let repo = GitRepository(runner: UnavailableGitCommandRunner())
-
-        let identity = repo.repositoryIdentity(forRoot: root)
-
-        // ラベルだけだと本体リポジトリの正常系と同じ値になり、git が動いてしまっても
-        // 通ってしまう。mainRoot まで見て「自身のルートへ縮退した」ことを固定する。
-        #expect(identity.label == "any-repository")
-        #expect(identity.mainRoot == root.standardizedFileURL)
-    }
-
-    @Test("git を実行できない場合の root 検出は「不明」であって「管理外」ではない")
-    func rootLookupIsUndeterminedWhenGitUnavailable() {
-        let repo = GitRepository(runner: UnavailableGitCommandRunner())
-
-        let lookup = repo.root(forFileAt: URL(fileURLWithPath: "/tmp/any/main.swift"))
-
+        // ここが .notARepository に倒れると、開けなかっただけの結果が
+        // GitCommandFileIndex にキャッシュされ「git 管理外」としてアプリ寿命の間固定される。
         #expect(lookup == .undetermined)
     }
 
-    /// worktree porcelain 出力 1 件のパース期待値。
-    private struct WorktreeExpectation {
-        var path: String
-        var isMain: Bool
-        var branch: String?
-        var displayName: String
+    /// 上のテストと対で「確定した答え」側を固定する。両方が同じ値になっていたら、
+    /// キャッシュしてよい/いけないの区別が失われている。
+    @Test("git 管理外のディレクトリは「管理外」として確定する")
+    func rootLookupIsNotARepositoryOutsideRepository() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+
+        #expect(makeRepository().root(forFileAt: temp.url.appendingPathComponent("x.md")) == .notARepository)
     }
 
-    private struct ParseWorktreeListCase: Sendable, CustomTestStringConvertible {
-        var testDescription: String
-        var text: String
-        var expected: [WorktreeExpectation]
+    @Test("リポジトリを開けない場合の worktree 一覧は空になる")
+    func worktreesFallBackToEmptyWhenRepositoryUnopenable() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        try makeUnopenableRepository(in: temp.url)
+
+        #expect(makeRepository().worktrees(forRoot: temp.url).isEmpty)
     }
 
-    private static let parseWorktreeListCases: [ParseWorktreeListCase] = [
-        ParseWorktreeListCase(
-            testDescription: "本体のみ",
-            text: "worktree /repo/main\nHEAD abc123\nbranch refs/heads/main\n",
-            expected: [
-                WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main", displayName: "main (main)"),
-            ]
-        ),
-        ParseWorktreeListCase(
-            testDescription: "本体 + worktree(ブランチあり)",
-            text: """
-            worktree /repo/main
-            HEAD abc123
-            branch refs/heads/main
+    @Test("リポジトリを開けない場合はディレクトリ名のみに縮退する")
+    func repositoryIdentityFallsBackWhenRepositoryUnopenable() throws {
+        let temp = try TempDir(prefix: "any-repository")
+        defer { withExtendedLifetime(temp) {} }
+        try makeUnopenableRepository(in: temp.url)
 
-            worktree /repo/wt
-            HEAD def456
-            branch refs/heads/feature-x
-            """,
-            expected: [
-                WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main", displayName: "main (main)"),
-                WorktreeExpectation(
-                    path: "/repo/wt", isMain: false, branch: "feature-x", displayName: "feature-x (wt)"
-                ),
-            ]
-        ),
-        ParseWorktreeListCase(
-            testDescription: "detached はブランチ無しでディレクトリ名だけの表示になる",
-            text: """
-            worktree /repo/main
-            HEAD abc123
-            branch refs/heads/main
+        let identity = makeRepository().repositoryIdentity(forRoot: temp.url)
 
-            worktree /repo/detached
-            HEAD def456
-            detached
-            """,
-            expected: [
-                WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main", displayName: "main (main)"),
-                WorktreeExpectation(
-                    path: "/repo/detached", isMain: false, branch: nil, displayName: "detached"
-                ),
-            ]
-        ),
-        ParseWorktreeListCase(
-            testDescription: "bare リポジトリはブランチ無しでディレクトリ名だけの表示になる",
-            text: "worktree /repo/bare\nbare\n",
-            expected: [
-                WorktreeExpectation(path: "/repo/bare", isMain: true, branch: nil, displayName: "bare"),
-            ]
-        ),
-        ParseWorktreeListCase(
-            testDescription: "3 件以上でも並び順(先頭=本体)を保つ",
-            text: """
-            worktree /repo/main
-            HEAD abc123
-            branch refs/heads/main
-
-            worktree /repo/a
-            HEAD def456
-            branch refs/heads/feature-a
-
-            worktree /repo/b
-            HEAD ghi789
-            detached
-            """,
-            expected: [
-                WorktreeExpectation(path: "/repo/main", isMain: true, branch: "main", displayName: "main (main)"),
-                WorktreeExpectation(
-                    path: "/repo/a", isMain: false, branch: "feature-a", displayName: "feature-a (a)"
-                ),
-                WorktreeExpectation(path: "/repo/b", isMain: false, branch: nil, displayName: "b"),
-            ]
-        ),
-        ParseWorktreeListCase(
-            testDescription: "worktree 行が無ければ空",
-            text: "HEAD abc123\nbranch refs/heads/main\n",
-            expected: []
-        ),
-        ParseWorktreeListCase(
-            testDescription: "空パスの worktree 行は無視される",
-            text: "worktree \nHEAD abc123\nbranch refs/heads/main\n",
-            expected: []
-        ),
-        ParseWorktreeListCase(
-            testDescription: "branch 行の値が空ならブランチ無し扱い",
-            text: "worktree /repo/main\nbranch \n",
-            expected: [
-                WorktreeExpectation(path: "/repo/main", isMain: true, branch: nil, displayName: "main"),
-            ]
-        ),
-    ]
-
-    @Test("worktree porcelain 出力をパースする", arguments: parseWorktreeListCases)
-    private func parsesWorktreeListPorcelain(_ testCase: ParseWorktreeListCase) {
-        let result = GitRepository.parseWorktreeList(testCase.text)
-
-        #expect(result.map(\.root) == testCase.expected.map {
-            URL(fileURLWithPath: $0.path, isDirectory: true).standardizedFileURL
-        })
-        #expect(result.map(\.isMain) == testCase.expected.map(\.isMain))
-        #expect(result.map(\.branch) == testCase.expected.map(\.branch))
-        #expect(result.map(\.displayName) == testCase.expected.map(\.displayName))
+        // ラベルだけだと本体リポジトリの正常系と同じ値になり、開けてしまっても通る。
+        // mainRoot まで見て「自身のルートへ縮退した」ことを固定する。
+        #expect(identity.label == temp.url.standardizedFileURL.lastPathComponent)
+        #expect(identity.mainRoot == temp.url.standardizedFileURL)
     }
+
+    @Test("リポジトリを開けない場合の追跡ファイル一覧は nil(0 件ではない)")
+    func trackedFilesAreNilWhenRepositoryUnopenable() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        try makeUnopenableRepository(in: temp.url)
+
+        #expect(makeRepository().trackedFiles(at: temp.url) == nil)
+    }
+
+    // MARK: - gitdir 解決
 
     /// submodule の `.git` ファイルは `gitdir: ../.git/modules/<name>` のように
     /// 相対パスを書く。worktree(絶対パス)の分岐しか通っていないと、submodule では

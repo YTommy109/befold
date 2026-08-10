@@ -17,13 +17,13 @@ extension ViewerWindowController {
     /// `ViewerStore.openFile` が担う(着地時の確認だけでは切替直後の残留を防げない)。
     ///
     /// リポジトリルートの解決はクロージャで `GitDiffLoader` へ渡し、差分取得と同じ
-    /// detached タスクの中で行わせる。キャッシュに無いディレクトリでは `git rev-parse` の
-    /// サブプロセスが起きるため、メインアクター上で同期に呼ぶとコンテンツ再読込のたびに
-    /// UI が止まりうる(遅いボリュームでは GitCommandRunner のタイムアウト分まで)。
+    /// detached タスクの中で行わせる。キャッシュに無いディレクトリではリポジトリを開いて
+    /// 走査するため、メインアクター上で同期に呼ぶとコンテンツ再読込のたびに
+    /// UI が止まりうる(遅いボリュームでは特に)。
     /// ここで解決を待ってからローダーを呼ぶ形へ戻すと、登録が契機のターンから外れて
     /// 兄弟要求が合流できなくなる(TASK-346)。
-    /// 差分を出せない種別(画像・PDF・文書を出していない状態)では git を起こさない。
-    /// 表示側(ViewerContentView)が捨てるだけでは、契機の数だけ subprocess が走る。
+    /// 差分を出せない種別(画像・PDF・文書を出していない状態)では差分取得を起こさない。
+    /// 表示側(ViewerContentView)が捨てるだけでは、契機の数だけ取得が走る。
     func refreshDiff() {
         guard let loader = diffLoader, isDiffShown, capabilities.canSelectDiffMode else {
             store.diffText = nil

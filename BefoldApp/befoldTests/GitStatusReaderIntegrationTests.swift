@@ -4,16 +4,14 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// 実 git を spawn する Integration テスト。porcelain の書式網羅は
-/// `GitStatusReaderTests`(フィクスチャ)に任せ、ここでは「実 git の出力を実際に
-/// 解釈でき、絶対パスのキーで引ける」ことのスモークに絞る(実 git を起動するテストは
-/// `GitCommandRunnerResourceLeakTests` の基準線にノイズを乗せるため本数を絞る規約)。
+/// 実 git が作ったリポジトリを `GitStatusReader`(libgit2 実装)が読めることの
+/// Integration テスト。
+///
+/// libgit2 化で「git の出力テキストをパースする純関数」が無くなったため、状態の
+/// 網羅もここが担う(フィクスチャで代替できる部分は無い)。
 struct GitStatusReaderIntegrationTests {
-    /// git 1 回あたりの予算は他のポーリング待機と同じ単一情報源から採る
-    /// (少コアの CI では git の起動自体が遅れうるため、本番既定の 10 秒に縛らない)。
     private func makeReader() -> GitStatusReader {
-        let runner = GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10))
-        return GitStatusReader(runner: runner, repository: GitRepository(runner: runner))
+        GitStatusReader()
     }
 
     @Test("staged / unstaged / untracked を実 git の出力から判別する")
@@ -75,6 +73,121 @@ struct GitStatusReaderIntegrationTests {
         // サブモジュールは clean なので status に 1 行も出ない = 検出の出所は
         // `.gitmodules` 側であることの確認(ここが空でも境界は立っている)。
         #expect(snapshot.statuses[temp.url.appendingPathComponent("sub").normalizedPathKey] == nil)
+    }
+
+    /// `.gitmodules` にも `.git/config` にも登録が無い gitlink でも境界として検出できること。
+    ///
+    /// 外部 git 方式では porcelain の `<sub>` フィールドが `S` 始まりかで拾っていた系統。
+    /// libgit2 では `git_submodule_foreach` が index の gitlink まで列挙するため、
+    /// 登録の有無によらず同じ集合になる(この前提が崩れたらここが落ちる)。
+    ///
+    /// 併せて、中身が変更されたサブモジュールにバッジが付くことも固定する。
+    /// `GIT_STATUS_OPT_EXCLUDE_SUBMODULES` を足すと status のエントリが 1 件も出なくなり、
+    /// バッジが黙って消える(実測)。それを検知するのがこのテストの後半。
+    @Test("登録されていない gitlink も境界として検出し、変更されたサブモジュールにバッジを出す")
+    func showsBadgeForDirtySubmodule() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        let child = try TempDir()
+        defer { withExtendedLifetime(child) {} }
+        GitTestRepo.initRepository(at: child.url)
+        try GitTestRepo.commitFile(named: "a.txt", in: child.url)
+
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "root.txt", in: temp.url)
+        GitTestRepo.run(
+            ["-c", "protocol.file.allow=always", "submodule", "add", child.url.path, "sub"], in: temp.url
+        )
+        GitTestRepo.run(["commit", "-m", "add submodule"], in: temp.url)
+        // 登録を両方から消す。index の gitlink だけが残った状態を作る。
+        GitTestRepo.run(["rm", "-f", ".gitmodules"], in: temp.url)
+        GitTestRepo.run(["config", "--remove-section", "submodule.sub"], in: temp.url)
+        GitTestRepo.run(["commit", "-m", "drop registration"], in: temp.url)
+        // clean な gitlink は status に出ないため、サブモジュール側を汚してエントリを立てる。
+        try GitTestRepo.modifyWithoutStaging("a.txt", in: temp.url.appendingPathComponent("sub"))
+
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+
+        #expect(snapshot.indeterminateRoots.contains(
+            temp.url.appendingPathComponent("sub").normalizedPathKey
+        ))
+        #expect(
+            snapshot.statuses[temp.url.appendingPathComponent("sub").normalizedPathKey] != nil,
+            "変更されたサブモジュールのバッジが消えている(EXCLUDE_SUBMODULES を設定していないか)"
+        )
+    }
+
+    // MARK: - 変更種別の写像(旧 porcelain フィクスチャからの移設)
+
+    @Test("staged と unstaged が両立するファイルは両辺の変更種別を保持する")
+    func keepsBothSidesWhenStagedAndUnstaged() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "seed.md", in: temp.url)
+        // index へ新規追加した後、作業ツリー側だけをさらに書き換える(porcelain の `AM`)。
+        try GitTestRepo.stageChange(to: "both.md", contents: "staged", in: temp.url)
+        try GitTestRepo.modifyWithoutStaging("both.md", contents: "worktree", in: temp.url)
+
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+
+        #expect(snapshot.statuses[temp.url.appendingPathComponent("both.md").normalizedPathKey]
+            == GitFileStatus(indexChange: .added, worktreeChange: .modified))
+    }
+
+    @Test("削除と改名がそれぞれの変更種別として返る")
+    func mapsDeletionAndRename() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "gone.md", contents: "gone", in: temp.url)
+        try GitTestRepo.commitFile(named: "old.md", contents: String(repeating: "content\n", count: 20), in: temp.url)
+        GitTestRepo.run(["rm", "gone.md"], in: temp.url)
+        GitTestRepo.run(["mv", "old.md", "new.md"], in: temp.url)
+
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+
+        func status(_ name: String) -> GitFileStatus? {
+            snapshot.statuses[temp.url.appendingPathComponent(name).normalizedPathKey]
+        }
+        #expect(status("gone.md")?.indexChange == .deleted)
+        // 改名検出が効いていれば新パスが .renamed。効かない場合は旧パスの削除 +
+        // 新パスの追加になるため、新パス側の種別で判定できる。
+        #expect(status("new.md")?.indexChange == .renamed)
+        #expect(status("old.md") == nil)
+    }
+
+    @Test("未マージのファイルは両辺を unmerged として扱う")
+    func mapsUnmergedFiles() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "conflict.md", contents: "base", in: temp.url)
+        GitTestRepo.run(["checkout", "-b", "other"], in: temp.url)
+        try GitTestRepo.commitChange(to: "conflict.md", contents: "theirs", in: temp.url)
+        GitTestRepo.run(["checkout", "-"], in: temp.url)
+        try GitTestRepo.commitChange(to: "conflict.md", contents: "ours", in: temp.url)
+        GitTestRepo.run(["merge", "other"], in: temp.url)
+
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+
+        let status = snapshot.statuses[temp.url.appendingPathComponent("conflict.md").normalizedPathKey]
+        #expect(status?.indexChange == .unmerged)
+        #expect(status?.worktreeChange == .unmerged)
+    }
+
+    @Test("ignored ファイルと変更の無いファイルはバッジ対象に含めない")
+    func skipsIgnoredAndUnchangedFiles() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "unchanged.md", in: temp.url)
+        try GitTestRepo.commitFile(named: ".gitignore", contents: "ignored.md\n", in: temp.url)
+        try GitTestRepo.addUntrackedFile(named: "ignored.md", in: temp.url)
+
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+
+        #expect(snapshot.statuses.isEmpty, "余計なエントリ: \(snapshot.statuses.keys.sorted())")
     }
 
     /// Reader / Store / SidebarNavigator を本番と同じ組み合わせで繋ぎ、実リポジトリの
@@ -161,15 +274,22 @@ struct GitStatusReaderIntegrationTests {
         #expect(navigator.fileListModel.gitStatus?.fileStatus(at: key)?.worktreeChange == nil)
     }
 
-    /// 自己励振の防止線。`git status` は既定で index を refresh して mtime を書き換えうるため、
-    /// `--no-optional-locks` を外すと「status → index 変化 → 監視発火 → status」の輪ができる。
+    /// 自己励振の防止線。status が `.git/index` を書き換えると
+    /// 「status → fingerprint 変化 → 監視発火 → status」の輪ができる
+    /// (外部 git 方式で `--no-optional-locks` が防いでいたもの)。
+    ///
+    /// **内容を変えずに mtime だけ動かす**のが要点。内容ごと変えた場合、libgit2 は
+    /// `GIT_STATUS_OPT_UPDATE_INDEX` を設定しても index を書かないため、
+    /// このフラグを足す退行を検知できない(実測で確認済み)。stat だけが古くなった状態こそが
+    /// UPDATE_INDEX の書き込み条件であり、防止線はそこに置かなければ効かない。
     @Test("status 実行は .git/index の fingerprint を変えない")
     func statusDoesNotDisturbIndexFingerprint() throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
         GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "a.md", in: temp.url)
-        try GitTestRepo.modifyWithoutStaging("a.md", in: temp.url)
+        try GitTestRepo.commitFile(named: "a.md", contents: "same", in: temp.url)
+        // 同じ内容で書き直して mtime だけ進める(index の stat キャッシュが古くなる)。
+        try GitTestRepo.modifyWithoutStaging("a.md", contents: "same", in: temp.url)
         let reader = makeReader()
         let before = reader.indexFingerprint(forRepositoryAt: temp.url)
 
@@ -177,86 +297,6 @@ struct GitStatusReaderIntegrationTests {
         _ = reader.status(forRepositoryAt: temp.url)
 
         #expect(reader.indexFingerprint(forRepositoryAt: temp.url) == before)
-    }
-
-    // MARK: - Branch Diff (TASK-186.3)
-
-    /// ブランチ内でコミット済み・作業ツリーはクリーンなファイルに branchModified が付く。
-    @Test("base ブランチからのコミット済み変更に branchModified が付く")
-    func marksFilesChangedInCurrentBranch() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "base.md", contents: "base", in: temp.url)
-        try GitTestRepo.commitFile(named: "changed.md", contents: "before", in: temp.url)
-        // 既定ブランチ名は git のバージョン/設定で master にも main にもなりうるため、
-        // 検出は実装(origin/HEAD → main → master)に委ね、ここでは分岐だけ作る。
-        GitTestRepo.createBranch(named: "feature", in: temp.url)
-        try GitTestRepo.commitChange(to: "changed.md", contents: "after", in: temp.url)
-
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
-
-        func status(_ name: String) -> GitFileStatus? {
-            snapshot.statuses[temp.url.appendingPathComponent(name).normalizedPathKey]
-        }
-        #expect(status("changed.md")?.branchChange == .modified)
-        #expect(status("base.md") == nil)
-    }
-
-    /// ブランチで**追加**したファイルは A であって M ではない。以前は真偽値 1 個しか
-    /// 持ち帰っておらず、追加も変更も一律 M で表示されていた(TASK-344)。
-    @Test("ブランチで新規追加したコミット済みファイルは added になる")
-    func marksFilesAddedInCurrentBranch() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "base.md", contents: "base", in: temp.url)
-        GitTestRepo.createBranch(named: "feature", in: temp.url)
-        try GitTestRepo.commitFile(named: "added.md", contents: "new", in: temp.url)
-
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
-        let key = temp.url.appendingPathComponent("added.md").normalizedPathKey
-
-        #expect(snapshot.statuses[key]?.branchChange == .added)
-    }
-
-    /// worktree の変更は branchModified と両立する。バッジは worktree 側が優先されるが
-    /// (`GitStatusBadgeTests`)、状態としては両方立っていること自体を固定する。
-    @Test("ブランチ内変更と worktree の変更は両立する")
-    func combinesBranchModifiedWithWorktreeChange() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "a.md", contents: "base", in: temp.url)
-        GitTestRepo.createBranch(named: "feature", in: temp.url)
-        try GitTestRepo.commitChange(to: "a.md", contents: "committed", in: temp.url)
-        try GitTestRepo.modifyWithoutStaging("a.md", contents: "dirty", in: temp.url)
-
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
-        let status = snapshot.statuses[temp.url.appendingPathComponent("a.md").normalizedPathKey]
-
-        #expect(status?.branchChange == .modified)
-        #expect(status?.worktreeChange == .modified)
-    }
-
-    /// デフォルトブランチを特定できない場合(origin が無く main/master も無い)は
-    /// branchModified だけを諦め、他の状態は出し続ける。
-    @Test("デフォルトブランチ検出不可なら branchModified のみ無効化する")
-    func disablesOnlyBranchModifiedWhenDefaultBranchIsUnknown() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        // main / master のどちらでもないブランチだけを持たせ、origin も付けない。
-        GitTestRepo.run(["checkout", "-b", "topic"], in: temp.url)
-        try GitTestRepo.commitFile(named: "a.md", contents: "base", in: temp.url)
-        try GitTestRepo.commitChange(to: "a.md", contents: "committed", in: temp.url)
-        try GitTestRepo.modifyWithoutStaging("a.md", contents: "dirty", in: temp.url)
-
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
-        let status = snapshot.statuses[temp.url.appendingPathComponent("a.md").normalizedPathKey]
-
-        #expect(status?.worktreeChange == .modified)
-        #expect(status?.branchChange == nil)
     }
 
     @Test("変更が無いリポジトリでは空のスナップショットを返す")

@@ -1,11 +1,11 @@
 ---
 id: TASK-226
 title: GitCommandRunner を async 化し GitCommandFileIndex を actor 化する
-status: To Do
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-07-31 09:14'
-updated_date: '2026-08-10 13:57'
+updated_date: '2026-08-10 17:17'
 labels:
   - refactor
 dependencies:
@@ -23,8 +23,8 @@ GitCommandRunner.run (befold/App/GitCommandRunner.swift:133-165) は DispatchSem
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 git subprocess の待機がスレッドをブロックしない（semaphore・専用 Thread が撤去されている）
-- [ ] #2 タイムアウト・terminationGrace の挙動が維持されテストで検証されている
+- [x] #1 git subprocess の待機がスレッドをブロックしない（semaphore・専用 Thread が撤去されている）
+- [x] #2 ブロック待ちが無くなったことが撤去後のコードで確認できる（旧 AC「タイムアウト・terminationGrace の挙動が維持されテストで検証されている」は、subprocess ごと消えて概念が無くなったため差し替えた）
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -86,4 +86,28 @@ gh issue list --state open は 0 件(実測)。ネットワークマウント・
 ## 優先順位の整理(2026-08-10)
 
 TASK-435(libgit2 移行)を上位へ置いたため、本タスクは 435 の後段に依存する形へ変更した(--dep に TASK-435 を追加)。435 が着地すれば subprocess 待ちそのものが消えるため、本タスクは「不要になった」として Done ではなく取り下げになる見込み。**435 より先に着手しないこと**(撤去予定のコードへ 18 ファイル規模の改修を投じることになる)。
+
+## 前提の書き換えと完了（2026-08-11、TASK-435.5）
+
+**本タスクの対象そのものが消えたため、目標は達成された。**
+
+TASK-435 で git 連携が libgit2 へ移行し `GitCommandRunner.swift` を撤去した。
+`DispatchSemaphore.wait` による subprocess のブロック待ちも、タイムアウトと
+terminationGrace（最悪 15 秒のワーカー占有）も、コードごと存在しなくなった。
+AC #1 は async 化ではなく **subprocess の撤去**によって満たされている。
+
+### 残った小さな懸念（本タスクでは扱わない）
+
+`GitCommandFileIndex` はいまも NSLock を握ったまま索引を構築する。ただし待つ相手が
+subprocess からライブラリ呼び出しへ変わり、性質が変わった。リポジトリを開くコストは
+0.263ms（TASK-435.1 実測。subprocess は 67.2ms で約 256 倍差）で、上限時間という概念も無い。
+actor 化は「プロダクト 8 ファイル + テスト 10 ファイル + BefoldKit の公開 API 破壊 2 ファイル」を
+要する一括着地であり、実害が観測されておらず待ち時間が 2 桁縮んだ懸念に対して
+この規模を投じる理由は無い。実際にロック待ちが観測された時点で小さなタスクとして起票する。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+対象であった GitCommandRunner が TASK-435（libgit2 への移行）で撤去され、DispatchSemaphore によるブロック待ち・タイムアウト・terminationGrace がコードごと消えた。目標は async 化ではなく subprocess の撤去によって達成された。GitCommandFileIndex の actor 化は、待つ相手が 67.2ms の subprocess から 0.263ms のライブラリ呼び出しへ変わり上限時間の概念も消えたため、実害が観測されるまで行わない。
+<!-- SECTION:FINAL_SUMMARY:END -->
