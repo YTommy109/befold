@@ -108,7 +108,8 @@ BefoldApp/
 | `SwipeHistoryNavigation` | トラックパッド水平スワイプから履歴移動方向を判定する純粋ロジック |
 | `SidebarNavigator` | サイドバー選択・履歴からのファイル切替を仲介 |
 | `CLIInstaller` | `/usr/local/bin/befold` に CLI 実行ファイルへの symlink を設置（詳細は [CLI 起動経路](./cli-launch.md#cliinstaller-が設置する-shim)） |
-| `ViewerWindowController` | 1 ウィンドウ分のビューア制御（メニュー・ツールバー・WebView・サイドバーの統括） |
+| `ViewerWindowController` | 1 ウィンドウ分のビューア制御（依存の保持と生成手順）。実処理は責務ごとの拡張に分かれる（`+Assembly` 組み立てと配線 / `+FileNavigation` 提示対象の移動 / `+Presentation` 文書の状態の遷移 / `+Capabilities` 能力導出 / `+DiffPresentation` git 差分の取得 / `+MenuActions` メニュー・ツールバーのアクションと validate / `+References` 参照のオープン / `+SidebarHost`・`+Renderer`・`+WindowDelegate` 各プロトコル準拠） |
+| `ViewerWindowChrome` | `NSWindow` そのものの生成・外観・タイトル追従・初期フレーム決定。窓を 1 枚しか知らず、文書の状態にも他の窓にも触れない（重なり判定は述語で受け取る） |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController` |
 | `ReferenceContextMenu` | ビューア本文のリンク/パス参照の ctrl+クリック(右クリック)で出す `NSMenu` の項目定義。並び・文言はサイドバーのコンテキストメニューと揃える |
 | `GitCommandRunner` | git 実行を一元化する薄い `Process` ラッパ（無害化オプション前置・タイムアウト・プロセスグループ打ち切り）。git を呼ぶ全機能の共通土台 |

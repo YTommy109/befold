@@ -147,9 +147,20 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     /// 状態参照・アクション委譲の先。循環参照を避けるため weak。
     private weak var host: ViewerToolbarHost?
 
+    /// ツールバーの生成・デリゲート設定・ウィンドウへの取り付けまでをここで行う。
+    ///
+    /// この 3 手順には順序制約があり、`delegate` を設定する前に `window.toolbar` へ
+    /// 代入するとアイテムが空のままになる。呼び出し側で 3 行に並べると順序を入れ替えても
+    /// コンパイルは通ってしまうため、初期化子の中へ閉じて破れない形にしている。
     init(window: NSWindow, host: ViewerToolbarHost) {
         self.window = window
         self.host = host
+        super.init()
+        let toolbar = NSToolbar(identifier: "ViewerToolbar")
+        toolbar.displayMode = .iconOnly
+        toolbar.delegate = self
+        window.toolbarStyle = .unified
+        window.toolbar = toolbar
     }
 
     // MARK: - State Synchronization
