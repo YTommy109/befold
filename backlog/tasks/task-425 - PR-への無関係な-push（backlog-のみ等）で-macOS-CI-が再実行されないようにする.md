@@ -1,11 +1,11 @@
 ---
 id: TASK-425
 title: PR への無関係な push（backlog のみ等）で macOS CI が再実行されないようにする
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-10 08:41'
-updated_date: '2026-08-10 09:03'
+updated_date: '2026-08-10 09:12'
 labels:
   - ci
 dependencies: []
@@ -31,10 +31,10 @@ ordinal: 505500
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PR ブランチへ backlog/ や docs/ だけの commit を push したとき、macOS ランナーのジョブ（build-and-test）が起動しないか、起動しても即スキップして終わる
-- [ ] #2 BefoldApp/** を変更する push では従来どおり build-and-test が走る（スキップの条件が広すぎて検証が抜けることがない）
-- [ ] #3 スキップされたジョブが必須チェックとして PR をブロックしない（required check の扱いを確認して記録してある）
-- [ ] #4 採用した方式と、他ワークフロー（site.yml / verify-dmg.yml）へ同じ対処が要るかどうかの判断が Implementation Notes に残っている
+- [x] #1 PR ブランチへ backlog/ や docs/ だけの commit を push したとき、macOS ランナーのジョブ（build-and-test）が起動しないか、起動しても即スキップして終わる
+- [x] #2 BefoldApp/** を変更する push では従来どおり build-and-test が走る（スキップの条件が広すぎて検証が抜けることがない）
+- [x] #3 スキップされたジョブが必須チェックとして PR をブロックしない（required check の扱いを確認して記録してある）
+- [x] #4 採用した方式と、他ワークフロー（site.yml / verify-dmg.yml）へ同じ対処が要るかどうかの判断が Implementation Notes に残っている
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -68,4 +68,16 @@ ordinal: 505500
 未確認: 実挙動（backlog だけの push でスキップされること、BefoldApp を触る push で走ること）は PR 上でまだ確認していない。
 
 実挙動の検証（PR #461）: opened イベントでは changes が 4 秒で success（app=true）となり build-and-test / js-test が起動することを確認。続けて backlog のみの push を 1 件行い、(a) build-and-test がスキップされること、(b) 進行中の build-and-test が巻き添えキャンセルされないことを確認する。
+
+検証完了（PR #461、実測）:
+- AC1: backlog のみの commit d405904 を push → run 31372838906 で changes が success（ログに『この push は BefoldApp を触っていないため、ビルドとテストをスキップする』と対象ファイル 1 件のみ）、build-and-test / js-test はいずれも skipped。同時刻、先行ラン 31371891220 の build-and-test は in_progress のまま生存し、巻き添えキャンセルが起きないことも確認。
+- AC2: BefoldApp 配下の doc コメント変更を push → run 31373092987 で changes success（5s）、build-and-test success（3m30s）、js-test success。
+- AC3: main の branch protection に required_status_checks が無い（gh api repos/YTommy109/befold/branches/main/protection、rulesets も空）。
+- AC4: 採用方式と site.yml / verify-dmg.yml の判断は上のノートに記録済み。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ci.yml に changes ジョブ（ubuntu）を足し、pull_request の synchronize では payload の before...after を gh api compare で比較して、その push が BefoldApp/ または .github/workflows/ci.yml を触ったかで build-and-test / js-test を条件付けた。判定不能時は fail-open で実行側へ倒す。あわせて concurrency をワークフローレベルからジョブレベルへ移し、スキップされたジョブがグループに入らないことで、無関係な push が進行中の重いジョブを巻き添えキャンセルしないようにした。副次的に site.yml の paths が分割後の MainMenuBuilder+ViewMenu.swift を拾えていなかった穴を glob で塞ぎ、Swift 側にも命名を保つ旨の doc を残した。検証は PR #461 上で実測: backlog のみの push で build-and-test / js-test が skipped かつ先行ランが生存、BefoldApp を触る push では build-and-test が 3m30s で success。actionlint は全ワークフローで指摘ゼロ。
+<!-- SECTION:FINAL_SUMMARY:END -->
