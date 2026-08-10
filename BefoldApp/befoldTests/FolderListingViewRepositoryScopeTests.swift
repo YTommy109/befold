@@ -92,6 +92,22 @@ struct FolderListingViewRepositoryScopeTests {
         )
     }
 
+    /// 祖先保持はサイドバー専用で、プレビュー内のフォルダー一覧には入れない。
+    /// あちらは 1 階層ぶんのフラットな一覧しか持たず、祖先の概念が無い。
+    /// FileListFilter(両者が共有する型)へ祖先保持を持ち込むと、この境界が壊れる。
+    @Test("プレビューの一覧では、深さを持つ行を渡しても祖先が足し戻されない")
+    func previewListingDoesNotKeepAncestors() {
+        let model = makeModel(entries: [])
+        model.filterText = "note*"
+        let dirA = makeEntry("src", kind: .folder)
+        let nested = FileListEntry(url: dirA.url.appendingPathComponent("note.md"), kind: .file)
+        let view = makeView(directory: directory, filter: model.listFilter)
+
+        // 祖先保持が FileListFilter 側へ入っていれば "src" も残ってしまう。
+        let rows = [dirA, nested.indented(to: 1)]
+        #expect(view.visibleEntries(from: rows).map(\.url.lastPathComponent) == ["note.md"])
+    }
+
     /// TASK-361.1 で FileListEntry の等値から depth を外した前提の固定。
     /// FolderListingSource は Equatable で `case shared([FileListEntry]?)` を持つため、
     /// 合成の等値へ戻すと深さの違いだけで別物と判定される。

@@ -271,10 +271,22 @@ final class FileListModel {
     /// 関わらず常に含める(上位フォルダへの移動手段を残すため)。
     /// git 変更での絞り込み(showChangedFilesOnly)も AND で併用する。
     var visibleEntries: [FileListEntry] {
-        // 開閉三角の「見えている子が 0」は絞り込みの結果でしか分からないため、
-        // 絞り込んだあとの配列に対して確定させる(SidebarDisclosureResolver)。
-        // ドリルダウン表示では三角そのものが無く、resolver は素通しで返る。
-        SidebarDisclosureResolver.resolving(listFilter.apply(to: entries, in: entriesDirectory))
+        // 順序が意味を持つ。祖先を足し戻してから開閉三角を確定させること。
+        // 逆にすると、「名前は一致するが子が全部消えたフォルダ」の判定が、あとから
+        // 足し戻した祖先を子として数えてしまう余地が残る。
+        SidebarDisclosureResolver.resolving(
+            SidebarTreeFilter.keepingAncestors(of: filteredEntries, in: entries)
+        )
+    }
+
+    /// 絞り込みだけを適用した一覧(祖先の足し戻し・開閉三角の確定を含まない)。
+    ///
+    /// プレビューのフォルダー一覧へはこちらを渡す。祖先を足し戻した配列を渡すと、
+    /// 「条件に一致しないフォルダ」がプレビューにも現れる一方、同じフォルダを
+    /// 自前列挙する経路では消えるため、1 ウィンドウ内に絞り込みの答えが 2 つ並ぶ
+    /// (サイドバーとプレビューで答えを 1 つにする TASK-288 の巻き戻し)。
+    private var filteredEntries: [FileListEntry] {
+        listFilter.apply(to: entries, in: entriesDirectory)
     }
 
     /// フォルダーを降りた直後に選ぶ行の URL。一覧が空(または `..` しかない)なら nil。
@@ -317,7 +329,11 @@ final class FileListModel {
         // サイドバーで展開したその配下ではない。ツリー展開が入ると visibleEntries には
         // 孫以降の行が混ざるため(TASK-361.1)、そのまま渡すと「このフォルダーの中身」
         // として別階層のファイルが並ぶ。ドリルダウンでは全行 depth 0 なので素通し。
-        return .shared(visibleEntries.filter { $0.depth == 0 })
+        //
+        // 祖先を足し戻す**前**の配列(filteredEntries)から採る。足し戻した配列を渡すと、
+        // 条件に一致しないフォルダがプレビューにも現れる一方、同じフォルダを自前列挙する
+        // 経路では消えるため、1 ウィンドウ内に絞り込みの答えが 2 つ並ぶ(TASK-288 の巻き戻し)。
+        return .shared(filteredEntries.filter { $0.depth == 0 })
     }
 
     /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧
