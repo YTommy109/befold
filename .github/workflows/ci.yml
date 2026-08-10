@@ -74,6 +74,9 @@ jobs:
     needs: changes
     if: github.event_name != 'schedule' && needs.changes.outputs.app == 'true'
     runs-on: macos-26
+    # 通常は 4 分ほどで終わる。テストが停止したまま既定の 6 時間ランナーを
+    # 占有した実績があるため上限を切る(TASK-424)。
+    timeout-minutes: 30
     concurrency:
       group: ci-build-and-test-${{ github.ref }}
       cancel-in-progress: true
@@ -109,6 +112,7 @@ jobs:
     needs: changes
     if: github.event_name != 'schedule' && needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     concurrency:
       group: ci-js-test-${{ github.ref }}
       cancel-in-progress: true
@@ -134,6 +138,8 @@ jobs:
     # コストが高いため PR では回さず、main push と nightly に限定する
     if: github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: macos-26
+    # TSan 計装で 5〜15 倍遅くなるため、通常ジョブより広く取る。
+    timeout-minutes: 60
     concurrency:
       group: ci-thread-sanitizer-${{ github.ref }}
       cancel-in-progress: true
