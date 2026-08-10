@@ -30,6 +30,26 @@ OpenCLIOptions`、位置引数は `@Argument var paths: [String]`。
 `--check` / `--bookmark` いずれも無ければ `run()` が
 `CLIAppLauncher.launch(paths:options:)` を呼ぶ。
 
+### 表示オプションはパスを要する
+
+`--source` / `--preview`、`--line-numbers` / `--no-line-numbers`、
+`--sidebar` / `--no-sidebar`、`--sort` は「その文書をどう表示するか」の指定なので、
+対象が無ければ適用先が無い。`BefoldCLICommand.validate()` が
+`CLIOpenOptions.requiresPaths` を見て、次の 2 つをパース段階でエラーにする。
+
+- パスを 1 つも渡していない
+- ウィンドウを開かない `--check` / `--bookmark` と併用している
+
+例外は `--hidden-files` / `--no-hidden-files` だけで、これはサイドバーの不可視ファイル
+表示というアプリ全体設定のため対象を要さない。`requiresPaths` を
+`options != CLIOpenOptions()` で代用してはならない（`--hidden-files` 単独まで弾く）。
+`CLIAppLauncher` が使う `options == CLIOpenOptions()` は「そもそも GUI へ転送するか」の
+別判定であり、目的が違う。
+
+かつてはパス無しの表示オプションを、開いている全ウィンドウへ適用していた
+（`ViewerWindowManager.applyDisplayOverrides`、TASK-82）。この経路だけが
+表示モードの保存値を恒久的に書き換えていたため、TASK-413 で撤去した。
+
 `CLIAppLauncher.run(...)`（`befold-cli/CLIAppLauncher.swift`）の判断ロジック:
 
 1. paths を `standardizedFileURL.path` に正規化する
@@ -167,5 +187,6 @@ symlink 判定・`FileType`・サイズ・拒否理由を `CLICommandResult` で
    `.bookmark(paths)` → `windowManager.addBookmarks(...)`（前面化しない）
 
 `openPaths(_:options:)` は `showHiddenFiles` をアプリ全体設定として先に反映し、
-paths 空なら全ウィンドウへ表示オプションを適用、paths ありなら各パスを
-`openViewer(for:options:)` で個別ウィンドウに開く。
+残りのパスを `openSequentially(_:options:)` へ渡して個別ウィンドウに開く。
+paths が空になるのは `--hidden-files` 単独のときだけで、他の表示オプションは
+対象の文書を要するため CLI のパース段階で弾かれる（下記「表示オプションはパスを要する」）。

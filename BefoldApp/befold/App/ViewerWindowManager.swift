@@ -196,27 +196,38 @@ final class ViewerWindowManager {
         }
     }
 
-    /// パス無し CLI 起動(`befold --line-numbers` 等)から、開いている全ウィンドウへ表示オプションを適用する。
-    /// 新規ウィンドウ生成時は initialSortOrder/showLineNumbersOverride/sourceModeOverride で
-    /// 個別に適用できるが、パス無し起動では開くべき新規ウィンドウが無いため、既存の全ウィンドウへ
-    /// 直接反映する(task-82)。隠しファイル表示は setHiddenFiles が別途アプリ全体へ反映するため対象外。
-    func applyDisplayOverrides(_ options: CLIOpenOptions) {
-        for controller in allControllers {
-            if let showLineNumbers = options.showLineNumbers {
-                controller.store.applyShowLineNumbersOverride(showLineNumbers)
-            }
-            if let sourceMode = options.sourceMode { controller.setDisplayMode(sourceMode ? .source : .rendered) }
-            // 並び順は「指定があったときだけ」触る。viewerSortOrder は未指定でも既定値を
-            // 返すため、指定の有無は sortOrder の nil 判定で見る。
-            if options.sortOrder != nil {
-                controller.fileListModel.sortOrder = options.viewerSortOrder
-                controller.sidebar.refreshFileList()
-            }
-            if let showSidebar = options.showSidebar { controller.setSidebarCollapsed(!showSidebar) }
-            // store の直接書き換え(行番号の上書き)はツールバーへ通知されないため、
-            // 他経路の間接発火に頼らずここで明示的に再同期する。
-            controller.refreshToolbarState()
+    /// 既に開いているウィンドウを対象に開き直したとき(`befold --source foo.md` で foo.md が
+    /// 既に開いている等)の処理。表示オプションをそのウィンドウへ適用してから前面化する。
+    ///
+    /// ここを素通りさせると、フラグは黙って捨てられる(TASK-413)。新規ウィンドウは
+    /// ViewerWindowController.init の override 引数で同じ結果になるため、CLI オプションが
+    /// 効く経路は openViewer の 1 つに揃う。
+    /// 同一ファイルが複数ウィンドウで開いている場合、適用先は前面化するウィンドウ 1 つに揃える
+    /// (表示モードは窓ごとのライブ値であり、窓間で同期しない = ADR 0002)。
+    private func reopenExistingWindow(
+        _ controller: ViewerWindowController, options: CLIOpenOptions, forceSidebarVisible: Bool
+    ) {
+        if let showLineNumbers = options.showLineNumbers {
+            controller.store.applyShowLineNumbersOverride(showLineNumbers)
         }
+        if let sourceMode = options.sourceMode { controller.applyCLIDisplayMode(isSourceMode: sourceMode) }
+        // 並び順は「指定があったときだけ」触る。viewerSortOrder は未指定でも既定値を
+        // 返すため、指定の有無は sortOrder の nil 判定で見る。
+        if options.sortOrder != nil {
+            controller.fileListModel.sortOrder = options.viewerSortOrder
+            controller.sidebar.refreshFileList()
+        }
+        // 開閉の解決順は新規ウィンドウ(openViewer)と同じ: CLI の明示指定 > フォルダーオープンの強制表示。
+        if let showSidebar = options.showSidebar {
+            controller.setSidebarCollapsed(!showSidebar)
+        } else if forceSidebarVisible {
+            controller.setSidebarCollapsed(false)
+        }
+        // store の直接書き換え(行番号の上書き)はツールバーへ通知されないため、
+        // 他経路の間接発火に頼らずここで明示的に再同期する。
+        controller.refreshToolbarState()
+        NSApp.activate()
+        controller.focusWindow()
     }
 
     /// 指定 URL のファイルをビューアウィンドウで開く。
@@ -245,8 +256,7 @@ final class ViewerWindowManager {
         // 明示的に新規オープンを求めた経路なので、重複抑止より意図を優先して素通しする
         // (既に開いているファイルで「新しいウィンドウで開く」が無反応に見える問題: issue #431)。
         if disposition == .currentTab, let existing = controllers[key]?.first {
-            NSApp.activate()
-            existing.focusWindow()
+            reopenExistingWindow(existing, options: options, forceSidebarVisible: forceSidebarVisible)
             return
         }
 

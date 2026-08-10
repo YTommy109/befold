@@ -228,8 +228,13 @@ final class ViewerWindowController: NSWindowController {
         referenceCoordinator.warm(forFileAt: fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
         // CLI から --source/--preview が指定された場合はそちらを優先し、保存値は書き換えない(この起動限りの上書き)。
-        let restoredMode = perFileState.displayMode.restoredDisplayMode(for: fileURL)
-        applyDisplayMode(sourceModeOverride.map { $0 ? ViewerDisplayMode.source : .rendered } ?? restoredMode)
+        // 上書きの適用は applyCLIDisplayMode に寄せる。既に開いているウィンドウを指定して
+        // 開き直した経路(ViewerWindowManager.openViewer)と同じ降格規則を通すため。
+        if let sourceModeOverride {
+            applyCLIDisplayMode(isSourceMode: sourceModeOverride)
+        } else {
+            applyDisplayMode(perFileState.displayMode.restoredDisplayMode(for: fileURL))
+        }
         // 提示開始(オープン)。倍率とスクロール位置の保存値を読むのはここと performFileSwitch だけ。
         // 表示モードのキーから引くため、applyDisplayMode の後に呼ぶこと。
         beginPresentingDocument(at: fileURL)

@@ -143,7 +143,9 @@ struct BefoldCLICommandTests {
         ]
     )
     func displayOptionsAreParsed(arguments: [String], expected: CLIOpenOptions) throws {
-        #expect(try parseCommand(arguments).options == expected)
+        // パスを添えるのは、表示オプションが対象の文書を要求する(パス無しはパース段階でエラー)ため。
+        // 対象の要否そのものは BefoldCLIOptionValidationTests が検証する。
+        #expect(try parseCommand(arguments + ["a.md"]).options == expected)
     }
 
     @Test(

@@ -54,9 +54,11 @@ befold --bookmark path/to/file # 開かずにブックマークへ追加する
 befold --help                  # 利用可能なオプションを表示
 ```
 
-開き方の表示オプションも指定できます（`--hidden-files` / `--no-hidden-files`、
-`--line-numbers` / `--no-line-numbers`、`--sidebar` / `--no-sidebar`、
-`--source` / `--preview`、`--sort folders-first|alphabetical`）。
+開き方の表示オプションも指定できます（`--line-numbers` / `--no-line-numbers`、
+`--sidebar` / `--no-sidebar`、`--source` / `--preview`、
+`--sort folders-first|alphabetical`）。これらは開くファイルに対する指定なので、
+パスと一緒に渡してください（既に開いているファイルを指定した場合は、そのウィンドウへ反映されます）。
+`--hidden-files` / `--no-hidden-files` だけはアプリ全体の設定のため、パス無しでも指定できます。
 ハイフンで始まるパスを開くときは `--` の後ろに置いてください（例: `befold -- -notes.md`）。
 
 `befold` コマンドは `/Applications/befold.app` 内の実行ファイルへの symlink です。
