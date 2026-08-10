@@ -350,6 +350,44 @@ describe('ダウンロード経路の分離', () => {
     expect(totals.counts.update_download).toBe(0)
   })
 
+  it('指標別の OS 内訳が LP 経由と Sparkle 経由で混ざらない', async () => {
+    // 指標の判定を 1 本のクエリの CASE 式へ寄せているため、source の取り違えが
+    // あっても本数は変わらず値だけが壊れる。
+    await env.DB.prepare(
+      "INSERT INTO events (timestamp, kind, os, as_org, source) VALUES (?, 'download', ?, ?, ?)",
+    )
+      .bind(NOW, 'macOS 14.0', 'HumanNet', 'lp')
+      .run()
+    await env.DB.prepare(
+      "INSERT INTO events (timestamp, kind, os, as_org, source) VALUES (?, 'download', ?, ?, ?)",
+    )
+      .bind(NOW, 'macOS 15.0', 'UpdateNet', 'sparkle')
+      .run()
+
+    const summary = await summarize(env.DB, NOW)
+    const lp = summary.perKind.find((entry) => entry.kind === 'download')
+    const sparkle = summary.perKind.find((entry) => entry.kind === 'update_download')
+
+    expect(lp?.byOS).toEqual([{ label: 'macOS 14.0', count: 1 }])
+    expect(lp?.byAsOrg).toEqual([{ label: 'HumanNet', count: 1 }])
+    expect(sparkle?.byOS).toEqual([{ label: 'macOS 15.0', count: 1 }])
+    expect(sparkle?.byAsOrg).toEqual([{ label: 'UpdateNet', count: 1 }])
+  })
+
+  it('指標別の内訳は上位 10 件で打ち切られる', async () => {
+    // 1 本のクエリへまとめても指標ごとに上限が効くこと（LIMIT では全体で 1 回しか
+    // 効かず、行数がイベントの種類数に比例して増えてしまう）。
+    for (let index = 0; index < 11; index += 1) {
+      await env.DB.prepare("INSERT INTO events (timestamp, kind, os) VALUES (?, 'visit', ?)")
+        .bind(NOW, `os-${index}`)
+        .run()
+    }
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.perKind.find((entry) => entry.kind === 'visit')?.byOS).toHaveLength(10)
+  })
+
   it('バージョン別内訳は LP 経由だけを対象にする', async () => {
     await insertDownload('lp', 'v1.2.3')
     await insertDownload('sparkle', 'v1.2.4')
