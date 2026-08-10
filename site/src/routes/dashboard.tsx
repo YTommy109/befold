@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { basicAuth } from 'hono/basic-auth'
 import type { AppEnv } from '../index'
-import { eventsAfter, maxEventId, summarize } from '../analytics'
+import { STREAM_LIMIT, eventsAfter, maxEventId, summarize } from '../analytics'
 import { Dashboard, renderSummarySections } from '../views/dashboard'
 
 /** SSE のポーリング間隔と、1 接続あたりの最大保持時間。 */
@@ -50,17 +50,27 @@ dashboardRoutes.get('/stream', (c) => {
 
       try {
         while (Date.now() < deadline) {
+          // カーソルは生の最大 id で進める。eventsAfter はロボットの巡回を除いて
+          // 返すため、返った行だけで再開位置を決めると、ボットしか来なかった周期で
+          // 位置が進まず、集計（ロボットの数を含む）も再描画されない。
+          const latestId = await maxEventId(db)
           const events = await eventsAfter(db, lastId)
           for (const event of events) {
-            lastId = event.id
             controller.enqueue(
               encoder.encode(`id: ${event.id}\nevent: event\ndata: ${JSON.stringify(event)}\n\n`),
             )
           }
+          const arrived = latestId > lastId
+          // 上限まで返った周期は未読の行が残っているので、最後に読んだ位置で止める。
+          // それ以外は、maxEventId を取った後に入った行も読んで流しているため、
+          // 大きいほうまで進めないと同じ行を次の周期でもう一度送ってしまう。
+          const lastEventId = events.at(-1)?.id ?? 0
+          lastId =
+            events.length === STREAM_LIMIT ? lastEventId : Math.max(latestId, lastEventId)
           // 集計は summarize() の再実行結果をそのまま流す。D1 クエリを伴うため
           // 新着があったポーリング周期でのみ行う。data 行は改行を含められないので
           // HTML は JSON 文字列にして送る。
-          if (events.length > 0) {
+          if (arrived) {
             const html = renderSummarySections(await summarize(db, Date.now()))
             controller.enqueue(encoder.encode(`event: summary\ndata: ${JSON.stringify(html)}\n\n`))
           }

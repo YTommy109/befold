@@ -188,7 +188,15 @@ describe('集計の表示', () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     expect(body).toContain('2026-08-09')
-    expect(body).toContain('以降に記録された')
+    expect(body).toContain('より前に記録されたイベントは遡って分類できず')
+  })
+
+  it('他の集計がロボットを除いた数であることが注記から読み取れる', async () => {
+    await seed('visit', { uaSummary: 'bot:GPTBot' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('ロボットと判定した巡回を除いた数')
   })
 
   it('OS 別が 3 指標それぞれに分かれて集計される', async () => {
@@ -292,6 +300,32 @@ describe('SSE ストリーム', () => {
     expect(html).toContain('<span class="value" id="count-download">1</span>')
     // data 行は 1 行に収まっている
     expect(html).not.toContain('\n')
+  })
+
+  it('ロボットの巡回は event として流さないが、集計は配信し直す', async () => {
+    // カーソルを人間の行だけで進めると、ボットしか来なかった周期で位置が進まず
+    // 集計（ロボットのセクションを含む）が更新されないままになる。
+    const oldId = await seed('visit')
+    await seed('visit', { uaSummary: 'bot:GPTBot' })
+
+    const response = await call(`/dashboard/stream?after=${oldId}`, AUTH_HEADERS)
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let received = ''
+    while (!received.includes('keep-alive')) {
+      const { value, done } = await reader.read()
+      if (done) break
+      received += decoder.decode(value, { stream: true })
+    }
+    await reader.cancel()
+
+    expect(received).not.toContain('event: event')
+    expect(received).toContain('event: summary')
+    const dataLine = received.split('event: summary\ndata: ')[1]?.split('\n')[0] ?? ''
+    const html = JSON.parse(dataLine) as string
+    // 巡回はロボットのセクションにだけ現れ、ページアクセス数には入らない。
+    expect(html).toContain('bot:GPTBot')
+    expect(html).toContain('<span class="value" id="count-visit">1</span>')
   })
 
   it('新着イベントが無いポーリング周期では summary を配信しない', async () => {
