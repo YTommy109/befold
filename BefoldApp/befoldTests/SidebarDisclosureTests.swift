@@ -2,15 +2,17 @@
 import Foundation
 import Testing
 
-/// 開閉三角の 3 状態(未到着 / 空フォルダ / 絞り込みで 0)の区別(TASK-361.4 の AC #10)。
+/// 開閉三角の 4 状態(未到着 / 空フォルダ / 絞り込みで 0 / 列挙失敗)の区別
+/// (TASK-361.4 の AC #10、列挙失敗は TASK-404)。
 /// GUI 層は自動テスト対象外なので、区別できていることはこの純粋関数のテストが唯一の測り方。
 @Suite
 struct SidebarDisclosureTests {
     @Test("展開していなければ畳んだ状態")
     func collapsedWhenNotExpanded() {
         #expect(
-            SidebarDisclosure.state(isExpanded: false, loadedChildCount: 3, visibleChildCount: 3)
-                == .collapsed
+            SidebarDisclosure.state(
+                isExpanded: false, didFail: false, loadedChildCount: 3, visibleChildCount: 3
+            ) == .collapsed
         )
     }
 
@@ -19,10 +21,10 @@ struct SidebarDisclosureTests {
     @Test("子が未到着なら読み込み中で、空フォルダとは別の状態")
     func loadingIsDistinctFromEmpty() {
         let loading = SidebarDisclosure.state(
-            isExpanded: true, loadedChildCount: nil, visibleChildCount: 0
+            isExpanded: true, didFail: false, loadedChildCount: nil, visibleChildCount: 0
         )
         let empty = SidebarDisclosure.state(
-            isExpanded: true, loadedChildCount: 0, visibleChildCount: 0
+            isExpanded: true, didFail: false, loadedChildCount: 0, visibleChildCount: 0
         )
 
         #expect(loading == .loadingChildren)
@@ -35,18 +37,44 @@ struct SidebarDisclosureTests {
     @Test("届いた子があるのに可視 0 なら、絞り込みで消えたと区別できる")
     func filteredEmptyIsDistinctFromTrulyEmpty() {
         let filtered = SidebarDisclosure.state(
-            isExpanded: true, loadedChildCount: 5, visibleChildCount: 0
+            isExpanded: true, didFail: false, loadedChildCount: 5, visibleChildCount: 0
         )
 
         #expect(filtered == .expandedEmpty(isFiltered: true))
         #expect(filtered != .expandedEmpty(isFiltered: false))
     }
 
+    /// 列挙に失敗したフォルダには届く子リストが無く、`loadedChildCount` は永久に nil。
+    /// 失敗を後から判定すると読み込み中のまま回り続け、空として扱うと
+    /// 「中身が無い」と言い切ってしまう。どちらとも別の状態になることを固定する。
+    @Test("列挙失敗は、読み込み中とも空フォルダとも別の状態")
+    func failureIsDistinctFromLoadingAndEmpty() {
+        let failed = SidebarDisclosure.state(
+            isExpanded: true, didFail: true, loadedChildCount: nil, visibleChildCount: 0
+        )
+
+        #expect(failed == .expandedFailed)
+        #expect(failed != .loadingChildren)
+        #expect(failed != .expandedEmpty(isFiltered: false))
+        #expect(failed != .expandedEmpty(isFiltered: true))
+    }
+
+    /// 失敗したフォルダを畳んだら、失敗の表示も消える(畳んだ行は畳んだ見た目)。
+    @Test("畳んでいれば、失敗していても畳んだ状態")
+    func collapsedWinsOverFailure() {
+        #expect(
+            SidebarDisclosure.state(
+                isExpanded: false, didFail: true, loadedChildCount: nil, visibleChildCount: 0
+            ) == .collapsed
+        )
+    }
+
     @Test("子が見えていれば展開状態")
     func expandedWhenChildrenVisible() {
         #expect(
-            SidebarDisclosure.state(isExpanded: true, loadedChildCount: 5, visibleChildCount: 2)
-                == .expanded
+            SidebarDisclosure.state(
+                isExpanded: true, didFail: false, loadedChildCount: 5, visibleChildCount: 2
+            ) == .expanded
         )
     }
 }

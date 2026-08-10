@@ -22,16 +22,15 @@ final class SidebarExpansion {
     /// 配列が空かどうかで判定してはならない(`FileListModel.gitStatus` の
     /// 「空 != nil」と同型 / TASK-285)。
     ///
-    /// - Note: 「列挙失敗」の状態は持たない。`DirectoryEnumeration.sortedContents` が
-    ///   失敗を握り潰して空の組を返すため(doc に明記)、失敗は現在の API では
-    ///   `.loaded([])` と区別できない。到達不能な状態を型に置くと「`.failed` が
-    ///   来ない = 失敗が無い」と読めてしまうので置かない。列挙 API 側の変更は
-    ///   TASK-404 で扱う。
+    /// 同じ理由で **`.failed` と `.loaded([])` も別**にする。読めなかったフォルダを
+    /// 空として確定表示すると「中身が無い」と言い切ることになる(TASK-404)。
     enum Children: Equatable {
         /// 要求済みで、まだ結果が届いていない。
         case loading
         /// 結果が届いた。空配列は「空のフォルダ」を意味する。
         case loaded([FileListEntry])
+        /// ディレクトリの列挙に失敗した(権限が無い・消えた)。
+        case failed
     }
 
     /// 展開する意図のあるフォルダの pathKey。開閉操作が書き換える。
@@ -58,12 +57,22 @@ final class SidebarExpansion {
     var material: Material {
         var result = Material()
         for key in expandedKeys {
-            guard case let .loaded(entries) = children[key] else {
+            // **`default` を置かない。** ここを else でまとめると、`Children` に足した
+            // 状態が黙って「読み込み中」へ落ちる(`.failed` を足したときに、権限の無い
+            // フォルダが永久にスピナーのままになる形で実際に起きうる)。
+            switch children[key] {
+            case let .loaded(entries):
+                result.expanded.insert(key)
+                result.childrenByPathKey[key] = entries
+            case .failed:
+                result.failed.insert(key)
+            case .loading:
                 result.loading.insert(key)
-                continue
+            case nil:
+                // `beginExpanding` が展開の意図と同時に `.loading` を書くため到達しない。
+                // 書き漏れても「答えが出ていない」側へ寄せる(空として確定表示しない)。
+                result.loading.insert(key)
             }
-            result.expanded.insert(key)
-            result.childrenByPathKey[key] = entries
         }
         return result
     }
@@ -75,6 +84,9 @@ final class SidebarExpansion {
         var childrenByPathKey: [String: [FileListEntry]] = [:]
         /// 展開する意図はあるが、子がまだ届いていないフォルダ。
         var loading: Set<String> = []
+        /// 展開しようとしたが列挙に失敗したフォルダ。行は増やさない(並べる子が無い)が、
+        /// 「空のフォルダ」とも「読み込み中」とも違う見た目にするために要る。
+        var failed: Set<String> = []
     }
 
     /// 展開を開始する。既に展開済みなら何もしない(再列挙しない)。
@@ -82,8 +94,12 @@ final class SidebarExpansion {
     /// 戻り値は列挙を要求すべきかどうか。true のときだけ呼び出し側が列挙を走らせ、
     /// 結果を `apply(_:for:token:)` へ渡す。「展開 1 回につき列挙 1 回」という
     /// コストの上限はここで決まる。
+    ///
+    /// **列挙に失敗したフォルダだけは再展開で取り直せる。** 失敗したまま
+    /// `expandedKeys` に残ると、以後の展開操作が「展開済み」として弾かれ、
+    /// いったん畳むまで再試行できない(TASK-404)。
     func beginExpanding(_ key: String) -> ExpansionToken? {
-        guard !expandedKeys.contains(key) else { return nil }
+        guard !expandedKeys.contains(key) || children[key] == .failed else { return nil }
         expandedKeys.insert(key)
         children[key] = .loading
         return makeToken(for: key)
@@ -130,9 +146,12 @@ final class SidebarExpansion {
 
     /// 列挙結果を反映する。トークンが古ければ(別の展開・畳み・ルート切り替えが
     /// 挟まっていれば)捨てる。**着地時の一致確認**はここ 1 箇所に閉じる。
-    func apply(_ entries: [FileListEntry], for token: ExpansionToken) {
+    ///
+    /// `entries` が nil なら列挙失敗として `.failed` を着地させる。失敗を別の入口に
+    /// 分けないのは、世代・epoch のガードを 2 箇所へ複製しないため。
+    func apply(_ entries: [FileListEntry]?, for token: ExpansionToken) {
         guard generations[token.key] == token.generation, epoch == token.epoch else { return }
-        children[token.key] = .loaded(entries)
+        children[token.key] = entries.map(Children.loaded) ?? .failed
     }
 
     /// 展開の列挙 1 回を識別する券。発行時点のフォルダ世代と全体世代を持ち、

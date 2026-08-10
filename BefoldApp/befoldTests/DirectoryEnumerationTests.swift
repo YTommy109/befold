@@ -18,7 +18,9 @@ struct DirectoryEnumerationTests {
             )
         }
 
-        let result = DirectoryEnumeration.sortedContents(in: temp.url, fileReader: fileReader)
+        let result = try #require(
+            DirectoryEnumeration.sortedContents(in: temp.url, fileReader: fileReader)
+        )
 
         #expect(result.folders.map(\.lastPathComponent) == ["adir", "zdir"])
         #expect(result.files.map(\.lastPathComponent) == ["b2.md", "b10.md"])
@@ -31,18 +33,45 @@ struct DirectoryEnumerationTests {
         _ = try temp.file(named: "visible.md", contents: "")
 
         let hidden = DirectoryEnumeration.sortedFiles(in: temp.url, fileReader: fileReader)
-        #expect(hidden.map(\.lastPathComponent) == ["visible.md"])
+        #expect(hidden?.map(\.lastPathComponent) == ["visible.md"])
 
         let shown = DirectoryEnumeration.sortedFiles(in: temp.url, showHiddenFiles: true, fileReader: fileReader)
-        #expect(shown.map(\.lastPathComponent) == [".hidden.md", "visible.md"])
+        #expect(shown?.map(\.lastPathComponent) == [".hidden.md", "visible.md"])
     }
 
-    @Test("列挙できないパスでは空の組を返す")
-    func sortedContentsReturnsEmptyForMissingDirectory() {
+    /// **列挙失敗(nil)と「空のフォルダ」(空の組)は別の値**にする。同じ値に畳むと、
+    /// 呼び出し側は権限の無いフォルダを「空のフォルダ」として確定表示するしかない
+    /// (TASK-404)。この 2 つは対で固定する。
+    @Test("列挙できないパスでは nil を返し、空のディレクトリの空の組と区別できる")
+    func sortedContentsReturnsNilForMissingDirectory() throws {
         let missing = URL(fileURLWithPath: "/nonexistent-befold-dir-\(UUID().uuidString)")
-        let result = DirectoryEnumeration.sortedContents(in: missing, fileReader: fileReader)
+        #expect(DirectoryEnumeration.sortedContents(in: missing, fileReader: fileReader) == nil)
+
+        let empty = try TempDir()
+        let result = try #require(
+            DirectoryEnumeration.sortedContents(in: empty.url, fileReader: fileReader)
+        )
         #expect(result.folders.isEmpty)
         #expect(result.files.isEmpty)
+    }
+
+    /// 権限で読めないディレクトリも失敗として表現される。root 実行では chmod 000 でも
+    /// 読めてしまい**逆の枝を静かに通る**ため、その場合はスキップする(実行されたかどうかが
+    /// テスト結果に残るよう `.enabled(if:)` で落とす)。
+    @Test("権限が無いディレクトリでも nil を返す", .enabled(if: getuid() != 0))
+    func sortedContentsReturnsNilForUnreadableDirectory() throws {
+        let temp = try TempDir()
+        let locked = temp.url.appendingPathComponent("locked", isDirectory: true)
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        // TempDir の後始末が失敗しないよう、判定後に必ず戻す。
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o755], ofItemAtPath: locked.path
+            )
+        }
+
+        #expect(DirectoryEnumeration.sortedContents(in: locked, fileReader: fileReader) == nil)
     }
 
     @Test("ダングリングシンボリックリンクも files に算入する")
@@ -54,7 +83,7 @@ struct DirectoryEnumerationTests {
         )
 
         let files = DirectoryEnumeration.sortedFiles(in: temp.url, fileReader: fileReader)
-        #expect(files.map(\.lastPathComponent) == ["dangling.mmd"])
+        #expect(files?.map(\.lastPathComponent) == ["dangling.mmd"])
     }
 
     @Test("firstSupportedFile は自然順で最初の対応形式ファイルを返す")

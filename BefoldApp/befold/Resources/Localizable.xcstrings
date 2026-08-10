@@ -2108,6 +2108,23 @@
         }
       }
     },
+    "sidebar.tree.enumerationFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read this folder"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このフォルダーを読み取れませんでした"
+          }
+        }
+      }
+    },
     "toolbar.back": {
       "extractionState": "manual",
       "localizations": {

@@ -40,8 +40,10 @@ enum SidebarKeyAction: Equatable {
 
         init(entry: FileListEntry) {
             kind = entry.kind
+            // 列挙に失敗した行も「展開されている」側に置く。畳む操作(←)を届かせるため
+            // であり、逆に展開(→)を出すと `beginExpanding` が弾いて無反応になる。
             isExpanded = switch entry.disclosure {
-            case .expanded, .expandedEmpty, .loadingChildren: true
+            case .expanded, .expandedEmpty, .loadingChildren, .expandedFailed: true
             case .collapsed, nil: false
             }
         }

@@ -50,7 +50,8 @@ final class SidebarNavigator {
     /// 展開したフォルダの子リストの取得元。ルートの一覧(directoryLister)とは
     /// **別の関数**であることが要点で、あちらは親移動行を含む畳んだ形を返す。
     /// SidebarNavigator+Expansion.swift から参照するため internal。
-    let childrenLister: (URL, SortOrder, Bool) async -> [FileListEntry]
+    /// 子リストの列挙。**nil は列挙失敗**(空のフォルダの `[]` と区別する)。
+    let childrenLister: (URL, SortOrder, Bool) async -> [FileListEntry]?
     /// refreshFileList / navigateToFolder が発行する一覧取得タスクの世代番号。
     /// 新しい要求が来たら古い結果の反映を捨てる(ViewerStore.loadGeneration と同型)。
     private var listingGeneration = 0
@@ -96,7 +97,7 @@ final class SidebarNavigator {
         sortOrder: SortOrder = .foldersFirst,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]
             = DirectoryLister.listEntriesAsync,
-        childrenLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]
+        childrenLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]?
             = DirectoryLister.childEntriesAsync,
         resolveGitRoot: @escaping @Sendable (URL) async -> URL? = { _ in nil },
         loadGitStatuses: @escaping (URL, GitStatusRefreshPolicy) async -> GitStatusResult

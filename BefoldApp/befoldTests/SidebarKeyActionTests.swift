@@ -139,5 +139,21 @@ struct SidebarKeyActionTests {
             SidebarKeyAction.Target(entry: base.disclosing(.expandedEmpty(isFiltered: false)))
                 .isExpanded
         )
+        // 列挙に失敗した行も「展開されている」側。畳む操作(←)を届かせるためで、
+        // 展開(→)を出すと beginExpanding が弾いて無反応になる(TASK-404)。
+        #expect(SidebarKeyAction.Target(entry: base.disclosing(.expandedFailed)).isExpanded)
+    }
+
+    /// 失敗した行で ← を押したら畳めること(無反応にならないこと)を経路で押さえる。
+    @Test("列挙に失敗したフォルダ行では、← が畳む操作になる")
+    func leftArrowCollapsesFailedFolder() {
+        let base = FileListEntry(url: URL(fileURLWithPath: "/tmp/a"), kind: .folder)
+        let target = SidebarKeyAction.Target(entry: base.disclosing(.expandedFailed))
+
+        #expect(
+            SidebarKeyAction.action(
+                key: .leftArrow, modifiers: [], target: target, mode: .tree
+            ) == .collapse
+        )
     }
 }

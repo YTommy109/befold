@@ -19,6 +19,12 @@ enum SidebarDisclosureState: Sendable, Hashable {
     /// 行い、配列が空かどうかだけで決めない。`.loading` を「空」と取り違えると
     /// 読み込み中が「空のフォルダ」として確定表示される。
     case expandedEmpty(isFiltered: Bool)
+    /// 展開しようとしたが、ディレクトリの列挙に失敗した(権限が無い・消えた)。
+    ///
+    /// **「空のフォルダ」とも「読み込み中」とも別にする。** 空として確定表示すると
+    /// 読めなかっただけのフォルダを「中身が無い」と言い切ることになり、読み込み中の
+    /// ままにすると永久にスピナーが回る(TASK-404)。
+    case expandedFailed
 }
 
 /// 開閉三角の状態を決める純粋関数。
@@ -29,13 +35,19 @@ enum SidebarDisclosureState: Sendable, Hashable {
 enum SidebarDisclosure {
     /// - Parameters:
     ///   - isExpanded: 展開する意図があるか(`SidebarExpansion.expandedKeys` に含まれるか)。
+    ///   - didFail: そのフォルダの列挙に失敗したか。**既定値を持たせない**のは、
+    ///     渡し忘れがコンパイルエラーにならず静かに「失敗しない」側へ倒れるため。
     ///   - loadedChildCount: 届いている子の件数。**まだ届いていないなら nil**。
     ///     0 と nil を分けるのが要点で、混ぜると読み込み中が空フォルダとして表示される。
     ///   - visibleChildCount: 絞り込み後に実際に行として並ぶ子の件数。
     static func state(
-        isExpanded: Bool, loadedChildCount: Int?, visibleChildCount: Int
+        isExpanded: Bool, didFail: Bool, loadedChildCount: Int?, visibleChildCount: Int
     ) -> SidebarDisclosureState {
         guard isExpanded else { return .collapsed }
+        // 失敗は未到着・空より**先に**確定させる。失敗したフォルダには届く子リストが
+        // 無く loadedChildCount は永久に nil のままなので、順序を逆にすると
+        // 読み込み中として回り続ける。
+        guard !didFail else { return .expandedFailed }
         guard let loadedChildCount else { return .loadingChildren }
         guard visibleChildCount == 0 else { return .expanded }
         // 届いている子はあるのに 1 行も出ていない = 絞り込みで消えた。

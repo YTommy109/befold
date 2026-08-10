@@ -65,6 +65,14 @@ struct FileListEntryRow: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .frame(width: 12)
+        case .expandedFailed:
+            // 列挙に失敗した。空のフォルダ(薄い下向き三角)と取り違えられないよう、
+            // 三角ではなく警告の記号を出す。理由は help に出す。
+            Image(systemName: "exclamationmark.triangle")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+                .help(String(localized: "sidebar.tree.enumerationFailed", bundle: .l10n))
         }
     }
 

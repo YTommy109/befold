@@ -37,6 +37,36 @@ struct SidebarRowBuilderTests {
         #expect(rows.map(\.url) == [children[0].url])
     }
 
+    /// 列挙に失敗したフォルダは、行を増やさないまま `.expandedFailed` になる。
+    /// `failed` を渡し損ねると `.collapsed` に落ち、失敗が「畳んでいる」ように見えるうえ、
+    /// → キーが展開を出しても再展開が弾かれて無反応になる(TASK-404)。
+    @Test("列挙に失敗したフォルダは行を増やさず、畳んだ状態にも落ちない")
+    func failedFolderShowsFailureWithoutAddingRows() {
+        let target = folder("/root/dir/a")
+
+        let rows = SidebarRowBuilder.rows(
+            parentEntry: nil, rootChildren: [target], expanded: [], childrenByPathKey: [:],
+            failed: [target.pathKey], showsDisclosure: true
+        )
+
+        #expect(rows.map(\.url) == [target.url])
+        #expect(rows.first?.disclosure == .expandedFailed)
+    }
+
+    /// 失敗していないフォルダの見た目は変わらない(失敗の判定が全行へ漏れない)。
+    @Test("失敗していないフォルダは、失敗集合があっても畳んだ状態のまま")
+    func unrelatedFolderIsUnaffectedByFailureSet() {
+        let target = folder("/root/dir/a")
+        let other = folder("/root/dir/b")
+
+        let rows = SidebarRowBuilder.rows(
+            parentEntry: nil, rootChildren: [target, other], expanded: [], childrenByPathKey: [:],
+            failed: [target.pathKey], showsDisclosure: true
+        )
+
+        #expect(rows.last?.disclosure == .collapsed)
+    }
+
     @Test("展開したフォルダの配下が、その行の直後に depth 1 で並ぶ")
     func expandedFolderInsertsChildrenAfterItsRow() {
         let dir = folder("/root/dir")

@@ -34,6 +34,7 @@ extension SidebarNavigator {
             expanded: isTree ? material.expanded : [],
             childrenByPathKey: isTree ? material.childrenByPathKey : [:],
             loading: isTree ? material.loading : [],
+            failed: isTree ? material.failed : [],
             showsDisclosure: isTree
         )
         fileListModel.setEntries(rows, for: directory)

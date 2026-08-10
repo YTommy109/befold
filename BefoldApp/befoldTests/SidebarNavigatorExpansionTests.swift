@@ -17,7 +17,7 @@ struct SidebarNavigatorExpansionTests {
     private func makeNavigator(
         currentDirectory: URL,
         rootEntries: [FileListEntry],
-        childrenLister: @escaping @Sendable (URL, befold.SortOrder, Bool) async -> [FileListEntry]
+        childrenLister: @escaping @Sendable (URL, befold.SortOrder, Bool) async -> [FileListEntry]?
     ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
         // 展開はツリー表示のときだけ行に出る。ドリルダウンでは展開の材料を渡さないので、
         // このスイートは常にツリー表示で回す。
@@ -168,6 +168,33 @@ struct SidebarNavigatorExpansionTests {
         }
 
         #expect(await counter.count == 1)
+    }
+
+    /// `SidebarExpansion.material.failed` が `SidebarRowBuilder` まで配線されているか。
+    /// 状態と表示のどちらを正しく作っても、この 1 本の配線が抜けると失敗は
+    /// 「畳んでいる」ように見え、→ キーも無反応になる(TASK-404)。
+    @Test("子リストの列挙に失敗すると、そのフォルダ行が列挙失敗の見た目になる")
+    func failedChildListingSurfacesOnRow() async {
+        let base = Self.home.appendingPathComponent("SidebarNavigatorExpansionTests-failed")
+        let dirA = base.appendingPathComponent("a", isDirectory: true)
+        let (navigator, host) = makeNavigator(
+            currentDirectory: base, rootEntries: [FileListEntry(url: dirA, kind: .folder)]
+        ) { _, _, _ in nil }
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.refreshFileList()
+        await navigator.pendingListingTask?.value
+        navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
+        for _ in 0 ..< 10 {
+            await Task.yield()
+        }
+
+        let row = navigator.fileListModel.entries.first {
+            $0.pathKey == dirA.normalizedPathKey
+        }
+        #expect(row?.disclosure == .expandedFailed)
+        // 失敗しても行は増えない(並べる子が無い)。
+        #expect(navigator.fileListModel.entries.allSatisfy { $0.depth == 0 })
     }
 
     private actor CallCounter {

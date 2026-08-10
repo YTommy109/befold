@@ -29,6 +29,10 @@ enum SidebarRowBuilder {
     ///   - loading: 展開する意図はあるが、子リストがまだ届いていないフォルダの pathKey。
     ///     `expanded` とは互いに素。開閉三角を「読み込み中」にするためだけに使い、
     ///     行は増やさない(届いていない子は並べようがない)。
+    ///   - failed: 展開しようとしたが列挙に失敗したフォルダの pathKey。`expanded` /
+    ///     `loading` とは互いに素。`loading` と同じく行は増やさず、開閉三角の見た目
+    ///     だけを決める。**ここへ渡さないと `.collapsed` に落ち**、失敗が「畳んでいる」
+    ///     ように見えるうえ、→ キーが展開を出しても再展開が弾かれ無反応になる。
     ///   - showsDisclosure: 開閉三角を出すか。ドリルダウン表示では false にして、
     ///     フォルダ行の見た目を従来のまま(`disclosure` が nil)にする。
     static func rows(
@@ -37,11 +41,12 @@ enum SidebarRowBuilder {
         expanded: Set<String>,
         childrenByPathKey: [String: [FileListEntry]],
         loading: Set<String> = [],
+        failed: Set<String> = [],
         showsDisclosure: Bool = false
     ) -> [FileListEntry] {
         var flattening = Flattening(
             expanded: expanded, childrenByPathKey: childrenByPathKey,
-            loading: loading, showsDisclosure: showsDisclosure
+            loading: loading, failed: failed, showsDisclosure: showsDisclosure
         )
         if let parentEntry {
             flattening.rows.append(parentEntry.indented(to: 0))
@@ -64,15 +69,17 @@ enum SidebarRowBuilder {
         var rows: [FileListEntry] = []
 
         let loading: Set<String>
+        let failed: Set<String>
         let showsDisclosure: Bool
 
         init(
             expanded: Set<String>, childrenByPathKey: [String: [FileListEntry]],
-            loading: Set<String>, showsDisclosure: Bool
+            loading: Set<String>, failed: Set<String>, showsDisclosure: Bool
         ) {
             self.expanded = expanded
             self.childrenByPathKey = childrenByPathKey
             self.loading = loading
+            self.failed = failed
             self.showsDisclosure = showsDisclosure
         }
 
@@ -89,10 +96,12 @@ enum SidebarRowBuilder {
         /// 「絞り込みで見えている子が 0 になった」の確定は SidebarDisclosureResolver が行う。
         private func disclosure(for entry: FileListEntry) -> SidebarDisclosureState? {
             guard showsDisclosure, entry.kind == .folder else { return nil }
+            let key = entry.pathKey
             return SidebarDisclosure.state(
-                isExpanded: expanded.contains(entry.pathKey) || loading.contains(entry.pathKey),
-                loadedChildCount: childrenByPathKey[entry.pathKey]?.count,
-                visibleChildCount: childrenByPathKey[entry.pathKey]?.count ?? 0
+                isExpanded: expanded.contains(key) || loading.contains(key) || failed.contains(key),
+                didFail: failed.contains(key),
+                loadedChildCount: childrenByPathKey[key]?.count,
+                visibleChildCount: childrenByPathKey[key]?.count ?? 0
             )
         }
     }

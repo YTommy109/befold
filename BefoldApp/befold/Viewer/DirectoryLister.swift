@@ -47,7 +47,7 @@ enum DirectoryLister {
     /// SidebarRowBuilder 1 箇所に閉じ、ここは材料だけを返す。
     static func childEntriesAsync(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
-    ) async -> [FileListEntry] {
+    ) async -> [FileListEntry]? {
         childEntries(in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
     }
 
@@ -89,9 +89,15 @@ enum DirectoryLister {
     ) -> [FileListEntry] {
         // 行の組み立ては SidebarRowBuilder に一本化する。ドリルダウンは
         // 「展開集合が空」の縮退形として同じ関数を通り、全行 depth 0 になる。
+        // ルートの列挙失敗はここで空へ畳む。ルート一覧には失敗を出す先が無く(開閉三角は
+        // 子フォルダの行にしか無い)、ここを Optional にすると
+        // 「開いている文書は必ず一覧に含める」(appendingOpenFile)も通らなくなる。
+        // ルート列挙失敗の表示は TASK-410 で扱う。
         SidebarRowBuilder.rows(
             parentEntry: parentNavigationEntry(for: directory, home: home),
-            rootChildren: childEntries(in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles),
+            rootChildren: childEntries(
+                in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles
+            ) ?? [],
             expanded: [],
             childrenByPathKey: [:]
         )
@@ -108,10 +114,14 @@ enum DirectoryLister {
 
     /// `directory` 直下の行(親移動行を含まない)。並び順の規則はここが単一の実装元で、
     /// ツリー展開時は展開したフォルダごとにこの関数の結果が材料になる。
+    /// 列挙に失敗した場合は **nil**(空のフォルダの `[]` と区別する)。ツリー展開は
+    /// この区別を使って「読めなかったフォルダ」を空フォルダとして表示しない(TASK-404)。
     static func childEntries(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool
-    ) -> [FileListEntry] {
-        let (folders, files) = sortedContents(in: directory, showHiddenFiles: showHiddenFiles)
+    ) -> [FileListEntry]? {
+        guard let (folders, files) = sortedContents(in: directory, showHiddenFiles: showHiddenFiles) else {
+            return nil
+        }
         let folderEntries = folders.map {
             FileListEntry(url: $0, kind: .folder, containsSupportedFile: containsSupportedFile(in: $0))
         }
@@ -133,7 +143,11 @@ enum DirectoryLister {
     /// 決めるため、ここではフィルタせず全件を返す。列挙・ソートの単一情報源に寄せ、
     /// 呼び出し側が FileManager を直接叩いて未定義順の結果を得るのを防ぐ。
     static func allEntriesSorted(in directory: URL, fileReader: any FileReading = Self.fileReader) -> [URL] {
-        let (folders, files) = sortedContents(in: directory, showHiddenFiles: true, fileReader: fileReader)
+        // Quick Open は候補が 0 件のときに「該当なし」と出すだけで、列挙失敗を
+        // 別の案内に分ける口を持たない。ここでは空へ畳む(区別の導入は TASK-410)。
+        let (folders, files) = sortedContents(
+            in: directory, showHiddenFiles: true, fileReader: fileReader
+        ) ?? ([], [])
         // Quick Open は候補 URL をそのまま行 ID・正規化キーとしてハッシュするため、
         // ここで native 裏打ちへ揃える(列挙側では揃えない。TASK-273)。
         return [URL].mergedByFileName(folders, files, name: \.lastPathComponent)
@@ -189,7 +203,7 @@ enum DirectoryLister {
     /// (単一の実装元)に委譲する。
     private static func sortedContents(
         in directory: URL, showHiddenFiles: Bool = false, fileReader: any FileReading = Self.fileReader
-    ) -> (folders: [URL], files: [URL]) {
+    ) -> (folders: [URL], files: [URL])? {
         DirectoryEnumeration.sortedContents(
             in: directory, showHiddenFiles: showHiddenFiles, fileReader: fileReader
         )
