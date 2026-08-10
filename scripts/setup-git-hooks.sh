@@ -33,7 +33,9 @@ install_hook post-checkout scripts/worktree-init.sh
 # ジョブと同じ SwiftFormat チェックをコミット時点で検知する。
 # check-doc-symbols.sh は規約文書が名指しするシンボルの実在を見る（CI は BefoldApp/** の
 # 変更でしか走らないため、文書とコードの両方に触れうるコミット時点で検知する）。
+# check-task-id-uniqueness.sh は backlog の ID 重複を見る（CLI の採番が archive /
+# completed を走査しないため、最大番号のタスクをアーカイブすると同じ ID が再発行される）。
 install_hook pre-commit scripts/block-main-commits.sh scripts/swiftformat-lint.sh \
-  scripts/check-doc-symbols.sh
+  scripts/check-doc-symbols.sh scripts/check-task-id-uniqueness.sh
 # commit-msg は件名を見るチェックなので pre-commit ではなくここ(メッセージ確定後)。
 install_hook commit-msg scripts/check-gate-commit-scope.sh

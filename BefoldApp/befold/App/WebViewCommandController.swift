@@ -117,7 +117,7 @@ final class WebViewCommandController {
     ///
     /// スクロール位置の保存キーは、この経路も JS からの通知経路(ViewerRendererDelegate の
     /// didChangeScrollPosition)も「その位置が属する文書」から決める。どちらも現在表示中の
-    /// fileURL を参照しない(現在値を参照すると切替直後に別文書のキーへ書く = TASK-389)。
+    /// fileURL を参照しない(現在値を参照すると切替直後に別文書のキーへ書く = TASK-400)。
     func saveCurrentScrollPosition(for url: URL, mode: ViewerBridge.ViewMode) {
         renderer.currentScrollPosition { [perFileState, onScrollPositionSaved] position in
             perFileState.scrollPosition.setScrollPosition(position, for: url, mode: mode)

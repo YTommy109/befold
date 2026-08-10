@@ -7,7 +7,7 @@ created_date: '2026-08-09 13:33'
 updated_date: '2026-08-09 14:40'
 labels: []
 dependencies:
-  - TASK-389
+  - TASK-400
 priority: medium
 type: bug
 ordinal: 648000
@@ -16,11 +16,11 @@ ordinal: 648000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-/code-review high の指摘 2 件（CONFIRMED 1 件 + PLAUSIBLE 1 件）。どちらも TASK-389 修正（保存キーを通知の出所 = rendered.filePath から決める）の残余で、根因は共通:「rendered.filePath が実際に DOM に表示中の文書と一致しない遷移窓」がある。
+/code-review high の指摘 2 件（CONFIRMED 1 件 + PLAUSIBLE 1 件）。どちらも TASK-400 修正（保存キーを通知の出所 = rendered.filePath から決める）の残余で、根因は共通:「rendered.filePath が実際に DOM に表示中の文書と一致しない遷移窓」がある。
 
 1. **リネーム窓（CONFIRMED）**: リネーム時、`perFileState.migrate` は即座に新パスへ値を移すが、rendered.filePath はリネーム再描画が確定するまで旧パスのまま。その間のデバウンス済みスクロール通知（大きな文書では画像埋め込みで数秒かかりうる）が **もう存在しない旧パスのキーへ** 保存され、新パス側には移行時点の古い位置が残る。再オープン時にリネーム前の位置へ戻る（保存位置のサイレント消失）。参照: ViewerWindowController.swift:585 付近
 
-2. **mirror 先行更新窓（PLAUSIBLE）**: applyRender は evaluateJavaScript をキューに積んだ直後（JS 実行前）に recordRendered で rendered.filePath を切替先へ進める。DOM がまだ旧文書のうちにデバウンスが発火すると、旧文書の位置が **切替先のキーへ** 保存される（TASK-389 の症状が狭い窓で残る）。参照: ViewerRenderer+MessageHandling.swift:84、ViewerRenderer+RenderHelpers.swift:140-147
+2. **mirror 先行更新窓（PLAUSIBLE）**: applyRender は evaluateJavaScript をキューに積んだ直後（JS 実行前）に recordRendered で rendered.filePath を切替先へ進める。DOM がまだ旧文書のうちにデバウンスが発火すると、旧文書の位置が **切替先のキーへ** 保存される（TASK-400 の症状が狭い窓で残る）。参照: ViewerRenderer+MessageHandling.swift:84、ViewerRenderer+RenderHelpers.swift:140-147
 
 個別のガードを 2 箇所に足すのではなく、「保存キーが常に実 DOM の文書と一致する」構造（mirror の filePath 更新を render 完了時へ寄せる、または JS 側に文書識別子を持たせてラウンドトリップする等）を検討すること。
 <!-- SECTION:DESCRIPTION:END -->
@@ -38,7 +38,7 @@ ordinal: 648000
 構造方針: 保存キーを「配達時に native 側で推定」から「発火時に JS 側で申告」へ移す(Description の構造案のうち後者)。
 1. viewer-main.js の _createScrollSync に docPath を追加し、scrollPositionChanged payload へ path を載せる(scrollTop を読むのと同じ時点の値なので、キューやメッセージ配達の遅延と無関係に実 DOM と一致する)
 2. Swift(applyRender)は render script の直前に _mmdSetRenderDocPath(path) を常時注入し、JS は beginRender で採用する(保留 debounce の破棄と同じ時点でキーが切り替わる)
-3. リネームは _mmdRenameDocPath(from,to) を即時評価して差し替える(DOM は同一文書のまま名前だけ変わるため。TASK-390 のミラー差し替えと同じ同期区間)
+3. リネームは _mmdRenameDocPath(from,to) を即時評価して差し替える(DOM は同一文書のまま名前だけ変わるため。TASK-401 のミラー差し替えと同じ同期区間)
 4. handleScrollPositionChanged は rendered.filePath ではなく payload の path をキーに使う(rendered ミラーの役割は再描画キャッシュへ戻る)
 5. テスト: native = payload の path を使う/欠落時は nil、JS = 採用は render 時のみ・rename は即時 flip・現 path 不一致の rename は無視
 <!-- SECTION:PLAN:END -->

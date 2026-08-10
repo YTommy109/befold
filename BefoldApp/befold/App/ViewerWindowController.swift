@@ -423,7 +423,7 @@ final class ViewerWindowController: NSWindowController {
         perFileState.migrate(from: oldURL, to: newURL)
         // 描画状態(描画済みミラー・JS 側の文書パス)も同じ同期区間で新パスへ追随させる。
         // 呼ばないと、リネーム再描画がファイル切替として扱われてスクロール位置が
-        // 提示開始時の保存値へ巻き戻り(TASK-390)、再描画確定までのスクロール通知が
+        // 提示開始時の保存値へ巻き戻り(TASK-401)、再描画確定までのスクロール通知が
         // migrate 済みの旧パスのキーへ保存される(TASK-393)。
         webViewCommands.noteRename(from: oldURL, to: newURL)
         // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
@@ -567,7 +567,7 @@ extension ViewerWindowController: ViewerRendererDelegate {
     }
 
     /// 保存キーは現在表示中の fileURL ではなく、通知に載った「その位置が属する文書」から
-    /// 決める(理由は ViewerRendererDelegate の doc / TASK-389)。nil の通知は捨てる。
+    /// 決める(理由は ViewerRendererDelegate の doc / TASK-400)。nil の通知は捨てる。
     func renderer(
         _: ViewerRenderer, didChangeScrollPosition position: Double, for url: URL?, mode: ViewerBridge.ViewMode
     ) {

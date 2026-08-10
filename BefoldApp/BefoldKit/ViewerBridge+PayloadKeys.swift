@@ -31,7 +31,7 @@ public extension ViewerBridge {
             case zoom
             /// その倍率が属する文書のパス。ScrollPositionChanged.path と同じ理由で
             /// JS 側が発火時に申告する(切替直後に配達された通知が切替先のキーを
-            /// 汚すのを防ぐ = TASK-391。scroll 側の同型 1 件目は TASK-389)。
+            /// 汚すのを防ぐ = TASK-391。scroll 側の同型 1 件目は TASK-400)。
             case path
         }
 

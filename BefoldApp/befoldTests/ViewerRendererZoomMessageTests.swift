@@ -8,7 +8,7 @@ import Testing
 ///
 /// 倍率も per-file に永続化されるため、通知には「その倍率が属する文書」が載る。
 /// ホスト側の現在 URL を使うと、切替直後に届いた古い通知が切替先の倍率を上書きして
-/// 保存される(TASK-391 = スクロール位置 TASK-389 の同型 2 件目)。
+/// 保存される(TASK-391 = スクロール位置 TASK-400 の同型 2 件目)。
 /// 保存先の窓側の振る舞いは ViewerWindowZoomNotificationTests が担う。
 @Suite
 @MainActor

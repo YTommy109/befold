@@ -1,5 +1,5 @@
 ---
-id: TASK-390
+id: TASK-401
 title: リネーム後の再描画がスクロール位置を提示開始時の保存値へ巻き戻す
 status: Done
 assignee: []

@@ -1207,7 +1207,7 @@
   // (スクロール位置・倍率)の保存キーは、すべてここから読んで payload に載せる。
   // 値を読むのが通知の発火時点なので、evaluateJavaScript のキューや postMessage
   // 配達の遅延と無関係に実 DOM と一致する(Swift 側が現在 URL や描画済みミラーから
-  // 配達時に推定するのをやめた理由 = TASK-389 / TASK-393)。
+  // 配達時に推定するのをやめた理由 = TASK-400 / TASK-393)。
   function _createDocPathTracker() {
     var docPath = null;
     // undefined = 予告なし(Swift を経由しない内部再描画)。null は「文書パス無し」の予告。

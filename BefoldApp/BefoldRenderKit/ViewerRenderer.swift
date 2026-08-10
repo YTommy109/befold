@@ -23,7 +23,7 @@ public protocol ViewerRendererDelegate: AnyObject {
     /// 遅延と無関係に実 DOM の文書と一致する(TASK-393)。通知は JS 側で 200ms
     /// デバウンスされるため、ファイル切替の直後に切替前の文書の通知が届きうる。
     /// 受け取り側は現在表示中の URL ではなく必ずこの `url` をキーに使うこと
-    /// (現在値を参照すると切替前の位置が切替先のキーへ保存される = TASK-389)。
+    /// (現在値を参照すると切替前の位置が切替先のキーへ保存される = TASK-400)。
     /// 描画前・直接 HTML モードなど、出所の文書が定まらない場合は nil。
     func renderer(
         _ renderer: ViewerRenderer, didChangeScrollPosition position: Double, for url: URL?,

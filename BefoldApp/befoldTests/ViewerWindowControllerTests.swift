@@ -267,7 +267,7 @@ extension ViewerWindowControllerTests {
 
     /// handleRename → webViewCommands.noteRename → WebViewProxy.renderer の配線を固定する。
     /// この配線が切れると、リネーム再ロードがファイル切替として扱われて保存済み
-    /// スクロール位置が注入され、現在位置が提示開始時の値へ巻き戻る(TASK-390)。
+    /// スクロール位置が注入され、現在位置が提示開始時の値へ巻き戻る(TASK-401)。
     /// また再描画確定までのスクロール通知が migrate 済みの旧パスのキーへ保存される(TASK-393)。
     @Test("handleRename が描画済みミラーの filePath を新パスへ追随させる")
     func renameRetargetsRendererMirrorFilePath() {

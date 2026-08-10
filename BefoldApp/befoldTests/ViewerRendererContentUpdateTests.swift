@@ -118,7 +118,7 @@ struct ViewerRendererContentUpdateTests {
 
     /// リネームは再描画せず、描画済みミラーの filePath だけを新パスへ差し替える。
     /// 差し替えないと、リネーム再ロードがファイル切替として扱われて保存済み
-    /// スクロール位置が注入され、現在位置が提示開始時の値へ巻き戻る(TASK-390)。
+    /// スクロール位置が注入され、現在位置が提示開始時の値へ巻き戻る(TASK-401)。
     @Test("handleRename は描画済みミラーの filePath を差し替え、他のミラー値を保つ")
     @MainActor
     func handleRenameRetargetsMirrorFilePath() {
