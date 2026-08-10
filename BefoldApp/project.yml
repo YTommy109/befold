@@ -12,6 +12,12 @@ packages:
   swift-argument-parser:
     url: https://github.com/apple/swift-argument-parser
     from: "1.5.0"
+  # git 連携の実体。libgit2 の C ソースを SPM ターゲットとしてビルドするパッケージで、
+  # プリビルドの XCFramework ではないため cmake を必要としない。
+  # Package.swift 側と同じ pin を書く（ずれるとビルド系で挙動が変わる）。
+  libgit2:
+    url: https://github.com/ibrahimcetin/libgit2.git
+    exactVersion: "1.9.2"
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -106,6 +112,26 @@ targets:
       # 4 階層上のアプリバンドル直下を辿って参照する。
       LD_RUNPATH_SEARCH_PATHS:
         - "@executable_path/../../../../Frameworks"
+  # git_libgit2_opts（C 可変長引数）を Swift から呼ぶための薄い C シム。
+  # Swift と C は同一ターゲットに混在させられない（SwiftPM の制約）ため独立させる。
+  # `import CGitShim` を成立させる module.modulemap は CGitShim/include に置き、
+  # 利用側の SWIFT_INCLUDE_PATHS でそのディレクトリを指す。
+  CGitShim:
+    type: library.static
+    platform: macOS
+    sources:
+      - path: CGitShim
+    dependencies:
+      - package: libgit2
+    settings:
+      PRODUCT_NAME: CGitShim
+      DEFINES_MODULE: false
+      # Xcode の SPM 統合は、C ターゲットへ依存パッケージのヘッダ検索パスを
+      # 自動では通さない（SwiftPM ビルドでは通る）。libgit2 のチェックアウトは
+      # DerivedData の SourcePackages 配下に置かれ、その位置は -derivedDataPath を
+      # 変えても BUILD_DIR からの相対では変わらない。
+      HEADER_SEARCH_PATHS:
+        - "$(BUILD_DIR)/../../SourcePackages/checkouts/libgit2/include"
   befold:
     type: application
     platform: macOS
@@ -149,9 +175,13 @@ targets:
         link: false
         codeSign: true
       - package: Sparkle
+      # git 連携は本体アプリだけが使う。QuickLook 拡張・CLI へは入れない。
+      - target: CGitShim
+      - package: libgit2
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold
       PRODUCT_NAME: befold
+      SWIFT_INCLUDE_PATHS: "$(SRCROOT)/CGitShim/include"
       INFOPLIST_FILE: befold/Info.plist
       CODE_SIGN_ENTITLEMENTS: befold/befold.entitlements
       ENABLE_HARDENED_RUNTIME: true

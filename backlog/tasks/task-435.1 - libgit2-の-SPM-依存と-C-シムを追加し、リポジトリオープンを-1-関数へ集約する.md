@@ -1,10 +1,11 @@
 ---
 id: TASK-435.1
 title: libgit2 の SPM 依存と C シムを追加し、リポジトリオープンを 1 関数へ集約する
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-10 15:01'
-updated_date: '2026-08-10 15:07'
+updated_date: '2026-08-10 15:28'
 labels:
   - refactor
 dependencies: []
@@ -55,3 +56,53 @@ TASK-435（git 連携の libgit2 移行）の基盤サブタスク。個別の�
 7. **F5 + AC #9: 開けないリポジトリのフィクスチャとテスト**。`extensions.partialclone` と未知の `extensions.*` を設定したフィクスチャを **`befoldTests` 側に置く**（`project.yml` に `BefoldTestSupport` ターゲットが存在しないため、そこへ置くと Xcode 側のテスト経路に載らない。既存のずれ自体は別タスク）。テストは 4 の集約関数そのものを呼び、使用不可へ落ちること・クラッシュしないことを確認する。
 8. **F5: open のコストを実測する**。`withRepository` は毎回 open/free する。`git_repository` はスレッド間共有できないため常駐化しない。open 単体のコストを計測し、キャッシュが不要ならその数値を Implementation Notes へ記録する（必要なら別タスクへ）。
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 実装結果（2026-08-11）
+
+### 追加したもの
+
+- `BefoldApp/CGitShim/`（`include/CGitShim.h` / `include/module.modulemap` / `CGitShim.c`）
+  — `git_libgit2_opts` を固定引数へ落とす C シム。露出するのは検索パスの set/get 2 関数のみ
+- `BefoldApp/befold/App/GitLibrary.swift` — 一度きりの初期化と `withRepository(at:_:)`
+- `BefoldApp/befoldTests/GitLibraryTests.swift`（7 本）/ `GitLibraryIntegrationTests.swift`（2 本）
+- `Package.swift` / `project.yml` に `ibrahimcetin/libgit2` を exact 1.9.2 で追加
+
+### 実測
+
+- `swift test`: **1401 tests / 205 suites を 20.397 秒で全通過**（exit 0）
+- `xcodebuild build -scheme befold -destination 'platform=macOS'`: **BUILD SUCCEEDED**
+- swiftlint: 全体 72 件（main のベースライン水準）。**新規ファイルの指摘は 0 件**
+- swiftformat: `0/194` ほか全ターゲットで整形差分なし
+
+### 計画 8（open のコスト実測）: キャッシュは不要
+
+同じ libgit2 1.9.2 を使うプローブで、befold の worktree（1200 ファイル規模）に対して 200 回平均を計測した。
+
+| 操作 | 1 回あたり |
+|---|---|
+| `git_repository_open_ext` + `git_repository_free` | **0.263 ms** |
+| `/usr/bin/git --no-pager -C <root> rev-parse --show-toplevel` の spawn | **67.228 ms** |
+
+**約 256 倍速い。** 呼び出しごとに開き直す設計で問題ない。`git_repository` を保持して使い回す
+（スレッド間共有の制約を抱え込む）必要は無いことを数値で確定した。
+
+### Xcode ビルドで詰まった点（次のサブタスクへの申し送り）
+
+Xcode の SPM 統合は、**C ターゲットへ依存パッケージのヘッダ検索パスを自動では通さない**
+（SwiftPM ビルドでは通る）。`CGitShim.h` の `#include <git2.h>` が
+`'git2.h' file not found` で落ちた。`project.yml` の `CGitShim` ターゲットへ
+
+    HEADER_SEARCH_PATHS: "$(BUILD_DIR)/../../SourcePackages/checkouts/libgit2/include"
+
+を足して解決した。この相対関係は `-derivedDataPath` を変えても崩れない
+（release.yml は `-derivedDataPath build` を使う）。
+
+### 未完了
+
+`.swiftlint.yml` への custom rule `git_repository_open_outside_git_library` の追加（計画 5 / F3）は、
+PreToolUse フックが `.swiftlint.yml` の編集をユーザーの明示指示なしにブロックするため保留。
+ユーザーの許可待ち。ルールが入るまで「開くのは GitLibrary だけ」は doc コメントだけで守られている状態。
+<!-- SECTION:NOTES:END -->

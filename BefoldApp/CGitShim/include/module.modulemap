@@ -1,0 +1,4 @@
+module CGitShim {
+    header "CGitShim.h"
+    export *
+}
