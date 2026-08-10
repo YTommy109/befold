@@ -1,11 +1,11 @@
 ---
 id: TASK-416
 title: spaceScroll のホスト機能フラグがどこからも渡されず QuickLook で Space が効かない
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-10 07:28'
-updated_date: '2026-08-10 15:57'
+updated_date: '2026-08-10 15:58'
 labels: []
 dependencies: []
 priority: high
@@ -61,3 +61,9 @@ ViewerBridge.hostFeaturesScript(loadMore:spaceScroll:referenceActivation:)（Vie
 
 AC #2 は未チェック。QuickLook 拡張を Finder 上で操作する実測が必要で、自動テストでは Space 押下→プレビューが閉じる、という OS 側の挙動まで再現できない。コード上の経路は viewer-main.js:185 が spaceScroll=false で早期 return し preventDefault しない、という形で塞がっており、注入値が false になることは RendererFeaturesTests の makeWebViewInjectsSpaceScrollFlag で担保済み。dev ビルドの dogfood で確認したい。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+hostFeaturesScript のデフォルト引数を撤去し、spaceScroll を RendererFeatures.allowsSpaceScroll（allowsInteractiveBridging からの導出）で必ず渡す形にした。AC #1/#3/#4/#5 は swift test 1394 件成功（makeWebViewInjectsSpaceScrollFlag が quickLookRestricted→false / allEnabled→true を実測）で確認。AC #2 のみ QuickLook 実機操作が要るため dev ビルドの dogfood 待ち（プロジェクトのテスト規約どおり GUI 層はリリース前手動チェック）。
+<!-- SECTION:FINAL_SUMMARY:END -->
