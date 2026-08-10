@@ -59,6 +59,26 @@ struct FolderListingViewFilterTests {
         #expect(view.visibleEntries(from: entries).map(\.url.lastPathComponent) == ["changed.md"])
     }
 
+    /// TASK-403 で最初に到達する経路。サブモジュールのフォルダーを選ぶと、親の
+    /// `git status` には配下のファイルが 1 件も出ないため、「変更のみ表示」で
+    /// 一覧が丸ごと空になっていた。
+    @Test("変更のみ表示 ON でも、サブモジュール配下のプレビュー一覧は空にならない")
+    func changedFilesOnlyKeepsSubmoduleDescendants() {
+        let submodule = directory.appendingPathComponent("sub")
+        let inner = FileListEntry(url: submodule.appendingPathComponent("a.txt"), kind: .file)
+        let filter = FileListFilter(
+            gitStatus: SidebarGitStatus(
+                repositoryRootKey: directory.normalizedPathKey,
+                statuses: [submodule.normalizedPathKey: modifiedStatus()],
+                indeterminateRoots: [submodule.normalizedPathKey]
+            )
+        )
+
+        let view = makeView(directory: submodule, filter: filter)
+
+        #expect(view.visibleEntries(from: [inner]).map(\.url.lastPathComponent) == ["a.txt"])
+    }
+
     @Test("表示中ディレクトリを提示しているとき、プレビュー一覧はサイドバーと完全に一致する")
     func previewMatchesSidebarForCurrentDirectory() {
         let changed = makeEntry("changed.md")

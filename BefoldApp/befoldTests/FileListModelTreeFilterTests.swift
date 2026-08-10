@@ -69,6 +69,32 @@ struct FileListModelTreeFilterTests {
         #expect(model.visibleEntries.map(\.depth) == [0, 1])
     }
 
+    /// TASK-403 のもう 1 つの到達経路。親を表示したままサブモジュール配下の行が
+    /// 並ぶため、境界配下を残す例外が祖先の足し戻しまで届くことを本番の導出経路で確かめる。
+    @Test("変更のみ表示 ON でも、ツリー展開したサブモジュール配下と祖先が残る")
+    func treeFilterKeepsSubmoduleDescendantsAndAncestors() {
+        let root = URL(fileURLWithPath: "/tmp/FileListModelFilterTests")
+        let submodule = FileListEntry(url: root.appendingPathComponent("sub"), kind: .folder)
+        let inner = FileListEntry(url: root.appendingPathComponent("sub/a.txt"), kind: .file)
+        let model = makeModel(entries: [])
+        model.entries = SidebarRowBuilder.rows(
+            parentEntry: nil, rootChildren: [submodule, makeEntry("clean.txt")],
+            expanded: [submodule.pathKey], childrenByPathKey: [submodule.pathKey: [inner]],
+            showsDisclosure: true
+        )
+        model.applyGitStatus(
+            SidebarGitStatus(
+                repositoryRootKey: root.normalizedPathKey,
+                statuses: [submodule.pathKey: modifiedStatus()],
+                indeterminateRoots: [submodule.pathKey]
+            ),
+            for: root, sequence: gitStatusSequence.next()
+        )
+        model.showChangedFilesOnly = true
+
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["sub", "a.txt"])
+    }
+
     /// 祖先として残った行は、定義上 1 つ以上の子が見えているので `.expanded` のまま。
     @Test("祖先として残ったフォルダの開閉三角は展開のまま")
     func ancestorKeptByFilterStaysExpanded() {

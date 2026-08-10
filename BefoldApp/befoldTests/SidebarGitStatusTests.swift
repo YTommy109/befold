@@ -90,4 +90,76 @@ struct SidebarGitStatusTests {
         #expect(sidebar.fileStatus(at: "\(root)/docs/other.md") == nil)
         #expect(sidebar.folderStatus(at: "\(root)/docs") == nil)
     }
+
+    // MARK: - ネストしたリポジトリ・サブモジュール(TASK-403)
+
+    /// サブモジュールの実際の形。親の porcelain には `sub` の 1 レコードしか出ず、
+    /// 配下のファイルは 1 件も現れない。
+    private func submodule() -> SidebarGitStatus {
+        SidebarGitStatus(
+            repositoryRootKey: root,
+            statuses: ["\(root)/sub": GitFileStatus(indexChange: nil, worktreeChange: .modified)],
+            indeterminateRoots: ["\(root)/sub"]
+        )
+    }
+
+    /// ネストしたリポジトリの実際の形。親から見ると未追跡ディレクトリ 1 レコードへ
+    /// 畳まれるため、**畳み込みの配下**と**境界の配下**が同じ位置で重なる。
+    private func nestedRepository() -> SidebarGitStatus {
+        SidebarGitStatus(
+            repositoryRootKey: root,
+            statuses: ["\(root)/child": GitFileStatus(isUntracked: true)],
+            indeterminateRoots: ["\(root)/child"]
+        )
+    }
+
+    /// AC#1 と AC#2 を 1 つのテストで押さえる。バッジだけ消して絞り込みを直さないと
+    /// 配下が黙って消え、絞り込みだけ直してバッジを消さないと嘘のバッジが残る。
+    @Test("サブモジュール配下はバッジが出ず、かつ絞り込みでも消えない")
+    func submoduleDescendantsAreIndeterminateAndKept() {
+        let sidebar = submodule()
+        let descendant = "\(root)/sub/a.txt"
+
+        #expect(sidebar.fileStatus(at: descendant) == nil)
+        #expect(sidebar.folderStatus(at: "\(root)/sub/inner") == nil)
+        #expect(sidebar.isIndeterminate(at: descendant))
+        #expect(sidebar.isIndeterminate(at: "\(root)/sub/inner/deep.txt"))
+    }
+
+    /// 境界の検出が畳み込みより先に効かないと、子リポジトリでコミット済み・クリーンな
+    /// ファイルまで「新規」と表示される(TASK-403 の AC#2)。
+    @Test("ネストしたリポジトリ配下は畳み込みの未追跡を継承しない")
+    func nestedRepositoryDescendantsDoNotInheritUntracked() {
+        let sidebar = nestedRepository()
+
+        #expect(sidebar.fileStatus(at: "\(root)/child/committed.txt") == nil)
+        #expect(sidebar.folderStatus(at: "\(root)/child/src") == nil)
+        #expect(sidebar.isIndeterminate(at: "\(root)/child/committed.txt"))
+    }
+
+    /// 境界の**行そのもの**は親が答えを持っている。ここまで消すと、サブモジュールが
+    /// 変更されていることも、新しいディレクトリが増えたことも見えなくなる。
+    @Test("境界の行そのものは自分の状態を保つ")
+    func boundaryRowKeepsItsOwnStatus() {
+        #expect(submodule().fileStatus(at: "\(root)/sub")?.worktreeChange == .modified)
+        #expect(submodule().isIndeterminate(at: "\(root)/sub") == false)
+        #expect(nestedRepository().fileStatus(at: "\(root)/child")?.isUntracked == true)
+        #expect(nestedRepository().isIndeterminate(at: "\(root)/child") == false)
+    }
+
+    /// 境界の外側は従来どおり。境界を足したことで畳み込みの扱いが壊れていないこと。
+    @Test("境界の外側では畳み込みの未追跡がこれまでどおり効く")
+    func collapsedUntrackedStillWorksOutsideBoundaries() {
+        let sidebar = SidebarGitStatus(
+            repositoryRootKey: root,
+            statuses: [
+                "\(root)/new": GitFileStatus(isUntracked: true),
+                "\(root)/sub": GitFileStatus(indexChange: nil, worktreeChange: .modified),
+            ],
+            indeterminateRoots: ["\(root)/sub"]
+        )
+
+        #expect(sidebar.fileStatus(at: "\(root)/new/a.txt")?.isUntracked == true)
+        #expect(sidebar.isIndeterminate(at: "\(root)/new/a.txt") == false)
+    }
 }

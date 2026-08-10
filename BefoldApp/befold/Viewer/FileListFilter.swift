@@ -24,6 +24,12 @@ struct FileListFilter: Equatable {
     ///   (`SidebarTreeFilter.keepingAncestors`)。祖先は変更を持たないので
     ///   「変更のみ表示」が ON でも未変更のフォルダ行が出るが、これは意図した例外。
     ///   残さないと親だけが消えて、開いている文書の行が孤児になる。
+    ///
+    /// - Note: git 絞り込みで行を残す例外はもう 1 つある。サブモジュール・ネストした
+    ///   リポジトリの配下(`SidebarGitStatus.isIndeterminate(at:)`)は、親リポジトリが
+    ///   「変更が無い」とは言っていない = 何も言っていないため残す(TASK-403)。
+    ///   どちらの例外も `hasChange` には足さない。バッジの引き当てと絞り込みが
+    ///   食い違わないための不変条件を壊すため(TASK-345)。
     var presentedPathKey: String?
 
     /// `directory` 直下の一覧に絞り込みを適用する。
@@ -37,7 +43,10 @@ struct FileListFilter: Equatable {
                 || WildcardMatcher.matches(pattern: filterText, in: entry.url.lastPathComponent)
             else { return false }
             guard let gitFilter else { return true }
-            return gitFilter.hasChange(at: entry.pathKey) || entry.pathKey == presentedPathKey
+            guard !gitFilter.hasChange(at: entry.pathKey) else { return true }
+            // 「変更が無い」ではなく「親リポジトリが答えを持たない」行は残す。
+            // 消すと、サブモジュール配下のファイルが変更していても全部消える(TASK-403)。
+            return gitFilter.isIndeterminate(at: entry.pathKey) || entry.pathKey == presentedPathKey
         }
     }
 

@@ -42,8 +42,7 @@ struct SidebarNavigatorListingCoherenceTests {
                 }
                 let status = GitFileStatus(indexChange: nil, worktreeChange: .modified)
                 return GitStatusResult(
-                    statuses: [changed.normalizedPathKey: status],
-                    indexURL: nil,
+                    snapshot: GitStatusSnapshot(statuses: [changed.normalizedPathKey: status], indexURL: nil),
                     repositoryRoot: base
                 )
             }
@@ -91,8 +90,7 @@ struct SidebarNavigatorListingCoherenceTests {
                 await gate.wait()
                 let status = GitFileStatus(indexChange: nil, worktreeChange: .modified)
                 return GitStatusResult(
-                    statuses: [changed.normalizedPathKey: status],
-                    indexURL: nil,
+                    snapshot: GitStatusSnapshot(statuses: [changed.normalizedPathKey: status], indexURL: nil),
                     repositoryRoot: base
                 )
             }
@@ -161,8 +159,7 @@ struct SidebarNavigatorListingCoherenceTests {
                 }
                 let status = GitFileStatus(indexChange: nil, worktreeChange: .modified)
                 return GitStatusResult(
-                    statuses: [changed.normalizedPathKey: status],
-                    indexURL: nil,
+                    snapshot: GitStatusSnapshot(statuses: [changed.normalizedPathKey: status], indexURL: nil),
                     repositoryRoot: base
                 )
             }
@@ -278,8 +275,7 @@ struct SidebarNavigatorListingCoherenceTests {
                 let modified = GitFileStatus(indexChange: nil, worktreeChange: .modified)
                 let target = policy == .always ? changed : clean
                 return GitStatusResult(
-                    statuses: [target.normalizedPathKey: modified],
-                    indexURL: nil,
+                    snapshot: GitStatusSnapshot(statuses: [target.normalizedPathKey: modified], indexURL: nil),
                     repositoryRoot: base
                 )
             }
