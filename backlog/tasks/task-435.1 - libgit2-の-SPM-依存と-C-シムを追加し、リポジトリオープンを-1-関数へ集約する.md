@@ -1,11 +1,11 @@
 ---
 id: TASK-435.1
 title: libgit2 の SPM 依存と C シムを追加し、リポジトリオープンを 1 関数へ集約する
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-10 15:01'
-updated_date: '2026-08-10 15:34'
+updated_date: '2026-08-10 15:37'
 labels:
   - refactor
 dependencies: []
@@ -34,13 +34,13 @@ TASK-435（git 連携の libgit2 移行）の基盤サブタスク。個別の�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 libgit2 パッケージが Package.swift と project.yml の両方に追加され、`swift build` と `xcodebuild build -scheme befold` の両方が通る
-- [ ] #2 git_libgit2_opts を固定引数で呼ぶ C シムターゲットが追加され、Swift から呼べることがテストで確認されている
-- [ ] #3 起動時に GIT_OPT_SET_SEARCH_PATH で system/xdg の config 検索パスを無効化し、global（~/.gitconfig）は有効のままにする。両方がテストで担保されている（AC #7）
-- [ ] #4 リポジトリを開いて後始末する処理が 1 関数に集約され、開けない場合に .unavailable 相当を返すことがテストで担保されている（AC #10）
-- [ ] #5 開けないリポジトリのフィクスチャ（extensions.partialclone / 未知の extensions）を用意し、クラッシュせずモーダルも出さずに .unavailable 相当へ落ちることがテストで担保されている（AC #9）
-- [ ] #6 libgit2 の初期化と終了（git_libgit2_init / git_libgit2_shutdown）の呼び出し回数と寿命が明示的に決められ、doc コメントに根拠が書かれている
-- [ ] #7 「リポジトリを開くのは GitLibrary だけ」が swiftlint の custom rule で強制され、違反を検知することが自己テストで確認されている
+- [x] #1 libgit2 パッケージが Package.swift と project.yml の両方に追加され、`swift build` と `xcodebuild build -scheme befold` の両方が通る
+- [x] #2 git_libgit2_opts を固定引数で呼ぶ C シムターゲットが追加され、Swift から呼べることがテストで確認されている
+- [x] #3 起動時に GIT_OPT_SET_SEARCH_PATH で system/xdg の config 検索パスを無効化し、global（~/.gitconfig）は有効のままにする。両方がテストで担保されている（AC #7）
+- [x] #4 リポジトリを開いて後始末する処理が 1 関数に集約され、開けない場合に .unavailable 相当を返すことがテストで担保されている（AC #10）
+- [x] #5 開けないリポジトリのフィクスチャ（extensions.partialclone / 未知の extensions）を用意し、クラッシュせずモーダルも出さずに .unavailable 相当へ落ちることがテストで担保されている（AC #9）
+- [x] #6 libgit2 の初期化と終了（git_libgit2_init / git_libgit2_shutdown）の呼び出し回数と寿命が明示的に決められ、doc コメントに根拠が書かれている
+- [x] #7 「リポジトリを開くのは GitLibrary だけ」が swiftlint の custom rule で強制され、違反を検知することが自己テストで確認されている
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -127,3 +127,29 @@ libgit2 が .gitignore / .git/info/exclude / core.excludesFile の 3 経路を�
 自己テスト: `befold/App/` に `git_repository_open` を含む一時ファイルを置いて lint すると
 **1 件検知**、削除後の全体走査では **0 件**、総指摘数は 72 件のまま（追加前と同数）。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+git 連携を libgit2 へ移す土台を置いた。呼び出しの移行は行わず、依存の追加と共有部分に留めている。
+
+## 変更点
+
+- `ibrahimcetin/libgit2` を exact 1.9.2 で `Package.swift` / `project.yml` の両方へ追加。libgit2 の C ソースを SPM ターゲットとしてビルドするパッケージで cmake を必要としない（ADR 0005 が想定した static XCFramework から方針変更。この差分は TASK-435.5 で ADR へ反映する）
+- `CGitShim` ターゲットを追加。`git_libgit2_opts` は C 可変長引数で Swift から呼べないため、検索パスの set/get だけを固定引数へ落とす
+- `GitLibrary` が一度きりの初期化（`git_libgit2_init` → system/xdg の config 検索パス無効化）とリポジトリオープンを引き受ける。初期化を `AppDelegate` から呼ぶとテストや将来の appex で配線漏れが静かに成立するため `static let` に載せ、開く唯一の関数がそれに触る構造にした
+- 開けなかった場合の写像は `GIT_ENOTFOUND` かどうかの 2 分岐のみ。エラーメッセージ文字列では判定しない（libgit2 の版で文言が変わるため）
+- `~/.gitconfig`（global）は意図して有効のまま。無効化すると `core.excludesFile` によるグローバル ignore が効かなくなる
+
+## 検証
+
+- `swift test`: 1402 tests / 205 suites 全通過（19.306 秒、exit 0）
+- `xcodebuild build -scheme befold -destination 'platform=macOS'`: BUILD SUCCEEDED
+- swiftlint: 全体 72 件で追加前と同数、新規ファイルの指摘 0 件。custom rule `git_repository_open_outside_git_library` の自己テストは検知 1 件・本体コード違反 0 件
+- swiftformat: 全ターゲットで整形差分なし
+- `GitLibraryTests` 8 本 + `GitLibraryIntegrationTests` 2 本を追加し全通過
+
+## 実測（後続サブタスクの前提）
+
+`git_repository_open_ext` + `git_repository_free` は befold の worktree（1200 ファイル規模）で 0.263 ms/回。同じ用途の `git rev-parse --show-toplevel` の spawn は 67.228 ms/回（各 200 回平均）で約 256 倍の差があり、呼び出しごとに開き直す設計で足りる。`git_repository` を保持して使い回す必要はない。
+<!-- SECTION:FINAL_SUMMARY:END -->
