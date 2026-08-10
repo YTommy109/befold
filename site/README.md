@@ -297,6 +297,16 @@ DROP が通る。`events` は追記のみでバックアップ運用が無く、
 
 デプロイ用の `CLOUDFLARE_API_TOKEN`（D1 / Edit を含む）とは別物で、混ぜない。
 
+**D1 / Read だけで `wrangler d1 execute --remote` の SELECT は通る**（2026-08-10 に
+本番で実測）。書き込みは D1 の API 側が
+`You do not have permission to perform this operation. [code: 7500]` で拒否する
+（staging に対する `UPDATE` / `DELETE` / `CREATE TABLE` で実測）。
+
+判定は「文の種類」ではなく「実際に変更が発生するか」で行われている。
+`DELETE FROM events WHERE 0` や存在しないテーブルへの `DROP TABLE IF EXISTS` は
+成功する（1 行も変更しないため）。**権限だけでは書き込み文の実行そのものは
+止まらない**ので、`analytics-query.sh` 側の文面検査を外さないこと。
+
 ## 接続元組織（ASN）の計測
 
 `request.cf.asOrganization`（Cloudflare が解決する AS 保有組織名、例: Google Cloud）を

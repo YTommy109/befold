@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-09 13:33'
-updated_date: '2026-08-10 01:19'
+updated_date: '2026-08-10 01:22'
 labels: []
 dependencies: []
 priority: medium
@@ -83,6 +83,8 @@ ordinal: 649000
 
 残る弱点（意図的に残した範囲）:
 読み取り専用トークンをまだ発行していないため、「Cloudflare 側で write が 403 になる」段だけが未導入。エージェント経路（Bash ツール）はフックで塞がっているが、人間がターミナルで直接 wrangler を叩く経路は依然 OAuth の d1 (write) を使える。この段の導入と、D1 Read だけで POST /query が通るかの実測は TASK-402 へ送った。
+
+続報（TASK-402）: 読み取り専用トークンを登録して「認証」の段が有効になった。本番の SELECT は通り、staging への UPDATE / DELETE / CREATE TABLE は code 7500 で拒否される。ただし D1 の判定は実際に変更が起きたかで行われるため、権限だけでは書き込み文の実行自体は止まらない（DELETE ... WHERE 0 は成功する）。ここで残していた弱点は解消したが、ラッパの文面検査は冗長ではなく必要な段として残る。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
