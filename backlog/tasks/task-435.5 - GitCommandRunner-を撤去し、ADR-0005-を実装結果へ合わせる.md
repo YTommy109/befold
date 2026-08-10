@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-10 15:03'
-updated_date: '2026-08-10 21:36'
+updated_date: '2026-08-10 21:38'
 labels:
   - refactor
 dependencies:
@@ -130,6 +130,22 @@ AC #1「git subprocess の待機がスレッドをブロックしない」は as
 - `markdownlint-cli2`: 69 ファイル 0 issues
 - `scripts/check-doc-symbols.sh`: exit 0
 - `xcodegen generate`: ファイル削除・追加のたびに実行済み
+
+## 訂正（2026-08-11）
+
+ADR 0005 の「実装前に潰すべき未確認事項」への追記を一度誤って書き、訂正した。
+
+**誤**: 「解消しているのは 3 番目だけで、残る 3 点は App Sandbox を有効にして初めて確かめられる」
+
+**正**: 4 点とも実装前に調査済みで、実測結果は TASK-435 の Implementation Notes にある
+（HOME の導出、sandbox-exec による `.git` 書き込み禁止下の挙動、3 経路の ignore 判定、
+App Store リジェクト事例の検索）。親タスクの Notes を読み直して気づいた。
+
+ADR には 4 点それぞれの結論を書き直したうえで、次の 2 点を落とさずに残した。
+
+- 4 番目は「事例が見つからなかった」であって「無いことの証明」ではないため、未確認のリスクとして記録する
+- 1・2 は libgit2 の挙動としては確定しているが、**befold を実際にサンドボックス化した状態での
+  検証は行っていない**（App Sandbox 無効、security-scoped bookmark 0 件）
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

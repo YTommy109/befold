@@ -214,11 +214,23 @@ libgit2 がリポジトリを開けない場合（partial clone、reftable、将
 - `.gitignore` 判定が `core.excludesFile` / `info/exclude` を見るか
 - libgit2 起因の App Store リジェクト事例の有無
 
-> **2026-08-11 追記**: 移行（TASK-435）完了時点で解消しているのは 3 番目だけである。
-> libgit2 は `.gitignore` / `.git/info/exclude` / `core.excludesFile` の 3 経路すべてを
-> 見ることを実測で確認し、その結果 global config を無効化しない判断に至った（上記）。
+> **2026-08-11 追記**: 4 点とも実装前に調査済み。実測の詳細は TASK-435 の
+> Implementation Notes にある（検証用 SPM パッケージで libgit2 1.9.2 を直接叩いて計測）。
 >
-> 残る 3 点はいずれも **App Sandbox を有効にして初めて確かめられる**もので、
-> 本移行の範囲外である。befold は現時点でサンドボックス化されておらず
-> （security-scoped bookmark は 0 件）、MAS 配布には他の障害（Sparkle 撤去、CLI の扱い）も
-> 残る。MAS 対応に着手する際の前提条件として TASK-397 が引き取る。
+> 1. **HOME**: `GLOBAL` / `XDG` の検索パスは HOME 環境変数からのみ導出され、HOME 未設定時に
+>    getpwuid へフォールバックしない。App Sandbox では HOME がコンテナへ書き換わるため、
+>    libgit2 はコンテナ内を見る。
+> 2. **flock / rename**: `sandbox-exec` で `.git` を書き込み禁止にしても status / diff /
+>    worktree 列挙 / submodule 列挙 / index 走査はすべて成功し、`.git/index` の更新も起きない。
+>    読み取り禁止にすると `git_repository_open` が `GIT_ENOTFOUND` で即座に失敗する
+>    （クラッシュもハングも無し）。**読み取り専用アクセスだけで 13 呼び出し相当が成立する**。
+> 3. **`.gitignore` 判定**: `.gitignore` / `.git/info/exclude` / `core.excludesFile` の
+>    3 経路すべてを見る（実 git の `status --porcelain=v2` と完全一致）。この実測が、
+>    global config を無効化しない判断（上記）の根拠になった。
+> 4. **App Store リジェクト事例**: 複数クエリで検索したが、libgit2 の同梱を直接の理由とする
+>    事例は発見できなかった。**「事例が無い」ことの証明ではないため、未確認のまま残るリスクとして
+>    記録する。**
+>
+> なお 1・2 は libgit2 の挙動としては確定しているが、**befold を実際にサンドボックス化した状態での
+> 検証は行っていない**（befold は現時点で App Sandbox 無効、security-scoped bookmark は 0 件）。
+> MAS 配布には他にも Sparkle 撤去と CLI の扱いという障害が残り、TASK-397 が引き取る。
