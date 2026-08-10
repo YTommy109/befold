@@ -11,7 +11,7 @@ dependencies:
 parent_task_id: TASK-432
 priority: low
 type: chore
-ordinal: 677000
+ordinal: 112500
 ---
 
 ## Description

@@ -4,13 +4,13 @@ title: git 連携を外部 git バイナリ実行から libgit2 ベースへ移�
 status: To Do
 assignee: []
 created_date: '2026-08-10 13:13'
-updated_date: '2026-08-10 13:29'
+updated_date: '2026-08-10 13:57'
 labels:
   - refactor
 dependencies: []
-priority: medium
+priority: high
 type: task
-ordinal: 507950
+ordinal: 101000
 ---
 
 ## Description
@@ -60,4 +60,30 @@ ADR 0005 は Accepted。libgit2 ベースへの移行を採用する。
 採用理由が「最新 git 機能への追従が速いから」ではない点に注意（ADR 0005 の該当節を参照）。実際には jujutsu は v0.30.0 で libgit2 を削除して gitoxide へ移行しており、libgit2 の upstream 追従は遅い（sparse-checkout の issue は 12.3 年 open、reftable は未リリース、partial clone は未対応）。採用根拠は「Swift から使える現実的な選択肢が libgit2 系しかなく、かつ未対応機能の大半が読み取り専用ビューアに当たらない」こと。
 
 これに伴い、開けないリポジトリのフォールバック（git 機能のみ静かに無効化し通常のビューアとして継続）を ADR の Fallback 節に追加し、AC #9 / #10 で担保する。
+
+## 優先順位の整理(2026-08-10)
+
+Priority を medium → high へ引き上げ、To Do の 2 番目(TASK-427 の次)へ置いた。
+
+**引き上げの根拠は「テスト安定性」ではなく順序制約**である。着手順を誤ると手戻りが出る下流タスクが 3 件ある。
+
+- TASK-226(GitCommandRunner の async 化): 本タスクが着地すれば不要になる。先にやると撤去予定コードへ 18 ファイル規模の改修を投じる(本タスク Notes の「関連タスク」節)
+- TASK-353(差分の比較基準の切り替え): GitDiffLoader を触る feature。先にやるとバックエンド差し替え時に作り直しになる
+- TASK-187(サイドバー Git ステータスの stable 昇格): subprocess 版を stable に出してから差し替えることになる
+
+### テスト安定性への寄与の実測(サブエージェント調査、2026-08-10)
+
+「libgit2 化でテストが安定する」は**部分的にしか支持されない**。優先度の根拠として過大評価しないこと。
+
+支持される点:
+- `GitCommandRunnerResourceLeakTests` 7 本(GitCommandRunnerTests.swift:285-506、約 285 行 + ヘルパー 200 行)が丸ごと不要になる。スイート実測 8.245 秒で、うち約 7.2 秒は「猶予の満了を待つこと自体が検証」であるためテスト側の工夫では縮まらない(AC #6 の撤去対象)
+- 外部プロセス起因のフレーク起票が過去 7 件(TASK-157/158/244/245/255/312/350)。うち CI 実失敗 2 件(TASK-312/350)、テストプロセスごとクラッシュしうる構造 1 件(TASK-158)
+- `GitTestRepo.swift:25` の上限なし `waitUntilExit()`(TASK-424 の Notes が「未対処、記録のみ」と明記)が構造的に消える
+- @MainActor テスト 6 本が `Process.waitUntilExit()` で main actor をブロックしながら git を起動する経路(TASK-312 で実測)が無くなる
+
+支持されない点:
+- 直近の CI 不安定 2 件は git 起因ではない。TASK-424 のハングは `GitStatusStoreTests.FakeReader.status` と `GitCommandFileIndexConcurrencyTests` の `BlockingRepository.trackedFiles` という**フェイク**のセマフォ枯渇であり実 git は起動していない。TASK-427 は `SlowFileReader`。どちらも本タスクでは改善しない
+- spawn 回数の削減が実行時間に効かないことは TASK-244(正味ゼロ)・TASK-245(効果ほぼ無し)で 2 回実測否定済み。効いたのは TASK-255 の猶予短縮のみで手当て済み
+- TASK-255 以降のクリティカルパスは `ViewerStoreIntegrationTests`(約 10 秒)で、git 系は既に律速ではない。フル実行の短縮は律速交代分に留まる
+- 実 git を起こすテストは 1390 本中 44 本(3.2%)
 <!-- SECTION:NOTES:END -->

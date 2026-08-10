@@ -5,14 +5,14 @@ status: To Do
 assignee:
   - '@Tommy109'
 created_date: '2026-07-31 09:14'
-updated_date: '2026-08-10 00:54'
+updated_date: '2026-08-10 13:57'
 labels:
   - refactor
 dependencies:
-  - TASK-241
+  - TASK-435
 priority: medium
 type: task
-ordinal: 506500
+ordinal: 114000
 ---
 
 ## Description
@@ -82,4 +82,8 @@ gh issue list --state open は 0 件(実測)。ネットワークマウント・
 
 1. git 実行が『ユーザー操作のたび』から『定期実行』に変わる設計を採用するとき(旧: TASK-186.2 に着手するとき。186.2 はイベント駆動で着地したため該当しない)
 2. ネットワークマウント(NFS/SMB)上のリポジトリや巨大リポジトリで実際に UI が固まる報告が出たとき(変更なし。現時点で主たるトリガー)
+
+## 優先順位の整理(2026-08-10)
+
+TASK-435(libgit2 移行)を上位へ置いたため、本タスクは 435 の後段に依存する形へ変更した(--dep に TASK-435 を追加)。435 が着地すれば subprocess 待ちそのものが消えるため、本タスクは「不要になった」として Done ではなく取り下げになる見込み。**435 より先に着手しないこと**(撤去予定のコードへ 18 ファイル規模の改修を投じることになる)。
 <!-- SECTION:NOTES:END -->

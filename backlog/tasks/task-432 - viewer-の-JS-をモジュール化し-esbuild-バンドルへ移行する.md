@@ -10,7 +10,7 @@ documentation:
   - docs/adr/0005-bundle-viewer-js-with-esbuild.md
 priority: medium
 type: chore
-ordinal: 507550
+ordinal: 112000
 ---
 
 ## Description

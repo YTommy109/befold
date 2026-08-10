@@ -4,11 +4,12 @@ title: サイドバーのフィルタで選択行が隠れると矢印キー操�
 status: To Do
 assignee: []
 created_date: '2026-08-10 07:28'
+updated_date: '2026-08-10 13:52'
 labels: []
 dependencies: []
-priority: medium
+priority: high
 type: bug
-ordinal: 507400
+ordinal: 103000
 ---
 
 ## Description

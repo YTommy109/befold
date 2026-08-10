@@ -4,12 +4,13 @@ title: 差分の比較基準を「未コミットの変更」と「ブランチ�
 status: To Do
 assignee: []
 created_date: '2026-08-07 05:24'
+updated_date: '2026-08-10 13:57'
 labels:
   - diff
 dependencies: []
 priority: medium
 type: feature
-ordinal: 507000
+ordinal: 113000
 ---
 
 ## Description
@@ -40,3 +41,11 @@ TASK-352 で差分ビューアの比較基準をサイドバーのバッジと�
 - [ ] #2 切り替えの粒度が決まっており、それが破れたら落ちるテストがある
 - [ ] #3 サイドバーのバッジと差分ビューアの基準が食い違わない（TASK-352 の一貫性が保たれる）
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 優先順位の整理(2026-08-10)
+
+TASK-435(git 連携の libgit2 移行)の後段に置いた(ordinal 113000)。本タスクは GitDiffLoader / 比較起点の解決に手を入れる feature であり、435 より先に着手するとバックエンド差し替え時に作り直しになる。435 の着手前に本タスクをやる場合は、その手戻りを承知の上で判断すること。
+<!-- SECTION:NOTES:END -->
