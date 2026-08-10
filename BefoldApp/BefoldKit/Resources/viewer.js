@@ -757,6 +757,30 @@ function csvSourceInnerHtml(content, delimiter) {
   return content.endsWith('\n') ? body + '\n' : body;
 }
 
+// 表示モードとファイル種別から「いま #diagram-wrap に描く形」を決める。
+//
+// この 1 つの値が render() の分岐と appendChunk() の追記戦略の両方の元になる。
+// 判定が 2 箇所に分かれていた頃は、ソース表示中の追記が type だけで md と
+// 判断され、行番号付きソースの下に描画済み Markdown が挟まった(TASK-414)。
+//
+// 返す値は追記戦略と 1 対 1 に対応する:
+//   'code'       行番号付きコード表(ソース表示のテキスト種別と、常にソースのコード種別)
+//   'csv-source' CSV/TSV のソース表示(列ごとのレインボー着色。独自の列構造を持つ)
+//   'csv-table'  CSV/TSV のレンダリング表示(HTML テーブル)
+//   'markdown'   Markdown のレンダリング表示
+//   その他       種別名そのまま(mmd/svg/html/image/pdf。いずれも追記の対象外)
+//
+// 画像・PDF とコード種別はソース表示を持たないため、モードで形が変わらない。
+function renderShape(type, mode) {
+  if (mode === 'source' && type !== 'code' && type !== 'image' && type !== 'pdf') {
+    return type === 'csv' ? 'csv-source' : 'code';
+  }
+  if (type === 'code') { return 'code'; }
+  if (type === 'csv') { return 'csv-table'; }
+  if (type === 'md') { return 'markdown'; }
+  return type;
+}
+
 // CSV/TSV のソース表示用 HTML。
 function renderCsvSourceHtml(content, delimiter, showLineNumbers) {
   if (!content) { return '<pre><code class="csv-source"></code></pre>'; }
@@ -897,6 +921,7 @@ if (typeof module !== 'undefined' && module.exports) {
     tokenizeCsvRows: tokenizeCsvRows,
     parseCsv: parseCsv,
     buildTableHtml: buildTableHtml,
+    renderShape: renderShape,
     renderCsvSourceHtml: renderCsvSourceHtml,
     parseUnifiedDiff: parseUnifiedDiff,
     highlightedDiffLines: highlightedDiffLines,

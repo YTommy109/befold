@@ -1181,10 +1181,15 @@
 
   var _mmdViewOptions = _createViewOptions();
 
-  // 直前の描画が差分テーブルを DOM へ出したか。render() の入口で false に戻し、
-  // 差分 HTML を組み立てた _renderDiffHtmlIfAvailable だけが true にする。
-  // appendChunk の抑止判定はこの値だけを見る(DOM 検索は使わない / TASK-339)。
-  var _mmdDiffInDom = false;
+  // 直前の render() が実際に描いた形(renderShape の戻り値、または差分なら 'diff')。
+  // render() が分岐を選んだ時点で確定し、差分 HTML を組み立てた
+  // _renderDiffHtmlIfAvailable だけが 'diff' へ上書きする。
+  //
+  // appendChunk はこの値だけを見て追記戦略を決める。表示モードや type から
+  // 推し直すと、render 側と別々に判定が育って食い違う(TASK-414)。DOM の形
+  // (table.diff-table や pre code.csv-source)を探す判定も使わない。同じ形は
+  // markdown-it が html:true で通したユーザーコンテンツにも現れる(TASK-339)。
+  var _mmdRenderedAs = '';
 
   // チャンク境界の持ち越し。render()(初回チャンク)と appendChunk()(追記)が
   // record() で更新し、次の appendChunk() だけが endedWithNewline() で読む。
@@ -1393,6 +1398,11 @@
   // HTML 組み立ては viewer.js の純粋関数(csvRowsHtml / buildLineNumberRows /
   // codeChunkInnerHtml)に委ね、ここでは DOM 挿入のみ行う。パス注釈は追記した行だけを
   // _walkTextNodes で処理し、追記コストを O(チャンク) に抑える。
+  //
+  // `type` は render() と同じ呼び出し形(ViewerBridge.contentCallScript)で届くだけで、
+  // **追記先の分岐には使わない**。同じ type でも表示モードや差分の有無で DOM の形は
+  // 変わるため、type から推し直すと render 側の判定と食い違う(TASK-414)。
+  // 分岐は _mmdRenderedAs(render が実際に描いた形)だけを見ること。
   function appendChunk(text, type, lang) {
     // 空チャンク(チャンク読込エラー時のセンチネル)は追記する内容がない。
     // buildLineNumberRows('') は初回描画(空ファイル1行目)用に空行1つを返す契約のため、
@@ -1406,21 +1416,16 @@
     var highlightContext = (_mmdChunkTail.endedWithNewline() && _mmdDocument.content())
       ? lastLines(_mmdDocument.content(), CODE_CHUNK_CONTEXT_LINES) : '';
     _mmdDocument.append(text);
+    // 追記戦略は「直前の render() が何を描いたか」だけで決める。type や表示モードから
+    // 推し直すと render 側と別々に判定が育ち、ソース表示中の Markdown 追記が
+    // 描画済み HTML として挟まる形の食い違いになる(TASK-414)。
+    //
     // 差分テーブルが画面に出ている間は DOM へ追記しない。通常のソース行
     // (1 本ガター)を混ぜると桁がずれ、行番号の基準も狂う。蓄積は上の
     // _mmdDocument.append で済んでいるため、差分を解除した時点の全体再描画で
     // 追記分もそろって出る。
-    // 判定は「直前の描画が差分テーブルを出したか」という内部状態で行う。差分は
-    // 表示モード・ファイル種別を問わず取得されるため「差分の有無(diff())」では
-    // 分岐できず、かといって DOM(table.diff-table)を探すと markdown-it が
-    // html:true で通したユーザーコンテンツの同名テーブルにも一致してしまう
-    // (先頭チャンク以降の追記が黙って捨てられる / TASK-339)。
-    if (_mmdDiffInDom) { return; }
-    // CSV は「レンダリング表示(テーブル)」と「ソース表示(レインボー)」で DOM 構造が
-    // 異なる(#diagram-wrap 直下が <table><tbody> か <pre><code class="csv-source">
-    // か)ため、実際の DOM を見て分岐する。
-    var csvSourceEl = type === 'csv' ? diagramWrap.querySelector('pre code.csv-source') : null;
-    if (type === 'md') {
+    if (_mmdRenderedAs === 'diff') { return; }
+    if (_mmdRenderedAs === 'markdown') {
       // Markdown はチャンク境界がブロック境界(コードフェンス外の空行)に揃えられて
       // いるため(StringChunkReader の markdownBlocks)、チャンク単体を描画して
       // 末尾へ足せる。全文を再描画すると巨大ファイルで DOM を作り直すことになり、
@@ -1431,7 +1436,7 @@
       // 追記分に ```mermaid フェンスがあれば描画する。render() と違い appendChunk は
       // 同期関数のため await せず、描画済みの図は対象外にする(全図の再描画を避ける)。
       _mmdRunMermaid(diagramWrap, true);
-    } else if (type === 'csv' && !csvSourceEl) {
+    } else if (_mmdRenderedAs === 'csv-table') {
       var csvRows = parseCsv(text, lang || ',');
       var tbody = diagramWrap.querySelector('tbody');
       if (!tbody) { return; }
@@ -1455,9 +1460,13 @@
         _walkTextNodes(tbody.rows[r2], false);
       }
     } else {
-      var codeEl = csvSourceEl || diagramWrap.querySelector('pre code');
+      // 行番号付きコード表への追記。ソース表示のテキスト種別・コード種別('code')と、
+      // CSV/TSV のソース表示('csv-source')がここへ来る。前者と後者は 1 行の
+      // 組み立て方だけが違う(CSV は列ごとのレインボー着色)。
+      var isCsvSource = _mmdRenderedAs === 'csv-source';
+      var codeEl = diagramWrap.querySelector('pre code');
       if (!codeEl) { return; }
-      var inner = csvSourceEl
+      var inner = isCsvSource
         ? csvSourceInnerHtml(text, lang || ',')
         : codeChunkInnerHtml(window.hljs, text, lang, highlightContext);
       var codeTable = codeEl.querySelector('table.code-table');
@@ -1617,19 +1626,6 @@
     diagramWrap.appendChild(iframe);
   }
 
-  function _renderCode(diagramWrap, content, lang) {
-    // 単一コードファイル。hljs のトークン色は github.css / github-dark.css、
-    // レイアウトは style.css の .code-body が担う。
-    diagramWrap.classList.add('code-body');
-    // コードファイルは常にソース表示のため、差分が届いていればここでも差し込む
-    // (ソース表示の入口は _renderSource と _renderCode の 2 つあり、片方だけに
-    // 足すと「.md では差分が出るのに .swift では出ない」形の抜けになる)。
-    var diffHtml = _renderDiffHtmlIfAvailable('code', lang);
-    diagramWrap.innerHTML = diffHtml !== ''
-      ? diffHtml
-      : renderCodeHtml(window.hljs, content, lang, _mmdViewOptions.lineNumbers());
-  }
-
   // markdown-it 未ロード時は false を返す。呼び出し側(render)はそこで打ち切り、
   // mermaid 実行やスクロール復元といった後処理を行わない(分割前の挙動と同じ)。
   function _renderMarkdown(diagramWrap, content) {
@@ -1691,10 +1687,12 @@
     // appendChunk と同じ判定式で実際の末尾を見る(true 固定だと最初の強制分割で
     // 継続行の結合判定を誤る)。
     _mmdChunkTail.record(content);
-    // 差分テーブルの有無はこの描画で決まり直す。差分を出さない経路(レンダリング表示・
-    // CSV/TSV・画像)は _renderDiffHtmlIfAvailable を通らないため、ここで戻さないと
-    // 前回の値が残って追記が止まったままになる。
-    _mmdDiffInDom = false;
+    // いま描く形をここで 1 回だけ決め、appendChunk が読む記録にする。差分が
+    // 組み上がった場合だけ _renderDiffHtmlIfAvailable が 'diff' へ上書きする。
+    // 差分を出さない経路(レンダリング表示・CSV/TSV・画像)はそこを通らないため、
+    // ここで入れ直さないと前回の値が残って追記が止まったままになる。
+    var shape = renderShape(type, _mmdViewOptions.mode());
+    _mmdRenderedAs = shape;
     // 以降で #diagram-wrap を作り直すため、旧 DOM を指す未応答の解決バッチを無効化する。
     _mmdInvalidatePendingRefs();
     var errorPanel = document.getElementById('mmd-error');
@@ -1703,34 +1701,28 @@
     var diagramWrap = document.getElementById('diagram-wrap');
     diagramWrap.style.display = 'block';
 
-    if (_mmdViewOptions.mode() === 'source' && type !== 'code' && type !== 'image' && type !== 'pdf') {
-      _renderSource(content, type, lang);
-      _mmdRestoreScrollPosition(fallbackScrollTop);
-      return;
-    }
-
     // 分岐前に一括で外し、各分岐は自分のクラスを add するだけにする。
     _mmdSetBodyClasses(diagramWrap);
 
     // 前回の PDF 表示で生成した blob URL を解放する(PDF 以外への切替も含む)。
     _mmdPdfBlob.release();
 
-    // 型ディスパッチ。中身の組み立ては各ビルダーに委ね、ここでは選ぶだけにする。
-    // md(既定)分岐だけは markdown-it 未ロード時に後続処理を打ち切る。
-    if (type === 'mmd') {
+    // 描画形ディスパッチ。中身の組み立ては各ビルダーに委ね、ここでは選ぶだけにする。
+    // markdown 分岐だけは markdown-it 未ロード時に後続処理を打ち切る。
+    if (shape === 'code' || shape === 'csv-source') {
+      _renderSource(diagramWrap, content, type, lang, shape);
+    } else if (shape === 'mmd') {
       _renderMmd(diagramWrap, content);
-    } else if (type === 'svg') {
+    } else if (shape === 'svg') {
       _renderSvg(diagramWrap, content);
-    } else if (type === 'html') {
+    } else if (shape === 'html') {
       _renderHtml(diagramWrap, content);
-    } else if (type === 'csv') {
+    } else if (shape === 'csv-table') {
       _renderCsv(diagramWrap, content, lang);
-    } else if (type === 'image') {
+    } else if (shape === 'image') {
       _renderImage(diagramWrap, content, lang);
-    } else if (type === 'pdf') {
+    } else if (shape === 'pdf') {
       _renderPdf(diagramWrap, content);
-    } else if (type === 'code') {
-      _renderCode(diagramWrap, content, lang);
     } else if (!_renderMarkdown(diagramWrap, content)) {
       return;
     }
@@ -1744,28 +1736,21 @@
     _mmdRestoreScrollPosition(fallbackScrollTop);
   }
 
-  function _renderSource(content, type, lang) {
-    var diagramWrap = document.getElementById('diagram-wrap');
+  // 行番号付きソース表示のビルダー。ソース表示のテキスト種別も、常にソースである
+  // コード種別('.swift' 等)も、CSV/TSV のソース表示もここ 1 本を通る。
+  // 入口を分けていた頃は「.md では差分が出るのに .swift では出ない」形の抜けが起きた。
+  function _renderSource(diagramWrap, content, type, lang, shape) {
     _mmdSetBodyClasses(diagramWrap, 'code-body');
     // 差分が届いていれば差分表示を優先する。パースできず空文字列が返った場合は
     // 通常のソース表示へ落ちる(差分が壊れていても内容は必ず読める)。
     var diffHtml = _renderDiffHtmlIfAvailable(type, lang);
     if (diffHtml !== '') {
       diagramWrap.innerHTML = diffHtml;
-      _mmdFindRefreshAfterRender();
-      _mmdApplyZoom();
       return;
     }
-    if (type === 'csv') {
-      diagramWrap.innerHTML = renderCsvSourceHtml(content, lang || ',', _mmdViewOptions.lineNumbers());
-    } else {
-      var sourceLang = (type === 'svg' || type === 'html') ? 'xml'
-                     : (type === 'md') ? 'markdown'
-                     : lang || 'plaintext';
-      diagramWrap.innerHTML = renderCodeHtml(window.hljs, content, sourceLang, _mmdViewOptions.lineNumbers());
-    }
-    _mmdFindRefreshAfterRender();
-    _mmdApplyZoom();
+    diagramWrap.innerHTML = shape === 'csv-source'
+      ? renderCsvSourceHtml(content, lang || ',', _mmdViewOptions.lineNumbers())
+      : renderCodeHtml(window.hljs, content, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers());
   }
 
   // ソース表示の言語決定。差分表示と通常表示で同じ規則を使う。
@@ -1785,9 +1770,9 @@
         window.hljs, diff, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers(),
         _mmdViewOptions.diffLayout()
       );
-      // 呼び出し元(_renderCode / _renderSource)は空でなければ必ずこれを挿入するため、
-      // 「差分テーブルが画面に出ているか」はここで確定できる(appendChunk が見る)。
-      _mmdDiffInDom = html !== '';
+      // 呼び出し元(_renderSource)は空でなければ必ずこれを挿入するため、実際に描いた形が
+      // 差分テーブルであることはここで確定できる(appendChunk が読む記録を上書きする)。
+      if (html !== '') { _mmdRenderedAs = 'diff'; }
       return html;
     } catch (e) {
       return '';
