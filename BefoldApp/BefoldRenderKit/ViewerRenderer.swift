@@ -75,6 +75,18 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// 対応づけるため、解決が非同期になっても評価順が要求順とずれてはならない。
     /// 各要求は直前の要求の完了を待ってから解決・評価する。
     var resolveResponseChain: Task<Void, Never>?
+    /// JS コンテキストの世代。ページを読み直すと JS 側の状態は捨てられ、参照解決の
+    /// FIFO キュー(_mmdPendingRefBatches)も空になる。世代をまたいだ応答をそのまま
+    /// 評価すると、新しいページが積んだ別のバッチへ古いマップが当たり、実在する
+    /// パスまで解決失敗表示になる(TASK-421)。飛行中の応答はこの値で捨てる。
+    /// 増やすのは viewer.html を読み直す `reloadViewerHTML` の 1 箇所だけ。
+    ///
+    /// `contentUpdateGeneration` を流用してはならない。通常の再描画では JS 側が
+    /// `_mmdInvalidatePendingRefs()` でバッチの中身だけを空にし、**キューの長さ
+    /// (未応答の要求数)は保つ**。つまり再描画をまたぐ応答は捨てずに評価し続ける必要が
+    /// あり、捨てるとキューが恒久的にずれて以後すべての参照が解決失敗表示になる。
+    /// 捨ててよいのは、キューごと消える読み直しの場合だけ。
+    var pageGeneration = 0
     /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
     /// QuickLook 拡張等、検索 UI を持たないホストでは nil のまま省略できる。
     public var findOptionsPreference: FindOptionsPreference?
