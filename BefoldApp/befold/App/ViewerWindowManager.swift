@@ -441,6 +441,18 @@ final class ViewerWindowManager {
         controllers[key] = list.isEmpty ? nil : list
     }
 
+    /// url を表示しているウィンドウが 1 つも残っていなければ、セッション記録から閉じたことにする。
+    ///
+    /// 同一ファイルを複数ウィンドウで開くことを許している(controllers は 1 対多)ため、
+    /// 閉じる/切り替えるたびに無条件で noteClosed を呼ぶと、まだ表示している窓が残っていても
+    /// セッション集合とアクティブ記録から消える(TASK-412)。参照が残っているかの判定は
+    /// controllers の有無そのもので足りるので、SessionStore 側に参照カウントは持たせない。
+    /// close 経路と remap 経路が別々の判定を持たないよう、必ずここを通す。
+    private func noteClosedIfNoWindowRemains(for url: URL) {
+        guard controllers[url.normalizedPathKey] == nil else { return }
+        sessionStore.noteClosed(url)
+    }
+
     /// ビューアウィンドウなら対応するファイルの正規化パスを返す。
     func viewerPath(of window: NSWindow) -> String? {
         (window.windowController as? ViewerWindowController)?.fileURL.normalizedPathKey
@@ -460,7 +472,7 @@ final class ViewerWindowManager {
         if isRename {
             sessionStore.noteRenamed(from: oldURL, to: newURL)
         }
-        sessionStore.noteClosed(oldURL)
+        noteClosedIfNoWindowRemains(for: oldURL)
         sessionStore.noteOpened(newURL)
         if isRename {
             recentDocumentsStore.noteRenamed(from: oldURL, to: newURL)
@@ -478,7 +490,7 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
     func viewerWindowWillClose(_ controller: ViewerWindowController) {
         recordRecentRepositoryTabGroup(of: controller)
         detach(controller, fromKey: controller.fileURL.normalizedPathKey)
-        sessionStore.noteClosed(controller.fileURL)
+        noteClosedIfNoWindowRemains(for: controller.fileURL)
     }
 
     func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {
