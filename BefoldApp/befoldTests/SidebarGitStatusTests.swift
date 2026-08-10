@@ -1,4 +1,5 @@
 @testable import befold
+import Foundation
 import Testing
 
 /// `SidebarGitStatus` の引き当て。git も UI も要らない純粋な写像。
@@ -10,12 +11,26 @@ struct SidebarGitStatusTests {
     private let root = "/repo"
 
     private func status(_ statuses: [String: GitFileStatus]) -> SidebarGitStatus {
-        SidebarGitStatus(directoryKey: root, statuses: statuses)
+        SidebarGitStatus(repositoryRootKey: root, statuses: statuses)
     }
 
     /// 未追跡ディレクトリ 1 レコードだけを持つ状態。実際の porcelain 出力と同じ形。
     private func collapsedUntrackedDirectory() -> SidebarGitStatus {
         status(["\(root)/new": GitFileStatus(isUntracked: true)])
+    }
+
+    /// 適用範囲はリポジトリルート配下。取得したディレクトリとの**等値**へ戻すと
+    /// 「ルート配下のサブディレクトリ」のケースが落ちる。区切り文字を含めない
+    /// 素の前方一致へ緩めると「兄弟パス」のケースが落ちる(TASK-361.2)。
+    @Test("適用範囲はリポジトリルート自身とその配下だけ")
+    func coversRepositoryRootAndDescendantsOnly() {
+        let sidebar = status([:])
+
+        #expect(sidebar.covers(URL(fileURLWithPath: root)))
+        #expect(sidebar.covers(URL(fileURLWithPath: "\(root)/src/deep")))
+        // 前方一致だけで判定すると通ってしまう兄弟パス。
+        #expect(!sidebar.covers(URL(fileURLWithPath: "\(root)2")))
+        #expect(!sidebar.covers(URL(fileURLWithPath: "/elsewhere")))
     }
 
     @Test("畳み込まれた未追跡ディレクトリ配下のファイルも未追跡として引ける")

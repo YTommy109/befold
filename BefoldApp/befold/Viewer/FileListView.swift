@@ -117,28 +117,14 @@ struct FileListView: View {
         }
     }
 
-    /// 一覧が空のときの案内。空になった理由で文言を変える。
-    ///
-    /// 「変更のみ表示」で空になった場合に「対応ファイルがありません」と出すと、開ける文書で
-    /// 満たされたフォルダーでも読み込みに失敗したように読める(TASK-287)。絞り込みが
-    /// 効いていること自体を伝え、解除すれば見えると分かる文言にする。
-    @ViewBuilder
+    /// 一覧が空のときの案内。文言の出し分けはプレビュー内フォルダー一覧
+    /// (FolderListingView)と共有する(SidebarEmptyState)。片側にだけ理由の
+    /// 出し分けを書くと、もう片方が「対応ファイルがありません」固定のまま残る。
     private var emptyStateView: some View {
-        if model.activeGitChangeFilter != nil {
-            ContentUnavailableView(
-                String(localized: "sidebar.empty.changedFilesOnly", bundle: .l10n),
-                systemImage: "arrow.triangle.branch",
-                description: Text(
-                    String(localized: "sidebar.empty.changedFilesOnly.description", bundle: .l10n)
-                )
-            )
-        } else {
-            ContentUnavailableView(
-                String(localized: "sidebar.empty", bundle: .l10n),
-                systemImage: "doc.questionmark",
-                description: Text(model.currentDirectory.lastPathComponent)
-            )
-        }
+        SidebarEmptyState(
+            activeGitChangeFilter: model.activeGitChangeFilter,
+            directoryName: model.currentDirectory.lastPathComponent
+        )
     }
 
     /// git 変更のあるファイルのみに絞るトグル。不可視ファイルのトグルとは独立した軸のため、

@@ -272,7 +272,7 @@ final class SidebarNavigator {
         _ result: GitStatusResult, for directory: URL, generation: Int
     ) {
         let accepted = fileListModel.applyGitStatus(
-            SidebarGitStatus(directory: directory, result: result), for: directory, sequence: generation
+            SidebarGitStatus(result: result), for: directory, sequence: generation
         )
         guard accepted else { return }
         gitIndexWatch.update(indexURL: result.indexURL)

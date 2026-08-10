@@ -69,7 +69,7 @@ struct FileListModelFilterTests {
     ) {
         let target = directory ?? model.currentDirectory
         model.applyGitStatus(
-            SidebarGitStatus(directoryKey: target.normalizedPathKey, statuses: statuses),
+            SidebarGitStatus(repositoryRootKey: target.normalizedPathKey, statuses: statuses),
             for: target, sequence: gitStatusSequence.next()
         )
     }
@@ -134,10 +134,54 @@ struct FileListModelFilterTests {
         #expect(model.visibleEntries.map(\.kind) == [.parentNavigation])
     }
 
-    /// 一覧と git 状態は別タスクで届く。別ディレクトリのものが残っている間は
+    /// ツリー展開では、1 つの行配列に複数階層の行が並ぶ。git 状態はリポジトリ全体ぶんの
+    /// 絶対パスキーを持つので、ルートで取った 1 つの状態でどの階層も絞り込める。
+    ///
+    /// 突き合わせを「取得したディレクトリとの等値」へ戻すと、深い行は状態を引けず
+    /// 全部消える(このテストが落ちる。TASK-361.2 の AC #4)。
+    @Test("複数階層の行が、ルートで取った 1 つの状態で絞り込まれる")
+    func changedFilesOnlyAppliesToRowsAtEveryDepth() {
+        let root = URL(fileURLWithPath: "/tmp/FileListModelFilterTests")
+        let changedDeep = FileListEntry(
+            url: root.appendingPathComponent("src/nested/changed.md"), kind: .file
+        )
+        let cleanDeep = FileListEntry(
+            url: root.appendingPathComponent("src/nested/clean.md"), kind: .file
+        )
+        let changedShallow = makeEntry("top.md")
+        let model = makeModel(entries: [changedShallow, changedDeep, cleanDeep])
+        applyGitStatus(
+            [changedShallow.pathKey: modifiedStatus(), changedDeep.pathKey: modifiedStatus()],
+            to: model, directory: root
+        )
+        model.showChangedFilesOnly = true
+
+        #expect(
+            model.visibleEntries.map(\.url.lastPathComponent) == ["top.md", "changed.md"]
+        )
+    }
+
+    /// 「どの行に適用できるか」(リポジトリ包含)と「どの一覧の取得と対か」(ディレクトリ等値)は
+    /// 別の判定であり、後者は緩めていない。同じリポジトリ内でも、状態が手元の一覧より
+    /// 先に届いたら保留される。ここを包含へ緩めると、移動先の状態で移動元の一覧を
+    /// 絞り込んで一覧が一瞬消える(TASK-293 の回帰)。
+    @Test("同じリポジトリ内でも、一覧より先に届いた状態は保留される")
+    func holdsStatusForAnotherDirectoryEvenWithinSameRepository() {
+        let entries = [makeEntry("a.md"), makeEntry("b.md")]
+        let model = makeModel(entries: entries)
+        let subdirectory = model.currentDirectory.appendingPathComponent("src")
+        // 移動先(同じリポジトリ内のサブディレクトリ)の状態だけが先に着地した状態。
+        applyGitStatus([:], to: model, directory: subdirectory)
+        model.showChangedFilesOnly = true
+
+        // 保留されているので、手元の一覧(移動元)は絞り込まれない。
+        #expect(model.visibleEntries.map(\.id) == entries.map(\.id))
+    }
+
+    /// 一覧と git 状態は別タスクで届く。別リポジトリのものが残っている間は
     /// 絞り込まない(移動直後に一覧が消えるのを防ぐ)。
-    @Test("状態が別ディレクトリのものなら絞り込まない")
-    func changedFilesOnlyIgnoresStatusFromAnotherDirectory() {
+    @Test("状態が別リポジトリのものなら絞り込まない")
+    func changedFilesOnlyIgnoresStatusFromAnotherRepository() {
         let entries = [makeEntry("a.md"), makeEntry("b.md")]
         let model = makeModel(entries: entries)
         applyGitStatus([:], to: model, directory: URL(fileURLWithPath: "/tmp/OtherRepository"))

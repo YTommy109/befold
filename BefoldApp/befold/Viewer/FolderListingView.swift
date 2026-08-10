@@ -127,10 +127,12 @@ struct FolderListingView: View {
             // 「何もない」と伝えないと、無言の空リストになる。到着待ち(nil)の間は
             // まだ答えが出ていないので何も言わない。
             if let entries, entries.allSatisfy({ $0.kind == .parentNavigation }) {
-                ContentUnavailableView(
-                    String(localized: "sidebar.empty", bundle: .l10n),
-                    systemImage: "doc.questionmark",
-                    description: Text(directory.lastPathComponent)
+                // 絞り込みで空になったのかを、サイドバーと同じ実装で出し分ける。
+                // git 絞り込みはリポジトリ配下のどの階層にも効くため、この一覧が
+                // サブフォルダーのものでも絞り込みによる空が起こりうる(TASK-361.2)。
+                SidebarEmptyState(
+                    activeGitChangeFilter: filter.gitChangeFilter(for: directory),
+                    directoryName: directory.lastPathComponent
                 )
                 .allowsHitTesting(false)
             }

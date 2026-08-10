@@ -305,7 +305,12 @@ final class FileListModel {
         }
         // 絞り込み済みの一覧を渡す。FolderListingView 側はこれを再度 filter.apply に
         // 通さない(FolderListingView.visibleEntries を参照。TASK-298)。
-        return .shared(visibleEntries)
+        //
+        // **depth 0 の行だけを渡す**。プレビューが見せるのは `directory` 直下であって、
+        // サイドバーで展開したその配下ではない。ツリー展開が入ると visibleEntries には
+        // 孫以降の行が混ざるため(TASK-361.1)、そのまま渡すと「このフォルダーの中身」
+        // として別階層のファイルが並ぶ。ドリルダウンでは全行 depth 0 なので素通し。
+        return .shared(visibleEntries.filter { $0.depth == 0 })
     }
 
     /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧

@@ -36,16 +36,20 @@ struct FileListFilter: Equatable {
         }
     }
 
-    /// `directory` に適用できる git 絞り込み。状態が別のディレクトリのものなら nil を返す。
+    /// `directory` に適用できる git 絞り込み。状態が別のリポジトリのものなら nil を返す。
     ///
-    /// 一覧の取得と git の取得は別タスクで走り完了順が保証されないため、移動直後に
-    /// 前のリポジトリの状態で絞り込むと一覧が一瞬消える(TASK-285)。同じ判定が、
-    /// 選択中のサブフォルダーをプレビューしている場合(状態は表示中ディレクトリのもので、
-    /// そのサブフォルダー配下の行とは突き合わせられない)の無効化も兼ねる。
+    /// 判定は **リポジトリルート配下かどうか**(`SidebarGitStatus.covers(_:)`)。状態は
+    /// リポジトリ全体ぶんの絶対パスキーを持つので、ルート配下ならどの階層の行でも
+    /// 突き合わせられる。選択中のサブフォルダーをプレビューしている場合も、同じ
+    /// リポジトリ内なら同じ絞り込みが効く(サイドバーとプレビューで答えを 1 つにする
+    /// TASK-288 の方針。以前は等値判定でここだけ絞り込みが外れていた)。
+    ///
+    /// 移動直後に前のリポジトリの状態で絞り込んで一覧が一瞬消える問題(TASK-285)への
+    /// 手当ては**この関数ではない**。`FileListModel.applyGitStatus(_:for:sequence:)` の
+    /// 発行順序 + ディレクトリ対付けが担う。ここを等値へ戻して二重に守ろうとすると、
+    /// 複数階層の絞り込みが 1 階層ぶんへ縮む(TASK-361.2)。
     func gitChangeFilter(for directory: URL) -> SidebarGitStatus? {
-        guard let gitStatus, gitStatus.directoryKey == directory.normalizedPathKey else {
-            return nil
-        }
+        guard let gitStatus, gitStatus.covers(directory) else { return nil }
         return gitStatus
     }
 }

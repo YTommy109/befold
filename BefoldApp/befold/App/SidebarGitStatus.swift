@@ -8,26 +8,56 @@ import Foundation
 /// しておき、絞り込み側は値の中身(空かどうか)ではなく nil かどうかで判断する。
 /// 中身で判断すると「変更が 1 つも無い git リポジトリ」を非 git と取り違える(TASK-285)。
 struct SidebarGitStatus: Equatable, Sendable {
-    /// この状態を取得したディレクトリの正規化パスキー。
-    /// 一覧の取得と git の取得は別タスクで走り完了順が保証されないため、
-    /// 表示中ディレクトリと突き合わせて古い結果での絞り込みを避ける(TASK-285)。
-    let directoryKey: String
+    /// この状態が適用できる範囲 = 解決できたリポジトリルートの正規化パスキー。
+    ///
+    /// **取得したディレクトリではなくリポジトリルートを持つ**のが要点。`files` は
+    /// 元からリポジトリ全体ぶんの絶対パスキーなので(GitStatusReader が
+    /// `root.appendingPathComponent(相対パス).normalizedPathKey` で詰める)、
+    /// ルート配下ならどの階層の行でも引ける。取得したディレクトリと等値で
+    /// 突き合わせていた頃は、複数階層を同時に表示すると 1 つの階層にしか
+    /// 絞り込みが効かなかった(TASK-361.2)。
+    ///
+    /// 「一覧の取得と git の取得の完了順が保証されない」ことへの手当ては、この値では
+    /// なく `FileListModel.applyGitStatus(_:for:sequence:)` の発行順序 + ディレクトリ
+    /// 対付けが担う(TASK-285 / TASK-293)。**2 つは役割が違う**。こちらは
+    /// 「どの行に適用できるか」、あちらは「どの一覧の取得と対か」。
+    ///
+    /// - Note: ネストしたリポジトリ・サブモジュールの配下は、親リポジトリの
+    ///   `git status` では正しく答えられない。ネストしたリポジトリは未追跡
+    ///   ディレクトリ 1 レコードに畳まれるため配下が全て「新規」に見え、
+    ///   サブモジュールは 1 レコードのみで配下のファイルが一切出ないため
+    ///   「変更なし」に見える(TASK-403 で扱う)。
+    let repositoryRootKey: String
     /// ファイル単位の状態。キーは `FileListEntry.pathKey`。
     let files: [String: GitFileStatus]
     /// フォルダー行のバッジ用に配下を集約した結果。
     let folders: [String: GitFolderStatus]
 
-    init(directoryKey: String, statuses: [String: GitFileStatus]) {
-        self.directoryKey = directoryKey
+    init(repositoryRootKey: String, statuses: [String: GitFileStatus]) {
+        self.repositoryRootKey = repositoryRootKey
         files = statuses
         folders = GitFolderStatus.aggregate(statuses: statuses)
     }
 
     /// 取得結果から表示用の状態を作る。リポジトリを解決できなかった(git 管理外・
     /// 機能無効)なら nil。**変更ゼロのリポジトリは「空の状態」であって nil ではない**。
-    init?(directory: URL, result: GitStatusResult) {
-        guard result.repositoryRoot != nil else { return nil }
-        self.init(directoryKey: directory.normalizedPathKey, statuses: result.statuses)
+    ///
+    /// 取得元のディレクトリは受け取らない。受け取ると「このディレクトリ用の状態」という
+    /// 読み方が残り、等値ガードを復活させる余地になる。対付けが要るのは
+    /// `FileListModel.applyGitStatus(_:for:sequence:)` の側だけ。
+    init?(result: GitStatusResult) {
+        guard let root = result.repositoryRoot else { return nil }
+        self.init(repositoryRootKey: root.normalizedPathKey, statuses: result.statuses)
+    }
+
+    /// `directory` がこの状態の適用範囲(リポジトリルート配下)か。
+    ///
+    /// 区切り文字 `/` を含めて比較するのは、前方一致だけの兄弟パス
+    /// (ルートが `/repo` のときの `/repo2`)を誤って含めないため。
+    /// 規則は `DirectoryLister.isWithinHome(_:home:)` と同じ。
+    func covers(_ directory: URL) -> Bool {
+        let target = directory.normalizedPathKey
+        return target == repositoryRootKey || target.hasPrefix(repositoryRootKey + "/")
     }
 
     /// ファイル行のバッジに使う状態。変更が無ければ nil。
