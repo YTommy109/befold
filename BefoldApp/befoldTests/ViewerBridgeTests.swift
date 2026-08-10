@@ -195,9 +195,11 @@ struct ViewerBridgeTests {
         #expect(decoded["referenceActivation"] == false)
     }
 
-    @Test("hostFeaturesScript のデフォルトは全機能とも有効")
-    func hostFeaturesScriptDefaultsToAllEnabled() throws {
-        let script = ViewerBridge.hostFeaturesScript()
+    @Test("hostFeaturesScript は全機能有効の指定をそのまま反映する")
+    func hostFeaturesScriptReflectsAllEnabled() throws {
+        let script = ViewerBridge.hostFeaturesScript(
+            loadMore: true, spaceScroll: true, referenceActivation: true
+        )
 
         let jsonPart = script
             .replacingOccurrences(of: "window._mmdHostFeatures = ", with: "")

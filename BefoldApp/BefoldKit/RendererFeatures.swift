@@ -20,6 +20,15 @@ public struct RendererFeatures: Equatable, Sendable {
     /// インタラクティブな機能自体が不要かつ攻撃面になるため無効化を想定する。
     public let allowsInteractiveBridging: Bool
 
+    /// true のとき、viewer.html 側が Space キーを受け取ってページスクロールしてよい。
+    /// 1 回描画の静的プレビュー(QuickLook)では Space はホスト側パネルの「閉じる」
+    /// ジェスチャであり、ビューアが preventDefault すると標準操作を奪ってしまうため
+    /// false になる。判定は allowsInteractiveBridging と同じ「ホストに操作を委ねる
+    /// 静的プレビューか」という区別なので、独立したフラグは持たず導出する。
+    public var allowsSpaceScroll: Bool {
+        allowsInteractiveBridging
+    }
+
     public init(allowDirectHTML: Bool, embedImages: Bool, allowsInteractiveBridging: Bool = true) {
         self.allowDirectHTML = allowDirectHTML
         self.embedImages = embedImages

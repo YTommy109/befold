@@ -41,4 +41,41 @@ struct RendererFeaturesTests {
         #expect(!names.contains(ViewerBridge.resolveReferencesMessageName))
         #expect(names.count == 3)
     }
+
+    @Test("allowsSpaceScroll は静的プレビューで false、本体アプリで true")
+    func allowsSpaceScrollFollowsInteractivePreset() {
+        #expect(!RendererFeatures.quickLookRestricted.allowsSpaceScroll)
+        #expect(RendererFeatures.allEnabled.allowsSpaceScroll)
+    }
+
+    /// QuickLook では Space はホストのプレビューを閉じるジェスチャなので、
+    /// viewer 側が preventDefault しないよう hostFeatures へ false を伝える。
+    @MainActor
+    @Test("makeWebView が spaceScroll をプリセットに応じて注入する")
+    func makeWebViewInjectsSpaceScrollFlag() {
+        #expect(injectedSpaceScroll(for: .quickLookRestricted) == false)
+        #expect(injectedSpaceScroll(for: .allEnabled) == true)
+    }
+
+    /// makeWebView がロード前に登録した hostFeatures スクリプトから
+    /// spaceScroll の値だけを取り出す。見つからなければ nil。
+    @MainActor
+    private func injectedSpaceScroll(for features: RendererFeatures) -> Bool? {
+        let renderer = ViewerRenderer()
+        renderer.rendererFeatures = features
+        let webView = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        let sources = webView.configuration.userContentController.userScripts.map(\.source)
+        guard let script = sources.first(where: { $0.contains("_mmdHostFeatures") }) else {
+            return nil
+        }
+        let json = script
+            .replacingOccurrences(of: "window._mmdHostFeatures = ", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ";"))
+        guard let data = json.data(using: .utf8),
+              let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: Bool]
+        else {
+            return nil
+        }
+        return decoded["spaceScroll"]
+    }
 }
