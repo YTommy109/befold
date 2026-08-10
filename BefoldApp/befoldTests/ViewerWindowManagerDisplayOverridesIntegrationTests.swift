@@ -27,8 +27,8 @@ struct ViewerWindowManagerDisplayOverridesIntegrationTests {
         )
     }
 
-    @Test("既存ウィンドウへの並び順オーバーライドはサイドバーのentries表示にも反映される")
-    func applyDisplayOverridesRefreshesSidebarEntries() async throws {
+    @Test("既に開いているファイルへの並び順オーバーライドはサイドバーのentries表示にも反映される")
+    func reopeningWithSortOrderRefreshesSidebarEntries() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         // フォルダ名を "zzz-" にすることで、foldersFirst と alphabetical の並び順が確実に異なるようにする。
@@ -40,7 +40,7 @@ struct ViewerWindowManagerDisplayOverridesIntegrationTests {
         await controller.sidebar.pendingListingTask?.value
         #expect(controller.fileListModel.entries.map(\.kind) == [.folder, .file])
 
-        manager.applyDisplayOverrides(CLIOpenOptions(sortOrder: .alphabetical))
+        manager.openViewer(for: file, options: CLIOpenOptions(sortOrder: .alphabetical))
         await controller.sidebar.pendingListingTask?.value
 
         #expect(controller.fileListModel.sortOrder == .alphabetical)

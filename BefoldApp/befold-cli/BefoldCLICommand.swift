@@ -36,7 +36,28 @@ struct BefoldCLICommand: AsyncParsableCommand {
         if check || bookmark, paths.isEmpty {
             throw ValidationError("At least one path is required with --check/--bookmark.")
         }
+        // 表示オプションは開く文書に対する指定なので、適用先が無い呼び出しでは黙って
+        // 捨てずにここで弾く(--check/--bookmark はウィンドウを開かないため適用先が無い)。
+        guard options.requiresPaths else { return }
+        if paths.isEmpty {
+            throw ValidationError(Self.displayOptionsRequirePathMessage)
+        }
+        if check || bookmark {
+            throw ValidationError(
+                "Display options (--source/--preview, --line-numbers/--no-line-numbers, "
+                    + "--sidebar/--no-sidebar, --sort) cannot be combined with --check/--bookmark, "
+                    + "which don't open a window."
+            )
+        }
     }
+
+    /// パス無しで表示オプションだけを渡したときの案内。対象フラグを列挙して、
+    /// アプリ全体設定の `--hidden-files` は対象外であることまで伝える。
+    static let displayOptionsRequirePathMessage = """
+    Display options (--source/--preview, --line-numbers/--no-line-numbers, \
+    --sidebar/--no-sidebar, --sort) apply to the file being opened, so at least one path is required. \
+    Use --hidden-files/--no-hidden-files to change the app-wide setting without opening a file.
+    """
 
     @MainActor
     func run() async throws {

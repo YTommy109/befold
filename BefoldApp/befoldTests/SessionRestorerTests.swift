@@ -32,7 +32,7 @@ struct SessionRestorerTests {
         )
     }
 
-    @Test("パス無しCLI起動の --hidden-files は復元直後に全体設定へ反映される")
+    @Test("復元に渡した showHiddenFiles は復元直後に全体設定へ反映される")
     func hiddenFilesOptionAppliesOnRestore() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
         defer { fixture.closeAll() }
@@ -45,7 +45,7 @@ struct SessionRestorerTests {
         #expect(fixture.sidebarDisplayPreference.showHiddenFiles)
     }
 
-    @Test("パス無しCLI起動の --line-numbers は復元されるウィンドウへ適用される")
+    @Test("復元に渡した showLineNumbers は復元されるウィンドウへ適用される")
     func lineNumbersOptionAppliesToRestoredWindow() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
         defer { fixture.closeAll() }
@@ -61,7 +61,7 @@ struct SessionRestorerTests {
 
     /// 復元経路は options をそのまま ViewerWindowManager へ渡す。フィールド単位の
     /// 手写しに戻ると、この経路だけ並び順の指定が落ちる形の欠落が起きうる。
-    @Test("パス無しCLI起動の --sort alphabetical は復元されるウィンドウへ適用される")
+    @Test("復元に渡した sortOrder は復元されるウィンドウへ適用される")
     func sortOrderOptionAppliesToRestoredWindow() {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
         defer { fixture.closeAll() }

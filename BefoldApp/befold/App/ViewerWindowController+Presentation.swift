@@ -77,7 +77,7 @@ extension ViewerWindowController {
         // 比較対象は保存値(displayMode)ではなく、いま実際に出しているモード
         // (effectiveDisplayMode)。プレビューを持たない種別(.code)は保存値が .rendered の
         // ままソースを出しているため、保存値と比べると「選択済みの source セグメント」への
-        // クリック・⌘2・パス無し `befold --source` が遷移扱いになる。スクロール位置を
+        // クリック・⌘2 が遷移扱いになる。スクロール位置を
         // rendered キーへ退避したまま空の source キーから復元するので先頭へ飛び、
         // 意味の無い .source が永続化される(TASK-368)。
         guard newValue != effectiveDisplayMode else { return }
@@ -117,6 +117,17 @@ extension ViewerWindowController {
             }
         }
         refreshToolbarState()
+    }
+
+    /// CLI の `--source` / `--preview` を適用する。オープン時(init)と、既に開いている
+    /// ウィンドウを指定して開き直したときの両方がここを通る唯一の入口。
+    ///
+    /// 保存値は書き換えない(この起動限りの上書き。ADR 0002「永続化規則」)。
+    /// その種別で成立しないモードは降格規則へ通す。降格を挟まないと、ソース表示を持たない
+    /// 画像・PDF に `--source` を渡したときだけ規則の外側に出る。
+    func applyCLIDisplayMode(isSourceMode: Bool) {
+        let requested: ViewerDisplayMode = isSourceMode ? .source : .rendered
+        applyDisplayMode(perFileState.displayMode.supportedDisplayMode(requested, for: fileURL))
     }
 
     /// cmd+U でレンダリング表示から戻る先。直前に cmd+U で離れた同じファイルなら

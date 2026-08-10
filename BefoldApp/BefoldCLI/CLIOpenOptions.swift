@@ -28,4 +28,17 @@ public struct CLIOpenOptions: Equatable, Codable, Sendable {
         self.sourceMode = sourceMode
         self.showSidebar = showSidebar
     }
+
+    /// 開く対象(パス)を伴わなければ意味を持たない指定が含まれるか。
+    ///
+    /// 表示オプションはどれも「その文書をどう表示するか」の指定なので、対象が無ければ
+    /// 適用先が無い。`BefoldCLICommand.validate()` はこれを見てパース段階で弾く。
+    /// `showHiddenFiles` だけはアプリ全体設定(サイドバーの不可視ファイル表示)のため対象を要さない。
+    ///
+    /// `self != CLIOpenOptions()` で代用してはいけない。それでは `--hidden-files` 単独の
+    /// 指定まで弾いてしまう。`CLIAppLauncher` が使う `options == CLIOpenOptions()` は
+    /// 「そもそも GUI へ転送するか」の別判定であり、この述語とは目的が違う。
+    public var requiresPaths: Bool {
+        sortOrder != nil || showLineNumbers != nil || sourceMode != nil || showSidebar != nil
+    }
 }

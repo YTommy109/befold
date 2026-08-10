@@ -223,12 +223,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        // 解決は非同期のため、渡された順にウィンドウが出るよう 1 本の Task で逐次に開く。
-        Task {
-            for url in urls {
-                await openViewer(for: url, options: CLIOpenOptions())
-            }
-        }
+        openSequentially(urls)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -276,22 +271,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// CLI から渡されたパス群を、表示オプション付きでそれぞれ別ウィンドウに開く。
     /// `--hidden-files`/`--no-hidden-files` はウィンドウ単位ではなくアプリ全体の設定のため、先に一度だけ反映する。
-    /// パス無し起動(`befold --line-numbers` 等)は新規に開くウィンドウが無いため、
-    /// 行番号/ソース表示/並び順のオーバーライドは開いている全ウィンドウへ直接適用する。
+    /// パス無し起動でここへ来るのは `--hidden-files` 単独のときだけ(それ以外の表示オプションは
+    /// 対象の文書を要するため CLI のパース段階で弾かれる = `CLIOpenOptions.requiresPaths`)。
     func openPaths(_ paths: [String], options: CLIOpenOptions) {
         if let showHiddenFiles = options.showHiddenFiles {
             windowManager.setHiddenFiles(showHiddenFiles)
         }
-        guard !paths.isEmpty else {
-            windowManager.applyDisplayOverrides(options)
-            return
-        }
-        // 同上。解決を待つ間に順序が入れ替わらないよう、1 本の Task 内で逐次に開く。
-        Task {
-            for path in paths {
-                await openViewer(for: URL(fileURLWithPath: path), options: options)
-            }
-        }
+        openSequentially(paths.map { URL(fileURLWithPath: $0) }, options: options)
+    }
+
+    /// 複数の URL を、渡された順にウィンドウが出るよう逐次に開く。
+    /// **複数の URL を開く入口はここ 1 本に揃える。** 1 件ずつ `openViewer(for:)` を呼ぶと
+    /// 呼び出しごとに Task が張られ、解決(実 FS アクセス)の完了順でウィンドウ順序が入れ替わる。
+    func openSequentially(_ urls: [URL], options: CLIOpenOptions = CLIOpenOptions()) {
+        guard !urls.isEmpty else { return }
+        Task { await SequentialOpener.open(urls) { await openViewer(for: $0, options: options) } }
     }
 
     /// ディレクトリ判定とオープン対象の解決は実 FS の存在確認・列挙を伴い、ネットワーク
@@ -334,9 +328,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         panel.begin { [weak self] response in
             guard response == .OK else { return }
-            for url in panel.urls {
-                self?.openViewer(for: url)
-            }
+            // 複数選択は選択順にウィンドウが出る必要がある。1 件ずつ openViewer(for:) を
+            // 呼ぶと呼び出しごとに Task が張られ、順序が任意になる(openSequentially の doc)。
+            self?.openSequentially(panel.urls)
         }
     }
 
