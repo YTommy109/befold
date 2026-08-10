@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-10 12:26'
-updated_date: '2026-08-10 14:24'
+updated_date: '2026-08-10 14:29'
 labels: []
 dependencies: []
 priority: high
@@ -35,6 +35,8 @@ ViewerRendererContentUpdateIntegrationTests の SlowFileReader は DispatchSemap
 3. ViewerRendererContentUpdateIntegrationTests の SlowFileReader.releaseGate を BlockingGate へ差し替え、gate.signal() を gate.open() にする。素通し用の DispatchSemaphore(value: 1) + 末尾 signal は BlockingGate(isOpen: true) に置き換え、カウント戻しのコメントごと削除する。
 4. ゲートが依然として止めていることを、BlockingGate を常時 open にする変異で 3 テストが落ちることで確認する（AC #3）。
 5. フルスイートを 3 回連続実行する（AC #4）。
+
+4'. （実施時の修正）4 の変異では 3 テストとも緑のままで、中断の再現性を測れないことが分かった。代わりに本番コード側を退行させる変異（TASK-334 / TASK-336 / 世代ガード削除）で各テストが落ちることを確認した。詳細は Implementation Notes を参照。
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
