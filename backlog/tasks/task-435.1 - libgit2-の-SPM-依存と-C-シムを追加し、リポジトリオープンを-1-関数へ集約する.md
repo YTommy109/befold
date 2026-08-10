@@ -4,6 +4,7 @@ title: libgit2 の SPM 依存と C シムを追加し、リポジトリオープ
 status: To Do
 assignee: []
 created_date: '2026-08-10 15:01'
+updated_date: '2026-08-10 15:07'
 labels:
   - refactor
 dependencies: []
@@ -39,3 +40,18 @@ TASK-435（git 連携の libgit2 移行）の基盤サブタスク。個別の�
 - [ ] #5 開けないリポジトリのフィクスチャ（extensions.partialclone / 未知の extensions）を BefoldTestSupport に用意し、クラッシュせずモーダルも出さずに .unavailable 相当へ落ちることがテストで担保されている（AC #9）
 - [ ] #6 libgit2 の初期化と終了（git_libgit2_init / git_libgit2_shutdown）の呼び出し回数と寿命が明示的に決められ、doc コメントに根拠が書かれている
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+`/review-design` の結果（F1〜F5）を織り込んだ実装順。
+
+1. **依存の追加**: `Package.swift` に `.package(url: "https://github.com/ibrahimcetin/libgit2.git", exact: "1.9.2")` を足し、`befold` ターゲットのみが `.product(name: "libgit2", package: "libgit2")` に依存する。QuickLook 拡張・CLI へは入れない（appex にコンパイルされない場所へ置くことで、git 依存が appex へ漏れる形を構造的に無くす）。`project.yml` の `packages:` にも同じ pin を書き、`befold` ターゲットの `dependencies` へ `- package: libgit2` を足す。`xcodegen generate` 後に `swift build` と `xcodebuild build -scheme befold` の両方を通す。
+2. **C シムターゲット**: `git_libgit2_opts` は C 可変長引数で Swift から呼べないため、固定引数へ落とす C ターゲット（`BefoldApp/CGitShim/` 想定）を追加する。公開するのは検索パスの set/get 2 関数のみ。SwiftLintBuildToolPlugin は付けない（Swift を含まないため）。
+3. **F2: 初期化と検索パス無効化を一度きりの static let に載せる**。`AppDelegate` から呼ぶ設計にしない。libgit2 は全 API 呼び出しの前に `git_libgit2_init` が必要で、テスト・将来の appex・CLI は `AppDelegate` を通らないため、配線漏れが静かに成立してしまう。`static let` の一度きり初期化（swift_once）に `git_libgit2_init` → SYSTEM/XDG/GLOBAL の検索パス無効化の順で載せ、**リポジトリを開く唯一の関数がそれに触る**。`git_libgit2_shutdown` は呼ばない（プロセス寿命と一致するため）。この判断は doc コメントに根拠を書く。
+4. **F1 + AC #10: リポジトリを開く 1 関数**。`git_repository_open_ext` の失敗を 2 分岐だけで写像する。`GIT_ENOTFOUND` → 管理外（確定・キャッシュ可）、それ以外の失敗 → 使用不可（不明・キャッシュ不可）。**エラーメッセージ文字列（`unsupported extension name` 等）で判定しない**（libgit2 のバージョンで文言が変わる。実測では partial clone / reftable / 未知 extensions がすべて `-1` / klass=6 に収束するため、文字列を見る必要が無い）。メッセージは診断ログ用途に留める。`git_error_last()` は成功後も直前のエラーが残るため、rc < 0 のときだけ読む。
+5. **F3: 集約を swiftlint の custom rule で守らせる**。`git_repository_open` / `git_repository_open_ext` の直接使用を、集約先ファイル以外で error にする（`feature_gate_direct_reference` と同じ形）。`import libgit2` 自体は禁止しない（435.2〜435.4 が他の API を使うため）。禁止するのは「開く」だけ。
+6. **F4: AC #7 のテスト**。**検索パスを元へ戻す方向のテストは書かない**（libgit2 のオプションはプロセス全体に効き、Swift Testing の並列実行下で他テストの前提を壊す）。代わりに次の対で隔離を証明する。(a) bootstrap 後に SYSTEM/XDG/GLOBAL の検索パスが空であること、(b) 偽ホームに置いた gitconfig が `git_config_open_ondisk` では有効な設定として読めるのに、`git_config_open_default` からは見えないこと。加えて (c) リポジトリ内の config は引き続き読めること（無効化しすぎていないことの担保）。
+7. **F5 + AC #9: 開けないリポジトリのフィクスチャとテスト**。`extensions.partialclone` と未知の `extensions.*` を設定したフィクスチャを **`befoldTests` 側に置く**（`project.yml` に `BefoldTestSupport` ターゲットが存在しないため、そこへ置くと Xcode 側のテスト経路に載らない。既存のずれ自体は別タスク）。テストは 4 の集約関数そのものを呼び、使用不可へ落ちること・クラッシュしないことを確認する。
+8. **F5: open のコストを実測する**。`withRepository` は毎回 open/free する。`git_repository` はスレッド間共有できないため常駐化しない。open 単体のコストを計測し、キャッシュが不要ならその数値を Implementation Notes へ記録する（必要なら別タスクへ）。
+<!-- SECTION:PLAN:END -->
