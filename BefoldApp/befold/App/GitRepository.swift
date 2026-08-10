@@ -1,5 +1,6 @@
 import BefoldKit
 import Foundation
+import libgit2
 
 /// リポジトリ検出の結果。「git 管理外」という確定した答えと「git を実行できず不明」を
 /// 区別する(キャッシュしてよいのは前者だけで、後者を覚えると一時的な失敗が固定化する)。
@@ -26,7 +27,8 @@ struct RepositoryIdentity: Sendable, Equatable {
 /// リポジトリに属する作業ツリー 1 件。
 struct GitWorktree: Sendable, Equatable {
     var root: URL
-    /// 本体リポジトリの作業ツリーなら true(`git worktree list` の先頭)。
+    /// 本体リポジトリの作業ツリーなら true。
+    /// 一覧の先頭に来るかではなく、共通 gitdir から解決した本体そのものかで決まる。
     var isMain: Bool
     /// チェックアウト中のブランチ名(`refs/heads/` を除いた短縮形)。
     /// detached HEAD や bare では nil。
@@ -66,44 +68,69 @@ extension GitRepositoryReading {
     }
 }
 
-/// git コマンド + ファイル stat による GitRepositoryReading 実装。
+/// libgit2 + ファイル stat による GitRepositoryReading 実装。
 /// ブランチ/ワークツリー切替・差分など将来の git 機能の拡張点。
+///
+/// リポジトリを開くのは `GitLibrary.withRepository(at:_:)` 経由に限る(ADR 0005)。
+/// 開けなかった場合の縮退は各メソッドの doc に個別に書く。
+///
+/// ## `indexFingerprint` / `indexURL` を libgit2 に寄せない理由
+///
+/// `git_repository_path` を使えば `gitDirectory(at:)` の手書きパーサ(`.git` ファイルの
+/// `gitdir:` 行を解決する処理)を消せるが、この 2 つは「git を起こすか」を決める門番であり
+/// 最も高頻度に走る。`GitStatusReader.indexFingerprint(forRepositoryAt:)` はサイドバーの
+/// `.git` 監視コールバックごと、`GitCommandFileIndex.trackedFileIndex(forFileAt:)` は
+/// 文書の参照解決ごとに毎回生で通る。ここを libgit2 に寄せると、監視イベント頻度 ×
+/// ウィンドウ数でリポジトリオープンが増える。stat 1 回のまま据え置く。
 struct GitRepository: GitRepositoryReading {
-    private let runner: any GitCommandRunning
     private let fileReader: FileReading
 
-    init(runner: any GitCommandRunning = GitCommandRunner(), fileReader: FileReading = DefaultFileReader()) {
-        self.runner = runner
+    init(fileReader: FileReading = DefaultFileReader()) {
         self.fileReader = fileReader
     }
 
+    /// 作業ツリールートを解決する。開けなかった場合は `.undetermined` へ倒し、
+    /// 「git 管理外であることが確定した」`.notARepository` と区別する
+    /// (キャッシュしてよいのは後者だけ。`GitCommandFileIndex.resolvedRoot(forFileAt:)`)。
     func root(forFileAt url: URL) -> GitRootLookup {
-        let dir = url.deletingLastPathComponent()
-        switch runner.run(["rev-parse", "--show-toplevel"], in: dir) {
-        case let .output(data):
-            // 出力が読めない/空なら答えが取れていないので、管理外と断定せず不明に倒す。
-            guard let out = String(data: data, encoding: .utf8),
-                  let first = out.split(separator: "\n").first
-            else { return .undetermined }
-            return .root(URL(fileURLWithPath: String(first), isDirectory: true).standardizedFileURL)
-        case .rejected:
+        let outcome = GitLibrary.withRepository(at: url.deletingLastPathComponent()) { repository in
+            Self.workdirURL(of: repository)
+        }
+        switch outcome {
+        case let .success(root?):
+            return .root(root)
+        case .success(nil):
+            // bare リポジトリには作業ツリーが無い。外部 git 方式でも
+            // `rev-parse --show-toplevel` が非 0 終了し `.notARepository` へ落ちていた。
             return .notARepository
-        case .unavailable:
+        case .failure(.notARepository):
+            return .notARepository
+        case .failure(.unusable):
             return .undetermined
         }
     }
 
+    /// index に載っているパスを列挙する。`git ls-files` と同じく submodule の gitlink も含む。
+    /// リポジトリを開けない・index を読めない場合は nil(追跡ファイルが 0 件であることと区別する)。
+    ///
+    /// index からは生バイトで取るため、`core.quotepath` によるファイル名のエスケープを
+    /// 解く必要が無い(外部 git 方式が `ls-files -z` を使っていた理由がそのまま消える)。
     func trackedFiles(at root: URL) -> [URL]? {
-        guard case let .output(data) = runner.run(["ls-files", "-z"], in: root) else { return nil }
-        return data.split(separator: 0).compactMap { slice in
-            guard let rel = String(data: Data(slice), encoding: .utf8), !rel.isEmpty else { return nil }
-            return root.appendingPathComponent(rel).standardizedFileURL
+        let outcome = GitLibrary.withRepository(at: root) { repository -> [URL]? in
+            var index: OpaquePointer?
+            guard git_repository_index(&index, repository) == 0, let index else { return nil }
+            defer { git_index_free(index) }
+            return (0 ..< git_index_entrycount(index)).compactMap { position in
+                guard let path = git_index_get_byindex(index, position)?.pointee.path else { return nil }
+                return root.appendingPathComponent(String(cString: path)).standardizedFileURL
+            }
         }
+        return (try? outcome.get()) ?? nil
     }
 
     /// add/rm/checkout/commit で `.git/index` が更新されるため、その最終更新日時を
-    /// キャッシュ無効化シグネチャに使う。外部のブランチ/ワークツリー切替を subprocess
-    /// なしのファイル stat だけで検知できる。
+    /// キャッシュ無効化シグネチャに使う。外部のブランチ/ワークツリー切替を
+    /// リポジトリを開かずファイル stat だけで検知できる。
     func indexFingerprint(at root: URL) -> Date? {
         fileReader.modificationDate(at: indexURL(at: root))
     }
@@ -113,63 +140,103 @@ struct GitRepository: GitRepositoryReading {
     }
 
     /// メニュー表示用のラベルと本体リポジトリのルートを返す。
-    /// `--git-common-dir` と `--git-dir` を比較し、一致すれば本体、不一致なら worktree と判定する
-    /// (worktree の `.git` はファイルで実 gitdir を指すため両者が食い違う)。
-    /// worktree の場合、本体ルートは共通 gitdir の親ディレクトリ。
-    /// git 呼び出しに失敗した場合は本体扱い(ディレクトリ名 + 自身のルート)に縮退する。
+    /// `git_repository_is_worktree` でリンク worktree かを判定し、worktree なら
+    /// 本体ルートを共通 gitdir の親ディレクトリとして解決する。
+    /// リポジトリを開けない場合は本体扱い(ディレクトリ名 + 自身のルート)に縮退する。
     func repositoryIdentity(forRoot root: URL) -> RepositoryIdentity {
         let standardizedRoot = root.standardizedFileURL
         let asMainRepository = RepositoryIdentity(
             label: standardizedRoot.lastPathComponent, mainRoot: standardizedRoot
         )
-        guard case let .output(data) = runner.run(["rev-parse", "--git-common-dir", "--git-dir"], in: root),
-              let text = String(data: data, encoding: .utf8)
-        else { return asMainRepository }
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-        guard lines.count == 2 else { return asMainRepository }
-        let commonDir = URL(fileURLWithPath: lines[0], relativeTo: root).standardizedFileURL
-        let gitDir = URL(fileURLWithPath: lines[1], relativeTo: root).standardizedFileURL
-        guard commonDir.path != gitDir.path else { return asMainRepository }
-        let mainRoot = commonDir.deletingLastPathComponent().standardizedFileURL
+        let outcome = GitLibrary.withRepository(at: root) { repository -> URL? in
+            guard git_repository_is_worktree(repository) != 0 else { return nil }
+            return Self.mainRootFromCommonDirectory(of: repository)
+        }
+        guard case let .success(mainRoot) = outcome, let mainRoot else { return asMainRepository }
         return RepositoryIdentity(
             label: "\(mainRoot.lastPathComponent) (\(standardizedRoot.lastPathComponent))",
             mainRoot: mainRoot
         )
     }
 
-    /// root が属するリポジトリの作業ツリー一覧を返す。先頭(本体)が `isMain == true`。
-    /// git を実行できない・出力を解釈できない場合は空配列に縮退し、
+    /// root が属するリポジトリの作業ツリー一覧を返す。先頭が本体(`isMain == true`)。
+    /// リポジトリを開けない場合は空配列に縮退し、
     /// 呼び出し側が worktree 非表示のフラット表示へ落とせるようにする。
+    ///
+    /// `git_worktree_list` はリンク worktree だけを返し本体を含まないため、本体は
+    /// 共通 gitdir から自前で組み立てる。`isMain` は一覧の位置ではなくこの出自で決まる。
+    ///
+    /// `root` が本体そのものなら開き直さない。起動時に「最近使ったリポジトリ」の
+    /// 本体ルート全件をループする(`AppDelegate` の `worktreeCatalog.refresh`)ため、
+    /// 1 回あたりのオープン回数がエントリ件数倍で効く。
     func worktrees(forRoot root: URL) -> [GitWorktree] {
-        guard case let .output(data) = runner.run(["worktree", "list", "--porcelain"], in: root),
-              let text = String(data: data, encoding: .utf8)
-        else { return [] }
-        return Self.parseWorktreeList(text)
+        let outcome = GitLibrary.withRepository(at: root) { repository -> [GitWorktree] in
+            guard git_repository_is_worktree(repository) != 0 else {
+                return Self.worktrees(inMainRepository: repository)
+            }
+            guard let commonDir = Self.commonDirectoryURL(of: repository) else { return [] }
+            let fromMain = GitLibrary.withRepository(at: commonDir) { main in
+                Self.worktrees(inMainRepository: main)
+            }
+            return (try? fromMain.get()) ?? []
+        }
+        return (try? outcome.get()) ?? []
     }
 
-    /// `git worktree list --porcelain` の出力をパースする純関数。git 実行を経ないため
-    /// インメモリのフィクスチャで網羅的に検証できる(実 git の spawn はスモーク 1 本に任せる)。
-    /// porcelain 形式は 1 エントリが `worktree <path>` 行で始まり、続く属性行
-    /// (HEAD/branch/bare/detached)を経て空行で区切られる。表示に使うのは path と branch のみ。
-    static func parseWorktreeList(_ text: String) -> [GitWorktree] {
-        var result: [GitWorktree] = []
-        for line in text.split(separator: "\n") {
-            if line.hasPrefix("worktree ") {
-                let path = String(line.dropFirst("worktree ".count)).trimmingCharacters(in: .whitespaces)
-                guard !path.isEmpty else { continue }
-                result.append(
-                    GitWorktree(
-                        root: URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL,
-                        isMain: result.isEmpty
-                    )
-                )
-            } else if line.hasPrefix("branch "), !result.isEmpty {
-                let ref = String(line.dropFirst("branch ".count)).trimmingCharacters(in: .whitespaces)
-                let name = ref.hasPrefix("refs/heads/") ? String(ref.dropFirst("refs/heads/".count)) : ref
-                result[result.count - 1].branch = name.isEmpty ? nil : name
-            }
+    /// 本体リポジトリを起点に、本体 + リンク worktree を並べる。
+    private static func worktrees(inMainRepository main: OpaquePointer) -> [GitWorktree] {
+        // bare には作業ツリーが無いので gitdir 自体をルートとして見せる
+        // (`git worktree list` が bare リポジトリのパスを先頭に出すのと同じ表示)。
+        guard let mainRoot = workdirURL(of: main) ?? commonDirectoryURL(of: main) else { return [] }
+        var result = [GitWorktree(root: mainRoot, isMain: true, branch: branchName(of: main))]
+        var names = git_strarray()
+        guard git_worktree_list(&names, main) == 0 else { return result }
+        defer { git_strarray_dispose(&names) }
+        for position in 0 ..< names.count {
+            guard let name = names.strings?[position] else { continue }
+            var worktree: OpaquePointer?
+            guard git_worktree_lookup(&worktree, main, name) == 0, let worktree else { continue }
+            defer { git_worktree_free(worktree) }
+            guard let path = git_worktree_path(worktree) else { continue }
+            let root = URL(fileURLWithPath: String(cString: path), isDirectory: true).standardizedFileURL
+            result.append(GitWorktree(root: root, isMain: false, branch: branchName(atWorktreeRoot: root)))
         }
         return result
+    }
+
+    /// `git_worktree_*` はチェックアウト中のブランチ名を返さないため、その worktree を
+    /// 開き直して HEAD から読む。開けなければブランチ無し扱い(表示はディレクトリ名だけ)。
+    private static func branchName(atWorktreeRoot root: URL) -> String? {
+        let outcome = GitLibrary.withRepository(at: root) { branchName(of: $0) }
+        return (try? outcome.get()) ?? nil
+    }
+
+    /// HEAD の短縮ブランチ名。detached・unborn・bare では nil。
+    private static func branchName(of repository: OpaquePointer) -> String? {
+        guard git_repository_head_detached(repository) == 0 else { return nil }
+        var head: OpaquePointer?
+        guard git_repository_head(&head, repository) == 0, let head else { return nil }
+        defer { git_reference_free(head) }
+        guard let name = git_reference_shorthand(head) else { return nil }
+        let branch = String(cString: name)
+        return branch.isEmpty ? nil : branch
+    }
+
+    /// 作業ツリーのルート。bare では nil。
+    private static func workdirURL(of repository: OpaquePointer) -> URL? {
+        guard let path = git_repository_workdir(repository) else { return nil }
+        return URL(fileURLWithPath: String(cString: path), isDirectory: true).standardizedFileURL
+    }
+
+    /// 共通 gitdir(`<本体>/.git`)。リンク worktree から呼んでも本体側を指す。
+    private static func commonDirectoryURL(of repository: OpaquePointer) -> URL? {
+        guard let path = git_repository_commondir(repository) else { return nil }
+        return URL(fileURLWithPath: String(cString: path), isDirectory: true).standardizedFileURL
+    }
+
+    /// 共通 gitdir の親 = 本体リポジトリのルート。
+    private static func mainRootFromCommonDirectory(of repository: OpaquePointer) -> URL? {
+        commonDirectoryURL(of: repository)?.deletingLastPathComponent().standardizedFileURL
     }
 
     /// root/.git がディレクトリならそれ、ファイル(worktree/submodule)なら

@@ -11,7 +11,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
     /// git 1 回あたりの予算は他のポーリング待機と同じ単一情報源から採る。
     private func makeReader() -> GitStatusReader {
         let runner = GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10))
-        return GitStatusReader(runner: runner, repository: GitRepository(runner: runner))
+        return GitStatusReader(runner: runner, repository: GitRepository())
     }
 
     /// TASK-264。実リポジトリの状態で「変更のあるファイルのみ表示」を通し、

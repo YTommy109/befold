@@ -13,7 +13,7 @@ struct GitStatusReaderIntegrationTests {
     /// (少コアの CI では git の起動自体が遅れうるため、本番既定の 10 秒に縛らない)。
     private func makeReader() -> GitStatusReader {
         let runner = GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10))
-        return GitStatusReader(runner: runner, repository: GitRepository(runner: runner))
+        return GitStatusReader(runner: runner, repository: GitRepository())
     }
 
     @Test("staged / unstaged / untracked を実 git の出力から判別する")

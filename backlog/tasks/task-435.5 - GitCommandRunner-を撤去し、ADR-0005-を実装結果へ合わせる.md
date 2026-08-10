@@ -4,6 +4,7 @@ title: GitCommandRunner を撤去し、ADR 0005 を実装結果へ合わせる
 status: To Do
 assignee: []
 created_date: '2026-08-10 15:03'
+updated_date: '2026-08-10 15:46'
 labels:
   - refactor
 dependencies:
@@ -46,4 +47,5 @@ TASK-226（GitCommandRunner の async 化）は対象そのものが消えるた
 - [ ] #3 GitCommandRunnerTests が撤去され、swift test 全体が通る。撤去前後のスイート実行時間が計測されて Implementation Notes に記録されている
 - [ ] #4 docs/adr/0005-git-integration-via-libgit2.md が上記 4 点で更新されている
 - [ ] #5 TASK-226 の扱い（クローズ or 前提書き換え）が決まり、当該タスクへ反映されている
+- [ ] #6 移行の混在期間に生じる不整合が解消していることを確認する。TASK-435.2 の時点では GitRepository だけが libgit2 で GitStatusReader / GitDiffReader は外部 git のままのため、libgit2 は開けないが git は開けるリポジトリ（partial clone 等）で「ルート解決だけ .undetermined に落ちるがステータスと差分は動く」中間状態が生じる。全実装が libgit2 に揃った時点で、開けないリポジトリでは git 機能が一律に無効化されることをテストで担保する
 <!-- AC:END -->
