@@ -15,10 +15,11 @@ on:
     # ThreadSanitizer を毎日回して競合回帰を検出する（push がなくても走らせる）
     - cron: '0 15 * * *'
 
-# 連続 push / force-push で古い実行を打ち切り、macOS ランナー分を節約する
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+# 連続 push / force-push で古い実行を打ち切り、macOS ランナー分を節約する。
+# ワークフローレベルではなくジョブごとに置く: ここに置くと、backlog だけを足した
+# push で起動したランが、進行中の重いジョブをジョブ開始前に巻き添えキャンセルして
+# しまう(実測: 2026-08-10 の PR #460 で 1 回、テスト結果を得る前にランを失った)。
+# ジョブレベルなら、下の changes 判定でスキップされたジョブはグループに入らない。
 
 # detectsFileDeletion 等の一発イベント検出テストは CI ランナーの一時的な
 # 低速化(コンパイル直後の CPU 輻輳等)でデフォルトの 10秒待機予算を超過する
@@ -29,10 +30,53 @@ env:
   BEFOLD_TEST_TIMEOUT_SECONDS: 60
 
 jobs:
+  # on.paths は「その push の差分」ではなく PR 全体の変更ファイルで評価されるため、
+  # BefoldApp を含む PR では backlog だけを足した push でも PR 全体が再テストされる。
+  # その push で実際に変わったファイルを見て、重いジョブを回すかどうかを決める。
+  changes:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.check.outputs.app }}
+    steps:
+      # 判定の対象は on.paths と同じ集合。片方だけ変えるとテストが黙って走らなく
+      # なるため、on.paths を変えたらここも変えること。
+      - name: この push が BefoldApp を触ったかを判定する
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          set -euo pipefail
+          # synchronize(既存 PR への push)以外は差分の起点が無い、または初回なので
+          # 常に走らせる。判定できないときも走らせる側へ倒す(検証が黙って抜けるより、
+          # 余分に回るほうが安全)。
+          if [ "${{ github.event_name }}" != "pull_request" ] || [ "${{ github.event.action }}" != "synchronize" ]; then
+            echo 'app=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! files=$(gh api "repos/${{ github.repository }}/compare/${BEFORE}...${AFTER}" --jq '.files[].filename'); then
+            echo '差分を取得できなかったため(force-push 等)、すべてのジョブを走らせる'
+            echo 'app=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$)'; then
+            echo 'app=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'app=false' >> "$GITHUB_OUTPUT"
+            echo "この push は BefoldApp を触っていないため、ビルドとテストをスキップする"
+          fi
+          printf '%s\n' "$files"
+
   build-and-test:
     # PR と main push で走らせる（nightly は TSan のみで十分）
-    if: github.event_name != 'schedule'
+    needs: changes
+    if: github.event_name != 'schedule' && needs.changes.outputs.app == 'true'
     runs-on: macos-26
+    concurrency:
+      group: ci-build-and-test-${{ github.ref }}
+      cancel-in-progress: true
     defaults:
       run:
         working-directory: BefoldApp
@@ -62,8 +106,12 @@ jobs:
 
   js-test:
     # viewer.js は純粋ロジックのため安価な Ubuntu ランナーで回す
-    if: github.event_name != 'schedule'
+    needs: changes
+    if: github.event_name != 'schedule' && needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-js-test-${{ github.ref }}
+      cancel-in-progress: true
     defaults:
       run:
         working-directory: BefoldApp
@@ -86,6 +134,9 @@ jobs:
     # コストが高いため PR では回さず、main push と nightly に限定する
     if: github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: macos-26
+    concurrency:
+      group: ci-thread-sanitizer-${{ github.ref }}
+      cancel-in-progress: true
     env:
       # TSan 計装は 5〜15 倍のスローダウンを引き起こし、ワークフローレベルの
       # 30 秒では waitUntil 系ポーリングがタイムアウトする(直近14回中12回失敗)。

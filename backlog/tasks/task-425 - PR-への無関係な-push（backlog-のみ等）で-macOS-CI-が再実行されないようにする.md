@@ -1,9 +1,11 @@
 ---
 id: TASK-425
 title: PR への無関係な push（backlog のみ等）で macOS CI が再実行されないようにする
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-08-10 08:41'
+updated_date: '2026-08-10 08:48'
 labels:
   - ci
 dependencies: []
@@ -34,3 +36,34 @@ ordinal: 505500
 - [ ] #3 スキップされたジョブが必須チェックとして PR をブロックしない（required check の扱いを確認して記録してある）
 - [ ] #4 採用した方式と、他ワークフロー（site.yml / verify-dmg.yml）へ同じ対処が要るかどうかの判断が Implementation Notes に残っている
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 前提を確認する: main の branch protection に required_status_checks が無いこと（gh api で確認済み）。スキップしたジョブが PR をブロックしない根拠にする。
+2. ci.yml に軽量な changes ジョブ（ubuntu）を足し、その push で実際に変わったファイルを判定する。pull_request の synchronize では payload の before...after を gh api compare で比較し、それ以外（opened/reopened、main への push、schedule、force-push で before が解決できない場合）は fail-open で true にする。
+3. build-and-test / js-test を changes の出力で条件付けし、無関係な push ではスキップする。
+4. concurrency をワークフローレベルからジョブレベルへ移す。スキップされたジョブは concurrency グループに入らないため、無関係な push が進行中の重いジョブを巻き添えキャンセルしなくなる（今回の実害の直接原因）。
+5. actionlint で構文を検証し、判定ロジックをローカルで（compare の JSON をモックして）確かめる。実挙動は PR 上で backlog のみの push と BefoldApp を触る push の 2 通りで確認する。
+6. site.yml / verify-dmg.yml へ同じ対処が要るかを起動履歴で確認し、判断を Implementation Notes に残す。
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+実装（未 push）:
+- ci.yml に changes ジョブ（ubuntu）を追加。pull_request の synchronize では payload の before...after を gh api compare で比較し、BefoldApp/ か .github/workflows/ci.yml を含むかで app 出力を決める。synchronize 以外・compare 失敗（force-push で before が解決できない等）は fail-open で true。
+- build-and-test / js-test を needs: changes + needs.changes.outputs.app == 'true' で条件付け。
+- concurrency をワークフローレベルからジョブレベル（build-and-test / js-test / thread-sanitizer それぞれ別グループ）へ移動。スキップされたジョブはグループに入らないため、無関係な push が進行中の重いジョブを巻き添えキャンセルしない。
+
+検証:
+- actionlint: リポジトリ全ワークフローで指摘ゼロ。
+- 判定の正規表現をローカルで実測: backlog のみ→false / BefoldApp 配下→true / .github/workflows/ci.yml→true / ci.yml.bak→false / docs/BefoldApp/x.md→false / backlog と BefoldApp の混在→true / 空→false。
+- main の branch protection には required_status_checks が設定されていない（gh api で確認）。スキップされたジョブが PR をブロックしないことの根拠。
+
+他ワークフローの判断:
+- site.yml: test ジョブは ubuntu で安価なため、push 単位のスキップは入れない。ただし paths に列挙していた BefoldApp/befold/App/MainMenuBuilder.swift が、分割で生まれた MainMenuBuilder+ViewMenu.swift を拾えずショートカットのずれ検知が起動しない穴があったため、MainMenuBuilder*.swift の glob へ広げた（本タスクのスコープ外の発見。ユーザーに報告済み）。
+- verify-dmg.yml: 同じ per-push 評価の問題はあるが、対象が release.yml / verify-dmg.yml / create-dmg.sh と狭く、実害が小さいため対処しない。
+
+未確認: 実挙動（backlog だけの push でスキップされること、BefoldApp を触る push で走ること）は PR 上でまだ確認していない。
+<!-- SECTION:NOTES:END -->

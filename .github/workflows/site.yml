@@ -20,10 +20,12 @@ on:
       # ページの記載（対応ファイルタイプ表・ショートカット表）のずれ検知が
       # 情報源として読む実装。ここに含めないと Swift 側だけを変えたときに
       # 検証が回らず、次の site/ 変更まで乖離に気づけない。
+      # MainMenuBuilder は file_length 対策で +ViewMenu.swift へ分割されるため
+      # glob で拾う（vitest.config.ts も MainMenuBuilder*.swift を全件読む）。
       - 'BefoldApp/BefoldKit/FileType.swift'
       - 'BefoldApp/BefoldKit/ContentLoader.swift'
       - 'BefoldApp/BefoldKit/NormalizedTextCache.swift'
-      - 'BefoldApp/befold/App/MainMenuBuilder.swift'
+      - 'BefoldApp/befold/App/MainMenuBuilder*.swift'
       - 'BefoldApp/befold/App/BookmarkShortcut.swift'
   pull_request:
     branches: [main]
@@ -40,10 +42,12 @@ on:
       # ページの記載（対応ファイルタイプ表・ショートカット表）のずれ検知が
       # 情報源として読む実装。ここに含めないと Swift 側だけを変えたときに
       # 検証が回らず、次の site/ 変更まで乖離に気づけない。
+      # MainMenuBuilder は file_length 対策で +ViewMenu.swift へ分割されるため
+      # glob で拾う（vitest.config.ts も MainMenuBuilder*.swift を全件読む）。
       - 'BefoldApp/BefoldKit/FileType.swift'
       - 'BefoldApp/BefoldKit/ContentLoader.swift'
       - 'BefoldApp/BefoldKit/NormalizedTextCache.swift'
-      - 'BefoldApp/befold/App/MainMenuBuilder.swift'
+      - 'BefoldApp/befold/App/MainMenuBuilder*.swift'
       - 'BefoldApp/befold/App/BookmarkShortcut.swift'
 
 # 連続 push / force-push で古い実行を打ち切る
