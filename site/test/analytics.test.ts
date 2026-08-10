@@ -163,7 +163,9 @@ describe('hourlyDistribution', () => {
 
 describe('summarize', () => {
   it('累計・当日・日別・時間帯・UA 内訳をまとめて返す', async () => {
+    // ロボットの巡回は集計から外れるが、専用セクション（ua）では数える。
     await insert(jst('2026-08-08 10:00'), 'visit', 'visitor-a', 'bot:ClaudeBot')
+    await insert(jst('2026-08-08 10:01'), 'visit', 'visitor-c', 'Chrome')
     await insert(jst('2026-08-07 10:00'), 'download', 'visitor-b', 'Safari')
 
     const summary = await summarize(env.DB, NOW)
@@ -176,7 +178,10 @@ describe('summarize', () => {
     expect(summary.daily).toHaveLength(14)
     expect(summary.hourly).toHaveLength(24)
     expect(summary.ua.byBot).toEqual([{ label: 'bot:ClaudeBot', count: 1 }])
-    expect(summary.ua.byHuman).toEqual([{ label: 'Safari', count: 1 }])
+    expect(summary.ua.byHuman).toEqual([
+      { label: 'Chrome', count: 1 },
+      { label: 'Safari', count: 1 },
+    ])
   })
 })
 
@@ -209,6 +214,107 @@ describe('人間の訪問とロボットの巡回の分離', () => {
 
   it('データが無ければ 0 件と空の内訳を返す', async () => {
     expect(await uaSplit(env.DB)).toEqual({ human: 0, bot: 0, byHuman: [], byBot: [] })
+  })
+})
+
+describe('集計からのロボット除外', () => {
+  /** 内訳のカラムまで埋めて 1 件記録する（ボット／人間を ua_summary で分ける）。 */
+  async function insertFull(
+    ts: number,
+    kind: EventKind,
+    uaSummary: string | null,
+    fields: { country: string; os: string; referrer: string; asOrg: string; visitor: string },
+  ): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, version, country, os, ua_summary, visitor_token, referrer, as_org, source)' +
+        " VALUES (?, ?, 'v1.0.0', ?, ?, ?, ?, ?, ?, 'lp')",
+    )
+      .bind(
+        ts,
+        kind,
+        fields.country,
+        fields.os,
+        uaSummary,
+        fields.visitor,
+        fields.referrer,
+        fields.asOrg,
+      )
+      .run()
+  }
+
+  const BOT = {
+    country: 'US',
+    os: 'Linux',
+    referrer: 'https://bot.example',
+    asOrg: 'BotCloud',
+    visitor: 'visitor-bot',
+  }
+  const HUMAN = {
+    country: 'JP',
+    os: 'macOS 14.0',
+    referrer: 'https://human.example',
+    asOrg: 'HumanNet',
+    visitor: 'visitor-human',
+  }
+
+  it('日次推移・国別・参照元別・OS 別・ダウンロードに人間だけが現れる', async () => {
+    await insertFull(jst('2026-08-08 10:00'), 'visit', 'bot:GPTBot', BOT)
+    await insertFull(jst('2026-08-08 10:01'), 'download', 'bot:GPTBot', BOT)
+    await insertFull(jst('2026-08-08 11:00'), 'visit', 'Safari', HUMAN)
+    await insertFull(jst('2026-08-08 11:01'), 'download', 'Safari', HUMAN)
+
+    const summary = await summarize(env.DB, NOW)
+    const today = summary.daily.at(-1)
+
+    expect(summary.cumulative.counts.visit).toBe(1)
+    expect(summary.cumulative.counts.download).toBe(1)
+    expect(summary.cumulative.visitorDays).toBe(1)
+    expect(today?.counts.visit).toBe(1)
+    expect(today?.uniqueVisitors).toBe(1)
+    expect(summary.today.counts.visit).toBe(1)
+    expect(summary.hourly[11]?.counts.visit).toBe(1)
+    expect(summary.hourly[10]?.counts.visit).toBe(0)
+    expect(summary.byCountry).toEqual([{ label: 'JP', count: 2 }])
+    expect(summary.byReferrer).toEqual([{ label: 'https://human.example', count: 2 }])
+    expect(summary.recent.map((event) => event.country)).toEqual(['JP', 'JP'])
+
+    const visits = summary.perKind.find((entry) => entry.kind === 'visit')
+    expect(visits?.byOS).toEqual([{ label: 'macOS 14.0', count: 1 }])
+    expect(visits?.byAsOrg).toEqual([{ label: 'HumanNet', count: 1 }])
+  })
+
+  it('ua_summary が NULL の行は集計から落ちない（分類の適用前に記録された行）', async () => {
+    // NULL LIKE 'bot:%' は NULL を返すため、素の LIKE を WHERE に置くと
+    // この行が人間でもボットでもなく黙って消える。
+    await insert(jst('2026-08-08 10:00'), 'visit', 'visitor-null', null)
+    await insert(jst('2026-08-08 10:01'), 'visit', 'visitor-legacy', 'other')
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.cumulative.counts.visit).toBe(2)
+    expect(summary.today.counts.visit).toBe(2)
+    expect(summary.daily.at(-1)?.counts.visit).toBe(2)
+  })
+
+  it('ボット除外の条件が 1 箇所に集約されている', () => {
+    // 集計クエリを増やしたときに条件を書き写す形へ戻らないための構造ガード。
+    // events を読むクエリは HUMAN_ONLY を経由するか、下の意図的な除外に限る。
+    const analyticsSource = env.TEST_ANALYTICS_SOURCE
+    // 除外してよいもの: uaSplit / uaBreakdown（人間とロボットの両方を数えるのが
+    // 目的なので BOT_MATCH を直接使う）、maxEventId（生の id を返す SSE のカーソル）。
+    const exempt = ['BOT_MATCH', 'MAX(id)']
+    const windows = [...analyticsSource.matchAll(/FROM events/g)].map((match) =>
+      analyticsSource.slice(Math.max(0, (match.index ?? 0) - 200), (match.index ?? 0) + 400),
+    )
+
+    expect(windows).not.toHaveLength(0)
+    for (const window of windows) {
+      if (exempt.some((marker) => window.includes(marker))) continue
+      expect(window).toContain('${HUMAN_ONLY}')
+    }
+
+    // 条件そのものは 1 箇所だけで定義される。
+    expect(analyticsSource.match(/LIKE '\$\{BOT_PREFIX\}%'/g)).toHaveLength(1)
   })
 })
 

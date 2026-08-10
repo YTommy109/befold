@@ -17,6 +17,12 @@ const FILE_TYPE_SWIFT = path.join(KIT, 'FileType.swift')
 const CONTENT_LOADER_SWIFT = path.join(KIT, 'ContentLoader.swift')
 const NORMALIZED_TEXT_CACHE_SWIFT = path.join(KIT, 'NormalizedTextCache.swift')
 
+/**
+ * 集計クエリ本体。ボット除外の条件が 1 箇所に集約されているかを、実行結果では
+ * なくソースの形で検査するために渡す（新しい集計を足したときに検知する）。
+ */
+const ANALYTICS_TS = path.join(import.meta.dirname, 'src', 'analytics.ts')
+
 /** キーボードショートカット表が参照する、メインメニュー定義とその参照先の定数。 */
 const APP = path.join(import.meta.dirname, '..', 'BefoldApp', 'befold', 'App')
 const MAIN_MENU_BUILDER_SWIFT = path.join(APP, 'MainMenuBuilder.swift')
@@ -33,6 +39,7 @@ export default defineConfig({
       const normalizedTextCacheSwift = await readFile(NORMALIZED_TEXT_CACHE_SWIFT, 'utf8')
       const mainMenuBuilderSwift = await readFile(MAIN_MENU_BUILDER_SWIFT, 'utf8')
       const bookmarkShortcutSwift = await readFile(BOOKMARK_SHORTCUT_SWIFT, 'utf8')
+      const analyticsSource = await readFile(ANALYTICS_TS, 'utf8')
 
       return {
         singleWorker: true,
@@ -46,6 +53,7 @@ export default defineConfig({
             TEST_NORMALIZED_TEXT_CACHE_SWIFT: normalizedTextCacheSwift,
             TEST_MAIN_MENU_BUILDER_SWIFT: mainMenuBuilderSwift,
             TEST_BOOKMARK_SHORTCUT_SWIFT: bookmarkShortcutSwift,
+            TEST_ANALYTICS_SOURCE: analyticsSource,
             DASHBOARD_USER: 'owner',
             DASHBOARD_PASSWORD: 'test-password',
           },

@@ -355,9 +355,11 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
           ]}
         />
         <p class="note">
-          判定は User-Agent のトークンによる（ADR 0004）。完全な UA は保存していないため、
-          種類別の内訳が出るのは分類を適用した {BOT_CLASSIFICATION_START} 以降に記録された
-          イベントだけで、それ以前のクローラの巡回は「other」に含まれたまま人間側に数えられる。
+          このセクション以外の集計（累計・本日・推移・時間帯・内訳・最新イベント）は、
+          ここでロボットと判定した巡回を除いた数。判定は User-Agent のトークンによる（ADR
+          0004）。完全な UA は保存していないため、分類を適用した {BOT_CLASSIFICATION_START}{' '}
+          より前に記録されたイベントは遡って分類できず、当時のクローラの巡回は「other」に
+          含まれたまま人間側に数えられている。この日をまたぐ推移は連続していない。
           「bot:other」は既知トークンに当たらなかったボットで、ここが増え続けるなら分類漏れ。
         </p>
         <div class="grid">

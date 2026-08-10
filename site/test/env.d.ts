@@ -12,6 +12,8 @@ declare global {
       /** ショートカット表のずれ検知に使う、メインメニュー定義とその参照先の定数。 */
       TEST_MAIN_MENU_BUILDER_SWIFT: string
       TEST_BOOKMARK_SHORTCUT_SWIFT: string
+      /** ボット除外が 1 箇所に集約されているかの検査に使う集計クエリ本体。 */
+      TEST_ANALYTICS_SOURCE: string
     }
   }
 }

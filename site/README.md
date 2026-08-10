@@ -254,6 +254,59 @@ Preview URL（`wrangler versions upload --preview-alias`）はこの環境の代
 `[env.staging]` 側に再指定しないと引き継がれない（アセット配信や D1 バインディングが
 欠落した Worker ができる）。
 
+## 本番の解析データを読む
+
+実データを見るときは **`scripts/analytics-query.sh` を唯一の入口にする**。
+
+```bash
+scripts/analytics-query.sh "SELECT kind, COUNT(*) FROM events GROUP BY kind"
+scripts/analytics-query.sh --env staging "SELECT COUNT(*) FROM events"
+```
+
+`npx wrangler d1 execute --remote` を直接叩かないこと。手元の wrangler 認証は
+OAuth で `d1 (write)` を含むため、同じ経路で本番 `events` への UPDATE / DELETE /
+DROP が通る。`events` は追記のみでバックアップ運用が無く、一度の事故で計測データを
+全損する。
+
+書き込めないことは 3 段で担保している。
+
+| 段 | 担保するもの | 実体 |
+| --- | --- | --- |
+| 認証 | Cloudflare 側で書き込みが 403 になる | Account / D1 / Read だけの API トークンを必須にする |
+| 文面 | 書き込み文をローカルで弾く | `analytics-query.sh` が単一の SELECT / WITH 文のみ許可（`--self-test` で検査自体を確認できる） |
+| 経路 | ラッパを迂回させない | `.claude/settings.json` の PreToolUse フックが `d1 execute` を含む Bash を落とす |
+
+マイグレーション適用（`d1 migrations apply` / `npm run migrate:remote`）は別経路で、
+このフックの対象外。適用には従来どおり書き込み権限のある認証を使う。
+
+### 読み取り専用トークンの作り方
+
+1. Cloudflare ダッシュボード → My Profile → API Tokens → Create Token →
+   Create Custom Token
+2. Permissions に **Account / D1 / Read** だけを追加する（他は追加しない）
+3. Account Resources を対象アカウントに限定する
+4. 発行された値を Keychain に入れる（`-w` を省くと対話入力になり、シェル履歴に
+   残らない）
+
+   ```bash
+   security add-generic-password -a "$USER" -s befold-d1-readonly -w
+   ```
+
+   スクリプトは環境変数 `CLOUDFLARE_D1_READONLY_TOKEN` を先に見て、無ければ
+   この Keychain 項目から取る。どちらの形でもリポジトリにはコミットしない。
+
+デプロイ用の `CLOUDFLARE_API_TOKEN`（D1 / Edit を含む）とは別物で、混ぜない。
+
+**D1 / Read だけで `wrangler d1 execute --remote` の SELECT は通る**（2026-08-10 に
+本番で実測）。書き込みは D1 の API 側が
+`You do not have permission to perform this operation. [code: 7500]` で拒否する
+（staging に対する `UPDATE` / `DELETE` / `CREATE TABLE` で実測）。
+
+判定は「文の種類」ではなく「実際に変更が発生するか」で行われている。
+`DELETE FROM events WHERE 0` や存在しないテーブルへの `DROP TABLE IF EXISTS` は
+成功する（1 行も変更しないため）。**権限だけでは書き込み文の実行そのものは
+止まらない**ので、`analytics-query.sh` 側の文面検査を外さないこと。
+
 ## 接続元組織（ASN）の計測
 
 `request.cf.asOrganization`（Cloudflare が解決する AS 保有組織名、例: Google Cloud）を

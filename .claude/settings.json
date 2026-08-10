@@ -19,6 +19,7 @@
       "Bash(markdownlint-cli2)",
       "Bash(scripts/worktree-status.sh:*)",
       "Bash(scripts/worktree-clean.sh)",
+      "Bash(scripts/analytics-query.sh:*)",
       "mcp__dagayn__get_minimal_context_tool",
       "mcp__dagayn__query_graph_tool",
       "mcp__dagayn__semantic_search_nodes_tool",
@@ -31,6 +32,15 @@
   },
   "hooks": {
     "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "c=$(jq -r '.tool_input.command // empty'); if printf '%s' \"$c\" | tr ';|&' '\\n\\n\\n' | grep -qE '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(npx|pnpm|yarn|bunx)?[[:space:]]*wrangler[[:space:]].*d1[[:space:]]+execute' && ! printf '%s' \"$c\" | grep -q 'analytics-query.sh'; then echo 'BLOCK: 解析用 D1 への直接クエリは禁止です（書き込みが通るため）。読み取りは scripts/analytics-query.sh \"SELECT ...\" を使ってください。マイグレーション適用は d1 migrations apply / npm run migrate:remote 側で行います' >&2; exit 2; fi"
+          }
+        ]
+      },
       {
         "matcher": "Edit|Write",
         "hooks": [

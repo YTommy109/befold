@@ -106,6 +106,31 @@ export const DAILY_WINDOW_DAYS = 14
 const TOP_N = 10
 const RECENT_LIMIT = 20
 
+/** SSE の 1 周期で流す新着イベントの上限。再開位置の判断に呼び出し側も使う。 */
+export const STREAM_LIMIT = 100
+
+/**
+ * ボット判定の SQL 側の表現。値の列挙は持たず接頭辞だけで分ける（lib/visitor.ts）。
+ *
+ * `COALESCE` を外さないこと。`ua_summary` は NULL 許容で、`NULL LIKE ...` は
+ * NULL を返す。素の LIKE を WHERE に置くと、UA ヘッダの無いリクエストで
+ * 記録された行が人間でもボットでもなく黙って全集計から消える。
+ */
+const BOT_MATCH = `COALESCE(ua_summary, '') LIKE '${BOT_PREFIX}%'`
+
+/**
+ * ロボットの巡回を集計から外すための条件。集計クエリはこれを WHERE へ足す。
+ *
+ * ボット除外の条件はこの 1 箇所だけに置く（集計ごとに書き写さない）。この規約は
+ * `analytics.test.ts` の「FROM events を含むクエリは HUMAN_ONLY を含むか、
+ * 意図的な除外リストに載っているか」を検査するテストが担保する。
+ *
+ * 分類（TASK-386）の適用前に記録された行は種類が分からず 'other' または NULL に
+ * 丸まっており、ここでは人間側に残る。遡って分類し直す材料（完全な UA）を
+ * 保存していないため。この非連続性はダッシュボードの注記で示す。
+ */
+const HUMAN_ONLY = `NOT ${BOT_MATCH}`
+
 /** 種別ごとの件数を 1 行から取り出すための SELECT 句。 */
 const KIND_COUNT_COLUMNS =
   `SUM(kind = 'visit')        AS visits,
@@ -135,7 +160,8 @@ export async function cumulativeTotals(db: D1Database): Promise<CumulativeTotals
     .prepare(
       `SELECT ${KIND_COUNT_COLUMNS},
               COUNT(DISTINCT visitor_token) AS visitor_days
-       FROM events`,
+       FROM events
+       WHERE ${HUMAN_ONLY}`,
     )
     .first<KindCountRow & { visitor_days: number | null }>()
 
@@ -149,7 +175,7 @@ export async function todayTotals(db: D1Database, now: number): Promise<TodayTot
       `SELECT ${KIND_COUNT_COLUMNS},
               COUNT(DISTINCT visitor_token) AS unique_visitors
        FROM events
-       WHERE timestamp >= ?`,
+       WHERE timestamp >= ? AND ${HUMAN_ONLY}`,
     )
     .bind(jstDayStart(now))
     .first<KindCountRow & { unique_visitors: number | null }>()
@@ -169,7 +195,7 @@ export async function dailySeries(
               ${KIND_COUNT_COLUMNS},
               COUNT(DISTINCT visitor_token) AS unique_visitors
        FROM events
-       WHERE timestamp >= ?
+       WHERE timestamp >= ? AND ${HUMAN_ONLY}
        GROUP BY day
        ORDER BY day`,
     )
@@ -195,7 +221,7 @@ export async function hourlyDistribution(
       `SELECT CAST(${JST_HOUR_EXPR} AS INTEGER) AS hour,
               ${KIND_COUNT_COLUMNS}
        FROM events
-       WHERE timestamp >= ?
+       WHERE timestamp >= ? AND ${HUMAN_ONLY}
        GROUP BY hour
        ORDER BY hour`,
     )
@@ -226,6 +252,7 @@ async function breakdown(
       `SELECT ${column} AS label, COUNT(*) AS count
        FROM events
        WHERE ${column} IS NOT NULL
+         AND ${HUMAN_ONLY}
          AND (?1 IS NULL OR kind = ?1)
          AND (?2 IS NULL OR COALESCE(source, 'lp') = ?2)
        GROUP BY label
@@ -246,9 +273,6 @@ async function breakdown(
  * 小さく見えるため。
  */
 export type UASplit = { human: number; bot: number; byHuman: Count[]; byBot: Count[] }
-
-/** ボット判定の SQL 側の表現。値の列挙は持たず接頭辞だけで分ける（lib/visitor.ts）。 */
-const BOT_MATCH = `ua_summary LIKE '${BOT_PREFIX}%'`
 
 /** ua_summary をボットかどうかで分けた総数と内訳。 */
 export async function uaSplit(db: D1Database): Promise<UASplit> {
@@ -290,13 +314,13 @@ async function uaBreakdown(db: D1Database, bots: boolean): Promise<Count[]> {
   return results
 }
 
-/** 最新イベント。SSE の差分取得と同じ形状で返す。 */
+/** 最新イベント。SSE の差分取得と同じ形状・同じ絞り込み（人間のみ）で返す。 */
 export async function recentEvents(db: D1Database, afterId = 0): Promise<RecentEvent[]> {
   const { results } = await db
     .prepare(
       `SELECT id, timestamp, kind, version, country, os
        FROM events
-       WHERE id > ?
+       WHERE id > ? AND ${HUMAN_ONLY}
        ORDER BY id DESC
        LIMIT ?`,
     )
@@ -352,15 +376,21 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
   }
 }
 
-/** SSE で push する新着イベント（古い順）。 */
+/**
+ * SSE で push する新着イベント（古い順、人間のみ）。
+ *
+ * 返らなかったボットの行のぶんカーソルが進まないため、呼び出し側はこの戻り値で
+ * 再開位置を決めない（`maxEventId` で進める）。上限まで返った周期だけは、
+ * まだ読んでいない行が残るので最後の id で止める必要がある。
+ */
 export async function eventsAfter(db: D1Database, afterId: number): Promise<RecentEvent[]> {
   const { results } = await db
     .prepare(
       `SELECT id, timestamp, kind, version, country, os
        FROM events
-       WHERE id > ?
+       WHERE id > ? AND ${HUMAN_ONLY}
        ORDER BY id
-       LIMIT 100`,
+       LIMIT ${STREAM_LIMIT}`,
     )
     .bind(afterId)
     .all<RecentEvent>()
@@ -368,7 +398,12 @@ export async function eventsAfter(db: D1Database, afterId: number): Promise<Rece
   return results
 }
 
-/** 現在の最大イベント ID（SSE の開始位置）。 */
+/**
+ * 現在の最大イベント ID（SSE の開始位置・再開位置）。
+ *
+ * ボットを含む生の id を返す。集計・表示はボットを除くが、カーソルまで除くと
+ * ボットだけが到来した周期で位置が進まず、集計の再描画も起きなくなる。
+ */
 export async function maxEventId(db: D1Database): Promise<number> {
   const row = await db.prepare('SELECT MAX(id) AS id FROM events').first<{ id: number | null }>()
   return row?.id ?? 0
