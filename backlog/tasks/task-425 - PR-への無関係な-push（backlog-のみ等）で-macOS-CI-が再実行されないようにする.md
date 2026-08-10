@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-10 08:41'
-updated_date: '2026-08-10 08:48'
+updated_date: '2026-08-10 09:03'
 labels:
   - ci
 dependencies: []
@@ -66,4 +66,6 @@ ordinal: 505500
 - verify-dmg.yml: 同じ per-push 評価の問題はあるが、対象が release.yml / verify-dmg.yml / create-dmg.sh と狭く、実害が小さいため対処しない。
 
 未確認: 実挙動（backlog だけの push でスキップされること、BefoldApp を触る push で走ること）は PR 上でまだ確認していない。
+
+実挙動の検証（PR #461）: opened イベントでは changes が 4 秒で success（app=true）となり build-and-test / js-test が起動することを確認。続けて backlog のみの push を 1 件行い、(a) build-and-test がスキップされること、(b) 進行中の build-and-test が巻き添えキャンセルされないことを確認する。
 <!-- SECTION:NOTES:END -->
