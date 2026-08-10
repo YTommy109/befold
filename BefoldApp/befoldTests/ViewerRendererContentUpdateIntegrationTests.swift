@@ -319,7 +319,7 @@ private struct SlowFileReader: FileReading {
 
     func readData(from url: URL) throws -> Data {
         entered?.set(true)
-        releaseGate.wait()
+        waitOrRecordTimeout(releaseGate, "SlowFileReader.readData")
         let data = try base.readData(from: url)
         completed.set(true)
         return data

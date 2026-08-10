@@ -70,7 +70,7 @@ struct GitStatusStoreTests {
             let calls = calls
             lock.unlock()
             onCall?(calls)
-            block?.wait()
+            if let block { waitOrRecordTimeout(block, "FakeReader.status") }
             return result
         }
     }
