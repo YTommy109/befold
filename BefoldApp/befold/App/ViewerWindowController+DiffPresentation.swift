@@ -1,9 +1,13 @@
-import AppKit
 import BefoldKit
 import Foundation
 
-/// ソース表示へ重ねる git 差分の取得と切り替え。
-/// 本体(ViewerWindowController.swift)の行数上限を超えないよう extension に分けている。
+// MARK: - Diff Presentation
+
+/// ソース表示へ重ねる git 差分の**取得と反映**を受け持つ。
+///
+/// 差分を「出すかどうか」は表示モード(`+Presentation`)の担当、
+/// 「切り替えるコマンド」はメニューアクション(`+MenuActions`)の担当で、
+/// ここに置くのは非同期取得とその世代管理(開始時に捨てる / 着地時に一致確認する)だけ。
 @MainActor
 extension ViewerWindowController {
     /// 表示中ファイルの差分を取り直して store へ反映する。
@@ -51,21 +55,9 @@ extension ViewerWindowController {
         return text
     }
 
-    /// View メニュー > 差分を左右に並べる（⌘\\）。インラインと左右分割を切り替える。
-    /// レイアウトはアプリ全体で共有する好みの設定なので、差分表示中の全ウィンドウへ反映される
-    /// （`DiffDisplayPreference` が `@Observable` で 1 個を共有しているため自動）。
-    @objc func toggleDiffLayout(_ sender: Any?) {
-        guard capabilities.canToggleDiffLayout else { return }
-        diffDisplayPreference.layout = diffDisplayPreference.layout == .sideBySide ? .inline : .sideBySide
-        // ツールバーの差分セグメントはこの値をアイコンで映すが、view ベースのアイテムは
-        // 状態変化で自動更新されない。設定はアプリ全体共有なので、自窓だけでなく
-        // 全窓を再同期する(委譲先: ViewerWindowManager)。
-        delegate?.viewerWindowDidToggleDiffLayout(self)
-    }
-
     /// 差分表示モードかどうか(メニューのチェック表示に使う)。
     ///
-    /// 表示モード（ファイル単位のユーザー選択）であり、ビルドゲートの
+    /// 表示モード(ファイル単位のユーザー選択)であり、ビルドゲートの
     /// `FeatureGate.isSourceDiffEnabled` とは別物。
     /// 同名にすると無修飾参照でどちらにも解決しうるため、名前を分けている(TASK-323)。
     var isDiffShown: Bool {
@@ -75,20 +67,5 @@ extension ViewerWindowController {
     /// 差分レイアウトが左右分割かどうか(メニューのチェック表示に使う)。
     var isDiffLayoutSideBySide: Bool {
         diffDisplayPreference.layout == .sideBySide
-    }
-
-    /// 表示モード選択(⌘1〜⌘3)とレイアウト切替(⌘\\)の validate。
-    /// 自分の担当外の項目には nil を返し、呼び出し側(validateMenuItem)の判定を続けさせる。
-    func validateDisplayModeItem(_ menuItem: NSMenuItem) -> Bool? {
-        if menuItem.action == #selector(selectDisplayMode(_:)) {
-            guard let mode = ViewerDisplayMode(menuItemTag: menuItem.tag) else { return false }
-            menuItem.state = effectiveDisplayMode == mode ? .on : .off
-            return canSelect(mode)
-        }
-        if menuItem.action == #selector(toggleDiffLayout(_:)) {
-            menuItem.state = isDiffLayoutSideBySide ? .on : .off
-            return capabilities.canToggleDiffLayout
-        }
-        return nil
     }
 }

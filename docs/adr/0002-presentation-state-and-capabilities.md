@@ -277,6 +277,12 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
 デリゲート通知）は撤去済み。`ViewerWindowStateIndependenceTests` が、同期を戻すと
 落ちるトリップワイヤになっている。
 
+この 2 つの入口は `ViewerWindowController+Presentation.swift` にある（TASK-411 の責務分割で
+本体ファイルから移した）。分割前は同一ファイル内の `private` が「他から呼べないこと」を
+担保していたが、拡張へ出した時点で internal になり構造的な担保が消えたため、
+`ViewerWindowPresentationEntryPointTests` が**呼び出し元の個数をソース走査で固定**している。
+提示開始の契機を増やす変更は、この節を先に更新しない限りテストが落ちる。
+
 ## Consequences
 
 - 移行は段階的に行い、各段を独立してコミットする。
