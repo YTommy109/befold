@@ -4,13 +4,14 @@ title: サイドバー Git ステータス表示のフィーチャーゲート�
 status: To Do
 assignee: []
 created_date: '2026-07-28 14:23'
-updated_date: '2026-08-10 13:57'
+updated_date: '2026-08-10 14:04'
 labels: []
 dependencies:
   - TASK-186
 documentation:
   - docs/superpowers/specs/2026-07-28-sidebar-git-status-design.md
 priority: low
+type: chore
 ordinal: 115000
 ---
 

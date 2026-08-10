@@ -4,9 +4,11 @@ title: サイドバーのツリー表示切替にキーボードショートカ�
 status: To Do
 assignee: []
 created_date: '2026-08-10 06:10'
+updated_date: '2026-08-10 14:04'
 labels: []
 dependencies: []
 priority: low
+type: enhancement
 ordinal: 120000
 ---
 

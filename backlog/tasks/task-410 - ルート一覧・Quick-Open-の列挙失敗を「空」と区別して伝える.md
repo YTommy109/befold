@@ -4,9 +4,11 @@ title: ルート一覧・Quick Open の列挙失敗を「空」と区別して�
 status: To Do
 assignee: []
 created_date: '2026-08-10 06:25'
+updated_date: '2026-08-10 14:04'
 labels: []
 dependencies: []
 priority: low
+type: bug
 ordinal: 119000
 ---
 
