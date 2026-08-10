@@ -2,6 +2,10 @@ import AppKit
 
 /// View メニューの構築。MainMenuBuilder 本体から分けているのは、swiftlint の
 /// type_body_length を超えないようにするため(他のメニュー構築と同じ粒度で切り出す)。
+///
+/// キー等価の定義は紹介サイトのショートカット表と突き合わせている。読み手は
+/// `MainMenuBuilder*.swift` を全件見る形にしてあるので(site/vitest.config.ts と
+/// .github/workflows/site.yml の paths)、さらに分割するときもこの命名を保つこと。
 extension MainMenuBuilder {
     static func makeViewMenuItem() -> NSMenuItem {
         let item = NSMenuItem()
