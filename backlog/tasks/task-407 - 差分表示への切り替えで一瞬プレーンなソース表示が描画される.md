@@ -4,10 +4,12 @@ title: 差分表示への切り替えで一瞬プレーンなソース表示が�
 status: To Do
 assignee: []
 created_date: '2026-08-10 05:59'
+updated_date: '2026-08-10 14:04'
 labels:
   - bug
 dependencies: []
 priority: medium
+type: bug
 ordinal: 106000
 ---
 
