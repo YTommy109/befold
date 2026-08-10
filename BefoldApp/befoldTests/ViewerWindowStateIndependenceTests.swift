@@ -84,8 +84,12 @@ struct ViewerWindowStateIndependenceTests {
     /// AC#1 / AC#4: 生きている窓は、他窓が保存した倍率を拾わない。
     ///
     /// 保存ストアはアプリ全体で 1 つなので、他窓の操作はここへ現れる。これを提示中の窓が
-    /// 読み直すと倍率が勝手に飛ぶ。`ViewerContentView` へ `ZoomStore` を渡す形に戻すか、
-    /// 再ロード等の契機で `beginPresentingDocument` を呼ぶ形に戻すと、ここが落ちる。
+    /// 読み直すと倍率が勝手に飛ぶ。再ロード等の契機で `beginPresentingDocument` を
+    /// 呼ぶ形に戻すと、ここが落ちる。
+    ///
+    /// `ViewerContentView` へ `ZoomStore` を渡す形へ戻す回帰はここでは検知できない
+    /// (`store.zoom` は 1.25 のまま、描画へ渡る値だけがずれる)。そちらは
+    /// `ViewerContentViewStoreIsolationTests` が担保する。
     @Test("保存倍率が他窓に書き換えられても、開いている窓のライブ倍率は動かない")
     func keepsLiveZoomWhenStoredZoomChanges() throws {
         let fixture = MockedViewerWindowManager(
@@ -106,7 +110,8 @@ struct ViewerWindowStateIndependenceTests {
     }
 
     /// AC#1 / AC#4: スクロール位置も同じ。保存値は「次に開くときの既定値」であって、
-    /// 開いている窓の復元位置を後から書き換えるものではない。
+    /// 開いている窓の復元位置を後から書き換えるものではない。検知できる範囲と、
+    /// `ViewerContentView` 側の回帰を担保する場所は倍率のテストと同じ。
     @Test("保存スクロール位置が他窓に書き換えられても、開いている窓の復元位置は動かない")
     func keepsLiveScrollPositionWhenStoredPositionChanges() throws {
         let fixture = MockedViewerWindowManager(
@@ -127,6 +132,11 @@ struct ViewerWindowStateIndependenceTests {
 
     /// AC#2: 窓を閉じて開き直すと、最後に設定した値(保存値)から始まる。ライブ値が窓の寿命で
     /// 消えることと、提示開始で保存値を読むことの両方が要る。片方でも欠けると落ちる。
+    ///
+    /// 1 窓目のライブ倍率・位置を保存値と**別の値**へ動かしてから閉じる。倍率の永続化は
+    /// レンダラからの通知経路(`viewerDidChangeZoom`)でしか起きないため、ここでの直接代入は
+    /// 保存値を書き換えない。したがって再オープン後に 2.0 / 0.9 が出たら、それは閉じた窓の
+    /// ライブ値が(コントローラや store の使い回し等で)漏れているということになる。
     @Test("閉じてから開き直すと、保存された倍率とスクロール位置から始まる")
     func restoresStoredStateWhenReopening() throws {
         let fixture = MockedViewerWindowManager(
@@ -137,10 +147,20 @@ struct ViewerWindowStateIndependenceTests {
         fixture.perFileState.scrollPosition.setScrollPosition(0.4, for: shared, mode: .rendered)
 
         fixture.manager.openViewer(for: shared)
-        let controller = try #require(fixture.manager.allControllers.first)
+        let first = try #require(fixture.manager.allControllers.first)
+        #expect(first.store.zoom == 1.5)
+        #expect(first.store.scrollPositionToRestore == 0.4)
 
-        #expect(controller.store.zoom == 1.5)
-        #expect(controller.store.scrollPositionToRestore == 0.4)
+        first.store.zoom = 2.0
+        first.store.scrollPositionToRestore = 0.9
+        first.close()
+        #expect(fixture.manager.allControllers.isEmpty)
+
+        fixture.manager.openViewer(for: shared)
+        let reopened = try #require(fixture.manager.allControllers.first)
+        #expect(reopened !== first)
+        #expect(reopened.store.zoom == 1.5)
+        #expect(reopened.store.scrollPositionToRestore == 0.4)
     }
 
     /// cmd+U の戻り先の記憶は窓ごとのライブな状態で、同期しない(ADR 0002「状態の所在」)。

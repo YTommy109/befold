@@ -113,7 +113,7 @@ ADR 0002「状態の所在」で決めた原則を実装へ反映する（TASK-3
 
 ## 別タスクへ切り出した
 
-TASK-389: renderer(_:didChangeScrollPosition:) が fileURL を都度参照するため、切替直後に遅れて届いた通知が切替先のキーへ切替前の位置を書きうる（設計レビュー項目 8）。
+TASK-400: renderer(_:didChangeScrollPosition:) が fileURL を都度参照するため、切替直後に遅れて届いた通知が切替先のキーへ切替前の位置を書きうる（設計レビュー項目 8）。
 
 ## 完了処理での実測（/finish-task 手順 2）
 

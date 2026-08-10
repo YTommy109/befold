@@ -43,6 +43,7 @@ struct ViewerWindowControllerFixture {
         sourceModeOverride: Bool? = nil,
         gitStatusStore: GitStatusStore = GitStatusStore(),
         gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
+        documentRenderer: (any DocumentRendering)? = nil,
         openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { _, _, _ in },
         externalOpener: @escaping (URL) -> Void = { _ in }
     ) {
@@ -94,6 +95,7 @@ struct ViewerWindowControllerFixture {
             sourceModeOverride: sourceModeOverride,
             store: store,
             makeContentView: placeholderViewerContent,
+            documentRenderer: documentRenderer,
             openFileElsewhere: openFileElsewhere,
             externalOpener: externalOpener
         )

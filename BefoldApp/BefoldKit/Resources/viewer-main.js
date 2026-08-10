@@ -126,7 +126,11 @@
     _mmdUpdateAllDiagramScrollHeights();
     var postable = _mmdZoom.takePostable();
     if (postable !== null) {
-      _mmdPostMessage(_MSG_ZOOM_CHANGED, postable);
+      // path はこの倍率が属する文書(いま DOM に出ている文書)。倍率と同じターンで
+      // 読んで載せるため、切替直後に配達された通知でも出所を取り違えない
+      // (Swift 側の現在 URL を参照していた頃の誤保存 = TASK-391)。
+      // 文書が定まらない間は null で、Swift 側はその通知を捨てる。
+      _mmdPostMessage(_MSG_ZOOM_CHANGED, { zoom: postable, path: _mmdDocPath.current() });
     }
   }
 
@@ -1199,12 +1203,47 @@
   // ようにするための固定サイズの先読み(詳細は codeChunkInnerHtml 参照)。
   var CODE_CHUNK_CONTEXT_LINES = 200;
 
+  // 「いま DOM に出ている文書」のパスを持つ owner。Swift へ送る per-file な通知
+  // (スクロール位置・倍率)の保存キーは、すべてここから読んで payload に載せる。
+  // 値を読むのが通知の発火時点なので、evaluateJavaScript のキューや postMessage
+  // 配達の遅延と無関係に実 DOM と一致する(Swift 側が現在 URL や描画済みミラーから
+  // 配達時に推定するのをやめた理由 = TASK-400 / TASK-393)。
+  function _createDocPathTracker() {
+    var docPath = null;
+    // undefined = 予告なし(Swift を経由しない内部再描画)。null は「文書パス無し」の予告。
+    // 区別しないと、カラースキーム変更などの内部 render() が採用済みのパスを破棄してしまう。
+    var pendingDocPath;
+
+    return {
+      // 次の render() が表示する文書パスの予告。採用は adoptPending()(= render 開始時)。
+      // ここで即時に切り替えると、render script の実行前に通知が発火したとき
+      // 旧文書の値が新パスのキーで保存される。
+      setPending: function(path) { pendingDocPath = path; },
+      // rename / move の追随。DOM は同一文書のまま名前だけ変わるため render を経ずに
+      // 即時差し替える。現在値・予告値のうち from に一致するものだけを書き換える
+      // (不一致 = 別文書へ切替中なら何もしない。誤った付け替えより、旧キーへの
+      // 短時間の保存のほうが安全)。
+      rename: function(from, to) {
+        if (docPath === from) { docPath = to; }
+        if (pendingDocPath === from) { pendingDocPath = to; }
+      },
+      current: function() { return docPath; },
+      adoptPending: function() {
+        if (pendingDocPath === undefined) { return; }
+        docPath = pendingDocPath;
+        pendingDocPath = undefined;
+      },
+    };
+  }
+
+  var _mmdDocPath = _createDocPathTracker();
+
   // スクロール位置の受け渡しを 1 つの owner に閉じる。持つのは 2 つ:
   // - 注入された復元位置: Swift 側(ViewerWebView)が render() 呼び出しの直前に評価し、
   //   次の render() が復元すべき scrollTop を渡してくる。復元時に消費する。
   // - 通知デバウンスのタイマ: スクロールイベントを 200ms まとめて Swift へ送る。
   // この 2 つは描画開始時に組み合わせて判定する(beginRender 参照)ため同じ owner に置く。
-  function _createScrollSync(notify) {
+  function _createScrollSync(notify, docPathTracker) {
     var pendingRestore = null;
     var debounceTimer = null;
 
@@ -1220,8 +1259,11 @@
       // デバウンス通知を破棄する。無条件に破棄すると、Swift を経由しない内部再描画
       // (カラースキーム変更時など、ファイル/モードは変わらない)で直前のスクロール確定
       // 保存が失われたまま二度と発火しなくなるため。
+      // 文書パスの採用も同じ時点で行う。破棄と採用が同時なので、旧文書の位置が
+      // 新パスのキーで通知されることはない。
       beginRender: function() {
         if (pendingRestore !== null) { cancelPendingNotify(); }
+        docPathTracker.adoptPending();
       },
       // 注入された復元位置があればそれを、無ければ fallback を返して消費する。
       // fallback は Swift を経由しない内部再描画で現在位置を保つための値。
@@ -1246,20 +1288,31 @@
     _mmdScroll.setRestore(position);
   }
 
+  function _mmdSetRenderDocPath(path) {
+    _mmdDocPath.setPending(path);
+  }
+
+  function _mmdRenameDocPath(from, to) {
+    _mmdDocPath.rename(from, to);
+  }
+
   // スクロール位置の変化を Swift 側へ通知する(継続的な保存用、200ms デバウンス経由でのみ呼ばれる)。
   // ファイル/モード切替直前の退場側位置は、Swift 側(ViewerWindowController)が
   // 切替処理の中で明示的に旧 URL・旧モードのキーへ確定保存するため、ここでは扱わない。
+  // path はこの位置が属する文書(いま DOM に出ている文書)。文書が定まらない間は null で、
+  // Swift 側はその通知を捨てる。
   function _mmdPostScrollPosition() {
     var el = _mmdScrollTarget();
     if (!el) return;
     _mmdPostMessage(_MSG_SCROLL_POSITION_CHANGED, {
       position: el.scrollTop,
-      mode: _mmdViewOptions.mode()
+      mode: _mmdViewOptions.mode(),
+      path: _mmdDocPath.current()
     });
   }
 
   // 通知先(_mmdPostScrollPosition)は関数宣言として巻き上げられるため、ここで束ねられる。
-  var _mmdScroll = _createScrollSync(_mmdPostScrollPosition);
+  var _mmdScroll = _createScrollSync(_mmdPostScrollPosition, _mmdDocPath);
 
   // fallbackScrollTop は Swift 由来の pending 値が無いとき(カラースキーム変更時の
   // 内部再描画など、Swift を経由しない render() 呼び出し)に使う復元位置。
@@ -1817,6 +1870,8 @@
       _mmdFindPrevIfOpen: _mmdFindPrevIfOpen,
       _mmdFindRefresh: _mmdFindRefresh,
       _mmdSetRestoreScroll: _mmdSetRestoreScroll,
+      _mmdSetRenderDocPath: _mmdSetRenderDocPath,
+      _mmdRenameDocPath: _mmdRenameDocPath,
       _mmdRestoreScrollPosition: _mmdRestoreScrollPosition,
       _mmdPostScrollPosition: _mmdPostScrollPosition,
       _mmdSetTruncated: _mmdSetTruncated,

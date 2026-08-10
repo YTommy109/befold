@@ -87,7 +87,9 @@ final class ViewerWindowController: NSWindowController {
     private var swipeMonitor: SwipeHistoryMonitor!
     /// ツールバー(モード切替・戻る/進む・行番号)の構築とライブ状態更新を担う。
     private(set) var toolbarController: ViewerToolbarController!
-    private let webViewProxy = WebViewProxy()
+    /// テスト(@testable)が renderer を差し込んで rename 追随の配線を検証できるよう
+    /// private にしない(本体アプリのコードからは ViewerWebView の配線経由でのみ使う)。
+    let webViewProxy = WebViewProxy()
     /// WebView 操作系メニューアクション(ズーム・印刷・検索・スクロール位置保存)の実処理。
     private var webViewCommands: WebViewCommandController!
     /// cmd+U でソース系モードを離れた直前の「どのソース系モードだったか」と、その時のファイル。
@@ -164,6 +166,10 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter makeContentView: テスト専用シーム。コンテンツペイン(ViewerContentView / 実 WKWebView)を
     ///   差し替える。既定の nil は本番経路(実 WKWebView を生成する)。サイドバー(FileListView)と
     ///   分割ビュー配線は差し替え対象外。
+    /// - Parameter documentRenderer: テスト専用シーム。文書への操作(ズーム・検索・印刷・
+    ///   スクロール位置の問い合わせ)の実行先を差し替える。既定の nil は本番経路
+    ///   (WKWebView を駆動する WebViewDocumentRenderer)。位置の問い合わせは JS の
+    ///   ラウンドトリップを挟むため、完了タイミングを制御したいテストがここを使う。
     /// - Parameter openFileElsewhere: 同上。別タブ/別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
     /// - Parameter externalOpener: 同上。外部 URL(http/https)を開く処理。デフォルトは NSWorkspace 経由。
     init(
@@ -184,6 +190,7 @@ final class ViewerWindowController: NSWindowController {
         sourceModeOverride: Bool? = nil,
         store: ViewerStore? = nil,
         makeContentView: (() -> AnyView)? = nil,
+        documentRenderer: (any DocumentRendering)? = nil,
         openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { url, disposition, source in
             AppDelegate.shared?.openViewer(for: url, disposition: disposition, relativeTo: source)
         },
@@ -263,11 +270,14 @@ final class ViewerWindowController: NSWindowController {
 
         webViewCommands = WebViewCommandController(
             // WKWebView と JS の詳細は adapter に閉じる(ADR 0002 段 4)。
-            renderer: WebViewDocumentRenderer(webViewProxy: webViewProxy),
+            renderer: documentRenderer ?? WebViewDocumentRenderer(webViewProxy: webViewProxy),
             perFileState: perFileState,
             // 現在 URL は rename/switch で書き換わるため、旧値を捕捉せず self 経由で参照する。
             currentURL: { [weak self] in self?.fileURL ?? fileURL },
             onZoomChanged: { [weak self] zoom in self?.store.zoom = zoom },
+            onScrollPositionSaved: { [weak self] position, url, mode in
+                self?.applySavedScrollPositionToLiveValue(position, for: url, mode: mode)
+            },
             // 実行可否は capabilities に集約する(ADR 0002)。フォルダー一覧を表示している間も
             // WKWebView は背後に生き続けるため、見えていない文書への操作はここで止まる。
             capabilities: { [weak self] in self?.capabilities ?? .none }
@@ -411,6 +421,11 @@ final class ViewerWindowController: NSWindowController {
         // 実体は同じファイルなので旧パスの表示状態(倍率・表示モード・スクロール位置)を
         // 新パスへまとめて引き継ぐ(旧パスはもう存在しない)。
         perFileState.migrate(from: oldURL, to: newURL)
+        // 描画状態(描画済みミラー・JS 側の文書パス)も同じ同期区間で新パスへ追随させる。
+        // 呼ばないと、リネーム再描画がファイル切替として扱われてスクロール位置が
+        // 提示開始時の保存値へ巻き戻り(TASK-401)、再描画確定までのスクロール通知が
+        // migrate 済みの旧パスのキーへ保存される(TASK-393)。
+        webViewCommands.noteRename(from: oldURL, to: newURL)
         // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
         // (例: .md → .png)そのモードが成立しなくなる場合は降格する。
         // store.handleRename が予約した非同期読み込みの完了後に onContentReloaded が
@@ -497,39 +512,6 @@ final class ViewerWindowController: NSWindowController {
     }
 }
 
-// MARK: - Window / Content Helpers
-
-extension ViewerWindowController {
-    /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
-    /// handleRename / switchFile 共通の表示更新。現在 URL 自体は store が保持するため
-    /// ここでは複製・代入せず、ウィンドウの見た目だけを追従させる。
-    private func applyURLToWindow(_ newURL: URL) {
-        guard let window else { return }
-        window.title = newURL.lastPathComponent
-        window.representedURL = newURL
-    }
-
-    /// 既存のビューアウィンドウと位置が完全に一致する場合だけ、標準のカスケード量ずらす。
-    /// cascadeTopLeft(from:) は移動先を戻り値で返すため、戻り値を自分に適用する。
-    /// ずらした先が別ウィンドウと一致することがあるので、重ならなくなるまで繰り返す。
-    private func offsetFrameToAvoidOverlap(_ window: NSWindow) {
-        func overlapsExisting() -> Bool {
-            NSApp.windows.contains { other in
-                other !== window
-                    && other.isVisible
-                    && other.windowController is ViewerWindowController
-                    && other.frame.origin == window.frame.origin
-            }
-        }
-        var attempts = 0
-        while overlapsExisting(), attempts < 20 {
-            let shifted = window.cascadeTopLeft(from: NSPoint(x: window.frame.minX, y: window.frame.maxY))
-            window.setFrameTopLeftPoint(shifted)
-            attempts += 1
-        }
-    }
-}
-
 // MARK: - SidebarNavigatorHost
 
 extension ViewerWindowController: SidebarNavigatorHost {
@@ -569,16 +551,23 @@ extension ViewerWindowController: SidebarNavigatorHost {
 // MARK: - ViewerRendererDelegate
 
 extension ViewerWindowController: ViewerRendererDelegate {
-    /// 現在の fileURL は rename で書き換わるため、旧値を捕捉せず呼び出しのたびに参照する。
+    /// 保存キーは現在表示中の fileURL ではなく、通知に載った「その倍率が属する文書」から
+    /// 決める(スクロール位置と同じ理由 / TASK-391)。nil の通知は捨てる。
+    ///
     /// ライブ値と保存値の両方を更新する。保存値は次にこの文書を開くときの既定値で、
-    /// いま画面に出ている倍率を決めるのはライブ値のほう(ADR 0002)。
-    func renderer(_: ViewerRenderer, didChangeZoom zoom: Double) {
-        store.zoom = zoom
-        perFileState.zoom.setZoom(zoom, for: fileURL)
+    /// いま画面に出ている倍率を決めるのはライブ値のほう(ADR 0002)。ただしライブ値は
+    /// 「いまこの窓が出している文書」の倍率なので、出所が現在の文書と違う遅延通知
+    /// (切替直後に届いた切替前の文書の通知)では更新しない。保存だけを出所のキーへ行う。
+    func renderer(_: ViewerRenderer, didChangeZoom zoom: Double, for url: URL?) {
+        guard let url else { return }
+        if url.normalizedPathKey == fileURL.normalizedPathKey {
+            store.zoom = zoom
+        }
+        perFileState.zoom.setZoom(zoom, for: url)
     }
 
     /// 保存キーは現在表示中の fileURL ではなく、通知に載った「その位置が属する文書」から
-    /// 決める(理由は ViewerRendererDelegate の doc / TASK-389)。nil の通知は捨てる。
+    /// 決める(理由は ViewerRendererDelegate の doc / TASK-400)。nil の通知は捨てる。
     func renderer(
         _: ViewerRenderer, didChangeScrollPosition position: Double, for url: URL?, mode: ViewerBridge.ViewMode
     ) {
@@ -701,6 +690,25 @@ extension ViewerWindowController {
         store.scrollPositionToRestore = restoredScrollPosition(for: url, isSourceMode: isSourceMode)
     }
 
+    /// 退場側で発行したスクロール位置の保存が完了したときに、そのキーがいま提示中の
+    /// 文書・モードと一致していればライブな復元値へ追いつかせる。
+    ///
+    /// 位置の取得は JS のラウンドトリップを挟むため、A→B→A のような素早い往復では
+    /// 「A の保存が完了する前に A の提示開始(保存値の同期読み取り)が走る」順序が起きる。
+    /// このとき復元値は A の古い位置のままで、遅れて完了した保存が拾い直されることもない
+    /// (提示開始の契機は 3 つしかない = TASK-394)。
+    ///
+    /// **保存値ストアから読み直さず、いま保存した値そのものを使うこと。** 読み直す形にすると
+    /// 他窓の操作が後から効く経路になる(ADR 0002「文書の状態の規則」1)。ここで反映するのは
+    /// 自窓が発行した保存の結果に限られるため、その規則には抵触しない。
+    private func applySavedScrollPositionToLiveValue(
+        _ position: Double, for url: URL, mode: ViewerBridge.ViewMode
+    ) {
+        guard url.normalizedPathKey == fileURL.normalizedPathKey else { return }
+        guard mode == ViewerBridge.ViewMode(isSourceMode: isSourceMode) else { return }
+        store.scrollPositionToRestore = position
+    }
+
     /// 指定したファイル・モードの保存済みスクロール位置。提示開始の 3 契機からだけ引く。
     private func restoredScrollPosition(for url: URL, isSourceMode: Bool) -> Double {
         perFileState.scrollPosition.scrollPosition(
@@ -773,36 +781,6 @@ extension ViewerWindowController {
     /// サイズ超過などで非対応表示になっている間は切り替え先が不可視なため無効にする。
     var canToggleSourceMode: Bool {
         store.fileType.supportsSourceMode && !store.isRejected
-    }
-}
-
-// MARK: - Presentation State / Capabilities
-
-extension ViewerWindowController {
-    /// プレビュー領域がフォルダー一覧を出しているか。ViewerContentView と同じ
-    /// fileListModel.previewTarget を見る(導出点は 1 つ。ADR 0002)。
-    var isPreviewingFolder: Bool {
-        fileListModel.previewTarget.folderURL != nil
-    }
-
-    /// いま何ができるか。メニュー・ツールバー・コマンド実行はすべてこの値だけを見る(ADR 0002)。
-    /// 条件をここ以外に書かないことで、「メニューは無効なのに別経路では通る」を作らない。
-    var capabilities: ViewerCapabilities {
-        ViewerCapabilities(
-            isPresentingDocument: !isPreviewingFolder,
-            isRejected: store.isRejected,
-            isRenderable: store.fileType.isRenderable,
-            isBinaryContent: store.fileType.isBinaryContent,
-            showsCodeContent: store.showsCodeContent,
-            showsDiff: store.showsDiff,
-            supportsSourceMode: store.fileType.supportsSourceMode,
-            // 差分の種別ゲートだけは、いま表示中の URL から直接導く。store.fileType は
-            // 非同期のコンテンツロード完了まで旧ファイルの値を保つため、切替中に届いた
-            // 取得契機(`.git/index` 変更・他ウィンドウの保存)が旧ファイルの種別で通り、
-            // 差分を描けない CSV/TSV に対して git を起こしてしまう(TASK-338)。
-            supportsDiffDisplay: FileType(url: fileURL).supportsDiffDisplay,
-            isDirectHTMLMode: webViewProxy.isDirectHTMLMode
-        )
     }
 }
 

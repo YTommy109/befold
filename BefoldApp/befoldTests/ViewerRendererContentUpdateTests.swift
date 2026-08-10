@@ -113,4 +113,43 @@ struct ViewerRendererContentUpdateTests {
 
         #expect(canConsume == testCase.expected)
     }
+
+    // MARK: - rename の追随(handleRename)
+
+    /// リネームは再描画せず、描画済みミラーの filePath だけを新パスへ差し替える。
+    /// 差し替えないと、リネーム再ロードがファイル切替として扱われて保存済み
+    /// スクロール位置が注入され、現在位置が提示開始時の値へ巻き戻る(TASK-401)。
+    @Test("handleRename は描画済みミラーの filePath を差し替え、他のミラー値を保つ")
+    @MainActor
+    func handleRenameRetargetsMirrorFilePath() {
+        let renderer = ViewerRenderer()
+        let oldURL = URL(fileURLWithPath: "/tmp/before.md")
+        let newURL = URL(fileURLWithPath: "/tmp/after.md")
+        renderer.rendered.filePath = oldURL
+        renderer.rendered.contentRevision = 7
+        renderer.rendered.isSourceMode = true
+
+        renderer.handleRename(from: oldURL, to: newURL)
+
+        #expect(renderer.rendered.filePath == newURL)
+        #expect(renderer.rendered.contentRevision == 7)
+        #expect(renderer.rendered.isSourceMode == true)
+    }
+
+    @Test("handleRename は描画済みの文書が一致しないとき何もしない", arguments: [
+        // 未描画(filePath nil)と、別文書を描画済みの 2 通り
+        nil, "/tmp/unrelated.md",
+    ])
+    @MainActor
+    func handleRenameIgnoresMismatchedMirror(renderedPath: String?) {
+        let renderer = ViewerRenderer()
+        let mirrorURL = renderedPath.map { URL(fileURLWithPath: $0) }
+        renderer.rendered.filePath = mirrorURL
+
+        renderer.handleRename(
+            from: URL(fileURLWithPath: "/tmp/before.md"), to: URL(fileURLWithPath: "/tmp/after.md")
+        )
+
+        #expect(renderer.rendered.filePath == mirrorURL)
+    }
 }

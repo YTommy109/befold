@@ -49,15 +49,15 @@ enum ViewerRendererMessageStubs {
     /// ローカル変数に保持し続けること(即座に解放されると通知が届かない)。
     @MainActor
     final class Delegate: ViewerRendererDelegate {
-        var onZoomChanged: ((Double) -> Void)?
+        var onZoomChanged: ((Double, URL?) -> Void)?
         var onScrollPositionChanged: ((Double, URL?, ViewerBridge.ViewMode) -> Void)?
         var onOpenReference: ((String, OpenDisposition) -> Void)?
         var onResolveReferences: (([String]) async -> [String: String])?
         var onLoadMoreLines: (() async -> LoadMoreLinesResult?)?
         var onContextMenu: ((String) -> Void)?
 
-        func renderer(_: ViewerRenderer, didChangeZoom zoom: Double) {
-            onZoomChanged?(zoom)
+        func renderer(_: ViewerRenderer, didChangeZoom zoom: Double, for url: URL?) {
+            onZoomChanged?(zoom, url)
         }
 
         func renderer(

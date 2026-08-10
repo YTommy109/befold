@@ -8,10 +8,14 @@ public enum ViewerBridge {
     /// 受信側のルーティングをここから導出し、両者が同期を要求される 2 つのリストに
     /// 分かれるのを防ぐ(登録したのにルーティングを書き忘れて無反応、を型で潰す)。
     public enum BridgeMessage: String, CaseIterable, Sendable {
-        /// JS 側でスクロール位置が変わったとき。payload: { position: Double, mode: String }
+        /// JS 側でスクロール位置が変わったとき。
+        /// payload: { position: Double, mode: String, path: String | null }
+        /// path は位置を読んだ時点で DOM に出ていた文書のパス(renderDocPathScript で予告した値)。
         case scrollPositionChanged
 
-        /// JS 側で全体ズーム倍率が変わったとき。payload: 裸の数値。
+        /// JS 側で全体ズーム倍率が変わったとき。
+        /// payload: { zoom: Double, path: String | null }
+        /// path は倍率を読んだ時点で DOM に出ていた文書のパス(renderDocPathScript で予告した値)。
         case zoomChanged
 
         /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったとき。
@@ -50,7 +54,7 @@ public enum ViewerBridge {
         /// メッセージを追加するとこの switch がコンパイルエラーになって登録漏れを防ぐ。
         var payloadKeys: Set<String>? {
             switch self {
-            case .zoomChanged: nil
+            case .zoomChanged: Set(PayloadKey.ZoomChanged.allCases.map(\.rawValue))
             case .scrollPositionChanged: Set(PayloadKey.ScrollPositionChanged.allCases.map(\.rawValue))
             case .findOptionsChanged: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue))
             case .referenceActivated: Set(PayloadKey.ReferenceActivated.allCases.map(\.rawValue))
@@ -209,6 +213,29 @@ public enum ViewerBridge {
         "_mmdSetRestoreScroll(\(position.isFinite ? position : 0))"
     }
 
+    /// render() 呼び出しの直前に評価し、次の render() が表示する文書のパスを JS 側へ
+    /// 予告するスクリプト。viewer.js は render 開始時に採用し、以後の scrollPositionChanged の
+    /// path として位置と同じターンで読んで返す(キーを配達時に Swift 側で推定しない = TASK-393)。
+    /// パス文字列はここで normalizedPathKey に正規化する。renameDocPathScript の比較も
+    /// 同じ生成点を通るため、表記ゆれで一致判定が破れない。
+    public static func renderDocPathScript(_ url: URL?) -> String {
+        guard let url, let path = jsonLiteral(url.normalizedPathKey) else {
+            return "_mmdSetRenderDocPath(null)"
+        }
+        return "_mmdSetRenderDocPath(\(path))"
+    }
+
+    /// ファイルの rename / move を JS 側の文書パスへ追随させるスクリプト。
+    /// DOM は同一文書のまま名前だけが変わるため、render を経ずに即時差し替える。
+    /// JS 側は現在値・予告値のうち from に一致するものだけを to へ書き換える
+    /// (不一致 = 別文書へ切替中なら何もしない)。
+    public static func renameDocPathScript(from oldURL: URL, to newURL: URL) -> String {
+        guard let fromPath = jsonLiteral(oldURL.normalizedPathKey),
+              let toPath = jsonLiteral(newURL.normalizedPathKey)
+        else { return ";" }
+        return "_mmdRenameDocPath(\(fromPath), \(toPath))"
+    }
+
     /// 現在のスクロール位置(scrollTop)を同期的に取得するスクリプト。ファイル/モード
     /// 切替直前に、退場側の正確な位置を明示的なキー(旧 URL・旧モード)へ保存するために使う
     /// (詳細は ViewerWindowController.saveScrollPositionBeforeTransition 参照)。
@@ -342,51 +369,6 @@ public enum ViewerBridge {
         return assignGlobalScript("window._mmdFindStrings", strings)
     }
 
-    // MARK: - ペイロードキー(JS → Swift)
-
-    /// postMessage のペイロードオブジェクトのキー。Swift の読み取り側(ViewerRenderer)と
-    /// JS の送信側(viewer-main.js)で同じ名前を使う必要があるため、ここを単一情報源にする
-    /// (JS 側との突合は ViewerBridgePayloadContractTests がソースを読んで検証する)。
-    public enum PayloadKey {
-        /// referenceActivated のキー。
-        public enum ReferenceActivated: String, CaseIterable, Sendable {
-            case href
-            case metaKey
-            case shiftKey
-        }
-
-        /// scrollPositionChanged のキー。
-        public enum ScrollPositionChanged: String, CaseIterable, Sendable {
-            case position
-            case mode
-        }
-
-        /// findOptionsChanged のキー。
-        public enum FindOptionsChanged: String, CaseIterable, Sendable {
-            case caseSensitive
-            case wholeWord
-            case useRegex
-        }
-
-        /// resolveReferences のキー。
-        public enum ResolveReferences: String, CaseIterable, Sendable {
-            case paths
-        }
-
-        /// referenceContextMenu のキー。
-        public enum ReferenceContextMenu: String, CaseIterable, Sendable {
-            case href
-        }
-    }
-
-    /// メッセージ名 → JS がオブジェクトとして送るペイロードのキー集合。
-    /// zoomChanged は裸の数値を送るためキーを持たず、この表には登録しない。
-    /// 契約テストは JS 側の全 postMessage 呼び出しを走査してこの表と突合する。
-    /// 実体は `BridgeMessage.payloadKeys` の網羅 switch なので、メッセージを追加すると
-    /// キー宣言を書くまでコンパイルが通らない。
-    public static let payloadKeysByMessageName: [String: Set<String>] = Dictionary(
-        uniqueKeysWithValues: BridgeMessage.allCases.compactMap { message in
-            message.payloadKeys.map { (message.rawValue, $0) }
-        }
-    )
+    // ペイロードキー(JS → Swift)の宣言は ViewerBridge+PayloadKeys.swift に分けている
+    // (file_length の行数上限)。
 }

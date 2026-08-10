@@ -39,4 +39,10 @@ protocol DocumentRendering: AnyObject {
 
     /// 現在のスクロール位置を問い合わせる。取得できなければ呼ばれない。
     func currentScrollPosition(_ completion: @escaping (Double) -> Void)
+
+    /// ファイルの rename / move を描画状態(描画済みミラーと JS 側の文書パス)へ追随させる。
+    /// `perFileState.migrate` と同じ同期区間で呼ぶこと。呼ばないと、リネーム再描画が
+    /// ファイル切替として扱われてスクロール位置が保存値へ巻き戻り(TASK-401)、
+    /// 再描画確定までのスクロール通知が旧パスのキーへ保存される(TASK-393)。
+    func noteRename(from oldURL: URL, to newURL: URL)
 }

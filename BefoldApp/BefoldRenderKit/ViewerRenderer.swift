@@ -8,13 +8,22 @@ import WebKit
 @MainActor
 public protocol ViewerRendererDelegate: AnyObject {
     /// JS 側で表示倍率が変わった。
-    func renderer(_ renderer: ViewerRenderer, didChangeZoom zoom: Double)
+    ///
+    /// `url` は **その倍率が属する文書**。スクロール位置(下記)と同じく JS が倍率を読むのと
+    /// 同じターンで payload に載せた値で、配達の遅延と無関係に実 DOM の文書と一致する。
+    /// 倍率もファイル単位で永続化されるため、受け取り側は現在表示中の URL ではなく必ず
+    /// この `url` をキーに使うこと(現在値を参照すると、切替直後に届いた旧文書の通知が
+    /// 切替先の倍率を上書きして誤って保存される = TASK-391)。
+    /// 描画前など、出所の文書が定まらない場合は nil。
+    func renderer(_ renderer: ViewerRenderer, didChangeZoom zoom: Double, for url: URL?)
     /// JS 側でスクロール位置が変わった。
     ///
-    /// `url` は **その位置が属する文書**(通知の時点で DOM に出ている文書 = 描画済みミラーの
-    /// filePath)。通知は JS 側で 200ms デバウンスされるため、ファイル切替の直後に
-    /// 切替前の文書の通知が届きうる。受け取り側は現在表示中の URL ではなく必ずこの `url` を
-    /// キーに使うこと(現在値を参照すると切替前の位置が切替先のキーへ保存される = TASK-389)。
+    /// `url` は **その位置が属する文書**。JS が位置(scrollTop)を読むのと同じターンで
+    /// 読んで payload に載せた値で、evaluateJavaScript のキューや postMessage 配達の
+    /// 遅延と無関係に実 DOM の文書と一致する(TASK-393)。通知は JS 側で 200ms
+    /// デバウンスされるため、ファイル切替の直後に切替前の文書の通知が届きうる。
+    /// 受け取り側は現在表示中の URL ではなく必ずこの `url` をキーに使うこと
+    /// (現在値を参照すると切替前の位置が切替先のキーへ保存される = TASK-400)。
     /// 描画前・直接 HTML モードなど、出所の文書が定まらない場合は nil。
     func renderer(
         _ renderer: ViewerRenderer, didChangeScrollPosition position: Double, for url: URL?,
@@ -33,7 +42,7 @@ public protocol ViewerRendererDelegate: AnyObject {
 }
 
 public extension ViewerRendererDelegate {
-    func renderer(_: ViewerRenderer, didChangeZoom _: Double) {}
+    func renderer(_: ViewerRenderer, didChangeZoom _: Double, for _: URL?) {}
     func renderer(
         _: ViewerRenderer, didChangeScrollPosition _: Double, for _: URL?, mode _: ViewerBridge.ViewMode
     ) {}

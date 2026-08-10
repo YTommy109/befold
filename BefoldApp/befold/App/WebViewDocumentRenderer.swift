@@ -87,6 +87,13 @@ final class WebViewDocumentRenderer: DocumentRendering {
         }
     }
 
+    func noteRename(from oldURL: URL, to newURL: URL) {
+        // ミラーの差し替えと JS 側文書パスの差し替えを 1 つの同期区間で行うため、
+        // JS 文字列をここで組まず ViewerRenderer に委ねる(片方だけ写すと、リネーム
+        // 再描画の扱いと保存キーが食い違う)。WebView 生成前は renderer 未接続で no-op。
+        webViewProxy.renderer?.handleRename(from: oldURL, to: newURL)
+    }
+
     // MARK: - Private
 
     /// WebView が生存していれば script を評価する。生存前・破棄後は無視する。

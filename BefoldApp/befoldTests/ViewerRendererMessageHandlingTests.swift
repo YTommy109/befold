@@ -26,16 +26,7 @@ struct ViewerRendererMessageHandlingTests {
 
     // MARK: - デコードとディスパッチ(正常系)
 
-    @Test("zoomChanged が onZoomChanged へ倍率を渡す")
-    func zoomChangedDispatchesZoom() {
-        let (renderer, delegate) = makeSUT()
-        var received: Double?
-        delegate.onZoomChanged = { received = $0 }
-
-        dispatch(renderer, name: ViewerBridge.zoomChangedMessageName, body: NSNumber(value: 1.75))
-
-        #expect(received == 1.75)
-    }
+    // zoomChanged のデコードは ViewerRendererZoomMessageTests に分けている(file_length)。
 
     @Test("referenceActivated が href と修飾キーから開き方を決めて onOpenReference へ渡す", arguments: [
         // (metaKey, shiftKey, 期待する開き方)
@@ -101,23 +92,40 @@ struct ViewerRendererMessageHandlingTests {
         #expect(received?.mode == .source)
     }
 
-    /// 通知に載る文書は「いま DOM に出ている文書」= 描画済みミラーの filePath。
-    /// ホスト側の現在 URL を使うと、切替直後に届いた古い通知が切替先のキーへ
-    /// 保存される(TASK-389)。ここが現在値参照へ戻ると落ちる。
-    @Test("scrollPositionChanged は描画済みミラーの filePath を通知に載せる")
-    func scrollPositionChangedCarriesRenderedFilePath() {
+    /// 通知に載る文書は「JS が payload の path で申告した、位置を読んだ時点で DOM に
+    /// 出ていた文書」。描画済みミラーは evaluateJavaScript のキュー投入時点で先へ進む
+    /// ため、配達時にミラーから推定すると切替の遷移窓で別文書のキーへ保存される
+    /// (TASK-393)。ここがミラー参照へ戻ると落ちるよう、ミラーには別の文書を入れておく。
+    @Test("scrollPositionChanged は payload の path を通知に載せる(ミラーから推定しない)")
+    func scrollPositionChangedCarriesPayloadPath() {
         let (renderer, delegate) = makeSUT()
-        let renderedURL = URL(fileURLWithPath: "/tmp/rendered-doc.md")
-        renderer.rendered.filePath = renderedURL
+        renderer.rendered.filePath = URL(fileURLWithPath: "/tmp/queued-next-doc.md")
         var receivedURL: URL?
         delegate.onScrollPositionChanged = { _, url, _ in receivedURL = url }
 
         dispatch(
             renderer, name: ViewerBridge.scrollPositionChangedMessageName,
-            body: ["position": NSNumber(value: 12.0), "mode": "rendered"]
+            body: ["position": NSNumber(value: 12.0), "mode": "rendered", "path": "/tmp/dom-doc.md"]
         )
 
-        #expect(receivedURL == renderedURL)
+        #expect(receivedURL == URL(fileURLWithPath: "/tmp/dom-doc.md"))
+    }
+
+    /// 文書が定まらない間(描画前)の JS は path: null を送る。捨てるかどうかの判断は
+    /// 受け取り側(ViewerWindowController)の責務なので、ここでは nil で配達される。
+    @Test("scrollPositionChanged の path が無ければ url は nil で配達される")
+    func scrollPositionChangedWithoutPathDeliversNilURL() {
+        let (renderer, delegate) = makeSUT()
+        var received: (url: URL?, called: Bool) = (nil, false)
+        delegate.onScrollPositionChanged = { _, url, _ in received = (url, true) }
+
+        dispatch(
+            renderer, name: ViewerBridge.scrollPositionChangedMessageName,
+            body: ["position": NSNumber(value: 12.0), "mode": "rendered", "path": NSNull()]
+        )
+
+        #expect(received.called)
+        #expect(received.url == nil)
     }
 
     @Test("findOptionsChanged が findOptionsPreference へ3トグルを書き戻す")
@@ -232,17 +240,6 @@ struct ViewerRendererMessageHandlingTests {
 
     // MARK: - 不正 body(型不一致・キー欠落)は無視される
 
-    @Test("zoomChanged の body が数値でなければ onZoomChanged を呼ばない")
-    func zoomChangedIgnoresNonNumberBody() {
-        let (renderer, delegate) = makeSUT()
-        var called = false
-        delegate.onZoomChanged = { _ in called = true }
-
-        dispatch(renderer, name: ViewerBridge.zoomChangedMessageName, body: "1.5")
-
-        #expect(called == false)
-    }
-
     @Test("referenceActivated の必須キーが欠けていれば onOpenReference を呼ばない")
     func referenceActivatedIgnoresMissingKeys() {
         let (renderer, delegate) = makeSUT()
@@ -312,7 +309,7 @@ struct ViewerRendererMessageHandlingTests {
     func unknownMessageNameIsIgnored() {
         let (renderer, delegate) = makeSUT()
         var called = false
-        delegate.onZoomChanged = { _ in called = true }
+        delegate.onZoomChanged = { _, _ in called = true }
 
         dispatch(renderer, name: "somethingElse", body: NSNumber(value: 2.0))
 

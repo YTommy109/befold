@@ -1,5 +1,5 @@
 ---
-id: TASK-389
+id: TASK-400
 title: スクロール位置の非同期通知がファイル切替直後に切替先のキーへ切替前の位置を書きうる
 status: Done
 assignee:
