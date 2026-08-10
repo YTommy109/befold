@@ -4,7 +4,7 @@ title: サイドバーにツリー展開 UI・キー操作・表示モードの�
 status: To Do
 assignee: []
 created_date: '2026-08-10 01:58'
-updated_date: '2026-08-10 02:08'
+updated_date: '2026-08-10 03:10'
 labels: []
 dependencies:
   - TASK-361.1
@@ -55,4 +55,7 @@ TASK-361.1 で行モデルは「ルート + 展開集合」から生成される
 - [ ] #6 cmd+1〜4 に新しい割り当てを追加していない
 - [ ] #7 従来のドリルダウン表示の既存の振る舞いと既存テストが壊れていない
 - [ ] #8 enterSelected（FileListView.swift:377-391）の .folder に対する動作を「フォルダへ入る」から「展開トグル」へ変えるかを決め、selectNext / selectPrevious（:345-375）・navigateToParent（:393-399）・firstSelectableEntryURL（FileListModel.swift:279-281）の各消費点をツリー前提で棚卸ししている
+- [ ] #9 展開状態の粒度は TASK-361.3 が「ウィンドウごと・メモリのみ」（SidebarExpansion を SidebarNavigator が保持）と決めた。永続化する場合は SidebarStateStore のファイルごとのパターン（PathKeyedDictionary）に倣い、アプリ全体で共有しない
+- [ ] #10 開閉三角の見た目が、(a) 展開したが子が未到着（SidebarExpansion.Children.loading）、(b) 展開済みで空（.loaded([])）、(c) 名前フィルタ・変更のみ表示で子が全部消えた、の 3 つを区別できる
+- [ ] #11 cmd+1〜4 は TASK-356 がプレビューの表示モードへ割り当て済み（Done）のため、サイドバーの表示モード切替には使わない
 <!-- AC:END -->

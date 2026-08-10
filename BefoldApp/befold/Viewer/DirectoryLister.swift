@@ -39,6 +39,18 @@ enum DirectoryLister {
         )
     }
 
+    /// 直下の行だけを、呼び出し元アクターを離れて列挙する。ツリー展開した
+    /// フォルダの子リストはこちらで取る。
+    ///
+    /// `listEntriesAsync` を使ってはならない。あちらは親移動行を含んだ**畳んだあと**の
+    /// 形なので、展開したフォルダごとに `..` 行が生えてしまう。畳むのは
+    /// SidebarRowBuilder 1 箇所に閉じ、ここは材料だけを返す。
+    static func childEntriesAsync(
+        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
+    ) async -> [FileListEntry] {
+        childEntries(in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
+    }
+
     /// 開いているファイルが、そのファイルの入っているフォルダーの一覧に無ければ末尾へ足す。
     ///
     /// allExtensions に含まれない拡張子(plaintext フォールバック)のファイルは列挙に載らない
@@ -88,7 +100,7 @@ enum DirectoryLister {
     /// 上位フォルダーへの移動行。ホームの外へは出さないため、その外なら nil。
     /// 一覧の項目ではなく移動手段なので、並べ替えの対象に含めず常に先頭へ置く
     /// (`.alphabetical` のマージへ混ぜると `..` がファイル名としてソートされる)。
-    private static func parentNavigationEntry(for directory: URL, home: URL) -> FileListEntry? {
+    static func parentNavigationEntry(for directory: URL, home: URL) -> FileListEntry? {
         let parent = directory.deletingLastPathComponent()
         guard isWithinHome(parent, home: home) else { return nil }
         return FileListEntry(url: parent, kind: .parentNavigation)
@@ -96,7 +108,7 @@ enum DirectoryLister {
 
     /// `directory` 直下の行(親移動行を含まない)。並び順の規則はここが単一の実装元で、
     /// ツリー展開時は展開したフォルダごとにこの関数の結果が材料になる。
-    private static func childEntries(
+    static func childEntries(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool
     ) -> [FileListEntry] {
         let (folders, files) = sortedContents(in: directory, showHiddenFiles: showHiddenFiles)

@@ -41,6 +41,16 @@ final class SidebarNavigator {
     /// 再読込経路をテストで差し替えられるよう注入可能にする。async のため呼び出し元アクター
     /// (MainActor)を離れて実行され、巨大ディレクトリでもメインスレッドを塞がない。
     private let directoryLister: (URL, SortOrder, Bool) async -> [FileListEntry]
+    /// ツリー展開の状態と、展開したフォルダの子リスト。
+    ///
+    /// **注入引数にしない。** デフォルト引数で外から渡せる形にすると、渡し忘れが
+    /// コンパイルエラーにならず静かに別インスタンスになる(TASK-319 と同型)。
+    /// ウィンドウごとに 1 つという粒度を、生成箇所をここ 1 つに固定することで守る。
+    let expansion = SidebarExpansion()
+    /// 展開したフォルダの子リストの取得元。ルートの一覧(directoryLister)とは
+    /// **別の関数**であることが要点で、あちらは親移動行を含む畳んだ形を返す。
+    /// SidebarNavigator+Expansion.swift から参照するため internal。
+    let childrenLister: (URL, SortOrder, Bool) async -> [FileListEntry]
     /// refreshFileList / navigateToFolder が発行する一覧取得タスクの世代番号。
     /// 新しい要求が来たら古い結果の反映を捨てる(ViewerStore.loadGeneration と同型)。
     private var listingGeneration = 0
@@ -86,6 +96,8 @@ final class SidebarNavigator {
         sortOrder: SortOrder = .foldersFirst,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]
             = DirectoryLister.listEntriesAsync,
+        childrenLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]
+            = DirectoryLister.childEntriesAsync,
         resolveGitRoot: @escaping @Sendable (URL) async -> URL? = { _ in nil },
         loadGitStatuses: @escaping (URL, GitStatusRefreshPolicy) async -> GitStatusResult
             = { _, _ in .empty },
@@ -95,6 +107,7 @@ final class SidebarNavigator {
         self.makeGitIndexWatcher = makeGitIndexWatcher
         self.sidebarDisplayPreference = sidebarDisplayPreference
         self.directoryLister = directoryLister
+        self.childrenLister = childrenLister
         self.resolveGitRoot = resolveGitRoot
         self.loadGitStatuses = loadGitStatuses
         fileListModel = FileListModel(
@@ -181,9 +194,11 @@ final class SidebarNavigator {
     ///   「上へ移動」後の親フォルダ選択復元に使う。
     func refreshFileList(applyCustomSelection: (() -> Bool)? = nil) {
         guard host != nil else { return }
-        performListing(of: fileListModel.currentDirectory) { host, directory, entries in
-            let entries = DirectoryLister.appendingOpenFile(host.currentFileURL, to: entries, in: directory)
-            self.fileListModel.setEntries(entries, for: directory)
+        performListing(of: fileListModel.currentDirectory) { host, directory, rootRows in
+            let rootRows = DirectoryLister.appendingOpenFile(
+                host.currentFileURL, to: rootRows, in: directory
+            )
+            let entries = self.applyRows(rootRows, for: directory)
 
             if let applyCustomSelection, applyCustomSelection() {
                 return
@@ -219,12 +234,17 @@ final class SidebarNavigator {
     ///   - onApplied: 列挙結果が最新世代かつ host が生存しているときにメインアクターで呼ばれる。
     ///     列挙対象のディレクトリを一緒に渡すため、呼び出し元は `fileListModel.currentDirectory`
     ///     の現在値を読み直さずに `FileListModel.setEntries(_:for:)` へそのまま渡せる(TASK-298)。
-    private func performListing(
+    /// SidebarNavigator+FolderNavigation.swift からも呼ぶため internal。
+    func performListing(
         of directory: URL,
         onApplied: @escaping @MainActor (SidebarNavigatorHost, URL, [FileListEntry]) -> Void
     ) {
         refreshBaseDirectory()
         let showHiddenFiles = syncDisplayPreferences()
+        // ルートを取り直す契機(並び順の変更・隠しファイルのトグル・フォーカス復帰・リネーム)は
+        // そのまま展開中サブツリーを取り直す契機でもある。ここを通さないと、展開したフォルダの
+        // 中だけが古い並び順・古い隠しファイル設定のまま残る。
+        reloadExpandedChildren()
         let couplesGitStatus = fileListModel.showChangedFilesOnly
         let sortOrder = fileListModel.sortOrder
         listingGeneration += 1
@@ -299,6 +319,9 @@ final class SidebarNavigator {
         pendingBaseDirectoryTask = nil
         pendingGitStatusTask?.cancel()
         pendingGitStatusTask = nil
+        // 展開の子リスト取得も無効化する。ここを忘れると、閉じたウィンドウのために
+        // 走行中だった列挙が着地して状態を書き続ける(TASK-300 と同型)。
+        expansion.invalidateAll()
         gitIndexWatch.stop()
     }
 
@@ -317,65 +340,6 @@ final class SidebarNavigator {
         return fileListModel.entries.first {
             $0.pathKey == key
         }?.url ?? url
-    }
-
-    // MARK: - Folder Navigation
-
-    /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
-    /// 列挙はメイン外で行い、完了後にメインアクターへ一括反映する(呼び出し自体は非 async)。
-    ///
-    /// 下位・横へ移動したときは一覧の先頭行を選ぶ(TASK-310)。プレビューは選択に追従するので、
-    /// 先頭がファイルならその中身、フォルダーならそのフォルダーの一覧が出る。
-    /// **選択を書くだけでは追従しない**ことに注意する。previewTarget が `.file` になっても
-    /// ViewerWebView が出すのは ViewerStore が保持している「前に開いていたファイル」であり、
-    /// ハイライトだけが動いて中身が変わらない。先頭がファイルのときは切替まで行うこと。
-    func navigateToFolder(_ url: URL) {
-        guard host != nil else { return }
-        let target = url.standardizedFileURL
-        guard DirectoryLister.isWithinHome(target) else { return }
-        let previous = fileListModel.currentDirectory
-        rememberSelection(in: previous)
-        fileListModel.currentDirectory = url
-        updateRootDirectory(with: target)
-        performListing(of: url) { host, directory, entries in
-            self.fileListModel.setEntries(entries, for: directory)
-            let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
-                .normalizedPathKey
-            if let remembered = self.rememberedSelectionURL(in: directory) {
-                self.select(remembered, presentingWith: host)
-            } else if isGoingUp {
-                self.fileListModel.selection = self.folderEntryURL(forKey: previous.normalizedPathKey)
-            } else {
-                self.select(self.fileListModel.firstSelectableEntryURL, presentingWith: host)
-            }
-            self.recordHistory()
-        }
-    }
-
-    /// 移動先で選ぶ行を反映し、それがファイルならプレビューの中身も揃える。
-    /// 切替に失敗した(ファイルが消えている)ときは選択を戻さず外し、移動先ディレクトリの
-    /// 一覧を出す。存在しない行をハイライトしたまま残すより、一覧へ落ちるほうが実態に近い。
-    private func select(_ url: URL?, presentingWith host: SidebarNavigatorHost) {
-        fileListModel.selection = url
-        guard let url, fileListModel.entries.first(where: { $0.url == url })?.kind == .file
-        else { return }
-        if case .failed = host.performFileSwitch(to: url) {
-            fileListModel.selection = nil
-        }
-    }
-
-    /// このウィンドウでこれまでにアクティブになった最上位のディレクトリ(rootDirectory)を更新する。
-    /// target が rootDirectory の祖先(より上位)なら、そこを新たな最上位として記録する。
-    /// 既に到達した最上位より下位・並列のディレクトリへ移動しても rootDirectory は変えない。
-    private func updateRootDirectory(with target: URL) {
-        let rootKey = fileListModel.rootDirectory.normalizedPathKey
-        let targetKey = target.normalizedPathKey
-        let rootComponents = rootKey.split(separator: "/")
-        let targetComponents = targetKey.split(separator: "/")
-        guard targetComponents.count < rootComponents.count,
-              rootComponents.starts(with: targetComponents)
-        else { return }
-        fileListModel.rootDirectory = target
     }
 
     /// switchFile 成功後にサイドバー選択を同期し、履歴を記録する。
