@@ -128,6 +128,7 @@ struct FileListView: View {
     private var emptyStateView: some View {
         SidebarEmptyState(
             activeGitChangeFilter: model.activeGitChangeFilter,
+            filterText: model.filterText,
             directoryName: model.currentDirectory.lastPathComponent
         )
     }

@@ -132,6 +132,7 @@ struct FolderListingView: View {
                 // サブフォルダーのものでも絞り込みによる空が起こりうる(TASK-361.2)。
                 SidebarEmptyState(
                     activeGitChangeFilter: filter.gitChangeFilter(for: directory),
+                    filterText: filter.filterText,
                     directoryName: directory.lastPathComponent
                 )
                 .allowsHitTesting(false)

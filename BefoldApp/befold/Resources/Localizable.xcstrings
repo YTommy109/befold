@@ -1836,6 +1836,40 @@
         }
       }
     },
+    "sidebar.empty.bothFilters": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Matching Changed Files"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一致する変更ファイルはありません"
+          }
+        }
+      }
+    },
+    "sidebar.empty.bothFilters.description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear the filter or turn off Show Changed Files Only to see all files."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フィルターを解除するか「変更されたファイルのみ表示」を解除すると、すべてのファイルが表示されます。"
+          }
+        }
+      }
+    },
     "sidebar.empty.changedFilesOnly": {
       "extractionState": "manual",
       "localizations": {
@@ -1866,6 +1900,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "「変更されたファイルのみ表示」を解除すると、すべてのファイルが表示されます。"
+          }
+        }
+      }
+    },
+    "sidebar.empty.nameFilter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Matching Files"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一致するファイルはありません"
+          }
+        }
+      }
+    },
+    "sidebar.empty.nameFilter.description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear the filter to see all files."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フィルターを解除すると、すべてのファイルが表示されます。"
           }
         }
       }
