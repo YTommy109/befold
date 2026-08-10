@@ -4,11 +4,12 @@ title: spaceScroll のホスト機能フラグがどこからも渡されず Qui
 status: To Do
 assignee: []
 created_date: '2026-08-10 07:28'
+updated_date: '2026-08-10 13:52'
 labels: []
 dependencies: []
-priority: medium
+priority: high
 type: bug
-ordinal: 507200
+ordinal: 102000
 ---
 
 ## Description

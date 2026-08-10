@@ -7,7 +7,7 @@ created_date: '2026-08-10 06:10'
 labels: []
 dependencies: []
 priority: low
-ordinal: 666000
+ordinal: 120000
 ---
 
 ## Description

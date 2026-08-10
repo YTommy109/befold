@@ -11,7 +11,7 @@ documentation:
   - docs/dev/rules/product-code.md
 priority: high
 type: chore
-ordinal: 504500
+ordinal: 104000
 ---
 
 ## Description
