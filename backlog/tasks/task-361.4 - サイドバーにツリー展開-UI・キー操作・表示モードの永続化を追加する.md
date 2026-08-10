@@ -4,6 +4,7 @@ title: サイドバーにツリー展開 UI・キー操作・表示モードの�
 status: To Do
 assignee: []
 created_date: '2026-08-10 01:58'
+updated_date: '2026-08-10 02:08'
 labels: []
 dependencies:
   - TASK-361.1
@@ -53,4 +54,5 @@ TASK-361.1 で行モデルは「ルート + 展開集合」から生成される
 - [ ] #5 選択したファイルへのスクロール追従がツリー展開時も正しく動く
 - [ ] #6 cmd+1〜4 に新しい割り当てを追加していない
 - [ ] #7 従来のドリルダウン表示の既存の振る舞いと既存テストが壊れていない
+- [ ] #8 enterSelected（FileListView.swift:377-391）の .folder に対する動作を「フォルダへ入る」から「展開トグル」へ変えるかを決め、selectNext / selectPrevious（:345-375）・navigateToParent（:393-399）・firstSelectableEntryURL（FileListModel.swift:279-281）の各消費点をツリー前提で棚卸ししている
 <!-- AC:END -->

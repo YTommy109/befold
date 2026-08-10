@@ -4,6 +4,7 @@ title: サイドバーの git ステータスを複数ディレクトリ対応�
 status: To Do
 assignee: []
 created_date: '2026-08-10 01:57'
+updated_date: '2026-08-10 02:08'
 labels: []
 dependencies:
   - TASK-361.1
@@ -45,4 +46,6 @@ ordinal: 656000
 - [ ] #2 「変更されたファイルのみ表示」が、表示中のすべての階層に対して効く
 - [ ] #3 単一ディレクトリ（ドリルダウン）時の既存の振る舞いと既存テストが壊れていない
 - [ ] #4 対応付けが単一 directoryKey へ戻ったら落ちるテストがある
+- [ ] #5 FolderListingSource（FolderListingView.swift:7-12）の Equatable 比較に depth 混在の一覧が載っても、FolderListingViewFilterTests.swift:134 型のテストが depth 差だけで落ちない（TASK-361.1 で FileListEntry の == から depth を外した前提が維持されている）
+- [ ] #6 listingSource の .shared(visibleEntries)（FileListModel.swift:300-309）が depth 混在の行配列を渡す場合の扱いが決まっている
 <!-- AC:END -->

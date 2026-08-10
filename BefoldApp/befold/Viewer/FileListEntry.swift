@@ -24,6 +24,15 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
     /// stat を MainActor 上で行わずに済むようにする。
     let pathKey: String
 
+    /// ルート(列挙の起点ディレクトリ)からの相対深さ。ルート直下 = 0、`.parentNavigation` も 0。
+    /// 行の左インデント量だけがこの値を読む(SidebarRowIndent.leadingInset(forDepth:))。
+    ///
+    /// **init の引数にしていない**のが要点。デフォルト引数にすると渡し忘れが
+    /// コンパイルエラーにならず静かに 0 になり、96 箇所ある `FileListEntry(...)` の
+    /// どこからでも深さを詐称できてしまう(TASK-319 と同型)。値を変えられるのは
+    /// `indented(to:)` だけで、本番でそれを呼ぶのは SidebarRowBuilder 1 箇所に閉じる。
+    private(set) var depth: Int = 0
+
     init(url: URL, kind: Kind, containsSupportedFile: Bool = false) {
         // id が URL のため、SwiftUI の ForEach は行 ID を辞書キーにするたびに URL の
         // Hashable を走らせる。FileManager 由来の NSString 裏打ちのままだと 1 文字ずつの
@@ -38,6 +47,31 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
 
     var id: URL {
         url
+    }
+
+    /// 深さだけを差し替えた同じ行。SidebarRowBuilder が展開した子行を深くするために使う。
+    func indented(to depth: Int) -> FileListEntry {
+        var copy = self
+        copy.depth = depth
+        return copy
+    }
+
+    /// 等値・ハッシュから **depth を外す**。同一性は「どのファイルの行か」であって
+    /// 「どこにインデントされているか」ではなく、`id`(= url)・FileListEntryIndex の
+    /// byID / byPathKey もその意味で作られている。
+    ///
+    /// 合成のままにすると `FolderListingSource`(FolderListingView の `case shared([FileListEntry]?)`)の
+    /// Equatable が要素比較へ降りるため、同じ一覧が深さの違いだけで別物と判定される。
+    static func == (lhs: FileListEntry, rhs: FileListEntry) -> Bool {
+        lhs.url == rhs.url && lhs.kind == rhs.kind
+            && lhs.containsSupportedFile == rhs.containsSupportedFile && lhs.pathKey == rhs.pathKey
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(url)
+        hasher.combine(kind)
+        hasher.combine(containsSupportedFile)
+        hasher.combine(pathKey)
     }
 
     /// 拡張子が `FileType.allExtensions` に無い、未知の拡張子のファイルかどうか。

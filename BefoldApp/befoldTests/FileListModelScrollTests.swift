@@ -67,6 +67,32 @@ struct FileListModelScrollTests {
         #expect(tableView.scrolledRows == [42])
     }
 
+    /// 「visibleEntries の添字 = NSTableView の行番号」は、ツリー展開が入って行配列に
+    /// 複数階層が混ざっても保たれなければならない(FileListModel.selectedRow)。
+    /// depth はインデント量にしか効かず、行番号の数え方には一切関与しないことを押さえる。
+    /// これが破れると、深い行を選んだときだけ別の行へスクロールする。
+    @Test("depth の混ざった行配列でも、添字がそのまま行番号になる")
+    func mixedDepthEntriesKeepIndexAsRowNumber() async {
+        // 3 階層を深さ優先で畳んだ形。row 3 が depth 2 の行になる。
+        let dirA = FileListEntry(url: directory.appendingPathComponent("a"), kind: .folder)
+        let dirB = FileListEntry(url: directory.appendingPathComponent("a/b"), kind: .folder)
+        let leaf = FileListEntry(url: directory.appendingPathComponent("a/b/deep.mmd"), kind: .file)
+        let tail = FileListEntry(url: directory.appendingPathComponent("z.mmd"), kind: .file)
+        let entries = SidebarRowBuilder.rows(
+            parentEntry: nil, rootChildren: [dirA, tail],
+            expanded: [dirA.pathKey, dirB.pathKey],
+            childrenByPathKey: [dirA.pathKey: [dirB], dirB.pathKey: [leaf]]
+        )
+        let (model, tableView) = makeModel(entries: entries)
+
+        #expect(entries.map(\.depth) == [0, 1, 2, 0])
+
+        model.selection = leaf.id
+        await drainMainQueue()
+
+        #expect(tableView.scrolledRows == [2])
+    }
+
     @Test("選択を消したときはスクロールを要求しない")
     func clearingSelectionDoesNotScroll() async {
         let entries = makeEntries(10)

@@ -23,6 +23,17 @@ struct FileListEntryRow: View {
     }
 
     var body: some View {
+        // インデントは行の**中身**へ入れる。ヒット領域は呼び出し側が
+        // `.padding(...).contentShape(.rect)` で行の外側に張っており(FileListView)、
+        // 行ビュー自体の幅はここでの leading 分では変わらないため、インデントした
+        // 子行でも行全幅のダブルクリックが従来どおり効く。
+        // ドリルダウン表示では depth が全て 0 なので 0pt となり見た目は変わらない。
+        content
+            .padding(.leading, SidebarRowIndent.leadingInset(forDepth: entry.depth))
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch entry.kind {
         case .parentNavigation:
             HStack {

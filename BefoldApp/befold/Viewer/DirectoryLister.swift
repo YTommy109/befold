@@ -46,6 +46,11 @@ enum DirectoryLister {
     /// (SidebarNavigator)とプレビューのフォルダー一覧(FolderListingView)の **両方** が
     /// ここを通す。片側だけに適用していた頃は、同じフォルダーでもカレントディレクトリとして
     /// 見たときにだけこの行が現れ、親から選んで見たときには消えていた(TASK-295)。
+    ///
+    /// 追記先が **フラット化後の配列の末尾** であることは、ツリー展開が入っても正しい。
+    /// 深さ優先で畳んだ配列の末尾は「最後のルート直下行とその配下すべての直後」であり、
+    /// そこは配下を持たない新しいルート直下行が入る位置そのものだから。足す行の
+    /// `depth` は 0(既定)のままでよい。
     static func appendingOpenFile(
         _ openFile: URL?, to entries: [FileListEntry], in directory: URL
     ) -> [FileListEntry] {
@@ -70,15 +75,31 @@ enum DirectoryLister {
     private static func buildEntries(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool, home: URL
     ) -> [FileListEntry] {
-        let (folders, files) = sortedContents(in: directory, showHiddenFiles: showHiddenFiles)
+        // 行の組み立ては SidebarRowBuilder に一本化する。ドリルダウンは
+        // 「展開集合が空」の縮退形として同じ関数を通り、全行 depth 0 になる。
+        SidebarRowBuilder.rows(
+            parentEntry: parentNavigationEntry(for: directory, home: home),
+            rootChildren: childEntries(in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles),
+            expanded: [],
+            childrenByPathKey: [:]
+        )
+    }
 
-        var entries: [FileListEntry] = []
-
+    /// 上位フォルダーへの移動行。ホームの外へは出さないため、その外なら nil。
+    /// 一覧の項目ではなく移動手段なので、並べ替えの対象に含めず常に先頭へ置く
+    /// (`.alphabetical` のマージへ混ぜると `..` がファイル名としてソートされる)。
+    private static func parentNavigationEntry(for directory: URL, home: URL) -> FileListEntry? {
         let parent = directory.deletingLastPathComponent()
-        if isWithinHome(parent, home: home) {
-            entries.append(FileListEntry(url: parent, kind: .parentNavigation))
-        }
+        guard isWithinHome(parent, home: home) else { return nil }
+        return FileListEntry(url: parent, kind: .parentNavigation)
+    }
 
+    /// `directory` 直下の行(親移動行を含まない)。並び順の規則はここが単一の実装元で、
+    /// ツリー展開時は展開したフォルダごとにこの関数の結果が材料になる。
+    private static func childEntries(
+        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool
+    ) -> [FileListEntry] {
+        let (folders, files) = sortedContents(in: directory, showHiddenFiles: showHiddenFiles)
         let folderEntries = folders.map {
             FileListEntry(url: $0, kind: .folder, containsSupportedFile: containsSupportedFile(in: $0))
         }
@@ -86,15 +107,12 @@ enum DirectoryLister {
 
         switch sortOrder {
         case .foldersFirst:
-            entries += folderEntries
-            entries += fileEntries
+            return folderEntries + fileEntries
         case .alphabetical:
-            entries += [FileListEntry].mergedByFileName(
+            return [FileListEntry].mergedByFileName(
                 folderEntries, fileEntries, name: \.url.lastPathComponent
             )
         }
-
-        return entries
     }
 
     /// ディレクトリ直下の全エントリ(フォルダ+ファイル混在、隠しファイル含む)を、
