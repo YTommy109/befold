@@ -139,11 +139,22 @@ struct ViewerBridgeContractTests {
         }
     }
 
-    /// FileType.jsValue が viewer-main.js の render() 分岐名と対応していることを検証する。
-    /// markdown('md') は明示分岐を持たず else(既定)で処理されるため対象外。
-    @Test("FileType.jsValue が render() の type 分岐に対応している")
+    /// FileType.jsValue が viewer-main.js の render() 分岐に対応していることを検証する。
+    ///
+    /// render() は type ではなく「描画形(shape)」で分岐する。type と表示モードから
+    /// shape を決めるのは viewer.js の renderShape で、そこで写された名前が
+    /// viewer-main.js の分岐名になる(TASK-414)。この 2 段を両方見ないと、
+    /// 種別を足したときに「shape へ写されたが描き手がいない」状態を見逃す。
+    /// markdown('md' → 'markdown')は明示分岐を持たず else(既定)で処理されるため対象外。
+    @Test("FileType.jsValue が render() の描画形分岐に対応している")
     func fileTypeJSValuesMatchRenderBranches() throws {
-        let source = try String(contentsOf: Self.resourceURL("viewer-main.js"), encoding: .utf8)
+        let shapeSource = try String(contentsOf: Self.resourceURL("viewer.js"), encoding: .utf8)
+        let renderSource = try String(contentsOf: Self.resourceURL("viewer-main.js"), encoding: .utf8)
+        // jsValue → renderShape がレンダリング表示で返す描画形。
+        let shapeByJSValue = [
+            "mmd": "mmd", "svg": "svg", "html": "html", "csv": "csv-table",
+            "image": "image", "pdf": "pdf", "code": "code",
+        ]
         let fileTypes: [FileType] = [
             .mmd, .markdown, .svg, .html, .csv(delimiter: ","),
             .image(mimeType: "image/png"), .pdf, .code(language: "swift"),
@@ -151,8 +162,12 @@ struct ViewerBridgeContractTests {
         for fileType in fileTypes {
             let value = fileType.jsValue
             if value == "md" { continue }
-            #expect(source.contains("type === '\(value)'"), "render() に type === '\(value)' 分岐がない")
+            let shape = try #require(shapeByJSValue[value], "jsValue '\(value)' の描画形が表に無い")
+            #expect(renderSource.contains("shape === '\(shape)'"), "render() に shape === '\(shape)' 分岐がない")
         }
+        // ソース表示だけが取る描画形も、描き手がいることを確かめる。
+        #expect(renderSource.contains("shape === 'csv-source'"), "render() に shape === 'csv-source' 分岐がない")
+        #expect(shapeSource.contains("function renderShape("), "viewer.js に renderShape がない")
     }
 
     // MARK: - CSP・ズーム定数

@@ -11,7 +11,8 @@
 | 用語 | 意味 |
 |------|------|
 | 行指向 (line-oriented) | csv / tsv / code。行番号付きチャンク読み込みの対象 |
-| 非行指向 | mermaid / markdown / svg / html / plaintext。全量を一括で読み込む |
+| 非行指向 | mermaid / svg / html。全量を一括で読み込む |
+| ブロック指向 | markdown。コードフェンス外の空行で区切ってチャンク読み込みする（Issue #307。`FileType.isChunkable` は csv/code/markdown が true） |
 | バイナリ | image / pdf。Base64 エンコードして表示する |
 
 ## 現行フロー（LineChunkReader ベース）
@@ -126,11 +127,11 @@ ViewerStore.reload()
                  Data全量読込 → detectEncoding → BOM除去
                  → デコード(1回) → CRLF/CR→LF正規化
                  → 行インデックス構築 → dataHash 計算
-                 ├─ 行指向 (csv/tsv/code)
+                 ├─ チャンク対象 (csv/tsv/code/markdown = isChunkable)
                  │    └─ StringChunkReader(cache, respectsCSVQuotes)
-                 │         → readNextChunk()
+                 │         → readNextChunk()  ※markdown はブロック境界で区切る
                  │         → .chunked(session, cache, firstChunk, isAtEnd)
-                 ├─ 非行指向テキスト
+                 ├─ 非チャンク対象テキスト (mermaid/svg/html)
                  │    ├─ cache.text.utf8.count > 10MB → .full(fileTooLarge, cache: nil)
                  │    └─ → .full(content: cache.text, cache: cache)
                  └─ デコード失敗 → .full(unsupportedFormat, cache: nil)

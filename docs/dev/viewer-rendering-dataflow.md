@@ -84,15 +84,36 @@ code(language:)`）。plaintext は独立ケースではなく `.code(language: 
 で遅延ロード）。その後 `_annotatePathRefs` → `_mmdResolveReferences` → 検索・
 ズーム・スクロール復元へ続く。
 
-**ソースモード**: `render` 冒頭で `mode === 'source'` かつ type が code/image/pdf
-以外なら `_renderSource` に分流する。CSV は `renderCsvSourceHtml`（レインボー
-着色）、それ以外は言語を xml/markdown/plaintext に写像して `renderCodeHtml` する。
+**描画形（shape）が分岐の単一の情報源**: `render` は type と表示モードから
+`renderShape(type, mode)`（viewer.js の純粋関数）で「いま描く形」を 1 回だけ決め、
+その値でビルダーを選ぶと同時に `_mmdRenderedAs` へ記録する。差分が組み上がった
+場合だけ `_renderDiffHtmlIfAvailable` が `'diff'` へ上書きする。
 
-**段階読込追記**（`appendChunk`）も type 分岐する: `md` は
-`insertAdjacentHTML(md.render(chunk))`、`csv`（テーブル）は `<tbody>` に行追記、
-それ以外は `codeChunkInnerHtml`（前方文脈付き highlight.js）で行追記する。
-mmd/svg/html/image/pdf は `isChunkable == false` なので `appendChunk` 経路には
-来ない。
+| shape | 描画 | 追記（`appendChunk`） |
+|---|---|---|
+| `markdown` | `_renderMarkdown` | `insertAdjacentHTML(md.render(chunk))` |
+| `csv-table` | `_renderCsv` | `<tbody>` に行追記 |
+| `csv-source` | `_renderSource`（`renderCsvSourceHtml`／レインボー着色） | `csvSourceInnerHtml` で行追記 |
+| `code` | `_renderSource`（`renderCodeHtml`） | `codeChunkInnerHtml`（前方文脈付き highlight.js）で行追記 |
+| `diff` | `_renderSource`（差分 HTML） | 追記しない（蓄積のみ） |
+| `mmd` / `svg` / `html` / `image` / `pdf` | 各ビルダー | `isChunkable == false` のため来ない |
+
+**ソースモード**: `renderShape` が `mode === 'source'` かつ type が code/image/pdf
+以外を `code`（CSV だけ `csv-source`）へ写す。コード種別は常にソース表示なので、
+モードによらず `code` になる。ソース表示の入口は `_renderSource` の 1 本だけで、
+種別ごとの言語写像は `_sourceLanguage`（xml/markdown/plaintext）が持つ。
+
+**`appendChunk` は type で分岐しない。** 追記先は `_mmdRenderedAs` だけで決める。
+同じ type でも表示モードや差分の有無で DOM の形が変わるため、type から推し直すと
+`render` 側の判定と食い違う（ソース表示中の Markdown 追記が描画済み HTML として
+挟まる = TASK-414）。DOM の形（`table.diff-table` や `pre code.csv-source`）を
+探す判定も使わない。同じ形は markdown-it が `html:true` で通したユーザー
+コンテンツにも現れる（TASK-339）。
+
+Swift 側は追記時に表示モードを渡さない。`canConsumePendingAppend` が
+`isSourceMode` を含む `RenderedStateMirror` 全体を比較しており、モードが変われば
+追記ではなく全文 `render` へ倒れるため、追記時点の JS 側のモードは常に直前の
+描画と一致している。
 
 `viewer.html` は CSP を厳格化（`script-src 'self'`、インライン script 不使用）し、
 `viewer.js → markdown-it.min.js → highlight.min.js → dompurify.min.js →
