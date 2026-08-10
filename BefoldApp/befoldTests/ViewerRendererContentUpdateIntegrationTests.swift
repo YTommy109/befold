@@ -111,19 +111,17 @@ struct ViewerRendererContentUpdateIntegrationTests {
         }
 
         // 1 回目は素通しさせ、描画を完了させる（以降 contentRevision は変わらない）。
-        let openGate = DispatchSemaphore(value: 1)
         renderer.imageEmbedder = MarkdownImageEmbedder(
-            fileReader: SlowFileReader(base: fileReader, releaseGate: openGate, completed: LockedBox(false))
+            fileReader: SlowFileReader(
+                base: fileReader, releaseGate: BlockingGate(isOpen: true), completed: LockedBox(false)
+            )
         )
         update()
         await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 1 }
-        // 消費したカウントを戻す（減ったまま解放された DispatchSemaphore は
-        // libdispatch のチェックに引っかかってプロセスごと落ちる）。
-        openGate.signal()
 
         // 2 回目は差分が届いた状態で、埋め込みを閉じたゲートで止める
         // （埋め込みキャッシュを避けるため embedder ごと差し替える）。
-        let gate = DispatchSemaphore(value: 0)
+        let gate = BlockingGate()
         let entered = LockedBox(false)
         renderer.imageEmbedder = MarkdownImageEmbedder(
             fileReader: SlowFileReader(
@@ -144,7 +142,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
 
         // 実機の updateNSView 再入を模した、同じ入力での再呼び出し。
         update()
-        gate.signal()
+        gate.open()
         // 再入で握り潰されず、最終的に差分が反映される。
         await Self.waitForWebViewLoad { renderer.rendered.diffState == diff }
     }
@@ -173,16 +171,16 @@ struct ViewerRendererContentUpdateIntegrationTests {
         }
 
         // 1 回目は素通しさせ、差分なしの状態で描画を完了させる。
-        let openGate = DispatchSemaphore(value: 1)
         renderer.imageEmbedder = MarkdownImageEmbedder(
-            fileReader: SlowFileReader(base: fileReader, releaseGate: openGate, completed: LockedBox(false))
+            fileReader: SlowFileReader(
+                base: fileReader, releaseGate: BlockingGate(isOpen: true), completed: LockedBox(false)
+            )
         )
         update()
         await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 1 }
-        openGate.signal()
 
         // 2 回目: 差分 ON で描画を始め、画像埋め込みのゲートで中断させる。
-        let gate = DispatchSemaphore(value: 0)
+        let gate = BlockingGate()
         let entered = LockedBox(false)
         renderer.imageEmbedder = MarkdownImageEmbedder(
             fileReader: SlowFileReader(
@@ -198,7 +196,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
         // 早期 return するが、世代だけは進むため、中断していた 2 回目は世代ガードで抜ける。
         renderer.diffState = .none
         update()
-        gate.signal()
+        gate.open()
         await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 1 }
         await yieldMainActor()
 
@@ -234,7 +232,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
         let fileReader = InMemoryFileReader(files: [markdownURL.path: "unused"])
         fileReader.setDataFile(pngData, at: imageURL)
         // readData をゲートで足止めし、遅延埋め込みの完了タイミングをテストから明示的に制御する。
-        let releaseGate = DispatchSemaphore(value: 0)
+        let releaseGate = BlockingGate()
         let embedCompleted = LockedBox(false)
         renderer.imageEmbedder = MarkdownImageEmbedder(
             fileReader: SlowFileReader(base: fileReader, releaseGate: releaseGate, completed: embedCompleted)
@@ -256,7 +254,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
         #expect(renderer.rendered.contentRevision == 2)
 
         // 1回目の遅延埋め込みを明示的に完了させ、完了後も上書きされていないことを確認する。
-        releaseGate.signal()
+        releaseGate.open()
         await Self.waitForWebViewLoad { embedCompleted.get() }
         // embedLocalImages 完了から rendered への反映判定まではさらに 1 Task 分の
         // 非同期遷移があるため、MainActor を数回 yield させてから確定させる。
@@ -283,7 +281,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
 /// テストから制御するためのフェイク。他のメソッドは base にそのまま委譲する。
 private struct SlowFileReader: FileReading {
     let base: InMemoryFileReader
-    let releaseGate: DispatchSemaphore
+    let releaseGate: BlockingGate
     let completed: LockedBox<Bool>
 
     func fileExists(at url: URL) -> Bool {
@@ -319,7 +317,7 @@ private struct SlowFileReader: FileReading {
 
     func readData(from url: URL) throws -> Data {
         entered?.set(true)
-        waitOrRecordTimeout(releaseGate, "SlowFileReader.readData")
+        releaseGate.wait("SlowFileReader.readData")
         let data = try base.readData(from: url)
         completed.set(true)
         return data
