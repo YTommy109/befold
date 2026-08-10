@@ -35,7 +35,10 @@ install_hook post-checkout scripts/worktree-init.sh
 # 変更でしか走らないため、文書とコードの両方に触れうるコミット時点で検知する）。
 # check-task-id-uniqueness.sh は backlog の ID 重複を見る（CLI の採番が archive /
 # completed を走査しないため、最大番号のタスクをアーカイブすると同じ ID が再発行される）。
+# check-analytics-query-guard.sh は解析用 D1 の読み取り専用ガードが実効であることを
+# 見る（判定を緩めると拒否すべき SQL を通した時点で落ちる）。
 install_hook pre-commit scripts/block-main-commits.sh scripts/swiftformat-lint.sh \
-  scripts/check-doc-symbols.sh scripts/check-task-id-uniqueness.sh
+  scripts/check-doc-symbols.sh scripts/check-task-id-uniqueness.sh \
+  scripts/check-analytics-query-guard.sh
 # commit-msg は件名を見るチェックなので pre-commit ではなくここ(メッセージ確定後)。
 install_hook commit-msg scripts/check-gate-commit-scope.sh
