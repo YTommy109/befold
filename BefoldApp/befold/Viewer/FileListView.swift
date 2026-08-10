@@ -308,7 +308,7 @@ struct FileListView: View {
                 case .expand:
                     onExpandFolder?(entry)
                 // 展開済みのフォルダをダブルクリックしたら畳む(開閉のトグル)。
-                case .selectNext:
+                case .collapse:
                     onCollapseFolder?(entry)
                 default:
                     break

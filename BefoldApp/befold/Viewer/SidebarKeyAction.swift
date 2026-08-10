@@ -18,6 +18,8 @@ enum SidebarKeyAction: Equatable {
     case navigateInto
     /// 上位フォルダーへ移動する(ルートを変える)。
     case navigateToParent
+    /// ツリー内で 1 つ上の階層の行へ選択を移す(ルートは変えない)。
+    case selectParent
     /// 選択中のファイルを開く。
     case openFile
     /// 選択中のフォルダを展開する。
@@ -78,9 +80,15 @@ enum SidebarKeyAction: Equatable {
         }
     }
 
-    /// ダブルクリックの動作。`return` と同じ判断源を通す。
+    /// ダブルクリックの動作。
+    ///
+    /// ツリー表示のフォルダ行だけは `return` と意図的に分かれる(開閉のトグルになる)。
+    /// **`forward` の戻り値を読み替えて実現しない。** `.selectNext` を「畳む」の意味で
+    /// 使い回すと、同じ値が呼び出し元によって別の動作になり、片方だけ直したときに
+    /// 気付けない(TASK-408)。分かれるのはこの 1 ケースだけなので、ここで直に決める。
     static func doubleClickAction(target: Target, mode: SidebarLayoutMode) -> SidebarKeyAction {
-        forward(target: target, mode: mode)
+        guard mode == .tree, target.kind == .folder else { return forward(target: target, mode: mode) }
+        return target.isExpanded ? .collapse : .expand
     }
 
     private static func forward(target: Target?, mode: SidebarLayoutMode) -> SidebarKeyAction {
@@ -97,11 +105,16 @@ enum SidebarKeyAction: Equatable {
         }
     }
 
+    /// ツリー表示の ← は **ルートを変えない**。→ が展開・選択移動というモード内の
+    /// 動きしかしないのに ← だけツリーごと別の場所へ飛ぶと往復が非対称になるため、
+    /// ルートの変更は cmd+↑ と delete に集約する(TASK-408)。Finder / Xcode /
+    /// VS Code / NERDTree も「畳む、畳み済みか葉なら親フォルダの行へ」の二段構え。
     private static func backward(target: Target?, mode: SidebarLayoutMode) -> SidebarKeyAction {
         guard mode == .tree else { return .navigateToParent }
         guard let target, target.kind == .folder, target.isExpanded else {
-            // 展開していない行では、上位フォルダーへの移動として従来どおり働く。
-            return .navigateToParent
+            // 展開していない行・ファイル行では、ツリー内の親行へ選択を移す。
+            // 最上位の行に親は無く、そこでは何も起きない(消費側で .ignored になる)。
+            return .selectParent
         }
         return .collapse
     }

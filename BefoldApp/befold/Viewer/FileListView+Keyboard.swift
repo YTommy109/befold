@@ -43,6 +43,9 @@ extension FileListView {
         case .selectNext: selectNext()
         case .selectPrevious: selectPrevious()
         case .navigateToParent: navigateToParent()
+        // `perform` の switch は default を持つため、新しいケースを足しても
+        // コンパイラは漏れを教えない。選択行を要しない動作はここへ明示的に書く。
+        case .selectParent: selectParentRow()
         case .ignored: .ignored
         // 残りはいずれも選択行を必要とする。選択が無ければ何もしない、という
         // 同じ前提を 1 箇所にまとめる。
@@ -95,20 +98,17 @@ extension FileListView {
         return .handled
     }
 
-    private func enterSelected() -> KeyPress.Result {
-        guard let current = model.selection,
-              let entry = model.visibleEntries.first(where: { $0.id == current })
-        else {
+    /// ツリー内で 1 つ上の階層の行へ選択を移す。**ルートは変えない。**
+    ///
+    /// 行き先は必ずフォルダ行なので `openIfFile` は呼ばない(呼んでも何も起きない)。
+    /// 画面のスクロール追従は `FileListModel.selection` の didSet が行うため、
+    /// ここで足す必要はない。最上位の行では親が無く `.ignored` になる。
+    private func selectParentRow() -> KeyPress.Result {
+        guard let current = model.selection, let parent = model.parentRow(of: current) else {
             return .ignored
         }
-        switch entry.kind {
-        case .parentNavigation, .folder:
-            onNavigate(entry.url)
-            return .handled
-        case .file:
-            openIfFile(entry)
-            return .handled
-        }
+        model.selection = parent.id
+        return .handled
     }
 
     private func navigateToParent() -> KeyPress.Result {

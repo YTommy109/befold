@@ -92,10 +92,25 @@ struct SidebarKeyActionTests {
         #expect(action("h", target: expandedFolder, mode: .tree) == .collapse)
     }
 
-    @Test("ツリー: 畳んでいる行で ← は従来どおり親へ戻る")
-    func treeBackwardOnCollapsedRowNavigatesToParent() {
-        #expect(action(.leftArrow, target: folder, mode: .tree) == .navigateToParent)
-        #expect(action(.leftArrow, target: file, mode: .tree) == .navigateToParent)
+    @Test("ツリー: 畳んでいる行・ファイル行で ← はツリー内の親行へ選択を移す")
+    func treeBackwardOnCollapsedRowSelectsParentRow() {
+        #expect(action(.leftArrow, target: folder, mode: .tree) == .selectParent)
+        #expect(action(.leftArrow, target: file, mode: .tree) == .selectParent)
+        #expect(action("h", target: folder, mode: .tree) == .selectParent)
+        #expect(action("h", target: file, mode: .tree) == .selectParent)
+    }
+
+    /// ツリーの ← が「ルートを変えない」という判断を、破れたら落ちる形で押さえる。
+    /// 個別ケースの列挙だと、あとから足したターゲットで穴が開く(TASK-408)。
+    @Test("ツリー: ← / h はどの行でもルートを変えない")
+    func treeBackwardNeverChangesRoot() {
+        let targets: [SidebarKeyAction.Target?] = [folder, expandedFolder, file, parent, nil]
+        for key in [KeyEquivalent.leftArrow, "h"] {
+            for target in targets {
+                #expect(action(key, target: target, mode: .tree) != .navigateToParent)
+                #expect(action(key, target: target, mode: .tree) != .navigateInto)
+            }
+        }
     }
 
     /// ツリーでは ← が畳みになるため、上へ出る手段を delete に残しておかないと
@@ -113,16 +128,26 @@ struct SidebarKeyActionTests {
 
     // MARK: - ダブルクリック（return と同じ判断源）
 
-    @Test("ダブルクリックは return と同じ動作になる")
-    func doubleClickMatchesReturn() {
+    /// ツリーの展開済みフォルダだけは return と意図的に分かれる(開閉のトグル)。
+    /// それ以外は return と同じ判断源を通す。
+    @Test("ダブルクリックは、ツリーの展開済みフォルダ以外では return と同じ動作になる")
+    func doubleClickMatchesReturnExceptExpandedTreeFolder() {
         for mode in SidebarLayoutMode.allCases {
             for target in [folder, expandedFolder, file, parent] {
+                if mode == .tree, target == expandedFolder { continue }
                 #expect(
                     SidebarKeyAction.doubleClickAction(target: target, mode: mode)
                         == action(.return, target: target, mode: mode)
                 )
             }
         }
+    }
+
+    /// `.selectNext` を「畳む」の意味で読み替える形を残さないための担保(TASK-408)。
+    @Test("ツリー: 展開済みフォルダのダブルクリックは畳む")
+    func doubleClickCollapsesExpandedTreeFolder() {
+        #expect(SidebarKeyAction.doubleClickAction(target: expandedFolder, mode: .tree) == .collapse)
+        #expect(SidebarKeyAction.doubleClickAction(target: folder, mode: .tree) == .expand)
     }
 
     // MARK: - Target の導出
