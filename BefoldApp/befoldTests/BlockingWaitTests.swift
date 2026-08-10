@@ -11,13 +11,20 @@ import Testing
 /// 壊れ方がテストの失敗として現れないため、ゲートの性質をここで直接測る。
 @Suite(testTimeLimit())
 struct BlockingGateTests {
-    /// `wait` をバックグラウンドで `count` 本走らせ、**ゲートが開いて戻った数**だけを
+    /// `wait` を **専用スレッド** で `count` 本走らせ、**ゲートが開いて戻った数**だけを
     /// `passed` に数える。上限で戻った分を数えると、1 つずつしか通さない実装でも
     /// 上限到達で数が揃ってしまい、テストが緑のまま «unknown» の Issue だけが残る
     /// （TASK-427 の壊れ方そのもの）。
+    ///
+    /// `DispatchQueue.global()` で走らせないこと。塞いでいる間そのワーカーが占有され、
+    /// コア数の少ない環境では `open()` を出すテスト本体の再開自体が遅れる。実測:
+    /// `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`（プール幅 1）では 60 秒経っても開けられず
+    /// このテスト自身が «unknown» の Issue を出し、CI（3〜4 コア）では 0.2 秒の sleep が
+    /// 13.6 秒に伸びてその間ワーカー 3 本を塞いでいた。専用スレッドなら塞いでも
+    /// ディスパッチ側の供給に影響しない。
     private func startWaiters(_ count: Int, on gate: BlockingGate, passed: LockedBox<Int>) {
         for _ in 0 ..< count {
-            DispatchQueue.global().async {
+            Thread.detachNewThread {
                 guard gate.wait("BlockingGateTests") else { return }
                 passed.update { $0 += 1 }
             }
