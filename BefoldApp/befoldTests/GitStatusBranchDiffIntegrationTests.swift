@@ -10,11 +10,8 @@ import Testing
 /// 超えたため(規約どおり閾値を緩めずに分割する)。境界は「比較起点を要するか」で切っており、
 /// こちらは `GitComparisonBaseResolving` が解決した起点との差分だけを扱う。
 struct GitStatusBranchDiffIntegrationTests {
-    /// 比較起点の解決だけがまだ git を spawn するため(TASK-435.4 で解消)、
-    /// その予算を他のポーリング待機と同じ単一情報源から採る。
     private func makeReader() -> GitStatusReader {
-        let runner = GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10))
-        return GitStatusReader(comparisonBase: GitComparisonBaseResolver(runner: runner))
+        GitStatusReader()
     }
 
     /// ブランチ内でコミット済み・作業ツリーはクリーンなファイルに branchModified が付く。

@@ -12,7 +12,7 @@ import Testing
 struct GitDiffReaderIntegrationTests {
     /// git 1 回あたりの予算は他のポーリング待機と同じ単一情報源から採る。
     private func makeReader() -> GitDiffReader {
-        GitDiffReader(runner: GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10)))
+        GitDiffReader()
     }
 
     @Test("未ステージの変更が unified diff で返る")
@@ -141,6 +141,81 @@ struct GitDiffReaderIntegrationTests {
         #expect(result == .notInRepository)
     }
 
+    /// 自己励振の防止線。差分取得が `.git/index` を書き換えると
+    /// 「差分取得 → fingerprint 変化 → 監視発火 → 差分取得」の輪ができる。
+    ///
+    /// **内容を変えずに mtime だけ動かす**のが要点。内容ごと変えた場合、libgit2 は
+    /// `GIT_DIFF_UPDATE_INDEX` を設定しても index を書かないため、このフラグを足す
+    /// 退行を検知できない(TASK-435.3 の status 側で実測した同じ話)。
+    @Test("差分取得は .git/index の fingerprint を変えない")
+    func diffDoesNotDisturbIndexFingerprint() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "a.swift", contents: "same\n", in: temp.url)
+        // 同じ内容で書き直して mtime だけ進める(index の stat キャッシュが古くなる)。
+        try GitTestRepo.modifyWithoutStaging("a.swift", contents: "same\n", in: temp.url)
+        let repository = GitRepository()
+        let before = repository.indexFingerprint(at: temp.url)
+
+        _ = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+        _ = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+
+        #expect(repository.indexFingerprint(at: temp.url) == before)
+    }
+
+    /// AC #2 の担保。viewer.js の `parseUnifiedDiff` は無改修で動くことが要件だが、
+    /// それを直接測る手段が無いため、**守りたいもの(git と同じ unified diff テキスト)**を
+    /// 実 git の出力との一致で測る。
+    ///
+    /// 比較相手は外部 git 方式が実際に使っていた引数そのもの
+    /// (`--no-color --no-ext-diff -U1000000 <base> -- <path>`)。
+    @Test("実 git の -U1000000 出力と一致する")
+    func matchesRealGitUnifiedDiffOutput() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        let original = (1 ... 30).map { "line \($0)" }.joined(separator: "\n") + "\n"
+        try GitTestRepo.commitFile(named: "a.swift", contents: original, in: temp.url)
+        // 先頭・中間・末尾を変え、追加と削除の両方を含む差分にする。
+        var lines = original.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        lines[0] = "changed first"
+        lines[15] = "changed middle"
+        lines.remove(at: 20)
+        lines.insert("inserted", at: 25)
+        try GitTestRepo.modifyWithoutStaging(
+            "a.swift", contents: lines.joined(separator: "\n"), in: temp.url
+        )
+
+        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+        guard case let .diff(text) = result else {
+            Issue.record("差分が返らなかった: \(String(describing: result))")
+            return
+        }
+        // 起点は libgit2 実装と同じものを使う(ここがずれると比較そのものが無意味になる)。
+        let base = GitComparisonBaseResolver().comparisonBase(forRepositoryAt: temp.url) ?? "HEAD"
+        let expected = try #require(realGitDiff(base: base, path: "a.swift", in: temp.url))
+
+        #expect(text == expected)
+    }
+
+    /// 実 git を直接起動して unified diff を採る(テストの比較相手専用)。
+    private func realGitDiff(base: String, path: String, in dir: URL) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = [
+            "git", "-C", dir.path, "--no-pager", "diff", "--no-color", "--no-ext-diff",
+            "-U\(GitDiffReader.wholeFileContextLines)", base, "--", path,
+        ]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return String(data: data, encoding: .utf8)
+    }
+
     @Test("上限を超える差分は tooLarge")
     func reportsTooLargeDiff() throws {
         let temp = try TempDir()
@@ -168,12 +243,11 @@ struct GitDiffReaderIntegrationTests {
 /// なる(TASK-352)。ここが落ちたら基準がずれている。
 struct GitDiffComparisonBaseIntegrationTests {
     private func makeReader() -> GitDiffReader {
-        GitDiffReader(runner: GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10)))
+        GitDiffReader()
     }
 
     private func makeStatusReader() -> GitStatusReader {
-        let runner = GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10))
-        return GitStatusReader(comparisonBase: GitComparisonBaseResolver(runner: runner))
+        GitStatusReader()
     }
 
     /// AC#1: ブランチでコミット済み・作業ツリーがきれいでも差分が出る。
@@ -257,33 +331,44 @@ struct GitDiffComparisonBaseIntegrationTests {
     }
 }
 
-/// 本文からのバイナリ判定だけは、実 git を起こさず書式で固定する。
-struct GitDiffBinaryDetectionTests {
-    @Test("Binary files 行を含む差分をバイナリと判定する")
-    func detectsBinaryMarker() {
-        let text = """
-        diff --git a/b.dat b/b.dat
-        index c94be36..04d3356 100644
-        Binary files a/b.dat and b/b.dat differ
+/// バイナリ判定の Integration テスト。
+///
+/// 判定は git の固定英文(`Binary files … differ`)の行頭一致ではなく、libgit2 が
+/// delta に付ける `GIT_DIFF_FLAG_BINARY` で行う。文字列一致に戻すとここが落ちる。
+struct GitDiffBinaryDetectionIntegrationTests {
+    @Test("NUL を含むファイルの差分は binary")
+    func detectsBinaryFile() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "seed.txt", in: temp.url)
+        let binary = temp.url.appendingPathComponent("b.dat")
+        try Data([0x00, 0x01, 0x02, 0x00, 0xFF]).write(to: binary)
+        GitTestRepo.run(["add", "b.dat"], in: temp.url)
 
-        """
-        #expect(GitDiffReader.isBinaryDiff(text))
+        #expect(GitDiffReader().diff(forFileAt: binary, in: temp.url) == .binary)
     }
 
-    /// 追加行として `Binary files ` を含むテキストファイルを誤判定しないこと。
-    /// 差分本文の行は必ず `+` / `-` / ` ` で始まるため行頭一致で区別できる。
-    @Test("本文中の Binary files という文字列では誤判定しない")
-    func doesNotMisclassifyTextContainingMarker() {
-        let text = """
-        diff --git a/a.txt b/a.txt
-        index 1111111..2222222 100644
-        --- a/a.txt
-        +++ b/a.txt
-        @@ -1 +1 @@
-        -old
-        +Binary files a/x and b/x differ
+    /// `Binary files … differ` という文字列を**本文に含む**テキストファイルを
+    /// バイナリと誤判定しないこと。行頭一致による判定へ戻すとここが落ちる
+    /// (同じ形の誤検知が unified diff のハンク判定で実際に起きている: TASK-316)。
+    @Test("本文に Binary files という行を含むテキストファイルは binary にしない")
+    func doesNotMisclassifyTextContainingMarker() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "a.txt", contents: "old\n", in: temp.url)
+        // 差分の追加行が `Binary files a/x and b/x differ` そのものになる。
+        try GitTestRepo.modifyWithoutStaging(
+            "a.txt", contents: "Binary files a/x and b/x differ\n", in: temp.url
+        )
 
-        """
-        #expect(!GitDiffReader.isBinaryDiff(text))
+        let result = GitDiffReader().diff(forFileAt: temp.url.appendingPathComponent("a.txt"), in: temp.url)
+
+        guard case let .diff(text) = result else {
+            Issue.record("テキスト差分が返らなかった: \(String(describing: result))")
+            return
+        }
+        #expect(text.contains("+Binary files a/x and b/x differ"))
     }
 }

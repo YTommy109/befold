@@ -9,12 +9,8 @@ import Testing
 /// 解釈でき、絶対パスのキーで引ける」ことのスモークに絞る(実 git を起動するテストは
 /// `GitCommandRunnerResourceLeakTests` の基準線にノイズを乗せるため本数を絞る規約)。
 struct GitStatusReaderIntegrationTests {
-    /// status 本体は libgit2 で読むため予算を要さない。比較起点の解決だけがまだ git を
-    /// spawn するため(TASK-435.4 で解消)、そこだけ他のポーリング待機と同じ単一情報源から
-    /// 予算を採る(少コアの CI では git の起動自体が遅れうる)。
     private func makeReader() -> GitStatusReader {
-        let runner = GitCommandRunner(timeout: testTimeoutSeconds(fallback: 10))
-        return GitStatusReader(comparisonBase: GitComparisonBaseResolver(runner: runner))
+        GitStatusReader()
     }
 
     @Test("staged / unstaged / untracked を実 git の出力から判別する")
