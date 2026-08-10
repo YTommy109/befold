@@ -1,10 +1,11 @@
 ---
 id: TASK-435
 title: git 連携を外部 git バイナリ実行から libgit2 ベースへ移行する
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-10 13:13'
-updated_date: '2026-08-10 13:57'
+updated_date: '2026-08-10 15:01'
 labels:
   - refactor
 dependencies: []
@@ -40,6 +41,20 @@ befold の git 連携（サイドバーのステータスバッジ、差分表�
 - [ ] #9 libgit2 が開けないリポジトリ（partial clone / reftable）を模したフィクスチャで、クラッシュせず・モーダルを出さず・通常のビューアとして動作することがテストで担保されている
 - [ ] #10 リポジトリを開けなかった場合に .unavailable 相当へ写像する箇所が 1 関数に集約されている
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 【完了】事前調査（AC #1 / #8）。ADR の未確認 4 点を実測で解消し、SwiftGitX を評価して不採用と判断した。結果は Implementation Notes に記録済み。
+2. サブタスクへ分割して順に実施する。各サブタスクの着手前に `/review-design` を 1 回回す（CLAUDE.md「実装着手前の設計レビュー」）。
+   - TASK-435.1 基盤: libgit2 の SPM 依存追加・C シムターゲット・リポジトリオープンの 1 関数集約（AC #7 / #9 / #10）
+   - TASK-435.2 GitRepository の移行（root 解決 / 追跡ファイル一覧 / worktree 判定・列挙。AC #5 の一部）
+   - TASK-435.3 GitStatusReader の移行（porcelain=v2 相当 / submodule 境界 / ブランチ差分。AC #4、AC #5 の一部）
+   - TASK-435.4 GitDiffReader + GitComparisonBase の移行（全文コンテキスト diff / 比較起点。AC #3、AC #5 の一部）
+   - TASK-435.5 GitCommandRunner の撤去・テスト整理・ADR 0005 の更新（AC #2 / #6）
+3. 分割方針の根拠: 現行の 4 つの読み取り実装（GitRepository / GitStatusReader / GitDiffReader / GitComparisonBaseResolver）はいずれも `GitCommandRunning` を注入される独立した seam であり、1 つずつ libgit2 実装へ差し替えても呼び出し側とテストの seam は変わらない。したがって「共通基盤 → 個別の実装 → 旧実装の撤去」の順で、各段階を動作する状態に保ったまま進められる。
+4. ADR 0005 の更新点（TASK-435.5 で反映）: (a) 配布形態を static XCFramework から SPM ソースターゲットへ変更、(b) core.excludesFile が効かなくなることを Consequences へ追記、(c) グローバル config 無効化の目的が「任意コマンド実行の遮断」ではなく「決定性の確保」である旨を明記。
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
@@ -86,4 +101,180 @@ Priority を medium → high へ引き上げ、To Do の 2 番目(TASK-427 の�
 - spawn 回数の削減が実行時間に効かないことは TASK-244(正味ゼロ)・TASK-245(効果ほぼ無し)で 2 回実測否定済み。効いたのは TASK-255 の猶予短縮のみで手当て済み
 - TASK-255 以降のクリティカルパスは `ViewerStoreIntegrationTests`(約 10 秒)で、git 系は既に律速ではない。フル実行の短縮は律速交代分に留まる
 - 実 git を起こすテストは 1390 本中 44 本(3.2%)
+
+## AC #1: 実装前に潰すべき未確認事項 4 点の実測結果（2026-08-10）
+
+実測環境: 検証用 SPM パッケージをスクラッチパッドに作り、libgit2 を直接呼ぶプローブを書いて計測した。
+libgit2 は `ibrahimcetin/libgit2`（SwiftGitX が pin する SPM ソースパッケージ）1.9.2 タグ。
+`git_libgit2_version` の自己申告は 1.9.0。ホスト側の比較対象は PATH 上の git 2.55.0。
+
+### (1) libgit2 がサンドボックスコンテナの HOME を引くか → 引く（HOME 環境変数由来）
+
+`git_libgit2_opts(GIT_OPT_GET_SEARCH_PATH, ...)` の実測値:
+
+| HOME | SYSTEM | XDG | GLOBAL | ~/.gitconfig の user.name |
+|---|---|---|---|---|
+| 実ホーム | `/etc` | `$HOME/.config/git` | `$HOME` | 読める |
+| 差し替えた偽ホーム | `/etc` | 偽ホーム/.config/git | 偽ホーム | 偽ホーム側の値が読める |
+| 未設定（`env -u HOME`） | `/etc` | `""` | `""` | 読めない |
+
+GLOBAL/XDG は HOME 環境変数からのみ導出され、HOME 未設定時に getpwuid へフォールバックしない。
+App Sandbox では HOME がコンテナの Data ディレクトリへ書き換わるため、libgit2 はコンテナ内を見る
+（＝実ユーザーの ~/.gitconfig は読まない）。さらに AC #7 の無効化を入れれば HOME の値によらず無関係になる。
+
+`befold_git_opts_set_search_path(level, "")` を SYSTEM/XDG/GLOBAL に対して実行後、
+3 レベルとも `""` になり `git_config_open_default` から user.name が消えることを実測（rc=-3）。AC #7 は実現可能。
+
+### (2) .git 配下の flock / rename のサンドボックス下での挙動 → 書き込み不要で成立する
+
+`sandbox-exec` でフィクスチャ配下を書き込み禁止にして計測。
+
+- `.git` 書き込み禁止: status（7 エントリ）・diff・worktree 列挙・submodule 列挙・index 走査すべて成功。
+  クラッシュもハングも無し。`.git/index` の更新は発生しない。
+- `.git` 読み取り禁止: `git_repository_open` が `-3`(GIT_ENOTFOUND) / klass=6(GIT_ERROR_REPOSITORY) で
+  即座に失敗。クラッシュもハングも無し。`.unavailable` へ写像すれば足りる。
+
+読み取り専用アクセスだけで現状の 13 呼び出し相当が成立することを実測で確認した。
+
+### (3) .gitignore 判定が core.excludesFile / info/exclude を見るか → **3 つとも見る**
+
+`git_ignore_path_is_ignored` の実測（同じフィクスチャに 3 経路の無視対象を用意）:
+
+| 対象 | .gitignore | .git/info/exclude | core.excludesFile |
+|---|---|---|---|
+| HOME に core.excludesFile あり | ignored=1 | ignored=1 | ignored=1 |
+| HOME に設定なし | ignored=1 | ignored=1 | ignored=0 |
+
+実 git の `status --porcelain=v2` と完全一致した。
+
+**ここに AC #7 とのトレードオフがある。** core.excludesFile はグローバル config 経由で読まれるため、
+AC #7 の `GIT_OPT_SET_SEARCH_PATH` 無効化を入れると **core.excludesFile が効かなくなる**。
+現行の subprocess 実装は `GitCommandRunner.processEnvironment()` で HOME を意図的に残しており
+（`GitCommandRunner.swift:111-112` に「ユーザー自身の ~/.gitconfig は信頼できる設定」と明記）、
+グローバル ignore は現在は効いている。移行後はグローバル ignore していたファイルが
+サイドバーに untracked バッジで出るようになる。AC #7 を書いたとおり実装するが、この挙動変化は
+Consequences として ADR へ追記する。
+
+なお、無効化の主目的は現状（subprocess）とは異なる点に注意する。subprocess では
+core.fsmonitor / core.hooksPath が任意コマンド実行の経路になるため遮断が必須だったが、
+libgit2 はフックも textconv も外部 diff driver も実行しない。libgit2 での無効化目的は
+「決定性の確保」であって「任意コマンド実行の遮断」ではない。
+
+### (4) libgit2 起因の App Store リジェクト事例の有無 → 公開情報では見つからなかった
+
+複数クエリで検索したが、libgit2 の同梱を直接の理由とするリジェクト事例は発見できず。
+「事例が無い」ことの証明ではないため、**未確認のまま残るリスクとして記録する**。
+関連する既知の issue は libgit2#6883（Apple のシステム gitconfig を見つけられない）、
+libgit2#6182 / #4815（GIT_CONFIG 系環境変数を本家ほど尊重しない）で、いずれも
+「環境変数トリックではなく GIT_OPT_SET_SEARCH_PATH で明示的に無効化せよ」という方向を支持する。
+サンドボックス対策として同じ手法を採る先行実装がある（stagit が OpenBSD の unveil 対策で
+`for (i = 1; i <= GIT_CONFIG_LEVEL_APP; i++) git_libgit2_opts(GIT_OPT_SET_SEARCH_PATH, i, "")` を実施）。
+
+## AC #8: バインディングの評価結果 → SwiftGitX は不採用、libgit2 を直接叩く
+
+ADR 0005 の指示どおり SwiftGitX を先に評価した。結論は**不採用**。befold が必要とする 13 呼び出しのうち
+過半が SwiftGitX の公開 API に存在しない。
+
+| 必要な機能 | SwiftGitX | 根拠 |
+|---|---|---|
+| status（HEAD/index/worktree の 3 者比較、rename 検出） | ある | `Repository+status.swift` が `git_status_list_new` を呼び、`StatusEntry` が index/workingTree の Delta を別々に持つ |
+| ブランチ存在確認 / 任意フルネーム参照の解決 | ある | `BranchCollection` / `ReferenceCollection` |
+| unified diff テキスト生成 + context 行数指定 | **無い** | `Repository+diff.swift` は diff options を常に `nil` で渡す。`// TODO: Implement diff options` のコメントあり。`context_lines` の出現 0 件、`git_diff_to_buf` 相当も無し |
+| pathspec 限定の diff | **無い** | 同上（path 引数が API に無い） |
+| worktree 列挙 | **無い** | Worktree 型が存在しない |
+| submodule 列挙 | **無い** | Submodule 型が存在しない |
+| merge-base | **無い** | `merge_base` の出現 0 件 |
+| 追跡ファイル一覧（ls-files 相当） | **無い** | `IndexCollection` は internal かつ add/remove のみ |
+| `git_libgit2_opts`（AC #7 の前提） | **無い** | `GIT_OPT` の出現 0 件 |
+
+したがって **libgit2 の C API を直接使う**。ただし ADR が想定した「static XCFramework + `.binaryTarget`」は採らない。
+
+### 配布形態の変更提案: XCFramework をやめて SPM ソースターゲットにする
+
+SwiftGitX の依存先である `ibrahimcetin/libgit2` は、**libgit2 の C ソースを SPM の C ターゲットとして
+そのままビルドするパッケージ**であり、`.library(name: "libgit2", targets: ["libgit2"])` を product として
+公開している。アプリ側から直接依存に加えて `import libgit2` できることを実測で確認した。
+
+- macOS 向けに CommonCrypto / SecureTransport / builtin zlib・pcre・llhttp・xdiff を選ぶ設定が
+  `Package.swift` に書かれており、ADR が挙げた `USE_SSH=OFF` 相当・SecureTransport 化は済んでいる
+- ローカルでのビルド実測: 依存解決 + フルビルドが **6.4 秒**（286 ステップ）。cmake は不要
+  （このマシンには cmake が入っていないが問題なくビルドできた）
+- ADR が「引き受けるコスト」に挙げた「XCFramework のビルドと更新を自前で回す」が消える
+
+既製の XCFramework パッケージ（`bdewey/static-libgit2` = libgit2 1.3.0 / 2022 年停止、
+`light-tech/Clibgit2` = 2021 年停止・ライセンス記載なし）はいずれも古く、採れない。
+
+### `git_libgit2_opts` は C 可変長引数のため Swift から呼べない → C シムが要る
+
+`GIT_EXTERN(int) git_libgit2_opts(int option, ...);` は真の C 可変長引数関数であり、Swift から直接
+呼び出せない（Clang importer が取り込まない）。SwiftGitX にも `ibrahimcetin/libgit2` にもシムは無い。
+固定引数へ落とす小さな C ターゲットを befold 側に置く必要がある。実測で動作を確認したシム:
+
+```c
+int befold_git_opts_set_search_path(int level, const char *path) {
+    return git_libgit2_opts(GIT_OPT_SET_SEARCH_PATH, level, path);
+}
+```
+
+### 開けないリポジトリの判定は 1 種類に収束する（AC #9 / #10 の裏付け）
+
+`core.repositoryformatversion >= 1` かつ未知の `extensions.*` があると `git_repository_open` が
+`-1` / klass=6(GIT_ERROR_REPOSITORY) / `unsupported extension name extensions.<名前>` で失敗する。
+フィクスチャ 3 種で実測し、すべて同じ形になった。
+
+| フィクスチャ | libgit2 | 実 git 2.55 |
+|---|---|---|
+| `extensions.partialClone` | -1 / `unsupported extension name extensions.partialclone` | 開ける |
+| `--ref-format=reftable` | -1 / `unsupported extension name extensions.refstorage` | 開ける |
+| 未知の `extensions.befoldUnknown` | -1 / `unsupported extension name extensions.befoldunknown` | 開けない（fatal） |
+
+判定が 1 経路に収束するため、AC #10 の「`.unavailable` 相当へ写像する箇所を 1 関数に集約」は素直に書ける。
+
+補足: reftable 対応は 2026-08-06〜07 に libgit2 の main へマージされたが、まだどのタグ付きリリースにも
+入っていない（tracking issue #5352 は open のまま）。1.9.x を使う限り上表のとおり開けない。
+
+## AC #3 / #4 / #5 の実現可能性（実測で確認済み）
+
+### unified diff は実 git とバイト一致した（AC #3）
+
+`git_diff_options.context_lines = 1_000_000` + `git_diff_tree_to_workdir_with_index` +
+`git_diff_to_buf(GIT_DIFF_FORMAT_PATCH)` の出力が、
+`git diff --no-color --no-ext-diff -U1000000 HEAD -- tracked.txt` の出力と**バイト単位で一致**した
+（`diff --git` / `index 624784e..427f750 100644` / `@@ -1,6 +1,6 @@` まで含めて同一）。
+viewer.js の `parseUnifiedDiff` は無改修で足りる見込みが実測で裏付けられた。
+
+### status は porcelain=v2 と 1 対 1 に対応した（AC #4）
+
+同一フィクスチャ（staged 追加 / workdir 削除 / rename / staged 変更 / workdir 変更 / untracked 2 件）で比較:
+
+| ファイル | 実 git porcelain=v2 | libgit2 head_to_index / index_to_workdir |
+|---|---|---|
+| added.txt | `1 A.` | ADDED(1) / UNMODIFIED(0) |
+| deleted.txt | `1 .D` | UNMODIFIED(0) / DELETED(2) |
+| renamed-again.txt | `2 R.` + 元パス | RENAMED(4) / UNMODIFIED(0)、old_file.path に元パス |
+| staged.txt | `1 M.` | MODIFIED(3) / UNMODIFIED(0) |
+| tracked.txt | `1 .M` | UNMODIFIED(0) / MODIFIED(3) |
+| untracked.txt, ignored-by-excludesfile.txt | `?` | UNMODIFIED(0) / UNTRACKED(7) |
+
+エントリ数・パス・rename の元パスまで一致。XY の 2 文字は
+`head_to_index.status` と `index_to_workdir.status` を `git_delta_t` → 文字へ写像すれば再現できる。
+
+### worktree / submodule / 比較起点（AC #5）
+
+`git_worktree_list` + `git_worktree_lookup` + `git_worktree_path`、`git_submodule_foreach`、
+`git_merge_base`、`git_branch_lookup`、`refs/remotes/origin/HEAD` の `git_reference_symbolic_target`、
+`git_repository_path` / `git_repository_commondir` / `git_repository_is_worktree`、
+index 走査（ls-files 相当）がいずれも動作することを実測。
+
+**移行時の差分として拾うべき点が 2 つある。**
+
+1. `git_worktree_list` は**リンク worktree だけ**を返し、メイン worktree を含まない。
+   現行の `git worktree list --porcelain` はメインも含む（`GitRepository.parseWorktreeList`）。
+   メイン側は `git_repository_commondir` から自前で補う必要がある。
+2. `git_worktree_*` はブランチ名を返さない。各 worktree を開いて HEAD を読む手当てが要る。
+
+### その他の実装上の注意（実測で判明）
+
+- `git_error_last()` は成功後も直前のエラーが残る（`git_repository_open` が rc=0 でも
+  `.git/shallow` の stat 失敗が残っていた）。**rc < 0 のときだけ読む**こと。
 <!-- SECTION:NOTES:END -->
