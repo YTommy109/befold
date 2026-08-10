@@ -266,45 +266,23 @@ final class FileListModel {
         return visibleEntries.firstIndex { $0.id == selection }
     }
 
-    /// フィルター適用後にサイドバーへ表示するエントリ。`entries`(ディスク由来の一覧)は
-    /// 保持したまま、この算出側だけで絞り込む。`.parentNavigation` はフィルター文字列に
-    /// 関わらず常に含める(上位フォルダへの移動手段を残すため)。
-    /// git 変更での絞り込み(showChangedFilesOnly)も AND で併用する。
-    var visibleEntries: [FileListEntry] {
-        // 順序が意味を持つ。祖先を足し戻してから開閉三角を確定させること。
-        // 逆にすると、「名前は一致するが子が全部消えたフォルダ」の判定が、あとから
-        // 足し戻した祖先を子として数えてしまう余地が残る。
-        SidebarDisclosureResolver.resolving(
-            SidebarTreeFilter.keepingAncestors(of: filteredEntries, in: entries)
-        )
-    }
+    #if DEBUG
+        /// `listSnapshot` を評価した回数。1 回のキー操作で絞り込みが何度走るかを
+        /// テストから測るためだけに置く(TASK-418 AC#3)。観測対象にすると読み出しが
+        /// 再描画を呼ぶため `@ObservationIgnored`。
+        @ObservationIgnored private(set) var snapshotEvaluationCount = 0
 
-    /// 絞り込みだけを適用した一覧(祖先の足し戻し・開閉三角の確定を含まない)。
-    ///
-    /// プレビューのフォルダー一覧へはこちらを渡す。祖先を足し戻した配列を渡すと、
-    /// 「条件に一致しないフォルダ」がプレビューにも現れる一方、同じフォルダを
-    /// 自前列挙する経路では消えるため、1 ウィンドウ内に絞り込みの答えが 2 つ並ぶ
-    /// (サイドバーとプレビューで答えを 1 つにする TASK-288 の巻き戻し)。
-    private var filteredEntries: [FileListEntry] {
-        listFilter.apply(to: entries, in: entriesDirectory)
-    }
+        /// 評価回数を 0 へ戻す。測りたい操作の直前にテストから呼ぶ。
+        func resetSnapshotEvaluationCount() {
+            snapshotEvaluationCount = 0
+        }
 
-    /// フォルダーを降りた直後に選ぶ行の URL。一覧が空(または `..` しかない)なら nil。
-    ///
-    /// `.parentNavigation` は上位フォルダーへの移動手段であって一覧の項目ではないため飛ばす。
-    /// 選んでしまうと、そのまま Enter や → を押した利用者が今降りてきたばかりの階層へ
-    /// 押し戻される。絞り込みは移動をまたいで残るので、`entries` ではなく実際に見えている
-    /// 行から採る。ただし**一致した行を優先し、祖先として足し戻されただけの行
-    /// (`SidebarTreeFilter`)は飛ばす**(TASK-406)。ツリー表示では一致行の祖先フォルダが
-    /// 自分は一致しないまま残るので、見えている先頭をそのまま採ると絞り込みの答えでない行が
-    /// 初期選択になり、探していた行まで矢印キーで降りることになる。一致行が 1 つも無い場合
-    /// (祖先保持の性質上、通常は起こらない)だけ従来どおり先頭を採る(無選択へは落とさない)。
-    var firstSelectableEntryURL: FileListEntry.ID? {
-        let selectable = visibleEntries.filter { $0.kind != .parentNavigation }
-        let matched = Set(filteredEntries.map(\.id))
-        let entry = selectable.first { matched.contains($0.id) } ?? selectable.first
-        return entry?.url
-    }
+        /// 1 回評価したことを記録する。`listSnapshot` は別ファイルの extension に
+        /// あり、`private(set)` の setter へ届かないためここを経由する。
+        func noteSnapshotEvaluated() {
+            snapshotEvaluationCount += 1
+        }
+    #endif
 
     /// `directory` のフォルダー一覧(FolderListingView)へ渡す供給元。
     ///
@@ -337,10 +315,10 @@ final class FileListModel {
         // 孫以降の行が混ざるため(TASK-361.1)、そのまま渡すと「このフォルダーの中身」
         // として別階層のファイルが並ぶ。ドリルダウンでは全行 depth 0 なので素通し。
         //
-        // 祖先を足し戻す**前**の配列(filteredEntries)から採る。足し戻した配列を渡すと、
+        // 祖先を足し戻す**前**の配列(FileListSnapshot.filtered)から採る。足し戻した配列を渡すと、
         // 条件に一致しないフォルダがプレビューにも現れる一方、同じフォルダを自前列挙する
         // 経路では消えるため、1 ウィンドウ内に絞り込みの答えが 2 つ並ぶ(TASK-288 の巻き戻し)。
-        return .shared(filteredEntries.filter { $0.depth == 0 })
+        return .shared(listSnapshot.filtered.filter { $0.depth == 0 })
     }
 
     /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧
