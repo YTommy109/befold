@@ -1,11 +1,11 @@
 ---
 id: TASK-435
 title: git 連携を外部 git バイナリ実行から libgit2 ベースへ移行する
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-10 13:13'
-updated_date: '2026-08-10 15:33'
+updated_date: '2026-08-10 21:39'
 labels:
   - refactor
 dependencies: []
@@ -30,16 +30,16 @@ befold の git 連携（サイドバーのステータスバッジ、差分表�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ADR 0005 の「実装前に潰すべき未確認事項」4 点が実測で解消され、結果が Implementation Notes に記録されている
-- [ ] #2 docs/adr/0005 の呼び出し一覧 13 箇所すべてがライブラリ実装に置き換わり、プロダクトコードから /usr/bin/git の Process 実行が消えている
-- [ ] #3 -U1000000 相当の全文コンテキスト diff が再現され、viewer.js の parseUnifiedDiff が無改修で従来どおり描画できる（差分表示の既存テストが通る）
-- [ ] #4 porcelain=v2 相当のステータス取得が再実装され、GitStatusReader の既存テストが同等の期待値で通る
-- [ ] #5 worktree 列挙・submodule 境界検出・比較起点の解決が従来と同じ結果を返す
-- [ ] #6 GitCommandRunner の外部プロセス起因の手当て（fsmonitor/hooksPath 遮断・環境変数遮断・プロセスグループ kill）が不要になったぶん撤去されている
-- [ ] #7 起動時に GIT_OPT_SET_SEARCH_PATH で system/xdg の config を無効化し、global（~/.gitconfig）は core.excludesFile によるグローバル ignore を保つため意図して有効のままにする。両方の判断がテストで担保されている
-- [ ] #8 SwiftGitX を先に評価し、必要な API が塞げるかの判断結果（採用したバインディングとその理由）が Implementation Notes に記録されている
-- [ ] #9 libgit2 が開けないリポジトリ（partial clone / reftable）を模したフィクスチャで、クラッシュせず・モーダルを出さず・通常のビューアとして動作することがテストで担保されている
-- [ ] #10 リポジトリを開けなかった場合に .unavailable 相当へ写像する箇所が 1 関数に集約されている
+- [x] #1 ADR 0005 の「実装前に潰すべき未確認事項」4 点が実測で解消され、結果が Implementation Notes に記録されている
+- [x] #2 docs/adr/0005 の呼び出し一覧 13 箇所すべてがライブラリ実装に置き換わり、プロダクトコードから /usr/bin/git の Process 実行が消えている
+- [x] #3 -U1000000 相当の全文コンテキスト diff が再現され、viewer.js の parseUnifiedDiff が無改修で従来どおり描画できる（差分表示の既存テストが通る）
+- [x] #4 porcelain=v2 相当のステータス取得が再実装され、GitStatusReader の既存テストが同等の期待値で通る
+- [x] #5 worktree 列挙・submodule 境界検出・比較起点の解決が従来と同じ結果を返す
+- [x] #6 GitCommandRunner の外部プロセス起因の手当て（fsmonitor/hooksPath 遮断・環境変数遮断・プロセスグループ kill）が不要になったぶん撤去されている
+- [x] #7 起動時に GIT_OPT_SET_SEARCH_PATH で system/xdg の config を無効化し、global（~/.gitconfig）は core.excludesFile によるグローバル ignore を保つため意図して有効のままにする。両方の判断がテストで担保されている
+- [x] #8 SwiftGitX を先に評価し、必要な API が塞げるかの判断結果（採用したバインディングとその理由）が Implementation Notes に記録されている
+- [x] #9 libgit2 が開けないリポジトリ（partial clone / reftable）を模したフィクスチャで、クラッシュせず・モーダルを出さず・通常のビューアとして動作することがテストで担保されている
+- [x] #10 リポジトリを開けなかった場合に .unavailable 相当へ写像する箇所が 1 関数に集約されている
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -277,4 +277,64 @@ index 走査（ls-files 相当）がいずれも動作することを実測。
 
 - `git_error_last()` は成功後も直前のエラーが残る（`git_repository_open` が rc=0 でも
   `.git/shallow` の stat 失敗が残っていた）。**rc < 0 のときだけ読む**こと。
+
+## 移行完了（2026-08-11）
+
+サブタスク 5 件がすべて Done。13 呼び出しすべてが libgit2 実装へ移り、
+`GitCommandRunner` を撤去した。`rg 'GitCommandRunn|GitCommandOutcome'` の一致は 0 件。
+
+| サブタスク | 主な内容 | コミット |
+|---|---|---|
+| 435.1 | libgit2 の SPM 依存・C シム・`GitLibrary.withRepository` への集約 | 29f8f5f / d1c9f0e |
+| 435.2 | GitRepository（root / 追跡ファイル / worktree 判定・列挙） | 16a1d70 |
+| 435.3 | GitStatusReader（status / submodule / ブランチ差分） | 2e7ceb8 |
+| 435.4 | GitDiffReader + GitComparisonBaseResolver | 0234ec7 |
+| 435.5 | GitCommandRunner 撤去・ADR 更新・TASK-226 の始末 | a3691b2 / ef41efc |
+
+### 設計レビューを毎サブタスクで回した結果、方針が変わった箇所
+
+CLAUDE.md の規約どおり 435.2〜435.5 それぞれで `/review-design` を回した。当初計画から
+変わったのは次の 4 点で、いずれも**実装前の設計レビューか実装中の実測**で気づいた。
+
+1. **435.2**: `isMain` を「git の出力で先頭か」から「共通 gitdir 由来の本体か」という
+   事実へ移した（出力順への暗黙依存を解消）
+2. **435.3**: 境界検出は 3 系統ではなく 2 系統で足りた。`git_submodule_foreach` が index の
+   gitlink まで列挙するため、計画していたファイルモード判定は同じ集合にしかならず撤去した
+3. **435.3**: 親タスクの Notes が必要オプションに挙げていた `GIT_STATUS_OPT_EXCLUDE_SUBMODULES` は
+   **設定してはならない**。設定すると変更されたサブモジュールのバッジが消える
+4. **435.4**: `GIT_DIFF_FLAG_BINARY` は patch を生成した後でなければ立たない。判定の位置を変えた
+
+### 「破れたら落ちるもの」を実際に破って確認した
+
+規約は担保を付けることを求めるが、担保が効くことまでは自動では保証されない。今回は
+フラグを実際に足して落ちることを確認した。**そのうち 1 件は当初効いていなかった。**
+
+- `GIT_STATUS_OPT_UPDATE_INDEX` の防止線は、内容ごと書き換えるテストでは検知できなかった
+  （libgit2 はその場合 index を書かない）。内容を変えず mtime だけ動かす形へ直して初めて落ちるようになった
+- `GIT_STATUS_OPT_EXCLUDE_SUBMODULES` / `GIT_DIFF_UPDATE_INDEX` の防止線は確認済み
+
+### AC #3 の担保方法
+
+「viewer.js の parseUnifiedDiff が無改修で動く」を直接測る手段が無いため、**守りたいもの
+（git と同じ unified diff テキスト）を実 git の出力との一致で測る**テストを置いた。
+libgit2 の出力と `git diff --no-color --no-ext-diff -U1000000 <base> -- <path>` の出力が
+文字列として完全一致することを実測で確認している。
+
+### 検証（最終）
+
+- `swift test --skip ViewerRenderer`: **1340 tests / 195 suites passed**
+- `swift test --filter ViewerRenderer`: **51 tests / 9 suites passed**
+- swiftlint: origin/main とのベースライン差分ゼロ（削除ファイルの `file_length` 違反 1 件が解消）
+- swiftformat / markdownlint / `scripts/check-doc-symbols.sh`: すべてクリーン
+- **単一プロセスでの全件実行は完了できていない。** 別セッションが別 worktree で
+  `swift test` を並走させており、CPU 競合で `ViewerRendererZoomIntegrationTests` の
+  WKWebView が `isReady == false` のままタイムアウトする。同スイートを単独で回すと
+  0.6 秒で全通過し、本移行は BefoldRenderKit を触っていないため、変更起因ではないと判断した。
+  **マージ前に競合の無い状態で 1 回通すことを推奨する。**
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+befold の git 連携 13 呼び出しを、外部 git バイナリの Process 実行から libgit2 へ全面移行した。GitCommandRunner（300 行の外部プロセス起因の手当て一式: fsmonitor/hooksPath 遮断・環境変数遮断・プロセスグループ kill・DispatchSemaphore 待ち）を撤去し、リポジトリを開く箇所は GitLibrary.withRepository へ 1 関数に集約した。開けないリポジトリ（partial clone / reftable / 未知の extensions）では 6 つの読み手がそろって不明・縮退へ落ち、キャッシュ可能な確定値を返さないことをテストで固定した。config は system/xdg のみ無効化し、global は core.excludesFile によるグローバル ignore を保つため意図して有効のままにしている（両方向をテストで担保）。検証: 非 renderer 1340 本 + renderer 51 本が全通過、swiftlint はベースライン差分ゼロ。AC #3 は libgit2 の出力が実 git の -U1000000 出力と完全一致することで担保した。単一プロセスでの全件実行だけは別セッションの並走による CPU 競合で完了できておらず、マージ前に競合の無い状態で 1 回通すことを推奨する（詳細は Implementation Notes）。
+<!-- SECTION:FINAL_SUMMARY:END -->
