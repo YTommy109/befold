@@ -90,7 +90,7 @@ struct FileListViewTests {
             selected.set(url)
         }
 
-        let result = view.selectNext()
+        let result = view.selectNext(in: view.model.listSnapshot)
 
         #expect(result == .handled)
         #expect(view.model.selection == fixture.file2.id)
@@ -109,7 +109,7 @@ struct FileListViewTests {
             selected.set(url)
         }
 
-        let result = view.selectPrevious()
+        let result = view.selectPrevious(in: view.model.listSnapshot)
 
         #expect(result == .handled)
         #expect(view.model.selection == fixture.file1.id)
@@ -126,7 +126,7 @@ struct FileListViewTests {
         view.model.selection = view.model.firstSelectableEntryURL
         #expect(view.model.selection == fixture.file0.id)
 
-        let result = view.selectNext()
+        let result = view.selectNext(in: view.model.listSnapshot)
 
         #expect(result == .handled)
         #expect(view.model.selection == fixture.folder.id)
@@ -148,7 +148,7 @@ struct FileListViewTests {
             selected.set(url)
         }
 
-        let result = view.selectNext()
+        let result = view.selectNext(in: view.model.listSnapshot)
 
         #expect(result == .handled)
         #expect(view.model.selection == firstFile.id)
@@ -277,7 +277,7 @@ struct FileListViewTests {
             selected.set(url)
         }
 
-        let result = view.selectNext()
+        let result = view.selectNext(in: view.model.listSnapshot)
 
         #expect(result == .handled)
         #expect(view.model.selection == folder.id)

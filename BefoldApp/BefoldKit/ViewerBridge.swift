@@ -289,9 +289,11 @@ public enum ViewerBridge {
     /// viewer.html 側は window._mmdHostFeatures(未注入時は全機能有効扱い)を読み、
     /// Load More ボタンの表示可否・Space キーでのページスクロール可否・リンク/パス参照
     /// クリック時の referenceActivated postMessage 可否を切り替える。
-    /// アプリ本体は全機能をフルサポートするためデフォルトは true。
+    /// 3 つとも呼び出し側の明示指定を必須にする(デフォルト値を置くと、指定漏れが
+    /// 「全機能有効」に落ちて抑止が黙って効かなくなる。実際 spaceScroll が渡されず
+    /// QuickLook で Space の抑止が一度も効いていなかった)。
     public static func hostFeaturesScript(
-        loadMore: Bool = true, spaceScroll: Bool = true, referenceActivation: Bool = true
+        loadMore: Bool, spaceScroll: Bool, referenceActivation: Bool
     ) -> String {
         let features: [String: Bool] = [
             "loadMore": loadMore,

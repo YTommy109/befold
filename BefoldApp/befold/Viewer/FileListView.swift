@@ -149,8 +149,15 @@ struct FileListView: View {
         }
     }
 
+    /// 一覧本体。**絞り込み結果は 1 回だけ採って List と空表示の判定で共有する。**
+    /// 別々に `model.visibleEntries` を読むと body 1 回につき絞り込みが 2 回走る
+    /// (TASK-418)。
     private var entryList: some View {
-        List(model.visibleEntries, selection: $model.selection) { entry in
+        entryList(showing: model.listSnapshot.visible)
+    }
+
+    private func entryList(showing entries: [FileListEntry]) -> some View {
+        List(entries, selection: $model.selection) { entry in
             // 行インセットをゼロにして同等のパディングを行コンテンツ側へ移し、
             // contentShape が行の全幅を覆うようにする。インセット部分をダブル
             // クリックしたとき選択だけされて移動しない取りこぼしを防ぐ。
@@ -170,7 +177,7 @@ struct FileListView: View {
             .simultaneousGesture(doubleTapGesture(for: entry))
         }
         .overlay {
-            if model.visibleEntries.allSatisfy({ $0.kind == .parentNavigation }) {
+            if entries.allSatisfy({ $0.kind == .parentNavigation }) {
                 emptyStateView
                     .allowsHitTesting(false)
             }

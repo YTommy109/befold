@@ -17,44 +17,45 @@ extension FileListView {
     /// キーとアクションの対応付け。`KeyPress` は公開イニシャライザがなくテストで
     /// 直接構築できないため、`KeyEquivalent` と修飾キーだけを受け取るこの関数を
     /// internal にしてテストから直接呼べるようにしている。
+    ///
+    /// **絞り込み結果のスナップショットはここで 1 回だけ採り、以降は引数で渡す。**
+    /// 選択中の行の判定・移動先の決定・親行の探索が同じ一覧を要るため、都度
+    /// `model.visibleEntries` を読むと 1 打鍵で `FileListFilter.apply` が何度も
+    /// 走る(TASK-418)。
     func handleKey(_ key: KeyEquivalent, modifiers: EventModifiers = []) -> KeyPress.Result {
+        let snapshot = model.listSnapshot
         // キーと動作の対応は表示モードを引数で受ける純粋関数(SidebarKeyAction)に置き、
         // ここは返った動作を 1 回 switch するだけにする。分岐を各アクションへ散らすと、
         // ドリルダウン側の割り当てが変わっていないことを測る場所が無くなる。
-        perform(
+        return perform(
             SidebarKeyAction.action(
-                key: key, modifiers: modifiers, target: selectedTarget, mode: model.layoutMode
-            )
+                key: key, modifiers: modifiers,
+                target: snapshot.entry(for: model.selection).map(SidebarKeyAction.Target.init(entry:)),
+                mode: model.layoutMode
+            ),
+            in: snapshot
         )
     }
 
-    /// 選択中の行を、動作の判断に要る形にしたもの。選択が無ければ nil。
-    private var selectedTarget: SidebarKeyAction.Target? {
-        selectedEntry.map(SidebarKeyAction.Target.init(entry:))
-    }
-
-    private var selectedEntry: FileListEntry? {
-        guard let current = model.selection else { return nil }
-        return model.visibleEntries.first { $0.id == current }
-    }
-
-    private func perform(_ action: SidebarKeyAction) -> KeyPress.Result {
+    private func perform(_ action: SidebarKeyAction, in snapshot: FileListSnapshot) -> KeyPress.Result {
         switch action {
-        case .selectNext: selectNext()
-        case .selectPrevious: selectPrevious()
-        case .navigateToParent: navigateToParent()
+        case .selectNext: selectNext(in: snapshot)
+        case .selectPrevious: selectPrevious(in: snapshot)
+        case .navigateToParent: navigateToParent(in: snapshot)
         // `perform` の switch は default を持つため、新しいケースを足しても
         // コンパイラは漏れを教えない。選択行を要しない動作はここへ明示的に書く。
         case .selectParent: selectParentRow()
         case .ignored: .ignored
         // 残りはいずれも選択行を必要とする。選択が無ければ何もしない、という
         // 同じ前提を 1 箇所にまとめる。
-        default: performOnSelectedEntry(action)
+        default: performOnSelectedEntry(action, in: snapshot)
         }
     }
 
-    private func performOnSelectedEntry(_ action: SidebarKeyAction) -> KeyPress.Result {
-        guard let entry = selectedEntry else { return .ignored }
+    private func performOnSelectedEntry(
+        _ action: SidebarKeyAction, in snapshot: FileListSnapshot
+    ) -> KeyPress.Result {
+        guard let entry = snapshot.entry(for: model.selection) else { return .ignored }
         switch action {
         case .navigateInto: onNavigate(entry.url)
         case .openFile: openIfFile(entry)
@@ -66,35 +67,24 @@ extension FileListView {
     }
 
     /// 選択を次のエントリへ進める。テストから直接呼べるよう internal。
-    func selectNext() -> KeyPress.Result {
-        guard let current = model.selection,
-              let index = model.visibleEntries.firstIndex(where: { $0.id == current }),
-              index + 1 < model.visibleEntries.count
-        else {
-            if model.selection == nil, let first = model.visibleEntries.first {
-                model.selection = first.id
-                openIfFile(first)
-                return .handled
-            }
-            return .ignored
-        }
-        let next = model.visibleEntries[index + 1]
-        model.selection = next.id
-        openIfFile(next)
-        return .handled
+    ///
+    /// 選択が絞り込みで隠れている場合は、選択が無い場合と同じく絞り込み結果の
+    /// 先頭へ移す(行き先の決め方は `FileListSnapshot` を参照)。
+    func selectNext(in snapshot: FileListSnapshot) -> KeyPress.Result {
+        move(to: snapshot.next(after: model.selection))
     }
 
     /// 選択を前のエントリへ戻す。テストから直接呼べるよう internal。
-    func selectPrevious() -> KeyPress.Result {
-        guard let current = model.selection,
-              let index = model.visibleEntries.firstIndex(where: { $0.id == current }),
-              index > 0
-        else {
-            return .ignored
-        }
-        let previous = model.visibleEntries[index - 1]
-        model.selection = previous.id
-        openIfFile(previous)
+    /// 選択が隠れている場合は絞り込み結果の末尾へ移す。
+    func selectPrevious(in snapshot: FileListSnapshot) -> KeyPress.Result {
+        move(to: snapshot.previous(before: model.selection))
+    }
+
+    /// 移動先が決まっていれば選択を移し、ファイルなら開く。
+    private func move(to entry: FileListEntry?) -> KeyPress.Result {
+        guard let entry else { return .ignored }
+        model.selection = entry.id
+        openIfFile(entry)
         return .handled
     }
 
@@ -111,8 +101,8 @@ extension FileListView {
         return .handled
     }
 
-    private func navigateToParent() -> KeyPress.Result {
-        if let parent = model.visibleEntries.first(where: { $0.kind == .parentNavigation }) {
+    private func navigateToParent(in snapshot: FileListSnapshot) -> KeyPress.Result {
+        if let parent = snapshot.parentNavigationEntry {
             onNavigate(parent.url)
             return .handled
         }

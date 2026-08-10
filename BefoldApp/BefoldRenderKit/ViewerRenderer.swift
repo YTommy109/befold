@@ -222,6 +222,7 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
             ViewerBridge.bannerStringsScript(),
             ViewerBridge.hostFeaturesScript(
                 loadMore: rendererFeatures.allowsInteractiveBridging,
+                spaceScroll: rendererFeatures.allowsSpaceScroll,
                 referenceActivation: rendererFeatures.allowsInteractiveBridging
             ),
         ]
