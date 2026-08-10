@@ -4,6 +4,7 @@ title: 'viewer-main.js（1,888 行）を責務ごとに分割する'
 status: To Do
 assignee: []
 created_date: '2026-08-10 07:28'
+updated_date: '2026-08-10 12:58'
 labels: []
 dependencies:
   - TASK-414
@@ -29,3 +30,11 @@ TASK-414 で表示モード判定の一本化を済ませてから、残りを�
 - [ ] #3 分割後も viewer.html からの読み込み順が壊れず、既存の Node テストが通る
 - [ ] #4 QuickLook 拡張と本体アプリの双方で表示が変わらないことを確認する
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-432.3 へ統合したためアーカイブする。
+
+理由: 本タスクの受け入れ条件 #3 は「viewer.html からの読み込み順が壊れず」であり、古典的グローバルスクリプトの暗黙の読み込み順契約を保ったままの分割を前提にしていた。ADR 0005（docs/adr/0005-bundle-viewer-js-with-esbuild.md, decision-5）で esbuild によるバンドル方式を採ることを決めたため、この前提のままの分割はバンドル導入後にやり直しになる。分割そのものは TASK-432.3 が引き継ぐ（Description に本タスクの内容を転記済み）。
+<!-- SECTION:NOTES:END -->
