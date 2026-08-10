@@ -4,7 +4,7 @@ title: ファイルの肥大化を型グループ単位のラチェットで構�
 status: To Do
 assignee: []
 created_date: '2026-08-10 12:32'
-updated_date: '2026-08-10 12:36'
+updated_date: '2026-08-10 12:59'
 labels: []
 dependencies: []
 documentation:
@@ -63,4 +63,10 @@ ordinal: 504500
 型グループ単位のラチェットは Swift の `Type+Feature.swift` 命名規約に依存するため、**JavaScript は対象外**として設計している。しかし肥大化の実害は JS 側にもあり、`BefoldApp/BefoldKit/Resources/viewer-main.js` は 1,888 行で TASK-420 が起票済み（Swift の最大値 585 行より大きい）。
 
 現時点の扱い: JS の現存負債は TASK-420 で個別に返済する。JS にも同種の再発防止機構を入れるかどうかは、Swift 側の仕組みが動き出してから（TASK-428.3 完了後に）判断する。JS はファイル単位の素朴な行数閾値でも extension 逃げが存在しないため、Swift ほど凝った仕組みは要らない可能性が高い。
+
+## JS の扱いを確定した（2026-08-10）
+
+起票時に「JS へ再発防止機構を入れるかは TASK-428.3 完了後に判断する」と保留していた件は、ADR 0005（docs/adr/0005-bundle-viewer-js-with-esbuild.md, decision-5）で方針が決まった。JS はバンドル方式へ移行し、モジュール境界を持たせる（TASK-432）。
+
+これにより、JS 側で本タスクの型グループ相当の仕組みを別途作る必要は無くなる見込み。モジュール境界があれば分割が自然な操作になり、行数の閾値はファイル単位の素朴な判定で足りる（extension 逃げに相当する回避手段が JS には無い）。TASK-432.2 の完了後に、JS へ単純なファイル単位の行数閾値を足すかどうかを判断する。
 <!-- SECTION:NOTES:END -->
