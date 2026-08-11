@@ -153,7 +153,7 @@ extension ViewerWindowController {
             return canSelect(mode)
         }
         if menuItem.action == #selector(toggleDiffLayout(_:)) {
-            menuItem.state = diffPresenter.isLayoutSideBySide ? .on : .off
+            menuItem.state = isDiffLayoutSideBySide ? .on : .off
             return capabilities.canToggleDiffLayout
         }
         return nil

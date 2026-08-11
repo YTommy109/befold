@@ -56,7 +56,7 @@ final class DirectHTMLModeController {
         let isFirstLoadOrSwitch = !isActive || pathChanged
         pendingPageZoom = isFirstLoadOrSwitch ? renderer.initialPageZoom : webView.pageZoom
         // 直接ロードでは viewer.js が居らず行番号・切り詰め・差分は適用されないため、
-        // それらは現在のミラー値のまま持ち越す(復帰時に exit が rendered.reset() で
+        // それらは現在のミラー値のまま持ち越す(復帰時に exit が空のミラーを確定させて
         // 一括破棄する)。フィールドを並べず現在値から組み立てて丸ごと確定させるのは、
         // ミラーへフィールドを足したときの確定漏れを防ぐため。
         var state = renderer.rendered

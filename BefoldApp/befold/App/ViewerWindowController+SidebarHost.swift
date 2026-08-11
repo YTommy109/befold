@@ -23,7 +23,7 @@ extension ViewerWindowController: SidebarNavigatorHost {
     /// 差分側だけを別の契機で呼ばないこと(保存・`.git/index` 変更・キーウィンドウ化・
     /// 絞り込みトグルのどれかが片方にしか届かなくなる / TASK-330)。
     func gitStatusDidApply() {
-        diffPresenter.refresh()
+        refreshDiff()
     }
 
     /// 現在の表示状態をツールバーの全アイテムへ再同期する。

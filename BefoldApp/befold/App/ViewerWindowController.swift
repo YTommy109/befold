@@ -24,7 +24,7 @@ final class ViewerWindowController: NSWindowController {
     /// 表示状態(ファイル種別・ソース表示可否・行番号表示)。ViewerToolbarHost 経由でツールバーにも公開する。
     let store: ViewerStore
     /// ファイル毎の永続表示状態(倍率・表示モード・スクロール位置・サイドバー開閉・
-    /// ウィンドウフレーム)の束。読み書きするのは `+Presentation` / `+FileNavigation` /
+    /// ウィンドウフレーム)の束。読み書きするのは `ViewerDocumentPresenter` / `+FileNavigation` /
     /// `+Renderer` / `+WindowDelegate` と、WebView コマンドへの受け渡し(`ViewerWindowAssembler`)。
     let perFileState: PerFileStateStore
     /// git 差分の取得・世代管理・レイアウト設定。差分に関する状態はすべて向こう側に置く。
@@ -52,7 +52,10 @@ final class ViewerWindowController: NSWindowController {
         diffPresenter.isLayoutSideBySide
     }
 
-    /// 表示中ファイルの差分を取り直す。契機は表示モード遷移と git 状態の反映の 2 つ。
+    /// 表示中ファイルの差分を取り直す。契機は表示モード遷移(`ViewerDocumentPresenter` へ
+    /// 注入するクロージャ)と git 状態の反映(`+SidebarHost` の `gitStatusDidApply`)の 2 つ。
+    /// どちらもここを通す(`diffPresenter.refresh()` を直接呼ぶと、TASK-330 の
+    /// 「バッジと差分の更新契機を 1 つにする」をこの doc から追う人が生きた契機を見落とす)。
     func refreshDiff() {
         diffPresenter.refresh()
     }
@@ -92,7 +95,7 @@ final class ViewerWindowController: NSWindowController {
     /// private にしない(本体アプリのコードからは ViewerWebView の配線経由でのみ使う)。
     let webViewProxy = WebViewProxy()
     /// WebView 操作系メニューアクション(ズーム・印刷・検索・スクロール位置保存)の実処理。
-    /// 生成は init 1 箇所きり。使うのは `+MenuActions` / `+Presentation` /
+    /// 生成は init 1 箇所きり。使うのは `+MenuActions` / `ViewerDocumentPresenter` /
     /// `+FileNavigation` / `+SidebarHost`。
     private(set) var webViewCommands: WebViewCommandController!
     /// 表示モード・倍率・スクロール位置の遷移(ADR 0002 段 1)。提示状態の判断はすべて向こう側。
@@ -135,11 +138,6 @@ final class ViewerWindowController: NSWindowController {
     /// 退場側の保存完了をライブな復元値へ追いつかせる。
     func applySavedScrollPositionToLiveValue(_ position: Double, for url: URL, mode: ViewerBridge.ViewMode) {
         documentPresenter.applySavedScrollPositionToLiveValue(position, for: url, mode: mode)
-    }
-
-    /// cmd+U の戻り先。
-    var sourceToggleTarget: ViewerDisplayMode {
-        documentPresenter.sourceToggleTarget
     }
 
     /// 表示モードの唯一の真実の源は store。二重保持を避けるため委譲する。
@@ -332,6 +330,8 @@ final class ViewerWindowController: NSWindowController {
 
 // MARK: - ViewerToolbarHost
 
-/// ツールバーが要る 12 個の要求は、責務ごとの拡張(`+Capabilities` / `+Presentation` /
-/// `+MenuActions` / `+DiffPresentation` / `+FileNavigation`)がそれぞれ満たしている。
+/// ツールバーが要る 12 個の要求は、責務ごとの拡張(`+Capabilities` / `+MenuActions` /
+/// `+FileNavigation`)と、協働オブジェクトへ委譲する本体のファサード
+/// (`ViewerDocumentPresenter` 宛の「提示状態の遷移」節と、`ViewerDiffPresenter` 宛の
+/// `isDiffShown` / `isDiffLayoutSideBySide`)がそれぞれ満たしている。
 extension ViewerWindowController: ViewerToolbarHost {}

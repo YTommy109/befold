@@ -12,6 +12,32 @@ import WebKit
 struct ViewerRendererContentUpdateTests {
     private static let truncation = ViewerRenderer.TruncationState(isTruncated: false, lineCount: 0, failed: false)
 
+    /// 直接 HTML モードからの復帰では viewer.html を読み直すため JS 側状態が初期化される。
+    /// Swift 側のミラーも全フィールドをセットで破棄しないと、次回更新で再注入されず
+    /// 状態が 1 周期失われる。判定をフィールドの列挙ではなく空ミラーとの全体比較に
+    /// 置いているのは、ミラーへフィールドを足したときにここへの追加だけ漏れるのを
+    /// 防ぐため(TASK-320 と同じ形の取りこぼし)。
+    @Test("直接HTMLモードからの復帰は描画ミラーを全フィールド破棄する")
+    @MainActor
+    func directHTMLExitDiscardsEntireMirror() {
+        let renderer = ViewerRenderer()
+        let webView = WKWebView()
+        renderer.webView = webView
+        renderer.recordRendered(RenderedStateMirror(
+            contentRevision: 3,
+            fileType: .markdown,
+            filePath: URL(fileURLWithPath: "/tmp/task452-exit.md"),
+            showLineNumbers: true,
+            isSourceMode: true,
+            truncation: ViewerRenderer.TruncationState(isTruncated: true, lineCount: 4, failed: false),
+            diffState: DiffState(text: "@@ -1 +1 @@", layout: .sideBySide)
+        ))
+
+        renderer.directHTML.exit(webView: webView) {}
+
+        #expect(renderer.rendered == RenderedStateMirror())
+    }
+
     @Test("同一revisionでもfilePathが変われば新ファイル基準で再描画される")
     @MainActor
     func needsRenderDetectsFilePathChangeEvenWithSameRevision() async {

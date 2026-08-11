@@ -34,9 +34,9 @@ struct SidebarNavigatorSelectionMemoryTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.navigateToFolder(tmp)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         navigator.navigateToFolder(sub)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         // 先頭(a.mmd)ではなく、直前に選択していた b.mmd が戻る。
         #expect(navigator.fileListModel.selection?.lastPathComponent == "b.mmd")
@@ -65,11 +65,11 @@ struct SidebarNavigatorSelectionMemoryTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.navigateToFolder(tmp)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         // 離れている間に b.mmd が削除された。
         listings[sub.normalizedPathKey] = [FileListEntry(url: first, kind: .file)]
         navigator.navigateToFolder(sub)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "a.mmd")
     }

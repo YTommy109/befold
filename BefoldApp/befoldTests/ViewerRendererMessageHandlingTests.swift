@@ -216,28 +216,6 @@ struct ViewerRendererMessageHandlingTests {
         #expect(renderer.pendingAppend == nil)
     }
 
-    @Test("RenderedStateMirror.reset は 6 ミラーを一括で破棄する")
-    func renderedStateMirrorResetClearsAll() {
-        var mirror = RenderedStateMirror()
-        mirror.contentRevision = 3
-        mirror.fileType = .markdown
-        mirror.filePath = URL(fileURLWithPath: "/tmp/a.md")
-        mirror.showLineNumbers = true
-        mirror.isSourceMode = true
-        mirror.truncation = ViewerRenderer.TruncationState(
-            isTruncated: true, lineCount: 4, failed: false
-        )
-
-        mirror.reset()
-
-        #expect(mirror.contentRevision == nil)
-        #expect(mirror.fileType == nil)
-        #expect(mirror.filePath == nil)
-        #expect(mirror.showLineNumbers == nil)
-        #expect(mirror.isSourceMode == nil)
-        #expect(mirror.truncation == nil)
-    }
-
     // MARK: - 不正 body(型不一致・キー欠落)は無視される
 
     @Test("referenceActivated の必須キーが欠けていれば onOpenReference を呼ばない")

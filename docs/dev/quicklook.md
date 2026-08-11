@@ -146,8 +146,8 @@ WKNavigationDelegate, WKScriptMessageHandler`。責務は「WKWebView の構成�
 
 <!-- derived-from #viewerrenderer-の共有 -->
 
-`BefoldApp/BefoldRenderKit/ViewerRenderer+OneShot.swift` と
-`BefoldApp/BefoldKit/ViewerBridge.swift`。QuickLook は「描画が終わったこと」を
+`BefoldApp/BefoldRenderKit/OneShotRenderer.swift`（`renderOnce` と
+`OneShotCompletion`）と `BefoldApp/BefoldKit/ViewerBridge.swift`（`awaitRenderScript`）。QuickLook は「描画が終わったこと」を
 確実に待ってから静止画を返す必要がある。継続描画の fire-and-forget な
 `evaluateJavaScript` とは別に、完了を await できる専用経路を持つ。
 

@@ -49,8 +49,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
         defer { navigator.cancelPendingListing() }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
-        await navigator.pendingGitStatusTask?.value
+        await navigator.awaitSettled()
 
         #expect(
             navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent)
@@ -90,8 +89,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
         defer { navigator.cancelPendingListing() }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
-        await navigator.pendingGitStatusTask?.value
+        await navigator.awaitSettled()
 
         #expect(
             navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["b.md", "c.md"]
@@ -124,8 +122,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
         defer { navigator.cancelPendingListing() }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
-        await navigator.pendingGitStatusTask?.value
+        await navigator.awaitSettled()
 
         // リポジトリは解決できている(未解決の nil ではない)。
         #expect(navigator.fileListModel.gitStatus != nil)
@@ -152,8 +149,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
         defer { navigator.cancelPendingListing() }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
-        await navigator.pendingGitStatusTask?.value
+        await navigator.awaitSettled()
 
         // 非 git なので状態は未解決のまま。空の状態(= 変更ゼロのリポジトリ)とは区別する。
         #expect(navigator.fileListModel.gitStatus == nil)

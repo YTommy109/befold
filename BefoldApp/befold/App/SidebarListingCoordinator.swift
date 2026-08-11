@@ -30,7 +30,8 @@ final class SidebarListingCoordinator {
     /// 発行した一覧取得タスクの世代番号。新しい要求が来たら古い結果の反映を捨てる
     /// (ViewerStore.loadGeneration と同型)。
     private var generation = 0
-    /// 直近に発行した一覧取得タスク。テストから完了を待つために公開する。
+    /// 直近に発行した一覧取得タスク。テストから完了を待つために公開する
+    /// (通常の待ち合わせは `SidebarNavigator.awaitSettled()` が 3 本まとめて行う)。
     ///
     /// 絞り込み ON のときは git 状態の反映もこのタスクの中で起きる(一覧と git を
     /// 同一メインアクター実行で反映するのが不変条件 / TASK-293)。

@@ -144,8 +144,27 @@ final class SidebarNavigator {
         listing.performListing(of: directory, onApplied: onApplied)
     }
 
-    /// 直近に発行した一覧取得タスク。テストから完了を待つための読み取り専用の窓。
-    /// 絞り込み ON のときは git 状態の反映もこのタスクの中で起きる(TASK-293)。
+    /// 発行済みのサイドバー更新(一覧・git 状態・基準ディレクトリ)が反映され終わるまで待つ。
+    /// **テストが待ち合わせに使う既定の入口はここ**で、個別の `pending*Task` ではない。
+    ///
+    /// 1 回の `performListing` は 3 本のタスクを発行し、そのうちどれが git 状態の反映を
+    /// 運ぶかは絞り込み(showChangedFilesOnly)の ON/OFF で変わる(ON なら一覧タスクの中、
+    /// OFF なら git タスク / TASK-293)。3 本すべてを待てばその分岐を呼び出し側が知る必要が
+    /// なくなるため、「どれを待つか」を選ばせない形にしている。未発行・完了済みの窓は
+    /// nil か即時完了で、待っても無害。
+    ///
+    /// **待てるのは「呼んだ時点で発行済み」の仕事だけ**。取り直しがまだ発行されていない
+    /// 段階で呼ぶと、その取り直しの前に測ってしまう(前回の完了済みタスクを観測して即座に
+    /// 戻る)。再取得が起きたこと自体を観測したいテストは、ハンドルを先に掴むか
+    /// `waitUntil` 系で結果側を待つこと(実例: ViewerWindowControllerGitStatusTests)。
+    func awaitSettled() async {
+        await pendingListingTask?.value
+        await pendingGitStatusTask?.value
+        await pendingBaseDirectoryTask?.value
+    }
+
+    /// 直近に発行した一覧取得タスク。**ハンドルを先に掴んでおく競合テスト専用の窓**
+    /// (通常の待ち合わせは `awaitSettled()` を使う。理由はそちらの doc を参照)。
     var pendingListingTask: Task<Void, Never>? {
         listing.pendingTask
     }
@@ -160,15 +179,18 @@ final class SidebarNavigator {
         gitStatus.refresh(policy: policy)
     }
 
-    /// 直近に発行した git 状態取得タスク。テストから完了を待つための読み取り専用の窓。
+    /// 直近に発行した git 状態取得タスク。**ハンドルを先に掴んでおく競合テスト専用の窓**
+    /// (通常の待ち合わせは `awaitSettled()` を使う)。
     ///
-    /// **絞り込み ON のときの反映はここには載らない**(一覧タスクの中で起きる /
-    /// TASK-293)。ON の完了を待つテストは `pendingListingTask` を待つこと。
+    /// ここに載るのは常に単発の git 取得だけで、絞り込み ON のときの反映は一覧タスクの
+    /// 中で起きる(TASK-293)。`awaitSettled()` はこの分岐を吸収するが、この窓を直接
+    /// 使う場合は分岐が見えたままになる。
     var pendingGitStatusTask: Task<Void, Never>? {
         gitStatus.pendingTask
     }
 
-    /// 直近に発行した基準ディレクトリ解決タスク。テストから完了を待つための読み取り専用の窓。
+    /// 直近に発行した基準ディレクトリ解決タスク。**ハンドルを先に掴んでおく競合テスト専用の窓**
+    /// (通常の待ち合わせは `awaitSettled()` を使う)。
     var pendingBaseDirectoryTask: Task<Void, Never>? {
         baseDirectory.pendingTask
     }

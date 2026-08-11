@@ -5,7 +5,7 @@ import AppKit
 /// ウィンドウそのもののライフサイクル契機(閉じる・キーになる・リサイズ完了)に対する後始末と追随。
 ///
 /// ここに置くのは「AppKit がウィンドウについて通知してくること」だけで、
-/// 文書の状態の遷移(表示モード・スクロール位置)は `+Presentation` の担当。
+/// 文書の状態の遷移(表示モード・スクロール位置)は `ViewerDocumentPresenter` の担当。
 /// フレームの保存だけはウィンドウ由来の値をファイル単位で永続化するため、この層が持つ。
 @MainActor
 extension ViewerWindowController: NSWindowDelegate {

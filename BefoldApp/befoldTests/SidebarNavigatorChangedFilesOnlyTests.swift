@@ -87,19 +87,67 @@ struct SidebarNavigatorChangedFilesOnlyTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
-        await navigator.pendingGitStatusTask?.value
+        await navigator.awaitSettled()
         let listingsAfterLoad = listings.get()
         let gitCallsAfterLoad = gitCalls.get()
 
         preference.showChangedFilesOnly = testCase.targetState
         testCase.apply(navigator)
         // 取得は非同期なので、発行されていれば待つと件数が増える。増えなければ発行されていない。
-        await navigator.pendingListingTask?.value
-        await navigator.pendingGitStatusTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.showChangedFilesOnly == testCase.targetState)
         #expect(listings.get() == listingsAfterLoad)
         #expect(gitCalls.get() == gitCallsAfterLoad + testCase.expectedGitCalls)
+    }
+
+    /// TASK-293 の不変条件そのものを検証する。絞り込み ON では、一覧と git 状態を
+    /// **同じタスクで取り、同じメインアクター実行で一緒に反映する**。別タスクへ分けると
+    /// 完了順が保証されず、新しい一覧だけが先に描画される間だけ絞り込みが縮退して
+    /// 全件が一瞬見える。
+    ///
+    /// この不変条件は今まで `SidebarGitStatusCoordinator.pendingTask` の doc の散文
+    /// としてだけ存在し、ON の反映を `applyWhenReady` 側へ載せ替えても何も落ちなかった
+    /// (`SidebarNavigator.awaitSettled()` は両方を待つので、待ち合わせ側でも検出できない)。
+    /// 載せ替えたときにここが落ちる。
+    ///
+    /// 反映の中身(一覧が出た時点で絞り込みが縮退していないこと)は
+    /// `SidebarNavigatorListingCoherenceTests` が見るので、ここは載せる先だけを見る。
+    @Test("絞り込み ON では git 状態の反映が一覧タスクに載る(単発の取得タスクは発行されない)")
+    func changedFilesOnlyCouplesGitStatusIntoListingTask() async {
+        let prefix = "SidebarNavigatorChangedFilesOnlyTests-coupling"
+        let base = Self.home.appendingPathComponent(prefix)
+        let gitCalls = LockedBox<Int>(0)
+        let preference = SidebarDisplayPreference(
+            defaults: makeIsolatedDefaults(prefix: prefix),
+            isChangedFilesOnlyAvailable: true
+        )
+        preference.showChangedFilesOnly = true
+        let navigator = SidebarNavigator(
+            currentDirectory: base,
+            entries: [],
+            selection: nil,
+            sidebarDisplayPreference: preference,
+            directoryLister: { _, _, _ in .empty },
+            git: SidebarGitReadingStub(statuses: { _, _ in
+                gitCalls.update { $0 += 1 }
+                return .empty
+            }),
+            makeGitIndexWatcher: { url, onChange in RecordingWatcher(path: url, fire: onChange) }
+        )
+        let host = SidebarNavigatorStubHost(currentFileURL: base.appendingPathComponent("a.md"))
+        navigator.attach(to: host)
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.refreshFileList()
+
+        // 一覧タスクは発行され、単発の git 取得タスクは発行されていない。
+        #expect(navigator.pendingListingTask != nil)
+        #expect(navigator.pendingGitStatusTask == nil)
+
+        // それでも git は取得されている(取得が一覧タスクの中で待たれている)。
+        await navigator.pendingListingTask?.value
+        #expect(gitCalls.get() == 1)
+        #expect(navigator.pendingGitStatusTask == nil)
     }
 }
