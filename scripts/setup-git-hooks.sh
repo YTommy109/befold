@@ -37,8 +37,11 @@ install_hook post-checkout scripts/worktree-init.sh
 # completed を走査しないため、最大番号のタスクをアーカイブすると同じ ID が再発行される）。
 # check-analytics-query-guard.sh は解析用 D1 の読み取り専用ガードが実効であることを
 # 見る（判定を緩めると拒否すべき SQL を通した時点で落ちる）。
+# warn-type-group-growth.sh は型グループ（Foo.swift + Foo+*.swift の合算）の肥大化を見る。
+# これだけは終了コードで落とさない（警告のみ）。作業の途中段階でコミットが止まると
+# --no-verify を常用する圧力になり、フック全体が形骸化するため。ブロックは CI で行う。
 install_hook pre-commit scripts/block-main-commits.sh scripts/swiftformat-lint.sh \
   scripts/check-doc-symbols.sh scripts/check-task-id-uniqueness.sh \
-  scripts/check-analytics-query-guard.sh
+  scripts/check-analytics-query-guard.sh scripts/warn-type-group-growth.sh
 # commit-msg は件名を見るチェックなので pre-commit ではなくここ(メッセージ確定後)。
 install_hook commit-msg scripts/check-gate-commit-scope.sh

@@ -1,10 +1,11 @@
 ---
 id: TASK-428
 title: ファイルの肥大化を型グループ単位のラチェットで構造的に防ぐ
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-08-10 12:32'
-updated_date: '2026-08-10 12:59'
+updated_date: '2026-08-11 05:08'
 labels: []
 dependencies: []
 documentation:
@@ -49,9 +50,9 @@ ordinal: 104000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 型グループ単位（Foo.swift + Foo+*.swift の合算）の行数が、ベースラインを超えて増加したときに CI が落ちる
-- [ ] #2 新規に追加された型グループが閾値を超えたときに CI が落ちる
-- [ ] #3 責務の混在を見るレビューが、設計時・PR 時・タスク完了時の 3 点から回るよう配線されている
+- [x] #1 型グループ単位（Foo.swift + Foo+*.swift の合算）の行数が、ベースラインを超えて増加したときに CI が落ちる
+- [x] #2 新規に追加された型グループが閾値を超えたときに CI が落ちる
+- [x] #3 責務の混在を見るレビューが、設計時・PR 時・タスク完了時の 3 点から回るよう配線されている
 - [ ] #4 全サブタスク完了後、ベースライン方式が撤去され単純な閾値強制に畳まれている
 <!-- AC:END -->
 
@@ -69,4 +70,44 @@ ordinal: 104000
 起票時に「JS へ再発防止機構を入れるかは TASK-428.3 完了後に判断する」と保留していた件は、ADR 0005（docs/adr/0005-bundle-viewer-js-with-esbuild.md, decision-5）で方針が決まった。JS はバンドル方式へ移行し、モジュール境界を持たせる（TASK-432）。
 
 これにより、JS 側で本タスクの型グループ相当の仕組みを別途作る必要は無くなる見込み。モジュール境界があれば分割が自然な操作になり、行数の閾値はファイル単位の素朴な判定で足りる（extension 逃げに相当する回避手段が JS には無い）。TASK-432.2 の完了後に、JS へ単純なファイル単位の行数閾値を足すかどうかを判断する。
+
+## 進捗（2026-08-11）
+
+428.1 / 428.2 / 428.3 / 428.4 を完了。機械レイヤー（型グループ単位のラチェット: 集計 → pre-commit 警告 → CI ブロック）と意味レイヤー（responsibility-reviewer を 3 点へ配線）の両方が動いている。AC #1〜#3 を確認済み。
+
+**AC #4（ベースライン方式の撤去）は着手不可**。TASK-428.5 の依存 4 件（TASK-426 / 429 / 430 / 431）がいずれも To Do で、ベースラインには 12 グループが残っている。これらが完了してベースラインが空になれば着手できる。
+
+## 起票時の見積もりとのズレ（返済タスクの不足）
+
+型グループ単位の初期ベースライン（12 件）に対し、返済タスクが起票されているのは 4 件分だけで、次の 5 グループには返済タスクが無い。うち上位 2 件は起票時のファイル単位の実測（7 件）では見えていなかったもので、ファイル単位の最大値 585 行を大きく上回る。
+
+| グループ | 行数 | 返済タスク |
+|---|---|---|
+| BefoldRenderKit/ViewerRenderer | 1300 | 無し |
+| befold/App/ViewerWindowController | 1255 | 無し（TASK-411 で分割済みだが合算では増加） |
+| befold/App/SidebarNavigator | 611 | 無し |
+| befold/Viewer/FileListModel | 459 | 無し |
+| befold/Viewer/FileListView | 437 | 無し |
+
+TASK-428.4 の実地確認で responsibility-reviewer を e94161d へ回した結果も、SidebarNavigator について High 1 件（分割が責務分離になっていない）を含む 3 件を指摘しており、返済対象であることを裏付けている。
+
+TASK-428.5 を着手可能にするには、この 5 件の返済タスク起票と依存追加が必要（ユーザー判断待ち）。
+
+## 返済タスクを起票した（2026-08-11）
+
+ベースラインの 12 グループすべてに返済タスクが対応するようにし、TASK-428.5 の依存へ全件を追加した（依存 10 件）。これで「ベースラインが空になったら 428.5 が着手可能」という関係が backlog 上で閉じる。
+
+| グループ | 行数 | タスク |
+|---|---|---|
+| ViewerRenderer | 1300 | TASK-440（新規） |
+| ViewerWindowController | 1255 | TASK-441（新規） |
+| SidebarNavigator | 611 | TASK-442（新規） |
+| AppDelegate | 562 | TASK-429（既存） |
+| ViewerWindowManager | 543 | TASK-426（既存） |
+| ViewerStore | 492 | TASK-430（既存） |
+| ViewerBridge | 470 | TASK-444（新規） |
+| FileListModel / FileListView | 459 / 437 | TASK-443（新規、2 グループを 1 タスク） |
+| ViewerWindowControllerTests / ViewerStoreTests / QuickOpenModelTests | 585 / 540 / 452 | TASK-431（既存） |
+
+未対応グループ数はゼロ。なお TASK-431 が起票時に対象としていた GitCommandRunnerTests.swift（507 行）は現在リポジトリに存在せず、テストの対象は 4 件ではなく 3 件（TASK-431 の Notes へ記録済み）。
 <!-- SECTION:NOTES:END -->

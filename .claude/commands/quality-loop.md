@@ -52,6 +52,12 @@ Agent ツールを `model: "opus"` で1件起動し、以下を渡す:
 - 指摘理由
 - 修正方針
 
+**Swift の型定義に触れる差分では、同じラウンドで `responsibility-reviewer`
+サブエージェントも並行して起動し、その指摘を Round 1 の指摘リストへ
+`rule-violation` タグで合流させる。** 責務の混在は行数の機械判定
+（`scripts/check-type-group-size.sh` / CI）では捕まらないため、意味の判断を
+専任のレビュアーに委ねる（TASK-428.4）。
+
 指摘ゼロなら Round 1 の修正はスキップし、直接「Final Confirmation」に進む。
 
 ### Fix（Sonnet）
