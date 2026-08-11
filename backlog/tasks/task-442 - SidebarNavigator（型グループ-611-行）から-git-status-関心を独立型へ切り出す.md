@@ -1,10 +1,10 @@
 ---
 id: TASK-442
 title: SidebarNavigator（型グループ 611 行）から git status 関心を独立型へ切り出す
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-11 05:06'
-updated_date: '2026-08-11 07:36'
+updated_date: '2026-08-11 12:34'
 labels: []
 dependencies: []
 priority: high
@@ -26,12 +26,12 @@ TASK-428.4 で新設した responsibility-reviewer を、この型を分割し�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 型グループの合算行数が 400 行以下になる（scripts/check-type-group-size.sh で確認できる）
-- [ ] #2 ベースライン scripts/type-group-baseline.txt から SidebarNavigator のエントリが消える
-- [ ] #3 git status / base directory の関心が独立型へ切り出されている
-- [ ] #4 SidebarNavigator への注入クロージャが 3 個以下になっている
-- [ ] #5 e94161d で緩んだ隠蔽（host / folderEntryURL(forKey:)）が private へ戻っている、または戻せない理由が記録されている
-- [ ] #6 main との swiftlint 差分に真の新規が無く、swift test が既存どおり通る
+- [x] #1 型グループの合算行数が 400 行以下になる（scripts/check-type-group-size.sh で確認できる）
+- [x] #2 ベースライン scripts/type-group-baseline.txt から SidebarNavigator のエントリが消える
+- [x] #3 git status / base directory の関心が独立型へ切り出されている
+- [x] #4 SidebarNavigator への注入クロージャが 3 個以下になっている
+- [x] #5 e94161d で緩んだ隠蔽（host / folderEntryURL(forKey:)）が private へ戻っている、または戻せない理由が記録されている
+- [x] #6 main との swiftlint 差分に真の新規が無く、swift test が既存どおり通る
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -68,3 +68,9 @@ SidebarExpansion.swift:15 の「行の生成は SidebarNavigator の 1 箇所だ
 
 folderEntryURL(forKey:) は 442.2 で FileListModel へ移り、SidebarNavigator から消える (private に戻す以上の解決)。host は +FolderNavigation / +History が読むため Swift の private (ファイルスコープ) では戻せず、private(set) のまま理由を doc に記録する。緩んだのは読み取り側だけで、書き込みを attach(to:) に限定する当初の意図は保たれている。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+SidebarNavigator 型グループを 611 → 362 行にし、ベースラインから外した。8 個の関心を抱えていた 1 型を 6 型へ分けた: SidebarTreePresenter（行の組み立てと展開 / 442.3）、SidebarBaseDirectoryResolver と SidebarGitStatusCoordinator（442.4）、SidebarHistoryController と SidebarListingCoordinator（442.5）、SidebarGitReading（git 依存のプロトコル化 / 442.6）。世代カウンタ 3 本と注入クロージャ 5 本は、それぞれの型の内側へ閉じた採番 3 つとクロージャ 3 本になった。分割の実質は行数ではなく、doc の約束でしかなかった不変条件が構造の保証になったこと（lastListing が private に、git の sequence が fileprivate な券に、cancelPendingListing の各関心が 1 メソッド呼び出しに）。残る SidebarNavigator が書く FileListModel の属性は選択とカレントディレクトリだけで、5 型が同じモデルを書く構成の正当化根拠（属性が重ならない）を各型の doc に分割表として記載した。全 5 サブタスクで /review-design を実施し、レビュー指摘のうち数合わせにあたる 2 件（クロージャの struct 束ね・adopt によるテスト観測点の逃がし）は採らず、うち 1 件は TASK-442.6 として切り出した。swift test 1297 件成功、main との swiftlint 差分は新規 0 件・解消 1 件。
+<!-- SECTION:FINAL_SUMMARY:END -->
