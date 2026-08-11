@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-11 13:38'
-updated_date: '2026-08-11 14:19'
+updated_date: '2026-08-11 14:32'
 labels: []
 dependencies: []
 priority: medium
@@ -53,6 +53,8 @@ PR #483 で ReferenceResolutionCoordinator の `host` プロトコル参照を�
 - ViewerWindowController.externalOpener を private → internal（referenceActions が別ファイルの extension にあり file-private では届かないため）。本番では NSWorkspace 経由、テストでは注入されたクロージャ
 
 検証: swift test 全件 1426 tests / 210 suites 通過。新規テスト 2 件（ViewerWindowControllerTests）— (a) 外部 URL のリンク遷移が externalOpener を通ること、(b) autoreleasepool 内で controller を close して解放した後（#expect(releasedController == nil) で前提を固定）に openExternal を呼んでも届け先が呼ばれないこと。swiftlint は main とのベースライン差分で真の新規ゼロ（既存の befoldTests/ViewerWindowControllerTests.swift の file_length 違反が 585 → 628 行へ数値だけ増加）。
+
+CI の type-group-size がブロックしたため追加対応: 新規テスト 2 件を ViewerWindowControllerTests.swift（585 → 629 行）から ViewerWindowControllerExternalURLTests.swift（新規 63 行）へ移し、テスト側の型グループを 585 行のベースラインへ戻した。ViewerWindowController 本体の +3 行（externalOpener の doc と openExternal の配線）は修正に必要なものなのでベースラインを 852 → 855 へ引き上げ、返済は TASK-453 で行う。swiftlint は main と完全一致（生 diff も 0 行）。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

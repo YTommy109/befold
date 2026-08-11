@@ -370,50 +370,6 @@ extension ViewerWindowControllerTests {
         #expect(controller.fileListModel.canGoForward == true)
     }
 
-    /// 外部 URL も NSWorkspace 直呼びではなく注入された externalOpener を通す
-    /// (テストが実ブラウザを起動しないことの担保でもある)。
-    @Test("外部 URL のリンク遷移は externalOpener を通す")
-    func handleOpenReferenceRoutesExternalURLThroughOpener() async {
-        let opened = LockedBox<[URL]>([])
-        let controller = makeSwitchController(
-            primary: URL(fileURLWithPath: "/mock/a.md"), contents: "# doc",
-            defaults: makeIsolatedDefaults(prefix: "OpenExternal"),
-            externalOpener: { url in opened.set(opened.get() + [url]) }
-        )
-        defer { controller.close() }
-
-        controller.handleOpenReference(href: "https://example.com", disposition: .currentTab)
-        await controller.referenceCoordinator.pendingOpenReferenceTask?.value
-
-        #expect(opened.get().map(\.absoluteString) == ["https://example.com"])
-    }
-
-    /// 解決(git subprocess を伴いうる)を待つ間にウィンドウが閉じられたら、外部 URL も
-    /// 他の分岐と同じく抑止されなければならない。NSWorkspace を直に呼んでいた頃は、
-    /// 閉じたはずのウィンドウの cmd+click が後からブラウザを前面に出していた(TASK-449)。
-    @Test("ウィンドウ解放後は、外部 URL の届け先も呼ばれない")
-    func referenceActionsStopOpeningExternalURLAfterWindowIsReleased() throws {
-        let externalURL = try #require(URL(string: "https://example.com"))
-        let opened = LockedBox<[URL]>([])
-        var actions: ReferenceActions?
-        weak var releasedController: ViewerWindowController?
-        autoreleasepool {
-            let controller = makeSwitchController(
-                primary: URL(fileURLWithPath: "/mock/a.md"), contents: "# doc",
-                defaults: makeIsolatedDefaults(prefix: "OpenExternalReleased"),
-                externalOpener: { url in opened.set(opened.get() + [url]) }
-            )
-            actions = controller.referenceActions
-            releasedController = controller
-            controller.close()
-        }
-        #expect(releasedController == nil, "controller が解放されておらず、前提が成り立っていない")
-
-        actions?.openExternal(externalURL)
-
-        #expect(opened.get().isEmpty)
-    }
-
     @Test("resolveReferences は実在パスのみ解決済み絶対パスで返す")
     func resolveReferencesReturnsResolvedOnly() async {
         // 常に固定の追跡ファイル索引を返すフェイク。相対解決で見つからないパスの

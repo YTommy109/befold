@@ -4,6 +4,7 @@ title: ViewerWindowController（型グループ 855 行）を責務ごとにさ�
 status: To Do
 assignee: []
 created_date: '2026-08-11 14:24'
+updated_date: '2026-08-11 14:33'
 labels: []
 dependencies: []
 priority: medium
@@ -28,3 +29,9 @@ TASK-441 で 1255 → 852 行まで縮めた ViewerWindowController の型グル
 - [ ] #3 swift test が既存どおり通り、main との swiftlint 差分に真の新規が無い
 - [ ] #4 xcodegen generate 済みで xcodebuild build が通る
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-449 のマージ時にベースラインを 852 → 855 行へ引き上げた（外部 URL の届け先を weak 捕捉クロージャへ寄せる配線と、externalOpener を internal にした理由の doc）。このタスクの到達目標は引き上げ後の 855 ではなく、TASK-441 の到達点である 852 行以下。
+<!-- SECTION:NOTES:END -->
