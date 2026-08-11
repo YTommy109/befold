@@ -117,7 +117,9 @@ compare_with_baseline() {
 
 case "${1:-}" in
   --self-test)
-    tmp="$(mktemp -d -t type-group-self-test)"
+    # GNU mktemp は `-t 名前` に XXXXXX を要求するため、テンプレートを明示して
+    # macOS(BSD) と ubuntu(GNU) の双方で動く形にする（CI は ubuntu で走る）。
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/type-group-self-test.XXXXXX")"
     trap 'rm -rf "$tmp"' EXIT
     mkdir -p "$tmp/App" "$tmp/Other" "$tmp/befold/Resources"
     # 本体 + 同ディレクトリの extension 2 本 = 1 グループ（3 + 2 + 1 = 6 行）
