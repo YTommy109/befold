@@ -76,8 +76,10 @@ final class ViewerWindowController: NSWindowController {
     let openFileElsewhere: (URL, OpenDisposition, NSWindow?) -> Void
     /// 外部 URL(http/https)をブラウザで開く処理。本番では NSWorkspace 経由。
     /// テストが実ブラウザを起動せずに済むよう注入可能にしている。
-    /// 使うのは参照メニューの実行だけなので、ここでは referenceMenu へ渡すためだけに保持する。
-    private let externalOpener: (URL) -> Void
+    /// 渡す先は referenceMenu と referenceActions.openExternal の 2 箇所だけ。
+    /// 後者は `+References` にあるため file-private では届かず internal にしている
+    /// (外から直接呼ぶためのものではない)。
+    let externalOpener: (URL) -> Void
     /// 生成した SplitViewController への型消去参照。contentViewController が保持するため weak。
     /// 代入は組み立て時(`ViewerWindowAssembler`)、参照は CLI の `--sidebar`/`--no-sidebar` 適用(`+FileNavigation`)。
     weak var sidebarCollapsible: (any SidebarCollapsible)?
