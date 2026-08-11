@@ -4,6 +4,7 @@ title: ベースライン方式を撤去し単純な閾値強制へ畳む
 status: To Do
 assignee: []
 created_date: '2026-08-10 12:35'
+updated_date: '2026-08-11 05:07'
 labels: []
 dependencies:
   - TASK-428.3
@@ -11,6 +12,11 @@ dependencies:
   - TASK-429
   - TASK-430
   - TASK-431
+  - TASK-440
+  - TASK-441
+  - TASK-442
+  - TASK-443
+  - TASK-444
 parent_task_id: TASK-428
 priority: low
 type: chore

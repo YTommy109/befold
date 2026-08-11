@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-10 12:32'
-updated_date: '2026-08-11 05:00'
+updated_date: '2026-08-11 05:08'
 labels: []
 dependencies: []
 documentation:
@@ -92,4 +92,22 @@ ordinal: 104000
 TASK-428.4 の実地確認で responsibility-reviewer を e94161d へ回した結果も、SidebarNavigator について High 1 件（分割が責務分離になっていない）を含む 3 件を指摘しており、返済対象であることを裏付けている。
 
 TASK-428.5 を着手可能にするには、この 5 件の返済タスク起票と依存追加が必要（ユーザー判断待ち）。
+
+## 返済タスクを起票した（2026-08-11）
+
+ベースラインの 12 グループすべてに返済タスクが対応するようにし、TASK-428.5 の依存へ全件を追加した（依存 10 件）。これで「ベースラインが空になったら 428.5 が着手可能」という関係が backlog 上で閉じる。
+
+| グループ | 行数 | タスク |
+|---|---|---|
+| ViewerRenderer | 1300 | TASK-440（新規） |
+| ViewerWindowController | 1255 | TASK-441（新規） |
+| SidebarNavigator | 611 | TASK-442（新規） |
+| AppDelegate | 562 | TASK-429（既存） |
+| ViewerWindowManager | 543 | TASK-426（既存） |
+| ViewerStore | 492 | TASK-430（既存） |
+| ViewerBridge | 470 | TASK-444（新規） |
+| FileListModel / FileListView | 459 / 437 | TASK-443（新規、2 グループを 1 タスク） |
+| ViewerWindowControllerTests / ViewerStoreTests / QuickOpenModelTests | 585 / 540 / 452 | TASK-431（既存） |
+
+未対応グループ数はゼロ。なお TASK-431 が起票時に対象としていた GitCommandRunnerTests.swift（507 行）は現在リポジトリに存在せず、テストの対象は 4 件ではなく 3 件（TASK-431 の Notes へ記録済み）。
 <!-- SECTION:NOTES:END -->
