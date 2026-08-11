@@ -23,7 +23,7 @@ extension SidebarNavigator {
         updateRootDirectory(with: target)
         // ルートが変わると、それまでの展開は別のツリーのものになる。走行中の子リスト取得も
         // ここで無効化する(着地させると、新しいルートの行配列へ前のツリーの子が混ざる)。
-        expansion.invalidateAll()
+        discardExpansion()
         performListing(of: url) { host, directory, listing in
             self.applyRows(listing, for: directory)
             let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()

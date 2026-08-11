@@ -44,25 +44,21 @@ final class SidebarNavigator {
     /// 返すのは **行に畳む前の材料**(DirectoryListing)。畳んだ配列を返させると、
     /// 展開を足す側がそれを分解して材料へ戻す往復が要る(TASK-442.1)。
     private let directoryLister: (URL, SortOrder, Bool) async -> DirectoryListing
-    /// ツリー展開の状態と、展開したフォルダの子リスト。
+    /// サイドバーの行の組み立てと `fileListModel.entries` への反映(ツリー展開を含む)。
     ///
     /// **注入引数にしない。** デフォルト引数で外から渡せる形にすると、渡し忘れが
     /// コンパイルエラーにならず静かに別インスタンスになる(TASK-319 と同型)。
     /// ウィンドウごとに 1 つという粒度を、生成箇所をここ 1 つに固定することで守る。
-    let expansion = SidebarExpansion()
-    /// 展開したフォルダの子リストの取得元。ルートの一覧(directoryLister)とは
-    /// **別の関数**であることが要点で、あちらは親移動行を別に持つルート一覧の材料を返す。
-    /// SidebarNavigator+Expansion.swift から参照するため internal。
-    /// 子リストの列挙。**nil は列挙失敗**(空のフォルダの `[]` と区別する)。
-    let childrenLister: (URL, SortOrder, Bool) async -> [FileListEntry]?
+    ///
+    /// **`private`。** 外へ出すと `applyRows` / `invalidateExpansion` までウィンドウ層から
+    /// 到達可能になり、「外から呼んでよいのは展開・畳みだけ」が doc の約束に戻る
+    /// (以前 ViewerWindowManager が `expansion.invalidateAll()` を直接叩いて実際に破れていた)。
+    /// 外部へは下の薄い委譲(expandFolder / collapseFolder / discardExpansion /
+    /// applyRows)だけを見せる。
+    private let tree: SidebarTreePresenter
     /// refreshFileList / navigateToFolder が発行する一覧取得タスクの世代番号。
     /// 新しい要求が来たら古い結果の反映を捨てる(ViewerStore.loadGeneration と同型)。
     private var listingGeneration = 0
-    /// 直近に `applyRows` へ渡した列挙結果。行を組み直すたびに組み立て済みの配列から
-    /// 材料を復元しないために持つ。**書いてよいのは `applyRows` だけ**(他所から書くと、
-    /// 世代ガードを通っていない古い列挙で `rebuildRows` が走る)。別ファイルの extension が
-    /// 書くため `private(set)` にはできない。
-    var lastListing = DirectoryListing.empty
     /// 直近に発行した一覧取得タスク。テストから完了を待つために公開する。
     private(set) var pendingListingTask: Task<Void, Never>?
     /// 現在のディレクトリが属する git リポジトリの作業ツリールート。git 管理外なら nil。
@@ -116,15 +112,18 @@ final class SidebarNavigator {
         self.makeGitIndexWatcher = makeGitIndexWatcher
         self.sidebarDisplayPreference = sidebarDisplayPreference
         self.directoryLister = directoryLister
-        self.childrenLister = childrenLister
         self.resolveGitRoot = resolveGitRoot
         self.loadGitStatuses = loadGitStatuses
-        fileListModel = FileListModel(
+        let fileListModel = FileListModel(
             currentDirectory: currentDirectory,
             entries: entries,
             selection: selection,
             sortOrder: sortOrder
         )
+        self.fileListModel = fileListModel
+        // presenter は**ここでしか生成しない**(注入引数にすると渡し忘れが静かに
+        // 別インスタンスになる / TASK-319 と同型)。childrenLister は素通しする。
+        tree = SidebarTreePresenter(fileListModel: fileListModel, childrenLister: childrenLister)
         syncDisplayPreferences()
         refreshBaseDirectory()
     }
@@ -194,6 +193,44 @@ final class SidebarNavigator {
         self.host = host
     }
 
+    // MARK: - Tree Expansion
+
+    /// サイドバーのフォルダを展開する。実処理は SidebarTreePresenter が行う。
+    ///
+    /// 以下 3 本が、**外から展開へ触れる唯一の入口**。presenter 自体を公開すると
+    /// 行の反映(applyRows)まで到達可能になるため、薄い委譲だけを見せる。
+    func expandFolder(_ key: String, at url: URL) {
+        tree.expandFolder(key, at: url)
+    }
+
+    /// サイドバーのフォルダを畳む。配下の展開も一緒に捨てる。
+    func collapseFolder(_ key: String) {
+        tree.collapseFolder(key)
+    }
+
+    /// 展開状態を捨てる。ツリー表示をやめるとき(ViewerWindowManager)に呼ぶ。
+    /// 行の組み直しは呼び出し側が refreshFileList の経路で行うこと。
+    func discardExpansion() {
+        tree.invalidateExpansion()
+    }
+
+    /// 展開中フォルダの pathKey。テストが展開状態を検証するための読み取り専用の窓。
+    var expandedFolderKeys: Set<String> {
+        tree.expandedKeys
+    }
+
+    /// 列挙結果から行を組み立てて fileListModel へ反映し、反映した行を返す。
+    ///
+    /// **一覧取得の着地点(performListing の onApplied)だけが呼ぶ。** 呼び出し元が
+    /// 2 つ(refreshFileList / navigateToFolder)に分かれているのは、前者だけが
+    /// 「開いているファイルを一覧へ必ず含める」加工を挟むため。presenter そのものを
+    /// 公開せずこの 1 本だけ委譲するのは、別ファイルの extension
+    /// (SidebarNavigator+FolderNavigation)から呼ぶ必要があるから。
+    @discardableResult
+    func applyRows(_ listing: DirectoryListing, for directory: URL) -> [FileListEntry] {
+        tree.applyRows(listing, for: directory)
+    }
+
     // MARK: - File List
 
     /// サイドバーのファイル一覧を現在のディレクトリで取り直し、現在ファイルを選択する。
@@ -253,7 +290,7 @@ final class SidebarNavigator {
         // ルートを取り直す契機(並び順の変更・隠しファイルのトグル・フォーカス復帰・リネーム)は
         // そのまま展開中サブツリーを取り直す契機でもある。ここを通さないと、展開したフォルダの
         // 中だけが古い並び順・古い隠しファイル設定のまま残る。
-        reloadExpandedChildren()
+        tree.reloadExpandedChildren()
         let couplesGitStatus = fileListModel.showChangedFilesOnly
         let sortOrder = fileListModel.sortOrder
         listingGeneration += 1
@@ -330,7 +367,7 @@ final class SidebarNavigator {
         pendingGitStatusTask = nil
         // 展開の子リスト取得も無効化する。ここを忘れると、閉じたウィンドウのために
         // 走行中だった列挙が着地して状態を書き続ける(TASK-300 と同型)。
-        expansion.invalidateAll()
+        tree.invalidateExpansion()
         gitIndexWatch.stop()
     }
 

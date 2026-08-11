@@ -1,0 +1,132 @@
+import Foundation
+
+/// サイドバーの行を組み立てて `FileListModel` へ反映する型(TASK-442.3)。
+///
+/// 抱える関心は 1 つ——`FileListModel.entries` という 1 本の出力を作ること。
+/// そのための**状態**(`expansion`)・**材料**(`lastListing`)・**取得**(`childrenLister`)・
+/// **組み立てと反映**(`applyRows`)をここに閉じる。`SidebarNavigator` から分けているのは
+/// 行数ではなく、`lastListing` を `private` にできるようにするため。別ファイルの
+/// extension が書く形だと Swift の `private`(ファイルスコープ)では守れず、
+/// 「書いてよいのは `applyRows` だけ」が doc コメントの約束にとどまっていた。
+///
+/// **この型は `fileListModel` の `entries` / `entriesDirectory` だけを書く**
+/// (`setEntries` 経由)。選択・カレントディレクトリ・git 状態は `SidebarNavigator` が書く。
+/// 属性が重ならないので、同じオブジェクトを 2 つの型が書いても関心は混ざらない。
+///
+/// 生成は `SidebarNavigator.init` の内側だけ。注入引数にすると、渡し忘れが
+/// コンパイルエラーにならず静かに別インスタンスになる(TASK-319 と同型)。
+///
+/// - Note: `reloadExpandedChildren` はルートの列挙を**発行する前**に呼ばれるため、
+///   子リストがルートの一覧より先に着地すると、その 1 回だけ古い `lastListing` で
+///   行が組み直される。TASK-442.3 時点の既存の窓で、ここでは塞いでいない。
+@MainActor
+final class SidebarTreePresenter {
+    /// 行の反映先。`entries` / `entriesDirectory` 以外は書かない。
+    private let fileListModel: FileListModel
+    /// 展開したフォルダの子リストの取得元。ルートの一覧(`SidebarNavigator.directoryLister`)とは
+    /// **別の関数**であることが要点で、あちらは親移動行を別に持つルート一覧の材料を返す。
+    /// **nil は列挙失敗**(空のフォルダの `[]` と区別する)。
+    private let childrenLister: (URL, SortOrder, Bool) async -> [FileListEntry]?
+    /// ツリー展開の状態と、展開したフォルダの子リスト。
+    private let expansion = SidebarExpansion()
+    /// 直近に `applyRows` へ渡した列挙結果。行を組み直すたびに組み立て済みの配列から
+    /// 材料を復元しないために持つ。**書いてよいのは `applyRows` だけ**(他所から書くと、
+    /// 世代ガードを通っていない古い列挙で `rebuildRows` が走る)。
+    private var lastListing = DirectoryListing.empty
+
+    /// 展開中フォルダの pathKey。テストが展開状態を検証するための読み取り専用の窓。
+    var expandedKeys: Set<String> {
+        expansion.expandedKeys
+    }
+
+    init(
+        fileListModel: FileListModel,
+        childrenLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]?
+    ) {
+        self.fileListModel = fileListModel
+        self.childrenLister = childrenLister
+    }
+
+    // MARK: - Row Assembly
+
+    /// ルートの列挙結果(材料)と展開の材料から行配列を組み立て、`fileListModel` へ
+    /// 反映して**反映した行**を返す。
+    ///
+    /// `fileListModel.setEntries` を呼ぶのはプロダクトではここ 1 箇所だけ。呼び出し元が
+    /// それぞれ畳むと、展開の材料を渡し忘れた経路がドリルダウンのまま残る
+    /// (`SidebarRowAssemblySingleSourceTests` がソース走査で数えている)。
+    /// 呼び出し元は戻り値を使って選択維持を判定すること(ルート直下だけを見ると、
+    /// 展開したサブフォルダ内のファイルを選んでいる間ずっと選択が飛ぶ)。
+    ///
+    /// `lastListing` と `entriesDirectory` は**この同じ同期区間で**書く。片方だけが
+    /// 進む窓があると、`rebuildRows` が別ディレクトリの材料で行を組む。
+    @discardableResult
+    func applyRows(_ listing: DirectoryListing, for directory: URL) -> [FileListEntry] {
+        lastListing = listing
+        let isTree = fileListModel.layoutMode == .tree
+        // ドリルダウン表示では展開の材料を渡さない。展開状態が残っていても
+        // 行は 1 階層ぶんに戻る(モードを戻したのにツリーのままになるのを防ぐ)。
+        let rows = listing.rows(
+            material: isTree ? expansion.material : .init(), showsDisclosure: isTree
+        )
+        fileListModel.setEntries(rows, for: directory)
+        return rows
+    }
+
+    /// 手元の展開の材料だけで行を組み直す。子リストが届いたときに呼ぶ。
+    /// ルートを列挙し直さないので、展開のたびにルートの再列挙は起きない。
+    ///
+    /// 保持している材料(`lastListing`)をそのまま使う。組み立て済みの
+    /// `fileListModel.entries` から `depth == 0` でルート行を復元してはならない
+    /// (組み立て → 分解 → 再組み立ての往復に戻る / TASK-442.1)。
+    private func rebuildRows() {
+        applyRows(lastListing, for: fileListModel.entriesDirectory)
+    }
+
+    // MARK: - Tree Expansion
+
+    /// フォルダを展開する。既に展開済みなら何もしない(再列挙しない)。
+    /// 列挙は `childrenLister`(nonisolated async)が行うため、MainActor 上では列挙しない。
+    func expandFolder(_ key: String, at url: URL) {
+        guard let token = expansion.beginExpanding(key, at: url) else { return }
+        loadChildren(for: token)
+    }
+
+    /// フォルダを畳む。配下の展開も一緒に捨てる(SidebarExpansion.collapse を参照)。
+    func collapseFolder(_ key: String) {
+        expansion.collapse(key)
+        rebuildRows()
+    }
+
+    /// 走行中の子リスト取得をすべて無効化し、展開状態を捨てる。
+    /// ルート切り替え・ウィンドウを閉じるとき・ツリー表示をやめるときに呼ぶ。
+    func invalidateExpansion() {
+        expansion.invalidateAll()
+    }
+
+    /// 展開中フォルダの子リストを、現在の並び順・隠しファイル設定で取り直す。
+    /// 取り直さないと、展開中のサブツリーだけが古い規則で並び続ける。
+    ///
+    /// ここで行を組み直してはならない。この関数はルートの列挙を**発行する前**に呼ばれ、
+    /// そのルートの一覧はまだ届いていない。組み直すと手元の古い行で `setEntries` が走り、
+    /// 一覧の到着前に `hasLoadedEntries` が立って「対象が確定していない」状態が失われる
+    /// (previewTarget が .undetermined を返せなくなる)。行はルートの一覧が届いた時点と、
+    /// 子リストが届いた時点(loadChildren)で組み直す。
+    func reloadExpandedChildren() {
+        for token in expansion.invalidateChildren() {
+            loadChildren(for: token)
+        }
+    }
+
+    /// 券が指すフォルダの子リストを取り直し、着地したら行を組み直す。
+    /// 列挙先の URL は券が運ぶ(一覧から pathKey で引き当て直さない / TASK-442.3)。
+    private func loadChildren(for token: SidebarExpansion.ExpansionToken) {
+        let sortOrder = fileListModel.sortOrder
+        let showHiddenFiles = fileListModel.showHiddenFiles
+        Task {
+            let children = await self.childrenLister(token.url, sortOrder, showHiddenFiles)
+            self.expansion.apply(children, for: token)
+            self.rebuildRows()
+        }
+    }
+}

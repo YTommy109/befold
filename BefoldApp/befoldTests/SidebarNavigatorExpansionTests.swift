@@ -112,7 +112,7 @@ struct SidebarNavigatorExpansionTests {
             await Task.yield()
         }
 
-        #expect(navigator.expansion.expandedKeys.isEmpty)
+        #expect(navigator.expandedFolderKeys.isEmpty)
         #expect(!navigator.fileListModel.entries.map(\.url.lastPathComponent).contains("stale.mmd"))
     }
 

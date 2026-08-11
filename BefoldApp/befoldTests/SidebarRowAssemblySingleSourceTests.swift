@@ -63,7 +63,7 @@ struct SidebarRowAssemblySingleSourceTests {
         // 反映点が増えると、展開の材料を渡し忘れた行配列がサイドバーへ入る経路ができる
         // (ドリルダウンのままの一覧が、ツリー表示のはずの窓に出る)。
         // FileListModel.swift 自身は宣言だけなので callSites には現れない。
-        #expect(try Self.callSites(of: "setEntries") == ["SidebarNavigator+Expansion.swift": 1])
+        #expect(try Self.callSites(of: "setEntries") == ["SidebarTreePresenter.swift": 1])
     }
 
     private enum AssemblyError: Error {

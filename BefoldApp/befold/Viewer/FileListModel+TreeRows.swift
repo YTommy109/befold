@@ -2,7 +2,7 @@ import Foundation
 
 /// ツリー表示で、行どうしの親子関係を `visibleEntries` の並びから読む部分。
 /// FileListModel 本体から分けているのは、swiftlint の file_length を超えないようにするため
-/// (`SidebarNavigator+Expansion` などと同じ理由)。
+/// (`SidebarNavigator+History` などと同じ理由)。
 extension FileListModel {
     /// 指定した行の 1 つ上の階層にあたる行。無ければ nil。
     ///
