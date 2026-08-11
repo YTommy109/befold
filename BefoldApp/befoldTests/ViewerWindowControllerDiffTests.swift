@@ -37,7 +37,10 @@ private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
 ///
 /// ウィンドウ生成経路(共有インスタンスの配線・窓をまたぐ挙動)は
 /// ViewerWindowManagerDiffTests が受け持つ。
-@Suite
+/// 待機がハングした場合はスイートの打ち切りで止める(ViewerWindowManagerDiffTests と
+/// 揃える)。壁時計の予算をテスト側に持たせると、負荷で伸びただけの待ちを失敗として
+/// 記録してしまう(TASK-437)。
+@Suite(testTimeLimit())
 @MainActor
 struct ViewerWindowControllerDiffTests {
     private let file = URL(fileURLWithPath: "/mock/note.swift")
@@ -159,11 +162,11 @@ struct ViewerWindowControllerDiffTests {
         // SidebarNavigator が git 状態を反映したときに呼ぶ経路(protocol 必須メソッド)。
         controller.gitStatusDidApply()
 
-        // 取得は detached の utility タスクを経由するため、全スイート並列実行では
-        // 協調スレッドの空き待ちで数秒かかる(単体では 0.2 秒)。既定の 10 秒では足りない。
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controller.store.diffText == nil
-        }
+        // 取得は detached の utility タスクを経由するため、全スイート並列実行では協調
+        // スレッドの空き待ちで待たされる。壁時計の予算で待つと 120 秒でも足りずに落ちた
+        // (TASK-437)。反映タスクそのものを待って、予算という不確かな軸を外す。
+        await controller.diffRefreshTask?.value
+        #expect(controller.store.diffText == nil)
     }
 
     /// 差分表示モードでなければ git を起こさない。契機がバッジと同数へ増えたため、
@@ -295,9 +298,9 @@ struct ViewerWindowControllerDiffTests {
         // git 状態の反映が別のターンに分かれると、それぞれが別の契機として取得を起こす
         // （契機ごとに読み直すのは仕様。合流するのは同じ契機の兄弟要求だけ = TASK-346）。
         // 回数で測ると、契機がどう重なったかで結論が変わる（CI で実際に落ちた = TASK-348）。
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            reader.callCount > 0
-        }
+        // 待ち方は同経路の refreshesDiffWhenGitStatusApplied と揃える（TASK-437）。
+        await controller.diffRefreshTask?.value
+        #expect(reader.callCount > 0)
     }
 
     /// ルート解決は差分取得と同じく git のサブプロセスを起こしうるため、メインアクター上で

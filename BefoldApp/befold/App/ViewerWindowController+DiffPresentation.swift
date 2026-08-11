@@ -27,6 +27,9 @@ extension ViewerWindowController {
     func refreshDiff() {
         guard let loader = diffLoader, isDiffShown, capabilities.canSelectDiffMode else {
             store.diffText = nil
+            // 取得を起こさなかった契機で直前のタスクを残すと、待つ側が古い取得の完了を
+            // 「この契機の完了」と取り違える。
+            diffRefreshTask = nil
             return
         }
         let url = fileURL
@@ -37,7 +40,9 @@ extension ViewerWindowController {
         // 窓の数だけ git が起動する(TASK-325 / TASK-346)。ルート解決はローダーが
         // 取得タスクの中(メインアクターの外)で行う。
         let fetch = loader.diff(forFileAt: url) { index.repositoryRoot(forDirectoryAt: directory) }
-        Task { @MainActor [weak self] in
+        // 反映タスクは保持する。取得完了はここでしか観測できないため、捨てると呼び出し側
+        // (テスト)は `store.diffText` をポーリングで待つしかなくなる(TASK-437)。
+        diffRefreshTask = Task { @MainActor [weak self] in
             let result = await fetch.value
             // 取得中に OFF へ切り替わっていたら書き戻さない。表示は ViewerContentView の
             // ゲートで隠れるが、store.diffText に古い本文が残ると次に ON にした瞬間だけ

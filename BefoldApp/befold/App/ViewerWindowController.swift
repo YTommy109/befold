@@ -33,6 +33,15 @@ final class ViewerWindowController: NSWindowController {
     /// 差分の取得元。全ウィンドウで 1 個を共有する(生成元は ViewerWindowManager 一箇所)。
     /// 機能が無効なビルドでは nil で、git diff を一切実行しない。
     let diffLoader: GitDiffLoader?
+    /// 直近の `refreshDiff()` が起こした「取得結果を store へ書き戻すタスク」。
+    ///
+    /// 反映の完了はこれ以外に観測点が無い(`GitDiffLoader` が返す Task は取得までで、
+    /// `store.diffText` への書き戻しはこの後段)。捨てると、テストは結果をポーリングで
+    /// 待つしかなくなり、取得が detached の utility タスクを通る都合で全スイート並列実行では
+    /// 待機予算に達して落ちる(TASK-437。10→60→120 秒と伸ばしても解決しなかった)。
+    /// 書き込むのは `+DiffPresentation` の `refreshDiff()` だけ(別ファイルの extension から
+    /// 代入するため `private(set)` にはできない = Swift の `private` はファイルスコープ)。
+    var diffRefreshTask: Task<Void, Never>?
     /// 検索の 3 トグル。使うのは分割ビューの組み立て(`+Assembly`)だけ。
     let findOptionsPreference: FindOptionsPreference
     /// コードフォント設定。使うのは分割ビューの組み立てと、設定変更時の再注入(`+SidebarHost`)。
