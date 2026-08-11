@@ -35,10 +35,6 @@ final class ViewerScriptDispatcher {
     /// contentUpdateGeneration が呼び出し時から変わっていないか確認してから
     /// evaluateJavaScript/recordRendered を行う(後続の updateContent に追い越された場合は破棄)。
     func applyAppend(webView: WKWebView, request: AppendRequest) async {
-        // applyRender と同じ理由で、送るのは今・ミラーへの確定は追記を評価した後
-        // （await 中に再入した updateContent へ「反映済み」と誤って見せない）。
-        webView.evaluateJavaScript(request.truncation.script, completionHandler: nil)
-
         // 追記チャンクも初回描画と同じ加工を通す。markdown をチャンク読み込みの
         // 対象にしたため(Issue #307)、ここを素通しすると 2 チャンク目以降の
         // ローカル画像だけが data URI に差し替わらず画像割れになる。
@@ -48,6 +44,10 @@ final class ViewerScriptDispatcher {
         )
         guard request.generation == renderer.contentUpdateGeneration else { return }
 
+        // 送信と recordRendered は同じ同期区間に閉じ込める(applyRender と同じ理由)。
+        // ガードより前で送ると、追い越された呼び出しが「JS へは送ったのにミラーは旧値の
+        // まま」を残し、次の truncation が旧値と一致したとき再送が飛ぶ(TASK-336・417)。
+        webView.evaluateJavaScript(request.truncation.script, completionHandler: nil)
         if !renderable.isEmpty,
            let script = ViewerBridge.appendChunkScript(chunk: renderable, fileType: request.fileType)
         {
