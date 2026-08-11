@@ -7,7 +7,7 @@ import BefoldKit
 /// リネーム追随・フォルダー移動・戻る/進む——を受け持つ。
 ///
 /// 移した先の表示状態(倍率・スクロール位置・表示モード)をどう決めるかは
-/// `ViewerWindowController+Presentation.swift` の担当で、ここはその呼び出し順だけを持つ。
+/// `ViewerDocumentPresenter.swift` の担当で、ここはその呼び出し順だけを持つ。
 /// 一覧の選択同期と履歴の記録は `SidebarNavigator` へ委譲する。
 @MainActor
 extension ViewerWindowController {

@@ -37,11 +37,11 @@ struct ViewerWindowManagerDisplayOverridesIntegrationTests {
         let manager = makeManager()
         manager.openViewer(for: file, forceSidebarVisible: true)
         let controller = try #require(manager.controllers[file.normalizedPathKey]?.first)
-        await controller.sidebar.pendingListingTask?.value
+        await controller.sidebar.awaitSettled()
         #expect(controller.fileListModel.entries.map(\.kind) == [.folder, .file])
 
         manager.openViewer(for: file, options: CLIOpenOptions(sortOrder: .alphabetical))
-        await controller.sidebar.pendingListingTask?.value
+        await controller.sidebar.awaitSettled()
 
         #expect(controller.fileListModel.sortOrder == .alphabetical)
         #expect(controller.fileListModel.entries.map(\.kind) == [.file, .folder])

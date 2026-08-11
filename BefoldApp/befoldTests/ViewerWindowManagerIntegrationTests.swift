@@ -66,7 +66,7 @@ struct ViewerWindowManagerIntegrationTests {
 
         testCase.trigger(manager, first)
         for controller in manager.allControllers {
-            await controller.sidebar.pendingListingTask?.value
+            await controller.sidebar.awaitSettled()
         }
 
         for controller in manager.allControllers {
@@ -117,7 +117,7 @@ struct ViewerWindowManagerIntegrationTests {
 
         testCase.trigger(manager, first)
         for controller in manager.allControllers {
-            await controller.sidebar.pendingListingTask?.value
+            await controller.sidebar.awaitSettled()
         }
 
         for controller in manager.allControllers {
@@ -143,7 +143,7 @@ struct ViewerWindowManagerIntegrationTests {
 
         manager.toggleSidebarLayoutMode()
         for controller in manager.allControllers {
-            await controller.sidebar.pendingListingTask?.value
+            await controller.sidebar.awaitSettled()
         }
 
         for controller in manager.allControllers {
@@ -153,7 +153,7 @@ struct ViewerWindowManagerIntegrationTests {
         // 戻したときも全ウィンドウへ届く。
         manager.toggleSidebarLayoutMode()
         for controller in manager.allControllers {
-            await controller.sidebar.pendingListingTask?.value
+            await controller.sidebar.awaitSettled()
         }
         for controller in manager.allControllers {
             #expect(controller.fileListModel.layoutMode == .drillDown)

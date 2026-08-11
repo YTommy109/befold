@@ -66,7 +66,7 @@ struct SidebarNavigatorFolderNavigationTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.navigateToFolder(tmp)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.currentDirectory.standardizedFileURL == tmp.standardizedFileURL)
     }
@@ -103,7 +103,7 @@ struct SidebarNavigatorFolderNavigationTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.navigateToFolder(sub)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "grandchild")
     }
@@ -121,7 +121,7 @@ struct SidebarNavigatorFolderNavigationTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.navigateToFolder(sub)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
         #expect(navigator.fileListModel.previewTarget == .file)
@@ -150,7 +150,7 @@ struct SidebarNavigatorFolderNavigationTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.navigateToFolder(sub)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.previewTarget == .folder(grandChild))
         #expect(host.performFileSwitchCallCount == 0)
@@ -171,7 +171,7 @@ struct SidebarNavigatorFolderNavigationTests {
         host.fileSwitchOutcome = .failed
 
         navigator.navigateToFolder(sub)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection == nil)
         #expect(navigator.fileListModel.previewTarget == .folder(sub))
@@ -191,7 +191,7 @@ struct SidebarNavigatorFolderNavigationTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.navigateToFolder(sub)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
     }
@@ -208,7 +208,7 @@ struct SidebarNavigatorFolderNavigationTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.navigateToFolder(sub)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection == nil)
         #expect(navigator.fileListModel.previewTarget == .folder(sub))
@@ -226,7 +226,7 @@ struct SidebarNavigatorFolderNavigationTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.navigateToFolder(tmp)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "sub")
     }
@@ -252,12 +252,12 @@ struct SidebarNavigatorFolderNavigationTests {
 
         // level2 へ上に移動すると、そこが新たな最上位として rootDirectory に反映される。
         navigator.navigateToFolder(level2)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         #expect(navigator.fileListModel.rootDirectory.path == level2.path)
 
         // level3 へ戻っても、既に到達した最上位(level2)は保持される。
         navigator.navigateToFolder(level3)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         #expect(navigator.fileListModel.rootDirectory.path == level2.path)
     }
 
@@ -275,7 +275,7 @@ struct SidebarNavigatorFolderNavigationTests {
 
         // 他アプリへ切り替えて戻ってきた際に windowDidBecomeKey から呼ばれる処理を再現する。
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection == sub)
     }

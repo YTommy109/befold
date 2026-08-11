@@ -83,7 +83,7 @@ struct SidebarNavigatorGenerationTests {
 
         navigator.fileListModel.filterText = "fileA"
         navigator.navigateToFolder(dirB)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.currentDirectory.standardizedFileURL == dirB.standardizedFileURL)
         #expect(navigator.fileListModel.filterText == "fileA")

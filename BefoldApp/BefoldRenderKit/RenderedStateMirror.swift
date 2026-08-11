@@ -4,7 +4,9 @@ import WebKit
 /// 直近に描画した表示状態のミラー。呼び出し側 content の全文を保持せず、
 /// contentRevision の整数比較で再描画要否を判定することで重複バッファを避ける。
 /// viewer.html 再ロード時は全値を必ずセットで破棄する必要があるため、
-/// 個別フィールドではなく 1 つの struct にまとめ `reset()` で一括リセットする。
+/// 個別フィールドではなく 1 つの struct にまとめている。破棄は
+/// `DirectHTMLModeController.exit` が `recordRendered(RenderedStateMirror())` で
+/// 空のミラーを丸ごと確定させる形で行う(唯一の破棄点)。
 /// Equatable にしているのは「描画済みの状態と今回の入力が違うか」を
 /// フィールドの列挙ではなく型の比較で判定するため(updateContent 参照)。
 /// ここへフィールドを足すと再描画の判定にも自動で入る。
@@ -20,11 +22,6 @@ struct RenderedStateMirror: Equatable {
     var truncation: TruncationState?
     /// 最後に setDiff / setDiffLayout へ送った差分表示の状態。
     var diffState: DiffState?
-
-    /// viewer.html 再ロードで JS 側状態が初期化されるのに合わせて全ミラーを破棄する。
-    mutating func reset() {
-        self = RenderedStateMirror()
-    }
 }
 
 /// 段階読み込み(loadMoreLines)でステージされた次チャンク。実際の増分描画は

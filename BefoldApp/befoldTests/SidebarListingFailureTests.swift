@@ -41,7 +41,7 @@ struct SidebarListingFailureTests {
         let (navigator, host) = makeNavigator { _ in .failed() }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.didFailListing)
         let context = SidebarEmptyContext(model: navigator.fileListModel)
@@ -56,7 +56,7 @@ struct SidebarListingFailureTests {
         let (navigator, host) = makeNavigator { _ in [] }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(!navigator.fileListModel.didFailListing)
         let context = SidebarEmptyContext(model: navigator.fileListModel)
@@ -75,12 +75,12 @@ struct SidebarListingFailureTests {
         }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         #expect(navigator.fileListModel.didFailListing)
 
         failing.value = false
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         #expect(!navigator.fileListModel.didFailListing)
         withExtendedLifetime(host) {}
@@ -93,7 +93,7 @@ struct SidebarListingFailureTests {
         let (navigator, host) = makeNavigator { _ in .failed() }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         // 行だけを組み直す公開経路。畳みは展開の有無に関わらず組み直しを通る。
         navigator.collapseFolder(directory.appendingPathComponent("sub").normalizedPathKey)
 
@@ -109,7 +109,7 @@ struct SidebarListingFailureTests {
         let (navigator, host) = makeNavigator { _ in .failed() }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         let model = navigator.fileListModel
         guard case let .shared(shared) = model.listingSource(for: model.currentDirectory) else {

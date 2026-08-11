@@ -105,8 +105,8 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
     別ディレクトリへ展開し、そちらで測る（手順は `/swiftlint-baseline` にまとめてある）
 - **機能を足すと既存ファイルが `file_length` / `type_body_length` /
   `cyclomatic_complexity` を超えることがある。** 閾値を緩めるのではなく、
-  `Type+Feature.swift` の extension へ分割する（前例: `SidebarNavigator+History` /
-  `+SelectionMemory` / `+Expansion` / `+FolderNavigation`、`MainMenuBuilder+ViewMenu`。
+  `Type+Feature.swift` の extension へ分割する（前例: `SidebarNavigator+FolderNavigation`、
+  `MainMenuBuilder+ViewMenu`、`FileListModel+TreeRows` / `+Lookup` / `+Snapshot`。
   テストは `DirectoryListerAppendingOpenFileTests` が同じ理由で分かれている）
   - **Swift の `private` はファイルスコープ**なので、分割した extension からは
     参照できない。移すメソッド本体だけでなく、**それが触る stored property・

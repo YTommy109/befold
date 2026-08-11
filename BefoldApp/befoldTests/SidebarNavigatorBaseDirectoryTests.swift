@@ -37,7 +37,7 @@ struct SidebarNavigatorBaseDirectoryTests {
         )
         defer { withExtendedLifetime(host) {} }
 
-        await navigator.pendingBaseDirectoryTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.baseDirectory?.kind == .gitRoot)
         #expect(navigator.fileListModel.baseDirectory?.url == gitRoot)
@@ -49,7 +49,7 @@ struct SidebarNavigatorBaseDirectoryTests {
         let (navigator, host) = makeNavigator(currentDirectory: directory, gitRoot: nil)
         defer { withExtendedLifetime(host) {} }
 
-        await navigator.pendingBaseDirectoryTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.baseDirectory?.kind == .plainFolder)
         #expect(navigator.fileListModel.baseDirectory?.url == directory)
@@ -63,11 +63,11 @@ struct SidebarNavigatorBaseDirectoryTests {
             gitRoot: gitRoot
         )
         defer { withExtendedLifetime(host) {} }
-        await navigator.pendingBaseDirectoryTask?.value
+        await navigator.awaitSettled()
         navigator.fileListModel.baseDirectory = nil
 
         navigator.refreshFileList()
-        await navigator.pendingBaseDirectoryTask?.value
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.baseDirectory?.url == gitRoot)
     }

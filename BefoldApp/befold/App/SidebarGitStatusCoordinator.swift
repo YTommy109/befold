@@ -39,11 +39,15 @@ final class SidebarGitStatusCoordinator {
     private var sequence = 0
     /// 直近に発行した取得タスク。テストから完了を待つために公開する。
     ///
-    /// **ここに載るのは常に git 取得のタスクだけ。** 絞り込み ON のときの反映は一覧取得
-    /// タスクの中で起きるので、その完了を待ちたいテストは
-    /// `SidebarNavigator.pendingListingTask` を待つこと(ON では一覧と git を同一
-    /// メインアクター実行で反映するのが不変条件そのもの / TASK-293)。一覧タスクを
-    /// ここへ載せ替えると、この型の doc が嘘になる。
+    /// **ここに載るのは常に単発の git 取得タスクだけ。** 絞り込み ON のときの反映は一覧取得
+    /// タスクの中で起きる(ON では一覧と git を同一メインアクター実行で反映するのが
+    /// 不変条件そのもの / TASK-293)。
+    ///
+    /// この「どちらに載るか」を待ち合わせ側に知らせない形にしてある——テストは
+    /// `SidebarNavigator.awaitSettled()` で 3 本まとめて待つので、待ち先を選ばない。
+    /// 一覧タスクをここへ載せ替えると
+    /// `SidebarNavigatorChangedFilesOnlyTests.changedFilesOnlyCouplesGitStatusIntoListingTask`
+    /// が落ちる。
     private(set) var pendingTask: Task<Void, Never>?
 
     /// 反映の通知先。循環参照を避けるため weak。

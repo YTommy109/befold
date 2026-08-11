@@ -223,7 +223,7 @@ struct GitStatusReaderIntegrationTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.refreshFileList()
-        await navigator.pendingGitStatusTask?.value
+        await navigator.awaitSettled()
 
         let key = temp.url.appendingPathComponent("a.md").normalizedPathKey
         #expect(navigator.fileListModel.gitStatus?.fileStatus(at: key)?.worktreeChange == .modified)
@@ -263,7 +263,7 @@ struct GitStatusReaderIntegrationTests {
         defer { navigator.cancelPendingListing() }
 
         navigator.refreshFileList()
-        await navigator.pendingGitStatusTask?.value
+        await navigator.awaitSettled()
         let key = temp.url.appendingPathComponent("a.md").normalizedPathKey
         #expect(navigator.fileListModel.gitStatus?.fileStatus(at: key)?.worktreeChange == .modified)
 

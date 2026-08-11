@@ -66,7 +66,7 @@ struct SidebarNavigatorExpansionTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
 
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
         navigator.expandFolder(dirB.normalizedPathKey, at: dirB)
@@ -101,12 +101,12 @@ struct SidebarNavigatorExpansionTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
         await Task.yield()
 
         navigator.navigateToFolder(other)
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         await gate.open()
         for _ in 0 ..< 10 {
             await Task.yield()
@@ -129,7 +129,7 @@ struct SidebarNavigatorExpansionTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
         for _ in 0 ..< 10 {
             await Task.yield()
@@ -137,7 +137,7 @@ struct SidebarNavigatorExpansionTests {
         navigator.fileListModel.selection = nested
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         for _ in 0 ..< 10 {
             await Task.yield()
         }
@@ -160,7 +160,7 @@ struct SidebarNavigatorExpansionTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
         for _ in 0 ..< 10 {
@@ -204,7 +204,7 @@ struct SidebarNavigatorExpansionTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
         for _ in 0 ..< 10 {
             await Task.yield()
@@ -216,7 +216,7 @@ struct SidebarNavigatorExpansionTests {
         rootEntries.set([])
         for _ in 0 ..< 3 {
             navigator.refreshFileList()
-            await navigator.pendingListingTask?.value
+            await navigator.awaitSettled()
             for _ in 0 ..< 10 {
                 await Task.yield()
             }
@@ -226,7 +226,7 @@ struct SidebarNavigatorExpansionTests {
         // 復活したら、子リストは捨てられていないのでそのまま行になる(再列挙も起きない)。
         rootEntries.set([FileListEntry(url: dirA, kind: .folder)])
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         for _ in 0 ..< 10 {
             await Task.yield()
         }
@@ -248,7 +248,7 @@ struct SidebarNavigatorExpansionTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.refreshFileList()
-        await navigator.pendingListingTask?.value
+        await navigator.awaitSettled()
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
         for _ in 0 ..< 10 {
             await Task.yield()

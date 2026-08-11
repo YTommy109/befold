@@ -47,7 +47,7 @@ struct ViewerWindowControllerIntegrationTests {
         defer { controller.close() }
 
         // 初期一覧は init 内の refreshFileList()(非同期)で埋まるため、完了を待ってから見る。
-        await controller.sidebar.pendingListingTask?.value
+        await controller.sidebar.awaitSettled()
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
         #expect(names.contains(".hidden.mmd"))
         #expect(controller.fileListModel.showHiddenFiles)
@@ -67,7 +67,7 @@ struct ViewerWindowControllerIntegrationTests {
         ).controller
         defer { controller.close() }
 
-        await controller.sidebar.pendingListingTask?.value
+        await controller.sidebar.awaitSettled()
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
         #expect(names.contains("visible.mmd"))
         #expect(!names.contains(".hidden.mmd"))
@@ -88,7 +88,7 @@ struct ViewerWindowControllerIntegrationTests {
         // controller.handleRename を呼ぶ。その順序を再現するため store を先に進める。
         controller.store.openFile(renamed)
         controller.handleRename(from: file, to: renamed)
-        await controller.sidebar.pendingListingTask?.value
+        await controller.sidebar.awaitSettled()
 
         // ディレクトリ列挙は /private シンボリックリンクを解決するため、名前で照合する。
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
@@ -133,7 +133,7 @@ extension ViewerWindowControllerIntegrationTests {
         defer { controller.close() }
 
         controller.navigateToFolder(subDir)
-        await controller.sidebar.pendingListingTask?.value
+        await controller.sidebar.awaitSettled()
 
         #expect(controller.fileListModel.currentDirectory.standardizedFileURL == subDir.standardizedFileURL)
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
