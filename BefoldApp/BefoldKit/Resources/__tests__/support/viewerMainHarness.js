@@ -96,9 +96,9 @@ function installBrowserStubs(window) {
 // options.init が false のときは _mmdInit() を呼ばず、定義だけを読み込む。
 function loadViewerMain(options) {
   const opts = options || {};
-  // runScripts: 'outside-only' は viewer.html の <script> を実行しない一方で、
-  // window.eval をその window のグローバルスコープで動かす。ベンダー script を
-  // 読み込まずにバンドルだけを評価できる。
+  // runScripts: 'outside-only' は viewer.html の <script>(= viewer-bundle.js の
+  // コミット済み成果物)を実行しない一方で、window.eval をその window の
+  // グローバルスコープで動かす。成果物ではなくソースからのバンドルを評価できる。
   const dom = new JSDOM(readResource('viewer.html'), {
     url: 'https://localhost/',
     runScripts: 'outside-only',
@@ -111,13 +111,9 @@ function loadViewerMain(options) {
   if (opts.initialFindOptions !== undefined) { window._mmdInitialFindOptions = opts.initialFindOptions; }
   if (opts.findStrings !== undefined) { window._mmdFindStrings = opts.findStrings; }
   if (opts.bannerStrings !== undefined) { window._mmdBannerStrings = opts.bannerStrings; }
-  // 既定では viewer.html のベンダー script を読まないため markdownit / DOMPurify は
-  // 未定義で、Markdown 経路は縮退表示になる。実際の描画結果を検証したいテストだけが
-  // npm 版を注入して本番と同じ経路(md.render → DOMPurify)を通す。
-  if (opts.withMarkdown) {
-    window.markdownit = require('markdown-it');
-    window.DOMPurify = require('dompurify')(window);
-  }
+  // ベンダー(markdown-it / highlight.js / DOMPurify)はバンドル同梱のため、
+  // ここで window へ注入するものは無い(TASK-432.5)。テストは常に本番と同じ
+  // 経路(md.render → DOMPurify、hljs 付きのソース表示)を通る。
 
   // バンドルを評価すると、この window のクロージャ状態(ズームストア等)が作られる。
   window.eval(viewerBundleSource());

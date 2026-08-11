@@ -721,9 +721,10 @@ describe('wrapWithLineNumbers', () => {
 
 describe('FileType.swift の言語名契約', () => {
   // FileType.codeExtensionLanguages(FileType.swift)の値と同期させること。
-  // npm の highlight.js ではなく同梱の highlight.min.js に対して検証する
-  // (同梱ビルドは言語のサブセットのため、npm 版では偽陽性になる)。
-  const bundledHljs = require('../../../BefoldKit/Resources/highlight.min.js');
+  // full ビルド(192 言語)ではなく、実際にバンドルへ入る common ビルド(36 言語)に
+  // 対して検証する。full だと同梱していない言語まで通ってしまい偽陽性になる
+  // (取り込み口は viewer-src/vendor.js の 1 箇所)。
+  const bundledHljs = require('highlight.js/lib/common');
   const LANGUAGES = [
     'swift', 'python', 'go', 'rust', 'javascript', 'typescript',
     'java', 'kotlin', 'c', 'cpp', 'csharp', 'objectivec',
@@ -732,7 +733,7 @@ describe('FileType.swift の言語名契約', () => {
     'json', 'yaml', 'xml', 'vbnet',
   ];
 
-  test.each(LANGUAGES)('%s is available in the bundled highlight.min.js', (lang) => {
+  test.each(LANGUAGES)('%s is available in the bundled highlight.js common build', (lang) => {
     expect(bundledHljs.getLanguage(lang)).toBeTruthy();
   });
 });

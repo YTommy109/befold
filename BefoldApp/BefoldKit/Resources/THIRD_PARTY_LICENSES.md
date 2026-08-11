@@ -83,6 +83,10 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 https://github.com/highlightjs/highlight.js
 
+同梱するのは common ビルド（36 言語）と、公式配布のテーマ
+`styles/github.css` / `styles/github-dark.css`（Resources/github.css /
+github-dark.css としてコピー）。テーマもこの BSD 3-Clause の下で提供される。
+
 ```
 BSD 3-Clause License
 

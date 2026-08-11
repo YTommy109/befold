@@ -12,30 +12,26 @@ Dependabot / `npm audit` の監視外。版ずれと既知脆弱性を確認す�
 scripts/vendored-deps-versions.sh
 ```
 
-`<名前>\t<同梱版>\t<記録値>` を出力し、同梱ファイルの実バージョンと記録
-(`BefoldApp/package.json` / `BefoldKit/Resources/THIRD_PARTY_LICENSES.md`)の
-突き合わせまで行う。**パスが消えた・版が抽出できない・記録と食い違う場合は
-非ゼロで終了する**ので、`exit 0` でなければ棚卸しの前に手順側を直す。
+`<Component>\t<版>\t<ライセンス>\t<同梱のしかた>` を出力し、package.json の指定版・
+node_modules の実インストール版・`THIRD_PARTY_LICENSES.md` の表の三者が一致して
+いるかを検査する。**食い違う・node_modules が無い場合は非ゼロで終了する**ので、
+`exit 0` でなければ棚卸しの前にそのずれを直す。
 
-抽出方法は個別に異なる（スクリプト内のコメント参照）。
-
-| ライブラリ | 版の在り処 | 記録先 |
-| --- | --- | --- |
-| markdown-it / github-markdown-css / DOMPurify | ファイル先頭のバナーコメント | `package.json` |
-| highlight.js | バナー無し。内部の `versionString="…"` | `package.json` |
-| mermaid | esbuild バンドルでバナー無し。内部の `version:"…"` | `THIRD_PARTY_LICENSES.md`（`package.json` に **記録が無い**） |
-| github.css / github-dark.css | ファイル自身は版を持たない | highlight.js 本体の版に従う |
+| ライブラリ | 同梱のしかた |
+| --- | --- |
+| markdown-it / highlight.js / DOMPurify | `viewer-bundle.js` に同梱（取り込み口は `viewer-src/vendor.js`） |
+| mermaid | npm の `dist/mermaid.min.js` をコピーして同梱（遅延ロードのためバンドルへ入れない） |
+| github-markdown.css / github.css / github-dark.css | npm からコピーして同梱（後者 2 つは highlight.js の `styles/`） |
 
 ## 2. 最新版・脆弱性を調べる
 
 - WebSearch で各ライブラリの最新安定版と、同梱版に該当する CVE / GHSA を調べる。
 - 実際の初期化設定と突き合わせ、該当 CVE がこのアプリで発火するかを判定する。
   参照先は `viewer.html` ではなく `BefoldApp/viewer-src/markdown.js` / `mermaid.js`。
-  - markdown-it: `_mmdInitMarkdown()`（`html: true` / `linkify` / `typographer`）
+  - markdown-it: `buildMarkdownRenderer()`（`html: true` / `linkify` / `typographer`）
   - mermaid: `_mmdMermaidConfig()`（`securityLevel: 'strict'` / `maxTextSize` /
     `maxEdges`）。`mermaid.min.js` は `viewer.html` からは読まれず、
     描画が必要になった時点で `mermaid.js` が動的に `<script>` を挿して遅延ロードする
-    （ベンダーライブラリは viewer-bundle.js に取り込まず、`viewer.html` から個別に読む）
   - DOMPurify: `md.render` のラッパから `sanitizeRenderedHtml(DOMPurify, …)`
     （`viewer-src/markdown.js`）を通し、**設定なしのデフォルト**で `purify.sanitize()` を呼ぶ
 - 脅威モデル: `viewer.html` の CSP は `script-src 'self'`（`'unsafe-inline'` が付くのは

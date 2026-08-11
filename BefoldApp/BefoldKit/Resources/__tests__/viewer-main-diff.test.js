@@ -141,7 +141,7 @@ describe('ソース表示への差分の差し込み', () => {
   // diff() は非 null になる。そこで追記を止めると、変更済みの大きな .md /
   // .csv で 2 チャンク目以降が永久に出なくなる。
   test('レンダリング表示の Markdown は差分が届いていてもチャンクを追記する', async () => {
-    const { document, main } = loadViewerMain({ withMarkdown: true });
+    const { document, main } = loadViewerMain({});
 
     main.setDiff(DIFF);
     main.setViewMode('rendered');
@@ -167,7 +167,7 @@ describe('ソース表示への差分の差し込み', () => {
   // 通したユーザーコンテンツ内の同名テーブルにも一致し、先頭チャンクの描画以降の
   // 追記がすべて捨てられて文書が黙って途切れる(TASK-339)。
   test('ユーザーコンテンツの diff-table では追記を止めない', async () => {
-    const { document, main } = loadViewerMain({ withMarkdown: true });
+    const { document, main } = loadViewerMain({});
 
     main.setViewMode('rendered');
     await main.render('<table class="diff-table"><tr><td>a</td></tr></table>\n', 'md');

@@ -26,6 +26,7 @@ import {
   _renderSvg,
 } from './renderers.js';
 import { _mmdRestoreScrollPosition, _mmdScroll, _mmdScrollTarget } from './scroll.js';
+import { hljs } from './vendor.js';
 import { _mmdModeSwitch, _mmdViewOptions } from './view-options.js';
 import { _mmdApplyZoom } from './zoom.js';
 
@@ -87,8 +88,8 @@ async function render(content, type, lang) {
   // 継続行の結合判定を誤る)。
   _mmdChunkTail.record(content);
   // いま描く形をここで 1 回だけ決め、appendChunk が読む記録にする。分岐へ入る前に
-  // 記録するのは、markdown-it 未ロードで打ち切る経路でも記録が確定するようにするため
-  // (後で入れ直す形にすると、その経路だけ前回の値が残って追記戦略が食い違う)。
+  // 記録するのは、どの経路を通っても記録が確定するようにするため(後で入れ直す形に
+  // すると、途中で返る経路だけ前回の値が残って追記戦略が食い違う)。
   // 差分を組み上げた場合だけ _renderSource が 'diff' を返し、下で上書きする。
   var shape = renderShape(type, _mmdViewOptions.mode());
   _mmdRenderedAs = shape;
@@ -107,7 +108,6 @@ async function render(content, type, lang) {
   _mmdPdfBlob.release();
 
   // 描画形ディスパッチ。中身の組み立ては各ビルダーに委ね、ここでは選ぶだけにする。
-  // markdown 分岐だけは markdown-it 未ロード時に後続処理を打ち切る。
   if (shape === 'code' || shape === 'csv-source') {
     _mmdRenderedAs = _renderSource(diagramWrap, content, type, lang, shape);
   } else if (shape === 'mmd') {
@@ -122,8 +122,8 @@ async function render(content, type, lang) {
     _renderImage(diagramWrap, content, lang);
   } else if (shape === 'pdf') {
     _renderPdf(diagramWrap, content);
-  } else if (!_renderMarkdown(diagramWrap, content)) {
-    return;
+  } else {
+    _renderMarkdown(diagramWrap, content);
   }
 
   await _mmdRunMermaid(diagramWrap);
@@ -178,9 +178,7 @@ function appendChunk(text, type, lang) {
     // いるため(StringChunkReader の markdownBlocks)、チャンク単体を描画して
     // 末尾へ足せる。全文を再描画すると巨大ファイルで DOM を作り直すことになり、
     // 段階読み込みの意味がなくなる。
-    var md = markdownRenderer();
-    if (!md) { return; }
-    diagramWrap.insertAdjacentHTML('beforeend', md.render(text));
+    diagramWrap.insertAdjacentHTML('beforeend', markdownRenderer().render(text));
     _annotatePathRefs();
     // 追記分に ```mermaid フェンスがあれば描画する。render() と違い appendChunk は
     // 同期関数のため await せず、描画済みの図は対象外にする(全図の再描画を避ける)。
@@ -217,7 +215,7 @@ function appendChunk(text, type, lang) {
     if (!codeEl) { return; }
     var inner = isCsvSource
       ? csvSourceInnerHtml(text, lang || ',')
-      : codeChunkInnerHtml(window.hljs, text, lang, highlightContext);
+      : codeChunkInnerHtml(hljs, text, lang, highlightContext);
     var codeTable = codeEl.querySelector('table.code-table');
     if (codeTable) {
       // 強制分割(前チャンクが改行で終わらなかった)の場合、継続行は新しい行では

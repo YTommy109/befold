@@ -33,6 +33,7 @@ viewer 用 JS のモジュールソース（ESM）。`npm run build:viewer` が 
 | `reference-clicks.js` | リンク/パス参照のクリック・コンテキストメニューを Swift へ伝える |
 | `truncation.ts` | 段階読み込みバナーと「続きを読み込む」 |
 | `markdown.js` | markdown-it インスタンスの構成 |
+| `vendor.js` | npm 依存のベンダー（markdown-it / highlight.js / DOMPurify）の取り込み口 |
 | `mermaid.js` | mermaid の遅延ロード・設定・実行 |
 | `color-scheme.js` | ダークモードの現在値と変更通知 |
 | `fonts.ts` | Swift が注入したフォント設定を CSS 変数へ反映する |
@@ -50,11 +51,18 @@ Swift 側は `evaluateJavaScript("_mmdZoomIn()")` のような裸の呼び出し
 バンドル（IIFE）の中身は `exposeGlobals()` でグローバルへ載せ直す。`export` した
 時点で載るので、公開関数を増やすときの追記漏れは起きない。
 
-`viewer.html` は body 末尾で **markdown-it → highlight.js → DOMPurify →
-viewer-bundle.js** の順に読む。ベンダーライブラリはバンドルに含めず、グローバル参照
-のまま使う。mermaid（3.2MB）はさらに遅く、描画が必要になった時点で
-`mermaid.js` が動的に `<script>` を挿して遅延ロードする。CSP は
-`script-src 'self'` のままで変わらない。
+`viewer.html` が body 末尾で読む script は **viewer-bundle.js 1 本だけ**。
+markdown-it / highlight.js / DOMPurify は npm 依存としてこのバンドルに含まれる
+（TASK-432.5）。取り込み口は `vendor.js` の 1 箇所で、他のモジュールは
+そこから import する（`window.hljs` のようなグローバル参照はしない）。
+これらは常に構成済みなので「ベンダー未ロード」の縮退経路は存在しない。
+
+mermaid（3.2MB）だけはバンドルへ入れない。CSV・ログ・コード等の mermaid 不使用
+プレビューで無駄なパース/評価コストになるため、描画が必要になった時点で
+`mermaid.js` が `<script src="mermaid.min.js">` を挿して遅延ロードする。
+その `mermaid.min.js` と 3 つのベンダー CSS は npm パッケージから
+`npm run build:viewer-vendor`（`scripts/copy-viewer-vendor.mjs`）でコピーした
+生成物で、バンドル同様コミットする。CSP は `script-src 'self'` のままで変わらない。
 
 ## TypeScript への段階移行
 
@@ -111,7 +119,9 @@ strict で走っていた**。付けないと、出荷される成果物だけ�
 
 ```bash
 npm run build:viewer         # ソースからバンドルを生成する
+npm run build:viewer-vendor  # npm から mermaid.min.js / ベンダー CSS をコピーする
 npm run check:viewer-bundle  # 再ビルドしてコミット済み成果物との差分を検出する
+npm run check:third-party-licenses  # THIRD_PARTY_LICENSES.md と実際の依存を突き合わせる
 npm run lint:viewer          # ESLint（no-undef で未定義参照を機械検出する）
 npm run typecheck:viewer     # tsc --noEmit（型検査。対象は .ts のみ）
 npm run check:viewer-cycles  # モジュール間の循環 import を検出する

@@ -177,7 +177,7 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
 - **`.md` の扱い**: markdown-it.js で markdown → HTML 変換する。
   ` ```mermaid ` フェンスは markdown-it のカスタムレンダラーで `<pre class="mermaid">` に出力し mermaid.js が SVG 描画する
 - **その他ファイル種別**: SVG / HTML / CSV・TSV / 画像 / PDF / 各種ソースコードは
-  `FileType` の判定に従い、ソースコードは highlight.min.js でシンタックスハイライトする
+  `FileType` の判定に従い、ソースコードは highlight.js でシンタックスハイライトする
 - **ズーム**: 0.5〜2.0（ボタン・キーは 25% 刻み、ホイールは連続）、基準スケール 0.75、
   `Cmd +/-`・`Ctrl + ホイール`・% 表示クリックでリセット。`ZoomStore` によりファイル単位で永続化
 - **検索**: 大文字小文字区別・単語一致・正規表現の3トグル、次/前移動
@@ -234,11 +234,11 @@ Info.plist で以下を宣言する。
 |---|---|
 | Swift 6 / SwiftUI + AppKit | アプリ本体（macOS 14+、Strict Concurrency complete） |
 | WKWebView | markdown・mermaid・各種ファイルのレンダリング |
-| mermaid.min.js（同梱） | Mermaid SVG レンダリング |
-| markdown-it.min.js（同梱） | `.md` ファイルの markdown → HTML 変換 |
-| highlight.min.js（同梱） | ソースコードのシンタックスハイライト |
-| dompurify.min.js（同梱） | markdown → HTML 変換結果のサニタイズ |
-| github-markdown.css / github.css / github-dark.css（同梱） | Markdown 本文とコードハイライトのテーマ |
+| mermaid（npm 依存 → `mermaid.min.js` をコピーして同梱、遅延ロード） | Mermaid SVG レンダリング |
+| markdown-it（npm 依存 → viewer-bundle.js に同梱） | `.md` ファイルの markdown → HTML 変換 |
+| highlight.js（npm 依存 → viewer-bundle.js に同梱、common ビルド） | ソースコードのシンタックスハイライト |
+| DOMPurify（npm 依存 → viewer-bundle.js に同梱） | markdown → HTML 変換結果のサニタイズ |
+| github-markdown-css / highlight.js のテーマ CSS（npm 依存 → コピーして同梱） | Markdown 本文とコードハイライトのテーマ |
 | Sparkle 2（SPM 依存） | 自動アップデート（appcast 取得・署名検証・インストール） |
 | swift-argument-parser（SPM 依存） | `befold-cli` の引数解析 |
 | XcodeGen | `.xcodeproj` 生成（`project.yml` が単一の定義元） |

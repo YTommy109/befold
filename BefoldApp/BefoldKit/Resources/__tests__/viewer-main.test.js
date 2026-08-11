@@ -371,12 +371,14 @@ describe('render の型ディスパッチ', () => {
     expect(bodyClasses(document)).toEqual(['code-body']);
   });
 
-  test('markdown-it 未ロードでは代替文言を出して後続処理を打ち切る', async () => {
+  // ベンダーはバンドル同梱(viewer-src/vendor.js)になったため「markdown-it 未ロード」
+  // という状態は存在しない(TASK-432.5)。以前はこの経路の縮退表示を固定していた。
+  test('md は markdown-it でレンダリングする', async () => {
     const { document, main } = loadViewerMain({});
 
     await main.render('# Title', 'md');
 
-    expect(document.getElementById('diagram-wrap').textContent).toBe('markdown-it not loaded');
+    expect(document.querySelector('#diagram-wrap h1').textContent).toBe('Title');
     expect(bodyClasses(document)).toEqual(['markdown-body']);
   });
 
@@ -1441,7 +1443,7 @@ describe('Markdown のチャンク追記(Issue #307)', () => {
   const wrap = (document) => document.getElementById('diagram-wrap');
 
   test('追記したチャンクが末尾にレンダリングされる', async () => {
-    const { main, document } = loadViewerMain({ withMarkdown: true });
+    const { main, document } = loadViewerMain({});
     await main.render('# first\n\n', 'md');
 
     main.appendChunk('## second\n\n', 'md');
@@ -1451,7 +1453,7 @@ describe('Markdown のチャンク追記(Issue #307)', () => {
   });
 
   test('追記しても先頭チャンクの DOM を作り直さない', async () => {
-    const { main, document } = loadViewerMain({ withMarkdown: true });
+    const { main, document } = loadViewerMain({});
     await main.render('# first\n\n', 'md');
     const firstHeading = wrap(document).querySelector('h1');
 
@@ -1462,7 +1464,7 @@ describe('Markdown のチャンク追記(Issue #307)', () => {
   });
 
   test('追記チャンクも DOMPurify でサニタイズされる', async () => {
-    const { main, document } = loadViewerMain({ withMarkdown: true });
+    const { main, document } = loadViewerMain({});
     await main.render('# first\n\n', 'md');
 
     main.appendChunk('<img src=x onerror="alert(1)">\n\n', 'md');
@@ -1473,7 +1475,7 @@ describe('Markdown のチャンク追記(Issue #307)', () => {
   });
 
   test('追記した内容も検索対象の本文に含まれる', async () => {
-    const { main, document } = loadViewerMain({ withMarkdown: true });
+    const { main, document } = loadViewerMain({});
     await main.render('# first\n\n', 'md');
 
     main.appendChunk('needle text\n\n', 'md');
