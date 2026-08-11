@@ -214,9 +214,9 @@ struct GitStatusReaderIntegrationTests {
                 defaults: makeIsolatedDefaults(prefix: "GitStatusReaderIntegrationTests")
             ),
             directoryLister: { _, _, _ in .empty },
-            loadGitStatuses: { directory, policy in
+            git: SidebarGitReadingStub(statuses: { directory, policy in
                 await store.statuses(forDirectoryAt: directory, policy: policy)
-            }
+            })
         )
         let host = SidebarNavigatorStubHost(currentFileURL: temp.url.appendingPathComponent("a.md"))
         navigator.attach(to: host)
@@ -253,9 +253,9 @@ struct GitStatusReaderIntegrationTests {
                 defaults: makeIsolatedDefaults(prefix: "GitStatusIndexWatch")
             ),
             directoryLister: { _, _, _ in .empty },
-            loadGitStatuses: { directory, policy in
+            git: SidebarGitReadingStub(statuses: { directory, policy in
                 await store.statuses(forDirectoryAt: directory, policy: policy)
-            }
+            })
         )
         let host = SidebarNavigatorStubHost(currentFileURL: temp.url.appendingPathComponent("a.md"))
         navigator.attach(to: host)

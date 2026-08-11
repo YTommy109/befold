@@ -9,9 +9,10 @@ import BefoldCLI
 /// ## サイドバーの git ステータス系（`isSidebarGitStatusEnabled`）
 /// 露出点は次のとおりで、TASK-187（stable 昇格）ではこれらの分岐を撤去する。
 ///
-/// - `ViewerWindowAssembler.makeSidebarGitStatusLoader(_:)`
-///   — 状態取得そのもの。無効時は空を返すため、バッジ（ファイル行・フォルダー行）も
-///     `.git/index` の監視も止まる。
+/// - `ViewerWindowAssembler.makeSidebarGitReader(fileIndex:statusStore:)`
+///   — 状態取得そのもの。無効時は statusStore を渡さず空を返すため、バッジ
+///     （ファイル行・フォルダー行）も `.git/index` の監視も止まる。リポジトリルートの
+///     解決（基準ディレクトリ表示）はゲート対象外なので、そちらは無効時も動く。
 /// - `ViewerWindowAssembler.makeChangedFilesOnlyToggle(for:)`
 ///   — サイドバーヘッダーの「変更されたファイルのみ表示」ボタン。無効時は nil で非表示。
 /// - `MainMenuBuilder+ViewMenu.makeViewMenuItem()`

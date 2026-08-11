@@ -94,9 +94,7 @@ final class SidebarNavigator {
             = DirectoryLister.listingAsync,
         childrenLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]?
             = DirectoryLister.childEntriesAsync,
-        resolveGitRoot: @escaping @Sendable (URL) async -> URL? = { _ in nil },
-        loadGitStatuses: @escaping (URL, GitStatusRefreshPolicy) async -> GitStatusResult
-            = { _, _ in .empty },
+        git: any SidebarGitReading = DisabledSidebarGitReading(),
         makeGitIndexWatcher: @escaping GitIndexWatch.WatcherFactory
             = { url, onChange in FileWatcher(path: url, onChange: onChange) }
     ) {
@@ -111,11 +109,11 @@ final class SidebarNavigator {
         // 別インスタンスになる / TASK-319 と同型)。クロージャは素通しする。
         tree = SidebarTreePresenter(fileListModel: fileListModel, childrenLister: childrenLister)
         baseDirectory = SidebarBaseDirectoryResolver(
-            fileListModel: fileListModel, resolveGitRoot: resolveGitRoot
+            fileListModel: fileListModel, git: git
         )
         gitStatus = SidebarGitStatusCoordinator(
             fileListModel: fileListModel,
-            loadGitStatuses: loadGitStatuses,
+            git: git,
             makeGitIndexWatcher: makeGitIndexWatcher
         )
         historyController = SidebarHistoryController(fileListModel: fileListModel)

@@ -33,7 +33,7 @@ struct SidebarNavigatorExpansionTests {
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in DirectoryListing(parentEntry: nil, rootChildren: rootEntries) },
             childrenLister: childrenLister,
-            resolveGitRoot: { _ in nil }
+            git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
         )
         let host = SidebarNavigatorStubHost(
             currentFileURL: currentDirectory.appendingPathComponent("fileA.mmd")

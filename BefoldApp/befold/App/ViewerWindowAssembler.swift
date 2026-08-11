@@ -20,11 +20,15 @@ enum ViewerWindowAssembler {
     /// ロジック自体は常時ビルドし、露出点だけを囲う（無効時は機能を消すのではなく空を返す）。
     /// git ステータス系の露出点はここを含めて 3 箇所あり、一覧は FeatureGate の宣言にある。
     /// stable 昇格（TASK-187）ではこの guard を消して常に store を引く形にすればよい。
-    static func makeSidebarGitStatusLoader(
-        _ store: GitStatusStore
-    ) -> (URL, GitStatusRefreshPolicy) async -> GitStatusResult {
-        guard FeatureGate.isSidebarGitStatusEnabled else { return { _, _ in .empty } }
-        return { directory, policy in await store.statuses(forDirectoryAt: directory, policy: policy) }
+    static func makeSidebarGitReader(
+        fileIndex: any GitFileIndexing, statusStore: GitStatusStore
+    ) -> any SidebarGitReading {
+        // ゲートで止めるのは状態取得だけ。リポジトリルートの解決(基準ディレクトリ表示)は
+        // ゲート対象外なので、reader は常に作り statusStore の有無で状態取得だけを落とす。
+        SidebarGitReader(
+            fileIndex: fileIndex,
+            statusStore: FeatureGate.isSidebarGitStatusEnabled ? statusStore : nil
+        )
     }
 
     /// サイドバー（一覧・選択同期・フォルダ移動）のナビゲータを作る。
@@ -42,13 +46,7 @@ enum ViewerWindowAssembler {
         SidebarNavigator(
             currentDirectory: fileURL.deletingLastPathComponent(), entries: [], selection: fileURL,
             sidebarDisplayPreference: sidebarDisplayPreference, sortOrder: sortOrder,
-            // 未命中時は `git rev-parse` の subprocess を同期で待つため、
-            // メインアクターを離して解決する（サイドバーのヘッダー表示のためだけに
-            // フォルダ移動のたびメインスレッドを止めないため）。
-            resolveGitRoot: { [gitFileIndex] directory in
-                await Task.detached { gitFileIndex.repositoryRoot(forDirectoryAt: directory) }.value
-            },
-            loadGitStatuses: makeSidebarGitStatusLoader(gitStatusStore)
+            git: makeSidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
         )
     }
 

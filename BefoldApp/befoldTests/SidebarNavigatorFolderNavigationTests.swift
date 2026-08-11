@@ -45,7 +45,7 @@ struct SidebarNavigatorFolderNavigationTests {
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorFolderNavigationTests")
             ),
             directoryLister: { url, _, _ in listing(url) },
-            resolveGitRoot: { _ in nil }
+            git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
         )
         let host = SidebarNavigatorStubHost(
             currentFileURL: currentDirectory.appendingPathComponent("diagram.mmd")

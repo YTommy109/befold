@@ -22,9 +22,8 @@ import Foundation
 final class SidebarGitStatusCoordinator {
     /// git 状態の反映先。
     private let fileListModel: FileListModel
-    /// 表示中ディレクトリのファイルに対する git 状態を取得する。既定は常に空(機能無効)。
-    /// git 型に直接依存しないようクロージャで注入する(TASK-442.6 でプロトコル化予定)。
-    private let loadGitStatuses: (URL, GitStatusRefreshPolicy) async -> GitStatusResult
+    /// git の読み取り。使うのは `statuses(forDirectoryAt:policy:)` だけ。
+    private let git: any SidebarGitReading
     /// `.git/index` を監視するウォッチャの生成器。既定は実 FileWatcher。
     /// テストは実ファイルシステム監視を避けるため差し替える。
     private let makeGitIndexWatcher: GitIndexWatch.WatcherFactory
@@ -56,11 +55,11 @@ final class SidebarGitStatusCoordinator {
 
     init(
         fileListModel: FileListModel,
-        loadGitStatuses: @escaping (URL, GitStatusRefreshPolicy) async -> GitStatusResult,
+        git: any SidebarGitReading,
         makeGitIndexWatcher: @escaping GitIndexWatch.WatcherFactory
     ) {
         self.fileListModel = fileListModel
-        self.loadGitStatuses = loadGitStatuses
+        self.git = git
         self.makeGitIndexWatcher = makeGitIndexWatcher
     }
 
@@ -167,7 +166,7 @@ final class SidebarGitStatusCoordinator {
         return StatusRequest(
             directory: directory,
             sequence: sequence,
-            task: Task { await self.loadGitStatuses(directory, policy) }
+            task: Task { await self.git.statuses(forDirectoryAt: directory, policy: policy) }
         )
     }
 

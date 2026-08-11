@@ -17,10 +17,10 @@ import Foundation
 final class SidebarBaseDirectoryResolver {
     /// 解決結果の書き込み先。`baseDirectory` 以外は書かない。
     private let fileListModel: FileListModel
-    /// 現在のディレクトリが属する git リポジトリの作業ツリールート。git 管理外なら nil。
-    /// 未命中時に `git rev-parse` の subprocess を待つため async にし、
-    /// メインスレッド(SwiftUI の body 評価)で解決しないようにしている。
-    private let resolveGitRoot: @Sendable (URL) async -> URL?
+    /// git の読み取り。使うのは `repositoryRoot(forDirectoryAt:)` だけ。
+    /// 未命中時に `git rev-parse` の subprocess を待つため async で、
+    /// メインスレッド(SwiftUI の body 評価)では解決しない。
+    private let git: any SidebarGitReading
     /// 解決タスクの世代番号。一覧取得・git 状態取得とは完了タイミングが独立するため、
     /// それぞれ別の世代で古い結果を捨てる。
     ///
@@ -31,9 +31,9 @@ final class SidebarBaseDirectoryResolver {
     /// 直近に発行した解決タスク。テストから完了を待つために公開する。
     private(set) var pendingTask: Task<Void, Never>?
 
-    init(fileListModel: FileListModel, resolveGitRoot: @escaping @Sendable (URL) async -> URL?) {
+    init(fileListModel: FileListModel, git: any SidebarGitReading) {
         self.fileListModel = fileListModel
-        self.resolveGitRoot = resolveGitRoot
+        self.git = git
     }
 
     /// 基準ディレクトリを取り直して fileListModel へ反映する。
@@ -45,7 +45,7 @@ final class SidebarBaseDirectoryResolver {
         generation += 1
         let generation = generation
         pendingTask = Task {
-            let gitRoot = await self.resolveGitRoot(directory)
+            let gitRoot = await self.git.repositoryRoot(forDirectoryAt: directory)
             guard generation == self.generation else { return }
             self.fileListModel.baseDirectory = BaseDirectoryDescriptor(
                 gitRoot: gitRoot,

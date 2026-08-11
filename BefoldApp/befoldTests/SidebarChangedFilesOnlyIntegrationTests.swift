@@ -177,9 +177,9 @@ struct SidebarChangedFilesOnlyIntegrationTests {
             selection: nil,
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in DirectoryListing(parentEntry: nil, rootChildren: entries) },
-            loadGitStatuses: { directory, policy in
+            git: SidebarGitReadingStub(statuses: { directory, policy in
                 await store.statuses(forDirectoryAt: directory, policy: policy)
-            }
+            })
         )
         navigator.attach(to: host)
         return navigator

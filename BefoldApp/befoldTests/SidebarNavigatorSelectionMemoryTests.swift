@@ -89,7 +89,7 @@ struct SidebarNavigatorSelectionMemoryTests {
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorSelectionMemoryTests")
             ),
             directoryLister: { url, _, _ in DirectoryListing(parentEntry: nil, rootChildren: listings(url)) },
-            resolveGitRoot: { _ in nil }
+            git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
         )
         let host = SidebarNavigatorStubHost(currentFileURL: selection ?? currentDirectory)
         navigator.attach(to: host)
