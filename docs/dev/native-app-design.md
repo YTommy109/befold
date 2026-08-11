@@ -108,7 +108,12 @@ BefoldApp/
 | `SwipeHistoryNavigation` | トラックパッド水平スワイプから履歴移動方向を判定する純粋ロジック |
 | `SidebarNavigator` | サイドバー選択・履歴からのファイル切替を仲介 |
 | `CLIInstaller` | `/usr/local/bin/befold` に CLI 実行ファイルへの symlink を設置（詳細は [CLI 起動経路](./cli-launch.md#cliinstaller-が設置する-shim)） |
-| `ViewerWindowController` | 1 ウィンドウ分のビューア制御（依存の保持と生成手順）。実処理は責務ごとの拡張に分かれる（`+Assembly` 組み立てと配線 / `+FileNavigation` 提示対象の移動 / `+Presentation` 文書の状態の遷移 / `+Capabilities` 能力導出 / `+DiffPresentation` git 差分の取得 / `+MenuActions` メニュー・ツールバーのアクションと validate / `+References` 参照のオープン / `+SidebarHost`・`+Renderer`・`+WindowDelegate` 各プロトコル準拠） |
+| `ViewerWindowController` | 1 ウィンドウ分のビューア制御（依存の保持と生成手順、および外から来る契機の受け口）。実処理は独立した協働オブジェクトへ出してある（下記）。手元に残る拡張は `+FileNavigation` 提示対象の移動 / `+MenuActions` メニュー・ツールバー由来の `@objc` アクションと validate / `+References` 参照のオープン / `+Capabilities` 能力導出の入力集め / `+SidebarHost`・`+Renderer`・`+WindowDelegate` 各プロトコル準拠 |
+| `ViewerWindowAssembler` | ウィンドウ生成時の部品の組み立てと配線（分割ビュー・サイドバーナビゲータ・WebView コマンド・ストア購読・スワイプ監視）。工程の中身だけを持ち、順序制約は `ViewerWindowController.init` に残す |
+| `ViewerDocumentPresenter` | 文書の状態（表示モード・倍率・スクロール位置）の遷移と提示開始の 3 契機（ADR 0002 段 1）。cmd+U の戻り先の記憶もここに閉じる |
+| `ViewerDiffPresenter` | git 差分の非同期取得・世代管理・レイアウト設定 |
+| `ViewerCapabilitiesFactory` | 提示状態から `ViewerCapabilities` を導出する純関数（ADR 0002 段 2）。どの入力を信じるかをここ 1 箇所に置く |
+| `ReferenceMenuPresenter` | 参照の右クリックメニューの項目定義・表示・実行（`@objc` アクションを含めて 1 型に閉じる） |
 | `ViewerWindowChrome` | `NSWindow` そのものの生成・外観・タイトル追従・初期フレーム決定。窓を 1 枚しか知らず、文書の状態にも他の窓にも触れない（重なり判定は述語で受け取る） |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController` |
 | `ReferenceContextMenu` | ビューア本文のリンク/パス参照の ctrl+クリック(右クリック)で出す `NSMenu` の項目定義。並び・文言はサイドバーのコンテキストメニューと揃える |

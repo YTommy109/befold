@@ -567,8 +567,8 @@ extension ViewerWindowControllerTests {
 
         for disposition: OpenDisposition in [.currentTab, .newTab, .newWindow] {
             let menu = ReferenceContextMenu.makeMenu(
-                for: externalURL, isExternal: true, target: controller,
-                action: Selector(("performReferenceMenuAction:"))
+                for: externalURL, isExternal: true, target: controller.referenceMenu,
+                action: Selector(("performMenuAction:"))
             )
             let openItem = menu.items.first {
                 ($0.representedObject as? ReferenceMenuInvocation)?.action == .open(disposition)

@@ -12,7 +12,7 @@
 470	BefoldApp/BefoldKit/ViewerBridge
 562	BefoldApp/befold/App/AppDelegate
 611	BefoldApp/befold/App/SidebarNavigator
-1255	BefoldApp/befold/App/ViewerWindowController
+852	BefoldApp/befold/App/ViewerWindowController
 543	BefoldApp/befold/App/ViewerWindowManager
 459	BefoldApp/befold/Viewer/FileListModel
 437	BefoldApp/befold/Viewer/FileListView

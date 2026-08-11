@@ -8,10 +8,8 @@ import BefoldKit
 /// `ViewerCapabilities` だけを見る。**条件をここ以外に書かない**ことで、
 /// 「メニューは無効なのに別経路では通る」を作らない。
 ///
-/// `ViewerCapabilities` 自身は `import Foundation` だけの純粋な値型に保ち、
-/// `ViewerStore` や `URL` から Bool を取り出す作業(＝どの入力を信じるか)はこちら側に置く。
-/// 両者を 1 つのイニシャライザへ畳むと、下の `supportsDiffDisplay` だけ入力が違う理由が
-/// 見えなくなり、揃えたくなる圧力が生まれる(TASK-338 の再発経路)。
+/// 導出そのものは `ViewerCapabilitiesFactory` が持ち、ここはウィンドウ側の入力
+/// (提示対象・現在 URL・WebView の状態)を集めて渡すだけにする。
 @MainActor
 extension ViewerWindowController {
     /// プレビュー領域がフォルダー一覧を出しているか。ViewerContentView と同じ
@@ -21,21 +19,11 @@ extension ViewerWindowController {
     }
 
     /// いま何ができるか。メニュー・ツールバー・コマンド実行はすべてこの値だけを見る(ADR 0002)。
+    /// 導出そのものは ViewerCapabilitiesFactory(ウィンドウを知らない純関数)に置く。
     var capabilities: ViewerCapabilities {
-        ViewerCapabilities(
-            isPresentingDocument: !isPreviewingFolder,
-            isRejected: store.isRejected,
-            isRenderable: store.fileType.isRenderable,
-            isBinaryContent: store.fileType.isBinaryContent,
-            showsCodeContent: store.showsCodeContent,
-            showsDiff: store.showsDiff,
-            supportsSourceMode: store.fileType.supportsSourceMode,
-            // 差分の種別ゲートだけは、いま表示中の URL から直接導く。store.fileType は
-            // 非同期のコンテンツロード完了まで旧ファイルの値を保つため、切替中に届いた
-            // 取得契機(`.git/index` 変更・他ウィンドウの保存)が旧ファイルの種別で通り、
-            // 差分を描けない CSV/TSV に対して git を起こしてしまう(TASK-338)。
-            supportsDiffDisplay: FileType(url: fileURL).supportsDiffDisplay,
-            isDirectHTMLMode: webViewProxy.isDirectHTMLMode
+        ViewerCapabilitiesFactory.make(
+            store: store, isPresentingDocument: !isPreviewingFolder,
+            fileURL: fileURL, isDirectHTMLMode: webViewProxy.isDirectHTMLMode
         )
     }
 

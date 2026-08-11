@@ -1,21 +1,27 @@
 import AppKit
 import BefoldKit
 
-// MARK: - ReferenceResolutionHost
+// MARK: - References
 
 /// 本文中のリンク・パス参照を「開く / 見つからないと伝える / 右クリックメニューを出す」層。
 ///
 /// 解決そのもの(索引の先読み・相対パスの解決・外部 URL の判別)は
 /// `ReferenceResolutionCoordinator` が持ち、ここはその結果をウィンドウの操作へ繋ぐ。
 ///
-/// **その場で組み立てるコンテキストメニューの @objc アクションは、メニューを作る側と同居させる。**
-/// メインメニュー/ツールバー由来のアクション(`ViewerWindowController+MenuActions.swift`)と違い、
-/// 項目定義・表示・実行が 1 つの流れなので、離すと `#selector` の対応が読めなくなる。
+/// 右クリックメニューは `ReferenceMenuPresenter` が丸ごと担う(項目定義・表示・実行が
+/// 1 つの流れなので、離すと `#selector` の対応が読めなくなる)。ここはその呼び出しだけ。
 @MainActor
-extension ViewerWindowController: ReferenceResolutionHost {
-    /// ReferenceResolutionCoordinator が解決の基準ディレクトリを都度参照するための橋渡し。
-    var referenceBaseURL: URL {
-        fileURL
+extension ViewerWindowController {
+    /// 解決結果の届け先。生成は referenceCoordinator / referenceMenu の 1 箇所ずつだけ。
+    /// 循環参照を避けるため、いずれの処理も self を弱参照で捕捉する。
+    var referenceActions: ReferenceActions {
+        ReferenceActions(
+            open: { [weak self] url, disposition in self?.openReference(url, disposition: disposition) },
+            presentNotFound: { [weak self] url in self?.presentReferenceNotFound(url: url) },
+            presentContextMenu: { [weak self] url, isExternal in
+                self?.presentReferenceContextMenu(for: url, isExternal: isExternal)
+            }
+        )
     }
 
     /// リンク/パス参照のアクティベーションを処理する。
@@ -45,45 +51,9 @@ extension ViewerWindowController: ReferenceResolutionHost {
         FileNotFoundUI.present(url: url, over: window)
     }
 
-    /// リンク/パス参照の ctrl+クリック(右クリック)で NSMenu を表示する。
-    /// 表示位置は JS の座標ではなく現在のマウス位置を使う(WKWebView の CSS ピクセルと
-    /// NSView 座標の変換、ページズームの影響を避けるため)。
+    /// リンク/パス参照の ctrl+クリック(右クリック)でコンテキストメニューを表示する。
+    /// 項目定義・表示・実行は ReferenceMenuPresenter に閉じている(`@objc` アクションも向こう側)。
     func presentReferenceContextMenu(for url: URL, isExternal: Bool) {
-        guard let contentView = window?.contentView,
-              let location = window?.mouseLocationOutsideOfEventStream
-        else { return }
-        let menu = ReferenceContextMenu.makeMenu(
-            for: url, isExternal: isExternal, target: self, action: #selector(performReferenceMenuAction(_:))
-        )
-        menu.popUp(positioning: nil, at: contentView.convert(location, from: nil), in: contentView)
-    }
-
-    /// コンテキストメニューの各項目の実行を、既存の遷移・Finder・クリップボード処理へ委譲する。
-    @objc private func performReferenceMenuAction(_ sender: NSMenuItem) {
-        guard let invocation = sender.representedObject as? ReferenceMenuInvocation else { return }
-        switch invocation.action {
-        case let .open(disposition):
-            // 外部 URL(http/https)はファイルビューア経路(switchFile/openFileElsewhere)に
-            // ローカルパスが無く、渡すと「ファイルが見つかりません」になる。修飾キーに
-            // かかわらずブラウザで開く(通常クリック・cmd+クリックと同じ扱いに揃える)。
-            if invocation.isExternal {
-                externalOpener(invocation.url)
-            } else {
-                openReference(invocation.url, disposition: disposition)
-            }
-        case .revealInFinder:
-            NSWorkspace.shared.activateFileViewerSelecting([invocation.url])
-        case .copyName:
-            writeToPasteboard(invocation.url.lastPathComponent)
-        case .copyRelativePath:
-            writeToPasteboard(PathRelativizer.relativePath(of: invocation.url, relativeTo: referenceBaseURL))
-        }
-    }
-
-    /// NSPasteboard.general へ文字列を書き込む(FileListView の copyPath と同じ処理)。
-    private func writeToPasteboard(_ string: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(string, forType: .string)
+        referenceMenu.present(for: url, isExternal: isExternal, in: window)
     }
 }

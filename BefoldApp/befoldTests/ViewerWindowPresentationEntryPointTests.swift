@@ -5,8 +5,8 @@ import Testing
 /// を、呼び出し元の個数で固定する。
 ///
 /// この規則は以前 `ViewerWindowController.swift` 1 ファイル内の `private` が守っていた。
-/// 責務ごとの拡張へ分割した際に internal へ上がり、befold ターゲットのどこからでも
-/// 呼べるようになったため、代わりにソース走査で契機を数える(TASK-411)。
+/// 責務ごとの型へ分割した際に internal へ上がり、befold ターゲットのどこからでも
+/// 呼べるようになったため、代わりにソース走査で契機を数える(TASK-411 / TASK-441)。
 ///
 /// 増やしてよい場合(提示開始の契機が本当に増えた場合)は、ADR 0002 の当該節を先に更新し、
 /// ここの期待値も合わせて動かすこと。無言で増やすとこのテストが落ちる。
@@ -49,7 +49,9 @@ struct ViewerWindowPresentationEntryPointTests {
         // モード切替(setDisplayMode)は 3 つ目の契機だが、位置のキーが (パス, モード) 粒度で
         // あるため beginPresentingDocument ではなく restoredScrollPosition を直接引く。
         let expected = [
-            "ViewerWindowController.swift": 1, // init(オープン)
+            // 2 件の内訳: init(オープン契機)と、ViewerDocumentPresenter への委譲 1 行。
+            // 委譲は契機ではないが、契機と同じ名前で呼ぶことで「入口はこの名前だけ」を保つ。
+            "ViewerWindowController.swift": 2,
             "ViewerWindowController+FileNavigation.swift": 1, // performFileSwitch(ファイル切替)
         ]
         #expect(try Self.callSites(of: "beginPresentingDocument") == expected)
@@ -59,7 +61,8 @@ struct ViewerWindowPresentationEntryPointTests {
     func saveScrollPositionBeforeTransitionHasExactlyTwoCallSites() throws {
         let expected = [
             "ViewerWindowController+FileNavigation.swift": 1, // performFileSwitch
-            "ViewerWindowController+Presentation.swift": 1, // setDisplayMode
+            "ViewerDocumentPresenter.swift": 1, // setDisplayMode
+            "ViewerWindowController.swift": 1, // ViewerDocumentPresenter への委譲
         ]
         #expect(try Self.callSites(of: "saveScrollPositionBeforeTransition") == expected)
     }

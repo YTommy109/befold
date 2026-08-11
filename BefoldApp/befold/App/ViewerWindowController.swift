@@ -11,13 +11,13 @@ import SwiftUI
 ///
 /// | 置き場所 | 責務 |
 /// |---|---|
-/// | `+Assembly` | ウィンドウ生成時の組み立てと配線(分割ビュー・サイドバー・WebView コマンド・購読) |
+/// | `ViewerWindowAssembler` | ウィンドウ生成時の組み立てと配線(分割ビュー・サイドバー・WebView コマンド・購読) |
 /// | `+FileNavigation` | 提示対象の移動(ファイル切替・リネーム追随・フォルダー移動・履歴) |
-/// | `+Presentation` | 文書の状態の遷移(表示モード・倍率・スクロール位置)と提示開始の 3 契機 |
+/// | `ViewerDocumentPresenter` | 文書の状態の遷移(表示モード・倍率・スクロール位置)と提示開始の 3 契機 |
 /// | `+Capabilities` | 提示状態からの能力導出(ADR 0002 段 2) |
-/// | `+DiffPresentation` | git 差分の非同期取得と世代管理 |
+/// | `ViewerDiffPresenter` | git 差分の非同期取得・世代管理・レイアウト設定 |
 /// | `+MenuActions` | メニュー/ツールバー由来の @objc アクションと validate の対応表 |
-/// | `+References` | 本文中のリンク・パス参照を開く / 右クリックメニュー |
+/// | `+References` | 本文中のリンク・パス参照を開く(右クリックメニューは `ReferenceMenuPresenter`) |
 /// | `+SidebarHost` / `+Renderer` / `+WindowDelegate` | 各プロトコル準拠(外から来る契機の受け口) |
 /// | `ViewerWindowChrome` | NSWindow そのものの生成・外観・フレーム決定(窓を 1 枚しか知らない) |
 final class ViewerWindowController: NSWindowController {
@@ -25,24 +25,44 @@ final class ViewerWindowController: NSWindowController {
     let store: ViewerStore
     /// ファイル毎の永続表示状態(倍率・表示モード・スクロール位置・サイドバー開閉・
     /// ウィンドウフレーム)の束。読み書きするのは `+Presentation` / `+FileNavigation` /
-    /// `+Renderer` / `+WindowDelegate` と、WebView コマンドへの受け渡し(`+Assembly`)。
+    /// `+Renderer` / `+WindowDelegate` と、WebView コマンドへの受け渡し(`ViewerWindowAssembler`)。
     let perFileState: PerFileStateStore
+    /// git 差分の取得・世代管理・レイアウト設定。差分に関する状態はすべて向こう側に置く。
+    /// 生成は init 1 箇所きり(host に self を要るため lazy)。
+    lazy var diffPresenter = ViewerDiffPresenter(
+        loader: diffLoader, gitFileIndex: gitFileIndex, store: store,
+        displayPreference: diffDisplayPreference,
+        currentURL: { [weak self] in self?.fileURL },
+        capabilities: { [weak self] in self?.capabilities ?? .none }
+    )
     /// 差分のレイアウト設定。全ウィンドウ共有(差分を出すかどうかは store の表示モードが持つ)。
-    /// 参照は `+DiffPresentation` と `+MenuActions` に集約している。
+    /// 判断は diffPresenter が持ち、ここは生成時の受け渡しと共有インスタンスの照合のために保つ。
     let diffDisplayPreference: DiffDisplayPreference
     /// 差分の取得元。全ウィンドウで 1 個を共有する(生成元は ViewerWindowManager 一箇所)。
     /// 機能が無効なビルドでは nil で、git diff を一切実行しない。
     let diffLoader: GitDiffLoader?
-    /// 直近の `refreshDiff()` が起こした「取得結果を store へ書き戻すタスク」。
-    ///
-    /// 反映の完了はこれ以外に観測点が無い(`GitDiffLoader` が返す Task は取得までで、
-    /// `store.diffText` への書き戻しはこの後段)。捨てると、テストは結果をポーリングで
-    /// 待つしかなくなり、取得が detached の utility タスクを通る都合で全スイート並列実行では
-    /// 待機予算に達して落ちる(TASK-437。10→60→120 秒と伸ばしても解決しなかった)。
-    /// 書き込むのは `+DiffPresentation` の `refreshDiff()` だけ(別ファイルの extension から
-    /// 代入するため `private(set)` にはできない = Swift の `private` はファイルスコープ)。
-    var diffRefreshTask: Task<Void, Never>?
-    /// 検索の 3 トグル。使うのは分割ビューの組み立て(`+Assembly`)だけ。
+
+    /// 差分表示モードかどうか。実体は diffPresenter(ここは外向きの入口)。
+    var isDiffShown: Bool {
+        diffPresenter.isDiffShown
+    }
+
+    /// 差分レイアウトが左右分割か(ViewerToolbarHost の要求)。
+    var isDiffLayoutSideBySide: Bool {
+        diffPresenter.isLayoutSideBySide
+    }
+
+    /// 表示中ファイルの差分を取り直す。契機は表示モード遷移と git 状態の反映の 2 つ。
+    func refreshDiff() {
+        diffPresenter.refresh()
+    }
+
+    /// 直近の取り直しの反映タスク。完了を待てる観測点はここだけ(TASK-437)。
+    var diffRefreshTask: Task<Void, Never>? {
+        diffPresenter.refreshTask
+    }
+
+    /// 検索の 3 トグル。使うのは分割ビューの組み立て(`ViewerWindowAssembler`)だけ。
     let findOptionsPreference: FindOptionsPreference
     /// コードフォント設定。使うのは分割ビューの組み立てと、設定変更時の再注入(`+SidebarHost`)。
     let codeFontPreference: CodeFontPreference
@@ -56,12 +76,13 @@ final class ViewerWindowController: NSWindowController {
     let openFileElsewhere: (URL, OpenDisposition, NSWindow?) -> Void
     /// 外部 URL(http/https)をブラウザで開く処理。本番では NSWorkspace 経由。
     /// テストが実ブラウザを起動せずに済むよう注入可能にしている。
-    let externalOpener: (URL) -> Void
+    /// 使うのは参照メニューの実行だけなので、ここでは referenceMenu へ渡すためだけに保持する。
+    private let externalOpener: (URL) -> Void
     /// 生成した SplitViewController への型消去参照。contentViewController が保持するため weak。
-    /// 代入は組み立て時(`+Assembly`)、参照は CLI の `--sidebar`/`--no-sidebar` 適用(`+FileNavigation`)。
+    /// 代入は組み立て時(`ViewerWindowAssembler`)、参照は CLI の `--sidebar`/`--no-sidebar` 適用(`+FileNavigation`)。
     weak var sidebarCollapsible: (any SidebarCollapsible)?
     /// 二本指スワイプによるファイル履歴ナビゲーション検知。
-    /// 開始は `+Assembly`、停止は `+WindowDelegate` の windowWillClose。
+    /// 開始は `ViewerWindowAssembler`、停止は `+WindowDelegate` の windowWillClose。
     var swipeMonitor: SwipeHistoryMonitor!
     /// ツールバー(モード切替・戻る/進む・行番号)の構築とライブ状態更新を担う。
     private(set) var toolbarController: ViewerToolbarController!
@@ -72,13 +93,53 @@ final class ViewerWindowController: NSWindowController {
     /// 生成は init 1 箇所きり。使うのは `+MenuActions` / `+Presentation` /
     /// `+FileNavigation` / `+SidebarHost`。
     private(set) var webViewCommands: WebViewCommandController!
-    /// cmd+U でソース系モードを離れた直前の「どのソース系モードだったか」と、その時のファイル。
-    /// レンダリング表示中しか値を持たない(ソース系モードへ入った時点で setDisplayMode が捨てる)。
-    /// 保存値からは復元できない: 離脱側の cmd+U が保存値を `.rendered` で上書きするため、
-    /// 戻る側が保存値を読むと必ず `.source` に落ちる(TASK-370)。
-    /// 記憶するのは `+MenuActions` の toggleSourceView、捨てるのは `+Presentation` の
-    /// setDisplayMode。この 2 箇所以外から触らないこと。
-    var sourceToggleReturn: (pathKey: String, mode: ViewerDisplayMode)?
+    /// 表示モード・倍率・スクロール位置の遷移(ADR 0002 段 1)。提示状態の判断はすべて向こう側。
+    /// webViewCommands の生成後にしか作れないため lazy(参照はどれも init の後段以降)。
+    lazy var documentPresenter = ViewerDocumentPresenter(
+        store: store, perFileState: perFileState, webViewCommands: webViewCommands,
+        currentURL: { [weak self] in self?.fileURL },
+        canSelect: { [weak self] mode in self?.canSelect(mode) ?? false },
+        refreshToolbar: { [weak self] in self?.refreshToolbarState() },
+        refreshDiff: { [weak self] in self?.refreshDiff() }
+    )
+
+    // MARK: - 提示状態の遷移(実体は documentPresenter。ここは外から呼ばれる入口)
+
+    /// 表示モードを変える唯一の入口(ViewerToolbarHost の要求。メニュー ⌘1〜⌘3 も通る)。
+    func setDisplayMode(_ newValue: ViewerDisplayMode) {
+        documentPresenter.setDisplayMode(newValue)
+    }
+
+    /// 永続化を伴わない表示モードの反映(復元・リネーム追随)。
+    func applyDisplayMode(_ newValue: ViewerDisplayMode) {
+        documentPresenter.applyDisplayMode(newValue)
+    }
+
+    /// CLI の `--source` / `--preview` の適用。
+    func applyCLIDisplayMode(isSourceMode: Bool) {
+        documentPresenter.applyCLIDisplayMode(isSourceMode: isSourceMode)
+    }
+
+    /// 提示開始。保存値を読んでよい 3 契機のうちの 2 つ(オープン・ファイル切替)から呼ぶ。
+    func beginPresentingDocument(at url: URL) {
+        documentPresenter.beginPresentingDocument(at: url)
+    }
+
+    /// 書き換え前の save-before-mutate。
+    func saveScrollPositionBeforeTransition() {
+        documentPresenter.saveScrollPositionBeforeTransition()
+    }
+
+    /// 退場側の保存完了をライブな復元値へ追いつかせる。
+    func applySavedScrollPositionToLiveValue(_ position: Double, for url: URL, mode: ViewerBridge.ViewMode) {
+        documentPresenter.applySavedScrollPositionToLiveValue(position, for: url, mode: mode)
+    }
+
+    /// cmd+U の戻り先。
+    var sourceToggleTarget: ViewerDisplayMode {
+        documentPresenter.sourceToggleTarget
+    }
+
     /// 表示モードの唯一の真実の源は store。二重保持を避けるため委譲する。
     var displayMode: ViewerDisplayMode {
         store.displayMode
@@ -123,14 +184,21 @@ final class ViewerWindowController: NSWindowController {
     /// fileReader は store と共有する(既存の fileExists/isExistingFile 共有と同じ理由で
     /// InMemoryFileReader 注入テストと整合させる)。
     lazy var referenceCoordinator = ReferenceResolutionCoordinator(
-        host: self, fileReader: store.fileReader, gitIndex: gitFileIndex
+        baseURL: { [weak self] in self?.fileURL }, actions: referenceActions,
+        fileReader: store.fileReader, gitIndex: gitFileIndex
+    )
+    /// 参照の右クリックメニュー(項目定義・表示・実行)。`@objc` アクションを含めて向こう側に閉じる。
+    lazy var referenceMenu = ReferenceMenuPresenter(
+        baseURL: { [weak self] in self?.fileURL },
+        openReference: { [weak self] url, disposition in self?.openReference(url, disposition: disposition) },
+        externalOpener: externalOpener
     )
 
     // MARK: - Initialization
 
     /// 生成手順は 3 段に分かれる。**この並びには順序制約があり、各段の間に
     /// 「なぜその順でなければならないか」をコメントで残してある。** 工程の中身は
-    /// `ViewerWindowController+Assembly.swift` へ移してあるが、順序はここでしか読めない。
+    /// `ViewerWindowAssembler.swift` へ移してあるが、順序はここでしか読めない。
     ///
     /// 1. `super.init` 前 — 保存プロパティの確定とウィンドウ・サイドバーの生成
     /// 2. `super.init` 直後 — self を要る協働オブジェクトの生成とコンテンツの取り付け
@@ -202,7 +270,7 @@ final class ViewerWindowController: NSWindowController {
         // store の生成元にかかわらずここで一律に適用する(sourceModeOverride と同じ方針)。
         if let showLineNumbersOverride { store.applyShowLineNumbersOverride(showLineNumbersOverride) }
         self.store = store
-        sidebar = ViewerWindowController.makeSidebarNavigator(
+        sidebar = ViewerWindowAssembler.makeSidebarNavigator(
             fileURL: fileURL, sidebarDisplayPreference: sidebarDisplayPreference,
             sortOrder: initialSortOrder, gitFileIndex: gitFileIndex, gitStatusStore: gitStatusStore
         )
@@ -214,24 +282,28 @@ final class ViewerWindowController: NSWindowController {
         // super.init より前には作れない。ツールバーの生成・デリゲート設定・取り付けの
         // 順序制約は ViewerToolbarController.init の中に閉じている。
         toolbarController = ViewerToolbarController(window: window, host: self)
-        webViewCommands = makeWebViewCommands(documentRenderer: documentRenderer, fallbackURL: fileURL)
+        webViewCommands = ViewerWindowAssembler.makeWebViewCommands(
+            for: self, documentRenderer: documentRenderer, fallbackURL: fileURL
+        )
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
         // リサイズされるため、フレームの確定はその後に行う。
-        window.contentViewController = makeSplitViewController(contentOverride: makeContentView)
+        window.contentViewController = ViewerWindowAssembler.makeSplitViewController(
+            for: self, contentOverride: makeContentView
+        )
         ViewerWindowChrome.applyInitialFrame(
             initialFrameDescriptor, to: window,
-            isOccupied: ViewerWindowController.isOriginOccupiedByAnotherViewer(excluding: window)
+            isOccupied: ViewerWindowAssembler.isOriginOccupiedByAnotherViewer(excluding: window)
         )
         // delegate の設定はフレーム確定後にする。init 中のリサイズ
         // (contentViewController 設定によるフィッティングサイズ化など)が
         // windowDidResize 経由で保存されるのを防ぐ
         window.delegate = self
-        startSwipeMonitor(on: window)
-        wirePresentationTargetChange()
+        swipeMonitor = ViewerWindowAssembler.makeSwipeMonitor(for: self, on: window)
+        ViewerWindowAssembler.wirePresentationTargetChange(for: self)
         sidebar.attach(to: self)
         // 空で作ったサイドバー一覧をここで埋める(列挙はメインアクター外で走る)。
         sidebar.refreshFileList()
-        wireStoreCallbacks()
+        ViewerWindowAssembler.wireStoreCallbacks(for: self)
         store.openFile(fileURL)
         // クリック時解決(pathResolver)の git 追跡ファイル索引を先読みしておく。
         referenceCoordinator.warm(forFileAt: fileURL)
@@ -242,7 +314,7 @@ final class ViewerWindowController: NSWindowController {
         if let sourceModeOverride {
             applyCLIDisplayMode(isSourceMode: sourceModeOverride)
         } else {
-            applyDisplayMode(perFileState.displayMode.restoredDisplayMode(for: fileURL))
+            documentPresenter.applyRestoredDisplayMode(for: fileURL)
         }
         // 提示開始(オープン)。倍率とスクロール位置の保存値を読むのはここと performFileSwitch だけ。
         // 表示モードのキーから引くため、applyDisplayMode の後に呼ぶこと。
