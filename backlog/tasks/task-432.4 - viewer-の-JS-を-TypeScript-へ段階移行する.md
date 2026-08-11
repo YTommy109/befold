@@ -1,11 +1,11 @@
 ---
 id: TASK-432.4
 title: viewer の JS を TypeScript へ段階移行する
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-10 12:57'
-updated_date: '2026-08-11 14:30'
+updated_date: '2026-08-11 21:29'
 labels: []
 dependencies:
   - TASK-432.3
@@ -34,11 +34,11 @@ ordinal: 112400
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 TypeScript のビルドと型検査が npm スクリプトから実行できる
-- [ ] #2 型検査が CI で実行され、エラーで落ちる
-- [ ] #3 少なくともブリッジ契約に関わるモジュールが TypeScript へ移行されている
-- [ ] #4 ブリッジ契約の型を手書きするか生成するかの判断が理由つきで記録されている
-- [ ] #5 既存テストが通り、ケース数が減っていない
+- [x] #1 TypeScript のビルドと型検査が npm スクリプトから実行できる
+- [x] #2 型検査が CI で実行され、エラーで落ちる
+- [x] #3 少なくともブリッジ契約に関わるモジュールが TypeScript へ移行されている
+- [x] #4 ブリッジ契約の型を手書きするか生成するかの判断が理由つきで記録されている
+- [x] #5 既存テストが通り、ケース数が減っていない
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -97,3 +97,84 @@ bridge.js -> bridge.ts、expose.js -> expose.ts、window._mmd* 注入グロー�
 ## 次タスクへの申し送り（受け取り側の AC にする）
 残りモジュールの移行タスクでは、index.js / main.js を .ts にする際に check-viewer-cycles.mjs:17 のエントリパスを併せて変える（エントリだけは esbuild の拡張子解決が効かず落ちる）。
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 決めたこととその理由
+
+- **ブリッジ契約の型は手書きせず、値から導出した（AC#4）。** bridge.ts のメッセージ名は `var _MSG_* = '...' as const` のフラットな宣言のまま残し、型 `ViewerMessageName` は `typeof` で導く。理由は、値の一致を ViewerBridgeContractTests が既に成果物 viewer-bundle.js の文字列として Swift と双方向に照合しているため（ViewerBridgeContractTests.swift:82-109 / :247-252）。型を別に宣言すると「Swift の値・JS の値・JS の型」の 3 つを揃える形になり、生成方式にすると「生成物のズレ検証」という三本目の担保が要る。**手書きするのは値だけ**にして、既存テストが見ている場所を単一情報源にした。
+  - この方式が成立する条件（`_MSG_*` をフラットな const のまま保つ / postMessage の第 2 引数を直書きリテラルのまま保つ）は product-code.md の JS 規約と bridge.ts のコメントに明記した。条件を破って抽出が空振りしても、declaredMessagesHavePostSites（:99-109）と `#expect(!pairs.isEmpty)`（:250）が落ちるため黙って通る抜け道は無い。
+
+- **hostFeatures のキー名に契約テストを 1 本足した。** viewer-globals.d.ts の `ViewerHostFeatures` は Swift のキー名を JS 側へ手書きするため、放置すると手書き分が担保なしになる。実際、bannerStrings / findStrings には照合があるのに hostFeatures には無く、キー名が片側だけ変わると isHostFeatureEnabled が「未指定 = 有効」へ静かに縮退して抑止が効かなくなる経路だった（QuickLook の Space 抑止と同じ型の事故が過去に起きている）。照合語に `_mmdHostFeatures, "<key>"` と global 名を含めたのは、キー名だけで探すと bannerStrings の "loadMore" に一致して誤って通るため。**自己検証済み**: Swift 側のキーを spaceScroll -> spaceScrollX に一時変更して失敗を確認し、復元した。
+
+- **checkJs は false（strict は full strict）。** 未移行の .js を型エラー源にしないことで、移行の各ステップで CI が緑のまま進む。移行済みの .ts だけが strict の対象になるので full strict と段階移行は両立する。「型検査されるのは .ts だけ」という誤解を生まないよう、viewer-src/README.md・product-code.md・testing.md の 3 箇所に明記した。
+  - tsconfig の `include` はファイル列挙ではなくディレクトリ全体にした。移行のたびに追記する列挙を作ると、追記漏れたモジュールが「型が付いた見た目のまま一度も検査されない」形で静かに残る。
+
+- **site とはバージョンだけ揃え、設定は独立。** 別 package.json・別ランタイム（safari17 のブラウザ / Cloudflare Workers）で lib と types が噛み合わないため tsconfig は共有しない。typescript は 5.9.3 を exact 指定（site は ^5.7.2 で同じ 5.9 系に解決される）。exact にしたのは既存の esbuild / eslint / @babel/core と同じ方針で、CI の型検査が無関係な PR で突然落ちるのを避けるため。
+
+- **同名 basename の .js/.ts が並んだときの解決先の食い違いを構造で塞いだ。** esbuild は resolveExtensions の既定で .ts を優先するが、jest は moduleFileExtensions 順で決める。既定のままだと両方存在したときテストと本番が別ファイルを見る。新しい検査スクリプトを足すのではなく、jest 側を ts -> js の順にして**同居しても解決が一致する**形にした。
+
+## バンドルが strict mode になった件（設計判断）
+
+tsconfig.json を置いた時点で、esbuild が成果物の先頭に `"use strict";` を出すようになった。**実測でトリガーを特定した**: 原因は移行済み .ts の有無ではなく、esbuild が tsconfig.json を自動検出して `strict: true` が含む `alwaysStrict` を尊重すること。スクラッチパッドの最小再現で、(a) .ts を含むグラフでも tsconfig が無ければ付かない、(b) .js だけのグラフでも tsconfig があれば付く、(c) `alwaysStrict: false` で抑止できる、の 3 点を確認した。
+
+**抑止せずそのまま採用した。** ソースは ESM（常に strict）として書かれ、Jest 側は babel が CommonJS へ落とす際に `"use strict"` を付けるため、**テストは以前から strict で走っていた**。付けないと出荷される成果物だけが sloppy mode という、テストと本番のずれが残る。抑止はそのずれを復活させる方向に働く。
+
+安全性の裏付け:
+- viewer-src 全体に `this` / `with` / 8 進リテラル / `arguments.callee` の出現が 0 件（rg で実測）
+- 暗黙のグローバル代入は eslint の no-undef（error）が全 .js を対象に押さえている
+- ベンダー（mermaid / markdown-it / highlight.js / DOMPurify）は viewer.html が別の classic script として読むため、この prologue の影響を受けない
+- 実 WKWebView での webview-smoke が PASS
+
+理由と「抑止しないこと」は viewer-src/README.md に節を立てて記録した。
+
+## バンドル差分の内訳（意図しない意味変化が無いことの確認）
+
+型注釈は消えるだけなので、コードの意味を変えなければバンドルは差分ゼロになるはず、という前提で差分を全数確認した。実際の差分は 6 行のみで、すべて説明がつく。
+
+- `"use strict";` の追加 1 行（上記のとおり意図した採用）
+- `// viewer-src/bridge.js` -> `.ts` などのパスコメント 3 行
+- `.replace("{count}", lineCount)` -> `String(lineCount)` 1 行。replace の第 2 引数は string 型なので number を渡すと型エラーになる。実行時は ToString で同じ結果になるため、キャストで型だけ通すより明示した
+
+DOM 要素の取得（getElementById）は非 null 表明（!）で通し、実行時の形を変えていない。id が viewer.html 側から消えた場合は表明の有無にかかわらず同じ行で TypeError になるため、検知を緩めていない。
+
+## 検証（すべて実測）
+
+- npx jest: 417 passed / 6 suites（移行前と同数。ベースラインも 417）
+- npm run typecheck:viewer: エラー 0。**AC#2 の自己検証**として fonts.ts へ意図的な型エラーを 1 行足すと exit code 2 で落ち、戻すと 0 に戻ることを確認した（CI は同じコマンドを叩く）
+- npm run lint:viewer: 0 件（対象を viewer-src/**/*.{js,ts} へ広げた後）
+- npm run check:viewer-cycles: 循環なし（25 モジュール）
+- npm run check:viewer-bundle: exit 0（コミット後）
+- swift build: Build complete / swift test: **1416 tests / 208 suites すべて pass**（移行前 1415 + 今回追加した契約テスト 1 本）
+- swift test --filter ViewerBridgeContract: 11 件 pass（移行前 10 件）
+- xcodebuild build -scheme befold: BUILD SUCCEEDED
+- swift scripts/webview-smoke.swift: PASS（strict mode バンドルが実 WKWebView で稼働することの確認を含む）
+- markdownlint-cli2: 70 files / 0 issues
+- scripts/check-doc-symbols.sh: exit 0
+- 型検査が実際に効いていることの実測: 移行直後の truncation.ts で TS7006（暗黙の any）3 件と TS18047（getElementById の null）9 件を検出した
+
+## 移行前に潰した未知数（実測スパイク）
+
+esbuild 0.28.2 で、`.js` の importer が書いた `import "./a.js"` は `a.ts` へ解決される（`.ts` のみ存在する状態でバンドル成功）。したがって混在移行で import 指定子の書き換えは不要。**ただしエントリだけは拡張子解決が効かない**。
+
+## 追随させたドキュメント
+
+BefoldApp/viewer-src/README.md（「TypeScript への段階移行」節を新設。モジュール表の .ts 化、コマンド一覧に typecheck:viewer）/ docs/dev/rules/product-code.md（JS 規約に混在の扱いとブリッジ契約の型方針）/ docs/dev/rules/testing.md（Jest が .ts をどう解決するか、Jest では型が検査されないこと）/ docs/dev/rules/workflow.md / .claude/commands/check.md / .github/workflows/ci.yml
+
+## 次タスクへの申し送り（受け取り側の AC にすること）
+
+残りモジュールを移行するタスクでは、`index.js` / `main.js` を .ts にする際に **`package.json` の build:viewer と `scripts/check-viewer-cycles.mjs`（現在 viewer-src/index.js を決め打ち）のエントリパスを併せて変える**。エントリだけは esbuild の拡張子解決が効かない。なお両者ともエントリを見つけられなければ落ちるため、黙って壊れることはない。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+viewer-src/ を TypeScript へ段階移行する基盤（allowJs による .js/.ts 混在、tsc --noEmit の型検査、CI ステップ）を通し、ブリッジ契約に関わる bridge / expose と、注入グローバルを読む fonts / truncation を .ts へ移した。window 注入値の型は viewer-globals.d.ts に集約した。
+
+ブリッジ契約の型は手書きせず、bridge.ts のリテラル値から as const で導出する形にした。値の一致は ViewerBridgeContractTests が成果物 viewer-bundle.js を読んで Swift と双方向に照合しており、型を別に宣言すると Swift の値・JS の値・JS の型の 3 重管理になるため。成立条件（_MSG_* をフラットな const のまま保つ / postMessage の第 2 引数を直書きリテラルのまま保つ）は規約とコメントに明記し、条件が破れて抽出が空振りしても declaredMessagesHavePostSites と !pairs.isEmpty が落ちることを確認した。あわせて、これまで照合が無く手書き分が担保なしだった hostFeatures のキー名に契約テストを 1 本足し、Swift 側のキーを一時的にずらして実際に落ちることを自己検証した。
+
+tsconfig.json を置くと esbuild が成果物へ "use strict" を出す。トリガーが .ts の有無ではなく tsconfig の存在であることを最小再現で特定したうえで、抑止せず採用した（ソースは ESM で Jest も babel の CommonJS 変換で strict のため、抑止するとテストと本番のずれが残る）。安全性は this/with/8 進リテラルの不在、no-undef による暗黙グローバルの排除、ベンダーが別 script であること、実 WKWebView の webview-smoke PASS で裏付けた。
+
+検証: npx jest 417 passed / 6 suites（移行前と同数）、typecheck:viewer エラー 0（意図的な型エラーで exit 2 になることを自己検証）、lint:viewer 0 件、check:viewer-cycles 循環なし、check:viewer-bundle exit 0、swift build / swift test 1416 tests 208 suites すべて pass（移行前 1415 + 追加した契約テスト 1 本）、xcodebuild BUILD SUCCEEDED、webview-smoke PASS、markdownlint 0 issues、check-doc-symbols exit 0。バンドル差分は 6 行のみで全数の内訳を確認した。
+<!-- SECTION:FINAL_SUMMARY:END -->
