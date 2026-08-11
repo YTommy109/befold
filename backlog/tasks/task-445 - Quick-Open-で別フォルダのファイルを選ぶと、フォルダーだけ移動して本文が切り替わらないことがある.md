@@ -4,6 +4,7 @@ title: Quick Open で別フォルダのファイルを選ぶと、フォルダ�
 status: To Do
 assignee: []
 created_date: '2026-08-11 08:17'
+updated_date: '2026-08-11 08:31'
 labels: []
 dependencies: []
 priority: medium
@@ -46,3 +47,31 @@ Quick Open（cmd+p）で選んだファイルが開かないことがある。�
 - [ ] #3 syncAfterSwitch の同一フォルダー分岐と別フォルダー分岐で、選択確定の扱いが非対称なまま残らない（統一するか、非対称である理由を doc コメントで明示する）
 - [ ] #4 修正した経路を破ると落ちるユニットテストがある（Quick Open 確定 → 別フォルダーのファイルが ViewerStore に読み込まれることを検証する）
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 再現条件の追加情報（ユーザー報告 2026-08-11）
+
+- サイドバーのツリー表示: OFF
+- 絞り込み: なし
+- 発生頻度: 時々（毎回ではない）。パターンは不明
+
+**間欠的である**ことから、静的な分岐ミスではなく非同期の着地順に依存する競合の可能性が高い。Description の疑い A / B のうち、決め打ちせずまずログを仕込んで再現を捕まえること。
+
+## 描画側の追加調査（静的調査、実測なし）
+
+ViewerStore の content が更新されたのに WKWebView が追従しない経路を洗った結果:
+
+- 描画の sink は `ViewerContentView`(:69-90) → `ViewerWebView.updateNSView`(:97-108) → `ViewerRenderer.updateContent` の 1 本のみ。`onContentReloaded` は描画に関与しない（ツールバー・git バッジ更新のみ、ViewerStore.swift:413）
+- `performFileSwitch` の順序（applyDisplayMode → applyURLToWindow → store.openFile → beginPresentingDocument）と `loadGeneration` の組み合わせに穴は見つからず。`ViewerStore.apply()`(:378-380) が filePath と content を同時確定するため「新パス＋旧本文」の中間状態は作れない
+- 描画ミラーの確定は `recordRendered`(ViewerRenderer+RenderHelpers.swift:163-165) の 1 箇所で、`applyRender` は await 復帰後の世代ガードから送信・記録までを同期区間に閉じている。TASK-320/334/336 型の穴は塞がれたまま
+
+### 疑い D（新規・条件は狭い）
+
+`ViewerRenderer.handleNavigationFailure`(ViewerRenderer.swift:358-368) → `exitDirectHTMLMode` → `reloadViewerHTML`(RenderHelpers.swift:214-228) が **単一スロットの `pendingUpdate` を無条件に上書き**する。直接 HTML モード中（.html を loadFileURL 中、`isReady == false`）に別ファイルへの切替が来ると更新は `pendingUpdate` に積まれるだけ(ContentUpdate.swift:235)で、そこにナビゲーション失敗が挟まると**積んだ描画要求が空 completion に置き換わって消滅**する。以後 SwiftUI 側の値は変わらないため再描画の契機が無い。
+
+ただし前提が「切替元が .html の直接 HTML モード」かつ「そのナビゲーションが失敗する」であり、今回の報告（ツリー OFF・絞り込み無し・時々）と一致するかは未確認。**まず切替元ファイルの種別が .html だったかを確認すること。** 一致しない場合は疑い A / B へ戻る。
+
+なお疑い D が真因でなくても `pendingUpdate` の単一スロット上書きは実在の欠陥なので、別タスクとして起票する価値がある。
+<!-- SECTION:NOTES:END -->
