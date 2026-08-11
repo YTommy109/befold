@@ -1,7 +1,12 @@
 {
   "private": true,
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "build:viewer": "esbuild viewer-src/index.js --bundle --format=iife --target=safari17 --outfile=BefoldKit/Resources/viewer-bundle.js",
+    "check:viewer-bundle": "npm run build:viewer && git diff --exit-code -- BefoldKit/Resources/viewer-bundle.js"
   },
   "jest": {
     "testMatch": [
@@ -10,6 +15,7 @@
   },
   "devDependencies": {
     "dompurify": "3.4.12",
+    "esbuild": "0.28.2",
     "github-markdown-css": "5.9.0",
     "highlight.js": "11.11.1",
     "jest": "^29.7.0",
