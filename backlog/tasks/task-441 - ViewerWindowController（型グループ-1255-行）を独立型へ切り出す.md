@@ -4,11 +4,12 @@ title: ViewerWindowController（型グループ 1255 行）を独立型へ切り
 status: To Do
 assignee: []
 created_date: '2026-08-11 05:05'
+updated_date: '2026-08-11 05:25'
 labels: []
 dependencies: []
-priority: medium
+priority: high
 type: chore
-ordinal: 109200
+ordinal: 100200
 ---
 
 ## Description

@@ -4,11 +4,12 @@ title: SidebarNavigator（型グループ 611 行）から git status 関心を�
 status: To Do
 assignee: []
 created_date: '2026-08-11 05:06'
+updated_date: '2026-08-11 05:25'
 labels: []
 dependencies: []
-priority: medium
+priority: high
 type: chore
-ordinal: 109300
+ordinal: 100300
 ---
 
 ## Description

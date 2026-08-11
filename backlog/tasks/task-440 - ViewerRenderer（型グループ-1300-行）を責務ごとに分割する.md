@@ -4,11 +4,12 @@ title: ViewerRenderer（型グループ 1300 行）を責務ごとに分割す�
 status: To Do
 assignee: []
 created_date: '2026-08-11 05:05'
+updated_date: '2026-08-11 05:25'
 labels: []
 dependencies: []
-priority: medium
+priority: high
 type: chore
-ordinal: 109100
+ordinal: 100100
 ---
 
 ## Description
