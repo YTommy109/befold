@@ -47,55 +47,22 @@ public extension ViewerRenderer {
             guard let self, let webView else { return }
 
             // HTML レンダリング表示: loadFileURL で直接ロード
-            if Self.shouldEnterDirectHTMLMode(
+            if DirectHTMLModeController.shouldEnter(
                 fileType: fileType, isSourceMode: isSourceMode,
                 filePath: filePath, features: rendererFeatures
             ), let filePath {
-                let pathChanged = filePath != lastDirectHTMLPath
-                let contentChanged = contentRevision != rendered.contentRevision
-                guard !isDirectHTMLMode || pathChanged || contentChanged else { return }
-                // 初回ロード・ファイル切替では保存済みの per-file 倍率を使い、
-                // ライブリロード（同一ファイルの content 変更）では現在の倍率を維持する。
-                let isFirstLoadOrSwitch = !isDirectHTMLMode || pathChanged
-                pendingPageZoom = isFirstLoadOrSwitch ? initialPageZoom : webView.pageZoom
-                // 直接ロードでは viewer.js が居らず行番号・切り詰め・差分は適用されないため、
-                // それらは現在のミラー値のまま持ち越す(復帰時に exitDirectHTMLMode が
-                // rendered.reset() で一括破棄する)。フィールドを並べず現在値から組み立てて
-                // 丸ごと確定させるのは、ミラーへフィールドを足したときの確定漏れを防ぐため。
-                var state = rendered
-                state.contentRevision = contentRevision
-                state.fileType = fileType
-                state.filePath = filePath
-                state.isSourceMode = isSourceMode
-                recordRendered(state)
-                lastDirectHTMLPath = filePath
-                isDirectHTMLMode = true
-                webViewProxy?.isDirectHTMLMode = true
-                isReady = false
-                // 直接ロードへ入ると viewer.js が居なくなる。復帰時に再適用させる。
-                appliedPageZoom = nil
-                // 直接ロードする HTML 内の <script> 実行を無効化する（設計スコープ外）。
-                webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = false
-                // charset 宣言(BOM/<meta charset>)のある HTML は WebKit の解釈で正しく読めるため、
-                // 相対リソースを読める loadFileURL のまま。宣言の無い HTML だけは WebKit が既定
-                // エンコーディングを誤推定して文字化けするので、ViewerLoadPipeline が MainActor 外で
-                // 判定・UTF-8 正規化済みの content を明示エンコーディングでロードする。loadData は
-                // allowingReadAccessTo を伴わず宣言なし HTML から相対参照した兄弟リソースは読めなく
-                // なるが、宣言なし HTML は簡易な断片が大半で影響は小さい。判定不能(nil)時は
-                // loadFileURL へフォールバックする。
-                if hasDeclaredHTMLCharset == false {
-                    webView.load(
-                        Data(content.utf8), mimeType: "text/html",
-                        characterEncodingName: "UTF-8", baseURL: filePath
+                _ = directHTML.enter(
+                    webView: webView, filePath: filePath,
+                    request: DirectHTMLLoadRequest(
+                        content: content, contentRevision: contentRevision, fileType: fileType,
+                        isSourceMode: isSourceMode, hasDeclaredHTMLCharset: hasDeclaredHTMLCharset
                     )
-                } else {
-                    webView.loadFileURL(filePath, allowingReadAccessTo: filePath.deletingLastPathComponent())
-                }
+                )
                 return
             }
 
             // 直接 HTML モードから viewer.html モードへの復帰
-            if isDirectHTMLMode {
+            if directHTML.isActive {
                 // この分岐に来る時点でファイルかモードが直接HTML状態と必ず異なるため
                 // (同一なら上の直接HTMLロード分岐に吸収される)、常に切替として扱われる。
                 let restoreFromPersistedPosition = RenderedStateMirror.isFileOrModeSwitch(
@@ -107,7 +74,7 @@ public extension ViewerRenderer {
                     filePath: filePath, isSourceMode: isSourceMode, showLineNumbers: showLineNumbers,
                     truncation: truncation, generation: generation
                 )
-                exitDirectHTMLMode(webView: webView) {
+                directHTML.exit(webView: webView) {
                     self.scheduleRender(
                         webView: webView, request: request,
                         restoreFromPersistedPosition: restoreFromPersistedPosition

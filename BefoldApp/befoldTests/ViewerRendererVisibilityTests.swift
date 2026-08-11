@@ -15,7 +15,7 @@ struct ViewerRendererVisibilityTests {
     private func makeRenderer() -> ViewerRenderer {
         let renderer = ViewerRenderer()
         renderer.webView = WKWebView()
-        renderer.isReady = true
+        renderer.readiness.markReady()
         return renderer
     }
 

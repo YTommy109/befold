@@ -102,16 +102,16 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     var appliedPageZoom: Double?
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
     public var scrollPositionToRestore: Double = 0
-    /// HTML 直接ロード完了後に適用する pageZoom。適用後は nil に戻す。
-    var pendingPageZoom: Double?
-    var isReady = false
+    /// 直接 HTML モードの状態機械(判定・ロード・復帰・リンクポリシー)。
+    private(set) lazy var directHTML = DirectHTMLModeController(renderer: self)
+    /// viewer.html のロード完了ゲート。
+    let readiness = ViewerReadinessGate()
     /// この文書が画面に出ているか。ホスト(ViewerWebView)が毎回の更新で流し込む。
     /// false の間は再描画を行わない。見えていない文書の再レイアウトは、外部エディタや
     /// ビルドがファイルを書き換えるたびに走ってメインスレッドを使うだけで、誰も見ない。
     /// 見える状態へ戻ると、ホストが最新の内容で updateContent を呼び直すため、
     /// 抑止した更新は 1 回に畳まれる(ADR 0002 段 5)。
     public var isVisible = true
-    var pendingUpdate: (() -> Void)?
     /// updateContent 呼び出しごとに増分する世代番号。applyRender/applyAppend は画像埋め込み
     /// (MainActor 外)の完了後、この値が呼び出し時と変わっていないかを確認してから
     /// evaluateJavaScript/recordRendered を行う。後続の updateContent に追い越された古い
@@ -138,8 +138,6 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     public var diffState: DiffState = .none
 
     var pendingAppend: PendingAppend?
-    var isDirectHTMLMode = false
-    var lastDirectHTMLPath: URL?
 
     override public init() {}
 
@@ -180,14 +178,9 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     // MARK: - WKNavigationDelegate
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        isReady = true
-        if isDirectHTMLMode, let zoom = pendingPageZoom {
-            webView.pageZoom = zoom
-            pendingPageZoom = nil
-        }
-        applyInitialPageZoomIfReady()
-        pendingUpdate?()
-        pendingUpdate = nil
+        directHTML.applyPendingZoom(to: webView)
+        applyInitialPageZoomIfReady(assumingReady: true)
+        readiness.markReady()
     }
 
     public func webView(
@@ -205,67 +198,37 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     /// 初回の HTML ロード（loadFileURL）は常に許可する。viewer.html モードではそれ以外の
     /// ナビゲーションを全てキャンセルする(JS 側がリンクを処理する)。直接 HTML モードでは
     /// リンククリック(.linkActivated)のみ directHTMLLinkPolicy で分類して処理する。
-    /// (実装は type_body_length 対策で ViewerRenderer+DirectHTMLLinkPolicy.swift に分離)
     public func webView(
         _ webView: WKWebView,
         decidePolicyFor navigationAction: WKNavigationAction
     ) async -> WKNavigationActionPolicy {
-        decidePolicyForDirectHTMLAware(webView: webView, navigationAction: navigationAction)
+        directHTML.decidePolicy(webView: webView, navigationAction: navigationAction)
     }
 
-    /// 直接 HTML モードを解除し、viewer.html へ復帰する。
     /// 現在の initialPageZoom を viewer.js へ適用する。viewer.html の準備前・
     /// HTML 直接ロード中(viewer.js が無い)・同じ値を適用済みのときは何もしない。
-    func applyInitialPageZoomIfReady() {
-        guard isReady, !isDirectHTMLMode, let webView else { return }
+    /// - Parameter assumingReady: didFinish の中からは ready 確定前に呼ぶため true を渡す。
+    func applyInitialPageZoomIfReady(assumingReady: Bool = false) {
+        guard assumingReady || readiness.isReady else { return }
+        guard !directHTML.isActive, let webView else { return }
         guard appliedPageZoom != initialPageZoom else { return }
         appliedPageZoom = initialPageZoom
         webView.evaluateJavaScript(ViewerBridge.applyZoomScript(initialPageZoom))
     }
 
-    /// 直接 HTML モードの判定状態(`isDirectHTMLMode` / `webViewProxy?.isDirectHTMLMode` /
-    /// `lastDirectHTMLPath`)と、`rendered` ミラー 6 値を必ずセットで破棄してから
-    /// viewer.html を再ロードする。ミラーは `rendered.reset()` で一括リセットする
-    /// (再ロードで JS 側状態 `_mmdViewOptions`(行番号 false / モード rendered)が
-    /// 初期化されるため、Swift 側のミラーも全て破棄して次回更新時に再注入させる)。
-    /// 一部だけ倒すと直接 HTML モードの判定と再描画キャッシュの整合性が崩れるため、
-    /// 呼び出し側で個別にリセットしないこと。`pendingAppend` は `rendered` の一部ではないが、
-    /// 直接 HTML モードへの切替(pendingAppend 消費前に return する分岐)を挟んで残留した
-    /// 増分チャンクが復帰後に誤って古い内容へ適用されないよう、ここで併せて破棄する。
-    func exitDirectHTMLMode(webView: WKWebView, completion: @escaping () -> Void) {
-        isDirectHTMLMode = false
-        webViewProxy?.isDirectHTMLMode = false
-        // viewer.html を読み直すと JS 側の倍率も初期化されるため、適用済みの記録も捨てる。
-        appliedPageZoom = nil
-        lastDirectHTMLPath = nil
-        rendered.reset()
-        pendingAppend = nil
-        reloadViewerHTML(webView: webView, then: completion)
-    }
-
-    /// ナビゲーション失敗時に isReady のハングを防ぐ。直接ロード失敗なら viewer.html へ
-    /// 安全にフォールバックする。
     /// viewer.html の準備ができていれば即実行し、まだなら準備完了まで保留する。
-    /// `pendingUpdate` への書き込み点をここ 1 つに閉じてある(後勝ちで前の保留更新が
-    /// 黙って消える形を、書き込み点を散らさないことで見えるようにする)。
     func runWhenReady(_ work: @escaping () -> Void) {
-        if isReady {
-            work()
-        } else {
-            pendingUpdate = work
-        }
+        readiness.run(work)
     }
 
     private func handleNavigationFailure(webView: WKWebView) {
-        pendingPageZoom = nil
-        if isDirectHTMLMode {
+        directHTML.discardPendingZoom()
+        if directHTML.isActive {
             // 削除起因の失敗は呼び出し側がウィンドウを閉じる等の対応をするため、
             // ここでは viewer.html へ戻すだけでよい
-            exitDirectHTMLMode(webView: webView) {}
+            directHTML.exit(webView: webView) {}
         } else {
-            isReady = true
-            pendingUpdate?()
-            pendingUpdate = nil
+            readiness.flushPending()
         }
     }
 }

@@ -21,7 +21,7 @@ struct RendererFeaturesTests {
     /// すべて満たした状態で false になることを見る。
     @Test("quickLookRestricted では直接 HTML ロード経路に入らない")
     func quickLookRestrictedBlocksDirectHTML() {
-        let result = ViewerRenderer.shouldEnterDirectHTMLMode(
+        let result = DirectHTMLModeController.shouldEnter(
             fileType: .html, isSourceMode: false,
             filePath: URL(fileURLWithPath: "/tmp/page.html"),
             features: .quickLookRestricted

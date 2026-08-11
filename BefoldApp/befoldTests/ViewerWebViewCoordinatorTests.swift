@@ -51,7 +51,7 @@ struct ViewerWebViewCoordinatorTests {
 
     @Test("直接HTMLモードへの遷移可否はallowDirectHTMLフラグとファイル種別/表示モードで決まる", arguments: directHTMLCases)
     func shouldEnterDirectHTMLMode(_ testCase: DirectHTMLCase) {
-        let result = ViewerRenderer.shouldEnterDirectHTMLMode(
+        let result = DirectHTMLModeController.shouldEnter(
             fileType: testCase.fileType, isSourceMode: testCase.isSourceMode,
             filePath: testCase.hasFilePath ? Self.directHTMLURL : nil,
             features: testCase.features

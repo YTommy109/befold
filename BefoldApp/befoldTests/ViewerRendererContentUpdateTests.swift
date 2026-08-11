@@ -17,7 +17,7 @@ struct ViewerRendererContentUpdateTests {
     func needsRenderDetectsFilePathChangeEvenWithSameRevision() async {
         let renderer = ViewerRenderer()
         renderer.webView = WKWebView()
-        renderer.isReady = true
+        renderer.readiness.markReady()
 
         let fileA = URL(fileURLWithPath: "/tmp/task68-same-a.md")
         let fileB = URL(fileURLWithPath: "/tmp/task68-same-b.md")

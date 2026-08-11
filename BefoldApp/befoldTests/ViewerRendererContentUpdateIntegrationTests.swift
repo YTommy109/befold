@@ -44,12 +44,11 @@ struct ViewerRendererContentUpdateIntegrationTests {
     func directHTMLExitSurvivesRaceDuringReload() async {
         let renderer = ViewerRenderer()
         _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
-        await Self.waitForWebViewLoad { renderer.isReady }
+        await Self.waitForWebViewLoad { renderer.readiness.isReady }
 
         let fileA = URL(fileURLWithPath: "/tmp/task68-race-a.md")
         // 直接 HTML モードで fileA を表示中の状態を模す。
-        renderer.isDirectHTMLMode = true
-        renderer.lastDirectHTMLPath = fileA
+        renderer.directHTML.simulateForTesting(active: true, lastPath: fileA)
         renderer.recordRendered(RenderedStateMirror(filePath: fileA, isSourceMode: false))
 
         // 1回目: 直接HTMLモードから離脱し、viewer.html の再ロードを開始する。
@@ -57,7 +56,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
             "# hello", contentRevision: 7, fileType: .markdown, filePath: fileA,
             hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false, truncation: Self.truncation
         )
-        #expect(renderer.isReady == false)
+        #expect(renderer.readiness.isReady == false)
 
         // 2回目: 再ロード中に同じ対象で再発火し、単一スロットの pendingUpdate を上書きする
         // (FileWatcher の onChange や isLoading トグル等による再発火を模す)。
@@ -69,7 +68,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
         // 再ロード完了前は、描画ミラーが「描画済み」だと先行確定していないことを確認する。
         #expect(renderer.rendered.contentRevision == nil)
 
-        await Self.waitForWebViewLoad { renderer.isReady }
+        await Self.waitForWebViewLoad { renderer.readiness.isReady }
         // applyRender の画像埋め込み(Task.detached)は isReady 復帰後に別 Task で完了するため、
         // ミラー反映を待つ。
         await Self.waitForWebViewLoad { renderer.rendered.contentRevision != nil }
@@ -93,7 +92,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
     func diffStateIsNotConfirmedBeforeRender() async {
         let renderer = ViewerRenderer()
         _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
-        await Self.waitForWebViewLoad { renderer.isReady }
+        await Self.waitForWebViewLoad { renderer.readiness.isReady }
 
         let dir = URL(fileURLWithPath: "/tmp/task334-diff")
         let imageURL = dir.appendingPathComponent("gated.png")
@@ -156,7 +155,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
     func abortedRenderDoesNotLeaveOptionsInJS() async throws {
         let renderer = ViewerRenderer()
         let webView = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
-        await Self.waitForWebViewLoad { renderer.isReady }
+        await Self.waitForWebViewLoad { renderer.readiness.isReady }
 
         let markdownURL = URL(fileURLWithPath: "/tmp/task336-abort/doc.md")
         let fileReader = Self.makeGatedImageFileReader(markdownURL: markdownURL)
@@ -222,7 +221,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
     func staleImageEmbedDoesNotClobberNewerRender() async {
         let renderer = ViewerRenderer()
         _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
-        await Self.waitForWebViewLoad { renderer.isReady }
+        await Self.waitForWebViewLoad { renderer.readiness.isReady }
 
         let dir = URL(fileURLWithPath: "/tmp/task224-race")
         let imageURL = dir.appendingPathComponent("slow.png")
