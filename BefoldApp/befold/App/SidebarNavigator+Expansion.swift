@@ -19,12 +19,12 @@ extension SidebarNavigator {
     /// 呼び出し元は戻り値を使って選択維持を判定すること(ルート直下だけを見ると、
     /// 展開したサブフォルダ内のファイルを選んでいる間ずっと選択が飛ぶ)。
     @discardableResult
-    func applyRows(_ rootRows: [FileListEntry], for directory: URL) -> [FileListEntry] {
+    func applyRows(_ rootListing: DirectoryListing, for directory: URL) -> [FileListEntry] {
         let material = expansion.material
         // ルートの一覧は畳んだ形で届く。親移動行は種別で確実に分けられる
         // (ホームの外では出ないため「先頭が必ず `..`」とは限らない)。
-        let parentEntry = rootRows.first { $0.kind == .parentNavigation }
-        let rootChildren = rootRows.filter { $0.kind != .parentNavigation }
+        let parentEntry = rootListing.entries.first { $0.kind == .parentNavigation }
+        let rootChildren = rootListing.entries.filter { $0.kind != .parentNavigation }
         let isTree = fileListModel.layoutMode == .tree
         let rows = SidebarRowBuilder.rows(
             parentEntry: parentEntry,
@@ -37,14 +37,14 @@ extension SidebarNavigator {
             failed: isTree ? material.failed : [],
             showsDisclosure: isTree
         )
-        fileListModel.setEntries(rows, for: directory)
+        fileListModel.setEntries(rootListing.replacingEntries(rows), for: directory)
         return rows
     }
 
     /// 手元の展開の材料だけで行を組み直す。子リストが届いたときに呼ぶ。
     /// ルートを列挙し直さないので、展開のたびにルートの再列挙は起きない。
     func rebuildRows() {
-        applyRows(fileListModel.entries.filter { $0.depth == 0 }, for: fileListModel.entriesDirectory)
+        applyRows(fileListModel.listing.filteringEntries { $0.depth == 0 }, for: fileListModel.entriesDirectory)
     }
 
     /// フォルダを展開する。既に展開済みなら何もしない(再列挙しない)。

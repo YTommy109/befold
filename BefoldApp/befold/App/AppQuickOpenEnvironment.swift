@@ -82,12 +82,13 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
         }.value
     }
 
-    func directoryEntries(in directory: URL) async -> [URL] {
+    func directoryEntries(in directory: URL) async -> [URL]? {
         // 列挙とソートは DirectoryLister の単一情報源へ委譲する。自前で
         // FileManager を叩くと返却順が未定義になり、候補順・選択位置・補完表記が
         // 非決定的になる。隠しファイルの出し分けは QuickOpenModel が入力に応じて
         // 決めるため、ここでは隠しファイルも含めた全件を名前昇順で返す。
         // キーストロークごとに走るため、列挙自体は MainActor の外で行う。
+        // 列挙失敗(nil)はそのまま通す。ここで空へ畳むと「一致なし」と区別できなくなる。
         await Task.detached(priority: .userInitiated) {
             DirectoryLister.allEntriesSorted(in: directory)
         }.value

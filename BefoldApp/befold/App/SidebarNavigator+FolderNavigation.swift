@@ -24,8 +24,8 @@ extension SidebarNavigator {
         // ルートが変わると、それまでの展開は別のツリーのものになる。走行中の子リスト取得も
         // ここで無効化する(着地させると、新しいルートの行配列へ前のツリーの子が混ざる)。
         expansion.invalidateAll()
-        performListing(of: url) { host, directory, rootRows in
-            self.applyRows(rootRows, for: directory)
+        performListing(of: url) { host, directory, rootListing in
+            self.applyRows(rootListing, for: directory)
             let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
                 .normalizedPathKey
             if let remembered = self.rememberedSelectionURL(in: directory) {

@@ -61,7 +61,9 @@ struct QuickOpenView: View {
 
     @ViewBuilder
     private var resultList: some View {
-        if model.showsNoMatches {
+        if model.showsEnumerationFailure {
+            notice(String(localized: "folder.enumerationFailed", bundle: .l10n))
+        } else if model.showsNoMatches {
             notice(String(localized: "quickOpen.noMatches", bundle: .l10n))
         } else {
             ScrollViewReader { proxy in

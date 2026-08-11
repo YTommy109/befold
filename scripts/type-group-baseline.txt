@@ -15,8 +15,8 @@
 611	BefoldApp/befold/App/SidebarNavigator
 1255	BefoldApp/befold/App/ViewerWindowController
 543	BefoldApp/befold/App/ViewerWindowManager
-459	BefoldApp/befold/Viewer/FileListModel
-437	BefoldApp/befold/Viewer/FileListView
+457	BefoldApp/befold/Viewer/FileListModel
+433	BefoldApp/befold/Viewer/FileListView
 492	BefoldApp/befold/Viewer/ViewerStore
 452	BefoldApp/befoldTests/QuickOpenModelTests
 540	BefoldApp/befoldTests/ViewerStoreTests

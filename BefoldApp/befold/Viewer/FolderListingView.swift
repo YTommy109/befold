@@ -6,7 +6,7 @@ import SwiftUI
 /// git 状態との完了順が揃わず、絞り込みが効く前の全件が一瞬描画される(TASK-293)。
 enum FolderListingSource: Equatable {
     /// サイドバーと同じ一覧。nil は「このディレクトリの一覧がまだ手元に無い」。
-    case shared([FileListEntry]?)
+    case shared(DirectoryListing?)
     /// このビューが自前で列挙する。選択中のサブフォルダーを見ているときに使う。
     case ownListing
 
@@ -17,11 +17,16 @@ enum FolderListingSource: Equatable {
     /// Equatable に任せると、サイドバーの表示モードを切り替えただけでプレビューが
     /// 別の一覧に変わったと判定される。**逆向きに `FileListEntry` の等値を弱めない**
     /// (TASK-361.1 の回帰。FileListEntry の `==` の doc を参照)。
+    ///
+    /// **列挙の成否は比較に含める。** 行の同一性だけで比べると、読めなかった一覧と
+    /// 空だった一覧はどちらも 0 行で等しくなり、「読めるようになった / 読めなくなった」の
+    /// 遷移でプレビューが描き直されない(TASK-410)。
     static func == (lhs: FolderListingSource, rhs: FolderListingSource) -> Bool {
         switch (lhs, rhs) {
         case (.ownListing, .ownListing): true
-        case let (.shared(lhsEntries), .shared(rhsEntries)):
-            lhsEntries?.map(\.id) == rhsEntries?.map(\.id)
+        case let (.shared(lhsListing), .shared(rhsListing)):
+            lhsListing?.entries.map(\.id) == rhsListing?.entries.map(\.id)
+                && lhsListing?.didFailEnumeration == rhsListing?.didFailEnumeration
         default: false
         }
     }
@@ -54,7 +59,8 @@ struct FolderListingView: View {
     /// ディレクトリー一覧をキャッシュ。listingKey(directory・sortOrder・showHiddenFiles)変更時に
     /// .task で非同期に再取得し、毎回の本体レンダリング時の再計算・重複呼び出しを避ける。
     /// 初期値 nil は「未取得」を表し、取得完了後に空一覧と区別する(空状態の一瞬のちらつき防止)。
-    @State private var cachedEntries: [FileListEntry]?
+    /// 「読めなかった」は空一覧ではなく `DirectoryListing.didFailEnumeration` が持つ。
+    @State private var cachedListing: DirectoryListing?
 
     /// .task(id:) のキー。directory だけでなく sortOrder・showHiddenFiles の変更でも
     /// 一覧を再取得させるため、3値をまとめた Hashable な複合キーにする。
@@ -105,17 +111,17 @@ struct FolderListingView: View {
     /// キャッシュへ退避すると、絞り込み前の全件が一瞬描画され(TASK-293 の回帰)、
     /// 列挙し直さないため削除済みのファイルも残る(TASK-301)。待たなくてよい場面では
     /// 供給元自体が `.ownListing` になる(FileListModel.listingSource)。
-    static func resolveEntries(
-        source: FolderListingSource, cached: [FileListEntry]?
-    ) -> [FileListEntry]? {
+    static func resolveListing(
+        source: FolderListingSource, cached: DirectoryListing?
+    ) -> DirectoryListing? {
         switch source {
-        case let .shared(entries): entries
+        case let .shared(listing): listing
         case .ownListing: cached
         }
     }
 
-    private var loadedEntries: [FileListEntry]? {
-        Self.resolveEntries(source: source, cached: cachedEntries)
+    private var loadedListing: DirectoryListing? {
+        Self.resolveListing(source: source, cached: cachedListing)
     }
 
     /// List へ渡す一覧。nil は「未取得」で、この間は 1 行も描かない。
@@ -124,7 +130,7 @@ struct FolderListingView: View {
     /// `appendingOpenFile` が開いているファイルを足すため、一覧の到着待ちに
     /// 「開いているファイル 1 行だけの幻リスト」が出る(TASK-301)。
     var displayedEntries: [FileListEntry]? {
-        loadedEntries.map(visibleEntries(from:))
+        loadedListing.map { visibleEntries(from: $0.entries) }
     }
 
     var body: some View {
@@ -146,17 +152,19 @@ struct FolderListingView: View {
                 // 絞り込みで空になったのかを、サイドバーと同じ実装で出し分ける。
                 // git 絞り込みはリポジトリ配下のどの階層にも効くため、この一覧が
                 // サブフォルダーのものでも絞り込みによる空が起こりうる(TASK-361.2)。
-                SidebarEmptyState(
+                SidebarEmptyState(context: SidebarEmptyContext(
                     activeGitChangeFilter: filter.gitChangeFilter(for: directory),
                     filterText: filter.filterText,
-                    directoryName: directory.lastPathComponent
-                )
+                    directoryName: directory.lastPathComponent,
+                    // 読めなかったフォルダーを「空のフォルダー」と言い切らない(TASK-410)。
+                    didFailEnumeration: loadedListing?.didFailEnumeration ?? false
+                ))
                 .allowsHitTesting(false)
             }
         }
         .task(id: listingKey) {
             guard source == .ownListing else { return }
-            cachedEntries = await DirectoryLister.listEntriesAsync(
+            cachedListing = await DirectoryLister.listEntriesAsync(
                 in: directory,
                 sortOrder: sortOrder,
                 showHiddenFiles: showHiddenFiles

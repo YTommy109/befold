@@ -56,7 +56,7 @@ struct SidebarNavigatorListingCoherenceTests {
         await navigator.pendingListingTask?.value
 
         #expect(navigator.fileListModel.entries.count == 2)
-        #expect(navigator.fileListModel.activeGitChangeFilter != nil)
+        #expect(SidebarEmptyContext(model: navigator.fileListModel).activeGitChangeFilter != nil)
         #expect(
             navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"]
         )
@@ -176,7 +176,7 @@ struct SidebarNavigatorListingCoherenceTests {
         await listingTask?.value
 
         #expect(navigator.fileListModel.entries.count == 2)
-        #expect(navigator.fileListModel.activeGitChangeFilter != nil)
+        #expect(SidebarEmptyContext(model: navigator.fileListModel).activeGitChangeFilter != nil)
         #expect(
             navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"]
         )

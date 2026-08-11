@@ -62,7 +62,7 @@ struct DirectoryListerTests {
         _ = try tmp.file(named: ".hidden.md", contents: "")
         _ = try tmp.file(atPath: "sub/inner.md", contents: "") // sub フォルダを作る
 
-        let names = DirectoryLister.allEntriesSorted(in: tmp.url).map(\.lastPathComponent)
+        let names = try #require(DirectoryLister.allEntriesSorted(in: tmp.url)).map(\.lastPathComponent)
 
         // 隠しファイルとサブフォルダも含め全件返る。
         #expect(Set(names) == [".hidden.md", "file2.md", "file10.md", "sub"])
@@ -81,7 +81,7 @@ struct DirectoryListerTests {
             withDestinationURL: tmp.url.appendingPathComponent("missing")
         )
 
-        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
+        let entries = DirectoryLister.listEntryRows(in: tmp.url, sortOrder: .foldersFirst)
         let broken = entries.first { $0.url.lastPathComponent == "broken.mmd" }
 
         #expect(broken?.kind == .file)
@@ -99,7 +99,7 @@ struct DirectoryListerTests {
         _ = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         _ = try tmp.file(named: "unknown.xyz", contents: "not skipped anymore")
 
-        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
+        let entries = DirectoryLister.listEntryRows(in: tmp.url, sortOrder: .foldersFirst)
 
         let kinds = entries.map(\.kind)
         let names = entries.map(\.url.lastPathComponent)
@@ -124,7 +124,7 @@ struct DirectoryListerTests {
         )
         _ = try tmp.file(named: "withoutSupported/unknown.xyz", contents: "not supported")
 
-        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
+        let entries = DirectoryLister.listEntryRows(in: tmp.url, sortOrder: .foldersFirst)
         let folders = entries.filter { $0.kind == .folder }
 
         let withSupported = folders.first { $0.url.lastPathComponent == "withSupported" }
@@ -143,7 +143,7 @@ struct DirectoryListerTests {
         )
         _ = try tmp.file(named: "alpha.mmd", contents: "")
 
-        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
+        let entries = DirectoryLister.listEntryRows(in: tmp.url, sortOrder: .foldersFirst)
         let nonParent = entries.filter { $0.kind != .parentNavigation }
 
         #expect(nonParent[0].kind == .folder)
@@ -162,7 +162,7 @@ struct DirectoryListerTests {
         )
         _ = try tmp.file(named: "alpha.mmd", contents: "")
 
-        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .alphabetical)
+        let entries = DirectoryLister.listEntryRows(in: tmp.url, sortOrder: .alphabetical)
         let nonParent = entries.filter { $0.kind != .parentNavigation }
 
         #expect(nonParent[0].url.lastPathComponent == "alpha.mmd")
@@ -180,7 +180,7 @@ struct DirectoryListerTests {
         )
         _ = try tmp.file(named: "visible.mmd", contents: "")
 
-        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst, showHiddenFiles: true)
+        let entries = DirectoryLister.listEntryRows(in: tmp.url, sortOrder: .foldersFirst, showHiddenFiles: true)
 
         let names = entries.map(\.url.lastPathComponent)
         #expect(names.contains(".hidden.mmd"))
@@ -195,7 +195,7 @@ struct DirectoryListerTests {
         _ = try tmp.file(named: ".hidden.mmd", contents: "")
         _ = try tmp.file(named: "visible.mmd", contents: "")
 
-        let entries = DirectoryLister.listEntries(in: tmp.url, sortOrder: .foldersFirst)
+        let entries = DirectoryLister.listEntryRows(in: tmp.url, sortOrder: .foldersFirst)
 
         let names = entries.map(\.url.lastPathComponent)
         #expect(!names.contains(".hidden.mmd"))
@@ -207,7 +207,7 @@ struct DirectoryListerTests {
         let home = try TempDir()
         defer { withExtendedLifetime(home) {} }
 
-        let entries = DirectoryLister.listEntries(
+        let entries = DirectoryLister.listEntryRows(
             in: home.url, sortOrder: .foldersFirst, home: home.url
         )
 
@@ -221,7 +221,7 @@ struct DirectoryListerTests {
         let tmp = try TempDir(base: home.url)
         defer { withExtendedLifetime(tmp) {} }
 
-        let entries = DirectoryLister.listEntries(
+        let entries = DirectoryLister.listEntryRows(
             in: tmp.url, sortOrder: .foldersFirst, home: home.url
         )
 
@@ -236,7 +236,7 @@ struct DirectoryListerTests {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
 
-        let entries = DirectoryLister.listEntries(
+        let entries = DirectoryLister.listEntryRows(
             in: tmp.url, sortOrder: .foldersFirst, home: home.url
         )
 
@@ -253,8 +253,8 @@ struct DirectoryListerTests {
         )
         _ = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
 
-        let syncResult = DirectoryLister.listEntries(in: tmp.url, sortOrder: .alphabetical)
-        let asyncResult = await DirectoryLister.listEntriesAsync(in: tmp.url, sortOrder: .alphabetical)
+        let syncResult = DirectoryLister.listEntryRows(in: tmp.url, sortOrder: .alphabetical)
+        let asyncResult = await DirectoryLister.listEntriesAsync(in: tmp.url, sortOrder: .alphabetical).entries
 
         #expect(asyncResult == syncResult)
     }

@@ -50,7 +50,7 @@ struct QuickOpenModelTests {
             return QuickOpenCandidateSet(candidates: candidates, isTruncated: isTruncated)
         }
 
-        func directoryEntries(in directory: URL) async -> [URL] {
+        func directoryEntries(in directory: URL) async -> [URL]? {
             entries[directory.normalizedPathKey] ?? []
         }
 

@@ -28,16 +28,45 @@ struct DirectoryListerEnumerationFailureTests {
         )
     }
 
-    /// ルート一覧は失敗を空へ畳む(TASK-410)。畳んでいることを明示的に固定しておかないと、
-    /// 後から Optional 化したときに `appendingOpenFile` の不変条件が黙って壊れる。
-    @Test("ルート一覧は列挙失敗でも空の配列を返す")
-    func listEntriesFoldsFailureIntoEmptyList() {
+    /// ルート一覧は失敗しても行の配列を返す(親移動行・開いている文書の行を出すため)。
+    /// 失敗した事実は畳まず `didFailEnumeration` で運ぶ。ここを空配列だけで表すと、
+    /// 空状態の文言が「対応ファイルがありません」と言い切る(TASK-410)。
+    @Test("ルート一覧は列挙失敗を didFailEnumeration で伝え、空フォルダと区別する")
+    func listEntriesReportsEnumerationFailure() throws {
         let missing = URL(fileURLWithPath: "/nonexistent-befold-dir-\(UUID().uuidString)")
 
-        let entries = DirectoryLister.listEntries(
+        let failed = DirectoryLister.listEntries(
             in: missing, sortOrder: .foldersFirst, showHiddenFiles: false, home: missing
         )
 
-        #expect(entries.isEmpty)
+        #expect(failed.didFailEnumeration)
+        #expect(failed.entries.isEmpty)
+
+        let empty = try TempDir()
+        let succeeded = DirectoryLister.listEntries(
+            in: empty.url, sortOrder: .foldersFirst, showHiddenFiles: false, home: empty.url
+        )
+
+        #expect(!succeeded.didFailEnumeration)
+        #expect(succeeded.entries.isEmpty)
+    }
+
+    /// 「開いている文書は必ず一覧に含める」は列挙の成否に関わらず保つ不変条件。
+    /// 失敗を Optional で表して行ごと落とすと、読めないフォルダーを開いた瞬間に
+    /// いま見ている文書までサイドバーから消える。
+    @Test("列挙に失敗しても、開いている文書の行は一覧へ足せる")
+    func failedListingStillAcceptsOpenFile() {
+        let missing = URL(fileURLWithPath: "/nonexistent-befold-dir-\(UUID().uuidString)")
+        let openFile = missing.appendingPathComponent("open.md")
+
+        let listing = DirectoryLister.listEntries(
+            in: missing, sortOrder: .foldersFirst, showHiddenFiles: false, home: missing
+        )
+        let withOpenFile = listing.replacingEntries(
+            DirectoryLister.appendingOpenFile(openFile, to: listing.entries, in: missing)
+        )
+
+        #expect(withOpenFile.entries.map(\.url) == [openFile])
+        #expect(withOpenFile.didFailEnumeration)
     }
 }

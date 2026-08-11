@@ -61,7 +61,7 @@ struct FileListModelScrollTests {
         let entries = makeEntries(100)
 
         model.selection = entries[42].id
-        model.setEntries(entries, for: directory)
+        model.setEntries(DirectoryListing(rows: entries), for: directory)
         await drainMainQueue()
 
         #expect(tableView.scrolledRows == [42])

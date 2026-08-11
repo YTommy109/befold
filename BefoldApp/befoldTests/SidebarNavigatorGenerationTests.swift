@@ -17,7 +17,7 @@ struct SidebarNavigatorGenerationTests {
 
     private func makeNavigator(
         currentDirectory: URL,
-        directoryLister: @escaping @Sendable (URL, befold.SortOrder, Bool) async -> [FileListEntry]
+        directoryLister: @escaping @Sendable (URL, befold.SortOrder, Bool) async -> DirectoryListing
     ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
