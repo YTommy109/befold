@@ -36,7 +36,7 @@ enum ViewerWindowAssembler {
         gitFileIndex: any GitFileIndexing,
         gitStatusStore: GitStatusStore
     ) -> SidebarNavigator {
-        // 初期一覧は空で始め、attach 直後の refreshFileList()（非同期の DirectoryLister.listEntriesAsync）に
+        // 初期一覧は空で始め、attach 直後の refreshFileList()（非同期の DirectoryLister.listingAsync）に
         // 埋めさせる。ウィンドウ生成時だけ同期列挙する経路を持たないことで、ネットワーク
         // ボリューム上のフォルダでもウィンドウ表示がディレクトリ列挙を待たない。
         SidebarNavigator(

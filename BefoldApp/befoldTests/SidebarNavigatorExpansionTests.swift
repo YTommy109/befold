@@ -31,7 +31,7 @@ struct SidebarNavigatorExpansionTests {
             entries: [],
             selection: nil,
             sidebarDisplayPreference: preference,
-            directoryLister: { _, _, _ in rootEntries },
+            directoryLister: { _, _, _ in DirectoryListing(parentEntry: nil, rootChildren: rootEntries) },
             childrenLister: childrenLister,
             resolveGitRoot: { _ in nil }
         )

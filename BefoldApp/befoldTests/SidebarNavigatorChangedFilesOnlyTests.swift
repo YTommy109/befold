@@ -74,7 +74,7 @@ struct SidebarNavigatorChangedFilesOnlyTests {
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in
                 listings.update { $0 += 1 }
-                return []
+                return .empty
             },
             loadGitStatuses: { _, _ in
                 gitCalls.update { $0 += 1 }

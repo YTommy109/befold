@@ -19,6 +19,24 @@ import Foundation
 /// TASK-322 と同型)。辞書入力なら列挙は必ず呼び出し側の非同期経路で先に済み、
 /// この関数は I/O を構造的に持てない。
 enum SidebarRowBuilder {
+    /// 行の組み立てへ渡す材料一式。`SidebarExpansion.material` が組み、
+    /// `DirectoryListing.rows(material:showsDisclosure:)` が受け取る。
+    ///
+    /// **`SidebarExpansion` のネスト型ではなくここに置く。** あちらは `@MainActor` な
+    /// クラスで、ネストするとこの材料まで MainActor 隔離され、行の組み立て自体が
+    /// MainActor を要求するようになる(行の畳み込みは I/O も UI も持たない純粋計算で、
+    /// 非 MainActor のテストから直接呼べる必要がある)。
+    struct Material: Sendable, Equatable {
+        /// 子が届いていて、実際に行を並べられるフォルダ。
+        var expanded: Set<String> = []
+        var childrenByPathKey: [String: [FileListEntry]] = [:]
+        /// 展開する意図はあるが、子がまだ届いていないフォルダ。
+        var loading: Set<String> = []
+        /// 展開しようとしたが列挙に失敗したフォルダ。行は増やさない(並べる子が無い)が、
+        /// 「空のフォルダ」とも「読み込み中」とも違う見た目にするために要る。
+        var failed: Set<String> = []
+    }
+
     /// - Parameters:
     ///   - parentEntry: 親移動行(`..`)。無ければ nil。常に depth 0 の先頭に置く。
     ///   - rootChildren: ルート直下の行。並びは呼び出し元(DirectoryLister)が確定させる。

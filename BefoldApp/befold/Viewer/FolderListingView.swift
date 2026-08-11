@@ -156,11 +156,11 @@ struct FolderListingView: View {
         }
         .task(id: listingKey) {
             guard source == .ownListing else { return }
-            cachedEntries = await DirectoryLister.listEntriesAsync(
+            cachedEntries = await DirectoryLister.listingAsync(
                 in: directory,
                 sortOrder: sortOrder,
                 showHiddenFiles: showHiddenFiles
-            )
+            ).rows()
         }
         .id(directory)
     }

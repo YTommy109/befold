@@ -17,7 +17,7 @@ struct SidebarNavigatorGenerationTests {
 
     private func makeNavigator(
         currentDirectory: URL,
-        directoryLister: @escaping @Sendable (URL, befold.SortOrder, Bool) async -> [FileListEntry]
+        directoryLister: @escaping @Sendable (URL, befold.SortOrder, Bool) async -> DirectoryListing
     ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
@@ -47,9 +47,12 @@ struct SidebarNavigatorGenerationTests {
         let (navigator, host) = makeNavigator(currentDirectory: base) { url, _, _ in
             if url.normalizedPathKey == base.normalizedPathKey {
                 await staleGate.wait()
-                return [FileListEntry(url: base.appendingPathComponent("fileA.mmd"), kind: .file)]
+                return DirectoryListing(
+                    parentEntry: nil,
+                    rootChildren: [FileListEntry(url: base.appendingPathComponent("fileA.mmd"), kind: .file)]
+                )
             }
-            return [fileB]
+            return DirectoryListing(parentEntry: nil, rootChildren: [fileB])
         }
         defer { withExtendedLifetime(host) {} }
 
@@ -67,9 +70,7 @@ struct SidebarNavigatorGenerationTests {
         await staleTask?.value
 
         #expect(navigator.fileListModel.currentDirectory.standardizedFileURL == dirB.standardizedFileURL)
-        let names = navigator.fileListModel.entries
-            .filter { $0.kind != .parentNavigation }
-            .map(\.url.lastPathComponent)
+        let names = navigator.fileListModel.entries.map(\.url.lastPathComponent)
         #expect(names == ["fileB.mmd"])
     }
 
@@ -77,7 +78,7 @@ struct SidebarNavigatorGenerationTests {
     func filterTextPersistsAcrossFolderNavigation() async {
         let base = Self.home.appendingPathComponent("SidebarNavigatorGenerationTests-filter")
         let dirB = base.appendingPathComponent("dirB", isDirectory: true)
-        let (navigator, host) = makeNavigator(currentDirectory: base) { _, _, _ in [] }
+        let (navigator, host) = makeNavigator(currentDirectory: base) { _, _, _ in .empty }
         defer { withExtendedLifetime(host) {} }
 
         navigator.fileListModel.filterText = "fileA"

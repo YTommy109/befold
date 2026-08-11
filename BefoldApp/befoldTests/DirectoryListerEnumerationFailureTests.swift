@@ -34,9 +34,9 @@ struct DirectoryListerEnumerationFailureTests {
     func listEntriesFoldsFailureIntoEmptyList() {
         let missing = URL(fileURLWithPath: "/nonexistent-befold-dir-\(UUID().uuidString)")
 
-        let entries = DirectoryLister.listEntries(
+        let entries = DirectoryLister.listing(
             in: missing, sortOrder: .foldersFirst, showHiddenFiles: false, home: missing
-        )
+        ).rows()
 
         #expect(entries.isEmpty)
     }

@@ -88,7 +88,7 @@ struct SidebarNavigatorSelectionMemoryTests {
             sidebarDisplayPreference: SidebarDisplayPreference(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorSelectionMemoryTests")
             ),
-            directoryLister: { url, _, _ in listings(url) },
+            directoryLister: { url, _, _ in DirectoryListing(parentEntry: nil, rootChildren: listings(url)) },
             resolveGitRoot: { _ in nil }
         )
         let host = SidebarNavigatorStubHost(currentFileURL: selection ?? currentDirectory)

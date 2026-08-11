@@ -31,7 +31,7 @@ struct DirectoryListerFlatRowsTests {
         let (tmp, dir) = try makeFixture()
         defer { withExtendedLifetime(tmp) {} }
 
-        let entries = DirectoryLister.listEntries(in: dir, sortOrder: .foldersFirst, home: tmp.url)
+        let entries = DirectoryLister.listing(in: dir, sortOrder: .foldersFirst, home: tmp.url).rows()
 
         #expect(entries.map(\.kind) == [.parentNavigation, .folder, .file, .file])
         #expect(entries.first?.url.lastPathComponent == tmp.url.lastPathComponent)
@@ -46,7 +46,7 @@ struct DirectoryListerFlatRowsTests {
         let (tmp, dir) = try makeFixture()
         defer { withExtendedLifetime(tmp) {} }
 
-        let entries = DirectoryLister.listEntries(in: dir, sortOrder: .alphabetical, home: tmp.url)
+        let entries = DirectoryLister.listing(in: dir, sortOrder: .alphabetical, home: tmp.url).rows()
 
         #expect(entries.first?.kind == .parentNavigation)
         #expect(entries.first?.url.lastPathComponent == tmp.url.lastPathComponent)
@@ -59,7 +59,7 @@ struct DirectoryListerFlatRowsTests {
         let (tmp, dir) = try makeFixture()
         defer { withExtendedLifetime(tmp) {} }
 
-        let entries = DirectoryLister.listEntries(in: dir, sortOrder: .foldersFirst, home: dir)
+        let entries = DirectoryLister.listing(in: dir, sortOrder: .foldersFirst, home: dir).rows()
 
         #expect(!entries.contains { $0.kind == .parentNavigation })
         #expect(entries.allSatisfy { $0.depth == 0 })

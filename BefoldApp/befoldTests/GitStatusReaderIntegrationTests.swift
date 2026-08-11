@@ -213,7 +213,7 @@ struct GitStatusReaderIntegrationTests {
             sidebarDisplayPreference: SidebarDisplayPreference(
                 defaults: makeIsolatedDefaults(prefix: "GitStatusReaderIntegrationTests")
             ),
-            directoryLister: { _, _, _ in [] },
+            directoryLister: { _, _, _ in .empty },
             loadGitStatuses: { directory, policy in
                 await store.statuses(forDirectoryAt: directory, policy: policy)
             }
@@ -252,7 +252,7 @@ struct GitStatusReaderIntegrationTests {
             sidebarDisplayPreference: SidebarDisplayPreference(
                 defaults: makeIsolatedDefaults(prefix: "GitStatusIndexWatch")
             ),
-            directoryLister: { _, _, _ in [] },
+            directoryLister: { _, _, _ in .empty },
             loadGitStatuses: { directory, policy in
                 await store.statuses(forDirectoryAt: directory, policy: policy)
             }

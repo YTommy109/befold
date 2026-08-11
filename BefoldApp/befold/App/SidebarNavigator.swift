@@ -37,10 +37,13 @@ final class SidebarNavigator {
     var selectionMemory: [String: URL] = [:]
     /// 不可視ファイル表示設定。全ウィンドウで共有される単一の真実の源を都度参照する。
     private let sidebarDisplayPreference: SidebarDisplayPreference
-    /// ファイル一覧の再取得元。既定は DirectoryLister.listEntriesAsync(nonisolated async)だが、
+    /// ファイル一覧の再取得元。既定は DirectoryLister.listingAsync(nonisolated async)だが、
     /// 再読込経路をテストで差し替えられるよう注入可能にする。async のため呼び出し元アクター
     /// (MainActor)を離れて実行され、巨大ディレクトリでもメインスレッドを塞がない。
-    private let directoryLister: (URL, SortOrder, Bool) async -> [FileListEntry]
+    ///
+    /// 返すのは **行に畳む前の材料**(DirectoryListing)。畳んだ配列を返させると、
+    /// 展開を足す側がそれを分解して材料へ戻す往復が要る(TASK-442.1)。
+    private let directoryLister: (URL, SortOrder, Bool) async -> DirectoryListing
     /// ツリー展開の状態と、展開したフォルダの子リスト。
     ///
     /// **注入引数にしない。** デフォルト引数で外から渡せる形にすると、渡し忘れが
@@ -48,13 +51,18 @@ final class SidebarNavigator {
     /// ウィンドウごとに 1 つという粒度を、生成箇所をここ 1 つに固定することで守る。
     let expansion = SidebarExpansion()
     /// 展開したフォルダの子リストの取得元。ルートの一覧(directoryLister)とは
-    /// **別の関数**であることが要点で、あちらは親移動行を含む畳んだ形を返す。
+    /// **別の関数**であることが要点で、あちらは親移動行を別に持つルート一覧の材料を返す。
     /// SidebarNavigator+Expansion.swift から参照するため internal。
     /// 子リストの列挙。**nil は列挙失敗**(空のフォルダの `[]` と区別する)。
     let childrenLister: (URL, SortOrder, Bool) async -> [FileListEntry]?
     /// refreshFileList / navigateToFolder が発行する一覧取得タスクの世代番号。
     /// 新しい要求が来たら古い結果の反映を捨てる(ViewerStore.loadGeneration と同型)。
     private var listingGeneration = 0
+    /// 直近に `applyRows` へ渡した列挙結果。行を組み直すたびに組み立て済みの配列から
+    /// 材料を復元しないために持つ。**書いてよいのは `applyRows` だけ**(他所から書くと、
+    /// 世代ガードを通っていない古い列挙で `rebuildRows` が走る)。別ファイルの extension が
+    /// 書くため `private(set)` にはできない。
+    var lastListing = DirectoryListing.empty
     /// 直近に発行した一覧取得タスク。テストから完了を待つために公開する。
     private(set) var pendingListingTask: Task<Void, Never>?
     /// 現在のディレクトリが属する git リポジトリの作業ツリールート。git 管理外なら nil。
@@ -95,8 +103,8 @@ final class SidebarNavigator {
         currentDirectory: URL, entries: [FileListEntry], selection: URL?,
         sidebarDisplayPreference: SidebarDisplayPreference,
         sortOrder: SortOrder = .foldersFirst,
-        directoryLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]
-            = DirectoryLister.listEntriesAsync,
+        directoryLister: @escaping (URL, SortOrder, Bool) async -> DirectoryListing
+            = DirectoryLister.listingAsync,
         childrenLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]?
             = DirectoryLister.childEntriesAsync,
         resolveGitRoot: @escaping @Sendable (URL) async -> URL? = { _ in nil },
@@ -196,11 +204,10 @@ final class SidebarNavigator {
     ///   「上へ移動」後の親フォルダ選択復元に使う。
     func refreshFileList(applyCustomSelection: (() -> Bool)? = nil) {
         guard host != nil else { return }
-        performListing(of: fileListModel.currentDirectory) { host, directory, rootRows in
-            let rootRows = DirectoryLister.appendingOpenFile(
-                host.currentFileURL, to: rootRows, in: directory
+        performListing(of: fileListModel.currentDirectory) { host, directory, listing in
+            let entries = self.applyRows(
+                listing.appendingOpenFile(host.currentFileURL, in: directory), for: directory
             )
-            let entries = self.applyRows(rootRows, for: directory)
 
             if let applyCustomSelection, applyCustomSelection() {
                 return
@@ -239,7 +246,7 @@ final class SidebarNavigator {
     /// SidebarNavigator+FolderNavigation.swift からも呼ぶため internal。
     func performListing(
         of directory: URL,
-        onApplied: @escaping @MainActor (SidebarNavigatorHost, URL, [FileListEntry]) -> Void
+        onApplied: @escaping @MainActor (SidebarNavigatorHost, URL, DirectoryListing) -> Void
     ) {
         refreshBaseDirectory()
         let showHiddenFiles = syncDisplayPreferences()
@@ -257,7 +264,7 @@ final class SidebarNavigator {
         // 走るため、待ち時間は直列にならず遅いほうに揃う。
         let gitTask = Task { await self.loadGitStatuses(directory, .always) }
         let task = Task {
-            let entries = await self.directoryLister(directory, sortOrder, showHiddenFiles)
+            let listing = await self.directoryLister(directory, sortOrder, showHiddenFiles)
             let result = couplesGitStatus ? await Self.awaitingCancellable(gitTask) : nil
             guard generation == self.listingGeneration, let host = self.host else { return }
             if let result {
@@ -267,7 +274,7 @@ final class SidebarNavigator {
                 // 単発の新しい結果が先に着いていれば、そちらのほうが一覧と対にふさわしい。
                 self.applyGitStatus(result, for: directory, generation: gitGeneration)
             }
-            onApplied(host, directory, entries)
+            onApplied(host, directory, listing)
         }
         pendingListingTask = task
         // git 状態の待ち合わせ点。ON なら一覧タスクに含まれるのでそれ自体を、OFF なら

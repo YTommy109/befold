@@ -11,31 +11,24 @@ import Foundation
 extension SidebarNavigator {
     // MARK: - Tree Expansion
 
-    /// ルートの一覧(親移動行を含む畳んだ形)と展開の材料から行配列を組み立て、
-    /// `fileListModel` へ反映して**反映した行**を返す。
+    /// ルートの列挙結果(材料)と展開の材料から行配列を組み立て、`fileListModel` へ
+    /// 反映して**反映した行**を返す。
     ///
-    /// `SidebarRowBuilder.rows` を呼ぶのはサイドバーではここ 1 箇所だけ。呼び出し元が
+    /// `fileListModel.setEntries` を呼ぶのはプロダクトではここ 1 箇所だけ。呼び出し元が
     /// それぞれ畳むと、展開の材料を渡し忘れた経路がドリルダウンのまま残る。
     /// 呼び出し元は戻り値を使って選択維持を判定すること(ルート直下だけを見ると、
     /// 展開したサブフォルダ内のファイルを選んでいる間ずっと選択が飛ぶ)。
+    ///
+    /// `lastListing` と `entriesDirectory` は**この同じ同期区間で**書く。片方だけが
+    /// 進む窓があると、`rebuildRows` が別ディレクトリの材料で行を組む。
     @discardableResult
-    func applyRows(_ rootRows: [FileListEntry], for directory: URL) -> [FileListEntry] {
-        let material = expansion.material
-        // ルートの一覧は畳んだ形で届く。親移動行は種別で確実に分けられる
-        // (ホームの外では出ないため「先頭が必ず `..`」とは限らない)。
-        let parentEntry = rootRows.first { $0.kind == .parentNavigation }
-        let rootChildren = rootRows.filter { $0.kind != .parentNavigation }
+    func applyRows(_ listing: DirectoryListing, for directory: URL) -> [FileListEntry] {
+        lastListing = listing
         let isTree = fileListModel.layoutMode == .tree
-        let rows = SidebarRowBuilder.rows(
-            parentEntry: parentEntry,
-            rootChildren: rootChildren,
-            // ドリルダウン表示では展開の材料を渡さない。展開状態が残っていても
-            // 行は 1 階層ぶんに戻る(モードを戻したのにツリーのままになるのを防ぐ)。
-            expanded: isTree ? material.expanded : [],
-            childrenByPathKey: isTree ? material.childrenByPathKey : [:],
-            loading: isTree ? material.loading : [],
-            failed: isTree ? material.failed : [],
-            showsDisclosure: isTree
+        // ドリルダウン表示では展開の材料を渡さない。展開状態が残っていても
+        // 行は 1 階層ぶんに戻る(モードを戻したのにツリーのままになるのを防ぐ)。
+        let rows = listing.rows(
+            material: isTree ? expansion.material : .init(), showsDisclosure: isTree
         )
         fileListModel.setEntries(rows, for: directory)
         return rows
@@ -43,8 +36,12 @@ extension SidebarNavigator {
 
     /// 手元の展開の材料だけで行を組み直す。子リストが届いたときに呼ぶ。
     /// ルートを列挙し直さないので、展開のたびにルートの再列挙は起きない。
+    ///
+    /// 保持している材料(`lastListing`)をそのまま使う。組み立て済みの
+    /// `fileListModel.entries` から `depth == 0` でルート行を復元してはならない
+    /// (組み立て → 分解 → 再組み立ての往復に戻る / TASK-442.1)。
     func rebuildRows() {
-        applyRows(fileListModel.entries.filter { $0.depth == 0 }, for: fileListModel.entriesDirectory)
+        applyRows(lastListing, for: fileListModel.entriesDirectory)
     }
 
     /// フォルダを展開する。既に展開済みなら何もしない(再列挙しない)。

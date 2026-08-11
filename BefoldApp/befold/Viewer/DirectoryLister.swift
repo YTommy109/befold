@@ -13,28 +13,28 @@ enum DirectoryLister {
         FileManager.default.homeDirectoryForCurrentUser
     }
 
-    /// 一覧構築ロジックの同期版。本番の経路は非同期版(listEntriesAsync)のみを使うため、
+    /// 一覧構築ロジックの同期版。本番の経路は非同期版(listingAsync)のみを使うため、
     /// ここは並べ替え・隠しファイル・親移動エントリの規則を直接検証するテスト用の入口。
     /// - Parameter home: 親移動エントリを許可する上限(ホームディレクトリ)。
     ///   既定は実ユーザーのホーム。テストは一時ディレクトリを渡して実ホームの
     ///   内容に依存せずに親移動エントリの規則を検証する。
-    static func listEntries(
+    static func listing(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false,
         home: URL = defaultHome
-    ) -> [FileListEntry] {
-        buildEntries(
+    ) -> DirectoryListing {
+        buildListing(
             in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles, home: home
         )
     }
 
-    /// listEntries と同一ロジックを、呼び出し元アクターを離れて実行する版。
+    /// listing と同一ロジックを、呼び出し元アクターを離れて実行する版。
     /// nonisolated async のため、ウィンドウ生成直後の初期一覧・windowDidBecomeKey・
     /// navigateToFolder のいずれの経路でも FileManager 列挙がメインスレッドを塞がない
     /// (ViewerLoadPipeline.load と同じパターン)。サイドバーの一覧取得はこの 1 本に揃えている。
-    static func listEntriesAsync(
+    static func listingAsync(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
-    ) async -> [FileListEntry] {
-        buildEntries(
+    ) async -> DirectoryListing {
+        buildListing(
             in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles, home: defaultHome
         )
     }
@@ -42,9 +42,8 @@ enum DirectoryLister {
     /// 直下の行だけを、呼び出し元アクターを離れて列挙する。ツリー展開した
     /// フォルダの子リストはこちらで取る。
     ///
-    /// `listEntriesAsync` を使ってはならない。あちらは親移動行を含んだ**畳んだあと**の
-    /// 形なので、展開したフォルダごとに `..` 行が生えてしまう。畳むのは
-    /// SidebarRowBuilder 1 箇所に閉じ、ここは材料だけを返す。
+    /// `listingAsync` を使ってはならない。あちらは親移動行を別に持つ
+    /// **ルート一覧の材料**なので、展開したフォルダごとに `..` 行が生えてしまう。
     static func childEntriesAsync(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
     ) async -> [FileListEntry]? {
@@ -84,22 +83,21 @@ enum DirectoryLister {
         return entries + [FileListEntry(url: openFile, kind: .file)]
     }
 
-    private static func buildEntries(
+    /// 列挙結果を **行に畳む前の材料** として組む。畳むのは `DirectoryListing.rows` の
+    /// 1 箇所だけで、ここは行を作らない。
+    ///
+    /// ルートの列挙失敗はここで空へ畳む。ルート一覧には失敗を出す先が無く(開閉三角は
+    /// 子フォルダの行にしか無い)、ここを Optional にすると
+    /// 「開いている文書は必ず一覧に含める」(appendingOpenFile)も通らなくなる。
+    /// ルート列挙失敗の表示は TASK-410 で扱う。
+    private static func buildListing(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool, home: URL
-    ) -> [FileListEntry] {
-        // 行の組み立ては SidebarRowBuilder に一本化する。ドリルダウンは
-        // 「展開集合が空」の縮退形として同じ関数を通り、全行 depth 0 になる。
-        // ルートの列挙失敗はここで空へ畳む。ルート一覧には失敗を出す先が無く(開閉三角は
-        // 子フォルダの行にしか無い)、ここを Optional にすると
-        // 「開いている文書は必ず一覧に含める」(appendingOpenFile)も通らなくなる。
-        // ルート列挙失敗の表示は TASK-410 で扱う。
-        SidebarRowBuilder.rows(
+    ) -> DirectoryListing {
+        DirectoryListing(
             parentEntry: parentNavigationEntry(for: directory, home: home),
             rootChildren: childEntries(
                 in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles
-            ) ?? [],
-            expanded: [],
-            childrenByPathKey: [:]
+            ) ?? []
         )
     }
 

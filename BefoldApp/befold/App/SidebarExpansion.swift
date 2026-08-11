@@ -12,7 +12,9 @@ import Foundation
 /// `FileListModel.entries` → `visibleEntries` の 1 本で、`entries` の didSet が
 /// 索引の作り直し・提示対象の通知をまとめて連動させている。ここも観測可能にすると
 /// 1 回の展開で 2 系統の再描画が飛び、「visibleEntries の添字 = 行番号」の前提へ
-/// 別経路から触ることになる。行の生成は `SidebarNavigator` の 1 箇所だけが行う。
+/// 別経路から触ることになる。行を畳むのは `DirectoryListing.rows` の 1 箇所、
+/// それを `FileListModel` へ反映するのは `SidebarNavigator.applyRows` の 1 箇所で、
+/// どちらも `SidebarRowAssemblySingleSourceTests` がソース走査で数えている。
 @MainActor
 final class SidebarExpansion {
     /// フォルダの子リストの取得状態。
@@ -54,8 +56,8 @@ final class SidebarExpansion {
     /// - Note: 子が未到着のキーは `loading` に入れて別に返す。行は増やせない(並べる子が
     ///   無い)が、開閉三角を「読み込み中」にする材料は要る。ここを返さないと、
     ///   展開したのに何も起きていないように見える状態と「空のフォルダ」が区別できない。
-    var material: Material {
-        var result = Material()
+    var material: SidebarRowBuilder.Material {
+        var result = SidebarRowBuilder.Material()
         for key in expandedKeys {
             // **`default` を置かない。** ここを else でまとめると、`Children` に足した
             // 状態が黙って「読み込み中」へ落ちる(`.failed` を足したときに、権限の無い
@@ -75,18 +77,6 @@ final class SidebarExpansion {
             }
         }
         return result
-    }
-
-    /// 行の組み立てへ渡す材料一式。
-    struct Material {
-        /// 子が届いていて、実際に行を並べられるフォルダ。
-        var expanded: Set<String> = []
-        var childrenByPathKey: [String: [FileListEntry]] = [:]
-        /// 展開する意図はあるが、子がまだ届いていないフォルダ。
-        var loading: Set<String> = []
-        /// 展開しようとしたが列挙に失敗したフォルダ。行は増やさない(並べる子が無い)が、
-        /// 「空のフォルダ」とも「読み込み中」とも違う見た目にするために要る。
-        var failed: Set<String> = []
     }
 
     /// 展開を開始する。既に展開済みなら何もしない(再列挙しない)。

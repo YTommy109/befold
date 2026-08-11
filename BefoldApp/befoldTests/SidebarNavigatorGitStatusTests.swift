@@ -49,7 +49,7 @@ struct SidebarNavigatorGitStatusTests {
             sidebarDisplayPreference: SidebarDisplayPreference(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorGitStatusTests")
             ),
-            directoryLister: { _, _, _ in [] },
+            directoryLister: { _, _, _ in .empty },
             resolveGitRoot: { _ in nil },
             loadGitStatuses: loadGitStatuses,
             makeGitIndexWatcher: { url, onChange in

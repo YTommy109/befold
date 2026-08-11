@@ -10,6 +10,12 @@ import Testing
 /// 縮退し(状態が別ディレクトリのものなので絞り込まない)、全件が一瞬描画されてから
 /// 絞り込まれる。縮退そのものは TASK-285 の意図した振る舞いなので、縮退を消すのではなく
 /// 縮退が起きる空白期間そのものを無くす。
+/// 親移動行を持たない、ファイルだけの列挙結果。directoryLister スタブの戻り値を
+/// 1 行に収めるためのヘルパー(展開もソートもこのテストの関心ではない)。
+private func fileListing(_ urls: URL...) -> DirectoryListing {
+    DirectoryListing(parentEntry: nil, rootChildren: urls.map { FileListEntry(url: $0, kind: .file) })
+}
+
 @Suite
 @MainActor
 struct SidebarNavigatorListingCoherenceTests {
@@ -32,7 +38,7 @@ struct SidebarNavigatorListingCoherenceTests {
             selection: nil,
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in
-                [FileListEntry(url: changed, kind: .file), FileListEntry(url: clean, kind: .file)]
+                fileListing(changed, clean)
             },
             loadGitStatuses: { directory, _ in
                 // git は列挙より遅れて返る。この間に一覧だけを反映してはならない。
@@ -83,7 +89,7 @@ struct SidebarNavigatorListingCoherenceTests {
             selection: nil,
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in
-                [FileListEntry(url: changed, kind: .file), FileListEntry(url: clean, kind: .file)]
+                fileListing(changed, clean)
             },
             loadGitStatuses: { directory, _ in
                 guard directory.normalizedPathKey == dirB.normalizedPathKey else { return .empty }
@@ -142,7 +148,7 @@ struct SidebarNavigatorListingCoherenceTests {
             selection: nil,
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in
-                [FileListEntry(url: changed, kind: .file), FileListEntry(url: clean, kind: .file)]
+                fileListing(changed, clean)
             },
             loadGitStatuses: { directory, policy in
                 // 割り込む単発の取得。返らないまま結果を待たせ、一覧と対の結果だけで
@@ -263,7 +269,7 @@ struct SidebarNavigatorListingCoherenceTests {
             selection: nil,
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in
-                [FileListEntry(url: changed, kind: .file), FileListEntry(url: clean, kind: .file)]
+                fileListing(changed, clean)
             },
             loadGitStatuses: { directory, policy in
                 if policy == slowPolicy {
