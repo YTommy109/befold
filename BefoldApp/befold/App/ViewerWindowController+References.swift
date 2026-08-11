@@ -17,6 +17,7 @@ extension ViewerWindowController {
     var referenceActions: ReferenceActions {
         ReferenceActions(
             open: { [weak self] url, disposition in self?.openReference(url, disposition: disposition) },
+            openExternal: { [weak self] url in self?.externalOpener(url) },
             presentNotFound: { [weak self] url in self?.presentReferenceNotFound(url: url) },
             presentContextMenu: { [weak self] url, isExternal in
                 self?.presentReferenceContextMenu(for: url, isExternal: isExternal)

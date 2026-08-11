@@ -12,7 +12,12 @@ import WebKit
 final class ReferenceResolutionQueue {
     private typealias ResolveKey = ViewerBridge.PayloadKey.ResolveReferences
 
-    private unowned let renderer: ViewerRenderer
+    /// 応答は 2 つの suspension point(直前の要求の完了待ち・参照解決)をまたぐため、
+    /// renderer は weak で持つ。応答 Task が強く保持するのはこのキューだけで、
+    /// キューを保持しても renderer は生き続けない。unowned のままだと、解決を待つ間に
+    /// ウィンドウが閉じられて ViewerRenderer が解放された場合、再開時の参照でトラップする
+    /// (TASK-448)。
+    private weak var renderer: ViewerRenderer?
 
     /// 解決応答(applyResolvedReferences 評価)の直列チェーン。解決が非同期になっても
     /// 評価順が要求順とずれてはならないため、各要求は直前の要求の完了を待つ。
@@ -59,7 +64,9 @@ final class ReferenceResolutionQueue {
         let requestGeneration = generation
         responseChain = Task { @MainActor [weak self] in
             await previous?.value
-            guard let self else { return }
+            // renderer は weak。ここまでの待ちの間にウィンドウが閉じられていれば、
+            // 応答先そのものが無いので何もしない。
+            guard let self, let renderer else { return }
             var resolutions: [String: String] = [:]
             if let requestedPaths {
                 resolutions = await renderer.delegate?.renderer(

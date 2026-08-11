@@ -151,6 +151,38 @@ struct ViewerRendererResolveReferencesTests {
         #expect(applied.isEmpty, "読み直し前の応答が、新しいページのバッチへ適用される")
     }
 
+    /// 応答 Task が強く保持するのは ReferenceResolutionQueue だけで、ViewerRenderer は
+    /// 保持しない(所有関係は renderer → queue の一方向)。そのため解決を待つ間に
+    /// ウィンドウが閉じられると、再開時点で renderer は解放済みになりうる。
+    /// queue が renderer を unowned で持っていると、ここでトラップしてアプリが落ちる(TASK-448)。
+    @Test("ViewerRenderer が解放済みでも、応答 Task はトラップせず中断する")
+    func resolveReferencesStopsWhenRendererIsReleased() async {
+        let webView = Stubs.WebView()
+        let delegate = Stubs.Delegate()
+        var called = false
+        delegate.onResolveReferences = { _ in
+            called = true
+            return ["./gone.md": "/repo/gone.md"]
+        }
+        // queue だけを残して renderer を解放する(閉じたウィンドウの応答 Task と同じ状態)。
+        let queue: ReferenceResolutionQueue
+        weak var releasedRenderer: ViewerRenderer?
+        do {
+            let renderer = ViewerRenderer()
+            renderer.webView = webView
+            renderer.delegate = delegate
+            queue = renderer.referenceQueue
+            releasedRenderer = renderer
+        }
+        #expect(releasedRenderer == nil, "renderer が解放されておらず、前提が成り立っていない")
+
+        queue.handle(body: ["paths": ["./gone.md"]])
+        await queue.responseChain?.value
+
+        #expect(called == false)
+        #expect(webView.evaluatedScripts.isEmpty)
+    }
+
     /// 上の破棄が広すぎないことを担保する。読み直しをまたがない要求は、読み直しの後に
     /// 出したものも含めて従来どおり応答される(応答が来ないと pending のまま固まる)。
     @Test("読み直しの後に出した要求は、従来どおり応答される")

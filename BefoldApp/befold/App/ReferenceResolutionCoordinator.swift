@@ -12,6 +12,13 @@ import Foundation
 struct ReferenceActions {
     /// 解決できたパス参照を開く。
     let open: (URL, OpenDisposition) -> Void
+    /// 外部 URL(http/https)をブラウザで開く。
+    ///
+    /// `NSWorkspace.shared.open` をここで直に呼ばないのは、解決(git subprocess)を待つ間に
+    /// ウィンドウが閉じられても、他の分岐と同じく抑止されるようにするため。分岐ごとに
+    /// 生存確認を書くのではなく、すべての届け先をウィンドウ弱参照のクロージャに揃えることで
+    /// 「閉じた後に効く操作」が構造的に起きない形にする(TASK-449)。
+    let openExternal: (URL) -> Void
     /// 解決できなかったパス参照をユーザーに知らせる。
     let presentNotFound: (URL) -> Void
     /// 解決できたパス参照/外部 URL に対するコンテキストメニューを表示する。
@@ -75,7 +82,7 @@ final class ReferenceResolutionCoordinator {
             }.value
             switch reference {
             case let .external(url):
-                NSWorkspace.shared.open(url)
+                actions.openExternal(url)
             case let .resolved(url):
                 actions.open(url, disposition)
             case .unresolved:
