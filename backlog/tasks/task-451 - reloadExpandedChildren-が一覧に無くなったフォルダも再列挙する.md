@@ -4,11 +4,12 @@ title: reloadExpandedChildren が一覧に無くなったフォルダも再列�
 status: To Do
 assignee: []
 created_date: '2026-08-11 13:39'
+updated_date: '2026-08-11 13:51'
 labels: []
 dependencies: []
-priority: low
+priority: medium
 type: bug
-ordinal: 116400
+ordinal: 100630
 ---
 
 ## Description
@@ -29,3 +30,9 @@ reloadExpandedChildren() は performListing の先頭で毎回呼ばれる（並
 - [ ] #1 現在の一覧に存在しない展開キーに対して列挙要求が飛ばない（または、飛んでも既存の子行を破棄しない）
 - [ ] #2 削除済みフォルダを展開状態のまま残して再列挙を走らせたとき、既存の子行が保持されることをユニットテストで担保している
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+優先度を low → medium へ引き上げ、ordinal を TASK-450 の直後（100630）へ移した（2026-08-11 の優先順位評価）。理由: TASK-448〜452 はいずれもマージ済み PR #483 由来の回帰・後始末であり、症状の軽さだけで沈めると分割済み実装のコンテキストを再学習し直すことになる。本件は TASK-450 と同じサイドバー抽出（TASK-442 系）由来なので 1 PR で返す想定。
+<!-- SECTION:NOTES:END -->

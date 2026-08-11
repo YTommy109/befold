@@ -4,11 +4,12 @@ title: 抽出リファクタ後に残ったデッドコードと実体を指さ�
 status: To Do
 assignee: []
 created_date: '2026-08-11 13:40'
+updated_date: '2026-08-11 13:51'
 labels: []
 dependencies: []
-priority: low
+priority: medium
 type: chore
-ordinal: 116500
+ordinal: 100640
 ---
 
 ## Description
@@ -35,3 +36,9 @@ PR #483（TASK-440 / 441 / 442 の抽出リファクタ）の後始末。/code-r
 - [ ] #4 削除済みファイルを指す doc 参照が残っていない（scripts/check-doc-symbols.sh の対象外である散文の参照も含めて確認する）
 - [ ] #5 SidebarNavigator のテスト観測用パススルーについて、待ち合わせ規則が散文でなく「破れたら落ちる」形になっている（テストの観測点を協調型側へ移す、規則を型で表現する等）
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+優先度を low → medium へ引き上げ、ordinal を 100640 へ移した（2026-08-11 の優先順位評価）。理由: 内容が PR #483 の後始末そのもの（実体を指さない doc・デッドコード）であり、分割の判断が記憶に新しいうちに返すのが最も安い。単独の 1 PR とする想定。
+<!-- SECTION:NOTES:END -->

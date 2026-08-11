@@ -4,12 +4,12 @@ title: Quick Open で別フォルダのファイルを選ぶと、フォルダ�
 status: To Do
 assignee: []
 created_date: '2026-08-11 08:17'
-updated_date: '2026-08-11 11:01'
+updated_date: '2026-08-11 13:52'
 labels: []
 dependencies: []
 priority: medium
 type: bug
-ordinal: 673000
+ordinal: 100650
 ---
 
 ## Description
@@ -136,4 +136,6 @@ git 状態・フォーカス復帰・並び順同期など）に依存するた�
 検証するテストを置くこと。
 
 疑い D は TASK-446 として別途起票済み。
+
+ordinal を 673000 → 100650 へ繰り上げた（2026-08-11 の優先順位評価）。理由: ユーザー報告・再現条件の追加情報まで揃っている medium bug が、LOW の chore 群より下に沈んでボード最下部にあった。CLAUDE.md の「ボード表示順は ordinal 順」「HIGH タスクが MEDIUM/LOW より上に来るようにする」に反する配置。
 <!-- SECTION:NOTES:END -->
