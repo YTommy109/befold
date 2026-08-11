@@ -1,11 +1,11 @@
 ---
 id: TASK-432.3
 title: viewer-main を責務ごとのモジュールへ分割する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-10 12:57'
-updated_date: '2026-08-11 14:13'
+updated_date: '2026-08-11 14:21'
 labels: []
 dependencies:
   - TASK-432.2
@@ -42,7 +42,7 @@ TASK-420 の受け入れ条件 #3 は「viewer.html からの読み込み順が�
 - [x] #3 モジュール間の依存が import で表現され、循環が無い
 - [x] #4 各モジュールが何を担うかを 1 行で言える
 - [x] #5 既存テストが通り、ケース数が減っていない
-- [ ] #6 本体アプリと QuickLook 拡張の双方で表示が変わらないことを確認する
+- [x] #6 本体アプリと QuickLook 拡張の双方で表示が変わらないことを確認する
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -95,4 +95,48 @@ TASK-420 の受け入れ条件 #3 は「viewer.html からの読み込み順が�
 ## 追随させたドキュメント
 
 docs/dev/rules/product-code.md（JS 規約の「純粋ロジックは viewer.js へ」を「関心ごとに 1 モジュール・循環禁止」へ書き換え）/ docs/dev/rules/testing.md / docs/dev/viewer-rendering-dataflow.md / BefoldApp/viewer-src/README.md（モジュール一覧と 1 行責務）/ .claude/agents/vendored-deps-auditor.md / .claude/commands/check-vendored-deps.md / .claude/agents/security-reviewer.md / .claude/skills/review-architecture.md。ADR 0005 は決定時点の記録なので書き換えない。
+
+## AC#6（表示が変わらないこと）の検証
+
+目視だけに頼らず、**分割前後のバンドルで同じ入力を描画して DOM を突き合わせた**。
+HEAD~2 の viewer.js / viewer-main.js を取り出して旧バンドルを作り、現在の viewer-src/ の
+新バンドルと並べて jsdom 上で同一の入力を描画し、#diagram-wrap の innerHTML /
+textContent / class / style、truncated バナー、検索バー、件数表示、documentElement の
+style を比較した（スクリプトはスクラッチパッドの使い捨て。npm 版の markdown-it /
+DOMPurify / highlight.js を本番と同じ経路で通している）。
+
+対象 25 ケース: mmd / md（レンダリング・ソース・ソース+行番号）/ code（+行番号）/
+csv（テーブル・ソース）/ svg / html / pdf / image / 差分（インライン・左右分割）/
+appendChunk（コードの行境界・強制分割・markdown・csv-table・csv-source・
+差分表示中は追記しない）/ truncated バナー（通常・失敗）/ 検索ハイライト /
+ズーム適用 / システムフォント注入。
+
+結果: **25 ケースすべて完全一致（不一致 0）**。唯一出た差分は mermaid 要素の
+id="mmd-0-<Date.now()>" というタイムスタンプで、比較から正規化して除いた。
+_escapeHtml（DOM 版、" を escape しない）から純粋 escapeHtml（" を &quot; にする）
+への一本化も、テキストノードとして解釈された後の DOM は同一で、mmd ソースに
+ダブルクォートを含むケースで実測して確認した。
+
+QuickLook 側は、ビュー型 appex のため qlmanage -o でプレビューを成果物として
+取り出せない（実測: .mmd / .md は "did not produce any preview"、.csv だけシステムの
+生成器が拾う）。代わりに構成の同一性で押さえた:
+- /Applications/befold.app/Contents/PlugIns/BefoldQuickLook.appex は自前の viewer
+  リソースを持たない
+- appex の LC_RPATH は @executable_path/../../../../Frameworks で、本体同梱の
+  BefoldKit.framework を見る
+- その framework 内の viewer-bundle.js はリポジトリの成果物と cmp でバイト一致
+したがって QuickLook が読む JS は本体アプリと同一物であり、上の DOM 一致がそのまま効く。
+描画エンジン（BefoldRenderKit の ViewerRenderer）も共有で、swift test 1415 件と
+webview-smoke（実 WKWebView）が通っている。
+
+あわせて Debug ビルドを /Applications へ入れ替え、本体アプリで .md / .mmd / .csv を、
+qlmanage -p で .mmd / .md を開いた状態にした。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+viewer.js（純粋ロジック）/ viewer-main.js（DOM）という、責務ではなくテスト可能性で引かれていた境界を解体し、関心ごとの 22 モジュールへ再配置した（bridge / render / renderers / zoom / scroll / keyboard / find / path-refs / reference-clicks / markdown / mermaid / truncation / view-options / document-state / doc-path / color-scheme / fonts / code-html / diff-html / csv-html / encoding / init）。純粋な計算と DOM 操作は同じ関心の中に同居させ、テスト可能性は export で担保している。公開面は barrel（main.js）1 本に集約し、本番エントリもテストハーネスもそこだけを見る形にしたうえで、exposeGlobals の引数を barrel 1 つに固定して本番とテストでグローバルに載る集合がずれない構造にした。描いた形の記録（appendChunk の追記戦略の元）は書き手を render の 1 箇所へ閉じ、markdown-it 未ロードで打ち切る経路でも記録が確定するよう分岐前の代入を残した。AC#3 を担保するため循環 import の検出（esbuild の metafile から後退辺を探す check:viewer-cycles）を追加して CI へ並べた。重複していた判定 2 件（DOM 版 _escapeHtml、差分マーカーのグリフ決定）も解消した（TASK-422 の #2/#3 に相当）。
+
+検証: jest 417 passed / 6 suites（移行前と同数）、lint:viewer 0 件、check:viewer-cycles 循環なし（25 モジュール）、check:viewer-bundle 差分なし、swift build / swift test 1415 tests 208 suites すべて pass（ViewerBridgeContractTests 10 件を含む。着手前に未確認としていた「esbuild のローカル名衝突による改名が成果物の文字列照合を壊さないか」はここで解消）、xcodebuild BUILD SUCCEEDED、webview-smoke PASS、markdownlint 0 issues。旧 2 ファイルと新 barrel の export 集合を突き合わせて消えた名前 0 件を確認。表示不変は、分割前後のバンドルで同じ入力を描画して DOM を比較する検証を書き、25 ケース全一致（差分は mermaid 要素のタイムスタンプ id のみ）で確かめた。
+<!-- SECTION:FINAL_SUMMARY:END -->
