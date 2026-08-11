@@ -29,7 +29,7 @@ struct ViewerRendererResolveReferencesTests {
             renderer, name: ViewerBridge.resolveReferencesMessageName,
             body: ["paths": ["./other.md", "./missing.md"]]
         )
-        await renderer.resolveResponseChain?.value
+        await renderer.referenceQueue.responseChain?.value
 
         #expect(receivedPaths == ["./other.md", "./missing.md"])
         #expect(
@@ -70,7 +70,7 @@ struct ViewerRendererResolveReferencesTests {
             body: ["paths": ["./fast.md"]]
         )
         slowResolution.open()
-        await renderer.resolveResponseChain?.value
+        await renderer.referenceQueue.responseChain?.value
 
         #expect(
             webView.evaluatedScripts == [
@@ -105,7 +105,7 @@ struct ViewerRendererResolveReferencesTests {
             }
 
             Stubs.dispatch(renderer, name: ViewerBridge.resolveReferencesMessageName, body: body)
-            await renderer.resolveResponseChain?.value
+            await renderer.referenceQueue.responseChain?.value
 
             #expect(called == false, "不正ペイロードをアプリ層へ渡している: \(body)")
             #expect(
@@ -143,7 +143,7 @@ struct ViewerRendererResolveReferencesTests {
         // 直接 HTML モードからの復帰。ここで viewer.html を読み直し、JS の状態が捨てられる。
         renderer.exitDirectHTMLMode(webView: webView) {}
         slowResolution.open()
-        await renderer.resolveResponseChain?.value
+        await renderer.referenceQueue.responseChain?.value
 
         let applied = webView.evaluatedScripts.filter {
             $0 == ViewerBridge.applyResolvedReferencesScript(["./old.md": "/repo/old.md"])
@@ -167,7 +167,7 @@ struct ViewerRendererResolveReferencesTests {
             renderer, name: ViewerBridge.resolveReferencesMessageName,
             body: ["paths": ["./new.md"]]
         )
-        await renderer.resolveResponseChain?.value
+        await renderer.referenceQueue.responseChain?.value
 
         #expect(
             webView.lastEvaluatedScript

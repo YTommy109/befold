@@ -86,7 +86,7 @@ enum ViewerRendererMessageStubs {
 
     @MainActor
     static func dispatch(_ renderer: ViewerRenderer, name: String, body: Any) {
-        renderer.userContentController(
+        renderer.messageRouter.userContentController(
             WKUserContentController(),
             didReceive: ScriptMessage(name: name, body: body)
         )

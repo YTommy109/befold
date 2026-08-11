@@ -182,7 +182,7 @@ extension ViewerRenderer {
         isReady = false
         // 読み直すと JS 側の状態(参照解決の FIFO キューを含む)が捨てられる。飛行中の
         // 応答を新しいページへ適用しないよう世代を進める(TASK-421)。
-        pageGeneration += 1
+        referenceQueue.invalidate()
         // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
         // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
         let zoom = initialPageZoom

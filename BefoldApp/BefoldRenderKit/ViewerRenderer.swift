@@ -61,7 +61,7 @@ public extension ViewerRendererDelegate {
 /// find/loadMore/リンク遷移などアプリ専用機能はフック注入・オプショナルにしてあり、
 /// QuickLook 拡張(.appex)のような静的1回描画ホストではそれらを省いて利用できる。
 @MainActor
-public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     public var webView: WKWebView?
     public var webViewProxy: WebViewProxy?
     /// JS 側で起きた出来事の通知先。アプリ本体では ViewerWindowController が実装する。
@@ -71,22 +71,11 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// 「続きを読み込む」の実行中フラグ。非同期読み込み中の再押下を無視し、
     /// 追記の交錯(順序の入れ替わり)を防ぐ。
     var isLoadingMoreLines = false
-    /// 解決応答(applyResolvedReferences 評価)の直列チェーン。JS は応答を要求へ FIFO で
-    /// 対応づけるため、解決が非同期になっても評価順が要求順とずれてはならない。
-    /// 各要求は直前の要求の完了を待ってから解決・評価する。
-    var resolveResponseChain: Task<Void, Never>?
-    /// JS コンテキストの世代。ページを読み直すと JS 側の状態は捨てられ、参照解決の
-    /// FIFO キュー(_mmdPendingRefBatches)も空になる。世代をまたいだ応答をそのまま
-    /// 評価すると、新しいページが積んだ別のバッチへ古いマップが当たり、実在する
-    /// パスまで解決失敗表示になる(TASK-421)。飛行中の応答はこの値で捨てる。
-    /// 増やすのは viewer.html を読み直す `reloadViewerHTML` の 1 箇所だけ。
-    ///
-    /// `contentUpdateGeneration` を流用してはならない。通常の再描画では JS 側が
-    /// `_mmdInvalidatePendingRefs()` でバッチの中身だけを空にし、**キューの長さ
-    /// (未応答の要求数)は保つ**。つまり再描画をまたぐ応答は捨てずに評価し続ける必要が
-    /// あり、捨てるとキューが恒久的にずれて以後すべての参照が解決失敗表示になる。
-    /// 捨ててよいのは、キューごと消える読み直しの場合だけ。
-    var pageGeneration = 0
+    /// JS からの postMessage の受信・デコード・配達。
+    /// makeWebView が WKUserContentController へ登録する実ハンドラ。
+    private(set) lazy var messageRouter = BridgeMessageRouter(renderer: self)
+    /// パス参照解決の FIFO 直列化とページ世代の管理。
+    private(set) lazy var referenceQueue = ReferenceResolutionQueue(renderer: self)
     /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
     /// QuickLook 拡張等、検索 UI を持たないホストでは nil のまま省略できる。
     public var findOptionsPreference: FindOptionsPreference?
@@ -180,7 +169,7 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
                 codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints,
                 features: rendererFeatures
             ),
-            messageHandler: self
+            messageHandler: messageRouter
         )
         webView.navigationDelegate = self
         self.webView = webView
