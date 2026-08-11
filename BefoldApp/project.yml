@@ -143,14 +143,6 @@ targets:
           - befold.entitlements
       - path: befold/Resources
         buildPhase: resources
-        excludes:
-          - "viewer.html"
-          - "viewer-bundle.js"
-          - "style.css"
-          - "mermaid.min.js"
-          - "github.css"
-          - "github-dark.css"
-          - "github-markdown.css"
     dependencies:
       - target: BefoldKit
       - target: BefoldRenderKit
