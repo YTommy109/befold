@@ -60,34 +60,17 @@ final class SidebarNavigator {
     /// 新しい要求が来たら古い結果の反映を捨てる(ViewerStore.loadGeneration と同型)。
     private var listingGeneration = 0
     /// 直近に発行した一覧取得タスク。テストから完了を待つために公開する。
+    ///
+    /// 絞り込み ON のときは git 状態の反映もこのタスクの中で起きる(一覧と git を
+    /// 同一メインアクター実行で反映するのが不変条件 / TASK-293)。ON の反映完了を
+    /// 待ちたいテストは `gitStatus` 側ではなくこれを待つこと。
     private(set) var pendingListingTask: Task<Void, Never>?
-    /// 現在のディレクトリが属する git リポジトリの作業ツリールート。git 管理外なら nil。
-    /// 未命中時に `git rev-parse` の subprocess を待つため async にし、
-    /// メインスレッド(SwiftUI の body 評価)で解決しないようにしている。
-    private let resolveGitRoot: @Sendable (URL) async -> URL?
-    /// baseDirectory 更新タスクの世代番号。一覧取得(listingGeneration)とは
-    /// 完了タイミングが独立するため、別の世代で古い結果を捨てる。
-    private var baseDirectoryGeneration = 0
-    /// 直近に発行した基準ディレクトリ解決タスク。テストから完了を待つために公開する。
-    private(set) var pendingBaseDirectoryTask: Task<Void, Never>?
-    /// 表示中ディレクトリのファイルに対する git 状態を取得する。既定は常に空(機能無効)。
-    /// git 型に直接依存しないよう、`resolveGitRoot` と同型のクロージャで注入する。
-    private let loadGitStatuses: (URL, GitStatusRefreshPolicy) async -> GitStatusResult
-    /// `.git/index` の監視。対象パスの管理は GitIndexWatch が持つ。
-    /// init で self を渡せないため、attach 前の最初の取得までに解決できるよう遅延で作る。
-    private lazy var gitIndexWatch = GitIndexWatch(makeWatcher: makeGitIndexWatcher) { [weak self] in
-        self?.refreshGitStatuses(policy: .onlyIfIndexChanged)
-    }
-
-    /// `.git/index` を監視するウォッチャの生成器。既定は実 FileWatcher。
-    /// テストは実ファイルシステム監視を避けるため差し替える。
-    private let makeGitIndexWatcher: GitIndexWatch.WatcherFactory
-    /// git 状態取得タスクの発行順序(sequence)の採番器。一覧取得・基準ディレクトリ解決とは完了
-    /// タイミングが独立する(subprocess の所要時間が別)ため、第 3 の世代として分けて発行する。
-    /// 反映の可否判定(recency ガード)は持たず、採番だけを担う(ADR 0003)。
-    private var gitStatusGeneration = 0
-    /// 直近に発行した git 状態取得タスク。テストから完了を待つために公開する。
-    private(set) var pendingGitStatusTask: Task<Void, Never>?
+    /// 相対パスコピー・Quick Open のヘッダーが使う基準ディレクトリの解決。
+    /// **`tree` と同じく注入引数にせず private で持つ**(TASK-319 / 442.3 と同型)。
+    private let baseDirectory: SidebarBaseDirectoryResolver
+    /// git 状態(バッジ・絞り込みの材料)の取得と反映。
+    /// 発行順序の採番はこの型の内側に閉じており、本クラスは sequence を読み書きしない。
+    private let gitStatus: SidebarGitStatusCoordinator
 
     /// ファイル切替・現在ファイル参照の委譲先。循環参照を避けるため weak。
     /// SidebarNavigator+History.swift の履歴適用からも参照するため internal。
@@ -109,11 +92,8 @@ final class SidebarNavigator {
         makeGitIndexWatcher: @escaping GitIndexWatch.WatcherFactory
             = { url, onChange in FileWatcher(path: url, onChange: onChange) }
     ) {
-        self.makeGitIndexWatcher = makeGitIndexWatcher
         self.sidebarDisplayPreference = sidebarDisplayPreference
         self.directoryLister = directoryLister
-        self.resolveGitRoot = resolveGitRoot
-        self.loadGitStatuses = loadGitStatuses
         let fileListModel = FileListModel(
             currentDirectory: currentDirectory,
             entries: entries,
@@ -121,47 +101,42 @@ final class SidebarNavigator {
             sortOrder: sortOrder
         )
         self.fileListModel = fileListModel
-        // presenter は**ここでしか生成しない**(注入引数にすると渡し忘れが静かに
-        // 別インスタンスになる / TASK-319 と同型)。childrenLister は素通しする。
+        // 協力型は**ここでしか生成しない**(注入引数にすると渡し忘れが静かに
+        // 別インスタンスになる / TASK-319 と同型)。クロージャは素通しする。
         tree = SidebarTreePresenter(fileListModel: fileListModel, childrenLister: childrenLister)
+        baseDirectory = SidebarBaseDirectoryResolver(
+            fileListModel: fileListModel, resolveGitRoot: resolveGitRoot
+        )
+        gitStatus = SidebarGitStatusCoordinator(
+            fileListModel: fileListModel,
+            loadGitStatuses: loadGitStatuses,
+            makeGitIndexWatcher: makeGitIndexWatcher
+        )
         syncDisplayPreferences()
-        refreshBaseDirectory()
-    }
-
-    // MARK: - Base Directory
-
-    /// 相対パスコピー・Quick Open の基準ディレクトリを取り直して fileListModel へ反映する。
-    /// git ルートの解決はメイン外で行い、完了後にメインアクターへ戻して書き込む。
-    /// ディレクトリが変わる契機(初期化・一覧更新・フォルダ移動)ごとに呼ぶ。
-    private func refreshBaseDirectory() {
-        let directory = fileListModel.currentDirectory
-        let workspaceRoot = fileListModel.rootDirectory
-        baseDirectoryGeneration += 1
-        let generation = baseDirectoryGeneration
-        pendingBaseDirectoryTask = Task {
-            let gitRoot = await self.resolveGitRoot(directory)
-            guard generation == self.baseDirectoryGeneration else { return }
-            self.fileListModel.baseDirectory = BaseDirectoryDescriptor(
-                gitRoot: gitRoot,
-                workspaceRoot: workspaceRoot
-            )
-        }
+        baseDirectory.refresh()
     }
 
     // MARK: - Git Status
 
-    /// 表示中ディレクトリの git 状態を取り直して fileListModel へ反映する。取得(ルート解決 +
-    /// git 実行)はメイン外で行う。機能が無効なら注入クロージャが常に空を返すため git は起動しない。
+    /// 表示中ディレクトリの git 状態を取り直して fileListModel へ反映する。
+    /// 実処理は SidebarGitStatusCoordinator が持つ。
     /// - Parameter policy: `.onlyIfIndexChanged` は `.git/index` が動いていないとき git を起こさない
     ///   (`.git` 配下の書き込み通知が契機のとき用)。それ以外の契機では `.always` を使うこと。
     func refreshGitStatuses(policy: GitStatusRefreshPolicy = .always) {
-        let directory = fileListModel.currentDirectory
-        gitStatusGeneration += 1
-        let generation = gitStatusGeneration
-        pendingGitStatusTask = Task {
-            let result = await self.loadGitStatuses(directory, policy)
-            self.applyGitStatus(result, for: directory, generation: generation)
-        }
+        gitStatus.refresh(policy: policy)
+    }
+
+    /// 直近に発行した git 状態取得タスク。テストから完了を待つための読み取り専用の窓。
+    ///
+    /// **絞り込み ON のときの反映はここには載らない**(一覧タスクの中で起きる /
+    /// TASK-293)。ON の完了を待つテストは `pendingListingTask` を待つこと。
+    var pendingGitStatusTask: Task<Void, Never>? {
+        gitStatus.pendingTask
+    }
+
+    /// 直近に発行した基準ディレクトリ解決タスク。テストから完了を待つための読み取り専用の窓。
+    var pendingBaseDirectoryTask: Task<Void, Never>? {
+        baseDirectory.pendingTask
     }
 
     /// fileListModel 側の表示設定ミラーを真実の源(sidebarDisplayPreference)へ同期し、
@@ -189,8 +164,10 @@ final class SidebarNavigator {
     }
 
     /// host を接続する。ViewerWindowController が super.init 後に呼ぶ。
+    /// git 状態の反映通知先も同じ host なので、ここで一緒に結線する。
     func attach(to host: SidebarNavigatorHost) {
         self.host = host
+        gitStatus.attach(to: host)
     }
 
     // MARK: - Tree Expansion
@@ -285,7 +262,7 @@ final class SidebarNavigator {
         of directory: URL,
         onApplied: @escaping @MainActor (SidebarNavigatorHost, URL, DirectoryListing) -> Void
     ) {
-        refreshBaseDirectory()
+        baseDirectory.refresh()
         let showHiddenFiles = syncDisplayPreferences()
         // ルートを取り直す契機(並び順の変更・隠しファイルのトグル・フォーカス復帰・リネーム)は
         // そのまま展開中サブツリーを取り直す契機でもある。ここを通さないと、展開したフォルダの
@@ -294,58 +271,33 @@ final class SidebarNavigator {
         let couplesGitStatus = fileListModel.showChangedFilesOnly
         let sortOrder = fileListModel.sortOrder
         listingGeneration += 1
-        gitStatusGeneration += 1
         let generation = listingGeneration
-        let gitGeneration = gitStatusGeneration
         // 先に git 側のタスクを起こしてから列挙を待つ。どちらも本体は nonisolated async で
-        // 走るため、待ち時間は直列にならず遅いほうに揃う。
-        let gitTask = Task { await self.loadGitStatuses(directory, .always) }
+        // 走るため、待ち時間は直列にならず遅いほうに揃う。採番は券の内側に閉じている。
+        let request = gitStatus.beginListingRequest(for: directory)
         let task = Task {
             let listing = await self.directoryLister(directory, sortOrder, showHiddenFiles)
-            let result = couplesGitStatus ? await Self.awaitingCancellable(gitTask) : nil
+            let result = couplesGitStatus ? await self.gitStatus.awaitResult(request) : nil
             guard generation == self.listingGeneration, let host = self.host else { return }
             if let result {
-                // 最新の一覧と対の結果なので、待ち合わせ中に単発 refreshGitStatuses が世代を
-                // 進めていても、まだ何も反映されていなければ捨ててはならない
-                // (捨てると絞り込みが外れる / TASK-294)。一方で世代を偽って進めもしない。
+                // 最新の一覧と対の結果なので、待ち合わせ中に単発 refreshGitStatuses が
+                // 番号を進めていても、まだ何も反映されていなければ捨ててはならない
+                // (捨てると絞り込みが外れる / TASK-294)。一方で番号を偽って進めもしない。
                 // 単発の新しい結果が先に着いていれば、そちらのほうが一覧と対にふさわしい。
-                self.applyGitStatus(result, for: directory, generation: gitGeneration)
+                //
+                // **この guard を挟むために待ちと反映が 2 本の API に分かれている。**
+                // 融合すると一覧世代が古いときでも結果が FileListModel まで届く。
+                self.gitStatus.apply(result, for: request)
             }
             onApplied(host, directory, listing)
         }
         pendingListingTask = task
-        // git 状態の待ち合わせ点。ON なら一覧タスクに含まれるのでそれ自体を、OFF なら
-        // 一覧と切り離した反映タスクを公開する(一覧より遅れて着地しても FileListModel の
-        // 保留機構が一覧と突き合わせるため、先着後着どちらでも整合は崩れない)。
-        pendingGitStatusTask = couplesGitStatus ? task : Task {
-            let result = await Self.awaitingCancellable(gitTask)
-            self.applyGitStatus(result, for: directory, generation: gitGeneration)
+        // 絞り込み ON の反映は上のタスクの中で起きるので、ここでは何もしない
+        // (待ちたいテストは pendingListingTask を待つ)。OFF のときだけ、一覧と
+        // 切り離した反映を coordinator に任せる。
+        if !couplesGitStatus {
+            gitStatus.applyWhenReady(request)
         }
-    }
-
-    /// git 取得タスクの完了を待つ。待ち側のキャンセル(ウィンドウを閉じたとき)を
-    /// 取得側へも伝えるため、素の `await task.value` ではなくこちらを通す。
-    private static func awaitingCancellable(
-        _ task: Task<GitStatusResult, Never>
-    ) async -> GitStatusResult {
-        await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
-    }
-
-    /// 取得した git 状態を FileListModel へ渡す。反映の可否(発行順序・ディレクトリ対付け)は
-    /// FileListModel.applyGitStatus が一括判定する(ADR 0003)。受け付けられたときだけ
-    /// index の監視対象を合わせる(古い結果で監視を張り直してはならない)。
-    private func applyGitStatus(
-        _ result: GitStatusResult, for directory: URL, generation: Int
-    ) {
-        let accepted = fileListModel.applyGitStatus(
-            SidebarGitStatus(result: result), for: directory, sequence: generation
-        )
-        guard accepted else { return }
-        gitIndexWatch.update(indexURL: result.indexURL)
-        // バッジが動いたら、同じ契機で表示中ファイルの差分も取り直す。
-        // 捨てられた(accepted == false)のは「より新しい結果が既に反映済み」のときだけで、
-        // その結果自身がここを通っているため取り残しは起きない。
-        host?.gitStatusDidApply()
     }
 
     /// 進行中の一覧取得タスクを破棄する。ウィンドウを閉じるときに呼ぶ。
@@ -354,21 +306,15 @@ final class SidebarNavigator {
     /// (以後リポジトリを触るたび git が起動し続ける / TASK-300)。
     func cancelPendingListing() {
         listingGeneration += 1
-        gitStatusGeneration += 1
-        // 反映済み sequence を発行済みの先頭へ揃えることで、進行中の取得を一括で無効化する
-        // (FileListModel 側で「反映済みより新しい」ものだけを通すため / ADR 0003, 元 TASK-299)。
-        fileListModel.invalidatePendingGitStatus(upTo: gitStatusGeneration)
-        baseDirectoryGeneration += 1
         pendingListingTask?.cancel()
         pendingListingTask = nil
-        pendingBaseDirectoryTask?.cancel()
-        pendingBaseDirectoryTask = nil
-        pendingGitStatusTask?.cancel()
-        pendingGitStatusTask = nil
+        // 協力型が持つ進行中の処理は、それぞれの型の 1 メソッドへ畳んである。
+        // ここに個別の世代加算や pending の nil 代入が戻ってきたら、分離が崩れている。
+        baseDirectory.cancelPending()
+        gitStatus.cancelPending()
         // 展開の子リスト取得も無効化する。ここを忘れると、閉じたウィンドウのために
         // 走行中だった列挙が着地して状態を書き続ける(TASK-300 と同型)。
         tree.invalidateExpansion()
-        gitIndexWatch.stop()
     }
 
     /// switchFile 成功後にサイドバー選択を同期し、履歴を記録する。
