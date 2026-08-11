@@ -1,8 +1,11 @@
 import Foundation
 
 /// サイドバーのフォルダー移動(navigateToFolder とその補助)。
-/// SidebarNavigator 本体から分けているのは、swiftlint の file_length を超えないようにするため
-/// (SidebarNavigator+History / +SelectionMemory / +Expansion と同じ理由)。
+/// 本体(SidebarNavigator.swift)から分けているのは file_length を超えないため。
+///
+/// 選択記憶(TASK-309)の 2 つのヘルパーは本体側にある。`selectionMemory` を
+/// `private` にするには、それを触るコードが stored property と同じファイルに
+/// 無ければならない(Swift の `private` はファイルスコープ)ため。
 @MainActor
 extension SidebarNavigator {
     /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
