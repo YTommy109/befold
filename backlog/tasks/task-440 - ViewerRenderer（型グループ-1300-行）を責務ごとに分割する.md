@@ -1,11 +1,11 @@
 ---
 id: TASK-440
 title: ViewerRenderer（型グループ 1300 行）を責務ごとに分割する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-11 05:05'
-updated_date: '2026-08-11 05:33'
+updated_date: '2026-08-11 06:00'
 labels: []
 dependencies: []
 priority: high
@@ -29,12 +29,12 @@ BefoldApp/BefoldRenderKit/ の ViewerRenderer 型グループ（本体 + 5 本�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 型グループの合算行数が 400 行以下になる（scripts/check-type-group-size.sh で確認できる）
-- [ ] #2 ベースライン scripts/type-group-baseline.txt から ViewerRenderer のエントリが消える
-- [ ] #3 分割は extension の追加ではなく独立型への切り出しで行われている（切り出し先の型名が説明できる）
-- [ ] #4 新規ファイル追加後に xcodegen generate を実行し xcodebuild でも通る
-- [ ] #5 main との swiftlint 差分に真の新規が無い
-- [ ] #6 swift test が既存どおり通り、QuickLook 拡張のビルドも通る
+- [x] #1 型グループの合算行数が 400 行以下になる（scripts/check-type-group-size.sh で確認できる）
+- [x] #2 ベースライン scripts/type-group-baseline.txt から ViewerRenderer のエントリが消える
+- [x] #3 分割は extension の追加ではなく独立型への切り出しで行われている（切り出し先の型名が説明できる）
+- [x] #4 新規ファイル追加後に xcodegen generate を実行し xcodebuild でも通る
+- [x] #5 main との swiftlint 差分に真の新規が無い
+- [x] #6 swift test が既存どおり通り、QuickLook 拡張のビルドも通る
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -87,4 +87,48 @@ responsibility-reviewer の分析（実測: stored property 23 個・ネスト�
 ## ベースライン（実測）
 
 swift test --skip Integration --skip FileWatcherTests: **1289 tests / 180 suites 全通過**（exit 0）。
+
+## 実施結果（5 段階、2026-08-11）
+
+型グループ 1300 → **394 行**（-906, -70%）。閾値 400 を下回り、ベースラインからエントリが消えた。
+
+| 段階 | 切り出した型 | 到達行数 |
+|---|---|---|
+| 1 | RenderValues / RenderedStateMirror / RenderableContent / ViewerWebViewFactory | 1070 |
+| 2 | BridgeMessageRouter / ReferenceResolutionQueue | 932 |
+| 3 | OneShotRenderer | 757 |
+| 4 | DirectHTMLModeController / DirectHTMLLinkPolicy / ViewerReadinessGate | 583 |
+| 5 | ContentUpdatePlanner / ViewerScriptDispatcher | 394 |
+
+残る ViewerRenderer 群は本体 236 + ContentUpdate 89 + RenderHelpers 69。extension は 2 本（分割前は 5 本）。
+
+## 不変条件を構造へ移した（doc コメントの約束 → 破れたら落ちる形）
+
+- **recordRendered の単一入口**: rendered を private(set) にし、setter を ViewerRenderer.swift へ閉じた。テスト 4 ファイルがフィールド単位で代入していたのがコンパイルエラーになり、正規の入口へ寄せた（＝実際に破れていた）
+- **pageGeneration の単一 incrementer**: ReferenceResolutionQueue の private(set) にし、増分は invalidate() のみ
+- **pendingUpdate の単一書き込み点**: 4 箇所に散っていたものを ViewerReadinessGate へ集約（後勝ちで前の保留更新が黙って消える形が見えるようになった）
+- **webViewProxy への同期**: DirectHTMLModeController の isActive の didSet に閉じた（3 箇所へ散っていた）
+- **features の後付け変更を封じた**: OneShotRenderer は init で features を受け取るため、loadOneShot 後に rendererFeatures を差し替える経路が無い
+
+## 検証（実測）
+
+- swift test: **1289 tests / 180 suites 全通過**。分割前のベースラインと件数・スイート数とも一致（各段階でも同数を確認）
+- xcodebuild build -scheme befold: BUILD SUCCEEDED（QuickLook 拡張を含む）
+- swiftlint（origin/main を git archive で別ディレクトリへ展開して比較、行番号は正規化）: main 71 件 → 本ブランチ 70 件。ルール別の差分は function_body_length の 4 → 3 のみで、**真の新規はゼロ**。updateContent の 93 行の関数本体が ContentUpdatePlanner への分離で解消した。ファイル名だけが変わった opening_brace 3 件は移動前後で同一のコード
+- swiftformat: 0 files require formatting
+- scripts/check-type-group-size.sh --over: ViewerRenderer がリストから消えた
+
+## 副次的に可能になったこと
+
+updateContent の分岐（125 行のクロージャ）が ContentUpdatePlanner.plan という nonisolated な純関数になり、UpdatePlan を Equatable にしたため、全分岐を WKWebView 実体なしでユニットテストできる形になった。既存の統合テスト（ViewerRendererContentUpdateIntegrationTests 324 行）は WKWebView を要していた。純関数側のテスト追加は本タスクの AC に無いため行っていない。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ViewerRenderer 型グループを 5 段階で 1300 → 394 行（-70%）にし、閾値 400 を下回らせた。extension を切り足すのではなく 11 個の独立型へ関心を出した（RenderValues / RenderedStateMirror / RenderableContent / ViewerWebViewFactory / BridgeMessageRouter / ReferenceResolutionQueue / OneShotRenderer / DirectHTMLModeController / DirectHTMLLinkPolicy / ViewerReadinessGate / ContentUpdatePlanner / ViewerScriptDispatcher）。extension は 5 本 → 2 本、プロトコル準拠は 3 → 2。
+
+doc コメントの約束だけで担保されていた 4 つの不変条件を構造へ移した（recordRendered の単一入口・pageGeneration の単一 incrementer・pendingUpdate の単一書き込み点・webViewProxy への同期）。うち 1 つは実際に破れており、private(set) 化でテスト 4 ファイルのコンパイルエラーとして表面化した。
+
+検証: swift test 1289 tests / 180 suites が分割前と同数で全通過（各段階でも確認）。xcodebuild は QuickLook 拡張を含めて BUILD SUCCEEDED。swiftlint は main 71 件 → 70 件でルール別差分は function_body_length の 4 → 3 のみ、真の新規ゼロ。ベースラインから ViewerRenderer のエントリが消えたことを --over で確認。
+<!-- SECTION:FINAL_SUMMARY:END -->

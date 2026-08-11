@@ -106,6 +106,8 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     private(set) lazy var directHTML = DirectHTMLModeController(renderer: self)
     /// viewer.html のロード完了ゲート。
     let readiness = ViewerReadinessGate()
+    /// 描画のための evaluateJavaScript 発行点。
+    private(set) lazy var scriptDispatcher = ViewerScriptDispatcher(renderer: self)
     /// この文書が画面に出ているか。ホスト(ViewerWebView)が毎回の更新で流し込む。
     /// false の間は再描画を行わない。見えていない文書の再レイアウトは、外部エディタや
     /// ビルドがファイルを書き換えるたびに走ってメインスレッドを使うだけで、誰も見ない。

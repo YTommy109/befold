@@ -39,7 +39,7 @@ public struct TruncationState: Equatable, Sendable {
 /// generation は呼び出し時点の contentUpdateGeneration のスナップショット。画像埋め込み
 /// (MainActor 外)から戻った際にこの値と現在値を比較し、後続の updateContent 呼び出しに
 /// 追い越されていないかを確認する。
-struct RenderRequest {
+struct RenderRequest: Equatable {
     let content: String
     let contentRevision: Int
     let fileType: FileType
@@ -51,7 +51,7 @@ struct RenderRequest {
 }
 
 /// `applyAppend` の引数をまとめた入力。`RenderRequest` 参照。
-struct AppendRequest {
+struct AppendRequest: Equatable {
     let chunk: String
     let contentRevision: Int
     let fileType: FileType
