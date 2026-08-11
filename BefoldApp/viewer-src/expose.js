@@ -10,10 +10,12 @@
 //
 // 個別列挙ではなく名前空間オブジェクトを反復するのは、公開関数を追加したときの
 // 追記漏れで実行時まで気づけない形を作らないため（export した時点で載る）。
-export function exposeGlobals(...namespaces) {
-  for (const namespace of namespaces) {
-    for (const [name, value] of Object.entries(namespace)) {
-      globalThis[name] = value;
-    }
+//
+// 受け取るのは公開面の barrel（main.js）1 つだけにしてある。可変長にすると
+// 呼び出し側ごとに違うモジュールの組み合わせを渡せてしまい、本番とテストで
+// グローバルに載る集合がずれても気づけない。
+export function exposeGlobals(namespace) {
+  for (const [name, value] of Object.entries(namespace)) {
+    globalThis[name] = value;
   }
 }

@@ -1,7 +1,7 @@
 const {
   parseUnifiedDiff, renderInlineDiffHtml, pairDiffLines, renderSideBySideDiffHtml, renderDiffHtml,
   highlightedDiffLines,
-} = require('../../../viewer-src/viewer.js');
+} = require('../../../viewer-src/main.js');
 
 const SIMPLE_DIFF = [
   'diff --git a/a.swift b/a.swift',

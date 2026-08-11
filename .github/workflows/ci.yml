@@ -169,6 +169,11 @@ jobs:
       - name: viewer-src の未定義参照を検査する
         run: npm run lint:viewer
 
+      # 循環 import はバンドルを通ってしまうが、モジュール評価順が壊れて
+      # 「別モジュールのトップレベル値が undefined のまま束ねられる」形になる。
+      - name: viewer-src の循環 import を検査する
+        run: npm run check:viewer-cycles
+
       - name: Jest テストを実行する
         run: npx jest
 

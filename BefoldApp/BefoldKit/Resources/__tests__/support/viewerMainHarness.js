@@ -1,8 +1,8 @@
-// viewer-main.js をテストから読み込むためのハーネス。
+// viewer の JS をテストから読み込むためのハーネス。
 //
-// viewer-src/viewer-main.js は ES モジュールで、viewer.js への依存を import で
-// 表現する(TASK-432.2)。ここでは本番と同じ esbuild でモジュールグラフを 1 つの
-// IIFE にまとめ、それを jsdom の window.eval で評価する。
+// viewer-src/ は関心ごとの ES モジュール群で、公開面は main.js に集約されている
+// (TASK-432.2 / TASK-432.3)。ここでは本番と同じ esbuild でモジュールグラフを
+// 1 つの IIFE にまとめ、それを jsdom の window.eval で評価する。
 //
 // require(babel 変換)で読む形にしないのは、モジュール本体が window / document を
 // 裸のグローバルとして参照するため。require 経路では Node の globalThis へ
@@ -29,14 +29,14 @@ const VIEWER_SRC_DIR = path.join(RESOURCES_DIR, '..', '..', 'viewer-src');
 // テスト用エントリ。本番エントリ(index.js)との違いは 2 点だけ。
 // テストが名前で取り出せるよう名前空間を 1 箇所へ置くことと、_mmdInit() を
 // 呼ばないこと(初期化タイミングをテストが決められるようにする)。
-// グローバルへの露出は本番と同じ exposeGlobals を通すため、
-// 「テストでは window 経由で見えるが本番では見えない」ずれは生じない。
+// 読み込むのは本番と同じ公開面の barrel(main.js)で、グローバルへの露出も同じ
+// exposeGlobals を通すため、「テストでは window 経由で見えるが本番では見えない」
+// ずれは生じない。
 const TEST_ENTRY = [
-  "import * as viewer from './viewer.js';",
-  "import * as main from './viewer-main.js';",
+  "import * as main from './main.js';",
   "import { exposeGlobals } from './expose.js';",
-  'exposeGlobals(viewer, main);',
-  'globalThis.__viewerTestExports = { viewer, main };',
+  'exposeGlobals(main);',
+  'globalThis.__viewerTestExports = { main };',
 ].join('\n');
 
 let cachedBundle = null;
@@ -87,9 +87,8 @@ function installBrowserStubs(window) {
   }
 }
 
-// viewer.html の DOM 上に viewer.js → viewer-main.js を評価し、両者の
-// エクスポートを返す。scripts は実行しない(JSDOM の既定)ため、評価順は
-// ここで明示する。
+// viewer.html の DOM 上でバンドルを評価し、公開面(main.js)のエクスポートを
+// 返す。scripts は実行しない(JSDOM の既定)ため、評価はここで明示的に行う。
 //
 // options.hostFeatures / options.initialZoom / options.initialFindOptions /
 // options.findStrings / options.bannerStrings は Swift 側(ViewerBridge)が
@@ -122,11 +121,11 @@ function loadViewerMain(options) {
 
   // バンドルを評価すると、この window のクロージャ状態(ズームストア等)が作られる。
   window.eval(viewerBundleSource());
-  const { viewer, main } = window.__viewerTestExports;
+  const { main } = window.__viewerTestExports;
 
   if (opts.init !== false) { main._mmdInit(); }
 
-  return { dom, window, document: window.document, viewer, main };
+  return { dom, window, document: window.document, main };
 }
 
 // window.webkit.messageHandlers を差し替え、postMessage された内容を記録する。
@@ -144,7 +143,7 @@ function captureBridgeMessages(window, names) {
 }
 
 // ユーザー操作と同じマウスイベント(e.isTrusted === true)を要素へ流す。
-// viewer-main.js のクリック/contextmenu ハンドラは XSS からの自動発火を防ぐため
+// reference-clicks.js のクリック/contextmenu ハンドラは XSS からの自動発火を防ぐため
 // isTrusted のイベントだけを処理するので、これがないと挙動を一切テストできない。
 // 公開側の isTrusted は仕様どおり書き換え不可の own プロパティで、さらに
 // dispatchEvent() が内部実装オブジェクト(Symbol(impl))の値を false に落とす。

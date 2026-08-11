@@ -6,6 +6,7 @@
   "scripts": {
     "test": "jest",
     "lint:viewer": "eslint viewer-src",
+    "check:viewer-cycles": "node scripts/check-viewer-cycles.mjs",
     "build:viewer": "esbuild viewer-src/index.js --bundle --format=iife --target=safari17 --outfile=BefoldKit/Resources/viewer-bundle.js",
     "check:viewer-bundle": "npm run build:viewer && git diff --exit-code -- BefoldKit/Resources/viewer-bundle.js"
   },

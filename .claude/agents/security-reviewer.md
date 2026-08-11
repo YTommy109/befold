@@ -24,7 +24,7 @@ tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 - `BefoldApp/befold/Updates/` 配下
 - `BefoldApp/befold/Viewer/ViewerWebView.swift`
 - `BefoldApp/BefoldKit/Resources/viewer.html`
-- `BefoldApp/viewer-src/` 配下（`viewer.js` / `viewer-main.js` / `index.js` / `expose.js`。
+- `BefoldApp/viewer-src/` 配下（関心ごとのモジュール群 + `index.js` / `main.js` / `expose.js`。
   `BefoldKit/Resources/viewer-bundle.js` はここから生成される esbuild 成果物）
 
 ## 必ず評価する項目

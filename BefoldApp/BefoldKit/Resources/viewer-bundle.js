@@ -5,10 +5,11 @@
       __defProp(target, name, { get: all[name], enumerable: true });
   };
 
-  // viewer-src/viewer.js
-  var viewer_exports = {};
-  __export(viewer_exports, {
+  // viewer-src/main.js
+  var main_exports = {};
+  __export(main_exports, {
     BASE_SCALE: () => BASE_SCALE,
+    BODY_CLASSES: () => BODY_CLASSES,
     CODE_TAB_SIZE: () => CODE_TAB_SIZE,
     CSV_COL_COUNT: () => CSV_COL_COUNT,
     DEFAULT_LINE_SCROLL_STEP: () => DEFAULT_LINE_SCROLL_STEP,
@@ -20,6 +21,81 @@
     ZOOM_MAX: () => ZOOM_MAX,
     ZOOM_MIN: () => ZOOM_MIN,
     ZOOM_STEP: () => ZOOM_STEP,
+    _MSG_FIND_OPTIONS_CHANGED: () => _MSG_FIND_OPTIONS_CHANGED,
+    _MSG_LOAD_MORE_LINES: () => _MSG_LOAD_MORE_LINES,
+    _MSG_REFERENCE_ACTIVATED: () => _MSG_REFERENCE_ACTIVATED,
+    _MSG_REFERENCE_CONTEXT_MENU: () => _MSG_REFERENCE_CONTEXT_MENU,
+    _MSG_RESOLVE_REFERENCES: () => _MSG_RESOLVE_REFERENCES,
+    _MSG_SCROLL_POSITION_CHANGED: () => _MSG_SCROLL_POSITION_CHANGED,
+    _MSG_ZOOM_CHANGED: () => _MSG_ZOOM_CHANGED,
+    _annotatePathRefs: () => _annotatePathRefs,
+    _mmdApplyDiagramZoom: () => _mmdApplyDiagramZoom,
+    _mmdApplyResolvedReferences: () => _mmdApplyResolvedReferences,
+    _mmdApplyZoom: () => _mmdApplyZoom,
+    _mmdBuildDiagramControls: () => _mmdBuildDiagramControls,
+    _mmdChunkTail: () => _mmdChunkTail,
+    _mmdCloseFind: () => _mmdCloseFind,
+    _mmdDiagramZoomReset: () => _mmdDiagramZoomReset,
+    _mmdDiagramZoomStep: () => _mmdDiagramZoomStep,
+    _mmdDiagramZoomValue: () => _mmdDiagramZoomValue,
+    _mmdDocPath: () => _mmdDocPath,
+    _mmdDocument: () => _mmdDocument,
+    _mmdFind: () => _mmdFind,
+    _mmdFindNextIfOpen: () => _mmdFindNextIfOpen,
+    _mmdFindPrevIfOpen: () => _mmdFindPrevIfOpen,
+    _mmdFindRefresh: () => _mmdFindRefresh,
+    _mmdFitImage: () => _mmdFitImage,
+    _mmdInit: () => _mmdInit,
+    _mmdInitCodeFont: () => _mmdInitCodeFont,
+    _mmdInitFind: () => _mmdInitFind,
+    _mmdInitFontSize: () => _mmdInitFontSize,
+    _mmdInitKeyboard: () => _mmdInitKeyboard,
+    _mmdInitLoadMore: () => _mmdInitLoadMore,
+    _mmdInitMarkdown: () => _mmdInitMarkdown,
+    _mmdInitReferenceClicks: () => _mmdInitReferenceClicks,
+    _mmdInitResize: () => _mmdInitResize,
+    _mmdInitScrollNotify: () => _mmdInitScrollNotify,
+    _mmdInitWheelZoom: () => _mmdInitWheelZoom,
+    _mmdInitZoom: () => _mmdInitZoom,
+    _mmdInvalidatePendingRefs: () => _mmdInvalidatePendingRefs,
+    _mmdLoadMore: () => _mmdLoadMore,
+    _mmdMermaidConfig: () => _mmdMermaidConfig,
+    _mmdMermaidParseError: () => _mmdMermaidParseError,
+    _mmdModeSwitch: () => _mmdModeSwitch,
+    _mmdOpenFind: () => _mmdOpenFind,
+    _mmdPdfBlob: () => _mmdPdfBlob,
+    _mmdPostMessage: () => _mmdPostMessage,
+    _mmdPostScrollPosition: () => _mmdPostScrollPosition,
+    _mmdReinitializeMermaidIfLoaded: () => _mmdReinitializeMermaidIfLoaded,
+    _mmdRenameDocPath: () => _mmdRenameDocPath,
+    _mmdRerenderCurrent: () => _mmdRerenderCurrent,
+    _mmdResolveReferences: () => _mmdResolveReferences,
+    _mmdRestoreScrollPosition: () => _mmdRestoreScrollPosition,
+    _mmdRunMermaid: () => _mmdRunMermaid,
+    _mmdScroll: () => _mmdScroll,
+    _mmdScrollTarget: () => _mmdScrollTarget,
+    _mmdSetBodyClasses: () => _mmdSetBodyClasses,
+    _mmdSetRenderDocPath: () => _mmdSetRenderDocPath,
+    _mmdSetRestoreScroll: () => _mmdSetRestoreScroll,
+    _mmdSetTruncated: () => _mmdSetTruncated,
+    _mmdViewOptions: () => _mmdViewOptions,
+    _mmdWheelZoom: () => _mmdWheelZoom,
+    _mmdWrapDiagrams: () => _mmdWrapDiagrams,
+    _mmdZoom: () => _mmdZoom,
+    _mmdZoomIn: () => _mmdZoomIn,
+    _mmdZoomOut: () => _mmdZoomOut,
+    _mmdZoomReset: () => _mmdZoomReset,
+    _renderCsv: () => _renderCsv,
+    _renderHtml: () => _renderHtml,
+    _renderImage: () => _renderImage,
+    _renderMarkdown: () => _renderMarkdown,
+    _renderMmd: () => _renderMmd,
+    _renderPdf: () => _renderPdf,
+    _renderSource: () => _renderSource,
+    _renderSvg: () => _renderSvg,
+    _sourceLanguage: () => _sourceLanguage,
+    _walkTextNodes: () => _walkTextNodes,
+    appendChunk: () => appendChunk,
     base64ToBytes: () => base64ToBytes,
     buildFindRegExp: () => buildFindRegExp,
     buildLineNumberRows: () => buildLineNumberRows,
@@ -29,6 +105,7 @@
     csvRowsHtml: () => csvRowsHtml,
     csvSourceInnerHtml: () => csvSourceInnerHtml,
     diagramScrollHeight: () => diagramScrollHeight,
+    diffMarkerGlyph: () => diffMarkerGlyph,
     effectiveZoom: () => effectiveZoom,
     escapeHtml: () => escapeHtml,
     halfPageScrollStep: () => halfPageScrollStep,
@@ -46,15 +123,19 @@
     lineContentCell: () => lineContentCell,
     lineScrollStep: () => lineScrollStep,
     markdownFontSize: () => markdownFontSize,
+    markdownRenderer: () => markdownRenderer,
     mermaidTheme: () => mermaidTheme,
     nextMatchIndex: () => nextMatchIndex,
+    onColorSchemeChange: () => onColorSchemeChange,
     pageScrollStep: () => pageScrollStep,
     pairDiffLines: () => pairDiffLines,
     parseCsv: () => parseCsv,
     parseStoredZoom: () => parseStoredZoom,
     parseUnifiedDiff: () => parseUnifiedDiff,
+    prefersDark: () => prefersDark,
     prevMatchIndex: () => prevMatchIndex,
     reflowSpanBalancedLines: () => reflowSpanBalancedLines,
+    render: () => render,
     renderCodeHtml: () => renderCodeHtml,
     renderCsvSourceHtml: () => renderCsvSourceHtml,
     renderDiffHtml: () => renderDiffHtml,
@@ -64,6 +145,10 @@
     resolveScrollKey: () => resolveScrollKey,
     sanitizeLang: () => sanitizeLang,
     sanitizeRenderedHtml: () => sanitizeRenderedHtml,
+    setDiff: () => setDiff,
+    setDiffLayout: () => setDiffLayout,
+    setLineNumbers: () => setLineNumbers,
+    setViewMode: () => setViewMode,
     stepZoom: () => stepZoom,
     svgDataURI: () => svgDataURI,
     tokenizeCsvRows: () => tokenizeCsvRows,
@@ -71,17 +156,21 @@
     wrapWithLineNumbers: () => wrapWithLineNumbers,
     zoomLabel: () => zoomLabel
   });
-  var PAGE_SCROLL_RATIO = 0.9;
-  var DEFAULT_LINE_SCROLL_STEP = 24;
-  function pageScrollStep(clientHeight) {
-    return clientHeight * PAGE_SCROLL_RATIO;
-  }
-  function halfPageScrollStep(clientHeight) {
-    return pageScrollStep(clientHeight) / 2;
-  }
-  function lineScrollStep(lineHeightPx, fallback) {
-    var lh = parseFloat(lineHeightPx);
-    return isNaN(lh) ? fallback : lh;
+
+  // viewer-src/bridge.js
+  var _MSG_ZOOM_CHANGED = "zoomChanged";
+  var _MSG_REFERENCE_ACTIVATED = "referenceActivated";
+  var _MSG_REFERENCE_CONTEXT_MENU = "referenceContextMenu";
+  var _MSG_FIND_OPTIONS_CHANGED = "findOptionsChanged";
+  var _MSG_SCROLL_POSITION_CHANGED = "scrollPositionChanged";
+  var _MSG_LOAD_MORE_LINES = "loadMoreLines";
+  var _MSG_RESOLVE_REFERENCES = "resolveReferences";
+  function _mmdPostMessage(name, payload) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers[name]) {
+      window.webkit.messageHandlers[name].postMessage(payload);
+      return true;
+    }
+    return false;
   }
   function isHostFeatureEnabled(hostFeatures, key) {
     if (!hostFeatures) {
@@ -89,107 +178,8 @@
     }
     return hostFeatures[key] !== false;
   }
-  function resolveScrollKey(key, shiftKey) {
-    if (key === " ") {
-      return { down: !shiftKey, amount: "page" };
-    }
-    var down;
-    if (key === "ArrowDown" || key === "j") {
-      down = true;
-    } else if (key === "ArrowUp" || key === "k") {
-      down = false;
-    } else {
-      return null;
-    }
-    return { down, amount: shiftKey ? "half" : "line" };
-  }
-  var ZOOM_MIN = 0.5;
-  var ZOOM_MAX = 2;
-  var ZOOM_STEP = 0.25;
-  var ZOOM_DEFAULT = 1;
-  var BASE_SCALE = 0.75;
-  var DIAGRAM_ZOOM_MAX = 3;
-  function clampZoom(z, max) {
-    if (max === void 0) {
-      max = ZOOM_MAX;
-    }
-    return Math.max(ZOOM_MIN, Math.min(max, z));
-  }
-  function stepZoom(current, delta, max) {
-    return clampZoom(Math.round((current + delta) * 100) / 100, max);
-  }
-  function wheelZoom(current, deltaY, max) {
-    return clampZoom(Math.round((current - deltaY * 0.01) * 1e3) / 1e3, max);
-  }
-  function zoomLabel(zoom) {
-    return Math.round(zoom * 100) + "%";
-  }
-  function effectiveZoom(zoom) {
-    return zoom;
-  }
-  function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZoom) {
-    var viewportCap = (viewportHeight - 64) / effectiveZoom(globalZoom);
-    return Math.min(naturalHeight * diagramZoom * BASE_SCALE, viewportCap);
-  }
-  function imageFitSize(naturalWidth, naturalHeight, availWidth, availHeight) {
-    if (naturalWidth <= 0 || naturalHeight <= 0 || availWidth <= 0 || availHeight <= 0) {
-      return { width: naturalWidth, height: naturalHeight };
-    }
-    var scale = Math.min(1, availWidth / naturalWidth, availHeight / naturalHeight);
-    return { width: naturalWidth * scale, height: naturalHeight * scale };
-  }
-  function parseStoredZoom(raw) {
-    var z = parseFloat(raw);
-    return isNaN(z) ? ZOOM_DEFAULT : z;
-  }
-  var MACOS_DEFAULT_BODY = 13;
-  var WEB_BASELINE = 16;
-  function markdownFontSize(raw) {
-    var s = parseFloat(raw);
-    if (isNaN(s) || s <= 0) {
-      return WEB_BASELINE;
-    }
-    return WEB_BASELINE * (s / MACOS_DEFAULT_BODY);
-  }
-  function mermaidTheme(prefersDark) {
-    return prefersDark ? "dark" : "default";
-  }
-  function sanitizeLang(lang) {
-    return String(lang).replace(/[^\w+-]/g, "");
-  }
-  function sanitizeRenderedHtml(purify, html) {
-    return purify.sanitize(html);
-  }
-  function highlightCode(hljs2, str, lang) {
-    if (hljs2 && lang && hljs2.getLanguage(lang)) {
-      try {
-        var result = hljs2.highlight(str, { language: lang, ignoreIllegals: true });
-        return '<pre><code class="hljs language-' + sanitizeLang(lang) + '">' + result.value + "</code></pre>";
-      } catch (e) {
-      }
-    }
-    return "";
-  }
-  function isSafeLinkURL(url) {
-    var str = String(url).trim().toLowerCase();
-    if (/^data:image\//.test(str)) {
-      return true;
-    }
-    return !/^(vbscript|javascript|file|data):/.test(str);
-  }
-  function isLocalPathHref(href) {
-    if (!href) {
-      return false;
-    }
-    if (href.charAt(0) === "#") {
-      return false;
-    }
-    var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*):/);
-    if (m && m[1].indexOf(".") === -1) {
-      return false;
-    }
-    return true;
-  }
+
+  // viewer-src/encoding.js
   function escapeHtml(text) {
     return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
@@ -206,6 +196,228 @@
       bytes[i] = binary.charCodeAt(i);
     }
     return bytes;
+  }
+
+  // viewer-src/doc-path.js
+  function _createDocPathTracker() {
+    var docPath = null;
+    var pendingDocPath;
+    return {
+      // 次の render() が表示する文書パスの予告。採用は adoptPending()(= render 開始時)。
+      // ここで即時に切り替えると、render script の実行前に通知が発火したとき
+      // 旧文書の値が新パスのキーで保存される。
+      setPending: function(path) {
+        pendingDocPath = path;
+      },
+      // rename / move の追随。DOM は同一文書のまま名前だけ変わるため render を経ずに
+      // 即時差し替える。現在値・予告値のうち from に一致するものだけを書き換える
+      // (不一致 = 別文書へ切替中なら何もしない。誤った付け替えより、旧キーへの
+      // 短時間の保存のほうが安全)。
+      rename: function(from, to) {
+        if (docPath === from) {
+          docPath = to;
+        }
+        if (pendingDocPath === from) {
+          pendingDocPath = to;
+        }
+      },
+      current: function() {
+        return docPath;
+      },
+      adoptPending: function() {
+        if (pendingDocPath === void 0) {
+          return;
+        }
+        docPath = pendingDocPath;
+        pendingDocPath = void 0;
+      }
+    };
+  }
+  var _mmdDocPath = _createDocPathTracker();
+  function _mmdSetRenderDocPath(path) {
+    _mmdDocPath.setPending(path);
+  }
+  function _mmdRenameDocPath(from, to) {
+    _mmdDocPath.rename(from, to);
+  }
+
+  // viewer-src/view-options.js
+  var _mmdModeSwitch = /* @__PURE__ */ (function() {
+    var pending = false;
+    return {
+      mark: function() {
+        pending = true;
+      },
+      consume: function() {
+        var value = pending;
+        pending = false;
+        return value;
+      }
+    };
+  })();
+  function _createViewOptions() {
+    var mode = "rendered";
+    var lineNumbers = false;
+    var diff = null;
+    var diffLayout = "inline";
+    return {
+      mode: function() {
+        return mode;
+      },
+      setMode: function(newMode) {
+        if (newMode !== "rendered" && newMode !== "source") {
+          return;
+        }
+        if (newMode !== mode) {
+          _mmdModeSwitch.mark();
+        }
+        mode = newMode;
+      },
+      lineNumbers: function() {
+        return lineNumbers;
+      },
+      setLineNumbers: function(show) {
+        lineNumbers = show;
+      },
+      diff: function() {
+        return diff;
+      },
+      setDiff: function(text) {
+        diff = typeof text === "string" && text !== "" ? text : null;
+      },
+      diffLayout: function() {
+        return diffLayout;
+      },
+      setDiffLayout: function(layout) {
+        if (layout !== "inline" && layout !== "side-by-side") {
+          return;
+        }
+        diffLayout = layout;
+      }
+    };
+  }
+  var _mmdViewOptions = _createViewOptions();
+  function setViewMode(mode) {
+    _mmdViewOptions.setMode(mode);
+  }
+  function setLineNumbers(show) {
+    _mmdViewOptions.setLineNumbers(show);
+  }
+  function setDiff(text) {
+    _mmdViewOptions.setDiff(text);
+  }
+  function setDiffLayout(layout) {
+    _mmdViewOptions.setDiffLayout(layout);
+  }
+
+  // viewer-src/document-state.js
+  function _createDocumentState() {
+    var content = null;
+    var type = "mmd";
+    var lang = null;
+    return {
+      record: function(newContent, newType, newLang) {
+        content = newContent;
+        type = newType;
+        lang = newLang;
+      },
+      // 追記チャンクを直近内容の末尾に足す。まだ何も描画していない間は何もしない。
+      append: function(text) {
+        if (content !== null) {
+          content += text;
+        }
+      },
+      content: function() {
+        return content;
+      },
+      type: function() {
+        return type;
+      },
+      lang: function() {
+        return lang;
+      },
+      hasContent: function() {
+        return content !== null;
+      }
+    };
+  }
+  var _mmdDocument = _createDocumentState();
+  var _mmdChunkTail = /* @__PURE__ */ (function() {
+    var endedWithNewline = true;
+    return {
+      record: function(text) {
+        endedWithNewline = text.length > 0 && text[text.length - 1] === "\n";
+      },
+      endedWithNewline: function() {
+        return endedWithNewline;
+      }
+    };
+  })();
+
+  // viewer-src/color-scheme.js
+  var darkQuery = null;
+  function query() {
+    if (darkQuery === null) {
+      darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    }
+    return darkQuery;
+  }
+  function prefersDark() {
+    return query().matches;
+  }
+  function onColorSchemeChange(handler) {
+    query().addEventListener("change", handler);
+  }
+
+  // viewer-src/fonts.js
+  var MACOS_DEFAULT_BODY = 13;
+  var WEB_BASELINE = 16;
+  function markdownFontSize(raw) {
+    var s = parseFloat(raw);
+    if (isNaN(s) || s <= 0) {
+      return WEB_BASELINE;
+    }
+    return WEB_BASELINE * (s / MACOS_DEFAULT_BODY);
+  }
+  function _mmdInitFontSize() {
+    document.documentElement.style.setProperty(
+      "--mmd-markdown-font-size",
+      markdownFontSize(window._mmdSystemFontSize) + "px"
+    );
+  }
+  function _mmdInitCodeFont() {
+    var root = document.documentElement;
+    var family = window._mmdMonoFontFamily || "";
+    if (family) {
+      var safe = family.replace(/[\\"]/g, "\\$&");
+      root.style.setProperty(
+        "--mmd-mono-font-family",
+        '"' + safe + '", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace'
+      );
+    } else {
+      root.style.removeProperty("--mmd-mono-font-family");
+    }
+    var pt = window._mmdCodeFontSize;
+    if (typeof pt === "number" && pt > 0) {
+      root.style.setProperty("--mmd-code-font-size", pt * 16 / 13 + "px");
+    } else {
+      root.style.removeProperty("--mmd-code-font-size");
+    }
+  }
+
+  // viewer-src/code-html.js
+  function sanitizeLang(lang) {
+    return String(lang).replace(/[^\w+-]/g, "");
+  }
+  function highlightCode(hljs2, str, lang) {
+    if (hljs2 && lang && hljs2.getLanguage(lang)) {
+      try {
+        var result = hljs2.highlight(str, { language: lang, ignoreIllegals: true });
+        return '<pre><code class="hljs language-' + sanitizeLang(lang) + '">' + result.value + "</code></pre>";
+      } catch (e) {
+      }
+    }
+    return "";
   }
   function reflowSpanBalancedLines(codeHtml) {
     var lines = codeHtml.split("\n");
@@ -303,6 +515,41 @@
     }
     return "<pre><code>" + wrapWithLineNumbers(escapeHtml(str), withNumbers) + "</code></pre>";
   }
+  function codeChunkInnerHtml(hljs2, str, lang, contextStr) {
+    if (contextStr) {
+      var highlightedWithContext = highlightCode(hljs2, contextStr + str, lang);
+      if (highlightedWithContext) {
+        var inner = highlightedWithContext.replace(/^<pre><code[^>]*>/, "").replace(/<\/code><\/pre>$/, "");
+        var lines = reflowSpanBalancedLines(inner);
+        var contextLineCount = (contextStr.match(/\n/g) || []).length;
+        var body = lines.slice(contextLineCount).join("\n");
+        return str.endsWith("\n") ? body + "\n" : body;
+      }
+    }
+    var highlighted = highlightCode(hljs2, str, lang);
+    if (highlighted) {
+      return highlighted.replace(/^<pre><code[^>]*>/, "").replace(/<\/code><\/pre>$/, "");
+    }
+    return escapeHtml(str);
+  }
+  function lastLines(str, maxLines) {
+    if (str.length === 0) {
+      return "";
+    }
+    var idx = str.length - 1;
+    var count = 0;
+    while (count < maxLines) {
+      var nl = str.lastIndexOf("\n", idx - 1);
+      if (nl === -1) {
+        return str;
+      }
+      idx = nl;
+      count++;
+    }
+    return str.slice(idx + 1);
+  }
+
+  // viewer-src/diff-html.js
   var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
   function parseUnifiedDiff(text) {
     var files = [];
@@ -421,13 +668,21 @@
     }
     return result;
   }
+  function diffMarkerGlyph(type) {
+    if (type === "add") {
+      return "+";
+    }
+    if (type === "del") {
+      return "-";
+    }
+    return " ";
+  }
   function diffRow(line, lineHtml, showLineNumbers) {
-    var marker = line.type === "add" ? "+" : line.type === "del" ? "-" : " ";
     var numbers = "";
     if (showLineNumbers === true) {
       numbers = '<td class="line-number diff-old">' + (line.oldNumber === null ? "" : line.oldNumber) + '</td><td class="line-number diff-new">' + (line.newNumber === null ? "" : line.newNumber) + "</td>";
     }
-    return '<tr class="diff-line diff-' + line.type + '">' + numbers + '<td class="diff-marker" aria-hidden="true">' + marker + "</td>" + lineContentCell(lineHtml) + "</tr>";
+    return '<tr class="diff-line diff-' + line.type + '">' + numbers + '<td class="diff-marker" aria-hidden="true">' + diffMarkerGlyph(line.type) + "</td>" + lineContentCell(lineHtml) + "</tr>";
   }
   function diffHunkSeparatorRow(colspan) {
     return '<tr class="diff-hunk" aria-hidden="true"><td class="diff-hunk-separator" colspan="' + colspan + '"></td></tr>';
@@ -489,8 +744,7 @@
       return emptyNumber + '<td class="diff-marker diff-empty" aria-hidden="true"></td><td class="line-content diff-empty"></td>';
     }
     var number = showLineNumbers === true ? '<td class="line-number ' + numberClass + '">' + (side === "left" ? line.oldNumber : line.newNumber) + "</td>" : "";
-    var marker = line.type === "add" ? "+" : line.type === "del" ? "-" : " ";
-    return number + '<td class="diff-marker" aria-hidden="true">' + marker + "</td>" + lineContentCell(lineHtml);
+    return number + '<td class="diff-marker" aria-hidden="true">' + diffMarkerGlyph(line.type) + "</td>" + lineContentCell(lineHtml);
   }
   function renderSideBySideDiffHtml(hljs2, diffText, lang, showLineNumbers) {
     var files = parseUnifiedDiff(diffText);
@@ -532,6 +786,8 @@
   function renderDiffHtml(hljs2, diffText, lang, showLineNumbers, layout) {
     return layout === "side-by-side" ? renderSideBySideDiffHtml(hljs2, diffText, lang, showLineNumbers) : renderInlineDiffHtml(hljs2, diffText, lang, showLineNumbers);
   }
+
+  // viewer-src/csv-html.js
   function tokenizeCsvRows(content, delimiter) {
     if (!content) {
       return [];
@@ -661,21 +917,6 @@
     var body = htmlLines.join("\n");
     return content.endsWith("\n") ? body + "\n" : body;
   }
-  function renderShape(type, mode) {
-    if (mode === "source" && type !== "code" && type !== "image" && type !== "pdf") {
-      return type === "csv" ? "csv-source" : "code";
-    }
-    if (type === "code") {
-      return "code";
-    }
-    if (type === "csv") {
-      return "csv-table";
-    }
-    if (type === "md") {
-      return "markdown";
-    }
-    return type;
-  }
   function renderCsvSourceHtml(content, delimiter, showLineNumbers) {
     if (!content) {
       return '<pre><code class="csv-source"></code></pre>';
@@ -686,135 +927,46 @@
     }
     return '<pre><code class="csv-source">' + body + "</code></pre>";
   }
-  function buildFindRegExp(query, options) {
-    if (!query) {
-      return null;
-    }
-    var source = options.useRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    if (options.wholeWord) {
-      source = "\\b(?:" + source + ")\\b";
-    }
-    var flags = "g" + (options.caseSensitive ? "" : "i");
-    try {
-      return new RegExp(source, flags);
-    } catch (e) {
-      return null;
-    }
-  }
-  function nextMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return (currentIndex + 1) % count;
-  }
-  function prevMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return (currentIndex - 1 + count) % count;
-  }
-  function keptMatchIndex(previousIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return Math.min(Math.max(previousIndex, 0), count - 1);
-  }
-  function codeChunkInnerHtml(hljs2, str, lang, contextStr) {
-    if (contextStr) {
-      var highlightedWithContext = highlightCode(hljs2, contextStr + str, lang);
-      if (highlightedWithContext) {
-        var inner = highlightedWithContext.replace(/^<pre><code[^>]*>/, "").replace(/<\/code><\/pre>$/, "");
-        var lines = reflowSpanBalancedLines(inner);
-        var contextLineCount = (contextStr.match(/\n/g) || []).length;
-        var body = lines.slice(contextLineCount).join("\n");
-        return str.endsWith("\n") ? body + "\n" : body;
-      }
-    }
-    var highlighted = highlightCode(hljs2, str, lang);
-    if (highlighted) {
-      return highlighted.replace(/^<pre><code[^>]*>/, "").replace(/<\/code><\/pre>$/, "");
-    }
-    return escapeHtml(str);
-  }
-  function lastLines(str, maxLines) {
-    if (str.length === 0) {
-      return "";
-    }
-    var idx = str.length - 1;
-    var count = 0;
-    while (count < maxLines) {
-      var nl = str.lastIndexOf("\n", idx - 1);
-      if (nl === -1) {
-        return str;
-      }
-      idx = nl;
-      count++;
-    }
-    return str.slice(idx + 1);
-  }
 
-  // viewer-src/viewer-main.js
-  var viewer_main_exports = {};
-  __export(viewer_main_exports, {
-    _annotatePathRefs: () => _annotatePathRefs,
-    _mmdApplyResolvedReferences: () => _mmdApplyResolvedReferences,
-    _mmdApplyZoom: () => _mmdApplyZoom,
-    _mmdCloseFind: () => _mmdCloseFind,
-    _mmdDiagramZoomReset: () => _mmdDiagramZoomReset,
-    _mmdDiagramZoomStep: () => _mmdDiagramZoomStep,
-    _mmdDiagramZoomValue: () => _mmdDiagramZoomValue,
-    _mmdDocument: () => _mmdDocument,
-    _mmdFind: () => _mmdFind,
-    _mmdFindNextIfOpen: () => _mmdFindNextIfOpen,
-    _mmdFindPrevIfOpen: () => _mmdFindPrevIfOpen,
-    _mmdFindRefresh: () => _mmdFindRefresh,
-    _mmdFitImage: () => _mmdFitImage,
-    _mmdInit: () => _mmdInit,
-    _mmdInitCodeFont: () => _mmdInitCodeFont,
-    _mmdInitFind: () => _mmdInitFind,
-    _mmdInitFontSize: () => _mmdInitFontSize,
-    _mmdInitZoom: () => _mmdInitZoom,
-    _mmdLoadMore: () => _mmdLoadMore,
-    _mmdMermaidConfig: () => _mmdMermaidConfig,
-    _mmdMermaidParseError: () => _mmdMermaidParseError,
-    _mmdOpenFind: () => _mmdOpenFind,
-    _mmdPostMessage: () => _mmdPostMessage,
-    _mmdPostScrollPosition: () => _mmdPostScrollPosition,
-    _mmdRenameDocPath: () => _mmdRenameDocPath,
-    _mmdResolveReferences: () => _mmdResolveReferences,
-    _mmdRestoreScrollPosition: () => _mmdRestoreScrollPosition,
-    _mmdScroll: () => _mmdScroll,
-    _mmdScrollTarget: () => _mmdScrollTarget,
-    _mmdSetRenderDocPath: () => _mmdSetRenderDocPath,
-    _mmdSetRestoreScroll: () => _mmdSetRestoreScroll,
-    _mmdSetTruncated: () => _mmdSetTruncated,
-    _mmdViewOptions: () => _mmdViewOptions,
-    _mmdWheelZoom: () => _mmdWheelZoom,
-    _mmdWrapDiagrams: () => _mmdWrapDiagrams,
-    _mmdZoom: () => _mmdZoom,
-    _mmdZoomIn: () => _mmdZoomIn,
-    _mmdZoomOut: () => _mmdZoomOut,
-    _mmdZoomReset: () => _mmdZoomReset,
-    appendChunk: () => appendChunk,
-    render: () => render,
-    setDiff: () => setDiff,
-    setDiffLayout: () => setDiffLayout,
-    setLineNumbers: () => setLineNumbers,
-    setViewMode: () => setViewMode
-  });
-  var _MSG_ZOOM_CHANGED = "zoomChanged";
-  var _MSG_REFERENCE_ACTIVATED = "referenceActivated";
-  var _MSG_REFERENCE_CONTEXT_MENU = "referenceContextMenu";
-  var _MSG_FIND_OPTIONS_CHANGED = "findOptionsChanged";
-  var _MSG_SCROLL_POSITION_CHANGED = "scrollPositionChanged";
-  var _MSG_LOAD_MORE_LINES = "loadMoreLines";
-  var _MSG_RESOLVE_REFERENCES = "resolveReferences";
-  function _mmdPostMessage(name, payload) {
-    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers[name]) {
-      window.webkit.messageHandlers[name].postMessage(payload);
-      return true;
+  // viewer-src/zoom.js
+  var ZOOM_MIN = 0.5;
+  var ZOOM_MAX = 2;
+  var ZOOM_STEP = 0.25;
+  var ZOOM_DEFAULT = 1;
+  var BASE_SCALE = 0.75;
+  var DIAGRAM_ZOOM_MAX = 3;
+  function clampZoom(z, max) {
+    if (max === void 0) {
+      max = ZOOM_MAX;
     }
-    return false;
+    return Math.max(ZOOM_MIN, Math.min(max, z));
+  }
+  function stepZoom(current, delta, max) {
+    return clampZoom(Math.round((current + delta) * 100) / 100, max);
+  }
+  function wheelZoom(current, deltaY, max) {
+    return clampZoom(Math.round((current - deltaY * 0.01) * 1e3) / 1e3, max);
+  }
+  function zoomLabel(zoom) {
+    return Math.round(zoom * 100) + "%";
+  }
+  function effectiveZoom(zoom) {
+    return zoom;
+  }
+  function parseStoredZoom(raw) {
+    var z = parseFloat(raw);
+    return isNaN(z) ? ZOOM_DEFAULT : z;
+  }
+  function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZoom) {
+    var viewportCap = (viewportHeight - 64) / effectiveZoom(globalZoom);
+    return Math.min(naturalHeight * diagramZoom * BASE_SCALE, viewportCap);
+  }
+  function imageFitSize(naturalWidth, naturalHeight, availWidth, availHeight) {
+    if (naturalWidth <= 0 || naturalHeight <= 0 || availWidth <= 0 || availHeight <= 0) {
+      return { width: naturalWidth, height: naturalHeight };
+    }
+    var scale = Math.min(1, availWidth / naturalWidth, availHeight / naturalHeight);
+    return { width: naturalWidth * scale, height: naturalHeight * scale };
   }
   function _createZoomStore() {
     var zoom = ZOOM_DEFAULT;
@@ -870,31 +1022,6 @@
     _mmdZoom.adoptStored(window._mmdInitialZoom);
     _mmdApplyZoom();
   }
-  function _mmdInitFontSize() {
-    document.documentElement.style.setProperty(
-      "--mmd-markdown-font-size",
-      markdownFontSize(window._mmdSystemFontSize) + "px"
-    );
-  }
-  function _mmdInitCodeFont() {
-    var root = document.documentElement;
-    var family = window._mmdMonoFontFamily || "";
-    if (family) {
-      var safe = family.replace(/[\\"]/g, "\\$&");
-      root.style.setProperty(
-        "--mmd-mono-font-family",
-        '"' + safe + '", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace'
-      );
-    } else {
-      root.style.removeProperty("--mmd-mono-font-family");
-    }
-    var pt = window._mmdCodeFontSize;
-    if (typeof pt === "number" && pt > 0) {
-      root.style.setProperty("--mmd-code-font-size", pt * 16 / 13 + "px");
-    } else {
-      root.style.removeProperty("--mmd-code-font-size");
-    }
-  }
   function _mmdApplyZoom() {
     var zoom = _mmdZoom.value();
     var wrap = document.getElementById("diagram-wrap");
@@ -929,230 +1056,6 @@
     _mmdZoom.wheel(deltaY);
     _mmdApplyZoom();
   }
-  function _mmdScrollTarget() {
-    var codeEl = document.querySelector("#diagram-wrap.code-body pre code");
-    if (codeEl) {
-      return codeEl;
-    }
-    return document.querySelector(".viewer");
-  }
-  function _mmdInitKeyboard() {
-    document.addEventListener("keydown", function(e) {
-      if (e.key === "Escape" && _mmdFind.isOpen() && !e.isComposing && e.keyCode !== 229) {
-        e.preventDefault();
-        _mmdFind.close();
-        return;
-      }
-      document.body.classList.toggle("cmd-held", e.metaKey);
-      if (e.metaKey) {
-        if (e.key === "-") {
-          e.preventDefault();
-          _mmdZoomOut();
-        } else if (e.key === "=" || e.key === "+") {
-          e.preventDefault();
-          _mmdZoomIn();
-        }
-        return;
-      }
-      var action = resolveScrollKey(e.key, e.shiftKey);
-      if (!action) {
-        return;
-      }
-      if (e.key === " " && !isHostFeatureEnabled(window._mmdHostFeatures, "spaceScroll")) {
-        return;
-      }
-      var active = document.activeElement;
-      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
-        return;
-      }
-      var scrollEl = _mmdScrollTarget();
-      if (!scrollEl) {
-        return;
-      }
-      e.preventDefault();
-      var step;
-      if (action.amount === "page") {
-        step = pageScrollStep(scrollEl.clientHeight);
-      } else if (action.amount === "half") {
-        step = halfPageScrollStep(scrollEl.clientHeight);
-      } else {
-        step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
-      }
-      scrollEl.scrollBy({ top: action.down ? step : -step, behavior: "auto" });
-    });
-    document.addEventListener("keyup", function(e) {
-      if (!e.metaKey) document.body.classList.remove("cmd-held");
-    });
-    window.addEventListener("blur", function() {
-      document.body.classList.remove("cmd-held");
-    });
-  }
-  function _mmdReferenceTargetHref(e) {
-    var anchor = e.target.closest("a");
-    var pathRef = e.target.closest(".befold-path-ref");
-    var target = anchor || pathRef;
-    if (!target) return null;
-    if (target.classList.contains("befold-link-pending") || target.classList.contains("befold-link-dead")) {
-      return null;
-    }
-    return anchor ? anchor.getAttribute("href") : pathRef.dataset.path;
-  }
-  function _mmdInitReferenceClicks() {
-    var wrap = document.getElementById("diagram-wrap");
-    wrap.addEventListener("click", function(e) {
-      if (!e.isTrusted) return;
-      if (e.ctrlKey || e.button !== 0) return;
-      var href = _mmdReferenceTargetHref(e);
-      if (!href) return;
-      if (href.charAt(0) === "#") {
-        e.preventDefault();
-        try {
-          var id = decodeURIComponent(href.slice(1));
-        } catch (_) {
-          var id = href.slice(1);
-        }
-        var el = document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
-        if (el) el.scrollIntoView({ behavior: "smooth" });
-        return;
-      }
-      e.preventDefault();
-      if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
-        return;
-      }
-      _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, {
-        href,
-        metaKey: e.metaKey,
-        shiftKey: e.shiftKey
-      });
-    });
-    wrap.addEventListener("contextmenu", function(e) {
-      if (!e.isTrusted) return;
-      if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
-        return;
-      }
-      var href = _mmdReferenceTargetHref(e);
-      if (!href || href.charAt(0) === "#") {
-        return;
-      }
-      e.preventDefault();
-      _mmdPostMessage(_MSG_REFERENCE_CONTEXT_MENU, { href });
-    });
-  }
-  var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/g;
-  var _PATH_ANNOTATE_TAGS = ["p", "li", "td", "th", "blockquote", "dt", "dd", "code"];
-  function _annotatePathRefs() {
-    var wrap = document.getElementById("diagram-wrap");
-    if (wrap) {
-      _walkTextNodes(wrap, false);
-    }
-  }
-  var _mmdPendingRefBatches = [];
-  function _mmdIsClassifiedRef(el) {
-    return el.classList.contains("befold-link-pending") || el.classList.contains("befold-link") || el.classList.contains("befold-link-dead");
-  }
-  function _mmdResolveReferences() {
-    if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
-      return;
-    }
-    var wrap = document.getElementById("diagram-wrap");
-    if (!wrap) {
-      return;
-    }
-    var targets = [];
-    wrap.querySelectorAll("a[href]").forEach(function(a) {
-      if (_mmdIsClassifiedRef(a)) {
-        return;
-      }
-      var href = a.getAttribute("href");
-      if (isLocalPathHref(href)) {
-        targets.push({ el: a, raw: href });
-      }
-    });
-    wrap.querySelectorAll(".befold-path-ref").forEach(function(s) {
-      if (_mmdIsClassifiedRef(s) || !s.dataset.path) {
-        return;
-      }
-      targets.push({ el: s, raw: s.dataset.path });
-    });
-    if (!targets.length) {
-      return;
-    }
-    var uniq = /* @__PURE__ */ Object.create(null);
-    targets.forEach(function(t) {
-      uniq[t.raw] = true;
-    });
-    if (!_mmdPostMessage(_MSG_RESOLVE_REFERENCES, { paths: Object.keys(uniq) })) {
-      return;
-    }
-    targets.forEach(function(t) {
-      t.el.classList.add("befold-link-pending");
-    });
-    _mmdPendingRefBatches.push(targets);
-  }
-  function _mmdApplyResolvedReferences(map) {
-    var targets = _mmdPendingRefBatches.shift() || [];
-    targets.forEach(function(t) {
-      t.el.classList.remove("befold-link-pending");
-      var abs = map && Object.prototype.hasOwnProperty.call(map, t.raw) ? map[t.raw] : null;
-      if (abs) {
-        t.el.classList.add("befold-link");
-        t.el.dataset.resolved = abs;
-        t.el.setAttribute("title", abs);
-      } else {
-        t.el.classList.add("befold-link-dead");
-        if (t.el.tagName === "A") {
-          t.el.removeAttribute("href");
-        }
-        t.el.removeAttribute("title");
-      }
-    });
-  }
-  function _mmdInvalidatePendingRefs() {
-    for (var i = 0; i < _mmdPendingRefBatches.length; i++) {
-      _mmdPendingRefBatches[i] = [];
-    }
-  }
-  function _walkTextNodes(node, allowed) {
-    if (node.nodeType === 3) {
-      if (!allowed) return;
-      var text = node.textContent;
-      _PATH_RE.lastIndex = 0;
-      var match = _PATH_RE.exec(text);
-      if (!match) return;
-      var frag = document.createDocumentFragment();
-      var lastIndex = 0;
-      do {
-        if (match.index > lastIndex) {
-          frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
-        }
-        var span = document.createElement("span");
-        span.className = "befold-path-ref";
-        span.dataset.path = match[0];
-        span.textContent = match[0];
-        frag.appendChild(span);
-        lastIndex = _PATH_RE.lastIndex;
-      } while ((match = _PATH_RE.exec(text)) !== null);
-      if (lastIndex < text.length) {
-        frag.appendChild(document.createTextNode(text.slice(lastIndex)));
-      }
-      node.parentNode.replaceChild(frag, node);
-    } else if (node.nodeType === 1) {
-      var tag = node.tagName.toLowerCase();
-      if (tag === "a" || tag === "svg" || node.classList.contains("mermaid") || node.classList.contains("befold-path-ref")) {
-        return;
-      }
-      var childAllowed;
-      if (tag === "pre") {
-        childAllowed = false;
-      } else {
-        childAllowed = allowed || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1;
-      }
-      var children = Array.prototype.slice.call(node.childNodes);
-      for (var j = 0; j < children.length; j++) {
-        _walkTextNodes(children[j], childAllowed);
-      }
-    }
-  }
   function _mmdInitWheelZoom() {
     document.addEventListener("wheel", function(e) {
       if (!e.ctrlKey) {
@@ -1167,20 +1070,6 @@
       }
     }, { passive: false });
   }
-  function _mmdDiagramZoomValue(index) {
-    return _mmdZoom.diagramValue(index);
-  }
-  function _mmdUpdateAllDiagramScrollHeights() {
-    document.querySelectorAll(".diagram-zoom-wrap").forEach(function(wrap) {
-      _mmdUpdateDiagramScrollHeight(wrap);
-    });
-  }
-  function _mmdFitImage(img, wrap) {
-    var zoom = effectiveZoom(_mmdZoom.value());
-    var fit = imageFitSize(img.naturalWidth, img.naturalHeight, wrap.clientWidth * zoom, wrap.clientHeight * zoom);
-    img.style.width = fit.width + "px";
-    img.style.height = fit.height + "px";
-  }
   function _mmdInitResize() {
     window.addEventListener("resize", function() {
       _mmdUpdateAllDiagramScrollHeights();
@@ -1189,6 +1078,20 @@
       if (img && img.complete && img.naturalWidth) {
         _mmdFitImage(img, wrap);
       }
+    });
+  }
+  function _mmdFitImage(img, wrap) {
+    var zoom = effectiveZoom(_mmdZoom.value());
+    var fit = imageFitSize(img.naturalWidth, img.naturalHeight, wrap.clientWidth * zoom, wrap.clientHeight * zoom);
+    img.style.width = fit.width + "px";
+    img.style.height = fit.height + "px";
+  }
+  function _mmdDiagramZoomValue(index) {
+    return _mmdZoom.diagramValue(index);
+  }
+  function _mmdUpdateAllDiagramScrollHeights() {
+    document.querySelectorAll(".diagram-zoom-wrap").forEach(function(wrap) {
+      _mmdUpdateDiagramScrollHeight(wrap);
     });
   }
   function _mmdUpdateDiagramScrollHeight(wrap) {
@@ -1263,100 +1166,118 @@
       _mmdApplyDiagramZoom(wrap);
     });
   }
-  var _mmdDarkQuery = null;
-  function _mmdMermaidConfig() {
+
+  // viewer-src/scroll.js
+  function _mmdScrollTarget() {
+    var codeEl = document.querySelector("#diagram-wrap.code-body pre code");
+    if (codeEl) {
+      return codeEl;
+    }
+    return document.querySelector(".viewer");
+  }
+  function _createScrollSync(notify, docPathTracker) {
+    var pendingRestore = null;
+    var debounceTimer = null;
+    function cancelPendingNotify() {
+      if (debounceTimer === null) {
+        return;
+      }
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
     return {
-      startOnLoad: false,
-      theme: mermaidTheme(_mmdDarkQuery.matches),
-      // 図ラベル内の生 HTML をサニタイズする（デフォルトだが将来の既定変更に備えて明示）
-      securityLevel: "strict",
-      // mermaid.js のデフォルト上限（50,000文字/500エッジ）はアプリが許容するテキストファイル上限（10MB）より
-      // はるかに小さく、大きめの図が "Maximum text size in diagram exceeded" になるため引き上げる。
-      maxTextSize: 10 * 1024 * 1024,
-      maxEdges: 1e4,
-      sequence: { useMaxWidth: false },
-      er: { useMaxWidth: false },
-      flowchart: { useMaxWidth: false },
-      gantt: { useMaxWidth: false },
-      journey: { useMaxWidth: false },
-      pie: { useMaxWidth: false },
-      state: { useMaxWidth: false },
-      class: { useMaxWidth: false }
+      setRestore: function(position) {
+        pendingRestore = position;
+      },
+      // 復元位置が注入されている(=Swift 主導のファイル/モード切替)ときだけ保留中の
+      // デバウンス通知を破棄する。無条件に破棄すると、Swift を経由しない内部再描画
+      // (カラースキーム変更時など、ファイル/モードは変わらない)で直前のスクロール確定
+      // 保存が失われたまま二度と発火しなくなるため。
+      // 文書パスの採用も同じ時点で行う。破棄と採用が同時なので、旧文書の位置が
+      // 新パスのキーで通知されることはない。
+      beginRender: function() {
+        if (pendingRestore !== null) {
+          cancelPendingNotify();
+        }
+        docPathTracker.adoptPending();
+      },
+      // 注入された復元位置があればそれを、無ければ fallback を返して消費する。
+      // fallback は Swift を経由しない内部再描画で現在位置を保つための値。
+      takeRestorePosition: function(fallback) {
+        var position = pendingRestore !== null ? pendingRestore : typeof fallback === "number" ? fallback : 0;
+        pendingRestore = null;
+        return position;
+      },
+      notifyDebounced: function() {
+        cancelPendingNotify();
+        debounceTimer = setTimeout(function() {
+          debounceTimer = null;
+          notify();
+        }, 200);
+      }
     };
   }
-  function _mmdMermaidParseError(err) {
-    var msg = err && (err.message || err.str) || String(err);
-    var panel = document.getElementById("mmd-error");
-    panel.textContent = msg;
-    panel.style.display = "block";
-    if (_mmdDocument.type() === "mmd") {
-      document.getElementById("diagram-wrap").style.display = "none";
+  function _mmdPostScrollPosition() {
+    var el = _mmdScrollTarget();
+    if (!el) return;
+    _mmdPostMessage(_MSG_SCROLL_POSITION_CHANGED, {
+      position: el.scrollTop,
+      mode: _mmdViewOptions.mode(),
+      path: _mmdDocPath.current()
+    });
+  }
+  var _mmdScroll = _createScrollSync(_mmdPostScrollPosition, _mmdDocPath);
+  function _mmdSetRestoreScroll(position) {
+    _mmdScroll.setRestore(position);
+  }
+  function _mmdRestoreScrollPosition(fallbackScrollTop) {
+    var el = _mmdScrollTarget();
+    if (!el) return;
+    el.scrollTop = _mmdScroll.takeRestorePosition(fallbackScrollTop);
+  }
+  function _mmdInitScrollNotify() {
+    document.addEventListener("scroll", function() {
+      _mmdScroll.notifyDebounced();
+    }, true);
+  }
+
+  // viewer-src/find.js
+  function buildFindRegExp(query2, options) {
+    if (!query2) {
+      return null;
+    }
+    var source = options.useRegex ? query2 : query2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (options.wholeWord) {
+      source = "\\b(?:" + source + ")\\b";
+    }
+    var flags = "g" + (options.caseSensitive ? "" : "i");
+    try {
+      return new RegExp(source, flags);
+    } catch (e) {
+      return null;
     }
   }
-  var _mermaidLoadPromise = null;
-  function _mmdEnsureMermaidLoaded() {
-    if (_mermaidLoadPromise) return _mermaidLoadPromise;
-    _mermaidLoadPromise = new Promise(function(resolve, reject) {
-      var script = document.createElement("script");
-      script.src = "mermaid.min.js";
-      script.onload = resolve;
-      script.onerror = function() {
-        reject(new Error("mermaid.min.js failed to load"));
-      };
-      document.head.appendChild(script);
-    }).then(function() {
-      mermaid.initialize(_mmdMermaidConfig());
-      mermaid.parseError = _mmdMermaidParseError;
-    });
-    return _mermaidLoadPromise;
-  }
-  function _mmdInitColorScheme() {
-    _mmdDarkQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    _mmdDarkQuery.addEventListener("change", function() {
-      if (_mermaidLoadPromise) {
-        mermaid.initialize(_mmdMermaidConfig());
-      }
-      if (_mmdDocument.hasContent()) {
-        render(_mmdDocument.content(), _mmdDocument.type(), _mmdDocument.lang());
-      }
-    });
-  }
-  var md;
-  function _mmdInitMarkdown() {
-    if (typeof markdownit === "undefined") {
-      return;
+  function nextMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
     }
-    md = markdownit({
-      html: true,
-      linkify: true,
-      typographer: true,
-      // highlight.min.js の読み込み失敗時は hljs 未定義 → highlightCode が '' を
-      // 返し、ハイライトなしの従来表示に縮退する。
-      highlight: function(str, lang) {
-        return highlightCode(typeof hljs !== "undefined" ? hljs : null, str, lang);
-      }
-    });
-    var _mdRenderOriginal = md.render.bind(md);
-    md.render = function(src, env) {
-      return sanitizeRenderedHtml(DOMPurify, _mdRenderOriginal(src, env));
-    };
-    md.linkify.set({ fuzzyLink: false });
-    md.validateLink = isSafeLinkURL;
-    var defaultFence = md.renderer.rules.fence;
-    md.renderer.rules.fence = function(tokens, idx, options, env, self) {
-      var token = tokens[idx];
-      if (token.info.trim() === "mermaid") {
-        return '<pre class="mermaid">' + md.utils.escapeHtml(token.content) + "</pre>";
-      }
-      if (defaultFence) {
-        return defaultFence(tokens, idx, options, env, self);
-      }
-      return "<pre><code>" + md.utils.escapeHtml(token.content) + "</code></pre>";
-    };
+    return (currentIndex + 1) % count;
+  }
+  function prevMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return (currentIndex - 1 + count) % count;
+  }
+  function keptMatchIndex(previousIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return Math.min(Math.max(previousIndex, 0), count - 1);
   }
   function _createFindController() {
     var options = { caseSensitive: false, wholeWord: false, useRegex: false };
-    var query = "";
+    var query2 = "";
     var matches = [];
     var currentIndex = -1;
     var isOpenFlag = false;
@@ -1501,7 +1422,7 @@
     function updateCount() {
       var countEl = document.getElementById("mmd-find-count");
       var input = document.getElementById("mmd-find-input");
-      if (query.length === 0 || input.classList.contains("mmd-find-error")) {
+      if (query2.length === 0 || input.classList.contains("mmd-find-error")) {
         countEl.textContent = "";
       } else {
         var current = matches.length === 0 ? 0 : currentIndex + 1;
@@ -1529,12 +1450,12 @@
     }
     function run(suppressAutoHighlight) {
       var input = document.getElementById("mmd-find-input");
-      query = input.value;
+      query2 = input.value;
       clearMarks();
       matches = [];
       currentIndex = -1;
-      var regex = buildFindRegExp(query, options);
-      input.classList.toggle("mmd-find-error", query.length > 0 && regex === null);
+      var regex = buildFindRegExp(query2, options);
+      input.classList.toggle("mmd-find-error", query2.length > 0 && regex === null);
       if (regex) {
         walk(document.getElementById("diagram-wrap"), regex, matches);
       }
@@ -1637,7 +1558,7 @@
       isOpenFlag = true;
       document.getElementById("mmd-find-bar").style.display = "flex";
       var input = document.getElementById("mmd-find-input");
-      input.value = query;
+      input.value = query2;
       input.focus();
       input.select();
       run();
@@ -1690,257 +1611,607 @@
     if (!_mmdFind.isOpen()) return;
     _mmdFind.prev();
   }
-  function _escapeHtml(text) {
-    var div = document.createElement("div");
-    div.appendChild(document.createTextNode(text));
-    return div.innerHTML;
+
+  // viewer-src/keyboard.js
+  var PAGE_SCROLL_RATIO = 0.9;
+  var DEFAULT_LINE_SCROLL_STEP = 24;
+  function pageScrollStep(clientHeight) {
+    return clientHeight * PAGE_SCROLL_RATIO;
   }
-  function _createDocumentState() {
-    var content = null;
-    var type = "mmd";
-    var lang = null;
-    return {
-      record: function(newContent, newType, newLang) {
-        content = newContent;
-        type = newType;
-        lang = newLang;
-      },
-      // 追記チャンクを直近内容の末尾に足す。まだ何も描画していない間は何もしない。
-      append: function(text) {
-        if (content !== null) {
-          content += text;
-        }
-      },
-      content: function() {
-        return content;
-      },
-      type: function() {
-        return type;
-      },
-      lang: function() {
-        return lang;
-      },
-      hasContent: function() {
-        return content !== null;
-      }
-    };
+  function halfPageScrollStep(clientHeight) {
+    return pageScrollStep(clientHeight) / 2;
   }
-  var _mmdDocument = _createDocumentState();
-  var _mmdModeSwitch = /* @__PURE__ */ (function() {
-    var pending = false;
-    return {
-      mark: function() {
-        pending = true;
-      },
-      consume: function() {
-        var value = pending;
-        pending = false;
-        return value;
-      }
-    };
-  })();
-  function _createViewOptions() {
-    var mode = "rendered";
-    var lineNumbers = false;
-    var diff = null;
-    var diffLayout = "inline";
-    return {
-      mode: function() {
-        return mode;
-      },
-      setMode: function(newMode) {
-        if (newMode !== "rendered" && newMode !== "source") {
-          return;
-        }
-        if (newMode !== mode) {
-          _mmdModeSwitch.mark();
-        }
-        mode = newMode;
-      },
-      lineNumbers: function() {
-        return lineNumbers;
-      },
-      setLineNumbers: function(show) {
-        lineNumbers = show;
-      },
-      diff: function() {
-        return diff;
-      },
-      setDiff: function(text) {
-        diff = typeof text === "string" && text !== "" ? text : null;
-      },
-      diffLayout: function() {
-        return diffLayout;
-      },
-      setDiffLayout: function(layout) {
-        if (layout !== "inline" && layout !== "side-by-side") {
-          return;
-        }
-        diffLayout = layout;
-      }
-    };
+  function lineScrollStep(lineHeightPx, fallback) {
+    var lh = parseFloat(lineHeightPx);
+    return isNaN(lh) ? fallback : lh;
   }
-  var _mmdViewOptions = _createViewOptions();
-  var _mmdRenderedAs = "";
-  var _mmdChunkTail = /* @__PURE__ */ (function() {
-    var endedWithNewline = true;
-    return {
-      record: function(text) {
-        endedWithNewline = text.length > 0 && text[text.length - 1] === "\n";
-      },
-      endedWithNewline: function() {
-        return endedWithNewline;
-      }
-    };
-  })();
-  var CODE_CHUNK_CONTEXT_LINES = 200;
-  function _createDocPathTracker() {
-    var docPath = null;
-    var pendingDocPath;
-    return {
-      // 次の render() が表示する文書パスの予告。採用は adoptPending()(= render 開始時)。
-      // ここで即時に切り替えると、render script の実行前に通知が発火したとき
-      // 旧文書の値が新パスのキーで保存される。
-      setPending: function(path) {
-        pendingDocPath = path;
-      },
-      // rename / move の追随。DOM は同一文書のまま名前だけ変わるため render を経ずに
-      // 即時差し替える。現在値・予告値のうち from に一致するものだけを書き換える
-      // (不一致 = 別文書へ切替中なら何もしない。誤った付け替えより、旧キーへの
-      // 短時間の保存のほうが安全)。
-      rename: function(from, to) {
-        if (docPath === from) {
-          docPath = to;
-        }
-        if (pendingDocPath === from) {
-          pendingDocPath = to;
-        }
-      },
-      current: function() {
-        return docPath;
-      },
-      adoptPending: function() {
-        if (pendingDocPath === void 0) {
-          return;
-        }
-        docPath = pendingDocPath;
-        pendingDocPath = void 0;
-      }
-    };
+  function resolveScrollKey(key, shiftKey) {
+    if (key === " ") {
+      return { down: !shiftKey, amount: "page" };
+    }
+    var down;
+    if (key === "ArrowDown" || key === "j") {
+      down = true;
+    } else if (key === "ArrowUp" || key === "k") {
+      down = false;
+    } else {
+      return null;
+    }
+    return { down, amount: shiftKey ? "half" : "line" };
   }
-  var _mmdDocPath = _createDocPathTracker();
-  function _createScrollSync(notify, docPathTracker) {
-    var pendingRestore = null;
-    var debounceTimer = null;
-    function cancelPendingNotify() {
-      if (debounceTimer === null) {
+  function _mmdInitKeyboard() {
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "Escape" && _mmdFind.isOpen() && !e.isComposing && e.keyCode !== 229) {
+        e.preventDefault();
+        _mmdFind.close();
         return;
       }
-      clearTimeout(debounceTimer);
-      debounceTimer = null;
-    }
-    return {
-      setRestore: function(position) {
-        pendingRestore = position;
-      },
-      // 復元位置が注入されている(=Swift 主導のファイル/モード切替)ときだけ保留中の
-      // デバウンス通知を破棄する。無条件に破棄すると、Swift を経由しない内部再描画
-      // (カラースキーム変更時など、ファイル/モードは変わらない)で直前のスクロール確定
-      // 保存が失われたまま二度と発火しなくなるため。
-      // 文書パスの採用も同じ時点で行う。破棄と採用が同時なので、旧文書の位置が
-      // 新パスのキーで通知されることはない。
-      beginRender: function() {
-        if (pendingRestore !== null) {
-          cancelPendingNotify();
+      document.body.classList.toggle("cmd-held", e.metaKey);
+      if (e.metaKey) {
+        if (e.key === "-") {
+          e.preventDefault();
+          _mmdZoomOut();
+        } else if (e.key === "=" || e.key === "+") {
+          e.preventDefault();
+          _mmdZoomIn();
         }
-        docPathTracker.adoptPending();
+        return;
+      }
+      var action = resolveScrollKey(e.key, e.shiftKey);
+      if (!action) {
+        return;
+      }
+      if (e.key === " " && !isHostFeatureEnabled(window._mmdHostFeatures, "spaceScroll")) {
+        return;
+      }
+      var active = document.activeElement;
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
+        return;
+      }
+      var scrollEl = _mmdScrollTarget();
+      if (!scrollEl) {
+        return;
+      }
+      e.preventDefault();
+      var step;
+      if (action.amount === "page") {
+        step = pageScrollStep(scrollEl.clientHeight);
+      } else if (action.amount === "half") {
+        step = halfPageScrollStep(scrollEl.clientHeight);
+      } else {
+        step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
+      }
+      scrollEl.scrollBy({ top: action.down ? step : -step, behavior: "auto" });
+    });
+    document.addEventListener("keyup", function(e) {
+      if (!e.metaKey) document.body.classList.remove("cmd-held");
+    });
+    window.addEventListener("blur", function() {
+      document.body.classList.remove("cmd-held");
+    });
+  }
+
+  // viewer-src/path-refs.js
+  function isLocalPathHref(href) {
+    if (!href) {
+      return false;
+    }
+    if (href.charAt(0) === "#") {
+      return false;
+    }
+    var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*):/);
+    if (m && m[1].indexOf(".") === -1) {
+      return false;
+    }
+    return true;
+  }
+  var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/g;
+  var _PATH_ANNOTATE_TAGS = ["p", "li", "td", "th", "blockquote", "dt", "dd", "code"];
+  function _annotatePathRefs() {
+    var wrap = document.getElementById("diagram-wrap");
+    if (wrap) {
+      _walkTextNodes(wrap, false);
+    }
+  }
+  function _walkTextNodes(node, allowed) {
+    if (node.nodeType === 3) {
+      if (!allowed) return;
+      var text = node.textContent;
+      _PATH_RE.lastIndex = 0;
+      var match = _PATH_RE.exec(text);
+      if (!match) return;
+      var frag = document.createDocumentFragment();
+      var lastIndex = 0;
+      do {
+        if (match.index > lastIndex) {
+          frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+        var span = document.createElement("span");
+        span.className = "befold-path-ref";
+        span.dataset.path = match[0];
+        span.textContent = match[0];
+        frag.appendChild(span);
+        lastIndex = _PATH_RE.lastIndex;
+      } while ((match = _PATH_RE.exec(text)) !== null);
+      if (lastIndex < text.length) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+      }
+      node.parentNode.replaceChild(frag, node);
+    } else if (node.nodeType === 1) {
+      var tag = node.tagName.toLowerCase();
+      if (tag === "a" || tag === "svg" || node.classList.contains("mermaid") || node.classList.contains("befold-path-ref")) {
+        return;
+      }
+      var childAllowed;
+      if (tag === "pre") {
+        childAllowed = false;
+      } else {
+        childAllowed = allowed || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1;
+      }
+      var children = Array.prototype.slice.call(node.childNodes);
+      for (var j = 0; j < children.length; j++) {
+        _walkTextNodes(children[j], childAllowed);
+      }
+    }
+  }
+  var _mmdPendingRefBatches = [];
+  function _mmdIsClassifiedRef(el) {
+    return el.classList.contains("befold-link-pending") || el.classList.contains("befold-link") || el.classList.contains("befold-link-dead");
+  }
+  function _mmdResolveReferences() {
+    if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
+      return;
+    }
+    var wrap = document.getElementById("diagram-wrap");
+    if (!wrap) {
+      return;
+    }
+    var targets = [];
+    wrap.querySelectorAll("a[href]").forEach(function(a) {
+      if (_mmdIsClassifiedRef(a)) {
+        return;
+      }
+      var href = a.getAttribute("href");
+      if (isLocalPathHref(href)) {
+        targets.push({ el: a, raw: href });
+      }
+    });
+    wrap.querySelectorAll(".befold-path-ref").forEach(function(s) {
+      if (_mmdIsClassifiedRef(s) || !s.dataset.path) {
+        return;
+      }
+      targets.push({ el: s, raw: s.dataset.path });
+    });
+    if (!targets.length) {
+      return;
+    }
+    var uniq = /* @__PURE__ */ Object.create(null);
+    targets.forEach(function(t) {
+      uniq[t.raw] = true;
+    });
+    if (!_mmdPostMessage(_MSG_RESOLVE_REFERENCES, { paths: Object.keys(uniq) })) {
+      return;
+    }
+    targets.forEach(function(t) {
+      t.el.classList.add("befold-link-pending");
+    });
+    _mmdPendingRefBatches.push(targets);
+  }
+  function _mmdApplyResolvedReferences(map) {
+    var targets = _mmdPendingRefBatches.shift() || [];
+    targets.forEach(function(t) {
+      t.el.classList.remove("befold-link-pending");
+      var abs = map && Object.prototype.hasOwnProperty.call(map, t.raw) ? map[t.raw] : null;
+      if (abs) {
+        t.el.classList.add("befold-link");
+        t.el.dataset.resolved = abs;
+        t.el.setAttribute("title", abs);
+      } else {
+        t.el.classList.add("befold-link-dead");
+        if (t.el.tagName === "A") {
+          t.el.removeAttribute("href");
+        }
+        t.el.removeAttribute("title");
+      }
+    });
+  }
+  function _mmdInvalidatePendingRefs() {
+    for (var i = 0; i < _mmdPendingRefBatches.length; i++) {
+      _mmdPendingRefBatches[i] = [];
+    }
+  }
+
+  // viewer-src/reference-clicks.js
+  function _mmdReferenceTargetHref(e) {
+    var anchor = e.target.closest("a");
+    var pathRef = e.target.closest(".befold-path-ref");
+    var target = anchor || pathRef;
+    if (!target) return null;
+    if (target.classList.contains("befold-link-pending") || target.classList.contains("befold-link-dead")) {
+      return null;
+    }
+    return anchor ? anchor.getAttribute("href") : pathRef.dataset.path;
+  }
+  function _mmdInitReferenceClicks() {
+    var wrap = document.getElementById("diagram-wrap");
+    wrap.addEventListener("click", function(e) {
+      if (!e.isTrusted) return;
+      if (e.ctrlKey || e.button !== 0) return;
+      var href = _mmdReferenceTargetHref(e);
+      if (!href) return;
+      if (href.charAt(0) === "#") {
+        e.preventDefault();
+        try {
+          var id = decodeURIComponent(href.slice(1));
+        } catch (_) {
+          var id = href.slice(1);
+        }
+        var el = document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
+      e.preventDefault();
+      if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
+        return;
+      }
+      _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, {
+        href,
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey
+      });
+    });
+    wrap.addEventListener("contextmenu", function(e) {
+      if (!e.isTrusted) return;
+      if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
+        return;
+      }
+      var href = _mmdReferenceTargetHref(e);
+      if (!href || href.charAt(0) === "#") {
+        return;
+      }
+      e.preventDefault();
+      _mmdPostMessage(_MSG_REFERENCE_CONTEXT_MENU, { href });
+    });
+  }
+
+  // viewer-src/markdown.js
+  var md;
+  function isSafeLinkURL(url) {
+    var str = String(url).trim().toLowerCase();
+    if (/^data:image\//.test(str)) {
+      return true;
+    }
+    return !/^(vbscript|javascript|file|data):/.test(str);
+  }
+  function sanitizeRenderedHtml(purify, html) {
+    return purify.sanitize(html);
+  }
+  function markdownRenderer() {
+    return md;
+  }
+  function _mmdInitMarkdown() {
+    if (typeof markdownit === "undefined") {
+      return;
+    }
+    md = markdownit({
+      html: true,
+      linkify: true,
+      typographer: true,
+      // highlight.min.js の読み込み失敗時は hljs 未定義 → highlightCode が '' を
+      // 返し、ハイライトなしの従来表示に縮退する。
+      highlight: function(str, lang) {
+        return highlightCode(typeof hljs !== "undefined" ? hljs : null, str, lang);
+      }
+    });
+    var _mdRenderOriginal = md.render.bind(md);
+    md.render = function(src, env) {
+      return sanitizeRenderedHtml(DOMPurify, _mdRenderOriginal(src, env));
+    };
+    md.linkify.set({ fuzzyLink: false });
+    md.validateLink = isSafeLinkURL;
+    var defaultFence = md.renderer.rules.fence;
+    md.renderer.rules.fence = function(tokens, idx, options, env, self) {
+      var token = tokens[idx];
+      if (token.info.trim() === "mermaid") {
+        return '<pre class="mermaid">' + md.utils.escapeHtml(token.content) + "</pre>";
+      }
+      if (defaultFence) {
+        return defaultFence(tokens, idx, options, env, self);
+      }
+      return "<pre><code>" + md.utils.escapeHtml(token.content) + "</code></pre>";
+    };
+  }
+
+  // viewer-src/mermaid.js
+  function mermaidTheme(isDark) {
+    return isDark ? "dark" : "default";
+  }
+  function _mmdMermaidConfig() {
+    return {
+      startOnLoad: false,
+      theme: mermaidTheme(prefersDark()),
+      // 図ラベル内の生 HTML をサニタイズする（デフォルトだが将来の既定変更に備えて明示）
+      securityLevel: "strict",
+      // mermaid.js のデフォルト上限（50,000文字/500エッジ）はアプリが許容するテキストファイル上限（10MB）より
+      // はるかに小さく、大きめの図が "Maximum text size in diagram exceeded" になるため引き上げる。
+      maxTextSize: 10 * 1024 * 1024,
+      maxEdges: 1e4,
+      sequence: { useMaxWidth: false },
+      er: { useMaxWidth: false },
+      flowchart: { useMaxWidth: false },
+      gantt: { useMaxWidth: false },
+      journey: { useMaxWidth: false },
+      pie: { useMaxWidth: false },
+      state: { useMaxWidth: false },
+      class: { useMaxWidth: false }
+    };
+  }
+  function _mmdMermaidParseError(err) {
+    var msg = err && (err.message || err.str) || String(err);
+    var panel = document.getElementById("mmd-error");
+    panel.textContent = msg;
+    panel.style.display = "block";
+    if (_mmdDocument.type() === "mmd") {
+      document.getElementById("diagram-wrap").style.display = "none";
+    }
+  }
+  var _mermaidLoadPromise = null;
+  function _mmdEnsureMermaidLoaded() {
+    if (_mermaidLoadPromise) return _mermaidLoadPromise;
+    _mermaidLoadPromise = new Promise(function(resolve, reject) {
+      var script = document.createElement("script");
+      script.src = "mermaid.min.js";
+      script.onload = resolve;
+      script.onerror = function() {
+        reject(new Error("mermaid.min.js failed to load"));
+      };
+      document.head.appendChild(script);
+    }).then(function() {
+      mermaid.initialize(_mmdMermaidConfig());
+      mermaid.parseError = _mmdMermaidParseError;
+    });
+    return _mermaidLoadPromise;
+  }
+  function _mmdReinitializeMermaidIfLoaded() {
+    if (_mermaidLoadPromise) {
+      mermaid.initialize(_mmdMermaidConfig());
+    }
+  }
+  async function _mmdRunMermaid(diagramWrap, onlyUnprocessed) {
+    var selector = onlyUnprocessed ? ".mermaid:not([data-processed])" : ".mermaid";
+    var elements = diagramWrap.querySelectorAll(selector);
+    if (elements.length === 0) {
+      return;
+    }
+    try {
+      await _mmdEnsureMermaidLoaded();
+      elements.forEach(function(el, i) {
+        if (!onlyUnprocessed) {
+          el.removeAttribute("data-processed");
+        }
+        el.id = "mmd-" + i + "-" + Date.now();
+      });
+      await mermaid.run({ nodes: Array.from(elements) });
+    } catch (e) {
+    }
+    _mmdWrapDiagrams(diagramWrap);
+  }
+
+  // viewer-src/renderers.js
+  var BODY_CLASSES = [
+    "markdown-body",
+    "code-body",
+    "html-body",
+    "csv-body",
+    "image-body",
+    "pdf-body"
+  ];
+  function _mmdSetBodyClasses(el) {
+    var keep = Array.prototype.slice.call(arguments, 1);
+    BODY_CLASSES.forEach(function(name) {
+      el.classList.toggle(name, keep.indexOf(name) >= 0);
+    });
+  }
+  function _createPdfBlobHolder() {
+    var url = null;
+    return {
+      issue: function(bytes) {
+        url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+        return url;
       },
-      // 注入された復元位置があればそれを、無ければ fallback を返して消費する。
-      // fallback は Swift を経由しない内部再描画で現在位置を保つための値。
-      takeRestorePosition: function(fallback) {
-        var position = pendingRestore !== null ? pendingRestore : typeof fallback === "number" ? fallback : 0;
-        pendingRestore = null;
-        return position;
-      },
-      notifyDebounced: function() {
-        cancelPendingNotify();
-        debounceTimer = setTimeout(function() {
-          debounceTimer = null;
-          notify();
-        }, 200);
+      release: function() {
+        if (!url) {
+          return;
+        }
+        URL.revokeObjectURL(url);
+        url = null;
       }
     };
   }
-  function _mmdSetRestoreScroll(position) {
-    _mmdScroll.setRestore(position);
+  var _mmdPdfBlob = _createPdfBlobHolder();
+  function _renderMmd(diagramWrap, content) {
+    diagramWrap.innerHTML = '<pre class="mermaid">' + escapeHtml(content) + "</pre>";
   }
-  function _mmdSetRenderDocPath(path) {
-    _mmdDocPath.setPending(path);
+  function _renderSvg(diagramWrap, content) {
+    var img = document.createElement("img");
+    img.src = svgDataURI(content);
+    img.style.maxWidth = "100%";
+    img.alt = "SVG";
+    var wrap = document.createElement("div");
+    wrap.className = "diagram-zoom-wrap";
+    wrap.dataset.diagramIndex = "0";
+    var scroll = document.createElement("div");
+    scroll.className = "diagram-zoom-scroll";
+    var inner = document.createElement("div");
+    inner.className = "diagram-zoom-inner";
+    inner.appendChild(img);
+    scroll.appendChild(inner);
+    wrap.appendChild(scroll);
+    wrap.appendChild(_mmdBuildDiagramControls(wrap));
+    diagramWrap.innerHTML = "";
+    diagramWrap.appendChild(wrap);
+    img.onload = function() {
+      wrap.dataset.naturalHeight = inner.offsetHeight;
+      _mmdApplyDiagramZoom(wrap);
+    };
   }
-  function _mmdRenameDocPath(from, to) {
-    _mmdDocPath.rename(from, to);
-  }
-  function _mmdPostScrollPosition() {
-    var el = _mmdScrollTarget();
-    if (!el) return;
-    _mmdPostMessage(_MSG_SCROLL_POSITION_CHANGED, {
-      position: el.scrollTop,
-      mode: _mmdViewOptions.mode(),
-      path: _mmdDocPath.current()
-    });
-  }
-  var _mmdScroll = _createScrollSync(_mmdPostScrollPosition, _mmdDocPath);
-  function _mmdRestoreScrollPosition(fallbackScrollTop) {
-    var el = _mmdScrollTarget();
-    if (!el) return;
-    el.scrollTop = _mmdScroll.takeRestorePosition(fallbackScrollTop);
-  }
-  function _mmdInitScrollNotify() {
-    document.addEventListener("scroll", function() {
-      _mmdScroll.notifyDebounced();
-    }, true);
-  }
-  function setLineNumbers(show) {
-    _mmdViewOptions.setLineNumbers(show);
-  }
-  function _mmdSetTruncated(isTruncated, lineCount, failed) {
-    _mmdFind.setTruncated(isTruncated);
-    var banner = document.getElementById("mmd-truncated-banner");
-    if (!isTruncated) {
-      banner.style.display = "none";
-      return;
-    }
-    banner.style.display = "flex";
-    var strings = window._mmdBannerStrings || {};
-    var textEl = document.getElementById("mmd-truncated-text");
-    var btn = document.getElementById("mmd-load-more-btn");
-    if (failed) {
-      textEl.textContent = strings.loadError || "Failed to load the rest of the file";
-      btn.style.display = "none";
-    } else if (typeof lineCount === "number") {
-      textEl.textContent = (strings.showing || "Showing {count} lines").replace("{count}", lineCount);
-      if (isHostFeatureEnabled(window._mmdHostFeatures, "loadMore")) {
-        btn.textContent = strings.loadMore || "Load More";
-        btn.style.display = "inline-block";
-      } else {
-        btn.style.display = "none";
+  function _renderHtml(diagramWrap, content) {
+    diagramWrap.classList.add("html-body");
+    var iframe = document.createElement("iframe");
+    iframe.setAttribute("sandbox", "allow-same-origin");
+    iframe.srcdoc = content;
+    iframe.style.width = "100%";
+    iframe.style.border = "none";
+    iframe.onload = function() {
+      try {
+        var h = iframe.contentDocument.documentElement.scrollHeight;
+        iframe.style.height = h + "px";
+      } catch (e) {
+        iframe.style.height = "80vh";
       }
-    } else {
-      textEl.textContent = strings.showing ? strings.showing.replace("{count}", "?") : "Showing partial content";
-      btn.style.display = "none";
+    };
+    iframe.style.height = "80vh";
+    diagramWrap.innerHTML = "";
+    diagramWrap.appendChild(iframe);
+  }
+  function _renderCsv(diagramWrap, content, lang) {
+    diagramWrap.classList.add("markdown-body", "csv-body");
+    diagramWrap.innerHTML = buildTableHtml(parseCsv(content, lang || ","));
+  }
+  function _renderImage(diagramWrap, content, lang) {
+    diagramWrap.classList.add("image-body");
+    var img = document.createElement("img");
+    img.alt = "Image";
+    img.onload = function() {
+      _mmdFitImage(img, diagramWrap);
+    };
+    img.src = imageDataURI(content, lang);
+    diagramWrap.innerHTML = "";
+    diagramWrap.appendChild(img);
+  }
+  function _renderPdf(diagramWrap, content) {
+    diagramWrap.classList.add("pdf-body");
+    var iframe = document.createElement("iframe");
+    iframe.src = _mmdPdfBlob.issue(base64ToBytes(content));
+    diagramWrap.innerHTML = "";
+    diagramWrap.appendChild(iframe);
+  }
+  function _renderMarkdown(diagramWrap, content) {
+    diagramWrap.classList.add("markdown-body");
+    var md2 = markdownRenderer();
+    if (!md2) {
+      diagramWrap.innerHTML = "<p>markdown-it not loaded</p>";
+      return false;
+    }
+    diagramWrap.innerHTML = md2.render(content);
+    return true;
+  }
+  function _renderSource(diagramWrap, content, type, lang, shape) {
+    _mmdSetBodyClasses(diagramWrap, "code-body");
+    var diffHtml = _renderDiffHtmlIfAvailable(type, lang);
+    if (diffHtml !== "") {
+      diagramWrap.innerHTML = diffHtml;
+      return "diff";
+    }
+    diagramWrap.innerHTML = shape === "csv-source" ? renderCsvSourceHtml(content, lang || ",", _mmdViewOptions.lineNumbers()) : renderCodeHtml(window.hljs, content, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers());
+    return shape;
+  }
+  function _sourceLanguage(type, lang) {
+    if (type === "svg" || type === "html") {
+      return "xml";
+    }
+    if (type === "md") {
+      return "markdown";
+    }
+    return lang || "plaintext";
+  }
+  function _renderDiffHtmlIfAvailable(type, lang) {
+    var diff = _mmdViewOptions.diff();
+    if (diff === null || type === "csv") {
+      return "";
+    }
+    try {
+      return renderDiffHtml(
+        window.hljs,
+        diff,
+        _sourceLanguage(type, lang),
+        _mmdViewOptions.lineNumbers(),
+        _mmdViewOptions.diffLayout()
+      );
+    } catch (e) {
+      return "";
     }
   }
-  function _mmdLoadMore() {
-    if (!isHostFeatureEnabled(window._mmdHostFeatures, "loadMore")) {
+
+  // viewer-src/render.js
+  function renderShape(type, mode) {
+    if (mode === "source" && type !== "code" && type !== "image" && type !== "pdf") {
+      return type === "csv" ? "csv-source" : "code";
+    }
+    if (type === "code") {
+      return "code";
+    }
+    if (type === "csv") {
+      return "csv-table";
+    }
+    if (type === "md") {
+      return "markdown";
+    }
+    return type;
+  }
+  var _mmdRenderedAs = "";
+  var CODE_CHUNK_CONTEXT_LINES = 200;
+  function _mmdFindRefreshAfterRender() {
+    var modeJustSwitched = _mmdModeSwitch.consume();
+    if (_mmdFind.isOpen()) {
+      _mmdFind.refresh(modeJustSwitched);
+    }
+  }
+  async function render(content, type, lang) {
+    _mmdScroll.beginRender();
+    var scrollTargetBeforeRender = _mmdScrollTarget();
+    var fallbackScrollTop = scrollTargetBeforeRender ? scrollTargetBeforeRender.scrollTop : 0;
+    _mmdDocument.record(content, type, lang);
+    _mmdChunkTail.record(content);
+    var shape = renderShape(type, _mmdViewOptions.mode());
+    _mmdRenderedAs = shape;
+    _mmdInvalidatePendingRefs();
+    var errorPanel = document.getElementById("mmd-error");
+    errorPanel.style.display = "none";
+    errorPanel.textContent = "";
+    var diagramWrap = document.getElementById("diagram-wrap");
+    diagramWrap.style.display = "block";
+    _mmdSetBodyClasses(diagramWrap);
+    _mmdPdfBlob.release();
+    if (shape === "code" || shape === "csv-source") {
+      _mmdRenderedAs = _renderSource(diagramWrap, content, type, lang, shape);
+    } else if (shape === "mmd") {
+      _renderMmd(diagramWrap, content);
+    } else if (shape === "svg") {
+      _renderSvg(diagramWrap, content);
+    } else if (shape === "html") {
+      _renderHtml(diagramWrap, content);
+    } else if (shape === "csv-table") {
+      _renderCsv(diagramWrap, content, lang);
+    } else if (shape === "image") {
+      _renderImage(diagramWrap, content, lang);
+    } else if (shape === "pdf") {
+      _renderPdf(diagramWrap, content);
+    } else if (!_renderMarkdown(diagramWrap, content)) {
       return;
     }
-    _mmdPostMessage(_MSG_LOAD_MORE_LINES, {});
+    await _mmdRunMermaid(diagramWrap);
+    _annotatePathRefs();
+    _mmdResolveReferences();
+    _mmdFindRefreshAfterRender();
+    _mmdApplyZoom();
+    _mmdRestoreScrollPosition(fallbackScrollTop);
   }
-  function _mmdInitLoadMore() {
-    document.getElementById("mmd-load-more-btn").addEventListener("click", function(e) {
-      if (!e.isTrusted) return;
-      _mmdLoadMore();
-    });
+  function _mmdRerenderCurrent() {
+    if (!_mmdDocument.hasContent()) {
+      return;
+    }
+    render(_mmdDocument.content(), _mmdDocument.type(), _mmdDocument.lang());
   }
   function appendChunk(text, type, lang) {
     if (!text) {
@@ -1956,10 +2227,11 @@
       return;
     }
     if (_mmdRenderedAs === "markdown") {
-      if (!md) {
+      var md2 = markdownRenderer();
+      if (!md2) {
         return;
       }
-      diagramWrap.insertAdjacentHTML("beforeend", md.render(text));
+      diagramWrap.insertAdjacentHTML("beforeend", md2.render(text));
       _annotatePathRefs();
       _mmdRunMermaid(diagramWrap, true);
     } else if (_mmdRenderedAs === "csv-table") {
@@ -2029,225 +2301,54 @@
     _mmdResolveReferences();
     _mmdFindRefreshAfterRender();
   }
-  function _createPdfBlobHolder() {
-    var url = null;
-    return {
-      issue: function(bytes) {
-        url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-        return url;
-      },
-      release: function() {
-        if (!url) {
-          return;
-        }
-        URL.revokeObjectURL(url);
-        url = null;
-      }
-    };
-  }
-  var _mmdPdfBlob = _createPdfBlobHolder();
-  function _mmdFindRefreshAfterRender() {
-    var modeJustSwitched = _mmdModeSwitch.consume();
-    if (_mmdFind.isOpen()) {
-      _mmdFind.refresh(modeJustSwitched);
-    }
-  }
-  function _renderMmd(diagramWrap, content) {
-    diagramWrap.innerHTML = '<pre class="mermaid">' + _escapeHtml(content) + "</pre>";
-  }
-  function _renderSvg(diagramWrap, content) {
-    var img = document.createElement("img");
-    img.src = svgDataURI(content);
-    img.style.maxWidth = "100%";
-    img.alt = "SVG";
-    var wrap = document.createElement("div");
-    wrap.className = "diagram-zoom-wrap";
-    wrap.dataset.diagramIndex = "0";
-    var scroll = document.createElement("div");
-    scroll.className = "diagram-zoom-scroll";
-    var inner = document.createElement("div");
-    inner.className = "diagram-zoom-inner";
-    inner.appendChild(img);
-    scroll.appendChild(inner);
-    wrap.appendChild(scroll);
-    wrap.appendChild(_mmdBuildDiagramControls(wrap));
-    diagramWrap.innerHTML = "";
-    diagramWrap.appendChild(wrap);
-    img.onload = function() {
-      wrap.dataset.naturalHeight = inner.offsetHeight;
-      _mmdApplyDiagramZoom(wrap);
-    };
-  }
-  function _renderHtml(diagramWrap, content) {
-    diagramWrap.classList.add("html-body");
-    var iframe = document.createElement("iframe");
-    iframe.setAttribute("sandbox", "allow-same-origin");
-    iframe.srcdoc = content;
-    iframe.style.width = "100%";
-    iframe.style.border = "none";
-    iframe.onload = function() {
-      try {
-        var h = iframe.contentDocument.documentElement.scrollHeight;
-        iframe.style.height = h + "px";
-      } catch (e) {
-        iframe.style.height = "80vh";
-      }
-    };
-    iframe.style.height = "80vh";
-    diagramWrap.innerHTML = "";
-    diagramWrap.appendChild(iframe);
-  }
-  function _renderCsv(diagramWrap, content, lang) {
-    diagramWrap.classList.add("markdown-body", "csv-body");
-    diagramWrap.innerHTML = buildTableHtml(parseCsv(content, lang || ","));
-  }
-  function _renderImage(diagramWrap, content, lang) {
-    diagramWrap.classList.add("image-body");
-    var img = document.createElement("img");
-    img.alt = "Image";
-    img.onload = function() {
-      _mmdFitImage(img, diagramWrap);
-    };
-    img.src = imageDataURI(content, lang);
-    diagramWrap.innerHTML = "";
-    diagramWrap.appendChild(img);
-  }
-  function _renderPdf(diagramWrap, content) {
-    diagramWrap.classList.add("pdf-body");
-    var iframe = document.createElement("iframe");
-    iframe.src = _mmdPdfBlob.issue(base64ToBytes(content));
-    diagramWrap.innerHTML = "";
-    diagramWrap.appendChild(iframe);
-  }
-  function _renderMarkdown(diagramWrap, content) {
-    diagramWrap.classList.add("markdown-body");
-    if (!md) {
-      diagramWrap.innerHTML = "<p>markdown-it not loaded</p>";
-      return false;
-    }
-    diagramWrap.innerHTML = md.render(content);
-    return true;
-  }
-  async function _mmdRunMermaid(diagramWrap, onlyUnprocessed) {
-    var selector = onlyUnprocessed ? ".mermaid:not([data-processed])" : ".mermaid";
-    var elements = diagramWrap.querySelectorAll(selector);
-    if (elements.length === 0) {
+
+  // viewer-src/truncation.js
+  function _mmdSetTruncated(isTruncated, lineCount, failed) {
+    _mmdFind.setTruncated(isTruncated);
+    var banner = document.getElementById("mmd-truncated-banner");
+    if (!isTruncated) {
+      banner.style.display = "none";
       return;
     }
-    try {
-      await _mmdEnsureMermaidLoaded();
-      elements.forEach(function(el, i) {
-        if (!onlyUnprocessed) {
-          el.removeAttribute("data-processed");
-        }
-        el.id = "mmd-" + i + "-" + Date.now();
-      });
-      await mermaid.run({ nodes: Array.from(elements) });
-    } catch (e) {
+    banner.style.display = "flex";
+    var strings = window._mmdBannerStrings || {};
+    var textEl = document.getElementById("mmd-truncated-text");
+    var btn = document.getElementById("mmd-load-more-btn");
+    if (failed) {
+      textEl.textContent = strings.loadError || "Failed to load the rest of the file";
+      btn.style.display = "none";
+    } else if (typeof lineCount === "number") {
+      textEl.textContent = (strings.showing || "Showing {count} lines").replace("{count}", lineCount);
+      if (isHostFeatureEnabled(window._mmdHostFeatures, "loadMore")) {
+        btn.textContent = strings.loadMore || "Load More";
+        btn.style.display = "inline-block";
+      } else {
+        btn.style.display = "none";
+      }
+    } else {
+      textEl.textContent = strings.showing ? strings.showing.replace("{count}", "?") : "Showing partial content";
+      btn.style.display = "none";
     }
-    _mmdWrapDiagrams(diagramWrap);
   }
-  var BODY_CLASSES = [
-    "markdown-body",
-    "code-body",
-    "html-body",
-    "csv-body",
-    "image-body",
-    "pdf-body"
-  ];
-  function _mmdSetBodyClasses(el) {
-    var keep = Array.prototype.slice.call(arguments, 1);
-    BODY_CLASSES.forEach(function(name) {
-      el.classList.toggle(name, keep.indexOf(name) >= 0);
+  function _mmdLoadMore() {
+    if (!isHostFeatureEnabled(window._mmdHostFeatures, "loadMore")) {
+      return;
+    }
+    _mmdPostMessage(_MSG_LOAD_MORE_LINES, {});
+  }
+  function _mmdInitLoadMore() {
+    document.getElementById("mmd-load-more-btn").addEventListener("click", function(e) {
+      if (!e.isTrusted) return;
+      _mmdLoadMore();
     });
   }
-  async function render(content, type, lang) {
-    _mmdScroll.beginRender();
-    var scrollTargetBeforeRender = _mmdScrollTarget();
-    var fallbackScrollTop = scrollTargetBeforeRender ? scrollTargetBeforeRender.scrollTop : 0;
-    _mmdDocument.record(content, type, lang);
-    _mmdChunkTail.record(content);
-    var shape = renderShape(type, _mmdViewOptions.mode());
-    _mmdRenderedAs = shape;
-    _mmdInvalidatePendingRefs();
-    var errorPanel = document.getElementById("mmd-error");
-    errorPanel.style.display = "none";
-    errorPanel.textContent = "";
-    var diagramWrap = document.getElementById("diagram-wrap");
-    diagramWrap.style.display = "block";
-    _mmdSetBodyClasses(diagramWrap);
-    _mmdPdfBlob.release();
-    if (shape === "code" || shape === "csv-source") {
-      _renderSource(diagramWrap, content, type, lang, shape);
-    } else if (shape === "mmd") {
-      _renderMmd(diagramWrap, content);
-    } else if (shape === "svg") {
-      _renderSvg(diagramWrap, content);
-    } else if (shape === "html") {
-      _renderHtml(diagramWrap, content);
-    } else if (shape === "csv-table") {
-      _renderCsv(diagramWrap, content, lang);
-    } else if (shape === "image") {
-      _renderImage(diagramWrap, content, lang);
-    } else if (shape === "pdf") {
-      _renderPdf(diagramWrap, content);
-    } else if (!_renderMarkdown(diagramWrap, content)) {
-      return;
-    }
-    await _mmdRunMermaid(diagramWrap);
-    _annotatePathRefs();
-    _mmdResolveReferences();
-    _mmdFindRefreshAfterRender();
-    _mmdApplyZoom();
-    _mmdRestoreScrollPosition(fallbackScrollTop);
-  }
-  function _renderSource(diagramWrap, content, type, lang, shape) {
-    _mmdSetBodyClasses(diagramWrap, "code-body");
-    var diffHtml = _renderDiffHtmlIfAvailable(type, lang);
-    if (diffHtml !== "") {
-      diagramWrap.innerHTML = diffHtml;
-      return;
-    }
-    diagramWrap.innerHTML = shape === "csv-source" ? renderCsvSourceHtml(content, lang || ",", _mmdViewOptions.lineNumbers()) : renderCodeHtml(window.hljs, content, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers());
-  }
-  function _sourceLanguage(type, lang) {
-    if (type === "svg" || type === "html") {
-      return "xml";
-    }
-    if (type === "md") {
-      return "markdown";
-    }
-    return lang || "plaintext";
-  }
-  function _renderDiffHtmlIfAvailable(type, lang) {
-    var diff = _mmdViewOptions.diff();
-    if (diff === null || type === "csv") {
-      return "";
-    }
-    try {
-      var html = renderDiffHtml(
-        window.hljs,
-        diff,
-        _sourceLanguage(type, lang),
-        _mmdViewOptions.lineNumbers(),
-        _mmdViewOptions.diffLayout()
-      );
-      if (html !== "") {
-        _mmdRenderedAs = "diff";
-      }
-      return html;
-    } catch (e) {
-      return "";
-    }
-  }
-  function setViewMode(mode) {
-    _mmdViewOptions.setMode(mode);
-  }
-  function setDiff(text) {
-    _mmdViewOptions.setDiff(text);
-  }
-  function setDiffLayout(layout) {
-    _mmdViewOptions.setDiffLayout(layout);
+
+  // viewer-src/init.js
+  function _mmdInitColorScheme() {
+    onColorSchemeChange(function() {
+      _mmdReinitializeMermaidIfLoaded();
+      _mmdRerenderCurrent();
+    });
   }
   function _mmdInit() {
     _mmdInitKeyboard();
@@ -2266,15 +2367,13 @@
   }
 
   // viewer-src/expose.js
-  function exposeGlobals(...namespaces) {
-    for (const namespace of namespaces) {
-      for (const [name, value] of Object.entries(namespace)) {
-        globalThis[name] = value;
-      }
+  function exposeGlobals(namespace) {
+    for (const [name, value] of Object.entries(namespace)) {
+      globalThis[name] = value;
     }
   }
 
   // viewer-src/index.js
-  exposeGlobals(viewer_exports, viewer_main_exports);
+  exposeGlobals(main_exports);
   _mmdInit();
 })();

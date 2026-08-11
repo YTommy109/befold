@@ -1,4 +1,4 @@
-const { renderShape } = require('../../../viewer-src/viewer.js');
+const { renderShape } = require('../../../viewer-src/main.js');
 
 // 「表示モードと種別から、いま DOM に描く形を決める」判定の単体テスト。
 //

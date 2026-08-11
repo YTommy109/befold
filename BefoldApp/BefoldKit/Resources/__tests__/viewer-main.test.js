@@ -1,5 +1,5 @@
-// viewer-main.js(命令的レンダリング層)のテスト。
-// エクスポート境界の導入により、jsdom + viewer.html の DOM 上でロジックを
+// DOM に触れる層(描画・ズーム・検索・参照解決)のテスト。ファイル名は分割前の
+// viewer-main.js に由来する。公開面の barrel 経由で、jsdom + viewer.html の DOM 上でロジックを
 // 読み込み・初期化・単体呼び出しできることを確認する。
 
 const {
@@ -58,14 +58,14 @@ describe('エクスポート境界', () => {
 
 describe('_mmdInitZoom', () => {
   test('Swift が注入した倍率を採用する', () => {
-    const { window, main, viewer } = loadViewerMain({ initialZoom: '1.5' });
+    const { window, main } = loadViewerMain({ initialZoom: '1.5' });
     const received = captureBridgeMessages(window, ['zoomChanged']);
 
     // 注入値(1.5)が採用されていれば、既定倍率へのリセットは変化として通知される
     main._mmdZoomReset();
 
     expect(received.length).toBe(1);
-    expect(received[0].payload.zoom).toBe(viewer.ZOOM_DEFAULT);
+    expect(received[0].payload.zoom).toBe(main.ZOOM_DEFAULT);
   });
 
   test('注入値と同じ倍率では zoomChanged を通知しない', () => {
@@ -800,11 +800,11 @@ describe('ダイアグラム個別ズーム', () => {
     // 先頭以外を操作して、インデックスごとに独立していることを確かめる
     second.querySelector('.diagram-zoom-in').click();
 
-    expect(labelOf(second)).toBe(loaded.viewer.zoomLabel(loaded.viewer.ZOOM_DEFAULT + loaded.viewer.ZOOM_STEP));
-    expect(labelOf(first)).toBe(loaded.viewer.zoomLabel(loaded.viewer.ZOOM_DEFAULT));
-    expect(loaded.main._mmdDiagramZoomValue(0)).toBe(loaded.viewer.ZOOM_DEFAULT);
+    expect(labelOf(second)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT + loaded.main.ZOOM_STEP));
+    expect(labelOf(first)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
+    expect(loaded.main._mmdDiagramZoomValue(0)).toBe(loaded.main.ZOOM_DEFAULT);
     // 全体ズームは個別ズームでは動かない
-    expect(loaded.main._mmdZoom.value()).toBe(loaded.viewer.ZOOM_DEFAULT);
+    expect(loaded.main._mmdZoom.value()).toBe(loaded.main.ZOOM_DEFAULT);
   });
 
   test('個別ズームは再描画をまたいで維持される', () => {
@@ -812,13 +812,13 @@ describe('ダイアグラム個別ズーム', () => {
     const [first] = wrapTwoDiagrams(loaded);
     first.querySelector('.diagram-zoom-in').click();
     const zoomed = labelOf(first);
-    expect(zoomed).not.toBe(loaded.viewer.zoomLabel(loaded.viewer.ZOOM_DEFAULT));
+    expect(zoomed).not.toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
 
     // ライブリロード相当: DOM を作り直して同じ順番のダイアグラムを包み直す
     const [reFirst, reSecond] = wrapTwoDiagrams(loaded);
 
     expect(labelOf(reFirst)).toBe(zoomed);
-    expect(labelOf(reSecond)).toBe(loaded.viewer.zoomLabel(loaded.viewer.ZOOM_DEFAULT));
+    expect(labelOf(reSecond)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
   });
 
   test('倍率ラベルのクリックで既定倍率に戻る', () => {
@@ -828,8 +828,8 @@ describe('ダイアグラム個別ズーム', () => {
 
     first.querySelector('.diagram-zoom-label').click();
 
-    expect(labelOf(first)).toBe(loaded.viewer.zoomLabel(loaded.viewer.ZOOM_DEFAULT));
-    expect(loaded.main._mmdDiagramZoomValue(0)).toBe(loaded.viewer.ZOOM_DEFAULT);
+    expect(labelOf(first)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
+    expect(loaded.main._mmdDiagramZoomValue(0)).toBe(loaded.main.ZOOM_DEFAULT);
   });
 });
 

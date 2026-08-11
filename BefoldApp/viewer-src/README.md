@@ -7,12 +7,43 @@ viewer 用 JS のモジュールソース（ESM）。`npm run build:viewer` が 
 
 ## ファイル構成
 
+モジュールは**関心ごとに 1 つ**で、その中に純粋な計算と DOM 操作が同居する。
+以前の `viewer.js`（純粋）/ `viewer-main.js`（DOM）という分け方は責務ではなく
+テスト可能性で引いた境界で、同じ関心の 2 つの枝が離れて置かれ実際に乖離した
+（ソース表示中の追記が別判定に育った = TASK-414）。テスト可能性は
+ファイル境界ではなく `export` で担保する。
+
 | ファイル | 責務 |
 |---|---|
 | `index.js` | バンドルのエントリ。`exposeGlobals()` で公開関数をグローバルへ載せ、`_mmdInit()` を呼ぶ |
-| `viewer.js` | 純粋ロジック（DOM 非依存）。トークナイザ・HTML 組み立て・ズーム計算など |
-| `viewer-main.js` | DOM 描画と type ディスパッチ。`viewer.js` から `import` する |
-| `expose.js` | 名前空間オブジェクトを反復して `globalThis` へ公開する `exposeGlobals()` |
+| `main.js` | 公開面の barrel。エントリもテストハーネスもここだけを見る |
+| `expose.js` | barrel の export を反復して `globalThis` へ公開する `exposeGlobals()` |
+| `init.js` | 読み込み時の初期化（リスナ登録・注入値の反映）を 1 箇所に集約する |
+| `bridge.js` | Swift ホストとの境界。`postMessage` の送信口とホスト機能フラグ |
+| `render.js` | 描画の入口とチャンク追記のディスパッチ。「いま何の形を描いたか」の記録を持つ |
+| `renderers.js` | 表示種別ごとの `#diagram-wrap` 組み立て |
+| `document-state.js` | 直近に描画した内容とチャンク境界を保持する |
+| `view-options.js` | 表示モード・行番号・差分の設定を保持する |
+| `doc-path.js` | いま DOM に出ている文書のパスを追跡する |
+| `scroll.js` | スクロール対象の決定・位置の復元・位置変化の通知 |
+| `keyboard.js` | キーボード操作の配線と、キーからスクロール量を決める規則 |
+| `zoom.js` | 全体ズームとダイアグラム個別ズームの倍率保持と DOM への適用 |
+| `find.js` | 検索バーの状態・ハイライト・件数表示 |
+| `path-refs.js` | 本文中のパス参照の注釈付けと Swift への解決要求 |
+| `reference-clicks.js` | リンク/パス参照のクリック・コンテキストメニューを Swift へ伝える |
+| `truncation.js` | 段階読み込みバナーと「続きを読み込む」 |
+| `markdown.js` | markdown-it インスタンスの構成 |
+| `mermaid.js` | mermaid の遅延ロード・設定・実行 |
+| `color-scheme.js` | ダークモードの現在値と変更通知 |
+| `fonts.js` | Swift が注入したフォント設定を CSS 変数へ反映する |
+| `code-html.js` | ソースコードのハイライトと行単位 HTML の組み立て |
+| `diff-html.js` | unified diff の解析とインライン/左右分割の HTML 組み立て |
+| `csv-html.js` | CSV/TSV の解析とテーブル/ソース表示の HTML 組み立て |
+| `encoding.js` | HTML エスケープと data URI / base64 の変換 |
+
+依存は `import` で表現し、**循環させない**（`npm run check:viewer-cycles`）。
+循環するとモジュール評価順が壊れ、別モジュールのトップレベル値を `undefined` の
+まま掴む。実際に `scroll.js` は評価時に `doc-path.js` の `_mmdDocPath` を読む。
 
 Swift 側は `evaluateJavaScript("_mmdZoomIn()")` のような裸の呼び出しで到達するため、
 バンドル（IIFE）の中身は `exposeGlobals()` でグローバルへ載せ直す。`export` した
@@ -21,7 +52,7 @@ Swift 側は `evaluateJavaScript("_mmdZoomIn()")` のような裸の呼び出し
 `viewer.html` は body 末尾で **markdown-it → highlight.js → DOMPurify →
 viewer-bundle.js** の順に読む。ベンダーライブラリはバンドルに含めず、グローバル参照
 のまま使う。mermaid（3.2MB）はさらに遅く、描画が必要になった時点で
-`viewer-main.js` が動的に `<script>` を挿して遅延ロードする。CSP は
+`mermaid.js` が動的に `<script>` を挿して遅延ロードする。CSP は
 `script-src 'self'` のままで変わらない。
 
 ## なぜここに置くか
@@ -42,14 +73,15 @@ viewer-bundle.js** の順に読む。ベンダーライブラリはバンドル�
 npm run build:viewer         # ソースからバンドルを生成する
 npm run check:viewer-bundle  # 再ビルドしてコミット済み成果物との差分を検出する
 npm run lint:viewer          # ESLint（no-undef で未定義参照を機械検出する）
+npm run check:viewer-cycles  # モジュール間の循環 import を検出する
 npx jest                     # Jest テスト（BefoldKit/Resources/__tests__/）
 ```
 
 `check:viewer-bundle` はローカルでも CI と同じコマンドで確認できる。差分が出たら
 `npm run build:viewer` の結果をコミットする。
 
-テストは成果物ではなくこのディレクトリのソースを対象にする。純粋ロジックは
-`viewer.js` を直接 require し、DOM 側は `__tests__/support/viewerMainHarness.js` が
+テストは成果物ではなくこのディレクトリのソースを対象にする。DOM を要さない純粋関数は
+`main.js` を直接 require し、DOM 側は `__tests__/support/viewerMainHarness.js` が
 esbuild でテスト用エントリを IIFE にまとめて jsdom の `window.eval` で評価する。
 
 ## Node バージョン

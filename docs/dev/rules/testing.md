@@ -18,8 +18,9 @@ Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`BefoldApp/viewer-
 - **Swift**: Swift Testing（`import Testing`）を使う（XCTest は使わない）
 - **JavaScript**: Jest を使う。テストは `BefoldKit/Resources/__tests__/` に置き、
   対象は成果物の `viewer-bundle.js` ではなくソースの `viewer-src/` を読む
-  （純粋ロジックは `viewer-src/viewer.js` を直接 require、DOM 側は
-  `__tests__/support/viewerMainHarness.js` が esbuild でバンドルして jsdom 上で評価する）
+  （DOM を要さない純粋関数は公開面の barrel `viewer-src/main.js` を直接 require、
+  DOM 側は `__tests__/support/viewerMainHarness.js` が esbuild でバンドルして
+  jsdom 上で評価する。どちらも同じ barrel を入口にする）
 
 ## Swift テスト構造
 
