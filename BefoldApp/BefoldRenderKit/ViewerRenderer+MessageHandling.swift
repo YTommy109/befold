@@ -11,25 +11,6 @@ extension ViewerRenderer {
     private typealias ResolveKey = ViewerBridge.PayloadKey.ResolveReferences
     private typealias ContextMenuKey = ViewerBridge.PayloadKey.ReferenceContextMenu
 
-    /// WKUserContentController はハンドラを強参照するため、ViewerRenderer への参照を弱めて
-    /// dismantle の呼び出しに依存せずリークを防ぐプロキシ。
-    /// type_body_length 対策で ViewerRenderer 本体の外の extension に分離している。
-    final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
-        private weak var delegate: WKScriptMessageHandler?
-
-        init(delegate: WKScriptMessageHandler) {
-            self.delegate = delegate
-        }
-
-        @MainActor
-        func userContentController(
-            _ userContentController: WKUserContentController,
-            didReceive message: WKScriptMessage
-        ) {
-            delegate?.userContentController(userContentController, didReceive: message)
-        }
-    }
-
     /// 受信メッセージを BridgeMessage へ写して分岐する。網羅 switch なので、
     /// メッセージを追加してルーティングを書き忘れるとコンパイルエラーになる。
     /// ペイロードの取り出しは各ケース内で行い、不正なら早期 return する

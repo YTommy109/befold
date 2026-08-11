@@ -50,8 +50,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
         // 直接 HTML モードで fileA を表示中の状態を模す。
         renderer.isDirectHTMLMode = true
         renderer.lastDirectHTMLPath = fileA
-        renderer.rendered.filePath = fileA
-        renderer.rendered.isSourceMode = false
+        renderer.recordRendered(RenderedStateMirror(filePath: fileA, isSourceMode: false))
 
         // 1回目: 直接HTMLモードから離脱し、viewer.html の再ロードを開始する。
         renderer.updateContent(

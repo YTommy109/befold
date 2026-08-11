@@ -56,7 +56,7 @@ struct MarkdownImageEmbedderSharedInstanceTests {
         try #require((try? Data(contentsOf: imageURL)) == nil)
 
         // 本番の既定値(imageEmbedder 未指定 = .shared)で描画直前の埋め込みを行う。
-        let rendered = ViewerRenderer.renderableContent(
+        let rendered = RenderableContent.make(
             markdown, fileType: .markdown, filePath: markdownURL, isSourceMode: false
         )
 

@@ -133,47 +133,25 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
     /// evaluateJavaScript/recordRendered を行う。後続の updateContent に追い越された古い
     /// 埋め込み結果が rendered ミラーを巻き戻すのを防ぐ(ViewerStore.loadGeneration と同じ idiom)。
     var contentUpdateGeneration = 0
-    /// 直近に描画した表示状態のミラー。呼び出し側 content の全文を保持せず、
-    /// contentRevision の整数比較で再描画要否を判定することで重複バッファを避ける。
-    /// viewer.html 再ロード時は 6 値を必ずセットで破棄する必要があるため、
-    /// 個別フィールドではなく 1 つの struct にまとめ `reset()` で一括リセットする。
-    /// Equatable にしているのは「描画済みの状態と今回の入力が違うか」を
-    /// フィールドの列挙ではなく型の比較で判定するため(updateContent 参照)。
-    /// ここへフィールドを足すと再描画の判定にも自動で入る。
-    struct RenderedStateMirror: Equatable {
-        /// 直近に描画した content の世代番号。
-        var contentRevision: Int?
-        var fileType: FileType?
-        var filePath: URL?
-        var showLineNumbers: Bool?
-        var isSourceMode: Bool?
-        /// 最後に _mmdSetTruncated へ送った切り詰め状態と表示行数
-        /// (再読込での行数だけの変化もバナー更新できるよう両方をセットで保持する)。
-        var truncation: TruncationState?
-        /// 最後に setDiff / setDiffLayout へ送った差分表示の状態。
-        var diffState: DiffState?
+    /// 直近に描画した表示状態のミラー(型の定義は RenderedStateMirror.swift)。
+    ///
+    /// 確定の入口を `recordRendered` の 1 つに限るため setter をこのファイルに閉じてある。
+    /// 部分更新できる入口を残すと、ミラーへフィールドを足したときにそこだけ確定漏れが起き、
+    /// 状態変化が 1 周期失われる(TASK-320 / TASK-334 で 2 度起きた形)。
+    private(set) var rendered = RenderedStateMirror()
 
-        /// viewer.html 再ロードで JS 側状態が初期化されるのに合わせて全ミラーを破棄する。
-        mutating func reset() {
-            self = RenderedStateMirror()
-        }
+    /// 描画済みミラーをまるごと確定させる。render()/append() を実際に
+    /// evaluateJavaScript した後にだけ呼ぶこと(`applyRender` の解説を参照)。
+    /// 一部のフィールドだけを変えたい呼び出し元は、現在の `rendered` を複製して
+    /// 書き換えてから渡すこと。
+    func recordRendered(_ state: RenderedStateMirror) {
+        rendered = state
     }
-
-    var rendered = RenderedStateMirror()
 
     /// ソース表示へ重ねる git 差分。ホストが更新のたびに設定する
     /// (updateContent の引数にせず、rendererFeatures や initialPageZoom と同じ
     /// 「レンダラの設定」として持つ。QuickLook 等のホストは既定の .none のまま)。
     public var diffState: DiffState = .none
-
-    /// 段階読み込み(loadMoreLines)でステージされた次チャンク。実際の増分描画は
-    /// @Observable 変更が駆動する updateContent(唯一の描画 sink)が消費して行う。
-    /// revision は追記後の世代番号で、updateContent の contentRevision と一致した
-    /// ときだけ増分描画する(不一致=別更新に追い越された場合は破棄し全文 render に倒す)。
-    struct PendingAppend {
-        let chunk: String
-        let revision: Int
-    }
 
     var pendingAppend: PendingAppend?
     var isDirectHTMLMode = false
@@ -194,97 +172,25 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate, WKScriptMessa
         initialZoom: Double, findOptionsPreference: FindOptionsPreference?,
         codeFontFamily: String? = nil, codeFontSizePoints: Double? = nil
     ) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        #if DEBUG
-            // Web インスペクタを有効化する（公開 API がないため KVC を使用）。
-            // 開発ビルドのみで有効にし、リリースビルドには含めない
-            config.preferences.setValue(true, forKey: "developerExtrasEnabled")
-        #endif
-
-        // ロード前に注入する JS を一括登録する(全て atDocumentStart / メインフレーム限定)。
-        // Markdown 本文をシステム設定のテキストサイズに合わせる際は preferredFont(.body) を使う
-        // (アクセシビリティのテキストサイズ変更に追従、既定 13pt)。
-        let userScriptSources = [
-            ViewerBridge.initialZoomScript(initialZoom),
-            ViewerBridge.systemFontSizeScript(
-                NSFont.preferredFont(forTextStyle: .body).pointSize
-            ),
-            ViewerBridge.monoFontFamilyScript(codeFontFamily),
-            ViewerBridge.codeFontSizeScript(codeFontSizePoints),
-            ViewerBridge.initialFindOptionsScript(
-                ViewerBridge.FindOptions(
-                    caseSensitive: findOptionsPreference?.caseSensitive ?? false,
-                    wholeWord: findOptionsPreference?.wholeWord ?? false,
-                    useRegex: findOptionsPreference?.useRegex ?? false
-                )
-            ),
-            ViewerBridge.findStringsScript(),
-            ViewerBridge.bannerStringsScript(),
-            ViewerBridge.hostFeaturesScript(
-                loadMore: rendererFeatures.allowsInteractiveBridging,
-                spaceScroll: rendererFeatures.allowsSpaceScroll,
-                referenceActivation: rendererFeatures.allowsInteractiveBridging
-            ),
-        ]
-        for source in userScriptSources {
-            config.userContentController.addUserScript(
-                WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true)
-            )
-        }
-        // JS → Swift の postMessage ハンドラをまとめて登録する(同一 delegate のため一括化)。
-        for name in Self.messageHandlerNames(for: rendererFeatures) {
-            config.userContentController.add(
-                WeakScriptMessageHandler(delegate: self), name: name
-            )
-        }
         self.findOptionsPreference = findOptionsPreference
         initialPageZoom = initialZoom
-
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = ViewerWebViewFactory.makeWebView(
+            options: ViewerWebViewFactory.Options(
+                initialZoom: initialZoom, findOptions: findOptionsPreference,
+                codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints,
+                features: rendererFeatures
+            ),
+            messageHandler: self
+        )
         webView.navigationDelegate = self
-        // WKWebView の背景を透明にする（公開 API がないため KVC を使用）
-        webView.setValue(false, forKey: "drawsBackground")
-        // トラックパッドのピンチジェスチャーでズームできるようにする。
-        // viewer.html 経由のコンテンツは既存の ctrl+wheel ハンドラ(viewer.html)で
-        // 対応済みだが、.html ファイル直接ロード時はこの経路を通らないため必要。
-        webView.allowsMagnification = true
-        // WebKit標準の「2本指スワイプでページ履歴を戻る/進む」は本アプリの
-        // ページ内履歴(loadFileURLのみ)とは無関係なため無効化し、呼び出し側が
-        // 二本指スワイプでファイル履歴を扱えるようにする。
-        webView.allowsBackForwardNavigationGestures = false
         self.webView = webView
-
-        Self.loadViewerHTML(into: webView)
-
+        ViewerWebViewFactory.loadViewerHTML(into: webView)
         return webView
-    }
-
-    /// バンドル同梱の viewer.html を WebView へ読み込む。
-    /// リソース名(`"viewer"` / `"html"`)の出現箇所をここに一本化する。
-    /// 既定 bundle は BefoldRenderKit 自身のリソースバンドルではなく、viewer.html
-    /// 本体を同梱する BefoldKit のリソースバンドル(`Bundle.main` 非依存)を指す。
-    public nonisolated static func loadViewerHTML(into webView: WKWebView, bundle: Bundle = .befoldKitResources) {
-        guard let htmlURL = bundle.url(forResource: "viewer", withExtension: "html") else { return }
-        let resourceDir = htmlURL.deletingLastPathComponent()
-        webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
-    }
-
-    /// JS → Swift の postMessage ハンドラ名一覧。makeWebView での登録・dismantle での
-    /// 解除を一箇所から駆動する(新規メッセージ追加時はここに加えるだけでよい)。
-    /// referenceActivated/loadMoreLines は features.allowsInteractiveBridging が false の
-    /// (QuickLook 拡張等の静的1回描画ホストを想定した)場合、そもそも登録しない
-    /// (多層防御: XSS が postMessage を直接呼んでもハンドラ未登録のため Swift 側に届かない)。
-    public nonisolated static func messageHandlerNames(for features: RendererFeatures) -> [String] {
-        ViewerBridge.BridgeMessage.allCases
-            .filter { features.allowsInteractiveBridging || !$0.requiresInteractiveBridging }
-            .map(\.rawValue)
     }
 
     /// makeWebView で登録した postMessage ハンドラを解除する。
     public func dismantle(_ webView: WKWebView) {
-        for name in Self.messageHandlerNames(for: rendererFeatures) {
-            webView.configuration.userContentController.removeScriptMessageHandler(forName: name)
-        }
+        ViewerWebViewFactory.dismantle(webView, features: rendererFeatures)
     }
 
     // MARK: - WKNavigationDelegate

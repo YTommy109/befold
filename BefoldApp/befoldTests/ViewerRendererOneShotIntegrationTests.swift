@@ -31,7 +31,7 @@ struct ViewerRendererOneShotIntegrationTests {
         #expect(result.rejectReason == nil)
         #expect(result.webView === renderer.webView)
         // ブリッジ無効構成では攻撃面となる2種のハンドラを登録しない。
-        let names = ViewerRenderer.messageHandlerNames(for: renderer.rendererFeatures)
+        let names = ViewerWebViewFactory.messageHandlerNames(for: renderer.rendererFeatures)
         #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
     }

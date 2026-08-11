@@ -4,32 +4,6 @@ import WebKit
 // MARK: - Content update
 
 extension ViewerRenderer {
-    /// applyRender の引数をまとめた入力(function_parameter_count 対策)。
-    /// generation は呼び出し時点の contentUpdateGeneration のスナップショット。画像埋め込み
-    /// (MainActor 外)から戻った際にこの値と現在値を比較し、後続の updateContent 呼び出しに
-    /// 追い越されていないかを確認する。
-    struct RenderRequest {
-        let content: String
-        let contentRevision: Int
-        let fileType: FileType
-        let filePath: URL?
-        let isSourceMode: Bool
-        let showLineNumbers: Bool
-        let truncation: TruncationState
-        let generation: Int
-    }
-
-    /// applyAppend の引数をまとめた入力(function_parameter_count 対策)。RenderRequest 参照。
-    struct AppendRequest {
-        let chunk: String
-        let contentRevision: Int
-        let fileType: FileType
-        let filePath: URL?
-        let isSourceMode: Bool
-        let truncation: TruncationState
-        let generation: Int
-    }
-
     /// applyRender を非同期 Task で起動する(doUpdate 内の重複削減)。
     private func scheduleRender(webView: WKWebView, request: RenderRequest, restoreFromPersistedPosition: Bool) {
         Task { @MainActor in
@@ -49,41 +23,7 @@ extension ViewerRenderer {
 }
 
 public extension ViewerRenderer {
-    /// ソース表示へ重ねる git 差分の状態。本文とレイアウトは必ず一緒に動くため
-    /// 1 つの値として持つ(片方だけ送られて、旧レイアウトで新しい差分が描かれるのを防ぐ)。
-    struct DiffState: Equatable, Sendable {
-        public let text: String?
-        public let layout: ViewerBridge.DiffLayout
-        public init(text: String?, layout: ViewerBridge.DiffLayout) {
-            self.text = text
-            self.layout = layout
-        }
-
-        /// 差分を出さない状態。
-        public static let none = DiffState(text: nil, layout: .inline)
-    }
-
-    /// _mmdSetTruncated へ送る切り詰め状態と表示行数のペア。非切り詰め時の
-    /// 行数は 0 に正規化する(切り詰め有無だけが意味を持つ)。failed はチャンク
-    /// 読込エラーによる打ち切りを示す(通常の再描画経路からは常に false)。
-    struct TruncationState: Equatable, Sendable {
-        public let isTruncated: Bool
-        public let lineCount: Int
-        public let failed: Bool
-        public init(isTruncated: Bool, lineCount: Int, failed: Bool) {
-            self.isTruncated = isTruncated
-            self.lineCount = isTruncated ? lineCount : 0
-            self.failed = failed
-        }
-
-        /// この状態を JS へ反映するスクリプト。3 つのフィールドを呼び出し側で
-        /// 手ばらしすると、フィールドが増えたときに渡し漏れる。
-        public var script: String {
-            ViewerBridge.truncatedScript(isTruncated, lineCount: lineCount, failed: failed)
-        }
-    }
-
-    /// type_body_length 対策で ViewerRenderer 本体の外の extension に分離している。
+    /// 表示内容の更新要求を受ける唯一の sink。
     func updateContent(
         _ content: String,
         contentRevision: Int,
@@ -158,7 +98,7 @@ public extension ViewerRenderer {
             if isDirectHTMLMode {
                 // この分岐に来る時点でファイルかモードが直接HTML状態と必ず異なるため
                 // (同一なら上の直接HTMLロード分岐に吸収される)、常に切替として扱われる。
-                let restoreFromPersistedPosition = Self.isFileOrModeSwitch(
+                let restoreFromPersistedPosition = RenderedStateMirror.isFileOrModeSwitch(
                     filePath: filePath, isSourceMode: isSourceMode,
                     lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
                 )
@@ -199,7 +139,7 @@ public extension ViewerRenderer {
             // 起きた等)の場合は破棄し、下の通常経路で全文 render に倒す。
             if let pending = pendingAppend {
                 pendingAppend = nil
-                if Self.canConsumePendingAppend(pending, incoming: incoming, rendered: rendered) {
+                if RenderedStateMirror.canConsume(pending, incoming: incoming, rendered: rendered) {
                     scheduleAppend(
                         webView: webView,
                         request: AppendRequest(
@@ -214,7 +154,7 @@ public extension ViewerRenderer {
 
             guard incoming != rendered else { return }
 
-            let restoreFromPersistedPosition = Self.isFileOrModeSwitch(
+            let restoreFromPersistedPosition = RenderedStateMirror.isFileOrModeSwitch(
                 filePath: filePath, isSourceMode: isSourceMode,
                 lastRenderedFilePath: rendered.filePath, lastIsSourceMode: rendered.isSourceMode
             )

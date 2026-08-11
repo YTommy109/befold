@@ -23,12 +23,14 @@ struct ViewerRendererContentUpdateTests {
         let fileB = URL(fileURLWithPath: "/tmp/task68-same-b.md")
 
         // fileA を revision 3 で描画済みの状態を模す。
-        renderer.rendered.contentRevision = 3
-        renderer.rendered.fileType = .markdown
-        renderer.rendered.filePath = fileA
-        renderer.rendered.showLineNumbers = false
-        renderer.rendered.isSourceMode = false
-        renderer.rendered.truncation = Self.truncation
+        renderer.recordRendered(RenderedStateMirror(
+            contentRevision: 3,
+            fileType: .markdown,
+            filePath: fileA,
+            showLineNumbers: false,
+            isSourceMode: false,
+            truncation: Self.truncation
+        ))
 
         // 内容バイト列が同一で dataHash が一致する fileB へ切替える
         // (revision が fileA と同じ 3 のまま据え置かれるケースを模す)。
@@ -49,8 +51,8 @@ struct ViewerRendererContentUpdateTests {
     // (TASK-68)、差分トグルでもう一度(TASK-320)起きた形の回帰テスト。
 
     /// 直近描画の状態。各ケースはここから 1 点だけ動かした「更新後」を作る。
-    private static func renderedMirror() -> ViewerRenderer.RenderedStateMirror {
-        ViewerRenderer.RenderedStateMirror(
+    private static func renderedMirror() -> RenderedStateMirror {
+        RenderedStateMirror(
             contentRevision: 5, fileType: .markdown, filePath: URL(fileURLWithPath: "/tmp/a.md"),
             showLineNumbers: true, isSourceMode: false,
             truncation: ViewerRenderer.TruncationState(isTruncated: true, lineCount: 100, failed: false),
@@ -62,7 +64,7 @@ struct ViewerRendererContentUpdateTests {
         let label: String
         let pendingRevision: Int
         /// 直近描画から動かす 1 点。
-        let mutate: @Sendable (inout ViewerRenderer.RenderedStateMirror) -> Void
+        let mutate: @Sendable (inout RenderedStateMirror) -> Void
         let expected: Bool
         var testDescription: String {
             label
@@ -105,9 +107,9 @@ struct ViewerRendererContentUpdateTests {
         let rendered = Self.renderedMirror()
         var incoming = rendered
         testCase.mutate(&incoming)
-        let pending = ViewerRenderer.PendingAppend(chunk: "next", revision: testCase.pendingRevision)
+        let pending = PendingAppend(chunk: "next", revision: testCase.pendingRevision)
 
-        let canConsume = ViewerRenderer.canConsumePendingAppend(
+        let canConsume = RenderedStateMirror.canConsume(
             pending, incoming: incoming, rendered: rendered
         )
 
@@ -125,9 +127,7 @@ struct ViewerRendererContentUpdateTests {
         let renderer = ViewerRenderer()
         let oldURL = URL(fileURLWithPath: "/tmp/before.md")
         let newURL = URL(fileURLWithPath: "/tmp/after.md")
-        renderer.rendered.filePath = oldURL
-        renderer.rendered.contentRevision = 7
-        renderer.rendered.isSourceMode = true
+        renderer.recordRendered(RenderedStateMirror(contentRevision: 7, filePath: oldURL, isSourceMode: true))
 
         renderer.handleRename(from: oldURL, to: newURL)
 
@@ -144,7 +144,7 @@ struct ViewerRendererContentUpdateTests {
     func handleRenameIgnoresMismatchedMirror(renderedPath: String?) {
         let renderer = ViewerRenderer()
         let mirrorURL = renderedPath.map { URL(fileURLWithPath: $0) }
-        renderer.rendered.filePath = mirrorURL
+        renderer.recordRendered(RenderedStateMirror(filePath: mirrorURL))
 
         renderer.handleRename(
             from: URL(fileURLWithPath: "/tmp/before.md"), to: URL(fileURLWithPath: "/tmp/after.md")

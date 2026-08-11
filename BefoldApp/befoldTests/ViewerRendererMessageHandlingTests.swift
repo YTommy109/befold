@@ -99,7 +99,7 @@ struct ViewerRendererMessageHandlingTests {
     @Test("scrollPositionChanged は payload の path を通知に載せる(ミラーから推定しない)")
     func scrollPositionChangedCarriesPayloadPath() {
         let (renderer, delegate) = makeSUT()
-        renderer.rendered.filePath = URL(fileURLWithPath: "/tmp/queued-next-doc.md")
+        renderer.recordRendered(RenderedStateMirror(filePath: URL(fileURLWithPath: "/tmp/queued-next-doc.md")))
         var receivedURL: URL?
         delegate.onScrollPositionChanged = { _, url, _ in receivedURL = url }
 
@@ -218,7 +218,7 @@ struct ViewerRendererMessageHandlingTests {
 
     @Test("RenderedStateMirror.reset は 6 ミラーを一括で破棄する")
     func renderedStateMirrorResetClearsAll() {
-        var mirror = ViewerRenderer.RenderedStateMirror()
+        var mirror = RenderedStateMirror()
         mirror.contentRevision = 3
         mirror.fileType = .markdown
         mirror.filePath = URL(fileURLWithPath: "/tmp/a.md")
@@ -329,15 +329,15 @@ struct ViewerRendererMessageHandlingTests {
                 .map(\.rawValue)
         )
 
-        #expect(Set(ViewerRenderer.messageHandlerNames(for: .allEnabled)) == all)
-        #expect(Set(ViewerRenderer.messageHandlerNames(for: .quickLookRestricted)) == interactiveOnly)
+        #expect(Set(ViewerWebViewFactory.messageHandlerNames(for: .allEnabled)) == all)
+        #expect(Set(ViewerWebViewFactory.messageHandlerNames(for: .quickLookRestricted)) == interactiveOnly)
     }
 
     // MARK: - allowsInteractiveBridging によるハンドラ登録の多層防御
 
     @Test("allEnabled では 5 種すべてのハンドラ名が登録される")
     func handlerNamesIncludeInteractiveWhenEnabled() {
-        let names = ViewerRenderer.messageHandlerNames(for: .allEnabled)
+        let names = ViewerWebViewFactory.messageHandlerNames(for: .allEnabled)
 
         #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
         #expect(names.contains(ViewerBridge.zoomChangedMessageName))
@@ -349,7 +349,7 @@ struct ViewerRendererMessageHandlingTests {
     @Test("allowsInteractiveBridging=false では referenceActivated/loadMoreLines を登録しない")
     func handlerNamesExcludeInteractiveWhenDisabled() {
         let features = RendererFeatures.quickLookRestricted
-        let names = ViewerRenderer.messageHandlerNames(for: features)
+        let names = ViewerWebViewFactory.messageHandlerNames(for: features)
 
         // 非インタラクティブでも必要な 3 種は残る
         #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))

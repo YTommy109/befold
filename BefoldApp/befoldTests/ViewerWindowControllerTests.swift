@@ -276,7 +276,7 @@ extension ViewerWindowControllerTests {
         defer { controller.close() }
         // 本番では ViewerWebView.makeNSView が結ぶ renderer を、テストでは直接差し込む。
         let renderer = ViewerRenderer()
-        renderer.rendered.filePath = file
+        renderer.recordRendered(RenderedStateMirror(filePath: file))
         controller.webViewProxy.renderer = renderer
         let renamed = URL(fileURLWithPath: "/mock/renamed.md")
 

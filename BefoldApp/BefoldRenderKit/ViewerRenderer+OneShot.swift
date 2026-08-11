@@ -115,7 +115,7 @@ public extension ViewerRenderer {
     /// 受け取る必要があるため、専用の一本道にしている。
     private func renderOnce(webView: WKWebView, render: OneShotRender) async {
         guard let script = ViewerBridge.awaitRenderScript(
-            content: Self.renderableContent(
+            content: RenderableContent.make(
                 render.content, fileType: render.fileType,
                 filePath: render.filePath, isSourceMode: false,
                 embedImages: rendererFeatures.embedImages

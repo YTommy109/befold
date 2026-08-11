@@ -1,6 +1,6 @@
 @testable import befold
 import BefoldKit
-import BefoldRenderKit
+@testable import BefoldRenderKit
 import BefoldTestSupport
 import Foundation
 import Testing
@@ -105,7 +105,7 @@ struct ViewerWebViewCoordinatorTests {
 
     @Test("ファイル/モードが変わらない再描画は切替として扱わない", arguments: switchCases)
     func isFileOrModeSwitch(_ testCase: SwitchCase) {
-        let result = ViewerRenderer.isFileOrModeSwitch(
+        let result = RenderedStateMirror.isFileOrModeSwitch(
             filePath: testCase.filePath, isSourceMode: testCase.isSourceMode,
             lastRenderedFilePath: testCase.lastRenderedFilePath, lastIsSourceMode: testCase.lastIsSourceMode
         )
@@ -117,7 +117,7 @@ struct ViewerWebViewCoordinatorTests {
 
     @Test("allowsInteractiveBridging: true(既定)では referenceActivated/loadMoreLines を含む全ハンドラを登録する")
     func messageHandlerNamesIncludesAllWhenInteractiveBridgingEnabled() {
-        let names = ViewerRenderer.messageHandlerNames(for: .allEnabled)
+        let names = ViewerWebViewFactory.messageHandlerNames(for: .allEnabled)
 
         #expect(names.contains(ViewerBridge.referenceActivatedMessageName))
         #expect(names.contains(ViewerBridge.loadMoreLinesMessageName))
@@ -132,7 +132,7 @@ struct ViewerWebViewCoordinatorTests {
     @Test("allowsInteractiveBridging: false では referenceActivated/loadMoreLines を登録しない(多層防御)")
     func messageHandlerNamesExcludesInteractiveHandlersWhenDisabled() {
         let features = RendererFeatures.quickLookRestricted
-        let names = ViewerRenderer.messageHandlerNames(for: features)
+        let names = ViewerWebViewFactory.messageHandlerNames(for: features)
 
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
         #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
@@ -160,7 +160,7 @@ struct ViewerWebViewCoordinatorTests {
 
     @Test("レンダリング表示中はmarkdownのローカル画像参照をbase64に埋め込む")
     func renderedModeEmbedsLocalImages() {
-        let result = ViewerRenderer.renderableContent(
+        let result = RenderableContent.make(
             Self.embedMarkdown, fileType: .markdown, filePath: Self.embedMarkdownURL,
             isSourceMode: false, imageEmbedder: makeEmbedder()
         )
@@ -171,7 +171,7 @@ struct ViewerWebViewCoordinatorTests {
 
     @Test("ソース表示中はmarkdownのローカル画像参照をbase64に埋め込まない")
     func sourceModeDoesNotEmbedLocalImages() {
-        let result = ViewerRenderer.renderableContent(
+        let result = RenderableContent.make(
             Self.embedMarkdown, fileType: .markdown, filePath: Self.embedMarkdownURL,
             isSourceMode: true, imageEmbedder: makeEmbedder()
         )
@@ -181,7 +181,7 @@ struct ViewerWebViewCoordinatorTests {
 
     @Test("embedImages: false のときはレンダリング表示中でもmarkdownのローカル画像参照を埋め込まない")
     func embedImagesDisabledDoesNotEmbedLocalImages() {
-        let result = ViewerRenderer.renderableContent(
+        let result = RenderableContent.make(
             Self.embedMarkdown, fileType: .markdown, filePath: Self.embedMarkdownURL,
             isSourceMode: false, embedImages: false, imageEmbedder: makeEmbedder()
         )

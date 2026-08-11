@@ -32,7 +32,7 @@ extension ViewerRenderer {
         let embedImages = rendererFeatures.embedImages
         let embedder = imageEmbedder
         return await Task.detached(priority: .userInitiated) {
-            Self.renderableContent(
+            RenderableContent.make(
                 content, fileType: fileType, filePath: filePath,
                 isSourceMode: isSourceMode, embedImages: embedImages, imageEmbedder: embedder
             )
@@ -152,18 +152,6 @@ extension ViewerRenderer {
         )
     }
 
-    /// 描画済みキャッシュをまるごと確定させる。render()/append() を実際に
-    /// evaluateJavaScript した後にだけ呼ぶこと（`applyRender` の解説を参照）。
-    /// content 全文は保持せず contentRevision だけを比較用に保存する。
-    ///
-    /// 確定の入口はこの 1 つだけにしてある。フィールドを部分更新できる入口を残すと、
-    /// ミラーへフィールドを足したときにそこだけ確定漏れが起き、状態変化が 1 周期
-    /// 失われる(TASK-320 / TASK-334 で 2 度起きた形)。一部のフィールドだけを
-    /// 変えたい呼び出し元は、現在の `rendered` を複製して書き換えてから渡すこと。
-    func recordRendered(_ state: RenderedStateMirror) {
-        rendered = state
-    }
-
     /// ファイルの rename / move を描画状態へ追随させる。DOM は同一文書のまま名前だけが
     /// 変わるため、再描画はせず「描画済みミラーの filePath」と「JS 側の文書パス」を
     /// 同じ同期区間で差し替える。
@@ -187,27 +175,6 @@ extension ViewerRenderer {
         )
     }
 
-    /// pendingAppend(段階読み込みでステージされた次チャンク)を全文 render せず増分描画して
-    /// よいかどうかを判定する。
-    ///
-    /// 追記経路が JS へ送るのはチャンクと切り詰め状態だけで、行番号・モード・差分などの
-    /// 注入は行わない。よって「追記が正しく更新できる 2 つ(contentRevision と truncation)を
-    /// 除いて、更新後の状態が描画済みと一致している」ときだけ消費してよい。
-    ///
-    /// 比較する条件を並べず、ミラー同士を丸ごと突き合わせる形にしているのは、
-    /// 列挙にするとミラーへフィールドを足したときにここへの追加だけ漏れ、その状態変化が
-    /// 追記経路に吸収されて 1 周期失われるため(行番号トグルで一度、差分トグルで
-    /// もう一度起きた形 = TASK-320)。
-    nonisolated static func canConsumePendingAppend(
-        _ pending: PendingAppend, incoming: RenderedStateMirror, rendered: RenderedStateMirror
-    ) -> Bool {
-        guard pending.revision == incoming.contentRevision else { return false }
-        var comparable = incoming
-        comparable.contentRevision = rendered.contentRevision
-        comparable.truncation = rendered.truncation
-        return comparable == rendered
-    }
-
     /// 呼び出し前に `exitDirectHTMLMode` が `rendered.reset()` でミラーを一括破棄済みである
     /// 前提。再ロードで viewer.html の JS 状態(_mmdViewOptions: 行番号 false, モード rendered)が
     /// 初期化されるのに合わせ、次回更新時に setLineNumbers / setViewMode を再注入させる。
@@ -225,7 +192,7 @@ extension ViewerRenderer {
         }
         // viewer.html（mermaid.js）は JS 必須のため、直接ロードで無効化した JS を再有効化する。
         webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-        ViewerRenderer.loadViewerHTML(into: webView)
+        ViewerWebViewFactory.loadViewerHTML(into: webView)
     }
 }
 
@@ -237,29 +204,5 @@ public extension ViewerRenderer {
         fileType: FileType, isSourceMode: Bool, filePath: URL?, features: RendererFeatures
     ) -> Bool {
         fileType == .html && !isSourceMode && filePath != nil && features.allowDirectHTML
-    }
-
-    /// 今回の render() がファイル/モードの実際の切替かどうかを判定する。
-    /// 切替時のみ永続化済みスクロール位置(最大 200ms 古い可能性がある)で復元し、
-    /// 同一ファイル・同一モードでの再描画(ライブリロード・行番号トグル等)では
-    /// ライブの現在スクロール位置を優先させる(JS 側フォールバック。applyRender 参照)。
-    nonisolated static func isFileOrModeSwitch(
-        filePath: URL?, isSourceMode: Bool,
-        lastRenderedFilePath: URL?, lastIsSourceMode: Bool?
-    ) -> Bool {
-        filePath != lastRenderedFilePath || isSourceMode != lastIsSourceMode
-    }
-
-    /// render() に渡す直前のコンテンツ加工。markdown はローカル画像参照を
-    /// data URI に差し替える(相対パスの解決基準として filePath が必要)。
-    /// ソース表示中は原文をそのまま見せるため、埋め込みは行わない。
-    nonisolated static func renderableContent(
-        _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool,
-        embedImages: Bool = true,
-        imageEmbedder: MarkdownImageEmbedder = .shared
-    ) -> String {
-        guard !isSourceMode, fileType == .markdown, let filePath, embedImages else { return content }
-        // ロード時のウォームアップと同じキャッシュを引くため、同一インスタンス(本番は .shared)を経由すること。
-        return imageEmbedder.embedLocalImages(in: content, baseURL: filePath)
     }
 }

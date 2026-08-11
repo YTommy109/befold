@@ -1,10 +1,11 @@
 ---
 id: TASK-440
 title: ViewerRenderer（型グループ 1300 行）を責務ごとに分割する
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-08-11 05:05'
-updated_date: '2026-08-11 05:25'
+updated_date: '2026-08-11 05:33'
 labels: []
 dependencies: []
 priority: high
@@ -35,3 +36,55 @@ BefoldApp/BefoldRenderKit/ の ViewerRenderer 型グループ（本体 + 5 本�
 - [ ] #5 main との swiftlint 差分に真の新規が無い
 - [ ] #6 swift test が既存どおり通り、QuickLook 拡張のビルドも通る
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+responsibility-reviewer の分析（実測: stored property 23 個・ネスト型 10 個・関心 12 個）に基づく 5 段階。順序を入れ替えない（段階 5 は段階 1 の型のトップレベル化が前提）。
+
+段階 1（非破壊, -330 → 約 970）
+1. RenderValues.swift: DiffState / TruncationState / RenderRequest / AppendRequest をトップレベル型へ
+2. RenderedStateMirror.swift: RenderedStateMirror / PendingAppend / canConsumePendingAppend / isFileOrModeSwitch / shouldEnterDirectHTMLMode / renderableContent（全て既に nonisolated static）
+3. ViewerWebViewFactory.swift: makeWebView / loadViewerHTML / messageHandlerNames / dismantle / WeakScriptMessageHandler
+
+段階 2（非破壊, -200 → 約 770。ここで error 閾値 1000 を下回る）
+4. BridgeMessageRouter.swift: userContentController + handle* 5 個
+5. ReferenceResolutionQueue.swift: handleResolveReferences / resolveResponseChain / pageGeneration
+
+段階 3（公開 API に触れる, -180 → 約 590）
+6. OneShotRenderer.swift: +OneShot 全体。ViewerRenderer を内包する（継承・extension にしない）。呼び出し側は PreviewViewController と RenderedMarkdownView の 2 箇所のみ
+
+段階 4（-200 → 約 390）
+7. DirectHTMLModeController.swift: isDirectHTMLMode / lastDirectHTMLPath / pendingPageZoom + enter/exit/reload/リンクポリシー
+8. ViewerReadinessGate.swift: isReady / pendingUpdate（現在 4 箇所に散る書き込みを 1 型へ）
+   WKNavigationDelegate 準拠は webView.navigationDelegate が weak のため ViewerRenderer に残す
+
+段階 5（-190 → 400 以下）
+9. ContentUpdatePlanner.swift: doUpdate クロージャ 125 行を nonisolated static な純関数 plan(...) -> UpdatePlan へ
+10. ViewerScriptDispatcher.swift: evaluateJavaScript 発行点を集約
+
+各段階で不変条件を doc コメントではなく構造で担保する（recordRendered の単一入口 / pageGeneration の単一 incrementer / pendingUpdate の単一書き込み点 → private(set) + mutating func）。
+各段階で xcodegen generate → swift test。ベースラインは 1289 tests / 180 suites 全通過。
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 着手前の責務分析（responsibility-reviewer, 2026-08-11）
+
+**この extension 6 分割は責務分離ではなく行数回避**という判定。証拠 3 点:
+
+1. doc コメント自身が 4 箇所で自認している（+ContentUpdate.swift:86 と +MessageHandling.swift:16 が 'type_body_length 対策で ViewerRenderer 本体の外の extension に分離している'、+DirectHTMLLinkPolicy.swift:8-9 と ViewerRenderer.swift:318 も同様。RenderRequest / AppendRequest は 'function_parameter_count 対策' で生まれた型）
+2. 主要 extension が本体の stored property を大量参照（全 23 個中: +ContentUpdate 15 / +RenderHelpers 14 / +MessageHandling 5 / +OneShot 4 / +DirectHTMLLinkPolicy 2）。上位 2 つは本体と同一の状態集合を触っており切れていない。下位 3 つは独立型へ出せる候補であることが数字に出ている
+3. ネスト型 10 個。うち DiffState(11 参照) / TruncationState(8 参照) は befold 本体からも使う公開値型
+
+関心は MARK 区切りの 5 個ではなく実質 12 個。プロトコル準拠 3（NSObject / WKNavigationDelegate / WKScriptMessageHandler）。注入クロージャは 0 で、クロージャバンドル規定は既に満たしている（ViewerRendererDelegate へ移行済み。この構造は崩さない）。
+
+**400 行は 1 回では届かない**（5 段階必要）。段階 1〜2 は非破壊で 1300 → 約 770 となり、ここで file_length の error 閾値 1000 をグループとして下回る。段階 3 以降は公開 API（loadOneShot の移設、DiffState の typealias 撤去）に触れ、QuickLook 拡張と本体の両方へ波及する。
+
+副次的な利得として、現在 doc コメントの約束だけで担保されている 3 つの不変条件を構造へ移せる: recordRendered の単一入口 / pageGeneration を増やすのは reloadViewerHTML の 1 箇所だけ / pendingUpdate の書き込み（現在 4 箇所に散り、後勝ちで前の保留更新が黙って消える）。
+
+## ベースライン（実測）
+
+swift test --skip Integration --skip FileWatcherTests: **1289 tests / 180 suites 全通過**（exit 0）。
+<!-- SECTION:NOTES:END -->
