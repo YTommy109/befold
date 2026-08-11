@@ -1,9 +1,11 @@
 ---
 id: TASK-433
 title: check-vendored-deps の参照パスと脅威モデルを実態に合わせる
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-08-10 12:59'
+updated_date: '2026-08-11 11:50'
 labels: []
 dependencies: []
 priority: medium
@@ -31,9 +33,36 @@ TASK-432.5（手動ベンダリングを npm 依存へ移す）が完了する�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 check-vendored-deps.md と vendored-deps-auditor.md の参照パスがすべて実在するファイルを指す
-- [ ] #2 記載されたコマンドを実行して、6 つのライブラリすべてでバージョンが取得できる（取得不能なものはその旨と代替の確認方法が書かれている）
-- [ ] #3 mermaid のバージョン確認方法が記載されている
-- [ ] #4 CSP に関する記述が viewer.html:17 の実際の値と一致している
-- [ ] #5 初期化コードの参照先が viewer-main.js になっている
+- [x] #1 check-vendored-deps.md と vendored-deps-auditor.md の参照パスがすべて実在するファイルを指す
+- [x] #2 記載されたコマンドを実行して、6 つのライブラリすべてでバージョンが取得できる（取得不能なものはその旨と代替の確認方法が書かれている）
+- [x] #3 mermaid のバージョン確認方法が記載されている
+- [x] #4 CSP に関する記述が viewer.html:17 の実際の値と一致している
+- [x] #5 初期化コードの参照先が viewer-main.js になっている
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 実測で不整合 5 点を確認する（完了: 4 は viewer.html:17 が script-src 'self'、5 は viewer-main.js:646/609-620。3 は Description と異なり version:"11.15.0" で抽出可能）
+2. 単純化: 抽出コマンドの二重管理をやめ、scripts/vendored-deps-versions.sh に一本化する。パス消失・版抽出失敗で非ゼロ終了させ、空振りを構造的に潰す
+3. check-vendored-deps.md と vendored-deps-auditor.md をスクリプト呼び出し + 正しい脅威モデル（script-src 'self'、DOMPurify は多層防御の一層）+ viewer-main.js の初期化参照へ書き換える
+4. スクリプトを実行して 6 ライブラリ全ての版が出ることを確認し、markdownlint-cli2 を通す
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Description の指摘 5 点のうち 4 点は実測で確認。1 点は誤りだった: mermaid の版は抽出可能で、キーが引用符なしの `version:"11.15.0"` 形式のため `"version":"…"` の grep が外れていただけ（実測: grep -o 'version:"[0-9]\+\.[0-9]\+\.[0-9]\+"' mermaid.min.js → 11.15.0 の 1 件のみ）。
+
+単純化の判断: 抽出コマンドを 2 文書に重複記載していたことが「片方だけ直って再びずれる」原因だったため、scripts/vendored-deps-versions.sh へ一本化し、両文書はこれを呼ぶだけにした。スクリプトは package.json / THIRD_PARTY_LICENSES.md との突き合わせまで行い、パス消失・版抽出失敗・記録との食い違いで非ゼロ終了する。github.css を退避して実行し exit=1 とエラー行が出ることを確認済み（'黙って空振りする' 状態を構造的に潰す担保）。
+
+mermaid だけ記録先が THIRD_PARTY_LICENSES.md（package.json に devDependency が無い）である点はスクリプトと両文書に明記した。TASK-432.5 で npm 依存へ移す際はこのスクリプトごと撤去できる。
+
+検証: ./scripts/vendored-deps-versions.sh → 5 ライブラリの版が同梱・記録とも一致、exit=0。markdownlint-cli2 → 0 issues。ViewerBridgeContractTests.swift:179 に CSP script-src の検証テストが実在することを確認。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+同梱ライブラリ棚卸し手順（.claude/commands/check-vendored-deps.md / .claude/agents/vendored-deps-auditor.md）の壊れた参照パス・古い脅威モデル・誤った初期化コード参照を実態に合わせた。版抽出コマンドの二重管理を scripts/vendored-deps-versions.sh へ一本化し、パス消失・版抽出失敗・package.json / THIRD_PARTY_LICENSES.md の記録との食い違いを非ゼロ終了で検出させることで、手順が黙って空振りする経路を塞いだ。検証: スクリプト実行で 5 ライブラリの版が一致し exit=0、github.css 退避時に exit=1 とエラー行、markdownlint-cli2 0 issues。
+<!-- SECTION:FINAL_SUMMARY:END -->

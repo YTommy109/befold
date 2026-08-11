@@ -1,29 +1,48 @@
 # /check-vendored-deps — 同梱 JS ライブラリの棚卸し
 
-`mermaid.min.js` / `markdown-it.min.js` / `highlight.min.js` / `dompurify.min.js`(+ テーマ CSS `github.css` / `github-dark.css`、Markdown 本文 CSS `github-markdown.css`)は手動ベンダリングで Dependabot の監視外。
-版ずれと既知脆弱性を確認する。詳細な監査が必要なら `vendored-deps-auditor`
-サブエージェントに委譲してよい。
+`mermaid.min.js` / `markdown-it.min.js` / `highlight.min.js` / `dompurify.min.js`
+(+ hljs テーマ CSS `github.css` / `github-dark.css`、Markdown 本文 CSS
+`github-markdown.css`)は `BefoldApp/BefoldKit/Resources/` へ手動ベンダリングされており
+Dependabot / `npm audit` の監視外。版ずれと既知脆弱性を確認する。
+詳細な監査が必要なら `vendored-deps-auditor` サブエージェントに委譲してよい。
 
 ## 1. 同梱バージョンを特定する
 
 ```bash
-head -1 BefoldApp/befold/Resources/markdown-it.min.js
-head -1 BefoldApp/befold/Resources/github-markdown.css
-grep -o '"version":"[0-9.]*"' BefoldApp/befold/Resources/mermaid.min.js | head -1
-grep -o 'versionString="[0-9.]*"' BefoldApp/befold/Resources/highlight.min.js | head -1
-head -1 BefoldApp/BefoldKit/Resources/dompurify.min.js
-grep -E 'markdown-it|mermaid|highlight|github-markdown|dompurify' BefoldApp/package.json
+scripts/vendored-deps-versions.sh
 ```
 
-`package.json` の記録と同梱ファイルの実バージョンが一致するか確認する。
+`<名前>\t<同梱版>\t<記録値>` を出力し、同梱ファイルの実バージョンと記録
+(`BefoldApp/package.json` / `BefoldKit/Resources/THIRD_PARTY_LICENSES.md`)の
+突き合わせまで行う。**パスが消えた・版が抽出できない・記録と食い違う場合は
+非ゼロで終了する**ので、`exit 0` でなければ棚卸しの前に手順側を直す。
+
+抽出方法は個別に異なる（スクリプト内のコメント参照）。
+
+| ライブラリ | 版の在り処 | 記録先 |
+| --- | --- | --- |
+| markdown-it / github-markdown-css / DOMPurify | ファイル先頭のバナーコメント | `package.json` |
+| highlight.js | バナー無し。内部の `versionString="…"` | `package.json` |
+| mermaid | esbuild バンドルでバナー無し。内部の `version:"…"` | `THIRD_PARTY_LICENSES.md`（`package.json` に **記録が無い**） |
+| github.css / github-dark.css | ファイル自身は版を持たない | highlight.js 本体の版に従う |
 
 ## 2. 最新版・脆弱性を調べる
 
 - WebSearch で各ライブラリの最新安定版と、同梱版に該当する CVE / GHSA を調べる。
-- `viewer.html` の初期化（`markdownit({ html: true, linkify: true, typographer: true })`、
-  mermaid の `securityLevel`）と突き合わせ、該当 CVE が実際に発火する設定かを判定する。
-- DOMPurify は `md.render()` 出力の innerHTML 挿入前サニタイズとして使われており（CSP が
-  `script-src 'unsafe-inline'` のため唯一の XSS 防御）、XSS バイパス系 CVE は特に優先して確認する。
+- 実際の初期化設定と突き合わせ、該当 CVE がこのアプリで発火するかを判定する。
+  参照先は `viewer.html` ではなく `BefoldApp/BefoldKit/Resources/viewer-main.js`。
+  - markdown-it: `_mmdInitMarkdown()`（`html: true` / `linkify` / `typographer`）
+  - mermaid: `_mmdMermaidConfig()`（`securityLevel: 'strict'` / `maxTextSize` /
+    `maxEdges`）。`mermaid.min.js` は `viewer.html` からは読まれず、
+    描画が必要になった時点で `viewer-main.js` が動的に `<script>` を挿して遅延ロードする
+  - DOMPurify: `md.render` のラッパから `sanitizeRenderedHtml(DOMPurify, …)`
+    （`viewer.js`）を通し、**設定なしのデフォルト**で `purify.sanitize()` を呼ぶ
+- 脅威モデル: `viewer.html` の CSP は `script-src 'self'`（`'unsafe-inline'` が付くのは
+  `style-src` のみ。`ViewerBridgeContractTests` が検証している）。DOMPurify は
+  唯一の防御ではなく多層防御の一層であり、サニタイズをすり抜けたインライン
+  ハンドラや `<script>` は CSP が実行段階で止める。とはいえ CSP は
+  `<img src=x>` 由来の情報漏洩等すべてを止めるわけではないので、
+  サニタイズバイパス系 CVE は依然として優先度が高い。
 
 ## 3. 報告
 
