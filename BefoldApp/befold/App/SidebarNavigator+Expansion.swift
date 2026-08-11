@@ -67,7 +67,7 @@ extension SidebarNavigator {
     /// 子リストが届いた時点(loadChildren)で組み直す。
     func reloadExpandedChildren() {
         for token in expansion.invalidateChildren() {
-            guard let url = folderEntryURL(forKey: token.key) else { continue }
+            guard let url = fileListModel.folderEntryURL(forKey: token.key) else { continue }
             loadChildren(for: token, at: url)
         }
     }

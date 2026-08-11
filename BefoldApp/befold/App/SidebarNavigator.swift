@@ -221,7 +221,7 @@ final class SidebarNavigator {
                 return entries.contains { $0.pathKey == selectionKey }
             } ?? false
             guard !selectionStillValid else { return }
-            self.fileListModel.selection = self.matchingEntryURL(for: host.currentFileURL)
+            self.fileListModel.selection = self.fileListModel.matchingEntryURL(for: host.currentFileURL)
         }
     }
 
@@ -334,23 +334,6 @@ final class SidebarNavigator {
         gitIndexWatch.stop()
     }
 
-    /// エントリ一覧からフォルダーの正規化キーが一致するものを返す。
-    /// SidebarNavigator+History.swift の履歴適用からも参照するため internal。
-    func folderEntryURL(forKey key: String) -> URL? {
-        fileListModel.entries.first {
-            $0.kind == .folder && $0.pathKey == key
-        }?.url
-    }
-
-    /// エントリ一覧から URL の正規化キーが一致するものを探し、
-    /// 見つからなければ元の URL をそのまま返す。
-    func matchingEntryURL(for url: URL) -> URL {
-        let key = url.normalizedPathKey
-        return fileListModel.entries.first {
-            $0.pathKey == key
-        }?.url ?? url
-    }
-
     /// switchFile 成功後にサイドバー選択を同期し、履歴を記録する。
     /// ViewerWindowController.switchFile がファイル切替の実処理後に呼ぶ。
     func syncAfterSwitch(to newURL: URL) {
@@ -359,7 +342,7 @@ final class SidebarNavigator {
             fileListModel.currentDirectory = newURL.deletingLastPathComponent()
             refreshFileList()
         } else {
-            fileListModel.selection = matchingEntryURL(for: newURL)
+            fileListModel.selection = fileListModel.matchingEntryURL(for: newURL)
         }
         recordHistory()
     }

@@ -46,11 +46,11 @@ extension SidebarNavigator {
             let fileDir = host.currentFileURL.deletingLastPathComponent().normalizedPathKey
             refreshFileList { [weak self] in
                 guard let self, fileDir != fileListModel.currentDirectory.normalizedPathKey else { return false }
-                fileListModel.selection = folderEntryURL(forKey: fileDir)
+                fileListModel.selection = fileListModel.folderEntryURL(forKey: fileDir)
                 return true
             }
         } else {
-            fileListModel.selection = matchingEntryURL(for: host.currentFileURL)
+            fileListModel.selection = fileListModel.matchingEntryURL(for: host.currentFileURL)
         }
         return true
     }

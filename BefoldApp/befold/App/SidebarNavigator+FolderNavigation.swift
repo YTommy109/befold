@@ -31,7 +31,7 @@ extension SidebarNavigator {
             if let remembered = self.rememberedSelectionURL(in: directory) {
                 self.select(remembered, presentingWith: host)
             } else if isGoingUp {
-                self.fileListModel.selection = self.folderEntryURL(forKey: previous.normalizedPathKey)
+                self.fileListModel.selection = self.fileListModel.folderEntryURL(forKey: previous.normalizedPathKey)
             } else {
                 self.select(self.fileListModel.firstSelectableEntryURL, presentingWith: host)
             }

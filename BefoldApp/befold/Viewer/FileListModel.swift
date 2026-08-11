@@ -55,6 +55,12 @@ final class FileListModel {
     /// 外すと「一覧が変わって提示対象も変わったのに再描画されない」が起きる。
     private var entryIndex: FileListEntryIndex
 
+    /// 正規化パスキーから行を引く。索引は private のため、
+    /// FileListModel+Lookup.swift の引き当て述語はここを経由する。
+    func entry(forPathKey key: String) -> FileListEntry? {
+        entryIndex.entry(forPathKey: key)
+    }
+
     /// 一覧が一度でも反映されたか。ウィンドウは一覧を空で作って非同期に埋めるため、
     /// それまでは「選択が一覧に無い」が「対象が確定していない」を意味する。
     /// 「選択を消してフォルダーを表示している」状態と取り違えないための区別に使う。
