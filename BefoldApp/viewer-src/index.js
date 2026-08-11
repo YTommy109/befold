@@ -1,7 +1,16 @@
-// バンドル経路を通すための最小エントリ（TASK-432.1）。
-// viewer.html からはまだ読み込まれていない。実際の viewer ロジックの移行は
-// 後続サブタスクで行う。ここではモジュール解決（import）を 1 つ含めることで、
-// 「ソース → esbuild → 成果物」の経路が実際にバンドルとして機能することを担保する。
-import { bundleMarker } from "./bundle-marker.js";
+// viewer バンドルのエントリ（TASK-432.2）。
+//
+// viewer.html は body 末尾でこの成果物（viewer-bundle.js）を 1 本だけ読み込む。
+// ベンダー（markdown-it / highlight.js / DOMPurify）はバンドルに含めず、
+// viewer.html が先に classic script として読み込んだグローバルを参照する。
+// mermaid は 3.2MB あり、mermaid を使わないプレビューでは無駄なパースコストに
+// なるため、描画の瞬間まで遅延ロードする形を維持している。
+import * as viewer from "./viewer.js";
+import * as viewerMain from "./viewer-main.js";
+import { exposeGlobals } from "./expose.js";
 
-globalThis.__befoldBundle = bundleMarker;
+exposeGlobals(viewer, viewerMain);
+
+// classic script 時代は viewer-main.js の末尾（module 不在の分岐）で即時初期化していた。
+// バンドルでは body 末尾の <script src="viewer-bundle.js"> がその位置にあたる。
+viewerMain._mmdInit();

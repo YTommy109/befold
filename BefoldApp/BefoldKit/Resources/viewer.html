@@ -53,10 +53,12 @@
     <button id="mmd-find-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
   </div>
 
-  <script src="viewer.js"></script>
+  <!-- ベンダーは同梱物をグローバルとして先に読み込む（バンドルには含めない）。
+       viewer-bundle.js は viewer-src/ を esbuild でまとめた成果物で、
+       ベンダーのグローバルを参照するため必ずこの後に置く。 -->
   <script src="markdown-it.min.js"></script>
   <script src="highlight.min.js"></script>
   <script src="dompurify.min.js"></script>
-  <script src="viewer-main.js"></script>
+  <script src="viewer-bundle.js"></script>
 </body>
 </html>

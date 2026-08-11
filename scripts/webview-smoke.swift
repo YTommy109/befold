@@ -3,7 +3,7 @@
 // GUI を目視せずに、実アプリと同じ loadFileURL(allowingReadAccessTo:) 経路で
 // viewer.html を読み込み、以下を自動検証する（テスト規約で WebView 層は
 // 自動テスト対象外のため、CSP や viewer.html を触ったときの回帰確認に使う）:
-//   1. CSP 下でローカルスクリプト（viewer.js / mermaid / markdown-it）がロードされる
+//   1. CSP 下でローカルスクリプト（viewer-bundle.js / mermaid / markdown-it）がロードされる
 //   2. .mmd が mermaid で SVG 描画される
 //   3. .md が markdown-it で描画される
 //   4. 外部画像による情報流出が CSP(img-src) でブロックされる
@@ -70,14 +70,18 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
     // mermaid.min.js は TASK-1.10 で mermaid 使用時のみ動的 <script> 挿入で遅延ロードする
     // ようになったため、ここでは typeof mermaid を確認しない(未ロードで 'undefined' が
     // 正しい)。実際にロードされることは checkMermaid() の描画確認で検証する。
+    // markdown-it のインスタンス(md)も TASK-432.2 の ESM 化でバンドル内部へ閉じたため、
+    // ここでは見ない。代わりに公開関数 render がグローバルへ載っていることを確認する
+    // (ベンダーのグローバル・バンドルの評価・公開の 3 段が揃ったことの確認になる)。
+    // md が初期化されていることは checkMarkdown() の描画確認が担う。
     func checkScriptsLoaded() {
         webView.evaluateJavaScript(
-            "[typeof markdownit, typeof ZOOM_DEFAULT, typeof md].join(',')"
+            "[typeof markdownit, typeof ZOOM_DEFAULT, typeof render].join(',')"
         ) { result, error in
             if let error { self.fail("script-load: \(error)") }
             guard let s = result as? String else { self.fail("script-load: no result") }
             print("globals: \(s)")
-            if s != "function,number,object" {
+            if s != "function,number,function" {
                 self.fail("ローカルスクリプトが CSP でブロックされた可能性: \(s)")
             }
             self.checkMermaid()

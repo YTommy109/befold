@@ -1,17 +1,59 @@
 // viewer-main.js をテストから読み込むためのハーネス。
 //
-// viewer-main.js は classic script として viewer.html に読み込まれ、viewer.js が
-// 定義したグローバル(ZOOM_DEFAULT / parseStoredZoom 等)に依存する。そのため単体の
-// require では解決できず、ブラウザと同じ「1つのグローバルスコープへ順に評価する」
-// 形を jsdom 上で再現する。viewer-main.js 末尾のエクスポート境界(typeof module
-// ガード)により、評価時点では初期化は走らない。DOM を用意したうえで
-// _mmdInit() を呼ぶかどうかはテスト側が決める。
+// viewer-src/viewer-main.js は ES モジュールで、viewer.js への依存を import で
+// 表現する(TASK-432.2)。ここでは本番と同じ esbuild でモジュールグラフを 1 つの
+// IIFE にまとめ、それを jsdom の window.eval で評価する。
+//
+// require(babel 変換)で読む形にしないのは、モジュール本体が window / document を
+// 裸のグローバルとして参照するため。require 経路では Node の globalThis へ
+// 結び付けるしかなく、1 つのテストが 2 つの window を同時に扱う場面
+// (viewer-main-source-append.test.js の md/code 比較など)で後から読み込んだ側に
+// 全インスタンスが引きずられる。window.eval なら評価スコープが window ごとに
+// 分かれるため、ブラウザと同じ独立性が保てる。
+//
+// 評価時に初期化は走らない(_mmdInit() の呼び出しは本番エントリ
+// viewer-src/index.js が持ち、テスト用エントリは持たない)。DOM を用意したうえで
+// _mmdInit() を呼ぶかどうかは従来どおりテスト側が決める。
 
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
 
+const esbuild = require('esbuild');
+
 const RESOURCES_DIR = path.join(__dirname, '..', '..');
+// viewer のモジュールソース。コミット済み成果物ではなくソースからバンドルするため、
+// ソースを編集した直後もビルドを挟まずにテストが現在の実装を見る。
+const VIEWER_SRC_DIR = path.join(RESOURCES_DIR, '..', '..', 'viewer-src');
+
+// テスト用エントリ。本番エントリ(index.js)との違いは 2 点だけ。
+// テストが名前で取り出せるよう名前空間を 1 箇所へ置くことと、_mmdInit() を
+// 呼ばないこと(初期化タイミングをテストが決められるようにする)。
+// グローバルへの露出は本番と同じ exposeGlobals を通すため、
+// 「テストでは window 経由で見えるが本番では見えない」ずれは生じない。
+const TEST_ENTRY = [
+  "import * as viewer from './viewer.js';",
+  "import * as main from './viewer-main.js';",
+  "import { exposeGlobals } from './expose.js';",
+  'exposeGlobals(viewer, main);',
+  'globalThis.__viewerTestExports = { viewer, main };',
+].join('\n');
+
+let cachedBundle = null;
+
+// 評価するコードを 1 度だけ生成して使い回す(loadViewerMain は 100 回以上呼ばれる)。
+function viewerBundleSource() {
+  if (cachedBundle === null) {
+    cachedBundle = esbuild.buildSync({
+      stdin: { contents: TEST_ENTRY, resolveDir: VIEWER_SRC_DIR, sourcefile: 'test-entry.js' },
+      bundle: true,
+      format: 'iife',
+      target: 'safari17',
+      write: false,
+    }).outputFiles[0].text;
+  }
+  return cachedBundle;
+}
 
 function readResource(name) {
   return fs.readFileSync(path.join(RESOURCES_DIR, name), 'utf8');
@@ -55,9 +97,9 @@ function installBrowserStubs(window) {
 // options.init が false のときは _mmdInit() を呼ばず、定義だけを読み込む。
 function loadViewerMain(options) {
   const opts = options || {};
-  // runScripts: 'outside-only' は <script> タグを実行しない一方で、window.eval を
-  // jsdom 側のグローバルスコープで動かす。ブラウザと同じ「1つのグローバルへ順に
-  // 評価する」形を、viewer.html 内のベンダー script を読み込まずに再現できる。
+  // runScripts: 'outside-only' は viewer.html の <script> を実行しない一方で、
+  // window.eval をその window のグローバルスコープで動かす。ベンダー script を
+  // 読み込まずにバンドルだけを評価できる。
   const dom = new JSDOM(readResource('viewer.html'), {
     url: 'https://localhost/',
     runScripts: 'outside-only',
@@ -78,18 +120,9 @@ function loadViewerMain(options) {
     window.DOMPurify = require('dompurify')(window);
   }
 
-  // module を window 上に置くことでエクスポート境界を有効にする。両ファイルが
-  // 同じ module を共有しないよう、評価ごとに差し替えて回収する。
-  function evaluate(name) {
-    window.module = { exports: {} };
-    window.eval(readResource(name));
-    const exported = window.module.exports;
-    delete window.module;
-    return exported;
-  }
-
-  const viewer = evaluate('viewer.js');
-  const main = evaluate('viewer-main.js');
+  // バンドルを評価すると、この window のクロージャ状態(ズームストア等)が作られる。
+  window.eval(viewerBundleSource());
+  const { viewer, main } = window.__viewerTestExports;
 
   if (opts.init !== false) { main._mmdInit(); }
 

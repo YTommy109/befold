@@ -202,7 +202,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
     テストは、相手（`project.yml` の `MARKETING_VERSION`）が食い違ってもグリーンのままで、
     ドリフトを一切検知できない。テストは**必ず相手側ファイルをパース・読み取りして比較する**
     こと（`project.yml` を読んで `MARKETING_VERSION` を抽出し `AppVersion.current` と照合する、
-    `viewer.js` のソースを読んで数値リテラルを照合する `ViewerBridgeTests.zoomRangeMatchesZoomStore`
+    `viewer-bundle.js` のソースを読んで数値リテラルを照合する `ViewerBridgeTests.zoomRangeMatchesZoomStore`
     の流儀）。
   - セルフチェック指標: 「相手側の値を書き換えたらこのテストは落ちるか？」を自問する。
     落ちないならトートロジーであり、検証になっていない。
@@ -287,10 +287,14 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 
 ## JavaScript コーディング規約
 
-- `viewer.js` にはテスト可能な純粋ロジックのみを置く（DOM 操作は `viewer.html` /
-  `viewer-main.js` 側）。DOM に触れない純粋述語を `viewer-main.js` に書き足したくなったら
-  `viewer.js` へ置き、`module.exports` に載せて Jest から直接テストする
-- CommonJS 互換の `module.exports` で関数をエクスポートする（Jest テスト用）
+- viewer 用 JS のソースは `BefoldApp/viewer-src/` に置く。`BefoldKit/Resources/viewer-bundle.js`
+  は esbuild の成果物なので直接編集しない（`npm run build:viewer` で再生成する）
+- `BefoldApp/viewer-src/viewer.js` にはテスト可能な純粋ロジックのみを置く（DOM 操作は
+  `viewer.html` / `viewer-src/viewer-main.js` 側）。DOM に触れない純粋述語を
+  `viewer-main.js` に書き足したくなったら `viewer.js` へ置き、`export { ... }` に載せて
+  Jest から直接テストする
+- モジュールは ESM（`import` / `export`）で書く。Swift から呼ぶ関数だけを
+  `viewer-src/expose.js` の `exposeGlobals()` 経由で `globalThis` に公開する
 - `var` 宣言を使用する。macOS 14+ の WKWebView は `const` / `let` も解釈できるため
   技術的制約ではなく、同梱 JS（`viewer.js` / `viewer-main.js`）が全面的に `var` で
   書かれているための一貫性ルールである。混在させず既存に揃える

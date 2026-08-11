@@ -145,7 +145,7 @@ targets:
         buildPhase: resources
         excludes:
           - "viewer.html"
-          - "viewer.js"
+          - "viewer-bundle.js"
           - "style.css"
           - "mermaid.min.js"
           - "markdown-it.min.js"

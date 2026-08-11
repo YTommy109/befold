@@ -51,6 +51,9 @@ BefoldQuickLook.appex (QuickLook 拡張)
 BefoldApp/
 ├── project.yml                # XcodeGen 定義（全ターゲットの単一定義元）
 ├── Package.swift               # SPM ビルド用
+├── viewer-src/                 # viewer 用 JS のモジュールソース（ESM）。
+│                               # index.js をエントリに esbuild で
+│                               # BefoldKit/Resources/viewer-bundle.js を生成する
 ├── BefoldKit/                  # コアロジック＋レンダリングアセット（com.degino.befold.kit）
 │   ├── ContentLoader.swift / ViewerLoadPipeline.swift  # 読込可否・種別分岐
 │   ├── FileReading.swift / StringChunkReader.swift      # 読込抽象化・チャンク読み
@@ -65,7 +68,8 @@ BefoldApp/
 │   │                               # `.module`、Xcode ビルド（framework）は
 │   │                               # `Bundle(for:)` を返し、両ビルドで Resources/ の
 │   │                               # 解決先を一本化する
-│   └── Resources/                  # viewer.html / viewer.js / viewer-main.js /
+│   └── Resources/                  # viewer.html / viewer-bundle.js（viewer-src/ から
+│                                    # esbuild でビルドした成果物。コミット済み）/
 │                                    # mermaid / markdown-it / highlight.js / DOMPurify 等
 ├── BefoldRenderKit/            # 描画エンジン（本体 / QuickLook で共有）
 │   └── ViewerRenderer.swift + ViewerRenderer+*.swift    # WKWebView ドライバ

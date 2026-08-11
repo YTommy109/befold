@@ -51,7 +51,7 @@ const {
   csvRowsHtml,
   codeChunkInnerHtml,
   lastLines,
-} = require('../viewer');
+} = require('../../../viewer-src/viewer.js');
 
 describe('clampZoom', () => {
   test('returns value within range unchanged', () => {

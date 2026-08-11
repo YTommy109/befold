@@ -43,7 +43,7 @@ tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
      mermaid の XSS、markdown-it の ReDoS / DoS / XSS、highlight.js の XSS / ReDoS、
      DOMPurify のサニタイズバイパス系 XSS。
    - 該当する脆弱性がアプリの実際の設定で**発火するか**を、
-     `BefoldApp/BefoldKit/Resources/viewer-main.js` の初期化コードと突き合わせて
+     `BefoldApp/viewer-src/viewer-main.js` の初期化コードと突き合わせて
      評価する（`viewer.html` はスクリプトを読むだけで初期化はしない）。
      - markdown-it: `_mmdInitMarkdown()` — `html: true` / `linkify` /
        `typographer` を有効化し、`highlight` に `highlightCode` を渡す
@@ -51,8 +51,9 @@ tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
        `maxTextSize` / `maxEdges` を既定より大幅に引き上げ（DoS 系 CVE の
        評価ではこの引き上げを考慮する）。`mermaid.min.js` は `viewer.html` から
        読まれず、描画が必要になった時点で `viewer-main.js` が動的ロードする
+       （ベンダーライブラリは viewer-bundle.js に取り込まず `viewer.html` から個別に読む）
      - DOMPurify: `md.render` のラッパから `sanitizeRenderedHtml(DOMPurify, …)`
-       （`viewer.js`）経由で**設定なしのデフォルト**の `purify.sanitize()` を呼ぶ
+       （`viewer-src/viewer.js`）経由で**設定なしのデフォルト**の `purify.sanitize()` を呼ぶ
    - 脅威モデル: `viewer.html` の CSP は `script-src 'self'`
      （`'unsafe-inline'` が付くのは `style-src` のみ。`ViewerBridgeContractTests` が
      検証している）。DOMPurify は唯一の XSS 防御ではなく多層防御の一層で、

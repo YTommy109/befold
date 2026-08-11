@@ -2,7 +2,7 @@
 
 <!-- derived-from ../coding_rule.md -->
 
-Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`viewer.js`）のテスト規約。
+Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`BefoldApp/viewer-src/` の viewer 用 JS）のテスト規約。
 コメント規約は [`./comments.md`](./comments.md) を参照（プロダクト/テスト共通）。
 全体の位置づけは [`../coding_rule.md`](../coding_rule.md) を参照。
 
@@ -16,7 +16,10 @@ Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`viewer.js`）の�
 ## テストフレームワーク
 
 - **Swift**: Swift Testing（`import Testing`）を使う（XCTest は使わない）
-- **JavaScript**: Jest を使う
+- **JavaScript**: Jest を使う。テストは `BefoldKit/Resources/__tests__/` に置き、
+  対象は成果物の `viewer-bundle.js` ではなくソースの `viewer-src/` を読む
+  （純粋ロジックは `viewer-src/viewer.js` を直接 require、DOM 側は
+  `__tests__/support/viewerMainHarness.js` が esbuild でバンドルして jsdom 上で評価する）
 
 ## Swift テスト構造
 
