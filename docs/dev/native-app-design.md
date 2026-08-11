@@ -22,10 +22,16 @@ befold は macOS 向けの Mermaid ダイアグラム・ビューアアプリで
 
 ```text
 befold.app (Swift 6 / AppKit + SwiftUI, macOS 14+)
-  ├── AppDelegate                # ライフサイクル・メニュー・各コーディネータの束ね
+  ├── AppDelegate                # ライフサイクルと @objc アクションの受け口（配線のみ）
+  │     ├── AppStores                # アプリ全体で共有するストア・表示設定の束
   │     ├── ViewerWindowManager      # ウィンドウ生成・管理とセッション記録の更新
   │     ├── SessionRestorer          # 前回セッションのウィンドウ/タブ構成の保存・復元
-  │     └── SPUStandardUpdaterController  # Sparkle アップデータの保持と起動
+  │     ├── DocumentOpener           # URL をビューアで開く唯一の入口（逐次化・解決・選択パネル）
+  │     ├── MainMenuCoordinator      # メインメニュー構築と動的メニューへのデータ供給
+  │     ├── QuickOpenCoordinator     # Quick Open パネルの保持と候補源の組み立て
+  │     ├── AppCLIRequestReceiver    # 別プロセスの CLI 要求の受信・ACK・重複排除
+  │     ├── CLIShimCoordinator       # CLI シムの陳腐化チェックと設置
+  │     └── AppUpdaterController     # Sparkle アップデータの保持と起動
   ├── FileWatcher                # DispatchSource によるファイル監視（0.2s デバウンス）
   ├── ViewerStore                # @Observable 表示状態（content / rejectReason / isTruncated）
   ├── ViewerWebView               # WKWebView（NSViewRepresentable、ViewerRenderer を保持）
@@ -95,10 +101,17 @@ BefoldApp/
 
 | コンポーネント | 責務 |
 |---|---|
-| `AppDelegate` | アプリライフサイクル全体の起点。各ストア・コーディネータの生成と保持 |
+| `AppDelegate` | アプリライフサイクルの起点と、メニュー/レスポンダチェーンから呼ばれる `@objc` アクションの受け口。依存の合成と各コーディネータへの転送だけを行い、実装は持たない |
+| `AppStores` | アプリ全体で 1 個ずつ持つ永続化ストアと表示設定の束。束ねた 1 個を配ることで「全体で共有」を構造として保つ |
+| `ActiveViewerProvider` | 「いま操作対象のビューアウィンドウ」を引く手続きの定義点（Quick Open パネル表示中も `NSApp.mainWindow` が元ウィンドウを指す前提をここだけに置く） |
+| `DocumentOpener` | URL をビューアウィンドウで開く唯一の入口。逐次化・実 FS 解決・ファイル選択パネル・解決失敗時のアラート |
+| `MainMenuCoordinator` | メインメニューの組み立てと、Recent / Bookmarks / 最近使ったリポジトリへのデータ供給（各 `NSMenuDelegate` の保持） |
+| `QuickOpenCoordinator` | Quick Open パネルの保持、候補源（`AppQuickOpenEnvironment`）の組み立て、決定先を開く |
+| `AppCLIRequestReceiver` | 別プロセスの CLI 起動から転送された要求の受信。ACK 返送と `requestID` 単位の重複排除。**生成と同時に購読するため `AppDelegate.init` で eager に作る** |
+| `CLIShimCoordinator` | `/usr/local/bin/befold` の陳腐化チェックと設置、結果案内 |
 | `ViewerWindowManager` | ビューアウィンドウ（正規化パス → コントローラ）の生成・破棄、close/rename/key イベントに伴うセッション更新 |
 | `SessionRestorer` | 前回セッションのウィンドウ/タブ構成のスナップショット保存と復元 |
-| `SPUStandardUpdaterController` / `SPUUpdaterDelegate` | Sparkle アップデータの保持・起動と、チャンネル別 appcast フィード URL の供給（詳細は「自動アップデート」節） |
+| `AppUpdaterController` | Sparkle アップデータの保持・起動と、チャンネル別 appcast フィード URL の供給（`SPUUpdaterDelegate` 準拠。詳細は「自動アップデート」節） |
 | `DocumentController` | `NSDocumentController` のサブクラス。Recent Documents からのオープンを `AppDelegate` に委譲 |
 | `MainMenuBuilder` | メインメニューをコードで構築 |
 | `RecentDocumentsStore` / `RecentDocumentsMenuController` | 最近使ったファイルを UserDefaults に自前で永続化しメニュー描画（ad-hoc 署名では OS 標準の Recent Documents が更新のたびにリセットされるため） |
@@ -196,14 +209,15 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
 
 ## 自動アップデート
 
-自動アップデートは **Sparkle 2**（`sparkle-project/Sparkle`）を用いる。`AppDelegate`
+自動アップデートは **Sparkle 2**（`sparkle-project/Sparkle`）を用いる。`AppUpdaterController`
 が `SPUStandardUpdaterController` を保持し、`SPUUpdaterDelegate` として appcast の
-フィード URL を供給する。
+フィード URL を供給する。`updaterDelegate` は weak 参照のため、`AppDelegate` が
+`AppUpdaterController` を strong に保持し続けることが生存条件になる。
 
 | 要素 | 役割 |
 |---|---|
-| `SPUStandardUpdaterController` | Sparkle 標準のアップデータ本体（`AppDelegate` が `startingUpdater: false` で生成し、起動時に `updater.start()`） |
-| `AppDelegate: SPUUpdaterDelegate` | `feedURLString(for:)` で現在のチャンネルの appcast URL を返す |
+| `SPUStandardUpdaterController` | Sparkle 標準のアップデータ本体（`AppUpdaterController` が `startingUpdater: false` で生成し、起動時に `start()`） |
+| `AppUpdaterController: SPUUpdaterDelegate` | `feedURLString(for:)` で現在のチャンネルの appcast URL を返す |
 | `UpdateChannel`（`befold/Updates/`） | stable / develop の 2 チャンネル切替（UserDefaults）。チャンネルごとに appcast フィード URL を持つ |
 
 appcast の実体と DMG は配布サイト（Cloudflare Worker）が GitHub をプロキシしつつ

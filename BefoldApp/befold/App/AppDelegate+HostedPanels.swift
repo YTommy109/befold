@@ -24,7 +24,7 @@ extension AppDelegate {
         case .settings:
             HostedPanelWindowController(
                 rootView: CodeFontSettingsView(
-                    preference: codeFontPreference,
+                    preference: stores.codeFontPreference,
                     onChange: { [weak windowManager] in windowManager?.applyCodeFontToAllWindows() }
                 ),
                 title: String(localized: "settings.windowTitle", bundle: .l10n),
