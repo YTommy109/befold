@@ -240,24 +240,11 @@ struct FileListView: View {
     }
 
     private func copyFileReference(_ url: URL) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.writeObjects([url as NSURL])
+        Pasteboard.writeFileReference(url)
     }
 
     private func copyPath(_ url: URL) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(relativePathForCopy(url), forType: .string)
-    }
-
-    /// コピー対象の相対パス。基準は model.baseDirectory(SidebarNavigator がメイン外で
-    /// 解決済みの `gitRoot ?? workspaceRoot`)、未解決なら rootDirectory にフォールバックする。
-    /// PathRelativizer.relativePath(workspaceRoot:gitRoot:) と同じ規則(BaseDirectoryDescriptor
-    /// のドキュメント参照)なので、git subprocess をここで新たに走らせる必要がない。
-    /// テストから直接呼べるよう internal にする。
-    func relativePathForCopy(_ url: URL) -> String {
-        PathRelativizer.relativePath(of: url, relativeTo: model.baseDirectory?.url ?? model.rootDirectory)
+        Pasteboard.writeString(model.relativePathForCopy(url))
     }
 
     private func revealInFinder(_ url: URL) {

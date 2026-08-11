@@ -49,7 +49,7 @@ struct FileListViewTests {
             workspaceRoot: view.model.rootDirectory
         )
 
-        let path = view.relativePathForCopy(URL(fileURLWithPath: "/tmp/repo/src/a.swift"))
+        let path = view.model.relativePathForCopy(URL(fileURLWithPath: "/tmp/repo/src/a.swift"))
 
         #expect(path == "src/a.swift")
     }
@@ -60,7 +60,7 @@ struct FileListViewTests {
         view.model.rootDirectory = URL(fileURLWithPath: "/tmp/FileListViewTests")
         view.model.baseDirectory = nil
 
-        let path = view.relativePathForCopy(URL(fileURLWithPath: "/tmp/FileListViewTests/sub/a.swift"))
+        let path = view.model.relativePathForCopy(URL(fileURLWithPath: "/tmp/FileListViewTests/sub/a.swift"))
 
         #expect(path == "sub/a.swift")
     }

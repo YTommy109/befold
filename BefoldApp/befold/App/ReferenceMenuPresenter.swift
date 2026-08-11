@@ -8,12 +8,18 @@ import BefoldKit
 /// `menu.popUp` の target がこの型自身なので、`@objc` アクションもここに置ける
 /// （ウィンドウコントローラは NSResponder チェーンの受け口を増やさずに済む）。
 ///
-/// 遷移そのもの（ウィンドウ内での切替・別タブ/別ウィンドウ）と基準ディレクトリの参照は
+/// 遷移そのもの（ウィンドウ内での切替・別タブ/別ウィンドウ）と相対パスの算出は
 /// クロージャでウィンドウへ委譲する（循環参照を避けるため、渡す側が弱参照で捕捉する）。
 @MainActor
 final class ReferenceMenuPresenter: NSObject {
-    /// 相対パスのコピーに使う基準ディレクトリ（ウィンドウ解放後は nil）。
-    private let baseURL: () -> URL?
+    /// 「相対パスをコピー」で書き込む文字列（ウィンドウ解放後は nil）。
+    ///
+    /// 基準ディレクトリではなく**算出済みの文字列**を受け取る。ここで基準を選ぶ形にすると、
+    /// サイドバーの同名項目（`FileListModel.relativePathForCopy`）と規則が分かれて
+    /// 2 つのメニューが黙って食い違うため（TASK-422。実際、以前は表示中ファイルの URL を
+    /// 基準に渡していて、相対化が常に失敗し絶対パスがコピーされていた）。
+    /// テストから配線を突き合わせられるよう internal にする。
+    let relativePathForCopy: (URL) -> String?
     /// 解決済みパス参照を開く。
     private let openReference: (URL, OpenDisposition) -> Void
     /// 外部 URL（http/https）をブラウザで開く処理。本番では NSWorkspace 経由。
@@ -21,11 +27,11 @@ final class ReferenceMenuPresenter: NSObject {
     private let externalOpener: (URL) -> Void
 
     init(
-        baseURL: @escaping () -> URL?,
+        relativePathForCopy: @escaping (URL) -> String?,
         openReference: @escaping (URL, OpenDisposition) -> Void,
         externalOpener: @escaping (URL) -> Void
     ) {
-        self.baseURL = baseURL
+        self.relativePathForCopy = relativePathForCopy
         self.openReference = openReference
         self.externalOpener = externalOpener
     }
@@ -59,17 +65,10 @@ final class ReferenceMenuPresenter: NSObject {
         case .revealInFinder:
             NSWorkspace.shared.activateFileViewerSelecting([invocation.url])
         case .copyName:
-            Self.writeToPasteboard(invocation.url.lastPathComponent)
+            Pasteboard.writeString(invocation.url.lastPathComponent)
         case .copyRelativePath:
-            guard let base = baseURL() else { return }
-            Self.writeToPasteboard(PathRelativizer.relativePath(of: invocation.url, relativeTo: base))
+            guard let path = relativePathForCopy(invocation.url) else { return }
+            Pasteboard.writeString(path)
         }
-    }
-
-    /// NSPasteboard.general へ文字列を書き込む（FileListView の copyPath と同じ処理）。
-    private static func writeToPasteboard(_ string: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(string, forType: .string)
     }
 }

@@ -29,10 +29,6 @@ function zoomLabel(zoom) {
   return Math.round(zoom * 100) + '%';
 }
 
-function effectiveZoom(zoom) {
-  return zoom;
-}
-
 function parseStoredZoom(raw) {
   var z = parseFloat(raw);
   return isNaN(z) ? ZOOM_DEFAULT : z;
@@ -43,7 +39,7 @@ function parseStoredZoom(raw) {
 // 差し引いたビューポート高で、レイアウト px は祖先の CSS zoom の影響を受けないため
 // 実ピクセルの viewportHeight を全体ズームぶん割り戻して比較する。
 function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZoom) {
-  var viewportCap = (viewportHeight - 64) / effectiveZoom(globalZoom);
+  var viewportCap = (viewportHeight - 64) / globalZoom;
   return Math.min(naturalHeight * diagramZoom * BASE_SCALE, viewportCap);
 }
 
@@ -125,12 +121,12 @@ function _mmdApplyZoom() {
     // iframe(=wrap)の寸法自体を倍率で変える。PDF は幅フィットで
     // 描画されるので、幅が広がるほど拡大表示になる。
     wrap.style.zoom = 1;
-    wrap.style.width = (effectiveZoom(zoom) * 100) + '%';
-    wrap.style.height = (effectiveZoom(zoom) * 100) + '%';
+    wrap.style.width = (zoom * 100) + '%';
+    wrap.style.height = (zoom * 100) + '%';
   } else {
     wrap.style.width = '';
     wrap.style.height = '';
-    wrap.style.zoom = effectiveZoom(zoom);
+    wrap.style.zoom = zoom;
   }
   // 枠高さの上限は全体ズームに依存する（レイアウト px への割り戻し）ため再計算する。
   _mmdUpdateAllDiagramScrollHeights();
@@ -197,7 +193,7 @@ function _mmdInitResize() {
 // ローカル座標系で実ビューポート/zoom を返す(diagramScrollHeight と同じ理由)。
 // フィット計算は実ビューポート基準で行う必要があるため zoom を掛けて実寸に戻す。
 function _mmdFitImage(img, wrap) {
-  var zoom = effectiveZoom(_mmdZoom.value());
+  var zoom = _mmdZoom.value();
   var fit = imageFitSize(img.naturalWidth, img.naturalHeight, wrap.clientWidth * zoom, wrap.clientHeight * zoom);
   img.style.width = fit.width + 'px';
   img.style.height = fit.height + 'px';
@@ -309,7 +305,6 @@ export {
   stepZoom,
   wheelZoom,
   zoomLabel,
-  effectiveZoom,
   parseStoredZoom,
   diagramScrollHeight,
   imageFitSize,

@@ -9,7 +9,6 @@ const {
   stepZoom,
   wheelZoom,
   zoomLabel,
-  effectiveZoom,
   parseStoredZoom,
   mermaidTheme,
   sanitizeLang,
@@ -142,17 +141,6 @@ describe('zoomLabel', () => {
   test('rounds to nearest integer', () => {
     expect(zoomLabel(1.006)).toBe('101%');
     expect(zoomLabel(0.999)).toBe('100%');
-  });
-});
-
-describe('effectiveZoom', () => {
-  test('returns zoom as-is (BASE_SCALE is applied per-diagram, not globally)', () => {
-    expect(effectiveZoom(1.0)).toBe(1.0);
-    expect(effectiveZoom(2.0)).toBe(2.0);
-  });
-
-  test('returns 0 for zoom 0', () => {
-    expect(effectiveZoom(0)).toBe(0);
   });
 });
 

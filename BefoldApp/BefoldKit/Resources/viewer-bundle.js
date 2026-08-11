@@ -14213,7 +14213,6 @@
     csvSourceInnerHtml: () => csvSourceInnerHtml,
     diagramScrollHeight: () => diagramScrollHeight,
     diffMarkerGlyph: () => diffMarkerGlyph,
-    effectiveZoom: () => effectiveZoom,
     escapeHtml: () => escapeHtml,
     halfPageScrollStep: () => halfPageScrollStep,
     highlightCode: () => highlightCode,
@@ -15057,15 +15056,12 @@
   function zoomLabel(zoom) {
     return Math.round(zoom * 100) + "%";
   }
-  function effectiveZoom(zoom) {
-    return zoom;
-  }
   function parseStoredZoom(raw) {
     var z = parseFloat(raw);
     return isNaN(z) ? ZOOM_DEFAULT : z;
   }
   function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZoom) {
-    var viewportCap = (viewportHeight - 64) / effectiveZoom(globalZoom);
+    var viewportCap = (viewportHeight - 64) / globalZoom;
     return Math.min(naturalHeight * diagramZoom * BASE_SCALE, viewportCap);
   }
   function imageFitSize(naturalWidth, naturalHeight, availWidth, availHeight) {
@@ -15134,12 +15130,12 @@
     var wrap = document.getElementById("diagram-wrap");
     if (wrap.classList.contains("pdf-body")) {
       wrap.style.zoom = 1;
-      wrap.style.width = effectiveZoom(zoom) * 100 + "%";
-      wrap.style.height = effectiveZoom(zoom) * 100 + "%";
+      wrap.style.width = zoom * 100 + "%";
+      wrap.style.height = zoom * 100 + "%";
     } else {
       wrap.style.width = "";
       wrap.style.height = "";
-      wrap.style.zoom = effectiveZoom(zoom);
+      wrap.style.zoom = zoom;
     }
     _mmdUpdateAllDiagramScrollHeights();
     var postable = _mmdZoom.takePostable();
@@ -15188,7 +15184,7 @@
     });
   }
   function _mmdFitImage(img, wrap) {
-    var zoom = effectiveZoom(_mmdZoom.value());
+    var zoom = _mmdZoom.value();
     var fit = imageFitSize(img.naturalWidth, img.naturalHeight, wrap.clientWidth * zoom, wrap.clientHeight * zoom);
     img.style.width = fit.width + "px";
     img.style.height = fit.height + "px";
