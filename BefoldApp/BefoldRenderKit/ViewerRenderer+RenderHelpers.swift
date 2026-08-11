@@ -45,8 +45,6 @@ extension ViewerRenderer {
     /// 画像埋め込み(embeddedContent)は MainActor 外で行うため、完了後に
     /// contentUpdateGeneration が呼び出し時から変わっていないか確認してから
     /// evaluateJavaScript/recordRendered を行う(後続の updateContent に追い越された場合は破棄)。
-    /// **切り詰めバナーの送信・追記の評価・ミラーへの確定は、applyRender と同じく
-    /// 世代ガードより後ろに await を挟まず一続きで並べること**(理由は本文中のコメント)。
     func applyAppend(webView: WKWebView, request: AppendRequest) async {
         let (chunk, contentRevision, fileType, filePath, isSourceMode, truncation, generation) = (
             request.chunk, request.contentRevision, request.fileType, request.filePath,
@@ -60,11 +58,9 @@ extension ViewerRenderer {
         )
         guard generation == contentUpdateGeneration else { return }
 
-        // 切り詰めバナーの送信を世代ガードより後ろへ置き、送信と recordRendered を同じ
-        // 同期区間に閉じ込める。ガードより前で送ると、追い越された呼び出しが
-        // 「JS へは送ったのにミラーは旧値のまま」を残し、次の更新の truncation が
-        // その旧値と一致した場合に再送がスキップされてバナーが実 DOM と食い違う
-        // (applyRender の同じ位置に置いたコメントと同じ理由 / TASK-336・TASK-417)。
+        // 送信と recordRendered は同じ同期区間に閉じ込める(applyRender と同じ理由)。
+        // ガードより前で送ると、追い越された呼び出しが「JS へは送ったのにミラーは旧値の
+        // まま」を残し、次の truncation が旧値と一致したとき再送が飛ぶ(TASK-336・417)。
         webView.evaluateJavaScript(
             truncation.script,
             completionHandler: nil
