@@ -10,6 +10,10 @@ import Foundation
 /// `pathKey` 側は「先に現れた行が勝つ」。線形走査で `entries.first { $0.pathKey == key }` を
 /// 使っていたときと同じ行を返すため(同じ実体を指す行が複数あるとき、たとえば同一
 /// フォルダー内のシンボリックリンクと実体が並ぶとき、選ばれる行を変えない)。
+///
+/// **先勝ちは kind を見ない。** 「この kind の行を引きたい」という問いはこの索引では
+/// 表せない(先に確定した 1 行が別の kind だと、後ろに答えがあっても外れる)。その形の
+/// 述語は `FileListModel.folderEntryURL(forKey:)` のように線形走査で書くこと(TASK-450)。
 struct FileListEntryIndex {
     private let byID: [FileListEntry.ID: FileListEntry]
     private let byPathKey: [String: FileListEntry]

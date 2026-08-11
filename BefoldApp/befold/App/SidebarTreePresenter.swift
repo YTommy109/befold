@@ -116,8 +116,16 @@ final class SidebarTreePresenter {
     /// 一覧の到着前に `hasLoadedEntries` が立って「対象が確定していない」状態が失われる
     /// (previewTarget が .undetermined を返せなくなる)。行はルートの一覧が届いた時点と、
     /// 子リストが届いた時点(loadChildren)で組み直す。
+    /// **いまの一覧にフォルダー行が無いキーは取り直さない。** この関数はルートを取り直す
+    /// たびに呼ばれるため、Finder 側で消された・改名されたフォルダーを展開したまま残すと、
+    /// 以後ウィンドウがキーになるたびに存在しないパスへ列挙が飛ぶ(低速なボリュームでは
+    /// タイムアウトまで待たされ、結果は `.failed` なので読み込み済みの子行も毎回捨てられる
+    /// / TASK-451)。行が無いキーの子は古いまま残るが、親の行が無いので描画されない。
     func reloadExpandedChildren() {
         for token in expansion.invalidateChildren() {
+            // 判定に使うのは 1 つ前の完了した一覧(この関数はルートの列挙を発行する前に
+            // 呼ばれる)。列挙先の URL は従来どおり券が運ぶ——ここで引き当て直さない。
+            guard fileListModel.folderEntryURL(forKey: token.key) != nil else { continue }
             loadChildren(for: token)
         }
     }

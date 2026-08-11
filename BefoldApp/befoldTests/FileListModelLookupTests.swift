@@ -31,6 +31,20 @@ struct FileListModelLookupTests {
         #expect(model.folderEntryURL(forKey: "/nowhere") == nil)
     }
 
+    /// `pathKey` はシンボリックリンクを解決した実体パスなので、同じキーの行が複数並ぶ
+    /// ことがある(祖先を指すリンクがあるときの `.parentNavigation` 行、実体と並ぶリンク)。
+    /// 索引経由(先勝ち・kind を見ない)に戻すと、このテストが落ちる(TASK-450)。
+    @Test("同じキーの非フォルダー行が先にあってもフォルダー行を引き当てる")
+    func findsFolderBehindSameKeyNonFolderRow() {
+        let folder = directory.appendingPathComponent("sub")
+        let model = makeModel(entries: [
+            FileListEntry(url: folder, kind: .parentNavigation),
+            FileListEntry(url: folder, kind: .folder),
+        ])
+
+        #expect(model.folderEntryURL(forKey: folder.normalizedPathKey) == folder)
+    }
+
     @Test("一覧にある行は一覧側の URL を返す")
     func returnsEntryURLWhenPresent() {
         let file = directory.appendingPathComponent("note.md")

@@ -170,6 +170,71 @@ struct SidebarNavigatorExpansionTests {
         #expect(await counter.count == 1)
     }
 
+    /// `reloadExpandedChildren` はルートを取り直すたび(並び順の変更・隠しファイルの
+    /// トグル・フォーカス復帰・リネーム)に呼ばれる。一覧から消えたフォルダを展開したまま
+    /// 残すと、そのたびに存在しないパスへ列挙が飛び、`.failed` が着地して読み込み済みの
+    /// 子リストが毎回捨てられる(TASK-451)。
+    @Test("一覧から消えたフォルダは再列挙されず、子リストも捨てられない")
+    func reloadSkipsFoldersMissingFromListing() async {
+        let base = Self.home.appendingPathComponent("SidebarNavigatorExpansionTests-missing")
+        let dirA = base.appendingPathComponent("a", isDirectory: true)
+        let child = dirA.appendingPathComponent("child.md")
+        // ルート一覧の中身を差し替えられるようにして、Finder 側での削除と復活を再現する。
+        let rootEntries = LockedBox<[FileListEntry]>([FileListEntry(url: dirA, kind: .folder)])
+        let counter = CallCounter()
+        let preference = SidebarDisplayPreference(
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorExpansionTests"),
+            isTreeLayoutAvailable: true
+        )
+        preference.layoutMode = .tree
+        let navigator = SidebarNavigator(
+            currentDirectory: base, entries: [], selection: nil,
+            sidebarDisplayPreference: preference,
+            directoryLister: { _, _, _ in
+                DirectoryListing(parentEntry: nil, rootChildren: rootEntries.get())
+            },
+            childrenLister: { _, _, _ in
+                await counter.increment()
+                return [FileListEntry(url: child, kind: .file)]
+            },
+            git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
+        )
+        let host = SidebarNavigatorStubHost(currentFileURL: base.appendingPathComponent("fileA.mmd"))
+        navigator.attach(to: host)
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.refreshFileList()
+        await navigator.pendingListingTask?.value
+        navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
+        for _ in 0 ..< 10 {
+            await Task.yield()
+        }
+        #expect(await counter.count == 1)
+
+        // フォルダが消える。1 回目の取り直しは、まだ古い一覧に行があるため従来どおり走る
+        // (分割前も同じ)。その一覧が届いた後の取り直しからは行が無く、飛ばされる。
+        rootEntries.set([])
+        for _ in 0 ..< 3 {
+            navigator.refreshFileList()
+            await navigator.pendingListingTask?.value
+            for _ in 0 ..< 10 {
+                await Task.yield()
+            }
+        }
+        #expect(await counter.count == 2, "一覧に無いフォルダへ列挙が飛び続けている")
+
+        // 復活したら、子リストは捨てられていないのでそのまま行になる(再列挙も起きない)。
+        rootEntries.set([FileListEntry(url: dirA, kind: .folder)])
+        navigator.refreshFileList()
+        await navigator.pendingListingTask?.value
+        for _ in 0 ..< 10 {
+            await Task.yield()
+        }
+
+        #expect(navigator.fileListModel.entries.map(\.url).contains(child))
+        #expect(await counter.count == 2, "保持していた子リストを捨てて取り直している")
+    }
+
     /// `SidebarExpansion.material.failed` が `SidebarRowBuilder` まで配線されているか。
     /// 状態と表示のどちらを正しく作っても、この 1 本の配線が抜けると失敗は
     /// 「畳んでいる」ように見え、→ キーも無反応になる(TASK-404)。
