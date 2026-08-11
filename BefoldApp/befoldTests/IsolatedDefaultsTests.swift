@@ -87,7 +87,7 @@ import Testing
     /// 型付きセッターが setObject:forKey: を経由しない実装だった場合、
     /// 利用者の設定を汚しうるため、書き込み側を明示的に確認しておく。
     @Test("実際の共有スイートへ書き込まない")
-    func doesNotWriteToTheSharedSuite() throws {
+    func doesNotWriteToTheSharedSuite() {
         let key = "IsolatedDefaultsProbeKey-\(UUID().uuidString)"
         let defaults = makeIsolatedDefaults(prefix: "IsolatedDefaultsTests")
 
@@ -95,7 +95,10 @@ import Testing
         defaults.set(42, forKey: key + "-int")
         defaults.set("text", forKey: key + "-string")
 
-        let shared = try #require(UserDefaults(suiteName: "com.degino.befold"))
+        // xcodebuild のテストホストは befold.app 自身のため、その bundle identifier を
+        // suite 名に渡すと UserDefaults は nil を返す（自分の識別子を suite にはできない）。
+        // その場合の共有スイートの実体は standard なので、そちらへフォールバックする。
+        let shared = UserDefaults(suiteName: "com.degino.befold") ?? .standard
         #expect(shared.object(forKey: key) == nil)
         #expect(shared.object(forKey: key + "-int") == nil)
         #expect(shared.object(forKey: key + "-string") == nil)

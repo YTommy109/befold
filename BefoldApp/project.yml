@@ -175,6 +175,26 @@ targets:
       CODE_SIGN_ENTITLEMENTS: befold/befold.entitlements
       ENABLE_HARDENED_RUNTIME: true
       GENERATE_INFOPLIST_FILE: false
+  # テスト用の共有ヘルパー（Package.swift の同名ターゲットと対応）。
+  # befoldTests の 111 ファイルが `import BefoldTestSupport` するため、
+  # Xcode 側でもモジュールとして存在していないとテストターゲットが
+  # 「unable to resolve module dependency」でビルドできない。
+  # swift-testing(Testing) をリンクするため、テストターゲットからのみ使う。
+  # Package.swift 側と同じく静的ライブラリにする。テストバンドルへ静的リンク
+  # されるため embed も codesign も不要（framework にすると xctest 内へ
+  # 埋め込まれて署名対象になり、Info.plist を持たない分だけ手当てが増える）。
+  BefoldTestSupport:
+    type: library.static
+    platform: macOS
+    sources:
+      - path: BefoldTestSupport
+    settings:
+      PRODUCT_NAME: BefoldTestSupport
+      SKIP_INSTALL: true
+      # Testing(swift-testing) はテスト用フレームワーク検索パスの下にあり、
+      # 通常のフレームワークターゲットからは解決できない。
+      # ENABLE_TESTING_SEARCH_PATHS がその検索パスを追加する。
+      ENABLE_TESTING_SEARCH_PATHS: true
   befoldTests:
     type: bundle.unit-test
     platform: macOS
@@ -184,10 +204,18 @@ targets:
       - target: befold
       - target: BefoldKit
       - target: BefoldRenderKit
+      - target: BefoldTestSupport
     settings:
       BUNDLE_LOADER: "$(TEST_HOST)"
       TEST_HOST: "$(BUILT_PRODUCTS_DIR)/befold.app/Contents/MacOS/befold"
       GENERATE_INFOPLIST_FILE: true
+  # befoldCLITests はここに存在しない（Package.swift 側にのみある）。意図的なずれ。
+  # 8 ファイルが `@testable import befold_cli` で実行ファイルターゲットの中身に触るため
+  # Xcode ではテストホストが要るが、Xcode は plain tool を TEST_HOST として受け付けない
+  # （実測: バイナリが実在していても
+  #  「Could not find test host for befoldCLITests」でスキーム構築の時点で落ちる）。
+  # 載せるには CLI ロジックを befold-cli から BefoldCLI framework へ移す構造変更が要る。
+  # CI は swift test のみを実行するため、現状 CI のテスト集合には影響しない（TASK-439）。
   befold-cli:
     type: tool
     platform: macOS
