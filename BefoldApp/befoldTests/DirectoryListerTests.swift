@@ -62,7 +62,7 @@ struct DirectoryListerTests {
         _ = try tmp.file(named: ".hidden.md", contents: "")
         _ = try tmp.file(atPath: "sub/inner.md", contents: "") // sub フォルダを作る
 
-        let names = DirectoryLister.allEntriesSorted(in: tmp.url).map(\.lastPathComponent)
+        let names = try #require(DirectoryLister.allEntriesSorted(in: tmp.url)).map(\.lastPathComponent)
 
         // 隠しファイルとサブフォルダも含め全件返る。
         #expect(Set(names) == [".hidden.md", "file2.md", "file10.md", "sub"])

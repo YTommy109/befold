@@ -10,7 +10,7 @@ struct FileListModelLookupTests {
 
     private func makeModel(entries: [FileListEntry]) -> FileListModel {
         let model = FileListModel(currentDirectory: directory, entries: [], selection: nil)
-        model.setEntries(entries, for: directory)
+        model.setEntries(entries, for: directory, didFailEnumeration: false)
         return model
     }
 

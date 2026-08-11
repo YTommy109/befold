@@ -126,7 +126,7 @@ struct FolderListingViewFilterTests {
         // ウィンドウは一覧を空で作って非同期に埋める。本番と同じ経路で入れる。
         model.entries = entries
 
-        #expect(model.listingSource(for: directory) == .shared(entries))
+        #expect(model.listingSource(for: directory) == .shared(SharedFolderListing(rows: entries)))
     }
 
     /// `.shared` の payload は生の entries ではなく、絞り込み済みの visibleEntries でなければ
@@ -161,8 +161,8 @@ struct FolderListingViewFilterTests {
             Issue.record("listingSource が .shared ではない")
             return
         }
-        #expect(shared?.count == 1)
-        #expect(shared?.first?.url.lastPathComponent == "top.md")
+        #expect(shared?.entries.count == 1)
+        #expect(shared?.entries.first?.url.lastPathComponent == "top.md")
     }
 
     /// 移動要求で currentDirectory だけが先に進んでいる間は「まだ手元に無い」を返す。
@@ -209,7 +209,11 @@ struct FolderListingViewFilterTests {
     func doesNotFallBackToCachedEntriesWhileWaiting() {
         let cached = [makeEntry("a.md"), makeEntry("b.md")]
 
-        #expect(FolderListingView.resolveEntries(source: .shared(nil), cached: cached) == nil)
+        #expect(
+            FolderListingView.resolveListing(
+                source: .shared(nil), cached: SharedFolderListing(rows: cached)
+            ) == nil
+        )
     }
 
     /// サイドバーの一覧が届いたらそちらが優先される(git 状態と揃った一覧はこちらだけ)。
@@ -217,17 +221,18 @@ struct FolderListingViewFilterTests {
     func sharedEntriesWinOverOwnListing() {
         let shared = [makeEntry("shared.md")]
 
-        let resolved = FolderListingView.resolveEntries(
-            source: .shared(shared), cached: [makeEntry("stale.md")]
+        let resolved = FolderListingView.resolveListing(
+            source: .shared(SharedFolderListing(rows: shared)),
+            cached: SharedFolderListing(rows: [makeEntry("stale.md")])
         )
 
-        #expect(resolved?.map(\.url.lastPathComponent) == ["shared.md"])
+        #expect(resolved?.entries.map(\.url.lastPathComponent) == ["shared.md"])
     }
 
     /// 手元に何も無ければ「未取得」のまま。空一覧と取り違えると空状態の文言が先に出る。
     @Test("供給元も自前列挙も無ければ未取得のまま")
     func staysUnloadedWithoutAnyEntries() {
-        #expect(FolderListingView.resolveEntries(source: .shared(nil), cached: nil) == nil)
+        #expect(FolderListingView.resolveListing(source: .shared(nil), cached: nil) == nil)
     }
 
     /// ディレクトリが据え置きのまま .shared → .ownListing へ切り替わることがある。
@@ -264,7 +269,7 @@ struct FolderListingViewFilterTests {
         let openFile = directory.appendingPathComponent("a.md")
         let listed = [makeEntry("a.md")]
         let view = makeView(
-            directory: directory, filter: FileListFilter(), source: .shared(listed),
+            directory: directory, filter: FileListFilter(), source: .shared(SharedFolderListing(rows: listed)),
             openFile: openFile
         )
 
@@ -308,7 +313,7 @@ struct FolderListingViewFilterTests {
         let alreadyFiltered = [makeEntry("kept-by-caller-even-though-filter-would-drop-it.md")]
         let filter = FileListFilter(filterText: "no-match")
         let view = makeView(
-            directory: directory, filter: filter, source: .shared(alreadyFiltered)
+            directory: directory, filter: filter, source: .shared(SharedFolderListing(rows: alreadyFiltered))
         )
 
         #expect(
@@ -326,7 +331,7 @@ struct FolderListingViewFilterTests {
         let openFile = directory.appendingPathComponent("notes.xyz")
         let filter = FileListFilter(filterText: "kept")
         let view = makeView(
-            directory: directory, filter: filter, source: .shared(listed), openFile: openFile
+            directory: directory, filter: filter, source: .shared(SharedFolderListing(rows: listed)), openFile: openFile
         )
 
         #expect(view.visibleEntries(from: listed).map(\.url.lastPathComponent) == ["kept.md"])
@@ -339,7 +344,7 @@ struct FolderListingViewFilterTests {
         let openFile = directory.appendingPathComponent("notes.xyz")
         let filter = FileListFilter(filterText: "notes")
         let view = makeView(
-            directory: directory, filter: filter, source: .shared(listed), openFile: openFile
+            directory: directory, filter: filter, source: .shared(SharedFolderListing(rows: listed)), openFile: openFile
         )
 
         #expect(view.visibleEntries(from: listed).map(\.url.lastPathComponent) == ["notes.xyz"])

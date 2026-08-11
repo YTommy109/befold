@@ -16,8 +16,8 @@ final class FileListModel {
     /// パスコピー機能の相対パス基準として使う(SidebarNavigator.navigateToFolder が更新)。
     var rootDirectory: URL
     /// サイドバーの一覧。代入をもって「一覧が届いた」とみなす(hasLoadedEntries)。
-    /// 直接代入すると `entriesDirectory` は前回のままになる。列挙したディレクトリと
-    /// 一緒に反映するには `setEntries(_:for:)` を使うこと。
+    /// 直接代入すると `entriesDirectory` と `didFailListing` は前回のままになる。
+    /// 列挙結果を反映するには `setEntries(_:for:didFailEnumeration:)` を使うこと。
     var entries: [FileListEntry] {
         didSet {
             hasLoadedEntries = true
@@ -27,7 +27,7 @@ final class FileListModel {
         }
     }
 
-    /// `entries` がどのディレクトリを列挙した結果か。`setEntries(_:for:)` の呼び出し元が
+    /// `entries` がどのディレクトリを列挙した結果か。`setEntries` の呼び出し元が
     /// 列挙時に確定させた値をそのまま持たせる。
     ///
     /// 絞り込みは `currentDirectory` ではなく **この値** と突き合わせる。移動要求は
@@ -42,10 +42,19 @@ final class FileListModel {
     /// `currentDirectory` からの導出に頼ると、「currentDirectory を書き換える全箇所が
     /// 事前に listingGeneration を進めている」という呼び出し元側の不変条件に依存してしまう
     /// (TASK-298)。ここでは列挙した側の値を直接受け取ることで不変条件をローカルに閉じる。
-    func setEntries(_ newEntries: [FileListEntry], for directory: URL) {
+    /// - Parameter didFailEnumeration: 列挙に失敗したか。行の有無とは別に運ぶ(TASK-410)。
+    ///   畳んだ行と一緒に渡させることで、`entries` だけ更新して失敗の事実が前回のまま
+    ///   残る経路を作らない。材料側の値は `DirectoryListing.didFailEnumeration`。
+    func setEntries(_ newEntries: [FileListEntry], for directory: URL, didFailEnumeration: Bool) {
         entriesDirectory = directory
+        didFailListing = didFailEnumeration
         entries = newEntries
     }
+
+    /// 手元の一覧の列挙に失敗したか。空の一覧が「空だった」のか「読めなかった」のかを
+    /// 分ける唯一の判断材料で、空状態の文言がこれを見る(TASK-410)。
+    /// 更新経路は `setEntries` の 1 本に閉じる。
+    private(set) var didFailListing = false
 
     /// `entries` を選択から引くための索引。一覧の代入と同時に作り直す。
     /// 提示対象の導出はこれを介して O(1) で行う(FileListEntryIndex)。
@@ -324,7 +333,10 @@ final class FileListModel {
         // 祖先を足し戻す**前**の配列(FileListSnapshot.filtered)から採る。足し戻した配列を渡すと、
         // 条件に一致しないフォルダがプレビューにも現れる一方、同じフォルダを自前列挙する
         // 経路では消えるため、1 ウィンドウ内に絞り込みの答えが 2 つ並ぶ(TASK-288 の巻き戻し)。
-        return .shared(listSnapshot.filtered.filter { $0.depth == 0 })
+        return .shared(SharedFolderListing(
+            entries: listSnapshot.filtered.filter { $0.depth == 0 },
+            didFailEnumeration: didFailListing
+        ))
     }
 
     /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧
@@ -336,21 +348,6 @@ final class FileListModel {
             gitStatus: showChangedFilesOnly ? gitStatus : nil,
             presentedPathKey: storedSelectionPathKey
         )
-    }
-
-    /// いま適用できる git 絞り込み。次のいずれかなら nil(= 絞り込まない)。
-    ///
-    /// - トグルが OFF。
-    /// - `gitStatus` が nil(git 管理外・取得失敗・機能無効)。**空の状態は nil ではない**ため、
-    ///   変更が 1 つも無いリポジトリではきちんと絞り込みが効く。
-    /// - 状態が別のディレクトリのもの。一覧の取得と git の取得は別タスクで、完了順が
-    ///   保証されない。移動直後に前のリポジトリの状態で絞り込むと一覧が一瞬消えるため、
-    ///   届いている状態が表示中ディレクトリのものであることを条件にする(TASK-285)。
-    /// - 状態が手元の一覧のディレクトリのものでない。突き合わせ先は visibleEntries と
-    ///   同じ `entriesDirectory` にする。空状態の文言はその一覧に対する説明なので、
-    ///   片方だけ currentDirectory を見ると「絞り込みで空」と「対応ファイルなし」が入れ替わる。
-    var activeGitChangeFilter: SidebarGitStatus? {
-        listFilter.gitChangeFilter(for: entriesDirectory)
     }
 
     var canGoBack: Bool {

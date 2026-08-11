@@ -72,7 +72,7 @@ struct FileListEntryRow: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .frame(width: 12)
-                .help(String(localized: "sidebar.tree.enumerationFailed", bundle: .l10n))
+                .help(String(localized: "folder.enumerationFailed", bundle: .l10n))
         }
     }
 

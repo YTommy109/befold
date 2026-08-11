@@ -69,7 +69,11 @@ final class SidebarTreePresenter {
         let rows = listing.rows(
             material: isTree ? expansion.material : .init(), showsDisclosure: isTree
         )
-        fileListModel.setEntries(rows, for: directory)
+        // 列挙に失敗したかは行と一緒に渡す。行の有無からは判定できない——失敗しても
+        // 親移動行と「いま開いている文書」の行は出るため(TASK-410)。
+        fileListModel.setEntries(
+            rows, for: directory, didFailEnumeration: listing.didFailEnumeration
+        )
         return rows
     }
 

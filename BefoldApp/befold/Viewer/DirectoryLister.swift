@@ -86,18 +86,21 @@ enum DirectoryLister {
     /// 列挙結果を **行に畳む前の材料** として組む。畳むのは `DirectoryListing.rows` の
     /// 1 箇所だけで、ここは行を作らない。
     ///
-    /// ルートの列挙失敗はここで空へ畳む。ルート一覧には失敗を出す先が無く(開閉三角は
-    /// 子フォルダの行にしか無い)、ここを Optional にすると
-    /// 「開いている文書は必ず一覧に含める」(appendingOpenFile)も通らなくなる。
-    /// ルート列挙失敗の表示は TASK-410 で扱う。
+    /// 列挙に失敗しても材料は返し、失敗の事実は `didFailEnumeration` で運ぶ。ルート一覧には
+    /// 失敗を出す三角が無く(開閉三角は子フォルダの行にしかない)、ここを Optional にすると
+    /// 「開いている文書は必ず一覧に含める」(appendingOpenFile)も通らなくなるため
+    /// (TASK-404 / TASK-410)。
     private static func buildListing(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool, home: URL
     ) -> DirectoryListing {
-        DirectoryListing(
+        // 空配列と nil の区別を、そのまま「読めて空だった」/「読めなかった」として運ぶ。
+        let children = childEntries(
+            in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles
+        )
+        return DirectoryListing(
             parentEntry: parentNavigationEntry(for: directory, home: home),
-            rootChildren: childEntries(
-                in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles
-            ) ?? []
+            rootChildren: children ?? [],
+            didFailEnumeration: children == nil
         )
     }
 
@@ -140,12 +143,17 @@ enum DirectoryLister {
     /// Quick Open のパスモードは隠しファイルの出し分けを呼び出し側(入力の断片)で
     /// 決めるため、ここではフィルタせず全件を返す。列挙・ソートの単一情報源に寄せ、
     /// 呼び出し側が FileManager を直接叩いて未定義順の結果を得るのを防ぐ。
-    static func allEntriesSorted(in directory: URL, fileReader: any FileReading = Self.fileReader) -> [URL] {
-        // Quick Open は候補が 0 件のときに「該当なし」と出すだけで、列挙失敗を
-        // 別の案内に分ける口を持たない。ここでは空へ畳む(区別の導入は TASK-410)。
-        let (folders, files) = sortedContents(
+    /// 列挙に失敗した場合は **nil**(候補 0 件の `[]` と区別する)。Quick Open は
+    /// 「一致なし」と「読み取れない」で利用者の次の一手が変わる(打ち直す / 諦める)ため、
+    /// ここで空へ畳まない(TASK-410)。
+    static func allEntriesSorted(
+        in directory: URL, fileReader: any FileReading = Self.fileReader
+    ) -> [URL]? {
+        guard let (folders, files) = sortedContents(
             in: directory, showHiddenFiles: true, fileReader: fileReader
-        ) ?? ([], [])
+        ) else {
+            return nil
+        }
         // Quick Open は候補 URL をそのまま行 ID・正規化キーとしてハッシュするため、
         // ここで native 裏打ちへ揃える(列挙側では揃えない。TASK-273)。
         return [URL].mergedByFileName(folders, files, name: \.lastPathComponent)

@@ -108,7 +108,7 @@ struct AppQuickOpenEnvironmentTests {
         _ = try temporary.file(named: "a.md", contents: "a")
         let environment = makeEnvironment(gitIndex: DisabledGitFileIndex(), currentFileURL: nil)
 
-        let entries = await environment.directoryEntries(in: temporary.url)
+        let entries = try #require(await environment.directoryEntries(in: temporary.url))
 
         #expect(entries.map(\.lastPathComponent) == ["a.md"])
     }

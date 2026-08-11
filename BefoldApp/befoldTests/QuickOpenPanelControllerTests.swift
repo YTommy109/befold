@@ -18,7 +18,7 @@ struct QuickOpenPanelControllerTests {
             QuickOpenCandidateSet(candidates: [], isTruncated: false)
         }
 
-        func directoryEntries(in _: URL) async -> [URL] {
+        func directoryEntries(in _: URL) async -> [URL]? {
             []
         }
 

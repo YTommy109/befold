@@ -11,6 +11,13 @@ struct DirectoryListing: Sendable, Equatable {
     var parentEntry: FileListEntry?
     /// ルート直下の行(親移動行を含まない)。並びは `DirectoryLister.childEntries` が確定させる。
     var rootChildren: [FileListEntry]
+    /// 列挙に失敗したか。true のとき `rootChildren` は「そのフォルダの中身」ではない。
+    ///
+    /// **行の有無で失敗を判定してはならない**(TASK-410)。失敗しても親移動行と
+    /// 「いま開いている文書」の行は出す必要があり、`rootChildren` が空でないことは
+    /// 列挙が成功したことを意味しない。逆に空でも「読めて、中身が空だった」場合がある。
+    /// 材料を加工する `appendingOpenFile` はこの事実を書き写して運ぶ。
+    var didFailEnumeration: Bool = false
 
     static let empty = DirectoryListing(parentEntry: nil, rootChildren: [])
 
@@ -41,12 +48,16 @@ struct DirectoryListing: Sendable, Equatable {
     /// 追記先は `rootChildren` の末尾で、これは畳んだあとの配列の末尾と一致する。
     /// 深さ優先で畳んだ配列の末尾は「最後のルート直下行とその配下すべての直後」であり、
     /// そこは配下を持たない新しいルート直下行が入る位置そのものだから。
+    ///
+    /// **`didFailEnumeration` はそのまま持ち越す。** 開いている文書の行を足したことで
+    /// 「読めた」ことにはならない(TASK-410)。
     func appendingOpenFile(_ openFile: URL?, in directory: URL) -> DirectoryListing {
         DirectoryListing(
             parentEntry: parentEntry,
             rootChildren: DirectoryLister.appendingOpenFile(
                 openFile, to: rootChildren, in: directory
-            )
+            ),
+            didFailEnumeration: didFailEnumeration
         )
     }
 }
