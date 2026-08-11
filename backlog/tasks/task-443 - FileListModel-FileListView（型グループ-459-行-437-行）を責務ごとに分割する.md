@@ -4,7 +4,7 @@ title: FileListModel / FileListView（型グループ 459 行 / 437 行）を責
 status: To Do
 assignee: []
 created_date: '2026-08-11 05:06'
-updated_date: '2026-08-11 05:26'
+updated_date: '2026-08-11 13:41'
 labels: []
 dependencies: []
 priority: medium
@@ -36,3 +36,15 @@ BefoldApp/befold/Viewer/ のサイドバー系 2 グループが閾値 400 を�
 - [ ] #5 新規ファイル追加後に xcodegen generate を実行し xcodebuild でも通る
 - [ ] #6 main との swiftlint 差分に真の新規が無く、swift test が既存どおり通る
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 起票時からの実測差分 (2026-08-11 / code-review high)
+
+PR #483 で FileListModel 型グループのベースラインが 457 → 484 へ引き上げられている（scripts/type-group-baseline.txt:16）。TASK-442.2 が FileListModel+Lookup.swift（22 行）と entry(forPathKey:) を、既に閾値 400 を超えていたグループへ足したため。
+
+内訳（HEAD 実測）: FileListModel.swift 381 + FileListModel+Snapshot.swift + FileListModel+TreeRows.swift + FileListModel+Lookup.swift = 484 行。起票時の Description にある 459 行は古い。
+
+`scripts/check-type-group-size.sh` は超過時に「増加」と出して exit 1 するため、ベースラインの引き上げがそのまま抑止の解除になっている。このタスクの AC#1 / AC#3 でベースラインのエントリごと消えるが、それまでの間は「引き上げてよい前例」として残る点に注意。
+<!-- SECTION:NOTES:END -->

@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-10 12:32'
-updated_date: '2026-08-11 05:08'
+updated_date: '2026-08-11 13:51'
 labels: []
 dependencies: []
 documentation:
@@ -110,4 +110,10 @@ TASK-428.5 を着手可能にするには、この 5 件の返済タスク起票
 | ViewerWindowControllerTests / ViewerStoreTests / QuickOpenModelTests | 585 / 540 / 452 | TASK-431（既存） |
 
 未対応グループ数はゼロ。なお TASK-431 が起票時に対象としていた GitCommandRunnerTests.swift（507 行）は現在リポジトリに存在せず、テストの対象は 4 件ではなく 3 件（TASK-431 の Notes へ記録済み）。
+
+## AC #4 の到達条件を見直した（2026-08-11、優先順位評価）
+
+「依存 10 件が全て完了すればベースラインが空になる」という前提が崩れていることを実測で確認した。ベースラインに残る `852  BefoldApp/befold/App/ViewerWindowController` の返済タスク TASK-441 は Done であり、その AC は 400 行到達不能の実測（init の Parameter doc 約 120 行 + 移動不能な @objc アクション 13 個）を根拠に 900 行へ書き換えられている。852 → 400 を目指す To Do タスクは存在しない。
+
+**決定（ユーザー判断）**: 追加の返済タスクは起票せず、TASK-428.5 の設計を「ベースライン撤去 → 単純な閾値強制」から「ベースライン撤去 → 閾値 + 理由付きの恒久例外リスト」へ変更した。TASK-428.5 の AC を 4 件から 6 件へ書き換え済み。AC #4（ベースライン方式の撤去）はこの新しい形で満たす。
 <!-- SECTION:NOTES:END -->
