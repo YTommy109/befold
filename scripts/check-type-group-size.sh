@@ -24,6 +24,8 @@ SOURCE_DIR="${TYPE_GROUP_SOURCE_DIR:-$ROOT/BefoldApp}"
 # 「400 行の型は分割を検討する」という基準自体はグループでも変わらないため揃える。
 THRESHOLD="${TYPE_GROUP_THRESHOLD:-400}"
 
+BASELINE="${TYPE_GROUP_BASELINE:-$ROOT/scripts/type-group-baseline.txt}"
+
 # 集計対象から外すのは `.swiftlint.yml` の `excluded` と同じ 2 つだけ。テストターゲットも
 # `file_length` の対象なので、ここでも同じ扱いにする。
 is_excluded() {
@@ -67,6 +69,50 @@ format_baseline() {
   # ベースラインはキーの辞書順で固定する。行数順にすると 1 グループの増減で無関係な行が
   # 動き、差分レビューで増減が読めなくなるため。
   sort -k2,2
+}
+
+# ベースラインと現状を突き合わせ、違反を stderr へ報告する。
+#
+# 終了コード: 0 = 問題なし / 1 = 違反（増加・新規の閾値超過） / 2 = ベースラインが古い（減少のみ）
+#
+# 減少を違反にしない理由: 返済のたびにベースライン更新のコミットを強制すると、分割作業の
+# 途中でフックが赤くなり続けて `--no-verify` を常用する圧力になる。古いベースラインが許すのは
+# 「元の値まで戻る」ことだけで無制限の増加ではないため、警告 + 更新コマンドの提示に留める。
+# 更新自体は 1 コマンド（--baseline の出力を書き戻す）で済むようにしてある。
+compare_with_baseline() {
+  [ -f "$BASELINE" ] || { echo "エラー: ベースラインがありません: $BASELINE" >&2; return 1; }
+  collect | format_baseline | awk -F'\t' -v t="$THRESHOLD" '
+    NR == FNR {
+      if ($0 ~ /^#/ || $0 == "") next
+      base[$2] = $1
+      next
+    }
+    {
+      cur[$2] = $1
+      if ($2 in base) {
+        if ($1 > base[$2]) {
+          printf "増加: %s が %d 行 → %d 行（+%d）\n", $2, base[$2], $1, $1 - base[$2] > "/dev/stderr"
+          violated = 1
+        } else if ($1 < base[$2]) {
+          printf "減少: %s が %d 行 → %d 行（-%d）ベースラインが古くなっています\n", $2, base[$2], $1, base[$2] - $1 > "/dev/stderr"
+          stale = 1
+        }
+      } else if ($1 > t) {
+        printf "新規の閾値超過: %s が %d 行（閾値 %d）\n", $2, $1, t > "/dev/stderr"
+        violated = 1
+      }
+    }
+    END {
+      for (k in base) {
+        if (!(k in cur)) {
+          printf "消滅: %s がベースラインにありますが集計結果にありません\n", k > "/dev/stderr"
+          stale = 1
+        }
+      }
+      if (violated) exit 1
+      if (stale) exit 2
+    }
+  ' "$BASELINE" -
 }
 
 case "${1:-}" in
@@ -113,11 +159,77 @@ case "${1:-}" in
       echo "$out" >&2
       fail=1
     fi
+    # ラチェット判定。閾値を 4 に落とし、App/Foo(6 行) / Other/Foo(4 行) / App/URL(5 行) を
+    # 相手に「増加」「新規の閾値超過」「減少」の 3 ケースを確認する。
+    THRESHOLD=4
+    BASELINE="$tmp/baseline.txt"
+
+    check_case() {
+      local label="$1" want_status="$2" want_message="$3" out status=0
+      out="$(compare_with_baseline 2>&1 1>/dev/null)" || status=$?
+      if [ "$status" != "$want_status" ]; then
+        echo "self-test 失敗: $label の終了コードが $status（期待 $want_status）" >&2
+        echo "$out" >&2
+        fail=1
+      elif ! echo "$out" | grep -q -F "$want_message"; then
+        echo "self-test 失敗: $label のメッセージに「$want_message」がありません" >&2
+        echo "$out" >&2
+        fail=1
+      fi
+    }
+
+    # 増加: App/Foo をベースラインでは 5 行としておく（実際は 6 行）。
+    printf '# comment\n5\tApp/Foo\n5\tApp/URL\n' > "$BASELINE"
+    check_case "増加" 1 "App/Foo が 5 行 → 6 行（+1）"
+
+    # 新規の閾値超過: ベースラインに無い Other/Foo(4 行) は閾値 4 を超えないので通り、
+    # 閾値を 3 に落とすと検知される。
+    THRESHOLD=3
+    check_case "新規の閾値超過" 1 "新規の閾値超過: Other/Foo が 4 行"
+    THRESHOLD=4
+
+    # 減少: App/Foo を実際より大きい 9 行で記録すると、終了コード 2（警告）になる。
+    printf '9\tApp/Foo\n5\tApp/URL\n' > "$BASELINE"
+    check_case "減少" 2 "App/Foo が 9 行 → 6 行（-3）"
+
     [ "$fail" = 0 ] || exit 1
-    echo "self-test OK: 本体 + extension の合算・ディレクトリ違いの分離・孤児 extension・excluded の除外を確認しました"
+    echo "self-test OK: 合算・ディレクトリ分離・孤児 extension・excluded 除外と、増加/新規超過/減少の 3 判定を確認しました"
     ;;
   --baseline)
     collect | format_baseline
+    ;;
+  --check)
+    status=0
+    compare_with_baseline || status=$?
+    case "$status" in
+      0) echo "型グループの行数はベースライン以内です" ;;
+      1)
+        cat >&2 <<EOF
+
+型グループ（Foo.swift + 同ディレクトリの Foo+*.swift の合算）の行数が増えています。
+ファイルを extension へ割っても合算値は減りません。責務を分けて別の型へ切り出すか、
+不要なコードを削ってください。
+
+意図的にベースラインを引き上げる場合は、その理由をコミットメッセージへ書いた上で:
+  scripts/check-type-group-size.sh --update-baseline
+EOF
+        ;;
+      2)
+        cat >&2 <<EOF
+
+行数が減ったグループがあります（ラチェットを締め直せます）:
+  scripts/check-type-group-size.sh --update-baseline
+EOF
+        ;;
+    esac
+    exit "$status"
+    ;;
+  --update-baseline)
+    # コメントヘッダを保ったまま数値行だけを差し替える。
+    header="$(grep -E '^#|^$' "$BASELINE" || true)"
+    { echo "$header"; collect | format_baseline | awk -F'\t' -v t="$THRESHOLD" '$1 > t'; } > "$BASELINE.tmp"
+    mv "$BASELINE.tmp" "$BASELINE"
+    echo "ベースラインを更新しました: ${BASELINE#"$ROOT"/}"
     ;;
   --over)
     collect | format_sorted | awk -F'\t' -v t="$THRESHOLD" '$1 > t'
