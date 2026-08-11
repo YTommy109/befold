@@ -39,8 +39,10 @@ let package = Package(
             resources: [
                 .process("Resources/Localizable.xcstrings"),
                 .copy("Resources/viewer.html"),
-                .copy("Resources/viewer.js"),
-                .copy("Resources/viewer-main.js"),
+                // viewer-src/ から esbuild で生成し、成果物もコミットしているバンドル
+                // （生成手順は viewer-src/README.md）。ビルド時に Node を要求しないため、
+                // ここでは通常のリソースとして扱う。
+                .copy("Resources/viewer-bundle.js"),
                 .copy("Resources/style.css"),
                 .copy("Resources/mermaid.min.js"),
                 .copy("Resources/markdown-it.min.js"),

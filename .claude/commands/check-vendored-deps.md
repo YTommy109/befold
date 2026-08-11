@@ -30,13 +30,14 @@ scripts/vendored-deps-versions.sh
 
 - WebSearch で各ライブラリの最新安定版と、同梱版に該当する CVE / GHSA を調べる。
 - 実際の初期化設定と突き合わせ、該当 CVE がこのアプリで発火するかを判定する。
-  参照先は `viewer.html` ではなく `BefoldApp/BefoldKit/Resources/viewer-main.js`。
+  参照先は `viewer.html` ではなく `BefoldApp/viewer-src/markdown.js` / `mermaid.js`。
   - markdown-it: `_mmdInitMarkdown()`（`html: true` / `linkify` / `typographer`）
   - mermaid: `_mmdMermaidConfig()`（`securityLevel: 'strict'` / `maxTextSize` /
     `maxEdges`）。`mermaid.min.js` は `viewer.html` からは読まれず、
-    描画が必要になった時点で `viewer-main.js` が動的に `<script>` を挿して遅延ロードする
+    描画が必要になった時点で `mermaid.js` が動的に `<script>` を挿して遅延ロードする
+    （ベンダーライブラリは viewer-bundle.js に取り込まず、`viewer.html` から個別に読む）
   - DOMPurify: `md.render` のラッパから `sanitizeRenderedHtml(DOMPurify, …)`
-    （`viewer.js`）を通し、**設定なしのデフォルト**で `purify.sanitize()` を呼ぶ
+    （`viewer-src/markdown.js`）を通し、**設定なしのデフォルト**で `purify.sanitize()` を呼ぶ
 - 脅威モデル: `viewer.html` の CSP は `script-src 'self'`（`'unsafe-inline'` が付くのは
   `style-src` のみ。`ViewerBridgeContractTests` が検証している）。DOMPurify は
   唯一の防御ではなく多層防御の一層であり、サニタイズをすり抜けたインライン

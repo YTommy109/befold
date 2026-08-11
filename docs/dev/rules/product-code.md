@@ -3,7 +3,7 @@
 <!-- derived-from ../coding_rule.md -->
 
 Swift プロダクトコード（`befold` / `BefoldKit` / `BefoldRenderKit` / `BefoldCLI` /
-`befold-cli` 本体）と `viewer.js` 等の JavaScript コードの規約を扱う。
+`befold-cli` 本体）と `viewer-src/` の JavaScript コードの規約を扱う。
 コメント・ドキュメンテーション規約は言語・プロダクト/テスト共通のため
 [`./comments.md`](./comments.md) に独立している。全体の位置づけは
 [`../coding_rule.md`](../coding_rule.md) を参照。
@@ -190,19 +190,19 @@ swift package plugin --allow-writing-to-package-directory swiftformat
   （`decodeText` をテーブル登録した同じ diff で別の関数が自前デコードしていた実例、
   テキストファイルサイズ上限に汎用の `maxFileSizeBytes` を使い `maxTextFileSizeBytes` と
   不整合を起こした実例）
-- **言語・レイヤをまたぐ定数**（Swift ↔ viewer.js、Swift ↔ ビルド設定 `project.yml`／
+- **言語・レイヤをまたぐ定数**（Swift ↔ viewer の JS、Swift ↔ ビルド設定 `project.yml`／
   Info.plist、Swift ↔ シェル等、コンパイラが同一性を保証できない境界をまたぐ定数）は
   避けられない場合のみ二重定義し、(1) **両方の定義箇所**に対応相手を示すコメント
-  （viewer.js／Swift だけでなく `project.yml` 側にも相互参照コメントを書く）、
+  （viewer の JS／Swift だけでなく `project.yml` 側にも相互参照コメントを書く）、
   (2) 一致を検証するテストを必ずセットで付ける。
   - **要件(2)の「ソースを読んで一致を検証」とは、テストが相手側の実ソース
-    （`project.yml`／`viewer.js` 等）をその場で読み取り、自分側の定数と突き合わせることを指す。
+    （`project.yml`／`viewer-src/` 等）をその場で読み取り、自分側の定数と突き合わせることを指す。
     両辺が同じ一つの値から導出されるトートロジー（恒真）検証はこの要件を満たさない。**
     たとえば「`AppVersion.current` == `AppVersion.current`」や、Swift 側の定数同士を比較する
     テストは、相手（`project.yml` の `MARKETING_VERSION`）が食い違ってもグリーンのままで、
     ドリフトを一切検知できない。テストは**必ず相手側ファイルをパース・読み取りして比較する**
     こと（`project.yml` を読んで `MARKETING_VERSION` を抽出し `AppVersion.current` と照合する、
-    `viewer.js` のソースを読んで数値リテラルを照合する `ViewerBridgeTests.zoomRangeMatchesZoomStore`
+    `viewer-bundle.js` のソースを読んで数値リテラルを照合する `ViewerBridgeTests.zoomRangeMatchesZoomStore`
     の流儀）。
   - セルフチェック指標: 「相手側の値を書き換えたらこのテストは落ちるか？」を自問する。
     落ちないならトートロジーであり、検証になっていない。
@@ -287,15 +287,37 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 
 ## JavaScript コーディング規約
 
-- `viewer.js` にはテスト可能な純粋ロジックのみを置く（DOM 操作は `viewer.html` /
-  `viewer-main.js` 側）。DOM に触れない純粋述語を `viewer-main.js` に書き足したくなったら
-  `viewer.js` へ置き、`module.exports` に載せて Jest から直接テストする
-- CommonJS 互換の `module.exports` で関数をエクスポートする（Jest テスト用）
+- viewer 用 JS のソースは `BefoldApp/viewer-src/` に置く。`BefoldKit/Resources/viewer-bundle.js`
+  は esbuild の成果物なので直接編集しない（`npm run build:viewer` で再生成する）
+- **モジュールは関心ごとに 1 つ**。純粋ロジックと DOM 操作を別ファイルへ分けない
+  （`viewer.js` = 純粋 / `viewer-main.js` = DOM という分け方は責務ではなく
+  テスト可能性で引いた境界で、同じ関心の 2 つの枝が離れて置かれ実際に乖離した
+  = TASK-414）。テスト可能性はファイル境界ではなく `export` で担保する
+- 依存は `import` で表現し、**循環させない**。`npm run check:viewer-cycles` が
+  esbuild の metafile から検査する。循環するとモジュール評価順が壊れ、別モジュールの
+  トップレベル値を `undefined` のまま掴む
+- モジュールは ESM（`import` / `export`）で書く。公開面は `viewer-src/main.js`
+  （barrel）に集約し、本番エントリ（`index.js`）もテストハーネスもそこだけを見る。
+  Swift から呼ぶ関数は `viewer-src/expose.ts` の `exposeGlobals()` 経由で
+  `globalThis` に公開する
+- **`.js` と `.ts` が混在する**（TypeScript への段階移行の途中）。型検査されるのは
+  `.ts` だけで、`.js` は `checkJs: false` により解決対象に含まれるだけで検査されない。
+  型検査は `npm run typecheck:viewer` が単独で担当し、esbuild も babel も
+  型注釈を落とすだけで検査しない。移行の単位・エントリの扱い・strict mode に
+  なる理由は [`BefoldApp/viewer-src/README.md`](../../../BefoldApp/viewer-src/README.md)
+  の「TypeScript への段階移行」節が単一の情報源
+- **Swift ↔ JS のブリッジ契約は、型を手書きせず値から導出する**。メッセージ名は
+  `bridge.ts` のフラットな `var _MSG_* = '...' as const` のまま保ち、型は `typeof` で
+  導く。値の一致は `ViewerBridgeContractTests` が成果物 `viewer-bundle.js` の
+  文字列を読んで Swift と双方向に照合しているため、型を別に宣言すると
+  「Swift の値・JS の値・JS の型」の 3 つを揃える二重管理になる。
+  同じ理由で、`_mmdPostMessage(_MSG_*, { ... })` の第 2 引数は直書きの
+  オブジェクトリテラルのままにする（変数へ逃がすと契約テストの抽出が空振りする）
 - `var` 宣言を使用する。macOS 14+ の WKWebView は `const` / `let` も解釈できるため
-  技術的制約ではなく、同梱 JS（`viewer.js` / `viewer-main.js`）が全面的に `var` で
+  技術的制約ではなく、同梱 JS が全面的に `var` で
   書かれているための一貫性ルールである。混在させず既存に揃える
 - **コメントは [`./comments.md`](./comments.md) に従う**。同ファイルの例は Swift だが、
-  規約は言語非依存であり `viewer.js` / `viewer-main.js` / `viewer.html` のコメントにも
+  規約は言語非依存であり `viewer-src/` 配下 / `viewer.html` のコメントにも
   等しく適用される。
   特に「書かなくてよいコメント」の**タスク番号・issue 番号・変更履歴の参照は JS/HTML でも書かない**
   （`(issue #NNN)` のような記述はコミットメッセージ側に置く）。

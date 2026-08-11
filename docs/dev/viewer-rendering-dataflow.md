@@ -58,14 +58,17 @@ code(language:)`）。plaintext は独立ケースではなく `.code(language: 
 
 <!-- derived-from #filetype--種別レンダラ同梱アセット対応 -->
 
-同梱アセットは責務で 2 分割されている。
+viewer 用 JS のソースは `BefoldApp/viewer-src/` にあり、責務で 2 分割されている。
+esbuild が `BefoldApp/BefoldKit/Resources/viewer-bundle.js` へ 1 本にバンドルする
+（詳細は [`../../BefoldApp/viewer-src/README.md`](../../BefoldApp/viewer-src/README.md)）。
 
-- `BefoldApp/BefoldKit/Resources/viewer.js`: **純粋ロジックのみ**（DOM 非依存・
-  Node でテスト可能）。トークナイザ・HTML 組み立て・ズーム計算などのヘルパー群。
-- `BefoldApp/BefoldKit/Resources/viewer-main.js`: 実際の DOM 描画と type ディス
-  パッチ。
+- `BefoldApp/viewer-src/` の各モジュール: 関心ごとに 1 つ（`render.js` /
+  `renderers.js` / `zoom.js` / `find.js` など）。純粋な計算と DOM 操作は
+  同じ関心の中に同居する。
+- `BefoldApp/viewer-src/index.js`: バンドルのエントリ。`expose.js` の
+  `exposeGlobals()` で Swift から呼ぶ関数を `globalThis` に載せ、初期化を行う。
 
-`async function render(content, type, lang)`（viewer-main.js）が描画の起点。
+`async function render(content, type, lang)`（`render.js`）が描画の起点。
 `#diagram-wrap` からクラスを一括除去 → 前回 PDF blob を解放 → type で分岐する。
 
 | type | ビルダー | viewer.js ヘルパー |
@@ -116,8 +119,8 @@ Swift 側は追記時に表示モードを渡さない。`canConsumePendingAppen
 描画と一致している。
 
 `viewer.html` は CSP を厳格化（`script-src 'self'`、インライン script 不使用）し、
-`viewer.js → markdown-it.min.js → highlight.min.js → dompurify.min.js →
-viewer-main.js` の順で同梱アセットを読み込む。mermaid.min.js のみ静的 `<script>`
+`markdown-it.min.js → highlight.min.js → dompurify.min.js →
+viewer-bundle.js` の順で同梱アセットを読み込む。mermaid.min.js のみ静的 `<script>`
 を置かず遅延ロードする。
 
 ## 監視 → Store → WebView → JS の一気通貫

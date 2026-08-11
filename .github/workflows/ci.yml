@@ -164,8 +164,30 @@ jobs:
       - name: 依存をインストールする
         run: npm ci
 
+      # viewer-src/ は ESM で依存を表現するため、import の付け忘れは
+      # バンドル時にエラーにならず実行時に初めて落ちる。no-undef で機械検出する。
+      - name: viewer-src の未定義参照を検査する
+        run: npm run lint:viewer
+
+      # 循環 import はバンドルを通ってしまうが、モジュール評価順が壊れて
+      # 「別モジュールのトップレベル値が undefined のまま束ねられる」形になる。
+      - name: viewer-src の循環 import を検査する
+        run: npm run check:viewer-cycles
+
+      # esbuild も babel も型注釈を落とすだけで型検査をしない（TASK-432.4）。
+      # tsc を通さない限り、TypeScript へ移行したモジュールは型が付いた見た目のまま
+      # 一度も検査されない。移行済みの .ts だけが対象（tsconfig の checkJs は false）。
+      - name: viewer-src の型を検査する
+        run: npm run typecheck:viewer
+
       - name: Jest テストを実行する
         run: npx jest
+
+      # viewer-src/ の変更をバンドルへ反映し忘れると、コミット済み成果物だけが
+      # 古いまま .app へ入る（Swift 側のビルドは Node を使わないため気付けない）。
+      # 再ビルドして差分が出たら落とす。手元でも同じコマンドで確認できる。
+      - name: バンドルがソースと一致していることを確認する
+        run: npm run check:viewer-bundle
 
   thread-sanitizer:
     # コストが高いため PR では回さず、main push と nightly に限定する
