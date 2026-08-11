@@ -38,6 +38,20 @@ backlog task view $ARGUMENTS --plain
 前段の Notes に申し送りがあるなら、それが実装で満たされたことを何で示せるか。
 根拠は `.claude/CLAUDE.md` の「実装着手前の設計レビュー」（TASK-326 の実測）。
 
+Swift の型定義に触れたタスクでは、あわせて**責務が混ざっていないか**を確認する。
+
+```bash
+# 触った型グループ（Foo.swift + Foo+*.swift の合算）の現状を測る
+scripts/check-type-group-size.sh --check
+```
+
+`--check` は行数しか見ない。行数が通っていることは責務が分かれている証拠にならない
+（TASK-411 の +Capabilities / +Diff / +WindowHelpers は、行数上限の回避であって
+責務分離ではなかった）。**型・プロトコル準拠・stored property・注入クロージャの
+いずれかを増やしたタスクでは、`responsibility-reviewer` サブエージェントを 1 回起動し、
+指摘の有無と対応を実装ノートへ残す。** 指摘が出た場合、「次に触るときに」と後回しに
+せず同じタスク内で対応する（`.claude/CLAUDE.md` の「完了基準」）。
+
 ### 3. 整形・テスト・lint・ビルド
 
 ```bash
