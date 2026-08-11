@@ -8,6 +8,7 @@ import { renderCodeHtml } from './code-html.js';
 import { buildTableHtml, parseCsv, renderCsvSourceHtml } from './csv-html.js';
 import { renderDiffHtml } from './diff-html.js';
 import { markdownRenderer } from './markdown.js';
+import { hljs } from './vendor.js';
 import { _mmdViewOptions } from './view-options.js';
 import { _mmdApplyDiagramZoom, _mmdBuildDiagramControls, _mmdFitImage } from './zoom.js';
 
@@ -131,19 +132,13 @@ function _renderPdf(diagramWrap, content) {
   diagramWrap.appendChild(iframe);
 }
 
-// markdown-it 未ロード時は false を返す。呼び出し側(render)はそこで打ち切り、
-// mermaid 実行やスクロール復元といった後処理を行わない(分割前の挙動と同じ)。
+// markdown-it はバンドル同梱(vendor.js)で常に構成済みのため、
+// 「未ロードにつき後続処理を打ち切る」経路は無い。
 function _renderMarkdown(diagramWrap, content) {
   // github-markdown-css は .markdown-body プレフィックス前提のため
   // Markdown レンダリング時のみ付与する
   diagramWrap.classList.add('markdown-body');
-  var md = markdownRenderer();
-  if (!md) {
-    diagramWrap.innerHTML = '<p>markdown-it not loaded</p>';
-    return false;
-  }
-  diagramWrap.innerHTML = md.render(content);
-  return true;
+  diagramWrap.innerHTML = markdownRenderer().render(content);
 }
 
 // 行番号付きソース表示のビルダー。ソース表示のテキスト種別も、常にソースである
@@ -164,7 +159,7 @@ function _renderSource(diagramWrap, content, type, lang, shape) {
   }
   diagramWrap.innerHTML = shape === 'csv-source'
     ? renderCsvSourceHtml(content, lang || ',', _mmdViewOptions.lineNumbers())
-    : renderCodeHtml(window.hljs, content, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers());
+    : renderCodeHtml(hljs, content, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers());
   return shape;
 }
 
@@ -182,7 +177,7 @@ function _renderDiffHtmlIfAvailable(type, lang) {
   if (diff === null || type === 'csv') { return ''; }
   try {
     return renderDiffHtml(
-      window.hljs, diff, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers(),
+      hljs, diff, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers(),
       _mmdViewOptions.diffLayout()
     );
   } catch (e) {

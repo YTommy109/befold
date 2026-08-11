@@ -44,10 +44,10 @@ let package = Package(
                 // ここでは通常のリソースとして扱う。
                 .copy("Resources/viewer-bundle.js"),
                 .copy("Resources/style.css"),
+                // npm 依存から node_modules をコピーした生成物
+                // （scripts/copy-viewer-vendor.mjs）。mermaid だけは遅延ロードのため
+                // バンドルへ取り込まず、ファイルのまま同梱する。
                 .copy("Resources/mermaid.min.js"),
-                .copy("Resources/markdown-it.min.js"),
-                .copy("Resources/highlight.min.js"),
-                .copy("Resources/dompurify.min.js"),
                 .copy("Resources/github.css"),
                 .copy("Resources/github-dark.css"),
                 .copy("Resources/github-markdown.css"),

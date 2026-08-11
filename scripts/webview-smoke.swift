@@ -70,18 +70,20 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
     // mermaid.min.js は TASK-1.10 で mermaid 使用時のみ動的 <script> 挿入で遅延ロードする
     // ようになったため、ここでは typeof mermaid を確認しない(未ロードで 'undefined' が
     // 正しい)。実際にロードされることは checkMermaid() の描画確認で検証する。
-    // markdown-it のインスタンス(md)も TASK-432.2 の ESM 化でバンドル内部へ閉じたため、
-    // ここでは見ない。代わりに公開関数 render がグローバルへ載っていることを確認する
-    // (ベンダーのグローバル・バンドルの評価・公開の 3 段が揃ったことの確認になる)。
-    // md が初期化されていることは checkMarkdown() の描画確認が担う。
+    // markdown-it / highlight.js / DOMPurify も TASK-432.5 で viewer-bundle.js の
+    // 中へ入ったため、グローバル(markdownit / hljs)としては見えない。ここでは
+    // 公開関数 render と定数がグローバルへ載っていること = バンドルの評価と公開が
+    // 通ったことだけを確認する。ベンダーが実際に動くことは、この後の
+    // checkMarkdown()(markdown-it + DOMPurify)と checkHighlight()(highlight.js)の
+    // 描画確認が担う。
     func checkScriptsLoaded() {
         webView.evaluateJavaScript(
-            "[typeof markdownit, typeof ZOOM_DEFAULT, typeof render].join(',')"
+            "[typeof ZOOM_DEFAULT, typeof render].join(',')"
         ) { result, error in
             if let error { self.fail("script-load: \(error)") }
             guard let s = result as? String else { self.fail("script-load: no result") }
             print("globals: \(s)")
-            if s != "function,number,function" {
+            if s != "number,function" {
                 self.fail("ローカルスクリプトが CSP でブロックされた可能性: \(s)")
             }
             self.checkMermaid()
@@ -113,6 +115,21 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
         ) { r in
             print("md render h1: \(String(describing: r))")
             if (r as? String) != "Title" { self.fail("markdown が描画されなかった") }
+            self.checkHighlight()
+        }
+    }
+
+    // 3.2. ソース表示のシンタックスハイライト
+    // highlight.js は TASK-432.5 でバンドル同梱になった。グローバル hljs を
+    // 見る形では確認できないため、実際にハイライト済みの span が出るかで見る。
+    func checkHighlight() {
+        asyncJS(
+            "await render('let x = 1', 'code', 'swift'); "
+                + "return document.querySelector('#diagram-wrap .hljs-keyword') ? 'hl' : 'nohl';",
+            "highlight"
+        ) { r in
+            print("highlight: \(String(describing: r))")
+            if (r as? String) != "hl" { self.fail("highlight.js のハイライトが出なかった") }
             self.checkEmbeddedDataImageRenders()
         }
     }

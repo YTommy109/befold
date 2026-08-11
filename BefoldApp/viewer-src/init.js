@@ -6,7 +6,6 @@ import { onColorSchemeChange } from './color-scheme.js';
 import { _mmdFind, _mmdInitFind } from './find.js';
 import { _mmdInitCodeFont, _mmdInitFontSize } from './fonts.js';
 import { _mmdInitKeyboard } from './keyboard.js';
-import { _mmdInitMarkdown } from './markdown.js';
 import { _mmdReinitializeMermaidIfLoaded } from './mermaid.js';
 import { _mmdInitReferenceClicks } from './reference-clicks.js';
 import { _mmdRerenderCurrent } from './render.js';
@@ -30,7 +29,6 @@ function _mmdInit() {
   _mmdInitWheelZoom();
   _mmdInitResize();
   _mmdInitColorScheme();
-  _mmdInitMarkdown();
   _mmdFind.initControls();
   _mmdInitScrollNotify();
   _mmdInitLoadMore();

@@ -53,12 +53,11 @@
     <button id="mmd-find-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
   </div>
 
-  <!-- ベンダーは同梱物をグローバルとして先に読み込む（バンドルには含めない）。
-       viewer-bundle.js は viewer-src/ を esbuild でまとめた成果物で、
-       ベンダーのグローバルを参照するため必ずこの後に置く。 -->
-  <script src="markdown-it.min.js"></script>
-  <script src="highlight.min.js"></script>
-  <script src="dompurify.min.js"></script>
+  <!-- viewer-bundle.js は viewer-src/ を esbuild でまとめた成果物。markdown-it /
+       highlight.js / DOMPurify も npm 依存としてこのバンドルに含まれるため、
+       読み込むスクリプトはこれ 1 本だけ。mermaid だけは 3.2MB を実際に図を
+       描く瞬間まで遅延ロードする設計のため、viewer-src/mermaid.js が
+       mermaid.min.js を <script> で後から挿す。 -->
   <script src="viewer-bundle.js"></script>
 </body>
 </html>

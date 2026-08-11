@@ -186,8 +186,14 @@ jobs:
       # viewer-src/ の変更をバンドルへ反映し忘れると、コミット済み成果物だけが
       # 古いまま .app へ入る（Swift 側のビルドは Node を使わないため気付けない）。
       # 再ビルドして差分が出たら落とす。手元でも同じコマンドで確認できる。
-      - name: バンドルがソースと一致していることを確認する
+      # ベンダーのコピー物（mermaid.min.js / CSS）も同じ理由でここに含める。
+      - name: バンドルと同梱ベンダーがソースと一致していることを確認する
         run: npm run check:viewer-bundle
+
+      # 依存を上げて THIRD_PARTY_LICENSES.md の更新を忘れると、アプリ内の OSS
+      # ライセンス表示だけが古い版を出し続ける（誰も見ないので気付けない）。
+      - name: 同梱ライセンスの記載が実際の依存と一致していることを確認する
+        run: npm run check:third-party-licenses
 
   thread-sanitizer:
     # コストが高いため PR では回さず、main push と nightly に限定する

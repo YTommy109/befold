@@ -33,7 +33,7 @@ struct ViewerBridgeContractTests {
             )
         }
 
-        #expect(html.contains("async function render(content, type, lang)"))
+        #expect(Self.definesFunction(html, "render", parameterCount: 3))
         #expect(html.contains("_MSG_ZOOM_CHANGED = \"\(ViewerBridge.zoomChangedMessageName)\""))
         #expect(html.contains("_MSG_REFERENCE_ACTIVATED = \"\(ViewerBridge.referenceActivatedMessageName)\""))
         #expect(html.contains("_MSG_FIND_OPTIONS_CHANGED = \"\(ViewerBridge.findOptionsChangedMessageName)\""))
@@ -42,16 +42,16 @@ struct ViewerBridgeContractTests {
         #expect(html.contains("_MSG_RESOLVE_REFERENCES = \"\(ViewerBridge.resolveReferencesMessageName)\""))
         // 表示時解決: JS が候補を集めて要求する側(_mmdResolveReferences)と、
         // Swift の応答を適用する側(applyResolvedReferencesScript が呼ぶ関数)の両方を確認する。
-        #expect(html.contains("function _mmdResolveReferences()"))
-        #expect(html.contains("function _mmdApplyResolvedReferences(map)"))
-        #expect(html.contains("function _mmdPostMessage(name, payload)"))
+        #expect(Self.definesFunction(html, "_mmdResolveReferences", parameterCount: 0))
+        #expect(Self.definesFunction(html, "_mmdApplyResolvedReferences", parameterCount: 1))
+        #expect(Self.definesFunction(html, "_mmdPostMessage", parameterCount: 2))
         #expect(html.contains("_mmdPostMessage(_MSG_ZOOM_CHANGED,"))
         #expect(html.contains("window._mmdInitialZoom"))
         #expect(html.contains("window._mmdSystemFontSize"))
-        #expect(html.contains("function setViewMode(mode)"))
-        #expect(html.contains("function setLineNumbers(show)"))
-        #expect(html.contains("function _mmdSetTruncated(isTruncated, lineCount, failed)"))
-        #expect(html.contains("function _mmdLoadMore()"))
+        #expect(Self.definesFunction(html, "setViewMode", parameterCount: 1))
+        #expect(Self.definesFunction(html, "setLineNumbers", parameterCount: 1))
+        #expect(Self.definesFunction(html, "_mmdSetTruncated", parameterCount: 3))
+        #expect(Self.definesFunction(html, "_mmdLoadMore", parameterCount: 0))
         #expect(html.contains("window._mmdBannerStrings"))
         #expect(html.contains("window._mmdHostFeatures"))
         #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, \"loadMore\")"))
@@ -59,16 +59,16 @@ struct ViewerBridgeContractTests {
         // referenceActivated/loadMoreLines の postMessage 発火は hostFeatures で
         // 多層防御する(Swift 側はハンドラ未登録、JS 側はここで呼び出し自体を抑止)。
         #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, \"referenceActivation\")"))
-        #expect(html.contains("function _mmdSetRestoreScroll(position)"))
-        #expect(html.contains("function _mmdSetRenderDocPath(path)"))
-        #expect(html.contains("function _mmdRenameDocPath(from, to)"))
+        #expect(Self.definesFunction(html, "_mmdSetRestoreScroll", parameterCount: 1))
+        #expect(Self.definesFunction(html, "_mmdSetRenderDocPath", parameterCount: 1))
+        #expect(Self.definesFunction(html, "_mmdRenameDocPath", parameterCount: 2))
         // _mmdCloseFind / _mmdLoadMore は Swift から呼ばない JS 内部専用の関数だが、
         // 検索バーの Esc・バナーのボタン配線が生きていることをここで確認する。
-        #expect(html.contains("function _mmdCloseFind()"))
-        #expect(html.contains("function _mmdFindRefresh(resetToFirst)"))
+        #expect(Self.definesFunction(html, "_mmdCloseFind", parameterCount: 0))
+        #expect(Self.definesFunction(html, "_mmdFindRefresh", parameterCount: 1))
         #expect(html.contains("window._mmdInitialFindOptions"))
         #expect(html.contains("window._mmdFindStrings"))
-        #expect(html.contains("function appendChunk(text, type, lang)"))
+        #expect(Self.definesFunction(html, "appendChunk", parameterCount: 3))
     }
 
     // MARK: - ペイロードキー
@@ -305,6 +305,26 @@ struct ViewerBridgeContractTests {
                 guard let groupRange = Range(match.range(at: index), in: text) else { return "" }
                 return String(text[groupRange])
             }
+        }
+    }
+
+    /// `function <name>(...)` が指定した引数の個数で定義されているかを返す。
+    ///
+    /// 仮引数の**名前**では照合しない。ベンダー(markdown-it / highlight.js /
+    /// DOMPurify)を同じ IIFE へバンドルするようになったため、esbuild が名前衝突を
+    /// 避けて仮引数を改名する(`appendChunk(text, …)` → `appendChunk(text3, …)`)。
+    /// ブリッジの契約は「関数名と引数の個数」であって、バンドル内部で付け替えられる
+    /// 識別子ではない。名前で照合すると、無関係な依存追加でここが落ちる。
+    private static func definesFunction(
+        _ source: String, _ name: String, parameterCount: Int
+    ) -> Bool {
+        let pattern = #"function\s+"# + NSRegularExpression.escapedPattern(for: name)
+            + #"\s*\(([^)]*)\)"#
+        guard let found = try? matches(of: pattern, in: source) else { return false }
+        return found.contains { match in
+            let params = match[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            let count = params.isEmpty ? 0 : params.split(separator: ",").count
+            return count == parameterCount
         }
     }
 

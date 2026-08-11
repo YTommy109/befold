@@ -28,7 +28,7 @@ function lineNumbers(document) {
 
 describe('ソース表示中のチャンク追記', () => {
   test('追記分がソース行として入り、描画済み Markdown が混ざらない', async () => {
-    const { document, main } = loadViewerMain({ withMarkdown: true });
+    const { document, main } = loadViewerMain({});
     main.setLineNumbers(true);
     await renderIn(main, 'source', '# title\n', 'md');
     const before = codeTableRows(document).length;
@@ -43,7 +43,7 @@ describe('ソース表示中のチャンク追記', () => {
   });
 
   test('追記後も行番号が 1 から連続する', async () => {
-    const { document, main } = loadViewerMain({ withMarkdown: true });
+    const { document, main } = loadViewerMain({});
     main.setLineNumbers(true);
     await renderIn(main, 'source', 'one\ntwo\n', 'md');
 
@@ -53,7 +53,7 @@ describe('ソース表示中のチャンク追記', () => {
   });
 
   test('レンダリング表示では従来どおり描画済み Markdown が追記される', async () => {
-    const { document, main } = loadViewerMain({ withMarkdown: true });
+    const { document, main } = loadViewerMain({});
     await renderIn(main, 'rendered', '# title\n', 'md');
 
     main.appendChunk('## second\n', 'md');
@@ -64,8 +64,8 @@ describe('ソース表示中のチャンク追記', () => {
   // type だけでは追記先が決まらない代表例。同じ 'csv' でも、レンダリング表示なら
   // <tbody> の行、ソース表示ならレインボー着色のソース行になる。
   test('CSV は同じ type でも表示モードで追記先が変わる', async () => {
-    const rendered = loadViewerMain({ withMarkdown: true });
-    const source = loadViewerMain({ withMarkdown: true });
+    const rendered = loadViewerMain({});
+    const source = loadViewerMain({});
 
     await renderIn(rendered.main, 'rendered', 'a,b\n1,2\n', 'csv', ',');
     rendered.main.appendChunk('3,4\n', 'csv', ',');
@@ -84,7 +84,7 @@ describe('ソース表示中のチャンク追記', () => {
   // render が判定を更新したら appendChunk 側もそれに従う。両者が別々に判定を
   // 持っていると、モードを切り替えた直後の追記だけが前の形のまま入る。
   test('モードを切り替えて描き直すと、追記先もその形へ変わる', async () => {
-    const { document, main } = loadViewerMain({ withMarkdown: true });
+    const { document, main } = loadViewerMain({});
     await renderIn(main, 'source', '# title\n', 'md');
     main.appendChunk('## second\n', 'md');
     expect(document.querySelector('#diagram-wrap h2')).toBeNull();
@@ -98,7 +98,7 @@ describe('ソース表示中のチャンク追記', () => {
 
 describe('ソース表示のパス参照', () => {
   test('初回描画でパス参照が注釈される', async () => {
-    const { document, main } = loadViewerMain({ withMarkdown: true });
+    const { document, main } = loadViewerMain({});
 
     await renderIn(main, 'source', MD, 'md');
 
@@ -108,11 +108,14 @@ describe('ソース表示のパス参照', () => {
   // .swift（code 種別）は常にソース表示で、以前から注釈されていた。
   // 同じ文字列が .md のソース表示では死んでいたため、両者の一致を固定する。
   test('.md のソース表示と .swift で挙動が一致する', async () => {
-    const md = loadViewerMain({ withMarkdown: true });
-    const code = loadViewerMain({ withMarkdown: true });
+    const md = loadViewerMain({});
+    const code = loadViewerMain({});
 
-    await renderIn(md.main, 'source', 'see ./notes.md for details\n', 'md');
-    await renderIn(code.main, 'source', 'see ./notes.md for details\n', 'code', 'swift');
+    // コメント行にするのは、ハイライトがパス文字列を span で割らない形にするため。
+    // 素の `see ./notes.md ...` は swift ハイライトが `./` を hljs-operator として
+    // 切り出し、テキストノードが分かれてパス参照として認識されない(TASK-455)。
+    await renderIn(md.main, 'source', '// see ./notes.md for details\n', 'md');
+    await renderIn(code.main, 'source', '// see ./notes.md for details\n', 'code', 'swift');
 
     const mdRefs = md.document.querySelectorAll('#diagram-wrap .befold-path-ref').length;
     const codeRefs = code.document.querySelectorAll('#diagram-wrap .befold-path-ref').length;
@@ -121,7 +124,7 @@ describe('ソース表示のパス参照', () => {
   });
 
   test('チャンク追記の前後でパス参照の扱いが変わらない', async () => {
-    const { document, main } = loadViewerMain({ withMarkdown: true });
+    const { document, main } = loadViewerMain({});
     await renderIn(main, 'source', 'see ./first.md now\n', 'md');
     const beforeRefs = document.querySelectorAll('#diagram-wrap .befold-path-ref').length;
     expect(beforeRefs).toBeGreaterThan(0);

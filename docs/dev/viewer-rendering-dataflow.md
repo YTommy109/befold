@@ -28,7 +28,7 @@ code(language:)`）。plaintext は独立ケースではなく `.code(language: 
 | `.csv` | csv / tsv | `csv` | viewer.js の `parseCsv` / `buildTableHtml`（自前） |
 | `.image` | png, jpg, gif, webp, bmp, ico | `image` | `imageDataURI()` で base64 `<img>`（自前） |
 | `.pdf` | pdf | `pdf` | `base64ToBytes` → Blob → iframe |
-| `.code` | swift, py, go, ts, json, yaml…（40+ 種） | `code` | highlight.min.js |
+| `.code` | swift, py, go, ts, json, yaml…（40+ 種） | `code` | highlight.js（common ビルド） |
 
 `jsValue` から呼ばれる JS 描画関数（ビルダー）の対応は
 [viewer.html の JS 分岐](#viewerhtml-の-js-分岐)の表を唯一の情報源とする。
@@ -119,9 +119,10 @@ Swift 側は追記時に表示モードを渡さない。`canConsumePendingAppen
 描画と一致している。
 
 `viewer.html` は CSP を厳格化（`script-src 'self'`、インライン script 不使用）し、
-`markdown-it.min.js → highlight.min.js → dompurify.min.js →
-viewer-bundle.js` の順で同梱アセットを読み込む。mermaid.min.js のみ静的 `<script>`
-を置かず遅延ロードする。
+読み込む script は `viewer-bundle.js` 1 本だけ。markdown-it / highlight.js /
+DOMPurify は npm 依存としてこのバンドルに含まれる（取り込み口は
+`viewer-src/vendor.js`）。mermaid.min.js のみバンドルへ入れず、描画が必要に
+なった時点で `viewer-src/mermaid.js` が `<script>` を挿して遅延ロードする。
 
 ## 監視 → Store → WebView → JS の一気通貫
 

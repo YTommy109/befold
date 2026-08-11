@@ -24,7 +24,7 @@ public enum FileType: Sendable, Equatable {
     /// TSV として扱う拡張子。
     public static let tsvExtensions = ["tsv"]
     /// コードとして扱う拡張子 → highlight.js の言語名。
-    /// 同梱 highlight.min.js が対応する言語のみを載せる
+    /// 同梱する highlight.js（common ビルド）が対応する言語のみを載せる
     /// (整合性は viewer.test.js が同梱ビルドの言語リストと突き合わせて検証する)。
     public static let codeExtensionLanguages: [String: String] = [
         "swift": "swift", "py": "python", "go": "go", "rs": "rust",
