@@ -4,6 +4,7 @@ title: viewer の重複ヘルパーを統合する
 status: To Do
 assignee: []
 created_date: '2026-08-10 07:29'
+updated_date: '2026-08-11 14:13'
 labels: []
 dependencies: []
 priority: low
@@ -29,10 +30,20 @@ ordinal: 116000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 _renderSource が _sourceLanguage を呼ぶ（言語判定の実装が 1 箇所になる）
-- [ ] #2 viewer-main.js の _escapeHtml が撤去され viewer.js の escapeHtml に一本化される
-- [ ] #3 差分マーカーのグリフ決定が 1 箇所になる
+- [x] #1 _renderSource が _sourceLanguage を呼ぶ（言語判定の実装が 1 箇所になる）
+- [x] #2 viewer-main.js の _escapeHtml が撤去され viewer.js の escapeHtml に一本化される
+- [x] #3 差分マーカーのグリフ決定が 1 箇所になる
 - [ ] #4 effectiveZoom が撤去され呼び出し側が値を直接使う（または実体のある変換になる）
 - [ ] #5 ペーストボード書き込みと相対パス算出が共通化され、サイドバーとウィンドウのメニューで同じ結果になる
 - [ ] #6 既存の Node テストと swift test が通る
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-432.3（viewer の JS のモジュール分割）で #2 と #3 を解消した。#2: DOM を使う _escapeHtml を撤去し encoding.js の純粋 escapeHtml へ一本化（呼び出しは _renderMmd の 1 箇所のみだった）。#3: 差分マーカーのグリフ決定を diff-html.js の diffMarkerGlyph へ集約し、インライン表示と左右分割が同じ 1 箇所を通るようにした。#1（_sourceLanguage の複製）は起票後に既に解消されており、現在の renderers.js の _renderSource は _sourceLanguage を呼んでいる。
+
+残るのは #4 と #5。
+- #4（effectiveZoom の恒等関数、現在は viewer-src/zoom.js）: 432.3 では撤去しなかった。重複した判定ではなく無意味な間接参照であり、撤去すると viewer.test.js の effectiveZoom テスト 2 ケースが消えるため、「既存テストのケース数が減っていない」という 432.3 の受け入れ条件と衝突する。このタスクで撤去する場合は、テストも一緒に消える前提で進めること。
+- #5（writeToPasteboard の重複、Swift 側）: 未着手。
+<!-- SECTION:NOTES:END -->

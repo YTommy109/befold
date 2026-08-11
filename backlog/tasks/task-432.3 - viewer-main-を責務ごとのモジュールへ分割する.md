@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-10 12:57'
-updated_date: '2026-08-11 13:50'
+updated_date: '2026-08-11 14:13'
 labels: []
 dependencies:
   - TASK-432.2
@@ -37,11 +37,11 @@ TASK-420 の受け入れ条件 #3 は「viewer.html からの読み込み順が�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 viewer-main が責務単位のモジュールへ分割されている（少なくとも 検索 / 参照解決 / ズーム / レンダラ群 / 初期化 が分かれる）
-- [ ] #2 同じ関心の判定が 2 箇所に残っていない
-- [ ] #3 モジュール間の依存が import で表現され、循環が無い
-- [ ] #4 各モジュールが何を担うかを 1 行で言える
-- [ ] #5 既存テストが通り、ケース数が減っていない
+- [x] #1 viewer-main が責務単位のモジュールへ分割されている（少なくとも 検索 / 参照解決 / ズーム / レンダラ群 / 初期化 が分かれる）
+- [x] #2 同じ関心の判定が 2 箇所に残っていない
+- [x] #3 モジュール間の依存が import で表現され、循環が無い
+- [x] #4 各モジュールが何を担うかを 1 行で言える
+- [x] #5 既存テストが通り、ケース数が減っていない
 - [ ] #6 本体アプリと QuickLook 拡張の双方で表示が変わらないことを確認する
 <!-- AC:END -->
 
@@ -65,3 +65,34 @@ TASK-420 の受け入れ条件 #3 は「viewer.html からの読み込み順が�
 
 10. effectiveZoom（TASK-422 の #4）はこのタスクでは撤去しない。重複した判定ではなく無意味な間接参照であり AC#2 の対象外な一方、撤去すると viewer.test.js の 2 ケースが消えて AC#5（ケース数が減っていない）と衝突する。TASK-422 に残す。AC#2 として扱うのは _escapeHtml の重複（DOM 版 vs 純粋版）と差分マーカーのグリフ決定の 2 件。実測: 移行前のベースラインは jest 417 passed / 6 suites
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 決めたこととその理由
+
+- **viewer.js も一緒に解体した。** Description の「分割後は関心ごとに 1 モジュールとし、その中で純粋な部分と DOM に触る部分が同居してよい」に従い、viewer-main.js だけを割るのではなく viewer.js の純粋関数も関心側へ配った（ズーム定数は zoom.js、検索の正規表現組み立ては find.js、行番号 HTML は code-html.js、といった具合）。viewer-main.js だけを分けると「純粋 / DOM」の境界が残り、TASK-414 の乖離を生んだ形がそのまま残る。
+- **公開面は barrel（main.js）1 本。** 本番エントリ（index.js）と Jest ハーネスの双方がここだけを見る。加えて exposeGlobals の可変長引数をやめて barrel 1 つだけを受ける形にした（個別モジュールを混ぜて渡せると、本番とテストでグローバルに載る集合がずれても落ちない）。barrel は export * にしてある。モジュール間共有のための export も公開面に載るが、分割前も viewer.js / viewer-main.js の全 export をそのままグローバルへ載せていたため露出量は実質変わらず、明示リストにすると二重管理になる。実測: 旧 2 ファイルの export 集合と新 barrel の集合を突き合わせ、**消えた名前は 0 件**（増えたのは内部共有用の 39 件）。
+- **描いた形の記録（_mmdRenderedAs）は分岐前の代入を残した。** 当初案の「_renderSource の戻り値だけで決める」は、markdown-it 未ロードで打ち切る経路（_renderMarkdown が false を返して return）で記録が飛び、appendChunk が前回の戦略で追記する形になる。分岐前に renderShape の値を入れ、差分を組み上げたときだけ _renderSource の戻り値で上書きする。書き手は render.js の 1 箇所で、変数は export しない。
+- **循環 import は検出器を足した。** AC#3 を「破れたら落ちる」形にするため npm run check:viewer-cycles（esbuild の metafile から後退辺を探す）を追加し CI へ並べた。循環に実害があるのは、scroll.js が評価時に doc-path.js のトップレベル値 _mmdDocPath を読む形が実在するため（循環すると undefined を掴む）。検出器自体の動作は bridge.js に一時的な逆向き import を入れて確認した（find.js -> bridge.js -> find.js を検出）。
+- **カラースキームは color-scheme.js が遅延生成する prefersDark() にした。** 分割前は _mmdDarkQuery が初期化まで null で、「代入前に mermaid を描画する経路はない」という暗黙の前提に乗っていた。モジュールをまたぐとこの前提が見えなくなるため、null である期間自体を無くした。再描画の配線（mermaid の再初期化 + 直近内容の再描画）は init.js に置き、mermaid -> render の逆流を作らない。
+- **effectiveZoom（TASK-422 #4）は撤去しない。** 重複した判定ではなく無意味な間接参照であり AC#2 の対象外な一方、撤去すると viewer.test.js の 2 ケースが消えて AC#5 と衝突する。TASK-422 に残した。
+- **テストファイル名は据え置いた。** viewer-main*.test.js は分割前のファイル名に由来するが、中身の区切りは新しいモジュール境界と 1 対 1 ではないため、名前を変えるより先頭コメントで守備範囲を書き直した。
+
+## 検証
+
+- npx jest: 417 passed / 6 suites（移行前と同数。ベースラインも 417）
+- npm run lint:viewer（eslint no-undef）: 0 件
+- npm run check:viewer-cycles: 循環なし（25 モジュール）
+- npm run check:viewer-bundle: 差分なし（exit 0）
+- swift build: Build complete / swift test: 1415 tests / 208 suites すべて pass
+- swift test --filter ViewerBridgeContract: 10 件 pass。**着手前に未確認としていた前提（esbuild のローカル名衝突による改名が成果物の文字列照合を壊さないか）はここで解消した**
+- xcodebuild build -scheme befold: BUILD SUCCEEDED
+- swift scripts/webview-smoke.swift: PASS（CSP 下でのスクリプト稼働・mmd/md 描画・外部画像/data: iframe ブロック・PDF blob 表示）
+- markdownlint-cli2: 0 issues
+- バンドルサイズ: 75.8K -> 78.5K（モジュール境界とコメントの増加分）
+
+## 追随させたドキュメント
+
+docs/dev/rules/product-code.md（JS 規約の「純粋ロジックは viewer.js へ」を「関心ごとに 1 モジュール・循環禁止」へ書き換え）/ docs/dev/rules/testing.md / docs/dev/viewer-rendering-dataflow.md / BefoldApp/viewer-src/README.md（モジュール一覧と 1 行責務）/ .claude/agents/vendored-deps-auditor.md / .claude/commands/check-vendored-deps.md / .claude/agents/security-reviewer.md / .claude/skills/review-architecture.md。ADR 0005 は決定時点の記録なので書き換えない。
+<!-- SECTION:NOTES:END -->
