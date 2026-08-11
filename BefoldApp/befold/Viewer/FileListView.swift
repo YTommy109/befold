@@ -126,11 +126,7 @@ struct FileListView: View {
     /// (FolderListingView)と共有する(SidebarEmptyState)。片側にだけ理由の
     /// 出し分けを書くと、もう片方が「対応ファイルがありません」固定のまま残る。
     private var emptyStateView: some View {
-        SidebarEmptyState(
-            activeGitChangeFilter: model.activeGitChangeFilter,
-            filterText: model.filterText,
-            directoryName: model.currentDirectory.lastPathComponent
-        )
+        SidebarEmptyState(context: SidebarEmptyContext(model: model))
     }
 
     /// git 変更のあるファイルのみに絞るトグル。不可視ファイルのトグルとは独立した軸のため、

@@ -2108,7 +2108,7 @@
         }
       }
     },
-    "sidebar.tree.enumerationFailed": {
+    "folder.enumerationFailed": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -2121,6 +2121,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "このフォルダーを読み取れませんでした"
+          }
+        }
+      }
+    },
+    "folder.enumerationFailed.description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check the folder's permissions."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダーのアクセス権を確認してください。"
           }
         }
       }

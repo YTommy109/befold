@@ -176,7 +176,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
             entries: entries,
             selection: nil,
             sidebarDisplayPreference: preference,
-            directoryLister: { _, _, _ in entries },
+            directoryLister: { _, _, _ in DirectoryListing(rows: entries) },
             loadGitStatuses: { directory, policy in
                 await store.statuses(forDirectoryAt: directory, policy: policy)
             }

@@ -33,7 +33,7 @@ struct SidebarNavigatorFolderNavigationTests {
             sidebarDisplayPreference: SidebarDisplayPreference(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorFolderNavigationTests")
             ),
-            directoryLister: { url, _, _ in listings[url.normalizedPathKey] ?? [] },
+            directoryLister: { url, _, _ in DirectoryListing(rows: listings[url.normalizedPathKey] ?? []) },
             resolveGitRoot: { _ in nil }
         )
         let host = SidebarNavigatorStubHost(

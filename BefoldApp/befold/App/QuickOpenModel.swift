@@ -13,9 +13,11 @@ protocol QuickOpenEnvironment: AnyObject {
     /// fuzzy 検索の候補集合。パネルを開いた時点の索引を使う。
     /// git サブプロセスとディレクトリ再帰走査を伴うため、実装は MainActor を離れて構築する。
     func candidateSet() async -> QuickOpenCandidateSet
-    /// ディレクトリ直下のエントリ(隠しファイルを含む全件)。
+    /// ディレクトリ直下のエントリ(隠しファイルを含む全件)。列挙に失敗したら nil。
+    /// **空配列へ畳まない。** 「一致なし」と「読み取れない」で利用者の次の一手が
+    /// 変わる(打ち直す / 諦める)ため、区別できる形で返す(TASK-410)。
     /// 応答しないボリュームでは列挙自体が待たされるため、実装は MainActor を離れて行う。
-    func directoryEntries(in directory: URL) async -> [URL]
+    func directoryEntries(in directory: URL) async -> [URL]?
     /// 応答しないボリュームでは stat 自体が待たされるため、実装は MainActor を離れて行う。
     func isDirectory(_ url: URL) async -> Bool
     /// ディレクトリなら中の 1 ファイル、ファイルならそれ自身。開けなければ nil。
@@ -67,9 +69,20 @@ final class QuickOpenModel {
     private(set) var selectedIndex = 0
 
     /// 一致なしの表示を出すか。候補ゼロは正常な状態で、アラートは出さない。
+    /// 読み取れなかった場合はここではなく `showsEnumerationFailure` が出す。
     var showsNoMatches: Bool {
-        candidates.isEmpty
+        candidates.isEmpty && !pathListingFailed
     }
+
+    /// パスモードで親ディレクトリを読み取れなかった旨を出すか。
+    /// 「一致なし」と同じ文言にすると、打ち直しても直らない入力を打ち直させることになる。
+    var showsEnumerationFailure: Bool {
+        pathListingFailed
+    }
+
+    /// 直近の絞り込みで、パスモードの親ディレクトリ列挙に失敗したか。
+    /// 更新は `apply(_:listingFailed:)` の 1 本に閉じる。
+    private(set) var pathListingFailed = false
 
     /// 候補が上限で打ち切られた旨をリスト末尾に出すか。黙って切り捨てない。
     /// パスモードは親ディレクトリを列挙するだけで上限を持たないため出さない。
@@ -178,32 +191,46 @@ final class QuickOpenModel {
 
         switch QuickOpenQuery.classify(queryText) {
         case .empty:
-            apply(candidateSet.initialCandidates(limit: Self.historyLimit))
+            apply(candidateSet.initialCandidates(limit: Self.historyLimit), listingFailed: false)
         case let .fuzzy(query):
-            apply(candidateSet.matches(query: query, limit: Self.fuzzyLimit))
+            apply(candidateSet.matches(query: query, limit: Self.fuzzyLimit), listingFailed: false)
         case let .path(path):
             refreshTask = Task { [weak self] in
                 guard let self else { return }
                 let result = await pathCandidates(for: path)
                 guard !Task.isCancelled, generation == refreshGeneration else { return }
-                apply(result)
+                apply(result.candidates, listingFailed: result.listingFailed)
             }
         }
     }
 
-    private func apply(_ newCandidates: [QuickOpenCandidate]) {
+    /// 候補と「読み取れたか」を同じ 1 回の代入で確定させる。
+    ///
+    /// `listingFailed` にデフォルト値を与えない。失敗フラグを別に持って更新を忘れると、
+    /// パスモードで失敗した直後に fuzzy へ戻ったときに前の失敗が残り、候補が出ている
+    /// 一覧の上に「読み取れません」が出続ける。すべての分岐が毎回決める形にする(TASK-410)。
+    private func apply(_ newCandidates: [QuickOpenCandidate], listingFailed: Bool) {
         candidates = newCandidates
+        pathListingFailed = listingFailed
         selectedIndex = 0
     }
 
     /// 親ディレクトリの中身を末尾断片で前方一致(大文字小文字を無視)して絞り込む。
-    private func pathCandidates(for path: String) async -> [QuickOpenCandidate] {
-        guard let split = PathModeSplit(path: path, baseDirectory: environment.baseDirectory) else { return [] }
+    private func pathCandidates(
+        for path: String
+    ) async -> (candidates: [QuickOpenCandidate], listingFailed: Bool) {
+        guard let split = PathModeSplit(path: path, baseDirectory: environment.baseDirectory) else {
+            // 入力が親ディレクトリへ解決できないだけで、読み取りには失敗していない。
+            return ([], false)
+        }
         let fragment = split.fragment.lowercased()
         // 断片自体がドット始まりなら、隠しファイルを狙って打っているとみなして出す。
         let includesHidden = environment.includingHiddenFiles || HiddenFileRule.isHidden(component: fragment)
 
-        return await environment.directoryEntries(in: split.parentDirectory)
+        guard let entries = await environment.directoryEntries(in: split.parentDirectory) else {
+            return ([], true)
+        }
+        let matches = entries
             .filter { entry in
                 let name = entry.lastPathComponent
                 guard includesHidden || !HiddenFileRule.isHidden(component: name) else { return false }
@@ -212,6 +239,7 @@ final class QuickOpenModel {
                     || name.range(of: fragment, options: [.caseInsensitive, .anchored]) != nil
             }
             .map { QuickOpenCandidate(url: $0, displayPath: $0.path, origin: .indexed) }
+        return (matches, false)
     }
 
     /// 大文字小文字を無視した共通接頭辞。表記は最初の候補のものを採る

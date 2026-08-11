@@ -186,7 +186,7 @@ struct FileListModelTreeFilterTests {
             Issue.record("listingSource が .shared ではない")
             return
         }
-        #expect(shared?.isEmpty == true)
+        #expect(shared?.entries.isEmpty == true)
         // サイドバー側には祖先が残っている（両者で答えが違うのは意図した設計）。
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["src", "note.md"])
     }
