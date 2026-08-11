@@ -1,3 +1,4 @@
+"use strict";
 (() => {
   var __defProp = Object.defineProperty;
   var __export = (target, all) => {
@@ -157,7 +158,7 @@
     zoomLabel: () => zoomLabel
   });
 
-  // viewer-src/bridge.js
+  // viewer-src/bridge.ts
   var _MSG_ZOOM_CHANGED = "zoomChanged";
   var _MSG_REFERENCE_ACTIVATED = "referenceActivated";
   var _MSG_REFERENCE_CONTEXT_MENU = "referenceContextMenu";
@@ -369,7 +370,7 @@
     query().addEventListener("change", handler);
   }
 
-  // viewer-src/fonts.js
+  // viewer-src/fonts.ts
   var MACOS_DEFAULT_BODY = 13;
   var WEB_BASELINE = 16;
   function markdownFontSize(raw) {
@@ -2302,7 +2303,7 @@
     _mmdFindRefreshAfterRender();
   }
 
-  // viewer-src/truncation.js
+  // viewer-src/truncation.ts
   function _mmdSetTruncated(isTruncated, lineCount, failed) {
     _mmdFind.setTruncated(isTruncated);
     var banner = document.getElementById("mmd-truncated-banner");
@@ -2318,7 +2319,7 @@
       textEl.textContent = strings.loadError || "Failed to load the rest of the file";
       btn.style.display = "none";
     } else if (typeof lineCount === "number") {
-      textEl.textContent = (strings.showing || "Showing {count} lines").replace("{count}", lineCount);
+      textEl.textContent = (strings.showing || "Showing {count} lines").replace("{count}", String(lineCount));
       if (isHostFeatureEnabled(window._mmdHostFeatures, "loadMore")) {
         btn.textContent = strings.loadMore || "Load More";
         btn.style.display = "inline-block";
@@ -2366,7 +2367,7 @@
     _mmdInitFind();
   }
 
-  // viewer-src/expose.js
+  // viewer-src/expose.ts
   function exposeGlobals(namespace) {
     for (const [name, value] of Object.entries(namespace)) {
       globalThis[name] = value;

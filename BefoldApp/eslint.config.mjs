@@ -6,6 +6,12 @@
 //
 // 対象は viewer-src/ のソースのみ。ベンダー同梱物（*.min.js）と esbuild 成果物
 // （viewer-bundle.js）は検査対象外。
+//
+// TypeScript への段階移行（TASK-432.4）に合わせて .ts も対象にしてある。
+// files を .js のままにすると、移行したモジュールが「エラー 0 件」を出しながら
+// 実際には 1 度も検査されない状態になり、対象 0 件と合格が区別できない。
+// npm script 側も `eslint viewer-src` ではなく拡張子を明示した glob にしてある。
+import tseslint from "typescript-eslint";
 
 const browserGlobals = {
   window: "readonly",
@@ -59,9 +65,11 @@ const vendorGlobals = {
   mermaid: "readonly",
 };
 
+const unusedVarsOptions = { args: "none", caughtErrors: "none", varsIgnorePattern: "^_" };
+
 export default [
   {
-    files: ["viewer-src/**/*.js"],
+    files: ["viewer-src/**/*.{js,ts}"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
@@ -70,11 +78,28 @@ export default [
     linterOptions: {
       reportUnusedDisableDirectives: true,
     },
+  },
+  {
+    files: ["viewer-src/**/*.js"],
     rules: {
       // 本設定の目的。裸のグローバル参照の付け忘れをここで落とす。
       "no-undef": "error",
       // import した名前を使っていない＝移行の取りこぼしの兆候。
-      "no-unused-vars": ["error", { args: "none", caughtErrors: "none", varsIgnorePattern: "^_" }],
+      "no-unused-vars": ["error", unusedVarsOptions],
+    },
+  },
+  {
+    files: ["viewer-src/**/*.ts"],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: { ecmaVersion: 2022, sourceType: "module" },
+    },
+    plugins: { "@typescript-eslint": tseslint.plugin },
+    rules: {
+      // .ts では no-undef を使わない。未定義参照は tsc（npm run typecheck:viewer）が
+      // 型として捕まえるほうが正確で、eslint 側は型宣言を未定義と誤検知する。
+      // したがって .ts の未定義参照の担保は typecheck:viewer にある。
+      "@typescript-eslint/no-unused-vars": ["error", unusedVarsOptions],
     },
   },
 ];

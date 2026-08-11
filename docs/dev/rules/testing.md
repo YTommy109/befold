@@ -20,7 +20,11 @@ Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`BefoldApp/viewer-
   対象は成果物の `viewer-bundle.js` ではなくソースの `viewer-src/` を読む
   （DOM を要さない純粋関数は公開面の barrel `viewer-src/main.js` を直接 require、
   DOM 側は `__tests__/support/viewerMainHarness.js` が esbuild でバンドルして
-  jsdom 上で評価する。どちらも同じ barrel を入口にする）
+  jsdom 上で評価する。どちらも同じ barrel を入口にする）。テストファイル自体は
+  `.js` のままで、`.ts` へ移行したモジュールも `./foo.js` の指定で解決される
+  （Jest の `moduleNameMapper` が相対指定の `.js` を剥がし、`moduleFileExtensions`
+  が `ts` → `js` の順で拾う）。babel は型注釈を落とすだけなので、
+  **Jest を通しても型は検査されない**（`npm run typecheck:viewer` が担当する）
 
 ## Swift テスト構造
 

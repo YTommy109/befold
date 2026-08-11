@@ -1,0 +1,33 @@
+{
+  // viewer-src の型検査だけを行う設定（TASK-432.4）。
+  //
+  // 出力は一切作らない（noEmit）。バンドルはこれまでどおり esbuild が担当し、
+  // tsc は型検査専用。したがって成果物 viewer-bundle.js の作られ方は
+  // TypeScript 導入の前後で変わらない。
+  //
+  // include はファイルの列挙ではなくディレクトリ全体にしてある。移行のたびに
+  // 追記する列挙を作ると、追記漏れたモジュールが「型がついているように見えて
+  // 実は無検査」という状態で静かに残る。
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    // viewer は WKWebView（Safari 17 相当）で動くので DOM を含める。
+    // Node の型は入れない（viewer-src に Node 依存は無い）。
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    // esbuild が 1 ファイルずつ変換するため、型のみの import を残さない形に強制する。
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    // 未移行の .js を解決対象には含めるが、型エラー源にはしない。
+    // checkJs を true にすると移行の途中で CI が赤のままになり、段階移行が成立しない。
+    // 「.ts だけが型検査されている」という状態は viewer-src/README.md に明記してある。
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["viewer-src/**/*"]
+}

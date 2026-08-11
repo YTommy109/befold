@@ -20,6 +20,7 @@
    cd BefoldApp && [ -d node_modules ] || npm ci
    cd BefoldApp && npx jest
    cd BefoldApp && npm run lint:viewer
+   cd BefoldApp && npm run typecheck:viewer
    cd BefoldApp && npm run check:viewer-bundle
    ```
 

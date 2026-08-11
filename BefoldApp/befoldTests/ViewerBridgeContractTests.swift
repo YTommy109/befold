@@ -138,6 +138,34 @@ struct ViewerBridgeContractTests {
         }
     }
 
+    /// hostFeaturesScript が注入するキーが viewer-bundle.js 側で
+    /// `isHostFeatureEnabled(window._mmdHostFeatures, "<key>")` として読まれていることを
+    /// 検証する(TASK-432.4)。
+    ///
+    /// バナー・検索の文言と違い、ホスト機能フラグにはこの照合が無かった。キー名が
+    /// 片側だけ変わると、JS は未指定のキーを読んで「有効」に縮退し(bridge.ts の
+    /// isHostFeatureEnabled)、抑止が黙って効かなくなる。TypeScript 化で
+    /// ViewerHostFeatures のキー名を JS 側にも手書きしたため、その手書きが
+    /// Swift とずれたら落ちる形をここで用意する。
+    ///
+    /// 照合語に global 名を含めるのは、キー名だけで探すと別の注入(bannerStrings の
+    /// "loadMore")に一致して誤って通るため。
+    @Test("hostFeatures の各キーが viewer-bundle.js で読み取られている")
+    func hostFeaturesKeysAreReadInJS() throws {
+        let source = try Self.viewerBundleSource()
+        let script = ViewerBridge.hostFeaturesScript(
+            loadMore: true, spaceScroll: true, referenceActivation: true
+        )
+        let keys = try bridgeGlobalKeys(from: script, global: "window._mmdHostFeatures")
+        #expect(keys.count == 3)
+        for key in keys {
+            #expect(
+                source.contains("_mmdHostFeatures, \"\(key)\""),
+                "hostFeatures キー '\(key)' が viewer-bundle.js で読まれていない"
+            )
+        }
+    }
+
     /// FileType.jsValue が render() の分岐に対応していることを検証する。
     ///
     /// render() は type ではなく「描画形(shape)」で分岐する。type と表示モードから

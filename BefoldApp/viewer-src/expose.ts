@@ -14,8 +14,12 @@
 // 受け取るのは公開面の barrel（main.js）1 つだけにしてある。可変長にすると
 // 呼び出し側ごとに違うモジュールの組み合わせを渡せてしまい、本番とテストで
 // グローバルに載る集合がずれても気づけない。
-export function exposeGlobals(namespace) {
+//
+// 引数の型は「名前 → 値」の対応だけを要求する（TASK-432.4）。barrel の具体型に
+// してしまうと、モジュールを 1 つ足すたびにここの型も直す形になり、
+// 「追記漏れを作らない」という上の設計意図と衝突する。
+export function exposeGlobals(namespace: Record<string, unknown>): void {
   for (const [name, value] of Object.entries(namespace)) {
-    globalThis[name] = value;
+    (globalThis as Record<string, unknown>)[name] = value;
   }
 }

@@ -298,8 +298,21 @@ swift package plugin --allow-writing-to-package-directory swiftformat
   トップレベル値を `undefined` のまま掴む
 - モジュールは ESM（`import` / `export`）で書く。公開面は `viewer-src/main.js`
   （barrel）に集約し、本番エントリ（`index.js`）もテストハーネスもそこだけを見る。
-  Swift から呼ぶ関数は `viewer-src/expose.js` の `exposeGlobals()` 経由で
+  Swift から呼ぶ関数は `viewer-src/expose.ts` の `exposeGlobals()` 経由で
   `globalThis` に公開する
+- **`.js` と `.ts` が混在する**（TypeScript への段階移行の途中）。型検査されるのは
+  `.ts` だけで、`.js` は `checkJs: false` により解決対象に含まれるだけで検査されない。
+  型検査は `npm run typecheck:viewer` が単独で担当し、esbuild も babel も
+  型注釈を落とすだけで検査しない。移行の単位・エントリの扱い・strict mode に
+  なる理由は [`BefoldApp/viewer-src/README.md`](../../../BefoldApp/viewer-src/README.md)
+  の「TypeScript への段階移行」節が単一の情報源
+- **Swift ↔ JS のブリッジ契約は、型を手書きせず値から導出する**。メッセージ名は
+  `bridge.ts` のフラットな `var _MSG_* = '...' as const` のまま保ち、型は `typeof` で
+  導く。値の一致は `ViewerBridgeContractTests` が成果物 `viewer-bundle.js` の
+  文字列を読んで Swift と双方向に照合しているため、型を別に宣言すると
+  「Swift の値・JS の値・JS の型」の 3 つを揃える二重管理になる。
+  同じ理由で、`_mmdPostMessage(_MSG_*, { ... })` の第 2 引数は直書きの
+  オブジェクトリテラルのままにする（変数へ逃がすと契約テストの抽出が空振りする）
 - `var` 宣言を使用する。macOS 14+ の WKWebView は `const` / `let` も解釈できるため
   技術的制約ではなく、同梱 JS が全面的に `var` で
   書かれているための一貫性ルールである。混在させず既存に揃える

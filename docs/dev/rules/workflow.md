@@ -15,6 +15,7 @@ xcodegen generate            # .xcodeproj を再生成
 xcodebuild build -scheme befold  # Xcode ビルド（要 Xcode.app）
 npx jest                     # viewer 用 JS（viewer-src/）のテスト
 npm run lint:viewer          # viewer-src/ の ESLint（未定義参照の検出）
+npm run typecheck:viewer     # viewer-src/ の型検査（tsc --noEmit、対象は .ts のみ）
 npm run build:viewer         # viewer-src/ → BefoldKit/Resources/viewer-bundle.js
 npm run check:viewer-bundle  # コミット済みバンドルとソースのズレを検出
 

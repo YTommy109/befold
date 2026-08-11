@@ -4,8 +4,13 @@ var MACOS_DEFAULT_BODY = 13;
 var WEB_BASELINE = 16;
 
 // システム本文フォントサイズ(pt)を Markdown 表示の基準サイズ(px)へ換算する。
-function markdownFontSize(raw) {
-  var s = parseFloat(raw);
+// 受け取る値は 3 通りある。Swift の注入は number、未注入は undefined、
+// 文字列も許容する（viewer.test.js が '13' / 'abc' で呼んでいる）。
+// parseFloat の型宣言は string しか受けないが、非文字列を渡したときの
+// NaN 化に依存した既存の縮退（NaN なら WEB_BASELINE）をそのまま使うため、
+// 実行時の形を変えずにキャストで通す。
+function markdownFontSize(raw: number | string | undefined): number {
+  var s = parseFloat(raw as string);
   if (isNaN(s) || s <= 0) { return WEB_BASELINE; }
   return WEB_BASELINE * (s / MACOS_DEFAULT_BODY);
 }

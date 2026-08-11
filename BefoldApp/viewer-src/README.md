@@ -17,9 +17,9 @@ viewer 用 JS のモジュールソース（ESM）。`npm run build:viewer` が 
 |---|---|
 | `index.js` | バンドルのエントリ。`exposeGlobals()` で公開関数をグローバルへ載せ、`_mmdInit()` を呼ぶ |
 | `main.js` | 公開面の barrel。エントリもテストハーネスもここだけを見る |
-| `expose.js` | barrel の export を反復して `globalThis` へ公開する `exposeGlobals()` |
+| `expose.ts` | barrel の export を反復して `globalThis` へ公開する `exposeGlobals()` |
 | `init.js` | 読み込み時の初期化（リスナ登録・注入値の反映）を 1 箇所に集約する |
-| `bridge.js` | Swift ホストとの境界。`postMessage` の送信口とホスト機能フラグ |
+| `bridge.ts` | Swift ホストとの境界。`postMessage` の送信口とホスト機能フラグ |
 | `render.js` | 描画の入口とチャンク追記のディスパッチ。「いま何の形を描いたか」の記録を持つ |
 | `renderers.js` | 表示種別ごとの `#diagram-wrap` 組み立て |
 | `document-state.js` | 直近に描画した内容とチャンク境界を保持する |
@@ -31,15 +31,16 @@ viewer 用 JS のモジュールソース（ESM）。`npm run build:viewer` が 
 | `find.js` | 検索バーの状態・ハイライト・件数表示 |
 | `path-refs.js` | 本文中のパス参照の注釈付けと Swift への解決要求 |
 | `reference-clicks.js` | リンク/パス参照のクリック・コンテキストメニューを Swift へ伝える |
-| `truncation.js` | 段階読み込みバナーと「続きを読み込む」 |
+| `truncation.ts` | 段階読み込みバナーと「続きを読み込む」 |
 | `markdown.js` | markdown-it インスタンスの構成 |
 | `mermaid.js` | mermaid の遅延ロード・設定・実行 |
 | `color-scheme.js` | ダークモードの現在値と変更通知 |
-| `fonts.js` | Swift が注入したフォント設定を CSS 変数へ反映する |
+| `fonts.ts` | Swift が注入したフォント設定を CSS 変数へ反映する |
 | `code-html.js` | ソースコードのハイライトと行単位 HTML の組み立て |
 | `diff-html.js` | unified diff の解析とインライン/左右分割の HTML 組み立て |
 | `csv-html.js` | CSV/TSV の解析とテーブル/ソース表示の HTML 組み立て |
 | `encoding.js` | HTML エスケープと data URI / base64 の変換 |
+| `viewer-globals.d.ts` | Swift が `window` へ注入する値の型宣言（値の一致は `ViewerBridgeContractTests` が担保） |
 
 依存は `import` で表現し、**循環させない**（`npm run check:viewer-cycles`）。
 循環するとモジュール評価順が壊れ、別モジュールのトップレベル値を `undefined` の
@@ -54,6 +55,45 @@ viewer-bundle.js** の順に読む。ベンダーライブラリはバンドル�
 のまま使う。mermaid（3.2MB）はさらに遅く、描画が必要になった時点で
 `mermaid.js` が動的に `<script>` を挿して遅延ロードする。CSP は
 `script-src 'self'` のままで変わらない。
+
+## TypeScript への段階移行
+
+<!-- derived-from ../../backlog/tasks/task-432.4 - viewer-の-JS-を-TypeScript-へ段階移行する.md -->
+
+`.js` と `.ts` が混在する。`tsconfig.json` は `allowJs: true` / `checkJs: false`
+なので、**型検査されるのは `.ts` だけ**で、`.js` は解決対象に含まれるだけで
+検査されない。「TypeScript を入れたのだから viewer-src 全体が型検査されている」と
+読まないこと。
+
+- 型検査は `npm run typecheck:viewer`（`tsc --noEmit`）が単独で担当する。
+  esbuild も babel も型注釈を落とすだけで検査しない。
+- `tsconfig.json` の `include` はファイルの列挙ではなくディレクトリ全体。
+  移行のたびに追記する列挙を作ると、追記漏れたモジュールが「型が付いた見た目のまま
+  一度も検査されない」状態で静かに残る。
+- ESLint も `viewer-src/**/*.{js,ts}` を対象にする。`.ts` では `no-undef` を使わず、
+  未定義参照の担保は `tsc` 側にある（型宣言を未定義と誤検知するため）。
+- Jest は `moduleFileExtensions` を `ts` → `js` の順にしてある。esbuild の
+  既定の解決順と同じにすることで、同名の `foo.js` と `foo.ts` が並んだ場合でも
+  テストと本番が同じファイルを見る。
+
+移行の単位はモジュール 1 つ。`import` 指定子は `./bridge.js` のまま書き換えない
+（esbuild も tsc も `.js` 指定を `.ts` へ解決する）。**ただしエントリだけは例外で、
+拡張子解決が効かない。** `index.js` を `.ts` にするときは、`package.json` の
+`build:viewer` と `scripts/check-viewer-cycles.mjs` のエントリパスを併せて変える。
+
+### バンドルが strict mode になる
+
+`tsconfig.json` を置いた時点で、esbuild は成果物の先頭に `"use strict"` を出す
+（`strict: true` が含む `alwaysStrict` を尊重するため）。実測では、これは移行済み
+`.ts` の有無とは無関係で、`.js` だけのグラフでも付く。
+
+これは意図した状態である。ソースは ESM（常に strict）として書かれ、Jest 側は
+babel が CommonJS へ落とす際に `"use strict"` を付けるため、**テストは以前から
+strict で走っていた**。付けないと、出荷される成果物だけが sloppy mode という
+テストと本番のずれが残る。
+
+`alwaysStrict: false` を書けば抑止できるが、そうしないこと。抑止は上のずれを
+復活させる。
 
 ## なぜここに置くか
 
@@ -73,6 +113,7 @@ viewer-bundle.js** の順に読む。ベンダーライブラリはバンドル�
 npm run build:viewer         # ソースからバンドルを生成する
 npm run check:viewer-bundle  # 再ビルドしてコミット済み成果物との差分を検出する
 npm run lint:viewer          # ESLint（no-undef で未定義参照を機械検出する）
+npm run typecheck:viewer     # tsc --noEmit（型検査。対象は .ts のみ）
 npm run check:viewer-cycles  # モジュール間の循環 import を検出する
 npx jest                     # Jest テスト（BefoldKit/Resources/__tests__/）
 ```
