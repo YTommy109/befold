@@ -18,20 +18,19 @@ struct ViewerRendererOneShotIntegrationTests {
     @Test("loadOneShot が oneShotLoad+ブリッジ無効で WebView を構成し reject を返す")
     @MainActor
     func loadOneShotBuildsWebViewAndReportsReject() async {
-        let renderer = ViewerRenderer()
-        renderer.rendererFeatures = RendererFeatures.quickLookRestricted
+        let renderer = OneShotRenderer(features: .quickLookRestricted)
 
         let url = URL(fileURLWithPath: "/tmp/oneshot-api.md")
         let fileReader = InMemoryFileReader(files: [url.path: "# ok\n"])
 
-        let result = await renderer.loadOneShot(
+        let result = await renderer.load(
             url: url, fileReader: fileReader, chunkedReaderFactory: chunkedReaderFactory
         )
 
         #expect(result.rejectReason == nil)
         #expect(result.webView === renderer.webView)
         // ブリッジ無効構成では攻撃面となる2種のハンドラを登録しない。
-        let names = ViewerRenderer.messageHandlerNames(for: renderer.rendererFeatures)
+        let names = ViewerWebViewFactory.messageHandlerNames(for: RendererFeatures.quickLookRestricted)
         #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
     }
@@ -39,15 +38,14 @@ struct ViewerRendererOneShotIntegrationTests {
     @Test("loadOneShot は非対応ファイルの rejectReason を返す")
     @MainActor
     func loadOneShotReportsRejectForBinary() async {
-        let renderer = ViewerRenderer()
-        renderer.rendererFeatures = RendererFeatures.quickLookRestricted
+        let renderer = OneShotRenderer(features: .quickLookRestricted)
 
         let url = URL(fileURLWithPath: "/tmp/oneshot-binary.md")
         let fileReader = InMemoryFileReader(files: [url.path: "binary-ish"])
         // QuickLook でもバイナリ拒否の理由が汎用文言に丸められないこと(TASK-260)。
         fileReader.setBinary(true, at: url)
 
-        let result = await renderer.loadOneShot(
+        let result = await renderer.load(
             url: url, fileReader: fileReader, chunkedReaderFactory: chunkedReaderFactory
         )
 
@@ -61,17 +59,16 @@ struct ViewerRendererOneShotIntegrationTests {
     @Test("loadOneShot は描画完了まで待ってから返る")
     @MainActor
     func loadOneShotAwaitsRenderCompletion() async throws {
-        let renderer = ViewerRenderer()
-        renderer.rendererFeatures = .quickLookRestricted
+        let renderer = OneShotRenderer(features: .quickLookRestricted)
         // 既定の 3 秒は QuickLook 向けの上限で、全テスト並走時の WebView ロードには
         // 足りずタイムアウト側が先に発火しうる。ここでは打ち切りではなく
         // 「完了まで待つ」ことを見たいので十分に長く取る。
-        renderer.oneShotRenderTimeout = .seconds(60)
+        renderer.renderTimeout = .seconds(60)
 
         let url = URL(fileURLWithPath: "/tmp/oneshot-await.md")
         let fileReader = InMemoryFileReader(files: [url.path: "# heading-marker\n"])
 
-        let result = await renderer.loadOneShot(
+        let result = await renderer.load(
             url: url, fileReader: fileReader, chunkedReaderFactory: chunkedReaderFactory
         )
 

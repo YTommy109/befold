@@ -49,9 +49,8 @@ struct SidebarNavigatorGitStatusTests {
             sidebarDisplayPreference: SidebarDisplayPreference(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorGitStatusTests")
             ),
-            directoryLister: { _, _, _ in [] },
-            resolveGitRoot: { _ in nil },
-            loadGitStatuses: loadGitStatuses,
+            directoryLister: { _, _, _ in .empty },
+            git: SidebarGitReadingStub(statuses: loadGitStatuses),
             makeGitIndexWatcher: { url, onChange in
                 let watcher = RecordingWatcher(path: url, fire: onChange)
                 watchers?.update { $0.append(watcher) }

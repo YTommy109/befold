@@ -126,7 +126,7 @@ struct FolderListingViewFilterTests {
         // ウィンドウは一覧を空で作って非同期に埋める。本番と同じ経路で入れる。
         model.entries = entries
 
-        #expect(model.listingSource(for: directory) == .shared(DirectoryListing(rows: entries)))
+        #expect(model.listingSource(for: directory) == .shared(SharedFolderListing(rows: entries)))
     }
 
     /// `.shared` の payload は生の entries ではなく、絞り込み済みの visibleEntries でなければ
@@ -209,7 +209,11 @@ struct FolderListingViewFilterTests {
     func doesNotFallBackToCachedEntriesWhileWaiting() {
         let cached = [makeEntry("a.md"), makeEntry("b.md")]
 
-        #expect(FolderListingView.resolveListing(source: .shared(nil), cached: DirectoryListing(rows: cached)) == nil)
+        #expect(
+            FolderListingView.resolveListing(
+                source: .shared(nil), cached: SharedFolderListing(rows: cached)
+            ) == nil
+        )
     }
 
     /// サイドバーの一覧が届いたらそちらが優先される(git 状態と揃った一覧はこちらだけ)。
@@ -218,7 +222,8 @@ struct FolderListingViewFilterTests {
         let shared = [makeEntry("shared.md")]
 
         let resolved = FolderListingView.resolveListing(
-            source: .shared(DirectoryListing(rows: shared)), cached: DirectoryListing(rows: [makeEntry("stale.md")])
+            source: .shared(SharedFolderListing(rows: shared)),
+            cached: SharedFolderListing(rows: [makeEntry("stale.md")])
         )
 
         #expect(resolved?.entries.map(\.url.lastPathComponent) == ["shared.md"])
@@ -264,7 +269,7 @@ struct FolderListingViewFilterTests {
         let openFile = directory.appendingPathComponent("a.md")
         let listed = [makeEntry("a.md")]
         let view = makeView(
-            directory: directory, filter: FileListFilter(), source: .shared(DirectoryListing(rows: listed)),
+            directory: directory, filter: FileListFilter(), source: .shared(SharedFolderListing(rows: listed)),
             openFile: openFile
         )
 
@@ -308,7 +313,7 @@ struct FolderListingViewFilterTests {
         let alreadyFiltered = [makeEntry("kept-by-caller-even-though-filter-would-drop-it.md")]
         let filter = FileListFilter(filterText: "no-match")
         let view = makeView(
-            directory: directory, filter: filter, source: .shared(DirectoryListing(rows: alreadyFiltered))
+            directory: directory, filter: filter, source: .shared(SharedFolderListing(rows: alreadyFiltered))
         )
 
         #expect(
@@ -326,7 +331,7 @@ struct FolderListingViewFilterTests {
         let openFile = directory.appendingPathComponent("notes.xyz")
         let filter = FileListFilter(filterText: "kept")
         let view = makeView(
-            directory: directory, filter: filter, source: .shared(DirectoryListing(rows: listed)), openFile: openFile
+            directory: directory, filter: filter, source: .shared(SharedFolderListing(rows: listed)), openFile: openFile
         )
 
         #expect(view.visibleEntries(from: listed).map(\.url.lastPathComponent) == ["kept.md"])
@@ -339,7 +344,7 @@ struct FolderListingViewFilterTests {
         let openFile = directory.appendingPathComponent("notes.xyz")
         let filter = FileListFilter(filterText: "notes")
         let view = makeView(
-            directory: directory, filter: filter, source: .shared(DirectoryListing(rows: listed)), openFile: openFile
+            directory: directory, filter: filter, source: .shared(SharedFolderListing(rows: listed)), openFile: openFile
         )
 
         #expect(view.visibleEntries(from: listed).map(\.url.lastPathComponent) == ["notes.xyz"])

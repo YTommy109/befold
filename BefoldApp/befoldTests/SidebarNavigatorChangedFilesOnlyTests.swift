@@ -74,12 +74,12 @@ struct SidebarNavigatorChangedFilesOnlyTests {
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in
                 listings.update { $0 += 1 }
-                return []
-            },
-            loadGitStatuses: { _, _ in
-                gitCalls.update { $0 += 1 }
                 return .empty
             },
+            git: SidebarGitReadingStub(statuses: { _, _ in
+                gitCalls.update { $0 += 1 }
+                return .empty
+            }),
             makeGitIndexWatcher: { url, onChange in RecordingWatcher(path: url, fire: onChange) }
         )
         let host = SidebarNavigatorStubHost(currentFileURL: base.appendingPathComponent("a.md"))

@@ -12,7 +12,13 @@ import Foundation
 /// `FileListModel.entries` → `visibleEntries` の 1 本で、`entries` の didSet が
 /// 索引の作り直し・提示対象の通知をまとめて連動させている。ここも観測可能にすると
 /// 1 回の展開で 2 系統の再描画が飛び、「visibleEntries の添字 = 行番号」の前提へ
-/// 別経路から触ることになる。行の生成は `SidebarNavigator` の 1 箇所だけが行う。
+/// 別経路から触ることになる。行を畳むのは `DirectoryListing.rows` の 1 箇所、
+/// それを `FileListModel` へ反映するのは `SidebarTreePresenter.applyRows` の 1 箇所で、
+/// どちらも `SidebarRowAssemblySingleSourceTests` がソース走査で数えている。
+///
+/// この型自身の持ち主も `SidebarTreePresenter`(TASK-442.3)。展開状態・行の材料・
+/// 子リストの取得は、`FileListModel.entries` という 1 本の出力を作るための
+/// 状態・材料・生成器なので同じ型に置く。
 @MainActor
 final class SidebarExpansion {
     /// フォルダの子リストの取得状態。
@@ -38,6 +44,15 @@ final class SidebarExpansion {
     private(set) var expandedKeys: Set<String> = []
     private(set) var children: [String: Children] = [:]
 
+    /// 展開中フォルダの pathKey → 実 URL。**券に載せて返すためだけ**に持つ。
+    ///
+    /// `expandedKeys` / `children` / `generations` と同じ掃除のループで捨てるために
+    /// ここに置く(`collapse` は key と配下をまとめて捨てるので、この表を別の型が
+    /// 持つと接頭辞のルールを 2 箇所が持つことになり、片方が stale になる)。
+    /// 引き当ての知識ではない——`FileListModel` の key → URL 検索とは別物で、
+    /// 「展開を始めたときに渡された URL をそのまま覚えている」だけ。
+    private var urls: [String: URL] = [:]
+
     /// フォルダごとの列挙の世代。開始時に進めて走行中を無効化し、着地時に一致を確認する。
     /// **フォルダごとに分ける**のが要点。サイドバー全体で 1 つだと、後から始まった
     /// 展開が先行する別フォルダの列挙結果を捨ててしまう。
@@ -54,8 +69,8 @@ final class SidebarExpansion {
     /// - Note: 子が未到着のキーは `loading` に入れて別に返す。行は増やせない(並べる子が
     ///   無い)が、開閉三角を「読み込み中」にする材料は要る。ここを返さないと、
     ///   展開したのに何も起きていないように見える状態と「空のフォルダ」が区別できない。
-    var material: Material {
-        var result = Material()
+    var material: SidebarRowBuilder.Material {
+        var result = SidebarRowBuilder.Material()
         for key in expandedKeys {
             // **`default` を置かない。** ここを else でまとめると、`Children` に足した
             // 状態が黙って「読み込み中」へ落ちる(`.failed` を足したときに、権限の無い
@@ -77,18 +92,6 @@ final class SidebarExpansion {
         return result
     }
 
-    /// 行の組み立てへ渡す材料一式。
-    struct Material {
-        /// 子が届いていて、実際に行を並べられるフォルダ。
-        var expanded: Set<String> = []
-        var childrenByPathKey: [String: [FileListEntry]] = [:]
-        /// 展開する意図はあるが、子がまだ届いていないフォルダ。
-        var loading: Set<String> = []
-        /// 展開しようとしたが列挙に失敗したフォルダ。行は増やさない(並べる子が無い)が、
-        /// 「空のフォルダ」とも「読み込み中」とも違う見た目にするために要る。
-        var failed: Set<String> = []
-    }
-
     /// 展開を開始する。既に展開済みなら何もしない(再列挙しない)。
     ///
     /// 戻り値は列挙を要求すべきかどうか。true のときだけ呼び出し側が列挙を走らせ、
@@ -98,11 +101,14 @@ final class SidebarExpansion {
     /// **列挙に失敗したフォルダだけは再展開で取り直せる。** 失敗したまま
     /// `expandedKeys` に残ると、以後の展開操作が「展開済み」として弾かれ、
     /// いったん畳むまで再試行できない(TASK-404)。
-    func beginExpanding(_ key: String) -> ExpansionToken? {
+    /// - Parameter url: 展開するフォルダの実 URL。券に載せて返すため、取り直し
+    ///   (`invalidateChildren`)のときに一覧から引き当て直さずに済む。
+    func beginExpanding(_ key: String, at url: URL) -> ExpansionToken? {
         guard !expandedKeys.contains(key) || children[key] == .failed else { return nil }
         expandedKeys.insert(key)
         children[key] = .loading
-        return makeToken(for: key)
+        urls[key] = url
+        return makeToken(for: key, at: url)
     }
 
     /// 展開したままで子リストを取り直す。ルートを取り直す契機(並び順の変更・隠しファイルの
@@ -118,7 +124,11 @@ final class SidebarExpansion {
     func invalidateChildren() -> [ExpansionToken] {
         guard !expandedKeys.isEmpty else { return [] }
         epoch += 1
-        return expandedKeys.map { makeToken(for: $0) }
+        // `urls` は `beginExpanding` が `expandedKeys` と同時に書き、`collapse` /
+        // `invalidateAll` が同じループで捨てるため、展開中のキーは必ず URL を持つ。
+        return expandedKeys.compactMap { key in
+            urls[key].map { makeToken(for: key, at: $0) }
+        }
     }
 
     /// 展開を畳む。**配下の展開も一緒に捨てる。**
@@ -131,6 +141,7 @@ final class SidebarExpansion {
             generations[target, default: 0] += 1
             expandedKeys.remove(target)
             children[target] = nil
+            urls[target] = nil
         }
     }
 
@@ -142,6 +153,7 @@ final class SidebarExpansion {
         expandedKeys.removeAll()
         children.removeAll()
         generations.removeAll()
+        urls.removeAll()
     }
 
     /// 列挙結果を反映する。トークンが古ければ(別の展開・畳み・ルート切り替えが
@@ -157,16 +169,24 @@ final class SidebarExpansion {
     /// 展開の列挙 1 回を識別する券。発行時点のフォルダ世代と全体世代を持ち、
     /// 着地時の一致確認に使う。呼び出し側が中身を組み立てられないよう
     /// イニシャライザは持たせない。
+    ///
+    /// **列挙すべきフォルダの `url` を載せる。** 券を受け取った側が pathKey から
+    /// URL を引き当て直す必要をなくすため(引き当て先の一覧はそのとき組み直しの
+    /// 途中で、`key` に対応する行があるとは限らない)。展開開始時の URL をそのまま
+    /// 運ぶので、その間にフォルダがリネーム・削除されていれば列挙は失敗し
+    /// `.failed` が着地する。その key はルート再列挙後どの行にも一致しないため、
+    /// `material.failed` に入っても行を持たず描画されない。
     struct ExpansionToken: Sendable {
         let key: String
+        let url: URL
         fileprivate let generation: Int
         fileprivate let epoch: Int
     }
 
     /// **開始時の無効化**。世代を進めることで、この時点で走行中の同じフォルダの
     /// 列挙結果は着地時に捨てられる。
-    private func makeToken(for key: String) -> ExpansionToken {
+    private func makeToken(for key: String, at url: URL) -> ExpansionToken {
         generations[key, default: 0] += 1
-        return ExpansionToken(key: key, generation: generations[key] ?? 0, epoch: epoch)
+        return ExpansionToken(key: key, url: url, generation: generations[key] ?? 0, epoch: epoch)
     }
 }

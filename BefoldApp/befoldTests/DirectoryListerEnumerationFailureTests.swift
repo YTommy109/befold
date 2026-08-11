@@ -35,20 +35,20 @@ struct DirectoryListerEnumerationFailureTests {
     func listEntriesReportsEnumerationFailure() throws {
         let missing = URL(fileURLWithPath: "/nonexistent-befold-dir-\(UUID().uuidString)")
 
-        let failed = DirectoryLister.listEntries(
+        let failed = DirectoryLister.listing(
             in: missing, sortOrder: .foldersFirst, showHiddenFiles: false, home: missing
         )
 
         #expect(failed.didFailEnumeration)
-        #expect(failed.entries.isEmpty)
+        #expect(failed.rows().isEmpty)
 
         let empty = try TempDir()
-        let succeeded = DirectoryLister.listEntries(
+        let succeeded = DirectoryLister.listing(
             in: empty.url, sortOrder: .foldersFirst, showHiddenFiles: false, home: empty.url
         )
 
         #expect(!succeeded.didFailEnumeration)
-        #expect(succeeded.entries.isEmpty)
+        #expect(succeeded.rows().isEmpty)
     }
 
     /// 「開いている文書は必ず一覧に含める」は列挙の成否に関わらず保つ不変条件。
@@ -59,14 +59,12 @@ struct DirectoryListerEnumerationFailureTests {
         let missing = URL(fileURLWithPath: "/nonexistent-befold-dir-\(UUID().uuidString)")
         let openFile = missing.appendingPathComponent("open.md")
 
-        let listing = DirectoryLister.listEntries(
+        let listing = DirectoryLister.listing(
             in: missing, sortOrder: .foldersFirst, showHiddenFiles: false, home: missing
         )
-        let withOpenFile = listing.replacingEntries(
-            DirectoryLister.appendingOpenFile(openFile, to: listing.entries, in: missing)
-        )
+        let withOpenFile = listing.appendingOpenFile(openFile, in: missing)
 
-        #expect(withOpenFile.entries.map(\.url) == [openFile])
+        #expect(withOpenFile.rows().map(\.url) == [openFile])
         #expect(withOpenFile.didFailEnumeration)
     }
 }

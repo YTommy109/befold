@@ -25,7 +25,7 @@ struct SidebarListingFailureTests {
                 defaults: makeIsolatedDefaults(prefix: "SidebarListingFailureTests")
             ),
             directoryLister: { url, _, _ in listing(url) },
-            resolveGitRoot: { _ in nil }
+            git: SidebarGitReadingStub()
         )
         let host = SidebarNavigatorStubHost(
             currentFileURL: directory.appendingPathComponent("open.md")
@@ -94,7 +94,8 @@ struct SidebarListingFailureTests {
 
         navigator.refreshFileList()
         await navigator.pendingListingTask?.value
-        navigator.rebuildRows()
+        // 行だけを組み直す公開経路。畳みは展開の有無に関わらず組み直しを通る。
+        navigator.collapseFolder(directory.appendingPathComponent("sub").normalizedPathKey)
 
         #expect(navigator.fileListModel.didFailListing)
         withExtendedLifetime(host) {}

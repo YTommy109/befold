@@ -4,11 +4,12 @@ title: AppDelegate（495 行）を責務ごとに分割する
 status: To Do
 assignee: []
 created_date: '2026-08-10 12:35'
+updated_date: '2026-08-11 05:25'
 labels: []
 dependencies: []
-priority: medium
+priority: high
 type: chore
-ordinal: 110000
+ordinal: 100400
 ---
 
 ## Description

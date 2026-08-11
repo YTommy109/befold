@@ -38,4 +38,9 @@ struct FileListEntryIndex {
     func entry(for selection: FileListEntry.ID, selectionPathKey: String) -> FileListEntry? {
         byID[selection] ?? byPathKey[selectionPathKey]
     }
+
+    /// 正規化パスキーに対応する行。同じキーの行が複数あるときは先に現れた行を返す。
+    func entry(forPathKey key: String) -> FileListEntry? {
+        byPathKey[key]
+    }
 }

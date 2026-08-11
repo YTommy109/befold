@@ -7,7 +7,7 @@ import BefoldKit
 ///
 /// **@objc アクションはコントローラ自身に生えている必要がある**(NSResponder チェーンを
 /// 辿って届くため)。別クラスへは移せないので、実処理はそれぞれの担当
-/// (`WebViewCommandController` / `+Presentation` / `+DiffPresentation`)へ委譲し、
+/// (`WebViewCommandController` / `ViewerDocumentPresenter` / `ViewerDiffPresenter`)へ委譲し、
 /// ここには「どのコマンドがどこへ行くか」だけを置く。
 ///
 /// その場で組み立てるコンテキストメニューのアクションはここではなく、メニューを作る側
@@ -64,14 +64,7 @@ extension ViewerWindowController {
     /// View メニュー > ソース表示トグル(⌘U)。レンダリング表示とソース表示を往復する。
     /// ⌘1〜⌘3 の「指定」に対し、こちらは「往復」で動作が違うため両方を残している。
     @objc func toggleSourceView(_ sender: Any?) {
-        guard isSourceMode else {
-            setDisplayMode(sourceToggleTarget)
-            return
-        }
-        // 離れる直前のソース系モードを覚えてからレンダリングへ移る。記憶と消費が
-        // この 1 メソッドに閉じるため、他の入口(⌘1〜⌘3・ツールバー)は関与しない。
-        sourceToggleReturn = (fileURL.normalizedPathKey, effectiveDisplayMode)
-        setDisplayMode(.rendered)
+        documentPresenter.toggleSourceView()
     }
 
     /// View メニュー > レンダリング / ソース / 差分(⌘1〜⌘3)。
@@ -82,11 +75,9 @@ extension ViewerWindowController {
     }
 
     /// View メニュー > 差分を左右に並べる(⌘\\)。インラインと左右分割を切り替える。
-    /// レイアウトはアプリ全体で共有する好みの設定なので、差分表示中の全ウィンドウへ反映される
-    /// (`DiffDisplayPreference` が `@Observable` で 1 個を共有しているため自動)。
     @objc func toggleDiffLayout(_ sender: Any?) {
         guard capabilities.canToggleDiffLayout else { return }
-        diffDisplayPreference.layout = diffDisplayPreference.layout == .sideBySide ? .inline : .sideBySide
+        diffPresenter.toggleLayout()
         // ツールバーの差分セグメントはこの値をアイコンで映すが、view ベースのアイテムは
         // 状態変化で自動更新されない。設定はアプリ全体共有なので、自窓だけでなく
         // 全窓を再同期する(委譲先: ViewerWindowManager)。
@@ -162,7 +153,7 @@ extension ViewerWindowController {
             return canSelect(mode)
         }
         if menuItem.action == #selector(toggleDiffLayout(_:)) {
-            menuItem.state = isDiffLayoutSideBySide ? .on : .off
+            menuItem.state = diffPresenter.isLayoutSideBySide ? .on : .off
             return capabilities.canToggleDiffLayout
         }
         return nil

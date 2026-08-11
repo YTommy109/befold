@@ -20,8 +20,8 @@ struct SidebarNavigatorBaseDirectoryTests {
             sidebarDisplayPreference: SidebarDisplayPreference(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorBaseDirectoryTests")
             ),
-            directoryLister: { _, _, _ in [] },
-            resolveGitRoot: { _ in gitRoot }
+            directoryLister: { _, _, _ in .empty },
+            git: SidebarGitReadingStub(repositoryRoot: { _ in gitRoot })
         )
         let host = SidebarNavigatorStubHost(currentFileURL: currentDirectory.appendingPathComponent("a.md"))
         navigator.attach(to: host)

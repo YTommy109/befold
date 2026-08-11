@@ -4,9 +4,20 @@ import SwiftUI
 /// フォルダー一覧の供給元。表示中ディレクトリを見ているときは、サイドバー
 /// (FileListModel)が git 状態と一緒に揃えた一覧をそのまま使う。自前で列挙すると
 /// git 状態との完了順が揃わず、絞り込みが効く前の全件が一瞬描画される(TASK-293)。
+/// プレビューへ渡す「フォルダーの中身」。**畳んだ行**と、列挙に失敗したかの組。
+///
+/// `DirectoryListing`(行に畳む前の材料 / TASK-442.1)とは別の型にしてある。ここへ来るのは
+/// サイドバーが絞り込んで depth 0 だけにした**結果の行**であって材料ではなく、材料を
+/// 渡すとプレビュー側が畳み直す第 2 の組み立て点ができる。
+struct SharedFolderListing: Equatable {
+    let entries: [FileListEntry]
+    /// 列挙に失敗したか。空の一覧が「空だった」のか「読めなかった」のかを分ける(TASK-410)。
+    let didFailEnumeration: Bool
+}
+
 enum FolderListingSource: Equatable {
     /// サイドバーと同じ一覧。nil は「このディレクトリの一覧がまだ手元に無い」。
-    case shared(DirectoryListing?)
+    case shared(SharedFolderListing?)
     /// このビューが自前で列挙する。選択中のサブフォルダーを見ているときに使う。
     case ownListing
 
@@ -60,7 +71,7 @@ struct FolderListingView: View {
     /// .task で非同期に再取得し、毎回の本体レンダリング時の再計算・重複呼び出しを避ける。
     /// 初期値 nil は「未取得」を表し、取得完了後に空一覧と区別する(空状態の一瞬のちらつき防止)。
     /// 「読めなかった」は空一覧ではなく `DirectoryListing.didFailEnumeration` が持つ。
-    @State private var cachedListing: DirectoryListing?
+    @State private var cachedListing: SharedFolderListing?
 
     /// .task(id:) のキー。directory だけでなく sortOrder・showHiddenFiles の変更でも
     /// 一覧を再取得させるため、3値をまとめた Hashable な複合キーにする。
@@ -112,15 +123,15 @@ struct FolderListingView: View {
     /// 列挙し直さないため削除済みのファイルも残る(TASK-301)。待たなくてよい場面では
     /// 供給元自体が `.ownListing` になる(FileListModel.listingSource)。
     static func resolveListing(
-        source: FolderListingSource, cached: DirectoryListing?
-    ) -> DirectoryListing? {
+        source: FolderListingSource, cached: SharedFolderListing?
+    ) -> SharedFolderListing? {
         switch source {
         case let .shared(listing): listing
         case .ownListing: cached
         }
     }
 
-    private var loadedListing: DirectoryListing? {
+    private var loadedListing: SharedFolderListing? {
         Self.resolveListing(source: source, cached: cachedListing)
     }
 
@@ -164,10 +175,14 @@ struct FolderListingView: View {
         }
         .task(id: listingKey) {
             guard source == .ownListing else { return }
-            cachedListing = await DirectoryLister.listEntriesAsync(
+            let listing = await DirectoryLister.listingAsync(
                 in: directory,
                 sortOrder: sortOrder,
                 showHiddenFiles: showHiddenFiles
+            )
+            // 自前列挙の経路でも畳むのは DirectoryListing.rows の 1 箇所を通る。
+            cachedListing = SharedFolderListing(
+                entries: listing.rows(), didFailEnumeration: listing.didFailEnumeration
             )
         }
         .id(directory)

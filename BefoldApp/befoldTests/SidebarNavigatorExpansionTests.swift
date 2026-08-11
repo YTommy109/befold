@@ -31,9 +31,9 @@ struct SidebarNavigatorExpansionTests {
             entries: [],
             selection: nil,
             sidebarDisplayPreference: preference,
-            directoryLister: { _, _, _ in DirectoryListing(rows: rootEntries) },
+            directoryLister: { _, _, _ in DirectoryListing(parentEntry: nil, rootChildren: rootEntries) },
             childrenLister: childrenLister,
-            resolveGitRoot: { _ in nil }
+            git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
         )
         let host = SidebarNavigatorStubHost(
             currentFileURL: currentDirectory.appendingPathComponent("fileA.mmd")
@@ -112,7 +112,7 @@ struct SidebarNavigatorExpansionTests {
             await Task.yield()
         }
 
-        #expect(navigator.expansion.expandedKeys.isEmpty)
+        #expect(navigator.expandedFolderKeys.isEmpty)
         #expect(!navigator.fileListModel.entries.map(\.url.lastPathComponent).contains("stale.mmd"))
     }
 

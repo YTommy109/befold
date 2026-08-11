@@ -10,12 +10,10 @@
 #
 # 形式: <行数><TAB><グループキー>  キーの辞書順（差分で増減が読めるように固定）
 470	BefoldApp/BefoldKit/ViewerBridge
-1300	BefoldApp/BefoldRenderKit/ViewerRenderer
 562	BefoldApp/befold/App/AppDelegate
-611	BefoldApp/befold/App/SidebarNavigator
-1255	BefoldApp/befold/App/ViewerWindowController
+852	BefoldApp/befold/App/ViewerWindowController
 543	BefoldApp/befold/App/ViewerWindowManager
-457	BefoldApp/befold/Viewer/FileListModel
+484	BefoldApp/befold/Viewer/FileListModel
 433	BefoldApp/befold/Viewer/FileListView
 492	BefoldApp/befold/Viewer/ViewerStore
 452	BefoldApp/befoldTests/QuickOpenModelTests

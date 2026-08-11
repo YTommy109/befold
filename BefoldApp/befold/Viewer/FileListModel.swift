@@ -17,7 +17,7 @@ final class FileListModel {
     var rootDirectory: URL
     /// サイドバーの一覧。代入をもって「一覧が届いた」とみなす(hasLoadedEntries)。
     /// 直接代入すると `entriesDirectory` と `didFailListing` は前回のままになる。
-    /// 列挙結果を反映するには `setEntries(_:for:)` を使うこと。
+    /// 列挙結果を反映するには `setEntries(_:for:didFailEnumeration:)` を使うこと。
     var entries: [FileListEntry] {
         didSet {
             hasLoadedEntries = true
@@ -27,7 +27,7 @@ final class FileListModel {
         }
     }
 
-    /// `entries` がどのディレクトリを列挙した結果か。`setEntries(_:for:)` の呼び出し元が
+    /// `entries` がどのディレクトリを列挙した結果か。`setEntries` の呼び出し元が
     /// 列挙時に確定させた値をそのまま持たせる。
     ///
     /// 絞り込みは `currentDirectory` ではなく **この値** と突き合わせる。移動要求は
@@ -42,22 +42,18 @@ final class FileListModel {
     /// `currentDirectory` からの導出に頼ると、「currentDirectory を書き換える全箇所が
     /// 事前に listingGeneration を進めている」という呼び出し元側の不変条件に依存してしまう
     /// (TASK-298)。ここでは列挙した側の値を直接受け取ることで不変条件をローカルに閉じる。
-    func setEntries(_ newListing: DirectoryListing, for directory: URL) {
+    /// - Parameter didFailEnumeration: 列挙に失敗したか。行の有無とは別に運ぶ(TASK-410)。
+    ///   畳んだ行と一緒に渡させることで、`entries` だけ更新して失敗の事実が前回のまま
+    ///   残る経路を作らない。材料側の値は `DirectoryListing.didFailEnumeration`。
+    func setEntries(_ newEntries: [FileListEntry], for directory: URL, didFailEnumeration: Bool) {
         entriesDirectory = directory
-        didFailListing = newListing.didFailEnumeration
-        entries = newListing.entries
-    }
-
-    /// 手元の一覧を、列挙の成否と組にして取り出す。行だけを組み直す経路
-    /// (SidebarNavigator.rebuildRows)が `replacingEntries` を通せるようにするためのもので、
-    /// 呼び出し側が `didFailListing` を手で書き写して false へ戻す事故を防ぐ。
-    var listing: DirectoryListing {
-        DirectoryListing(entries: entries, didFailEnumeration: didFailListing)
+        didFailListing = didFailEnumeration
+        entries = newEntries
     }
 
     /// 手元の一覧の列挙に失敗したか。空の一覧が「空だった」のか「読めなかった」のかを
     /// 分ける唯一の判断材料で、空状態の文言がこれを見る(TASK-410)。
-    /// 更新経路は `setEntries(_:for:)` の 1 本に閉じる。
+    /// 更新経路は `setEntries` の 1 本に閉じる。
     private(set) var didFailListing = false
 
     /// `entries` を選択から引くための索引。一覧の代入と同時に作り直す。
@@ -67,6 +63,12 @@ final class FileListModel {
     /// それを読んだときに依存として登録されるのはここで触れた保存値だけなので、
     /// 外すと「一覧が変わって提示対象も変わったのに再描画されない」が起きる。
     private var entryIndex: FileListEntryIndex
+
+    /// 正規化パスキーから行を引く。索引は private のため、
+    /// FileListModel+Lookup.swift の引き当て述語はここを経由する。
+    func entry(forPathKey key: String) -> FileListEntry? {
+        entryIndex.entry(forPathKey: key)
+    }
 
     /// 一覧が一度でも反映されたか。ウィンドウは一覧を空で作って非同期に埋めるため、
     /// それまでは「選択が一覧に無い」が「対象が確定していない」を意味する。
@@ -331,7 +333,10 @@ final class FileListModel {
         // 祖先を足し戻す**前**の配列(FileListSnapshot.filtered)から採る。足し戻した配列を渡すと、
         // 条件に一致しないフォルダがプレビューにも現れる一方、同じフォルダを自前列挙する
         // 経路では消えるため、1 ウィンドウ内に絞り込みの答えが 2 つ並ぶ(TASK-288 の巻き戻し)。
-        return .shared(listing.replacingEntries(listSnapshot.filtered.filter { $0.depth == 0 }))
+        return .shared(SharedFolderListing(
+            entries: listSnapshot.filtered.filter { $0.depth == 0 },
+            didFailEnumeration: didFailListing
+        ))
     }
 
     /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧

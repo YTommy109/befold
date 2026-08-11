@@ -147,7 +147,7 @@ final class ViewerWindowManager {
             sidebarDisplayPreference.layoutMode == .tree ? .drillDown : .tree
         sidebarDisplayPreference.layoutMode = next
         if next == .drillDown {
-            allControllers.forEach { $0.sidebar.expansion.invalidateAll() }
+            allControllers.forEach { $0.sidebar.discardExpansion() }
         }
         // 行の組み直しは refreshFileList の経路へ合流させる。rebuildRows を直接叩くと
         // 「ルートの一覧が届く前に行を組み直さない」不変条件を迂回することになる。

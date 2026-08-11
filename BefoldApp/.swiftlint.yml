@@ -64,8 +64,7 @@ custom_rules:
       - "BefoldApp/befold/App/ModeSegments\\.swift$"
       - "BefoldApp/befold/App/PerFileStateStore\\.swift$"
       - "BefoldApp/befold/App/SidebarDisplayPreference\\.swift$"
-      - "BefoldApp/befold/App/ViewerWindowController\\+Assembly\\.swift$"
-      - "BefoldApp/befold/App/ViewerWindowController\\+DiffPresentation\\.swift$"
+      - "BefoldApp/befold/App/ViewerWindowAssembler\\.swift$"
       - "BefoldApp/befold/App/ViewerWindowManager\\.swift$"
     regex: 'FeatureGate\.'
     message: "ゲート値は配線点で読み、引数で注入する（.claude/CLAUDE.md「フィーチャーゲート」節）"

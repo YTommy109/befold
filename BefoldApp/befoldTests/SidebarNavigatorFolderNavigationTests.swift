@@ -24,17 +24,28 @@ struct SidebarNavigatorFolderNavigationTests {
     private func makeNavigator(
         currentDirectory: URL,
         selection: URL?,
-        listings: [String: [FileListEntry]]
+        listings: [String: [FileListEntry]],
+        parents: [String: URL] = [:]
     ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
+        // listings はルート直下の行。親移動行は行配列に混ぜず parents で渡す
+        // (SidebarRowBuilder は rootChildren の kind を見ないため、混ぜると
+        // 親移動行が depth 0 の通常行として二重に並ぶ)。
+        let listing = { (url: URL) -> DirectoryListing in
+            let key = url.normalizedPathKey
+            return DirectoryListing(
+                parentEntry: parents[key].map { FileListEntry(url: $0, kind: .parentNavigation) },
+                rootChildren: listings[key] ?? []
+            )
+        }
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
-            entries: listings[currentDirectory.normalizedPathKey] ?? [],
+            entries: listing(currentDirectory).rows(),
             selection: selection,
             sidebarDisplayPreference: SidebarDisplayPreference(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorFolderNavigationTests")
             ),
-            directoryLister: { url, _, _ in DirectoryListing(rows: listings[url.normalizedPathKey] ?? []) },
-            resolveGitRoot: { _ in nil }
+            directoryLister: { url, _, _ in listing(url) },
+            git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
         )
         let host = SidebarNavigatorStubHost(
             currentFileURL: currentDirectory.appendingPathComponent("diagram.mmd")
@@ -174,12 +185,8 @@ struct SidebarNavigatorFolderNavigationTests {
         let (navigator, host) = makeNavigator(
             currentDirectory: tmp,
             selection: nil,
-            listings: [
-                sub.normalizedPathKey: [
-                    FileListEntry(url: tmp, kind: .parentNavigation),
-                    FileListEntry(url: child, kind: .file),
-                ],
-            ]
+            listings: [sub.normalizedPathKey: [FileListEntry(url: child, kind: .file)]],
+            parents: [sub.normalizedPathKey: tmp]
         )
         defer { withExtendedLifetime(host) {} }
 

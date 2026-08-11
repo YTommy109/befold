@@ -9,10 +9,11 @@ import BefoldCLI
 /// ## サイドバーの git ステータス系（`isSidebarGitStatusEnabled`）
 /// 露出点は次のとおりで、TASK-187（stable 昇格）ではこれらの分岐を撤去する。
 ///
-/// - `ViewerWindowController+Assembly.makeSidebarGitStatusLoader(_:)`
-///   — 状態取得そのもの。無効時は空を返すため、バッジ（ファイル行・フォルダー行）も
-///     `.git/index` の監視も止まる。
-/// - `ViewerWindowController+Assembly.makeChangedFilesOnlyToggle()`
+/// - `ViewerWindowAssembler.makeSidebarGitReader(fileIndex:statusStore:)`
+///   — 状態取得そのもの。無効時は statusStore を渡さず空を返すため、バッジ
+///     （ファイル行・フォルダー行）も `.git/index` の監視も止まる。リポジトリルートの
+///     解決（基準ディレクトリ表示）はゲート対象外なので、そちらは無効時も動く。
+/// - `ViewerWindowAssembler.makeChangedFilesOnlyToggle(for:)`
 ///   — サイドバーヘッダーの「変更されたファイルのみ表示」ボタン。無効時は nil で非表示。
 /// - `MainMenuBuilder+ViewMenu.makeViewMenuItem()`
 ///   — View メニューの「変更されたファイルのみ表示」項目。
@@ -24,8 +25,6 @@ import BefoldCLI
 /// - `ViewerWindowManager.makeDiffLoader()`
 ///   — 差分取得そのもの。無効時は nil で、git diff を一切実行しない。
 ///     全ウィンドウで共有する 1 個をここで作る（生成点はここだけ）。
-/// - `ViewerWindowController+DiffPresentation.isDiffShown`
-///   — 表示モード(ファイル単位のユーザー選択)とビルドゲートが別物であることの注記のみ。
 /// - `MainMenuBuilder.addDisplayModeItems(to:)`
 ///   — View メニューの「差分を表示」(⌘3)「差分を左右に並べる」(⌘\\)項目。
 /// - `ModeSegments.all`

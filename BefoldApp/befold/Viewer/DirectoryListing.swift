@@ -1,28 +1,63 @@
 import Foundation
 
-/// ルート一覧の取得結果。行の配列だけでは「読めて、中身が空だった」と「読めなかった」が
-/// 同じ空配列になるため、失敗した事実を別に運ぶ(TASK-410)。
+/// ディレクトリ 1 回の列挙結果。**行に畳む前の材料**であって、行配列ではない。
 ///
-/// 行を Optional (`[FileListEntry]?`) にはしない。失敗しても親移動行と、いま開いている
-/// 文書の行(`DirectoryLister.appendingOpenFile`)は出す必要があり、nil にするとその経路ごと
-/// 落ちる。「開いている文書は必ず一覧に含める」は列挙の成否に関わらず保たれる不変条件で、
-/// 失敗の伝達がそれを迂回してはならない。
-struct DirectoryListing: Equatable, Sendable {
-    /// 表示する行。失敗時でも親移動行・開いている文書の行が入りうるため、
-    /// **空かどうかで失敗を判定してはならない**(`didFailEnumeration` を見ること)。
-    let entries: [FileListEntry]
-    /// 列挙に失敗したか。true のとき `entries` は「そのフォルダの中身」ではない。
-    let didFailEnumeration: Bool
+/// 列挙結果を畳んだ配列として返すと、そこへ展開を足す側が
+/// `kind == .parentNavigation` や `depth == 0` で分解し直して材料へ戻す往復が要る。
+/// 実際にそうなっていて、1 回の列挙で行の組み立てが 2 回走っていた(TASK-442.1)。
+/// 材料のまま持ち回れば、畳むのは 1 回で済み、分解する経路がそもそも作れない。
+struct DirectoryListing: Sendable, Equatable {
+    /// 親移動行(`..`)。ホームの外なら nil。畳むと常に depth 0 の先頭に来る。
+    var parentEntry: FileListEntry?
+    /// ルート直下の行(親移動行を含まない)。並びは `DirectoryLister.childEntries` が確定させる。
+    var rootChildren: [FileListEntry]
+    /// 列挙に失敗したか。true のとき `rootChildren` は「そのフォルダの中身」ではない。
+    ///
+    /// **行の有無で失敗を判定してはならない**(TASK-410)。失敗しても親移動行と
+    /// 「いま開いている文書」の行は出す必要があり、`rootChildren` が空でないことは
+    /// 列挙が成功したことを意味しない。逆に空でも「読めて、中身が空だった」場合がある。
+    /// 材料を加工する `appendingOpenFile` はこの事実を書き写して運ぶ。
+    var didFailEnumeration: Bool = false
 
-    /// 行を差し替え、失敗の事実は保つ。行を加工する経路(`appendingOpenFile` など)が
-    /// `DirectoryListing` を組み直す唯一の口にして、加工のたびに `didFailEnumeration` を
-    /// 書き写す(= 書き忘れて false へ戻る)形にしない。
-    func replacingEntries(_ newEntries: [FileListEntry]) -> DirectoryListing {
-        DirectoryListing(entries: newEntries, didFailEnumeration: didFailEnumeration)
+    static let empty = DirectoryListing(parentEntry: nil, rootChildren: [])
+
+    /// 材料を行の配列へ畳む。
+    ///
+    /// **`SidebarRowBuilder.rows` を呼ぶプロダクトコード上の唯一の場所。**
+    /// ここ以外から呼ぶと、同じ列挙結果に対して組み立てが 2 回走る形へ戻る
+    /// (`SidebarRowAssemblySingleSourceTests` がソース走査でこれを縛っている)。
+    ///
+    /// 引数を省くと「展開なし」の縮退形になり、全行 depth 0・開閉三角なしの
+    /// ドリルダウン表示と同じ出力になる。
+    func rows(
+        material: SidebarRowBuilder.Material = .init(), showsDisclosure: Bool = false
+    ) -> [FileListEntry] {
+        SidebarRowBuilder.rows(
+            parentEntry: parentEntry,
+            rootChildren: rootChildren,
+            expanded: material.expanded,
+            childrenByPathKey: material.childrenByPathKey,
+            loading: material.loading,
+            failed: material.failed,
+            showsDisclosure: showsDisclosure
+        )
     }
 
-    /// 行を絞り込む。`replacingEntries` と同じく失敗の事実は保つ。
-    func filteringEntries(_ isIncluded: (FileListEntry) -> Bool) -> DirectoryListing {
-        replacingEntries(entries.filter(isIncluded))
+    /// 開いているファイルが一覧に無ければ足す(規則は `DirectoryLister.appendingOpenFile`)。
+    ///
+    /// 追記先は `rootChildren` の末尾で、これは畳んだあとの配列の末尾と一致する。
+    /// 深さ優先で畳んだ配列の末尾は「最後のルート直下行とその配下すべての直後」であり、
+    /// そこは配下を持たない新しいルート直下行が入る位置そのものだから。
+    ///
+    /// **`didFailEnumeration` はそのまま持ち越す。** 開いている文書の行を足したことで
+    /// 「読めた」ことにはならない(TASK-410)。
+    func appendingOpenFile(_ openFile: URL?, in directory: URL) -> DirectoryListing {
+        DirectoryListing(
+            parentEntry: parentEntry,
+            rootChildren: DirectoryLister.appendingOpenFile(
+                openFile, to: rootChildren, in: directory
+            ),
+            didFailEnumeration: didFailEnumeration
+        )
     }
 }

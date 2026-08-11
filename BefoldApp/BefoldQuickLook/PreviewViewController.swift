@@ -6,9 +6,9 @@ import WebKit
 
 /// QuickLook 拡張のプレビュー本体。
 /// レンダリングロジックは一切持たず、対象外拡張子の早期 reject と
-/// ViewerRenderer.loadOneShot の呼び出し、その結果のビュー埋め込みだけを行う。
+/// OneShotRenderer.load の呼び出し、その結果のビュー埋め込みだけを行う。
 final class PreviewViewController: NSViewController, QLPreviewingController {
-    private let renderer = ViewerRenderer()
+    private let renderer = OneShotRenderer(features: .quickLookRestricted)
 
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
@@ -23,8 +23,7 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
             throw CocoaError(.featureUnsupported)
         }
 
-        renderer.rendererFeatures = .quickLookRestricted
-        let result = await renderer.loadOneShot(url: url)
+        let result = await renderer.load(url: url)
 
         if let rejectReason = result.rejectReason {
             fill(with: makeMessageView(rejectReason.localizedMessage))
@@ -36,7 +35,7 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
         addBadge()
     }
 
-    /// 描画が loadOneShot のタイムアウト内に終わらなかった場合、プレビューは
+    /// 描画が OneShotRenderer のタイムアウト内に終わらなかった場合、プレビューは
     /// 空白のまま数秒放置される。ユーザーが「表示できていない」と誤解するため、
     /// 描画中であることを明示し、完了したら取り除く。
     ///

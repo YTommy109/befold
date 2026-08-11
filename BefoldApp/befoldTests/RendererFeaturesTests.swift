@@ -1,5 +1,5 @@
 import BefoldKit
-import BefoldRenderKit
+@testable import BefoldRenderKit
 import Foundation
 import Testing
 
@@ -21,7 +21,7 @@ struct RendererFeaturesTests {
     /// すべて満たした状態で false になることを見る。
     @Test("quickLookRestricted では直接 HTML ロード経路に入らない")
     func quickLookRestrictedBlocksDirectHTML() {
-        let result = ViewerRenderer.shouldEnterDirectHTMLMode(
+        let result = DirectHTMLModeController.shouldEnter(
             fileType: .html, isSourceMode: false,
             filePath: URL(fileURLWithPath: "/tmp/page.html"),
             features: .quickLookRestricted
@@ -34,7 +34,7 @@ struct RendererFeaturesTests {
     /// 参照解決の 3 種のハンドラを登録しないこと。
     @Test("quickLookRestricted ではインタラクティブなメッセージハンドラを登録しない")
     func quickLookRestrictedRegistersNoInteractiveHandlers() {
-        let names = ViewerRenderer.messageHandlerNames(for: .quickLookRestricted)
+        let names = ViewerWebViewFactory.messageHandlerNames(for: .quickLookRestricted)
 
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
         #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))

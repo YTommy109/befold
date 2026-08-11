@@ -4,11 +4,12 @@ title: ViewerBridge（型グループ 470 行）を責務ごとに分割する
 status: To Do
 assignee: []
 created_date: '2026-08-11 05:07'
+updated_date: '2026-08-11 05:26'
 labels: []
 dependencies: []
-priority: low
+priority: medium
 type: chore
-ordinal: 109500
+ordinal: 100700
 ---
 
 ## Description

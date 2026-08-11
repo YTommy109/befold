@@ -276,7 +276,7 @@ extension ViewerWindowControllerTests {
         defer { controller.close() }
         // 本番では ViewerWebView.makeNSView が結ぶ renderer を、テストでは直接差し込む。
         let renderer = ViewerRenderer()
-        renderer.rendered.filePath = file
+        renderer.recordRendered(RenderedStateMirror(filePath: file))
         controller.webViewProxy.renderer = renderer
         let renamed = URL(fileURLWithPath: "/mock/renamed.md")
 
@@ -567,8 +567,8 @@ extension ViewerWindowControllerTests {
 
         for disposition: OpenDisposition in [.currentTab, .newTab, .newWindow] {
             let menu = ReferenceContextMenu.makeMenu(
-                for: externalURL, isExternal: true, target: controller,
-                action: Selector(("performReferenceMenuAction:"))
+                for: externalURL, isExternal: true, target: controller.referenceMenu,
+                action: Selector(("performMenuAction:"))
             )
             let openItem = menu.items.first {
                 ($0.representedObject as? ReferenceMenuInvocation)?.action == .open(disposition)

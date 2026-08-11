@@ -25,7 +25,7 @@ struct ViewerRendererZoomIntegrationTests {
 
     private func waitUntilReady(_ renderer: ViewerRenderer) async {
         for _ in 0 ..< 200 {
-            if renderer.isReady { return }
+            if renderer.readiness.isReady { return }
             try? await Task.sleep(for: .milliseconds(25))
         }
     }
@@ -40,7 +40,7 @@ struct ViewerRendererZoomIntegrationTests {
         renderer.initialPageZoom = 1.5
 
         await waitUntilReady(renderer)
-        #expect(renderer.isReady)
+        #expect(renderer.readiness.isReady)
         // 準備完了までに値が変わっていた場合でも、適用済みとして記録されている。
         #expect(renderer.appliedPageZoom == 1.5)
     }

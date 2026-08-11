@@ -10,6 +10,12 @@ import Testing
 /// 縮退し(状態が別ディレクトリのものなので絞り込まない)、全件が一瞬描画されてから
 /// 絞り込まれる。縮退そのものは TASK-285 の意図した振る舞いなので、縮退を消すのではなく
 /// 縮退が起きる空白期間そのものを無くす。
+/// 親移動行を持たない、ファイルだけの列挙結果。directoryLister スタブの戻り値を
+/// 1 行に収めるためのヘルパー(展開もソートもこのテストの関心ではない)。
+private func fileListing(_ urls: URL...) -> DirectoryListing {
+    DirectoryListing(parentEntry: nil, rootChildren: urls.map { FileListEntry(url: $0, kind: .file) })
+}
+
 @Suite
 @MainActor
 struct SidebarNavigatorListingCoherenceTests {
@@ -32,9 +38,9 @@ struct SidebarNavigatorListingCoherenceTests {
             selection: nil,
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in
-                [FileListEntry(url: changed, kind: .file), FileListEntry(url: clean, kind: .file)]
+                fileListing(changed, clean)
             },
-            loadGitStatuses: { directory, _ in
+            git: SidebarGitReadingStub(statuses: { directory, _ in
                 // git は列挙より遅れて返る。この間に一覧だけを反映してはならない。
                 guard directory.normalizedPathKey == dirB.normalizedPathKey else { return .empty }
                 for _ in 0 ..< 50 {
@@ -45,7 +51,7 @@ struct SidebarNavigatorListingCoherenceTests {
                     snapshot: GitStatusSnapshot(statuses: [changed.normalizedPathKey: status], indexURL: nil),
                     repositoryRoot: base
                 )
-            }
+            })
         )
         let host = SidebarNavigatorStubHost(currentFileURL: base.appendingPathComponent("a.md"))
         navigator.attach(to: host)
@@ -83,9 +89,9 @@ struct SidebarNavigatorListingCoherenceTests {
             selection: nil,
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in
-                [FileListEntry(url: changed, kind: .file), FileListEntry(url: clean, kind: .file)]
+                fileListing(changed, clean)
             },
-            loadGitStatuses: { directory, _ in
+            git: SidebarGitReadingStub(statuses: { directory, _ in
                 guard directory.normalizedPathKey == dirB.normalizedPathKey else { return .empty }
                 await gate.wait()
                 let status = GitFileStatus(indexChange: nil, worktreeChange: .modified)
@@ -93,7 +99,7 @@ struct SidebarNavigatorListingCoherenceTests {
                     snapshot: GitStatusSnapshot(statuses: [changed.normalizedPathKey: status], indexURL: nil),
                     repositoryRoot: base
                 )
-            }
+            })
         )
         let host = SidebarNavigatorStubHost(currentFileURL: base.appendingPathComponent("a.md"))
         navigator.attach(to: host)
@@ -142,9 +148,9 @@ struct SidebarNavigatorListingCoherenceTests {
             selection: nil,
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in
-                [FileListEntry(url: changed, kind: .file), FileListEntry(url: clean, kind: .file)]
+                fileListing(changed, clean)
             },
-            loadGitStatuses: { directory, policy in
+            git: SidebarGitReadingStub(statuses: { directory, policy in
                 // 割り込む単発の取得。返らないまま結果を待たせ、一覧と対の結果だけで
                 // 絞り込みが成立することを見る。
                 guard policy == .always else {
@@ -162,7 +168,7 @@ struct SidebarNavigatorListingCoherenceTests {
                     snapshot: GitStatusSnapshot(statuses: [changed.normalizedPathKey: status], indexURL: nil),
                     repositoryRoot: base
                 )
-            }
+            })
         )
         let host = SidebarNavigatorStubHost(currentFileURL: base.appendingPathComponent("a.md"))
         navigator.attach(to: host)
@@ -263,9 +269,9 @@ struct SidebarNavigatorListingCoherenceTests {
             selection: nil,
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in
-                [FileListEntry(url: changed, kind: .file), FileListEntry(url: clean, kind: .file)]
+                fileListing(changed, clean)
             },
-            loadGitStatuses: { directory, policy in
+            git: SidebarGitReadingStub(statuses: { directory, policy in
                 if policy == slowPolicy {
                     for _ in 0 ..< 50 {
                         await Task.yield()
@@ -278,7 +284,7 @@ struct SidebarNavigatorListingCoherenceTests {
                     snapshot: GitStatusSnapshot(statuses: [target.normalizedPathKey: modified], indexURL: nil),
                     repositoryRoot: base
                 )
-            }
+            })
         )
     }
 }
