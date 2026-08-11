@@ -169,10 +169,6 @@ public extension ViewerRenderer {
             )
         }
 
-        if isReady {
-            doUpdate()
-        } else {
-            pendingUpdate = doUpdate
-        }
+        runWhenReady(doUpdate)
     }
 }

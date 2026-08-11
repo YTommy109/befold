@@ -7,7 +7,7 @@ import WebKit
 ///
 /// ヘルプ系パネル（謝辞など）が Markdown を生テキストのまま出さないようにするための最小の器。
 /// 描画は 1 回きりで、ファイル監視・ズーム・検索といったビューア本体の機能は持たない
-/// （QuickLook 拡張と同じ `loadOneShot` の使い方）。
+/// （QuickLook 拡張と同じ `OneShotRenderer` の使い方）。
 struct RenderedMarkdownView: NSViewRepresentable {
     /// 表示する Markdown ファイル。アプリに同梱されたリソースを想定する。
     let url: URL
@@ -28,19 +28,18 @@ struct RenderedMarkdownView: NSViewRepresentable {
         Coordinator()
     }
 
-    /// レンダラの寿命をビューに合わせて保持する。`ViewerRenderer` を都度生成すると
+    /// レンダラの寿命をビューに合わせて保持する。`OneShotRenderer` を都度生成すると
     /// 描画完了前に解放されて空白のまま残るため、Coordinator が持ち主になる。
     @MainActor
     final class Coordinator {
-        private let renderer = ViewerRenderer()
+        // ヘルプ表示にリンク遷移や画像の追加読込は要らないので、QuickLook と同じく
+        // ブリッジ・直接 HTML・画像埋め込みを閉じた構成で描画する。
+        private let renderer = OneShotRenderer(features: .quickLookRestricted)
         private var loadTask: Task<Void, Never>?
 
         func load(url: URL, failureMessage: String, into container: NSView) {
-            // ヘルプ表示にリンク遷移や画像の追加読込は要らないので、QuickLook と同じく
-            // ブリッジ・直接 HTML・画像埋め込みを閉じた構成で描画する。
-            renderer.rendererFeatures = .quickLookRestricted
             loadTask = Task { [renderer] in
-                let result = await renderer.loadOneShot(url: url)
+                let result = await renderer.load(url: url)
                 guard result.rejectReason == nil else {
                     Self.fill(container, with: Self.makeMessageView(failureMessage))
                     return

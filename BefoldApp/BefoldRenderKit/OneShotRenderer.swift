@@ -1,46 +1,68 @@
 import BefoldKit
 import WebKit
 
-// MARK: - One-shot rendering
+/// ViewerLoadPipeline.Outcome を初回描画に必要な値へ写した静的スナップショット。
+/// 段階読み込みの継続やライブリロードを持たない1回描画ホスト(QuickLook 拡張等)向けに、
+/// ViewerStore.apply が持つ dataHash キャッシュ・世代管理・chunkSession 保持を省いた
+/// 最小構成。rejectReason が非 nil の場合、ホストはコンテンツ描画の代わりに
+/// 非対応表示(RejectReason.localizedMessage)を出すために使う。
+public struct OneShotRender: Equatable, Sendable {
+    public let content: String
+    public let fileType: FileType
+    public let filePath: URL?
+    public let rejectReason: RejectReason?
+    public let truncation: TruncationState
 
-public extension ViewerRenderer {
-    /// ViewerLoadPipeline.Outcome を初回描画に必要な値へ写した静的スナップショット。
-    /// 段階読み込みの継続やライブリロードを持たない1回描画ホスト(QuickLook 拡張等)向けに、
-    /// ViewerStore.apply が持つ dataHash キャッシュ・世代管理・chunkSession 保持を省いた
-    /// 最小構成。rejectReason が非 nil の場合、ホストはコンテンツ描画の代わりに
-    /// 非対応表示(RejectReason.localizedMessage)を出すために使う。
-    struct OneShotRender: Equatable, Sendable {
-        public let content: String
-        public let fileType: FileType
-        public let filePath: URL?
-        public let rejectReason: RejectReason?
-        public let truncation: TruncationState
+    public init(
+        content: String, fileType: FileType, filePath: URL?,
+        rejectReason: RejectReason?, truncation: TruncationState
+    ) {
+        self.content = content
+        self.fileType = fileType
+        self.filePath = filePath
+        self.rejectReason = rejectReason
+        self.truncation = truncation
+    }
+}
 
-        public init(
-            content: String, fileType: FileType, filePath: URL?,
-            rejectReason: RejectReason?, truncation: TruncationState
-        ) {
-            self.content = content
-            self.fileType = fileType
-            self.filePath = filePath
-            self.rejectReason = rejectReason
-            self.truncation = truncation
-        }
+/// `OneShotRenderer.load` の結果。構成済みの WKWebView と、非対応判定の理由を返す。
+/// rejectReason が非 nil のとき、WebView は空の viewer.html を表示したままになるため、
+/// ホストは非対応メッセージを重ねて表示する。
+public struct OneShotResult {
+    public let webView: WKWebView
+    public let rejectReason: RejectReason?
+}
+
+/// ファイル URL から WebView 構成と初回描画までを 1 呼び出しで行う合成 API。
+///
+/// ライブリロード用のレンダラ(ViewerRenderer)を**内包**する。継承や extension に
+/// しないのは、1 回描画ホストに再描画・段階読み込み・差分表示のための状態を
+/// 一切見せないため。QuickLook 拡張のように親ディレクトリ・兄弟ファイルへの
+/// read 権限がないホストは、features に `.quickLookRestricted` を渡す。
+@MainActor
+public final class OneShotRenderer {
+    private let renderer = ViewerRenderer()
+
+    /// 描画完了(mermaid 等の非同期描画を含む)を待つ上限。QuickLook のプレビュー生成を
+    /// ハングさせないための保険で、超過した場合はその時点の DOM のまま完了として返す。
+    /// 負荷の高いテスト環境など、ホスト側の事情で待ち時間を伸ばしたい場合に差し替える。
+    public var renderTimeout: Duration = .seconds(3)
+
+    /// 直近に構成した WebView。内包するレンダラが保持し続けていること
+    /// (描画完了前に解放されないこと)をテストから確認するためのもの。
+    var webView: WKWebView? {
+        renderer.webView
     }
 
-    /// loadOneShot の結果。構成済みの WKWebView と、非対応判定の理由を返す。
-    /// rejectReason が非 nil のとき、WebView は空の viewer.html を表示したままになるため、
-    /// ホストは非対応メッセージを重ねて表示する。
-    struct OneShotResult {
-        public let webView: WKWebView
-        public let rejectReason: RejectReason?
+    public init(features: RendererFeatures = .allEnabled) {
+        renderer.rendererFeatures = features
     }
 
     /// ViewerLoadPipeline.Outcome を OneShotRender へ変換する純粋ロジック。
     /// ViewerStore.apply の Outcome 分岐(chunked=先頭チャンク+切り詰め、full=全量+rejectReason)を、
     /// 状態遷移を伴わない値変換だけに落とし込んだもの。missing は QuickLook では対象ファイルが
     /// 常に存在するため通常発生しないが、安全側に unsupportedFormat として非対応表示へ倒す。
-    nonisolated static func oneShotRender(
+    public nonisolated static func render(
         from outcome: ViewerLoadPipeline.Outcome, url: URL, fileType: FileType
     ) -> OneShotRender {
         switch outcome {
@@ -69,11 +91,8 @@ public extension ViewerRenderer {
         }
     }
 
-    /// ファイル URL から WebView 構成と初回描画までを1呼び出しで行う one-shot 合成 API。
-    /// ViewerLoadPipeline.load(oneShotLoad: true) で静的に読み込み、makeWebView で viewer.html を
-    /// 構成し、updateContent で初回描画を予約する(ロード完了まで pendingUpdate で保留される)。
-    /// QuickLook 拡張のように親ディレクトリ・兄弟ファイルへの read 権限がないホストでは、
-    /// rendererFeatures にブリッジ・直接 HTML・画像埋め込みを無効化した構成を事前にセットしておく。
+    /// ViewerLoadPipeline.load(oneShotLoad: true) で静的に読み込み、viewer.html を構成し、
+    /// 初回描画の完了まで待つ。
     /// - Parameters:
     ///   - url: 表示するファイルの URL。
     ///   - fileType: 明示する場合の種別。nil の場合は拡張子から判定する。
@@ -81,7 +100,7 @@ public extension ViewerRenderer {
     ///   - chunkedReaderFactory: 行指向ファイルのチャンクリーダー生成。
     ///   - initialZoom: ロード前に JS へ注入する初期倍率。
     @discardableResult
-    func loadOneShot(
+    public func load(
         url: URL,
         fileType: FileType? = nil,
         fileReader: any FileReading = DefaultFileReader(),
@@ -97,11 +116,11 @@ public extension ViewerRenderer {
             contentLoader: ContentLoader(fileReader: fileReader),
             chunkedReaderFactory: chunkedReaderFactory,
             oneShotLoad: true,
-            embedLocalImages: rendererFeatures.embedImages
+            embedLocalImages: renderer.rendererFeatures.embedImages
         )
-        let render = Self.oneShotRender(from: outcome, url: url, fileType: resolvedFileType)
+        let render = Self.render(from: outcome, url: url, fileType: resolvedFileType)
 
-        let webView = makeWebView(initialZoom: initialZoom, findOptionsPreference: nil)
+        let webView = renderer.makeWebView(initialZoom: initialZoom, findOptionsPreference: nil)
         if render.rejectReason == nil {
             await renderOnce(webView: webView, render: render)
         }
@@ -118,7 +137,7 @@ public extension ViewerRenderer {
             content: RenderableContent.make(
                 render.content, fileType: render.fileType,
                 filePath: render.filePath, isSourceMode: false,
-                embedImages: rendererFeatures.embedImages
+                embedImages: renderer.rendererFeatures.embedImages
             ),
             fileType: render.fileType
         ) else { return }
@@ -126,7 +145,7 @@ public extension ViewerRenderer {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             let completion = OneShotCompletion(continuation: continuation)
             Task { @MainActor in
-                try? await Task.sleep(for: oneShotRenderTimeout)
+                try? await Task.sleep(for: renderTimeout)
                 completion.finish()
             }
 
@@ -150,11 +169,7 @@ public extension ViewerRenderer {
                     completion.finish()
                 }
             }
-            if isReady {
-                evaluate()
-            } else {
-                pendingUpdate = evaluate
-            }
+            renderer.runWhenReady(evaluate)
         }
     }
 }

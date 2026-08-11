@@ -21,7 +21,7 @@ struct ViewerRendererOneShotTests {
             ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
             cache: nil
         )
-        let render = ViewerRenderer.oneShotRender(
+        let render = OneShotRenderer.render(
             from: outcome, url: URL(fileURLWithPath: "/tmp/big.md"), fileType: .markdown
         )
 
@@ -36,7 +36,7 @@ struct ViewerRendererOneShotTests {
             ContentLoader.LoadedContent(rejectReason: nil, content: "# hello"),
             cache: nil
         )
-        let render = ViewerRenderer.oneShotRender(
+        let render = OneShotRenderer.render(
             from: outcome, url: URL(fileURLWithPath: "/tmp/a.md"), fileType: .markdown
         )
 
@@ -55,7 +55,7 @@ struct ViewerRendererOneShotTests {
         let outcome = ViewerLoadPipeline.Outcome.chunked(
             session: reader, cache: cache, firstChunk: "line1\nline2\n", isAtEnd: false
         )
-        let render = ViewerRenderer.oneShotRender(
+        let render = OneShotRenderer.render(
             from: outcome, url: url, fileType: .code(language: "plaintext")
         )
 
@@ -78,7 +78,7 @@ struct ViewerRendererOneShotTests {
         let outcome = ViewerLoadPipeline.Outcome.chunked(
             session: reader, cache: cache, firstChunk: "a\nb\nc", isAtEnd: false
         )
-        let render = ViewerRenderer.oneShotRender(
+        let render = OneShotRenderer.render(
             from: outcome, url: url, fileType: .code(language: "plaintext")
         )
 
@@ -89,7 +89,7 @@ struct ViewerRendererOneShotTests {
 
     @Test("missing outcome は unsupportedFormat へ安全側で倒す")
     func missingOutcomeRejectsAsUnsupported() {
-        let render = ViewerRenderer.oneShotRender(
+        let render = OneShotRenderer.render(
             from: .missing, url: URL(fileURLWithPath: "/tmp/gone.md"), fileType: .markdown
         )
 
