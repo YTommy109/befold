@@ -1212,6 +1212,27 @@ describe('パス参照の表示時解決', () => {
     expect(refs[1].dataset.resolved).toBeUndefined();
   });
 
+  // ハイライトで span に割られたパスは片ごとに注釈される。解決要求は一意化された
+  // 1 パスで送られ、どの片をクリックしてもパス全体が開く(TASK-455)。
+  test('span に割られたパス参照はどの片からでも開ける', async () => {
+    const loaded = loadViewerMain({});
+    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    await loaded.main.render('see ./notes.md for details\n', 'code', 'swift');
+
+    expect(received[0].payload.paths).toEqual(['./notes.md']);
+    loaded.main._mmdApplyResolvedReferences({ './notes.md': '/repo/notes.md' });
+
+    const refs = Array.from(loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref'));
+    expect(refs.length).toBeGreaterThan(1);
+    refs.forEach((ref) => {
+      expect(Array.from(ref.classList).sort()).toEqual(['befold-link', 'befold-path-ref']);
+      dispatchTrustedClick(loaded.window, ref);
+    });
+
+    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload.href))
+      .toEqual(refs.map(() => './notes.md'));
+  });
+
   test('解決できなかった <a> は href を失いクリックできなくなる', () => {
     const loaded = loadViewerMain({});
     const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);

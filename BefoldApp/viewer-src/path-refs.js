@@ -13,9 +13,8 @@ function isLocalPathHref(href) {
 }
 
 // コードブロック内のファイルパス検出用の正規表現。
-// 既知の制約: シンタックスハイライトによってトークンが複数の <span> に
-// 分割されている場合、その境界をまたぐパスは検出されない(シンプルな
-// ヒューリスティックとして許容する)。
+// シンタックスハイライトでトークンが複数の <span> に分割されていても、
+// 注釈は「単位」(下記)のテキスト全体に対して一致を取るため境界をまたげる。
 var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/g;
 
 // パス検出の対象にするタグ(このタグに入った時点で配下は許可状態になる)。
@@ -27,60 +26,140 @@ function _annotatePathRefs() {
   if (wrap) { _walkTextNodes(wrap, false); }
 }
 
-// #diagram-wrap 配下を一度だけ再帰的に歩く。allowed は現在位置がパス検出の
-// 対象コンテキスト内(_PATH_ANNOTATE_TAGS 配下)かどうかを表し、対象タグに
-// 入った時点で true になり、非対象の子孫にもそのまま引き継がれる
-// (例: <p> 内の <strong> のテキストも検出対象)。単一パスの走査のため、
-// ネストしたタグ(li 内の li 等)を二重に処理する心配もない。
+// 走査対象外の要素。<a> 配下は既にリンクとして処理済み、svg/.mermaid は
+// 図中テキストの誤検出防止、.befold-path-ref 配下は既存ガード(二重ラップ防止)。
+function _isSkippedElement(el) {
+  var tag = el.tagName.toLowerCase();
+  return tag === 'a' || tag === 'svg' || el.classList.contains('mermaid') ||
+         el.classList.contains('befold-path-ref');
+}
+
+// #diagram-wrap 配下を一度だけ再帰的に歩き、_PATH_ANNOTATE_TAGS の要素を
+// 「注釈の単位」として処理する。allowed は呼び出し元が既に対象コンテキスト内に
+// いるか(= node 自身を単位として扱うか)を表す。外部からの呼び出しは常に false。
+//
+// 単位は最も内側の対象タグにする。ソース表示は <pre><code><table> の各行が
+// <td class="line-content"> なので、単位は 1 行になる。<code> 全体を 1 単位に
+// すると行の境界に区切り文字が無く、前行末と次行頭がつながって誤検出になる。
 function _walkTextNodes(node, allowed) {
   if (node.nodeType === 3) { // TEXT_NODE
-    if (!allowed) return;
-    var text = node.textContent;
-    _PATH_RE.lastIndex = 0;
-    var match = _PATH_RE.exec(text);
-    if (!match) return;
-    var frag = document.createDocumentFragment();
-    var lastIndex = 0;
-    do {
-      if (match.index > lastIndex) {
-        frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
-      }
-      var span = document.createElement('span');
-      span.className = 'befold-path-ref';
-      span.dataset.path = match[0];
-      span.textContent = match[0];
-      frag.appendChild(span);
-      lastIndex = _PATH_RE.lastIndex;
-    } while ((match = _PATH_RE.exec(text)) !== null);
-    if (lastIndex < text.length) {
-      frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+    if (allowed) { _annotateTextNodes([node]); }
+    return;
+  }
+  if (node.nodeType !== 1) { return; }
+  if (_isSkippedElement(node)) { return; }
+  var tag = node.tagName.toLowerCase();
+  // <pre> 直下のテキストは対象外(markdown-it の html:true により <code> を伴わない
+  // 生の <pre> がリスト項目内などに書かれた場合でも誤って対象化しないよう、
+  // 祖先から引き継いだ allowed をリセットする)。内側の <code> は改めて単位になるため、
+  // 従来の「pre code のみ対象」という範囲はそのまま維持される。
+  if (tag === 'pre') {
+    _walkChildren(node, false);
+    return;
+  }
+  if (allowed || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1) {
+    _annotateUnit(node);
+    return;
+  }
+  _walkChildren(node, allowed);
+}
+
+// スナップショットを取り順方向に走査(replaceChild で兄弟が変わるため)。
+function _walkChildren(node, allowed) {
+  var children = Array.prototype.slice.call(node.childNodes);
+  for (var i = 0; i < children.length; i++) {
+    _walkTextNodes(children[i], allowed);
+  }
+}
+
+// 単位となる要素配下のテキストをまとめて注釈する。ハイライトの <span> で
+// 分割されたパスも、単位のテキストとしては連続しているため検出できる。
+function _annotateUnit(el) {
+  var nodes = [];
+  _collectUnitTextNodes(el, nodes);
+  _annotateTextNodes(nodes);
+}
+
+// 単位に属するテキストノードを集める。入れ子の対象タグ(表の <td>、段落内の
+// インライン <code> 等)と <pre> はそれぞれ別の単位として扱い、ここでは集めない。
+function _collectUnitTextNodes(node, out) {
+  var children = Array.prototype.slice.call(node.childNodes);
+  for (var i = 0; i < children.length; i++) {
+    var child = children[i];
+    if (child.nodeType === 3) {
+      out.push(child);
+      continue;
     }
-    node.parentNode.replaceChild(frag, node);
-  } else if (node.nodeType === 1) {
-    var tag = node.tagName.toLowerCase();
-    // <a> 配下は既にリンクとして処理済み、svg/.mermaid は図中テキストの誤検出防止、
-    // .befold-path-ref 配下は既存ガード(二重ラップ防止)。
-    if (tag === 'a' || tag === 'svg' || node.classList.contains('mermaid') ||
-        node.classList.contains('befold-path-ref')) {
-      return;
+    if (child.nodeType !== 1) { continue; }
+    if (_isSkippedElement(child)) { continue; }
+    var tag = child.tagName.toLowerCase();
+    if (tag === 'pre' || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1) {
+      _walkTextNodes(child, false);
+      continue;
     }
-    var childAllowed;
-    if (tag === 'pre') {
-      // <pre> 直下のテキストは対象外(markdown-it の html:true により
-      // <code> を伴わない生の <pre> がリスト項目内などに書かれた場合でも
-      // 誤って対象化しないよう、祖先から引き継いだ allowed をリセットする)。
-      // 内側の <code> は改めて自身で allowed = true にするため、
-      // 従来の「pre code のみ対象」という範囲はそのまま維持される。
-      childAllowed = false;
-    } else {
-      childAllowed = allowed || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1;
-    }
-    // スナップショットを取り順方向に走査(replaceChild で兄弟が変わるため)
-    var children = Array.prototype.slice.call(node.childNodes);
-    for (var j = 0; j < children.length; j++) {
-      _walkTextNodes(children[j], childAllowed);
+    _collectUnitTextNodes(child, out);
+  }
+}
+
+// 連続する 1 本のテキストとみなしたノード列に対してパスを検出し、
+// 一致範囲をノードごとの区間へ割り戻して <span class="befold-path-ref"> で包む。
+// ノードをまたぐ一致は片ごとに span を作り、どの片も data-path にパス全体を持つ
+// (ハイライトの span 構造を壊さずに、どこをクリックしても同じパスが開く)。
+function _annotateTextNodes(nodes) {
+  if (!nodes.length) { return; }
+  var text = '';
+  var starts = [];
+  for (var i = 0; i < nodes.length; i++) {
+    starts.push(text.length);
+    text += nodes[i].textContent;
+  }
+  _PATH_RE.lastIndex = 0;
+  var segments = null;
+  var match;
+  while ((match = _PATH_RE.exec(text)) !== null) {
+    var from = match.index;
+    var to = from + match[0].length;
+    for (var n = 0; n < nodes.length; n++) {
+      var nodeStart = starts[n];
+      var nodeEnd = nodeStart + nodes[n].textContent.length;
+      if (nodeEnd <= from || nodeStart >= to) { continue; }
+      if (!segments) { segments = {}; }
+      if (!segments[n]) { segments[n] = []; }
+      segments[n].push({
+        start: Math.max(from, nodeStart) - nodeStart,
+        end: Math.min(to, nodeEnd) - nodeStart,
+        path: match[0],
+      });
     }
   }
+  if (!segments) { return; }
+  // 一致をすべて求めてから置換する(置換で他ノードのオフセットが動かないよう)。
+  for (var key in segments) {
+    _replaceWithSegments(nodes[key], segments[key]);
+  }
+}
+
+// 1 つのテキストノードを、指定区間だけ span で包んだ断片列に置き換える。
+function _replaceWithSegments(node, segments) {
+  var text = node.textContent;
+  var frag = document.createDocumentFragment();
+  var lastIndex = 0;
+  for (var i = 0; i < segments.length; i++) {
+    var seg = segments[i];
+    if (seg.start > lastIndex) {
+      frag.appendChild(document.createTextNode(text.slice(lastIndex, seg.start)));
+    }
+    var span = document.createElement('span');
+    span.className = 'befold-path-ref';
+    span.dataset.path = seg.path;
+    span.textContent = text.slice(seg.start, seg.end);
+    frag.appendChild(span);
+    lastIndex = seg.end;
+  }
+  if (lastIndex < text.length) {
+    frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+  }
+  node.parentNode.replaceChild(frag, node);
 }
 
 // --- 表示時のパス参照解決 ---
