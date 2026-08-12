@@ -4,19 +4,11 @@ title: ベースライン方式を撤去し単純な閾値強制へ畳む
 status: To Do
 assignee: []
 created_date: '2026-08-10 12:35'
-updated_date: '2026-08-11 13:50'
+updated_date: '2026-08-12 02:22'
 labels: []
 dependencies:
-  - TASK-428.3
-  - TASK-426
-  - TASK-429
-  - TASK-430
-  - TASK-431
-  - TASK-440
-  - TASK-441
-  - TASK-442
-  - TASK-443
-  - TASK-444
+  - TASK-459
+  - TASK-460
 parent_task_id: TASK-428
 priority: low
 type: chore
@@ -66,4 +58,16 @@ ordinal: 104500
 - 恒久例外: グループキー・上限行数・**理由**の 3 点セットで明示的に列挙する。理由の無いエントリは弾く。追加はレビューで必ず目に付く
 
 これにより「ベースラインを上げれば通る」という逃げ道は消え、例外は「なぜ 400 に収まらないか」を書かないと登録できない形になる。
+
+## 着手条件の再確認（2026-08-12）
+
+依存 10 件は全て Done だが、`scripts/check-type-group-size.sh` の実測でベースラインは空になっていない。残存 3 件:
+
+- 802 `befold/App/ViewerWindowController` — 恒久例外（上限 900・理由付き）として登録する方針が確定済み（AC #4）
+- 610 `befold/App/ViewerWindowManager` — 未決だった
+- 531 `befold/Viewer/ViewerStore` — 未決だった
+
+TASK-426 / TASK-430 は Done だが、切り出し先を同ディレクトリの `Foo+*.swift` にしたため型グループ合計は減っていない（このチェックは `Foo.swift` と同ディレクトリの `Foo+*.swift` を合算する）。
+
+**決定（ユーザー判断, 2026-08-12）**: 恒久例外を増やさず、返済タスクを起票してから着手する。TASK-459（ViewerWindowManager）/ TASK-460（ViewerStore）を起票し、本タスクの依存に追加した。恒久例外は ViewerWindowController の 1 件のみとする。
 <!-- SECTION:NOTES:END -->
