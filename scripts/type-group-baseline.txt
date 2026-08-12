@@ -12,6 +12,3 @@
 802	BefoldApp/befold/App/ViewerWindowController
 610	BefoldApp/befold/App/ViewerWindowManager
 531	BefoldApp/befold/Viewer/ViewerStore
-452	BefoldApp/befoldTests/QuickOpenModelTests
-540	BefoldApp/befoldTests/ViewerStoreTests
-585	BefoldApp/befoldTests/ViewerWindowControllerTests
