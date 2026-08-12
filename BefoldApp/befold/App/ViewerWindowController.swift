@@ -268,7 +268,7 @@ final class ViewerWindowController: NSWindowController {
         let store = store ?? ViewerStore(defaults: defaults)
         // store が呼び出し元から明示注入された場合でも上書きが反映されるよう、
         // store の生成元にかかわらずここで一律に適用する(sourceModeOverride と同じ方針)。
-        if let showLineNumbersOverride { store.applyShowLineNumbersOverride(showLineNumbersOverride) }
+        if let showLineNumbersOverride { store.lineNumbersSetting.applyOverride(showLineNumbersOverride) }
         self.store = store
         sidebar = ViewerWindowAssembler.makeSidebarNavigator(
             fileURL: fileURL, sidebarDisplayPreference: sidebarDisplayPreference,

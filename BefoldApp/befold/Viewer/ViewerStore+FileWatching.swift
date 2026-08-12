@@ -57,7 +57,7 @@ extension ViewerStore {
     /// 待機と張り替えは `FileGoneWatchdog` が持つ。ここは「何をもって消えたとするか」だけを渡す。
     func scheduleFileGone() {
         fileGoneWatchdog.schedule { [weak self] in
-            guard let self, let filePath else { return }
+            guard let self, let filePath = contentState.filePath else { return }
             guard !fileReader.fileExists(at: filePath.resolvingSymlinksInPath()) else { return }
             onFileGone?()
         }

@@ -21,9 +21,9 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(store.content == content)
-        #expect(store.fileType == expectedType)
-        #expect(store.filePath == file)
+        #expect(store.contentState.content == content)
+        #expect(store.contentState.fileType == expectedType)
+        #expect(store.contentState.filePath == file)
 
         store.close()
     }
@@ -37,7 +37,7 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(store.content == "")
+        #expect(store.contentState.content == "")
 
         store.close()
     }
@@ -73,14 +73,14 @@ struct ViewerStoreTests {
 
         let store = makeStore(reader: reader)
         await openAndLoad(store, file1)
-        #expect(store.content == "graph TD; A-->B")
-        #expect(store.fileType == .mmd)
+        #expect(store.contentState.content == "graph TD; A-->B")
+        #expect(store.contentState.fileType == .mmd)
 
         await openAndLoad(store, file2)
 
-        #expect(store.content == "# Second")
-        #expect(store.fileType == .markdown)
-        #expect(store.filePath == file2)
+        #expect(store.contentState.content == "# Second")
+        #expect(store.contentState.fileType == .markdown)
+        #expect(store.contentState.filePath == file2)
 
         store.close()
     }
@@ -141,8 +141,8 @@ struct ViewerStoreTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(!store.isTruncated)
-        #expect(!store.isRejected)
+        #expect(!store.contentState.isTruncated)
+        #expect(!store.contentState.isRejected)
 
         store.close()
     }

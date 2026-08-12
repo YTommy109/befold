@@ -80,14 +80,14 @@ struct ViewerStoreLoadRaceTests {
         await waitUntilYielding { slowReader.entered.get() }
 
         await openAndLoad(store, fastFile)
-        #expect(store.content == "fast\n")
+        #expect(store.contentState.content == "fast\n")
 
         // 遅い読み込みが完了しても、追い越された結果は表示へ反映されない。
         slowReader.gate.open()
         await slowTask?.value
-        #expect(store.content == "fast\n")
-        #expect(store.filePath == fastFile)
-        #expect(store.isTruncated == false)
+        #expect(store.contentState.content == "fast\n")
+        #expect(store.contentState.filePath == fastFile)
+        #expect(store.contentState.isTruncated == false)
 
         store.close()
     }
@@ -105,8 +105,8 @@ struct ViewerStoreLoadRaceTests {
             chunkedReaderFactory: { _, _ in csvReader }
         )
         await openAndLoad(store, imageFile)
-        #expect(store.fileType == .image(mimeType: "image/png"))
-        let imageContent = store.content
+        #expect(store.contentState.fileType == .image(mimeType: "image/png"))
+        let imageContent = store.contentState.content
 
         store.openFile(csvFile)
         // csv の読み込みが readNextChunk の待機に入った(= まだ apply() 前)ことを確認する。
@@ -115,14 +115,14 @@ struct ViewerStoreLoadRaceTests {
         // (fileType だけ即座に新ファイルへ切り替わると、ViewerWebView.Coordinator の
         // needsRender が fileType の変化だけで発火し、旧 content を新 fileType として
         // 誤描画してしまう)
-        #expect(store.fileType == .image(mimeType: "image/png"))
-        #expect(store.content == imageContent)
+        #expect(store.contentState.fileType == .image(mimeType: "image/png"))
+        #expect(store.contentState.content == imageContent)
 
         csvReader.gate.open()
         await awaitLoad(store)
 
-        #expect(store.fileType == .csv(delimiter: ","))
-        #expect(store.content == "a,b,c")
+        #expect(store.contentState.fileType == .csv(delimiter: ","))
+        #expect(store.contentState.content == "a,b,c")
 
         store.close()
     }
@@ -145,8 +145,8 @@ struct ViewerStoreLoadRaceTests {
             }
         )
         await openAndLoad(store, file)
-        #expect(store.content == "old\n")
-        #expect(store.isTruncated == true)
+        #expect(store.contentState.content == "old\n")
+        #expect(store.contentState.isTruncated == true)
 
         // 「続きを読み込む」を開始し、readNextChunk の待機に入るまで進める。
         let moreTask = Task { await store.loadMoreLines() }
@@ -155,14 +155,14 @@ struct ViewerStoreLoadRaceTests {
         // 待機中にファイル内容が変わり、再読込でセッションが新しいものへ交代する。
         reader.setFile("new\ndata", at: file)
         await openAndLoad(store, file)
-        #expect(store.content == "new\n")
+        #expect(store.contentState.content == "new\n")
 
         // 古いセッションの読み込みが解決しても結果は捨てられ、新しい表示を壊さない。
         sessionA.gate.open()
         let result = await moreTask.value
         #expect(result == nil)
-        #expect(store.content == "new\n")
-        #expect(store.isTruncated == false)
+        #expect(store.contentState.content == "new\n")
+        #expect(store.contentState.isTruncated == false)
 
         store.close()
     }
@@ -257,7 +257,7 @@ struct ViewerStoreFileGoneTests {
         clock.advance(by: .seconds(10))
         await yieldMainActor()
         #expect(firedCount == 0)
-        #expect(store.content == "graph TD; C-->D")
+        #expect(store.contentState.content == "graph TD; C-->D")
 
         store.close()
     }

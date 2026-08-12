@@ -35,9 +35,9 @@ struct ViewerStoreChunkTests {
         )
         await openAndLoad(store, file)
 
-        #expect(store.content == "a,b\n1,2\n")
-        #expect(store.isTruncated == true)
-        #expect(store.displayedLineCount == 2)
+        #expect(store.contentState.content == "a,b\n1,2\n")
+        #expect(store.contentState.isTruncated == true)
+        #expect(store.contentState.displayedLineCount == 2)
 
         store.close()
     }
@@ -57,8 +57,8 @@ struct ViewerStoreChunkTests {
 
         #expect(result != nil)
         #expect(result?.chunk == "3,4")
-        #expect(store.content == "a,b\n1,2\n3,4")
-        #expect(store.isTruncated == false)
+        #expect(store.contentState.content == "a,b\n1,2\n3,4")
+        #expect(store.contentState.isTruncated == false)
 
         store.close()
     }
@@ -73,15 +73,15 @@ struct ViewerStoreChunkTests {
             chunkedReaderFactory: { _, _ in MockChunkedReader(chunks: ["a,b\n1,2\n", "3,4\n", "5,6"]) }
         )
         await openAndLoad(store, file)
-        let initialRevision = store.contentRevision
+        let initialRevision = store.contentState.contentRevision
 
         let firstResult = await store.loadMoreLines()
         #expect(firstResult?.contentRevision == initialRevision + 1)
-        #expect(store.contentRevision == initialRevision + 1)
+        #expect(store.contentState.contentRevision == initialRevision + 1)
 
         let secondResult = await store.loadMoreLines()
         #expect(secondResult?.contentRevision == initialRevision + 2)
-        #expect(store.contentRevision == initialRevision + 2)
+        #expect(store.contentState.contentRevision == initialRevision + 2)
 
         store.close()
     }
@@ -97,7 +97,7 @@ struct ViewerStoreChunkTests {
         )
         await openAndLoad(store, file)
 
-        #expect(store.isTruncated == false)
+        #expect(store.contentState.isTruncated == false)
         #expect(await store.loadMoreLines() == nil)
 
         store.close()
@@ -120,18 +120,18 @@ struct ViewerStoreChunkTests {
         )
         await openAndLoad(store, file)
         #expect(callCount.get() == 1)
-        #expect(store.isTruncated == true)
+        #expect(store.contentState.isTruncated == true)
 
         _ = await store.loadMoreLines()
-        #expect(store.isTruncated == false)
+        #expect(store.contentState.isTruncated == false)
 
         // ファイル内容が変わった場合にセッションがリセットされることを検証する。
         reader.setFile("a,b\n1,2\n3,4\n5,6\n7,8", at: file)
         onChangeBox.get()?()
         await awaitLoad(store)
         #expect(callCount.get() == 2)
-        #expect(store.content == "a,b\n1,2\n")
-        #expect(store.isTruncated == true)
+        #expect(store.contentState.content == "a,b\n1,2\n")
+        #expect(store.contentState.isTruncated == true)
 
         store.close()
     }
@@ -148,11 +148,11 @@ struct ViewerStoreChunkTests {
         await openAndLoad(store, file)
 
         // 改行なしの強制分割チャンクでも「0 行」ではなく途中行を 1 行と数える。
-        #expect(store.displayedLineCount == 1)
+        #expect(store.contentState.displayedLineCount == 1)
 
         let result = await store.loadMoreLines()
         #expect(result?.lineCount == 1)
-        #expect(store.displayedLineCount == 1)
+        #expect(store.contentState.displayedLineCount == 1)
 
         store.close()
     }
@@ -169,8 +169,8 @@ struct ViewerStoreChunkTests {
             }
         )
         await openAndLoad(store, file)
-        #expect(store.content == "old\n")
-        #expect(store.isTruncated == true)
+        #expect(store.contentState.content == "old\n")
+        #expect(store.contentState.isTruncated == true)
 
         // 2 回目の読み込みが TextEncodingError で失敗 → 表示済みコンテンツを保持し
         // セッション終了。10MB 超ファイルで fileTooLarge に置き換わることを防ぐ。
@@ -181,9 +181,9 @@ struct ViewerStoreChunkTests {
         #expect(result?.chunk == "")
         #expect(result?.isTruncated == true)
         #expect(result?.loadFailed == true)
-        #expect(store.content == "old\n")
-        #expect(store.isTruncated == true)
-        #expect(store.loadFailed == true)
+        #expect(store.contentState.content == "old\n")
+        #expect(store.contentState.isTruncated == true)
+        #expect(store.contentState.loadFailed == true)
 
         store.close()
     }
@@ -207,7 +207,7 @@ struct ViewerStoreChunkTests {
         )
         await openAndLoad(store, file)
         _ = await store.loadMoreLines()
-        #expect(store.loadFailed == true)
+        #expect(store.contentState.loadFailed == true)
 
         // ファイル変更を検知した再読込で新しいチャンクセッションが張り直され、
         // loadFailed は false にリセットされる(エラーバナーが再描画で無効な
@@ -215,8 +215,8 @@ struct ViewerStoreChunkTests {
         reader.setFile("new\ncontent", at: file)
         onChangeBox.get()?()
         await awaitLoad(store)
-        #expect(store.loadFailed == false)
-        #expect(store.isTruncated == true)
+        #expect(store.contentState.loadFailed == false)
+        #expect(store.contentState.isTruncated == true)
 
         store.close()
     }
@@ -240,7 +240,7 @@ struct ViewerStoreChunkTests {
         )
         await openAndLoad(store, file)
         _ = await store.loadMoreLines()
-        #expect(store.loadFailed == true)
+        #expect(store.contentState.loadFailed == true)
 
         // ハッシュと fileType が変わらない「同一内容」の再保存であっても、
         // 直前のチャンク読込が失敗している場合は early-return せずに
@@ -248,7 +248,7 @@ struct ViewerStoreChunkTests {
         // loadFailed を無視すると、エラーバナーが再読込しても消えなくなる)。
         onChangeBox.get()?()
         await awaitLoad(store)
-        #expect(store.loadFailed == false)
+        #expect(store.contentState.loadFailed == false)
 
         let result = await store.loadMoreLines()
         #expect(result?.loadFailed == false)
@@ -270,17 +270,17 @@ struct ViewerStoreChunkTests {
         )
         await openAndLoad(store, file)
         _ = await store.loadMoreLines()
-        let revisionAfterLoadMore = store.contentRevision
-        #expect(store.isTruncated == false)
+        let revisionAfterLoadMore = store.contentState.contentRevision
+        #expect(store.contentState.isTruncated == false)
 
         onChangeBox.get()?()
         await awaitLoad(store)
 
         // dataHash・fileType が一致し loadFailed でもないため、表示状態は据え置く。
-        #expect(store.contentRevision == revisionAfterLoadMore)
-        #expect(store.content == "a,b\n1,2\n3,4")
-        #expect(store.isTruncated == false)
-        #expect(store.displayedLineCount == 3)
+        #expect(store.contentState.contentRevision == revisionAfterLoadMore)
+        #expect(store.contentState.content == "a,b\n1,2\n3,4")
+        #expect(store.contentState.isTruncated == false)
+        #expect(store.contentState.displayedLineCount == 3)
 
         store.close()
     }
@@ -318,9 +318,9 @@ struct ViewerStoreChunkTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(store.rejectReason == nil)
-        #expect(store.content.contains("名前"))
-        #expect(store.isTruncated == false)
+        #expect(store.contentState.rejectReason == nil)
+        #expect(store.contentState.content.contains("名前"))
+        #expect(store.contentState.isTruncated == false)
 
         store.close()
     }
@@ -333,8 +333,8 @@ struct ViewerStoreChunkTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(store.content == "# Hello\n\nWorld")
-        #expect(store.isTruncated == false)
+        #expect(store.contentState.content == "# Hello\n\nWorld")
+        #expect(store.contentState.isTruncated == false)
 
         store.close()
     }
@@ -351,9 +351,9 @@ struct ViewerStoreChunkTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(!store.isRejected)
-        #expect(store.fileType == .image(mimeType: "image/png"))
-        #expect(store.content == data.base64EncodedString())
+        #expect(!store.contentState.isRejected)
+        #expect(store.contentState.fileType == .image(mimeType: "image/png"))
+        #expect(store.contentState.content == data.base64EncodedString())
 
         store.close()
     }
@@ -369,7 +369,7 @@ struct ViewerStoreChunkTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(store.rejectReason == .fileTooLarge)
+        #expect(store.contentState.rejectReason == .fileTooLarge)
 
         store.close()
     }
@@ -384,8 +384,8 @@ struct ViewerStoreChunkTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(store.rejectReason == .fileTooLarge)
-        #expect(store.content == "")
+        #expect(store.contentState.rejectReason == .fileTooLarge)
+        #expect(store.contentState.content == "")
 
         store.close()
     }

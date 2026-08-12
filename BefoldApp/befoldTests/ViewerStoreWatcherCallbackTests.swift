@@ -17,14 +17,14 @@ struct ViewerStoreWatcherCallbackTests {
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
         let store = makeStore(reader: reader, onChangeBox: onChangeBox)
         await openAndLoad(store, file)
-        #expect(store.content == "graph TD; A-->B")
+        #expect(store.contentState.content == "graph TD; A-->B")
 
         // ファイル内容を書き換えてから監視コールバックを発火する
         reader.setFile("graph TD; X-->Y", at: file)
         onChangeBox.get()?()
         await awaitLoad(store)
 
-        #expect(store.content == "graph TD; X-->Y")
+        #expect(store.contentState.content == "graph TD; X-->Y")
 
         store.close()
     }
@@ -38,7 +38,7 @@ struct ViewerStoreWatcherCallbackTests {
         let onRenameBox = LockedBox<(@MainActor @Sendable (URL) -> Void)?>(nil)
         let store = makeStore(reader: reader, onRenameBox: onRenameBox)
         await openAndLoad(store, oldFile)
-        #expect(store.filePath == oldFile)
+        #expect(store.contentState.filePath == oldFile)
 
         // 別名 + 別内容 + 別タイプへ移動したことを通知する
         let newFile = URL(fileURLWithPath: "/files/renamed.md")
@@ -49,9 +49,9 @@ struct ViewerStoreWatcherCallbackTests {
         onRenameBox.get()?(newFile)
         await awaitLoad(store)
 
-        #expect(store.filePath == newFile)
-        #expect(store.fileType == .markdown)
-        #expect(store.content == "# Renamed")
+        #expect(store.contentState.filePath == newFile)
+        #expect(store.contentState.fileType == .markdown)
+        #expect(store.contentState.content == "# Renamed")
         #expect(renamedTo == newFile)
 
         store.close()
@@ -109,7 +109,7 @@ struct ViewerStoreWatcherCallbackTests {
         nonisolated(unsafe) var firedCount = 0
         store.onContentReloaded = { firedCount += 1 }
         await openAndLoad(store, file)
-        #expect(store.isRejected)
+        #expect(store.contentState.isRejected)
         #expect(firedCount == 1)
 
         // サイズが上限内に戻る → isRejected が false に変わる再読込でも発火する。
@@ -117,7 +117,7 @@ struct ViewerStoreWatcherCallbackTests {
         onChangeBox.get()?()
         await awaitLoad(store)
 
-        #expect(!store.isRejected)
+        #expect(!store.contentState.isRejected)
         #expect(firedCount == 2)
 
         store.close()

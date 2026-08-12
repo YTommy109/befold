@@ -43,8 +43,8 @@ struct ViewerStoreUnsupportedFileTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(store.rejectReason == testCase.expectedReason)
-        #expect(store.content == "")
+        #expect(store.contentState.rejectReason == testCase.expectedReason)
+        #expect(store.contentState.content == "")
 
         store.close()
     }
@@ -61,9 +61,9 @@ struct ViewerStoreUnsupportedFileTests {
         )
         await openAndLoad(store, file)
 
-        #expect(!store.isRejected)
-        #expect(store.content == "hello")
-        #expect(store.fileType == .code(language: "plaintext"))
+        #expect(!store.contentState.isRejected)
+        #expect(store.contentState.content == "hello")
+        #expect(store.contentState.fileType == .code(language: "plaintext"))
 
         store.close()
     }
@@ -78,8 +78,8 @@ struct ViewerStoreUnsupportedFileTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(!store.isRejected)
-        #expect(store.content == "# Hello")
+        #expect(!store.contentState.isRejected)
+        #expect(store.contentState.content == "# Hello")
 
         store.close()
     }
@@ -95,11 +95,11 @@ struct ViewerStoreUnsupportedFileTests {
 
         let store = makeStore(reader: reader)
         await openAndLoad(store, rejectedFile)
-        #expect(store.isRejected)
+        #expect(store.contentState.isRejected)
 
         await openAndLoad(store, normalFile)
-        #expect(!store.isRejected)
-        #expect(store.content == "# Hello")
+        #expect(!store.contentState.isRejected)
+        #expect(store.contentState.content == "# Hello")
 
         store.close()
     }

@@ -21,7 +21,7 @@ enum ViewerDisplayOptionsApplier {
         _ options: CLIOpenOptions, to controller: ViewerWindowController, forceSidebarVisible: Bool
     ) {
         if let showLineNumbers = options.showLineNumbers {
-            controller.store.applyShowLineNumbersOverride(showLineNumbers)
+            controller.store.lineNumbersSetting.applyOverride(showLineNumbers)
         }
         if let sourceMode = options.sourceMode { controller.applyCLIDisplayMode(isSourceMode: sourceMode) }
         // 並び順は「指定があったときだけ」触る。viewerSortOrder は未指定でも既定値を

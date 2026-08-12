@@ -35,7 +35,8 @@ befold.app (Swift 6 / AppKit + SwiftUI, macOS 14+)
   │     ├── CLIShimCoordinator       # CLI シムの陳腐化チェックと設置
   │     └── AppUpdaterController     # Sparkle アップデータの保持と起動
   ├── FileWatcher                # DispatchSource によるファイル監視（0.2s デバウンス）
-  ├── ViewerStore                # @Observable 表示状態（content / rejectReason / isTruncated）
+  ├── ViewerStore                # @Observable 対象ファイル・表示モード・監視の保持
+  ├── ViewerContentState         # 読み込みが確定させた表示状態（content / fileType / rejectReason / isTruncated）
   ├── ViewerWebView               # WKWebView（NSViewRepresentable、ViewerRenderer を保持）
   └── Sparkle 2                   # 自動アップデート（appcast フィード経由）
 
@@ -156,7 +157,9 @@ BefoldApp/
 
 | コンポーネント | 責務 |
 |---|---|
-| `ViewerStore` | 表示状態（content・ファイル監視・削除検知）を保持する `@Observable` の中核モデル |
+| `ViewerStore` | 対象ファイル・表示モード・ファイル監視・削除検知を保持する `@Observable` の中核モデル |
+| `ViewerContentState` | 読み込みが確定させた表示状態（content / fileType / filePath / rejectReason / 段階読み込み）の単一情報源。`ViewerStore.contentState` が窓ごとに 1 つ持つ |
+| `ShowLineNumbersSetting` | 行番号表示の設定（UserDefaults への永続化と CLI の起動限り上書き）。`ViewerStore` が窓ごとに 1 つ持つ |
 | `ViewerWebView` | `WKWebView` を包む `NSViewRepresentable`。Mermaid/Markdown 等をレンダリング。HTML ファイルは直接ロードも可 |
 | `ViewerContentView` | ビューア本体の SwiftUI ビュー（ズーム・スクロール位置・検索設定・参照クリックの配線） |
 | `PreviewTarget` / `PreviewTargetResolver` | プレビュー領域が提示する対象（文書・フォルダー一覧・未確定）。導出は `FileListModel.previewTarget` の 1 箇所（[ADR 0002](../adr/0002-presentation-state-and-capabilities.md)） |

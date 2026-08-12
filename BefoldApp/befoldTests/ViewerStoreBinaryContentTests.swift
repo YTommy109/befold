@@ -26,9 +26,9 @@ struct ViewerStoreBinaryContentTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(!store.isRejected)
-        #expect(store.fileType == expectedType)
-        #expect(store.content == data.base64EncodedString())
+        #expect(!store.contentState.isRejected)
+        #expect(store.contentState.fileType == expectedType)
+        #expect(store.contentState.content == data.base64EncodedString())
 
         store.close()
     }
@@ -45,13 +45,13 @@ struct ViewerStoreBinaryContentTests {
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
         let store = makeStore(reader: reader, onChangeBox: onChangeBox)
         await openAndLoad(store, file)
-        #expect(store.content == data1.base64EncodedString())
+        #expect(store.contentState.content == data1.base64EncodedString())
 
         reader.setDataFile(data2, at: file)
         onChangeBox.get()?()
         await awaitLoad(store)
 
-        #expect(store.content == data2.base64EncodedString())
+        #expect(store.contentState.content == data2.base64EncodedString())
 
         store.close()
     }
@@ -67,8 +67,8 @@ struct ViewerStoreBinaryContentTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(store.isRejected)
-        #expect(store.content == "")
+        #expect(store.contentState.isRejected)
+        #expect(store.contentState.content == "")
 
         store.close()
     }
@@ -85,8 +85,8 @@ struct ViewerStoreBinaryContentTests {
         let store = makeStore(reader: reader)
         await openAndLoad(store, file)
 
-        #expect(store.isRejected)
-        #expect(store.content == "")
+        #expect(store.contentState.isRejected)
+        #expect(store.contentState.content == "")
 
         store.close()
     }
