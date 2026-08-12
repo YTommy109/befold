@@ -55,6 +55,10 @@ final class ViewerWindowManager {
     /// openViewer のファイル存在ガードが使う I/O 抽象。静的な DefaultFileReader を直接叩かず
     /// ここへ集約することで、テストが InMemoryFileReader を注入して存在確認をモック化できる。
     let fileReader: any FileReading
+    /// 開こうとしたファイルが無かったことの通知。第 2 引数は「ブックマークから削除」を
+    /// 提示するときの操作(nil なら提示しない)。既定は実アラートで、テストが実 NSAlert を
+    /// 出さずに提示内容を検証するための唯一のシーム(SessionRestorer.presentFileNotFound と同じ形)。
+    let presentFileNotFound: (URL, (() -> Void)?) -> Void
     /// openViewer が生成するコントローラへ渡す ViewerStore の差し替え口。nil なら
     /// ViewerWindowController が従来どおり自前で生成する(本番の既定)。
     let makeStore: ((URL) -> ViewerStore)?
@@ -108,6 +112,9 @@ final class ViewerWindowManager {
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore,
         fileReader: any FileReading = DefaultFileReader(),
+        presentFileNotFound: @escaping (URL, (() -> Void)?) -> Void = { url, onRemoveBookmark in
+            FileNotFoundUI.present(url: url, over: nil, onRemoveBookmark: onRemoveBookmark)
+        },
         makeStore: ((URL) -> ViewerStore)? = nil,
         makeContentView: (() -> AnyView)? = nil,
         gitFileIndex: any GitFileIndexing = GitCommandFileIndex(),
@@ -128,6 +135,7 @@ final class ViewerWindowManager {
         self.perFileState = perFileState
         self.bookmarkStore = bookmarkStore
         self.fileReader = fileReader
+        self.presentFileNotFound = presentFileNotFound
         self.makeStore = makeStore
         self.makeContentView = makeContentView
         recentRepositories = RecentRepositoryRecorder(

@@ -12,27 +12,36 @@ import BefoldKit
 enum FileNotFoundUI {
     /// File Not Found アラートを表示する。
     /// `window` があればそこにシート表示し、無ければアプリモーダルで表示する。
-    static func present(url: URL, over window: NSWindow?) {
-        let alert = makeAlert(for: url)
+    ///
+    /// - Parameter onRemoveBookmark: 渡したときだけ「ブックマークから削除」ボタンが出て、
+    ///   押されたときに呼ばれる。開けないブックマークを外す唯一の個別経路であり、
+    ///   ブックマーク済みのファイルを開こうとした経路だけが渡す(既定の nil は出さない)。
+    static func present(url: URL, over window: NSWindow?, onRemoveBookmark: (() -> Void)? = nil) {
+        let alert = makeAlert(for: url, offersRemoveBookmark: onRemoveBookmark != nil)
+        let handle: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .alertSecondButtonReturn else { return }
+            onRemoveBookmark?()
+        }
         if let window {
-            alert.beginSheetModal(for: window)
+            alert.beginSheetModal(for: window, completionHandler: handle)
         } else {
-            alert.runModal()
+            handle(alert.runModal())
         }
     }
 
-    private static func makeAlert(for url: URL) -> NSAlert {
+    private static func makeAlert(for url: URL, offersRemoveBookmark: Bool) -> NSAlert {
         let alert = NSAlert()
-        alert.messageText = String(
-            localized: "alert.fileNotFound.message",
-            defaultValue: "File Not Found",
-            bundle: .l10n
-        )
+        alert.messageText = String(localized: "alert.fileNotFound.message", bundle: .l10n)
         // 経路によりシンボリックリンクの解決状態が異なる(/tmp と /private/tmp 等)ため、
         // 表示パスは normalizedPathKey に揃えて経路間で一致させる。
         alert.informativeText = url.normalizedPathKey
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")
+        if offersRemoveBookmark {
+            alert.addButton(
+                withTitle: String(localized: "alert.fileNotFound.removeBookmark", bundle: .l10n)
+            )
+        }
         return alert
     }
 }

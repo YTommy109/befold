@@ -26,7 +26,7 @@ extension ViewerWindowManager {
     ) -> ViewerWindowController? {
         guard fileReader.fileExists(at: url) else {
             // 新規オープン時点ではまだ親ウィンドウが無いため over: nil でモーダル表示する。
-            FileNotFoundUI.present(url: url, over: nil)
+            presentFileNotFound(url, removeBookmarkAction(for: url))
             return nil
         }
 
@@ -64,6 +64,14 @@ extension ViewerWindowManager {
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         recentRepositories.recordIfNeeded(for: url, controller: controller)
         return controller
+    }
+
+    /// 見つからなかったファイルがブックマーク済みなら、それを外す操作を返す(でなければ nil)。
+    /// ブックマークは「該当ファイルを開いてトグルオフする」でしか外せないため、開けなくなった
+    /// ファイルはこの経路が唯一の個別の外し口になる(issue #485)。
+    private func removeBookmarkAction(for url: URL) -> (() -> Void)? {
+        guard bookmarkStore.isBookmarked(url) else { return nil }
+        return { [bookmarkStore] in bookmarkStore.remove(url) }
     }
 
     /// 新規ウィンドウのコントローラを、初期表示状態(サイドバー開閉・ウィンドウ枠)を

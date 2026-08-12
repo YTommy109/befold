@@ -20,9 +20,17 @@ final class MainMenuCoordinator {
             NSDocumentController.shared.clearRecentDocuments(nil)
         }
     )
+    /// 開けなくなったブックマークの一括除去。存在確認をここ(ユーザーが項目を選んだとき)へ
+    /// 閉じ込めるため、BookmarksMenuController には結果のハンドラだけを渡す。
+    private lazy var missingBookmarksPruner = MissingBookmarksPruner(
+        bookmarkStore: stores.bookmarkStore
+    )
     private lazy var bookmarksMenuController = BookmarksMenuController(
         bookmarkedURLs: { [store = stores.bookmarkStore] in store.bookmarkedURLs() },
-        openHandler: { [openHandler] url in openHandler(url) }
+        openHandler: { [openHandler] url in openHandler(url) },
+        removeMissingHandler: { [missingBookmarksPruner] in
+            Task { await missingBookmarksPruner.pruneMissingBookmarks() }
+        }
     )
     private lazy var recentRepositoriesMenuController = RecentRepositoriesMenuController(
         entries: { [store = stores.recentRepositoriesStore] in store.entries() },
