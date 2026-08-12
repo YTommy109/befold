@@ -15816,46 +15816,129 @@
       _walkTextNodes(wrap, false);
     }
   }
+  function _isSkippedElement(el) {
+    var tag = el.tagName.toLowerCase();
+    return tag === "a" || tag === "svg" || el.classList.contains("mermaid") || el.classList.contains("befold-path-ref");
+  }
   function _walkTextNodes(node, allowed) {
     if (node.nodeType === 3) {
-      if (!allowed) return;
-      var text3 = node.textContent;
-      _PATH_RE.lastIndex = 0;
-      var match2 = _PATH_RE.exec(text3);
-      if (!match2) return;
-      var frag = document.createDocumentFragment();
-      var lastIndex = 0;
-      do {
-        if (match2.index > lastIndex) {
-          frag.appendChild(document.createTextNode(text3.slice(lastIndex, match2.index)));
+      if (allowed) {
+        _annotateTextNodes([node]);
+      }
+      return;
+    }
+    if (node.nodeType !== 1) {
+      return;
+    }
+    if (_isSkippedElement(node)) {
+      return;
+    }
+    var tag = node.tagName.toLowerCase();
+    if (tag === "pre") {
+      _walkChildren(node, false);
+      return;
+    }
+    if (allowed || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1) {
+      _annotateUnit(node);
+      return;
+    }
+    _walkChildren(node, allowed);
+  }
+  function _walkChildren(node, allowed) {
+    var children = Array.prototype.slice.call(node.childNodes);
+    for (var i = 0; i < children.length; i++) {
+      _walkTextNodes(children[i], allowed);
+    }
+  }
+  function _annotateUnit(el) {
+    var nodes = [];
+    _collectUnitTextNodes(el, nodes);
+    _annotateTextNodes(nodes);
+  }
+  function _collectUnitTextNodes(node, out) {
+    var children = Array.prototype.slice.call(node.childNodes);
+    for (var i = 0; i < children.length; i++) {
+      var child = children[i];
+      if (child.nodeType === 3) {
+        out.push(child);
+        continue;
+      }
+      if (child.nodeType !== 1) {
+        continue;
+      }
+      if (_isSkippedElement(child)) {
+        continue;
+      }
+      var tag = child.tagName.toLowerCase();
+      if (tag === "pre" || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1) {
+        _walkTextNodes(child, false);
+        continue;
+      }
+      _collectUnitTextNodes(child, out);
+    }
+  }
+  function _annotateTextNodes(nodes) {
+    if (!nodes.length) {
+      return;
+    }
+    var text3 = "";
+    var starts = [];
+    for (var i = 0; i < nodes.length; i++) {
+      starts.push(text3.length);
+      text3 += nodes[i].textContent;
+    }
+    _PATH_RE.lastIndex = 0;
+    var segments = null;
+    var match2;
+    while ((match2 = _PATH_RE.exec(text3)) !== null) {
+      var from = match2.index;
+      var to = from + match2[0].length;
+      for (var n = 0; n < nodes.length; n++) {
+        var nodeStart = starts[n];
+        var nodeEnd = nodeStart + nodes[n].textContent.length;
+        if (nodeEnd <= from || nodeStart >= to) {
+          continue;
         }
-        var span = document.createElement("span");
-        span.className = "befold-path-ref";
-        span.dataset.path = match2[0];
-        span.textContent = match2[0];
-        frag.appendChild(span);
-        lastIndex = _PATH_RE.lastIndex;
-      } while ((match2 = _PATH_RE.exec(text3)) !== null);
-      if (lastIndex < text3.length) {
-        frag.appendChild(document.createTextNode(text3.slice(lastIndex)));
-      }
-      node.parentNode.replaceChild(frag, node);
-    } else if (node.nodeType === 1) {
-      var tag = node.tagName.toLowerCase();
-      if (tag === "a" || tag === "svg" || node.classList.contains("mermaid") || node.classList.contains("befold-path-ref")) {
-        return;
-      }
-      var childAllowed;
-      if (tag === "pre") {
-        childAllowed = false;
-      } else {
-        childAllowed = allowed || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1;
-      }
-      var children = Array.prototype.slice.call(node.childNodes);
-      for (var j = 0; j < children.length; j++) {
-        _walkTextNodes(children[j], childAllowed);
+        if (!segments) {
+          segments = {};
+        }
+        if (!segments[n]) {
+          segments[n] = [];
+        }
+        segments[n].push({
+          start: Math.max(from, nodeStart) - nodeStart,
+          end: Math.min(to, nodeEnd) - nodeStart,
+          path: match2[0]
+        });
       }
     }
+    if (!segments) {
+      return;
+    }
+    for (var key in segments) {
+      _replaceWithSegments(nodes[key], segments[key]);
+    }
+  }
+  function _replaceWithSegments(node, segments) {
+    var text3 = node.textContent;
+    var frag = document.createDocumentFragment();
+    var lastIndex = 0;
+    for (var i = 0; i < segments.length; i++) {
+      var seg = segments[i];
+      if (seg.start > lastIndex) {
+        frag.appendChild(document.createTextNode(text3.slice(lastIndex, seg.start)));
+      }
+      var span = document.createElement("span");
+      span.className = "befold-path-ref";
+      span.dataset.path = seg.path;
+      span.textContent = text3.slice(seg.start, seg.end);
+      frag.appendChild(span);
+      lastIndex = seg.end;
+    }
+    if (lastIndex < text3.length) {
+      frag.appendChild(document.createTextNode(text3.slice(lastIndex)));
+    }
+    node.parentNode.replaceChild(frag, node);
   }
   var _mmdPendingRefBatches = [];
   function _mmdIsClassifiedRef(el) {

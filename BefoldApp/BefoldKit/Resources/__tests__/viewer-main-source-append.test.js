@@ -107,20 +107,44 @@ describe('ソース表示のパス参照', () => {
 
   // .swift（code 種別）は常にソース表示で、以前から注釈されていた。
   // 同じ文字列が .md のソース表示では死んでいたため、両者の一致を固定する。
+  // 数ではなく検出されたパスの集合で比べる。ハイライトで span に割られた側は
+  // 1 つのパスが複数の span に分かれるため、数は一致しない。
   test('.md のソース表示と .swift で挙動が一致する', async () => {
     const md = loadViewerMain({});
     const code = loadViewerMain({});
 
-    // コメント行にするのは、ハイライトがパス文字列を span で割らない形にするため。
-    // 素の `see ./notes.md ...` は swift ハイライトが `./` を hljs-operator として
-    // 切り出し、テキストノードが分かれてパス参照として認識されない(TASK-455)。
-    await renderIn(md.main, 'source', '// see ./notes.md for details\n', 'md');
-    await renderIn(code.main, 'source', '// see ./notes.md for details\n', 'code', 'swift');
+    await renderIn(md.main, 'source', 'see ./notes.md for details\n', 'md');
+    await renderIn(code.main, 'source', 'see ./notes.md for details\n', 'code', 'swift');
 
-    const mdRefs = md.document.querySelectorAll('#diagram-wrap .befold-path-ref').length;
-    const codeRefs = code.document.querySelectorAll('#diagram-wrap .befold-path-ref').length;
-    expect(mdRefs).toBe(codeRefs);
-    expect(mdRefs).toBeGreaterThan(0);
+    const paths = (doc) =>
+      Array.from(new Set(
+        Array.from(doc.querySelectorAll('#diagram-wrap .befold-path-ref')).map(
+          (el) => el.getAttribute('data-path')
+        )
+      )).sort();
+    expect(paths(md.document)).toEqual(['./notes.md']);
+    expect(paths(code.document)).toEqual(['./notes.md']);
+  });
+
+  // swift ハイライトは `./` を hljs-operator として切り出すため、`./notes.md` は
+  // 2 つのテキストノードに割れる。注釈は行のテキスト全体で一致を取り、割れた
+  // 各片をそれぞれ包む（data-path はどの片もパス全体を指す）(TASK-455)。
+  test('ハイライトの span に割られたパス参照も注釈される', async () => {
+    const { document, main } = loadViewerMain({});
+
+    await renderIn(main, 'source', 'see ./notes.md for details\n', 'code', 'swift');
+
+    const line = document.querySelector('#diagram-wrap td.line-content');
+    // 前提（この行が実際に span で割れていること）を固定する。割れなくなったら
+    // このテストは退行検知としての意味を失うため、明示的に確かめる。
+    expect(line.querySelectorAll('span.hljs-operator').length).toBeGreaterThan(0);
+
+    const refs = Array.from(document.querySelectorAll('#diagram-wrap .befold-path-ref'));
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs.map((el) => el.getAttribute('data-path'))).toEqual(refs.map(() => './notes.md'));
+    expect(refs.map((el) => el.textContent).join('')).toBe('./notes.md');
+    // 行のテキストそのものは変わらない（注釈は包むだけ）。
+    expect(line.textContent).toBe('see ./notes.md for details');
   });
 
   test('チャンク追記の前後でパス参照の扱いが変わらない', async () => {
