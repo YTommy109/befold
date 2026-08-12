@@ -128,6 +128,17 @@ swift package plugin --allow-writing-to-package-directory swiftformat
   （例: ウィンドウ管理 + サイドバー + 履歴）が 1 クラスに同居し始めたら凝集単位で分割する。
   分割先は `SidebarNavigator`（ホストへの weak 参照 + プロトコル `〜Host` で逆方向依存を切る）の
   パターンに揃える
+- **行数閾値は型グループ単位で機械的に強制される**: `scripts/check-type-group-size.sh` が
+  「`Foo.swift` + 同ディレクトリの `Foo+*.swift`」を合算し、400 行（SwiftLint の
+  `file_length` warning と同値）を超えたら CI で落とす。ファイルを `Type+Feature.swift` へ
+  割っても合算値は減らないので、上限回避を目的とした extension 分割は通らない。
+  超えたら責務を別の型へ切り出すこと
+  - **恒久例外**: どうしても閾値へ収まらないグループだけを
+    `scripts/type-group-exceptions.txt` に「グループキー・上限行数・**理由**」の 3 点で
+    列挙する。理由の無いエントリはスクリプトが弾く。現在の登録は
+    `ViewerWindowController`（上限 900 行）1 件のみ
+  - 例外は現状値の凍結ではない。上限まで太らせてよいという意味ではなく、返済して
+    閾値以下へ戻せたら行を消す（不要な例外が残っていると CI が警告する）
 - **クロージャバンドルが 3 つを超えたら delegate プロトコルを検討する**:
   親→子へのコールバック注入がクロージャで 3 つを超えた場合、delegate プロトコルへの
   置換を検討する。特に、クロージャが値をキャプチャしており **rename / switch のたびに

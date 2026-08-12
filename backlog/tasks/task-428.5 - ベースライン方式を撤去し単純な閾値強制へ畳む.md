@@ -1,10 +1,11 @@
 ---
 id: TASK-428.5
 title: ベースライン方式を撤去し単純な閾値強制へ畳む
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-08-10 12:35'
-updated_date: '2026-08-12 02:22'
+updated_date: '2026-08-12 03:33'
 labels: []
 dependencies:
   - TASK-459
@@ -33,12 +34,12 @@ ordinal: 104500
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ベースラインファイル（増加のみ禁止のラチェット）が撤去されている
-- [ ] #2 判定が「型グループの行数が閾値以下か、または明示された恒久例外に該当するか」のみになり、差分比較のロジックが残っていない
-- [ ] #3 恒久例外は「グループキー・上限行数・理由」を持つ形で列挙されており、理由の記載が無いエントリを追加できない（スクリプトが弾く）
-- [ ] #4 ViewerWindowController が恒久例外として上限 900 行・理由付きで登録されている
+- [x] #1 ベースラインファイル（増加のみ禁止のラチェット）が撤去されている
+- [x] #2 判定が「型グループの行数が閾値以下か、または明示された恒久例外に該当するか」のみになり、差分比較のロジックが残っていない
+- [x] #3 恒久例外は「グループキー・上限行数・理由」を持つ形で列挙されており、理由の記載が無いエントリを追加できない（スクリプトが弾く）
+- [x] #4 ViewerWindowController が恒久例外として上限 900 行・理由付きで登録されている
 - [ ] #5 main で CI が緑である
-- [ ] #6 docs/dev/rules/product-code.md の責務分離節に、型グループ単位の閾値が機械強制されている旨と恒久例外の運用が追記されている
+- [x] #6 docs/dev/rules/product-code.md の責務分離節に、型グループ単位の閾値が機械強制されている旨と恒久例外の運用が追記されている
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -70,4 +71,20 @@ ordinal: 104500
 TASK-426 / TASK-430 は Done だが、切り出し先を同ディレクトリの `Foo+*.swift` にしたため型グループ合計は減っていない（このチェックは `Foo.swift` と同ディレクトリの `Foo+*.swift` を合算する）。
 
 **決定（ユーザー判断, 2026-08-12）**: 恒久例外を増やさず、返済タスクを起票してから着手する。TASK-459（ViewerWindowManager）/ TASK-460（ViewerStore）を起票し、本タスクの依存に追加した。恒久例外は ViewerWindowController の 1 件のみとする。
+
+## 撤去の実装（2026-08-12）
+
+ベースライン方式（`scripts/type-group-baseline.txt` と差分比較）を撤去し、判定を
+「型グループの行数が閾値 400 以下、または `scripts/type-group-exceptions.txt` の恒久例外の上限以下」だけに畳んだ。
+
+- 例外の形式は `<グループキー><TAB><上限行数><TAB><理由>` の 3 列。列数不足・上限が非数値・理由が空白のみのエントリは形式不正として exit 1 で弾く（self-test の「理由なしの例外」ケースで担保）
+- 登録は `BefoldApp/befold/App/ViewerWindowController`（上限 900・理由付き）の 1 件のみ。実測 802 行
+- 終了コード: 0 = 問題なし / 1 = 閾値超過・例外の上限超過・形式不正 / 2 = 不要な例外が残っている（返済済みグループの例外行、または集計結果に無いキー）。2 は CI で `::warning::` に留める（返済した側を赤くしないため）
+- `--baseline` / `--update-baseline` オプションは削除。「値を書き換えれば通る」逃げ道が構造として消えた
+- self-test を 5 ケースへ差し替え: 閾値超過 / 例外で許容 / 例外の上限超過 / 理由なしの例外 / 不要な例外（閾値以下・消滅の 2 種）
+- 配線の追随: ci.yml の `on.paths` と changes ジョブの grep（baseline → exceptions）、type-group-size ジョブの警告文、warn-type-group-growth.sh の doc
+
+**実測**: `scripts/check-type-group-size.sh --self-test` OK、`--check` exit 0（「型グループの行数は閾値以内です」）、`markdownlint-cli2` 0 issues。Swift コードの変更は無いためビルド・テストは対象外。
+
+AC #5（main で CI が緑）はマージ後に確認する。
 <!-- SECTION:NOTES:END -->

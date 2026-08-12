@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 型グループ（`Foo.swift` + 同ディレクトリの `Foo+*.swift`）単位で行数を集計する。
+# 型グループ（`Foo.swift` + 同ディレクトリの `Foo+*.swift`）単位で行数を集計し、
+# 閾値（400 行）以下であることを強制する。
 #
 # 背景(TASK-428): SwiftLint の `file_length` はファイル単位の判定なので、責務を分けずに
 # ファイルだけ `Type+Feature.swift` へ割れば必ず通る。TASK-411 の Description が実例を
@@ -9,13 +10,16 @@ set -euo pipefail
 # これは同じ行数上限を回避するために切られたものであり責務の分離にはなっていない」。
 # 合算で数えればこの逃げ道が塞がる。
 #
-# このスクリプトは集計と出力だけを行う（判定・ブロックは後続サブタスクで足す）。
+# 判定は「行数 <= 閾値、または恒久例外の上限以下」のみ(TASK-428.5)。返済期間中の足場だった
+# ベースライン方式（現状値を凍結して増加のみ禁止するラチェット）は撤去した。ベースラインが
+# 残る限り「値を書き換えれば通る」逃げ道が構造として存在するため。例外は
+# `scripts/type-group-exceptions.txt` に「グループキー・上限行数・理由」の 3 点で列挙する。
 #
 # 使い方:
 #   scripts/check-type-group-size.sh              # 全グループを行数の降順で出力する
 #   scripts/check-type-group-size.sh --over       # 閾値を超えたグループだけを出力する
-#   scripts/check-type-group-size.sh --baseline   # ベースラインファイルの形式で出力する
-#   scripts/check-type-group-size.sh --self-test  # 集計とグループ化が正しいことを確認する
+#   scripts/check-type-group-size.sh --check      # 判定する（CI / pre-commit が使う）
+#   scripts/check-type-group-size.sh --self-test  # 集計・グループ化・判定が正しいことを確認する
 
 ROOT="$(git rev-parse --show-toplevel)"
 SOURCE_DIR="${TYPE_GROUP_SOURCE_DIR:-$ROOT/BefoldApp}"
@@ -24,7 +28,7 @@ SOURCE_DIR="${TYPE_GROUP_SOURCE_DIR:-$ROOT/BefoldApp}"
 # 「400 行の型は分割を検討する」という基準自体はグループでも変わらないため揃える。
 THRESHOLD="${TYPE_GROUP_THRESHOLD:-400}"
 
-BASELINE="${TYPE_GROUP_BASELINE:-$ROOT/scripts/type-group-baseline.txt}"
+EXCEPTIONS="${TYPE_GROUP_EXCEPTIONS:-$ROOT/scripts/type-group-exceptions.txt}"
 
 # 集計対象から外すのは `.swiftlint.yml` の `excluded` と同じ 2 つだけ。テストターゲットも
 # `file_length` の対象なので、ここでも同じ扱いにする。
@@ -65,54 +69,54 @@ format_sorted() {
   sort -k1,1nr -k2,2
 }
 
-format_baseline() {
-  # ベースラインはキーの辞書順で固定する。行数順にすると 1 グループの増減で無関係な行が
-  # 動き、差分レビューで増減が読めなくなるため。
-  sort -k2,2
-}
-
-# ベースラインと現状を突き合わせ、違反を stderr へ報告する。
+# 閾値（と恒久例外の上限）を超えたグループを stderr へ報告する。
 #
-# 終了コード: 0 = 問題なし / 1 = 違反（増加・新規の閾値超過） / 2 = ベースラインが古い（減少のみ）
+# 終了コード: 0 = 問題なし / 1 = 違反または例外エントリの形式不正 / 2 = 不要になった例外が残っている
 #
-# 減少を違反にしない理由: 返済のたびにベースライン更新のコミットを強制すると、分割作業の
-# 途中でフックが赤くなり続けて `--no-verify` を常用する圧力になる。古いベースラインが許すのは
-# 「元の値まで戻る」ことだけで無制限の増加ではないため、警告 + 更新コマンドの提示に留める。
-# 更新自体は 1 コマンド（--baseline の出力を書き戻す）で済むようにしてある。
-compare_with_baseline() {
-  [ -f "$BASELINE" ] || { echo "エラー: ベースラインがありません: $BASELINE" >&2; return 1; }
-  collect | format_baseline | awk -F'\t' -v t="$THRESHOLD" '
+# 不要な例外を違反にしない理由: 返済して閾値以下へ戻した瞬間にコミットが赤くなると、
+# 分割作業の途中で `--no-verify` を常用する圧力になる。残っていても判定が緩むのは
+# その 1 グループだけなので、警告に留めて掃除を促す。
+enforce_threshold() {
+  [ -f "$EXCEPTIONS" ] || { echo "エラー: 恒久例外ファイルがありません: $EXCEPTIONS" >&2; return 1; }
+  collect | sort -k2,2 | awk -F'\t' -v t="$THRESHOLD" '
+    # 1 ファイル目: 恒久例外。形式は <キー><TAB><上限><TAB><理由> の 3 列で、理由が空なら弾く。
     NR == FNR {
       if ($0 ~ /^#/ || $0 == "") next
-      base[$2] = $1
+      if (NF != 3 || $1 == "" || $2 !~ /^[0-9]+$/ || $3 ~ /^[[:space:]]*$/) {
+        printf "例外の形式が不正です（<グループキー><TAB><上限行数><TAB><理由> の 3 列で、理由は必須）: %s\n", $0 > "/dev/stderr"
+        malformed = 1
+        next
+      }
+      limit[$1] = $2
       next
     }
     {
-      cur[$2] = $1
-      if ($2 in base) {
-        if ($1 > base[$2]) {
-          printf "増加: %s が %d 行 → %d 行（+%d）\n", $2, base[$2], $1, $1 - base[$2] > "/dev/stderr"
+      key = $2; lines = $1
+      if (key in limit) {
+        seen[key] = 1
+        if (lines > limit[key]) {
+          printf "恒久例外の上限超過: %s が %d 行（上限 %d）\n", key, lines, limit[key] > "/dev/stderr"
           violated = 1
-        } else if ($1 < base[$2]) {
-          printf "減少: %s が %d 行 → %d 行（-%d）ベースラインが古くなっています\n", $2, base[$2], $1, base[$2] - $1 > "/dev/stderr"
+        } else if (lines <= t) {
+          printf "不要な例外: %s は %d 行で閾値 %d 以下です。scripts/type-group-exceptions.txt から行を消してください\n", key, lines, t > "/dev/stderr"
           stale = 1
         }
-      } else if ($1 > t) {
-        printf "新規の閾値超過: %s が %d 行（閾値 %d）\n", $2, $1, t > "/dev/stderr"
+      } else if (lines > t) {
+        printf "閾値超過: %s が %d 行（閾値 %d）\n", key, lines, t > "/dev/stderr"
         violated = 1
       }
     }
     END {
-      for (k in base) {
-        if (!(k in cur)) {
-          printf "消滅: %s がベースラインにありますが集計結果にありません\n", k > "/dev/stderr"
+      for (k in limit) {
+        if (!(k in seen)) {
+          printf "不要な例外: %s は集計結果にありません。scripts/type-group-exceptions.txt から行を消してください\n", k > "/dev/stderr"
           stale = 1
         }
       }
-      if (violated) exit 1
+      if (malformed || violated) exit 1
       if (stale) exit 2
     }
-  ' "$BASELINE" -
+  ' "$EXCEPTIONS" -
 }
 
 case "${1:-}" in
@@ -161,14 +165,14 @@ case "${1:-}" in
       echo "$out" >&2
       fail=1
     fi
-    # ラチェット判定。閾値を 4 に落とし、App/Foo(6 行) / Other/Foo(4 行) / App/URL(5 行) を
-    # 相手に「増加」「新規の閾値超過」「減少」の 3 ケースを確認する。
+    # 判定。閾値を 4 に落とし、App/Foo(6 行) / Other/Foo(4 行) / App/URL(5 行) を相手に
+    # 「閾値超過」「例外で許容」「例外の上限超過」「不要な例外」「理由なしの例外」を確認する。
     THRESHOLD=4
-    BASELINE="$tmp/baseline.txt"
+    EXCEPTIONS="$tmp/exceptions.txt"
 
     check_case() {
       local label="$1" want_status="$2" want_message="$3" out status=0
-      out="$(compare_with_baseline 2>&1 1>/dev/null)" || status=$?
+      out="$(enforce_threshold 2>&1 1>/dev/null)" || status=$?
       if [ "$status" != "$want_status" ]; then
         echo "self-test 失敗: $label の終了コードが $status（期待 $want_status）" >&2
         echo "$out" >&2
@@ -180,58 +184,64 @@ case "${1:-}" in
       fi
     }
 
-    # 増加: App/Foo をベースラインでは 5 行としておく（実際は 6 行）。
-    printf '# comment\n5\tApp/Foo\n5\tApp/URL\n' > "$BASELINE"
-    check_case "増加" 1 "App/Foo が 5 行 → 6 行（+1）"
+    # 閾値超過: 例外が空なら App/Foo(6 行) と App/URL(5 行) が閾値 4 を超えて落ちる。
+    printf '# comment\n' > "$EXCEPTIONS"
+    check_case "閾値超過" 1 "閾値超過: App/Foo が 6 行（閾値 4）"
 
-    # 新規の閾値超過: ベースラインに無い Other/Foo(4 行) は閾値 4 を超えないので通り、
-    # 閾値を 3 に落とすと検知される。
-    THRESHOLD=3
-    check_case "新規の閾値超過" 1 "新規の閾値超過: Other/Foo が 4 行"
-    THRESHOLD=4
+    # 例外で許容: 両方を上限付きで登録すると通る（終了コード 0）。
+    printf 'App/Foo\t6\t理由\nApp/URL\t5\t理由\n' > "$EXCEPTIONS"
+    status=0
+    enforce_threshold > /dev/null 2>&1 || status=$?
+    if [ "$status" != 0 ]; then
+      echo "self-test 失敗: 例外で許容されるはずが終了コード $status" >&2
+      enforce_threshold >&2 || true
+      fail=1
+    fi
 
-    # 減少: App/Foo を実際より大きい 9 行で記録すると、終了コード 2（警告）になる。
-    printf '9\tApp/Foo\n5\tApp/URL\n' > "$BASELINE"
-    check_case "減少" 2 "App/Foo が 9 行 → 6 行（-3）"
+    # 例外の上限超過: App/Foo の上限を 5 に下げると落ちる。
+    printf 'App/Foo\t5\t理由\nApp/URL\t5\t理由\n' > "$EXCEPTIONS"
+    check_case "例外の上限超過" 1 "恒久例外の上限超過: App/Foo が 6 行（上限 5）"
+
+    # 理由なしの例外は形式不正として弾く。
+    printf 'App/Foo\t6\nApp/URL\t5\t理由\n' > "$EXCEPTIONS"
+    check_case "理由なしの例外" 1 "例外の形式が不正です"
+
+    # 不要な例外: 閾値以下に戻ったグループ（Other/Foo は 4 行 = 閾値）の例外は警告。
+    printf 'App/Foo\t6\t理由\nApp/URL\t5\t理由\nOther/Foo\t9\t理由\n' > "$EXCEPTIONS"
+    check_case "不要な例外" 2 "不要な例外: Other/Foo は 4 行で閾値 4 以下です"
+
+    # 集計結果に無いキーの例外も警告。
+    printf 'App/Foo\t6\t理由\nApp/URL\t5\t理由\nApp/Gone\t9\t理由\n' > "$EXCEPTIONS"
+    check_case "消滅した例外" 2 "不要な例外: App/Gone は集計結果にありません"
 
     [ "$fail" = 0 ] || exit 1
-    echo "self-test OK: 合算・ディレクトリ分離・孤児 extension・excluded 除外と、増加/新規超過/減少の 3 判定を確認しました"
-    ;;
-  --baseline)
-    collect | format_baseline
+    echo "self-test OK: 合算・ディレクトリ分離・孤児 extension・excluded 除外と、閾値超過/例外で許容/上限超過/理由なし/不要な例外の判定を確認しました"
     ;;
   --check)
     status=0
-    compare_with_baseline || status=$?
+    enforce_threshold || status=$?
     case "$status" in
-      0) echo "型グループの行数はベースライン以内です" ;;
+      0) echo "型グループの行数は閾値以内です" ;;
       1)
         cat >&2 <<EOF
 
-型グループ（Foo.swift + 同ディレクトリの Foo+*.swift の合算）の行数が増えています。
-ファイルを extension へ割っても合算値は減りません。責務を分けて別の型へ切り出すか、
-不要なコードを削ってください。
+型グループ（Foo.swift + 同ディレクトリの Foo+*.swift の合算）の行数が閾値 ${THRESHOLD} を
+超えています。ファイルを extension へ割っても合算値は減りません。責務を分けて別の型へ
+切り出すか、不要なコードを削ってください。
 
-意図的にベースラインを引き上げる場合は、その理由をコミットメッセージへ書いた上で:
-  scripts/check-type-group-size.sh --update-baseline
+どうしても閾値へ収まらない場合のみ、scripts/type-group-exceptions.txt へ
+「グループキー<TAB>上限行数<TAB>理由」を追記します（理由の無いエントリは弾かれます）。
 EOF
         ;;
       2)
         cat >&2 <<EOF
 
-行数が減ったグループがあります（ラチェットを締め直せます）:
-  scripts/check-type-group-size.sh --update-baseline
+不要になった恒久例外が残っています。scripts/type-group-exceptions.txt から該当行を
+削除してください。
 EOF
         ;;
     esac
     exit "$status"
-    ;;
-  --update-baseline)
-    # コメントヘッダを保ったまま数値行だけを差し替える。
-    header="$(grep -E '^#|^$' "$BASELINE" || true)"
-    { echo "$header"; collect | format_baseline | awk -F'\t' -v t="$THRESHOLD" '$1 > t'; } > "$BASELINE.tmp"
-    mv "$BASELINE.tmp" "$BASELINE"
-    echo "ベースラインを更新しました: ${BASELINE#"$ROOT"/}"
     ;;
   --over)
     collect | format_sorted | awk -F'\t' -v t="$THRESHOLD" '$1 > t'
