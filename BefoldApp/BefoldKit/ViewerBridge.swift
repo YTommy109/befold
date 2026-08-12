@@ -1,82 +1,24 @@
 import Foundation
 
-/// viewer.html 内の JS と Swift の間のブリッジ契約(関数名・メッセージ名・グローバル変数)を集約する。
+/// Swift → JS 方向のブリッジ契約(関数名・グローバル変数への注入スクリプト)を集約する。
 /// ここの文字列を変更する場合は viewer.html 側の定義とあわせて変更すること
 /// (整合性は ViewerBridgeTests がソースを読んで検証する)。
+///
+/// 逆方向(JS → Swift の postMessage メッセージ名・ペイロードキー)は
+/// `ViewerBridgeMessage`、git 差分の呼び出しは `ViewerDiffBridge` が持つ。
 public enum ViewerBridge {
-    /// JS → Swift の postMessage メッセージ。ハンドラの登録側(`messageHandlerNames`)と
-    /// 受信側のルーティングをここから導出し、両者が同期を要求される 2 つのリストに
-    /// 分かれるのを防ぐ(登録したのにルーティングを書き忘れて無反応、を型で潰す)。
-    public enum BridgeMessage: String, CaseIterable, Sendable {
-        /// JS 側でスクロール位置が変わったとき。
-        /// payload: { position: Double, mode: String, path: String | null }
-        /// path は位置を読んだ時点で DOM に出ていた文書のパス(renderDocPathScript で予告した値)。
-        case scrollPositionChanged
-
-        /// JS 側で全体ズーム倍率が変わったとき。
-        /// payload: { zoom: Double, path: String | null }
-        /// path は倍率を読んだ時点で DOM に出ていた文書のパス(renderDocPathScript で予告した値)。
-        case zoomChanged
-
-        /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったとき。
-        /// payload: { caseSensitive: Bool, wholeWord: Bool, useRegex: Bool }
-        case findOptionsChanged
-
-        /// リンクやパス参照がクリックされたとき。
-        /// 修飾キーの解釈は Swift 側(OpenDisposition)が行うため、JS は押下状態のみ送る。
-        /// payload: { href: String, metaKey: Bool, shiftKey: Bool }
-        case referenceActivated
-
-        /// リンクやパス参照の上で ctrl+クリック(右クリック)されたとき。
-        /// Swift 側が NSMenu を表示する。payload: { href: String }
-        case referenceContextMenu
-
-        /// JS 側「続きを読み込む」ボタン押下時。payload: なし(空オブジェクト)。
-        case loadMoreLines
-
-        /// JS 側が検出したパス参照の解決を要求するとき。payload: { paths: [String] }
-        case resolveReferences
-
-        /// ホストの対話的ブリッジ(`RendererFeatures.allowsInteractiveBridging`)を要するか。
-        /// false のホスト(QuickLook 拡張等の静的 1 回描画)では、これが true のものを
-        /// そもそも登録しない(多層防御: XSS が postMessage を直接呼んでも Swift へ届かない)。
-        public var requiresInteractiveBridging: Bool {
-            switch self {
-            case .scrollPositionChanged, .zoomChanged, .findOptionsChanged:
-                false
-            case .referenceActivated, .referenceContextMenu, .loadMoreLines, .resolveReferences:
-                true
-            }
-        }
-
-        /// JS がオブジェクトとして送るペイロードのキー集合。裸の値を送る場合は nil。
-        /// 契約テストはこの表と JS 側の postMessage 呼び出しを突合するため、
-        /// メッセージを追加するとこの switch がコンパイルエラーになって登録漏れを防ぐ。
-        var payloadKeys: Set<String>? {
-            switch self {
-            case .zoomChanged: Set(PayloadKey.ZoomChanged.allCases.map(\.rawValue))
-            case .scrollPositionChanged: Set(PayloadKey.ScrollPositionChanged.allCases.map(\.rawValue))
-            case .findOptionsChanged: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue))
-            case .referenceActivated: Set(PayloadKey.ReferenceActivated.allCases.map(\.rawValue))
-            case .referenceContextMenu: Set(PayloadKey.ReferenceContextMenu.allCases.map(\.rawValue))
-            case .loadMoreLines: []
-            case .resolveReferences: Set(PayloadKey.ResolveReferences.allCases.map(\.rawValue))
-            }
-        }
-    }
-
     /// JS 側でスクロール位置が変わったときに postMessage されるメッセージハンドラ名。
-    public static let scrollPositionChangedMessageName = BridgeMessage.scrollPositionChanged.rawValue
+    public static let scrollPositionChangedMessageName = ViewerBridgeMessage.scrollPositionChanged.rawValue
 
     /// JS 側で全体ズーム倍率が変わったときに postMessage されるメッセージハンドラ名。
-    public static let zoomChangedMessageName = BridgeMessage.zoomChanged.rawValue
+    public static let zoomChangedMessageName = ViewerBridgeMessage.zoomChanged.rawValue
 
     /// リンクやパス参照がクリックされたときに postMessage されるメッセージハンドラ名。
-    public static let referenceActivatedMessageName = BridgeMessage.referenceActivated.rawValue
+    public static let referenceActivatedMessageName = ViewerBridgeMessage.referenceActivated.rawValue
 
     /// リンクやパス参照の上で ctrl+クリック(右クリック)されたときに postMessage される
     /// メッセージハンドラ名。
-    public static let referenceContextMenuMessageName = BridgeMessage.referenceContextMenu.rawValue
+    public static let referenceContextMenuMessageName = ViewerBridgeMessage.referenceContextMenu.rawValue
 
     /// Swift から引数なしで呼び出す JS 関数。呼び出しスクリプト文字列と、JS 側の定義
     /// トークン(存在検証に使う)をこの 1 箇所から導出し、生リテラルの二重管理をなくす。
@@ -273,10 +215,10 @@ public enum ViewerBridge {
     }
 
     /// JS 側「続きを読み込む」ボタン押下時に postMessage されるメッセージハンドラ名。
-    public static let loadMoreLinesMessageName = BridgeMessage.loadMoreLines.rawValue
+    public static let loadMoreLinesMessageName = ViewerBridgeMessage.loadMoreLines.rawValue
 
     /// JS 側が検出したパス参照の解決を要求するときに postMessage されるメッセージハンドラ名。
-    public static let resolveReferencesMessageName = BridgeMessage.resolveReferences.rawValue
+    public static let resolveReferencesMessageName = ViewerBridgeMessage.resolveReferences.rawValue
 
     /// 解決結果(書かれたパス -> 解決済み絶対パス。未解決は含めない)を JS へ適用する
     /// スクリプトを組み立てる。viewer.html 側は _mmdApplyResolvedReferences() が受け取り、
@@ -332,7 +274,7 @@ public enum ViewerBridge {
 
     /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったときに
     /// postMessage されるメッセージハンドラ名。
-    public static let findOptionsChangedMessageName = BridgeMessage.findOptionsChanged.rawValue
+    public static let findOptionsChangedMessageName = ViewerBridgeMessage.findOptionsChanged.rawValue
 
     /// 検索の3トグルの状態。
     public struct FindOptions: Equatable, Encodable {
@@ -370,7 +312,4 @@ public enum ViewerBridge {
         ]
         return assignGlobalScript("window._mmdFindStrings", strings)
     }
-
-    // ペイロードキー(JS → Swift)の宣言は ViewerBridge+PayloadKeys.swift に分けている
-    // (file_length の行数上限)。
 }

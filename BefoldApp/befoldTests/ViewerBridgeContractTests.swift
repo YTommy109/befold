@@ -85,7 +85,7 @@ struct ViewerBridgeContractTests {
         #expect(!sites.isEmpty, "viewer-bundle.js からオブジェクト送信サイトを抽出できていない")
 
         for site in sites {
-            let declared = ViewerBridge.payloadKeysByMessageName[site.messageName]
+            let declared = ViewerBridgeMessage.payloadKeysByMessageName[site.messageName]
             #expect(
                 declared != nil,
                 "'\(site.messageName)' のペイロードキーが ViewerBridge に未宣言"
@@ -100,7 +100,7 @@ struct ViewerBridgeContractTests {
     func declaredMessagesHavePostSites() throws {
         let posted = try Set(Self.objectPayloadSites().map(\.messageName))
 
-        for messageName in ViewerBridge.payloadKeysByMessageName.keys {
+        for messageName in ViewerBridgeMessage.payloadKeysByMessageName.keys {
             #expect(
                 posted.contains(messageName),
                 "'\(messageName)' の _mmdPostMessage 送信サイトが viewer-bundle.js にない"

@@ -9,7 +9,6 @@
 # このファイルごと撤去し、単純な閾値強制へ畳む（TASK-428.5）。
 #
 # 形式: <行数><TAB><グループキー>  キーの辞書順（差分で増減が読めるように固定）
-470	BefoldApp/BefoldKit/ViewerBridge
 855	BefoldApp/befold/App/ViewerWindowController
 610	BefoldApp/befold/App/ViewerWindowManager
 490	BefoldApp/befold/Viewer/FileListModel

@@ -10,7 +10,7 @@ import WebKit
 /// 実在するパスまで解決失敗表示になる。
 @MainActor
 final class ReferenceResolutionQueue {
-    private typealias ResolveKey = ViewerBridge.PayloadKey.ResolveReferences
+    private typealias ResolveKey = ViewerBridgeMessage.PayloadKey.ResolveReferences
 
     /// 応答は 2 つの suspension point(直前の要求の完了待ち・参照解決)をまたぐため、
     /// renderer は weak で持つ。応答 Task が強く保持するのはこのキューだけで、
