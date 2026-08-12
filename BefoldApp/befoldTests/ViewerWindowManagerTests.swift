@@ -15,14 +15,6 @@ struct ViewerWindowManagerTests {
     private let file1 = URL(fileURLWithPath: "/mock/first.mmd")
     private let file2 = URL(fileURLWithPath: "/mock/second.mmd")
 
-    @Test("可視なのにアクティブ Space に居ないウィンドウだけが救出対象と判定される")
-    func isDetachedFromSpaceRequiresVisibleAndOffActiveSpace() {
-        #expect(ViewerWindowManager.isDetachedFromSpace(isVisible: true, isOnActiveSpace: false))
-        #expect(!ViewerWindowManager.isDetachedFromSpace(isVisible: true, isOnActiveSpace: true))
-        #expect(!ViewerWindowManager.isDetachedFromSpace(isVisible: false, isOnActiveSpace: false))
-        #expect(!ViewerWindowManager.isDetachedFromSpace(isVisible: false, isOnActiveSpace: true))
-    }
-
     /// コントローラ側の既定は「git を使わない索引」なので、注入を書き忘れるとパス参照の
     /// リンク化が黙って効かなくなる。生成経路が共有インスタンスを渡していることを固定する。
     @Test("生成したウィンドウには共有の git 索引が注入される")
@@ -104,7 +96,7 @@ struct ViewerWindowManagerTests {
         fixture.manager.openViewer(for: file)
 
         let window = try #require(fixture.manager.window(forPath: file.normalizedPathKey))
-        #expect(fixture.manager.viewerPath(of: window) == file.normalizedPathKey)
+        #expect(ViewerTabGrouping.viewerPath(of: window) == file.normalizedPathKey)
     }
 
     @Test("switchFile で管理辞書のキーが付け替わりセッション記録が更新される")
@@ -267,72 +259,5 @@ struct ViewerWindowManagerTests {
         fixture.manager.openViewer(for: file)
 
         #expect(fixture.perFileState.windowFrame.frameDescriptor(for: file) == nil)
-    }
-
-    // MARK: - makeTabGroup(タブ構成スナップショットの組み立て)
-
-    @Test("ビューアパスを持つタブが1枚も無ければタブグループを作らない")
-    func makeTabGroupReturnsNilWhenNoViewerTabs() {
-        let group = ViewerWindowManager.makeTabGroup(
-            tabWindows: ["a", "b"], selectedWindow: "a", viewerPath: { _ in nil }
-        )
-
-        #expect(group == nil)
-    }
-
-    /// タブがすべてビューアの場合の入力と期待値。
-    struct TabGroupCase: Sendable, CustomTestStringConvertible {
-        let name: String
-        let tabWindows: [String]
-        let selectedWindow: String
-        let expectedPaths: [String]
-        let expectedSelectedPath: String
-        var testDescription: String {
-            name
-        }
-    }
-
-    /// 単独ウィンドウは「全タブがビューア」の縮退ケースなので同じ表で回す。
-    private nonisolated static let tabGroupCases: [TabGroupCase] = [
-        TabGroupCase(
-            name: "単独ウィンドウ",
-            tabWindows: ["/a.mmd"], selectedWindow: "/a.mmd",
-            expectedPaths: ["/a.mmd"], expectedSelectedPath: "/a.mmd"
-        ),
-        TabGroupCase(
-            name: "先頭が選択されている3タブ",
-            tabWindows: ["/a.mmd", "/b.mmd", "/c.mmd"], selectedWindow: "/a.mmd",
-            expectedPaths: ["/a.mmd", "/b.mmd", "/c.mmd"], expectedSelectedPath: "/a.mmd"
-        ),
-        TabGroupCase(
-            name: "中央が選択されている3タブ",
-            tabWindows: ["/a.mmd", "/b.mmd", "/c.mmd"], selectedWindow: "/b.mmd",
-            expectedPaths: ["/a.mmd", "/b.mmd", "/c.mmd"], expectedSelectedPath: "/b.mmd"
-        ),
-    ]
-
-    @Test("タブ順は保たれ、選択タブのパスが selectedPath になる", arguments: tabGroupCases)
-    func makeTabGroupKeepsTabOrderAndSelection(_ testCase: TabGroupCase) throws {
-        let group = try #require(
-            ViewerWindowManager.makeTabGroup(
-                tabWindows: testCase.tabWindows, selectedWindow: testCase.selectedWindow, viewerPath: { $0 }
-            )
-        )
-
-        #expect(group.paths == testCase.expectedPaths)
-        #expect(group.selectedPath == testCase.expectedSelectedPath)
-    }
-
-    @Test("ビューアでないタブは除外され、選択タブがビューアでなければ selectedPath は nil になる")
-    func makeTabGroupSkipsNonViewerTabs() throws {
-        let group = try #require(
-            ViewerWindowManager.makeTabGroup(
-                tabWindows: ["/a.mmd", "other", "/c.mmd"], selectedWindow: "other",
-                viewerPath: { $0.hasPrefix("/") ? $0 : nil }
-            )
-        )
-
-        #expect(group.paths == ["/a.mmd", "/c.mmd"])
-        #expect(group.selectedPath == nil)
     }
 }

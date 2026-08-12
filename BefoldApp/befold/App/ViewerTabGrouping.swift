@@ -1,16 +1,21 @@
 import AppKit
 import BefoldKit
 
-/// タブグループの組み立てと、ウィンドウの Space 復帰。
-/// 「複数の NSWindow を 1 つのまとまりとして扱う」規則をここ 1 箇所に置き、
-/// セッション保存・復元と「最近使ったリポジトリ」が同じ解釈を共有する。
-extension ViewerWindowManager {
+/// タブグループの規則。「複数の NSWindow を 1 つのまとまりとして扱う」解釈を
+/// ここ 1 箇所に置き、セッション保存・復元と「最近使ったリポジトリ」が同じ規則を共有する。
+///
+/// 知っているのは AppKit のタブグループ、`SessionLayout.TabGroup` の組み立て形式、
+/// 「ビューアウィンドウかどうか」の判定だけ。開いているウィンドウの管理台帳
+/// (`ViewerWindowManager.controllers`) も共有ストアも知らないため、状態を持たない
+/// enum にしてある(対象は必ず引数で受ける)。
+@MainActor
+enum ViewerTabGrouping {
     /// window を baseWindow のタブグループへ結合する。タブ結合の手続きはここが単一の実装元で、
-    /// セッション復元(SessionRestorer.restoreTabGroup)も同じ経路を通る。
+    /// セッション復元(SessionRestorer.restoreTabGroup)も新規オープンも同じ経路を通る。
     /// baseWindow が nil のときは何もしない = 独立したウィンドウのままにする
     /// (「開けない」より「タブにならない」へ縮退させる)。
     /// - Parameter select: 結合したタブを選択状態にするか。復元時は元の選択タブを別途決めるため false。
-    func attachAsTab(_ window: NSWindow, to baseWindow: NSWindow?, select: Bool) {
+    static func attachAsTab(_ window: NSWindow, to baseWindow: NSWindow?, select: Bool) {
         guard let baseWindow, baseWindow !== window else { return }
         baseWindow.addTabbedWindow(window, ordered: .above)
         if select {
@@ -23,6 +28,12 @@ extension ViewerWindowManager {
     /// 同じ解釈を共有するための単一の入口。
     static func tabWindows(of window: NSWindow) -> [NSWindow] {
         window.tabGroup?.windows ?? [window]
+    }
+
+    /// ビューアウィンドウなら対応するファイルの正規化パスを返す。
+    /// ウィンドウ 1 枚だけを見て決まる判定なので、管理台帳を引かずに答えられる。
+    static func viewerPath(of window: NSWindow) -> String? {
+        (window.windowController as? ViewerWindowController)?.fileURL.normalizedPathKey
     }
 
     /// タブ構成スナップショットの組み立て本体(NSWindow に依存しない純粋関数)。
@@ -39,9 +50,9 @@ extension ViewerWindowManager {
 
     /// window(自身のタブグループ)を SessionLayout.TabGroup として組み立てる。
     /// タブが1枚も無ければ nil(ビューアウィンドウでない・既に全タブが閉じた等)。
-    func tabGroup(of window: NSWindow) -> SessionLayout.TabGroup? {
-        Self.makeTabGroup(
-            tabWindows: Self.tabWindows(of: window),
+    static func tabGroup(of window: NSWindow) -> SessionLayout.TabGroup? {
+        makeTabGroup(
+            tabWindows: tabWindows(of: window),
             selectedWindow: window.tabGroup?.selectedWindow ?? window,
             viewerPath: viewerPath(of:)
         )
@@ -56,12 +67,11 @@ extension ViewerWindowManager {
     /// アップデータによる再起動では、旧プロセス終了直後の WindowServer 遷移状態で
     /// 復元ウィンドウがどの Space にも属さず不可視になることがある(再 orderFront で復旧する)。
     /// 起動直後にのみ呼ぶこと(ユーザーが他 Space に移した後のウィンドウに触れないように)。
-    func rescueWindowsDetachedFromSpace() {
-        for controller in allControllers {
-            guard let window = controller.window,
-                  Self.isDetachedFromSpace(
-                      isVisible: window.isVisible, isOnActiveSpace: window.isOnActiveSpace
-                  )
+    static func rescueWindowsDetachedFromSpace(among windows: [NSWindow]) {
+        for window in windows {
+            guard isDetachedFromSpace(
+                isVisible: window.isVisible, isOnActiveSpace: window.isOnActiveSpace
+            )
             else { continue }
             window.orderFront(nil)
         }

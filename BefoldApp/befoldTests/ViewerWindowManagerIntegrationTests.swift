@@ -38,14 +38,14 @@ struct ViewerWindowManagerIntegrationTests {
     }
 
     private nonisolated static let hiddenFilesTriggers: [HiddenFilesTrigger] = [
-        HiddenFilesTrigger(name: "toggleHiddenFiles", trigger: { manager, _ in manager.toggleHiddenFiles() }),
+        HiddenFilesTrigger(name: "toggleHiddenFiles", trigger: { manager, _ in manager.display.toggleHiddenFiles() }),
         HiddenFilesTrigger(
             name: "onToggleHiddenFiles コールバック(アイコンボタン操作)",
             trigger: { manager, first in manager.viewerWindowDidToggleHiddenFiles(first) }
         ),
         HiddenFilesTrigger(
             name: "setHiddenFiles(true)(--hidden-files)",
-            trigger: { manager, _ in manager.setHiddenFiles(true) }
+            trigger: { manager, _ in manager.display.setHiddenFiles(true) }
         ),
     ]
 
@@ -88,7 +88,7 @@ struct ViewerWindowManagerIntegrationTests {
     private nonisolated static let changedFilesOnlyTriggers: [ChangedFilesOnlyTrigger] = [
         ChangedFilesOnlyTrigger(
             name: "toggleChangedFilesOnly(メニュー ⌘⌃G)",
-            trigger: { manager, _ in manager.toggleChangedFilesOnly() }
+            trigger: { manager, _ in manager.display.toggleChangedFilesOnly() }
         ),
         ChangedFilesOnlyTrigger(
             name: "onToggleChangedFilesOnly コールバック(アイコンボタン操作)",
@@ -141,7 +141,7 @@ struct ViewerWindowManagerIntegrationTests {
             #expect(controller.fileListModel.layoutMode == .drillDown)
         }
 
-        manager.toggleSidebarLayoutMode()
+        manager.display.toggleSidebarLayoutMode()
         for controller in manager.allControllers {
             await controller.sidebar.awaitSettled()
         }
@@ -151,7 +151,7 @@ struct ViewerWindowManagerIntegrationTests {
         }
 
         // 戻したときも全ウィンドウへ届く。
-        manager.toggleSidebarLayoutMode()
+        manager.display.toggleSidebarLayoutMode()
         for controller in manager.allControllers {
             await controller.sidebar.awaitSettled()
         }

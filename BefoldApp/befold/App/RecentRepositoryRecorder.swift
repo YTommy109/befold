@@ -1,9 +1,40 @@
 import AppKit
 import BefoldKit
 
-/// 「最近使ったリポジトリ」の記録。ウィンドウを開いた時点でのルート解決と、
+/// 「最近使ったリポジトリ」の記録役。ウィンドウを開いた時点でのルート解決と、
 /// アクティブ化・クローズ・アプリ終了に伴うタブ構成の更新をまとめる。
-extension ViewerWindowManager {
+///
+/// 知っているのは `RecentRepositoryEntry` の規約(本体リポジトリなら mainRoot は nil)と、
+/// タブ構成を観測できるのはウィンドウが生きている間だけという AppKit の癖。
+/// 開いているウィンドウの管理台帳は知らず、記録対象は必ず引数で受け取る。
+///
+/// この型は `ViewerWindowManager` の init が自身の stored property から組み立てる。
+/// 外から組み立てて渡す形にしないのは、`gitFileIndex` が「アプリ全体で 1 つ」の共有索引で、
+/// 別インスタンスを渡せる余地を残すと `git ls-files` と照合索引が二重化するため
+/// (デフォルト引数による静かな別インスタンス化: TASK-319)。
+@MainActor
+final class RecentRepositoryRecorder {
+    private let store: RecentRepositoriesStore
+    private let gitFileIndex: any GitFileIndexing
+    /// root からメニュー表示用ラベルと本体リポジトリのルートを解決する。
+    /// 解決は MainActor の外(detached タスク)で走るため @Sendable が要る。
+    private let resolveIdentity: @Sendable (URL) -> RepositoryIdentity
+    /// 新しい本体ルートを記録した直後に呼ばれる。AppDelegate が WorktreeCatalog を
+    /// 追随させるために使う。
+    private let onRepositoryRecorded: (URL) -> Void
+
+    init(
+        store: RecentRepositoriesStore,
+        gitFileIndex: any GitFileIndexing,
+        resolveIdentity: @escaping @Sendable (URL) -> RepositoryIdentity,
+        onRepositoryRecorded: @escaping (URL) -> Void
+    ) {
+        self.store = store
+        self.gitFileIndex = gitFileIndex
+        self.resolveIdentity = resolveIdentity
+        self.onRepositoryRecorded = onRepositoryRecorded
+    }
+
     /// url が git リポジトリ内なら「最近使ったリポジトリ」に記録し、ウィンドウへ
     /// ルートをキャッシュする(ウィンドウを閉じる際に再度 git を呼ばずに済ませるため)。
     ///
@@ -13,26 +44,26 @@ extension ViewerWindowManager {
     /// MainActor へ戻す(SidebarNavigator の resolveGitRoot と同じ方針)。
     /// 解決が終わる前にウィンドウが閉じられた場合、そのウィンドウ分の記録は行われない
     /// (履歴が1件増えないだけで、次に開いたときに記録されるため許容する)。
-    func recordRecentRepositoryIfNeeded(for url: URL, controller: ViewerWindowController) {
+    func recordIfNeeded(for url: URL, controller: ViewerWindowController) {
         let gitFileIndex = gitFileIndex
-        let resolveIdentity = repositoryIdentityResolver
+        let resolveIdentity = resolveIdentity
         Task.detached { [weak self, weak controller] in
             guard let root = gitFileIndex.repositoryRoot(forFileAt: url) else { return }
             let identity = resolveIdentity(root)
-            await self?.applyRecentRepository(root: root, identity: identity, to: controller)
+            await self?.apply(root: root, identity: identity, to: controller)
         }
     }
 
     /// detached タスクで解決した git ルート/identity を MainActor 上で反映する。
     /// ウィンドウが既に閉じられていれば(controller == nil)何もしない。
     /// mainRoot は worktree のときだけ渡す(本体そのものなら nil。RecentRepositoryEntry の規約)。
-    private func applyRecentRepository(
+    private func apply(
         root: URL, identity: RepositoryIdentity, to controller: ViewerWindowController?
     ) {
         guard let controller else { return }
         controller.repositoryRoot = root
         let isMainRepository = identity.mainRoot.normalizedPathKey == root.normalizedPathKey
-        recentRepositoriesStore.record(
+        store.record(
             root: root, label: identity.label, mainRoot: isMainRepository ? nil : identity.mainRoot
         )
         onRepositoryRecorded(identity.mainRoot)
@@ -45,23 +76,21 @@ extension ViewerWindowManager {
     /// (`window.tabGroup == nil`)、閉じる1枚分しか組み立てられない。そのため
     /// アクティブ化のたびに現在の構成を記録し、close 時に届く縮小した構成は
     /// updateLastTabGroup の部分集合拒否で捨てる。
-    func recordRecentRepositoryTabGroup(
-        of controller: ViewerWindowController, force: Bool = false
-    ) {
+    func recordTabGroup(of controller: ViewerWindowController, force: Bool = false) {
         guard let root = controller.repositoryRoot, let window = controller.window,
-              let group = tabGroup(of: window)
+              let group = ViewerTabGrouping.tabGroup(of: window)
         else { return }
-        recentRepositoriesStore.updateLastTabGroup(root: root, group, force: force)
+        store.updateLastTabGroup(root: root, group, force: force)
     }
 
-    /// 開いている全ウィンドウの現在のタブ構成を「最近使ったリポジトリ」へ記録する。
+    /// 渡された全ウィンドウの現在のタブ構成を「最近使ったリポジトリ」へ記録する。
     /// アプリ終了時に呼ぶ。終了では windowWillClose が発火しないことがあり、
     /// close 経路だけではタブ構成を取りこぼす。終了時点の構成を正として force 付きで
     /// 上書きする(ユーザーが意図的にタブを減らした結果は、セッション中の
     /// 縮小拒否を通り抜けられるこの経路でしか反映できない)。
-    func recordAllRecentRepositoryTabGroups() {
-        for controller in allControllers {
-            recordRecentRepositoryTabGroup(of: controller, force: true)
+    func recordAllTabGroups(of controllers: [ViewerWindowController]) {
+        for controller in controllers {
+            recordTabGroup(of: controller, force: true)
         }
     }
 }
