@@ -21,12 +21,7 @@ extension SidebarNavigator {
         let target = url.standardizedFileURL
         guard DirectoryLister.isWithinHome(target) else { return }
         let previous = fileListModel.currentDirectory
-        rememberSelection(in: previous)
-        fileListModel.currentDirectory = url
-        updateRootDirectory(with: target)
-        // ルートが変わると、それまでの展開は別のツリーのものになる。走行中の子リスト取得も
-        // ここで無効化する(着地させると、新しいルートの行配列へ前のツリーの子が混ざる)。
-        discardExpansion()
+        moveCurrentDirectory(to: url)
         performListing(of: url) { host, directory, listing in
             self.applyRows(listing, for: directory)
             let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
@@ -40,6 +35,22 @@ extension SidebarNavigator {
             }
             self.recordHistory()
         }
+    }
+
+    /// **`fileListModel.currentDirectory` を書き換える唯一の経路**(TASK-465)。
+    ///
+    /// 表示中フォルダーを動かすときに必ず要る後始末——移動前の選択の記憶・rootDirectory の
+    /// 更新・展開の破棄——をここに畳んでいる。ルートが変わると、それまでの展開は別の
+    /// ツリーのものになる。走行中の子リスト取得もここで無効化する(着地させると、新しい
+    /// ルートの行配列へ前のツリーの子が混ざる)。
+    ///
+    /// 直接 `currentDirectory` へ代入しないこと。かつて `syncAfterSwitch` が代入だけを
+    /// 行い、この後始末を素通りしていた。
+    func moveCurrentDirectory(to url: URL) {
+        rememberSelection(in: fileListModel.currentDirectory)
+        fileListModel.currentDirectory = url
+        updateRootDirectory(with: url.standardizedFileURL)
+        discardExpansion()
     }
 
     /// 移動先で選ぶ行を反映し、それがファイルならプレビューの中身も揃える。

@@ -108,7 +108,8 @@ extension ViewerWindowController {
     private func moveSidebarToDirectoryIfNeeded(of newURL: URL) {
         let newDir = newURL.deletingLastPathComponent()
         if newDir.normalizedPathKey != fileListModel.currentDirectory.normalizedPathKey {
-            fileListModel.currentDirectory = newDir
+            // 表示中フォルダーの書き換えは SidebarNavigator の 1 経路へ通す(TASK-465)。
+            sidebar.moveCurrentDirectory(to: newDir)
         }
         sidebar.refreshFileList()
     }

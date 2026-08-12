@@ -34,12 +34,18 @@ enum PreviewTargetResolver {
     ///   - hasLoadedEntries: 一覧が一度でも反映されたか。選択が一覧に見つからない
     ///     ときの意味がこれで変わる。反映済みなら「選択が古い(削除・移動)」ので現在ディレクトリの
     ///     一覧へ落とすのが正しく、未反映なら「まだ分からない」であって、フォルダー提示ではない。
+    ///   - isListingCurrent: 手元の一覧が `currentDirectory` のものか(= 取り直しが
+    ///     終わっているか)。移動直後は前のディレクトリの行が残っているため、選択が
+    ///     見つからないのは「選択が古い」ではなく「一覧がまだ追いついていない」を意味する。
+    ///     これを区別しないと、切替直後の一瞬(取り直しが着地しなければ永続的に)
+    ///     フォルダー提示へ落ちてファイル一覧が本文に重なる(TASK-445)。
     static func resolve(
         selection: FileListEntry.ID?,
         selectionPathKey: String?,
         entryIndex: FileListEntryIndex,
         currentDirectory: URL,
-        hasLoadedEntries: Bool = true
+        hasLoadedEntries: Bool = true,
+        isListingCurrent: Bool = true
     ) -> PreviewTarget {
         // 選択を消してあるのは navigateToFolder の意図的な指示。現在ディレクトリの一覧を出す。
         guard let selection else { return .folder(currentDirectory) }
@@ -47,7 +53,7 @@ enum PreviewTargetResolver {
             for: selection, selectionPathKey: selectionPathKey ?? selection.path
         )
         guard let entry else {
-            return hasLoadedEntries ? .folder(currentDirectory) : .undetermined
+            return hasLoadedEntries && isListingCurrent ? .folder(currentDirectory) : .undetermined
         }
         return entry.kind == .file ? .file : .folder(entry.url)
     }
