@@ -31,6 +31,31 @@ struct BookmarkStoreTests {
         #expect(store.isBookmarked(url("a.mmd")))
     }
 
+    @Test("remove で取り除かれる。未登録のパスを渡しても他の登録は壊れない")
+    func removeDropsOnlyTheGivenBookmark() {
+        let store = makeStore()
+        store.add(url("a.mmd"))
+        store.add(url("b.md"))
+
+        store.remove(url("a.mmd"))
+        store.remove(url("never-added.md"))
+
+        #expect(!store.isBookmarked(url("a.mmd")))
+        #expect(store.bookmarkedURLs() == [url("b.md")])
+    }
+
+    @Test("removeAll は渡された分だけをまとめて取り除く")
+    func removeAllDropsGivenBookmarksOnly() {
+        let store = makeStore()
+        store.add(url("a.mmd"))
+        store.add(url("b.md"))
+        store.add(url("c.md"))
+
+        store.removeAll([url("a.mmd"), url("c.md")])
+
+        #expect(store.bookmarkedURLs() == [url("b.md")])
+    }
+
     @Test("add を同じパスへ複数回呼んでも冪等に成功する")
     func addIsIdempotent() {
         let store = makeStore()

@@ -37,6 +37,20 @@ final nonisolated class RecordingGitFileIndex: GitFileIndexing, @unchecked Senda
     }
 }
 
+/// 「File Not Found」の提示を実 NSAlert を出さずに記録する。
+/// 何を提示したか(とくに「ブックマークから削除」を提示したか)の検証に使う。
+@MainActor
+final class FileNotFoundPresentationRecorder {
+    private(set) var presentedURLs: [URL] = []
+    /// 直近の提示で渡された「ブックマークから削除」の操作。nil ならボタンを出していない。
+    private(set) var lastRemoveBookmarkAction: (() -> Void)?
+
+    func record(url: URL, onRemoveBookmark: (() -> Void)?) {
+        presentedURLs.append(url)
+        lastRemoveBookmarkAction = onRemoveBookmark
+    }
+}
+
 /// ViewerWindowManager を実 FS へ触れさせずに組み立てるテスト用フィクスチャ。
 ///
 /// openViewer が生成する ViewerWindowController は既定では実 FileWatcher・実ファイル読込・
@@ -66,6 +80,8 @@ struct MockedViewerWindowManager {
     /// 生成される全ウィンドウが共有する git 索引。実 `git` を起動しない記録用フェイク。
     let gitFileIndex: RecordingGitFileIndex
     let recentRepositoriesStore: RecentRepositoriesStore
+    /// 存在しないファイルを開こうとしたときの提示記録(実 NSAlert は出さない)。
+    let fileNotFoundPresentations: FileNotFoundPresentationRecorder
     let manager: ViewerWindowManager
 
     /// - Parameters:
@@ -100,6 +116,8 @@ struct MockedViewerWindowManager {
         self.gitFileIndex = gitFileIndex
         let recentRepositoriesStore = RecentRepositoriesStore(defaults: defaults)
         self.recentRepositoriesStore = recentRepositoriesStore
+        let fileNotFoundPresentations = FileNotFoundPresentationRecorder()
+        self.fileNotFoundPresentations = fileNotFoundPresentations
         manager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
@@ -109,6 +127,9 @@ struct MockedViewerWindowManager {
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             fileReader: fileReader,
+            presentFileNotFound: { url, onRemoveBookmark in
+                fileNotFoundPresentations.record(url: url, onRemoveBookmark: onRemoveBookmark)
+            },
             makeStore: { _ in
                 ViewerStore(
                     watcherFactory: { _, _, _, _ in MockFileWatcher() },

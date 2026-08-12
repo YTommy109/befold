@@ -30,6 +30,36 @@ struct ViewerWindowManagerBookmarkTests {
         #expect(button.contentTintColor == .controlAccentColor)
     }
 
+    /// 開けなくなったブックマークを外す唯一の個別経路(issue #485)。
+    @Test("ブックマーク済みのファイルが見つからないときは、外す操作を添えて通知する")
+    func offersBookmarkRemovalWhenBookmarkedFileIsMissing() throws {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "MissingBookmarkAlert")
+        defer { fixture.closeAll() }
+        let gone = URL(fileURLWithPath: "/mock/deleted-worktree/gone.md")
+        fixture.bookmarkStore.add(gone)
+
+        #expect(fixture.manager.openViewer(for: gone) == nil)
+
+        #expect(fixture.fileNotFoundPresentations.presentedURLs == [gone])
+        let remove = try #require(fixture.fileNotFoundPresentations.lastRemoveBookmarkAction)
+        remove()
+        #expect(!fixture.bookmarkStore.isBookmarked(gone))
+    }
+
+    /// ブックマークしていないファイルにまで「ブックマークから削除」を出すと、押しても
+    /// 何も起きないボタンになる。
+    @Test("ブックマークしていないファイルが見つからない場合は外す操作を添えない")
+    func omitsBookmarkRemovalForUnbookmarkedMissingFile() {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "MissingUnbookmarkedAlert")
+        defer { fixture.closeAll() }
+        let gone = URL(fileURLWithPath: "/mock/deleted-worktree/gone.md")
+
+        #expect(fixture.manager.openViewer(for: gone) == nil)
+
+        #expect(fixture.fileNotFoundPresentations.presentedURLs == [gone])
+        #expect(fixture.fileNotFoundPresentations.lastRemoveBookmarkAction == nil)
+    }
+
     @Test("表示中でないファイルのブックマーク追加は開いているウィンドウのアイコンを変えない")
     func addBookmarksForUnrelatedFileLeavesToolbarUntouched() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "CLIBookmarkUnrelated")
