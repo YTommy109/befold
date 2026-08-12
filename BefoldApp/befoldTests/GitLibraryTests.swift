@@ -1,6 +1,5 @@
 @testable import befold
 import BefoldTestSupport
-import CGitShim
 import Foundation
 import libgit2
 import Testing
@@ -45,6 +44,11 @@ struct GitLibraryTests {
     /// libgit2 の検索パスはプロセス全体の設定であり、テスト中に `HOME` を差し替えると
     /// 並行実行中の他テスト(`homeDirectoryForCurrentUser` を使う `DirectoryListerTests` や
     /// `TempDir(base:)` など多数)の前提を壊す。無効化そのものを観測すれば、外れた瞬間に落ちる。
+    ///
+    /// C シム(`CGitShim` の検索パス set / get)の担保もここが兼ねる。
+    /// bootstrap が set した結果を get で読み戻しているため、往復が壊れれば落ちる。
+    /// production が set へ渡す値は `""` だけなので、専用の往復テストは要らない
+    /// (書き込みを増やすと `git_sysdir__dirs` の data race になる = TASK-462)。
     @Test("bootstrap 後は system/xdg の config 検索パスが無効化されている")
     func disablesSystemAndXdgConfigSearchPaths() {
         #expect(GitLibrary.disabledConfigLevels.count == 2)
@@ -84,21 +88,39 @@ struct GitLibraryTests {
         #expect(value == .success("local-value"))
     }
 
-    // MARK: - C シムの往復
+    // MARK: - 検索パスの書き手を 1 箇所に閉じる
 
-    /// `git_libgit2_opts` は C 可変長引数のため Swift から直接呼べない。シム越しに
-    /// 設定と取得が往復することを確かめる。macOS では読まれない PROGRAMDATA レベルを使い、
-    /// 他テストが依存するレベルへ触れないようにする。
-    @Test("C シム経由で config 検索パスを設定・取得できる")
-    func configSearchPathRoundTripsThroughShim() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        GitLibrary.ensureInitialized()
-        let level = GIT_CONFIG_LEVEL_PROGRAMDATA.rawValue
-        defer { _ = befold_git_opts_set_search_path(level, "") }
-
-        #expect(befold_git_opts_set_search_path(level, tmp.url.path) == 0)
-        #expect(GitLibrary.configSearchPath(for: GIT_CONFIG_LEVEL_PROGRAMDATA) == tmp.url.path)
+    /// libgit2 の config 検索パスはプロセスグローバル(`git_sysdir__dirs`)で、libgit2 は
+    /// この書き込みをロックで守らない。書き手が `GitLibrary.bootstrap` の一度きり初期化
+    /// だけなら、以降の読み手はすべて swift_once の happens-before の後ろに並んで競合しない。
+    /// 初期化後に書く箇所が 1 つでも増えると、並行実行中の別テストがリポジトリを開く際の
+    /// 読み取りと競合する(TASK-462: シムの往復テストが PROGRAMDATA レベルを書き換え、
+    /// thread-sanitizer が 5 本連続で data race を報告した。`git_repository_open_ext` は
+    /// macOS でも PROGRAMDATA を読むため「読まれないレベルを選ぶ」では並行安全にならない)。
+    ///
+    /// doc コメントでは守られないので、書き手が増えたらここが落ちるようにしておく。
+    ///
+    /// 探す識別子は連結で組み立てる。ソース中へ直に書くと、この検査自体が「書き手」として
+    /// 引っかかり、自分のファイルを除外する穴を開ける羽目になる(そうするとテストファイルに
+    /// 書き手が増えても落ちなくなる。今回の違反元がテストだったので、そこを外すと意味が無い)。
+    @Test("config 検索パスを書くのは GitLibrary だけ")
+    func searchPathIsWrittenOnlyByGitLibrary() throws {
+        let needle = "befold_git_opts_set" + "_search_path"
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // befoldTests
+            .deletingLastPathComponent() // BefoldApp
+        let keys: [URLResourceKey] = [.isRegularFileKey]
+        let walker = try #require(
+            FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys)
+        )
+        var writers: [String] = []
+        for case let file as URL in walker where file.pathExtension == "swift" {
+            guard !file.path.contains("/.build/") else { continue }
+            let source = try String(contentsOf: file, encoding: .utf8)
+            guard source.contains(needle) else { continue }
+            writers.append(file.lastPathComponent)
+        }
+        #expect(writers == ["GitLibrary.swift"])
     }
 
     // MARK: - AC #9 / #10: 開けないリポジトリの写像

@@ -56,6 +56,16 @@ enum GitLibrary {
     ]
 
     /// プロセスで一度だけ走る初期化。`static let` は swift_once で保護される。
+    ///
+    /// **検索パスを書き換えてよいのはここだけ。** `git_libgit2_opts(GIT_OPT_SET_SEARCH_PATH,)`
+    /// が書くのはプロセスグローバルの `git_sysdir__dirs` で、libgit2 はこの書き込みを
+    /// ロックで守らない。書き手を一度きり初期化に閉じれば、以降の読み手(リポジトリを
+    /// 開くたびに走る `git_config__find_programdata` など)はすべて swift_once の
+    /// happens-before の後ろに並び、追加のロックなしで競合しない。初期化後に 1 箇所でも
+    /// 書くと、並行して走る別スレッドの読み取りと競合する(TASK-462: シムの往復テストが
+    /// PROGRAMDATA レベルを書き換え、thread-sanitizer が 5 本連続で data race を報告した)。
+    /// この制約は `GitLibraryTests.searchPathIsWrittenOnlyByGitLibrary` が守る
+    /// (`befold_git_opts_set_search_path` を書く .swift がこのファイル以外に現れたら落ちる)。
     private static let bootstrap: Void = {
         git_libgit2_init()
         for level in disabledConfigLevels {

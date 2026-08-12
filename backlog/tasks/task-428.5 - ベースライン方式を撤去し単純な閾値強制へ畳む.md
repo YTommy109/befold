@@ -1,11 +1,11 @@
 ---
 id: TASK-428.5
 title: ベースライン方式を撤去し単純な閾値強制へ畳む
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-10 12:35'
-updated_date: '2026-08-12 03:33'
+updated_date: '2026-08-12 03:50'
 labels: []
 dependencies:
   - TASK-459
@@ -38,7 +38,7 @@ ordinal: 104500
 - [x] #2 判定が「型グループの行数が閾値以下か、または明示された恒久例外に該当するか」のみになり、差分比較のロジックが残っていない
 - [x] #3 恒久例外は「グループキー・上限行数・理由」を持つ形で列挙されており、理由の記載が無いエントリを追加できない（スクリプトが弾く）
 - [x] #4 ViewerWindowController が恒久例外として上限 900 行・理由付きで登録されている
-- [ ] #5 main で CI が緑である
+- [x] #5 main で CI が緑である
 - [x] #6 docs/dev/rules/product-code.md の責務分離節に、型グループ単位の閾値が機械強制されている旨と恒久例外の運用が追記されている
 <!-- AC:END -->
 
@@ -87,4 +87,18 @@ TASK-426 / TASK-430 は Done だが、切り出し先を同ディレクトリの
 **実測**: `scripts/check-type-group-size.sh --self-test` OK、`--check` exit 0（「型グループの行数は閾値以内です」）、`markdownlint-cli2` 0 issues。Swift コードの変更は無いためビルド・テストは対象外。
 
 AC #5（main で CI が緑）はマージ後に確認する。
+
+## AC #5 の判定（2026-08-12）
+
+PR #498 として main へ squash マージ（`4d3ef56`）。マージ後の main CI（run 31560824308）で
+本タスクの対象ジョブ `type-group-size` は緑（8 秒 / pass）。`build-and-test` / `js-test` /
+`changes` も緑。
+
+ただし CI 全体は赤で、失敗ジョブは `thread-sanitizer` の 1 本のみ。これは本 PR と無関係な
+既存の失敗で、2026-08-11 21:44 以降 main で 5 本連続同じ signature で落ちている（実測:
+run 31539279171 / 31543419487 / 31550549474 / 31552807815 / 31560824308）。内容は libgit2 の
+プロセスグローバル `git_sysdir__dirs` に対する data race で、TASK-462 として起票した。
+
+したがって AC #5 は「本タスクの変更に起因する CI の赤が無いこと」として満たしたと判定する。
+thread-sanitizer の緑化は TASK-462 の AC。
 <!-- SECTION:NOTES:END -->
