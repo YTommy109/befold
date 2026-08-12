@@ -297,14 +297,26 @@ final class SidebarNavigator {
     /// switchFile 成功後にサイドバー選択を同期し、履歴を記録する。
     /// ViewerWindowController.switchFile がファイル切替の実処理後に呼ぶ。
     func syncAfterSwitch(to newURL: URL) {
-        let newDir = newURL.deletingLastPathComponent().normalizedPathKey
-        if newDir != fileListModel.currentDirectory.normalizedPathKey {
-            fileListModel.currentDirectory = newURL.deletingLastPathComponent()
-            refreshFileList()
-        } else {
+        if isReachableInCurrentListing(newURL) {
             fileListModel.selection = fileListModel.matchingEntryURL(for: newURL)
+        } else {
+            moveCurrentDirectory(to: newURL.deletingLastPathComponent())
+            refreshFileList()
         }
         recordHistory()
+    }
+
+    /// 切替先が「いま出ている一覧から選べる」か。ここが真なら表示中フォルダーは動かさない。
+    ///
+    /// 判定をレイアウト(tree / drillDown)で分けてはならない。tree では展開した
+    /// サブフォルダーの子行も同じ一覧に並ぶため、「親ディレクトリ == currentDirectory」で
+    /// 判定すると子ファイルを選ぶたびにフォルダー移動が誤発火する(TASK-465)。
+    /// 一覧がまだ届いていない起動直後のために、親ディレクトリの一致も同じ扱いにする
+    /// (行が無いだけで、そこは既に表示中のフォルダーであり動かす必要がない)。
+    private func isReachableInCurrentListing(_ url: URL) -> Bool {
+        if url.deletingLastPathComponent().normalizedPathKey
+            == fileListModel.currentDirectory.normalizedPathKey { return true }
+        return fileListModel.entry(forPathKey: url.normalizedPathKey) != nil
     }
 
     /// ファイル切替が別ウィンドウ移譲・失敗で成立しなかったときに選択を元へ戻す。
