@@ -71,6 +71,17 @@ struct ViewerCapabilities: Equatable {
         canToggleDiffLayout = canSelectDiffMode && showsDiff
     }
 
+    /// そのモードをいま選べるか。モード別のフラグを引き当てるだけの対応表であり、
+    /// 条件そのものは上の init が持つ(ADR 0002 段 2 の「条件は 1 箇所」)。
+    /// ツールバーのセグメントとメニューの有効判定が共有する。
+    func canSelect(_ mode: ViewerDisplayMode) -> Bool {
+        switch mode {
+        case .rendered: canSelectPreviewMode
+        case .source: canSelectSourceMode
+        case .diff: canSelectDiffMode
+        }
+    }
+
     /// 何もできない状態(文書を提示していない)。テストとフォールバックの既定値。
     static let none = ViewerCapabilities(
         isPresentingDocument: false,
