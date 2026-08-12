@@ -12,8 +12,8 @@
 470	BefoldApp/BefoldKit/ViewerBridge
 855	BefoldApp/befold/App/ViewerWindowController
 610	BefoldApp/befold/App/ViewerWindowManager
-484	BefoldApp/befold/Viewer/FileListModel
-433	BefoldApp/befold/Viewer/FileListView
+490	BefoldApp/befold/Viewer/FileListModel
+420	BefoldApp/befold/Viewer/FileListView
 492	BefoldApp/befold/Viewer/ViewerStore
 452	BefoldApp/befoldTests/QuickOpenModelTests
 540	BefoldApp/befoldTests/ViewerStoreTests

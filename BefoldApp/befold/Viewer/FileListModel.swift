@@ -161,6 +161,12 @@ final class FileListModel {
     /// SidebarNavigator が一覧更新と同じ契機でメイン外から解決して書き込む。
     /// 解決前(初回表示直後)は nil でインジケータを出さない。
     var baseDirectory: BaseDirectoryDescriptor?
+    /// 「相対パスをコピー」で書き込む文字列。**規則の実装はここ 1 箇所だけ**にする
+    /// (サイドバーと本文のパス参照メニューが同じ項目を持つため。TASK-422)。
+    func relativePathForCopy(_ url: URL) -> String {
+        PathRelativizer.relativePath(of: url, relativeTo: baseDirectory?.url ?? rootDirectory)
+    }
+
     /// 表示中ディレクトリの git 状態。バッジも「変更のみ表示」の絞り込みもここだけを見る。
     ///
     /// nil は「リポジトリを解決できていない」= git 管理外・取得失敗・機能無効・まだ届いて

@@ -189,7 +189,7 @@ final class ViewerWindowController: NSWindowController {
     )
     /// 参照の右クリックメニュー(項目定義・表示・実行)。`@objc` アクションを含めて向こう側に閉じる。
     lazy var referenceMenu = ReferenceMenuPresenter(
-        baseURL: { [weak self] in self?.fileURL },
+        relativePathForCopy: { [weak self] url in self?.fileListModel.relativePathForCopy(url) },
         openReference: { [weak self] url, disposition in self?.openReference(url, disposition: disposition) },
         externalOpener: externalOpener
     )
