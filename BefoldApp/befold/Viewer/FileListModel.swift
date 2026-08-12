@@ -99,7 +99,8 @@ final class FileListModel {
             selectionPathKey: storedSelectionPathKey,
             entryIndex: entryIndex,
             currentDirectory: currentDirectory,
-            hasLoadedEntries: hasLoadedEntries
+            hasLoadedEntries: hasLoadedEntries,
+            isListingCurrent: entriesDirectory.normalizedPathKey == currentDirectory.normalizedPathKey
         )
     }
 

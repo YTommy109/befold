@@ -1,10 +1,11 @@
 ---
 id: TASK-445
 title: Quick Open で別フォルダのファイルを選ぶと、フォルダーだけ移動して本文が切り替わらないことがある
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-08-11 08:17'
-updated_date: '2026-08-11 13:52'
+updated_date: '2026-08-12 16:19'
 labels: []
 dependencies: []
 priority: medium
@@ -42,11 +43,11 @@ Quick Open（cmd+p）で選んだファイルが開かないことがある。�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 別フォルダーのファイルを Quick Open で確定したとき、サイドバーの一覧取得タスクが世代の追い越しなどで着地しなかった場合でも、previewTarget が .folder に落ちたまま残らない
-- [ ] #2 別フォルダー・同一フォルダーのいずれのファイルを Quick Open で確定しても、サイドバーのフォルダー移動と本文の切り替えが必ず両方反映される
-- [ ] #3 syncAfterSwitch の同一フォルダー分岐と別フォルダー分岐で選択確定の扱いが非対称なまま残らない（統一するか、非対称である理由を doc コメントで明示する）
-- [ ] #4 上記を破ると落ちるユニットテストがある（一覧の着地を起こさずに syncAfterSwitch を実行し、previewTarget が .file であることを検証する）
-- [ ] #5 疑い D（ViewerRenderer.handleNavigationFailure による pendingUpdate の上書き）は本タスクの対象外として別タスクに起票されている
+- [x] #1 別フォルダーのファイルを Quick Open で確定したとき、サイドバーの一覧取得タスクが世代の追い越しなどで着地しなかった場合でも、previewTarget が .folder に落ちたまま残らない
+- [x] #2 別フォルダー・同一フォルダーのいずれのファイルを Quick Open で確定しても、サイドバーのフォルダー移動と本文の切り替えが必ず両方反映される
+- [x] #3 syncAfterSwitch の同一フォルダー分岐と別フォルダー分岐で選択確定の扱いが非対称なまま残らない（統一するか、非対称である理由を doc コメントで明示する）
+- [x] #4 上記を破ると落ちるユニットテストがある（一覧の着地を起こさずに syncAfterSwitch を実行し、previewTarget.folderURL == nil = 本文側が提示されることを検証する。着地前は行が無いため .file ではなく .undetermined になるので、判定は folderURL で行う）
+- [x] #5 疑い D（ViewerRenderer.handleNavigationFailure による pendingUpdate の上書き）は本タスクの対象外として別タスクに起票されている
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -138,4 +139,62 @@ git 状態・フォーカス復帰・並び順同期など）に依存するた�
 疑い D は TASK-446 として別途起票済み。
 
 ordinal を 673000 → 100650 へ繰り上げた（2026-08-11 の優先順位評価）。理由: ユーザー報告・再現条件の追加情報まで揃っている medium bug が、LOW の chore 群より下に沈んでボード最下部にあった。CLAUDE.md の「ボード表示順は ordinal 順」「HIGH タスクが MEDIUM/LOW より上に来るようにする」に反する配置。
+
+## 再現の実測（2026-08-13）
+
+疑い E（Notes の本命）は**そのままでは再現しなかった**。ゲートで一覧の着地を止めて
+syncAfterSwitch を実行しても previewTarget は .file のままだった。理由: 着地が飛ぶと
+entries も旧のまま残るため、旧選択（旧ファイル行）は索引に見つかり .file に解決される。
+
+再現条件は 1 つ足りていた——**切替時のサイドバーの選択がファイルでないこと**。
+フォルダー行を選んでいる（= 本文にフォルダー一覧を出している）状態、または選択が nil
+（navigateToFolder 直後）から Quick Open で別フォルダーのファイルを開くと再現する。
+実測ログ:
+
+    PROBE initial:                        folder(.../base/sub/)
+    PROBE after sync (listing pending):   folder(.../base/sub/)   ← 一覧が残る
+    PROBE after overtaking refresh:       file                     ← 着地すれば直る
+
+『時々』という報告と整合する。列挙が速ければ一瞬で直って気づかれず、遅い・世代に
+追い越される・ウィンドウ解放で着地しなければ残り続ける。
+
+## 原因は 2 段（どちらも単独で症状を出す。実測で個別に確認）
+
+1. **syncAfterSwitch の非対称**（疑い B / E）: 別フォルダー分岐が currentDirectory だけを
+   同期的に動かし、選択の確定を非同期の着地へ委ねていた。旧選択（フォルダー行 / nil）が
+   残り、previewTarget がその .folder のままになる。
+2. **PreviewTargetResolver の fallback**: 選択が索引に無いことを一律に『選択が古い』と
+   みなして .folder(currentDirectory) へ落としていた。移動直後は entries がまだ前の
+   ディレクトリのものなので、これは『一覧が追いついていない』であって古い選択ではない。
+   1 を直して選択を新ファイルへ確定させても、行が届くまでこの fallback で .folder に落ちた
+   （実測: 修正 1 のみ適用時 → folder(.../other/)）。
+
+## 修正
+
+1. syncAfterSwitch は移動の有無にかかわらず選択をこの同期区間で確定する（AC #3 の非対称を
+   統一する形で解消）。
+2. PreviewTargetResolver に isListingCurrent を足し、手元の一覧が currentDirectory の
+   ものでない間は .folder ではなく .undetermined を返す。消費側（ViewerContentView:42-49、
+   ViewerWindowController+Capabilities.swift:18）は folderURL != nil でしか分岐しないため、
+   .undetermined は本文提示として扱われる。
+   なお『絞り込みは currentDirectory ではなく entriesDirectory と突き合わせる』
+   （FileListModel.entriesDirectory の doc / TASK-293）と同じ判定基準に揃えた形になる。
+
+## 検証
+
+- 追加テスト SidebarNavigatorQuickOpenSyncTests（3 件）。**2 つの修正を個別に戻して
+  それぞれ落ちることを実測**（resolver 側だけ戻す → 2 件失敗 / navigator 側だけ戻す → 2 件失敗）
+- swift test: 1464 tests / 230 suites 全 pass
+- 既存の FileListModelPreviewTargetTests.notifiesOncePerActualTargetChange が 1 件落ちたため
+  修正した。原因はテスト側が本番と違う経路（entries への直接代入で entriesDirectory が
+  移動前のまま）を使っていたこと。本番経路の setEntries(_:for:didFailEnumeration:) に
+  置き換えた（FileListModel.entries の doc がこの直接代入を明示的に非推奨としている）
+- swiftlint: 全体 55 件で main と同数。指摘はいずれも今回触っていないファイル
+- AC #5: TASK-446 として起票済みであることを確認
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Quick Open で別フォルダーのファイルを開いたときにフォルダー一覧が本文に重なったまま残る事象を、再現の実測から原因 2 段（syncAfterSwitch が選択の確定を非同期の着地へ委ねていた / PreviewTargetResolver が『一覧がまだ追いついていない』を『選択が古い』と同一視していた）に切り分けて修正した。再現には『切替時の選択がファイルでない』条件が必要で、これが報告の間欠性と一致する。選択は移動の有無によらず同期区間で確定させ（分岐の非対称を解消）、一覧が currentDirectory のものでない間は .undetermined を返すようにした。2 つの修正を個別に戻して回帰テストがそれぞれ落ちることを実測し、swift test 1464 件全 pass・swiftlint は main と同数の 55 件で検証した。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -66,7 +66,10 @@ struct FileListModelPreviewTargetTests {
         let destinationEntry = FileListEntry(url: destination.appendingPathComponent("a.md"), kind: .file)
         model.currentDirectory = destination
         #expect(model.previewTarget == .file) // 一覧が届くまでは開いている文書のまま
-        model.entries = [destinationEntry]
+        // 一覧の反映は本番と同じ setEntries で行う。`entries` への直接代入だと
+        // entriesDirectory が移動前のまま残り、「一覧がまだ追いついていない」と
+        // 判定される中間状態(previewTarget == .undetermined)が本番には無い形で挟まる。
+        model.setEntries([destinationEntry], for: destination, didFailEnumeration: false)
         model.selection = nil
 
         #expect(model.previewTarget == .folder(destination))
