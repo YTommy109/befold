@@ -7,14 +7,14 @@ on:
       - 'BefoldApp/**'
       - '.github/workflows/ci.yml'
       - 'scripts/check-type-group-size.sh'
-      - 'scripts/type-group-baseline.txt'
+      - 'scripts/type-group-exceptions.txt'
   pull_request:
     branches: [main]
     paths:
       - 'BefoldApp/**'
       - '.github/workflows/ci.yml'
       - 'scripts/check-type-group-size.sh'
-      - 'scripts/type-group-baseline.txt'
+      - 'scripts/type-group-exceptions.txt'
   schedule:
     # ThreadSanitizer を毎日回して競合回帰を検出する（push がなくても走らせる）
     - cron: '0 15 * * *'
@@ -65,7 +65,7 @@ jobs:
             echo 'app=true' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|scripts/(check-type-group-size\.sh|type-group-baseline\.txt)$)'; then
+          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt)$)'; then
             echo 'app=true' >> "$GITHUB_OUTPUT"
           else
             echo 'app=false' >> "$GITHUB_OUTPUT"
@@ -73,7 +73,7 @@ jobs:
           fi
           printf '%s\n' "$files"
 
-  # 型グループ（Foo.swift + 同ディレクトリの Foo+*.swift の合算）の行数ラチェット。
+  # 型グループ（Foo.swift + 同ディレクトリの Foo+*.swift の合算）の行数閾値。
   # 手元の pre-commit は警告どまりなので、ブロックはここで行う(TASK-428.3)。
   # 集計はファイルを読むだけでビルドが要らないため、macOS の build-and-test を待たせず
   # ubuntu の独立ジョブにして失敗を早く返す。
@@ -89,15 +89,15 @@ jobs:
       - name: 判定の self-test を通す
         run: scripts/check-type-group-size.sh --self-test
 
-      # 終了コード 2 は「行数が減ってベースラインが古い」。ラチェットは締まる方向なので
-      # ここでは落とさず警告に留める（判断の理由は TASK-428.2 の Implementation Notes）。
-      - name: 型グループの行数がベースラインを超えていないことを確認する
+      # 終了コード 2 は「不要になった恒久例外が残っている」。判定が緩むのはその 1 グループ
+      # だけで、返済した側を赤くするのは筋が悪いのでここでは落とさず警告に留める。
+      - name: 型グループの行数が閾値以内であることを確認する
         run: |
           set -uo pipefail
           status=0
           scripts/check-type-group-size.sh --check || status=$?
           if [ "$status" = 2 ]; then
-            echo "::warning::型グループの行数が減っています。scripts/check-type-group-size.sh --update-baseline でベースラインを締め直してください"
+            echo "::warning::不要になった恒久例外が残っています。scripts/type-group-exceptions.txt から該当行を削除してください"
             exit 0
           fi
           exit "$status"

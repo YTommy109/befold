@@ -17,10 +17,10 @@ struct ViewerStoreLoadingTests {
 
         let store = makeStore(reader: reader)
         store.openFile(file)
-        #expect(store.isLoading)
+        #expect(store.contentState.isLoading)
 
         await awaitLoad(store)
-        #expect(!store.isLoading)
+        #expect(!store.contentState.isLoading)
 
         store.close()
     }
@@ -33,10 +33,10 @@ struct ViewerStoreLoadingTests {
 
         let store = makeStore(reader: reader)
         store.openFile(file)
-        #expect(store.isLoading)
+        #expect(store.contentState.isLoading)
 
         store.close()
-        #expect(!store.isLoading)
+        #expect(!store.contentState.isLoading)
     }
 }
 

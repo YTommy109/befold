@@ -44,7 +44,7 @@ extension FileListView {
         case .navigateToParent: navigateToParent(in: snapshot)
         // `perform` の switch は default を持つため、新しいケースを足しても
         // コンパイラは漏れを教えない。選択行を要しない動作はここへ明示的に書く。
-        case .selectParent: selectParentRow()
+        case .selectParent: selectParentRow(in: snapshot)
         case .ignored: .ignored
         // 残りはいずれも選択行を必要とする。選択が無ければ何もしない、という
         // 同じ前提を 1 箇所にまとめる。
@@ -93,8 +93,12 @@ extension FileListView {
     /// 行き先は必ずフォルダ行なので `openIfFile` は呼ばない(呼んでも何も起きない)。
     /// 画面のスクロール追従は `FileListModel.selection` の didSet が行うため、
     /// ここで足す必要はない。最上位の行では親が無く `.ignored` になる。
-    private func selectParentRow() -> KeyPress.Result {
-        guard let current = model.selection, let parent = model.parentRow(of: current) else {
+    ///
+    /// 親行の探索も**引数のスナップショット**へ行う。以前は `FileListModel.parentRow(of:)`
+    /// を呼んでおり、その中で `visibleEntries` を読み直すため ← キーの経路だけ
+    /// 「1 打鍵につき絞り込みは 1 回」(TASK-418)が破れていた(TASK-443)。
+    private func selectParentRow(in snapshot: FileListSnapshot) -> KeyPress.Result {
+        guard let current = model.selection, let parent = snapshot.parent(of: current) else {
             return .ignored
         }
         model.selection = parent.id

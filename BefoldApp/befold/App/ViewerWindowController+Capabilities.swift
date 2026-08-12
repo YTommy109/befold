@@ -27,12 +27,8 @@ extension ViewerWindowController {
         )
     }
 
-    /// そのモードをいま選べるか。ツールバーのセグメントとメニューの有効判定が共有する。
+    /// そのモードをいま選べるか(ViewerToolbarHost の要求)。判断は capabilities 側にある。
     func canSelect(_ mode: ViewerDisplayMode) -> Bool {
-        switch mode {
-        case .rendered: capabilities.canSelectPreviewMode
-        case .source: capabilities.canSelectSourceMode
-        case .diff: capabilities.canSelectDiffMode
-        }
+        capabilities.canSelect(mode)
     }
 }

@@ -66,8 +66,33 @@ struct FileListSnapshot {
         return visible[index - 1]
     }
 
+    /// 指定した行の 1 つ上の階層にあたる行。無ければ nil。
+    ///
+    /// 判定に使うのは **配列上の depth の連なり**で、パス文字列の前置一致ではない。
+    /// `visible` は深さ優先で並ぶ(SidebarRowBuilder)ため、対象より前にある
+    /// 「depth がより小さい最後の行」が親にあたる。絞り込み中に祖先を足し戻す
+    /// `SidebarTreeFilter.keepingAncestors` も同じ不変条件で動いており、判定源を
+    /// 揃えておくと絞り込みの有無で答えが割れない。
+    ///
+    /// 最上位の行(depth 0。`..` を含む)には親が無いので nil を返す。ツリーの ← が
+    /// ルートを変えないのはこの nil が `.ignored` になるからで、`..` を親として
+    /// 返し始めると選択移動とルート移動が混ざる(TASK-408)。
+    ///
+    /// **`FileListModel` ではなくここに置くのが要点**(TASK-443)。モデル側に置くと
+    /// 呼び出し側が手元のスナップショットを使えず `visibleEntries` を読み直すため、
+    /// 「1 打鍵につき絞り込みは 1 回」(TASK-418)が ← キーの経路だけ破れる。
+    func parent(of entryID: FileListEntry.ID) -> FileListEntry? {
+        guard let index = visible.firstIndex(where: { $0.id == entryID }) else { return nil }
+        let depth = visible[index].depth
+        guard depth > 0 else { return nil }
+        return visible[..<index].last { $0.depth < depth }
+    }
+
     /// いま見えている行の中での位置。選択が無い・隠れているなら nil。
-    private func index(of selection: FileListEntry.ID?) -> Int? {
+    ///
+    /// 選択行のスクロール追従(`FileListModel`)もここを使う。List は `visible` を
+    /// 1 セクションでそのまま描くため、この添字が NSTableView の行番号と一致する。
+    func index(of selection: FileListEntry.ID?) -> Int? {
         guard let selection else { return nil }
         return visible.firstIndex { $0.id == selection }
     }

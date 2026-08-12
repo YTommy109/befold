@@ -19,7 +19,7 @@ struct ViewerStoreFileTypeConsistencyTests {
         let onRenameBox = LockedBox<(@MainActor @Sendable (URL) -> Void)?>(nil)
         let store = makeStore(reader: reader, onRenameBox: onRenameBox)
         await openAndLoad(store, oldFile)
-        #expect(store.fileType == .markdown)
+        #expect(store.contentState.fileType == .markdown)
 
         // 拡張子だけ変わり、バイト列は完全に同一(dataHash が一致する)。
         let newFile = URL(fileURLWithPath: "/files/notes.mmd")
@@ -30,8 +30,8 @@ struct ViewerStoreFileTypeConsistencyTests {
         onRenameBox.get()?(newFile)
         await awaitLoad(store)
 
-        #expect(store.fileType == .mmd)
-        #expect(store.filePath == newFile)
+        #expect(store.contentState.fileType == .mmd)
+        #expect(store.contentState.filePath == newFile)
         #expect(firedCount == 1)
 
         store.close()
@@ -49,12 +49,12 @@ struct ViewerStoreFileTypeConsistencyTests {
 
         let store = makeStore(reader: reader)
         await openAndLoad(store, file1)
-        #expect(store.fileType == .markdown)
+        #expect(store.contentState.fileType == .markdown)
 
         await openAndLoad(store, file2)
 
-        #expect(store.fileType == .mmd)
-        #expect(store.filePath == file2)
+        #expect(store.contentState.fileType == .mmd)
+        #expect(store.contentState.filePath == file2)
 
         store.close()
     }
@@ -74,21 +74,21 @@ struct ViewerStoreFileTypeConsistencyTests {
 
         let store = makeStore(reader: reader)
         await openAndLoad(store, htmlFile)
-        #expect(store.fileType == .html)
-        #expect(store.filePath == htmlFile)
+        #expect(store.contentState.fileType == .html)
+        #expect(store.contentState.filePath == htmlFile)
 
         store.openFile(cssFile)
         // 読み込み完了前は、旧ファイルの filePath/fileType/content が組のまま残るべき
         // (filePath だけ新ファイルを指し、fileType/content が旧ファイルのままという
         // 中間状態は許されない)。
-        #expect(store.filePath == htmlFile)
-        #expect(store.fileType == .html)
-        #expect(store.content == "<html></html>")
+        #expect(store.contentState.filePath == htmlFile)
+        #expect(store.contentState.fileType == .html)
+        #expect(store.contentState.content == "<html></html>")
 
         await awaitLoad(store)
-        #expect(store.filePath == cssFile)
-        #expect(store.fileType == .code(language: "css"))
-        #expect(store.content == "body { color: red; }")
+        #expect(store.contentState.filePath == cssFile)
+        #expect(store.contentState.fileType == .code(language: "css"))
+        #expect(store.contentState.content == "body { color: red; }")
 
         store.close()
     }
@@ -103,7 +103,7 @@ struct ViewerStoreFileTypeConsistencyTests {
         let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
         let store = makeStore(reader: reader, onChangeBox: onChangeBox)
         await openAndLoad(store, file)
-        let revisionAfterFirstLoad = store.contentRevision
+        let revisionAfterFirstLoad = store.contentState.contentRevision
 
         nonisolated(unsafe) var firedCount = 0
         store.onContentReloaded = { firedCount += 1 }
@@ -111,7 +111,7 @@ struct ViewerStoreFileTypeConsistencyTests {
         onChangeBox.get()?()
         await awaitLoad(store)
 
-        #expect(store.contentRevision == revisionAfterFirstLoad)
+        #expect(store.contentState.contentRevision == revisionAfterFirstLoad)
         #expect(firedCount == 0)
 
         store.close()

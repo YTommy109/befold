@@ -2,7 +2,7 @@ import BefoldKit
 import Foundation
 
 /// 読み込み経路。pendingURL の内容をバックグラウンドで取得し、着地した結果を
-/// 表示状態へ渡す（書き換え自体は `ViewerStore` 本体の internal な入口が行う）。
+/// 表示状態へ渡す（書き換え自体は `ViewerContentState` の internal な入口が行う）。
 /// 段階読み込み（チャンク）の続き取得もここが担う。
 @MainActor
 extension ViewerStore {
@@ -11,27 +11,29 @@ extension ViewerStore {
     /// 戻り値の contentRevision は追記後の世代番号(呼び出し側が描画済みキャッシュを
     /// 同期し、直後の全文 render 誤爆を防ぐために使う)。
     func loadMoreLines() async -> LoadMoreLinesResult? {
-        guard isTruncated, let session = chunkSession else { return nil }
+        guard contentState.isTruncated, let session = contentState.chunkSession else { return nil }
         do {
             let result = try await session.readNextChunk()
             // 読み込み待機中の再読込(セッション交代)と競合した場合は、
             // 古いセッションの結果を捨てて新しい表示を壊さない。
-            guard chunkSession === session else { return nil }
-            appendChunk(result.text, isAtEnd: result.isAtEnd)
+            guard contentState.chunkSession === session else { return nil }
+            contentState.appendChunk(result.text, isAtEnd: result.isAtEnd)
             return LoadMoreLinesResult(
-                chunk: result.text, isTruncated: isTruncated,
-                lineCount: displayedLineCount, contentRevision: contentRevision,
+                chunk: result.text, isTruncated: contentState.isTruncated,
+                lineCount: contentState.displayedLineCount,
+                contentRevision: contentState.contentRevision,
                 loadFailed: false
             )
         } catch {
-            guard chunkSession === session else { return nil }
+            guard contentState.chunkSession === session else { return nil }
             // セッション途中のエラーではチャンクセッションを終了し、
             // 表示済みの内容を保持する。loadContent で全体を再読込すると、
             // 10MB 超のファイルで表示済みコンテンツが fileTooLarge に置き換わるため。
-            markChunkLoadFailed()
+            contentState.markChunkLoadFailed()
             return LoadMoreLinesResult(
-                chunk: "", isTruncated: isTruncated,
-                lineCount: displayedLineCount, contentRevision: contentRevision,
+                chunk: "", isTruncated: contentState.isTruncated,
+                lineCount: contentState.displayedLineCount,
+                contentRevision: contentState.contentRevision,
                 loadFailed: true
             )
         }
@@ -44,7 +46,7 @@ extension ViewerStore {
         guard let target = pendingURL else { return }
         loadGeneration += 1
         let generation = loadGeneration
-        beginLoading()
+        contentState.beginLoading()
         let resolved = target.resolvingSymlinksInPath()
         let fileType = pendingFileType
         loadTask = Task {
@@ -78,14 +80,14 @@ extension ViewerStore {
     /// 新ファイルの filePath や fileType が組み合わさった中間状態が描画されないようにする
     /// (task: HTML 表示直後の切替で空白表示になる不具合の再発防止)。
     private func apply(_ outcome: ViewerLoadPipeline.Outcome, url: URL, fileType: FileType) {
-        finishLoading(url: url)
-        let state: DisplayState
+        contentState.finishLoading(url: url)
+        let state: ViewerContentState.DisplayState
         switch outcome {
         case .missing:
             scheduleFileGone()
             return
         case let .chunked(session, cache, firstChunk, isAtEnd):
-            state = DisplayState(
+            state = ViewerContentState.DisplayState(
                 fileType: fileType,
                 contentHash: cache.dataHash,
                 chunkSession: session,
@@ -96,7 +98,7 @@ extension ViewerStore {
                 hasDeclaredHTMLCharset: nil
             )
         case let .full(loaded, cache):
-            state = DisplayState(
+            state = ViewerContentState.DisplayState(
                 fileType: fileType,
                 contentHash: cache?.dataHash,
                 chunkSession: nil,
@@ -107,7 +109,7 @@ extension ViewerStore {
                 hasDeclaredHTMLCharset: loaded.hasDeclaredHTMLCharset
             )
         }
-        guard applyDisplayState(state) else { return }
+        guard contentState.applyDisplayState(state) else { return }
         fileGoneWatchdog.cancel()
         // rejectReason / content(表示状態)が確定した後に通知する。
         onContentReloaded?()

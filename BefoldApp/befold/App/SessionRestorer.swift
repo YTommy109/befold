@@ -53,13 +53,13 @@ final class SessionRestorer {
 
         func group(for window: NSWindow) -> SessionLayout.TabGroup? {
             guard !seenWindows.contains(ObjectIdentifier(window)),
-                  windowManager.viewerPath(of: window) != nil else { return nil }
+                  ViewerTabGrouping.viewerPath(of: window) != nil else { return nil }
 
-            seenWindows.formUnion(ViewerWindowManager.tabWindows(of: window).map(ObjectIdentifier.init))
+            seenWindows.formUnion(ViewerTabGrouping.tabWindows(of: window).map(ObjectIdentifier.init))
 
-            // 組み立て規則は ViewerWindowManager.tabGroup(of:) に一本化してある
+            // 組み立て規則は ViewerTabGrouping.tabGroup(of:) に一本化してある
             // (「最近使ったリポジトリ」のタブ構成と同じ形式で相互に復元されるため)
-            return windowManager.tabGroup(of: window)
+            return ViewerTabGrouping.tabGroup(of: window)
         }
 
         // orderedWindows は最小化(Dock 収納)・非表示のウィンドウを含まないため、
@@ -160,7 +160,7 @@ final class SessionRestorer {
     /// `ViewerWindowManager.openViewer` へ渡す形は、経路ごとの取りこぼしを防ぐために保つ。
     func restoreLastSession(options: CLIOpenOptions = CLIOpenOptions()) {
         if let showHiddenFiles = options.showHiddenFiles {
-            windowManager.setHiddenFiles(showHiddenFiles)
+            windowManager.display.setHiddenFiles(showHiddenFiles)
         }
 
         // 復元中のウィンドウ表示がシステムの「タブ優先」設定で勝手にタブ結合しないよう、
@@ -225,7 +225,7 @@ final class SessionRestorer {
             openedPaths.insert(path)
             guard let window = controller?.window else { continue }
             // システムの「書類を開くときはタブで開く」設定に依存しないよう明示的にタブ化する
-            windowManager.attachAsTab(window, to: previousWindow, select: false)
+            ViewerTabGrouping.attachAsTab(window, to: previousWindow, select: false)
             previousWindow = window
             if path == group.selectedPath { selectedWindow = window }
         }

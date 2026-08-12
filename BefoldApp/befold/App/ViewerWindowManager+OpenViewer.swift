@@ -37,7 +37,13 @@ extension ViewerWindowManager {
         // 明示的に新規オープンを求めた経路なので、重複抑止より意図を優先して素通しする
         // (既に開いているファイルで「新しいウィンドウで開く」が無反応に見える問題: issue #431)。
         if disposition == .currentTab, let existing = controllers[key]?.first {
-            reopenExistingWindow(existing, options: options, forceSidebarVisible: forceSidebarVisible)
+            // 表示オプションの適用規則は ViewerDisplayOptionsApplier に一本化してある。
+            // 前面化(activate / focusWindow)は開く経路の責務なのでここに残す。
+            ViewerDisplayOptionsApplier.apply(
+                options, to: existing, forceSidebarVisible: forceSidebarVisible
+            )
+            NSApp.activate()
+            existing.focusWindow()
             return existing
         }
 
@@ -51,12 +57,12 @@ extension ViewerWindowManager {
         // window が nil(生成直後で取得できない等)ならタブ結合をあきらめ独立ウィンドウのまま
         // 表示する(attachAsTab と同じ「開けないよりタブにならない」への縮退)。
         if disposition == .newTab, let window = controller.window {
-            attachAsTab(window, to: sourceWindow, select: true)
+            ViewerTabGrouping.attachAsTab(window, to: sourceWindow, select: true)
         }
         sessionStore.noteOpened(url)
         recentDocumentsStore.noteOpened(url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
-        recordRecentRepositoryIfNeeded(for: url, controller: controller)
+        recentRepositories.recordIfNeeded(for: url, controller: controller)
         return controller
     }
 
@@ -106,39 +112,5 @@ extension ViewerWindowManager {
                 self?.openViewer(for: fileURL, disposition: disposition, relativeTo: sourceWindow)
             }
         )
-    }
-
-    /// 既に開いているウィンドウを対象に開き直したとき(`befold --source foo.md` で foo.md が
-    /// 既に開いている等)の処理。表示オプションをそのウィンドウへ適用してから前面化する。
-    ///
-    /// ここを素通りさせると、フラグは黙って捨てられる(TASK-413)。新規ウィンドウは
-    /// ViewerWindowController.init の override 引数で同じ結果になるため、CLI オプションが
-    /// 効く経路は openViewer の 1 つに揃う。
-    /// 同一ファイルが複数ウィンドウで開いている場合、適用先は前面化するウィンドウ 1 つに揃える
-    /// (表示モードは窓ごとのライブ値であり、窓間で同期しない = ADR 0002)。
-    private func reopenExistingWindow(
-        _ controller: ViewerWindowController, options: CLIOpenOptions, forceSidebarVisible: Bool
-    ) {
-        if let showLineNumbers = options.showLineNumbers {
-            controller.store.applyShowLineNumbersOverride(showLineNumbers)
-        }
-        if let sourceMode = options.sourceMode { controller.applyCLIDisplayMode(isSourceMode: sourceMode) }
-        // 並び順は「指定があったときだけ」触る。viewerSortOrder は未指定でも既定値を
-        // 返すため、指定の有無は sortOrder の nil 判定で見る。
-        if options.sortOrder != nil {
-            controller.fileListModel.sortOrder = options.viewerSortOrder
-            controller.sidebar.refreshFileList()
-        }
-        // 開閉の解決順は新規ウィンドウ(openViewer)と同じ: CLI の明示指定 > フォルダーオープンの強制表示。
-        if let showSidebar = options.showSidebar {
-            controller.setSidebarCollapsed(!showSidebar)
-        } else if forceSidebarVisible {
-            controller.setSidebarCollapsed(false)
-        }
-        // store の直接書き換え(行番号の上書き)はツールバーへ通知されないため、
-        // 他経路の間接発火に頼らずここで明示的に再同期する。
-        controller.refreshToolbarState()
-        NSApp.activate()
-        controller.focusWindow()
     }
 }

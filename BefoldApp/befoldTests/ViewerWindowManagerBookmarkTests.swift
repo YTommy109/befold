@@ -24,7 +24,7 @@ struct ViewerWindowManagerBookmarkTests {
         let button = try #require(liveItem.view as? NSButton)
         #expect(button.contentTintColor == nil)
 
-        fixture.manager.addBookmarks(for: [file])
+        fixture.manager.display.addBookmarks(for: [file])
 
         #expect(fixture.bookmarkStore.isBookmarked(file))
         #expect(button.contentTintColor == .controlAccentColor)
@@ -40,7 +40,7 @@ struct ViewerWindowManagerBookmarkTests {
         let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("bookmark") })
         let button = try #require(liveItem.view as? NSButton)
 
-        fixture.manager.addBookmarks(for: [otherFile])
+        fixture.manager.display.addBookmarks(for: [otherFile])
 
         #expect(fixture.bookmarkStore.isBookmarked(otherFile))
         #expect(button.contentTintColor == nil)

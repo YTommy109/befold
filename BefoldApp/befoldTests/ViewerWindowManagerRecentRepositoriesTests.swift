@@ -43,7 +43,14 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         let gitFileIndex: FixedRootGitFileIndex
     }
 
-    private func makeFixture(files: [URL], root: URL?, defaults: UserDefaults) -> Fixture {
+    /// - Parameter resolveIdentity: 既定は「本体リポジトリそのもの」(mainRoot == root)。
+    ///   worktree の記録規約を見るテストだけが、別の本体ルートを返す解決へ差し替える。
+    private func makeFixture(
+        files: [URL], root: URL?, defaults: UserDefaults,
+        resolveIdentity: @escaping @Sendable (URL) -> RepositoryIdentity = {
+            RepositoryIdentity(label: $0.lastPathComponent, mainRoot: $0)
+        }
+    ) -> Fixture {
         let fileReader = InMemoryFileReader(
             files: Dictionary(uniqueKeysWithValues: files.map { ($0.path, "graph TD;") })
         )
@@ -68,9 +75,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
             makeContentView: placeholderViewerContent,
             gitFileIndex: gitFileIndex,
             recentRepositoriesStore: recentRepositoriesStore,
-            repositoryIdentityResolver: {
-                RepositoryIdentity(label: $0.lastPathComponent, mainRoot: $0)
-            }
+            repositoryIdentityResolver: resolveIdentity
         )
         return Fixture(manager: manager, store: recentRepositoriesStore, gitFileIndex: gitFileIndex)
     }
@@ -98,6 +103,25 @@ struct ViewerWindowManagerRecentRepositoriesTests {
 
         #expect(fixture.store.entries().map(\.rootPath) == [root.normalizedPathKey])
         #expect(controller.repositoryRoot == root)
+        fixture.manager.allControllers.forEach { $0.close() }
+    }
+
+    /// RecentRepositoryEntry の規約: mainRoot を持たせるのは worktree のときだけで、
+    /// 本体リポジトリそのものなら nil。両方向を見ないと「常に埋める」実装でも通ってしまう。
+    @Test("worktree を開いたときだけ本体ルートが記録される")
+    func recordsMainRootOnlyForWorktree() async throws {
+        let defaults = makeIsolatedDefaults(prefix: "VWMRecentReposWorktree")
+        let file = URL(fileURLWithPath: "/wt/a.md")
+        let root = URL(fileURLWithPath: "/wt")
+        let mainRoot = URL(fileURLWithPath: "/main-repo")
+        let fixture = makeFixture(
+            files: [file], root: root, defaults: defaults,
+            resolveIdentity: { _ in RepositoryIdentity(label: "wt", mainRoot: mainRoot) }
+        )
+
+        _ = try await openAndAwaitRecording(fixture, file: file)
+
+        #expect(fixture.store.entries().map(\.mainRootPath) == [mainRoot.normalizedPathKey])
         fixture.manager.allControllers.forEach { $0.close() }
     }
 

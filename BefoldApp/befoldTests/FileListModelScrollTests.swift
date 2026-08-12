@@ -30,7 +30,7 @@ struct FileListModelScrollTests {
     private func makeModel(entries: [FileListEntry]) -> (FileListModel, SpyTableView) {
         let model = FileListModel(currentDirectory: directory, entries: entries, selection: nil)
         let tableView = SpyTableView()
-        model.sidebarTableView = tableView
+        model.tableFocuser.tableView = tableView
         return (model, tableView)
     }
 

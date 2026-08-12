@@ -12,7 +12,7 @@ import Foundation
 @MainActor
 enum ViewerCapabilitiesFactory {
     /// - Parameter fileURL: 差分の種別ゲートだけが使う「いま表示中の URL」。
-    ///   `store.fileType` は非同期のコンテンツロード完了まで旧ファイルの値を保つため、
+    ///   `store.contentState.fileType` は非同期のコンテンツロード完了まで旧ファイルの値を保つため、
     ///   切替中に届いた取得契機（`.git/index` 変更・他ウィンドウの保存）が旧ファイルの
     ///   種別で通り、差分を描けない CSV/TSV に対して git を起こしてしまう（TASK-338）。
     static func make(
@@ -23,12 +23,12 @@ enum ViewerCapabilitiesFactory {
     ) -> ViewerCapabilities {
         ViewerCapabilities(
             isPresentingDocument: isPresentingDocument,
-            isRejected: store.isRejected,
-            isRenderable: store.fileType.isRenderable,
-            isBinaryContent: store.fileType.isBinaryContent,
+            isRejected: store.contentState.isRejected,
+            isRenderable: store.contentState.fileType.isRenderable,
+            isBinaryContent: store.contentState.fileType.isBinaryContent,
             showsCodeContent: store.showsCodeContent,
             showsDiff: store.showsDiff,
-            supportsSourceMode: store.fileType.supportsSourceMode,
+            supportsSourceMode: store.contentState.fileType.supportsSourceMode,
             supportsDiffDisplay: FileType(url: fileURL).supportsDiffDisplay,
             isDirectHTMLMode: isDirectHTMLMode
         )

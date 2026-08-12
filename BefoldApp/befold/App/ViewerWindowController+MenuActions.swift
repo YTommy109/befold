@@ -13,8 +13,7 @@ import BefoldKit
 /// その場で組み立てるコンテキストメニューのアクションはここではなく、メニューを作る側
 /// (`ViewerWindowController+References.swift`)に置く。
 ///
-/// `validateMenuItem` は「どのセレクタがどの能力に対応するか」の対応表であって、
-/// **有効/無効の条件そのものは書かない**(条件は `ViewerCapabilities` の 1 箇所 / ADR 0002)。
+/// 有効判定(`validateMenuItem`)の対応表は `ViewerMenuValidator` にあり、ここは受け口だけ。
 @MainActor
 extension ViewerWindowController {
     /// View > Zoom In。HTML 直接ロード時は WKWebView の pageZoom を、それ以外は JS ズーム実装を使う。
@@ -106,56 +105,8 @@ extension ViewerWindowController {
         navigateHistory(by: 1)
     }
 
-    /// 有効判定は capabilities(提示状態からの導出)だけを見る。ここでの分岐は
-    /// 「どのセレクタがどの能力に対応するか」の対応表であって、条件そのものは書かない(ADR 0002)。
+    /// AppKit からの有効判定要求の受け口。対応表は `ViewerMenuValidator` にある。
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(toggleSourceView(_:)) {
-            menuItem.title = ViewerCommandTitles.sourceView(isSourceMode: isSourceMode)
-            return capabilities.canToggleSourceMode
-        }
-        if menuItem.action == #selector(toggleLineNumbers(_:)) {
-            menuItem.title = ViewerCommandTitles.lineNumbers(isShown: store.showLineNumbers)
-            return capabilities.canToggleLineNumbers
-        }
-        if let enabled = validateDisplayModeItem(menuItem) {
-            return enabled
-        }
-        if menuItem.action == #selector(toggleBookmark(_:)) {
-            menuItem.title = ViewerCommandTitles.bookmark(isBookmarked: isBookmarked)
-            return capabilities.canBookmark
-        }
-        if menuItem.action == #selector(goBack(_:)) {
-            return fileListModel.canGoBack
-        }
-        if menuItem.action == #selector(goForward(_:)) {
-            return fileListModel.canGoForward
-        }
-        let findActions: [Selector] = [#selector(find(_:)), #selector(findNext(_:)), #selector(findPrevious(_:))]
-        if let action = menuItem.action, findActions.contains(action) {
-            return capabilities.canFind
-        }
-        if menuItem.action == #selector(printDocument(_:)) {
-            return capabilities.canPrint
-        }
-        let zoomActions: [Selector] = [#selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(resetZoom(_:))]
-        if let action = menuItem.action, zoomActions.contains(action) {
-            return capabilities.canZoom
-        }
-        return true
-    }
-
-    /// 表示モード選択(⌘1〜⌘3)とレイアウト切替(⌘\\)の validate。
-    /// 自分の担当外の項目には nil を返し、呼び出し側(validateMenuItem)の判定を続けさせる。
-    private func validateDisplayModeItem(_ menuItem: NSMenuItem) -> Bool? {
-        if menuItem.action == #selector(selectDisplayMode(_:)) {
-            guard let mode = ViewerDisplayMode(menuItemTag: menuItem.tag) else { return false }
-            menuItem.state = effectiveDisplayMode == mode ? .on : .off
-            return canSelect(mode)
-        }
-        if menuItem.action == #selector(toggleDiffLayout(_:)) {
-            menuItem.state = isDiffLayoutSideBySide ? .on : .off
-            return capabilities.canToggleDiffLayout
-        }
-        return nil
+        ViewerMenuValidator.validate(menuItem, source: self)
     }
 }

@@ -204,7 +204,7 @@ struct ViewerWindowControllerDiffTests {
         // 種別は読み込み完了時に確定する。ここを待たないと既定の .mmd のまま測ってしまい、
         // canToggleDiff が false でも「CSV だから」ではなくなる。
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controller.store.fileType == .csv(delimiter: ",")
+            controller.store.contentState.fileType == .csv(delimiter: ",")
         }
         #expect(controller.store.showsCodeContent)
         #expect(!controller.capabilities.canSelectDiffMode)
@@ -216,7 +216,7 @@ struct ViewerWindowControllerDiffTests {
         #expect(controller.store.diffText == nil)
     }
 
-    /// 種別ゲート(CSV/TSV)は切替**先**のファイルで判定する。`store.fileType` は
+    /// 種別ゲート(CSV/TSV)は切替**先**のファイルで判定する。`store.contentState.fileType` は
     /// 非同期のコンテンツロード完了まで旧ファイルの値を保つため、それを見ていると
     /// 切替直後に届いた取得契機(`.git/index` 変更・他ウィンドウの保存)が旧ファイルの
     /// 種別でゲートを通り、CSV に対して git を起こしてしまう(TASK-338)。
@@ -237,7 +237,7 @@ struct ViewerWindowControllerDiffTests {
         presentDocument(in: controller, file: file)
         // 前提: 切替前の .swift のロードが確定し、差分を出せる状態になっている。
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controller.store.filePath == file
+            controller.store.contentState.filePath == file
         }
         #expect(controller.capabilities.canSelectDiffMode)
 
@@ -247,13 +247,13 @@ struct ViewerWindowControllerDiffTests {
         // CSV 側もソース表示で開く(保存済みの表示モードが ON のケース)。
         controller.store.displayMode = .source
         // 種別はまだ旧ファイルのもの = ここが「すり抜け」の入口。
-        #expect(controller.store.fileType.supportsDiffDisplay)
+        #expect(controller.store.contentState.fileType.supportsDiffDisplay)
         controller.gitStatusDidApply()
 
         // ロードが確定しても取得が起きないことまで見る(確定後は fileType 経由でも弾かれる
         // ため、確定前の 1 回を取りこぼさないよう待ってから測る)。
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controller.store.fileType == .csv(delimiter: ",")
+            controller.store.contentState.fileType == .csv(delimiter: ",")
         }
         // 測るのは「切替先へ git を起こしたか」であって取得の総数ではない。総数で測ると、
         // 切替前の .swift に対する正当な取得まで数えてしまい、その回数は契機の重なり方で
@@ -284,7 +284,7 @@ struct ViewerWindowControllerDiffTests {
         controller.fileListModel.entries = [FileListEntry(url: markdown, kind: .file)]
         controller.fileListModel.selection = markdown
         await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controller.store.fileType == .markdown
+            controller.store.contentState.fileType == .markdown
         }
         // 前提: レンダリング表示中は差分モードを選んでいない = ここでは取得も起きない。
         #expect(!controller.isDiffShown)

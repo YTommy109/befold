@@ -61,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // ACK を取りこぼして再送を待たせることになる(AppCLIRequestReceiver の doc)。
         cliRequestReceiver = AppCLIRequestReceiver(
             onOpen: { paths, options in documentOpener.openPaths(paths, options: options) },
-            onBookmark: { [windowManager] urls in windowManager.addBookmarks(for: urls) }
+            onBookmark: { [windowManager] urls in windowManager.display.addBookmarks(for: urls) }
         )
         mainMenu = MainMenuCoordinator(
             stores: stores,
@@ -123,7 +123,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sessionRestorer.restoreLastSession()
         NSApp.activate()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [windowManager] in
-            windowManager.rescueWindowsDetachedFromSpace()
+            ViewerTabGrouping.rescueWindowsDetachedFromSpace(
+                among: windowManager.allControllers.compactMap(\.window)
+            )
         }
         updater.start()
         CLIShimCoordinator.notifyIfStale()
@@ -226,17 +228,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// View > Show/Hide Hidden Files(⌘⌃H)。不可視ファイル表示を全ウィンドウで一括切替する。
     @objc func toggleHiddenFiles(_ sender: Any?) {
-        windowManager.toggleHiddenFiles()
+        windowManager.display.toggleHiddenFiles()
     }
 
     /// View > Show Changed Files Only(⌘⌃G)。git 変更ファイルのみの絞り込みを全ウィンドウで一括切替する。
     @objc func toggleChangedFilesOnly(_ sender: Any?) {
-        windowManager.toggleChangedFilesOnly()
+        windowManager.display.toggleChangedFilesOnly()
     }
 
     /// View > サイドバーをツリー表示(ショートカットなし)。表示モードを全ウィンドウで一括切替する。
     @objc func toggleSidebarTreeLayout(_ sender: Any?) {
-        windowManager.toggleSidebarLayoutMode()
+        windowManager.display.toggleSidebarLayoutMode()
     }
 
     /// App > Settings…(⌘,)。単一インスタンスで、

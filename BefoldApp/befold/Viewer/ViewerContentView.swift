@@ -53,7 +53,7 @@ struct ViewerContentView: View {
                     showHiddenFiles: fileListModel.showHiddenFiles,
                     filter: fileListModel.listFilter,
                     source: fileListModel.listingSource(for: folderURL),
-                    openFile: store.filePath,
+                    openFile: store.contentState.filePath,
                     onSelectFile: onSelectFile,
                     onNavigateToFolder: onNavigateToFolder
                 )
@@ -67,17 +67,17 @@ struct ViewerContentView: View {
     private func filePreview(isVisible: Bool) -> some View {
         ZStack {
             ViewerWebView(
-                content: store.content,
-                contentRevision: store.contentRevision,
-                fileType: store.fileType,
-                filePath: store.filePath,
-                hasDeclaredHTMLCharset: store.hasDeclaredHTMLCharset,
+                content: store.contentState.content,
+                contentRevision: store.contentState.contentRevision,
+                fileType: store.contentState.fileType,
+                filePath: store.contentState.filePath,
+                hasDeclaredHTMLCharset: store.contentState.hasDeclaredHTMLCharset,
                 isSourceMode: store.isSourceMode,
                 showLineNumbers: store.showLineNumbers,
                 diffState: diffState,
-                isTruncated: store.isTruncated,
-                lineCount: store.displayedLineCount,
-                loadFailed: store.loadFailed,
+                isTruncated: store.contentState.isTruncated,
+                lineCount: store.contentState.displayedLineCount,
+                loadFailed: store.contentState.loadFailed,
                 isVisible: isVisible,
                 initialZoom: store.zoom,
                 codeFontFamily: codeFontFamily,
@@ -88,11 +88,11 @@ struct ViewerContentView: View {
                 webViewProxy: webViewProxy,
                 rendererFeatures: .allEnabled
             )
-            .opacity(store.isRejected ? 0 : 1)
+            .opacity(store.contentState.isRejected ? 0 : 1)
 
-            if let reason = store.rejectReason {
-                UnsupportedFileView(fileURL: store.filePath, rejectReason: reason)
-            } else if store.isLoading, store.content.isEmpty {
+            if let reason = store.contentState.rejectReason {
+                UnsupportedFileView(fileURL: store.contentState.filePath, rejectReason: reason)
+            } else if store.contentState.isLoading, store.contentState.content.isEmpty {
                 LoadingIndicatorView()
             }
         }

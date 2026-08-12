@@ -25,6 +25,8 @@ befold.app (Swift 6 / AppKit + SwiftUI, macOS 14+)
   ├── AppDelegate                # ライフサイクルと @objc アクションの受け口（配線のみ）
   │     ├── AppStores                # アプリ全体で共有するストア・表示設定の束
   │     ├── ViewerWindowManager      # ウィンドウ生成・管理とセッション記録の更新
+  │     │     ├── GlobalDisplayBroadcaster   # アプリ全体の表示設定を全ウィンドウへ配る
+  │     │     └── RecentRepositoryRecorder   # 「最近使ったリポジトリ」の記録とタブ構成の更新
   │     ├── SessionRestorer          # 前回セッションのウィンドウ/タブ構成の保存・復元
   │     ├── DocumentOpener           # URL をビューアで開く唯一の入口（逐次化・解決・選択パネル）
   │     ├── MainMenuCoordinator      # メインメニュー構築と動的メニューへのデータ供給
@@ -33,7 +35,8 @@ befold.app (Swift 6 / AppKit + SwiftUI, macOS 14+)
   │     ├── CLIShimCoordinator       # CLI シムの陳腐化チェックと設置
   │     └── AppUpdaterController     # Sparkle アップデータの保持と起動
   ├── FileWatcher                # DispatchSource によるファイル監視（0.2s デバウンス）
-  ├── ViewerStore                # @Observable 表示状態（content / rejectReason / isTruncated）
+  ├── ViewerStore                # @Observable 対象ファイル・表示モード・監視の保持
+  ├── ViewerContentState         # 読み込みが確定させた表示状態（content / fileType / rejectReason / isTruncated）
   ├── ViewerWebView               # WKWebView（NSViewRepresentable、ViewerRenderer を保持）
   └── Sparkle 2                   # 自動アップデート（appcast フィード経由）
 
@@ -112,6 +115,10 @@ BefoldApp/
 | `AppCLIRequestReceiver` | 別プロセスの CLI 起動から転送された要求の受信。ACK 返送と `requestID` 単位の重複排除。**生成と同時に購読するため `AppDelegate.init` で eager に作る** |
 | `CLIShimCoordinator` | `/usr/local/bin/befold` の陳腐化チェックと設置、結果案内 |
 | `ViewerWindowManager` | ビューアウィンドウ（正規化パス → コントローラ）の生成・破棄、close/rename/key イベントに伴うセッション更新 |
+| `GlobalDisplayBroadcaster` | アプリ全体で 1 つの表示設定（不可視ファイル・変更ファイルのみ・サイドバー配置・ブックマーク・コードフォント）を開いている全ウィンドウへ配る。窓ごとのライブ値（ADR 0002）は扱わない |
+| `RecentRepositoryRecorder` | 「最近使ったリポジトリ」への記録。git ルート/ラベルの解決は detached タスクで行い、反映のみ MainActor へ戻す |
+| `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Space からはぐれた窓の救出）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場 |
+| `ViewerDisplayOptionsApplier` | 既に開いているウィンドウへの CLI 表示オプション適用規則 |
 | `SessionRestorer` | 前回セッションのウィンドウ/タブ構成のスナップショット保存と復元 |
 | `AppUpdaterController` | Sparkle アップデータの保持・起動と、チャンネル別 appcast フィード URL の供給（`SPUUpdaterDelegate` 準拠。詳細は「自動アップデート」節） |
 | `DocumentController` | `NSDocumentController` のサブクラス。Recent Documents からのオープンを `AppDelegate` に委譲 |
@@ -150,7 +157,9 @@ BefoldApp/
 
 | コンポーネント | 責務 |
 |---|---|
-| `ViewerStore` | 表示状態（content・ファイル監視・削除検知）を保持する `@Observable` の中核モデル |
+| `ViewerStore` | 対象ファイル・表示モード・ファイル監視・削除検知を保持する `@Observable` の中核モデル |
+| `ViewerContentState` | 読み込みが確定させた表示状態（content / fileType / filePath / rejectReason / 段階読み込み）の単一情報源。`ViewerStore.contentState` が窓ごとに 1 つ持つ |
+| `ShowLineNumbersSetting` | 行番号表示の設定（UserDefaults への永続化と CLI の起動限り上書き）。`ViewerStore` が窓ごとに 1 つ持つ |
 | `ViewerWebView` | `WKWebView` を包む `NSViewRepresentable`。Mermaid/Markdown 等をレンダリング。HTML ファイルは直接ロードも可 |
 | `ViewerContentView` | ビューア本体の SwiftUI ビュー（ズーム・スクロール位置・検索設定・参照クリックの配線） |
 | `PreviewTarget` / `PreviewTargetResolver` | プレビュー領域が提示する対象（文書・フォルダー一覧・未確定）。導出は `FileListModel.previewTarget` の 1 箇所（[ADR 0002](../adr/0002-presentation-state-and-capabilities.md)） |

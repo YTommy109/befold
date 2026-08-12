@@ -10,11 +10,6 @@ extension ViewerWindowManager {
         controllers[path]?.first?.window
     }
 
-    /// ビューアウィンドウなら対応するファイルの正規化パスを返す。
-    func viewerPath(of window: NSWindow) -> String? {
-        (window.windowController as? ViewerWindowController)?.fileURL.normalizedPathKey
-    }
-
     /// url を表示しているウィンドウが 1 つも残っていなければ、セッション記録から閉じたことにする。
     ///
     /// 同一ファイルを複数ウィンドウで開くことを許している(controllers は 1 対多)ため、
@@ -55,7 +50,7 @@ extension ViewerWindowManager {
 
 extension ViewerWindowManager: ViewerWindowControllerDelegate {
     func viewerWindowWillClose(_ controller: ViewerWindowController) {
-        recordRecentRepositoryTabGroup(of: controller)
+        recentRepositories.recordTabGroup(of: controller)
         detach(controller, fromKey: controller.fileURL.normalizedPathKey)
         noteClosedIfNoWindowRemains(for: controller.fileURL)
     }
@@ -64,7 +59,7 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
         sessionStore.noteActivated(controller.fileURL)
         // タブグループが壊れていない状態を観測できる唯一の契機。ここで記録しておかないと、
         // タブを複数開いたウィンドウの構成は close 時には既に失われている。
-        recordRecentRepositoryTabGroup(of: controller)
+        recentRepositories.recordTabGroup(of: controller)
     }
 
     func viewerWindow(
@@ -80,14 +75,14 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
     }
 
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
-        toggleHiddenFiles()
+        display.toggleHiddenFiles()
     }
 
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {
-        toggleChangedFilesOnly()
+        display.toggleChangedFilesOnly()
     }
 
     func viewerWindowDidToggleDiffLayout(_ controller: ViewerWindowController) {
-        refreshAllToolbars()
+        display.refreshAllToolbars()
     }
 }

@@ -52,7 +52,7 @@ struct ViewerStoreIntegrationTests {
         store.openFile(file)
         // 読み込みは非同期のため、初回読み込みの完了を待ってから後続の書き換え検知に進む。
         await store.loadTask?.value
-        #expect(store.content == "graph TD; A-->B")
+        #expect(store.contentState.content == "graph TD; A-->B")
         #expect(firedCount.get() == 0)
 
         // 削除は一度きり（エッジトリガー）で再実行できず、kevent 登録は resume 後に
@@ -63,7 +63,7 @@ struct ViewerStoreIntegrationTests {
             try? "graph TD; A-->\(Int.random(in: 0 ... 999))"
                 .write(to: file, atomically: false, encoding: .utf8)
         }, until: {
-            store.content != "graph TD; A-->B"
+            store.contentState.content != "graph TD; A-->B"
         })
 
         try FileManager.default.removeItem(at: file)
@@ -85,16 +85,16 @@ struct ViewerStoreIntegrationTests {
         store.openFile(file)
         // 読み込みは非同期のため、完了を待ってから検証する。
         await store.loadTask?.value
-        #expect(store.content == "graph TD; A-->B")
+        #expect(store.contentState.content == "graph TD; A-->B")
 
         // 実ファイルを編集 → デバウンス後に content が更新される。
         // 監視再開の遅れに強いよう、更新されるまで書き込みを繰り返す。
         await waitUntilWithRetryOnMainActor(action: {
             try? "graph TD; X-->Y".write(to: file, atomically: true, encoding: .utf8)
         }, until: {
-            store.content == "graph TD; X-->Y"
+            store.contentState.content == "graph TD; X-->Y"
         })
-        #expect(store.content == "graph TD; X-->Y")
+        #expect(store.contentState.content == "graph TD; X-->Y")
 
         store.close()
     }
@@ -109,10 +109,10 @@ struct ViewerStoreIntegrationTests {
         store.openFile(file)
         // 読み込みは非同期のため、完了を待ってから検証する。
         await store.loadTask?.value
-        #expect(store.content == "graph TD; A-->B")
+        #expect(store.contentState.content == "graph TD; A-->B")
 
         store.close()
-        #expect(store.filePath == file)
+        #expect(store.contentState.filePath == file)
 
         try "graph TD; X-->Y".write(to: file, atomically: true, encoding: .utf8)
 
@@ -123,6 +123,6 @@ struct ViewerStoreIntegrationTests {
         // 反映され得る最大経路長 testDebounceDelay(renameSettleDelay) + testDebounceDelay(debounce)
         // を基準に + 0.3s の余裕を持たせ、時限の境界を確実に跨ぐ(docs/dev/coding_rule.md 参照)。
         try await Task.sleep(for: .seconds(testDebounceDelay + testDebounceDelay + 0.3))
-        #expect(store.content == "graph TD; A-->B")
+        #expect(store.contentState.content == "graph TD; A-->B")
     }
 }

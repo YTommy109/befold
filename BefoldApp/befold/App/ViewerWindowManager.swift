@@ -11,10 +11,12 @@ import SwiftUI
 /// (`ViewerWindowManager+*.swift`)へ分かれている。
 ///
 /// - `+OpenViewer`: ウィンドウを開く経路(新規生成・既存の前面化)
-/// - `+GlobalDisplay`: アプリ全体の表示設定を全ウィンドウへ配る一括反映
-/// - `+TabGroups`: タブ結合とタブ構成スナップショット、Space からはぐれた窓の救出
-/// - `+RecentRepositories`: 「最近使ったリポジトリ」の記録
 /// - `+SessionSync`: 辞書のキー付け替えとセッション記録、`ViewerWindowControllerDelegate` 準拠
+///
+/// 協力者として `GlobalDisplayBroadcaster`(全ウィンドウへの一括反映)と
+/// `RecentRepositoryRecorder`(「最近使ったリポジトリ」の記録)を持ち、
+/// タブグループ規則は `ViewerTabGrouping`、既存ウィンドウへの CLI オプション適用は
+/// `ViewerDisplayOptionsApplier` が持つ。
 ///
 /// extension から参照するため、stored property の多くは private ではなく internal に
 /// している。いずれも「この型と その extension だけが読む」ことを前提にした実装詳細で、
@@ -69,16 +71,16 @@ final class ViewerWindowManager {
     /// 開いた複数ウィンドウで `git status` の実行とキャッシュをまとめる。
     /// 既定は無効化状態(常に空)で、本番のルート解決付きインスタンスは AppDelegate が差し込む。
     var gitStatusStore = GitStatusStore()
-    /// 「最近使ったリポジトリ」の記録先。git ルートを持つファイルを開いた際に record、
-    /// そのウィンドウが閉じるたび・アプリ終了時に updateLastTabGroup でタブ構成を更新する。
-    let recentRepositoriesStore: RecentRepositoriesStore
-    /// root からメニュー表示用ラベルと本体リポジトリのルートを解決する。既定は実 GitRepository。
-    /// 解決は MainActor の外(detached タスク)で走るため @Sendable が要る。
-    /// テストは実 git を起動しないフェイクへ差し替える。
-    let repositoryIdentityResolver: @Sendable (URL) -> RepositoryIdentity
-    /// 「最近使ったリポジトリ」へ新しい本体ルートを記録した直後に呼ばれる。
-    /// AppDelegate が WorktreeCatalog を追随させるために使う。
-    let onRepositoryRecorded: (URL) -> Void
+    /// アプリ全体の表示設定を全ウィンドウへ配る一括反映。共有設定の実体(preference / store)は
+    /// この型が持つものをそのまま渡すため、別インスタンスが生まれる書き方ができない。
+    private(set) lazy var display = GlobalDisplayBroadcaster(
+        sidebarDisplayPreference: sidebarDisplayPreference,
+        bookmarkStore: bookmarkStore,
+        controllers: { [weak self] in self?.allControllers ?? [] }
+    )
+    /// 「最近使ったリポジトリ」の記録役。共有索引 `gitFileIndex` をここで渡すため、
+    /// 別の索引を掴んだ recorder が生まれる書き方ができない。
+    let recentRepositories: RecentRepositoryRecorder
 
     /// - Parameter sidebarDisplayPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
@@ -128,9 +130,16 @@ final class ViewerWindowManager {
         self.fileReader = fileReader
         self.makeStore = makeStore
         self.makeContentView = makeContentView
-        self.recentRepositoriesStore = recentRepositoriesStore
-        self.repositoryIdentityResolver = repositoryIdentityResolver
-        self.onRepositoryRecorded = onRepositoryRecorded
+        recentRepositories = RecentRepositoryRecorder(
+            store: recentRepositoriesStore, gitFileIndex: gitFileIndex,
+            resolveIdentity: repositoryIdentityResolver, onRepositoryRecorded: onRepositoryRecorded
+        )
+    }
+
+    /// 開いている全ウィンドウのタブ構成を「最近使ったリポジトリ」へ記録する(アプリ終了時)。
+    /// 走査対象(`allControllers`)の組み立てを呼び出し元へ漏らさないため、ここだけ委譲で残す。
+    func recordAllRecentRepositoryTabGroups() {
+        recentRepositories.recordAllTabGroups(of: allControllers)
     }
 
     /// 差分の取得元を 1 つ作る。機能ゲートが無効なら nil で、git diff を一切実行しない。

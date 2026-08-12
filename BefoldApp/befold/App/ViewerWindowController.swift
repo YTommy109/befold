@@ -16,7 +16,7 @@ import SwiftUI
 /// | `ViewerDocumentPresenter` | 文書の状態の遷移(表示モード・倍率・スクロール位置)と提示開始の 3 契機 |
 /// | `+Capabilities` | 提示状態からの能力導出(ADR 0002 段 2) |
 /// | `ViewerDiffPresenter` | git 差分の非同期取得・世代管理・レイアウト設定 |
-/// | `+MenuActions` | メニュー/ツールバー由来の @objc アクションと validate の対応表 |
+/// | `+MenuActions` | メニュー/ツールバー由来の @objc アクションの受け口(有効判定の対応表は `ViewerMenuValidator`) |
 /// | `+References` | 本文中のリンク・パス参照を開く(右クリックメニューは `ReferenceMenuPresenter`) |
 /// | `+SidebarHost` / `+Renderer` / `+WindowDelegate` | 各プロトコル準拠(外から来る契機の受け口) |
 /// | `ViewerWindowChrome` | NSWindow そのものの生成・外観・フレーム決定(窓を 1 枚しか知らない) |
@@ -268,7 +268,7 @@ final class ViewerWindowController: NSWindowController {
         let store = store ?? ViewerStore(defaults: defaults)
         // store が呼び出し元から明示注入された場合でも上書きが反映されるよう、
         // store の生成元にかかわらずここで一律に適用する(sourceModeOverride と同じ方針)。
-        if let showLineNumbersOverride { store.applyShowLineNumbersOverride(showLineNumbersOverride) }
+        if let showLineNumbersOverride { store.lineNumbersSetting.applyOverride(showLineNumbersOverride) }
         self.store = store
         sidebar = ViewerWindowAssembler.makeSidebarNavigator(
             fileURL: fileURL, sidebarDisplayPreference: sidebarDisplayPreference,
