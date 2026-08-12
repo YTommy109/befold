@@ -27,7 +27,7 @@ struct FileListModelFocusTests {
         )
     }
 
-    @Test("focusSidebarTable は sidebarTableView へフォーカスを要求する")
+    @Test("SidebarTableFocuser.focus は tableView へフォーカスを要求する")
     func focusRequestsTableAsFirstResponder() {
         let window = SpyWindow(
             contentRect: NSRect(x: 0, y: 0, width: 200, height: 200),
@@ -36,20 +36,20 @@ struct FileListModelFocusTests {
         let tableView = NSTableView()
         window.contentView?.addSubview(tableView)
         let model = makeModel()
-        model.sidebarTableView = tableView
+        model.tableFocuser.tableView = tableView
 
-        model.focusSidebarTable()
+        model.tableFocuser.focus()
 
         #expect(window.requestedFirstResponder === tableView)
     }
 
-    @Test("sidebarTableView が未解決でリトライも尽きたときは何もしない(クラッシュしない)")
+    @Test("tableView が未解決でリトライも尽きたときは何もしない(クラッシュしない)")
     func focusWithoutTableIsNoOp() {
         let model = makeModel()
 
         // 参照が無く再試行回数も 0 の場合、非同期のリトライをスケジュールせず即座に戻る。
-        model.focusSidebarTable(retriesRemaining: 0)
+        model.tableFocuser.focus(retriesRemaining: 0)
 
-        #expect(model.sidebarTableView == nil)
+        #expect(model.tableFocuser.tableView == nil)
     }
 }

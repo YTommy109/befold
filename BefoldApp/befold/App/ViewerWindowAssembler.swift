@@ -122,7 +122,7 @@ enum ViewerWindowAssembler {
                 controller.perFileState.sidebar.recordToggle(collapsed, for: controller.fileURL)
             },
             onSidebarDidReveal: { [weak controller] in
-                controller?.fileListModel.focusSidebarTable()
+                controller?.fileListModel.tableFocuser.focus()
             }
         )
         controller.sidebarCollapsible = splitViewController
@@ -200,7 +200,7 @@ enum ViewerWindowAssembler {
         controller.fileListModel.onPresentationTargetChange = { [weak controller] in
             guard let controller else { return }
             controller.refreshToolbarState()
-            if controller.isPreviewingFolder { controller.fileListModel.focusSidebarTable() }
+            if controller.isPreviewingFolder { controller.fileListModel.tableFocuser.focus() }
         }
     }
 

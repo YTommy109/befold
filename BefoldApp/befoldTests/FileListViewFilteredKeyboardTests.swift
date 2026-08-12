@@ -98,6 +98,40 @@ struct FileListViewFilteredKeyboardTests {
         #expect(view.model.snapshotEvaluationCount == 1)
     }
 
+    /// ← (ツリー内で親行へ移る)も同じ不変条件に従うこと(TASK-443)。
+    ///
+    /// 以前は `FileListModel.parentRow(of:)` を呼んでおり、その中で `visibleEntries` を
+    /// 読み直すためこの経路だけ 2 回評価していた。判定を `FileListSnapshot.parent(of:)` へ
+    /// 移して、キーハンドラが先頭で採った 1 つを使い回す形に閉じてある。
+    @Test("ツリー表示の ← でも絞り込みの評価は 1 回だけ")
+    func selectParentKeyEvaluatesSnapshotOnce() {
+        let parent = FileListEntry(url: directory, kind: .folder)
+        let child = FileListEntry(url: directory.appendingPathComponent("child.md"), kind: .file)
+        let rows = SidebarRowBuilder.rows(
+            parentEntry: nil, rootChildren: [parent],
+            expanded: [parent.pathKey],
+            childrenByPathKey: [parent.pathKey: [child]],
+            showsDisclosure: true
+        )
+        let model = FileListModel(
+            currentDirectory: directory, entries: rows, selection: child.id
+        )
+        model.layoutMode = .tree
+        let view = FileListView(
+            model: model,
+            onSelect: { _ in },
+            onNavigate: { _ in },
+            onSortOrderChanged: { _ in },
+            onOpenElsewhere: { _, _ in }
+        )
+        model.resetSnapshotEvaluationCount()
+
+        #expect(view.handleKey(.leftArrow) == .handled)
+
+        #expect(model.selection == parent.id)
+        #expect(model.snapshotEvaluationCount == 1)
+    }
+
     @Test("絞り込み結果が空なら隠れた選択からの移動は何も起こさない")
     func hiddenSelectionWithNoMatchesIsIgnored() {
         let (view, _) = makeFilteredView()

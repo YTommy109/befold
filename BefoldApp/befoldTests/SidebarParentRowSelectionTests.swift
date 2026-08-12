@@ -6,7 +6,7 @@ import Testing
 /// ツリー表示の ← / h が「ルートを変えずにツリー内の親行へ選択を移す」こと(TASK-408)。
 ///
 /// 割り当てそのもの(どのキーがどの動作になるか)は SidebarKeyActionTests が測る。
-/// こちらは **親行の決め方**(`FileListModel.parentRow(of:)`)と、その動作が実際に
+/// こちらは **親行の決め方**(`FileListSnapshot.parent(of:)`)と、その動作が実際に
 /// 選択を動かすところまでの配線を測る。
 @Suite
 @MainActor
@@ -57,9 +57,9 @@ struct SidebarParentRowSelectionTests {
         let fixture = makeTreeFixture()
         let model = makeModel(entries: fixture.rows, selection: nil)
 
-        #expect(model.parentRow(of: fixture.note.id)?.id == fixture.src.id)
-        #expect(model.parentRow(of: fixture.lib.id)?.id == fixture.src.id)
-        #expect(model.parentRow(of: fixture.deep.id)?.id == fixture.lib.id)
+        #expect(model.listSnapshot.parent(of: fixture.note.id)?.id == fixture.src.id)
+        #expect(model.listSnapshot.parent(of: fixture.lib.id)?.id == fixture.src.id)
+        #expect(model.listSnapshot.parent(of: fixture.deep.id)?.id == fixture.lib.id)
     }
 
     /// depth 0 の行に親は無い。`..` を親として選んでしまうと、ルート移動の手段が
@@ -69,9 +69,9 @@ struct SidebarParentRowSelectionTests {
         let fixture = makeTreeFixture()
         let model = makeModel(entries: fixture.rows, selection: nil)
 
-        #expect(model.parentRow(of: fixture.src.id) == nil)
-        #expect(model.parentRow(of: fixture.top.id) == nil)
-        #expect(model.parentRow(of: fixture.parent.id) == nil)
+        #expect(model.listSnapshot.parent(of: fixture.src.id) == nil)
+        #expect(model.listSnapshot.parent(of: fixture.top.id) == nil)
+        #expect(model.listSnapshot.parent(of: fixture.parent.id) == nil)
     }
 
     @Test("一覧に無い行を渡したら親行は無い")
@@ -79,7 +79,7 @@ struct SidebarParentRowSelectionTests {
         let fixture = makeTreeFixture()
         let model = makeModel(entries: fixture.rows, selection: nil)
 
-        #expect(model.parentRow(of: root.appendingPathComponent("missing.md")) == nil)
+        #expect(model.listSnapshot.parent(of: root.appendingPathComponent("missing.md")) == nil)
     }
 
     /// 絞り込み中は `SidebarTreeFilter.keepingAncestors` が祖先を足し戻す。親行の判定も
@@ -93,7 +93,7 @@ struct SidebarParentRowSelectionTests {
         // 先頭は `..`(上位フォルダー行)。フィルタ文字列によらず常に残る。
         #expect(model.visibleEntries.map(\.kind) == [.parentNavigation, .folder, .folder, .file])
         #expect(model.visibleEntries.map(\.depth) == [0, 0, 1, 2])
-        #expect(model.parentRow(of: fixture.deep.id)?.id == fixture.lib.id)
+        #expect(model.listSnapshot.parent(of: fixture.deep.id)?.id == fixture.lib.id)
     }
 
     // MARK: - キー操作からの配線

@@ -21,104 +21,15 @@ struct FileListView: View {
     /// 開発中機能の露出点(ViewerWindowController が FeatureGate で決める)。
     var onToggleChangedFilesOnly: (() -> Void)?
 
-    @FocusState private var isFilterFieldFocused: Bool
-
     var body: some View {
         VStack(spacing: 0) {
-            header
+            SidebarHeaderView(
+                model: model,
+                onSortOrderChanged: onSortOrderChanged,
+                onToggleHiddenFiles: onToggleHiddenFiles,
+                onToggleChangedFilesOnly: onToggleChangedFilesOnly
+            )
             entryList
-        }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            baseDirectoryIndicator
-            navigationHeader
-            if model.isFilterActive {
-                filterField
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-    }
-
-    private var filterField: some View {
-        TextField(
-            String(localized: "sidebar.filter.placeholder", bundle: .l10n),
-            text: $model.filterText
-        )
-        .textFieldStyle(.plain)
-        .focused($isFilterFieldFocused)
-        .onAppear { isFilterFieldFocused = true }
-        .onKeyPress(.escape) {
-            closeFilter()
-            return .handled
-        }
-    }
-
-    /// フィルターフィールドを閉じ、フィルター文字列を解除する。
-    /// アイコン再押下・esc のどちらからも同じ挙動にするための共通口。
-    private func closeFilter() {
-        model.isFilterActive = false
-        model.filterText = ""
-    }
-
-    /// 基準ディレクトリの解決前(初回表示直後の一瞬)は行を出さない。
-    @ViewBuilder
-    private var baseDirectoryIndicator: some View {
-        if let base = model.baseDirectory {
-            BaseDirectoryIndicator(base: base)
-        }
-    }
-
-    private var navigationHeader: some View {
-        HStack {
-            Text(model.currentDirectory.lastPathComponent)
-                .font(.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer()
-            Button {
-                let next: SortOrder = model.sortOrder == .foldersFirst ? .alphabetical : .foldersFirst
-                onSortOrderChanged(next)
-            } label: {
-                Image(systemName: model.sortOrder == .foldersFirst
-                    ? "folder.fill" : "textformat.abc")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-            .help(model.sortOrder == .foldersFirst
-                ? String(localized: "sidebar.sort.alphabetical", bundle: .l10n)
-                : String(localized: "sidebar.sort.foldersFirst", bundle: .l10n))
-
-            Button {
-                onToggleHiddenFiles?()
-            } label: {
-                Image(systemName: model.showHiddenFiles ? "eye" : "eye.slash")
-                    .foregroundStyle(model.showHiddenFiles ? .primary : .secondary)
-            }
-            .buttonStyle(.borderless)
-            .help(model.showHiddenFiles
-                ? String(localized: "sidebar.hiddenFiles.hide", bundle: .l10n)
-                : String(localized: "sidebar.hiddenFiles.show", bundle: .l10n))
-
-            changedFilesOnlyButton
-
-            Button {
-                if model.isFilterActive {
-                    closeFilter()
-                } else {
-                    model.isFilterActive = true
-                }
-            } label: {
-                Image(systemName: model.filterText.isEmpty
-                    ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
-                    .foregroundStyle(model.filterText.isEmpty ? .secondary : .primary)
-            }
-            .buttonStyle(.borderless)
-            .help(model.isFilterActive
-                ? String(localized: "sidebar.filter.hide", bundle: .l10n)
-                : String(localized: "sidebar.filter.show", bundle: .l10n))
         }
     }
 
@@ -127,22 +38,6 @@ struct FileListView: View {
     /// 出し分けを書くと、もう片方が「対応ファイルがありません」固定のまま残る。
     private var emptyStateView: some View {
         SidebarEmptyState(context: SidebarEmptyContext(model: model))
-    }
-
-    /// git 変更のあるファイルのみに絞るトグル。不可視ファイルのトグルとは独立した軸のため、
-    /// 1 クリックで往復でき、両方の状態が同時に見えるよう別ボタンにしている(TASK-282)。
-    @ViewBuilder
-    private var changedFilesOnlyButton: some View {
-        if let onToggleChangedFilesOnly {
-            Button(action: onToggleChangedFilesOnly) {
-                Image(systemName: "arrow.triangle.branch")
-                    .foregroundStyle(model.showChangedFilesOnly ? .primary : .secondary)
-            }
-            .buttonStyle(.borderless)
-            .help(model.showChangedFilesOnly
-                ? String(localized: "sidebar.changedFilesOnly.hide", bundle: .l10n)
-                : String(localized: "sidebar.changedFilesOnly.show", bundle: .l10n))
-        }
     }
 
     /// 一覧本体。**絞り込み結果は 1 回だけ採って List と空表示の判定で共有する。**
@@ -166,7 +61,7 @@ struct FileListView: View {
             .listRowInsets(EdgeInsets())
             .contentShape(.rect)
             .background(SidebarTableViewLocator { tableView in
-                model.sidebarTableView = tableView
+                model.tableFocuser.tableView = tableView
             })
             .contextMenu { contextMenuItems(for: entry) }
             .simultaneousGesture(singleTapGesture(for: entry))
@@ -266,7 +161,7 @@ struct FileListView: View {
             // 奪うと選択行とハイライトがズレるため、次のランループへ遅延する
             // (固定待ちは不要)。
             DispatchQueue.main.async {
-                model.focusSidebarTable()
+                model.tableFocuser.focus()
             }
         }
     }

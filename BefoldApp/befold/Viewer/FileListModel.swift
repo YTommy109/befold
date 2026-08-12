@@ -64,10 +64,21 @@ final class FileListModel {
     /// 外すと「一覧が変わって提示対象も変わったのに再描画されない」が起きる。
     private var entryIndex: FileListEntryIndex
 
-    /// 正規化パスキーから行を引く。索引は private のため、
-    /// FileListModel+Lookup.swift の引き当て述語はここを経由する。
+    /// 正規化パスキーから行を引く。引き当ての規則そのものは `FileListEntryIndex` が持ち、
+    /// ここは索引(private)への委譲だけを行う。索引を直接公開しないのは、観測依存の
+    /// 登録点を「モデルのメソッドを呼ぶ」1 通りに揃えておくため。
     func entry(forPathKey key: String) -> FileListEntry? {
         entryIndex.entry(forPathKey: key)
+    }
+
+    /// キーが一致する最初のフォルダー行の URL(`FileListEntryIndex` へ委譲)。
+    func folderEntryURL(forKey key: String) -> URL? {
+        entryIndex.folderEntryURL(forKey: key)
+    }
+
+    /// URL の正規化キーが一致する行の URL。無ければ元の URL(`FileListEntryIndex` へ委譲)。
+    func matchingEntryURL(for url: URL) -> URL {
+        entryIndex.matchingEntryURL(for: url)
     }
 
     /// 一覧が一度でも反映されたか。ウィンドウは一覧を空で作って非同期に埋めるため、
@@ -173,96 +184,58 @@ final class FileListModel {
     /// いない、のいずれか。**空の値と nil を区別すること**が要点で、変更が 1 つも無い
     /// リポジトリは「空の SidebarGitStatus」であって nil ではない(TASK-285)。
     /// 取得は subprocess を伴うため SidebarNavigator が一覧更新と同じ契機でメイン外から行う。
-    /// 書き込みは applyGitStatus(_:for:) だけを通す。
+    /// 書き込みは applyGitStatus(_:for:sequence:) だけを通す。
     private(set) var gitStatus: SidebarGitStatus?
 
-    /// まだ手元に一覧が無いディレクトリの git 状態。届いた順に入れてしまうと、画面に出ている
-    /// 一覧に対応する状態が失われて絞り込みが一瞬外れるため、一覧が届くまでここで待たせる。
-    @ObservationIgnored private var pendingGitStatus: PendingGitStatus?
-
-    /// 直近に**反映を受け付けた** git 状態の発行順序(sequence)。反映の可否はこれとの比較で
-    /// 決める(ADR 0003)。「最新の発行と一致」で判定すると、一覧と対で取った結果を捨てないために
-    /// sequence を強制的に進める必要が生じ、後から始まった取得の新しい結果を古いスナップショットで
-    /// 上書きしてしまう。「これより新しい sequence なら受け付ける」なら、結合取得も後発の単発取得も
-    /// どちらも「最後に発行された取得が勝つ」不変条件のまま扱える。sequence の採番元は
-    /// SidebarNavigator の gitStatusGeneration。
-    @ObservationIgnored private var appliedGitStatusSequence = 0
-
-    /// 保留中の git 状態。**状態が nil(git 管理外・取得失敗)でも「どのディレクトリの結論か」を
-    /// 持たせる**のが要点で、これが無いと非 git フォルダーへ移動したときに
-    /// 「まだ届いていない」と区別できない。
-    private struct PendingGitStatus {
-        let directoryKey: String
-        let status: SidebarGitStatus?
-    }
-
-    /// `directory` の git 状態を反映する。発行順序(recency)とディレクトリ対付けの両方をここで
-    /// 一括判定する(ADR 0003)。呼び出し元(SidebarNavigator)は sequence の採番だけを担い、
-    /// 反映可否の判定には関与しない。
+    /// 反映の可否(発行順序 + ディレクトリ対付け)の判定だけを持つ調停器(ADR 0003)。
     ///
-    /// recency: `sequence` が直近に受け付けた発行順序より新しくなければ、既に新しい結果が
-    /// 反映済み(または反映待ち)であり、この結果は古いので無視する。
-    ///
-    /// ディレクトリ対付け: 手元の一覧がまだ別のディレクトリのものなら、その一覧が届くまで保留する。
-    /// 移動先の状態を先に入れると、画面に出ている一覧(移動元)と突き合わせられなくなって絞り込みが
-    /// 外れ、全件が一瞬表示される。実測では `.git/index` 監視や再読込を契機とする単独の
-    /// 取得が、移動先を対象に一覧より先に着地していた(TASK-293)。
+    /// **観測対象にしない。** 保留・発行順序の書き換えは画面に出ないため、観測させると
+    /// 「保留しただけ」でも再描画とツールバー再同期が走る(TASK-278 と同型)。
+    /// 画面に出る値は `gitStatus` だけで、そちらは観測対象のまま残す。
+    @ObservationIgnored private var gitStatusGate = FileListGitStatusGate()
+
+    /// `directory` の git 状態を反映する。可否の判定は `FileListGitStatusGate` が一括で行い、
+    /// ここは結論を観測対象へ書くだけ。呼び出し元(SidebarNavigator)は sequence の採番だけを
+    /// 担い、反映可否の判定には関与しない。
     ///
     /// - Returns: 受け付けた(反映または保留した)なら true。古い発行順序として無視したなら false。
     ///   呼び出し元はこれを見て `.git/index` 監視の張り直し可否を決める。
     @discardableResult
     func applyGitStatus(_ status: SidebarGitStatus?, for directory: URL, sequence: Int) -> Bool {
-        guard sequence > appliedGitStatusSequence else { return false }
-        appliedGitStatusSequence = sequence
-        let key = directory.normalizedPathKey
-        guard key == entriesDirectory.normalizedPathKey else {
-            pendingGitStatus = PendingGitStatus(directoryKey: key, status: status)
+        let decision = gitStatusGate.accept(
+            status,
+            forDirectoryKey: directory.normalizedPathKey,
+            sequence: sequence,
+            entriesDirectoryKey: entriesDirectory.normalizedPathKey
+        )
+        switch decision {
+        case .ignored: return false
+        case .deferred: return true
+        case let .apply(applied):
+            gitStatus = applied
             return true
         }
-        pendingGitStatus = nil
-        gitStatus = status
-        return true
     }
 
     /// `sequence` 以前に発行されたすべての取得結果を無効化する。ウィンドウを閉じるときに呼ぶ
-    /// (TASK-300)。キャンセルは協調的で、走り出した subprocess は完了して結果を返しうる。
-    /// 反映済み sequence を発行済みの先頭へ揃えておかないと、その結果が反映ガードを通り抜け、
-    /// 閉じたウィンドウのために `.git/index` 監視を張り直してしまう。
+    /// (TASK-300)。
     func invalidatePendingGitStatus(upTo sequence: Int) {
-        appliedGitStatusSequence = max(appliedGitStatusSequence, sequence)
+        gitStatusGate.invalidate(upTo: sequence)
     }
 
     /// 一覧が入れ替わったら、その一覧のディレクトリに対する保留があれば同時に反映する。
     /// entries の代入と同じ実行で書くため、View からは 1 回の更新として見える。
     private func promotePendingGitStatusIfNeeded() {
-        guard let pending = pendingGitStatus,
-              pending.directoryKey == entriesDirectory.normalizedPathKey
-        else { return }
-        pendingGitStatus = nil
-        gitStatus = pending.status
-    }
-
-    /// サイドバー行から見つかった NSTableView への弱参照。SidebarTableViewLocator が
-    /// 行描画時に設定する。クリック時に first responder へ昇格させるためだけの
-    /// UI 専用値であり、監視対象にする必要はない(#144)。
-    @ObservationIgnored
-    weak var sidebarTableView: NSTableView?
-
-    /// サイドバーの NSTableView を first responder にする。選択ハイライトを青にし(#144)、
-    /// サイドバーを開いた直後からフォルダー名がアクティブ(黒)表示になり矢印キーで操作できるようにする(task-118)。
-    /// 参照(sidebarTableView)がまだ解決していない場合は、次のランループで数回だけ再試行する。
-    /// サイドバーを畳んだ状態から初めて開いた直後は、List の行(と NSTableView 参照)の生成が
-    /// フォーカス要求に間に合わないことがあるため。
-    func focusSidebarTable(retriesRemaining: Int = 5) {
-        guard let tableView = sidebarTableView, let window = tableView.window else {
-            guard retriesRemaining > 0 else { return }
-            DispatchQueue.main.async { [weak self] in
-                self?.focusSidebarTable(retriesRemaining: retriesRemaining - 1)
-            }
-            return
+        if case let .apply(promoted) = gitStatusGate.promote(
+            entriesDirectoryKey: entriesDirectory.normalizedPathKey
+        ) {
+            gitStatus = promoted
         }
-        window.makeFirstResponder(tableView)
     }
+
+    /// サイドバーの NSTableView への操作(フォーカス要求・スクロール追従)。
+    /// 参照の設定は SidebarTableViewLocator が行描画時に行う(SidebarTableFocuser)。
+    @ObservationIgnored let tableFocuser = SidebarTableFocuser()
 
     /// 選択行を可視領域へ入れる。選択の書き込み点(storedSelection.didSet)だけを通すので、
     /// 矢印キー・クリック・フィルター・フォルダー再訪時の選択復元が同じ経路で追従する。
@@ -271,20 +244,13 @@ final class FileListModel {
     /// 届かないため AppKit 標準の自動スクロール(選択移動に伴う scrollRowToVisible)は走らない。
     /// SwiftUI の List も、選択バインディングが外から書き換わっただけではスクロールしない(#414)。
     ///
-    /// 一覧の差し替えより先に選択を書く経路(選択復元)があるため、NSTableView が新しい行を
-    /// 反映したあとになるよう次のランループへ遅らせる(固定待ちは不要)。
+    /// 行番号は `FileListSnapshot.index(of:)` で採る。キー操作側の移動判定と同じ関数を通すので、
+    /// 「選択が隠れている」ときの扱いが 2 箇所に分かれない。
     private func scrollSelectionIntoView() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self, let row = selectedRow() else { return }
-            sidebarTableView?.scrollRowToVisible(row)
+        tableFocuser.scrollIntoView { [weak self] in
+            guard let self, let selection = storedSelection else { return nil }
+            return listSnapshot.index(of: selection)
         }
-    }
-
-    /// 選択中のエントリが `visibleEntries` の何番目か。List は visibleEntries を 1 セクションで
-    /// そのまま描くため、この添字が NSTableView の行番号と一致する。
-    private func selectedRow() -> Int? {
-        guard let selection = storedSelection else { return nil }
-        return visibleEntries.firstIndex { $0.id == selection }
     }
 
     #if DEBUG
@@ -306,43 +272,19 @@ final class FileListModel {
     #endif
 
     /// `directory` のフォルダー一覧(FolderListingView)へ渡す供給元。
-    ///
-    /// 表示中ディレクトリを見ているときは、サイドバーが git 状態と一緒に揃えた一覧を
-    /// そのまま使わせる。プレビューが自前で列挙すると完了順が揃わず、絞り込みが効く前の
-    /// 全件が一瞬描画される(TASK-293)。選択中のサブフォルダーを見ているときは手元に
-    /// その一覧が無いので自前で列挙させる(そちらは git 状態の対象外で絞り込み自体が働かない)。
-    ///
-    /// 表示中ディレクトリの一覧がまだ届いていない間(移動要求で currentDirectory だけが
-    /// 先に進んでいる間)の扱いは、**git 絞り込みが ON かどうか**で分かれる。
-    ///
-    /// - ON: `.shared(nil)` を返して待たせる。自前で列挙させると git 状態と対になっていない
-    ///   全件が一瞬描画される(TASK-293 の回帰)。
-    /// - OFF: `.ownListing` を返してその場で列挙させる。対にすべき git 状態が無いので待つ
-    ///   理由がなく、待たせると移動直後にプレビューが空へ落ちる(TASK-295)。
-    ///
-    /// ビュー側で「古い自前列挙を出し続ける」形にすると、待つべき場面でも全件が出てしまい、
-    /// 列挙し直さないため削除済みのファイルも残る(TASK-301)。判断材料をここに置く。
+    /// 判断の規則は `FolderListingSourceResolver` が持ち、ここは材料を渡すだけ。
     func listingSource(for directory: URL) -> FolderListingSource {
-        let key = directory.normalizedPathKey
-        guard key == currentDirectory.normalizedPathKey else { return .ownListing }
-        guard hasLoadedEntries, key == entriesDirectory.normalizedPathKey else {
-            return showChangedFilesOnly ? .shared(nil) : .ownListing
-        }
-        // 絞り込み済みの一覧を渡す。FolderListingView 側はこれを再度 filter.apply に
-        // 通さない(FolderListingView.visibleEntries を参照。TASK-298)。
-        //
-        // **depth 0 の行だけを渡す**。プレビューが見せるのは `directory` 直下であって、
-        // サイドバーで展開したその配下ではない。ツリー展開が入ると visibleEntries には
-        // 孫以降の行が混ざるため(TASK-361.1)、そのまま渡すと「このフォルダーの中身」
-        // として別階層のファイルが並ぶ。ドリルダウンでは全行 depth 0 なので素通し。
-        //
-        // 祖先を足し戻す**前**の配列(FileListSnapshot.filtered)から採る。足し戻した配列を渡すと、
-        // 条件に一致しないフォルダがプレビューにも現れる一方、同じフォルダを自前列挙する
-        // 経路では消えるため、1 ウィンドウ内に絞り込みの答えが 2 つ並ぶ(TASK-288 の巻き戻し)。
-        return .shared(SharedFolderListing(
-            entries: listSnapshot.filtered.filter { $0.depth == 0 },
-            didFailEnumeration: didFailListing
-        ))
+        FolderListingSourceResolver.resolve(
+            for: directory,
+            in: FolderListingSourceResolver.Listing(
+                currentDirectory: currentDirectory,
+                entriesDirectory: entriesDirectory,
+                hasLoadedEntries: hasLoadedEntries,
+                showChangedFilesOnly: showChangedFilesOnly,
+                didFailListing: didFailListing
+            ),
+            filteredRows: { listSnapshot.filtered }
+        )
     }
 
     /// いまの表示設定をまとめた絞り込み。プレビューのフォルダー一覧
