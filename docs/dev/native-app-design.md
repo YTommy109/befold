@@ -64,8 +64,10 @@ BefoldApp/
 │   ├── ContentLoader.swift / ViewerLoadPipeline.swift  # 読込可否・種別分岐
 │   ├── FileReading.swift / StringChunkReader.swift      # 読込抽象化・チャンク読み
 │   ├── FileType.swift              # 拡張子→種別マッピングとレンダリング可否判定
-│   ├── ViewerBridge.swift          # viewer.html との JS 関数名・メッセージ契約の集約
-│   │                               # （`referenceContextMenu` 等のブリッジメッセージ名もここ）
+│   ├── ViewerBridge.swift          # Swift → JS（関数名・注入スクリプトの組み立て）
+│   ├── ViewerBridgeMessage.swift   # JS → Swift（メッセージ名・ペイロードキーの契約）
+│   │                               # （`referenceContextMenu` 等のブリッジメッセージ名はここ）
+│   ├── ViewerDiffBridge.swift      # git 差分の JS 呼び出し（setDiff / setDiffLayout）
 │   ├── OpenDisposition.swift       # 修飾キー→「開き方」(現在タブ/新規タブ/新規ウィンドウ)の対応表。
 │   │                               # JS ブリッジ経由のクリックと直接 HTML モードの
 │   │                               # decidePolicyFor が共通で通る単一の解釈元

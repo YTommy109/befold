@@ -4,11 +4,20 @@ import Foundation
 /// ビューアの表示状態を管理する。
 /// ファイルの読み込み・監視・削除検知を行い、UI にバインドされるプロパティを更新する。
 /// 読み込み(I/O・デコード)はバックグラウンドで行い、結果だけをメインアクターで適用する。
+///
+/// 責務ごとに 3 ファイルへ分かれている。このファイルが状態の宣言・生成(init)・close と
+/// **表示状態を書き換える唯一の入口**を持ち、`ViewerStore+Loading` が読み込み経路、
+/// `ViewerStore+FileWatching` が監視・rename・削除検知を担う。
+///
+/// 表示状態(content / fileType / rejectReason など UI が観測する値)の stored property は
+/// すべてこのファイル内で private のままにし、分割先からは下の「表示状態の書き換え」節にある
+/// internal メソッド経由でのみ変更する(private のファイルスコープで構造的に強制する)。
 @MainActor
 @Observable
 final class ViewerStore {
-    /// debounceDelay を引数に含めることで、fileGoneGracePeriod の導出元(watcherDebounceDelay)と
-    /// 実際に watcher が使う debounce を型で一致させる(呼び出し側の「揃える」努力に頼らない)。
+    /// debounceDelay を引数に含めることで、削除確定のグレース期間の導出元
+    /// (watcherDebounceDelay)と実際に watcher が使う debounce を型で一致させる
+    /// (呼び出し側の「揃える」努力に頼らない)。
     typealias WatcherFactory = @MainActor @Sendable (
         URL,
         TimeInterval,
@@ -49,7 +58,7 @@ final class ViewerStore {
     /// openFile / handleRename で即時更新する、読み込み対象の URL。バックグラウンド読み込み
     /// (loadContent → performLoad)へ渡すために使い、公開の filePath とは異なりロード完了を待たない。
     /// 公開 filePath は apply() 内で fileType / content と同時にのみ更新する(下記 pendingFileType 参照)。
-    @ObservationIgnored private var pendingURL: URL?
+    @ObservationIgnored private(set) var pendingURL: URL?
 
     /// 現在の対象ファイル URL の唯一の保持先。openFile / handleRename で即時に更新される
     /// (pendingURL と同値)。ウィンドウ層(ViewerWindowController)はこれを参照し、URL を
@@ -66,7 +75,8 @@ final class ViewerStore {
     /// この URL はサイドバーの選択や一覧の行と突き合わされ、URL のハッシュ・等値を通る。
     /// 消費側それぞれが防御的に揃え直すのではなく、文書 URL の保持先であるここで
     /// 1 度だけ揃える(TASK-279)。
-    private func setPendingURL(_ url: URL) {
+    /// 呼んでよいのは `ViewerStore+FileWatching` の openFile / handleRename だけ。
+    func setPendingURL(_ url: URL) {
         pendingURL = url.nativeBackedFileURL
     }
 
@@ -76,7 +86,7 @@ final class ViewerStore {
     /// 公開 fileType は apply() 内で filePath / content と同時にのみ更新する
     /// (filePath だけ先行して変わると、旧ファイルの fileType に新ファイルの filePath が
     /// 組み合わさった中間状態が描画されてしまうため)。
-    @ObservationIgnored private var pendingFileType: FileType = .mmd
+    @ObservationIgnored var pendingFileType: FileType = .mmd
 
     /// 開いたファイルが非対応と判定されているかどうか。
     var isRejected: Bool {
@@ -138,17 +148,20 @@ final class ViewerStore {
     var onContentReloaded: (() -> Void)?
 
     /// 実行中の非同期読み込みタスク。テストと loadMoreLines のエラー復旧が完了を待つために公開する。
-    @ObservationIgnored private(set) var loadTask: Task<Void, Never>?
+    /// 差し替えてよいのは `ViewerStore+Loading` の loadContent と close だけ。
+    @ObservationIgnored var loadTask: Task<Void, Never>?
 
     /// 読み込みの世代番号。loadContent が予約されるたびに進み、
     /// 追い越された古い読み込み結果(stale outcome)の適用を防ぐ。
-    @ObservationIgnored private var loadGeneration = 0
+    /// 進めてよいのは `ViewerStore+Loading` の loadContent だけ。
+    @ObservationIgnored var loadGeneration = 0
 
-    /// 削除確認のグレース期間タスク。再作成されたらキャンセルする。
-    private var fileGoneTask: Task<Void, Never>?
+    /// 削除確定のグレース期間を持つ係。張り直しは `ViewerStore+FileWatching` が行う。
+    let fileGoneWatchdog: FileGoneWatchdog
 
     /// 段階読み込み中の行チャンクセッション。ファイル再読込・close でリセットする。
-    private var chunkSession: (any ChunkedTextReading)?
+    /// 読み出しは分割先からも行うが、書き換えはこのファイル内に閉じる。
+    private(set) var chunkSession: (any ChunkedTextReading)?
 
     /// 前回適用したキャッシュの dataHash。同一内容スキップの比較に使う。
     @ObservationIgnored private var contentHash: Int?
@@ -156,23 +169,17 @@ final class ViewerStore {
     /// 蓄積済み content に含まれる改行の数(displayedLineCount の増分計算用)。
     @ObservationIgnored private var newlineCount: Int = 0
 
-    private var fileWatcher: FileWatching?
-    private let makeWatcher: WatcherFactory
-    /// makeWatcher(openFile 時)へ渡す debounce 間隔。fileGoneGracePeriod の導出元でもある。
-    private let watcherDebounceDelay: TimeInterval
-    private let makeChunkedReader: ChunkedReaderFactory
+    /// 監視は `ViewerStore+FileWatching` が張り替え、close がこのファイルで止める。
+    var fileWatcher: FileWatching?
+    let makeWatcher: WatcherFactory
+    /// makeWatcher(openFile 時)へ渡す debounce 間隔。グレース期間の導出元でもある。
+    let watcherDebounceDelay: TimeInterval
+    let makeChunkedReader: ChunkedReaderFactory
     /// 注入された fileReader。ウィンドウ層(ViewerWindowController)が pathResolver の構築に
     /// 同一インスタンスを共有できるよう、fileExists/isExistingFile 越しだけでなく直接公開する。
     let fileReader: any FileReading
-    private let contentLoader: ContentLoader
+    let contentLoader: ContentLoader
     private let defaults: UserDefaults
-    /// グレース期間の待機に使うクロック。テストでは仮想時刻を注入して実時間依存を排除する。
-    private let clock: any Clock<Duration>
-    /// FileWatcher のデバウンス既定値に余裕を持たせたグレース期間。
-    /// 環境依存のタイミング問題による検知遅延に対応する。
-    /// watcherFactory に注入された debounce 間隔から導出するため、テストで短い debounce を
-    /// 注入すればグレース期間も自動的に短縮される(プロダクト既定 0.2s なら従来どおり 1.0s)。
-    private let fileGoneGracePeriod: TimeInterval
 
     private static let showLineNumbersKey = "ShowLineNumbers"
 
@@ -227,8 +234,9 @@ final class ViewerStore {
         makeChunkedReader = chunkedReaderFactory ?? ViewerLoadPipeline.defaultChunkedReaderFactory
         self.fileReader = fileReader
         contentLoader = ContentLoader(fileReader: fileReader)
-        self.clock = clock
-        fileGoneGracePeriod = watcherDebounceDelay * 5
+        // グレース期間は watcher の debounce から導出するため、テストで短い debounce を
+        // 注入すれば自動的に短縮される(プロダクト既定 0.2s なら従来どおり 1.0s)。
+        fileGoneWatchdog = FileGoneWatchdog(clock: clock, gracePeriod: watcherDebounceDelay * 5)
         _showLineNumbers = defaults.bool(forKey: Self.showLineNumbersKey)
     }
 
@@ -242,91 +250,38 @@ final class ViewerStore {
         suppressShowLineNumbersPersistence = false
     }
 
-    /// 指定 URL のファイルを開き、ファイル監視を開始する。
-    /// 既に別のファイルを開いている場合は、先に監視を停止してから切り替える。
-    func openFile(_ url: URL) {
-        fileGoneTask?.cancel()
-        fileGoneTask = nil
-        fileWatcher?.stop()
-        // 差分は表示中ファイルに紐づくため、対象が変わった時点で捨てる。
-        // 取得は非同期で、着地までの間ここに残っていると前のファイルの差分が
-        // 新しいファイルの内容として描画される。
-        diffText = nil
-        setPendingURL(url)
-        pendingFileType = FileType(url: url)
-        loadContent()
+    // MARK: - 表示状態の書き換え(状態の単一情報源)
 
-        fileWatcher = makeWatcher(url, watcherDebounceDelay, { [weak self] in
-            self?.loadContent()
-        }, { [weak self] newURL in
-            self?.handleRename(to: newURL)
-        })
+    // 表示状態の stored property を書き換えてよいのはこの節のメソッドだけで、
+    // 呼び出し元は `ViewerStore+Loading` の読み込み経路に限る。
+
+    /// 読み込みの開始を反映する(loadContent から)。
+    func beginLoading() {
+        isLoading = true
     }
 
-    /// 注入された fileReader を通したファイル存在確認(ディレクトリを含む)。
-    /// ウィンドウ層(ViewerWindowController)の switch/rename/リンク遷移の存在ガードが
-    /// 静的な DefaultFileReader を直接叩かず、store と同一の fileReader を共有できるようにする
-    /// (テストで InMemoryFileReader を注入した store 経由でモック化するため)。
-    func fileExists(at url: URL) -> Bool {
-        fileReader.fileExists(at: url)
+    /// 読み込みの着地を反映する(apply から)。
+    func finishLoading(url: URL) {
+        isLoading = false
+        filePath = url
     }
 
-    /// 注入された fileReader を通した「存在する通常ファイル(ディレクトリでない)」判定。
-    /// 用途は fileExists(at:) と同じく存在ガードの fileReader 共有。
-    func isExistingFile(at url: URL) -> Bool {
-        fileReader.isExistingFile(at: url)
+    /// 段階読み込みで取得したチャンクを追記する(loadMoreLines から)。
+    /// content / contentRevision / isTruncated / 行数カウンタを一括で進める唯一の入口。
+    func appendChunk(_ text: String, isAtEnd: Bool) {
+        content += text
+        contentRevision += 1
+        isTruncated = !isAtEnd
+        newlineCount += text.utf8.count(where: { $0 == 0x0A })
+        updateDisplayedLineCount()
     }
 
-    /// 監視対象ファイルの rename / move を反映する。
-    /// コンテンツの再読込を予約したうえでウィンドウ側へ通知する。公開 filePath / fileType は
-    /// apply() で content と同時にのみ更新する(上の pendingURL / pendingFileType 参照)。
-    private func handleRename(to newURL: URL) {
-        let oldURL = pendingURL
-        setPendingURL(newURL)
-        pendingFileType = FileType(url: newURL)
-        loadContent()
-        if let oldURL {
-            onFileRenamed?(oldURL, newURL)
-        }
-    }
-
-    /// 次のチャンクを読み込んで content に追記し、表示状態を返す。
-    /// 末尾に達している・セッションがない場合は nil を返す。
-    /// 戻り値の contentRevision は追記後の世代番号(呼び出し側が描画済みキャッシュを
-    /// 同期し、直後の全文 render 誤爆を防ぐために使う)。
-    func loadMoreLines() async -> LoadMoreLinesResult? {
-        guard isTruncated, let session = chunkSession else { return nil }
-        do {
-            let result = try await session.readNextChunk()
-            // 読み込み待機中の再読込(セッション交代)と競合した場合は、
-            // 古いセッションの結果を捨てて新しい表示を壊さない。
-            guard chunkSession === session else { return nil }
-            content += result.text
-            contentRevision += 1
-            isTruncated = !result.isAtEnd
-            newlineCount += result.text.utf8.count(where: { $0 == 0x0A })
-            updateDisplayedLineCount()
-            return LoadMoreLinesResult(
-                chunk: result.text, isTruncated: isTruncated,
-                lineCount: displayedLineCount, contentRevision: contentRevision,
-                loadFailed: false
-            )
-        } catch {
-            guard chunkSession === session else { return nil }
-            // セッション途中のエラーではチャンクセッションを終了し、
-            // 表示済みの内容を保持する。loadContent で全体を再読込すると、
-            // 10MB 超のファイルで表示済みコンテンツが fileTooLarge に置き換わるため。
-            // isTruncated は true のまま維持する: 正常な EOF(バナーを消す)と
-            // エラー打ち切り(バナーをエラー表示に切り替える)を区別するため、
-            // loadFailed だけで判別させる。
-            chunkSession = nil
-            loadFailed = true
-            return LoadMoreLinesResult(
-                chunk: "", isTruncated: isTruncated,
-                lineCount: displayedLineCount, contentRevision: contentRevision,
-                loadFailed: true
-            )
-        }
+    /// チャンク読込がエラーで打ち切られたことを反映する(loadMoreLines から)。
+    /// isTruncated は true のまま維持する: 正常な EOF(バナーを消す)とエラー打ち切り
+    /// (バナーをエラー表示に切り替える)を loadFailed だけで判別させるため。
+    func markChunkLoadFailed() {
+        chunkSession = nil
+        loadFailed = true
     }
 
     /// 蓄積済み content の改行数から表示行数を再計算する。数え方の規則は
@@ -335,88 +290,10 @@ final class ViewerStore {
         displayedLineCount = DisplayedLineCount.count(newlines: newlineCount, in: content)
     }
 
-    /// pendingURL の読み込みを予約する。I/O・デコードはバックグラウンドで行い、
-    /// 完了後にメインアクターで表示状態へ一括適用する。呼び出しごとに世代番号を進め、
-    /// 追い越された古い読み込みの結果は破棄する。
-    private func loadContent() {
-        guard let target = pendingURL else { return }
-        loadGeneration += 1
-        let generation = loadGeneration
-        isLoading = true
-        let resolved = target.resolvingSymlinksInPath()
-        let fileType = pendingFileType
-        loadTask = Task {
-            await self.performLoad(
-                resolved: resolved, url: target, fileType: fileType,
-                generation: generation
-            )
-        }
-    }
-
-    /// バックグラウンドで読み込み結果を計算し、世代が最新のままなら表示状態へ適用する。
-    private func performLoad(
-        resolved: URL, url: URL, fileType: FileType, generation: Int
-    ) async {
-        let outcome = await ViewerLoadPipeline.load(
-            resolved: resolved,
-            fileType: fileType,
-            fileReader: fileReader,
-            contentLoader: contentLoader,
-            chunkedReaderFactory: makeChunkedReader
-        )
-        // close() でキャンセルされた、または新しい読み込みに追い越された結果は捨てる。
-        guard !Task.isCancelled, generation == loadGeneration else { return }
-        apply(outcome, url: url, fileType: fileType)
-    }
-
-    /// 読み込み結果を表示状態(filePath / fileType / content / rejectReason / isTruncated /
-    /// 行数カウンタ / chunkSession)へ一括適用する。読み込み結果の種別ごとの差分は
-    /// DisplayState の組み立てだけに閉じ込め、実際の書き換えは applyDisplayState に一本化する。
-    /// filePath / fileType を content と同時にここで確定させることで、旧ファイルの content に
-    /// 新ファイルの filePath や fileType が組み合わさった中間状態が描画されないようにする
-    /// (task: HTML 表示直後の切替で空白表示になる不具合の再発防止)。
-    private func apply(_ outcome: ViewerLoadPipeline.Outcome, url: URL, fileType: FileType) {
-        isLoading = false
-        filePath = url
-        let state: DisplayState
-        switch outcome {
-        case .missing:
-            scheduleFileGone()
-            return
-        case let .chunked(session, cache, firstChunk, isAtEnd):
-            state = DisplayState(
-                fileType: fileType,
-                contentHash: cache.dataHash,
-                chunkSession: session,
-                rejectReason: nil,
-                isTruncated: !isAtEnd,
-                content: firstChunk,
-                tracksLineCount: true,
-                hasDeclaredHTMLCharset: nil
-            )
-        case let .full(loaded, cache):
-            state = DisplayState(
-                fileType: fileType,
-                contentHash: cache?.dataHash,
-                chunkSession: nil,
-                rejectReason: loaded.rejectReason,
-                isTruncated: false,
-                content: loaded.content,
-                tracksLineCount: false,
-                hasDeclaredHTMLCharset: loaded.hasDeclaredHTMLCharset
-            )
-        }
-        guard applyDisplayState(state) else { return }
-        fileGoneTask?.cancel()
-        fileGoneTask = nil
-        // rejectReason / content(表示状態)が確定した後に通知する。
-        onContentReloaded?()
-    }
-
     /// apply() が一括適用する表示状態の組。読み込み結果の種別(.chunked / .full)ごとに
     /// 値を詰め替えるだけにして、フィールドを増やしたときに片方の分岐だけ更新し忘れる
-    /// 事故を構造的に防ぐ。
-    private struct DisplayState {
+    /// 事故を構造的に防ぐ。組み立ては `ViewerStore+Loading` の apply が行う。
+    struct DisplayState {
         let fileType: FileType
         /// 同一内容スキップの比較に使う dataHash。全文読込でキャッシュがない場合は nil。
         let contentHash: Int?
@@ -435,7 +312,8 @@ final class ViewerStore {
     /// 表示状態を一括更新する。同一内容(dataHash・fileType が一致し、直前のチャンク読込も
     /// 失敗していない)の再読込では何も書き換えず false を返す。
     /// 表示状態のタプルを書き換えるのはこのメソッドだけにする。
-    private func applyDisplayState(_ state: DisplayState) -> Bool {
+    /// 呼んでよいのは `ViewerStore+Loading` の apply。
+    func applyDisplayState(_ state: DisplayState) -> Bool {
         if let newHash = state.contentHash,
            newHash == contentHash, state.fileType == fileType, !loadFailed
         {
@@ -460,31 +338,12 @@ final class ViewerStore {
         return true
     }
 
-    /// グレース期間後にファイルの不在を再確認し、確定したら onFileGone を発火する。
-    /// 常に張り直す(古いタスクをキャンセルして置き換える)ことで、発火せず完了した
-    /// タスクが残って以後の検知を塞ぐことを防ぐ。
-    ///
-    /// 注: filePath は schedule 時点でキャプチャせず、発火時に再確認する。
-    /// handleRename で filePath が更新されると、rename と grace period の競争状態で
-    /// 新しいパスが存在する場合、ウィンドウを閉じずに監視を継続するため。
-    private func scheduleFileGone() {
-        fileGoneTask?.cancel()
-        fileGoneTask = Task { @MainActor [weak self, clock, fileGoneGracePeriod] in
-            try? await clock.sleep(for: .seconds(fileGoneGracePeriod))
-            guard let self, !Task.isCancelled else { return }
-            guard let filePath else { return }
-            guard !fileReader.fileExists(at: filePath.resolvingSymlinksInPath()) else { return }
-            onFileGone?()
-        }
-    }
-
     /// ファイル監視を停止し、リソースを解放する。
     func close() {
         loadTask?.cancel()
         loadTask = nil
         isLoading = false
-        fileGoneTask?.cancel()
-        fileGoneTask = nil
+        fileGoneWatchdog.cancel()
         chunkSession = nil
         fileWatcher?.stop()
         fileWatcher = nil

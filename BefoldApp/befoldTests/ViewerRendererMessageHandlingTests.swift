@@ -300,9 +300,9 @@ struct ViewerRendererMessageHandlingTests {
     /// 手書きの配列に戻ると、enum に足したメッセージが登録されないまま気付けなくなる。
     @Test("登録するハンドラ名は BridgeMessage の rawValue から導出される")
     func handlerNamesAreDerivedFromBridgeMessage() {
-        let all = Set(ViewerBridge.BridgeMessage.allCases.map(\.rawValue))
+        let all = Set(ViewerBridgeMessage.allCases.map(\.rawValue))
         let interactiveOnly = Set(
-            ViewerBridge.BridgeMessage.allCases
+            ViewerBridgeMessage.allCases
                 .filter { !$0.requiresInteractiveBridging }
                 .map(\.rawValue)
         )

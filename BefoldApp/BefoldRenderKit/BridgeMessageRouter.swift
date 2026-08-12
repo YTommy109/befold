@@ -9,11 +9,11 @@ import WebKit
 /// (renderer がこのルータを所有するので、寿命は必ず renderer が長い)。
 @MainActor
 final class BridgeMessageRouter: NSObject, WKScriptMessageHandler {
-    private typealias ReferenceKey = ViewerBridge.PayloadKey.ReferenceActivated
-    private typealias ScrollKey = ViewerBridge.PayloadKey.ScrollPositionChanged
-    private typealias ZoomKey = ViewerBridge.PayloadKey.ZoomChanged
-    private typealias FindKey = ViewerBridge.PayloadKey.FindOptionsChanged
-    private typealias ContextMenuKey = ViewerBridge.PayloadKey.ReferenceContextMenu
+    private typealias ReferenceKey = ViewerBridgeMessage.PayloadKey.ReferenceActivated
+    private typealias ScrollKey = ViewerBridgeMessage.PayloadKey.ScrollPositionChanged
+    private typealias ZoomKey = ViewerBridgeMessage.PayloadKey.ZoomChanged
+    private typealias FindKey = ViewerBridgeMessage.PayloadKey.FindOptionsChanged
+    private typealias ContextMenuKey = ViewerBridgeMessage.PayloadKey.ReferenceContextMenu
 
     private unowned let renderer: ViewerRenderer
 
@@ -29,7 +29,7 @@ final class BridgeMessageRouter: NSObject, WKScriptMessageHandler {
         _ userContentController: WKUserContentController,
         didReceive message: WKScriptMessage
     ) {
-        guard let kind = ViewerBridge.BridgeMessage(rawValue: message.name) else { return }
+        guard let kind = ViewerBridgeMessage(rawValue: message.name) else { return }
         switch kind {
         case .zoomChanged: handleZoomChanged(body: message.body)
         case .referenceActivated: handleReferenceActivated(body: message.body)

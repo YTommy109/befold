@@ -46,7 +46,7 @@ public enum ViewerWebViewFactory {
     /// (QuickLook 拡張等の静的1回描画ホストを想定した)場合、そもそも登録しない
     /// (多層防御: XSS が postMessage を直接呼んでもハンドラ未登録のため Swift 側に届かない)。
     public nonisolated static func messageHandlerNames(for features: RendererFeatures) -> [String] {
-        ViewerBridge.BridgeMessage.allCases
+        ViewerBridgeMessage.allCases
             .filter { features.allowsInteractiveBridging || !$0.requiresInteractiveBridging }
             .map(\.rawValue)
     }

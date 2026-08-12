@@ -5,8 +5,8 @@ import WebKit
 /// 1 つの値として持つ(片方だけ送られて、旧レイアウトで新しい差分が描かれるのを防ぐ)。
 public struct DiffState: Equatable, Sendable {
     public let text: String?
-    public let layout: ViewerBridge.DiffLayout
-    public init(text: String?, layout: ViewerBridge.DiffLayout) {
+    public let layout: ViewerDiffBridge.Layout
+    public init(text: String?, layout: ViewerDiffBridge.Layout) {
         self.text = text
         self.layout = layout
     }

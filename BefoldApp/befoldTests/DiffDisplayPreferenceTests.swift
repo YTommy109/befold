@@ -40,7 +40,7 @@ struct DiffDisplayPreferenceTests {
 struct ViewerBridgeDiffScriptTests {
     @Test("差分本文をエスケープして setDiff へ渡す")
     func escapesDiffText() {
-        let script = ViewerBridge.diffScript("+let s = \"</script>\"\n")
+        let script = ViewerDiffBridge.textScript("+let s = \"</script>\"\n")
 
         #expect(script.hasPrefix("setDiff("))
         #expect(!script.contains("</script>"))
@@ -49,12 +49,12 @@ struct ViewerBridgeDiffScriptTests {
 
     @Test("差分が無ければ null を渡して解除する")
     func passesNullWhenNoDiff() {
-        #expect(ViewerBridge.diffScript(nil) == "setDiff(null)")
+        #expect(ViewerDiffBridge.textScript(nil) == "setDiff(null)")
     }
 
     @Test("レイアウトを JS のレイアウト名で渡す")
     func passesLayoutName() {
-        #expect(ViewerBridge.diffLayoutScript(.inline) == "setDiffLayout('inline')")
-        #expect(ViewerBridge.diffLayoutScript(.sideBySide) == "setDiffLayout('side-by-side')")
+        #expect(ViewerDiffBridge.layoutScript(.inline) == "setDiffLayout('inline')")
+        #expect(ViewerDiffBridge.layoutScript(.sideBySide) == "setDiffLayout('side-by-side')")
     }
 }

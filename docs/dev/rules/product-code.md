@@ -170,7 +170,8 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 | 拡張子が対応形式かの判定 | `FileType.isSupported(_:)`（`allExtensions.contains(url.pathExtension.lowercased())` という判定式そのものを一本化。呼び出し元で `contains` / `lowercased` を組み立て直さない） |
 | パスの同一性キー（symlink 解決込み） | `URL.normalizedPathKey`。ディレクトリ同一性比較も `standardizedFileURL.path` ではなくこちらを使う |
 | パスキー辞書の rename 移行 | `PathKeyedDictionary` |
-| Swift → JS の関数名・メッセージハンドラ名・注入スクリプト | `ViewerBridge`（`evaluateJavaScript` への文字列リテラル直書きは違反） |
+| Swift → JS の関数名・注入スクリプト | `ViewerBridge`（`evaluateJavaScript` への文字列リテラル直書きは違反）。git 差分は `ViewerDiffBridge` |
+| JS → Swift のメッセージ名・ペイロードキー | `ViewerBridgeMessage`（ハンドラ登録とルーティングの双方をここから導出する） |
 | シェルのシングルクォートエスケープ | `String.shellQuoted`（`ShellQuoting.swift`） |
 | ズーム上下限・ステップ | `ZoomStore.minZoom` / `maxZoom` / `zoomStep` |
 | 不可視ファイル表示の共有状態 | `HiddenFilesPreference` インスタンス（AppDelegate が生成した 1 個を全ウィンドウで共有） |

@@ -22,13 +22,13 @@ final class DiffDisplayPreference {
     private static let layoutKey = "SourceDiffLayout"
 
     /// 差分のレイアウト（1 列 / 左右分割）。
-    var layout: ViewerBridge.DiffLayout {
+    var layout: ViewerDiffBridge.Layout {
         didSet { defaults.set(layout.rawValue, forKey: Self.layoutKey) }
     }
 
     init(defaults: UserDefaults) {
         self.defaults = defaults
         let stored = defaults.string(forKey: Self.layoutKey)
-        layout = stored.flatMap(ViewerBridge.DiffLayout.init(rawValue:)) ?? .inline
+        layout = stored.flatMap(ViewerDiffBridge.Layout.init(rawValue:)) ?? .inline
     }
 }

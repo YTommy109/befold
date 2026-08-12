@@ -130,8 +130,8 @@ final class ViewerScriptDispatcher {
         // 差分は本文とレイアウトを 1 つの値として比較し、変わったときだけ両方送る。
         // 直後の render で JS 側が読み出すため、ここでは送るだけ(再描画はしない)。
         if diffState != rendered.diffState {
-            webView.evaluateJavaScript(ViewerBridge.diffScript(diffState.text), completionHandler: nil)
-            webView.evaluateJavaScript(ViewerBridge.diffLayoutScript(diffState.layout), completionHandler: nil)
+            webView.evaluateJavaScript(ViewerDiffBridge.textScript(diffState.text), completionHandler: nil)
+            webView.evaluateJavaScript(ViewerDiffBridge.layoutScript(diffState.layout), completionHandler: nil)
         }
         if request.truncation != rendered.truncation {
             webView.evaluateJavaScript(request.truncation.script, completionHandler: nil)
