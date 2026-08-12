@@ -1,11 +1,11 @@
 ---
 id: TASK-428
 title: ファイルの肥大化を型グループ単位のラチェットで構造的に防ぐ
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-10 12:32'
-updated_date: '2026-08-11 13:51'
+updated_date: '2026-08-12 06:44'
 labels: []
 dependencies: []
 documentation:
@@ -53,7 +53,7 @@ ordinal: 104000
 - [x] #1 型グループ単位（Foo.swift + Foo+*.swift の合算）の行数が、ベースラインを超えて増加したときに CI が落ちる
 - [x] #2 新規に追加された型グループが閾値を超えたときに CI が落ちる
 - [x] #3 責務の混在を見るレビューが、設計時・PR 時・タスク完了時の 3 点から回るよう配線されている
-- [ ] #4 全サブタスク完了後、ベースライン方式が撤去され単純な閾値強制に畳まれている
+- [x] #4 全サブタスク完了後、ベースライン方式が撤去され単純な閾値強制に畳まれている
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -116,4 +116,21 @@ TASK-428.5 を着手可能にするには、この 5 件の返済タスク起票
 「依存 10 件が全て完了すればベースラインが空になる」という前提が崩れていることを実測で確認した。ベースラインに残る `852  BefoldApp/befold/App/ViewerWindowController` の返済タスク TASK-441 は Done であり、その AC は 400 行到達不能の実測（init の Parameter doc 約 120 行 + 移動不能な @objc アクション 13 個）を根拠に 900 行へ書き換えられている。852 → 400 を目指す To Do タスクは存在しない。
 
 **決定（ユーザー判断）**: 追加の返済タスクは起票せず、TASK-428.5 の設計を「ベースライン撤去 → 単純な閾値強制」から「ベースライン撤去 → 閾値 + 理由付きの恒久例外リスト」へ変更した。TASK-428.5 の AC を 4 件から 6 件へ書き換え済み。AC #4（ベースライン方式の撤去）はこの新しい形で満たす。
+
+## AC #4 の完了確認（2026-08-12）
+
+TASK-428.5 の完了（origin/main: dc92c4c 'chore: TASK-462 を起票し TASK-428.5 を完了する' (#499)）をもって AC #4 を満たしたことを実測で確認した。
+
+- `scripts/type-group-baseline.txt` は削除済み（残るのは `scripts/type-group-exceptions.txt` のみ）
+- `grep -c baseline scripts/check-type-group-size.sh` = 0（差分比較のロジックが残っていない）
+- `scripts/check-type-group-size.sh --check` → 「型グループの行数は閾値以内です」 exit 0
+- `--self-test` → OK（閾値超過/例外で許容/上限超過/理由なし/不要な例外の各判定を確認）
+
+親タスクとしてのスコープはこれで閉じる。以降の型グループ肥大化は閾値 400 + 恒久例外リスト（現在 ViewerWindowController の 1 件のみ）で機械的に強制される。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+型グループ単位（Foo.swift + Foo+*.swift 合算）の行数チェックを導入し、機械レイヤー（集計 → pre-commit 警告 → CI ブロック）と意味レイヤー（responsibility-reviewer を設計時・PR 時・タスク完了時の 3 点へ配線）を稼働させた。負債返済期間の足場だったベースライン方式は TASK-428.5 で撤去し、判定を「閾値 400 以下、または理由付き恒久例外の上限以下」だけに畳んだ（恒久例外は ViewerWindowController 900 行の 1 件）。検証: scripts/check-type-group-size.sh の --check が exit 0、--self-test が OK、baseline 参照は grep で 0 件。
+<!-- SECTION:FINAL_SUMMARY:END -->
