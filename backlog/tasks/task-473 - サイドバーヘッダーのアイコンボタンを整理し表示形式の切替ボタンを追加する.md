@@ -1,10 +1,11 @@
 ---
 id: TASK-473
 title: サイドバーヘッダーのアイコンボタンを整理し表示形式の切替ボタンを追加する
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-08-13 11:17'
-updated_date: '2026-08-13 11:18'
+updated_date: '2026-08-13 11:21'
 labels: []
 dependencies: []
 priority: medium
