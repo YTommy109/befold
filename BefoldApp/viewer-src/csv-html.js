@@ -83,14 +83,45 @@ function tokenizeCsvRows(content, delimiter) {
   return rows;
 }
 
+// セル値に含まれる 2 文字のエスケープシーケンスを実際の制御文字へ展開する。
+// 対象は \n / \t / \r / \\ の 4 つ。左から 1 パスで走査するため、\\n は
+// 「エスケープされたバックスラッシュ + n」として解釈され、リテラルの \n が残る。
+// 未知のシーケンス(\q など)と末尾の単独バックスラッシュはそのまま残す。
+// テーブル表示のセルは style.css で white-space: pre-line なので、実改行を
+// 入れるだけで追加の CSS なしにそのまま改行として表示される。ソース表示は
+// raw を使うため影響を受けない(行番号と実ファイルの行がずれないようにするため)。
+var CSV_ESCAPES = { n: '\n', t: '\t', r: '\r', '\\': '\\' };
+
+function unescapeCellValue(value) {
+  if (value.indexOf('\\') === -1) { return value; }
+  var out = '';
+  var i = 0;
+  while (i < value.length) {
+    var ch = value[i];
+    if (ch === '\\' && i + 1 < value.length) {
+      var next = value[i + 1];
+      if (Object.prototype.hasOwnProperty.call(CSV_ESCAPES, next)) {
+        out += CSV_ESCAPES[next];
+        i += 2;
+        continue;
+      }
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
 // tokenizeCsvRows のセルから value だけを取り出した、データ用の行配列。
+// テーブル表示の唯一の入口なので、エスケープシーケンスの展開もここで行う
+// (初回描画 buildTableHtml とチャンク追記 csvRowsHtml の両方に一度に効く)。
 function parseCsv(content, delimiter) {
   var tokenRows = tokenizeCsvRows(content, delimiter);
   var rows = [];
   for (var r = 0; r < tokenRows.length; r++) {
     var row = [];
     for (var c = 0; c < tokenRows[r].length; c++) {
-      row.push(tokenRows[r][c].value);
+      row.push(unescapeCellValue(tokenRows[r][c].value));
     }
     rows.push(row);
   }
@@ -169,6 +200,7 @@ function renderCsvSourceHtml(content, delimiter, showLineNumbers) {
 
 export {
   CSV_COL_COUNT,
+  unescapeCellValue,
   tokenizeCsvRows,
   parseCsv,
   csvRowsHtml,

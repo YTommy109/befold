@@ -14259,6 +14259,7 @@
     stepZoom: () => stepZoom,
     svgDataURI: () => svgDataURI,
     tokenizeCsvRows: () => tokenizeCsvRows,
+    unescapeCellValue: () => unescapeCellValue,
     uniqueHeadingSlug: () => uniqueHeadingSlug,
     wheelZoom: () => wheelZoom,
     wrapWithLineNumbers: () => wrapWithLineNumbers,
@@ -14963,13 +14964,35 @@
     }
     return rows;
   }
+  var CSV_ESCAPES = { n: "\n", t: "	", r: "\r", "\\": "\\" };
+  function unescapeCellValue(value) {
+    if (value.indexOf("\\") === -1) {
+      return value;
+    }
+    var out = "";
+    var i = 0;
+    while (i < value.length) {
+      var ch = value[i];
+      if (ch === "\\" && i + 1 < value.length) {
+        var next = value[i + 1];
+        if (Object.prototype.hasOwnProperty.call(CSV_ESCAPES, next)) {
+          out += CSV_ESCAPES[next];
+          i += 2;
+          continue;
+        }
+      }
+      out += ch;
+      i++;
+    }
+    return out;
+  }
   function parseCsv(content, delimiter2) {
     var tokenRows = tokenizeCsvRows(content, delimiter2);
     var rows = [];
     for (var r = 0; r < tokenRows.length; r++) {
       var row = [];
       for (var c = 0; c < tokenRows[r].length; c++) {
-        row.push(tokenRows[r][c].value);
+        row.push(unescapeCellValue(tokenRows[r][c].value));
       }
       rows.push(row);
     }
