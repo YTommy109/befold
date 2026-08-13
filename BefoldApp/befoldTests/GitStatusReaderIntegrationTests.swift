@@ -190,6 +190,40 @@ struct GitStatusReaderIntegrationTests {
         #expect(snapshot.statuses.isEmpty, "余計なエントリ: \(snapshot.statuses.keys.sorted())")
     }
 
+    /// `core.excludesFile` 経由の除外が効くことの担保(TASK-467)。
+    ///
+    /// TASK-467 の実害は「ユーザーの ignore 設定を置いた config レベル(XDG)を
+    /// 無効化していたため、除外したはずのファイルがサイドバーに出る」だった。
+    /// そのユーザー環境そのもの(`~/.config/git/ignore`)はテストから作れない。
+    /// libgit2 の config 検索パスはプロセスグローバルで、`git_libgit2_init()` の中で
+    /// 先読み guess されるため、テスト中に `HOME` / `XDG_CONFIG_HOME` を差し替えても
+    /// 効かず、初期化後に検索パスを書けば data race になる(TASK-462、
+    /// `GitLibraryTests.searchPathIsWrittenOnlyByGitLibrary` が禁止している)。
+    ///
+    /// そこで担保を 2 つに分ける。「その config レベルを読むか」は
+    /// `GitLibraryTests.keepsUserConfigSearchPathsEnabled` が検索パスの側で見る。
+    /// ここでは残り半分——**`core.excludesFile` を読んだら実際に除外へ効く**ことを、
+    /// リポジトリ内 config だけを使って(プロセスグローバルを一切触らずに)確かめる。
+    @Test("core.excludesFile で指定した除外リストがバッジ対象から外れる")
+    func honorsCoreExcludesFile() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: "tracked.md", in: temp.url)
+
+        let excludes = temp.url.appendingPathComponent("my-excludes")
+        try "excluded.md\n".write(to: excludes, atomically: true, encoding: .utf8)
+        GitTestRepo.run(["config", "core.excludesFile", excludes.path], in: temp.url)
+
+        try GitTestRepo.addUntrackedFile(named: "excluded.md", in: temp.url)
+        try GitTestRepo.addUntrackedFile(named: "visible.md", in: temp.url)
+
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let names = Set(snapshot.statuses.keys.map { URL(fileURLWithPath: $0).lastPathComponent })
+        #expect(!names.contains("excluded.md"), "除外されるはず: \(names.sorted())")
+        #expect(names.contains("visible.md"), "出るはず: \(names.sorted())")
+    }
+
     /// Reader / Store / SidebarNavigator を本番と同じ組み合わせで繋ぎ、実リポジトリの
     /// 変更がサイドバーのモデルまで届くことを確認する(描画そのものは手動チェック対象)。
     @MainActor
