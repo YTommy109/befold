@@ -28,7 +28,7 @@ struct GitStatusStoreTests {
         /// 呼び出しの開始を通知する。nil なら通知しない。
         private let onCall: (@Sendable (Int) -> Void)?
         /// 呼び出しの中で待機する(nil なら待たない)。
-        private let block: DispatchSemaphore?
+        private let block: BlockingGate?
 
         /// `indexFingerprint(forRepositoryAt:)` が返す値。差し替えて index の動きを模す。
         private var fingerprint: Date?
@@ -38,7 +38,7 @@ struct GitStatusStoreTests {
             results: [GitStatusSnapshot?],
             fingerprint: Date? = nil,
             onCall: (@Sendable (Int) -> Void)? = nil,
-            block: DispatchSemaphore? = nil
+            block: BlockingGate? = nil
         ) {
             self.results = results
             self.fingerprint = fingerprint
@@ -70,7 +70,7 @@ struct GitStatusStoreTests {
             let calls = calls
             lock.unlock()
             onCall?(calls)
-            if let block { waitOrRecordTimeout(block, "FakeReader.status") }
+            if let block { block.wait("FakeReader.status") }
             return result
         }
     }
@@ -211,7 +211,7 @@ struct GitStatusStoreTests {
     func foldsConcurrentRequestsForSameRoot() async {
         let readerEntered = AsyncGate()
         let secondRootResolved = AsyncGate()
-        let release = DispatchSemaphore(value: 0)
+        let release = BlockingGate()
         let reader = FakeReader(
             results: [snapshot(modifiedStatus)],
             onCall: { _ in readerEntered.open() },
@@ -231,7 +231,7 @@ struct GitStatusStoreTests {
         await readerEntered.wait()
         let second = Task { await store.statuses(forDirectoryAt: directory).statuses }
         await secondRootResolved.wait()
-        release.signal()
+        release.open()
 
         #expect(await first.value == modifiedStatus)
         #expect(await second.value == modifiedStatus)
