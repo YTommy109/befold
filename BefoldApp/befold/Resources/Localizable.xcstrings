@@ -2142,6 +2142,91 @@
         }
       }
     },
+    "sidebar.layout.tree": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show as Tree"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ツリー表示にする"
+          }
+        }
+      }
+    },
+    "sidebar.layout.drillDown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show One Level at a Time"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 階層ずつ表示する"
+          }
+        }
+      }
+    },
+    "sidebar.more": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display Options"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表示オプション"
+          }
+        }
+      }
+    },
+    "sidebar.sortOrder.foldersFirst": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folders First"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダーを先に"
+          }
+        }
+      }
+    },
+    "sidebar.sortOrder.alphabetical": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alphabetical"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前順"
+          }
+        }
+      }
+    },
     "sidebar.changedFilesOnly.hide": {
       "extractionState": "manual",
       "localizations": {
@@ -2172,74 +2257,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "変更されたファイルのみ表示"
-          }
-        }
-      }
-    },
-    "sidebar.hiddenFiles.hide": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hide Hidden Files"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不可視ファイルを隠す"
-          }
-        }
-      }
-    },
-    "sidebar.hiddenFiles.show": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Hidden Files"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不可視ファイルを表示"
-          }
-        }
-      }
-    },
-    "sidebar.sort.alphabetical": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alphabetical"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アルファベット順"
-          }
-        }
-      }
-    },
-    "sidebar.sort.foldersFirst": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Folders First"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "フォルダー優先"
           }
         }
       }
