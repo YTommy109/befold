@@ -24,6 +24,71 @@ function sanitizeRenderedHtml(purify, html) {
   return purify.sanitize(html);
 }
 
+// 見出しの表示テキストを取り出す。inline トークンの children から text / code_inline の
+// 中身だけを連結するため、`## **太字**の見出し` のような装飾は記号を含まないテキストになる
+// (`inline.content` を使うと `**` が残り、GitHub の slug とずれる)。
+function headingTextOf(inlineToken) {
+  if (!inlineToken) { return ''; }
+  var children = inlineToken.children;
+  if (!children || !children.length) { return String(inlineToken.content || ''); }
+  var text = '';
+  for (var i = 0; i < children.length; i += 1) {
+    var child = children[i];
+    if (child.type === 'text' || child.type === 'code_inline') {
+      text += child.content;
+    }
+  }
+  return text;
+}
+
+// GitHub 互換の見出し slug。小文字化し、記号を捨て、空白をハイフンにする。
+// 文字・数字・結合文字・連結記号(_)・ハイフン・空白だけを残すため、日本語などの
+// 非 ASCII は**そのまま**残る。ここで percent-encode しないこと。クリック側
+// (reference-clicks.js)は href を decodeURIComponent してから getElementById する。
+// id を encode 済みにすると、その decode 済みキーと一致しなくなる。
+function slugifyHeading(text) {
+  return String(text)
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\p{M}\p{Pc}\- ]/gu, '')
+    .replace(/ /g, '-');
+}
+
+// 1 回の描画で使う slug を一意化する。GitHub と同じく、2 回目以降の重複には
+// -1 / -2 … の連番を付ける。used は呼び出し側が描画ごとに用意する Map。
+function uniqueHeadingSlug(slug, used) {
+  var base = slug || 'section';
+  var seen = used.get(base);
+  if (seen === undefined) {
+    used.set(base, 0);
+    return base;
+  }
+  var next = seen + 1;
+  var candidate = base + '-' + next;
+  // 連番付きの候補が、別の見出しの素の slug と衝突することがある
+  // (`# Foo` / `# Foo` / `# Foo 1` の 3 本目)。空いている番号まで送る。
+  while (used.has(candidate)) {
+    next += 1;
+    candidate = base + '-' + next;
+  }
+  used.set(base, next);
+  used.set(candidate, 0);
+  return candidate;
+}
+
+// heading_open トークンへ id を振る core ルール。描画ごとに Map を作り直すので、
+// 連番の状態が前の描画へ漏れない。
+function assignHeadingIds(state) {
+  var used = new Map();
+  var tokens = state.tokens;
+  for (var i = 0; i < tokens.length; i += 1) {
+    if (tokens[i].type !== 'heading_open') { continue; }
+    var slug = uniqueHeadingSlug(slugifyHeading(headingTextOf(tokens[i + 1])), used);
+    tokens[i].attrSet('id', slug);
+  }
+}
+
+
 // 構成済みの markdown-it。ベンダーはバンドル同梱(vendor.js)のため常に構成済みで、
 // 「未ロード」状態は存在しない。
 function markdownRenderer() {
@@ -58,6 +123,10 @@ function buildMarkdownRenderer() {
   // (setup.md 等)が http:// の外部リンクに化けてブラウザが開いてしまう。
   // scheme 付き URL(https://...)の自動リンク化と [text](url) 形式は影響なし。
   instance.linkify.set({ fuzzyLink: false });
+  // 見出しに id を振る(TASK-466)。文書内アンカーリンク([…](#見出し))のクリックは
+  // reference-clicks.js が getElementById で解決するため、id が無いと黙って何も
+  // 起きない。core チェーンの最後に置き、inline 解析後の children を読む。
+  instance.core.ruler.push('befold_heading_ids', assignHeadingIds);
   instance.validateLink = isSafeLinkURL;
   var defaultFence = instance.renderer.rules.fence;
   instance.renderer.rules.fence = function(tokens, idx, options, env, self) {
@@ -73,4 +142,4 @@ function buildMarkdownRenderer() {
   return instance;
 }
 
-export { isSafeLinkURL, sanitizeRenderedHtml, markdownRenderer };
+export { isSafeLinkURL, sanitizeRenderedHtml, markdownRenderer, slugifyHeading, uniqueHeadingSlug };

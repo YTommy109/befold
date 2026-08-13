@@ -14255,9 +14255,11 @@
     setDiffLayout: () => setDiffLayout,
     setLineNumbers: () => setLineNumbers,
     setViewMode: () => setViewMode,
+    slugifyHeading: () => slugifyHeading,
     stepZoom: () => stepZoom,
     svgDataURI: () => svgDataURI,
     tokenizeCsvRows: () => tokenizeCsvRows,
+    uniqueHeadingSlug: () => uniqueHeadingSlug,
     wheelZoom: () => wheelZoom,
     wrapWithLineNumbers: () => wrapWithLineNumbers,
     zoomLabel: () => zoomLabel
@@ -23081,6 +23083,54 @@
   function sanitizeRenderedHtml(purify2, html2) {
     return purify2.sanitize(html2);
   }
+  function headingTextOf(inlineToken) {
+    if (!inlineToken) {
+      return "";
+    }
+    var children = inlineToken.children;
+    if (!children || !children.length) {
+      return String(inlineToken.content || "");
+    }
+    var text3 = "";
+    for (var i = 0; i < children.length; i += 1) {
+      var child = children[i];
+      if (child.type === "text" || child.type === "code_inline") {
+        text3 += child.content;
+      }
+    }
+    return text3;
+  }
+  function slugifyHeading(text3) {
+    return String(text3).trim().toLowerCase().replace(/[^\p{L}\p{N}\p{M}\p{Pc}\- ]/gu, "").replace(/ /g, "-");
+  }
+  function uniqueHeadingSlug(slug, used) {
+    var base2 = slug || "section";
+    var seen = used.get(base2);
+    if (seen === void 0) {
+      used.set(base2, 0);
+      return base2;
+    }
+    var next = seen + 1;
+    var candidate = base2 + "-" + next;
+    while (used.has(candidate)) {
+      next += 1;
+      candidate = base2 + "-" + next;
+    }
+    used.set(base2, next);
+    used.set(candidate, 0);
+    return candidate;
+  }
+  function assignHeadingIds(state) {
+    var used = /* @__PURE__ */ new Map();
+    var tokens = state.tokens;
+    for (var i = 0; i < tokens.length; i += 1) {
+      if (tokens[i].type !== "heading_open") {
+        continue;
+      }
+      var slug = uniqueHeadingSlug(slugifyHeading(headingTextOf(tokens[i + 1])), used);
+      tokens[i].attrSet("id", slug);
+    }
+  }
   function markdownRenderer() {
     return md;
   }
@@ -23099,6 +23149,7 @@
       return sanitizeRenderedHtml(purify, _mdRenderOriginal(src, env));
     };
     instance.linkify.set({ fuzzyLink: false });
+    instance.core.ruler.push("befold_heading_ids", assignHeadingIds);
     instance.validateLink = isSafeLinkURL;
     var defaultFence = instance.renderer.rules.fence;
     instance.renderer.rules.fence = function(tokens, idx, options, env, self) {
