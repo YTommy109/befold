@@ -78,7 +78,7 @@ final class SidebarNavigator {
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: URL?,
         sidebarDisplayPreference: SidebarDisplayPreference,
-        sortOrder: SortOrder = .foldersFirst,
+        sortOrder: SortOrder? = nil,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> DirectoryListing
             = DirectoryLister.listingAsync,
         childrenLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]?
@@ -91,7 +91,9 @@ final class SidebarNavigator {
             currentDirectory: currentDirectory,
             entries: entries,
             selection: selection,
-            sortOrder: sortOrder
+            // 窓ごとのライブ値の初期値。CLI の明示指定(--sort)があればそれ、
+            // 無ければ前回保存した既定値から始める。以後この窓は preference を読み直さない。
+            sortOrder: sortOrder ?? sidebarDisplayPreference.sortOrder
         )
         self.fileListModel = fileListModel
         // 協力型は**ここでしか生成しない**(注入引数にすると渡し忘れが静かに
@@ -120,6 +122,11 @@ final class SidebarNavigator {
     }
 
     // MARK: - File List
+
+    /// 並び順を変える唯一の入口。実処理は SidebarListingCoordinator が持つ。
+    func setSortOrder(_ order: SortOrder) {
+        listing.setSortOrder(order)
+    }
 
     /// サイドバーのファイル一覧を取り直す。実処理は SidebarListingCoordinator が持つ。
     func refreshFileList(applyCustomSelection: (() -> Bool)? = nil) {

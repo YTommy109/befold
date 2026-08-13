@@ -111,7 +111,7 @@ extension ViewerWindowManager {
             gitStatusStore: gitStatusStore,
             initialSidebarCollapsed: initialSidebarCollapsed,
             initialFrameDescriptor: initialFrameDescriptor,
-            initialSortOrder: options.viewerSortOrder,
+            initialSortOrder: options.sortOrder != nil ? options.viewerSortOrder : nil,
             showLineNumbersOverride: options.showLineNumbers,
             sourceModeOverride: options.sourceMode,
             store: makeStore?(url),

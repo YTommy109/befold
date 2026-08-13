@@ -69,6 +69,21 @@ final class SidebarListingCoordinator {
         return showHiddenFiles
     }
 
+    /// 並び順を変える唯一の入口。この窓のライブ値(`FileListModel.sortOrder`)を更新し、
+    /// 同時に「次に窓を開くときの既定値」として保存する。
+    ///
+    /// 並び順は窓ごとのライブ値なので他窓へは配らない(ADR 0002「文書の状態」)。
+    /// 隠しファイル表示などの「アプリの好み」と違い `GlobalDisplayBroadcaster` は通さない。
+    /// **ライブ値の更新と既定値の保存をここで対にしている。** 片方だけを行う経路を
+    /// 作らないため、`FileListModel.sortOrder` へ外から直接代入しないこと
+    /// (例外は CLI の `--sort` = その起動限りの上書きで、既定値を書き換えない)。
+    func setSortOrder(_ order: SortOrder) {
+        guard fileListModel.sortOrder != order else { return }
+        fileListModel.sortOrder = order
+        sidebarDisplayPreference.sortOrder = order
+        refreshFileList()
+    }
+
     /// サイドバーのファイル一覧を現在のディレクトリで取り直し、現在ファイルを選択する。
     /// - Parameter applyCustomSelection: 一覧反映後(fileListModel.entries 更新後)に呼ばれる。
     ///   選択を自前で決めて true を返すと既定の選択保持/フォールバック処理をスキップする。

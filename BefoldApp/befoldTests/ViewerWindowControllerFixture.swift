@@ -38,7 +38,7 @@ struct ViewerWindowControllerFixture {
         diffDisplayPreference: DiffDisplayPreference? = nil,
         diffLoader: GitDiffLoader? = nil,
         initialFrameDescriptor: String? = nil,
-        initialSortOrder: befold.SortOrder = .foldersFirst,
+        initialSortOrder: befold.SortOrder? = nil,
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         gitStatusStore: GitStatusStore = GitStatusStore(),

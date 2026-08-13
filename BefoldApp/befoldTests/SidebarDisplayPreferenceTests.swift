@@ -69,6 +69,29 @@ struct SidebarDisplayPreferenceTests {
         #expect(available.showChangedFilesOnly == true)
     }
 
+    @Test("並び順のデフォルトはフォルダー優先")
+    func sortOrderDefaultsToFoldersFirst() {
+        #expect(SidebarDisplayPreference(defaults: makeDefaults()).sortOrder == .foldersFirst)
+    }
+
+    @Test("並び順は永続化され、次のインスタンスへ引き継がれる")
+    func sortOrderPersistsAcrossInstances() {
+        let defaults = makeDefaults()
+
+        SidebarDisplayPreference(defaults: defaults).sortOrder = .alphabetical
+
+        #expect(SidebarDisplayPreference(defaults: defaults).sortOrder == .alphabetical)
+    }
+
+    /// 保存値が壊れていても既定へ倒す。ここが nil 落ちすると起動できなくなる。
+    @Test("並び順の保存値が未知の文字列ならフォルダー優先へ倒す")
+    func sortOrderFallsBackForUnknownRawValue() {
+        let defaults = makeDefaults()
+        defaults.set("bogus", forKey: "SidebarSortOrder")
+
+        #expect(SidebarDisplayPreference(defaults: defaults).sortOrder == .foldersFirst)
+    }
+
     @Test("2 つの設定は互いに独立して保存される")
     func settingsArePersistedIndependently() {
         let defaults = makeDefaults()
