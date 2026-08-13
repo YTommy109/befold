@@ -1,5 +1,10 @@
 # CLI バイナリ分離の設計
 
+> **これは 2026-07-23 時点の設計スナップショットです。**
+> 現在の仕様は [`docs/dev/native-app-design.md`](../../dev/native-app-design.md)
+> が単一の情報源。この文書は当時の意図と検討経緯を残すためのもので、
+> 現在の実装と食い違っていることがある。着手前に必ずコードで裏を取ること。
+
 ## 概要
 
 現在 CLI と GUI が共有している単一バイナリ `befold` を、GUI アプリ (`befold`) と CLI ツール (`befold-cli`) の 2 つの executable に分離する。CLI は `befold.app/Contents/MacOS/befold-cli` に同梱し、`/usr/local/bin/befold` の symlink 先を変更する。

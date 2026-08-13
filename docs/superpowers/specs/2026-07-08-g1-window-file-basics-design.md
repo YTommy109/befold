@@ -6,6 +6,11 @@ status: approved
 
 <!-- constrained-by ../plans/2026-07-08-ui-ux-improvements-roadmap.md#g1-ウィンドウファイル操作の基本動作優先度-高 -->
 
+> **これは 2026-07-08 時点の設計スナップショットです。**
+> 現在の仕様は [`docs/dev/native-app-design.md`](../../dev/native-app-design.md)
+> が単一の情報源。この文書は当時の意図と検討経緯を残すためのもので、
+> 現在の実装と食い違っていることがある。着手前に必ずコードで裏を取ること。
+
 ## 概要
 
 `docs/superpowers/plans/2026-07-08-ui-ux-improvements-roadmap.md` の G1 グループに

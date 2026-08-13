@@ -1,5 +1,10 @@
 # 自動アップデートを Sparkle 2 に移行する
 
+> **これは 2026-07-12 時点の設計スナップショットです。**
+> 現在の仕様は [`docs/dev/native-app-design.md`](../../dev/native-app-design.md)
+> が単一の情報源。この文書は当時の意図と検討経緯を残すためのもので、
+> 現在の実装と食い違っていることがある。着手前に必ずコードで裏を取ること。
+
 Issue: [#182](https://github.com/YTommy109/befold/issues/182)
 
 ## 背景

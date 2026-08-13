@@ -1,5 +1,10 @@
 # メニュー・ダイアログのローカライズ(日英対応)設計
 
+> **これは 2026-07-04 時点の設計スナップショットです。**
+> 現在の仕様は [`docs/dev/native-app-design.md`](../../dev/native-app-design.md)
+> が単一の情報源。この文書は当時の意図と検討経緯を残すためのもので、
+> 現在の実装と食い違っていることがある。着手前に必ずコードで裏を取ること。
+
 ## 背景
 
 - メニューバーは `MainMenuBuilder.swift` / `RecentDocumentsMenuController.swift` に英語直書きで、日本語環境でも英語表示になる。
