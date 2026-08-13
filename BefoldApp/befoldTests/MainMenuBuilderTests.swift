@@ -170,6 +170,27 @@ struct MainMenuBuilderTests {
 
         let item = menu.items.first { $0.action == #selector(AppDelegate.toggleSidebarTreeLayout(_:)) }
         #expect((item != nil) == isTreeLayoutAvailable)
+        // AC#1/#3: 露出するときは ⌃⌘T が付き、ゲート OFF では項目ごと(=ショートカットも)現れない。
+        #expect(item?.keyEquivalent == (isTreeLayoutAvailable ? "t" : nil))
+        #expect(item?.keyEquivalentModifierMask == (isTreeLayoutAvailable ? [.command, .control] : nil))
+    }
+
+    /// AC#2: View メニュー内でキー等価(キー + 修飾キー)が重複していない。
+    /// ツリー表示に ⌃⌘T を足したことで既存の ⌃⌘H / ⌃⌘G / ⌃⌘F / ⌘S / ⌘[ / ⌘] と
+    /// 衝突していないことを、個別比較ではなくメニュー全体の重複検査で担保する。
+    @Test("View メニューのキー等価は重複しない", arguments: [true, false])
+    func viewMenuShortcutsAreUnique(isGateAvailable: Bool) throws {
+        let view = try #require(
+            MainMenuBuilder.makeViewMenuItem(
+                isChangedFilesOnlyAvailable: isGateAvailable,
+                isTreeLayoutAvailable: isGateAvailable
+            ).submenu
+        )
+
+        let shortcuts = view.items
+            .filter { !$0.keyEquivalent.isEmpty }
+            .map { "\($0.keyEquivalentModifierMask.rawValue):\($0.keyEquivalent)" }
+        #expect(Set(shortcuts).count == shortcuts.count)
     }
 
     /// 表示モードの選択(⌘1〜⌘3)とレイアウト切替(⌘\\)。差分は開発中機能なので、
