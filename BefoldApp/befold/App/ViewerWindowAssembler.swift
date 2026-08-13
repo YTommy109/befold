@@ -20,15 +20,15 @@ enum ViewerWindowAssembler {
     /// ロジック自体は常時ビルドし、露出点だけを囲う（無効時は機能を消すのではなく空を返す）。
     /// git ステータス系の露出点はここを含めて 3 箇所あり、一覧は FeatureGate の宣言にある。
     /// stable 昇格（TASK-187）ではこの guard を消して常に store を引く形にすればよい。
+    /// - Parameter isGitStatusAvailable: ゲート値。テストから ON/OFF 両方向を確かめられるよう引数で受ける。
     static func makeSidebarGitReader(
-        fileIndex: any GitFileIndexing, statusStore: GitStatusStore
+        fileIndex: any GitFileIndexing,
+        statusStore: GitStatusStore,
+        isGitStatusAvailable: Bool = FeatureGate.isSidebarGitStatusEnabled
     ) -> any SidebarGitReading {
         // ゲートで止めるのは状態取得だけ。リポジトリルートの解決(基準ディレクトリ表示)は
         // ゲート対象外なので、reader は常に作り statusStore の有無で状態取得だけを落とす。
-        SidebarGitReader(
-            fileIndex: fileIndex,
-            statusStore: FeatureGate.isSidebarGitStatusEnabled ? statusStore : nil
-        )
+        SidebarGitReader(fileIndex: fileIndex, statusStore: isGitStatusAvailable ? statusStore : nil)
     }
 
     /// サイドバー（一覧・選択同期・フォルダ移動）のナビゲータを作る。
@@ -112,9 +112,7 @@ enum ViewerWindowAssembler {
             diffDisplayPreference: controller.diffDisplayPreference
         ))
         let splitViewController = ViewerSplitViewController(
-            sidebar: makeFileListView(
-                for: controller, onSelectFile: onSelectFile, onNavigateToFolder: onNavigateToFolder
-            ),
+            sidebar: makeFileListView(for: controller),
             content: content,
             initialCollapsed: controller.initialSidebarCollapsed,
             onCollapsedChange: { [weak controller] collapsed in
@@ -130,29 +128,17 @@ enum ViewerWindowAssembler {
     }
 
     /// サイドバーのファイル一覧ビューを組み立てる。
-    private static func makeFileListView(
-        for controller: ViewerWindowController,
-        onSelectFile: @escaping (URL) -> Void,
-        onNavigateToFolder: @escaping (URL) -> Void
-    ) -> FileListView {
+    ///
+    /// 行操作(選択・移動・別の場所で開く・展開/畳み)は controller が
+    /// `FileListViewDelegate` として直接受けるため、ここでは配線しない。
+    private static func makeFileListView(for controller: ViewerWindowController) -> FileListView {
         FileListView(
             model: controller.fileListModel,
-            onSelect: onSelectFile,
-            onNavigate: onNavigateToFolder,
+            delegate: controller,
             onSortOrderChanged: { [weak controller] order in
                 guard let controller else { return }
                 controller.fileListModel.sortOrder = order
                 controller.sidebar.refreshFileList()
-            },
-            onOpenElsewhere: { [weak controller] url, disposition in
-                guard let controller else { return }
-                controller.openFileElsewhere(url, disposition, controller.window)
-            },
-            onExpandFolder: { [weak controller] entry in
-                controller?.sidebar.expandFolder(entry.pathKey, at: entry.url)
-            },
-            onCollapseFolder: { [weak controller] entry in
-                controller?.sidebar.collapseFolder(entry.pathKey)
             },
             onToggleHiddenFiles: { [weak controller] in
                 guard let controller else { return }
@@ -166,10 +152,13 @@ enum ViewerWindowAssembler {
     ///
     /// git ステータスと同じ開発中機能の露出点であり、無効なら nil を返して
     /// ボタン自体を出さない（FileListView 側が nil で非表示にする）。
-    private static func makeChangedFilesOnlyToggle(
-        for controller: ViewerWindowController
+    /// - Parameter isChangedFilesOnlyAvailable: ゲート値。テストから ON/OFF 両方向を
+    ///   確かめられるよう引数で受ける（テストから呼ぶため internal）。
+    static func makeChangedFilesOnlyToggle(
+        for controller: ViewerWindowController,
+        isChangedFilesOnlyAvailable: Bool = FeatureGate.isSidebarGitStatusEnabled
     ) -> (() -> Void)? {
-        guard FeatureGate.isSidebarGitStatusEnabled else { return nil }
+        guard isChangedFilesOnlyAvailable else { return nil }
         return { [weak controller] in
             guard let controller else { return }
             controller.delegate?.viewerWindowDidToggleChangedFilesOnly(controller)

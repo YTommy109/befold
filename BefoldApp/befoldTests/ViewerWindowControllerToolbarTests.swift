@@ -56,6 +56,28 @@ struct ViewerWindowControllerToolbarTests {
         }
     }
 
+    @Test("履歴が積まれると戻るアイテムが有効になる")
+    func historyButtonFollowsNavigationHistory() throws {
+        let fileA = URL(fileURLWithPath: "/mock/a.mmd")
+        let fileB = URL(fileURLWithPath: "/mock/b.mmd")
+        let controller = makeController(file: fileA, extraFiles: [fileB])
+        defer { controller.close() }
+        let items = try #require(controller.window?.toolbar?.items)
+        let backItem = try #require(items.first { $0.itemIdentifier == .init("historyBack") })
+        let button = try #require(backItem.view as? HistoryButtonView)
+        #expect(button.isEnabled == false)
+
+        // 履歴の写しではなく NavigationHistory を直接読むため、
+        // 履歴が動けばツールバーの有効状態もそのまま追随する(TASK-458)。
+        controller.switchFile(to: fileB)
+        #expect(controller.navigationHistory.canGoBack == true)
+        #expect(button.isEnabled == true, "履歴が積まれたら戻るアイテムは有効になるはず")
+
+        controller.navigateHistory(by: -1)
+        #expect(controller.navigationHistory.canGoBack == false)
+        #expect(button.isEnabled == false, "先頭へ戻ったら戻るアイテムは無効に戻るはず")
+    }
+
     /// ゲート OFF 相当(stable)のセグメント構成をライブなゲート値に依らず検証する。
     /// ゲート越しの検証は動いているビルドの側しか通らないため、両分岐はここで押さえる。
     @Test("モード切替セグメントは差分ゲートに応じて差分セグメントの有無を変える", arguments: [true, false])

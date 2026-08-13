@@ -26,7 +26,14 @@ let package = Package(
         ),
         .target(
             name: "BefoldCLI",
-            dependencies: ["BefoldKit"],
+            dependencies: [
+                "BefoldKit",
+                // コマンド定義(BefoldCLICommand / OpenCLIOptions)がここにあるため、
+                // ArgumentParser も framework 側の依存になる。実行ファイルを薄い入口に
+                // 保つ代償で、この依存は本体アプリ(BefoldCLI に依存する)にも乗る。
+                // QuickLook 拡張は BefoldCLI に依存しないため appex には入らない。
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
             path: "BefoldCLI",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
@@ -89,13 +96,12 @@ let package = Package(
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
             ]
         ),
+        // **薄い入口だけを置く。** CLI ロジックは BefoldCLI にある(TASK-456)。
+        // 実行ファイルターゲットの中身は Xcode のテストホストにできないため、
+        // ここへロジックを戻すと befoldCLITests が xcodebuild test から外れる。
         .executableTarget(
             name: "befold-cli",
-            dependencies: [
-                "BefoldCLI",
-                "BefoldKit",
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            ],
+            dependencies: ["BefoldCLI"],
             path: "befold-cli",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
@@ -129,7 +135,7 @@ let package = Package(
         ),
         .testTarget(
             name: "befoldCLITests",
-            dependencies: ["befold-cli", "BefoldCLI", "BefoldKit", "BefoldTestSupport"],
+            dependencies: ["BefoldCLI", "BefoldKit", "BefoldTestSupport"],
             path: "befoldCLITests",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),

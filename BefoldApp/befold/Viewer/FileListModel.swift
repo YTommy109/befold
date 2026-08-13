@@ -81,6 +81,19 @@ final class FileListModel {
         entryIndex.matchingEntryURL(for: url)
     }
 
+    /// 切替先が「いま出ている一覧から選べる」か。ここが真なら表示中フォルダーは動かさない。
+    ///
+    /// 判定をサイドバーのレイアウト(tree / drillDown)で分けてはならない。tree では展開した
+    /// サブフォルダーの子行も同じ一覧に並ぶため、「親ディレクトリ == currentDirectory」で
+    /// 判定すると子ファイルを選ぶたびにフォルダー移動が誤発火する(TASK-465)。
+    /// 一覧がまだ届いていない起動直後のために、親ディレクトリの一致も同じ扱いにする
+    /// (行が無いだけで、そこは既に表示中のフォルダーであり動かす必要がない)。
+    func isReachableInCurrentListing(_ url: URL) -> Bool {
+        if url.deletingLastPathComponent().normalizedPathKey
+            == currentDirectory.normalizedPathKey { return true }
+        return entry(forPathKey: url.normalizedPathKey) != nil
+    }
+
     /// 一覧が一度でも反映されたか。ウィンドウは一覧を空で作って非同期に埋めるため、
     /// それまでは「選択が一覧に無い」が「対象が確定していない」を意味する。
     /// 「選択を消してフォルダーを表示している」状態と取り違えないための区別に使う。
@@ -298,17 +311,6 @@ final class FileListModel {
             presentedPathKey: storedSelectionPathKey
         )
     }
-
-    var canGoBack: Bool {
-        !backHistory.isEmpty
-    }
-
-    var canGoForward: Bool {
-        !forwardHistory.isEmpty
-    }
-
-    var backHistory: [HistoryEntry] = []
-    var forwardHistory: [HistoryEntry] = []
 
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: FileListEntry.ID?,

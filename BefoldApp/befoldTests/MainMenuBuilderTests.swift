@@ -142,6 +142,36 @@ struct MainMenuBuilderTests {
         }
     }
 
+    /// AC#3: stable ビルド(ゲート OFF)では「変更されたファイルのみ表示」が View メニューに
+    /// 出ない。実ビルドではゲートが片側に固定されるため、両分岐は注入点で検証する
+    /// (ゲート越しの検証は動いているビルドの側しか通らない = 表示モードと同じ理由)。
+    @Test("「変更されたファイルのみ表示」の露出はゲートの両方向で正しい", arguments: [true, false])
+    func changedFilesOnlyExposureFollowsGateInBothDirections(isChangedFilesOnlyAvailable: Bool) throws {
+        let view = try #require(
+            MainMenuBuilder.makeViewMenuItem(
+                isChangedFilesOnlyAvailable: isChangedFilesOnlyAvailable,
+                isTreeLayoutAvailable: false
+            ).submenu
+        )
+
+        let item = view.items.first { $0.action == #selector(AppDelegate.toggleChangedFilesOnly(_:)) }
+        #expect((item != nil) == isChangedFilesOnlyAvailable)
+        #expect(item?.keyEquivalent == (isChangedFilesOnlyAvailable ? "g" : nil))
+        #expect(item?.keyEquivalentModifierMask == (isChangedFilesOnlyAvailable ? [.command, .control] : nil))
+    }
+
+    /// サイドバーのツリー表示も同じ形(ゲート値を引数で受ける)であることを両方向で確かめる。
+    @Test("サイドバーのツリー表示の露出はゲートの両方向で正しい", arguments: [true, false])
+    func sidebarTreeLayoutExposureFollowsGateInBothDirections(isTreeLayoutAvailable: Bool) {
+        let menu = NSMenu()
+        MainMenuBuilder.addSidebarItems(
+            to: menu, isChangedFilesOnlyAvailable: false, isTreeLayoutAvailable: isTreeLayoutAvailable
+        )
+
+        let item = menu.items.first { $0.action == #selector(AppDelegate.toggleSidebarTreeLayout(_:)) }
+        #expect((item != nil) == isTreeLayoutAvailable)
+    }
+
     /// 表示モードの選択(⌘1〜⌘3)とレイアウト切替(⌘\\)。差分は開発中機能なので、
     /// 露出はフィーチャーゲートと一致しなければならない(解除タスクは未起票)。
     @Test("View メニューの表示モード項目は ⌘1〜⌘3、差分とレイアウトはゲートと同じ有無になる")

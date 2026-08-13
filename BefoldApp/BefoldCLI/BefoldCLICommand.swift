@@ -1,9 +1,14 @@
 import ArgumentParser
-import BefoldCLI
 import BefoldKit
 import Foundation
 
-@main
+/// `befold` コマンドの本体。
+///
+/// **実行ファイル(`befold-cli`)ではなくこの framework に置く。** 実行ファイルターゲットの
+/// 中身は `@testable import` できても Xcode のテストホストにできない(plain tool は
+/// TEST_HOST として受け付けられない)ため、ここに無いと `befoldCLITests` が
+/// `xcodebuild test` の経路に載らない(TASK-456)。実行ファイル側は
+/// `BefoldCLIEntryPoint.run()` を呼ぶだけの薄い入口に保つこと。
 struct BefoldCLICommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "befold",
@@ -123,4 +128,16 @@ struct BefoldCLICommand: AsyncParsableCommand {
     private static let bookmarkStore = BookmarkStore(
         defaults: UserDefaults(suiteName: AppBundle.identifier) ?? .standard
     )
+}
+
+/// 実行ファイルから CLI を起動するための唯一の公開入口。
+///
+/// コマンド本体(`BefoldCLICommand`)を public にせず、この 1 点だけを外へ出す。
+/// ArgumentParser の宣言(`@Flag` / `@Option` / `@Argument`)まで public 化すると、
+/// framework の公開 API がコマンドラインの内部構造そのものになってしまう。
+public enum BefoldCLIEntryPoint {
+    /// 引数を解釈してコマンドを実行する。戻らない(ArgumentParser が exit する)。
+    public static func run() async {
+        await BefoldCLICommand.main()
+    }
 }

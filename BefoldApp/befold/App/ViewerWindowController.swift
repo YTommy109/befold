@@ -170,6 +170,12 @@ final class ViewerWindowController: NSWindowController {
         sidebar.fileListModel
     }
 
+    /// このウィンドウの戻る/進む履歴(読み取り専用)。ツールバーとメニュー判定は
+    /// 写しではなくこれを直接読む(TASK-458)。
+    var navigationHistory: NavigationHistory {
+        sidebar.navigationHistory
+    }
+
     /// ウィンドウイベントの通知先。ViewerWindowManager が実装する。
     weak var delegate: ViewerWindowControllerDelegate?
 

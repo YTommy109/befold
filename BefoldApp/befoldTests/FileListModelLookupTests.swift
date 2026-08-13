@@ -53,6 +53,34 @@ struct FileListModelLookupTests {
         #expect(model.matchingEntryURL(for: file) == file)
     }
 
+    /// tree 表示では展開したサブフォルダーの子行も同じ一覧に並ぶ。「親ディレクトリ ==
+    /// currentDirectory」だけで判定すると子ファイルを選ぶたびにフォルダー移動が
+    /// 誤発火する(TASK-465)。行の存在も見ていることを固定する。
+    @Test("展開した子フォルダーの行は表示中フォルダーから到達できる扱いにする")
+    func treatsExpandedChildRowAsReachable() {
+        let child = directory.appendingPathComponent("sub/note.md")
+        let model = makeModel(entries: [FileListEntry(url: child, kind: .file)])
+
+        #expect(model.isReachableInCurrentListing(child))
+    }
+
+    /// 一覧がまだ届いていない起動直後は行が 1 つも無い。表示中フォルダー直下のファイルは
+    /// 「行が無いだけ」なので、フォルダーを動かす必要はない。
+    @Test("表示中フォルダー直下は行が無くても到達できる扱いにする")
+    func treatsCurrentDirectoryChildAsReachableWithoutRows() {
+        let model = makeModel(entries: [])
+
+        #expect(model.isReachableInCurrentListing(directory.appendingPathComponent("note.md")))
+    }
+
+    @Test("一覧にも表示中フォルダー直下にも無ければ到達できない")
+    func treatsUnlistedFileInOtherDirectoryAsUnreachable() {
+        let model = makeModel(entries: [])
+        let elsewhere = URL(fileURLWithPath: "/tmp/befold-elsewhere/note.md")
+
+        #expect(!model.isReachableInCurrentListing(elsewhere))
+    }
+
     @Test("一覧に無ければ渡した URL をそのまま返す")
     func returnsGivenURLWhenAbsent() {
         let model = makeModel(entries: [])

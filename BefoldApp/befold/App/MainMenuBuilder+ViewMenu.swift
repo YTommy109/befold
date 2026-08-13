@@ -7,7 +7,14 @@ import AppKit
 /// `MainMenuBuilder*.swift` を全件見る形にしてあるので(site/vitest.config.ts と
 /// .github/workflows/site.yml の paths)、さらに分割するときもこの命名を保つこと。
 extension MainMenuBuilder {
-    static func makeViewMenuItem() -> NSMenuItem {
+    /// - Parameters:
+    ///   - isChangedFilesOnlyAvailable: 「変更されたファイルのみ表示」のゲート値。
+    ///     テストから ON/OFF 両方向を確かめられるよう引数で受ける。
+    ///   - isTreeLayoutAvailable: サイドバーのツリー表示のゲート値。
+    static func makeViewMenuItem(
+        isChangedFilesOnlyAvailable: Bool = FeatureGate.isSidebarGitStatusEnabled,
+        isTreeLayoutAvailable: Bool = FeatureGate.isSidebarTreeEnabled
+    ) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.view.title", bundle: .l10n))
         item.submenu = menu
@@ -39,18 +46,13 @@ extension MainMenuBuilder {
             modifiers: [.command]
         )
         menu.addItem(.separator())
-        menu.addLocalizedItem(
-            "menu.view.goBack",
-            action: #selector(ViewerWindowController.goBack(_:)),
-            keyEquivalent: "["
-        )
-        menu.addLocalizedItem(
-            "menu.view.goForward",
-            action: #selector(ViewerWindowController.goForward(_:)),
-            keyEquivalent: "]"
-        )
+        addHistoryItems(to: menu)
         menu.addItem(.separator())
-        addSidebarItems(to: menu)
+        addSidebarItems(
+            to: menu,
+            isChangedFilesOnlyAvailable: isChangedFilesOnlyAvailable,
+            isTreeLayoutAvailable: isTreeLayoutAvailable
+        )
         // macOS 標準のフルスクリーン切替ショートカット(⌃⌘F)に合わせる。
         menu.addLocalizedItem(
             "menu.view.enterFullScreen",
@@ -74,9 +76,32 @@ extension MainMenuBuilder {
         )
     }
 
+    /// サイドバーの「変更されたファイルのみ表示」切替項目。開発中機能(TASK-187)なので
+    /// 露出点でゲートする。素の ⌘G / ⇧⌘G は Edit メニューの検索送りと衝突するため、
+    /// control を重ねて区別する。
+    /// - Parameter isChangedFilesOnlyAvailable: ゲート値。テストから両方向を確かめられるよう引数で受ける。
+    static func addChangedFilesOnlyItem(
+        to menu: NSMenu, isChangedFilesOnlyAvailable: Bool = FeatureGate.isSidebarGitStatusEnabled
+    ) {
+        guard isChangedFilesOnlyAvailable else { return }
+        menu.addLocalizedItem(
+            "menu.view.showChangedFilesOnly",
+            action: #selector(AppDelegate.toggleChangedFilesOnly(_:)),
+            keyEquivalent: "g",
+            modifiers: [.command, .control]
+        )
+    }
+
     /// View メニューのサイドバー関連項目(不可視ファイル・変更のみ表示・ツリー表示)。
     /// makeViewMenuItem から切り出しているのは、1 関数が長くなりすぎないようにするため。
-    static func addSidebarItems(to menu: NSMenu) {
+    /// - Parameters:
+    ///   - isChangedFilesOnlyAvailable: 「変更されたファイルのみ表示」のゲート値。
+    ///   - isTreeLayoutAvailable: ツリー表示のゲート値。
+    static func addSidebarItems(
+        to menu: NSMenu,
+        isChangedFilesOnlyAvailable: Bool = FeatureGate.isSidebarGitStatusEnabled,
+        isTreeLayoutAvailable: Bool = FeatureGate.isSidebarTreeEnabled
+    ) {
         // 素の ⌘H は App メニューの Hide(NSApplication.hide)と衝突するため、
         // control を重ねて区別する。
         menu.addLocalizedItem(
@@ -85,17 +110,23 @@ extension MainMenuBuilder {
             keyEquivalent: "h",
             modifiers: [.command, .control]
         )
-        // 開発中機能(サイドバーの git ステータス)に依存するため、露出点でゲートする。
-        // 素の ⌘G / ⇧⌘G は Edit メニューの検索送りと衝突するため、control を重ねて区別する。
-        if FeatureGate.isSidebarGitStatusEnabled {
-            menu.addLocalizedItem(
-                "menu.view.showChangedFilesOnly",
-                action: #selector(AppDelegate.toggleChangedFilesOnly(_:)),
-                keyEquivalent: "g",
-                modifiers: [.command, .control]
-            )
-        }
-        addSidebarTreeLayoutItem(to: menu)
+        addChangedFilesOnlyItem(to: menu, isChangedFilesOnlyAvailable: isChangedFilesOnlyAvailable)
+        addSidebarTreeLayoutItem(to: menu, isTreeLayoutAvailable: isTreeLayoutAvailable)
+    }
+
+    /// ファイル履歴の前後移動(⌘[ / ⌘])。makeViewMenuItem から切り出しているのは、
+    /// 1 関数が長くなりすぎないようにするため。
+    static func addHistoryItems(to menu: NSMenu) {
+        menu.addLocalizedItem(
+            "menu.view.goBack",
+            action: #selector(ViewerWindowController.goBack(_:)),
+            keyEquivalent: "["
+        )
+        menu.addLocalizedItem(
+            "menu.view.goForward",
+            action: #selector(ViewerWindowController.goForward(_:)),
+            keyEquivalent: "]"
+        )
     }
 
     /// 表示倍率の項目(実寸・拡大・縮小)。makeViewMenuItem から切り出しているのは、

@@ -42,6 +42,7 @@ schemes:
       coverageEnabled: false
       targets:
         - befoldTests
+        - befoldCLITests
   befold-cli:
     build:
       targets:
@@ -82,6 +83,10 @@ targets:
       - path: BefoldCLI
     dependencies:
       - target: BefoldKit
+      # コマンド定義（BefoldCLICommand / OpenCLIOptions）がこの framework にあるため、
+      # ArgumentParser もここの依存になる（Package.swift 側と揃える / TASK-456）。
+      - package: swift-argument-parser
+        product: ArgumentParser
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.cli
       PRODUCT_NAME: BefoldCLI
@@ -209,13 +214,21 @@ targets:
       BUNDLE_LOADER: "$(TEST_HOST)"
       TEST_HOST: "$(BUILT_PRODUCTS_DIR)/befold.app/Contents/MacOS/befold"
       GENERATE_INFOPLIST_FILE: true
-  # befoldCLITests はここに存在しない（Package.swift 側にのみある）。意図的なずれ。
-  # 8 ファイルが `@testable import befold_cli` で実行ファイルターゲットの中身に触るため
-  # Xcode ではテストホストが要るが、Xcode は plain tool を TEST_HOST として受け付けない
-  # （実測: バイナリが実在していても
-  #  「Could not find test host for befoldCLITests」でスキーム構築の時点で落ちる）。
-  # 載せるには CLI ロジックを befold-cli から BefoldCLI framework へ移す構造変更が要る。
-  # CI は swift test のみを実行するため、現状 CI のテスト集合には影響しない（TASK-439）。
+  # CLI ロジックは BefoldCLI framework にあるため、このテストバンドルは
+  # テストホストを必要としない（TEST_HOST を書かない）。Xcode は plain tool を
+  # TEST_HOST として受け付けず、ロジックが実行ファイル側にあった頃は
+  # 「Could not find test host for befoldCLITests」でスキーム構築ごと落ちていた（TASK-456）。
+  befoldCLITests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - befoldCLITests
+    dependencies:
+      - target: BefoldCLI
+      - target: BefoldKit
+      - target: BefoldTestSupport
+    settings:
+      GENERATE_INFOPLIST_FILE: true
   befold-cli:
     type: tool
     platform: macOS
@@ -223,9 +236,6 @@ targets:
       - path: befold-cli
     dependencies:
       - target: BefoldCLI
-      - target: BefoldKit
-      - package: swift-argument-parser
-        product: ArgumentParser
     settings:
       PRODUCT_NAME: befold-cli
       # befold.app に同梱して配布するため、アプリ本体と同じく Hardened Runtime を有効にする

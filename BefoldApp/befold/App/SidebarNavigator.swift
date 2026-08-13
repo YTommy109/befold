@@ -30,9 +30,17 @@ final class SidebarNavigator {
     let fileListModel: FileListModel
     /// 戻る/進む履歴の記録と適用。`tree` などと同じく注入引数にせず内部で生成する。
     private let historyController: SidebarHistoryController
-    // ディレクトリごとの「そこを離れる直前に選択していた項目」の記憶(TASK-309)。
-    // 触るのはフォルダー移動(SidebarNavigator+FolderNavigation.swift)だけなので
-    // `private` にはできない(Swift の `private` はファイルスコープ)。
+
+    /// このタブの戻る/進む履歴(読み取り専用)。ツールバー・メニュー判定はここを見る。
+    /// 書き換えるのは `historyController` だけなので、写しを持つ必要がない(TASK-458)。
+    var navigationHistory: NavigationHistory {
+        historyController.history
+    }
+
+    /// ディレクトリごとの「そこを離れる直前に選択していた項目」の記憶(TASK-309)。
+    /// 触るのはフォルダー移動(SidebarNavigator+FolderNavigation.swift)だけなので
+    /// `private` にはできない(Swift の `private` はファイルスコープ)。
+    let selectionMemory: SidebarSelectionMemory
 
     /// サイドバーの行の組み立てと `fileListModel.entries` への反映(ツリー展開を含む)。
     ///
@@ -45,7 +53,6 @@ final class SidebarNavigator {
     /// (以前 ViewerWindowManager が `expansion.invalidateAll()` を直接叩いて実際に破れていた)。
     /// 外部へは下の薄い委譲(expandFolder / collapseFolder / discardExpansion /
     /// applyRows)だけを見せる。
-    let selectionMemory: SidebarSelectionMemory
     private let tree: SidebarTreePresenter
     /// 一覧取得の発行と世代管理、および表示設定ミラーの同期(列挙の入力なので同居)。
     private let listing: SidebarListingCoordinator
@@ -280,7 +287,7 @@ final class SidebarNavigator {
     /// switchFile 成功後にサイドバー選択を同期し、履歴を記録する。
     /// ViewerWindowController.switchFile がファイル切替の実処理後に呼ぶ。
     func syncAfterSwitch(to newURL: URL) {
-        let needsMove = !isReachableInCurrentListing(newURL)
+        let needsMove = !fileListModel.isReachableInCurrentListing(newURL)
         if needsMove {
             moveCurrentDirectory(to: newURL.deletingLastPathComponent())
         }
@@ -295,19 +302,6 @@ final class SidebarNavigator {
             refreshFileList()
         }
         recordHistory()
-    }
-
-    /// 切替先が「いま出ている一覧から選べる」か。ここが真なら表示中フォルダーは動かさない。
-    ///
-    /// 判定をレイアウト(tree / drillDown)で分けてはならない。tree では展開した
-    /// サブフォルダーの子行も同じ一覧に並ぶため、「親ディレクトリ == currentDirectory」で
-    /// 判定すると子ファイルを選ぶたびにフォルダー移動が誤発火する(TASK-465)。
-    /// 一覧がまだ届いていない起動直後のために、親ディレクトリの一致も同じ扱いにする
-    /// (行が無いだけで、そこは既に表示中のフォルダーであり動かす必要がない)。
-    private func isReachableInCurrentListing(_ url: URL) -> Bool {
-        if url.deletingLastPathComponent().normalizedPathKey
-            == fileListModel.currentDirectory.normalizedPathKey { return true }
-        return fileListModel.entry(forPathKey: url.normalizedPathKey) != nil
     }
 
     /// ファイル切替が別ウィンドウ移譲・失敗で成立しなかったときに選択を元へ戻す。

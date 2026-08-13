@@ -12,9 +12,9 @@ private final class BlockingRepository: GitRepositoryReading, @unchecked Sendabl
     /// 止めたルートの列挙に入ったことを呼び出し側へ知らせる。
     /// テストは async 文脈で待つため、セマフォではなくポーリング可能なフラグにする。
     private let enteredBlockedEnumeration = LockedBox(false)
-    /// これを signal するまで止めたルートの列挙は返らない。
+    /// これを open するまで止めたルートの列挙は返らない。
     /// wait するのはフェイクを走らせているバックグラウンドスレッド側のみ。
-    let releaseBlockedEnumeration = DispatchSemaphore(value: 0)
+    let releaseBlockedEnumeration = BlockingGate()
 
     var didEnterBlockedEnumeration: Bool {
         enteredBlockedEnumeration.get()
@@ -42,7 +42,7 @@ private final class BlockingRepository: GitRepositoryReading, @unchecked Sendabl
         lock.unlock()
         if root.path == blockedRootPath {
             enteredBlockedEnumeration.set(true)
-            waitOrRecordTimeout(releaseBlockedEnumeration, "BlockingRepository.trackedFiles")
+            releaseBlockedEnumeration.wait("BlockingRepository.trackedFiles")
         }
         return [root.appendingPathComponent("a.swift")]
     }
@@ -102,7 +102,7 @@ struct GitCommandFileIndexConcurrencyTests {
         let repo = BlockingRepository(blocking: slowRoot)
         let sut = GitCommandFileIndex(repository: repo)
         // 解放し忘れでバックグラウンドスレッドが残らないよう、経路によらず必ず解放する。
-        defer { repo.releaseBlockedEnumeration.signal() }
+        defer { repo.releaseBlockedEnumeration.open() }
 
         // 遅いリポジトリの列挙を進行中のまま止める。
         Task.detached { _ = sut.trackedFileIndex(forFileAt: slowRoot.appendingPathComponent("x.md")) }

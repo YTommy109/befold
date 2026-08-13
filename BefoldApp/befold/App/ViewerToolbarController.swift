@@ -4,8 +4,10 @@ import AppKit
 /// ViewerWindowController が実装する。循環参照を避けるため ViewerToolbarController からは weak 参照する。
 @MainActor
 protocol ViewerToolbarHost: AnyObject {
-    /// サイドバーのファイル一覧と選択状態(戻る/進むアイテムの有効状態・履歴に使う)。
+    /// サイドバーのファイル一覧と選択状態。
     var fileListModel: FileListModel { get }
+    /// 戻る/進むアイテムの有効状態と履歴メニューの中身。写しを経由せずここを読む(TASK-458)。
+    var navigationHistory: NavigationHistory { get }
     /// 表示状態(ファイル種別・ソース表示可否・行番号表示)。
     var store: ViewerStore { get }
     /// いま何ができるか。ツールバーの有効/無効はここだけを見る(ADR 0002)。
@@ -181,10 +183,11 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     private func applyHistoryState(to item: NSToolbarItem) {
         guard let button = item.view as? HistoryButtonView, let host else { return }
         let isBack = item.itemIdentifier == Self.backItemIdentifier
+        let history = host.navigationHistory
         if isBack {
-            button.updateState(isEnabled: host.fileListModel.canGoBack, entries: host.fileListModel.backHistory)
+            button.updateState(isEnabled: history.canGoBack, entries: history.backEntries())
         } else {
-            button.updateState(isEnabled: host.fileListModel.canGoForward, entries: host.fileListModel.forwardHistory)
+            button.updateState(isEnabled: history.canGoForward, entries: history.forwardEntries())
         }
         item.toolTip = String(localized: isBack ? "toolbar.back" : "toolbar.forward", bundle: .l10n)
     }

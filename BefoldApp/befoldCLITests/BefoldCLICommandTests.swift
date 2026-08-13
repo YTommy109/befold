@@ -1,6 +1,5 @@
 import ArgumentParser
-@testable import befold_cli
-import BefoldCLI
+@testable import BefoldCLI
 import BefoldKit
 import BefoldTestSupport
 import Foundation

@@ -11,6 +11,9 @@ import Testing
 @Suite
 @MainActor
 struct FileListViewTests {
+    /// スパイの生存を保つ入れ物(`FileListView.delegate` は弱参照)。
+    private let delegates = FileListViewDelegateStore()
+
     private func makeView(
         entries: [FileListEntry],
         selection: FileListEntry.ID?,
@@ -24,18 +27,16 @@ struct FileListViewTests {
         )
         return FileListView(
             model: model,
-            onSelect: onSelect,
-            onNavigate: onNavigate,
-            onSortOrderChanged: { _ in },
-            onOpenElsewhere: { _, _ in }
+            delegate: delegates.makeSpy(onSelect: onSelect, onNavigate: onNavigate),
+            onSortOrderChanged: { _ in }
         )
     }
 
     @Test("サイドバーの「別の場所で開く」項目は新しいタブと新しいウィンドウの両方を持つ")
     func openElsewhereEntriesCoverTabAndWindow() {
-        #expect(FileListView.openElsewhereEntries.map(\.disposition) == [.newTab, .newWindow])
+        #expect(SidebarContextMenu.openElsewhereEntries.map(\.disposition) == [.newTab, .newWindow])
         #expect(
-            FileListView.openElsewhereEntries.map(\.titleKey)
+            SidebarContextMenu.openElsewhereEntries.map(\.titleKey)
                 == ["sidebar.context.openInNewTab", "sidebar.context.openInNewWindow"]
         )
     }

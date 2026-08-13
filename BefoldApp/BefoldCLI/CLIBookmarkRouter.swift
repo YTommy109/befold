@@ -1,5 +1,4 @@
 import AppKit
-import BefoldCLI
 import Foundation
 
 /// `befold --bookmark <path>` のブックマーク追加を、どのプロセスが書くかを決めて実行する。

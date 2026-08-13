@@ -11,6 +11,9 @@ import Testing
 @Suite
 @MainActor
 struct SidebarParentRowSelectionTests {
+    /// スパイの生存を保つ入れ物(`FileListView.delegate` は弱参照)。
+    private let delegates = FileListViewDelegateStore()
+
     private let root = URL(fileURLWithPath: "/tmp/SidebarParentRowSelectionTests")
 
     private func entry(_ path: String, kind: FileListEntry.Kind) -> FileListEntry {
@@ -101,10 +104,8 @@ struct SidebarParentRowSelectionTests {
     private func makeView(model: FileListModel, onNavigate: @escaping (URL) -> Void) -> FileListView {
         FileListView(
             model: model,
-            onSelect: { _ in },
-            onNavigate: onNavigate,
-            onSortOrderChanged: { _ in },
-            onOpenElsewhere: { _, _ in }
+            delegate: delegates.makeSpy(onNavigate: onNavigate),
+            onSortOrderChanged: { _ in }
         )
     }
 

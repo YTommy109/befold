@@ -91,8 +91,9 @@ BefoldApp/
 │   ├── Updates/                # UpdateChannel（Sparkle の appcast フィード切替）
 │   └── Resources/               # AppIcon.icns, Localizable.xcstrings
 ├── BefoldQuickLook/            # QuickLook 拡張（app-extension、com.degino.befold.quicklook）
-├── BefoldCLI/                  # CLI 共有ライブラリ（送受信両用のワイヤ表現・要求型）
+├── BefoldCLI/                  # CLI 本体（コマンド定義・起動・要求転送・ワイヤ表現）
 ├── befold-cli/                 # CLI 実行ファイル（befold コマンド。Contents/MacOS/befold-cli）
+│                               # 中身は BefoldCLIEntryPoint を呼ぶだけの薄い入口
 ├── BefoldTestSupport/          # テスト共有ヘルパー
 ├── befoldTests/                # 本体・BefoldKit・BefoldRenderKit の Swift Testing テスト
 │                               # （QuickLook 1 回描画・バッジ・機能プリセットもここ）
@@ -265,7 +266,7 @@ Info.plist で以下を宣言する。
 | DOMPurify（npm 依存 → viewer-bundle.js に同梱） | markdown → HTML 変換結果のサニタイズ |
 | github-markdown-css / highlight.js のテーマ CSS（npm 依存 → コピーして同梱） | Markdown 本文とコードハイライトのテーマ |
 | Sparkle 2（SPM 依存） | 自動アップデート（appcast 取得・署名検証・インストール） |
-| swift-argument-parser（SPM 依存） | `befold-cli` の引数解析 |
+| swift-argument-parser（SPM 依存） | CLI の引数解析（コマンド定義は `BefoldCLI` にある） |
 | XcodeGen | `.xcodeproj` 生成（`project.yml` が単一の定義元） |
 | Swift Package Manager | ビルド（`BefoldKit` / `BefoldRenderKit` / `BefoldCLI` / `befold` / `befold-cli` / `BefoldTestSupport` / `befoldTests` / `befoldCLITests` の 8 ターゲット） |
 | SwiftLint / SwiftFormat | ビルドプラグインとして実行 |
