@@ -38,33 +38,53 @@ struct GitLibraryTests {
 
     // MARK: - config 検索パスの有効・無効
 
-    /// 無効化が外れたらここが落ちる。
+    /// 無効化が外れたら（あるいは無効化しすぎたら）ここが落ちる。
     ///
     /// 「偽ホームを置いて config が読まれないこと」を直接測る形にはしない。
     /// libgit2 の検索パスはプロセス全体の設定であり、テスト中に `HOME` を差し替えると
     /// 並行実行中の他テスト(`homeDirectoryForCurrentUser` を使う `DirectoryListerTests` や
-    /// `TempDir(base:)` など多数)の前提を壊す。無効化そのものを観測すれば、外れた瞬間に落ちる。
+    /// `TempDir(base:)` など多数)の前提を壊す。加えて `git_libgit2_init()` の中で
+    /// `git_sysdir_global_init()` が全レベルの検索パスを**先読みで** guess するため、
+    /// 初期化後に `HOME` / `XDG_CONFIG_HOME` を変えても観測結果は変わらない
+    /// (libgit2 1.9.2 `src/libgit2/sysdir.c`)。無効化そのものを観測すれば、
+    /// 外れた瞬間にも増えた瞬間にも落ちる。
+    ///
+    /// 個数ではなく配列そのものを比べる。個数比較だと、中身が別のレベルへ
+    /// 入れ替わっても通ってしまう。
     ///
     /// C シム(`CGitShim` の検索パス set / get)の担保もここが兼ねる。
     /// bootstrap が set した結果を get で読み戻しているため、往復が壊れれば落ちる。
     /// production が set へ渡す値は `""` だけなので、専用の往復テストは要らない
     /// (書き込みを増やすと `git_sysdir__dirs` の data race になる = TASK-462)。
-    @Test("bootstrap 後は system/xdg の config 検索パスが無効化されている")
-    func disablesSystemAndXdgConfigSearchPaths() {
-        #expect(GitLibrary.disabledConfigLevels.count == 2)
-        for level in GitLibrary.disabledConfigLevels {
-            #expect(GitLibrary.configSearchPath(for: level) == "", "level=\(level.rawValue)")
-        }
+    @Test("bootstrap 後に無効化されている config 検索パスは system だけ")
+    func disablesOnlySystemConfigSearchPath() {
+        #expect(GitLibrary.disabledConfigLevels == [GIT_CONFIG_LEVEL_SYSTEM])
+        #expect(GitLibrary.configSearchPath(for: GIT_CONFIG_LEVEL_SYSTEM) == "")
     }
 
-    /// `~/.gitconfig` は意図して有効なままにしている。ここを無効化すると
-    /// `core.excludesFile` によるグローバルな ignore 設定が効かなくなり、除外したつもりの
-    /// ファイルが untracked として現れる。先回りで無効化リストへ足したらこのテストが落ちる。
-    @Test("global の config 検索パスは無効化しない")
-    func keepsGlobalConfigSearchPathEnabled() throws {
+    /// ユーザー自身の設定(`~/.gitconfig` と `~/.config/git/`)は意図して有効なままにしている。
+    /// どちらかを無効化すると `core.excludesFile` によるグローバルな ignore 設定が効かなくなり、
+    /// 除外したつもりのファイルが untracked として現れる。
+    ///
+    /// XDG は特に 2 経路が同時に潰れる。`~/.config/git/config` の `core.excludesFile` に加え、
+    /// `core.excludesFile` 未設定時の既定フォールバックである `~/.config/git/ignore` も
+    /// 見つからなくなる(libgit2 の `attr_cache__lookup_path` は `core.excludesfile` が
+    /// 無いとき XDG の検索パスだけを見る)。TASK-467 の実害はこちらだった。
+    ///
+    /// 先回りで無効化リストへ足したらこのテストが落ちる。
+    @Test("global と xdg の config 検索パスは無効化しない")
+    func keepsUserConfigSearchPathsEnabled() throws {
         #expect(!GitLibrary.disabledConfigLevels.contains(GIT_CONFIG_LEVEL_GLOBAL))
+        #expect(!GitLibrary.disabledConfigLevels.contains(GIT_CONFIG_LEVEL_XDG))
+
         let home = try #require(ProcessInfo.processInfo.environment["HOME"])
         #expect(GitLibrary.configSearchPath(for: GIT_CONFIG_LEVEL_GLOBAL) == home)
+
+        // XDG の既定は `$XDG_CONFIG_HOME/git`、未設定なら `~/.config/git`
+        // (libgit2 `git_sysdir_guess_xdg_dirs`)。空でないことに加え、既定と
+        // 一致することまで見る(空でない別の値へ差し替えられても落ちるように)。
+        let xdgBase = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] ?? "\(home)/.config"
+        #expect(GitLibrary.configSearchPath(for: GIT_CONFIG_LEVEL_XDG) == "\(xdgBase)/git")
     }
 
     /// 無効化しすぎていないことの担保。リポジトリ内の config は引き続き読めなければならない。

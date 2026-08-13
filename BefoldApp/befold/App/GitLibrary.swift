@@ -37,22 +37,33 @@ enum GitLibrary {
         case unusable
     }
 
-    /// 無効化する config レベル。マシン全体の設定(`/etc/gitconfig`)と XDG 配下の設定を
-    /// 読まないようにして、環境ごとの差で挙動が変わらないようにする。
+    /// 無効化する config レベル。マシン全体の設定(`/etc/gitconfig`)を読まないようにして、
+    /// マシンごとの差で挙動が変わらないようにする。
     ///
     /// 目的は決定性であって、任意コマンド実行の遮断ではない。外部 git プロセス方式では
     /// `core.fsmonitor` / `core.hooksPath` が任意コマンドの起動経路になるため遮断が必須だったが、
     /// libgit2 はフックも textconv も外部 diff driver も実行しない。
     ///
-    /// **`GIT_CONFIG_LEVEL_GLOBAL`(`~/.gitconfig`)は意図して無効化しない。**
+    /// **無効化するのはマシン全体の設定だけで、ユーザー自身の設定は無効化しない。**
+    /// `GIT_CONFIG_LEVEL_GLOBAL`(`~/.gitconfig`)も `GIT_CONFIG_LEVEL_XDG`
+    /// (`~/.config/git/`)も、書いたのは同じユーザーであり、置き場所が違うだけ。
+    /// 片方だけ読むと、同じ設定が置き場所によって効いたり効かなかったりする。
+    ///
     /// 無効化すると `core.excludesFile` によるグローバルな ignore 設定が効かなくなり、
     /// ユーザーが除外したつもりのファイルがサイドバーに untracked として現れる。
-    /// 撤去した外部 git プロセス方式でも `HOME` を意図的に引き継いで `~/.gitconfig` を
+    /// XDG では 2 経路が同時に潰れる: `~/.config/git/config` の `core.excludesFile` が
+    /// 読まれなくなることに加え、`core.excludesFile` 未設定時の既定フォールバックである
+    /// `~/.config/git/ignore` も見つからなくなる(libgit2 の `attr_cache__lookup_path` は
+    /// `core.excludesfile` が無いとき **XDG の検索パスだけ**を見る。GLOBAL は見ない)。
+    ///
+    /// XDG は当初 TASK-435.1 で SYSTEM と一緒に無効化していたが、上記のとおり
+    /// ユーザーの ignore 設定を巻き添えにしていたため TASK-467 で撤回した。
+    /// 撤去した外部 git プロセス方式でも `HOME` を意図的に引き継いでユーザーの設定を
     /// 有効にしており、その挙動をここでも保つ。
-    /// この判断は `GitLibraryTests.keepsGlobalConfigSearchPathEnabled` が守る。
+    /// この判断は `GitLibraryTests.disablesOnlySystemConfigSearchPath` と
+    /// `GitLibraryTests.keepsUserConfigSearchPathsEnabled` が守る。
     static let disabledConfigLevels: [git_config_level_t] = [
         GIT_CONFIG_LEVEL_SYSTEM,
-        GIT_CONFIG_LEVEL_XDG,
     ]
 
     /// プロセスで一度だけ走る初期化。`static let` は swift_once で保護される。
