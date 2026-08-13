@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -7,6 +8,10 @@ import Testing
 struct SidebarRowBuilderTests {
     private func folder(_ path: String) -> FileListEntry {
         FileListEntry(url: URL(fileURLWithPath: path), kind: .folder)
+    }
+
+    private func folderEntry(at url: URL) -> FileListEntry {
+        FileListEntry(url: url, kind: .folder)
     }
 
     private func file(_ path: String) -> FileListEntry {
@@ -134,6 +139,74 @@ struct SidebarRowBuilderTests {
 
         #expect(rows.map(\.url) == [dirA.url, dirB.url, dirA.url])
         #expect(rows.map(\.depth) == [0, 1, 2])
+    }
+
+    /// 同一フォルダー内にシンボリックリンクと実体が並ぶと、2 行が同じ pathKey を持つ
+    /// (TASK-450)。開閉状態は pathKey 単位でしか持てないため、両方の行を「展開済み」に
+    /// すると子が並ぶのは先の 1 行だけで、後の行は「三角は開いているのに子が出ない」
+    /// 状態になっていた(TASK-454)。先の 1 行だけを持ち主にし、後の行は三角を出さない。
+    @Test("同じ pathKey の行が 2 つあっても、開いた三角が出るのは先の 1 行だけ")
+    func duplicatePathKeyRowsDoNotBothLookExpanded() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let real = tmp.url.appendingPathComponent("real", isDirectory: true)
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        let link = tmp.url.appendingPathComponent("link", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+
+        let linkEntry = folderEntry(at: link)
+        let realEntry = folderEntry(at: real)
+        let child = file(real.appendingPathComponent("a.md").path)
+        // この前提が崩れる(キーが分かれる)なら、そもそもこの不整合は起きない。
+        #expect(linkEntry.pathKey == realEntry.pathKey)
+
+        let rows = SidebarRowBuilder.rows(
+            parentEntry: nil, rootChildren: [linkEntry, realEntry],
+            expanded: [realEntry.pathKey],
+            childrenByPathKey: [realEntry.pathKey: [child]],
+            showsDisclosure: true
+        )
+
+        // 子が並ぶのは持ち主(先に現れた link 行)の下だけ。
+        #expect(rows.map(\.depth) == [0, 1, 0])
+        #expect(rows[0].disclosure == .expanded)
+        #expect(rows[1].url.lastPathComponent == "a.md")
+        // 重複行は三角を出さない(押しても開けない三角を見せない)。
+        #expect(rows[2].disclosure == nil)
+        #expect(openRowsWithoutChildren(in: rows).isEmpty)
+    }
+
+    /// 子リストの到着を待っている間も同じ。両方の行がスピナーを回すと、届いた瞬間に
+    /// 片方だけが子を並べて先ほどの不整合に戻る。
+    @Test("子が未到着でも、読み込み中の三角が出るのは先の 1 行だけ")
+    func duplicatePathKeyRowsDoNotBothShowLoading() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let real = tmp.url.appendingPathComponent("real", isDirectory: true)
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        let link = tmp.url.appendingPathComponent("link", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+
+        let linkEntry = folderEntry(at: link)
+        let realEntry = folderEntry(at: real)
+
+        let rows = SidebarRowBuilder.rows(
+            parentEntry: nil, rootChildren: [linkEntry, realEntry],
+            expanded: [], childrenByPathKey: [:],
+            loading: [realEntry.pathKey], showsDisclosure: true
+        )
+
+        #expect(rows.map(\.disclosure) == [.loadingChildren, nil])
+    }
+
+    /// 「開いている三角」なのに直後により深い行が続かない行。ここが空でないことが
+    /// TASK-454 の症状そのもの。
+    private func openRowsWithoutChildren(in rows: [FileListEntry]) -> [FileListEntry] {
+        rows.indices.filter { index in
+            guard rows[index].disclosure == .expanded else { return false }
+            let next = rows.index(after: index)
+            return next >= rows.count || rows[next].depth <= rows[index].depth
+        }.map { rows[$0] }
     }
 
     /// depth / disclosure は行の見た目(インデント量・開閉三角・ドリルダウンの ">")を
