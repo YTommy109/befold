@@ -4,6 +4,7 @@ title: サイドバーの基準ディレクトリ行を worktree 切替プルダ
 status: To Do
 assignee: []
 created_date: '2026-08-13 12:02'
+updated_date: '2026-08-13 12:07'
 labels: []
 dependencies:
   - TASK-475
@@ -48,3 +49,9 @@ ordinal: 697000
 - [ ] #11 切替が履歴に記録され、戻る操作で切替前の worktree のファイルへ戻れる
 - [ ] #12 実装着手前に `/review-design` を 1 回実施し、結果を Implementation Plan へ反映している
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+見送り（2026-08-13）。実装コストが割に合わないと判断した。メニューの「最近使ったリポジトリ」→ worktree サブメニューから該当 worktree を開くことで代替できる（新しいウィンドウ／タブグループで開き直す形になり、同じウィンドウのまま同じ相対パスへ横移動する体験は得られないが、実用上はこれで足りる）。再検討するなら、その体験差が実際に不足だと分かった時点で起票し直す。
+<!-- SECTION:NOTES:END -->
