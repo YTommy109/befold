@@ -55,13 +55,11 @@ extension ViewerRenderer {
         // 読み直すと JS 側の状態(参照解決の FIFO キューを含む)が捨てられる。飛行中の
         // 応答を新しいページへ適用しないよう世代を進める(TASK-421)。
         referenceQueue.invalidate()
-        // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているため、
-        // 直接ロードから復帰した viewer.html に切替後の現在ファイルの保存倍率を適用し直す。
-        let zoom = initialPageZoom
-        readiness.run {
-            webView.evaluateJavaScript(ViewerBridge.applyZoomScript(zoom))
-            completion()
-        }
+        // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているが、
+        // 呼び出し元の exit が appliedPageZoom を捨てているため、ロード完了時の
+        // applyInitialPageZoomIfReady が現在ファイルの保存倍率を当て直す。ここで重ねて
+        // 当てない(同じ倍率を 2 度流すだけで、appliedPageZoom の記録も経由しない)。
+        readiness.run(completion)
         // viewer.html（mermaid.js）は JS 必須のため、直接ロードで無効化した JS を再有効化する。
         webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         ViewerWebViewFactory.loadViewerHTML(into: webView)

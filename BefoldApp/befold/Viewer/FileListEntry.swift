@@ -15,9 +15,12 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
 
     let url: URL
     let kind: Kind
-    /// フォルダー配下に対応形式ファイルがあるか(`.folder` のときのみ意味を持つ)。
+    /// フォルダー配下から対応形式ファイルを 1 件取れるか(`.folder` のときのみ意味を持つ)。
     /// 一覧構築(DirectoryLister.buildEntries)の時点で事前計算し、「新しいウィンドウで
     /// 開く」の disabled 判定・実行時のディレクトリ列挙を MainActor から追い出す。
+    ///
+    /// **読めなかったフォルダも `false`**(列挙失敗と空を区別しない)。理由は
+    /// `DirectoryLister.containsSupportedFile(in:)` の doc を参照。
     let containsSupportedFile: Bool
     /// url.normalizedPathKey(resolvingSymlinksInPath の syscall)を構築時に事前計算した値。
     /// SidebarNavigator の選択維持判定(entries.contains { $0.pathKey == key })がエントリ数ぶんの

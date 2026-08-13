@@ -2,10 +2,6 @@ import Foundation
 
 /// サイドバーのフォルダー移動(navigateToFolder とその補助)。
 /// 本体(SidebarNavigator.swift)から分けているのは file_length を超えないため。
-///
-/// 選択記憶(TASK-309)の 2 つのヘルパーは本体側にある。`selectionMemory` を
-/// `private` にするには、それを触るコードが stored property と同じファイルに
-/// 無ければならない(Swift の `private` はファイルスコープ)ため。
 @MainActor
 extension SidebarNavigator {
     /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
@@ -26,7 +22,7 @@ extension SidebarNavigator {
             self.applyRows(listing, for: directory)
             let isGoingUp = target.normalizedPathKey == previous.deletingLastPathComponent()
                 .normalizedPathKey
-            if let remembered = self.rememberedSelectionURL(in: directory) {
+            if let remembered = self.selectionMemory.rememberedURL(in: directory) {
                 self.select(remembered, presentingWith: host)
             } else if isGoingUp {
                 self.fileListModel.selection = self.fileListModel.folderEntryURL(forKey: previous.normalizedPathKey)
@@ -47,7 +43,7 @@ extension SidebarNavigator {
     /// 直接 `currentDirectory` へ代入しないこと。かつて `syncAfterSwitch` が代入だけを
     /// 行い、この後始末を素通りしていた。
     func moveCurrentDirectory(to url: URL) {
-        rememberSelection(in: fileListModel.currentDirectory)
+        selectionMemory.remember(in: fileListModel.currentDirectory)
         fileListModel.currentDirectory = url
         updateRootDirectory(with: url.standardizedFileURL)
         discardExpansion()

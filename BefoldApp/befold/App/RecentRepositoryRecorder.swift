@@ -44,23 +44,30 @@ final class RecentRepositoryRecorder {
     /// MainActor へ戻す(SidebarNavigator の resolveGitRoot と同じ方針)。
     /// 解決が終わる前にウィンドウが閉じられた場合、そのウィンドウ分の記録は行われない
     /// (履歴が1件増えないだけで、次に開いたときに記録されるため許容する)。
+    /// 解決の着地前にウィンドウが別ファイルへ切り替わった場合も同様に何もしない
+    /// (切替前のリポジトリを現在のリポジトリとして書き込まないため。TASK-461)。
     func recordIfNeeded(for url: URL, controller: ViewerWindowController) {
         let gitFileIndex = gitFileIndex
         let resolveIdentity = resolveIdentity
         Task.detached { [weak self, weak controller] in
             guard let root = gitFileIndex.repositoryRoot(forFileAt: url) else { return }
             let identity = resolveIdentity(root)
-            await self?.apply(root: root, identity: identity, to: controller)
+            await self?.apply(root: root, identity: identity, to: controller, resolvedFor: url)
         }
     }
 
     /// detached タスクで解決した git ルート/identity を MainActor 上で反映する。
     /// ウィンドウが既に閉じられていれば(controller == nil)何もしない。
+    /// 解決を開始した対象(resolvedFor)とウィンドウの現在の表示対象が一致しない場合も
+    /// 何もしない(解決中に別リポジトリのファイルへ切り替わった結果を、切替前の
+    /// リポジトリとして書き込まないため)。
     /// mainRoot は worktree のときだけ渡す(本体そのものなら nil。RecentRepositoryEntry の規約)。
     private func apply(
-        root: URL, identity: RepositoryIdentity, to controller: ViewerWindowController?
+        root: URL, identity: RepositoryIdentity, to controller: ViewerWindowController?,
+        resolvedFor url: URL
     ) {
         guard let controller else { return }
+        guard controller.fileURL.normalizedPathKey == url.normalizedPathKey else { return }
         controller.repositoryRoot = root
         let isMainRepository = identity.mainRoot.normalizedPathKey == root.normalizedPathKey
         store.record(

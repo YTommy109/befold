@@ -37,16 +37,53 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         func warm(forFileAt _: URL) {}
     }
 
+    /// 特定ファイルの root 解決だけを合図まで止められるフェイク。
+    /// 「解決が着地する前に別リポジトリのファイルへ切り替わる」順序を再現するために使う。
+    private final class GatedGitFileIndex: GitFileIndexing, @unchecked Sendable {
+        /// パス接頭辞 -> リポジトリルートの対応。
+        private let roots: [String: URL]
+        /// この URL の解決だけ gate が開くまで待つ。
+        private let gatedPath: String
+        private let gate = DispatchSemaphore(value: 0)
+        /// gate を通過して解決を再開したかどうか(テスト側が着地待ちの起点にする)。
+        let didResumeGatedLookup = LockedBox(false)
+
+        init(roots: [String: URL], gatedPath: String) {
+            self.roots = roots
+            self.gatedPath = gatedPath
+        }
+
+        func openGate() {
+            gate.signal()
+        }
+
+        func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
+            nil
+        }
+
+        func repositoryRoot(forFileAt url: URL) -> URL? {
+            if url.normalizedPathKey == gatedPath {
+                waitOrRecordTimeout(gate, "GatedGitFileIndex.repositoryRoot")
+                didResumeGatedLookup.set(true)
+            }
+            return roots.first { url.path.hasPrefix($0.key) }?.value
+        }
+
+        func warm(forFileAt _: URL) {}
+    }
+
     private struct Fixture {
         let manager: ViewerWindowManager
         let store: RecentRepositoriesStore
-        let gitFileIndex: FixedRootGitFileIndex
     }
 
     /// - Parameter resolveIdentity: 既定は「本体リポジトリそのもの」(mainRoot == root)。
     ///   worktree の記録規約を見るテストだけが、別の本体ルートを返す解決へ差し替える。
+    /// - Parameter gitFileIndex: 既定は root を固定で返すフェイク。解決の順序を操るテストだけが
+    ///   独自の索引を渡す。
     private func makeFixture(
         files: [URL], root: URL?, defaults: UserDefaults,
+        gitFileIndex: (any GitFileIndexing)? = nil,
         resolveIdentity: @escaping @Sendable (URL) -> RepositoryIdentity = {
             RepositoryIdentity(label: $0.lastPathComponent, mainRoot: $0)
         }
@@ -57,7 +94,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         let sessionStore = SessionStore(defaults: defaults)
         let recentDocumentsStore = RecentDocumentsStore(defaults: defaults)
         let recentRepositoriesStore = RecentRepositoriesStore(defaults: defaults)
-        let gitFileIndex = FixedRootGitFileIndex(root: root)
+        let gitFileIndex = gitFileIndex ?? FixedRootGitFileIndex(root: root)
         let manager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
@@ -77,7 +114,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
             recentRepositoriesStore: recentRepositoriesStore,
             repositoryIdentityResolver: resolveIdentity
         )
-        return Fixture(manager: manager, store: recentRepositoriesStore, gitFileIndex: gitFileIndex)
+        return Fixture(manager: manager, store: recentRepositoriesStore)
     }
 
     /// 指定ファイルのウィンドウを開き、非同期の git 解決が反映されるまで待って返す。
@@ -129,13 +166,13 @@ struct ViewerWindowManagerRecentRepositoriesTests {
     func openingFileOutsideRepositoryDoesNotRecordAnything() async {
         let defaults = makeIsolatedDefaults(prefix: "VWMRecentRepos")
         let file = URL(fileURLWithPath: "/standalone/a.md")
-        let fixture = makeFixture(files: [file], root: nil, defaults: defaults)
+        let index = FixedRootGitFileIndex(root: nil)
+        let fixture = makeFixture(files: [file], root: nil, defaults: defaults, gitFileIndex: index)
 
         fixture.manager.openViewer(for: file)
 
         // root が nil と分かった時点で記録経路は打ち切られる。解決が済んだことを
         // 待ってから判定することで、「まだ走っていないだけ」の空を成功と誤認しない。
-        let index = fixture.gitFileIndex
         await waitUntil { index.rootLookupCount.get() > 0 }
         #expect(fixture.store.entries().isEmpty)
         #expect(fixture.manager.controllers[file.normalizedPathKey]?.first?.repositoryRoot == nil)
@@ -219,6 +256,36 @@ struct ViewerWindowManagerRecentRepositoriesTests {
 
         let saved = fixture.store.entries().first { $0.rootPath == root.normalizedPathKey }
         #expect(saved?.lastTabGroup?.paths == [file.normalizedPathKey])
+        fixture.manager.allControllers.forEach { $0.close() }
+    }
+
+    /// TASK-461: 解決は detached タスクで着地するため、着地時の対象が解決を開始した対象と
+    /// 同じであることを確認しないと、切替前のリポジトリが現在のリポジトリとして書き込まれる。
+    @Test("解決の着地前に別リポジトリへ切り替わったら記録もルートの書き込みも行わない")
+    func switchingFileBeforeResolutionLandsRecordsNothing() async throws {
+        let defaults = makeIsolatedDefaults(prefix: "VWMRecentReposSwitch")
+        let fileA = URL(fileURLWithPath: "/repoA/a.md")
+        let fileB = URL(fileURLWithPath: "/repoB/b.md")
+        let rootA = URL(fileURLWithPath: "/repoA")
+        let rootB = URL(fileURLWithPath: "/repoB")
+        let index = GatedGitFileIndex(
+            roots: ["/repoA": rootA, "/repoB": rootB], gatedPath: fileA.normalizedPathKey
+        )
+        let fixture = makeFixture(files: [fileA, fileB], root: nil, defaults: defaults, gitFileIndex: index)
+
+        fixture.manager.openViewer(for: fileA)
+        let controller = try #require(fixture.manager.controllers[fileA.normalizedPathKey]?.first)
+        // 解決が止まっている間に別リポジトリのファイルへ切り替える。
+        controller.performFileSwitch(to: fileB)
+        try #require(controller.fileURL.normalizedPathKey == fileB.normalizedPathKey)
+        index.openGate()
+
+        await waitUntil { index.didResumeGatedLookup.get() }
+        // 着地(MainActor への戻り)が済んでから判定する。
+        try? await Task.sleep(for: .milliseconds(100))
+
+        #expect(controller.repositoryRoot == nil)
+        #expect(fixture.store.entries().isEmpty)
         fixture.manager.allControllers.forEach { $0.close() }
     }
 }

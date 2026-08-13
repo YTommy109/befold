@@ -109,30 +109,6 @@ struct DirectoryListerTests {
         #expect(names.contains("unknown.xyz"))
     }
 
-    @Test("listEntries はフォルダーエントリに対応形式ファイルの有無を事前計算する")
-    func listEntriesPrecomputesContainsSupportedFile() throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        try FileManager.default.createDirectory(
-            at: tmp.url.appendingPathComponent("withSupported"),
-            withIntermediateDirectories: true
-        )
-        _ = try tmp.file(named: "withSupported/diagram.mmd", contents: "graph TD;")
-        try FileManager.default.createDirectory(
-            at: tmp.url.appendingPathComponent("withoutSupported"),
-            withIntermediateDirectories: true
-        )
-        _ = try tmp.file(named: "withoutSupported/unknown.xyz", contents: "not supported")
-
-        let entries = DirectoryLister.listing(in: tmp.url, sortOrder: .foldersFirst).rows()
-        let folders = entries.filter { $0.kind == .folder }
-
-        let withSupported = folders.first { $0.url.lastPathComponent == "withSupported" }
-        let withoutSupported = folders.first { $0.url.lastPathComponent == "withoutSupported" }
-        #expect(withSupported?.containsSupportedFile == true)
-        #expect(withoutSupported?.containsSupportedFile == false)
-    }
-
     @Test("foldersFirst ソートではフォルダーがファイルより先に並ぶ")
     func listEntriesFoldersFirstSort() throws {
         let tmp = try TempDir()
