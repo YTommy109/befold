@@ -249,7 +249,8 @@ final class ViewerWindowController: NSWindowController {
         gitStatusStore: GitStatusStore = GitStatusStore(),
         initialSidebarCollapsed: Bool = true,
         initialFrameDescriptor: String? = nil,
-        initialSortOrder: SortOrder = .foldersFirst,
+        // CLI の `--sort` による初期並び順の指定。nil なら保存された既定値から始める。
+        initialSortOrder: SortOrder? = nil,
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         store: ViewerStore? = nil,

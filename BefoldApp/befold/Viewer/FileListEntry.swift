@@ -1,9 +1,26 @@
 import BefoldKit
 import Foundation
 
-enum SortOrder: Sendable {
+/// サイドバー一覧の並び順。
+///
+/// **窓が生きている間は窓ごとのライブ値**(ADR 0002 の「文書の状態」の持ち方)。
+/// 真実の源は各窓の `FileListModel.sortOrder` で、窓の間で同期はしない。
+/// `SidebarDisplayPreference.sortOrder` はそれとは別に「次に窓を開くときの既定値」
+/// だけを保存する。読むのは窓の生成時のみ(`SidebarNavigator.init`)で、生きている窓が
+/// 読み直すことはない——読み直すと他窓の操作が後から効いてしまう。
+/// 利用者の操作による変更は `SidebarNavigator.setSortOrder(_:)` の 1 本を通す
+/// (ライブ値の更新と既定値の保存がそこで必ず対になる)。唯一の例外は CLI の `--sort` で、
+/// これはその起動限りの窓単位の上書きなので既定値を書き換えない
+/// (`ViewerDisplayOptionsApplier` / `SessionRestorer` の doc を参照)。
+enum SortOrder: String, Sendable, CaseIterable {
     case foldersFirst
     case alphabetical
+
+    /// 保存値・未知の文字列から読む。キーが無い/壊れているときは従来の既定へ倒す。
+    /// `SidebarLayoutMode.stored(_:)` と同じ形。
+    static func stored(_ rawValue: String?) -> SortOrder {
+        rawValue.flatMap(SortOrder.init(rawValue:)) ?? .foldersFirst
+    }
 }
 
 struct FileListEntry: Identifiable, Hashable, Sendable {

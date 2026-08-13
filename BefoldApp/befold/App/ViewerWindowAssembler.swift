@@ -36,7 +36,7 @@ enum ViewerWindowAssembler {
     static func makeSidebarNavigator(
         fileURL: URL,
         sidebarDisplayPreference: SidebarDisplayPreference,
-        sortOrder: SortOrder,
+        sortOrder: SortOrder?,
         gitFileIndex: any GitFileIndexing,
         gitStatusStore: GitStatusStore
     ) -> SidebarNavigator {
@@ -136,9 +136,7 @@ enum ViewerWindowAssembler {
             model: controller.fileListModel,
             delegate: controller,
             onSortOrderChanged: { [weak controller] order in
-                guard let controller else { return }
-                controller.fileListModel.sortOrder = order
-                controller.sidebar.refreshFileList()
+                controller?.sidebar.setSortOrder(order)
             },
             onToggleHiddenFiles: { [weak controller] in
                 guard let controller else { return }

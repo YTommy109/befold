@@ -9,6 +9,7 @@ final class SidebarDisplayPreference {
     private static let showHiddenFilesKey = "ShowHiddenFiles"
     private static let showChangedFilesOnlyKey = "ShowChangedFilesOnly"
     private static let layoutModeKey = "SidebarLayoutMode"
+    private static let sortOrderKey = "SidebarSortOrder"
 
     /// 不可視ファイル(ドットファイル)を一覧に出すか。
     var showHiddenFiles: Bool {
@@ -37,6 +38,14 @@ final class SidebarDisplayPreference {
         }
     }
 
+    /// 一覧の並び順(フォルダー優先 / アルファベット順)。
+    /// フィーチャーゲートの対象ではないため、保存値をそのまま読む。
+    var sortOrder: SortOrder {
+        didSet {
+            defaults.set(sortOrder.rawValue, forKey: Self.sortOrderKey)
+        }
+    }
+
     /// - Parameters:
     ///   - isChangedFilesOnlyAvailable: 既定はフィーチャーゲートの判定。
     ///     テストから両方の状態を作れるようにするためだけの注入点で、本番では省略する。
@@ -53,5 +62,6 @@ final class SidebarDisplayPreference {
         // init 内の代入では didSet が走らないため、降格して読んでも保存値は書き換わらない。
         let stored = SidebarLayoutMode.stored(defaults.string(forKey: Self.layoutModeKey))
         layoutMode = isTreeLayoutAvailable ? stored : .drillDown
+        sortOrder = SortOrder.stored(defaults.string(forKey: Self.sortOrderKey))
     }
 }
