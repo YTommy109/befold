@@ -18,6 +18,7 @@ final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
     /// 差分レイアウト切替の通知回数。全ウィンドウのツールバー再同期がこの通知に
     /// 乗っているため、「切り替えたのに通知されない」= アイコンが取り残される。
     private(set) var diffLayoutToggleCount = 0
+    private(set) var toggleSidebarTreeLayoutCalled = false
 
     func viewerWindowWillClose(_ controller: ViewerWindowController) {
         closeCalled = true
@@ -49,6 +50,10 @@ final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
 
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {
         toggleChangedFilesOnlyCalled = true
+    }
+
+    func viewerWindowDidToggleSidebarTreeLayout(_ controller: ViewerWindowController) {
+        toggleSidebarTreeLayoutCalled = true
     }
 }
 

@@ -18,6 +18,9 @@ struct SidebarHeaderView: View {
     /// nil のときは git 変更のみ表示のボタンを出さない。
     /// 開発中機能の露出点(ViewerWindowController が FeatureGate で決める)。
     var onToggleChangedFilesOnly: (() -> Void)?
+    /// nil のときは表示形式(ツリー / ドリルダウン)のボタンを出さない。
+    /// 開発中機能の露出点(ViewerWindowAssembler が FeatureGate で決める)。
+    var onToggleSidebarTreeLayout: (() -> Void)?
 
     @FocusState private var isFilterFieldFocused: Bool
 

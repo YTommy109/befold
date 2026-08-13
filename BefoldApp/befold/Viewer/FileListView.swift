@@ -12,6 +12,9 @@ struct FileListView: View {
     /// nil のときはヘッダーに git 変更のみ表示のボタンを出さない。
     /// 開発中機能の露出点(ViewerWindowController が FeatureGate で決める)。
     var onToggleChangedFilesOnly: (() -> Void)?
+    /// nil のときはヘッダーに表示形式(ツリー / ドリルダウン)のボタンを出さない。
+    /// 開発中機能の露出点(ViewerWindowAssembler が FeatureGate で決める)。
+    var onToggleSidebarTreeLayout: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -19,7 +22,8 @@ struct FileListView: View {
                 model: model,
                 onSortOrderChanged: onSortOrderChanged,
                 onToggleHiddenFiles: onToggleHiddenFiles,
-                onToggleChangedFilesOnly: onToggleChangedFilesOnly
+                onToggleChangedFilesOnly: onToggleChangedFilesOnly,
+                onToggleSidebarTreeLayout: onToggleSidebarTreeLayout
             )
             entryList
         }
