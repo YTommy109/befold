@@ -16,7 +16,7 @@ final class PerFileStateStore {
     ///   PerFileStateStore インスタンス自体は全ウィンドウで共有される前提)。
     init(defaults: UserDefaults = .standard) {
         zoom = ZoomStore(defaults: defaults)
-        displayMode = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: FeatureGate.isSourceDiffEnabled)
+        displayMode = DisplayModeStore(defaults: defaults)
         scrollPosition = ScrollPositionStore(defaults: defaults)
         sidebar = SidebarStateStore(defaults: defaults)
         windowFrame = WindowFrameStore(defaults: defaults)

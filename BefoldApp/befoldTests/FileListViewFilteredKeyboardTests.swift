@@ -33,7 +33,9 @@ struct FileListViewFilteredKeyboardTests {
         let view = FileListView(
             model: model,
             delegate: delegates.makeSpy(),
-            onSortOrderChanged: { _ in }
+            onSortOrderChanged: { _ in },
+            onToggleChangedFilesOnly: {},
+            onToggleSidebarTreeLayout: {}
         )
         return (view, [beta1, beta2])
     }
@@ -121,7 +123,9 @@ struct FileListViewFilteredKeyboardTests {
         let view = FileListView(
             model: model,
             delegate: delegates.makeSpy(),
-            onSortOrderChanged: { _ in }
+            onSortOrderChanged: { _ in },
+            onToggleChangedFilesOnly: {},
+            onToggleSidebarTreeLayout: {}
         )
         model.resetSnapshotEvaluationCount()
 

@@ -17,24 +17,6 @@ bash scripts/setup-git-hooks.sh
 | `post-checkout` | `worktree-init.sh` | worktree 作成時の初期化 |
 | `pre-commit` | `block-main-commits.sh` | main への直接コミットをブロック（`ALLOW_MAIN_COMMIT=1` で通過） |
 | `pre-commit` | `swiftformat-lint.sh` | CI と同じ SwiftFormat チェック |
-| `commit-msg` | `check-gate-commit-scope.sh` | `(gate)` スコープの付け忘れをブロック（下記） |
-
-### `(gate)` スコープの強制
-
-<!-- constrained-by ../../.claude/CLAUDE.md -->
-
-`/release-notes stable` は**コミット件名の `(gate)` スコープだけ**を見て、
-stable では露出しない機能をリリースノートから除外する。付け忘れるとノートへ漏れるため、
-`check-gate-commit-scope.sh` が commit-msg で機械的に弾く。
-
-判定は「ステージ済みの Swift プロダクトコード（`Tests/` / `TestSupport/` 配下は除く）の
-追加・削除行に `FeatureGate.` が現れる、または `FeatureGate.swift` 自体が変更されている」。
-意図的に付けない場合は `ALLOW_MISSING_GATE_SCOPE=1 git commit ...` で通せる。
-
-限界として、**ゲート参照を含まない実装だけの差分は検知できない**
-（例: 差分描画の本体だけを直し、ゲート分岐には触れないコミット）。
-規約の判断基準は従来どおり「変更箇所が `FeatureGate.swift` のいずれかの `Bool` を
-経由してのみ有効化されるか」であり、このフックはその一部を自動化したものにすぎない。
 
 ## ビルド
 

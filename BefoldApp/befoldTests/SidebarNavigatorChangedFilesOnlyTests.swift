@@ -63,8 +63,7 @@ struct SidebarNavigatorChangedFilesOnlyTests {
         let listings = LockedBox<Int>(0)
         let gitCalls = LockedBox<Int>(0)
         let preference = SidebarDisplayPreference(
-            defaults: makeIsolatedDefaults(prefix: prefix),
-            isChangedFilesOnlyAvailable: true
+            defaults: makeIsolatedDefaults(prefix: prefix)
         )
         preference.showChangedFilesOnly = testCase.initialState
         let navigator = SidebarNavigator(
@@ -119,8 +118,7 @@ struct SidebarNavigatorChangedFilesOnlyTests {
         let base = Self.home.appendingPathComponent(prefix)
         let gitCalls = LockedBox<Int>(0)
         let preference = SidebarDisplayPreference(
-            defaults: makeIsolatedDefaults(prefix: prefix),
-            isChangedFilesOnlyAvailable: true
+            defaults: makeIsolatedDefaults(prefix: prefix)
         )
         preference.showChangedFilesOnly = true
         let navigator = SidebarNavigator(

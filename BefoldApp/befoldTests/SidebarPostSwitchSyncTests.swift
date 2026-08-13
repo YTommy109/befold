@@ -64,8 +64,7 @@ struct SidebarPostSwitchSyncTests {
             DirectoryListing(rootChildren: listings[url.normalizedPathKey] ?? [])
         }
         let preference = SidebarDisplayPreference(
-            defaults: makeIsolatedDefaults(prefix: "SidebarPostSwitchSyncTests"),
-            isTreeLayoutAvailable: true
+            defaults: makeIsolatedDefaults(prefix: "SidebarPostSwitchSyncTests")
         )
         preference.layoutMode = .tree
         let navigator = SidebarNavigator(

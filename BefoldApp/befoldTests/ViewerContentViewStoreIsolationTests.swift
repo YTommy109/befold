@@ -12,7 +12,7 @@ import Testing
 /// この回帰は `ViewerWindowStateIndependenceTests` では検知できない。あちらが見る
 /// `store.zoom` は正しい値のまま、描画へ渡る値だけがずれるため。SwiftUI の `body` は
 /// opaque で、組み立てた `View` から実際に渡した値を取り出す手段が無いので、
-/// `FeatureGateEnumerationTests` と同じくソースの参照そのものを固定する。
+/// ソースの参照そのものを走査して固定する。
 @Suite
 struct ViewerContentViewStoreIsolationTests {
     private static let contentViewPath = URL(fileURLWithPath: #filePath)

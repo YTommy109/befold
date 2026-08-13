@@ -78,15 +78,6 @@ struct ViewerWindowControllerToolbarTests {
         #expect(button.isEnabled == false, "先頭へ戻ったら戻るアイテムは無効に戻るはず")
     }
 
-    /// ゲート OFF 相当(stable)のセグメント構成をライブなゲート値に依らず検証する。
-    /// ゲート越しの検証は動いているビルドの側しか通らないため、両分岐はここで押さえる。
-    @Test("モード切替セグメントは差分ゲートに応じて差分セグメントの有無を変える", arguments: [true, false])
-    func modeSegmentsFollowSourceDiffGate(isSourceDiffEnabled: Bool) {
-        let modes = ModeSegments.modes(isSourceDiffEnabled: isSourceDiffEnabled)
-        #expect(modes.count == (isSourceDiffEnabled ? 3 : 2))
-        #expect(modes.contains(.diff) == isSourceDiffEnabled)
-    }
-
     /// 差分セグメントのアイコンは「いまどちらのレイアウトか」の唯一の表示なので、
     /// レイアウトの 2 状態でシンボルが入れ替わることを固定する。
     /// 他のモードはレイアウトに影響されない。
@@ -186,15 +177,13 @@ struct ViewerWindowControllerToolbarTests {
         #expect(segmented.isEnabled(forSegment: 0) == previewEnabled)
         #expect(segmented.isEnabled(forSegment: 1) == sourceEnabled)
         #expect(segmented.selectedSegment == (sourceSelected ? 1 : 0))
-        // 差分セグメントの有無はフィーチャーゲートと一致する(AC#1 / AC#2)。
-        #expect(segmented.segmentCount == (FeatureGate.isSourceDiffEnabled ? 3 : 2))
+        #expect(segmented.segmentCount == ModeSegments.all.count)
     }
 
     /// ⌘\\ やメニューからレイアウトを変えたときも、実アイテムのアイコンが追従する。
     /// view ベースのアイテムは validate を通らないため、再同期でしか更新されない(ADR 0002)。
     @Test("差分レイアウトの変更がモード切替セグメントのアイコンへ反映される")
     func diffLayoutChangeUpdatesSegmentImage() async throws {
-        try #require(FeatureGate.isSourceDiffEnabled)
         let file = URL(fileURLWithPath: "/mock/a.swift")
         let preference = DiffDisplayPreference(defaults: makeIsolatedDefaults(prefix: "ToolbarDiffLayoutIcon"))
         let controller = makeController(file: file, contents: "let x = 1", diffDisplayPreference: preference)

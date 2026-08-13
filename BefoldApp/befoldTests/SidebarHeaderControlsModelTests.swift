@@ -13,9 +13,7 @@ struct SidebarHeaderControlsModelTests {
         showHiddenFiles: Bool = false,
         showChangedFilesOnly: Bool = false,
         isFilterActive: Bool = false,
-        isFilterTextEmpty: Bool = true,
-        isTreeLayoutAvailable: Bool = true,
-        isChangedFilesOnlyAvailable: Bool = true
+        isFilterTextEmpty: Bool = true
     ) -> SidebarHeaderControlsModel {
         SidebarHeaderControlsModel(
             layoutMode: layoutMode,
@@ -23,38 +21,18 @@ struct SidebarHeaderControlsModelTests {
             showHiddenFiles: showHiddenFiles,
             showChangedFilesOnly: showChangedFilesOnly,
             isFilterActive: isFilterActive,
-            isFilterTextEmpty: isFilterTextEmpty,
-            isTreeLayoutAvailable: isTreeLayoutAvailable,
-            isChangedFilesOnlyAvailable: isChangedFilesOnlyAvailable
+            isFilterTextEmpty: isFilterTextEmpty
         )
     }
 
     /// 左右分割そのものを固定する。doc コメントだけでは次のボタン追加で崩れるため、
     /// 並びを配列比較で押さえる（設計「テスト」節の 4 番）。
-    @Test("ゲート ON では左が表示形式、右が変更のみ・フィルター・⋯ の順になる")
+    @Test("左が表示形式、右が変更のみ・フィルター・⋯ の順になる")
     func groupsSplitFormFromFiltering() {
         let model = makeModel()
 
         #expect(model.leading.map(\.kind) == [.layoutMode])
         #expect(model.trailing.map(\.kind) == [.changedFilesOnly, .filter, .overflow])
-    }
-
-    /// 実ビルドではゲートが片側に固定されるため、両方向を注入点で見る。
-    @Test("表示形式ボタンの有無はゲートと一致する", arguments: [true, false])
-    func layoutModeControlFollowsGate(isTreeLayoutAvailable: Bool) {
-        let model = makeModel(isTreeLayoutAvailable: isTreeLayoutAvailable)
-
-        #expect(model.leading.isEmpty == !isTreeLayoutAvailable)
-    }
-
-    @Test("変更のみボタンの有無はゲートと一致する", arguments: [true, false])
-    func changedFilesOnlyControlFollowsGate(isChangedFilesOnlyAvailable: Bool) {
-        let model = makeModel(isChangedFilesOnlyAvailable: isChangedFilesOnlyAvailable)
-
-        let hasChangedFilesOnly = model.trailing.contains { $0.kind == .changedFilesOnly }
-        #expect(hasChangedFilesOnly == isChangedFilesOnlyAvailable)
-        // ゲート OFF でもフィルターと ⋯ は残る（stable でヘッダーが空にならない）。
-        #expect(model.trailing.map(\.kind).suffix(2) == [.filter, .overflow])
     }
 
     @Test("表示形式のアイコンは現在のモードを表す", arguments: [

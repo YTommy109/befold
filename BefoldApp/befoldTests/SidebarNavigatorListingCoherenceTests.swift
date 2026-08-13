@@ -28,8 +28,7 @@ struct SidebarNavigatorListingCoherenceTests {
         let changed = dirB.appendingPathComponent("changed.md")
         let clean = dirB.appendingPathComponent("clean.md")
         let preference = SidebarDisplayPreference(
-            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorListingCoherenceTests"),
-            isChangedFilesOnlyAvailable: true
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorListingCoherenceTests")
         )
         preference.showChangedFilesOnly = true
         let navigator = SidebarNavigator(
@@ -78,8 +77,7 @@ struct SidebarNavigatorListingCoherenceTests {
         let changed = dirB.appendingPathComponent("changed.md")
         let clean = dirB.appendingPathComponent("clean.md")
         let preference = SidebarDisplayPreference(
-            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorListingCoherenceTests-off"),
-            isChangedFilesOnlyAvailable: true
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorListingCoherenceTests-off")
         )
         preference.showChangedFilesOnly = false
         let gate = AsyncGate()
@@ -138,8 +136,7 @@ struct SidebarNavigatorListingCoherenceTests {
         let changed = dirB.appendingPathComponent("changed.md")
         let clean = dirB.appendingPathComponent("clean.md")
         let preference = SidebarDisplayPreference(
-            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorListingCoherenceTests-race"),
-            isChangedFilesOnlyAvailable: true
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorListingCoherenceTests-race")
         )
         preference.showChangedFilesOnly = true
         let navigator = SidebarNavigator(
@@ -259,8 +256,7 @@ struct SidebarNavigatorListingCoherenceTests {
         let changed = dirB.appendingPathComponent("changed.md")
         let clean = dirB.appendingPathComponent("clean.md")
         let preference = SidebarDisplayPreference(
-            defaults: makeIsolatedDefaults(prefix: prefix),
-            isChangedFilesOnlyAvailable: true
+            defaults: makeIsolatedDefaults(prefix: prefix)
         )
         preference.showChangedFilesOnly = true
         return SidebarNavigator(

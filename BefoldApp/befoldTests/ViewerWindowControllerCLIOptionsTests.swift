@@ -20,7 +20,7 @@ struct ViewerWindowControllerCLIOptionsTests {
     @Test("CLI の --source/--preview 指定は保存済みのソース表示モードより優先される")
     func sourceModeOverrideTakesPrecedenceOverSavedValue() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
-        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        let displayModeStore = DisplayModeStore(defaults: defaults)
         displayModeStore.setDisplayMode(.rendered, for: file)
 
         let controller = ViewerWindowControllerFixture(
@@ -37,7 +37,7 @@ struct ViewerWindowControllerCLIOptionsTests {
     @Test("CLI のオプション未指定時は保存済みのソース表示モードがそのまま復元される")
     func noSourceModeOverridePreservesSavedValue() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
-        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        let displayModeStore = DisplayModeStore(defaults: defaults)
         displayModeStore.setDisplayMode(.source, for: file)
 
         let controller = ViewerWindowControllerFixture(
@@ -51,7 +51,7 @@ struct ViewerWindowControllerCLIOptionsTests {
     @Test("CLI の --source 上書き中にリネームされても、新 URL が対応形式ならソース表示が維持される")
     func sourceModeOverrideSurvivesRename() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
-        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        let displayModeStore = DisplayModeStore(defaults: defaults)
         displayModeStore.setDisplayMode(.rendered, for: file)
 
         let controller = ViewerWindowControllerFixture(

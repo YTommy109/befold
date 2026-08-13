@@ -5,7 +5,6 @@ import CoreGraphics
 /// 純粋関数として切り出しているのは、GUI 層が自動テスト対象外だから。
 /// 「ドリルダウン表示では見た目が変わらない」(= depth 0 でインデント 0)は、
 /// この関数のユニットテストが唯一の測り方になる
-/// (`ModeSegments.modes(isSourceDiffEnabled:)` と同じ形)。
 ///
 /// **三角の幅・行の水平パディングもここに置く。** 表示側(`FileListEntryRow`)と
 /// 当たり判定側(`FileListView.disclosureAction(for:atX:)`)が別々に数値を持つと、

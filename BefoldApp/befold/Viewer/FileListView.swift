@@ -9,12 +9,8 @@ struct FileListView: View {
     weak var delegate: FileListViewDelegate?
     let onSortOrderChanged: (SortOrder) -> Void
     var onToggleHiddenFiles: (() -> Void)?
-    /// nil のときはヘッダーに git 変更のみ表示のボタンを出さない。
-    /// 開発中機能の露出点(ViewerWindowController が FeatureGate で決める)。
-    var onToggleChangedFilesOnly: (() -> Void)?
-    /// nil のときはヘッダーに表示形式(ツリー / ドリルダウン)のボタンを出さない。
-    /// 開発中機能の露出点(ViewerWindowAssembler が FeatureGate で決める)。
-    var onToggleSidebarTreeLayout: (() -> Void)?
+    let onToggleChangedFilesOnly: () -> Void
+    let onToggleSidebarTreeLayout: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -82,8 +78,7 @@ struct FileListView: View {
     /// 開閉三角のクリックが起こす動作。三角の上でなければ nil(＝行本体のクリック)。
     ///
     /// GUI 層は自動テスト対象外なので、「三角の無い行では左端をクリックしても開閉しない」
-    /// はこの関数のユニットテストが唯一の測り方になる
-    /// (`ModeSegments.modes(isSourceDiffEnabled:)` と同じ形)。
+    /// はこの関数のユニットテストが唯一の測り方になる。
     ///
     /// **座標だけで決めない。** ドリルダウン表示とプレビュー内のフォルダー一覧
     /// (FolderListingView)には三角が無く、同じ位置は行本体の一部でしかない。

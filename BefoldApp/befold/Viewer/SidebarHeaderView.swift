@@ -21,12 +21,8 @@ struct SidebarHeaderView: View {
     weak var delegate: FileListViewDelegate?
     let onSortOrderChanged: (SortOrder) -> Void
     var onToggleHiddenFiles: (() -> Void)?
-    /// nil のときは git 変更のみ表示のボタンを出さない。
-    /// 開発中機能の露出点(ViewerWindowController が FeatureGate で決める)。
-    var onToggleChangedFilesOnly: (() -> Void)?
-    /// nil のときは表示形式(ツリー / ドリルダウン)のボタンを出さない。
-    /// 開発中機能の露出点(ViewerWindowAssembler が FeatureGate で決める)。
-    var onToggleSidebarTreeLayout: (() -> Void)?
+    let onToggleChangedFilesOnly: () -> Void
+    let onToggleSidebarTreeLayout: () -> Void
 
     @FocusState private var isFilterFieldFocused: Bool
 
@@ -78,9 +74,7 @@ struct SidebarHeaderView: View {
             showHiddenFiles: model.showHiddenFiles,
             showChangedFilesOnly: model.showChangedFilesOnly,
             isFilterActive: model.isFilterActive,
-            isFilterTextEmpty: model.filterText.isEmpty,
-            isTreeLayoutAvailable: onToggleSidebarTreeLayout != nil,
-            isChangedFilesOnlyAvailable: onToggleChangedFilesOnly != nil
+            isFilterTextEmpty: model.filterText.isEmpty
         )
     }
 

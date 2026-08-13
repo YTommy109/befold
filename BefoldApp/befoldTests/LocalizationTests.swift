@@ -72,8 +72,7 @@ struct LocalizationTests {
         }
     }
 
-    /// ブックマークのキー表記はビルド（`FeatureGate.isSourceDiffEnabled`）で ⌘D / ⌘B が
-    /// 変わるため、説明文へ直書きすると片方のビルドで説明だけが古くなる。文言は %@ で
+    /// キー表記を説明文へ直書きすると、割り当てを変えたときに説明だけが古くなる。文言は %@ で
     /// 受け、`FeatureOverviewView` が `BookmarkShortcut` の実際の割り当てを差し込む。
     @Test("ブックマークの説明文はキー表記を直書きせず引数で受ける")
     func bookmarksDetailTakesShortcutAsArgument() throws {

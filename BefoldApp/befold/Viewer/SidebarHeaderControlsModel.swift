@@ -46,9 +46,6 @@ struct SidebarOverflowItem: Equatable {
 /// **⋯ に入れてよいのは「サイドバーの一覧の見え方に効く設定で、常設に値しないもの」だけ。**
 /// ファイル操作・ウィンドウ操作は入れない。何でも入る箱にすると、畳んだこと自体が
 /// 新しい散らかりになる。
-///
-/// ゲート値はここでは読まず引数で受ける(`befold` ターゲットでの FeatureGate 型の直接参照は
-/// swiftlint の custom rule で禁じられており、配線点は ViewerWindowAssembler)。
 struct SidebarHeaderControlsModel: Equatable {
     /// 左群(フォルダー名の左)。
     let leading: [SidebarHeaderControl]
@@ -63,25 +60,19 @@ struct SidebarHeaderControlsModel: Equatable {
         showHiddenFiles: Bool,
         showChangedFilesOnly: Bool,
         isFilterActive: Bool,
-        isFilterTextEmpty: Bool,
-        isTreeLayoutAvailable: Bool,
-        isChangedFilesOnlyAvailable: Bool
+        isFilterTextEmpty: Bool
     ) {
-        leading = Self.leadingControls(layoutMode: layoutMode, isTreeLayoutAvailable: isTreeLayoutAvailable)
+        leading = Self.leadingControls(layoutMode: layoutMode)
         trailing = Self.trailingControls(
             showHiddenFiles: showHiddenFiles,
             showChangedFilesOnly: showChangedFilesOnly,
             isFilterActive: isFilterActive,
-            isFilterTextEmpty: isFilterTextEmpty,
-            isChangedFilesOnlyAvailable: isChangedFilesOnlyAvailable
+            isFilterTextEmpty: isFilterTextEmpty
         )
         overflowItems = Self.overflowItems(sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
     }
 
-    private static func leadingControls(
-        layoutMode: SidebarLayoutMode, isTreeLayoutAvailable: Bool
-    ) -> [SidebarHeaderControl] {
-        guard isTreeLayoutAvailable else { return [] }
+    private static func leadingControls(layoutMode: SidebarLayoutMode) -> [SidebarHeaderControl] {
         let isTree = layoutMode == .tree
         return [
             SidebarHeaderControl(
@@ -98,20 +89,18 @@ struct SidebarHeaderControlsModel: Equatable {
         showHiddenFiles: Bool,
         showChangedFilesOnly: Bool,
         isFilterActive: Bool,
-        isFilterTextEmpty: Bool,
-        isChangedFilesOnlyAvailable: Bool
+        isFilterTextEmpty: Bool
     ) -> [SidebarHeaderControl] {
-        var controls: [SidebarHeaderControl] = []
-        if isChangedFilesOnlyAvailable {
-            controls.append(SidebarHeaderControl(
+        var controls: [SidebarHeaderControl] = [
+            SidebarHeaderControl(
                 kind: .changedFilesOnly,
                 systemImage: "arrow.triangle.branch",
                 helpKey: showChangedFilesOnly
                     ? "sidebar.changedFilesOnly.hide"
                     : "sidebar.changedFilesOnly.show",
                 isAccented: showChangedFilesOnly
-            ))
-        }
+            ),
+        ]
         controls.append(SidebarHeaderControl(
             kind: .filter,
             systemImage: isFilterTextEmpty

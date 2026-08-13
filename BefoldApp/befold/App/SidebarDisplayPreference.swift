@@ -19,9 +19,6 @@ final class SidebarDisplayPreference {
     }
 
     /// git 変更のあるファイルだけに一覧を絞るか。
-    /// 機能が無効なビルドでは切り替える手段(メニュー・ヘッダーボタン)が露出しないため、
-    /// 保存値が ON でも起動時に OFF として読む。保存値そのものは書き換えないので、
-    /// dev ビルドへ戻れば ON のまま復帰する(TASK-284)。
     var showChangedFilesOnly: Bool {
         didSet {
             defaults.set(showChangedFilesOnly, forKey: Self.showChangedFilesOnlyKey)
@@ -29,9 +26,6 @@ final class SidebarDisplayPreference {
     }
 
     /// サイドバーの行の並べ方(ドリルダウン / ツリー展開)。
-    /// showChangedFilesOnly と同じく、機能が無効なビルドでは保存値がツリーでも
-    /// ドリルダウンとして読む。保存値そのものは書き換えないので、dev ビルドへ戻れば
-    /// ツリーのまま復帰する(TASK-284 と同じ形)。
     var layoutMode: SidebarLayoutMode {
         didSet {
             defaults.set(layoutMode.rawValue, forKey: Self.layoutModeKey)
@@ -39,29 +33,18 @@ final class SidebarDisplayPreference {
     }
 
     /// 一覧の並び順(フォルダー優先 / アルファベット順)。
-    /// フィーチャーゲートの対象ではないため、保存値をそのまま読む。
     var sortOrder: SortOrder {
         didSet {
             defaults.set(sortOrder.rawValue, forKey: Self.sortOrderKey)
         }
     }
 
-    /// - Parameters:
-    ///   - isChangedFilesOnlyAvailable: 既定はフィーチャーゲートの判定。
-    ///     テストから両方の状態を作れるようにするためだけの注入点で、本番では省略する。
-    ///   - isTreeLayoutAvailable: 同上(サイドバーのツリー展開)。
-    init(
-        defaults: UserDefaults = .standard,
-        isChangedFilesOnlyAvailable: Bool = FeatureGate.isSidebarGitStatusEnabled,
-        isTreeLayoutAvailable: Bool = FeatureGate.isSidebarTreeEnabled
-    ) {
+    /// 保存値はいずれもそのまま読む(表示の可否で降格しない)。
+    init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         showHiddenFiles = defaults.bool(forKey: Self.showHiddenFilesKey)
-        showChangedFilesOnly = isChangedFilesOnlyAvailable
-            && defaults.bool(forKey: Self.showChangedFilesOnlyKey)
-        // init 内の代入では didSet が走らないため、降格して読んでも保存値は書き換わらない。
-        let stored = SidebarLayoutMode.stored(defaults.string(forKey: Self.layoutModeKey))
-        layoutMode = isTreeLayoutAvailable ? stored : .drillDown
+        showChangedFilesOnly = defaults.bool(forKey: Self.showChangedFilesOnlyKey)
+        layoutMode = SidebarLayoutMode.stored(defaults.string(forKey: Self.layoutModeKey))
         sortOrder = SortOrder.stored(defaults.string(forKey: Self.sortOrderKey))
     }
 }

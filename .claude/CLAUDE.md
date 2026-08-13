@@ -114,8 +114,6 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
     「外から呼んでよいのはどれか」を doc コメントで明示して補う
     （実測: TASK-361 の分割 6 回のうち 3 回、この取りこぼしでビルドを往復した）
   - 分割は新規ファイルの追加なので `xcodegen generate` を忘れない
-  - 分割先が `FeatureGate.` を参照する場合は、下の「フィーチャーゲート」節の
-    2 箇所（`.swiftlint.yml` の allowlist と `FeatureGate.swift` の doc）を更新する
 - **`Localizable.xcstrings` に文字列を追加するときはキー順にソートし直さない。**
   Xcode の出力は厳密なキー順ではないため、sort すると 200 行超の無関係な並べ替え差分が出る。
   既存の並び順を保ち、近縁キー（同じ prefix のもの）の直後に挿入する
@@ -209,7 +207,7 @@ bug 7 件のうち 5 件（71%）は設計文の突き合わせで導ける型�
 - 破れない形へ変える（列挙式の比較をミラー全体比較へ、デフォルト引数を必須引数へ）
 
 ルールへの明文化は 2 回目の対処として数えない。明文化済みでも破れた実例がある
-（`FeatureGate` 運用は規約にあったが TASK-333 で破れた）。
+（かつての `FeatureGate` 運用は規約にあったが TASK-333 で破れた）。
 
 根拠（bug ラベル 25 件の分類実測）: 同型の 3 連鎖が 2 系列あった。appendChunk の
 抑止判定（TASK-318 → 329 → 339）は、セレクタ一致 → 差分の有無 → DOM 判定と
@@ -268,49 +266,3 @@ feat: Mermaid ビューア画面を追加する
 fix: ファイル変更検知が2回通知される問題を修正する
 chore: XcodeGen 設定を更新する
 ```
-
-- **FeatureGate 配下のコードを変更する commit には `(gate)` スコープを付ける**
-  （例: `feat(gate): 変更ファイル絞り込みのトグルボタンを追加する`）。
-  `/release-notes stable` はこのスコープをコミット件名だけで機械的に判定して
-  除外する。スコープを付け忘れると、stable では露出しない機能がリリースノートに
-  漏れる（過去に `FeatureGate.isSidebarGitStatusEnabled` という別名のゲート関数を
-  grep で見逃し、実際に混入した）。判断基準は「変更箇所が `FeatureGate.swift` の
-  いずれかの `Bool` を経由してのみ有効化されるか」。
-
-## フィーチャーゲート（開発中機能の dev 限定露出）
-
-- 未完成機能は `FeatureGate.inProgressFeaturesEnabled` で囲い、dev/DEBUG ビルドでのみ露出する。
-  判定は「バージョン文字列のプレリリース接尾辞（`-dev.N`）」由来で、`UpdateChannel`（ユーザー設定）は流用しない。
-  直接 `inProgressFeaturesEnabled` を参照せず、機能ごとの別名 computed property
-  （例: `isSidebarGitStatusEnabled`）を経由することがあるため、ゲート判定は
-  `FeatureGate.swift` 内の宣言一覧を基準にする（コード全体を `inProgressFeaturesEnabled`
-  で grep しても別名のゲートは見つからない）。
-- フラグは一時的な足場。stable に載せると決めた時点で分岐を撤去しデフォルト有効化し、撤去タスクを backlog に登録する。
-- 検証は「ロジックはユニットテスト、ON は dev リリースの dogfood、OFF は次回 stable リリース」で担保する。
-- **OFF 側の実機確認をローカルの Release ビルドで行おうとしない。**
-  `xcodebuild build -scheme befold -configuration Release` 自体は成功するが、生成された
-  `.app` は同梱フレームワークと署名の Team ID が合わず起動できない
-  （`Library not loaded: @rpath/BefoldKit.framework` / `different Team IDs`）。
-  代わりに**ゲート値を引数で受ける純粋関数へ切り出し、ON/OFF 両方向をユニットテストで
-  押さえる**。`ModeSegments.modes(isSourceDiffEnabled:)` /
-  `MainMenuBuilder.addDisplayModeItems(to:isSourceDiffEnabled:)` がこの形。
-  ゲート越しに参照する形だけを残すと、動いているビルドの側しか検証されない
-  （AC に「stable では 2 択になること」があっても、実機で確かめる手段が無いまま
-  マージされる）。
-- **この注入方針は swiftlint の custom rule `feature_gate_direct_reference` で強制する。**
-  `befold` ターゲット配下で `FeatureGate.` を直接参照できるのは、`.swiftlint.yml` の
-  `excluded` に列挙した配線点だけ（それ以外は error）。allowlist へ追加してよいのは
-  **ゲート値をそこで読んで下位へ引数で渡す composition root** に限る
-  （`PerFileStateStore.init(defaults:)` がゲート値を読んで `DisplayModeStore` へ注入する形）。
-  「その場で分岐したいから」は追加理由にならない。ゲート値を引数で受ける関数へ切り出し、
-  呼び出し元（既存の配線点）から渡すこと。allowlist の中身は
-  `FeatureGateEnumerationTests` が実際の参照ファイル集合と突き合わせており、
-  使われなくなったエントリも、先回りして足したエントリも落ちる。
-- **`FeatureGateEnumerationTests` が突き合わせるのは allowlist だけではない。**
-  `FeatureGate` 型の doc コメントの `## 節` に列挙した**型名の集合**も、実際に
-  `FeatureGate.` を参照するファイル名と一致していなければ落ちる。ゲートを新設する、
-  または参照を新しいファイルへ移すときは **`.swiftlint.yml` の `excluded` と
-  `FeatureGate.swift` の doc の両方**を更新する。
-  - 特に、ファイルを extension へ分割すると型名が `MainMenuBuilder` →
-    `MainMenuBuilder+ViewMenu` のように変わる。doc 側の露出点の記載も追随させること
-    （実測: TASK-361 で、allowlist だけ・doc だけの更新で 2 回続けて落とした）
