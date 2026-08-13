@@ -112,9 +112,7 @@ enum ViewerWindowAssembler {
             diffDisplayPreference: controller.diffDisplayPreference
         ))
         let splitViewController = ViewerSplitViewController(
-            sidebar: makeFileListView(
-                for: controller, onSelectFile: onSelectFile, onNavigateToFolder: onNavigateToFolder
-            ),
+            sidebar: makeFileListView(for: controller),
             content: content,
             initialCollapsed: controller.initialSidebarCollapsed,
             onCollapsedChange: { [weak controller] collapsed in
@@ -130,29 +128,17 @@ enum ViewerWindowAssembler {
     }
 
     /// サイドバーのファイル一覧ビューを組み立てる。
-    private static func makeFileListView(
-        for controller: ViewerWindowController,
-        onSelectFile: @escaping (URL) -> Void,
-        onNavigateToFolder: @escaping (URL) -> Void
-    ) -> FileListView {
+    ///
+    /// 行操作(選択・移動・別の場所で開く・展開/畳み)は controller が
+    /// `FileListViewDelegate` として直接受けるため、ここでは配線しない。
+    private static func makeFileListView(for controller: ViewerWindowController) -> FileListView {
         FileListView(
             model: controller.fileListModel,
-            onSelect: onSelectFile,
-            onNavigate: onNavigateToFolder,
+            delegate: controller,
             onSortOrderChanged: { [weak controller] order in
                 guard let controller else { return }
                 controller.fileListModel.sortOrder = order
                 controller.sidebar.refreshFileList()
-            },
-            onOpenElsewhere: { [weak controller] url, disposition in
-                guard let controller else { return }
-                controller.openFileElsewhere(url, disposition, controller.window)
-            },
-            onExpandFolder: { [weak controller] entry in
-                controller?.sidebar.expandFolder(entry.pathKey, at: entry.url)
-            },
-            onCollapseFolder: { [weak controller] entry in
-                controller?.sidebar.collapseFolder(entry.pathKey)
             },
             onToggleHiddenFiles: { [weak controller] in
                 guard let controller else { return }

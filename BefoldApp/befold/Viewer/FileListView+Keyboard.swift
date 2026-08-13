@@ -57,10 +57,10 @@ extension FileListView {
     ) -> KeyPress.Result {
         guard let entry = snapshot.entry(for: model.selection) else { return .ignored }
         switch action {
-        case .navigateInto: onNavigate(entry.url)
+        case .navigateInto: delegate?.fileListDidRequestNavigation(to: entry.url)
         case .openFile: openIfFile(entry)
-        case .expand: onExpandFolder?(entry)
-        case .collapse: onCollapseFolder?(entry)
+        case .expand: delegate?.fileListDidRequestExpand(entry)
+        case .collapse: delegate?.fileListDidRequestCollapse(entry)
         default: return .ignored
         }
         return .handled
@@ -107,7 +107,7 @@ extension FileListView {
 
     private func navigateToParent(in snapshot: FileListSnapshot) -> KeyPress.Result {
         if let parent = snapshot.parentNavigationEntry {
-            onNavigate(parent.url)
+            delegate?.fileListDidRequestNavigation(to: parent.url)
             return .handled
         }
         return .ignored

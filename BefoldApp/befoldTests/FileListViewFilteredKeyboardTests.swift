@@ -12,6 +12,9 @@ import Testing
 @Suite
 @MainActor
 struct FileListViewFilteredKeyboardTests {
+    /// スパイの生存を保つ入れ物(`FileListView.delegate` は弱参照)。
+    private let delegates = FileListViewDelegateStore()
+
     private let directory = URL(fileURLWithPath: "/tmp/FileListViewFilteredKeyboardTests")
 
     private func makeEntry(_ name: String) -> FileListEntry {
@@ -29,10 +32,8 @@ struct FileListViewFilteredKeyboardTests {
         model.filterText = "beta*"
         let view = FileListView(
             model: model,
-            onSelect: { _ in },
-            onNavigate: { _ in },
-            onSortOrderChanged: { _ in },
-            onOpenElsewhere: { _, _ in }
+            delegate: delegates.makeSpy(),
+            onSortOrderChanged: { _ in }
         )
         return (view, [beta1, beta2])
     }
@@ -119,10 +120,8 @@ struct FileListViewFilteredKeyboardTests {
         model.layoutMode = .tree
         let view = FileListView(
             model: model,
-            onSelect: { _ in },
-            onNavigate: { _ in },
-            onSortOrderChanged: { _ in },
-            onOpenElsewhere: { _, _ in }
+            delegate: delegates.makeSpy(),
+            onSortOrderChanged: { _ in }
         )
         model.resetSnapshotEvaluationCount()
 
