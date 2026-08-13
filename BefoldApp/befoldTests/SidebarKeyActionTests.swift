@@ -150,6 +150,41 @@ struct SidebarKeyActionTests {
         #expect(SidebarKeyAction.doubleClickAction(target: folder, mode: .tree) == .expand)
     }
 
+    // MARK: - 開閉三角のクリック（TASK-472）
+
+    /// 三角のクリックは ON/OFF の両方向を担う。片方向しか測らないと、
+    /// 「開くが閉じない」形の実装が通ってしまう。
+    @Test("三角のクリックは畳み↔展開をどちらの向きにも切り替える")
+    func disclosureToggleSwitchesBothDirections() {
+        #expect(SidebarKeyAction.disclosureToggleAction(target: folder) == .expand)
+        #expect(SidebarKeyAction.disclosureToggleAction(target: expandedFolder) == .collapse)
+    }
+
+    /// 展開しているかどうかの導出は `Target(entry:)` と同じもの
+    /// (三角クリックとキー操作で判定がずれない)。読み込み中・空・列挙失敗は
+    /// いずれも「展開されている」側なので、クリックすると畳む。
+    @Test("三角のクリックは全ての開閉状態で正しい向きへ倒れる")
+    func disclosureToggleCoversEveryDisclosureState() {
+        let base = FileListEntry(url: URL(fileURLWithPath: "/tmp/a"), kind: .folder)
+        let expandedStates: [SidebarDisclosureState] = [
+            .expanded, .loadingChildren, .expandedEmpty(isFiltered: false),
+            .expandedEmpty(isFiltered: true), .expandedFailed,
+        ]
+        for state in expandedStates {
+            let target = SidebarKeyAction.Target(entry: base.disclosing(state))
+            #expect(SidebarKeyAction.disclosureToggleAction(target: target) == .collapse)
+        }
+        let collapsed = SidebarKeyAction.Target(entry: base.disclosing(.collapsed))
+        #expect(SidebarKeyAction.disclosureToggleAction(target: collapsed) == .expand)
+    }
+
+    /// フォルダ以外に三角は出ないが、呼べてしまう口は残る。
+    @Test("三角のクリックはフォルダ行以外では何も起こさない")
+    func disclosureToggleIgnoresNonFolders() {
+        #expect(SidebarKeyAction.disclosureToggleAction(target: file) == .ignored)
+        #expect(SidebarKeyAction.disclosureToggleAction(target: parent) == .ignored)
+    }
+
     // MARK: - Target の導出
 
     @Test("行の開閉三角から展開状態が導かれる")

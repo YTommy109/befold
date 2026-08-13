@@ -284,4 +284,61 @@ struct FileListViewTests {
         #expect(view.model.selection == folder.id)
         #expect(selected.get() == nil)
     }
+
+    // MARK: - 開閉三角のクリック（TASK-472）
+
+    /// 三角の中心あたりの座標。行の左端(パディングを含む)から測る。
+    private func disclosureCenterX(depth: Int) -> CGFloat {
+        SidebarRowIndent.rowHorizontalPadding
+            + SidebarRowIndent.leadingInset(forDepth: depth)
+            + SidebarRowIndent.disclosureWidth / 2
+    }
+
+    @Test("三角の上のクリックは開閉のトグルになる")
+    func clickOnDisclosureTogglesExpansion() {
+        let base = FileListEntry(url: URL(fileURLWithPath: "/tmp/FileListViewTests/dir"), kind: .folder)
+        let view = makeView(entries: [], selection: nil, onSelect: { _ in })
+
+        let collapsed = base.disclosing(.collapsed)
+        #expect(view.disclosureAction(for: collapsed, atX: disclosureCenterX(depth: 0)) == .expand)
+
+        let expanded = base.disclosing(.expanded)
+        #expect(view.disclosureAction(for: expanded, atX: disclosureCenterX(depth: 0)) == .collapse)
+    }
+
+    /// 三角より右(行の名前の側)は行本体のクリックのまま。ここが nil でないと、
+    /// フォルダ行をどこで押しても開閉してしまい選択できなくなる。
+    @Test("三角より右のクリックは行本体のクリックのまま")
+    func clickOutsideDisclosureIsRowClick() {
+        let entry = FileListEntry(url: URL(fileURLWithPath: "/tmp/FileListViewTests/dir"), kind: .folder)
+            .disclosing(.collapsed)
+        let view = makeView(entries: [], selection: nil, onSelect: { _ in })
+
+        #expect(view.disclosureAction(for: entry, atX: disclosureCenterX(depth: 0) + 40) == nil)
+    }
+
+    /// ドリルダウン表示とプレビュー内のフォルダー一覧には三角が無く、同じ位置は
+    /// 行本体の一部でしかない。座標だけで決めると、ここで誤って開閉が走る。
+    @Test("三角の無い行では、三角の位置をクリックしても開閉しない")
+    func clickAtDisclosurePositionDoesNothingWithoutDisclosure() {
+        let folder = FileListEntry(url: URL(fileURLWithPath: "/tmp/FileListViewTests/dir"), kind: .folder)
+        let file = FileListEntry(url: URL(fileURLWithPath: "/tmp/FileListViewTests/a.mmd"), kind: .file)
+        let view = makeView(entries: [], selection: nil, onSelect: { _ in })
+
+        #expect(view.disclosureAction(for: folder, atX: disclosureCenterX(depth: 0)) == nil)
+        #expect(view.disclosureAction(for: file, atX: disclosureCenterX(depth: 0)) == nil)
+    }
+
+    /// 深い行の三角はインデントぶん右にある。行の depth を見ずに固定位置で
+    /// 判定していると、深い行では名前の上を押して開閉が走る。
+    @Test("深い行では三角の位置が depth に追随する")
+    func disclosureHitAreaFollowsDepth() {
+        let entry = FileListEntry(url: URL(fileURLWithPath: "/tmp/FileListViewTests/dir"), kind: .folder)
+            .disclosing(.collapsed)
+            .indented(to: 2)
+        let view = makeView(entries: [], selection: nil, onSelect: { _ in })
+
+        #expect(view.disclosureAction(for: entry, atX: disclosureCenterX(depth: 2)) == .expand)
+        #expect(view.disclosureAction(for: entry, atX: disclosureCenterX(depth: 0)) == nil)
+    }
 }

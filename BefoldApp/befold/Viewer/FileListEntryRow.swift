@@ -38,40 +38,40 @@ struct FileListEntryRow: View {
     /// ツリー表示のフォルダ行の開閉三角。`entry.disclosure` が nil のとき
     /// (ドリルダウン表示・プレビュー内のフォルダー一覧・ファイル行)は何も出さないので、
     /// 従来の見た目がそのまま保たれる。
+    ///
+    /// **幅を与えるのはこの 1 箇所**にまとめる。状態ごとに `.frame(width:)` を書くと、
+    /// どれか 1 つを変えたときにクリック領域
+    /// (`SidebarRowIndent.isWithinDisclosure(offsetX:depth:)`)とずれる。
     @ViewBuilder
     private var disclosureIndicator: some View {
+        if entry.disclosure != nil {
+            disclosureSymbol
+                .font(.caption2)
+                .frame(width: SidebarRowIndent.disclosureWidth)
+        }
+    }
+
+    @ViewBuilder
+    private var disclosureSymbol: some View {
         switch entry.disclosure {
         case .none:
             EmptyView()
         case .collapsed:
-            Image(systemName: "chevron.right")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(width: 12)
+            Image(systemName: "chevron.right").foregroundStyle(.secondary)
         case .loadingChildren:
             // 「展開したが子がまだ届いていない」。空のフォルダ(下向きの三角)と
             // 見た目で区別できるようにする。
-            ProgressView()
-                .controlSize(.mini)
-                .frame(width: 12)
+            ProgressView().controlSize(.mini)
         case .expanded:
-            Image(systemName: "chevron.down")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(width: 12)
+            Image(systemName: "chevron.down").foregroundStyle(.secondary)
         case .expandedEmpty:
             // 開いたが見えるものが無い。三角は下向きのまま薄くする。
-            Image(systemName: "chevron.down")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .frame(width: 12)
+            Image(systemName: "chevron.down").foregroundStyle(.tertiary)
         case .expandedFailed:
             // 列挙に失敗した。空のフォルダ(薄い下向き三角)と取り違えられないよう、
             // 三角ではなく警告の記号を出す。理由は help に出す。
             Image(systemName: "exclamationmark.triangle")
-                .font(.caption2)
                 .foregroundStyle(.secondary)
-                .frame(width: 12)
                 .help(String(localized: "folder.enumerationFailed", bundle: .l10n))
         }
     }
