@@ -91,6 +91,18 @@ enum SidebarKeyAction: Equatable {
         return target.isExpanded ? .collapse : .expand
     }
 
+    /// 開閉三角のクリックが起こす動作。
+    ///
+    /// 三角が出るのはツリー表示のフォルダ行だけなので表示モードは受け取らない
+    /// (`entry.disclosure` が nil でない = ツリー表示のフォルダ行、という関係を
+    /// `SidebarRowBuilder` が保証している)。展開しているかどうかの導出は
+    /// `Target(entry:)` のものをそのまま使い、**ここで switch を書き直さない**。
+    /// 書き直すと、状態が増えたときにキー操作と三角クリックで判定がずれる。
+    static func disclosureToggleAction(target: Target) -> SidebarKeyAction {
+        guard target.kind == .folder else { return .ignored }
+        return target.isExpanded ? .collapse : .expand
+    }
+
     private static func forward(target: Target?, mode: SidebarLayoutMode) -> SidebarKeyAction {
         guard let target else { return .ignored }
         switch target.kind {

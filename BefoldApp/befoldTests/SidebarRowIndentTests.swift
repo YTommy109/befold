@@ -24,4 +24,37 @@ struct SidebarRowIndentTests {
     func negativeDepthClampsToZero() {
         #expect(SidebarRowIndent.leadingInset(forDepth: -1) == 0)
     }
+
+    /// 開閉三角のクリック領域(TASK-472)。表示側の `.frame(width:)` と同じ定数から
+    /// 組み立てているので、片方だけ変えれば必ずここが落ちる。
+    @Test("三角の領域は行のパディング直後から三角の幅ぶん")
+    func disclosureRegionStartsAfterRowPadding() {
+        let padding = SidebarRowIndent.rowHorizontalPadding
+        #expect(!SidebarRowIndent.isWithinDisclosure(offsetX: padding - 1, depth: 0))
+        #expect(SidebarRowIndent.isWithinDisclosure(offsetX: padding, depth: 0))
+        #expect(
+            SidebarRowIndent.isWithinDisclosure(
+                offsetX: padding + SidebarRowIndent.disclosureWidth - 1, depth: 0
+            )
+        )
+        #expect(
+            !SidebarRowIndent.isWithinDisclosure(
+                offsetX: padding + SidebarRowIndent.disclosureWidth, depth: 0
+            )
+        )
+    }
+
+    /// 深い行では三角も同じだけ右へ寄る。インデント部分(三角より左)は含めない
+    /// ——含めると誤って開閉する領域が深い行ほど広がる。
+    @Test("深い行では三角の領域がインデントぶん右へずれる")
+    func disclosureRegionShiftsWithDepth() {
+        let padding = SidebarRowIndent.rowHorizontalPadding
+        for depth in 1 ... 2 {
+            let start = padding + SidebarRowIndent.leadingInset(forDepth: depth)
+            // 同じ座標が depth 0 では三角、この行ではインデントの上。
+            #expect(!SidebarRowIndent.isWithinDisclosure(offsetX: padding, depth: depth))
+            #expect(SidebarRowIndent.isWithinDisclosure(offsetX: start, depth: depth))
+            #expect(!SidebarRowIndent.isWithinDisclosure(offsetX: start - 1, depth: depth))
+        }
+    }
 }
