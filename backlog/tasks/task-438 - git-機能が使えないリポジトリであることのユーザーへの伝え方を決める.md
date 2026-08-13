@@ -11,7 +11,7 @@ dependencies:
   - TASK-435.1
 priority: medium
 type: task
-ordinal: 671000
+ordinal: 101000
 ---
 
 ## Description
