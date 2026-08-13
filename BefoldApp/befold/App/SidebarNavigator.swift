@@ -30,28 +30,9 @@ final class SidebarNavigator {
     let fileListModel: FileListModel
     /// 戻る/進む履歴の記録と適用。`tree` などと同じく注入引数にせず内部で生成する。
     private let historyController: SidebarHistoryController
-    /// ディレクトリごとの「そこを離れる直前に選択していた項目」(正規化キー → URL)。
-    /// 再びそのフォルダーへ入ったときの選択復元だけに使う(TASK-309)。メモリ内のみで、
-    /// ウィンドウの生存期間で自然に消える。
-    ///
-    /// **触れるのは直下の 2 つのヘルパーだけ**で、それを `private` で強制している
-    /// (以前は別ファイルの extension に置いていたため internal にせざるを得なかった)。
-    private var selectionMemory: [String: URL] = [:]
-
-    /// 現在の選択を、そのディレクトリを離れる直前の選択として覚える。
-    /// 選択が無いときは記憶を消し、次回の再訪で既定の挙動へ戻す。
-    /// 呼ぶのは navigateToFolder だけ(SidebarNavigator+FolderNavigation.swift)。
-    func rememberSelection(in directory: URL) {
-        selectionMemory[directory.normalizedPathKey] = fileListModel.selection
-    }
-
-    /// `directory` で覚えている選択のうち、いま見えている一覧に残っているものを返す。
-    /// 削除・リネーム・絞り込みで見えない場合は nil を返し、既定挙動へ委ねる。
-    func rememberedSelectionURL(in directory: URL) -> URL? {
-        guard let remembered = selectionMemory[directory.normalizedPathKey] else { return nil }
-        let key = remembered.normalizedPathKey
-        return fileListModel.visibleEntries.first { $0.kind != .parentNavigation && $0.pathKey == key }?.url
-    }
+    // ディレクトリごとの「そこを離れる直前に選択していた項目」の記憶(TASK-309)。
+    // 触るのはフォルダー移動(SidebarNavigator+FolderNavigation.swift)だけなので
+    // `private` にはできない(Swift の `private` はファイルスコープ)。
 
     /// サイドバーの行の組み立てと `fileListModel.entries` への反映(ツリー展開を含む)。
     ///
@@ -64,6 +45,7 @@ final class SidebarNavigator {
     /// (以前 ViewerWindowManager が `expansion.invalidateAll()` を直接叩いて実際に破れていた)。
     /// 外部へは下の薄い委譲(expandFolder / collapseFolder / discardExpansion /
     /// applyRows)だけを見せる。
+    let selectionMemory: SidebarSelectionMemory
     private let tree: SidebarTreePresenter
     /// 一覧取得の発行と世代管理、および表示設定ミラーの同期(列挙の入力なので同居)。
     private let listing: SidebarListingCoordinator
@@ -107,6 +89,7 @@ final class SidebarNavigator {
         self.fileListModel = fileListModel
         // 協力型は**ここでしか生成しない**(注入引数にすると渡し忘れが静かに
         // 別インスタンスになる / TASK-319 と同型)。クロージャは素通しする。
+        selectionMemory = SidebarSelectionMemory(fileListModel: fileListModel)
         tree = SidebarTreePresenter(fileListModel: fileListModel, childrenLister: childrenLister)
         baseDirectory = SidebarBaseDirectoryResolver(
             fileListModel: fileListModel, git: git
