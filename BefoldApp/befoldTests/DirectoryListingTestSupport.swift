@@ -32,19 +32,19 @@ extension SharedFolderListing {
 
 extension DirectoryListing: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: FileListEntry...) {
-        self.init(parentEntry: nil, rootChildren: elements, didFailEnumeration: false)
+        self.init(rootChildren: elements, didFailEnumeration: false)
     }
 }
 
 extension DirectoryListing {
     /// 読めた結果としての材料。ルート直下の行だけを持たせる(親移動行は無し)。
     init(rows: [FileListEntry]) {
-        self.init(parentEntry: nil, rootChildren: rows, didFailEnumeration: false)
+        self.init(rootChildren: rows, didFailEnumeration: false)
     }
 
     /// 読めなかった材料。
     static func failed(rows: [FileListEntry] = []) -> DirectoryListing {
-        DirectoryListing(parentEntry: nil, rootChildren: rows, didFailEnumeration: true)
+        DirectoryListing(rootChildren: rows, didFailEnumeration: true)
     }
 }
 
@@ -52,11 +52,8 @@ extension DirectoryLister {
     /// テスト用: 行だけを見る呼び出しの入口。列挙の成否まで見るテストは
     /// `listing` をそのまま呼び、`didFailEnumeration` を確かめること。
     static func listEntryRows(
-        in directory: URL, sortOrder: befold.SortOrder, showHiddenFiles: Bool = false,
-        home: URL = defaultHome
+        in directory: URL, sortOrder: befold.SortOrder, showHiddenFiles: Bool = false
     ) -> [FileListEntry] {
-        listing(
-            in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles, home: home
-        ).rows()
+        listing(in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles).rows()
     }
 }

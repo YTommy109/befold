@@ -60,17 +60,8 @@ struct SidebarPostSwitchSyncTests {
             fixture.sub.normalizedPathKey: [FileListEntry(url: fixture.child, kind: .file)],
             fixture.outside.normalizedPathKey: [FileListEntry(url: fixture.outsideFile, kind: .file)],
         ]
-        let parents = [
-            fixture.sub.normalizedPathKey: fixture.base,
-            fixture.outside.normalizedPathKey: fixture.base,
-        ]
         let listing = { (url: URL) -> DirectoryListing in
-            DirectoryListing(
-                parentEntry: parents[url.normalizedPathKey].map {
-                    FileListEntry(url: $0, kind: .parentNavigation)
-                },
-                rootChildren: listings[url.normalizedPathKey] ?? []
-            )
+            DirectoryListing(rootChildren: listings[url.normalizedPathKey] ?? [])
         }
         let preference = SidebarDisplayPreference(
             defaults: makeIsolatedDefaults(prefix: "SidebarPostSwitchSyncTests"),

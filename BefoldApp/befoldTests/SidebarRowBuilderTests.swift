@@ -18,28 +18,16 @@ struct SidebarRowBuilderTests {
         FileListEntry(url: URL(fileURLWithPath: path), kind: .file)
     }
 
-    @Test("展開集合が空なら、親移動行 + ルート直下の行がそのまま並び全て depth 0")
+    @Test("展開集合が空なら、ルート直下の行がそのまま並び全て depth 0")
     func emptyExpansionDegeneratesToDrillDown() {
-        let parent = FileListEntry(url: URL(fileURLWithPath: "/root"), kind: .parentNavigation)
         let children = [folder("/root/dir/a"), file("/root/dir/b.md")]
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: parent, rootChildren: children, expanded: [], childrenByPathKey: [:]
+            rootChildren: children, expanded: [], childrenByPathKey: [:]
         )
 
-        #expect(rows.map(\.url) == [parent.url, children[0].url, children[1].url])
+        #expect(rows.map(\.url) == [children[0].url, children[1].url])
         #expect(rows.allSatisfy { $0.depth == 0 })
-    }
-
-    @Test("親移動行が無ければ、ルート直下の行だけが並ぶ")
-    func omitsParentNavigationWhenAbsent() {
-        let children = [file("/root/dir/a.md")]
-
-        let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: children, expanded: [], childrenByPathKey: [:]
-        )
-
-        #expect(rows.map(\.url) == [children[0].url])
     }
 
     /// 列挙に失敗したフォルダは、行を増やさないまま `.expandedFailed` になる。
@@ -50,8 +38,11 @@ struct SidebarRowBuilderTests {
         let target = folder("/root/dir/a")
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [target], expanded: [], childrenByPathKey: [:],
-            failed: [target.pathKey], showsDisclosure: true
+            rootChildren: [target],
+            expanded: [],
+            childrenByPathKey: [:],
+            failed: [target.pathKey],
+            showsDisclosure: true
         )
 
         #expect(rows.map(\.url) == [target.url])
@@ -65,8 +56,11 @@ struct SidebarRowBuilderTests {
         let other = folder("/root/dir/b")
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [target, other], expanded: [], childrenByPathKey: [:],
-            failed: [target.pathKey], showsDisclosure: true
+            rootChildren: [target, other],
+            expanded: [],
+            childrenByPathKey: [:],
+            failed: [target.pathKey],
+            showsDisclosure: true
         )
 
         #expect(rows.last?.disclosure == .collapsed)
@@ -79,7 +73,8 @@ struct SidebarRowBuilderTests {
         let grandChild = file("/root/dir/x.md")
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dir, tail], expanded: [dir.pathKey],
+            rootChildren: [dir, tail],
+            expanded: [dir.pathKey],
             childrenByPathKey: [dir.pathKey: [grandChild]]
         )
 
@@ -94,7 +89,8 @@ struct SidebarRowBuilderTests {
         let leaf = file("/root/a/b/c.md")
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [outer], expanded: [outer.pathKey, inner.pathKey],
+            rootChildren: [outer],
+            expanded: [outer.pathKey, inner.pathKey],
             childrenByPathKey: [outer.pathKey: [inner], inner.pathKey: [leaf]]
         )
 
@@ -108,7 +104,8 @@ struct SidebarRowBuilderTests {
         let absent = folder("/root/absent")
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dir], expanded: [absent.pathKey],
+            rootChildren: [dir],
+            expanded: [absent.pathKey],
             childrenByPathKey: [absent.pathKey: [file("/root/absent/x.md")]]
         )
 
@@ -120,7 +117,9 @@ struct SidebarRowBuilderTests {
         let dir = folder("/root/dir")
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dir], expanded: [dir.pathKey], childrenByPathKey: [:]
+            rootChildren: [dir],
+            expanded: [dir.pathKey],
+            childrenByPathKey: [:]
         )
 
         #expect(rows.map(\.url) == [dir.url])
@@ -133,7 +132,8 @@ struct SidebarRowBuilderTests {
         let dirB = folder("/root/a/b")
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dirA], expanded: [dirA.pathKey, dirB.pathKey],
+            rootChildren: [dirA],
+            expanded: [dirA.pathKey, dirB.pathKey],
             childrenByPathKey: [dirA.pathKey: [dirB], dirB.pathKey: [dirA]]
         )
 
@@ -161,7 +161,7 @@ struct SidebarRowBuilderTests {
         #expect(linkEntry.pathKey == realEntry.pathKey)
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [linkEntry, realEntry],
+            rootChildren: [linkEntry, realEntry],
             expanded: [realEntry.pathKey],
             childrenByPathKey: [realEntry.pathKey: [child]],
             showsDisclosure: true
@@ -191,9 +191,11 @@ struct SidebarRowBuilderTests {
         let realEntry = folderEntry(at: real)
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [linkEntry, realEntry],
-            expanded: [], childrenByPathKey: [:],
-            loading: [realEntry.pathKey], showsDisclosure: true
+            rootChildren: [linkEntry, realEntry],
+            expanded: [],
+            childrenByPathKey: [:],
+            loading: [realEntry.pathKey],
+            showsDisclosure: true
         )
 
         #expect(rows.map(\.disclosure) == [.loadingChildren, nil])

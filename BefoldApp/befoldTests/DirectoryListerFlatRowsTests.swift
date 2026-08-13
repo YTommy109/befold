@@ -26,42 +26,26 @@ struct DirectoryListerFlatRowsTests {
         return (tmp, dir)
     }
 
-    @Test("foldersFirst: 親移動行が先頭 1 件、以降はフォルダ→ファイルの順で全行 depth 0")
+    @Test("foldersFirst: フォルダ→ファイルの順で全行 depth 0")
     func foldersFirstKeepsOrderAndZeroDepth() throws {
         let (tmp, dir) = try makeFixture()
         defer { withExtendedLifetime(tmp) {} }
 
-        let entries = DirectoryLister.listing(in: dir, sortOrder: .foldersFirst, home: tmp.url).rows()
+        let entries = DirectoryLister.listing(in: dir, sortOrder: .foldersFirst).rows()
 
-        #expect(entries.map(\.kind) == [.parentNavigation, .folder, .file, .file])
-        #expect(entries.first?.url.lastPathComponent == tmp.url.lastPathComponent)
-        #expect(entries.dropFirst().map(\.url.lastPathComponent) == ["mid", "alpha.mmd", "zeta.mmd"])
+        #expect(entries.map(\.kind) == [.folder, .file, .file])
+        #expect(entries.map(\.url.lastPathComponent) == ["mid", "alpha.mmd", "zeta.mmd"])
         #expect(entries.allSatisfy { $0.depth == 0 })
     }
 
-    /// `..` は上位フォルダーへの移動手段であって一覧の項目ではないため、名前順の
-    /// マージへ混ぜてはならない。混ざると `alpha.mmd` より後ろへ落ちる。
-    @Test("alphabetical: 親移動行はソートに混ざらず先頭に残り、以降だけが名前順になる")
-    func alphabeticalKeepsParentNavigationFirst() throws {
+    @Test("alphabetical: フォルダとファイルが名前順で混在し全行 depth 0")
+    func alphabeticalMergesByName() throws {
         let (tmp, dir) = try makeFixture()
         defer { withExtendedLifetime(tmp) {} }
 
-        let entries = DirectoryLister.listing(in: dir, sortOrder: .alphabetical, home: tmp.url).rows()
+        let entries = DirectoryLister.listing(in: dir, sortOrder: .alphabetical).rows()
 
-        #expect(entries.first?.kind == .parentNavigation)
-        #expect(entries.first?.url.lastPathComponent == tmp.url.lastPathComponent)
-        #expect(entries.dropFirst().map(\.url.lastPathComponent) == ["alpha.mmd", "mid", "zeta.mmd"])
-        #expect(entries.allSatisfy { $0.depth == 0 })
-    }
-
-    @Test("ホームの外へは親移動行を出さない(従来どおり)")
-    func omitsParentNavigationOutsideHome() throws {
-        let (tmp, dir) = try makeFixture()
-        defer { withExtendedLifetime(tmp) {} }
-
-        let entries = DirectoryLister.listing(in: dir, sortOrder: .foldersFirst, home: dir).rows()
-
-        #expect(!entries.contains { $0.kind == .parentNavigation })
+        #expect(entries.map(\.url.lastPathComponent) == ["alpha.mmd", "mid", "zeta.mmd"])
         #expect(entries.allSatisfy { $0.depth == 0 })
     }
 }

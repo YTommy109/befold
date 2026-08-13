@@ -3,23 +3,21 @@ import Foundation
 /// ディレクトリ 1 回の列挙結果。**行に畳む前の材料**であって、行配列ではない。
 ///
 /// 列挙結果を畳んだ配列として返すと、そこへ展開を足す側が
-/// `kind == .parentNavigation` や `depth == 0` で分解し直して材料へ戻す往復が要る。
+/// `depth == 0` で分解し直して材料へ戻す往復が要る。
 /// 実際にそうなっていて、1 回の列挙で行の組み立てが 2 回走っていた(TASK-442.1)。
 /// 材料のまま持ち回れば、畳むのは 1 回で済み、分解する経路がそもそも作れない。
 struct DirectoryListing: Sendable, Equatable {
-    /// 親移動行(`..`)。ホームの外なら nil。畳むと常に depth 0 の先頭に来る。
-    var parentEntry: FileListEntry?
     /// ルート直下の行(親移動行を含まない)。並びは `DirectoryLister.childEntries` が確定させる。
     var rootChildren: [FileListEntry]
     /// 列挙に失敗したか。true のとき `rootChildren` は「そのフォルダの中身」ではない。
     ///
-    /// **行の有無で失敗を判定してはならない**(TASK-410)。失敗しても親移動行と
+    /// **行の有無で失敗を判定してはならない**(TASK-410)。失敗しても
     /// 「いま開いている文書」の行は出す必要があり、`rootChildren` が空でないことは
     /// 列挙が成功したことを意味しない。逆に空でも「読めて、中身が空だった」場合がある。
     /// 材料を加工する `appendingOpenFile` はこの事実を書き写して運ぶ。
     var didFailEnumeration: Bool = false
 
-    static let empty = DirectoryListing(parentEntry: nil, rootChildren: [])
+    static let empty = DirectoryListing(rootChildren: [])
 
     /// 材料を行の配列へ畳む。
     ///
@@ -33,7 +31,6 @@ struct DirectoryListing: Sendable, Equatable {
         material: SidebarRowBuilder.Material = .init(), showsDisclosure: Bool = false
     ) -> [FileListEntry] {
         SidebarRowBuilder.rows(
-            parentEntry: parentEntry,
             rootChildren: rootChildren,
             expanded: material.expanded,
             childrenByPathKey: material.childrenByPathKey,
@@ -53,7 +50,6 @@ struct DirectoryListing: Sendable, Equatable {
     /// 「読めた」ことにはならない(TASK-410)。
     func appendingOpenFile(_ openFile: URL?, in directory: URL) -> DirectoryListing {
         DirectoryListing(
-            parentEntry: parentEntry,
             rootChildren: DirectoryLister.appendingOpenFile(
                 openFile, to: rootChildren, in: directory
             ),

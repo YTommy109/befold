@@ -52,7 +52,6 @@ enum SidebarRowBuilder {
     }
 
     /// - Parameters:
-    ///   - parentEntry: 親移動行(`..`)。無ければ nil。常に depth 0 の先頭に置く。
     ///   - rootChildren: ルート直下の行。並びは呼び出し元(DirectoryLister)が確定させる。
     ///   - expanded: 展開済みフォルダの正規化パスキー(`FileListEntry.pathKey`)の集合。
     ///     空ならドリルダウンと同じ出力になる。
@@ -68,7 +67,6 @@ enum SidebarRowBuilder {
     ///   - showsDisclosure: 開閉三角を出すか。ドリルダウン表示では false にして、
     ///     フォルダ行の見た目を従来のまま(`disclosure` が nil)にする。
     static func rows(
-        parentEntry: FileListEntry?,
         rootChildren: [FileListEntry],
         expanded: Set<String>,
         childrenByPathKey: [String: [FileListEntry]],
@@ -80,9 +78,6 @@ enum SidebarRowBuilder {
             expanded: expanded, childrenByPathKey: childrenByPathKey,
             loading: loading, failed: failed, showsDisclosure: showsDisclosure
         )
-        if let parentEntry {
-            flattening.rows.append(parentEntry.indented(to: 0))
-        }
         flattening.append(rootChildren, depth: 0)
         return flattening.rows
     }

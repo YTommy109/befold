@@ -24,15 +24,10 @@ struct SidebarNavigatorHistoryTests {
         currentDirectory: URL,
         selection: URL?,
         currentFile: URL,
-        listings: [String: [FileListEntry]],
-        parents: [String: URL] = [:]
+        listings: [String: [FileListEntry]]
     ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
         let listing = { (url: URL) -> DirectoryListing in
-            let key = url.normalizedPathKey
-            return DirectoryListing(
-                parentEntry: parents[key].map { FileListEntry(url: $0, kind: .parentNavigation) },
-                rootChildren: listings[key] ?? []
-            )
+            DirectoryListing(rootChildren: listings[url.normalizedPathKey] ?? [])
         }
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
@@ -86,8 +81,7 @@ struct SidebarNavigatorHistoryTests {
             currentDirectory: fixture.tmp,
             selection: fixture.sub,
             currentFile: fixture.sibling,
-            listings: listings(fixture),
-            parents: [fixture.sub.normalizedPathKey: fixture.tmp]
+            listings: listings(fixture)
         )
         defer { withExtendedLifetime(host) {} }
         // 「tmp でフォルダー sub を選んで一覧を出している」状態を履歴へ積む。
@@ -118,8 +112,7 @@ struct SidebarNavigatorHistoryTests {
             currentDirectory: fixture.sub,
             selection: fixture.child,
             currentFile: fixture.child,
-            listings: listings(fixture),
-            parents: [fixture.sub.normalizedPathKey: fixture.tmp]
+            listings: listings(fixture)
         )
         defer { withExtendedLifetime(host) {} }
         // 1) sub で child.mmd を提示している状態を積む。
@@ -151,8 +144,7 @@ struct SidebarNavigatorHistoryTests {
             currentDirectory: fixture.tmp,
             selection: fixture.sibling,
             currentFile: fixture.sibling,
-            listings: listings,
-            parents: [fixture.sub.normalizedPathKey: fixture.tmp]
+            listings: listings
         )
         defer { withExtendedLifetime(host) {} }
         navigator.recordHistory()

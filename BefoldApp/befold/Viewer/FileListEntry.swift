@@ -8,7 +8,6 @@ enum SortOrder: Sendable {
 
 struct FileListEntry: Identifiable, Hashable, Sendable {
     enum Kind: Sendable, Hashable {
-        case parentNavigation
         case folder
         case file
     }
@@ -27,7 +26,7 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
     /// stat を MainActor 上で行わずに済むようにする。
     let pathKey: String
 
-    /// ルート(列挙の起点ディレクトリ)からの相対深さ。ルート直下 = 0、`.parentNavigation` も 0。
+    /// ルート(列挙の起点ディレクトリ)からの相対深さ。ルート直下 = 0。
     /// 行の左インデント量だけがこの値を読む(SidebarRowIndent.leadingInset(forDepth:))。
     ///
     /// **init の引数にしていない**のが要点。デフォルト引数にすると渡し忘れが

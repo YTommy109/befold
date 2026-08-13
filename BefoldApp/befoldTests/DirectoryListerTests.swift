@@ -101,9 +101,7 @@ struct DirectoryListerTests {
 
         let entries = DirectoryLister.listing(in: tmp.url, sortOrder: .foldersFirst).rows()
 
-        let kinds = entries.map(\.kind)
         let names = entries.map(\.url.lastPathComponent)
-        #expect(kinds.first == .parentNavigation)
         #expect(names.contains("subdir"))
         #expect(names.contains("diagram.mmd"))
         #expect(names.contains("unknown.xyz"))
@@ -120,12 +118,11 @@ struct DirectoryListerTests {
         _ = try tmp.file(named: "alpha.mmd", contents: "")
 
         let entries = DirectoryLister.listing(in: tmp.url, sortOrder: .foldersFirst).rows()
-        let nonParent = entries.filter { $0.kind != .parentNavigation }
 
-        #expect(nonParent[0].kind == .folder)
-        #expect(nonParent[0].url.lastPathComponent == "zebra")
-        #expect(nonParent[1].kind == .file)
-        #expect(nonParent[1].url.lastPathComponent == "alpha.mmd")
+        #expect(entries[0].kind == .folder)
+        #expect(entries[0].url.lastPathComponent == "zebra")
+        #expect(entries[1].kind == .file)
+        #expect(entries[1].url.lastPathComponent == "alpha.mmd")
     }
 
     @Test("alphabetical ソートではフォルダーとファイルが名前順で混在する")
@@ -139,10 +136,9 @@ struct DirectoryListerTests {
         _ = try tmp.file(named: "alpha.mmd", contents: "")
 
         let entries = DirectoryLister.listing(in: tmp.url, sortOrder: .alphabetical).rows()
-        let nonParent = entries.filter { $0.kind != .parentNavigation }
 
-        #expect(nonParent[0].url.lastPathComponent == "alpha.mmd")
-        #expect(nonParent[1].url.lastPathComponent == "beta")
+        #expect(entries[0].url.lastPathComponent == "alpha.mmd")
+        #expect(entries[1].url.lastPathComponent == "beta")
     }
 
     @Test("listEntries は showHiddenFiles が true のとき不可視ファイル・フォルダーも含める")
@@ -176,47 +172,6 @@ struct DirectoryListerTests {
         let names = entries.map(\.url.lastPathComponent)
         #expect(!names.contains(".hidden.mmd"))
         #expect(names.contains("visible.mmd"))
-    }
-
-    @Test("ホームディレクトリでは parentNavigation が含まれない")
-    func listEntriesNoParentAtHome() throws {
-        let home = try TempDir()
-        defer { withExtendedLifetime(home) {} }
-
-        let entries = DirectoryLister.listing(
-            in: home.url, sortOrder: .foldersFirst, home: home.url
-        ).rows()
-
-        #expect(!entries.contains { $0.kind == .parentNavigation })
-    }
-
-    @Test("ホームディレクトリ配下では parentNavigation が先頭に含まれる")
-    func listEntriesHasParentBelowHome() throws {
-        let home = try TempDir()
-        defer { withExtendedLifetime(home) {} }
-        let tmp = try TempDir(base: home.url)
-        defer { withExtendedLifetime(tmp) {} }
-
-        let entries = DirectoryLister.listing(
-            in: tmp.url, sortOrder: .foldersFirst, home: home.url
-        ).rows()
-
-        #expect(entries.first?.kind == .parentNavigation)
-        #expect(entries.first?.url == tmp.url.deletingLastPathComponent())
-    }
-
-    @Test("ホームディレクトリ外では parentNavigation が含まれない")
-    func listEntriesNoParentOutsideHome() throws {
-        let home = try TempDir()
-        defer { withExtendedLifetime(home) {} }
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-
-        let entries = DirectoryLister.listing(
-            in: tmp.url, sortOrder: .foldersFirst, home: home.url
-        ).rows()
-
-        #expect(!entries.contains { $0.kind == .parentNavigation })
     }
 
     @Test("listingAsync は listing と同じ結果を返す")

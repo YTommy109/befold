@@ -13,7 +13,7 @@ import Testing
 /// 親移動行を持たない、ファイルだけの列挙結果。directoryLister スタブの戻り値を
 /// 1 行に収めるためのヘルパー(展開もソートもこのテストの関心ではない)。
 private func fileListing(_ urls: URL...) -> DirectoryListing {
-    DirectoryListing(parentEntry: nil, rootChildren: urls.map { FileListEntry(url: $0, kind: .file) })
+    DirectoryListing(rootChildren: urls.map { FileListEntry(url: $0, kind: .file) })
 }
 
 @Suite

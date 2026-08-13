@@ -14,7 +14,10 @@ struct SidebarParentRowSelectionTests {
     /// スパイの生存を保つ入れ物(`FileListView.delegate` は弱参照)。
     private let delegates = FileListViewDelegateStore()
 
-    private let root = URL(fileURLWithPath: "/tmp/SidebarParentRowSelectionTests")
+    /// ホーム配下に置く。⌘↑ / delete の行き先は `SidebarPathMenu` が実ユーザーの
+    /// ホームを上限に決めるため、ホーム外のパスだと移動そのものが起きない(TASK-475)。
+    private let root = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("SidebarParentRowSelectionTests")
 
     private func entry(_ path: String, kind: FileListEntry.Kind) -> FileListEntry {
         FileListEntry(url: root.appendingPathComponent(path), kind: kind)
@@ -24,9 +27,8 @@ struct SidebarParentRowSelectionTests {
         FileListModel(currentDirectory: root, entries: entries, selection: selection)
     }
 
-    /// `[.., src, src/note.md, src/lib, src/lib/deep.md, top.md]` の並び。
+    /// `[src, src/note.md, src/lib, src/lib/deep.md, top.md]` の並び。
     private struct TreeFixture {
-        let parent: FileListEntry
         let src: FileListEntry
         let note: FileListEntry
         let lib: FileListEntry
@@ -36,21 +38,18 @@ struct SidebarParentRowSelectionTests {
     }
 
     private func makeTreeFixture() -> TreeFixture {
-        let parent = FileListEntry(url: root.deletingLastPathComponent(), kind: .parentNavigation)
         let src = entry("src", kind: .folder)
         let note = entry("src/note.md", kind: .file)
         let lib = entry("src/lib", kind: .folder)
         let deep = entry("src/lib/deep.md", kind: .file)
         let top = entry("top.md", kind: .file)
         let rows = SidebarRowBuilder.rows(
-            parentEntry: parent, rootChildren: [src, top],
+            rootChildren: [src, top],
             expanded: [src.pathKey, lib.pathKey],
             childrenByPathKey: [src.pathKey: [note, lib], lib.pathKey: [deep]],
             showsDisclosure: true
         )
-        return TreeFixture(
-            parent: parent, src: src, note: note, lib: lib, deep: deep, top: top, rows: rows
-        )
+        return TreeFixture(src: src, note: note, lib: lib, deep: deep, top: top, rows: rows)
     }
 
     // MARK: - 親行の決め方
@@ -74,7 +73,6 @@ struct SidebarParentRowSelectionTests {
 
         #expect(model.listSnapshot.parent(of: fixture.src.id) == nil)
         #expect(model.listSnapshot.parent(of: fixture.top.id) == nil)
-        #expect(model.listSnapshot.parent(of: fixture.parent.id) == nil)
     }
 
     @Test("一覧に無い行を渡したら親行は無い")
@@ -93,9 +91,9 @@ struct SidebarParentRowSelectionTests {
         let model = makeModel(entries: fixture.rows, selection: nil)
         model.filterText = "deep*"
 
-        // 先頭は `..`(上位フォルダー行)。フィルタ文字列によらず常に残る。
-        #expect(model.visibleEntries.map(\.kind) == [.parentNavigation, .folder, .folder, .file])
-        #expect(model.visibleEntries.map(\.depth) == [0, 0, 1, 2])
+        // 一致した deep.md と、その祖先として足し戻された src / lib が残る。
+        #expect(model.visibleEntries.map(\.kind) == [.folder, .folder, .file])
+        #expect(model.visibleEntries.map(\.depth) == [0, 1, 2])
         #expect(model.listSnapshot.parent(of: fixture.deep.id)?.id == fixture.lib.id)
     }
 
@@ -167,7 +165,7 @@ struct SidebarParentRowSelectionTests {
 
             #expect(view.handleKey(key, modifiers: modifiers) == .handled)
 
-            #expect(navigated == [fixture.parent.url])
+            #expect(navigated == [root.deletingLastPathComponent()])
         }
     }
 
@@ -182,6 +180,6 @@ struct SidebarParentRowSelectionTests {
 
         #expect(view.handleKey(.leftArrow) == .handled)
 
-        #expect(navigated == [fixture.parent.url])
+        #expect(navigated == [root.deletingLastPathComponent()])
     }
 }

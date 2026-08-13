@@ -20,6 +20,7 @@ struct FileListView: View {
         VStack(spacing: 0) {
             SidebarHeaderView(
                 model: model,
+                delegate: delegate,
                 onSortOrderChanged: onSortOrderChanged,
                 onToggleHiddenFiles: onToggleHiddenFiles,
                 onToggleChangedFilesOnly: onToggleChangedFilesOnly,
@@ -66,7 +67,7 @@ struct FileListView: View {
             .simultaneousGesture(doubleTapGesture(for: entry))
         }
         .overlay {
-            if entries.allSatisfy({ $0.kind == .parentNavigation }) {
+            if entries.isEmpty {
                 emptyStateView
                     .allowsHitTesting(false)
             }

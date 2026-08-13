@@ -108,9 +108,6 @@ enum SidebarKeyAction: Equatable {
         switch target.kind {
         case .file:
             return .openFile
-        case .parentNavigation:
-            // `..` はツリー表示でも上位フォルダーへの移動手段のまま(展開はできない)。
-            return .navigateInto
         case .folder:
             guard mode == .tree else { return .navigateInto }
             return target.isExpanded ? .selectNext : .expand

@@ -13,6 +13,12 @@ import SwiftUI
 /// へ返す。
 struct SidebarHeaderView: View {
     @Bindable var model: FileListModel
+    /// フォルダー名のパスポップアップが起こす移動の受け手。
+    ///
+    /// **移動用のクロージャを別に増やさない。** ⌘↑ / delete と同じ
+    /// `fileListDidRequestNavigation(to:)` を通すことで、上へ移動する経路が 1 本に
+    /// 保たれる(TASK-475)。ウィンドウ側が保持するため弱参照で持つ。
+    weak var delegate: FileListViewDelegate?
     let onSortOrderChanged: (SortOrder) -> Void
     var onToggleHiddenFiles: (() -> Void)?
     /// nil のときは git 変更のみ表示のボタンを出さない。
@@ -83,10 +89,11 @@ struct SidebarHeaderView: View {
     private var navigationHeader: some View {
         HStack {
             headerControls(placement: .leading)
-            Text(model.currentDirectory.lastPathComponent)
-                .font(.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            SidebarPathMenuButton(
+                directory: model.currentDirectory,
+                home: DirectoryLister.defaultHome,
+                onNavigate: { delegate?.fileListDidRequestNavigation(to: $0) }
+            )
             Spacer()
             headerControls(placement: .trailing)
         }

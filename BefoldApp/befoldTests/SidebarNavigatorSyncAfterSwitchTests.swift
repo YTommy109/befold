@@ -31,7 +31,7 @@ struct SidebarNavigatorSyncAfterSwitchTests {
             entries: [],
             selection: nil,
             sidebarDisplayPreference: preference,
-            directoryLister: { _, _, _ in DirectoryListing(parentEntry: nil, rootChildren: rootEntries) },
+            directoryLister: { _, _, _ in DirectoryListing(rootChildren: rootEntries) },
             childrenLister: childrenLister,
             git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
         )

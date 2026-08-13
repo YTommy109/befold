@@ -33,12 +33,10 @@ struct FileListFilter: Equatable {
     var presentedPathKey: String?
 
     /// `directory` 直下の一覧に絞り込みを適用する。
-    /// `.parentNavigation` は条件に関わらず常に残す(上位フォルダへの移動手段を消さないため)。
     func apply(to entries: [FileListEntry], in directory: URL) -> [FileListEntry] {
         let gitFilter = gitChangeFilter(for: directory)
         guard !filterText.isEmpty || gitFilter != nil else { return entries }
         return entries.filter { entry in
-            guard entry.kind != .parentNavigation else { return true }
             guard filterText.isEmpty
                 || WildcardMatcher.matches(pattern: filterText, in: entry.url.lastPathComponent)
             else { return false }

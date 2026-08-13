@@ -36,7 +36,7 @@ struct DirectoryListerEnumerationFailureTests {
         let missing = URL(fileURLWithPath: "/nonexistent-befold-dir-\(UUID().uuidString)")
 
         let failed = DirectoryLister.listing(
-            in: missing, sortOrder: .foldersFirst, showHiddenFiles: false, home: missing
+            in: missing, sortOrder: .foldersFirst, showHiddenFiles: false
         )
 
         #expect(failed.didFailEnumeration)
@@ -44,7 +44,7 @@ struct DirectoryListerEnumerationFailureTests {
 
         let empty = try TempDir()
         let succeeded = DirectoryLister.listing(
-            in: empty.url, sortOrder: .foldersFirst, showHiddenFiles: false, home: empty.url
+            in: empty.url, sortOrder: .foldersFirst, showHiddenFiles: false
         )
 
         #expect(!succeeded.didFailEnumeration)
@@ -60,7 +60,7 @@ struct DirectoryListerEnumerationFailureTests {
         let openFile = missing.appendingPathComponent("open.md")
 
         let listing = DirectoryLister.listing(
-            in: missing, sortOrder: .foldersFirst, showHiddenFiles: false, home: missing
+            in: missing, sortOrder: .foldersFirst, showHiddenFiles: false
         )
         let withOpenFile = listing.appendingOpenFile(openFile, in: missing)
 

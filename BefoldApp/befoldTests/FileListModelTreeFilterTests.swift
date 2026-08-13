@@ -58,8 +58,9 @@ struct FileListModelTreeFilterTests {
         )
         let model = makeModel(entries: [])
         model.entries = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dirA, makeEntry("other.txt")],
-            expanded: [dirA.pathKey], childrenByPathKey: [dirA.pathKey: [nested]],
+            rootChildren: [dirA, makeEntry("other.txt")],
+            expanded: [dirA.pathKey],
+            childrenByPathKey: [dirA.pathKey: [nested]],
             showsDisclosure: true
         )
         model.filterText = "note*"
@@ -78,8 +79,9 @@ struct FileListModelTreeFilterTests {
         let inner = FileListEntry(url: root.appendingPathComponent("sub/a.txt"), kind: .file)
         let model = makeModel(entries: [])
         model.entries = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [submodule, makeEntry("clean.txt")],
-            expanded: [submodule.pathKey], childrenByPathKey: [submodule.pathKey: [inner]],
+            rootChildren: [submodule, makeEntry("clean.txt")],
+            expanded: [submodule.pathKey],
+            childrenByPathKey: [submodule.pathKey: [inner]],
             showsDisclosure: true
         )
         model.applyGitStatus(
@@ -103,8 +105,10 @@ struct FileListModelTreeFilterTests {
         let nested = FileListEntry(url: root.appendingPathComponent("src/note.md"), kind: .file)
         let model = makeModel(entries: [])
         model.entries = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dirA], expanded: [dirA.pathKey],
-            childrenByPathKey: [dirA.pathKey: [nested]], showsDisclosure: true
+            rootChildren: [dirA],
+            expanded: [dirA.pathKey],
+            childrenByPathKey: [dirA.pathKey: [nested]],
+            showsDisclosure: true
         )
         model.filterText = "note*"
 
@@ -123,8 +127,10 @@ struct FileListModelTreeFilterTests {
         let nested = FileListEntry(url: root.appendingPathComponent("src/note.md"), kind: .file)
         let model = makeModel(entries: [])
         model.entries = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dirA], expanded: [dirA.pathKey],
-            childrenByPathKey: [dirA.pathKey: [nested]], showsDisclosure: true
+            rootChildren: [dirA],
+            expanded: [dirA.pathKey],
+            childrenByPathKey: [dirA.pathKey: [nested]],
+            showsDisclosure: true
         )
         model.filterText = "note*"
 
@@ -134,16 +140,15 @@ struct FileListModelTreeFilterTests {
     }
 
     /// 一致行の優先が「祖先を常に飛ばす」形へ退化していないこと。絞り込みが無ければ
-    /// 全行が一致行なので、従来どおり見えている先頭(`..` は除く)を採る。
-    @Test("絞り込みが無ければ、初期選択は `..` を除く見えている先頭のまま")
+    /// 全行が一致行なので、従来どおり見えている先頭を採る。
+    @Test("絞り込みが無ければ、初期選択は見えている先頭のまま")
     func firstSelectableEntryPrefersVisibleHeadWithoutFilter() {
         let root = URL(fileURLWithPath: "/tmp/FileListModelFilterTests")
         let dirA = FileListEntry(url: root.appendingPathComponent("src"), kind: .folder)
         let nested = FileListEntry(url: root.appendingPathComponent("src/note.md"), kind: .file)
-        let parent = FileListEntry(url: root.deletingLastPathComponent(), kind: .parentNavigation)
         let model = makeModel(entries: [])
         model.entries = SidebarRowBuilder.rows(
-            parentEntry: parent, rootChildren: [dirA], expanded: [dirA.pathKey],
+            rootChildren: [dirA], expanded: [dirA.pathKey],
             childrenByPathKey: [dirA.pathKey: [nested]], showsDisclosure: true
         )
 
@@ -159,8 +164,10 @@ struct FileListModelTreeFilterTests {
         let nested = FileListEntry(url: root.appendingPathComponent("src/note.md"), kind: .file)
         let model = makeModel(entries: [])
         model.entries = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dirA], expanded: [dirA.pathKey],
-            childrenByPathKey: [dirA.pathKey: [nested]], showsDisclosure: true
+            rootChildren: [dirA],
+            expanded: [dirA.pathKey],
+            childrenByPathKey: [dirA.pathKey: [nested]],
+            showsDisclosure: true
         )
         model.filterText = "nomatch*"
 
@@ -177,8 +184,10 @@ struct FileListModelTreeFilterTests {
         let nested = FileListEntry(url: root.appendingPathComponent("src/note.md"), kind: .file)
         let model = makeModel(entries: [])
         model.entries = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dirA], expanded: [dirA.pathKey],
-            childrenByPathKey: [dirA.pathKey: [nested]], showsDisclosure: true
+            rootChildren: [dirA],
+            expanded: [dirA.pathKey],
+            childrenByPathKey: [dirA.pathKey: [nested]],
+            showsDisclosure: true
         )
         model.filterText = "note*"
 

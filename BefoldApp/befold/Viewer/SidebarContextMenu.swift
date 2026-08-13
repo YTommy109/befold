@@ -15,7 +15,7 @@ struct SidebarContextMenu: View {
     weak var delegate: FileListViewDelegate?
 
     var body: some View {
-        if entry.kind != .parentNavigation {
+        Group {
             Button(String(localized: "sidebar.context.copy", bundle: .l10n)) {
                 Pasteboard.writeFileReference(entry.url)
             }

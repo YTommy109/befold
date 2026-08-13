@@ -17,11 +17,12 @@ struct FileListViewTests {
     private func makeView(
         entries: [FileListEntry],
         selection: FileListEntry.ID?,
+        currentDirectory: URL = URL(fileURLWithPath: "/tmp/FileListViewTests"),
         onNavigate: @escaping (URL) -> Void = { _ in },
         onSelect: @escaping (URL) -> Void
     ) -> FileListView {
         let model = FileListModel(
-            currentDirectory: URL(fileURLWithPath: "/tmp/FileListViewTests"),
+            currentDirectory: currentDirectory,
             entries: entries,
             selection: selection
         )
@@ -173,96 +174,6 @@ struct FileListViewTests {
         #expect(result == .handled)
         #expect(view.model.selection == fixture.file2.id)
         #expect(selected.get() == fixture.file2.url)
-    }
-
-    // MARK: - 修飾キー付きのキー操作(TASK-311)
-
-    /// 親エントリ付きのフィクスチャ。`navigateToParent` は `.parentNavigation` の
-    /// 有無で境界を扱うため、あり/なしの両方を作り分けられるようにする。
-    private struct EntriesWithParent {
-        let parent = FileListEntry(url: URL(fileURLWithPath: "/tmp"), kind: .parentNavigation)
-        let file0 = FileListEntry(url: URL(fileURLWithPath: "/tmp/FileListViewTests/file0.mmd"), kind: .file)
-        let file1 = FileListEntry(url: URL(fileURLWithPath: "/tmp/FileListViewTests/file1.mmd"), kind: .file)
-
-        var all: [FileListEntry] {
-            [parent, file0, file1]
-        }
-    }
-
-    @Test("Cmd+↑ は選択移動ではなく上位フォルダーへ移動する(Finder 準拠)")
-    func commandUpArrowNavigatesToParent() {
-        let fixture = EntriesWithParent()
-        let navigated = LockedBox<URL?>(nil)
-
-        let view = makeView(
-            entries: fixture.all,
-            selection: fixture.file1.id,
-            onNavigate: { url in navigated.set(url) },
-            onSelect: { _ in }
-        )
-
-        let result = view.handleKey(.upArrow, modifiers: .command)
-
-        #expect(result == .handled)
-        #expect(navigated.get() == fixture.parent.url)
-        // 選択は動かない(selectPrevious へ落ちていないことの確認)。
-        #expect(view.model.selection == fixture.file1.id)
-    }
-
-    @Test("修飾キーなしの ↑ は従来どおり選択を 1 つ上へ移動する")
-    func plainUpArrowStillSelectsPrevious() {
-        let fixture = EntriesWithParent()
-        let navigated = LockedBox<URL?>(nil)
-
-        let view = makeView(
-            entries: fixture.all,
-            selection: fixture.file1.id,
-            onNavigate: { url in navigated.set(url) },
-            onSelect: { _ in }
-        )
-
-        let result = view.handleKey(.upArrow)
-
-        #expect(result == .handled)
-        #expect(view.model.selection == fixture.file0.id)
-        #expect(navigated.get() == nil)
-    }
-
-    @Test("Cmd+← は従来どおり上位フォルダーへ移動する")
-    func commandLeftArrowStillNavigatesToParent() {
-        let fixture = EntriesWithParent()
-        let navigated = LockedBox<URL?>(nil)
-
-        let view = makeView(
-            entries: fixture.all,
-            selection: fixture.file1.id,
-            onNavigate: { url in navigated.set(url) },
-            onSelect: { _ in }
-        )
-
-        let result = view.handleKey(.leftArrow, modifiers: .command)
-
-        #expect(result == .handled)
-        #expect(navigated.get() == fixture.parent.url)
-    }
-
-    @Test("親エントリが無ければ Cmd+↑ は何もしない(ホームディレクトリ境界)")
-    func commandUpArrowIsIgnoredWithoutParentEntry() {
-        let fixture = StandardEntries()
-        let navigated = LockedBox<URL?>(nil)
-
-        let view = makeView(
-            entries: fixture.all,
-            selection: fixture.file1.id,
-            onNavigate: { url in navigated.set(url) },
-            onSelect: { _ in }
-        )
-
-        let result = view.handleKey(.upArrow, modifiers: .command)
-
-        #expect(result == .ignored)
-        #expect(navigated.get() == nil)
-        #expect(view.model.selection == fixture.file1.id)
     }
 
     @Test("選択先エントリがフォルダの場合は onSelect が呼ばれない")

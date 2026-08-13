@@ -27,10 +27,10 @@ struct FileListSnapshot {
         matchedIDs = Set(filtered.map(\.id))
     }
 
-    /// 選択の移動先になりうる行。`.parentNavigation` は上位フォルダーへの移動手段で
-    /// あって一覧の項目ではないため除く。
+    /// 選択の移動先になりうる行。見えている行はすべて一覧の項目なので、いまは
+    /// `visible` そのもの(かつては先頭の `..` 行だけを除いていた = TASK-475)。
     private var selectableEntries: [FileListEntry] {
-        visible.filter { $0.kind != .parentNavigation }
+        visible
     }
 
     /// 絞り込み結果の先頭。一致行を優先し、祖先として足し戻されただけの行は飛ばす
@@ -101,10 +101,5 @@ struct FileListSnapshot {
     func entry(for selection: FileListEntry.ID?) -> FileListEntry? {
         guard let index = index(of: selection) else { return nil }
         return visible[index]
-    }
-
-    /// 上位フォルダーへの移動行(`..`)。絞り込みに関わらず常に残る。
-    var parentNavigationEntry: FileListEntry? {
-        visible.first { $0.kind == .parentNavigation }
     }
 }

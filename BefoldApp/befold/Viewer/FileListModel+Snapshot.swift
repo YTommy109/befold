@@ -9,8 +9,7 @@ import Foundation
 /// 走る問題(TASK-418)が戻る。
 extension FileListModel {
     /// フィルター適用後にサイドバーへ表示するエントリ。`entries`(ディスク由来の一覧)は
-    /// 保持したまま、この算出側だけで絞り込む。`.parentNavigation` はフィルター文字列に
-    /// 関わらず常に含める(上位フォルダへの移動手段を残すため)。
+    /// 保持したまま、この算出側だけで絞り込む。
     /// git 変更での絞り込み(showChangedFilesOnly)も AND で併用する。
     var visibleEntries: [FileListEntry] {
         listSnapshot.visible
@@ -39,11 +38,9 @@ extension FileListModel {
         return FileListSnapshot(visible: visible, filtered: filtered)
     }
 
-    /// フォルダーを降りた直後に選ぶ行の URL。一覧が空(または `..` しかない)なら nil。
+    /// フォルダーを降りた直後に選ぶ行の URL。一覧が空なら nil。
     ///
-    /// `.parentNavigation` は上位フォルダーへの移動手段であって一覧の項目ではないため飛ばす。
-    /// 選んでしまうと、そのまま Enter や → を押した利用者が今降りてきたばかりの階層へ
-    /// 押し戻される。絞り込みは移動をまたいで残るので、`entries` ではなく実際に見えている
+    /// 絞り込みは移動をまたいで残るので、`entries` ではなく実際に見えている
     /// 行から採る。ただし**一致した行を優先し、祖先として足し戻されただけの行
     /// (`SidebarTreeFilter`)は飛ばす**(TASK-406)。ツリー表示では一致行の祖先フォルダが
     /// 自分は一致しないまま残るので、見えている先頭をそのまま採ると絞り込みの答えでない行が

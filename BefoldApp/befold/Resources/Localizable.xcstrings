@@ -2108,6 +2108,23 @@
         }
       }
     },
+    "sidebar.path.menu.help" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go to an enclosing folder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上位フォルダーへ移動する"
+          }
+        }
+      }
+    },
     "sidebar.filter.placeholder": {
       "extractionState": "manual",
       "localizations": {
