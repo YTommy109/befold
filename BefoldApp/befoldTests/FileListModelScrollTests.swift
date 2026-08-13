@@ -79,7 +79,7 @@ struct FileListModelScrollTests {
         let leaf = FileListEntry(url: directory.appendingPathComponent("a/b/deep.mmd"), kind: .file)
         let tail = FileListEntry(url: directory.appendingPathComponent("z.mmd"), kind: .file)
         let entries = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dirA, tail],
+            rootChildren: [dirA, tail],
             expanded: [dirA.pathKey, dirB.pathKey],
             childrenByPathKey: [dirA.pathKey: [dirB], dirB.pathKey: [leaf]]
         )
@@ -103,7 +103,7 @@ struct FileListModelScrollTests {
         let leaf = FileListEntry(url: directory.appendingPathComponent("a/b/deep.mmd"), kind: .file)
         let tail = FileListEntry(url: directory.appendingPathComponent("z.mmd"), kind: .file)
         let entries = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dirA, tail],
+            rootChildren: [dirA, tail],
             expanded: [dirA.pathKey, dirB.pathKey],
             childrenByPathKey: [dirA.pathKey: [dirB], dirB.pathKey: [leaf]],
             showsDisclosure: true

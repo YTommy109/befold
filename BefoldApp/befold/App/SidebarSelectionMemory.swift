@@ -29,6 +29,6 @@ final class SidebarSelectionMemory {
     func rememberedURL(in directory: URL) -> URL? {
         guard let remembered = entries[directory.normalizedPathKey] else { return nil }
         let key = remembered.normalizedPathKey
-        return fileListModel.visibleEntries.first { $0.kind != .parentNavigation && $0.pathKey == key }?.url
+        return fileListModel.visibleEntries.first { $0.pathKey == key }?.url
     }
 }

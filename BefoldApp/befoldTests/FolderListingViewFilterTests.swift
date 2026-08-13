@@ -83,9 +83,7 @@ struct FolderListingViewFilterTests {
     func previewMatchesSidebarForCurrentDirectory() {
         let changed = makeEntry("changed.md")
         let folder = makeEntry("src", kind: .folder)
-        let entries = [
-            makeEntry("..", kind: .parentNavigation), folder, changed, makeEntry("clean.md"),
-        ]
+        let entries = [folder, changed, makeEntry("clean.md")]
         let model = makeModel(entries: entries)
         let nested = folder.url.appendingPathComponent("inner.md").normalizedPathKey
         model.applyGitStatus(
@@ -101,7 +99,7 @@ struct FolderListingViewFilterTests {
         let view = makeView(directory: model.currentDirectory, filter: model.listFilter)
 
         #expect(view.visibleEntries(from: entries).map(\.id) == model.visibleEntries.map(\.id))
-        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["..", "changed.md"])
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
     }
 
     @Test("絞り込み OFF ならプレビュー一覧は取得した全件をそのまま出す")

@@ -6,25 +6,20 @@ enum DirectoryLister {
     /// DefaultFileReader に集約し、ここではそこへ委譲する。
     private static let fileReader: any FileReading = DefaultFileReader()
 
-    /// 親移動エントリを許可する上限(ホームディレクトリ)の本番既定値。
+    /// 上位フォルダーへの移動を許可する上限(ホームディレクトリ)の本番既定値。
     /// FileReading は「存在・種別・内容の読み取り」に責務を絞っており、
     /// ホームの所在はそこに属さないため、独立した既定値として持つ。
+    /// 上限判定そのものは `isWithinHome` と `SidebarPathMenu` が持つ。
     static var defaultHome: URL {
         FileManager.default.homeDirectoryForCurrentUser
     }
 
     /// 一覧構築ロジックの同期版。本番の経路は非同期版(listingAsync)のみを使うため、
-    /// ここは並べ替え・隠しファイル・親移動エントリの規則を直接検証するテスト用の入口。
-    /// - Parameter home: 親移動エントリを許可する上限(ホームディレクトリ)。
-    ///   既定は実ユーザーのホーム。テストは一時ディレクトリを渡して実ホームの
-    ///   内容に依存せずに親移動エントリの規則を検証する。
+    /// ここは並べ替え・隠しファイルの規則を直接検証するテスト用の入口。
     static func listing(
-        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false,
-        home: URL = defaultHome
+        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
     ) -> DirectoryListing {
-        buildListing(
-            in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles, home: home
-        )
+        buildListing(in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
     }
 
     /// listing と同一ロジックを、呼び出し元アクターを離れて実行する版。
@@ -34,16 +29,14 @@ enum DirectoryLister {
     static func listingAsync(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
     ) async -> DirectoryListing {
-        buildListing(
-            in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles, home: defaultHome
-        )
+        buildListing(in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles)
     }
 
     /// 直下の行だけを、呼び出し元アクターを離れて列挙する。ツリー展開した
     /// フォルダの子リストはこちらで取る。
     ///
-    /// `listingAsync` を使ってはならない。あちらは親移動行を別に持つ
-    /// **ルート一覧の材料**なので、展開したフォルダごとに `..` 行が生えてしまう。
+    /// `listingAsync` は **ルート一覧の材料**(開いている文書の補完などルート固有の
+    /// 規則を通す入口)なので、展開したフォルダの子にはこちらを使う。
     static func childEntriesAsync(
         in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool = false
     ) async -> [FileListEntry]? {
@@ -91,26 +84,16 @@ enum DirectoryLister {
     /// 「開いている文書は必ず一覧に含める」(appendingOpenFile)も通らなくなるため
     /// (TASK-404 / TASK-410)。
     private static func buildListing(
-        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool, home: URL
+        in directory: URL, sortOrder: SortOrder, showHiddenFiles: Bool
     ) -> DirectoryListing {
         // 空配列と nil の区別を、そのまま「読めて空だった」/「読めなかった」として運ぶ。
         let children = childEntries(
             in: directory, sortOrder: sortOrder, showHiddenFiles: showHiddenFiles
         )
         return DirectoryListing(
-            parentEntry: parentNavigationEntry(for: directory, home: home),
             rootChildren: children ?? [],
             didFailEnumeration: children == nil
         )
-    }
-
-    /// 上位フォルダーへの移動行。ホームの外へは出さないため、その外なら nil。
-    /// 一覧の項目ではなく移動手段なので、並べ替えの対象に含めず常に先頭へ置く
-    /// (`.alphabetical` のマージへ混ぜると `..` がファイル名としてソートされる)。
-    static func parentNavigationEntry(for directory: URL, home: URL) -> FileListEntry? {
-        let parent = directory.deletingLastPathComponent()
-        guard isWithinHome(parent, home: home) else { return nil }
-        return FileListEntry(url: parent, kind: .parentNavigation)
     }
 
     /// `directory` 直下の行(親移動行を含まない)。並び順の規則はここが単一の実装元で、

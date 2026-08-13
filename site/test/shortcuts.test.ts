@@ -80,6 +80,11 @@ const EXPECTED_MENU_ITEMS: {
     modifiers: ['.command', '.control'],
   },
   {
+    localizationKey: 'menu.view.sidebarTreeLayout',
+    keyEquivalent: '"t"',
+    modifiers: ['.command', '.control'],
+  },
+  {
     localizationKey: 'menu.view.enterFullScreen',
     keyEquivalent: '"f"',
     modifiers: ['.control', '.command'],
@@ -102,7 +107,11 @@ const EXPECTED_MENU_ITEMS: {
  * フィーチャーゲートの内側にあり、stable ビルドでは項目自体が存在しないもの。
  * サイトは stable の利用者が見るため、ここに挙げた項目は載せてはならない。
  */
-const GATED_LOCALIZATION_KEYS = new Set(['menu.view.showChangedFilesOnly', 'menu.view.diffSideBySide'])
+const GATED_LOCALIZATION_KEYS = new Set([
+  'menu.view.showChangedFilesOnly',
+  'menu.view.sidebarTreeLayout',
+  'menu.view.diffSideBySide',
+])
 
 /** `BookmarkShortcut.keyEquivalent` のような定数参照を、実際のキーへ解決する。 */
 function resolveKeyEquivalent(expression: string): string | null {

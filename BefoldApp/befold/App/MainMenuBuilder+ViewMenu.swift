@@ -64,7 +64,9 @@ extension MainMenuBuilder {
     }
 
     /// サイドバーのツリー表示の切替項目。開発中機能(TASK-361)なので露出点でゲートする。
-    /// ショートカットは付けない。⌘1〜4 はプレビューの表示モードに割り当て済み(TASK-356)。
+    /// ⌘1〜4 はプレビューの表示モードに割り当て済み(TASK-356)なので、他のサイドバー項目
+    /// (⌃⌘H / ⌃⌘G)と同じ ⌃⌘ 系に揃えて ⌃⌘T を割り当てる(TASK-409)。素の ⌘T は
+    /// ウインドウのタブ操作を連想させるため control を重ねて区別する。
     /// - Parameter isTreeLayoutAvailable: ゲート値。テストから両方向を確かめられるよう引数で受ける。
     static func addSidebarTreeLayoutItem(
         to menu: NSMenu, isTreeLayoutAvailable: Bool = FeatureGate.isSidebarTreeEnabled
@@ -72,7 +74,9 @@ extension MainMenuBuilder {
         guard isTreeLayoutAvailable else { return }
         menu.addLocalizedItem(
             "menu.view.sidebarTreeLayout",
-            action: #selector(AppDelegate.toggleSidebarTreeLayout(_:))
+            action: #selector(AppDelegate.toggleSidebarTreeLayout(_:)),
+            keyEquivalent: "t",
+            modifiers: [.command, .control]
         )
     }
 

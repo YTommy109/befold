@@ -24,18 +24,10 @@ struct SidebarNavigatorFolderNavigationTests {
     private func makeNavigator(
         currentDirectory: URL,
         selection: URL?,
-        listings: [String: [FileListEntry]],
-        parents: [String: URL] = [:]
+        listings: [String: [FileListEntry]]
     ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
-        // listings はルート直下の行。親移動行は行配列に混ぜず parents で渡す
-        // (SidebarRowBuilder は rootChildren の kind を見ないため、混ぜると
-        // 親移動行が depth 0 の通常行として二重に並ぶ)。
         let listing = { (url: URL) -> DirectoryListing in
-            let key = url.normalizedPathKey
-            return DirectoryListing(
-                parentEntry: parents[key].map { FileListEntry(url: $0, kind: .parentNavigation) },
-                rootChildren: listings[key] ?? []
-            )
+            DirectoryListing(rootChildren: listings[url.normalizedPathKey] ?? [])
         }
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
@@ -175,25 +167,6 @@ struct SidebarNavigatorFolderNavigationTests {
 
         #expect(navigator.fileListModel.selection == nil)
         #expect(navigator.fileListModel.previewTarget == .folder(sub))
-    }
-
-    @Test("親ナビゲーション行は自動選択の対象にしない")
-    func navigateToChildSkipsParentNavigationRow() async {
-        let tmp = Self.home.appendingPathComponent("SidebarNavigatorFolderNavigationTests-skipparent")
-        let sub = tmp.appendingPathComponent("sub", isDirectory: true)
-        let child = sub.appendingPathComponent("child.mmd")
-        let (navigator, host) = makeNavigator(
-            currentDirectory: tmp,
-            selection: nil,
-            listings: [sub.normalizedPathKey: [FileListEntry(url: child, kind: .file)]],
-            parents: [sub.normalizedPathKey: tmp]
-        )
-        defer { withExtendedLifetime(host) {} }
-
-        navigator.navigateToFolder(sub)
-        await navigator.awaitSettled()
-
-        #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
     }
 
     @Test("ファイルのない子フォルダーへの移動では何も選択されない")

@@ -18,8 +18,8 @@ import Foundation
 struct FileListEntryIndex {
     private let byID: [FileListEntry.ID: FileListEntry]
     private let byPathKey: [String: FileListEntry]
-    /// `kind == .folder` の行だけを集めた辞書。同じキーの非フォルダー行(実体と並ぶリンク、
-    /// 祖先を指すリンクがあるときの `.parentNavigation` 行)が先にあっても外れないようにする。
+    /// `kind == .folder` の行だけを集めた辞書。同じキーの非フォルダー行(実体と並ぶ
+    /// シンボリックリンク)が先にあっても外れないようにする。
     /// 先勝ちの規則は `byPathKey` と揃える。
     private let folderByPathKey: [String: FileListEntry]
 

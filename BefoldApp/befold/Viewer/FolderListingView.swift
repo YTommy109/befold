@@ -159,7 +159,7 @@ struct FolderListingView: View {
             // 空状態は絞り込み後の一覧で判定する。絞り込みで全部消えたときも
             // 「何もない」と伝えないと、無言の空リストになる。到着待ち(nil)の間は
             // まだ答えが出ていないので何も言わない。
-            if let entries, entries.allSatisfy({ $0.kind == .parentNavigation }) {
+            if let entries, entries.isEmpty {
                 // 絞り込みで空になったのかを、サイドバーと同じ実装で出し分ける。
                 // git 絞り込みはリポジトリ配下のどの階層にも効くため、この一覧が
                 // サブフォルダーのものでも絞り込みによる空が起こりうる(TASK-361.2)。
@@ -201,7 +201,7 @@ struct FolderListingView: View {
             switch entry.kind {
             case .file:
                 onSelectFile(entry.url)
-            case .folder, .parentNavigation:
+            case .folder:
                 onNavigateToFolder(entry.url)
             }
         }

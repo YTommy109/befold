@@ -68,17 +68,6 @@ struct SidebarTreeFilterTests {
         #expect(result.map(\.url.path) == ["/y", "/y/a", "/y/a/note.md"])
     }
 
-    @Test("親移動行は depth 0 なので、祖先保持の対象にならず影響を受けない")
-    func parentNavigationRowIsUnaffected() {
-        let parent = FileListEntry(url: URL(fileURLWithPath: "/"), kind: .parentNavigation)
-        let rows = [parent, folder("/a", depth: 0), file("/a/note.md", depth: 1)]
-        let filtered = [parent, rows[2]]
-
-        let result = SidebarTreeFilter.keepingAncestors(of: filtered, in: rows)
-
-        #expect(result.map(\.url.lastPathComponent) == ["/", "a", "note.md"])
-    }
-
     // MARK: - 素通しの担保
 
     /// 「素通しになるはず」ではなくコード上の分岐で担保する。ここは body 評価・

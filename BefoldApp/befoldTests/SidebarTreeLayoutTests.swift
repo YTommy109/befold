@@ -27,7 +27,7 @@ struct SidebarTreeLayoutTests {
         let childB = file("/root/b/2.md")
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dirA, dirB],
+            rootChildren: [dirA, dirB],
             expanded: [dirA.pathKey, dirB.pathKey],
             childrenByPathKey: [dirA.pathKey: [childA], dirB.pathKey: [childB]],
             showsDisclosure: true
@@ -44,8 +44,11 @@ struct SidebarTreeLayoutTests {
         let dirA = folder("/root/a")
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dirA], expanded: [],
-            childrenByPathKey: [:], loading: [dirA.pathKey], showsDisclosure: true
+            rootChildren: [dirA],
+            expanded: [],
+            childrenByPathKey: [:],
+            loading: [dirA.pathKey],
+            showsDisclosure: true
         )
 
         #expect(rows.map(\.url.lastPathComponent) == ["a"])
@@ -59,8 +62,9 @@ struct SidebarTreeLayoutTests {
         let dirA = folder("/root/a")
 
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [dirA, file("/root/b.md")],
-            expanded: [], childrenByPathKey: [:]
+            rootChildren: [dirA, file("/root/b.md")],
+            expanded: [],
+            childrenByPathKey: [:]
         )
 
         #expect(rows.allSatisfy { $0.depth == 0 })

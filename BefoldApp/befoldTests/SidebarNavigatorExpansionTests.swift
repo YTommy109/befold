@@ -31,7 +31,7 @@ struct SidebarNavigatorExpansionTests {
             entries: [],
             selection: nil,
             sidebarDisplayPreference: preference,
-            directoryLister: { _, _, _ in DirectoryListing(parentEntry: nil, rootChildren: rootEntries) },
+            directoryLister: { _, _, _ in DirectoryListing(rootChildren: rootEntries) },
             childrenLister: childrenLister,
             git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
         )
@@ -191,7 +191,7 @@ struct SidebarNavigatorExpansionTests {
             currentDirectory: base, entries: [], selection: nil,
             sidebarDisplayPreference: preference,
             directoryLister: { _, _, _ in
-                DirectoryListing(parentEntry: nil, rootChildren: rootEntries.get())
+                DirectoryListing(rootChildren: rootEntries.get())
             },
             childrenLister: { _, _, _ in
                 await counter.increment()

@@ -13,11 +13,20 @@ import SwiftUI
 /// へ返す。
 struct SidebarHeaderView: View {
     @Bindable var model: FileListModel
+    /// フォルダー名のパスポップアップが起こす移動の受け手。
+    ///
+    /// **移動用のクロージャを別に増やさない。** ⌘↑ / delete と同じ
+    /// `fileListDidRequestNavigation(to:)` を通すことで、上へ移動する経路が 1 本に
+    /// 保たれる(TASK-475)。ウィンドウ側が保持するため弱参照で持つ。
+    weak var delegate: FileListViewDelegate?
     let onSortOrderChanged: (SortOrder) -> Void
     var onToggleHiddenFiles: (() -> Void)?
     /// nil のときは git 変更のみ表示のボタンを出さない。
     /// 開発中機能の露出点(ViewerWindowController が FeatureGate で決める)。
     var onToggleChangedFilesOnly: (() -> Void)?
+    /// nil のときは表示形式(ツリー / ドリルダウン)のボタンを出さない。
+    /// 開発中機能の露出点(ViewerWindowAssembler が FeatureGate で決める)。
+    var onToggleSidebarTreeLayout: (() -> Void)?
 
     @FocusState private var isFilterFieldFocused: Bool
 
@@ -62,79 +71,58 @@ struct SidebarHeaderView: View {
         }
     }
 
+    private var controls: SidebarHeaderControlsModel {
+        SidebarHeaderControlsModel(
+            layoutMode: model.layoutMode,
+            sortOrder: model.sortOrder,
+            showHiddenFiles: model.showHiddenFiles,
+            showChangedFilesOnly: model.showChangedFilesOnly,
+            isFilterActive: model.isFilterActive,
+            isFilterTextEmpty: model.filterText.isEmpty,
+            isTreeLayoutAvailable: onToggleSidebarTreeLayout != nil,
+            isChangedFilesOnlyAvailable: onToggleChangedFilesOnly != nil
+        )
+    }
+
+    /// 左＝一覧の形、右＝絞り込み。位置がその系統を表しているので、ボタンを足すときは
+    /// どちらの群かを先に決めること(並びは SidebarHeaderControlsModelTests が固定している)。
     private var navigationHeader: some View {
         HStack {
-            Text(model.currentDirectory.lastPathComponent)
-                .font(.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            headerControls(placement: .leading)
+            SidebarPathMenuButton(
+                directory: model.currentDirectory,
+                home: DirectoryLister.defaultHome,
+                onNavigate: { delegate?.fileListDidRequestNavigation(to: $0) }
+            )
             Spacer()
-            sortOrderButton
-            hiddenFilesButton
-            changedFilesOnlyButton
-            filterButton
+            headerControls(placement: .trailing)
         }
     }
 
-    private var sortOrderButton: some View {
-        Button {
-            let next: SortOrder = model.sortOrder == .foldersFirst ? .alphabetical : .foldersFirst
-            onSortOrderChanged(next)
-        } label: {
-            Image(systemName: model.sortOrder == .foldersFirst
-                ? "folder.fill" : "textformat.abc")
-                .foregroundStyle(.secondary)
-        }
-        .buttonStyle(.borderless)
-        .help(model.sortOrder == .foldersFirst
-            ? String(localized: "sidebar.sort.alphabetical", bundle: .l10n)
-            : String(localized: "sidebar.sort.foldersFirst", bundle: .l10n))
+    private func headerControls(placement: SidebarHeaderControls.Placement) -> some View {
+        SidebarHeaderControls(
+            controls: controls,
+            placement: placement,
+            onToggleLayoutMode: onToggleSidebarTreeLayout,
+            onToggleChangedFilesOnly: onToggleChangedFilesOnly,
+            onToggleFilter: toggleFilter,
+            onSelectOverflowItem: selectOverflowItem
+        )
     }
 
-    private var hiddenFilesButton: some View {
-        Button {
-            onToggleHiddenFiles?()
-        } label: {
-            Image(systemName: model.showHiddenFiles ? "eye" : "eye.slash")
-                .foregroundStyle(model.showHiddenFiles ? .primary : .secondary)
-        }
-        .buttonStyle(.borderless)
-        .help(model.showHiddenFiles
-            ? String(localized: "sidebar.hiddenFiles.hide", bundle: .l10n)
-            : String(localized: "sidebar.hiddenFiles.show", bundle: .l10n))
-    }
-
-    /// git 変更のあるファイルのみに絞るトグル。不可視ファイルのトグルとは独立した軸のため、
-    /// 1 クリックで往復でき、両方の状態が同時に見えるよう別ボタンにしている(TASK-282)。
-    @ViewBuilder
-    private var changedFilesOnlyButton: some View {
-        if let onToggleChangedFilesOnly {
-            Button(action: onToggleChangedFilesOnly) {
-                Image(systemName: "arrow.triangle.branch")
-                    .foregroundStyle(model.showChangedFilesOnly ? .primary : .secondary)
-            }
-            .buttonStyle(.borderless)
-            .help(model.showChangedFilesOnly
-                ? String(localized: "sidebar.changedFilesOnly.hide", bundle: .l10n)
-                : String(localized: "sidebar.changedFilesOnly.show", bundle: .l10n))
+    private func toggleFilter() {
+        if model.isFilterActive {
+            closeFilter()
+        } else {
+            model.isFilterActive = true
         }
     }
 
-    private var filterButton: some View {
-        Button {
-            if model.isFilterActive {
-                closeFilter()
-            } else {
-                model.isFilterActive = true
-            }
-        } label: {
-            Image(systemName: model.filterText.isEmpty
-                ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
-                .foregroundStyle(model.filterText.isEmpty ? .secondary : .primary)
+    private func selectOverflowItem(_ kind: SidebarOverflowItem.Kind) {
+        switch kind {
+        case .sortFoldersFirst: onSortOrderChanged(.foldersFirst)
+        case .sortAlphabetical: onSortOrderChanged(.alphabetical)
+        case .hiddenFiles: onToggleHiddenFiles?()
         }
-        .buttonStyle(.borderless)
-        .help(model.isFilterActive
-            ? String(localized: "sidebar.filter.hide", bundle: .l10n)
-            : String(localized: "sidebar.filter.show", bundle: .l10n))
     }
 }

@@ -40,12 +40,6 @@ struct PreviewTargetResolverTests {
         #expect(resolve(selection: folder.id, entries: [folder]) == .folder(folder.url))
     }
 
-    @Test("選択が親ナビゲーション行のときはその行の URL の一覧を対象にする")
-    func parentNavigationSelectionResolvesToParentFolder() {
-        let parent = FileListEntry(url: currentDirectory.deletingLastPathComponent(), kind: .parentNavigation)
-        #expect(resolve(selection: parent.id, entries: [parent]) == .folder(parent.url))
-    }
-
     @Test("選択が一覧に存在しない(古い状態)ときは現在のディレクトリの一覧を対象にする")
     func staleSelectionFallsBackToCurrentDirectory() {
         let target = resolve(

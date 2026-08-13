@@ -6,7 +6,7 @@ import Testing
 ///
 /// この規則は以前 `SidebarExpansion` の doc コメントに書いてあるだけだった。実態は
 /// 2 箇所で、`DirectoryLister` が「展開集合が空」の縮退形で行を組み、それを
-/// `SidebarNavigator.applyRows` が `kind == .parentNavigation` で分解し直して
+/// `SidebarNavigator.applyRows` が行の種類(当時あった親移動行)を見て分解し直して
 /// もう一度組んでいた(1 回の列挙で組み立てが 2 回走っていた)。
 ///
 /// 分解の往復自体は `applyRows` が `DirectoryListing`(行に畳む前の材料)を受ける形へ

@@ -35,15 +35,6 @@ struct FileListModelFilterTests {
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["README.md"])
     }
 
-    @Test("親ディレクトリ(parentNavigation)はフィルター文字列に関わらず常に含まれる")
-    func parentNavigationAlwaysVisible() {
-        let entries = [makeEntry("..", kind: .parentNavigation), makeEntry("README.md")]
-        let model = makeModel(entries: entries)
-        model.filterText = "xyz"
-
-        #expect(model.visibleEntries.map(\.kind) == [.parentNavigation])
-    }
-
     // MARK: - git 変更のみ表示(task-264)
 
     private func modifiedStatus() -> GitFileStatus {
@@ -84,17 +75,16 @@ struct FileListModelFilterTests {
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
     }
 
-    @Test("変更のみ表示 ON でも、配下に変更を持つフォルダーと親移動行は残る")
-    func changedFilesOnlyKeepsFoldersWithChangesAndParent() {
-        let parent = makeEntry("..", kind: .parentNavigation)
+    @Test("変更のみ表示 ON でも、配下に変更を持つフォルダーは残る")
+    func changedFilesOnlyKeepsFoldersWithChanges() {
         let folder = makeEntry("src", kind: .folder)
         let cleanFolder = makeEntry("docs", kind: .folder)
-        let model = makeModel(entries: [parent, folder, cleanFolder])
+        let model = makeModel(entries: [folder, cleanFolder])
         let nested = folder.url.appendingPathComponent("inner.md").normalizedPathKey
         applyGitStatus([nested: modifiedStatus()], to: model)
         model.showChangedFilesOnly = true
 
-        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["..", "src"])
+        #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["src"])
     }
 
     @Test("変更のみ表示と filterText は AND で併用される")
@@ -126,12 +116,11 @@ struct FileListModelFilterTests {
     /// トグルが黙って効かなくなる(TASK-285)。
     @Test("変更が 1 つも無いリポジトリでも絞り込みは効く(全件表示に戻らない)")
     func changedFilesOnlyAppliesInCleanRepository() {
-        let parent = makeEntry("..", kind: .parentNavigation)
-        let model = makeModel(entries: [parent, makeEntry("a.md"), makeEntry("b.md")])
+        let model = makeModel(entries: [makeEntry("a.md"), makeEntry("b.md")])
         applyGitStatus([:], to: model)
         model.showChangedFilesOnly = true
 
-        #expect(model.visibleEntries.map(\.kind) == [.parentNavigation])
+        #expect(model.visibleEntries.isEmpty)
     }
 
     /// ツリー展開では、1 つの行配列に複数階層の行が並ぶ。git 状態はリポジトリ全体ぶんの

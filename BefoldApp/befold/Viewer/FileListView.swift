@@ -12,14 +12,19 @@ struct FileListView: View {
     /// nil のときはヘッダーに git 変更のみ表示のボタンを出さない。
     /// 開発中機能の露出点(ViewerWindowController が FeatureGate で決める)。
     var onToggleChangedFilesOnly: (() -> Void)?
+    /// nil のときはヘッダーに表示形式(ツリー / ドリルダウン)のボタンを出さない。
+    /// 開発中機能の露出点(ViewerWindowAssembler が FeatureGate で決める)。
+    var onToggleSidebarTreeLayout: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
             SidebarHeaderView(
                 model: model,
+                delegate: delegate,
                 onSortOrderChanged: onSortOrderChanged,
                 onToggleHiddenFiles: onToggleHiddenFiles,
-                onToggleChangedFilesOnly: onToggleChangedFilesOnly
+                onToggleChangedFilesOnly: onToggleChangedFilesOnly,
+                onToggleSidebarTreeLayout: onToggleSidebarTreeLayout
             )
             entryList
         }
@@ -62,7 +67,7 @@ struct FileListView: View {
             .simultaneousGesture(doubleTapGesture(for: entry))
         }
         .overlay {
-            if entries.allSatisfy({ $0.kind == .parentNavigation }) {
+            if entries.isEmpty {
                 emptyStateView
                     .allowsHitTesting(false)
             }

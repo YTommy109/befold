@@ -144,7 +144,8 @@ enum ViewerWindowAssembler {
                 guard let controller else { return }
                 controller.delegate?.viewerWindowDidToggleHiddenFiles(controller)
             },
-            onToggleChangedFilesOnly: makeChangedFilesOnlyToggle(for: controller)
+            onToggleChangedFilesOnly: makeChangedFilesOnlyToggle(for: controller),
+            onToggleSidebarTreeLayout: makeSidebarTreeLayoutToggle(for: controller)
         )
     }
 
@@ -162,6 +163,24 @@ enum ViewerWindowAssembler {
         return { [weak controller] in
             guard let controller else { return }
             controller.delegate?.viewerWindowDidToggleChangedFilesOnly(controller)
+        }
+    }
+
+    /// サイドバーヘッダーの表示形式(ツリー / ドリルダウン)ボタンの動作を作る。
+    ///
+    /// 無効なら nil を返してボタン自体を出さない(FileListView 側が nil で非表示にする)。
+    /// 切替の実体はメニューの ⌃⌘T と同じ `GlobalDisplayBroadcaster.toggleSidebarLayoutMode()`
+    /// で、ここは delegate へ流すだけ。ボタン専用の経路を持たせない。
+    /// - Parameter isTreeLayoutAvailable: ゲート値。テストから ON/OFF 両方向を
+    ///   確かめられるよう引数で受ける(テストから呼ぶため internal)。
+    static func makeSidebarTreeLayoutToggle(
+        for controller: ViewerWindowController,
+        isTreeLayoutAvailable: Bool = FeatureGate.isSidebarTreeEnabled
+    ) -> (() -> Void)? {
+        guard isTreeLayoutAvailable else { return nil }
+        return { [weak controller] in
+            guard let controller else { return }
+            controller.delegate?.viewerWindowDidToggleSidebarTreeLayout(controller)
         }
     }
 

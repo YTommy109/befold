@@ -32,13 +32,13 @@ struct FileListModelLookupTests {
     }
 
     /// `pathKey` はシンボリックリンクを解決した実体パスなので、同じキーの行が複数並ぶ
-    /// ことがある(祖先を指すリンクがあるときの `.parentNavigation` 行、実体と並ぶリンク)。
+    /// ことがある(実体と、それを指すシンボリックリンクが同じ一覧に出る場合)。
     /// 索引経由(先勝ち・kind を見ない)に戻すと、このテストが落ちる(TASK-450)。
     @Test("同じキーの非フォルダー行が先にあってもフォルダー行を引き当てる")
     func findsFolderBehindSameKeyNonFolderRow() {
         let folder = directory.appendingPathComponent("sub")
         let model = makeModel(entries: [
-            FileListEntry(url: folder, kind: .parentNavigation),
+            FileListEntry(url: folder, kind: .file),
             FileListEntry(url: folder, kind: .folder),
         ])
 

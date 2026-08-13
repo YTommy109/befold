@@ -286,21 +286,19 @@ final class SidebarNavigator {
 
     /// switchFile 成功後にサイドバー選択を同期し、履歴を記録する。
     /// ViewerWindowController.switchFile がファイル切替の実処理後に呼ぶ。
+    ///
+    /// 移動・選択の確定・取り直しの実処理は `SidebarPostSwitchSync` が持つ(履歴の適用と
+    /// 同じ区間を通すため / TASK-471)。ここで決めるのは「動かすかどうか」だけ。
+    /// 判定の基準はレイアウトではなく「いま一覧にその行があるか」で、一覧に既にあるなら
+    /// 取り直す理由も無い(tree の展開下の子行を選んだだけで移動させない / TASK-465)。
     func syncAfterSwitch(to newURL: URL) {
         let needsMove = !fileListModel.isReachableInCurrentListing(newURL)
-        if needsMove {
-            moveCurrentDirectory(to: newURL.deletingLastPathComponent())
-        }
-        // **選択はこの同期区間で必ず確定する。** 一覧の着地に委ねてはならない。
-        // 委ねると「currentDirectory だけが動いて選択は旧のまま」という部分適用が
-        // 着地まで残り、世代の追い越し・ウィンドウ解放で着地しなければ永続する。
-        // 旧選択がフォルダー行(または nil)だと previewTarget がその `.folder` のままになり、
-        // ファイル一覧が本文に重なったまま戻らない(TASK-445)。一覧に無い URL なら
-        // matchingEntryURL は生の URL を返すので、着地前でも確定はできる。
-        fileListModel.selection = fileListModel.matchingEntryURL(for: newURL)
-        if needsMove {
-            refreshFileList()
-        }
+        SidebarPostSwitchSync.apply(
+            on: self,
+            movingTo: needsMove ? newURL.deletingLastPathComponent() : nil,
+            selecting: newURL,
+            refreshesWhenStaying: false
+        )
         recordHistory()
     }
 

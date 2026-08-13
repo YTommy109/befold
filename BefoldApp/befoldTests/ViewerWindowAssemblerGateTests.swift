@@ -63,4 +63,21 @@ struct ViewerWindowAssemblerGateTests {
 
         #expect((toggle != nil) == isChangedFilesOnlyAvailable)
     }
+
+    /// ゲート OFF ではサイドバーヘッダーの表示形式ボタンが出ない。
+    /// 「変更されたファイルのみ表示」と同型の露出点にしている(TASK-473)。
+    @Test("表示形式のトグルはゲートの両方向で正しい", arguments: [true, false])
+    func sidebarTreeLayoutToggleFollowsGateInBothDirections(isTreeLayoutAvailable: Bool) {
+        let controller = ViewerWindowControllerFixture(
+            file: URL(fileURLWithPath: "/mock/a.mmd"),
+            prefix: "ViewerWindowAssemblerGateTests"
+        ).controller
+        defer { controller.close() }
+
+        let toggle = ViewerWindowAssembler.makeSidebarTreeLayoutToggle(
+            for: controller, isTreeLayoutAvailable: isTreeLayoutAvailable
+        )
+
+        #expect((toggle != nil) == isTreeLayoutAvailable)
+    }
 }

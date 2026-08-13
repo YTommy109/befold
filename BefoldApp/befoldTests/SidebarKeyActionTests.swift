@@ -19,7 +19,6 @@ struct SidebarKeyActionTests {
     private let folder = SidebarKeyAction.Target(kind: .folder)
     private let expandedFolder = SidebarKeyAction.Target(kind: .folder, isExpanded: true)
     private let file = SidebarKeyAction.Target(kind: .file)
-    private let parent = SidebarKeyAction.Target(kind: .parentNavigation)
 
     // MARK: - ドリルダウン（従来の割り当てを変えていないこと）
 
@@ -65,14 +64,6 @@ struct SidebarKeyActionTests {
         }
     }
 
-    /// `..` はツリー表示でも上位フォルダーへの移動手段のまま。展開はできない。
-    @Test("親移動行は表示モードによらずフォルダ移動")
-    func parentNavigationRowNavigatesInEveryMode() {
-        for mode in SidebarLayoutMode.allCases {
-            #expect(action(.return, target: parent, mode: mode) == .navigateInto)
-        }
-    }
-
     // MARK: - ツリー展開
 
     @Test("ツリー: 畳んでいるフォルダで → は展開する")
@@ -104,7 +95,7 @@ struct SidebarKeyActionTests {
     /// 個別ケースの列挙だと、あとから足したターゲットで穴が開く(TASK-408)。
     @Test("ツリー: ← / h はどの行でもルートを変えない")
     func treeBackwardNeverChangesRoot() {
-        let targets: [SidebarKeyAction.Target?] = [folder, expandedFolder, file, parent, nil]
+        let targets: [SidebarKeyAction.Target?] = [folder, expandedFolder, file, nil]
         for key in [KeyEquivalent.leftArrow, "h"] {
             for target in targets {
                 #expect(action(key, target: target, mode: .tree) != .navigateToParent)
@@ -133,7 +124,7 @@ struct SidebarKeyActionTests {
     @Test("ダブルクリックは、ツリーの展開済みフォルダ以外では return と同じ動作になる")
     func doubleClickMatchesReturnExceptExpandedTreeFolder() {
         for mode in SidebarLayoutMode.allCases {
-            for target in [folder, expandedFolder, file, parent] {
+            for target in [folder, expandedFolder, file] {
                 if mode == .tree, target == expandedFolder { continue }
                 #expect(
                     SidebarKeyAction.doubleClickAction(target: target, mode: mode)
@@ -182,7 +173,6 @@ struct SidebarKeyActionTests {
     @Test("三角のクリックはフォルダ行以外では何も起こさない")
     func disclosureToggleIgnoresNonFolders() {
         #expect(SidebarKeyAction.disclosureToggleAction(target: file) == .ignored)
-        #expect(SidebarKeyAction.disclosureToggleAction(target: parent) == .ignored)
     }
 
     // MARK: - Target の導出

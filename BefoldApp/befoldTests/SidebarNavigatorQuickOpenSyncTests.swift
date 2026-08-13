@@ -44,11 +44,10 @@ struct SidebarNavigatorQuickOpenSyncTests {
             directoryLister: { url, _, _ in
                 guard url.normalizedPathKey == base.normalizedPathKey else {
                     await gate.wait()
-                    return DirectoryListing(
-                        parentEntry: nil, rootChildren: [FileListEntry(url: target, kind: .file)]
+                    return DirectoryListing(rootChildren: [FileListEntry(url: target, kind: .file)]
                     )
                 }
-                return DirectoryListing(parentEntry: nil, rootChildren: [
+                return DirectoryListing(rootChildren: [
                     FileListEntry(url: fileA, kind: .file), FileListEntry(url: sub, kind: .folder),
                 ])
             },

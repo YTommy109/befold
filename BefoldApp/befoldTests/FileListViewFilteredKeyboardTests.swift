@@ -109,7 +109,7 @@ struct FileListViewFilteredKeyboardTests {
         let parent = FileListEntry(url: directory, kind: .folder)
         let child = FileListEntry(url: directory.appendingPathComponent("child.md"), kind: .file)
         let rows = SidebarRowBuilder.rows(
-            parentEntry: nil, rootChildren: [parent],
+            rootChildren: [parent],
             expanded: [parent.pathKey],
             childrenByPathKey: [parent.pathKey: [child]],
             showsDisclosure: true

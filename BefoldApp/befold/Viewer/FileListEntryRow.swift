@@ -79,17 +79,6 @@ struct FileListEntryRow: View {
     @ViewBuilder
     private var content: some View {
         switch entry.kind {
-        case .parentNavigation:
-            HStack {
-                Label {
-                    Text("..")
-                        .foregroundStyle(.secondary)
-                } icon: {
-                    Image(systemName: "arrow.up.doc")
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
         case .folder:
             HStack {
                 Label {

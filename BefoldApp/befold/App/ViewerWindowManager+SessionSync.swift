@@ -82,6 +82,10 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
         display.toggleChangedFilesOnly()
     }
 
+    func viewerWindowDidToggleSidebarTreeLayout(_ controller: ViewerWindowController) {
+        display.toggleSidebarLayoutMode()
+    }
+
     func viewerWindowDidToggleDiffLayout(_ controller: ViewerWindowController) {
         display.refreshAllToolbars()
     }

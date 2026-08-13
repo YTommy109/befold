@@ -41,7 +41,7 @@ extension FileListView {
         switch action {
         case .selectNext: selectNext(in: snapshot)
         case .selectPrevious: selectPrevious(in: snapshot)
-        case .navigateToParent: navigateToParent(in: snapshot)
+        case .navigateToParent: navigateToParent()
         // `perform` の switch は default を持つため、新しいケースを足しても
         // コンパイラは漏れを教えない。選択行を要しない動作はここへ明示的に書く。
         case .selectParent: selectParentRow(in: snapshot)
@@ -105,11 +105,18 @@ extension FileListView {
         return .handled
     }
 
-    private func navigateToParent(in snapshot: FileListSnapshot) -> KeyPress.Result {
-        if let parent = snapshot.parentNavigationEntry {
-            delegate?.fileListDidRequestNavigation(to: parent.url)
-            return .handled
+    /// ⌘↑ / delete による上位フォルダーへの移動。
+    ///
+    /// 行き先は一覧ではなく **`SidebarPathMenu`** から取る。かつては一覧の先頭にあった
+    /// `..` 行を読んでいたが、その行を廃止したため(TASK-475)、ヘッダーのパスポップアップと
+    /// 同じ上限判定を共有する形へ移した。ここに `isWithinHome` を書き直さないこと。
+    private func navigateToParent() -> KeyPress.Result {
+        guard let parent = SidebarPathMenu.parent(
+            of: model.currentDirectory, home: DirectoryLister.defaultHome
+        ) else {
+            return .ignored
         }
-        return .ignored
+        delegate?.fileListDidRequestNavigation(to: parent)
+        return .handled
     }
 }

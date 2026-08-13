@@ -48,11 +48,10 @@ struct SidebarNavigatorGenerationTests {
             if url.normalizedPathKey == base.normalizedPathKey {
                 await staleGate.wait()
                 return DirectoryListing(
-                    parentEntry: nil,
                     rootChildren: [FileListEntry(url: base.appendingPathComponent("fileA.mmd"), kind: .file)]
                 )
             }
-            return DirectoryListing(parentEntry: nil, rootChildren: [fileB])
+            return DirectoryListing(rootChildren: [fileB])
         }
         defer { withExtendedLifetime(host) {} }
 

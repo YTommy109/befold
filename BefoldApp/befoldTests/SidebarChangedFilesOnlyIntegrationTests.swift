@@ -172,7 +172,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
             entries: entries,
             selection: nil,
             sidebarDisplayPreference: preference,
-            directoryLister: { _, _, _ in DirectoryListing(parentEntry: nil, rootChildren: entries) },
+            directoryLister: { _, _, _ in DirectoryListing(rootChildren: entries) },
             git: SidebarGitReadingStub(statuses: { directory, policy in
                 await store.statuses(forDirectoryAt: directory, policy: policy)
             })
