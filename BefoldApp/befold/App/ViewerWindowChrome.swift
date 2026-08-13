@@ -39,19 +39,30 @@ enum ViewerWindowChrome {
         window.tabbingIdentifier = "ViewerWindow"
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.isReleasedWhenClosed = false
-        applyURL(fileURL, to: window)
+        // 生成時点では一覧がまだ届いておらず、出すのは開こうとしている文書。
+        applyURL(fileURL, presenting: .undetermined, to: window)
         return window
     }
 
-    /// ウィンドウのタイトルと `representedURL` を新しい URL に合わせて更新する。
+    /// ウィンドウのタイトルと `representedURL` を、**いま提示しているもの**に合わせて更新する。
     ///
-    /// 生成時・リネーム・ファイル切替が共有する表示更新。現在 URL 自体は `ViewerStore` が
-    /// 保持するため、ここでは複製・代入せずウィンドウの見た目だけを追従させる。
-    /// `representedURL` はタイトルバーのプロキシアイコン(cmd+クリックのパス表示・
-    /// タイトルバーからのドラッグ)を有効にする。
-    static func applyURL(_ newURL: URL, to window: NSWindow) {
-        window.title = newURL.lastPathComponent
-        window.representedURL = newURL
+    /// 生成時・リネーム・ファイル切替・提示対象の変化が共有する表示更新で、
+    /// **タイトルの導出はここ 1 箇所だけ**。フォルダー一覧を出している間は文書ではなく
+    /// そのフォルダーを指す(TASK-469)。文書側だけを見ていた頃は、サイドバーで
+    /// フォルダーを選んで一覧を出してもタイトルとプロキシアイコンが直前のファイルの
+    /// ままだった。
+    ///
+    /// `previewTarget` を **既定値の無い引数で受ける**のは、呼び出し側に「いま何を
+    /// 提示しているか」を必ず書かせるため。既定値を持たせると、渡し忘れが
+    /// コンパイルエラーにならないまま文書名へ戻る経路ができる。
+    ///
+    /// 現在 URL 自体は `ViewerStore` が保持するため、ここでは複製・代入せず
+    /// ウィンドウの見た目だけを追従させる。`representedURL` はタイトルバーの
+    /// プロキシアイコン(cmd+クリックのパス表示・タイトルバーからのドラッグ)を有効にする。
+    static func applyURL(_ fileURL: URL, presenting previewTarget: PreviewTarget, to window: NSWindow) {
+        let target = previewTarget.folderURL ?? fileURL
+        window.title = target.lastPathComponent
+        window.representedURL = target
     }
 
     /// 初期フレームを決める。

@@ -7,7 +7,8 @@ import Testing
 struct NavigationHistoryTests {
     private let dir = URL(fileURLWithPath: "/files")
     private func entry(_ name: String) -> HistoryEntry {
-        HistoryEntry(directory: dir, file: dir.appendingPathComponent(name))
+        let file = dir.appendingPathComponent(name)
+        return HistoryEntry(directory: dir, file: file, presentation: .file(file))
     }
 
     @Test("push で履歴が積まれ現在地が末尾になる")
@@ -105,8 +106,8 @@ struct NavigationHistoryTests {
         let parent = URL(fileURLWithPath: "/proj")
         let oldFile = sub.appendingPathComponent("old.mmd")
         let newFile = parent.appendingPathComponent("old.mmd")
-        history.push(HistoryEntry(directory: sub, file: oldFile))
-        history.push(HistoryEntry(directory: parent, file: oldFile))
+        history.push(HistoryEntry(directory: sub, file: oldFile, presentation: .file(oldFile)))
+        history.push(HistoryEntry(directory: parent, file: oldFile, presentation: .file(oldFile)))
         #expect(history.entries.count == 2)
 
         history.renameOccurred(from: oldFile, to: newFile)
@@ -124,8 +125,9 @@ struct NavigationHistoryTests {
         let newDir = URL(fileURLWithPath: "/new")
         let oldFile = oldDir.appendingPathComponent("a.mmd")
         let newFile = newDir.appendingPathComponent("a.mmd")
-        history.push(HistoryEntry(directory: oldDir, file: oldFile))
-        history.push(HistoryEntry(directory: oldDir, file: oldDir.appendingPathComponent("b.mmd")))
+        history.push(HistoryEntry(directory: oldDir, file: oldFile, presentation: .file(oldFile)))
+        let otherFile = oldDir.appendingPathComponent("b.mmd")
+        history.push(HistoryEntry(directory: oldDir, file: otherFile, presentation: .file(otherFile)))
 
         history.renameOccurred(from: oldFile, to: newFile)
 

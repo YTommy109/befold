@@ -1,14 +1,70 @@
 import BefoldKit
 import Foundation
 
-/// 戻る/進む履歴の 1 エントリ。表示ディレクトリと表示ファイルのスナップショット。
+/// 履歴エントリを記録した時点で **サイドバーが提示していた対象**。
+///
+/// 「開いている文書(`HistoryEntry.file`)」とは別物であることが要点。フォルダー行を
+/// 選んで一覧を出している間も文書は開いたままなので、2 つは同時に別の URL を指す。
+/// 復元時にどちらを提示すべきかは文書側からは決まらない。
+///
+/// 持つのは生の選択 URL ではなく **記録時の `FileListModel.previewTarget` から起こした
+/// 事実**。「選択が file と違えばフォルダーだったのだろう」という推論に頼ると、提示種別を
+/// 知りたい読み手(履歴メニューのラベル)が選択の中身を解釈し直すことになる(TASK-468)。
+enum HistoryPresentation {
+    /// ファイルを提示していた。URL はそのとき選択していた行(通常 `HistoryEntry.file` と同じ)。
+    case file(URL)
+    /// フォルダー一覧を提示していた。URL は選択していたフォルダー行。
+    /// 選択を消して現在ディレクトリ自身の一覧を出していたときは nil。
+    case folder(URL?)
+
+    /// 復元時に選択へ書き戻す URL。**復元はこの値をそのまま書くだけ**で、
+    /// 「開いているファイルの親を探す」等のヒューリスティックを挟まない。
+    var selectionURL: URL? {
+        switch self {
+        case let .file(url): url
+        case let .folder(url): url
+        }
+    }
+
+    /// 提示種別と選択の正規化キーが一致するか。`HistoryEntry` の等価判定に使う。
+    /// 種別が違えば選択が同じでも別のエントリ(同じフォルダーを「開いた」と「一覧で選んだ」)。
+    func isSamePresentation(as other: HistoryPresentation) -> Bool {
+        switch (self, other) {
+        case let (.file(lhs), .file(rhs)):
+            lhs.normalizedPathKey == rhs.normalizedPathKey
+        case let (.folder(lhs), .folder(rhs)):
+            lhs?.normalizedPathKey == rhs?.normalizedPathKey
+        default:
+            false
+        }
+    }
+
+    /// 選択が `oldKey` を指していたら `newURL` へ差し替える(rename 追随)。
+    func remapping(matching oldKey: String, to newURL: URL) -> HistoryPresentation {
+        guard selectionURL?.normalizedPathKey == oldKey else { return self }
+        switch self {
+        case .file: return .file(newURL)
+        case .folder: return .folder(newURL)
+        }
+    }
+}
+
+/// 戻る/進む履歴の 1 エントリ。表示ディレクトリ・表示ファイル・提示対象のスナップショット。
 struct HistoryEntry: Equatable {
     let directory: URL
     let file: URL?
+    /// 記録時にサイドバーが提示していた対象。**既定値を持たせないこと。**
+    /// 渡し忘れがコンパイルエラーにならないと、提示対象を落としたエントリが静かに
+    /// 積まれ、復元がまたファイル前提へ戻る(TASK-468 で直したのがその状態)。
+    let presentation: HistoryPresentation
 
+    /// 提示対象も等価判定に含める。含めないと「同じディレクトリで同じ文書を開いたまま
+    /// フォルダー一覧へ切り替えた」エントリが重複とみなされて捨てられ、履歴に
+    /// フォルダー提示が残らない。
     static func == (lhs: HistoryEntry, rhs: HistoryEntry) -> Bool {
         lhs.directory.normalizedPathKey == rhs.directory.normalizedPathKey
             && lhs.file?.normalizedPathKey == rhs.file?.normalizedPathKey
+            && lhs.presentation.isSamePresentation(as: rhs.presentation)
     }
 }
 
@@ -70,7 +126,8 @@ final class NavigationHistory {
             let dirMatch = entry.directory.normalizedPathKey == oldDirKey
             return HistoryEntry(
                 directory: dirMatch ? newDir : entry.directory,
-                file: newURL
+                file: newURL,
+                presentation: entry.presentation.remapping(matching: oldFileKey, to: newURL)
             )
         }
         deduplicateAdjacentEntries()

@@ -196,10 +196,16 @@ enum ViewerWindowAssembler {
     /// ツールバーの view ベースアイテムは validate を通らないため、提示対象が
     /// 変わったら明示的に再同期する（ADR 0002）。フォルダー一覧へ切り替わったときは
     /// キー入力の宛先も一覧へ移す（背後の見えない文書がキーを受け取り続けるのを防ぐ）。
+    ///
+    /// タイトルとプロキシアイコンもここで追随させる。ファイル URL が動く契機
+    /// （生成・切替・リネーム）だけを見ていると、フォルダー一覧へ切り替わったときは
+    /// URL が動かないため直前のファイル名が残る（TASK-469）。導出規則そのものは
+    /// `ViewerWindowChrome.applyURL` の 1 箇所にあり、ここは契機を足すだけ。
     static func wirePresentationTargetChange(for controller: ViewerWindowController) {
         controller.fileListModel.onPresentationTargetChange = { [weak controller] in
             guard let controller else { return }
             controller.refreshToolbarState()
+            controller.applyURLToWindow(controller.fileURL)
             if controller.isPreviewingFolder { controller.fileListModel.tableFocuser.focus() }
         }
     }

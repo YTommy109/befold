@@ -114,10 +114,14 @@ extension ViewerWindowController {
         sidebar.refreshFileList()
     }
 
-    /// ウィンドウのタイトルと representedURL を新しい URL に合わせて更新する。
-    /// 実処理は `ViewerWindowChrome`(器の責務)へ委譲する。
+    /// ウィンドウのタイトルと representedURL を更新する。
+    /// 実処理と導出規則は `ViewerWindowChrome`(器の責務)へ委譲する。
+    ///
+    /// - Parameter newURL: いま提示しようとしている文書。ファイル切替の途中では
+    ///   `ViewerStore` の現在 URL がまだ更新されていないため、呼び出し側から渡す。
+    ///   フォルダー一覧を出しているかどうかは提示対象(`previewTarget`)が決める。
     func applyURLToWindow(_ newURL: URL) {
         guard let window else { return }
-        ViewerWindowChrome.applyURL(newURL, to: window)
+        ViewerWindowChrome.applyURL(newURL, presenting: fileListModel.previewTarget, to: window)
     }
 }
