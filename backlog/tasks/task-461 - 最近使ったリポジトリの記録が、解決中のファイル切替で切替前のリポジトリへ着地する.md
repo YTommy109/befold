@@ -1,9 +1,10 @@
 ---
 id: TASK-461
 title: 最近使ったリポジトリの記録が、解決中のファイル切替で切替前のリポジトリへ着地する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 03:09'
+updated_date: '2026-08-13 04:54'
 labels: []
 dependencies: []
 priority: low
@@ -29,7 +30,23 @@ git 管理下の 2 つの異なるリポジトリ A / B を用意し、A のフ�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 解決の着地時に、解決を開始した対象と現在の対象が一致することを確認してから repositoryRoot と記録を書く
-- [ ] #2 一致しない場合は記録も repositoryRoot の書き込みも行わない（次に開いた時点で記録されるため許容する、という既存の縮退方針に合わせる）
-- [ ] #3 解決の着地前にファイルが切り替わったケースを再現するユニットテストがあり、修正前に落ちることを確認している
+- [x] #1 解決の着地時に、解決を開始した対象と現在の対象が一致することを確認してから repositoryRoot と記録を書く
+- [x] #2 一致しない場合は記録も repositoryRoot の書き込みも行わない（次に開いた時点で記録されるため許容する、という既存の縮退方針に合わせる）
+- [x] #3 解決の着地前にファイルが切り替わったケースを再現するユニットテストがあり、修正前に落ちることを確認している
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+着地時の一致確認を RecentRepositoryRecorder.apply(root:identity:to:resolvedFor:) に追加した。解決を開始した url と controller.fileURL を normalizedPathKey で比較し、不一致なら repositoryRoot も store.record も行わない（既存の縮退方針どおり、次に開いた時点で記録される）。
+
+単純化の検討: 「解決した root 配下に現在のファイルがあるか」で判定すれば同一リポジトリ内の切替でも記録を捨てずに済むが、入れ子リポジトリで誤って通る余地が増える。同一リポジトリ内切替で失うのは履歴 1 件だけで AC #2 の縮退方針に収まるため、述語を増やさず url の完全一致で判定した。
+
+検証: befoldTests/ViewerWindowManagerRecentRepositoriesTests.swift に GatedGitFileIndex（対象ファイルの root 解決だけ semaphore で止める。上限は waitOrRecordTimeout）を追加し、解決を止めている間に /repoA/a.md → /repoB/b.md へ切り替えるテストを追加。修正行を外すと `(controller.repositoryRoot → file:///repoA) == nil` と entries 非空の 2 件で落ちることを実測（戻して再確認済み）。`swift test` 全体 1471 tests / 232 suites 通過。swiftlint はこの 2 ファイルで新規指摘なし（既存の type_name 警告のみ）。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+git ルート解決の着地時に、解決を開始したファイルとウィンドウの現在の表示ファイルが一致することを確認してから repositoryRoot と最近使ったリポジトリを書くようにした。解決中に別リポジトリのファイルへ切り替わるケースを止める。着地前切替の回帰テストを追加し、修正を外すと落ちることを確認、swift test 全体（1471 tests）通過。
+<!-- SECTION:FINAL_SUMMARY:END -->
