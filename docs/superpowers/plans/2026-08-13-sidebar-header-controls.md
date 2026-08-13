@@ -53,7 +53,7 @@ import Testing
 
 /// サイドバーヘッダーの操作行の構成（左右の群・並び・アクセント）を固定する。
 /// SwiftUI ビューは自動テスト対象外のため、判定はこの値型に閉じ込めて検証する
-/// (TASK-410、設計は docs/superpowers/specs/2026-08-13-sidebar-header-controls-design.md)。
+/// (TASK-473、設計は docs/superpowers/specs/2026-08-13-sidebar-header-controls-design.md)。
 @Suite
 struct SidebarHeaderControlsModelTests {
     private func makeModel(
@@ -402,7 +402,7 @@ git commit -m "feat(gate): サイドバーヘッダーの操作行の構成を�
 
 ```swift
     /// ゲート OFF ではサイドバーヘッダーの表示形式ボタンが出ない。
-    /// 「変更されたファイルのみ表示」と同型の露出点にしている(TASK-410)。
+    /// 「変更されたファイルのみ表示」と同型の露出点にしている(TASK-473)。
     @Test("表示形式のトグルはゲートの両方向で正しい", arguments: [true, false])
     func sidebarTreeLayoutToggleFollowsGateInBothDirections(isTreeLayoutAvailable: Bool) {
         let controller = ViewerWindowControllerFixture(
@@ -768,7 +768,7 @@ Run: `grep -rn "サイドバーヘッダー\|SidebarHeaderView" docs/dev/native-
 
 ```bash
 backlog task create "サイドバーのソート順を永続化する" \
-  --desc "ソート順は現在 FileListModel.sortOrder 直書きでウィンドウごと・非永続。⋯ メニューへ移した(TASK-410)ことで設定らしい見た目になったが、再起動で既定へ戻る。UserDefaults へ永続化するなら、CLAUDE.md「UserDefaults キーの廃止・改名」の手順(移行経路を 1 本に畳む・defer での stale キー削除・3 ケースのテスト)に従うこと。" \
+  --desc "ソート順は現在 FileListModel.sortOrder 直書きでウィンドウごと・非永続。⋯ メニューへ移した(TASK-473)ことで設定らしい見た目になったが、再起動で既定へ戻る。UserDefaults へ永続化するなら、CLAUDE.md「UserDefaults キーの廃止・改名」の手順(移行経路を 1 本に畳む・defer での stale キー削除・3 ケースのテスト)に従うこと。" \
   --ac "サイドバーのソート順が再起動後も保たれる" \
   --ac "全ウィンドウで同じソート順になるか、窓ごとに独立かの判断が Implementation Notes に記録されている" \
   --priority low
