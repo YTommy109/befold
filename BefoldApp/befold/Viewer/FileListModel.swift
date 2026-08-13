@@ -299,17 +299,6 @@ final class FileListModel {
         )
     }
 
-    var canGoBack: Bool {
-        !backHistory.isEmpty
-    }
-
-    var canGoForward: Bool {
-        !forwardHistory.isEmpty
-    }
-
-    var backHistory: [HistoryEntry] = []
-    var forwardHistory: [HistoryEntry] = []
-
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: FileListEntry.ID?,
         sortOrder: SortOrder = .foldersFirst

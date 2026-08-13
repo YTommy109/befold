@@ -23,12 +23,12 @@ struct ViewerWindowControllerHistoryTests {
 
         controller.switchFile(to: fileB)
         #expect(controller.fileURL.lastPathComponent == "b.mmd")
-        #expect(controller.fileListModel.canGoBack == true)
+        #expect(controller.canGoBack == true)
 
         controller.navigateHistory(by: -1)
         #expect(controller.fileURL.lastPathComponent == "a.mmd")
-        #expect(controller.fileListModel.canGoForward == true)
-        #expect(controller.fileListModel.canGoBack == false)
+        #expect(controller.canGoForward == true)
+        #expect(controller.canGoBack == false)
     }
 
     @Test("戻る操作自体は新しい履歴を積まない")
@@ -46,8 +46,8 @@ struct ViewerWindowControllerHistoryTests {
 
         // 破棄されずに往復できる = 戻る/進むで push されていない
         #expect(controller.fileURL.lastPathComponent == "b.mmd")
-        #expect(controller.fileListModel.canGoForward == false)
-        #expect(controller.fileListModel.canGoBack == true)
+        #expect(controller.canGoForward == false)
+        #expect(controller.canGoBack == true)
     }
 
     @Test("戻る/進むメニューは対応する履歴があるときだけ有効")
@@ -89,11 +89,11 @@ struct ViewerWindowControllerHistoryTests {
         await controller.referenceCoordinator.pendingOpenReferenceTask?.value
 
         #expect(controller.fileURL.lastPathComponent == "b.md")
-        #expect(controller.fileListModel.canGoBack == true)
+        #expect(controller.canGoBack == true)
 
         controller.navigateHistory(by: -1)
 
         #expect(controller.fileURL.lastPathComponent == "a.md")
-        #expect(controller.fileListModel.canGoForward == true)
+        #expect(controller.canGoForward == true)
     }
 }

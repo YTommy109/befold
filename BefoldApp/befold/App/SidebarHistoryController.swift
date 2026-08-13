@@ -5,8 +5,10 @@ import Foundation
 /// 一覧・git 状態の取得とは独立した関心事で、`NavigationHistory` と
 /// `FileListModel` / host の橋渡しだけを担う。
 ///
-/// **この型が書く `fileListModel` の属性は `backHistory` / `forwardHistory` と、
-/// 履歴適用時の `selection`。** 選択は `SidebarNavigator` も書くが、書く契機は
+/// **この型が書く `fileListModel` の属性は履歴適用時の `selection` だけ。**
+/// 戻る/進むの可否と履歴メニューの中身は `history` を読み手が直接見る(TASK-458)。
+/// `fileListModel` へ写しを置くと、写し忘れたときにボタンの有効状態だけが古くなる。
+/// 選択は `SidebarNavigator` も書くが、書く契機は
 /// 排他(履歴を辿っている間か、それ以外か)。表示中フォルダーはこの型からは書かず、
 /// `SidebarNavigator.moveCurrentDirectory` へ通す(TASK-465 / TASK-468)。
 ///
@@ -19,7 +21,9 @@ import Foundation
 final class SidebarHistoryController {
     private let fileListModel: FileListModel
     /// このタブの戻る/進むナビゲーション履歴(メモリ内のみ)。
-    private let history = NavigationHistory()
+    /// 読み手(ツールバー・メニュー判定)は `SidebarNavigator.navigationHistory` 経由で
+    /// これを直接読む。書き換えるのはこの型だけ。
+    let history = NavigationHistory()
     private weak var host: SidebarNavigatorHost?
     /// 一覧の取り直しを頼む先。上の doc のとおり用途はそれ 1 つ。
     private weak var navigator: SidebarNavigator?
@@ -123,10 +127,9 @@ final class SidebarHistoryController {
             .map { fileListModel.matchingEntryURL(for: $0) }
     }
 
-    /// 履歴状態をサイドバー(FileListModel)とホスト(ツールバー)へ反映する。
+    /// 履歴状態の変化をホスト(ツールバー)へ知らせる。値は渡さず、読み手が
+    /// `history` を読み直す(写しを持たないため取り違えが起きない / TASK-458)。
     private func refreshState() {
-        fileListModel.backHistory = history.backEntries()
-        fileListModel.forwardHistory = history.forwardEntries()
         host?.historyStateDidChange()
     }
 }

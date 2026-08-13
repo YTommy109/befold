@@ -114,10 +114,10 @@ extension ViewerWindowController: ViewerMenuValidationSource {
     }
 
     var canGoBack: Bool {
-        fileListModel.canGoBack
+        navigationHistory.canGoBack
     }
 
     var canGoForward: Bool {
-        fileListModel.canGoForward
+        navigationHistory.canGoForward
     }
 }

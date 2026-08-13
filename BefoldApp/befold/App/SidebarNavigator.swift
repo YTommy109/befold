@@ -30,6 +30,13 @@ final class SidebarNavigator {
     let fileListModel: FileListModel
     /// 戻る/進む履歴の記録と適用。`tree` などと同じく注入引数にせず内部で生成する。
     private let historyController: SidebarHistoryController
+
+    /// このタブの戻る/進む履歴(読み取り専用)。ツールバー・メニュー判定はここを見る。
+    /// 書き換えるのは `historyController` だけなので、写しを持つ必要がない(TASK-458)。
+    var navigationHistory: NavigationHistory {
+        historyController.history
+    }
+
     // ディレクトリごとの「そこを離れる直前に選択していた項目」の記憶(TASK-309)。
     // 触るのはフォルダー移動(SidebarNavigator+FolderNavigation.swift)だけなので
     // `private` にはできない(Swift の `private` はファイルスコープ)。

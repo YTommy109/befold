@@ -57,8 +57,8 @@ struct ViewerWindowControllerTests {
         #expect(mock.switchFileArgs == nil)
 
         // 初期状態では戻る履歴がない
-        #expect(controller.fileListModel.canGoBack == false)
-        #expect(controller.fileListModel.canGoForward == false)
+        #expect(controller.canGoBack == false)
+        #expect(controller.canGoForward == false)
 
         // ブックマークメニューはブックマーク状態に応じてタイトルが切り替わる
         let bookmarkItem = NSMenuItem(
