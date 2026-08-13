@@ -5,18 +5,16 @@ import Foundation
 /// 一覧・git 状態の取得とは独立した関心事で、`NavigationHistory` と
 /// `FileListModel` / host の橋渡しだけを担う。
 ///
-/// **この型が書く `fileListModel` の属性は履歴適用時の `selection` だけ。**
+/// **この型は `fileListModel` を読むだけで、書かない(TASK-471)。**
 /// 戻る/進むの可否と履歴メニューの中身は `history` を読み手が直接見る(TASK-458)。
 /// `fileListModel` へ写しを置くと、写し忘れたときにボタンの有効状態だけが古くなる。
-/// 選択は `SidebarNavigator` も書くが、書く契機は
-/// 排他(履歴を辿っている間か、それ以外か)。表示中フォルダーはこの型からは書かず、
-/// `SidebarNavigator.moveCurrentDirectory` へ通す(TASK-465 / TASK-468)。
+/// 履歴適用による表示中フォルダーの移動・選択の確定・一覧の取り直しは、ファイル切替後と
+/// 同じ `SidebarPostSwitchSync` の同期区間へ通す(TASK-445 / TASK-465 / TASK-468)。
 ///
-/// `navigator` を weak で持つのは、履歴の適用が一覧の取り直し
-/// (`refreshFileList(applyCustomSelection:)`)と表示中フォルダーの移動
-/// (`moveCurrentDirectory(to:)`)をどちらも `SidebarNavigator` の経路へ通す必要が
-/// あるため。どちらも「サイドバー側の正規経路を借りる」1 つの用途で、履歴が
-/// 独自に同じ後始末を書き写さないためのもの。
+/// `navigator` を weak で持つのは、その同期区間が `SidebarNavigator` の経路
+/// (`moveCurrentDirectory(to:)` / `refreshFileList(applyCustomSelection:)`)を
+/// 借りて動くため。「サイドバー側の正規経路を借りる」1 つの用途で、履歴が独自に
+/// 同じ後始末を書き写さないためのもの。
 @MainActor
 final class SidebarHistoryController {
     private let fileListModel: FileListModel
@@ -25,7 +23,7 @@ final class SidebarHistoryController {
     /// これを直接読む。書き換えるのはこの型だけ。
     let history = NavigationHistory()
     private weak var host: SidebarNavigatorHost?
-    /// 一覧の取り直しを頼む先。上の doc のとおり用途はそれ 1 つ。
+    /// 同期区間(`SidebarPostSwitchSync`)を通すときの経路の借り先。用途はそれ 1 つ。
     private weak var navigator: SidebarNavigator?
 
     init(fileListModel: FileListModel) {
@@ -84,7 +82,9 @@ final class SidebarHistoryController {
 
     /// 履歴エントリを表示へ適用する。適用できなかった場合は false を返す。
     private func applyEntry(_ entry: HistoryEntry) -> Bool {
-        guard let host else { return false }
+        // navigator も先に確かめる。切替を済ませてから欠けに気づくと、ファイルだけが
+        // 変わって同期区間を通らない部分適用になる。
+        guard let host, let navigator else { return false }
         let dirChanged = entry.directory.normalizedPathKey
             != fileListModel.currentDirectory.normalizedPathKey
         // 存在しないファイルへは切替できず performFileSwitch が .failed を返す。
@@ -98,33 +98,17 @@ final class SidebarHistoryController {
         if let fileToOpen {
             guard case .switched = host.performFileSwitch(to: fileToOpen) else { return false }
         }
-        // 表示中フォルダーの書き換えは SidebarNavigator の 1 経路へ通す(TASK-465)。
-        // 直接代入していた頃は選択の記憶・rootDirectory の更新・展開の破棄が素通りし、
-        // 別ルートの展開行が残ったまま次の一覧に混ざっていた。
-        if dirChanged { navigator?.moveCurrentDirectory(to: entry.directory) }
-        // **選択はこの同期区間で確定する。** 一覧の着地に委ねると、世代の追い越しや
-        // ウィンドウ解放で着地しなかったときに旧選択(フォルダー行)が残り、
-        // 一覧が本文に被さったままになる(SidebarNavigator.syncAfterSwitch と同じ理由 / TASK-445)。
-        applySelection(of: entry)
-        // 着地側でもう一度書くのは、記録した行が今の一覧に無い場合の上積み。
-        // 一覧を取り直すと DirectoryLister.appendingOpenFile が開いている文書の行を
-        // 補うため、列挙に載らない拡張子のファイルでもそこで選択が行に当たるようになる。
-        navigator?.refreshFileList { [weak self] in
-            guard let self else { return false }
-            applySelection(of: entry)
-            return true
-        }
+        // 表示中フォルダーの移動・選択の確定・一覧の取り直しは、ファイル切替後と同じ
+        // 同期区間を通す(TASK-471)。記録した提示対象をそのまま選択として渡すだけで、
+        // 「開いている文書の親フォルダー行を引く」といった推論は挟まない(TASK-468)。
+        // 一覧は移動の有無によらず取り直す(記録した行が今の一覧に無い場合の上積み)。
+        SidebarPostSwitchSync.apply(
+            on: navigator,
+            movingTo: dirChanged ? entry.directory : nil,
+            selecting: entry.presentation.selectionURL,
+            refreshesWhenStaying: true
+        )
         return true
-    }
-
-    /// 記録した提示対象を選択へ書き戻す。同期区間と一覧着地の両方から呼ぶ(冪等)。
-    ///
-    /// 書くのは記録した URL そのものだけで、「開いている文書の親フォルダー行を引く」
-    /// といった推論は挟まない。推論に頼っていた頃は、引けなかったときに選択が nil や
-    /// 一覧に無い生 URL になり、提示がフォルダー一覧へ落ちていた(TASK-468)。
-    private func applySelection(of entry: HistoryEntry) {
-        fileListModel.selection = entry.presentation.selectionURL
-            .map { fileListModel.matchingEntryURL(for: $0) }
     }
 
     /// 履歴状態の変化をホスト(ツールバー)へ知らせる。値は渡さず、読み手が
