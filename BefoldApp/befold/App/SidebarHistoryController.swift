@@ -6,13 +6,15 @@ import Foundation
 /// `FileListModel` / host の橋渡しだけを担う。
 ///
 /// **この型が書く `fileListModel` の属性は `backHistory` / `forwardHistory` と、
-/// 履歴適用時の `currentDirectory` / `selection`。** 後者 2 つは `SidebarNavigator` も
-/// 書くが、書く契機は排他(履歴を辿っている間か、それ以外か)。
+/// 履歴適用時の `selection`。** 選択は `SidebarNavigator` も書くが、書く契機は
+/// 排他(履歴を辿っている間か、それ以外か)。表示中フォルダーはこの型からは書かず、
+/// `SidebarNavigator.moveCurrentDirectory` へ通す(TASK-465 / TASK-468)。
 ///
-/// `navigator` を weak で持つのは `refreshFileList(applyCustomSelection:)` を
-/// 呼び返すためだけ。履歴の適用はディレクトリを跨ぐと一覧の取り直しを伴うので、
-/// この 1 本の逆参照は避けられない(2 本以上要るなら分割自体を見送る、というのが
-/// TASK-442.5 の着手判断ラインだった)。
+/// `navigator` を weak で持つのは、履歴の適用が一覧の取り直し
+/// (`refreshFileList(applyCustomSelection:)`)と表示中フォルダーの移動
+/// (`moveCurrentDirectory(to:)`)をどちらも `SidebarNavigator` の経路へ通す必要が
+/// あるため。どちらも「サイドバー側の正規経路を借りる」1 つの用途で、履歴が
+/// 独自に同じ後始末を書き写さないためのもの。
 @MainActor
 final class SidebarHistoryController {
     private let fileListModel: FileListModel
@@ -41,12 +43,33 @@ final class SidebarHistoryController {
         refreshState()
     }
 
-    /// 現在の表示状態(ディレクトリ＋ファイル)を履歴に記録する。
+    /// 現在の表示状態(ディレクトリ＋ファイル＋提示対象)を履歴に記録する。
     /// push は現在エントリと同一なら無視する。
     func record() {
         guard let host else { return }
-        history.push(HistoryEntry(directory: fileListModel.currentDirectory, file: host.currentFileURL))
+        history.push(HistoryEntry(
+            directory: fileListModel.currentDirectory,
+            file: host.currentFileURL,
+            presentation: currentPresentation(host: host)
+        ))
         refreshState()
+    }
+
+    /// いま提示している対象を履歴用のスナップショットへ写す。
+    ///
+    /// `.undetermined`(一覧がまだ届いていない)は **ファイル提示として記録する**。
+    /// ウィンドウ生成直後の記録(`ViewerWindowController` の初期化末尾)は必ずここに落ちるが、
+    /// そのときウィンドウが出しているのは開いた文書であって一覧ではない。「未確定だから
+    /// フォルダー」に倒すと、起動直後のエントリへ戻るたびに一覧が被さる。
+    private func currentPresentation(host: SidebarNavigatorHost) -> HistoryPresentation {
+        switch fileListModel.previewTarget {
+        case .folder:
+            .folder(fileListModel.selection)
+        case .file:
+            .file(fileListModel.selection ?? host.currentFileURL)
+        case .undetermined:
+            .file(host.currentFileURL)
+        }
     }
 
     /// rename/move を履歴へ反映し、履歴状態を更新する。
@@ -71,20 +94,33 @@ final class SidebarHistoryController {
         if let fileToOpen {
             guard case .switched = host.performFileSwitch(to: fileToOpen) else { return false }
         }
-        guard dirChanged else {
-            fileListModel.selection = fileListModel.matchingEntryURL(for: host.currentFileURL)
-            return true
-        }
-        fileListModel.currentDirectory = entry.directory
-        // ファイルがディレクトリ外(上へ移動で記録されたエントリ)の場合、
-        // ファイルの親フォルダを選択して元の状態を復元する(一覧反映後に判定する)。
-        let fileDir = host.currentFileURL.deletingLastPathComponent().normalizedPathKey
+        // 表示中フォルダーの書き換えは SidebarNavigator の 1 経路へ通す(TASK-465)。
+        // 直接代入していた頃は選択の記憶・rootDirectory の更新・展開の破棄が素通りし、
+        // 別ルートの展開行が残ったまま次の一覧に混ざっていた。
+        if dirChanged { navigator?.moveCurrentDirectory(to: entry.directory) }
+        // **選択はこの同期区間で確定する。** 一覧の着地に委ねると、世代の追い越しや
+        // ウィンドウ解放で着地しなかったときに旧選択(フォルダー行)が残り、
+        // 一覧が本文に被さったままになる(SidebarNavigator.syncAfterSwitch と同じ理由 / TASK-445)。
+        applySelection(of: entry)
+        // 着地側でもう一度書くのは、記録した行が今の一覧に無い場合の上積み。
+        // 一覧を取り直すと DirectoryLister.appendingOpenFile が開いている文書の行を
+        // 補うため、列挙に載らない拡張子のファイルでもそこで選択が行に当たるようになる。
         navigator?.refreshFileList { [weak self] in
-            guard let self, fileDir != fileListModel.currentDirectory.normalizedPathKey else { return false }
-            fileListModel.selection = fileListModel.folderEntryURL(forKey: fileDir)
+            guard let self else { return false }
+            applySelection(of: entry)
             return true
         }
         return true
+    }
+
+    /// 記録した提示対象を選択へ書き戻す。同期区間と一覧着地の両方から呼ぶ(冪等)。
+    ///
+    /// 書くのは記録した URL そのものだけで、「開いている文書の親フォルダー行を引く」
+    /// といった推論は挟まない。推論に頼っていた頃は、引けなかったときに選択が nil や
+    /// 一覧に無い生 URL になり、提示がフォルダー一覧へ落ちていた(TASK-468)。
+    private func applySelection(of entry: HistoryEntry) {
+        fileListModel.selection = entry.presentation.selectionURL
+            .map { fileListModel.matchingEntryURL(for: $0) }
     }
 
     /// 履歴状態をサイドバー(FileListModel)とホスト(ツールバー)へ反映する。

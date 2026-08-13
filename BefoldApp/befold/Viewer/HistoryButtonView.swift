@@ -88,16 +88,19 @@ final class HistoryButtonView: NSButton {
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: bounds.height + 2), in: self)
     }
 
-    /// アイコンはエントリが指すパス(ファイルがあればファイル、無ければディレクトリ)から
-    /// 作る。分岐するのはタイトルだけなので、アイコン生成は共通のまま 1 度だけ書く。
+    /// ラベルは **そのエントリが提示していた対象**(`HistoryPresentation`)から作る。
+    /// 開いている文書(`HistoryEntry.file`)から作ってはならない。フォルダー一覧を出していた
+    /// エントリでも文書は開いたままなので、直前に見ていたファイル名が並ぶ(TASK-468)。
+    /// アイコンはタイトルと同じ対象から作るので、生成は共通のまま 1 度だけ書く。
     private static func menuLabel(for entry: HistoryEntry) -> (String, NSImage) {
-        let target = entry.file ?? entry.directory
-        let title = if let file = entry.file {
-            "\(file.lastPathComponent) — \(entry.directory.lastPathComponent)"
-        } else {
-            entry.directory.lastPathComponent
+        switch entry.presentation {
+        case let .file(url):
+            let title = "\(url.lastPathComponent) — \(entry.directory.lastPathComponent)"
+            return (title, NSMenuItem.icon(forFile: url.path))
+        case let .folder(selection):
+            let target = selection ?? entry.directory
+            return (target.lastPathComponent, NSMenuItem.icon(forFile: target.path))
         }
-        return (title, NSMenuItem.icon(forFile: target.path))
     }
 
     @objc private func menuItemClicked(_ sender: NSMenuItem) {
