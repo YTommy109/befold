@@ -1,5 +1,4 @@
 import AppKit
-import BefoldCLI
 import Foundation
 
 /// CLI 起動時、既に起動中の befold インスタンスがあればそちらへ要求を転送する。

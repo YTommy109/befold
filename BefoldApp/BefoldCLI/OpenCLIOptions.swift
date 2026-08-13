@@ -1,5 +1,4 @@
 import ArgumentParser
-import BefoldCLI
 import Foundation
 
 /// `--sort` の値としてそのまま受け取れるようにする。RawValue == String かつ CaseIterable のため

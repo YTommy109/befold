@@ -15,10 +15,11 @@ struct PackageProjectTargetParityTests {
     private static let projectOnlyTargets: Set<String> = ["BefoldQuickLook"]
 
     /// Package.swift にだけ存在してよいターゲット。
-    /// befoldCLITests は `@testable import befold_cli` で実行ファイルターゲットの中身に
-    /// 触るため Xcode ではテストホストが要るが、Xcode は plain tool を TEST_HOST として
-    /// 受け付けない。載せるには CLI ロジックを BefoldCLI framework へ移す必要がある。
-    private static let packageOnlyTargets: Set<String> = ["befoldCLITests"]
+    /// **空であること自体が担保。** かつては befoldCLITests がここに居た(CLI ロジックが
+    /// 実行ファイルターゲットにあり、Xcode は plain tool を TEST_HOST にできないため)。
+    /// TASK-456 でロジックを BefoldCLI framework へ移して解消した。ここへ何かを足したく
+    /// なったら、それは片方の経路でテストが丸ごと走らなくなるということ。
+    private static let packageOnlyTargets: Set<String> = []
 
     private static func appDirectory() -> URL {
         URL(fileURLWithPath: #filePath)
