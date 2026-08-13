@@ -770,6 +770,38 @@ describe('parseCsv', () => {
   test('handles single field', () => {
     expect(parseCsv('a', ',')).toEqual([['a']]);
   });
+
+  test('unescapes escape sequences in cell values', () => {
+    expect(parseCsv('a\\nb,c\\td,e\\rf', ',')).toEqual([['a\nb', 'c\td', 'e\rf']]);
+  });
+
+  test('keeps a literal backslash-n when the backslash is escaped', () => {
+    expect(parseCsv('a\\\\nb', ',')).toEqual([['a\\nb']]);
+  });
+
+  test('unescapes an escaped backslash to a single backslash', () => {
+    expect(parseCsv('a\\\\b', ',')).toEqual([['a\\b']]);
+  });
+
+  test('keeps an unknown escape sequence as-is', () => {
+    expect(parseCsv('a\\qb', ',')).toEqual([['a\\qb']]);
+  });
+
+  test('keeps a trailing lone backslash', () => {
+    expect(parseCsv('a\\', ',')).toEqual([['a\\']]);
+  });
+});
+
+describe('csv escape sequences reach both table render paths', () => {
+  test('buildTableHtml (initial render) emits a real newline in the cell', () => {
+    const html = buildTableHtml(parseCsv('h\na\\nb', ','));
+    expect(html).toContain('<td>a\nb</td>');
+  });
+
+  test('csvRowsHtml (chunked append) emits the same cell markup', () => {
+    const html = csvRowsHtml(parseCsv('a\\nb', ','), 1);
+    expect(html).toBe('<tr><td>a\nb</td></tr>');
+  });
 });
 
 describe('buildTableHtml', () => {
@@ -915,6 +947,14 @@ describe('csvSourceInnerHtml', () => {
   test('does not add a trailing newline when the content has none', () => {
     const inner = csvSourceInnerHtml('1,2,3', ',');
     expect(inner.endsWith('\n')).toBe(false);
+  });
+
+  test('leaves escape sequences literal so line numbers keep matching the file', () => {
+    const inner = csvSourceInnerHtml('a\\nb,c', ',');
+    expect(inner).toBe(
+      '<span class="csv-col-0">a\\nb</span>,<span class="csv-col-1">c</span>'
+    );
+    expect(inner).not.toContain('\n');
   });
 });
 
