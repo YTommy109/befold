@@ -3,6 +3,11 @@
 <!-- derived-from ./2026-07-06-folder-navigation-design.md -->
 <!-- derived-from ./2026-07-05-file-list-sidebar-design.md -->
 
+> **これは 2026-07-07 時点の設計スナップショットです。**
+> 現在の仕様は [`docs/dev/native-app-design.md`](../../dev/native-app-design.md)
+> が単一の情報源。この文書は当時の意図と検討経緯を残すためのもので、
+> 現在の実装と食い違っていることがある。着手前に必ずコードで裏を取ること。
+
 ## 背景
 
 befold のサイドバー（ファイル一覧）では、フォルダを移動したりファイルを選択して

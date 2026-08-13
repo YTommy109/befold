@@ -1,5 +1,10 @@
 # Auto-Upgrade 設計 spec
 
+> **これは 2026-06-03 時点の設計スナップショットです。**
+> 現在の仕様は [`docs/dev/native-app-design.md`](../../dev/native-app-design.md)
+> が単一の情報源。この文書は当時の意図と検討経緯を残すためのもので、
+> 現在の実装と食い違っていることがある。着手前に必ずコードで裏を取ること。
+
 **日付:** 2026-06-03
 **対象ブランチ:** feat/auto_upgrade
 **参考実装:** `YTommy109/git-lanes`
