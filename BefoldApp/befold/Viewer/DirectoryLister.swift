@@ -160,6 +160,15 @@ enum DirectoryLister {
             .map(\.nativeBackedFileURL)
     }
 
+    /// そのフォルダーから「開ける対応形式ファイルを 1 件取れるか」。
+    ///
+    /// **読めなかったフォルダも `false` に畳むのが決めた振る舞い**(TASK-447)。この値の
+    /// 唯一の消費側はコンテキストメニュー「新しいタブ/ウィンドウで開く」の disabled 判定で、
+    /// 取れない理由(空だったか、権限が無いか)で次の一手が変わらない。読めないフォルダで
+    /// 有効化しても、押した先の `firstSupportedFile` が nil を返して何も起きないボタンに
+    /// なるだけ。列挙失敗そのものの区別は、ツリー展開側の
+    /// `SidebarDisclosureState.expandedFailed`(TASK-404)が担う。
+    /// 固定しているのは `DirectoryListerTests`。
     static func containsSupportedFile(in directory: URL) -> Bool {
         firstSupportedFile(in: directory) != nil
     }
