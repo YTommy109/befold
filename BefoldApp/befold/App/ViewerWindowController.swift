@@ -251,6 +251,9 @@ final class ViewerWindowController: NSWindowController {
         initialFrameDescriptor: String? = nil,
         // CLI の `--sort` による初期並び順の指定。nil なら保存された既定値から始める。
         initialSortOrder: SortOrder? = nil,
+        // CLI の `--hidden-files`/`--no-hidden-files` による初期値の指定。
+        // nil なら保存された既定値から始める。この起動限りの上書きで既定値は書き換えない。
+        initialShowHiddenFiles: Bool? = nil,
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         store: ViewerStore? = nil,
@@ -279,7 +282,10 @@ final class ViewerWindowController: NSWindowController {
         self.store = store
         sidebar = ViewerWindowAssembler.makeSidebarNavigator(
             fileURL: fileURL, displayDefaults: displayDefaults,
-            sortOrder: initialSortOrder, gitFileIndex: gitFileIndex, gitStatusStore: gitStatusStore
+            overrides: SidebarDisplayOverrides(
+                sortOrder: initialSortOrder, showHiddenFiles: initialShowHiddenFiles
+            ),
+            gitFileIndex: gitFileIndex, gitStatusStore: gitStatusStore
         )
         let window = ViewerWindowChrome.makeWindow(fileURL: fileURL)
 

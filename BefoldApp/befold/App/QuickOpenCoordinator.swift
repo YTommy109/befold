@@ -42,7 +42,8 @@ final class QuickOpenCoordinator {
     private func makeEnvironment() -> AppQuickOpenEnvironment {
         // パネルは canBecomeMain=false のため、表示中でも mainWindow は元のビューアの
         // まま。専用の状態を持たず activeViewer から都度引く。
-        let currentFileURL = activeViewer()?.fileURL
+        let controller = activeViewer()
+        let currentFileURL = controller?.fileURL
         if let currentFileURL {
             gitIndex.warm(forFileAt: currentFileURL)
         }
@@ -50,7 +51,9 @@ final class QuickOpenCoordinator {
             gitIndex: gitIndex,
             recentDocumentsStore: stores.recentDocumentsStore,
             bookmarkStore: stores.bookmarkStore,
-            displayDefaults: stores.displayDefaults,
+            // 窓があればその窓のライブ値、無ければ次に開く窓の初期値(保存された既定値)。
+            includesHiddenFiles: controller?.fileListModel.showHiddenFiles
+                ?? stores.displayDefaults.settings.showHiddenFiles,
             currentFileURL: currentFileURL
         )
     }

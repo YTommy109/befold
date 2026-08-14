@@ -33,28 +33,6 @@ final class GlobalDisplayBroadcaster {
         self.controllers = controllers
     }
 
-    /// サイドバー表示 4 値の変更を、開いている全ウィンドウへ配る。
-    ///
-    /// **これは TASK-480.2 時点の暫定形。** 4 値は既に窓ごとのライブ値へ移っており
-    /// (ADR 0002「窓の状態」)、本来この型から配ってはならない。480.2 の範囲では挙動を
-    /// 変えないため、各窓の唯一の入口である `applyDisplayChange` を全窓分呼ぶ形にとどめる。
-    /// **TASK-480.3 でこの API ごと撤去し、操作経路をアクティブウィンドウ 1 つへ向ける。**
-    /// 後処理(再列挙 / 展開の破棄 / git の取り直し)の非対称は各窓側へ寄せてある。
-    func applySidebarDisplayChangeToAllWindows(_ change: SidebarDisplayChange) {
-        controllers().forEach { $0.sidebar.applyDisplayChange(change) }
-    }
-
-    /// CLI の `--hidden-files`/`--no-hidden-files` から呼ばれる。値を直接設定し、
-    /// 開いている全ウィンドウのサイドバーへ即座に反映する。
-    ///
-    /// **これも 480.2 時点の暫定形。** 480.3 で `--sort` と同じ「その起動限りの上書き」
-    /// (窓の生成時に初期値へ混ぜ、既定値を書き換えない)へ揃えて撤去する。
-    func setHiddenFiles(_ value: Bool) {
-        for controller in controllers() where controller.fileListModel.showHiddenFiles != value {
-            controller.sidebar.applyDisplayChange(.toggleHiddenFiles)
-        }
-    }
-
     /// CLI の `--bookmark <path>` から転送された追加を適用し、開いている全ウィンドウの
     /// ツールバーへ即座に反映する。書き込みを GUI プロセスへ一本化する意図で
     /// AppDelegate から呼ばれる(CLIRequestForwarder 参照)。

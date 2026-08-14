@@ -108,14 +108,7 @@ final class SidebarListingCoordinator {
 
     /// この窓の現在値を、次に開く窓の既定値として書き戻す。後勝ちでよい。
     private func recordSettings() {
-        displayDefaults.record(
-            SidebarDisplaySettings(
-                showHiddenFiles: fileListModel.showHiddenFiles,
-                showChangedFilesOnly: fileListModel.showChangedFilesOnly,
-                layoutMode: fileListModel.layoutMode,
-                sortOrder: fileListModel.sortOrder
-            )
-        )
+        displayDefaults.record(fileListModel.displaySettings)
     }
 
     /// サイドバーのファイル一覧を現在のディレクトリで取り直し、現在ファイルを選択する。

@@ -74,18 +74,6 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
         remapController(controller, from: oldURL, to: newURL, isRename: false)
     }
 
-    func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
-        display.applySidebarDisplayChangeToAllWindows(.toggleHiddenFiles)
-    }
-
-    func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {
-        display.applySidebarDisplayChangeToAllWindows(.toggleChangedFilesOnly)
-    }
-
-    func viewerWindowDidToggleSidebarTreeLayout(_ controller: ViewerWindowController) {
-        display.applySidebarDisplayChangeToAllWindows(.toggleLayoutMode)
-    }
-
     func viewerWindowDidToggleDiffLayout(_ controller: ViewerWindowController) {
         display.refreshAllToolbars()
     }

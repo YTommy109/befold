@@ -79,6 +79,7 @@ final class SidebarNavigator {
         currentDirectory: URL, entries: [FileListEntry], selection: URL?,
         displayDefaults: any SidebarDisplayDefaultsProviding,
         sortOrder: SortOrder? = nil,
+        showHiddenFiles: Bool? = nil,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> DirectoryListing
             = DirectoryLister.listingAsync,
         childrenLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]?
@@ -87,13 +88,16 @@ final class SidebarNavigator {
         makeGitIndexWatcher: @escaping GitIndexWatch.WatcherFactory
             = { url, onChange in FileWatcher(path: url, onChange: onChange) }
     ) {
-        // 窓ごとのライブ値の初期値。CLI の明示指定(--sort)があればそれで上書きし、
+        // 窓ごとのライブ値の初期値。CLI の明示指定(--sort / --hidden-files)があればそれで上書きし、
         // 無ければ前回保存した既定値から始める。**既定値を読むのはここ 1 回だけ。**
         // displayDefaults は保持しないため以後読み直せず、窓の内側(listing)へ渡すのは
         // 書き戻し専用の SidebarDisplayDefaultsRecording としてのみ(ADR 0002「窓の状態の規則」2)。
         var initialSettings = displayDefaults.settings
         if let sortOrder {
             initialSettings.sortOrder = sortOrder
+        }
+        if let showHiddenFiles {
+            initialSettings.showHiddenFiles = showHiddenFiles
         }
         let fileListModel = FileListModel(
             currentDirectory: currentDirectory,

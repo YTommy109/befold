@@ -152,17 +152,13 @@ final class SessionRestorer {
     /// 前回セッションで開いていたファイルを再オープンする。存在しなくなったファイルは記録からも取り除く。
     /// SessionLayout があればタブグループ構成・タブ順・選択タブを再現し、無ければ従来どおり開いた順に開く。
     /// 最後に前回アクティブだったファイルをキーウィンドウにする。
-    /// `options`: 復元するウィンドウへ与える表示オプション。隠しファイル表示は即座に
-    /// アプリ全体へ、残りは各ウィンドウへ適用する(この起動限りの上書きで、保存済み設定は
-    /// 書き換えない)。本番の呼び出し元(AppDelegate)は既定値で呼ぶ。CLI 由来のオプションは
+    /// `options`: 復元するウィンドウへ与える表示オプション。隠しファイル表示を含め、
+    /// すべて各ウィンドウへ適用する(この起動限りの上書きで、保存済み設定は
+    /// 書き換えない / TASK-480.3)。本番の呼び出し元(AppDelegate)は既定値で呼ぶ。CLI 由来のオプションは
     /// パス引数を要するようになったため(`CLIOpenOptions.requiresPaths`)、この経路ではなく
     /// `openPaths` から届く。options をフィールド単位で手写しせずそのまま
     /// `ViewerWindowManager.openViewer` へ渡す形は、経路ごとの取りこぼしを防ぐために保つ。
     func restoreLastSession(options: CLIOpenOptions = CLIOpenOptions()) {
-        if let showHiddenFiles = options.showHiddenFiles {
-            windowManager.setHiddenFilesFromCLI(showHiddenFiles)
-        }
-
         // 復元中のウィンドウ表示がシステムの「タブ優先」設定で勝手にタブ結合しないよう、
         // 自動タブ化を一時的に無効にする(グループ構成は明示的なタブ結合で再現する)
         let allowsTabbing = NSWindow.allowsAutomaticWindowTabbing

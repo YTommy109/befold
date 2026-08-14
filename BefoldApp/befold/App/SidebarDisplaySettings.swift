@@ -26,6 +26,19 @@ struct SidebarDisplaySettings: Equatable {
     )
 }
 
+/// CLI 由来の「この起動限りの上書き」。指定のあった値だけ、窓の生成時に初期値へ混ぜる。
+///
+/// `--sort` / `--hidden-files` を個別の引数で持ち回ると、経路が増えるたびに引数が伸びて
+/// 片方だけ通し忘れる(TASK-413 と同型)。**指定されていない = nil** をここで表し、
+/// 保存された既定値は書き換えない。
+struct SidebarDisplayOverrides: Equatable {
+    var sortOrder: SortOrder?
+    var showHiddenFiles: Bool?
+
+    /// 指定なし。CLI 以外の経路(Recent メニュー・参照クリックなど)はこれで開く。
+    static let none = SidebarDisplayOverrides()
+}
+
 /// サイドバー表示 4 値への変更。`SidebarListingCoordinator.applyDisplayChange(_:)` が
 /// 受け取る唯一の語彙。
 ///
@@ -64,4 +77,40 @@ protocol SidebarDisplayDefaultsRecording {
 protocol SidebarDisplayDefaultsProviding: SidebarDisplayDefaultsRecording {
     /// 新しく開くウィンドウの初期値。
     var settings: SidebarDisplaySettings { get }
+}
+
+extension FileListModel {
+    /// この窓のサイドバー表示 4 値のスナップショット。
+    /// 既定値への書き戻しと、メニュー項目の状態導出が同じ 1 箇所を読むための窓。
+    var displaySettings: SidebarDisplaySettings {
+        SidebarDisplaySettings(
+            showHiddenFiles: showHiddenFiles, showChangedFilesOnly: showChangedFilesOnly,
+            layoutMode: layoutMode, sortOrder: sortOrder
+        )
+    }
+}
+
+/// View メニューのサイドバー表示 3 項目の状態。
+///
+/// 判定を `AppDelegate.validateMenuItem` の中に書かず値として切り出しているのは、
+/// **アクティブウィンドウが無いときの扱い**(項目を無効化する)を含めて headless に
+/// 検証できるようにするため。`NSApp.mainWindow` に依存する解決は呼び出し側に残す。
+struct SidebarDisplayMenuState: Equatable {
+    /// 項目を選べるか。操作対象の窓が無ければ false(4 値は窓ごとのライブ値なので、
+    /// 届け先が無い状態で押せてはならない)。
+    let isEnabled: Bool
+    /// 不可視ファイル項目が「隠す」を表すか(表示中なら true)。
+    let hidesHiddenFiles: Bool
+    /// 「変更ファイルのみ表示」にチェックを付けるか。
+    let checksChangedFilesOnly: Bool
+    /// 「サイドバーをツリー表示」にチェックを付けるか。
+    let checksTreeLayout: Bool
+
+    /// - Parameter settings: アクティブウィンドウの現在値。窓が無ければ nil。
+    init(activeWindow settings: SidebarDisplaySettings?) {
+        isEnabled = settings != nil
+        hidesHiddenFiles = settings?.showHiddenFiles ?? false
+        checksChangedFilesOnly = settings?.showChangedFilesOnly ?? false
+        checksTreeLayout = settings?.layoutMode == .tree
+    }
 }

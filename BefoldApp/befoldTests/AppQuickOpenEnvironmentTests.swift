@@ -82,7 +82,7 @@ struct AppQuickOpenEnvironmentTests {
             gitIndex: gitIndex,
             recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
-            displayDefaults: SidebarDisplayDefaults(defaults: defaults),
+            includesHiddenFiles: false,
             currentFileURL: currentFileURL,
             fileReader: fileReader
         )

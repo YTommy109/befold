@@ -33,6 +33,14 @@ enum ViewerDisplayOptionsApplier {
             controller.fileListModel.sortOrder = options.viewerSortOrder
             controller.sidebar.refreshFileList()
         }
+        // 不可視ファイル表示も並び順と同じ「この起動限りの窓単位の上書き」。
+        // TASK-480.3 以前はアプリ全体の設定を書き換えて全窓へ配っていたが、4 値が窓ごとの
+        // ライブ値へ移ったため --sort と同じ扱いに揃えた(既定値は書き換えない)。
+        let hiddenFiles = options.showHiddenFiles
+        if hiddenFiles != nil, hiddenFiles != controller.fileListModel.showHiddenFiles {
+            controller.fileListModel.showHiddenFiles = hiddenFiles == true
+            controller.sidebar.refreshFileList()
+        }
         // 開閉の解決順は新規ウィンドウ(openViewer)と同じ: CLI の明示指定 > フォルダーオープンの強制表示。
         if let showSidebar = options.showSidebar {
             controller.setSidebarCollapsed(!showSidebar)

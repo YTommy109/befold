@@ -231,19 +231,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CLIShimCoordinator.install()
     }
 
-    /// View > Show/Hide Hidden Files(⌘⌃H)。不可視ファイル表示を全ウィンドウで一括切替する。
+    /// View > Show/Hide Hidden Files(⌘⌃H)。アクティブウィンドウの不可視ファイル表示を切り替える。
     @objc func toggleHiddenFiles(_ sender: Any?) {
-        windowManager.display.applySidebarDisplayChangeToAllWindows(.toggleHiddenFiles)
+        applySidebarDisplayChange(.toggleHiddenFiles)
     }
 
-    /// View > Show Changed Files Only(⌘⌃G)。git 変更ファイルのみの絞り込みを全ウィンドウで一括切替する。
+    /// View > Show Changed Files Only(⌘⌃G)。アクティブウィンドウの絞り込みを切り替える。
     @objc func toggleChangedFilesOnly(_ sender: Any?) {
-        windowManager.display.applySidebarDisplayChangeToAllWindows(.toggleChangedFilesOnly)
+        applySidebarDisplayChange(.toggleChangedFilesOnly)
     }
 
-    /// View > サイドバーをツリー表示(ショートカットなし)。表示モードを全ウィンドウで一括切替する。
+    /// View > サイドバーをツリー表示(⌃⌘T)。アクティブウィンドウの表示形式を切り替える。
     @objc func toggleSidebarTreeLayout(_ sender: Any?) {
-        windowManager.display.applySidebarDisplayChangeToAllWindows(.toggleLayoutMode)
+        applySidebarDisplayChange(.toggleLayoutMode)
+    }
+
+    /// サイドバー表示 4 値はいずれも窓ごとのライブ値なので、届けるのは操作対象の窓 1 つだけ
+    /// (ADR 0002「窓の状態」)。窓が無いときは何もしない——`validateMenuItem` が同じ判定で
+    /// 項目を無効化しているため、通常この経路は選べない。
+    private func applySidebarDisplayChange(_ change: SidebarDisplayChange) {
+        ActiveViewerProvider.fromMainWindow()?.sidebar.applyDisplayChange(change)
     }
 
     /// App > Settings…(⌘,)。単一インスタンスで、
@@ -261,19 +268,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 // MARK: - NSMenuItemValidation
 
 extension AppDelegate: NSMenuItemValidation {
+    /// サイドバー表示 3 項目のチェック状態は**アクティブウィンドウの現在値**を映す
+    /// (窓ごとのライブ値なので、保存された既定値を映すと前面の窓と食い違う / TASK-480.3)。
+    /// 窓が 1 枚も無ければ操作対象が決まらないため項目ごと無効化する。
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(toggleHiddenFiles(_:)) {
-            menuItem.title = stores.displayDefaults.settings.showHiddenFiles
+        let sidebarActions: Set<Selector> = [
+            #selector(toggleHiddenFiles(_:)), #selector(toggleChangedFilesOnly(_:)),
+            #selector(toggleSidebarTreeLayout(_:)),
+        ]
+        guard let action = menuItem.action, sidebarActions.contains(action) else { return true }
+        let state = SidebarDisplayMenuState(
+            activeWindow: ActiveViewerProvider.fromMainWindow()?.fileListModel.displaySettings
+        )
+        if action == #selector(toggleHiddenFiles(_:)) {
+            menuItem.title = state.hidesHiddenFiles
                 ? String(localized: "menu.view.hideHiddenFiles", bundle: .l10n)
                 : String(localized: "menu.view.showHiddenFiles", bundle: .l10n)
         }
-        if menuItem.action == #selector(toggleChangedFilesOnly(_:)) {
-            menuItem.state = stores.displayDefaults.settings.showChangedFilesOnly ? .on : .off
+        if action == #selector(toggleChangedFilesOnly(_:)) {
+            menuItem.state = state.checksChangedFilesOnly ? .on : .off
         }
-        if menuItem.action == #selector(toggleSidebarTreeLayout(_:)) {
-            menuItem.state = stores.displayDefaults.settings.layoutMode == .tree ? .on : .off
+        if action == #selector(toggleSidebarTreeLayout(_:)) {
+            menuItem.state = state.checksTreeLayout ? .on : .off
         }
-        return true
+        return state.isEnabled
     }
 }
 

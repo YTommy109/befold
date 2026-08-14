@@ -74,24 +74,6 @@ final class ViewerWindowManager {
     /// 開いた複数ウィンドウで `git status` の実行とキャッシュをまとめる。
     /// 既定は無効化状態(常に空)で、本番のルート解決付きインスタンスは AppDelegate が差し込む。
     var gitStatusStore = GitStatusStore()
-    /// CLI の `--hidden-files`/`--no-hidden-files` を反映する。
-    ///
-    /// **TASK-480.2 時点の暫定形。** 呼び出し元(`DocumentOpener` / `SessionRestorer`)は
-    /// ウィンドウを開く**前**にここを呼ぶため、既定値を書き換えないと「この起動で開く窓」に
-    /// 届かない。窓ごとのライブ値へ移した今も挙動を変えないよう、既定値の書き換えと
-    /// 開いている窓への反映の両方を行う。
-    /// **TASK-480.3 で `--sort` と同じ「その起動限りの上書き」**(窓の生成時に初期値へ混ぜ、
-    /// 既定値を書き換えない)**へ揃えて撤去する。**
-    func setHiddenFilesFromCLI(_ value: Bool) {
-        var next = displayDefaults.settings
-        guard next.showHiddenFiles != value else { return }
-        next.showHiddenFiles = value
-        displayDefaults.record(next)
-        for controller in allControllers where controller.fileListModel.showHiddenFiles != value {
-            controller.sidebar.applyDisplayChange(.toggleHiddenFiles)
-        }
-    }
-
     /// アプリ全体の表示設定を全ウィンドウへ配る一括反映。共有設定の実体(preference / store)は
     /// この型が持つものをそのまま渡すため、別インスタンスが生まれる書き方ができない。
     private(set) lazy var display = GlobalDisplayBroadcaster(
