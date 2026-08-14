@@ -9,7 +9,7 @@ import Testing
 struct AppLinksTests {
     @Test("homepage は配布サイト Worker を指す")
     func homepagePointsToDistributionSite() {
-        #expect(AppLinks.homepage.host == "befold.tommy109.workers.dev")
+        #expect(AppLinks.homepage.host == "befold.degino.com")
     }
 
     @Test("homepage は参照元集計のための ref=about を持つ")
@@ -21,7 +21,7 @@ struct AppLinksTests {
 
     @Test("help は GitHub ではなく配布サイト Worker を指す")
     func helpPointsToDistributionSite() {
-        #expect(AppLinks.help.host == "befold.tommy109.workers.dev")
+        #expect(AppLinks.help.host == "befold.degino.com")
     }
 
     @Test("help は参照元集計のための ref=help を持つ")

@@ -4,15 +4,31 @@ import Foundation
 /// アプリ本体(About パネル)と QuickLook 拡張(バッジ)の双方から参照するため、
 /// どちらからも import できる BefoldKit に置く。
 public enum AppLinks {
+    /// 配布サイトのオリジン。**アプリ側のホスト名リテラルはここだけに置く。**
+    ///
+    /// 散らすと、次にホストが変わったときに片側だけ直る（ADR 0007 の決定 6 が
+    /// 配布サイト側に置いた規定を、アプリ側にも同じ理由で適用する）。Sparkle の
+    /// フィード URL（`UpdateChannel.feedURLString`）もここから組む。
+    ///
+    /// `*.workers.dev` から独自ドメインへ移した理由は可搬性。独自ドメインは DNS で
+    /// 向き先を差し替えられるが、`*.workers.dev` は Cloudflare アカウントに固定された
+    /// ホスト名で、将来 Cloudflare 以外へ移す選択肢を塞ぐ（ADR 0007 の決定 3）。
+    ///
+    /// **旧ホスト（befold.tommy109.workers.dev）が止まる前提の実装をしてはならない。**
+    /// 切り替えが効くのはこの変更を含むバージョンを入れたユーザーだけで、出荷済み
+    /// アプリは旧ホストを見続ける。旧ホストは恒久的に維持する（同決定 1）。
+    public static let siteOrigin = "https://befold.degino.com"
+
     /// befold の公開サイト（配布サイト Worker）。
     /// `?ref=about` は流入元の内訳を配布サイト側で集計するための印。
     /// 既存ユーザーが About から見に来た分を、新規流入と切り分けて数えられる。
-    public static let homepage = URL(string: "https://befold.tommy109.workers.dev/?ref=about")!
+    /// `ref` の値は変えない（変えると過去データと接続できなくなる）。
+    public static let homepage = URL(string: siteOrigin + "/?ref=about")!
 
     /// Help > befold ヘルプ の遷移先。
     /// GitHub の README ではなく配布サイトへ送る。GitHub のページには Releases への
     /// 導線が常に出ており、そこから DMG を直接取得されると配布サイトの統計に載らないため。
-    public static let help = URL(string: "https://befold.tommy109.workers.dev/?ref=help")!
+    public static let help = URL(string: siteOrigin + "/?ref=help")!
 
     /// 作者(tommy109)の GitHub プロフィール。About パネルのクレジット表記から遷移する。
     public static let author = URL(string: "https://github.com/YTommy109")!
