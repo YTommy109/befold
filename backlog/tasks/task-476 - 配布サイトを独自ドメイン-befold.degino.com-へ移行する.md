@@ -4,10 +4,12 @@ title: 配布サイトを独自ドメイン befold.degino.com へ移行する
 status: To Do
 assignee: []
 created_date: '2026-08-13 14:19'
+updated_date: '2026-08-14 05:49'
 labels:
   - site
 dependencies: []
 priority: high
+type: task
 ordinal: 101000
 ---
 

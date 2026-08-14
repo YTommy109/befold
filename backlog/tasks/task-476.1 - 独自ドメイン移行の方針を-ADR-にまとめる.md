@@ -4,11 +4,13 @@ title: 独自ドメイン移行の方針を ADR にまとめる
 status: To Do
 assignee: []
 created_date: '2026-08-13 14:20'
+updated_date: '2026-08-14 05:49'
 labels:
   - site
 dependencies: []
 parent_task_id: TASK-476
 priority: high
+type: docs
 ordinal: 101100
 ---
 

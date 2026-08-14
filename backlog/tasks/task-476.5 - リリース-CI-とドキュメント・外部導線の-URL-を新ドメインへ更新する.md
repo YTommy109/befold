@@ -4,12 +4,14 @@ title: リリース CI とドキュメント・外部導線の URL を新ドメ�
 status: To Do
 assignee: []
 created_date: '2026-08-13 14:21'
+updated_date: '2026-08-14 05:49'
 labels:
   - site
 dependencies:
   - TASK-476.2
 parent_task_id: TASK-476
 priority: medium
+type: chore
 ordinal: 101500
 ---
 

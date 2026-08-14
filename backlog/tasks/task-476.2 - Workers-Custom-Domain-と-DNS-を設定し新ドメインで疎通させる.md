@@ -4,12 +4,14 @@ title: Workers Custom Domain と DNS を設定し新ドメインで疎通させ�
 status: To Do
 assignee: []
 created_date: '2026-08-13 14:20'
+updated_date: '2026-08-14 05:49'
 labels:
   - site
 dependencies:
   - TASK-476.1
 parent_task_id: TASK-476
 priority: high
+type: chore
 ordinal: 101200
 ---
 
