@@ -11,6 +11,9 @@ import Foundation
 /// ウィンドウを知らない純関数なので、種別ごとの導出はここを直接呼ぶユニットテストで押さえられる。
 @MainActor
 enum ViewerCapabilitiesFactory {
+    /// `gitDiffAvailability` は**既定値を持たせない**。差分の可否は git 側の事実に
+    /// 依存するようになったため、渡し忘れが静かに「常に選べる」へ倒れる形を作らない。
+    ///
     /// - Parameter fileURL: 差分の種別ゲートだけが使う「いま表示中の URL」。
     ///   `store.contentState.fileType` は非同期のコンテンツロード完了まで旧ファイルの値を保つため、
     ///   切替中に届いた取得契機（`.git/index` 変更・他ウィンドウの保存）が旧ファイルの
@@ -19,6 +22,7 @@ enum ViewerCapabilitiesFactory {
         store: ViewerStore,
         isPresentingDocument: Bool,
         fileURL: URL,
+        gitDiffAvailability: GitDiffAvailability,
         isDirectHTMLMode: Bool
     ) -> ViewerCapabilities {
         ViewerCapabilities(
@@ -30,6 +34,7 @@ enum ViewerCapabilitiesFactory {
             showsDiff: store.showsDiff,
             supportsSourceMode: store.contentState.fileType.supportsSourceMode,
             supportsDiffDisplay: FileType(url: fileURL).supportsDiffDisplay,
+            gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode
         )
     }

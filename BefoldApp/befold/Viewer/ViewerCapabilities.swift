@@ -42,6 +42,9 @@ struct ViewerCapabilities: Equatable {
     ///   - showsDiff: いま差分表示モードを選んでいるか。
     ///   - supportsSourceMode: ソース表示への切替を持つ種別か。
     ///   - supportsDiffDisplay: ソース表示へ差分を重ねられる種別か(CSV/TSV は不可)。
+    ///   - gitDiffAvailability: 差分を出せる git の事実(可用性・変更の有無)。
+    ///     ADR(libgit2 移行)の Fallback にある「git が使えないとき差分表示モードを
+    ///     選択不可にする」はここから来る。
     ///   - isDirectHTMLMode: HTML を直接ロードして表示しているか。
     init(
         isPresentingDocument: Bool,
@@ -52,6 +55,7 @@ struct ViewerCapabilities: Equatable {
         showsDiff: Bool = false,
         supportsSourceMode: Bool,
         supportsDiffDisplay: Bool,
+        gitDiffAvailability: GitDiffAvailability,
         isDirectHTMLMode: Bool
     ) {
         let onDocument = isPresentingDocument && !isRejected
@@ -67,7 +71,12 @@ struct ViewerCapabilities: Equatable {
         // 決める。差分を選ぶこと自体がソース表示へ移る操作なので、現在の表示内容で判定すると
         // レンダリング表示中は差分セグメント(⌘3)が押せず、一度ソースへ寄ってからでないと
         // 差分へ行けない。判定条件はソース表示の選択可否 + 差分を描ける種別か。
+        // 種別だけでなく git 側の事実も見る。ここを見ないと、git を使えないディレクトリや
+        // 変更の無いファイルでも差分を選べてしまい、押した結果は
+        // `ViewerDiffPresenter.displayableDiff(_:)` が黙って通常のソース表示へ戻す
+        // (= 反応が無いように見える / TASK-438.2)。
         canSelectDiffMode = onDocument && !isBinaryContent && supportsDiffDisplay
+            && gitDiffAvailability.allowsDiffSelection
         canToggleDiffLayout = canSelectDiffMode && showsDiff
     }
 
@@ -91,6 +100,7 @@ struct ViewerCapabilities: Equatable {
         showsCodeContent: false,
         supportsSourceMode: false,
         supportsDiffDisplay: false,
+        gitDiffAvailability: .undetermined,
         isDirectHTMLMode: false
     )
 }

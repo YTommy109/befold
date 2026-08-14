@@ -159,6 +159,9 @@ struct SidebarNavigatorGitStatusTests {
 
         #expect(watchers.get().map(\.path) == [indexURL])
         #expect(policies.get() == [.always])
+        // 基準ディレクトリの解決も同じ口(gitContextDidChange)へ流れるため、通知の総数では
+        // なく「index 変更の契機で 1 回増える」ことを見る(TASK-438.2)。
+        let notificationsBeforeIndexChange = host.gitContextDidChangeCallCount
 
         // index の変更通知が来たら取り直す。ただし `.git` 配下の無関係な書き込みで
         // git を連打しないよう、契機に応じた policy で問い合わせる。
@@ -168,7 +171,7 @@ struct SidebarNavigatorGitStatusTests {
         #expect(policies.get() == [.always, .onlyIfIndexChanged])
         // 差分表示もこの契機にぶら下げてある(TASK-330)。ここが host へ届かないと、
         // git commit / checkout 後もコミット済みの差分が残り続ける。
-        #expect(host.gitStatusDidApplyCallCount == 2)
+        #expect(host.gitContextDidChangeCallCount == notificationsBeforeIndexChange + 1)
     }
 
     /// 監視の張り直しは対象パスが変わったときだけ。毎回の refresh で張り直すと

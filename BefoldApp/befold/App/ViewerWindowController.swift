@@ -53,7 +53,7 @@ final class ViewerWindowController: NSWindowController {
     }
 
     /// 表示中ファイルの差分を取り直す。契機は表示モード遷移(`ViewerDocumentPresenter` へ
-    /// 注入するクロージャ)と git 状態の反映(`+SidebarHost` の `gitStatusDidApply`)の 2 つ。
+    /// 注入するクロージャ)と git 状態の反映(`+SidebarHost` の `gitContextDidChange`)の 2 つ。
     /// どちらもここを通す(`diffPresenter.refresh()` を直接呼ぶと、TASK-330 の
     /// 「バッジと差分の更新契機を 1 つにする」をこの doc から追う人が生きた契機を見落とす)。
     func refreshDiff() {

@@ -23,7 +23,19 @@ extension ViewerWindowController {
     var capabilities: ViewerCapabilities {
         ViewerCapabilitiesFactory.make(
             store: store, isPresentingDocument: !isPreviewingFolder,
-            fileURL: fileURL, isDirectHTMLMode: webViewProxy.isDirectHTMLMode
+            fileURL: fileURL, gitDiffAvailability: gitDiffAvailability,
+            isDirectHTMLMode: webViewProxy.isDirectHTMLMode
+        )
+    }
+
+    /// 差分を出せる git の事実。サイドバーが持つ値(基準ディレクトリの種別・git 状態)から
+    /// 導出する。サイドバーを畳んでいてもこの 2 つは取得され続けるため、表示の有無に
+    /// 依存しない。
+    private var gitDiffAvailability: GitDiffAvailability {
+        GitDiffAvailability.make(
+            baseDirectory: fileListModel.baseDirectory,
+            gitStatus: fileListModel.gitStatus,
+            fileURL: fileURL
         )
     }
 

@@ -199,7 +199,7 @@ enum ViewerWindowAssembler {
             // 表示中ファイルの保存に git バッジを追従させる。作業ツリーの編集は
             // `.git/index` を動かさないため index 監視では拾えず、ここが唯一の契機になる。
             // 再読込は FileWatcher のデバウンス後に 1 回来るので、連打にはならない。
-            // 差分はここでは呼ばない。git 状態が反映された時点（gitStatusDidApply）で
+            // 差分はここでは呼ばない。git 状態が反映された時点（gitContextDidChange）で
             // 取り直すことで、バッジの全契機に差分が自動的に追従する（TASK-330）。
             controller?.sidebar.refreshGitStatuses()
         }

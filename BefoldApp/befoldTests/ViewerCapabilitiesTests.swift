@@ -14,6 +14,7 @@ struct ViewerCapabilitiesTests {
         showsDiff: Bool = false,
         supportsSourceMode: Bool = true,
         supportsDiffDisplay: Bool = true,
+        gitDiffAvailability: GitDiffAvailability = .changed,
         isDirectHTMLMode: Bool = false
     ) -> ViewerCapabilities {
         ViewerCapabilities(
@@ -25,6 +26,7 @@ struct ViewerCapabilitiesTests {
             showsDiff: showsDiff,
             supportsSourceMode: supportsSourceMode,
             supportsDiffDisplay: supportsDiffDisplay,
+            gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode
         )
     }
@@ -113,12 +115,33 @@ struct ViewerCapabilitiesTests {
         #expect(!makeCapabilities(showsDiff: true, supportsDiffDisplay: false).canToggleDiffLayout)
     }
 
+    /// ADR(libgit2 移行)の Fallback: git が使えないときは差分表示モードを選択不可にする。
+    /// 種別だけで決めていた頃は、モードは選べて取得結果が nil に畳まれ、黙って通常の
+    /// ソース表示へ戻っていた(TASK-438.2)。
+    @Test("差分表示モードの可否は git 側の事実も見る")
+    func diffSelectionFollowsGitAvailability() {
+        #expect(makeCapabilities(gitDiffAvailability: .changed).canSelectDiffMode)
+        // 未解決の間は選べるまま。ここを不可にすると初期表示で無効→有効が入れ替わる。
+        #expect(makeCapabilities(gitDiffAvailability: .undetermined).canSelectDiffMode)
+        #expect(!makeCapabilities(gitDiffAvailability: .unavailable).canSelectDiffMode)
+        #expect(!makeCapabilities(gitDiffAvailability: .unchanged).canSelectDiffMode)
+    }
+
+    /// ツールバーのセグメントもメニューも `canSelect(_:)` だけを見る(ADR 0002 段 2)。
+    /// 条件が 1 箇所にあることを、モード別の対応表側からも固定する。
+    @Test("git が使えないときは canSelect(.diff) も落ちる")
+    func canSelectDiffFollowsTheSameCondition() {
+        #expect(!makeCapabilities(gitDiffAvailability: .unavailable).canSelect(.diff))
+        #expect(makeCapabilities(gitDiffAvailability: .unavailable).canSelect(.source))
+        #expect(makeCapabilities(gitDiffAvailability: .changed).canSelect(.diff))
+    }
+
     @Test("何も提示していない既定値はすべて不可")
     func noneDeniesEverything() {
         #expect(ViewerCapabilities.none == ViewerCapabilities(
             isPresentingDocument: false, isRejected: false, isRenderable: false,
             isBinaryContent: false, showsCodeContent: false, supportsSourceMode: false,
-            supportsDiffDisplay: false, isDirectHTMLMode: false
+            supportsDiffDisplay: false, gitDiffAvailability: .undetermined, isDirectHTMLMode: false
         ))
         #expect(!ViewerCapabilities.none.canPrint)
     }
@@ -134,6 +157,7 @@ extension ViewerCapabilities {
         showsCodeContent: true,
         supportsSourceMode: true,
         supportsDiffDisplay: true,
+        gitDiffAvailability: .changed,
         isDirectHTMLMode: false
     )
 }

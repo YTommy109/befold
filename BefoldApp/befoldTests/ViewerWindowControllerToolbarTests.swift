@@ -214,6 +214,73 @@ struct ViewerWindowControllerToolbarTests {
         }
     }
 
+    // MARK: - git の事実に応じた差分セグメント(TASK-438.2)
+
+    /// ADR(libgit2 移行)の Fallback: git が使えないときは差分表示モードを選択不可にする。
+    /// セグメントの有効判定は `ViewerCapabilities` 経由なので、メニュー側と条件が割れない。
+    ///
+    /// `gitContextDidChange()` が再同期まで行うことも同時に固定する。ここを呼ばないと、
+    /// git 状態が届いてもセグメントは古い有効判定のまま残る。
+    @Test("git の事実で差分セグメントの有効判定が決まる")
+    func diffSegmentFollowsGitFacts() async throws {
+        let directory = URL(fileURLWithPath: "/mock")
+        let file = directory.appendingPathComponent("a.swift")
+        let controller = makeController(file: file, contents: "let x = 1")
+        defer { controller.close() }
+        let toolbar = try #require(controller.window?.toolbar)
+        await controller.store.loadTask?.value
+        let item = try #require(toolbar.items.first { $0.itemIdentifier == .init("modeToggle") })
+        let segmented = try #require(item.view as? NSSegmentedControl)
+        let diffIndex = try #require(ModeSegments.all.firstIndex(of: .diff))
+        let model = controller.fileListModel
+        // 一覧・git 取得の着地を先に済ませる。走行中の取得が後から着地すると、
+        // 以降の applyGitStatus が発行順序ガードで保留され判定がぶれる。
+        await controller.sidebar.awaitSettled()
+
+        // 未解決の間は選べるまま(初期表示で無効→有効の入れ替わりを作らない)。
+        // フィクスチャの git 読み取りは無効なので、解決済み(= git 管理外)になっている
+        // 初期値をいったん未解決へ戻す。
+        model.baseDirectory = nil
+        controller.gitContextDidChange()
+        #expect(segmented.isEnabled(forSegment: diffIndex))
+
+        // git 管理外・扱えないリポジトリと確定したら不可。
+        model.baseDirectory = BaseDirectoryDescriptor(
+            rootLookup: .notARepository, workspaceRoot: directory
+        )
+        controller.gitContextDidChange()
+        #expect(!segmented.isEnabled(forSegment: diffIndex))
+        #expect(!controller.capabilities.canSelect(.diff))
+
+        model.baseDirectory = BaseDirectoryDescriptor(
+            rootLookup: .undetermined, workspaceRoot: directory
+        )
+        controller.gitContextDidChange()
+        #expect(!segmented.isEnabled(forSegment: diffIndex))
+
+        // git リポジトリ + 変更ありなら選べる。
+        model.baseDirectory = BaseDirectoryDescriptor(
+            rootLookup: .root(directory), workspaceRoot: directory
+        )
+        model.applyGitStatus(
+            SidebarGitStatus(
+                repositoryRootKey: directory.normalizedPathKey,
+                statuses: [file.normalizedPathKey: GitFileStatus(worktreeChange: .modified)]
+            ),
+            for: model.entriesDirectory, sequence: 1000
+        )
+        controller.gitContextDidChange()
+        #expect(segmented.isEnabled(forSegment: diffIndex))
+
+        // 変更が無いと確定したら不可(押しても黙ってソース表示へ戻るだけだった経路)。
+        model.applyGitStatus(
+            SidebarGitStatus(repositoryRootKey: directory.normalizedPathKey, statuses: [:]),
+            for: model.entriesDirectory, sequence: 1001
+        )
+        controller.gitContextDidChange()
+        #expect(!segmented.isEnabled(forSegment: diffIndex))
+    }
+
     // MARK: - 外部からの状態変更に伴う再同期
 
     @Test("GUI のトグルを経ないブックマーク変更も refreshToolbarState() で実アイテムへ反映される")

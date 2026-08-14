@@ -140,6 +140,7 @@ BefoldApp/
 | `ViewerDocumentPresenter` | 文書の状態（表示モード・倍率・スクロール位置）の遷移と提示開始の 3 契機（ADR 0002 段 1）。cmd+U の戻り先の記憶もここに閉じる |
 | `ViewerDiffPresenter` | git 差分の非同期取得・世代管理・レイアウト設定 |
 | `ViewerCapabilitiesFactory` | 提示状態から `ViewerCapabilities` を導出する純関数（ADR 0002 段 2）。どの入力を信じるかをここ 1 箇所に置く |
+| `GitDiffAvailability` | 差分表示モードを選ばせてよいかを決める git 側の事実（可用性・そのファイルに差分として出せる変更があるか）。基準ディレクトリの種別と `SidebarGitStatus` から導く純粋な写像で、**確定した否定の事実（git 管理外／扱えないリポジトリ／変更なし・未追跡）でだけ選択不可にする**。未解決の間は選べるままにして初期表示での入れ替わりを 1 方向に限る |
 | `ReferenceMenuPresenter` | 参照の右クリックメニューの項目定義・表示・実行（`@objc` アクションを含めて 1 型に閉じる） |
 | `ViewerWindowChrome` | `NSWindow` そのものの生成・外観・タイトル追従・初期フレーム決定。窓を 1 枚しか知らず、文書の状態にも他の窓にも触れない（重なり判定は述語で受け取る） |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController` |

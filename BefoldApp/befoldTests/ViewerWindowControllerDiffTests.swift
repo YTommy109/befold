@@ -160,7 +160,7 @@ struct ViewerWindowControllerDiffTests {
         controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
 
         // SidebarNavigator が git 状態を反映したときに呼ぶ経路(protocol 必須メソッド)。
-        controller.gitStatusDidApply()
+        controller.gitContextDidChange()
 
         // 取得は detached の utility タスクを経由するため、全スイート並列実行では協調
         // スレッドの空き待ちで待たされる。壁時計の予算で待つと 120 秒でも足りずに落ちた
@@ -248,7 +248,7 @@ struct ViewerWindowControllerDiffTests {
         controller.store.displayMode = .source
         // 種別はまだ旧ファイルのもの = ここが「すり抜け」の入口。
         #expect(controller.store.contentState.fileType.supportsDiffDisplay)
-        controller.gitStatusDidApply()
+        controller.gitContextDidChange()
 
         // ロードが確定しても取得が起きないことまで見る(確定後は fileType 経由でも弾かれる
         // ため、確定前の 1 回を取りこぼさないよう待ってから測る)。

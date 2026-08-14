@@ -30,10 +30,22 @@ final class SidebarBaseDirectoryResolver {
     private var generation = 0
     /// 直近に発行した解決タスク。テストから完了を待つために公開する。
     private(set) var pendingTask: Task<Void, Never>?
+    /// 解決が反映されたことの通知先。差分表示モードの選択可否が基準ディレクトリの種別
+    /// (git ルートか / 扱えないリポジトリか)から導かれるため、解決の着地を
+    /// git 状態の反映と同じ口(`SidebarNavigatorHost.gitContextDidChange`)へ流す
+    /// (TASK-438.2)。**この型が書くのは変わらず `baseDirectory` だけ**で、
+    /// 通知はその書き込みの後段。循環参照を避けるため weak(git 状態側と同じ形)。
+    private weak var host: SidebarNavigatorHost?
 
     init(fileListModel: FileListModel, git: any SidebarGitReading) {
         self.fileListModel = fileListModel
         self.git = git
+    }
+
+    /// 通知先を接続する。`SidebarNavigator.attach(to:)` が中継する
+    /// (host は ViewerWindowController の super.init 後にしか渡せない)。
+    func attach(to host: SidebarNavigatorHost) {
+        self.host = host
     }
 
     /// 基準ディレクトリを取り直して fileListModel へ反映する。
@@ -51,6 +63,7 @@ final class SidebarBaseDirectoryResolver {
                 rootLookup: lookup,
                 workspaceRoot: workspaceRoot
             )
+            self.host?.gitContextDidChange()
         }
     }
 

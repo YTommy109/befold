@@ -67,9 +67,9 @@ final class SidebarNavigatorStubHost: SidebarNavigatorHost {
     func historyStateDidChange() {}
 
     /// git 状態が反映された回数。バッジの更新契機を数えるテストで使う。
-    private(set) var gitStatusDidApplyCallCount = 0
+    private(set) var gitContextDidChangeCallCount = 0
 
-    func gitStatusDidApply() {
-        gitStatusDidApplyCallCount += 1
+    func gitContextDidChange() {
+        gitContextDidChangeCallCount += 1
     }
 }
