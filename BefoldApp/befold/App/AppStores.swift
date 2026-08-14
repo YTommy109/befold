@@ -16,7 +16,7 @@ struct AppStores {
     let recentDocumentsStore = RecentDocumentsStore()
     let bookmarkStore = BookmarkStore(defaults: .standard)
     let recentRepositoriesStore = RecentRepositoriesStore()
-    let sidebarDisplayPreference = SidebarDisplayPreference()
+    let displayDefaults = SidebarDisplayDefaults()
     let diffDisplayPreference = DiffDisplayPreference(defaults: .standard)
     let findOptionsPreference = FindOptionsPreference()
     let codeFontPreference = CodeFontPreference()

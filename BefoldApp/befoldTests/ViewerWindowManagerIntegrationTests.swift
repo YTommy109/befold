@@ -18,7 +18,7 @@ struct ViewerWindowManagerIntegrationTests {
         ViewerWindowManager(
             sessionStore: SessionStore(defaults: defaults),
             recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
-            sidebarDisplayPreference: SidebarDisplayPreference(defaults: defaults),
+            displayDefaults: SidebarDisplayDefaults(defaults: defaults),
             diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
@@ -38,7 +38,10 @@ struct ViewerWindowManagerIntegrationTests {
     }
 
     private nonisolated static let hiddenFilesTriggers: [HiddenFilesTrigger] = [
-        HiddenFilesTrigger(name: "toggleHiddenFiles", trigger: { manager, _ in manager.display.toggleHiddenFiles() }),
+        HiddenFilesTrigger(
+            name: "toggleHiddenFiles",
+            trigger: { manager, _ in manager.display.applySidebarDisplayChangeToAllWindows(.toggleHiddenFiles) }
+        ),
         HiddenFilesTrigger(
             name: "onToggleHiddenFiles コールバック(アイコンボタン操作)",
             trigger: { manager, first in manager.viewerWindowDidToggleHiddenFiles(first) }
@@ -88,7 +91,7 @@ struct ViewerWindowManagerIntegrationTests {
     private nonisolated static let changedFilesOnlyTriggers: [ChangedFilesOnlyTrigger] = [
         ChangedFilesOnlyTrigger(
             name: "toggleChangedFilesOnly(メニュー ⌘⌃G)",
-            trigger: { manager, _ in manager.display.toggleChangedFilesOnly() }
+            trigger: { manager, _ in manager.display.applySidebarDisplayChangeToAllWindows(.toggleChangedFilesOnly) }
         ),
         ChangedFilesOnlyTrigger(
             name: "onToggleChangedFilesOnly コールバック(アイコンボタン操作)",
@@ -141,7 +144,7 @@ struct ViewerWindowManagerIntegrationTests {
             #expect(controller.fileListModel.layoutMode == .drillDown)
         }
 
-        manager.display.toggleSidebarLayoutMode()
+        manager.display.applySidebarDisplayChangeToAllWindows(.toggleLayoutMode)
         for controller in manager.allControllers {
             await controller.sidebar.awaitSettled()
         }
@@ -151,7 +154,7 @@ struct ViewerWindowManagerIntegrationTests {
         }
 
         // 戻したときも全ウィンドウへ届く。
-        manager.display.toggleSidebarLayoutMode()
+        manager.display.applySidebarDisplayChangeToAllWindows(.toggleLayoutMode)
         for controller in manager.allControllers {
             await controller.sidebar.awaitSettled()
         }

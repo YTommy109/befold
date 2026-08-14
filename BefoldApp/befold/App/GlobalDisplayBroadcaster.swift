@@ -3,11 +3,12 @@ import BefoldKit
 
 /// アプリ全体で 1 つの表示設定を、開いている全ウィンドウへ配る一括反映。
 ///
-/// ここが扱ってよいのは「設定の実体はアプリに 1 つで、窓は表示を追随させるだけ」のものに限る。
-/// 窓ごとのライブ値(表示モード・拡大率など、ADR 0002)は窓側の責務であり、
+/// ここが扱ってよいのは ADR 0002 の 3 分類のうち**「アプリの好み」だけ**——
+/// 設定の実体はアプリに 1 つで、窓は表示を追随させるだけ、というものに限る。
+/// 「文書の状態」(表示モード・拡大率)も「窓の状態」(サイドバー表示 4 値)も窓側の責務であり、
 /// ここから配ってはならない。この禁止は型の依存で担保している——
-/// `ViewerDisplayMode` / `ZoomStore` をこの型が持たないため、違反するには
-/// 「新しい依存を足す」形でしか書けない。
+/// `ViewerDisplayMode` / `ZoomStore` / `SidebarDisplayDefaults` をこの型が持たないため、
+/// 違反するには「新しい依存を足す」形でしか書けない。
 ///
 /// 同じ理由で `GitStatusStore` も持たない。実体は `ViewerWindowManager` の `var` で、
 /// `AppDelegate` が init 後に差し替える(生成順の都合)。ここで値として捕まえると
@@ -18,7 +19,6 @@ import BefoldKit
 /// 到達できない。
 @MainActor
 final class GlobalDisplayBroadcaster {
-    private let sidebarDisplayPreference: SidebarDisplayPreference
     private let bookmarkStore: BookmarkStore
     /// 反映対象のスナップショット。呼ばれた時点で開いている全ウィンドウを返す。
     private let controllers: () -> [ViewerWindowController]
@@ -26,50 +26,33 @@ final class GlobalDisplayBroadcaster {
     /// - Parameters は既定値を持たせない。共有インスタンスの渡し忘れがコンパイルエラーに
     ///   ならないと、静かに別インスタンスになって「アプリ全体で 1 つ」が破れる(TASK-319)。
     init(
-        sidebarDisplayPreference: SidebarDisplayPreference,
         bookmarkStore: BookmarkStore,
         controllers: @escaping () -> [ViewerWindowController]
     ) {
-        self.sidebarDisplayPreference = sidebarDisplayPreference
         self.bookmarkStore = bookmarkStore
         self.controllers = controllers
     }
 
-    /// 不可視ファイル表示のON/OFFを反転し、開いている全ウィンドウのサイドバーへ即座に反映する。
-    func toggleHiddenFiles() {
-        sidebarDisplayPreference.showHiddenFiles.toggle()
-        refreshAllSidebars()
-    }
-
-    /// git 変更ファイルのみ表示のON/OFFを反転し、開いている全ウィンドウへ即座に反映する。
-    /// git 状態は取り直すが、一覧の再列挙は行わない。
-    func toggleChangedFilesOnly() {
-        sidebarDisplayPreference.showChangedFilesOnly.toggle()
-        controllers().forEach { $0.sidebar.applyChangedFilesOnlyToggle() }
-    }
-
-    /// サイドバーの表示モード(ドリルダウン / ツリー展開)を反転し、開いている全ウィンドウへ
-    /// 即座に反映する。表示モードは行配列そのものを変えるため、各ウィンドウで行を組み直す
-    /// 必要がある。ツリーからドリルダウンへ戻すときは展開状態も捨てる
-    /// (捨てないと、モードを戻したのに展開したままの行が残る)。
-    func toggleSidebarLayoutMode() {
-        let next: SidebarLayoutMode =
-            sidebarDisplayPreference.layoutMode == .tree ? .drillDown : .tree
-        sidebarDisplayPreference.layoutMode = next
-        if next == .drillDown {
-            controllers().forEach { $0.sidebar.discardExpansion() }
-        }
-        // 行の組み直しは refreshFileList の経路へ合流させる。rebuildRows を直接叩くと
-        // 「ルートの一覧が届く前に行を組み直さない」不変条件を迂回することになる。
-        refreshAllSidebars()
+    /// サイドバー表示 4 値の変更を、開いている全ウィンドウへ配る。
+    ///
+    /// **これは TASK-480.2 時点の暫定形。** 4 値は既に窓ごとのライブ値へ移っており
+    /// (ADR 0002「窓の状態」)、本来この型から配ってはならない。480.2 の範囲では挙動を
+    /// 変えないため、各窓の唯一の入口である `applyDisplayChange` を全窓分呼ぶ形にとどめる。
+    /// **TASK-480.3 でこの API ごと撤去し、操作経路をアクティブウィンドウ 1 つへ向ける。**
+    /// 後処理(再列挙 / 展開の破棄 / git の取り直し)の非対称は各窓側へ寄せてある。
+    func applySidebarDisplayChangeToAllWindows(_ change: SidebarDisplayChange) {
+        controllers().forEach { $0.sidebar.applyDisplayChange(change) }
     }
 
     /// CLI の `--hidden-files`/`--no-hidden-files` から呼ばれる。値を直接設定し、
     /// 開いている全ウィンドウのサイドバーへ即座に反映する。
+    ///
+    /// **これも 480.2 時点の暫定形。** 480.3 で `--sort` と同じ「その起動限りの上書き」
+    /// (窓の生成時に初期値へ混ぜ、既定値を書き換えない)へ揃えて撤去する。
     func setHiddenFiles(_ value: Bool) {
-        guard sidebarDisplayPreference.showHiddenFiles != value else { return }
-        sidebarDisplayPreference.showHiddenFiles = value
-        refreshAllSidebars()
+        for controller in controllers() where controller.fileListModel.showHiddenFiles != value {
+            controller.sidebar.applyDisplayChange(.toggleHiddenFiles)
+        }
     }
 
     /// CLI の `--bookmark <path>` から転送された追加を適用し、開いている全ウィンドウの

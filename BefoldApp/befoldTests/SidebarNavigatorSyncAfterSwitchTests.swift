@@ -21,15 +21,15 @@ struct SidebarNavigatorSyncAfterSwitchTests {
         layoutMode: SidebarLayoutMode,
         childrenLister: @escaping @Sendable (URL, befold.SortOrder, Bool) async -> [FileListEntry]? = { _, _, _ in nil }
     ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorSyncAfterSwitchTests")
         )
-        preference.layoutMode = layoutMode
+        preference.record { $0.layoutMode = layoutMode }
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: preference,
+            displayDefaults: preference,
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: rootEntries) },
             childrenLister: childrenLister,
             git: SidebarGitReadingStub(repositoryRoot: { _ in nil })

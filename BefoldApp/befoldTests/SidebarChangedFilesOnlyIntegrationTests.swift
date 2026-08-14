@@ -37,10 +37,10 @@ struct SidebarChangedFilesOnlyIntegrationTests {
             FileListEntry(url: temp.url.appendingPathComponent("nested"), kind: .folder),
             FileListEntry(url: temp.url.appendingPathComponent("quiet"), kind: .folder),
         ]
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "GitStatusChangedFilesOnly")
         )
-        preference.showChangedFilesOnly = true
+        preference.record { $0.showChangedFilesOnly = true }
         let host = SidebarNavigatorStubHost(currentFileURL: temp.url)
         let navigator = makeNavigator(
             directory: temp.url, entries: entries, preference: preference, host: host
@@ -77,10 +77,10 @@ struct SidebarChangedFilesOnlyIntegrationTests {
             FileListEntry(url: newDirectory.appendingPathComponent("b.md"), kind: .file),
             FileListEntry(url: newDirectory.appendingPathComponent("c.md"), kind: .file),
         ]
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "GitStatusFoldedUntracked")
         )
-        preference.showChangedFilesOnly = true
+        preference.record { $0.showChangedFilesOnly = true }
         let host = SidebarNavigatorStubHost(currentFileURL: newDirectory)
         let navigator = makeNavigator(
             directory: newDirectory, entries: entries, preference: preference, host: host
@@ -110,10 +110,10 @@ struct SidebarChangedFilesOnlyIntegrationTests {
             FileListEntry(url: temp.url.appendingPathComponent("a.md"), kind: .file),
             FileListEntry(url: temp.url.appendingPathComponent("b.md"), kind: .file),
         ]
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "GitStatusCleanRepository")
         )
-        preference.showChangedFilesOnly = true
+        preference.record { $0.showChangedFilesOnly = true }
         let host = SidebarNavigatorStubHost(currentFileURL: temp.url)
         let navigator = makeNavigator(
             directory: temp.url, entries: entries, preference: preference, host: host
@@ -137,10 +137,10 @@ struct SidebarChangedFilesOnlyIntegrationTests {
         defer { withExtendedLifetime(temp) {} }
         _ = try temp.file(named: "a.md", contents: "graph TD;")
         let entries = [FileListEntry(url: temp.url.appendingPathComponent("a.md"), kind: .file)]
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "GitStatusChangedFilesOnlyDegrade")
         )
-        preference.showChangedFilesOnly = true
+        preference.record { $0.showChangedFilesOnly = true }
         let host = SidebarNavigatorStubHost(currentFileURL: temp.url)
         let navigator = makeNavigator(
             directory: temp.url, entries: entries, preference: preference, host: host
@@ -159,7 +159,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
     /// 実 Reader / Store を本番と同じ組み合わせで繋いだ SidebarNavigator を作る。
     @MainActor
     private func makeNavigator(
-        directory: URL, entries: [FileListEntry], preference: SidebarDisplayPreference,
+        directory: URL, entries: [FileListEntry], preference: SidebarDisplayDefaults,
         host: SidebarNavigatorStubHost
     ) -> SidebarNavigator {
         let gitFileIndex = GitCommandFileIndex()
@@ -171,7 +171,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
             currentDirectory: directory,
             entries: entries,
             selection: nil,
-            sidebarDisplayPreference: preference,
+            displayDefaults: preference,
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: entries) },
             git: SidebarGitReadingStub(statuses: { directory, policy in
                 await store.statuses(forDirectoryAt: directory, policy: policy)

@@ -50,7 +50,7 @@ final class QuickOpenCoordinator {
             gitIndex: gitIndex,
             recentDocumentsStore: stores.recentDocumentsStore,
             bookmarkStore: stores.bookmarkStore,
-            sidebarDisplayPreference: stores.sidebarDisplayPreference,
+            displayDefaults: stores.displayDefaults,
             currentFileURL: currentFileURL
         )
     }

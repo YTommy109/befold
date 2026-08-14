@@ -17,7 +17,7 @@ struct SidebarNavigatorBaseDirectoryTests {
             currentDirectory: currentDirectory,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: SidebarDisplayPreference(
+            displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorBaseDirectoryTests")
             ),
             directoryLister: { _, _, _ in .empty },

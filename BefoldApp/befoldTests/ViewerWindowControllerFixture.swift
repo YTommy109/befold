@@ -34,7 +34,7 @@ struct ViewerWindowControllerFixture {
         zoomStore: ZoomStore? = nil,
         displayModeStore: DisplayModeStore? = nil,
         bookmarkStore: BookmarkStore? = nil,
-        sidebarDisplayPreference: SidebarDisplayPreference? = nil,
+        displayDefaults: SidebarDisplayDefaults? = nil,
         diffDisplayPreference: DiffDisplayPreference? = nil,
         diffLoader: GitDiffLoader? = nil,
         initialFrameDescriptor: String? = nil,
@@ -82,7 +82,7 @@ struct ViewerWindowControllerFixture {
         controller = ViewerWindowController(
             fileURL: file,
             defaults: defaults,
-            sidebarDisplayPreference: sidebarDisplayPreference ?? SidebarDisplayPreference(defaults: defaults),
+            displayDefaults: displayDefaults ?? SidebarDisplayDefaults(defaults: defaults),
             diffDisplayPreference: diffDisplayPreference ?? DiffDisplayPreference(defaults: defaults),
             diffLoader: diffLoader,
             perFileState: perFileState,

@@ -77,7 +77,7 @@ final class SidebarNavigator {
 
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: URL?,
-        sidebarDisplayPreference: SidebarDisplayPreference,
+        displayDefaults: any SidebarDisplayDefaultsProviding,
         sortOrder: SortOrder? = nil,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> DirectoryListing
             = DirectoryLister.listingAsync,
@@ -87,13 +87,19 @@ final class SidebarNavigator {
         makeGitIndexWatcher: @escaping GitIndexWatch.WatcherFactory
             = { url, onChange in FileWatcher(path: url, onChange: onChange) }
     ) {
+        // 窓ごとのライブ値の初期値。CLI の明示指定(--sort)があればそれで上書きし、
+        // 無ければ前回保存した既定値から始める。**既定値を読むのはここ 1 回だけ。**
+        // displayDefaults は保持しないため以後読み直せず、窓の内側(listing)へ渡すのは
+        // 書き戻し専用の SidebarDisplayDefaultsRecording としてのみ(ADR 0002「窓の状態の規則」2)。
+        var initialSettings = displayDefaults.settings
+        if let sortOrder {
+            initialSettings.sortOrder = sortOrder
+        }
         let fileListModel = FileListModel(
             currentDirectory: currentDirectory,
             entries: entries,
             selection: selection,
-            // 窓ごとのライブ値の初期値。CLI の明示指定(--sort)があればそれ、
-            // 無ければ前回保存した既定値から始める。以後この窓は preference を読み直さない。
-            sortOrder: sortOrder ?? sidebarDisplayPreference.sortOrder
+            display: initialSettings
         )
         self.fileListModel = fileListModel
         // 協力型は**ここでしか生成しない**(注入引数にすると渡し忘れが静かに
@@ -112,20 +118,20 @@ final class SidebarNavigator {
         listing = SidebarListingCoordinator(
             fileListModel: fileListModel,
             directoryLister: directoryLister,
-            sidebarDisplayPreference: sidebarDisplayPreference,
+            displayDefaults: displayDefaults,
             tree: tree,
             gitStatus: gitStatus,
             baseDirectory: baseDirectory
         )
-        listing.syncDisplayPreferences()
         baseDirectory.refresh()
     }
 
     // MARK: - File List
 
-    /// 並び順を変える唯一の入口。実処理は SidebarListingCoordinator が持つ。
-    func setSortOrder(_ order: SortOrder) {
-        listing.setSortOrder(order)
+    /// サイドバー表示 4 値を変える唯一の入口。実処理は SidebarListingCoordinator が持つ
+    /// (4 値は列挙の入力なので)。**メニュー・サイドバーヘッダー・CLI はすべてここを通す。**
+    func applyDisplayChange(_ change: SidebarDisplayChange) {
+        listing.applyDisplayChange(change)
     }
 
     /// サイドバーのファイル一覧を取り直す。実処理は SidebarListingCoordinator が持つ。
@@ -190,26 +196,6 @@ final class SidebarNavigator {
     /// (通常の待ち合わせは `awaitSettled()` を使う)。
     var pendingBaseDirectoryTask: Task<Void, Never>? {
         baseDirectory.pendingTask
-    }
-
-    /// fileListModel 側の表示設定ミラーを真実の源へ同期する。実処理は
-    /// SidebarListingCoordinator が持つ(表示設定は列挙の入力なので)。
-    /// 「変更ファイルのみ表示」のトグルは applyChangedFilesOnlyToggle() を使うこと。
-    @discardableResult
-    func syncDisplayPreferences() -> Bool {
-        listing.syncDisplayPreferences()
-    }
-
-    /// 「変更ファイルのみ表示」トグル時に呼ぶ。表示述語を同期し、ON になったときだけ
-    /// git 状態を取り直す(再列挙はしない)。
-    /// ON で取り直すのは、作業ツリーの編集が index も windowDidBecomeKey も動かさず、
-    /// 古い状態で絞り込まれてしまうため(TASK-296)。
-    /// OFF は絞り込みをやめるだけで新しい git 状態を必要とせず、バッジは手元のスナップショットで
-    /// 足りる。方向を見ずに取り直すと、開いているウィンドウ数だけ git status が同時に走る(TASK-303)。
-    func applyChangedFilesOnlyToggle() {
-        syncDisplayPreferences()
-        guard fileListModel.showChangedFilesOnly else { return }
-        refreshGitStatuses()
     }
 
     /// host を接続する。ViewerWindowController が super.init 後に呼ぶ。

@@ -67,7 +67,7 @@ struct MockedViewerWindowManager {
     let sessionStore: SessionStore
     let recentDocumentsStore: RecentDocumentsStore
     let perFileState: PerFileStateStore
-    let sidebarDisplayPreference: SidebarDisplayPreference
+    let displayDefaults: SidebarDisplayDefaults
     /// 生成される全ウィンドウが共有する差分表示設定。機能ゲートに依存しないよう
     /// isAvailable を明示して、dev/stable いずれのビルドでも同じ挙動でテストする。
     let diffDisplayPreference: DiffDisplayPreference
@@ -105,7 +105,7 @@ struct MockedViewerWindowManager {
         sessionStore = SessionStore(defaults: defaults)
         recentDocumentsStore = RecentDocumentsStore(defaults: defaults)
         perFileState = PerFileStateStore(defaults: defaults)
-        sidebarDisplayPreference = SidebarDisplayPreference(defaults: defaults)
+        displayDefaults = SidebarDisplayDefaults(defaults: defaults)
         let diffDisplayPreference = DiffDisplayPreference(defaults: defaults)
         self.diffDisplayPreference = diffDisplayPreference
         let diffLoader = diffReader.map { GitDiffLoader(reader: $0) } ?? GitDiffLoader()
@@ -121,7 +121,7 @@ struct MockedViewerWindowManager {
         manager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
-            sidebarDisplayPreference: sidebarDisplayPreference,
+            displayDefaults: displayDefaults,
             diffDisplayPreference: diffDisplayPreference,
             diffLoader: diffLoader,
             perFileState: perFileState,

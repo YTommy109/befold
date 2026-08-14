@@ -16,20 +16,20 @@ import Testing
 struct SidebarNavigatorSortOrderTests {
     private static let home = FileManager.default.homeDirectoryForCurrentUser
 
-    private func makePreference() -> SidebarDisplayPreference {
-        SidebarDisplayPreference(
+    private func makePreference() -> SidebarDisplayDefaults {
+        SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorSortOrderTests")
         )
     }
 
     private func makeNavigator(
-        preference: SidebarDisplayPreference, sortOrder: befold.SortOrder? = nil
+        preference: SidebarDisplayDefaults, sortOrder: befold.SortOrder? = nil
     ) -> SidebarNavigator {
         SidebarNavigator(
             currentDirectory: Self.home,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: preference,
+            displayDefaults: preference,
             sortOrder: sortOrder,
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: []) },
             git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
@@ -39,7 +39,7 @@ struct SidebarNavigatorSortOrderTests {
     @Test("新しい窓は保存された既定値の並び順で始まる")
     func newWindowStartsFromStoredDefault() {
         let preference = makePreference()
-        preference.sortOrder = .alphabetical
+        preference.record { $0.sortOrder = .alphabetical }
 
         #expect(makeNavigator(preference: preference).fileListModel.sortOrder == .alphabetical)
     }
@@ -49,17 +49,17 @@ struct SidebarNavigatorSortOrderTests {
         let preference = makePreference()
         let navigator = makeNavigator(preference: preference)
 
-        navigator.setSortOrder(.alphabetical)
+        navigator.applyDisplayChange(.setSortOrder(.alphabetical))
 
         #expect(navigator.fileListModel.sortOrder == .alphabetical)
-        #expect(preference.sortOrder == .alphabetical)
+        #expect(preference.settings.sortOrder == .alphabetical)
     }
 
     /// 保存されるのは「次に開く窓の既定値」なので、後から開いた窓だけが追随する。
     @Test("並び順を変えた後に開いた窓はその並び順で始まる")
     func laterWindowPicksUpTheNewDefault() {
         let preference = makePreference()
-        makeNavigator(preference: preference).setSortOrder(.alphabetical)
+        makeNavigator(preference: preference).applyDisplayChange(.setSortOrder(.alphabetical))
 
         #expect(makeNavigator(preference: preference).fileListModel.sortOrder == .alphabetical)
     }
@@ -72,7 +72,7 @@ struct SidebarNavigatorSortOrderTests {
         let first = makeNavigator(preference: preference)
         let second = makeNavigator(preference: preference)
 
-        first.setSortOrder(.alphabetical)
+        first.applyDisplayChange(.setSortOrder(.alphabetical))
 
         #expect(first.fileListModel.sortOrder == .alphabetical)
         #expect(second.fileListModel.sortOrder == .foldersFirst)
@@ -86,6 +86,6 @@ struct SidebarNavigatorSortOrderTests {
         let navigator = makeNavigator(preference: preference, sortOrder: .alphabetical)
 
         #expect(navigator.fileListModel.sortOrder == .alphabetical)
-        #expect(preference.sortOrder == .foldersFirst)
+        #expect(preference.settings.sortOrder == .foldersFirst)
     }
 }

@@ -5,7 +5,7 @@ import Foundation
 ///
 /// **窓が生きている間は窓ごとのライブ値**(ADR 0002 の「文書の状態」の持ち方)。
 /// 真実の源は各窓の `FileListModel.sortOrder` で、窓の間で同期はしない。
-/// `SidebarDisplayPreference.sortOrder` はそれとは別に「次に窓を開くときの既定値」
+/// `SidebarDisplayDefaults.sortOrder` はそれとは別に「次に窓を開くときの既定値」
 /// だけを保存する。読むのは窓の生成時のみ(`SidebarNavigator.init`)で、生きている窓が
 /// 読み直すことはない——読み直すと他窓の操作が後から効いてしまう。
 /// 利用者の操作による変更は `SidebarNavigator.setSortOrder(_:)` の 1 本を通す

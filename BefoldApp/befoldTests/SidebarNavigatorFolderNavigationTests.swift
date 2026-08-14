@@ -33,7 +33,7 @@ struct SidebarNavigatorFolderNavigationTests {
             currentDirectory: currentDirectory,
             entries: listing(currentDirectory).rows(),
             selection: selection,
-            sidebarDisplayPreference: SidebarDisplayPreference(
+            displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorFolderNavigationTests")
             ),
             directoryLister: { url, _, _ in listing(url) },

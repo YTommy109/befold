@@ -27,7 +27,7 @@ enum ViewerWindowAssembler {
     /// コントローラの `super.init` より前に呼ぶため、self を要らない形にしてある。
     static func makeSidebarNavigator(
         fileURL: URL,
-        sidebarDisplayPreference: SidebarDisplayPreference,
+        displayDefaults: SidebarDisplayDefaults,
         sortOrder: SortOrder?,
         gitFileIndex: any GitFileIndexing,
         gitStatusStore: GitStatusStore
@@ -37,7 +37,7 @@ enum ViewerWindowAssembler {
         // ボリューム上のフォルダでもウィンドウ表示がディレクトリ列挙を待たない。
         SidebarNavigator(
             currentDirectory: fileURL.deletingLastPathComponent(), entries: [], selection: fileURL,
-            sidebarDisplayPreference: sidebarDisplayPreference, sortOrder: sortOrder,
+            displayDefaults: displayDefaults, sortOrder: sortOrder,
             git: makeSidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
         )
     }
@@ -128,7 +128,7 @@ enum ViewerWindowAssembler {
             model: controller.fileListModel,
             delegate: controller,
             onSortOrderChanged: { [weak controller] order in
-                controller?.sidebar.setSortOrder(order)
+                controller?.sidebar.applyDisplayChange(.setSortOrder(order))
             },
             onToggleHiddenFiles: { [weak controller] in
                 guard let controller else { return }

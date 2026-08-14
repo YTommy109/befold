@@ -164,18 +164,25 @@ final class FileListModel {
         onPresentationTargetChange?()
     }
 
+    // MARK: - サイドバー表示設定(窓ごとのライブ値)
+
+    //
+    // 次の 4 値は ADR 0002「窓の状態」にあたる。**この窓での真実の源はここ**で、
+    // アプリ全体の保存値(`SidebarDisplayDefaults`)は窓の生成時に読む初期値にすぎない。
+    // 生きている窓は保存値を読み直さない(読み直すと他窓の操作が後から効く)。
+    // 変更の入口は `SidebarListingCoordinator.applyDisplayChange(_:)` の 1 本だけで、
+    // ここへ外から直接代入しないこと(ライブ値の更新と既定値の書き戻しが対で走らなくなる)。
+
+    /// 一覧の並び順(フォルダー優先 / アルファベット順)。
     var sortOrder: SortOrder
-    /// サイドバーのアイコンボタン・メニュー・ショートカットの見た目に使う現在値。
-    /// 永続化・真実の源は SidebarDisplayPreference。SidebarNavigator が
-    /// refreshFileList()/navigateToFolder(_:) のたびに同期する。
-    var showHiddenFiles: Bool = false
-    /// git 変更のあるエントリだけに絞るか。永続化・真実の源は SidebarDisplayPreference で、
-    /// showHiddenFiles と同じ契機で SidebarNavigator が同期する。
-    var showChangedFilesOnly: Bool = false
-    /// 行の並べ方(ドリルダウン / ツリー展開)。永続化・真実の源は SidebarDisplayPreference で、
-    /// showHiddenFiles と同じ契機で SidebarNavigator が同期する。
+    /// 不可視ファイル(ドットファイル)を一覧に出すか。
+    /// サイドバーのアイコンボタン・メニュー・ショートカットの見た目もこの値を読む。
+    var showHiddenFiles: Bool
+    /// git 変更のあるエントリだけに絞るか。
+    var showChangedFilesOnly: Bool
+    /// 行の並べ方(ドリルダウン / ツリー展開)。
     /// View はキー操作の割り当てをこの値で切り替える。
-    var layoutMode: SidebarLayoutMode = .drillDown
+    var layoutMode: SidebarLayoutMode
     /// ファイル名フィルターの検索文字列。フォルダ移動をまたいで保持し、
     /// アプリ再起動時は初期値(空文字列)に戻る(永続化しない)。
     var filterText: String = ""
@@ -312,9 +319,11 @@ final class FileListModel {
         )
     }
 
+    /// - Parameter display: この窓のサイドバー表示 4 値の初期値。本番のウィンドウ生成経路
+    ///   (`SidebarNavigator.init`)は `SidebarDisplayDefaults.settings` を流し込む。
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: FileListEntry.ID?,
-        sortOrder: SortOrder = .foldersFirst
+        display: SidebarDisplaySettings = .initial
     ) {
         self.currentDirectory = currentDirectory
         rootDirectory = currentDirectory
@@ -323,7 +332,10 @@ final class FileListModel {
         let normalizedSelection = selection?.nativeBackedFileURL
         storedSelection = normalizedSelection
         storedSelectionPathKey = normalizedSelection?.normalizedPathKey
-        self.sortOrder = sortOrder
+        sortOrder = display.sortOrder
+        showHiddenFiles = display.showHiddenFiles
+        showChangedFilesOnly = display.showChangedFilesOnly
+        layoutMode = display.layoutMode
         // 各プロパティの didSet は init 中には走らないため、派生する値をここで揃える。
         entryIndex = FileListEntryIndex(entries: entries)
         lastNotifiedTarget = .undetermined

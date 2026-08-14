@@ -63,15 +63,15 @@ struct SidebarPostSwitchSyncTests {
         let listing = { (url: URL) -> DirectoryListing in
             DirectoryListing(rootChildren: listings[url.normalizedPathKey] ?? [])
         }
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "SidebarPostSwitchSyncTests")
         )
-        preference.layoutMode = .tree
+        preference.record { $0.layoutMode = .tree }
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
             entries: listing(currentDirectory).rows(),
             selection: selection,
-            sidebarDisplayPreference: preference,
+            displayDefaults: preference,
             directoryLister: { url, _, _ in listing(url) },
             childrenLister: { url, _, _ in listings[url.normalizedPathKey] },
             git: SidebarGitReadingStub(repositoryRoot: { _ in nil })

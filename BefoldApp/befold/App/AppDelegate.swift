@@ -76,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let windowManager = ViewerWindowManager(
             sessionStore: stores.sessionStore,
             recentDocumentsStore: stores.recentDocumentsStore,
-            sidebarDisplayPreference: stores.sidebarDisplayPreference,
+            displayDefaults: stores.displayDefaults,
             diffDisplayPreference: stores.diffDisplayPreference,
             findOptionsPreference: stores.findOptionsPreference,
             codeFontPreference: stores.codeFontPreference,
@@ -233,17 +233,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// View > Show/Hide Hidden Files(⌘⌃H)。不可視ファイル表示を全ウィンドウで一括切替する。
     @objc func toggleHiddenFiles(_ sender: Any?) {
-        windowManager.display.toggleHiddenFiles()
+        windowManager.display.applySidebarDisplayChangeToAllWindows(.toggleHiddenFiles)
     }
 
     /// View > Show Changed Files Only(⌘⌃G)。git 変更ファイルのみの絞り込みを全ウィンドウで一括切替する。
     @objc func toggleChangedFilesOnly(_ sender: Any?) {
-        windowManager.display.toggleChangedFilesOnly()
+        windowManager.display.applySidebarDisplayChangeToAllWindows(.toggleChangedFilesOnly)
     }
 
     /// View > サイドバーをツリー表示(ショートカットなし)。表示モードを全ウィンドウで一括切替する。
     @objc func toggleSidebarTreeLayout(_ sender: Any?) {
-        windowManager.display.toggleSidebarLayoutMode()
+        windowManager.display.applySidebarDisplayChangeToAllWindows(.toggleLayoutMode)
     }
 
     /// App > Settings…(⌘,)。単一インスタンスで、
@@ -263,15 +263,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleHiddenFiles(_:)) {
-            menuItem.title = stores.sidebarDisplayPreference.showHiddenFiles
+            menuItem.title = stores.displayDefaults.settings.showHiddenFiles
                 ? String(localized: "menu.view.hideHiddenFiles", bundle: .l10n)
                 : String(localized: "menu.view.showHiddenFiles", bundle: .l10n)
         }
         if menuItem.action == #selector(toggleChangedFilesOnly(_:)) {
-            menuItem.state = stores.sidebarDisplayPreference.showChangedFilesOnly ? .on : .off
+            menuItem.state = stores.displayDefaults.settings.showChangedFilesOnly ? .on : .off
         }
         if menuItem.action == #selector(toggleSidebarTreeLayout(_:)) {
-            menuItem.state = stores.sidebarDisplayPreference.layoutMode == .tree ? .on : .off
+            menuItem.state = stores.displayDefaults.settings.layoutMode == .tree ? .on : .off
         }
         return true
     }

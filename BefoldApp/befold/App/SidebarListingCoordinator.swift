@@ -7,9 +7,10 @@ import Foundation
 /// `SidebarTreePresenter`、選択の決定は呼び出し側(`onApplied`)、git の反映可否は
 /// `FileListModel.applyGitStatus`(ADR 0003)が持つ。
 ///
-/// 表示設定のミラー同期(`syncDisplayPreferences`)をここに置いているのは、列挙の
-/// **入力**(隠しファイル・並び順・絞り込み・レイアウト)だから。列挙のたびに真実の源から
-/// 読み直す形にしておかないと、設定変更が次の一覧に乗らない経路ができる。
+/// 表示設定の変更(`applyDisplayChange`)をここに置いているのは、4 値が列挙の
+/// **入力**(隠しファイル・並び順・絞り込み・レイアウト)だから。値ごとに後処理が違う
+/// (再列挙する / 展開を捨てる / git を取り直すだけ)ため、入口を 1 本に畳んで
+/// 「ライブ値の更新・既定値の書き戻し・後処理」を必ず対で走らせる。
 @MainActor
 final class SidebarListingCoordinator {
     private let fileListModel: FileListModel
@@ -20,8 +21,9 @@ final class SidebarListingCoordinator {
     /// 返すのは **行に畳む前の材料**(DirectoryListing)。畳んだ配列を返させると、
     /// 展開を足す側がそれを分解して材料へ戻す往復が要る(TASK-442.1)。
     private let directoryLister: (URL, SortOrder, Bool) async -> DirectoryListing
-    /// 不可視ファイル表示設定。全ウィンドウで共有される単一の真実の源を都度参照する。
-    private let sidebarDisplayPreference: SidebarDisplayPreference
+    /// アプリ全体の既定値への書き戻し口。**読み取りを持たない**プロトコルなので、
+    /// この窓が保存値を読み直す経路はコンパイル時に作れない(ADR 0002「窓の状態の規則」2)。
+    private let displayDefaults: any SidebarDisplayDefaultsRecording
     private let tree: SidebarTreePresenter
     private let gitStatus: SidebarGitStatusCoordinator
     private let baseDirectory: SidebarBaseDirectoryResolver
@@ -40,14 +42,14 @@ final class SidebarListingCoordinator {
     init(
         fileListModel: FileListModel,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> DirectoryListing,
-        sidebarDisplayPreference: SidebarDisplayPreference,
+        displayDefaults: any SidebarDisplayDefaultsRecording,
         tree: SidebarTreePresenter,
         gitStatus: SidebarGitStatusCoordinator,
         baseDirectory: SidebarBaseDirectoryResolver
     ) {
         self.fileListModel = fileListModel
         self.directoryLister = directoryLister
-        self.sidebarDisplayPreference = sidebarDisplayPreference
+        self.displayDefaults = displayDefaults
         self.tree = tree
         self.gitStatus = gitStatus
         self.baseDirectory = baseDirectory
@@ -58,30 +60,62 @@ final class SidebarListingCoordinator {
         self.host = host
     }
 
-    /// fileListModel 側の表示設定ミラーを真実の源(sidebarDisplayPreference)へ同期し、
-    /// showHiddenFiles を返す(DirectoryLister 呼び出し前後の重複読み取りを避けるため)。
-    @discardableResult
-    func syncDisplayPreferences() -> Bool {
-        let showHiddenFiles = sidebarDisplayPreference.showHiddenFiles
-        fileListModel.showHiddenFiles = showHiddenFiles
-        fileListModel.showChangedFilesOnly = sidebarDisplayPreference.showChangedFilesOnly
-        fileListModel.layoutMode = sidebarDisplayPreference.layoutMode
-        return showHiddenFiles
+    /// サイドバー表示 4 値を変える**唯一の入口**。この窓のライブ値
+    /// (`FileListModel`)を更新し、同時に「次に窓を開くときの既定値」として書き戻す。
+    ///
+    /// 4 値は窓ごとのライブ値なので他窓へは配らない(ADR 0002「窓の状態」)。
+    /// **ライブ値の更新・既定値の書き戻し・後処理をここで対にしている。** 片方だけを行う
+    /// 経路を作らないため、`FileListModel` の 4 プロパティへ外から直接代入しないこと
+    /// (例外は CLI の `--sort` / `--hidden-files` = その起動限りの上書きで、
+    /// 窓の生成時に初期値へ混ぜる形で効かせ、既定値を書き換えない)。
+    ///
+    /// 後処理が値ごとに違うのが要点。
+    /// - 隠しファイル・並び順: 一覧の中身が変わるので再列挙する。
+    /// - レイアウト: 行配列そのものが変わる。ツリーからドリルダウンへ戻すときは展開状態も
+    ///   捨てる(捨てないと、モードを戻したのに展開したままの行が残る)。行の組み直しは
+    ///   `refreshFileList` の経路へ合流させる——直接組み直すと「ルートの一覧が届く前に
+    ///   行を組み直さない」不変条件を迂回する。
+    /// - 変更ファイルのみ: 述語が変わるだけなので再列挙しない。ON になったときだけ git 状態を
+    ///   取り直す(作業ツリーの編集は index も windowDidBecomeKey も動かさないため / TASK-296)。
+    ///   OFF は絞り込みをやめるだけで新しい git 状態を要さず、方向を見ずに取り直すと開いている
+    ///   ウィンドウ数だけ git status が同時に走る(TASK-303)。
+    func applyDisplayChange(_ change: SidebarDisplayChange) {
+        switch change {
+        case .toggleHiddenFiles:
+            fileListModel.showHiddenFiles.toggle()
+            recordSettings()
+            refreshFileList()
+        case .toggleChangedFilesOnly:
+            fileListModel.showChangedFilesOnly.toggle()
+            recordSettings()
+            guard fileListModel.showChangedFilesOnly else { return }
+            gitStatus.refresh(policy: .always)
+        case .toggleLayoutMode:
+            let next: SidebarLayoutMode = fileListModel.layoutMode == .tree ? .drillDown : .tree
+            fileListModel.layoutMode = next
+            recordSettings()
+            if next == .drillDown {
+                tree.invalidateExpansion()
+            }
+            refreshFileList()
+        case let .setSortOrder(order):
+            guard fileListModel.sortOrder != order else { return }
+            fileListModel.sortOrder = order
+            recordSettings()
+            refreshFileList()
+        }
     }
 
-    /// 並び順を変える唯一の入口。この窓のライブ値(`FileListModel.sortOrder`)を更新し、
-    /// 同時に「次に窓を開くときの既定値」として保存する。
-    ///
-    /// 並び順は窓ごとのライブ値なので他窓へは配らない(ADR 0002「文書の状態」)。
-    /// 隠しファイル表示などの「アプリの好み」と違い `GlobalDisplayBroadcaster` は通さない。
-    /// **ライブ値の更新と既定値の保存をここで対にしている。** 片方だけを行う経路を
-    /// 作らないため、`FileListModel.sortOrder` へ外から直接代入しないこと
-    /// (例外は CLI の `--sort` = その起動限りの上書きで、既定値を書き換えない)。
-    func setSortOrder(_ order: SortOrder) {
-        guard fileListModel.sortOrder != order else { return }
-        fileListModel.sortOrder = order
-        sidebarDisplayPreference.sortOrder = order
-        refreshFileList()
+    /// この窓の現在値を、次に開く窓の既定値として書き戻す。後勝ちでよい。
+    private func recordSettings() {
+        displayDefaults.record(
+            SidebarDisplaySettings(
+                showHiddenFiles: fileListModel.showHiddenFiles,
+                showChangedFilesOnly: fileListModel.showChangedFilesOnly,
+                layoutMode: fileListModel.layoutMode,
+                sortOrder: fileListModel.sortOrder
+            )
+        )
     }
 
     /// サイドバーのファイル一覧を現在のディレクトリで取り直し、現在ファイルを選択する。
@@ -135,7 +169,7 @@ final class SidebarListingCoordinator {
         onApplied: @escaping @MainActor (SidebarNavigatorHost, URL, DirectoryListing) -> Void
     ) {
         baseDirectory.refresh()
-        let showHiddenFiles = syncDisplayPreferences()
+        let showHiddenFiles = fileListModel.showHiddenFiles
         // ルートを取り直す契機(並び順の変更・隠しファイルのトグル・フォーカス復帰・リネーム)は
         // そのまま展開中サブツリーを取り直す契機でもある。ここを通さないと、展開したフォルダの
         // 中だけが古い並び順・古い隠しファイル設定のまま残る。

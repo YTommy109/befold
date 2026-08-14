@@ -8,7 +8,7 @@ import SwiftUI
 /// 一覧行の描画ではないため(TASK-443)。表示設定のトグルを増やすときに触るのはこの型だけで、
 /// 行・コンテキストメニュー・キー操作には影響しない。
 ///
-/// 各トグルの真実の源は `SidebarDisplayPreference` で、`model` の値はその写し。
+/// 各トグルの真実の源は `SidebarDisplayDefaults` で、`model` の値はその写し。
 /// ここは写しを読んで見た目を決め、切り替えの実行はクロージャで上位(ViewerWindowController)
 /// へ返す。
 struct SidebarHeaderView: View {

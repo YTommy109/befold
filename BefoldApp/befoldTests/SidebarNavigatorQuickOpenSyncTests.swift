@@ -38,7 +38,7 @@ struct SidebarNavigatorQuickOpenSyncTests {
             currentDirectory: base,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: SidebarDisplayPreference(
+            displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorQuickOpenSyncTests")
             ),
             directoryLister: { url, _, _ in

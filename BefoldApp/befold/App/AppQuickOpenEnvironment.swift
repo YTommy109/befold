@@ -10,7 +10,7 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
     private let gitIndex: any GitFileIndexing
     private let recentDocumentsStore: RecentDocumentsStore
     private let bookmarkStore: BookmarkStore
-    private let sidebarDisplayPreference: SidebarDisplayPreference
+    private let displayDefaults: SidebarDisplayDefaults
     private let fileReader: any FileReading
     /// いま開いているファイル。ウィンドウが 1 枚も無ければ nil。
     private let currentFileURL: URL?
@@ -19,14 +19,14 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
         gitIndex: any GitFileIndexing,
         recentDocumentsStore: RecentDocumentsStore,
         bookmarkStore: BookmarkStore,
-        sidebarDisplayPreference: SidebarDisplayPreference,
+        displayDefaults: SidebarDisplayDefaults,
         currentFileURL: URL?,
         fileReader: any FileReading = DefaultFileReader()
     ) {
         self.gitIndex = gitIndex
         self.recentDocumentsStore = recentDocumentsStore
         self.bookmarkStore = bookmarkStore
-        self.sidebarDisplayPreference = sidebarDisplayPreference
+        self.displayDefaults = displayDefaults
         self.currentFileURL = currentFileURL
         self.fileReader = fileReader
     }
@@ -36,7 +36,7 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
     }
 
     var includingHiddenFiles: Bool {
-        sidebarDisplayPreference.showHiddenFiles
+        displayDefaults.settings.showHiddenFiles
     }
 
     /// 候補集合の構築は `git rev-parse` / `git ls-files` のサブプロセス待ちと

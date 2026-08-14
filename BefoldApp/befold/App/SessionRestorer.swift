@@ -160,7 +160,7 @@ final class SessionRestorer {
     /// `ViewerWindowManager.openViewer` へ渡す形は、経路ごとの取りこぼしを防ぐために保つ。
     func restoreLastSession(options: CLIOpenOptions = CLIOpenOptions()) {
         if let showHiddenFiles = options.showHiddenFiles {
-            windowManager.display.setHiddenFiles(showHiddenFiles)
+            windowManager.setHiddenFilesFromCLI(showHiddenFiles)
         }
 
         // 復元中のウィンドウ表示がシステムの「タブ優先」設定で勝手にタブ結合しないよう、

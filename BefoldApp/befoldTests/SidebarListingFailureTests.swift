@@ -21,7 +21,7 @@ struct SidebarListingFailureTests {
             currentDirectory: directory,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: SidebarDisplayPreference(
+            displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarListingFailureTests")
             ),
             directoryLister: { url, _, _ in listing(url) },

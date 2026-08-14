@@ -46,7 +46,7 @@ struct SidebarNavigatorGitStatusTests {
             currentDirectory: currentDirectory,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: SidebarDisplayPreference(
+            displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorGitStatusTests")
             ),
             directoryLister: { _, _, _ in .empty },

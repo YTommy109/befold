@@ -76,22 +76,22 @@ struct SidebarTreeLayoutTests {
     @Test("表示モードは保存され、次回の読み出しで復元される")
     func layoutModePersists() {
         let defaults = makeIsolatedDefaults(prefix: "SidebarTreeLayoutTests-persist")
-        let first = SidebarDisplayPreference(defaults: defaults)
-        #expect(first.layoutMode == .drillDown)
+        let first = SidebarDisplayDefaults(defaults: defaults)
+        #expect(first.settings.layoutMode == .drillDown)
 
-        first.layoutMode = .tree
+        first.record { $0.layoutMode = .tree }
 
-        let restored = SidebarDisplayPreference(defaults: defaults)
-        #expect(restored.layoutMode == .tree)
+        let restored = SidebarDisplayDefaults(defaults: defaults)
+        #expect(restored.settings.layoutMode == .tree)
     }
 
     /// 保存値のツリーは、ビルド構成によらずそのままツリーとして読む(TASK-187 で降格を撤去)。
     @Test("保存値がツリーならそのままツリーとして読まれる")
     func layoutModeReadsStoredTreeAsIs() {
         let defaults = makeIsolatedDefaults(prefix: "SidebarTreeLayoutTests-stored")
-        SidebarDisplayPreference(defaults: defaults).layoutMode = .tree
+        SidebarDisplayDefaults(defaults: defaults).record { $0.layoutMode = .tree }
 
-        #expect(SidebarDisplayPreference(defaults: defaults).layoutMode == .tree)
+        #expect(SidebarDisplayDefaults(defaults: defaults).settings.layoutMode == .tree)
     }
 
     @Test("保存値が無い・壊れているときはドリルダウンへ倒す")

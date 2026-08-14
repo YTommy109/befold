@@ -31,18 +31,18 @@ struct ViewerWindowControllerIntegrationTests {
         ).controller
     }
 
-    @Test("sidebarDisplayPreference.showHiddenFiles が true のときサイドバーに不可視ファイルが含まれる")
+    @Test("displayDefaults.showHiddenFiles が true のときサイドバーに不可視ファイルが含まれる")
     func sidebarIncludesHiddenFilesWhenPreferenceIsOn() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
         let visible = try tmp.file(named: "visible.mmd", contents: "graph TD;")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
-        let preference = SidebarDisplayPreference(defaults: defaults)
-        preference.showHiddenFiles = true
+        let preference = SidebarDisplayDefaults(defaults: defaults)
+        preference.record { $0.showHiddenFiles = true }
 
         let controller = ViewerWindowControllerFixture(
-            file: visible, realFileSystem: true, defaults: defaults, sidebarDisplayPreference: preference
+            file: visible, realFileSystem: true, defaults: defaults, displayDefaults: preference
         ).controller
         defer { controller.close() }
 
@@ -53,17 +53,17 @@ struct ViewerWindowControllerIntegrationTests {
         #expect(controller.fileListModel.showHiddenFiles)
     }
 
-    @Test("sidebarDisplayPreference.showHiddenFiles が false(デフォルト)のとき不可視ファイルは含まれない")
+    @Test("displayDefaults.showHiddenFiles が false(デフォルト)のとき不可視ファイルは含まれない")
     func sidebarExcludesHiddenFilesWhenPreferenceIsOff() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
         let visible = try tmp.file(named: "visible.mmd", contents: "graph TD;")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
-        let preference = SidebarDisplayPreference(defaults: defaults)
+        let preference = SidebarDisplayDefaults(defaults: defaults)
 
         let controller = ViewerWindowControllerFixture(
-            file: visible, realFileSystem: true, defaults: defaults, sidebarDisplayPreference: preference
+            file: visible, realFileSystem: true, defaults: defaults, displayDefaults: preference
         ).controller
         defer { controller.close() }
 

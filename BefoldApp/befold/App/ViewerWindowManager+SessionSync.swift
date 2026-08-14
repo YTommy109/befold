@@ -75,15 +75,15 @@ extension ViewerWindowManager: ViewerWindowControllerDelegate {
     }
 
     func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController) {
-        display.toggleHiddenFiles()
+        display.applySidebarDisplayChangeToAllWindows(.toggleHiddenFiles)
     }
 
     func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController) {
-        display.toggleChangedFilesOnly()
+        display.applySidebarDisplayChangeToAllWindows(.toggleChangedFilesOnly)
     }
 
     func viewerWindowDidToggleSidebarTreeLayout(_ controller: ViewerWindowController) {
-        display.toggleSidebarLayoutMode()
+        display.applySidebarDisplayChangeToAllWindows(.toggleLayoutMode)
     }
 
     func viewerWindowDidToggleDiffLayout(_ controller: ViewerWindowController) {

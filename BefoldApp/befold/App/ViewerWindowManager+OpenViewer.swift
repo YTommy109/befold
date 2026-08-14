@@ -100,7 +100,7 @@ extension ViewerWindowManager {
 
         return ViewerWindowController(
             fileURL: url,
-            sidebarDisplayPreference: sidebarDisplayPreference,
+            displayDefaults: displayDefaults,
             diffDisplayPreference: diffDisplayPreference,
             diffLoader: diffLoader,
             findOptionsPreference: findOptionsPreference,

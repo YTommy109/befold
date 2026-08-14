@@ -44,7 +44,7 @@ final class DocumentOpener {
     /// 対象の文書を要するため CLI のパース段階で弾かれる = `CLIOpenOptions.requiresPaths`)。
     func openPaths(_ paths: [String], options: CLIOpenOptions) {
         if let showHiddenFiles = options.showHiddenFiles {
-            windowManager.display.setHiddenFiles(showHiddenFiles)
+            windowManager.setHiddenFilesFromCLI(showHiddenFiles)
         }
         openSequentially(paths.map { URL(fileURLWithPath: $0) }, options: options)
     }
