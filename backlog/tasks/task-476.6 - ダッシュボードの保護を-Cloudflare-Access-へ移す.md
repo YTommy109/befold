@@ -4,7 +4,7 @@ title: ダッシュボードの保護を Cloudflare Access へ移す
 status: In Progress
 assignee: []
 created_date: '2026-08-13 14:21'
-updated_date: '2026-08-14 07:24'
+updated_date: '2026-08-14 07:44'
 labels:
   - site
 dependencies:
@@ -113,4 +113,53 @@ Zero Trust 有効化は API から行えないことを再確認した（`POST` 
 /accounts/.../access/organizations` はいずれも `10000 Authentication error`。
 一方 `GET /accounts/.../subscriptions` は 200 を返すため、トークンが無効なのではなく
 Access の書き込み権限が無い）。
+
+## Access アプリケーション作成（API 実行、2026-08-14）
+
+`Access: Apps and Policies – Edit` のみを持つ API トークンで作成した（作業後にファイル削除。
+ユーザー側で revoke 予定）。
+
+| | 本番 | staging |
+| --- | --- | --- |
+| id | `7a6f1185-3e5f-4e3d-b56a-0f56401176e5` | `4e8328b0-5320-4267-a59f-25d2660294e8` |
+| AUD | `f6b3a6db…f38f7` | `e8b98cfd…5d014` |
+| hostnames | `befold.degino.com/dashboard` と `/dashboard/*` | `staging.befold.degino.com/dashboard` と `/dashboard/*` |
+| session | 168h | 168h |
+| policy | allow / Emails=`tokutomi@degino.com` / 168h | 同左 |
+
+team domain は **`degino.cloudflareaccess.com`**。API の
+`GET /access/organizations` はリネーム前の `icy-night-33af.cloudflareaccess.com` を
+返しており、その値で deploy すると JWKS 取得が 404 になるところだった。
+`/cdn-cgi/access/certs` の応答（degino=200 / icy-night-33af=404）と、Access の
+ログインリダイレクト先で確定させた。**API の値を鵜呑みにせず実測したことで踏まずに済んだ。**
+
+サービストークンによる無人検証は断念した（トークンに `Access: Service Tokens` が
+無く 10000）。結果的に一時的な allow ポリシーを作らずに済んでいる。
+
+## 本番の実測（version ebf99651）
+
+| URL | 結果 |
+| --- | --- |
+| `befold.degino.com/dashboard` | 302 → `degino.cloudflareaccess.com/cdn-cgi/access/login/…?kid=f6b3a6d…` |
+| `befold.degino.com/dashboard/stream` | 302 → 同上（親パスもワイルドカードも保護されている） |
+| `befold.tommy109.workers.dev/dashboard` | 404 |
+| `befold.tommy109.workers.dev/dashboard/stream` | 404 |
+| `befold.degino.com/` | 200 |
+| `befold.degino.com/download` | 200 |
+| `befold.degino.com/appcast.xml` | 200 |
+| `befold.tommy109.workers.dev/appcast.xml` | 200 |
+
+リダイレクト URL の `kid` が本番 AUD と一致しており、両パスが同一アプリで保護されて
+いることを確認した（AC #2）。更新経路（appcast・/download）は新旧どちらも無影響。
+
+## シークレット削除（AC #5）
+
+`DASHBOARD_PASSWORD` / `DASHBOARD_USER` を本番から、`DASHBOARD_PASSWORD` を staging から
+削除。`wrangler secret list` は両環境とも `[]`。`.dev.vars.example` とコード・テスト・
+README からも DASHBOARD 系の記述を除去済み。
+
+## 残り
+
+AC #1 の「認証後に集計と SSE が動作する」はブラウザでの One-time PIN ログインを伴うため
+ユーザー確認が必要。
 <!-- SECTION:NOTES:END -->
