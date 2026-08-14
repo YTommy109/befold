@@ -13,10 +13,17 @@ export const dashboardRoutes = new Hono<AppEnv>()
 /**
  * ダッシュボードを所有者だけに限定する。
  *
- * 配信先が *.workers.dev（Cloudflare 所有ドメイン）で Cloudflare Access を
- * 設定できないため、Worker 側の Basic 認証で保護する。パスワードは
- * `wrangler secret put DASHBOARD_PASSWORD` で設定し、コードには持たない。
- * 未設定のまま公開されると素通しになるので、その場合は 503 で閉じる。
+ * 最終形は Cloudflare Access（新ドメイン befold.degino.com の /dashboard と
+ * /dashboard/* を self-hosted アプリケーションで保護し、Worker 側で Access の
+ * JWT を検証する）で、Basic 認証はそこへ移るまでの暫定（ADR 0007 の決定 5）。
+ * かつてここには「workers.dev には Access を設定できない」と書かれていたが、
+ * これは誤り。Cloudflare のドキュメント（Workers「workers.dev」の
+ * Manage access to `workers.dev`）は workers.dev URL へ Access を有効化する
+ * 手順を明記している。旧ホストで Access を張らないのは技術的な不可能性では
+ * なく、保護面を 1 つに畳むという判断による。
+ *
+ * パスワードは `wrangler secret put DASHBOARD_PASSWORD` で設定し、コードには
+ * 持たない。未設定のまま公開されると素通しになるので、その場合は 503 で閉じる。
  */
 dashboardRoutes.use('*', async (c, next) => {
   const password = c.env.DASHBOARD_PASSWORD
