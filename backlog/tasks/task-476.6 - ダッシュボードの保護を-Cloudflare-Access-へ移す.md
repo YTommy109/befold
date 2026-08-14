@@ -1,10 +1,10 @@
 ---
 id: TASK-476.6
 title: ダッシュボードの保護を Cloudflare Access へ移す
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-13 14:21'
-updated_date: '2026-08-14 07:44'
+updated_date: '2026-08-14 07:49'
 labels:
   - site
 dependencies:
@@ -38,12 +38,12 @@ ordinal: 101600
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 新ドメインの /dashboard が Access で保護され、認証後に集計と SSE が従来どおり動作する
-- [ ] #2 /dashboard と /dashboard/* の両方が保護されている（親パスがワイルドカードから漏れていない）
-- [ ] #3 Worker 側で Access JWT を検証しており、JWT 未提示のリクエストが通らない
-- [ ] #4 旧ホストの /dashboard が 404 を返す
-- [ ] #5 Basic 認証の実装・DASHBOARD_PASSWORD シークレット・テスト・ドキュメントの記述が整理されている
-- [ ] #6 Access のポリシー内容（許可する識別子・セッション長）が Implementation Notes に記録されている
+- [x] #1 新ドメインの /dashboard が Access で保護され、認証後に集計と SSE が従来どおり動作する
+- [x] #2 /dashboard と /dashboard/* の両方が保護されている（親パスがワイルドカードから漏れていない）
+- [x] #3 Worker 側で Access JWT を検証しており、JWT 未提示のリクエストが通らない
+- [x] #4 旧ホストの /dashboard が 404 を返す
+- [x] #5 Basic 認証の実装・DASHBOARD_PASSWORD シークレット・テスト・ドキュメントの記述が整理されている
+- [x] #6 Access のポリシー内容（許可する識別子・セッション長）が Implementation Notes に記録されている
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -162,4 +162,24 @@ README からも DASHBOARD 系の記述を除去済み。
 
 AC #1 の「認証後に集計と SSE が動作する」はブラウザでの One-time PIN ログインを伴うため
 ユーザー確認が必要。
+
+## AC #1 / #3 の実測（Worker ログ、2026-08-14 07:45〜07:46 UTC）
+
+ユーザーが Cloudflare ログイン（One-time PIN ではなくアカウント認証）で入り、Access の
+ログに `allowed: true` / `tokutomi@degino.com` / `befold.degino.com` が記録された。
+Workers Observability 側:
+
+| 時刻 | リクエスト | 結果 |
+| --- | --- | --- |
+| 07:45:49 | `GET befold.degino.com/dashboard` | 200 |
+| 07:46:11 | `GET befold.degino.com/dashboard` | 200 |
+| 07:46:00 | `GET befold.degino.com/dashboard/stream?after=438` | SSE 接続確立、10.1s 後に canceled（ブラウザ側の離脱） |
+| 07:43:08 | `GET befold.tommy109.workers.dev/dashboard{,/stream}` | 404 |
+
+SSE はポーリング間隔 2.5s に対して 10.1s 継続しており、複数周期を回っている。
+
+**バージョンの確認**: 200 を返したのは `9d15a561`。これは私がデプロイした
+`ebf99651` に対しシークレット削除（Secret Change）で再生成されたバージョンで、
+コードは同一（`wrangler deployments list` で確認）。つまり Access 検証を含む
+コードが JWT を受理している。素通しの旧バージョンが応答していたのではない。
 <!-- SECTION:NOTES:END -->
