@@ -4,7 +4,7 @@ title: 配布サイトを独自ドメイン befold.degino.com へ移行する
 status: To Do
 assignee: []
 created_date: '2026-08-13 14:19'
-updated_date: '2026-08-14 05:49'
+updated_date: '2026-08-14 06:17'
 labels:
   - site
 dependencies: []
@@ -28,3 +28,18 @@ DNS 管理を Cloudflare へ集約したため、配布サイト Worker を work
 
 本タスクは束ねるだけで、実作業はサブタスクで行う。
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-476.1 で ADR 0007（`docs/adr/0007-distribution-site-custom-domain.md`、backlog decision-7）を作成し、6 つの判断を確定した。
+
+1. workers.dev は恒久維持・全パス（パス選別しない）
+2. 旧ホストのリダイレクトは LP と /features のみの肯定列挙。/download は送らない
+3. アプリの appcast URL とリリースの enclosure prefix は新ドメインへ切り替える（理由は可搬性）
+4. staging は staging.befold.degino.com
+5. ダッシュボードは Access へ移し、旧ホストの /dashboard は 404（保護面を 1 つに畳む）
+6. 自己参照の除外を単一ホストから自己ホスト集合へ変える（移行と同じデプロイに入れる）
+
+サブタスク 476.2〜476.6 の Description / Acceptance Criteria はこの決定に合わせて更新済み。
+<!-- SECTION:NOTES:END -->

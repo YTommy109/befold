@@ -4,7 +4,7 @@ title: リリース CI とドキュメント・外部導線の URL を新ドメ�
 status: To Do
 assignee: []
 created_date: '2026-08-13 14:21'
-updated_date: '2026-08-14 05:49'
+updated_date: '2026-08-14 06:17'
 labels:
   - site
 dependencies:
@@ -36,3 +36,13 @@ ordinal: 101500
 - [ ] #3 旧ホストの /dl/ を維持する必要がある理由が release.yml かドキュメントにコメントとして残っている
 - [ ] #4 markdownlint-cli2 が通る
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+ADR 0007 との整合（TASK-476.1 で確認）:
+
+- 決定 3 により `.github/workflows/release.yml:274` の `download_url_prefix` は新ドメインへ切り替える（既存 AC #1 のとおりで矛盾なし）。
+- `docs/index.html` の GitHub Pages リダイレクト shim を新ドメインへ向け直すか撤去するかは **ADR 0007 で未確定**とした。本タスクで決めること。向け直す場合 `?ref=gh-pages` の値は変えない。
+- 旧ホストの `/dl/` を止められない理由は ADR 0007 の Context（配信済み appcast の enclosure が旧ホストを指す）。AC #3 のコメントはこの ADR を参照する形にしてよい。
+<!-- SECTION:NOTES:END -->
