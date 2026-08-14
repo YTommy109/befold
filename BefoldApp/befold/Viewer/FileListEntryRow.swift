@@ -76,20 +76,35 @@ struct FileListEntryRow: View {
         }
     }
 
+    /// 行の名前とアイコン。**フォルダー行もファイル行もここを通す**。
+    ///
+    /// 種別ごとに Label を組むと、片方だけ `.foregroundStyle` の無い行が残る。
+    /// 色指定の無いテキストは、裏打ちの NSTableView が first responder を失った時点で
+    /// AppKit の既定に従って `secondaryLabelColor` 相当へ落ちるため、プレビューへ
+    /// フォーカスを移すとフォルダー名だけが薄くなっていた(issue #509)。構築点を
+    /// 1 つに畳んで、色を指定しない経路そのものを無くす。
+    ///
+    /// `hasUnknownExtension` は `kind == .file` を含む述語なので、フォルダー行は
+    /// 常に `.primary` になる(ファイル行の従来の見た目も変わらない)。
+    private var nameLabel: some View {
+        Label {
+            Text(entry.url.lastPathComponent)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(entry.hasUnknownExtension ? .secondary : .primary)
+        } icon: {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path))
+                .resizable()
+                .frame(width: 16, height: 16)
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         switch entry.kind {
         case .folder:
             HStack {
-                Label {
-                    Text(entry.url.lastPathComponent)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                } icon: {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path))
-                        .resizable()
-                        .frame(width: 16, height: 16)
-                }
+                nameLabel
                 Spacer()
                 if let appearance = folderBadgeAppearance() {
                     GitStatusBadgeView(appearance: appearance)
@@ -105,16 +120,7 @@ struct FileListEntryRow: View {
             .help(entry.url.lastPathComponent)
         case .file:
             HStack {
-                Label {
-                    Text(entry.url.lastPathComponent)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .foregroundStyle(entry.hasUnknownExtension ? .secondary : .primary)
-                } icon: {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path))
-                        .resizable()
-                        .frame(width: 16, height: 16)
-                }
+                nameLabel
                 Spacer()
                 if let status = gitStatus?(), let appearance = GitStatusBadge.appearance(for: status) {
                     GitStatusBadgeView(appearance: appearance)
