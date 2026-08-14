@@ -4,7 +4,9 @@ title: 紹介サイトを現在の機能とふたつの読み手に合わせて�
 status: To Do
 assignee: []
 created_date: '2026-08-14 13:04'
+updated_date: '2026-08-14 13:22'
 labels: []
+milestone: m-1
 dependencies: []
 documentation:
   - site/README.md

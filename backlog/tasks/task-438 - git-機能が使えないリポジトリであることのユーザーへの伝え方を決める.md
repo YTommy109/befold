@@ -4,9 +4,10 @@ title: git 機能が使えないリポジトリであることのユーザーへ
 status: To Do
 assignee: []
 created_date: '2026-08-10 15:08'
-updated_date: '2026-08-13 13:57'
+updated_date: '2026-08-14 13:22'
 labels:
   - ux
+milestone: m-0
 dependencies:
   - TASK-435.1
 priority: medium

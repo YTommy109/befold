@@ -4,7 +4,9 @@ title: HTML レンダリング表示の見出しジャンプを扱うか判断�
 status: To Do
 assignee: []
 created_date: '2026-08-14 13:18'
+updated_date: '2026-08-14 13:22'
 labels: []
+milestone: m-2
 dependencies:
   - TASK-485.2
 parent_task_id: TASK-485

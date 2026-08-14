@@ -4,7 +4,9 @@ title: レンダリング表示のまま差分を見せられるようにする
 status: To Do
 assignee: []
 created_date: '2026-08-14 12:45'
+updated_date: '2026-08-14 13:22'
 labels: []
+milestone: m-0
 dependencies: []
 documentation:
   - docs/dev/native-app-design.md

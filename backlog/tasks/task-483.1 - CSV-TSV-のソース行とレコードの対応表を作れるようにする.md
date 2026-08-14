@@ -4,7 +4,9 @@ title: CSV/TSV のソース行とレコードの対応表を作れるように�
 status: To Do
 assignee: []
 created_date: '2026-08-14 12:46'
+updated_date: '2026-08-14 13:22'
 labels: []
+milestone: m-0
 dependencies: []
 parent_task_id: TASK-483
 priority: medium

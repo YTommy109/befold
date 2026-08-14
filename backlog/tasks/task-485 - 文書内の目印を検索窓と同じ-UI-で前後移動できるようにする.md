@@ -4,7 +4,9 @@ title: 文書内の目印を検索窓と同じ UI で前後移動できるよう
 status: To Do
 assignee: []
 created_date: '2026-08-14 13:16'
+updated_date: '2026-08-14 13:22'
 labels: []
+milestone: m-2
 dependencies: []
 priority: medium
 type: feature

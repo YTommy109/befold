@@ -4,7 +4,9 @@ title: Markdown を読む立場の人にとっての利点を整理する
 status: To Do
 assignee: []
 created_date: '2026-08-14 13:06'
+updated_date: '2026-08-14 13:22'
 labels: []
+milestone: m-1
 dependencies: []
 parent_task_id: TASK-484
 priority: high

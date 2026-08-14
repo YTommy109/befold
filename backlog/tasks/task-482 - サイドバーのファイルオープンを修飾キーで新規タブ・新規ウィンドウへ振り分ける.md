@@ -4,9 +4,10 @@ title: サイドバーのファイルオープンを修飾キーで新規タブ�
 status: To Do
 assignee: []
 created_date: '2026-08-14 12:22'
-updated_date: '2026-08-14 12:22'
+updated_date: '2026-08-14 13:22'
 labels:
   - feature
+milestone: m-2
 dependencies: []
 priority: high
 ordinal: 699000

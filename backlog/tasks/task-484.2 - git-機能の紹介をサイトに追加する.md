@@ -4,7 +4,9 @@ title: git 機能の紹介をサイトに追加する
 status: To Do
 assignee: []
 created_date: '2026-08-14 13:05'
+updated_date: '2026-08-14 13:22'
 labels: []
+milestone: m-1
 dependencies:
   - TASK-484.1
 parent_task_id: TASK-484

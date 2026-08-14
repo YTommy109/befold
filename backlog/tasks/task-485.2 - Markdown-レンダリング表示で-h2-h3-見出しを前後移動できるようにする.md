@@ -4,7 +4,9 @@ title: Markdown レンダリング表示で h2 / h3 見出しを前後移動で�
 status: To Do
 assignee: []
 created_date: '2026-08-14 13:18'
+updated_date: '2026-08-14 13:22'
 labels: []
+milestone: m-2
 dependencies:
   - TASK-485.1
 parent_task_id: TASK-485
