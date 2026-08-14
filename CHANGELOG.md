@@ -4,6 +4,14 @@ stable リリースのユーザー影響のある変更を記録する。
 dev リリースの全変更履歴は [GitHub Releases](https://github.com/YTommy109/befold/releases) を参照。
 v1.5.0 より前の履歴は GitHub Releases の各タグページを参照。
 
+## v1.13.1
+
+### 新機能
+- Help メニューから GitHub Issues を開けるようにしました。
+
+### 不具合修正
+- プレビューにフォーカスがあるときフォルダー名が薄く表示される問題を修正しました。
+
 ## v1.13.0
 
 ### 新機能
