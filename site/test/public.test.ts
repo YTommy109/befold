@@ -7,13 +7,17 @@ const IP = '203.0.113.5'
 const APPCAST_XML = '<?xml version="1.0"?><rss><channel><title>befold</title></channel></rss>'
 const DEVELOP_XML = '<?xml version="1.0"?><rss><channel><title>befold-dev</title></channel></rss>'
 
+/** テストの既定オリジン。ホストに依存しない振る舞いはこれで確かめる。 */
+const DEFAULT_ORIGIN = 'https://befold.example'
+
 /** 実リクエストと同じヘッダ構成でルートを叩き、waitUntil の完了まで待つ。 */
 async function call(
   path: string,
   headers: Record<string, string> = {},
   cf?: IncomingRequestCfProperties,
+  origin: string = DEFAULT_ORIGIN,
 ): Promise<Response> {
-  const request = new Request(`https://befold.example${path}`, {
+  const request = new Request(`${origin}${path}`, {
     headers: { 'User-Agent': UA, 'CF-Connecting-IP': IP, 'CF-IPCountry': 'JP', ...headers },
     redirect: 'manual',
     ...(cf === undefined ? {} : { cf }),
@@ -82,7 +86,7 @@ describe('GET /', () => {
     expect(response.status).toBe(200)
     const body = await response.text()
     expect(body).toContain('befold')
-    expect(body).toContain('href="https://befold.tommy109.workers.dev/download"')
+    expect(body).toContain('href="/download"')
 
     const event = await latestEvent()
     expect(event?.kind).toBe('visit')
@@ -455,7 +459,7 @@ describe('構造化データ (JSON-LD)', () => {
     expect(data['@type']).toBe('SoftwareApplication')
     expect(data.operatingSystem).toBe('macOS 14 (Sonoma) or later')
     expect(data.applicationCategory).toBe('DeveloperApplication')
-    expect(data.downloadUrl).toBe('https://befold.tommy109.workers.dev/download')
+    expect(data.downloadUrl).toBe('https://befold.example/download')
     expect(data.url).toBe('https://befold.example/')
   })
 
@@ -568,5 +572,147 @@ describe('LP から詳細ページへの導線', () => {
     const body = await (await call('/')).text()
 
     expect(body).toContain('href="/features"')
+  })
+})
+
+/**
+ * 旧 workers.dev ホストの扱い（ADR 0007 の決定 1・2）。
+ *
+ * 旧ホストは恒久的に生かし続ける必要がある。出荷済みアプリの Sparkle フィード URL
+ * と、配信済み appcast に埋まった enclosure URL は後から変更できないため、
+ * `/appcast*.xml` と `/dl/*` が旧ホストで 200 を返さなくなると更新経路が止まる。
+ * リダイレクトは HTML ページの肯定列挙のみで行う。
+ */
+describe('旧ホストからのリダイレクト', () => {
+  const LEGACY = 'https://befold.tommy109.workers.dev'
+  const LEGACY_STAGING = 'https://befold-staging.tommy109.workers.dev'
+
+  const legacy = (path: string, headers: Record<string, string> = {}) =>
+    call(path, headers, undefined, LEGACY)
+
+  it('LP は新ドメインの同一パスへ 301 で送る', async () => {
+    const response = await legacy('/')
+
+    expect(response.status).toBe(301)
+    expect(response.headers.get('Location')).toBe('https://befold.degino.com/')
+  })
+
+  it('/features も新ドメインの同一パスへ 301 で送る', async () => {
+    const response = await legacy('/features')
+
+    expect(response.status).toBe(301)
+    expect(response.headers.get('Location')).toBe('https://befold.degino.com/features')
+  })
+
+  it('クエリ文字列は 301 先へ引き継ぐ（?ref= の参照元計測を落とさない）', async () => {
+    const response = await legacy('/?ref=gh-pages')
+
+    expect(response.headers.get('Location')).toBe('https://befold.degino.com/?ref=gh-pages')
+  })
+
+  it('staging の旧ホストは staging の新ドメインへ送る（本番へ送らない）', async () => {
+    const response = await call('/', {}, undefined, LEGACY_STAGING)
+
+    expect(response.status).toBe(301)
+    expect(response.headers.get('Location')).toBe('https://staging.befold.degino.com/')
+  })
+
+  it('appcast は 301 ではなく 200 を返す（出荷済みアプリの更新経路）', async () => {
+    await env.DIST.put('appcast.xml', APPCAST_XML)
+    await env.DIST.put('appcast-develop.xml', DEVELOP_XML)
+
+    for (const path of ['/appcast.xml', '/appcast-develop.xml']) {
+      const response = await legacy(path)
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Location')).toBeNull()
+    }
+  })
+
+  it('/dl/ は 301 ではなく 200 を返す（配信済み appcast の enclosure）', async () => {
+    await env.DIST.put('releases/v1.2.3/befold-v1.2.3.dmg', 'DMG-BODY')
+
+    const response = await legacy('/dl/v1.2.3/befold-v1.2.3.dmg')
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('DMG-BODY')
+  })
+
+  it('/download はリダイレクトせず source=lp を従来どおり記録する', async () => {
+    await env.DIST.put(
+      'releases/latest.json',
+      JSON.stringify({ version: 'v1.2.3', file: 'befold-v1.2.3.dmg' }),
+    )
+    await env.DIST.put('releases/v1.2.3/befold-v1.2.3.dmg', 'DMG-BODY')
+
+    const response = await legacy('/download')
+
+    expect(response.status).toBe(200)
+    const event = await latestEvent()
+    expect(event?.kind).toBe('download')
+    expect(event?.source).toBe('lp')
+  })
+
+  it('列挙外のパスはリダイレクトしない（肯定列挙であることの担保）', async () => {
+    for (const path of ['/healthz', '/robots.txt', '/sitemap.xml']) {
+      const response = await legacy(path)
+
+      expect(response.status).toBe(200)
+    }
+  })
+
+  it('新ドメインで来たリクエストはリダイレクトしない', async () => {
+    const response = await call('/', {}, undefined, 'https://befold.degino.com')
+
+    expect(response.status).toBe(200)
+  })
+})
+
+/**
+ * 移行期は旧ホストの LP から新ドメインへ遷移する。これは外部からの流入ではないので
+ * 参照元の集計に混ぜてはならない（ADR 0007 の決定 6）。resolveReferrer の単体テスト
+ * だけでは events.ts の結線漏れを検知できないため、実リクエスト経由でも確かめる。
+ */
+describe('新旧ホスト間の遷移の計測', () => {
+  it('旧ホストからの遷移は参照元として記録しない', async () => {
+    await call('/', { Referer: 'https://befold.tommy109.workers.dev/' }, undefined,
+      'https://befold.degino.com')
+
+    expect((await latestEvent())?.referrer).toBeNull()
+  })
+
+  it('外部サイトからの流入は従来どおり参照元として記録する', async () => {
+    await call('/', { Referer: 'https://news.ycombinator.com/item?id=1' }, undefined,
+      'https://befold.degino.com')
+
+    expect((await latestEvent())?.referrer).toBe('https://news.ycombinator.com')
+  })
+})
+
+/**
+ * ダウンロード導線は配信ホストに依存しない（ADR 0007 の決定 6）。正規オリジンを
+ * 固定すると staging の LP のボタンが本番を指し、staging で download 経路と
+ * source:'lp' の計測を確かめられなくなる。
+ */
+describe('ダウンロード導線のホスト非依存性', () => {
+  // 旧ホストの LP と /features は 301 で新ドメインへ送るため（決定 2）、HTML を
+  // 描くのは新ドメインと staging。どちらで描いてもホスト名は現れない。
+  it.each(['https://befold.degino.com', 'https://staging.befold.degino.com'])(
+    '%s で開いても同一ホスト内の /download を指す',
+    async (origin) => {
+      for (const path of ['/', '/features']) {
+        const body = await (await call(path, {}, undefined, origin)).text()
+
+        expect(body).toContain('href="/download"')
+        expect(body).not.toMatch(/href="https?:\/\/[^"]*\/download"/)
+      }
+    },
+  )
+
+  it('JSON-LD の downloadUrl はリクエスト origin から組む', async () => {
+    const html = await (await call('/', {}, undefined, 'https://staging.befold.degino.com')).text()
+    const json = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1]
+
+    expect(JSON.parse(json as string).downloadUrl).toBe('https://staging.befold.degino.com/download')
   })
 })

@@ -2,7 +2,7 @@ import type { FC } from 'hono/jsx'
 import { html, raw } from 'hono/html'
 import { FILE_TYPE_GROUPS, SIZE_LIMITS_MB, type RenderMode } from '../lib/file-types'
 import {
-  DOWNLOAD_URL,
+  DOWNLOAD_PATH,
   FEATURES,
   MORE_FEATURES,
   LANG_SCRIPT,
@@ -348,7 +348,7 @@ export const Features: FC<{ origin: string }> = ({ origin }) => (
             <h3>Requirements</h3>
             <p>{REQUIRED_OS}</p>
           </div>
-          <a href={DOWNLOAD_URL} class="btn-primary">
+          <a href={DOWNLOAD_PATH} class="btn-primary">
             <span lang="ja">Mac 版をダウンロード</span>
             <span lang="en" hidden>
               Download for Mac

@@ -151,11 +151,25 @@ Access という**本番でだけ効く経路**を staging が持たないと、
 `resolveReferrer` の第 3 引数を単一の `selfHost` 文字列から**自己ホストの集合**へ変える。
 集合には本番の新旧 2 ホストと staging の新旧 2 ホストを入れる。
 
-リクエストホストを渡す現在の形（`site/src/events.ts:49`）は残さない。残すと
+リクエストホストを渡す現在の形（`site/src/events.ts:49`）だけでは残さない。残すと
 「いま来ているホスト以外の自ホスト」を除外できず、新旧ホスト間の遷移が
-外部参照元として記録される。集合は `site/src/lib` の定数として 1 箇所に置き、
-`DOWNLOAD_URL`（`site/src/views/shared.tsx:13`）が使う正規オリジンも同じ定数から組む。
+外部参照元として記録される。集合は `site/src/lib` の定数として 1 箇所に置く。
 ホスト名リテラルがコード中に散ると、次にホストが増えたときに片側だけ直る。
+
+**`DOWNLOAD_URL`（`site/src/views/shared.tsx:13`）は相対パス `/download` にする。**
+当初この節は「正規オリジンの定数から組む」と書いていたが、これは誤りだったので
+訂正する。使用箇所は 5 つで、4 つは `<a href>`（`site/src/views/landing.tsx:113,273,285`、
+`site/src/views/features.tsx:351`）、1 つは JSON-LD の `downloadUrl`
+（`site/src/views/landing.tsx:54`）。`<a href="/download">` はブラウザが表示中の文書の
+オリジンに対して解決するため、相対パスにするだけで「開いたホストの `/download`」に
+なる。正規オリジンの定数から組むと、staging の LP のダウンロードボタンが本番を指し、
+staging で download 経路と `source:'lp'` の計測を確かめられなくなる。これは
+staging の存在意義（`site/wrangler.toml:35-48`）と衝突する。
+
+この節の理由は「ホスト名リテラルを散らさない」ことであり、相対パスはリテラルを
+1 つも残さないのでその理由をより強く満たす。ホスト判定の分岐を新設する案は
+採らない（述語を増やさずに同じ結果が得られる）。絶対 URL が要る JSON-LD だけは、
+canonical・og:url・sitemap と同じくリクエスト origin から組む。
 
 ## Consequences
 
@@ -178,6 +192,10 @@ Access という**本番でだけ効く経路**を staging が持たないと、
   `breakdown(db,'referrer')`）は、自己ホスト集合を入れる前に記録された旧ホスト →
   新ドメインの遷移を外部参照元として含みうる。移行と同じデプロイで 6 を入れ、
   断層が生じない順序にする。
+- 301 を追わないクライアントが旧ホストの LP を見た場合、ダウンロードボタンは
+  旧ホストの `/download` に留まる（相対パスのため）。これは決定 2 で
+  `/download` をリダイレクト対象から外した意図と同じ向きで、`source:'lp'` の
+  計測は従来どおり記録される。
 - ホスト名を固定値で期待しているテストの更新が必要になる
   （`site/test/public.test.ts:85,458`、`site/test/referrer.test.ts:4`、
   `BefoldApp/befoldTests/AppLinksTests.swift:12,24`、

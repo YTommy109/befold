@@ -15,11 +15,18 @@ export const REFERRER_MAX_LENGTH = 64
  * 参照元ページの内容が漏れうるため保存しない（IP をハッシュ化し UA を
  * 要約のみ保存する既存方針に合わせる）。自サイト内の遷移は参照元ではない
  * ので null にする。
+ *
+ * `selfHosts` は単一のホスト名ではなく**集合**を受け取る。配布サイトは独自
+ * ドメインと workers.dev の両方で応答するため（ADR 0007 の決定 1）、単一ホスト
+ * 前提のままだと新旧ホスト間の遷移が外部参照元として記録される。集合を要求する
+ * ことで、リクエストホスト 1 つを渡す旧実装は型エラーになり戻せない
+ * （`string` は `ReadonlySet<string>` に代入できない）。集合の作り方は
+ * `src/lib/hosts.ts` の `selfHostsFor` が唯一の入口。
  */
 export function resolveReferrer(
   refParam: string | null,
   refererHeader: string | null,
-  selfHost: string,
+  selfHosts: ReadonlySet<string>,
 ): string | null {
   const explicit = refParam?.trim()
   if (explicit !== undefined && explicit.length > 0) {
@@ -38,7 +45,7 @@ export function resolveReferrer(
     return null
   }
 
-  if (host === selfHost) return null
+  if (selfHosts.has(host)) return null
 
   return origin.slice(0, REFERRER_MAX_LENGTH)
 }
