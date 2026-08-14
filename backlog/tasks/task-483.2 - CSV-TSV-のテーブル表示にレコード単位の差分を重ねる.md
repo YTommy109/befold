@@ -4,9 +4,9 @@ title: CSV/TSV のテーブル表示にレコード単位の差分を重ねる
 status: To Do
 assignee: []
 created_date: '2026-08-14 12:46'
-updated_date: '2026-08-14 13:22'
+updated_date: '2026-08-14 13:29'
 labels: []
-milestone: m-0
+milestone: m-4
 dependencies:
   - TASK-483.1
 parent_task_id: TASK-483
