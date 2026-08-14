@@ -140,6 +140,7 @@ BefoldApp/
 | `ViewerDocumentPresenter` | 文書の状態（表示モード・倍率・スクロール位置）の遷移と提示開始の 3 契機（ADR 0002 段 1）。cmd+U の戻り先の記憶もここに閉じる |
 | `ViewerDiffPresenter` | git 差分の非同期取得・世代管理・レイアウト設定 |
 | `ViewerCapabilitiesFactory` | 提示状態から `ViewerCapabilities` を導出する純関数（ADR 0002 段 2）。どの入力を信じるかをここ 1 箇所に置く |
+| `GitDiffAvailability` | 差分表示モードを選ばせてよいかを決める git 側の事実（可用性・そのファイルに差分として出せる変更があるか）。基準ディレクトリの種別と `SidebarGitStatus` から導く純粋な写像で、**確定した否定の事実（git 管理外／扱えないリポジトリ／変更なし・未追跡）でだけ選択不可にする**。未解決の間は選べるままにして初期表示での入れ替わりを 1 方向に限る |
 | `ReferenceMenuPresenter` | 参照の右クリックメニューの項目定義・表示・実行（`@objc` アクションを含めて 1 型に閉じる） |
 | `ViewerWindowChrome` | `NSWindow` そのものの生成・外観・タイトル追従・初期フレーム決定。窓を 1 枚しか知らず、文書の状態にも他の窓にも触れない（重なり判定は述語で受け取る） |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController` |
@@ -170,6 +171,7 @@ BefoldApp/
 | `MarkdownImageEmbedder` | Markdown 中のローカル画像を base64 data URI に埋め込む前処理（CSP 対応） |
 | `ReferenceResolver` | クリックされた href/パス参照を外部 URL・ローカルファイル・非対応に分類 |
 | `PathRelativizer` | パスコピー時に絶対パスを基準ディレクトリからの相対パスに変換 |
+| `BaseDirectoryDescriptor` / `BaseDirectoryIndicator` | 相対パスコピーと Quick Open の基準フォルダ（`gitRoot ?? workspaceRoot`）と、その表示。種別は git ルート / 通常フォルダ / **git リポジトリだが befold では扱えない**（libgit2 が開けない partial clone・reftable 等）の 3 つで、3 つ目はツールチップで git 機能が無効であることだけを伝える（失敗理由の種別は出さない） |
 | `DirectoryLister` | サイドバー用のディレクトリ内ファイル/フォルダ一覧化 |
 | `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ） |
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |

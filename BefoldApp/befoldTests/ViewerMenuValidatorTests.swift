@@ -13,7 +13,8 @@ struct ViewerMenuValidatorTests {
         var capabilities: ViewerCapabilities = .init(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: true,
-            supportsSourceMode: true, supportsDiffDisplay: true, isDirectHTMLMode: false
+            supportsSourceMode: true, supportsDiffDisplay: true,
+            gitDiffAvailability: .changed, isDirectHTMLMode: false
         )
         var isSourceMode = false
         var showLineNumbers = false
@@ -44,7 +45,7 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, supportsSourceMode: true,
-            supportsDiffDisplay: true, isDirectHTMLMode: true
+            supportsDiffDisplay: true, gitDiffAvailability: .changed, isDirectHTMLMode: true
         )
 
         let findItems = [
@@ -129,7 +130,7 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: true, showsCodeContent: false, supportsSourceMode: false,
-            supportsDiffDisplay: false, isDirectHTMLMode: false
+            supportsDiffDisplay: false, gitDiffAvailability: .changed, isDirectHTMLMode: false
         )
 
         let selector = #selector(ViewerWindowController.selectDisplayMode(_:))

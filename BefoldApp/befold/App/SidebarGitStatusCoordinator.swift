@@ -52,7 +52,7 @@ final class SidebarGitStatusCoordinator {
 
     /// 反映の通知先。循環参照を避けるため weak。
     ///
-    /// クロージャ注入にしない。`gitStatusDidApply()` は「バッジと表示中ファイルの差分の
+    /// クロージャ注入にしない。`gitContextDidChange()` は「バッジと表示中ファイルの差分の
     /// 更新契機を 1 つにする」判断をコンパイル時に守らせるための必須メソッド(TASK-330)で、
     /// クロージャを 1 段挟むとその意図が薄まる。
     private weak var host: SidebarNavigatorHost?
@@ -122,7 +122,7 @@ final class SidebarGitStatusCoordinator {
         // バッジが動いたら、同じ契機で表示中ファイルの差分も取り直す。
         // 捨てられた(accepted == false)のは「より新しい結果が既に反映済み」のときだけで、
         // その結果自身がここを通っているため取り残しは起きない。
-        host?.gitStatusDidApply()
+        host?.gitContextDidChange()
     }
 
     /// 券の結果を一覧と切り離して反映する(絞り込み OFF の経路)。

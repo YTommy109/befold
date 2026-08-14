@@ -12,12 +12,16 @@ import Foundation
 /// git ではなくファイル監視だから(名前が実態と合わなくなる)。
 ///
 /// 2 つのメソッドの利用者は別々で、片方だけを使う。
-/// - `repositoryRoot` … `SidebarBaseDirectoryResolver`(相対パスコピー・Quick Open の基準)
+/// - `repositoryRootLookup` … `SidebarBaseDirectoryResolver`(相対パスコピー・Quick Open の基準)
 /// - `statuses` … `SidebarGitStatusCoordinator`(バッジ・変更ファイル絞り込み)
 @MainActor
 protocol SidebarGitReading {
-    /// ディレクトリが属する git 作業ツリーのルート。git 管理外なら nil。
-    func repositoryRoot(forDirectoryAt url: URL) async -> URL?
+    /// ディレクトリが属する git 作業ツリーの検出結果。
+    ///
+    /// `URL?` ではなく `GitRootLookup` を返すのは、「git 管理外」と「git リポジトリだが
+    /// 扱えない」を表示側で区別するため(TASK-438.1)。`URL?` へ潰すとサイドバーが
+    /// 後者を「Plain folder」と表示してしまう。
+    func repositoryRootLookup(forDirectoryAt url: URL) async -> GitRootLookup
     /// ディレクトリ内のファイルの git 状態。
     func statuses(forDirectoryAt url: URL, policy: GitStatusRefreshPolicy) async -> GitStatusResult
 }
@@ -26,8 +30,8 @@ protocol SidebarGitReading {
 ///
 /// 「常に空を返すクロージャ」を各テストが個別に書いていたのを型 1 つへ寄せたもの。
 struct DisabledSidebarGitReading: SidebarGitReading {
-    func repositoryRoot(forDirectoryAt _: URL) async -> URL? {
-        nil
+    func repositoryRootLookup(forDirectoryAt _: URL) async -> GitRootLookup {
+        .notARepository
     }
 
     func statuses(forDirectoryAt _: URL, policy _: GitStatusRefreshPolicy) async -> GitStatusResult {
@@ -48,9 +52,9 @@ struct SidebarGitReader: SidebarGitReading {
     /// 未命中時は `git rev-parse` の subprocess を同期で待つため、メインアクターを
     /// 離して解決する(サイドバーのヘッダー表示のためだけにフォルダ移動のたび
     /// メインスレッドを止めないため)。
-    func repositoryRoot(forDirectoryAt url: URL) async -> URL? {
+    func repositoryRootLookup(forDirectoryAt url: URL) async -> GitRootLookup {
         let fileIndex = fileIndex
-        return await Task.detached { fileIndex.repositoryRoot(forDirectoryAt: url) }.value
+        return await Task.detached { fileIndex.repositoryRootLookup(forDirectoryAt: url) }.value
     }
 
     func statuses(forDirectoryAt url: URL, policy: GitStatusRefreshPolicy) async -> GitStatusResult {

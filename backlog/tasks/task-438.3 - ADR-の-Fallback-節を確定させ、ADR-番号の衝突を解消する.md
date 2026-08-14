@@ -1,10 +1,11 @@
 ---
 id: TASK-438.3
 title: ADR の Fallback 節を確定させ、ADR 番号の衝突を解消する
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-08-13 14:00'
-updated_date: '2026-08-14 13:30'
+updated_date: '2026-08-14 14:09'
 labels:
   - docs
 milestone: m-5
@@ -50,9 +51,55 @@ Markdown を編集したら markdownlint-cli2 を流す。ドキュメント間�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Fallback 節が「実装時に決める」から確定した記述へ更新され、実装（438.1 / 438.2）の結果と一致している
-- [ ] #2 ADR 0003 への誤った参照が正されている
-- [ ] #3 libgit2 の ADR が 0006 へ振り直され、0005 の重複が解消している
-- [ ] #4 振り直しに伴う参照箇所がすべて追随している（rg で旧ファイル名・旧番号の残存がゼロ）
-- [ ] #5 markdownlint-cli2 が通る
+- [x] #1 Fallback 節が「実装時に決める」から確定した記述へ更新され、実装（438.1 / 438.2）の結果と一致している
+- [x] #2 ADR 0003 への誤った参照が正されている
+- [x] #3 libgit2 の ADR が 0006 へ振り直され、0005 の重複が解消している
+- [x] #4 振り直しに伴う参照箇所がすべて追随している（rg で旧ファイル名・旧番号の残存がゼロ）
+- [x] #5 markdownlint-cli2 が通る
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 実施内容（2026-08-14）
+
+1. **Fallback 節を確定**: 「伝え方は実装時に決める」を、TASK-438.1 / 438.2 の実装結果に
+   合わせた 4 点の確定記述へ差し替えた（伝えるのは基準ディレクトリ表示 1 箇所だけ・失敗理由の
+   種別は出さない・.git 読み取り権限なしは区別できない・差分モードの選択不可は
+   ViewerCapabilities.canSelectDiffMode の 1 箇所で担保）。
+2. **ADR 0003 への誤った参照を除去**: 「ADR 0003 の Context にある『原因不明の無反応』」という
+   引用は ADR 0003 に存在しない語句だった。引用の体裁をやめ、何を避けたいのか（操作はできるのに
+   結果が出ない状態）を自分の言葉で書いた。冒頭の `constrained-by ./0003-...` ディレクティブは
+   git ステータスの反映規約という実在の依存なので残した。
+3. **番号の振り直し**: `docs/adr/0005-git-integration-via-libgit2.md` を
+   `0006-git-integration-via-libgit2.md` へ git mv し、H1 も 0006 にした（decision-6 に一致）。
+
+## 追随させた参照と、あえて直さなかったもの（AC #4）
+
+直したもの: ADR 本体の H1 / `BefoldApp/.swiftlint.yml`（2 箇所）/
+`BefoldApp/befold/App/GitRepository.swift` / `BefoldApp/befoldTests/GitUnusableRepositoryTests.swift` /
+`backlog/decisions/decision-6`（ファイルパスと本文の番号）。
+
+直していないもの: `backlog/completed/` と `backlog/archive/` 配下のタスク（task-435 系）に残る
+「ADR 0005」表記と旧ファイルパス。理由は 2 つ。(a) 完了タスクは当時の作業記録であり、
+書き換えると記録が事後の状態に合わせて改変される。(b) CLAUDE.md / backlog instructions が
+タスク markdown の直接編集を禁じており、backlog CLI に完了タスク本文の一括置換手段は無い。
+したがって「rg で旧番号の残存ゼロ」は**live なドキュメントとコードについて**満たしている。
+（`ADR 0005` の文字列自体は esbuild の ADR 0005 が現役なので、リポジトリ全体でのゼロは元から
+成立しない。）
+
+なお `backlog/decisions/decision-6` は CLI に編集コマンドが無いため本文のみ手で直した
+（frontmatter・メタデータは触っていない）。
+
+## 検証
+
+- markdownlint-cli2: 0 issues（70 ファイル）
+- `grep -rn '0005-git-integration|ADR 0005' docs/ .claude/ BefoldApp/ site/`: 一致ゼロ
+- `swift test --filter GitUnusable`: 3 件成功（doc コメントのみの変更）
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ADR の Fallback 節を TASK-438.1 / 438.2 の実装結果に沿った確定記述へ更新し、存在しない語句を引いていた ADR 0003 への参照を自分の言葉へ書き換えた。番号の衝突は libgit2 側を 0006 へ振り直して解消し（decision-6 に一致）、live なドキュメント・コード・decision の参照をすべて追随させた。完了済み backlog タスクに残る旧表記は当時の記録として意図的に残し、その判断を Notes に記録した。検証は markdownlint 0 issues と grep での残存ゼロ確認。
+<!-- SECTION:FINAL_SUMMARY:END -->

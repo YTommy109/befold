@@ -12,6 +12,10 @@ public struct BaseDirectoryDescriptor: Equatable, Sendable {
         case gitRoot
         /// git 管理外のフォールバック(= workspaceRoot)。
         case plainFolder
+        /// git リポジトリではあるが befold(libgit2)では扱えない。基準は workspaceRoot へ
+        /// 落ちるが、`plainFolder` と同じ表示にすると「git 管理外」という事実と異なる
+        /// 説明になるため区別する(TASK-438.1)。
+        case unusableRepository
     }
 
     public let kind: Kind
@@ -32,6 +36,24 @@ public struct BaseDirectoryDescriptor: Equatable, Sendable {
             url = gitRoot
         } else {
             kind = .plainFolder
+            url = workspaceRoot
+        }
+    }
+
+    /// リポジトリ検出の結果から作る。基準ディレクトリの決め方は
+    /// `init(gitRoot:workspaceRoot:)` と同じ `gitRoot ?? workspaceRoot` 規則のままで、
+    /// 検出結果が効くのは**種別(表示)だけ**。ここで基準を変えると
+    /// `PathRelativizer.relativePath(of:workspaceRoot:gitRoot:)` と食い違う。
+    public init(rootLookup: GitRootLookup, workspaceRoot: URL) {
+        switch rootLookup {
+        case let .root(gitRoot):
+            kind = .gitRoot
+            url = gitRoot
+        case .notARepository:
+            kind = .plainFolder
+            url = workspaceRoot
+        case .undetermined:
+            kind = .unusableRepository
             url = workspaceRoot
         }
     }

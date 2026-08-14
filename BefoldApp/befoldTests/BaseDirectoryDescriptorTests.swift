@@ -26,6 +26,33 @@ struct BaseDirectoryDescriptorTests {
         #expect(descriptor.name == "notes")
     }
 
+    @Test("扱えないリポジトリは種別 unusableRepository で workspaceRoot を基準にする")
+    func distinguishesUnusableRepositoryFromPlainFolder() {
+        let workspaceRoot = URL(fileURLWithPath: "/Users/me/repo/docs")
+        let unusable = BaseDirectoryDescriptor(rootLookup: .undetermined, workspaceRoot: workspaceRoot)
+        let plain = BaseDirectoryDescriptor(rootLookup: .notARepository, workspaceRoot: workspaceRoot)
+
+        #expect(unusable.kind == .unusableRepository)
+        // 基準ディレクトリ自体は plainFolder と同じ(gitRoot ?? workspaceRoot 規則を崩さない)。
+        // 違うのは種別だけで、その差が表示の出し分けに使われる。
+        #expect(unusable.url == plain.url)
+        #expect(unusable.kind != plain.kind)
+    }
+
+    @Test("検出結果からの初期化は 3 種別を取り違えない")
+    func mapsEachLookupToItsOwnKind() {
+        let gitRoot = URL(fileURLWithPath: "/Users/me/repo")
+        let workspaceRoot = URL(fileURLWithPath: "/Users/me/repo/docs")
+        let expected: [(GitRootLookup, BaseDirectoryDescriptor.Kind)] = [
+            (.root(gitRoot), .gitRoot),
+            (.notARepository, .plainFolder),
+            (.undetermined, .unusableRepository),
+        ]
+        for (lookup, kind) in expected {
+            #expect(BaseDirectoryDescriptor(rootLookup: lookup, workspaceRoot: workspaceRoot).kind == kind)
+        }
+    }
+
     @Test("末尾スラッシュがあってもフォルダ名は変わらない")
     func ignoresTrailingSlash() {
         let descriptor = BaseDirectoryDescriptor(

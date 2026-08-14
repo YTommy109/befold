@@ -1,10 +1,10 @@
 ---
 id: TASK-438
 title: git 機能が使えないリポジトリであることのユーザーへの伝え方を決める
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-10 15:08'
-updated_date: '2026-08-14 13:30'
+updated_date: '2026-08-14 14:10'
 labels:
   - ux
 milestone: m-5
@@ -50,12 +50,12 @@ TASK-435.1 では既存の `.unavailable` 経路へ合流させるだけで新�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 libgit2 が開けないリポジトリを開いたとき、BaseDirectoryIndicator が「Plain folder」と表示せず、git リポジトリだが befold では扱えないことが伝わる表示になっている
-- [ ] #2 「git 管理外」と「扱えないリポジトリ」を区別する判断とその根拠、および区別しない/できない事項（失敗理由の種別・.git 読み取り権限なし）が Implementation Notes に記録されている
-- [ ] #3 git が使えないとき差分表示モードが選択不可になっている（ADR の記述どおり。ViewerCapabilities.canSelectDiffMode が git の可用性を見る）
-- [ ] #4 ADR の Fallback 節が「実装時に決める」から確定した記述へ更新され、ADR 0003 への誤った参照（「原因不明の無反応」は ADR 0003 に存在しない）が正されている
-- [ ] #5 決めた挙動が破れたら落ちるテストが用意されている（扱えないリポジトリで「Plain folder」と表示しないこと・差分モードが選べないこと）
-- [ ] #6 ADR 番号の衝突が解消され（libgit2 側を 0006 へ振り直す）、参照箇所が追随している
+- [x] #1 libgit2 が開けないリポジトリを開いたとき、BaseDirectoryIndicator が「Plain folder」と表示せず、git リポジトリだが befold では扱えないことが伝わる表示になっている
+- [x] #2 「git 管理外」と「扱えないリポジトリ」を区別する判断とその根拠、および区別しない/できない事項（失敗理由の種別・.git 読み取り権限なし）が Implementation Notes に記録されている
+- [x] #3 git が使えないとき差分表示モードが選択不可になっている（ADR の記述どおり。ViewerCapabilities.canSelectDiffMode が git の可用性を見る）
+- [x] #4 ADR の Fallback 節が「実装時に決める」から確定した記述へ更新され、ADR 0003 への誤った参照（「原因不明の無反応」は ADR 0003 に存在しない）が正されている
+- [x] #5 決めた挙動が破れたら落ちるテストが用意されている（扱えないリポジトリで「Plain folder」と表示しないこと・差分モードが選べないこと）
+- [x] #6 ADR 番号の衝突が解消され（libgit2 側を 0006 へ振り直す）、参照箇所が追随している
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -87,4 +87,30 @@ ADR の縮退 3 点のうち「差分表示モードを選択不可にする」�
 **ADR 番号衝突**
 
 0005 が 2 本ある（0005-bundle-viewer-js-with-esbuild.md = backlog decision-5、0005-git-integration-via-libgit2.md = decision-6）。decision 番号に合わせ、**libgit2 側を ADR 0006 へ振り直す**。参照箇所も追随させる。
+
+## 完了（2026-08-14）
+
+3 サブタスクで完了。
+
+- TASK-438.1: BaseDirectoryDescriptor.Kind に unusableRepository を追加し、BaseDirectoryIndicator を 3 分岐に（AC #1 / #2 / #5 の表示側）
+- TASK-438.2: GitDiffAvailability を新設し canSelectDiffMode の 1 箇所へ畳んだ（AC #3 / #5 の差分側）
+- TASK-438.3: ADR の Fallback 節を確定させ、libgit2 の ADR を 0006 へ振り直した（AC #4 / #6）
+
+### 起票時の前提の訂正
+
+Notes の「stable での実害は BaseDirectoryIndicator の 1 箇所に集中している（バッジと差分は
+FeatureGate 配下で dev 限定）」は現状に合わない。**FeatureGate 機構は 9a1ef1fc（PR #518）で
+撤去済み**で、サイドバーの git バッジも差分表示も stable のユーザーに見える。区別の方針
+（表示は 1 箇所のみ・失敗理由は出さない）自体は変えていない。
+
+### 検証
+
+swift test 1529 tests / 242 suites 成功、swiftlint ベースライン差分の新規ゼロ、
+markdownlint 0 issues。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+「git リポジトリだが befold では扱えない」ことの伝え方を確定し、実装した。伝えるのはサイドバーヘッダーの基準ディレクトリ表示 1 箇所だけで、アイコンは git のまま・ツールチップで git 機能が無効であることを伝える（失敗理由の種別は出さない。OpenFailure が .unusable の 1 値へ畳んでいるため）。あわせて ADR の縮退リストにあって未実装だった「差分表示モードを選択不可にする」を実装し、可否を GitDiffAvailability 経由で canSelectDiffMode の 1 箇所へ畳んだ。ADR は Fallback 節を確定記述へ更新し、存在しない語句を引いていた ADR 0003 への参照を正し、番号の衝突を 0006 への振り直しで解消した。
+<!-- SECTION:FINAL_SUMMARY:END -->
