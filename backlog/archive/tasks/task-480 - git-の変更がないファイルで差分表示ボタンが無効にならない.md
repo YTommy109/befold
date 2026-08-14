@@ -4,7 +4,7 @@ title: git の変更がないファイルで差分表示ボタンが無効にな
 status: To Do
 assignee: []
 created_date: '2026-08-14 05:45'
-updated_date: '2026-08-14 05:46'
+updated_date: '2026-08-14 05:48'
 labels:
   - git
   - bug
@@ -61,4 +61,8 @@ Explore による実測。実装はしていない。
   - `gitStatusDidApply` にツールバー再同期を足す必要がある
 - 取得結果の理由（`GitFileDiff.noChanges` / `.notInRepository`、`App/GitFileDiff.swift:8-23`）は `ViewerStore.diffText: String?` に潰されて失われる。理由を保持する状態は現状ない。
 - 表示モード復元・降格（`DisplayModeStore.swift:66`）も種別のみで判定しており、同じ入力を要する可能性がある。
+
+## 統合により取り下げ
+
+本タスクの内容は TASK-438.2「差分表示モードの選択可否を git の状態から導出する」へ統合した。同じ `ViewerCapabilities.canSelectDiffMode`（`BefoldApp/befold/Viewer/ViewerCapabilities.swift:70`）1 箇所を触るため、2 本に分けると条件が分岐する。以降の作業は TASK-438.2 で行う。
 <!-- SECTION:NOTES:END -->
