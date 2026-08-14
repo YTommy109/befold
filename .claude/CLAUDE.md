@@ -92,17 +92,23 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
     コミット前に上記コマンドを 1 回流し、`-- --lint` でゼロ件を確認してから commit する
 - swiftlint は警告の絶対数では判定できない（main 時点で 80 件ほどある）。
   変更前後で一覧を取り、**main とのベースライン差分がゼロ**であることを確認する
+  - **手順は `/swiftlint-baseline` にまとめてある。まずこれを使う。**
+    以下はその中身の説明であって、手で組み直すための手順書ではない
+    （手で組んで 1 回目を誤った実績がある）
   - swiftlint は `Package.swift` の `SwiftLintPlugins` がビルド時に実行するもので、
     単体ではインストールされていない（`brew install` すると CI とバージョンがずれる）。
     手元で一覧を取るにはプラグイン同梱のバイナリを直接呼ぶ:
-    `BefoldApp/.build/artifacts/swiftlintplugins/SwiftLintBinary/SwiftLintBinary.artifactbundle/macos/swiftlint lint --quiet`
+    `(cd BefoldApp && .build/artifacts/swiftlintplugins/SwiftLintBinary/SwiftLintBinary.artifactbundle/macos/swiftlint lint --quiet)`
+    **必ず `BefoldApp/` を CWD にする。** swiftlint は CWD 配下を走査するため、
+    リポジトリルートで実行すると `.build` の生成物まで数えて実測 15,910 件になる
+    （正しくは 54 件）。件数が 2 桁違うので気づけるが、気づかなければ差分ゼロの判定が壊れる
   - 比較時は行番号がずれただけの差分を除くため、`sed -E 's/:[0-9]+:[0-9]+:/:/'` で
     正規化してから diff する
   - **ベースライン（main 側）を取るのに `git stash` を使わない。** stash は worktree 間で
     共有されるため、作業ツリーが clean だと `git stash push -u` が何も退避せず、続く
     `git stash pop` が**別のセッション・別プロジェクトの stash** を取り出して
     コンフリクトさせる。`git archive origin/main | tar -x -C <スクラッチパッド>` で
-    別ディレクトリへ展開し、そちらで測る（手順は `/swiftlint-baseline` にまとめてある）
+    別ディレクトリへ展開し、そちらで測る
 - **機能を足すと既存ファイルが `file_length` / `type_body_length` /
   `cyclomatic_complexity` を超えることがある。** 閾値を緩めるのではなく、
   `Type+Feature.swift` の extension へ分割する（前例: `SidebarNavigator+FolderNavigation`、
