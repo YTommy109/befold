@@ -4,9 +4,10 @@ title: 差分表示モードの選択可否を git の状態から導出する
 status: To Do
 assignee: []
 created_date: '2026-08-13 14:00'
-updated_date: '2026-08-14 05:49'
+updated_date: '2026-08-14 13:30'
 labels:
   - git
+milestone: m-5
 dependencies:
   - TASK-438.1
 parent_task_id: TASK-438

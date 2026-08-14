@@ -4,9 +4,10 @@ title: 差分の比較基準を「未コミットの変更」と「ブランチ�
 status: To Do
 assignee: []
 created_date: '2026-08-07 05:24'
-updated_date: '2026-08-10 13:57'
+updated_date: '2026-08-14 13:29'
 labels:
   - diff
+milestone: m-3
 dependencies: []
 priority: medium
 type: feature

@@ -4,9 +4,10 @@ title: ADR の Fallback 節を確定させ、ADR 番号の衝突を解消する
 status: To Do
 assignee: []
 created_date: '2026-08-13 14:00'
-updated_date: '2026-08-14 05:49'
+updated_date: '2026-08-14 13:30'
 labels:
   - docs
+milestone: m-5
 dependencies:
   - TASK-438.1
   - TASK-438.2

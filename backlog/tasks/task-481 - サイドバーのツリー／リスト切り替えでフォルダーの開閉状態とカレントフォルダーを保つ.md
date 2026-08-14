@@ -4,7 +4,9 @@ title: サイドバーのツリー／リスト切り替えでフォルダーの�
 status: To Do
 assignee: []
 created_date: '2026-08-14 10:46'
+updated_date: '2026-08-14 13:22'
 labels: []
+milestone: m-2
 dependencies: []
 priority: medium
 type: feature
