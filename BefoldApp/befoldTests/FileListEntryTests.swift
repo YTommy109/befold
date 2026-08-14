@@ -14,6 +14,17 @@ struct FileListEntryTests {
         #expect(FileListEntry(url: url, kind: kind).hasUnknownExtension == expected)
     }
 
+    /// `FileListEntryRow.nameLabel` はフォルダー行とファイル行で同じ式を使い、
+    /// フォルダーが `.primary` になることをこの述語に委ねている。ここが true を
+    /// 返すようになるとフォルダー名が淡色で描かれる(issue #509 の逆向きの回帰)。
+    @Test("未知拡張子に見える名前のフォルダーでも hasUnknownExtension は false")
+    func folderWithUnknownLookingNameIsNotDimmed() {
+        let url = URL(fileURLWithPath: "/tmp/archive.xyz")
+
+        #expect(FileListEntry(url: url, kind: .folder).hasUnknownExtension == false)
+        #expect(FileListEntry(url: url, kind: .file).hasUnknownExtension)
+    }
+
     @Test("pathKey は構築時に url.normalizedPathKey を保持する")
     func pathKeyMatchesNormalizedPathKey() {
         let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
