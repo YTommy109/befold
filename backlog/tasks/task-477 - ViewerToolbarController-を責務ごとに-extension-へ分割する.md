@@ -4,7 +4,7 @@ title: ViewerToolbarController を責務ごとに extension へ分割する
 status: Done
 assignee: []
 created_date: '2026-08-13 14:20'
-updated_date: '2026-08-14 10:07'
+updated_date: '2026-08-14 10:23'
 labels:
   - refactor
 dependencies: []
@@ -49,4 +49,10 @@ ordinal: 122000
 - +State.swift 102 行 / +Actions.swift 43 行 / +ToolbarDelegate.swift 91 行（いずれも file_length 警告閾値 400 を下回る）
 internal へ引き上げたのは ToolbarItemSpec / ToolbarEntry / layout / window / host / apply*State(to:) / segmentLabel / @objc アクション 5 件。すべてに「外から呼んでよい範囲」を doc コメントで明記した。
 検証: xcodegen generate 済み。swift build / xcodebuild build -scheme befold 成功。swiftlint はベースライン差分ゼロ（main 65 件 / HEAD 65 件、正規化後 diff なし）。swift test --filter Toolbar は 13 件すべて成功（テストは無改修）。
+
+PR #522 の CI（type-group-size）が閾値超過で落ちた。ViewerToolbarController の型グループ（Foo.swift + Foo+*.swift の合算）が 413 行で閾値 400 超。extension への分割では合算値が減らないため、分割時に増えた import / extension 宣言 / doc コメントのぶんだけ分割前 387 行から増えた形。
+
+例外リスト（scripts/type-group-exceptions.txt）には追加せず、同居していた独立型をファイルごと切り出して返済した。ViewerToolbarHost（protocol）を ViewerToolbarHost.swift へ、ToolbarItemSpec / ToolbarEntry を ToolbarItemSpec.swift へ移動。どちらも元から ViewerToolbarController とは別の型で、1 ファイルに同居していたのが変則だった。
+
+結果: 型グループ 413 → 325 行（本体 89 / +State 102 / +ToolbarDelegate 91 / +Actions 43）。scripts/check-type-group-size.sh --check が exit 0。xcodebuild build -scheme befold は BUILD SUCCEEDED、swiftlint のルール別件数は main と一致のまま。
 <!-- SECTION:NOTES:END -->
