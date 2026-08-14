@@ -193,6 +193,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(AppLinks.help)
     }
 
+    /// Help > GitHub Issues。不具合報告・要望の受け口をブラウザで開く。
+    @objc func openGitHubIssues(_ sender: Any?) {
+        NSWorkspace.shared.open(AppLinks.issues)
+    }
+
     @objc func showAbout(_ sender: Any?) {
         togglePanel(.about)
     }

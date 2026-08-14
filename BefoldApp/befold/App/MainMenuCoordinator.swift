@@ -57,6 +57,7 @@ final class MainMenuCoordinator {
             openAction: #selector(AppDelegate.showOpenPanel),
             helpActions: MainMenuHelpActions(
                 visitWebsite: #selector(AppDelegate.openHelp(_:)),
+                githubIssues: #selector(AppDelegate.openGitHubIssues(_:)),
                 featureOverview: #selector(AppDelegate.showFeatureOverview(_:)),
                 keyboardShortcuts: #selector(AppDelegate.showKeyboardShortcuts(_:)),
                 aiIntegration: #selector(AppDelegate.showAIIntegration(_:)),

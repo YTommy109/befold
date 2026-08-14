@@ -30,4 +30,18 @@ struct AppLinksTests {
 
         #expect(query?.first { $0.name == "ref" }?.value == "help")
     }
+
+    @Test("issues は befold リポジトリの Issues ページを指す")
+    func issuesPointsToRepositoryIssues() {
+        #expect(AppLinks.issues.host == "github.com")
+        #expect(AppLinks.issues.path == "/YTommy109/befold/issues")
+    }
+
+    /// GitHub 側の遷移では ref の内訳を読めないため、印を付けない(TASK-479)。
+    @Test("issues は ref パラメータを持たない")
+    func issuesCarriesNoReferrerMarker() {
+        let query = URLComponents(url: AppLinks.issues, resolvingAgainstBaseURL: false)?.queryItems
+
+        #expect(query == nil)
+    }
 }

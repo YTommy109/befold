@@ -222,6 +222,19 @@ struct MainMenuBuilderTests {
         #expect(help.items.contains { $0.action == #selector(AppDelegate.openHelp(_:)) })
     }
 
+    /// ショートカットは割り当てない。割り当てると Help > キーボードショートカット一覧
+    /// (MenuShortcutCatalog)に載り、既存の一覧の内容が変わってしまう(TASK-479)。
+    @Test("Help メニューに GitHub Issues 項目があり、ショートカットを持たない")
+    func helpMenuHasGitHubIssuesItem() throws {
+        let help = try #require(fixture.submenu(titledKey: "menu.help.title"))
+
+        let issues = try #require(
+            help.items.first { $0.action == #selector(AppDelegate.openGitHubIssues(_:)) }
+        )
+        #expect(issues.title == fixture.localizedTitle("menu.help.githubIssues"))
+        #expect(issues.keyEquivalent.isEmpty)
+    }
+
     /// 設定は dev 限定のフィーチャーゲートを外して stable でも常に出す(TASK-184)。
     @Test("App メニューに Settings…(⌘,) 項目がビルド種別に関わらずある")
     func appMenuHasSettingsItem() throws {
