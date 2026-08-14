@@ -4,7 +4,7 @@ title: ダッシュボードの保護を Cloudflare Access へ移す
 status: In Progress
 assignee: []
 created_date: '2026-08-13 14:21'
-updated_date: '2026-08-14 07:22'
+updated_date: '2026-08-14 07:24'
 labels:
   - site
 dependencies:
@@ -91,4 +91,26 @@ Authentication error`（トークンに Access write が無い）。
 `/dashboard` と `/dashboard/stream`（SSE）が Access 経由で動くことを実測 → 本番へ
 デプロイ → 旧ホストの 404 を実測 → `DASHBOARD_PASSWORD` / `DASHBOARD_USER`
 シークレットを本番・staging から削除。
+
+## staging での実測（2026-08-14、version 52bf410a）
+
+`npx wrangler deploy --env staging` 後の実測（curl の HTTP ステータス）:
+
+| URL | 結果 |
+| --- | --- |
+| `befold-staging.tommy109.workers.dev/dashboard` | 404 |
+| `befold-staging.tommy109.workers.dev/dashboard/stream` | 404 |
+| `staging.befold.degino.com/dashboard` | 503 |
+| `staging.befold.degino.com/dashboard/stream` | 503 |
+| `staging.befold.degino.com/` | 200 |
+| `staging.befold.degino.com/healthz` | 200 |
+
+旧ホストの 404（AC #4 の staging 側）と、Access 未設定時に素通しせず閉じることを
+確認した。公開ルートには影響していない。AC #1〜#3 は Access アプリケーション作成後に
+測る。
+
+Zero Trust 有効化は API から行えないことを再確認した（`POST` / `PUT
+/accounts/.../access/organizations` はいずれも `10000 Authentication error`。
+一方 `GET /accounts/.../subscriptions` は 200 を返すため、トークンが無効なのではなく
+Access の書き込み権限が無い）。
 <!-- SECTION:NOTES:END -->
