@@ -57,7 +57,7 @@ extension GitRepositoryReading {
 /// libgit2 + ファイル stat による GitRepositoryReading 実装。
 /// ブランチ/ワークツリー切替・差分など将来の git 機能の拡張点。
 ///
-/// リポジトリを開くのは `GitLibrary.withRepository(at:_:)` 経由に限る(ADR 0005)。
+/// リポジトリを開くのは `GitLibrary.withRepository(at:_:)` 経由に限る(ADR 0006)。
 /// 開けなかった場合の縮退は各メソッドの doc に個別に書く。
 ///
 /// ## `indexFingerprint` / `indexURL` を libgit2 に寄せない理由

@@ -64,7 +64,7 @@ struct GitUnusableRepositoryTests {
         #expect(descriptor.kind == .unusableRepository)
     }
 
-    /// 縮退はモーダルを出さずに済むこと（ADR 0005 の Fallback）。呼び出しを繰り返しても
+    /// 縮退はモーダルを出さずに済むこと（ADR 0006 の Fallback）。呼び出しを繰り返しても
     /// クラッシュせず、同じ値を返し続ける。
     @Test("開けないリポジトリを繰り返し読んでもクラッシュしない")
     func repeatedReadsAreStable() throws {
