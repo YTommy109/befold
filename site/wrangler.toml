@@ -25,8 +25,8 @@ workers_dev = true
 # ACCESS_TEAM_DOMAIN: Zero Trust の team domain（<team>.cloudflareaccess.com）
 # ACCESS_AUD: Access アプリケーションの Application Audience (AUD) タグ
 [vars]
-ACCESS_TEAM_DOMAIN = ""
-ACCESS_AUD = ""
+ACCESS_TEAM_DOMAIN = "degino.cloudflareaccess.com"
+ACCESS_AUD = "f6b3a6dbf5f23fb3a9f9ea131d86bbfcadb9585c95c01ec069de8a4e875f38f7"
 
 [[routes]]
 pattern = "befold.degino.com"
@@ -75,8 +75,8 @@ name = "befold-staging"
 workers_dev = true
 
 [env.staging.vars]
-ACCESS_TEAM_DOMAIN = ""
-ACCESS_AUD = ""
+ACCESS_TEAM_DOMAIN = "degino.cloudflareaccess.com"
+ACCESS_AUD = "e8b98cfddb7521fefc568893bcc4aa79b1000a461bc65f550eaf605feb65d014"
 
 [[env.staging.routes]]
 pattern = "staging.befold.degino.com"
