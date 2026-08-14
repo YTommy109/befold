@@ -17,7 +17,7 @@ import Foundation
 final class SidebarBaseDirectoryResolver {
     /// 解決結果の書き込み先。`baseDirectory` 以外は書かない。
     private let fileListModel: FileListModel
-    /// git の読み取り。使うのは `repositoryRoot(forDirectoryAt:)` だけ。
+    /// git の読み取り。使うのは `repositoryRootLookup(forDirectoryAt:)` だけ。
     /// 未命中時に `git rev-parse` の subprocess を待つため async で、
     /// メインスレッド(SwiftUI の body 評価)では解決しない。
     private let git: any SidebarGitReading
@@ -45,10 +45,10 @@ final class SidebarBaseDirectoryResolver {
         generation += 1
         let generation = generation
         pendingTask = Task {
-            let gitRoot = await self.git.repositoryRoot(forDirectoryAt: directory)
+            let lookup = await self.git.repositoryRootLookup(forDirectoryAt: directory)
             guard generation == self.generation else { return }
             self.fileListModel.baseDirectory = BaseDirectoryDescriptor(
-                gitRoot: gitRoot,
+                rootLookup: lookup,
                 workspaceRoot: workspaceRoot
             )
         }

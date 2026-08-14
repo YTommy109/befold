@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldKit
 import Foundation
 
 /// `SidebarGitReading` のテスト用実装(TASK-442.6)。
@@ -7,11 +8,31 @@ import Foundation
 /// 返させたいのでクロージャで受ける。既定はどちらも「git 無し」で、必要な側だけ渡せばよい。
 @MainActor
 struct SidebarGitReadingStub: SidebarGitReading {
-    var repositoryRoot: (URL) async -> URL? = { _ in nil }
+    var rootLookup: (URL) async -> GitRootLookup = { _ in .notARepository }
     var statuses: (URL, GitStatusRefreshPolicy) async -> GitStatusResult = { _, _ in .empty }
 
-    func repositoryRoot(forDirectoryAt url: URL) async -> URL? {
-        await repositoryRoot(url)
+    init(
+        rootLookup: @escaping (URL) async -> GitRootLookup = { _ in .notARepository },
+        statuses: @escaping (URL, GitStatusRefreshPolicy) async -> GitStatusResult = { _, _ in .empty }
+    ) {
+        self.rootLookup = rootLookup
+        self.statuses = statuses
+    }
+
+    /// ルートの有無だけを与える簡易形。`nil` は「git 管理外と確定」を意味する。
+    /// 「リポジトリだが扱えない(`.undetermined`)」を試すテストは `rootLookup` を使う。
+    init(
+        repositoryRoot: @escaping (URL) async -> URL?,
+        statuses: @escaping (URL, GitStatusRefreshPolicy) async -> GitStatusResult = { _, _ in .empty }
+    ) {
+        self.init(
+            rootLookup: { url in await repositoryRoot(url).map(GitRootLookup.root) ?? .notARepository },
+            statuses: statuses
+        )
+    }
+
+    func repositoryRootLookup(forDirectoryAt url: URL) async -> GitRootLookup {
+        await rootLookup(url)
     }
 
     func statuses(forDirectoryAt url: URL, policy: GitStatusRefreshPolicy) async -> GitStatusResult {

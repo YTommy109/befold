@@ -1887,6 +1887,23 @@
         }
       }
     },
+    "sidebar.baseDirectory.unusableRepository": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git repository (unsupported by befold; Git features are off)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git リポジトリ（befold では扱えないため Git 機能は無効）"
+          }
+        }
+      }
+    },
     "sidebar.context.copy": {
       "extractionState": "manual",
       "localizations": {

@@ -170,6 +170,7 @@ BefoldApp/
 | `MarkdownImageEmbedder` | Markdown 中のローカル画像を base64 data URI に埋め込む前処理（CSP 対応） |
 | `ReferenceResolver` | クリックされた href/パス参照を外部 URL・ローカルファイル・非対応に分類 |
 | `PathRelativizer` | パスコピー時に絶対パスを基準ディレクトリからの相対パスに変換 |
+| `BaseDirectoryDescriptor` / `BaseDirectoryIndicator` | 相対パスコピーと Quick Open の基準フォルダ（`gitRoot ?? workspaceRoot`）と、その表示。種別は git ルート / 通常フォルダ / **git リポジトリだが befold では扱えない**（libgit2 が開けない partial clone・reftable 等）の 3 つで、3 つ目はツールチップで git 機能が無効であることだけを伝える（失敗理由の種別は出さない） |
 | `DirectoryLister` | サイドバー用のディレクトリ内ファイル/フォルダ一覧化 |
 | `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ） |
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |

@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldKit
 import BefoldTestSupport
 import Foundation
 import Testing
@@ -42,6 +43,25 @@ struct GitUnusableRepositoryTests {
         // 追跡ファイル索引・worktree 一覧も空へ縮退する（Quick Open はディレクトリ走査へ落ちる）。
         #expect(GitRepository().trackedFiles(at: temp.url) == nil)
         #expect(GitRepository().worktrees(forRoot: temp.url).isEmpty)
+    }
+
+    /// 縮退の**表示**側。扱えないリポジトリでは基準ディレクトリの種別が
+    /// 「通常フォルダ」ではなく「扱えないリポジトリ」になる(TASK-438.1)。
+    /// キャッシュ層(`GitCommandFileIndex`)を通しても情報が `URL?` へ潰れないことを、
+    /// 実フィクスチャで確かめる。
+    @Test("扱えないリポジトリは基準ディレクトリの種別で通常フォルダと区別される")
+    func baseDirectoryKindDistinguishesUnusableRepository() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        try makeUnusableRepository(in: temp.url, extensionEntry: "partialclone = origin")
+
+        let index = GitCommandFileIndex()
+        let lookup = index.repositoryRootLookup(forDirectoryAt: temp.url)
+
+        #expect(lookup == .undetermined)
+        #expect(index.repositoryRoot(forDirectoryAt: temp.url) == nil)
+        let descriptor = BaseDirectoryDescriptor(rootLookup: lookup, workspaceRoot: temp.url)
+        #expect(descriptor.kind == .unusableRepository)
     }
 
     /// 縮退はモーダルを出さずに済むこと（ADR 0005 の Fallback）。呼び出しを繰り返しても

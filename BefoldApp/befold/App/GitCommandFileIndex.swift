@@ -49,13 +49,20 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
     }
 
     func repositoryRoot(forFileAt url: URL) -> URL? {
+        resolvedRoot(forFileAt: url).foundRoot
+    }
+
+    /// 検出結果をそのまま返す。`repositoryRoot(forFileAt:)` が `URL?` へ潰している
+    /// 「扱えないリポジトリ(`.undetermined`)」と「git 管理外(`.notARepository`)」の区別を
+    /// 表示側まで運ぶための入口(TASK-438.1)。
+    func repositoryRootLookup(forFileAt url: URL) -> GitRootLookup {
         resolvedRoot(forFileAt: url)
     }
 
     func trackedFileIndex(forFileAt url: URL) -> SuffixPathIndex? {
         // ルート解決の中で握るディレクトリキーのロックは、ここへ戻る時点で解放済み。
         // ルートキーのロックを入れ子で取らないことでロック順序の問題自体を無くす。
-        guard let root = resolvedRoot(forFileAt: url) else { return nil }
+        guard let root = resolvedRoot(forFileAt: url).foundRoot else { return nil }
 
         // root は rev-parse 由来だが、GitRepositoryReading の契約は正規化を保証しない。
         // dirKey と同じ規約のキーに揃え、別表記の root が別エントリに割れないようにする。
@@ -88,17 +95,17 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
         }
     }
 
-    /// url を含むリポジトリの作業ツリールート。git 管理外・判定不能なら nil。
+    /// url を含むリポジトリの検出結果。
     /// ディレクトリ単位で結果をキャッシュするため、同じファイル(や同ディレクトリの別ファイル)への
     /// `repositoryRoot` と `trackedFileIndex` は rev-parse を 1 度しか払わない。
-    private func resolvedRoot(forFileAt url: URL) -> URL? {
+    private func resolvedRoot(forFileAt url: URL) -> GitRootLookup {
         let dirKey = url.deletingLastPathComponent().normalizedPathKey
-        if let cached = cachedLookup(forDirKey: dirKey) { return cached.foundRoot }
+        if let cached = cachedLookup(forDirKey: dirKey) { return cached }
 
         return dirLocks.withLock(dirKey) {
             // ロックを待っている間に別の呼び出しが解決を終えているかもしれない。
             // ここで見直さないと、待っていた人数ぶん rev-parse が重複する。
-            if let cached = cachedLookup(forDirKey: dirKey) { return cached.foundRoot }
+            if let cached = cachedLookup(forDirKey: dirKey) { return cached }
 
             let lookup = repository.root(forFileAt: url)
             // 確定した答えだけを覚える。git を実行できなかっただけの結果を覚えると、
@@ -108,7 +115,7 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
                 rootByDir[dirKey] = lookup
                 stateLock.unlock()
             }
-            return lookup.foundRoot
+            return lookup
         }
     }
 

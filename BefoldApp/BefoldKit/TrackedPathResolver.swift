@@ -12,6 +12,11 @@ public protocol GitFileIndexing: Sendable {
     /// ルート解決を共有する(呼び出し側が別途 rev-parse を重ねなくて済む)。
     /// git を扱わない実装(索引を持たないシーム)では既定で nil を返す。
     func repositoryRoot(forFileAt url: URL) -> URL?
+    /// url を含むリポジトリの検出結果。ルートそのものに加えて「git 管理外と確定した」のか
+    /// 「リポジトリらしきものはあるが扱えない」のかを区別して返す。
+    /// 既定は `repositoryRoot(forFileAt:)` から写すため、区別を持たない実装は
+    /// 従来どおり `.root` / `.notARepository` の 2 値に見える。
+    func repositoryRootLookup(forFileAt url: URL) -> GitRootLookup
     /// 解決要求より前に索引を用意しておく(ファイルを開いた/切り替えた契機で呼ぶ)。
     /// 索引の準備は最適化であって解決の前提ではないため、既定は何もしない。
     func warm(forFileAt url: URL)
@@ -20,6 +25,15 @@ public protocol GitFileIndexing: Sendable {
 public extension GitFileIndexing {
     func repositoryRoot(forFileAt _: URL) -> URL? {
         nil
+    }
+
+    /// 検出結果を持たない実装のための既定。ルートが取れなければ「管理外と確定」とみなす。
+    /// **`.undetermined` を返せるのはこれを上書きした実装だけ**で、上書きしていない実装で
+    /// 扱えないリポジトリが `.notARepository` に見えるのは意図した縮退
+    /// (git を扱わないシームに区別を持たせても意味が無いため)。
+    func repositoryRootLookup(forFileAt url: URL) -> GitRootLookup {
+        guard let root = repositoryRoot(forFileAt: url) else { return .notARepository }
+        return .root(root)
     }
 
     func warm(forFileAt _: URL) {}
@@ -32,6 +46,11 @@ public extension GitFileIndexing {
     /// 意味を合わせる処理をここへ閉じ込め、呼び出し側がこの契約差を気にしなくて済むようにする。
     func repositoryRoot(forDirectoryAt url: URL) -> URL? {
         repositoryRoot(forFileAt: url.appendingPathComponent("_"))
+    }
+
+    /// `repositoryRoot(forDirectoryAt:)` と同じ契約合わせを、検出結果を保ったまま行う。
+    func repositoryRootLookup(forDirectoryAt url: URL) -> GitRootLookup {
+        repositoryRootLookup(forFileAt: url.appendingPathComponent("_"))
     }
 }
 
