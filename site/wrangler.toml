@@ -13,12 +13,20 @@ compatibility_flags = ["nodejs_compat"]
 # 配信済み appcast の enclosure（/dl/*）が 404 になり、更新経路が止まる。
 # 停止時期は定めない（ADR 0007 の決定 1）。
 #
-# ダッシュボードの保護は Cloudflare Access へ移す（ADR 0007 の決定 5）。
-# workers.dev にも Access はかけられるが、保護面を 2 つ持つと片方だけ設定が
-# 抜ける形で破れるため、ダッシュボードは新ドメイン専用とし旧ホストでは 404 に
-# する。移行が実測で確認できるまでは Basic 認証（シークレット
-# DASHBOARD_PASSWORD）を残す。
+# ダッシュボードの保護は Cloudflare Access（ADR 0007 の決定 5）。workers.dev にも
+# Access はかけられるが、保護面を 2 つ持つと片方だけ設定が抜ける形で破れるため、
+# ダッシュボードは新ドメイン専用とし旧ホストでは 404 を返す。
 workers_dev = true
+
+# Cloudflare Access（self-hosted アプリケーション）の検証に使う値。秘密ではない
+# ため secret ではなく vars に置く。空のままだと /dashboard は 503 で閉じる
+# （設定漏れを「動いている」形にしないため）。
+#
+# ACCESS_TEAM_DOMAIN: Zero Trust の team domain（<team>.cloudflareaccess.com）
+# ACCESS_AUD: Access アプリケーションの Application Audience (AUD) タグ
+[vars]
+ACCESS_TEAM_DOMAIN = ""
+ACCESS_AUD = ""
 
 [[routes]]
 pattern = "befold.degino.com"
@@ -65,6 +73,10 @@ enabled = true
 [env.staging]
 name = "befold-staging"
 workers_dev = true
+
+[env.staging.vars]
+ACCESS_TEAM_DOMAIN = ""
+ACCESS_AUD = ""
 
 [[env.staging.routes]]
 pattern = "staging.befold.degino.com"

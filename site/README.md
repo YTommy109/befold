@@ -16,8 +16,8 @@ befold の配布 LP・ダウンロード計測・appcast プロキシ・分析�
 | `GET /dl/:tag/:file` | 公開 | 指定タグの DMG を R2 から返す。appcast の enclosure が指す先。`download`（`source=sparkle`）を記録 |
 | `GET /appcast.xml` | 公開 | R2 の appcast を返す。`update_check` を記録 |
 | `GET /appcast-develop.xml` | 公開 | 同上（develop チャンネル） |
-| `GET /dashboard` | Basic 認証 | 集計ダッシュボード |
-| `GET /dashboard/stream` | Basic 認証 | SSE（D1 ポーリング型）で新着イベントを push |
+| `GET /dashboard` | Cloudflare Access | 集計ダッシュボード。旧ホストでは 404 |
+| `GET /dashboard/stream` | Cloudflare Access | SSE（D1 ポーリング型）で新着イベントを push。旧ホストでは 404 |
 
 ## 開発
 
@@ -29,12 +29,15 @@ npm test                # vitest（@cloudflare/vitest-pool-workers）
 npm run typecheck
 ```
 
-ローカルの認証情報は `.dev.vars`（gitignore 対象）に置く。`.dev.vars.example` をコピーして使う。
-未設定のままだと `/dashboard` は 503 を返す。
+ローカルの設定は `.dev.vars`（gitignore 対象）に置く。`.dev.vars.example` をコピーして使う。
+
+ローカルでは Access を経由しないため、`/dashboard` は **ホストが localhost で、かつ
+`ACCESS_TEAM_DOMAIN` / `ACCESS_AUD` が未設定のとき**だけ素通しする。どちらか一方でも
+欠けると通らない（設定済みの本番ではホストに関わらず JWT 検証に入る）。
 
 ```bash
 cp .dev.vars.example .dev.vars
-curl -u owner:local-dev-password http://127.0.0.1:8787/dashboard
+curl http://127.0.0.1:8787/dashboard
 ```
 
 worktree では `scripts/worktree-init.sh` がメインリポジトリの `site/.dev.vars` へ
@@ -104,18 +107,12 @@ Atlas Cloud 連携や商用 DB ドライバは使わない。CI も atlas を呼
    staging が本番成果物を壊すことはない。
 
 3. マイグレーションを本番 D1 へ適用する（`npm run migrate:remote`）。
-4. ダッシュボードのパスワードをシークレットとして登録する（**デプロイ前に必須**）。
-
-   ```bash
-   npx wrangler secret put DASHBOARD_PASSWORD
-   npx wrangler secret put DASHBOARD_USER   # 省略時は owner
-   ```
+4. Cloudflare Access の self-hosted アプリケーションを作り、`wrangler.toml` の
+   `ACCESS_TEAM_DOMAIN` / `ACCESS_AUD` を埋める（**デプロイ前に必須**）。手順は
+   下の「ダッシュボードの認証方式」を参照。値が空のままだと `/dashboard` は 503 で
+   閉じる（素通しにはしない）。
 
 5. `npx wrangler deploy` でデプロイする。
-
-   `wrangler secret put` を非対話シェル（Claude Code の `!` 実行など）で走らせると
-   入力を受け取れず空の値が登録される。ダッシュボードが 503 を返す場合はこれを疑い、
-   対話的なターミナルで登録し直す。
 
 ## 本番デプロイ（自動）
 
@@ -237,14 +234,9 @@ npm run deploy:staging    # wrangler deploy --env staging
 
 `wrangler` の認証が要る。順序を自分で守る必要があるため、通常はワークフローを使う。
 
-シークレットは Worker 単位なので、staging にも別途登録が必要（未登録だと
-`/dashboard` は 503）。
-
-```bash
-npx wrangler secret put DASHBOARD_PASSWORD --env staging
-```
-
-`--env staging` を付け忘れると本番の値を上書きしてしまうので注意する。
+Access のアプリケーションはホスト単位なので、staging（`staging.befold.degino.com`）
+にも別途作成し、`[env.staging.vars]` の `ACCESS_AUD` を埋める必要がある（空のままだと
+`/dashboard` は 503）。team domain はアカウント共通なので本番と同じ値でよい。
 
 Preview URL（`wrangler versions upload --preview-alias`）はこの環境の代わりに
 ならない。バインディングは deploy 対象の設定が使われるため、プレビュー URL でも
@@ -358,14 +350,22 @@ JS ビーコンを使わないサーバ側計測なので、クローラの巡�
 
 ## ダッシュボードの認証方式
 
-独自ドメインを使わず `*.workers.dev` で公開するため、Cloudflare Access は使えない
-（Access のアプリケーションは自アカウントのゾーンのホスト名にしか設定できず、
-workers.dev は Cloudflare 所有のドメインであるため）。代わりに Worker 側の
-Basic 認証で `/dashboard` と `/dashboard/stream` を保護する。
+Cloudflare Access（self-hosted アプリケーション）と、Worker 側の JWT 検証の 2 段で
+保護する（ADR 0007 の決定 5）。かつては Basic 認証だったが、独自ドメインへ移行して
+Access が張れるようになったため撤去した。
 
-- パスワードはシークレット `DASHBOARD_PASSWORD`。コードや wrangler.toml には置かない。
-- 未設定のままデプロイされた場合は素通しさせず 503 で閉じる。
-- ブラウザは一度認証すると同一オリジンの後続リクエストにも認証情報を送るため、
+保護は 2 段で成り立つ。Access を張っただけでは Worker 自身は素通しのままで、Access を
+経由しない経路で無防備になるため、Worker は `Cf-Access-Jwt-Assertion` を必ず検証する
+（署名・`aud`・`iss`・`exp` / `nbf` のすべて。`src/lib/access.ts`）。
+
+- **Access アプリケーションは 2 本のパスで作る。** `befold.degino.com/dashboard` と
+  `befold.degino.com/dashboard/*` の両方。ワイルドカードは親パスを含まないため、
+  `/dashboard/*` だけでは `/dashboard` が保護されない。
+- ポリシーは Allow 1 本、`tokutomi@degino.com` のみ。セッション長は 1 週間。
+- `ACCESS_TEAM_DOMAIN`（`<team>.cloudflareaccess.com`）と `ACCESS_AUD`（アプリケーションの
+  Application Audience タグ）は秘密ではないため `wrangler.toml` の `[vars]` に置く。
+  どちらかが空なら 503 で閉じる。
+- 旧ホスト（`*.workers.dev`）の `/dashboard` と `/dashboard/*` は 404 を返す。301 で
+  新ドメインへ送る形は取らない（保護対象の入口を 2 つに増やさないため）。
+- ブラウザは Access のセッション Cookie を同一オリジンの後続リクエストにも送るため、
   ヘッダを設定できない `EventSource`（SSE）もそのまま動作する。
-- 将来 Cloudflare 管理下のドメインを使う場合は、Access（所有者メールのみ許可）へ
-  切り替えたうえでこの Basic 認証を撤去できる。

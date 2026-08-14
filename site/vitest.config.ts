@@ -78,8 +78,8 @@ export default defineConfig({
             TEST_BOOKMARK_SHORTCUT_SWIFT: bookmarkShortcutSwift,
             TEST_ANALYTICS_SOURCE: analyticsSource,
             TEST_WRANGLER_TOML: wranglerToml,
-            DASHBOARD_USER: 'owner',
-            DASHBOARD_PASSWORD: 'test-password',
+            ACCESS_TEAM_DOMAIN: 'test-team.cloudflareaccess.com',
+            ACCESS_AUD: 'test-aud',
           },
         },
       }

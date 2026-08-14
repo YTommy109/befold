@@ -37,4 +37,16 @@ describe('wrangler.toml の公開面', () => {
     expect(staging).toContain('pattern = "staging.befold.degino.com"')
     expect(staging).toContain('custom_domain = true')
   })
+
+  /**
+   * ダッシュボードの保護は Access の設定と Worker 側の JWT 検証の 2 段で成り立つ
+   * （ADR 0007 の決定 5）。検証に要る値が設定ファイルから消えると、Worker は 503 で
+   * 閉じる——つまり気づけはするが、気づくのがデプロイ後になる。宣言そのものを固定する。
+   */
+  it('本番・staging とも Access の検証に使う変数を宣言している', () => {
+    for (const section of [production, staging]) {
+      expect(section).toMatch(/^ACCESS_TEAM_DOMAIN = /m)
+      expect(section).toMatch(/^ACCESS_AUD = /m)
+    }
+  })
 })
