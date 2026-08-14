@@ -210,7 +210,7 @@ final class ViewerWindowController: NSWindowController {
     /// 2. `super.init` 直後 — self を要る協働オブジェクトの生成とコンテンツの取り付け
     /// 3. 最後 — 購読の配線と提示開始
     ///
-    /// - Parameter sidebarDisplayPreference: 本番では必ず AppDelegate → ViewerWindowManager から
+    /// - Parameter displayDefaults: 本番では必ず AppDelegate → ViewerWindowManager から
     ///   注入される単一の共有インスタンスを渡すこと。デフォルト値は、不可視ファイル挙動に
     ///   無関心なテストが省略できるようにするためのもの。
     /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
@@ -238,7 +238,7 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter externalOpener: 同上。外部 URL(http/https)を開く処理。デフォルトは NSWorkspace 経由。
     init(
         fileURL: URL, defaults: UserDefaults = .standard,
-        sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
+        displayDefaults: SidebarDisplayDefaults = SidebarDisplayDefaults(),
         diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader? = nil,
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
@@ -251,6 +251,9 @@ final class ViewerWindowController: NSWindowController {
         initialFrameDescriptor: String? = nil,
         // CLI の `--sort` による初期並び順の指定。nil なら保存された既定値から始める。
         initialSortOrder: SortOrder? = nil,
+        // CLI の `--hidden-files`/`--no-hidden-files` による初期値の指定。
+        // nil なら保存された既定値から始める。この起動限りの上書きで既定値は書き換えない。
+        initialShowHiddenFiles: Bool? = nil,
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         store: ViewerStore? = nil,
@@ -278,8 +281,11 @@ final class ViewerWindowController: NSWindowController {
         if let showLineNumbersOverride { store.lineNumbersSetting.applyOverride(showLineNumbersOverride) }
         self.store = store
         sidebar = ViewerWindowAssembler.makeSidebarNavigator(
-            fileURL: fileURL, sidebarDisplayPreference: sidebarDisplayPreference,
-            sortOrder: initialSortOrder, gitFileIndex: gitFileIndex, gitStatusStore: gitStatusStore
+            fileURL: fileURL, displayDefaults: displayDefaults,
+            overrides: SidebarDisplayOverrides(
+                sortOrder: initialSortOrder, showHiddenFiles: initialShowHiddenFiles
+            ),
+            gitFileIndex: gitFileIndex, gitStatusStore: gitStatusStore
         )
         let window = ViewerWindowChrome.makeWindow(fileURL: fileURL)
 

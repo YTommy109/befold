@@ -18,7 +18,7 @@ struct ViewerWindowManagerIntegrationTests {
         ViewerWindowManager(
             sessionStore: SessionStore(defaults: defaults),
             recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
-            sidebarDisplayPreference: SidebarDisplayPreference(defaults: defaults),
+            displayDefaults: SidebarDisplayDefaults(defaults: defaults),
             diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
@@ -26,31 +26,44 @@ struct ViewerWindowManagerIntegrationTests {
         )
     }
 
-    /// 隠しファイル表示のトリガー経路。全経路が「開いている全ウィンドウのサイドバーへ
-    /// 同時に反映される」という同じ結果に至ることを、複数ウィンドウのセットアップに
-    /// 統一して検証する(単一ウィンドウでの反映は複数ウィンドウの結果に包含される)。
-    private struct HiddenFilesTrigger: Sendable, CustomTestStringConvertible {
+    /// サイドバー表示 4 値の反映範囲。TASK-480 で「アプリ全体で 1 つ」から
+    /// **窓ごとのライブ値**(ADR 0002「窓の状態」)へ移したため、ここが固定するのは
+    /// 「操作した窓だけが変わる」こと。全窓へ配る形へ戻すと落ちる。
+    ///
+    /// メニュー(⌃⌘H / ⌘⌃G / ⌃⌘T)もサイドバーヘッダーのアイコンボタンも、
+    /// 同じ `SidebarNavigator.applyDisplayChange(_:)` を通る 1 本の経路になったため、
+    /// 入口ごとの分岐は持たない(TASK-480.3 で delegate 経由の往復を撤去した)。
+    private struct DisplayChangeCase: Sendable, CustomTestStringConvertible {
         let name: String
-        let trigger: @MainActor @Sendable (ViewerWindowManager, ViewerWindowController) -> Void
+        let change: SidebarDisplayChange
+        /// 変更が届いた窓で true になる読み出し。
+        let applied: @MainActor @Sendable (ViewerWindowController) -> Bool
         var testDescription: String {
             name
         }
     }
 
-    private nonisolated static let hiddenFilesTriggers: [HiddenFilesTrigger] = [
-        HiddenFilesTrigger(name: "toggleHiddenFiles", trigger: { manager, _ in manager.display.toggleHiddenFiles() }),
-        HiddenFilesTrigger(
-            name: "onToggleHiddenFiles コールバック(アイコンボタン操作)",
-            trigger: { manager, first in manager.viewerWindowDidToggleHiddenFiles(first) }
+    private nonisolated static let displayChanges: [DisplayChangeCase] = [
+        DisplayChangeCase(
+            name: "不可視ファイル表示(⌃⌘H)", change: .toggleHiddenFiles,
+            applied: { $0.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd") }
         ),
-        HiddenFilesTrigger(
-            name: "setHiddenFiles(true)(--hidden-files)",
-            trigger: { manager, _ in manager.display.setHiddenFiles(true) }
+        DisplayChangeCase(
+            name: "変更ファイルのみ表示(⌘⌃G)", change: .toggleChangedFilesOnly,
+            applied: { $0.fileListModel.showChangedFilesOnly }
+        ),
+        DisplayChangeCase(
+            name: "表示形式(⌃⌘T)", change: .toggleLayoutMode,
+            applied: { $0.fileListModel.layoutMode == .tree }
+        ),
+        DisplayChangeCase(
+            name: "並び順", change: .setSortOrder(.alphabetical),
+            applied: { $0.fileListModel.sortOrder == .alphabetical }
         ),
     ]
 
-    @Test("隠しファイル表示のトリガー経路によらず、開いている全ウィンドウへ同時に反映される", arguments: hiddenFilesTriggers)
-    private func hiddenFilesTriggerRefreshesAllOpenWindows(_ testCase: HiddenFilesTrigger) async throws {
+    @Test("サイドバー表示の変更は、操作したウィンドウだけに反映される", arguments: displayChanges)
+    private func displayChangeStaysInTheOperatedWindow(_ testCase: DisplayChangeCase) async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         _ = try tmp.file(named: ".hidden.mmd", contents: "graph TD;")
@@ -60,104 +73,22 @@ struct ViewerWindowManagerIntegrationTests {
         manager.openViewer(for: file1)
         manager.openViewer(for: file2)
         let first = try #require(manager.controllers[file1.normalizedPathKey]?.first)
+        let second = try #require(manager.controllers[file2.normalizedPathKey]?.first)
         for controller in manager.allControllers {
-            #expect(!controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
+            await controller.sidebar.awaitSettled()
+            #expect(!testCase.applied(controller))
         }
 
-        testCase.trigger(manager, first)
+        first.sidebar.applyDisplayChange(testCase.change)
+        // もう一方の窓も取り直してから見る。取り直しの契機で保存値を読み直す形へ戻すと、
+        // ここで初めて他窓の操作が届く(読むだけでは素通しする)。
+        second.sidebar.refreshFileList()
         for controller in manager.allControllers {
             await controller.sidebar.awaitSettled()
         }
 
-        for controller in manager.allControllers {
-            #expect(controller.fileListModel.entries.map(\.url.lastPathComponent).contains(".hidden.mmd"))
-        }
-        manager.allControllers.forEach { $0.close() }
-    }
-
-    /// git 変更のみ表示のトリガー経路。メニュー(⌘⌃G)とサイドバーのアイコンボタンの
-    /// どちらからでも、開いている全ウィンドウへ同じ結果が届くことを検証する。
-    private struct ChangedFilesOnlyTrigger: Sendable, CustomTestStringConvertible {
-        let name: String
-        let trigger: @MainActor @Sendable (ViewerWindowManager, ViewerWindowController) -> Void
-        var testDescription: String {
-            name
-        }
-    }
-
-    private nonisolated static let changedFilesOnlyTriggers: [ChangedFilesOnlyTrigger] = [
-        ChangedFilesOnlyTrigger(
-            name: "toggleChangedFilesOnly(メニュー ⌘⌃G)",
-            trigger: { manager, _ in manager.display.toggleChangedFilesOnly() }
-        ),
-        ChangedFilesOnlyTrigger(
-            name: "onToggleChangedFilesOnly コールバック(アイコンボタン操作)",
-            trigger: { manager, first in manager.viewerWindowDidToggleChangedFilesOnly(first) }
-        ),
-    ]
-
-    @Test(
-        "git 変更のみ表示は経路によらず、開いている全ウィンドウのサイドバーへ反映される",
-        arguments: changedFilesOnlyTriggers
-    )
-    private func changedFilesOnlyToggleReachesAllOpenWindows(
-        _ testCase: ChangedFilesOnlyTrigger
-    ) async throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
-        let file2 = try tmp.file(named: "second.mmd", contents: "graph TD;")
-        let manager = makeManager()
-        manager.openViewer(for: file1)
-        manager.openViewer(for: file2)
-        let first = try #require(manager.controllers[file1.normalizedPathKey]?.first)
-        for controller in manager.allControllers {
-            #expect(!controller.fileListModel.showChangedFilesOnly)
-        }
-
-        testCase.trigger(manager, first)
-        for controller in manager.allControllers {
-            await controller.sidebar.awaitSettled()
-        }
-
-        for controller in manager.allControllers {
-            #expect(controller.fileListModel.showChangedFilesOnly)
-        }
-        manager.allControllers.forEach { $0.close() }
-    }
-
-    /// 表示モードは「アプリ全体で 1 つ」。ウィンドウごとに別インスタンスを持たせる
-    /// 改修が入ると、片方の窓だけツリーになってここが落ちる(TASK-319 と同型の穴を塞ぐ)。
-    @Test("サイドバーの表示モードは、開いている全ウィンドウへ同時に反映される")
-    func layoutModeToggleReachesAllOpenWindows() async throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file1 = try tmp.file(named: "first.mmd", contents: "graph TD;")
-        let file2 = try tmp.file(named: "second.mmd", contents: "graph TD;")
-        let manager = makeManager()
-        manager.openViewer(for: file1)
-        manager.openViewer(for: file2)
-        for controller in manager.allControllers {
-            #expect(controller.fileListModel.layoutMode == .drillDown)
-        }
-
-        manager.display.toggleSidebarLayoutMode()
-        for controller in manager.allControllers {
-            await controller.sidebar.awaitSettled()
-        }
-
-        for controller in manager.allControllers {
-            #expect(controller.fileListModel.layoutMode == .tree)
-        }
-
-        // 戻したときも全ウィンドウへ届く。
-        manager.display.toggleSidebarLayoutMode()
-        for controller in manager.allControllers {
-            await controller.sidebar.awaitSettled()
-        }
-        for controller in manager.allControllers {
-            #expect(controller.fileListModel.layoutMode == .drillDown)
-        }
+        #expect(testCase.applied(first))
+        #expect(!testCase.applied(second))
         manager.allControllers.forEach { $0.close() }
     }
 

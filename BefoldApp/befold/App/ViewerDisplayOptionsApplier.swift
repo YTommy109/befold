@@ -27,10 +27,18 @@ enum ViewerDisplayOptionsApplier {
         // 並び順は「指定があったときだけ」触る。viewerSortOrder は未指定でも既定値を
         // 返すため、指定の有無は sortOrder の nil 判定で見る。
         // ここはこの起動限りの窓単位の上書きなので、保存された既定値
-        // (SidebarDisplayPreference.sortOrder)は意図的に書き換えない。利用者の操作は
+        // (SidebarDisplayDefaults.sortOrder)は意図的に書き換えない。利用者の操作は
         // SidebarNavigator.setSortOrder(_:) を通り、そちらは既定値も更新する。
         if options.sortOrder != nil {
             controller.fileListModel.sortOrder = options.viewerSortOrder
+            controller.sidebar.refreshFileList()
+        }
+        // 不可視ファイル表示も並び順と同じ「この起動限りの窓単位の上書き」。
+        // TASK-480.3 以前はアプリ全体の設定を書き換えて全窓へ配っていたが、4 値が窓ごとの
+        // ライブ値へ移ったため --sort と同じ扱いに揃えた(既定値は書き換えない)。
+        let hiddenFiles = options.showHiddenFiles
+        if hiddenFiles != nil, hiddenFiles != controller.fileListModel.showHiddenFiles {
+            controller.fileListModel.showHiddenFiles = hiddenFiles == true
             controller.sidebar.refreshFileList()
         }
         // 開閉の解決順は新規ウィンドウ(openViewer)と同じ: CLI の明示指定 > フォルダーオープンの強制表示。

@@ -39,12 +39,19 @@ final class DocumentOpener {
     }
 
     /// CLI から渡されたパス群を、表示オプション付きでそれぞれ別ウィンドウに開く。
-    /// `--hidden-files`/`--no-hidden-files` はウィンドウ単位ではなくアプリ全体の設定のため、先に一度だけ反映する。
+    ///
+    /// `--hidden-files`/`--no-hidden-files` は `--sort` と同じ**その起動限りの窓単位の上書き**で、
+    /// 保存された既定値は書き換えない(TASK-480.3)。パスがあるときは options がそのまま
+    /// 各ウィンドウへ流れるのでここでは何もしない。
     /// パス無し起動でここへ来るのは `--hidden-files` 単独のときだけ(それ以外の表示オプションは
     /// 対象の文書を要するため CLI のパース段階で弾かれる = `CLIOpenOptions.requiresPaths`)。
+    /// その場合だけ適用先の窓が決まらないため、いま操作対象になっている窓へ適用する。
     func openPaths(_ paths: [String], options: CLIOpenOptions) {
-        if let showHiddenFiles = options.showHiddenFiles {
-            windowManager.display.setHiddenFiles(showHiddenFiles)
+        guard !paths.isEmpty else {
+            if let controller = activeViewer() {
+                ViewerDisplayOptionsApplier.apply(options, to: controller, forceSidebarVisible: false)
+            }
+            return
         }
         openSequentially(paths.map { URL(fileURLWithPath: $0) }, options: options)
     }

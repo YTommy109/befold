@@ -85,7 +85,7 @@ struct SidebarNavigatorSelectionMemoryTests {
             currentDirectory: currentDirectory,
             entries: listings(currentDirectory),
             selection: selection,
-            sidebarDisplayPreference: SidebarDisplayPreference(
+            displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorSelectionMemoryTests")
             ),
             directoryLister: { url, _, _ in DirectoryListing(rootChildren: listings(url)) },

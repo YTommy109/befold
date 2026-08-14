@@ -27,15 +27,15 @@ struct SidebarNavigatorListingCoherenceTests {
         let dirB = base.appendingPathComponent("dirB", isDirectory: true)
         let changed = dirB.appendingPathComponent("changed.md")
         let clean = dirB.appendingPathComponent("clean.md")
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorListingCoherenceTests")
         )
-        preference.showChangedFilesOnly = true
+        preference.record { $0.showChangedFilesOnly = true }
         let navigator = SidebarNavigator(
             currentDirectory: base,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: preference,
+            displayDefaults: preference,
             directoryLister: { _, _, _ in
                 fileListing(changed, clean)
             },
@@ -76,16 +76,16 @@ struct SidebarNavigatorListingCoherenceTests {
         let dirB = base.appendingPathComponent("dirB", isDirectory: true)
         let changed = dirB.appendingPathComponent("changed.md")
         let clean = dirB.appendingPathComponent("clean.md")
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorListingCoherenceTests-off")
         )
-        preference.showChangedFilesOnly = false
+        preference.record { $0.showChangedFilesOnly = false }
         let gate = AsyncGate()
         let navigator = SidebarNavigator(
             currentDirectory: base,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: preference,
+            displayDefaults: preference,
             directoryLister: { _, _, _ in
                 fileListing(changed, clean)
             },
@@ -135,15 +135,15 @@ struct SidebarNavigatorListingCoherenceTests {
         let dirB = base.appendingPathComponent("dirB", isDirectory: true)
         let changed = dirB.appendingPathComponent("changed.md")
         let clean = dirB.appendingPathComponent("clean.md")
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorListingCoherenceTests-race")
         )
-        preference.showChangedFilesOnly = true
+        preference.record { $0.showChangedFilesOnly = true }
         let navigator = SidebarNavigator(
             currentDirectory: base,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: preference,
+            displayDefaults: preference,
             directoryLister: { _, _, _ in
                 fileListing(changed, clean)
             },
@@ -255,15 +255,15 @@ struct SidebarNavigatorListingCoherenceTests {
     ) -> SidebarNavigator {
         let changed = dirB.appendingPathComponent("changed.md")
         let clean = dirB.appendingPathComponent("clean.md")
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: prefix)
         )
-        preference.showChangedFilesOnly = true
+        preference.record { $0.showChangedFilesOnly = true }
         return SidebarNavigator(
             currentDirectory: base,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: preference,
+            displayDefaults: preference,
             directoryLister: { _, _, _ in
                 fileListing(changed, clean)
             },

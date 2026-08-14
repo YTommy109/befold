@@ -10,7 +10,10 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
     private let gitIndex: any GitFileIndexing
     private let recentDocumentsStore: RecentDocumentsStore
     private let bookmarkStore: BookmarkStore
-    private let sidebarDisplayPreference: SidebarDisplayPreference
+    /// 候補に不可視ファイルを含めるか。Quick Open を開いた**その窓**の現在値を受け取る
+    /// (サイドバー表示 4 値は窓ごとのライブ値 / ADR 0002「窓の状態」)。ここでストアを
+    /// 持って読むと、前面の窓と食い違う候補集合になる(TASK-480.3)。
+    private let includesHiddenFiles: Bool
     private let fileReader: any FileReading
     /// いま開いているファイル。ウィンドウが 1 枚も無ければ nil。
     private let currentFileURL: URL?
@@ -19,14 +22,14 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
         gitIndex: any GitFileIndexing,
         recentDocumentsStore: RecentDocumentsStore,
         bookmarkStore: BookmarkStore,
-        sidebarDisplayPreference: SidebarDisplayPreference,
+        includesHiddenFiles: Bool,
         currentFileURL: URL?,
         fileReader: any FileReading = DefaultFileReader()
     ) {
         self.gitIndex = gitIndex
         self.recentDocumentsStore = recentDocumentsStore
         self.bookmarkStore = bookmarkStore
-        self.sidebarDisplayPreference = sidebarDisplayPreference
+        self.includesHiddenFiles = includesHiddenFiles
         self.currentFileURL = currentFileURL
         self.fileReader = fileReader
     }
@@ -36,7 +39,7 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
     }
 
     var includingHiddenFiles: Bool {
-        sidebarDisplayPreference.showHiddenFiles
+        includesHiddenFiles
     }
 
     /// 候補集合の構築は `git rev-parse` / `git ls-files` のサブプロセス待ちと

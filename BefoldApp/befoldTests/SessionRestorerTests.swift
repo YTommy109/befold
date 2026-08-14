@@ -32,8 +32,11 @@ struct SessionRestorerTests {
         )
     }
 
-    @Test("復元に渡した showHiddenFiles は復元直後に全体設定へ反映される")
-    func hiddenFilesOptionAppliesOnRestore() {
+    /// `--hidden-files` は `--sort` と同じ**その起動限りの窓単位の上書き**で、保存された
+    /// 既定値は書き換えない(TASK-480.3 / ADR 0002 の CLI 規則)。既定値へ書く形へ戻すと、
+    /// 一度 `--hidden-files` で開いただけで以後のすべての窓が隠しファイル表示で開く。
+    @Test("復元に渡した showHiddenFiles は復元される窓へ適用され、保存された既定値は変わらない")
+    func hiddenFilesOptionAppliesToRestoredWindowWithoutPersisting() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
         defer { fixture.closeAll() }
         let restorer = makeRestorer(fixture)
@@ -42,7 +45,9 @@ struct SessionRestorerTests {
         restorer.captureSavedState()
         restorer.restoreLastSession(options: CLIOpenOptions(showHiddenFiles: true))
 
-        #expect(fixture.sidebarDisplayPreference.showHiddenFiles)
+        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
+        #expect(controller.fileListModel.showHiddenFiles)
+        #expect(!fixture.displayDefaults.settings.showHiddenFiles)
     }
 
     @Test("復元に渡した showLineNumbers は復元されるウィンドウへ適用される")
@@ -85,7 +90,7 @@ struct SessionRestorerTests {
         restorer.captureSavedState()
         restorer.restoreLastSession()
 
-        #expect(!fixture.sidebarDisplayPreference.showHiddenFiles)
+        #expect(!fixture.displayDefaults.settings.showHiddenFiles)
         #expect(fixture.manager.controllers[file.normalizedPathKey] != nil)
     }
 

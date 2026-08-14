@@ -25,7 +25,7 @@ befold.app (Swift 6 / AppKit + SwiftUI, macOS 14+)
   ├── AppDelegate                # ライフサイクルと @objc アクションの受け口（配線のみ）
   │     ├── AppStores                # アプリ全体で共有するストア・表示設定の束
   │     ├── ViewerWindowManager      # ウィンドウ生成・管理とセッション記録の更新
-  │     │     ├── GlobalDisplayBroadcaster   # アプリ全体の表示設定を全ウィンドウへ配る
+  │     │     ├── GlobalDisplayBroadcaster   # アプリの好み（ブックマーク・フォント）を全ウィンドウへ配る
   │     │     └── RecentRepositoryRecorder   # 「最近使ったリポジトリ」の記録とタブ構成の更新
   │     ├── SessionRestorer          # 前回セッションのウィンドウ/タブ構成の保存・復元
   │     ├── DocumentOpener           # URL をビューアで開く唯一の入口（逐次化・解決・選択パネル）
@@ -116,7 +116,7 @@ BefoldApp/
 | `AppCLIRequestReceiver` | 別プロセスの CLI 起動から転送された要求の受信。ACK 返送と `requestID` 単位の重複排除。**生成と同時に購読するため `AppDelegate.init` で eager に作る** |
 | `CLIShimCoordinator` | `/usr/local/bin/befold` の陳腐化チェックと設置、結果案内 |
 | `ViewerWindowManager` | ビューアウィンドウ（正規化パス → コントローラ）の生成・破棄、close/rename/key イベントに伴うセッション更新 |
-| `GlobalDisplayBroadcaster` | アプリ全体で 1 つの表示設定（不可視ファイル・変更ファイルのみ・サイドバー配置・ブックマーク・コードフォント）を開いている全ウィンドウへ配る。窓ごとのライブ値（ADR 0002）は扱わない |
+| `GlobalDisplayBroadcaster` | アプリ全体で 1 つの表示設定（ブックマーク・コードフォント）を開いている全ウィンドウへ配る。窓ごとのライブ値と窓の状態（ADR 0002）は扱わず、`SidebarDisplayDefaults` も `ZoomStore` も型として持たない |
 | `RecentRepositoryRecorder` | 「最近使ったリポジトリ」への記録。git ルート/ラベルの解決は detached タスクで行い、反映のみ MainActor へ戻す |
 | `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Space からはぐれた窓の救出）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場 |
 | `ViewerDisplayOptionsApplier` | 既に開いているウィンドウへの CLI 表示オプション適用規則 |
@@ -129,7 +129,7 @@ BefoldApp/
 | `ScrollPositionStore` | ファイルごとのスクロール位置を永続化（レンダリング/ソース表示を別々に保存） |
 | `ZoomStore` | ファイルごとのズーム倍率を永続化（0.5〜2.0、25% 刻み） |
 | `DisplayModeStore` | ファイルごとの表示モード（レンダリング/ソース/差分）を永続化。旧キー `ViewerSourceModes` の Bool 辞書から 1 度だけ移行する |
-| `HiddenFilesPreference` | 不可視ファイル表示 ON/OFF をアプリ全体で永続化 |
+| `SidebarDisplayDefaults` | サイドバー表示 4 値（表示形式・不可視ファイル・変更ファイルのみ・並び順）の**新規ウィンドウの初期値**をアプリ全体で永続化。ライブ値は窓ごと（ADR 0002「窓の状態」）で、窓は初期値の `SidebarDisplaySettings`（値型）と書き戻し用の `SidebarDisplayDefaultsRecording`（読み取りを持たない）だけを受け取る |
 | `FindOptionsPreference` | 検索の3トグル（大文字小文字区別・単語一致・正規表現）をアプリ全体で永続化 |
 | `NavigationHistory` | タブごとの戻る/進む履歴スタック（非永続） |
 | `SwipeHistoryNavigation` | トラックパッド水平スワイプから履歴移動方向を判定する純粋ロジック |
@@ -213,7 +213,11 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   トラックパッドスワイプ（`SwipeHistoryNavigation`）に対応
 - **エラーパネル**: `mermaid.parseError` で構文エラーの詳細メッセージを赤ボーダー・等幅フォントのパネルに表示
 - **削除バナー**: ファイル削除時にグレーバナー＋背景色変更
-- **サイドバー**: フォルダ/ファイル一覧、不可視ファイル表示トグル、ソート順、新規ウィンドウで開く操作を提供
+- **サイドバー**: フォルダ/ファイル一覧、不可視ファイル表示トグル、ソート順、新規ウィンドウで開く操作を提供。
+  表示 4 値（表示形式 / 不可視ファイル / 変更ファイルのみ / 並び順）は**窓ごとのライブ値**で、
+  真実の源は各窓の `FileListModel`。変更の唯一の入口は
+  `SidebarListingCoordinator.applyDisplayChange(_:)` で、メニュー（⌃⌘H / ⌘⌃G / ⌃⌘T）・
+  サイドバーヘッダーのボタン・CLI はすべてそこへ合流する
 
 ---
 

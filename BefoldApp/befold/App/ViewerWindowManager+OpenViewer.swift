@@ -100,7 +100,7 @@ extension ViewerWindowManager {
 
         return ViewerWindowController(
             fileURL: url,
-            sidebarDisplayPreference: sidebarDisplayPreference,
+            displayDefaults: displayDefaults,
             diffDisplayPreference: diffDisplayPreference,
             diffLoader: diffLoader,
             findOptionsPreference: findOptionsPreference,
@@ -112,6 +112,7 @@ extension ViewerWindowManager {
             initialSidebarCollapsed: initialSidebarCollapsed,
             initialFrameDescriptor: initialFrameDescriptor,
             initialSortOrder: options.sortOrder != nil ? options.viewerSortOrder : nil,
+            initialShowHiddenFiles: options.showHiddenFiles,
             showLineNumbersOverride: options.showLineNumbers,
             sourceModeOverride: options.sourceMode,
             store: makeStore?(url),

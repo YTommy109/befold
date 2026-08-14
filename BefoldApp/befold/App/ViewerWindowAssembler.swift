@@ -27,8 +27,8 @@ enum ViewerWindowAssembler {
     /// コントローラの `super.init` より前に呼ぶため、self を要らない形にしてある。
     static func makeSidebarNavigator(
         fileURL: URL,
-        sidebarDisplayPreference: SidebarDisplayPreference,
-        sortOrder: SortOrder?,
+        displayDefaults: SidebarDisplayDefaults,
+        overrides: SidebarDisplayOverrides,
         gitFileIndex: any GitFileIndexing,
         gitStatusStore: GitStatusStore
     ) -> SidebarNavigator {
@@ -37,7 +37,8 @@ enum ViewerWindowAssembler {
         // ボリューム上のフォルダでもウィンドウ表示がディレクトリ列挙を待たない。
         SidebarNavigator(
             currentDirectory: fileURL.deletingLastPathComponent(), entries: [], selection: fileURL,
-            sidebarDisplayPreference: sidebarDisplayPreference, sortOrder: sortOrder,
+            displayDefaults: displayDefaults, sortOrder: overrides.sortOrder,
+            showHiddenFiles: overrides.showHiddenFiles,
             git: makeSidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
         )
     }
@@ -128,38 +129,26 @@ enum ViewerWindowAssembler {
             model: controller.fileListModel,
             delegate: controller,
             onSortOrderChanged: { [weak controller] order in
-                controller?.sidebar.setSortOrder(order)
+                controller?.sidebar.applyDisplayChange(.setSortOrder(order))
             },
-            onToggleHiddenFiles: { [weak controller] in
-                guard let controller else { return }
-                controller.delegate?.viewerWindowDidToggleHiddenFiles(controller)
-            },
-            onToggleChangedFilesOnly: makeChangedFilesOnlyToggle(for: controller),
-            onToggleSidebarTreeLayout: makeSidebarTreeLayoutToggle(for: controller)
+            onToggleHiddenFiles: makeDisplayToggle(.toggleHiddenFiles, for: controller),
+            onToggleChangedFilesOnly: makeDisplayToggle(.toggleChangedFilesOnly, for: controller),
+            onToggleSidebarTreeLayout: makeDisplayToggle(.toggleLayoutMode, for: controller)
         )
     }
 
-    /// サイドバーヘッダーの「変更されたファイルのみ表示」ボタンの動作を作る。
-    /// 切替の実体は delegate 側にあり、ここは流すだけ（ボタン専用の経路を持たせない）。
-    static func makeChangedFilesOnlyToggle(
-        for controller: ViewerWindowController
-    ) -> () -> Void {
-        { [weak controller] in
-            guard let controller else { return }
-            controller.delegate?.viewerWindowDidToggleChangedFilesOnly(controller)
-        }
-    }
-
-    /// サイドバーヘッダーの表示形式(ツリー / ドリルダウン)ボタンの動作を作る。
+    /// サイドバーヘッダーのトグルボタンの動作を作る。
     ///
-    /// 切替の実体はメニューの ⌃⌘T と同じ `GlobalDisplayBroadcaster.toggleSidebarLayoutMode()`
-    /// で、ここは delegate へ流すだけ。ボタン専用の経路を持たせない。
-    static func makeSidebarTreeLayoutToggle(
-        for controller: ViewerWindowController
+    /// サイドバー表示 4 値は窓ごとのライブ値なので(ADR 0002「窓の状態」)、**この窓の
+    /// サイドバーへ直接届ける。** メニュー(⌃⌘T など)も同じ
+    /// `SidebarNavigator.applyDisplayChange(_:)` を通り、ボタン専用の経路は持たせない。
+    /// 以前は delegate → `ViewerWindowManager` → 全窓一括反映という経路だったが、
+    /// 配る先が 1 窓になった今、窓の外を往復する理由が無い(TASK-480.3)。
+    static func makeDisplayToggle(
+        _ change: SidebarDisplayChange, for controller: ViewerWindowController
     ) -> () -> Void {
         { [weak controller] in
-            guard let controller else { return }
-            controller.delegate?.viewerWindowDidToggleSidebarTreeLayout(controller)
+            controller?.sidebar.applyDisplayChange(change)
         }
     }
 

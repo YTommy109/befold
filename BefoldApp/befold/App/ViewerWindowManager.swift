@@ -38,7 +38,7 @@ final class ViewerWindowManager {
 
     let sessionStore: SessionStore
     let recentDocumentsStore: RecentDocumentsStore
-    let sidebarDisplayPreference: SidebarDisplayPreference
+    let displayDefaults: SidebarDisplayDefaults
     /// 全ウィンドウで共有する差分表示設定。ここで 1 つ持って openViewer で渡すことが、
     /// 「粒度はアプリ全体」(DiffDisplayPreference の doc コメント)を成立させている。
     let diffDisplayPreference: DiffDisplayPreference
@@ -77,7 +77,6 @@ final class ViewerWindowManager {
     /// アプリ全体の表示設定を全ウィンドウへ配る一括反映。共有設定の実体(preference / store)は
     /// この型が持つものをそのまま渡すため、別インスタンスが生まれる書き方ができない。
     private(set) lazy var display = GlobalDisplayBroadcaster(
-        sidebarDisplayPreference: sidebarDisplayPreference,
         bookmarkStore: bookmarkStore,
         controllers: { [weak self] in self?.allControllers ?? [] }
     )
@@ -85,7 +84,7 @@ final class ViewerWindowManager {
     /// 別の索引を掴んだ recorder が生まれる書き方ができない。
     let recentRepositories: RecentRepositoryRecorder
 
-    /// - Parameter sidebarDisplayPreference: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
+    /// - Parameter displayDefaults: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
     /// - Parameter diffDisplayPreference: 差分レイアウトは全ウィンドウで同じ答えになる必要があるため、
     ///   ここで受けた 1 つを openViewer が全コントローラへ渡す。既定値を持たせないのは、
@@ -103,7 +102,7 @@ final class ViewerWindowManager {
     ///   既定は実 `git` を実行する実装。テストは実 subprocess を避けるため差し替えられる。
     init(
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
-        sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
+        displayDefaults: SidebarDisplayDefaults = SidebarDisplayDefaults(),
         diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader = GitDiffLoader(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
@@ -126,7 +125,7 @@ final class ViewerWindowManager {
         self.gitFileIndex = gitFileIndex
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
-        self.sidebarDisplayPreference = sidebarDisplayPreference
+        self.displayDefaults = displayDefaults
         self.diffDisplayPreference = diffDisplayPreference
         self.diffLoader = diffLoader
         self.findOptionsPreference = findOptionsPreference

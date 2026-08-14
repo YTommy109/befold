@@ -21,15 +21,15 @@ struct SidebarNavigatorExpansionTests {
     ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
         // 展開はツリー表示のときだけ行に出る。ドリルダウンでは展開の材料を渡さないので、
         // このスイートは常にツリー表示で回す。
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorExpansionTests")
         )
-        preference.layoutMode = .tree
+        preference.record { $0.layoutMode = .tree }
         let navigator = SidebarNavigator(
             currentDirectory: currentDirectory,
             entries: [],
             selection: nil,
-            sidebarDisplayPreference: preference,
+            displayDefaults: preference,
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: rootEntries) },
             childrenLister: childrenLister,
             git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
@@ -181,13 +181,13 @@ struct SidebarNavigatorExpansionTests {
         // ルート一覧の中身を差し替えられるようにして、Finder 側での削除と復活を再現する。
         let rootEntries = LockedBox<[FileListEntry]>([FileListEntry(url: dirA, kind: .folder)])
         let counter = CallCounter()
-        let preference = SidebarDisplayPreference(
+        let preference = SidebarDisplayDefaults(
             defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorExpansionTests")
         )
-        preference.layoutMode = .tree
+        preference.record { $0.layoutMode = .tree }
         let navigator = SidebarNavigator(
             currentDirectory: base, entries: [], selection: nil,
-            sidebarDisplayPreference: preference,
+            displayDefaults: preference,
             directoryLister: { _, _, _ in
                 DirectoryListing(rootChildren: rootEntries.get())
             },

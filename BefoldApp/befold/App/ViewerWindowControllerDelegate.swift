@@ -14,17 +14,12 @@ protocol ViewerWindowControllerDelegate: AnyObject {
     func viewerWindow(
         _ controller: ViewerWindowController, didSwitchFileFrom oldURL: URL, to newURL: URL
     )
-    func viewerWindowDidToggleHiddenFiles(_ controller: ViewerWindowController)
     /// 差分レイアウトが切り替わったことを伝える。
     ///
     /// レイアウトはアプリ全体で 1 個を共有する設定(`DiffDisplayPreference`)で、
     /// モード切替セグメントの差分アイコンがその値を映す。ツールバーは view ベースで
     /// validate を通らないため(ADR 0002)、操作した窓を含む全窓を再同期する必要がある。
     func viewerWindowDidToggleDiffLayout(_ controller: ViewerWindowController)
-    func viewerWindowDidToggleChangedFilesOnly(_ controller: ViewerWindowController)
-    /// サイドバーの表示形式(ツリー / ドリルダウン)が切り替えられたことを伝える。
-    /// メニューの ⌃⌘T と同じ経路へ合流させるための口で、ボタン専用の切替は持たない。
-    func viewerWindowDidToggleSidebarTreeLayout(_ controller: ViewerWindowController)
 }
 
 /// performFileSwitch の結果。呼び出し元(明示的なファイル選択と履歴ナビゲーション)が
