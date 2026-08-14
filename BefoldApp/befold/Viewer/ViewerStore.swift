@@ -75,7 +75,7 @@ final class ViewerStore {
         displayMode.isSourceMode
     }
 
-    /// git 差分を重ねて表示するモードかどうか。実際に差分が描けるかは `diffText` の有無にもよる。
+    /// git 差分を重ねて表示するモードかどうか。実際に差分が描けるかは `diffContent` にもよる。
     var showsDiff: Bool {
         displayMode.showsDiff
     }
@@ -91,14 +91,15 @@ final class ViewerStore {
         return displayMode
     }
 
-    /// ソース表示へ重ねる git 差分の本文（unified diff）。取得は
-    /// `ViewerWindowController` が行い、ここへ結果だけを置く。差分が無い・
-    /// 取得できない・機能が無効ならすべて nil で、表示は通常のソース表示になる。
+    /// ソース表示へ重ねる git 差分の取得状態と本文（unified diff）。取得は
+    /// `ViewerDiffPresenter` が行い、ここへ結果だけを置く。取得が飛行中の間は
+    /// `.pending` で、確定して描ける差分が無ければ `.unavailable`
+    /// （表示は通常のソース表示になる）。
     ///
     /// 値は常に「いま開いているファイル」の差分であり、対象が変わる `openFile` で
     /// 捨てる。取得は非同期なので、着地時の URL 一致確認（呼び出し側）だけでは
     /// 切替直後に前のファイルの差分が残る（開始時の無効化と着地時の確認は別物）。
-    var diffText: String?
+    var diffContent: ViewerDiffContent = .unavailable
 
     /// 開いているファイルが rename / move されたときに旧 URL と新 URL を通知する。
     /// ウィンドウ側がタイトル・representedURL・セッション記録・per-file 状態の移行を

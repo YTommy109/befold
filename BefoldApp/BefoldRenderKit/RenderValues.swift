@@ -6,13 +6,29 @@ import WebKit
 public struct DiffState: Equatable, Sendable {
     public let text: String?
     public let layout: ViewerDiffBridge.Layout
+    /// 差分取得が飛行中で「差分あり/なし」がまだ確定していないか。
+    /// true の生成経路は `.pending` だけに絞る(本文あり + 未確定という
+    /// 不正な組み合わせを型として作れなくする)。
+    public let isPending: Bool
+
     public init(text: String?, layout: ViewerDiffBridge.Layout) {
         self.text = text
         self.layout = layout
+        isPending = false
     }
 
-    /// 差分を出さない状態。
+    private init(text: String?, layout: ViewerDiffBridge.Layout, isPending: Bool) {
+        self.text = text
+        self.layout = layout
+        self.isPending = isPending
+    }
+
+    /// 差分を出さない状態(確定)。
     public static let none = DiffState(text: nil, layout: .inline)
+
+    /// 取得が飛行中でまだ確定していない状態。ContentUpdatePlanner はこの間、
+    /// モード切替だけの再描画を見送って前の表示を残す(TASK-407)。
+    public static let pending = DiffState(text: nil, layout: .inline, isPending: true)
 }
 
 /// _mmdSetTruncated へ送る切り詰め状態と表示行数のペア。非切り詰め時の

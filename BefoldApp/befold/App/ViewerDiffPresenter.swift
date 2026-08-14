@@ -27,7 +27,7 @@ final class ViewerDiffPresenter {
     /// 直近の `refresh()` が起こした「取得結果を store へ書き戻すタスク」。
     ///
     /// 反映の完了はこれ以外に観測点が無い（`GitDiffLoader` が返す Task は取得までで、
-    /// `store.diffText` への書き戻しはこの後段）。捨てると、テストは結果をポーリングで
+    /// `store.diffContent` への書き戻しはこの後段）。捨てると、テストは結果をポーリングで
     /// 待つしかなくなり、取得が detached の utility タスクを通る都合で全スイート並列実行では
     /// 待機予算に達して落ちる（TASK-437）。
     private(set) var refreshTask: Task<Void, Never>?
@@ -81,7 +81,7 @@ final class ViewerDiffPresenter {
     /// 表示側（ViewerContentView）が捨てるだけでは、契機の数だけ取得が走る。
     func refresh() {
         guard let loader, let url = currentURL(), isDiffShown, capabilities().canSelectDiffMode else {
-            store.diffText = nil
+            store.diffContent = .unavailable
             // 取得を起こさなかった契機で直前のタスクを残すと、待つ側が古い取得の完了を
             // 「この契機の完了」と取り違える。
             refreshTask = nil
@@ -94,23 +94,29 @@ final class ViewerDiffPresenter {
         // 窓の数だけ git が起動する（TASK-325 / TASK-346）。ルート解決はローダーが
         // 取得タスクの中（メインアクターの外）で行う。
         let fetch = loader.diff(forFileAt: url) { index.repositoryRoot(forDirectoryAt: directory) }
+        // 取得を実際に起こした契機で「未確定」を立てる(未確定の間、レンダラは
+        // モード切替だけの再描画を見送って前の表示を残す = TASK-407)。ただし確定差分を
+        // 表示中の取り直し(保存などによる再取得)では降格しない — 従来どおり古い差分を
+        // 出したまま着地を待つ(降格すると差分ハイライトが 1 サイクル消える)。
+        if case .diff = store.diffContent {} else { store.diffContent = .pending }
         // 反映タスクは保持する。取得完了はここでしか観測できないため、捨てると呼び出し側
-        // （テスト）は `store.diffText` をポーリングで待つしかなくなる（TASK-437）。
+        // （テスト）は `store.diffContent` をポーリングで待つしかなくなる（TASK-437）。
         refreshTask = Task { @MainActor [weak self] in
             let result = await fetch.value
             // 取得中に OFF へ切り替わっていたら書き戻さない。表示は ViewerContentView の
-            // ゲートで隠れるが、store.diffText に古い本文が残ると次に ON にした瞬間だけ
-            // 取り直し前の差分が見える。
+            // ゲートで隠れるが、store.diffContent に古い本文が残ると次に ON にした瞬間だけ
+            // 取り直し前の差分が見える。未確定(.pending)の解消は、この 3 つの bail 経路の
+            // いずれでも別の書き手(モード離脱の applyDisplayMode / 切替の openFile)が先行する。
             guard let self, currentURL() == url, isDiffShown else { return }
-            store.diffText = Self.displayableDiff(result)
+            store.diffContent = Self.displayableDiff(result)
         }
     }
 
     /// 取得結果のうち、差分として描けるのは本文があるものだけ。
-    /// それ以外（未追跡・バイナリ・変更なし・大きすぎる・取得できない）は nil にして
+    /// それ以外（未追跡・バイナリ・変更なし・大きすぎる・取得できない）は `.unavailable` にして
     /// 通常のソース表示へ戻す。理由ごとの表示分けは行わない（TASK-315 の次段）。
-    static func displayableDiff(_ result: GitFileDiff?) -> String? {
-        guard case let .diff(text) = result else { return nil }
-        return text
+    static func displayableDiff(_ result: GitFileDiff?) -> ViewerDiffContent {
+        guard case let .diff(text) = result else { return .unavailable }
+        return .diff(text)
     }
 }

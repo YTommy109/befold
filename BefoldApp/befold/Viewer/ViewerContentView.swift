@@ -27,8 +27,12 @@ struct ViewerContentView: View {
     /// レンダラへ渡す差分の状態。差分表示モードでなければ本文があっても差分を出さない
     /// (取得側が止まっていても、表示側でも同じ答えになるようにする)。
     private var diffState: ViewerRenderer.DiffState {
-        guard store.showsDiff, let text = store.diffText else { return .none }
-        return ViewerRenderer.DiffState(text: text, layout: diffDisplayPreference.layout)
+        guard store.showsDiff else { return .none }
+        switch store.diffContent {
+        case .unavailable: return .none
+        case .pending: return .pending
+        case let .diff(text): return ViewerRenderer.DiffState(text: text, layout: diffDisplayPreference.layout)
+        }
     }
 
     /// プレビューエリアが表示すべき対象。導出は FileListModel に 1 つだけ置く(ADR 0002)。

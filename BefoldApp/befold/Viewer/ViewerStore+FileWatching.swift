@@ -14,7 +14,7 @@ extension ViewerStore {
         // 差分は表示中ファイルに紐づくため、対象が変わった時点で捨てる。
         // 取得は非同期で、着地までの間ここに残っていると前のファイルの差分が
         // 新しいファイルの内容として描画される。
-        diffText = nil
+        diffContent = .unavailable
         setPendingURL(url)
         pendingFileType = FileType(url: url)
         loadContent()

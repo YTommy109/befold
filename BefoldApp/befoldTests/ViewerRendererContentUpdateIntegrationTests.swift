@@ -273,6 +273,47 @@ struct ViewerRendererContentUpdateIntegrationTests {
         #expect(sources.contains { $0.contains("_mmdMonoFontFamily") && $0.contains("Menlo") })
         #expect(sources.contains { $0.contains("_mmdCodeFontSize") && $0.contains("14") })
     }
+
+    /// レンダリング表示から差分表示への切替では、差分が確定するまで前の描画を保持し、
+    /// 確定後に一度で差分付きソース表示へ遷移する。ミラーの遷移列に
+    /// 「isSourceMode=true + 差分なし」の中間状態(一瞬見えるプレーンなソース表示)が
+    /// 現れないことを固定する(TASK-407)。
+    @Test("差分が未確定の間は前の描画を保持し、確定後に一度で差分付きへ遷移する")
+    func pendingDiffHoldsPreviousFrameUntilResolved() async {
+        let renderer = ViewerRenderer()
+        _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        await Self.waitForWebViewLoad { renderer.readiness.isReady }
+        let url = URL(fileURLWithPath: "/tmp/task407-hold/doc.md")
+        let update = { (isSourceMode: Bool) in
+            renderer.updateContent(
+                "# doc", contentRevision: 1, fileType: .markdown, filePath: url,
+                hasDeclaredHTMLCharset: nil, isSourceMode: isSourceMode, showLineNumbers: false,
+                truncation: Self.truncation
+            )
+        }
+
+        // 1) レンダリング表示を描画・確定させる(差分表示へ切り替える直前の状態)。
+        update(false)
+        await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 1 }
+        #expect(renderer.rendered.isSourceMode == false)
+
+        // 2) 差分表示へ切替(未確定)。描画は見送られ、ミラーは前の表示のまま動かない。
+        renderer.diffState = .pending
+        update(true)
+        await yieldMainActor()
+        #expect(renderer.rendered.isSourceMode == false)
+        #expect(renderer.rendered.diffState == ViewerRenderer.DiffState.none)
+
+        // 3) 差分が確定したら、一度の描画で差分付きソース表示へ遷移する。
+        let diff = ViewerRenderer.DiffState(
+            text: "diff --git a/doc.md b/doc.md\n--- a/doc.md\n+++ b/doc.md\n@@ -1 +1 @@\n-old\n+new\n",
+            layout: .inline
+        )
+        renderer.diffState = diff
+        update(true)
+        await Self.waitForWebViewLoad { renderer.rendered.diffState == diff }
+        #expect(renderer.rendered.isSourceMode == true)
+    }
 }
 
 /// readData を意図的に足止めし、embedLocalImages(Task.detached 内)の完了タイミングを

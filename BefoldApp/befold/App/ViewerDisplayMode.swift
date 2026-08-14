@@ -9,9 +9,9 @@ import Foundation
 /// 型として作れなくする（この不変条件を守るためのテストは不要になる）。
 ///
 /// レンダラ（BefoldRenderKit）へはこの型を渡さない。RenderKit と QuickLook 拡張は
-/// `isSourceMode: Bool` + `DiffState?` の 2 入力で表示を決めており、差分の有無は
-/// 既に `DiffState?` が表現している。3 値をあちらへ押し込むと appex まで巻き込むため、
-/// この型は本体アプリ層に閉じる。
+/// `isSourceMode: Bool` + `DiffState` の 2 入力で表示を決めており、差分の状態
+/// （なし・未確定・あり）は既に `DiffState` が表現している。3 値をあちらへ押し込むと
+/// appex まで巻き込むため、この型は本体アプリ層に閉じる。
 enum ViewerDisplayMode: String, CaseIterable, Sendable {
     /// レンダリング表示（Markdown/Mermaid などを描画した状態）。
     case rendered

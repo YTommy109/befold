@@ -45,7 +45,7 @@ struct ViewerStoreTests {
     /// 差分は表示中ファイルに紐づく。取得は非同期なので、切替時に捨てておかないと
     /// 着地までの間、前のファイルの差分が新しいファイルの内容として描画される。
     @Test("別ファイルを開くと前のファイルの差分を捨てる")
-    func openFileClearsDiffText() async {
+    func openFileClearsDiffContent() async {
         let first = URL(fileURLWithPath: "/files/first.swift")
         let second = URL(fileURLWithPath: "/files/second.swift")
         let reader = InMemoryFileReader()
@@ -54,11 +54,11 @@ struct ViewerStoreTests {
 
         let store = makeStore(reader: reader)
         await openAndLoad(store, first)
-        store.diffText = "@@ -1 +1 @@\n-let a = 0\n+let a = 1\n"
+        store.diffContent = .diff("@@ -1 +1 @@\n-let a = 0\n+let a = 1\n")
 
         await openAndLoad(store, second)
 
-        #expect(store.diffText == nil)
+        #expect(store.diffContent == .unavailable)
 
         store.close()
     }

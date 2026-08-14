@@ -157,7 +157,7 @@ struct ViewerWindowControllerDiffTests {
         ).controller
         defer { controller.close() }
         presentDocument(in: controller, file: file)
-        controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
+        controller.store.diffContent = .diff("@@ -1 +1 @@\n-a\n+b\n")
 
         // SidebarNavigator が git 状態を反映したときに呼ぶ経路(protocol 必須メソッド)。
         controller.gitContextDidChange()
@@ -166,7 +166,7 @@ struct ViewerWindowControllerDiffTests {
         // スレッドの空き待ちで待たされる。壁時計の予算で待つと 120 秒でも足りずに落ちた
         // (TASK-437)。反映タスクそのものを待って、予算という不確かな軸を外す。
         await controller.diffRefreshTask?.value
-        #expect(controller.store.diffText == nil)
+        #expect(controller.store.diffContent == .unavailable)
     }
 
     /// 差分表示モードでなければ git を起こさない。契機がバッジと同数へ増えたため、
@@ -179,15 +179,15 @@ struct ViewerWindowControllerDiffTests {
         let controller = makeController(preference: preference, diffReader: reader)
         defer { controller.close() }
         presentDocument(in: controller, file: file)
-        controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
+        controller.store.diffContent = .diff("@@ -1 +1 @@\n-a\n+b\n")
 
         controller.setDisplayMode(.source)
 
         #expect(!controller.isDiffShown)
-        #expect(controller.store.diffText == nil)
+        #expect(controller.store.diffContent == .unavailable)
         controller.refreshDiff()
         #expect(reader.callCount == 0)
-        #expect(controller.store.diffText == nil)
+        #expect(controller.store.diffContent == .unavailable)
     }
 
     /// CSV/TSV は文書を提示していてソース表示中でも差分を描けない(viewer 側が
@@ -208,12 +208,12 @@ struct ViewerWindowControllerDiffTests {
         }
         #expect(controller.store.showsCodeContent)
         #expect(!controller.capabilities.canSelectDiffMode)
-        controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
+        controller.store.diffContent = .diff("@@ -1 +1 @@\n-a\n+b\n")
 
         controller.refreshDiff()
 
         #expect(reader.callCount == 0)
-        #expect(controller.store.diffText == nil)
+        #expect(controller.store.diffContent == .unavailable)
     }
 
     /// 種別ゲート(CSV/TSV)は切替**先**のファイルで判定する。`store.contentState.fileType` は
@@ -262,7 +262,7 @@ struct ViewerWindowControllerDiffTests {
     }
 
     /// Markdown/SVG/HTML は「ソース表示中」でないと差分を描けないため、レンダリング表示中の
-    /// refreshDiff は取得せず diffText を捨てる。モード切替が差分の取り直しを起こさないと、
+    /// refreshDiff は取得せず差分本文を捨てる。モード切替が差分の取り直しを起こさないと、
     /// ソース表示へ切り替えても差分が出ず、保存・`.git/index` 変更など無関係な契機が
     /// 来るまで素のソースのままになる(TASK-337)。
     @Test("差分表示へ切り替えたら差分を取り直す")
