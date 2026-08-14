@@ -30,6 +30,13 @@ public enum AppLinks {
     /// 導線が常に出ており、そこから DMG を直接取得されると配布サイトの統計に載らないため。
     public static let help = URL(string: siteOrigin + "/?ref=help")!
 
+    /// Help > GitHub Issues の遷移先。不具合報告・要望の受け口。
+    ///
+    /// `homepage` / `help` と違い `?ref=` を付けない。ref は配布サイト Worker が
+    /// 自前で集計するための印であり、遷移先が GitHub の場合はこちらから内訳を
+    /// 読めない。読めない印を付けると「付いているから数えられている」と誤解される。
+    public static let issues = URL(string: "https://github.com/YTommy109/befold/issues")!
+
     /// 作者(tommy109)の GitHub プロフィール。About パネルのクレジット表記から遷移する。
     public static let author = URL(string: "https://github.com/YTommy109")!
 }

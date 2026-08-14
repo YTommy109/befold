@@ -3,6 +3,7 @@ import AppKit
 /// Help メニュー配下の各項目のアクション。パラメータ数を抑えるために 1 つにまとめる。
 struct MainMenuHelpActions {
     let visitWebsite: Selector
+    let githubIssues: Selector
     let featureOverview: Selector
     let keyboardShortcuts: Selector
     let aiIntegration: Selector
@@ -182,6 +183,7 @@ enum MainMenuBuilder {
         menu.addLocalizedItem("menu.help.aiIntegration", action: actions.aiIntegration)
         menu.addItem(.separator())
         menu.addLocalizedItem("menu.help.visitWebsite", action: actions.visitWebsite, keyEquivalent: "?")
+        menu.addLocalizedItem("menu.help.githubIssues", action: actions.githubIssues)
         menu.addLocalizedItem("menu.help.ossAcknowledgements", action: actions.ossAcknowledgements)
         NSApp.helpMenu = menu
         return item
