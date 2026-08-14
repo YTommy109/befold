@@ -134,11 +134,11 @@ Worker が appcast を改変せずに返していることを、**配信の正�
 ```bash
 # stable
 npx wrangler r2 object get befold-dist/appcast.xml --remote --pipe | shasum -a 256
-curl -fsS https://befold.tommy109.workers.dev/appcast.xml | shasum -a 256
+curl -fsS https://befold.degino.com/appcast.xml | shasum -a 256
 
 # develop
 npx wrangler r2 object get befold-dist/appcast-develop.xml --remote --pipe | shasum -a 256
-curl -fsS https://befold.tommy109.workers.dev/appcast-develop.xml | shasum -a 256
+curl -fsS https://befold.degino.com/appcast-develop.xml | shasum -a 256
 ```
 
 比較先を GitHub Releases 上の appcast にしてはならない。GitHub 直の appcast は

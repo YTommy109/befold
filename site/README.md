@@ -5,7 +5,7 @@
 befold の配布 LP・ダウンロード計測・appcast プロキシ・分析ダッシュボードを
 1 つの Cloudflare Worker（Hono / TypeScript）で提供する。
 
-公開 URL: <https://befold.tommy109.workers.dev>（独自ドメインは使わない）
+公開 URL: <https://befold.degino.com>（旧 URL <https://befold.tommy109.workers.dev> も恒久的に併存する。理由は [ADR 0007](../docs/adr/0007-distribution-site-custom-domain.md)）
 
 ## ルート
 
@@ -184,7 +184,7 @@ OAuth ログインを開けず `CLOUDFLARE_API_TOKEN` の未設定で失敗す�
 
 ## staging 環境
 
-公開 URL: <https://befold-staging.tommy109.workers.dev>
+公開 URL: <https://staging.befold.degino.com>（旧 URL <https://befold-staging.tommy109.workers.dev> も併存する）
 
 本番の分析データを汚さずに、シークレット・バインディング・実 D1・マイグレーション
 適用順序といった「本番にしか存在しない条件」を確認するための環境。デプロイ後の

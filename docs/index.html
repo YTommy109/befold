@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>befold — 移転しました</title>
-  <meta name="description" content="befold の紹介ページは https://befold.tommy109.workers.dev/ へ移転しました。">
+  <meta name="description" content="befold の紹介ページは https://befold.degino.com/ へ移転しました。">
   <!--
     紹介 LP の実体は site/ の Cloudflare Worker に移した。ここはリダイレクト専用。
     GitHub Pages は静的ホスティングで 301 を返せないため、meta refresh と JS の
     両方を置き、どちらも効かない場合に手動リンクが残るようにしている。
     ?ref=gh-pages は配布サイト側で Pages 経由の流入を数えるための印。
   -->
-  <meta http-equiv="refresh" content="0; url=https://befold.tommy109.workers.dev/?ref=gh-pages">
-  <link rel="canonical" href="https://befold.tommy109.workers.dev/">
+  <meta http-equiv="refresh" content="0; url=https://befold.degino.com/?ref=gh-pages">
+  <link rel="canonical" href="https://befold.degino.com/">
   <style>
     body {
       margin: 0;
@@ -45,13 +45,13 @@
   <h1>befold</h1>
   <p>紹介ページは移転しました。</p>
   <p>
-    <a href="https://befold.tommy109.workers.dev/?ref=gh-pages">https://befold.tommy109.workers.dev/</a>
+    <a href="https://befold.degino.com/?ref=gh-pages">https://befold.degino.com/</a>
   </p>
 </main>
 
 <script>
   // meta refresh は履歴に残るブラウザがあるため、JS が使えるときは replace で置き換える。
-  location.replace('https://befold.tommy109.workers.dev/?ref=gh-pages');
+  location.replace('https://befold.degino.com/?ref=gh-pages');
 </script>
 
 </body>
