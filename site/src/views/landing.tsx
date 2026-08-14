@@ -1,7 +1,7 @@
 import type { FC } from 'hono/jsx'
 import { html, raw } from 'hono/html'
 import {
-  DOWNLOAD_URL,
+  DOWNLOAD_PATH,
   FEATURES,
   LANG_SCRIPT,
   MORE_FEATURES,
@@ -51,7 +51,7 @@ function structuredData(origin: string): string {
     url: `${origin}/`,
     applicationCategory: 'DeveloperApplication',
     operatingSystem: REQUIRED_OS,
-    downloadUrl: DOWNLOAD_URL,
+    downloadUrl: `${origin}${DOWNLOAD_PATH}`,
     softwareHelp: REPO_URL,
     image: `${origin}/images/ogp.png`,
     license: 'https://opensource.org/licenses/MIT',
@@ -110,7 +110,7 @@ export const Landing: FC<{ origin: string }> = ({ origin }) => (
               files.
             </p>
           </div>
-          <a href={DOWNLOAD_URL} class="btn-primary">
+          <a href={DOWNLOAD_PATH} class="btn-primary">
             <span lang="ja">Mac 版をダウンロード</span>
             <span lang="en" hidden>
               Download for Mac
@@ -270,7 +270,7 @@ export const Landing: FC<{ origin: string }> = ({ origin }) => (
             <h3>インストール</h3>
             <ol>
               <li>
-                <a href={DOWNLOAD_URL}>最新版をダウンロード</a>
+                <a href={DOWNLOAD_PATH}>最新版をダウンロード</a>
               </li>
               <li>
                 DMG を開き、<code>befold.app</code> を <code>/Applications</code>{' '}
@@ -282,7 +282,7 @@ export const Landing: FC<{ origin: string }> = ({ origin }) => (
             <h3>Installation</h3>
             <ol>
               <li>
-                <a href={DOWNLOAD_URL}>Download the latest version</a>
+                <a href={DOWNLOAD_PATH}>Download the latest version</a>
               </li>
               <li>
                 Open the DMG and copy <code>befold.app</code> to <code>/Applications</code> to

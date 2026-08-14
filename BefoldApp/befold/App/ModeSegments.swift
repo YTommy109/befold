@@ -3,18 +3,11 @@ import AppKit
 /// モード切替セグメントに並べる表示モードと、その順序。
 ///
 /// セグメントの添字はこの配列の添字で解決し、`ViewerDisplayMode` の値そのものからは導かない。
-/// 差分セグメントはフィーチャーゲートが無効なビルドでは**存在しない**ため、
-/// モードと添字の対応が固定ではないからである(添字を列挙の rawValue に直結させると、
-/// stable ビルドでソースを選んだつもりで差分が選ばれるような静かな取り違えになる)。
+/// 並びと個数を決めるのは `all` だけであり、添字を列挙の rawValue に直結させると、
+/// 並びを変えた瞬間にソースを選んだつもりで差分が選ばれるような静かな取り違えになる。
 @MainActor
 enum ModeSegments {
-    static let all: [ViewerDisplayMode] = modes(isSourceDiffEnabled: FeatureGate.isSourceDiffEnabled)
-
-    /// テスト可能な純粋判定。実ビルドではゲートが片側に固定されるため、両分岐はここで検証する
-    /// （ゲート越しの検証は動いているビルドの側しか通らない）。
-    static func modes(isSourceDiffEnabled: Bool) -> [ViewerDisplayMode] {
-        isSourceDiffEnabled ? [.rendered, .source, .diff] : [.rendered, .source]
-    }
+    static let all: [ViewerDisplayMode] = [.rendered, .source, .diff]
 
     /// セグメントの表示に使う SF Symbol 名。
     ///
@@ -22,8 +15,7 @@ enum ModeSegments {
     /// インラインは 1 カラムに +/- 行が混ざる見た目、左右分割は 2 面の分割そのもので、
     /// どちらのアイコンもそのレイアウトを写している。これによりセグメントが
     /// 「いまどちらのレイアウトか」の表示を兼ね、独立したレイアウトボタンが要らなくなる。
-    /// レイアウトを引数で受けるのは、両方の状態をユニットテストで押さえるため
-    /// (`modes(isSourceDiffEnabled:)` と同じ理由)。
+    /// レイアウトを引数で受けるのは、両方の状態をユニットテストで押さえるため。
     static func symbol(for mode: ViewerDisplayMode, isSideBySide: Bool) -> String {
         switch mode {
         case .rendered: "doc.richtext"
@@ -42,7 +34,7 @@ enum ModeSegments {
     ///
     /// 差分表示中に差分セグメントを押し直したときだけレイアウト切替になる。判定を
     /// 純粋関数にしているのは、AppKit のイベントを起こさずに両方の分岐を
-    /// テストで押さえるため（`modes(isSourceDiffEnabled:)` と同じ理由）。
+    /// テストで押さえるため。
     static func action(for tapped: ViewerDisplayMode, current: ViewerDisplayMode) -> SegmentAction {
         tapped == .diff && current == .diff ? .toggleDiffLayout : .select(tapped)
     }

@@ -1,2 +1,5 @@
-DASHBOARD_USER="owner"
-DASHBOARD_PASSWORD="local-dev-password"
+# ローカル開発では Access を経由しないため、/dashboard はホストが localhost の
+# ときだけ素通しになる（src/routes/dashboard.tsx）。Access の検証を手元で試す
+# 場合のみ、実際の team domain と AUD を入れる。
+ACCESS_TEAM_DOMAIN=""
+ACCESS_AUD=""

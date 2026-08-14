@@ -99,7 +99,7 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     ///
     /// 差分機能のフィーチャーゲートはこの構成を変えない。差分レイアウトの切替は
     /// 独立したアイテムではなくモード切替セグメント（差分セグメントの再クリック）が担い、
-    /// 差分セグメント自体の有無は `ModeSegments.modes(isSourceDiffEnabled:)` が決めるため。
+    /// 差分セグメント自体の有無は `ModeSegments.all` が決めるため。
     private static let layout: [ToolbarEntry] = [
         .system(.toggleSidebar), .system(.sidebarTrackingSeparator),
         .item(ToolbarItemSpec(

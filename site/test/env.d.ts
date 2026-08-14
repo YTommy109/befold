@@ -14,6 +14,8 @@ declare global {
       TEST_BOOKMARK_SHORTCUT_SWIFT: string
       /** ボット除外が 1 箇所に集約されているかの検査に使う集計クエリ本体。 */
       TEST_ANALYTICS_SOURCE: string
+      /** 公開面（Custom Domain / workers.dev）の設定を検査する wrangler.toml 本文。 */
+      TEST_WRANGLER_TOML: string
     }
   }
 }

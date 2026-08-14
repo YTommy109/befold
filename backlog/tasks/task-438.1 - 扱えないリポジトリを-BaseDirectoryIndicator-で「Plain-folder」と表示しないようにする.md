@@ -4,13 +4,15 @@ title: 扱えないリポジトリを BaseDirectoryIndicator で「Plain folder�
 status: To Do
 assignee: []
 created_date: '2026-08-13 13:59'
+updated_date: '2026-08-14 05:49'
 labels:
   - ux
   - git
 dependencies: []
 parent_task_id: TASK-438
 priority: medium
-ordinal: 101100
+type: bug
+ordinal: 110100
 ---
 
 ## Description

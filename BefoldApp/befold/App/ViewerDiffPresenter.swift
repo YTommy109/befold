@@ -49,10 +49,6 @@ final class ViewerDiffPresenter {
     }
 
     /// 差分表示モードかどうか（メニューのチェック表示に使う）。
-    ///
-    /// 表示モード（ファイル単位のユーザー選択）であり、ビルドゲート側の
-    /// `isSourceDiffEnabled`（差分機能を露出するか）とは別物。
-    /// 同名にすると無修飾参照でどちらにも解決しうるため、名前を分けている（TASK-323）。
     var isDiffShown: Bool {
         store.showsDiff
     }

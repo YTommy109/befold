@@ -34,7 +34,7 @@ struct ViewerWindowControllerSourceModeTests {
     @Test("直接開いた場合も保存済みのソース表示モードが復元される")
     func openingFileDirectlyRestoresSavedSourceMode() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests")
-        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        let displayModeStore = DisplayModeStore(defaults: defaults)
         displayModeStore.setDisplayMode(.source, for: file)
 
         let controller = makeController(file: file, displayModeStore: displayModeStore, defaults: defaults)
@@ -63,7 +63,7 @@ struct ViewerWindowControllerSourceModeTests {
     @Test("switchFile は旧・新ファイルの保存済みソース表示モードを破壊しない")
     func switchFilePreservesSavedSourceModeForBothFiles() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests")
-        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        let displayModeStore = DisplayModeStore(defaults: defaults)
         displayModeStore.setDisplayMode(.source, for: file1)
         displayModeStore.setDisplayMode(.rendered, for: file2)
         let controller = makeController(
@@ -83,12 +83,11 @@ struct ViewerWindowControllerSourceModeTests {
     /// B はレンダリング表示なのに差分フラグだけ立っている状態になっていた。
     /// この粒度が壊れたらここが落ちる。
     @Test("差分表示はファイル単位で記憶され、別ファイルへ移っても引き継がれない")
-    func diffModeIsRememberedPerFile() throws {
-        try #require(FeatureGate.isSourceDiffEnabled)
+    func diffModeIsRememberedPerFile() {
         let swift1 = URL(fileURLWithPath: "/mock/first.swift")
         let swift2 = URL(fileURLWithPath: "/mock/second.swift")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.diff")
-        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        let displayModeStore = DisplayModeStore(defaults: defaults)
         let controller = ViewerWindowControllerFixture(
             file: swift1, extraFiles: [swift2], contents: "let a = 1",
             defaults: defaults, displayModeStore: displayModeStore
@@ -121,7 +120,7 @@ struct ViewerWindowControllerSourceModeTests {
     func selectingAlreadyShownSourceModeOnCodeFileIsNoOp() async {
         let code = URL(fileURLWithPath: "/mock/sample.swift")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.code")
-        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        let displayModeStore = DisplayModeStore(defaults: defaults)
         let controller = ViewerWindowControllerFixture(
             file: code, contents: "let a = 1", defaults: defaults, displayModeStore: displayModeStore
         ).controller
@@ -144,11 +143,10 @@ struct ViewerWindowControllerSourceModeTests {
 
     /// 上の no-op 化が、コード種別からの正当な遷移まで塞いでいないことを押さえる。
     @Test("コード種別でも差分への遷移は従来どおり行われる")
-    func selectingDiffModeOnCodeFileStillTransitions() throws {
-        try #require(FeatureGate.isSourceDiffEnabled)
+    func selectingDiffModeOnCodeFileStillTransitions() {
         let code = URL(fileURLWithPath: "/mock/sample.swift")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.code")
-        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        let displayModeStore = DisplayModeStore(defaults: defaults)
         let controller = ViewerWindowControllerFixture(
             file: code, contents: "let a = 1", defaults: defaults, displayModeStore: displayModeStore
         ).controller
@@ -164,11 +162,10 @@ struct ViewerWindowControllerSourceModeTests {
     /// 保存値を .rendered で上書きするため、戻り先を保存値から読むと必ず .source に落ち、
     /// そのファイルの .diff が永久に失われる。戻り先の記憶が壊れたらここが落ちる。
     @Test("差分表示中の cmd+U 往復で差分表示に戻り、保存値の .diff も残る")
-    func toggleSourceViewRoundTripPreservesDiffMode() throws {
-        try #require(FeatureGate.isSourceDiffEnabled)
+    func toggleSourceViewRoundTripPreservesDiffMode() {
         let code = URL(fileURLWithPath: "/mock/sample.swift")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.roundTrip")
-        let displayModeStore = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        let displayModeStore = DisplayModeStore(defaults: defaults)
         let controller = ViewerWindowControllerFixture(
             file: code, contents: "let a = 1", defaults: defaults, displayModeStore: displayModeStore
         ).controller
@@ -189,13 +186,12 @@ struct ViewerWindowControllerSourceModeTests {
     /// 戻り先の記憶はソース系モードへ入った時点で捨てる。捨てないと、往復の間に
     /// ⌘2 で source を選び直しても次の往復が差分へ戻ってしまう。
     @Test("往復の間に source を明示選択したら、その後の cmd+U は差分へ戻らない")
-    func explicitSourceSelectionClearsRememberedDiffTarget() throws {
-        try #require(FeatureGate.isSourceDiffEnabled)
+    func explicitSourceSelectionClearsRememberedDiffTarget() {
         let code = URL(fileURLWithPath: "/mock/sample.swift")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.clearTarget")
         let controller = ViewerWindowControllerFixture(
             file: code, contents: "let a = 1", defaults: defaults,
-            displayModeStore: DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+            displayModeStore: DisplayModeStore(defaults: defaults)
         ).controller
         defer { controller.close() }
 
@@ -213,14 +209,13 @@ struct ViewerWindowControllerSourceModeTests {
     /// 記憶はファイル単位。別ファイルへ移った先で cmd+U が前のファイルの差分表示を
     /// 引き継がないこと(粒度が壊れたらここが落ちる)。
     @Test("cmd+U の戻り先は別ファイルへ引き継がれない")
-    func rememberedToggleTargetDoesNotLeakAcrossFiles() throws {
-        try #require(FeatureGate.isSourceDiffEnabled)
+    func rememberedToggleTargetDoesNotLeakAcrossFiles() {
         let swift1 = URL(fileURLWithPath: "/mock/first.swift")
         let swift2 = URL(fileURLWithPath: "/mock/second.swift")
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.leak")
         let controller = ViewerWindowControllerFixture(
             file: swift1, extraFiles: [swift2], contents: "let a = 1", defaults: defaults,
-            displayModeStore: DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+            displayModeStore: DisplayModeStore(defaults: defaults)
         ).controller
         defer { controller.close() }
 

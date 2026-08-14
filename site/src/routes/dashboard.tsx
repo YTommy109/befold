@@ -1,31 +1,74 @@
 import { Hono } from 'hono'
-import { basicAuth } from 'hono/basic-auth'
 import type { AppEnv } from '../index'
 import { STREAM_LIMIT, eventsAfter, maxEventId, summarize } from '../analytics'
+import { verifyAccessJwt } from '../lib/access'
+import { LEGACY_HOST, LEGACY_STAGING_HOST } from '../lib/hosts'
 import { Dashboard, renderSummarySections } from '../views/dashboard'
 
 /** SSE のポーリング間隔と、1 接続あたりの最大保持時間。 */
 const POLL_INTERVAL_MS = 2500
 const MAX_STREAM_MS = 10 * 60 * 1000
 
+/** Access が認証済みリクエストに付ける JWT のヘッダ名。 */
+const ACCESS_JWT_HEADER = 'Cf-Access-Jwt-Assertion'
+
+/** ローカル開発でだけ素通しするホスト。 */
+const LOCAL_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '[::1]'])
+
 export const dashboardRoutes = new Hono<AppEnv>()
 
 /**
  * ダッシュボードを所有者だけに限定する。
  *
- * 配信先が *.workers.dev（Cloudflare 所有ドメイン）で Cloudflare Access を
- * 設定できないため、Worker 側の Basic 認証で保護する。パスワードは
- * `wrangler secret put DASHBOARD_PASSWORD` で設定し、コードには持たない。
- * 未設定のまま公開されると素通しになるので、その場合は 503 で閉じる。
+ * 保護は 2 段で成り立つ（ADR 0007 の決定 5）。
+ *
+ * 1. Cloudflare Access の self-hosted アプリケーションが `befold.degino.com/dashboard`
+ *    と `/dashboard/*` の 2 本を保護する（ワイルドカードは親パスを含まないため
+ *    2 本必要）。
+ * 2. Worker 側が `Cf-Access-Jwt-Assertion` を検証する。Access を張っても Worker が
+ *    素通しでは、Access を経由しない経路で無防備になる。
+ *
+ * 旧ホスト（workers.dev）では 404 を返す。旧ホストは出荷済みアプリの更新経路の
+ * ために恒久的に生かすが（同決定 1）、ダッシュボードは新ドメイン専用とし、
+ * 保護面を 1 つに畳む。301 で送らないのは、保護対象の入口を 2 つに増やさない
+ * ため。
+ *
+ * かつてここは Basic 認証（シークレット `DASHBOARD_PASSWORD`）だった。当時の
+ * コメントは「workers.dev には Access を設定できない」を根拠に挙げていたが、
+ * これは誤り（Cloudflare のドキュメントは workers.dev URL への Access 有効化
+ * 手順を明記している）。旧ホストで Access を張らないのは技術的な不可能性では
+ * なく、上の「保護面を 1 つに畳む」という判断による。
  */
 dashboardRoutes.use('*', async (c, next) => {
-  const password = c.env.DASHBOARD_PASSWORD
-  if (password === undefined || password.length === 0) {
-    return c.text('dashboard password is not configured', 503)
+  const host = new URL(c.req.url).host
+
+  if (host === LEGACY_HOST || host === LEGACY_STAGING_HOST) {
+    // ASSETS への委譲（app.notFound）に落とさず、ここで確定的に 404 を返す。
+    return c.text('not found', 404)
   }
 
-  const auth = basicAuth({ username: c.env.DASHBOARD_USER ?? 'owner', password })
-  return await auth(c, next)
+  const teamDomain = c.env.ACCESS_TEAM_DOMAIN
+  const aud = c.env.ACCESS_AUD
+  if (teamDomain === undefined || teamDomain.length === 0 || aud === undefined || aud.length === 0) {
+    // 設定が無い状態では閉じる。素通しにすると、設定漏れが「動いている」形で
+    // 表に出てしまう。ローカル開発（wrangler dev）だけは、ホストも
+    // localhost であることを併せて確かめたうえで通す。設定済みの本番では
+    // ホストに関わらずこの分岐に入らない。
+    if (LOCAL_HOSTS.has(host.split(':')[0] ?? '')) return await next()
+    return c.text('Cloudflare Access is not configured', 503)
+  }
+
+  const token = c.req.header(ACCESS_JWT_HEADER)
+  if (token === undefined || token.length === 0) {
+    return c.text('missing Cloudflare Access assertion', 401)
+  }
+
+  const claims = await verifyAccessJwt(token, { teamDomain, aud })
+  if (claims === undefined) {
+    return c.text('invalid Cloudflare Access assertion', 403)
+  }
+
+  return await next()
 })
 
 dashboardRoutes.get('/', async (c) => {

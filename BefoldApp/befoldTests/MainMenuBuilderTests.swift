@@ -128,64 +128,38 @@ struct MainMenuBuilderTests {
         }
     }
 
-    /// git 変更のみ表示は開発中機能(サイドバーの git ステータス)に依存するため、
-    /// 露出はフィーチャーゲートと一致しなければならない(TASK-264、解除は TASK-187)。
-    @Test("View メニューの「変更されたファイルのみ表示」はフィーチャーゲートと同じ有無になる")
-    func viewMenuGatesChangedFilesOnlyItem() throws {
+    /// 「変更されたファイルのみ表示」は常に View メニューへ出る(TASK-187 でゲートを撤去)。
+    @Test("View メニューに「変更されたファイルのみ表示」が ⌃⌘G で出る")
+    func viewMenuHasChangedFilesOnlyItem() throws {
         let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
 
-        let item = view.items.first { $0.action == #selector(AppDelegate.toggleChangedFilesOnly(_:)) }
-        #expect((item != nil) == FeatureGate.isSidebarGitStatusEnabled)
-        if let item {
-            #expect(item.keyEquivalent == "g")
-            #expect(item.keyEquivalentModifierMask == [.command, .control])
-        }
-    }
-
-    /// AC#3: stable ビルド(ゲート OFF)では「変更されたファイルのみ表示」が View メニューに
-    /// 出ない。実ビルドではゲートが片側に固定されるため、両分岐は注入点で検証する
-    /// (ゲート越しの検証は動いているビルドの側しか通らない = 表示モードと同じ理由)。
-    @Test("「変更されたファイルのみ表示」の露出はゲートの両方向で正しい", arguments: [true, false])
-    func changedFilesOnlyExposureFollowsGateInBothDirections(isChangedFilesOnlyAvailable: Bool) throws {
-        let view = try #require(
-            MainMenuBuilder.makeViewMenuItem(
-                isChangedFilesOnlyAvailable: isChangedFilesOnlyAvailable,
-                isTreeLayoutAvailable: false
-            ).submenu
+        let item = try #require(
+            view.items.first { $0.action == #selector(AppDelegate.toggleChangedFilesOnly(_:)) }
         )
-
-        let item = view.items.first { $0.action == #selector(AppDelegate.toggleChangedFilesOnly(_:)) }
-        #expect((item != nil) == isChangedFilesOnlyAvailable)
-        #expect(item?.keyEquivalent == (isChangedFilesOnlyAvailable ? "g" : nil))
-        #expect(item?.keyEquivalentModifierMask == (isChangedFilesOnlyAvailable ? [.command, .control] : nil))
+        #expect(item.keyEquivalent == "g")
+        #expect(item.keyEquivalentModifierMask == [.command, .control])
     }
 
-    /// サイドバーのツリー表示も同じ形(ゲート値を引数で受ける)であることを両方向で確かめる。
-    @Test("サイドバーのツリー表示の露出はゲートの両方向で正しい", arguments: [true, false])
-    func sidebarTreeLayoutExposureFollowsGateInBothDirections(isTreeLayoutAvailable: Bool) {
+    /// サイドバーのツリー表示は常に出る(TASK-187 でゲートを撤去)。⌃⌘T は他のサイドバー項目
+    /// (⌃⌘H / ⌃⌘G)と同じ ⌃⌘ 系に揃えてある(TASK-409)。
+    @Test("View メニューのサイドバー項目にツリー表示が ⌃⌘T で出る")
+    func sidebarItemsIncludeTreeLayout() throws {
         let menu = NSMenu()
-        MainMenuBuilder.addSidebarItems(
-            to: menu, isChangedFilesOnlyAvailable: false, isTreeLayoutAvailable: isTreeLayoutAvailable
-        )
+        MainMenuBuilder.addSidebarItems(to: menu)
 
-        let item = menu.items.first { $0.action == #selector(AppDelegate.toggleSidebarTreeLayout(_:)) }
-        #expect((item != nil) == isTreeLayoutAvailable)
-        // AC#1/#3: 露出するときは ⌃⌘T が付き、ゲート OFF では項目ごと(=ショートカットも)現れない。
-        #expect(item?.keyEquivalent == (isTreeLayoutAvailable ? "t" : nil))
-        #expect(item?.keyEquivalentModifierMask == (isTreeLayoutAvailable ? [.command, .control] : nil))
+        let item = try #require(
+            menu.items.first { $0.action == #selector(AppDelegate.toggleSidebarTreeLayout(_:)) }
+        )
+        #expect(item.keyEquivalent == "t")
+        #expect(item.keyEquivalentModifierMask == [.command, .control])
     }
 
-    /// AC#2: View メニュー内でキー等価(キー + 修飾キー)が重複していない。
-    /// ツリー表示に ⌃⌘T を足したことで既存の ⌃⌘H / ⌃⌘G / ⌃⌘F / ⌘S / ⌘[ / ⌘] と
-    /// 衝突していないことを、個別比較ではなくメニュー全体の重複検査で担保する。
-    @Test("View メニューのキー等価は重複しない", arguments: [true, false])
-    func viewMenuShortcutsAreUnique(isGateAvailable: Bool) throws {
-        let view = try #require(
-            MainMenuBuilder.makeViewMenuItem(
-                isChangedFilesOnlyAvailable: isGateAvailable,
-                isTreeLayoutAvailable: isGateAvailable
-            ).submenu
-        )
+    /// View メニュー内でキー等価(キー + 修飾キー)が重複していない。
+    /// ツリー表示の ⌃⌘T が既存の ⌃⌘H / ⌃⌘G / ⌃⌘F / ⌘S / ⌘[ / ⌘] と衝突していないことを、
+    /// 個別比較ではなくメニュー全体の重複検査で担保する。
+    @Test("View メニューのキー等価は重複しない")
+    func viewMenuShortcutsAreUnique() throws {
+        let view = try #require(MainMenuBuilder.makeViewMenuItem().submenu)
 
         let shortcuts = view.items
             .filter { !$0.keyEquivalent.isEmpty }
@@ -193,54 +167,25 @@ struct MainMenuBuilderTests {
         #expect(Set(shortcuts).count == shortcuts.count)
     }
 
-    /// 表示モードの選択(⌘1〜⌘3)とレイアウト切替(⌘\\)。差分は開発中機能なので、
-    /// 露出はフィーチャーゲートと一致しなければならない(解除タスクは未起票)。
-    @Test("View メニューの表示モード項目は ⌘1〜⌘3、差分とレイアウトはゲートと同じ有無になる")
+    /// 表示モードの選択(⌘1〜⌘3)とレイアウト切替(⌘\\)。並びと個数は ModeSegments.all が決める。
+    @Test("View メニューの表示モード項目は ⌘1〜⌘3、差分レイアウトは ⌘\\")
     func viewMenuHasDisplayModeItems() throws {
         let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
 
-        let modeItems = view.items.filter { $0.action == #selector(ViewerWindowController.selectDisplayMode(_:)) }
-        let expectedModes: [ViewerDisplayMode] = FeatureGate.isSourceDiffEnabled
-            ? [.rendered, .source, .diff]
-            : [.rendered, .source]
-        #expect(modeItems.map(\.tag) == expectedModes.map(\.menuItemTag))
-        for (item, mode) in zip(modeItems, expectedModes) {
+        let modeItems = view.items.filter {
+            $0.action == #selector(ViewerWindowController.selectDisplayMode(_:))
+        }
+        #expect(modeItems.map(\.tag) == ModeSegments.all.map(\.menuItemTag))
+        for (item, mode) in zip(modeItems, ModeSegments.all) {
             #expect(item.keyEquivalent == String(mode.menuItemTag))
             #expect(item.keyEquivalentModifierMask == [.command])
         }
 
-        let layout = view.items.first { $0.action == #selector(ViewerWindowController.toggleDiffLayout(_:)) }
-        #expect((layout != nil) == FeatureGate.isSourceDiffEnabled)
-        if let layout {
-            #expect(layout.keyEquivalent == "\\")
-            #expect(layout.keyEquivalentModifierMask == [.command])
-        }
-    }
-
-    /// AC#2: stable ビルド(ゲート OFF)では差分セグメントとレイアウト項目が現れない。
-    /// 実ビルドではゲートが片側に固定されるため、両分岐は注入点で検証する
-    /// (ゲート越しの検証は動いているビルドの側しか通らない = BookmarkShortcut と同じ理由)。
-    @Test("表示モードの露出はフィーチャーゲートの両方向で正しい", arguments: [
-        (isSourceDiffEnabled: true, modeCount: 3, hasLayout: true),
-        (isSourceDiffEnabled: false, modeCount: 2, hasLayout: false),
-    ])
-    func displayModeExposureFollowsGateInBothDirections(
-        isSourceDiffEnabled: Bool, modeCount: Int, hasLayout: Bool
-    ) {
-        // セグメント側(ツールバー)の並びと個数。
-        let modes = ModeSegments.modes(isSourceDiffEnabled: isSourceDiffEnabled)
-        #expect(modes.count == modeCount)
-        #expect(modes.contains(.diff) == isSourceDiffEnabled)
-        #expect(Array(modes.prefix(2)) == [.rendered, .source])
-
-        // メニュー側。⌘1〜⌘3 とレイアウト(⌘\\)の有無が同じ判定に従う。
-        let menu = NSMenu()
-        MainMenuBuilder.addDisplayModeItems(to: menu, isSourceDiffEnabled: isSourceDiffEnabled)
-        let modeItems = menu.items.filter { $0.action == #selector(ViewerWindowController.selectDisplayMode(_:)) }
-        #expect(modeItems.map(\.keyEquivalent) == modes.map { String($0.menuItemTag) })
-        let layout = menu.items.first { $0.action == #selector(ViewerWindowController.toggleDiffLayout(_:)) }
-        #expect((layout != nil) == hasLayout)
-        #expect(layout?.keyEquivalent == (hasLayout ? "\\" : nil))
+        let layout = try #require(
+            view.items.first { $0.action == #selector(ViewerWindowController.toggleDiffLayout(_:)) }
+        )
+        #expect(layout.keyEquivalent == "\\")
+        #expect(layout.keyEquivalentModifierMask == [.command])
     }
 
     /// 差分が ⌘3 へ移ったので ⌘D は空き、ブックマークはビルド種別によらず ⌘D に固定される。

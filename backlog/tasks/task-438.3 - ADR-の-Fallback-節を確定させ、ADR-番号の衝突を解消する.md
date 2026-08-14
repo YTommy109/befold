@@ -4,6 +4,7 @@ title: ADR の Fallback 節を確定させ、ADR 番号の衝突を解消する
 status: To Do
 assignee: []
 created_date: '2026-08-13 14:00'
+updated_date: '2026-08-14 05:49'
 labels:
   - docs
 dependencies:
@@ -11,7 +12,8 @@ dependencies:
   - TASK-438.2
 parent_task_id: TASK-438
 priority: medium
-ordinal: 101300
+type: docs
+ordinal: 110300
 ---
 
 ## Description

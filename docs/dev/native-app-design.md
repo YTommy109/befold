@@ -148,9 +148,8 @@ BefoldApp/
 | `GitRepository` | ルート解決・追跡ファイル列挙・worktree 一覧・`.git/index` fingerprint の問い合わせ |
 | `GitCommandFileIndex` | 追跡ファイル索引のキャッシュ。全ウィンドウ・Quick Open で 1 個を共有し `git ls-files` の重複実行を防ぐ |
 | `WorktreeCatalog` | 本体リポジトリごとの worktree 一覧キャッシュ（「最近使ったリポジトリ」メニューの階層表示用） |
-| `GitStatusReader` / `GitStatusStore` | `git status --porcelain=v2` によるファイル状態の取得と、リポジトリルート単位のキャッシュ（サイドバーの状態バッジの供給元。`FeatureGate` 配下） |
+| `GitStatusReader` / `GitStatusStore` | `git status --porcelain=v2` によるファイル状態の取得と、リポジトリルート単位のキャッシュ（サイドバーの状態バッジの供給元） |
 | `GitFolderStatus` | ファイル単位の状態から、フォルダー配下（再帰的）の変更有無を集約する純関数と値型（フォルダー行のバッジ用。git は呼ばない） |
-| `FeatureGate` | 開発中機能を露出してよいか（dev リリース or DEBUG ビルド）を判定する単一窓口 |
 
 ---
 
@@ -207,8 +206,7 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   `Cmd +/-`・`Ctrl + ホイール`・% 表示クリックでリセット。`ZoomStore` によりファイル単位で永続化
 - **検索**: 大文字小文字区別・単語一致・正規表現の3トグル、次/前移動
 - **表示モード切替**: ツールバーの 3 択セグメント（レンダリング / ソース / 差分）と `⌘1`〜`⌘3`。
-  `DisplayModeStore` でファイル単位に永続化する。差分は `FeatureGate.isSourceDiffEnabled` の内側で、
-  stable ビルドでは 2 択になる。差分レイアウト（上下/左右）は `⌘\\` とツールバーのトグルで切り替え、
+  `DisplayModeStore` でファイル単位に永続化する。差分レイアウト（上下/左右）は `⌘\\` とツールバーのトグルで切り替え、
   好みの設定としてアプリ全体で共有する（`DiffDisplayPreference`）。ソース相当の内容を出している間は
   行番号トグルを提供
 - **戻る/進むナビゲーション**: タブごとの履歴（`NavigationHistory`）、ツールバーボタン・履歴メニュー・

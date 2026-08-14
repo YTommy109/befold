@@ -22,8 +22,7 @@ struct SidebarNavigatorSyncAfterSwitchTests {
         childrenLister: @escaping @Sendable (URL, befold.SortOrder, Bool) async -> [FileListEntry]? = { _, _, _ in nil }
     ) -> (SidebarNavigator, SidebarNavigatorStubHost) {
         let preference = SidebarDisplayPreference(
-            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorSyncAfterSwitchTests"),
-            isTreeLayoutAvailable: true
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorSyncAfterSwitchTests")
         )
         preference.layoutMode = layoutMode
         let navigator = SidebarNavigator(

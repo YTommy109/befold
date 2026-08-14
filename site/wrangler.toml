@@ -3,10 +3,34 @@ main = "src/index.ts"
 compatibility_date = "2026-07-28"
 compatibility_flags = ["nodejs_compat"]
 
-# 独自ドメインは使わず、Cloudflare が用意する *.workers.dev で公開する。
-# workers.dev には Cloudflare Access を設定できないため、ダッシュボードは
-# Worker 側の Basic 認証（シークレット DASHBOARD_PASSWORD）で保護する。
+# 公開先は独自ドメイン befold.degino.com（下の routes）と、Cloudflare が用意する
+# *.workers.dev の 2 面。
+#
+# **workers_dev = true を消してはならない。** routes を書くと workers_dev は
+# 次回デプロイで false と推論される仕様があり（Cloudflare「workers.dev」）、
+# 明示指定しないと旧ホストが落ちる。旧ホストが落ちると、出荷済みアプリに
+# 焼き込まれた Sparkle フィード URL（befold.tommy109.workers.dev/appcast*.xml）と
+# 配信済み appcast の enclosure（/dl/*）が 404 になり、更新経路が止まる。
+# 停止時期は定めない（ADR 0007 の決定 1）。
+#
+# ダッシュボードの保護は Cloudflare Access（ADR 0007 の決定 5）。workers.dev にも
+# Access はかけられるが、保護面を 2 つ持つと片方だけ設定が抜ける形で破れるため、
+# ダッシュボードは新ドメイン専用とし旧ホストでは 404 を返す。
 workers_dev = true
+
+# Cloudflare Access（self-hosted アプリケーション）の検証に使う値。秘密ではない
+# ため secret ではなく vars に置く。空のままだと /dashboard は 503 で閉じる
+# （設定漏れを「動いている」形にしないため）。
+#
+# ACCESS_TEAM_DOMAIN: Zero Trust の team domain（<team>.cloudflareaccess.com）
+# ACCESS_AUD: Access アプリケーションの Application Audience (AUD) タグ
+[vars]
+ACCESS_TEAM_DOMAIN = "degino.cloudflareaccess.com"
+ACCESS_AUD = "f6b3a6dbf5f23fb3a9f9ea131d86bbfcadb9585c95c01ec069de8a4e875f38f7"
+
+[[routes]]
+pattern = "befold.degino.com"
+custom_domain = true
 
 # LP の CSS / JS / スクリーンショットは静的アセットとして配信する。
 # 必ず Worker を先に通し（計測ルートを取りこぼさないため）、Worker が
@@ -42,9 +66,21 @@ enabled = true
 #
 # Preview URL（wrangler versions upload --preview-alias）はこの代わりにならない。
 # バインディングは deploy 対象の設定が使われるため、書き込み先は本番 D1 になる。
+# staging も独自ドメイン配下に置く（ADR 0007 の決定 4）。Custom Domain は
+# 本番でだけ効く経路なので、staging が持たないと「本番にしか存在しない条件を
+# 本番の前に踏む」という staging の意義が移行当日だけ空白になる。
+# workers_dev = true を残す理由は本番と同じ。
 [env.staging]
 name = "befold-staging"
 workers_dev = true
+
+[env.staging.vars]
+ACCESS_TEAM_DOMAIN = "degino.cloudflareaccess.com"
+ACCESS_AUD = "e8b98cfddb7521fefc568893bcc4aa79b1000a461bc65f550eaf605feb65d014"
+
+[[env.staging.routes]]
+pattern = "staging.befold.degino.com"
+custom_domain = true
 
 [env.staging.assets]
 directory = "public"

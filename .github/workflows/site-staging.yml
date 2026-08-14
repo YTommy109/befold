@@ -74,6 +74,7 @@ jobs:
       - name: 結果を要約する
         run: |
           echo "staging へ ${{ github.ref_name }} を反映しました。"
+          echo "https://staging.befold.degino.com"
           echo "https://befold-staging.tommy109.workers.dev"
 
   # 定期実行でのみ走る。適用はせず、溜まっていたらジョブを失敗させて

@@ -76,30 +76,22 @@ struct SidebarTreeLayoutTests {
     @Test("表示モードは保存され、次回の読み出しで復元される")
     func layoutModePersists() {
         let defaults = makeIsolatedDefaults(prefix: "SidebarTreeLayoutTests-persist")
-        let first = SidebarDisplayPreference(defaults: defaults, isTreeLayoutAvailable: true)
+        let first = SidebarDisplayPreference(defaults: defaults)
         #expect(first.layoutMode == .drillDown)
 
         first.layoutMode = .tree
 
-        let restored = SidebarDisplayPreference(defaults: defaults, isTreeLayoutAvailable: true)
+        let restored = SidebarDisplayPreference(defaults: defaults)
         #expect(restored.layoutMode == .tree)
     }
 
-    /// 機能が無効なビルドでは降格して読むが、**保存値は書き換えない**。
-    /// init 内の代入では didSet が走らないことに依存しているので、そこを固定する
-    /// (showChangedFilesOnly / TASK-284 と同じ形)。
-    @Test("ゲート無効ならドリルダウンとして読むが、保存値は書き換えない")
-    func gateDowngradesWithoutOverwritingStoredValue() {
-        let defaults = makeIsolatedDefaults(prefix: "SidebarTreeLayoutTests-gate")
-        let enabled = SidebarDisplayPreference(defaults: defaults, isTreeLayoutAvailable: true)
-        enabled.layoutMode = .tree
+    /// 保存値のツリーは、ビルド構成によらずそのままツリーとして読む(TASK-187 で降格を撤去)。
+    @Test("保存値がツリーならそのままツリーとして読まれる")
+    func layoutModeReadsStoredTreeAsIs() {
+        let defaults = makeIsolatedDefaults(prefix: "SidebarTreeLayoutTests-stored")
+        SidebarDisplayPreference(defaults: defaults).layoutMode = .tree
 
-        let gated = SidebarDisplayPreference(defaults: defaults, isTreeLayoutAvailable: false)
-        #expect(gated.layoutMode == .drillDown)
-
-        // dev ビルドへ戻ればツリーのまま復帰する。
-        let reenabled = SidebarDisplayPreference(defaults: defaults, isTreeLayoutAvailable: true)
-        #expect(reenabled.layoutMode == .tree)
+        #expect(SidebarDisplayPreference(defaults: defaults).layoutMode == .tree)
     }
 
     @Test("保存値が無い・壊れているときはドリルダウンへ倒す")

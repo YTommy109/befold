@@ -3,7 +3,7 @@
 macOS 向けファイルビューアアプリ。
 多彩なフォーマットを開くだけで即座にレンダリング・プレビューする。
 
-📖 **[紹介ページ](https://befold.tommy109.workers.dev/?ref=readme)**
+📖 **[紹介ページ](https://befold.degino.com/?ref=readme)**
 
 ## 機能
 
@@ -38,7 +38,7 @@ macOS 向けファイルビューアアプリ。
 
 ## インストール
 
-1. [最新版をダウンロード](https://befold.tommy109.workers.dev/download?ref=readme)
+1. [最新版をダウンロード](https://befold.degino.com/download?ref=readme)
 2. DMG を開き、`befold.app` を `/Applications` にコピーして起動
 
 ## コマンドラインからの利用

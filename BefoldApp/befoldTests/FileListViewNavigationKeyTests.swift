@@ -29,7 +29,9 @@ struct FileListViewNavigationKeyTests {
         return FileListView(
             model: model,
             delegate: delegates.makeSpy(onSelect: onSelect, onNavigate: onNavigate),
-            onSortOrderChanged: { _ in }
+            onSortOrderChanged: { _ in },
+            onToggleChangedFilesOnly: {},
+            onToggleSidebarTreeLayout: {}
         )
     }
 

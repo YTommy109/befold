@@ -103,7 +103,7 @@ check_doc() {
     symbol="${span//\`/}"
     # Type.member / Type.member(labels) だけを対象にする。
     [[ "$symbol" =~ ^[A-Z][A-Za-z0-9_]*\.[a-z][A-Za-z0-9_]*(\([A-Za-z0-9_:]*\))?$ ]] || continue
-    # `FeatureGate.swift` のようなファイル名は同じ形をしているが、シンボル参照ではない。
+    # `AppDelegate.swift` のようなファイル名は同じ形をしているが、シンボル参照ではない。
     [[ "$symbol" =~ \.(swift|md|mmd|js|json|ya?ml|html|css|sh|xcstrings|plist|app)$ ]] && continue
     is_allowlisted "$symbol" && continue
 
@@ -139,7 +139,7 @@ self_test() {
   trap 'rm -f "$tmp"' RETURN
   cat > "$tmp" <<'EOF'
 削除済みの例: `BookmarkShortcut.keyEquivalent(isSourceDiffEnabled:)`
-実在する例: `ModeSegments.modes(isSourceDiffEnabled:)`
+実在する例: `ModeSegments.symbol(for:isSideBySide:)`
 実在する init: `PerFileStateStore.init(defaults:)`
 存在しないラベルの init: `PerFileStateStore.init(nonexistentLabel:)`
 EOF

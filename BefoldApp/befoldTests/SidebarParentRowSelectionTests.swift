@@ -103,7 +103,9 @@ struct SidebarParentRowSelectionTests {
         FileListView(
             model: model,
             delegate: delegates.makeSpy(onNavigate: onNavigate),
-            onSortOrderChanged: { _ in }
+            onSortOrderChanged: { _ in },
+            onToggleChangedFilesOnly: {},
+            onToggleSidebarTreeLayout: {}
         )
     }
 

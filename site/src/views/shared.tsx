@@ -9,8 +9,19 @@ import type { FC } from 'hono/jsx'
 
 export const REPO_URL = 'https://github.com/YTommy109/befold'
 
-/** ダウンロード導線は配布サイトの絶対 URL に揃える。 */
-export const DOWNLOAD_URL = 'https://befold.tommy109.workers.dev/download'
+/**
+ * ダウンロード導線のパス。**絶対 URL にしない**（ADR 0007 の決定 6）。
+ *
+ * `<a href="/download">` はブラウザが表示中の文書のオリジンに対して解決するため、
+ * 相対パスにするだけで「いま開いているホストの /download」になる。配布サイトは
+ * 独自ドメインと workers.dev の両方で応答し、staging も別ホストなので、正規
+ * オリジンを固定すると staging の LP のダウンロードボタンが本番を指し、staging で
+ * download 経路と `source:'lp'` の計測を確かめられなくなる。
+ *
+ * 絶対 URL が要る箇所（JSON-LD の downloadUrl）は、canonical・og:url・sitemap と
+ * 同じくリクエスト origin から組む。
+ */
+export const DOWNLOAD_PATH = '/download'
 
 /** 動作要件。LP・詳細ページ・JSON-LD で同じ表記を使う。 */
 export const REQUIRED_OS = 'macOS 14 (Sonoma) or later'

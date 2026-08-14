@@ -31,7 +31,6 @@ enum SidebarDisclosureState: Sendable, Hashable {
 ///
 /// GUI 層は自動テスト対象外なので、3 つの状態(未到着 / 空フォルダ / 絞り込みで 0)を
 /// 区別できていることはこの関数のユニットテストが唯一の測り方になる
-/// (`ModeSegments.modes(isSourceDiffEnabled:)` と同じ形)。
 enum SidebarDisclosure {
     /// - Parameters:
     ///   - isExpanded: 展開する意図があるか(`SidebarExpansion.expandedKeys` に含まれるか)。

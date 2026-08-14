@@ -23,6 +23,13 @@ const NORMALIZED_TEXT_CACHE_SWIFT = path.join(KIT, 'NormalizedTextCache.swift')
  */
 const ANALYTICS_TS = path.join(import.meta.dirname, 'src', 'analytics.ts')
 
+/**
+ * Worker の公開面（Custom Domain と workers.dev）の設定そのもの。routes を
+ * 書くと workers_dev は次回デプロイで false と推論される仕様があるため、
+ * 設定ファイルの記述をテストで固定する（ADR 0007 の決定 1 の担保）。
+ */
+const WRANGLER_TOML = path.join(import.meta.dirname, 'wrangler.toml')
+
 /** キーボードショートカット表が参照する、メインメニュー定義とその参照先の定数。 */
 const APP = path.join(import.meta.dirname, '..', 'BefoldApp', 'befold', 'App')
 const BOOKMARK_SHORTCUT_SWIFT = path.join(APP, 'BookmarkShortcut.swift')
@@ -55,6 +62,7 @@ export default defineConfig({
       const mainMenuBuilderSwift = await readMainMenuBuilderSwift()
       const bookmarkShortcutSwift = await readFile(BOOKMARK_SHORTCUT_SWIFT, 'utf8')
       const analyticsSource = await readFile(ANALYTICS_TS, 'utf8')
+      const wranglerToml = await readFile(WRANGLER_TOML, 'utf8')
 
       return {
         singleWorker: true,
@@ -69,8 +77,9 @@ export default defineConfig({
             TEST_MAIN_MENU_BUILDER_SWIFT: mainMenuBuilderSwift,
             TEST_BOOKMARK_SHORTCUT_SWIFT: bookmarkShortcutSwift,
             TEST_ANALYTICS_SOURCE: analyticsSource,
-            DASHBOARD_USER: 'owner',
-            DASHBOARD_PASSWORD: 'test-password',
+            TEST_WRANGLER_TOML: wranglerToml,
+            ACCESS_TEAM_DOMAIN: 'test-team.cloudflareaccess.com',
+            ACCESS_AUD: 'test-aud',
           },
         },
       }

@@ -74,7 +74,7 @@ struct MockedViewerWindowManager {
     /// 生成される全ウィンドウが共有する差分の取得元。既定は nil(差分を取りに行かない)で、
     /// 差分に無関心なテストが実 `git diff` を起こさないことを保証する。
     /// 差分を測るテストは init の diffReader へスタブを渡す。
-    let diffLoader: GitDiffLoader?
+    let diffLoader: GitDiffLoader
     /// 本番 UserDefaults へ書かないよう、隔離 defaults で明示的に生成して注入する。
     let bookmarkStore: BookmarkStore
     /// 生成される全ウィンドウが共有する git 索引。実 `git` を起動しない記録用フェイク。
@@ -108,7 +108,7 @@ struct MockedViewerWindowManager {
         sidebarDisplayPreference = SidebarDisplayPreference(defaults: defaults)
         let diffDisplayPreference = DiffDisplayPreference(defaults: defaults)
         self.diffDisplayPreference = diffDisplayPreference
-        let diffLoader = diffReader.map { GitDiffLoader(reader: $0) }
+        let diffLoader = diffReader.map { GitDiffLoader(reader: $0) } ?? GitDiffLoader()
         self.diffLoader = diffLoader
         let bookmarkStore = BookmarkStore(defaults: defaults)
         self.bookmarkStore = bookmarkStore

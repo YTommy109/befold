@@ -36,7 +36,7 @@ argument-hint: patch | minor | major | dev
 
    このコミット群から、`/release-notes stable` の除外方針
    （`docs:`/`chore:`/`test:`/`ci:`/`refactor:`/`style:`、内部実装のみの
-   `feat:`/`fix:`、`feat(gate):`/`fix(gate):` スコープの FeatureGate 配下）
+   `feat:`/`fix:`）
    を適用してユーザー影響のある commit だけを残す。
    - 残った commit が 0 件 → レベルは `dev`
    - 残った commit に `feat:`（ユーザー影響のある新機能）が 1 件以上ある

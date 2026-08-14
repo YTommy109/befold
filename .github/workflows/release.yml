@@ -271,7 +271,13 @@ jobs:
           # 返しつつダウンロードを計測し、R2 に無いときは GitHub Releases の
           # 同名アセットへ 302 する（過去エントリの URL が書き換わっても
           # 更新経路は切れない）。
-          download_url_prefix="https://befold.tommy109.workers.dev/dl/${tag_name}/"
+          #
+          # ホストは独自ドメイン befold.degino.com（ADR 0007 決定 3）。切り替えの
+          # 効果は切り替え後に生成した appcast にのみ及ぶ。既に配信済みの appcast の
+          # enclosure は旧ホスト befold.tommy109.workers.dev/dl/ を指したままなので、
+          # 旧ホストの /dl/ は無期限に応答し続ける必要がある（ADR 0007 決定 1）。
+          # 参照: docs/adr/0007-distribution-site-custom-domain.md
+          download_url_prefix="https://befold.degino.com/dl/${tag_name}/"
 
           # EdDSA 秘密鍵をファイルに書き出す
           key_file="$RUNNER_TEMP/sparkle_eddsa_key"

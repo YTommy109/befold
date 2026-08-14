@@ -13,8 +13,7 @@ struct DisplayModeStoreTests {
     @Test("保存がなければレンダリング表示")
     func defaultsToRendered() {
         let store = DisplayModeStore(
-            defaults: makeIsolatedDefaults(prefix: "DisplayModeStore.default"),
-            isSourceDiffEnabled: true
+            defaults: makeIsolatedDefaults(prefix: "DisplayModeStore.default")
         )
 
         #expect(store.displayMode(for: markdown) == .rendered)
@@ -23,18 +22,17 @@ struct DisplayModeStoreTests {
     @Test("3 値が往復する", arguments: [ViewerDisplayMode.rendered, .source, .diff])
     func roundTripsAllModes(mode: ViewerDisplayMode) {
         let defaults = makeIsolatedDefaults(prefix: "DisplayModeStore.roundTrip")
-        DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true).setDisplayMode(mode, for: markdown)
+        DisplayModeStore(defaults: defaults).setDisplayMode(mode, for: markdown)
 
         // 別インスタンスから読み直して、永続化を経ていることまで見る。
-        #expect(DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true).displayMode(for: markdown) == mode)
+        #expect(DisplayModeStore(defaults: defaults).displayMode(for: markdown) == mode)
     }
 
     /// ソース表示を持たない種別(画像・PDF)はレンダリング表示しかできない。
     @Test("ソース表示非対応の種別はレンダリング表示へ降格する")
     func demotesToRenderedForBinaryTypes() {
         let store = DisplayModeStore(
-            defaults: makeIsolatedDefaults(prefix: "DisplayModeStore.binary"),
-            isSourceDiffEnabled: true
+            defaults: makeIsolatedDefaults(prefix: "DisplayModeStore.binary")
         )
         store.setDisplayMode(.source, for: image)
 
@@ -47,8 +45,7 @@ struct DisplayModeStoreTests {
     @Test("差分非対応の種別はソース表示へ降格する")
     func demotesToSourceForNonDiffTypes() {
         let store = DisplayModeStore(
-            defaults: makeIsolatedDefaults(prefix: "DisplayModeStore.csv"),
-            isSourceDiffEnabled: true
+            defaults: makeIsolatedDefaults(prefix: "DisplayModeStore.csv")
         )
         store.setDisplayMode(.diff, for: csv)
 
@@ -56,22 +53,17 @@ struct DisplayModeStoreTests {
         #expect(store.displayMode(for: csv) == .diff)
     }
 
-    /// フィーチャーゲートが無効なビルドでは差分を選ぶ手段が露出しないため、
-    /// 保存値が差分でもソース表示として読む(保存値は残すので dev へ戻れば復帰する)。
-    /// ゲート値は注入するので、dev テストビルドでも OFF 側の分岐を通る。
-    @Test("機能ゲートが無効なら差分はソース表示として読む", arguments: [true, false])
-    func demotesDiffWhenFeatureUnavailable(isSourceDiffEnabled: Bool) {
-        let store = DisplayModeStore(
-            defaults: makeIsolatedDefaults(prefix: "DisplayModeStore.gate.\(isSourceDiffEnabled)"),
-            isSourceDiffEnabled: isSourceDiffEnabled
-        )
+    /// 保存値の差分は、ビルド構成によらずそのまま差分として読む(TASK-187)。
+    /// 降格の条件は種別(`supportsDiffDisplay`)だけであり、差分を描ける種別なら降格しない。
+    @Test("保存値の差分はそのまま差分として読まれる")
+    func restoresStoredDiffAsIs() {
+        let store = DisplayModeStore(defaults: makeIsolatedDefaults(prefix: "DisplayModeStore.diff"))
         store.setDisplayMode(.diff, for: markdown)
 
-        #expect(store.restoredDisplayMode(for: markdown) == (isSourceDiffEnabled ? .diff : .source))
-        // 降格しても保存値は書き換えない(dev ビルドへ戻れば差分のまま復帰する)。
+        #expect(store.restoredDisplayMode(for: markdown) == .diff)
         #expect(store.displayMode(for: markdown) == .diff)
-        // 保存値以外の経路(リネーム時のライブなモード引き継ぎ)も同じ規則で降格する。
-        #expect(store.supportedDisplayMode(.diff, for: markdown) == (isSourceDiffEnabled ? .diff : .source))
+        // 保存値以外の経路(リネーム時のライブなモード引き継ぎ)も同じ規則で通る。
+        #expect(store.supportedDisplayMode(.diff, for: markdown) == .diff)
     }
 
     /// 旧キー(ソース表示 Bool)の記憶を失わせない。true はソース表示、false はレンダリング表示。
@@ -82,7 +74,7 @@ struct DisplayModeStoreTests {
             [markdown.normalizedPathKey: true, csv.normalizedPathKey: false], forKey: "ViewerSourceModes"
         )
 
-        let store = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        let store = DisplayModeStore(defaults: defaults)
 
         #expect(store.displayMode(for: markdown) == .source)
         #expect(store.displayMode(for: csv) == .rendered)
@@ -98,7 +90,7 @@ struct DisplayModeStoreTests {
         )
         defaults.set(wasDiffEnabled, forKey: "SourceDiffEnabled")
 
-        let store = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        let store = DisplayModeStore(defaults: defaults)
 
         #expect(store.displayMode(for: markdown) == (wasDiffEnabled ? .diff : .source))
         // 旧状態でレンダリング表示だったファイルは差分 ON でもレンダリング表示のまま。
@@ -110,11 +102,11 @@ struct DisplayModeStoreTests {
     func removesLegacyDiffEnabledKey(hasNewKey: Bool) {
         let defaults = makeIsolatedDefaults(prefix: "DisplayModeStore.legacyDiffCleanup.\(hasNewKey)")
         if hasNewKey {
-            DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true).setDisplayMode(.rendered, for: markdown)
+            DisplayModeStore(defaults: defaults).setDisplayMode(.rendered, for: markdown)
         }
         defaults.set(true, forKey: "SourceDiffEnabled")
 
-        _ = DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true)
+        _ = DisplayModeStore(defaults: defaults)
 
         #expect(defaults.object(forKey: "SourceDiffEnabled") == nil)
     }
@@ -123,17 +115,16 @@ struct DisplayModeStoreTests {
     @Test("新キーがあれば旧キーで上書きしない")
     func doesNotOverwriteExistingModes() {
         let defaults = makeIsolatedDefaults(prefix: "DisplayModeStore.noOverwrite")
-        DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true).setDisplayMode(.rendered, for: markdown)
+        DisplayModeStore(defaults: defaults).setDisplayMode(.rendered, for: markdown)
         defaults.set([markdown.normalizedPathKey: true], forKey: "ViewerSourceModes")
 
-        #expect(DisplayModeStore(defaults: defaults, isSourceDiffEnabled: true).displayMode(for: markdown) == .rendered)
+        #expect(DisplayModeStore(defaults: defaults).displayMode(for: markdown) == .rendered)
     }
 
     @Test("rename で保存値が新パスへ引き継がれる")
     func migratesOnRename() {
         let store = DisplayModeStore(
-            defaults: makeIsolatedDefaults(prefix: "DisplayModeStore.rename"),
-            isSourceDiffEnabled: true
+            defaults: makeIsolatedDefaults(prefix: "DisplayModeStore.rename")
         )
         let renamed = URL(fileURLWithPath: "/mock/renamed.md")
         store.setDisplayMode(.source, for: markdown)

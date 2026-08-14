@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import type { AppEnv } from './index'
 import { eventSchema, type DownloadSource, type EventKind } from './schema'
+import { selfHostsFor } from './lib/hosts'
 import { resolveReferrer } from './lib/referrer'
 import { summarizeOS, summarizeUA, visitorTokenHash } from './lib/visitor'
 
@@ -46,7 +47,7 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
       referrer: resolveReferrer(
         c.req.query('ref') ?? null,
         c.req.header('Referer') ?? null,
-        new URL(c.req.url).host,
+        selfHostsFor(new URL(c.req.url).host),
       ),
       // request.cf は Cloudflare の実行環境でのみ付与される。ローカル/テストでは
       // undefined になり得るため、欠落時は記録処理自体を止めず null にする。

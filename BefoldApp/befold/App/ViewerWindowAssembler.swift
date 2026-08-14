@@ -16,19 +16,11 @@ enum ViewerWindowAssembler {
     // MARK: - super.init より前に呼べる部品
 
     /// サイドバーへ渡す git 状態の取得クロージャを作る。
-    ///
-    /// ロジック自体は常時ビルドし、露出点だけを囲う（無効時は機能を消すのではなく空を返す）。
-    /// git ステータス系の露出点はここを含めて 3 箇所あり、一覧は FeatureGate の宣言にある。
-    /// stable 昇格（TASK-187）ではこの guard を消して常に store を引く形にすればよい。
-    /// - Parameter isGitStatusAvailable: ゲート値。テストから ON/OFF 両方向を確かめられるよう引数で受ける。
     static func makeSidebarGitReader(
         fileIndex: any GitFileIndexing,
-        statusStore: GitStatusStore,
-        isGitStatusAvailable: Bool = FeatureGate.isSidebarGitStatusEnabled
+        statusStore: GitStatusStore
     ) -> any SidebarGitReading {
-        // ゲートで止めるのは状態取得だけ。リポジトリルートの解決(基準ディレクトリ表示)は
-        // ゲート対象外なので、reader は常に作り statusStore の有無で状態取得だけを落とす。
-        SidebarGitReader(fileIndex: fileIndex, statusStore: isGitStatusAvailable ? statusStore : nil)
+        SidebarGitReader(fileIndex: fileIndex, statusStore: statusStore)
     }
 
     /// サイドバー（一覧・選択同期・フォルダ移動）のナビゲータを作る。
@@ -148,17 +140,11 @@ enum ViewerWindowAssembler {
     }
 
     /// サイドバーヘッダーの「変更されたファイルのみ表示」ボタンの動作を作る。
-    ///
-    /// git ステータスと同じ開発中機能の露出点であり、無効なら nil を返して
-    /// ボタン自体を出さない（FileListView 側が nil で非表示にする）。
-    /// - Parameter isChangedFilesOnlyAvailable: ゲート値。テストから ON/OFF 両方向を
-    ///   確かめられるよう引数で受ける（テストから呼ぶため internal）。
+    /// 切替の実体は delegate 側にあり、ここは流すだけ（ボタン専用の経路を持たせない）。
     static func makeChangedFilesOnlyToggle(
-        for controller: ViewerWindowController,
-        isChangedFilesOnlyAvailable: Bool = FeatureGate.isSidebarGitStatusEnabled
-    ) -> (() -> Void)? {
-        guard isChangedFilesOnlyAvailable else { return nil }
-        return { [weak controller] in
+        for controller: ViewerWindowController
+    ) -> () -> Void {
+        { [weak controller] in
             guard let controller else { return }
             controller.delegate?.viewerWindowDidToggleChangedFilesOnly(controller)
         }
@@ -166,17 +152,12 @@ enum ViewerWindowAssembler {
 
     /// サイドバーヘッダーの表示形式(ツリー / ドリルダウン)ボタンの動作を作る。
     ///
-    /// 無効なら nil を返してボタン自体を出さない(FileListView 側が nil で非表示にする)。
     /// 切替の実体はメニューの ⌃⌘T と同じ `GlobalDisplayBroadcaster.toggleSidebarLayoutMode()`
     /// で、ここは delegate へ流すだけ。ボタン専用の経路を持たせない。
-    /// - Parameter isTreeLayoutAvailable: ゲート値。テストから ON/OFF 両方向を
-    ///   確かめられるよう引数で受ける(テストから呼ぶため internal)。
     static func makeSidebarTreeLayoutToggle(
-        for controller: ViewerWindowController,
-        isTreeLayoutAvailable: Bool = FeatureGate.isSidebarTreeEnabled
-    ) -> (() -> Void)? {
-        guard isTreeLayoutAvailable else { return nil }
-        return { [weak controller] in
+        for controller: ViewerWindowController
+    ) -> () -> Void {
+        { [weak controller] in
             guard let controller else { return }
             controller.delegate?.viewerWindowDidToggleSidebarTreeLayout(controller)
         }

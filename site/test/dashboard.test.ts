@@ -1,17 +1,36 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import app from '../src/index'
 import { summarize } from '../src/analytics'
+import { LEGACY_HOST, LEGACY_STAGING_HOST } from '../src/lib/hosts'
+import { installAccessKeys, removeAccessKeys } from './access-helpers'
 import { renderSummarySections } from '../src/views/dashboard'
 
-const AUTH_HEADERS = { Authorization: `Basic ${btoa('owner:test-password')}` }
+/**
+ * Access が付ける JWT ヘッダ。中身は beforeAll で埋める（署名に鍵生成が要る）。
+ * 参照は同じオブジェクトのまま各テストへ渡るので、ここを書き換えれば全体に効く。
+ */
+const AUTH_HEADERS: Record<string, string> = {}
+
+let signJwt: (claims: Record<string, unknown>) => Promise<string>
+
+beforeAll(async () => {
+  const access = await installAccessKeys()
+  signJwt = access.sign
+  Object.assign(AUTH_HEADERS, await access.headers())
+})
+
+afterAll(() => {
+  removeAccessKeys()
+})
 
 async function call(
   path: string,
   headers: Record<string, string> = {},
   overrides: Partial<Env> = {},
+  origin = 'https://befold.degino.com',
 ): Promise<Response> {
-  const request = new Request(`https://befold.example${path}`, { headers })
+  const request = new Request(`${origin}${path}`, { headers })
   const ctx = createExecutionContext()
   const response = await app.fetch(request, { ...env, ...overrides }, ctx)
   await waitOnExecutionContext(ctx)
@@ -57,34 +76,79 @@ afterEach(async () => {
   await env.DB.prepare('DELETE FROM events').run()
 })
 
-describe('Basic 認証による保護', () => {
-  it('認証情報が無ければ 401 と WWW-Authenticate を返す', async () => {
-    const response = await call('/dashboard')
-
-    expect(response.status).toBe(401)
-    expect(response.headers.get('WWW-Authenticate')).toContain('Basic')
+describe('Cloudflare Access による保護', () => {
+  it('JWT が無ければ 401 を返す', async () => {
+    expect((await call('/dashboard')).status).toBe(401)
     expect((await call('/dashboard/stream')).status).toBe(401)
   })
 
-  it('パスワードが違えば 401 を返す', async () => {
-    const wrong = { Authorization: `Basic ${btoa('owner:wrong')}` }
+  it('署名が壊れた JWT は 403 を返す', async () => {
+    const token = await signJwt({})
+    const tampered = { 'Cf-Access-Jwt-Assertion': `${token.slice(0, -4)}AAAA` }
 
-    expect((await call('/dashboard', wrong)).status).toBe(401)
+    expect((await call('/dashboard', tampered)).status).toBe(403)
   })
 
-  it('パスワード未設定なら 503 で閉じる（素通しさせない）', async () => {
+  it('別アプリ向けの AUD を持つ JWT は 403 を返す', async () => {
+    const headers = { 'Cf-Access-Jwt-Assertion': await signJwt({ aud: ['other-app'] }) }
+
+    expect((await call('/dashboard', headers)).status).toBe(403)
+  })
+
+  it('発行者が team domain と違う JWT は 403 を返す', async () => {
+    const headers = {
+      'Cf-Access-Jwt-Assertion': await signJwt({ iss: 'https://evil.cloudflareaccess.com' }),
+    }
+
+    expect((await call('/dashboard', headers)).status).toBe(403)
+  })
+
+  it('期限切れの JWT は 403 を返す', async () => {
+    const expired = Math.floor(Date.now() / 1000) - 60
+    const headers = { 'Cf-Access-Jwt-Assertion': await signJwt({ exp: expired }) }
+
+    expect((await call('/dashboard', headers)).status).toBe(403)
+  })
+
+  it('Access が未設定なら 503 で閉じる（素通しさせない）', async () => {
     const response = await call('/dashboard', AUTH_HEADERS, {
-      DASHBOARD_PASSWORD: '',
+      ACCESS_AUD: '',
     } as Partial<Env>)
 
     expect(response.status).toBe(503)
   })
 
-  it('正しい認証情報なら 200 を返す', async () => {
+  it('未設定でも localhost 以外は素通ししない', async () => {
+    const response = await call('/dashboard', AUTH_HEADERS, { ACCESS_AUD: '' } as Partial<Env>)
+
+    expect(response.status).not.toBe(200)
+  })
+
+  it('ローカル開発（localhost かつ未設定）だけは素通しする', async () => {
+    const response = await call(
+      '/dashboard',
+      {},
+      { ACCESS_TEAM_DOMAIN: '', ACCESS_AUD: '' } as Partial<Env>,
+      'http://localhost:8787',
+    )
+
+    expect(response.status).toBe(200)
+  })
+
+  it('有効な JWT なら 200 を返す', async () => {
     expect((await call('/dashboard', AUTH_HEADERS)).status).toBe(200)
   })
 
-  it('公開ルートは認証情報が無くても 200 のままである', async () => {
+  it('旧ホストの /dashboard と /dashboard/* は 404 を返す', async () => {
+    for (const host of [LEGACY_HOST, LEGACY_STAGING_HOST]) {
+      const origin = `https://${host}`
+
+      expect((await call('/dashboard', AUTH_HEADERS, {}, origin)).status).toBe(404)
+      expect((await call('/dashboard/stream', AUTH_HEADERS, {}, origin)).status).toBe(404)
+    }
+  })
+
+  it('公開ルートは JWT が無くても 200 のままである', async () => {
     expect((await call('/')).status).toBe(200)
   })
 })

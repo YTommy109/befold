@@ -22,8 +22,7 @@ struct SidebarNavigatorExpansionTests {
         // 展開はツリー表示のときだけ行に出る。ドリルダウンでは展開の材料を渡さないので、
         // このスイートは常にツリー表示で回す。
         let preference = SidebarDisplayPreference(
-            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorExpansionTests"),
-            isTreeLayoutAvailable: true
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorExpansionTests")
         )
         preference.layoutMode = .tree
         let navigator = SidebarNavigator(
@@ -183,8 +182,7 @@ struct SidebarNavigatorExpansionTests {
         let rootEntries = LockedBox<[FileListEntry]>([FileListEntry(url: dirA, kind: .folder)])
         let counter = CallCounter()
         let preference = SidebarDisplayPreference(
-            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorExpansionTests"),
-            isTreeLayoutAvailable: true
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorExpansionTests")
         )
         preference.layoutMode = .tree
         let navigator = SidebarNavigator(

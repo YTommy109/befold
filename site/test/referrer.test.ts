@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import {
+  CANONICAL_HOST,
+  LEGACY_HOST,
+  LEGACY_STAGING_HOST,
+  SELF_HOSTS,
+  STAGING_HOST,
+  selfHostsFor,
+} from '../src/lib/hosts'
 import { REFERRER_MAX_LENGTH, resolveReferrer } from '../src/lib/referrer'
 
-const SELF = 'befold.tommy109.workers.dev'
+const SELF = selfHostsFor(CANONICAL_HOST)
 
 describe('resolveReferrer', () => {
   it('?ref= があればそれを参照元として採用する', () => {
@@ -38,7 +46,7 @@ describe('resolveReferrer', () => {
   })
 
   it('自サイト内の遷移は参照元として記録しない', () => {
-    expect(resolveReferrer(null, `https://${SELF}/`, SELF)).toBeNull()
+    expect(resolveReferrer(null, `https://${CANONICAL_HOST}/`, SELF)).toBeNull()
   })
 
   it('URL として解釈できない Referer は参照元なしとして扱う', () => {
@@ -47,5 +55,35 @@ describe('resolveReferrer', () => {
 
   it('?ref= も Referer も無い直接アクセスは参照元なしになる', () => {
     expect(resolveReferrer(null, null, SELF)).toBeNull()
+  })
+})
+
+/**
+ * 独自ドメイン移行で自己ホストが 1 つから 4 つに増えた（ADR 0007 の決定 1・4・6）。
+ * 単一ホスト前提のままだと、旧ホスト → 新ドメインの遷移が外部参照元として D1 に
+ * 記録され、参照元の集計に移行期の断層が残る。
+ */
+describe('自己ホスト集合', () => {
+  const HOSTS = [CANONICAL_HOST, LEGACY_HOST, STAGING_HOST, LEGACY_STAGING_HOST]
+
+  it('本番・staging の新旧 4 ホストを含む', () => {
+    expect([...SELF_HOSTS].sort()).toEqual([...HOSTS].sort())
+  })
+
+  it.each(
+    HOSTS.flatMap((from) => HOSTS.filter((to) => to !== from).map((to) => [from, to] as const)),
+  )('%s から %s への遷移は参照元として記録しない', (from, to) => {
+    expect(resolveReferrer(null, `https://${from}/`, selfHostsFor(to))).toBeNull()
+  })
+
+  it('既知でないホストで配信されていても、そのホスト内の遷移は参照元にしない', () => {
+    // wrangler dev / preview URL のように SELF_HOSTS に無いホストで配信される場合。
+    expect(resolveReferrer(null, 'http://localhost:8787/features', selfHostsFor('localhost:8787')))
+      .toBeNull()
+  })
+
+  it('自己ホスト以外からの流入は従来どおり参照元として記録する', () => {
+    expect(resolveReferrer(null, 'https://news.ycombinator.com/', selfHostsFor(CANONICAL_HOST)))
+      .toBe('https://news.ycombinator.com')
   })
 })

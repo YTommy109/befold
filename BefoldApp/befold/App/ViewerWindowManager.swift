@@ -46,8 +46,7 @@ final class ViewerWindowManager {
     /// 「同じ要求が重なったら git を二重起動しない」を窓をまたいで成立させている。
     /// 窓ごとに持つと、同じファイルを 2 窓で開いた状態の 1 回の保存で
     /// `git diff` が窓の数だけ起動する(TASK-325)。
-    /// 機能ゲートが無効なビルドでは nil で、git diff を一切実行しない。
-    let diffLoader: GitDiffLoader?
+    let diffLoader: GitDiffLoader
     let findOptionsPreference: FindOptionsPreference
     let codeFontPreference: CodeFontPreference
     let perFileState: PerFileStateStore
@@ -106,7 +105,7 @@ final class ViewerWindowManager {
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
         sidebarDisplayPreference: SidebarDisplayPreference = SidebarDisplayPreference(),
         diffDisplayPreference: DiffDisplayPreference,
-        diffLoader: GitDiffLoader? = ViewerWindowManager.makeDiffLoader(),
+        diffLoader: GitDiffLoader = GitDiffLoader(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
@@ -148,12 +147,6 @@ final class ViewerWindowManager {
     /// 走査対象(`allControllers`)の組み立てを呼び出し元へ漏らさないため、ここだけ委譲で残す。
     func recordAllRecentRepositoryTabGroups() {
         recentRepositories.recordAllTabGroups(of: allControllers)
-    }
-
-    /// 差分の取得元を 1 つ作る。機能ゲートが無効なら nil で、git diff を一切実行しない。
-    /// 生成をここへ限ることで、ウィンドウ側が自前で作る経路を無くしている。
-    static func makeDiffLoader() -> GitDiffLoader? {
-        FeatureGate.isSourceDiffEnabled ? GitDiffLoader() : nil
     }
 
     /// controller を key のコントローラ群へ登録する。

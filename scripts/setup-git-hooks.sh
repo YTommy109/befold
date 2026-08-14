@@ -43,5 +43,3 @@ install_hook post-checkout scripts/worktree-init.sh
 install_hook pre-commit scripts/block-main-commits.sh scripts/swiftformat-lint.sh \
   scripts/check-doc-symbols.sh scripts/check-task-id-uniqueness.sh \
   scripts/check-analytics-query-guard.sh scripts/warn-type-group-growth.sh
-# commit-msg は件名を見るチェックなので pre-commit ではなくここ(メッセージ確定後)。
-install_hook commit-msg scripts/check-gate-commit-scope.sh
