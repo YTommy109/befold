@@ -39,32 +39,34 @@ public actor StringChunkReader: ChunkedTextReading {
     public static let linesPerChunk = 1000
     /// 不平衡クォートや改行なし巨大行でも 1 チャンクが際限なく肥大化しないための強制分割の上限。
     public static let maxChunkBytes = 1 * 1024 * 1024
-    /// クォート付き CSV フィールドとして正当に扱う最大バイト数。開いたクォートが
-    /// これを超えて閉じられない場合は不均衡クォートの可能性が高いとみなし、
-    /// hasGivenUpQuoteTracking を立てて行ベースのチャンク区切りを再開する。
-    /// チャンク境界(maxChunkBytes)とは無関係の、CSV セルの実長に基づく閾値。
-    private static let maxQuotedFieldBytes = 500
 
-    private var cache: NormalizedTextCache
+    /// 走査対象の正規化バイト列。戦略ごとの extension(+Lines / +Markdown / +Quotes)から
+    /// 参照するため internal。外部には公開しない。
+    var cache: NormalizedTextCache
     private let boundary: ChunkBoundary
-    private var currentLine: Int = 0
+    /// 次に読み出す行。scanLines(from:processLine:) の走査開始位置として戦略側からも読む。
+    var currentLine: Int = 0
     /// バイト上限による強制分割で行の途中まで消費した場合の再開位置(normalizedBytes 内オフセット)。
     /// 行境界で自然に終わったチャンクの後は nil に戻る。
     private var resumeOffset: Int?
-    private var inQuotes: Bool = false
+    /// 以下 3 つは CSV クォート走査の状態。stored property は extension に置けないため
+    /// 型本体に残すが、読み書きするのは StringChunkReader+Quotes だけ。
+    var inQuotes: Bool = false
     /// 現在開いているクォートが閉じずに経過したバイト数。クォートの開閉ごとに 0 へ戻る。
-    private var quotedRunLength: Int = 0
+    var quotedRunLength: Int = 0
     /// quotedRunLength が maxQuotedFieldBytes を超え、行ベースのチャンク区切りを
     /// 再開すると判断した状態。inQuotes 自体は書き換えない(実際のクォート対応関係を
     /// 壊さないため)ので、本物の閉じクォートに出会えば toggle 処理が inQuotes を
     /// 正しく false に戻し、このフラグもあわせてリセットされる。
-    private var hasGivenUpQuoteTracking: Bool = false
-    /// markdown のコードフェンスの内側にいるか。チャンクをまたいで保持する必要があるため
+    var hasGivenUpQuoteTracking: Bool = false
+    /// markdown のコードフェンス状態。チャンクをまたいで保持する必要があるため
     /// (フェンスがチャンク境界を越えて続くことがある)、読み出しごとにリセットしない。
-    private var inFence: Bool = false
-    /// 開いているフェンスの記号(0x60 = ` / 0x7E = ~)と連続数。閉じ側の判定に使う。
-    private var fenceMarker: UInt8 = 0
-    private var fenceLength: Int = 0
+    ///
+    /// stored property は extension に宣言できないため、状態そのものを
+    /// StringChunkReader+Markdown 側へ完全に閉じることはできない。代わりに
+    /// 中身と遷移規則を MarkdownFenceState(同ファイルで宣言)へ寄せ、本体に残る面を
+    /// この 1 プロパティに限っている。読み書きするのは +Markdown だけ。
+    var markdownFence = MarkdownFenceState()
 
     /// boundary はファイル種別ごとの「途中で切ると壊れる構造」に合わせた走査方式。
     /// 種別から決める場合は `ChunkBoundary(fileType:)` を使う。
@@ -117,7 +119,7 @@ public actor StringChunkReader: ChunkedTextReading {
     /// startOffset から走査し、行数上限(linesPerChunk)とバイト上限(maxChunkBytes)の
     /// どちらか早い方でチャンク終端を決める。バイト上限による終端(forcedSplit)は
     /// 行境界を跨がず途中で切れるため、呼び出し側は次回 resumeOffset から再開する。
-    private func advance(from startOffset: Int) -> (endOffset: Int, endLine: Int, forcedSplit: Bool) {
+    func advance(from startOffset: Int) -> (endOffset: Int, endLine: Int, forcedSplit: Bool) {
         switch boundary {
         case .lines: advanceByLines(from: startOffset)
         case .csvQuotes: advanceRespectingQuotes(from: startOffset)
@@ -132,7 +134,7 @@ public actor StringChunkReader: ChunkedTextReading {
     /// この 2 つは一致しないことがある。CSV はクォート内の行を「数えないし切れない」
     /// として扱えるが、markdown は「全行を数えるが切れるのは空行だけ」であり、
     /// 行数上限に達しても安全な境界が来るまで待つ必要がある。
-    private enum LineOutcome {
+    enum LineOutcome {
         case forcedSplit(endOffset: Int)
         case consumed(countsTowardLimit: Bool, mayEndHere: Bool)
     }
@@ -141,7 +143,7 @@ public actor StringChunkReader: ChunkedTextReading {
     /// 行末位置(lineStart/lineEnd)の算出・scanLine の進行・linesPerChunk 到達判定・
     /// 走査終了時の return は両者で同一のため、行ごとの中身(processLine)だけを
     /// 差し替え可能にして共通化する。
-    private func scanLines(
+    func scanLines(
         from startOffset: Int,
         processLine: (_ lineStart: Int, _ lineEnd: Int, _ bytesScanned: inout Int) -> LineOutcome
     ) -> (endOffset: Int, endLine: Int, forcedSplit: Bool) {
@@ -169,141 +171,5 @@ public actor StringChunkReader: ChunkedTextReading {
         }
 
         return (lineStart, scanLine, false)
-    }
-
-    /// CSV クォートを判定しないパス。クォートの対応関係を追う必要がないため、
-    /// 行境界は lineStart(_:) から O(1) で参照でき、バイト単位の走査は
-    /// maxChunkBytes 境界を跨ぐ行の強制分割時のみ行う。
-    private func advanceByLines(from startOffset: Int) -> (endOffset: Int, endLine: Int, forcedSplit: Bool) {
-        scanLines(from: startOffset) { lineStart, lineEnd, bytesScanned in
-            let lineBytes = lineEnd - lineStart
-            if bytesScanned + lineBytes >= Self.maxChunkBytes {
-                let rawEnd = lineStart + (Self.maxChunkBytes - bytesScanned)
-                let forcedEnd = cache.snappedToCharacterBoundary(rawEnd, lowerBound: lineStart)
-                return .forcedSplit(endOffset: forcedEnd)
-            }
-            bytesScanned += lineBytes
-            return .consumed(countsTowardLimit: true, mayEndHere: true)
-        }
-    }
-
-    /// markdown のブロック境界だけで区切る走査パス。
-    /// コードフェンスの内側と段落の途中では終わらせず、フェンス外の空行でのみ終える。
-    /// 行の分類は先頭の空白とフェンス記号だけを見るため、CSV のような全バイト走査にはならない。
-    private func advanceByMarkdownBlocks(from startOffset: Int) -> (endOffset: Int, endLine: Int, forcedSplit: Bool) {
-        scanLines(from: startOffset) { lineStart, lineEnd, bytesScanned in
-            let lineBytes = lineEnd - lineStart
-            // 空行を探して際限なく伸びないよう、バイト上限は境界判定より優先する。
-            if bytesScanned + lineBytes >= Self.maxChunkBytes {
-                let rawEnd = lineStart + (Self.maxChunkBytes - bytesScanned)
-                let forcedEnd = cache.snappedToCharacterBoundary(rawEnd, lowerBound: lineStart)
-                return .forcedSplit(endOffset: forcedEnd)
-            }
-            bytesScanned += lineBytes
-            let kind = classifyMarkdownLine(from: lineStart, to: lineEnd)
-            applyFenceTransition(kind)
-            return .consumed(countsTowardLimit: true, mayEndHere: kind == .blank && !inFence)
-        }
-    }
-
-    /// markdown の行種別。境界判定に必要な最小限だけを見る。
-    private enum MarkdownLineKind: Equatable {
-        case blank
-        /// ``` / ~~~ で始まる行。marker はその記号、length は連続数。
-        case fence(marker: UInt8, length: Int)
-        case text
-    }
-
-    /// 行頭の空白を読み飛ばし、空行かコードフェンスかそれ以外かを判定する。
-    private func classifyMarkdownLine(from lineStart: Int, to lineEnd: Int) -> MarkdownLineKind {
-        var cursor = lineStart
-        while cursor < lineEnd {
-            let byte = cache.normalizedByte(at: cursor)
-            if byte == 0x20 || byte == 0x09 { cursor += 1 } else { break }
-        }
-        guard cursor < lineEnd else { return .blank }
-
-        let first = cache.normalizedByte(at: cursor)
-        if first == 0x0A || first == 0x0D { return .blank }
-
-        // ` (0x60) と ~ (0x7E) はどちらも ASCII のため、マルチバイト文字の
-        // 継続バイト(0x80 以上)と衝突せずバイト単位で数えられる。
-        guard first == 0x60 || first == 0x7E else { return .text }
-        var length = 0
-        while cursor < lineEnd, cache.normalizedByte(at: cursor) == first {
-            length += 1
-            cursor += 1
-        }
-        return length >= 3 ? .fence(marker: first, length: length) : .text
-    }
-
-    /// フェンスの開閉状態を更新する。閉じ側は開いた記号と同じで、かつ
-    /// 開いたときと同じ長さ以上でなければ閉じない(CommonMark の規則)。
-    private func applyFenceTransition(_ kind: MarkdownLineKind) {
-        guard case let .fence(marker, length) = kind else { return }
-        if inFence {
-            if marker == fenceMarker, length >= fenceLength {
-                inFence = false
-                fenceMarker = 0
-                fenceLength = 0
-            }
-        } else {
-            inFence = true
-            fenceMarker = marker
-            fenceLength = length
-        }
-    }
-
-    /// CSV クォート内の改行をチャンク境界にしないための、UTF-8 バイト単位の走査パス。
-    /// クォートの対応を追う都合上、行の中身をバイト単位で読む必要がある。
-    private func advanceRespectingQuotes(from startOffset: Int) -> (endOffset: Int, endLine: Int, forcedSplit: Bool) {
-        scanLines(from: startOffset) { lineStart, lineEnd, bytesScanned in
-            // クォート判定を含むこのループはホットパス(巨大CSV全行)のため、書記素クラスタ
-            // 境界計算を伴う Character 単位ではなく UTF-8 バイト単位で走査する。`"` (U+0022) は
-            // ASCII のためマルチバイト文字の継続バイト(0x80 以上)と衝突せず、バイト走査でも
-            // Character 走査と同じ判定結果になる。
-            var cursor = lineStart
-            while cursor < lineEnd {
-                let byte = cache.normalizedByte(at: cursor)
-                if byte == 0x22 {
-                    // 本物の閉じクォートが見つかった場合、対応関係を正しく戻す。
-                    // (途中で hasGivenUpQuoteTracking が立っていても inQuotes 自体は
-                    // 書き換えていないため、ここでの toggle は常に正しい状態遷移になる。)
-                    inQuotes.toggle()
-                    quotedRunLength = 0
-                    hasGivenUpQuoteTracking = false
-                } else if inQuotes {
-                    quotedRunLength += 1
-                    if quotedRunLength > Self.maxQuotedFieldBytes {
-                        // 不均衡クォートの可能性が高いとみなし、行ベースの分割を再開する。
-                        // inQuotes は書き換えない(実際のクォートが後で閉じたときに
-                        // 誤って反転させないため)。
-                        hasGivenUpQuoteTracking = true
-                        quotedRunLength = 0
-                    }
-                }
-                bytesScanned += 1
-                cursor += 1
-
-                if bytesScanned >= Self.maxChunkBytes {
-                    let forcedEnd = cache.snappedToCharacterBoundary(cursor, lowerBound: lineStart)
-                    if inQuotes, forcedEnd < cursor {
-                        // snappedToCharacterBoundary が巻き戻したバイトは次回の
-                        // resumeOffset から再走査されるため、quotedRunLength から
-                        // 差し引いて二重カウントを防ぐ。
-                        let rolledBackBytes = cursor - forcedEnd
-                        quotedRunLength = max(0, quotedRunLength - rolledBackBytes)
-                        if quotedRunLength <= Self.maxQuotedFieldBytes {
-                            hasGivenUpQuoteTracking = false
-                        }
-                    }
-                    return .forcedSplit(endOffset: forcedEnd)
-                }
-            }
-
-            // クォート内の行は数えず、そこでチャンクを終えることもしない。
-            let outsideQuotedField = !inQuotes || hasGivenUpQuoteTracking
-            return .consumed(countsTowardLimit: outsideQuotedField, mayEndHere: outsideQuotedField)
-        }
     }
 }

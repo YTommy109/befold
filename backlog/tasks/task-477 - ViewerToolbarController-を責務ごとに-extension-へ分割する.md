@@ -1,9 +1,10 @@
 ---
 id: TASK-477
 title: ViewerToolbarController を責務ごとに extension へ分割する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-13 14:20'
+updated_date: '2026-08-14 10:23'
 labels:
   - refactor
 dependencies: []
@@ -33,9 +34,25 @@ ordinal: 122000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ViewerToolbarController.swift が MARK 境界に沿って複数ファイルへ分割され、各ファイルが file_length の警告閾値を下回る
-- [ ] #2 分割にあたり internal へ引き上げたメンバーには、外部から呼んでよい範囲を示す doc コメントが付いている
-- [ ] #3 新規ファイル追加後に xcodegen generate を実行し、xcodebuild build -scheme befold が通る
-- [ ] #4 swiftlint のベースライン差分がゼロである（/swiftlint-baseline で main と比較）
-- [ ] #5 振る舞いの変更がなく、既存の ViewerWindowControllerToolbarTests が無改修で通る
+- [x] #1 ViewerToolbarController.swift が MARK 境界に沿って複数ファイルへ分割され、各ファイルが file_length の警告閾値を下回る
+- [x] #2 分割にあたり internal へ引き上げたメンバーには、外部から呼んでよい範囲を示す doc コメントが付いている
+- [x] #3 新規ファイル追加後に xcodegen generate を実行し、xcodebuild build -scheme befold が通る
+- [x] #4 swiftlint のベースライン差分がゼロである（/swiftlint-baseline で main と比較）
+- [x] #5 振る舞いの変更がなく、既存の ViewerWindowControllerToolbarTests が無改修で通る
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+分割結果（実測）:
+- ViewerToolbarController.swift 177 行（protocol / ToolbarItemSpec / ToolbarEntry / 識別子・layout・stored property・init）
+- +State.swift 102 行 / +Actions.swift 43 行 / +ToolbarDelegate.swift 91 行（いずれも file_length 警告閾値 400 を下回る）
+internal へ引き上げたのは ToolbarItemSpec / ToolbarEntry / layout / window / host / apply*State(to:) / segmentLabel / @objc アクション 5 件。すべてに「外から呼んでよい範囲」を doc コメントで明記した。
+検証: xcodegen generate 済み。swift build / xcodebuild build -scheme befold 成功。swiftlint はベースライン差分ゼロ（main 65 件 / HEAD 65 件、正規化後 diff なし）。swift test --filter Toolbar は 13 件すべて成功（テストは無改修）。
+
+PR #522 の CI（type-group-size）が閾値超過で落ちた。ViewerToolbarController の型グループ（Foo.swift + Foo+*.swift の合算）が 413 行で閾値 400 超。extension への分割では合算値が減らないため、分割時に増えた import / extension 宣言 / doc コメントのぶんだけ分割前 387 行から増えた形。
+
+例外リスト（scripts/type-group-exceptions.txt）には追加せず、同居していた独立型をファイルごと切り出して返済した。ViewerToolbarHost（protocol）を ViewerToolbarHost.swift へ、ToolbarItemSpec / ToolbarEntry を ToolbarItemSpec.swift へ移動。どちらも元から ViewerToolbarController とは別の型で、1 ファイルに同居していたのが変則だった。
+
+結果: 型グループ 413 → 325 行（本体 89 / +State 102 / +ToolbarDelegate 91 / +Actions 43）。scripts/check-type-group-size.sh --check が exit 0。xcodebuild build -scheme befold は BUILD SUCCEEDED、swiftlint のルール別件数は main と一致のまま。
+<!-- SECTION:NOTES:END -->
