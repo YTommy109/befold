@@ -60,7 +60,33 @@ struct SidebarKeyActionTests {
     @Test("ファイル行では表示モードによらず開く")
     func fileOpensInEveryMode() {
         for mode in SidebarLayoutMode.allCases {
-            #expect(action(.return, target: file, mode: mode) == .openFile)
+            #expect(action(.return, target: file, mode: mode) == .openFile(.currentTab))
+        }
+    }
+
+    // MARK: - 修飾キー付き Return(TASK-482)
+
+    @Test("⌘Return はファイル行を新規タブで開く")
+    func commandReturnOpensFileInNewTab() {
+        for mode in SidebarLayoutMode.allCases {
+            #expect(action(.return, modifiers: .command, target: file, mode: mode) == .openFile(.newTab))
+        }
+    }
+
+    @Test("⌘⇧Return はファイル行を新規ウィンドウで開く")
+    func commandShiftReturnOpensFileInNewWindow() {
+        for mode in SidebarLayoutMode.allCases {
+            let result = action(.return, modifiers: [.command, .shift], target: file, mode: mode)
+            #expect(result == .openFile(.newWindow))
+        }
+    }
+
+    @Test("⌘Return はフォルダ行・選択なしでは何もしない")
+    func commandReturnIgnoresFolderAndMissingSelection() {
+        for mode in SidebarLayoutMode.allCases {
+            #expect(action(.return, modifiers: .command, target: folder, mode: mode) == .ignored)
+            #expect(action(.return, modifiers: .command, target: expandedFolder, mode: mode) == .ignored)
+            #expect(action(.return, modifiers: .command, target: nil, mode: mode) == .ignored)
         }
     }
 

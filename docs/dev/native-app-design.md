@@ -72,8 +72,9 @@ BefoldApp/
 │   │                               # （`referenceContextMenu` 等のブリッジメッセージ名はここ）
 │   ├── ViewerDiffBridge.swift      # git 差分の JS 呼び出し（setDiff / setDiffLayout）
 │   ├── OpenDisposition.swift       # 修飾キー→「開き方」(現在タブ/新規タブ/新規ウィンドウ)の対応表。
-│   │                               # JS ブリッジ経由のクリックと直接 HTML モードの
-│   │                               # decidePolicyFor が共通で通る単一の解釈元
+│   │                               # JS ブリッジ経由のクリック・直接 HTML モードの
+│   │                               # decidePolicyFor・サイドバーの行クリック / ⌘Return が
+│   │                               # 共通で通る単一の解釈元
 │   ├── RendererFeatures.swift      # 本体 / QuickLook の機能プリセット
 │   ├── BundleAccessor.swift        # `Bundle.befoldKitResources`。SPM ビルドは
 │   │                               # `.module`、Xcode ビルド（framework）は
@@ -216,7 +217,11 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   トラックパッドスワイプ（`SwipeHistoryNavigation`）に対応
 - **エラーパネル**: `mermaid.parseError` で構文エラーの詳細メッセージを赤ボーダー・等幅フォントのパネルに表示
 - **削除バナー**: ファイル削除時にグレーバナー＋背景色変更
-- **サイドバー**: フォルダ/ファイル一覧、不可視ファイル表示トグル、ソート順、新規ウィンドウで開く操作を提供。
+- **サイドバー**: フォルダ/ファイル一覧、不可視ファイル表示トグル、ソート順、新規タブ / 新規ウィンドウで開く操作を提供。
+  ファイル行はビューア内リンクと同じ `OpenDisposition` の対応表で開き分ける:
+  ⌘クリック / ⌘Return は新規タブ、⌘⇧クリック / ⌘⇧Return は新規ウィンドウ
+  （どちらも選択 = 表示中ファイルの不変条件を保つため選択は動かさない）、
+  ⌃クリックはコンテキストメニュー。修飾なしは従来どおり現在のタブで差し替える。
   表示 4 値（表示形式 / 不可視ファイル / 変更ファイルのみ / 並び順）は**窓ごとのライブ値**で、
   真実の源は各窓の `FileListModel`。変更の唯一の入口は
   `SidebarListingCoordinator.applyDisplayChange(_:)` で、メニュー（⌃⌘H / ⌘⌃G / ⌃⌘T）・

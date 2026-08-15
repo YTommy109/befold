@@ -6,7 +6,9 @@ import SwiftUI
 ///
 /// `FileListView` から分けているのは、ここが扱うのが「行に対する副次的な操作」で
 /// あって一覧そのものの表示ではないため(`SidebarHeaderView` と同じ切り分け)。
-/// 「別の場所で開く」の配線もここへ寄せ、`FileListView` 側は開き先を知らない。
+/// 「別の場所で開く」のメニュー項目定義と、フォルダ行の開き先解決はここへ寄せる。
+/// 開き方と修飾キーの対応表そのものは `OpenDisposition` にあり、修飾キー付き
+/// クリック / ⌘Return(`FileListView.handleRowTap` / `SidebarKeyAction`)も同じ表を通る。
 struct SidebarContextMenu: View {
     let entry: FileListEntry
     /// コピーする相対パスの基準(git ルート / ワークスペースルート)を持つ。
