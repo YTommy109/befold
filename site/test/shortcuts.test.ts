@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest'
 import app from '../src/index'
 import {
   formatShortcut,
+  type MenuShortcutItem,
   parseSwiftMenuShortcuts,
+  parseSwiftMenuItemTags,
+  parseSwiftModeSegments,
   parseSwiftStringConstants,
   shortcutsInProse,
   splitShortcutKeys,
@@ -19,6 +22,19 @@ import { SHORTCUTS } from '../src/views/features'
 const parsed = parseSwiftMenuShortcuts(env.TEST_MAIN_MENU_BUILDER_SWIFT)
 
 /**
+ * 表示モードの ⌘1〜⌘3 のキー。メニュー定義には `String(mode.menuItemTag)` の
+ * 計算値としてしか現れないため、参照先（ModeSegments.all の並びと
+ * ViewerDisplayMode.menuItemTag の対応）をパースして静的に解決する。
+ * タグが引けなければモード名がそのまま残り、下の期待値と一致せず落ちる。
+ */
+const displayModeKeys = (() => {
+  const tags = parseSwiftMenuItemTags(env.TEST_VIEWER_DISPLAY_MODE_SWIFT)
+  return parseSwiftModeSegments(env.TEST_MODE_SEGMENTS_SWIFT).map((name) =>
+    String(tags.get(name) ?? name),
+  )
+})()
+
+/**
  * MainMenuBuilder*.swift でキー等価を与えている項目の全件。
  *
  * 定義は extension（`MainMenuBuilder+ViewMenu.swift`）へ分割されるため、ソース順は
@@ -29,10 +45,9 @@ const parsed = parseSwiftMenuShortcuts(env.TEST_MAIN_MENU_BUILDER_SWIFT)
  * 「サイトに書いていない」という理由で検証をすり抜ける。項目の一覧そのものを
  * 固定して、割り当ての増減・変更が必ずこのテストに現れるようにする。
  *
- * ここが落ちたら、増減した項目を stable ビルドで露出するかどうかで分類し、
- * この表・GATED_LOCALIZATION_KEYS・（露出するなら）features.tsx の SHORTCUTS を
- * 更新すること。`keyEquivalent` がリテラルでない項目（表示モードの ⌘1〜）は
- * 表記が実行時に決まるため、サイトには載せない。
+ * ここが落ちたら、この表と features.tsx の SHORTCUTS を更新すること。
+ * `keyEquivalent` がリテラルでない項目（表示モードの ⌘1〜）は、参照先の
+ * Swift ソースから displayModeKeys として解決する。
  */
 const EXPECTED_MENU_ITEMS: {
   localizationKey: string
@@ -103,16 +118,6 @@ const EXPECTED_MENU_ITEMS: {
   },
 ]
 
-/**
- * フィーチャーゲートの内側にあり、stable ビルドでは項目自体が存在しないもの。
- * サイトは stable の利用者が見るため、ここに挙げた項目は載せてはならない。
- */
-const GATED_LOCALIZATION_KEYS = new Set([
-  'menu.view.showChangedFilesOnly',
-  'menu.view.sidebarTreeLayout',
-  'menu.view.diffSideBySide',
-])
-
 /** `BookmarkShortcut.keyEquivalent` のような定数参照を、実際のキーへ解決する。 */
 function resolveKeyEquivalent(expression: string): string | null {
   const literal = /^"(.*)"$/.exec(expression)?.[1]
@@ -126,30 +131,23 @@ function resolveKeyEquivalent(expression: string): string | null {
 }
 
 /**
- * stable ビルドに存在し、表記が静的に決まるショートカットの集合（例: `⌃⌘F`）。
+ * 実装のメニュー定義に存在するショートカットの集合（例: `⌃⌘F`）。
  * 期待値の表ではなくパース結果から作る（実装を変えたときに、上の全件比較だけでなく
  * サイトとの突き合わせも落ちるようにするため）。
  */
-function stableShortcuts(): Set<string> {
+function implementedShortcuts(): Set<string> {
   const shortcuts = new Set<string>()
   for (const item of parsed) {
-    if (GATED_LOCALIZATION_KEYS.has(item.localizationKey)) continue
-    const key = resolveKeyEquivalent(item.keyEquivalent)
-    if (key === null) continue
-    shortcuts.add(formatShortcut(key, item.modifiers))
+    for (const key of resolveKeys(item)) shortcuts.add(formatShortcut(key, item.modifiers))
   }
   return shortcuts
 }
 
-/** フィーチャーゲートの内側にあり、stable ビルドでは存在しないショートカットの集合。 */
-function gatedShortcuts(): Set<string> {
-  const shortcuts = new Set<string>()
-  for (const item of parsed) {
-    if (!GATED_LOCALIZATION_KEYS.has(item.localizationKey)) continue
-    const key = resolveKeyEquivalent(item.keyEquivalent)
-    if (key !== null) shortcuts.add(formatShortcut(key, item.modifiers))
-  }
-  return shortcuts
+/** 1 項目が表すキーの列。表示モードの項目だけ複数キー（⌘1〜⌘3）へ展開する。 */
+function resolveKeys(item: MenuShortcutItem): string[] {
+  if (item.keyEquivalent === 'String(mode.menuItemTag)') return displayModeKeys
+  const key = resolveKeyEquivalent(item.keyEquivalent)
+  return key === null ? [] : [key]
 }
 
 /** 表に載せた全ショートカット（`⌘F / ⌘G` のような併記は分解する）。 */
@@ -184,19 +182,23 @@ describe('MainMenuBuilder.swift のパース', () => {
       .map((item) => item.keyEquivalent)
       .filter((expression) => resolveKeyEquivalent(expression) === null)
 
-    // 実行時に決まる表示モードの項目だけが解決できない。ここが増えたら、
-    // その項目をサイトに載せるかどうかを判断してから期待値を更新すること。
+    // 表示モードの項目だけは単キーとして解決できず、displayModeKeys へ展開される。
+    // ここが増えたら、解決の手段を用意してから期待値を更新すること。
     expect(unresolved).toEqual(['String(mode.menuItemTag)'])
   })
 
   it('ブックマークのキー等価を BookmarkShortcut から解決する', () => {
     expect(resolveKeyEquivalent('BookmarkShortcut.keyEquivalent')).toBe('d')
   })
+
+  it('表示モードのキーを ModeSegments と ViewerDisplayMode から解決する', () => {
+    expect(displayModeKeys).toEqual(['1', '2', '3'])
+  })
 })
 
 describe('ショートカット表', () => {
   it('表のショートカットが実装の割り当てに存在する', () => {
-    const missing = tableShortcuts().filter((key) => !stableShortcuts().has(key))
+    const missing = tableShortcuts().filter((key) => !implementedShortcuts().has(key))
     expect(missing).toEqual([])
   })
 
@@ -205,11 +207,6 @@ describe('ショートカット表', () => {
     expect(listed.length).toBe(new Set(listed).size)
   })
 
-  it('フィーチャーゲートの内側のショートカットは載せない', () => {
-    const gated = gatedShortcuts()
-    expect(gated.size).toBeGreaterThan(0)
-    expect(tableShortcuts().filter((key) => gated.has(key))).toEqual([])
-  })
 })
 
 describe('ページに書いたショートカット', () => {
@@ -221,7 +218,7 @@ describe('ページに書いたショートカット', () => {
     const mentioned = shortcutsInProse(await pageBody(path))
 
     expect(mentioned.length).toBeGreaterThan(0)
-    expect(sorted(new Set(mentioned)).filter((key) => !stableShortcuts().has(key))).toEqual([])
+    expect(sorted(new Set(mentioned)).filter((key) => !implementedShortcuts().has(key))).toEqual([])
   })
 
   it('詳細ページの記載はすべて表にも載っている', async () => {
