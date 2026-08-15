@@ -154,7 +154,7 @@ final class ViewerDocumentPresenter {
         if store.displayMode != newValue {
             store.displayMode = newValue
             if !newValue.showsDiff {
-                store.diffText = nil
+                store.diffContent = .unavailable
             }
         }
         refreshToolbar()

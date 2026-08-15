@@ -138,7 +138,8 @@ BefoldApp/
 | `ViewerWindowController` | 1 ウィンドウ分のビューア制御（依存の保持と生成手順、および外から来る契機の受け口）。実処理は独立した協働オブジェクトへ出してある（下記）。手元に残る拡張は `+FileNavigation` 提示対象の移動 / `+MenuActions` メニュー・ツールバー由来の `@objc` アクションと validate / `+References` 参照のオープン / `+Capabilities` 能力導出の入力集め / `+SidebarHost`・`+Renderer`・`+WindowDelegate` 各プロトコル準拠 |
 | `ViewerWindowAssembler` | ウィンドウ生成時の部品の組み立てと配線（分割ビュー・サイドバーナビゲータ・WebView コマンド・ストア購読・スワイプ監視）。工程の中身だけを持ち、順序制約は `ViewerWindowController.init` に残す |
 | `ViewerDocumentPresenter` | 文書の状態（表示モード・倍率・スクロール位置）の遷移と提示開始の 3 契機（ADR 0002 段 1）。cmd+U の戻り先の記憶もここに閉じる |
-| `ViewerDiffPresenter` | git 差分の非同期取得・世代管理・レイアウト設定 |
+| `ViewerDiffPresenter` | git 差分の非同期取得・世代管理・レイアウト設定。取得を登録した契機で `ViewerDiffContent.pending` を立て、着地で確定させる（確定差分を表示中の取り直しでは降格しない） |
+| `ViewerDiffContent` | 差分取得の結果状態（`unavailable` / `pending` / `diff(String)`）。「未着」と「確定して差分なし」を型で区別する。未確定の間はレンダラ（`ContentUpdatePlanner`）がモード切替だけの再描画を見送って前の表示を残し、切替直後にプレーンなソース表示が一瞬見える中間状態を作らない（TASK-407） |
 | `ViewerCapabilitiesFactory` | 提示状態から `ViewerCapabilities` を導出する純関数（ADR 0002 段 2）。どの入力を信じるかをここ 1 箇所に置く |
 | `GitDiffAvailability` | 差分表示モードを選ばせてよいかを決める git 側の事実（可用性・そのファイルに差分として出せる変更があるか）。基準ディレクトリの種別と `SidebarGitStatus` から導く純粋な写像で、**確定した否定の事実（git 管理外／扱えないリポジトリ／変更なし・未追跡）でだけ選択不可にする**。未解決の間は選べるままにして初期表示での入れ替わりを 1 方向に限る |
 | `ReferenceMenuPresenter` | 参照の右クリックメニューの項目定義・表示・実行（`@objc` アクションを含めて 1 型に閉じる） |

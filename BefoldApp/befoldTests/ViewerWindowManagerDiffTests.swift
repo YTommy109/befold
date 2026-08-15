@@ -28,12 +28,12 @@ struct ViewerWindowManagerDiffTests {
         fixture.manager.openViewer(for: file)
         let controller = try #require(fixture.manager.allControllers.first)
         presentDocument(in: controller, file: file)
-        controller.store.diffText = "@@ -1 +1 @@\n-a\n+b\n"
+        controller.store.diffContent = .diff("@@ -1 +1 @@\n-a\n+b\n")
 
         controller.setDisplayMode(.source)
 
         #expect(!controller.isDiffShown)
-        #expect(controller.store.diffText == nil)
+        #expect(controller.store.diffContent == .unavailable)
     }
 
     /// 差分表示はファイル単位の表示モードなので、片方のウィンドウで差分にしても
@@ -63,9 +63,9 @@ struct ViewerWindowManagerDiffTests {
         #expect(controllers[0].isDiffShown)
         #expect(!controllers[1].isDiffShown)
         await waitForDeliveryOnMainActor {
-            controllers[0].store.diffText == "DIFF"
+            controllers[0].store.diffContent.text == "DIFF"
         }
-        #expect(controllers[1].store.diffText == nil)
+        #expect(controllers[1].store.diffContent == .unavailable)
     }
 
     /// 生成経路が共有インスタンスを渡していることの固定。
@@ -143,9 +143,9 @@ struct ViewerWindowManagerDiffTests {
         #expect(controllers.allSatisfy { $0.fileURL == shared })
         // ウィンドウ生成・切替そのものも差分を取りに行くため、本文が入るまで待つ。
         await waitForDeliveryOnMainActor {
-            controllers.allSatisfy { $0.store.diffText != nil }
+            controllers.allSatisfy { $0.store.diffContent.text != nil }
         }
-        let before = controllers.map(\.store.diffText)
+        let before = controllers.map(\.store.diffContent)
 
         // 1 回のファイル変更イベントが全ウィンドウへ配られる経路と同じ形。
         for controller in controllers {
@@ -155,7 +155,7 @@ struct ViewerWindowManagerDiffTests {
         // まず両窓が取り直しの結果を受け取るまで待つ。合流の成否に関わらずここは満たされる
         // (合流しなければ別々の結果を、合流すれば同じ結果を受け取る)。
         await waitForDeliveryOnMainActor {
-            zip(before, controllers).allSatisfy { $0 != $1.store.diffText }
+            zip(before, controllers).allSatisfy { $0 != $1.store.diffContent }
         }
 
         // 合流の成否はここで分かれる。1 回の取得に合流していれば 2 窓は同じ本文を受け取り、
@@ -164,7 +164,7 @@ struct ViewerWindowManagerDiffTests {
         // 取得回数では測らない。セットアップ由来の取得が何回走るかは契機の重なり方で変わり、
         // 「静止した」と言える瞬間が無いため、回数の算術は実行順に左右される(CI で実際に
         // 落ちた = TASK-346)。取得回数そのものの検証は GitDiffLoaderTests が決定的に行う。
-        let texts = controllers.map(\.store.diffText)
+        let texts = controllers.map(\.store.diffContent)
         #expect(texts[0] == texts[1])
     }
 
@@ -191,7 +191,7 @@ struct ViewerWindowManagerDiffTests {
         survivor.refreshDiff()
 
         await waitForDeliveryOnMainActor {
-            survivor.store.diffText == "DIFF"
+            survivor.store.diffContent.text == "DIFF"
         }
     }
 }
