@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-14 12:22'
-updated_date: '2026-08-15 08:09'
+updated_date: '2026-08-15 10:31'
 labels:
   - feature
 milestone: m-2
@@ -71,6 +71,8 @@ VSCode の Explorer では ⌘クリックは複数選択・⌥クリックが�
 設計レビュー(/review-design)の反映: (1) readModifierFlags クロージャ注入は採らず、handleKey と同じ「ジェスチャ側で NSEvent.modifierFlags を読んで internal メソッド handleRowTap へ渡す」方式にした(FileListView への注入クロージャは既に 4 本で規定超過のため)。(2) .openFile に連想値を足すと case .openFile: が黙って全マッチするため rg で消費箇所を全列挙して束縛付きへ書き換えた(消費箇所は FileListView+Keyboard.swift の 1 箇所 + テスト)。(3) 計画にあった doubleTapGesture の ⌘ ガードは不要と判明: performRowAction は .openFile を default: break で無視するため(FileListView.swift:95-102)、ダブルクリック経路から現在タブのオープンは発火しない。⌘クリック 2 連打はクリック回数どおり 2 タブ開く(許容)。
 検証: swift test 全 1455 件 GREEN。RED はコンパイル失敗(handleRowTap 未定義 / openFile 連想値なし)で確認、さらにサボタージュ(⌘タップ経路で selection を動かす)で ⌘/⌘⇧ タップの 2 テストが落ちることを実測し AC #10 を担保。swiftlint main 差分ゼロ(54→54)。xcodebuild build 成功(新規ファイル SidebarModifierOpenTests.swift は xcodegen generate 済み)。markdownlint 0 件。
 未確認の前提(リリース前手動チェック対象): SpatialTapGesture.onEnded 時点の静的 NSEvent.modifierFlags がクリック時の修飾状態を表すこと。ハンドラは同期実行で、ユーザーは ⌘ を押したままクリックするため成立する見込みだが、GUI 層は自動テスト対象外のため実機で ⌘クリック→新規タブを 1 回確認する。
+
+/finish-task 追記: check-type-group-size.sh --check 閾値以内。responsibility-reviewer は未実施と判断——本タスクは型・プロトコル準拠・stored property・注入クロージャのいずれも増やしていない(メソッド追加と enum ケースの連想値のみ。クロージャ注入は設計レビューで意図的に回避)。native-app-design.md は更新済み(OpenDisposition の消費元にサイドバーを追記、サイドバー節に開き分けを追記)。ADR 不要(新しい不可逆判断なし、既存 OpenDisposition への合流のみ)。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
