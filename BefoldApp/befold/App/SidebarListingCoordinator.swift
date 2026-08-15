@@ -71,8 +71,10 @@ final class SidebarListingCoordinator {
     ///
     /// 後処理が値ごとに違うのが要点。
     /// - 隠しファイル・並び順: 一覧の中身が変わるので再列挙する。
-    /// - レイアウト: 行配列そのものが変わる。ツリーからドリルダウンへ戻すときは展開状態も
-    ///   捨てる(捨てないと、モードを戻したのに展開したままの行が残る)。行の組み直しは
+    /// - レイアウト: 行配列そのものが変わる。展開状態はここでは捨てない——ドリルダウンは
+    ///   展開の材料を行へ渡さない(SidebarTreePresenter.applyRows)ので表示に出ず、ツリーへ
+    ///   戻るときの復元材料として温存する。捨てる判断ごと切り替えの前後処理は
+    ///   `SidebarLayoutTransition` が持つ(TASK-481)。行の組み直しは
     ///   `refreshFileList` の経路へ合流させる——直接組み直すと「ルートの一覧が届く前に
     ///   行を組み直さない」不変条件を迂回する。
     /// - 変更ファイルのみ: 述語が変わるだけなので再列挙しない。ON になったときだけ git 状態を
@@ -94,9 +96,6 @@ final class SidebarListingCoordinator {
             let next: SidebarLayoutMode = fileListModel.layoutMode == .tree ? .drillDown : .tree
             fileListModel.layoutMode = next
             recordSettings()
-            if next == .drillDown {
-                tree.invalidateExpansion()
-            }
             refreshFileList()
         case let .setSortOrder(order):
             guard fileListModel.sortOrder != order else { return }

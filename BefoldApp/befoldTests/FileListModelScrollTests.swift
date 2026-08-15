@@ -128,4 +128,38 @@ struct FileListModelScrollTests {
 
         #expect(tableView.scrolledRows.isEmpty)
     }
+
+    /// ツリー復元(TASK-481)では、選択の書き込みから何ランループも後に子リストが届いて
+    /// はじめて選択行が生まれる。1 回の遅延評価では空振りするため、行が現れるまで要求を
+    /// 保持し、一覧の差し替えを機に再試行する(フォルダー再訪の選択復元も同じ経路になる)。
+    @Test("選択行が後のランループで届いた一覧に現れたときも、その行へスクロールを要求する")
+    func scrollRetriesWhenSelectionAppearsInLaterEntries() async {
+        let (model, tableView) = makeModel(entries: [])
+        let entries = makeEntries(50)
+
+        model.selection = entries[7].id
+        await drainMainQueue()
+        #expect(tableView.scrolledRows.isEmpty)
+
+        model.setEntries(entries, for: directory, didFailEnumeration: false)
+        await drainMainQueue()
+
+        #expect(tableView.scrolledRows == [7])
+    }
+
+    /// 保持は一回性。可視化に成功した要求が残り続けると、以後の一覧差し替えのたびに
+    /// 選択行へ引き戻され、ユーザーの手動スクロールが奪われる。
+    @Test("スクロール済みの要求は、その後の一覧差し替えで再発火しない")
+    func satisfiedScrollDoesNotRefireOnLaterEntries() async {
+        let entries = makeEntries(10)
+        let (model, tableView) = makeModel(entries: entries)
+        model.selection = entries[3].id
+        await drainMainQueue()
+        #expect(tableView.scrolledRows == [3])
+
+        model.setEntries(makeEntries(10), for: directory, didFailEnumeration: false)
+        await drainMainQueue()
+
+        #expect(tableView.scrolledRows == [3])
+    }
 }

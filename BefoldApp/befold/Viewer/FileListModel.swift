@@ -49,6 +49,9 @@ final class FileListModel {
         entriesDirectory = directory
         didFailListing = didFailEnumeration
         entries = newEntries
+        // 選択より遅れて届いた一覧に選択行が含まれる形(ツリー復元・選択復元)では、
+        // 選択書き込み時のスクロール要求が空振りしている。新しい一覧で再試行させる。
+        tableFocuser.retryPendingScroll()
     }
 
     /// 手元の一覧の列挙に失敗したか。空の一覧が「空だった」のか「読めなかった」のかを

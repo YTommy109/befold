@@ -40,13 +40,19 @@ extension SidebarNavigator {
     /// ツリーのものになる。走行中の子リスト取得もここで無効化する(着地させると、新しい
     /// ルートの行配列へ前のツリーの子が混ざる)。
     ///
+    /// **破棄はツリー表示中だけ。** リスト表示中の移動は展開を温存する——リスト表示は
+    /// 展開を行へ出さないので別ツリーの行が混ざる形は起きず、温存した集合と
+    /// snapshotRoot がツリーへ戻るときの復元材料になる(TASK-481)。
+    ///
     /// 直接 `currentDirectory` へ代入しないこと。かつて `syncAfterSwitch` が代入だけを
     /// 行い、この後始末を素通りしていた。
     func moveCurrentDirectory(to url: URL) {
         selectionMemory.remember(in: fileListModel.currentDirectory)
         fileListModel.currentDirectory = url
         updateRootDirectory(with: url.standardizedFileURL)
-        discardExpansion()
+        if fileListModel.layoutMode == .tree {
+            discardExpansion()
+        }
     }
 
     /// 移動先で選ぶ行を反映し、それがファイルならプレビューの中身も揃える。
