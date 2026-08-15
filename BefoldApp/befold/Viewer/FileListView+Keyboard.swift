@@ -58,7 +58,7 @@ extension FileListView {
         guard let entry = snapshot.entry(for: model.selection) else { return .ignored }
         switch action {
         case .navigateInto: delegate?.fileListDidRequestNavigation(to: entry.url)
-        case .openFile: openIfFile(entry)
+        case let .openFile(disposition): openIfFile(entry, with: disposition)
         case .expand: delegate?.fileListDidRequestExpand(entry)
         case .collapse: delegate?.fileListDidRequestCollapse(entry)
         default: return .ignored

@@ -122,14 +122,32 @@ struct FileListView: View {
                 }
                 return
             }
-            model.selection = entry.id
-            openIfFile(entry)
-            // List が選択を NSTableView へ反映し終える前に first responder を
-            // 奪うと選択行とハイライトがズレるため、次のランループへ遅延する
-            // (固定待ちは不要)。
-            DispatchQueue.main.async {
-                model.tableFocuser.focus()
-            }
+            // SpatialTapGesture は修飾キーを運ばないため、ハンドラ実行時(同期)の
+            // 押下状態を読む(HistoryButtonView.mouseDown と同じイベント時読み)。
+            handleRowTap(entry, modifiers: NSEvent.modifierFlags)
+        }
+    }
+
+    /// 行本体のタップ。修飾キーで開き方を振り分ける(TASK-482)。対応表はビューア内
+    /// リンクと同じ `OpenDisposition` にあり、ここに独自の表を作らない。
+    /// ⌃ はコンテキストメニューの担当なので何もしない(`DirectHTMLLinkPolicy` と
+    /// 同じく `OpenDisposition` へ渡す前に弾く)。⌘ / ⌘⇧ のファイル行は選択を
+    /// 動かさず別の場所で開き、「選択 = このウィンドウの表示中ファイル」を保つ。
+    /// テストから修飾キーを渡して呼べるよう internal。
+    func handleRowTap(_ entry: FileListEntry, modifiers: NSEvent.ModifierFlags) {
+        if modifiers.contains(.control) { return }
+        let disposition = OpenDisposition(modifiers: modifiers)
+        if disposition != .currentTab, entry.kind == .file {
+            openIfFile(entry, with: disposition)
+            return
+        }
+        model.selection = entry.id
+        openIfFile(entry)
+        // List が選択を NSTableView へ反映し終える前に first responder を
+        // 奪うと選択行とハイライトがズレるため、次のランループへ遅延する
+        // (固定待ちは不要)。
+        DispatchQueue.main.async {
+            model.tableFocuser.focus()
         }
     }
 
@@ -137,8 +155,18 @@ struct FileListView: View {
     /// クリック・矢印キー・j/k など、選択を変えるすべての経路から呼ぶことで
     /// 「選択は動くが表示が追従しない」状態を防ぐ。
     func openIfFile(_ entry: FileListEntry) {
-        if entry.kind == .file {
+        openIfFile(entry, with: .currentTab)
+    }
+
+    /// エントリがファイルなら `disposition` に従って開く。`.currentTab` は選択追従の
+    /// 経路(`fileListDidSelectFile`)、それ以外は選択を動かさない経路
+    /// (`fileListDidRequestOpenElsewhere`)へ配る。フォルダでは何もしない。
+    func openIfFile(_ entry: FileListEntry, with disposition: OpenDisposition) {
+        guard entry.kind == .file else { return }
+        if disposition == .currentTab {
             delegate?.fileListDidSelectFile(entry.url)
+        } else {
+            delegate?.fileListDidRequestOpenElsewhere(entry.url, disposition: disposition)
         }
     }
 
