@@ -137,7 +137,7 @@ final class SidebarExpansion {
     /// 再展開したときに古い内容がそのまま復活する(しかも再列挙されない)。
     /// 捨てる側に倒し、再展開は必ず取り直しにする。
     func collapse(_ key: String) {
-        for target in expandedKeys.filter({ $0 == key || $0.hasPrefix(key + "/") }) {
+        for target in expandedKeys.filter({ Self.isKey($0, within: key) }) {
             generations[target, default: 0] += 1
             expandedKeys.remove(target)
             children[target] = nil
@@ -154,6 +154,43 @@ final class SidebarExpansion {
         children.removeAll()
         generations.removeAll()
         urls.removeAll()
+        // スナップショット root は展開集合と同じ寿命。展開を捨てたのに root だけが
+        // 残ると、次のリスト→ツリー切り替えが別ツリーの root へ引き戻す(TASK-481)。
+        snapshotRoot = nil
+    }
+
+    // MARK: - レイアウト切り替えのスナップショット root(TASK-481)
+
+    /// リスト(ドリルダウン)表示へ切り替えたときのツリーの root。**ウィンドウごと・メモリのみ**。
+    ///
+    /// 展開集合はコピーしない——ドリルダウン中も `expandedKeys` / `children` を生かしたまま
+    /// 残し(行の組み立ては `SidebarTreePresenter.applyRows` がドリルダウンで材料を渡さない
+    /// ため表示には出ない)、ツリーへ戻るときに root だけをここから復元する。
+    private(set) var snapshotRoot: URL?
+
+    /// ツリー→リスト切り替え時に root を記録する。
+    func recordSnapshotRoot(_ root: URL) {
+        snapshotRoot = root
+    }
+
+    /// リスト→ツリーで root を復元し終えたときに呼ぶ(root の外へ出て捨てる側は
+    /// `invalidateAll` が展開ごと捨てる)。
+    func clearSnapshotRoot() {
+        snapshotRoot = nil
+    }
+
+    /// url がスナップショット root 自身またはその配下にあるか。root が無ければ false
+    /// (復元しない側に倒す)。
+    func snapshotRootCovers(_ url: URL) -> Bool {
+        guard let snapshotRoot else { return false }
+        return Self.isKey(url.normalizedPathKey, within: snapshotRoot.normalizedPathKey)
+    }
+
+    /// key が ancestor 自身またはその配下か。`collapse` の波及と `snapshotRootCovers` が
+    /// 共有する規則で、`DirectoryLister.isWithinHome(_:home:)` / `SidebarGitStatus.covers(_:)`
+    /// とも同じ「一致か、区切り文字を含めた前方一致」(兄弟パス誤検出を避ける)。
+    private static func isKey(_ key: String, within ancestor: String) -> Bool {
+        key == ancestor || key.hasPrefix(ancestor + "/")
     }
 
     /// 列挙結果を反映する。トークンが古ければ(別の展開・畳み・ルート切り替えが

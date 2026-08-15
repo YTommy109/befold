@@ -4,7 +4,9 @@ import Foundation
 ///
 /// 抱える関心は 1 つ——`FileListModel.entries` という 1 本の出力を作ること。
 /// そのための**状態**(`expansion`)・**材料**(`lastListing`)・**取得**(`childrenLister`)・
-/// **組み立てと反映**(`applyRows`)をここに閉じる。`SidebarNavigator` から分けているのは
+/// **組み立てと反映**(`applyRows`)をここに閉じる。展開と寿命を共有するスナップショット
+/// root の中継(TASK-481)も持つ——`expansion` を `private` に保つための薄い委譲で、
+/// 行の組み立てとは別の関心だが置き場は寿命の結合が決める。`SidebarNavigator` から分けているのは
 /// 行数ではなく、`lastListing` を `private` にできるようにするため。別ファイルの
 /// extension が書く形だと Swift の `private`(ファイルスコープ)では守れず、
 /// 「書いてよいのは `applyRows` だけ」が doc コメントの約束にとどまっていた。
@@ -102,10 +104,31 @@ final class SidebarTreePresenter {
         rebuildRows()
     }
 
-    /// 走行中の子リスト取得をすべて無効化し、展開状態を捨てる。
-    /// ルート切り替え・ウィンドウを閉じるとき・ツリー表示をやめるときに呼ぶ。
+    /// 走行中の子リスト取得をすべて無効化し、展開状態を捨てる(snapshotRoot も一緒に消える)。
+    /// ツリー表示中のルート切り替え・ウィンドウを閉じるとき・スナップショット root の外で
+    /// ツリー表示へ戻るときに呼ぶ。
     func invalidateExpansion() {
         expansion.invalidateAll()
+    }
+
+    // MARK: - Layout Snapshot (TASK-481)
+
+    /// 以下 4 本は `SidebarExpansion` のスナップショット root への薄い委譲。
+    /// 呼び出し元はツリー⇄リスト切り替えの遷移(SidebarLayoutTransition)だけ。
+    var snapshotRoot: URL? {
+        expansion.snapshotRoot
+    }
+
+    func recordSnapshotRoot(_ root: URL) {
+        expansion.recordSnapshotRoot(root)
+    }
+
+    func clearSnapshotRoot() {
+        expansion.clearSnapshotRoot()
+    }
+
+    func snapshotRootCovers(_ url: URL) -> Bool {
+        expansion.snapshotRootCovers(url)
     }
 
     /// 展開中フォルダの子リストを、現在の並び順・隠しファイル設定で取り直す。
@@ -122,6 +145,10 @@ final class SidebarTreePresenter {
     /// タイムアウトまで待たされ、結果は `.failed` なので読み込み済みの子行も毎回捨てられる
     /// / TASK-451)。行が無いキーの子は古いまま残るが、親の行が無いので描画されない。
     func reloadExpandedChildren() {
+        // リスト(ドリルダウン)表示中は展開が行に出ない(applyRows が材料を渡さない)。
+        // 温存中の子リストを取り直しても描画されず、不可視のサブツリーへ列挙が飛ぶ
+        // だけなので何もしない。鮮度はツリーへ戻ったあとの取り直しで追いつく(TASK-481)。
+        guard fileListModel.layoutMode == .tree else { return }
         for token in expansion.invalidateChildren() {
             // 判定に使うのは 1 つ前の完了した一覧(この関数はルートの列挙を発行する前に
             // 呼ばれる)。列挙先の URL は従来どおり券が運ぶ——ここで引き当て直さない。

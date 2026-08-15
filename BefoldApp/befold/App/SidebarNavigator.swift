@@ -56,6 +56,8 @@ final class SidebarNavigator {
     private let tree: SidebarTreePresenter
     /// 一覧取得の発行と世代管理、および表示設定ミラーの同期(列挙の入力なので同居)。
     private let listing: SidebarListingCoordinator
+    /// ツリー⇄リスト切り替えの遷移方針(スナップショットの記録・復元と経路の展開)。
+    private let layoutTransition: SidebarLayoutTransition
     /// 相対パスコピー・Quick Open のヘッダーが使う基準ディレクトリの解決。
     /// **`tree` と同じく注入引数にせず private で持つ**(TASK-319 / 442.3 と同型)。
     private let baseDirectory: SidebarBaseDirectoryResolver
@@ -127,6 +129,7 @@ final class SidebarNavigator {
             gitStatus: gitStatus,
             baseDirectory: baseDirectory
         )
+        layoutTransition = SidebarLayoutTransition(fileListModel: fileListModel, tree: tree, listing: listing)
         baseDirectory.refresh()
     }
 
@@ -135,7 +138,12 @@ final class SidebarNavigator {
     /// サイドバー表示 4 値を変える唯一の入口。実処理は SidebarListingCoordinator が持つ
     /// (4 値は列挙の入力なので)。**メニュー・サイドバーヘッダー・CLI はすべてここを通す。**
     func applyDisplayChange(_ change: SidebarDisplayChange) {
-        listing.applyDisplayChange(change)
+        // レイアウトだけは前後にカレントの移動・展開の温存/復元が付く(TASK-481)。
+        if case .toggleLayoutMode = change {
+            layoutTransition.toggleLayoutMode()
+        } else {
+            listing.applyDisplayChange(change)
+        }
     }
 
     /// サイドバーのファイル一覧を取り直す。実処理は SidebarListingCoordinator が持つ。
@@ -210,6 +218,7 @@ final class SidebarNavigator {
         gitStatus.attach(to: host)
         baseDirectory.attach(to: host)
         historyController.attach(to: host, navigator: self)
+        layoutTransition.attach(to: self)
     }
 
     // MARK: - Navigation History
@@ -244,8 +253,8 @@ final class SidebarNavigator {
         tree.collapseFolder(key)
     }
 
-    /// 展開状態を捨てる。ツリー表示をやめるとき(ViewerWindowManager)に呼ぶ。
-    /// 行の組み直しは呼び出し側が refreshFileList の経路で行うこと。
+    /// 展開状態を捨てる。ツリー表示中のフォルダー移動(moveCurrentDirectory)から呼ぶ。レイアウト
+    /// 切り替えでの破棄判断は SidebarLayoutTransition が持つ(リスト化では温存する / TASK-481)。
     func discardExpansion() {
         tree.invalidateExpansion()
     }

@@ -40,9 +40,29 @@ final class SidebarTableFocuser {
     /// 一覧の差し替えより先に選択を書く経路(選択復元)があるため、`NSTableView` が新しい行を
     /// 反映したあとになるよう次のランループへ遅らせる(固定待ちは不要)。行番号は遅延後に
     /// 決めさせる——遅延前に確定させると、その間に一覧が入れ替わったとき別の行へスクロールする。
+    /// 行がまだ無ければ(選択復元・ツリー復元で一覧の到着が選択より遅れる形 / TASK-481)、
+    /// 要求を保持して `retryPendingScroll()` からの再試行に備える。可視化できた時点で
+    /// 要求は消える(残すと以後の一覧差し替えのたびに選択行へ引き戻される)。
     func scrollIntoView(row: @escaping @MainActor () -> Int?) {
+        pendingScroll = row
+        attemptPendingScroll()
+    }
+
+    /// 一覧の差し替え後に呼ぶ(`FileListModel.setEntries`)。まだ行を見つけられていない
+    /// スクロール要求があれば、新しい一覧で再試行する。
+    func retryPendingScroll() {
+        guard pendingScroll != nil else { return }
+        attemptPendingScroll()
+    }
+
+    /// 直近のスクロール要求の行番号クロージャ。行が見つかるまで保持する。
+    /// 新しい要求が来たら上書きされ、古い要求は破棄される(開始時の無効化)。
+    private var pendingScroll: (@MainActor () -> Int?)?
+
+    private func attemptPendingScroll() {
         DispatchQueue.main.async { [weak self] in
-            guard let self, let row = row() else { return }
+            guard let self, let row = pendingScroll?() else { return }
+            pendingScroll = nil
             tableView?.scrollRowToVisible(row)
         }
     }
