@@ -19,8 +19,15 @@ enum ViewerTabGrouping {
         guard let baseWindow, baseWindow !== window else { return }
         baseWindow.addTabbedWindow(window, ordered: .above)
         if select {
-            window.tabGroup?.selectedWindow = window
+            selectTab(window)
         }
+    }
+
+    /// window をそのタブグループの選択タブにする。タブ化されていなければ何もしない。
+    /// 前面化(makeKeyAndOrderFront)に任せず明示的に選択するのは、タブ結合直後や
+    /// ヘッドレス環境ではタブ選択が追随しないことがあるため。
+    static func selectTab(_ window: NSWindow) {
+        window.tabGroup?.selectedWindow = window
     }
 
     /// window が属するタブグループのウィンドウ群。タブ化されていなければ自身のみ。

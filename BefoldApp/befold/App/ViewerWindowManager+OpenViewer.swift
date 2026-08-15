@@ -31,12 +31,11 @@ extension ViewerWindowManager {
         }
 
         let key = url.normalizedPathKey
-        // Finder/CLI/リンクからの再オープン(.currentTab)は重複ウィンドウを作らず既存を前面化する。
-        // (ウィンドウ内のサイドバー切替だけは他ウィンドウを無視して自ウィンドウを切り替える)
-        // 一方 .newTab/.newWindow は cmd+クリックやコンテキストメニューでユーザーが
-        // 明示的に新規オープンを求めた経路なので、重複抑止より意図を優先して素通しする
-        // (既に開いているファイルで「新しいウィンドウで開く」が無反応に見える問題: issue #431)。
-        if disposition == .currentTab, let existing = controllers[key]?.first {
+        // 既存ウィンドウを再利用できる条件は disposition ごとに reusableController が決める。
+        // 再利用時の前面化・タブ選択・表示オプション適用はこの 1 ブロックへ集約する。
+        if let existing = reusableController(
+            forKey: key, disposition: disposition, relativeTo: sourceWindow
+        ) {
             // 表示オプションの適用規則は ViewerDisplayOptionsApplier に一本化してある。
             // 前面化(activate / focusWindow)は開く経路の責務なのでここに残す。
             ViewerDisplayOptionsApplier.apply(
@@ -44,6 +43,9 @@ extension ViewerWindowManager {
             )
             NSApp.activate()
             existing.focusWindow()
+            if let window = existing.window {
+                ViewerTabGrouping.selectTab(window)
+            }
             return existing
         }
 
@@ -64,6 +66,34 @@ extension ViewerWindowManager {
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         recentRepositories.recordIfNeeded(for: url, controller: controller)
         return controller
+    }
+
+    /// 同じファイルを表示中の既存コントローラを再利用できるなら返す(nil なら新規に開く)。
+    ///
+    /// - `.currentTab`: Finder/CLI/リンクからの再オープン。どのウィンドウで開いていても
+    ///   既存を前面化する(ウィンドウ内のサイドバー切替だけは openViewer を通らず
+    ///   自ウィンドウを切り替える)。
+    /// - `.newTab`: cmd+クリック等。起点ウィンドウと同じタブグループに同じファイルの
+    ///   タブが既にあればそれを選択し、重複タブを作らない(TASK-487)。別ウィンドウで
+    ///   開いているだけなら素通しし、起点のタブグループへ新しいタブを開く。
+    /// - `.newWindow`: ユーザーが明示的に新規ウィンドウを求めた経路なので常に素通しする
+    ///   (既に開いているファイルで「新しいウィンドウで開く」が無反応に見える問題: issue #431)。
+    private func reusableController(
+        forKey key: String, disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?
+    ) -> ViewerWindowController? {
+        switch disposition {
+        case .currentTab:
+            return controllers[key]?.first
+        case .newTab:
+            guard let sourceWindow else { return nil }
+            let siblings = ViewerTabGrouping.tabWindows(of: sourceWindow)
+            return controllers[key]?.first { controller in
+                guard let window = controller.window else { return false }
+                return siblings.contains(window)
+            }
+        case .newWindow:
+            return nil
+        }
     }
 
     /// 見つからなかったファイルがブックマーク済みなら、それを外す操作を返す(でなければ nil)。
