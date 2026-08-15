@@ -24,11 +24,10 @@ const RENDER_MODE_LABEL: Record<RenderMode, { ja: string; en: string }> = {
 }
 
 /**
- * キーボードショートカット。stable ビルドで必ず存在するものだけを載せる。
+ * キーボードショートカット。macOS 標準の編集系（⌘C・⌘Q など）は載せず、
+ * befold の操作に関わるものを載せる。
  *
- * 表示モードの ⌘1〜⌘3 はフィーチャーゲートで項目数が変わる（MainMenuBuilder の
- * `addDisplayModeItems`）ため、確定するまでここには書かない。
- * 実装（MainMenuBuilder.swift）とのずれは test/shortcuts.test.ts が検知する。
+ * 実装（MainMenuBuilder*.swift）とのずれは test/shortcuts.test.ts が検知する。
  */
 export const SHORTCUTS: { keys: string; ja: string; en: string }[] = [
   { keys: '⌘O', ja: 'ファイル / フォルダを開く', en: 'Open a file or folder' },
@@ -36,11 +35,23 @@ export const SHORTCUTS: { keys: string; ja: string; en: string }[] = [
   { keys: '⌘S', ja: 'サイドバーの表示 / 非表示', en: 'Show or hide the sidebar' },
   { keys: '⌘[ / ⌘]', ja: '前 / 次に読んだファイルへ', en: 'Go to the previously / next viewed file' },
   { keys: '⌘U', ja: 'レンダリング表示とソース表示の切替', en: 'Toggle between rendered and source view' },
+  {
+    keys: '⌘1 / ⌘2 / ⌘3',
+    ja: '表示モードの切替（レンダリング / ソース / 差分）',
+    en: 'Switch the display mode (rendered / source / diff)',
+  },
+  {
+    keys: '⌘\\',
+    ja: '差分レイアウトの上下・左右切替',
+    en: 'Toggle the diff layout between stacked and side by side',
+  },
   { keys: '⌘L', ja: 'ソース表示の行番号', en: 'Toggle line numbers in source view' },
   { keys: '⌘D', ja: 'ブックマークの追加 / 解除', en: 'Add or remove a bookmark' },
   { keys: '⌘F / ⌘G', ja: 'ページ内検索 / 次を検索', en: 'Find in page / find next' },
   { keys: '⌘0 / ⌘+ / ⌘-', ja: '実寸 / 拡大 / 縮小', en: 'Actual size / zoom in / zoom out' },
   { keys: '⌃⌘H', ja: '隠しファイルの表示', en: 'Show hidden files' },
+  { keys: '⌃⌘G', ja: '変更されたファイルのみ表示', en: 'Show changed files only' },
+  { keys: '⌃⌘T', ja: 'サイドバーのツリー表示切替', en: 'Toggle the sidebar tree view' },
   { keys: '⌃⌘F', ja: 'フルスクリーン', en: 'Enter full screen' },
   { keys: '⌘W', ja: 'ウィンドウを閉じる', en: 'Close the window' },
 ]

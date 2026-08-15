@@ -156,6 +156,34 @@ export function parseSwiftStringConstants(source: string): Map<string, string> {
 }
 
 /**
+ * `ViewerDisplayMode.menuItemTag` の switch から、モード名 → タグ数値の対応を拾う。
+ *
+ * 表示モードのメニュー項目はキー等価を `String(mode.menuItemTag)` の計算値で
+ * 与えており、メニュー定義側には数字が現れない。参照先の enum から解決する。
+ * 数値を返す case はこのプロパティにしか無いため、ファイル全体を対象にする。
+ */
+export function parseSwiftMenuItemTags(source: string): Map<string, number> {
+  const tags = new Map<string, number>()
+  for (const match of source.matchAll(/case \.([A-Za-z0-9_]+):\s*(\d+)\b/g)) {
+    const [, name, tag] = match
+    if (name === undefined || tag === undefined) continue
+    tags.set(name, Number(tag))
+  }
+  return tags
+}
+
+/**
+ * `ModeSegments.all` に並ぶモード名を宣言順に拾う。
+ *
+ * View メニューの表示モード項目は `ModeSegments.all` を回して作られるため、
+ * メニューに現れる項目の並びと個数はこの配列が決める。
+ */
+export function parseSwiftModeSegments(source: string): string[] {
+  const list = /static let all[^=]*=\s*\[([^\]]*)\]/.exec(source)?.[1] ?? ''
+  return [...list.matchAll(/\.([A-Za-z0-9_]+)/g)].flatMap((match) => match[1] ?? [])
+}
+
+/**
  * キー等価と修飾キーを `MenuShortcutCatalog.keyDisplay` と同じ表記へ変換する。
  *
  * 修飾キーの指定が無い場合、AppKit はキー等価を与えた項目に `[.command]` を既定で

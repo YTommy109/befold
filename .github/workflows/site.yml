@@ -27,6 +27,9 @@ on:
       - 'BefoldApp/BefoldKit/NormalizedTextCache.swift'
       - 'BefoldApp/befold/App/MainMenuBuilder*.swift'
       - 'BefoldApp/befold/App/BookmarkShortcut.swift'
+      # 表示モードの ⌘1〜⌘3 の解決に使う参照先（vitest.config.ts が読む）。
+      - 'BefoldApp/befold/App/ViewerDisplayMode.swift'
+      - 'BefoldApp/befold/App/ModeSegments.swift'
   pull_request:
     branches: [main]
     paths:
@@ -49,6 +52,9 @@ on:
       - 'BefoldApp/BefoldKit/NormalizedTextCache.swift'
       - 'BefoldApp/befold/App/MainMenuBuilder*.swift'
       - 'BefoldApp/befold/App/BookmarkShortcut.swift'
+      # 表示モードの ⌘1〜⌘3 の解決に使う参照先（vitest.config.ts が読む）。
+      - 'BefoldApp/befold/App/ViewerDisplayMode.swift'
+      - 'BefoldApp/befold/App/ModeSegments.swift'
 
 # 連続 push / force-push で古い実行を打ち切る
 concurrency:
