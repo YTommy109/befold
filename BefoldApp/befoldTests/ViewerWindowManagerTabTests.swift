@@ -65,19 +65,40 @@ struct ViewerWindowManagerTabTests {
         fixture.closeAll()
     }
 
-    @Test("既に開いているファイルでも newTab なら起点のタブグループへ新しいタブを開く")
-    func newTabOpensDuplicateForAlreadyOpenFile() {
+    @Test("同じタブグループで既に開いているファイルの newTab は新規タブを作らず既存タブを選択する")
+    func newTabActivatesExistingTabInSameGroup() {
+        let first = URL(fileURLWithPath: "/mock/first.md")
+        let second = URL(fileURLWithPath: "/mock/second.md")
+        let fixture = MockedViewerWindowManager(files: [first, second], prefix: "ViewerWindowManagerTabTests")
+        defer { fixture.closeAll() }
+
+        fixture.manager.openViewer(for: first)
+        let firstWindow = fixture.manager.window(forPath: first.normalizedPathKey)
+        fixture.manager.openViewer(for: second, disposition: .newTab, relativeTo: firstWindow)
+        let secondWindow = fixture.manager.window(forPath: second.normalizedPathKey)
+
+        let reused = fixture.manager.openViewer(for: first, disposition: .newTab, relativeTo: secondWindow)
+
+        #expect(fixture.manager.controllers[first.normalizedPathKey]?.count == 1)
+        #expect(reused?.window === firstWindow)
+        #expect(firstWindow?.tabGroup?.selectedWindow === firstWindow)
+    }
+
+    @Test("別ウィンドウで開いているだけなら newTab は従来どおり起点のタブグループへ新しいタブを開く")
+    func newTabOpensTabWhenFileIsOpenOnlyInAnotherWindow() {
         let file = URL(fileURLWithPath: "/mock/only.md")
-        let fixture = MockedViewerWindowManager(files: [file], prefix: "ViewerWindowManagerTabTests")
+        let other = URL(fileURLWithPath: "/mock/other.md")
+        let fixture = MockedViewerWindowManager(files: [file, other], prefix: "ViewerWindowManagerTabTests")
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file)
-        let firstWindow = fixture.manager.window(forPath: file.normalizedPathKey)
-        fixture.manager.openViewer(for: file, disposition: .newTab, relativeTo: firstWindow)
+        let otherWindow = fixture.manager.openViewer(for: other)?.window
+
+        fixture.manager.openViewer(for: file, disposition: .newTab, relativeTo: otherWindow)
 
         let opened = fixture.manager.controllers[file.normalizedPathKey] ?? []
         #expect(opened.count == 2)
-        #expect(opened.last?.window?.tabGroup === firstWindow?.tabGroup)
-        fixture.closeAll()
+        #expect(opened.last?.window?.tabGroup === otherWindow?.tabGroup)
     }
 
     @Test("Finder/CLI 由来の再オープン(currentTab)は重複ウィンドウを作らない")
