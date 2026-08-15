@@ -93,6 +93,26 @@ export const FEATURES: Feature[] = [
   },
   {
     ja: [
+      'Git 差分表示',
+      'ブランチで加えた変更を、コミット済みの分までまとめてソースの差分で読める。レンダリング / ソース / 差分の切替は ⌘1 / ⌘2 / ⌘3、差分の上下・左右レイアウトは ⌘\\ で。表示モードはファイルごとに記憶される',
+    ],
+    en: [
+      'Git Diff View',
+      'Read what your branch changes — committed work included — as a source diff. Switch rendered / source / diff with ⌘1 / ⌘2 / ⌘3, flip the diff layout between stacked and side by side with ⌘\\. The view mode is remembered per file',
+    ],
+  },
+  {
+    ja: [
+      '変更ファイルがわかるサイドバー',
+      '変更のあったファイルに 1 文字と色のバッジが付き、フォルダーには配下の変更が集約される。ステージ済み・未ステージ・未追跡・ブランチでコミット済みを見分けられ、⌃⌘G で変更ファイルだけに絞り込める',
+    ],
+    en: [
+      'A Sidebar That Knows Your Changes',
+      'Changed files carry a one-letter colored badge, and folders roll up the changes beneath them. Staged, unstaged, untracked and committed-on-branch are told apart, and ⌃⌘G narrows the list to changed files only',
+    ],
+  },
+  {
+    ja: [
       '大きなファイルも開ける',
       'Markdown・CSV/TSV・ソースコードは分割して読み込むので、最大 100MB のファイルも待たされずに開ける。続きは「さらに読み込む」で',
     ],
@@ -123,6 +143,16 @@ export const MORE_FEATURES: Feature[] = [
     en: [
       'Git-Aware Link Resolution',
       'Only paths that really exist become links. When a relative path misses, befold finds the file among git-tracked ones — and keeps up when you switch worktrees or branches',
+    ],
+  },
+  {
+    ja: [
+      '最近使ったリポジトリ',
+      'ファイルメニューから最近開いたリポジトリを、当時のタブ構成ごと開き直せる。worktree は本体リポジトリの下にまとまって並ぶ',
+    ],
+    en: [
+      'Recent Repositories',
+      'Reopen a recently used repository from the File menu, tabs and all. Worktrees are grouped under their main repository',
     ],
   },
   {
