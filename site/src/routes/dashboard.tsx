@@ -4,7 +4,9 @@ import type { Context } from 'hono'
 import {
   DASHBOARD_PAGES,
   STREAM_LIMIT,
+  eventPage,
   eventsAfter,
+  parseEventCursor,
   maxEventId,
   summarizeDelivery,
   summarizeOverview,
@@ -18,6 +20,7 @@ import { LEGACY_HOST, LEGACY_STAGING_HOST } from '../lib/hosts'
 import {
   DashboardPageShell,
   DeliverySections,
+  EventsSections,
   OverviewSections,
   TrafficSections,
   UsersSections,
@@ -137,6 +140,17 @@ const RENDERERS: Record<
     return c.html(
       <DashboardPageShell page={page}>
         <DeliverySections summary={summary} />
+      </DashboardPageShell>,
+    )
+  },
+  events: async (c, page) => {
+    // ページ送りの基準はクエリから読む。読めない値は基準無し（最新のページ）に
+    // 倒すので、URL を手で書き換えても 500 にはならない。
+    const cursor = parseEventCursor({ before: c.req.query('before'), after: c.req.query('after') })
+    const events = await eventPage(c.env.DB, cursor)
+    return c.html(
+      <DashboardPageShell page={page}>
+        <EventsSections page={events} />
       </DashboardPageShell>,
     )
   },

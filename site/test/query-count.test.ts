@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { DashboardPageKey } from '../src/analytics'
 import {
   DASHBOARD_PAGES,
+  eventPage,
   summarizeDelivery,
   summarizeOverview,
   summarizeTraffic,
@@ -20,6 +21,7 @@ import {
  *   trafficSplit 2 本（総数・区分別内訳）/ 指標別内訳 1 本（OS 別・接続元組織別を
  *   1 本にまとめてあり、指標の数にも軸の数にも依らない）/ eventBreakdowns 1 本
  * - delivery 1 本: eventBreakdowns
+ * - events 1 本: eventPage（次のページの有無も同じクエリで確定させる）
  *
  * この上限の目的は性能ではなく、「指標を 1 つ足すたびにクエリが 1 本増える」形への
  * 退行検知（TASK-423 の前は 1 ページ 19 本だった）。面を分ける前は 1 ページ 13 本で、
@@ -28,6 +30,7 @@ import {
  * （区分を行に持たせて ROW_NUMBER の窓で切った）、TASK-491.2 は 13 のまま
  * （os / as_org を UNION ALL で 1 本に畳んで枠を空けた）、TASK-494 も 13 のまま
  * （既存の日別推移クエリの SELECT 句へ COUNT(DISTINCT CASE WHEN ...) を並べた）。
+ * TASK-492 でイベント面を足して合計 16 → 17。
  */
 const MAX_QUERIES_PER_PAGE = 8
 
@@ -35,7 +38,7 @@ const MAX_QUERIES_PER_PAGE = 8
  * 全ページ合計の上限。
  *
  * **ページごとの上限だけでは、面を増やすことで上限を回避できてしまう。**
- * 合計にも上限を置くことで、退行検知としての意味を保つ。現在の合計は 16 本。
+ * 合計にも上限を置くことで、退行検知としての意味を保つ。現在の合計は 17 本。
  */
 const MAX_QUERIES_TOTAL = 20
 
@@ -69,6 +72,7 @@ const SUMMARIZERS: Record<DashboardPageKey, (db: D1Database) => Promise<unknown>
   users: async (db) => await summarizeUsers(db, NOW),
   traffic: async (db) => await summarizeTraffic(db),
   delivery: async (db) => await summarizeDelivery(db),
+  events: async (db) => await eventPage(db),
 }
 
 describe('ダッシュボードのクエリ本数', () => {

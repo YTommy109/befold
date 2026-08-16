@@ -11,6 +11,9 @@ import {
   summarizeUsers,
   todayTotals,
   eventsAfter,
+  eventPage,
+  parseEventCursor,
+  EVENTS_PAGE_LIMIT,
   recentEvents,
   trafficSplit,
   eventBreakdowns,
@@ -805,6 +808,145 @@ describe('最新イベントと SSE の差分配信', () => {
     )
     expect(recent[0]?.page).toBe('/features')
     expect(streamed[0]?.page).toBe('/features')
+  })
+})
+
+describe('イベント面のページ送り', () => {
+  /**
+   * visit を count 件入れる。
+   *
+   * 1 件ずつ INSERT すると 250 往復になるのでまとめて入れる。値はテストが決めた
+   * 数値と固定文字列だけなので、バインドせず直接埋める（バインド変数には
+   * 上限があり、100 件を超えた時点で `too many SQL variables` で落ちる）。
+   * 1 文あたりの行数も上限があるため 50 行ずつに切る。
+   */
+  async function insertMany(count: number, uaSummary: string | null = null): Promise<void> {
+    const ua = uaSummary === null ? 'NULL' : `'${uaSummary}'`
+    const rows = Array.from(
+      { length: count },
+      (_unused, index) => `(${NOW + index}, 'visit', ${ua})`,
+    )
+
+    for (let start = 0; start < rows.length; start += 50) {
+      const values = rows.slice(start, start + 50).join(', ')
+      // 1 文ずつ順に流す（並行にしても速くならず、id の並びだけが読みにくくなる）。
+      await env.DB.prepare(
+        `INSERT INTO events (timestamp, kind, ua_summary) VALUES ${values}`,
+      ).run()
+    }
+  }
+
+  /** 先頭から「古い側」へ全ページを辿り、出てきた id を順に集める。 */
+  async function walkAllPages(): Promise<number[]> {
+    const seen: number[] = []
+    let page = await eventPage(env.DB)
+
+    // ページ数は有限（全件 / 100）。取りこぼしがあってもここでは止めず、
+    // 集めた結果の突き合わせで落とす。
+    while (true) {
+      seen.push(...page.events.map((event) => event.id))
+      if (page.olderCursor === undefined) break
+      page = await eventPage(env.DB, { direction: 'older', id: page.olderCursor })
+    }
+
+    return seen
+  }
+
+  it('0 件のときは空のページを返し、前にも後にも送れない', async () => {
+    const page = await eventPage(env.DB)
+
+    expect(page.events).toEqual([])
+    expect(page.olderCursor).toBeUndefined()
+    expect(page.newerCursor).toBeUndefined()
+  })
+
+  it('先頭ページは新しい順に上限ちょうどを返し、新しい側へは送れない', async () => {
+    await insertMany(EVENTS_PAGE_LIMIT + 5)
+
+    const page = await eventPage(env.DB)
+    const ids = page.events.map((event) => event.id)
+
+    expect(page.events).toHaveLength(EVENTS_PAGE_LIMIT)
+    expect(ids).toEqual([...ids].toSorted((a, b) => b - a))
+    expect(page.newerCursor).toBeUndefined()
+    expect(page.olderCursor).toBe(ids.at(-1))
+  })
+
+  it('最終ページでは古い側へ送れなくなる（端数のページも返る）', async () => {
+    await insertMany(EVENTS_PAGE_LIMIT + 5)
+
+    const first = await eventPage(env.DB)
+    const last = await eventPage(env.DB, { direction: 'older', id: first.olderCursor ?? 0 })
+
+    expect(last.events).toHaveLength(5)
+    expect(last.olderCursor).toBeUndefined()
+    expect(last.newerCursor).toBe(last.events[0]?.id)
+  })
+
+  it('先頭から最終ページまで辿ると全件を重複なく過不足なく通る', async () => {
+    const total = EVENTS_PAGE_LIMIT * 2 + 37
+    await insertMany(total)
+
+    const seen = await walkAllPages()
+
+    expect(seen).toHaveLength(total)
+    expect(new Set(seen).size).toBe(total)
+    // 通った id が、DB にある人間の行そのものと一致する（新しい順のまま）。
+    const { results } = await env.DB.prepare('SELECT id FROM events ORDER BY id DESC').all<{
+      id: number
+    }>()
+    expect(seen).toEqual(results.map((row) => row.id))
+  })
+
+  it('ページを送っている途中に新着が入っても、境界がずれない', async () => {
+    // OFFSET で数えていると、先頭に 1 件挿さった時点で 2 ページ目の先頭が
+    // 1 ページ目の末尾と重複する。カーソルが id なので重複も欠落も起きない。
+    await insertMany(EVENTS_PAGE_LIMIT * 2)
+
+    const first = await eventPage(env.DB)
+    await insertMany(3)
+    const second = await eventPage(env.DB, { direction: 'older', id: first.olderCursor ?? 0 })
+
+    const firstIds = first.events.map((event) => event.id)
+    const secondIds = second.events.map((event) => event.id)
+
+    expect(secondIds).toHaveLength(EVENTS_PAGE_LIMIT)
+    expect(secondIds.filter((id) => firstIds.includes(id))).toEqual([])
+    expect(Math.max(...secondIds)).toBe(Math.min(...firstIds) - 1)
+  })
+
+  it('新しい側へ戻すと、送る前と同じページに戻る', async () => {
+    await insertMany(EVENTS_PAGE_LIMIT * 2 + 10)
+
+    const first = await eventPage(env.DB)
+    const second = await eventPage(env.DB, { direction: 'older', id: first.olderCursor ?? 0 })
+    const back = await eventPage(env.DB, { direction: 'newer', id: second.newerCursor ?? 0 })
+
+    expect(back.events.map((event) => event.id)).toEqual(first.events.map((event) => event.id))
+    expect(back.newerCursor).toBeUndefined()
+  })
+
+  it('ロボットの行は集計と同じ条件で除かれる', async () => {
+    await insertMany(2, 'bot:GPTBot')
+    await insertMany(1, 'Safari')
+
+    const page = await eventPage(env.DB)
+
+    expect(page.events).toHaveLength(1)
+  })
+
+  it('クエリの読み取りは不正な値を最新のページへ倒す', () => {
+    expect(parseEventCursor({})).toBeUndefined()
+    expect(parseEventCursor({ before: '120' })).toEqual({ direction: 'older', id: 120 })
+    expect(parseEventCursor({ after: '120' })).toEqual({ direction: 'newer', id: 120 })
+    // 両方来たら before を採る（片方を静かに無視しない）。
+    expect(parseEventCursor({ before: '120', after: '9' })).toEqual({
+      direction: 'older',
+      id: 120,
+    })
+    expect(parseEventCursor({ before: '12abc' })).toBeUndefined()
+    expect(parseEventCursor({ before: '-1' })).toBeUndefined()
+    expect(parseEventCursor({ after: '' })).toBeUndefined()
   })
 })
 

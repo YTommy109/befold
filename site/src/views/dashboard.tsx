@@ -6,13 +6,16 @@ import type {
   DashboardPage,
   DashboardPageKey,
   DeliverySummary,
+  EventPage,
   OverviewSummary,
+  RecentEvent,
   Split,
   TrafficSummary,
   UsersSummary,
 } from '../analytics'
 import {
   DASHBOARD_PAGES,
+  EVENTS_PAGE_LIMIT,
   KIND_LABELS,
   RUNNING_VERSION_LABELS,
   TOP_N,
@@ -74,6 +77,10 @@ h3 { font-size: 0.95rem; margin: 0 0 0.5rem; font-weight: 600; }
 .empty { opacity: 0.6; font-size: 0.9rem; }
 .unit { font-size: 0.75rem; opacity: 0.6; }
 .note { font-size: 0.8rem; opacity: 0.7; margin: 0 0 1rem; }
+.pager { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem;
+  font-size: 0.9rem; }
+.pager a { color: inherit; }
+.pager-disabled { opacity: 0.35; }
 .chart { width: 100%; height: auto; margin-bottom: 0.5rem; overflow: visible; display: block; }
 .chart-bar { fill: currentColor; }
 .chart-bar-1 { fill: var(--series-1); }
@@ -416,32 +423,10 @@ export const OverviewSections: FC<{ summary: OverviewSummary }> = ({ summary }) 
 
       <section class="block">
         <h2>最新イベント（直近 20 件）</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>時刻 (JST)</th>
-              <th>種別</th>
-              <th>バージョン</th>
-              <th>国</th>
-              <th>OS</th>
-              <th>ページ</th>
-            </tr>
-          </thead>
-          <tbody id="recent-body">
-            {summary.recent.map((event) => (
-              <tr>
-                <td>{formatJst(event.timestamp)}</td>
-                <td>{event.kind}</td>
-                <td>{event.version ?? ''}</td>
-                <td>{event.country ?? ''}</td>
-                <td>{event.os ?? ''}</td>
-                {/* visit 以外の kind は元々ページを持たないので空欄にする。
-                    ここで '/' を補うと、ダウンロードが LP の訪問に見える。 */}
-                <td>{event.page ?? ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <p class="note">
+          <a href="/dashboard/events">すべてのイベントを見る（100 件ずつ過去へ遡る）</a>
+        </p>
+        <EventTable events={summary.recent} bodyId="recent-body" />
       </section>
     </>
   )
@@ -803,6 +788,79 @@ export const DeliverySections: FC<{ summary: DeliverySummary }> = ({ summary }) 
     </>
   )
 }
+
+/**
+ * イベント一覧のテーブル。**概要面の直近 20 件とイベント面の 100 件で共有する。**
+ *
+ * 列を 2 箇所に書き写さない。どちらも同じ `RecentEvent` を並べるので、片方に
+ * 列を足しただけでは気づけない（SELECT 句を `RECENT_COLUMNS` で共有しているのと
+ * 同じ理由）。`bodyId` は概要面の tbody を指すためだけのもの。
+ */
+const EventTable: FC<{ events: RecentEvent[]; bodyId?: string }> = ({ events, bodyId }) => (
+  <table>
+    <thead>
+      <tr>
+        <th>時刻 (JST)</th>
+        <th>種別</th>
+        <th>バージョン</th>
+        <th>国</th>
+        <th>OS</th>
+        <th>ページ</th>
+      </tr>
+    </thead>
+    <tbody {...(bodyId === undefined ? {} : { id: bodyId })}>
+      {events.map((event) => (
+        <tr>
+          <td>{formatJst(event.timestamp)}</td>
+          <td>{event.kind}</td>
+          <td>{event.version ?? ''}</td>
+          <td>{event.country ?? ''}</td>
+          <td>{event.os ?? ''}</td>
+          {/* visit 以外の kind は元々ページを持たないので空欄にする。
+              ここで '/' を補うと、ダウンロードが LP の訪問に見える。 */}
+          <td>{event.page ?? ''}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+)
+
+/**
+ * イベント面のセクション。人間のアクセスだけを新しい順に 1 ページ 100 件で並べる。
+ *
+ * ページ送りは id を基準にしたカーソル（`?before=` / `?after=`）で、`OFFSET` は
+ * 使わない。ページを見ている間に新しいイベントが入っても境界がずれないため、
+ * 送っている途中で同じ行が 2 度出たり抜けたりしない。
+ *
+ * この面は開いた時点のスナップショットで SSE に接続しない。過去を見ている最中に
+ * 先頭へ行が挿し込まれると、読んでいる位置がずれるため。
+ */
+export const EventsSections: FC<{ page: EventPage }> = ({ page }) => (
+  <section class="block">
+    <h2>イベント（人間のアクセスのみ・新しい順）</h2>
+    <p class="note">
+      1 ページ {EVENTS_PAGE_LIMIT} 件。ロボットとデータセンターからのアクセスは
+      集計と同じ条件で除いている。
+    </p>
+    {page.events.length === 0 ? (
+      <p class="empty">該当するイベントはありません。</p>
+    ) : (
+      <EventTable events={page.events} />
+    )}
+    <nav class="pager">
+      {page.newerCursor === undefined ? (
+        <span class="pager-disabled">← 新しい 100 件</span>
+      ) : (
+        <a href={`/dashboard/events?after=${page.newerCursor}`}>← 新しい 100 件</a>
+      )}
+      {page.olderCursor === undefined ? (
+        <span class="pager-disabled">古い 100 件 →</span>
+      ) : (
+        <a href={`/dashboard/events?before=${page.olderCursor}`}>古い 100 件 →</a>
+      )}
+    </nav>
+  </section>
+)
 
 /** 集計セクションを HTML 文字列にする（SSE 配信用。概要面だけがライブ更新される）。 */
 export const renderOverviewSections = (summary: OverviewSummary): string =>

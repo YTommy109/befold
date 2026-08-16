@@ -1,7 +1,7 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
-import { DASHBOARD_PAGES, summarizeOverview } from '../src/analytics'
+import { DASHBOARD_PAGES, EVENTS_PAGE_LIMIT, summarizeOverview } from '../src/analytics'
 
 /** 面ごとの URL。`DASHBOARD_PAGES` の path と対になる。 */
 const PAGE = {
@@ -9,6 +9,7 @@ const PAGE = {
   users: '/dashboard/users',
   traffic: '/dashboard/traffic',
   delivery: '/dashboard/delivery',
+  events: '/dashboard/events',
 } as const
 import app from '../src/index'
 import { LEGACY_HOST, LEGACY_STAGING_HOST } from '../src/lib/hosts'
@@ -218,11 +219,64 @@ describe('面ごとのルート', () => {
 
   it('ライブ更新しない面には SSE の状態表示を出さない', async () => {
     const overview = await (await call('/dashboard', AUTH_HEADERS)).text()
-    const users = await (await call('/dashboard/users', AUTH_HEADERS)).text()
+    const users = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    // イベント面もスナップショット。過去を見ている最中に先頭へ行が挿さると
+    // 読んでいる位置がずれるので、ライブ追記しないことを固定する。
+    const events = await (await call(PAGE.events, AUTH_HEADERS)).text()
 
     expect(overview).toContain('id="stream-status"')
-    expect(users).not.toContain('id="stream-status"')
-    expect(users).toContain('スナップショット')
+    for (const body of [users, events]) {
+      expect(body).not.toContain('id="stream-status"')
+      expect(body).toContain('スナップショット')
+    }
+  })
+})
+
+describe('イベント面', () => {
+  it('概要面からイベント面への導線がある', async () => {
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('href="/dashboard/events"')
+  })
+
+  it('イベントが 1 件も無ければその旨を出す（空の表を出さない）', async () => {
+    const body = await (await call(PAGE.events, AUTH_HEADERS)).text()
+
+    expect(body).toContain('該当するイベントはありません')
+  })
+
+  it('先頭ページでは古い側へのリンクだけが出る', async () => {
+    // 上限 + 1 件入れて 2 ページにする。
+    for (let index = 0; index <= EVENTS_PAGE_LIMIT; index += 1) {
+      // seed は 1 件ずつ id を返す（並行にすると id の並びが読めなくなる）。
+      await seed('visit', { page: '/' })
+    }
+
+    const body = await (await call(PAGE.events, AUTH_HEADERS)).text()
+
+    expect(body).toContain('?before=')
+    expect(body).not.toContain('?after=')
+  })
+
+  it('カーソルを指定すると新しい側へ戻るリンクが出る', async () => {
+    const first = await seed('visit', { page: '/' })
+    const second = await seed('visit', { page: '/features' })
+
+    const body = await (await call(`${PAGE.events}?before=${second}`, AUTH_HEADERS)).text()
+
+    expect(body).toContain(`?after=${first}`)
+    // 基準より古い行だけが載る（基準の行そのものは前のページに出ている）。
+    expect(body).toContain('<td>/</td>')
+    expect(body).not.toContain('<td>/features</td>')
+  })
+
+  it('壊れたカーソルでも 500 にせず最新のページを出す', async () => {
+    await seed('visit', { page: '/' })
+
+    const response = await call(`${PAGE.events}?before=abc`, AUTH_HEADERS)
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('<td>/</td>')
   })
 })
 
