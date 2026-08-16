@@ -118,6 +118,14 @@ export const eventSchema = z.object({
   displayLang: displayLangSchema.nullable().default(null),
   host: hostSchema.nullable().default(null),
   fallback: fallbackRouteSchema.nullable().default(null),
+  /**
+   * 稼働中のアプリバージョン（TASK-491.1）。
+   *
+   * `version` とは意味が違う——あちらは download の対象タグ、こちらは「今どの
+   * バージョンが動いているか」。`kind` に依らず UA から導出するため、
+   * `fallback` のような kind との対応を強制する refine は置かない。
+   */
+  appVersion: z.string().nullable().default(null),
 })
   /**
    * `fallback` は `github_fallback` 専用。対応をここで強制する。

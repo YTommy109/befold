@@ -46,6 +46,7 @@ type EventRow = {
   display_lang: string | null
   host: string | null
   fallback: string | null
+  app_version: string | null
 }
 
 /**
@@ -70,7 +71,7 @@ function bodyOf(html: string): string {
 async function latestEvent(kind?: string): Promise<EventRow | null> {
   const columns =
     'SELECT kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org,' +
-    ' source, page, browser_lang, display_lang, host, fallback FROM events'
+    ' source, page, browser_lang, display_lang, host, fallback, app_version FROM events'
   const query = kind === undefined ? columns : `${columns} WHERE kind = ?`
 
   return await env.DB.prepare(`${query} ORDER BY id DESC LIMIT 1`)
@@ -300,6 +301,29 @@ describe('appcast プロキシ', () => {
     expect(event?.kind).toBe('update_check')
     expect(event?.channel).toBe('stable')
     expect(event?.ua_summary).toBe('Sparkle')
+  })
+
+  it('稼働中のアプリバージョンを app_version に記録する（TASK-491.1）', async () => {
+    mockUpstream({ [APPCAST_URL]: new Response(APPCAST_XML) })
+
+    // Sparkle 2.9.4 が実際に送る形（実測、2026-08-16）。
+    await call('/appcast.xml', { 'User-Agent': 'befold/1.13.2-dev.4 Sparkle/2.9.4' })
+
+    const event = await latestEvent('update_check')
+    expect(event?.app_version).toBe('1.13.2-dev.4')
+    // version は download の対象タグ用。update_check では埋めない。
+    expect(event?.version).toBeNull()
+  })
+
+  it('パースできない UA でも記録は成功し app_version は NULL になる', async () => {
+    mockUpstream({ [APPCAST_URL]: new Response(APPCAST_XML) })
+
+    const response = await call('/appcast.xml', { 'User-Agent': 'curl/8.7.1' })
+
+    expect(response.status).toBe(200)
+    const event = await latestEvent('update_check')
+    expect(event?.kind).toBe('update_check')
+    expect(event?.app_version).toBeNull()
   })
 
   it('/appcast-develop.xml が develop チャンネルとして記録される', async () => {

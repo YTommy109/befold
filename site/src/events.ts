@@ -12,7 +12,12 @@ import {
 import { summarizeLang } from './lib/lang'
 import { classifyHost, selfHostsFor } from './lib/hosts'
 import { resolveReferrer } from './lib/referrer'
-import { summarizeOS, summarizeUA, visitorTokenHash } from './lib/visitor'
+import {
+  summarizeAppVersion,
+  summarizeOS,
+  summarizeUA,
+  visitorTokenHash,
+} from './lib/visitor'
 
 /** 呼び出し側が指定するイベント固有の属性。 */
 export type EventAttributes = {
@@ -50,13 +55,18 @@ export type EventAttributes = {
  * 足したときの付け忘れが「その経路だけホスト不明」という静かな欠測になる。
  * リクエストから一意に決まるものなので `insertEvent` が URL から導出する
  * （`country` / `browserLang` と同じ持ち方）。
+ *
+ * 稼働中のアプリバージョン（`app_version`）も同じ理由でここに無い。UA から一意に
+ * 決まるうえ、Sparkle が通る経路は update_check だけではない
+ * （download(source='sparkle') / github_fallback(appcast)）。呼び出し側に渡させると
+ * 経路を足すたびに付け忘れが起き、その経路だけ稼働版が欠測する。
  */
 
 const INSERT_SQL =
   'INSERT INTO events' +
   ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer,' +
-  ' as_org, source, page, browser_lang, display_lang, host, fallback)' +
-  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ' as_org, source, page, browser_lang, display_lang, host, fallback, app_version)' +
+  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 
 /**
  * リクエストから計測イベントを組み立てて D1 に記録する。
@@ -100,6 +110,9 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
       displayLang: attributes.displayLang ?? null,
       host: classifyHost(host),
       fallback: attributes.fallback ?? null,
+      // 稼働中のアプリバージョンも kind を問わず UA から導出する。Sparkle 以外の
+      // クライアントや詐称された UA では null になり、記録処理は止めない。
+      appVersion: summarizeAppVersion(ua),
     })
 
     await c.env.DB.prepare(INSERT_SQL)
@@ -120,6 +133,7 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
         event.displayLang,
         event.host,
         event.fallback,
+        event.appVersion,
       )
       .run()
   } catch (error) {

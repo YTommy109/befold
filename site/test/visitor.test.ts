@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { dayKey, isBotSummary, summarizeOS, summarizeUA, visitorTokenHash } from '../src/lib/visitor'
+import {
+  dayKey,
+  isBotSummary,
+  summarizeAppVersion,
+  summarizeOS,
+  summarizeUA,
+  visitorTokenHash,
+} from '../src/lib/visitor'
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15'
 
@@ -53,6 +60,42 @@ describe('UA 要約', () => {
   it('未知の UA では null / other を返す', () => {
     expect(summarizeOS('')).toBeNull()
     expect(summarizeUA('')).toBeNull()
+  })
+})
+
+describe('稼働中のアプリバージョン', () => {
+  // TASK-491.1 の実測値。Sparkle 2.9.4 の SPUUpdater.userAgentString を befold の
+  // Info.plist を main bundle にして実行して得た文字列そのもの（2026-08-16）。
+  // 作った文字列ではなくこれを置くのは、書式が変わったらここが落ちるようにするため。
+  const MEASURED_UA = 'befold/1.13.2-dev.4 Sparkle/2.9.4'
+
+  it('実測した Sparkle の UA から稼働バージョンを取り出す', () => {
+    expect(summarizeAppVersion(MEASURED_UA)).toBe('1.13.2-dev.4')
+  })
+
+  it('stable のようにプレリリース識別子が無い版も取り出す', () => {
+    expect(summarizeAppVersion('befold/1.13.1 Sparkle/2.9.4')).toBe('1.13.1')
+  })
+
+  it('タグと違い v 接頭辞は付かない（events.version と意味が別）', () => {
+    expect(summarizeAppVersion(MEASURED_UA)).not.toMatch(/^v/)
+  })
+
+  it('Sparkle 以外のクライアントでは null を返す', () => {
+    expect(summarizeAppVersion('curl/8.7.1')).toBeNull()
+    expect(summarizeAppVersion(UA)).toBeNull()
+    expect(summarizeAppVersion('')).toBeNull()
+  })
+
+  it('詐称された UA を素通ししない（内訳のカーディナリティを守る）', () => {
+    // アプリ名が befold でない / 版がバージョンの形でない / 前置きが付いている、の 3 通り。
+    expect(summarizeAppVersion('evil/1.0.0 Sparkle/2.9.4')).toBeNull()
+    expect(summarizeAppVersion('befold/<script> Sparkle/2.9.4')).toBeNull()
+    expect(summarizeAppVersion('Mozilla/5.0 befold/1.13.1 Sparkle/2.9.4')).toBeNull()
+  })
+
+  it('Sparkle を名乗らない UA では null を返す', () => {
+    expect(summarizeAppVersion('befold/1.13.1')).toBeNull()
   })
 })
 
