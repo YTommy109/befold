@@ -4,7 +4,7 @@ title: 旧世代 URL と GitHub バイナリ配布の停止条件を ADR に定�
 status: To Do
 assignee: []
 created_date: '2026-08-16 02:00'
-updated_date: '2026-08-16 02:08'
+updated_date: '2026-08-16 02:23'
 labels: []
 milestone: m-8
 dependencies: []
@@ -46,4 +46,6 @@ ADR 0007（`docs/adr/0007-distribution-site-custom-domain.md`）は workers.dev 
 
 <!-- SECTION:NOTES:BEGIN -->
 観測手段の担当は TASK-489.2 から TASK-488.3 へ移した（計測基盤の変更は TASK-488 側に集約する方針）。停止条件を書く際の観測手段の参照先は TASK-488.3。
+
+停止条件を書く際、人間の訪問数がデータセンター由来の自動アクセスで膨らんでいる点に注意する（TASK-490 の実測: human visit 354 件のうち Meta / Amazon / Google / Twitter / Driftnet 等のデータセンター由来が 150 件規模）。旧ホストや GitHub 経路を「アクセスがゼロになったら止める」形にする場合、その 0 判定が誤ったボット分類の上に乗らないよう、TASK-490 の結論を前提にするか、条件側で ASN による検算を明示すること。
 <!-- SECTION:NOTES:END -->
