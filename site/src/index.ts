@@ -4,6 +4,7 @@ import { recordEvent } from './events'
 import { REDIRECT_TARGET_ORIGIN, REDIRECTED_PATHS } from './lib/hosts'
 import { dashboardRoutes } from './routes/dashboard'
 import { publicRoutes } from './routes/public'
+import { notFoundResponse } from './views/not-found'
 
 /**
  * Worker のバインディング型。`Env` は wrangler types が
@@ -48,7 +49,20 @@ app.get('/healthz', (c) => c.text('ok'))
 app.route('/dashboard', dashboardRoutes)
 app.route('/', publicRoutes)
 
-// Worker がルートを持たないパスは静的アセット（public/）に委譲する。
-app.notFound((c) => c.env.ASSETS.fetch(c.req.raw))
+/**
+ * Worker がルートを持たないパスは静的アセット（public/）に委譲し、そこにも
+ * 無ければ LP と同じ意匠の 404 ページを返す（TASK-497）。
+ *
+ * **アセットの応答が 404 のときだけ差し替える。** 先に自前の 404 を返す形にすると
+ * /style.css・/images/* が配信されなくなる。判定は「ASSETS が 404 を返したか」と
+ * いう事実で行い、パスの形（拡張子の有無・/en 接頭辞）からは推測しない。
+ *
+ * 旧ホストの /dashboard はここへ来ない（routes/dashboard.tsx が確定的に 404 を
+ * 返す）。あちらは人間向けのページではないので素の text のままでよい。
+ */
+app.notFound(async (c) => {
+  const asset = await c.env.ASSETS.fetch(c.req.raw)
+  return asset.status === 404 ? await notFoundResponse(c) : asset
+})
 
 export default app

@@ -22,6 +22,7 @@ befold の配布 LP・ダウンロード計測・appcast プロキシ・分析�
 | `GET /dashboard` | Cloudflare Access | 集計ダッシュボード。旧ホストでは 404 |
 | `GET /dashboard/stream` | Cloudflare Access | SSE（D1 ポーリング型）で新着イベントを push。旧ホストでは 404 |
 | `GET /dashboard/events` | Cloudflare Access | イベント一覧。`?before=` / `?after=` の id カーソルで 100 件ずつ遡る。旧ホストでは 404 |
+| その他 | 公開 | 静的アセット（`public/`）。無ければ LP の意匠の 404 ページ。**何も記録しない** |
 
 ## 開発
 
@@ -422,6 +423,26 @@ LP と詳細ページは言語ごとに URL を分ける（日本語 = `/` `/fea
 - **JSON-LD はページの言語に合わせる。** 構造化データの文面はページ上に見えて
   いる必要があり、日本語ページに英語の FAQ 本文は存在しないため。
 
+### 404 ページ
+
+ルートにも静的アセットにも当たらないパスは、LP と同じ意匠の 404 ページを
+`src/views/not-found.tsx` が返す（`app.notFound`）。
+
+- **判定は「`ASSETS.fetch` が 404 を返したか」で行う。** 先に自前の 404 を返す形に
+  すると `/style.css` や `/images/*` が配信されなくなる。パスの形（拡張子の有無・
+  `/en` 接頭辞）から推測もしない。
+- **日英を 1 枚に併記し、両方の入口へのリンクを置く。** 404 に来たパスは定義上
+  `SITE_PAGES` に無く、そこから言語を決められない（`/en` の打ち間違いも
+  `/features` の打ち間違いも同じ経路に来る）。宛先は `pathFor` から導出する。
+- **`PageShell` を使わず canonical と hreflang を出さない。** 存在しない URL を
+  正規化してはならず、言語版の対応関係も主張できない。代わりに `noindex` を付ける。
+- **`events` には一切記録しない**（`visit` にしないだけでなく新しい kind も足さない）。
+  404 の到達数が要るようになったら Workers Observability で見る。
+- **`Cache-Control: no-store`。** あとでそのパスが実在のページになったとき、中間
+  キャッシュに残った 404 が返り続けるのを避ける。
+- 旧ホストの `/dashboard` はここへ来ない（`routes/dashboard.tsx` が確定的に 404 を
+  返す）。人間向けのページではないので素の text のままでよい。
+
 ### `browser_lang` と `display_lang`
 
 `Accept-Language` の第一タグを `ja` / `en` / `other` に丸めた値
@@ -490,8 +511,9 @@ LP と詳細ページは言語ごとに URL を分ける（日本語 = `/` `/fea
   追った先の正規ホストでも `visit` が記録され、ページアクセス数が二重に数えられる。
   機械向けの経路（appcast・`/dl/`・`/download`）は 301 せず素通しなので、旧ホストの
   ままホスト別に出る——ADR 0007 の停止条件が見ているのはこちら。
-- **記録されないギャップが 2 つある。** 旧ホストの静的アセット（`notFound` →
-  `ASSETS.fetch`）と `/healthz`。どちらもクライアントの依存を示さないので追っていない。
+- **記録されないギャップが 3 つある。** 旧ホストの静的アセット（`notFound` →
+  `ASSETS.fetch`）と `/healthz`、そして 404 ページ。前 2 つはクライアントの依存を
+  示さないため、404 は LP の指標へ混ぜないために追っていない。
 - **`fallback` は R2 ミスで GitHub へ落ちた経路。** `appcast` / `dmg` / `release-api` の
   3 つで、`kind='github_fallback'` のときだけ非 NULL。この対応は `eventSchema` の
   `refine` が強制する（doc コメントだけでは守られない）。ここが 0 でないうちは GitHub

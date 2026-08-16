@@ -2,7 +2,7 @@ import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import app from '../src/index'
-import { SITE_PAGES } from '../src/lib/pages'
+import { pathFor, SITE_PAGES } from '../src/lib/pages'
 import { pageSchema } from '../src/schema'
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15'
@@ -1057,5 +1057,65 @@ describe('リクエスト先ホストと GitHub フォールバックの記録',
 
     expect(response.status).toBe(200)
     expect(await latestEvent('github_fallback')).toBeNull()
+  })
+})
+
+describe('404 ページ', () => {
+  /** events の行数。404 が指標へ混ざっていないことは kind ではなく総数で見る。 */
+  async function eventCount(): Promise<number> {
+    const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM events').first<{ n: number }>()
+    return row?.n ?? 0
+  }
+
+  it('ルートにも静的アセットにも当たらないパスは LP の意匠の 404 を返す', async () => {
+    const response = await call('/en/download')
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Content-Type')).toContain('text/html')
+    const body = await response.text()
+    // LP と同じ style.css を読み込み、同じ hero / btn-primary の意匠を使う。
+    expect(body).toContain('<link rel="stylesheet" href="/style.css"/>')
+    expect(body).toContain('class="hero"')
+    expect(body).toContain('404')
+  })
+
+  it('日本語ページと英語ページの両方への導線がある', async () => {
+    const body = await (await call('/nope')).text()
+
+    // 宛先は SITE_PAGES から導出する。パスを変えたときにテストだけが取り残されないように。
+    for (const lang of ['ja', 'en'] as const) {
+      expect(bodyOf(body)).toContain(`href="${pathFor('/', lang)}"`)
+    }
+  })
+
+  it('noindex を付け canonical は出さない', async () => {
+    const body = await (await call('/nope')).text()
+
+    expect(body).toContain('<meta name="robots" content="noindex"/>')
+    // SITE_PAGES に無いパスなので、正規 URL も言語版の対応関係も主張しない。
+    expect(body).not.toContain('rel="canonical"')
+    expect(body).not.toContain('hreflang="ja" href=')
+  })
+
+  it('events に記録しない（LP の指標に混ざらない）', async () => {
+    expect(await eventCount()).toBe(0)
+
+    await call('/nope')
+    await call('/en/nope')
+
+    expect(await eventCount()).toBe(0)
+  })
+
+  it('実在する静的アセットは 404 に差し替えない', async () => {
+    const response = await call('/style.css')
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('.btn-primary')
+  })
+
+  it('キャッシュに載せない', async () => {
+    const response = await call('/nope')
+
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
   })
 })
