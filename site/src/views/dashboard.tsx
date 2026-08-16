@@ -22,6 +22,7 @@ import {
   TOP_N,
   UNIQUE_SOURCE_LABELS,
   UNRECORDED_LABEL,
+  VERSION_BREAKDOWN_METRICS,
 } from '../analytics'
 import { LEGACY_HOST } from '../lib/hosts'
 import { formatJst } from '../lib/jst'
@@ -656,7 +657,7 @@ export const UsersSections: FC<{ summary: UsersSummary }> = ({ summary }) => {
           {TOP_N} 件まで。
         </p>
         <p class="note">
-          流入面の「バージョン別ダウンロード」とは別物。あちらは
+          流入面の「ダウンロード: バージョン別」とは別物。あちらは
           <strong>どのタグを取りに来たか</strong>（更新先）で、こちらは
           <strong>今どのバージョンが動いているか</strong>（更新元）。 稼働バージョンの記録は{' '}
           {APP_VERSION_COLUMN_START} に始めたもので、それより前の
@@ -685,12 +686,17 @@ export const TrafficSections: FC<{ summary: TrafficSummary }> = ({ summary }) =>
       <section class="block">
         <h2>内訳（全期間の累計）</h2>
         <div class="grid">
-          <CountTable title="バージョン別ダウンロード" rows={summary.byVersion} />
           <CountTable title="国別" rows={summary.byCountry} />
           <CountTable title="参照元別" rows={summary.byReferrer} />
           {summary.perKind.map((entry) => [
             <CountTable title={`${entry.label}: OS 別`} rows={entry.byOS} />,
             <CountTable title={`${entry.label}: 接続元組織別`} rows={entry.byAsOrg} />,
+            // バージョン別はダウンロード系の指標にだけ意味がある（visit や
+            // update_check の行では version が常に NULL）。旧バージョンへ戻した
+            // 分がどの版へ向かったかは、この表で読む。
+            VERSION_BREAKDOWN_METRICS.has(entry.kind) ? (
+              <CountTable title={`${entry.label}: バージョン別`} rows={entry.byVersion} />
+            ) : null,
           ])}
         </div>
       </section>

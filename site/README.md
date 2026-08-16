@@ -15,7 +15,10 @@ befold の配布 LP・ダウンロード計測・appcast プロキシ・分析�
 | `GET /en` | 公開 | 配布 LP（英語）。`visit`（`page=/`, `display_lang=en`）を記録 |
 | `GET /features` | 公開 | 機能・対応ファイルタイプの詳細ページ（日本語）。`visit`（`page=/features`, `display_lang=ja`）を記録 |
 | `GET /en/features` | 公開 | 同上（英語）。`visit`（`page=/features`, `display_lang=en`）を記録 |
+| `GET /releases` | 公開 | 過去の stable バージョン一覧（日本語）。`visit`（`page=/releases`, `display_lang=ja`）を記録 |
+| `GET /en/releases` | 公開 | 同上（英語）。`visit`（`page=/releases`, `display_lang=en`）を記録 |
 | `GET /download` | 公開 | stable 最新の DMG を R2 から返す。`download`（`source=lp`）を記録 |
+| `GET /releases/:tag/:file` | 公開 | 一覧から選んだ旧バージョンの DMG。stable タグのみ受け付け、`download`（`source=archive`）を記録 |
 | `GET /dl/:tag/:file` | 公開 | 指定タグの DMG を R2 から返す。appcast の enclosure が指す先。`download`（`source=sparkle`）を記録 |
 | `GET /appcast.xml` | 公開 | R2 の appcast を返す。`update_check` を記録 |
 | `GET /appcast-develop.xml` | 公開 | 同上（develop チャンネル） |
@@ -325,6 +328,13 @@ visit / download / update_check の全イベントで記録する。追加のサ
 アクセスを単一の指標として合算せず、`visit` / `download` / `update_check` の
 3 指標に分けて表示する。3 つは意味が異なり、合算した数値は解釈できないため
 （`visit` はサイト閲覧、`download` は新規獲得、`update_check` は継続利用）。
+
+`download` はさらに `source` で 3 系列に割れる。`lp`（LP の /download＝新規獲得）、
+`sparkle`（自動アップデート適用）、`archive`（/releases から旧版へ戻した）で、
+これも混ぜると読めない——旧版へ戻す動きは最新版の問題を示す信号なので、
+新規獲得の数に埋もれさせない。`downloadSourceSchema` に値を足したら
+`METRIC_FILTERS` にも系列を足すこと（型では捕まらないため、
+`test/analytics.test.ts` が「全 source がどれか 1 指標に数えられる」ことを検査する）。
 
 - OS 別・接続元組織別の内訳は、指標ごとに独立した表として出す
   （例: 「ページアクセス: OS 別」「ダウンロード: 接続元組織別」）。

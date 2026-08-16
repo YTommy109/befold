@@ -1,7 +1,12 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
-import { DASHBOARD_PAGES, EVENTS_PAGE_LIMIT, summarizeOverview } from '../src/analytics'
+import {
+  DASHBOARD_PAGES,
+  EVENTS_PAGE_LIMIT,
+  KIND_LABELS,
+  summarizeOverview,
+} from '../src/analytics'
 
 /** 面ごとの URL。`DASHBOARD_PAGES` の path と対になる。 */
 const PAGE = {
@@ -65,13 +70,14 @@ async function seed(
     displayLang?: string
     browserLang?: string
     appVersion?: string | null
+    source?: string
   } = {},
 ): Promise<number> {
   const result = await env.DB.prepare(
     'INSERT INTO events' +
       ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer,' +
-      ' as_org, page, display_lang, browser_lang, app_version)' +
-      ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+      ' as_org, page, display_lang, browser_lang, app_version, source)' +
+      ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
   )
     .bind(
       extra.ts ?? Date.now(),
@@ -88,6 +94,7 @@ async function seed(
       extra.displayLang ?? null,
       extra.browserLang ?? null,
       extra.appVersion ?? null,
+      extra.source ?? null,
     )
     .first<{ id: number }>()
 
@@ -645,12 +652,25 @@ describe('稼働中のアプリバージョンの表示', () => {
     expect(body).toContain('確認の延べ回数ではない')
   })
 
+  it('旧バージョンのダウンロードが、どの版へ戻したかまで読める', async () => {
+    // 「どのバージョンが旧版として落とされたか」がダッシュボードから分かること
+    // （TASK-506）。LP の新規ダウンロードと同じ表に混ぜない。
+    await seed('download', { source: 'archive', version: 'v1.12.0' })
+    await seed('download', { source: 'lp', version: 'v1.13.2' })
+
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
+
+    expect(countTable(body, '旧バージョンのダウンロード: バージョン別')).toContain('v1.12.0')
+    expect(countTable(body, '旧バージョンのダウンロード: バージョン別')).not.toContain('v1.13.2')
+    expect(countTable(body, 'ダウンロード: バージョン別')).toContain('v1.13.2')
+  })
+
   it('ダウンロード対象タグ別の集計と取り違えない説明がある', async () => {
     await seed('update_check', { appVersion: '1.13.1', uaSummary: 'Sparkle' })
 
     const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
-    expect(body).toContain('バージョン別ダウンロード')
+    expect(body).toContain('ダウンロード: バージョン別')
     expect(body).toContain('どのタグを取りに来たか')
     expect(body).toContain('今どのバージョンが動いているか')
   })
@@ -774,6 +794,15 @@ describe('SSE ストリーム', () => {
   })
 })
 
+/** `<h3>見出し` の表 1 枚ぶんを切り出す（内訳の表は同じ `<h2>` 節に並ぶ）。 */
+const countTable = (html: string, heading: string): string => {
+  const start = html.indexOf(`<h3>${heading}</h3>`)
+  expect(start, heading).toBeGreaterThanOrEqual(0)
+  const rest = html.slice(start)
+  const end = rest.indexOf('</section>')
+  return end === -1 ? rest : rest.slice(0, end)
+}
+
 /** `<h2>見出し` から次の `<h2>` 直前までを 1 節として切り出す。 */
 const section = (html: string, heading: string): string => {
   const start = html.indexOf(`<h2>${heading}`)
@@ -805,11 +834,15 @@ describe('グラフ描画', () => {
 
     expect(daily.match(/<svg class="chart"/gu)).toHaveLength(1)
     expect(hourly.match(/<svg class="chart"/gu)).toHaveLength(1)
-    // 日毎・時間帯とも 4 指標。ユニークは母集団が違うので別節へ分けてある。
-    expect(daily).toContain('chart-bar-4')
-    expect(daily).not.toContain('chart-bar-5')
-    expect(hourly).toContain('chart-bar-4')
-    expect(hourly).not.toContain('chart-bar-5')
+    // 系列の本数は KIND_LABELS の件数そのもの。指標を足したら本数も増えるのが
+    // 正しいので、literal で固定しない（固定すると指標追加のたびにここが落ち、
+    // 「1 枚にまとめてあるか」という本題と関係のない修正が要る）。ユニークは
+    // 母集団が違うので別節へ分けてある。
+    const series = KIND_LABELS.length
+    for (const chart of [daily, hourly]) {
+      expect(chart).toContain(`chart-bar-${series}`)
+      expect(chart).not.toContain(`chart-bar-${series + 1}`)
+    }
   })
 
   it('チャートを持つ節には凡例があり、表は置かない', async () => {

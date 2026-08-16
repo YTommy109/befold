@@ -17,9 +17,10 @@ import {
  * 内訳:
  * - overview 4 本: cumulativeTotals / todayTotals / dailySeries / recentEvents
  * - users 3 本: dailySeries / hourlyDistribution / runningVersionBreakdown
- * - traffic 8 本: cumulativeTotals / breakdown 3 本（version・country・referrer）/
- *   trafficSplit 2 本（総数・区分別内訳）/ 指標別内訳 1 本（OS 別・接続元組織別を
- *   1 本にまとめてあり、指標の数にも軸の数にも依らない）/ eventBreakdowns 1 本
+ * - traffic 7 本: cumulativeTotals / breakdown 2 本（country・referrer）/
+ *   trafficSplit 2 本（総数・区分別内訳）/ 指標別内訳 1 本（OS 別・接続元組織別・
+ *   バージョン別を 1 本にまとめてあり、指標の数にも軸の数にも依らない）/
+ *   eventBreakdowns 1 本
  * - delivery 1 本: eventBreakdowns
  * - events 1 本: eventPage（次のページの有無も同じクエリで確定させる）
  *
@@ -30,7 +31,8 @@ import {
  * （区分を行に持たせて ROW_NUMBER の窓で切った）、TASK-491.2 は 13 のまま
  * （os / as_org を UNION ALL で 1 本に畳んで枠を空けた）、TASK-494 も 13 のまま
  * （既存の日別推移クエリの SELECT 句へ COUNT(DISTINCT CASE WHEN ...) を並べた）。
- * TASK-492 でイベント面を足して合計 16 → 17。
+ * TASK-492 でイベント面を足して合計 16 → 17。TASK-506 で 17 → 16
+ * （バージョン別を単独クエリから指標別内訳の軸へ畳んだ）。
  */
 const MAX_QUERIES_PER_PAGE = 8
 

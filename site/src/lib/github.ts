@@ -37,6 +37,97 @@ export function releaseAssetURL(tag: string, file: string): string {
   return `https://github.com/${REPO}/releases/download/${tag}/${file}`
 }
 
+/**
+ * 一覧が 1 回の応答で覆えるリリース数。GitHub API の per_page 上限がそのまま
+ * 天井になる。ページングはしない——実測で stable は 47 件（2026-08-16）であり、
+ * 天井に当たるのは当分先。当たった場合に古い版が黙って消えないよう、ページ側は
+ * 常に GitHub のリリース一覧への導線を出す。
+ */
+export const RELEASES_PAGE_LIMIT = 100
+
+/** リリース一覧の取得元。stable も develop も 1 回の応答に混ざって返る。 */
+const RELEASES_API = `https://api.github.com/repos/${REPO}/releases?per_page=${RELEASES_PAGE_LIMIT}`
+
+/** 一覧に出す 1 つの stable リリース。 */
+export type StableRelease = {
+  /** `v1.13.2` の形。ダウンロード経路の R2 キーにもなる。 */
+  tag: string
+  /** 公開日時（ISO 8601）。表示は各言語で整形する。 */
+  publishedAt: string
+  /** リリースノート（GitHub のタグページ）。 */
+  notesUrl: string
+  /** DMG のファイル名。旧版は `mmdview-v1.3.3.dmg` のように現在の規約と違う。 */
+  dmgFile: string
+}
+
+/**
+ * stable リリースだけを新しい順に返す。
+ *
+ * 除外するのは 3 種類。(a) prerelease（develop チャンネル）、(b) `appcast` の
+ * ような版を表さないタグ、(c) DMG が添付されていないリリース。(b) は実在する
+ * ——appcast の配布用に prerelease=false の固定タグが 1 つある（実測）ので、
+ * prerelease フラグだけでは弾けない。
+ *
+ * **取得に失敗したときは null を返す。** 空配列（＝ stable が 1 件も無い）と
+ * 区別できないと、API 障害を「まだリリースがありません」と表示してしまう。
+ */
+export async function stableReleases(): Promise<StableRelease[] | null> {
+  const response = await fetch(RELEASES_API, {
+    headers: { 'User-Agent': 'befold-site', Accept: 'application/vnd.github+json' },
+    // 人間が見るページからしか呼ばれないが、未認証の GitHub API は IP あたり
+    // 60 req/h で、Worker の送信元は他所と共有される。エッジで畳んでおかないと
+    // 一覧が縮退表示に落ちる。
+    cf: { cacheTtl: 600, cacheEverything: true },
+  }).catch(() => null)
+
+  if (response === null || !response.ok) return null
+
+  const releases = (await response.json().catch(() => null)) as unknown
+  if (!Array.isArray(releases)) return null
+
+  return releases.flatMap((release) => {
+    const entry = toStableRelease(release)
+    return entry === null ? [] : [entry]
+  })
+}
+
+/** 版を表す stable タグの形。`appcast` のような版でないタグを弾く。 */
+const STABLE_TAG_PATTERN = /^v\d+\.\d+\.\d+$/u
+
+function toStableRelease(release: unknown): StableRelease | null {
+  if (typeof release !== 'object' || release === null) return null
+
+  const {
+    tag_name: tag,
+    published_at: publishedAt,
+    prerelease,
+    assets,
+  } = release as Record<string, unknown>
+  if (prerelease === true) return null
+  if (typeof tag !== 'string' || !STABLE_TAG_PATTERN.test(tag)) return null
+  if (typeof publishedAt !== 'string') return null
+  if (!Array.isArray(assets)) return null
+
+  const dmg = assets.find(
+    (asset): asset is { name: string } =>
+      typeof asset === 'object' &&
+      asset !== null &&
+      typeof (asset as { name?: unknown }).name === 'string' &&
+      (asset as { name: string }).name.endsWith('.dmg'),
+  )
+  if (dmg === undefined) return null
+
+  return {
+    tag,
+    publishedAt,
+    notesUrl: `https://github.com/${REPO}/releases/tag/${tag}`,
+    dmgFile: dmg.name,
+  }
+}
+
+/** 過去のリリースをすべて並べた GitHub のページ。一覧の天井を逃がす先。 */
+export const RELEASES_INDEX_URL = `https://github.com/${REPO}/releases`
+
 export type DMGAsset = { version: string; url: string }
 
 type LatestRelease = {

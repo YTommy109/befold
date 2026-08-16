@@ -1,19 +1,32 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
+import type { HtmlEscapedString } from 'hono/utils/html'
 
 import { recordEvent } from '../events'
 import type { AppEnv } from '../index'
-import { APPCAST_KEY, LATEST_KEY, latestPointerSchema, resolveDMGKey } from '../lib/dist'
+import {
+  APPCAST_KEY,
+  archiveDMGKey,
+  isDMGFileName,
+  isStableTag,
+  LATEST_KEY,
+  latestPointerSchema,
+  resolveDMGKey,
+} from '../lib/dist'
 import {
   APPCAST_UPSTREAM,
   latestDMG,
   releaseAssetURL,
   RELEASES_LATEST_URL,
+  stableReleases,
   type Channel,
 } from '../lib/github'
-import { SITE_PAGES, variantsOf } from '../lib/pages'
+import { SITE_PAGES, variantsOf, type SitePage } from '../lib/pages'
+import type { Page } from '../schema'
 import { Features } from '../views/features'
 import { Landing } from '../views/landing'
+import { notFoundResponse } from '../views/not-found'
+import { Releases, type ReleaseListing } from '../views/releases'
 
 export const publicRoutes = new Hono<AppEnv>()
 
@@ -30,21 +43,34 @@ export const publicRoutes = new Hono<AppEnv>()
  * ブラウザのヒューリスティックキャッシュに載り得る。
  */
 for (const entry of SITE_PAGES) {
-  publicRoutes.get(entry.path, (c) => {
+  publicRoutes.get(entry.path, async (c) => {
     // display_lang は配信するビューの言語そのもの。パスの形からは導出しない。
     recordEvent(c, { kind: 'visit', page: entry.page, displayLang: entry.lang })
     // c.header は後続の c.html に反映されるため、本文を作る前に設定する。
     c.header('Cache-Control', 'no-store')
 
     const origin = new URL(c.req.url).origin
-    return c.html(
-      entry.page === '/' ? (
-        <Landing origin={origin} entry={entry} />
-      ) : (
-        <Features origin={origin} entry={entry} />
-      ),
-    )
+    return c.html(await PAGE_VIEWS[entry.page](origin, entry))
   })
+}
+
+/**
+ * 論理ページ 1 つを描くもの。**`Record<Page, ...>` にするのが要点。**
+ *
+ * かつては `entry.page === '/' ? <Landing/> : <Features/>` の三項で、2 ページ
+ * しか無いことを前提にしていた。3 ページ目を足すと「どちらでもないものが
+ * Features として描かれる」形で静かに壊れるため、ページを足したら型が漏れを
+ * 指す形に変えた。
+ */
+const PAGE_VIEWS: Record<Page, (origin: string, entry: SitePage) => Promise<HtmlEscapedString>> = {
+  '/': (origin, entry) => Promise.resolve(<Landing origin={origin} entry={entry} />),
+  '/features': (origin, entry) => Promise.resolve(<Features origin={origin} entry={entry} />),
+  '/releases': async (origin, entry) => {
+    // 取得できなければ null のまま渡す。ビュー側が「取得できなかった」と
+    // 「まだ 1 件も無い」を別の文面で出し分ける。
+    const releases: ReleaseListing = await stableReleases()
+    return <Releases origin={origin} entry={entry} releases={releases} />
+  },
 }
 
 /**
@@ -91,6 +117,41 @@ publicRoutes.get('/dl/:tag/:file', (c) => {
 })
 
 /**
+ * 旧バージョン一覧（/releases）からの配信。
+ *
+ * `/dl` を流用しない。理由は 2 つあり、どちらも記録の意味に関わる。
+ * (1) `/dl` は Sparkle 専用で `source: 'sparkle'` 固定であり、人間が旧版へ
+ * 戻した行為を自動アップデートとして数えてしまう。(2) `/dl` の
+ * `resolveDMGKey` はファイル名を現在の規約（`befold-<tag>.dmg`）に固定して
+ * いるが、v1.3.3 以前の実アセット名は `mmdview-<tag>.dmg` で、正常な配信が
+ * まるごと `dmg-invalid`（＝配布対象でないリクエスト）として記録される。
+ *
+ * 配るのは stable だけ。タグの形の検証だけでは `-dev.N` を通してしまい、
+ * 一覧に出していない開発版が URL 直打ちで配れる。
+ */
+publicRoutes.get('/releases/:tag/:file', async (c) => {
+  const tag = c.req.param('tag')
+  const file = c.req.param('file')
+
+  if (!isStableTag(tag) || !isDMGFileName(file)) return notFoundResponse(c)
+
+  const key = archiveDMGKey(tag, file)
+  const object = await c.env.DIST.get(key)
+
+  recordEvent(c, { kind: 'download', version: tag, channel: 'stable', source: 'archive' })
+
+  if (object === null) {
+    // 旧版が R2 に無いのは配置漏れではない（R2 へ置き始める前のタグは GitHub に
+    // しか実体が無い）。`dmg` と混ぜると「配布の穴」の系列が旧版のダウンロードで
+    // 埋まるため、必ず別の値で記録する。
+    recordEvent(c, { kind: 'github_fallback', fallback: 'archive-dmg', version: tag })
+    return c.redirect(releaseAssetURL(tag, file), 302)
+  }
+
+  return dmgResponse(object, file)
+})
+
+/**
  * R2 の DMG を返す。無ければ GitHub Releases の同名アセットへ 302 する。
  *
  * 302 する理由は 2 つあり、**記録では必ず分ける**。`resolveDMGKey` が弾いた
@@ -109,6 +170,16 @@ async function serveDMG(c: Context<AppEnv>, tag: string, file: string): Promise<
     return c.redirect(releaseAssetURL(tag, file), 302)
   }
 
+  return dmgResponse(object, file)
+}
+
+/**
+ * R2 から読んだ DMG の応答。Sparkle 経路と旧バージョン経路で共有する。
+ *
+ * 応答の形（ヘッダの組）を経路ごとに書くと、片方だけ Content-Disposition を
+ * 落とすような差が黙って入る。記録の意味は経路ごとに違うが、応答は同じ。
+ */
+function dmgResponse(object: R2ObjectBody, file: string): Response {
   return new Response(object.body, {
     status: 200,
     headers: {

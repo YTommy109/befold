@@ -42,7 +42,7 @@ export type RecentEvent = {
  * 意味を失う。成果物を R2 へ移して enclosure が Worker を通るようになった
  * TASK-355 以降、後者が記録され始めた。
  */
-export type MetricKey = EventKind | 'update_download'
+export type MetricKey = EventKind | 'update_download' | 'archive_download'
 
 /**
  * 指標を events の行へ落とすための述語。
@@ -60,6 +60,10 @@ const METRIC_FILTERS: Record<MetricKey, MetricFilter> = {
   visit: { kind: 'visit', source: null, page: '/' },
   download: { kind: 'download', source: 'lp', page: null },
   update_download: { kind: 'download', source: 'sparkle', page: null },
+  // 旧バージョン一覧（/releases）からのダウンロード。新規獲得（lp）と混ぜると
+  // 「最新版が何件落とされたか」が読めなくなり、自動更新（sparkle）と混ぜると
+  // 人間が意図して戻した行為が更新として数えられる。
+  archive_download: { kind: 'download', source: 'archive', page: null },
   update_check: { kind: 'update_check', source: null, page: null },
   // 下の 2 つは製品の指標ではなく運用の観測。`MetricKey` が `EventKind` を覆う
   // ため型としてここに現れるが、カード・グラフ（`KIND_LABELS`）には出さない。
@@ -260,6 +264,8 @@ export type KindBreakdown = {
   total: number
   byOS: Count[]
   byAsOrg: Count[]
+  /** バージョン別。version 列を持たない指標（visit など）では空になる。 */
+  byVersion: Count[]
 }
 
 /**
@@ -353,7 +359,6 @@ export type UsersSummary = {
 
 /** 流入面: どこから来て何をしたか。全期間の累計で見る。 */
 export type TrafficSummary = {
-  byVersion: Count[]
   byCountry: Count[]
   byReferrer: Count[]
   traffic: TrafficSplit
@@ -373,6 +378,7 @@ export const KIND_LABELS: { kind: MetricKey; label: string }[] = [
   { kind: 'download', label: 'ダウンロード' },
   { kind: 'update_check', label: 'アップデート確認' },
   { kind: 'update_download', label: '自動アップデート適用' },
+  { kind: 'archive_download', label: '旧バージョンのダウンロード' },
 ]
 
 /** 日別推移・時間帯分布が対象にする窓（当日を含む直近 N 日）。 */
@@ -989,7 +995,7 @@ export function parseEventCursor(query: {
  * 軸を行に持たせる）。軸ごとに 1 本ずつ引く形へ戻すと `query-count.test.ts` の
  * 上限で落ちる。
  */
-const METRIC_BREAKDOWN_AXES = ['os', 'as_org'] as const
+const METRIC_BREAKDOWN_AXES = ['os', 'as_org', 'version'] as const
 
 type MetricBreakdownAxis = (typeof METRIC_BREAKDOWN_AXES)[number]
 
@@ -1000,7 +1006,7 @@ type MetricBreakdownAxis = (typeof METRIC_BREAKDOWN_AXES)[number]
  * だけ並ぶ。指標を行に持たせて 1 本にまとめ、上位 N 件の切り出しは
  * `ROW_NUMBER()` の窓で指標ごとに行う（LIMIT だと 1 指標ぶんしか取れない）。
  *
- * 軸（os / as_org）も同じ理由で行に持たせる。`trafficSplit` の区分・
+ * 軸（os / as_org / version）も同じ理由で行に持たせる。`trafficSplit` の区分・
  * `eventBreakdowns` の列と同じ「増やす方向を行にして窓で切る」形で、軸を足しても
  * 発行本数は増えない。
  */
@@ -1227,19 +1233,32 @@ async function updateAdoption(
   return { conversion, adoption }
 }
 
-/** 指標ごとの OS 別・接続元組織別の内訳。合算しないため指標の意味が混ざらない。 */
+/** 指標ごとの OS 別・接続元組織別・バージョン別の内訳。合算しないため指標の意味が混ざらない。 */
 async function kindBreakdowns(db: D1Database): Promise<Omit<KindBreakdown, 'total'>[]> {
   const byAxis = await metricBreakdowns(db)
   const byOS = byAxis.get('os') ?? new Map<MetricKey, Count[]>()
   const byAsOrg = byAxis.get('as_org') ?? new Map<MetricKey, Count[]>()
+  const byVersion = byAxis.get('version') ?? new Map<MetricKey, Count[]>()
 
   return KIND_LABELS.map(({ kind, label }) => ({
     kind,
     label,
     byOS: byOS.get(kind) ?? [],
     byAsOrg: byAsOrg.get(kind) ?? [],
+    byVersion: byVersion.get(kind) ?? [],
   }))
 }
+
+/**
+ * バージョン別の内訳を出す指標。**`METRIC_FILTERS` から導く。**
+ *
+ * version 列を持つのは download 系だけで、visit や update_check の行では常に
+ * NULL になる。「表が空なら出さない」という形にすると、データがまだ無いだけの
+ * 指標まで消えて、0 件であることが読めなくなる（0 件は 0 件として見せる）。
+ */
+export const VERSION_BREAKDOWN_METRICS: ReadonlySet<MetricKey> = new Set(
+  metricKeys().filter((metric) => METRIC_FILTERS[metric].kind === 'download'),
+)
 
 /** ダッシュボード初期表示用の集計一式。 */
 /**
@@ -1286,19 +1305,18 @@ export async function summarizeUsers(db: D1Database, now: number): Promise<Users
  * 区分の内訳は接続元組織で、除外した量が画面から消えないようにするもの（ADR 0008）。
  */
 export async function summarizeTraffic(db: D1Database): Promise<TrafficSummary> {
-  const [cumulative, byVersion, byCountry, byReferrer, traffic, breakdowns, breakdownAxes] =
-    await Promise.all([
+  const [cumulative, byCountry, byReferrer, traffic, breakdowns, breakdownAxes] = await Promise.all(
+    [
       cumulativeTotals(db),
-      breakdown(db, 'version', 'download'),
       breakdown(db, 'country'),
       breakdown(db, 'referrer'),
       trafficSplit(db),
       kindBreakdowns(db),
       eventBreakdowns(db),
-    ])
+    ],
+  )
 
   return {
-    byVersion,
     byCountry,
     byReferrer,
     traffic,

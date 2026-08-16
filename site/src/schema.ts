@@ -29,11 +29,14 @@ export type EventKind = z.infer<typeof eventKindSchema>
  * ダウンロードの発生経路。
  *
  * `lp` は配布 LP の /download 経由、`sparkle` は appcast の enclosure
- * （自動アップデート）経由。成果物を R2 へ移して enclosure を Worker 配下に
+ * （自動アップデート）経由、`archive` は旧バージョン一覧（/releases）経由。
+ * 成果物を R2 へ移して enclosure を Worker 配下に
  * すると、両者が同じ kind='download' として記録されるようになる。
- * 新規獲得と既存ユーザの更新は性質が違うので、集計時に分離できるようにする。
+ * 新規獲得・既存ユーザの更新・旧版への退避は性質が違うので、集計時に分離できる
+ * ようにする。値を足したら `analytics.ts` の `METRIC_FILTERS` にも系列を足す
+ * ——足し忘れは型では捕まらないので、`analytics.test.ts` が全値の被覆を検査する。
  */
-export const downloadSourceSchema = z.enum(['lp', 'sparkle'])
+export const downloadSourceSchema = z.enum(['lp', 'sparkle', 'archive'])
 
 export type DownloadSource = z.infer<typeof downloadSourceSchema>
 
@@ -44,7 +47,7 @@ export type DownloadSource = z.infer<typeof downloadSourceSchema>
  * あるため、URL から導出するとカーディナリティが発散し、内訳が読めなくなる。
  * ここに列挙したページを、呼び出し側が明示して渡す。
  */
-export const pageSchema = z.enum(['/', '/features'])
+export const pageSchema = z.enum(['/', '/features', '/releases'])
 
 export type Page = z.infer<typeof pageSchema>
 
@@ -77,13 +80,25 @@ export type DisplayLang = z.infer<typeof displayLangSchema>
  * 順序が違うため（appcast は出荷済みアプリが依存し、dmg は過去タグの配置漏れで、
  * release-api は移行前の名残）。
  *
+ * `archive-dmg` は旧バージョン一覧（/releases）からの配信が R2 に無く GitHub へ
+ * 落ちた場合。`dmg` と分けるのは、**旧版が R2 に無いのは配置漏れではなく正常**
+ * だから。R2 へ成果物を置き始める前のタグは GitHub にしか実体が無く、これを
+ * `dmg` に混ぜると「配置漏れ」を数えている系列が旧版のダウンロード数で埋まり、
+ * GitHub 経路を止めてよいかの判断（ADR 0007）が読めなくなる。
+ *
  * `dmg-invalid` は `dmg` と**同じ 302 だが意味が違う**。`resolveDMGKey` がタグ・
  * ファイル名を弾いた（＝そもそも配布対象でないリクエスト）ものであり、R2 の
  * 欠落ではない。混ぜると「配布の穴」を数えているはずの `dmg` が、いたずら半分の
  * パス探索でいくらでも増える。原因も対処も違う（片方は配置漏れの修正、もう
  * 片方は放置してよい）ので、止めてよいかの判断材料としては必ず分ける。
  */
-export const fallbackRouteSchema = z.enum(['appcast', 'dmg', 'dmg-invalid', 'release-api'])
+export const fallbackRouteSchema = z.enum([
+  'appcast',
+  'archive-dmg',
+  'dmg',
+  'dmg-invalid',
+  'release-api',
+])
 
 export type FallbackRoute = z.infer<typeof fallbackRouteSchema>
 
