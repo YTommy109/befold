@@ -4,7 +4,7 @@ title: viewer-src の残り 22 本の JS を TypeScript へ移行しきる
 status: To Do
 assignee: []
 created_date: '2026-08-16 07:20'
-updated_date: '2026-08-16 07:20'
+updated_date: '2026-08-16 11:59'
 labels: []
 dependencies: []
 priority: medium
@@ -42,4 +42,11 @@ TASK-498 で Oxlint を入れるにあたり、**viewer-src だけ緩めの設�
 - [ ] #3 Oxlint の viewer-src 向け緩和（TASK-498 で入れた override）が撤去され、site/ と同じ厳しさの設定が適用されている
 - [ ] #4 既存の jest テストが通り、ケース数が減っていない
 - [ ] #5 check:viewer-bundle が通る（バンドル成果物とソースがずれていない）
+- [ ] #6 移行完了後に BefoldApp へ oxlint の type-aware linting（TASK-505 で site/ に導入したもの）を入れるかを判断し、入れるなら site/ と同じ 3 ルール以上を有効化している。判断結果は Implementation Notes に残す
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-08-16: TASK-505 で site/ に `oxlint --type-aware` を導入した際、BefoldApp/ でも実測した。結果は 5,263 件（`no-unsafe-call` 2,667 / `no-unsafe-member-access` 1,836 / `no-unsafe-assignment` 416 ほか）で、原因は BefoldApp/tsconfig.json の `checkJs: false` により viewer-src の大半が型無しの .js のまま扱われること。本タスクの完了が前提条件になるため、BefoldApp への導入判断は本タスクへ申し送った（AC を 1 件追加）。site/ 側で有効化したのは `typescript/no-floating-promises` / `no-misused-promises` / `await-thenable` の 3 つで、それ以外は site/.oxlintrc.json に理由つきで off にしてある。
+<!-- SECTION:NOTES:END -->

@@ -93,6 +93,13 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
 - **`viewer-src/` とそのテストは TS 移行（TASK-499）が終わるまで緩めてある。**
   `BefoldApp/.oxlintrc.json` の該当 override はブロックごと撤去する前提で、
   撤去は TASK-499 の Acceptance Criteria に入っている
+- **`site/` だけ型情報を使う lint（`oxlint --type-aware`）を回している（TASK-505）。**
+  目的は `no-floating-promises` / `no-misused-promises` / `await-thenable` の 3 つで、
+  Worker では await し忘れた D1 書き込みがリクエスト終了で黙って消えるため。
+  既定の type-aware ルールセットは site/ に 567 件出る（`prefer-readonly-parameter-types`
+  250 ほか）ので、上記 3 つ以外は理由つきで off にしてある。`BefoldApp/` には
+  入れない —— `checkJs: false` で viewer-src の大半が .js のままのため実測 5,263 件。
+  判断は TS 移行（TASK-499）の完了後に行う
 - 整形のセミコロンは面ごとに違う（`site/` は無し、`BefoldApp/` は有り）。
   どちらも既存の慣習をそのまま固定したもので、揃えようとしない
 - oxfmt の対象は **JS/TS だけ**。Markdown は markdownlint-cli2 が持っている

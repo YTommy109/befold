@@ -26,6 +26,12 @@ run_for() {
     echo "スキップ: $dir の依存が未インストール（npm ci を実行すると検査されます）" >&2
     return 0
   fi
+  # site は --type-aware で走るため tsgolint の実体も要る（TASK-505）。無いまま
+  # 呼ぶと "Failed to find tsgolint executable" で落ち、依存不足だと分からない。
+  if [ "$dir" = site ] && [ ! -x "$dir/node_modules/.bin/tsgolint" ]; then
+    echo "スキップ: $dir の oxlint-tsgolint が未インストール（npm ci を実行すると検査されます）" >&2
+    return 0
+  fi
 
   # 対象はステージされたファイルだけでなくディレクトリ全体にする。1 ファイルの
   # 変更が別ファイルの指摘を生む（import を消して未使用になる等）ため、

@@ -19,6 +19,61 @@
     "worker-configuration.d.ts"
   ],
 
+  // --- 型情報を使う検査（TASK-505）---
+  //
+  // `npm run lint` は `--type-aware` 付きで走る。Worker では await し忘れた
+  // D1 書き込みがリクエスト終了で黙って消えるが、この誤りは tsc でも型情報を
+  // 使わない lint でも検出できない。それを捕まえるためだけに入れている。
+  //
+  // 有効化するのは下記 3 つに絞る。実測（2026-08-16、oxlint 1.78.0）で既定の
+  // type-aware ルールセットは site/ に 567 件の指摘を出し、内訳は
+  // `prefer-readonly-parameter-types` 250 / `no-deprecated` 160 /
+  // `no-unsafe-*` 98 / その他 59 だった。これらを潰す作業は lint 導入とは
+  // 別の判断なので、ここでは理由つきで落として導入自体を通す。
+  "rules": {
+    // await し忘れた Promise。このルールを入れるのが導入の目的で、
+    // 実測では現状 0 件なので、クリーンなまま回帰だけを止めるゲートになる。
+    "typescript/no-floating-promises": "error",
+    // Promise を返す関数を void 期待の位置（イベントハンドラ、条件式）に
+    // 渡す誤り。上と同じクラスの取りこぼしを別の形で捕まえる。
+    "typescript/no-misused-promises": "error",
+    // Promise でない値への await。無意味な await は「非同期のつもりで
+    // 同期のまま」を示す手がかりになる。
+    "typescript/await-thenable": "error",
+
+    // --- 以下は理由つきで無効化する ---
+
+    // 実測 250 件。引数を readonly にして回るのはコードベース全体の書き方を
+    // 変える判断で、lint 導入に紛れ込ませない。
+    "typescript/prefer-readonly-parameter-types": "off",
+    // 実測 160 件、その大半が test/ の `env`（@cloudflare/vitest-pool-workers が
+    // deprecated 扱いにしているが、代替は提供されていない）。自分たちのコードの
+    // 誤りをほぼ指さないので入れない。
+    "typescript/no-deprecated": "off",
+    // 実測 98 件。外部 JSON（GitHub API・Access の JWKS）を any から絞り込む
+    // 箇所に集中している。型ガードへ書き換える価値はあるが、それは独立した
+    // タスクで決める。
+    "typescript/no-unsafe-call": "off",
+    "typescript/no-unsafe-member-access": "off",
+    "typescript/no-unsafe-assignment": "off",
+    "typescript/no-unsafe-argument": "off",
+    "typescript/no-unsafe-return": "off",
+    "typescript/no-unsafe-type-assertion": "off",
+    "typescript/no-unnecessary-type-assertion": "off",
+    // hono のルータは `return c.redirect(...)` / `return next()` の形が定型で、
+    // 実測 13 件と 3 件はすべてこの書き方に対するもの。既存の慣習を否定する。
+    "typescript/return-await": "off",
+    "typescript/no-confusing-void-expression": "off",
+    // 残りは件数が少ないが、いずれも既存コードの意図した書き方に当たる
+    // （JSX 要素の文字列化、any を条件式に置く箇所、比較関数なしの sort）。
+    "typescript/strict-boolean-expressions": "off",
+    "typescript/no-base-to-string": "off",
+    "typescript/require-array-sort-compare": "off",
+    "typescript/prefer-nullish-coalescing": "off",
+    "typescript/no-misused-spread": "off",
+    "typescript/prefer-includes": "off"
+  },
+
   "overrides": [
     {
       // TypeScript では未定義参照を tsc が捕まえる（npm run typecheck）。
