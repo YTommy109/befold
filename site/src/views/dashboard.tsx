@@ -1,6 +1,7 @@
 import type { FC } from 'hono/jsx'
 import { html, raw } from 'hono/html'
-import type { Count, Summary } from '../analytics'
+import type { Count, Summary, VisitSplit } from '../analytics'
+import { UNRECORDED_LABEL } from '../analytics'
 import { formatJst } from '../lib/jst'
 
 /**
@@ -80,6 +81,24 @@ h3 { font-size: 0.95rem; margin: 0 0 0.5rem; font-weight: 600; }
  * 内訳がこの日以降だけのものであることを画面に明示する。
  */
 const BOT_CLASSIFICATION_START = '2026-08-09'
+
+/**
+ * LP を言語ごとの URL に分けた日（TASK-496）。これより前の訪問は日英を同じ HTML で
+ * 出していたため、表示言語が確定しない。過去データは遡って埋められない。
+ */
+const LANGUAGE_URL_START = '2026-08-16'
+
+/**
+ * `VisitSplit[]` を人間側またはロボット側の `Count[]` にする。
+ *
+ * 0 件の区分は落とす。ページ別・言語別は取りうる値がすべて出そろうため、
+ * 落とさないと「ロボット: 表示言語別」に 0 の行が並んで内訳が読めなくなる。
+ */
+function splitRows(splits: VisitSplit[], bots: boolean): Count[] {
+  return splits
+    .map((split) => ({ label: split.label, count: bots ? split.bot : split.human }))
+    .filter((row) => row.count > 0)
+}
 
 const CountTable: FC<{ title: string; rows: Count[] }> = ({ title, rows }) => (
   <section>
@@ -347,6 +366,52 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
       </section>
 
       <section class="block">
+        <h2>ページ別の訪問（全期間の累計）</h2>
+        <p class="note">
+          ページアクセスの指標は LP（/）だけを数えているため、ここの合計とは一致しない。
+          この表は visit のみが対象で、ダウンロードやアップデート確認は元々ページを持たない。
+          ページ列を導入する前に記録された訪問はページが記録されていないが、当時計上して
+          いたのは LP だけなので「/」に数えている。
+        </p>
+        <div class="grid">
+          <CountTable title="人間: ページ別" rows={splitRows(summary.visits.byPage, false)} />
+          <CountTable title="ロボット: ページ別" rows={splitRows(summary.visits.byPage, true)} />
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>言語別の訪問（全期間の累計）</h2>
+        <p class="note">
+          「表示言語」は実際に配信したページの言語で、URL（/ と /en）が決める。
+          「ブラウザ言語設定」は Accept-Language の第一希望を ja / en / other に丸めたもので、
+          <strong>ブラウザの設定であって実際に読まれた言語ではない</strong>。 2
+          つを並べているのは、英語を求めて来た人が英語ページへ辿り着けたかを見るため（
+          ブラウザ言語設定が en で表示言語が ja なら、辿り着けていない）。
+          言語ごとに URL を分ける前（{LANGUAGE_URL_START}）に記録された訪問は、日英を同じ
+          HTML で出していたため表示言語が確定せず「{UNRECORDED_LABEL}」になる。遡って
+          分類し直す材料は無い。
+        </p>
+        <div class="grid">
+          <CountTable
+            title="人間: 表示言語別"
+            rows={splitRows(summary.visits.byDisplayLang, false)}
+          />
+          <CountTable
+            title="ロボット: 表示言語別"
+            rows={splitRows(summary.visits.byDisplayLang, true)}
+          />
+          <CountTable
+            title="人間: ブラウザ言語設定別"
+            rows={splitRows(summary.visits.byBrowserLang, false)}
+          />
+          <CountTable
+            title="ロボット: ブラウザ言語設定別"
+            rows={splitRows(summary.visits.byBrowserLang, true)}
+          />
+        </div>
+      </section>
+
+      <section class="block">
         <h2>人間の訪問とロボットの巡回（全期間の累計）</h2>
         <Cards
           cards={[
@@ -378,6 +443,7 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
               <th>バージョン</th>
               <th>国</th>
               <th>OS</th>
+              <th>ページ</th>
             </tr>
           </thead>
           <tbody id="recent-body">
@@ -388,6 +454,9 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
                 <td>{event.version ?? ''}</td>
                 <td>{event.country ?? ''}</td>
                 <td>{event.os ?? ''}</td>
+                {/* visit 以外の kind は元々ページを持たないので空欄にする。
+                    ここで '/' を補うと、ダウンロードが LP の訪問に見える。 */}
+                <td>{event.page ?? ''}</td>
               </tr>
             ))}
           </tbody>

@@ -6,7 +6,11 @@ import {
   hourlyDistribution,
   summarize,
   todayTotals,
+  eventsAfter,
+  recentEvents,
   uaSplit,
+  visitBreakdowns,
+  UNRECORDED_LABEL,
 } from '../src/analytics'
 import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import type { EventKind } from '../src/schema'
@@ -443,5 +447,101 @@ describe('ページの分離', () => {
 
     expect(totals.counts.visit).toBe(1)
     expect(totals.uniqueVisitors).toBe(2)
+  })
+})
+
+describe('visit の内訳（ページ別・言語別）', () => {
+  /** visit を 1 件、ページ・言語・UA を指定して記録する。 */
+  async function insertVisitRow(
+    page: string | null,
+    displayLang: string | null,
+    browserLang: string | null,
+    uaSummary: string | null = null,
+  ): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, page, display_lang, browser_lang, ua_summary)' +
+        ' VALUES (?, ?, ?, ?, ?, ?)',
+    )
+      .bind(NOW, 'visit', page, displayLang, browserLang, uaSummary)
+      .run()
+  }
+
+  it('ページ別・表示言語別・ブラウザ言語設定別を人間とロボットに分ける', async () => {
+    await insertVisitRow('/', 'ja', 'ja')
+    await insertVisitRow('/', 'ja', 'en')
+    await insertVisitRow('/en', 'en', 'en')
+    await insertVisitRow('/features', 'ja', 'ja', 'bot:GPTBot')
+
+    const { byPage, byDisplayLang, byBrowserLang } = await visitBreakdowns(env.DB)
+
+    expect(byPage).toEqual([
+      { label: '/', human: 2, bot: 0 },
+      { label: '/en', human: 1, bot: 0 },
+      { label: '/features', human: 0, bot: 1 },
+    ])
+    expect(byDisplayLang).toEqual([
+      { label: 'ja', human: 2, bot: 1 },
+      { label: 'en', human: 1, bot: 0 },
+    ])
+    expect(byBrowserLang).toEqual([
+      { label: 'en', human: 2, bot: 0 },
+      { label: 'ja', human: 1, bot: 1 },
+    ])
+  })
+
+  it('visit 以外の kind は内訳に入らない', async () => {
+    // download / update_check には page も表示言語も無い。COALESCE(page,'/') が
+    // kind の条件から外れると、これらが '/' の訪問として数えられてしまう。
+    await env.DB.prepare('INSERT INTO events (timestamp, kind) VALUES (?, ?)')
+      .bind(NOW, 'download')
+      .run()
+    await env.DB.prepare('INSERT INTO events (timestamp, kind) VALUES (?, ?)')
+      .bind(NOW, 'update_check')
+      .run()
+
+    const { byPage } = await visitBreakdowns(env.DB)
+
+    expect(byPage).toEqual([])
+  })
+
+  it('列の導入前に記録された行は page は / に、言語は未記録に寄せる', async () => {
+    // page は当時 LP しか計上していなかったので '/' と読んでよい。言語は
+    // 日英を同一 HTML で出していた時期の行で、表示言語が確定しない。
+    await insertVisitRow(null, null, null)
+
+    const { byPage, byDisplayLang, byBrowserLang } = await visitBreakdowns(env.DB)
+
+    expect(byPage).toEqual([{ label: '/', human: 1, bot: 0 }])
+    expect(byDisplayLang).toEqual([{ label: UNRECORDED_LABEL, human: 1, bot: 0 }])
+    expect(byBrowserLang).toEqual([{ label: UNRECORDED_LABEL, human: 1, bot: 0 }])
+  })
+
+  it('イベントが無ければ空の内訳を返す', async () => {
+    const { byPage, byDisplayLang, byBrowserLang } = await visitBreakdowns(env.DB)
+
+    expect(byPage).toEqual([])
+    expect(byDisplayLang).toEqual([])
+    expect(byBrowserLang).toEqual([])
+  })
+})
+
+describe('最新イベントと SSE の差分配信', () => {
+  it('初期表示と SSE が同じ列を返す（page を含む）', async () => {
+    // 2 つは同じ RecentEvent を返す契約だが、.all<RecentEvent>() のジェネリクスは
+    // 実際の列を検査しない。片方から列が落ちても型では気づけないので、
+    // 両方の戻り値のキー集合が一致することを固定する。
+    await env.DB.prepare(
+      "INSERT INTO events (timestamp, kind, page, ua_summary) VALUES (?, 'visit', '/features', 'Safari')",
+    )
+      .bind(NOW)
+      .run()
+
+    const [recent, streamed] = await Promise.all([recentEvents(env.DB), eventsAfter(env.DB, 0)])
+
+    expect(recent).toHaveLength(1)
+    expect(streamed).toHaveLength(1)
+    expect(Object.keys(recent[0] ?? {}).sort()).toEqual(Object.keys(streamed[0] ?? {}).sort())
+    expect(recent[0]?.page).toBe('/features')
+    expect(streamed[0]?.page).toBe('/features')
   })
 })

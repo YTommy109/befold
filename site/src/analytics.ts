@@ -19,6 +19,8 @@ export type RecentEvent = {
   version: string | null
   country: string | null
   os: string | null
+  /** kind='visit' のときの訪問先ページ。それ以外の kind と、列の導入前の行では null。 */
+  page: string | null
 }
 
 /**
@@ -123,6 +125,7 @@ export type Summary = {
   byCountry: Count[]
   byReferrer: Count[]
   ua: UASplit
+  visits: VisitBreakdowns
   perKind: KindBreakdown[]
   recent: RecentEvent[]
 }
@@ -355,11 +358,101 @@ async function uaBreakdown(db: D1Database, bots: boolean): Promise<Count[]> {
   return results
 }
 
+/** 1 つの区分の、人間とロボットそれぞれの件数。 */
+export type VisitSplit = { label: string; human: number; bot: number }
+
+/**
+ * visit の内訳（ページ別・表示言語別・ブラウザ言語設定別）。
+ *
+ * 3 つとも「visit を何かの軸で割った」ものなので、軸ごとにクエリを引かず
+ * 1 本にまとめる（`visitBreakdowns`）。
+ */
+export type VisitBreakdowns = {
+  byPage: VisitSplit[]
+  byDisplayLang: VisitSplit[]
+  byBrowserLang: VisitSplit[]
+}
+
+/** 値が記録されていない行のラベル。列の導入前に記録された visit がここに入る。 */
+export const UNRECORDED_LABEL = '未記録'
+
+/**
+ * visit をページ・表示言語・ブラウザ言語設定の 3 軸で割り、人間とロボットに分ける。
+ *
+ * **クエリは 1 本。** 3 軸それぞれに引くと全表スキャンが 3 本並ぶが、visit の
+ * 行を 3 列の組で集約すれば結果は高々「2 ページ × 3 言語 × 3 言語 × 2」= 36 行に
+ * しかならず、軸ごとの集計は TS 側で畳める。
+ *
+ * `COALESCE(page, '/')` を `kind = 'visit'` と同じ WHERE の中に置いている。page が
+ * NULL の行には「列の導入前に記録された visit（当時は LP だけなので '/' と読んで
+ * よい）」と「ページの概念が無い download / update_check」の 2 種類があり、後者に
+ * '/' を与えると嘘になるため（`schema/schema.sql` の page 列コメント）。
+ *
+ * ボット判定は `BOT_MATCH` をそのまま使う。ここで新しい判定を書かない——
+ * 判定の定義元が増えると、`BOT_TOKENS` を足したときに片方だけ直る。
+ */
+export async function visitBreakdowns(db: D1Database): Promise<VisitBreakdowns> {
+  const { results } = await db
+    .prepare(
+      `SELECT COALESCE(page, '/') AS page,
+              display_lang        AS display_lang,
+              browser_lang        AS browser_lang,
+              ${BOT_MATCH}        AS is_bot,
+              COUNT(*)            AS count
+       FROM events
+       WHERE kind = 'visit'
+       GROUP BY page, display_lang, browser_lang, is_bot`,
+    )
+    .all<{
+      page: string
+      display_lang: string | null
+      browser_lang: string | null
+      is_bot: number
+      count: number
+    }>()
+
+  return {
+    byPage: foldSplits(results, (row) => row.page),
+    byDisplayLang: foldSplits(results, (row) => row.display_lang ?? UNRECORDED_LABEL),
+    byBrowserLang: foldSplits(results, (row) => row.browser_lang ?? UNRECORDED_LABEL),
+  }
+}
+
+/** 集約済みの行を 1 軸へ畳む。件数の多い順、同数ならラベル順。 */
+function foldSplits<T extends { is_bot: number; count: number }>(
+  rows: T[],
+  labelOf: (row: T) => string,
+): VisitSplit[] {
+  const byLabel = new Map<string, VisitSplit>()
+
+  for (const row of rows) {
+    const label = labelOf(row)
+    const split = byLabel.get(label) ?? { label, human: 0, bot: 0 }
+    if (row.is_bot === 1) split.bot += row.count
+    else split.human += row.count
+    byLabel.set(label, split)
+  }
+
+  return [...byLabel.values()].sort(
+    (a, b) => b.human + b.bot - (a.human + a.bot) || a.label.localeCompare(b.label),
+  )
+}
+
+/**
+ * 最新イベントの SELECT 句。**`recentEvents` と `eventsAfter` で共有する。**
+ *
+ * 2 箇所に書き写さない。両者は同じ `RecentEvent` を返す契約だが、`.all<RecentEvent>()`
+ * のジェネリクスは実際の列を検査しないため、片方の列を落としてもコンパイルは通り、
+ * 初期表示にはあるのに SSE で流れる行にだけ列が無い、という形で静かに壊れる
+ * （実測: `eventsAfter` から page を落としても typecheck も既存テストも通った）。
+ */
+const RECENT_COLUMNS = 'id, timestamp, kind, version, country, os, page'
+
 /** 最新イベント。SSE の差分取得と同じ形状・同じ絞り込み（人間のみ）で返す。 */
 export async function recentEvents(db: D1Database, afterId = 0): Promise<RecentEvent[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, timestamp, kind, version, country, os
+      `SELECT ${RECENT_COLUMNS}
        FROM events
        WHERE id > ? AND ${HUMAN_ONLY}
        ORDER BY id DESC
@@ -430,7 +523,19 @@ async function kindBreakdowns(db: D1Database): Promise<Omit<KindBreakdown, 'tota
 
 /** ダッシュボード初期表示用の集計一式。 */
 export async function summarize(db: D1Database, now: number): Promise<Summary> {
-  const [cumulative, today, daily, hourly, byVersion, byCountry, byReferrer, ua, breakdowns, recent] =
+  const [
+    cumulative,
+    today,
+    daily,
+    hourly,
+    byVersion,
+    byCountry,
+    byReferrer,
+    ua,
+    breakdowns,
+    recent,
+    visits,
+  ] =
     await Promise.all([
       cumulativeTotals(db),
       todayTotals(db, now),
@@ -444,6 +549,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
       uaSplit(db),
       kindBreakdowns(db),
       recentEvents(db),
+      visitBreakdowns(db),
     ])
 
   return {
@@ -456,6 +562,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     byCountry,
     byReferrer,
     ua,
+    visits,
     perKind: breakdowns.map((entry) => ({ ...entry, total: cumulative.counts[entry.kind] })),
     recent,
   }
@@ -471,7 +578,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
 export async function eventsAfter(db: D1Database, afterId: number): Promise<RecentEvent[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, timestamp, kind, version, country, os
+      `SELECT ${RECENT_COLUMNS}
        FROM events
        WHERE id > ? AND ${HUMAN_ONLY}
        ORDER BY id

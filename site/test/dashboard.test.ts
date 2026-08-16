@@ -49,12 +49,16 @@ async function seed(
     referrer?: string
     asOrg?: string
     uaSummary?: string
+    page?: string
+    displayLang?: string
+    browserLang?: string
   } = {},
 ): Promise<number> {
   const result = await env.DB.prepare(
     'INSERT INTO events' +
-      ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org)' +
-      " VALUES (?, ?, ?, 'stable', ?, ?, ?, ?, ?, ?) RETURNING id",
+      ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer,' +
+      ' as_org, page, display_lang, browser_lang)' +
+      " VALUES (?, ?, ?, 'stable', ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
   )
     .bind(
       extra.ts ?? Date.now(),
@@ -66,6 +70,9 @@ async function seed(
       extra.visitorDay ?? 'hash-a',
       extra.referrer ?? null,
       extra.asOrg ?? null,
+      extra.page ?? null,
+      extra.displayLang ?? null,
+      extra.browserLang ?? null,
     )
     .first<{ id: number }>()
 
@@ -246,6 +253,122 @@ describe('集計の表示', () => {
     expect(body.slice(botTable)).toContain('bot:other')
   })
 
+  it('ページ別の訪問が人間とロボットに分かれて描画される', async () => {
+    await seed('visit', { page: '/' })
+    await seed('visit', { page: '/features' })
+    await seed('visit', { page: '/features', uaSummary: 'bot:GPTBot' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('<h2>ページ別の訪問（全期間の累計）</h2>')
+
+    const humanTable = body.indexOf('人間: ページ別')
+    const botTable = body.indexOf('ロボット: ページ別')
+    expect(humanTable).toBeGreaterThan(-1)
+    expect(botTable).toBeGreaterThan(humanTable)
+    // 人間側には / と /features が 1 件ずつ、ロボット側には /features だけが出る。
+    const human = body.slice(humanTable, botTable)
+    expect(human).toContain('<td>/</td><td>1</td>')
+    expect(human).toContain('<td>/features</td><td>1</td>')
+    const bot = body.slice(botTable, body.indexOf('<h2>言語別の訪問'))
+    expect(bot).toContain('<td>/features</td><td>1</td>')
+    expect(bot).not.toContain('<td>/</td>')
+  })
+
+  it('visit 以外の kind はページ別の内訳に入らない', async () => {
+    // download / update_check には元々ページが無い。COALESCE(page,'/') が kind の
+    // 条件から外れると、これらが LP の訪問として数えられてしまう。
+    await seed('download')
+    await seed('update_check')
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const section = body.slice(
+      body.indexOf('<h2>ページ別の訪問'),
+      body.indexOf('<h2>言語別の訪問'),
+    )
+
+    expect(section).toContain('データなし')
+    expect(section).not.toContain('<td>/</td>')
+  })
+
+  it('表示言語とブラウザ言語設定が別々の表として描画される', async () => {
+    // 英語設定のブラウザが日本語ページを見ている状態。両方を出さないと
+    // 「英語を求めて来た人が英語ページへ辿り着けたか」が読めない。
+    await seed('visit', { page: '/', displayLang: 'ja', browserLang: 'en' })
+    await seed('visit', { page: '/en', displayLang: 'en', browserLang: 'en' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('<h2>言語別の訪問（全期間の累計）</h2>')
+    const section = body.slice(
+      body.indexOf('<h2>言語別の訪問'),
+      body.indexOf('<h2>人間の訪問とロボットの巡回'),
+    )
+    expect(section).toContain('人間: 表示言語別')
+    expect(section).toContain('人間: ブラウザ言語設定別')
+    expect(section).toContain('ロボット: 表示言語別')
+    expect(section).toContain('ロボット: ブラウザ言語設定別')
+
+    const display = section.slice(
+      section.indexOf('人間: 表示言語別'),
+      section.indexOf('ロボット: 表示言語別'),
+    )
+    expect(display).toContain('<td>ja</td><td>1</td>')
+    expect(display).toContain('<td>en</td><td>1</td>')
+
+    const browser = section.slice(section.indexOf('人間: ブラウザ言語設定別'))
+    expect(browser).toContain('<td>en</td><td>2</td>')
+  })
+
+  it('言語の内訳がブラウザ設定と実表示の別を注記で示す', async () => {
+    await seed('visit', { page: '/', displayLang: 'ja', browserLang: 'en' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const section = body.slice(
+      body.indexOf('<h2>言語別の訪問'),
+      body.indexOf('<h2>人間の訪問とロボットの巡回'),
+    )
+
+    // 指標の意味を取り違えたまま読まれるのが一番まずいので、注記の存在を固定する。
+    expect(section).toContain('ブラウザの設定であって実際に読まれた言語ではない')
+    // 遡って埋められない行があることも示す。
+    expect(section).toContain('2026-08-16')
+    expect(section).toContain('未記録')
+  })
+
+  it('言語ごとの URL を分ける前に記録された訪問は未記録として出る', async () => {
+    await seed('visit', { page: '/' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const section = body.slice(
+      body.indexOf('人間: 表示言語別'),
+      body.indexOf('ロボット: 表示言語別'),
+    )
+
+    expect(section).toContain('<td>未記録</td><td>1</td>')
+  })
+
+  it('最新イベント表で / と /features の visit が見分けられる', async () => {
+    await seed('visit', { page: '/features' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const section = body.slice(body.indexOf('<h2>最新イベント'))
+
+    expect(section).toContain('<th>ページ</th>')
+    expect(section).toContain('<td>/features</td>')
+  })
+
+  it('ページを持たない kind は最新イベント表で空欄になる', async () => {
+    // '/' を補うと、ダウンロードが LP の訪問に見える。
+    await seed('download')
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const section = body.slice(body.indexOf('<h2>最新イベント'))
+
+    expect(section).toContain('<td>download</td>')
+    expect(section).not.toContain('<td>/</td>')
+  })
+
   it('過去データを遡って分類できないことが注記から読み取れる', async () => {
     await seed('visit', { uaSummary: 'bot:GPTBot' })
 
@@ -308,6 +431,19 @@ describe('集計の表示', () => {
 
     expect(body).toContain('<span class="value" id="count-visit">0</span>')
     expect(body).toContain('データなし')
+  })
+
+  it('イベントが無いときページ別・言語別の表は「データなし」になる', async () => {
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const section = body.slice(
+      body.indexOf('<h2>ページ別の訪問'),
+      body.indexOf('<h2>人間の訪問とロボットの巡回'),
+    )
+
+    // 6 つの表（ページ / 表示言語 / ブラウザ言語設定 × 人間 / ロボット）すべてが
+    // 空状態を出す。0 の行が並ぶ形にならないこともここで固定する。
+    expect(section.match(/データなし/g)).toHaveLength(6)
+    expect(section).not.toContain('<td>0</td>')
   })
 })
 
@@ -508,5 +644,21 @@ describe('グラフ描画', () => {
     expect(body).toContain('<rect class="chart-bar chart-bar-1"')
     // 最大値と等しい棒は棒の描画高さいっぱいになる（180 = 220 - 22 - 18）。
     expect(body).toContain('height="180"')
+  })
+})
+
+describe('SSE で配信する集計 HTML', () => {
+  it('ページ別・言語別の内訳と最新イベントのページ列が含まれる', async () => {
+    // SSE は #summary を innerHTML で丸ごと置き換える設計なので、
+    // SummarySections に入っていれば差分配信でも更新される。
+    await seed('visit', { page: '/features', displayLang: 'en', browserLang: 'en' })
+
+    const summaryHtml = renderSummarySections(await summarize(env.DB, Date.now()))
+
+    expect(summaryHtml).toContain('<h2>ページ別の訪問（全期間の累計）</h2>')
+    expect(summaryHtml).toContain('<h2>言語別の訪問（全期間の累計）</h2>')
+    expect(summaryHtml).toContain('人間: ブラウザ言語設定別')
+    expect(summaryHtml).toContain('<th>ページ</th>')
+    expect(summaryHtml).toContain('<td>/features</td>')
   })
 })

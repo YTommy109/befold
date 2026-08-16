@@ -420,6 +420,27 @@ LP と詳細ページは言語ごとに URL を分ける（日本語 = `/` `/fea
 ページの概念が無い `download` / `update_check`）なので、`COALESCE` は
 `kind = 'visit'` と同じ条件節の中でのみ使う。
 
+### ダッシュボードのページ別・言語別の内訳
+
+ページ別・表示言語別・ブラウザ言語設定別の 3 つの内訳を、人間とロボットに分けて
+出す（`visitBreakdowns`）。
+
+- **クエリは 1 本。** 軸ごとに引くと全表スキャンが 3 本並ぶが、visit の行を
+  3 列の組で集約すれば結果は高々数十行にしかならず、軸ごとの集計は TS 側で畳める。
+  `summarize` の発行本数には上限テスト（`test/query-count.test.ts`）があり、
+  軸ごとに 1 本ずつ引く形へ戻すと落ちる。
+- **ボット判定は `BOT_MATCH` をそのまま使う。** 人間とロボットの両方を数えるので
+  `HUMAN_ONLY` は使えないが、判定式そのものは 1 箇所のまま（`uaSplit` と同じ形）。
+  `ua_summary LIKE 'bot:%'` のリテラルが 2 箇所に増えていないことは
+  `test/analytics.test.ts` の構造ガードが検査する。
+- **ページ別は `page='/'` の「ページアクセス」指標とは別物**で、合計は一致しない。
+  日本語 LP と英語 LP はどちらも `page='/'` で、言語は別の軸として出す。
+- **最新イベント表の SELECT 句は `RECENT_COLUMNS` で共有する。** `recentEvents`
+  （初期表示）と `eventsAfter`（SSE）は同じ `RecentEvent` を返す契約だが、
+  `.all<RecentEvent>()` のジェネリクスは実際の列を検査しない。片方から列を落としても
+  コンパイルは通り、初期表示にはあるのに SSE で流れる行にだけ列が無い、という形で
+  静かに壊れる（実測で確認した）。
+
 ## 人間の訪問とロボットの巡回の分離
 
 <!-- constrained-by ../docs/adr/0004-bot-detection-via-user-agent.md -->
