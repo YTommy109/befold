@@ -13,6 +13,7 @@ const PAGE = {
 } as const
 import app from '../src/index'
 import { LEGACY_HOST, LEGACY_STAGING_HOST } from '../src/lib/hosts'
+import { formatJst } from '../src/lib/jst'
 import { renderOverviewSections } from '../src/views/dashboard'
 import { installAccessKeys, removeAccessKeys } from './access-helpers'
 
@@ -1000,6 +1001,19 @@ describe('配布ホストと旧経路の表示', () => {
     const hostHtml = hostSection(await (await call(PAGE.delivery, AUTH_HEADERS)).text())
 
     expect(hostHtml).toContain('appcast')
+  })
+
+  it('経路別に最後に発生した時刻を出す', async () => {
+    // 累計は一度発生すると減らないので、止めてよいかは最終発生時刻でしか読めない。
+    const at = Date.parse('2026-08-08T03:00:00Z')
+    await env.DB.prepare('INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)')
+      .bind(at, 'github_fallback', 'befold.degino.com', 'dmg')
+      .run()
+
+    const hostHtml = hostSection(await (await call(PAGE.delivery, AUTH_HEADERS)).text())
+
+    expect(hostHtml).toContain('最後に発生 (JST)')
+    expect(hostHtml).toContain(formatJst(at))
   })
 
   it('フォールバックが無ければ経路別は「データなし」になる', async () => {

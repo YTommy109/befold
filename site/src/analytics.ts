@@ -364,7 +364,7 @@ export type TrafficSummary = {
 /** 配信面: 配布ホストと旧経路・フォールバック。 */
 export type DeliverySummary = {
   hosts: Split[]
-  fallbacks: Split[]
+  fallbacks: FallbackSplit[]
 }
 
 /** 指標として並べる順序と表示名。ページ表示・集計の双方でこの順を使う。 */
@@ -710,8 +710,21 @@ export type EventBreakdowns = {
   /** リクエスト先ホスト別（全 kind）。0 件の既知ホストも行として残す。 */
   byHost: Split[]
   /** GitHub へ落ちた経路別（kind='github_fallback' のみ）。 */
-  byFallback: Split[]
+  byFallback: FallbackSplit[]
 }
+
+/**
+ * フォールバック経路 1 つぶんの件数と、**最後に発生した時刻**（epoch ms）。
+ *
+ * 累計だけでは「直近は落ちていない」が読めない。一度でも発生すると件数は
+ * 二度と減らないため、GitHub 経路を止めてよいか（ADR 0007 / TASK-489）の判断は
+ * 「最後にいつ落ちたか」でしか付かない。ホスト別（`Split`）にこの列を足さないのは、
+ * あちらが「0 件の既知ホストも行として残す」表で、最終発生時刻を持たない行が
+ * 常に混ざるため（意味の違う 2 つの表を同じ型にすると片方だけ直る）。
+ *
+ * `null` にはならない。この配列は発生した行だけから作る。
+ */
+export type FallbackSplit = Split & { lastSeenAt: number }
 
 /**
  * 内訳を 1 本のクエリで取り、軸ごとに TS 側で畳む。
@@ -735,7 +748,8 @@ export async function eventBreakdowns(db: D1Database): Promise<EventBreakdowns> 
   const { results } = await db
     .prepare(
       `SELECT kind, page, display_lang, browser_lang, host, fallback,
-              COUNT(*) AS count, ${NON_HUMAN_MATCH} AS is_non_human
+              COUNT(*) AS count, MAX(timestamp) AS last_seen_at,
+              ${NON_HUMAN_MATCH} AS is_non_human
        FROM events
        GROUP BY kind, page, display_lang, browser_lang, host, fallback, is_non_human`,
     )
@@ -750,10 +764,7 @@ export async function eventBreakdowns(db: D1Database): Promise<EventBreakdowns> 
       byBrowserLang: foldSplits(visitRows, (row) => row.browser_lang ?? UNRECORDED_LABEL),
     },
     byHost: foldHosts(results),
-    byFallback: foldSplits(
-      results.filter((row) => row.fallback !== null),
-      (row) => row.fallback ?? UNRECORDED_LABEL,
-    ),
+    byFallback: foldFallbacks(results),
   }
 }
 
@@ -767,6 +778,7 @@ type BreakdownRow = {
   fallback: string | null
   is_non_human: number
   count: number
+  last_seen_at: number
 }
 
 /**
@@ -792,6 +804,36 @@ function foldHosts(rows: BreakdownRow[]): Split[] {
   }
 
   return [...splits.values()]
+}
+
+/**
+ * フォールバックを経路別に畳む。件数に加えて**最後に発生した時刻**を持たせる。
+ *
+ * `foldSplits` に相乗りさせない。あちらは件数だけを畳む汎用の関数で、
+ * 最終発生時刻を optional で足すと使う側が「ある表と無い表」を意識することになる。
+ *
+ * 行が無い経路は行として出さない（ホスト別と逆）。まだ一度も落ちていない経路に
+ * 「最後に発生した時刻」は無く、0 の行を作ると空欄の意味を説明する羽目になる。
+ */
+function foldFallbacks(rows: BreakdownRow[]): FallbackSplit[] {
+  const byLabel = new Map<string, FallbackSplit>()
+
+  for (const row of rows) {
+    if (row.fallback === null) continue
+    const split = byLabel.get(row.fallback) ?? {
+      label: row.fallback,
+      human: 0,
+      nonHuman: 0,
+      lastSeenAt: 0,
+    }
+    addTo(split, row)
+    split.lastSeenAt = Math.max(split.lastSeenAt, row.last_seen_at)
+    byLabel.set(row.fallback, split)
+  }
+
+  return [...byLabel.values()].toSorted(
+    (a, b) => b.human + b.nonHuman - (a.human + a.nonHuman) || a.label.localeCompare(b.label),
+  )
 }
 
 /** 集約済みの行を 1 軸へ畳む。件数の多い順、同数ならラベル順。 */

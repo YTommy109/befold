@@ -43,7 +43,7 @@ async function summarizeAll(db: D1Database, now: number) {
   return { ...overview, ...users, ...traffic, ...delivery }
 }
 import { CANONICAL_HOST, LEGACY_HOST, RECORDED_HOSTS } from '../src/lib/hosts'
-import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
+import { DAY_MS, JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import { DATACENTER_ORG_PATTERNS, datacenterOrgMatch, isDatacenterOrg } from '../src/lib/network'
 import { channelSchema, eventKindSchema } from '../src/schema'
 import type { EventKind } from '../src/schema'
@@ -1019,9 +1019,38 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
 
     // fallback を持たない行は入らない（download が経路として数えられない）。
     expect(byFallback).toEqual([
-      { label: 'appcast', human: 1, nonHuman: 0 },
-      { label: 'dmg', human: 1, nonHuman: 0 },
+      { label: 'appcast', human: 1, nonHuman: 0, lastSeenAt: NOW },
+      { label: 'dmg', human: 1, nonHuman: 0, lastSeenAt: NOW },
     ])
+  })
+
+  it('経路ごとに最後に発生した時刻を返す', async () => {
+    // 累計だけでは「直近は落ちていない」が読めない（TASK-495 の AC #4）。
+    // 古い行のほうを後から入れて、順序ではなく MAX で決まっていることを見る。
+    await env.DB.prepare('INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)')
+      .bind(NOW, 'github_fallback', CANONICAL_HOST, 'dmg')
+      .run()
+    await env.DB.prepare('INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)')
+      .bind(NOW - DAY_MS * 30, 'github_fallback', CANONICAL_HOST, 'dmg')
+      .run()
+
+    const { byFallback } = await eventBreakdowns(env.DB)
+
+    expect(byFallback).toEqual([{ label: 'dmg', human: 2, nonHuman: 0, lastSeenAt: NOW }])
+  })
+
+  it('不正なリクエストと R2 の欠落を別の経路として数える', async () => {
+    // 同じ 302 でも原因も対処も違う。混ぜると「配布の穴」がパス探索で水増しされる。
+    await env.DB.prepare('INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)')
+      .bind(NOW, 'github_fallback', CANONICAL_HOST, 'dmg-invalid')
+      .run()
+    await env.DB.prepare('INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)')
+      .bind(NOW, 'github_fallback', CANONICAL_HOST, 'dmg')
+      .run()
+
+    const { byFallback } = await eventBreakdowns(env.DB)
+
+    expect(byFallback.map((split) => split.label)).toEqual(['dmg', 'dmg-invalid'])
   })
 })
 

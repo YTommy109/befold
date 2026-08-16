@@ -514,10 +514,20 @@ LP と詳細ページは言語ごとに URL を分ける（日本語 = `/` `/fea
 - **記録されないギャップが 3 つある。** 旧ホストの静的アセット（`notFound` →
   `ASSETS.fetch`）と `/healthz`、そして 404 ページ。前 2 つはクライアントの依存を
   示さないため、404 は LP の指標へ混ぜないために追っていない。
-- **`fallback` は R2 ミスで GitHub へ落ちた経路。** `appcast` / `dmg` / `release-api` の
-  3 つで、`kind='github_fallback'` のときだけ非 NULL。この対応は `eventSchema` の
-  `refine` が強制する（doc コメントだけでは守られない）。ここが 0 でないうちは GitHub
-  側の経路を止められない。
+- **`fallback` は R2 ミスで GitHub へ落ちた経路。** `appcast` / `dmg` / `dmg-invalid` /
+  `release-api` の 4 つで、`kind='github_fallback'` のときだけ非 NULL。この対応は
+  `eventSchema` の `refine` が強制する（doc コメントだけでは守られない）。ここが
+  0 でないうちは GitHub 側の経路を止められない。
+- **`dmg-invalid` は停止判断の材料に数えない。** `resolveDMGKey` がタグ・ファイル名を
+  弾いたリクエスト（＝そもそも配布対象でない。パス探索を含む）で、R2 の欠落ではない。
+  応答は `dmg` と同じ 302 だが、原因も対処も違う——片方は配置漏れの修正、もう片方は
+  放置してよい。混ぜると「配布の穴」を数えているはずの `dmg` がいくらでも増える。
+  この値の導入前に記録された `dmg` 行は両者の混合で、遡って分離できない。
+- **止めてよいかは累計ではなく「最後に発生 (JST)」で読む。** 累計は一度発生すると
+  二度と減らないため、それだけでは「直近は落ちていない」が永久に読めない。配信面の
+  経路別の表は `MAX(timestamp)` を同じ 1 本のクエリで取って最終発生時刻を並べる
+  （`eventBreakdowns` の GROUP BY は変えていないので `test/query-count.test.ts` の
+  上限にも触れない）。
 - **appcast のフォールバックは過小に出る。** 応答は `caches.default` に 300 秒入るため、
   キャッシュに当たった周期は `loadAppcast` を通らない。`update_check` 自体はキャッシュ
   判定より前に記録するので影響を受けない。

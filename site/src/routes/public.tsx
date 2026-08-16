@@ -90,13 +90,22 @@ publicRoutes.get('/dl/:tag/:file', (c) => {
   return serveDMG(c, tag, file)
 })
 
-/** R2 の DMG を返す。無ければ GitHub Releases の同名アセットへ 302 する。 */
+/**
+ * R2 の DMG を返す。無ければ GitHub Releases の同名アセットへ 302 する。
+ *
+ * 302 する理由は 2 つあり、**記録では必ず分ける**。`resolveDMGKey` が弾いた
+ * （`dmg-invalid`）のは配布対象でないリクエストで、R2 の欠落（`dmg`）ではない。
+ * 同じ 302 という応答の形で丸めると、パス探索の類いが「配布の穴」として数えられ、
+ * GitHub 経路を止めてよいかの判断（ADR 0007 / TASK-489）が読めなくなる。
+ * 応答自体はどちらも従来どおり GitHub へ送る（導線を途切れさせない）。
+ */
 async function serveDMG(c: Context<AppEnv>, tag: string, file: string): Promise<Response> {
   const key = resolveDMGKey(tag, file)
   const object = key === null ? null : await c.env.DIST.get(key)
 
   if (object === null) {
-    recordEvent(c, { kind: 'github_fallback', fallback: 'dmg', version: tag })
+    const fallback = key === null ? 'dmg-invalid' : 'dmg'
+    recordEvent(c, { kind: 'github_fallback', fallback, version: tag })
     return c.redirect(releaseAssetURL(tag, file), 302)
   }
 

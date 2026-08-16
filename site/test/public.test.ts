@@ -1030,6 +1030,17 @@ describe('リクエスト先ホストと GitHub フォールバックの記録',
     expect(event?.version).toBe('v1.2.3')
   })
 
+  it('不正なタグ・ファイル名は dmg ではなく dmg-invalid として記録する', async () => {
+    // 検証で弾いたリクエスト（配布対象でない）を R2 の欠落と混ぜない。混ぜると
+    // 「配布の穴」を数えているはずの dmg がパス探索でいくらでも増える。
+    for (const path of ['/dl/latest/befold-v1.2.3.dmg', '/dl/v1.2.3/latest.json']) {
+      const response = await call(path)
+
+      expect(response.status).toBe(302)
+      expect((await latestEvent('github_fallback'))?.fallback).toBe('dmg-invalid')
+    }
+  })
+
   it('R2 に最新ポインタが無ければ github_fallback を release-api として記録する', async () => {
     mockUpstream({
       [LATEST_RELEASE_URL]: Response.json({

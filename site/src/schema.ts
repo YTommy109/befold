@@ -73,11 +73,17 @@ export type DisplayLang = z.infer<typeof displayLangSchema>
  * R2 に目的のオブジェクトが無く GitHub へ落ちた経路。
  *
  * `appcast` は appcast のプロキシ、`dmg` は成果物の 302、`release-api` は /download が
- * R2 の最新ポインタを読めず GitHub API へ落ちた場合。3 つを分けるのは、止められる
+ * R2 の最新ポインタを読めず GitHub API へ落ちた場合。分けるのは、止められる
  * 順序が違うため（appcast は出荷済みアプリが依存し、dmg は過去タグの配置漏れで、
  * release-api は移行前の名残）。
+ *
+ * `dmg-invalid` は `dmg` と**同じ 302 だが意味が違う**。`resolveDMGKey` がタグ・
+ * ファイル名を弾いた（＝そもそも配布対象でないリクエスト）ものであり、R2 の
+ * 欠落ではない。混ぜると「配布の穴」を数えているはずの `dmg` が、いたずら半分の
+ * パス探索でいくらでも増える。原因も対処も違う（片方は配置漏れの修正、もう
+ * 片方は放置してよい）ので、止めてよいかの判断材料としては必ず分ける。
  */
-export const fallbackRouteSchema = z.enum(['appcast', 'dmg', 'release-api'])
+export const fallbackRouteSchema = z.enum(['appcast', 'dmg', 'dmg-invalid', 'release-api'])
 
 export type FallbackRoute = z.infer<typeof fallbackRouteSchema>
 
