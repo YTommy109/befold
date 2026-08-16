@@ -96,14 +96,20 @@ const LANGUAGE_URL_START = '2026-08-16'
 const HOST_COLUMN_START = '2026-08-16'
 
 /**
- * `Split[]` を人間側またはロボット側の `Count[]` にする。
+ * 接続元組織（as_org）の記録を始めた日（migrations/20260730022424_add_as_org.sql）。
+ * データセンター判定はこの列だけを見るため、この日以降は遡って効く。
+ */
+const AS_ORG_COLUMN_START = '2026-07-30'
+
+/**
+ * `Split[]` を人間側または自動アクセス側の `Count[]` にする。
  *
  * 0 件の区分は落とす。ページ別・言語別は取りうる値がすべて出そろうため、
- * 落とさないと「ロボット: 表示言語別」に 0 の行が並んで内訳が読めなくなる。
+ * 落とさないと「自動アクセス: 表示言語別」に 0 の行が並んで内訳が読めなくなる。
  */
-function splitRows(splits: Split[], bots: boolean): Count[] {
+function splitRows(splits: Split[], nonHuman: boolean): Count[] {
   return splits
-    .map((split) => ({ label: split.label, count: bots ? split.bot : split.human }))
+    .map((split) => ({ label: split.label, count: nonHuman ? split.nonHuman : split.human }))
     .filter((row) => row.count > 0)
 }
 
@@ -128,7 +134,7 @@ const CountTable: FC<{ title: string; rows: Count[] }> = ({ title, rows }) => (
 )
 
 /**
- * 人間とロボットを 2 列で並べる表。**0 件の行も落とさない。**
+ * 人間と自動アクセスを 2 列で並べる表。**0 件の行も落とさない。**
  *
  * `CountTable` + `splitRows` は 0 を落とす（取りうる値がすべて出そろう軸で
  * 0 の行が並ぶのを避けるため）。ホストと GitHub フォールバックはその逆で、
@@ -146,7 +152,7 @@ const SplitTable: FC<{ title: string; rows: Split[] }> = ({ title, rows }) => (
           <tr>
             <th></th>
             <th>人間</th>
-            <th>ロボット</th>
+            <th>自動アクセス</th>
           </tr>
         </thead>
         <tbody>
@@ -154,7 +160,7 @@ const SplitTable: FC<{ title: string; rows: Split[] }> = ({ title, rows }) => (
             <tr>
               <td>{row.label}</td>
               <td>{row.human}</td>
-              <td>{row.bot}</td>
+              <td>{row.nonHuman}</td>
             </tr>
           ))}
         </tbody>
@@ -418,7 +424,7 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
         </p>
         <div class="grid">
           <CountTable title="人間: ページ別" rows={splitRows(summary.visits.byPage, false)} />
-          <CountTable title="ロボット: ページ別" rows={splitRows(summary.visits.byPage, true)} />
+          <CountTable title="自動アクセス: ページ別" rows={splitRows(summary.visits.byPage, true)} />
         </div>
       </section>
 
@@ -440,7 +446,7 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
             rows={splitRows(summary.visits.byDisplayLang, false)}
           />
           <CountTable
-            title="ロボット: 表示言語別"
+            title="自動アクセス: 表示言語別"
             rows={splitRows(summary.visits.byDisplayLang, true)}
           />
           <CountTable
@@ -448,7 +454,7 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
             rows={splitRows(summary.visits.byBrowserLang, false)}
           />
           <CountTable
-            title="ロボット: ブラウザ言語設定別"
+            title="自動アクセス: ブラウザ言語設定別"
             rows={splitRows(summary.visits.byBrowserLang, true)}
           />
         </div>
@@ -482,24 +488,45 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
       </section>
 
       <section class="block">
-        <h2>人間の訪問とロボットの巡回（全期間の累計）</h2>
+        <h2>人間の訪問と自動アクセス（全期間の累計）</h2>
         <Cards
           cards={[
-            { value: summary.ua.human, label: '人間のクライアント' },
-            { value: summary.ua.bot, label: 'ロボット（クローラ）' },
+            { value: summary.traffic.totals.human, label: '人間のクライアント' },
+            { value: summary.traffic.totals.bot, label: 'ロボット（クローラ）' },
+            { value: summary.traffic.totals.datacenter, label: 'データセンター由来' },
           ]}
         />
         <p class="note">
           このセクション以外の集計（累計・本日・推移・時間帯・内訳・最新イベント）は、
-          ここでロボットと判定した巡回を除いた数。判定は User-Agent のトークンによる（ADR
-          0004）。完全な UA は保存していないため、分類を適用した {BOT_CLASSIFICATION_START}{' '}
-          より前に記録されたイベントは遡って分類できず、当時のクローラの巡回は「other」に
-          含まれたまま人間側に数えられている。この日をまたぐ推移は連続していない。
-          「bot:other」は既知トークンに当たらなかったボットで、ここが増え続けるなら分類漏れ。
+          ロボットとデータセンター由来の<strong>両方</strong>を除いた数。判定の軸はふたつある（ADR 0008）。
+        </p>
+        <p class="note">
+          <strong>ロボット</strong>は User-Agent のトークンで判定する（ADR 0004）。完全な UA は
+          保存していないため、分類を適用した {BOT_CLASSIFICATION_START} より前に記録された
+          イベントは<strong>遡って分類できず</strong>、当時のクローラの巡回は「other」に含まれた
+          まま人間側に数えられている。この日をまたぐ推移は連続していない。「bot:other」は既知
+          トークンに当たらなかったボットで、ここが増え続けるなら分類漏れ。
+        </p>
+        <p class="note">
+          <strong>データセンター由来</strong>は接続元組織（as_org）で判定する。UA はふつうの
+          ブラウザだが接続元がクラウド・ホスティング・スキャン業者であるアクセスで、UA の軸では
+          人間として数えられていたもの。as_org は {AS_ORG_COLUMN_START} 以降のすべての行に
+          記録されているため、この判定は<strong>全期間に遡って効く</strong>（ロボット側と非対称）。
+          {AS_ORG_COLUMN_START} より前の行は as_org が無いので人間側に残る。
+        </p>
+        <p class="note">
+          判定できない接続元（as_org が NULL）は人間側に残す。プライバシー中継（iCloud Private
+          Relay・WARP の出口）と VPN・Tor の出口は、人間の可能性があるのでデータセンターに
+          含めない。誤って人間を落とすと、まだ使われている配布経路を止めてしまうため
+          （ADR 0007 の停止判断にこの数字を使う）。
         </p>
         <div class="grid">
-          <CountTable title="人間: クライアント種別" rows={summary.ua.byHuman} />
-          <CountTable title="ロボット: 種類別" rows={summary.ua.byBot} />
+          <CountTable title="人間: クライアント種別" rows={summary.traffic.breakdowns.human} />
+          <CountTable title="ロボット: 種類別" rows={summary.traffic.breakdowns.bot} />
+          <CountTable
+            title="データセンター: 接続元組織別"
+            rows={summary.traffic.breakdowns.datacenter}
+          />
         </div>
       </section>
 

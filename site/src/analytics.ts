@@ -10,6 +10,7 @@ import type { DownloadSource, EventKind, Page } from './schema'
 import { RECORDED_HOSTS } from './lib/hosts'
 import { JST_DAY_EXPR, JST_HOUR_EXPR, jstDayStart, jstDaysInWindow, jstWindowStart } from './lib/jst'
 import { BOT_PREFIX } from './lib/visitor'
+import { datacenterOrgMatch } from './lib/network'
 
 export type Count = { label: string; count: number }
 
@@ -141,7 +142,7 @@ export type Summary = {
   byVersion: Count[]
   byCountry: Count[]
   byReferrer: Count[]
-  ua: UASplit
+  traffic: TrafficSplit
   visits: VisitBreakdowns
   hosts: Split[]
   fallbacks: Split[]
@@ -165,6 +166,9 @@ const RECENT_LIMIT = 20
 /** SSE の 1 周期で流す新着イベントの上限。再開位置の判断に呼び出し側も使う。 */
 export const STREAM_LIMIT = 100
 
+/** 値が記録されていない行のラベル。列の導入前に記録された visit がここに入る。 */
+export const UNRECORDED_LABEL = '未記録'
+
 /**
  * ボット判定の SQL 側の表現。値の列挙は持たず接頭辞だけで分ける（lib/visitor.ts）。
  *
@@ -175,17 +179,62 @@ export const STREAM_LIMIT = 100
 const BOT_MATCH = `COALESCE(ua_summary, '') LIKE '${BOT_PREFIX}%'`
 
 /**
- * ロボットの巡回を集計から外すための条件。集計クエリはこれを WHERE へ足す。
+ * 接続元組織による自動アクセスの判定（ADR 0008）。定義元は `lib/network.ts`。
  *
- * ボット除外の条件はこの 1 箇所だけに置く（集計ごとに書き写さない）。この規約は
+ * UA 判定（`BOT_MATCH`）とは別の軸で、「UA はふつうのブラウザだが接続元が
+ * データセンター」のアクセスを捕まえる。`as_org` は記録済みなので**全期間に
+ * 遡って効く**（UA 分類は適用日以降しか効かない）。
+ */
+const DATACENTER_MATCH = datacenterOrgMatch()
+
+/**
+ * 人間の訪問ではないもの。UA でボットと分かるものと、接続元がデータセンターの
+ * ものを合わせた条件。
+ *
+ * 2 軸を OR で束ねる形をここ以外に書かない。片方だけを見る箇所ができると、
+ * 「人間側から引かれたのに自動アクセス側にも出ない」という**総和の合わない
+ * 表示**になる（trafficSplit / eventBreakdowns がまさにその位置にある）。
+ */
+const NON_HUMAN_MATCH = `(${BOT_MATCH} OR ${DATACENTER_MATCH})`
+
+/**
+ * ロボットの巡回・自動アクセスを集計から外すための条件。集計クエリはこれを
+ * WHERE へ足す。
+ *
+ * 除外の条件はこの 1 箇所だけに置く（集計ごとに書き写さない）。この規約は
  * `analytics.test.ts` の「FROM events を含むクエリは HUMAN_ONLY を含むか、
  * 意図的な除外リストに載っているか」を検査するテストが担保する。
  *
- * 分類（TASK-386）の適用前に記録された行は種類が分からず 'other' または NULL に
- * 丸まっており、ここでは人間側に残る。遡って分類し直す材料（完全な UA）を
- * 保存していないため。この非連続性はダッシュボードの注記で示す。
+ * UA 分類（TASK-386）の適用前に記録された行は種類が分からず 'other' または NULL に
+ * 丸まっており、UA の軸では人間側に残る。遡って分類し直す材料（完全な UA）を
+ * 保存していないため。接続元組織の軸にはこの制約が無い。この非対称は
+ * ダッシュボードの注記で示す。
  */
-const HUMAN_ONLY = `NOT ${BOT_MATCH}`
+const HUMAN_ONLY = `NOT ${NON_HUMAN_MATCH}`
+
+/**
+ * 1 行がどの区分かを返す SQL 式。内訳を区分ごとに 1 本のクエリで取るために使う。
+ *
+ * 判定の順序が意味を持つ。UA でボットと分かるものを先に見る——データセンターから
+ * 来る Googlebot を「データセンター」に寄せると、ADR 0004 が測りたかった
+ * 「AI クローラの到来量」がクローラ名の内訳から消えるため。
+ */
+const TRAFFIC_CLASS_EXPR =
+  `CASE WHEN ${BOT_MATCH} THEN '${'bot' satisfies TrafficClass}'` +
+  ` WHEN ${DATACENTER_MATCH} THEN '${'datacenter' satisfies TrafficClass}'` +
+  ` ELSE '${'human' satisfies TrafficClass}' END`
+
+/**
+ * 区分ごとの内訳ラベルを選ぶ SQL 式。
+ *
+ * データセンター区分だけ `as_org` を出す。UA を出しても `Chrome` や `other` が
+ * 並ぶだけで、どこから来たのかが読めないため。値が無い行は「未記録」に寄せる
+ * （区分から黙って落とさない）。
+ */
+const TRAFFIC_LABEL_EXPR =
+  `CASE WHEN ${DATACENTER_MATCH} AND NOT ${BOT_MATCH}` +
+  ` THEN COALESCE(as_org, '${UNRECORDED_LABEL}')` +
+  ` ELSE COALESCE(ua_summary, '${UNRECORDED_LABEL}') END`
 
 /**
  * 種別ごとの件数を 1 行から取り出すための SELECT 句。
@@ -329,56 +378,89 @@ async function breakdown(
 }
 
 /**
- * 人間の訪問とロボットの巡回の分離（全期間の累計）。
+ * アクセスの区分。人間・UA で分かるロボット・接続元がデータセンターの 3 つ。
  *
- * `human` / `bot` は総数、`byHuman` / `byBot` は上位 N 件の内訳。総数を内訳の
- * 合計から出さないのは、内訳が上位 N 件で切られており、種類が多いほど実際より
- * 小さく見えるため。
+ * `datacenter` を `bot` に混ぜない。判定の軸（UA / 接続元組織）も、遡って効くか
+ * どうかも違うため、画面上で分けて読めないと「いつからの数字か」が分からなくなる。
  */
-export type UASplit = { human: number; bot: number; byHuman: Count[]; byBot: Count[] }
+export type TrafficClass = 'human' | 'bot' | 'datacenter'
 
-/** ua_summary をボットかどうかで分けた総数と内訳。 */
-export async function uaSplit(db: D1Database): Promise<UASplit> {
-  const [totals, byHuman, byBot] = await Promise.all([
+const TRAFFIC_CLASSES: TrafficClass[] = ['human', 'bot', 'datacenter']
+
+/**
+ * 区分ごとの総数と内訳（全期間の累計）。
+ *
+ * `totals` は総数、`breakdowns` は上位 N 件の内訳。総数を内訳の合計から出さないのは、
+ * 内訳が上位 N 件で切られており、種類が多いほど実際より小さく見えるため。
+ *
+ * 内訳のラベルは区分で意味が変わる。`human` / `bot` は `ua_summary`（クライアント
+ * 種別・クローラ名）、`datacenter` は `as_org`（接続元組織）。データセンター側で
+ * UA を出しても `Chrome` や `other` が並ぶだけで、どこから来たのかが読めない。
+ */
+export type TrafficSplit = {
+  totals: Record<TrafficClass, number>
+  breakdowns: Record<TrafficClass, Count[]>
+}
+
+/**
+ * 区分ごとの総数と内訳を 2 本のクエリで取る。
+ *
+ * 区分ごとに引かない（3 区分 × 内訳で全表スキャンが並ぶ）。内訳は区分を行に
+ * 持たせて 1 本にまとめ、上位 N 件の切り出しは `ROW_NUMBER()` の窓で区分ごとに
+ * 行う（`metricBreakdown` と同じ形）。`query-count.test.ts` の上限がこの形を守る。
+ */
+export async function trafficSplit(db: D1Database): Promise<TrafficSplit> {
+  const [totalRows, breakdownRows] = await Promise.all([
     db
       .prepare(
-        `SELECT SUM(${BOT_MATCH})     AS bots,
-                SUM(NOT ${BOT_MATCH}) AS humans
+        `SELECT ${TRAFFIC_CLASS_EXPR} AS class, COUNT(*) AS count
          FROM events
-         WHERE ua_summary IS NOT NULL`,
+         GROUP BY class`,
       )
-      .first<{ bots: number | null; humans: number | null }>(),
-    uaBreakdown(db, false),
-    uaBreakdown(db, true),
+      .all<{ class: TrafficClass; count: number }>(),
+    db
+      .prepare(
+        `WITH grouped AS (
+           SELECT ${TRAFFIC_CLASS_EXPR} AS class, ${TRAFFIC_LABEL_EXPR} AS label,
+                  COUNT(*) AS count
+           FROM events
+           GROUP BY class, label
+         ),
+         ranked AS (
+           SELECT class, label, count,
+                  ROW_NUMBER() OVER (PARTITION BY class ORDER BY count DESC, label) AS position
+           FROM grouped
+         )
+         SELECT class, label, count
+         FROM ranked
+         WHERE position <= ${TOP_N}
+         ORDER BY class, position`,
+      )
+      .all<Count & { class: TrafficClass }>(),
   ])
 
-  return {
-    human: totals?.humans ?? 0,
-    bot: totals?.bots ?? 0,
-    byHuman,
-    byBot,
+  const totals = {} as Record<TrafficClass, number>
+  const breakdowns = {} as Record<TrafficClass, Count[]>
+  for (const trafficClass of TRAFFIC_CLASSES) {
+    totals[trafficClass] = 0
+    breakdowns[trafficClass] = []
   }
+  for (const row of totalRows.results) totals[row.class] = row.count
+  for (const { class: trafficClass, label, count } of breakdownRows.results) {
+    breakdowns[trafficClass].push({ label, count })
+  }
+
+  return { totals, breakdowns }
 }
 
-/** ボット／人間のどちらかに絞った ua_summary の内訳（上位 N 件）。 */
-async function uaBreakdown(db: D1Database, bots: boolean): Promise<Count[]> {
-  const { results } = await db
-    .prepare(
-      `SELECT ua_summary AS label, COUNT(*) AS count
-       FROM events
-       WHERE ua_summary IS NOT NULL
-         AND ${bots ? '' : 'NOT '}${BOT_MATCH}
-       GROUP BY label
-       ORDER BY count DESC, label
-       LIMIT ${TOP_N}`,
-    )
-    .all<Count>()
-
-  return results
-}
-
-/** 1 つの区分の、人間とロボットそれぞれの件数。 */
-export type Split = { label: string; human: number; bot: number }
+/**
+ * 1 つの区分の、人間とそれ以外の件数。
+ *
+ * `nonHuman` は UA で分かるロボットと、接続元がデータセンターのものの合算。
+ * `bot` という名前にしない——`HUMAN_ONLY` が外す対象と同じ集合であることを
+ * 名前で示す（かつて `bot` だったので、意味が広がったことが型で分かる）。
+ */
+export type Split = { label: string; human: number; nonHuman: number }
 
 /**
  * visit の内訳（ページ別・表示言語別・ブラウザ言語設定別）。
@@ -400,9 +482,6 @@ export type EventBreakdowns = {
   /** GitHub へ落ちた経路別（kind='github_fallback' のみ）。 */
   byFallback: Split[]
 }
-
-/** 値が記録されていない行のラベル。列の導入前に記録された visit がここに入る。 */
-export const UNRECORDED_LABEL = '未記録'
 
 /**
  * 内訳を 1 本のクエリで取り、軸ごとに TS 側で畳む。
@@ -426,9 +505,9 @@ export async function eventBreakdowns(db: D1Database): Promise<EventBreakdowns> 
   const { results } = await db
     .prepare(
       `SELECT kind, page, display_lang, browser_lang, host, fallback,
-              COUNT(*) AS count, ${BOT_MATCH} AS is_bot
+              COUNT(*) AS count, ${NON_HUMAN_MATCH} AS is_non_human
        FROM events
-       GROUP BY kind, page, display_lang, browser_lang, host, fallback, is_bot`,
+       GROUP BY kind, page, display_lang, browser_lang, host, fallback, is_non_human`,
     )
     .all<BreakdownRow>()
 
@@ -456,7 +535,7 @@ type BreakdownRow = {
   browser_lang: string | null
   host: string | null
   fallback: string | null
-  is_bot: number
+  is_non_human: number
   count: number
 }
 
@@ -472,12 +551,12 @@ type BreakdownRow = {
  */
 function foldHosts(rows: BreakdownRow[]): Split[] {
   const splits = new Map<string, Split>(
-    RECORDED_HOSTS.map((host) => [host, { label: host, human: 0, bot: 0 }]),
+    RECORDED_HOSTS.map((host) => [host, { label: host, human: 0, nonHuman: 0 }]),
   )
 
   for (const row of rows) {
     const label = row.host ?? UNRECORDED_LABEL
-    const split = splits.get(label) ?? { label, human: 0, bot: 0 }
+    const split = splits.get(label) ?? { label, human: 0, nonHuman: 0 }
     addTo(split, row)
     splits.set(label, split)
   }
@@ -486,7 +565,7 @@ function foldHosts(rows: BreakdownRow[]): Split[] {
 }
 
 /** 集約済みの行を 1 軸へ畳む。件数の多い順、同数ならラベル順。 */
-function foldSplits<T extends { is_bot: number; count: number }>(
+function foldSplits<T extends { is_non_human: number; count: number }>(
   rows: T[],
   labelOf: (row: T) => string,
 ): Split[] {
@@ -494,19 +573,19 @@ function foldSplits<T extends { is_bot: number; count: number }>(
 
   for (const row of rows) {
     const label = labelOf(row)
-    const split = byLabel.get(label) ?? { label, human: 0, bot: 0 }
+    const split = byLabel.get(label) ?? { label, human: 0, nonHuman: 0 }
     addTo(split, row)
     byLabel.set(label, split)
   }
 
   return [...byLabel.values()].sort(
-    (a, b) => b.human + b.bot - (a.human + a.bot) || a.label.localeCompare(b.label),
+    (a, b) => b.human + b.nonHuman - (a.human + a.nonHuman) || a.label.localeCompare(b.label),
   )
 }
 
-/** 1 行ぶんを人間側・ロボット側のどちらかへ足す。判定は SQL 側の `is_bot`。 */
-function addTo(split: Split, row: { is_bot: number; count: number }): void {
-  if (row.is_bot === 1) split.bot += row.count
+/** 1 行ぶんを人間側・自動アクセス側のどちらかへ足す。判定は SQL 側の `is_non_human`。 */
+function addTo(split: Split, row: { is_non_human: number; count: number }): void {
+  if (row.is_non_human === 1) split.nonHuman += row.count
   else split.human += row.count
 }
 
@@ -603,7 +682,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     byVersion,
     byCountry,
     byReferrer,
-    ua,
+    traffic,
     breakdowns,
     recent,
     breakdownAxes,
@@ -618,7 +697,9 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
       breakdown(db, 'referrer'),
       // ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を
       // 実測するために持つ。TASK-360 で見送った llms.txt の要否判断に使う。
-      uaSplit(db),
+      // データセンター区分の内訳は接続元組織で、除外した量が画面から
+      // 消えないようにするためのもの（ADR 0008）。
+      trafficSplit(db),
       kindBreakdowns(db),
       recentEvents(db),
       eventBreakdowns(db),
@@ -633,7 +714,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     byVersion,
     byCountry,
     byReferrer,
-    ua,
+    traffic,
     visits: breakdownAxes.visits,
     hosts: breakdownAxes.byHost,
     fallbacks: breakdownAxes.byFallback,
