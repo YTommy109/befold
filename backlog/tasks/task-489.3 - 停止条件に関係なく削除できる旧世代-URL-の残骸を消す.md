@@ -4,7 +4,7 @@ title: 停止条件に関係なく削除できる旧世代 URL の残骸を消�
 status: To Do
 assignee: []
 created_date: '2026-08-16 02:01'
-updated_date: '2026-08-16 02:08'
+updated_date: '2026-08-16 02:20'
 labels: []
 milestone: m-8
 dependencies: []
@@ -55,4 +55,14 @@ Sparkle も配布バイナリもここは経由しないため、**Pages を無�
 【GitHub Pages 流入の統計について】?ref=gh-pages は既に参照元として記録されている。docs/index.html は ?ref=gh-pages を付けて遷移し、resolveReferrer（site/src/lib/referrer.ts）が ?ref= を最優先で採用する。その doc コメントに「GitHub Pages は静的ホスティングのためサーバーサイドリダイレクトができず meta refresh / JS になり Referer は取りこぼしが出る。明示パラメータなら影響を受けずに数えられる」とあり、gh-pages の計測がこの仕組みの動機である。参照元別の内訳はダッシュボードに既にある（site/src/analytics.ts:424）。したがって無効化の判断は新しい計測を待たずに、既存の参照元別内訳の数字を見て行える。人間とロボットの分離が必要なら TASK-488.2 の完了を待つ。
 
 なお 2026-08-16 時点でローカルに読み取り専用 D1 トークン（Keychain の befold-d1-readonly）が無く、実データは未確認。scripts/analytics-query.sh 経由で確認する。
+
+【gh-pages 流入の実測（2026-08-16、本番 D1）】scripts/analytics-query.sh で計測。visit イベントの参照元別内訳のうち referrer='gh-pages' は 16 件 / ユニーク 12（期間 2026-07-30〜2026-08-14）。全て human（bot:% 判定に該当せず）。日別は 07-30: 6件, 07-31: 6件, 08-01: 1件, 08-04: 1件, 08-13: 1件, 08-14: 1件。公開直後に集中し、その後は数日に 1 件のペースで**現在も継続している**（最終 2026-08-14 = 実測の 2 日前）。
+
+比較: 同期間の visit 全体は human 354 / bot 14。gh-pages は human visit の約 4.5%。参照元の上位は (direct) 289、https://t.co 17、gh-pages 16、https://facebook.com 7。
+
+判断材料: ゼロではないため「誰も使っていないから消す」とは言えない。一方で流入元は t.co・facebook 等の SNS 経由が主で、gh-pages は初期の告知経由と推測される。無効化するなら「月 1 件程度の流入を切り捨てる」判断になる。継続するなら docs/index.html は現状維持でよい（shim は既に degino を指しており、実害は無い）。
+
+【参考】update_check は human 132 / bot 2、download は human 35 / bot 1。ただし現時点ではリクエスト先ホストの列が無いため、この 132 件のうち旧ホスト（workers.dev）経由が何件かは分離できない（TASK-488.3 の対象）。
+
+【付随して見つかったもの】参照元に http://befold.degino.com:2052 / :2086 / :8080 / :8880 が各 1 件ある（2026-08-15〜16）。これらは Cloudflare の HTTP 代替ポートで、ポートスキャン等の自動アクセスが human 判定で計上されている可能性がある。ボット判定の精度に関わるため、必要なら別途起票する。
 <!-- SECTION:NOTES:END -->
