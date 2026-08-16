@@ -313,13 +313,30 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Give an agent like Claude Code a skill file so that, just before it asks you to review a Markdown or Mermaid file it wrote, it opens that file with the `befold` CLI. You judge the rendered document instead of raw source, and it updates live as the agent revises the file. Save the following as e.g. ~/.claude/skills/befold-review/SKILL.md:"
+            "value": "Give an agent like Claude Code a skill file so that, just before it asks you to review a file it wrote, it opens that file with the `befold` CLI. You judge the rendered document instead of raw source, and it updates live as the agent revises the file. Save the following as e.g. ~/.claude/skills/befold-review/SKILL.md:"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Code などのエージェントに次の skill ファイルを与えると、エージェントが書いた Markdown・Mermaid ファイルのレビューを依頼してくる直前に、そのファイルを befold CLI で開くようになります。raw の Markdown ではなくレンダリング結果を見て判断でき、エージェントが修正するたびにプレビューも自動更新されます。例えば以下の内容を ~/.claude/skills/befold-review/SKILL.md として保存してください:"
+            "value": "Claude Code などのエージェントに次の skill ファイルを与えると、エージェントが書いたファイルのレビューを依頼してくる直前に、そのファイルを befold CLI で開くようになります。raw のソースではなくレンダリング結果を見て判断でき、エージェントが修正するたびにプレビューも自動更新されます。例えば以下の内容を ~/.claude/skills/befold-review/SKILL.md として保存してください:"
+          }
+        }
+      }
+    },
+    "aiIntegration.cliRequired": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This needs the `befold` command line tool. Without it the agent silently skips opening the file. If you have not installed it yet, choose befold > Install Command Line Tool from the menu bar."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この連携には befold コマンドラインツールが必要です。未導入だとエージェントは何も言わずにファイルを開く処理を飛ばします。まだ入れていない場合は、メニューバーの befold > コマンドラインツールをインストール を実行してください。"
           }
         }
       }

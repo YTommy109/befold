@@ -36,6 +36,7 @@ struct AIIntegrationView: View {
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+                cliRequirement
                 copyButton
                 Text(exampleSkill)
                     .font(.system(.callout, design: .monospaced))
@@ -51,6 +52,24 @@ struct AIIntegrationView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(minWidth: 400, minHeight: 300)
+    }
+
+    /// skill は `command -v befold` で CLI が無ければ黙ってスキップする作りなので、
+    /// CLI が未導入だと「skill を保存したのに何も起きない」状態になる。
+    /// 前提であることと、App メニューからの導線を画面に出しておく。
+    private var cliRequirement: some View {
+        Label {
+            Text("aiIntegration.cliRequired", bundle: .l10n)
+        } icon: {
+            Image(systemName: "terminal")
+        }
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .textSelection(.enabled)
+        // 囲みは行の長さではなくウィンドウ幅に合わせる（説明本文と同じ扱いにする）。
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
     }
 
     /// skill ボックスの右上に置くアイコンボタン。コピー直後だけチェックマークに変わる。
