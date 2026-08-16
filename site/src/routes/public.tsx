@@ -12,26 +12,39 @@ import {
   type Channel,
 } from '../lib/github'
 import { APPCAST_KEY, LATEST_KEY, latestPointerSchema, resolveDMGKey } from '../lib/dist'
+import { SITE_PAGES, variantsOf } from '../lib/pages'
 
 export const publicRoutes = new Hono<AppEnv>()
 
-publicRoutes.get('/', (c) => {
-  recordEvent(c, { kind: 'visit' })
-  return c.html(<Landing origin={new URL(c.req.url).origin} />)
-})
-
 /**
- * 機能・対応ファイルタイプの詳細ページ。
+ * LP と詳細ページを、日本語・英語それぞれの URL で登録する。
  *
- * visit として記録しない。events テーブルはページを区別する列を持たないため
- * （src/schema.ts）、ここを計上すると LP からの新規獲得を測る指標に別ページの
- * 訪問が混ざる。計測しない代わりに CDN・ブラウザキャッシュへ載せてよい。
+ * ルートを 4 本手書きしない。`SITE_PAGES` を唯一の対応表にしておかないと、
+ * パスの追加・変更のたびにルート登録・計測・sitemap・hreflang・旧ホストからの
+ * 301 の 5 箇所が別々に直る形になる（`lib/pages.ts` の doc を参照）。
+ *
+ * `Cache-Control: no-store` は 4 本すべてに付ける。キャッシュに載った応答は
+ * Worker を通らず計上できないため、付け忘れたページだけ計測が環境依存で欠ける。
+ * ヘッダを外すだけでは足りない——Cache-Control も Expires も無い 200 応答は
+ * ブラウザのヒューリスティックキャッシュに載り得る。
  */
-publicRoutes.get('/features', (c) => {
-  // c.header は後続の c.html に反映されるため、本文を作る前に設定する。
-  c.header('Cache-Control', 'public, max-age=3600')
-  return c.html(<Features origin={new URL(c.req.url).origin} />)
-})
+for (const entry of SITE_PAGES) {
+  publicRoutes.get(entry.path, (c) => {
+    // display_lang は配信するビューの言語そのもの。パスの形からは導出しない。
+    recordEvent(c, { kind: 'visit', page: entry.page, displayLang: entry.lang })
+    // c.header は後続の c.html に反映されるため、本文を作る前に設定する。
+    c.header('Cache-Control', 'no-store')
+
+    const origin = new URL(c.req.url).origin
+    return c.html(
+      entry.page === '/' ? (
+        <Landing origin={origin} entry={entry} />
+      ) : (
+        <Features origin={origin} entry={entry} />
+      ),
+    )
+  })
+}
 
 /**
  * 配布 LP のダウンロードボタンの宛先。stable の最新 DMG を R2 から返す。
@@ -46,6 +59,7 @@ publicRoutes.get('/download', async (c) => {
     // R2 に最新ポインタが無い（移行前・put 失敗・stable 未リリース）。
     // 導線は途切れさせず、従来どおり GitHub 側の解決へ落とす。
     const dmg = await latestDMG()
+    recordEvent(c, { kind: 'github_fallback', fallback: 'release-api' })
     recordEvent(c, { kind: 'download', version: dmg?.version ?? null, channel: 'stable', source: 'lp' })
     return c.redirect(dmg?.url ?? RELEASES_LATEST_URL, 302)
   }
@@ -76,6 +90,7 @@ async function serveDMG(c: Context<AppEnv>, tag: string, file: string): Promise<
   const object = key === null ? null : await c.env.DIST.get(key)
 
   if (object === null) {
+    recordEvent(c, { kind: 'github_fallback', fallback: 'dmg', version: tag })
     return c.redirect(releaseAssetURL(tag, file), 302)
   }
 
@@ -110,13 +125,35 @@ publicRoutes.get('/robots.txt', (c) => {
   return c.text(body, 200, { 'Cache-Control': 'public, max-age=3600' })
 })
 
+/**
+ * sitemap。`SITE_PAGES` の全バリアントを列挙し、相互の対応を xhtml:link で示す。
+ *
+ * 各 URL に**自分自身を含む**全バリアントの alternate を書く。検索エンジンは
+ * 「各版が自分自身を含む全版を相互に指す」ことを対応関係の成立条件にしており、
+ * 自己参照を落とすと対応が成立しない（head の hreflang と同じ規則）。
+ */
 publicRoutes.get('/sitemap.xml', (c) => {
   const { origin } = new URL(c.req.url)
+  const priorityOf = (page: string): string => (page === '/' ? '1.0' : '0.8')
+  const changefreqOf = (page: string): string => (page === '/' ? 'weekly' : 'monthly')
+  const entries = SITE_PAGES.map((entry) => {
+    const alternates = variantsOf(entry.page)
+      .map(
+        (variant) =>
+          `<xhtml:link rel="alternate" hreflang="${variant.lang}" href="${origin}${variant.path}"/>`,
+      )
+      .join('')
+    return (
+      `  <url><loc>${origin}${entry.path}</loc>${alternates}` +
+      `<changefreq>${changefreqOf(entry.page)}</changefreq>` +
+      `<priority>${priorityOf(entry.page)}</priority></url>\n`
+    )
+  }).join('')
   const body =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-    `  <url><loc>${origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n` +
-    `  <url><loc>${origin}/features</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>\n` +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' +
+    ' xmlns:xhtml="http://www.w3.org/1999/xhtml">\n' +
+    entries +
     '</urlset>\n'
   return new Response(body, {
     status: 200,
@@ -136,6 +173,11 @@ publicRoutes.get('/appcast-develop.xml', (c) => proxyAppcast(c, 'develop'))
  * R2 を正とし、そこに無いときだけ GitHub をプロキシする。フォールバックは
  * 移行期の経路であって恒常的な二重の真実ではない（リリースワークフローは
  * R2 への put が失敗したらジョブごと失敗する）。
+ *
+ * `github_fallback`（R2 に appcast が無く GitHub をプロキシした）の記録は
+ * `loadAppcast` の中で行う。キャッシュに当たった周期はそこを通らないため、
+ * この経路のフォールバック数は最大 300 秒ぶん過小に出る。update_check 自体は
+ * キャッシュ判定より前に記録するのでこの影響を受けない。
  *
  * 応答は caches.default に 300 秒入れる。Cache-Control だけではクライアント／
  * 中間キャッシュにしか効かず、アップデートチェックのたびに R2 のクラス B
@@ -170,6 +212,7 @@ async function loadAppcast(c: Context<AppEnv>, channel: Channel): Promise<Respon
     })
   }
 
+  recordEvent(c, { kind: 'github_fallback', fallback: 'appcast', channel })
   const upstream = await fetch(APPCAST_UPSTREAM[channel], {
     headers: { 'User-Agent': 'befold-site' },
     cf: { cacheTtl: 300, cacheEverything: true },

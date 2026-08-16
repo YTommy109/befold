@@ -1,23 +1,21 @@
 import type { FC } from 'hono/jsx'
-import { html, raw } from 'hono/html'
 import { FILE_TYPE_GROUPS, SIZE_LIMITS_MB, type RenderMode } from '../lib/file-types'
-import {
-  DOWNLOAD_PATH,
-  FEATURES,
-  MORE_FEATURES,
-  LANG_SCRIPT,
-  REPO_URL,
-  REQUIRED_OS,
-  REQUIRED_OS_JA,
-  SiteFooter,
-  SiteHeader,
-} from './shared'
+import { DOWNLOAD_PATH, FEATURES, MORE_FEATURES, REPO_URL, REQUIRED_OS } from './shared'
+import { T, t, type Localized } from './i18n'
+import { PageShell } from './shell'
+import { pathFor, type PageLang, type SitePage } from '../lib/pages'
 
-const PAGE_TITLE = 'Features & Supported File Types — befold'
-const PAGE_DESCRIPTION =
-  'Every feature of befold, the macOS viewer for Mermaid, Markdown, SVG, HTML, CSV/TSV, images, PDF and source code: the full table of supported file extensions, keyboard shortcuts and answers to common questions.'
+const PAGE_TITLE: Localized = {
+  ja: '機能と対応ファイルタイプ — befold',
+  en: 'Features & Supported File Types — befold',
+}
 
-const RENDER_MODE_LABEL: Record<RenderMode, { ja: string; en: string }> = {
+const PAGE_DESCRIPTION: Localized = {
+  ja: 'Mermaid・Markdown・SVG・HTML・CSV/TSV・画像・PDF・ソースコードを読める macOS 向けビューア befold の全機能。対応する拡張子の一覧、キーボードショートカット、よくある質問への回答をまとめています。',
+  en: 'Every feature of befold, the macOS viewer for Mermaid, Markdown, SVG, HTML, CSV/TSV, images, PDF and source code: the full table of supported file extensions, keyboard shortcuts and answers to common questions.',
+}
+
+const RENDER_MODE_LABEL: Record<RenderMode, Localized> = {
   both: { ja: 'レンダリング / ソース', en: 'Rendered / Source' },
   'rendered-only': { ja: 'レンダリングのみ', en: 'Rendered only' },
   'source-only': { ja: 'ソースのみ', en: 'Source only' },
@@ -72,8 +70,8 @@ export const FAQ: FaqItem[] = [
       en: 'Is there a Windows or Linux version?',
     },
     answer: {
-      ja: `ありません。befold は macOS 専用のアプリで、${REQUIRED_OS_JA} が必要です。`,
-      en: `No. befold is a macOS-only app and requires ${REQUIRED_OS}.`,
+      ja: `ありません。befold は macOS 専用のアプリで、${REQUIRED_OS.ja} が必要です。`,
+      en: `No. befold is a macOS-only app and requires ${REQUIRED_OS.en}.`,
     },
   },
   {
@@ -129,29 +127,24 @@ export const FAQ: FaqItem[] = [
   },
 ]
 
-/** FAQPage の構造化データ。本文に見えている英語の文面と同じものを載せる。 */
-function faqStructuredData(): string {
+/**
+ * FAQPage の構造化データ。**本文に見えている文面と同じものを載せる。**
+ *
+ * 言語ごとに URL が分かれた（TASK-496）ので、ページの言語に合わせて選ぶ。
+ * 以前は日英を同じ HTML に入れていたため英語固定でよかったが、いまは日本語ページに
+ * 英語の本文が存在しないため、英語固定にすると構造化データが本文に存在しない
+ * 文面を主張することになる。
+ */
+function faqStructuredData(lang: PageLang): string {
   return JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
     mainEntity: FAQ.map((item) => ({
       '@type': 'Question',
-      name: item.question.en,
-      acceptedAnswer: { '@type': 'Answer', text: item.answer.en },
+      name: t(lang, item.question),
+      acceptedAnswer: { '@type': 'Answer', text: t(lang, item.answer) },
     })),
   })
-}
-
-const Bilingual: FC<{ ja: string; en: string; tag?: 'p' | 'span' }> = ({ ja, en, tag }) => {
-  const Tag = tag ?? 'p'
-  return (
-    <>
-      <Tag lang="ja">{ja}</Tag>
-      <Tag lang="en" hidden>
-        {en}
-      </Tag>
-    </>
-  )
 }
 
 /**
@@ -161,77 +154,59 @@ const Bilingual: FC<{ ja: string; en: string; tag?: 'p' | 'span' }> = ({ ja, en,
  * 対応ファイルタイプ表は FILE_TYPE_GROUPS だけを情報源にし、拡張子とサイズ上限が
  * BefoldKit の実装とずれたら test/file-types.test.ts が落ちる。
  */
-export const Features: FC<{ origin: string }> = ({ origin }) => (
-  <html lang="ja">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>{PAGE_TITLE}</title>
-      <meta name="description" content={PAGE_DESCRIPTION} />
-      <link rel="canonical" href={`${origin}/features`} />
-      <meta property="og:type" content="article" />
-      <meta property="og:site_name" content="befold" />
-      <meta property="og:title" content={PAGE_TITLE} />
-      <meta property="og:description" content={PAGE_DESCRIPTION} />
-      <meta property="og:url" content={`${origin}/features`} />
-      <meta property="og:image" content={`${origin}/images/ogp.png`} />
-      <meta property="og:image:width" content="1200" />
-      <meta property="og:image:height" content="630" />
-      <meta name="twitter:card" content="summary_large_image" />
-      <link rel="stylesheet" href="/style.css" />
-      {html`<script type="application/ld+json">
-        ${raw(faqStructuredData())}
-      </script>`}
-    </head>
-    <body>
-      <SiteHeader title="befold" />
+export const Features: FC<{ origin: string; entry: SitePage }> = ({ origin, entry }) => {
+  const lang = entry.lang
 
+  return (
+    <PageShell
+      origin={origin}
+      entry={entry}
+      title={t(lang, PAGE_TITLE)}
+      description={t(lang, PAGE_DESCRIPTION)}
+      ogType="article"
+      jsonLd={faqStructuredData(lang)}
+    >
       <main>
         <nav class="breadcrumb">
-          <a href="/">
-            <span lang="ja">← トップページへ戻る</span>
-            <span lang="en" hidden>
-              ← Back to the home page
-            </span>
+          <a href={pathFor('/', lang)}>
+            <T lang={lang} ja="← トップページへ戻る" en="← Back to the home page" />
           </a>
         </nav>
 
         <section class="page-intro">
-          <div lang="ja">
-            <h2>機能と対応ファイルタイプ</h2>
-            <p>
-              befold は Mermaid・Markdown・SVG・HTML・CSV/TSV・画像・PDF・ソースコードを
-              プレビューする macOS 専用のビューアです。このページでは全機能、対応する
-              拡張子の一覧、キーボードショートカット、よくある質問をまとめています。
-            </p>
-          </div>
-          <div lang="en" hidden>
-            <h2>Features & Supported File Types</h2>
-            <p>
-              befold is a macOS-only viewer for Mermaid, Markdown, SVG, HTML, CSV/TSV, images,
-              PDF and source code. This page lists every feature, the full table of supported
-              extensions, the keyboard shortcuts and answers to common questions.
-            </p>
-          </div>
+          {lang === 'ja' ? (
+            <>
+              <h2>機能と対応ファイルタイプ</h2>
+              <p>
+                befold は Mermaid・Markdown・SVG・HTML・CSV/TSV・画像・PDF・ソースコードを
+                プレビューする macOS 専用のビューアです。このページでは全機能、対応する
+                拡張子の一覧、キーボードショートカット、よくある質問をまとめています。
+              </p>
+            </>
+          ) : (
+            <>
+              <h2>Features &amp; Supported File Types</h2>
+              <p>
+                befold is a macOS-only viewer for Mermaid, Markdown, SVG, HTML, CSV/TSV, images,
+                PDF and source code. This page lists every feature, the full table of supported
+                extensions, the keyboard shortcuts and answers to common questions.
+              </p>
+            </>
+          )}
         </section>
 
         <section class="features">
-          <div lang="ja">
-            <h3>機能</h3>
-          </div>
-          <div lang="en" hidden>
-            <h3>Features</h3>
-          </div>
+          <h3>
+            <T lang={lang} ja="機能" en="Features" />
+          </h3>
           <dl class="feature-defs">
             {[...FEATURES, ...MORE_FEATURES].map((feature) => (
               <>
-                <dt lang="ja">{feature.ja[0]}</dt>
-                <dd lang="ja">{feature.ja[1]}</dd>
-                <dt lang="en" hidden>
-                  {feature.en[0]}
+                <dt>
+                  <T lang={lang} ja={feature.ja[0]} en={feature.en[0]} />
                 </dt>
-                <dd lang="en" hidden>
-                  {feature.en[1]}
+                <dd>
+                  <T lang={lang} ja={feature.ja[1]} en={feature.en[1]} />
                 </dd>
               </>
             ))}
@@ -239,39 +214,24 @@ export const Features: FC<{ origin: string }> = ({ origin }) => (
         </section>
 
         <section class="file-types">
-          <div lang="ja">
-            <h3>対応ファイルタイプ</h3>
-          </div>
-          <div lang="en" hidden>
-            <h3>Supported File Types</h3>
-          </div>
+          <h3>
+            <T lang={lang} ja="対応ファイルタイプ" en="Supported File Types" />
+          </h3>
           <div class="table-scroll">
             <table class="file-type-table">
               <thead>
                 <tr>
                   <th>
-                    <span lang="ja">種別</span>
-                    <span lang="en" hidden>
-                      Type
-                    </span>
+                    <T lang={lang} ja="種別" en="Type" />
                   </th>
                   <th>
-                    <span lang="ja">拡張子</span>
-                    <span lang="en" hidden>
-                      Extensions
-                    </span>
+                    <T lang={lang} ja="拡張子" en="Extensions" />
                   </th>
                   <th>
-                    <span lang="ja">表示</span>
-                    <span lang="en" hidden>
-                      View
-                    </span>
+                    <T lang={lang} ja="表示" en="View" />
                   </th>
                   <th>
-                    <span lang="ja">上限</span>
-                    <span lang="en" hidden>
-                      Max size
-                    </span>
+                    <T lang={lang} ja="上限" en="Max size" />
                   </th>
                 </tr>
               </thead>
@@ -281,33 +241,28 @@ export const Features: FC<{ origin: string }> = ({ origin }) => (
                     <th scope="row">{group.label}</th>
                     <td class="extensions">
                       {group.extensions.map((extension) => `.${extension}`).join(' ')}
-                      <Bilingual ja={group.note.ja} en={group.note.en} />
+                      <p>{t(lang, group.note)}</p>
                     </td>
-                    <td>
-                      <span lang="ja">{RENDER_MODE_LABEL[group.renderMode].ja}</span>
-                      <span lang="en" hidden>
-                        {RENDER_MODE_LABEL[group.renderMode].en}
-                      </span>
-                    </td>
+                    <td>{t(lang, RENDER_MODE_LABEL[group.renderMode])}</td>
                     <td>{group.maxSizeMB}MB</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <Bilingual
-            ja="この表にない拡張子のファイルは、プレーンテキストとして開きます。文字コードは UTF-8/16/32・Shift_JIS・EUC-JP を自動判別します。"
-            en="Any other extension opens as plain text. Character encodings UTF-8/16/32, Shift_JIS and EUC-JP are detected automatically."
-          />
+          <p>
+            <T
+              lang={lang}
+              ja="この表にない拡張子のファイルは、プレーンテキストとして開きます。文字コードは UTF-8/16/32・Shift_JIS・EUC-JP を自動判別します。"
+              en="Any other extension opens as plain text. Character encodings UTF-8/16/32, Shift_JIS and EUC-JP are detected automatically."
+            />
+          </p>
         </section>
 
         <section class="shortcuts">
-          <div lang="ja">
-            <h3>キーボードショートカット</h3>
-          </div>
-          <div lang="en" hidden>
-            <h3>Keyboard Shortcuts</h3>
-          </div>
+          <h3>
+            <T lang={lang} ja="キーボードショートカット" en="Keyboard Shortcuts" />
+          </h3>
           <div class="table-scroll">
             <table class="shortcut-table">
               <tbody>
@@ -317,10 +272,7 @@ export const Features: FC<{ origin: string }> = ({ origin }) => (
                       <kbd>{shortcut.keys}</kbd>
                     </th>
                     <td>
-                      <span lang="ja">{shortcut.ja}</span>
-                      <span lang="en" hidden>
-                        {shortcut.en}
-                      </span>
+                      <T lang={lang} ja={shortcut.ja} en={shortcut.en} />
                     </td>
                   </tr>
                 ))}
@@ -330,52 +282,30 @@ export const Features: FC<{ origin: string }> = ({ origin }) => (
         </section>
 
         <section class="faq">
-          <div lang="ja">
-            <h3>よくある質問</h3>
-          </div>
-          <div lang="en" hidden>
-            <h3>Frequently Asked Questions</h3>
-          </div>
+          <h3>
+            <T lang={lang} ja="よくある質問" en="Frequently Asked Questions" />
+          </h3>
           {FAQ.map((item) => (
             <div class="faq-item">
-              <h4 lang="ja">{item.question.ja}</h4>
-              <p lang="ja">{item.answer.ja}</p>
-              <h4 lang="en" hidden>
-                {item.question.en}
-              </h4>
-              <p lang="en" hidden>
-                {item.answer.en}
-              </p>
+              <h4>{t(lang, item.question)}</h4>
+              <p>{t(lang, item.answer)}</p>
             </div>
           ))}
         </section>
 
         <section class="requirements">
-          <div lang="ja">
-            <h3>動作要件</h3>
-            <p>{REQUIRED_OS_JA}</p>
-          </div>
-          <div lang="en" hidden>
-            <h3>Requirements</h3>
-            <p>{REQUIRED_OS}</p>
-          </div>
+          <h3>
+            <T lang={lang} ja="動作要件" en="Requirements" />
+          </h3>
+          <p>{t(lang, REQUIRED_OS)}</p>
           <a href={DOWNLOAD_PATH} class="btn-primary">
-            <span lang="ja">Mac 版をダウンロード</span>
-            <span lang="en" hidden>
-              Download for Mac
-            </span>
+            <T lang={lang} ja="Mac 版をダウンロード" en="Download for Mac" />
           </a>
           <p class="hero-note">
             <a href={REPO_URL}>GitHub</a>
           </p>
         </section>
       </main>
-
-      <SiteFooter />
-
-      {html`<script>
-        ${raw(LANG_SCRIPT)}
-      </script>`}
-    </body>
-  </html>
-)
+    </PageShell>
+  )
+}

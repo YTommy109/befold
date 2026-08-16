@@ -6,7 +6,8 @@
  * idx_events_kind が効く形を保つ。
  */
 
-import type { DownloadSource, EventKind } from './schema'
+import type { DownloadSource, EventKind, Page } from './schema'
+import { RECORDED_HOSTS } from './lib/hosts'
 import { JST_DAY_EXPR, JST_HOUR_EXPR, jstDayStart, jstDaysInWindow, jstWindowStart } from './lib/jst'
 import { BOT_PREFIX } from './lib/visitor'
 
@@ -19,6 +20,8 @@ export type RecentEvent = {
   version: string | null
   country: string | null
   os: string | null
+  /** kind='visit' のときの訪問先ページ。それ以外の kind と、列の導入前の行では null。 */
+  page: string | null
 }
 
 /**
@@ -39,13 +42,52 @@ export type MetricKey = EventKind | 'update_download'
  * 通るダウンロードは LP 経由しか存在しなかった。`COALESCE(source, 'lp')` は
  * その事実を表しており、過去データを含めた `download` 系列の意味を保つ。
  */
-type MetricFilter = { kind: EventKind; source: DownloadSource | null }
+type MetricFilter = { kind: EventKind; source: DownloadSource | null; page: Page | null }
 
 const METRIC_FILTERS: Record<MetricKey, MetricFilter> = {
-  visit: { kind: 'visit', source: null },
-  download: { kind: 'download', source: 'lp' },
-  update_download: { kind: 'download', source: 'sparkle' },
-  update_check: { kind: 'update_check', source: null },
+  // 「ページアクセス」は LP への訪問だけを数える。TASK-488.1 で /features も
+  // visit として記録し始めたが、この系列は LP からの新規獲得を測るものなので
+  // 意味と過去データの連続性を保つために page で絞る。ページ別の内訳は別系列。
+  visit: { kind: 'visit', source: null, page: '/' },
+  download: { kind: 'download', source: 'lp', page: null },
+  update_download: { kind: 'download', source: 'sparkle', page: null },
+  update_check: { kind: 'update_check', source: null, page: null },
+  // 下の 2 つは製品の指標ではなく運用の観測。`MetricKey` が `EventKind` を覆う
+  // ため型としてここに現れるが、カード・グラフ（`KIND_LABELS`）には出さない。
+  github_fallback: { kind: 'github_fallback', source: null, page: null },
+  legacy_redirect: { kind: 'legacy_redirect', source: null, page: null },
+}
+
+/**
+ * カード・グラフに並べない kind。運用の観測として専用セクションで見るもの。
+ *
+ * `KIND_LABELS` から漏れた kind が黙って画面のどこにも出ないことを防ぐための
+ * 明示。両者を合わせて全 `MetricKey` を覆うことは `analytics.test.ts` が検査する
+ * （kind を足したら、指標にするか運用観測にするかをここで必ず決めることになる）。
+ */
+export const OPERATIONAL_KINDS: ReadonlySet<MetricKey> = new Set<MetricKey>([
+  'github_fallback',
+  'legacy_redirect',
+])
+
+/**
+ * 指標 1 つを SQL の条件式にする。**指標の述語はここだけで組み立てる。**
+ *
+ * `METRIC_EXPR`（内訳）・`metricCondition`（WHERE）・`KIND_COUNT_COLUMNS`（件数）の
+ * 3 者が同じ述語を必要とする。かつては件数側だけが手書きで、page 列を足したときに
+ * そこだけ同期漏れを起こす形だった。埋め込む値は `METRIC_FILTERS` の定数だけで、
+ * 外部入力は入らない。
+ *
+ * `COALESCE(page, '/')` は `kind = 'visit'` と同じ式の中にしか現れない。page が
+ * NULL の行には「列の導入前の visit（当時は LP のみ）」と「ページの概念が無い
+ * download / update_check」の 2 種類があり、後者に '/' を与えると嘘になるため
+ * （schema/schema.sql の page 列コメント）。この構造なら kind を伴わずに page 条件
+ * だけを書く形にはならない。
+ */
+function metricExpression({ kind, source, page }: MetricFilter): string {
+  const bySource = source === null ? '' : ` AND COALESCE(source, 'lp') = '${source}'`
+  const byPage = page === null ? '' : ` AND COALESCE(page, '/') = '${page}'`
+  return `kind = '${kind}'${bySource}${byPage}`
 }
 
 /**
@@ -56,10 +98,7 @@ const METRIC_FILTERS: Record<MetricKey, MetricFilter> = {
  * 外部入力は入らない。判定の定義元を二重に持たないよう、条件はここで組み立てる。
  */
 const METRIC_EXPR = `CASE ${Object.entries(METRIC_FILTERS)
-  .map(([metric, { kind, source }]) => {
-    const bySource = source === null ? '' : ` AND COALESCE(source, 'lp') = '${source}'`
-    return `WHEN kind = '${kind}'${bySource} THEN '${metric}'`
-  })
+  .map(([metric, filter]) => `WHEN ${metricExpression(filter)} THEN '${metric}'`)
   .join(' ')} END`
 
 /** 指標ごとの件数。 */
@@ -103,12 +142,15 @@ export type Summary = {
   byCountry: Count[]
   byReferrer: Count[]
   ua: UASplit
+  visits: VisitBreakdowns
+  hosts: Split[]
+  fallbacks: Split[]
   perKind: KindBreakdown[]
   recent: RecentEvent[]
 }
 
 /** 指標として並べる順序と表示名。ページ表示・集計の双方でこの順を使う。 */
-const KIND_LABELS: { kind: MetricKey; label: string }[] = [
+export const KIND_LABELS: { kind: MetricKey; label: string }[] = [
   { kind: 'visit', label: 'ページアクセス' },
   { kind: 'download', label: 'ダウンロード' },
   { kind: 'update_check', label: 'アップデート確認' },
@@ -145,27 +187,26 @@ const BOT_MATCH = `COALESCE(ua_summary, '') LIKE '${BOT_PREFIX}%'`
  */
 const HUMAN_ONLY = `NOT ${BOT_MATCH}`
 
-/** 種別ごとの件数を 1 行から取り出すための SELECT 句。 */
-const KIND_COUNT_COLUMNS =
-  `SUM(kind = 'visit')        AS visits,
-   SUM(kind = 'download' AND COALESCE(source, 'lp') = 'lp')      AS downloads,
-   SUM(kind = 'download' AND COALESCE(source, 'lp') = 'sparkle') AS update_downloads,
-   SUM(kind = 'update_check') AS update_checks`
+/**
+ * 種別ごとの件数を 1 行から取り出すための SELECT 句。
+ *
+ * 述語は書き写さず `metricExpression` から組み立てる。列名は指標キーそのものを
+ * 使い、`toKindCounts` の対応表も指標キーから作る（片方だけ増えると型で落ちる）。
+ */
+const KIND_COUNT_COLUMNS = metricKeys()
+  .map((metric) => `SUM(${metricExpression(METRIC_FILTERS[metric])}) AS ${metric}`)
+  .join(', ')
 
-type KindCountRow = {
-  visits: number | null
-  downloads: number | null
-  update_downloads: number | null
-  update_checks: number | null
+type KindCountRow = Partial<Record<MetricKey, number | null>>
+
+function metricKeys(): MetricKey[] {
+  return Object.keys(METRIC_FILTERS) as MetricKey[]
 }
 
 function toKindCounts(row: KindCountRow | null): KindCounts {
-  return {
-    visit: row?.visits ?? 0,
-    download: row?.downloads ?? 0,
-    update_download: row?.update_downloads ?? 0,
-    update_check: row?.update_checks ?? 0,
-  }
+  const counts = {} as KindCounts
+  for (const metric of metricKeys()) counts[metric] = row?.[metric] ?? 0
+  return counts
 }
 
 /** 全期間の累計（種別ごとの件数と、訪問者 × 日の延べ数）。 */
@@ -263,9 +304,7 @@ type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer' | 'as_org'
 function metricCondition(metric: MetricKey | null): string {
   if (metric === null) return ''
 
-  const { kind, source } = METRIC_FILTERS[metric]
-  const bySource = source === null ? '' : ` AND COALESCE(source, 'lp') = '${source}'`
-  return ` AND kind = '${kind}'${bySource}`
+  return ` AND ${metricExpression(METRIC_FILTERS[metric])}`
 }
 
 /** 指定カラムの内訳（上位 N 件、NULL は除外）。 */
@@ -338,11 +377,154 @@ async function uaBreakdown(db: D1Database, bots: boolean): Promise<Count[]> {
   return results
 }
 
+/** 1 つの区分の、人間とロボットそれぞれの件数。 */
+export type Split = { label: string; human: number; bot: number }
+
+/**
+ * visit の内訳（ページ別・表示言語別・ブラウザ言語設定別）。
+ *
+ * 3 つとも「visit を何かの軸で割った」ものなので、軸ごとにクエリを引かず
+ * 1 本にまとめる（`eventBreakdowns`）。
+ */
+export type VisitBreakdowns = {
+  byPage: Split[]
+  byDisplayLang: Split[]
+  byBrowserLang: Split[]
+}
+
+/** 1 本のクエリから畳んで作る内訳の一式。 */
+export type EventBreakdowns = {
+  visits: VisitBreakdowns
+  /** リクエスト先ホスト別（全 kind）。0 件の既知ホストも行として残す。 */
+  byHost: Split[]
+  /** GitHub へ落ちた経路別（kind='github_fallback' のみ）。 */
+  byFallback: Split[]
+}
+
+/** 値が記録されていない行のラベル。列の導入前に記録された visit がここに入る。 */
+export const UNRECORDED_LABEL = '未記録'
+
+/**
+ * 内訳を 1 本のクエリで取り、軸ごとに TS 側で畳む。
+ *
+ * **クエリは 1 本。** 軸ごとに引くと全表スキャンが軸の数だけ並ぶ。値が列挙で
+ * 抑えられた列の組で集約すれば、返る行は組み合わせの数（実際には kind ごとに
+ * 埋まる列が違うので高々数十行）にしかならず、軸ごとの集計は TS 側で畳める。
+ * この形を崩して軸ごとに引くと `query-count.test.ts` の上限で落ちる。
+ *
+ * `COALESCE(page, '/')` を SQL 側に置かないこと。page が NULL の行には「列の
+ * 導入前に記録された visit（当時は LP だけなので '/' と読んでよい）」と
+ * 「ページの概念が無い download / update_check / 運用イベント」の 2 種類があり、
+ * 後者に '/' を与えると嘘になる（`schema/schema.sql` の page 列コメント）。
+ * このクエリは kind を絞らないため、丸めは `kind = 'visit'` の行だけを対象に
+ * TS 側（`visitRows`）で行う。
+ *
+ * ボット判定は `BOT_MATCH` をそのまま使う。ここで新しい判定を書かない——
+ * 判定の定義元が増えると、`BOT_TOKENS` を足したときに片方だけ直る。
+ */
+export async function eventBreakdowns(db: D1Database): Promise<EventBreakdowns> {
+  const { results } = await db
+    .prepare(
+      `SELECT kind, page, display_lang, browser_lang, host, fallback,
+              COUNT(*) AS count, ${BOT_MATCH} AS is_bot
+       FROM events
+       GROUP BY kind, page, display_lang, browser_lang, host, fallback, is_bot`,
+    )
+    .all<BreakdownRow>()
+
+  const visitRows = results.filter((row) => row.kind === 'visit')
+
+  return {
+    visits: {
+      byPage: foldSplits(visitRows, (row) => row.page ?? '/'),
+      byDisplayLang: foldSplits(visitRows, (row) => row.display_lang ?? UNRECORDED_LABEL),
+      byBrowserLang: foldSplits(visitRows, (row) => row.browser_lang ?? UNRECORDED_LABEL),
+    },
+    byHost: foldHosts(results),
+    byFallback: foldSplits(
+      results.filter((row) => row.fallback !== null),
+      (row) => row.fallback ?? UNRECORDED_LABEL,
+    ),
+  }
+}
+
+/** `eventBreakdowns` が受け取る 1 行。列の値はいずれも列挙か NULL に限る。 */
+type BreakdownRow = {
+  kind: string
+  page: string | null
+  display_lang: string | null
+  browser_lang: string | null
+  host: string | null
+  fallback: string | null
+  is_bot: number
+  count: number
+}
+
+/**
+ * ホスト別を畳む。**0 件の既知ホストも行として残す。**
+ *
+ * 件数のある区分だけを返すと、「旧ホストへのアクセスがまだ 0 だった」と
+ * 「そもそも計測していない」が画面上で区別できなくなる。ADR 0007 の停止条件は
+ * ゼロであることの確認そのものなので、0 を消してはならない。
+ *
+ * 列の導入前に記録された行（host が NULL）は当時どのホストで応答したかを
+ * 復元できないため、既知ホストに混ぜず `UNRECORDED_LABEL` で分けて出す。
+ */
+function foldHosts(rows: BreakdownRow[]): Split[] {
+  const splits = new Map<string, Split>(
+    RECORDED_HOSTS.map((host) => [host, { label: host, human: 0, bot: 0 }]),
+  )
+
+  for (const row of rows) {
+    const label = row.host ?? UNRECORDED_LABEL
+    const split = splits.get(label) ?? { label, human: 0, bot: 0 }
+    addTo(split, row)
+    splits.set(label, split)
+  }
+
+  return [...splits.values()]
+}
+
+/** 集約済みの行を 1 軸へ畳む。件数の多い順、同数ならラベル順。 */
+function foldSplits<T extends { is_bot: number; count: number }>(
+  rows: T[],
+  labelOf: (row: T) => string,
+): Split[] {
+  const byLabel = new Map<string, Split>()
+
+  for (const row of rows) {
+    const label = labelOf(row)
+    const split = byLabel.get(label) ?? { label, human: 0, bot: 0 }
+    addTo(split, row)
+    byLabel.set(label, split)
+  }
+
+  return [...byLabel.values()].sort(
+    (a, b) => b.human + b.bot - (a.human + a.bot) || a.label.localeCompare(b.label),
+  )
+}
+
+/** 1 行ぶんを人間側・ロボット側のどちらかへ足す。判定は SQL 側の `is_bot`。 */
+function addTo(split: Split, row: { is_bot: number; count: number }): void {
+  if (row.is_bot === 1) split.bot += row.count
+  else split.human += row.count
+}
+
+/**
+ * 最新イベントの SELECT 句。**`recentEvents` と `eventsAfter` で共有する。**
+ *
+ * 2 箇所に書き写さない。両者は同じ `RecentEvent` を返す契約だが、`.all<RecentEvent>()`
+ * のジェネリクスは実際の列を検査しないため、片方の列を落としてもコンパイルは通り、
+ * 初期表示にはあるのに SSE で流れる行にだけ列が無い、という形で静かに壊れる
+ * （実測: `eventsAfter` から page を落としても typecheck も既存テストも通った）。
+ */
+const RECENT_COLUMNS = 'id, timestamp, kind, version, country, os, page'
+
 /** 最新イベント。SSE の差分取得と同じ形状・同じ絞り込み（人間のみ）で返す。 */
 export async function recentEvents(db: D1Database, afterId = 0): Promise<RecentEvent[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, timestamp, kind, version, country, os
+      `SELECT ${RECENT_COLUMNS}
        FROM events
        WHERE id > ? AND ${HUMAN_ONLY}
        ORDER BY id DESC
@@ -413,7 +595,19 @@ async function kindBreakdowns(db: D1Database): Promise<Omit<KindBreakdown, 'tota
 
 /** ダッシュボード初期表示用の集計一式。 */
 export async function summarize(db: D1Database, now: number): Promise<Summary> {
-  const [cumulative, today, daily, hourly, byVersion, byCountry, byReferrer, ua, breakdowns, recent] =
+  const [
+    cumulative,
+    today,
+    daily,
+    hourly,
+    byVersion,
+    byCountry,
+    byReferrer,
+    ua,
+    breakdowns,
+    recent,
+    breakdownAxes,
+  ] =
     await Promise.all([
       cumulativeTotals(db),
       todayTotals(db, now),
@@ -427,6 +621,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
       uaSplit(db),
       kindBreakdowns(db),
       recentEvents(db),
+      eventBreakdowns(db),
     ])
 
   return {
@@ -439,6 +634,9 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     byCountry,
     byReferrer,
     ua,
+    visits: breakdownAxes.visits,
+    hosts: breakdownAxes.byHost,
+    fallbacks: breakdownAxes.byFallback,
     perKind: breakdowns.map((entry) => ({ ...entry, total: cumulative.counts[entry.kind] })),
     recent,
   }
@@ -454,7 +652,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
 export async function eventsAfter(db: D1Database, afterId: number): Promise<RecentEvent[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, timestamp, kind, version, country, os
+      `SELECT ${RECENT_COLUMNS}
        FROM events
        WHERE id > ? AND ${HUMAN_ONLY}
        ORDER BY id

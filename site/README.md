@@ -11,7 +11,10 @@ befold の配布 LP・ダウンロード計測・appcast プロキシ・分析�
 
 | パス | 認証 | 内容 |
 | ---- | ---- | ---- |
-| `GET /` | 公開 | 配布 LP。`visit` を記録 |
+| `GET /` | 公開 | 配布 LP（日本語）。`visit`（`page=/`, `display_lang=ja`）を記録 |
+| `GET /en` | 公開 | 配布 LP（英語）。`visit`（`page=/`, `display_lang=en`）を記録 |
+| `GET /features` | 公開 | 機能・対応ファイルタイプの詳細ページ（日本語）。`visit`（`page=/features`, `display_lang=ja`）を記録 |
+| `GET /en/features` | 公開 | 同上（英語）。`visit`（`page=/features`, `display_lang=en`）を記録 |
 | `GET /download` | 公開 | stable 最新の DMG を R2 から返す。`download`（`source=lp`）を記録 |
 | `GET /dl/:tag/:file` | 公開 | 指定タグの DMG を R2 から返す。appcast の enclosure が指す先。`download`（`source=sparkle`）を記録 |
 | `GET /appcast.xml` | 公開 | R2 の appcast を返す。`update_check` を記録 |
@@ -328,6 +331,178 @@ visit / download / update_check の全イベントで記録する。追加のサ
   読み取れる情報が増えないため 3 種合算のまま残している。
 - 指標の並び順と表示名は `src/analytics.ts` の `KIND_LABELS` が唯一の定義で、
   カード・表の両方がこの順に従う。
+
+## ページとブラウザ言語設定の記録
+
+<!-- constrained-by ../docs/superpowers/specs/2026-07-28-cloudflare-distribution-analytics-design.md -->
+
+`visit` を LP だけでなく `/features` でも計上する。ページの区別は `events.page`、
+リクエスト元の言語設定は `events.browser_lang` に持つ。
+
+- **`page` は生パスではなく計上対象ページの列挙**（`src/schema.ts` の `pageSchema`）。
+  ルート側が明示して渡す（`recordEvent(c, { kind: 'visit', page: '/features' })`）。
+  リクエスト URL から導出しない——`/dl/:tag/:file` のようにパラメータを含む経路が
+  あり、導出にすると内訳のカーディナリティが発散するため。
+- **`page` が NULL の行には 2 つの意味がある。** 列の導入前に記録された `visit`
+  （当時計上していたのは LP だけなので `/` と読んでよい）と、ページの概念が無い
+  `download` / `update_check`。このため `COALESCE(page, '/')` は
+  `kind = 'visit'` と同じ条件節の中でしか使えない。`src/analytics.ts` の
+  `metricExpression` が両者を必ず一緒に組み立てる形になっている。
+- **「ページアクセス」指標は `page = '/'` のまま**。LP からの新規獲得を測る系列
+  なので、`/features` を足して薄めない。ページ別の内訳は別系列として出す。
+  述語は `METRIC_FILTERS` 1 箇所から組み立て、累計・当日・日次・時間帯・内訳が
+  それを共有する（同期漏れは `test/analytics.test.ts` の「ページの分離」が検知する）。
+- **日次ユニーク訪問者（`COUNT(DISTINCT visitor_token)`）はページで絞らない。**
+  「何人来たか」を測るものなので、LP に絞ると `/features` へ直接来た訪問者が
+  数から消える。国別・参照元別・UA 内訳の母集団も同様に `/features` を含む。
+- **`/features` は `Cache-Control: no-store`。** キャッシュに載った応答は Worker を
+  通らず計上できない。ヘッダを単に外すのでは足りない（Cache-Control も Expires も
+  無い 200 応答はブラウザのヒューリスティックキャッシュに載り得る）。
+
+### 言語ごとの URL
+
+<!-- constrained-by ../docs/adr/0007-distribution-site-custom-domain.md -->
+
+LP と詳細ページは言語ごとに URL を分ける（日本語 = `/` `/features`、英語 =
+`/en` `/en/features`）。かつては日英の本文を同一 HTML に入れて `hidden` の
+付け外しで切り替えていたが、その形だと hreflang が原理的に出せず、実際に読まれた
+言語もサーバから観測できなかった。**URL が表示言語の唯一の状態**で、`localStorage`
+による切替は廃止した。
+
+- **ページの列挙は `src/lib/pages.ts` の `SITE_PAGES` が唯一の定義。** ここから
+  ルート登録・`REDIRECTED_PATHS`・sitemap.xml・hreflang・`og:locale` の 5 つを
+  導出する。5 箇所に書き写す形は必ずどこかが取り残される（ADR 0007 の決定 2 自身が
+  「列挙は漏れる形で壊れる」と書いている）。
+- **`SITE_PAGES` に機械向けの経路を載せてはならない。** この表は「旧ホストから
+  新ドメインへ 301 してよい HTML ページ」でもあるため、appcast・`/dl/`・`/download`
+  を載せると出荷済みアプリの更新経路や LP 由来のダウンロード計測が壊れる
+  （ADR 0007 の決定 2）。旧ホストの `/download` が 301 されないことは
+  `test/public.test.ts` が検査している。
+- **hreflang は自己参照を含む全バリアントを各ページに置く。** 検索エンジンは
+  「各版が自分自身を含む全版を相互に指す」ことを対応関係の成立条件にしており、
+  自己参照を落とすと対応が成立しない。sitemap の `xhtml:link` も同じ集合。
+- **`x-default` は置かない。** Accept-Language で振り分ける入口ページを作って
+  いないので、指すべき既定版が無い。
+- **Accept-Language による自動リダイレクトはしない。** クローラは Accept-Language を
+  送らない（送っても代表的でない）ため、自動リダイレクトは「英語ページが
+  クロールされない」「日本語ページが英語圏で見られない」のどちらかに倒れる。
+  加えて `Vary: Accept-Language` が要り、中間キャッシュとの相互作用が読めなくなる。
+  相手言語への導線はヘッダの `<a>` リンクで常設する。
+- **4 ルートすべてに `Cache-Control: no-store` を付ける。** 1 本でもキャッシュに
+  載ると、そのページの計測だけが環境依存で欠けて日英比率が歪む。
+- **JSON-LD はページの言語に合わせる。** 構造化データの文面はページ上に見えて
+  いる必要があり、日本語ページに英語の FAQ 本文は存在しないため。
+
+### `browser_lang` と `display_lang`
+
+`Accept-Language` の第一タグを `ja` / `en` / `other` に丸めた値
+（`src/lib/lang.ts` の `summarizeLang`）。**これはブラウザの言語設定であって、
+実際に読まれた言語ではない。** LP は日英を同一 HTML に持ち、`localStorage` の
+`befold-lang` が未設定なら常に日本語を表示する（`src/views/shared.tsx` の
+`LANG_SCRIPT`）ため、`en` 設定の初回訪問者も画面では日本語を読んでいる。
+
+この値が答えるのは「英語を求めて来た人がどれだけ居るか」であって
+「英語で読んだ人の数」ではない。表示言語そのものを測るには言語ごとに URL を
+分ける必要があり、それは LP 多言語化の設計判断として別に扱う。
+
+`Accept-Language` を送らないクライアント（Sparkle）では NULL になる。言語の内訳を
+出すときは `kind = 'visit'` で絞ること。全 kind 横断だと `update_check` の NULL が
+支配して読めなくなる。
+
+`display_lang` は**実際に配信したページの言語**。値は配信したビューの言語その
+もので、URL 文字列からは導出しない（`SITE_PAGES` の該当エントリの `lang` を
+ルートがそのまま渡す）。これにより `<html lang>` / hreflang / `og:locale` /
+`display_lang` の 4 者が必ず同じ値から出る。
+
+2 つは対で読む。`browser_lang` が「求めた言語」、`display_lang` が「実際に出した
+言語」で、両方あって初めて「英語を求めて来た人が英語ページへ辿り着けたか」が
+測れる。`display_lang` の NULL も `page` と同じく二義（列の導入前の visit と、
+ページの概念が無い `download` / `update_check`）なので、`COALESCE` は
+`kind = 'visit'` と同じ条件節の中でのみ使う。
+
+### ダッシュボードのページ別・言語別の内訳
+
+ページ別・表示言語別・ブラウザ言語設定別の 3 つの内訳を、人間とロボットに分けて
+出す（`eventBreakdowns`）。
+
+- **クエリは 1 本。** 軸ごとに引くと全表スキャンが 3 本並ぶが、visit の行を
+  3 列の組で集約すれば結果は高々数十行にしかならず、軸ごとの集計は TS 側で畳める。
+  `summarize` の発行本数には上限テスト（`test/query-count.test.ts`）があり、
+  軸ごとに 1 本ずつ引く形へ戻すと落ちる。
+- **ボット判定は `BOT_MATCH` をそのまま使う。** 人間とロボットの両方を数えるので
+  `HUMAN_ONLY` は使えないが、判定式そのものは 1 箇所のまま（`uaSplit` と同じ形）。
+  `ua_summary LIKE 'bot:%'` のリテラルが 2 箇所に増えていないことは
+  `test/analytics.test.ts` の構造ガードが検査する。
+- **ページ別は `page='/'` の「ページアクセス」指標とは別物**で、合計は一致しない。
+  日本語 LP と英語 LP はどちらも `page='/'` で、言語は別の軸として出す。
+- **最新イベント表の SELECT 句は `RECENT_COLUMNS` で共有する。** `recentEvents`
+  （初期表示）と `eventsAfter`（SSE）は同じ `RecentEvent` を返す契約だが、
+  `.all<RecentEvent>()` のジェネリクスは実際の列を検査しない。片方から列を落としても
+  コンパイルは通り、初期表示にはあるのに SSE で流れる行にだけ列が無い、という形で
+  静かに壊れる（実測で確認した）。
+
+## リクエスト先ホストと GitHub フォールバックの記録
+
+<!-- constrained-by ../docs/adr/0007-distribution-site-custom-domain.md -->
+
+配布サイトは 3 世代の URL すべてで応答している（GitHub Pages / `befold.tommy109.workers.dev` /
+`befold.degino.com`）。旧世代を止めてよいかは「旧ホストを叩くクライアントがゼロか」で
+決まる（ADR 0007 の決定 1）。それを観測するために `events.host` と `events.fallback` を持つ。
+
+- **`host` は全 kind で値を持つ。** `recordEvent` がリクエスト URL から一括で導出し
+  （`src/events.ts`）、`EventAttributes` には**含めていない**。経路ごとに渡す形にすると、
+  記録箇所を足したときの付け忘れが「その経路だけホスト不明」という静かな欠測になる。
+- **値は既知ホスト名そのものか `other`。** 分類は `src/lib/hosts.ts` の `classifyHost` で、
+  ホスト名リテラルはそのファイルだけに置く（同決定 6）。生の Host ヘッダは任意の値を
+  送れるので、そのまま列へ入れるとカーディナリティが発散する。
+- **旧ホストの HTML ページは 301 するので `visit` にならない。** 301 は
+  `legacy_redirect` として記録する（`src/index.ts`）。`visit` として記録すると、301 を
+  追った先の正規ホストでも `visit` が記録され、ページアクセス数が二重に数えられる。
+  機械向けの経路（appcast・`/dl/`・`/download`）は 301 せず素通しなので、旧ホストの
+  ままホスト別に出る——ADR 0007 の停止条件が見ているのはこちら。
+- **記録されないギャップが 2 つある。** 旧ホストの静的アセット（`notFound` →
+  `ASSETS.fetch`）と `/healthz`。どちらもクライアントの依存を示さないので追っていない。
+- **`fallback` は R2 ミスで GitHub へ落ちた経路。** `appcast` / `dmg` / `release-api` の
+  3 つで、`kind='github_fallback'` のときだけ非 NULL。この対応は `eventSchema` の
+  `refine` が強制する（doc コメントだけでは守られない）。ここが 0 でないうちは GitHub
+  側の経路を止められない。
+- **appcast のフォールバックは過小に出る。** 応答は `caches.default` に 300 秒入るため、
+  キャッシュに当たった周期は `loadAppcast` を通らない。`update_check` 自体はキャッシュ
+  判定より前に記録するので影響を受けない。
+
+### 新しい kind の行き先を決めさせる
+
+`github_fallback` / `legacy_redirect` は製品の指標ではなく運用の観測なので、カード・
+グラフの系列（`KIND_LABELS`）には出さず `OPERATIONAL_KINDS` に入れて専用セクションで
+見る。`test/analytics.test.ts` が「全 kind が `KIND_LABELS` か `OPERATIONAL_KINDS` の
+どちらかに含まれる」ことを検査するので、kind を足したらどちらにするかを必ず決めることになる
+（記録だけされて画面のどこにも出ない、という状態を作らせない）。
+
+### ホスト別は 0 件の行を落とさない
+
+ダッシュボードの他の内訳は 0 件の区分を落とすが、ホスト別は既知ホストを常に並べる。
+ここで見たいのは「旧ホストがゼロであること」そのものなので、行が消えると「まだ 0」と
+「そもそも計測していない」が区別できなくなる。
+
+### GitHub 直の appcast は Worker では観測できない
+
+v1.10.0 以前のクライアントは `https://github.com/YTommy109/befold/releases/download/appcast/appcast.xml`
+を直接見るため、サイトを経由せず Worker には現れない。別手段として GitHub の
+Releases API がアセットごとの `download_count` を返す（実測: 2026-08-16 時点で
+`appcast.xml` / `appcast-develop.xml` とも 0）。
+
+```bash
+curl -s https://api.github.com/repos/YTommy109/befold/releases/tags/appcast \
+  | jq '.assets[] | {name, download_count}'
+```
+
+ただし**この数はアセットを差し替えるとゼロに戻る**。appcast はリリースのたびに
+上書きするので、カウンタは「前回のリリース以降の取得数」しか表さない（上の 0 も、
+2026-08-15 に差し替えた直後であることによる）。累計として使うには差し替え前に
+スナップショットを取る必要があり、リリースワークフローに計測のための手順を足すことに
+なる。**現時点では採らない**——GitHub 直の appcast を見るクライアントは
+自動アップデートで新しいバージョンへ移れば Worker 側の `update_check` に現れるため、
+Worker 側のホスト別の推移で間接的に追える。
 
 ## 人間の訪問とロボットの巡回の分離
 

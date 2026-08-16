@@ -6,6 +6,8 @@
  * （同決定 1）、本番・staging とも新旧 2 ホストずつを持つ。
  */
 
+import { SITE_PAGES } from './pages'
+
 /** 本番の独自ドメイン。 */
 export const CANONICAL_HOST = 'befold.degino.com'
 
@@ -51,8 +53,15 @@ export const REDIRECT_TARGET_ORIGIN: ReadonlyMap<string, string> = new Map([
  *
  * `/download` は入れない。LP 由来のダウンロード計測（`source:'lp'`）が 301 を挟んで
  * 別ホストの計測へ散るのを避けるため（同決定 2）。
+ *
+ * 列挙は `SITE_PAGES`（`lib/pages.ts`）から導出する。言語ごとの URL を足したとき
+ * （TASK-496）に同じ列挙を必要とする場所が 5 つになり、書き写す形では必ずどこかが
+ * 取り残されるため。`SITE_PAGES` に機械向けの経路を載せないことが、この導出が
+ * 決定 2 を守り続ける条件になる（同ファイルの doc を参照）。
  */
-export const REDIRECTED_PATHS: ReadonlySet<string> = new Set(['/', '/features'])
+export const REDIRECTED_PATHS: ReadonlySet<string> = new Set(
+  SITE_PAGES.map((entry) => entry.path),
+)
 
 /**
  * このリクエストにとっての自己ホスト集合を作る。
@@ -65,4 +74,35 @@ export const REDIRECTED_PATHS: ReadonlySet<string> = new Set(['/', '/features'])
  */
 export function selfHostsFor(requestHost: string): ReadonlySet<string> {
   return new Set([...SELF_HOSTS, requestHost])
+}
+
+/**
+ * 計測に記録するホストのラベル。既知ホストは名前そのもの、それ以外は 'other'。
+ *
+ * 生の Host ヘッダを記録しない。任意の値を送れるヘッダをそのまま列へ入れると
+ * カーディナリティが発散し、ホスト別の内訳が読めなくなる。既知でないホスト
+ * （preview URL・`wrangler dev` の localhost・偽装 Host）は 1 つに丸める。
+ */
+export const OTHER_HOST = 'other'
+
+/** 記録しうるホストの列挙。ダッシュボードは 0 件のホストもこの順で必ず並べる。 */
+export const RECORDED_HOSTS = [
+  CANONICAL_HOST,
+  LEGACY_HOST,
+  STAGING_HOST,
+  LEGACY_STAGING_HOST,
+  OTHER_HOST,
+] as const
+
+export type RecordedHost = (typeof RECORDED_HOSTS)[number]
+
+/**
+ * リクエストのホストを記録用のラベルへ分類する。
+ *
+ * ホスト名リテラルはこのファイルだけに置く（ADR 0007 の決定 6）。分類を
+ * `src/events.ts` 側で書くと、次にホストが増えたときに片側だけ直る。
+ */
+export function classifyHost(requestHost: string): RecordedHost {
+  const known = RECORDED_HOSTS.find((host) => host === requestHost)
+  return known ?? OTHER_HOST
 }

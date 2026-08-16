@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { recordEvent } from './events'
 import { REDIRECT_TARGET_ORIGIN, REDIRECTED_PATHS } from './lib/hosts'
 import { dashboardRoutes } from './routes/dashboard'
 import { publicRoutes } from './routes/public'
@@ -23,6 +24,12 @@ const app = new Hono<AppEnv>()
  *
  * ルート登録より前に置く。後ろに置くとリダイレクト対象のパスが先に本文を
  * 返してしまい、301 が効かない。
+ *
+ * 301 は `legacy_redirect` として記録する。旧ホストの HTML ページに来た人間は
+ * 全員ここで送り出されるため、記録しないと旧ホストへの人間のアクセスが
+ * ダッシュボードから完全に消える（ADR 0007 の停止条件の判断材料になる）。
+ * visit として記録してはならない——301 を追った先の正規ホストでも visit が
+ * 記録され、ページアクセス数が二重に数えられる。
  */
 app.use('*', async (c, next) => {
   const url = new URL(c.req.url)
@@ -32,6 +39,7 @@ app.use('*', async (c, next) => {
     return await next()
   }
 
+  recordEvent(c, { kind: 'legacy_redirect' })
   return c.redirect(`${target}${url.pathname}${url.search}`, 301)
 })
 

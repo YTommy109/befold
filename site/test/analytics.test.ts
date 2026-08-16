@@ -6,8 +6,16 @@ import {
   hourlyDistribution,
   summarize,
   todayTotals,
+  eventsAfter,
+  recentEvents,
   uaSplit,
+  eventBreakdowns,
+  OPERATIONAL_KINDS,
+  UNRECORDED_LABEL,
+  KIND_LABELS,
 } from '../src/analytics'
+import { CANONICAL_HOST, LEGACY_HOST, RECORDED_HOSTS } from '../src/lib/hosts'
+import { eventKindSchema } from '../src/schema'
 import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import type { EventKind } from '../src/schema'
 
@@ -395,5 +403,251 @@ describe('ダウンロード経路の分離', () => {
     const summary = await summarize(env.DB, NOW)
 
     expect(summary.byVersion).toEqual([{ label: 'v1.2.3', count: 1 }])
+  })
+})
+
+describe('ページの分離', () => {
+  /** page を明示して visit を 1 件記録する。page=null は列の導入前に記録された行。 */
+  async function insertVisit(page: string | null, ts: number = NOW): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, visitor_token, page) VALUES (?, ?, ?, ?)',
+    )
+      .bind(ts, 'visit', `visitor-${page ?? 'legacy'}`, page)
+      .run()
+  }
+
+  it('「ページアクセス」の全系列が LP だけを数える', async () => {
+    // 指標の述語は METRIC_FILTERS 1 箇所から組み立てる決まりで、累計・当日・
+    // 日次・時間帯・内訳がそれを共有する。どれか 1 つが述語を書き写す形へ
+    // 戻ると /features がここで混ざるので、全系列をまとめて固定する。
+    await insertVisit('/')
+    await insertVisit('/features')
+    await insertVisit('/features')
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.cumulative.counts.visit).toBe(1)
+    expect(summary.today.counts.visit).toBe(1)
+    expect(summary.daily.at(-1)?.counts.visit).toBe(1)
+    expect(summary.hourly.reduce((total, hour) => total + hour.counts.visit, 0)).toBe(1)
+    expect(summary.perKind.find((entry) => entry.kind === 'visit')?.total).toBe(1)
+  })
+
+  it('page 列の導入前に記録された visit は LP として数える', async () => {
+    // 当時 visit を計上していたのは LP だけ（src/routes/public.tsx）。
+    // 遡って埋め直す材料は無いので COALESCE(page, '/') でその事実を表す。
+    await insertVisit(null)
+
+    expect((await cumulativeTotals(env.DB)).counts.visit).toBe(1)
+  })
+
+  it('日次ユニーク訪問者はページで絞らない（サイト全体の訪問者数）', async () => {
+    // 指標ごとの件数と違い、COUNT(DISTINCT visitor_token) は「何人来たか」を
+    // 測るもの。LP だけに絞ると /features へ直接来た訪問者が数から消える。
+    await insertVisit('/')
+    await insertVisit('/features')
+
+    const totals = await todayTotals(env.DB, NOW)
+
+    expect(totals.counts.visit).toBe(1)
+    expect(totals.uniqueVisitors).toBe(2)
+  })
+})
+
+describe('visit の内訳（ページ別・言語別）', () => {
+  /** visit を 1 件、ページ・言語・UA を指定して記録する。 */
+  async function insertVisitRow(
+    page: string | null,
+    displayLang: string | null,
+    browserLang: string | null,
+    uaSummary: string | null = null,
+  ): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, page, display_lang, browser_lang, ua_summary)' +
+        ' VALUES (?, ?, ?, ?, ?, ?)',
+    )
+      .bind(NOW, 'visit', page, displayLang, browserLang, uaSummary)
+      .run()
+  }
+
+  it('ページ別・表示言語別・ブラウザ言語設定別を人間とロボットに分ける', async () => {
+    await insertVisitRow('/', 'ja', 'ja')
+    await insertVisitRow('/', 'ja', 'en')
+    await insertVisitRow('/en', 'en', 'en')
+    await insertVisitRow('/features', 'ja', 'ja', 'bot:GPTBot')
+
+    const { visits } = await eventBreakdowns(env.DB)
+    const { byPage, byDisplayLang, byBrowserLang } = visits
+
+    expect(byPage).toEqual([
+      { label: '/', human: 2, bot: 0 },
+      { label: '/en', human: 1, bot: 0 },
+      { label: '/features', human: 0, bot: 1 },
+    ])
+    expect(byDisplayLang).toEqual([
+      { label: 'ja', human: 2, bot: 1 },
+      { label: 'en', human: 1, bot: 0 },
+    ])
+    expect(byBrowserLang).toEqual([
+      { label: 'en', human: 2, bot: 0 },
+      { label: 'ja', human: 1, bot: 1 },
+    ])
+  })
+
+  it('visit 以外の kind は内訳に入らない', async () => {
+    // download / update_check には page も表示言語も無い。COALESCE(page,'/') が
+    // kind の条件から外れると、これらが '/' の訪問として数えられてしまう。
+    await env.DB.prepare('INSERT INTO events (timestamp, kind) VALUES (?, ?)')
+      .bind(NOW, 'download')
+      .run()
+    await env.DB.prepare('INSERT INTO events (timestamp, kind) VALUES (?, ?)')
+      .bind(NOW, 'update_check')
+      .run()
+
+    const { byPage } = (await eventBreakdowns(env.DB)).visits
+
+    expect(byPage).toEqual([])
+  })
+
+  it('列の導入前に記録された行は page は / に、言語は未記録に寄せる', async () => {
+    // page は当時 LP しか計上していなかったので '/' と読んでよい。言語は
+    // 日英を同一 HTML で出していた時期の行で、表示言語が確定しない。
+    await insertVisitRow(null, null, null)
+
+    const { visits } = await eventBreakdowns(env.DB)
+    const { byPage, byDisplayLang, byBrowserLang } = visits
+
+    expect(byPage).toEqual([{ label: '/', human: 1, bot: 0 }])
+    expect(byDisplayLang).toEqual([{ label: UNRECORDED_LABEL, human: 1, bot: 0 }])
+    expect(byBrowserLang).toEqual([{ label: UNRECORDED_LABEL, human: 1, bot: 0 }])
+  })
+
+  it('イベントが無ければ空の内訳を返す', async () => {
+    const { visits } = await eventBreakdowns(env.DB)
+    const { byPage, byDisplayLang, byBrowserLang } = visits
+
+    expect(byPage).toEqual([])
+    expect(byDisplayLang).toEqual([])
+    expect(byBrowserLang).toEqual([])
+  })
+})
+
+describe('最新イベントと SSE の差分配信', () => {
+  it('初期表示と SSE が同じ列を返す（page を含む）', async () => {
+    // 2 つは同じ RecentEvent を返す契約だが、.all<RecentEvent>() のジェネリクスは
+    // 実際の列を検査しない。片方から列が落ちても型では気づけないので、
+    // 両方の戻り値のキー集合が一致することを固定する。
+    await env.DB.prepare(
+      "INSERT INTO events (timestamp, kind, page, ua_summary) VALUES (?, 'visit', '/features', 'Safari')",
+    )
+      .bind(NOW)
+      .run()
+
+    const [recent, streamed] = await Promise.all([recentEvents(env.DB), eventsAfter(env.DB, 0)])
+
+    expect(recent).toHaveLength(1)
+    expect(streamed).toHaveLength(1)
+    expect(Object.keys(recent[0] ?? {}).sort()).toEqual(Object.keys(streamed[0] ?? {}).sort())
+    expect(recent[0]?.page).toBe('/features')
+    expect(streamed[0]?.page).toBe('/features')
+  })
+})
+
+describe('リクエスト先ホストと GitHub フォールバックの内訳', () => {
+  /** ホストと UA を指定して 1 件記録する。 */
+  async function insertHostRow(
+    kind: string,
+    host: string | null,
+    uaSummary: string | null = null,
+  ): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, host, ua_summary) VALUES (?, ?, ?, ?)',
+    )
+      .bind(NOW, kind, host, uaSummary)
+      .run()
+  }
+
+  it('ホスト別を kind によらず人間とロボットに分ける', async () => {
+    await insertHostRow('visit', CANONICAL_HOST)
+    await insertHostRow('update_check', LEGACY_HOST)
+    await insertHostRow('legacy_redirect', LEGACY_HOST, 'bot:GPTBot')
+
+    const { byHost } = await eventBreakdowns(env.DB)
+    const byLabel = new Map(byHost.map((split) => [split.label, split]))
+
+    expect(byLabel.get(CANONICAL_HOST)).toEqual({ label: CANONICAL_HOST, human: 1, bot: 0 })
+    expect(byLabel.get(LEGACY_HOST)).toEqual({ label: LEGACY_HOST, human: 1, bot: 1 })
+  })
+
+  it('0 件の既知ホストも行として残る', async () => {
+    // ADR 0007 の停止条件は「旧ホストを叩くクライアントがゼロ」の確認そのもの。
+    // 0 の行を落とすと「まだ 0」と「そもそも計測していない」が区別できなくなる。
+    await insertHostRow('visit', CANONICAL_HOST)
+
+    const { byHost } = await eventBreakdowns(env.DB)
+
+    for (const host of RECORDED_HOSTS) {
+      expect(byHost.map((split) => split.label)).toContain(host)
+    }
+    expect(byHost.find((split) => split.label === LEGACY_HOST)).toEqual({
+      label: LEGACY_HOST,
+      human: 0,
+      bot: 0,
+    })
+  })
+
+  it('列の導入前に記録された行は既知ホストに混ぜない', async () => {
+    await insertHostRow('visit', null)
+
+    const { byHost } = await eventBreakdowns(env.DB)
+
+    expect(byHost.find((split) => split.label === UNRECORDED_LABEL)).toEqual({
+      label: UNRECORDED_LABEL,
+      human: 1,
+      bot: 0,
+    })
+    expect(byHost.find((split) => split.label === CANONICAL_HOST)?.human).toBe(0)
+  })
+
+  it('GitHub フォールバックを経路別に数える', async () => {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)',
+    )
+      .bind(NOW, 'github_fallback', CANONICAL_HOST, 'appcast')
+      .run()
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)',
+    )
+      .bind(NOW, 'github_fallback', CANONICAL_HOST, 'dmg')
+      .run()
+    await insertHostRow('download', CANONICAL_HOST)
+
+    const { byFallback } = await eventBreakdowns(env.DB)
+
+    // fallback を持たない行は入らない（download が経路として数えられない）。
+    expect(byFallback).toEqual([
+      { label: 'appcast', human: 1, bot: 0 },
+      { label: 'dmg', human: 1, bot: 0 },
+    ])
+  })
+})
+
+describe('kind の行き先', () => {
+  it('すべての kind が指標か運用観測のどちらかに割り当てられている', () => {
+    // kind を足したときに、カード・グラフにも運用セクションにも出ないまま
+    // 記録だけされる状態を防ぐ構造ガード。どちらにするかをここで必ず決めさせる。
+    const shown = new Set([...KIND_LABELS.map((entry) => entry.kind), ...OPERATIONAL_KINDS])
+
+    for (const kind of eventKindSchema.options) {
+      expect(shown.has(kind)).toBe(true)
+    }
+    // 指標にしか出ない 'update_download' は EventKind ではない派生指標。
+    expect(shown.has('update_download')).toBe(true)
+  })
+
+  it('運用観測の kind はカード・グラフの系列に出ない', () => {
+    for (const kind of OPERATIONAL_KINDS) {
+      expect(KIND_LABELS.map((entry) => entry.kind)).not.toContain(kind)
+    }
   })
 })
