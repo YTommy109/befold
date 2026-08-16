@@ -14,6 +14,8 @@ import {
   UNRECORDED_LABEL,
   KIND_LABELS,
   UNIQUE_SOURCE_LABELS,
+  RUNNING_VERSION_LABELS,
+  TOP_N,
 } from '../src/analytics'
 import { CANONICAL_HOST, LEGACY_HOST, RECORDED_HOSTS } from '../src/lib/hosts'
 import { DATACENTER_ORG_PATTERNS, datacenterOrgMatch, isDatacenterOrg } from '../src/lib/network'
@@ -44,6 +46,156 @@ async function insert(
 
 afterEach(async () => {
   await env.DB.prepare('DELETE FROM events').run()
+})
+
+/** update_check を 1 件入れる（稼働バージョン分布のテスト用）。 */
+async function insertUpdateCheck(options: {
+  ts: number
+  appVersion: string | null
+  channel?: string | null
+  visitorToken?: string
+  uaSummary?: string | null
+  asOrg?: string | null
+}): Promise<void> {
+  await env.DB.prepare(
+    'INSERT INTO events (timestamp, kind, channel, app_version, visitor_token, ua_summary, as_org)' +
+      " VALUES (?, 'update_check', ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      options.ts,
+      // `?? 'stable'` にしない。明示した null が既定値に化けて、
+      // チャネル未記録のケースを検証できなくなる。
+      'channel' in options ? options.channel : 'stable',
+      options.appVersion,
+      options.visitorToken ?? 'visitor-a',
+      options.uaSummary ?? 'Sparkle',
+      options.asOrg ?? null,
+    )
+    .run()
+}
+
+describe('稼働中のアプリバージョン', () => {
+  it('延べ確認回数ではなくアクセス元の異なり数を数える', async () => {
+    // 同じアクセス元から 3 回確認が来ても 1。起動回数ではなく規模を見るため。
+    for (const ts of [jst('2026-08-08 01:00'), jst('2026-08-08 02:00'), jst('2026-08-08 03:00')]) {
+      await insertUpdateCheck({ ts, appVersion: '1.13.1', visitorToken: 'visitor-a' })
+    }
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 04:00'),
+      appVersion: '1.13.1',
+      visitorToken: 'visitor-b',
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 2 }])
+  })
+
+  it('stable と develop を混ぜない', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.13.1',
+      channel: 'stable',
+      visitorToken: 'visitor-a',
+    })
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.13.2-dev.4',
+      channel: 'develop',
+      visitorToken: 'visitor-b',
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 1 }])
+    expect(summary.runningVersions.develop).toEqual([{ label: '1.13.2-dev.4', count: 1 }])
+  })
+
+  it('チャネルが記録されていない行を落とさない', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.12.0',
+      channel: null,
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.unrecorded).toEqual([{ label: '1.12.0', count: 1 }])
+  })
+
+  it('窓の外の確認は数えない（今も使われている版だけを見る）', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-06-01 01:00'),
+      appVersion: '1.9.0',
+      visitorToken: 'visitor-old',
+    })
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.13.1',
+      visitorToken: 'visitor-a',
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 1 }])
+  })
+
+  it('バージョンを名乗らない確認は出てこない（app_version が NULL）', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: null,
+      uaSummary: 'curl',
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toEqual([])
+  })
+
+  it('ボットとデータセンターは他の集計と同じ条件で除外する', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.13.1',
+      visitorToken: 'visitor-bot',
+      uaSummary: 'bot:Googlebot',
+    })
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.13.1',
+      visitorToken: 'visitor-dc',
+      asOrg: DATACENTER_ORG_PATTERNS[0],
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toEqual([])
+  })
+
+  it('0 件のチャネルも表そのものは残す（未計測と 0 件を混同させない）', async () => {
+    const summary = await summarize(env.DB, NOW)
+
+    for (const { key } of RUNNING_VERSION_LABELS) {
+      expect(summary.runningVersions[key]).toEqual([])
+    }
+  })
+
+  it('上位 N 件で切る', async () => {
+    for (let i = 0; i < TOP_N + 3; i += 1) {
+      // 件数に差を付けて順位を確定させる（同数だとラベル順に倒れて意図が読めない）。
+      for (let n = 0; n <= i; n += 1) {
+        await insertUpdateCheck({
+          ts: jst('2026-08-08 01:00'),
+          appVersion: `1.0.${i}`,
+          visitorToken: `visitor-${i}-${n}`,
+        })
+      }
+    }
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toHaveLength(TOP_N)
+    expect(summary.runningVersions.stable[0]?.label).toBe(`1.0.${TOP_N + 2}`)
+  })
 })
 
 describe('JST バケットの基準', () => {

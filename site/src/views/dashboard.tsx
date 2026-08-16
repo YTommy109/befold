@@ -1,7 +1,12 @@
 import type { FC } from 'hono/jsx'
 import { html, raw } from 'hono/html'
 import type { Count, Split, Summary } from '../analytics'
-import { UNIQUE_SOURCE_LABELS, UNRECORDED_LABEL } from '../analytics'
+import {
+  RUNNING_VERSION_LABELS,
+  TOP_N,
+  UNIQUE_SOURCE_LABELS,
+  UNRECORDED_LABEL,
+} from '../analytics'
 import { LEGACY_HOST } from '../lib/hosts'
 import { formatJst } from '../lib/jst'
 
@@ -100,6 +105,13 @@ const HOST_COLUMN_START = '2026-08-16'
  * データセンター判定はこの列だけを見るため、この日以降は遡って効く。
  */
 const AS_ORG_COLUMN_START = '2026-07-30'
+
+/**
+ * 稼働バージョンの記録を始めた日（TASK-491.1、
+ * migrations/20260816064525_add_app_version.sql）。これより前の update_check は
+ * どのバージョンから来たかを復元できない。
+ */
+const APP_VERSION_COLUMN_START = '2026-08-16'
 
 /**
  * `Split[]` を人間側または自動アクセス側の `Count[]` にする。
@@ -434,6 +446,38 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
             <CountTable title={`${entry.label}: OS 別`} rows={entry.byOS} />,
             <CountTable title={`${entry.label}: 接続元組織別`} rows={entry.byAsOrg} />,
           ])}
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>稼働中のアプリバージョン（{windowLabel}）</h2>
+        <p class="note">
+          数えているのは<strong>アップデート確認を送ってきたアクセス元の異なり数</strong>で、
+          確認の延べ回数ではない。アップデート確認はアプリが定期的に飛ばすため、回数で
+          数えるとバージョンではなく起動回数を見ることになる。アクセス元は日別ユニークと
+          同じ visitor_token（接続元 IP と User-Agent の組をその日のうちだけ同一視する
+          ハッシュ）なので、単位は「アクセス元×日」の異なり数であって通算の利用者数では
+          ない。同じ端末でも、期間中の 5 日に確認を送れば 5 と数える。
+        </p>
+        <p class="note">
+          全期間ではなく{windowLabel}に絞っている。見たいのは今も使われ続けている版で
+          あって、過去に一度でも動いた版の履歴ではないため。stable と develop を分けて
+          いるのは、develop に開発機が含まれ、混ぜると stable 利用者の分布が読めなく
+          なるため。上位 {TOP_N} 件まで。
+        </p>
+        <p class="note">
+          下の「バージョン別ダウンロード」とは別物。あちらは
+          <strong>どのタグを取りに来たか</strong>（更新先）で、こちらは
+          <strong>今どのバージョンが動いているか</strong>（更新元）。
+          稼働バージョンの記録は {APP_VERSION_COLUMN_START} に始めたもので、それより前の
+          アップデート確認はどのバージョンから来たかを<strong>遡って分類できない</strong>。
+          Sparkle 以外のクライアント（curl など）からの確認も、バージョンを名乗らないので
+          ここには出ない。
+        </p>
+        <div class="grid">
+          {RUNNING_VERSION_LABELS.map(({ key, label }) => (
+            <CountTable title={`${label}: 稼働バージョン別`} rows={summary.runningVersions[key]} />
+          ))}
         </div>
       </section>
 

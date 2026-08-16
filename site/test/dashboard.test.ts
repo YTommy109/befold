@@ -53,13 +53,14 @@ async function seed(
     page?: string
     displayLang?: string
     browserLang?: string
+    appVersion?: string | null
   } = {},
 ): Promise<number> {
   const result = await env.DB.prepare(
     'INSERT INTO events' +
       ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer,' +
-      ' as_org, page, display_lang, browser_lang)' +
-      ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+      ' as_org, page, display_lang, browser_lang, app_version)' +
+      ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
   )
     .bind(
       extra.ts ?? Date.now(),
@@ -75,6 +76,7 @@ async function seed(
       extra.page ?? null,
       extra.displayLang ?? null,
       extra.browserLang ?? null,
+      extra.appVersion ?? null,
     )
     .first<{ id: number }>()
 
@@ -486,6 +488,66 @@ describe('集計の表示', () => {
     // 空状態を出す。0 の行が並ぶ形にならないこともここで固定する。
     expect(section.match(/データなし/g)).toHaveLength(6)
     expect(section).not.toContain('<td>0</td>')
+  })
+})
+
+describe('稼働中のアプリバージョンの表示', () => {
+  it('チャネルごとの表に稼働バージョンが出る', async () => {
+    await seed('update_check', {
+      channel: 'stable',
+      appVersion: '1.13.1',
+      uaSummary: 'Sparkle',
+    })
+    await seed('update_check', {
+      channel: 'develop',
+      appVersion: '1.13.2-dev.4',
+      uaSummary: 'Sparkle',
+      visitorDay: 'hash-b',
+    })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('アプリ（stable）: 稼働バージョン別')
+    expect(body).toContain('アプリ（develop）: 稼働バージョン別')
+    expect(body).toContain('1.13.1')
+    expect(body).toContain('1.13.2-dev.4')
+  })
+
+  it('何を 1 と数えているかが画面に書かれている', async () => {
+    await seed('update_check', { appVersion: '1.13.1', uaSummary: 'Sparkle' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('アップデート確認を送ってきたアクセス元の異なり数')
+    expect(body).toContain('確認の延べ回数ではない')
+  })
+
+  it('ダウンロード対象タグ別の集計と取り違えない説明がある', async () => {
+    await seed('update_check', { appVersion: '1.13.1', uaSummary: 'Sparkle' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('バージョン別ダウンロード')
+    expect(body).toContain('どのタグを取りに来たか')
+    expect(body).toContain('今どのバージョンが動いているか')
+  })
+
+  it('遡って分類できない既存行の扱いが注記されている', async () => {
+    await seed('update_check', { appVersion: null, uaSummary: 'Sparkle' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('遡って分類できない')
+  })
+
+  it('データが無くてもチャネルごとの表は消えない', async () => {
+    await seed('visit')
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('アプリ（stable）: 稼働バージョン別')
+    expect(body).toContain('アプリ（develop）: 稼働バージョン別')
+    expect(body).toContain('アプリ（チャネル未記録）: 稼働バージョン別')
   })
 })
 
