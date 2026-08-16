@@ -94,6 +94,31 @@ struct LocalizationTests {
         }
     }
 
+    /// Help > キーボードショートカット の非メニュー由来の項目が使うキー(TASK-503)。
+    ///
+    /// 訳が無いと `String(localized:)` はキー文字列をそのまま返し、一覧に
+    /// `shortcuts.sidebar.selectNext` のような行がそのまま並ぶ。表示結果では
+    /// 確かめられない(swift test では String Catalog がコンパイルされない)ため、
+    /// カタログ側にキーが載っていることで担保する。
+    @Test("ショートカット一覧が使うキーに en / ja の訳がある")
+    @MainActor
+    func shortcutCatalogKeysAreTranslated() throws {
+        let catalog = try Self.cachedCatalog(bundle: .l10n)
+        let keys = HelpShortcutSections.localizationKeys
+
+        #expect(!keys.isEmpty)
+        for key in keys {
+            let translations = catalog[key]
+            #expect(translations != nil, "キー \(key) が Localizable.xcstrings にありません")
+            for language in Self.languages {
+                #expect(
+                    translations?[language]?.isEmpty == false,
+                    "キー \(key) に \(language) の訳がありません"
+                )
+            }
+        }
+    }
+
     /// パース済みカタログの static キャッシュ。代表キー検証をパラメタライズしたことで
     /// 同じ bundle のカタログをケースごとに読み直すことになるため、bundle 単位で使い回す。
     private static let catalogCache = LockedBox<[ObjectIdentifier: [String: [String: String]]]>([:])

@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Help > キーボードショートカット の中身。メインメニューに実際に割り当てられている
-/// ショートカットを MenuShortcutCatalog で抽出し、メニューごとにグループ化して一覧表示する。
-/// 一覧をここに持たないのは、メニュー定義との乖離を構造的に起こさないため(TASK-240)。
+/// Help > キーボードショートカット の中身。メニュー由来のショートカットに加え、
+/// メニューを経由しない操作(ビューア内スクロール・サイドバー・Quick Open)も並べる。
+/// 一覧をここに持たないのは、実装との乖離を構造的に起こさないため(TASK-240 / TASK-503)。
 struct KeyboardShortcutsView: View {
-    private let groups = MenuShortcutCatalog.snapshot
+    private let groups = HelpShortcutSections.all
 
     var body: some View {
         ScrollView {

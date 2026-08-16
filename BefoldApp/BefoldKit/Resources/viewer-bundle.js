@@ -14255,6 +14255,7 @@
     renderInlineDiffHtml: () => renderInlineDiffHtml,
     renderShape: () => renderShape,
     renderSideBySideDiffHtml: () => renderSideBySideDiffHtml,
+    resolveFindCloseKey: () => resolveFindCloseKey,
     resolveScrollKey: () => resolveScrollKey,
     sanitizeLang: () => sanitizeLang,
     sanitizeRenderedHtml: () => sanitizeRenderedHtml,
@@ -15787,9 +15788,12 @@
     }
     return { down, amount: shiftKey ? "half" : "line" };
   }
+  function resolveFindCloseKey(key, isFindOpen, isComposing, keyCode) {
+    return key === "Escape" && isFindOpen && !isComposing && keyCode !== 229;
+  }
   function _mmdInitKeyboard() {
     document.addEventListener("keydown", function(e) {
-      if (e.key === "Escape" && _mmdFind.isOpen() && !e.isComposing && e.keyCode !== 229) {
+      if (resolveFindCloseKey(e.key, _mmdFind.isOpen(), e.isComposing, e.keyCode)) {
         e.preventDefault();
         _mmdFind.close();
         return;

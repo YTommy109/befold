@@ -47,13 +47,21 @@ function resolveScrollKey(key, shiftKey) {
   return { down: down, amount: shiftKey ? 'half' : 'line' };
 }
 
+// Escape が「検索バーを閉じる」にあたるかの判定。
+// IME 変換中の Escape(候補キャンセル)では閉じない。Enter 側の変換確定判定
+// (検索コントローラの keydown ハンドラ)と同じ理由: Safari/WKWebView は
+// compositionend → keydown の順で発火するため isComposing は既に false に
+// なりうるが、keyCode は 229 のまま残るためこれも合わせて判定する。
+//
+// ハンドラ内の分岐ではなく純粋関数にしてあるのは、resolveScrollKey と同じく
+// Help > キーボードショートカット の一覧と突き合わせるため(TASK-503)。
+function resolveFindCloseKey(key, isFindOpen, isComposing, keyCode) {
+  return key === 'Escape' && isFindOpen && !isComposing && keyCode !== 229;
+}
+
 function _mmdInitKeyboard() {
   document.addEventListener('keydown', function (e) {
-    // IME 変換中の Escape(候補キャンセル)では検索バーを閉じない。
-    // Enter 側の変換確定判定(検索コントローラの keydown ハンドラ)と同じ理由:
-    // Safari/WKWebView は compositionend → keydown の順で発火するため isComposing は
-    // 既に false になりうるが、keyCode は 229 のまま残るためこれも合わせて判定する。
-    if (e.key === 'Escape' && _mmdFind.isOpen() && !e.isComposing && e.keyCode !== 229) {
+    if (resolveFindCloseKey(e.key, _mmdFind.isOpen(), e.isComposing, e.keyCode)) {
       e.preventDefault();
       _mmdFind.close();
       return;
@@ -117,5 +125,6 @@ export {
   halfPageScrollStep,
   lineScrollStep,
   resolveScrollKey,
+  resolveFindCloseKey,
   _mmdInitKeyboard,
 };
