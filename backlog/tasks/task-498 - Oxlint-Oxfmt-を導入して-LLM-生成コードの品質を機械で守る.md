@@ -128,6 +128,8 @@ JS/TS 側には lint がほぼ無く、フォーマッタは 1 つも無い。LL
 フックを正しく入れ直した結果、`check-task-id-uniqueness.sh` が **backlog の ID 重複 2 件**を検出した。TASK-476 と TASK-480 が `backlog/completed/` と `backlog/archive/tasks/` の両方に別内容で存在する。commit 775a2e35（TASK-482）以前から存在するもので、フックが 2 本しか入っていなかったため誰も気づいていなかった。このタスクでは触っていない（`ci: ...` のコミットのみ `--no-verify` で通し、他の pre-commit チェックは個別に手で通した）。
 
 **AC #5（CI で落ちる）は未チェックのまま残した。** ワークフローの構文と、コマンドが手元で同じ結果になることは確認したが、GitHub Actions 上での実行を観測していないため。PR を出して CI が回った時点でチェックする。
+
+実装は完了。AC #5（CI 上での実行）だけが未確認のため In Progress のまま残す。PR を出して CI が回ったら `backlog task edit TASK-498 --check-ac 5 -s Done` で閉じる。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
