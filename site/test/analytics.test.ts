@@ -1016,3 +1016,181 @@ describe('日別のユニークアクセス元', () => {
     expect(UNIQUE_SOURCE_LABELS.every((entry) => entry.label.length > 0)).toBe(true)
   })
 })
+
+/**
+ * 同日・同チャネルで sparkle 経由のダウンロードを 1 件入れる。
+ *
+ * 転換率の分子は「確認と更新の両方を持つアクセス元」なので、確認と同じ
+ * visitor_token を渡せるようにしてある。
+ */
+async function insertSparkleDownload(options: {
+  ts: number
+  channel?: string | null
+  visitorToken?: string
+  version?: string
+  uaSummary?: string | null
+}): Promise<void> {
+  await env.DB.prepare(
+    'INSERT INTO events (timestamp, kind, source, channel, version, visitor_token, ua_summary)' +
+      " VALUES (?, 'download', 'sparkle', ?, ?, ?, ?)",
+  )
+    .bind(
+      options.ts,
+      'channel' in options ? options.channel : 'stable',
+      options.version ?? 'v1.13.0',
+      options.visitorToken ?? 'visitor-a',
+      options.uaSummary ?? 'Sparkle',
+    )
+    .run()
+}
+
+describe('アップデートの取り込み', () => {
+  it('確認と更新の両方を持つアクセス元だけを分子に数える', async () => {
+    const ts = jst('2026-08-08 01:00')
+    // 確認だけ（更新していない）
+    await insertUpdateCheck({ ts, appVersion: '1.12.0', visitorToken: 'only-check' })
+    // 確認して更新した
+    await insertUpdateCheck({ ts, appVersion: '1.12.0', visitorToken: 'converted' })
+    await insertSparkleDownload({ ts, visitorToken: 'converted' })
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+    const day = conversion.stable.find((point) => point.day === '2026-08-08')
+
+    expect(day).toMatchObject({ checked: 2, converted: 1, downloadedWithoutCheck: 0 })
+  })
+
+  it('同日に確認の記録がない更新は分子に入れず、別に数える', async () => {
+    // 前日に確認して当日に落ちてきた場合や、確認と取得で UA が変わって
+    // visitor_token が別になった場合にこうなる。率へ混ぜると 100% を超える。
+    const ts = jst('2026-08-08 01:00')
+    await insertUpdateCheck({ ts, appVersion: '1.12.0', visitorToken: 'checked' })
+    await insertSparkleDownload({ ts, visitorToken: 'never-checked' })
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+    const day = conversion.stable.find((point) => point.day === '2026-08-08')
+
+    expect(day).toMatchObject({ checked: 1, converted: 0, downloadedWithoutCheck: 1 })
+  })
+
+  it('同じアクセス元が何度確認・更新しても 1 と数える', async () => {
+    for (const at of ['2026-08-08 01:00', '2026-08-08 05:00', '2026-08-08 09:00']) {
+      await insertUpdateCheck({ ts: jst(at), appVersion: '1.12.0', visitorToken: 'same' })
+      await insertSparkleDownload({ ts: jst(at), visitorToken: 'same' })
+    }
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+    const day = conversion.stable.find((point) => point.day === '2026-08-08')
+
+    expect(day).toMatchObject({ checked: 1, converted: 1 })
+  })
+
+  it('チャネルが混ざらない', async () => {
+    const ts = jst('2026-08-08 01:00')
+    await insertUpdateCheck({ ts, appVersion: '1.12.0', visitorToken: 'st', channel: 'stable' })
+    await insertSparkleDownload({ ts, visitorToken: 'st', channel: 'stable' })
+    await insertUpdateCheck({ ts, appVersion: '1.12.0', visitorToken: 'dv', channel: 'develop' })
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+
+    expect(conversion.stable.find((point) => point.day === '2026-08-08')).toMatchObject({
+      checked: 1,
+      converted: 1,
+    })
+    expect(conversion.develop.find((point) => point.day === '2026-08-08')).toMatchObject({
+      checked: 1,
+      converted: 0,
+    })
+  })
+
+  it('ロボットの確認・更新は数えない', async () => {
+    const ts = jst('2026-08-08 01:00')
+    await insertUpdateCheck({
+      ts,
+      appVersion: '1.12.0',
+      visitorToken: 'bot',
+      uaSummary: 'bot:GPTBot',
+    })
+    await insertSparkleDownload({ ts, visitorToken: 'bot', uaSummary: 'bot:GPTBot' })
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+    const day = conversion.stable.find((point) => point.day === '2026-08-08')
+
+    expect(day).toMatchObject({ checked: 0, converted: 0, downloadedWithoutCheck: 0 })
+  })
+
+  it('窓の外の日は含まない', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-07-01 01:00'),
+      appVersion: '1.12.0',
+      visitorToken: 'old',
+    })
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+
+    expect(conversion.stable.some((point) => point.day === '2026-07-01')).toBe(false)
+  })
+
+  it('データが無くてもチャネルごとの系列は消えない', async () => {
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+
+    for (const { key } of RUNNING_VERSION_LABELS) expect(conversion[key]).toBeDefined()
+  })
+
+  it('タグごとの取り込みを初回観測からの経過日数で積み上げる', async () => {
+    // 初回観測が 08-06、その 2 日後にもう 1 台。0 日目 1 件 → 2 日目 2 件（累積）。
+    await insertSparkleDownload({
+      ts: jst('2026-08-06 10:00'),
+      visitorToken: 'a',
+      version: 'v1.13.0',
+    })
+    await insertSparkleDownload({
+      ts: jst('2026-08-08 10:00'),
+      visitorToken: 'b',
+      version: 'v1.13.0',
+    })
+
+    const { adoption } = await summarizeUsers(env.DB, NOW)
+    const tag = adoption.find((entry) => entry.version === 'v1.13.0')
+
+    expect(tag?.channel).toBe('stable')
+    expect(tag?.firstSeenDay).toBe('2026-08-06')
+    expect(tag?.cumulative).toEqual([
+      { elapsedDays: 0, sources: 1 },
+      { elapsedDays: 2, sources: 2 },
+    ])
+  })
+
+  it('取り込み曲線もアクセス元の異なり数で数える', async () => {
+    // 同じアクセス元が同じタグを 2 回落としても 1。
+    await insertSparkleDownload({
+      ts: jst('2026-08-06 10:00'),
+      visitorToken: 'a',
+      version: 'v1.13.0',
+    })
+    await insertSparkleDownload({
+      ts: jst('2026-08-06 12:00'),
+      visitorToken: 'a',
+      version: 'v1.13.0',
+    })
+
+    const { adoption } = await summarizeUsers(env.DB, NOW)
+
+    expect(adoption.find((entry) => entry.version === 'v1.13.0')?.cumulative).toEqual([
+      { elapsedDays: 0, sources: 1 },
+    ])
+  })
+
+  it('LP 経由のダウンロードは取り込みに数えない', async () => {
+    // 新規獲得であって更新ではない。source で分ける。
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, source, channel, version, visitor_token, ua_summary)' +
+        " VALUES (?, 'download', 'lp', 'stable', 'v1.13.0', 'lp-user', 'Safari')",
+    )
+      .bind(jst('2026-08-06 10:00'))
+      .run()
+
+    const { adoption } = await summarizeUsers(env.DB, NOW)
+
+    expect(adoption).toHaveLength(0)
+  })
+})

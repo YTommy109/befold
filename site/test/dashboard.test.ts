@@ -957,3 +957,96 @@ describe('配布ホストと旧経路の表示', () => {
     expect(fallbackTable).toContain('データなし')
   })
 })
+
+/**
+ * アップデートの取り込み（TASK-493）。率の分母が読めること、リリース公開日の
+ * 代用であること、チャネルが混ざらないことを画面の文言で固定する。
+ */
+describe('アップデートの取り込みの表示', () => {
+  /** 同日・同チャネルの確認と sparkle 更新を 1 組入れる。 */
+  async function seedPair(day: string, token: string, channel: string): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, channel, visitor_token, ua_summary)' +
+        " VALUES (?, 'update_check', ?, ?, 'Sparkle')",
+    )
+      .bind(Date.parse(`${day}T01:00:00Z`) - 9 * 3600 * 1000, channel, token)
+      .run()
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, source, channel, version, visitor_token, ua_summary)' +
+        " VALUES (?, 'download', 'sparkle', ?, 'v1.13.0', ?, 'Sparkle')",
+    )
+      .bind(Date.parse(`${day}T02:00:00Z`) - 9 * 3600 * 1000, channel, token)
+      .run()
+  }
+
+  it('転換率と一緒に分母の実数が出る', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    await seedPair(today, 'converted', 'stable')
+
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, '確認から更新への転換')
+
+    expect(block).toContain('<th>確認</th>')
+    expect(block).toContain('<th>更新</th>')
+    expect(block).toContain('<th>転換率</th>')
+    expect(block).toContain('100%')
+  })
+
+  it('何を分母に数えたかと、それが利用者の割合でないことが書いてある', async () => {
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, '確認から更新への転換')
+
+    expect(block).toContain('アクセス元×日')
+    expect(block).toContain('「更新した利用者の割合」ではない')
+  })
+
+  it('確認の記録がない更新を率に混ぜず別の列に出すことが書いてある', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    await seedPair(today, 'converted', 'stable')
+
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, '確認から更新への転換')
+
+    expect(block).toContain('<th>確認の記録なし</th>')
+    expect(block).toContain('100% を超える')
+  })
+
+  it('チャネルごとに表が分かれ、データが無くても消えない', async () => {
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, '確認から更新への転換')
+
+    for (const label of ['アプリ（stable）', 'アプリ（develop）', 'アプリ（チャネル未記録）']) {
+      expect(block).toContain(`${label}: 確認 → 更新`)
+    }
+  })
+
+  it('0 日目がリリース公開日ではないことと、その限界が書いてある', async () => {
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, 'リリース後の取り込み')
+
+    expect(block).toContain('リリースの公開日ではない')
+    expect(block).toContain('最初に観測した日')
+    expect(block).toContain('速く見える')
+    // LP からのダウンロードを含めないこと（新規獲得と更新の別）も画面から読める。
+    expect(block).toContain('配布 LP からのダウンロードは新規獲得なので含めない')
+  })
+
+  it('母数が小さいので率ではなく実数で出すことが書いてある', async () => {
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, 'リリース後の取り込み')
+
+    expect(block).toContain('1 桁')
+    expect(block).toContain('率ではなく実数')
+  })
+
+  it('タグごとに初回観測日と経過日数ごとの累積が出る', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    await seedPair(today, 'a', 'stable')
+
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, 'リリース後の取り込み')
+
+    expect(block).toContain('v1.13.0')
+    expect(block).toContain('0日目: 1')
+  })
+})

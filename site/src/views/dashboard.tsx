@@ -450,6 +450,124 @@ export const OverviewSections: FC<{ summary: OverviewSummary }> = ({ summary }) 
 /**
  * 利用者面のセクション。日別のユニークアクセス元、時間帯分布、稼働バージョン。
  */
+/** 率の表示。分母が 0 の日は率を出さない（0 除算を「0%」と読ませない）。 */
+const ratioLabel = (numerator: number, denominator: number): string =>
+  denominator === 0 ? '—' : `${Math.round((numerator / denominator) * 100)}%`
+
+/**
+ * アップデートの取り込み（転換率と取り込み曲線）。
+ *
+ * 率だけを大きく出さず、**分母の実数を必ず併記する**。タグ単位に割ると 1 桁に
+ * なる規模なので、率だけでは誤読を招く。
+ */
+const UpdateAdoption: FC<{ summary: UsersSummary; windowLabel: string }> = ({
+  summary,
+  windowLabel,
+}) => (
+  <>
+    <section class="block">
+      <h2>確認から更新への転換（{windowLabel}）</h2>
+      <p class="note">
+        数えているのは
+        <strong>
+          その日にアップデート確認を送ってきたアクセス元のうち、
+          同じ日に実際に更新まで進んだものの割合
+        </strong>
+        。 「更新した利用者の割合」ではない。分母 （確認）はアプリが起動時などに自動で飛ばすもので、
+        アクセス元は日別ユニークと同じ visitor_token（接続元 IP と User-Agent の組を
+        その日のうちだけ同一視するハッシュ）。 単位は「アクセス元×日」の異なり数。
+      </p>
+      <p class="note">
+        「確認の記録なし」は、更新は観測したのに
+        <strong>同じ日・同じチャネルの確認が 見つからなかった</strong>
+        アクセス元の数。前日に確認して当日落ちてきた場合や、 appcast の取得と DMG の取得で
+        User-Agent が変わって別のアクセス元として 数えられた場合に出る。分子へ入れると率が 100%
+        を超えるため、率には混ぜず 別の列に出している。
+      </p>
+      <div class="grid">
+        {RUNNING_VERSION_LABELS.map(({ key, label }) => (
+          <section>
+            <h3>{label}: 確認 → 更新</h3>
+            {summary.conversion[key].every((point) => point.checked === 0) ? (
+              <p class="empty">期間内のデータなし</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>日付</th>
+                    <th>確認</th>
+                    <th>更新</th>
+                    <th>転換率</th>
+                    <th>確認の記録なし</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.conversion[key]
+                    .filter((point) => point.checked > 0 || point.downloadedWithoutCheck > 0)
+                    .map((point) => (
+                      <tr>
+                        <td>{point.day.slice(5)}</td>
+                        <td>{point.checked}</td>
+                        <td>{point.converted}</td>
+                        <td>{ratioLabel(point.converted, point.checked)}</td>
+                        <td>{point.downloadedWithoutCheck}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        ))}
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>リリース後の取り込み（{windowLabel}）</h2>
+      <p class="note">
+        タグごとに、<strong>そのタグの更新を最初に観測した日を 0 日目として</strong>、
+        経過日数ごとの累積アクセス元数を出す。 0 日目は<strong>リリースの公開日ではない</strong>。
+        イベントにはリリースの公開時刻が無く、 R2 の latest.json も版とファイル名しか持たないため、
+        観測の初出で代用している。 公開してから誰かが落とすまでに間があると、その分だけ曲線は
+        速く見える。
+      </p>
+      <p class="note">
+        数えるのは Worker 経由（enclosure が /dl/ を通る）の自動アップデートだけ。 配布 LP
+        からのダウンロードは新規獲得なので含めない。 {windowLabel}
+        の中で初めて観測したタグに限るため、それ以前に出たタグは出てこない。 現在の規模ではタグ 1
+        つあたりのアクセス元が 1 桁になる。率ではなく実数で出しているのはそのため。
+      </p>
+      {summary.adoption.length === 0 ? (
+        <p class="empty">期間内のデータなし</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>タグ</th>
+              <th>チャネル</th>
+              <th>初回観測</th>
+              <th>経過日数ごとの累積アクセス元</th>
+            </tr>
+          </thead>
+          <tbody>
+            {summary.adoption.map((entry) => (
+              <tr>
+                <td>{entry.version}</td>
+                <td>{entry.channel}</td>
+                <td>{entry.firstSeenDay.slice(5)}</td>
+                <td>
+                  {entry.cumulative
+                    .map((point) => `${point.elapsedDays}日目: ${point.sources}`)
+                    .join(' / ')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  </>
+)
+
 export const UsersSections: FC<{ summary: UsersSummary }> = ({ summary }) => {
   const windowLabel = `直近 ${summary.windowDays} 日`
 
@@ -528,6 +646,7 @@ export const UsersSections: FC<{ summary: UsersSummary }> = ({ summary }) => {
           ))}
         </div>
       </section>
+      <UpdateAdoption summary={summary} windowLabel={windowLabel} />
     </>
   )
 }

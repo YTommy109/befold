@@ -9,7 +9,8 @@
 
 export const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 
-const DAY_MS = 24 * 60 * 60 * 1000
+/** 1 日のミリ秒。経過日数の計算にも使うので、ここを唯一の定義元にする。 */
+export const DAY_MS = 24 * 60 * 60 * 1000
 
 /** SQLite で timestamp (epoch ms) を JST の 'YYYY-MM-DD' にする式。 */
 export const JST_DAY_EXPR = "date(timestamp / 1000, 'unixepoch', '+9 hours')"

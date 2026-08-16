@@ -9,6 +9,7 @@
 import { CHANNELS } from './lib/github'
 import { RECORDED_HOSTS } from './lib/hosts'
 import {
+  DAY_MS,
   JST_DAY_EXPR,
   JST_HOUR_EXPR,
   jstDayStart,
@@ -299,12 +300,54 @@ export type OverviewSummary = {
   recent: RecentEvent[]
 }
 
+/**
+ * 転換率の 1 日分（チャネル別）。
+ *
+ * `checked` が分母、`converted` が分子。分子は「同じ日・同じチャネルで確認と
+ * sparkle 経由の更新の**両方**を持つアクセス元」で、単純な更新数ではない。
+ * 更新側だけを分子にすると 100% を超えうる（実測: 本番 D1 に同日の確認記録が
+ * 無い更新が存在する）。取りこぼしを率の中に隠さないため、その数を
+ * `downloadedWithoutCheck` として別に持つ。
+ *
+ * 数える単位は visitor_token の異なり数（「アクセス元×日」）。visitor_token は
+ * 生の User-Agent をハッシュ材料に含むので、appcast の取得と DMG の取得で UA が
+ * 変われば同じ端末でも別のアクセス元として数える。
+ */
+export type ConversionPoint = {
+  day: string
+  checked: number
+  converted: number
+  downloadedWithoutCheck: number
+}
+
+/** チャネル別の転換率系列。0 件のチャネルも空配列で残す。 */
+export type UpdateConversion = Record<RunningVersionKey, ConversionPoint[]>
+
+/** 取り込み曲線の 1 点。`elapsedDays` は初回観測日からの経過日数。 */
+export type AdoptionPoint = { elapsedDays: number; sources: number }
+
+/**
+ * タグ 1 つ分の取り込み曲線。
+ *
+ * `firstSeenDay` は**リリースの公開日ではなく、そのタグの sparkle 経由の
+ * ダウンロードを最初に観測した日**。events にリリースの公開時刻は無く、
+ * R2 の `latest.json` も `{version, file}` だけで日付を持たない。
+ */
+export type AdoptionCurve = {
+  version: string
+  channel: RunningVersionKey
+  firstSeenDay: string
+  cumulative: AdoptionPoint[]
+}
+
 /** 利用者面: 母集団別の日次ユニーク、稼働バージョン、時間帯分布。 */
 export type UsersSummary = {
   windowDays: number
   daily: DailyPoint[]
   hourly: HourlyPoint[]
   runningVersions: RunningVersions
+  conversion: UpdateConversion
+  adoption: AdoptionCurve[]
 }
 
 /** 流入面: どこから来て何をしたか。全期間の累計で見る。 */
@@ -910,6 +953,133 @@ async function runningVersionBreakdown(db: D1Database, now: number): Promise<Run
   return byChannel
 }
 
+/**
+ * アップデートの取り込み（転換率とタグ別の取り込み曲線）を 1 本のクエリで取る。
+ *
+ * 2 つの指標はどちらも「アクセス元をいったん畳んでから数える」形で、行単位の
+ * `CASE` を並べる日別推移のクエリには相乗りできない（同じアクセス元が確認の行と
+ * 更新の行の両方を持つか、は行を見ただけでは分からない）。指標ごとに引かず
+ * `UNION ALL` の 2 枝にして 1 本に収める（`metricBreakdowns` と同じ手）。
+ *
+ * どちらの枝も対象は直近 N 日。曲線のほうは「その窓の中で初めて観測されたタグ」に
+ * 限られるため、窓より前に出たタグは出てこない（画面の注記でその旨を示す）。
+ */
+async function updateAdoption(
+  db: D1Database,
+  now: number,
+): Promise<{ conversion: UpdateConversion; adoption: AdoptionCurve[] }> {
+  const windowStart = jstWindowStart(now, DAILY_WINDOW_DAYS)
+  const isCheck = metricExpression(METRIC_FILTERS.update_check)
+  const isUpdate = metricExpression(METRIC_FILTERS.update_download)
+
+  const { results } = await db
+    .prepare(
+      `WITH sources AS (
+         SELECT ${JST_DAY_EXPR} AS day,
+                COALESCE(channel, 'unrecorded') AS channel,
+                visitor_token,
+                version,
+                MAX(CASE WHEN ${isCheck} THEN 1 ELSE 0 END) AS checked,
+                MAX(CASE WHEN ${isUpdate} THEN 1 ELSE 0 END) AS updated
+         FROM events
+         WHERE timestamp >= ? AND ${HUMAN_ONLY} AND ((${isCheck}) OR (${isUpdate}))
+         GROUP BY day, channel, visitor_token, version
+       ),
+       per_source AS (
+         SELECT day, channel, visitor_token,
+                MAX(checked) AS checked,
+                MAX(updated) AS updated
+         FROM sources
+         GROUP BY day, channel, visitor_token
+       ),
+       conversion AS (
+         SELECT 'conversion' AS branch, day, channel, NULL AS version,
+                SUM(checked) AS checked,
+                SUM(CASE WHEN checked = 1 AND updated = 1 THEN 1 ELSE 0 END) AS converted,
+                SUM(CASE WHEN checked = 0 AND updated = 1 THEN 1 ELSE 0 END) AS orphan
+         FROM per_source
+         GROUP BY day, channel
+       ),
+       adoption AS (
+         SELECT 'adoption' AS branch, day, channel, version,
+                COUNT(DISTINCT visitor_token) AS checked, 0 AS converted, 0 AS orphan
+         FROM sources
+         WHERE updated = 1 AND version IS NOT NULL
+         GROUP BY day, channel, version
+       )
+       SELECT * FROM conversion
+       UNION ALL
+       SELECT * FROM adoption
+       ORDER BY branch, day`,
+    )
+    .bind(windowStart)
+    .all<{
+      branch: 'adoption' | 'conversion'
+      day: string
+      channel: RunningVersionKey
+      version: string | null
+      checked: number
+      converted: number
+      orphan: number
+    }>()
+
+  // データの無い日も 0 で埋める（`dailySeries` と同じ扱い）。埋めないと、
+  // 「その日は誰も確認しなかった」と「その日は数えていない」が区別できない。
+  const byChannelDay = new Map<string, ConversionPoint>()
+  const conversion = {} as UpdateConversion
+  for (const { key } of RUNNING_VERSION_LABELS) {
+    conversion[key] = jstDaysInWindow(now, DAILY_WINDOW_DAYS).map((day) => {
+      const point = { day, checked: 0, converted: 0, downloadedWithoutCheck: 0 }
+      byChannelDay.set(`${key}\t${day}`, point)
+      return point
+    })
+  }
+
+  // タグごとに「観測日 → その日のアクセス元数」を集めてから累積へ畳む。
+  const perTag = new Map<string, { channel: RunningVersionKey; byDay: Map<string, number> }>()
+
+  for (const row of results) {
+    if (row.branch === 'conversion') {
+      const point = byChannelDay.get(`${row.channel}\t${row.day}`)
+      if (point !== undefined) {
+        point.checked = row.checked
+        point.converted = row.converted
+        point.downloadedWithoutCheck = row.orphan
+      }
+      continue
+    }
+
+    if (row.version === null) continue
+    const entry = perTag.get(row.version) ?? { channel: row.channel, byDay: new Map() }
+    entry.byDay.set(row.day, (entry.byDay.get(row.day) ?? 0) + row.checked)
+    perTag.set(row.version, entry)
+  }
+
+  const adoption = [...perTag.entries()]
+    .map(([version, { channel, byDay }]) => {
+      const days = [...byDay.keys()].toSorted()
+      const firstSeenDay = days[0] ?? ''
+      const start = Date.parse(`${firstSeenDay}T00:00:00Z`)
+      let running = 0
+
+      return {
+        version,
+        channel,
+        firstSeenDay,
+        cumulative: days.map((day) => {
+          running += byDay.get(day) ?? 0
+          return {
+            elapsedDays: Math.round((Date.parse(`${day}T00:00:00Z`) - start) / DAY_MS),
+            sources: running,
+          }
+        }),
+      }
+    })
+    .toSorted((left, right) => right.firstSeenDay.localeCompare(left.firstSeenDay))
+
+  return { conversion, adoption }
+}
+
 /** 指標ごとの OS 別・接続元組織別の内訳。合算しないため指標の意味が混ざらない。 */
 async function kindBreakdowns(db: D1Database): Promise<Omit<KindBreakdown, 'total'>[]> {
   const byAxis = await metricBreakdowns(db)
@@ -943,13 +1113,21 @@ export async function summarizeOverview(db: D1Database, now: number): Promise<Ov
 
 /** 利用者面の集計（3 クエリ）。 */
 export async function summarizeUsers(db: D1Database, now: number): Promise<UsersSummary> {
-  const [daily, hourly, runningVersions] = await Promise.all([
+  const [daily, hourly, runningVersions, updates] = await Promise.all([
     dailySeries(db, now),
     hourlyDistribution(db, now),
     runningVersionBreakdown(db, now),
+    updateAdoption(db, now),
   ])
 
-  return { windowDays: DAILY_WINDOW_DAYS, daily, hourly, runningVersions }
+  return {
+    windowDays: DAILY_WINDOW_DAYS,
+    daily,
+    hourly,
+    runningVersions,
+    conversion: updates.conversion,
+    adoption: updates.adoption,
+  }
 }
 
 /**
