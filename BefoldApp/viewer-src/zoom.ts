@@ -38,6 +38,9 @@ function zoomLabel(zoom: number): string {
 }
 
 function parseStoredZoom(raw: string | number | null | undefined): number {
+  // Number() に替えると '' が 0 になり、未保存相当の値を倍率 0 として
+  // clampZoom へ渡してしまう。NaN 判定で既定値へ落とす現在の縮退を保つ。
+  // oxlint-disable-next-line unicorn/prefer-number-coercion
   var z = parseFloat(raw as string);
   return isNaN(z) ? ZOOM_DEFAULT : z;
 }
@@ -201,7 +204,8 @@ function _mmdInitWheelZoom(): void {
         return;
       }
       e.preventDefault();
-      var wrap = e.target instanceof Element ? e.target.closest<HTMLElement>('.diagram-zoom-wrap') : null;
+      var wrap =
+        e.target instanceof Element ? e.target.closest<HTMLElement>('.diagram-zoom-wrap') : null;
       if (wrap) {
         _mmdDiagramWheelZoom(wrap, e.deltaY);
       } else {
@@ -313,9 +317,9 @@ function _mmdBuildDiagramControls(wrap: HTMLElement): HTMLElement {
   zoomIn.addEventListener('click', function () {
     _mmdDiagramZoomStep(wrap, ZOOM_STEP);
   });
-  controls.appendChild(zoomOut);
-  controls.appendChild(label);
-  controls.appendChild(zoomIn);
+  controls.append(zoomOut);
+  controls.append(label);
+  controls.append(zoomIn);
   return controls;
 }
 
@@ -331,10 +335,10 @@ function _mmdWrapDiagrams(diagramWrap: HTMLElement): void {
     var inner = document.createElement('div');
     inner.className = 'diagram-zoom-inner';
     el.parentNode!.insertBefore(wrap, el);
-    inner.appendChild(el);
-    scroll.appendChild(inner);
-    wrap.appendChild(scroll);
-    wrap.appendChild(_mmdBuildDiagramControls(wrap));
+    inner.append(el);
+    scroll.append(inner);
+    wrap.append(scroll);
+    wrap.append(_mmdBuildDiagramControls(wrap));
     // 100% 時の自然高を記録し、枠高さの計算(_mmdUpdateDiagramScrollHeight)に使う。
     // この時点では inner にまだ zoom が適用されていないため素の実測値になる。
     wrap.dataset.naturalHeight = String(inner.offsetHeight);

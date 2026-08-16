@@ -54,7 +54,7 @@ function buildFindRegExp(query: string, options: FindOptions): RegExp | null {
   if (!query) {
     return null;
   }
-  var source = options.useRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var source = options.useRegex ? query : query.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
   if (options.wholeWord) {
     source = '\\b(?:' + source + ')\\b';
   }
@@ -92,6 +92,70 @@ function keptMatchIndex(previousIndex: number, count: number): number {
   return Math.min(Math.max(previousIndex, 0), count - 1);
 }
 
+// 前回検索でハイライトした <mark> を復元する(次の検索前に必ず呼ぶ)。
+// span 境界をまたぐマッチは <mark> の中に元の <span> 構造を保持したまま挿入して
+// いるため、単純に textContent で潰すとシンタックスハイライトの構造が壊れる。
+// mark を子ノードで置き換える(unwrap)ことで元の構造を保ったまま平文表示に戻す。
+// normalize() は親ごとに1回だけ呼ぶ(同じ親に複数の <mark> がある場合の重複呼び出しを避ける)。
+function clearMarks() {
+  var marks = document.querySelectorAll('#diagram-wrap mark.mmd-find-match');
+  var parents = new Set<Node>();
+  marks.forEach(function (mark) {
+    var parent = mark.parentNode;
+    if (!parent) return;
+    while (mark.firstChild) {
+      parent.insertBefore(mark.firstChild, mark);
+    }
+    mark.remove();
+    parents.add(parent);
+  });
+  parents.forEach(function (parent) {
+    parent.normalize();
+  });
+}
+// 連結文字列上のオフセットを (テキストノード, ノード内オフセット) に逆引きする。
+// textNodes[i] は連結文字列上で [starts[i], starts[i] + textNodes[i].length) を占める。
+//
+// ノードの継ぎ目ちょうどのオフセット(前ノードの終端 === 次ノードの先頭)は
+// DOM 上は同じ位置を指すが、Range の「祖先を完全に含むか」の判定はどちらの
+// ノードを境界に使うかで変わる。開始側は次ノードの先頭(offset 0)、終了側は
+// 前ノードの終端を使わないと、実際にはマッチしていない隣接 <span> まで
+// 「部分的に含む」扱いになり、意図せず分割・複製されてしまう
+// (isStart=true: 継ぎ目では後方のノードを優先。isStart=false: 前方のノードを優先)。
+// starts は textNodes と同じ長さで同時に構築される（matchScope 参照）ため、
+// 走査中の添字と末尾要素は必ず存在する。noUncheckedIndexedAccess 下で
+// undefined が付くのを非 null 表明で落としている（実行時の判定は変えていない）。
+function locate(
+  textNodes: Text[],
+  starts: number[],
+  offset: number,
+  isStart: boolean,
+): TextLocation {
+  for (var i = 0; i < textNodes.length; i++) {
+    var start = starts[i]!;
+    var length = textNodes[i]!.length;
+    var fits = isStart ? offset < start + length : offset <= start + length;
+    if (fits) {
+      return { node: textNodes[i]!, localOffset: offset - start };
+    }
+  }
+  var last = textNodes.length - 1;
+  return { node: textNodes[last]!, localOffset: textNodes[last]!.length };
+}
+
+// node から祖先方向へ、内容が空になった要素を取り除く(root には触れない)。
+// extractContents() は境界の Text ノードを削除せず長さ0のまま残すため、
+// hasChildNodes() ではなく textContent で空判定する。
+function pruneEmptyAncestors(node: Node | null, root: Node): void {
+  while (node && node !== root && node.nodeType === 1 && node.textContent === '') {
+    var parent: Node | null = node.parentNode;
+    if (!parent) break;
+    // nodeType === 1 を確認済みなので Element として remove() できる。
+    (node as Element).remove();
+    node = parent;
+  }
+}
+
 function _createFindController(): FindController {
   var options: FindOptions = { caseSensitive: false, wholeWord: false, useRegex: false };
   var query = '';
@@ -111,28 +175,6 @@ function _createFindController(): FindController {
   // <style> を含む)の tagName は大文字化されず小文字のまま返る(例: 'svg'、'style')。
   // このリストは大文字で保持しつつ、比較側で toUpperCase() して正規化する。
   var skipTags = ['MARK', 'SVG', 'STYLE', 'SCRIPT'];
-
-  // 前回検索でハイライトした <mark> を復元する(次の検索前に必ず呼ぶ)。
-  // span 境界をまたぐマッチは <mark> の中に元の <span> 構造を保持したまま挿入して
-  // いるため、単純に textContent で潰すとシンタックスハイライトの構造が壊れる。
-  // mark を子ノードで置き換える(unwrap)ことで元の構造を保ったまま平文表示に戻す。
-  // normalize() は親ごとに1回だけ呼ぶ(同じ親に複数の <mark> がある場合の重複呼び出しを避ける)。
-  function clearMarks() {
-    var marks = document.querySelectorAll('#diagram-wrap mark.mmd-find-match');
-    var parents = new Set<Node>();
-    marks.forEach(function (mark) {
-      var parent = mark.parentNode;
-      if (!parent) return;
-      while (mark.firstChild) {
-        parent.insertBefore(mark.firstChild, mark);
-      }
-      parent.removeChild(mark);
-      parents.add(parent);
-    });
-    parents.forEach(function (parent) {
-      parent.normalize();
-    });
-  }
 
   // マッチをまたいでよい(連結対象の)インライン要素。シンタックスハイライトの
   // <span> やパス参照・通常リンクの <a>、Markdown の強調表現などはトークンを
@@ -211,36 +253,6 @@ function _createFindController(): FindController {
     return scopes;
   }
 
-  // 連結文字列上のオフセットを (テキストノード, ノード内オフセット) に逆引きする。
-  // textNodes[i] は連結文字列上で [starts[i], starts[i] + textNodes[i].length) を占める。
-  //
-  // ノードの継ぎ目ちょうどのオフセット(前ノードの終端 === 次ノードの先頭)は
-  // DOM 上は同じ位置を指すが、Range の「祖先を完全に含むか」の判定はどちらの
-  // ノードを境界に使うかで変わる。開始側は次ノードの先頭(offset 0)、終了側は
-  // 前ノードの終端を使わないと、実際にはマッチしていない隣接 <span> まで
-  // 「部分的に含む」扱いになり、意図せず分割・複製されてしまう
-  // (isStart=true: 継ぎ目では後方のノードを優先。isStart=false: 前方のノードを優先)。
-  // starts は textNodes と同じ長さで同時に構築される（matchScope 参照）ため、
-  // 走査中の添字と末尾要素は必ず存在する。noUncheckedIndexedAccess 下で
-  // undefined が付くのを非 null 表明で落としている（実行時の判定は変えていない）。
-  function locate(
-    textNodes: Text[],
-    starts: number[],
-    offset: number,
-    isStart: boolean,
-  ): TextLocation {
-    for (var i = 0; i < textNodes.length; i++) {
-      var start = starts[i]!;
-      var length = textNodes[i]!.length;
-      var fits = isStart ? offset < start + length : offset <= start + length;
-      if (fits) {
-        return { node: textNodes[i]!, localOffset: offset - start };
-      }
-    }
-    var last = textNodes.length - 1;
-    return { node: textNodes[last]!, localOffset: textNodes[last]!.length };
-  }
-
   // 1スコープ(bridgeTags でつながった範囲)のテキストを連結してマッチさせ、マッチ
   // 位置を (textNode, localOffset) に逆引きして Range を組み、<mark> で置き換える。
   // ゼロ幅マッチ(例: 正規表現 "a*" の空文字一致)は無限ループを避けるため読み飛ばす。
@@ -285,7 +297,7 @@ function _createFindController(): FindController {
 
       var mark = document.createElement('mark');
       mark.className = 'mmd-find-match';
-      mark.appendChild(domRange.extractContents());
+      mark.append(domRange.extractContents());
       domRange.insertNode(mark);
       scopeFound.unshift(mark);
 
@@ -301,18 +313,6 @@ function _createFindController(): FindController {
     collectScopes(root).forEach(function (textNodeList) {
       matchScope(root, textNodeList, regex, found);
     });
-  }
-
-  // node から祖先方向へ、内容が空になった要素を取り除く(root には触れない)。
-  // extractContents() は境界の Text ノードを削除せず長さ0のまま残すため、
-  // hasChildNodes() ではなく textContent で空判定する。
-  function pruneEmptyAncestors(node: Node | null, root: Node): void {
-    while (node && node !== root && node.nodeType === 1 && node.textContent === '') {
-      var parent: Node | null = node.parentNode;
-      if (!parent) break;
-      parent.removeChild(node);
-      node = parent;
-    }
   }
 
   // マッチなしを専用文言で表示すると文字幅の違いでバーが伸縮するため、

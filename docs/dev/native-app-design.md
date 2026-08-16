@@ -60,9 +60,10 @@ BefoldQuickLook.appex (QuickLook 拡張)
 BefoldApp/
 ├── project.yml                # XcodeGen 定義（全ターゲットの単一定義元）
 ├── Package.swift               # SPM ビルド用
-├── viewer-src/                 # viewer 用 JS のモジュールソース（ESM）。
-│                               # index.js をエントリに esbuild で
+├── viewer-src/                 # viewer 用 TypeScript のモジュールソース（ESM）。
+│                               # index.ts をエントリに esbuild で
 │                               # BefoldKit/Resources/viewer-bundle.js を生成する
+│                               # （型検査は npm run typecheck:viewer が別途担当）
 ├── BefoldKit/                  # コアロジック＋レンダリングアセット（com.degino.befold.kit）
 │   ├── ContentLoader.swift / ViewerLoadPipeline.swift  # 読込可否・種別分岐
 │   ├── FileReading.swift / StringChunkReader.swift      # 読込抽象化・チャンク読み
@@ -219,7 +220,7 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
 - **エラーパネル**: `mermaid.parseError` で構文エラーの詳細メッセージを赤ボーダー・等幅フォントのパネルに表示
 - **削除バナー**: ファイル削除時にグレーバナー＋背景色変更
 - **キーボードショートカット一覧**: Help のパネルは実装から生成する（表をビューに持たない）。
-  メニュー由来はメニュー定義、ビューア内スクロールは `viewer-src/keyboard.js`、サイドバーは
+  メニュー由来はメニュー定義、ビューア内スクロールは `viewer-src/keyboard.ts`、サイドバーは
   `SidebarKeyAction`、Quick Open は `QuickOpenKeyAction` が情報源。一覧と実装のずれは
   双方向のテスト（載せたキーが実際に動く／動くキーは必ず載っている）と、
   JS 側は Swift のカタログをパースする jest テストで検出する。

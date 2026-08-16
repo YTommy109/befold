@@ -13,7 +13,7 @@ import path from 'node:path';
 import esbuild from 'esbuild';
 
 const scriptDir = import.meta.dirname;
-const entry = path.join(scriptDir, '..', 'viewer-src', 'index.js');
+const entry = path.join(scriptDir, '..', 'viewer-src', 'index.ts');
 
 const result = esbuild.buildSync({
   entryPoints: [entry],

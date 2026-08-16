@@ -1,16 +1,66 @@
 {
-  // ビューア JS / ビルドスクリプトの Oxlint 設定。方針は共通ベースにあり、
+  // ビューア TypeScript / ビルドスクリプトの Oxlint 設定。方針は共通ベースにあり、
   // ここは検査対象の指定と、この面に固有の緩和だけを持つ。
   //
-  // **viewer-src と そのテストは TS 移行が終わるまで緩めにしてある（TASK-499）。**
-  // 27 本中 22 本がまだ .js で、`tsconfig.json` の `checkJs: false` により tsc の
-  // 型検査も受けていない。型情報の無い .js に pedantic まで当てると、実測
-  // （2026-08-16）で viewer-src 275 件 / __tests__ 280 件が出るうえ、その多くは
-  // TS へ移せば消える種類のもので、個別に無効化コメントを積んでも移行時に
-  // まとめて捨てることになる。TASK-499 で .js が無くなった時点でこの override を
-  // 外し、site/ と同じ厳しさにする。
+  // viewer-src は TASK-499 で全モジュールが .ts になり、`tsconfig.json` の
+  // 型検査（npm run typecheck:viewer）を受けている。TASK-498 で入れた
+  // 「TS 移行が終わるまでの暫定緩和」はそこで撤去済みで、いま残っているのは
+  // 下の 2 つ（`_mmd` 接頭辞と getElementById）だけ。どちらも移行とは無関係の
+  // 恒久的な選択なので、TS 化しても消えない。
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "extends": ["../.oxlintrc.json"],
+
+  // `npm run lint` は `--type-aware` 付きで走る（TASK-499）。狙いは site/ と同じ
+  // 3 ルールで、いちばん効くのは `no-floating-promises`。導入時の実測で
+  // viewer-src の 2 箇所（_mmdRerenderCurrent の render()、appendChunk の
+  // _mmdRunMermaid）が引っかかり、どちらも意図した fire-and-forget だったので
+  // `void` を置いて明示した。意図が読めない await 漏れとの区別が付くようになる。
+  //
+  // 既定の type-aware ルールセットは BefoldApp に 4,749 件出る。うち 4,423 件は
+  // `no-unsafe-*` で、**すべて BefoldKit/Resources/__tests__ の .js 由来**
+  // （viewer-src はすべて .ts になったので 0 件）。テストの TS 化は別の判断なので、
+  // ここでは site/ と同じ理由で off にしてある。off の一覧は site/.oxlintrc.json と
+  // 揃えること（片方だけ緩めると、どちらの面が厳しいのか分からなくなる）。
+  "rules": {
+    // Worker と違いこちらは WKWebView 上の描画コードだが、await し忘れた
+    // Promise が黙って捨てられる点は同じ。描画の完了前に次の DOM 操作が
+    // 走ると、症状は「たまに古い内容が残る」という再現しにくい形で出る。
+    "typescript/no-floating-promises": "error",
+    // async 関数を void を期待する場所（addEventListener など）へ渡すと、
+    // 例外が unhandled rejection になって握り潰される。
+    "typescript/no-misused-promises": "error",
+    // Promise でない値を await していたら、ほぼ確実に書き間違い。
+    "typescript/await-thenable": "error",
+
+    // --- 以下は既定で有効になるが、この面では off にする（理由は site/ と同じ） ---
+
+    // 引数をすべて readonly にしろという要求。viewer-src に 102 件出るが、
+    // DOM 要素・トークン配列を受け取る関数ばかりで、readonly 化しても
+    // 守られる不変条件が無い。
+    "typescript/prefer-readonly-parameter-types": "off",
+    // 型情報の無い .js（__tests__ 配下）を触った瞬間に鳴る。テストの TS 化は
+    // 別タスクの判断なので、それまでは off にする。実測 4,423 件。
+    "typescript/no-unsafe-call": "off",
+    "typescript/no-unsafe-member-access": "off",
+    "typescript/no-unsafe-assignment": "off",
+    "typescript/no-unsafe-argument": "off",
+    "typescript/no-unsafe-return": "off",
+    "typescript/no-unsafe-type-assertion": "off",
+    // 表明が冗長かどうかは型定義の書き方で揺れる。DOM の型定義に追随して
+    // 鳴ったり止んだりするため、判断材料にならない。
+    "typescript/no-unnecessary-type-assertion": "off",
+    "typescript/no-deprecated": "off",
+    "typescript/return-await": "off",
+    "typescript/no-confusing-void-expression": "off",
+    // truthy 判定を禁止する。viewer-src は `lang || ','` のような既定値の
+    // 与え方が全体の書き方になっており、置き換えると差分が広範囲に及ぶ。
+    "typescript/strict-boolean-expressions": "off",
+    "typescript/no-base-to-string": "off",
+    "typescript/require-array-sort-compare": "off",
+    "typescript/prefer-nullish-coalescing": "off",
+    "typescript/no-misused-spread": "off",
+    "typescript/prefer-includes": "off"
+  },
 
   "env": {
     "es2024": true,
@@ -48,7 +98,9 @@
       "rules": { "eslint/no-undef": "off" }
     },
     {
-      // TASK-499 が終わったらこのブロックごと消す。
+      // viewer-src と そのテストに残す恒久的な緩和。TASK-499 の TS 移行で
+      // 消せた暫定緩和とは性質が違い、どちらも「直せない」ではなく
+      // 「このコードベースが意図して選んでいる書き方」である。
       "files": ["viewer-src/**", "BefoldKit/Resources/__tests__/**"],
       "rules": {
         // Swift 側との契約でグローバル名に `_mmd` 接頭辞を使う
@@ -56,30 +108,8 @@
         // 直せない。実測 218 件。
         "eslint/no-underscore-dangle": "off",
         // getElementById は id 参照であることが読んで分かり、querySelector より速い。
-        // 意図した選択なので置き換えない。実測 118 件。
-        "unicorn/prefer-query-selector": "off",
-        // 以下は .js のままでは機械的に直しても意味が薄い、または TS 移行で
-        // 書き換わる箇所に集中しているもの。TASK-499 で override ごと外す。
-        "eslint/require-unicode-regexp": "off",
-        "eslint/no-await-in-loop": "off",
-        "eslint/block-scoped-var": "off",
-        "eslint/no-inline-comments": "off",
-        "eslint/no-lonely-if": "off",
-        "eslint/no-negated-condition": "off",
-        "unicorn/no-negated-condition": "off",
-        "unicorn/consistent-function-scoping": "off",
-        "unicorn/prefer-dom-node-append": "off",
-        "unicorn/prefer-dom-node-remove": "off",
-        "unicorn/prefer-dom-node-dataset": "off",
-        "unicorn/prefer-add-event-listener": "off",
-        "unicorn/prefer-import-meta-properties": "off",
-        "unicorn/prefer-at": "off",
-        "unicorn/explicit-length-check": "off",
-        "unicorn/prefer-number-coercion": "off",
-        "unicorn/prefer-string-replace-all": "off",
-        "unicorn/prefer-code-point": "off",
-        "unicorn/no-useless-undefined": "off",
-        "unicorn/no-array-sort": "off"
+        // 意図した選択なので置き換えない。実測 115 件。
+        "unicorn/prefer-query-selector": "off"
       }
     },
     {

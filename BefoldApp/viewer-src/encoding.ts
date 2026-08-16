@@ -4,10 +4,10 @@
 // HTML 特殊文字をエスケープする。
 function escapeHtml(text: unknown): string {
   return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
 }
 
 // SVG テキストを <img> の src に使える data URI にする。
@@ -29,6 +29,10 @@ function base64ToBytes(base64: string): Uint8Array {
   var binary = atob(base64);
   var bytes = new Uint8Array(binary.length);
   for (var i = 0; i < binary.length; i++) {
+    // atob が返すのは Latin-1 の 1 文字 = 1 バイトの文字列で、ここで欲しいのは
+    // コードポイントではなくバイト値。codePointAt に替えるとサロゲートペアを
+    // 1 つの値へ畳んでバイト列が壊れるため charCodeAt のままにする。
+    // oxlint-disable-next-line unicorn/prefer-code-point
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;

@@ -10,7 +10,10 @@ import { escapeHtml } from './encoding.js';
 /// 注入されないホストがあるので、呼び出し側は null/undefined を渡しうる。
 interface CodeHighlighter {
   getLanguage(name: string): unknown;
-  highlight(code: string, options: { language: string; ignoreIllegals: boolean }): { value: string };
+  highlight(
+    code: string,
+    options: { language: string; ignoreIllegals: boolean },
+  ): { value: string };
 }
 
 /// leadingIndentInfo() が返すインデントガイド描画用の情報。
@@ -22,7 +25,7 @@ interface IndentInfo {
 // class 属性に埋め込める文字(英数字・_・+・-)だけを残す。
 // hljs.getLanguage() を通過した言語名しか来ないはずだが、防御的に二重チェックする。
 function sanitizeLang(lang: unknown): string {
-  return String(lang).replace(/[^\w+-]/g, '');
+  return String(lang).replaceAll(/[^\w+-]/gu, '');
 }
 
 // コードのシンタックスハイライト。markdown-it の highlight オプションからも呼ばれる。
@@ -59,7 +62,7 @@ function highlightCode(
 function reflowSpanBalancedLines(codeHtml: string): string[] {
   var lines = codeHtml.split('\n');
   // 末尾が空行の場合は除去する(highlight.js が末尾に \n を付けることがある)
-  if (lines.length > 1 && lines[lines.length - 1] === '') {
+  if (lines.length > 1 && lines.at(-1) === '') {
     lines.pop();
   }
   var openSpans: string[] = [];
@@ -67,7 +70,7 @@ function reflowSpanBalancedLines(codeHtml: string): string[] {
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i] || '';
     var reopen = openSpans.join('');
-    var tagRe = /<span\b[^>]*>|<\/span>/g;
+    var tagRe = /<span\b[^>]*>|<\/span>/gu;
     var tag: RegExpExecArray | null;
     while ((tag = tagRe.exec(line)) !== null) {
       if (tag[0] === '</span>') {
@@ -112,7 +115,7 @@ function indentColumns(text: string, tabSize: number): number {
 // 非空白を含まない行(空行・空白のみ)はガイドを引かない(depth 0)。
 function leadingIndentInfo(lineHtml: string, tabSize: number): IndentInfo {
   var rest = lineHtml;
-  var openTag = /^<span\b[^>]*>/;
+  var openTag = /^<span\b[^>]*>/u;
   var match: RegExpExecArray | null;
   while ((match = openTag.exec(rest)) !== null) {
     rest = rest.slice(match[0].length);
@@ -190,7 +193,7 @@ function renderCodeHtml(
   var highlighted = highlightCode(hljs, str, lang);
   if (highlighted) {
     // <pre><code ...>CONTENT</code></pre> の CONTENT だけを行単位テーブルで包む
-    var match = highlighted.match(/^(<pre><code[^>]*>)([\s\S]*)(<\/code><\/pre>)$/);
+    var match = highlighted.match(/^(<pre><code[^>]*>)([\s\S]*)(<\/code><\/pre>)$/u);
     if (match) {
       return match[1]! + wrapWithLineNumbers(match[2]!, withNumbers) + match[3]!;
     }
@@ -218,17 +221,17 @@ function codeChunkInnerHtml(
     var highlightedWithContext = highlightCode(hljs, contextStr + str, lang);
     if (highlightedWithContext) {
       var inner = highlightedWithContext
-        .replace(/^<pre><code[^>]*>/, '')
-        .replace(/<\/code><\/pre>$/, '');
+        .replace(/^<pre><code[^>]*>/u, '')
+        .replace(/<\/code><\/pre>$/u, '');
       var lines = reflowSpanBalancedLines(inner);
-      var contextLineCount = (contextStr.match(/\n/g) || []).length;
+      var contextLineCount = (contextStr.match(/\n/gu) || []).length;
       var body = lines.slice(contextLineCount).join('\n');
       return str.endsWith('\n') ? body + '\n' : body;
     }
   }
   var highlighted = highlightCode(hljs, str, lang);
   if (highlighted) {
-    return highlighted.replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '');
+    return highlighted.replace(/^<pre><code[^>]*>/u, '').replace(/<\/code><\/pre>$/u, '');
   }
   return escapeHtml(str);
 }

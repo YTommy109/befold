@@ -5,13 +5,13 @@
   },
   "scripts": {
     "test": "jest",
-    "lint": "oxlint --report-unused-disable-directives",
-    "lint:fix": "oxlint --fix --report-unused-disable-directives",
+    "lint": "oxlint --type-aware --report-unused-disable-directives",
+    "lint:fix": "oxlint --type-aware --fix --report-unused-disable-directives",
     "format": "oxfmt -c ../.oxfmtrc.json .",
     "format:check": "oxfmt -c ../.oxfmtrc.json --check .",
     "typecheck:viewer": "tsc --noEmit",
     "check:viewer-cycles": "node scripts/check-viewer-cycles.mjs",
-    "build:viewer": "esbuild viewer-src/index.js --bundle --format=iife --target=safari17 --outfile=BefoldKit/Resources/viewer-bundle.js",
+    "build:viewer": "esbuild viewer-src/index.ts --bundle --format=iife --target=safari17 --outfile=BefoldKit/Resources/viewer-bundle.js",
     "build:viewer-vendor": "node scripts/copy-viewer-vendor.mjs",
     "check:viewer-bundle": "npm run build:viewer && npm run build:viewer-vendor && git diff --exit-code -- BefoldKit/Resources/viewer-bundle.js BefoldKit/Resources/mermaid.min.js BefoldKit/Resources/github-markdown.css BefoldKit/Resources/github.css BefoldKit/Resources/github-dark.css",
     "check:third-party-licenses": "node scripts/check-third-party-licenses.mjs"
@@ -46,6 +46,7 @@
     "mermaid": "11.15.0",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
+    "oxlint-tsgolint": "^7.0.2001",
     "typescript": "5.9.3"
   }
 }

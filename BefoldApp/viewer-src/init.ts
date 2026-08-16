@@ -16,14 +16,14 @@ import { _mmdInitResize, _mmdInitWheelZoom, _mmdInitZoom } from './zoom.js';
 // カラースキームが切り替わったら mermaid を現在のテーマで初期化し直し、直近の内容を
 // 再描画する。mermaid とレンダラの双方に用がある配線なので、どちらでもなく
 // ここ(配線の場所)に置く。
-function _mmdInitColorScheme() {
+function _mmdInitColorScheme(): void {
   onColorSchemeChange(function () {
     _mmdReinitializeMermaidIfLoaded();
     _mmdRerenderCurrent();
   });
 }
 
-function _mmdInit() {
+function _mmdInit(): void {
   _mmdInitKeyboard();
   _mmdInitReferenceClicks();
   _mmdInitWheelZoom();

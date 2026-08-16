@@ -52,7 +52,7 @@ function _createScrollSync(notify: () => void, docPathTracker: { adoptPending: (
     // fallback は Swift を経由しない内部再描画で現在位置を保つための値。
     takeRestorePosition: function (fallback: unknown): number {
       var position =
-        pendingRestore !== null ? pendingRestore : typeof fallback === 'number' ? fallback : 0;
+        pendingRestore === null ? (typeof fallback === 'number' ? fallback : 0) : pendingRestore;
       pendingRestore = null;
       return position;
     },

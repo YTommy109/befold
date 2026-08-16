@@ -98,18 +98,18 @@ function _renderSvg(diagramWrap: HTMLElement, content: string): void {
   scroll.className = 'diagram-zoom-scroll';
   var inner = document.createElement('div');
   inner.className = 'diagram-zoom-inner';
-  inner.appendChild(img);
-  scroll.appendChild(inner);
-  wrap.appendChild(scroll);
-  wrap.appendChild(_mmdBuildDiagramControls(wrap));
+  inner.append(img);
+  scroll.append(inner);
+  wrap.append(scroll);
+  wrap.append(_mmdBuildDiagramControls(wrap));
   diagramWrap.innerHTML = '';
-  diagramWrap.appendChild(wrap);
-  img.onload = function (): void {
+  diagramWrap.append(wrap);
+  img.addEventListener('load', function (): void {
     // dataset は文字列しか受け取らないため明示的に文字列化する
     // (代入時の暗黙変換と同じ結果で、実行時の値は変わらない)。
     wrap.dataset.naturalHeight = String(inner.offsetHeight);
     _mmdApplyDiagramZoom(wrap);
-  };
+  });
 }
 
 function _renderHtml(diagramWrap: HTMLElement, content: string): void {
@@ -122,7 +122,7 @@ function _renderHtml(diagramWrap: HTMLElement, content: string): void {
   iframe.style.width = '100%';
   iframe.style.border = 'none';
   // iframe の高さをコンテンツに合わせる
-  iframe.onload = function (): void {
+  iframe.addEventListener('load', function (): void {
     try {
       // contentDocument が null のときは同じ行で TypeError になり catch へ落ちる。
       // 非 null 表明はその振る舞いを変えない(従来から null 参照を catch で拾っている)。
@@ -131,10 +131,10 @@ function _renderHtml(diagramWrap: HTMLElement, content: string): void {
     } catch (e) {
       iframe.style.height = '80vh';
     }
-  };
+  });
   iframe.style.height = '80vh';
   diagramWrap.innerHTML = '';
-  diagramWrap.appendChild(iframe);
+  diagramWrap.append(iframe);
 }
 
 function _renderCsv(diagramWrap: HTMLElement, content: string, lang: string | undefined): void {
@@ -152,12 +152,12 @@ function _renderImage(diagramWrap: HTMLElement, content: string, lang: string | 
   diagramWrap.classList.add('image-body');
   var img = document.createElement('img');
   img.alt = 'Image';
-  img.onload = function (): void {
+  img.addEventListener('load', function (): void {
     _mmdFitImage(img, diagramWrap);
-  };
+  });
   img.src = imageDataURI(content, lang);
   diagramWrap.innerHTML = '';
-  diagramWrap.appendChild(img);
+  diagramWrap.append(img);
 }
 
 function _renderPdf(diagramWrap: HTMLElement, content: string): void {
@@ -168,7 +168,7 @@ function _renderPdf(diagramWrap: HTMLElement, content: string): void {
   var iframe = document.createElement('iframe');
   iframe.src = _mmdPdfBlob.issue(base64ToBytes(content));
   diagramWrap.innerHTML = '';
-  diagramWrap.appendChild(iframe);
+  diagramWrap.append(iframe);
 }
 
 // markdown-it はバンドル同梱(vendor.js)で常に構成済みのため、

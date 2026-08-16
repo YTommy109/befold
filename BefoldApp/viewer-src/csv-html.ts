@@ -62,29 +62,27 @@ function tokenizeCsvRows(content: string, delimiter: string): CsvCell[][] {
         raw += ch;
         i++;
       }
-    } else {
-      if (ch === '"') {
-        inQuotes = true;
-        raw += ch;
-        i++;
-      } else if (ch === delimiter) {
-        pushField();
-        i++;
-      } else if (ch === '\r') {
-        // \r\n を1つの改行として扱うため、直後の \n を先読みして読み飛ばす。
-        pushRow();
-        i++;
-        if (i < content.length && content[i] === '\n') {
-          i++;
-        }
-      } else if (ch === '\n') {
-        pushRow();
-        i++;
-      } else {
-        value += ch;
-        raw += ch;
+    } else if (ch === '"') {
+      inQuotes = true;
+      raw += ch;
+      i++;
+    } else if (ch === delimiter) {
+      pushField();
+      i++;
+    } else if (ch === '\r') {
+      // \r\n を1つの改行として扱うため、直後の \n を先読みして読み飛ばす。
+      pushRow();
+      i++;
+      if (i < content.length && content[i] === '\n') {
         i++;
       }
+    } else if (ch === '\n') {
+      pushRow();
+      i++;
+    } else {
+      value += ch;
+      raw += ch;
+      i++;
     }
   }
   // 末尾行の確定: ループ終了時点で未確定のフィールド/行が残っていれば push する。

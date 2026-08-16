@@ -50,10 +50,12 @@ function _mmdInitReferenceClicks(): void {
     // (decidePolicyFor が WKWebView のナビゲーションをキャンセルするため)
     if (href.charAt(0) === '#') {
       e.preventDefault();
+      var id: string;
       try {
-        var id = decodeURIComponent(href.slice(1));
-      } catch (_) {
-        var id = href.slice(1);
+        id = decodeURIComponent(href.slice(1));
+      } catch {
+        // 不正な %エスケープを含む href は decode せず生のまま id として使う。
+        id = href.slice(1);
       }
       var el =
         document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');

@@ -10,6 +10,9 @@ var WEB_BASELINE = 16;
 // NaN 化に依存した既存の縮退（NaN なら WEB_BASELINE）をそのまま使うため、
 // 実行時の形を変えずにキャストで通す。
 function markdownFontSize(raw: number | string | undefined): number {
+  // Number() に替えると '' が 0、'13px' が NaN になり縮退の分岐が変わる。
+  // 末尾に単位が付いた文字列も受け付ける parseFloat の振る舞いが要件。
+  // oxlint-disable-next-line unicorn/prefer-number-coercion
   var s = parseFloat(raw as string);
   if (isNaN(s) || s <= 0) {
     return WEB_BASELINE;
@@ -33,7 +36,7 @@ function _mmdInitCodeFont() {
   var family = window._mmdMonoFontFamily || '';
   if (family) {
     // CSS quoted-string 内で壊れないよう " と \ をエスケープする。
-    var safe = family.replace(/[\\"]/g, '\\$&');
+    var safe = family.replaceAll(/[\\"]/gu, '\\$&');
     root.style.setProperty(
       '--mmd-mono-font-family',
       '"' + safe + '", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',

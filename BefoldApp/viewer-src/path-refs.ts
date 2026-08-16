@@ -24,10 +24,11 @@ function isLocalPathHref(href: string | null | undefined): boolean {
   if (href.charAt(0) === '#') {
     return false;
   }
-  var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
+  var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/u);
+  // http:, mailto:, tel: 等のスキーム付き URL はローカルパスではない。
   if (m && m[1]!.indexOf('.') === -1) {
     return false;
-  } // http:, mailto:, tel: 等
+  }
   return true;
 }
 
@@ -35,7 +36,7 @@ function isLocalPathHref(href: string | null | undefined): boolean {
 // シンタックスハイライトでトークンが複数の <span> に分割されていても、
 // 注釈は「単位」(下記)のテキスト全体に対して一致を取るため境界をまたげる。
 var _PATH_RE =
-  /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/g;
+  /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/gu;
 
 // パス検出の対象にするタグ(このタグに入った時点で配下は許可状態になる)。
 // code はコードブロック(pre 配下)・インラインコードの両方を兼ねる。
@@ -146,7 +147,7 @@ function _collectUnitTextNodes(node: Node, out: Text[]): void {
 // ノードをまたぐ一致は片ごとに span を作り、どの片も data-path にパス全体を持つ
 // (ハイライトの span 構造を壊さずに、どこをクリックしても同じパスが開く)。
 function _annotateTextNodes(nodes: Text[]): void {
-  if (!nodes.length) {
+  if (nodes.length === 0) {
     return;
   }
   var text = '';
@@ -197,17 +198,17 @@ function _replaceWithSegments(node: Text, segments: PathSegment[]): void {
   for (var i = 0; i < segments.length; i++) {
     var seg = segments[i]!;
     if (seg.start > lastIndex) {
-      frag.appendChild(document.createTextNode(text.slice(lastIndex, seg.start)));
+      frag.append(document.createTextNode(text.slice(lastIndex, seg.start)));
     }
     var span = document.createElement('span');
     span.className = 'befold-path-ref';
     span.dataset.path = seg.path;
     span.textContent = text.slice(seg.start, seg.end);
-    frag.appendChild(span);
+    frag.append(span);
     lastIndex = seg.end;
   }
   if (lastIndex < text.length) {
-    frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+    frag.append(document.createTextNode(text.slice(lastIndex)));
   }
   node.parentNode!.replaceChild(frag, node);
 }
@@ -255,7 +256,7 @@ function _mmdResolveReferences(): void {
     }
     targets.push({ el: s, raw: s.dataset.path });
   });
-  if (!targets.length) {
+  if (targets.length === 0) {
     return;
   }
   // プロトタイプを持たない辞書にする。素の {} だと __proto__ への代入が

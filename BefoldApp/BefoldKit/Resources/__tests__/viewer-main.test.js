@@ -1,3 +1,8 @@
+// describe 直下のヘルパーは、それを使うテストの真横に置いてあることに意味がある
+// (どのテストのための組み立てかが読んで分かる)。モジュール先頭へ移すとテストと
+// 離れて読みにくくなる一方、テスト本体は 1 回しか走らないので「毎回作り直す」
+// コストの指摘は当たらない。このファイルではルールごと切る。
+// oxlint-disable unicorn/consistent-function-scoping
 // DOM に触れる層(描画・ズーム・検索・参照解決)のテスト。ファイル名は分割前の
 // viewer-main.js に由来する。公開面の barrel 経由で、jsdom + viewer.html の DOM 上でロジックを
 // 読み込み・初期化・単体呼び出しできることを確認する。
@@ -24,7 +29,13 @@ function installColorSchemeStub(window) {
       removeEventListener: function () {},
     };
   };
-  return { fireChange: () => listeners.forEach((fn) => fn()) };
+  return {
+    fireChange: () => {
+      listeners.forEach((fn) => {
+        fn();
+      });
+    },
+  };
 }
 
 // setTimeout/clearTimeout を記録するスタブに差し替える。スクロール通知のデバウンスは
@@ -106,7 +117,7 @@ describe('_mmdInitZoom', () => {
 
     main._mmdZoomIn();
 
-    expect(received[received.length - 1].payload.path).toBe('/mock/a.md');
+    expect(received.at(-1).payload.path).toBe('/mock/a.md');
   });
 
   test('文書が定まらない間(描画前)の zoomChanged は path に null を送る', () => {
@@ -115,7 +126,7 @@ describe('_mmdInitZoom', () => {
 
     main._mmdZoomIn();
 
-    expect(received[received.length - 1].payload.path).toBeNull();
+    expect(received.at(-1).payload.path).toBeNull();
   });
 
   test('rename 後の zoomChanged は新しいパスを載せる', async () => {
@@ -127,7 +138,7 @@ describe('_mmdInitZoom', () => {
     main._mmdRenameDocPath('/mock/a.md', '/mock/b.md');
     main._mmdZoomIn();
 
-    expect(received[received.length - 1].payload.path).toBe('/mock/b.md');
+    expect(received.at(-1).payload.path).toBe('/mock/b.md');
   });
 });
 
@@ -293,7 +304,7 @@ describe('render の型ディスパッチ', () => {
   function bodyClasses(document) {
     return Array.from(document.getElementById('diagram-wrap').classList)
       .filter((c) => c.endsWith('-body'))
-      .sort();
+      .toSorted();
   }
 
   test('mmd は mermaid 用の pre を組み立てる', () => {
@@ -1097,8 +1108,8 @@ describe('スクロール通知の文書パス', () => {
 
   function lastNotifiedPath(loaded, received, scheduled) {
     scroll(loaded);
-    scheduled[scheduled.length - 1].fn();
-    return received[received.length - 1].payload.path;
+    scheduled.at(-1).fn();
+    return received.at(-1).payload.path;
   }
 
   test('render で採用された予告パスを通知に載せる', async () => {
@@ -1219,7 +1230,7 @@ describe('パス参照の表示時解決', () => {
   }
 
   function classesOf(loaded, selector) {
-    return Array.from(loaded.document.querySelector(selector).classList).sort();
+    return Array.from(loaded.document.querySelector(selector).classList).toSorted();
   }
 
   function click(loaded, selector, init) {
@@ -1233,7 +1244,7 @@ describe('パス参照の表示時解決', () => {
     await loaded.main.render('src/a.swift\nsrc/a.swift\nsrc/b.swift\n', 'code', 'txt');
 
     expect(received.length).toBe(1);
-    expect(received[0].payload.paths.sort()).toEqual(['src/a.swift', 'src/b.swift']);
+    expect(received[0].payload.paths.toSorted()).toEqual(['src/a.swift', 'src/b.swift']);
     // 応答が返るまでは全候補が中立表示になる
     const refs = loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref');
     expect(refs.length).toBe(3);
@@ -1248,9 +1259,12 @@ describe('パス参照の表示時解決', () => {
     loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
 
     const refs = loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref');
-    expect(Array.from(refs[0].classList).sort()).toEqual(['befold-link', 'befold-path-ref']);
+    expect(Array.from(refs[0].classList).toSorted()).toEqual(['befold-link', 'befold-path-ref']);
     expect(refs[0].dataset.resolved).toBe('/repo/src/a.swift');
-    expect(Array.from(refs[1].classList).sort()).toEqual(['befold-link-dead', 'befold-path-ref']);
+    expect(Array.from(refs[1].classList).toSorted()).toEqual([
+      'befold-link-dead',
+      'befold-path-ref',
+    ]);
     expect(refs[1].dataset.resolved).toBeUndefined();
   });
 
@@ -1270,7 +1284,7 @@ describe('パス参照の表示時解決', () => {
     const refs = Array.from(loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref'));
     expect(refs.length).toBeGreaterThan(1);
     refs.forEach((ref) => {
-      expect(Array.from(ref.classList).sort()).toEqual(['befold-link', 'befold-path-ref']);
+      expect(Array.from(ref.classList).toSorted()).toEqual(['befold-link', 'befold-path-ref']);
       dispatchTrustedClick(loaded.window, ref);
     });
 
@@ -1372,7 +1386,9 @@ describe('パス参照の表示時解決', () => {
     loaded.main._mmdResolveReferences();
 
     expect(received.filter((m) => m.name === 'resolveReferences')).toEqual([]);
-    ['#ext', '#mail', '#anchor'].forEach((sel) => expect(classesOf(loaded, sel)).toEqual([]));
+    ['#ext', '#mail', '#anchor'].forEach((sel) => {
+      expect(classesOf(loaded, sel)).toEqual([]);
+    });
     click(loaded, '#ext');
     expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload)).toEqual([
       { href: 'https://example.com/a.md', metaKey: false, shiftKey: false },
@@ -1423,7 +1439,7 @@ describe('パス参照の表示時解決', () => {
     // キューが空の状態での 2 度目の応答(Swift 側の重複応答を想定)
     loaded.main._mmdApplyResolvedReferences({});
 
-    expect(Array.from(ref.classList).sort()).toEqual(['befold-link', 'befold-path-ref']);
+    expect(Array.from(ref.classList).toSorted()).toEqual(['befold-link', 'befold-path-ref']);
     expect(ref.dataset.resolved).toBe('/repo/src/a.swift');
   });
 
@@ -1479,7 +1495,7 @@ describe('パス参照の表示時解決', () => {
 
     loaded.main._mmdResolveReferences();
 
-    expect(received[0].payload.paths.sort()).toEqual(['./doc.md', '__proto__']);
+    expect(received[0].payload.paths.toSorted()).toEqual(['./doc.md', '__proto__']);
   });
 
   test('解決先の絶対パスを title に出し、解決失敗時は元の title を残さない', () => {

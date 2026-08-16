@@ -22,11 +22,14 @@ interface HtmlSanitizer {
 // のため data:image の <img> 表示は安全(SVG も <img> 経由ではスクリプト非実行)。
 // javascript:/vbscript:/file:/画像以外の data: は既定どおり拒否し XSS を防ぐ。
 function isSafeLinkURL(url: string): boolean {
+  // markdown-it 側の実行時値に対する防御的な文字列化。型の上では冗長だが、
+  // 外すと型が破れたときに例外へ変わる（現在は文字列化で受け止める）。
+  // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
   var str = String(url).trim().toLowerCase();
   if (str.startsWith('data:image/')) {
     return true;
   }
-  return !/^(vbscript|javascript|file|data):/.test(str);
+  return !/^(vbscript|javascript|file|data):/u.test(str);
 }
 
 // markdown-it の html:true が通す生 HTML(md.render() 出力)を innerHTML 適用前にサニタイズする。
@@ -45,7 +48,8 @@ function headingTextOf(inlineToken: MarkdownToken | undefined): string {
     return '';
   }
   var children = inlineToken.children;
-  if (!children || !children.length) {
+  if (!children || children.length === 0) {
+    // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
     return String(inlineToken.content || '');
   }
   var text = '';
@@ -64,11 +68,14 @@ function headingTextOf(inlineToken: MarkdownToken | undefined): string {
 // (reference-clicks.js)は href を decodeURIComponent してから getElementById する。
 // id を encode 済みにすると、その decode 済みキーと一致しなくなる。
 function slugifyHeading(text: string): string {
+  // markdown-it 側の実行時値に対する防御的な文字列化。型の上では冗長だが、
+  // 外すと型が破れたときに例外へ変わる（現在は文字列化で受け止める）。
+  // oxlint-disable-next-line typescript/no-unnecessary-type-conversion
   return String(text)
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\p{M}\p{Pc}\- ]/gu, '')
-    .replace(/ /g, '-');
+    .replaceAll(/[^\p{L}\p{N}\p{M}\p{Pc}\- ]/gu, '')
+    .replaceAll(' ', '-');
 }
 
 // 1 回の描画で使う slug を一意化する。GitHub と同じく、2 回目以降の重複には

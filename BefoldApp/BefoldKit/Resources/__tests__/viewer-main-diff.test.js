@@ -18,7 +18,13 @@ function installColorSchemeStub(window) {
       removeEventListener: function () {},
     };
   };
-  return { fireChange: () => listeners.forEach((fn) => fn()) };
+  return {
+    fireChange: () => {
+      listeners.forEach((fn) => {
+        fn();
+      });
+    },
+  };
 }
 
 const DIFF = [

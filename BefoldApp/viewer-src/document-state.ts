@@ -7,10 +7,10 @@
 function _createDocumentState() {
   var content: string | null = null;
   var type = 'mmd';
-  var lang: string | null = null;
+  var lang: string | undefined;
 
   return {
-    record: function (newContent: string, newType: string, newLang: string | null): void {
+    record: function (newContent: string, newType: string, newLang: string | undefined): void {
       content = newContent;
       type = newType;
       lang = newLang;
@@ -27,7 +27,7 @@ function _createDocumentState() {
     type: function (): string {
       return type;
     },
-    lang: function (): string | null {
+    lang: function (): string | undefined {
       return lang;
     },
     hasContent: function (): boolean {
@@ -45,7 +45,7 @@ var _mmdChunkTail = (function () {
   var endedWithNewline = true;
   return {
     record: function (text: string): void {
-      endedWithNewline = text.length > 0 && text[text.length - 1] === '\n';
+      endedWithNewline = text.length > 0 && text.at(-1) === '\n';
     },
     endedWithNewline: function (): boolean {
       return endedWithNewline;

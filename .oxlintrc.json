@@ -64,12 +64,12 @@
     "eslint/max-lines-per-function": "off",
 
     // 同じ理由で依存本数の上限も入れない。既定の 10 は根拠を持って選んだ値では
-    // なく、超えている箇所（BefoldApp/viewer-src/render.js は 12）を分割するか
+    // なく、超えている箇所（BefoldApp/viewer-src/render.ts は 12）を分割するか
     // どうかは lint 導入とは別の判断。
     "import/max-dependencies": "off",
 
     // ネストの深さも同じ扱い。既定の 4 を超えているのは
-    // BefoldApp/viewer-src/render.js の 1 箇所（5）だけで、そこを浅くするには
+    // BefoldApp/viewer-src/render.ts の 1 箇所（5）だけで、そこを浅くするには
     // 追記処理の分岐そのものを組み替える必要がある。lint 導入で決める話ではない。
     "eslint/max-depth": "off",
 

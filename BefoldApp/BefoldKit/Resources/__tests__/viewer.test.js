@@ -155,7 +155,7 @@ describe('parseStoredZoom', () => {
   });
 
   test('returns ZOOM_DEFAULT for undefined', () => {
-    expect(parseStoredZoom(undefined)).toBe(ZOOM_DEFAULT);
+    expect(parseStoredZoom()).toBe(ZOOM_DEFAULT);
   });
 
   test('returns ZOOM_DEFAULT for non-numeric string', () => {
@@ -236,7 +236,7 @@ describe('highlightCode', () => {
 
   test('returns empty string when language is missing', () => {
     expect(highlightCode(hljs, 'foo', '')).toBe('');
-    expect(highlightCode(hljs, 'foo', undefined)).toBe('');
+    expect(highlightCode(hljs, 'foo')).toBe('');
   });
 
   test('returns empty string when hljs is unavailable', () => {
@@ -295,7 +295,7 @@ describe('sanitizeRenderedHtml', () => {
     const container = new JSDOM('').window.document.createElement('div');
     container.innerHTML = html;
     return Array.from(container.querySelectorAll('*')).some((el) =>
-      Array.from(el.attributes).some((attr) => /^on/i.test(attr.name)),
+      Array.from(el.attributes).some((attr) => /^on/iu.test(attr.name)),
     );
   }
 
@@ -315,7 +315,7 @@ describe('sanitizeRenderedHtml', () => {
 
   test('strips script tags entirely', () => {
     const html = '<p>hi</p><script>alert(1)</script>';
-    expect(sanitizeRenderedHtml(purify, html)).not.toMatch(/<script/i);
+    expect(sanitizeRenderedHtml(purify, html)).not.toMatch(/<script/iu);
   });
 
   test('keeps benign markdown-rendered markup intact', () => {
@@ -557,7 +557,7 @@ describe('markdownFontSize', () => {
   });
 
   test('falls back to 16 (web-standard baseline) for invalid input', () => {
-    expect(markdownFontSize(undefined)).toBe(16);
+    expect(markdownFontSize()).toBe(16);
     expect(markdownFontSize('abc')).toBe(16);
     expect(markdownFontSize(0)).toBe(16);
     expect(markdownFontSize(-3)).toBe(16);
@@ -670,15 +670,15 @@ describe('renderCodeHtml with line numbers', () => {
   test('multi-line hljs span (block comment) stays balanced per row', () => {
     const result = renderCodeHtml(hljs, '/* a\nb */', 'swift', true);
     // 各 <td class="line-content"> 内で <span> の開閉が釣り合っていること
-    const cells = result.match(/<td class="line-content">.*?<\/td>/g);
+    const cells = result.match(/<td class="line-content">.*?<\/td>/gu);
     expect(cells).toHaveLength(2);
     for (const cell of cells) {
-      const opens = (cell.match(/<span\b/g) || []).length;
-      const closes = (cell.match(/<\/span>/g) || []).length;
+      const opens = (cell.match(/<span\b/gu) || []).length;
+      const closes = (cell.match(/<\/span>/gu) || []).length;
       expect(opens).toBe(closes);
     }
     // 2 行目はコメント色の span で開き直されている
-    expect(cells[1]).toMatch(/^<td class="line-content"><span[^>]*hljs-comment/);
+    expect(cells[1]).toMatch(/^<td class="line-content"><span[^>]*hljs-comment/u);
   });
 });
 
@@ -890,7 +890,7 @@ describe('buildTableHtml', () => {
     const html = buildTableHtml([['A', 'B', 'C'], ['1']]);
     // 1行目は th×3、2行目は td が 3 つ(うち 2 つは空)
     expect(html).toContain('<td>1</td>');
-    expect(html.match(/<td><\/td>/g).length).toBe(2);
+    expect(html.match(/<td><\/td>/gu).length).toBe(2);
   });
 });
 
@@ -960,11 +960,11 @@ describe('renderCsvSourceHtml with line numbers', () => {
 
   test('quoted cell with embedded newline keeps csv-col spans balanced per row', () => {
     const html = renderCsvSourceHtml('a,"x\ny",b', ',', true);
-    const cells = html.match(/<td class="line-content">.*?<\/td>/g);
+    const cells = html.match(/<td class="line-content">.*?<\/td>/gu);
     expect(cells).toHaveLength(2);
     for (const cell of cells) {
-      const opens = (cell.match(/<span\b/g) || []).length;
-      const closes = (cell.match(/<\/span>/g) || []).length;
+      const opens = (cell.match(/<span\b/gu) || []).length;
+      const closes = (cell.match(/<\/span>/gu) || []).length;
       expect(opens).toBe(closes);
     }
   });
@@ -1067,7 +1067,8 @@ describe('isLocalPathHref', () => {
     expect(isLocalPathHref('tel:0312345678')).toBe(false);
     expect(isLocalPathHref('javascript:alert(1)')).toBe(false);
     expect(isLocalPathHref('data:text/plain,x')).toBe(false);
-    expect(isLocalPathHref('befold-x.y:open')).toBe(true); // ドット入りスキームは除外できない
+    // ドット入りスキームは除外できない
+    expect(isLocalPathHref('befold-x.y:open')).toBe(true);
     expect(isLocalPathHref('x+y-z:payload')).toBe(false);
   });
 
@@ -1079,7 +1080,7 @@ describe('isLocalPathHref', () => {
   test('excludes empty and nullish hrefs', () => {
     expect(isLocalPathHref('')).toBe(false);
     expect(isLocalPathHref(null)).toBe(false);
-    expect(isLocalPathHref(undefined)).toBe(false);
+    expect(isLocalPathHref()).toBe(false);
   });
 
   test('keeps colon-containing strings that are not scheme-shaped', () => {
@@ -1171,17 +1172,17 @@ describe('buildLineNumberRows', () => {
       '<tr><td class="line-number">44</td><td class="line-content"><span class="hljs-comment">*/</span></td></tr>',
     );
     // 各行のセルは自己完結: 行ごとに open と close の数が一致する
-    const cells = rows.match(/<td class="line-content">.*?<\/td>/g);
+    const cells = rows.match(/<td class="line-content">.*?<\/td>/gu);
     for (const cell of cells) {
-      const opens = (cell.match(/<span\b/g) || []).length;
-      const closes = (cell.match(/<\/span>/g) || []).length;
+      const opens = (cell.match(/<span\b/gu) || []).length;
+      const closes = (cell.match(/<\/span>/gu) || []).length;
       expect(opens).toBe(closes);
     }
   });
 
   test('drops a single trailing empty line (highlight.js trailing newline)', () => {
     const rows = buildLineNumberRows('a\nb\n', 1);
-    expect((rows.match(/<tr>/g) || []).length).toBe(2);
+    expect((rows.match(/<tr>/gu) || []).length).toBe(2);
   });
 
   test('omitting showLineNumbers means no line numbers (same rule as renderCodeHtml)', () => {
@@ -1310,12 +1311,12 @@ describe('codeChunkInnerHtml', () => {
 
   test('strips the pre/code wrapper from highlighted output', () => {
     const inner = codeChunkInnerHtml(hljs, 'const x = 1;', 'javascript');
-    expect(inner).not.toMatch(/<pre>|<code|<\/code>|<\/pre>/);
+    expect(inner).not.toMatch(/<pre>|<code|<\/code>|<\/pre>/u);
     expect(inner).toContain('hljs-keyword');
     expect(inner).toBe(
       highlightCode(hljs, 'const x = 1;', 'javascript')
-        .replace(/^<pre><code[^>]*>/, '')
-        .replace(/<\/code><\/pre>$/, ''),
+        .replace(/^<pre><code[^>]*>/u, '')
+        .replace(/<\/code><\/pre>$/u, ''),
     );
   });
 
@@ -1377,8 +1378,8 @@ describe('codeChunkInnerHtml', () => {
     const tail = 'end */\nconst z = 1;';
     const withContext = codeChunkInnerHtml(hljs, tail, 'javascript', context);
     const fullHighlighted = highlightCode(hljs, full, 'javascript')
-      .replace(/^<pre><code[^>]*>/, '')
-      .replace(/<\/code><\/pre>$/, '');
+      .replace(/^<pre><code[^>]*>/u, '')
+      .replace(/<\/code><\/pre>$/u, '');
     const fullReflowedTailLines = reflowSpanBalancedLines(fullHighlighted).slice(2).join('\n');
     expect(withContext).toBe(fullReflowedTailLines);
   });
@@ -1412,6 +1413,9 @@ describe('svgDataURI', () => {
   test('round-trips non-Latin-1 characters as UTF-8', () => {
     const svg = '<svg><text>日本語</text></svg>';
     const bytes = atob(svgDataURI(svg).slice('data:image/svg+xml;base64,'.length));
+    // atob が返すのはバイト列を 1 文字 1 バイトで表したバイナリ文字列。ここで欲しいのは
+    // コードポイントではなくそのバイト値なので charCodeAt のままにする。
+    // oxlint-disable-next-line unicorn/prefer-code-point
     const utf8 = Uint8Array.from(bytes, (c) => c.charCodeAt(0));
     expect(new TextDecoder().decode(utf8)).toBe(svg);
   });
@@ -1424,7 +1428,7 @@ describe('imageDataURI', () => {
 
   test('falls back to image/png when the MIME type is missing', () => {
     expect(imageDataURI('AAAA', '')).toBe('data:image/png;base64,AAAA');
-    expect(imageDataURI('AAAA', undefined)).toBe('data:image/png;base64,AAAA');
+    expect(imageDataURI('AAAA')).toBe('data:image/png;base64,AAAA');
   });
 });
 

@@ -90,11 +90,11 @@ function _mmdEnsureMermaidLoaded(): Promise<void> {
   _mermaidLoadPromise = new Promise<Event>(function (resolve, reject) {
     var script = document.createElement('script');
     script.src = 'mermaid.min.js';
-    script.onload = resolve;
-    script.onerror = function () {
+    script.addEventListener('load', resolve);
+    script.addEventListener('error', function () {
       reject(new Error('mermaid.min.js failed to load'));
-    };
-    document.head.appendChild(script);
+    });
+    document.head.append(script);
     // 連鎖の終端で、戻り値は誰も見ない（呼び出し側は完了だけを待つ）。
     // oxlint-disable-next-line promise/always-return
   }).then(function () {
@@ -126,7 +126,7 @@ async function _mmdRunMermaid(diagramWrap: HTMLElement, onlyUnprocessed?: boolea
     await _mmdEnsureMermaidLoaded();
     elements.forEach(function (el: HTMLElement, i: number) {
       if (!onlyUnprocessed) {
-        el.removeAttribute('data-processed');
+        delete el.dataset.processed;
       }
       el.id = 'mmd-' + i + '-' + Date.now();
     });

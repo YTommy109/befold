@@ -44,7 +44,7 @@ interface DiffLinePair {
 }
 
 // unified diff の 1 ハンクのヘッダー。`@@ -12,7 +12,9 @@ ...` の数値部だけを見る。
-var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u;
 
 // unified diff をファイル → ハンク → 行の構造へ分解する。
 // 行の種別は 'context' / 'add' / 'del' の 3 つで、旧側・新側の行番号を各行に付ける
@@ -86,7 +86,11 @@ function parseUnifiedDiff(text: unknown): DiffFile[] {
     }
     var header = line.match(DIFF_HUNK_HEADER);
     if (header) {
+      // ハンクヘッダーの数値部は 10 進固定で読む。Number() + Math.trunc は
+      // 先頭 0 や空文字の扱いが変わるうえ、基数を明示しない形になる。
+      // oxlint-disable-next-line unicorn/prefer-number-coercion
       oldNumber = parseInt(header[1]!, 10);
+      // oxlint-disable-next-line unicorn/prefer-number-coercion
       newNumber = parseInt(header[3]!, 10);
       hunk = { oldStart: oldNumber, newStart: newNumber, lines: [] };
       file.hunks.push(hunk);
@@ -123,7 +127,7 @@ function diffPath(raw: string): string {
   if (path === '/dev/null') {
     return path;
   }
-  return path.replace(/^[ab]\//, '');
+  return path.replace(/^[ab]\//u, '');
 }
 
 // 添字の並び(旧側 or 新側)の本文をまとめてハイライトし、行ごとの HTML 配列で返す。
@@ -145,7 +149,7 @@ function highlightedSideLines(
   var lineHtmls: string[] | null = null;
   var highlighted = highlightCode(hljs, joined, lang);
   if (highlighted) {
-    var match = highlighted.match(/^<pre><code[^>]*>([\s\S]*)<\/code><\/pre>$/);
+    var match = highlighted.match(/^<pre><code[^>]*>([\s\S]*)<\/code><\/pre>$/u);
     if (match) {
       lineHtmls = reflowSpanBalancedLines(match[1]!);
     }

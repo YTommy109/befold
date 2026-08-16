@@ -25,6 +25,9 @@ function halfPageScrollStep(clientHeight: number): number {
 // 行単位のスクロール量(px)。CSS の line-height 計算値(例: "22.4px")を渡す。
 // 取得できない/数値でない場合は fallback を返す。
 function lineScrollStep(lineHeightPx: string, fallback: number): number {
+  // CSS の計算値は "22.4px" のように単位付きで来る。Number() は単位付き文字列を
+  // NaN にしてしまい、常に fallback へ落ちる。数値前置部だけを読む parseFloat が要件。
+  // oxlint-disable-next-line unicorn/prefer-number-coercion
   var lh = parseFloat(lineHeightPx);
   return isNaN(lh) ? fallback : lh;
 }

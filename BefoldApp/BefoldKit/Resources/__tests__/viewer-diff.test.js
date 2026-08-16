@@ -49,6 +49,8 @@ const TRAILING_BLANK_DIFF = [
   '',
 ].join('\n');
 
+const linesOfTypes = (types) => types.map((t, i) => ({ type: t, text: String(i) }));
+
 describe('highlightedDiffLines', () => {
   // 行 HTML は添字で引かれるため、要素数がハンクの行数より少ないと
   // 左右分割の描画が undefined を掴んで落ちる。長さは常に一致させる。
@@ -307,9 +309,7 @@ describe('renderInlineDiffHtml', () => {
   test('ハンクの区切り行は 2 つ目以降の前にだけ入り colspan がガター数に合う', () => {
     const withNumbers = renderInlineDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', true);
     const withoutNumbers = renderInlineDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', false);
-    const separators = (html) => html.split('diff-hunk-separator').length - 1;
-
-    expect(separators(withNumbers)).toBe(1);
+    expect(withNumbers.split('diff-hunk-separator').length - 1).toBe(1);
     expect(withNumbers).toContain('colspan="4"');
     expect(withoutNumbers).toContain('colspan="2"');
     // 先頭に区切りを置くと、境目が無いところに帯だけが出る。
@@ -355,7 +355,7 @@ describe('renderInlineDiffHtml', () => {
       getLanguage: () => true,
       highlight: (str) => {
         calls.push(str);
-        return { value: str.replace(/</g, '&lt;') };
+        return { value: str.replaceAll('<', '&lt;') };
       },
     };
 
@@ -368,17 +368,15 @@ describe('renderInlineDiffHtml', () => {
 });
 
 describe('pairDiffLines', () => {
-  const lines = (types) => types.map((t, i) => ({ type: t, text: String(i) }));
-
   test('文脈行は左右同じ行に並ぶ', () => {
-    expect(pairDiffLines(lines(['context', 'context']))).toEqual([
+    expect(pairDiffLines(linesOfTypes(['context', 'context']))).toEqual([
       { left: 0, right: 0 },
       { left: 1, right: 1 },
     ]);
   });
 
   test('連続する削除と追加を対にする', () => {
-    expect(pairDiffLines(lines(['del', 'del', 'add', 'add']))).toEqual([
+    expect(pairDiffLines(linesOfTypes(['del', 'del', 'add', 'add']))).toEqual([
       { left: 0, right: 2 },
       { left: 1, right: 3 },
     ]);
@@ -386,19 +384,19 @@ describe('pairDiffLines', () => {
 
   // 片側が多い場合、余った行は反対側を空にして並べる(行を詰めない)。
   test('数が揃わない場合は空マスで埋める', () => {
-    expect(pairDiffLines(lines(['del', 'add', 'add']))).toEqual([
+    expect(pairDiffLines(linesOfTypes(['del', 'add', 'add']))).toEqual([
       { left: 0, right: 1 },
       { left: null, right: 2 },
     ]);
-    expect(pairDiffLines(lines(['del', 'del', 'add']))).toEqual([
+    expect(pairDiffLines(linesOfTypes(['del', 'del', 'add']))).toEqual([
       { left: 0, right: 2 },
       { left: 1, right: null },
     ]);
   });
 
   test('追加だけ・削除だけのブロックも扱える', () => {
-    expect(pairDiffLines(lines(['add']))).toEqual([{ left: null, right: 0 }]);
-    expect(pairDiffLines(lines(['del']))).toEqual([{ left: 0, right: null }]);
+    expect(pairDiffLines(linesOfTypes(['add']))).toEqual([{ left: null, right: 0 }]);
+    expect(pairDiffLines(linesOfTypes(['del']))).toEqual([{ left: 0, right: null }]);
   });
 });
 
@@ -444,12 +442,13 @@ describe('renderSideBySideDiffHtml', () => {
     const withNumbers = renderSideBySideDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', true);
     const withoutNumbers = renderSideBySideDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', false);
     // 外側テーブル 1 行分の td 数（内側テーブルの td は数えない）。
-    const outerCells = (html) => html.split('<td class="diff-side ').length - 1;
+    const outerCellsWithNumbers = withNumbers.split('<td class="diff-side ').length - 1;
+    const outerCellsWithoutNumbers = withoutNumbers.split('<td class="diff-side ').length - 1;
 
     expect(withNumbers).toContain('colspan="2"');
     expect(withoutNumbers).toContain('colspan="2"');
-    expect(outerCells(withNumbers) / 4).toBe(2);
-    expect(outerCells(withoutNumbers) / 4).toBe(2);
+    expect(outerCellsWithNumbers / 4).toBe(2);
+    expect(outerCellsWithoutNumbers / 4).toBe(2);
     expect(withNumbers).not.toContain('@@');
   });
 

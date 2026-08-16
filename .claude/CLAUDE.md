@@ -90,16 +90,23 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
 - **ルールを個別に無効化するときは必ず理由を書く。** 理由の無い無効化は、次に
   そのルールが必要になったときに「意図して外したのか、たまたま鳴って外したのか」を
   区別できなくする。設定ファイル内の既存の無効化はすべて理由つきになっている
-- **`viewer-src/` とそのテストは TS 移行（TASK-499）が終わるまで緩めてある。**
-  `BefoldApp/.oxlintrc.json` の該当 override はブロックごと撤去する前提で、
-  撤去は TASK-499 の Acceptance Criteria に入っている
-- **`site/` だけ型情報を使う lint（`oxlint --type-aware`）を回している（TASK-505）。**
-  目的は `no-floating-promises` / `no-misused-promises` / `await-thenable` の 3 つで、
-  Worker では await し忘れた D1 書き込みがリクエスト終了で黙って消えるため。
-  既定の type-aware ルールセットは site/ に 567 件出る（`prefer-readonly-parameter-types`
-  250 ほか）ので、上記 3 つ以外は理由つきで off にしてある。`BefoldApp/` には
-  入れない —— `checkJs: false` で viewer-src の大半が .js のままのため実測 5,263 件。
-  判断は TS 移行（TASK-499）の完了後に行う
+- **`viewer-src/` は全モジュールが TypeScript（TASK-499）。** TASK-498 で入れていた
+  暫定緩和の override は撤去済みで、`BefoldApp/.oxlintrc.json` に残るのは
+  `no-underscore-dangle`（`_mmd` 接頭辞が Swift との契約）と
+  `prefer-query-selector`（`getElementById` は意図した選択）の 2 つだけ。
+  どちらも移行と無関係な恒久的な選択で、TS 化しても消えない
+- **`site/` と `BefoldApp/` の両方で型情報を使う lint（`oxlint --type-aware`）を回している。**
+  目的はどちらも `no-floating-promises` / `no-misused-promises` / `await-thenable` の
+  3 つ。site/ は await し忘れた D1 書き込みがリクエスト終了で黙って消えるため（TASK-505）、
+  BefoldApp/ は描画の完了を待たない Promise が「たまに古い内容が残る」形で出るため
+  （TASK-499）。導入時の実測で viewer-src の 2 箇所が引っかかり、どちらも意図した
+  fire-and-forget だったので `void` を置いて明示した
+- **`no-unsafe-*` は両面とも off。** BefoldApp では既定の type-aware ルールセットが
+  4,749 件出るが、うち 4,423 件が `no-unsafe-*` で**すべて
+  `BefoldKit/Resources/__tests__` の .js 由来**（viewer-src は .ts なので 0 件）。
+  テストの TS 化は別の判断なので、それまで off にする。off の一覧は
+  `site/.oxlintrc.json` と `BefoldApp/.oxlintrc.json` で揃えること
+  （片方だけ緩めると、どちらの面が厳しいのか分からなくなる）
 - 整形のセミコロンは面ごとに違う（`site/` は無し、`BefoldApp/` は有り）。
   どちらも既存の慣習をそのまま固定したもので、揃えようとしない
 - oxfmt の対象は **JS/TS だけ**。Markdown は markdownlint-cli2 が持っている

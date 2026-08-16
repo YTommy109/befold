@@ -14120,7 +14120,7 @@
     }
   }
 
-  // viewer-src/main.js
+  // viewer-src/main.ts
   var main_exports = {};
   __export(main_exports, {
     BASE_SCALE: () => BASE_SCALE,
@@ -14296,9 +14296,9 @@
     return hostFeatures[key] !== false;
   }
 
-  // viewer-src/encoding.js
+  // viewer-src/encoding.ts
   function escapeHtml(text3) {
-    return String(text3).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    return String(text3).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   }
   function svgDataURI(svgText) {
     return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgText)));
@@ -14315,7 +14315,7 @@
     return bytes;
   }
 
-  // viewer-src/doc-path.js
+  // viewer-src/doc-path.ts
   function _createDocPathTracker() {
     var docPath = null;
     var pendingDocPath;
@@ -14358,7 +14358,7 @@
     _mmdDocPath.rename(from, to);
   }
 
-  // viewer-src/view-options.js
+  // viewer-src/view-options.ts
   var _mmdModeSwitch = /* @__PURE__ */ (function() {
     var pending = false;
     return {
@@ -14427,11 +14427,11 @@
     _mmdViewOptions.setDiffLayout(layout);
   }
 
-  // viewer-src/document-state.js
+  // viewer-src/document-state.ts
   function _createDocumentState() {
     var content = null;
     var type = "mmd";
-    var lang = null;
+    var lang;
     return {
       record: function(newContent, newType, newLang) {
         content = newContent;
@@ -14463,7 +14463,7 @@
     var endedWithNewline = true;
     return {
       record: function(text3) {
-        endedWithNewline = text3.length > 0 && text3[text3.length - 1] === "\n";
+        endedWithNewline = text3.length > 0 && text3.at(-1) === "\n";
       },
       endedWithNewline: function() {
         return endedWithNewline;
@@ -14471,7 +14471,7 @@
     };
   })();
 
-  // viewer-src/color-scheme.js
+  // viewer-src/color-scheme.ts
   var darkQuery = null;
   function query() {
     if (darkQuery === null) {
@@ -14506,7 +14506,7 @@
     var root = document.documentElement;
     var family = window._mmdMonoFontFamily || "";
     if (family) {
-      var safe = family.replace(/[\\"]/g, "\\$&");
+      var safe = family.replaceAll(/[\\"]/gu, "\\$&");
       root.style.setProperty(
         "--mmd-mono-font-family",
         '"' + safe + '", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace'
@@ -14522,9 +14522,9 @@
     }
   }
 
-  // viewer-src/code-html.js
+  // viewer-src/code-html.ts
   function sanitizeLang(lang) {
-    return String(lang).replace(/[^\w+-]/g, "");
+    return String(lang).replaceAll(/[^\w+-]/gu, "");
   }
   function highlightCode(hljs, str, lang) {
     if (hljs && lang && hljs.getLanguage(lang)) {
@@ -14538,7 +14538,7 @@
   }
   function reflowSpanBalancedLines(codeHtml) {
     var lines = codeHtml.split("\n");
-    if (lines.length > 1 && lines[lines.length - 1] === "") {
+    if (lines.length > 1 && lines.at(-1) === "") {
       lines.pop();
     }
     var openSpans = [];
@@ -14546,7 +14546,7 @@
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i] || "";
       var reopen = openSpans.join("");
-      var tagRe = /<span\b[^>]*>|<\/span>/g;
+      var tagRe = /<span\b[^>]*>|<\/span>/gu;
       var tag;
       while ((tag = tagRe.exec(line)) !== null) {
         if (tag[0] === "</span>") {
@@ -14580,7 +14580,7 @@
   }
   function leadingIndentInfo(lineHtml, tabSize) {
     var rest = lineHtml;
-    var openTag = /^<span\b[^>]*>/;
+    var openTag = /^<span\b[^>]*>/u;
     var match2;
     while ((match2 = openTag.exec(rest)) !== null) {
       rest = rest.slice(match2[0].length);
@@ -14625,7 +14625,7 @@
     var withNumbers = showLineNumbers === true;
     var highlighted = highlightCode(hljs, str, lang);
     if (highlighted) {
-      var match2 = highlighted.match(/^(<pre><code[^>]*>)([\s\S]*)(<\/code><\/pre>)$/);
+      var match2 = highlighted.match(/^(<pre><code[^>]*>)([\s\S]*)(<\/code><\/pre>)$/u);
       if (match2) {
         return match2[1] + wrapWithLineNumbers(match2[2], withNumbers) + match2[3];
       }
@@ -14636,16 +14636,16 @@
     if (contextStr) {
       var highlightedWithContext = highlightCode(hljs, contextStr + str, lang);
       if (highlightedWithContext) {
-        var inner = highlightedWithContext.replace(/^<pre><code[^>]*>/, "").replace(/<\/code><\/pre>$/, "");
+        var inner = highlightedWithContext.replace(/^<pre><code[^>]*>/u, "").replace(/<\/code><\/pre>$/u, "");
         var lines = reflowSpanBalancedLines(inner);
-        var contextLineCount = (contextStr.match(/\n/g) || []).length;
+        var contextLineCount = (contextStr.match(/\n/gu) || []).length;
         var body = lines.slice(contextLineCount).join("\n");
         return str.endsWith("\n") ? body + "\n" : body;
       }
     }
     var highlighted = highlightCode(hljs, str, lang);
     if (highlighted) {
-      return highlighted.replace(/^<pre><code[^>]*>/, "").replace(/<\/code><\/pre>$/, "");
+      return highlighted.replace(/^<pre><code[^>]*>/u, "").replace(/<\/code><\/pre>$/u, "");
     }
     return escapeHtml(str);
   }
@@ -14666,8 +14666,8 @@
     return str.slice(idx + 1);
   }
 
-  // viewer-src/diff-html.js
-  var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+  // viewer-src/diff-html.ts
+  var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u;
   function parseUnifiedDiff(text3) {
     var files = [];
     var file = null;
@@ -14735,7 +14735,7 @@
     if (path === "/dev/null") {
       return path;
     }
-    return path.replace(/^[ab]\//, "");
+    return path.replace(/^[ab]\//u, "");
   }
   function highlightedSideLines(hljs, lines, indexes, lang) {
     var texts = [];
@@ -14746,7 +14746,7 @@
     var lineHtmls = null;
     var highlighted = highlightCode(hljs, joined, lang);
     if (highlighted) {
-      var match2 = highlighted.match(/^<pre><code[^>]*>([\s\S]*)<\/code><\/pre>$/);
+      var match2 = highlighted.match(/^<pre><code[^>]*>([\s\S]*)<\/code><\/pre>$/u);
       if (match2) {
         lineHtmls = reflowSpanBalancedLines(match2[1]);
       }
@@ -14904,7 +14904,7 @@
     return layout === "side-by-side" ? renderSideBySideDiffHtml(hljs, diffText, lang, showLineNumbers) : renderInlineDiffHtml(hljs, diffText, lang, showLineNumbers);
   }
 
-  // viewer-src/csv-html.js
+  // viewer-src/csv-html.ts
   function tokenizeCsvRows(content, delimiter2) {
     if (!content) {
       return [];
@@ -14943,28 +14943,26 @@
           raw += ch;
           i++;
         }
-      } else {
-        if (ch === '"') {
-          inQuotes = true;
-          raw += ch;
-          i++;
-        } else if (ch === delimiter2) {
-          pushField();
-          i++;
-        } else if (ch === "\r") {
-          pushRow();
-          i++;
-          if (i < content.length && content[i] === "\n") {
-            i++;
-          }
-        } else if (ch === "\n") {
-          pushRow();
-          i++;
-        } else {
-          value += ch;
-          raw += ch;
+      } else if (ch === '"') {
+        inQuotes = true;
+        raw += ch;
+        i++;
+      } else if (ch === delimiter2) {
+        pushField();
+        i++;
+      } else if (ch === "\r") {
+        pushRow();
+        i++;
+        if (i < content.length && content[i] === "\n") {
           i++;
         }
+      } else if (ch === "\n") {
+        pushRow();
+        i++;
+      } else {
+        value += ch;
+        raw += ch;
+        i++;
       }
     }
     if (value !== "" || raw !== "" || row.length > 0) {
@@ -15067,13 +15065,16 @@
     return '<pre><code class="csv-source">' + body + "</code></pre>";
   }
 
-  // viewer-src/zoom.js
+  // viewer-src/zoom.ts
   var ZOOM_MIN = 0.5;
   var ZOOM_MAX = 2;
   var ZOOM_STEP = 0.25;
   var ZOOM_DEFAULT = 1;
   var BASE_SCALE = 0.75;
   var DIAGRAM_ZOOM_MAX = 3;
+  function setZoomStyle(el, value) {
+    el.style.zoom = value;
+  }
   function clampZoom(z, max) {
     if (max === void 0) {
       max = ZOOM_MAX;
@@ -15162,13 +15163,13 @@
     var zoom = _mmdZoom.value();
     var wrap = document.getElementById("diagram-wrap");
     if (wrap.classList.contains("pdf-body")) {
-      wrap.style.zoom = 1;
+      setZoomStyle(wrap, 1);
       wrap.style.width = zoom * 100 + "%";
       wrap.style.height = zoom * 100 + "%";
     } else {
       wrap.style.width = "";
       wrap.style.height = "";
-      wrap.style.zoom = zoom;
+      setZoomStyle(wrap, zoom);
     }
     _mmdUpdateAllDiagramScrollHeights();
     var postable = _mmdZoom.takePostable();
@@ -15247,7 +15248,7 @@
   function _mmdApplyDiagramZoom(wrap) {
     var index = Number(wrap.dataset.diagramIndex);
     var zoom = _mmdDiagramZoomValue(index);
-    wrap.querySelector(".diagram-zoom-inner").style.zoom = zoom * BASE_SCALE;
+    setZoomStyle(wrap.querySelector(".diagram-zoom-inner"), zoom * BASE_SCALE);
     _mmdUpdateDiagramScrollHeight(wrap);
     wrap.querySelector(".diagram-zoom-label").textContent = zoomLabel(zoom);
     wrap.querySelector(".diagram-zoom-in").disabled = zoom >= DIAGRAM_ZOOM_MAX;
@@ -15288,31 +15289,31 @@
     zoomIn.addEventListener("click", function() {
       _mmdDiagramZoomStep(wrap, ZOOM_STEP);
     });
-    controls.appendChild(zoomOut);
-    controls.appendChild(label);
-    controls.appendChild(zoomIn);
+    controls.append(zoomOut);
+    controls.append(label);
+    controls.append(zoomIn);
     return controls;
   }
   function _mmdWrapDiagrams(diagramWrap) {
     diagramWrap.querySelectorAll(".mermaid").forEach(function(el, i) {
       var wrap = document.createElement("div");
       wrap.className = "diagram-zoom-wrap";
-      wrap.dataset.diagramIndex = i;
+      wrap.dataset.diagramIndex = String(i);
       var scroll = document.createElement("div");
       scroll.className = "diagram-zoom-scroll";
       var inner = document.createElement("div");
       inner.className = "diagram-zoom-inner";
       el.parentNode.insertBefore(wrap, el);
-      inner.appendChild(el);
-      scroll.appendChild(inner);
-      wrap.appendChild(scroll);
-      wrap.appendChild(_mmdBuildDiagramControls(wrap));
-      wrap.dataset.naturalHeight = inner.offsetHeight;
+      inner.append(el);
+      scroll.append(inner);
+      wrap.append(scroll);
+      wrap.append(_mmdBuildDiagramControls(wrap));
+      wrap.dataset.naturalHeight = String(inner.offsetHeight);
       _mmdApplyDiagramZoom(wrap);
     });
   }
 
-  // viewer-src/scroll.js
+  // viewer-src/scroll.ts
   function _mmdScrollTarget() {
     var codeEl = document.querySelector("#diagram-wrap.code-body pre code");
     if (codeEl) {
@@ -15349,7 +15350,7 @@
       // 注入された復元位置があればそれを、無ければ fallback を返して消費する。
       // fallback は Swift を経由しない内部再描画で現在位置を保つための値。
       takeRestorePosition: function(fallback) {
-        var position = pendingRestore !== null ? pendingRestore : typeof fallback === "number" ? fallback : 0;
+        var position = pendingRestore === null ? typeof fallback === "number" ? fallback : 0 : pendingRestore;
         pendingRestore = null;
         return position;
       },
@@ -15390,12 +15391,15 @@
     );
   }
 
-  // viewer-src/find.js
+  // viewer-src/find.ts
+  function findInputElement() {
+    return document.getElementById("mmd-find-input");
+  }
   function buildFindRegExp(query2, options) {
     if (!query2) {
       return null;
     }
-    var source = options.useRegex ? query2 : query2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    var source = options.useRegex ? query2 : query2.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
     if (options.wholeWord) {
       source = "\\b(?:" + source + ")\\b";
     }
@@ -15424,6 +15428,42 @@
     }
     return Math.min(Math.max(previousIndex, 0), count - 1);
   }
+  function clearMarks() {
+    var marks = document.querySelectorAll("#diagram-wrap mark.mmd-find-match");
+    var parents = /* @__PURE__ */ new Set();
+    marks.forEach(function(mark) {
+      var parent = mark.parentNode;
+      if (!parent) return;
+      while (mark.firstChild) {
+        parent.insertBefore(mark.firstChild, mark);
+      }
+      mark.remove();
+      parents.add(parent);
+    });
+    parents.forEach(function(parent) {
+      parent.normalize();
+    });
+  }
+  function locate(textNodes, starts, offset, isStart) {
+    for (var i = 0; i < textNodes.length; i++) {
+      var start = starts[i];
+      var length = textNodes[i].length;
+      var fits = isStart ? offset < start + length : offset <= start + length;
+      if (fits) {
+        return { node: textNodes[i], localOffset: offset - start };
+      }
+    }
+    var last = textNodes.length - 1;
+    return { node: textNodes[last], localOffset: textNodes[last].length };
+  }
+  function pruneEmptyAncestors(node, root) {
+    while (node && node !== root && node.nodeType === 1 && node.textContent === "") {
+      var parent = node.parentNode;
+      if (!parent) break;
+      node.remove();
+      node = parent;
+    }
+  }
   function _createFindController() {
     var options = { caseSensitive: false, wholeWord: false, useRegex: false };
     var query2 = "";
@@ -15432,22 +15472,6 @@
     var isOpenFlag = false;
     var truncated = false;
     var skipTags = ["MARK", "SVG", "STYLE", "SCRIPT"];
-    function clearMarks() {
-      var marks = document.querySelectorAll("#diagram-wrap mark.mmd-find-match");
-      var parents = /* @__PURE__ */ new Set();
-      marks.forEach(function(mark) {
-        var parent = mark.parentNode;
-        if (!parent) return;
-        while (mark.firstChild) {
-          parent.insertBefore(mark.firstChild, mark);
-        }
-        parent.removeChild(mark);
-        parents.add(parent);
-      });
-      parents.forEach(function(parent) {
-        parent.normalize();
-      });
-    }
     var bridgeTags = [
       "SPAN",
       "A",
@@ -15505,18 +15529,6 @@
       flush();
       return scopes;
     }
-    function locate(textNodes, starts, offset, isStart) {
-      for (var i = 0; i < textNodes.length; i++) {
-        var start = starts[i];
-        var length = textNodes[i].length;
-        var fits = isStart ? offset < start + length : offset <= start + length;
-        if (fits) {
-          return { node: textNodes[i], localOffset: offset - start };
-        }
-      }
-      var last = textNodes.length - 1;
-      return { node: textNodes[last], localOffset: textNodes[last].length };
-    }
     function matchScope(root, textNodeList, regex, found) {
       var starts = [];
       var text3 = "";
@@ -15547,7 +15559,7 @@
         domRange.setEnd(end.node, end.localOffset);
         var mark = document.createElement("mark");
         mark.className = "mmd-find-match";
-        mark.appendChild(domRange.extractContents());
+        mark.append(domRange.extractContents());
         domRange.insertNode(mark);
         scopeFound.unshift(mark);
         pruneEmptyAncestors(startAncestor, root);
@@ -15560,17 +15572,9 @@
         matchScope(root, textNodeList, regex, found);
       });
     }
-    function pruneEmptyAncestors(node, root) {
-      while (node && node !== root && node.nodeType === 1 && node.textContent === "") {
-        var parent = node.parentNode;
-        if (!parent) break;
-        parent.removeChild(node);
-        node = parent;
-      }
-    }
     function updateCount() {
       var countEl = document.getElementById("mmd-find-count");
-      var input = document.getElementById("mmd-find-input");
+      var input = findInputElement();
       if (query2.length === 0 || input.classList.contains("mmd-find-error")) {
         countEl.textContent = "";
       } else {
@@ -15598,7 +15602,7 @@
       updateCount();
     }
     function run(suppressAutoHighlight) {
-      var input = document.getElementById("mmd-find-input");
+      var input = findInputElement();
       query2 = input.value;
       clearMarks();
       matches = [];
@@ -15650,7 +15654,7 @@
       document.getElementById("mmd-find-word").classList.toggle("active", options.wholeWord);
       document.getElementById("mmd-find-regex").classList.toggle("active", options.useRegex);
       var strings = window._mmdFindStrings || {};
-      var input = document.getElementById("mmd-find-input");
+      var input = findInputElement();
       if (strings.placeholder) {
         input.placeholder = strings.placeholder;
       }
@@ -15706,7 +15710,7 @@
     function open() {
       isOpenFlag = true;
       document.getElementById("mmd-find-bar").style.display = "flex";
-      var input = document.getElementById("mmd-find-input");
+      var input = findInputElement();
       input.value = query2;
       input.focus();
       input.select();
@@ -15761,7 +15765,7 @@
     _mmdFind.prev();
   }
 
-  // viewer-src/keyboard.js
+  // viewer-src/keyboard.ts
   var PAGE_SCROLL_RATIO = 0.9;
   var DEFAULT_LINE_SCROLL_STEP = 24;
   function pageScrollStep(clientHeight) {
@@ -15843,7 +15847,7 @@
     });
   }
 
-  // viewer-src/path-refs.js
+  // viewer-src/path-refs.ts
   function isLocalPathHref(href) {
     if (!href) {
       return false;
@@ -15851,13 +15855,13 @@
     if (href.charAt(0) === "#") {
       return false;
     }
-    var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
+    var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/u);
     if (m && m[1].indexOf(".") === -1) {
       return false;
     }
     return true;
   }
-  var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/g;
+  var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/gu;
   var _PATH_ANNOTATE_TAGS = ["p", "li", "td", "th", "blockquote", "dt", "dd", "code"];
   function _annotatePathRefs() {
     var wrap = document.getElementById("diagram-wrap");
@@ -15879,19 +15883,20 @@
     if (node.nodeType !== 1) {
       return;
     }
-    if (_isSkippedElement(node)) {
+    var el = node;
+    if (_isSkippedElement(el)) {
       return;
     }
-    var tag = node.tagName.toLowerCase();
+    var tag = el.tagName.toLowerCase();
     if (tag === "pre") {
-      _walkChildren(node, false);
+      _walkChildren(el, false);
       return;
     }
     if (allowed || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1) {
-      _annotateUnit(node);
+      _annotateUnit(el);
       return;
     }
-    _walkChildren(node, allowed);
+    _walkChildren(el, allowed);
   }
   function _walkChildren(node, allowed) {
     var children = Array.prototype.slice.call(node.childNodes);
@@ -15915,19 +15920,20 @@
       if (child.nodeType !== 1) {
         continue;
       }
-      if (_isSkippedElement(child)) {
+      var el = child;
+      if (_isSkippedElement(el)) {
         continue;
       }
-      var tag = child.tagName.toLowerCase();
+      var tag = el.tagName.toLowerCase();
       if (tag === "pre" || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1) {
-        _walkTextNodes(child, false);
+        _walkTextNodes(el, false);
         continue;
       }
-      _collectUnitTextNodes(child, out);
+      _collectUnitTextNodes(el, out);
     }
   }
   function _annotateTextNodes(nodes) {
-    if (!nodes.length) {
+    if (nodes.length === 0) {
       return;
     }
     var text3 = "";
@@ -15965,7 +15971,7 @@
       return;
     }
     for (var key in segments) {
-      _replaceWithSegments(nodes[key], segments[key]);
+      _replaceWithSegments(nodes[Number(key)], segments[Number(key)]);
     }
   }
   function _replaceWithSegments(node, segments) {
@@ -15975,17 +15981,17 @@
     for (var i = 0; i < segments.length; i++) {
       var seg = segments[i];
       if (seg.start > lastIndex) {
-        frag.appendChild(document.createTextNode(text3.slice(lastIndex, seg.start)));
+        frag.append(document.createTextNode(text3.slice(lastIndex, seg.start)));
       }
       var span = document.createElement("span");
       span.className = "befold-path-ref";
       span.dataset.path = seg.path;
       span.textContent = text3.slice(seg.start, seg.end);
-      frag.appendChild(span);
+      frag.append(span);
       lastIndex = seg.end;
     }
     if (lastIndex < text3.length) {
-      frag.appendChild(document.createTextNode(text3.slice(lastIndex)));
+      frag.append(document.createTextNode(text3.slice(lastIndex)));
     }
     node.parentNode.replaceChild(frag, node);
   }
@@ -16017,7 +16023,7 @@
       }
       targets.push({ el: s, raw: s.dataset.path });
     });
-    if (!targets.length) {
+    if (targets.length === 0) {
       return;
     }
     var uniq = /* @__PURE__ */ Object.create(null);
@@ -16056,7 +16062,7 @@
     }
   }
 
-  // viewer-src/reference-clicks.js
+  // viewer-src/reference-clicks.ts
   function _mmdReferenceTargetHref(e) {
     var anchor = e.target.closest("a");
     var pathRef = e.target.closest(".befold-path-ref");
@@ -16076,10 +16082,11 @@
       if (!href) return;
       if (href.charAt(0) === "#") {
         e.preventDefault();
+        var id;
         try {
-          var id = decodeURIComponent(href.slice(1));
-        } catch (_) {
-          var id = href.slice(1);
+          id = decodeURIComponent(href.slice(1));
+        } catch {
+          id = href.slice(1);
         }
         var el = document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
         if (el) el.scrollIntoView({ behavior: "smooth" });
@@ -23119,13 +23126,13 @@
   };
   var lib_default = MarkdownIt;
 
-  // viewer-src/markdown.js
+  // viewer-src/markdown.ts
   function isSafeLinkURL(url) {
     var str = String(url).trim().toLowerCase();
     if (str.startsWith("data:image/")) {
       return true;
     }
-    return !/^(vbscript|javascript|file|data):/.test(str);
+    return !/^(vbscript|javascript|file|data):/u.test(str);
   }
   function sanitizeRenderedHtml(purify2, html2) {
     return purify2.sanitize(html2);
@@ -23135,7 +23142,7 @@
       return "";
     }
     var children = inlineToken.children;
-    if (!children || !children.length) {
+    if (!children || children.length === 0) {
       return String(inlineToken.content || "");
     }
     var text3 = "";
@@ -23148,7 +23155,7 @@
     return text3;
   }
   function slugifyHeading(text3) {
-    return String(text3).trim().toLowerCase().replace(/[^\p{L}\p{N}\p{M}\p{Pc}\- ]/gu, "").replace(/ /g, "-");
+    return String(text3).trim().toLowerCase().replaceAll(/[^\p{L}\p{N}\p{M}\p{Pc}\- ]/gu, "").replaceAll(" ", "-");
   }
   function uniqueHeadingSlug(slug, used) {
     var base2 = slug || "section";
@@ -23212,7 +23219,7 @@
     return instance;
   }
 
-  // viewer-src/mermaid.js
+  // viewer-src/mermaid.ts
   function mermaidTheme(isDark) {
     return isDark ? "dark" : "default";
   }
@@ -23251,11 +23258,11 @@
     _mermaidLoadPromise = new Promise(function(resolve, reject) {
       var script = document.createElement("script");
       script.src = "mermaid.min.js";
-      script.onload = resolve;
-      script.onerror = function() {
+      script.addEventListener("load", resolve);
+      script.addEventListener("error", function() {
         reject(new Error("mermaid.min.js failed to load"));
-      };
-      document.head.appendChild(script);
+      });
+      document.head.append(script);
     }).then(function() {
       mermaid.initialize(_mmdMermaidConfig());
       mermaid.parseError = _mmdMermaidParseError;
@@ -23277,7 +23284,7 @@
       await _mmdEnsureMermaidLoaded();
       elements.forEach(function(el, i) {
         if (!onlyUnprocessed) {
-          el.removeAttribute("data-processed");
+          delete el.dataset.processed;
         }
         el.id = "mmd-" + i + "-" + Date.now();
       });
@@ -23287,7 +23294,7 @@
     _mmdWrapDiagrams(diagramWrap);
   }
 
-  // viewer-src/renderers.js
+  // viewer-src/renderers.ts
   var BODY_CLASSES = [
     "markdown-body",
     "code-body",
@@ -23296,8 +23303,7 @@
     "image-body",
     "pdf-body"
   ];
-  function _mmdSetBodyClasses(el) {
-    var keep = Array.prototype.slice.call(arguments, 1);
+  function _mmdSetBodyClasses(el, ...keep) {
     BODY_CLASSES.forEach(function(name) {
       el.classList.toggle(name, keep.indexOf(name) >= 0);
     });
@@ -23334,16 +23340,16 @@
     scroll.className = "diagram-zoom-scroll";
     var inner = document.createElement("div");
     inner.className = "diagram-zoom-inner";
-    inner.appendChild(img);
-    scroll.appendChild(inner);
-    wrap.appendChild(scroll);
-    wrap.appendChild(_mmdBuildDiagramControls(wrap));
+    inner.append(img);
+    scroll.append(inner);
+    wrap.append(scroll);
+    wrap.append(_mmdBuildDiagramControls(wrap));
     diagramWrap.innerHTML = "";
-    diagramWrap.appendChild(wrap);
-    img.onload = function() {
-      wrap.dataset.naturalHeight = inner.offsetHeight;
+    diagramWrap.append(wrap);
+    img.addEventListener("load", function() {
+      wrap.dataset.naturalHeight = String(inner.offsetHeight);
       _mmdApplyDiagramZoom(wrap);
-    };
+    });
   }
   function _renderHtml(diagramWrap, content) {
     diagramWrap.classList.add("html-body");
@@ -23352,17 +23358,17 @@
     iframe.srcdoc = content;
     iframe.style.width = "100%";
     iframe.style.border = "none";
-    iframe.onload = function() {
+    iframe.addEventListener("load", function() {
       try {
         var h = iframe.contentDocument.documentElement.scrollHeight;
         iframe.style.height = h + "px";
       } catch (e) {
         iframe.style.height = "80vh";
       }
-    };
+    });
     iframe.style.height = "80vh";
     diagramWrap.innerHTML = "";
-    diagramWrap.appendChild(iframe);
+    diagramWrap.append(iframe);
   }
   function _renderCsv(diagramWrap, content, lang) {
     diagramWrap.classList.add("markdown-body", "csv-body");
@@ -23372,19 +23378,19 @@
     diagramWrap.classList.add("image-body");
     var img = document.createElement("img");
     img.alt = "Image";
-    img.onload = function() {
+    img.addEventListener("load", function() {
       _mmdFitImage(img, diagramWrap);
-    };
+    });
     img.src = imageDataURI(content, lang);
     diagramWrap.innerHTML = "";
-    diagramWrap.appendChild(img);
+    diagramWrap.append(img);
   }
   function _renderPdf(diagramWrap, content) {
     diagramWrap.classList.add("pdf-body");
     var iframe = document.createElement("iframe");
     iframe.src = _mmdPdfBlob.issue(base64ToBytes(content));
     diagramWrap.innerHTML = "";
-    diagramWrap.appendChild(iframe);
+    diagramWrap.append(iframe);
   }
   function _renderMarkdown(diagramWrap, content) {
     diagramWrap.classList.add("markdown-body");
@@ -23427,7 +23433,7 @@
     }
   }
 
-  // viewer-src/render.js
+  // viewer-src/render.ts
   function renderShape(type, mode) {
     if (mode === "source" && type !== "code" && type !== "image" && type !== "pdf") {
       return type === "csv" ? "csv-source" : "code";
@@ -23492,10 +23498,11 @@
     _mmdRestoreScrollPosition(fallbackScrollTop);
   }
   function _mmdRerenderCurrent() {
-    if (!_mmdDocument.hasContent()) {
+    var content = _mmdDocument.content();
+    if (content === null) {
       return;
     }
-    render(_mmdDocument.content(), _mmdDocument.type(), _mmdDocument.lang());
+    void render(content, _mmdDocument.type(), _mmdDocument.lang());
   }
   function appendChunk(text3, type, lang) {
     if (!text3) {
@@ -23505,7 +23512,8 @@
     if (!diagramWrap) {
       return;
     }
-    var highlightContext = _mmdChunkTail.endedWithNewline() && _mmdDocument.content() ? lastLines(_mmdDocument.content(), CODE_CHUNK_CONTEXT_LINES) : "";
+    var previousContent = _mmdDocument.content();
+    var highlightContext = _mmdChunkTail.endedWithNewline() && previousContent ? lastLines(previousContent, CODE_CHUNK_CONTEXT_LINES) : "";
     _mmdDocument.append(text3);
     if (_mmdRenderedAs === "diff") {
       return;
@@ -23513,7 +23521,7 @@
     if (_mmdRenderedAs === "markdown") {
       diagramWrap.insertAdjacentHTML("beforeend", markdownRenderer().render(text3));
       _annotatePathRefs();
-      _mmdRunMermaid(diagramWrap, true);
+      void _mmdRunMermaid(diagramWrap, true);
     } else if (_mmdRenderedAs === "csv-table") {
       var csvRows = parseCsv(text3, lang || ",");
       var tbody = diagramWrap.querySelector("tbody");
@@ -23525,8 +23533,9 @@
       var minCols = headRow ? headRow.cells.length : 0;
       var maxNewCols = 0;
       for (var r = 0; r < csvRows.length; r++) {
-        if (csvRows[r].length > maxNewCols) {
-          maxNewCols = csvRows[r].length;
+        var csvRow = csvRows[r];
+        if (csvRow.length > maxNewCols) {
+          maxNewCols = csvRow.length;
         }
       }
       if (maxNewCols > minCols && headRow) {
@@ -23626,7 +23635,7 @@
     });
   }
 
-  // viewer-src/init.js
+  // viewer-src/init.ts
   function _mmdInitColorScheme() {
     onColorSchemeChange(function() {
       _mmdReinitializeMermaidIfLoaded();
@@ -23648,7 +23657,7 @@
     _mmdInitFind();
   }
 
-  // viewer-src/index.js
+  // viewer-src/index.ts
   exposeGlobals(main_exports);
   _mmdInit();
 })();
