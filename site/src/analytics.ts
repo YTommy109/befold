@@ -261,22 +261,66 @@ export type KindBreakdown = {
   byAsOrg: Count[]
 }
 
-export type Summary = {
+/**
+ * ダッシュボードの面の識別子。**これが唯一の定義元。**
+ *
+ * ルートの生成・面ごとの集計・ナビゲーション・クエリ本数の上限テストは
+ * すべてここから導く。面を別々に書き写すと、レジストリに載っていない面が
+ * 上限テストの列挙から漏れ、「面を増やせば上限を回避できる」形に戻る。
+ * 実行時に配列が要るので型ではなく値で持つ（`Record<DashboardPageKey, ...>` の
+ * 網羅は型で検査される）。
+ */
+export const DASHBOARD_PAGE_KEYS = ['overview', 'users', 'traffic', 'delivery'] as const
+
+export type DashboardPageKey = (typeof DASHBOARD_PAGE_KEYS)[number]
+
+/** 面の定義。path はダッシュボードのルート配下の相対パス。 */
+export type DashboardPage = { key: DashboardPageKey; path: string; title: string }
+
+/**
+ * 面の一覧。ルート生成・ナビゲーション・テストの列挙がこの配列を共有する。
+ *
+ * 概要面だけが SSE でライブ更新される。他の面は分析用のスナップショットで、
+ * 更新されているように読ませないため SSE の状態表示も出さない。
+ */
+export const DASHBOARD_PAGES: readonly DashboardPage[] = [
+  { key: 'overview', path: '/', title: '概要' },
+  { key: 'users', path: '/users', title: '利用者' },
+  { key: 'traffic', path: '/traffic', title: '流入' },
+  { key: 'delivery', path: '/delivery', title: '配信' },
+]
+
+/** 概要面: 全期間と当日の総数、日毎の推移、最新イベント。 */
+export type OverviewSummary = {
   windowDays: number
   cumulative: CumulativeTotals
   today: TodayTotals
   daily: DailyPoint[]
+  recent: RecentEvent[]
+}
+
+/** 利用者面: 母集団別の日次ユニーク、稼働バージョン、時間帯分布。 */
+export type UsersSummary = {
+  windowDays: number
+  daily: DailyPoint[]
   hourly: HourlyPoint[]
+  runningVersions: RunningVersions
+}
+
+/** 流入面: どこから来て何をしたか。全期間の累計で見る。 */
+export type TrafficSummary = {
   byVersion: Count[]
   byCountry: Count[]
   byReferrer: Count[]
   traffic: TrafficSplit
   visits: VisitBreakdowns
-  runningVersions: RunningVersions
+  perKind: KindBreakdown[]
+}
+
+/** 配信面: 配布ホストと旧経路・フォールバック。 */
+export type DeliverySummary = {
   hosts: Split[]
   fallbacks: Split[]
-  perKind: KindBreakdown[]
-  recent: RecentEvent[]
 }
 
 /** 指標として並べる順序と表示名。ページ表示・集計の双方でこの順を使う。 */
@@ -881,59 +925,71 @@ async function kindBreakdowns(db: D1Database): Promise<Omit<KindBreakdown, 'tota
 }
 
 /** ダッシュボード初期表示用の集計一式。 */
-export async function summarize(db: D1Database, now: number): Promise<Summary> {
-  const [
-    cumulative,
-    today,
-    daily,
-    hourly,
-    byVersion,
-    byCountry,
-    byReferrer,
-    traffic,
-    breakdowns,
-    recent,
-    breakdownAxes,
-    runningVersions,
-  ] = await Promise.all([
+/**
+ * 概要面の集計（4 クエリ）。
+ *
+ * SSE の再描画もこれを使う。面を分ける前は 13 クエリすべてを引き直していた。
+ */
+export async function summarizeOverview(db: D1Database, now: number): Promise<OverviewSummary> {
+  const [cumulative, today, daily, recent] = await Promise.all([
     cumulativeTotals(db),
     todayTotals(db, now),
     dailySeries(db, now),
-    hourlyDistribution(db, now),
-    breakdown(db, 'version', 'download'),
-    breakdown(db, 'country'),
-    breakdown(db, 'referrer'),
-    // ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を
-    // 実測するために持つ。TASK-360 で見送った llms.txt の要否判断に使う。
-    // データセンター区分の内訳は接続元組織で、除外した量が画面から
-    // 消えないようにするためのもの（ADR 0008）。
-    trafficSplit(db),
-    kindBreakdowns(db),
     recentEvents(db),
-    eventBreakdowns(db),
+  ])
+
+  return { windowDays: DAILY_WINDOW_DAYS, cumulative, today, daily, recent }
+}
+
+/** 利用者面の集計（3 クエリ）。 */
+export async function summarizeUsers(db: D1Database, now: number): Promise<UsersSummary> {
+  const [daily, hourly, runningVersions] = await Promise.all([
+    dailySeries(db, now),
+    hourlyDistribution(db, now),
     runningVersionBreakdown(db, now),
   ])
 
+  return { windowDays: DAILY_WINDOW_DAYS, daily, hourly, runningVersions }
+}
+
+/**
+ * 流入面の集計（8 クエリ）。
+ *
+ * `perKind` の総数は全期間の累計から取るため、この面も cumulativeTotals を引く。
+ * ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を実測する
+ * ために持つ。TASK-360 で見送った llms.txt の要否判断に使う。データセンター
+ * 区分の内訳は接続元組織で、除外した量が画面から消えないようにするもの（ADR 0008）。
+ */
+export async function summarizeTraffic(db: D1Database): Promise<TrafficSummary> {
+  const [cumulative, byVersion, byCountry, byReferrer, traffic, breakdowns, breakdownAxes] =
+    await Promise.all([
+      cumulativeTotals(db),
+      breakdown(db, 'version', 'download'),
+      breakdown(db, 'country'),
+      breakdown(db, 'referrer'),
+      trafficSplit(db),
+      kindBreakdowns(db),
+      eventBreakdowns(db),
+    ])
+
   return {
-    windowDays: DAILY_WINDOW_DAYS,
-    cumulative,
-    today,
-    daily,
-    hourly,
     byVersion,
     byCountry,
     byReferrer,
     traffic,
     visits: breakdownAxes.visits,
-    runningVersions,
-    hosts: breakdownAxes.byHost,
-    fallbacks: breakdownAxes.byFallback,
     // 要素数は指標の数（KIND_LABELS）に固定で、ここでの spread が効いてくる規模に
     // ならない。Object.assign へ書き換えると読みにくくなるだけなので許す。
     // oxlint-disable-next-line oxc/no-map-spread
     perKind: breakdowns.map((entry) => ({ ...entry, total: cumulative.counts[entry.kind] })),
-    recent,
   }
+}
+
+/** 配信面の集計（1 クエリ）。 */
+export async function summarizeDelivery(db: D1Database): Promise<DeliverySummary> {
+  const breakdownAxes = await eventBreakdowns(db)
+
+  return { hosts: breakdownAxes.byHost, fallbacks: breakdownAxes.byFallback }
 }
 
 /**

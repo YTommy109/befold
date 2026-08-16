@@ -5,7 +5,10 @@ import {
   cumulativeTotals,
   dailySeries,
   hourlyDistribution,
-  summarize,
+  summarizeDelivery,
+  summarizeOverview,
+  summarizeTraffic,
+  summarizeUsers,
   todayTotals,
   eventsAfter,
   recentEvents,
@@ -18,6 +21,24 @@ import {
   RUNNING_VERSION_LABELS,
   TOP_N,
 } from '../src/analytics'
+
+/**
+ * 面ごとに分かれた集計をまとめて 1 つのオブジェクトにする（テスト専用）。
+ *
+ * ここで検証したいのは集計 SQL の振る舞いであって、どの面にどの指標が載るかでは
+ * ない。面の割り当ては `test/query-count.test.ts`（本数）と
+ * `test/dashboard.test.ts`（表示）が担保する。
+ */
+async function summarizeAll(db: D1Database, now: number) {
+  const [overview, users, traffic, delivery] = await Promise.all([
+    summarizeOverview(db, now),
+    summarizeUsers(db, now),
+    summarizeTraffic(db),
+    summarizeDelivery(db),
+  ])
+
+  return { ...overview, ...users, ...traffic, ...delivery }
+}
 import { CANONICAL_HOST, LEGACY_HOST, RECORDED_HOSTS } from '../src/lib/hosts'
 import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import { DATACENTER_ORG_PATTERNS, datacenterOrgMatch, isDatacenterOrg } from '../src/lib/network'
@@ -87,7 +108,7 @@ describe('稼働中のアプリバージョン', () => {
       visitorToken: 'visitor-b',
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 2 }])
   })
@@ -106,7 +127,7 @@ describe('稼働中のアプリバージョン', () => {
       visitorToken: 'visitor-b',
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 1 }])
     expect(summary.runningVersions.develop).toEqual([{ label: '1.13.2-dev.4', count: 1 }])
@@ -119,7 +140,7 @@ describe('稼働中のアプリバージョン', () => {
       channel: null,
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.unrecorded).toEqual([{ label: '1.12.0', count: 1 }])
   })
@@ -136,7 +157,7 @@ describe('稼働中のアプリバージョン', () => {
       visitorToken: 'visitor-a',
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 1 }])
   })
@@ -148,7 +169,7 @@ describe('稼働中のアプリバージョン', () => {
       uaSummary: 'curl',
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toEqual([])
   })
@@ -167,13 +188,13 @@ describe('稼働中のアプリバージョン', () => {
       asOrg: DATACENTER_ORG_PATTERNS[0],
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toEqual([])
   })
 
   it('0 件のチャネルも表そのものは残す（未計測と 0 件を混同させない）', async () => {
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     for (const { key } of RUNNING_VERSION_LABELS) {
       expect(summary.runningVersions[key]).toEqual([])
@@ -192,7 +213,7 @@ describe('稼働中のアプリバージョン', () => {
       }
     }
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toHaveLength(TOP_N)
     expect(summary.runningVersions.stable[0]?.label).toBe(`1.0.${TOP_N + 2}`)
@@ -331,7 +352,7 @@ describe('summarize', () => {
     await insert(jst('2026-08-08 10:01'), 'visit', 'visitor-c', 'Chrome')
     await insert(jst('2026-08-07 10:00'), 'download', 'visitor-b', 'Safari')
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.windowDays).toBe(14)
     expect(summary.cumulative.counts.visit).toBe(1)
@@ -423,7 +444,7 @@ describe('人間の訪問と自動アクセスの分離', () => {
     await insertOrg(jst('2026-08-01 10:00'), 'Chrome', 'Amazon Technologies Inc.')
     await insertOrg(jst('2026-08-08 10:00'), 'Chrome', 'ARTERIA Networks Corp.')
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.cumulative.counts.visit).toBe(1)
     expect(summary.recent).toHaveLength(1)
@@ -483,7 +504,7 @@ describe('集計からのロボット除外', () => {
     await insertFull(jst('2026-08-08 11:00'), 'visit', 'Safari', HUMAN)
     await insertFull(jst('2026-08-08 11:01'), 'download', 'Safari', HUMAN)
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
     const today = summary.daily.at(-1)
 
     expect(summary.cumulative.counts.visit).toBe(1)
@@ -509,7 +530,7 @@ describe('集計からのロボット除外', () => {
     await insert(jst('2026-08-08 10:00'), 'visit', 'visitor-null', null)
     await insert(jst('2026-08-08 10:01'), 'visit', 'visitor-legacy', 'other')
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.cumulative.counts.visit).toBe(2)
     expect(summary.today.counts.visit).toBe(2)
@@ -604,7 +625,7 @@ describe('ダウンロード経路の分離', () => {
       .bind(NOW, 'macOS 15.0', 'UpdateNet', 'sparkle')
       .run()
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
     const lp = summary.perKind.find((entry) => entry.kind === 'download')
     const sparkle = summary.perKind.find((entry) => entry.kind === 'update_download')
 
@@ -623,7 +644,7 @@ describe('ダウンロード経路の分離', () => {
         .run()
     }
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.perKind.find((entry) => entry.kind === 'visit')?.byOS).toHaveLength(10)
   })
@@ -632,7 +653,7 @@ describe('ダウンロード経路の分離', () => {
     await insertDownload('lp', 'v1.2.3')
     await insertDownload('sparkle', 'v1.2.4')
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.byVersion).toEqual([{ label: 'v1.2.3', count: 1 }])
   })
@@ -656,7 +677,7 @@ describe('ページの分離', () => {
     await insertVisit('/features')
     await insertVisit('/features')
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.cumulative.counts.visit).toBe(1)
     expect(summary.today.counts.visit).toBe(1)

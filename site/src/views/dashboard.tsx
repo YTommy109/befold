@@ -1,8 +1,24 @@
 import { html, raw } from 'hono/html'
 import type { FC } from 'hono/jsx'
 
-import type { Count, Split, Summary } from '../analytics'
-import { RUNNING_VERSION_LABELS, TOP_N, UNIQUE_SOURCE_LABELS, UNRECORDED_LABEL } from '../analytics'
+import type {
+  Count,
+  DashboardPage,
+  DashboardPageKey,
+  DeliverySummary,
+  OverviewSummary,
+  Split,
+  TrafficSummary,
+  UsersSummary,
+} from '../analytics'
+import {
+  DASHBOARD_PAGES,
+  KIND_LABELS,
+  RUNNING_VERSION_LABELS,
+  TOP_N,
+  UNIQUE_SOURCE_LABELS,
+  UNRECORDED_LABEL,
+} from '../analytics'
 import { LEGACY_HOST } from '../lib/hosts'
 import { formatJst } from '../lib/jst'
 
@@ -39,6 +55,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-se
   margin: 0 auto; max-width: 76rem; padding: 2rem 1rem; line-height: 1.6; }
 h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
 .status { font-size: 0.85rem; opacity: 0.7; margin-bottom: 1.5rem; }
+.nav { display: flex; flex-wrap: wrap; gap: 1rem; margin: 0.5rem 0 1rem; font-size: 0.95rem; }
+.nav a { color: inherit; }
+.nav-current { font-weight: 600; text-decoration: underline; text-underline-offset: 0.3rem; }
 .totals { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   margin-bottom: 2rem; }
 .card { border: 1px solid rgba(128,128,128,0.3); border-radius: 0.5rem; padding: 1rem; }
@@ -340,7 +359,13 @@ const Cards: FC<{ cards: { value: number; label: string; id?: string }[] }> = ({
  * 初期レンダリングと SSE 配信の両方がこれを使う。JST 基準の明示など
  * 毎周期送り直す必要のない静的テキストは、この外（ヘッダー）に置く。
  */
-export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
+/**
+ * 概要面のセクション。全期間と当日の総数、日毎の推移、最新イベント。
+ *
+ * 初期レンダリングと SSE 配信の両方がこれを使う。JST 基準の明示など
+ * 毎周期送り直す必要のない静的テキストは、この外（ヘッダー）に置く。
+ */
+export const OverviewSections: FC<{ summary: OverviewSummary }> = ({ summary }) => {
   const windowLabel = `直近 ${summary.windowDays} 日`
 
   return (
@@ -349,8 +374,8 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
         <h2>累計（全期間）</h2>
         <Cards
           cards={[
-            ...summary.perKind.map((entry) => ({
-              value: entry.total,
+            ...KIND_LABELS.map((entry) => ({
+              value: summary.cumulative.counts[entry.kind],
               label: entry.label,
               id: `count-${entry.kind}`,
             })),
@@ -366,7 +391,7 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
         <h2>本日（JST 0 時から）</h2>
         <Cards
           cards={[
-            ...summary.perKind.map((entry) => ({
+            ...KIND_LABELS.map((entry) => ({
               value: summary.today.counts[entry.kind],
               label: entry.label,
               id: `today-${entry.kind}`,
@@ -381,7 +406,7 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
         <SeriesChart
           title={`日毎の推移（${windowLabel}）`}
           labels={summary.daily.map((point) => point.day.slice(5))}
-          series={summary.perKind.map((entry) => ({
+          series={KIND_LABELS.map((entry) => ({
             label: entry.label,
             unit: '件',
             values: summary.daily.map((point) => point.counts[entry.kind]),
@@ -389,6 +414,47 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
         />
       </section>
 
+      <section class="block">
+        <h2>最新イベント（直近 20 件）</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>時刻 (JST)</th>
+              <th>種別</th>
+              <th>バージョン</th>
+              <th>国</th>
+              <th>OS</th>
+              <th>ページ</th>
+            </tr>
+          </thead>
+          <tbody id="recent-body">
+            {summary.recent.map((event) => (
+              <tr>
+                <td>{formatJst(event.timestamp)}</td>
+                <td>{event.kind}</td>
+                <td>{event.version ?? ''}</td>
+                <td>{event.country ?? ''}</td>
+                <td>{event.os ?? ''}</td>
+                {/* visit 以外の kind は元々ページを持たないので空欄にする。
+                    ここで '/' を補うと、ダウンロードが LP の訪問に見える。 */}
+                <td>{event.page ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </>
+  )
+}
+
+/**
+ * 利用者面のセクション。日別のユニークアクセス元、時間帯分布、稼働バージョン。
+ */
+export const UsersSections: FC<{ summary: UsersSummary }> = ({ summary }) => {
+  const windowLabel = `直近 ${summary.windowDays} 日`
+
+  return (
+    <>
       <section class="block">
         <h2>日別のユニークアクセス元（{windowLabel}）</h2>
         <p class="note">
@@ -424,25 +490,12 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
         <SeriesChart
           title={`時間帯分布（${windowLabel}・JST）`}
           labels={summary.hourly.map((point) => String(point.hour).padStart(2, '0'))}
-          series={summary.perKind.map((entry) => ({
+          series={KIND_LABELS.map((entry) => ({
             label: entry.label,
             unit: '件',
             values: summary.hourly.map((point) => point.counts[entry.kind]),
           }))}
         />
-      </section>
-
-      <section class="block">
-        <h2>内訳（全期間の累計）</h2>
-        <div class="grid">
-          <CountTable title="バージョン別ダウンロード" rows={summary.byVersion} />
-          <CountTable title="国別" rows={summary.byCountry} />
-          <CountTable title="参照元別" rows={summary.byReferrer} />
-          {summary.perKind.map((entry) => [
-            <CountTable title={`${entry.label}: OS 別`} rows={entry.byOS} />,
-            <CountTable title={`${entry.label}: 接続元組織別`} rows={entry.byAsOrg} />,
-          ])}
-        </div>
       </section>
 
       <section class="block">
@@ -462,7 +515,7 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
           {TOP_N} 件まで。
         </p>
         <p class="note">
-          下の「バージョン別ダウンロード」とは別物。あちらは
+          流入面の「バージョン別ダウンロード」とは別物。あちらは
           <strong>どのタグを取りに来たか</strong>（更新先）で、こちらは
           <strong>今どのバージョンが動いているか</strong>（更新元）。 稼働バージョンの記録は{' '}
           {APP_VERSION_COLUMN_START} に始めたもので、それより前の
@@ -473,6 +526,30 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
           {RUNNING_VERSION_LABELS.map(({ key, label }) => (
             <CountTable title={`${label}: 稼働バージョン別`} rows={summary.runningVersions[key]} />
           ))}
+        </div>
+      </section>
+    </>
+  )
+}
+
+/**
+ * 流入面のセクション。内訳・ページ別・言語別・人間と自動アクセス。
+ *
+ * すべて全期間の累計で見るため窓の表示は持たない。
+ */
+export const TrafficSections: FC<{ summary: TrafficSummary }> = ({ summary }) => {
+  return (
+    <>
+      <section class="block">
+        <h2>内訳（全期間の累計）</h2>
+        <div class="grid">
+          <CountTable title="バージョン別ダウンロード" rows={summary.byVersion} />
+          <CountTable title="国別" rows={summary.byCountry} />
+          <CountTable title="参照元別" rows={summary.byReferrer} />
+          {summary.perKind.map((entry) => [
+            <CountTable title={`${entry.label}: OS 別`} rows={entry.byOS} />,
+            <CountTable title={`${entry.label}: 接続元組織別`} rows={entry.byAsOrg} />,
+          ])}
         </div>
       </section>
 
@@ -526,33 +603,6 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
       </section>
 
       <section class="block">
-        <h2>配布ホストと旧経路（全期間の累計）</h2>
-        <p class="note">
-          旧ホスト（{LEGACY_HOST}）と GitHub へのフォールバックを止めてよいかの判断材料 （ADR
-          0007）。ホスト別は kind を問わない全イベントが対象で、0 件のホストも 行として残す（「まだ
-          0」と「計測していない」を区別するため）。 ホスト列の導入前（{HOST_COLUMN_START}
-          ）に記録された行は、どのホストで応答したかを 復元できないので「{UNRECORDED_LABEL}
-          」に入る。
-        </p>
-        <p class="note">
-          旧ホストの HTML ページ（LP・機能紹介）は正規ホストへ 301 で送るため、 その到達は visit
-          ではなく「旧ホストからの 301」として数える（301 を追った先で 正規ホスト側の visit
-          も記録されるので、visit にすると二重に数えられる）。
-          機械向けの経路（appcast・/dl/・/download）は 301 せず素通しなので、旧ホストの
-          ままホスト別に出る。旧ホストの静的アセットと /healthz は元々記録していない。
-        </p>
-        <p class="note">
-          GitHub フォールバックは R2 に目的のオブジェクトが無かった回数。ここが 0 でない うちは
-          GitHub 側の経路を止められない。appcast の行だけは caches.default（300
-          秒）に当たった周期を数えられないため、実際より小さく出る。
-        </p>
-        <div class="grid">
-          <SplitTable title="リクエスト先ホスト別" rows={summary.hosts} />
-          <SplitTable title="GitHub フォールバックの経路別" rows={summary.fallbacks} />
-        </div>
-      </section>
-
-      <section class="block">
         <h2>人間の訪問と自動アクセス（全期間の累計）</h2>
         <Cards
           cards={[
@@ -595,69 +645,114 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
           />
         </div>
       </section>
+    </>
+  )
+}
 
+/**
+ * 配信面のセクション。配布ホストと旧経路のフォールバック。
+ */
+export const DeliverySections: FC<{ summary: DeliverySummary }> = ({ summary }) => {
+  return (
+    <>
       <section class="block">
-        <h2>最新イベント（直近 20 件）</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>時刻 (JST)</th>
-              <th>種別</th>
-              <th>バージョン</th>
-              <th>国</th>
-              <th>OS</th>
-              <th>ページ</th>
-            </tr>
-          </thead>
-          <tbody id="recent-body">
-            {summary.recent.map((event) => (
-              <tr>
-                <td>{formatJst(event.timestamp)}</td>
-                <td>{event.kind}</td>
-                <td>{event.version ?? ''}</td>
-                <td>{event.country ?? ''}</td>
-                <td>{event.os ?? ''}</td>
-                {/* visit 以外の kind は元々ページを持たないので空欄にする。
-                    ここで '/' を補うと、ダウンロードが LP の訪問に見える。 */}
-                <td>{event.page ?? ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <h2>配布ホストと旧経路（全期間の累計）</h2>
+        <p class="note">
+          旧ホスト（{LEGACY_HOST}）と GitHub へのフォールバックを止めてよいかの判断材料 （ADR
+          0007）。ホスト別は kind を問わない全イベントが対象で、0 件のホストも 行として残す（「まだ
+          0」と「計測していない」を区別するため）。 ホスト列の導入前（{HOST_COLUMN_START}
+          ）に記録された行は、どのホストで応答したかを 復元できないので「{UNRECORDED_LABEL}
+          」に入る。
+        </p>
+        <p class="note">
+          旧ホストの HTML ページ（LP・機能紹介）は正規ホストへ 301 で送るため、 その到達は visit
+          ではなく「旧ホストからの 301」として数える（301 を追った先で 正規ホスト側の visit
+          も記録されるので、visit にすると二重に数えられる）。
+          機械向けの経路（appcast・/dl/・/download）は 301 せず素通しなので、旧ホストの
+          ままホスト別に出る。旧ホストの静的アセットと /healthz は元々記録していない。
+        </p>
+        <p class="note">
+          GitHub フォールバックは R2 に目的のオブジェクトが無かった回数。ここが 0 でない うちは
+          GitHub 側の経路を止められない。appcast の行だけは caches.default（300
+          秒）に当たった周期を数えられないため、実際より小さく出る。
+        </p>
+        <div class="grid">
+          <SplitTable title="リクエスト先ホスト別" rows={summary.hosts} />
+          <SplitTable title="GitHub フォールバックの経路別" rows={summary.fallbacks} />
+        </div>
       </section>
     </>
   )
 }
 
-/** 集計セクションを HTML 文字列にする（SSE 配信用）。 */
-export const renderSummarySections = (summary: Summary): string =>
-  (<SummarySections summary={summary} />).toString()
+/** 集計セクションを HTML 文字列にする（SSE 配信用。概要面だけがライブ更新される）。 */
+export const renderOverviewSections = (summary: OverviewSummary): string =>
+  (<OverviewSections summary={summary} />).toString()
 
-/** 所有者だけが見る分析ダッシュボード（Cloudflare Access の背後）。 */
-export const Dashboard: FC<{ summary: Summary; lastId: number }> = ({ summary, lastId }) => (
+/**
+ * 面をまたぐ導線。`DASHBOARD_PAGES` から引くので、面を足しても書き写す場所が増えない。
+ *
+ * `base` はダッシュボードのルート（`/dashboard`）。面の `path` はその配下の相対パス。
+ */
+const Nav: FC<{ current: DashboardPageKey }> = ({ current }) => (
+  <nav class="nav">
+    {DASHBOARD_PAGES.map((page) => {
+      const href = page.path === '/' ? '/dashboard' : `/dashboard${page.path}`
+      return page.key === current ? (
+        <span class="nav-current" aria-current="page">
+          {page.title}
+        </span>
+      ) : (
+        <a href={href}>{page.title}</a>
+      )
+    })}
+  </nav>
+)
+
+/**
+ * 面に共通の外枠（Cloudflare Access の背後）。
+ *
+ * `lastId` を渡した面だけが SSE に接続する。渡さない面ではストリーム用の
+ * スクリプトも状態表示も出さない。出すと「更新され続けている」と読めてしまい、
+ * 実際には静止しているスナップショットとの区別が付かなくなる。
+ */
+export const DashboardPageShell: FC<{
+  page: DashboardPage
+  windowDays?: number
+  lastId?: number
+  children?: unknown
+}> = ({ page, windowDays, lastId, children }) => (
   <html lang="ja">
     <head>
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>befold analytics</title>
+      <title>befold analytics · {page.title}</title>
       {html`<style>
         ${raw(STYLE)}
       </style>`}
     </head>
-    <body data-last-id={String(lastId)}>
+    <body {...(lastId === undefined ? {} : { 'data-last-id': String(lastId) })}>
       <h1>befold analytics</h1>
+      <Nav current={page.key} />
       <p class="status">
-        SSE: <span id="stream-status">connecting…</span> · 日付・時刻はすべて JST (UTC+9) 基準 ·
-        期間は固定（累計 / 本日 / 直近 {summary.windowDays} 日）
+        {lastId === undefined ? (
+          <>この面は開いた時点のスナップショット（自動更新しない）</>
+        ) : (
+          <>
+            SSE: <span id="stream-status">connecting…</span>
+          </>
+        )}{' '}
+        · 日付・時刻はすべて JST (UTC+9) 基準
+        {windowDays === undefined ? '' : ` · 期間は直近 ${windowDays} 日`}
       </p>
 
-      <div id="summary">
-        <SummarySections summary={summary} />
-      </div>
+      <div id="summary">{children}</div>
 
-      {html`<script>
-        ${raw(STREAM_SCRIPT)}
-      </script>`}
+      {lastId === undefined
+        ? ''
+        : html`<script>
+            ${raw(STREAM_SCRIPT)}
+          </script>`}
     </body>
   </html>
 )
