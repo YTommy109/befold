@@ -8,18 +8,11 @@ import AppKit
 @MainActor
 enum MenuShortcutCatalog {
     /// ショートカット 1 件。title はメニュー項目の表示名(ローカライズ済み)。
-    struct Entry: Identifiable {
-        let id = UUID()
-        let title: String
-        let key: String
-    }
+    /// 表示の器は非メニュー由来の一覧と共通(TASK-503)。
+    typealias Entry = ShortcutEntry
 
     /// トップレベルメニュー 1 つ分のまとまり。
-    struct Group: Identifiable {
-        let id = UUID()
-        let title: String
-        let entries: [Entry]
-    }
+    typealias Group = ShortcutSection
 
     /// AppDelegate が起動時に記録する、Help の一覧表示用スナップショット。
     ///
@@ -47,13 +40,8 @@ enum MenuShortcutCatalog {
     }
 
     /// メニュー項目のキー等価を ⌃⌥⇧⌘ の標準順で表記する(例: ⇧⌘Z)。
+    /// 並び順の規則は `ShortcutKey` が持つ(非メニュー由来の項目と同じ表記にするため)。
     static func keyDisplay(of item: NSMenuItem) -> String {
-        let modifiers = item.keyEquivalentModifierMask
-        var symbols = ""
-        if modifiers.contains(.control) { symbols += "⌃" }
-        if modifiers.contains(.option) { symbols += "⌥" }
-        if modifiers.contains(.shift) { symbols += "⇧" }
-        if modifiers.contains(.command) { symbols += "⌘" }
-        return symbols + item.keyEquivalent.uppercased()
+        ShortcutKey(menuItem: item).displayName
     }
 }

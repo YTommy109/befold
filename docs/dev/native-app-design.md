@@ -125,6 +125,7 @@ BefoldApp/
 | `AppUpdaterController` | Sparkle アップデータの保持・起動と、チャンネル別 appcast フィード URL の供給（`SPUUpdaterDelegate` 準拠。詳細は「自動アップデート」節） |
 | `DocumentController` | `NSDocumentController` のサブクラス。Recent Documents からのオープンを `AppDelegate` に委譲 |
 | `MainMenuBuilder` | メインメニューをコードで構築 |
+| `MenuShortcutCatalog` / `HelpShortcutSections` | Help > キーボードショートカット に並べる一覧の組み立て。メニュー由来は `NSMenu` から抽出し、メニューを経由しない操作は `ViewerShortcutCatalog` / `SidebarShortcutCatalog` / `QuickOpenShortcutCatalog` から引く。キー表記の組み立ては `ShortcutKey` に集約し、一覧と実装のずれは各カタログの突合テストで落とす |
 | `RecentDocumentsStore` / `RecentDocumentsMenuController` | 最近使ったファイルを UserDefaults に自前で永続化しメニュー描画（ad-hoc 署名では OS 標準の Recent Documents が更新のたびにリセットされるため） |
 | `SessionStore` | 終了時のウィンドウ/タブグループ構成（`SessionLayout`）の型 |
 | `ScrollPositionStore` | ファイルごとのスクロール位置を永続化（レンダリング/ソース表示を別々に保存） |
@@ -217,6 +218,12 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   トラックパッドスワイプ（`SwipeHistoryNavigation`）に対応
 - **エラーパネル**: `mermaid.parseError` で構文エラーの詳細メッセージを赤ボーダー・等幅フォントのパネルに表示
 - **削除バナー**: ファイル削除時にグレーバナー＋背景色変更
+- **キーボードショートカット一覧**: Help のパネルは実装から生成する（表をビューに持たない）。
+  メニュー由来はメニュー定義、ビューア内スクロールは `viewer-src/keyboard.js`、サイドバーは
+  `SidebarKeyAction`、Quick Open は `QuickOpenKeyAction` が情報源。一覧と実装のずれは
+  双方向のテスト（載せたキーが実際に動く／動くキーは必ず載っている）と、
+  JS 側は Swift のカタログをパースする jest テストで検出する。
+  マウス・トラックパッド操作はこのパネルには載せない
 - **サイドバー**: フォルダ/ファイル一覧、不可視ファイル表示トグル、ソート順、新規タブ / 新規ウィンドウで開く操作を提供。
   ファイル行はビューア内リンクと同じ `OpenDisposition` の対応表で開き分ける:
   ⌘クリック / ⌘Return は新規タブ、⌘⇧クリック / ⌘⇧Return は新規ウィンドウ

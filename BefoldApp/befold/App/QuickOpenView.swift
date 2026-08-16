@@ -21,6 +21,30 @@ struct QuickOpenView: View {
         .onAppear { isFieldFocused = true }
     }
 
+    private func handle(_ key: KeyEquivalent) -> KeyPress.Result {
+        guard QuickOpenKeyAction.action(for: key) != nil else { return .ignored }
+        perform(key)
+        return .handled
+    }
+
+    private func perform(_ key: KeyEquivalent) {
+        switch QuickOpenKeyAction.action(for: key) {
+        case let .moveSelection(offset):
+            model.moveSelection(by: offset)
+        case .completePath:
+            Task { await model.completePath() }
+        case .commit:
+            // パネルを閉じるのは決定経路(onOpen 内の dismiss)だけに一本化する。
+            // ここで無条件に閉じると、開ける対象が無い Enter でもパネルが黙って
+            // 消えてしまう。開けたときは onOpen が畳んでから開く。
+            Task { await model.commitSelection() }
+        case .dismiss:
+            onDismiss()
+        case nil:
+            break
+        }
+    }
+
     private var queryField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
@@ -32,28 +56,13 @@ struct QuickOpenView: View {
             .textFieldStyle(.plain)
             .font(.system(size: 20))
             .focused($isFieldFocused)
-            .onSubmit {
-                // パネルを閉じるのは決定経路(onOpen 内の dismiss)だけに一本化する。
-                // ここで無条件に閉じると、開ける対象が無い Enter でもパネルが黙って
-                // 消えてしまう。開けたときは onOpen が畳んでから開く。
-                Task { await model.commitSelection() }
-            }
-            .onKeyPress(.upArrow) {
-                model.moveSelection(by: -1)
-                return .handled
-            }
-            .onKeyPress(.downArrow) {
-                model.moveSelection(by: 1)
-                return .handled
-            }
-            .onKeyPress(.tab) {
-                Task { await model.completePath() }
-                return .handled
-            }
-            .onKeyPress(.escape) {
-                onDismiss()
-                return .handled
-            }
+            // キーと動作の対応は QuickOpenKeyAction が持つ。ここに直接書くと
+            // Help > キーボードショートカット に載せる情報源が無くなる(TASK-503)。
+            .onSubmit { perform(.return) }
+            .onKeyPress(.upArrow) { handle(.upArrow) }
+            .onKeyPress(.downArrow) { handle(.downArrow) }
+            .onKeyPress(.tab) { handle(.tab) }
+            .onKeyPress(.escape) { handle(.escape) }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
