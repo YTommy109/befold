@@ -4,12 +4,13 @@ title: 条件を満たした旧世代の配布経路を実際に停止する
 status: To Do
 assignee: []
 created_date: '2026-08-16 02:01'
-updated_date: '2026-08-16 02:07'
+updated_date: '2026-08-16 02:41'
 labels: []
 milestone: m-8
 dependencies:
   - TASK-489.1
   - TASK-488.3
+  - TASK-495
 parent_task_id: TASK-489
 priority: low
 ordinal: 724000
