@@ -15,13 +15,24 @@
 --   5. 撮影対象領域に他アプリのウィンドウが重ならないようにしておくこと。
 --
 -- 実行方法:
---   osascript scripts/capture-screenshots.applescript
+--   osascript scripts/capture-screenshots.applescript          -- 全部撮り直す
+--   osascript scripts/capture-screenshots.applescript 7 8      -- 番号を指定した分だけ撮る
+--
+-- 番号を指定すると、その screenshot-<番号>.png だけを撮る。既存の画像は撮り直すたびに
+-- ピクセルが変わる(アニメーションの位相・アンチエイリアス)ため、1 枚だけ足したいときに
+-- 無関係な差分を出さないための指定。
+--
+-- git のスクリーンショット(差分表示・サイドバーのステータスバッジ)は sample/ では
+-- 作れない状態(ブランチでの変更 / staged / unstaged / untracked)を必要とするため、
+-- scripts/make-git-demo-repo.sh が組み立てる使い捨てリポジトリを撮る。
 --
 -- 注意: befold には前回セッション(開いていたタブ)を復元する SessionRestorer が
 -- あり、`open -a` で新しいファイルを指定して起動しても前回セッションのタブと
 -- 競合してどちらがフォーカスされるか不定になる。このスクリプトは各起動の直前に
 -- befold のセッション関連 UserDefaults を削除し、復元対象がない状態で起動する
 -- ことでこの競合を回避している。
+
+on run argv
 
 set befoldBundleID to "com.degino.befold"
 set scriptPosixPath to POSIX path of (path to me)
@@ -36,15 +47,27 @@ set windowWidth to 1280
 set windowHeight to 800
 set captureRect to (windowX as string) & "," & (windowY as string) & "," & (windowWidth as string) & "," & (windowHeight as string)
 
--- {ファイル名, 出力ファイル名, サイドバーを表示するか, Quick Open に打ち込む文字列}
+-- 撮影対象のリポジトリ。差分とバッジの状態を毎回同じにするため撮影のたびに作り直す。
+set demoRepo to do shell script quoted form of (scriptsDir & "/make-git-demo-repo.sh")
+
+-- 差分のレイアウトはアプリ全体の設定(SourceDiffLayout)なので、キーストロークの
+-- トグルでは確定しない。撮影前に左右分割へ固定する。
+do shell script "defaults write " & befoldBundleID & " SourceDiffLayout -string side-by-side"
+
+-- {ファイルのパス, 出力ファイル名, サイドバーを表示するか, Quick Open に打ち込む文字列, 表示モード}
+-- パスは "/" 始まりなら絶対パス、そうでなければ sample/ 配下として解決する。
 -- 4 番目が "" の場合は Quick Open を開かない。
+-- 5 番目は ⌘1〜⌘3 に渡す数字("" ならモードを切り替えない)。表示モードはファイル単位で
+-- 永続化されるため、モードを使う対象では毎回明示する。
 set targets to {¬
-    {"flowchart.mmd", "screenshot-1.png", true, ""}, ¬
-    {"diagram.svg", "screenshot-2.png", false, ""}, ¬
-    {"sample.md", "screenshot-3.png", false, ""}, ¬
-    {"sample.csv", "screenshot-4.png", false, ""}, ¬
-    {"example.swift", "screenshot-5.png", false, ""}, ¬
-    {"sample.md", "screenshot-6.png", false, "samp"}}
+    {"flowchart.mmd", "screenshot-1.png", true, "", ""}, ¬
+    {"diagram.svg", "screenshot-2.png", false, "", ""}, ¬
+    {"sample.md", "screenshot-3.png", false, "", ""}, ¬
+    {"sample.csv", "screenshot-4.png", false, "", ""}, ¬
+    {"example.swift", "screenshot-5.png", false, "", ""}, ¬
+    {"sample.md", "screenshot-6.png", false, "samp", ""}, ¬
+    {demoRepo & "/Sources/LRUCache.swift", "screenshot-7.png", false, "", "3"}, ¬
+    {demoRepo & "/Sources/Metrics.swift", "screenshot-8.png", true, "", "2"}}
 
 -- サイドバーの表示状態を確定させるため CLI 経由で起動する。
 set cliPath to "/usr/local/bin/befold"
@@ -62,10 +85,22 @@ repeat with targetItem in targets
     set outputName to item 2 of targetItem
     set showSidebar to item 3 of targetItem
     set quickOpenQuery to item 4 of targetItem
+    set displayModeKey to item 5 of targetItem
 
-    set filePath to sampleDir & "/" & fileName
+    if fileName starts with "/" then
+        set filePath to fileName
+    else
+        set filePath to sampleDir & "/" & fileName
+    end if
     set outputPath to imagesDir & "/" & outputName
 
+    -- 引数で番号が指定されていれば、その番号の 1 枚だけを撮る。
+    set shouldCapture to (count of argv) is 0
+    repeat with wantedNumber in argv
+        if outputName is "screenshot-" & (wantedNumber as string) & ".png" then set shouldCapture to true
+    end repeat
+
+    if shouldCapture then
     -- 前回起動していれば終了してクリーンな状態にする
     tell application "System Events"
         if exists (process "befold") then
@@ -105,6 +140,13 @@ repeat with targetItem in targets
     tell application "befold" to activate
     delay 2
 
+    if displayModeKey is not "" then
+        -- 表示モード(⌘1 レンダリング / ⌘2 ソース / ⌘3 差分)。差分は git を読んでから
+        -- 描画するので、描き終わるまで待つ。
+        tell application "System Events" to keystroke displayModeKey using {command down}
+        delay 3
+    end if
+
     if quickOpenQuery is not "" then
         -- File > Quick Open。パネルは浮動なので描画が落ち着くまで待つ
         tell application "System Events" to keystroke "p" using {command down}
@@ -114,6 +156,9 @@ repeat with targetItem in targets
     end if
 
     do shell script "screencapture -x -R" & captureRect & " " & quoted form of outputPath
+    end if
 end repeat
 
 tell application "befold" to quit
+
+end run

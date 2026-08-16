@@ -31,6 +31,18 @@ const SCREENSHOTS: {
     caption: 'Quick Open',
     kind: 'feature',
   },
+  {
+    src: '/images/screenshot-7.png',
+    alt: 'Side-by-side git diff in the source view of befold',
+    caption: 'Git Diff',
+    kind: 'feature',
+  },
+  {
+    src: '/images/screenshot-8.png',
+    alt: 'Sidebar showing git status badges for changed files in befold',
+    caption: 'Git Status',
+    kind: 'feature',
+  },
 ]
 
 /** og:title / og:description を <title> / description と二重管理しないための定数。 */
