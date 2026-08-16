@@ -29,7 +29,7 @@ export type SitePage = {
 }
 
 /**
- * 配信する 4 ページ。日本語を既定の URL に置き、英語を `/en` 配下に置く。
+ * 配信するページ。日本語を既定の URL に置き、英語を `/en` 配下に置く。
  *
  * 日本語側の URL を変えていないのは、既存の被リンク・sitemap・旧ホストからの
  * 301 をそのまま生かすため。
@@ -39,6 +39,8 @@ export const SITE_PAGES: readonly SitePage[] = [
   { path: '/en', lang: 'en', page: '/' },
   { path: '/features', lang: 'ja', page: '/features' },
   { path: '/en/features', lang: 'en', page: '/features' },
+  { path: '/releases', lang: 'ja', page: '/releases' },
+  { path: '/en/releases', lang: 'en', page: '/releases' },
 ]
 
 /** `og:locale` に使うロケール。hreflang の言語コードとは書式が違う。 */

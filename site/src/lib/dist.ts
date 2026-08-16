@@ -57,6 +57,37 @@ export function dmgFileName(tag: string): string {
   return `befold-${tag}.dmg`
 }
 
+/** 版を表す stable タグの形。`-dev.N` は含まない。 */
+const stableTagSchema = z.string().regex(/^v\d+\.\d+\.\d+$/u)
+
+/**
+ * DMG のファイル名として受け付ける形。ディレクトリ区切りと `..` を含まない。
+ *
+ * 旧バージョンの配信では `dmgFileName` の規約と突き合わせられない——v1.3.3 以前の
+ * 実アセット名は `mmdview-v1.3.3.dmg` で、現在の `befold-<tag>.dmg` とは違う。
+ * そのため「そのタグの DMG か」ではなく「キーを組んでよい形か」だけを見る。
+ * ここを緩めるとバケット内の他のオブジェクトを読み出せるので、素通しにはしない。
+ */
+const dmgFileNameSchema = z.string().regex(/^[A-Za-z0-9._-]+\.dmg$/u)
+
+/** 与えられたタグが stable（一覧・旧版配信の対象）か。 */
+export function isStableTag(tag: string): boolean {
+  return stableTagSchema.safeParse(tag).success
+}
+
+/** 与えられた文字列を R2 キーの一部にしてよいか。 */
+export function isDMGFileName(file: string): boolean {
+  return dmgFileNameSchema.safeParse(file).success
+}
+
+/**
+ * 旧バージョン配信の R2 キー。呼び出し前に `isStableTag` と `isDMGFileName` で
+ * 検証すること（検証を関数の中に隠すと、呼び出し側が 404 と R2 欠落を区別できない）。
+ */
+export function archiveDMGKey(tag: string, file: string): string {
+  return `${RELEASES_PREFIX}/${tag}/${file}`
+}
+
 /** 与えられたタグが prerelease（dev チャンネル）かどうか。 */
 export function isPrerelease(tag: string): boolean {
   return tag.includes('-')

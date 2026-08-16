@@ -21,6 +21,7 @@ import {
   UNRECORDED_LABEL,
   KIND_LABELS,
   UNIQUE_SOURCE_LABELS,
+  VERSION_BREAKDOWN_METRICS,
   RUNNING_VERSION_LABELS,
   TOP_N,
 } from '../src/analytics'
@@ -45,7 +46,7 @@ async function summarizeAll(db: D1Database, now: number) {
 import { CANONICAL_HOST, LEGACY_HOST, RECORDED_HOSTS } from '../src/lib/hosts'
 import { DAY_MS, JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import { DATACENTER_ORG_PATTERNS, datacenterOrgMatch, isDatacenterOrg } from '../src/lib/network'
-import { channelSchema, eventKindSchema } from '../src/schema'
+import { channelSchema, downloadSourceSchema, eventKindSchema } from '../src/schema'
 import type { EventKind } from '../src/schema'
 
 /** JST 2026-08-08 12:00（= UTC 03:00）を「現在」とする固定基準。 */
@@ -652,13 +653,27 @@ describe('ダウンロード経路の分離', () => {
     expect(summary.perKind.find((entry) => entry.kind === 'visit')?.byOS).toHaveLength(10)
   })
 
-  it('バージョン別内訳は LP 経由だけを対象にする', async () => {
+  it('バージョン別内訳は指標ごとに分かれる（LP と旧版配布を混ぜない）', async () => {
     await insertDownload('lp', 'v1.2.3')
     await insertDownload('sparkle', 'v1.2.4')
+    await insertDownload('archive', 'v1.1.0')
 
     const summary = await summarizeAll(env.DB, NOW)
+    const versionsOf = (kind: string) =>
+      summary.perKind.find((entry) => entry.kind === kind)?.byVersion
 
-    expect(summary.byVersion).toEqual([{ label: 'v1.2.3', count: 1 }])
+    expect(versionsOf('download')).toEqual([{ label: 'v1.2.3', count: 1 }])
+    expect(versionsOf('update_download')).toEqual([{ label: 'v1.2.4', count: 1 }])
+    expect(versionsOf('archive_download')).toEqual([{ label: 'v1.1.0', count: 1 }])
+  })
+
+  it('バージョン別内訳を出すのはダウンロード系の指標だけ', () => {
+    // version 列を持たない指標にまで表を出すと、常に空の表が並ぶ。
+    expect([...VERSION_BREAKDOWN_METRICS].toSorted()).toEqual([
+      'archive_download',
+      'download',
+      'update_download',
+    ])
   })
 })
 
@@ -1065,6 +1080,28 @@ describe('kind の行き先', () => {
     }
     // 指標にしか出ない 'update_download' は EventKind ではない派生指標。
     expect(shown.has('update_download')).toBe(true)
+  })
+
+  it('download の source はすべてどれか 1 つの指標に数えられる', async () => {
+    // source を足したのに指標系列を足さないと、その経路のダウンロードは
+    // どのカード・グラフにも出ないまま記録だけされる。型では捕まらない
+    // （MetricKey は EventKind から導かれ、source は関与しない）ので、
+    // 「1 件入れたらどこか 1 系列だけが 1 になる」ことで縛る。
+    for (const source of downloadSourceSchema.options) {
+      await env.DB.prepare('INSERT INTO events (timestamp, kind, source) VALUES (?, ?, ?)')
+        .bind(NOW, 'download', source)
+        .run()
+
+      const totals = await cumulativeTotals(env.DB)
+      const counted = KIND_LABELS.filter((entry) => totals.counts[entry.kind] > 0)
+
+      expect(
+        counted.map((entry) => entry.kind),
+        source,
+      ).toHaveLength(1)
+
+      await env.DB.prepare('DELETE FROM events').run()
+    }
   })
 
   it('運用観測の kind はカード・グラフの系列に出ない', () => {

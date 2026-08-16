@@ -325,6 +325,13 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
               </li>
             </ol>
           )}
+          {/* 最新版で不具合に当たった人の逃げ道。インストール手順の直後に置くのは、
+              「入れたが動かない」と気づく場所がここだから。 */}
+          <p class="section-more">
+            <a href={pathFor('/releases', lang)}>
+              <T lang={lang} ja="過去のバージョンを見る →" en="Browse previous versions →" />
+            </a>
+          </p>
         </section>
       </main>
 

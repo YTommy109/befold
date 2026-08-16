@@ -1,5 +1,5 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import app from '../src/index'
 import { pathFor, SITE_PAGES } from '../src/lib/pages'
@@ -91,6 +91,7 @@ function mockUpstream(responses: Record<string, Response>): void {
 }
 
 const LATEST_RELEASE_URL = 'https://api.github.com/repos/YTommy109/befold/releases/latest'
+const RELEASES_LIST_URL = 'https://api.github.com/repos/YTommy109/befold/releases?per_page=100'
 const APPCAST_URL = 'https://github.com/YTommy109/befold/releases/download/appcast/appcast.xml'
 const APPCAST_DEVELOP_URL =
   'https://github.com/YTommy109/befold/releases/download/appcast/appcast-develop.xml'
@@ -865,7 +866,168 @@ describe('ダウンロード導線のホスト非依存性', () => {
   })
 })
 
+describe('GET /releases（過去バージョン一覧）', () => {
+  /** GitHub API の応答の形をそのまま真似る。除外条件を実データの形で確かめる。 */
+  const RELEASES_JSON = [
+    {
+      tag_name: 'v1.13.3-dev.1',
+      published_at: '2026-08-16T13:43:02Z',
+      prerelease: true,
+      assets: [{ name: 'befold-v1.13.3-dev.1.dmg' }],
+    },
+    {
+      tag_name: 'v1.13.2',
+      published_at: '2026-08-16T10:16:56Z',
+      prerelease: false,
+      assets: [{ name: 'befold-v1.13.2.dmg' }],
+    },
+    // 版を表さない固定タグ。prerelease ではないので、フラグだけでは弾けない。
+    {
+      tag_name: 'appcast',
+      published_at: '2026-08-16T10:20:00Z',
+      prerelease: false,
+      assets: [{ name: 'appcast.xml' }],
+    },
+    // DMG が無いリリース。行にしてもダウンロードできない。
+    {
+      tag_name: 'v1.0.0',
+      published_at: '2026-01-01T00:00:00Z',
+      prerelease: false,
+      assets: [],
+    },
+    // 旧名のアセット。現在の命名規約（befold-<tag>.dmg）では導出できない。
+    {
+      tag_name: 'v1.3.3',
+      published_at: '2026-05-01T00:00:00Z',
+      prerelease: false,
+      assets: [{ name: 'mmdview-v1.3.3.dmg' }],
+    },
+  ]
+
+  function mockReleases(body: unknown, status = 200): void {
+    mockUpstream({ [RELEASES_LIST_URL]: new Response(JSON.stringify(body), { status }) })
+  }
+
+  it('stable だけを表に出し、公開日・リリースノート・ダウンロードを並べる', async () => {
+    mockReleases(RELEASES_JSON)
+
+    const html = bodyOf(await (await call('/releases')).text())
+
+    expect(html).toContain('v1.13.2')
+    expect(html).toContain('2026-08-16')
+    expect(html).toContain('https://github.com/YTommy109/befold/releases/tag/v1.13.2')
+    expect(html).toContain('/releases/v1.13.2/befold-v1.13.2.dmg')
+    // 旧名のアセットも、そのままのファイル名でリンクする。
+    expect(html).toContain('/releases/v1.3.3/mmdview-v1.3.3.dmg')
+  })
+
+  it('develop・版でないタグ・DMG 無しは一覧に出さない', async () => {
+    mockReleases(RELEASES_JSON)
+
+    const html = bodyOf(await (await call('/releases')).text())
+
+    expect(html).not.toContain('dev.1')
+    expect(html).not.toContain('appcast')
+    expect(html).not.toContain('v1.0.0')
+  })
+
+  it('visit を /releases として記録する', async () => {
+    mockReleases(RELEASES_JSON)
+
+    await call('/releases')
+
+    const event = await latestEvent('visit')
+    expect(event?.page).toBe('/releases')
+    expect(event?.display_lang).toBe('ja')
+  })
+
+  it('取得に失敗しても 200 で、取得できなかったことを伝える', async () => {
+    mockReleases({ message: 'rate limit' }, 403)
+
+    const response = await call('/releases')
+    const html = bodyOf(await response.text())
+
+    expect(response.status).toBe(200)
+    expect(html).toContain('取得できませんでした')
+    // 行き止まりにせず GitHub の一覧へ逃がす。
+    expect(html).toContain('https://github.com/YTommy109/befold/releases')
+  })
+
+  it('取得できて 0 件のときは「取得できなかった」とは言わない', async () => {
+    mockReleases([])
+
+    const html = bodyOf(await (await call('/releases')).text())
+
+    expect(html).toContain('まだありません')
+    expect(html).not.toContain('取得できませんでした')
+  })
+
+  it('英語版は英語で出す', async () => {
+    mockReleases(RELEASES_JSON)
+
+    const html = bodyOf(await (await call('/en/releases')).text())
+
+    expect(html).toContain('Previous versions')
+    expect(html).not.toContain('過去のバージョン')
+  })
+})
+
+describe('GET /releases/:tag/:file（旧バージョンの配信）', () => {
+  it('R2 にあれば DMG を返し source=archive を記録する', async () => {
+    await env.DIST.put('releases/v1.12.0/befold-v1.12.0.dmg', 'OLD-DMG')
+
+    const response = await call('/releases/v1.12.0/befold-v1.12.0.dmg')
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('OLD-DMG')
+
+    const event = await latestEvent('download')
+    expect(event?.source).toBe('archive')
+    expect(event?.version).toBe('v1.12.0')
+    expect(event?.channel).toBe('stable')
+  })
+
+  it('R2 に無ければ GitHub へ 302 し、fallback は dmg と分けて記録する', async () => {
+    const response = await call('/releases/v1.3.3/mmdview-v1.3.3.dmg')
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe(
+      'https://github.com/YTommy109/befold/releases/download/v1.3.3/mmdview-v1.3.3.dmg',
+    )
+
+    // 旧版が R2 に無いのは配置漏れではない。`dmg`（配布の穴）に混ぜない。
+    const fallback = await latestEvent('github_fallback')
+    expect(fallback?.fallback).toBe('archive-dmg')
+
+    const download = await latestEvent('download')
+    expect(download?.source).toBe('archive')
+    expect(download?.version).toBe('v1.3.3')
+  })
+
+  it('develop タグは配らない（一覧に出していないものを URL 直打ちで取らせない）', async () => {
+    await env.DIST.put('releases/v1.13.3-dev.1/befold-v1.13.3-dev.1.dmg', 'DEV-DMG')
+
+    const response = await call('/releases/v1.13.3-dev.1/befold-v1.13.3-dev.1.dmg')
+
+    expect(response.status).toBe(404)
+    expect(await latestEvent('download')).toBeNull()
+  })
+
+  it('キーを組めない形のファイル名は 404 にする', async () => {
+    const response = await call('/releases/v1.12.0/..%2Flatest.json')
+
+    expect(response.status).toBe(404)
+    expect(await latestEvent('download')).toBeNull()
+  })
+})
+
 describe('言語ごとの URL（SITE_PAGES からの導出）', () => {
+  // /releases は GitHub API を読む。差し替えないとテストが外部の可用性と
+  // レート制限に依存する（応答の中身はここでは見ないので、縮退させておく）。
+  beforeEach(() => {
+    mockUpstream({ [RELEASES_LIST_URL]: new Response('{}', { status: 503 }) })
+  })
+
   it('表に載っている全ページが 200 を返し、html lang が表と一致する', async () => {
     for (const entry of SITE_PAGES) {
       const response = await call(entry.path)

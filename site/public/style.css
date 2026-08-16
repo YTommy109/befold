@@ -544,6 +544,12 @@ footer a:hover {
   margin-bottom: 1.25rem;
 }
 
+/* 一覧を出せなかったとき・0 件のときの一言。表の代わりに同じ枠へ収める。 */
+.listing-note {
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
 /* 拡張子の並びは横に長くなるため、ページ本体ではなく表だけを横スクロールさせる。 */
 .table-scroll {
   overflow-x: auto;
