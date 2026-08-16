@@ -5,9 +5,15 @@ import {
   cumulativeTotals,
   dailySeries,
   hourlyDistribution,
-  summarize,
+  summarizeDelivery,
+  summarizeOverview,
+  summarizeTraffic,
+  summarizeUsers,
   todayTotals,
   eventsAfter,
+  eventPage,
+  parseEventCursor,
+  EVENTS_PAGE_LIMIT,
   recentEvents,
   trafficSplit,
   eventBreakdowns,
@@ -18,6 +24,24 @@ import {
   RUNNING_VERSION_LABELS,
   TOP_N,
 } from '../src/analytics'
+
+/**
+ * 面ごとに分かれた集計をまとめて 1 つのオブジェクトにする（テスト専用）。
+ *
+ * ここで検証したいのは集計 SQL の振る舞いであって、どの面にどの指標が載るかでは
+ * ない。面の割り当ては `test/query-count.test.ts`（本数）と
+ * `test/dashboard.test.ts`（表示）が担保する。
+ */
+async function summarizeAll(db: D1Database, now: number) {
+  const [overview, users, traffic, delivery] = await Promise.all([
+    summarizeOverview(db, now),
+    summarizeUsers(db, now),
+    summarizeTraffic(db),
+    summarizeDelivery(db),
+  ])
+
+  return { ...overview, ...users, ...traffic, ...delivery }
+}
 import { CANONICAL_HOST, LEGACY_HOST, RECORDED_HOSTS } from '../src/lib/hosts'
 import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import { DATACENTER_ORG_PATTERNS, datacenterOrgMatch, isDatacenterOrg } from '../src/lib/network'
@@ -87,7 +111,7 @@ describe('稼働中のアプリバージョン', () => {
       visitorToken: 'visitor-b',
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 2 }])
   })
@@ -106,7 +130,7 @@ describe('稼働中のアプリバージョン', () => {
       visitorToken: 'visitor-b',
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 1 }])
     expect(summary.runningVersions.develop).toEqual([{ label: '1.13.2-dev.4', count: 1 }])
@@ -119,7 +143,7 @@ describe('稼働中のアプリバージョン', () => {
       channel: null,
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.unrecorded).toEqual([{ label: '1.12.0', count: 1 }])
   })
@@ -136,7 +160,7 @@ describe('稼働中のアプリバージョン', () => {
       visitorToken: 'visitor-a',
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 1 }])
   })
@@ -148,7 +172,7 @@ describe('稼働中のアプリバージョン', () => {
       uaSummary: 'curl',
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toEqual([])
   })
@@ -167,13 +191,13 @@ describe('稼働中のアプリバージョン', () => {
       asOrg: DATACENTER_ORG_PATTERNS[0],
     })
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toEqual([])
   })
 
   it('0 件のチャネルも表そのものは残す（未計測と 0 件を混同させない）', async () => {
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     for (const { key } of RUNNING_VERSION_LABELS) {
       expect(summary.runningVersions[key]).toEqual([])
@@ -192,7 +216,7 @@ describe('稼働中のアプリバージョン', () => {
       }
     }
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toHaveLength(TOP_N)
     expect(summary.runningVersions.stable[0]?.label).toBe(`1.0.${TOP_N + 2}`)
@@ -331,7 +355,7 @@ describe('summarize', () => {
     await insert(jst('2026-08-08 10:01'), 'visit', 'visitor-c', 'Chrome')
     await insert(jst('2026-08-07 10:00'), 'download', 'visitor-b', 'Safari')
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.windowDays).toBe(14)
     expect(summary.cumulative.counts.visit).toBe(1)
@@ -423,7 +447,7 @@ describe('人間の訪問と自動アクセスの分離', () => {
     await insertOrg(jst('2026-08-01 10:00'), 'Chrome', 'Amazon Technologies Inc.')
     await insertOrg(jst('2026-08-08 10:00'), 'Chrome', 'ARTERIA Networks Corp.')
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.cumulative.counts.visit).toBe(1)
     expect(summary.recent).toHaveLength(1)
@@ -483,7 +507,7 @@ describe('集計からのロボット除外', () => {
     await insertFull(jst('2026-08-08 11:00'), 'visit', 'Safari', HUMAN)
     await insertFull(jst('2026-08-08 11:01'), 'download', 'Safari', HUMAN)
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
     const today = summary.daily.at(-1)
 
     expect(summary.cumulative.counts.visit).toBe(1)
@@ -509,7 +533,7 @@ describe('集計からのロボット除外', () => {
     await insert(jst('2026-08-08 10:00'), 'visit', 'visitor-null', null)
     await insert(jst('2026-08-08 10:01'), 'visit', 'visitor-legacy', 'other')
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.cumulative.counts.visit).toBe(2)
     expect(summary.today.counts.visit).toBe(2)
@@ -604,7 +628,7 @@ describe('ダウンロード経路の分離', () => {
       .bind(NOW, 'macOS 15.0', 'UpdateNet', 'sparkle')
       .run()
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
     const lp = summary.perKind.find((entry) => entry.kind === 'download')
     const sparkle = summary.perKind.find((entry) => entry.kind === 'update_download')
 
@@ -623,7 +647,7 @@ describe('ダウンロード経路の分離', () => {
         .run()
     }
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.perKind.find((entry) => entry.kind === 'visit')?.byOS).toHaveLength(10)
   })
@@ -632,7 +656,7 @@ describe('ダウンロード経路の分離', () => {
     await insertDownload('lp', 'v1.2.3')
     await insertDownload('sparkle', 'v1.2.4')
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.byVersion).toEqual([{ label: 'v1.2.3', count: 1 }])
   })
@@ -656,7 +680,7 @@ describe('ページの分離', () => {
     await insertVisit('/features')
     await insertVisit('/features')
 
-    const summary = await summarize(env.DB, NOW)
+    const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.cumulative.counts.visit).toBe(1)
     expect(summary.today.counts.visit).toBe(1)
@@ -784,6 +808,145 @@ describe('最新イベントと SSE の差分配信', () => {
     )
     expect(recent[0]?.page).toBe('/features')
     expect(streamed[0]?.page).toBe('/features')
+  })
+})
+
+describe('イベント面のページ送り', () => {
+  /**
+   * visit を count 件入れる。
+   *
+   * 1 件ずつ INSERT すると 250 往復になるのでまとめて入れる。値はテストが決めた
+   * 数値と固定文字列だけなので、バインドせず直接埋める（バインド変数には
+   * 上限があり、100 件を超えた時点で `too many SQL variables` で落ちる）。
+   * 1 文あたりの行数も上限があるため 50 行ずつに切る。
+   */
+  async function insertMany(count: number, uaSummary: string | null = null): Promise<void> {
+    const ua = uaSummary === null ? 'NULL' : `'${uaSummary}'`
+    const rows = Array.from(
+      { length: count },
+      (_unused, index) => `(${NOW + index}, 'visit', ${ua})`,
+    )
+
+    for (let start = 0; start < rows.length; start += 50) {
+      const values = rows.slice(start, start + 50).join(', ')
+      // 1 文ずつ順に流す（並行にしても速くならず、id の並びだけが読みにくくなる）。
+      await env.DB.prepare(
+        `INSERT INTO events (timestamp, kind, ua_summary) VALUES ${values}`,
+      ).run()
+    }
+  }
+
+  /** 先頭から「古い側」へ全ページを辿り、出てきた id を順に集める。 */
+  async function walkAllPages(): Promise<number[]> {
+    const seen: number[] = []
+    let page = await eventPage(env.DB)
+
+    // ページ数は有限（全件 / 100）。取りこぼしがあってもここでは止めず、
+    // 集めた結果の突き合わせで落とす。
+    while (true) {
+      seen.push(...page.events.map((event) => event.id))
+      if (page.olderCursor === undefined) break
+      page = await eventPage(env.DB, { direction: 'older', id: page.olderCursor })
+    }
+
+    return seen
+  }
+
+  it('0 件のときは空のページを返し、前にも後にも送れない', async () => {
+    const page = await eventPage(env.DB)
+
+    expect(page.events).toEqual([])
+    expect(page.olderCursor).toBeUndefined()
+    expect(page.newerCursor).toBeUndefined()
+  })
+
+  it('先頭ページは新しい順に上限ちょうどを返し、新しい側へは送れない', async () => {
+    await insertMany(EVENTS_PAGE_LIMIT + 5)
+
+    const page = await eventPage(env.DB)
+    const ids = page.events.map((event) => event.id)
+
+    expect(page.events).toHaveLength(EVENTS_PAGE_LIMIT)
+    expect(ids).toEqual([...ids].toSorted((a, b) => b - a))
+    expect(page.newerCursor).toBeUndefined()
+    expect(page.olderCursor).toBe(ids.at(-1))
+  })
+
+  it('最終ページでは古い側へ送れなくなる（端数のページも返る）', async () => {
+    await insertMany(EVENTS_PAGE_LIMIT + 5)
+
+    const first = await eventPage(env.DB)
+    const last = await eventPage(env.DB, { direction: 'older', id: first.olderCursor ?? 0 })
+
+    expect(last.events).toHaveLength(5)
+    expect(last.olderCursor).toBeUndefined()
+    expect(last.newerCursor).toBe(last.events[0]?.id)
+  })
+
+  it('先頭から最終ページまで辿ると全件を重複なく過不足なく通る', async () => {
+    const total = EVENTS_PAGE_LIMIT * 2 + 37
+    await insertMany(total)
+
+    const seen = await walkAllPages()
+
+    expect(seen).toHaveLength(total)
+    expect(new Set(seen).size).toBe(total)
+    // 通った id が、DB にある人間の行そのものと一致する（新しい順のまま）。
+    const { results } = await env.DB.prepare('SELECT id FROM events ORDER BY id DESC').all<{
+      id: number
+    }>()
+    expect(seen).toEqual(results.map((row) => row.id))
+  })
+
+  it('ページを送っている途中に新着が入っても、境界がずれない', async () => {
+    // OFFSET で数えていると、先頭に 1 件挿さった時点で 2 ページ目の先頭が
+    // 1 ページ目の末尾と重複する。カーソルが id なので重複も欠落も起きない。
+    await insertMany(EVENTS_PAGE_LIMIT * 2)
+
+    const first = await eventPage(env.DB)
+    await insertMany(3)
+    const second = await eventPage(env.DB, { direction: 'older', id: first.olderCursor ?? 0 })
+
+    const firstIds = first.events.map((event) => event.id)
+    const secondIds = second.events.map((event) => event.id)
+
+    expect(secondIds).toHaveLength(EVENTS_PAGE_LIMIT)
+    expect(secondIds.filter((id) => firstIds.includes(id))).toEqual([])
+    expect(Math.max(...secondIds)).toBe(Math.min(...firstIds) - 1)
+  })
+
+  it('新しい側へ戻すと、送る前と同じページに戻る', async () => {
+    await insertMany(EVENTS_PAGE_LIMIT * 2 + 10)
+
+    const first = await eventPage(env.DB)
+    const second = await eventPage(env.DB, { direction: 'older', id: first.olderCursor ?? 0 })
+    const back = await eventPage(env.DB, { direction: 'newer', id: second.newerCursor ?? 0 })
+
+    expect(back.events.map((event) => event.id)).toEqual(first.events.map((event) => event.id))
+    expect(back.newerCursor).toBeUndefined()
+  })
+
+  it('ロボットの行は集計と同じ条件で除かれる', async () => {
+    await insertMany(2, 'bot:GPTBot')
+    await insertMany(1, 'Safari')
+
+    const page = await eventPage(env.DB)
+
+    expect(page.events).toHaveLength(1)
+  })
+
+  it('クエリの読み取りは不正な値を最新のページへ倒す', () => {
+    expect(parseEventCursor({})).toBeUndefined()
+    expect(parseEventCursor({ before: '120' })).toEqual({ direction: 'older', id: 120 })
+    expect(parseEventCursor({ after: '120' })).toEqual({ direction: 'newer', id: 120 })
+    // 両方来たら before を採る（片方を静かに無視しない）。
+    expect(parseEventCursor({ before: '120', after: '9' })).toEqual({
+      direction: 'older',
+      id: 120,
+    })
+    expect(parseEventCursor({ before: '12abc' })).toBeUndefined()
+    expect(parseEventCursor({ before: '-1' })).toBeUndefined()
+    expect(parseEventCursor({ after: '' })).toBeUndefined()
   })
 })
 
@@ -993,5 +1156,183 @@ describe('日別のユニークアクセス元', () => {
     }
     expect(new Set(keys)).toEqual(new Set(Object.keys(point?.uniqueSources ?? {})))
     expect(UNIQUE_SOURCE_LABELS.every((entry) => entry.label.length > 0)).toBe(true)
+  })
+})
+
+/**
+ * 同日・同チャネルで sparkle 経由のダウンロードを 1 件入れる。
+ *
+ * 転換率の分子は「確認と更新の両方を持つアクセス元」なので、確認と同じ
+ * visitor_token を渡せるようにしてある。
+ */
+async function insertSparkleDownload(options: {
+  ts: number
+  channel?: string | null
+  visitorToken?: string
+  version?: string
+  uaSummary?: string | null
+}): Promise<void> {
+  await env.DB.prepare(
+    'INSERT INTO events (timestamp, kind, source, channel, version, visitor_token, ua_summary)' +
+      " VALUES (?, 'download', 'sparkle', ?, ?, ?, ?)",
+  )
+    .bind(
+      options.ts,
+      'channel' in options ? options.channel : 'stable',
+      options.version ?? 'v1.13.0',
+      options.visitorToken ?? 'visitor-a',
+      options.uaSummary ?? 'Sparkle',
+    )
+    .run()
+}
+
+describe('アップデートの取り込み', () => {
+  it('確認と更新の両方を持つアクセス元だけを分子に数える', async () => {
+    const ts = jst('2026-08-08 01:00')
+    // 確認だけ（更新していない）
+    await insertUpdateCheck({ ts, appVersion: '1.12.0', visitorToken: 'only-check' })
+    // 確認して更新した
+    await insertUpdateCheck({ ts, appVersion: '1.12.0', visitorToken: 'converted' })
+    await insertSparkleDownload({ ts, visitorToken: 'converted' })
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+    const day = conversion.stable.find((point) => point.day === '2026-08-08')
+
+    expect(day).toMatchObject({ checked: 2, converted: 1, downloadedWithoutCheck: 0 })
+  })
+
+  it('同日に確認の記録がない更新は分子に入れず、別に数える', async () => {
+    // 前日に確認して当日に落ちてきた場合や、確認と取得で UA が変わって
+    // visitor_token が別になった場合にこうなる。率へ混ぜると 100% を超える。
+    const ts = jst('2026-08-08 01:00')
+    await insertUpdateCheck({ ts, appVersion: '1.12.0', visitorToken: 'checked' })
+    await insertSparkleDownload({ ts, visitorToken: 'never-checked' })
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+    const day = conversion.stable.find((point) => point.day === '2026-08-08')
+
+    expect(day).toMatchObject({ checked: 1, converted: 0, downloadedWithoutCheck: 1 })
+  })
+
+  it('同じアクセス元が何度確認・更新しても 1 と数える', async () => {
+    for (const at of ['2026-08-08 01:00', '2026-08-08 05:00', '2026-08-08 09:00']) {
+      await insertUpdateCheck({ ts: jst(at), appVersion: '1.12.0', visitorToken: 'same' })
+      await insertSparkleDownload({ ts: jst(at), visitorToken: 'same' })
+    }
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+    const day = conversion.stable.find((point) => point.day === '2026-08-08')
+
+    expect(day).toMatchObject({ checked: 1, converted: 1 })
+  })
+
+  it('チャネルが混ざらない', async () => {
+    const ts = jst('2026-08-08 01:00')
+    await insertUpdateCheck({ ts, appVersion: '1.12.0', visitorToken: 'st', channel: 'stable' })
+    await insertSparkleDownload({ ts, visitorToken: 'st', channel: 'stable' })
+    await insertUpdateCheck({ ts, appVersion: '1.12.0', visitorToken: 'dv', channel: 'develop' })
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+
+    expect(conversion.stable.find((point) => point.day === '2026-08-08')).toMatchObject({
+      checked: 1,
+      converted: 1,
+    })
+    expect(conversion.develop.find((point) => point.day === '2026-08-08')).toMatchObject({
+      checked: 1,
+      converted: 0,
+    })
+  })
+
+  it('ロボットの確認・更新は数えない', async () => {
+    const ts = jst('2026-08-08 01:00')
+    await insertUpdateCheck({
+      ts,
+      appVersion: '1.12.0',
+      visitorToken: 'bot',
+      uaSummary: 'bot:GPTBot',
+    })
+    await insertSparkleDownload({ ts, visitorToken: 'bot', uaSummary: 'bot:GPTBot' })
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+    const day = conversion.stable.find((point) => point.day === '2026-08-08')
+
+    expect(day).toMatchObject({ checked: 0, converted: 0, downloadedWithoutCheck: 0 })
+  })
+
+  it('窓の外の日は含まない', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-07-01 01:00'),
+      appVersion: '1.12.0',
+      visitorToken: 'old',
+    })
+
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+
+    expect(conversion.stable.some((point) => point.day === '2026-07-01')).toBe(false)
+  })
+
+  it('データが無くてもチャネルごとの系列は消えない', async () => {
+    const { conversion } = await summarizeUsers(env.DB, NOW)
+
+    for (const { key } of RUNNING_VERSION_LABELS) expect(conversion[key]).toBeDefined()
+  })
+
+  it('タグごとの取り込みを初回観測からの経過日数で積み上げる', async () => {
+    // 初回観測が 08-06、その 2 日後にもう 1 台。0 日目 1 件 → 2 日目 2 件（累積）。
+    await insertSparkleDownload({
+      ts: jst('2026-08-06 10:00'),
+      visitorToken: 'a',
+      version: 'v1.13.0',
+    })
+    await insertSparkleDownload({
+      ts: jst('2026-08-08 10:00'),
+      visitorToken: 'b',
+      version: 'v1.13.0',
+    })
+
+    const { adoption } = await summarizeUsers(env.DB, NOW)
+    const tag = adoption.find((entry) => entry.version === 'v1.13.0')
+
+    expect(tag?.channel).toBe('stable')
+    expect(tag?.firstSeenDay).toBe('2026-08-06')
+    expect(tag?.cumulative).toEqual([
+      { elapsedDays: 0, sources: 1 },
+      { elapsedDays: 2, sources: 2 },
+    ])
+  })
+
+  it('取り込み曲線もアクセス元の異なり数で数える', async () => {
+    // 同じアクセス元が同じタグを 2 回落としても 1。
+    await insertSparkleDownload({
+      ts: jst('2026-08-06 10:00'),
+      visitorToken: 'a',
+      version: 'v1.13.0',
+    })
+    await insertSparkleDownload({
+      ts: jst('2026-08-06 12:00'),
+      visitorToken: 'a',
+      version: 'v1.13.0',
+    })
+
+    const { adoption } = await summarizeUsers(env.DB, NOW)
+
+    expect(adoption.find((entry) => entry.version === 'v1.13.0')?.cumulative).toEqual([
+      { elapsedDays: 0, sources: 1 },
+    ])
+  })
+
+  it('LP 経由のダウンロードは取り込みに数えない', async () => {
+    // 新規獲得であって更新ではない。source で分ける。
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, source, channel, version, visitor_token, ua_summary)' +
+        " VALUES (?, 'download', 'lp', 'stable', 'v1.13.0', 'lp-user', 'Safari')",
+    )
+      .bind(jst('2026-08-06 10:00'))
+      .run()
+
+    const { adoption } = await summarizeUsers(env.DB, NOW)
+
+    expect(adoption).toHaveLength(0)
   })
 })

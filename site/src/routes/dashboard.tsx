@@ -1,10 +1,31 @@
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 
-import { STREAM_LIMIT, eventsAfter, maxEventId, summarize } from '../analytics'
+import {
+  DASHBOARD_PAGES,
+  STREAM_LIMIT,
+  eventPage,
+  eventsAfter,
+  parseEventCursor,
+  maxEventId,
+  summarizeDelivery,
+  summarizeOverview,
+  summarizeTraffic,
+  summarizeUsers,
+} from '../analytics'
+import type { DashboardPage } from '../analytics'
 import type { AppEnv } from '../index'
 import { verifyAccessJwt } from '../lib/access'
 import { LEGACY_HOST, LEGACY_STAGING_HOST } from '../lib/hosts'
-import { Dashboard, renderSummarySections } from '../views/dashboard'
+import {
+  DashboardPageShell,
+  DeliverySections,
+  EventsSections,
+  OverviewSections,
+  TrafficSections,
+  UsersSections,
+  renderOverviewSections,
+} from '../views/dashboard'
 
 /** SSE のポーリング間隔と、1 接続あたりの最大保持時間。 */
 const POLL_INTERVAL_MS = 2500
@@ -77,11 +98,67 @@ dashboardRoutes.use('*', async (c, next) => {
   return await next()
 })
 
-dashboardRoutes.get('/', async (c) => {
-  const summary = await summarize(c.env.DB, Date.now())
-  const lastId = await maxEventId(c.env.DB)
-  return c.html(<Dashboard summary={summary} lastId={lastId} />)
-})
+/**
+ * 面ごとの描画。**面の追加はここへ 1 エントリ足すだけで済ませない。**
+ *
+ * 実体は `DASHBOARD_PAGES`（analytics.ts）で、ルートの生成もナビゲーションも
+ * クエリ本数の上限テストもその配列を読む。ここは `Record<DashboardPageKey, ...>`
+ * なので、面を足して描画を書き忘れると型で落ちる。
+ */
+const RENDERERS: Record<
+  DashboardPage['key'],
+  (c: Context<AppEnv>, page: DashboardPage) => Promise<Response>
+> = {
+  overview: async (c, page) => {
+    const summary = await summarizeOverview(c.env.DB, Date.now())
+    // 概要面だけが SSE に接続する。lastId を渡すことがその意思表示になる。
+    const lastId = await maxEventId(c.env.DB)
+    return c.html(
+      <DashboardPageShell page={page} windowDays={summary.windowDays} lastId={lastId}>
+        <OverviewSections summary={summary} />
+      </DashboardPageShell>,
+    )
+  },
+  users: async (c, page) => {
+    const summary = await summarizeUsers(c.env.DB, Date.now())
+    return c.html(
+      <DashboardPageShell page={page} windowDays={summary.windowDays}>
+        <UsersSections summary={summary} />
+      </DashboardPageShell>,
+    )
+  },
+  traffic: async (c, page) => {
+    const summary = await summarizeTraffic(c.env.DB)
+    return c.html(
+      <DashboardPageShell page={page}>
+        <TrafficSections summary={summary} />
+      </DashboardPageShell>,
+    )
+  },
+  delivery: async (c, page) => {
+    const summary = await summarizeDelivery(c.env.DB)
+    return c.html(
+      <DashboardPageShell page={page}>
+        <DeliverySections summary={summary} />
+      </DashboardPageShell>,
+    )
+  },
+  events: async (c, page) => {
+    // ページ送りの基準はクエリから読む。読めない値は基準無し（最新のページ）に
+    // 倒すので、URL を手で書き換えても 500 にはならない。
+    const cursor = parseEventCursor({ before: c.req.query('before'), after: c.req.query('after') })
+    const events = await eventPage(c.env.DB, cursor)
+    return c.html(
+      <DashboardPageShell page={page}>
+        <EventsSections page={events} />
+      </DashboardPageShell>,
+    )
+  },
+}
+
+for (const page of DASHBOARD_PAGES) {
+  dashboardRoutes.get(page.path, async (c) => await RENDERERS[page.key](c, page))
+}
 
 dashboardRoutes.get('/stream', (c) => {
   // 再接続時は Last-Event-ID、初回はクエリの after から再開位置を決める。
@@ -125,7 +202,7 @@ dashboardRoutes.get('/stream', (c) => {
           // 新着があったポーリング周期でのみ行う。data 行は改行を含められないので
           // HTML は JSON 文字列にして送る。
           if (arrived) {
-            const html = renderSummarySections(await summarize(db, Date.now()))
+            const html = renderOverviewSections(await summarizeOverview(db, Date.now()))
             controller.enqueue(encoder.encode(`event: summary\ndata: ${JSON.stringify(html)}\n\n`))
           }
           // 接続維持用のコメント（プロキシのアイドルタイムアウト対策）。

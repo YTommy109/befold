@@ -1,10 +1,19 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
-import { summarize } from '../src/analytics'
+import { DASHBOARD_PAGES, EVENTS_PAGE_LIMIT, summarizeOverview } from '../src/analytics'
+
+/** 面ごとの URL。`DASHBOARD_PAGES` の path と対になる。 */
+const PAGE = {
+  overview: '/dashboard',
+  users: '/dashboard/users',
+  traffic: '/dashboard/traffic',
+  delivery: '/dashboard/delivery',
+  events: '/dashboard/events',
+} as const
 import app from '../src/index'
 import { LEGACY_HOST, LEGACY_STAGING_HOST } from '../src/lib/hosts'
-import { renderSummarySections } from '../src/views/dashboard'
+import { renderOverviewSections } from '../src/views/dashboard'
 import { installAccessKeys, removeAccessKeys } from './access-helpers'
 
 /**
@@ -165,6 +174,112 @@ describe('Cloudflare Access による保護', () => {
   })
 })
 
+describe('面ごとのルート', () => {
+  /** `DASHBOARD_PAGES` の path をダッシュボード配下の URL にする。 */
+  const urlOf = (path: string): string => (path === '/' ? '/dashboard' : `/dashboard${path}`)
+
+  it.each(DASHBOARD_PAGES.map((page) => [page.key, urlOf(page.path)] as const))(
+    '%s（%s）が認証済みで開ける',
+    async (_key, url) => {
+      expect((await call(url, AUTH_HEADERS)).status).toBe(200)
+    },
+  )
+
+  it.each(DASHBOARD_PAGES.map((page) => [page.key, urlOf(page.path)] as const))(
+    '%s（%s）は JWT が無ければ 401',
+    async (_key, url) => {
+      expect((await call(url)).status).toBe(401)
+    },
+  )
+
+  it.each(DASHBOARD_PAGES.map((page) => [page.key, urlOf(page.path)] as const))(
+    '%s（%s）は JWT が壊れていれば 403',
+    async (_key, url) => {
+      const tampered = {
+        'Cf-Access-Jwt-Assertion': `${AUTH_HEADERS['Cf-Access-Jwt-Assertion'] ?? ''}x`,
+      }
+      expect((await call(url, tampered)).status).toBe(403)
+    },
+  )
+
+  it.each(DASHBOARD_PAGES.map((page) => [page.key, urlOf(page.path)] as const))(
+    '%s（%s）は旧ホストでは 404',
+    async (_key, url) => {
+      expect((await call(url, AUTH_HEADERS, {}, `https://${LEGACY_HOST}`)).status).toBe(404)
+    },
+  )
+
+  it('どの面からも他のすべての面へ移動できる', async () => {
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    for (const page of DASHBOARD_PAGES) expect(body).toContain(page.title)
+    // 現在地はリンクにしない（押しても同じ場所なので）。
+    expect(body).toContain('aria-current="page"')
+  })
+
+  it('ライブ更新しない面には SSE の状態表示を出さない', async () => {
+    const overview = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const users = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    // イベント面もスナップショット。過去を見ている最中に先頭へ行が挿さると
+    // 読んでいる位置がずれるので、ライブ追記しないことを固定する。
+    const events = await (await call(PAGE.events, AUTH_HEADERS)).text()
+
+    expect(overview).toContain('id="stream-status"')
+    for (const body of [users, events]) {
+      expect(body).not.toContain('id="stream-status"')
+      expect(body).toContain('スナップショット')
+    }
+  })
+})
+
+describe('イベント面', () => {
+  it('概要面からイベント面への導線がある', async () => {
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('href="/dashboard/events"')
+  })
+
+  it('イベントが 1 件も無ければその旨を出す（空の表を出さない）', async () => {
+    const body = await (await call(PAGE.events, AUTH_HEADERS)).text()
+
+    expect(body).toContain('該当するイベントはありません')
+  })
+
+  it('先頭ページでは古い側へのリンクだけが出る', async () => {
+    // 上限 + 1 件入れて 2 ページにする。
+    for (let index = 0; index <= EVENTS_PAGE_LIMIT; index += 1) {
+      // seed は 1 件ずつ id を返す（並行にすると id の並びが読めなくなる）。
+      await seed('visit', { page: '/' })
+    }
+
+    const body = await (await call(PAGE.events, AUTH_HEADERS)).text()
+
+    expect(body).toContain('?before=')
+    expect(body).not.toContain('?after=')
+  })
+
+  it('カーソルを指定すると新しい側へ戻るリンクが出る', async () => {
+    const first = await seed('visit', { page: '/' })
+    const second = await seed('visit', { page: '/features' })
+
+    const body = await (await call(`${PAGE.events}?before=${second}`, AUTH_HEADERS)).text()
+
+    expect(body).toContain(`?after=${first}`)
+    // 基準より古い行だけが載る（基準の行そのものは前のページに出ている）。
+    expect(body).toContain('<td>/</td>')
+    expect(body).not.toContain('<td>/features</td>')
+  })
+
+  it('壊れたカーソルでも 500 にせず最新のページを出す', async () => {
+    await seed('visit', { page: '/' })
+
+    const response = await call(`${PAGE.events}?before=abc`, AUTH_HEADERS)
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('<td>/</td>')
+  })
+})
+
 describe('集計の表示', () => {
   it('日付・時刻が JST 基準であることが画面に明示される', async () => {
     await seed('visit')
@@ -177,7 +292,7 @@ describe('集計の表示', () => {
   it('JST 基準の明示は SSE の差し替え範囲（#summary）の外に置く', async () => {
     await seed('visit')
 
-    const summaryHtml = renderSummarySections(await summarize(env.DB, Date.now()))
+    const summaryHtml = renderOverviewSections(await summarizeOverview(env.DB, Date.now()))
 
     // #summary は SSE が毎周期 innerHTML で丸ごと置き換えるため、
     // 静的なテキストを含めない（含めると毎回同じ文字列を送り直すことになる）。
@@ -191,21 +306,24 @@ describe('集計の表示', () => {
     await seed('download', { version: 'v1.10.0', country: 'JP', os: 'macOS 14.5' })
     await seed('update_check', { country: 'JP', os: 'macOS 14.5' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const overview = await (await call(PAGE.overview, AUTH_HEADERS)).text()
+    const users = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const traffic = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
-    expect(body).toContain('<span class="value" id="count-visit">2</span>')
-    expect(body).toContain('<span class="value" id="count-download">2</span>')
-    expect(body).toContain('<span class="value" id="count-update_check">1</span>')
+    expect(overview).toContain('<span class="value" id="count-visit">2</span>')
+    expect(overview).toContain('<span class="value" id="count-download">2</span>')
+    expect(overview).toContain('<span class="value" id="count-update_check">1</span>')
     // 延べ訪問者は visitor_token の異なり数（hash-a / hash-b）
-    expect(body).toContain('<span class="value">2</span>')
-    expect(body).toContain('v1.10.0')
-    expect(body).toContain('macOS 15.0')
-    // セクション見出しから集計期間が読み取れる。
-    expect(body).toContain('<h2>累計（全期間）</h2>')
-    expect(body).toContain('<h2>本日（JST 0 時から）</h2>')
-    expect(body).toContain('<h2>日毎の推移（直近 14 日）</h2>')
-    expect(body).toContain('<h2>時間帯分布（直近 14 日・JST）</h2>')
-    expect(body).toContain('<h2>内訳（全期間の累計）</h2>')
+    expect(overview).toContain('<span class="value">2</span>')
+    expect(traffic).toContain('v1.10.0')
+    expect(traffic).toContain('macOS 15.0')
+    // セクション見出しから集計期間が読み取れる。面をまたいでも読み取れることを、
+    // 面ごとに確かめる（1 ページに全部あった頃の担保を落とさない）。
+    expect(overview).toContain('<h2>累計（全期間）</h2>')
+    expect(overview).toContain('<h2>本日（JST 0 時から）</h2>')
+    expect(overview).toContain('<h2>日毎の推移（直近 14 日）</h2>')
+    expect(users).toContain('<h2>時間帯分布（直近 14 日・JST）</h2>')
+    expect(traffic).toContain('<h2>内訳（全期間の累計）</h2>')
   })
 
   it('参照元別が上位順で描画され、参照元なしは集計から除かれる', async () => {
@@ -214,7 +332,7 @@ describe('集計の表示', () => {
     await seed('visit', { referrer: 'https://news.ycombinator.com' })
     await seed('visit')
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     expect(body).toContain('参照元別')
     expect(body).toContain('gh-pages')
@@ -228,7 +346,7 @@ describe('集計の表示', () => {
     await seed('visit', { asOrg: 'NTT Communications' })
     await seed('visit')
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     expect(body).toContain('接続元組織別')
     expect(body).toContain('IIJ Internet')
@@ -242,7 +360,7 @@ describe('集計の表示', () => {
     await seed('visit', { uaSummary: 'bot:other' })
     await seed('visit', { uaSummary: 'Safari' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     expect(body).toContain('<h2>人間の訪問と自動アクセス（全期間の累計）</h2>')
     expect(body).toContain(
@@ -267,7 +385,7 @@ describe('集計の表示', () => {
     await seed('visit', { page: '/features' })
     await seed('visit', { page: '/features', uaSummary: 'bot:GPTBot' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     expect(body).toContain('<h2>ページ別の訪問（全期間の累計）</h2>')
 
@@ -290,7 +408,7 @@ describe('集計の表示', () => {
     await seed('download')
     await seed('update_check')
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
     const section = body.slice(body.indexOf('<h2>ページ別の訪問'), body.indexOf('<h2>言語別の訪問'))
 
     expect(section).toContain('データなし')
@@ -303,7 +421,7 @@ describe('集計の表示', () => {
     await seed('visit', { page: '/', displayLang: 'ja', browserLang: 'en' })
     await seed('visit', { page: '/en', displayLang: 'en', browserLang: 'en' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     expect(body).toContain('<h2>言語別の訪問（全期間の累計）</h2>')
     const section = body.slice(
@@ -329,7 +447,7 @@ describe('集計の表示', () => {
   it('言語の内訳がブラウザ設定と実表示の別を注記で示す', async () => {
     await seed('visit', { page: '/', displayLang: 'ja', browserLang: 'en' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
     const section = body.slice(
       body.indexOf('<h2>言語別の訪問'),
       body.indexOf('<h2>人間の訪問と自動アクセス'),
@@ -345,7 +463,7 @@ describe('集計の表示', () => {
   it('言語ごとの URL を分ける前に記録された訪問は未記録として出る', async () => {
     await seed('visit', { page: '/' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
     const section = body.slice(
       body.indexOf('人間: 表示言語別'),
       body.indexOf('自動アクセス: 表示言語別'),
@@ -378,7 +496,7 @@ describe('集計の表示', () => {
   it('過去データを遡って分類できないことが注記から読み取れる', async () => {
     await seed('visit', { uaSummary: 'bot:GPTBot' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     expect(body).toContain('2026-08-09')
     expect(body).toContain('イベントは<strong>遡って分類できず</strong>')
@@ -389,7 +507,7 @@ describe('集計の表示', () => {
     // 片方だけを読むと、同じ日の数字が前に見たときと違う理由が分からなくなる。
     await seed('visit', { uaSummary: 'bot:GPTBot' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
     const section = body.slice(body.indexOf('<h2>人間の訪問と自動アクセス'))
 
     expect(section).toContain('イベントは<strong>遡って分類できず</strong>')
@@ -404,7 +522,7 @@ describe('集計の表示', () => {
     await seed('visit', { asOrg: 'Driftnet Ltd' })
     await seed('visit', { asOrg: 'IIJ Internet' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     expect(body).toContain(
       '<span class="value">2</span><span class="label">データセンター由来</span>',
@@ -429,7 +547,7 @@ describe('集計の表示', () => {
   it('他の集計がロボットを除いた数であることが注記から読み取れる', async () => {
     await seed('visit', { uaSummary: 'bot:GPTBot' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     expect(body).toContain('ロボットとデータセンター由来の<strong>両方</strong>を除いた数')
   })
@@ -439,7 +557,7 @@ describe('集計の表示', () => {
     await seed('download', { os: 'macOS 15.0' })
     await seed('update_check', { os: 'macOS 13.6' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     const visitOS = body.indexOf('ページアクセス: OS 別')
     const downloadOS = body.indexOf('ダウンロード: OS 別')
@@ -460,7 +578,7 @@ describe('集計の表示', () => {
     await seed('download', { asOrg: 'NTT Communications' })
     await seed('update_check', { asOrg: 'KDDI CORPORATION' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     const visitOrg = body.indexOf('ページアクセス: 接続元組織別')
     const downloadOrg = body.indexOf('ダウンロード: 接続元組織別')
@@ -482,10 +600,10 @@ describe('集計の表示', () => {
   })
 
   it('イベントが無いときページ別・言語別の表は「データなし」になる', async () => {
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
     const section = body.slice(
       body.indexOf('<h2>ページ別の訪問'),
-      body.indexOf('<h2>配布ホストと旧経路'),
+      body.indexOf('<h2>人間の訪問と自動アクセス'),
     )
 
     // 6 つの表（ページ / 表示言語 / ブラウザ言語設定 × 人間 / ロボット）すべてが
@@ -509,7 +627,7 @@ describe('稼働中のアプリバージョンの表示', () => {
       visitorDay: 'hash-b',
     })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
     expect(body).toContain('アプリ（stable）: 稼働バージョン別')
     expect(body).toContain('アプリ（develop）: 稼働バージョン別')
@@ -520,7 +638,7 @@ describe('稼働中のアプリバージョンの表示', () => {
   it('何を 1 と数えているかが画面に書かれている', async () => {
     await seed('update_check', { appVersion: '1.13.1', uaSummary: 'Sparkle' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
     expect(body).toContain('アップデート確認を送ってきたアクセス元の異なり数')
     expect(body).toContain('確認の延べ回数ではない')
@@ -529,7 +647,7 @@ describe('稼働中のアプリバージョンの表示', () => {
   it('ダウンロード対象タグ別の集計と取り違えない説明がある', async () => {
     await seed('update_check', { appVersion: '1.13.1', uaSummary: 'Sparkle' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
     expect(body).toContain('バージョン別ダウンロード')
     expect(body).toContain('どのタグを取りに来たか')
@@ -539,7 +657,7 @@ describe('稼働中のアプリバージョンの表示', () => {
   it('遡って分類できない既存行の扱いが注記されている', async () => {
     await seed('update_check', { appVersion: null, uaSummary: 'Sparkle' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
     expect(body).toContain('遡って分類できない')
   })
@@ -547,7 +665,7 @@ describe('稼働中のアプリバージョンの表示', () => {
   it('データが無くてもチャネルごとの表は消えない', async () => {
     await seed('visit')
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
     expect(body).toContain('アプリ（stable）: 稼働バージョン別')
     expect(body).toContain('アプリ（develop）: 稼働バージョン別')
@@ -631,8 +749,9 @@ describe('SSE ストリーム', () => {
     expect(received).toContain('event: summary')
     const dataLine = received.split('event: summary\ndata: ')[1]?.split('\n')[0] ?? ''
     const html = JSON.parse(dataLine) as string
-    // 巡回はロボットのセクションにだけ現れ、ページアクセス数には入らない。
-    expect(html).toContain('bot:GPTBot')
+    // 巡回はページアクセス数に入らない。ロボットの内訳そのものは流入面へ移った
+    // ため SSE の配信対象ではなく、ここで確かめるのは「ボットしか来なかった周期でも
+    // カーソルが進み、集計が配信し直される」ことに絞る。
     expect(html).toContain('<span class="value" id="count-visit">1</span>')
   })
 
@@ -680,9 +799,8 @@ describe('グラフ描画', () => {
     await seed('visit')
     await seed('download')
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
-    const daily = section(body, '日毎の推移')
-    const hourly = section(body, '時間帯分布')
+    const daily = section(await (await call(PAGE.overview, AUTH_HEADERS)).text(), '日毎の推移')
+    const hourly = section(await (await call(PAGE.users, AUTH_HEADERS)).text(), '時間帯分布')
 
     expect(daily.match(/<svg class="chart"/gu)).toHaveLength(1)
     expect(hourly.match(/<svg class="chart"/gu)).toHaveLength(1)
@@ -697,9 +815,8 @@ describe('グラフ描画', () => {
     await seed('visit')
     await seed('download', { version: 'v1.10.0', country: 'JP', os: 'macOS 15.0' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
-    const daily = section(body, '日毎の推移')
-    const hourly = section(body, '時間帯分布')
+    const daily = section(await (await call(PAGE.overview, AUTH_HEADERS)).text(), '日毎の推移')
+    const hourly = section(await (await call(PAGE.users, AUTH_HEADERS)).text(), '時間帯分布')
 
     expect(daily).toContain('<ul class="legend">')
     expect(daily).toContain('<span class="swatch swatch-4"')
@@ -708,9 +825,11 @@ describe('グラフ描画', () => {
     expect(daily).toContain('<span class="order">1.</span>')
     expect(daily).not.toContain('<table>')
     expect(hourly).not.toContain('<table>')
-    // チャートを持たない節の表は残す。
-    expect(section(body, '内訳')).toContain('<table>')
-    expect(section(body, '最新イベント')).toContain('<table>')
+    // チャートを持たない節の表は残す（内訳は流入面、最新イベントは概要面）。
+    const traffic = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
+    const overview = await (await call(PAGE.overview, AUTH_HEADERS)).text()
+    expect(section(traffic, '内訳')).toContain('<table>')
+    expect(section(overview, '最新イベント')).toContain('<table>')
   })
 
   it('ユニークアクセス元は母集団・チャネル別の系列として読める', async () => {
@@ -718,7 +837,7 @@ describe('グラフ描画', () => {
     await seed('update_check', { visitorDay: 'hash-stable', channel: 'stable' })
     await seed('update_check', { visitorDay: 'hash-develop', channel: 'develop' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
     const unique = section(body, '日別のユニークアクセス元')
 
     // 母集団 4 系列（サイト訪問 / stable / develop / チャネル未記録）が 1 枚に並ぶ。
@@ -729,14 +848,15 @@ describe('グラフ描画', () => {
     expect(unique).toContain('アプリ（チャネル未記録）')
     expect(unique).toContain('chart-bar-4')
     expect(unique).not.toContain('chart-bar-5')
-    // 混在させたユニーク系列は日毎の推移から外してある。
-    expect(section(body, '日毎の推移')).not.toContain('ユニーク')
+    // 混在させたユニーク系列は日毎の推移（概要面）から外してある。
+    const overview = await (await call(PAGE.overview, AUTH_HEADERS)).text()
+    expect(section(overview, '日毎の推移')).not.toContain('ユニーク')
   })
 
   it('ユニークアクセス元が近似であることと振れる条件が同じ節に書いてある', async () => {
     await seed('update_check', { visitorDay: 'hash-stable', channel: 'stable' })
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
     const unique = section(body, '日別のユニークアクセス元')
 
     expect(unique).toContain('近似')
@@ -748,17 +868,18 @@ describe('グラフ描画', () => {
   it('日付・時間帯のラベルを間引かずに全件描く', async () => {
     await seed('visit')
 
-    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const overview = await (await call(PAGE.overview, AUTH_HEADERS)).text()
+    const users = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
     // 直近 14 日 + 24 時間帯。
-    expect(section(body, '日毎の推移').match(/class="chart-label"/gu)).toHaveLength(14)
-    expect(section(body, '時間帯分布').match(/class="chart-label"/gu)).toHaveLength(24)
+    expect(section(overview, '日毎の推移').match(/class="chart-label"/gu)).toHaveLength(14)
+    expect(section(users, '時間帯分布').match(/class="chart-label"/gu)).toHaveLength(24)
   })
 
   it('SSE で配信される HTML にもグラフと凡例が含まれる（再描画フックが要らない）', async () => {
     await seed('visit')
 
-    const summaryHtml = renderSummarySections(await summarize(env.DB, Date.now()))
+    const summaryHtml = renderOverviewSections(await summarizeOverview(env.DB, Date.now()))
 
     expect(summaryHtml).toContain('<svg class="chart"')
     expect(summaryHtml).toContain('<rect class="chart-bar chart-bar-1"')
@@ -789,18 +910,36 @@ describe('グラフ描画', () => {
 })
 
 describe('SSE で配信する集計 HTML', () => {
-  it('ページ別・言語別の内訳と最新イベントのページ列が含まれる', async () => {
+  it('最新イベントのページ列が含まれる', async () => {
     // SSE は #summary を innerHTML で丸ごと置き換える設計なので、
-    // SummarySections に入っていれば差分配信でも更新される。
+    // OverviewSections に入っていれば差分配信でも更新される。
     await seed('visit', { page: '/features', displayLang: 'en', browserLang: 'en' })
 
-    const summaryHtml = renderSummarySections(await summarize(env.DB, Date.now()))
+    const summaryHtml = renderOverviewSections(await summarizeOverview(env.DB, Date.now()))
 
-    expect(summaryHtml).toContain('<h2>ページ別の訪問（全期間の累計）</h2>')
-    expect(summaryHtml).toContain('<h2>言語別の訪問（全期間の累計）</h2>')
-    expect(summaryHtml).toContain('人間: ブラウザ言語設定別')
     expect(summaryHtml).toContain('<th>ページ</th>')
     expect(summaryHtml).toContain('<td>/features</td>')
+  })
+
+  it('ライブ更新しない面の内容は配信対象に入らない', async () => {
+    // ページ別・言語別は流入面へ移った。SSE は概要面だけを差し替えるので、
+    // ここに混ざっていたら「面ごとに集計を分けた」前提が破れている。
+    await seed('visit', { page: '/features', displayLang: 'en', browserLang: 'en' })
+
+    const summaryHtml = renderOverviewSections(await summarizeOverview(env.DB, Date.now()))
+
+    expect(summaryHtml).not.toContain('<h2>ページ別の訪問（全期間の累計）</h2>')
+    expect(summaryHtml).not.toContain('<h2>言語別の訪問（全期間の累計）</h2>')
+  })
+
+  it('ページ別・言語別の内訳は流入面で読める', async () => {
+    await seed('visit', { page: '/features', displayLang: 'en', browserLang: 'en' })
+
+    const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
+
+    expect(body).toContain('<h2>ページ別の訪問（全期間の累計）</h2>')
+    expect(body).toContain('<h2>言語別の訪問（全期間の累計）</h2>')
+    expect(body).toContain('人間: ブラウザ言語設定別')
   })
 })
 
@@ -835,7 +974,7 @@ describe('配布ホストと旧経路の表示', () => {
     await insertRow('legacy_redirect', 'befold.tommy109.workers.dev', null, 'bot:GPTBot')
     await insertRow('visit', 'befold.degino.com')
 
-    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const hostHtml = hostSection(await (await call(PAGE.delivery, AUTH_HEADERS)).text())
     // 冒頭の注記にもホスト名が出るので、表の行（<td>）側を見る。
     const legacyCell = hostHtml.indexOf('<td>befold.tommy109.workers.dev</td>')
     expect(legacyCell).toBeGreaterThan(-1)
@@ -848,7 +987,7 @@ describe('配布ホストと旧経路の表示', () => {
     // 「まだ 0」と「そもそも計測していない」を画面で区別するため、行を落とさない。
     await insertRow('visit', 'befold.degino.com')
 
-    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const hostHtml = hostSection(await (await call(PAGE.delivery, AUTH_HEADERS)).text())
 
     expect(hostHtml).toContain('befold.tommy109.workers.dev')
     expect(hostHtml).toContain('staging.befold.degino.com')
@@ -858,7 +997,7 @@ describe('配布ホストと旧経路の表示', () => {
   it('GitHub フォールバックを経路別に出す', async () => {
     await insertRow('github_fallback', 'befold.degino.com', 'appcast')
 
-    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const hostHtml = hostSection(await (await call(PAGE.delivery, AUTH_HEADERS)).text())
 
     expect(hostHtml).toContain('appcast')
   })
@@ -866,9 +1005,102 @@ describe('配布ホストと旧経路の表示', () => {
   it('フォールバックが無ければ経路別は「データなし」になる', async () => {
     await insertRow('visit', 'befold.degino.com')
 
-    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const hostHtml = hostSection(await (await call(PAGE.delivery, AUTH_HEADERS)).text())
     const fallbackTable = hostHtml.slice(hostHtml.indexOf('GitHub フォールバックの経路別'))
 
     expect(fallbackTable).toContain('データなし')
+  })
+})
+
+/**
+ * アップデートの取り込み（TASK-493）。率の分母が読めること、リリース公開日の
+ * 代用であること、チャネルが混ざらないことを画面の文言で固定する。
+ */
+describe('アップデートの取り込みの表示', () => {
+  /** 同日・同チャネルの確認と sparkle 更新を 1 組入れる。 */
+  async function seedPair(day: string, token: string, channel: string): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, channel, visitor_token, ua_summary)' +
+        " VALUES (?, 'update_check', ?, ?, 'Sparkle')",
+    )
+      .bind(Date.parse(`${day}T01:00:00Z`) - 9 * 3600 * 1000, channel, token)
+      .run()
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, source, channel, version, visitor_token, ua_summary)' +
+        " VALUES (?, 'download', 'sparkle', ?, 'v1.13.0', ?, 'Sparkle')",
+    )
+      .bind(Date.parse(`${day}T02:00:00Z`) - 9 * 3600 * 1000, channel, token)
+      .run()
+  }
+
+  it('転換率と一緒に分母の実数が出る', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    await seedPair(today, 'converted', 'stable')
+
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, '確認から更新への転換')
+
+    expect(block).toContain('<th>確認</th>')
+    expect(block).toContain('<th>更新</th>')
+    expect(block).toContain('<th>転換率</th>')
+    expect(block).toContain('100%')
+  })
+
+  it('何を分母に数えたかと、それが利用者の割合でないことが書いてある', async () => {
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, '確認から更新への転換')
+
+    expect(block).toContain('アクセス元×日')
+    expect(block).toContain('「更新した利用者の割合」ではない')
+  })
+
+  it('確認の記録がない更新を率に混ぜず別の列に出すことが書いてある', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    await seedPair(today, 'converted', 'stable')
+
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, '確認から更新への転換')
+
+    expect(block).toContain('<th>確認の記録なし</th>')
+    expect(block).toContain('100% を超える')
+  })
+
+  it('チャネルごとに表が分かれ、データが無くても消えない', async () => {
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, '確認から更新への転換')
+
+    for (const label of ['アプリ（stable）', 'アプリ（develop）', 'アプリ（チャネル未記録）']) {
+      expect(block).toContain(`${label}: 確認 → 更新`)
+    }
+  })
+
+  it('0 日目がリリース公開日ではないことと、その限界が書いてある', async () => {
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, 'リリース後の取り込み')
+
+    expect(block).toContain('リリースの公開日ではない')
+    expect(block).toContain('最初に観測した日')
+    expect(block).toContain('速く見える')
+    // LP からのダウンロードを含めないこと（新規獲得と更新の別）も画面から読める。
+    expect(block).toContain('配布 LP からのダウンロードは新規獲得なので含めない')
+  })
+
+  it('母数が小さいので率ではなく実数で出すことが書いてある', async () => {
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, 'リリース後の取り込み')
+
+    expect(block).toContain('1 桁')
+    expect(block).toContain('率ではなく実数')
+  })
+
+  it('タグごとに初回観測日と経過日数ごとの累積が出る', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    await seedPair(today, 'a', 'stable')
+
+    const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
+    const block = section(body, 'リリース後の取り込み')
+
+    expect(block).toContain('v1.13.0')
+    expect(block).toContain('0日目: 1')
   })
 })

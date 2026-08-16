@@ -21,6 +21,7 @@ befold の配布 LP・ダウンロード計測・appcast プロキシ・分析�
 | `GET /appcast-develop.xml` | 公開 | 同上（develop チャンネル） |
 | `GET /dashboard` | Cloudflare Access | 集計ダッシュボード。旧ホストでは 404 |
 | `GET /dashboard/stream` | Cloudflare Access | SSE（D1 ポーリング型）で新着イベントを push。旧ホストでは 404 |
+| `GET /dashboard/events` | Cloudflare Access | イベント一覧。`?before=` / `?after=` の id カーソルで 100 件ずつ遡る。旧ホストでは 404 |
 
 ## 開発
 

@@ -9,6 +9,7 @@
 import { CHANNELS } from './lib/github'
 import { RECORDED_HOSTS } from './lib/hosts'
 import {
+  DAY_MS,
   JST_DAY_EXPR,
   JST_HOUR_EXPR,
   jstDayStart,
@@ -261,22 +262,109 @@ export type KindBreakdown = {
   byAsOrg: Count[]
 }
 
-export type Summary = {
+/**
+ * ダッシュボードの面の識別子。**これが唯一の定義元。**
+ *
+ * ルートの生成・面ごとの集計・ナビゲーション・クエリ本数の上限テストは
+ * すべてここから導く。面を別々に書き写すと、レジストリに載っていない面が
+ * 上限テストの列挙から漏れ、「面を増やせば上限を回避できる」形に戻る。
+ * 実行時に配列が要るので型ではなく値で持つ（`Record<DashboardPageKey, ...>` の
+ * 網羅は型で検査される）。
+ */
+export const DASHBOARD_PAGE_KEYS = ['overview', 'users', 'traffic', 'delivery', 'events'] as const
+
+export type DashboardPageKey = (typeof DASHBOARD_PAGE_KEYS)[number]
+
+/** 面の定義。path はダッシュボードのルート配下の相対パス。 */
+export type DashboardPage = { key: DashboardPageKey; path: string; title: string }
+
+/**
+ * 面の一覧。ルート生成・ナビゲーション・テストの列挙がこの配列を共有する。
+ *
+ * 概要面だけが SSE でライブ更新される。他の面は分析用のスナップショットで、
+ * 更新されているように読ませないため SSE の状態表示も出さない。
+ */
+export const DASHBOARD_PAGES: readonly DashboardPage[] = [
+  { key: 'overview', path: '/', title: '概要' },
+  { key: 'users', path: '/users', title: '利用者' },
+  { key: 'traffic', path: '/traffic', title: '流入' },
+  { key: 'delivery', path: '/delivery', title: '配信' },
+  { key: 'events', path: '/events', title: 'イベント' },
+]
+
+/** 概要面: 全期間と当日の総数、日毎の推移、最新イベント。 */
+export type OverviewSummary = {
   windowDays: number
   cumulative: CumulativeTotals
   today: TodayTotals
   daily: DailyPoint[]
+  recent: RecentEvent[]
+}
+
+/**
+ * 転換率の 1 日分（チャネル別）。
+ *
+ * `checked` が分母、`converted` が分子。分子は「同じ日・同じチャネルで確認と
+ * sparkle 経由の更新の**両方**を持つアクセス元」で、単純な更新数ではない。
+ * 更新側だけを分子にすると 100% を超えうる（実測: 本番 D1 に同日の確認記録が
+ * 無い更新が存在する）。取りこぼしを率の中に隠さないため、その数を
+ * `downloadedWithoutCheck` として別に持つ。
+ *
+ * 数える単位は visitor_token の異なり数（「アクセス元×日」）。visitor_token は
+ * 生の User-Agent をハッシュ材料に含むので、appcast の取得と DMG の取得で UA が
+ * 変われば同じ端末でも別のアクセス元として数える。
+ */
+export type ConversionPoint = {
+  day: string
+  checked: number
+  converted: number
+  downloadedWithoutCheck: number
+}
+
+/** チャネル別の転換率系列。0 件のチャネルも空配列で残す。 */
+export type UpdateConversion = Record<RunningVersionKey, ConversionPoint[]>
+
+/** 取り込み曲線の 1 点。`elapsedDays` は初回観測日からの経過日数。 */
+export type AdoptionPoint = { elapsedDays: number; sources: number }
+
+/**
+ * タグ 1 つ分の取り込み曲線。
+ *
+ * `firstSeenDay` は**リリースの公開日ではなく、そのタグの sparkle 経由の
+ * ダウンロードを最初に観測した日**。events にリリースの公開時刻は無く、
+ * R2 の `latest.json` も `{version, file}` だけで日付を持たない。
+ */
+export type AdoptionCurve = {
+  version: string
+  channel: RunningVersionKey
+  firstSeenDay: string
+  cumulative: AdoptionPoint[]
+}
+
+/** 利用者面: 母集団別の日次ユニーク、稼働バージョン、時間帯分布。 */
+export type UsersSummary = {
+  windowDays: number
+  daily: DailyPoint[]
   hourly: HourlyPoint[]
+  runningVersions: RunningVersions
+  conversion: UpdateConversion
+  adoption: AdoptionCurve[]
+}
+
+/** 流入面: どこから来て何をしたか。全期間の累計で見る。 */
+export type TrafficSummary = {
   byVersion: Count[]
   byCountry: Count[]
   byReferrer: Count[]
   traffic: TrafficSplit
   visits: VisitBreakdowns
-  runningVersions: RunningVersions
+  perKind: KindBreakdown[]
+}
+
+/** 配信面: 配布ホストと旧経路・フォールバック。 */
+export type DeliverySummary = {
   hosts: Split[]
   fallbacks: Split[]
-  perKind: KindBreakdown[]
-  recent: RecentEvent[]
 }
 
 /** 指標として並べる順序と表示名。ページ表示・集計の双方でこの順を使う。 */
@@ -295,6 +383,15 @@ export const DAILY_WINDOW_DAYS = 14
  */
 export const TOP_N = 10
 const RECENT_LIMIT = 20
+
+/**
+ * イベント面の 1 ページあたりの件数。
+ *
+ * 概要面の `RECENT_LIMIT`（20 件）とは別の定数にする。概要面は「いま何が
+ * 起きているか」を一目で見るための短い一覧で、イベント面は過去へ遡るための
+ * 一覧なので、片方を変えたときにもう片方まで動くと困る。
+ */
+export const EVENTS_PAGE_LIMIT = 100
 
 /** SSE の 1 周期で流す新着イベントの上限。再開位置の判断に呼び出し側も使う。 */
 export const STREAM_LIMIT = 100
@@ -723,9 +820,9 @@ function addTo(split: Split, row: { is_non_human: number; count: number }): void
 }
 
 /**
- * 最新イベントの SELECT 句。**`recentEvents` と `eventsAfter` で共有する。**
+ * 最新イベントの SELECT 句。**`recentEvents`・`eventsAfter`・`eventPage` で共有する。**
  *
- * 2 箇所に書き写さない。両者は同じ `RecentEvent` を返す契約だが、`.all<RecentEvent>()`
+ * 3 箇所に書き写さない。どれも同じ `RecentEvent` を返す契約だが、`.all<RecentEvent>()`
  * のジェネリクスは実際の列を検査しないため、片方の列を落としてもコンパイルは通り、
  * 初期表示にはあるのに SSE で流れる行にだけ列が無い、という形で静かに壊れる
  * （実測: `eventsAfter` から page を落としても typecheck も既存テストも通った）。
@@ -746,6 +843,101 @@ export async function recentEvents(db: D1Database, afterId = 0): Promise<RecentE
     .all<RecentEvent>()
 
   return results
+}
+
+/**
+ * イベント面のページ送りの向きと基準 id。
+ *
+ * `OFFSET` は使わない。イベントは常に先頭（新しい側）へ挿入されるため、
+ * オフセットで数えるとページを送っている間に境界がずれ、同じ行が 2 度出たり
+ * 抜けたりする。基準を id に置けば、その後に何件挿入されても
+ * 「この id より古い 100 件」は変わらない。
+ */
+export type EventCursor = { direction: 'older' | 'newer'; id: number }
+
+/**
+ * イベント面の 1 ページ分。
+ *
+ * `olderCursor` / `newerCursor` は、その向きへさらにページがあるときだけ入る
+ * （そのまま「前へ」「次へ」のリンクの有無になる）。
+ */
+export type EventPage = {
+  events: RecentEvent[]
+  olderCursor?: number
+  newerCursor?: number
+}
+
+/**
+ * イベント面の 1 ページを引く（新しい順、人間のみ）。
+ *
+ * **上限より 1 件多く引いて、次のページがあるかを同じクエリで確定させる。**
+ * 「次があるか」を別のクエリ（COUNT など）で問い直すと 1 面 2 本になり、
+ * `query-count.test.ts` の上限の意味が薄れる。
+ *
+ * 逆向きのカーソルは、そちらから来たことで存在が確定する。`older` へ送った
+ * ときの基準 id は直前のページに表示されていた実在の行なので、`newer` を
+ * たどれば必ずその行が返る（URL を手で書き換えれば空になりうるが、その場合も
+ * 0 件の表示になるだけで壊れない）。
+ */
+export async function eventPage(db: D1Database, cursor?: EventCursor): Promise<EventPage> {
+  const newer = cursor?.direction === 'newer'
+  // ボットの除外は `HUMAN_ONLY` を SQL へ直に埋める（条件の書き写しを禁じる
+  // 構造ガードが、events を読むクエリの近くにその参照を求めている）。
+  // ここで組み立てるのは id の境界だけ。
+  const bounded = cursor === undefined ? '' : `id ${newer ? '>' : '<'} ? AND `
+  const bindings = cursor === undefined ? [] : [cursor.id]
+  // 新しい側へ戻るときだけ昇順で引き、返してから並びを新しい順へ戻す。
+  // 降順のまま `id > ?` を引くと、基準のすぐ上ではなく最新側の 100 件が返り、
+  // 間のページが飛ぶ。
+  const { results } = await db
+    .prepare(
+      `SELECT ${RECENT_COLUMNS}
+       FROM events
+       WHERE ${bounded}${HUMAN_ONLY}
+       ORDER BY id ${newer ? 'ASC' : 'DESC'}
+       LIMIT ?`,
+    )
+    .bind(...bindings, EVENTS_PAGE_LIMIT + 1)
+    .all<RecentEvent>()
+
+  const hasMore = results.length > EVENTS_PAGE_LIMIT
+  const page = results.slice(0, EVENTS_PAGE_LIMIT)
+  const events = newer ? page.toReversed() : page
+  const first = events[0]
+  const last = events.at(-1)
+
+  return {
+    events,
+    // 引いた向きは実件数で確定する。逆向きは、そこから来ていれば必ず存在する。
+    olderCursor: (newer ? cursor !== undefined : hasMore) ? last?.id : undefined,
+    newerCursor: (newer ? hasMore : cursor !== undefined) ? first?.id : undefined,
+  }
+}
+
+/**
+ * クエリパラメータからページ送りの基準を読む。
+ *
+ * `parseInt` ではなく `Number` を使う（'12abc' を 12 として受け取らない）。
+ * 読めない値・空文字・負の値は基準無し（＝最新のページ）に倒す。空文字を弾かないと
+ * `Number('')` が 0 になり、`?after=` だけの URL が「id 0 より新しい」＝最新の
+ * ページに化ける（先頭ページと同じ内容だが「新しい側へ戻れる」と表示される）。
+ * `before` と `after` が
+ * 同時に来たら `before` を採る（片方だけを見て両方指定を静かに無視しない）。
+ */
+export function parseEventCursor(query: {
+  before?: string
+  after?: string
+}): EventCursor | undefined {
+  const before = query.before ?? ''
+  const after = query.after ?? ''
+  const direction = before.length === 0 && after.length > 0 ? 'newer' : 'older'
+  const raw = direction === 'newer' ? after : before
+  if (raw.length === 0) return undefined
+
+  const id = Math.trunc(Number(raw))
+  if (!Number.isFinite(id) || id < 0) return undefined
+
+  return { direction, id }
 }
 
 /**
@@ -866,6 +1058,133 @@ async function runningVersionBreakdown(db: D1Database, now: number): Promise<Run
   return byChannel
 }
 
+/**
+ * アップデートの取り込み（転換率とタグ別の取り込み曲線）を 1 本のクエリで取る。
+ *
+ * 2 つの指標はどちらも「アクセス元をいったん畳んでから数える」形で、行単位の
+ * `CASE` を並べる日別推移のクエリには相乗りできない（同じアクセス元が確認の行と
+ * 更新の行の両方を持つか、は行を見ただけでは分からない）。指標ごとに引かず
+ * `UNION ALL` の 2 枝にして 1 本に収める（`metricBreakdowns` と同じ手）。
+ *
+ * どちらの枝も対象は直近 N 日。曲線のほうは「その窓の中で初めて観測されたタグ」に
+ * 限られるため、窓より前に出たタグは出てこない（画面の注記でその旨を示す）。
+ */
+async function updateAdoption(
+  db: D1Database,
+  now: number,
+): Promise<{ conversion: UpdateConversion; adoption: AdoptionCurve[] }> {
+  const windowStart = jstWindowStart(now, DAILY_WINDOW_DAYS)
+  const isCheck = metricExpression(METRIC_FILTERS.update_check)
+  const isUpdate = metricExpression(METRIC_FILTERS.update_download)
+
+  const { results } = await db
+    .prepare(
+      `WITH sources AS (
+         SELECT ${JST_DAY_EXPR} AS day,
+                COALESCE(channel, 'unrecorded') AS channel,
+                visitor_token,
+                version,
+                MAX(CASE WHEN ${isCheck} THEN 1 ELSE 0 END) AS checked,
+                MAX(CASE WHEN ${isUpdate} THEN 1 ELSE 0 END) AS updated
+         FROM events
+         WHERE timestamp >= ? AND ${HUMAN_ONLY} AND ((${isCheck}) OR (${isUpdate}))
+         GROUP BY day, channel, visitor_token, version
+       ),
+       per_source AS (
+         SELECT day, channel, visitor_token,
+                MAX(checked) AS checked,
+                MAX(updated) AS updated
+         FROM sources
+         GROUP BY day, channel, visitor_token
+       ),
+       conversion AS (
+         SELECT 'conversion' AS branch, day, channel, NULL AS version,
+                SUM(checked) AS checked,
+                SUM(CASE WHEN checked = 1 AND updated = 1 THEN 1 ELSE 0 END) AS converted,
+                SUM(CASE WHEN checked = 0 AND updated = 1 THEN 1 ELSE 0 END) AS orphan
+         FROM per_source
+         GROUP BY day, channel
+       ),
+       adoption AS (
+         SELECT 'adoption' AS branch, day, channel, version,
+                COUNT(DISTINCT visitor_token) AS checked, 0 AS converted, 0 AS orphan
+         FROM sources
+         WHERE updated = 1 AND version IS NOT NULL
+         GROUP BY day, channel, version
+       )
+       SELECT * FROM conversion
+       UNION ALL
+       SELECT * FROM adoption
+       ORDER BY branch, day`,
+    )
+    .bind(windowStart)
+    .all<{
+      branch: 'adoption' | 'conversion'
+      day: string
+      channel: RunningVersionKey
+      version: string | null
+      checked: number
+      converted: number
+      orphan: number
+    }>()
+
+  // データの無い日も 0 で埋める（`dailySeries` と同じ扱い）。埋めないと、
+  // 「その日は誰も確認しなかった」と「その日は数えていない」が区別できない。
+  const byChannelDay = new Map<string, ConversionPoint>()
+  const conversion = {} as UpdateConversion
+  for (const { key } of RUNNING_VERSION_LABELS) {
+    conversion[key] = jstDaysInWindow(now, DAILY_WINDOW_DAYS).map((day) => {
+      const point = { day, checked: 0, converted: 0, downloadedWithoutCheck: 0 }
+      byChannelDay.set(`${key}\t${day}`, point)
+      return point
+    })
+  }
+
+  // タグごとに「観測日 → その日のアクセス元数」を集めてから累積へ畳む。
+  const perTag = new Map<string, { channel: RunningVersionKey; byDay: Map<string, number> }>()
+
+  for (const row of results) {
+    if (row.branch === 'conversion') {
+      const point = byChannelDay.get(`${row.channel}\t${row.day}`)
+      if (point !== undefined) {
+        point.checked = row.checked
+        point.converted = row.converted
+        point.downloadedWithoutCheck = row.orphan
+      }
+      continue
+    }
+
+    if (row.version === null) continue
+    const entry = perTag.get(row.version) ?? { channel: row.channel, byDay: new Map() }
+    entry.byDay.set(row.day, (entry.byDay.get(row.day) ?? 0) + row.checked)
+    perTag.set(row.version, entry)
+  }
+
+  const adoption = [...perTag.entries()]
+    .map(([version, { channel, byDay }]) => {
+      const days = [...byDay.keys()].toSorted()
+      const firstSeenDay = days[0] ?? ''
+      const start = Date.parse(`${firstSeenDay}T00:00:00Z`)
+      let running = 0
+
+      return {
+        version,
+        channel,
+        firstSeenDay,
+        cumulative: days.map((day) => {
+          running += byDay.get(day) ?? 0
+          return {
+            elapsedDays: Math.round((Date.parse(`${day}T00:00:00Z`) - start) / DAY_MS),
+            sources: running,
+          }
+        }),
+      }
+    })
+    .toSorted((left, right) => right.firstSeenDay.localeCompare(left.firstSeenDay))
+
+  return { conversion, adoption }
+}
+
 /** 指標ごとの OS 別・接続元組織別の内訳。合算しないため指標の意味が混ざらない。 */
 async function kindBreakdowns(db: D1Database): Promise<Omit<KindBreakdown, 'total'>[]> {
   const byAxis = await metricBreakdowns(db)
@@ -881,59 +1200,79 @@ async function kindBreakdowns(db: D1Database): Promise<Omit<KindBreakdown, 'tota
 }
 
 /** ダッシュボード初期表示用の集計一式。 */
-export async function summarize(db: D1Database, now: number): Promise<Summary> {
-  const [
-    cumulative,
-    today,
-    daily,
-    hourly,
-    byVersion,
-    byCountry,
-    byReferrer,
-    traffic,
-    breakdowns,
-    recent,
-    breakdownAxes,
-    runningVersions,
-  ] = await Promise.all([
+/**
+ * 概要面の集計（4 クエリ）。
+ *
+ * SSE の再描画もこれを使う。面を分ける前は 13 クエリすべてを引き直していた。
+ */
+export async function summarizeOverview(db: D1Database, now: number): Promise<OverviewSummary> {
+  const [cumulative, today, daily, recent] = await Promise.all([
     cumulativeTotals(db),
     todayTotals(db, now),
     dailySeries(db, now),
-    hourlyDistribution(db, now),
-    breakdown(db, 'version', 'download'),
-    breakdown(db, 'country'),
-    breakdown(db, 'referrer'),
-    // ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を
-    // 実測するために持つ。TASK-360 で見送った llms.txt の要否判断に使う。
-    // データセンター区分の内訳は接続元組織で、除外した量が画面から
-    // 消えないようにするためのもの（ADR 0008）。
-    trafficSplit(db),
-    kindBreakdowns(db),
     recentEvents(db),
-    eventBreakdowns(db),
+  ])
+
+  return { windowDays: DAILY_WINDOW_DAYS, cumulative, today, daily, recent }
+}
+
+/** 利用者面の集計（3 クエリ）。 */
+export async function summarizeUsers(db: D1Database, now: number): Promise<UsersSummary> {
+  const [daily, hourly, runningVersions, updates] = await Promise.all([
+    dailySeries(db, now),
+    hourlyDistribution(db, now),
     runningVersionBreakdown(db, now),
+    updateAdoption(db, now),
   ])
 
   return {
     windowDays: DAILY_WINDOW_DAYS,
-    cumulative,
-    today,
     daily,
     hourly,
+    runningVersions,
+    conversion: updates.conversion,
+    adoption: updates.adoption,
+  }
+}
+
+/**
+ * 流入面の集計（8 クエリ）。
+ *
+ * `perKind` の総数は全期間の累計から取るため、この面も cumulativeTotals を引く。
+ * ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を実測する
+ * ために持つ。TASK-360 で見送った llms.txt の要否判断に使う。データセンター
+ * 区分の内訳は接続元組織で、除外した量が画面から消えないようにするもの（ADR 0008）。
+ */
+export async function summarizeTraffic(db: D1Database): Promise<TrafficSummary> {
+  const [cumulative, byVersion, byCountry, byReferrer, traffic, breakdowns, breakdownAxes] =
+    await Promise.all([
+      cumulativeTotals(db),
+      breakdown(db, 'version', 'download'),
+      breakdown(db, 'country'),
+      breakdown(db, 'referrer'),
+      trafficSplit(db),
+      kindBreakdowns(db),
+      eventBreakdowns(db),
+    ])
+
+  return {
     byVersion,
     byCountry,
     byReferrer,
     traffic,
     visits: breakdownAxes.visits,
-    runningVersions,
-    hosts: breakdownAxes.byHost,
-    fallbacks: breakdownAxes.byFallback,
     // 要素数は指標の数（KIND_LABELS）に固定で、ここでの spread が効いてくる規模に
     // ならない。Object.assign へ書き換えると読みにくくなるだけなので許す。
     // oxlint-disable-next-line oxc/no-map-spread
     perKind: breakdowns.map((entry) => ({ ...entry, total: cumulative.counts[entry.kind] })),
-    recent,
   }
+}
+
+/** 配信面の集計（1 クエリ）。 */
+export async function summarizeDelivery(db: D1Database): Promise<DeliverySummary> {
+  const breakdownAxes = await eventBreakdowns(db)
+
+  return { hosts: breakdownAxes.byHost, fallbacks: breakdownAxes.byFallback }
 }
 
 /**
