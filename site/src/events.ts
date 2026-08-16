@@ -5,10 +5,11 @@ import {
   type DisplayLang,
   type DownloadSource,
   type EventKind,
+  type FallbackRoute,
   type Page,
 } from './schema'
 import { summarizeLang } from './lib/lang'
-import { selfHostsFor } from './lib/hosts'
+import { classifyHost, selfHostsFor } from './lib/hosts'
 import { resolveReferrer } from './lib/referrer'
 import { summarizeOS, summarizeUA, visitorTokenHash } from './lib/visitor'
 
@@ -37,13 +38,24 @@ export type EventAttributes = {
    * 必ず同じ値から出る。
    */
   displayLang?: DisplayLang | null
+  /** kind='github_fallback' のときのみ指定する、GitHub へ落ちた経路。 */
+  fallback?: FallbackRoute | null
 }
+
+/**
+ * リクエスト先ホストはここに無い。**呼び出し側から渡せない形にしてある。**
+ *
+ * host は全 kind で値を持つ必要があり、経路ごとに渡す形にすると、次に記録箇所を
+ * 足したときの付け忘れが「その経路だけホスト不明」という静かな欠測になる。
+ * リクエストから一意に決まるものなので `insertEvent` が URL から導出する
+ * （`country` / `browserLang` と同じ持ち方）。
+ */
 
 const INSERT_SQL =
   'INSERT INTO events' +
   ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer,' +
-  ' as_org, source, page, browser_lang, display_lang)' +
-  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ' as_org, source, page, browser_lang, display_lang, host, fallback)' +
+  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 
 /**
  * リクエストから計測イベントを組み立てて D1 に記録する。
@@ -58,6 +70,7 @@ export function recordEvent(c: Context<AppEnv>, attributes: EventAttributes): vo
 async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Promise<void> {
   try {
     const ts = Date.now()
+    const host = new URL(c.req.url).host
     const ua = c.req.header('User-Agent') ?? ''
     const ip = c.req.header('CF-Connecting-IP') ?? ''
 
@@ -73,7 +86,7 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
       referrer: resolveReferrer(
         c.req.query('ref') ?? null,
         c.req.header('Referer') ?? null,
-        selfHostsFor(new URL(c.req.url).host),
+        selfHostsFor(host),
       ),
       // request.cf は Cloudflare の実行環境でのみ付与される。ローカル/テストでは
       // undefined になり得るため、欠落時は記録処理自体を止めず null にする。
@@ -84,6 +97,8 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
       // クライアント（Sparkle など）では null になる。
       browserLang: summarizeLang(c.req.header('Accept-Language') ?? null),
       displayLang: attributes.displayLang ?? null,
+      host: classifyHost(host),
+      fallback: attributes.fallback ?? null,
     })
 
     await c.env.DB.prepare(INSERT_SQL)
@@ -102,6 +117,8 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
         event.page,
         event.browserLang,
         event.displayLang,
+        event.host,
+        event.fallback,
       )
       .run()
   } catch (error) {

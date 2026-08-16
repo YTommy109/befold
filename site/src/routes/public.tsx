@@ -59,6 +59,7 @@ publicRoutes.get('/download', async (c) => {
     // R2 に最新ポインタが無い（移行前・put 失敗・stable 未リリース）。
     // 導線は途切れさせず、従来どおり GitHub 側の解決へ落とす。
     const dmg = await latestDMG()
+    recordEvent(c, { kind: 'github_fallback', fallback: 'release-api' })
     recordEvent(c, { kind: 'download', version: dmg?.version ?? null, channel: 'stable', source: 'lp' })
     return c.redirect(dmg?.url ?? RELEASES_LATEST_URL, 302)
   }
@@ -89,6 +90,7 @@ async function serveDMG(c: Context<AppEnv>, tag: string, file: string): Promise<
   const object = key === null ? null : await c.env.DIST.get(key)
 
   if (object === null) {
+    recordEvent(c, { kind: 'github_fallback', fallback: 'dmg', version: tag })
     return c.redirect(releaseAssetURL(tag, file), 302)
   }
 
@@ -172,6 +174,11 @@ publicRoutes.get('/appcast-develop.xml', (c) => proxyAppcast(c, 'develop'))
  * 移行期の経路であって恒常的な二重の真実ではない（リリースワークフローは
  * R2 への put が失敗したらジョブごと失敗する）。
  *
+ * `github_fallback`（R2 に appcast が無く GitHub をプロキシした）の記録は
+ * `loadAppcast` の中で行う。キャッシュに当たった周期はそこを通らないため、
+ * この経路のフォールバック数は最大 300 秒ぶん過小に出る。update_check 自体は
+ * キャッシュ判定より前に記録するのでこの影響を受けない。
+ *
  * 応答は caches.default に 300 秒入れる。Cache-Control だけではクライアント／
  * 中間キャッシュにしか効かず、アップデートチェックのたびに R2 のクラス B
  * 操作が発生するため。記録はキャッシュ判定より前に必ず行う（先にキャッシュを
@@ -205,6 +212,7 @@ async function loadAppcast(c: Context<AppEnv>, channel: Channel): Promise<Respon
     })
   }
 
+  recordEvent(c, { kind: 'github_fallback', fallback: 'appcast', channel })
   const upstream = await fetch(APPCAST_UPSTREAM[channel], {
     headers: { 'User-Agent': 'befold-site' },
     cf: { cacheTtl: 300, cacheEverything: true },

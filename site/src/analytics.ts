@@ -7,6 +7,7 @@
  */
 
 import type { DownloadSource, EventKind, Page } from './schema'
+import { RECORDED_HOSTS } from './lib/hosts'
 import { JST_DAY_EXPR, JST_HOUR_EXPR, jstDayStart, jstDaysInWindow, jstWindowStart } from './lib/jst'
 import { BOT_PREFIX } from './lib/visitor'
 
@@ -51,7 +52,23 @@ const METRIC_FILTERS: Record<MetricKey, MetricFilter> = {
   download: { kind: 'download', source: 'lp', page: null },
   update_download: { kind: 'download', source: 'sparkle', page: null },
   update_check: { kind: 'update_check', source: null, page: null },
+  // 下の 2 つは製品の指標ではなく運用の観測。`MetricKey` が `EventKind` を覆う
+  // ため型としてここに現れるが、カード・グラフ（`KIND_LABELS`）には出さない。
+  github_fallback: { kind: 'github_fallback', source: null, page: null },
+  legacy_redirect: { kind: 'legacy_redirect', source: null, page: null },
 }
+
+/**
+ * カード・グラフに並べない kind。運用の観測として専用セクションで見るもの。
+ *
+ * `KIND_LABELS` から漏れた kind が黙って画面のどこにも出ないことを防ぐための
+ * 明示。両者を合わせて全 `MetricKey` を覆うことは `analytics.test.ts` が検査する
+ * （kind を足したら、指標にするか運用観測にするかをここで必ず決めることになる）。
+ */
+export const OPERATIONAL_KINDS: ReadonlySet<MetricKey> = new Set<MetricKey>([
+  'github_fallback',
+  'legacy_redirect',
+])
 
 /**
  * 指標 1 つを SQL の条件式にする。**指標の述語はここだけで組み立てる。**
@@ -126,12 +143,14 @@ export type Summary = {
   byReferrer: Count[]
   ua: UASplit
   visits: VisitBreakdowns
+  hosts: Split[]
+  fallbacks: Split[]
   perKind: KindBreakdown[]
   recent: RecentEvent[]
 }
 
 /** 指標として並べる順序と表示名。ページ表示・集計の双方でこの順を使う。 */
-const KIND_LABELS: { kind: MetricKey; label: string }[] = [
+export const KIND_LABELS: { kind: MetricKey; label: string }[] = [
   { kind: 'visit', label: 'ページアクセス' },
   { kind: 'download', label: 'ダウンロード' },
   { kind: 'update_check', label: 'アップデート確認' },
@@ -359,83 +378,136 @@ async function uaBreakdown(db: D1Database, bots: boolean): Promise<Count[]> {
 }
 
 /** 1 つの区分の、人間とロボットそれぞれの件数。 */
-export type VisitSplit = { label: string; human: number; bot: number }
+export type Split = { label: string; human: number; bot: number }
 
 /**
  * visit の内訳（ページ別・表示言語別・ブラウザ言語設定別）。
  *
  * 3 つとも「visit を何かの軸で割った」ものなので、軸ごとにクエリを引かず
- * 1 本にまとめる（`visitBreakdowns`）。
+ * 1 本にまとめる（`eventBreakdowns`）。
  */
 export type VisitBreakdowns = {
-  byPage: VisitSplit[]
-  byDisplayLang: VisitSplit[]
-  byBrowserLang: VisitSplit[]
+  byPage: Split[]
+  byDisplayLang: Split[]
+  byBrowserLang: Split[]
+}
+
+/** 1 本のクエリから畳んで作る内訳の一式。 */
+export type EventBreakdowns = {
+  visits: VisitBreakdowns
+  /** リクエスト先ホスト別（全 kind）。0 件の既知ホストも行として残す。 */
+  byHost: Split[]
+  /** GitHub へ落ちた経路別（kind='github_fallback' のみ）。 */
+  byFallback: Split[]
 }
 
 /** 値が記録されていない行のラベル。列の導入前に記録された visit がここに入る。 */
 export const UNRECORDED_LABEL = '未記録'
 
 /**
- * visit をページ・表示言語・ブラウザ言語設定の 3 軸で割り、人間とロボットに分ける。
+ * 内訳を 1 本のクエリで取り、軸ごとに TS 側で畳む。
  *
- * **クエリは 1 本。** 3 軸それぞれに引くと全表スキャンが 3 本並ぶが、visit の
- * 行を 3 列の組で集約すれば結果は高々「2 ページ × 3 言語 × 3 言語 × 2」= 36 行に
- * しかならず、軸ごとの集計は TS 側で畳める。
+ * **クエリは 1 本。** 軸ごとに引くと全表スキャンが軸の数だけ並ぶ。値が列挙で
+ * 抑えられた列の組で集約すれば、返る行は組み合わせの数（実際には kind ごとに
+ * 埋まる列が違うので高々数十行）にしかならず、軸ごとの集計は TS 側で畳める。
+ * この形を崩して軸ごとに引くと `query-count.test.ts` の上限で落ちる。
  *
- * `COALESCE(page, '/')` を `kind = 'visit'` と同じ WHERE の中に置いている。page が
- * NULL の行には「列の導入前に記録された visit（当時は LP だけなので '/' と読んで
- * よい）」と「ページの概念が無い download / update_check」の 2 種類があり、後者に
- * '/' を与えると嘘になるため（`schema/schema.sql` の page 列コメント）。
+ * `COALESCE(page, '/')` を SQL 側に置かないこと。page が NULL の行には「列の
+ * 導入前に記録された visit（当時は LP だけなので '/' と読んでよい）」と
+ * 「ページの概念が無い download / update_check / 運用イベント」の 2 種類があり、
+ * 後者に '/' を与えると嘘になる（`schema/schema.sql` の page 列コメント）。
+ * このクエリは kind を絞らないため、丸めは `kind = 'visit'` の行だけを対象に
+ * TS 側（`visitRows`）で行う。
  *
  * ボット判定は `BOT_MATCH` をそのまま使う。ここで新しい判定を書かない——
  * 判定の定義元が増えると、`BOT_TOKENS` を足したときに片方だけ直る。
  */
-export async function visitBreakdowns(db: D1Database): Promise<VisitBreakdowns> {
+export async function eventBreakdowns(db: D1Database): Promise<EventBreakdowns> {
   const { results } = await db
     .prepare(
-      `SELECT COALESCE(page, '/') AS page,
-              display_lang        AS display_lang,
-              browser_lang        AS browser_lang,
-              ${BOT_MATCH}        AS is_bot,
-              COUNT(*)            AS count
+      `SELECT kind, page, display_lang, browser_lang, host, fallback,
+              COUNT(*) AS count, ${BOT_MATCH} AS is_bot
        FROM events
-       WHERE kind = 'visit'
-       GROUP BY page, display_lang, browser_lang, is_bot`,
+       GROUP BY kind, page, display_lang, browser_lang, host, fallback, is_bot`,
     )
-    .all<{
-      page: string
-      display_lang: string | null
-      browser_lang: string | null
-      is_bot: number
-      count: number
-    }>()
+    .all<BreakdownRow>()
+
+  const visitRows = results.filter((row) => row.kind === 'visit')
 
   return {
-    byPage: foldSplits(results, (row) => row.page),
-    byDisplayLang: foldSplits(results, (row) => row.display_lang ?? UNRECORDED_LABEL),
-    byBrowserLang: foldSplits(results, (row) => row.browser_lang ?? UNRECORDED_LABEL),
+    visits: {
+      byPage: foldSplits(visitRows, (row) => row.page ?? '/'),
+      byDisplayLang: foldSplits(visitRows, (row) => row.display_lang ?? UNRECORDED_LABEL),
+      byBrowserLang: foldSplits(visitRows, (row) => row.browser_lang ?? UNRECORDED_LABEL),
+    },
+    byHost: foldHosts(results),
+    byFallback: foldSplits(
+      results.filter((row) => row.fallback !== null),
+      (row) => row.fallback ?? UNRECORDED_LABEL,
+    ),
   }
+}
+
+/** `eventBreakdowns` が受け取る 1 行。列の値はいずれも列挙か NULL に限る。 */
+type BreakdownRow = {
+  kind: string
+  page: string | null
+  display_lang: string | null
+  browser_lang: string | null
+  host: string | null
+  fallback: string | null
+  is_bot: number
+  count: number
+}
+
+/**
+ * ホスト別を畳む。**0 件の既知ホストも行として残す。**
+ *
+ * 件数のある区分だけを返すと、「旧ホストへのアクセスがまだ 0 だった」と
+ * 「そもそも計測していない」が画面上で区別できなくなる。ADR 0007 の停止条件は
+ * ゼロであることの確認そのものなので、0 を消してはならない。
+ *
+ * 列の導入前に記録された行（host が NULL）は当時どのホストで応答したかを
+ * 復元できないため、既知ホストに混ぜず `UNRECORDED_LABEL` で分けて出す。
+ */
+function foldHosts(rows: BreakdownRow[]): Split[] {
+  const splits = new Map<string, Split>(
+    RECORDED_HOSTS.map((host) => [host, { label: host, human: 0, bot: 0 }]),
+  )
+
+  for (const row of rows) {
+    const label = row.host ?? UNRECORDED_LABEL
+    const split = splits.get(label) ?? { label, human: 0, bot: 0 }
+    addTo(split, row)
+    splits.set(label, split)
+  }
+
+  return [...splits.values()]
 }
 
 /** 集約済みの行を 1 軸へ畳む。件数の多い順、同数ならラベル順。 */
 function foldSplits<T extends { is_bot: number; count: number }>(
   rows: T[],
   labelOf: (row: T) => string,
-): VisitSplit[] {
-  const byLabel = new Map<string, VisitSplit>()
+): Split[] {
+  const byLabel = new Map<string, Split>()
 
   for (const row of rows) {
     const label = labelOf(row)
     const split = byLabel.get(label) ?? { label, human: 0, bot: 0 }
-    if (row.is_bot === 1) split.bot += row.count
-    else split.human += row.count
+    addTo(split, row)
     byLabel.set(label, split)
   }
 
   return [...byLabel.values()].sort(
     (a, b) => b.human + b.bot - (a.human + a.bot) || a.label.localeCompare(b.label),
   )
+}
+
+/** 1 行ぶんを人間側・ロボット側のどちらかへ足す。判定は SQL 側の `is_bot`。 */
+function addTo(split: Split, row: { is_bot: number; count: number }): void {
+  if (row.is_bot === 1) split.bot += row.count
+  else split.human += row.count
 }
 
 /**
@@ -534,7 +606,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     ua,
     breakdowns,
     recent,
-    visits,
+    breakdownAxes,
   ] =
     await Promise.all([
       cumulativeTotals(db),
@@ -549,7 +621,7 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
       uaSplit(db),
       kindBreakdowns(db),
       recentEvents(db),
-      visitBreakdowns(db),
+      eventBreakdowns(db),
     ])
 
   return {
@@ -562,7 +634,9 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     byCountry,
     byReferrer,
     ua,
-    visits,
+    visits: breakdownAxes.visits,
+    hosts: breakdownAxes.byHost,
+    fallbacks: breakdownAxes.byFallback,
     perKind: breakdowns.map((entry) => ({ ...entry, total: cumulative.counts[entry.kind] })),
     recent,
   }

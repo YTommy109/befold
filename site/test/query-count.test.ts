@@ -8,15 +8,19 @@ import { summarize } from '../src/analytics'
  * 内訳（計 14 本）: cumulativeTotals / todayTotals / dailySeries /
  * hourlyDistribution / breakdown 3 本（version・country・referrer）/ uaSplit 3 本 /
  * recentEvents / 指標別内訳 2 本（OS 別・接続元組織別で、指標の数に依らない）/
- * visitBreakdowns 1 本。
+ * eventBreakdowns 1 本。
  *
  * 指標を 1 つ足すたびにクエリが増える形（KIND_LABELS ごとに発行する）へ戻ると
  * この上限を超えて落ちる（TASK-423 の前は 19 本だった）。
  *
  * TASK-488.2 で 13 → 14。ページ別・表示言語別・ブラウザ言語設定別の 3 つの内訳を
  * 追加したが、増やしたクエリは 1 本だけ。visit の行を 3 列の組で集約すると結果は
- * 高々数十行にしかならず、軸ごとの集計は TS 側で畳めるため（`visitBreakdowns`）。
+ * 高々数十行にしかならず、軸ごとの集計は TS 側で畳めるため（`eventBreakdowns`）。
  * 軸ごとに 1 本ずつ引く形へ戻すと 16 本になり、ここで落ちる。
+ *
+ * TASK-488.3 でホスト別・GitHub フォールバック経路別の 2 軸を足したが、本数は
+ * 14 のまま。同じ 1 本の GROUP BY へ列を足し、kind の絞り込み（visit のみ）を
+ * SQL から TS 側へ移して全 kind を 1 度に集約する形にしたため。
  */
 const MAX_QUERIES = 14
 

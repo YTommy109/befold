@@ -37,7 +37,22 @@ CREATE TABLE events (
   -- （当時は日英を同一 HTML で出しており表示言語が確定しない）と、ページの概念が
   -- 無い download / update_check。このため `COALESCE(display_lang, 'ja')` は
   -- 無条件には書けない（kind='visit' と同じ条件節の中でのみ使う）。
-  display_lang TEXT
+  display_lang TEXT,
+  -- リクエスト先ホスト。kind を問わず全イベントで値を持つ（`src/events.ts` が
+  -- URL から一括で導出する）。値は `src/lib/hosts.ts` の既知ホスト名そのものか、
+  -- どれにも当たらなければ 'other'。生の Host ヘッダを入れないのは、任意の値を
+  -- 送れるヘッダをそのまま入れるとカーディナリティが発散するため。
+  -- 列の導入前に記録された行は NULL で、当時どのホストで応答したかは復元できない。
+  --
+  -- この列は ADR 0007 の「旧ホストを停止できる条件」（旧ホストの appcast を叩く
+  -- クライアントがゼロ）を観測するために持つ。
+  host        TEXT,
+  -- R2 に目的のオブジェクトが無く GitHub へ落ちた経路。
+  -- kind='github_fallback' のときだけ値を持ち、それ以外の kind では NULL
+  -- （対応は `src/schema.ts` の eventSchema が refine で強制する）。
+  -- 'appcast' は appcast のプロキシ、'dmg' は成果物の 302、'release-api' は
+  -- /download が最新ポインタを読めず GitHub API へ落ちた場合。
+  fallback    TEXT
 );
 
 CREATE INDEX idx_events_timestamp ON events (timestamp);

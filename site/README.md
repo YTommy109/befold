@@ -423,7 +423,7 @@ LP と詳細ページは言語ごとに URL を分ける（日本語 = `/` `/fea
 ### ダッシュボードのページ別・言語別の内訳
 
 ページ別・表示言語別・ブラウザ言語設定別の 3 つの内訳を、人間とロボットに分けて
-出す（`visitBreakdowns`）。
+出す（`eventBreakdowns`）。
 
 - **クエリは 1 本。** 軸ごとに引くと全表スキャンが 3 本並ぶが、visit の行を
   3 列の組で集約すれば結果は高々数十行にしかならず、軸ごとの集計は TS 側で畳める。
@@ -440,6 +440,69 @@ LP と詳細ページは言語ごとに URL を分ける（日本語 = `/` `/fea
   `.all<RecentEvent>()` のジェネリクスは実際の列を検査しない。片方から列を落としても
   コンパイルは通り、初期表示にはあるのに SSE で流れる行にだけ列が無い、という形で
   静かに壊れる（実測で確認した）。
+
+## リクエスト先ホストと GitHub フォールバックの記録
+
+<!-- constrained-by ../docs/adr/0007-distribution-site-custom-domain.md -->
+
+配布サイトは 3 世代の URL すべてで応答している（GitHub Pages / `befold.tommy109.workers.dev` /
+`befold.degino.com`）。旧世代を止めてよいかは「旧ホストを叩くクライアントがゼロか」で
+決まる（ADR 0007 の決定 1）。それを観測するために `events.host` と `events.fallback` を持つ。
+
+- **`host` は全 kind で値を持つ。** `recordEvent` がリクエスト URL から一括で導出し
+  （`src/events.ts`）、`EventAttributes` には**含めていない**。経路ごとに渡す形にすると、
+  記録箇所を足したときの付け忘れが「その経路だけホスト不明」という静かな欠測になる。
+- **値は既知ホスト名そのものか `other`。** 分類は `src/lib/hosts.ts` の `classifyHost` で、
+  ホスト名リテラルはそのファイルだけに置く（同決定 6）。生の Host ヘッダは任意の値を
+  送れるので、そのまま列へ入れるとカーディナリティが発散する。
+- **旧ホストの HTML ページは 301 するので `visit` にならない。** 301 は
+  `legacy_redirect` として記録する（`src/index.ts`）。`visit` として記録すると、301 を
+  追った先の正規ホストでも `visit` が記録され、ページアクセス数が二重に数えられる。
+  機械向けの経路（appcast・`/dl/`・`/download`）は 301 せず素通しなので、旧ホストの
+  ままホスト別に出る——ADR 0007 の停止条件が見ているのはこちら。
+- **記録されないギャップが 2 つある。** 旧ホストの静的アセット（`notFound` →
+  `ASSETS.fetch`）と `/healthz`。どちらもクライアントの依存を示さないので追っていない。
+- **`fallback` は R2 ミスで GitHub へ落ちた経路。** `appcast` / `dmg` / `release-api` の
+  3 つで、`kind='github_fallback'` のときだけ非 NULL。この対応は `eventSchema` の
+  `refine` が強制する（doc コメントだけでは守られない）。ここが 0 でないうちは GitHub
+  側の経路を止められない。
+- **appcast のフォールバックは過小に出る。** 応答は `caches.default` に 300 秒入るため、
+  キャッシュに当たった周期は `loadAppcast` を通らない。`update_check` 自体はキャッシュ
+  判定より前に記録するので影響を受けない。
+
+### 新しい kind の行き先を決めさせる
+
+`github_fallback` / `legacy_redirect` は製品の指標ではなく運用の観測なので、カード・
+グラフの系列（`KIND_LABELS`）には出さず `OPERATIONAL_KINDS` に入れて専用セクションで
+見る。`test/analytics.test.ts` が「全 kind が `KIND_LABELS` か `OPERATIONAL_KINDS` の
+どちらかに含まれる」ことを検査するので、kind を足したらどちらにするかを必ず決めることになる
+（記録だけされて画面のどこにも出ない、という状態を作らせない）。
+
+### ホスト別は 0 件の行を落とさない
+
+ダッシュボードの他の内訳は 0 件の区分を落とすが、ホスト別は既知ホストを常に並べる。
+ここで見たいのは「旧ホストがゼロであること」そのものなので、行が消えると「まだ 0」と
+「そもそも計測していない」が区別できなくなる。
+
+### GitHub 直の appcast は Worker では観測できない
+
+v1.10.0 以前のクライアントは `https://github.com/YTommy109/befold/releases/download/appcast/appcast.xml`
+を直接見るため、サイトを経由せず Worker には現れない。別手段として GitHub の
+Releases API がアセットごとの `download_count` を返す（実測: 2026-08-16 時点で
+`appcast.xml` / `appcast-develop.xml` とも 0）。
+
+```bash
+curl -s https://api.github.com/repos/YTommy109/befold/releases/tags/appcast \
+  | jq '.assets[] | {name, download_count}'
+```
+
+ただし**この数はアセットを差し替えるとゼロに戻る**。appcast はリリースのたびに
+上書きするので、カウンタは「前回のリリース以降の取得数」しか表さない（上の 0 も、
+2026-08-15 に差し替えた直後であることによる）。累計として使うには差し替え前に
+スナップショットを取る必要があり、リリースワークフローに計測のための手順を足すことに
+なる。**現時点では採らない**——GitHub 直の appcast を見るクライアントは
+自動アップデートで新しいバージョンへ移れば Worker 側の `update_check` に現れるため、
+Worker 側のホスト別の推移で間接的に追える。
 
 ## 人間の訪問とロボットの巡回の分離
 

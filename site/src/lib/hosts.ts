@@ -75,3 +75,34 @@ export const REDIRECTED_PATHS: ReadonlySet<string> = new Set(
 export function selfHostsFor(requestHost: string): ReadonlySet<string> {
   return new Set([...SELF_HOSTS, requestHost])
 }
+
+/**
+ * 計測に記録するホストのラベル。既知ホストは名前そのもの、それ以外は 'other'。
+ *
+ * 生の Host ヘッダを記録しない。任意の値を送れるヘッダをそのまま列へ入れると
+ * カーディナリティが発散し、ホスト別の内訳が読めなくなる。既知でないホスト
+ * （preview URL・`wrangler dev` の localhost・偽装 Host）は 1 つに丸める。
+ */
+export const OTHER_HOST = 'other'
+
+/** 記録しうるホストの列挙。ダッシュボードは 0 件のホストもこの順で必ず並べる。 */
+export const RECORDED_HOSTS = [
+  CANONICAL_HOST,
+  LEGACY_HOST,
+  STAGING_HOST,
+  LEGACY_STAGING_HOST,
+  OTHER_HOST,
+] as const
+
+export type RecordedHost = (typeof RECORDED_HOSTS)[number]
+
+/**
+ * リクエストのホストを記録用のラベルへ分類する。
+ *
+ * ホスト名リテラルはこのファイルだけに置く（ADR 0007 の決定 6）。分類を
+ * `src/events.ts` 側で書くと、次にホストが増えたときに片側だけ直る。
+ */
+export function classifyHost(requestHost: string): RecordedHost {
+  const known = RECORDED_HOSTS.find((host) => host === requestHost)
+  return known ?? OTHER_HOST
+}

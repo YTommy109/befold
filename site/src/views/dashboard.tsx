@@ -1,7 +1,8 @@
 import type { FC } from 'hono/jsx'
 import { html, raw } from 'hono/html'
-import type { Count, Summary, VisitSplit } from '../analytics'
+import type { Count, Split, Summary } from '../analytics'
 import { UNRECORDED_LABEL } from '../analytics'
+import { LEGACY_HOST } from '../lib/hosts'
 import { formatJst } from '../lib/jst'
 
 /**
@@ -89,12 +90,18 @@ const BOT_CLASSIFICATION_START = '2026-08-09'
 const LANGUAGE_URL_START = '2026-08-16'
 
 /**
- * `VisitSplit[]` を人間側またはロボット側の `Count[]` にする。
+ * リクエスト先ホストの記録を始めた日（TASK-488.3）。これより前の行はどのホストで
+ * 応答したかを復元できない。
+ */
+const HOST_COLUMN_START = '2026-08-16'
+
+/**
+ * `Split[]` を人間側またはロボット側の `Count[]` にする。
  *
  * 0 件の区分は落とす。ページ別・言語別は取りうる値がすべて出そろうため、
  * 落とさないと「ロボット: 表示言語別」に 0 の行が並んで内訳が読めなくなる。
  */
-function splitRows(splits: VisitSplit[], bots: boolean): Count[] {
+function splitRows(splits: Split[], bots: boolean): Count[] {
   return splits
     .map((split) => ({ label: split.label, count: bots ? split.bot : split.human }))
     .filter((row) => row.count > 0)
@@ -112,6 +119,42 @@ const CountTable: FC<{ title: string; rows: Count[] }> = ({ title, rows }) => (
             <tr>
               <td>{row.label}</td>
               <td>{row.count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </section>
+)
+
+/**
+ * 人間とロボットを 2 列で並べる表。**0 件の行も落とさない。**
+ *
+ * `CountTable` + `splitRows` は 0 を落とす（取りうる値がすべて出そろう軸で
+ * 0 の行が並ぶのを避けるため）。ホストと GitHub フォールバックはその逆で、
+ * 「0 であること」の確認が目的なので、行が消えると「まだ 0」と「そもそも
+ * 計測していない」が区別できなくなる。
+ */
+const SplitTable: FC<{ title: string; rows: Split[] }> = ({ title, rows }) => (
+  <section>
+    <h3>{title}</h3>
+    {rows.length === 0 ? (
+      <p class="empty">データなし</p>
+    ) : (
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>人間</th>
+            <th>ロボット</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr>
+              <td>{row.label}</td>
+              <td>{row.human}</td>
+              <td>{row.bot}</td>
             </tr>
           ))}
         </tbody>
@@ -408,6 +451,33 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
             title="ロボット: ブラウザ言語設定別"
             rows={splitRows(summary.visits.byBrowserLang, true)}
           />
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>配布ホストと旧経路（全期間の累計）</h2>
+        <p class="note">
+          旧ホスト（{LEGACY_HOST}）と GitHub へのフォールバックを止めてよいかの判断材料
+          （ADR 0007）。ホスト別は kind を問わない全イベントが対象で、0 件のホストも
+          行として残す（「まだ 0」と「計測していない」を区別するため）。
+          ホスト列の導入前（{HOST_COLUMN_START}）に記録された行は、どのホストで応答したかを
+          復元できないので「{UNRECORDED_LABEL}」に入る。
+        </p>
+        <p class="note">
+          旧ホストの HTML ページ（LP・機能紹介）は正規ホストへ 301 で送るため、
+          その到達は visit ではなく「旧ホストからの 301」として数える（301 を追った先で
+          正規ホスト側の visit も記録されるので、visit にすると二重に数えられる）。
+          機械向けの経路（appcast・/dl/・/download）は 301 せず素通しなので、旧ホストの
+          ままホスト別に出る。旧ホストの静的アセットと /healthz は元々記録していない。
+        </p>
+        <p class="note">
+          GitHub フォールバックは R2 に目的のオブジェクトが無かった回数。ここが 0 でない
+          うちは GitHub 側の経路を止められない。appcast の行だけは
+          caches.default（300 秒）に当たった周期を数えられないため、実際より小さく出る。
+        </p>
+        <div class="grid">
+          <SplitTable title="リクエスト先ホスト別" rows={summary.hosts} />
+          <SplitTable title="GitHub フォールバックの経路別" rows={summary.fallbacks} />
         </div>
       </section>
 

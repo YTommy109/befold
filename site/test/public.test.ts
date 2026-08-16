@@ -44,6 +44,8 @@ type EventRow = {
   page: string | null
   browser_lang: string | null
   display_lang: string | null
+  host: string | null
+  fallback: string | null
 }
 
 /**
@@ -58,11 +60,22 @@ function bodyOf(html: string): string {
   return index === -1 ? html : html.slice(index)
 }
 
-async function latestEvent(): Promise<EventRow | null> {
-  return await env.DB.prepare(
+/**
+ * 最後に記録されたイベント。kind を渡すとその種別に絞る。
+ *
+ * 1 リクエストが 2 件記録することがある（R2 ミスの `github_fallback` と、その
+ * 経路本来の download / update_check）。絞り込みを既定で入れて隠すのではなく、
+ * どちらを見たいのかを呼び出し側に書かせる。
+ */
+async function latestEvent(kind?: string): Promise<EventRow | null> {
+  const columns =
     'SELECT kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org,' +
-      ' source, page, browser_lang, display_lang FROM events ORDER BY id DESC LIMIT 1',
-  ).first<EventRow>()
+    ' source, page, browser_lang, display_lang, host, fallback FROM events'
+  const query = kind === undefined ? columns : `${columns} WHERE kind = ?`
+
+  return await env.DB.prepare(`${query} ORDER BY id DESC LIMIT 1`)
+    .bind(...(kind === undefined ? [] : [kind]))
+    .first<EventRow>()
 }
 
 /** 上流（GitHub）への fetch を URL 単位で差し替える。 */
@@ -171,7 +184,7 @@ describe('GET /download', () => {
     expect(response.status).toBe(302)
     expect(response.headers.get('Location')).toBe('https://example.test/befold.dmg')
 
-    const event = await latestEvent()
+    const event = await latestEvent('download')
     expect(event?.kind).toBe('download')
     expect(event?.version).toBe('v1.2.3')
     expect(event?.channel).toBe('stable')
@@ -202,7 +215,7 @@ describe('GET /download', () => {
     expect(await response.text()).toBe('DMG-BODY')
     expect(response.headers.get('Content-Disposition')).toContain('befold-v1.2.3.dmg')
 
-    const event = await latestEvent()
+    const event = await latestEvent('download')
     expect(event?.kind).toBe('download')
     expect(event?.version).toBe('v1.2.3')
     expect(event?.source).toBe('lp')
@@ -228,7 +241,7 @@ describe('GET /dl/:tag/:file', () => {
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('DMG-BODY')
 
-    const event = await latestEvent()
+    const event = await latestEvent('download')
     expect(event?.kind).toBe('download')
     expect(event?.version).toBe('v1.2.3')
     expect(event?.channel).toBe('stable')
@@ -283,7 +296,7 @@ describe('appcast プロキシ', () => {
     expect(response.headers.get('Content-Type')).toContain('xml')
     expect(await response.text()).toBe(APPCAST_XML)
 
-    const event = await latestEvent()
+    const event = await latestEvent('update_check')
     expect(event?.kind).toBe('update_check')
     expect(event?.channel).toBe('stable')
     expect(event?.ua_summary).toBe('Sparkle')
@@ -633,7 +646,7 @@ describe('ブラウザ言語設定の記録', () => {
     // Sparkle の自動更新はこのヘッダを送らない。記録処理自体は止めない。
     await call('/dl/v1.0.0/befold-1.0.0.dmg', { 'Accept-Language': '' })
 
-    const event = await latestEvent()
+    const event = await latestEvent('download')
     expect(event?.kind).toBe('download')
     expect(event?.browser_lang).toBeNull()
   })
@@ -641,7 +654,7 @@ describe('ブラウザ言語設定の記録', () => {
   it('visit 以外の kind では page が NULL になる', async () => {
     await call('/dl/v1.0.0/befold-1.0.0.dmg')
 
-    const event = await latestEvent()
+    const event = await latestEvent('download')
     expect(event?.kind).toBe('download')
     expect(event?.page).toBeNull()
   })
@@ -681,6 +694,23 @@ describe('旧ホストからのリダイレクト', () => {
         `https://befold.degino.com${entry.path}`,
       )
     }
+  })
+
+  it('301 を legacy_redirect として記録する（visit にはしない）', async () => {
+    // visit として記録すると、301 を追った先の正規ホストでも visit が記録され、
+    // ページアクセス数が二重に数えられる。
+    const response = await legacy('/')
+
+    expect(response.status).toBe(301)
+    const event = await latestEvent()
+    expect(event?.kind).toBe('legacy_redirect')
+    expect(event?.host).toBe('befold.tommy109.workers.dev')
+    expect(event?.page).toBeNull()
+
+    const visits = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM events WHERE kind = 'visit'",
+    ).first<{ count: number }>()
+    expect(visits?.count).toBe(0)
   })
 
   it('クエリ文字列は 301 先へ引き継ぐ（?ref= の参照元計測を落とさない）', async () => {
@@ -727,7 +757,7 @@ describe('旧ホストからのリダイレクト', () => {
     const response = await legacy('/download')
 
     expect(response.status).toBe(200)
-    const event = await latestEvent()
+    const event = await latestEvent('download')
     expect(event?.kind).toBe('download')
     expect(event?.source).toBe('lp')
   })
@@ -895,5 +925,98 @@ describe('言語ごとの URL（SITE_PAGES からの導出）', () => {
     for (const path of ['/en/download', '/ja', '/ja/features']) {
       expect((await call(path)).status, path).not.toBe(200)
     }
+  })
+})
+
+/**
+ * リクエスト先ホストと、R2 ミスによる GitHub フォールバックの記録。
+ *
+ * ADR 0007 の「旧ホストと GitHub 経路を止めてよいか」の判断材料になる
+ * （旧ホストの appcast を叩くクライアントがゼロか / R2 ミスがゼロか）。
+ */
+describe('リクエスト先ホストと GitHub フォールバックの記録', () => {
+  it('既知のホストはそのまま、それ以外は other として記録する', async () => {
+    await call('/', {}, undefined, 'https://befold.degino.com')
+    expect((await latestEvent())?.host).toBe('befold.degino.com')
+
+    await call('/', {}, undefined, 'https://staging.befold.degino.com')
+    expect((await latestEvent())?.host).toBe('staging.befold.degino.com')
+
+    // 既定オリジンは既知ホストではない（preview URL や wrangler dev に相当）。
+    // 生の Host をそのまま入れるとカーディナリティが発散するため 1 つに丸める。
+    await call('/')
+    expect((await latestEvent())?.host).toBe('other')
+  })
+
+  it('旧ホストの appcast はリダイレクトされず、旧ホストのまま記録される', async () => {
+    // ここが記録できないと ADR 0007 の停止条件を永久に判定できない。
+    await env.DIST.put('appcast.xml', APPCAST_XML)
+
+    const response = await call(
+      '/appcast.xml',
+      { 'User-Agent': 'befold/1.2.3 Sparkle/2.6.4' },
+      undefined,
+      'https://befold.tommy109.workers.dev',
+    )
+
+    expect(response.status).toBe(200)
+    const event = await latestEvent('update_check')
+    expect(event?.host).toBe('befold.tommy109.workers.dev')
+  })
+
+  it('R2 に appcast が無ければ github_fallback を appcast として記録する', async () => {
+    mockUpstream({ [APPCAST_URL]: new Response(APPCAST_XML) })
+
+    await call('/appcast.xml')
+
+    const event = await latestEvent('github_fallback')
+    expect(event?.fallback).toBe('appcast')
+    expect(event?.channel).toBe('stable')
+  })
+
+  it('R2 に appcast があればフォールバックは記録されない', async () => {
+    await env.DIST.put('appcast.xml', APPCAST_XML)
+
+    await call('/appcast.xml')
+
+    expect(await latestEvent('github_fallback')).toBeNull()
+  })
+
+  it('R2 に DMG が無ければ github_fallback を dmg として記録する', async () => {
+    const response = await call('/dl/v1.2.3/befold-v1.2.3.dmg')
+
+    expect(response.status).toBe(302)
+    const event = await latestEvent('github_fallback')
+    expect(event?.fallback).toBe('dmg')
+    expect(event?.version).toBe('v1.2.3')
+  })
+
+  it('R2 に最新ポインタが無ければ github_fallback を release-api として記録する', async () => {
+    mockUpstream({
+      [LATEST_RELEASE_URL]: Response.json({
+        tag_name: 'v1.2.3',
+        assets: [
+          {
+            name: 'befold-v1.2.3.dmg',
+            browser_download_url: 'https://github.com/x/y/releases/download/v1.2.3/a.dmg',
+          },
+        ],
+      }),
+    })
+
+    await call('/download')
+
+    const event = await latestEvent('github_fallback')
+    expect(event?.fallback).toBe('release-api')
+  })
+
+  it('R2 から配れたときはフォールバックを記録しない', async () => {
+    await env.DIST.put('releases/latest.json', '{"version":"v1.2.3","file":"befold-v1.2.3.dmg"}')
+    await env.DIST.put('releases/v1.2.3/befold-v1.2.3.dmg', 'DMG-BODY')
+
+    const response = await call('/download')
+
+    expect(response.status).toBe(200)
+    expect(await latestEvent('github_fallback')).toBeNull()
   })
 })

@@ -9,9 +9,13 @@ import {
   eventsAfter,
   recentEvents,
   uaSplit,
-  visitBreakdowns,
+  eventBreakdowns,
+  OPERATIONAL_KINDS,
   UNRECORDED_LABEL,
+  KIND_LABELS,
 } from '../src/analytics'
+import { CANONICAL_HOST, LEGACY_HOST, RECORDED_HOSTS } from '../src/lib/hosts'
+import { eventKindSchema } from '../src/schema'
 import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import type { EventKind } from '../src/schema'
 
@@ -472,7 +476,8 @@ describe('visit の内訳（ページ別・言語別）', () => {
     await insertVisitRow('/en', 'en', 'en')
     await insertVisitRow('/features', 'ja', 'ja', 'bot:GPTBot')
 
-    const { byPage, byDisplayLang, byBrowserLang } = await visitBreakdowns(env.DB)
+    const { visits } = await eventBreakdowns(env.DB)
+    const { byPage, byDisplayLang, byBrowserLang } = visits
 
     expect(byPage).toEqual([
       { label: '/', human: 2, bot: 0 },
@@ -499,7 +504,7 @@ describe('visit の内訳（ページ別・言語別）', () => {
       .bind(NOW, 'update_check')
       .run()
 
-    const { byPage } = await visitBreakdowns(env.DB)
+    const { byPage } = (await eventBreakdowns(env.DB)).visits
 
     expect(byPage).toEqual([])
   })
@@ -509,7 +514,8 @@ describe('visit の内訳（ページ別・言語別）', () => {
     // 日英を同一 HTML で出していた時期の行で、表示言語が確定しない。
     await insertVisitRow(null, null, null)
 
-    const { byPage, byDisplayLang, byBrowserLang } = await visitBreakdowns(env.DB)
+    const { visits } = await eventBreakdowns(env.DB)
+    const { byPage, byDisplayLang, byBrowserLang } = visits
 
     expect(byPage).toEqual([{ label: '/', human: 1, bot: 0 }])
     expect(byDisplayLang).toEqual([{ label: UNRECORDED_LABEL, human: 1, bot: 0 }])
@@ -517,7 +523,8 @@ describe('visit の内訳（ページ別・言語別）', () => {
   })
 
   it('イベントが無ければ空の内訳を返す', async () => {
-    const { byPage, byDisplayLang, byBrowserLang } = await visitBreakdowns(env.DB)
+    const { visits } = await eventBreakdowns(env.DB)
+    const { byPage, byDisplayLang, byBrowserLang } = visits
 
     expect(byPage).toEqual([])
     expect(byDisplayLang).toEqual([])
@@ -543,5 +550,104 @@ describe('最新イベントと SSE の差分配信', () => {
     expect(Object.keys(recent[0] ?? {}).sort()).toEqual(Object.keys(streamed[0] ?? {}).sort())
     expect(recent[0]?.page).toBe('/features')
     expect(streamed[0]?.page).toBe('/features')
+  })
+})
+
+describe('リクエスト先ホストと GitHub フォールバックの内訳', () => {
+  /** ホストと UA を指定して 1 件記録する。 */
+  async function insertHostRow(
+    kind: string,
+    host: string | null,
+    uaSummary: string | null = null,
+  ): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, host, ua_summary) VALUES (?, ?, ?, ?)',
+    )
+      .bind(NOW, kind, host, uaSummary)
+      .run()
+  }
+
+  it('ホスト別を kind によらず人間とロボットに分ける', async () => {
+    await insertHostRow('visit', CANONICAL_HOST)
+    await insertHostRow('update_check', LEGACY_HOST)
+    await insertHostRow('legacy_redirect', LEGACY_HOST, 'bot:GPTBot')
+
+    const { byHost } = await eventBreakdowns(env.DB)
+    const byLabel = new Map(byHost.map((split) => [split.label, split]))
+
+    expect(byLabel.get(CANONICAL_HOST)).toEqual({ label: CANONICAL_HOST, human: 1, bot: 0 })
+    expect(byLabel.get(LEGACY_HOST)).toEqual({ label: LEGACY_HOST, human: 1, bot: 1 })
+  })
+
+  it('0 件の既知ホストも行として残る', async () => {
+    // ADR 0007 の停止条件は「旧ホストを叩くクライアントがゼロ」の確認そのもの。
+    // 0 の行を落とすと「まだ 0」と「そもそも計測していない」が区別できなくなる。
+    await insertHostRow('visit', CANONICAL_HOST)
+
+    const { byHost } = await eventBreakdowns(env.DB)
+
+    for (const host of RECORDED_HOSTS) {
+      expect(byHost.map((split) => split.label)).toContain(host)
+    }
+    expect(byHost.find((split) => split.label === LEGACY_HOST)).toEqual({
+      label: LEGACY_HOST,
+      human: 0,
+      bot: 0,
+    })
+  })
+
+  it('列の導入前に記録された行は既知ホストに混ぜない', async () => {
+    await insertHostRow('visit', null)
+
+    const { byHost } = await eventBreakdowns(env.DB)
+
+    expect(byHost.find((split) => split.label === UNRECORDED_LABEL)).toEqual({
+      label: UNRECORDED_LABEL,
+      human: 1,
+      bot: 0,
+    })
+    expect(byHost.find((split) => split.label === CANONICAL_HOST)?.human).toBe(0)
+  })
+
+  it('GitHub フォールバックを経路別に数える', async () => {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)',
+    )
+      .bind(NOW, 'github_fallback', CANONICAL_HOST, 'appcast')
+      .run()
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)',
+    )
+      .bind(NOW, 'github_fallback', CANONICAL_HOST, 'dmg')
+      .run()
+    await insertHostRow('download', CANONICAL_HOST)
+
+    const { byFallback } = await eventBreakdowns(env.DB)
+
+    // fallback を持たない行は入らない（download が経路として数えられない）。
+    expect(byFallback).toEqual([
+      { label: 'appcast', human: 1, bot: 0 },
+      { label: 'dmg', human: 1, bot: 0 },
+    ])
+  })
+})
+
+describe('kind の行き先', () => {
+  it('すべての kind が指標か運用観測のどちらかに割り当てられている', () => {
+    // kind を足したときに、カード・グラフにも運用セクションにも出ないまま
+    // 記録だけされる状態を防ぐ構造ガード。どちらにするかをここで必ず決めさせる。
+    const shown = new Set([...KIND_LABELS.map((entry) => entry.kind), ...OPERATIONAL_KINDS])
+
+    for (const kind of eventKindSchema.options) {
+      expect(shown.has(kind)).toBe(true)
+    }
+    // 指標にしか出ない 'update_download' は EventKind ではない派生指標。
+    expect(shown.has('update_download')).toBe(true)
+  })
+
+  it('運用観測の kind はカード・グラフの系列に出ない', () => {
+    for (const kind of OPERATIONAL_KINDS) {
+      expect(KIND_LABELS.map((entry) => entry.kind)).not.toContain(kind)
+    }
   })
 })

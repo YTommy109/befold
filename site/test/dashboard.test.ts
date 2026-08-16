@@ -437,7 +437,7 @@ describe('集計の表示', () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
     const section = body.slice(
       body.indexOf('<h2>ページ別の訪問'),
-      body.indexOf('<h2>人間の訪問とロボットの巡回'),
+      body.indexOf('<h2>配布ホストと旧経路'),
     )
 
     // 6 つの表（ページ / 表示言語 / ブラウザ言語設定 × 人間 / ロボット）すべてが
@@ -660,5 +660,74 @@ describe('SSE で配信する集計 HTML', () => {
     expect(summaryHtml).toContain('人間: ブラウザ言語設定別')
     expect(summaryHtml).toContain('<th>ページ</th>')
     expect(summaryHtml).toContain('<td>/features</td>')
+  })
+})
+
+/**
+ * 配布ホストと旧経路のセクション。ADR 0007 の停止条件を画面で判定できることを固定する。
+ */
+describe('配布ホストと旧経路の表示', () => {
+  /** ホスト・fallback・UA を指定して 1 件記録する。 */
+  async function insertRow(
+    kind: string,
+    host: string | null,
+    fallback: string | null = null,
+    uaSummary: string | null = null,
+  ): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, host, fallback, ua_summary) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind(Date.now(), kind, host, fallback, uaSummary)
+      .run()
+  }
+
+  /** 「配布ホストと旧経路」セクションだけを切り出す。 */
+  function hostSection(body: string): string {
+    return body.slice(
+      body.indexOf('<h2>配布ホストと旧経路'),
+      body.indexOf('<h2>人間の訪問とロボットの巡回'),
+    )
+  }
+
+  it('旧ホストへのアクセスを人間とロボットに分けて出す', async () => {
+    await insertRow('update_check', 'befold.tommy109.workers.dev')
+    await insertRow('legacy_redirect', 'befold.tommy109.workers.dev', null, 'bot:GPTBot')
+    await insertRow('visit', 'befold.degino.com')
+
+    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    // 冒頭の注記にもホスト名が出るので、表の行（<td>）側を見る。
+    const legacyCell = section.indexOf('<td>befold.tommy109.workers.dev</td>')
+    expect(legacyCell).toBeGreaterThan(-1)
+    expect(section.slice(legacyCell, legacyCell + 120)).toMatch(
+      /<td>befold\.tommy109\.workers\.dev<\/td>\s*<td>1<\/td>\s*<td>1<\/td>/,
+    )
+  })
+
+  it('アクセスの無い既知ホストも 0 の行として残る', async () => {
+    // 「まだ 0」と「そもそも計測していない」を画面で区別するため、行を落とさない。
+    await insertRow('visit', 'befold.degino.com')
+
+    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+
+    expect(section).toContain('befold.tommy109.workers.dev')
+    expect(section).toContain('staging.befold.degino.com')
+    expect(section).toContain('<td>0</td>')
+  })
+
+  it('GitHub フォールバックを経路別に出す', async () => {
+    await insertRow('github_fallback', 'befold.degino.com', 'appcast')
+
+    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+
+    expect(section).toContain('appcast')
+  })
+
+  it('フォールバックが無ければ経路別は「データなし」になる', async () => {
+    await insertRow('visit', 'befold.degino.com')
+
+    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const fallbackTable = section.slice(section.indexOf('GitHub フォールバックの経路別'))
+
+    expect(fallbackTable).toContain('データなし')
   })
 })

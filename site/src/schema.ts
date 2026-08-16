@@ -1,7 +1,26 @@
 import { z } from 'zod'
 
-/** 記録するイベント種別。 */
-export const eventKindSchema = z.enum(['visit', 'download', 'update_check'])
+import { RECORDED_HOSTS } from './lib/hosts'
+
+/**
+ * 記録するイベント種別。
+ *
+ * `github_fallback` と `legacy_redirect` は製品の指標ではなく運用の観測
+ * （ADR 0007 の「旧ホストと GitHub 経路を止めてよいか」の判断材料）。
+ * ダッシュボードのカード・グラフには出さず、専用のセクションで見る
+ * （`src/analytics.ts` の `OPERATIONAL_KINDS`）。
+ *
+ * `legacy_redirect` を visit として記録しない。旧ホストの HTML ページは新ドメインへ
+ * 301 で送るため、visit にすると 301 を追った先の正規ホスト側の visit と二重に
+ * 数えられ、ページアクセス数が水増しされる。
+ */
+export const eventKindSchema = z.enum([
+  'visit',
+  'download',
+  'update_check',
+  'github_fallback',
+  'legacy_redirect',
+])
 
 export type EventKind = z.infer<typeof eventKindSchema>
 
@@ -49,6 +68,26 @@ export const displayLangSchema = z.enum(['ja', 'en'])
 
 export type DisplayLang = z.infer<typeof displayLangSchema>
 
+/**
+ * R2 に目的のオブジェクトが無く GitHub へ落ちた経路。
+ *
+ * `appcast` は appcast のプロキシ、`dmg` は成果物の 302、`release-api` は /download が
+ * R2 の最新ポインタを読めず GitHub API へ落ちた場合。3 つを分けるのは、止められる
+ * 順序が違うため（appcast は出荷済みアプリが依存し、dmg は過去タグの配置漏れで、
+ * release-api は移行前の名残）。
+ */
+export const fallbackRouteSchema = z.enum(['appcast', 'dmg', 'release-api'])
+
+export type FallbackRoute = z.infer<typeof fallbackRouteSchema>
+
+/**
+ * 記録するリクエスト先ホスト。列挙は `lib/hosts.ts` が唯一の定義元。
+ *
+ * 分類を通さない生のホスト名はここで落ちる。任意の値を送れる Host ヘッダを
+ * そのまま列へ入れるとカーディナリティが発散するため（`classifyHost`）。
+ */
+export const hostSchema = z.enum(RECORDED_HOSTS)
+
 /** D1 の events テーブルに INSERT する 1 行分の形状。 */
 export const eventSchema = z.object({
   timestamp: z.number().int().nonnegative(),
@@ -65,6 +104,20 @@ export const eventSchema = z.object({
   page: pageSchema.nullable().default(null),
   browserLang: browserLangSchema.nullable().default(null),
   displayLang: displayLangSchema.nullable().default(null),
+  host: hostSchema.nullable().default(null),
+  fallback: fallbackRouteSchema.nullable().default(null),
 })
+  /**
+   * `fallback` は `github_fallback` 専用。対応をここで強制する。
+   *
+   * doc コメントだけでは守られない。他の kind に fallback が付くと、
+   * ダッシュボードの「GitHub フォールバックの内訳」が実際には起きていない
+   * 経路を数え、逆に github_fallback で fallback が抜けると内訳から消える。
+   * どちらも値としては成立してしまうので、parse で落とす。
+   */
+  .refine((event) => (event.fallback !== null) === (event.kind === 'github_fallback'), {
+    message: 'fallback は kind=github_fallback のときだけ指定する',
+    path: ['fallback'],
+  })
 
 export type AnalyticsEvent = z.infer<typeof eventSchema>
