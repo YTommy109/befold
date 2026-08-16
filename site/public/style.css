@@ -131,10 +131,14 @@ main {
   border-bottom: 1px solid var(--color-border);
 }
 
-/* hero 直下の 1 つ目は下の philosophy と 1 ブロックに見せる（罫線は最後だけ）。 */
-.philosophy.review {
-  border-bottom: none;
-  padding-bottom: 1rem;
+/* ふたつの読み手のセクションは同じ扱いにする（片方を従属させない）。
+   宛先はこのラベルだけで示し、余白・罫線・文字サイズは共通。 */
+.philosophy-audience {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.75rem;
 }
 
 .philosophy-lead {
