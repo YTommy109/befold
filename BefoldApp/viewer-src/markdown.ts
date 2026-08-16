@@ -4,12 +4,24 @@
 import { highlightCode } from './code-html.js';
 import { DOMPurify, hljs, markdownit } from './vendor.js';
 
+/// 構成済み markdown-it インスタンスと、そのトークンの型。@types/markdown-it の
+/// サブパス(markdown-it/lib/token.mjs 等)を直接 import せず、ファクトリの
+/// 返り値から導出する(サブパスの構成は版で変わるが、この導出は変わらない)。
+type MarkdownItInstance = ReturnType<typeof markdownit>;
+type MarkdownToken = ReturnType<MarkdownItInstance['parse']>[number];
+
+/// 依存注入されるサニタイザの最小インターフェース。実行時は vendor.js の
+/// DOMPurify、テストでは jsdom 上に構築した DOMPurify が渡る。
+interface HtmlSanitizer {
+  sanitize(html: string): string;
+}
+
 // markdown-it の validateLink 置き換え。既定は data:image/(gif|png|jpeg|webp)
 // のみ許可するが、MarkdownImageEmbedder が生成する svg+xml / bmp / x-icon の
 // data URI も表示できるよう data:image/* を全許可する。CSP は img-src 'self' data:
 // のため data:image の <img> 表示は安全(SVG も <img> 経由ではスクリプト非実行)。
 // javascript:/vbscript:/file:/画像以外の data: は既定どおり拒否し XSS を防ぐ。
-function isSafeLinkURL(url) {
+function isSafeLinkURL(url: string): boolean {
   var str = String(url).trim().toLowerCase();
   if (str.startsWith('data:image/')) {
     return true;
@@ -21,14 +33,14 @@ function isSafeLinkURL(url) {
 // purify は依存注入(実行時は vendor.js の DOMPurify、テストでは jsdom 上に構築した DOMPurify)。
 // 自前の正規表現(on* 属性除去等)は個別のバイパス手法ごとにパッチを重ねる対症療法になるため、
 // 実績のある DOMPurify にサニタイズそのものを委譲する。
-function sanitizeRenderedHtml(purify, html) {
+function sanitizeRenderedHtml(purify: HtmlSanitizer, html: string): string {
   return purify.sanitize(html);
 }
 
 // 見出しの表示テキストを取り出す。inline トークンの children から text / code_inline の
 // 中身だけを連結するため、`## **太字**の見出し` のような装飾は記号を含まないテキストになる
 // (`inline.content` を使うと `**` が残り、GitHub の slug とずれる)。
-function headingTextOf(inlineToken) {
+function headingTextOf(inlineToken: MarkdownToken | undefined): string {
   if (!inlineToken) {
     return '';
   }
@@ -38,7 +50,7 @@ function headingTextOf(inlineToken) {
   }
   var text = '';
   for (var i = 0; i < children.length; i += 1) {
-    var child = children[i];
+    var child = children[i]!;
     if (child.type === 'text' || child.type === 'code_inline') {
       text += child.content;
     }
@@ -51,7 +63,7 @@ function headingTextOf(inlineToken) {
 // 非 ASCII は**そのまま**残る。ここで percent-encode しないこと。クリック側
 // (reference-clicks.js)は href を decodeURIComponent してから getElementById する。
 // id を encode 済みにすると、その decode 済みキーと一致しなくなる。
-function slugifyHeading(text) {
+function slugifyHeading(text: string): string {
   return String(text)
     .trim()
     .toLowerCase()
@@ -61,7 +73,7 @@ function slugifyHeading(text) {
 
 // 1 回の描画で使う slug を一意化する。GitHub と同じく、2 回目以降の重複には
 // -1 / -2 … の連番を付ける。used は呼び出し側が描画ごとに用意する Map。
-function uniqueHeadingSlug(slug, used) {
+function uniqueHeadingSlug(slug: string, used: Map<string, number>): string {
   var base = slug || 'section';
   var seen = used.get(base);
   if (seen === undefined) {
@@ -83,21 +95,21 @@ function uniqueHeadingSlug(slug, used) {
 
 // heading_open トークンへ id を振る core ルール。描画ごとに Map を作り直すので、
 // 連番の状態が前の描画へ漏れない。
-function assignHeadingIds(state) {
-  var used = new Map();
+function assignHeadingIds(state: { tokens: MarkdownToken[] }): void {
+  var used = new Map<string, number>();
   var tokens = state.tokens;
   for (var i = 0; i < tokens.length; i += 1) {
-    if (tokens[i].type !== 'heading_open') {
+    if (tokens[i]!.type !== 'heading_open') {
       continue;
     }
     var slug = uniqueHeadingSlug(slugifyHeading(headingTextOf(tokens[i + 1])), used);
-    tokens[i].attrSet('id', slug);
+    tokens[i]!.attrSet('id', slug);
   }
 }
 
 // 構成済みの markdown-it。ベンダーはバンドル同梱(vendor.js)のため常に構成済みで、
 // 「未ロード」状態は存在しない。
-function markdownRenderer() {
+function markdownRenderer(): MarkdownItInstance {
   return md;
 }
 
@@ -108,12 +120,12 @@ var md = buildMarkdownRenderer();
 // 初期化関数に切り出して _mmdInit() から呼ぶ形にしないのは、ベンダーが
 // バンドル同梱になり「読み込みを待つ」対象が無くなったため。呼び忘れや
 // 「init 前に render された」経路を作らないよう、構成済みの md だけが存在する状態にする。
-function buildMarkdownRenderer() {
+function buildMarkdownRenderer(): MarkdownItInstance {
   var instance = markdownit({
     html: true,
     linkify: true,
     typographer: true,
-    highlight: function (str, lang) {
+    highlight: function (str: string, lang: string): string {
       return highlightCode(hljs, str, lang);
     },
   });
@@ -136,7 +148,7 @@ function buildMarkdownRenderer() {
   instance.validateLink = isSafeLinkURL;
   var defaultFence = instance.renderer.rules.fence;
   instance.renderer.rules.fence = function (tokens, idx, options, env, self) {
-    var token = tokens[idx];
+    var token = tokens[idx]!;
     if (token.info.trim() === 'mermaid') {
       return '<pre class="mermaid">' + instance.utils.escapeHtml(token.content) + '</pre>';
     }

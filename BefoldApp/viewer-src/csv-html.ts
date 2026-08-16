@@ -4,34 +4,43 @@
 import { wrapWithLineNumbers } from './code-html.js';
 import { escapeHtml } from './encoding.js';
 
+/// tokenizeCsvRows() が返す 1 セル。value はデコード済みの値、raw はソース上の
+/// 生テキスト(クオート・エスケープされたクオートを含む)。
+interface CsvCell {
+  value: string;
+  raw: string;
+}
+
 // RFC 4180 準拠の状態マシンベース CSV/TSV トークナイザー。
 // クオート内のデリミタ・改行・エスケープされたクオート("")を正しく扱う。
 // 各セルについて、デコード済みの値(value)とソース上の生テキスト(raw、
 // クオート・エスケープされたクオートを含み、クオート内の改行もそのまま残る)
 // の両方を返す。parseCsv(データ用)と renderCsvSourceHtml(ソース表示用)は
 // この 1 本のトークナイザーを共有し、行またぎのクオートでも同じ列境界になる。
-function tokenizeCsvRows(content, delimiter) {
+function tokenizeCsvRows(content: string, delimiter: string): CsvCell[][] {
   if (!content) {
     return [];
   }
-  var rows = [];
-  var row = [];
+  var rows: CsvCell[][] = [];
+  var row: CsvCell[] = [];
   var value = '';
   var raw = '';
   var inQuotes = false;
   var i = 0;
-  function pushField() {
+  function pushField(): void {
     row.push({ value: value, raw: raw });
     value = '';
     raw = '';
   }
-  function pushRow() {
+  function pushRow(): void {
     pushField();
     rows.push(row);
     row = [];
   }
   while (i < content.length) {
-    var ch = content[i];
+    // i < content.length のループ内なので必ず存在する。非 null 表明は
+    // 実行時の振る舞いを変えずに noUncheckedIndexedAccess を通すため。
+    var ch = content[i]!;
     if (inQuotes) {
       if (ch === '"') {
         // 直後にもう1つ " があれば RFC 4180 のエスケープされたクオート("" → ")。
@@ -94,20 +103,20 @@ function tokenizeCsvRows(content, delimiter) {
 // テーブル表示のセルは style.css で white-space: pre-line なので、実改行を
 // 入れるだけで追加の CSS なしにそのまま改行として表示される。ソース表示は
 // raw を使うため影響を受けない(行番号と実ファイルの行がずれないようにするため)。
-var CSV_ESCAPES = { n: '\n', t: '\t', r: '\r', '\\': '\\' };
+var CSV_ESCAPES: Record<string, string> = { n: '\n', t: '\t', r: '\r', '\\': '\\' };
 
-function unescapeCellValue(value) {
+function unescapeCellValue(value: string): string {
   if (value.indexOf('\\') === -1) {
     return value;
   }
   var out = '';
   var i = 0;
   while (i < value.length) {
-    var ch = value[i];
+    var ch = value[i]!;
     if (ch === '\\' && i + 1 < value.length) {
-      var next = value[i + 1];
+      var next = value[i + 1]!;
       if (Object.prototype.hasOwnProperty.call(CSV_ESCAPES, next)) {
-        out += CSV_ESCAPES[next];
+        out += CSV_ESCAPES[next]!;
         i += 2;
         continue;
       }
@@ -121,13 +130,13 @@ function unescapeCellValue(value) {
 // tokenizeCsvRows のセルから value だけを取り出した、データ用の行配列。
 // テーブル表示の唯一の入口なので、エスケープシーケンスの展開もここで行う
 // (初回描画 buildTableHtml とチャンク追記 csvRowsHtml の両方に一度に効く)。
-function parseCsv(content, delimiter) {
+function parseCsv(content: string, delimiter: string): string[][] {
   var tokenRows = tokenizeCsvRows(content, delimiter);
-  var rows = [];
+  var rows: string[][] = [];
   for (var r = 0; r < tokenRows.length; r++) {
-    var row = [];
-    for (var c = 0; c < tokenRows[r].length; c++) {
-      row.push(unescapeCellValue(tokenRows[r][c].value));
+    var row: string[] = [];
+    for (var c = 0; c < tokenRows[r]!.length; c++) {
+      row.push(unescapeCellValue(tokenRows[r]![c]!.value));
     }
     rows.push(row);
   }
@@ -137,13 +146,13 @@ function parseCsv(content, delimiter) {
 // CSV 行の配列から <tr><td>…</td></tr> 列(文字列連結)を組み立てる。
 // 各行は max(minCols, 行の列数) まで空セルでパディングし、セルは escapeHtml する。
 // buildTableHtml の <tbody> とチャンク追記(render.js の appendChunk)が共有する。
-function csvRowsHtml(rows, minCols) {
+function csvRowsHtml(rows: string[][], minCols: number): string {
   var html = '';
   for (var r = 0; r < rows.length; r++) {
-    var cols = Math.max(minCols, rows[r].length);
+    var cols = Math.max(minCols, rows[r]!.length);
     html += '<tr>';
     for (var c = 0; c < cols; c++) {
-      html += '<td>' + escapeHtml(c < rows[r].length ? rows[r][c] : '') + '</td>';
+      html += '<td>' + escapeHtml(c < rows[r]!.length ? rows[r]![c]! : '') + '</td>';
     }
     html += '</tr>';
   }
@@ -152,19 +161,19 @@ function csvRowsHtml(rows, minCols) {
 
 // CSV 行の配列から HTML テーブル文字列を組み立てる。1行目を <thead>、残りを <tbody> にする。
 // 列数が揃っていない行は空セルでパディングする。
-function buildTableHtml(rows) {
+function buildTableHtml(rows: string[][]): string {
   if (rows.length === 0) {
     return '';
   }
   var maxCols = 0;
   for (var r = 0; r < rows.length; r++) {
-    if (rows[r].length > maxCols) {
-      maxCols = rows[r].length;
+    if (rows[r]!.length > maxCols) {
+      maxCols = rows[r]!.length;
     }
   }
   var html = '<table><thead><tr>';
   for (var c = 0; c < maxCols; c++) {
-    html += '<th>' + escapeHtml(c < rows[0].length ? rows[0][c] : '') + '</th>';
+    html += '<th>' + escapeHtml(c < rows[0]!.length ? rows[0]![c]! : '') + '</th>';
   }
   html += '</tr></thead><tbody>';
   html += csvRowsHtml(rows.slice(1), maxCols);
@@ -181,18 +190,18 @@ var CSV_COL_COUNT = 8;
 // クオート内改行を含むセルも 1 つの span にまとまるため、テーブル表示(parseCsv)
 // と同じ列割りで色が付く。renderCsvSourceHtml(初回描画)と appendChunk(チャンク
 // 追記)の両方から呼ばれる。
-function csvSourceInnerHtml(content, delimiter) {
+function csvSourceInnerHtml(content: string, delimiter: string): string {
   if (!content) {
     return '';
   }
   var tokenRows = tokenizeCsvRows(content, delimiter);
-  var htmlLines = [];
+  var htmlLines: string[] = [];
   for (var r = 0; r < tokenRows.length; r++) {
-    var cells = tokenRows[r];
-    var htmlParts = [];
+    var cells = tokenRows[r]!;
+    var htmlParts: string[] = [];
     for (var c = 0; c < cells.length; c++) {
       var cls = 'csv-col-' + (c % CSV_COL_COUNT);
-      htmlParts.push('<span class="' + cls + '">' + escapeHtml(cells[c].raw) + '</span>');
+      htmlParts.push('<span class="' + cls + '">' + escapeHtml(cells[c]!.raw) + '</span>');
     }
     htmlLines.push(htmlParts.join(delimiter));
   }
@@ -201,7 +210,11 @@ function csvSourceInnerHtml(content, delimiter) {
 }
 
 // CSV/TSV のソース表示用 HTML。
-function renderCsvSourceHtml(content, delimiter, showLineNumbers) {
+function renderCsvSourceHtml(
+  content: string,
+  delimiter: string,
+  showLineNumbers: boolean | undefined,
+): string {
   if (!content) {
     return '<pre><code class="csv-source"></code></pre>';
   }

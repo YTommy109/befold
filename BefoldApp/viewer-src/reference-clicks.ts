@@ -10,9 +10,10 @@ import {
 // クリック/contextmenu で共有する要素判定。<a> / .befold-path-ref を対象にし、
 // 解決待ち(pending)・解決失敗(dead)のパス参照は操作不可(通常テキスト扱い)として
 // 除外する。対象外・href 無しなら null を返す。
-function _mmdReferenceTargetHref(e) {
-  var anchor = e.target.closest('a');
-  var pathRef = e.target.closest('.befold-path-ref');
+function _mmdReferenceTargetHref(e: MouseEvent): string | null | undefined {
+  // e.target は EventTarget 型だが、この 2 つのリスナは要素の上でしか発火しない。
+  var anchor = (e.target as Element).closest('a');
+  var pathRef = (e.target as Element).closest<HTMLElement>('.befold-path-ref');
   var target = anchor || pathRef;
   if (!target) return null;
 
@@ -23,11 +24,13 @@ function _mmdReferenceTargetHref(e) {
     return null;
   }
 
-  return anchor ? anchor.getAttribute('href') : pathRef.dataset.path;
+  // anchor が null のときの target は pathRef なので、ここでは必ず非 null。
+  return anchor ? anchor.getAttribute('href') : pathRef!.dataset.path;
 }
 
-function _mmdInitReferenceClicks() {
-  var wrap = document.getElementById('diagram-wrap');
+function _mmdInitReferenceClicks(): void {
+  // #diagram-wrap は viewer.html に静的に存在する（truncation.ts の非 null 表明と同じ理由）。
+  var wrap = document.getElementById('diagram-wrap')!;
 
   wrap.addEventListener('click', function (e) {
     // XSS から postMessage を自動発火させる攻撃を防ぐため、
