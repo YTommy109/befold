@@ -30,7 +30,14 @@ CREATE TABLE events (
   -- 日英を同一 HTML に持ち、localStorage の befold-lang が未設定なら常に日本語を
   -- 表示する（src/views/shared.tsx）ため、en 設定の初回訪問者も日本語を読んでいる。
   -- Accept-Language を送らないクライアント（Sparkle など）では NULL。
-  browser_lang TEXT
+  browser_lang TEXT,
+  -- 実際に配信したページの言語。kind='visit' のときだけ値を持つ。
+  -- browser_lang と対で読む（前者は求めた言語、こちらは実際に出した言語）。
+  -- page 列と同じく NULL には 2 つの意味がある: 列の導入前に記録された visit
+  -- （当時は日英を同一 HTML で出しており表示言語が確定しない）と、ページの概念が
+  -- 無い download / update_check。このため `COALESCE(display_lang, 'ja')` は
+  -- 無条件には書けない（kind='visit' と同じ条件節の中でのみ使う）。
+  display_lang TEXT
 );
 
 CREATE INDEX idx_events_timestamp ON events (timestamp);

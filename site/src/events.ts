@@ -1,6 +1,12 @@
 import type { Context } from 'hono'
 import type { AppEnv } from './index'
-import { eventSchema, type DownloadSource, type EventKind, type Page } from './schema'
+import {
+  eventSchema,
+  type DisplayLang,
+  type DownloadSource,
+  type EventKind,
+  type Page,
+} from './schema'
 import { summarizeLang } from './lib/lang'
 import { selfHostsFor } from './lib/hosts'
 import { resolveReferrer } from './lib/referrer'
@@ -21,13 +27,23 @@ export type EventAttributes = {
    * 計上したいページを呼び出し側が明示する（`source` と同じ持ち方）。
    */
   page?: Page | null
+  /**
+   * kind='visit' のときのみ指定する、実際に配信したページの言語。
+   *
+   * URL 文字列から導出しない。ルートが `SITE_PAGES`（`lib/pages.ts`）の該当
+   * エントリの `lang` をそのまま渡す——「どのビューを配信したか」という事実で
+   * あって、パスの形から推測するものではない（`page` と同じ持ち方）。
+   * これにより `<html lang>` / hreflang / og:locale / display_lang の 4 者が
+   * 必ず同じ値から出る。
+   */
+  displayLang?: DisplayLang | null
 }
 
 const INSERT_SQL =
   'INSERT INTO events' +
   ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer,' +
-  ' as_org, source, page, browser_lang)' +
-  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ' as_org, source, page, browser_lang, display_lang)' +
+  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 
 /**
  * リクエストから計測イベントを組み立てて D1 に記録する。
@@ -67,6 +83,7 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
       // 言語は kind を問わずリクエストから導出する。Accept-Language を送らない
       // クライアント（Sparkle など）では null になる。
       browserLang: summarizeLang(c.req.header('Accept-Language') ?? null),
+      displayLang: attributes.displayLang ?? null,
     })
 
     await c.env.DB.prepare(INSERT_SQL)
@@ -84,6 +101,7 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
         event.source,
         event.page,
         event.browserLang,
+        event.displayLang,
       )
       .run()
   } catch (error) {

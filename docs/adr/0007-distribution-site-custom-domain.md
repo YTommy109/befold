@@ -113,6 +113,13 @@ Custom Domain を追加した後も削除しない。`routes` を書いた時点
 `/download` はリダイレクトしない。LP 由来のダウンロード計測（`source:'lp'`、
 `site/src/routes/public.tsx:42-55`）が 301 を挟むことで別ホストの計測へ散るのを避ける。
 
+**この列挙は TASK-496 以降、`site/src/lib/pages.ts` の `SITE_PAGES` から導出する。**
+LP を言語ごとの URL（`/en`・`/en/features`）に分けたことで同じ列挙を必要とする
+場所が 5 つ（ルート登録・この 301・sitemap・hreflang・`og:locale`）になり、
+書き写す形では決定 2 が要求する「列挙漏れが安全側に倒れる」性質より先に、
+列挙そのものが割れるため。`SITE_PAGES` に機械向けの経路（appcast・`/dl/`・
+`/download`）を載せないことが、この導出が決定 2 を守り続ける条件になる。
+
 ### 3. アプリ側の appcast URL とリリースの enclosure prefix は新ドメインへ切り替える
 
 `UpdateChannel.feedURLString` と `.github/workflows/release.yml:274` の

@@ -6,6 +6,8 @@
  * （同決定 1）、本番・staging とも新旧 2 ホストずつを持つ。
  */
 
+import { SITE_PAGES } from './pages'
+
 /** 本番の独自ドメイン。 */
 export const CANONICAL_HOST = 'befold.degino.com'
 
@@ -51,8 +53,15 @@ export const REDIRECT_TARGET_ORIGIN: ReadonlyMap<string, string> = new Map([
  *
  * `/download` は入れない。LP 由来のダウンロード計測（`source:'lp'`）が 301 を挟んで
  * 別ホストの計測へ散るのを避けるため（同決定 2）。
+ *
+ * 列挙は `SITE_PAGES`（`lib/pages.ts`）から導出する。言語ごとの URL を足したとき
+ * （TASK-496）に同じ列挙を必要とする場所が 5 つになり、書き写す形では必ずどこかが
+ * 取り残されるため。`SITE_PAGES` に機械向けの経路を載せないことが、この導出が
+ * 決定 2 を守り続ける条件になる（同ファイルの doc を参照）。
  */
-export const REDIRECTED_PATHS: ReadonlySet<string> = new Set(['/', '/features'])
+export const REDIRECTED_PATHS: ReadonlySet<string> = new Set(
+  SITE_PAGES.map((entry) => entry.path),
+)
 
 /**
  * このリクエストにとっての自己ホスト集合を作る。

@@ -11,8 +11,10 @@ befold の配布 LP・ダウンロード計測・appcast プロキシ・分析�
 
 | パス | 認証 | 内容 |
 | ---- | ---- | ---- |
-| `GET /` | 公開 | 配布 LP。`visit`（`page=/`）を記録 |
-| `GET /features` | 公開 | 機能・対応ファイルタイプの詳細ページ。`visit`（`page=/features`）を記録 |
+| `GET /` | 公開 | 配布 LP（日本語）。`visit`（`page=/`, `display_lang=ja`）を記録 |
+| `GET /en` | 公開 | 配布 LP（英語）。`visit`（`page=/`, `display_lang=en`）を記録 |
+| `GET /features` | 公開 | 機能・対応ファイルタイプの詳細ページ（日本語）。`visit`（`page=/features`, `display_lang=ja`）を記録 |
+| `GET /en/features` | 公開 | 同上（英語）。`visit`（`page=/features`, `display_lang=en`）を記録 |
 | `GET /download` | 公開 | stable 最新の DMG を R2 から返す。`download`（`source=lp`）を記録 |
 | `GET /dl/:tag/:file` | 公開 | 指定タグの DMG を R2 から返す。appcast の enclosure が指す先。`download`（`source=sparkle`）を記録 |
 | `GET /appcast.xml` | 公開 | R2 の appcast を返す。`update_check` を記録 |
@@ -357,7 +359,41 @@ visit / download / update_check の全イベントで記録する。追加のサ
   通らず計上できない。ヘッダを単に外すのでは足りない（Cache-Control も Expires も
   無い 200 応答はブラウザのヒューリスティックキャッシュに載り得る）。
 
-### `browser_lang` が意味するもの
+### 言語ごとの URL
+
+<!-- constrained-by ../docs/adr/0007-distribution-site-custom-domain.md -->
+
+LP と詳細ページは言語ごとに URL を分ける（日本語 = `/` `/features`、英語 =
+`/en` `/en/features`）。かつては日英の本文を同一 HTML に入れて `hidden` の
+付け外しで切り替えていたが、その形だと hreflang が原理的に出せず、実際に読まれた
+言語もサーバから観測できなかった。**URL が表示言語の唯一の状態**で、`localStorage`
+による切替は廃止した。
+
+- **ページの列挙は `src/lib/pages.ts` の `SITE_PAGES` が唯一の定義。** ここから
+  ルート登録・`REDIRECTED_PATHS`・sitemap.xml・hreflang・`og:locale` の 5 つを
+  導出する。5 箇所に書き写す形は必ずどこかが取り残される（ADR 0007 の決定 2 自身が
+  「列挙は漏れる形で壊れる」と書いている）。
+- **`SITE_PAGES` に機械向けの経路を載せてはならない。** この表は「旧ホストから
+  新ドメインへ 301 してよい HTML ページ」でもあるため、appcast・`/dl/`・`/download`
+  を載せると出荷済みアプリの更新経路や LP 由来のダウンロード計測が壊れる
+  （ADR 0007 の決定 2）。旧ホストの `/download` が 301 されないことは
+  `test/public.test.ts` が検査している。
+- **hreflang は自己参照を含む全バリアントを各ページに置く。** 検索エンジンは
+  「各版が自分自身を含む全版を相互に指す」ことを対応関係の成立条件にしており、
+  自己参照を落とすと対応が成立しない。sitemap の `xhtml:link` も同じ集合。
+- **`x-default` は置かない。** Accept-Language で振り分ける入口ページを作って
+  いないので、指すべき既定版が無い。
+- **Accept-Language による自動リダイレクトはしない。** クローラは Accept-Language を
+  送らない（送っても代表的でない）ため、自動リダイレクトは「英語ページが
+  クロールされない」「日本語ページが英語圏で見られない」のどちらかに倒れる。
+  加えて `Vary: Accept-Language` が要り、中間キャッシュとの相互作用が読めなくなる。
+  相手言語への導線はヘッダの `<a>` リンクで常設する。
+- **4 ルートすべてに `Cache-Control: no-store` を付ける。** 1 本でもキャッシュに
+  載ると、そのページの計測だけが環境依存で欠けて日英比率が歪む。
+- **JSON-LD はページの言語に合わせる。** 構造化データの文面はページ上に見えて
+  いる必要があり、日本語ページに英語の FAQ 本文は存在しないため。
+
+### `browser_lang` と `display_lang`
 
 `Accept-Language` の第一タグを `ja` / `en` / `other` に丸めた値
 （`src/lib/lang.ts` の `summarizeLang`）。**これはブラウザの言語設定であって、
@@ -372,6 +408,17 @@ visit / download / update_check の全イベントで記録する。追加のサ
 `Accept-Language` を送らないクライアント（Sparkle）では NULL になる。言語の内訳を
 出すときは `kind = 'visit'` で絞ること。全 kind 横断だと `update_check` の NULL が
 支配して読めなくなる。
+
+`display_lang` は**実際に配信したページの言語**。値は配信したビューの言語その
+もので、URL 文字列からは導出しない（`SITE_PAGES` の該当エントリの `lang` を
+ルートがそのまま渡す）。これにより `<html lang>` / hreflang / `og:locale` /
+`display_lang` の 4 者が必ず同じ値から出る。
+
+2 つは対で読む。`browser_lang` が「求めた言語」、`display_lang` が「実際に出した
+言語」で、両方あって初めて「英語を求めて来た人が英語ページへ辿り着けたか」が
+測れる。`display_lang` の NULL も `page` と同じく二義（列の導入前の visit と、
+ページの概念が無い `download` / `update_check`）なので、`COALESCE` は
+`kind = 'visit'` と同じ条件節の中でのみ使う。
 
 ## 人間の訪問とロボットの巡回の分離
 

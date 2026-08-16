@@ -69,15 +69,20 @@ header h1 {
   cursor: pointer;
   font-size: 0.875rem;
   transition: background 0.2s, border-color 0.2s;
+  /* 言語切替は <button> から <a>（言語ごとの URL へのリンク）になった。
+     リンクの既定の下線と色を打ち消してボタンの見た目を保つ。 */
+  display: inline-block;
+  text-decoration: none;
+  line-height: 1.4;
 }
 
-.lang-btn.active {
+.lang-btn[aria-current="page"] {
   background: var(--color-accent);
   color: #fff;
   border-color: var(--color-accent);
 }
 
-.lang-btn:hover:not(.active) {
+.lang-btn:hover:not([aria-current="page"]) {
   border-color: var(--color-accent);
 }
 

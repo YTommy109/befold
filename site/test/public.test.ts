@@ -1,6 +1,8 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import app from '../src/index'
+import { SITE_PAGES } from '../src/lib/pages'
+import { pageSchema } from '../src/schema'
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15'
 const IP = '203.0.113.5'
@@ -41,12 +43,25 @@ type EventRow = {
   source: string | null
   page: string | null
   browser_lang: string | null
+  display_lang: string | null
+}
+
+/**
+ * `<body>` 以降だけを返す。
+ *
+ * 「相手言語が出ない」を HTML 全体で判定すると、head の
+ * `<link rel="alternate" hreflang="en">` や `og:locale:alternate` に引っかかる。
+ * これらは相手言語を指すのが正しい状態で、本文の言語混在とは別物。
+ */
+function bodyOf(html: string): string {
+  const index = html.indexOf('<body>')
+  return index === -1 ? html : html.slice(index)
 }
 
 async function latestEvent(): Promise<EventRow | null> {
   return await env.DB.prepare(
     'SELECT kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org,' +
-      ' source, page, browser_lang FROM events ORDER BY id DESC LIMIT 1',
+      ' source, page, browser_lang, display_lang FROM events ORDER BY id DESC LIMIT 1',
   ).first<EventRow>()
 }
 
@@ -432,23 +447,29 @@ describe('OGP メタタグ', () => {
 })
 
 describe('対象 OS の明示', () => {
-  it('ファーストビューのリード文で日英とも Mac 専用だと分かる', async () => {
-    const html = await (await call('/')).text()
-    const hero = html.match(/<section class="hero">([\s\S]*?)<\/section>/)?.[1]
+  it('ファーストビューのリード文で Mac 専用だと分かる（各言語の URL で）', async () => {
+    const ja = (await (await call('/')).text()).match(/<section class="hero">([\s\S]*?)<\/section>/)?.[1]
+    const en = (await (await call('/en')).text()).match(/<section class="hero">([\s\S]*?)<\/section>/)?.[1]
 
-    expect(hero).toBeTruthy()
-    expect(hero).toContain('Mac 専用')
-    expect(hero).toContain('Mac-only')
+    expect(ja).toContain('Mac 専用')
+    expect(en).toContain('Mac-only')
+    // 言語ごとに URL が分かれた以上、片方の本文にもう片方の言語は出ない。
+    expect(ja).not.toContain('Mac-only')
+    expect(en).not.toContain('Mac 専用')
   })
 
   it('ダウンロードボタンの近辺で macOS 14 以降だと分かる', async () => {
-    const html = await (await call('/')).text()
-    const hero = html.match(/<section class="hero">([\s\S]*?)<\/section>/)?.[1] ?? ''
+    for (const [path, note] of [
+      ['/', 'macOS 14 (Sonoma) 以降が必要です'],
+      ['/en', 'Requires macOS 14 (Sonoma) or later'],
+    ]) {
+      const html = await (await call(path as string)).text()
+      const hero = html.match(/<section class="hero">([\s\S]*?)<\/section>/)?.[1] ?? ''
 
-    expect(hero).toContain('macOS 14 (Sonoma) 以降が必要です')
-    expect(hero).toContain('Requires macOS 14 (Sonoma) or later')
-    // 注記はボタンより後ろに置き、クリック前に目に入るようにする。
-    expect(hero.indexOf('btn-primary')).toBeLessThan(hero.indexOf('hero-note'))
+      expect(hero, path).toContain(note)
+      // 注記はボタンより後ろに置き、クリック前に目に入るようにする。
+      expect(hero.indexOf('btn-primary'), path).toBeLessThan(hero.indexOf('hero-note'))
+    }
   })
 })
 
@@ -492,8 +513,12 @@ describe('robots.txt / sitemap.xml', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toContain('application/xml')
     const body = await response.text()
-    expect(body).toContain('<loc>https://befold.example/</loc>')
-    expect(body).toContain('<loc>https://befold.example/features</loc>')
+    // SITE_PAGES の全バリアントが載る。ここが表とずれると、追加した言語ページが
+    // クロールされないまま気づけない。
+    for (const entry of SITE_PAGES) {
+      expect(body, entry.path).toContain(`<loc>https://befold.example${entry.path}</loc>`)
+    }
+    expect(body.match(/<loc>/g)).toHaveLength(SITE_PAGES.length)
     expect(body).not.toContain('/dashboard')
     expect(body).not.toContain('/healthz')
   })
@@ -513,19 +538,30 @@ describe('GET /features', () => {
     expect(response.status).toBe(200)
     const body = await response.text()
     expect(body).toContain('対応ファイルタイプ')
-    expect(body).toContain('Supported File Types')
     expect(body).toContain('キーボードショートカット')
-    expect(body).toContain('Keyboard Shortcuts')
     expect(body).toContain('よくある質問')
-    expect(body).toContain('Frequently Asked Questions')
   })
 
-  it('日英どちらの本文も DOM に含まれ、英語側は hidden で出す', async () => {
-    const body = await (await call('/features')).text()
+  it('英語版は /en/features にあり、日本語の本文は出ない', async () => {
+    const response = await call('/en/features')
 
-    // 言語切替は [lang] 属性 + hidden の付け外しで行うため、両方が出力されている必要がある。
-    expect(body).toContain('lang="ja"')
-    expect(body).toMatch(/lang="en"[^>]*hidden/)
+    expect(response.status).toBe(200)
+    const body = bodyOf(await response.text())
+    expect(body).toContain('Supported File Types')
+    expect(body).toContain('Keyboard Shortcuts')
+    expect(body).toContain('Frequently Asked Questions')
+    expect(body).not.toContain('対応ファイルタイプ')
+  })
+
+  it('日本語版の本文に英語の文面は出ない', async () => {
+    // head は判定に含めない。hreflang / og:locale:alternate が相手言語を指すのは
+    // 正しい状態で、本文の混在とは別物。
+    const body = bodyOf(await (await call('/features')).text())
+
+    expect(body).not.toContain('Supported File Types')
+    expect(body).not.toContain('Keyboard Shortcuts')
+    // hidden で隠す旧方式が復活していないことも同時に見る。
+    expect(body).not.toMatch(/lang="en"[^>]*hidden/)
   })
 
   it('対応ファイルタイプ表に主要な拡張子が並ぶ', async () => {
@@ -634,18 +670,17 @@ describe('旧ホストからのリダイレクト', () => {
   const legacy = (path: string, headers: Record<string, string> = {}) =>
     call(path, headers, undefined, LEGACY)
 
-  it('LP は新ドメインの同一パスへ 301 で送る', async () => {
-    const response = await legacy('/')
+  it('SITE_PAGES の全ページを新ドメインの同一パスへ 301 で送る', async () => {
+    // リダイレクト対象は SITE_PAGES からの導出（lib/hosts.ts）。言語ページを
+    // 足したのに旧ホストの列挙だけ取り残される、という形を潰すためのループ。
+    for (const entry of SITE_PAGES) {
+      const response = await legacy(entry.path)
 
-    expect(response.status).toBe(301)
-    expect(response.headers.get('Location')).toBe('https://befold.degino.com/')
-  })
-
-  it('/features も新ドメインの同一パスへ 301 で送る', async () => {
-    const response = await legacy('/features')
-
-    expect(response.status).toBe(301)
-    expect(response.headers.get('Location')).toBe('https://befold.degino.com/features')
+      expect(response.status, entry.path).toBe(301)
+      expect(response.headers.get('Location'), entry.path).toBe(
+        `https://befold.degino.com${entry.path}`,
+      )
+    }
   })
 
   it('クエリ文字列は 301 先へ引き継ぐ（?ref= の参照元計測を落とさない）', async () => {
@@ -758,5 +793,107 @@ describe('ダウンロード導線のホスト非依存性', () => {
     const json = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1]
 
     expect(JSON.parse(json as string).downloadUrl).toBe('https://staging.befold.degino.com/download')
+  })
+})
+
+describe('言語ごとの URL（SITE_PAGES からの導出）', () => {
+  it('表に載っている全ページが 200 を返し、html lang が表と一致する', async () => {
+    for (const entry of SITE_PAGES) {
+      const response = await call(entry.path)
+
+      expect(response.status, entry.path).toBe(200)
+      expect(await response.text(), entry.path).toContain(`<html lang="${entry.lang}">`)
+    }
+  })
+
+  it('各ページの hreflang が自己参照を含む全バリアントを列挙する', async () => {
+    // 自己参照を落とすと検索エンジンから見た対応関係が成立しない。省きやすい
+    // ところなので、集合の一致で固定する。
+    for (const entry of SITE_PAGES) {
+      const html = await (await call(entry.path)).text()
+      const found = [...html.matchAll(/<link rel="alternate" hreflang="(\w+)" href="([^"]+)"\/>/g)]
+      const expected = SITE_PAGES.filter((variant) => variant.page === entry.page)
+
+      expect(found.map((match) => match[2]).sort(), entry.path).toEqual(
+        expected.map((variant) => `https://befold.example${variant.path}`).sort(),
+      )
+      expect(found.map((match) => match[1]).sort(), entry.path).toEqual(
+        expected.map((variant) => variant.lang).sort(),
+      )
+    }
+  })
+
+  it('各ページの canonical が自分自身を指す', async () => {
+    for (const entry of SITE_PAGES) {
+      const html = await (await call(entry.path)).text()
+
+      expect(html, entry.path).toContain(
+        `<link rel="canonical" href="https://befold.example${entry.path}"/>`,
+      )
+    }
+  })
+
+  it('言語ごとに og:locale と og:locale:alternate が入れ替わる', async () => {
+    const ja = await (await call('/')).text()
+    const en = await (await call('/en')).text()
+
+    expect(ja).toContain('<meta property="og:locale" content="ja_JP"/>')
+    expect(ja).toContain('<meta property="og:locale:alternate" content="en_US"/>')
+    expect(en).toContain('<meta property="og:locale" content="en_US"/>')
+    expect(en).toContain('<meta property="og:locale:alternate" content="ja_JP"/>')
+  })
+
+  it('表示した言語が display_lang として記録される', async () => {
+    for (const entry of SITE_PAGES) {
+      await call(entry.path)
+      const event = await latestEvent()
+
+      expect(event?.kind, entry.path).toBe('visit')
+      expect(event?.page, entry.path).toBe(entry.page)
+      expect(event?.display_lang, entry.path).toBe(entry.lang)
+    }
+  })
+
+  it('ブラウザ言語設定と表示言語は別々に記録される', async () => {
+    // 英語設定のブラウザが日本語ページを見ている、という取りこぼしを測れること。
+    // これが分からないと「英語を求めて来た人が英語ページへ辿り着けたか」が出ない。
+    await call('/', { 'Accept-Language': 'en-US,en;q=0.9' })
+
+    const event = await latestEvent()
+    expect(event?.browser_lang).toBe('en')
+    expect(event?.display_lang).toBe('ja')
+  })
+
+  it('全 4 ページがキャッシュに載らない', async () => {
+    // 1 本でも載ると、そのページの計測だけが環境依存で欠けて日英比率が歪む。
+    for (const entry of SITE_PAGES) {
+      const response = await call(entry.path)
+
+      expect(response.headers.get('Cache-Control'), entry.path).toBe('no-store')
+    }
+  })
+
+  it('言語切替リンクが相手言語のページを指し、現在地に aria-current が付く', async () => {
+    const html = await (await call('/features')).text()
+
+    expect(html).toContain('href="/en/features"')
+    expect(html).toMatch(/<a[^>]*class="lang-btn"[^>]*href="\/features"[^>]*aria-current="page"/)
+  })
+
+  it('SITE_PAGES の page がすべて pageSchema の列挙に含まれる', () => {
+    // pageSchema は z.enum のリテラルタプルを保つため手書きのまま残してある
+    // （導出すると Page 型が string へ広がり、EventAttributes と METRIC_FILTERS の
+    // 型安全が失われる）。その代わり両者のずれをここで検知する。
+    for (const entry of SITE_PAGES) {
+      expect(() => pageSchema.parse(entry.page), entry.path).not.toThrow()
+    }
+  })
+
+  it('存在しない言語パスは 200 を返さない', async () => {
+    // /en/download は作らない。/download を単一に保たないと LP 由来の
+    // ダウンロード計測（source:'lp'）が言語ごとに割れる。
+    for (const path of ['/en/download', '/ja', '/ja/features']) {
+      expect((await call(path)).status, path).not.toBe(200)
+    }
   })
 })

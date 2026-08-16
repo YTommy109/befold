@@ -4,11 +4,11 @@ title: ダッシュボードにページ別・言語別の内訳を人間とロ�
 status: To Do
 assignee: []
 created_date: '2026-08-16 01:44'
-updated_date: '2026-08-16 03:47'
+updated_date: '2026-08-16 04:23'
 labels: []
 milestone: m-7
 dependencies:
-  - TASK-488.1
+  - TASK-496
 parent_task_id: TASK-488
 priority: medium
 ordinal: 719000
@@ -50,4 +50,6 @@ TASK-488.1 からの申し送り（設計レビューで確定した論点を AC
 - 「ページアクセス」指標は page='/' に絞ってあり、/features は含まない。ページ別内訳はこの系列とは別に出すこと。
 - 日次ユニーク訪問者・国別・参照元別・UA 内訳の母集団は /features を含む（ページで絞っていない）。
 - recentEvents / eventsAfter は SELECT に page を持たないため、現状ダッシュボードの最新イベント表では / と /features の visit が見分けられない。
+
+TASK-496 完了後の追記: 表示言語は `events.display_lang` から直接読める（`browser_lang` は「求めた言語」、`display_lang` は「実際に出した言語」）。AC の「ブラウザ言語設定の内訳」は両方を出す形に読み替えてよい。なお `BreakdownColumn`（site/src/analytics.ts）の union には `browser_lang` も `display_lang` も入っていないため、列を足しただけではダッシュボードに出ない。union の拡張が 488.2 の作業に含まれる。
 <!-- SECTION:NOTES:END -->

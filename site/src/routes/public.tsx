@@ -12,32 +12,39 @@ import {
   type Channel,
 } from '../lib/github'
 import { APPCAST_KEY, LATEST_KEY, latestPointerSchema, resolveDMGKey } from '../lib/dist'
+import { SITE_PAGES, variantsOf } from '../lib/pages'
 
 export const publicRoutes = new Hono<AppEnv>()
 
-publicRoutes.get('/', (c) => {
-  recordEvent(c, { kind: 'visit', page: '/' })
-  return c.html(<Landing origin={new URL(c.req.url).origin} />)
-})
-
 /**
- * 機能・対応ファイルタイプの詳細ページ。
+ * LP と詳細ページを、日本語・英語それぞれの URL で登録する。
  *
- * `page` 列で LP と区別して visit を記録する（TASK-488.1）。「ページアクセス」
- * 指標は `page='/'` のままなので、ここを計上しても LP からの新規獲得は薄まらない
- * （集計側の判定は src/analytics.ts の METRIC_FILTERS 1 箇所だけ）。
+ * ルートを 4 本手書きしない。`SITE_PAGES` を唯一の対応表にしておかないと、
+ * パスの追加・変更のたびにルート登録・計測・sitemap・hreflang・旧ホストからの
+ * 301 の 5 箇所が別々に直る形になる（`lib/pages.ts` の doc を参照）。
  *
- * `Cache-Control: no-store` を明示する。キャッシュに載った応答は Worker を通らず
- * 計上できないため。ヘッダを単に外すのでは足らない——Cache-Control も Expires も
- * 無い 200 応答はブラウザのヒューリスティックキャッシュに載り得るので、
- * 計上できるかどうかが環境依存になる。
+ * `Cache-Control: no-store` は 4 本すべてに付ける。キャッシュに載った応答は
+ * Worker を通らず計上できないため、付け忘れたページだけ計測が環境依存で欠ける。
+ * ヘッダを外すだけでは足りない——Cache-Control も Expires も無い 200 応答は
+ * ブラウザのヒューリスティックキャッシュに載り得る。
  */
-publicRoutes.get('/features', (c) => {
-  recordEvent(c, { kind: 'visit', page: '/features' })
-  // c.header は後続の c.html に反映されるため、本文を作る前に設定する。
-  c.header('Cache-Control', 'no-store')
-  return c.html(<Features origin={new URL(c.req.url).origin} />)
-})
+for (const entry of SITE_PAGES) {
+  publicRoutes.get(entry.path, (c) => {
+    // display_lang は配信するビューの言語そのもの。パスの形からは導出しない。
+    recordEvent(c, { kind: 'visit', page: entry.page, displayLang: entry.lang })
+    // c.header は後続の c.html に反映されるため、本文を作る前に設定する。
+    c.header('Cache-Control', 'no-store')
+
+    const origin = new URL(c.req.url).origin
+    return c.html(
+      entry.page === '/' ? (
+        <Landing origin={origin} entry={entry} />
+      ) : (
+        <Features origin={origin} entry={entry} />
+      ),
+    )
+  })
+}
 
 /**
  * 配布 LP のダウンロードボタンの宛先。stable の最新 DMG を R2 から返す。
@@ -116,13 +123,35 @@ publicRoutes.get('/robots.txt', (c) => {
   return c.text(body, 200, { 'Cache-Control': 'public, max-age=3600' })
 })
 
+/**
+ * sitemap。`SITE_PAGES` の全バリアントを列挙し、相互の対応を xhtml:link で示す。
+ *
+ * 各 URL に**自分自身を含む**全バリアントの alternate を書く。検索エンジンは
+ * 「各版が自分自身を含む全版を相互に指す」ことを対応関係の成立条件にしており、
+ * 自己参照を落とすと対応が成立しない（head の hreflang と同じ規則）。
+ */
 publicRoutes.get('/sitemap.xml', (c) => {
   const { origin } = new URL(c.req.url)
+  const priorityOf = (page: string): string => (page === '/' ? '1.0' : '0.8')
+  const changefreqOf = (page: string): string => (page === '/' ? 'weekly' : 'monthly')
+  const entries = SITE_PAGES.map((entry) => {
+    const alternates = variantsOf(entry.page)
+      .map(
+        (variant) =>
+          `<xhtml:link rel="alternate" hreflang="${variant.lang}" href="${origin}${variant.path}"/>`,
+      )
+      .join('')
+    return (
+      `  <url><loc>${origin}${entry.path}</loc>${alternates}` +
+      `<changefreq>${changefreqOf(entry.page)}</changefreq>` +
+      `<priority>${priorityOf(entry.page)}</priority></url>\n`
+    )
+  }).join('')
   const body =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-    `  <url><loc>${origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n` +
-    `  <url><loc>${origin}/features</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>\n` +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' +
+    ' xmlns:xhtml="http://www.w3.org/1999/xhtml">\n' +
+    entries +
     '</urlset>\n'
   return new Response(body, {
     status: 200,

@@ -37,6 +37,18 @@ export const browserLangSchema = z.enum(['ja', 'en', 'other'])
 
 export type BrowserLang = z.infer<typeof browserLangSchema>
 
+/**
+ * 実際に配信したページの言語（TASK-496）。
+ *
+ * `browserLang` と対にして読む。前者は「求めた言語」（Accept-Language）、こちらは
+ * 「実際に出した言語」で、両方あって初めて「英語を求めて来た人が英語ページへ
+ * 辿り着けたか」が測れる。値は配信したビューの言語そのもので、URL 文字列からは
+ * 導出しない（`lib/pages.ts` の `SITE_PAGES` が唯一の対応表）。
+ */
+export const displayLangSchema = z.enum(['ja', 'en'])
+
+export type DisplayLang = z.infer<typeof displayLangSchema>
+
 /** D1 の events テーブルに INSERT する 1 行分の形状。 */
 export const eventSchema = z.object({
   timestamp: z.number().int().nonnegative(),
@@ -52,6 +64,7 @@ export const eventSchema = z.object({
   source: downloadSourceSchema.nullable().default(null),
   page: pageSchema.nullable().default(null),
   browserLang: browserLangSchema.nullable().default(null),
+  displayLang: displayLangSchema.nullable().default(null),
 })
 
 export type AnalyticsEvent = z.infer<typeof eventSchema>

@@ -1,4 +1,6 @@
 import type { FC } from 'hono/jsx'
+import { variantsOf, type PageLang, type SitePage } from '../lib/pages'
+import { t, type Localized } from './i18n'
 
 /**
  * LP と詳細ページで共有する定数・断片。
@@ -24,29 +26,20 @@ export const REPO_URL = 'https://github.com/YTommy109/befold'
 export const DOWNLOAD_PATH = '/download'
 
 /** 動作要件。LP・詳細ページ・JSON-LD で同じ表記を使う。 */
-export const REQUIRED_OS = 'macOS 14 (Sonoma) or later'
-export const REQUIRED_OS_JA = 'macOS 14 (Sonoma) 以降'
-
-export const LANG_SCRIPT = `
-function switchLang(lang) {
-  document.querySelectorAll('[lang]').forEach(function(el) {
-    if (el.tagName === 'HTML') return;
-    el.hidden = el.getAttribute('lang') !== lang;
-  });
-  document.querySelectorAll('.lang-btn').forEach(function(btn) {
-    btn.classList.toggle('active', btn.textContent.trim() === (lang === 'ja' ? '\u{1F1EF}\u{1F1F5}' : 'EN'));
-  });
-  document.documentElement.lang = lang;
-  localStorage.setItem('befold-lang', lang);
+export const REQUIRED_OS: Localized = {
+  ja: 'macOS 14 (Sonoma) 以降',
+  en: 'macOS 14 (Sonoma) or later',
 }
 
-(function() {
-  var saved = localStorage.getItem('befold-lang');
-  if (saved && saved !== 'ja') {
-    switchLang(saved);
-  }
-})();
-`
+/**
+ * 言語切替に使っていた `localStorage` の掃除（TASK-496）。
+ *
+ * 言語は URL が持つようになったので `befold-lang` は読まなくなった。読み手を
+ * 消すだけだと値はブラウザに残り続け、次に同名のキーを使ったときに誤って
+ * 読まれる（`.claude/CLAUDE.md`「UserDefaults キーの廃止・改名」と同型の問題）。
+ * 1 行だけ残して消す。
+ */
+export const CLEANUP_SCRIPT = `try { localStorage.removeItem('befold-lang'); } catch (e) {}`
 
 export type Feature = { ja: [string, string]; en: [string, string] }
 
@@ -201,32 +194,48 @@ export const MORE_FEATURES: Feature[] = [
   },
 ]
 
-/** GitHub リボン + タイトル + 言語切替。全ページ共通。 */
-export const SiteHeader: FC<{ title: string }> = ({ title }) => (
+/**
+ * GitHub リボン + タイトル + 言語切替。全ページ共通。
+ *
+ * 言語切替は `<a>` で、宛先は同じ論理ページの各バリアント（`variantsOf`）。
+ * 以前は `<button onclick>` で DOM の `hidden` を付け替えていたが、その形だと
+ * 表示言語が URL に現れず、hreflang も出せなかった。現在地は `aria-current` で
+ * 示す——テキスト内容の比較で active を決めていた旧実装（絵文字との一致を見て
+ * いた）は、表記を変えると黙って壊れる形だった。
+ */
+export const SiteHeader: FC<{ title: string; entry: SitePage }> = ({ title, entry }) => (
   <>
     <a
       class="github-ribbon"
       href={REPO_URL}
       target="_blank"
       rel="noopener"
-      aria-label="View source on GitHub"
+      aria-label={t(entry.lang, { ja: 'GitHub でソースを見る', en: 'View source on GitHub' })}
     >
       <span>GitHub</span>
     </a>
 
     <header>
       <h1>{title}</h1>
-      <div class="lang-switcher">
-        <button class="lang-btn active" onclick="switchLang('ja')" type="button">
-          🇯🇵
-        </button>
-        <button class="lang-btn" onclick="switchLang('en')" type="button">
-          EN
-        </button>
-      </div>
+      <nav class="lang-switcher" aria-label={t(entry.lang, { ja: '言語', en: 'Language' })}>
+        {variantsOf(entry.page).map((variant) => (
+          <a
+            class="lang-btn"
+            href={variant.path}
+            hreflang={variant.lang}
+            lang={variant.lang}
+            {...(variant.lang === entry.lang ? { 'aria-current': 'page' } : {})}
+          >
+            {LANG_LABEL[variant.lang]}
+          </a>
+        ))}
+      </nav>
     </header>
   </>
 )
+
+/** 言語切替ボタンの表記。日本語は国旗、英語は EN。 */
+const LANG_LABEL: Record<PageLang, string> = { ja: '\u{1F1EF}\u{1F1F5}', en: 'EN' }
 
 export const SiteFooter: FC = () => (
   <footer>
