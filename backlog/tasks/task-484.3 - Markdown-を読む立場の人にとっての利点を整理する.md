@@ -1,10 +1,11 @@
 ---
 id: TASK-484.3
 title: Markdown を読む立場の人にとっての利点を整理する
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-08-14 13:06'
-updated_date: '2026-08-14 13:22'
+updated_date: '2026-08-16 01:03'
 labels: []
 milestone: m-1
 dependencies: []
@@ -43,8 +44,30 @@ befold は設計レビュー・コードレビューの多いエンジニア向�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 この層に向けて訴求する利点が、優先順位を付けた一覧として整理されている
-- [ ] #2 各項目に実装の裏付けが添えられている
-- [ ] #3 未実装・スコープ外のものが混入していない
-- [ ] #4 整理結果が docs/superpowers/specs/ に日付付きのスナップショットとして残り、冒頭バナーが付いている
+- [x] #1 この層に向けて訴求する利点が、優先順位を付けた一覧として整理されている
+- [x] #2 各項目に実装の裏付けが添えられている
+- [x] #3 未実装・スコープ外のものが混入していない
+- [x] #4 整理結果が docs/superpowers/specs/ に日付付きのスナップショットとして残り、冒頭バナーが付いている
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 既存 specs の命名・バナー形式を確認する
+2. Description の 12 項目の実装裏付け（file:line / native-app-design.md 該当箇所）を Explore サブエージェントで並列収集する
+3. 裏付けの取れた項目だけを、非エンジニア読者への効き方で優先順位付けする
+4. docs/superpowers/specs/2026-08-16-markdown-reader-benefits-design.md としてバナー付きで保存する
+5. markdownlint を通し、AC を検証して完了処理・コミットする
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+裏付け収集は Explore サブエージェント 2 本（レンダリング系 6 項目 / アプリ挙動系 6 項目）で並列実施し、報告された file:line のうち主要 8 箇所を sed -n で実測して一致を確認した。12 項目すべて実装あり。判明した制約（コピー確定時の言い過ぎ防止として文書の各「注意」に記載）: (1) URL 自動リンクは scheme 付きのみ（markdown.js:125 fuzzyLink:false）、(2) PDF は印刷パネルの「PDF として保存」経由で専用エクスポートではない、(3) 100MB 上限は Markdown 等チャンク可能種別のみで mmd/svg/html は 50MB、(4) QuickLook は quickLookRestricted プリセットで検索・パスリンク・画像埋め込みが無効。目次・アウトライン機能の不在は rg で確認（ヒットは SwiftUI OutlineGroup へのコメント言及のみ）。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+非エンジニアの Markdown 読者（ライター・企画・レビュアー）向けの利点 12 項目を優先度 A（入口: QuickLook・GitHub の見た目・0.2 秒更新・mermaid）/ B（作業支援: 検索・アンカー・ローカル画像・印刷/PDF）/ C（困らない系: 復元・100MB・文字コード・パスリンク）に整理し、docs/superpowers/specs/2026-08-16-markdown-reader-benefits-design.md にバナー付きスナップショットとして保存した。全項目に file:line の裏付けを付け、主要 8 箇所は実測で一致確認。未実装（目次・編集・SVG/PNG エクスポート）は「書いてはいけないもの」節に分離し、TASK-484.4 への申し送り（新規材料 6 項目と言い過ぎ防止の制約）を末尾に記載した。
+<!-- SECTION:FINAL_SUMMARY:END -->
