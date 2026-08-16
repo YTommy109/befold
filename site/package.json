@@ -9,6 +9,10 @@
     "deploy:staging": "wrangler deploy --env staging",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "lint": "oxlint --report-unused-disable-directives",
+    "lint:fix": "oxlint --fix --report-unused-disable-directives",
+    "format": "oxfmt -c ../.oxfmtrc.json .",
+    "format:check": "oxfmt -c ../.oxfmtrc.json --check .",
     "migrate:diff": "atlas migrate diff --env local",
     "migrate:lint": "atlas migrate lint --env local --latest 1",
     "migrate:hash": "atlas migrate hash --env local",
@@ -26,6 +30,8 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.18.8",
     "@types/node": "^26.1.2",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.78.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.10",
     "wrangler": "^4.114.0"

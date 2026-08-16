@@ -1,0 +1,59 @@
+{
+  // 配布サイト（Cloudflare Worker）の Oxlint 設定。方針は共通ベースにあり、
+  // ここは検査対象の指定と、この面に固有の緩和だけを持つ。
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": ["../.oxlintrc.json"],
+
+  "env": {
+    "es2024": true,
+    // Worker のランタイムは Web 標準 API（fetch / URL / crypto / caches …）を
+    // 持つので browser を有効にする。Node ではないが、oxlint の env に
+    // workers 相当が無いためこれで代替する。
+    "browser": true
+  },
+
+  "ignorePatterns": [
+    "node_modules/**",
+    ".wrangler/**",
+    // wrangler が生成する 538KB の型定義。手で書く場所ではない。
+    "worker-configuration.d.ts"
+  ],
+
+  "overrides": [
+    {
+      // TypeScript では未定義参照を tsc が捕まえる（npm run typecheck）。
+      // oxlint の no-undef は型宣言を未定義と誤検知するため外す。
+      // JSX は hono/jsx であって React ではないので、react 系プラグインは
+      // そもそも有効にしていない（tsconfig.json の jsxImportSource を参照）。
+      "files": ["**/*.ts", "**/*.tsx"],
+      "rules": { "eslint/no-undef": "off" }
+    },
+    {
+      "files": ["test/**"],
+      "plugins": ["vitest"],
+      "env": { "vitest": true },
+      "rules": {
+        // Vitest の `expect(actual, message)` は第 2 引数にアサーションメッセージを
+        // 取れる。既定の maxArgs=1 だと、どのケースで落ちたかを出すために付けて
+        // いるメッセージが全部エラーになる（実測 20 件）。
+        // ベース側にも同じ指定があるが、override で vitest プラグインを有効化すると
+        // そちらのルール設定が引き継がれないため、ここにも書く。
+        "vitest/valid-expect": ["error", { "maxArgs": 2 }],
+        // テストは「この入力ならこう」を並べる場所で、テーブル駆動の for ループと
+        // 逐次 await（D1 へ順に INSERT するなど）が既存の書き方。並列化すると
+        // 挿入順が不定になり、順序を前提にしたアサートが壊れる。
+        "eslint/no-await-in-loop": "off",
+        "vitest/no-conditional-in-test": "off",
+        // テスト内のヘルパはフィクスチャを閉じ込めるために意図して入れ子にする。
+        "unicorn/consistent-function-scoping": "off"
+      }
+    },
+    {
+      // ローカル D1 へサンプルを流し込む開発用スクリプト。Node で走る。
+      "files": ["tools/**"],
+      "plugins": ["node"],
+      "env": { "node": true },
+      "rules": { "eslint/no-await-in-loop": "off" }
+    }
+  ]
+}

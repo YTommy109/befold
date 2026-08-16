@@ -1,0 +1,71 @@
+{
+  // リポジトリ共通の Oxlint 方針（TASK-498）。
+  //
+  // このファイルは **方針だけ**を持ち、検査対象の指定（ignorePatterns）は各
+  // プロジェクト側の設定に置く。ignorePatterns を継承させると、パターンが
+  // どのディレクトリ基準で解決されるかが設定ファイルの位置に依存して読みにくく
+  // なるため。ここを継承するのは `site/.oxlintrc.json` と
+  // `BefoldApp/.oxlintrc.json` の 2 つ。
+  //
+  // ルールを個別に無効化するときは **必ず理由を書く**。理由の無い無効化は、
+  // 次にそのルールが必要になったときに「意図して外したのか、たまたま鳴って
+  // 外したのか」が区別できなくなる。
+  "$schema": "./site/node_modules/oxlint/configuration_schema.json",
+
+  // 既定は correctness のみ。ここでは pedantic まで上げる。LLM が書いたコードは
+  // 「動くが不用意」という形の誤りを持ち込みやすく、その多くは correctness では
+  // なく suspicious / perf / pedantic に落ちるため。
+  //
+  // style と restriction は入れない。実測（2026-08-16、site/ 8,637 行）で
+  // 全カテゴリを有効にすると 3,965 件、うち大半が `no-magic-numbers`(436) /
+  // `one-var`(387) / `sort-keys`(332) / `no-async-await`(245) / `no-null`(154) /
+  // `no-ternary`(46) といった「このコードベースが意図して選んでいる書き方」を
+  // 否定するものだった。correctness〜pedantic なら 203 件で、内訳も実際の
+  // 改善に対応する。
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error",
+    "pedantic": "error"
+  },
+
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "promise"],
+
+  "rules": {
+    // 未定義参照の検出。カテゴリには属さないため明示的に有効化する必要がある。
+    // **.ts / .tsx では各プロジェクト側の override で off にする** —— 型宣言を
+    // 未定義と誤検知するうえ、そちらの担保は tsc（npm run typecheck）にある。
+    // 旧 ESLint 設定（BefoldApp/eslint.config.mjs）が持っていた唯一の検査で、
+    // 移行にあたって落とさないためにここへ移した。
+    "eslint/no-undef": "error",
+
+    // 旧 ESLint 設定と同じオプションで引き継ぐ。引数の未使用は許す（シグネチャを
+    // そろえるために置くことがある）、catch の束縛も許す、`_` 始まりは意図的な
+    // 未使用として許す。
+    "eslint/no-unused-vars": [
+      "error",
+      { "args": "none", "caughtErrors": "none", "varsIgnorePattern": "^_" }
+    ],
+
+    // Vitest / Jest の `expect(actual, message)` は第 2 引数にアサーション
+    // メッセージを取れる。既定の maxArgs=1 だと、どのケースで落ちたかを
+    // 出すために付けているメッセージが全部エラーになる（実測 20 件）。
+    "vitest/valid-expect": ["error", { "maxArgs": 2 }],
+    "jest/valid-expect": ["error", { "maxArgs": 2 }],
+
+    // --- 以下は理由つきで無効化する ---
+
+    // 行数の上限は入れない。Swift 側には SwiftLint の file_length があるが、
+    // TS 側には方針が無く、ここで新設すると「既存ファイルを分割する」という
+    // 別の判断を lint 導入に紛れ込ませることになる（site/src/analytics.ts は
+    // 957 行あり、意図して 1 モジュールにしてある）。必要なら独立したタスクで
+    // 閾値ごと決める。
+    "eslint/max-lines": "off",
+    "eslint/max-lines-per-function": "off",
+
+    // 同じ理由で依存本数の上限も入れない。既定の 10 は根拠を持って選んだ値では
+    // なく、超えている箇所（BefoldApp/viewer-src/render.js は 12）を分割するか
+    // どうかは lint 導入とは別の判断。
+    "import/max-dependencies": "off"
+  }
+}

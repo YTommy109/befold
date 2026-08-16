@@ -1,0 +1,106 @@
+{
+  // ビューア JS / ビルドスクリプトの Oxlint 設定。方針は共通ベースにあり、
+  // ここは検査対象の指定と、この面に固有の緩和だけを持つ。
+  //
+  // **viewer-src と そのテストは TS 移行が終わるまで緩めにしてある（TASK-499）。**
+  // 27 本中 22 本がまだ .js で、`tsconfig.json` の `checkJs: false` により tsc の
+  // 型検査も受けていない。型情報の無い .js に pedantic まで当てると、実測
+  // （2026-08-16）で viewer-src 275 件 / __tests__ 280 件が出るうえ、その多くは
+  // TS へ移せば消える種類のもので、個別に無効化コメントを積んでも移行時に
+  // まとめて捨てることになる。TASK-499 で .js が無くなった時点でこの override を
+  // 外し、site/ と同じ厳しさにする。
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": ["../.oxlintrc.json"],
+
+  "env": {
+    "es2024": true,
+    "browser": true
+  },
+
+  "globals": {
+    // viewer.html が <script> で先に読み込む同梱ベンダー。バンドルには含めず
+    // グローバル参照のまま使う（mermaid は描画の瞬間まで遅延ロードする）。
+    "markdownit": "readonly",
+    "hljs": "readonly",
+    "DOMPurify": "readonly",
+    "mermaid": "readonly",
+    // WKWebView が注入するメッセージハンドラの入口。
+    "webkit": "readonly"
+  },
+
+  "ignorePatterns": [
+    "node_modules/**",
+    ".build/**",
+    "build/**",
+    "DerivedData/**",
+    // ベンダー同梱物（mermaid.min.js は 3.2MB）と esbuild 成果物。
+    // どちらも git 管理下にあるので、無視しないと毎回走査対象になる。
+    "**/*.min.js",
+    "BefoldKit/Resources/viewer-bundle.js"
+  ],
+
+  "overrides": [
+    {
+      // TypeScript では未定義参照を tsc が捕まえる（npm run typecheck:viewer）。
+      // oxlint の no-undef は型宣言を未定義と誤検知するため外す。旧 ESLint 設定
+      // （eslint.config.mjs）も同じ理由で .ts を no-undef の対象外にしていた。
+      "files": ["**/*.ts"],
+      "rules": { "eslint/no-undef": "off" }
+    },
+    {
+      // TASK-499 が終わったらこのブロックごと消す。
+      "files": ["viewer-src/**", "BefoldKit/Resources/__tests__/**"],
+      "rules": {
+        // Swift 側との契約でグローバル名に `_mmd` 接頭辞を使う
+        // （BefoldKit/ViewerBridge.swift が単一情報源）。接頭辞そのものが契約なので
+        // 直せない。実測 218 件。
+        "eslint/no-underscore-dangle": "off",
+        // getElementById は id 参照であることが読んで分かり、querySelector より速い。
+        // 意図した選択なので置き換えない。実測 118 件。
+        "unicorn/prefer-query-selector": "off",
+        // 以下は .js のままでは機械的に直しても意味が薄い、または TS 移行で
+        // 書き換わる箇所に集中しているもの。TASK-499 で override ごと外す。
+        "eslint/require-unicode-regexp": "off",
+        "eslint/no-await-in-loop": "off",
+        "eslint/block-scoped-var": "off",
+        "eslint/no-inline-comments": "off",
+        "eslint/no-lonely-if": "off",
+        "eslint/no-negated-condition": "off",
+        "unicorn/no-negated-condition": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "unicorn/prefer-dom-node-append": "off",
+        "unicorn/prefer-dom-node-remove": "off",
+        "unicorn/prefer-dom-node-dataset": "off",
+        "unicorn/prefer-add-event-listener": "off",
+        "unicorn/prefer-import-meta-properties": "off",
+        "unicorn/prefer-at": "off",
+        "unicorn/explicit-length-check": "off",
+        "unicorn/prefer-number-coercion": "off",
+        "unicorn/prefer-string-replace-all": "off",
+        "unicorn/prefer-code-point": "off",
+        "unicorn/no-useless-undefined": "off",
+        "unicorn/no-array-sort": "off"
+      }
+    },
+    {
+      "files": ["BefoldKit/Resources/__tests__/**"],
+      "plugins": ["jest"],
+      "env": { "jest": true, "node": true },
+      "rules": {
+        "jest/valid-expect": ["error", { "maxArgs": 2 }],
+        // テーブル駆動の for ループが既存の書き方。
+        "jest/no-conditional-in-test": "off",
+        // テストは同梱ベンダー（hljs / markdownit）をスタブに差し替えて動かす。
+        // グローバルとして宣言してある名前をテスト内で束縛し直すのは意図した形。
+        "eslint/no-redeclare": "off"
+      }
+    },
+    {
+      // viewer のバンドル・ベンダーコピー・ライセンス検査を行う Node スクリプト。
+      "files": ["scripts/**"],
+      "plugins": ["node"],
+      "env": { "node": true, "browser": false },
+      "rules": { "eslint/no-await-in-loop": "off" }
+    }
+  ]
+}
