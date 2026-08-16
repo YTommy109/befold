@@ -8,10 +8,10 @@
 var _mmdModeSwitch = (function () {
   var pending = false;
   return {
-    mark: function () {
+    mark: function (): void {
       pending = true;
     },
-    consume: function () {
+    consume: function (): boolean {
       var value = pending;
       pending = false;
       return value;
@@ -22,18 +22,18 @@ var _mmdModeSwitch = (function () {
 // モード切替の持ち越しを立てるのも setMode() の責務に含め、「変わったときだけ
 // mark する」判定を旧モードを知っているこの owner に閉じる。
 function _createViewOptions() {
-  var mode = 'rendered';
+  var mode: 'rendered' | 'source' = 'rendered';
   var lineNumbers = false;
   // ソース表示中に差し込む unified diff。null なら差分表示をしない。
-  var diff = null;
+  var diff: string | null = null;
   // 差分のレイアウト。'inline'(1 列) と 'side-by-side'(左右分割)。
-  var diffLayout = 'inline';
+  var diffLayout: 'inline' | 'side-by-side' = 'inline';
 
   return {
-    mode: function () {
+    mode: function (): 'rendered' | 'source' {
       return mode;
     },
-    setMode: function (newMode) {
+    setMode: function (newMode: string): void {
       if (newMode !== 'rendered' && newMode !== 'source') {
         return;
       }
@@ -42,22 +42,22 @@ function _createViewOptions() {
       }
       mode = newMode;
     },
-    lineNumbers: function () {
+    lineNumbers: function (): boolean {
       return lineNumbers;
     },
-    setLineNumbers: function (show) {
+    setLineNumbers: function (show: boolean): void {
       lineNumbers = show;
     },
-    diff: function () {
+    diff: function (): string | null {
       return diff;
     },
-    setDiff: function (text) {
+    setDiff: function (text: unknown): void {
       diff = typeof text === 'string' && text !== '' ? text : null;
     },
-    diffLayout: function () {
+    diffLayout: function (): 'inline' | 'side-by-side' {
       return diffLayout;
     },
-    setDiffLayout: function (layout) {
+    setDiffLayout: function (layout: string): void {
       if (layout !== 'inline' && layout !== 'side-by-side') {
         return;
       }
@@ -72,20 +72,20 @@ var _mmdViewOptions = _createViewOptions();
 // 再描画はしない: 呼び出し側(Swift)が常にこの直後に render() を送るため、
 // ここで再描画すると古い内容による二重描画が発生する。
 
-function setViewMode(mode) {
+function setViewMode(mode: string): void {
   _mmdViewOptions.setMode(mode);
 }
 
 // 行番号表示状態を更新する。ここで再描画すると全文再ハイライトが二重に走る。
-function setLineNumbers(show) {
+function setLineNumbers(show: boolean): void {
   _mmdViewOptions.setLineNumbers(show);
 }
 
-function setDiff(text) {
+function setDiff(text: unknown): void {
   _mmdViewOptions.setDiff(text);
 }
 
-function setDiffLayout(layout) {
+function setDiffLayout(layout: string): void {
   _mmdViewOptions.setDiffLayout(layout);
 }
 

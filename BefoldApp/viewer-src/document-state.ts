@@ -5,32 +5,32 @@
 // 読み手は必ずアクセサ経由になる。type は mermaid のパースエラー表示でも読むため、
 // 初回描画前は mmd(既定の表示型)として扱う。
 function _createDocumentState() {
-  var content = null;
+  var content: string | null = null;
   var type = 'mmd';
-  var lang = null;
+  var lang: string | null = null;
 
   return {
-    record: function (newContent, newType, newLang) {
+    record: function (newContent: string, newType: string, newLang: string | null): void {
       content = newContent;
       type = newType;
       lang = newLang;
     },
     // 追記チャンクを直近内容の末尾に足す。まだ何も描画していない間は何もしない。
-    append: function (text) {
+    append: function (text: string): void {
       if (content !== null) {
         content += text;
       }
     },
-    content: function () {
+    content: function (): string | null {
       return content;
     },
-    type: function () {
+    type: function (): string {
       return type;
     },
-    lang: function () {
+    lang: function (): string | null {
       return lang;
     },
-    hasContent: function () {
+    hasContent: function (): boolean {
       return content !== null;
     },
   };
@@ -44,10 +44,10 @@ var _mmdDocument = _createDocumentState();
 var _mmdChunkTail = (function () {
   var endedWithNewline = true;
   return {
-    record: function (text) {
+    record: function (text: string): void {
       endedWithNewline = text.length > 0 && text[text.length - 1] === '\n';
     },
-    endedWithNewline: function () {
+    endedWithNewline: function (): boolean {
       return endedWithNewline;
     },
   };
