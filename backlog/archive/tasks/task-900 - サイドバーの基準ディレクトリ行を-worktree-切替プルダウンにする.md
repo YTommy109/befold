@@ -1,5 +1,5 @@
 ---
-id: TASK-476
+id: TASK-900
 title: サイドバーの基準ディレクトリ行を worktree 切替プルダウンにする
 status: To Do
 assignee: []
@@ -12,6 +12,10 @@ priority: medium
 type: feature
 ordinal: 697000
 ---
+
+<!-- このタスクは元は TASK-476 だったが、backlog CLI が同じ番号を再発行して
+     backlog/completed/ 側の別タスクと衝突したため、900 番台へ振り直した。
+     採番は backlog/tasks のみを走査するため、当面到達しない帯へ逃がしている。 -->
 
 ## Description
 
