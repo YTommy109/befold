@@ -1,11 +1,11 @@
 ---
 id: TASK-498
 title: Oxlint / Oxfmt を導入して LLM 生成コードの品質を機械で守る
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-16 07:19'
-updated_date: '2026-08-16 07:53'
+updated_date: '2026-08-16 08:06'
 labels: []
 dependencies: []
 priority: high
@@ -40,7 +40,7 @@ JS/TS 側には lint がほぼ無く、フォーマッタは 1 つも無い。LL
 - [x] #2 Oxfmt による整形が全 JS/TS に適用され、以降の差分が整形済み前提になっている
 - [x] #3 既存の ESLint（BefoldApp/eslint.config.mjs）が担保していた検査が Oxlint 側で維持されるか、失われた検査が理由つきで記録されている
 - [x] #4 viewer-src は TS 移行が終わるまで緩めの設定になっており、その理由と厳しくする条件が設定ファイル内に書かれている
-- [ ] #5 CI で Oxlint / Oxfmt が実行され、違反でジョブが落ちる
+- [x] #5 CI で Oxlint / Oxfmt が実行され、違反でジョブが落ちる
 - [x] #6 pre-commit で Oxlint / Oxfmt が実行され、違反でコミットが止まる
 - [x] #7 既存のテスト・typecheck・ビルドがすべて通る（site の vitest、BefoldApp の jest / typecheck:viewer / check:viewer-bundle）
 <!-- AC:END -->
@@ -130,10 +130,25 @@ JS/TS 側には lint がほぼ無く、フォーマッタは 1 つも無い。LL
 **AC #5（CI で落ちる）は未チェックのまま残した。** ワークフローの構文と、コマンドが手元で同じ結果になることは確認したが、GitHub Actions 上での実行を観測していないため。PR を出して CI が回った時点でチェックする。
 
 実装は完了。AC #5（CI 上での実行）だけが未確認のため In Progress のまま残す。PR を出して CI が回ったら `backlog task edit TASK-498 --check-ac 5 -s Done` で閉じる。
+
+## CI 実測（2026-08-16, PR #537）
+
+CI で Oxlint / Oxfmt が実行されることを実測で確認した（AC #5）。
+
+| ジョブ | 結果 | 所要 |
+|---|---|---|
+| js-test（ci.yml, BefoldApp/） | pass | 22s |
+| test（site.yml, site/） | pass | 34s |
+| build-and-test | pass | 3m33s |
+| type-group-size | pass | 8s |
+
+これで AC はすべて満たした。残るのは viewer-src の override 撤去で、TASK-499 の Acceptance Criteria 側に載せてある。
+
+native-app-design.md（現在仕様の単一情報源）は更新不要と判断した。本タスクの成果は JS/TS の lint / 整形ツールチェーンであり、アプリの構成・振る舞いの仕様ではないため。方針は .claude/CLAUDE.md の「JS/TS コーディング規約」節に記載済み。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Oxlint 1.78.0 と Oxfmt 0.63.0 を site/ と BefoldApp/ の両方へ入れ、ESLint（実質 3 ルール）を置き換えた。方針はリポジトリルートの .oxlintrc.json / .oxfmtrc.json が単一の情報源で、各プロジェクトが extends して検査対象と面ごとの緩和だけを持つ。カテゴリは correctness / suspicious / perf / pedantic を error——style と restriction は、実測でこのコードベースが意図して選んでいる書き方（no-null・sort-keys・no-magic-numbers 等）の否定が大半だったため入れていない。viewer-src とそのテストは TS 移行（TASK-499）が終わるまで緩め、撤去条件を設定内と TASK-499 の AC に書いた。全 JS/TS を一括整形し、Oxlint の指摘 119 件を 0 にした。CI（ci.yml / site.yml）と pre-commit（scripts/oxc-lint.sh）の両方で落ちる。検証は両プロジェクトの lint 0 件・format:check 通過・typecheck・vitest 277 件・jest 439 件・check:viewer-bundle・check:third-party-licenses・actionlint と、pre-commit が実際に落ちることの実測。CI 上での実行は push 前のため未観測。
+JS/TS 全体に Oxlint / Oxfmt を導入し、ESLint（1 ディレクトリ・実質 3 ルール）を置き換えた。ルートの .oxlintrc.json / .oxfmtrc.json を単一の情報源とし、site/ と BefoldApp/ がそれを extends する。カテゴリは correctness / suspicious / perf / pedantic を error（style / restriction は意図した書き方を否定するため入れない）。viewer-src は TS 移行（TASK-499）まで override で緩め、撤去条件を設定内に明記した。検証: site/ と BefoldApp/ の両方で npm run lint / format:check がゼロ件、vitest / jest / typecheck:viewer / check:viewer-bundle が通過。CI は PR #537 で js-test 22s・site test 34s・build-and-test 3m33s がいずれも pass。
 <!-- SECTION:FINAL_SUMMARY:END -->

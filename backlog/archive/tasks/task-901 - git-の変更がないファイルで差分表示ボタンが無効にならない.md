@@ -1,5 +1,5 @@
 ---
-id: TASK-480
+id: TASK-901
 title: git の変更がないファイルで差分表示ボタンが無効にならない
 status: To Do
 assignee: []
@@ -12,6 +12,10 @@ dependencies: []
 priority: medium
 ordinal: 698000
 ---
+
+<!-- このタスクは元は TASK-480 だったが、backlog CLI が同じ番号を再発行して
+     backlog/completed/ 側の別タスクと衝突したため、900 番台へ振り直した。
+     採番は backlog/tasks のみを走査するため、当面到達しない帯へ逃がしている。 -->
 
 ## Description
 
