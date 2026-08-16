@@ -1,10 +1,10 @@
 ---
 id: TASK-488
 title: アクセス統計でページ別・閲覧言語別の内訳を人間とロボットに分けて見られるようにする
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-16 01:43'
-updated_date: '2026-08-16 01:50'
+updated_date: '2026-08-16 05:14'
 labels: []
 milestone: m-7
 dependencies: []
@@ -42,10 +42,54 @@ ordinal: 717000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 /features の参照数が、/ の参照数と区別してダッシュボードで見られる
-- [ ] #2 閲覧言語（日本語 / 英語）の別がダッシュボードで見られる
-- [ ] #3 ページ別・言語別のどちらの内訳も、人間とロボットを分けて表示される
-- [ ] #4 既存の LP 指標（累計・当日・日別・時間帯・バージョン別など）の意味と数値が、/features の計上によって変わらない
-- [ ] #5 遡及分類できない既存行の扱いがダッシュボード上で注記されている
-- [ ] #6 site の vitest と typecheck が通る
+- [x] #1 /features の参照数が、/ の参照数と区別してダッシュボードで見られる
+- [x] #2 閲覧言語（日本語 / 英語）の別がダッシュボードで見られる
+- [x] #3 ページ別・言語別のどちらの内訳も、人間とロボットを分けて表示される
+- [x] #4 既存の LP 指標（累計・当日・日別・時間帯・バージョン別など）の意味と数値が、/features の計上によって変わらない
+- [x] #5 遡及分類できない既存行の扱いがダッシュボード上で注記されている
+- [x] #6 site の vitest と typecheck が通る
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 親タスクの完了処理（2026-08-16）
+
+実装はサブタスク 488.1 / 488.2 / 488.3 が担い、親タスク自体のコード変更は無い。親の受け入れ条件をコードと実行結果で検証して締めた。
+
+### 受け入れ条件の裏付け
+
+- **#1 / #3（ページ別・人間/ロボット別）**: `site/src/views/dashboard.tsx:411-423` の「ページ別の訪問」セクションが `splitRows(summary.visits.byPage, false/true)` で人間・ロボットの 2 表を並べる。
+- **#2 / #3（言語別・人間/ロボット別）**: 同 `:425-453` の「言語別の訪問」セクション。表示言語（URL が決める）とブラウザ言語設定（Accept-Language 由来）を別軸で持ち、それぞれ人間・ロボットに分ける計 4 表。
+- **#4（既存 LP 指標が変わらない）**: `site/src/analytics.ts:51` で `visit: { kind: 'visit', source: null, page: '/' }`。`/features` を visit として記録し始めても「ページアクセス」系列は LP 限定のまま。同 `:81-86` の doc コメントが `COALESCE(page,'/')` を `kind='visit'` と同じ式の中にしか置かない理由（page NULL には「列導入前の LP visit」と「ページの概念が無い download / update_check」の 2 種があり、後者に '/' を与えると嘘になる）を明示している。
+- **#5（遡及分類不可の注記）**: `dashboard.tsx:413-418`（ページ列導入前は LP のみ計上だったため '/' に数える）、`:427-437`（言語別 URL 導入前は表示言語が確定せず「未記録」）、`:459-465`（ホスト列導入前は復元不可）、`:492-499`（ボット分類適用日より前は遡及分類不可）。
+- **#6（vitest / typecheck）**: 実測。`npm run typecheck` は `tsc --noEmit` が無出力で通過。`npm test` は **11 ファイル / 236 テストすべて通過**（Duration 3.17s）。
+
+### 現在仕様への反映
+
+`docs/dev/native-app-design.md` の更新は不要。同文書は macOS アプリ（BefoldApp/）の構成を扱うもので、本タスクの変更は配布サイト（`site/`、Cloudflare Worker）に閉じている。サイト側の仕様は実装コミット 50dd6674 で `site/README.md` と `docs/adr/0007-distribution-site-custom-domain.md` に反映済み。
+
+### 申し送り
+
+言語別内訳のうち「ブラウザ言語設定」は Accept-Language 由来でボットにも付く。TASK-490（ボット判別の精度見直し）でデータセンター由来の自動アクセスの分類が変わると、この表の人間側の数も動く。490 の完了後に数値の見え方を確認すること。
+
+### #4 の但し書き（検証で判明）
+
+`METRIC_FILTERS.visit` の `page: '/'` は `metricExpression`（`site/src/analytics.ts:80-84`）を唯一の定義元として、`METRIC_EXPR`（`:94`）・`KIND_COUNT_COLUMNS`（`:166`）・`metricCondition`（`:262`）の 3 経路すべてに同じ `COALESCE(page,'/') = '/'` が入る。よって受け入れ条件が列挙する累計・当日・日別・時間帯・バージョン別はすべて LP 限定のまま保たれている。
+
+ただし **国別・参照元別の内訳（`breakdown(db,'country')` / `'referrer'`）は metric 指定なしで全 kind が対象**のため、元々 LP 限定ではなく、`/features` の計上ぶんだけ数値が増える。受け入れ条件が挙げた指標には含まれないので #4 は満たすが、「visit の内訳表はすべて LP 限定」と誤読しないこと。
+
+意図的な例外がもう 1 つある。日次ユニーク訪問者の `COUNT(DISTINCT visitor_token)` はページで絞らない（サイト全体の訪問者数を意味するため）。これは `site/test/analytics.test.ts:444`「日次ユニーク訪問者はページで絞らない（サイト全体の訪問者数）」が意図として固定している。
+
+### 内訳を担保しているテスト
+
+- `site/test/analytics.test.ts`: describe「ページの分離」(:409) 3 件、describe「visit の内訳（ページ別・言語別）」(:457) 4 件、ホスト別の人間/ロボット分離 (:570)
+- `site/test/dashboard.test.ts`: ページ別の人間/ロボット描画 (:256)、表示言語とブラウザ言語設定の別表 (:294)、注記の検証 (:323, :339, :372, :381)、0 件時「データなし」(:436)、SSE 再配信に内訳が含まれる (:651)
+- `site/test/public.test.ts`: `page=/features` の visit 記録 (:614)、表示言語の記録 (:876)
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+サブタスク 488.1（events への page / display_lang / browser_lang 記録）・488.2（ダッシュボードのページ別・言語別内訳）・488.3（リクエスト先ホストと旧経路）で実装済み。親タスクとしては受け入れ条件 6 件を検証して締めた。ページ別・言語別のいずれも人間とロボットを別表に分けて表示され（dashboard.tsx:411-454）、既存の LP 指標は METRIC_FILTERS.visit の page:'/' により LP 限定のまま保たれている（analytics.ts:52, 80-86）。遡及分類できない既存行は 4 箇所の注記で示している。検証は npm run typecheck（tsc --noEmit 無出力）と npm test（11 ファイル / 236 テスト全通過）の実測、および analytics/dashboard/public のテスト計 20 件超が内訳の描画・分離・0 件時の挙動を担保していることの確認による。
+<!-- SECTION:FINAL_SUMMARY:END -->
