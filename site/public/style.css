@@ -616,3 +616,11 @@ footer a:hover {
   color: var(--color-text-secondary);
   line-height: 1.8;
 }
+
+/* 404 ページの言語別入口。ボタンが 2 つ並ぶのはここだけなので、幅が足りなければ折り返す。 */
+.not-found-links {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
