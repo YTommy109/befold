@@ -77,6 +77,7 @@ befold の表示機能は、以下のオープンソースライブラリに支�
 | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) | Markdown 表示のスタイル | MIT |
 | [Sparkle](https://github.com/sparkle-project/Sparkle) | アプリ内アップデート | MIT |
 | [swift-argument-parser](https://github.com/apple/swift-argument-parser) | `befold` コマンドの引数解析 | Apache-2.0 |
+| [libgit2](https://github.com/libgit2/libgit2) | git 差分・ステータスの取得 | GPLv2 with linking exception |
 
 各ライブラリのライセンス全文は [THIRD_PARTY_LICENSES.md](BefoldApp/BefoldKit/Resources/THIRD_PARTY_LICENSES.md) に収録しており、
 同ファイルは befold.app にも同梱されています。

@@ -87,8 +87,10 @@ jobs:
       - name: 依存をインストールする
         run: npm ci
 
-      # lint と整形ずれは最も安価に落ちるので先に回す（TASK-498）
-      - name: Oxlint を実行する
+      # lint と整形ずれは最も安価に落ちるので先に回す（TASK-498）。
+      # site の lint は型情報を使う（--type-aware / TASK-505）。実測で
+      # 0.49s → 0.69s と +0.2s なので、型チェックより前のままでよい。
+      - name: Oxlint を実行する（type-aware）
         run: npm run lint
 
       - name: Oxfmt の整形ずれを検査する

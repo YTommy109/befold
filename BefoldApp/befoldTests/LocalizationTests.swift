@@ -72,17 +72,25 @@ struct LocalizationTests {
         }
     }
 
-    /// キー表記を説明文へ直書きすると、割り当てを変えたときに説明だけが古くなる。文言は %@ で
-    /// 受け、`FeatureOverviewView` が `BookmarkShortcut` の実際の割り当てを差し込む。
-    @Test("ブックマークの説明文はキー表記を直書きせず引数で受ける")
-    func bookmarksDetailTakesShortcutAsArgument() throws {
+    /// キー表記を説明文へ直書きすると、割り当てを変えたときに説明だけが古くなる(TASK-240 で一度
+    /// 起きた乖離と同じ型)。機能説明パネルはキーを載せず、ショートカットの一覧は
+    /// Help > キーボードショートカット(`MenuShortcutCatalog` がメニュー定義から生成する)に集約する。
+    @Test("機能説明の文言はキー表記を直書きしない")
+    func featureDetailsDoNotSpellOutShortcuts() throws {
         let catalog = try Self.cachedCatalog(bundle: .l10n)
-        let translations = try #require(catalog["featureOverview.bookmarks.detail"])
+        let featureKeys = catalog.keys.filter { $0.hasPrefix("featureOverview.") }
 
-        for language in Self.languages {
-            let value = try #require(translations[language])
-            #expect(value.contains("%@"), "\(language) の訳が引数を受け取っていません")
-            #expect(!value.contains("⌘"), "\(language) の訳にキー表記が直書きされています")
+        #expect(!featureKeys.isEmpty)
+        for key in featureKeys {
+            for language in Self.languages {
+                let value = try #require(catalog[key]?[language])
+                for symbol in ["⌘", "⌃", "⌥", "⇧"] {
+                    #expect(
+                        !value.contains(symbol),
+                        "\(key)[\(language)] にキー表記 \(symbol) が直書きされています"
+                    )
+                }
+            }
         }
     }
 
