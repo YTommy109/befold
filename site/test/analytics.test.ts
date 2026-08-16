@@ -8,13 +8,14 @@ import {
   todayTotals,
   eventsAfter,
   recentEvents,
-  uaSplit,
+  trafficSplit,
   eventBreakdowns,
   OPERATIONAL_KINDS,
   UNRECORDED_LABEL,
   KIND_LABELS,
 } from '../src/analytics'
 import { CANONICAL_HOST, LEGACY_HOST, RECORDED_HOSTS } from '../src/lib/hosts'
+import { DATACENTER_ORG_PATTERNS, datacenterOrgMatch, isDatacenterOrg } from '../src/lib/network'
 import { eventKindSchema } from '../src/schema'
 import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import type { EventKind } from '../src/schema'
@@ -185,15 +186,25 @@ describe('summarize', () => {
     expect(summary.today.uniqueVisitors).toBe(1)
     expect(summary.daily).toHaveLength(14)
     expect(summary.hourly).toHaveLength(24)
-    expect(summary.ua.byBot).toEqual([{ label: 'bot:ClaudeBot', count: 1 }])
-    expect(summary.ua.byHuman).toEqual([
+    expect(summary.traffic.breakdowns.bot).toEqual([{ label: 'bot:ClaudeBot', count: 1 }])
+    expect(summary.traffic.breakdowns.human).toEqual([
       { label: 'Chrome', count: 1 },
       { label: 'Safari', count: 1 },
     ])
   })
 })
 
-describe('人間の訪問とロボットの巡回の分離', () => {
+describe('人間の訪問と自動アクセスの分離', () => {
+  /** 接続元組織まで指定して visit を 1 件記録する。 */
+  async function insertOrg(ts: number, uaSummary: string | null, asOrg: string | null) {
+    await env.DB.prepare(
+      "INSERT INTO events (timestamp, kind, visitor_token, ua_summary, as_org, page)" +
+        " VALUES (?, 'visit', ?, ?, ?, '/')",
+    )
+      .bind(ts, `visitor-${ts}`, uaSummary, asOrg)
+      .run()
+  }
+
   it('ua_summary の bot: 接頭辞で分離し、ロボットは種類別に数える', async () => {
     await insert(jst('2026-08-08 10:00'), 'visit', 'visitor-a', 'bot:GPTBot')
     await insert(jst('2026-08-08 10:01'), 'visit', 'visitor-b', 'bot:GPTBot')
@@ -205,23 +216,70 @@ describe('人間の訪問とロボットの巡回の分離', () => {
     // ua_summary が NULL の行（UA ヘッダ無し）はどちらにも数えない。
     await insert(jst('2026-08-08 10:05'), 'visit', 'visitor-g', null)
 
-    const split = await uaSplit(env.DB)
+    const split = await trafficSplit(env.DB)
 
-    expect(split.bot).toBe(4)
-    expect(split.human).toBe(2)
-    expect(split.byBot).toEqual([
+    expect(split.totals.bot).toBe(4)
+    // ua_summary が NULL の行も人間側に数える（区分から黙って消さない）。内訳では
+    // 「未記録」として出す。
+    expect(split.totals.human).toBe(3)
+    expect(split.totals.datacenter).toBe(0)
+    expect(split.breakdowns.bot).toEqual([
       { label: 'bot:GPTBot', count: 2 },
       { label: 'bot:Googlebot', count: 1 },
       { label: 'bot:other', count: 1 },
     ])
-    expect(split.byHuman).toEqual([
+    // 同数はラベル順。'other' < 'Safari' < '未記録'（コードポイント順）。
+    expect(split.breakdowns.human).toEqual([
       { label: 'Safari', count: 1 },
       { label: 'other', count: 1 },
+      { label: UNRECORDED_LABEL, count: 1 },
     ])
   })
 
+  it('接続元組織がデータセンターなら、UA がブラウザでも人間から外す', async () => {
+    // ADR 0008。UA だけを見ていた頃はこれらが「人間の訪問」に入っていた。
+    await insertOrg(jst('2026-08-08 10:00'), 'Chrome', 'Amazon Data Services Northern Virginia')
+    await insertOrg(jst('2026-08-08 10:01'), 'other', 'Meta Platforms Ireland Limited')
+    await insertOrg(jst('2026-08-08 10:02'), 'other', 'Driftnet Ltd')
+    // 消費者向け ISP は人間側に残す。
+    await insertOrg(jst('2026-08-08 10:03'), 'Chrome', 'ARTERIA Networks Corp.')
+    // プライバシー中継の出口は人間側に残す（iCloud Private Relay / WARP）。
+    await insertOrg(jst('2026-08-08 10:04'), 'Chrome', 'Cloudflare London, LLC')
+    // 接続元が分からない行も人間側に残す（NULL は「データセンターでない」ではない）。
+    await insertOrg(jst('2026-08-08 10:05'), 'Chrome', null)
+    // UA でボットと分かるものは、接続元がデータセンターでもロボット側で数える
+    // （クローラ名の内訳を失わないため）。
+    await insertOrg(jst('2026-08-08 10:06'), 'bot:GPTBot', 'Microsoft Corporation')
+
+    const split = await trafficSplit(env.DB)
+
+    expect(split.totals.datacenter).toBe(3)
+    expect(split.totals.human).toBe(3)
+    expect(split.totals.bot).toBe(1)
+    // データセンター側の内訳ラベルは接続元組織（UA を出しても Chrome が並ぶだけ）。
+    expect(split.breakdowns.datacenter).toEqual([
+      { label: 'Amazon Data Services Northern Virginia', count: 1 },
+      { label: 'Driftnet Ltd', count: 1 },
+      { label: 'Meta Platforms Ireland Limited', count: 1 },
+    ])
+  })
+
+  it('データセンター由来は集計全体からも外れる（全期間に遡って効く）', async () => {
+    // as_org は記録済みなので、UA 分類と違って過去の行にも判定が効く。
+    await insertOrg(jst('2026-08-01 10:00'), 'Chrome', 'Amazon Technologies Inc.')
+    await insertOrg(jst('2026-08-08 10:00'), 'Chrome', 'ARTERIA Networks Corp.')
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.cumulative.counts.visit).toBe(1)
+    expect(summary.recent).toHaveLength(1)
+  })
+
   it('データが無ければ 0 件と空の内訳を返す', async () => {
-    expect(await uaSplit(env.DB)).toEqual({ human: 0, bot: 0, byHuman: [], byBot: [] })
+    expect(await trafficSplit(env.DB)).toEqual({
+      totals: { human: 0, bot: 0, datacenter: 0 },
+      breakdowns: { human: [], bot: [], datacenter: [] },
+    })
   })
 })
 
@@ -304,13 +362,20 @@ describe('集計からのロボット除外', () => {
     expect(summary.daily.at(-1)?.counts.visit).toBe(2)
   })
 
-  it('ボット除外の条件が 1 箇所に集約されている', () => {
+  it('自動アクセス除外の条件が 1 箇所に集約されている', () => {
     // 集計クエリを増やしたときに条件を書き写す形へ戻らないための構造ガード。
     // events を読むクエリは HUMAN_ONLY を経由するか、下の意図的な除外に限る。
     const analyticsSource = env.TEST_ANALYTICS_SOURCE
-    // 除外してよいもの: uaSplit / uaBreakdown（人間とロボットの両方を数えるのが
-    // 目的なので BOT_MATCH を直接使う）、maxEventId（生の id を返す SSE のカーソル）。
-    const exempt = ['BOT_MATCH', 'MAX(id)']
+    // 除外してよいもの: trafficSplit（人間・ロボット・データセンターの全区分を
+    // 数えるのが目的なので TRAFFIC_CLASS_EXPR を直接使う）、eventBreakdowns
+    // （人間側と自動アクセス側の両方を返し TS 側で分ける）、maxEventId
+    // （生の id を返す SSE のカーソル）。
+    const exempt = [
+      'TRAFFIC_CLASS_EXPR',
+      'TRAFFIC_LABEL_EXPR',
+      'NON_HUMAN_MATCH',
+      'MAX(id)',
+    ]
     const windows = [...analyticsSource.matchAll(/FROM events/g)].map((match) =>
       analyticsSource.slice(Math.max(0, (match.index ?? 0) - 200), (match.index ?? 0) + 400),
     )
@@ -321,8 +386,26 @@ describe('集計からのロボット除外', () => {
       expect(window).toContain('${HUMAN_ONLY}')
     }
 
-    // 条件そのものは 1 箇所だけで定義される。
+    // 条件そのものは軸ごとに 1 箇所だけで定義される。
     expect(analyticsSource.match(/LIKE '\$\{BOT_PREFIX\}%'/g)).toHaveLength(1)
+    expect(analyticsSource.match(/datacenterOrgMatch\(/g)).toHaveLength(1)
+    // 接続元組織の判定を analytics.ts に手書きしない（定義元は lib/network.ts）。
+    expect(analyticsSource).not.toMatch(/as_org.*LIKE '%/)
+  })
+
+  it('接続元組織の判定は配列ひとつから生成される', () => {
+    // SQL 断片を手書きすると、パターンを足したときに片方だけ直る。
+    const sql = datacenterOrgMatch()
+    expect(sql.match(/LIKE '%/g)).toHaveLength(DATACENTER_ORG_PATTERNS.length)
+    for (const pattern of DATACENTER_ORG_PATTERNS) {
+      expect(sql).toContain(`LIKE '%${pattern}%'`)
+      // SQL へそのまま埋めるため、引用符とワイルドカードは持てない。
+      expect(pattern).not.toMatch(/['%_]/)
+      expect(isDatacenterOrg(`Example ${pattern} Inc.`)).toBe(true)
+    }
+    // NULL は「データセンターでない」ではなく「不明」。人間側に残す。
+    expect(isDatacenterOrg(null)).toBe(false)
+    expect(sql).toContain("COALESCE(as_org, '')")
   })
 })
 
@@ -480,17 +563,17 @@ describe('visit の内訳（ページ別・言語別）', () => {
     const { byPage, byDisplayLang, byBrowserLang } = visits
 
     expect(byPage).toEqual([
-      { label: '/', human: 2, bot: 0 },
-      { label: '/en', human: 1, bot: 0 },
-      { label: '/features', human: 0, bot: 1 },
+      { label: '/', human: 2, nonHuman: 0 },
+      { label: '/en', human: 1, nonHuman: 0 },
+      { label: '/features', human: 0, nonHuman: 1 },
     ])
     expect(byDisplayLang).toEqual([
-      { label: 'ja', human: 2, bot: 1 },
-      { label: 'en', human: 1, bot: 0 },
+      { label: 'ja', human: 2, nonHuman: 1 },
+      { label: 'en', human: 1, nonHuman: 0 },
     ])
     expect(byBrowserLang).toEqual([
-      { label: 'en', human: 2, bot: 0 },
-      { label: 'ja', human: 1, bot: 1 },
+      { label: 'en', human: 2, nonHuman: 0 },
+      { label: 'ja', human: 1, nonHuman: 1 },
     ])
   })
 
@@ -517,9 +600,9 @@ describe('visit の内訳（ページ別・言語別）', () => {
     const { visits } = await eventBreakdowns(env.DB)
     const { byPage, byDisplayLang, byBrowserLang } = visits
 
-    expect(byPage).toEqual([{ label: '/', human: 1, bot: 0 }])
-    expect(byDisplayLang).toEqual([{ label: UNRECORDED_LABEL, human: 1, bot: 0 }])
-    expect(byBrowserLang).toEqual([{ label: UNRECORDED_LABEL, human: 1, bot: 0 }])
+    expect(byPage).toEqual([{ label: '/', human: 1, nonHuman: 0 }])
+    expect(byDisplayLang).toEqual([{ label: UNRECORDED_LABEL, human: 1, nonHuman: 0 }])
+    expect(byBrowserLang).toEqual([{ label: UNRECORDED_LABEL, human: 1, nonHuman: 0 }])
   })
 
   it('イベントが無ければ空の内訳を返す', async () => {
@@ -575,8 +658,8 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
     const { byHost } = await eventBreakdowns(env.DB)
     const byLabel = new Map(byHost.map((split) => [split.label, split]))
 
-    expect(byLabel.get(CANONICAL_HOST)).toEqual({ label: CANONICAL_HOST, human: 1, bot: 0 })
-    expect(byLabel.get(LEGACY_HOST)).toEqual({ label: LEGACY_HOST, human: 1, bot: 1 })
+    expect(byLabel.get(CANONICAL_HOST)).toEqual({ label: CANONICAL_HOST, human: 1, nonHuman: 0 })
+    expect(byLabel.get(LEGACY_HOST)).toEqual({ label: LEGACY_HOST, human: 1, nonHuman: 1 })
   })
 
   it('0 件の既知ホストも行として残る', async () => {
@@ -592,7 +675,7 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
     expect(byHost.find((split) => split.label === LEGACY_HOST)).toEqual({
       label: LEGACY_HOST,
       human: 0,
-      bot: 0,
+      nonHuman: 0,
     })
   })
 
@@ -604,7 +687,7 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
     expect(byHost.find((split) => split.label === UNRECORDED_LABEL)).toEqual({
       label: UNRECORDED_LABEL,
       human: 1,
-      bot: 0,
+      nonHuman: 0,
     })
     expect(byHost.find((split) => split.label === CANONICAL_HOST)?.human).toBe(0)
   })
@@ -626,8 +709,8 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
 
     // fallback を持たない行は入らない（download が経路として数えられない）。
     expect(byFallback).toEqual([
-      { label: 'appcast', human: 1, bot: 0 },
-      { label: 'dmg', human: 1, bot: 0 },
+      { label: 'appcast', human: 1, nonHuman: 0 },
+      { label: 'dmg', human: 1, nonHuman: 0 },
     ])
   })
 })

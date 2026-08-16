@@ -5,10 +5,10 @@ import { summarize } from '../src/analytics'
 /**
  * ダッシュボード 1 回の表示で発行される D1 クエリ本数の上限。
  *
- * 内訳（計 14 本）: cumulativeTotals / todayTotals / dailySeries /
- * hourlyDistribution / breakdown 3 本（version・country・referrer）/ uaSplit 3 本 /
- * recentEvents / 指標別内訳 2 本（OS 別・接続元組織別で、指標の数に依らない）/
- * eventBreakdowns 1 本。
+ * 内訳（計 13 本）: cumulativeTotals / todayTotals / dailySeries /
+ * hourlyDistribution / breakdown 3 本（version・country・referrer）/
+ * trafficSplit 2 本（総数・区分別内訳）/ recentEvents / 指標別内訳 2 本
+ * （OS 別・接続元組織別で、指標の数に依らない）/ eventBreakdowns 1 本。
  *
  * 指標を 1 つ足すたびにクエリが増える形（KIND_LABELS ごとに発行する）へ戻ると
  * この上限を超えて落ちる（TASK-423 の前は 19 本だった）。
@@ -21,8 +21,13 @@ import { summarize } from '../src/analytics'
  * TASK-488.3 でホスト別・GitHub フォールバック経路別の 2 軸を足したが、本数は
  * 14 のまま。同じ 1 本の GROUP BY へ列を足し、kind の絞り込み（visit のみ）を
  * SQL から TS 側へ移して全 kind を 1 度に集約する形にしたため。
+ *
+ * TASK-490 で 14 → 13。データセンター区分を足して内訳が 3 区分になったが、区分を
+ * 行に持たせて `ROW_NUMBER()` の窓で切る形にしたため、区分ごとに 1 本ずつ引いて
+ * いた uaSplit の 3 本が trafficSplit の 2 本になった。区分ごとに引く形へ戻すと
+ * 15 本になり、ここで落ちる。
  */
-const MAX_QUERIES = 14
+const MAX_QUERIES = 13
 
 /** prepare の呼び出し回数を数えるためだけの薄いラッパ。 */
 function countingDb(db: D1Database): { db: D1Database; count: () => number } {

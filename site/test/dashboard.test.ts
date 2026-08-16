@@ -218,17 +218,17 @@ describe('集計の表示', () => {
   })
 
   it('接続元組織別が上位順で描画され、組織なしは集計から除かれる', async () => {
-    await seed('visit', { asOrg: 'Google LLC' })
-    await seed('visit', { asOrg: 'Google LLC' })
+    await seed('visit', { asOrg: 'IIJ Internet' })
+    await seed('visit', { asOrg: 'IIJ Internet' })
     await seed('visit', { asOrg: 'NTT Communications' })
     await seed('visit')
 
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     expect(body).toContain('接続元組織別')
-    expect(body).toContain('Google LLC')
+    expect(body).toContain('IIJ Internet')
     expect(body).toContain('NTT Communications')
-    expect(body.indexOf('Google LLC')).toBeLessThan(body.indexOf('NTT Communications'))
+    expect(body.indexOf('IIJ Internet')).toBeLessThan(body.indexOf('NTT Communications'))
   })
 
   it('人間の訪問とロボットの巡回が分離して描画され、ロボットは種類別に見える', async () => {
@@ -239,7 +239,7 @@ describe('集計の表示', () => {
 
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
-    expect(body).toContain('<h2>人間の訪問とロボットの巡回（全期間の累計）</h2>')
+    expect(body).toContain('<h2>人間の訪問と自動アクセス（全期間の累計）</h2>')
     expect(body).toContain('<span class="value">3</span><span class="label">ロボット（クローラ）</span>')
     expect(body).toContain('<span class="value">1</span><span class="label">人間のクライアント</span>')
 
@@ -263,7 +263,7 @@ describe('集計の表示', () => {
     expect(body).toContain('<h2>ページ別の訪問（全期間の累計）</h2>')
 
     const humanTable = body.indexOf('人間: ページ別')
-    const botTable = body.indexOf('ロボット: ページ別')
+    const botTable = body.indexOf('自動アクセス: ページ別')
     expect(humanTable).toBeGreaterThan(-1)
     expect(botTable).toBeGreaterThan(humanTable)
     // 人間側には / と /features が 1 件ずつ、ロボット側には /features だけが出る。
@@ -302,16 +302,16 @@ describe('集計の表示', () => {
     expect(body).toContain('<h2>言語別の訪問（全期間の累計）</h2>')
     const section = body.slice(
       body.indexOf('<h2>言語別の訪問'),
-      body.indexOf('<h2>人間の訪問とロボットの巡回'),
+      body.indexOf('<h2>人間の訪問と自動アクセス'),
     )
     expect(section).toContain('人間: 表示言語別')
     expect(section).toContain('人間: ブラウザ言語設定別')
-    expect(section).toContain('ロボット: 表示言語別')
-    expect(section).toContain('ロボット: ブラウザ言語設定別')
+    expect(section).toContain('自動アクセス: 表示言語別')
+    expect(section).toContain('自動アクセス: ブラウザ言語設定別')
 
     const display = section.slice(
       section.indexOf('人間: 表示言語別'),
-      section.indexOf('ロボット: 表示言語別'),
+      section.indexOf('自動アクセス: 表示言語別'),
     )
     expect(display).toContain('<td>ja</td><td>1</td>')
     expect(display).toContain('<td>en</td><td>1</td>')
@@ -326,7 +326,7 @@ describe('集計の表示', () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
     const section = body.slice(
       body.indexOf('<h2>言語別の訪問'),
-      body.indexOf('<h2>人間の訪問とロボットの巡回'),
+      body.indexOf('<h2>人間の訪問と自動アクセス'),
     )
 
     // 指標の意味を取り違えたまま読まれるのが一番まずいので、注記の存在を固定する。
@@ -342,7 +342,7 @@ describe('集計の表示', () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
     const section = body.slice(
       body.indexOf('人間: 表示言語別'),
-      body.indexOf('ロボット: 表示言語別'),
+      body.indexOf('自動アクセス: 表示言語別'),
     )
 
     expect(section).toContain('<td>未記録</td><td>1</td>')
@@ -375,7 +375,47 @@ describe('集計の表示', () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     expect(body).toContain('2026-08-09')
-    expect(body).toContain('より前に記録されたイベントは遡って分類できず')
+    expect(body).toContain('イベントは<strong>遡って分類できず</strong>')
+  })
+
+  it('ふたつの判定軸で遡及の効き方が違うことが注記から読み取れる', async () => {
+    // UA 分類は適用日以降しか効かず、接続元組織の判定は全期間に効く（ADR 0008）。
+    // 片方だけを読むと、同じ日の数字が前に見たときと違う理由が分からなくなる。
+    await seed('visit', { uaSummary: 'bot:GPTBot' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const section = body.slice(body.indexOf('<h2>人間の訪問と自動アクセス'))
+
+    expect(section).toContain('イベントは<strong>遡って分類できず</strong>')
+    expect(section).toContain('<strong>全期間に遡って効く</strong>')
+    // as_org 列を足した日より前は判定材料が無いことも示す。
+    expect(section).toContain('2026-07-30')
+  })
+
+  it('データセンター由来を分けて数え、接続元組織の内訳が読める', async () => {
+    // UA だけを見ていた頃はこれらが「人間の訪問」に入っていた（TASK-490）。
+    await seed('visit', { asOrg: 'Amazon Data Services Northern Virginia' })
+    await seed('visit', { asOrg: 'Driftnet Ltd' })
+    await seed('visit', { asOrg: 'IIJ Internet' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain(
+      '<span class="value">2</span><span class="label">データセンター由来</span>',
+    )
+    expect(body).toContain('<span class="value">1</span><span class="label">人間のクライアント</span>')
+
+    // 除外した量が画面から消えないよう、接続元組織の内訳を出す。
+    const table = body.indexOf('データセンター: 接続元組織別')
+    expect(table).toBeGreaterThan(-1)
+    expect(body.slice(table)).toContain('Driftnet Ltd')
+    // 人間側の「接続元組織別」からは外れる（HUMAN_ONLY が効いている）。
+    const humanOrg = body.slice(
+      body.indexOf('ページアクセス: 接続元組織別'),
+      body.indexOf('<h2>人間の訪問と自動アクセス'),
+    )
+    expect(humanOrg).toContain('IIJ Internet')
+    expect(humanOrg).not.toContain('Driftnet Ltd')
   })
 
   it('他の集計がロボットを除いた数であることが注記から読み取れる', async () => {
@@ -383,7 +423,7 @@ describe('集計の表示', () => {
 
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
-    expect(body).toContain('ロボットと判定した巡回を除いた数')
+    expect(body).toContain('ロボットとデータセンター由来の<strong>両方</strong>を除いた数')
   })
 
   it('OS 別が 3 指標それぞれに分かれて集計される', async () => {
@@ -408,7 +448,7 @@ describe('集計の表示', () => {
   })
 
   it('接続元組織別が 3 指標それぞれに分かれて集計される', async () => {
-    await seed('visit', { asOrg: 'Google LLC' })
+    await seed('visit', { asOrg: 'IIJ Internet' })
     await seed('download', { asOrg: 'NTT Communications' })
     await seed('update_check', { asOrg: 'KDDI CORPORATION' })
 
@@ -420,7 +460,7 @@ describe('集計の表示', () => {
     expect(visitOrg).toBeGreaterThan(-1)
     expect(downloadOrg).toBeGreaterThan(visitOrg)
     expect(updateOrg).toBeGreaterThan(downloadOrg)
-    expect(body.slice(visitOrg, downloadOrg)).toContain('Google LLC')
+    expect(body.slice(visitOrg, downloadOrg)).toContain('IIJ Internet')
     expect(body.slice(visitOrg, downloadOrg)).not.toContain('NTT Communications')
     expect(body.slice(downloadOrg, updateOrg)).toContain('NTT Communications')
     expect(body.slice(updateOrg)).toContain('KDDI CORPORATION')
@@ -685,7 +725,7 @@ describe('配布ホストと旧経路の表示', () => {
   function hostSection(body: string): string {
     return body.slice(
       body.indexOf('<h2>配布ホストと旧経路'),
-      body.indexOf('<h2>人間の訪問とロボットの巡回'),
+      body.indexOf('<h2>人間の訪問と自動アクセス'),
     )
   }
 
