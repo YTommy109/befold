@@ -6,6 +6,7 @@ import type {
   DashboardPage,
   DashboardPageKey,
   DeliverySummary,
+  FallbackSplit,
   EventPage,
   OverviewSummary,
   RecentEvent,
@@ -195,6 +196,43 @@ const SplitTable: FC<{ title: string; rows: Split[] }> = ({ title, rows }) => (
               <td>{row.label}</td>
               <td>{row.human}</td>
               <td>{row.nonHuman}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </section>
+)
+
+/**
+ * フォールバック経路別の表。件数に加えて**最後に発生した時刻**を出す。
+ *
+ * `SplitTable` を流用しない。累計だけの表では「一度発生した経路」と
+ * 「いま落ち続けている経路」が同じ見え方になり、GitHub 経路を止めてよいかの
+ * 判断（ADR 0007 / TASK-489）に使えない。列が違う以上、同じ表にはできない。
+ */
+const FallbackTable: FC<{ title: string; rows: FallbackSplit[] }> = ({ title, rows }) => (
+  <section>
+    <h3>{title}</h3>
+    {rows.length === 0 ? (
+      <p class="empty">データなし</p>
+    ) : (
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>人間</th>
+            <th>自動アクセス</th>
+            <th>最後に発生 (JST)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr>
+              <td>{row.label}</td>
+              <td>{row.human}</td>
+              <td>{row.nonHuman}</td>
+              <td>{formatJst(row.lastSeenAt)}</td>
             </tr>
           ))}
         </tbody>
@@ -780,9 +818,17 @@ export const DeliverySections: FC<{ summary: DeliverySummary }> = ({ summary }) 
           GitHub 側の経路を止められない。appcast の行だけは caches.default（300
           秒）に当たった周期を数えられないため、実際より小さく出る。
         </p>
+        <p class="note">
+          累計は一度発生すると減らないので、止めてよいかは「最後に発生 (JST)」で 読む——
+          直近に落ちていなければ、その経路はもう使われていない。 なお <code>dmg-invalid</code> は R2
+          の欠落ではなく、配布対象でないタグ・ファイル名を
+          弾いた（＝いたずら半分のパス探索を含む）リクエストなので、
+          停止判断の材料には数えない。この値の導入前に記録された <code>dmg</code>{' '}
+          行は両者の混合で、遡って分離できない。
+        </p>
         <div class="grid">
           <SplitTable title="リクエスト先ホスト別" rows={summary.hosts} />
-          <SplitTable title="GitHub フォールバックの経路別" rows={summary.fallbacks} />
+          <FallbackTable title="GitHub フォールバックの経路別" rows={summary.fallbacks} />
         </div>
       </section>
     </>

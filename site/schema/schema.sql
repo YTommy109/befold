@@ -52,6 +52,12 @@ CREATE TABLE events (
   -- （対応は `src/schema.ts` の eventSchema が refine で強制する）。
   -- 'appcast' は appcast のプロキシ、'dmg' は成果物の 302、'release-api' は
   -- /download が最新ポインタを読めず GitHub API へ落ちた場合。
+  -- 'dmg-invalid' は 'dmg' と同じ 302 だが、resolveDMGKey がタグ・ファイル名を
+  -- 弾いたもの（配布対象でないリクエスト）で、R2 の欠落ではない。
+  --
+  -- **'dmg-invalid' の導入前に記録された 'dmg' 行は両者の混合**で、遡って
+  -- 分離できない（弾いたかどうかは応答にも列にも残っていない）。導入以降の
+  -- 行だけが純粋な R2 欠落を表す。
   fallback    TEXT,
   -- そのリクエストを出したアプリの**稼働中**バージョン。Sparkle の UA
   -- （実測 `befold/1.13.2-dev.4 Sparkle/2.9.4`）から抽出したもので、`v` 接頭辞は
