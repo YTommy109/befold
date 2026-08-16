@@ -32,10 +32,13 @@ const NPM_COMPONENTS = [
   ['github-markdown-css', 'github-markdown-css', 'Resources/github-markdown.css へコピー'],
 ];
 
-// Swift 依存は Package.swift の .package(url:) に名前が現れることだけを見る。
+// Swift 依存は Package.swift の .package(url:) に名前が現れることを見る。
+// 第 3 要素に 'exact' を与えたものは版まで見る。from: 指定のものは Package.resolved
+// 次第で動くため、表側は "2.x" のような幅を持つ記載にしてあり存在確認だけに留める。
 const SWIFT_COMPONENTS = [
   ['Sparkle', 'sparkle-project/Sparkle'],
   ['swift-argument-parser', 'apple/swift-argument-parser'],
+  ['libgit2', 'ibrahimcetin/libgit2', 'exact'],
 ];
 
 const errors = [];
@@ -112,12 +115,25 @@ for (const [component, pkg, shipping] of NPM_COMPONENTS) {
 }
 
 const packageSwift = readFileSync(join(PACKAGE_DIR, 'Package.swift'), 'utf8');
-for (const [component, repo] of SWIFT_COMPONENTS) {
-  if (!rows.has(component)) {
+for (const [component, repo, pinning] of SWIFT_COMPONENTS) {
+  const row = rows.get(component);
+  if (!row) {
     errors.push(`${component}: THIRD_PARTY_LICENSES.md の表に行が無い`);
   }
   if (!packageSwift.includes(repo)) {
     errors.push(`${component}: Package.swift に ${repo} への依存が無い（表の行が古い）`);
+    continue;
+  }
+  if (pinning !== 'exact' || !row) {
+    continue;
+  }
+  const pinned = new RegExp(`${repo}[^)]*?exact:\\s*"([^"]+)"`, 'u').exec(packageSwift);
+  if (!pinned) {
+    errors.push(`${component}: Package.swift の ${repo} が exact 指定でなくなっている`);
+  } else if (pinned[1] !== row.version) {
+    errors.push(
+      `${component}: THIRD_PARTY_LICENSES.md の ${row.version} と Package.swift の ${pinned[1]} が食い違う`,
+    );
   }
 }
 
