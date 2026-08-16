@@ -3,7 +3,10 @@
 // 読み込み・初期化・単体呼び出しできることを確認する。
 
 const {
-  loadViewerMain, captureBridgeMessages, dispatchTrustedClick, dispatchTrustedContextMenu,
+  loadViewerMain,
+  captureBridgeMessages,
+  dispatchTrustedClick,
+  dispatchTrustedContextMenu,
 } = require('./support/viewerMainHarness');
 
 // カラースキーム変更を発火できる matchMedia に差し替える。ハーネス既定のスタブは
@@ -11,12 +14,14 @@ const {
 // (_mmdInit() が matchMedia を呼ぶより前に差し替える必要がある)。
 function installColorSchemeStub(window) {
   const listeners = [];
-  window.matchMedia = function(query) {
+  window.matchMedia = function (query) {
     return {
       media: query,
       matches: false,
-      addEventListener: function(type, fn) { listeners.push(fn); },
-      removeEventListener: function() {},
+      addEventListener: function (type, fn) {
+        listeners.push(fn);
+      },
+      removeEventListener: function () {},
     };
   };
   return { fireChange: () => listeners.forEach((fn) => fn()) };
@@ -27,12 +32,14 @@ function installColorSchemeStub(window) {
 // テストが遅く不安定になる。予約と取り消しを直接観測する。
 function installTimerStub(window) {
   const scheduled = [];
-  window.setTimeout = function(fn, delay) {
+  window.setTimeout = function (fn, delay) {
     scheduled.push({ fn: fn, delay: delay, cancelled: false });
     return scheduled.length;
   };
-  window.clearTimeout = function(id) {
-    if (id) { scheduled[id - 1].cancelled = true; }
+  window.clearTimeout = function (id) {
+    if (id) {
+      scheduled[id - 1].cancelled = true;
+    }
   };
   return scheduled;
 }
@@ -137,7 +144,9 @@ describe('_mmdScrollTarget', () => {
     wrap.classList.add('code-body');
     wrap.innerHTML = '<pre><code>x</code></pre>';
 
-    expect(main._mmdScrollTarget()).toBe(document.querySelector('#diagram-wrap.code-body pre code'));
+    expect(main._mmdScrollTarget()).toBe(
+      document.querySelector('#diagram-wrap.code-body pre code'),
+    );
   });
 });
 
@@ -184,8 +193,9 @@ describe('_mmdSetTruncated', () => {
 
     main._mmdSetTruncated(true, 1000, true);
 
-    expect(document.getElementById('mmd-truncated-text').textContent)
-      .toBe('残りの読み込みに失敗しました');
+    expect(document.getElementById('mmd-truncated-text').textContent).toBe(
+      '残りの読み込みに失敗しました',
+    );
     expect(document.getElementById('mmd-load-more-btn').style.display).toBe('none');
   });
 });
@@ -225,9 +235,13 @@ describe('_mmdInitFind', () => {
   test('ローカライズ済み文字列を反映する', () => {
     const { document } = loadViewerMain({
       findStrings: {
-        placeholder: 'Find', previous: 'Previous', next: 'Next',
-        matchCase: 'Match Case', matchWholeWord: 'Match Whole Word',
-        useRegularExpression: 'Use Regular Expression', close: 'Close',
+        placeholder: 'Find',
+        previous: 'Previous',
+        next: 'Next',
+        matchCase: 'Match Case',
+        matchWholeWord: 'Match Whole Word',
+        useRegularExpression: 'Use Regular Expression',
+        close: 'Close',
       },
     });
 
@@ -253,7 +267,9 @@ describe('検索バーの配線', () => {
     expect(document.getElementById('mmd-find-case').classList.contains('active')).toBe(true);
     expect(received.length).toBe(1);
     expect(received[0].payload).toEqual({
-      caseSensitive: true, wholeWord: false, useRegex: false,
+      caseSensitive: true,
+      wholeWord: false,
+      useRegex: false,
     });
     expect(main._mmdFind.isOpen()).toBe(false);
   });
@@ -311,7 +327,9 @@ describe('render の型ディスパッチ', () => {
     expect(img).not.toBeNull();
     expect(img.alt).toBe('SVG');
     expect(img.src).toBe(window.svgDataURI('<svg><text>日本語</text></svg>'));
-    expect(document.querySelector('#diagram-wrap .diagram-zoom-wrap').dataset.diagramIndex).toBe('0');
+    expect(document.querySelector('#diagram-wrap .diagram-zoom-wrap').dataset.diagramIndex).toBe(
+      '0',
+    );
     // mermaid と同じズーム操作 UI が付く
     expect(document.querySelector('#diagram-wrap .diagram-zoom-controls')).not.toBeNull();
   });
@@ -332,10 +350,12 @@ describe('render の型ディスパッチ', () => {
 
     await main.render('a,b\n1,2\n', 'csv', ',');
 
-    const headers = Array.from(document.querySelectorAll('#diagram-wrap table th'))
-      .map((th) => th.textContent);
-    const cells = Array.from(document.querySelectorAll('#diagram-wrap table td'))
-      .map((td) => td.textContent);
+    const headers = Array.from(document.querySelectorAll('#diagram-wrap table th')).map(
+      (th) => th.textContent,
+    );
+    const cells = Array.from(document.querySelectorAll('#diagram-wrap table td')).map(
+      (td) => td.textContent,
+    );
     expect(headers).toContain('a');
     expect(cells).toContain('2');
     expect(bodyClasses(document)).toEqual(['csv-body', 'markdown-body']);
@@ -504,7 +524,7 @@ describe('検索ナビゲーション', () => {
   test('span 境界をまたぐ foo.bar がデフォルトモードでヒットする', () => {
     const { document } = openFindOnHtml(
       '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
-      'foo.bar'
+      'foo.bar',
     );
 
     expect(count(document)).toBe('1/1');
@@ -515,7 +535,7 @@ describe('検索ナビゲーション', () => {
   test('span 境界をまたぐ .bar が先頭ドットだけでもヒットする', () => {
     const { document } = openFindOnHtml(
       '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
-      '.bar'
+      '.bar',
     );
 
     expect(count(document)).toBe('1/1');
@@ -525,7 +545,7 @@ describe('検索ナビゲーション', () => {
   test('span 境界をまたぐ foo. が末尾ドットだけでもヒットする', () => {
     const { document } = openFindOnHtml(
       '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
-      'foo.'
+      'foo.',
     );
 
     expect(count(document)).toBe('1/1');
@@ -535,7 +555,7 @@ describe('検索ナビゲーション', () => {
   test('span 境界をまたぐマッチはトグル(大小文字・単語一致・正規表現)を有効にしても検出できる', () => {
     const { document } = openFindOnHtml(
       '<span class="hljs-title">Foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">Bar</span>',
-      ''
+      '',
     );
     document.getElementById('mmd-find-case').click();
     document.getElementById('mmd-find-word').click();
@@ -551,7 +571,7 @@ describe('検索ナビゲーション', () => {
   test('span をまたいだハイライト解除後もテキスト内容が保たれる', () => {
     const { document, main } = openFindOnHtml(
       '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
-      'foo.bar'
+      'foo.bar',
     );
 
     main._mmdCloseFind();
@@ -566,18 +586,34 @@ describe('検索ナビゲーション', () => {
   test('span 境界をまたぐ検索を連続して打鍵しても空の span が増殖しない', () => {
     const { document, window } = openFindOnHtml(
       '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
-      ''
+      '',
     );
     const input = document.getElementById('mmd-find-input');
-    const queries = ['f', 'fo', 'foo', 'foo.', 'foo.b', 'foo.ba', 'foo.bar', 'foo.ba', 'foo.b', 'foo.', 'foo', 'fo', 'f', ''];
+    const queries = [
+      'f',
+      'fo',
+      'foo',
+      'foo.',
+      'foo.b',
+      'foo.ba',
+      'foo.bar',
+      'foo.ba',
+      'foo.b',
+      'foo.',
+      'foo',
+      'fo',
+      'f',
+      '',
+    ];
 
     queries.forEach((q) => {
       input.value = q;
       input.dispatchEvent(new window.Event('input'));
     });
 
-    const emptySpans = Array.from(document.querySelectorAll('#diagram-wrap span'))
-      .filter((span) => span.textContent === '');
+    const emptySpans = Array.from(document.querySelectorAll('#diagram-wrap span')).filter(
+      (span) => span.textContent === '',
+    );
     expect(emptySpans.length).toBe(0);
     expect(document.querySelector('#diagram-wrap').textContent).toBe('foo.bar');
   });
@@ -589,7 +625,7 @@ describe('検索ナビゲーション', () => {
   test('マッチが1つの span 内に収まる場合はその span を分割しない', () => {
     const { document } = openFindOnHtml(
       'DMG を開き、<span class="hljs-title">befold</span><span class="hljs-punctuation">.</span><span class="hljs-property">app</span> を配置',
-      'b'
+      'b',
     );
 
     const titleSpans = document.querySelectorAll('#diagram-wrap span.hljs-title');
@@ -604,15 +640,15 @@ describe('検索ナビゲーション', () => {
   // (Markdown プレビュー全体のレイアウトが崩れた回帰の再現)。
   test('リストとテーブル行をまたいで検索してもテーブル構造が壊れない', () => {
     const { document, window } = openFindOnHtml(
-      '<ul><li>DMG を開き、<span class="hljs-title">befold</span><span class="hljs-punctuation">.</span>'
-        + '<span class="hljs-property">app</span> を配置</li></ul>'
-        + '<pre><code class="hljs"><table class="code-table">'
-        + '<tr><td class="line-number">1</td><td class="line-content">'
-        + '<span class="hljs-title">befold</span> path/to/diagram.mmd</td></tr>'
-        + '<tr><td class="line-number">2</td><td class="line-content">'
-        + '<span class="hljs-title">befold</span> --help</td></tr>'
-        + '</table></code></pre>',
-      ''
+      '<ul><li>DMG を開き、<span class="hljs-title">befold</span><span class="hljs-punctuation">.</span>' +
+        '<span class="hljs-property">app</span> を配置</li></ul>' +
+        '<pre><code class="hljs"><table class="code-table">' +
+        '<tr><td class="line-number">1</td><td class="line-content">' +
+        '<span class="hljs-title">befold</span> path/to/diagram.mmd</td></tr>' +
+        '<tr><td class="line-number">2</td><td class="line-content">' +
+        '<span class="hljs-title">befold</span> --help</td></tr>' +
+        '</table></code></pre>',
+      '',
     );
     const input = document.getElementById('mmd-find-input');
 
@@ -753,8 +789,9 @@ describe('モード切替の持ち越し', () => {
 
 describe('チャンク末尾の改行の持ち越し', () => {
   const lineNumbers = (document) =>
-    Array.from(document.querySelectorAll('#diagram-wrap table.code-table tr'))
-      .map((tr) => tr.querySelector('.line-number').textContent);
+    Array.from(document.querySelectorAll('#diagram-wrap table.code-table tr')).map(
+      (tr) => tr.querySelector('.line-number').textContent,
+    );
 
   test('改行で終わったチャンクの続きは新しい行になる', async () => {
     const { main, document } = loadViewerMain({});
@@ -789,8 +826,8 @@ describe('ダイアグラム個別ズーム', () => {
   // 実際の描画は mermaid.min.js を読まないハーネスでは走らないため、包む対象だけ用意する。
   function wrapTwoDiagrams(loaded) {
     const diagramWrap = loaded.document.getElementById('diagram-wrap');
-    diagramWrap.innerHTML = '<pre class="mermaid">graph TD; A-->B;</pre>'
-      + '<pre class="mermaid">graph TD; C-->D;</pre>';
+    diagramWrap.innerHTML =
+      '<pre class="mermaid">graph TD; A-->B;</pre>' + '<pre class="mermaid">graph TD; C-->D;</pre>';
     loaded.main._mmdWrapDiagrams(diagramWrap);
     return wraps(loaded.document);
   }
@@ -802,7 +839,9 @@ describe('ダイアグラム個別ズーム', () => {
     // 先頭以外を操作して、インデックスごとに独立していることを確かめる
     second.querySelector('.diagram-zoom-in').click();
 
-    expect(labelOf(second)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT + loaded.main.ZOOM_STEP));
+    expect(labelOf(second)).toBe(
+      loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT + loaded.main.ZOOM_STEP),
+    );
     expect(labelOf(first)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
     expect(loaded.main._mmdDiagramZoomValue(0)).toBe(loaded.main.ZOOM_DEFAULT);
     // 全体ズームは個別ズームでは動かない
@@ -846,8 +885,9 @@ describe('カラースキーム変更時の再描画', () => {
 
     colorScheme.fireChange();
 
-    const cells = Array.from(loaded.document.querySelectorAll('#diagram-wrap th'))
-      .map((th) => th.textContent);
+    const cells = Array.from(loaded.document.querySelectorAll('#diagram-wrap th')).map(
+      (th) => th.textContent,
+    );
     // 区切り文字(';')を保持していなければ 1 セルに固まる
     expect(cells).toEqual(['a', 'b']);
   });
@@ -862,8 +902,9 @@ describe('カラースキーム変更時の再描画', () => {
 
     colorScheme.fireChange();
 
-    const rows = Array.from(loaded.document.querySelectorAll('#diagram-wrap tr'))
-      .map((tr) => tr.textContent);
+    const rows = Array.from(loaded.document.querySelectorAll('#diagram-wrap tr')).map(
+      (tr) => tr.textContent,
+    );
     expect(rows).toEqual(['a', 'b']);
   });
 
@@ -916,7 +957,7 @@ describe('インデントガイド(end-to-end)', () => {
     const cells = document.querySelectorAll('#diagram-wrap .line-content');
     // 2 行目(4 スペースインデント)のセルにガイド変数が乗っている。
     const indented = Array.from(cells).find(
-      (c) => c.getAttribute('style') && c.getAttribute('style').includes('--indent-cols:4')
+      (c) => c.getAttribute('style') && c.getAttribute('style').includes('--indent-cols:4'),
     );
     expect(indented).toBeTruthy();
     expect(indented.getAttribute('style')).toContain('--indent-depth:1');
@@ -930,12 +971,14 @@ describe('PDF の blob URL', () => {
   function installBlobUrlRecorder(window) {
     const issued = [];
     const revoked = [];
-    window.URL.createObjectURL = function() {
+    window.URL.createObjectURL = function () {
       const url = 'blob:https://localhost/recorded-' + issued.length;
       issued.push(url);
       return url;
     };
-    window.URL.revokeObjectURL = function(url) { revoked.push(url); };
+    window.URL.revokeObjectURL = function (url) {
+      revoked.push(url);
+    };
     return { issued, revoked };
   }
 
@@ -959,8 +1002,9 @@ describe('PDF の blob URL', () => {
     expect(recorder.issued.length).toBe(2);
     // 直前の 1 本だけが解放され、表示中の URL は生きている
     expect(recorder.revoked).toEqual([recorder.issued[0]]);
-    expect(document.querySelector('#diagram-wrap iframe').getAttribute('src'))
-      .toBe(recorder.issued[1]);
+    expect(document.querySelector('#diagram-wrap iframe').getAttribute('src')).toBe(
+      recorder.issued[1],
+    );
   });
 
   test('解放済みの blob URL を二重に解放しない', async () => {
@@ -1001,8 +1045,7 @@ describe('スクロール位置の復元', () => {
 
 describe('スクロール通知のデバウンス', () => {
   function scroll(loaded) {
-    loaded.document.querySelector('.viewer')
-      .dispatchEvent(new loaded.window.Event('scroll'));
+    loaded.document.querySelector('.viewer').dispatchEvent(new loaded.window.Event('scroll'));
   }
 
   test('連続したスクロールは 1 本の通知にまとめる', () => {
@@ -1049,8 +1092,7 @@ describe('スクロール通知のデバウンス', () => {
 
 describe('スクロール通知の文書パス', () => {
   function scroll(loaded) {
-    loaded.document.querySelector('.viewer')
-      .dispatchEvent(new loaded.window.Event('scroll'));
+    loaded.document.querySelector('.viewer').dispatchEvent(new loaded.window.Event('scroll'));
   }
 
   function lastNotifiedPath(loaded, received, scheduled) {
@@ -1216,7 +1258,10 @@ describe('パス参照の表示時解決', () => {
   // 1 パスで送られ、どの片をクリックしてもパス全体が開く(TASK-455)。
   test('span に割られたパス参照はどの片からでも開ける', async () => {
     const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    const received = captureBridgeMessages(loaded.window, [
+      'resolveReferences',
+      'referenceActivated',
+    ]);
     await loaded.main.render('see ./notes.md for details\n', 'code', 'swift');
 
     expect(received[0].payload.paths).toEqual(['./notes.md']);
@@ -1229,13 +1274,17 @@ describe('パス参照の表示時解決', () => {
       dispatchTrustedClick(loaded.window, ref);
     });
 
-    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload.href))
-      .toEqual(refs.map(() => './notes.md'));
+    expect(
+      received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload.href),
+    ).toEqual(refs.map(() => './notes.md'));
   });
 
   test('解決できなかった <a> は href を失いクリックできなくなる', () => {
     const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    const received = captureBridgeMessages(loaded.window, [
+      'resolveReferences',
+      'referenceActivated',
+    ]);
     setWrapHtml(loaded, '<a id="dead" href="./missing.md">missing</a>');
 
     loaded.main._mmdResolveReferences();
@@ -1248,7 +1297,10 @@ describe('パス参照の表示時解決', () => {
 
   test('解決応答が返る前のクリックでは referenceActivated を送らない', async () => {
     const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    const received = captureBridgeMessages(loaded.window, [
+      'resolveReferences',
+      'referenceActivated',
+    ]);
     await loaded.main.render('src/a.swift\n', 'code', 'txt');
 
     click(loaded, '#diagram-wrap .befold-path-ref');
@@ -1258,35 +1310,44 @@ describe('パス参照の表示時解決', () => {
 
   test('解決済みのパス参照はクリックで referenceActivated を送る', async () => {
     const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    const received = captureBridgeMessages(loaded.window, [
+      'resolveReferences',
+      'referenceActivated',
+    ]);
     await loaded.main.render('src/a.swift\n', 'code', 'txt');
     loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
 
     click(loaded, '#diagram-wrap .befold-path-ref');
 
-    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload))
-      .toEqual([{ href: 'src/a.swift', metaKey: false, shiftKey: false }]);
+    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload)).toEqual([
+      { href: 'src/a.swift', metaKey: false, shiftKey: false },
+    ]);
   });
 
   test('修飾キーの押下状態をそのまま referenceActivated に載せる', async () => {
     const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    const received = captureBridgeMessages(loaded.window, [
+      'resolveReferences',
+      'referenceActivated',
+    ]);
     await loaded.main.render('src/a.swift\n', 'code', 'txt');
     loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
 
     click(loaded, '#diagram-wrap .befold-path-ref', { metaKey: true });
     click(loaded, '#diagram-wrap .befold-path-ref', { metaKey: true, shiftKey: true });
 
-    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload))
-      .toEqual([
-        { href: 'src/a.swift', metaKey: true, shiftKey: false },
-        { href: 'src/a.swift', metaKey: true, shiftKey: true },
-      ]);
+    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload)).toEqual([
+      { href: 'src/a.swift', metaKey: true, shiftKey: false },
+      { href: 'src/a.swift', metaKey: true, shiftKey: true },
+    ]);
   });
 
   test('ctrlKey が押された click では referenceActivated を送らない(コンテキストメニュー扱い)', async () => {
     const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    const received = captureBridgeMessages(loaded.window, [
+      'resolveReferences',
+      'referenceActivated',
+    ]);
     await loaded.main.render('src/a.swift\n', 'code', 'txt');
     loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
 
@@ -1297,12 +1358,15 @@ describe('パス参照の表示時解決', () => {
 
   test('外部 URL と # アンカーは中立化せず従来どおり動く', () => {
     const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceActivated']);
+    const received = captureBridgeMessages(loaded.window, [
+      'resolveReferences',
+      'referenceActivated',
+    ]);
     setWrapHtml(
       loaded,
       '<a id="ext" href="https://example.com/a.md">ext</a>' +
-      '<a id="mail" href="mailto:a@example.com">mail</a>' +
-      '<a id="anchor" href="#sec">anchor</a><h2 id="sec">sec</h2>'
+        '<a id="mail" href="mailto:a@example.com">mail</a>' +
+        '<a id="anchor" href="#sec">anchor</a><h2 id="sec">sec</h2>',
     );
 
     loaded.main._mmdResolveReferences();
@@ -1310,8 +1374,9 @@ describe('パス参照の表示時解決', () => {
     expect(received.filter((m) => m.name === 'resolveReferences')).toEqual([]);
     ['#ext', '#mail', '#anchor'].forEach((sel) => expect(classesOf(loaded, sel)).toEqual([]));
     click(loaded, '#ext');
-    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload))
-      .toEqual([{ href: 'https://example.com/a.md', metaKey: false, shiftKey: false }]);
+    expect(received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload)).toEqual([
+      { href: 'https://example.com/a.md', metaKey: false, shiftKey: false },
+    ]);
   });
 
   test('コロン付きの行番号参照はスキームと誤認せず解決要求に含める', () => {
@@ -1387,8 +1452,8 @@ describe('パス参照の表示時解決', () => {
     setWrapHtml(
       loaded,
       '<a id="ctor" href="constructor">ctor</a>' +
-      '<a id="hop" href="hasOwnProperty">hop</a>' +
-      '<a id="tostr" href="toString">tostr</a>'
+        '<a id="hop" href="hasOwnProperty">hop</a>' +
+        '<a id="tostr" href="toString">tostr</a>',
     );
 
     loaded.main._mmdResolveReferences();
@@ -1407,7 +1472,10 @@ describe('パス参照の表示時解決', () => {
   test('__proto__ という名前の参照も解決要求に含める', () => {
     const loaded = loadViewerMain({});
     const received = captureBridgeMessages(loaded.window, ['resolveReferences']);
-    setWrapHtml(loaded, '<a id="proto" href="__proto__">proto</a><a id="ok" href="./doc.md">doc</a>');
+    setWrapHtml(
+      loaded,
+      '<a id="proto" href="__proto__">proto</a><a id="ok" href="./doc.md">doc</a>',
+    );
 
     loaded.main._mmdResolveReferences();
 
@@ -1421,7 +1489,7 @@ describe('パス参照の表示時解決', () => {
     setWrapHtml(
       loaded,
       '<span id="fake" class="befold-path-ref" data-path="./secret.md" title="README.md">README.md</span>' +
-      '<a id="dead" href="./missing.md" title="安全なリンク">missing</a>'
+        '<a id="dead" href="./missing.md" title="安全なリンク">missing</a>',
     );
 
     loaded.main._mmdResolveReferences();
@@ -1433,17 +1501,22 @@ describe('パス参照の表示時解決', () => {
 
   test('リンク上の contextmenu は既定メニューを抑止して referenceContextMenu を送る', async () => {
     const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['resolveReferences', 'referenceContextMenu']);
+    const received = captureBridgeMessages(loaded.window, [
+      'resolveReferences',
+      'referenceContextMenu',
+    ]);
     await loaded.main.render('src/a.swift\n', 'code', 'txt');
     loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
 
     const event = dispatchTrustedContextMenu(
-      loaded.window, loaded.document.querySelector('#diagram-wrap .befold-path-ref')
+      loaded.window,
+      loaded.document.querySelector('#diagram-wrap .befold-path-ref'),
     );
 
     expect(event.defaultPrevented).toBe(true);
-    expect(received.filter((m) => m.name === 'referenceContextMenu').map((m) => m.payload))
-      .toEqual([{ href: 'src/a.swift' }]);
+    expect(received.filter((m) => m.name === 'referenceContextMenu').map((m) => m.payload)).toEqual(
+      [{ href: 'src/a.swift' }],
+    );
   });
 
   test('リンク以外の contextmenu は既定メニューのまま何も送らない', async () => {
@@ -1452,7 +1525,8 @@ describe('パス参照の表示時解決', () => {
     await loaded.main.render('ただの本文\n', 'code', 'txt');
 
     const event = dispatchTrustedContextMenu(
-      loaded.window, loaded.document.getElementById('diagram-wrap')
+      loaded.window,
+      loaded.document.getElementById('diagram-wrap'),
     );
 
     expect(event.defaultPrevented).toBe(false);

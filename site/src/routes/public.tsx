@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
-import type { AppEnv } from '../index'
+
 import { recordEvent } from '../events'
-import { Features } from '../views/features'
-import { Landing } from '../views/landing'
+import type { AppEnv } from '../index'
+import { APPCAST_KEY, LATEST_KEY, latestPointerSchema, resolveDMGKey } from '../lib/dist'
 import {
   APPCAST_UPSTREAM,
   latestDMG,
@@ -11,8 +11,9 @@ import {
   RELEASES_LATEST_URL,
   type Channel,
 } from '../lib/github'
-import { APPCAST_KEY, LATEST_KEY, latestPointerSchema, resolveDMGKey } from '../lib/dist'
 import { SITE_PAGES, variantsOf } from '../lib/pages'
+import { Features } from '../views/features'
+import { Landing } from '../views/landing'
 
 export const publicRoutes = new Hono<AppEnv>()
 
@@ -60,7 +61,12 @@ publicRoutes.get('/download', async (c) => {
     // 導線は途切れさせず、従来どおり GitHub 側の解決へ落とす。
     const dmg = await latestDMG()
     recordEvent(c, { kind: 'github_fallback', fallback: 'release-api' })
-    recordEvent(c, { kind: 'download', version: dmg?.version ?? null, channel: 'stable', source: 'lp' })
+    recordEvent(c, {
+      kind: 'download',
+      version: dmg?.version ?? null,
+      channel: 'stable',
+      source: 'lp',
+    })
     return c.redirect(dmg?.url ?? RELEASES_LATEST_URL, 302)
   }
 

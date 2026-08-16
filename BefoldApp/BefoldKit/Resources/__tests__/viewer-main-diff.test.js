@@ -8,12 +8,14 @@ const { loadViewerMain } = require('./support/viewerMainHarness');
 // addEventListener が空実装のため）。蓄積済み内容からの描き直しを観測するのに使う。
 function installColorSchemeStub(window) {
   const listeners = [];
-  window.matchMedia = function(query) {
+  window.matchMedia = function (query) {
     return {
       media: query,
       matches: false,
-      addEventListener: function(type, fn) { listeners.push(fn); },
-      removeEventListener: function() {},
+      addEventListener: function (type, fn) {
+        listeners.push(fn);
+      },
+      removeEventListener: function () {},
     };
   };
   return { fireChange: () => listeners.forEach((fn) => fn()) };

@@ -13,10 +13,10 @@
 // 設計のため、npm の dist をそのまま Resources/mermaid.min.js へコピーし
 // （scripts/copy-viewer-vendor.mjs）、mermaid.js が <script> で読み込む。
 
+import DOMPurify from 'dompurify';
 // highlight.js は common ビルド（36 言語）。full ビルド（192 言語）は
 // バンドルが 1MB 以上増えるため使わない。
 import hljs from 'highlight.js/lib/common';
 import markdownit from 'markdown-it';
-import DOMPurify from 'dompurify';
 
 export { DOMPurify, hljs, markdownit };

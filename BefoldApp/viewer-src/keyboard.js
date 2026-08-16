@@ -48,7 +48,7 @@ function resolveScrollKey(key, shiftKey) {
 }
 
 function _mmdInitKeyboard() {
-  document.addEventListener('keydown', function(e) {
+  document.addEventListener('keydown', function (e) {
     // IME 変換中の Escape(候補キャンセル)では検索バーを閉じない。
     // Enter 側の変換確定判定(検索コントローラの keydown ハンドラ)と同じ理由:
     // Safari/WKWebView は compositionend → keydown の順で発火するため isComposing は
@@ -60,21 +60,35 @@ function _mmdInitKeyboard() {
     }
     document.body.classList.toggle('cmd-held', e.metaKey);
     if (e.metaKey) {
-      if (e.key === '-') { e.preventDefault(); _mmdZoomOut(); }
-      else if (e.key === '=' || e.key === '+') { e.preventDefault(); _mmdZoomIn(); }
+      if (e.key === '-') {
+        e.preventDefault();
+        _mmdZoomOut();
+      } else if (e.key === '=' || e.key === '+') {
+        e.preventDefault();
+        _mmdZoomIn();
+      }
       return;
     }
     var action = resolveScrollKey(e.key, e.shiftKey);
-    if (!action) { return; }
-    if (e.key === ' ' && !isHostFeatureEnabled(window._mmdHostFeatures, 'spaceScroll')) { return; }
+    if (!action) {
+      return;
+    }
+    if (e.key === ' ' && !isHostFeatureEnabled(window._mmdHostFeatures, 'spaceScroll')) {
+      return;
+    }
     // 検索入力欄など編集可能要素にフォーカスがある間は、Space/矢印/vim jk を
     // 文字入力・カーソル移動としてそのまま素通りさせる(ビューアのスクロールに奪わない)。
     var active = document.activeElement;
-    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+    if (
+      active &&
+      (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)
+    ) {
       return;
     }
     var scrollEl = _mmdScrollTarget();
-    if (!scrollEl) { return; }
+    if (!scrollEl) {
+      return;
+    }
     e.preventDefault();
     var step;
     if (action.amount === 'page') {
@@ -87,11 +101,11 @@ function _mmdInitKeyboard() {
     scrollEl.scrollBy({ top: action.down ? step : -step, behavior: 'auto' });
   });
 
-  document.addEventListener('keyup', function(e) {
+  document.addEventListener('keyup', function (e) {
     if (!e.metaKey) document.body.classList.remove('cmd-held');
   });
   // ウィンドウがフォーカスを失ったときも解除する
-  window.addEventListener('blur', function() {
+  window.addEventListener('blur', function () {
     document.body.classList.remove('cmd-held');
   });
 }

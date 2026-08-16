@@ -1,7 +1,8 @@
 /** 全ページ共通の HTML 骨格。言語に依存するメタ情報を 1 箇所で組む。 */
 
-import type { FC, PropsWithChildren } from 'hono/jsx'
 import { html, raw } from 'hono/html'
+import type { FC, PropsWithChildren } from 'hono/jsx'
+
 import { OG_LOCALE, variantsOf, type SitePage } from '../lib/pages'
 import { CLEANUP_SCRIPT, SiteFooter, SiteHeader } from './shared'
 

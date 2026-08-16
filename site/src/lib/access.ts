@@ -81,7 +81,11 @@ async function fetchKeys(teamDomain: string): Promise<Map<string, CryptoKey>> {
  * kid に対応する公開鍵を返す。キャッシュに無い kid は鍵の回転とみなして
  * 1 度だけ取り直す（回転直後に全リクエストが落ちるのを避けるため）。
  */
-async function keyFor(teamDomain: string, kid: string, now: number): Promise<CryptoKey | undefined> {
+async function keyFor(
+  teamDomain: string,
+  kid: string,
+  now: number,
+): Promise<CryptoKey | undefined> {
   const cached = keyCache.get(teamDomain)
   if (cached !== undefined && cached.expiresAt > now) {
     const key = cached.keys.get(kid)
@@ -110,7 +114,11 @@ export async function verifyAccessJwt(
 ): Promise<AccessClaims | undefined> {
   const nowSeconds = Math.floor((options.now ?? Date.now()) / 1000)
   const [headerSegment, payloadSegment, signatureSegment] = token.split('.')
-  if (headerSegment === undefined || payloadSegment === undefined || signatureSegment === undefined) {
+  if (
+    headerSegment === undefined ||
+    payloadSegment === undefined ||
+    signatureSegment === undefined
+  ) {
     return undefined
   }
 
@@ -137,5 +145,11 @@ export async function verifyAccessJwt(
   if (payload.exp <= nowSeconds) return undefined
   if (typeof payload.nbf === 'number' && payload.nbf > nowSeconds) return undefined
 
-  return { email: payload.email, aud: audience, iss: payload.iss, exp: payload.exp, nbf: payload.nbf }
+  return {
+    email: payload.email,
+    aud: audience,
+    iss: payload.iss,
+    exp: payload.exp,
+    nbf: payload.nbf,
+  }
 }

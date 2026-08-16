@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import {
   dayKey,
   isBotSummary,
@@ -104,11 +105,20 @@ describe('ボット判別', () => {
   it.each([
     ['Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)', 'bot:Googlebot'],
     ['Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)', 'bot:bingbot'],
-    ['Mozilla/5.0 AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)', 'bot:Applebot'],
+    [
+      'Mozilla/5.0 AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)',
+      'bot:Applebot',
+    ],
     ['Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)', 'bot:GPTBot'],
-    ['Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)', 'bot:OAI-SearchBot'],
+    [
+      'Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)',
+      'bot:OAI-SearchBot',
+    ],
     ['Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)', 'bot:ClaudeBot'],
-    ['Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)', 'bot:PerplexityBot'],
+    [
+      'Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)',
+      'bot:PerplexityBot',
+    ],
     ['Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)', 'bot:Bytespider'],
   ])('既知のクローラを種類別に分類する: %s', (ua, expected) => {
     expect(summarizeUA(ua)).toBe(expected)

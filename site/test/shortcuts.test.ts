@@ -1,5 +1,6 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+
 import app from '../src/index'
 import {
   formatShortcut,
@@ -56,7 +57,11 @@ const EXPECTED_MENU_ITEMS: {
 }[] = [
   { localizationKey: 'menu.app.settings', keyEquivalent: '","', modifiers: ['.command'] },
   { localizationKey: 'menu.app.hide', keyEquivalent: '"h"', modifiers: null },
-  { localizationKey: 'menu.app.hideOthers', keyEquivalent: '"h"', modifiers: ['.command', '.option'] },
+  {
+    localizationKey: 'menu.app.hideOthers',
+    keyEquivalent: '"h"',
+    modifiers: ['.command', '.option'],
+  },
   { localizationKey: 'menu.app.quit', keyEquivalent: '"q"', modifiers: null },
   { localizationKey: 'menu.file.open', keyEquivalent: '"o"', modifiers: null },
   { localizationKey: 'menu.file.quickOpen', keyEquivalent: '"p"', modifiers: null },
@@ -70,7 +75,11 @@ const EXPECTED_MENU_ITEMS: {
   { localizationKey: 'menu.edit.selectAll', keyEquivalent: '"a"', modifiers: null },
   { localizationKey: 'menu.edit.find', keyEquivalent: '"f"', modifiers: null },
   { localizationKey: 'menu.edit.findNext', keyEquivalent: '"g"', modifiers: null },
-  { localizationKey: 'menu.edit.findPrevious', keyEquivalent: '"g"', modifiers: ['.command', '.shift'] },
+  {
+    localizationKey: 'menu.edit.findPrevious',
+    keyEquivalent: '"g"',
+    modifiers: ['.command', '.shift'],
+  },
   { localizationKey: 'menu.view.actualSize', keyEquivalent: '"0"', modifiers: null },
   { localizationKey: 'menu.view.zoomIn', keyEquivalent: '"+"', modifiers: null },
   { localizationKey: 'menu.view.zoomOut', keyEquivalent: '"-"', modifiers: null },
@@ -206,7 +215,6 @@ describe('ショートカット表', () => {
     const listed = tableShortcuts()
     expect(listed.length).toBe(new Set(listed).size)
   })
-
 })
 
 describe('ページに書いたショートカット', () => {

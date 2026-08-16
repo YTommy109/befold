@@ -29,8 +29,13 @@ const result = esbuild.buildSync({
 // （ベンダーは classic script 側なので、そもそもグラフに現れない）。
 const graph = new Map();
 for (const [file, info] of Object.entries(result.metafile.inputs)) {
-  if (!file.includes('viewer-src/')) { continue; }
-  graph.set(file, info.imports.map((i) => i.path).filter((p) => p.includes('viewer-src/')));
+  if (!file.includes('viewer-src/')) {
+    continue;
+  }
+  graph.set(
+    file,
+    info.imports.map((i) => i.path).filter((p) => p.includes('viewer-src/')),
+  );
 }
 
 // 深さ優先で後退辺（いま辿っている経路上のノードへ戻る辺）を探す。
@@ -44,20 +49,28 @@ function visit(node) {
     cycles.push([...stack.slice(stack.indexOf(node)), node]);
     return;
   }
-  if (visited.has(node)) { return; }
+  if (visited.has(node)) {
+    return;
+  }
   visited.add(node);
   stack.push(node);
   onStack.add(node);
-  for (const next of graph.get(node) || []) { visit(next); }
+  for (const next of graph.get(node) || []) {
+    visit(next);
+  }
   stack.pop();
   onStack.delete(node);
 }
 
-for (const node of graph.keys()) { visit(node); }
+for (const node of graph.keys()) {
+  visit(node);
+}
 
 if (cycles.length > 0) {
   console.error('viewer-src に循環 import があります:');
-  for (const cycle of cycles) { console.error('  ' + cycle.join(' -> ')); }
+  for (const cycle of cycles) {
+    console.error('  ' + cycle.join(' -> '));
+  }
   process.exit(1);
 }
 

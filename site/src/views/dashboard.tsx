@@ -1,12 +1,8 @@
-import type { FC } from 'hono/jsx'
 import { html, raw } from 'hono/html'
+import type { FC } from 'hono/jsx'
+
 import type { Count, Split, Summary } from '../analytics'
-import {
-  RUNNING_VERSION_LABELS,
-  TOP_N,
-  UNIQUE_SOURCE_LABELS,
-  UNRECORDED_LABEL,
-} from '../analytics'
+import { RUNNING_VERSION_LABELS, TOP_N, UNIQUE_SOURCE_LABELS, UNRECORDED_LABEL } from '../analytics'
 import { LEGACY_HOST } from '../lib/hosts'
 import { formatJst } from '../lib/jst'
 
@@ -399,8 +395,8 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
           利用者数そのものではなく近似。数えているのは「その日に記録されたアクセス元の
           異なり数」で、アクセス元は接続元 IP と User-Agent の組をその日のうちだけ
           同一視できるハッシュ（visitor_token）。同じ人でも回線が変われば別々に数えるため
-          モバイル回線・VPN では過大に振れ、逆に同じ回線・同じ端末構成の複数台は
-          1 として数えるため NAT の内側では過小に振れる。ハッシュには日付が混ぜて
+          モバイル回線・VPN では過大に振れ、逆に同じ回線・同じ端末構成の複数台は 1 として数えるため
+          NAT の内側では過小に振れる。ハッシュには日付が混ぜて
           あるので日をまたぐ同一人物は追えず、ここに出るのは常に「その日の」異なり数。
           通算のユニーク利用者数は出せない（出さない）。
         </p>
@@ -409,8 +405,8 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
           アプリ側はアプリを起動して appcast を取りに来た端末で、stable と develop を
           分けている（develop には開発機が含まれるため、混ぜると利用者の規模を
           過大に見積もる）。サイト訪問はページを問わず数えるので、LP だけを数える
-          「ページアクセス」の指標とは母数が違う。ロボットの除外は他の集計と同じ条件だが、
-          curl のような自動アクセスはボット判定に当たらずここに残る。
+          「ページアクセス」の指標とは母数が違う。ロボットの除外は他の集計と同じ条件だが、 curl
+          のような自動アクセスはボット判定に当たらずここに残る。
         </p>
         <SeriesChart
           title={`日別のユニークアクセス元（${windowLabel}）`}
@@ -454,25 +450,24 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
         <p class="note">
           数えているのは<strong>アップデート確認を送ってきたアクセス元の異なり数</strong>で、
           確認の延べ回数ではない。アップデート確認はアプリが定期的に飛ばすため、回数で
-          数えるとバージョンではなく起動回数を見ることになる。アクセス元は日別ユニークと
-          同じ visitor_token（接続元 IP と User-Agent の組をその日のうちだけ同一視する
+          数えるとバージョンではなく起動回数を見ることになる。アクセス元は日別ユニークと 同じ
+          visitor_token（接続元 IP と User-Agent の組をその日のうちだけ同一視する
           ハッシュ）なので、単位は「アクセス元×日」の異なり数であって通算の利用者数では
           ない。同じ端末でも、期間中の 5 日に確認を送れば 5 と数える。
         </p>
         <p class="note">
           全期間ではなく{windowLabel}に絞っている。見たいのは今も使われ続けている版で
           あって、過去に一度でも動いた版の履歴ではないため。stable と develop を分けて
-          いるのは、develop に開発機が含まれ、混ぜると stable 利用者の分布が読めなく
-          なるため。上位 {TOP_N} 件まで。
+          いるのは、develop に開発機が含まれ、混ぜると stable 利用者の分布が読めなく なるため。上位{' '}
+          {TOP_N} 件まで。
         </p>
         <p class="note">
           下の「バージョン別ダウンロード」とは別物。あちらは
           <strong>どのタグを取りに来たか</strong>（更新先）で、こちらは
-          <strong>今どのバージョンが動いているか</strong>（更新元）。
-          稼働バージョンの記録は {APP_VERSION_COLUMN_START} に始めたもので、それより前の
-          アップデート確認はどのバージョンから来たかを<strong>遡って分類できない</strong>。
-          Sparkle 以外のクライアント（curl など）からの確認も、バージョンを名乗らないので
-          ここには出ない。
+          <strong>今どのバージョンが動いているか</strong>（更新元）。 稼働バージョンの記録は{' '}
+          {APP_VERSION_COLUMN_START} に始めたもので、それより前の
+          アップデート確認はどのバージョンから来たかを<strong>遡って分類できない</strong>。 Sparkle
+          以外のクライアント（curl など）からの確認も、バージョンを名乗らないので ここには出ない。
         </p>
         <div class="grid">
           {RUNNING_VERSION_LABELS.map(({ key, label }) => (
@@ -484,14 +479,17 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
       <section class="block">
         <h2>ページ別の訪問（全期間の累計）</h2>
         <p class="note">
-          ページアクセスの指標は LP（/）だけを数えているため、ここの合計とは一致しない。
-          この表は visit のみが対象で、ダウンロードやアップデート確認は元々ページを持たない。
-          ページ列を導入する前に記録された訪問はページが記録されていないが、当時計上して
-          いたのは LP だけなので「/」に数えている。
+          ページアクセスの指標は LP（/）だけを数えているため、ここの合計とは一致しない。 この表は
+          visit のみが対象で、ダウンロードやアップデート確認は元々ページを持たない。
+          ページ列を導入する前に記録された訪問はページが記録されていないが、当時計上して いたのは LP
+          だけなので「/」に数えている。
         </p>
         <div class="grid">
           <CountTable title="人間: ページ別" rows={splitRows(summary.visits.byPage, false)} />
-          <CountTable title="自動アクセス: ページ別" rows={splitRows(summary.visits.byPage, true)} />
+          <CountTable
+            title="自動アクセス: ページ別"
+            rows={splitRows(summary.visits.byPage, true)}
+          />
         </div>
       </section>
 
@@ -502,9 +500,9 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
           「ブラウザ言語設定」は Accept-Language の第一希望を ja / en / other に丸めたもので、
           <strong>ブラウザの設定であって実際に読まれた言語ではない</strong>。 2
           つを並べているのは、英語を求めて来た人が英語ページへ辿り着けたかを見るため（
-          ブラウザ言語設定が en で表示言語が ja なら、辿り着けていない）。
-          言語ごとに URL を分ける前（{LANGUAGE_URL_START}）に記録された訪問は、日英を同じ
-          HTML で出していたため表示言語が確定せず「{UNRECORDED_LABEL}」になる。遡って
+          ブラウザ言語設定が en で表示言語が ja なら、辿り着けていない）。 言語ごとに URL
+          を分ける前（{LANGUAGE_URL_START}）に記録された訪問は、日英を同じ HTML
+          で出していたため表示言語が確定せず「{UNRECORDED_LABEL}」になる。遡って
           分類し直す材料は無い。
         </p>
         <div class="grid">
@@ -530,23 +528,23 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
       <section class="block">
         <h2>配布ホストと旧経路（全期間の累計）</h2>
         <p class="note">
-          旧ホスト（{LEGACY_HOST}）と GitHub へのフォールバックを止めてよいかの判断材料
-          （ADR 0007）。ホスト別は kind を問わない全イベントが対象で、0 件のホストも
-          行として残す（「まだ 0」と「計測していない」を区別するため）。
-          ホスト列の導入前（{HOST_COLUMN_START}）に記録された行は、どのホストで応答したかを
-          復元できないので「{UNRECORDED_LABEL}」に入る。
+          旧ホスト（{LEGACY_HOST}）と GitHub へのフォールバックを止めてよいかの判断材料 （ADR
+          0007）。ホスト別は kind を問わない全イベントが対象で、0 件のホストも 行として残す（「まだ
+          0」と「計測していない」を区別するため）。 ホスト列の導入前（{HOST_COLUMN_START}
+          ）に記録された行は、どのホストで応答したかを 復元できないので「{UNRECORDED_LABEL}
+          」に入る。
         </p>
         <p class="note">
-          旧ホストの HTML ページ（LP・機能紹介）は正規ホストへ 301 で送るため、
-          その到達は visit ではなく「旧ホストからの 301」として数える（301 を追った先で
-          正規ホスト側の visit も記録されるので、visit にすると二重に数えられる）。
+          旧ホストの HTML ページ（LP・機能紹介）は正規ホストへ 301 で送るため、 その到達は visit
+          ではなく「旧ホストからの 301」として数える（301 を追った先で 正規ホスト側の visit
+          も記録されるので、visit にすると二重に数えられる）。
           機械向けの経路（appcast・/dl/・/download）は 301 せず素通しなので、旧ホストの
           ままホスト別に出る。旧ホストの静的アセットと /healthz は元々記録していない。
         </p>
         <p class="note">
-          GitHub フォールバックは R2 に目的のオブジェクトが無かった回数。ここが 0 でない
-          うちは GitHub 側の経路を止められない。appcast の行だけは
-          caches.default（300 秒）に当たった周期を数えられないため、実際より小さく出る。
+          GitHub フォールバックは R2 に目的のオブジェクトが無かった回数。ここが 0 でない うちは
+          GitHub 側の経路を止められない。appcast の行だけは caches.default（300
+          秒）に当たった周期を数えられないため、実際より小さく出る。
         </p>
         <div class="grid">
           <SplitTable title="リクエスト先ホスト別" rows={summary.hosts} />
@@ -565,7 +563,8 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
         />
         <p class="note">
           このセクション以外の集計（累計・本日・推移・時間帯・内訳・最新イベント）は、
-          ロボットとデータセンター由来の<strong>両方</strong>を除いた数。判定の軸はふたつある（ADR 0008）。
+          ロボットとデータセンター由来の<strong>両方</strong>を除いた数。判定の軸はふたつある（ADR
+          0008）。
         </p>
         <p class="note">
           <strong>ロボット</strong>は User-Agent のトークンで判定する（ADR 0004）。完全な UA は
@@ -584,8 +583,8 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
         <p class="note">
           判定できない接続元（as_org が NULL）は人間側に残す。プライバシー中継（iCloud Private
           Relay・WARP の出口）と VPN・Tor の出口は、人間の可能性があるのでデータセンターに
-          含めない。誤って人間を落とすと、まだ使われている配布経路を止めてしまうため
-          （ADR 0007 の停止判断にこの数字を使う）。
+          含めない。誤って人間を落とすと、まだ使われている配布経路を止めてしまうため （ADR 0007
+          の停止判断にこの数字を使う）。
         </p>
         <div class="grid">
           <CountTable title="人間: クライアント種別" rows={summary.traffic.breakdowns.human} />
@@ -648,8 +647,8 @@ export const Dashboard: FC<{ summary: Summary; lastId: number }> = ({ summary, l
     <body data-last-id={String(lastId)}>
       <h1>befold analytics</h1>
       <p class="status">
-        SSE: <span id="stream-status">connecting…</span> · 日付・時刻はすべて JST (UTC+9) 基準
-        · 期間は固定（累計 / 本日 / 直近 {summary.windowDays} 日）
+        SSE: <span id="stream-status">connecting…</span> · 日付・時刻はすべて JST (UTC+9) 基準 ·
+        期間は固定（累計 / 本日 / 直近 {summary.windowDays} 日）
       </p>
 
       <div id="summary">

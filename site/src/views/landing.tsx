@@ -1,14 +1,9 @@
 import type { FC } from 'hono/jsx'
-import {
-  DOWNLOAD_PATH,
-  FEATURES,
-  MORE_FEATURES,
-  REPO_URL,
-  REQUIRED_OS,
-} from './shared'
-import { T, t, type Localized } from './i18n'
-import { PageShell } from './shell'
+
 import { pathFor, type SitePage } from '../lib/pages'
+import { T, t, type Localized } from './i18n'
+import { DOWNLOAD_PATH, FEATURES, MORE_FEATURES, REPO_URL, REQUIRED_OS } from './shared'
+import { PageShell } from './shell'
 
 /** kind: 'feature' はファイル形式ではなく機能の紹介なので、キャプションにラベルを添える。 */
 const SCREENSHOTS: {
@@ -175,8 +170,8 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
               <p class="philosophy-audience">コードを書く人へ</p>
               <p class="philosophy-lead">Claude が設計する。私は befold でレビューする。</p>
               <p class="philosophy-body">
-                Claude Code や Codex が作る大量のドキュメントをスムーズにレビューするために
-                befold を作りました。
+                Claude Code や Codex が作る大量のドキュメントをスムーズにレビューするために befold
+                を作りました。
                 <br />
                 編集機能は思い切って削り、読むことに特化したツールです。Quick Look
                 にも対応してます。
@@ -187,8 +182,7 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
               <p class="philosophy-audience">For people who write code</p>
               <p class="philosophy-lead">Claude designs. I review in befold.</p>
               <p class="philosophy-body">
-                I built befold to review the piles of documents that Claude Code and Codex
-                generate.
+                I built befold to review the piles of documents that Claude Code and Codex generate.
                 <br />
                 Editing was deliberately left out — befold is a tool built purely for reading. It
                 supports Quick Look, too.
@@ -317,8 +311,7 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
                 <a href={DOWNLOAD_PATH}>最新版をダウンロード</a>
               </li>
               <li>
-                DMG を開き、<code>befold.app</code> を <code>/Applications</code>{' '}
-                にコピーして起動
+                DMG を開き、<code>befold.app</code> を <code>/Applications</code> にコピーして起動
               </li>
             </ol>
           ) : (

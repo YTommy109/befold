@@ -59,9 +59,7 @@ export const REDIRECT_TARGET_ORIGIN: ReadonlyMap<string, string> = new Map([
  * 取り残されるため。`SITE_PAGES` に機械向けの経路を載せないことが、この導出が
  * 決定 2 を守り続ける条件になる（同ファイルの doc を参照）。
  */
-export const REDIRECTED_PATHS: ReadonlySet<string> = new Set(
-  SITE_PAGES.map((entry) => entry.path),
-)
+export const REDIRECTED_PATHS: ReadonlySet<string> = new Set(SITE_PAGES.map((entry) => entry.path))
 
 /**
  * このリクエストにとっての自己ホスト集合を作る。

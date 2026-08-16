@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import {
   CANONICAL_HOST,
   LEGACY_HOST,
@@ -78,12 +79,14 @@ describe('自己ホスト集合', () => {
 
   it('既知でないホストで配信されていても、そのホスト内の遷移は参照元にしない', () => {
     // wrangler dev / preview URL のように SELF_HOSTS に無いホストで配信される場合。
-    expect(resolveReferrer(null, 'http://localhost:8787/features', selfHostsFor('localhost:8787')))
-      .toBeNull()
+    expect(
+      resolveReferrer(null, 'http://localhost:8787/features', selfHostsFor('localhost:8787')),
+    ).toBeNull()
   })
 
   it('自己ホスト以外からの流入は従来どおり参照元として記録する', () => {
-    expect(resolveReferrer(null, 'https://news.ycombinator.com/', selfHostsFor(CANONICAL_HOST)))
-      .toBe('https://news.ycombinator.com')
+    expect(
+      resolveReferrer(null, 'https://news.ycombinator.com/', selfHostsFor(CANONICAL_HOST)),
+    ).toBe('https://news.ycombinator.com')
   })
 })

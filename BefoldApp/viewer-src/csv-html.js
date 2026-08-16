@@ -1,8 +1,8 @@
 // CSV/TSV の解析と HTML 組み立て。テーブル表示(parseCsv 経由)とソース表示
 // (csvSourceInnerHtml 経由)が 1 本のトークナイザーを共有する。
 
-import { escapeHtml } from './encoding.js';
 import { wrapWithLineNumbers } from './code-html.js';
+import { escapeHtml } from './encoding.js';
 
 // RFC 4180 準拠の状態マシンベース CSV/TSV トークナイザー。
 // クオート内のデリミタ・改行・エスケープされたクオート("")を正しく扱う。
@@ -11,7 +11,9 @@ import { wrapWithLineNumbers } from './code-html.js';
 // の両方を返す。parseCsv(データ用)と renderCsvSourceHtml(ソース表示用)は
 // この 1 本のトークナイザーを共有し、行またぎのクオートでも同じ列境界になる。
 function tokenizeCsvRows(content, delimiter) {
-  if (!content) { return []; }
+  if (!content) {
+    return [];
+  }
   var rows = [];
   var row = [];
   var value = '';
@@ -63,7 +65,9 @@ function tokenizeCsvRows(content, delimiter) {
         // \r\n を1つの改行として扱うため、直後の \n を先読みして読み飛ばす。
         pushRow();
         i++;
-        if (i < content.length && content[i] === '\n') { i++; }
+        if (i < content.length && content[i] === '\n') {
+          i++;
+        }
       } else if (ch === '\n') {
         pushRow();
         i++;
@@ -93,7 +97,9 @@ function tokenizeCsvRows(content, delimiter) {
 var CSV_ESCAPES = { n: '\n', t: '\t', r: '\r', '\\': '\\' };
 
 function unescapeCellValue(value) {
-  if (value.indexOf('\\') === -1) { return value; }
+  if (value.indexOf('\\') === -1) {
+    return value;
+  }
   var out = '';
   var i = 0;
   while (i < value.length) {
@@ -147,10 +153,14 @@ function csvRowsHtml(rows, minCols) {
 // CSV 行の配列から HTML テーブル文字列を組み立てる。1行目を <thead>、残りを <tbody> にする。
 // 列数が揃っていない行は空セルでパディングする。
 function buildTableHtml(rows) {
-  if (rows.length === 0) { return ''; }
+  if (rows.length === 0) {
+    return '';
+  }
   var maxCols = 0;
   for (var r = 0; r < rows.length; r++) {
-    if (rows[r].length > maxCols) { maxCols = rows[r].length; }
+    if (rows[r].length > maxCols) {
+      maxCols = rows[r].length;
+    }
   }
   var html = '<table><thead><tr>';
   for (var c = 0; c < maxCols; c++) {
@@ -172,7 +182,9 @@ var CSV_COL_COUNT = 8;
 // と同じ列割りで色が付く。renderCsvSourceHtml(初回描画)と appendChunk(チャンク
 // 追記)の両方から呼ばれる。
 function csvSourceInnerHtml(content, delimiter) {
-  if (!content) { return ''; }
+  if (!content) {
+    return '';
+  }
   var tokenRows = tokenizeCsvRows(content, delimiter);
   var htmlLines = [];
   for (var r = 0; r < tokenRows.length; r++) {
@@ -190,7 +202,9 @@ function csvSourceInnerHtml(content, delimiter) {
 
 // CSV/TSV のソース表示用 HTML。
 function renderCsvSourceHtml(content, delimiter, showLineNumbers) {
-  if (!content) { return '<pre><code class="csv-source"></code></pre>'; }
+  if (!content) {
+    return '<pre><code class="csv-source"></code></pre>';
+  }
   var body = csvSourceInnerHtml(content, delimiter);
   if (showLineNumbers === true) {
     body = wrapWithLineNumbers(body, true);

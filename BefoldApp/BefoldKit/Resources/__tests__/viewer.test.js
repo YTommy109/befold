@@ -259,7 +259,7 @@ describe('markdown-it integration with highlightCode', () => {
     html: true,
     linkify: true,
     typographer: true,
-    highlight: function(str, lang) {
+    highlight: function (str, lang) {
       return highlightCode(hljs, str, lang);
     },
   });
@@ -296,7 +296,7 @@ describe('sanitizeRenderedHtml', () => {
     const container = new JSDOM('').window.document.createElement('div');
     container.innerHTML = html;
     return Array.from(container.querySelectorAll('*')).some((el) =>
-      Array.from(el.attributes).some((attr) => /^on/i.test(attr.name))
+      Array.from(el.attributes).some((attr) => /^on/i.test(attr.name)),
     );
   }
 
@@ -693,10 +693,10 @@ describe('wrapWithLineNumbers', () => {
   test('nested spans are reopened in order', () => {
     const html = wrapWithLineNumbers('<span class="o"><span class="i">a\nb</span></span>');
     expect(html).toContain(
-      '<td class="line-content"><span class="o"><span class="i">a</span></span></td>'
+      '<td class="line-content"><span class="o"><span class="i">a</span></span></td>',
     );
     expect(html).toContain(
-      '<td class="line-content"><span class="o"><span class="i">b</span></span></td>'
+      '<td class="line-content"><span class="o"><span class="i">b</span></span></td>',
     );
   });
 
@@ -714,11 +714,36 @@ describe('FileType.swift の言語名契約', () => {
   // (取り込み口は viewer-src/vendor.js の 1 箇所)。
   const bundledHljs = require('highlight.js/lib/common');
   const LANGUAGES = [
-    'swift', 'python', 'go', 'rust', 'javascript', 'typescript',
-    'java', 'kotlin', 'c', 'cpp', 'csharp', 'objectivec',
-    'ruby', 'php', 'perl', 'lua', 'r', 'sql', 'bash',
-    'graphql', 'css', 'scss', 'less', 'ini', 'diff', 'makefile',
-    'json', 'yaml', 'xml', 'vbnet',
+    'swift',
+    'python',
+    'go',
+    'rust',
+    'javascript',
+    'typescript',
+    'java',
+    'kotlin',
+    'c',
+    'cpp',
+    'csharp',
+    'objectivec',
+    'ruby',
+    'php',
+    'perl',
+    'lua',
+    'r',
+    'sql',
+    'bash',
+    'graphql',
+    'css',
+    'scss',
+    'less',
+    'ini',
+    'diff',
+    'makefile',
+    'json',
+    'yaml',
+    'xml',
+    'vbnet',
   ];
 
   test.each(LANGUAGES)('%s is available in the bundled highlight.js common build', (lang) => {
@@ -728,39 +753,63 @@ describe('FileType.swift の言語名契約', () => {
 
 describe('parseCsv', () => {
   test('parses simple comma-separated rows', () => {
-    expect(parseCsv('a,b,c\n1,2,3', ',')).toEqual([['a','b','c'],['1','2','3']]);
+    expect(parseCsv('a,b,c\n1,2,3', ',')).toEqual([
+      ['a', 'b', 'c'],
+      ['1', '2', '3'],
+    ]);
   });
 
   test('parses tab-separated rows', () => {
-    expect(parseCsv('a\tb\tc\n1\t2\t3', '\t')).toEqual([['a','b','c'],['1','2','3']]);
+    expect(parseCsv('a\tb\tc\n1\t2\t3', '\t')).toEqual([
+      ['a', 'b', 'c'],
+      ['1', '2', '3'],
+    ]);
   });
 
   test('handles quoted fields with commas', () => {
-    expect(parseCsv('"a,b",c\n1,2', ',')).toEqual([['a,b','c'],['1','2']]);
+    expect(parseCsv('"a,b",c\n1,2', ',')).toEqual([
+      ['a,b', 'c'],
+      ['1', '2'],
+    ]);
   });
 
   test('handles escaped quotes inside quoted fields', () => {
-    expect(parseCsv('"say ""hello""",b\n1,2', ',')).toEqual([['say "hello"','b'],['1','2']]);
+    expect(parseCsv('"say ""hello""",b\n1,2', ',')).toEqual([
+      ['say "hello"', 'b'],
+      ['1', '2'],
+    ]);
   });
 
   test('handles newlines inside quoted fields', () => {
-    expect(parseCsv('"line1\nline2",b\n1,2', ',')).toEqual([['line1\nline2','b'],['1','2']]);
+    expect(parseCsv('"line1\nline2",b\n1,2', ',')).toEqual([
+      ['line1\nline2', 'b'],
+      ['1', '2'],
+    ]);
   });
 
   test('handles empty fields', () => {
-    expect(parseCsv(',b,\n1,,3', ',')).toEqual([['','b',''],['1','','3']]);
+    expect(parseCsv(',b,\n1,,3', ',')).toEqual([
+      ['', 'b', ''],
+      ['1', '', '3'],
+    ]);
   });
 
   test('handles single row without trailing newline', () => {
-    expect(parseCsv('a,b,c', ',')).toEqual([['a','b','c']]);
+    expect(parseCsv('a,b,c', ',')).toEqual([['a', 'b', 'c']]);
   });
 
   test('handles trailing newline', () => {
-    expect(parseCsv('a,b\n1,2\n', ',')).toEqual([['a','b'],['1','2']]);
+    expect(parseCsv('a,b\n1,2\n', ',')).toEqual([
+      ['a', 'b'],
+      ['1', '2'],
+    ]);
   });
 
   test('handles CRLF line endings', () => {
-    expect(parseCsv('a,b\r\n1,2', ',')).toEqual([['a','b'],['1','2']]);
+    expect(parseCsv('a,b\r\n1,2', ',')).toEqual([
+      ['a', 'b'],
+      ['1', '2'],
+    ]);
   });
 
   test('returns empty array for empty string', () => {
@@ -806,7 +855,11 @@ describe('csv escape sequences reach both table render paths', () => {
 
 describe('buildTableHtml', () => {
   test('builds table with thead and tbody', () => {
-    const html = buildTableHtml([['Name','Age'],['Alice','30'],['Bob','25']]);
+    const html = buildTableHtml([
+      ['Name', 'Age'],
+      ['Alice', '30'],
+      ['Bob', '25'],
+    ]);
     expect(html).toContain('<table>');
     expect(html).toContain('<thead>');
     expect(html).toContain('<th>Name</th>');
@@ -818,7 +871,7 @@ describe('buildTableHtml', () => {
   });
 
   test('header-only table has empty tbody', () => {
-    const html = buildTableHtml([['A','B']]);
+    const html = buildTableHtml([['A', 'B']]);
     expect(html).toContain('<thead>');
     expect(html).toContain('<tbody></tbody>');
   });
@@ -828,15 +881,16 @@ describe('buildTableHtml', () => {
   });
 
   test('escapes HTML in cell values', () => {
-    const html = buildTableHtml([['<script>'],['&"']]);
+    const html = buildTableHtml([['<script>'], ['&"']]);
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&amp;&quot;');
   });
 
   test('pads short rows with empty cells', () => {
-    const html = buildTableHtml([['A','B','C'],['1']]);
-    const tdCount = (html.match(/<td>/g) || []).length + (html.match(/<td>[^<]*<\/td>/g) || []).length;
+    const html = buildTableHtml([['A', 'B', 'C'], ['1']]);
+    const tdCount =
+      (html.match(/<td>/g) || []).length + (html.match(/<td>[^<]*<\/td>/g) || []).length;
     // 1行目は th×3、2行目は td が 3 つ(うち 2 つは空)
     expect(html).toContain('<td>1</td>');
     expect(html.match(/<td><\/td>/g).length).toBe(2);
@@ -928,14 +982,14 @@ describe('csvSourceInnerHtml', () => {
     const content = 'a,b,c\n1,"x,y",3';
     const inner = csvSourceInnerHtml(content, ',');
     expect(renderCsvSourceHtml(content, ',')).toBe(
-      '<pre><code class="csv-source">' + inner + '</code></pre>'
+      '<pre><code class="csv-source">' + inner + '</code></pre>',
     );
   });
 
   test('produces per-row rainbow spans usable for chunked append', () => {
     const inner = csvSourceInnerHtml('1,2,3', ',');
     expect(inner).toBe(
-      '<span class="csv-col-0">1</span>,<span class="csv-col-1">2</span>,<span class="csv-col-2">3</span>'
+      '<span class="csv-col-0">1</span>,<span class="csv-col-1">2</span>,<span class="csv-col-2">3</span>',
     );
   });
 
@@ -951,9 +1005,7 @@ describe('csvSourceInnerHtml', () => {
 
   test('leaves escape sequences literal so line numbers keep matching the file', () => {
     const inner = csvSourceInnerHtml('a\\nb,c', ',');
-    expect(inner).toBe(
-      '<span class="csv-col-0">a\\nb</span>,<span class="csv-col-1">c</span>'
-    );
+    expect(inner).toBe('<span class="csv-col-0">a\\nb</span>,<span class="csv-col-1">c</span>');
     expect(inner).not.toContain('\n');
   });
 });
@@ -1048,7 +1100,11 @@ describe('buildFindRegExp', () => {
   });
 
   test('plain mode escapes regex special characters', () => {
-    const re = buildFindRegExp('a.b*c', { caseSensitive: false, wholeWord: false, useRegex: false });
+    const re = buildFindRegExp('a.b*c', {
+      caseSensitive: false,
+      wholeWord: false,
+      useRegex: false,
+    });
     expect(re.test('a.b*c')).toBe(true);
     re.lastIndex = 0;
     expect(re.test('aXbYYc')).toBe(false);
@@ -1082,11 +1138,15 @@ describe('buildFindRegExp', () => {
   });
 
   test('useRegex true with invalid regex syntax returns null', () => {
-    expect(buildFindRegExp('(', { caseSensitive: false, wholeWord: false, useRegex: true })).toBe(null);
+    expect(buildFindRegExp('(', { caseSensitive: false, wholeWord: false, useRegex: true })).toBe(
+      null,
+    );
   });
 
   test('empty query returns null', () => {
-    expect(buildFindRegExp('', { caseSensitive: false, wholeWord: false, useRegex: false })).toBe(null);
+    expect(buildFindRegExp('', { caseSensitive: false, wholeWord: false, useRegex: false })).toBe(
+      null,
+    );
   });
 
   test('returned RegExp always has the global flag set', () => {
@@ -1105,13 +1165,13 @@ describe('buildLineNumberRows', () => {
   test('multi-line span spanning 3 lines is closed and reopened per row starting at 42', () => {
     const rows = buildLineNumberRows('<span class="hljs-comment">/*\nbody\n*/</span>', 42, true);
     expect(rows).toContain(
-      '<tr><td class="line-number">42</td><td class="line-content"><span class="hljs-comment">/*</span></td></tr>'
+      '<tr><td class="line-number">42</td><td class="line-content"><span class="hljs-comment">/*</span></td></tr>',
     );
     expect(rows).toContain(
-      '<tr><td class="line-number">43</td><td class="line-content"><span class="hljs-comment">body</span></td></tr>'
+      '<tr><td class="line-number">43</td><td class="line-content"><span class="hljs-comment">body</span></td></tr>',
     );
     expect(rows).toContain(
-      '<tr><td class="line-number">44</td><td class="line-content"><span class="hljs-comment">*/</span></td></tr>'
+      '<tr><td class="line-number">44</td><td class="line-content"><span class="hljs-comment">*/</span></td></tr>',
     );
     // 各行のセルは自己完結: 行ごとに open と close の数が一致する
     const cells = rows.match(/<td class="line-content">.*?<\/td>/g);
@@ -1136,13 +1196,15 @@ describe('buildLineNumberRows', () => {
   test('wrapWithLineNumbers equals code-table wrapper around buildLineNumberRows from line 1', () => {
     const input = '<span class="x">a\nb</span>\nplain';
     expect(wrapWithLineNumbers(input)).toBe(
-      '<table class="code-table">' + buildLineNumberRows(input, 1) + '</table>'
+      '<table class="code-table">' + buildLineNumberRows(input, 1) + '</table>',
     );
   });
 
   test('showLineNumbers=false は行番号セルを付けず line-content のみ', () => {
     const rows = buildLineNumberRows('a\nb', 1, false);
-    expect(rows).toBe('<tr><td class="line-content">a</td></tr><tr><td class="line-content">b</td></tr>');
+    expect(rows).toBe(
+      '<tr><td class="line-content">a</td></tr><tr><td class="line-content">b</td></tr>',
+    );
   });
 });
 
@@ -1182,10 +1244,15 @@ describe('leadingIndentInfo(インデントガイド用)', () => {
 
   test('先頭の開き span タグを飛ばしてから空白を数える', () => {
     // reflow が前置した開き span の後ろにインデントがある場合
-    expect(leadingIndentInfo('<span class="hljs-comment">    body', TAB)).toEqual({ cols: 4, depth: 1 });
+    expect(leadingIndentInfo('<span class="hljs-comment">    body', TAB)).toEqual({
+      cols: 4,
+      depth: 1,
+    });
     // インデントの後にトークン span が来る場合(空白はタグの手前)
-    expect(leadingIndentInfo('        <span class="hljs-keyword">let</span>', TAB))
-      .toEqual({ cols: 8, depth: 2 });
+    expect(leadingIndentInfo('        <span class="hljs-keyword">let</span>', TAB)).toEqual({
+      cols: 8,
+      depth: 2,
+    });
   });
 
   test('空行・空白のみの行はガイドを引かない(depth 0)', () => {
@@ -1201,8 +1268,9 @@ describe('leadingIndentInfo(インデントガイド用)', () => {
 
 describe('lineContentCell(ガイド用 CSS 変数の付与)', () => {
   test('インデントのある行に --indent-cols / --indent-depth を付ける', () => {
-    expect(lineContentCell('        code'))
-      .toBe('<td class="line-content" style="--indent-cols:8;--indent-depth:2">        code</td>');
+    expect(lineContentCell('        code')).toBe(
+      '<td class="line-content" style="--indent-cols:8;--indent-depth:2">        code</td>',
+    );
   });
 
   test('インデント 0 の行には style を付けない', () => {
@@ -1211,7 +1279,9 @@ describe('lineContentCell(ガイド用 CSS 変数の付与)', () => {
 
   test('buildLineNumberRows がインデント行に CSS 変数を乗せる', () => {
     const rows = buildLineNumberRows('    x', 1);
-    expect(rows).toContain('<td class="line-content" style="--indent-cols:4;--indent-depth:1">    x</td>');
+    expect(rows).toContain(
+      '<td class="line-content" style="--indent-cols:4;--indent-depth:1">    x</td>',
+    );
   });
 });
 
@@ -1219,8 +1289,7 @@ describe('csvRowsHtml', () => {
   test('builds tr/td rows and pads short rows up to minCols', () => {
     const html = csvRowsHtml([['a', 'b'], ['c']], 3);
     expect(html).toBe(
-      '<tr><td>a</td><td>b</td><td></td></tr>'
-      + '<tr><td>c</td><td></td><td></td></tr>'
+      '<tr><td>a</td><td>b</td><td></td></tr>' + '<tr><td>c</td><td></td><td></td></tr>',
     );
   });
 
@@ -1248,12 +1317,15 @@ describe('codeChunkInnerHtml', () => {
     expect(inner).toContain('hljs-keyword');
     expect(inner).toBe(
       highlightCode(hljs, 'const x = 1;', 'javascript')
-        .replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '')
+        .replace(/^<pre><code[^>]*>/, '')
+        .replace(/<\/code><\/pre>$/, ''),
     );
   });
 
   test('falls back to escapeHtml when hljs is unavailable', () => {
-    expect(codeChunkInnerHtml(null, '<b> & "x"', 'javascript')).toBe('&lt;b&gt; &amp; &quot;x&quot;');
+    expect(codeChunkInnerHtml(null, '<b> & "x"', 'javascript')).toBe(
+      '&lt;b&gt; &amp; &quot;x&quot;',
+    );
   });
 
   test('falls back to escapeHtml when the language is unknown', () => {
@@ -1269,7 +1341,12 @@ describe('codeChunkInnerHtml', () => {
 
   test('with context spanning an open block comment, the continuation stays a comment', () => {
     const context = '/* comment start\n';
-    const continuation = codeChunkInnerHtml(hljs, 'still comment */\nconst y = 2;', 'javascript', context);
+    const continuation = codeChunkInnerHtml(
+      hljs,
+      'still comment */\nconst y = 2;',
+      'javascript',
+      context,
+    );
     const lines = continuation.split('\n');
     expect(lines).toHaveLength(2);
     expect(lines[0]).toContain('hljs-comment');
@@ -1303,7 +1380,8 @@ describe('codeChunkInnerHtml', () => {
     const tail = 'end */\nconst z = 1;';
     const withContext = codeChunkInnerHtml(hljs, tail, 'javascript', context);
     const fullHighlighted = highlightCode(hljs, full, 'javascript')
-      .replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '');
+      .replace(/^<pre><code[^>]*>/, '')
+      .replace(/<\/code><\/pre>$/, '');
     const fullReflowedTailLines = reflowSpanBalancedLines(fullHighlighted).slice(2).join('\n');
     expect(withContext).toBe(fullReflowedTailLines);
   });

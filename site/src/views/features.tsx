@@ -1,9 +1,10 @@
 import type { FC } from 'hono/jsx'
+
 import { FILE_TYPE_GROUPS, SIZE_LIMITS_MB, type RenderMode } from '../lib/file-types'
-import { DOWNLOAD_PATH, FEATURES, MORE_FEATURES, REPO_URL, REQUIRED_OS } from './shared'
-import { T, t, type Localized } from './i18n'
-import { PageShell } from './shell'
 import { pathFor, type PageLang, type SitePage } from '../lib/pages'
+import { T, t, type Localized } from './i18n'
+import { DOWNLOAD_PATH, FEATURES, MORE_FEATURES, REPO_URL, REQUIRED_OS } from './shared'
+import { PageShell } from './shell'
 
 const PAGE_TITLE: Localized = {
   ja: '機能と対応ファイルタイプ — befold',
@@ -29,10 +30,22 @@ const RENDER_MODE_LABEL: Record<RenderMode, Localized> = {
  */
 export const SHORTCUTS: { keys: string; ja: string; en: string }[] = [
   { keys: '⌘O', ja: 'ファイル / フォルダを開く', en: 'Open a file or folder' },
-  { keys: '⌘P', ja: 'Quick Open（ファイル名のあいまい検索）', en: 'Quick Open (fuzzy filename search)' },
+  {
+    keys: '⌘P',
+    ja: 'Quick Open（ファイル名のあいまい検索）',
+    en: 'Quick Open (fuzzy filename search)',
+  },
   { keys: '⌘S', ja: 'サイドバーの表示 / 非表示', en: 'Show or hide the sidebar' },
-  { keys: '⌘[ / ⌘]', ja: '前 / 次に読んだファイルへ', en: 'Go to the previously / next viewed file' },
-  { keys: '⌘U', ja: 'レンダリング表示とソース表示の切替', en: 'Toggle between rendered and source view' },
+  {
+    keys: '⌘[ / ⌘]',
+    ja: '前 / 次に読んだファイルへ',
+    en: 'Go to the previously / next viewed file',
+  },
+  {
+    keys: '⌘U',
+    ja: 'レンダリング表示とソース表示の切替',
+    en: 'Toggle between rendered and source view',
+  },
   {
     keys: '⌘1 / ⌘2 / ⌘3',
     ja: '表示モードの切替（レンダリング / ソース / 差分）',
@@ -187,8 +200,8 @@ export const Features: FC<{ origin: string; entry: SitePage }> = ({ origin, entr
             <>
               <h2>Features &amp; Supported File Types</h2>
               <p>
-                befold is a macOS-only viewer for Mermaid, Markdown, SVG, HTML, CSV/TSV, images,
-                PDF and source code. This page lists every feature, the full table of supported
+                befold is a macOS-only viewer for Mermaid, Markdown, SVG, HTML, CSV/TSV, images, PDF
+                and source code. This page lists every feature, the full table of supported
                 extensions, the keyboard shortcuts and answers to common questions.
               </p>
             </>

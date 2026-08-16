@@ -130,8 +130,7 @@ export function summarizeUA(ua: string): string | null {
  * 版もバージョン様の形に限る。プレリリース識別子は `-dev.4` 以外
  * （`-beta.1` など）も将来ありうるため形だけを縛り、値は列挙しない。
  */
-const APP_VERSION_PATTERN =
-  /^befold\/(\d{1,4}\.\d{1,4}\.\d{1,4}(?:-[0-9A-Za-z.]{1,20})?) Sparkle\//
+const APP_VERSION_PATTERN = /^befold\/(\d{1,4}\.\d{1,4}\.\d{1,4}(?:-[0-9A-Za-z.]{1,20})?) Sparkle\//
 
 /**
  * Sparkle の UA から**そのリクエストを出したアプリの稼働バージョン**を取り出す。

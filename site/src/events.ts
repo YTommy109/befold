@@ -1,5 +1,10 @@
 import type { Context } from 'hono'
+
 import type { AppEnv } from './index'
+import { classifyHost, selfHostsFor } from './lib/hosts'
+import { summarizeLang } from './lib/lang'
+import { resolveReferrer } from './lib/referrer'
+import { summarizeAppVersion, summarizeOS, summarizeUA, visitorTokenHash } from './lib/visitor'
 import {
   eventSchema,
   type Channel,
@@ -9,15 +14,6 @@ import {
   type FallbackRoute,
   type Page,
 } from './schema'
-import { summarizeLang } from './lib/lang'
-import { classifyHost, selfHostsFor } from './lib/hosts'
-import { resolveReferrer } from './lib/referrer'
-import {
-  summarizeAppVersion,
-  summarizeOS,
-  summarizeUA,
-  visitorTokenHash,
-} from './lib/visitor'
 
 /** 呼び出し側が指定するイベント固有の属性。 */
 export type EventAttributes = {

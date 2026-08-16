@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+
 import { eventSchema } from '../src/schema'
 
 describe('events テーブル', () => {

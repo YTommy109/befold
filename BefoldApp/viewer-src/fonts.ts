@@ -11,7 +11,9 @@ var WEB_BASELINE = 16;
 // 実行時の形を変えずにキャストで通す。
 function markdownFontSize(raw: number | string | undefined): number {
   var s = parseFloat(raw as string);
-  if (isNaN(s) || s <= 0) { return WEB_BASELINE; }
+  if (isNaN(s) || s <= 0) {
+    return WEB_BASELINE;
+  }
   return WEB_BASELINE * (s / MACOS_DEFAULT_BODY);
 }
 
@@ -19,7 +21,7 @@ function markdownFontSize(raw: number | string | undefined): number {
 function _mmdInitFontSize() {
   document.documentElement.style.setProperty(
     '--mmd-markdown-font-size',
-    markdownFontSize(window._mmdSystemFontSize) + 'px'
+    markdownFontSize(window._mmdSystemFontSize) + 'px',
   );
 }
 
@@ -32,14 +34,16 @@ function _mmdInitCodeFont() {
   if (family) {
     // CSS quoted-string 内で壊れないよう " と \ をエスケープする。
     var safe = family.replace(/[\\"]/g, '\\$&');
-    root.style.setProperty('--mmd-mono-font-family',
-      '"' + safe + '", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace');
+    root.style.setProperty(
+      '--mmd-mono-font-family',
+      '"' + safe + '", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+    );
   } else {
     root.style.removeProperty('--mmd-mono-font-family');
   }
   var pt = window._mmdCodeFontSize;
   if (typeof pt === 'number' && pt > 0) {
-    root.style.setProperty('--mmd-code-font-size', (pt * 16 / 13) + 'px');
+    root.style.setProperty('--mmd-code-font-size', (pt * 16) / 13 + 'px');
   } else {
     root.style.removeProperty('--mmd-code-font-size');
   }

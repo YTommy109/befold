@@ -256,7 +256,13 @@ function readBracketLiteral(source: string, start: number): Set<string> | null {
   if (end === -1) return null
 
   // `[String](dictionary.keys)` のような型変換はリテラルではない。
-  if (source.slice(end + 1).trimStart().startsWith('(')) return null
+  if (
+    source
+      .slice(end + 1)
+      .trimStart()
+      .startsWith('(')
+  )
+    return null
 
   const body = source.slice(start + 1, end)
   // 辞書リテラルなら key だけを採る。判定は本文に `"...":` が現れるかどうか。

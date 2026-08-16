@@ -1,4 +1,5 @@
 import type { FC } from 'hono/jsx'
+
 import { variantsOf, type PageLang, type SitePage } from '../lib/pages'
 import { t, type Localized } from './i18n'
 

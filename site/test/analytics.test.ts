@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test'
 import { afterEach, describe, expect, it } from 'vitest'
+
 import {
   cumulativeTotals,
   dailySeries,
@@ -18,9 +19,9 @@ import {
   TOP_N,
 } from '../src/analytics'
 import { CANONICAL_HOST, LEGACY_HOST, RECORDED_HOSTS } from '../src/lib/hosts'
+import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import { DATACENTER_ORG_PATTERNS, datacenterOrgMatch, isDatacenterOrg } from '../src/lib/network'
 import { channelSchema, eventKindSchema } from '../src/schema'
-import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import type { EventKind } from '../src/schema'
 
 /** JST 2026-08-08 12:00（= UTC 03:00）を「現在」とする固定基準。 */
@@ -351,7 +352,7 @@ describe('人間の訪問と自動アクセスの分離', () => {
   /** 接続元組織まで指定して visit を 1 件記録する。 */
   async function insertOrg(ts: number, uaSummary: string | null, asOrg: string | null) {
     await env.DB.prepare(
-      "INSERT INTO events (timestamp, kind, visitor_token, ua_summary, as_org, page)" +
+      'INSERT INTO events (timestamp, kind, visitor_token, ua_summary, as_org, page)' +
         " VALUES (?, 'visit', ?, ?, ?, '/')",
     )
       .bind(ts, `visitor-${ts}`, uaSummary, asOrg)
@@ -523,12 +524,7 @@ describe('集計からのロボット除外', () => {
     // 数えるのが目的なので TRAFFIC_CLASS_EXPR を直接使う）、eventBreakdowns
     // （人間側と自動アクセス側の両方を返し TS 側で分ける）、maxEventId
     // （生の id を返す SSE のカーソル）。
-    const exempt = [
-      'TRAFFIC_CLASS_EXPR',
-      'TRAFFIC_LABEL_EXPR',
-      'NON_HUMAN_MATCH',
-      'MAX(id)',
-    ]
+    const exempt = ['TRAFFIC_CLASS_EXPR', 'TRAFFIC_LABEL_EXPR', 'NON_HUMAN_MATCH', 'MAX(id)']
     const windows = [...analyticsSource.matchAll(/FROM events/g)].map((match) =>
       analyticsSource.slice(Math.max(0, (match.index ?? 0) - 200), (match.index ?? 0) + 400),
     )
@@ -846,14 +842,10 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
   })
 
   it('GitHub フォールバックを経路別に数える', async () => {
-    await env.DB.prepare(
-      'INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)',
-    )
+    await env.DB.prepare('INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)')
       .bind(NOW, 'github_fallback', CANONICAL_HOST, 'appcast')
       .run()
-    await env.DB.prepare(
-      'INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)',
-    )
+    await env.DB.prepare('INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)')
       .bind(NOW, 'github_fallback', CANONICAL_HOST, 'dmg')
       .run()
     await insertHostRow('download', CANONICAL_HOST)

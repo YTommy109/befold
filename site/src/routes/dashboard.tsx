@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
-import type { AppEnv } from '../index'
+
 import { STREAM_LIMIT, eventsAfter, maxEventId, summarize } from '../analytics'
+import type { AppEnv } from '../index'
 import { verifyAccessJwt } from '../lib/access'
 import { LEGACY_HOST, LEGACY_STAGING_HOST } from '../lib/hosts'
 import { Dashboard, renderSummarySections } from '../views/dashboard'
@@ -49,7 +50,12 @@ dashboardRoutes.use('*', async (c, next) => {
 
   const teamDomain = c.env.ACCESS_TEAM_DOMAIN
   const aud = c.env.ACCESS_AUD
-  if (teamDomain === undefined || teamDomain.length === 0 || aud === undefined || aud.length === 0) {
+  if (
+    teamDomain === undefined ||
+    teamDomain.length === 0 ||
+    aud === undefined ||
+    aud.length === 0
+  ) {
     // 設定が無い状態では閉じる。素通しにすると、設定漏れが「動いている」形で
     // 表に出てしまう。ローカル開発（wrangler dev）だけは、ホストも
     // localhost であることを併せて確かめたうえで通す。設定済みの本番では
@@ -108,8 +114,7 @@ dashboardRoutes.get('/stream', (c) => {
           // それ以外は、maxEventId を取った後に入った行も読んで流しているため、
           // 大きいほうまで進めないと同じ行を次の周期でもう一度送ってしまう。
           const lastEventId = events.at(-1)?.id ?? 0
-          lastId =
-            events.length === STREAM_LIMIT ? lastEventId : Math.max(latestId, lastEventId)
+          lastId = events.length === STREAM_LIMIT ? lastEventId : Math.max(latestId, lastEventId)
           // 集計は summarize() の再実行結果をそのまま流す。D1 クエリを伴うため
           // 新着があったポーリング周期でのみ行う。data 行は改行を含められないので
           // HTML は JSON 文字列にして送る。

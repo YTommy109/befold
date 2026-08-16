@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+
 import { clearAccessKeyCache } from '../src/lib/access'
 
 /** テストで使う Access の team domain と AUD（vitest.config.ts のバインディングと同じ値）。 */
@@ -31,7 +32,12 @@ export async function installAccessKeys(kid = 'test-kid'): Promise<{
   clearAccessKeyCache()
 
   const pair = (await crypto.subtle.generateKey(
-    { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: 'SHA-256',
+    },
     true,
     ['sign', 'verify'],
   )) as CryptoKeyPair

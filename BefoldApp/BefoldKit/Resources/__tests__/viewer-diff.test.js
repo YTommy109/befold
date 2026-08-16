@@ -1,5 +1,9 @@
 const {
-  parseUnifiedDiff, renderInlineDiffHtml, pairDiffLines, renderSideBySideDiffHtml, renderDiffHtml,
+  parseUnifiedDiff,
+  renderInlineDiffHtml,
+  pairDiffLines,
+  renderSideBySideDiffHtml,
+  renderDiffHtml,
   highlightedDiffLines,
 } = require('../../../viewer-src/main.js');
 
@@ -77,13 +81,17 @@ describe('highlightedDiffLines', () => {
     const htmls = highlightedDiffLines(hljs, hunk, 'python');
 
     // 変更行より後ろの文脈行は、旧版だけ／新版だけを描いたときと同じ色付けになる。
-    const plain = highlightedDiffLines(hljs, {
-      lines: [
-        { type: 'context', text: 's = """hi' },
-        { type: 'context', text: 'world"""' },
-        { type: 'context', text: 'import os' },
-      ],
-    }, 'python');
+    const plain = highlightedDiffLines(
+      hljs,
+      {
+        lines: [
+          { type: 'context', text: 's = """hi' },
+          { type: 'context', text: 'world"""' },
+          { type: 'context', text: 'import os' },
+        ],
+      },
+      'python',
+    );
     expect(htmls[3]).toBe(plain[2]);
     expect(htmls[3]).toContain('hljs-keyword');
   });
@@ -98,10 +106,16 @@ describe('parseUnifiedDiff', () => {
     expect(files[0].newPath).toBe('a.swift');
     expect(files[0].hunks).toHaveLength(1);
     expect(files[0].hunks[0].lines.map((l) => l.type)).toEqual([
-      'context', 'del', 'add', 'context',
+      'context',
+      'del',
+      'add',
+      'context',
     ]);
     expect(files[0].hunks[0].lines.map((l) => l.text)).toEqual([
-      'let a = 1', 'let b = 2', 'let b = 3', 'let c = 4',
+      'let a = 1',
+      'let b = 2',
+      'let b = 3',
+      'let c = 4',
     ]);
   });
 
@@ -126,11 +140,12 @@ describe('parseUnifiedDiff', () => {
 
     expect(file.oldPath).toBe('q.sql');
     expect(file.newPath).toBe('q.sql');
-    expect(file.hunks[0].lines.map((l) => l.type)).toEqual([
-      'context', 'del', 'add', 'context',
-    ]);
+    expect(file.hunks[0].lines.map((l) => l.type)).toEqual(['context', 'del', 'add', 'context']);
     expect(file.hunks[0].lines.map((l) => l.text)).toEqual([
-      'SELECT 1;', '-- old comment', '++ new comment', 'SELECT 2;',
+      'SELECT 1;',
+      '-- old comment',
+      '++ new comment',
+      'SELECT 2;',
     ]);
     expect(file.hunks[0].lines.map((l) => l.oldNumber)).toEqual([1, 2, null, 3]);
   });
@@ -298,11 +313,15 @@ describe('renderInlineDiffHtml', () => {
     expect(withNumbers).toContain('colspan="4"');
     expect(withoutNumbers).toContain('colspan="2"');
     // 先頭に区切りを置くと、境目が無いところに帯だけが出る。
-    expect(withNumbers.indexOf('diff-hunk-separator')).toBeGreaterThan(withNumbers.indexOf('diff-line'));
+    expect(withNumbers.indexOf('diff-hunk-separator')).toBeGreaterThan(
+      withNumbers.indexOf('diff-line'),
+    );
   });
 
   test('ハンクが 1 つだけなら区切り行を出さない', () => {
-    expect(renderInlineDiffHtml(null, SIMPLE_DIFF, 'swift', true)).not.toContain('diff-hunk-separator');
+    expect(renderInlineDiffHtml(null, SIMPLE_DIFF, 'swift', true)).not.toContain(
+      'diff-hunk-separator',
+    );
   });
 
   test('差分本文の HTML をエスケープする', () => {
@@ -353,23 +372,27 @@ describe('pairDiffLines', () => {
 
   test('文脈行は左右同じ行に並ぶ', () => {
     expect(pairDiffLines(lines(['context', 'context']))).toEqual([
-      { left: 0, right: 0 }, { left: 1, right: 1 },
+      { left: 0, right: 0 },
+      { left: 1, right: 1 },
     ]);
   });
 
   test('連続する削除と追加を対にする', () => {
     expect(pairDiffLines(lines(['del', 'del', 'add', 'add']))).toEqual([
-      { left: 0, right: 2 }, { left: 1, right: 3 },
+      { left: 0, right: 2 },
+      { left: 1, right: 3 },
     ]);
   });
 
   // 片側が多い場合、余った行は反対側を空にして並べる(行を詰めない)。
   test('数が揃わない場合は空マスで埋める', () => {
     expect(pairDiffLines(lines(['del', 'add', 'add']))).toEqual([
-      { left: 0, right: 1 }, { left: null, right: 2 },
+      { left: 0, right: 1 },
+      { left: null, right: 2 },
     ]);
     expect(pairDiffLines(lines(['del', 'del', 'add']))).toEqual([
-      { left: 0, right: 2 }, { left: 1, right: null },
+      { left: 0, right: 2 },
+      { left: 1, right: null },
     ]);
   });
 
@@ -446,7 +469,9 @@ describe('renderSideBySideDiffHtml', () => {
 
 describe('renderDiffHtml', () => {
   test('レイアウト名で 2 つの描画を選ぶ', () => {
-    expect(renderDiffHtml(null, SIMPLE_DIFF, 'swift', false, 'side-by-side')).toContain('diff-split');
+    expect(renderDiffHtml(null, SIMPLE_DIFF, 'swift', false, 'side-by-side')).toContain(
+      'diff-split',
+    );
     expect(renderDiffHtml(null, SIMPLE_DIFF, 'swift', false, 'inline')).not.toContain('diff-split');
   });
 

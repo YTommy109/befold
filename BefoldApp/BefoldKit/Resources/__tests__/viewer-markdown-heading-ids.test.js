@@ -34,7 +34,11 @@ function documentOf(html) {
 // 「href からキーを作り getElementById で引く」という同じ契約を検証する。
 function resolveAnchor(doc, href) {
   let id;
-  try { id = decodeURIComponent(href.slice(1)); } catch (_) { id = href.slice(1); }
+  try {
+    id = decodeURIComponent(href.slice(1));
+  } catch (_) {
+    id = href.slice(1);
+  }
   return doc.getElementById(id);
 }
 

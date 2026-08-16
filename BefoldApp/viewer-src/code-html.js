@@ -18,8 +18,13 @@ function highlightCode(hljs, str, lang) {
   if (hljs && lang && hljs.getLanguage(lang)) {
     try {
       var result = hljs.highlight(str, { language: lang, ignoreIllegals: true });
-      return '<pre><code class="hljs language-' + sanitizeLang(lang) + '">'
-        + result.value + '</code></pre>';
+      return (
+        '<pre><code class="hljs language-' +
+        sanitizeLang(lang) +
+        '">' +
+        result.value +
+        '</code></pre>'
+      );
     } catch (e) {
       // フォールバックへ
     }
@@ -106,7 +111,9 @@ function leadingIndentInfo(lineHtml, tabSize) {
       break;
     }
   }
-  if (!hasContent) { return { cols: 0, depth: 0 }; }
+  if (!hasContent) {
+    return { cols: 0, depth: 0 };
+  }
   return { cols: cols, depth: Math.floor(cols / tabSize) };
 }
 
@@ -114,9 +121,10 @@ function leadingIndentInfo(lineHtml, tabSize) {
 // ハンギングインデントとガイド描画用の CSS 変数を付与する(depth 0 の行は付けない)。
 function lineContentCell(lineHtml) {
   var info = leadingIndentInfo(lineHtml, CODE_TAB_SIZE);
-  var style = info.depth > 0
-    ? ' style="--indent-cols:' + info.cols + ';--indent-depth:' + info.depth + '"'
-    : '';
+  var style =
+    info.depth > 0
+      ? ' style="--indent-cols:' + info.cols + ';--indent-depth:' + info.depth + '"'
+      : '';
   return '<td class="line-content"' + style + '>' + lineHtml + '</td>';
 }
 
@@ -130,9 +138,7 @@ function buildLineNumberRows(codeHtml, startLine, showLineNumbers) {
   var lines = reflowSpanBalancedLines(codeHtml);
   var rows = '';
   for (var i = 0; i < lines.length; i++) {
-    var numberCell = withNumbers
-      ? '<td class="line-number">' + (startLine + i) + '</td>'
-      : '';
+    var numberCell = withNumbers ? '<td class="line-number">' + (startLine + i) + '</td>' : '';
     rows += '<tr>' + numberCell + lineContentCell(lines[i]) + '</tr>';
   }
   return rows;
@@ -141,8 +147,9 @@ function buildLineNumberRows(codeHtml, startLine, showLineNumbers) {
 // コード全文を行単位の <table> で包む(初回描画用)。
 // 行番号有無に関わらず常にこの行単位構造を使い、インデントガイドを描けるようにする。
 function wrapWithLineNumbers(codeHtml, showLineNumbers) {
-  return '<table class="code-table">'
-    + buildLineNumberRows(codeHtml, 1, showLineNumbers) + '</table>';
+  return (
+    '<table class="code-table">' + buildLineNumberRows(codeHtml, 1, showLineNumbers) + '</table>'
+  );
 }
 
 // 単一コードファイル全文のハイライト HTML を組み立てる。
@@ -177,7 +184,9 @@ function codeChunkInnerHtml(hljs, str, lang, contextStr) {
   if (contextStr) {
     var highlightedWithContext = highlightCode(hljs, contextStr + str, lang);
     if (highlightedWithContext) {
-      var inner = highlightedWithContext.replace(/^<pre><code[^>]*>/, '').replace(/<\/code><\/pre>$/, '');
+      var inner = highlightedWithContext
+        .replace(/^<pre><code[^>]*>/, '')
+        .replace(/<\/code><\/pre>$/, '');
       var lines = reflowSpanBalancedLines(inner);
       var contextLineCount = (contextStr.match(/\n/g) || []).length;
       var body = lines.slice(contextLineCount).join('\n');
@@ -195,12 +204,16 @@ function codeChunkInnerHtml(hljs, str, lang, contextStr) {
 // highlight.js に渡す用)。全文をスキャンせず末尾から lastIndexOf を
 // maxLines 回たどるだけなので、str が巨大でもコストは maxLines に比例する。
 function lastLines(str, maxLines) {
-  if (str.length === 0) { return ''; }
+  if (str.length === 0) {
+    return '';
+  }
   var idx = str.length - 1;
   var count = 0;
   while (count < maxLines) {
     var nl = str.lastIndexOf('\n', idx - 1);
-    if (nl === -1) { return str; }
+    if (nl === -1) {
+      return str;
+    }
     idx = nl;
     count++;
   }

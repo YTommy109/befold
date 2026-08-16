@@ -5,8 +5,5 @@
 // preset-typescript は型注釈を落とすだけで型検査はしない（TASK-432.4）。
 // 型検査は npm run typecheck:viewer（tsc --noEmit）が単独で担当する。
 module.exports = {
-  presets: [
-    ["@babel/preset-env", { targets: { node: "current" } }],
-    "@babel/preset-typescript",
-  ],
+  presets: [['@babel/preset-env', { targets: { node: 'current' } }], '@babel/preset-typescript'],
 };

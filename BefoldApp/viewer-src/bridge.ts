@@ -49,9 +49,12 @@ function _mmdPostMessage(name: ViewerMessageName, payload: object): boolean {
 // 未注入、またはキー未指定の場合はその機能が有効であるとみなす
 // (フラグを送らないホストは全機能サポートとして扱う後方互換のため)。
 function isHostFeatureEnabled(
-  hostFeatures: ViewerHostFeatures | undefined, key: keyof ViewerHostFeatures
+  hostFeatures: ViewerHostFeatures | undefined,
+  key: keyof ViewerHostFeatures,
 ): boolean {
-  if (!hostFeatures) { return true; }
+  if (!hostFeatures) {
+    return true;
+  }
   return hostFeatures[key] !== false;
 }
 

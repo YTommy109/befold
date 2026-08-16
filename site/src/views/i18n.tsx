@@ -1,6 +1,7 @@
 /** 言語ごとの URL で 1 言語だけを描くためのヘルパー（TASK-496）。 */
 
 import type { FC } from 'hono/jsx'
+
 import type { PageLang } from '../lib/pages'
 
 /** 日英の対を持つ値。データ側の `{ ja, en }` はすべてこの形に揃えてある。 */

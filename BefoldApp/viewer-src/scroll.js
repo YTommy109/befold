@@ -9,7 +9,9 @@ import { _mmdViewOptions } from './view-options.js';
 // スクロールコンテナになるため、都度どちらが実体かを見て決める。
 function _mmdScrollTarget() {
   var codeEl = document.querySelector('#diagram-wrap.code-body pre code');
-  if (codeEl) { return codeEl; }
+  if (codeEl) {
+    return codeEl;
+  }
   return document.querySelector('.viewer');
 }
 
@@ -23,35 +25,40 @@ function _createScrollSync(notify, docPathTracker) {
   var debounceTimer = null;
 
   function cancelPendingNotify() {
-    if (debounceTimer === null) { return; }
+    if (debounceTimer === null) {
+      return;
+    }
     clearTimeout(debounceTimer);
     debounceTimer = null;
   }
 
   return {
-    setRestore: function(position) { pendingRestore = position; },
+    setRestore: function (position) {
+      pendingRestore = position;
+    },
     // 復元位置が注入されている(=Swift 主導のファイル/モード切替)ときだけ保留中の
     // デバウンス通知を破棄する。無条件に破棄すると、Swift を経由しない内部再描画
     // (カラースキーム変更時など、ファイル/モードは変わらない)で直前のスクロール確定
     // 保存が失われたまま二度と発火しなくなるため。
     // 文書パスの採用も同じ時点で行う。破棄と採用が同時なので、旧文書の位置が
     // 新パスのキーで通知されることはない。
-    beginRender: function() {
-      if (pendingRestore !== null) { cancelPendingNotify(); }
+    beginRender: function () {
+      if (pendingRestore !== null) {
+        cancelPendingNotify();
+      }
       docPathTracker.adoptPending();
     },
     // 注入された復元位置があればそれを、無ければ fallback を返して消費する。
     // fallback は Swift を経由しない内部再描画で現在位置を保つための値。
-    takeRestorePosition: function(fallback) {
-      var position = (pendingRestore !== null)
-        ? pendingRestore
-        : (typeof fallback === 'number' ? fallback : 0);
+    takeRestorePosition: function (fallback) {
+      var position =
+        pendingRestore !== null ? pendingRestore : typeof fallback === 'number' ? fallback : 0;
       pendingRestore = null;
       return position;
     },
-    notifyDebounced: function() {
+    notifyDebounced: function () {
       cancelPendingNotify();
-      debounceTimer = setTimeout(function() {
+      debounceTimer = setTimeout(function () {
         debounceTimer = null;
         notify();
       }, 200);
@@ -70,7 +77,7 @@ function _mmdPostScrollPosition() {
   _mmdPostMessage(_MSG_SCROLL_POSITION_CHANGED, {
     position: el.scrollTop,
     mode: _mmdViewOptions.mode(),
-    path: _mmdDocPath.current()
+    path: _mmdDocPath.current(),
   });
 }
 
@@ -95,9 +102,13 @@ function _mmdRestoreScrollPosition(fallbackScrollTop) {
 // 破棄時にも最新の位置が保存されるよう継続的に送る(ファイル/モード切替直前の確定保存は
 // Swift 側が別途行う。上記コメント参照)。
 function _mmdInitScrollNotify() {
-  document.addEventListener('scroll', function() {
-    _mmdScroll.notifyDebounced();
-  }, true);
+  document.addEventListener(
+    'scroll',
+    function () {
+      _mmdScroll.notifyDebounced();
+    },
+    true,
+  );
 }
 
 export {

@@ -6,12 +6,18 @@
  * idx_events_kind が効く形を保つ。
  */
 
-import type { Channel, DownloadSource, EventKind, Page } from './schema'
 import { CHANNELS } from './lib/github'
 import { RECORDED_HOSTS } from './lib/hosts'
-import { JST_DAY_EXPR, JST_HOUR_EXPR, jstDayStart, jstDaysInWindow, jstWindowStart } from './lib/jst'
-import { BOT_PREFIX } from './lib/visitor'
+import {
+  JST_DAY_EXPR,
+  JST_HOUR_EXPR,
+  jstDayStart,
+  jstDaysInWindow,
+  jstWindowStart,
+} from './lib/jst'
 import { datacenterOrgMatch } from './lib/network'
+import { BOT_PREFIX } from './lib/visitor'
+import type { Channel, DownloadSource, EventKind, Page } from './schema'
 
 export type Count = { label: string; count: number }
 
@@ -195,7 +201,10 @@ export type RunningVersionKey = Channel | 'unrecorded'
  * 同じ理由）。
  */
 export const RUNNING_VERSION_LABELS: { key: RunningVersionKey; label: string }[] = [
-  ...CHANNELS.map((channel) => ({ key: channel as RunningVersionKey, label: CHANNEL_LABELS[channel] })),
+  ...CHANNELS.map((channel) => ({
+    key: channel as RunningVersionKey,
+    label: CHANNEL_LABELS[channel],
+  })),
   { key: 'unrecorded', label: 'アプリ（チャネル未記録）' },
 ]
 
@@ -761,7 +770,9 @@ type MetricBreakdownAxis = (typeof METRIC_BREAKDOWN_AXES)[number]
  * `eventBreakdowns` の列と同じ「増やす方向を行にして窓で切る」形で、軸を足しても
  * 発行本数は増えない。
  */
-async function metricBreakdowns(db: D1Database): Promise<Map<MetricBreakdownAxis, Map<MetricKey, Count[]>>> {
+async function metricBreakdowns(
+  db: D1Database,
+): Promise<Map<MetricBreakdownAxis, Map<MetricKey, Count[]>>> {
   const branches = METRIC_BREAKDOWN_AXES.map(
     (axis) =>
       `SELECT '${axis}' AS axis, ${METRIC_EXPR} AS metric, ${axis} AS label, COUNT(*) AS count
@@ -884,25 +895,24 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     recent,
     breakdownAxes,
     runningVersions,
-  ] =
-    await Promise.all([
-      cumulativeTotals(db),
-      todayTotals(db, now),
-      dailySeries(db, now),
-      hourlyDistribution(db, now),
-      breakdown(db, 'version', 'download'),
-      breakdown(db, 'country'),
-      breakdown(db, 'referrer'),
-      // ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を
-      // 実測するために持つ。TASK-360 で見送った llms.txt の要否判断に使う。
-      // データセンター区分の内訳は接続元組織で、除外した量が画面から
-      // 消えないようにするためのもの（ADR 0008）。
-      trafficSplit(db),
-      kindBreakdowns(db),
-      recentEvents(db),
-      eventBreakdowns(db),
-      runningVersionBreakdown(db, now),
-    ])
+  ] = await Promise.all([
+    cumulativeTotals(db),
+    todayTotals(db, now),
+    dailySeries(db, now),
+    hourlyDistribution(db, now),
+    breakdown(db, 'version', 'download'),
+    breakdown(db, 'country'),
+    breakdown(db, 'referrer'),
+    // ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を
+    // 実測するために持つ。TASK-360 で見送った llms.txt の要否判断に使う。
+    // データセンター区分の内訳は接続元組織で、除外した量が画面から
+    // 消えないようにするためのもの（ADR 0008）。
+    trafficSplit(db),
+    kindBreakdowns(db),
+    recentEvents(db),
+    eventBreakdowns(db),
+    runningVersionBreakdown(db, now),
+  ])
 
   return {
     windowDays: DAILY_WINDOW_DAYS,

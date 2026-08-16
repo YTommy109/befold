@@ -1,5 +1,6 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import app from '../src/index'
 import { SITE_PAGES } from '../src/lib/pages'
 import { pageSchema } from '../src/schema'
@@ -485,8 +486,12 @@ describe('OGP メタタグ', () => {
 
 describe('対象 OS の明示', () => {
   it('ファーストビューのリード文で Mac 専用だと分かる（各言語の URL で）', async () => {
-    const ja = (await (await call('/')).text()).match(/<section class="hero">([\s\S]*?)<\/section>/)?.[1]
-    const en = (await (await call('/en')).text()).match(/<section class="hero">([\s\S]*?)<\/section>/)?.[1]
+    const ja = (await (await call('/')).text()).match(
+      /<section class="hero">([\s\S]*?)<\/section>/,
+    )?.[1]
+    const en = (await (await call('/en')).text()).match(
+      /<section class="hero">([\s\S]*?)<\/section>/,
+    )?.[1]
 
     expect(ja).toContain('Mac 専用')
     expect(en).toContain('Mac-only')
@@ -808,15 +813,23 @@ describe('旧ホストからのリダイレクト', () => {
  */
 describe('新旧ホスト間の遷移の計測', () => {
   it('旧ホストからの遷移は参照元として記録しない', async () => {
-    await call('/', { Referer: 'https://befold.tommy109.workers.dev/' }, undefined,
-      'https://befold.degino.com')
+    await call(
+      '/',
+      { Referer: 'https://befold.tommy109.workers.dev/' },
+      undefined,
+      'https://befold.degino.com',
+    )
 
     expect((await latestEvent())?.referrer).toBeNull()
   })
 
   it('外部サイトからの流入は従来どおり参照元として記録する', async () => {
-    await call('/', { Referer: 'https://news.ycombinator.com/item?id=1' }, undefined,
-      'https://befold.degino.com')
+    await call(
+      '/',
+      { Referer: 'https://news.ycombinator.com/item?id=1' },
+      undefined,
+      'https://befold.degino.com',
+    )
 
     expect((await latestEvent())?.referrer).toBe('https://news.ycombinator.com')
   })
@@ -846,7 +859,9 @@ describe('ダウンロード導線のホスト非依存性', () => {
     const html = await (await call('/', {}, undefined, 'https://staging.befold.degino.com')).text()
     const json = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1]
 
-    expect(JSON.parse(json as string).downloadUrl).toBe('https://staging.befold.degino.com/download')
+    expect(JSON.parse(json as string).downloadUrl).toBe(
+      'https://staging.befold.degino.com/download',
+    )
   })
 })
 

@@ -1,10 +1,11 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import app from '../src/index'
+
 import { summarize } from '../src/analytics'
+import app from '../src/index'
 import { LEGACY_HOST, LEGACY_STAGING_HOST } from '../src/lib/hosts'
-import { installAccessKeys, removeAccessKeys } from './access-helpers'
 import { renderSummarySections } from '../src/views/dashboard'
+import { installAccessKeys, removeAccessKeys } from './access-helpers'
 
 /**
  * Access が付ける JWT ヘッダ。中身は beforeAll で埋める（署名に鍵生成が要る）。
@@ -244,8 +245,12 @@ describe('集計の表示', () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     expect(body).toContain('<h2>人間の訪問と自動アクセス（全期間の累計）</h2>')
-    expect(body).toContain('<span class="value">3</span><span class="label">ロボット（クローラ）</span>')
-    expect(body).toContain('<span class="value">1</span><span class="label">人間のクライアント</span>')
+    expect(body).toContain(
+      '<span class="value">3</span><span class="label">ロボット（クローラ）</span>',
+    )
+    expect(body).toContain(
+      '<span class="value">1</span><span class="label">人間のクライアント</span>',
+    )
 
     const humanTable = body.indexOf('人間: クライアント種別')
     const botTable = body.indexOf('ロボット: 種類別')
@@ -286,10 +291,7 @@ describe('集計の表示', () => {
     await seed('update_check')
 
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
-    const section = body.slice(
-      body.indexOf('<h2>ページ別の訪問'),
-      body.indexOf('<h2>言語別の訪問'),
-    )
+    const section = body.slice(body.indexOf('<h2>ページ別の訪問'), body.indexOf('<h2>言語別の訪問'))
 
     expect(section).toContain('データなし')
     expect(section).not.toContain('<td>/</td>')
@@ -407,7 +409,9 @@ describe('集計の表示', () => {
     expect(body).toContain(
       '<span class="value">2</span><span class="label">データセンター由来</span>',
     )
-    expect(body).toContain('<span class="value">1</span><span class="label">人間のクライアント</span>')
+    expect(body).toContain(
+      '<span class="value">1</span><span class="label">人間のクライアント</span>',
+    )
 
     // 除外した量が画面から消えないよう、接続元組織の内訳を出す。
     const table = body.indexOf('データセンター: 接続元組織別')

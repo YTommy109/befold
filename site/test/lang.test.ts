@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { summarizeLang } from '../src/lib/lang'
 
 describe('summarizeLang', () => {
