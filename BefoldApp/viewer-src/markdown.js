@@ -11,7 +11,7 @@ import { DOMPurify, hljs, markdownit } from './vendor.js';
 // javascript:/vbscript:/file:/画像以外の data: は既定どおり拒否し XSS を防ぐ。
 function isSafeLinkURL(url) {
   var str = String(url).trim().toLowerCase();
-  if (/^data:image\//.test(str)) {
+  if (str.startsWith('data:image/')) {
     return true;
   }
   return !/^(vbscript|javascript|file|data):/.test(str);

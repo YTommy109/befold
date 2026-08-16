@@ -525,7 +525,7 @@ describe('集計からのロボット除外', () => {
     // （人間側と自動アクセス側の両方を返し TS 側で分ける）、maxEventId
     // （生の id を返す SSE のカーソル）。
     const exempt = ['TRAFFIC_CLASS_EXPR', 'TRAFFIC_LABEL_EXPR', 'NON_HUMAN_MATCH', 'MAX(id)']
-    const windows = [...analyticsSource.matchAll(/FROM events/g)].map((match) =>
+    const windows = [...analyticsSource.matchAll(/FROM events/gu)].map((match) =>
       analyticsSource.slice(Math.max(0, (match.index ?? 0) - 200), (match.index ?? 0) + 400),
     )
 
@@ -536,20 +536,20 @@ describe('集計からのロボット除外', () => {
     }
 
     // 条件そのものは軸ごとに 1 箇所だけで定義される。
-    expect(analyticsSource.match(/LIKE '\$\{BOT_PREFIX\}%'/g)).toHaveLength(1)
-    expect(analyticsSource.match(/datacenterOrgMatch\(/g)).toHaveLength(1)
+    expect(analyticsSource.match(/LIKE '\$\{BOT_PREFIX\}%'/gu)).toHaveLength(1)
+    expect(analyticsSource.match(/datacenterOrgMatch\(/gu)).toHaveLength(1)
     // 接続元組織の判定を analytics.ts に手書きしない（定義元は lib/network.ts）。
-    expect(analyticsSource).not.toMatch(/as_org.*LIKE '%/)
+    expect(analyticsSource).not.toMatch(/as_org.*LIKE '%/u)
   })
 
   it('接続元組織の判定は配列ひとつから生成される', () => {
     // SQL 断片を手書きすると、パターンを足したときに片方だけ直る。
     const sql = datacenterOrgMatch()
-    expect(sql.match(/LIKE '%/g)).toHaveLength(DATACENTER_ORG_PATTERNS.length)
+    expect(sql.match(/LIKE '%/gu)).toHaveLength(DATACENTER_ORG_PATTERNS.length)
     for (const pattern of DATACENTER_ORG_PATTERNS) {
       expect(sql).toContain(`LIKE '%${pattern}%'`)
       // SQL へそのまま埋めるため、引用符とワイルドカードは持てない。
-      expect(pattern).not.toMatch(/['%_]/)
+      expect(pattern).not.toMatch(/['%_]/u)
       expect(isDatacenterOrg(`Example ${pattern} Inc.`)).toBe(true)
     }
     // NULL は「データセンターでない」ではなく「不明」。人間側に残す。
@@ -779,7 +779,9 @@ describe('最新イベントと SSE の差分配信', () => {
 
     expect(recent).toHaveLength(1)
     expect(streamed).toHaveLength(1)
-    expect(Object.keys(recent[0] ?? {}).sort()).toEqual(Object.keys(streamed[0] ?? {}).sort())
+    expect(Object.keys(recent[0] ?? {}).toSorted()).toEqual(
+      Object.keys(streamed[0] ?? {}).toSorted(),
+    )
     expect(recent[0]?.page).toBe('/features')
     expect(streamed[0]?.page).toBe('/features')
   })

@@ -17,10 +17,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const PACKAGE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
+const PACKAGE_DIR = join(import.meta.dirname, '..');
 const RESOURCES_DIR = join(PACKAGE_DIR, 'BefoldKit', 'Resources');
 
 // [npm パッケージ, パッケージ内のパス, 出力名, バナーを付けるか]

@@ -19,7 +19,7 @@ describe('visitorTokenHash', () => {
     const b = await visitorTokenHash('203.0.113.5', UA, Date.parse('2026-07-28T14:59:00Z'))
 
     expect(a).toBe(b)
-    expect(a).toMatch(/^[0-9a-f]{64}$/)
+    expect(a).toMatch(/^[0-9a-f]{64}$/u)
   })
 
   it('日付（JST）が変われば別のハッシュになる', async () => {
@@ -79,7 +79,7 @@ describe('稼働中のアプリバージョン', () => {
   })
 
   it('タグと違い v 接頭辞は付かない（events.version と意味が別）', () => {
-    expect(summarizeAppVersion(MEASURED_UA)).not.toMatch(/^v/)
+    expect(summarizeAppVersion(MEASURED_UA)).not.toMatch(/^v/u)
   })
 
   it('Sparkle 以外のクライアントでは null を返す', () => {

@@ -11,7 +11,7 @@ function isLocalPathHref(href) {
   if (href.charAt(0) === '#') {
     return false;
   }
-  var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*):/);
+  var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
   if (m && m[1].indexOf('.') === -1) {
     return false;
   } // http:, mailto:, tel: 等

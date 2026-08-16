@@ -210,7 +210,7 @@ export function parseSwiftFileTypes(source: string): ParsedFileTypeSource {
   const literalGroups = new Map<string, Set<string>>()
   const declarationNames: string[] = []
 
-  const declaration = /public static let ([A-Za-z0-9_]+)\s*(?::[^=]+)?=\s*/g
+  const declaration = /public static let ([A-Za-z0-9_]+)\s*(?::[^=]+)?=\s*/gu
   for (const match of source.matchAll(declaration)) {
     const name = match[1]
     if (name === undefined) continue
@@ -266,8 +266,8 @@ function readBracketLiteral(source: string, start: number): Set<string> | null {
 
   const body = source.slice(start + 1, end)
   // 辞書リテラルなら key だけを採る。判定は本文に `"...":` が現れるかどうか。
-  const isDictionary = /"[^"]*"\s*:/.test(body)
-  const pattern = isDictionary ? /"([^"]+)"\s*:/g : /"([^"]+)"/g
+  const isDictionary = /"[^"]*"\s*:/u.test(body)
+  const pattern = isDictionary ? /"([^"]+)"\s*:/gu : /"([^"]+)"/gu
   const found = captureAll(body, pattern)
 
   return found.length === 0 ? null : new Set(found)
@@ -281,7 +281,7 @@ function readBracketLiteral(source: string, start: number): Set<string> | null {
  */
 export function parseSwiftSizeLimitsMB(source: string): Map<string, number> {
   const limits = new Map<string, number>()
-  const pattern = /static let ([A-Za-z0-9_]+)\s*=\s*(\d+)\s*\*\s*1024\s*\*\s*1024\b/g
+  const pattern = /static let ([A-Za-z0-9_]+)\s*=\s*(\d+)\s*\*\s*1024\s*\*\s*1024\b/gu
 
   for (const match of source.matchAll(pattern)) {
     const [, name, megabytes] = match

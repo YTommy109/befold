@@ -85,7 +85,7 @@ function jstTimeOnDay(dayOffset, hour, minute, second) {
   return Date.parse(`${day}T${clock}+09:00`)
 }
 
-const quote = (value) => (value === null ? 'NULL' : `'${String(value).replace(/'/g, "''")}'`)
+const quote = (value) => (value === null ? 'NULL' : `'${String(value).replaceAll("'", "''")}'`)
 
 function buildRows() {
   const now = Date.now()

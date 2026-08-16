@@ -490,7 +490,7 @@ describe('集計の表示', () => {
 
     // 6 つの表（ページ / 表示言語 / ブラウザ言語設定 × 人間 / ロボット）すべてが
     // 空状態を出す。0 の行が並ぶ形にならないこともここで固定する。
-    expect(section.match(/データなし/g)).toHaveLength(6)
+    expect(section.match(/データなし/gu)).toHaveLength(6)
     expect(section).not.toContain('<td>0</td>')
   })
 })
@@ -673,7 +673,7 @@ describe('グラフ描画', () => {
     expect(body).toContain('<svg class="chart"')
     expect(body).toContain('<rect class="chart-bar chart-bar-1"')
     // 外部ホストへのリクエストを発生させない（インライン化されている）。
-    expect(body).not.toMatch(/<(script|link|img)[^>]+(src|href)="https?:/)
+    expect(body).not.toMatch(/<(script|link|img)[^>]+(src|href)="https?:/u)
   })
 
   it('系列ごとに別チャートを並べず、1 節 1 枚のグループ化バーチャートにまとめる', async () => {
@@ -684,8 +684,8 @@ describe('グラフ描画', () => {
     const daily = section(body, '日毎の推移')
     const hourly = section(body, '時間帯分布')
 
-    expect(daily.match(/<svg class="chart"/g)).toHaveLength(1)
-    expect(hourly.match(/<svg class="chart"/g)).toHaveLength(1)
+    expect(daily.match(/<svg class="chart"/gu)).toHaveLength(1)
+    expect(hourly.match(/<svg class="chart"/gu)).toHaveLength(1)
     // 日毎・時間帯とも 4 指標。ユニークは母集団が違うので別節へ分けてある。
     expect(daily).toContain('chart-bar-4')
     expect(daily).not.toContain('chart-bar-5')
@@ -722,7 +722,7 @@ describe('グラフ描画', () => {
     const unique = section(body, '日別のユニークアクセス元')
 
     // 母集団 4 系列（サイト訪問 / stable / develop / チャネル未記録）が 1 枚に並ぶ。
-    expect(unique.match(/<svg class="chart"/g)).toHaveLength(1)
+    expect(unique.match(/<svg class="chart"/gu)).toHaveLength(1)
     expect(unique).toContain('サイト訪問')
     expect(unique).toContain('アプリ（stable）')
     expect(unique).toContain('アプリ（develop）')
@@ -751,8 +751,8 @@ describe('グラフ描画', () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     // 直近 14 日 + 24 時間帯。
-    expect(section(body, '日毎の推移').match(/class="chart-label"/g)).toHaveLength(14)
-    expect(section(body, '時間帯分布').match(/class="chart-label"/g)).toHaveLength(24)
+    expect(section(body, '日毎の推移').match(/class="chart-label"/gu)).toHaveLength(14)
+    expect(section(body, '時間帯分布').match(/class="chart-label"/gu)).toHaveLength(24)
   })
 
   it('SSE で配信される HTML にもグラフと凡例が含まれる（再描画フックが要らない）', async () => {
@@ -835,12 +835,12 @@ describe('配布ホストと旧経路の表示', () => {
     await insertRow('legacy_redirect', 'befold.tommy109.workers.dev', null, 'bot:GPTBot')
     await insertRow('visit', 'befold.degino.com')
 
-    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
     // 冒頭の注記にもホスト名が出るので、表の行（<td>）側を見る。
-    const legacyCell = section.indexOf('<td>befold.tommy109.workers.dev</td>')
+    const legacyCell = hostHtml.indexOf('<td>befold.tommy109.workers.dev</td>')
     expect(legacyCell).toBeGreaterThan(-1)
-    expect(section.slice(legacyCell, legacyCell + 120)).toMatch(
-      /<td>befold\.tommy109\.workers\.dev<\/td>\s*<td>1<\/td>\s*<td>1<\/td>/,
+    expect(hostHtml.slice(legacyCell, legacyCell + 120)).toMatch(
+      /<td>befold\.tommy109\.workers\.dev<\/td>\s*<td>1<\/td>\s*<td>1<\/td>/u,
     )
   })
 
@@ -848,26 +848,26 @@ describe('配布ホストと旧経路の表示', () => {
     // 「まだ 0」と「そもそも計測していない」を画面で区別するため、行を落とさない。
     await insertRow('visit', 'befold.degino.com')
 
-    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
 
-    expect(section).toContain('befold.tommy109.workers.dev')
-    expect(section).toContain('staging.befold.degino.com')
-    expect(section).toContain('<td>0</td>')
+    expect(hostHtml).toContain('befold.tommy109.workers.dev')
+    expect(hostHtml).toContain('staging.befold.degino.com')
+    expect(hostHtml).toContain('<td>0</td>')
   })
 
   it('GitHub フォールバックを経路別に出す', async () => {
     await insertRow('github_fallback', 'befold.degino.com', 'appcast')
 
-    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
 
-    expect(section).toContain('appcast')
+    expect(hostHtml).toContain('appcast')
   })
 
   it('フォールバックが無ければ経路別は「データなし」になる', async () => {
     await insertRow('visit', 'befold.degino.com')
 
-    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
-    const fallbackTable = section.slice(section.indexOf('GitHub フォールバックの経路別'))
+    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const fallbackTable = hostHtml.slice(hostHtml.indexOf('GitHub フォールバックの経路別'))
 
     expect(fallbackTable).toContain('データなし')
   })

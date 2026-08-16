@@ -68,7 +68,7 @@ describe('自己ホスト集合', () => {
   const HOSTS = [CANONICAL_HOST, LEGACY_HOST, STAGING_HOST, LEGACY_STAGING_HOST]
 
   it('本番・staging の新旧 4 ホストを含む', () => {
-    expect([...SELF_HOSTS].sort()).toEqual([...HOSTS].sort())
+    expect([...SELF_HOSTS].toSorted()).toEqual([...HOSTS].toSorted())
   })
 
   it.each(

@@ -22,7 +22,7 @@
       dot.addEventListener('click', function () {
         goToSlide(index)
       })
-      dotsContainer.appendChild(dot)
+      dotsContainer.append(dot)
       return dot
     })
 

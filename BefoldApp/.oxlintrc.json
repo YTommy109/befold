@@ -96,6 +96,11 @@
       }
     },
     {
+      // babel は jest から CommonJS として読まれる。
+      "files": ["*.cjs"],
+      "env": { "node": true, "commonjs": true, "browser": false }
+    },
+    {
       // viewer のバンドル・ベンダーコピー・ライセンス検査を行う Node スクリプト。
       "files": ["scripts/**"],
       "plugins": ["node"],

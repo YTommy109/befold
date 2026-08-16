@@ -827,7 +827,7 @@ describe('ダイアグラム個別ズーム', () => {
   function wrapTwoDiagrams(loaded) {
     const diagramWrap = loaded.document.getElementById('diagram-wrap');
     diagramWrap.innerHTML =
-      '<pre class="mermaid">graph TD; A-->B;</pre>' + '<pre class="mermaid">graph TD; C-->D;</pre>';
+      '<pre class="mermaid">graph TD; A-->B;</pre><pre class="mermaid">graph TD; C-->D;</pre>';
     loaded.main._mmdWrapDiagrams(diagramWrap);
     return wraps(loaded.document);
   }

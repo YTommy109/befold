@@ -18,7 +18,7 @@ function parseUnifiedDiff(text) {
   var hunk = null;
   var oldNumber = 0;
   var newNumber = 0;
-  var lines = String(text == null ? '' : text).split('\n');
+  var lines = String(text ?? '').split('\n');
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
     if (line.indexOf('diff --git ') === 0) {

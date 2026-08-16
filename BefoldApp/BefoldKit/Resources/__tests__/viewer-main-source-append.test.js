@@ -11,7 +11,7 @@ const { loadViewerMain } = require('./support/viewerMainHarness');
 
 const MD = ['# title', '', 'see ./notes.md for details', ''].join('\n');
 
-async function renderIn(main, mode, content, type, lang) {
+function renderIn(main, mode, content, type, lang) {
   main.setViewMode(mode);
   return main.render(content, type, lang);
 }

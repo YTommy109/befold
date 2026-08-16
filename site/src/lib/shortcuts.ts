@@ -37,7 +37,7 @@ export type MenuShortcutItem = {
  */
 export function parseSwiftMenuShortcuts(source: string): MenuShortcutItem[] {
   const marker = 'addLocalizedItem('
-  const starts = [...source.matchAll(/addLocalizedItem\(/g)].map((match) => match.index)
+  const starts = [...source.matchAll(/addLocalizedItem\(/gu)].map((match) => match.index)
 
   const items: MenuShortcutItem[] = []
   starts.forEach((start, index) => {
@@ -74,14 +74,14 @@ function parseCallChunk(chunk: string): MenuShortcutItem | null {
   const first = readArgumentExpression(chunk, 0).expression
   // 表示モードの項目は第 1 引数も `mode.menuLabelKey` のような式で書かれている。
   // リテラルなら引用符を外し、式ならソースのまま残して一覧に現れるようにする。
-  const localizationKey = /^"([^"]*)"$/.exec(first)?.[1] ?? first
+  const localizationKey = /^"([^"]*)"$/u.exec(first)?.[1] ?? first
 
   const label = 'keyEquivalent:'
   const labelIndex = chunk.indexOf(label)
   if (labelIndex === -1) return null
 
   const { expression, end } = readArgumentExpression(chunk, labelIndex + label.length)
-  const modifiers = /^\s*,\s*modifiers:\s*\[([^\]]*)\]/.exec(chunk.slice(end))?.[1]
+  const modifiers = /^\s*,\s*modifiers:\s*\[([^\]]*)\]/u.exec(chunk.slice(end))?.[1]
 
   return {
     localizationKey,
@@ -144,7 +144,7 @@ function splitModifiers(source: string): string[] {
  */
 export function parseSwiftStringConstants(source: string): Map<string, string> {
   const constants = new Map<string, string>()
-  const pattern = /static let ([A-Za-z0-9_]+)\s*(?::\s*String\s*)?=\s*"([^"]*)"/g
+  const pattern = /static let ([A-Za-z0-9_]+)\s*(?::\s*String\s*)?=\s*"([^"]*)"/gu
 
   for (const match of source.matchAll(pattern)) {
     const [, name, value] = match
@@ -164,7 +164,7 @@ export function parseSwiftStringConstants(source: string): Map<string, string> {
  */
 export function parseSwiftMenuItemTags(source: string): Map<string, number> {
   const tags = new Map<string, number>()
-  for (const match of source.matchAll(/case \.([A-Za-z0-9_]+):\s*(\d+)\b/g)) {
+  for (const match of source.matchAll(/case \.([A-Za-z0-9_]+):\s*(\d+)\b/gu)) {
     const [, name, tag] = match
     if (name === undefined || tag === undefined) continue
     tags.set(name, Number(tag))
@@ -179,8 +179,8 @@ export function parseSwiftMenuItemTags(source: string): Map<string, number> {
  * メニューに現れる項目の並びと個数はこの配列が決める。
  */
 export function parseSwiftModeSegments(source: string): string[] {
-  const list = /static let all[^=]*=\s*\[([^\]]*)\]/.exec(source)?.[1] ?? ''
-  return [...list.matchAll(/\.([A-Za-z0-9_]+)/g)].flatMap((match) => match[1] ?? [])
+  const list = /static let all[^=]*=\s*\[([^\]]*)\]/u.exec(source)?.[1] ?? ''
+  return [...list.matchAll(/\.([A-Za-z0-9_]+)/gu)].flatMap((match) => match[1] ?? [])
 }
 
 /**
@@ -221,6 +221,6 @@ export function splitShortcutKeys(keys: string): string[] {
  */
 export function shortcutsInProse(prose: string): string[] {
   // 修飾キー記号に続く 1 文字がキー。区切り文字・句読点・HTML タグの開始で終端する。
-  const pattern = new RegExp(`[${MODIFIER_SYMBOLS}]+[^\\s、。,.（）()/<>&]`, 'g')
+  const pattern = new RegExp(`[${MODIFIER_SYMBOLS}]+[^\\s、。,.（）()/<>&]`, 'gu')
   return [...prose.matchAll(pattern)].map((match) => match[0])
 }

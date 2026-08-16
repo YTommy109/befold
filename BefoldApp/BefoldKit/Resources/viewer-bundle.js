@@ -14673,7 +14673,7 @@
     var hunk = null;
     var oldNumber = 0;
     var newNumber = 0;
-    var lines = String(text3 == null ? "" : text3).split("\n");
+    var lines = String(text3 ?? "").split("\n");
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
       if (line.indexOf("diff --git ") === 0) {
@@ -15536,7 +15536,7 @@
       }
       if (ranges.length === 0) return;
       var scopeFound = [];
-      ranges.reverse().forEach(function(range) {
+      ranges.toReversed().forEach(function(range) {
         var start = locate(textNodeList, starts, range.start, true);
         var end = locate(textNodeList, starts, range.end, false);
         var startAncestor = start.node.parentNode;
@@ -15847,7 +15847,7 @@
     if (href.charAt(0) === "#") {
       return false;
     }
-    var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*):/);
+    var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
     if (m && m[1].indexOf(".") === -1) {
       return false;
     }
@@ -23118,7 +23118,7 @@
   // viewer-src/markdown.js
   function isSafeLinkURL(url) {
     var str = String(url).trim().toLowerCase();
-    if (/^data:image\//.test(str)) {
+    if (str.startsWith("data:image/")) {
       return true;
     }
     return !/^(vbscript|javascript|file|data):/.test(str);

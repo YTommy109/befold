@@ -37,12 +37,18 @@ describe('events テーブル', () => {
   })
 
   it('未知の kind を弾く', () => {
-    expect(() => eventSchema.parse({ timestamp: 0, kind: 'unknown' })).toThrow()
+    // どう落ちたかまで固定する。型が合わない以外の理由（必須項目の欠落など）で
+    // 落ちても通ってしまう空の toThrow() にしない。
+    expect(() => eventSchema.parse({ timestamp: 0, kind: 'unknown' })).toThrow(
+      /invalid_enum_value/u,
+    )
   })
 
   it('列挙にないページを弾く', () => {
     // page は生パスではなく計上対象ページの列挙。増やすときはここを通す。
-    expect(() => eventSchema.parse({ timestamp: 0, kind: 'visit', page: '/pricing' })).toThrow()
+    expect(() => eventSchema.parse({ timestamp: 0, kind: 'visit', page: '/pricing' })).toThrow(
+      /invalid_enum_value/u,
+    )
     expect(eventSchema.parse({ timestamp: 0, kind: 'visit', page: '/features' }).page).toBe(
       '/features',
     )

@@ -10,7 +10,7 @@ const CERTS_URL = `https://${TEST_TEAM_DOMAIN}/cdn-cgi/access/certs`
 
 function toBase64Url(bytes: Uint8Array): string {
   let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
+  for (const byte of bytes) binary += String.fromCodePoint(byte)
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
 }
 

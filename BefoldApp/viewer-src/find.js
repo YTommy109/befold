@@ -209,7 +209,7 @@ function _createFindController() {
 
     var scopeFound = [];
     // Range 構築中に DOM を書き換えるとテキストノードがずれるため、末尾側から処理する。
-    ranges.reverse().forEach(function (range) {
+    ranges.toReversed().forEach(function (range) {
       var start = locate(textNodeList, starts, range.start, true);
       var end = locate(textNodeList, starts, range.end, false);
       // extractContents() は境界をまたぐマッチの端で、部分的にしか含まれない祖先要素

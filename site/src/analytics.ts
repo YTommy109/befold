@@ -711,7 +711,7 @@ function foldSplits<T extends { is_non_human: number; count: number }>(
     byLabel.set(label, split)
   }
 
-  return [...byLabel.values()].sort(
+  return [...byLabel.values()].toSorted(
     (a, b) => b.human + b.nonHuman - (a.human + a.nonHuman) || a.label.localeCompare(b.label),
   )
 }
@@ -928,6 +928,9 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     runningVersions,
     hosts: breakdownAxes.byHost,
     fallbacks: breakdownAxes.byFallback,
+    // 要素数は指標の数（KIND_LABELS）に固定で、ここでの spread が効いてくる規模に
+    // ならない。Object.assign へ書き換えると読みにくくなるだけなので許す。
+    // oxlint-disable-next-line oxc/no-map-spread
     perKind: breakdowns.map((entry) => ({ ...entry, total: cumulative.counts[entry.kind] })),
     recent,
   }

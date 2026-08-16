@@ -86,7 +86,9 @@ dashboardRoutes.get('/', async (c) => {
 dashboardRoutes.get('/stream', (c) => {
   // 再接続時は Last-Event-ID、初回はクエリの after から再開位置を決める。
   const resumeFrom = c.req.header('Last-Event-ID') ?? c.req.query('after') ?? '0'
-  let lastId = Number.parseInt(resumeFrom, 10)
+  // parseInt ではなく Number を使う。'12abc' のような値を 12 として受け取らず
+  // NaN にして下の判定で 0 へ倒すため（再開位置には自前で発行した id しか来ない）。
+  let lastId = Math.trunc(Number(resumeFrom))
   if (!Number.isFinite(lastId) || lastId < 0) lastId = 0
 
   const db = c.env.DB
@@ -98,6 +100,10 @@ dashboardRoutes.get('/stream', (c) => {
       controller.enqueue(encoder.encode(': connected\n\n'))
 
       try {
+        // ポーリングは 1 周ずつ順に進める。await を並行化する余地は無く（次の周期の
+        // 開始位置が前の周期の結果で決まる）、間隔を空けること自体が目的なので、
+        // このループでは no-await-in-loop を止める。
+        /* oxlint-disable eslint/no-await-in-loop */
         while (Date.now() < deadline) {
           // カーソルは生の最大 id で進める。eventsAfter はロボットの巡回を除いて
           // 返すため、返った行だけで再開位置を決めると、ボットしか来なかった周期で
@@ -124,8 +130,11 @@ dashboardRoutes.get('/stream', (c) => {
           }
           // 接続維持用のコメント（プロキシのアイドルタイムアウト対策）。
           controller.enqueue(encoder.encode(': keep-alive\n\n'))
-          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+          await new Promise((resolve) => {
+            setTimeout(resolve, POLL_INTERVAL_MS)
+          })
         }
+        /* oxlint-enable eslint/no-await-in-loop */
       } catch {
         // クライアント切断や D1 障害では静かに閉じ、ブラウザ側の再接続に任せる。
       } finally {

@@ -34,7 +34,6 @@ const {
   buildTableHtml,
   renderCsvSourceHtml,
   csvSourceInnerHtml,
-  CSV_COL_COUNT,
   isSafeLinkURL,
   isLocalPathHref,
   buildFindRegExp,
@@ -889,8 +888,6 @@ describe('buildTableHtml', () => {
 
   test('pads short rows with empty cells', () => {
     const html = buildTableHtml([['A', 'B', 'C'], ['1']]);
-    const tdCount =
-      (html.match(/<td>/g) || []).length + (html.match(/<td>[^<]*<\/td>/g) || []).length;
     // 1行目は th×3、2行目は td が 3 つ(うち 2 つは空)
     expect(html).toContain('<td>1</td>');
     expect(html.match(/<td><\/td>/g).length).toBe(2);
@@ -1289,7 +1286,7 @@ describe('csvRowsHtml', () => {
   test('builds tr/td rows and pads short rows up to minCols', () => {
     const html = csvRowsHtml([['a', 'b'], ['c']], 3);
     expect(html).toBe(
-      '<tr><td>a</td><td>b</td><td></td></tr>' + '<tr><td>c</td><td></td><td></td></tr>',
+      '<tr><td>a</td><td>b</td><td></td></tr><tr><td>c</td><td></td><td></td></tr>',
     );
   });
 

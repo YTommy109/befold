@@ -42,6 +42,9 @@ function decodeBase64Url(value: string): Uint8Array {
   const binary = atob(padded)
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i += 1) {
+    // atob の出力は 1 文字 = 1 バイト（0〜255）なので charCodeAt が正しい。
+    // codePointAt はサロゲートペアを 1 つの値にまとめるため、ここでは使えない。
+    // oxlint-disable-next-line unicorn/prefer-code-point
     bytes[i] = binary.charCodeAt(i)
   }
   return bytes
@@ -62,19 +65,23 @@ async function fetchKeys(teamDomain: string): Promise<Map<string, CryptoKey>> {
   if (!response.ok) throw new Error(`failed to fetch Access certs: ${response.status}`)
 
   const body = (await response.json()) as { keys?: AccessJwk[] }
-  const keys = new Map<string, CryptoKey>()
-  for (const jwk of body.keys ?? []) {
-    if (jwk.kid === undefined) continue
-    const key = await crypto.subtle.importKey(
-      'jwk',
-      jwk,
-      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-      false,
-      ['verify'],
-    )
-    keys.set(jwk.kid, key)
-  }
-  return keys
+  // 鍵は互いに独立しているので並行して取り込む。JWKS は鍵の回転時に複数本
+  // 返るため、順に await すると本数ぶん待ち時間が積み上がる。
+  const imported = await Promise.all(
+    (body.keys ?? [])
+      .filter((jwk): jwk is AccessJwk & { kid: string } => jwk.kid !== undefined)
+      .map(async (jwk) => {
+        const key = await crypto.subtle.importKey(
+          'jwk',
+          jwk,
+          { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+          false,
+          ['verify'],
+        )
+        return [jwk.kid, key] as const
+      }),
+  )
+  return new Map(imported)
 }
 
 /**

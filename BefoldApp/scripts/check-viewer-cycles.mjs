@@ -9,11 +9,10 @@
 // 見るので、import 文を独自にパースする実装とずれない。
 
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import esbuild from 'esbuild';
 
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const scriptDir = import.meta.dirname;
 const entry = path.join(scriptDir, '..', 'viewer-src', 'index.js');
 
 const result = esbuild.buildSync({

@@ -29,12 +29,12 @@ export async function visitorTokenHash(ip: string, ua: string, ts: number): Prom
 
 /** UA から OS 種別（と macOS のメジャーバージョン）だけを粗く抜き出す。 */
 export function summarizeOS(ua: string): string | null {
-  const mac = /Mac OS X (\d+)[._](\d+)/.exec(ua)
+  const mac = /Mac OS X (\d+)[._](\d+)/u.exec(ua)
   if (mac) return `macOS ${mac[1] ?? '0'}.${mac[2] ?? '0'}`
   if (ua.includes('Macintosh') || ua.includes('Darwin')) return 'macOS'
   if (ua.includes('Windows')) return 'Windows'
   if (ua.includes('Android')) return 'Android'
-  if (/iPhone|iPad|iPod/.test(ua)) return 'iOS'
+  if (/iPhone|iPad|iPod/u.test(ua)) return 'iOS'
   if (ua.includes('Linux')) return 'Linux'
   return null
 }
@@ -92,7 +92,7 @@ const BOT_TOKENS: { token: string; label: string }[] = [
 ]
 
 /** 既知トークンに当たらなくてもボットと判断する一般的な語。 */
-const GENERIC_BOT_PATTERN = /bot\b|bot\/|crawler|crawling|spider|scraper|slurp|feedfetcher/
+const GENERIC_BOT_PATTERN = /bot\b|bot\/|crawler|crawling|spider|scraper|slurp|feedfetcher/u
 
 /**
  * UA がボットなら分類名を、そうでなければ null を返す。
@@ -130,7 +130,8 @@ export function summarizeUA(ua: string): string | null {
  * 版もバージョン様の形に限る。プレリリース識別子は `-dev.4` 以外
  * （`-beta.1` など）も将来ありうるため形だけを縛り、値は列挙しない。
  */
-const APP_VERSION_PATTERN = /^befold\/(\d{1,4}\.\d{1,4}\.\d{1,4}(?:-[0-9A-Za-z.]{1,20})?) Sparkle\//
+const APP_VERSION_PATTERN =
+  /^befold\/(\d{1,4}\.\d{1,4}\.\d{1,4}(?:-[0-9A-Za-z.]{1,20})?) Sparkle\//u
 
 /**
  * Sparkle の UA から**そのリクエストを出したアプリの稼働バージョン**を取り出す。

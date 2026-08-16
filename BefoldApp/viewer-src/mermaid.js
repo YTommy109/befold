@@ -57,6 +57,8 @@ function _mmdEnsureMermaidLoaded() {
       reject(new Error('mermaid.min.js failed to load'));
     };
     document.head.appendChild(script);
+    // 連鎖の終端で、戻り値は誰も見ない（呼び出し側は完了だけを待つ）。
+    // oxlint-disable-next-line promise/always-return
   }).then(function () {
     mermaid.initialize(_mmdMermaidConfig());
     mermaid.parseError = _mmdMermaidParseError;

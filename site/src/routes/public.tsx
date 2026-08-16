@@ -81,7 +81,7 @@ publicRoutes.get('/download', async (c) => {
  * リクエストのパスをそのままキーへ連結すると、バケット内の配信対象でない
  * オブジェクト（latest.json など）まで読み出せてしまう。
  */
-publicRoutes.get('/dl/:tag/:file', async (c) => {
+publicRoutes.get('/dl/:tag/:file', (c) => {
   const tag = c.req.param('tag')
   const file = c.req.param('file')
   const channel = tag.includes('-') ? 'develop' : 'stable'
@@ -131,6 +131,10 @@ publicRoutes.get('/robots.txt', (c) => {
   return c.text(body, 200, { 'Cache-Control': 'public, max-age=3600' })
 })
 
+/** sitemap の priority / changefreq。LP を最上位に置く。 */
+const priorityOf = (page: string): string => (page === '/' ? '1.0' : '0.8')
+const changefreqOf = (page: string): string => (page === '/' ? 'weekly' : 'monthly')
+
 /**
  * sitemap。`SITE_PAGES` の全バリアントを列挙し、相互の対応を xhtml:link で示す。
  *
@@ -140,8 +144,6 @@ publicRoutes.get('/robots.txt', (c) => {
  */
 publicRoutes.get('/sitemap.xml', (c) => {
   const { origin } = new URL(c.req.url)
-  const priorityOf = (page: string): string => (page === '/' ? '1.0' : '0.8')
-  const changefreqOf = (page: string): string => (page === '/' ? 'weekly' : 'monthly')
   const entries = SITE_PAGES.map((entry) => {
     const alternates = variantsOf(entry.page)
       .map(

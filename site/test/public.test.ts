@@ -437,7 +437,7 @@ describe('プライバシー', () => {
     expect(stored).not.toContain('AppleWebKit')
     expect(event?.os).toBe('macOS 14.5')
     expect(event?.ua_summary).toBe('Safari')
-    expect(event?.visitor_token).toMatch(/^[0-9a-f]{64}$/)
+    expect(event?.visitor_token).toMatch(/^[0-9a-f]{64}$/u)
   })
 })
 
@@ -474,8 +474,8 @@ describe('OGP メタタグ', () => {
   it('og:title と og:description は title / description と同じ文字列にする', async () => {
     const html = await (await call('/')).text()
 
-    const title = html.match(/<title>(.*?)<\/title>/)?.[1]
-    const description = html.match(/<meta name="description" content="(.*?)"\/>/)?.[1]
+    const title = html.match(/<title>(.*?)<\/title>/u)?.[1]
+    const description = html.match(/<meta name="description" content="(.*?)"\/>/u)?.[1]
 
     expect(title).toBeTruthy()
     expect(description).toBeTruthy()
@@ -487,10 +487,10 @@ describe('OGP メタタグ', () => {
 describe('対象 OS の明示', () => {
   it('ファーストビューのリード文で Mac 専用だと分かる（各言語の URL で）', async () => {
     const ja = (await (await call('/')).text()).match(
-      /<section class="hero">([\s\S]*?)<\/section>/,
+      /<section class="hero">([\s\S]*?)<\/section>/u,
     )?.[1]
     const en = (await (await call('/en')).text()).match(
-      /<section class="hero">([\s\S]*?)<\/section>/,
+      /<section class="hero">([\s\S]*?)<\/section>/u,
     )?.[1]
 
     expect(ja).toContain('Mac 専用')
@@ -506,7 +506,7 @@ describe('対象 OS の明示', () => {
       ['/en', 'Requires macOS 14 (Sonoma) or later'],
     ]) {
       const html = await (await call(path as string)).text()
-      const hero = html.match(/<section class="hero">([\s\S]*?)<\/section>/)?.[1] ?? ''
+      const hero = html.match(/<section class="hero">([\s\S]*?)<\/section>/u)?.[1] ?? ''
 
       expect(hero, path).toContain(note)
       // 注記はボタンより後ろに置き、クリック前に目に入るようにする。
@@ -518,7 +518,7 @@ describe('対象 OS の明示', () => {
 describe('構造化データ (JSON-LD)', () => {
   it('SoftwareApplication として macOS 専用・ダウンロード先を示す', async () => {
     const html = await (await call('/')).text()
-    const json = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1]
+    const json = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/u)?.[1]
 
     expect(json).toBeTruthy()
     const data = JSON.parse(json as string)
@@ -531,8 +531,8 @@ describe('構造化データ (JSON-LD)', () => {
 
   it('description は <meta name="description"> と同じ文字列にする', async () => {
     const html = await (await call('/')).text()
-    const description = html.match(/<meta name="description" content="(.*?)"\/>/)?.[1]
-    const json = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1]
+    const description = html.match(/<meta name="description" content="(.*?)"\/>/u)?.[1]
+    const json = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/u)?.[1]
 
     expect(JSON.parse(json as string).description).toBe(description)
   })
@@ -560,7 +560,7 @@ describe('robots.txt / sitemap.xml', () => {
     for (const entry of SITE_PAGES) {
       expect(body, entry.path).toContain(`<loc>https://befold.example${entry.path}</loc>`)
     }
-    expect(body.match(/<loc>/g)).toHaveLength(SITE_PAGES.length)
+    expect(body.match(/<loc>/gu)).toHaveLength(SITE_PAGES.length)
     expect(body).not.toContain('/dashboard')
     expect(body).not.toContain('/healthz')
   })
@@ -603,7 +603,7 @@ describe('GET /features', () => {
     expect(body).not.toContain('Supported File Types')
     expect(body).not.toContain('Keyboard Shortcuts')
     // hidden で隠す旧方式が復活していないことも同時に見る。
-    expect(body).not.toMatch(/lang="en"[^>]*hidden/)
+    expect(body).not.toMatch(/lang="en"[^>]*hidden/u)
   })
 
   it('対応ファイルタイプ表に主要な拡張子が並ぶ', async () => {
@@ -623,7 +623,7 @@ describe('GET /features', () => {
 
   it('FAQPage の JSON-LD を出力する', async () => {
     const body = await (await call('/features')).text()
-    const json = body.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1]
+    const json = body.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/u)?.[1]
 
     expect(json).toBeTruthy()
     const data = JSON.parse(json as string)
@@ -850,14 +850,14 @@ describe('ダウンロード導線のホスト非依存性', () => {
         const body = await (await call(path, {}, undefined, origin)).text()
 
         expect(body).toContain('href="/download"')
-        expect(body).not.toMatch(/href="https?:\/\/[^"]*\/download"/)
+        expect(body).not.toMatch(/href="https?:\/\/[^"]*\/download"/u)
       }
     },
   )
 
   it('JSON-LD の downloadUrl はリクエスト origin から組む', async () => {
     const html = await (await call('/', {}, undefined, 'https://staging.befold.degino.com')).text()
-    const json = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1]
+    const json = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/u)?.[1]
 
     expect(JSON.parse(json as string).downloadUrl).toBe(
       'https://staging.befold.degino.com/download',
@@ -880,14 +880,14 @@ describe('言語ごとの URL（SITE_PAGES からの導出）', () => {
     // ところなので、集合の一致で固定する。
     for (const entry of SITE_PAGES) {
       const html = await (await call(entry.path)).text()
-      const found = [...html.matchAll(/<link rel="alternate" hreflang="(\w+)" href="([^"]+)"\/>/g)]
+      const found = [...html.matchAll(/<link rel="alternate" hreflang="(\w+)" href="([^"]+)"\/>/gu)]
       const expected = SITE_PAGES.filter((variant) => variant.page === entry.page)
 
-      expect(found.map((match) => match[2]).sort(), entry.path).toEqual(
-        expected.map((variant) => `https://befold.example${variant.path}`).sort(),
+      expect(found.map((match) => match[2]).toSorted(), entry.path).toEqual(
+        expected.map((variant) => `https://befold.example${variant.path}`).toSorted(),
       )
-      expect(found.map((match) => match[1]).sort(), entry.path).toEqual(
-        expected.map((variant) => variant.lang).sort(),
+      expect(found.map((match) => match[1]).toSorted(), entry.path).toEqual(
+        expected.map((variant) => variant.lang).toSorted(),
       )
     }
   })
@@ -946,7 +946,7 @@ describe('言語ごとの URL（SITE_PAGES からの導出）', () => {
     const html = await (await call('/features')).text()
 
     expect(html).toContain('href="/en/features"')
-    expect(html).toMatch(/<a[^>]*class="lang-btn"[^>]*href="\/features"[^>]*aria-current="page"/)
+    expect(html).toMatch(/<a[^>]*class="lang-btn"[^>]*href="\/features"[^>]*aria-current="page"/u)
   })
 
   it('SITE_PAGES の page がすべて pageSchema の列挙に含まれる', () => {

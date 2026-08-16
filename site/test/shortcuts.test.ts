@@ -129,11 +129,11 @@ const EXPECTED_MENU_ITEMS: {
 
 /** `BookmarkShortcut.keyEquivalent` のような定数参照を、実際のキーへ解決する。 */
 function resolveKeyEquivalent(expression: string): string | null {
-  const literal = /^"(.*)"$/.exec(expression)?.[1]
+  const literal = /^"(.*)"$/u.exec(expression)?.[1]
   // Swift のエスケープを戻す（差分レイアウトの `"\\"` は 1 文字の `\`）。
-  if (literal !== undefined) return literal.replace(/\\(.)/g, '$1')
+  if (literal !== undefined) return literal.replaceAll(/\\(.)/gu, '$1')
 
-  const constant = /^BookmarkShortcut\.([A-Za-z0-9_]+)$/.exec(expression)?.[1]
+  const constant = /^BookmarkShortcut\.([A-Za-z0-9_]+)$/u.exec(expression)?.[1]
   if (constant === undefined) return null
 
   return parseSwiftStringConstants(env.TEST_BOOKMARK_SHORTCUT_SWIFT).get(constant) ?? null
@@ -173,12 +173,14 @@ async function pageBody(path: string): Promise<string> {
 }
 
 function sorted(values: Iterable<string>): string[] {
-  return [...values].sort()
+  return [...values].toSorted()
 }
 
 /** ファイル分割によるソース順の違いを無視するため、ローカライズキーで整列する。 */
 function byLocalizationKey<T extends { localizationKey: string }>(items: readonly T[]): T[] {
-  return [...items].sort((left, right) => left.localizationKey.localeCompare(right.localizationKey))
+  return [...items].toSorted((left, right) =>
+    left.localizationKey.localeCompare(right.localizationKey),
+  )
 }
 
 describe('MainMenuBuilder.swift のパース', () => {

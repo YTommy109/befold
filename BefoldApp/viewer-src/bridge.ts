@@ -39,6 +39,9 @@ type ViewerMessageName =
 // 送れなかった場合にその状態変更を取り消せるようにするため)。
 function _mmdPostMessage(name: ViewerMessageName, payload: object): boolean {
   if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers[name]) {
+    // WKWebView のスクリプトメッセージ経路であって window.postMessage ではない。
+    // targetOrigin という引数がそもそも無い。
+    // oxlint-disable-next-line unicorn/require-post-message-target-origin
     window.webkit.messageHandlers[name].postMessage(payload);
     return true;
   }
