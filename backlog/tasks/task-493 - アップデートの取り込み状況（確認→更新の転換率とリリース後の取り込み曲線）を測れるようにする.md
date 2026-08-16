@@ -2,12 +2,14 @@
 id: TASK-493
 title: アップデートの取り込み状況（確認→更新の転換率とリリース後の取り込み曲線）を測れるようにする
 status: To Do
-assignee: []
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-16 02:39'
+updated_date: '2026-08-16 08:25'
 labels: []
 milestone: m-7
 dependencies:
-  - TASK-491.2
+  - TASK-500
 priority: medium
 ordinal: 731000
 ---
@@ -58,3 +60,73 @@ ordinal: 731000
 - [ ] #7 summarize() の発行クエリ数が既存の上限テストを超えない
 - [ ] #8 site の vitest と typecheck が通る
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## 指標の定義
+
+### 1. 更新転換率（同日ユニーク基準・チャネル別）
+
+- 分母: その日に update_check を送ったユニーク visitor_token 数（TASK-494 の
+  UNIQUE_SOURCE_FILTERS.update_check_<ch> と同じ母集団）
+- 分子: 同じ日・同じチャネルで update_check と download(source='sparkle') の
+  **両方**を持つユニーク visitor_token 数（積集合）
+- 併記: 「確認の記録がない更新」（dl かつ not chk）のユニーク数
+
+分子を積集合にする理由（実測）: 本番 D1 に dl_only が実在する（2026-08-14 stable
+1 件 / 2026-08-13 stable 1 件）。単純な dl/chk は 100% を超えうる。visitor_token は
+生 UA をハッシュ材料に含むため（visitor.ts:24-28）、appcast 取得と DMG 取得で
+UA が変われば別トークンになる。この取りこぼしを率の中に隠さず別系列で出す。
+
+指標名は「確認から更新まで進んだアクセス元の割合」とし、分母の実数を併記する
+（AC #2）。「利用者の割合」とは言わない。
+
+### 2. リリース後の取り込み曲線（タグ別・チャネル別）
+
+- 0 日目の起点: そのタグの sparkle download の**初出時刻**（events 内 MIN）
+- 経過日ごとの累積ユニーク visitor_token 数
+- 率は出さず実数のみ（AC #8 の母数の小ささ: 実測でタグ単位ほぼ n=1、最大 3）
+
+## クエリ本数（AC #7: MAX_QUERIES=13 を超えない）
+
+現状 13 本で満杯。新指標は token 単位／tag 単位に畳む必要があり、既存の
+日別推移クエリ（行単位の CASE）には相乗りできない。
+
+**先に単純化して枠を空ける**: breakdown() が version / country / referrer で
+3 本発行しているのを、metricBreakdowns と同じ形（軸を UNION ALL で行に落とし
+ROW_NUMBER() OVER (PARTITION BY axis) で上位 N を切る）で 1 本に畳む。
+13 → 11 本。ここへ新指標 1 本（updateFlow）を入れて 12 本。
+
+updateFlow は UNION ALL の 2 枝を 1 本で引く:
+- 枝 conversion: day / channel / chk_uniq / both_uniq / dl_only_uniq
+- 枝 adoption: tag / channel / 経過日 / 累積ユニーク
+
+## 実装順
+
+1. breakdown() 3 本を 1 本へ畳む（単純化。指標を足す前に枠を空ける）
+2. updateFlow クエリと型を追加（HUMAN_ONLY を必ず通す）
+3. ダッシュボードに「アップデートの取り込み」セクションを追加。
+   転換率は分母の実数併記、取り込み曲線は実数のみ、チャネル別に分ける
+4. テスト: analytics（積集合の分子・dl_only・チャネル分離・窓の境界・ボット除外）、
+   dashboard（表示文言）、query-count（内訳コメント更新、本数 12）
+5. リリース公開日の求め方とその限界を Implementation Notes に記録（AC #4）
+6. 新しい記録列を追加せずに済んだことを Implementation Notes に記録（AC #6）
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 着手条件（TASK-500 待ち）
+
+**TASK-500（ダッシュボードの複数ページ分割）が完了すれば着手できる。**
+
+理由: 本タスクは 13 個目のセクションを追加する変更だが、ダッシュボードは既に
+1 ページ 12 セクション・13 クエリで `MAX_QUERIES = 13`（site/test/query-count.test.ts:44）が
+満杯。先に指標を足すと、13 セクションの状態から分割することになり、割り振りと
+テスト修正が一度余計に増える。ユーザー判断により分割を先行させる（2026-08-16）。
+
+TASK-500 完了後、本タスクの新セクションは分割後の該当ページへ載せる。
+下の Implementation Plan のうち「breakdown() 3 本を 1 本へ畳んで枠を空ける」手順は、
+TASK-500 でクエリ本数の上限がページ単位になれば不要になる可能性がある。着手時に再判断する。
+<!-- SECTION:NOTES:END -->
