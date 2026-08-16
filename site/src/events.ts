@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import type { AppEnv } from './index'
-import { eventSchema, type DownloadSource, type EventKind } from './schema'
+import { eventSchema, type DownloadSource, type EventKind, type Page } from './schema'
+import { summarizeLang } from './lib/lang'
 import { selfHostsFor } from './lib/hosts'
 import { resolveReferrer } from './lib/referrer'
 import { summarizeOS, summarizeUA, visitorTokenHash } from './lib/visitor'
@@ -12,12 +13,21 @@ export type EventAttributes = {
   channel?: 'stable' | 'develop' | null
   /** kind='download' のときのみ指定する発生経路。 */
   source?: DownloadSource | null
+  /**
+   * kind='visit' のときのみ指定する訪問先ページ。
+   *
+   * リクエスト URL から導出しない。`/dl/:tag/:file` のようにパスがパラメータを
+   * 含む経路があり、導出にするとページ内訳のカーディナリティが発散するため、
+   * 計上したいページを呼び出し側が明示する（`source` と同じ持ち方）。
+   */
+  page?: Page | null
 }
 
 const INSERT_SQL =
   'INSERT INTO events' +
-  ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org, source)' +
-  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer,' +
+  ' as_org, source, page, browser_lang)' +
+  ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 
 /**
  * リクエストから計測イベントを組み立てて D1 に記録する。
@@ -53,6 +63,10 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
       // undefined になり得るため、欠落時は記録処理自体を止めず null にする。
       asOrg: c.req.raw.cf?.asOrganization ?? null,
       source: attributes.source ?? null,
+      page: attributes.page ?? null,
+      // 言語は kind を問わずリクエストから導出する。Accept-Language を送らない
+      // クライアント（Sparkle など）では null になる。
+      browserLang: summarizeLang(c.req.header('Accept-Language') ?? null),
     })
 
     await c.env.DB.prepare(INSERT_SQL)
@@ -68,6 +82,8 @@ async function insertEvent(c: Context<AppEnv>, attributes: EventAttributes): Pro
         event.referrer,
         event.asOrg,
         event.source,
+        event.page,
+        event.browserLang,
       )
       .run()
   } catch (error) {

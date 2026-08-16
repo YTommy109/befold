@@ -6,7 +6,7 @@
  * idx_events_kind が効く形を保つ。
  */
 
-import type { DownloadSource, EventKind } from './schema'
+import type { DownloadSource, EventKind, Page } from './schema'
 import { JST_DAY_EXPR, JST_HOUR_EXPR, jstDayStart, jstDaysInWindow, jstWindowStart } from './lib/jst'
 import { BOT_PREFIX } from './lib/visitor'
 
@@ -39,13 +39,36 @@ export type MetricKey = EventKind | 'update_download'
  * 通るダウンロードは LP 経由しか存在しなかった。`COALESCE(source, 'lp')` は
  * その事実を表しており、過去データを含めた `download` 系列の意味を保つ。
  */
-type MetricFilter = { kind: EventKind; source: DownloadSource | null }
+type MetricFilter = { kind: EventKind; source: DownloadSource | null; page: Page | null }
 
 const METRIC_FILTERS: Record<MetricKey, MetricFilter> = {
-  visit: { kind: 'visit', source: null },
-  download: { kind: 'download', source: 'lp' },
-  update_download: { kind: 'download', source: 'sparkle' },
-  update_check: { kind: 'update_check', source: null },
+  // 「ページアクセス」は LP への訪問だけを数える。TASK-488.1 で /features も
+  // visit として記録し始めたが、この系列は LP からの新規獲得を測るものなので
+  // 意味と過去データの連続性を保つために page で絞る。ページ別の内訳は別系列。
+  visit: { kind: 'visit', source: null, page: '/' },
+  download: { kind: 'download', source: 'lp', page: null },
+  update_download: { kind: 'download', source: 'sparkle', page: null },
+  update_check: { kind: 'update_check', source: null, page: null },
+}
+
+/**
+ * 指標 1 つを SQL の条件式にする。**指標の述語はここだけで組み立てる。**
+ *
+ * `METRIC_EXPR`（内訳）・`metricCondition`（WHERE）・`KIND_COUNT_COLUMNS`（件数）の
+ * 3 者が同じ述語を必要とする。かつては件数側だけが手書きで、page 列を足したときに
+ * そこだけ同期漏れを起こす形だった。埋め込む値は `METRIC_FILTERS` の定数だけで、
+ * 外部入力は入らない。
+ *
+ * `COALESCE(page, '/')` は `kind = 'visit'` と同じ式の中にしか現れない。page が
+ * NULL の行には「列の導入前の visit（当時は LP のみ）」と「ページの概念が無い
+ * download / update_check」の 2 種類があり、後者に '/' を与えると嘘になるため
+ * （schema/schema.sql の page 列コメント）。この構造なら kind を伴わずに page 条件
+ * だけを書く形にはならない。
+ */
+function metricExpression({ kind, source, page }: MetricFilter): string {
+  const bySource = source === null ? '' : ` AND COALESCE(source, 'lp') = '${source}'`
+  const byPage = page === null ? '' : ` AND COALESCE(page, '/') = '${page}'`
+  return `kind = '${kind}'${bySource}${byPage}`
 }
 
 /**
@@ -56,10 +79,7 @@ const METRIC_FILTERS: Record<MetricKey, MetricFilter> = {
  * 外部入力は入らない。判定の定義元を二重に持たないよう、条件はここで組み立てる。
  */
 const METRIC_EXPR = `CASE ${Object.entries(METRIC_FILTERS)
-  .map(([metric, { kind, source }]) => {
-    const bySource = source === null ? '' : ` AND COALESCE(source, 'lp') = '${source}'`
-    return `WHEN kind = '${kind}'${bySource} THEN '${metric}'`
-  })
+  .map(([metric, filter]) => `WHEN ${metricExpression(filter)} THEN '${metric}'`)
   .join(' ')} END`
 
 /** 指標ごとの件数。 */
@@ -145,27 +165,26 @@ const BOT_MATCH = `COALESCE(ua_summary, '') LIKE '${BOT_PREFIX}%'`
  */
 const HUMAN_ONLY = `NOT ${BOT_MATCH}`
 
-/** 種別ごとの件数を 1 行から取り出すための SELECT 句。 */
-const KIND_COUNT_COLUMNS =
-  `SUM(kind = 'visit')        AS visits,
-   SUM(kind = 'download' AND COALESCE(source, 'lp') = 'lp')      AS downloads,
-   SUM(kind = 'download' AND COALESCE(source, 'lp') = 'sparkle') AS update_downloads,
-   SUM(kind = 'update_check') AS update_checks`
+/**
+ * 種別ごとの件数を 1 行から取り出すための SELECT 句。
+ *
+ * 述語は書き写さず `metricExpression` から組み立てる。列名は指標キーそのものを
+ * 使い、`toKindCounts` の対応表も指標キーから作る（片方だけ増えると型で落ちる）。
+ */
+const KIND_COUNT_COLUMNS = metricKeys()
+  .map((metric) => `SUM(${metricExpression(METRIC_FILTERS[metric])}) AS ${metric}`)
+  .join(', ')
 
-type KindCountRow = {
-  visits: number | null
-  downloads: number | null
-  update_downloads: number | null
-  update_checks: number | null
+type KindCountRow = Partial<Record<MetricKey, number | null>>
+
+function metricKeys(): MetricKey[] {
+  return Object.keys(METRIC_FILTERS) as MetricKey[]
 }
 
 function toKindCounts(row: KindCountRow | null): KindCounts {
-  return {
-    visit: row?.visits ?? 0,
-    download: row?.downloads ?? 0,
-    update_download: row?.update_downloads ?? 0,
-    update_check: row?.update_checks ?? 0,
-  }
+  const counts = {} as KindCounts
+  for (const metric of metricKeys()) counts[metric] = row?.[metric] ?? 0
+  return counts
 }
 
 /** 全期間の累計（種別ごとの件数と、訪問者 × 日の延べ数）。 */
@@ -263,9 +282,7 @@ type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer' | 'as_org'
 function metricCondition(metric: MetricKey | null): string {
   if (metric === null) return ''
 
-  const { kind, source } = METRIC_FILTERS[metric]
-  const bySource = source === null ? '' : ` AND COALESCE(source, 'lp') = '${source}'`
-  return ` AND kind = '${kind}'${bySource}`
+  return ` AND ${metricExpression(METRIC_FILTERS[metric])}`
 }
 
 /** 指定カラムの内訳（上位 N 件、NULL は除外）。 */

@@ -38,4 +38,12 @@ describe('events テーブル', () => {
   it('未知の kind を弾く', () => {
     expect(() => eventSchema.parse({ timestamp: 0, kind: 'unknown' })).toThrow()
   })
+
+  it('列挙にないページを弾く', () => {
+    // page は生パスではなく計上対象ページの列挙。増やすときはここを通す。
+    expect(() => eventSchema.parse({ timestamp: 0, kind: 'visit', page: '/pricing' })).toThrow()
+    expect(eventSchema.parse({ timestamp: 0, kind: 'visit', page: '/features' }).page).toBe(
+      '/features',
+    )
+  })
 })

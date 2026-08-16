@@ -11,7 +11,8 @@ befold の配布 LP・ダウンロード計測・appcast プロキシ・分析�
 
 | パス | 認証 | 内容 |
 | ---- | ---- | ---- |
-| `GET /` | 公開 | 配布 LP。`visit` を記録 |
+| `GET /` | 公開 | 配布 LP。`visit`（`page=/`）を記録 |
+| `GET /features` | 公開 | 機能・対応ファイルタイプの詳細ページ。`visit`（`page=/features`）を記録 |
 | `GET /download` | 公開 | stable 最新の DMG を R2 から返す。`download`（`source=lp`）を記録 |
 | `GET /dl/:tag/:file` | 公開 | 指定タグの DMG を R2 から返す。appcast の enclosure が指す先。`download`（`source=sparkle`）を記録 |
 | `GET /appcast.xml` | 公開 | R2 の appcast を返す。`update_check` を記録 |
@@ -328,6 +329,49 @@ visit / download / update_check の全イベントで記録する。追加のサ
   読み取れる情報が増えないため 3 種合算のまま残している。
 - 指標の並び順と表示名は `src/analytics.ts` の `KIND_LABELS` が唯一の定義で、
   カード・表の両方がこの順に従う。
+
+## ページとブラウザ言語設定の記録
+
+<!-- constrained-by ../docs/superpowers/specs/2026-07-28-cloudflare-distribution-analytics-design.md -->
+
+`visit` を LP だけでなく `/features` でも計上する。ページの区別は `events.page`、
+リクエスト元の言語設定は `events.browser_lang` に持つ。
+
+- **`page` は生パスではなく計上対象ページの列挙**（`src/schema.ts` の `pageSchema`）。
+  ルート側が明示して渡す（`recordEvent(c, { kind: 'visit', page: '/features' })`）。
+  リクエスト URL から導出しない——`/dl/:tag/:file` のようにパラメータを含む経路が
+  あり、導出にすると内訳のカーディナリティが発散するため。
+- **`page` が NULL の行には 2 つの意味がある。** 列の導入前に記録された `visit`
+  （当時計上していたのは LP だけなので `/` と読んでよい）と、ページの概念が無い
+  `download` / `update_check`。このため `COALESCE(page, '/')` は
+  `kind = 'visit'` と同じ条件節の中でしか使えない。`src/analytics.ts` の
+  `metricExpression` が両者を必ず一緒に組み立てる形になっている。
+- **「ページアクセス」指標は `page = '/'` のまま**。LP からの新規獲得を測る系列
+  なので、`/features` を足して薄めない。ページ別の内訳は別系列として出す。
+  述語は `METRIC_FILTERS` 1 箇所から組み立て、累計・当日・日次・時間帯・内訳が
+  それを共有する（同期漏れは `test/analytics.test.ts` の「ページの分離」が検知する）。
+- **日次ユニーク訪問者（`COUNT(DISTINCT visitor_token)`）はページで絞らない。**
+  「何人来たか」を測るものなので、LP に絞ると `/features` へ直接来た訪問者が
+  数から消える。国別・参照元別・UA 内訳の母集団も同様に `/features` を含む。
+- **`/features` は `Cache-Control: no-store`。** キャッシュに載った応答は Worker を
+  通らず計上できない。ヘッダを単に外すのでは足りない（Cache-Control も Expires も
+  無い 200 応答はブラウザのヒューリスティックキャッシュに載り得る）。
+
+### `browser_lang` が意味するもの
+
+`Accept-Language` の第一タグを `ja` / `en` / `other` に丸めた値
+（`src/lib/lang.ts` の `summarizeLang`）。**これはブラウザの言語設定であって、
+実際に読まれた言語ではない。** LP は日英を同一 HTML に持ち、`localStorage` の
+`befold-lang` が未設定なら常に日本語を表示する（`src/views/shared.tsx` の
+`LANG_SCRIPT`）ため、`en` 設定の初回訪問者も画面では日本語を読んでいる。
+
+この値が答えるのは「英語を求めて来た人がどれだけ居るか」であって
+「英語で読んだ人の数」ではない。表示言語そのものを測るには言語ごとに URL を
+分ける必要があり、それは LP 多言語化の設計判断として別に扱う。
+
+`Accept-Language` を送らないクライアント（Sparkle）では NULL になる。言語の内訳を
+出すときは `kind = 'visit'` で絞ること。全 kind 横断だと `update_check` の NULL が
+支配して読めなくなる。
 
 ## 人間の訪問とロボットの巡回の分離
 

@@ -17,6 +17,26 @@ export const downloadSourceSchema = z.enum(['lp', 'sparkle'])
 
 export type DownloadSource = z.infer<typeof downloadSourceSchema>
 
+/**
+ * visit として計上するページ。
+ *
+ * 生のパスを入れない。`/dl/:tag/:file` のようにパスがパラメータを含む経路が
+ * あるため、URL から導出するとカーディナリティが発散し、内訳が読めなくなる。
+ * ここに列挙したページを、呼び出し側が明示して渡す。
+ */
+export const pageSchema = z.enum(['/', '/features'])
+
+export type Page = z.infer<typeof pageSchema>
+
+/**
+ * ブラウザの言語設定（Accept-Language の第一タグ）。
+ *
+ * 実際に読まれた言語ではない。詳細は `lib/lang.ts` の `summarizeLang`。
+ */
+export const browserLangSchema = z.enum(['ja', 'en', 'other'])
+
+export type BrowserLang = z.infer<typeof browserLangSchema>
+
 /** D1 の events テーブルに INSERT する 1 行分の形状。 */
 export const eventSchema = z.object({
   timestamp: z.number().int().nonnegative(),
@@ -30,6 +50,8 @@ export const eventSchema = z.object({
   referrer: z.string().nullable().default(null),
   asOrg: z.string().nullable().default(null),
   source: downloadSourceSchema.nullable().default(null),
+  page: pageSchema.nullable().default(null),
+  browserLang: browserLangSchema.nullable().default(null),
 })
 
 export type AnalyticsEvent = z.infer<typeof eventSchema>

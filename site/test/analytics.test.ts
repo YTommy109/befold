@@ -397,3 +397,51 @@ describe('ダウンロード経路の分離', () => {
     expect(summary.byVersion).toEqual([{ label: 'v1.2.3', count: 1 }])
   })
 })
+
+describe('ページの分離', () => {
+  /** page を明示して visit を 1 件記録する。page=null は列の導入前に記録された行。 */
+  async function insertVisit(page: string | null, ts: number = NOW): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, visitor_token, page) VALUES (?, ?, ?, ?)',
+    )
+      .bind(ts, 'visit', `visitor-${page ?? 'legacy'}`, page)
+      .run()
+  }
+
+  it('「ページアクセス」の全系列が LP だけを数える', async () => {
+    // 指標の述語は METRIC_FILTERS 1 箇所から組み立てる決まりで、累計・当日・
+    // 日次・時間帯・内訳がそれを共有する。どれか 1 つが述語を書き写す形へ
+    // 戻ると /features がここで混ざるので、全系列をまとめて固定する。
+    await insertVisit('/')
+    await insertVisit('/features')
+    await insertVisit('/features')
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.cumulative.counts.visit).toBe(1)
+    expect(summary.today.counts.visit).toBe(1)
+    expect(summary.daily.at(-1)?.counts.visit).toBe(1)
+    expect(summary.hourly.reduce((total, hour) => total + hour.counts.visit, 0)).toBe(1)
+    expect(summary.perKind.find((entry) => entry.kind === 'visit')?.total).toBe(1)
+  })
+
+  it('page 列の導入前に記録された visit は LP として数える', async () => {
+    // 当時 visit を計上していたのは LP だけ（src/routes/public.tsx）。
+    // 遡って埋め直す材料は無いので COALESCE(page, '/') でその事実を表す。
+    await insertVisit(null)
+
+    expect((await cumulativeTotals(env.DB)).counts.visit).toBe(1)
+  })
+
+  it('日次ユニーク訪問者はページで絞らない（サイト全体の訪問者数）', async () => {
+    // 指標ごとの件数と違い、COUNT(DISTINCT visitor_token) は「何人来たか」を
+    // 測るもの。LP だけに絞ると /features へ直接来た訪問者が数から消える。
+    await insertVisit('/')
+    await insertVisit('/features')
+
+    const totals = await todayTotals(env.DB, NOW)
+
+    expect(totals.counts.visit).toBe(1)
+    expect(totals.uniqueVisitors).toBe(2)
+  })
+})

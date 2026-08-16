@@ -18,7 +18,19 @@ CREATE TABLE events (
   -- appcast の enclosure（自動アップデート）経由。両者は性質がまったく違う
   -- （前者は新規獲得、後者は既存ユーザの更新）ため、kind='download' のまま
   -- 混ぜると LP のダウンロード数が意味を失う。download 以外の kind では NULL。
-  source      TEXT
+  source      TEXT,
+  -- 訪問されたページ。kind='visit' のときだけ値を持ち、それ以外の kind では NULL。
+  -- 列の導入前に記録された visit 行も NULL で、当時 visit を計上していたのは LP
+  -- だけ（src/routes/public.tsx）なので '/' と読んでよい。この二重の意味がある
+  -- ため、`COALESCE(page, '/')` は kind='visit' と同じ条件節の中でしか使えない
+  -- （download / update_check にはページの概念が無く、'/' を与えると嘘になる）。
+  page        TEXT,
+  -- Accept-Language の第一言語タグを 'ja' / 'en' / 'other' に丸めたもの。
+  -- これは**ブラウザの言語設定**であって、実際に読まれた言語ではない。LP は
+  -- 日英を同一 HTML に持ち、localStorage の befold-lang が未設定なら常に日本語を
+  -- 表示する（src/views/shared.tsx）ため、en 設定の初回訪問者も日本語を読んでいる。
+  -- Accept-Language を送らないクライアント（Sparkle など）では NULL。
+  browser_lang TEXT
 );
 
 CREATE INDEX idx_events_timestamp ON events (timestamp);

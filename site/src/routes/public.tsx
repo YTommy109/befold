@@ -16,20 +16,26 @@ import { APPCAST_KEY, LATEST_KEY, latestPointerSchema, resolveDMGKey } from '../
 export const publicRoutes = new Hono<AppEnv>()
 
 publicRoutes.get('/', (c) => {
-  recordEvent(c, { kind: 'visit' })
+  recordEvent(c, { kind: 'visit', page: '/' })
   return c.html(<Landing origin={new URL(c.req.url).origin} />)
 })
 
 /**
  * 機能・対応ファイルタイプの詳細ページ。
  *
- * visit として記録しない。events テーブルはページを区別する列を持たないため
- * （src/schema.ts）、ここを計上すると LP からの新規獲得を測る指標に別ページの
- * 訪問が混ざる。計測しない代わりに CDN・ブラウザキャッシュへ載せてよい。
+ * `page` 列で LP と区別して visit を記録する（TASK-488.1）。「ページアクセス」
+ * 指標は `page='/'` のままなので、ここを計上しても LP からの新規獲得は薄まらない
+ * （集計側の判定は src/analytics.ts の METRIC_FILTERS 1 箇所だけ）。
+ *
+ * `Cache-Control: no-store` を明示する。キャッシュに載った応答は Worker を通らず
+ * 計上できないため。ヘッダを単に外すのでは足らない——Cache-Control も Expires も
+ * 無い 200 応答はブラウザのヒューリスティックキャッシュに載り得るので、
+ * 計上できるかどうかが環境依存になる。
  */
 publicRoutes.get('/features', (c) => {
+  recordEvent(c, { kind: 'visit', page: '/features' })
   // c.header は後続の c.html に反映されるため、本文を作る前に設定する。
-  c.header('Cache-Control', 'public, max-age=3600')
+  c.header('Cache-Control', 'no-store')
   return c.html(<Features origin={new URL(c.req.url).origin} />)
 })
 

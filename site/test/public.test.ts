@@ -39,12 +39,14 @@ type EventRow = {
   referrer: string | null
   as_org: string | null
   source: string | null
+  page: string | null
+  browser_lang: string | null
 }
 
 async function latestEvent(): Promise<EventRow | null> {
   return await env.DB.prepare(
-    'SELECT kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org, source' +
-      ' FROM events ORDER BY id DESC LIMIT 1',
+    'SELECT kind, version, channel, country, os, ua_summary, visitor_token, referrer, as_org,' +
+      ' source, page, browser_lang FROM events ORDER BY id DESC LIMIT 1',
   ).first<EventRow>()
 }
 
@@ -91,6 +93,7 @@ describe('GET /', () => {
     const event = await latestEvent()
     expect(event?.kind).toBe('visit')
     expect(event?.country).toBe('JP')
+    expect(event?.page).toBe('/')
   })
 })
 
@@ -559,11 +562,52 @@ describe('GET /features', () => {
     }
   })
 
-  it('visit として記録せず、キャッシュ可能なレスポンスにする', async () => {
+  it('page=/features の visit として記録する', async () => {
+    await call('/features')
+
+    const event = await latestEvent()
+    expect(event?.kind).toBe('visit')
+    expect(event?.page).toBe('/features')
+  })
+
+  it('キャッシュに載せない（載ると Worker を通らず計上できない）', async () => {
     const response = await call('/features')
 
-    expect(response.headers.get('Cache-Control')).toContain('max-age=3600')
-    expect(await latestEvent()).toBeNull()
+    // ヘッダを外すだけでは足りない。Cache-Control も Expires も無い 200 応答は
+    // ブラウザのヒューリスティックキャッシュに載り得るため、明示して固定する。
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+  })
+})
+
+describe('ブラウザ言語設定の記録', () => {
+  it('Accept-Language の第一タグを ja / en / other に丸めて記録する', async () => {
+    const cases: [string, string][] = [
+      ['ja,en-US;q=0.9', 'ja'],
+      ['en-US,en;q=0.9', 'en'],
+      ['fr-FR,fr;q=0.9', 'other'],
+    ]
+
+    for (const [header, expected] of cases) {
+      await call('/', { 'Accept-Language': header })
+      expect((await latestEvent())?.browser_lang, header).toBe(expected)
+    }
+  })
+
+  it('Accept-Language が無いリクエストでは NULL になる', async () => {
+    // Sparkle の自動更新はこのヘッダを送らない。記録処理自体は止めない。
+    await call('/dl/v1.0.0/befold-1.0.0.dmg', { 'Accept-Language': '' })
+
+    const event = await latestEvent()
+    expect(event?.kind).toBe('download')
+    expect(event?.browser_lang).toBeNull()
+  })
+
+  it('visit 以外の kind では page が NULL になる', async () => {
+    await call('/dl/v1.0.0/befold-1.0.0.dmg')
+
+    const event = await latestEvent()
+    expect(event?.kind).toBe('download')
+    expect(event?.page).toBeNull()
   })
 })
 
