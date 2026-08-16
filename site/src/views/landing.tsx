@@ -36,7 +36,7 @@ const SCREENSHOTS: {
 /** og:title / og:description を <title> / description と二重管理しないための定数。 */
 const PAGE_TITLE = 'befold — File Viewer for macOS'
 const PAGE_DESCRIPTION =
-  'befold is a lightweight macOS viewer for reviewing the Markdown that terminal coding agents like Claude Code and Codex generate. Open any file from the CLI or with ⌘P — including git worktrees — and read Mermaid, Markdown, SVG, HTML and CSV with live reload.'
+  'befold is a lightweight macOS viewer for reading Markdown where it already lives. Review the documents that coding agents like Claude Code and Codex generate, or just press Space in Finder to read a Markdown file with GitHub-style rendering, Mermaid diagrams and live reload.'
 
 /**
  * 検索エンジン・AI 検索が読む構造化データ。
@@ -100,14 +100,15 @@ export const Landing: FC<{ origin: string }> = ({ origin }) => (
           <div lang="ja">
             <h2>Markdown を行き来する。快適に。</h2>
             <p>
-              数百のファイルを抱えたリポジトリのための、<strong>Mac 専用</strong>の軽量ビューア。
+              Markdown や Mermaid そしてソースコードも軽快に読める
+              <strong>Mac 専用</strong>の軽量ビューア。
             </p>
           </div>
           <div lang="en" hidden>
             <h2>Move through Markdown, comfortably.</h2>
             <p>
-              A lightweight <strong>Mac-only</strong> viewer for repositories that hold hundreds of
-              files.
+              A lightweight <strong>Mac-only</strong> viewer that reads Markdown, Mermaid and
+              source code without slowing down.
             </p>
           </div>
           <a href={DOWNLOAD_PATH} class="btn-primary">
@@ -125,50 +126,53 @@ export const Landing: FC<{ origin: string }> = ({ origin }) => (
           </p>
         </section>
 
-        <section class="philosophy review">
+        {/* ふたつの読み手を同格に並べる。片方を従属させないため、
+            両セクションは同じ .philosophy を使い、ラベルだけで宛先を分ける。 */}
+        <section class="philosophy">
           <div lang="ja">
+            <p class="philosophy-audience">コードを書く人へ</p>
             <p class="philosophy-lead">Claude が設計する。私は befold でレビューする。</p>
             <p class="philosophy-body">
-              Claude Code や Codex に設計を任せると、Markdown のドキュメントがたくさん作られる。
+              Claude Code や Codex が作る大量のドキュメントをスムーズにレビューするために
+              befold を作りました。
               <br />
-              ドキュメントを直せば、AI が作るコードは良くなる。
-              <br />
-              befold は「読む」を快適にする。
+              編集機能は思い切って削り、読むことに特化したツールです。Quick Look にも対応してます。
             </p>
           </div>
           <div lang="en" hidden>
+            <p class="philosophy-audience">For people who write code</p>
             <p class="philosophy-lead">Claude designs. I review in befold.</p>
             <p class="philosophy-body">
-              Hand the design to Claude Code or Codex, and a lot of Markdown documents get written.
+              I built befold to review the piles of documents that Claude Code and Codex generate.
               <br />
-              Fix the documents, and the code the AI writes gets better.
-              <br />
-              befold makes reading them comfortable.
+              Editing was deliberately left out — befold is a tool built purely for reading. It
+              supports Quick Look, too.
             </p>
           </div>
         </section>
 
         <section class="philosophy">
           <div lang="ja">
-            <p class="philosophy-lead">vault に登録しなくていい。</p>
+            <p class="philosophy-audience">Markdown を読む人へ</p>
+            <p class="philosophy-lead">読むだけなら、詳しくなくていい。</p>
             <p class="philosophy-body">
-              Obsidian は Markdown を快適に読ませてくれる。
+              ファイルを開くだけ。覚えることも、決めておく設定もありません。
               <br />
-              けど worktree まで、vault へ登録してられない。
+              GitHub と同じ見た目で表示され、Mermaid のコードブロックは図として描かれます。
               <br />
-              befold なら <code>befold .</code> と打つだけ。切ったばかりの worktree の
-              Markdown も、その場で読める。
+              LLM がファイルを更新すると、0.2 秒で最新の内容に反映されます。
             </p>
           </div>
           <div lang="en" hidden>
-            <p class="philosophy-lead">No vault to register.</p>
+            <p class="philosophy-audience">For people who read Markdown</p>
+            <p class="philosophy-lead">You don't have to be technical to read it.</p>
             <p class="philosophy-body">
-              Obsidian reads Markdown beautifully.
+              Just open the file. Nothing to learn, nothing to configure beforehand.
               <br />
-              But I'm not registering every worktree as a vault.
+              It renders with the same look as GitHub, and Mermaid code blocks are drawn as
+              diagrams.
               <br />
-              With befold, <code>befold .</code> is all it takes — the Markdown in a worktree you
-              just created opens right there.
+              When an LLM updates the file, the view catches up in 0.2 seconds.
             </p>
           </div>
         </section>
