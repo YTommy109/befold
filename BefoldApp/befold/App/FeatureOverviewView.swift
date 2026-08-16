@@ -1,35 +1,29 @@
 import SwiftUI
 
 /// Help > 機能説明 の中身。主要機能を静的な箇条書きで紹介する。
+///
+/// **説明文にキー表記（⌘P 等）を書かない。** ショートカットは Help > キーボードショートカットが
+/// メニュー定義から生成して見せるものが単一の情報源で、こちらへ書き写すと割り当てを変えたときに
+/// 説明文だけが古くなる（同じ乖離が TASK-240 で一度起きている）。この規約は
+/// `LocalizationTests.featureDetailsDoNotSpellOutShortcuts` が担保する。
 struct FeatureOverviewView: View {
     private struct Feature: Identifiable {
         let id = UUID()
         let title: LocalizedStringResource
-        let detail: String
+        let detail: LocalizedStringResource
     }
 
-    /// ブックマークの説明文はキー表記を含むため、実際の割り当て（`BookmarkShortcut`）を
-    /// 差し込む。文言側に ⌘D を直書きすると、差分表示を露出するビルドで ⌘B へ移った
-    /// ときに説明だけが古いまま残る。
-    static func bookmarksDetail(shortcut: String = BookmarkShortcut.displayName) -> String {
-        String(format: String(localized: "featureOverview.bookmarks.detail", bundle: .l10n), shortcut)
-    }
-
+    /// 載せるのは主力機能だけ。網羅ではなく「何ができるアプリか」が分かることを狙う。
     private let features: [Feature] = [
-        Feature(title: "featureOverview.livePreview.title", detail: Self.text("featureOverview.livePreview.detail")),
-        Feature(title: "featureOverview.tabs.title", detail: Self.text("featureOverview.tabs.detail")),
-        Feature(title: "featureOverview.bookmarks.title", detail: FeatureOverviewView.bookmarksDetail()),
-        Feature(title: "featureOverview.quickOpen.title", detail: Self.text("featureOverview.quickOpen.detail")),
-        Feature(title: "featureOverview.hiddenFiles.title", detail: Self.text("featureOverview.hiddenFiles.detail")),
-        Feature(
-            title: "featureOverview.sourceToggle.title",
-            detail: Self.text("featureOverview.sourceToggle.detail")
-        ),
+        Feature(title: "featureOverview.formats.title", detail: "featureOverview.formats.detail"),
+        Feature(title: "featureOverview.livePreview.title", detail: "featureOverview.livePreview.detail"),
+        Feature(title: "featureOverview.displayModes.title", detail: "featureOverview.displayModes.detail"),
+        Feature(title: "featureOverview.git.title", detail: "featureOverview.git.detail"),
+        Feature(title: "featureOverview.sidebar.title", detail: "featureOverview.sidebar.detail"),
+        Feature(title: "featureOverview.search.title", detail: "featureOverview.search.detail"),
+        Feature(title: "featureOverview.tabs.title", detail: "featureOverview.tabs.detail"),
+        Feature(title: "featureOverview.integrations.title", detail: "featureOverview.integrations.detail"),
     ]
-
-    private static func text(_ key: String.LocalizationValue) -> String {
-        String(localized: key, bundle: .l10n)
-    }
 
     var body: some View {
         ScrollView {

@@ -18,6 +18,40 @@
         }
       }
     },
+    "featureOverview.formats.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supported Formats"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対応フォーマット"
+          }
+        }
+      }
+    },
+    "featureOverview.formats.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renders Mermaid, Markdown, SVG, HTML, CSV/TSV, images, PDF, and source code."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mermaid / Markdown / SVG / HTML / CSV・TSV / 画像 / PDF / ソースコードを表示できます。"
+          }
+        }
+      }
+    },
     "featureOverview.livePreview.title": {
       "extractionState": "manual",
       "localizations": {
@@ -41,13 +75,149 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Watches .mmd/.md files and re-renders automatically when they change."
+            "value": "Watches the open file and re-renders it automatically when it changes on disk."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": ".mmd / .md ファイルを監視し、変更されると自動的に再描画します。"
+            "value": "開いているファイルを監視し、変更されると自動的に再描画します。"
+          }
+        }
+      }
+    },
+    "featureOverview.displayModes.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display Modes"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表示モード切替"
+          }
+        }
+      }
+    },
+    "featureOverview.displayModes.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch the same file between rendered preview, raw source, and git diff. The choice is remembered per file."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じファイルをレンダリング表示・ソース表示・差分表示で切り替えられます。選んだモードはファイルごとに記憶されます。"
+          }
+        }
+      }
+    },
+    "featureOverview.git.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git Integration"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "git 連携"
+          }
+        }
+      }
+    },
+    "featureOverview.git.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows change badges in the sidebar, overlays the git diff on the source view, and can narrow the sidebar to changed files only."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイドバーに変更状態を表示し、ソース表示に git 差分を重ねられます。サイドバーを変更のあったファイルだけに絞り込むこともできます。"
+          }
+        }
+      }
+    },
+    "featureOverview.sidebar.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sidebar"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイドバー"
+          }
+        }
+      }
+    },
+    "featureOverview.sidebar.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse the surrounding folder as a list or a tree, show or hide dotfiles, and move around with the keyboard."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じフォルダーの中身をリスト表示・ツリー表示で辿れます。不可視ファイルの表示切替やキーボードでの移動にも対応しています。"
+          }
+        }
+      }
+    },
+    "featureOverview.search.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search & Quick Open"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索と Quick Open"
+          }
+        }
+      }
+    },
+    "featureOverview.search.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find text in the document with case, whole-word, and regular-expression options, or fuzzy-search paths to open another file."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文書内の検索は大文字小文字・単語一致・正規表現を指定できます。パスのあいまい検索から別のファイルを開くこともできます。"
           }
         }
       }
@@ -75,149 +245,47 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open multiple files as tabs; the last session's tabs restore automatically on launch."
+            "value": "Open multiple files as tabs, move back and forward through the files you visited, bookmark the ones you return to, and pick up the last session's tabs on launch."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "複数ファイルをタブとして開けます。前回のタブ構成は起動時に自動復元されます。"
+            "value": "複数ファイルをタブとして開けます。辿ったファイルを戻る/進むで行き来でき、よく開くファイルはブックマークできます。前回のタブ構成は起動時に復元されます。"
           }
         }
       }
     },
-    "featureOverview.bookmarks.title": {
+    "featureOverview.integrations.title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bookmarks"
+            "value": "CLI & Quick Look"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ブックマーク"
+            "value": "CLI と Quick Look"
           }
         }
       }
     },
-    "featureOverview.bookmarks.detail": {
+    "featureOverview.integrations.detail": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mark frequently visited files with %@ and jump back to them quickly."
+            "value": "Open files from the terminal with the befold command, or preview them in Finder with the Quick Look extension."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "よく開くファイルを %@ でブックマークし、すぐに開き直せます。"
-          }
-        }
-      }
-    },
-    "featureOverview.quickOpen.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quick Open"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quick Open"
-          }
-        }
-      }
-    },
-    "featureOverview.quickOpen.detail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Press ⌘P to fuzzy-search and open files by path without leaving the keyboard."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "⌘P でパスをあいまい検索し、キーボードだけでファイルを開けます。"
-          }
-        }
-      }
-    },
-    "featureOverview.hiddenFiles.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hidden Files Toggle"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "隠しファイル表示切替"
-          }
-        }
-      }
-    },
-    "featureOverview.hiddenFiles.detail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show or hide dotfiles in the sidebar with ⌃⌘H."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "⌃⌘H でサイドバーのドットファイル表示・非表示を切り替えられます。"
-          }
-        }
-      }
-    },
-    "featureOverview.sourceToggle.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Source / Preview Toggle"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ソース/プレビュー切替"
-          }
-        }
-      }
-    },
-    "featureOverview.sourceToggle.detail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toggle between the rendered preview and raw source with ⌘U."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "⌘U でレンダリング結果とソース表示を切り替えられます。"
+            "value": "befold コマンドでターミナルからファイルを開けます。Finder のスペースキーによるプレビューにも対応しています。"
           }
         }
       }
