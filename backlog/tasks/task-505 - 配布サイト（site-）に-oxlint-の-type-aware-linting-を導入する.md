@@ -1,10 +1,10 @@
 ---
 id: TASK-505
 title: 配布サイト（site/）に oxlint の type-aware linting を導入する
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-16 11:53'
-updated_date: '2026-08-16 12:00'
+updated_date: '2026-08-16 12:14'
 labels: []
 dependencies: []
 priority: medium
@@ -33,7 +33,7 @@ ordinal: 736000
 - [x] #3 prefer-readonly-parameter-types と no-deprecated は理由コメント付きで off になっている（既存の無効化と同じ書式）
 - [x] #4 site/ で `npm run lint` が 0 件で通る（既存 26 件を鳴らすルールは有効化しない）
 - [x] #5 no-floating-promises が実際に検知することを、合成コードを一時的に置いて確認した記録が Implementation Notes にある
-- [ ] #6 CI（site.yml）で type-aware lint が走り、導入前後の実行時間を実測して Notes に残している
+- [x] #6 CI（site.yml）で type-aware lint が走り、導入前後の実行時間を実測して Notes に残している
 - [x] #7 BefoldApp/ へ導入しない理由（実測 5,263 件・TASK-499 待ち）が TASK-499 の Acceptance Criteria か Notes に申し送られている
 <!-- AC:END -->
 
@@ -70,4 +70,23 @@ ordinal: 736000
   - 無効化側も確認: 導入前に 31 件出ていた `public/carousel.js` が exit 0 になった。
 - 既知の限界: `no-misused-promises` の void-return 検査（`el.addEventListener("click", asyncFn)`）は tsgolint 7.0.2001 では発火しなかった。条件式の誤用は検知する。
 - 実行時間（ローカル、3 回ずつ）: 型情報なし 0.49 / 0.49 / 0.51s → type-aware 0.68 / 0.69 / 0.72s。+0.2s。CI 上の実測は本 PR の site.yml 実行で確認する（AC #6 はローカル実測で判断した）。
+
+CI 実測（PR #542、site.yml の test ジョブ / ubuntu-latest、run 31946246598）:
+
+- 「Oxlint を実行する（type-aware）」ステップ = 12:08:48 → 12:08:49 の **1 秒**。導入前の main の 2 回（run 31941036753 / 31940388259）は同ステップが 0 秒と 1 秒。GitHub の step タイムスタンプは秒単位なので、ローカル実測の +0.2s は **CI の計測分解能より小さく、差として現れない**。
+- 副次的に「依存をインストールする」が 4s / 5s → **10s** に伸びた。oxlint-tsgolint の linux-x64 バイナリを取りに行くぶんで、これも許容範囲。
+- ubuntu ランナーの `npm ci` で tsgolint の実体が入り type-aware lint が実際に走ったことは、ステップが成功していること（実体が無ければ "Failed to find tsgolint executable" で落ちる）で確認した。
+- PR #542 のチェックは build-and-test / js-test / test / type-group-size / changes がすべて pass。
+
+docs/dev/native-app-design.md の更新は不要と判断した。この変更は配布サイト（site/）のビルド・検査ツールに閉じており、同文書が扱うネイティブアプリの構成・モジュール・データフローに影響しないため。lint 方針は .claude/CLAUDE.md の JS/TS コーディング規約が持ち場で、そちらへ追記済み。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+site/ に oxlint の type-aware linting（oxlint-tsgolint）を導入した。有効化したのは typescript/no-floating-promises / no-misused-promises / await-thenable の 3 つで、Worker で await し忘れた D1 書き込みが黙って消える誤りを止めるのが目的。既定の type-aware ルールセットは site/ に 567 件出るため、それ以外は理由コメント付きで off にした（既存の指摘を潰すのは lint 導入とは別の判断）。
+
+検証: npm run lint 0 件・exit 0、format:check 0 件、typecheck exit 0、npm test 347 passed。3 ルールが実際に検知することを合成コードで確認済み（no-floating-promises / no-misused-promises / await-thenable いずれも exit 1）。無効化側も public/carousel.js が 31 件 → 0 件になったことで確認。CI（PR #542）は lint ステップ 1 秒で、導入前と秒単位の差は出なかった（ローカル実測は 0.49s → 0.69s）。
+
+BefoldApp への導入は見送り（実測 5,263 件、checkJs: false が原因）。判断は TASK-499 の Acceptance Criteria へ申し送った。
+<!-- SECTION:FINAL_SUMMARY:END -->
