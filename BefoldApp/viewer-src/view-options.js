@@ -5,11 +5,13 @@
 // (_mmdFindRefreshAfterRender)が consume() で 1 度だけ取り出して検索位置の
 // 先頭リセットに使う。書き手と読み手をこの 2 メソッドに限定することで、
 // 「setViewMode → render」という順序前提を型で示す。
-var _mmdModeSwitch = (function() {
+var _mmdModeSwitch = (function () {
   var pending = false;
   return {
-    mark: function() { pending = true; },
-    consume: function() {
+    mark: function () {
+      pending = true;
+    },
+    consume: function () {
       var value = pending;
       pending = false;
       return value;
@@ -28,19 +30,37 @@ function _createViewOptions() {
   var diffLayout = 'inline';
 
   return {
-    mode: function() { return mode; },
-    setMode: function(newMode) {
-      if (newMode !== 'rendered' && newMode !== 'source') { return; }
-      if (newMode !== mode) { _mmdModeSwitch.mark(); }
+    mode: function () {
+      return mode;
+    },
+    setMode: function (newMode) {
+      if (newMode !== 'rendered' && newMode !== 'source') {
+        return;
+      }
+      if (newMode !== mode) {
+        _mmdModeSwitch.mark();
+      }
       mode = newMode;
     },
-    lineNumbers: function() { return lineNumbers; },
-    setLineNumbers: function(show) { lineNumbers = show; },
-    diff: function() { return diff; },
-    setDiff: function(text) { diff = (typeof text === 'string' && text !== '') ? text : null; },
-    diffLayout: function() { return diffLayout; },
-    setDiffLayout: function(layout) {
-      if (layout !== 'inline' && layout !== 'side-by-side') { return; }
+    lineNumbers: function () {
+      return lineNumbers;
+    },
+    setLineNumbers: function (show) {
+      lineNumbers = show;
+    },
+    diff: function () {
+      return diff;
+    },
+    setDiff: function (text) {
+      diff = typeof text === 'string' && text !== '' ? text : null;
+    },
+    diffLayout: function () {
+      return diffLayout;
+    },
+    setDiffLayout: function (layout) {
+      if (layout !== 'inline' && layout !== 'side-by-side') {
+        return;
+      }
       diffLayout = layout;
     },
   };
@@ -69,11 +89,4 @@ function setDiffLayout(layout) {
   _mmdViewOptions.setDiffLayout(layout);
 }
 
-export {
-  _mmdModeSwitch,
-  _mmdViewOptions,
-  setViewMode,
-  setLineNumbers,
-  setDiff,
-  setDiffLayout,
-};
+export { _mmdModeSwitch, _mmdViewOptions, setViewMode, setLineNumbers, setDiff, setDiffLayout };

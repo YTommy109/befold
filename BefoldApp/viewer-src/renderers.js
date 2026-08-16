@@ -3,10 +3,10 @@
 // クラスの一括除去・blob URL の解放・mermaid 実行・パス注釈・検索/ズーム/
 // スクロール復元といった型共通の後処理は render() 側が担う。
 
-import { base64ToBytes, escapeHtml, imageDataURI, svgDataURI } from './encoding.js';
 import { renderCodeHtml } from './code-html.js';
 import { buildTableHtml, parseCsv, renderCsvSourceHtml } from './csv-html.js';
 import { renderDiffHtml } from './diff-html.js';
+import { base64ToBytes, escapeHtml, imageDataURI, svgDataURI } from './encoding.js';
 import { markdownRenderer } from './markdown.js';
 import { hljs } from './vendor.js';
 import { _mmdViewOptions } from './view-options.js';
@@ -16,13 +16,18 @@ import { _mmdApplyDiagramZoom, _mmdBuildDiagramControls, _mmdFitImage } from './
 // 付け替えは必ず _mmdSetBodyClasses 経由にする(外す側の一覧が複数箇所に手写しされて
 // いると、追加時の更新漏れで前の型のスタイルが残る)。
 var BODY_CLASSES = [
-  'markdown-body', 'code-body', 'html-body', 'csv-body', 'image-body', 'pdf-body',
+  'markdown-body',
+  'code-body',
+  'html-body',
+  'csv-body',
+  'image-body',
+  'pdf-body',
 ];
 
 // 表示種別クラスを一括で付け替える。keep に挙げたものだけが残る。
 function _mmdSetBodyClasses(el /*, ...keep */) {
   var keep = Array.prototype.slice.call(arguments, 1);
-  BODY_CLASSES.forEach(function(name) {
+  BODY_CLASSES.forEach(function (name) {
     el.classList.toggle(name, keep.indexOf(name) >= 0);
   });
 }
@@ -32,12 +37,14 @@ function _mmdSetBodyClasses(el /*, ...keep */) {
 function _createPdfBlobHolder() {
   var url = null;
   return {
-    issue: function(bytes) {
+    issue: function (bytes) {
       url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
       return url;
     },
-    release: function() {
-      if (!url) { return; }
+    release: function () {
+      if (!url) {
+        return;
+      }
       URL.revokeObjectURL(url);
       url = null;
     },
@@ -69,7 +76,7 @@ function _renderSvg(diagramWrap, content) {
   wrap.appendChild(_mmdBuildDiagramControls(wrap));
   diagramWrap.innerHTML = '';
   diagramWrap.appendChild(wrap);
-  img.onload = function() {
+  img.onload = function () {
     wrap.dataset.naturalHeight = inner.offsetHeight;
     _mmdApplyDiagramZoom(wrap);
   };
@@ -85,11 +92,11 @@ function _renderHtml(diagramWrap, content) {
   iframe.style.width = '100%';
   iframe.style.border = 'none';
   // iframe の高さをコンテンツに合わせる
-  iframe.onload = function() {
+  iframe.onload = function () {
     try {
       var h = iframe.contentDocument.documentElement.scrollHeight;
       iframe.style.height = h + 'px';
-    } catch(e) {
+    } catch (e) {
       iframe.style.height = '80vh';
     }
   };
@@ -113,7 +120,7 @@ function _renderImage(diagramWrap, content, lang) {
   diagramWrap.classList.add('image-body');
   var img = document.createElement('img');
   img.alt = 'Image';
-  img.onload = function() {
+  img.onload = function () {
     _mmdFitImage(img, diagramWrap);
   };
   img.src = imageDataURI(content, lang);
@@ -157,16 +164,21 @@ function _renderSource(diagramWrap, content, type, lang, shape) {
     diagramWrap.innerHTML = diffHtml;
     return 'diff';
   }
-  diagramWrap.innerHTML = shape === 'csv-source'
-    ? renderCsvSourceHtml(content, lang || ',', _mmdViewOptions.lineNumbers())
-    : renderCodeHtml(hljs, content, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers());
+  diagramWrap.innerHTML =
+    shape === 'csv-source'
+      ? renderCsvSourceHtml(content, lang || ',', _mmdViewOptions.lineNumbers())
+      : renderCodeHtml(hljs, content, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers());
   return shape;
 }
 
 // ソース表示の言語決定。差分表示と通常表示で同じ規則を使う。
 function _sourceLanguage(type, lang) {
-  if (type === 'svg' || type === 'html') { return 'xml'; }
-  if (type === 'md') { return 'markdown'; }
+  if (type === 'svg' || type === 'html') {
+    return 'xml';
+  }
+  if (type === 'md') {
+    return 'markdown';
+  }
   return lang || 'plaintext';
 }
 
@@ -174,11 +186,16 @@ function _sourceLanguage(type, lang) {
 // CSV/TSV のソース表示は独自の列構造を持つため、差分表示の対象にしない。
 function _renderDiffHtmlIfAvailable(type, lang) {
   var diff = _mmdViewOptions.diff();
-  if (diff === null || type === 'csv') { return ''; }
+  if (diff === null || type === 'csv') {
+    return '';
+  }
   try {
     return renderDiffHtml(
-      hljs, diff, _sourceLanguage(type, lang), _mmdViewOptions.lineNumbers(),
-      _mmdViewOptions.diffLayout()
+      hljs,
+      diff,
+      _sourceLanguage(type, lang),
+      _mmdViewOptions.lineNumbers(),
+      _mmdViewOptions.diffLayout(),
     );
   } catch (e) {
     return '';

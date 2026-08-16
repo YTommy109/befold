@@ -1,3 +1,4 @@
+import { exposeGlobals } from './expose.js';
 // viewer バンドルのエントリ（TASK-432.2 / TASK-432.3）。
 //
 // viewer.html は body 末尾でこの成果物（viewer-bundle.js）を 1 本だけ読み込む。
@@ -5,8 +6,7 @@
 // viewer.html が先に classic script として読み込んだグローバルを参照する。
 // mermaid は 3.2MB あり、mermaid を使わないプレビューでは無駄なパースコストに
 // なるため、描画の瞬間まで遅延ロードする形を維持している。
-import * as main from "./main.js";
-import { exposeGlobals } from "./expose.js";
+import * as main from './main.js';
 
 exposeGlobals(main);
 

@@ -62,28 +62,28 @@ function readResource(name) {
 // jsdom が実装していない、WKWebView では常に存在する API を補う。
 // (未実装のまま _mmdInit() を呼ぶと matchMedia で TypeError になる)
 function installBrowserStubs(window) {
-  window.matchMedia = function(query) {
+  window.matchMedia = function (query) {
     return {
       media: query,
       matches: false,
-      addEventListener: function() {},
-      removeEventListener: function() {},
+      addEventListener: function () {},
+      removeEventListener: function () {},
     };
   };
   // jsdom はレイアウトを持たないため scrollIntoView が未実装。検索ヒットへの
   // スクロールは副作用のみで戻り値を持たないので、何もしない実装で足りる。
   if (typeof window.Element.prototype.scrollIntoView !== 'function') {
-    window.Element.prototype.scrollIntoView = function() {};
+    window.Element.prototype.scrollIntoView = function () {};
   }
   // jsdom は blob URL を実装していない。PDF 表示は blob: URL の生成/解放だけを
   // 行い中身は WebKit の PDF プラグインが描くため、識別可能な擬似 URL で足りる。
   if (typeof window.URL.createObjectURL !== 'function') {
     let issued = 0;
-    window.URL.createObjectURL = function() {
+    window.URL.createObjectURL = function () {
       issued += 1;
       return 'blob:https://localhost/stub-' + issued;
     };
-    window.URL.revokeObjectURL = function() {};
+    window.URL.revokeObjectURL = function () {};
   }
 }
 
@@ -106,11 +106,21 @@ function loadViewerMain(options) {
   const window = dom.window;
 
   installBrowserStubs(window);
-  if (opts.initialZoom !== undefined) { window._mmdInitialZoom = opts.initialZoom; }
-  if (opts.hostFeatures !== undefined) { window._mmdHostFeatures = opts.hostFeatures; }
-  if (opts.initialFindOptions !== undefined) { window._mmdInitialFindOptions = opts.initialFindOptions; }
-  if (opts.findStrings !== undefined) { window._mmdFindStrings = opts.findStrings; }
-  if (opts.bannerStrings !== undefined) { window._mmdBannerStrings = opts.bannerStrings; }
+  if (opts.initialZoom !== undefined) {
+    window._mmdInitialZoom = opts.initialZoom;
+  }
+  if (opts.hostFeatures !== undefined) {
+    window._mmdHostFeatures = opts.hostFeatures;
+  }
+  if (opts.initialFindOptions !== undefined) {
+    window._mmdInitialFindOptions = opts.initialFindOptions;
+  }
+  if (opts.findStrings !== undefined) {
+    window._mmdFindStrings = opts.findStrings;
+  }
+  if (opts.bannerStrings !== undefined) {
+    window._mmdBannerStrings = opts.bannerStrings;
+  }
   // ベンダー(markdown-it / highlight.js / DOMPurify)はバンドル同梱のため、
   // ここで window へ注入するものは無い(TASK-432.5)。テストは常に本番と同じ
   // 経路(md.render → DOMPurify、hljs 付きのソース表示)を通る。
@@ -119,7 +129,9 @@ function loadViewerMain(options) {
   window.eval(viewerBundleSource());
   const { main } = window.__viewerTestExports;
 
-  if (opts.init !== false) { main._mmdInit(); }
+  if (opts.init !== false) {
+    main._mmdInit();
+  }
 
   return { dom, window, document: window.document, main };
 }
@@ -129,9 +141,11 @@ function loadViewerMain(options) {
 function captureBridgeMessages(window, names) {
   const received = [];
   const handlers = {};
-  names.forEach(function(name) {
+  names.forEach(function (name) {
     handlers[name] = {
-      postMessage: function(payload) { received.push({ name: name, payload: payload }); },
+      postMessage: function (payload) {
+        received.push({ name: name, payload: payload });
+      },
     };
   });
   window.webkit = { messageHandlers: handlers };
@@ -145,14 +159,18 @@ function captureBridgeMessages(window, names) {
 // dispatchEvent() が内部実装オブジェクト(Symbol(impl))の値を false に落とす。
 // そこで実装側に「常に true・代入は無視」のアクセサを被せて再現する。
 function dispatchTrustedMouseEvent(window, type, element, init) {
-  const event = new window.MouseEvent(type, Object.assign(
-    { bubbles: true, cancelable: true }, init || {}
-  ));
-  const implSymbol = Object.getOwnPropertySymbols(event)
-    .find((symbol) => symbol.description === 'impl');
+  const event = new window.MouseEvent(
+    type,
+    Object.assign({ bubbles: true, cancelable: true }, init || {}),
+  );
+  const implSymbol = Object.getOwnPropertySymbols(event).find(
+    (symbol) => symbol.description === 'impl',
+  );
   Object.defineProperty(event[implSymbol], 'isTrusted', {
-    get: function() { return true; },
-    set: function() {},
+    get: function () {
+      return true;
+    },
+    set: function () {},
     configurable: true,
   });
   element.dispatchEvent(event);
@@ -168,5 +186,9 @@ function dispatchTrustedContextMenu(window, element, init) {
 }
 
 module.exports = {
-  loadViewerMain, captureBridgeMessages, readResource, dispatchTrustedClick, dispatchTrustedContextMenu,
+  loadViewerMain,
+  captureBridgeMessages,
+  readResource,
+  dispatchTrustedClick,
+  dispatchTrustedContextMenu,
 };

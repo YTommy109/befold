@@ -101,24 +101,33 @@ export const channelSchema = z.enum(CHANNELS)
 export type Channel = z.infer<typeof channelSchema>
 
 /** D1 の events テーブルに INSERT する 1 行分の形状。 */
-export const eventSchema = z.object({
-  timestamp: z.number().int().nonnegative(),
-  kind: eventKindSchema,
-  version: z.string().nullable().default(null),
-  channel: channelSchema.nullable().default(null),
-  country: z.string().nullable().default(null),
-  os: z.string().nullable().default(null),
-  uaSummary: z.string().nullable().default(null),
-  visitorToken: z.string().nullable().default(null),
-  referrer: z.string().nullable().default(null),
-  asOrg: z.string().nullable().default(null),
-  source: downloadSourceSchema.nullable().default(null),
-  page: pageSchema.nullable().default(null),
-  browserLang: browserLangSchema.nullable().default(null),
-  displayLang: displayLangSchema.nullable().default(null),
-  host: hostSchema.nullable().default(null),
-  fallback: fallbackRouteSchema.nullable().default(null),
-})
+export const eventSchema = z
+  .object({
+    timestamp: z.number().int().nonnegative(),
+    kind: eventKindSchema,
+    version: z.string().nullable().default(null),
+    channel: channelSchema.nullable().default(null),
+    country: z.string().nullable().default(null),
+    os: z.string().nullable().default(null),
+    uaSummary: z.string().nullable().default(null),
+    visitorToken: z.string().nullable().default(null),
+    referrer: z.string().nullable().default(null),
+    asOrg: z.string().nullable().default(null),
+    source: downloadSourceSchema.nullable().default(null),
+    page: pageSchema.nullable().default(null),
+    browserLang: browserLangSchema.nullable().default(null),
+    displayLang: displayLangSchema.nullable().default(null),
+    host: hostSchema.nullable().default(null),
+    fallback: fallbackRouteSchema.nullable().default(null),
+    /**
+     * 稼働中のアプリバージョン（TASK-491.1）。
+     *
+     * `version` とは意味が違う——あちらは download の対象タグ、こちらは「今どの
+     * バージョンが動いているか」。`kind` に依らず UA から導出するため、
+     * `fallback` のような kind との対応を強制する refine は置かない。
+     */
+    appVersion: z.string().nullable().default(null),
+  })
   /**
    * `fallback` は `github_fallback` 専用。対応をここで強制する。
    *

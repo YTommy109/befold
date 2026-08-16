@@ -52,7 +52,24 @@ CREATE TABLE events (
   -- （対応は `src/schema.ts` の eventSchema が refine で強制する）。
   -- 'appcast' は appcast のプロキシ、'dmg' は成果物の 302、'release-api' は
   -- /download が最新ポインタを読めず GitHub API へ落ちた場合。
-  fallback    TEXT
+  fallback    TEXT,
+  -- そのリクエストを出したアプリの**稼働中**バージョン。Sparkle の UA
+  -- （実測 `befold/1.13.2-dev.4 Sparkle/2.9.4`）から抽出したもので、`v` 接頭辞は
+  -- 付かない。`src/lib/visitor.ts` の `summarizeAppVersion` が唯一の抽出点。
+  --
+  -- **version 列と混同しない。** version は download が「どのタグを取りに来たか」
+  -- （`v1.13.2-dev.4` のようにタグそのもの）で、こちらは「今どのバージョンが
+  -- 動いているか」。同じ列に入れると `src/analytics.ts` の byVersion
+  -- （kind='download' の対象タグ別）の意味が変わるため分けてある。
+  --
+  -- kind は問わない。UA から一括で導出するので、Sparkle が通る経路
+  -- （update_check / download(source='sparkle') / github_fallback(appcast)）に
+  -- 値が入る。集計側は必ず kind を明示して絞ること。
+  --
+  -- NULL には 3 通りの意味がある: (a) 列の導入前に記録された行、
+  -- (b) Sparkle 以外のクライアント（ブラウザ・curl）、(c) UA を詐称するなどで
+  -- 形が合わずパースできなかった行。(a) は遡って埋められない。
+  app_version TEXT
 );
 
 CREATE INDEX idx_events_timestamp ON events (timestamp);

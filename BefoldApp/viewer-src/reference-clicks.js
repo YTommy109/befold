@@ -16,8 +16,10 @@ function _mmdReferenceTargetHref(e) {
   var target = anchor || pathRef;
   if (!target) return null;
 
-  if (target.classList.contains('befold-link-pending') ||
-      target.classList.contains('befold-link-dead')) {
+  if (
+    target.classList.contains('befold-link-pending') ||
+    target.classList.contains('befold-link-dead')
+  ) {
     return null;
   }
 
@@ -27,7 +29,7 @@ function _mmdReferenceTargetHref(e) {
 function _mmdInitReferenceClicks() {
   var wrap = document.getElementById('diagram-wrap');
 
-  wrap.addEventListener('click', function(e) {
+  wrap.addEventListener('click', function (e) {
     // XSS から postMessage を自動発火させる攻撃を防ぐため、
     // ユーザー起因のイベントのみ処理する。
     if (!e.isTrusted) return;
@@ -45,8 +47,13 @@ function _mmdInitReferenceClicks() {
     // (decidePolicyFor が WKWebView のナビゲーションをキャンセルするため)
     if (href.charAt(0) === '#') {
       e.preventDefault();
-      try { var id = decodeURIComponent(href.slice(1)); } catch (_) { var id = href.slice(1); }
-      var el = document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
+      try {
+        var id = decodeURIComponent(href.slice(1));
+      } catch (_) {
+        var id = href.slice(1);
+      }
+      var el =
+        document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
       return;
     }
@@ -55,23 +62,29 @@ function _mmdInitReferenceClicks() {
 
     // 多層防御: hostFeatures で無効化されたホスト(QuickLook 拡張等の静的1回描画)では
     // ここで抑止する(Swift 側もハンドラ未登録。ViewerWebView.messageHandlerNames 参照)。
-    if (!isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')) { return; }
+    if (!isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')) {
+      return;
+    }
 
     // <a> / .befold-path-ref とも同じ挙動。修飾キーの解釈は Swift 側(OpenDisposition)に
     // 集約しているため、ここでは押下状態をそのまま送るだけにする。
     _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, {
       href: href,
       metaKey: e.metaKey,
-      shiftKey: e.shiftKey
+      shiftKey: e.shiftKey,
     });
   });
 
-  wrap.addEventListener('contextmenu', function(e) {
+  wrap.addEventListener('contextmenu', function (e) {
     if (!e.isTrusted) return;
-    if (!isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')) { return; }
+    if (!isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')) {
+      return;
+    }
     var href = _mmdReferenceTargetHref(e);
     // リンク/パス参照の上でなければ WKWebView 既定のメニューに任せる。
-    if (!href || href.charAt(0) === '#') { return; }
+    if (!href || href.charAt(0) === '#') {
+      return;
+    }
     e.preventDefault();
     _mmdPostMessage(_MSG_REFERENCE_CONTEXT_MENU, { href: href });
   });

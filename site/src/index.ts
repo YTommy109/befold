@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+
 import { recordEvent } from './events'
 import { REDIRECT_TARGET_ORIGIN, REDIRECTED_PATHS } from './lib/hosts'
 import { dashboardRoutes } from './routes/dashboard'

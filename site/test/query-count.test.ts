@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+
 import { summarize } from '../src/analytics'
 
 /**
@@ -7,8 +8,9 @@ import { summarize } from '../src/analytics'
  *
  * 内訳（計 13 本）: cumulativeTotals / todayTotals / dailySeries /
  * hourlyDistribution / breakdown 3 本（version・country・referrer）/
- * trafficSplit 2 本（総数・区分別内訳）/ recentEvents / 指標別内訳 2 本
- * （OS 別・接続元組織別で、指標の数に依らない）/ eventBreakdowns 1 本。
+ * trafficSplit 2 本（総数・区分別内訳）/ recentEvents / 指標別内訳 1 本
+ * （OS 別・接続元組織別を 1 本にまとめてあり、指標の数にも軸の数にも依らない）/
+ * eventBreakdowns 1 本 / runningVersionBreakdown 1 本。
  *
  * 指標を 1 つ足すたびにクエリが増える形（KIND_LABELS ごとに発行する）へ戻ると
  * この上限を超えて落ちる（TASK-423 の前は 19 本だった）。
@@ -26,6 +28,14 @@ import { summarize } from '../src/analytics'
  * 行に持たせて `ROW_NUMBER()` の窓で切る形にしたため、区分ごとに 1 本ずつ引いて
  * いた uaSplit の 3 本が trafficSplit の 2 本になった。区分ごとに引く形へ戻すと
  * 15 本になり、ここで落ちる。
+ *
+ * TASK-491.2 で稼働バージョン分布（チャネル別）を足したが、本数は 13 のまま。
+ * 軸ごとに 1 本ずつ引いていた指標別内訳（os / as_org）を `UNION ALL` で 1 本に
+ * まとめて 1 本ぶんの枠を空け、そこへ稼働バージョンのクエリを入れた。稼働バージョンは
+ * 値が増え続けるので `eventBreakdowns` の GROUP BY（列挙で閉じた列の組が前提）へは
+ * 相乗りできず、数える単位も他と違う（COUNT(*) ではなく COUNT(DISTINCT visitor_token)、
+ * 全期間ではなく直近 N 日）ため、独立した 1 本にしてある。指標別内訳を軸ごとに
+ * 引く形へ戻すと 14 本になり、ここで落ちる。
  *
  * TASK-494 で母集団別の日次ユニーク数（サイト訪問 / チャネル別のアップデート確認）を
  * 足したが、本数は 13 のまま。母集団ごとに引かず、既存の日別推移クエリの SELECT 句へ

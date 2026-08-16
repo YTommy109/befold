@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+
 import { clearAccessKeyCache } from '../src/lib/access'
 
 /** テストで使う Access の team domain と AUD（vitest.config.ts のバインディングと同じ値）。 */
@@ -9,7 +10,7 @@ const CERTS_URL = `https://${TEST_TEAM_DOMAIN}/cdn-cgi/access/certs`
 
 function toBase64Url(bytes: Uint8Array): string {
   let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
+  for (const byte of bytes) binary += String.fromCodePoint(byte)
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
 }
 
@@ -31,7 +32,12 @@ export async function installAccessKeys(kid = 'test-kid'): Promise<{
   clearAccessKeyCache()
 
   const pair = (await crypto.subtle.generateKey(
-    { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: 'SHA-256',
+    },
     true,
     ['sign', 'verify'],
   )) as CryptoKeyPair

@@ -6,9 +6,13 @@ import { _MSG_FIND_OPTIONS_CHANGED, _mmdPostMessage } from './bridge.js';
 // クエリと3トグル(caseSensitive / wholeWord / useRegex)から RegExp を組み立てる。
 // クエリが空、または正規表現として不正な場合は null を返す(呼び出し側はエラー表示に切り替える)。
 function buildFindRegExp(query, options) {
-  if (!query) { return null; }
+  if (!query) {
+    return null;
+  }
   var source = options.useRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (options.wholeWord) { source = '\\b(?:' + source + ')\\b'; }
+  if (options.wholeWord) {
+    source = '\\b(?:' + source + ')\\b';
+  }
   var flags = 'g' + (options.caseSensitive ? '' : 'i');
   try {
     return new RegExp(source, flags);
@@ -21,19 +25,25 @@ function buildFindRegExp(query, options) {
 // 末尾の次は先頭、先頭の前は末尾へ循環する。
 
 function nextMatchIndex(currentIndex, count) {
-  if (count <= 0) { return -1; }
+  if (count <= 0) {
+    return -1;
+  }
   return (currentIndex + 1) % count;
 }
 
 function prevMatchIndex(currentIndex, count) {
-  if (count <= 0) { return -1; }
+  if (count <= 0) {
+    return -1;
+  }
   return (currentIndex - 1 + count) % count;
 }
 
 // 再検索(_mmdFindRefresh)で維持する現在位置。再検索でヒット数が減っても
 // 範囲外を指さないようクランプする。負値(未選択)は先頭に寄せる。
 function keptMatchIndex(previousIndex, count) {
-  if (count <= 0) { return -1; }
+  if (count <= 0) {
+    return -1;
+  }
   return Math.min(Math.max(previousIndex, 0), count - 1);
 }
 
@@ -65,7 +75,7 @@ function _createFindController() {
   function clearMarks() {
     var marks = document.querySelectorAll('#diagram-wrap mark.mmd-find-match');
     var parents = new Set();
-    marks.forEach(function(mark) {
+    marks.forEach(function (mark) {
       var parent = mark.parentNode;
       if (!parent) return;
       while (mark.firstChild) {
@@ -74,7 +84,9 @@ function _createFindController() {
       parent.removeChild(mark);
       parents.add(parent);
     });
-    parents.forEach(function(parent) { parent.normalize(); });
+    parents.forEach(function (parent) {
+      parent.normalize();
+    });
   }
 
   // マッチをまたいでよい(連結対象の)インライン要素。シンタックスハイライトの
@@ -83,8 +95,28 @@ function _createFindController() {
   // 見出し・段落・リスト項目・テーブル行/セルなど、ここに挙げていない要素は
   // すべて「またいではいけない境界」として扱う(collectScopes 参照)。
   var bridgeTags = [
-    'SPAN', 'A', 'CODE', 'EM', 'STRONG', 'B', 'I', 'U', 'S', 'DEL', 'INS',
-    'SMALL', 'SUB', 'SUP', 'ABBR', 'KBD', 'SAMP', 'VAR', 'Q', 'CITE', 'TIME', 'LABEL'
+    'SPAN',
+    'A',
+    'CODE',
+    'EM',
+    'STRONG',
+    'B',
+    'I',
+    'U',
+    'S',
+    'DEL',
+    'INS',
+    'SMALL',
+    'SUB',
+    'SUP',
+    'ABBR',
+    'KBD',
+    'SAMP',
+    'VAR',
+    'Q',
+    'CITE',
+    'TIME',
+    'LABEL',
   ];
 
   function isBridgeable(node) {
@@ -142,7 +174,7 @@ function _createFindController() {
     for (var i = 0; i < textNodes.length; i++) {
       var start = starts[i];
       var length = textNodes[i].length;
-      var fits = isStart ? (offset < start + length) : (offset <= start + length);
+      var fits = isStart ? offset < start + length : offset <= start + length;
       if (fits) {
         return { node: textNodes[i], localOffset: offset - start };
       }
@@ -157,7 +189,7 @@ function _createFindController() {
   function matchScope(root, textNodeList, regex, found) {
     var starts = [];
     var text = '';
-    textNodeList.forEach(function(node) {
+    textNodeList.forEach(function (node) {
       starts.push(text.length);
       text += node.textContent;
     });
@@ -177,7 +209,7 @@ function _createFindController() {
 
     var scopeFound = [];
     // Range 構築中に DOM を書き換えるとテキストノードがずれるため、末尾側から処理する。
-    ranges.reverse().forEach(function(range) {
+    ranges.toReversed().forEach(function (range) {
       var start = locate(textNodeList, starts, range.start, true);
       var end = locate(textNodeList, starts, range.end, false);
       // extractContents() は境界をまたぐマッチの端で、部分的にしか含まれない祖先要素
@@ -206,7 +238,7 @@ function _createFindController() {
   // #diagram-wrap 配下をスコープ(bridgeTags でつながった範囲)に分割し、スコープ
   // ごとにマッチさせる。document 順のまま found に積む。
   function walk(root, regex, found) {
-    collectScopes(root).forEach(function(textNodeList) {
+    collectScopes(root).forEach(function (textNodeList) {
       matchScope(root, textNodeList, regex, found);
     });
   }
@@ -244,7 +276,9 @@ function _createFindController() {
   }
 
   function highlightCurrent() {
-    matches.forEach(function(mark) { mark.classList.remove('mmd-find-match-current'); });
+    matches.forEach(function (mark) {
+      mark.classList.remove('mmd-find-match-current');
+    });
     var current = matches[currentIndex];
     if (!current) return;
     current.classList.add('mmd-find-match-current');
@@ -316,7 +350,7 @@ function _createFindController() {
     _mmdPostMessage(_MSG_FIND_OPTIONS_CHANGED, {
       caseSensitive: options.caseSensitive,
       wholeWord: options.wholeWord,
-      useRegex: options.useRegex
+      useRegex: options.useRegex,
     });
     run();
   }
@@ -334,27 +368,47 @@ function _createFindController() {
 
     var strings = window._mmdFindStrings || {};
     var input = document.getElementById('mmd-find-input');
-    if (strings.placeholder) { input.placeholder = strings.placeholder; }
-    if (strings.previous) { document.getElementById('mmd-find-prev').title = strings.previous; }
-    if (strings.next) { document.getElementById('mmd-find-next').title = strings.next; }
-    if (strings.matchCase) { document.getElementById('mmd-find-case').title = strings.matchCase; }
-    if (strings.matchWholeWord) { document.getElementById('mmd-find-word').title = strings.matchWholeWord; }
+    if (strings.placeholder) {
+      input.placeholder = strings.placeholder;
+    }
+    if (strings.previous) {
+      document.getElementById('mmd-find-prev').title = strings.previous;
+    }
+    if (strings.next) {
+      document.getElementById('mmd-find-next').title = strings.next;
+    }
+    if (strings.matchCase) {
+      document.getElementById('mmd-find-case').title = strings.matchCase;
+    }
+    if (strings.matchWholeWord) {
+      document.getElementById('mmd-find-word').title = strings.matchWholeWord;
+    }
     if (strings.useRegularExpression) {
       document.getElementById('mmd-find-regex').title = strings.useRegularExpression;
     }
-    if (strings.close) { document.getElementById('mmd-find-close').title = strings.close; }
+    if (strings.close) {
+      document.getElementById('mmd-find-close').title = strings.close;
+    }
   }
 
   function initControls() {
-    document.getElementById('mmd-find-input').addEventListener('input', function() { run(); });
-    document.getElementById('mmd-find-input').addEventListener('keydown', function(e) {
+    document.getElementById('mmd-find-input').addEventListener('input', function () {
+      run();
+    });
+    document.getElementById('mmd-find-input').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
         // Safari/WKWebView は compositionend → keydown の順で発火するため、
         // 変換確定の Enter では isComposing が既に false になっている。
         // ただし keyCode は 229 のまま残るため、これも合わせて判定する。
-        if (e.isComposing || e.keyCode === 229) { return; }
+        if (e.isComposing || e.keyCode === 229) {
+          return;
+        }
         e.preventDefault();
-        if (e.shiftKey) { prev(); } else { next(); }
+        if (e.shiftKey) {
+          prev();
+        } else {
+          next();
+        }
       }
       // Escape はここでは処理しない: document の keydown ハンドラがバブリングで捕捉し、
       // isOpen() 時に preventDefault + close() を行う(同じ挙動になる)。
@@ -362,13 +416,13 @@ function _createFindController() {
     document.getElementById('mmd-find-next').addEventListener('click', next);
     document.getElementById('mmd-find-prev').addEventListener('click', prev);
     document.getElementById('mmd-find-close').addEventListener('click', close);
-    document.getElementById('mmd-find-case').addEventListener('click', function() {
+    document.getElementById('mmd-find-case').addEventListener('click', function () {
       toggleOption('caseSensitive', 'mmd-find-case');
     });
-    document.getElementById('mmd-find-word').addEventListener('click', function() {
+    document.getElementById('mmd-find-word').addEventListener('click', function () {
       toggleOption('wholeWord', 'mmd-find-word');
     });
-    document.getElementById('mmd-find-regex').addEventListener('click', function() {
+    document.getElementById('mmd-find-regex').addEventListener('click', function () {
       toggleOption('useRegex', 'mmd-find-regex');
     });
   }
@@ -400,11 +454,15 @@ function _createFindController() {
     // 検索バーが開いていれば「表示範囲内」ラベルの表示/非表示を即座に反映する。
     // (通常は appendChunk 後の _mmdFindRefreshAfterRender が再検索するが、
     // それより先に評価されるため、ここでも件数表示だけ更新しておく)
-    if (isOpenFlag) { updateCount(); }
+    if (isOpenFlag) {
+      updateCount();
+    }
   }
 
   return {
-    isOpen: function() { return isOpenFlag; },
+    isOpen: function () {
+      return isOpenFlag;
+    },
     open: open,
     close: close,
     next: next,

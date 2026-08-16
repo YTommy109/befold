@@ -1,0 +1,74 @@
+{
+  // リポジトリ共通の Oxfmt 設定（TASK-498）。
+  //
+  // 設定はここ 1 つだけにして、面ごとの違いは overrides で表す。oxfmt には
+  // extends が無いため、プロジェクトごとに設定ファイルを分けると共通部分を
+  // 二重管理することになる。
+  "$schema": "./site/node_modules/oxfmt/configuration_schema.json",
+
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false,
+  "insertFinalNewline": true,
+  "trailingComma": "all",
+
+  // 実測（2026-08-16）で import 文のクォートは site/ が 107:0、
+  // BefoldApp/viewer-src が 54:2 でシングルクォート優勢。両面で一致している
+  // 唯一のスタイルなので、これは全体で揃える。
+  "singleQuote": true,
+  // JSX 属性は HTML の慣習に合わせてダブルクォートのまま。
+  "jsxSingleQuote": false,
+
+  // import の並びを固定する。LLM が生成するコードは import の位置が呼び出し
+  // 箇所に引きずられて毎回変わり、差分に無関係な行が混ざる。副作用だけを目的と
+  // した import（`import './foo.js'`）はリポジトリ内に 1 つも無いため
+  // （実測、grep で 0 件）、並べ替えで実行順が変わる箇所は無い。
+  "sortImports": true,
+
+  "ignorePatterns": [
+    // **対象は JS / TS だけに絞る。** oxfmt は Prettier 互換で Markdown・CSS・
+    // HTML・YAML・JSON も整形できてしまい、既定のまま走らせるとリポジトリ全体の
+    // .md 812 件（backlog のタスクファイルと docs/）まで書き換える（実測）。
+    // Markdown は markdownlint-cli2（.markdownlint-cli2.jsonc）が持っており、
+    // 二重管理になる。ここで拡張子ごと落としておくと、oxfmt をどこから呼んでも
+    // 対象が変わらない。
+    "**/*.md",
+    "**/*.css",
+    "**/*.html",
+    "**/*.yml",
+    "**/*.yaml",
+    "**/*.json",
+    "**/*.jsonc",
+
+    "**/node_modules/**",
+    "**/.build/**",
+    "**/.wrangler/**",
+    "BefoldApp/build/**",
+    "BefoldApp/DerivedData/**",
+    // ベンダー同梱物（mermaid.min.js は 3.2MB）と esbuild 成果物。どちらも
+    // git 管理下にあるので、無視しないと整形対象になってしまう。
+    "**/*.min.js",
+    "BefoldApp/BefoldKit/Resources/viewer-bundle.js",
+    // wrangler が生成する 538KB の型定義。
+    "site/worker-configuration.d.ts",
+    // ビューアの表示確認用フィクスチャ。整形すると「こう表示される」という
+    // 見本そのものが変わってしまう。
+    "sample/**"
+  ],
+
+  "overrides": [
+    {
+      // 実測でセミコロンの有無が面ごとに割れている（site/ は 8,637 行中 15 行しか
+      // 行末セミコロンが無く、BefoldApp/viewer-src は 1,129 行にある）。
+      // 片方に寄せると、寄せられた側は全行が書き換わるうえ既存の書き方を
+      // 否定することになるので、面ごとの慣習をそのまま固定する。
+      // 2 つは独立した npm プロジェクトで、同時に読む場所でもない。
+      "files": ["BefoldApp/**"],
+      "options": { "semi": true }
+    },
+    {
+      "files": ["site/**", "sample/**"],
+      "options": { "semi": false }
+    }
+  ]
+}

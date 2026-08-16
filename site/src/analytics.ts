@@ -6,12 +6,18 @@
  * idx_events_kind が効く形を保つ。
  */
 
-import type { Channel, DownloadSource, EventKind, Page } from './schema'
 import { CHANNELS } from './lib/github'
 import { RECORDED_HOSTS } from './lib/hosts'
-import { JST_DAY_EXPR, JST_HOUR_EXPR, jstDayStart, jstDaysInWindow, jstWindowStart } from './lib/jst'
-import { BOT_PREFIX } from './lib/visitor'
+import {
+  JST_DAY_EXPR,
+  JST_HOUR_EXPR,
+  jstDayStart,
+  jstDaysInWindow,
+  jstWindowStart,
+} from './lib/jst'
 import { datacenterOrgMatch } from './lib/network'
+import { BOT_PREFIX } from './lib/visitor'
+import type { Channel, DownloadSource, EventKind, Page } from './schema'
 
 export type Count = { label: string; count: number }
 
@@ -178,6 +184,33 @@ export const UNIQUE_SOURCE_LABELS: { key: UniqueSourceKey; label: string }[] = [
   { key: 'update_check_unrecorded', label: 'アプリ（チャネル未記録）' },
 ]
 
+/**
+ * 稼働バージョン分布をチャネルごとに分ける鍵（TASK-491.2）。
+ *
+ * `channel` に値が無い行は `unrecorded` に入れる。0 件でも表として残すのは
+ * `UNIQUE_SOURCE_LABELS` と同じ理由で、「まだ 0 だった」と「そもそも数えて
+ * いない」を画面上で区別できなくしないため。
+ */
+export type RunningVersionKey = Channel | 'unrecorded'
+
+/**
+ * チャネル別の表の並び順と表示名。列挙は `CHANNELS` から生成する。
+ *
+ * 手書きで並べるとチャネルを増やしたときに記録側だけが増え、新チャネルの
+ * 稼働バージョンが画面のどこにも出ないまま落ちる（`UNIQUE_SOURCE_LABELS` と
+ * 同じ理由）。
+ */
+export const RUNNING_VERSION_LABELS: { key: RunningVersionKey; label: string }[] = [
+  ...CHANNELS.map((channel) => ({
+    key: channel as RunningVersionKey,
+    label: CHANNEL_LABELS[channel],
+  })),
+  { key: 'unrecorded', label: 'アプリ（チャネル未記録）' },
+]
+
+/** チャネル別の稼働バージョン分布。 */
+export type RunningVersions = Record<RunningVersionKey, Count[]>
+
 /** 母集団ごとのユニークアクセス元数。 */
 export type UniqueSources = Record<UniqueSourceKey, number>
 
@@ -239,6 +272,7 @@ export type Summary = {
   byReferrer: Count[]
   traffic: TrafficSplit
   visits: VisitBreakdowns
+  runningVersions: RunningVersions
   hosts: Split[]
   fallbacks: Split[]
   perKind: KindBreakdown[]
@@ -255,7 +289,11 @@ export const KIND_LABELS: { kind: MetricKey; label: string }[] = [
 
 /** 日別推移・時間帯分布が対象にする窓（当日を含む直近 N 日）。 */
 export const DAILY_WINDOW_DAYS = 14
-const TOP_N = 10
+/**
+ * 内訳を切り出す上位 N 件。ダッシュボードの注記もこの値を読む（画面の説明と
+ * 実際の切り出し件数がずれないように、数字を書き写さない）。
+ */
+export const TOP_N = 10
 const RECENT_LIMIT = 20
 
 /** SSE の 1 周期で流す新着イベントの上限。再開位置の判断に呼び出し側も使う。 */
@@ -673,7 +711,7 @@ function foldSplits<T extends { is_non_human: number; count: number }>(
     byLabel.set(label, split)
   }
 
-  return [...byLabel.values()].sort(
+  return [...byLabel.values()].toSorted(
     (a, b) => b.human + b.nonHuman - (a.human + a.nonHuman) || a.label.localeCompare(b.label),
   )
 }
@@ -711,53 +749,128 @@ export async function recentEvents(db: D1Database, afterId = 0): Promise<RecentE
 }
 
 /**
- * 全指標ぶんの内訳を 1 本のクエリで取る（指標ごとに上位 N 件）。
+ * 指標別の内訳を取る軸。SQL へ差し込むため、外部入力を受けない固定の集合に限る。
+ *
+ * 軸を増やしてもクエリは 1 本のまま（`metricBreakdowns` が `UNION ALL` で
+ * 軸を行に持たせる）。軸ごとに 1 本ずつ引く形へ戻すと `query-count.test.ts` の
+ * 上限で落ちる。
+ */
+const METRIC_BREAKDOWN_AXES = ['os', 'as_org'] as const
+
+type MetricBreakdownAxis = (typeof METRIC_BREAKDOWN_AXES)[number]
+
+/**
+ * 全指標・全軸ぶんの内訳を 1 本のクエリで取る（指標ごと・軸ごとに上位 N 件）。
  *
  * 指標ごとに引くと `(?1 IS NULL OR kind = ?1)` の形の述語で全表スキャンが指標の数
  * だけ並ぶ。指標を行に持たせて 1 本にまとめ、上位 N 件の切り出しは
  * `ROW_NUMBER()` の窓で指標ごとに行う（LIMIT だと 1 指標ぶんしか取れない）。
+ *
+ * 軸（os / as_org）も同じ理由で行に持たせる。`trafficSplit` の区分・
+ * `eventBreakdowns` の列と同じ「増やす方向を行にして窓で切る」形で、軸を足しても
+ * 発行本数は増えない。
  */
-async function metricBreakdown(
+async function metricBreakdowns(
   db: D1Database,
-  column: Extract<BreakdownColumn, 'os' | 'as_org'>,
-): Promise<Map<MetricKey, Count[]>> {
+): Promise<Map<MetricBreakdownAxis, Map<MetricKey, Count[]>>> {
+  const branches = METRIC_BREAKDOWN_AXES.map(
+    (axis) =>
+      `SELECT '${axis}' AS axis, ${METRIC_EXPR} AS metric, ${axis} AS label, COUNT(*) AS count
+         FROM events
+         WHERE ${axis} IS NOT NULL AND ${HUMAN_ONLY}
+         GROUP BY metric, label`,
+  ).join(' UNION ALL ')
+
   const { results } = await db
     .prepare(
-      `WITH grouped AS (
-         SELECT ${METRIC_EXPR} AS metric, ${column} AS label, COUNT(*) AS count
-         FROM events
-         WHERE ${column} IS NOT NULL AND ${HUMAN_ONLY}
-         GROUP BY metric, label
-       ),
+      `WITH grouped AS (${branches}),
        ranked AS (
-         SELECT metric, label, count,
-                ROW_NUMBER() OVER (PARTITION BY metric ORDER BY count DESC, label) AS position
+         SELECT axis, metric, label, count,
+                ROW_NUMBER() OVER (
+                  PARTITION BY axis, metric ORDER BY count DESC, label
+                ) AS position
          FROM grouped
          WHERE metric IS NOT NULL
        )
-       SELECT metric, label, count
+       SELECT axis, metric, label, count
        FROM ranked
        WHERE position <= ${TOP_N}
-       ORDER BY metric, position`,
+       ORDER BY axis, metric, position`,
     )
-    .all<Count & { metric: MetricKey }>()
+    .all<Count & { axis: MetricBreakdownAxis; metric: MetricKey }>()
 
-  const byMetric = new Map<MetricKey, Count[]>()
-  for (const { metric, label, count } of results) {
+  const byAxis = new Map<MetricBreakdownAxis, Map<MetricKey, Count[]>>()
+  for (const axis of METRIC_BREAKDOWN_AXES) byAxis.set(axis, new Map())
+  for (const { axis, metric, label, count } of results) {
+    const byMetric = byAxis.get(axis)
+    if (byMetric === undefined) continue
     const counts = byMetric.get(metric) ?? []
     counts.push({ label, count })
     byMetric.set(metric, counts)
   }
 
-  return byMetric
+  return byAxis
+}
+
+/**
+ * 直近 N 日に稼働していたバージョンの分布を、チャネル別に 1 本のクエリで取る。
+ *
+ * **数えるのは延べ確認回数ではなくアクセス元の異なり数。** `update_check` は
+ * アプリが定期的に飛ばすため、件数はバージョンではなく起動回数に比例してしまう。
+ * `visitor_token` は「接続元 IP と UA の組をその日のうちだけ同一視できるハッシュ」
+ * なので、ここで数えているのは**アクセス元×日**の異なり数（`cumulativeTotals` の
+ * `visitor_days` と同じ単位）。通算のユニーク利用者数ではない。
+ *
+ * **全期間ではなく直近 N 日に絞る。** 見たいのは「今どのバージョンが使われ続けて
+ * いるか」であって、過去に一度でも動いた版の履歴ではない。全期間で数えると、
+ * すでに更新を終えた版がいつまでも分布に残る。
+ *
+ * **チャネルを分ける。** 実測（2026-08-16）で `update_check` 132 件のうち develop が
+ * 81 件と多数を占め、これは開発機からの確認。混ぜると stable 利用者の分布が読めない。
+ *
+ * 軸を行に持たせて上位 N 件を窓で切るのは `metricBreakdowns` と同じ形。
+ */
+async function runningVersionBreakdown(db: D1Database, now: number): Promise<RunningVersions> {
+  const { results } = await db
+    .prepare(
+      `WITH grouped AS (
+         SELECT COALESCE(channel, 'unrecorded') AS channel, app_version AS label,
+                COUNT(DISTINCT visitor_token) AS count
+         FROM events
+         WHERE app_version IS NOT NULL AND timestamp >= ?
+               AND ${metricExpression(METRIC_FILTERS.update_check)} AND ${HUMAN_ONLY}
+         GROUP BY channel, label
+       ),
+       ranked AS (
+         SELECT channel, label, count,
+                ROW_NUMBER() OVER (
+                  PARTITION BY channel ORDER BY count DESC, label
+                ) AS position
+         FROM grouped
+       )
+       SELECT channel, label, count
+       FROM ranked
+       WHERE position <= ${TOP_N}
+       ORDER BY channel, position`,
+    )
+    .bind(jstWindowStart(now, DAILY_WINDOW_DAYS))
+    .all<Count & { channel: RunningVersionKey }>()
+
+  // 0 件のチャネルも空配列で残す（表そのものを消さないため）。
+  const byChannel = {} as RunningVersions
+  for (const { key } of RUNNING_VERSION_LABELS) byChannel[key] = []
+  for (const { channel, label, count } of results) {
+    byChannel[channel]?.push({ label, count })
+  }
+
+  return byChannel
 }
 
 /** 指標ごとの OS 別・接続元組織別の内訳。合算しないため指標の意味が混ざらない。 */
 async function kindBreakdowns(db: D1Database): Promise<Omit<KindBreakdown, 'total'>[]> {
-  const [byOS, byAsOrg] = await Promise.all([
-    metricBreakdown(db, 'os'),
-    metricBreakdown(db, 'as_org'),
-  ])
+  const byAxis = await metricBreakdowns(db)
+  const byOS = byAxis.get('os') ?? new Map<MetricKey, Count[]>()
+  const byAsOrg = byAxis.get('as_org') ?? new Map<MetricKey, Count[]>()
 
   return KIND_LABELS.map(({ kind, label }) => ({
     kind,
@@ -781,24 +894,25 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     breakdowns,
     recent,
     breakdownAxes,
-  ] =
-    await Promise.all([
-      cumulativeTotals(db),
-      todayTotals(db, now),
-      dailySeries(db, now),
-      hourlyDistribution(db, now),
-      breakdown(db, 'version', 'download'),
-      breakdown(db, 'country'),
-      breakdown(db, 'referrer'),
-      // ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を
-      // 実測するために持つ。TASK-360 で見送った llms.txt の要否判断に使う。
-      // データセンター区分の内訳は接続元組織で、除外した量が画面から
-      // 消えないようにするためのもの（ADR 0008）。
-      trafficSplit(db),
-      kindBreakdowns(db),
-      recentEvents(db),
-      eventBreakdowns(db),
-    ])
+    runningVersions,
+  ] = await Promise.all([
+    cumulativeTotals(db),
+    todayTotals(db, now),
+    dailySeries(db, now),
+    hourlyDistribution(db, now),
+    breakdown(db, 'version', 'download'),
+    breakdown(db, 'country'),
+    breakdown(db, 'referrer'),
+    // ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を
+    // 実測するために持つ。TASK-360 で見送った llms.txt の要否判断に使う。
+    // データセンター区分の内訳は接続元組織で、除外した量が画面から
+    // 消えないようにするためのもの（ADR 0008）。
+    trafficSplit(db),
+    kindBreakdowns(db),
+    recentEvents(db),
+    eventBreakdowns(db),
+    runningVersionBreakdown(db, now),
+  ])
 
   return {
     windowDays: DAILY_WINDOW_DAYS,
@@ -811,8 +925,12 @@ export async function summarize(db: D1Database, now: number): Promise<Summary> {
     byReferrer,
     traffic,
     visits: breakdownAxes.visits,
+    runningVersions,
     hosts: breakdownAxes.byHost,
     fallbacks: breakdownAxes.byFallback,
+    // 要素数は指標の数（KIND_LABELS）に固定で、ここでの spread が効いてくる規模に
+    // ならない。Object.assign へ書き換えると読みにくくなるだけなので許す。
+    // oxlint-disable-next-line oxc/no-map-spread
     perKind: breakdowns.map((entry) => ({ ...entry, total: cumulative.counts[entry.kind] })),
     recent,
   }

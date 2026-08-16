@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { dayKey, isBotSummary, summarizeOS, summarizeUA, visitorTokenHash } from '../src/lib/visitor'
+
+import {
+  dayKey,
+  isBotSummary,
+  summarizeAppVersion,
+  summarizeOS,
+  summarizeUA,
+  visitorTokenHash,
+} from '../src/lib/visitor'
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15'
 
@@ -11,7 +19,7 @@ describe('visitorTokenHash', () => {
     const b = await visitorTokenHash('203.0.113.5', UA, Date.parse('2026-07-28T14:59:00Z'))
 
     expect(a).toBe(b)
-    expect(a).toMatch(/^[0-9a-f]{64}$/)
+    expect(a).toMatch(/^[0-9a-f]{64}$/u)
   })
 
   it('日付（JST）が変われば別のハッシュになる', async () => {
@@ -56,16 +64,61 @@ describe('UA 要約', () => {
   })
 })
 
+describe('稼働中のアプリバージョン', () => {
+  // TASK-491.1 の実測値。Sparkle 2.9.4 の SPUUpdater.userAgentString を befold の
+  // Info.plist を main bundle にして実行して得た文字列そのもの（2026-08-16）。
+  // 作った文字列ではなくこれを置くのは、書式が変わったらここが落ちるようにするため。
+  const MEASURED_UA = 'befold/1.13.2-dev.4 Sparkle/2.9.4'
+
+  it('実測した Sparkle の UA から稼働バージョンを取り出す', () => {
+    expect(summarizeAppVersion(MEASURED_UA)).toBe('1.13.2-dev.4')
+  })
+
+  it('stable のようにプレリリース識別子が無い版も取り出す', () => {
+    expect(summarizeAppVersion('befold/1.13.1 Sparkle/2.9.4')).toBe('1.13.1')
+  })
+
+  it('タグと違い v 接頭辞は付かない（events.version と意味が別）', () => {
+    expect(summarizeAppVersion(MEASURED_UA)).not.toMatch(/^v/u)
+  })
+
+  it('Sparkle 以外のクライアントでは null を返す', () => {
+    expect(summarizeAppVersion('curl/8.7.1')).toBeNull()
+    expect(summarizeAppVersion(UA)).toBeNull()
+    expect(summarizeAppVersion('')).toBeNull()
+  })
+
+  it('詐称された UA を素通ししない（内訳のカーディナリティを守る）', () => {
+    // アプリ名が befold でない / 版がバージョンの形でない / 前置きが付いている、の 3 通り。
+    expect(summarizeAppVersion('evil/1.0.0 Sparkle/2.9.4')).toBeNull()
+    expect(summarizeAppVersion('befold/<script> Sparkle/2.9.4')).toBeNull()
+    expect(summarizeAppVersion('Mozilla/5.0 befold/1.13.1 Sparkle/2.9.4')).toBeNull()
+  })
+
+  it('Sparkle を名乗らない UA では null を返す', () => {
+    expect(summarizeAppVersion('befold/1.13.1')).toBeNull()
+  })
+})
+
 describe('ボット判別', () => {
   // ADR 0004: 完全な UA は保存せず、UA トークン判定で種類だけを残す。
   it.each([
     ['Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)', 'bot:Googlebot'],
     ['Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)', 'bot:bingbot'],
-    ['Mozilla/5.0 AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)', 'bot:Applebot'],
+    [
+      'Mozilla/5.0 AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)',
+      'bot:Applebot',
+    ],
     ['Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)', 'bot:GPTBot'],
-    ['Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)', 'bot:OAI-SearchBot'],
+    [
+      'Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)',
+      'bot:OAI-SearchBot',
+    ],
     ['Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)', 'bot:ClaudeBot'],
-    ['Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)', 'bot:PerplexityBot'],
+    [
+      'Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)',
+      'bot:PerplexityBot',
+    ],
     ['Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)', 'bot:Bytespider'],
   ])('既知のクローラを種類別に分類する: %s', (ua, expected) => {
     expect(summarizeUA(ua)).toBe(expected)

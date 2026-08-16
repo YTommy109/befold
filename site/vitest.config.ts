@@ -1,5 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers'
 import { defineConfig } from 'vitest/config'
 
@@ -51,7 +52,7 @@ const MODE_SEGMENTS_SWIFT = path.join(APP, 'ModeSegments.swift')
 async function readMainMenuBuilderSwift(): Promise<string> {
   const names = (await readdir(APP))
     .filter((name) => name.startsWith('MainMenuBuilder') && name.endsWith('.swift'))
-    .sort()
+    .toSorted()
   if (names.length === 0) throw new Error(`MainMenuBuilder*.swift が見つからない: ${APP}`)
 
   const sources = await Promise.all(names.map((name) => readFile(path.join(APP, name), 'utf8')))

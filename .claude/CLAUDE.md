@@ -55,6 +55,12 @@ swift test                   # テスト（要 Xcode.app）
 xcodegen generate            # .xcodeproj を再生成（新規ファイルの追加・削除後は必須）
 xcodebuild build -scheme befold  # Xcode ビルド（要 Xcode.app）
 
+# JS/TS の lint とフォーマッタ（site/ と BefoldApp/ のそれぞれで実行）
+npm run lint               # Oxlint（--report-unused-disable-directives 付き）
+npm run lint:fix           # 自動修正できる指摘だけ直す
+npm run format             # Oxfmt で整形
+npm run format:check       # 整形ずれの検査（CI と pre-commit が使う）
+
 # Markdown リンタ（リポジトリルートで実行。設定は .markdownlint-cli2.jsonc）
 markdownlint-cli2          # docs 変更時に実行（--fix で自動修正）
 
@@ -71,6 +77,28 @@ scripts/check-doc-symbols.sh --self-test  # 検知が働くことだけを確認
 ファイルを新規追加したら `xcodegen generate` を忘れないこと。`swift build` は
 SPM がディレクトリを走査するため通ってしまい、`.app` バンドルを作る `xcodebuild` だけが
 `cannot find 'X' in scope` で落ちる（実機確認の直前に気付くことになる）。
+
+## JS/TS コーディング規約（Oxlint / Oxfmt）
+
+方針は **リポジトリルートの `.oxlintrc.json` と `.oxfmtrc.json` が単一の情報源**。
+`site/.oxlintrc.json` と `BefoldApp/.oxlintrc.json` がそれを `extends` して、
+検査対象（`ignorePatterns`）と面ごとの緩和だけを持つ。
+
+- カテゴリは correctness / suspicious / perf / pedantic を error。style と
+  restriction は入れない（`no-magic-numbers`・`sort-keys`・`no-null` のように、
+  このコードベースが意図して選んでいる書き方を否定するため）
+- **ルールを個別に無効化するときは必ず理由を書く。** 理由の無い無効化は、次に
+  そのルールが必要になったときに「意図して外したのか、たまたま鳴って外したのか」を
+  区別できなくする。設定ファイル内の既存の無効化はすべて理由つきになっている
+- **`viewer-src/` とそのテストは TS 移行（TASK-499）が終わるまで緩めてある。**
+  `BefoldApp/.oxlintrc.json` の該当 override はブロックごと撤去する前提で、
+  撤去は TASK-499 の Acceptance Criteria に入っている
+- 整形のセミコロンは面ごとに違う（`site/` は無し、`BefoldApp/` は有り）。
+  どちらも既存の慣習をそのまま固定したもので、揃えようとしない
+- oxfmt の対象は **JS/TS だけ**。Markdown は markdownlint-cli2 が持っている
+  （既定のままだと oxfmt が backlog と docs の .md 812 件まで書き換える）
+- CI（`ci.yml` の js-test / `site.yml` の test）と pre-commit（`scripts/oxc-lint.sh`）の
+  両方で落とす。lint も整形もその場で機械的に直せるので、警告に留めない
 
 ## Swift コーディング規約
 

@@ -4,7 +4,6 @@
 import { highlightCode } from './code-html.js';
 import { DOMPurify, hljs, markdownit } from './vendor.js';
 
-
 // markdown-it の validateLink 置き換え。既定は data:image/(gif|png|jpeg|webp)
 // のみ許可するが、MarkdownImageEmbedder が生成する svg+xml / bmp / x-icon の
 // data URI も表示できるよう data:image/* を全許可する。CSP は img-src 'self' data:
@@ -12,7 +11,9 @@ import { DOMPurify, hljs, markdownit } from './vendor.js';
 // javascript:/vbscript:/file:/画像以外の data: は既定どおり拒否し XSS を防ぐ。
 function isSafeLinkURL(url) {
   var str = String(url).trim().toLowerCase();
-  if (/^data:image\//.test(str)) { return true; }
+  if (str.startsWith('data:image/')) {
+    return true;
+  }
   return !/^(vbscript|javascript|file|data):/.test(str);
 }
 
@@ -28,9 +29,13 @@ function sanitizeRenderedHtml(purify, html) {
 // 中身だけを連結するため、`## **太字**の見出し` のような装飾は記号を含まないテキストになる
 // (`inline.content` を使うと `**` が残り、GitHub の slug とずれる)。
 function headingTextOf(inlineToken) {
-  if (!inlineToken) { return ''; }
+  if (!inlineToken) {
+    return '';
+  }
   var children = inlineToken.children;
-  if (!children || !children.length) { return String(inlineToken.content || ''); }
+  if (!children || !children.length) {
+    return String(inlineToken.content || '');
+  }
   var text = '';
   for (var i = 0; i < children.length; i += 1) {
     var child = children[i];
@@ -82,12 +87,13 @@ function assignHeadingIds(state) {
   var used = new Map();
   var tokens = state.tokens;
   for (var i = 0; i < tokens.length; i += 1) {
-    if (tokens[i].type !== 'heading_open') { continue; }
+    if (tokens[i].type !== 'heading_open') {
+      continue;
+    }
     var slug = uniqueHeadingSlug(slugifyHeading(headingTextOf(tokens[i + 1])), used);
     tokens[i].attrSet('id', slug);
   }
 }
-
 
 // 構成済みの markdown-it。ベンダーはバンドル同梱(vendor.js)のため常に構成済みで、
 // 「未ロード」状態は存在しない。
@@ -107,7 +113,7 @@ function buildMarkdownRenderer() {
     html: true,
     linkify: true,
     typographer: true,
-    highlight: function(str, lang) {
+    highlight: function (str, lang) {
       return highlightCode(hljs, str, lang);
     },
   });
@@ -115,7 +121,7 @@ function buildMarkdownRenderer() {
   // 生 HTML を許可しているため、<img onerror=...> 等の XSS ベクタを innerHTML 適用前に
   // 無害化する(sanitizeRenderedHtml は純粋関数、実処理は DOMPurify に委譲)。
   var _mdRenderOriginal = instance.render.bind(instance);
-  instance.render = function(src, env) {
+  instance.render = function (src, env) {
     return sanitizeRenderedHtml(DOMPurify, _mdRenderOriginal(src, env));
   };
   // fuzzyLink(scheme なしのドメイン風文字列の自動リンク化)を無効化する。
@@ -129,7 +135,7 @@ function buildMarkdownRenderer() {
   instance.core.ruler.push('befold_heading_ids', assignHeadingIds);
   instance.validateLink = isSafeLinkURL;
   var defaultFence = instance.renderer.rules.fence;
-  instance.renderer.rules.fence = function(tokens, idx, options, env, self) {
+  instance.renderer.rules.fence = function (tokens, idx, options, env, self) {
     var token = tokens[idx];
     if (token.info.trim() === 'mermaid') {
       return '<pre class="mermaid">' + instance.utils.escapeHtml(token.content) + '</pre>';

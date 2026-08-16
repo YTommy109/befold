@@ -48,9 +48,15 @@ function renderShape(type, mode) {
   if (mode === 'source' && type !== 'code' && type !== 'image' && type !== 'pdf') {
     return type === 'csv' ? 'csv-source' : 'code';
   }
-  if (type === 'code') { return 'code'; }
-  if (type === 'csv') { return 'csv-table'; }
-  if (type === 'md') { return 'markdown'; }
+  if (type === 'code') {
+    return 'code';
+  }
+  if (type === 'csv') {
+    return 'csv-table';
+  }
+  if (type === 'md') {
+    return 'markdown';
+  }
   return type;
 }
 
@@ -73,7 +79,9 @@ var CODE_CHUNK_CONTEXT_LINES = 200;
 // 溜めておくと、次にバーを開いたときに無関係な先頭リセットが起きるため)。
 function _mmdFindRefreshAfterRender() {
   var modeJustSwitched = _mmdModeSwitch.consume();
-  if (_mmdFind.isOpen()) { _mmdFind.refresh(modeJustSwitched); }
+  if (_mmdFind.isOpen()) {
+    _mmdFind.refresh(modeJustSwitched);
+  }
 }
 
 async function render(content, type, lang) {
@@ -138,7 +146,9 @@ async function render(content, type, lang) {
 // 直近の内容をそのまま描き直す(カラースキーム変更などの内部再描画)。
 // まだ何も描いていなければ何もしない。
 function _mmdRerenderCurrent() {
-  if (!_mmdDocument.hasContent()) { return; }
+  if (!_mmdDocument.hasContent()) {
+    return;
+  }
   render(_mmdDocument.content(), _mmdDocument.type(), _mmdDocument.lang());
 }
 
@@ -155,14 +165,20 @@ function appendChunk(text, type, lang) {
   // 空チャンク(チャンク読込エラー時のセンチネル)は追記する内容がない。
   // buildLineNumberRows('') は初回描画(空ファイル1行目)用に空行1つを返す契約のため、
   // ここで弾かないと既存テーブルの末尾に幻の空行が増えてしまう。
-  if (!text) { return; }
+  if (!text) {
+    return;
+  }
   var diagramWrap = document.getElementById('diagram-wrap');
-  if (!diagramWrap) { return; }
+  if (!diagramWrap) {
+    return;
+  }
   // 直前チャンクが改行で終わっている(=行境界で分割された)場合のみ、
   // ブロックコメント等の継続を hljs に再構築させるための前方文脈を取り出す。
   // 強制分割(行途中)の継続は既存の行結合ロジックが別途処理する。
-  var highlightContext = (_mmdChunkTail.endedWithNewline() && _mmdDocument.content())
-    ? lastLines(_mmdDocument.content(), CODE_CHUNK_CONTEXT_LINES) : '';
+  var highlightContext =
+    _mmdChunkTail.endedWithNewline() && _mmdDocument.content()
+      ? lastLines(_mmdDocument.content(), CODE_CHUNK_CONTEXT_LINES)
+      : '';
   _mmdDocument.append(text);
   // 追記戦略は「直前の render() が何を描いたか」だけで決める。type や表示モードから
   // 推し直すと render 側と別々に判定が育ち、ソース表示中の Markdown 追記が
@@ -172,7 +188,9 @@ function appendChunk(text, type, lang) {
   // (1 本ガター)を混ぜると桁がずれ、行番号の基準も狂う。蓄積は上の
   // _mmdDocument.append で済んでいるため、差分を解除した時点の全体再描画で
   // 追記分もそろって出る。
-  if (_mmdRenderedAs === 'diff') { return; }
+  if (_mmdRenderedAs === 'diff') {
+    return;
+  }
   if (_mmdRenderedAs === 'markdown') {
     // Markdown はチャンク境界がブロック境界(コードフェンス外の空行)に揃えられて
     // いるため(StringChunkReader の markdownBlocks)、チャンク単体を描画して
@@ -186,14 +204,18 @@ function appendChunk(text, type, lang) {
   } else if (_mmdRenderedAs === 'csv-table') {
     var csvRows = parseCsv(text, lang || ',');
     var tbody = diagramWrap.querySelector('tbody');
-    if (!tbody) { return; }
+    if (!tbody) {
+      return;
+    }
     var table = tbody.parentElement;
     var headRow = table.tHead && table.tHead.rows[0];
     var minCols = headRow ? headRow.cells.length : 0;
     // 後続チャンクに幅広行があればヘッダを拡張する。
     var maxNewCols = 0;
     for (var r = 0; r < csvRows.length; r++) {
-      if (csvRows[r].length > maxNewCols) { maxNewCols = csvRows[r].length; }
+      if (csvRows[r].length > maxNewCols) {
+        maxNewCols = csvRows[r].length;
+      }
     }
     if (maxNewCols > minCols && headRow) {
       for (var c = minCols; c < maxNewCols; c++) {
@@ -212,7 +234,9 @@ function appendChunk(text, type, lang) {
     // 組み立て方だけが違う(CSV は列ごとのレインボー着色)。
     var isCsvSource = _mmdRenderedAs === 'csv-source';
     var codeEl = diagramWrap.querySelector('pre code');
-    if (!codeEl) { return; }
+    if (!codeEl) {
+      return;
+    }
     var inner = isCsvSource
       ? csvSourceInnerHtml(text, lang || ',')
       : codeChunkInnerHtml(hljs, text, lang, highlightContext);
@@ -256,9 +280,4 @@ function appendChunk(text, type, lang) {
   _mmdFindRefreshAfterRender();
 }
 
-export {
-  renderShape,
-  render,
-  appendChunk,
-  _mmdRerenderCurrent,
-};
+export { renderShape, render, appendChunk, _mmdRerenderCurrent };

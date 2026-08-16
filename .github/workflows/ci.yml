@@ -8,6 +8,10 @@ on:
       - '.github/workflows/ci.yml'
       - 'scripts/check-type-group-size.sh'
       - 'scripts/type-group-exceptions.txt'
+      # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
+      # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
+      - '.oxlintrc.json'
+      - '.oxfmtrc.json'
   pull_request:
     branches: [main]
     paths:
@@ -15,6 +19,10 @@ on:
       - '.github/workflows/ci.yml'
       - 'scripts/check-type-group-size.sh'
       - 'scripts/type-group-exceptions.txt'
+      # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
+      # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
+      - '.oxlintrc.json'
+      - '.oxfmtrc.json'
   schedule:
     # ThreadSanitizer を毎日回して競合回帰を検出する（push がなくても走らせる）
     - cron: '0 15 * * *'
@@ -65,7 +73,7 @@ jobs:
             echo 'app=true' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt)$)'; then
+          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt)$)'; then
             echo 'app=true' >> "$GITHUB_OUTPUT"
           else
             echo 'app=false' >> "$GITHUB_OUTPUT"
@@ -166,8 +174,14 @@ jobs:
 
       # viewer-src/ は ESM で依存を表現するため、import の付け忘れは
       # バンドル時にエラーにならず実行時に初めて落ちる。no-undef で機械検出する。
-      - name: viewer-src の未定義参照を検査する
-        run: npm run lint:viewer
+      # Oxlint はそれに加えて correctness〜pedantic のルールを当てる（TASK-498）。
+      - name: Oxlint を実行する
+        run: npm run lint
+
+      # 整形されていないコードがマージされると、次に触った人の差分に無関係な
+      # 行が混ざる。整形は機械が決めるものなので、ここでずれを落とす。
+      - name: Oxfmt の整形ずれを検査する
+        run: npm run format:check
 
       # 循環 import はバンドルを通ってしまうが、モジュール評価順が壊れて
       # 「別モジュールのトップレベル値が undefined のまま束ねられる」形になる。

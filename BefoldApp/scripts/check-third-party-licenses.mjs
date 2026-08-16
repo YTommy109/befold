@@ -18,10 +18,9 @@
 //         （リポジトリルートからは scripts/vendored-deps-versions.sh）
 
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
-const PACKAGE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
+const PACKAGE_DIR = join(import.meta.dirname, '..');
 const LICENSES_PATH = join(PACKAGE_DIR, 'BefoldKit', 'Resources', 'THIRD_PARTY_LICENSES.md');
 
 // [THIRD_PARTY_LICENSES.md の Component 名, npm パッケージ名, 同梱のしかた]
@@ -44,8 +43,10 @@ const rows = new Map();
 
 const licenses = readFileSync(LICENSES_PATH, 'utf8');
 for (const line of licenses.split('\n')) {
-  const match = /^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$/.exec(line);
-  if (!match || match[1] === 'Component' || /^-+$/.test(match[1])) { continue; }
+  const match = /^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$/u.exec(line);
+  if (!match || match[1] === 'Component' || /^-+$/u.test(match[1])) {
+    continue;
+  }
   rows.set(match[1], { version: match[2], license: match[3] });
 }
 if (rows.size === 0) {
@@ -54,11 +55,16 @@ if (rows.size === 0) {
 
 // "Apache-2.0 / MPL-2.0 (dual)" と "(MPL-2.0 OR Apache-2.0)" を同じものとして比べる。
 function spdxIds(text) {
-  return new Set((text.match(/[A-Za-z0-9.+-]+-[A-Za-z0-9.+-]+/g) || [])
-    .filter((token) => !/^(dual|OR|AND)$/i.test(token)));
+  return new Set(
+    (text.match(/[A-Za-z0-9.+-]+-[A-Za-z0-9.+-]+/gu) || []).filter(
+      (token) => !/^(dual|OR|AND)$/iu.test(token),
+    ),
+  );
 }
 
-const declared = JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8')).devDependencies;
+const declared = JSON.parse(
+  readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8'),
+).devDependencies;
 
 for (const [component, pkg, shipping] of NPM_COMPONENTS) {
   const row = rows.get(component);
@@ -71,8 +77,10 @@ for (const [component, pkg, shipping] of NPM_COMPONENTS) {
     errors.push(`${pkg}: package.json の devDependencies に無い（${shipping}）`);
     continue;
   }
-  if (!/^\d+\.\d+\.\d+$/.test(spec)) {
-    errors.push(`${pkg}: devDependencies の指定 "${spec}" が版固定でない（同梱物は 1 つの版に固定する）`);
+  if (!/^\d+\.\d+\.\d+$/u.test(spec)) {
+    errors.push(
+      `${pkg}: devDependencies の指定 "${spec}" が版固定でない（同梱物は 1 つの版に固定する）`,
+    );
   }
   let meta;
   try {
@@ -83,21 +91,21 @@ for (const [component, pkg, shipping] of NPM_COMPONENTS) {
     errors.push(`${pkg}: node_modules に入っていない（npm ci を実行する）`);
     continue;
   }
-  if (meta.version !== spec.replace(/^[\^~]/, '')) {
+  if (meta.version !== spec.replace(/^[\^~]/u, '')) {
     errors.push(`${pkg}: devDependencies の ${spec} と node_modules の ${meta.version} が食い違う`);
   }
   if (row.version !== meta.version) {
     errors.push(
-      `${component}: THIRD_PARTY_LICENSES.md の ${row.version} と実際の ${meta.version} が食い違う`
+      `${component}: THIRD_PARTY_LICENSES.md の ${row.version} と実際の ${meta.version} が食い違う`,
     );
   }
   const expected = spdxIds(typeof meta.license === 'string' ? meta.license : '');
   const recorded = spdxIds(row.license);
-  const sameLicense = expected.size === recorded.size
-    && [...expected].every((id) => recorded.has(id));
+  const sameLicense =
+    expected.size === recorded.size && [...expected].every((id) => recorded.has(id));
   if (expected.size > 0 && !sameLicense) {
     errors.push(
-      `${component}: ライセンス表記が食い違う（表: ${row.license} / パッケージ: ${meta.license}）`
+      `${component}: ライセンス表記が食い違う（表: ${row.license} / パッケージ: ${meta.license}）`,
     );
   }
   console.log(`${component}\t${meta.version}\t${row.license}\t${shipping}`);
@@ -122,7 +130,9 @@ for (const component of rows.keys()) {
 }
 
 if (errors.length > 0) {
-  for (const message of errors) { console.error(`ERROR: ${message}`); }
+  for (const message of errors) {
+    console.error(`ERROR: ${message}`);
+  }
   process.exit(1);
 }
 console.log('OK: THIRD_PARTY_LICENSES.md は実際の依存と一致している');

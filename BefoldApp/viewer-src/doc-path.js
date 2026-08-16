@@ -14,18 +14,28 @@ function _createDocPathTracker() {
     // 次の render() が表示する文書パスの予告。採用は adoptPending()(= render 開始時)。
     // ここで即時に切り替えると、render script の実行前に通知が発火したとき
     // 旧文書の値が新パスのキーで保存される。
-    setPending: function(path) { pendingDocPath = path; },
+    setPending: function (path) {
+      pendingDocPath = path;
+    },
     // rename / move の追随。DOM は同一文書のまま名前だけ変わるため render を経ずに
     // 即時差し替える。現在値・予告値のうち from に一致するものだけを書き換える
     // (不一致 = 別文書へ切替中なら何もしない。誤った付け替えより、旧キーへの
     // 短時間の保存のほうが安全)。
-    rename: function(from, to) {
-      if (docPath === from) { docPath = to; }
-      if (pendingDocPath === from) { pendingDocPath = to; }
+    rename: function (from, to) {
+      if (docPath === from) {
+        docPath = to;
+      }
+      if (pendingDocPath === from) {
+        pendingDocPath = to;
+      }
     },
-    current: function() { return docPath; },
-    adoptPending: function() {
-      if (pendingDocPath === undefined) { return; }
+    current: function () {
+      return docPath;
+    },
+    adoptPending: function () {
+      if (pendingDocPath === undefined) {
+        return;
+      }
       docPath = pendingDocPath;
       pendingDocPath = undefined;
     },

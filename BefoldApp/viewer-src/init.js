@@ -17,7 +17,7 @@ import { _mmdInitResize, _mmdInitWheelZoom, _mmdInitZoom } from './zoom.js';
 // 再描画する。mermaid とレンダラの双方に用がある配線なので、どちらでもなく
 // ここ(配線の場所)に置く。
 function _mmdInitColorScheme() {
-  onColorSchemeChange(function() {
+  onColorSchemeChange(function () {
     _mmdReinitializeMermaidIfLoaded();
     _mmdRerenderCurrent();
   });

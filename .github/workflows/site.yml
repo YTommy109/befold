@@ -10,6 +10,10 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/site.yml'
+      # Oxlint / Oxfmt の共通方針。ここを変えると site の lint 結果が変わるので、
+      # site/** を触らない設定変更でも検査を回す。
+      - '.oxlintrc.json'
+      - '.oxfmtrc.json'
       # deploy ジョブが実行時に依存するスクリプト。ここに含めないと安全装置を
       # 変更しても CI が回らず、壊れても次の site/ 変更まで気づけない。
       # scripts/** ではなく個別指定にしているのは、worktree-clean.sh などの
@@ -35,6 +39,10 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/site.yml'
+      # Oxlint / Oxfmt の共通方針。ここを変えると site の lint 結果が変わるので、
+      # site/** を触らない設定変更でも検査を回す。
+      - '.oxlintrc.json'
+      - '.oxfmtrc.json'
       # deploy ジョブが実行時に依存するスクリプト。ここに含めないと安全装置を
       # 変更しても CI が回らず、壊れても次の site/ 変更まで気づけない。
       # scripts/** ではなく個別指定にしているのは、worktree-clean.sh などの
@@ -78,6 +86,13 @@ jobs:
 
       - name: 依存をインストールする
         run: npm ci
+
+      # lint と整形ずれは最も安価に落ちるので先に回す（TASK-498）
+      - name: Oxlint を実行する
+        run: npm run lint
+
+      - name: Oxfmt の整形ずれを検査する
+        run: npm run format:check
 
       # 型エラーは安価に落ちるのでテストより先に回す
       - name: 型チェックを実行する

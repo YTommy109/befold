@@ -24,8 +24,8 @@ describe('wrangler.toml の公開面', () => {
   })
 
   it('本番・staging とも workers_dev = true を明示している', () => {
-    expect(production).toMatch(/^workers_dev = true$/m)
-    expect(staging).toMatch(/^workers_dev = true$/m)
+    expect(production).toMatch(/^workers_dev = true$/mu)
+    expect(staging).toMatch(/^workers_dev = true$/mu)
   })
 
   it('本番の Custom Domain が befold.degino.com である', () => {
@@ -45,8 +45,8 @@ describe('wrangler.toml の公開面', () => {
    */
   it('本番・staging とも Access の検証に使う変数を宣言している', () => {
     for (const section of [production, staging]) {
-      expect(section).toMatch(/^ACCESS_TEAM_DOMAIN = /m)
-      expect(section).toMatch(/^ACCESS_AUD = /m)
+      expect(section).toMatch(/^ACCESS_TEAM_DOMAIN = /mu)
+      expect(section).toMatch(/^ACCESS_AUD = /mu)
     }
   })
 })

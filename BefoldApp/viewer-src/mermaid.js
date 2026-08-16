@@ -21,14 +21,14 @@ function _mmdMermaidConfig() {
     // はるかに小さく、大きめの図が "Maximum text size in diagram exceeded" になるため引き上げる。
     maxTextSize: 10 * 1024 * 1024,
     maxEdges: 10000,
-    sequence:  { useMaxWidth: false },
-    er:        { useMaxWidth: false },
+    sequence: { useMaxWidth: false },
+    er: { useMaxWidth: false },
     flowchart: { useMaxWidth: false },
-    gantt:     { useMaxWidth: false },
-    journey:   { useMaxWidth: false },
-    pie:       { useMaxWidth: false },
-    state:     { useMaxWidth: false },
-    class:     { useMaxWidth: false },
+    gantt: { useMaxWidth: false },
+    journey: { useMaxWidth: false },
+    pie: { useMaxWidth: false },
+    state: { useMaxWidth: false },
+    class: { useMaxWidth: false },
   };
 }
 
@@ -49,13 +49,17 @@ function _mmdMermaidParseError(err) {
 var _mermaidLoadPromise = null;
 function _mmdEnsureMermaidLoaded() {
   if (_mermaidLoadPromise) return _mermaidLoadPromise;
-  _mermaidLoadPromise = new Promise(function(resolve, reject) {
+  _mermaidLoadPromise = new Promise(function (resolve, reject) {
     var script = document.createElement('script');
     script.src = 'mermaid.min.js';
     script.onload = resolve;
-    script.onerror = function() { reject(new Error('mermaid.min.js failed to load')); };
+    script.onerror = function () {
+      reject(new Error('mermaid.min.js failed to load'));
+    };
     document.head.appendChild(script);
-  }).then(function() {
+    // 連鎖の終端で、戻り値は誰も見ない（呼び出し側は完了だけを待つ）。
+    // oxlint-disable-next-line promise/always-return
+  }).then(function () {
     mermaid.initialize(_mmdMermaidConfig());
     mermaid.parseError = _mmdMermaidParseError;
   });
@@ -77,15 +81,19 @@ function _mmdReinitializeMermaidIfLoaded() {
 async function _mmdRunMermaid(diagramWrap, onlyUnprocessed) {
   var selector = onlyUnprocessed ? '.mermaid:not([data-processed])' : '.mermaid';
   var elements = diagramWrap.querySelectorAll(selector);
-  if (elements.length === 0) { return; }
+  if (elements.length === 0) {
+    return;
+  }
   try {
     await _mmdEnsureMermaidLoaded();
-    elements.forEach(function(el, i) {
-      if (!onlyUnprocessed) { el.removeAttribute('data-processed'); }
+    elements.forEach(function (el, i) {
+      if (!onlyUnprocessed) {
+        el.removeAttribute('data-processed');
+      }
       el.id = 'mmd-' + i + '-' + Date.now();
     });
     await mermaid.run({ nodes: Array.from(elements) });
-  } catch(e) {
+  } catch (e) {
     // parseError callback handles parse-time display; load failure falls through silently
   }
   _mmdWrapDiagrams(diagramWrap);

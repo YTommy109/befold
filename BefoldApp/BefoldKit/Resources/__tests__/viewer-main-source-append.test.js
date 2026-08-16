@@ -11,7 +11,7 @@ const { loadViewerMain } = require('./support/viewerMainHarness');
 
 const MD = ['# title', '', 'see ./notes.md for details', ''].join('\n');
 
-async function renderIn(main, mode, content, type, lang) {
+function renderIn(main, mode, content, type, lang) {
   main.setViewMode(mode);
   return main.render(content, type, lang);
 }
@@ -22,7 +22,7 @@ function codeTableRows(document) {
 
 function lineNumbers(document) {
   return Array.from(document.querySelectorAll('#diagram-wrap td.line-number')).map(
-    (cell) => cell.textContent
+    (cell) => cell.textContent,
   );
 }
 
@@ -117,11 +117,13 @@ describe('ソース表示のパス参照', () => {
     await renderIn(code.main, 'source', 'see ./notes.md for details\n', 'code', 'swift');
 
     const paths = (doc) =>
-      Array.from(new Set(
-        Array.from(doc.querySelectorAll('#diagram-wrap .befold-path-ref')).map(
-          (el) => el.getAttribute('data-path')
-        )
-      )).sort();
+      Array.from(
+        new Set(
+          Array.from(doc.querySelectorAll('#diagram-wrap .befold-path-ref')).map((el) =>
+            el.getAttribute('data-path'),
+          ),
+        ),
+      ).sort();
     expect(paths(md.document)).toEqual(['./notes.md']);
     expect(paths(code.document)).toEqual(['./notes.md']);
   });
@@ -156,8 +158,8 @@ describe('ソース表示のパス参照', () => {
     main.appendChunk('see ./second.md too\n', 'md');
 
     // 追記された行も注釈され、先に描かれた行の注釈も残っている。
-    const refs = Array.from(document.querySelectorAll('#diagram-wrap .befold-path-ref')).map(
-      (el) => el.getAttribute('data-path')
+    const refs = Array.from(document.querySelectorAll('#diagram-wrap .befold-path-ref')).map((el) =>
+      el.getAttribute('data-path'),
     );
     expect(refs).toContain('./first.md');
     expect(refs).toContain('./second.md');

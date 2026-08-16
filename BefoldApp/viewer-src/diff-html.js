@@ -2,8 +2,8 @@
 // 既存のソース表示と同じ <table class="code-table"> 構造に載せるため、行番号・
 // インデントガイド・シンタックスハイライト・検索がそのまま効く。
 
-import { escapeHtml } from './encoding.js';
 import { highlightCode, lineContentCell, reflowSpanBalancedLines } from './code-html.js';
+import { escapeHtml } from './encoding.js';
 
 // unified diff の 1 ハンクのヘッダー。`@@ -12,7 +12,9 @@ ...` の数値部だけを見る。
 var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
@@ -18,7 +18,7 @@ function parseUnifiedDiff(text) {
   var hunk = null;
   var oldNumber = 0;
   var newNumber = 0;
-  var lines = String(text == null ? '' : text).split('\n');
+  var lines = String(text ?? '').split('\n');
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
     if (line.indexOf('diff --git ') === 0) {
@@ -27,12 +27,20 @@ function parseUnifiedDiff(text) {
       hunk = null;
       continue;
     }
-    if (file === null) { continue; }
+    if (file === null) {
+      continue;
+    }
     // ヘッダ類はハンクが始まる前にしか現れない。ハンク内で同じ接頭辞を持つ行は
     // 本文（`-- ` で始まる SQL コメントの削除など）なので、ここで消費しない。
     if (hunk === null) {
-      if (line.indexOf('--- ') === 0) { file.oldPath = diffPath(line.slice(4)); continue; }
-      if (line.indexOf('+++ ') === 0) { file.newPath = diffPath(line.slice(4)); continue; }
+      if (line.indexOf('--- ') === 0) {
+        file.oldPath = diffPath(line.slice(4));
+        continue;
+      }
+      if (line.indexOf('+++ ') === 0) {
+        file.newPath = diffPath(line.slice(4));
+        continue;
+      }
       if (line.indexOf('Binary files ') === 0 || line.indexOf('GIT binary patch') === 0) {
         file.isBinary = true;
         continue;
@@ -46,8 +54,12 @@ function parseUnifiedDiff(text) {
       file.hunks.push(hunk);
       continue;
     }
-    if (hunk === null) { continue; }
-    if (line.indexOf('\\') === 0) { continue; }
+    if (hunk === null) {
+      continue;
+    }
+    if (line.indexOf('\\') === 0) {
+      continue;
+    }
     var marker = line.charAt(0);
     var body = line.slice(1);
     if (marker === '+') {
@@ -70,7 +82,9 @@ function parseUnifiedDiff(text) {
 // `a/path/to/file.swift` の接頭辞を落とす。`/dev/null` はそのまま返す(新規・削除の印)。
 function diffPath(raw) {
   var path = raw.split('\t')[0];
-  if (path === '/dev/null') { return path; }
+  if (path === '/dev/null') {
+    return path;
+  }
   return path.replace(/^[ab]\//, '');
 }
 
@@ -81,16 +95,24 @@ function diffPath(raw) {
 // 最終行が空行(末尾が空行のファイル)だと本物の行まで消える。足りない分は空で埋める。
 function highlightedSideLines(hljs, lines, indexes, lang) {
   var texts = [];
-  for (var i = 0; i < indexes.length; i++) { texts.push(lines[indexes[i]].text); }
+  for (var i = 0; i < indexes.length; i++) {
+    texts.push(lines[indexes[i]].text);
+  }
   var joined = texts.join('\n');
   var lineHtmls = null;
   var highlighted = highlightCode(hljs, joined, lang);
   if (highlighted) {
     var match = highlighted.match(/^<pre><code[^>]*>([\s\S]*)<\/code><\/pre>$/);
-    if (match) { lineHtmls = reflowSpanBalancedLines(match[1]); }
+    if (match) {
+      lineHtmls = reflowSpanBalancedLines(match[1]);
+    }
   }
-  if (lineHtmls === null) { lineHtmls = reflowSpanBalancedLines(escapeHtml(joined)); }
-  while (lineHtmls.length < indexes.length) { lineHtmls.push(''); }
+  if (lineHtmls === null) {
+    lineHtmls = reflowSpanBalancedLines(escapeHtml(joined));
+  }
+  while (lineHtmls.length < indexes.length) {
+    lineHtmls.push('');
+  }
   return lineHtmls.slice(0, indexes.length);
 }
 
@@ -107,15 +129,25 @@ function highlightedDiffLines(hljs, hunk, lang) {
   var oldIndexes = [];
   var newIndexes = [];
   for (var i = 0; i < lines.length; i++) {
-    if (lines[i].type !== 'add') { oldIndexes.push(i); }
-    if (lines[i].type !== 'del') { newIndexes.push(i); }
+    if (lines[i].type !== 'add') {
+      oldIndexes.push(i);
+    }
+    if (lines[i].type !== 'del') {
+      newIndexes.push(i);
+    }
   }
   var result = [];
-  for (var n = 0; n < lines.length; n++) { result.push(''); }
+  for (var n = 0; n < lines.length; n++) {
+    result.push('');
+  }
   var oldHtmls = highlightedSideLines(hljs, lines, oldIndexes, lang);
-  for (var o = 0; o < oldIndexes.length; o++) { result[oldIndexes[o]] = oldHtmls[o]; }
+  for (var o = 0; o < oldIndexes.length; o++) {
+    result[oldIndexes[o]] = oldHtmls[o];
+  }
   var newHtmls = highlightedSideLines(hljs, lines, newIndexes, lang);
-  for (var w = 0; w < newIndexes.length; w++) { result[newIndexes[w]] = newHtmls[w]; }
+  for (var w = 0; w < newIndexes.length; w++) {
+    result[newIndexes[w]] = newHtmls[w];
+  }
   return result;
 }
 
@@ -123,8 +155,12 @@ function highlightedDiffLines(hljs, hunk, lang) {
 // 区別できないため、色に依存しないグリフを必ず添える。インライン表示と左右分割で
 // 同じ記号を使う(片方だけ変えると同じハンクが 2 つのレイアウトで食い違う)。
 function diffMarkerGlyph(type) {
-  if (type === 'add') { return '+'; }
-  if (type === 'del') { return '-'; }
+  if (type === 'add') {
+    return '+';
+  }
+  if (type === 'del') {
+    return '-';
+  }
   return ' ';
 }
 
@@ -132,21 +168,36 @@ function diffMarkerGlyph(type) {
 function diffRow(line, lineHtml, showLineNumbers) {
   var numbers = '';
   if (showLineNumbers === true) {
-    numbers = '<td class="line-number diff-old">' + (line.oldNumber === null ? '' : line.oldNumber)
-      + '</td><td class="line-number diff-new">' + (line.newNumber === null ? '' : line.newNumber)
-      + '</td>';
+    numbers =
+      '<td class="line-number diff-old">' +
+      (line.oldNumber === null ? '' : line.oldNumber) +
+      '</td><td class="line-number diff-new">' +
+      (line.newNumber === null ? '' : line.newNumber) +
+      '</td>';
   }
-  return '<tr class="diff-line diff-' + line.type + '">' + numbers
-    + '<td class="diff-marker" aria-hidden="true">' + diffMarkerGlyph(line.type) + '</td>'
-    + lineContentCell(lineHtml) + '</tr>';
+  return (
+    '<tr class="diff-line diff-' +
+    line.type +
+    '">' +
+    numbers +
+    '<td class="diff-marker" aria-hidden="true">' +
+    diffMarkerGlyph(line.type) +
+    '</td>' +
+    lineContentCell(lineHtml) +
+    '</tr>'
+  );
 }
 
 // ハンクの区切り行。`@@ -1,3 +1,4 @@` の位置情報は出さず、連続していない範囲の
 // 境目だけを示す。どこの行かは両側のガターが持っているため、位置情報は重複した情報になる。
 // 桁数はレイアウトと行番号ガターの有無で変わるため、colspan は呼び出し側が決める。
 function diffHunkSeparatorRow(colspan) {
-  return '<tr class="diff-hunk" aria-hidden="true">'
-    + '<td class="diff-hunk-separator" colspan="' + colspan + '"></td></tr>';
+  return (
+    '<tr class="diff-hunk" aria-hidden="true">' +
+    '<td class="diff-hunk-separator" colspan="' +
+    colspan +
+    '"></td></tr>'
+  );
 }
 
 // unified diff を 1 列(インライン)の差分表示 HTML へ組み立てる。
@@ -160,14 +211,20 @@ function renderInlineDiffHtml(hljs, diffText, lang, showLineNumbers) {
       var hunk = hunks[h];
       var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
       // 先頭には区切りを置かない(境目が無いところに帯だけが出るため)。
-      if (rows !== '') { rows += diffHunkSeparatorRow(showLineNumbers === true ? 4 : 2); }
+      if (rows !== '') {
+        rows += diffHunkSeparatorRow(showLineNumbers === true ? 4 : 2);
+      }
       for (var i = 0; i < hunk.lines.length; i++) {
         rows += diffRow(hunk.lines[i], lineHtmls[i], showLineNumbers);
       }
     }
   }
-  if (rows === '') { return ''; }
-  return '<pre><code class="hljs"><table class="code-table diff-table">' + rows + '</table></code></pre>';
+  if (rows === '') {
+    return '';
+  }
+  return (
+    '<pre><code class="hljs"><table class="code-table diff-table">' + rows + '</table></code></pre>'
+  );
 }
 
 // 左右分割表示のために、ハンクの行を「旧側 / 新側」の対へ畳む。
@@ -185,8 +242,14 @@ function pairDiffLines(lines) {
     }
     var dels = [];
     var adds = [];
-    while (i < lines.length && lines[i].type === 'del') { dels.push(i); i += 1; }
-    while (i < lines.length && lines[i].type === 'add') { adds.push(i); i += 1; }
+    while (i < lines.length && lines[i].type === 'del') {
+      dels.push(i);
+      i += 1;
+    }
+    while (i < lines.length && lines[i].type === 'add') {
+      adds.push(i);
+      i += 1;
+    }
     var count = Math.max(dels.length, adds.length);
     for (var k = 0; k < count; k++) {
       pairs.push({
@@ -203,17 +266,29 @@ function pairDiffLines(lines) {
 function diffSideCells(line, lineHtml, showLineNumbers, side) {
   var numberClass = side === 'left' ? 'diff-old' : 'diff-new';
   if (line === null) {
-    var emptyNumber = showLineNumbers === true
-      ? '<td class="line-number ' + numberClass + '"></td>' : '';
-    return emptyNumber + '<td class="diff-marker diff-empty" aria-hidden="true"></td>'
-      + '<td class="line-content diff-empty"></td>';
+    var emptyNumber =
+      showLineNumbers === true ? '<td class="line-number ' + numberClass + '"></td>' : '';
+    return (
+      emptyNumber +
+      '<td class="diff-marker diff-empty" aria-hidden="true"></td>' +
+      '<td class="line-content diff-empty"></td>'
+    );
   }
-  var number = showLineNumbers === true
-    ? '<td class="line-number ' + numberClass + '">'
-      + (side === 'left' ? line.oldNumber : line.newNumber) + '</td>'
-    : '';
-  return number + '<td class="diff-marker" aria-hidden="true">' + diffMarkerGlyph(line.type) + '</td>'
-    + lineContentCell(lineHtml);
+  var number =
+    showLineNumbers === true
+      ? '<td class="line-number ' +
+        numberClass +
+        '">' +
+        (side === 'left' ? line.oldNumber : line.newNumber) +
+        '</td>'
+      : '';
+  return (
+    number +
+    '<td class="diff-marker" aria-hidden="true">' +
+    diffMarkerGlyph(line.type) +
+    '</td>' +
+    lineContentCell(lineHtml)
+  );
 }
 
 // 左右分割(side-by-side)の差分表示 HTML。インライン表示と同じ code-table 構造・
@@ -230,32 +305,48 @@ function renderSideBySideDiffHtml(hljs, diffText, lang, showLineNumbers) {
     for (var h = 0; h < hunks.length; h++) {
       var hunk = hunks[h];
       var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
-      if (rows !== '') { rows += diffHunkSeparatorRow(span); }
+      if (rows !== '') {
+        rows += diffHunkSeparatorRow(span);
+      }
       var pairs = pairDiffLines(hunk.lines);
       for (var p = 0; p < pairs.length; p++) {
         var left = pairs[p].left;
         var right = pairs[p].right;
         var leftClass = left === null ? 'diff-empty' : 'diff-' + hunk.lines[left].type;
         var rightClass = right === null ? 'diff-empty' : 'diff-' + hunk.lines[right].type;
-        rows += '<tr class="diff-line">'
-          + '<td class="diff-side diff-side-left ' + leftClass + '"><table class="diff-side-table"><tr>'
-          + diffSideCells(
-            left === null ? null : hunk.lines[left], left === null ? '' : lineHtmls[left],
-            showLineNumbers, 'left'
-          )
-          + '</tr></table></td>'
-          + '<td class="diff-side diff-side-right ' + rightClass + '"><table class="diff-side-table"><tr>'
-          + diffSideCells(
-            right === null ? null : hunk.lines[right], right === null ? '' : lineHtmls[right],
-            showLineNumbers, 'right'
-          )
-          + '</tr></table></td></tr>';
+        rows +=
+          '<tr class="diff-line">' +
+          '<td class="diff-side diff-side-left ' +
+          leftClass +
+          '"><table class="diff-side-table"><tr>' +
+          diffSideCells(
+            left === null ? null : hunk.lines[left],
+            left === null ? '' : lineHtmls[left],
+            showLineNumbers,
+            'left',
+          ) +
+          '</tr></table></td>' +
+          '<td class="diff-side diff-side-right ' +
+          rightClass +
+          '"><table class="diff-side-table"><tr>' +
+          diffSideCells(
+            right === null ? null : hunk.lines[right],
+            right === null ? '' : lineHtmls[right],
+            showLineNumbers,
+            'right',
+          ) +
+          '</tr></table></td></tr>';
       }
     }
   }
-  if (rows === '') { return ''; }
-  return '<pre><code class="hljs"><table class="code-table diff-table diff-split">'
-    + rows + '</table></code></pre>';
+  if (rows === '') {
+    return '';
+  }
+  return (
+    '<pre><code class="hljs"><table class="code-table diff-table diff-split">' +
+    rows +
+    '</table></code></pre>'
+  );
 }
 
 // レイアウト名から差分表示 HTML を組み立てる。呼び出し側(renderers.js)が

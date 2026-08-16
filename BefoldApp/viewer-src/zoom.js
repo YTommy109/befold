@@ -13,7 +13,9 @@ var BASE_SCALE = 0.75;
 var DIAGRAM_ZOOM_MAX = 3.0;
 
 function clampZoom(z, max) {
-  if (max === undefined) { max = ZOOM_MAX; }
+  if (max === undefined) {
+    max = ZOOM_MAX;
+  }
   return Math.max(ZOOM_MIN, Math.min(max, z));
 }
 
@@ -76,33 +78,45 @@ function _createZoomStore() {
   }
 
   return {
-    value: function() { return zoom; },
+    value: function () {
+      return zoom;
+    },
     // Swift が注入した保存値を採用する。範囲外の保存値はクランプした値を採用しつつ、
     // 直近通知値には注入値そのままを記録する: 次の takePostable() が補正後の値を
     // 通知対象として返し、Swift 側の保存値が正される。
-    adoptStored: function(raw) {
+    adoptStored: function (raw) {
       var parsed = parseStoredZoom(raw);
       zoom = clampZoom(parsed);
       lastPosted = parsed;
     },
-    step: function(delta) { zoom = stepZoom(zoom, delta); },
-    wheel: function(deltaY) { zoom = wheelZoom(zoom, deltaY); },
-    reset: function() { zoom = ZOOM_DEFAULT; },
+    step: function (delta) {
+      zoom = stepZoom(zoom, delta);
+    },
+    wheel: function (deltaY) {
+      zoom = wheelZoom(zoom, deltaY);
+    },
+    reset: function () {
+      zoom = ZOOM_DEFAULT;
+    },
     // 直近通知値と変わっていれば通知すべき倍率を返し、同時に直近通知値を更新する。
     // 変わっていなければ null を返す（通知は不要）。
-    takePostable: function() {
-      if (zoom === lastPosted) { return null; }
+    takePostable: function () {
+      if (zoom === lastPosted) {
+        return null;
+      }
       lastPosted = zoom;
       return zoom;
     },
     diagramValue: diagramValue,
-    diagramStep: function(index, delta) {
+    diagramStep: function (index, delta) {
       diagramZooms.set(index, stepZoom(diagramValue(index), delta, DIAGRAM_ZOOM_MAX));
     },
-    diagramWheel: function(index, deltaY) {
+    diagramWheel: function (index, deltaY) {
       diagramZooms.set(index, wheelZoom(diagramValue(index), deltaY, DIAGRAM_ZOOM_MAX));
     },
-    diagramReset: function(index) { diagramZooms.set(index, ZOOM_DEFAULT); },
+    diagramReset: function (index) {
+      diagramZooms.set(index, ZOOM_DEFAULT);
+    },
   };
 }
 
@@ -121,8 +135,8 @@ function _mmdApplyZoom() {
     // iframe(=wrap)の寸法自体を倍率で変える。PDF は幅フィットで
     // 描画されるので、幅が広がるほど拡大表示になる。
     wrap.style.zoom = 1;
-    wrap.style.width = (zoom * 100) + '%';
-    wrap.style.height = (zoom * 100) + '%';
+    wrap.style.width = zoom * 100 + '%';
+    wrap.style.height = zoom * 100 + '%';
   } else {
     wrap.style.width = '';
     wrap.style.height = '';
@@ -163,22 +177,28 @@ function _mmdWheelZoom(deltaY) {
 // Ctrl+ホイール（トラックパッドのピンチ含む）はポインタ位置で振り分ける:
 // ダイアグラム上ならそのダイアグラムの個別ズーム、それ以外は全体ズーム。
 function _mmdInitWheelZoom() {
-  document.addEventListener('wheel', function(e) {
-    if (!e.ctrlKey) { return; }
-    e.preventDefault();
-    var wrap = e.target instanceof Element ? e.target.closest('.diagram-zoom-wrap') : null;
-    if (wrap) {
-      _mmdDiagramWheelZoom(wrap, e.deltaY);
-    } else {
-      _mmdWheelZoom(e.deltaY);
-    }
-  }, { passive: false });
+  document.addEventListener(
+    'wheel',
+    function (e) {
+      if (!e.ctrlKey) {
+        return;
+      }
+      e.preventDefault();
+      var wrap = e.target instanceof Element ? e.target.closest('.diagram-zoom-wrap') : null;
+      if (wrap) {
+        _mmdDiagramWheelZoom(wrap, e.deltaY);
+      } else {
+        _mmdWheelZoom(e.deltaY);
+      }
+    },
+    { passive: false },
+  );
 }
 
 // ウィンドウリサイズで枠高さの上限(ビューポート高)や画像のフィットサイズが
 // 変わるため追従させる。
 function _mmdInitResize() {
-  window.addEventListener('resize', function() {
+  window.addEventListener('resize', function () {
     _mmdUpdateAllDiagramScrollHeights();
     var wrap = document.getElementById('diagram-wrap');
     var img = wrap.classList.contains('image-body') ? wrap.querySelector('img') : null;
@@ -194,7 +214,12 @@ function _mmdInitResize() {
 // フィット計算は実ビューポート基準で行う必要があるため zoom を掛けて実寸に戻す。
 function _mmdFitImage(img, wrap) {
   var zoom = _mmdZoom.value();
-  var fit = imageFitSize(img.naturalWidth, img.naturalHeight, wrap.clientWidth * zoom, wrap.clientHeight * zoom);
+  var fit = imageFitSize(
+    img.naturalWidth,
+    img.naturalHeight,
+    wrap.clientWidth * zoom,
+    wrap.clientHeight * zoom,
+  );
   img.style.width = fit.width + 'px';
   img.style.height = fit.height + 'px';
 }
@@ -208,7 +233,7 @@ function _mmdDiagramZoomValue(index) {
 }
 
 function _mmdUpdateAllDiagramScrollHeights() {
-  document.querySelectorAll('.diagram-zoom-wrap').forEach(function(wrap) {
+  document.querySelectorAll('.diagram-zoom-wrap').forEach(function (wrap) {
     _mmdUpdateDiagramScrollHeight(wrap);
   });
 }
@@ -255,16 +280,22 @@ function _mmdBuildDiagramControls(wrap) {
   zoomOut.className = 'diagram-zoom-out';
   zoomOut.title = '縮小';
   zoomOut.textContent = '−';
-  zoomOut.addEventListener('click', function() { _mmdDiagramZoomStep(wrap, -ZOOM_STEP); });
+  zoomOut.addEventListener('click', function () {
+    _mmdDiagramZoomStep(wrap, -ZOOM_STEP);
+  });
   var label = document.createElement('span');
   label.className = 'diagram-zoom-label';
   label.title = 'クリックでリセット';
-  label.addEventListener('click', function() { _mmdDiagramZoomReset(wrap); });
+  label.addEventListener('click', function () {
+    _mmdDiagramZoomReset(wrap);
+  });
   var zoomIn = document.createElement('button');
   zoomIn.className = 'diagram-zoom-in';
   zoomIn.title = '拡大';
   zoomIn.textContent = '+';
-  zoomIn.addEventListener('click', function() { _mmdDiagramZoomStep(wrap, ZOOM_STEP); });
+  zoomIn.addEventListener('click', function () {
+    _mmdDiagramZoomStep(wrap, ZOOM_STEP);
+  });
   controls.appendChild(zoomOut);
   controls.appendChild(label);
   controls.appendChild(zoomIn);
@@ -274,7 +305,7 @@ function _mmdBuildDiagramControls(wrap) {
 // 各 .mermaid 要素をズーム用ラッパーで包む。SVG サイズ確定後
 // （mermaid.run() 完了後）に呼ぶこと。
 function _mmdWrapDiagrams(diagramWrap) {
-  diagramWrap.querySelectorAll('.mermaid').forEach(function(el, i) {
+  diagramWrap.querySelectorAll('.mermaid').forEach(function (el, i) {
     var wrap = document.createElement('div');
     wrap.className = 'diagram-zoom-wrap';
     wrap.dataset.diagramIndex = i;

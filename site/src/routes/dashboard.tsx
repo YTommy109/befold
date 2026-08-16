@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
-import type { AppEnv } from '../index'
+
 import { STREAM_LIMIT, eventsAfter, maxEventId, summarize } from '../analytics'
+import type { AppEnv } from '../index'
 import { verifyAccessJwt } from '../lib/access'
 import { LEGACY_HOST, LEGACY_STAGING_HOST } from '../lib/hosts'
 import { Dashboard, renderSummarySections } from '../views/dashboard'
@@ -49,7 +50,12 @@ dashboardRoutes.use('*', async (c, next) => {
 
   const teamDomain = c.env.ACCESS_TEAM_DOMAIN
   const aud = c.env.ACCESS_AUD
-  if (teamDomain === undefined || teamDomain.length === 0 || aud === undefined || aud.length === 0) {
+  if (
+    teamDomain === undefined ||
+    teamDomain.length === 0 ||
+    aud === undefined ||
+    aud.length === 0
+  ) {
     // 設定が無い状態では閉じる。素通しにすると、設定漏れが「動いている」形で
     // 表に出てしまう。ローカル開発（wrangler dev）だけは、ホストも
     // localhost であることを併せて確かめたうえで通す。設定済みの本番では
@@ -80,7 +86,9 @@ dashboardRoutes.get('/', async (c) => {
 dashboardRoutes.get('/stream', (c) => {
   // 再接続時は Last-Event-ID、初回はクエリの after から再開位置を決める。
   const resumeFrom = c.req.header('Last-Event-ID') ?? c.req.query('after') ?? '0'
-  let lastId = Number.parseInt(resumeFrom, 10)
+  // parseInt ではなく Number を使う。'12abc' のような値を 12 として受け取らず
+  // NaN にして下の判定で 0 へ倒すため（再開位置には自前で発行した id しか来ない）。
+  let lastId = Math.trunc(Number(resumeFrom))
   if (!Number.isFinite(lastId) || lastId < 0) lastId = 0
 
   const db = c.env.DB
@@ -92,6 +100,10 @@ dashboardRoutes.get('/stream', (c) => {
       controller.enqueue(encoder.encode(': connected\n\n'))
 
       try {
+        // ポーリングは 1 周ずつ順に進める。await を並行化する余地は無く（次の周期の
+        // 開始位置が前の周期の結果で決まる）、間隔を空けること自体が目的なので、
+        // このループでは no-await-in-loop を止める。
+        /* oxlint-disable eslint/no-await-in-loop */
         while (Date.now() < deadline) {
           // カーソルは生の最大 id で進める。eventsAfter はロボットの巡回を除いて
           // 返すため、返った行だけで再開位置を決めると、ボットしか来なかった周期で
@@ -108,8 +120,7 @@ dashboardRoutes.get('/stream', (c) => {
           // それ以外は、maxEventId を取った後に入った行も読んで流しているため、
           // 大きいほうまで進めないと同じ行を次の周期でもう一度送ってしまう。
           const lastEventId = events.at(-1)?.id ?? 0
-          lastId =
-            events.length === STREAM_LIMIT ? lastEventId : Math.max(latestId, lastEventId)
+          lastId = events.length === STREAM_LIMIT ? lastEventId : Math.max(latestId, lastEventId)
           // 集計は summarize() の再実行結果をそのまま流す。D1 クエリを伴うため
           // 新着があったポーリング周期でのみ行う。data 行は改行を含められないので
           // HTML は JSON 文字列にして送る。
@@ -119,8 +130,11 @@ dashboardRoutes.get('/stream', (c) => {
           }
           // 接続維持用のコメント（プロキシのアイドルタイムアウト対策）。
           controller.enqueue(encoder.encode(': keep-alive\n\n'))
-          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+          await new Promise((resolve) => {
+            setTimeout(resolve, POLL_INTERVAL_MS)
+          })
         }
+        /* oxlint-enable eslint/no-await-in-loop */
       } catch {
         // クライアント切断や D1 障害では静かに閉じ、ブラウザ側の再接続に任せる。
       } finally {

@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test'
 import { afterEach, describe, expect, it } from 'vitest'
+
 import {
   cumulativeTotals,
   dailySeries,
@@ -14,11 +15,13 @@ import {
   UNRECORDED_LABEL,
   KIND_LABELS,
   UNIQUE_SOURCE_LABELS,
+  RUNNING_VERSION_LABELS,
+  TOP_N,
 } from '../src/analytics'
 import { CANONICAL_HOST, LEGACY_HOST, RECORDED_HOSTS } from '../src/lib/hosts'
+import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import { DATACENTER_ORG_PATTERNS, datacenterOrgMatch, isDatacenterOrg } from '../src/lib/network'
 import { channelSchema, eventKindSchema } from '../src/schema'
-import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import type { EventKind } from '../src/schema'
 
 /** JST 2026-08-08 12:00（= UTC 03:00）を「現在」とする固定基準。 */
@@ -44,6 +47,156 @@ async function insert(
 
 afterEach(async () => {
   await env.DB.prepare('DELETE FROM events').run()
+})
+
+/** update_check を 1 件入れる（稼働バージョン分布のテスト用）。 */
+async function insertUpdateCheck(options: {
+  ts: number
+  appVersion: string | null
+  channel?: string | null
+  visitorToken?: string
+  uaSummary?: string | null
+  asOrg?: string | null
+}): Promise<void> {
+  await env.DB.prepare(
+    'INSERT INTO events (timestamp, kind, channel, app_version, visitor_token, ua_summary, as_org)' +
+      " VALUES (?, 'update_check', ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      options.ts,
+      // `?? 'stable'` にしない。明示した null が既定値に化けて、
+      // チャネル未記録のケースを検証できなくなる。
+      'channel' in options ? options.channel : 'stable',
+      options.appVersion,
+      options.visitorToken ?? 'visitor-a',
+      options.uaSummary ?? 'Sparkle',
+      options.asOrg ?? null,
+    )
+    .run()
+}
+
+describe('稼働中のアプリバージョン', () => {
+  it('延べ確認回数ではなくアクセス元の異なり数を数える', async () => {
+    // 同じアクセス元から 3 回確認が来ても 1。起動回数ではなく規模を見るため。
+    for (const ts of [jst('2026-08-08 01:00'), jst('2026-08-08 02:00'), jst('2026-08-08 03:00')]) {
+      await insertUpdateCheck({ ts, appVersion: '1.13.1', visitorToken: 'visitor-a' })
+    }
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 04:00'),
+      appVersion: '1.13.1',
+      visitorToken: 'visitor-b',
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 2 }])
+  })
+
+  it('stable と develop を混ぜない', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.13.1',
+      channel: 'stable',
+      visitorToken: 'visitor-a',
+    })
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.13.2-dev.4',
+      channel: 'develop',
+      visitorToken: 'visitor-b',
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 1 }])
+    expect(summary.runningVersions.develop).toEqual([{ label: '1.13.2-dev.4', count: 1 }])
+  })
+
+  it('チャネルが記録されていない行を落とさない', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.12.0',
+      channel: null,
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.unrecorded).toEqual([{ label: '1.12.0', count: 1 }])
+  })
+
+  it('窓の外の確認は数えない（今も使われている版だけを見る）', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-06-01 01:00'),
+      appVersion: '1.9.0',
+      visitorToken: 'visitor-old',
+    })
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.13.1',
+      visitorToken: 'visitor-a',
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 1 }])
+  })
+
+  it('バージョンを名乗らない確認は出てこない（app_version が NULL）', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: null,
+      uaSummary: 'curl',
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toEqual([])
+  })
+
+  it('ボットとデータセンターは他の集計と同じ条件で除外する', async () => {
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.13.1',
+      visitorToken: 'visitor-bot',
+      uaSummary: 'bot:Googlebot',
+    })
+    await insertUpdateCheck({
+      ts: jst('2026-08-08 01:00'),
+      appVersion: '1.13.1',
+      visitorToken: 'visitor-dc',
+      asOrg: DATACENTER_ORG_PATTERNS[0],
+    })
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toEqual([])
+  })
+
+  it('0 件のチャネルも表そのものは残す（未計測と 0 件を混同させない）', async () => {
+    const summary = await summarize(env.DB, NOW)
+
+    for (const { key } of RUNNING_VERSION_LABELS) {
+      expect(summary.runningVersions[key]).toEqual([])
+    }
+  })
+
+  it('上位 N 件で切る', async () => {
+    for (let i = 0; i < TOP_N + 3; i += 1) {
+      // 件数に差を付けて順位を確定させる（同数だとラベル順に倒れて意図が読めない）。
+      for (let n = 0; n <= i; n += 1) {
+        await insertUpdateCheck({
+          ts: jst('2026-08-08 01:00'),
+          appVersion: `1.0.${i}`,
+          visitorToken: `visitor-${i}-${n}`,
+        })
+      }
+    }
+
+    const summary = await summarize(env.DB, NOW)
+
+    expect(summary.runningVersions.stable).toHaveLength(TOP_N)
+    expect(summary.runningVersions.stable[0]?.label).toBe(`1.0.${TOP_N + 2}`)
+  })
 })
 
 describe('JST バケットの基準', () => {
@@ -199,7 +352,7 @@ describe('人間の訪問と自動アクセスの分離', () => {
   /** 接続元組織まで指定して visit を 1 件記録する。 */
   async function insertOrg(ts: number, uaSummary: string | null, asOrg: string | null) {
     await env.DB.prepare(
-      "INSERT INTO events (timestamp, kind, visitor_token, ua_summary, as_org, page)" +
+      'INSERT INTO events (timestamp, kind, visitor_token, ua_summary, as_org, page)' +
         " VALUES (?, 'visit', ?, ?, ?, '/')",
     )
       .bind(ts, `visitor-${ts}`, uaSummary, asOrg)
@@ -371,13 +524,8 @@ describe('集計からのロボット除外', () => {
     // 数えるのが目的なので TRAFFIC_CLASS_EXPR を直接使う）、eventBreakdowns
     // （人間側と自動アクセス側の両方を返し TS 側で分ける）、maxEventId
     // （生の id を返す SSE のカーソル）。
-    const exempt = [
-      'TRAFFIC_CLASS_EXPR',
-      'TRAFFIC_LABEL_EXPR',
-      'NON_HUMAN_MATCH',
-      'MAX(id)',
-    ]
-    const windows = [...analyticsSource.matchAll(/FROM events/g)].map((match) =>
+    const exempt = ['TRAFFIC_CLASS_EXPR', 'TRAFFIC_LABEL_EXPR', 'NON_HUMAN_MATCH', 'MAX(id)']
+    const windows = [...analyticsSource.matchAll(/FROM events/gu)].map((match) =>
       analyticsSource.slice(Math.max(0, (match.index ?? 0) - 200), (match.index ?? 0) + 400),
     )
 
@@ -388,20 +536,20 @@ describe('集計からのロボット除外', () => {
     }
 
     // 条件そのものは軸ごとに 1 箇所だけで定義される。
-    expect(analyticsSource.match(/LIKE '\$\{BOT_PREFIX\}%'/g)).toHaveLength(1)
-    expect(analyticsSource.match(/datacenterOrgMatch\(/g)).toHaveLength(1)
+    expect(analyticsSource.match(/LIKE '\$\{BOT_PREFIX\}%'/gu)).toHaveLength(1)
+    expect(analyticsSource.match(/datacenterOrgMatch\(/gu)).toHaveLength(1)
     // 接続元組織の判定を analytics.ts に手書きしない（定義元は lib/network.ts）。
-    expect(analyticsSource).not.toMatch(/as_org.*LIKE '%/)
+    expect(analyticsSource).not.toMatch(/as_org.*LIKE '%/u)
   })
 
   it('接続元組織の判定は配列ひとつから生成される', () => {
     // SQL 断片を手書きすると、パターンを足したときに片方だけ直る。
     const sql = datacenterOrgMatch()
-    expect(sql.match(/LIKE '%/g)).toHaveLength(DATACENTER_ORG_PATTERNS.length)
+    expect(sql.match(/LIKE '%/gu)).toHaveLength(DATACENTER_ORG_PATTERNS.length)
     for (const pattern of DATACENTER_ORG_PATTERNS) {
       expect(sql).toContain(`LIKE '%${pattern}%'`)
       // SQL へそのまま埋めるため、引用符とワイルドカードは持てない。
-      expect(pattern).not.toMatch(/['%_]/)
+      expect(pattern).not.toMatch(/['%_]/u)
       expect(isDatacenterOrg(`Example ${pattern} Inc.`)).toBe(true)
     }
     // NULL は「データセンターでない」ではなく「不明」。人間側に残す。
@@ -631,7 +779,9 @@ describe('最新イベントと SSE の差分配信', () => {
 
     expect(recent).toHaveLength(1)
     expect(streamed).toHaveLength(1)
-    expect(Object.keys(recent[0] ?? {}).sort()).toEqual(Object.keys(streamed[0] ?? {}).sort())
+    expect(Object.keys(recent[0] ?? {}).toSorted()).toEqual(
+      Object.keys(streamed[0] ?? {}).toSorted(),
+    )
     expect(recent[0]?.page).toBe('/features')
     expect(streamed[0]?.page).toBe('/features')
   })
@@ -694,14 +844,10 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
   })
 
   it('GitHub フォールバックを経路別に数える', async () => {
-    await env.DB.prepare(
-      'INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)',
-    )
+    await env.DB.prepare('INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)')
       .bind(NOW, 'github_fallback', CANONICAL_HOST, 'appcast')
       .run()
-    await env.DB.prepare(
-      'INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)',
-    )
+    await env.DB.prepare('INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)')
       .bind(NOW, 'github_fallback', CANONICAL_HOST, 'dmg')
       .run()
     await insertHostRow('download', CANONICAL_HOST)

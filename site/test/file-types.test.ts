@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+
 import {
   FILE_TYPE_GROUPS,
   SIZE_LIMITS_MB,
@@ -57,7 +58,7 @@ const EXPECTED_LITERAL_GROUPS = [
 ]
 
 function sorted(values: Iterable<string>): string[] {
-  return [...values].sort()
+  return [...values].toSorted()
 }
 
 describe('FileType.swift のパース', () => {
@@ -110,9 +111,9 @@ describe('対応ファイルタイプ表', () => {
   it('LP の機能説明に書いた拡張子も表に載っている', () => {
     // 訴求文なので生成はしないが、表と食い違ったまま片方だけ直る状態は作らない。
     const prose = [...FEATURES, ...MORE_FEATURES]
-      .flatMap((feature) => [...feature.ja, ...feature.en])
+      .flatMap((feature) => feature.ja.concat(feature.en))
       .join(' ')
-    const mentioned = captureAll(prose, /\.([a-z0-9]{1,8})\b/g)
+    const mentioned = captureAll(prose, /\.([a-z0-9]{1,8})\b/gu)
 
     expect(mentioned.length).toBeGreaterThan(0)
     expect(sorted(new Set(mentioned)).filter((ext) => !allTableExtensions().has(ext))).toEqual([])

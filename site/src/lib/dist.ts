@@ -15,7 +15,7 @@ import { z } from 'zod'
  * そのまま連結すると、バケット内の任意のオブジェクト（latest.json など
  * 配信対象でないもの）が読み出せてしまう。
  */
-const tagSchema = z.string().regex(/^v\d+\.\d+\.\d+(-dev\.\d+)?$/)
+const tagSchema = z.string().regex(/^v\d+\.\d+\.\d+(-dev\.\d+)?$/u)
 
 /** R2 のキー接頭辞。成果物以外を同じバケットへ置く場合の衝突も避ける。 */
 const RELEASES_PREFIX = 'releases'

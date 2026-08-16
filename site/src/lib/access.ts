@@ -42,6 +42,9 @@ function decodeBase64Url(value: string): Uint8Array {
   const binary = atob(padded)
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i += 1) {
+    // atob の出力は 1 文字 = 1 バイト（0〜255）なので charCodeAt が正しい。
+    // codePointAt はサロゲートペアを 1 つの値にまとめるため、ここでは使えない。
+    // oxlint-disable-next-line unicorn/prefer-code-point
     bytes[i] = binary.charCodeAt(i)
   }
   return bytes
@@ -62,26 +65,34 @@ async function fetchKeys(teamDomain: string): Promise<Map<string, CryptoKey>> {
   if (!response.ok) throw new Error(`failed to fetch Access certs: ${response.status}`)
 
   const body = (await response.json()) as { keys?: AccessJwk[] }
-  const keys = new Map<string, CryptoKey>()
-  for (const jwk of body.keys ?? []) {
-    if (jwk.kid === undefined) continue
-    const key = await crypto.subtle.importKey(
-      'jwk',
-      jwk,
-      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-      false,
-      ['verify'],
-    )
-    keys.set(jwk.kid, key)
-  }
-  return keys
+  // 鍵は互いに独立しているので並行して取り込む。JWKS は鍵の回転時に複数本
+  // 返るため、順に await すると本数ぶん待ち時間が積み上がる。
+  const imported = await Promise.all(
+    (body.keys ?? [])
+      .filter((jwk): jwk is AccessJwk & { kid: string } => jwk.kid !== undefined)
+      .map(async (jwk) => {
+        const key = await crypto.subtle.importKey(
+          'jwk',
+          jwk,
+          { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+          false,
+          ['verify'],
+        )
+        return [jwk.kid, key] as const
+      }),
+  )
+  return new Map(imported)
 }
 
 /**
  * kid に対応する公開鍵を返す。キャッシュに無い kid は鍵の回転とみなして
  * 1 度だけ取り直す（回転直後に全リクエストが落ちるのを避けるため）。
  */
-async function keyFor(teamDomain: string, kid: string, now: number): Promise<CryptoKey | undefined> {
+async function keyFor(
+  teamDomain: string,
+  kid: string,
+  now: number,
+): Promise<CryptoKey | undefined> {
   const cached = keyCache.get(teamDomain)
   if (cached !== undefined && cached.expiresAt > now) {
     const key = cached.keys.get(kid)
@@ -110,7 +121,11 @@ export async function verifyAccessJwt(
 ): Promise<AccessClaims | undefined> {
   const nowSeconds = Math.floor((options.now ?? Date.now()) / 1000)
   const [headerSegment, payloadSegment, signatureSegment] = token.split('.')
-  if (headerSegment === undefined || payloadSegment === undefined || signatureSegment === undefined) {
+  if (
+    headerSegment === undefined ||
+    payloadSegment === undefined ||
+    signatureSegment === undefined
+  ) {
     return undefined
   }
 
@@ -137,5 +152,11 @@ export async function verifyAccessJwt(
   if (payload.exp <= nowSeconds) return undefined
   if (typeof payload.nbf === 'number' && payload.nbf > nowSeconds) return undefined
 
-  return { email: payload.email, aud: audience, iss: payload.iss, exp: payload.exp, nbf: payload.nbf }
+  return {
+    email: payload.email,
+    aud: audience,
+    iss: payload.iss,
+    exp: payload.exp,
+    nbf: payload.nbf,
+  }
 }

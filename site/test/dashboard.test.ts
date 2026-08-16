@@ -1,10 +1,11 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import app from '../src/index'
+
 import { summarize } from '../src/analytics'
+import app from '../src/index'
 import { LEGACY_HOST, LEGACY_STAGING_HOST } from '../src/lib/hosts'
-import { installAccessKeys, removeAccessKeys } from './access-helpers'
 import { renderSummarySections } from '../src/views/dashboard'
+import { installAccessKeys, removeAccessKeys } from './access-helpers'
 
 /**
  * Access が付ける JWT ヘッダ。中身は beforeAll で埋める（署名に鍵生成が要る）。
@@ -53,13 +54,14 @@ async function seed(
     page?: string
     displayLang?: string
     browserLang?: string
+    appVersion?: string | null
   } = {},
 ): Promise<number> {
   const result = await env.DB.prepare(
     'INSERT INTO events' +
       ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer,' +
-      ' as_org, page, display_lang, browser_lang)' +
-      ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+      ' as_org, page, display_lang, browser_lang, app_version)' +
+      ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
   )
     .bind(
       extra.ts ?? Date.now(),
@@ -75,6 +77,7 @@ async function seed(
       extra.page ?? null,
       extra.displayLang ?? null,
       extra.browserLang ?? null,
+      extra.appVersion ?? null,
     )
     .first<{ id: number }>()
 
@@ -242,8 +245,12 @@ describe('集計の表示', () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     expect(body).toContain('<h2>人間の訪問と自動アクセス（全期間の累計）</h2>')
-    expect(body).toContain('<span class="value">3</span><span class="label">ロボット（クローラ）</span>')
-    expect(body).toContain('<span class="value">1</span><span class="label">人間のクライアント</span>')
+    expect(body).toContain(
+      '<span class="value">3</span><span class="label">ロボット（クローラ）</span>',
+    )
+    expect(body).toContain(
+      '<span class="value">1</span><span class="label">人間のクライアント</span>',
+    )
 
     const humanTable = body.indexOf('人間: クライアント種別')
     const botTable = body.indexOf('ロボット: 種類別')
@@ -284,10 +291,7 @@ describe('集計の表示', () => {
     await seed('update_check')
 
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
-    const section = body.slice(
-      body.indexOf('<h2>ページ別の訪問'),
-      body.indexOf('<h2>言語別の訪問'),
-    )
+    const section = body.slice(body.indexOf('<h2>ページ別の訪問'), body.indexOf('<h2>言語別の訪問'))
 
     expect(section).toContain('データなし')
     expect(section).not.toContain('<td>/</td>')
@@ -405,7 +409,9 @@ describe('集計の表示', () => {
     expect(body).toContain(
       '<span class="value">2</span><span class="label">データセンター由来</span>',
     )
-    expect(body).toContain('<span class="value">1</span><span class="label">人間のクライアント</span>')
+    expect(body).toContain(
+      '<span class="value">1</span><span class="label">人間のクライアント</span>',
+    )
 
     // 除外した量が画面から消えないよう、接続元組織の内訳を出す。
     const table = body.indexOf('データセンター: 接続元組織別')
@@ -484,8 +490,68 @@ describe('集計の表示', () => {
 
     // 6 つの表（ページ / 表示言語 / ブラウザ言語設定 × 人間 / ロボット）すべてが
     // 空状態を出す。0 の行が並ぶ形にならないこともここで固定する。
-    expect(section.match(/データなし/g)).toHaveLength(6)
+    expect(section.match(/データなし/gu)).toHaveLength(6)
     expect(section).not.toContain('<td>0</td>')
+  })
+})
+
+describe('稼働中のアプリバージョンの表示', () => {
+  it('チャネルごとの表に稼働バージョンが出る', async () => {
+    await seed('update_check', {
+      channel: 'stable',
+      appVersion: '1.13.1',
+      uaSummary: 'Sparkle',
+    })
+    await seed('update_check', {
+      channel: 'develop',
+      appVersion: '1.13.2-dev.4',
+      uaSummary: 'Sparkle',
+      visitorDay: 'hash-b',
+    })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('アプリ（stable）: 稼働バージョン別')
+    expect(body).toContain('アプリ（develop）: 稼働バージョン別')
+    expect(body).toContain('1.13.1')
+    expect(body).toContain('1.13.2-dev.4')
+  })
+
+  it('何を 1 と数えているかが画面に書かれている', async () => {
+    await seed('update_check', { appVersion: '1.13.1', uaSummary: 'Sparkle' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('アップデート確認を送ってきたアクセス元の異なり数')
+    expect(body).toContain('確認の延べ回数ではない')
+  })
+
+  it('ダウンロード対象タグ別の集計と取り違えない説明がある', async () => {
+    await seed('update_check', { appVersion: '1.13.1', uaSummary: 'Sparkle' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('バージョン別ダウンロード')
+    expect(body).toContain('どのタグを取りに来たか')
+    expect(body).toContain('今どのバージョンが動いているか')
+  })
+
+  it('遡って分類できない既存行の扱いが注記されている', async () => {
+    await seed('update_check', { appVersion: null, uaSummary: 'Sparkle' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('遡って分類できない')
+  })
+
+  it('データが無くてもチャネルごとの表は消えない', async () => {
+    await seed('visit')
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+
+    expect(body).toContain('アプリ（stable）: 稼働バージョン別')
+    expect(body).toContain('アプリ（develop）: 稼働バージョン別')
+    expect(body).toContain('アプリ（チャネル未記録）: 稼働バージョン別')
   })
 })
 
@@ -607,7 +673,7 @@ describe('グラフ描画', () => {
     expect(body).toContain('<svg class="chart"')
     expect(body).toContain('<rect class="chart-bar chart-bar-1"')
     // 外部ホストへのリクエストを発生させない（インライン化されている）。
-    expect(body).not.toMatch(/<(script|link|img)[^>]+(src|href)="https?:/)
+    expect(body).not.toMatch(/<(script|link|img)[^>]+(src|href)="https?:/u)
   })
 
   it('系列ごとに別チャートを並べず、1 節 1 枚のグループ化バーチャートにまとめる', async () => {
@@ -618,8 +684,8 @@ describe('グラフ描画', () => {
     const daily = section(body, '日毎の推移')
     const hourly = section(body, '時間帯分布')
 
-    expect(daily.match(/<svg class="chart"/g)).toHaveLength(1)
-    expect(hourly.match(/<svg class="chart"/g)).toHaveLength(1)
+    expect(daily.match(/<svg class="chart"/gu)).toHaveLength(1)
+    expect(hourly.match(/<svg class="chart"/gu)).toHaveLength(1)
     // 日毎・時間帯とも 4 指標。ユニークは母集団が違うので別節へ分けてある。
     expect(daily).toContain('chart-bar-4')
     expect(daily).not.toContain('chart-bar-5')
@@ -656,7 +722,7 @@ describe('グラフ描画', () => {
     const unique = section(body, '日別のユニークアクセス元')
 
     // 母集団 4 系列（サイト訪問 / stable / develop / チャネル未記録）が 1 枚に並ぶ。
-    expect(unique.match(/<svg class="chart"/g)).toHaveLength(1)
+    expect(unique.match(/<svg class="chart"/gu)).toHaveLength(1)
     expect(unique).toContain('サイト訪問')
     expect(unique).toContain('アプリ（stable）')
     expect(unique).toContain('アプリ（develop）')
@@ -685,8 +751,8 @@ describe('グラフ描画', () => {
     const body = await (await call('/dashboard', AUTH_HEADERS)).text()
 
     // 直近 14 日 + 24 時間帯。
-    expect(section(body, '日毎の推移').match(/class="chart-label"/g)).toHaveLength(14)
-    expect(section(body, '時間帯分布').match(/class="chart-label"/g)).toHaveLength(24)
+    expect(section(body, '日毎の推移').match(/class="chart-label"/gu)).toHaveLength(14)
+    expect(section(body, '時間帯分布').match(/class="chart-label"/gu)).toHaveLength(24)
   })
 
   it('SSE で配信される HTML にもグラフと凡例が含まれる（再描画フックが要らない）', async () => {
@@ -769,12 +835,12 @@ describe('配布ホストと旧経路の表示', () => {
     await insertRow('legacy_redirect', 'befold.tommy109.workers.dev', null, 'bot:GPTBot')
     await insertRow('visit', 'befold.degino.com')
 
-    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
     // 冒頭の注記にもホスト名が出るので、表の行（<td>）側を見る。
-    const legacyCell = section.indexOf('<td>befold.tommy109.workers.dev</td>')
+    const legacyCell = hostHtml.indexOf('<td>befold.tommy109.workers.dev</td>')
     expect(legacyCell).toBeGreaterThan(-1)
-    expect(section.slice(legacyCell, legacyCell + 120)).toMatch(
-      /<td>befold\.tommy109\.workers\.dev<\/td>\s*<td>1<\/td>\s*<td>1<\/td>/,
+    expect(hostHtml.slice(legacyCell, legacyCell + 120)).toMatch(
+      /<td>befold\.tommy109\.workers\.dev<\/td>\s*<td>1<\/td>\s*<td>1<\/td>/u,
     )
   })
 
@@ -782,26 +848,26 @@ describe('配布ホストと旧経路の表示', () => {
     // 「まだ 0」と「そもそも計測していない」を画面で区別するため、行を落とさない。
     await insertRow('visit', 'befold.degino.com')
 
-    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
 
-    expect(section).toContain('befold.tommy109.workers.dev')
-    expect(section).toContain('staging.befold.degino.com')
-    expect(section).toContain('<td>0</td>')
+    expect(hostHtml).toContain('befold.tommy109.workers.dev')
+    expect(hostHtml).toContain('staging.befold.degino.com')
+    expect(hostHtml).toContain('<td>0</td>')
   })
 
   it('GitHub フォールバックを経路別に出す', async () => {
     await insertRow('github_fallback', 'befold.degino.com', 'appcast')
 
-    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
 
-    expect(section).toContain('appcast')
+    expect(hostHtml).toContain('appcast')
   })
 
   it('フォールバックが無ければ経路別は「データなし」になる', async () => {
     await insertRow('visit', 'befold.degino.com')
 
-    const section = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
-    const fallbackTable = section.slice(section.indexOf('GitHub フォールバックの経路別'))
+    const hostHtml = hostSection(await (await call('/dashboard', AUTH_HEADERS)).text())
+    const fallbackTable = hostHtml.slice(hostHtml.indexOf('GitHub フォールバックの経路別'))
 
     expect(fallbackTable).toContain('データなし')
   })

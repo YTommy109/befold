@@ -85,8 +85,7 @@ function jstTimeOnDay(dayOffset, hour, minute, second) {
   return Date.parse(`${day}T${clock}+09:00`)
 }
 
-const quote = (value) =>
-  value === null ? 'NULL' : `'${String(value).replace(/'/g, "''")}'`
+const quote = (value) => (value === null ? 'NULL' : `'${String(value).replaceAll("'", "''")}'`)
 
 function buildRows() {
   const now = Date.now()
@@ -108,7 +107,13 @@ function buildRows() {
       }
 
       for (let repeat = 0; repeat < between(1, 3); repeat += 1) {
-        rows.push({ ...shared, ts: ts + between(0, 600_000), kind: 'visit', version: null, channel: null })
+        rows.push({
+          ...shared,
+          ts: ts + between(0, 600_000),
+          kind: 'visit',
+          version: null,
+          channel: null,
+        })
       }
       if (random() < 0.35) {
         rows.push({
@@ -160,7 +165,9 @@ try {
     ['wrangler', 'd1', 'execute', 'befold-analytics', '--local', '--file', sqlPath],
     { stdio: ['ignore', 'ignore', 'inherit'] },
   )
-  console.log(`ローカル D1 に ${rows.length} 行のサンプルデータを投入しました（直近 ${WINDOW_DAYS} 日）。`)
+  console.log(
+    `ローカル D1 に ${rows.length} 行のサンプルデータを投入しました（直近 ${WINDOW_DAYS} 日）。`,
+  )
   console.log('既存の行は削除しています。npm run dev で /dashboard を確認してください。')
 } finally {
   unlinkSync(sqlPath)

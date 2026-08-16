@@ -5,17 +5,24 @@ import { _MSG_RESOLVE_REFERENCES, _mmdPostMessage, isHostFeatureEnabled } from '
 // href がローカルパス候補か。#アンカー・http(s) 等スキーム付きは除外する。
 // file.md:12 が scheme="file.md" と誤解釈される都合、ドットを含むスキームは許可する。
 function isLocalPathHref(href) {
-  if (!href) { return false; }
-  if (href.charAt(0) === '#') { return false; }
-  var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*):/);
-  if (m && m[1].indexOf('.') === -1) { return false; } // http:, mailto:, tel: 等
+  if (!href) {
+    return false;
+  }
+  if (href.charAt(0) === '#') {
+    return false;
+  }
+  var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
+  if (m && m[1].indexOf('.') === -1) {
+    return false;
+  } // http:, mailto:, tel: 等
   return true;
 }
 
 // コードブロック内のファイルパス検出用の正規表現。
 // シンタックスハイライトでトークンが複数の <span> に分割されていても、
 // 注釈は「単位」(下記)のテキスト全体に対して一致を取るため境界をまたげる。
-var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/g;
+var _PATH_RE =
+  /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/g;
 
 // パス検出の対象にするタグ(このタグに入った時点で配下は許可状態になる)。
 // code はコードブロック(pre 配下)・インラインコードの両方を兼ねる。
@@ -23,15 +30,21 @@ var _PATH_ANNOTATE_TAGS = ['p', 'li', 'td', 'th', 'blockquote', 'dt', 'dd', 'cod
 
 function _annotatePathRefs() {
   var wrap = document.getElementById('diagram-wrap');
-  if (wrap) { _walkTextNodes(wrap, false); }
+  if (wrap) {
+    _walkTextNodes(wrap, false);
+  }
 }
 
 // 走査対象外の要素。<a> 配下は既にリンクとして処理済み、svg/.mermaid は
 // 図中テキストの誤検出防止、.befold-path-ref 配下は既存ガード(二重ラップ防止)。
 function _isSkippedElement(el) {
   var tag = el.tagName.toLowerCase();
-  return tag === 'a' || tag === 'svg' || el.classList.contains('mermaid') ||
-         el.classList.contains('befold-path-ref');
+  return (
+    tag === 'a' ||
+    tag === 'svg' ||
+    el.classList.contains('mermaid') ||
+    el.classList.contains('befold-path-ref')
+  );
 }
 
 // #diagram-wrap 配下を一度だけ再帰的に歩き、_PATH_ANNOTATE_TAGS の要素を
@@ -42,12 +55,19 @@ function _isSkippedElement(el) {
 // <td class="line-content"> なので、単位は 1 行になる。<code> 全体を 1 単位に
 // すると行の境界に区切り文字が無く、前行末と次行頭がつながって誤検出になる。
 function _walkTextNodes(node, allowed) {
-  if (node.nodeType === 3) { // TEXT_NODE
-    if (allowed) { _annotateTextNodes([node]); }
+  if (node.nodeType === 3) {
+    // TEXT_NODE
+    if (allowed) {
+      _annotateTextNodes([node]);
+    }
     return;
   }
-  if (node.nodeType !== 1) { return; }
-  if (_isSkippedElement(node)) { return; }
+  if (node.nodeType !== 1) {
+    return;
+  }
+  if (_isSkippedElement(node)) {
+    return;
+  }
   var tag = node.tagName.toLowerCase();
   // <pre> 直下のテキストは対象外(markdown-it の html:true により <code> を伴わない
   // 生の <pre> がリスト項目内などに書かれた場合でも誤って対象化しないよう、
@@ -90,8 +110,12 @@ function _collectUnitTextNodes(node, out) {
       out.push(child);
       continue;
     }
-    if (child.nodeType !== 1) { continue; }
-    if (_isSkippedElement(child)) { continue; }
+    if (child.nodeType !== 1) {
+      continue;
+    }
+    if (_isSkippedElement(child)) {
+      continue;
+    }
     var tag = child.tagName.toLowerCase();
     if (tag === 'pre' || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1) {
       _walkTextNodes(child, false);
@@ -106,7 +130,9 @@ function _collectUnitTextNodes(node, out) {
 // ノードをまたぐ一致は片ごとに span を作り、どの片も data-path にパス全体を持つ
 // (ハイライトの span 構造を壊さずに、どこをクリックしても同じパスが開く)。
 function _annotateTextNodes(nodes) {
-  if (!nodes.length) { return; }
+  if (!nodes.length) {
+    return;
+  }
   var text = '';
   var starts = [];
   for (var i = 0; i < nodes.length; i++) {
@@ -122,9 +148,15 @@ function _annotateTextNodes(nodes) {
     for (var n = 0; n < nodes.length; n++) {
       var nodeStart = starts[n];
       var nodeEnd = nodeStart + nodes[n].textContent.length;
-      if (nodeEnd <= from || nodeStart >= to) { continue; }
-      if (!segments) { segments = {}; }
-      if (!segments[n]) { segments[n] = []; }
+      if (nodeEnd <= from || nodeStart >= to) {
+        continue;
+      }
+      if (!segments) {
+        segments = {};
+      }
+      if (!segments[n]) {
+        segments[n] = [];
+      }
       segments[n].push({
         start: Math.max(from, nodeStart) - nodeStart,
         end: Math.min(to, nodeEnd) - nodeStart,
@@ -132,7 +164,9 @@ function _annotateTextNodes(nodes) {
       });
     }
   }
-  if (!segments) { return; }
+  if (!segments) {
+    return;
+  }
   // 一致をすべて求めてから置換する(置換で他ノードのオフセットが動かないよう)。
   for (var key in segments) {
     _replaceWithSegments(nodes[key], segments[key]);
@@ -171,37 +205,57 @@ var _mmdPendingRefBatches = [];
 
 // 分類済み(pending/解決済み/解決失敗)の参照は再収集しない。
 function _mmdIsClassifiedRef(el) {
-  return el.classList.contains('befold-link-pending') ||
-         el.classList.contains('befold-link') ||
-         el.classList.contains('befold-link-dead');
+  return (
+    el.classList.contains('befold-link-pending') ||
+    el.classList.contains('befold-link') ||
+    el.classList.contains('befold-link-dead')
+  );
 }
 
 // 描画直後に呼ぶ。未分類のローカルパス候補(<a> と .befold-path-ref)を集めて
 // 一意なパス集合を Swift へ送り、同時に中立化(pending)する。
 // 解決が返るまでリンクに見せないことで、開けない偽リンクを出さない。
 function _mmdResolveReferences() {
-  if (!isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')) { return; }
+  if (!isHostFeatureEnabled(window._mmdHostFeatures, 'referenceActivation')) {
+    return;
+  }
   var wrap = document.getElementById('diagram-wrap');
-  if (!wrap) { return; }
+  if (!wrap) {
+    return;
+  }
   var targets = [];
-  wrap.querySelectorAll('a[href]').forEach(function(a) {
-    if (_mmdIsClassifiedRef(a)) { return; }
+  wrap.querySelectorAll('a[href]').forEach(function (a) {
+    if (_mmdIsClassifiedRef(a)) {
+      return;
+    }
     var href = a.getAttribute('href');
-    if (isLocalPathHref(href)) { targets.push({ el: a, raw: href }); }
+    if (isLocalPathHref(href)) {
+      targets.push({ el: a, raw: href });
+    }
   });
-  wrap.querySelectorAll('.befold-path-ref').forEach(function(s) {
-    if (_mmdIsClassifiedRef(s) || !s.dataset.path) { return; }
+  wrap.querySelectorAll('.befold-path-ref').forEach(function (s) {
+    if (_mmdIsClassifiedRef(s) || !s.dataset.path) {
+      return;
+    }
     targets.push({ el: s, raw: s.dataset.path });
   });
-  if (!targets.length) { return; }
+  if (!targets.length) {
+    return;
+  }
   // プロトタイプを持たない辞書にする。素の {} だと __proto__ への代入が
   // プロトタイプ変更として吸われ、そのパスが解決要求から静かに落ちる。
   var uniq = Object.create(null);
-  targets.forEach(function(t) { uniq[t.raw] = true; });
+  targets.forEach(function (t) {
+    uniq[t.raw] = true;
+  });
   // 送れなかった(ハンドラ未登録の)場合は応答が来ないため、中立化もキュー登録も
   // 行わない。中立化したまま応答待ちで固まるのを防ぐ。
-  if (!_mmdPostMessage(_MSG_RESOLVE_REFERENCES, { paths: Object.keys(uniq) })) { return; }
-  targets.forEach(function(t) { t.el.classList.add('befold-link-pending'); });
+  if (!_mmdPostMessage(_MSG_RESOLVE_REFERENCES, { paths: Object.keys(uniq) })) {
+    return;
+  }
+  targets.forEach(function (t) {
+    t.el.classList.add('befold-link-pending');
+  });
   _mmdPendingRefBatches.push(targets);
 }
 
@@ -209,12 +263,12 @@ function _mmdResolveReferences() {
 // 適用する。map に含まれるものだけリンク化し、含まれないものは通常テキストに戻す。
 function _mmdApplyResolvedReferences(map) {
   var targets = _mmdPendingRefBatches.shift() || [];
-  targets.forEach(function(t) {
+  targets.forEach(function (t) {
     t.el.classList.remove('befold-link-pending');
     // 自己所有プロパティだけを見る。constructor / toString のような
     // Object.prototype の名前をパスとして書かれると、素の参照では
     // 未解決のパスが継承値で解決済みと誤判定される。
-    var abs = (map && Object.prototype.hasOwnProperty.call(map, t.raw)) ? map[t.raw] : null;
+    var abs = map && Object.prototype.hasOwnProperty.call(map, t.raw) ? map[t.raw] : null;
     if (abs) {
       t.el.classList.add('befold-link');
       // コピー等の後続機能が使えるよう、解決済み絶対パスを DOM に残す。
@@ -224,7 +278,9 @@ function _mmdApplyResolvedReferences(map) {
       t.el.setAttribute('title', abs);
     } else {
       t.el.classList.add('befold-link-dead');
-      if (t.el.tagName === 'A') { t.el.removeAttribute('href'); }
+      if (t.el.tagName === 'A') {
+        t.el.removeAttribute('href');
+      }
       t.el.removeAttribute('title');
     }
   });

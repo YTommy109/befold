@@ -68,7 +68,7 @@ describe('接続元組織によるデータセンター判定', () => {
     // COALESCE を外すと NULL LIKE ... が NULL を返し、その行が人間でも
     // データセンターでもなく黙って全集計から消える（BOT_MATCH と同じ事故）。
     const sql = datacenterOrgMatch()
-    expect(sql.match(/COALESCE\(as_org, ''\) LIKE '%/g)).toHaveLength(
+    expect(sql.match(/COALESCE\(as_org, ''\) LIKE '%/gu)).toHaveLength(
       DATACENTER_ORG_PATTERNS.length,
     )
     expect(datacenterOrgMatch('e.as_org')).toContain("COALESCE(e.as_org, '')")

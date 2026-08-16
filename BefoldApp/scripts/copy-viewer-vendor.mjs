@@ -14,13 +14,12 @@
 // node_modules であり、手で編集しない。ずれは npm run check:viewer-vendor が
 // git diff で検出する。
 
-import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const PACKAGE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
+const PACKAGE_DIR = join(import.meta.dirname, '..');
 const RESOURCES_DIR = join(PACKAGE_DIR, 'BefoldKit', 'Resources');
 
 // [npm パッケージ, パッケージ内のパス, 出力名, バナーを付けるか]
@@ -48,9 +47,7 @@ function banner(name, version) {
 for (const [name, from, to, withBanner] of COPIES) {
   const version = require(`${name}/package.json`).version;
   const source = readFileSync(join(packageDir(name), from));
-  const output = withBanner
-    ? Buffer.concat([Buffer.from(banner(name, version)), source])
-    : source;
+  const output = withBanner ? Buffer.concat([Buffer.from(banner(name, version)), source]) : source;
   writeFileSync(join(RESOURCES_DIR, to), output);
   console.log(`${to} <- ${name}@${version}/${from}`);
 }
