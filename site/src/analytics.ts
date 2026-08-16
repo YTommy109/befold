@@ -6,7 +6,8 @@
  * idx_events_kind が効く形を保つ。
  */
 
-import type { DownloadSource, EventKind, Page } from './schema'
+import type { Channel, DownloadSource, EventKind, Page } from './schema'
+import { CHANNELS } from './lib/github'
 import { RECORDED_HOSTS } from './lib/hosts'
 import { JST_DAY_EXPR, JST_HOUR_EXPR, jstDayStart, jstDaysInWindow, jstWindowStart } from './lib/jst'
 import { BOT_PREFIX } from './lib/visitor'
@@ -118,8 +119,102 @@ export type CumulativeTotals = { counts: KindCounts; visitorDays: number }
 /** JST 当日（0 時以降）の集計。`uniqueVisitors` は当日のユニーク訪問者数。 */
 export type TodayTotals = { counts: KindCounts; uniqueVisitors: number }
 
-/** 日別推移の 1 点。データが無い日も 0 で埋めて返す。 */
-export type DailyPoint = { day: string; counts: KindCounts; uniqueVisitors: number }
+/**
+ * 日別のユニークアクセス元を数える母集団。
+ *
+ * **母集団を混ぜない。** `visit` はサイトを見に来た人、`update_check_*` は
+ * アプリを起動してアップデート確認を飛ばした端末で、意味が違う。合算した
+ * 「ユニーク」は、サイトも見てアプリも使った 1 人を 1 と数える一方で、
+ * どちらの規模も表さない数になる。
+ *
+ * チャネルを分けるのは、実測で `update_check` の大半が develop（開発機）だった
+ * ため。混ぜると利用者の規模を過大に見積もる。
+ *
+ * `update_check_unrecorded` は channel 列に値が無い行。0 件でも系列として残す
+ * （`foldHosts` と同じ理由で、「まだ 0 だった」と「そもそも数えていない」を
+ * 画面上で区別できなくしないため）。
+ */
+export type UniqueSourceKey = 'visit' | `update_check_${Channel}` | 'update_check_unrecorded'
+
+/**
+ * 母集団を SQL の条件式にする。**述語はここだけで組み立てる。**
+ *
+ * チャネル別の系列は `CHANNELS`（`lib/github.ts` が唯一の定義元）から生成する。
+ * 手書きで並べるとチャネルを増やしたときに記録側だけが増え、新チャネルの
+ * ユニーク数が画面のどこにも出ないまま落ちる。埋め込む値はこの定数だけで、
+ * 外部入力は入らない。
+ *
+ * `visit` は page で絞らない。「ページアクセス」の指標が LP のみを数えるのとは
+ * 意図が違い、こちらはサイトに来た人の規模を測るもの（当日集計の
+ * `uniqueVisitors` も同じ扱い）。
+ */
+const UNIQUE_SOURCE_FILTERS: Record<UniqueSourceKey, string> = {
+  visit: `kind = 'visit'`,
+  ...(Object.fromEntries(
+    CHANNELS.map((channel) => [
+      `update_check_${channel}`,
+      `kind = 'update_check' AND channel = '${channel}'`,
+    ]),
+  ) as Record<`update_check_${Channel}`, string>),
+  update_check_unrecorded: `kind = 'update_check' AND channel IS NULL`,
+}
+
+/**
+ * チャネル別系列の表示名。`Record<Channel, ...>` なので、チャネルを増やすと
+ * ここに名前を書くまで型で落ちる（系列だけ無名で増えることがない）。
+ */
+const CHANNEL_LABELS: Record<Channel, string> = {
+  stable: 'アプリ（stable）',
+  develop: 'アプリ（develop）',
+}
+
+/** 母集団の並び順と表示名。集計・表示の双方でこの順を使う。 */
+export const UNIQUE_SOURCE_LABELS: { key: UniqueSourceKey; label: string }[] = [
+  { key: 'visit', label: 'サイト訪問' },
+  ...CHANNELS.map((channel) => ({
+    key: `update_check_${channel}` as const,
+    label: CHANNEL_LABELS[channel],
+  })),
+  { key: 'update_check_unrecorded', label: 'アプリ（チャネル未記録）' },
+]
+
+/** 母集団ごとのユニークアクセス元数。 */
+export type UniqueSources = Record<UniqueSourceKey, number>
+
+/**
+ * 母集団ごとの日次ユニーク数を取り出す SELECT 句。
+ *
+ * `COUNT(DISTINCT CASE WHEN ... END)` にするのは、母集団ごとにクエリを引かない
+ * ため。日別推移のクエリに相乗りするので発行本数は増えない
+ * （`query-count.test.ts` の上限がこの形を守る）。
+ */
+const UNIQUE_SOURCE_COLUMNS = uniqueSourceKeys()
+  .map(
+    (key) =>
+      `COUNT(DISTINCT CASE WHEN ${UNIQUE_SOURCE_FILTERS[key]} THEN visitor_token END)` +
+      ` AS unique_${key}`,
+  )
+  .join(', ')
+
+type UniqueSourceRow = Partial<Record<`unique_${UniqueSourceKey}`, number | null>>
+
+function uniqueSourceKeys(): UniqueSourceKey[] {
+  return Object.keys(UNIQUE_SOURCE_FILTERS) as UniqueSourceKey[]
+}
+
+function toUniqueSources(row: UniqueSourceRow | null): UniqueSources {
+  const sources = {} as UniqueSources
+  for (const key of uniqueSourceKeys()) sources[key] = row?.[`unique_${key}`] ?? 0
+  return sources
+}
+
+/**
+ * 日別推移の 1 点。データが無い日も 0 で埋めて返す。
+ *
+ * `uniqueSources` は母集団別のユニークアクセス元数。全 kind を合算した数は
+ * 持たない（母集団の違うものを足した値は、どの規模も表さない）。
+ */
+export type DailyPoint = { day: string; counts: KindCounts; uniqueSources: UniqueSources }
 
 /** 時間帯分布の 1 点。0〜23 時が必ずそろう。 */
 export type HourlyPoint = { hour: number; counts: KindCounts }
@@ -297,20 +392,20 @@ export async function dailySeries(
     .prepare(
       `SELECT ${JST_DAY_EXPR} AS day,
               ${KIND_COUNT_COLUMNS},
-              COUNT(DISTINCT visitor_token) AS unique_visitors
+              ${UNIQUE_SOURCE_COLUMNS}
        FROM events
        WHERE timestamp >= ? AND ${HUMAN_ONLY}
        GROUP BY day
        ORDER BY day`,
     )
     .bind(jstWindowStart(now, days))
-    .all<KindCountRow & { day: string; unique_visitors: number | null }>()
+    .all<KindCountRow & UniqueSourceRow & { day: string }>()
 
   const byDay = new Map(results.map((row) => [row.day, row]))
 
   return jstDaysInWindow(now, days).map((day) => {
     const row = byDay.get(day) ?? null
-    return { day, counts: toKindCounts(row), uniqueVisitors: row?.unique_visitors ?? 0 }
+    return { day, counts: toKindCounts(row), uniqueSources: toUniqueSources(row) }
   })
 }
 

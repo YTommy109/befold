@@ -13,10 +13,11 @@ import {
   OPERATIONAL_KINDS,
   UNRECORDED_LABEL,
   KIND_LABELS,
+  UNIQUE_SOURCE_LABELS,
 } from '../src/analytics'
 import { CANONICAL_HOST, LEGACY_HOST, RECORDED_HOSTS } from '../src/lib/hosts'
 import { DATACENTER_ORG_PATTERNS, datacenterOrgMatch, isDatacenterOrg } from '../src/lib/network'
-import { eventKindSchema } from '../src/schema'
+import { channelSchema, eventKindSchema } from '../src/schema'
 import { JST_DAY_EXPR, jstDayKey, jstDayStart, jstWindowStart } from '../src/lib/jst'
 import type { EventKind } from '../src/schema'
 
@@ -336,7 +337,7 @@ describe('集計からのロボット除外', () => {
     expect(summary.cumulative.counts.download).toBe(1)
     expect(summary.cumulative.visitorDays).toBe(1)
     expect(today?.counts.visit).toBe(1)
-    expect(today?.uniqueVisitors).toBe(1)
+    expect(today?.uniqueSources.visit).toBe(1)
     expect(summary.today.counts.visit).toBe(1)
     expect(summary.hourly[11]?.counts.visit).toBe(1)
     expect(summary.hourly[10]?.counts.visit).toBe(0)
@@ -732,5 +733,119 @@ describe('kind の行き先', () => {
     for (const kind of OPERATIONAL_KINDS) {
       expect(KIND_LABELS.map((entry) => entry.kind)).not.toContain(kind)
     }
+  })
+})
+
+describe('日別のユニークアクセス元', () => {
+  /** アクセス元（visitor_token）とチャネルを指定して 1 件記録する。 */
+  async function insertSource(
+    ts: number,
+    kind: EventKind,
+    visitorToken: string,
+    options: { channel?: string | null; page?: string | null; uaSummary?: string | null } = {},
+  ): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, channel, page, visitor_token, ua_summary)' +
+        ' VALUES (?, ?, ?, ?, ?, ?)',
+    )
+      .bind(
+        ts,
+        kind,
+        options.channel ?? null,
+        options.page ?? null,
+        visitorToken,
+        options.uaSummary ?? null,
+      )
+      .run()
+  }
+
+  const TODAY = jst('2026-08-08 10:00')
+
+  it('サイト訪問とアプリのアップデート確認を合算しない', async () => {
+    // 同じアクセス元がサイトも見てアプリも使った場合。合算すると 1 になり、
+    // どちらの母集団の規模も表さない数になる。
+    await insertSource(TODAY, 'visit', 'source-a', { page: '/' })
+    await insertSource(TODAY, 'update_check', 'source-a', { channel: 'stable' })
+
+    const point = (await dailySeries(env.DB, NOW)).at(-1)
+
+    expect(point?.uniqueSources.visit).toBe(1)
+    expect(point?.uniqueSources.update_check_stable).toBe(1)
+  })
+
+  it('stable と develop が混ざらない', async () => {
+    await insertSource(TODAY, 'update_check', 'source-a', { channel: 'stable' })
+    await insertSource(TODAY, 'update_check', 'source-b', { channel: 'stable' })
+    await insertSource(TODAY, 'update_check', 'source-c', { channel: 'develop' })
+
+    const point = (await dailySeries(env.DB, NOW)).at(-1)
+
+    expect(point?.uniqueSources.update_check_stable).toBe(2)
+    expect(point?.uniqueSources.update_check_develop).toBe(1)
+  })
+
+  it('チャネルが記録されていない行はどちらにも混ぜず未記録として数える', async () => {
+    await insertSource(TODAY, 'update_check', 'source-a', { channel: null })
+
+    const point = (await dailySeries(env.DB, NOW)).at(-1)
+
+    expect(point?.uniqueSources.update_check_unrecorded).toBe(1)
+    expect(point?.uniqueSources.update_check_stable).toBe(0)
+    expect(point?.uniqueSources.update_check_develop).toBe(0)
+  })
+
+  it('サイト訪問はページで絞らない（ページアクセスの指標とは母数が違う）', async () => {
+    await insertSource(TODAY, 'visit', 'source-a', { page: '/' })
+    await insertSource(TODAY, 'visit', 'source-b', { page: '/features' })
+
+    const point = (await dailySeries(env.DB, NOW)).at(-1)
+
+    expect(point?.uniqueSources.visit).toBe(2)
+    expect(point?.counts.visit).toBe(1)
+  })
+
+  it('同じアクセス元が同じ日に何度来ても 1 と数える', async () => {
+    await insertSource(jst('2026-08-08 09:00'), 'update_check', 'source-a', { channel: 'stable' })
+    await insertSource(jst('2026-08-08 11:00'), 'update_check', 'source-a', { channel: 'stable' })
+
+    const point = (await dailySeries(env.DB, NOW)).at(-1)
+
+    expect(point?.uniqueSources.update_check_stable).toBe(1)
+    expect(point?.counts.update_check).toBe(2)
+  })
+
+  it('ロボットは他の集計と同じ条件で除外される', async () => {
+    await insertSource(TODAY, 'update_check', 'source-bot', {
+      channel: 'stable',
+      uaSummary: 'bot:GPTBot',
+    })
+
+    const point = (await dailySeries(env.DB, NOW)).at(-1)
+
+    expect(point?.uniqueSources.update_check_stable).toBe(0)
+  })
+
+  it('記録のない日も 0 の点として並ぶ', async () => {
+    const series = await dailySeries(env.DB, NOW)
+
+    expect(series.at(0)?.uniqueSources).toEqual({
+      visit: 0,
+      update_check_stable: 0,
+      update_check_develop: 0,
+      update_check_unrecorded: 0,
+    })
+  })
+
+  it('全チャネルに系列と表示名がある', async () => {
+    // チャネルを増やしたときに記録側だけが増え、集計・表示の系列が増えないと、
+    // 新チャネルの数字が画面のどこにも出ないまま落ちる。
+    const keys = UNIQUE_SOURCE_LABELS.map((entry) => entry.key)
+    const point = (await dailySeries(env.DB, NOW)).at(-1)
+
+    for (const channel of channelSchema.options) {
+      expect(keys).toContain(`update_check_${channel}`)
+    }
+    expect(new Set(keys)).toEqual(new Set(Object.keys(point?.uniqueSources ?? {})))
+    expect(UNIQUE_SOURCE_LABELS.every((entry) => entry.label.length > 0)).toBe(true)
   })
 })

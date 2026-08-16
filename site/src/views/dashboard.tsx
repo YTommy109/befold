@@ -1,7 +1,7 @@
 import type { FC } from 'hono/jsx'
 import { html, raw } from 'hono/html'
 import type { Count, Split, Summary } from '../analytics'
-import { UNRECORDED_LABEL } from '../analytics'
+import { UNIQUE_SOURCE_LABELS, UNRECORDED_LABEL } from '../analytics'
 import { LEGACY_HOST } from '../lib/hosts'
 import { formatJst } from '../lib/jst'
 
@@ -348,7 +348,7 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
             })),
             {
               value: summary.cumulative.visitorDays,
-              label: '延べ訪問者（訪問者 × 日）',
+              label: '延べアクセス元（アクセス元 × 日）',
             },
           ]}
         />
@@ -363,7 +363,7 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
               label: entry.label,
               id: `today-${entry.kind}`,
             })),
-            { value: summary.today.uniqueVisitors, label: 'ユニーク訪問者' },
+            { value: summary.today.uniqueVisitors, label: 'ユニークアクセス元（全種別）' },
           ]}
         />
       </section>
@@ -373,18 +373,41 @@ export const SummarySections: FC<{ summary: Summary }> = ({ summary }) => {
         <SeriesChart
           title={`日毎の推移（${windowLabel}）`}
           labels={summary.daily.map((point) => point.day.slice(5))}
-          series={[
-            ...summary.perKind.map((entry) => ({
-              label: entry.label,
-              unit: '件',
-              values: summary.daily.map((point) => point.counts[entry.kind]),
-            })),
-            {
-              label: 'ユニーク訪問者',
-              unit: '人',
-              values: summary.daily.map((point) => point.uniqueVisitors),
-            },
-          ]}
+          series={summary.perKind.map((entry) => ({
+            label: entry.label,
+            unit: '件',
+            values: summary.daily.map((point) => point.counts[entry.kind]),
+          }))}
+        />
+      </section>
+
+      <section class="block">
+        <h2>日別のユニークアクセス元（{windowLabel}）</h2>
+        <p class="note">
+          利用者数そのものではなく近似。数えているのは「その日に記録されたアクセス元の
+          異なり数」で、アクセス元は接続元 IP と User-Agent の組をその日のうちだけ
+          同一視できるハッシュ（visitor_token）。同じ人でも回線が変われば別々に数えるため
+          モバイル回線・VPN では過大に振れ、逆に同じ回線・同じ端末構成の複数台は
+          1 として数えるため NAT の内側では過小に振れる。ハッシュには日付が混ぜて
+          あるので日をまたぐ同一人物は追えず、ここに出るのは常に「その日の」異なり数。
+          通算のユニーク利用者数は出せない（出さない）。
+        </p>
+        <p class="note">
+          サイト訪問（visit）とアプリ（アップデート確認）は母集団が違うので合算しない。
+          アプリ側はアプリを起動して appcast を取りに来た端末で、stable と develop を
+          分けている（develop には開発機が含まれるため、混ぜると利用者の規模を
+          過大に見積もる）。サイト訪問はページを問わず数えるので、LP だけを数える
+          「ページアクセス」の指標とは母数が違う。ロボットの除外は他の集計と同じ条件だが、
+          curl のような自動アクセスはボット判定に当たらずここに残る。
+        </p>
+        <SeriesChart
+          title={`日別のユニークアクセス元（${windowLabel}）`}
+          labels={summary.daily.map((point) => point.day.slice(5))}
+          series={UNIQUE_SOURCE_LABELS.map(({ key, label }) => ({
+            label,
+            unit: '件',
+            values: summary.daily.map((point) => point.uniqueSources[key]),
+          }))}
         />
       </section>
 

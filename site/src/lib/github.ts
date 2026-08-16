@@ -6,13 +6,24 @@ export const RELEASES_LATEST_URL = `https://github.com/${REPO}/releases/latest`
 
 const LATEST_RELEASE_API = `https://api.github.com/repos/${REPO}/releases/latest`
 
+/**
+ * 配布チャネルの列挙。**これが唯一の定義元。**
+ *
+ * `schema.ts` の channel 列も、ダッシュボードのチャネル別系列も、ここから導く。
+ * 別々に書き写すと、チャネルを増やしたときに記録側だけが増えて集計側の系列が
+ * 増えず、新チャネルの数字が画面のどこにも出ないまま黙って落ちる。
+ * 実行時に配列が要るので型ではなく値で持つ（`Record<Channel, ...>` の網羅は
+ * 型で検査される）。
+ */
+export const CHANNELS = ['stable', 'develop'] as const
+
+export type Channel = (typeof CHANNELS)[number]
+
 /** Sparkle が参照する appcast（GitHub 上の固定タグ）。Worker はこれをプロキシする。 */
-export const APPCAST_UPSTREAM = {
+export const APPCAST_UPSTREAM: Record<Channel, string> = {
   stable: `https://github.com/${REPO}/releases/download/appcast/appcast.xml`,
   develop: `https://github.com/${REPO}/releases/download/appcast/appcast-develop.xml`,
-} as const
-
-export type Channel = keyof typeof APPCAST_UPSTREAM
+}
 
 /**
  * GitHub Releases 上の成果物 URL。R2 に目的のオブジェクトが無いときの
