@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import type { AppEnv } from './index'
 import {
   eventSchema,
+  type Channel,
   type DisplayLang,
   type DownloadSource,
   type EventKind,
@@ -17,7 +18,7 @@ import { summarizeOS, summarizeUA, visitorTokenHash } from './lib/visitor'
 export type EventAttributes = {
   kind: EventKind
   version?: string | null
-  channel?: 'stable' | 'develop' | null
+  channel?: Channel | null
   /** kind='download' のときのみ指定する発生経路。 */
   source?: DownloadSource | null
   /**

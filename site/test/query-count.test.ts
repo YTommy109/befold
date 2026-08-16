@@ -26,6 +26,11 @@ import { summarize } from '../src/analytics'
  * 行に持たせて `ROW_NUMBER()` の窓で切る形にしたため、区分ごとに 1 本ずつ引いて
  * いた uaSplit の 3 本が trafficSplit の 2 本になった。区分ごとに引く形へ戻すと
  * 15 本になり、ここで落ちる。
+ *
+ * TASK-494 で母集団別の日次ユニーク数（サイト訪問 / チャネル別のアップデート確認）を
+ * 足したが、本数は 13 のまま。母集団ごとに引かず、既存の日別推移クエリの SELECT 句へ
+ * `COUNT(DISTINCT CASE WHEN ... END)` を並べる形にしたため。母集団ごとに 1 本ずつ
+ * 引く形へ戻すと 17 本になり、ここで落ちる。
  */
 const MAX_QUERIES = 13
 

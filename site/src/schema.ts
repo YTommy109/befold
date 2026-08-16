@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { CHANNELS } from './lib/github'
 import { RECORDED_HOSTS } from './lib/hosts'
 
 /**
@@ -88,12 +89,23 @@ export type FallbackRoute = z.infer<typeof fallbackRouteSchema>
  */
 export const hostSchema = z.enum(RECORDED_HOSTS)
 
+/**
+ * 配布チャネル。列挙は `lib/github.ts` の `CHANNELS` が唯一の定義元。
+ *
+ * ここで値を書き写さない。appcast の配信先とダッシュボードのチャネル別系列が
+ * 同じ列挙から出ることを保証する（片方だけ増えると、新チャネルの記録は残るのに
+ * 集計の系列が無く、画面のどこにも出ない）。
+ */
+export const channelSchema = z.enum(CHANNELS)
+
+export type Channel = z.infer<typeof channelSchema>
+
 /** D1 の events テーブルに INSERT する 1 行分の形状。 */
 export const eventSchema = z.object({
   timestamp: z.number().int().nonnegative(),
   kind: eventKindSchema,
   version: z.string().nullable().default(null),
-  channel: z.enum(['stable', 'develop']).nullable().default(null),
+  channel: channelSchema.nullable().default(null),
   country: z.string().nullable().default(null),
   os: z.string().nullable().default(null),
   uaSummary: z.string().nullable().default(null),

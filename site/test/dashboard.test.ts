@@ -45,6 +45,7 @@ async function seed(
     country?: string
     os?: string
     visitorDay?: string
+    channel?: string | null
     ts?: number
     referrer?: string
     asOrg?: string
@@ -58,12 +59,13 @@ async function seed(
     'INSERT INTO events' +
       ' (timestamp, kind, version, channel, country, os, ua_summary, visitor_token, referrer,' +
       ' as_org, page, display_lang, browser_lang)' +
-      " VALUES (?, ?, ?, 'stable', ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+      ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
   )
     .bind(
       extra.ts ?? Date.now(),
       kind,
       extra.version ?? null,
+      extra.channel === undefined ? 'stable' : extra.channel,
       extra.country ?? null,
       extra.os ?? null,
       extra.uaSummary ?? 'Safari',
@@ -618,8 +620,9 @@ describe('グラフ描画', () => {
 
     expect(daily.match(/<svg class="chart"/g)).toHaveLength(1)
     expect(hourly.match(/<svg class="chart"/g)).toHaveLength(1)
-    // 日毎は 4 指標 + ユニーク訪問者の 5 系列、時間帯は 4 指標。
-    expect(daily).toContain('chart-bar-5')
+    // 日毎・時間帯とも 4 指標。ユニークは母集団が違うので別節へ分けてある。
+    expect(daily).toContain('chart-bar-4')
+    expect(daily).not.toContain('chart-bar-5')
     expect(hourly).toContain('chart-bar-4')
     expect(hourly).not.toContain('chart-bar-5')
   })
@@ -633,7 +636,7 @@ describe('グラフ描画', () => {
     const hourly = section(body, '時間帯分布')
 
     expect(daily).toContain('<ul class="legend">')
-    expect(daily).toContain('<span class="swatch swatch-5"')
+    expect(daily).toContain('<span class="swatch swatch-4"')
     expect(hourly).toContain('<ul class="legend">')
     // 色以外の手掛かり（凡例の並び順 = グループ内のバーの並び順）を残す。
     expect(daily).toContain('<span class="order">1.</span>')
@@ -642,6 +645,38 @@ describe('グラフ描画', () => {
     // チャートを持たない節の表は残す。
     expect(section(body, '内訳')).toContain('<table>')
     expect(section(body, '最新イベント')).toContain('<table>')
+  })
+
+  it('ユニークアクセス元は母集団・チャネル別の系列として読める', async () => {
+    await seed('visit', { visitorDay: 'hash-visit' })
+    await seed('update_check', { visitorDay: 'hash-stable', channel: 'stable' })
+    await seed('update_check', { visitorDay: 'hash-develop', channel: 'develop' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const unique = section(body, '日別のユニークアクセス元')
+
+    // 母集団 4 系列（サイト訪問 / stable / develop / チャネル未記録）が 1 枚に並ぶ。
+    expect(unique.match(/<svg class="chart"/g)).toHaveLength(1)
+    expect(unique).toContain('サイト訪問')
+    expect(unique).toContain('アプリ（stable）')
+    expect(unique).toContain('アプリ（develop）')
+    expect(unique).toContain('アプリ（チャネル未記録）')
+    expect(unique).toContain('chart-bar-4')
+    expect(unique).not.toContain('chart-bar-5')
+    // 混在させたユニーク系列は日毎の推移から外してある。
+    expect(section(body, '日毎の推移')).not.toContain('ユニーク')
+  })
+
+  it('ユニークアクセス元が近似であることと振れる条件が同じ節に書いてある', async () => {
+    await seed('update_check', { visitorDay: 'hash-stable', channel: 'stable' })
+
+    const body = await (await call('/dashboard', AUTH_HEADERS)).text()
+    const unique = section(body, '日別のユニークアクセス元')
+
+    expect(unique).toContain('近似')
+    expect(unique).toContain('過大')
+    expect(unique).toContain('過小')
+    expect(unique).toContain('通算のユニーク利用者数は出せない')
   })
 
   it('日付・時間帯のラベルを間引かずに全件描く', async () => {
