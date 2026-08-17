@@ -203,9 +203,11 @@ struct ViewerWindowControllerDiffTests {
         presentDocument(in: controller, file: csv)
         // 種別は読み込み完了時に確定する。ここを待たないと既定の .mmd のまま測ってしまい、
         // canToggleDiff が false でも「CSV だから」ではなくなる。
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controller.store.contentState.fileType == .csv(delimiter: ",")
-        }
+        // 壁時計予算のポーリング(waitUntilOnMainActor)ではなく loadTask を await する。
+        // 予算はスイート全体の混雑時間まで測ってしまい、TSan ジョブでは操作の成否と
+        // 無関係に切れる(TASK-437 で予算を 10 → 60 → 120 と伸ばしても落ちた)。
+        await controller.store.loadTask?.value
+        #expect(controller.store.contentState.fileType == .csv(delimiter: ","))
         #expect(controller.store.showsCodeContent)
         #expect(!controller.capabilities.canSelectDiffMode)
         controller.store.diffContent = .diff("@@ -1 +1 @@\n-a\n+b\n")
@@ -236,9 +238,11 @@ struct ViewerWindowControllerDiffTests {
         defer { controller.close() }
         presentDocument(in: controller, file: file)
         // 前提: 切替前の .swift のロードが確定し、差分を出せる状態になっている。
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controller.store.contentState.filePath == file
-        }
+        // 壁時計予算のポーリング(waitUntilOnMainActor)ではなく loadTask を await する。
+        // 予算はスイート全体の混雑時間まで測ってしまい、TSan ジョブでは操作の成否と
+        // 無関係に切れる(TASK-437 で予算を 10 → 60 → 120 と伸ばしても落ちた)。
+        await controller.store.loadTask?.value
+        #expect(controller.store.contentState.filePath == file)
         #expect(controller.capabilities.canSelectDiffMode)
 
         // 切替直後(ロード確定前)に取得契機が届く状況を作る。
@@ -252,9 +256,8 @@ struct ViewerWindowControllerDiffTests {
 
         // ロードが確定しても取得が起きないことまで見る(確定後は fileType 経由でも弾かれる
         // ため、確定前の 1 回を取りこぼさないよう待ってから測る)。
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controller.store.contentState.fileType == .csv(delimiter: ",")
-        }
+        await controller.store.loadTask?.value
+        #expect(controller.store.contentState.fileType == .csv(delimiter: ","))
         // 測るのは「切替先へ git を起こしたか」であって取得の総数ではない。総数で測ると、
         // 切替前の .swift に対する正当な取得まで数えてしまい、その回数は契機の重なり方で
         // 変わるため結論が実行順に左右される(TASK-347)。
@@ -283,9 +286,11 @@ struct ViewerWindowControllerDiffTests {
         // (レンダリング表示のまま切り替えることがこのテストの前提)。
         controller.fileListModel.entries = [FileListEntry(url: markdown, kind: .file)]
         controller.fileListModel.selection = markdown
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controller.store.contentState.fileType == .markdown
-        }
+        // 壁時計予算のポーリング(waitUntilOnMainActor)ではなく loadTask を await する。
+        // 予算はスイート全体の混雑時間まで測ってしまい、TSan ジョブでは操作の成否と
+        // 無関係に切れる(TASK-437 で予算を 10 → 60 → 120 と伸ばしても落ちた)。
+        await controller.store.loadTask?.value
+        #expect(controller.store.contentState.fileType == .markdown)
         // 前提: レンダリング表示中は差分モードを選んでいない = ここでは取得も起きない。
         #expect(!controller.isDiffShown)
         controller.refreshDiff()
