@@ -28,6 +28,16 @@ interface JumpProvider {
   // 文書ではなく利用者の選択なので、件数表示の「表示範囲内」ラベルを出さない。
   // 省略時は常に false（選択の概念を持たない対象）。
   isSelectionEmpty?(): boolean;
+  // 段階読み込みの影響を受けない対象か。真なら「表示範囲内」ラベルを出さない。
+  // 差分表示は setDiff で渡った全文から表を組み、appendChunk が追記を
+  // スキップする（render.ts の 'diff' 分岐）ため、本文が段階読み込み中でも
+  // 変更ブロックは常に全数が DOM 上にある。ここを見ずに truncated だけで
+  // ラベルを出すと事実と食い違う。
+  ignoresTruncation?: boolean;
+  // この対象だけが使うバー内オプションの要素 id（見出しレベルのトグルなど）。
+  // 何を出すかはプロバイダ側の関心なので、コントローラは
+  // 「active な対象のものだけ表示する」ことしか知らない。
+  optionsElementId?: string;
 }
 
 interface JumpController {
@@ -113,7 +123,7 @@ function _createJumpController(): JumpController {
     // 「表示範囲内」は"まだ読んでいない範囲は数えられていない"という意味なので、
     // 目印の種類そのものが選ばれていないとき（列挙の条件で 0 件）は出さない。
     // 段階読み込み中でも 0 件の原因は読み込み範囲ではないため、事実と食い違う。
-    var showsTruncatedLabel = truncated && !isFilteredEmpty();
+    var showsTruncatedLabel = truncated && !isFilteredEmpty() && !ignoresTruncation();
     countEl.textContent = formatNavigationCount(
       currentIndex,
       targets.length,
@@ -160,6 +170,24 @@ function _createJumpController(): JumpController {
     return provider?.isSelectionEmpty?.() === true;
   }
 
+  // いま有効なプロバイダが段階読み込みの影響を受けない対象か。
+  function ignoresTruncation(): boolean {
+    return providers[activeKind]?.ignoresTruncation === true;
+  }
+
+  // バー内のオプション要素を、いま有効な対象のものだけ表示する。
+  // 登録済みのプロバイダを全部走査するのは、対象を切り替えたときに
+  // 前の対象のオプションが残らないようにするため（open のたびに全消し→1 つ表示）。
+  function updateOptionsVisibility(): void {
+    Object.keys(providers).forEach(function (id) {
+      var elementId = providers[id]?.optionsElementId;
+      if (!elementId) return;
+      var element = document.getElementById(elementId);
+      if (!element) return;
+      element.style.display = id === activeKind ? 'flex' : 'none';
+    });
+  }
+
   function run(scroll: boolean): void {
     clearHighlight(targets);
     targets = collectTargets();
@@ -181,6 +209,7 @@ function _createJumpController(): JumpController {
     if (bar) {
       bar.style.display = 'flex';
     }
+    updateOptionsVisibility();
     run(true);
   }
 

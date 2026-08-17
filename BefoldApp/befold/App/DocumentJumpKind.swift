@@ -4,8 +4,11 @@
 /// Swift 側はこの値を `ViewerBridge.openJumpScript(kind:)` へ渡すだけで、
 /// 目印をどう列挙するかは viewer 側のプロバイダが持つ。
 enum DocumentJumpKind: String, CaseIterable {
-    /// Markdown レンダリング表示の h2 / h3 見出し。
+    /// Markdown レンダリング表示の h1 / h2 / h3 見出し。
     case heading
+
+    /// 差分表示中の変更ブロック(連続する追加・削除行のまとまり)。
+    case changeBlock
 
     /// Edit メニューの項目が「どの種類のジャンプか」を運ぶためのタグ。
     /// `NSMenuItem.tag` の既定値は 0 で「未設定」と区別できないため 1 から振る。
@@ -14,6 +17,7 @@ enum DocumentJumpKind: String, CaseIterable {
     var menuItemTag: Int {
         switch self {
         case .heading: 1
+        case .changeBlock: 2
         }
     }
 
@@ -21,6 +25,7 @@ enum DocumentJumpKind: String, CaseIterable {
     var menuLabelKey: String.LocalizationValue {
         switch self {
         case .heading: "menu.edit.jumpToHeading"
+        case .changeBlock: "menu.edit.jumpToChangeBlock"
         }
     }
 

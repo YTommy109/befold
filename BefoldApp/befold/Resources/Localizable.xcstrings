@@ -885,8 +885,26 @@
         }
       }
     },
+    "menu.edit.jumpToChangeBlock" : {
+      "comment" : "Edit メニュー。差分表示中の変更ブロックを前後移動するバーを開く。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jump to Change…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更箇所へジャンプ…"
+          }
+        }
+      }
+    },
     "menu.edit.jumpToHeading" : {
-      "comment" : "Edit メニュー。文書内の見出し（h2 / h3）を前後移動するバーを開く。",
+      "comment" : "Edit メニュー。文書内の見出し（h1 / h2 / h3）を前後移動するバーを開く。",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {

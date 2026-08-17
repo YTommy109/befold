@@ -202,6 +202,66 @@ function highlightedDiffLines(
   return result;
 }
 
+// 連続する変更行を 1 つの「変更ブロック」へまとめ、行ごとのブロック番号を返す。
+// 番号は文書順の通し番号で、`startIndex` から始める(ファイル・ハンクをまたいで
+// 続けるため、呼び出し側が次の開始値を持ち回る)。文脈行は null。
+//
+// 削除の連なりと、その直後に続く追加の連なりは 1 ブロックとして数える
+// (左右分割が `pairDiffLines` で同じ畳み方をしており、そこと数え方を変えると
+// 同じ差分がレイアウトによって違う件数になる)。ハンクの境目をまたいでは
+// 続けない: 呼び出し側がハンクごとに呼ぶため、境目で必ず切れる。
+//
+// **ハンク単位では数えられない。** GitDiffReader は -U1000000 を使うため
+// ファイル全体が 1 ハンクになりうる(BefoldKit/GitDiffReader.swift:101)。
+function assignChangeBlockIndexes(lines: DiffLine[], startIndex: number): (number | null)[] {
+  var result: (number | null)[] = [];
+  var next = startIndex;
+  var i = 0;
+  while (i < lines.length) {
+    if (lines[i]!.type === 'context') {
+      result.push(null);
+      i += 1;
+      continue;
+    }
+    var block = next;
+    next += 1;
+    while (i < lines.length && lines[i]!.type === 'del') {
+      result.push(block);
+      i += 1;
+    }
+    while (i < lines.length && lines[i]!.type === 'add') {
+      result.push(block);
+      i += 1;
+    }
+  }
+  return result;
+}
+
+// 次のハンクへ持ち越す通し番号。ブロックを 1 つも含まないハンク(文脈行だけ)でも
+// 正しく据え置くため、割り当て結果から最大値を読む(呼び出し側が数え直さない)。
+function nextChangeBlockIndex(blocks: (number | null)[], startIndex: number): number {
+  var next = startIndex;
+  for (var i = 0; i < blocks.length; i++) {
+    var block = blocks[i];
+    if (block !== null && block !== undefined && block + 1 > next) {
+      next = block + 1;
+    }
+  }
+  return next;
+}
+
+// 行に付ける変更ブロックの属性。文脈行(null)では何も付けない。
+// 属性で持たせるのは、インラインと左右分割で行のクラスの付き先が違う
+// (インラインは tr、分割は側セル)一方、目印の列挙は同じセレクタで済ませるため。
+// 列挙側が DOM の形ではなくこの属性だけを見れば、レイアウトによらず
+// 同じ数・同じ順序になることが構造として保証される。
+function changeBlockAttribute(blockIndex: number | null | undefined): string {
+  if (blockIndex === null || blockIndex === undefined) {
+    return '';
+  }
+  return ' data-diff-block="' + blockIndex + '"';
+}
+
 // 行種別を表す記号。背景色だけだと色覚特性やハイコントラスト設定で追加・削除を
 // 区別できないため、色に依存しないグリフを必ず添える。インライン表示と左右分割で
 // 同じ記号を使う(片方だけ変えると同じハンクが 2 つのレイアウトで食い違う)。
@@ -216,7 +276,12 @@ function diffMarkerGlyph(type: DiffLineType): string {
 }
 
 // 1 行分の <tr>。種別クラスと記号セルを必ず持たせる。
-function diffRow(line: DiffLine, lineHtml: string, showLineNumbers: boolean | undefined): string {
+function diffRow(
+  line: DiffLine,
+  lineHtml: string,
+  showLineNumbers: boolean | undefined,
+  blockIndex: number | null,
+): string {
   var numbers = '';
   if (showLineNumbers === true) {
     numbers =
@@ -229,7 +294,9 @@ function diffRow(line: DiffLine, lineHtml: string, showLineNumbers: boolean | un
   return (
     '<tr class="diff-line diff-' +
     line.type +
-    '">' +
+    '"' +
+    changeBlockAttribute(blockIndex) +
+    '>' +
     numbers +
     '<td class="diff-marker" aria-hidden="true">' +
     diffMarkerGlyph(line.type) +
@@ -261,17 +328,21 @@ function renderInlineDiffHtml(
 ): string {
   var files = parseUnifiedDiff(diffText);
   var rows = '';
+  // 変更ブロックの通し番号。ファイル・ハンクをまたいで続ける。
+  var nextBlock = 0;
   for (var f = 0; f < files.length; f++) {
     var hunks = files[f]!.hunks;
     for (var h = 0; h < hunks.length; h++) {
       var hunk = hunks[h]!;
       var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+      var blocks = assignChangeBlockIndexes(hunk.lines, nextBlock);
+      nextBlock = nextChangeBlockIndex(blocks, nextBlock);
       // 先頭には区切りを置かない(境目が無いところに帯だけが出るため)。
       if (rows !== '') {
         rows += diffHunkSeparatorRow(showLineNumbers === true ? 4 : 2);
       }
       for (var i = 0; i < hunk.lines.length; i++) {
-        rows += diffRow(hunk.lines[i]!, lineHtmls[i]!, showLineNumbers);
+        rows += diffRow(hunk.lines[i]!, lineHtmls[i]!, showLineNumbers, blocks[i] ?? null);
       }
     }
   }
@@ -366,11 +437,14 @@ function renderSideBySideDiffHtml(
   // みなされ、.diff-split .diff-side { width: 50% } が効かず左右のペインが潰れる。
   var span = 2;
   var rows = '';
+  var nextBlock = 0;
   for (var f = 0; f < files.length; f++) {
     var hunks = files[f]!.hunks;
     for (var h = 0; h < hunks.length; h++) {
       var hunk = hunks[h]!;
       var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+      var blocks = assignChangeBlockIndexes(hunk.lines, nextBlock);
+      nextBlock = nextChangeBlockIndex(blocks, nextBlock);
       if (rows !== '') {
         rows += diffHunkSeparatorRow(span);
       }
@@ -380,8 +454,13 @@ function renderSideBySideDiffHtml(
         var right = pairs[p]!.right;
         var leftClass = left === null ? 'diff-empty' : 'diff-' + hunk.lines[left]!.type;
         var rightClass = right === null ? 'diff-empty' : 'diff-' + hunk.lines[right]!.type;
+        // 対の左右は同じブロックに属する(削除の連なりと直後の追加の連なりを
+        // 1 ブロックとして数えるため)。どちらか在る方から番号を取る。
+        var pairBlock: number | null = (left === null ? blocks[right!] : blocks[left]) ?? null;
         rows +=
-          '<tr class="diff-line">' +
+          '<tr class="diff-line"' +
+          changeBlockAttribute(pairBlock) +
+          '>' +
           '<td class="diff-side diff-side-left ' +
           leftClass +
           '"><table class="diff-side-table"><tr>' +
@@ -430,6 +509,7 @@ function renderDiffHtml(
 }
 
 export {
+  assignChangeBlockIndexes,
   parseUnifiedDiff,
   highlightedDiffLines,
   diffMarkerGlyph,

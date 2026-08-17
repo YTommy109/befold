@@ -151,6 +151,17 @@ struct ViewerCapabilitiesTests {
         #expect(!makeCapabilities(isDirectHTMLMode: true).canJump)
     }
 
+    @Test("変更ブロックへのジャンプは差分表示を選んでいる間だけ可能")
+    func allowsChangeBlockJumpOnlyWhileShowingDiff() {
+        #expect(makeCapabilities(showsDiff: true, isDocumentJumpEnabled: true)
+            .canJump(to: .changeBlock))
+        #expect(!makeCapabilities(showsDiff: false, isDocumentJumpEnabled: true)
+            .canJump(to: .changeBlock))
+        // 見出しは差分表示かどうかに依らない(条件が種類ごとに分かれていることの確認)。
+        #expect(makeCapabilities(showsDiff: false, isDocumentJumpEnabled: true)
+            .canJump(to: .heading))
+    }
+
     @Test("何も提示していない既定値はすべて不可")
     func noneDeniesEverything() {
         #expect(ViewerCapabilities.none == ViewerCapabilities(

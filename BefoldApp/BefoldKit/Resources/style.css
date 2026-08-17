@@ -678,6 +678,24 @@ mark.mmd-find-match-current {
   border-radius: 2px;
 }
 
+/* ── 差分表示での目印（変更ブロック・TASK-485.3） ──
+   目印は行(tr)ではなくセル(td)へ当てる。border-collapse の表では tr への
+   outline が上下辺しか描かれないため(TASK-485.1 の実測)。セルなら四辺とも出る。
+   ただしセル境界で内側に線が入るので、offset は 0 にして枠を詰める
+   (2px のままだと隣のセルの文字へ重なる)。 */
+.diff-table td.mmd-jump-current {
+  outline-offset: 0;
+  border-radius: 0;
+}
+
+/* 候補の下線は差分表示では出さない。変更ブロックは .diff-add / .diff-del の
+   背景色で既に全部が見えており、そのうえに文字幅の下線を重ねると
+   「この文字が変わった」を指しているように読める(語単位の差分は出していない)。
+   差分表示では「色の付いた行がすべて候補」であることが背景色そのもので伝わる。 */
+.diff-table .mmd-jump-target {
+  text-decoration: none;
+}
+
 /* ── CSV テーブル表示 ──
    CSV 表示時は #diagram-wrap に markdown-body(github-markdown-css の土台)と
    csv-body(CSV 専用の上書き)を両方付与する。CSV 専用スタイルをここに

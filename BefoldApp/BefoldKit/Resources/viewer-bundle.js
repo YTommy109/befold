@@ -14220,14 +14220,17 @@
     _walkTextNodes: () => _walkTextNodes,
     appendChunk: () => appendChunk,
     applyHeadingLevels: () => applyHeadingLevels,
+    assignChangeBlockIndexes: () => assignChangeBlockIndexes,
     base64ToBytes: () => base64ToBytes,
     buildFindRegExp: () => buildFindRegExp,
     buildLineNumberRows: () => buildLineNumberRows,
     buildTableHtml: () => buildTableHtml,
+    changeBlockJumpProvider: () => changeBlockJumpProvider,
     claimBar: () => claimBar,
     clampZoom: () => clampZoom,
     closeCurrentBar: () => closeCurrentBar,
     codeChunkInnerHtml: () => codeChunkInnerHtml,
+    collectChangeBlocks: () => collectChangeBlocks,
     collectHeadings: () => collectHeadings,
     csvRowsHtml: () => csvRowsHtml,
     csvSourceInnerHtml: () => csvSourceInnerHtml,
@@ -14849,6 +14852,45 @@
     }
     return result;
   }
+  function assignChangeBlockIndexes(lines, startIndex) {
+    var result = [];
+    var next = startIndex;
+    var i = 0;
+    while (i < lines.length) {
+      if (lines[i].type === "context") {
+        result.push(null);
+        i += 1;
+        continue;
+      }
+      var block2 = next;
+      next += 1;
+      while (i < lines.length && lines[i].type === "del") {
+        result.push(block2);
+        i += 1;
+      }
+      while (i < lines.length && lines[i].type === "add") {
+        result.push(block2);
+        i += 1;
+      }
+    }
+    return result;
+  }
+  function nextChangeBlockIndex(blocks, startIndex) {
+    var next = startIndex;
+    for (var i = 0; i < blocks.length; i++) {
+      var block2 = blocks[i];
+      if (block2 !== null && block2 !== void 0 && block2 + 1 > next) {
+        next = block2 + 1;
+      }
+    }
+    return next;
+  }
+  function changeBlockAttribute(blockIndex) {
+    if (blockIndex === null || blockIndex === void 0) {
+      return "";
+    }
+    return ' data-diff-block="' + blockIndex + '"';
+  }
   function diffMarkerGlyph(type) {
     if (type === "add") {
       return "+";
@@ -14858,12 +14900,12 @@
     }
     return " ";
   }
-  function diffRow(line, lineHtml, showLineNumbers) {
+  function diffRow(line, lineHtml, showLineNumbers, blockIndex) {
     var numbers = "";
     if (showLineNumbers === true) {
       numbers = '<td class="line-number diff-old">' + (line.oldNumber === null ? "" : line.oldNumber) + '</td><td class="line-number diff-new">' + (line.newNumber === null ? "" : line.newNumber) + "</td>";
     }
-    return '<tr class="diff-line diff-' + line.type + '">' + numbers + '<td class="diff-marker" aria-hidden="true">' + diffMarkerGlyph(line.type) + "</td>" + lineContentCell(lineHtml) + "</tr>";
+    return '<tr class="diff-line diff-' + line.type + '"' + changeBlockAttribute(blockIndex) + ">" + numbers + '<td class="diff-marker" aria-hidden="true">' + diffMarkerGlyph(line.type) + "</td>" + lineContentCell(lineHtml) + "</tr>";
   }
   function diffHunkSeparatorRow(colspan) {
     return '<tr class="diff-hunk" aria-hidden="true"><td class="diff-hunk-separator" colspan="' + colspan + '"></td></tr>';
@@ -14871,16 +14913,19 @@
   function renderInlineDiffHtml(hljs, diffText, lang, showLineNumbers) {
     var files = parseUnifiedDiff(diffText);
     var rows = "";
+    var nextBlock = 0;
     for (var f = 0; f < files.length; f++) {
       var hunks = files[f].hunks;
       for (var h = 0; h < hunks.length; h++) {
         var hunk = hunks[h];
         var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+        var blocks = assignChangeBlockIndexes(hunk.lines, nextBlock);
+        nextBlock = nextChangeBlockIndex(blocks, nextBlock);
         if (rows !== "") {
           rows += diffHunkSeparatorRow(showLineNumbers === true ? 4 : 2);
         }
         for (var i = 0; i < hunk.lines.length; i++) {
-          rows += diffRow(hunk.lines[i], lineHtmls[i], showLineNumbers);
+          rows += diffRow(hunk.lines[i], lineHtmls[i], showLineNumbers, blocks[i] ?? null);
         }
       }
     }
@@ -14931,11 +14976,14 @@
     var files = parseUnifiedDiff(diffText);
     var span = 2;
     var rows = "";
+    var nextBlock = 0;
     for (var f = 0; f < files.length; f++) {
       var hunks = files[f].hunks;
       for (var h = 0; h < hunks.length; h++) {
         var hunk = hunks[h];
         var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+        var blocks = assignChangeBlockIndexes(hunk.lines, nextBlock);
+        nextBlock = nextChangeBlockIndex(blocks, nextBlock);
         if (rows !== "") {
           rows += diffHunkSeparatorRow(span);
         }
@@ -14945,7 +14993,8 @@
           var right = pairs[p].right;
           var leftClass = left === null ? "diff-empty" : "diff-" + hunk.lines[left].type;
           var rightClass = right === null ? "diff-empty" : "diff-" + hunk.lines[right].type;
-          rows += '<tr class="diff-line"><td class="diff-side diff-side-left ' + leftClass + '"><table class="diff-side-table"><tr>' + diffSideCells(
+          var pairBlock = (left === null ? blocks[right] : blocks[left]) ?? null;
+          rows += '<tr class="diff-line"' + changeBlockAttribute(pairBlock) + '><td class="diff-side diff-side-left ' + leftClass + '"><table class="diff-side-table"><tr>' + diffSideCells(
             left === null ? null : hunk.lines[left],
             left === null ? "" : lineHtmls[left],
             showLineNumbers,
@@ -15525,7 +15574,7 @@
       var countEl = document.getElementById("mmd-jump-count");
       if (!countEl) return;
       var strings = window._mmdJumpStrings || {};
-      var showsTruncatedLabel = truncated && !isFilteredEmpty();
+      var showsTruncatedLabel = truncated && !isFilteredEmpty() && !ignoresTruncation();
       countEl.textContent = formatNavigationCount(
         currentIndex,
         targets.length,
@@ -15561,6 +15610,18 @@
       var provider = providers[activeKind];
       return provider?.isSelectionEmpty?.() === true;
     }
+    function ignoresTruncation() {
+      return providers[activeKind]?.ignoresTruncation === true;
+    }
+    function updateOptionsVisibility() {
+      Object.keys(providers).forEach(function(id) {
+        var elementId = providers[id]?.optionsElementId;
+        if (!elementId) return;
+        var element = document.getElementById(elementId);
+        if (!element) return;
+        element.style.display = id === activeKind ? "flex" : "none";
+      });
+    }
     function run(scroll) {
       clearHighlight(targets);
       targets = collectTargets();
@@ -15577,6 +15638,7 @@
       if (bar) {
         bar.style.display = "flex";
       }
+      updateOptionsVisibility();
       run(true);
     }
     function close() {
@@ -15721,7 +15783,42 @@
     collect: collectHeadings,
     isSelectionEmpty: function() {
       return selectedLevels.length === 0;
-    }
+    },
+    optionsElementId: "mmd-jump-levels"
+  };
+  function collectChangeBlocks(root) {
+    var rows = root.querySelectorAll("[data-diff-block]");
+    var targets = [];
+    var currentBlock;
+    rows.forEach(function(row) {
+      var block2 = row.dataset["diffBlock"];
+      if (block2 === void 0) return;
+      var cells = [];
+      var children = row.children;
+      for (var i = 0; i < children.length; i++) {
+        var cell = children[i];
+        if (cell instanceof HTMLElement) {
+          cells.push(cell);
+        }
+      }
+      if (block2 === currentBlock) {
+        var previous = targets.at(-1);
+        if (previous) {
+          previous.highlight = previous.highlight.concat(cells);
+          return;
+        }
+      }
+      currentBlock = block2;
+      targets.push({ anchor: row, highlight: cells });
+    });
+    return targets;
+  }
+  var changeBlockJumpProvider = {
+    id: "changeBlock",
+    collect: collectChangeBlocks,
+    // 差分表示中は appendChunk が追記をスキップし、差分の表は setDiff で渡った
+    // 全文から組まれる。本文が段階読み込み中でも変更ブロックは全数そろっている。
+    ignoresTruncation: true
   };
   function selectedHeadingLevels() {
     return selectedLevels.slice();
@@ -24067,6 +24164,7 @@
     _mmdInitCodeFont();
     _mmdInitFind();
     _mmdJump.register(headingJumpProvider);
+    _mmdJump.register(changeBlockJumpProvider);
     _mmdInitJump();
     _mmdInitHeadingLevels();
   }

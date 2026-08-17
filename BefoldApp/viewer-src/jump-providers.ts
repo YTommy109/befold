@@ -64,6 +64,54 @@ var headingJumpProvider: JumpProvider = {
   isSelectionEmpty: function (): boolean {
     return selectedLevels.length === 0;
   },
+  optionsElementId: 'mmd-jump-levels',
+};
+
+// 差分表示の変更ブロック（TASK-485.3）。
+//
+// DOM のクラスからは数えない。インライン表示では tr に diff-add / diff-del が付くが、
+// 左右分割では側セル（td.diff-side）へ付くため、レイアウトごとに列挙の形が変わり
+// 「同じ差分なのに件数が違う」経路ができる。代わりに diff-html.ts が描画時に
+// 割り当てた data-diff-block を読む。番号はどちらのレイアウトでも同じ
+// hunk.lines から振られるので、数と順序が一致することは構造で保証される。
+function collectChangeBlocks(root: HTMLElement): JumpTarget[] {
+  var rows = root.querySelectorAll<HTMLElement>('[data-diff-block]');
+  var targets: JumpTarget[] = [];
+  var currentBlock: string | undefined;
+  rows.forEach(function (row) {
+    var block = row.dataset['diffBlock'];
+    if (block === undefined) return;
+    // ハイライトは行（tr）ではなく直下のセルへ当てる。border-collapse の表では
+    // tr への outline が上下辺しか描かれないため（TASK-485.1 の実測）。
+    // 分割表示では直下のセルが左右の td.diff-side なので、変更が無い側にも
+    // 枠が付くが、これは「この対が 1 つの目印」であることを示す。
+    var cells: HTMLElement[] = [];
+    var children = row.children;
+    for (var i = 0; i < children.length; i++) {
+      var cell = children[i];
+      if (cell instanceof HTMLElement) {
+        cells.push(cell);
+      }
+    }
+    if (block === currentBlock) {
+      var previous = targets.at(-1);
+      if (previous) {
+        previous.highlight = previous.highlight.concat(cells);
+        return;
+      }
+    }
+    currentBlock = block;
+    targets.push({ anchor: row, highlight: cells });
+  });
+  return targets;
+}
+
+var changeBlockJumpProvider: JumpProvider = {
+  id: 'changeBlock',
+  collect: collectChangeBlocks,
+  // 差分表示中は appendChunk が追記をスキップし、差分の表は setDiff で渡った
+  // 全文から組まれる。本文が段階読み込み中でも変更ブロックは全数そろっている。
+  ignoresTruncation: true,
 };
 
 // いま選ばれているレベル（テストが読む）。
@@ -151,6 +199,8 @@ function isLevel(level: number): boolean {
 
 export {
   headingJumpProvider,
+  changeBlockJumpProvider,
+  collectChangeBlocks,
   headingLevelTokens,
   toggleHeadingLevel,
   _mmdInitHeadingLevels,

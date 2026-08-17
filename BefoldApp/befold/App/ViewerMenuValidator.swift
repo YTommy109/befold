@@ -62,8 +62,8 @@ enum ViewerMenuValidator {
         if let action = menuItem.action, findActions.contains(action) {
             return capabilities.canFind
         }
-        if menuItem.action == #selector(ViewerWindowController.documentJump(_:)) {
-            return capabilities.canJump
+        if let enabled = validateDocumentJumpItem(menuItem, capabilities: capabilities) {
+            return enabled
         }
         if menuItem.action == #selector(ViewerWindowController.printDocument(_:)) {
             return capabilities.canPrint
@@ -89,6 +89,22 @@ enum ViewerMenuValidator {
             return source.capabilities.canToggleDiffLayout
         }
         return nil
+    }
+
+    /// 文書内ジャンプ(Edit メニュー)の validate。種類ごとに条件が違う
+    /// (変更ブロックは差分表示中だけ)ため、項目のタグから種類を復元して引き当てる。
+    /// 自分の担当外の項目には nil を返す(`validateDisplayModeItem` と同じ形)。
+    private static func validateDocumentJumpItem(
+        _ menuItem: NSMenuItem, capabilities: ViewerCapabilities
+    ) -> Bool? {
+        guard menuItem.action == #selector(ViewerWindowController.documentJump(_:)) else {
+            return nil
+        }
+        // タグから種類を復元できない項目は、種類によらない共通条件へ落とす。
+        guard let kind = DocumentJumpKind(menuItemTag: menuItem.tag) else {
+            return capabilities.canJump
+        }
+        return capabilities.canJump(to: kind)
     }
 
     /// 検索系(⌘F / ⌘G / ⌘⇧G)。どれも同じ能力を見る。

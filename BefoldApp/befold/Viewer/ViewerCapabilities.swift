@@ -18,6 +18,11 @@ struct ViewerCapabilities: Equatable {
     /// HTML 直接ロード中は不可。開発中機能なので、ゲートが閉じている間も不可
     /// (`FeatureGate.isDocumentJumpEnabled` を `ViewerCapabilitiesFactory` が渡す)。
     let canJump: Bool
+    /// 文書内ジャンプのうち「変更ブロック」を選べるか。差分表示を選んでいる間だけ
+    /// 意味を持つ(差分でない表示には変更ブロックが 1 つも無い)。
+    /// 目印が何個あるかでは判定しない。判定するのは「いま差分表示か」という事実だけで、
+    /// 目印が 0 個であることは viewer 側の 0/0 表示が伝える(`canJump` と同じ立場)。
+    let canJumpToChangeBlock: Bool
     /// ズーム(拡大・縮小・等倍)。
     let canZoom: Bool
     /// View メニューのソース表示トグル。種別がソース表示を持つときのみ。
@@ -90,6 +95,16 @@ struct ViewerCapabilities: Equatable {
         canSelectDiffMode = onDocument && !isBinaryContent && supportsDiffDisplay
             && gitDiffAvailability.allowsDiffSelection
         canToggleDiffLayout = canSelectDiffMode && showsDiff
+        canJumpToChangeBlock = canJump && showsDiff
+    }
+
+    /// その種類のジャンプをいま使えるか。`canSelect(_:)` と同じく対応表であり、
+    /// 条件そのものは上の init が持つ(ADR 0002 段 2 の「条件は 1 箇所」)。
+    func canJump(to kind: DocumentJumpKind) -> Bool {
+        switch kind {
+        case .heading: canJump
+        case .changeBlock: canJumpToChangeBlock
+        }
     }
 
     /// そのモードをいま選べるか。モード別のフラグを引き当てるだけの対応表であり、

@@ -406,3 +406,123 @@ describe('見出しの列挙（collectHeadings）', () => {
     expect(collectHeadings(root)).toEqual([]);
   });
 });
+
+// 変更ブロックのジャンプ（TASK-485.3）。列挙は描画時に振られた data-diff-block だけを
+// 読むので、DOM の形（インラインは tr にクラス、分割は側セルにクラス）に依存しない。
+describe('変更ブロックのジャンプ', () => {
+  // 差分表示 2 レイアウトの最小 DOM。属性の付き方は viewer-diff.test.js が
+  // 実描画で担保しているので、ここは列挙・ハイライト・件数だけを見る。
+  const INLINE_DIFF_DOM = [
+    '<table class="code-table diff-table">',
+    '<tr class="diff-line diff-context"><td class="diff-marker"> </td><td>a</td></tr>',
+    '<tr class="diff-line diff-del" data-diff-block="0"><td class="diff-marker">-</td><td>b</td></tr>',
+    '<tr class="diff-line diff-add" data-diff-block="0"><td class="diff-marker">+</td><td>B</td></tr>',
+    '<tr class="diff-line diff-context"><td class="diff-marker"> </td><td>c</td></tr>',
+    '<tr class="diff-line diff-add" data-diff-block="1"><td class="diff-marker">+</td><td>d</td></tr>',
+    '</table>',
+  ].join('');
+
+  const SPLIT_DIFF_DOM = [
+    '<table class="code-table diff-table diff-split">',
+    '<tr class="diff-line"><td class="diff-side diff-side-left diff-context">a</td>' +
+      '<td class="diff-side diff-side-right diff-context">a</td></tr>',
+    '<tr class="diff-line" data-diff-block="0">' +
+      '<td class="diff-side diff-side-left diff-del">b</td>' +
+      '<td class="diff-side diff-side-right diff-add">B</td></tr>',
+    '<tr class="diff-line"><td class="diff-side diff-side-left diff-context">c</td>' +
+      '<td class="diff-side diff-side-right diff-context">c</td></tr>',
+    '<tr class="diff-line" data-diff-block="1">' +
+      '<td class="diff-side diff-side-left diff-empty"></td>' +
+      '<td class="diff-side diff-side-right diff-add">d</td></tr>',
+    '</table>',
+  ].join('');
+
+  function openChangeBlockJumpOn(html) {
+    const loaded = loadViewerMain({});
+    loaded.document.getElementById('diagram-wrap').innerHTML = html;
+    loaded.main._mmdOpenJump('changeBlock');
+    return loaded;
+  }
+
+  test.each([
+    ['インライン', INLINE_DIFF_DOM],
+    ['左右分割', SPLIT_DIFF_DOM],
+  ])('%s: 連続する変更行が 1 件にまとまる', (_name, dom) => {
+    const { document } = openChangeBlockJumpOn(dom);
+
+    expect(count(document)).toBe('1/2');
+  });
+
+  test('前後移動でブロック単位に進む', () => {
+    const { document, main } = openChangeBlockJumpOn(INLINE_DIFF_DOM);
+
+    main._mmdJumpNextIfOpen();
+
+    expect(count(document)).toBe('2/2');
+    // 現在位置はセルに付くので、その親行で「どのブロックか」を見る。
+    expect(current(document).parentElement.dataset.diffBlock).toBe('1');
+  });
+
+  // AC#6。border-collapse の表では tr への outline が上下辺しか出ないため、
+  // ハイライトは行ではなくセルへ当てる。
+  test('ハイライトは行ではなくセルに付く', () => {
+    const { document } = openChangeBlockJumpOn(INLINE_DIFF_DOM);
+
+    const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
+
+    expect(highlighted.length).toBeGreaterThan(0);
+    expect(highlighted.every((element) => element.tagName === 'TD')).toBe(true);
+    // 1 ブロックが 2 行にまたがる場合、その両方のセルが現在位置になる。
+    expect(highlighted.length).toBe(4);
+  });
+
+  // 差分表示は setDiff で渡った全文から表を組み、appendChunk は追記をスキップするため、
+  // 本文が段階読み込み中でも変更ブロックは全数そろっている。
+  test('段階読み込み中でも表示範囲のラベルを出さない', () => {
+    const { document, main } = openChangeBlockJumpOn(INLINE_DIFF_DOM);
+
+    main._mmdSetTruncated(true, 100, false);
+
+    expect(count(document)).toBe('1/2');
+  });
+
+  // AC#3。レイアウト切替は Swift が setDiffLayout の直後に render を送る形なので、
+  // 着地時の refresh が位置を維持する。番号が両レイアウトで同じだからこれが意味を持つ。
+  test('レイアウトを切り替えても現在位置が保たれる', async () => {
+    const DIFF = [
+      'diff --git a/a.txt b/a.txt',
+      '--- a/a.txt',
+      '+++ b/a.txt',
+      '@@ -1,4 +1,4 @@',
+      ' one',
+      '-two',
+      '+TWO',
+      ' three',
+      '-four',
+      '+FOUR',
+      '',
+    ].join('\n');
+    const { document, main } = loadViewerMain({});
+    main.setViewMode('source');
+    main.setDiff(DIFF);
+    await main.render('dummy', 'plaintext');
+    main._mmdOpenJump('changeBlock');
+    main._mmdJumpNextIfOpen();
+    expect(count(document)).toBe('2/2');
+
+    main.setDiffLayout('side-by-side');
+    await main.render('dummy', 'plaintext');
+
+    expect(count(document)).toBe('2/2');
+    expect(current(document).closest('tr').dataset.diffBlock).toBe('1');
+  });
+
+  test('見出しレベルのトグルは見出しジャンプのときだけ出す', () => {
+    const { document, main } = openChangeBlockJumpOn(INLINE_DIFF_DOM);
+    expect(document.getElementById('mmd-jump-levels').style.display).toBe('none');
+
+    main._mmdOpenJump('heading');
+
+    expect(document.getElementById('mmd-jump-levels').style.display).toBe('flex');
+  });
+});
