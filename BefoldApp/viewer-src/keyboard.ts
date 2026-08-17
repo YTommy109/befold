@@ -123,7 +123,15 @@ function _mmdInitKeyboard(): void {
     } else {
       step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
     }
-    scrollEl.scrollBy({ top: action.down ? step : -step, behavior: 'auto' });
+    // 'auto'(既定)は瞬間移動で、1 回のキー操作で表示位置が飛び、読んでいた行を
+    // 見失う(TASK-486)。実測では 'auto' が最初のフレームで目標へ到達するのに対し、
+    // 'smooth' は 600px を約 16 フレームかけて踏む。キーリピート相当(30ms 間隔で
+    // 10 連打)でも到達位置は 400px に対し 385px で、取りこぼしはしない。
+    //
+    // ここだけを 'smooth' にして CSS の scroll-behavior は使わない。CSS で指定すると
+    // scrollTop への代入まで animate してしまい、ファイル切替・再描画時の位置復元
+    // (viewer-src/scroll.ts の _mmdRestoreScrollPosition)が滑って着地しなくなる。
+    scrollEl.scrollBy({ top: action.down ? step : -step, behavior: 'smooth' });
   });
 
   document.addEventListener('keyup', function (e) {

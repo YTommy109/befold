@@ -1,11 +1,11 @@
 ---
 id: TASK-509
 title: TSan ジョブで残っていた壁時計待機を loadTask の await へ移す
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-17 04:34'
-updated_date: '2026-08-17 04:41'
+updated_date: '2026-08-17 05:16'
 labels: []
 dependencies: []
 priority: high
@@ -40,7 +40,7 @@ backlog/completed/task-437 が同じ失敗メッセージ・同じジョブに�
 - [x] #1 ViewerWindowControllerDiffTests.swift の 3 箇所と ViewerWindowControllerDiffPendingTests.swift の 1 箇所から、コンテンツロード着地を待つ waitUntilOnMainActor が消え、store.loadTask の await に置き換わっている
 - [x] #2 befoldTests 全体を grep し、コンテンツロード着地を壁時計で待つ waitUntilOnMainActor が他に残っていないことを確認し、残す場合は理由を Implementation Notes に書く
 - [x] #3 swift test がローカルで通る（失敗ゼロ、テスト名まで確認する）
-- [ ] #4 main へマージ後の thread-sanitizer ジョブが通ることを確認する（PR では走らないため、マージ後の run を必ず見る）
+- [x] #4 main へマージ後の thread-sanitizer ジョブが通ることを確認する（PR では走らないため、マージ後の run を必ず見る）
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -75,4 +75,14 @@ befoldTests 全体で 12 → 7 箇所に減った。残る 7 箇所はいずれ�
 ## AC#4 は未達（マージ後に確認が必要）
 
 thread-sanitizer ジョブは push / schedule でのみ走るため（.github/workflows/ci.yml:214）、PR では検証できない。main へマージした後の run を必ず確認すること。過去 2 回（2026-08-15 の run 31885189333、2026-08-17 の run 31993974965）と同じ 8 テストが落ちないことを見る。
+
+## AC#4 確認済み
+
+マージ後の main の run [31996328512](https://github.com/YTommy109/befold/actions/runs/31996328512) で thread-sanitizer ジョブが 6m18s で成功した（前回までの失敗 8 件はゼロ）。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+TSan ジョブが waitUntilOnMainActor の壁時計 120 秒予算切れで断続的に落ちていた問題を、コンテンツロード着地を待つ 5 箇所を store.loadTask の await へ移すことで解消した。予算はスイート全体の混雑時間（成功したテストも 185〜230 秒と報告される）を測っており、伸ばしても解決しない（TASK-437 で 10 → 60 → 120 と伸ばして破れている）ため構造で塞いだ。await 直後に元の待機条件を #expect として残し、空振りしていないことを担保している。swift test 1603 件通過に加え、マージ後の main の run 31996328512 で thread-sanitizer ジョブの成功を確認した。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -15841,7 +15841,7 @@
       } else {
         step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
       }
-      scrollEl.scrollBy({ top: action.down ? step : -step, behavior: "auto" });
+      scrollEl.scrollBy({ top: action.down ? step : -step, behavior: "smooth" });
     });
     document.addEventListener("keyup", function(e) {
       if (!e.metaKey) document.body.classList.remove("cmd-held");
