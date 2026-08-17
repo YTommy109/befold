@@ -226,6 +226,15 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   1 回のキー操作で位置が飛ばないようにする。CSS の `scroll-behavior` は使わない
   （指定すると `scrollTop` への代入まで animate され、位置復元が着地しなくなる）
 - **検索**: 大文字小文字区別・単語一致・正規表現の3トグル、次/前移動
+- **文書内ジャンプ**: 文書順に並んだ目印を前後移動する（Edit > 見出しへジャンプ…）。
+  現在は Markdown レンダリング表示の h2 / h3 が対象。検索バーと同じ形の
+  「現在位置 / 総数」表示を持ち、`Enter` / `Shift+Enter` で前後へ動く。
+  目印の列挙は `viewer-src/jump-providers.ts` のプロバイダが担い、位置・表示・
+  ハイライト・再構築は `viewer-src/jump.ts` のコントローラが持つ（対象を増やすときは
+  プロバイダを足す）。検索バーとは同時に開かない（`viewer-src/bar.ts` が排他を持つ）。
+  **開発中機能で、`FeatureGate.isDocumentJumpEnabled` が閉じている stable ビルドでは
+  メニュー項目もコマンドも無効**（可否は `ViewerCapabilities.canJump` へ畳んである）。
+  安定稼働を確認するまでキー等価は割り当てない
 - **表示モード切替**: ツールバーの 3 択セグメント（レンダリング / ソース / 差分）と `⌘1`〜`⌘3`。
   `DisplayModeStore` でファイル単位に永続化する。差分レイアウト（上下/左右）は `⌘\\` とツールバーのトグルで切り替え、
   好みの設定としてアプリ全体で共有する（`DiffDisplayPreference`）。ソース相当の内容を出している間は

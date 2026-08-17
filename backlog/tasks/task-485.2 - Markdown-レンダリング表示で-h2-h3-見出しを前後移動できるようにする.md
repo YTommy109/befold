@@ -4,7 +4,7 @@ title: Markdown レンダリング表示で h2 / h3 見出しを前後移動で�
 status: To Do
 assignee: []
 created_date: '2026-08-14 13:18'
-updated_date: '2026-08-15 06:39'
+updated_date: '2026-08-17 09:27'
 labels: []
 milestone: m-6
 dependencies:
@@ -41,4 +41,5 @@ slug 生成は :49 `slugifyHeading`、重複回避は :59 `uniqueHeadingSlug`）
 - [ ] #2 現在位置と総数が検索窓と同じ形で表示される
 - [ ] #3 見出しが 0 個の文書で操作しても壊れず、その旨が分かる
 - [ ] #4 見出し列挙の純粋な部分（要素列 → 目印列）に JS のユニットテストがある
+- [ ] #5 TASK-485.1 で入れた HeadingJumpProvider を差し替えず拡張する（別実装を立てない）
 <!-- AC:END -->
