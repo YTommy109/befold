@@ -511,6 +511,32 @@ describe('検索ナビゲーション', () => {
     expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
   });
 
+  // 件数表示の「空文字を出す」2 分岐(クエリ空 / 正規表現エラー)を固定する。
+  // TASK-485.1 で件数ラベルの組み立てをジャンプ機能と共有する純粋関数へ切り出すため、
+  // その前にこの 2 分岐が呼び出し側に残ることを担保しておく(共有関数側へ吸い出すと
+  // ジャンプ側には無い状態を引数で持ち回ることになり、検索の表示が静かに変わる)。
+  test('クエリが空になると件数表示は空文字になる', () => {
+    const { document } = openFindOn('x a x b x', 'x');
+    const input = document.getElementById('mmd-find-input');
+
+    input.value = '';
+    input.dispatchEvent(new document.defaultView.Event('input'));
+
+    expect(count(document)).toBe('');
+  });
+
+  test('正規表現として不正なクエリでは件数表示は空文字になる', () => {
+    const { document } = openFindOn('x a x b x', 'x');
+    document.getElementById('mmd-find-regex').click();
+    const input = document.getElementById('mmd-find-input');
+
+    input.value = '[';
+    input.dispatchEvent(new document.defaultView.Event('input'));
+
+    expect(input.classList.contains('mmd-find-error')).toBe(true);
+    expect(count(document)).toBe('');
+  });
+
   test('閉じるとハイライトが平文に戻る', () => {
     const { document, main } = openFindOn('x a x b x', 'x');
 
