@@ -1,6 +1,7 @@
 // 検索バー。クエリ・トグル・ヒット一覧・現在位置・開閉・段階読み込み中の
 // すべてをコントローラのクロージャに閉じ、外部からは公開メソッド経由でのみ触れる。
 
+import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
 import { _MSG_FIND_OPTIONS_CHANGED, _mmdPostMessage } from './bridge.js';
 import {
   formatNavigationCount,
@@ -140,12 +141,16 @@ function pruneEmptyAncestors(node: Node | null, root: Node): void {
   }
 }
 
+// 開閉状態は bar.ts が一元管理する（検索バーとジャンプバーは同時に開かない）。
+function isFindBarOpen(): boolean {
+  return isBarOpen('find');
+}
+
 function _createFindController(): FindController {
   var options: FindOptions = { caseSensitive: false, wholeWord: false, useRegex: false };
   var query = '';
   var matches: HTMLElement[] = [];
   var currentIndex = -1;
-  var isOpenFlag = false;
   // 段階読み込み中(まだ全チャンクを読み終えていない)かどうか。setTruncated が更新する。
   var truncated = false;
 
@@ -467,7 +472,7 @@ function _createFindController(): FindController {
   }
 
   function open(): void {
-    isOpenFlag = true;
+    claimBar('find');
     document.getElementById('mmd-find-bar')!.style.display = 'flex';
     var input = findInputElement();
     input.value = query;
@@ -479,7 +484,7 @@ function _createFindController(): FindController {
   }
 
   function close(): void {
-    isOpenFlag = false;
+    releaseBar('find');
     document.getElementById('mmd-find-bar')!.style.display = 'none';
     clearMarks();
     matches = [];
@@ -493,15 +498,13 @@ function _createFindController(): FindController {
     // 検索バーが開いていれば「表示範囲内」ラベルの表示/非表示を即座に反映する。
     // (通常は appendChunk 後の _mmdFindRefreshAfterRender が再検索するが、
     // それより先に評価されるため、ここでも件数表示だけ更新しておく)
-    if (isOpenFlag) {
+    if (isFindBarOpen()) {
       updateCount();
     }
   }
 
   return {
-    isOpen: function (): boolean {
-      return isOpenFlag;
-    },
+    isOpen: isFindBarOpen,
     open: open,
     close: close,
     next: next,
@@ -514,6 +517,13 @@ function _createFindController(): FindController {
 }
 
 var _mmdFind = _createFindController();
+
+// Escape や、別のバーを開いたときの自動クローズはレジストリ経由で届く。
+registerBar('find', {
+  close: function (): void {
+    _mmdFind.close();
+  },
+});
 
 // 以下は Swift(evaluateJavaScript)から名前で呼ばれる入口。ViewerBridge の
 // 各 script 定数と一対一で対応するため、コントローラへの委譲だけを行う。

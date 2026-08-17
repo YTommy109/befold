@@ -14214,10 +14214,13 @@
     buildFindRegExp: () => buildFindRegExp,
     buildLineNumberRows: () => buildLineNumberRows,
     buildTableHtml: () => buildTableHtml,
+    claimBar: () => claimBar,
     clampZoom: () => clampZoom,
+    closeCurrentBar: () => closeCurrentBar,
     codeChunkInnerHtml: () => codeChunkInnerHtml,
     csvRowsHtml: () => csvRowsHtml,
     csvSourceInnerHtml: () => csvSourceInnerHtml,
+    currentBar: () => currentBar,
     diagramScrollHeight: () => diagramScrollHeight,
     diffMarkerGlyph: () => diffMarkerGlyph,
     escapeHtml: () => escapeHtml,
@@ -14228,6 +14231,7 @@
     imageDataURI: () => imageDataURI,
     imageFitSize: () => imageFitSize,
     indentColumns: () => indentColumns,
+    isBarOpen: () => isBarOpen,
     isHostFeatureEnabled: () => isHostFeatureEnabled,
     isLocalPathHref: () => isLocalPathHref,
     isSafeLinkURL: () => isSafeLinkURL,
@@ -14249,6 +14253,8 @@
     prefersDark: () => prefersDark,
     prevMatchIndex: () => prevMatchIndex,
     reflowSpanBalancedLines: () => reflowSpanBalancedLines,
+    registerBar: () => registerBar,
+    releaseBar: () => releaseBar,
     render: () => render,
     renderCodeHtml: () => renderCodeHtml,
     renderCsvSourceHtml: () => renderCsvSourceHtml,
@@ -14256,7 +14262,7 @@
     renderInlineDiffHtml: () => renderInlineDiffHtml,
     renderShape: () => renderShape,
     renderSideBySideDiffHtml: () => renderSideBySideDiffHtml,
-    resolveFindCloseKey: () => resolveFindCloseKey,
+    resolveBarCloseKey: () => resolveBarCloseKey,
     resolveScrollKey: () => resolveScrollKey,
     sanitizeLang: () => sanitizeLang,
     sanitizeRenderedHtml: () => sanitizeRenderedHtml,
@@ -14274,6 +14280,45 @@
     wrapWithLineNumbers: () => wrapWithLineNumbers,
     zoomLabel: () => zoomLabel
   });
+
+  // viewer-src/bar.ts
+  var handlers = {};
+  var openBar = null;
+  function registerBar(kind, barHandlers) {
+    handlers[kind] = barHandlers;
+  }
+  function currentBar() {
+    return openBar;
+  }
+  function isBarOpen(kind) {
+    return openBar === kind;
+  }
+  function claimBar(kind) {
+    if (openBar === kind) {
+      return;
+    }
+    if (openBar !== null) {
+      var previous = handlers[openBar];
+      if (previous) {
+        previous.close();
+      }
+    }
+    openBar = kind;
+  }
+  function releaseBar(kind) {
+    if (openBar === kind) {
+      openBar = null;
+    }
+  }
+  function closeCurrentBar() {
+    if (openBar === null) {
+      return;
+    }
+    var current = handlers[openBar];
+    if (current) {
+      current.close();
+    }
+  }
 
   // viewer-src/bridge.ts
   var _MSG_ZOOM_CHANGED = "zoomChanged";
@@ -15392,6 +15437,88 @@
     );
   }
 
+  // viewer-src/keyboard.ts
+  var PAGE_SCROLL_RATIO = 0.9;
+  var DEFAULT_LINE_SCROLL_STEP = 24;
+  function pageScrollStep(clientHeight) {
+    return clientHeight * PAGE_SCROLL_RATIO;
+  }
+  function halfPageScrollStep(clientHeight) {
+    return pageScrollStep(clientHeight) / 2;
+  }
+  function lineScrollStep(lineHeightPx, fallback) {
+    var lh = parseFloat(lineHeightPx);
+    return isNaN(lh) ? fallback : lh;
+  }
+  function resolveScrollKey(key, shiftKey) {
+    if (key === " ") {
+      return { down: !shiftKey, amount: "page" };
+    }
+    var down;
+    if (key === "ArrowDown" || key === "j") {
+      down = true;
+    } else if (key === "ArrowUp" || key === "k") {
+      down = false;
+    } else {
+      return null;
+    }
+    return { down, amount: shiftKey ? "half" : "line" };
+  }
+  function resolveBarCloseKey(key, openBar2, isComposing, keyCode) {
+    return key === "Escape" && openBar2 !== null && !isComposing && keyCode !== 229;
+  }
+  function _mmdInitKeyboard() {
+    document.addEventListener("keydown", function(e) {
+      if (resolveBarCloseKey(e.key, currentBar(), e.isComposing, e.keyCode)) {
+        e.preventDefault();
+        closeCurrentBar();
+        return;
+      }
+      document.body.classList.toggle("cmd-held", e.metaKey);
+      if (e.metaKey) {
+        if (e.key === "-") {
+          e.preventDefault();
+          _mmdZoomOut();
+        } else if (e.key === "=" || e.key === "+") {
+          e.preventDefault();
+          _mmdZoomIn();
+        }
+        return;
+      }
+      var action = resolveScrollKey(e.key, e.shiftKey);
+      if (!action) {
+        return;
+      }
+      if (e.key === " " && !isHostFeatureEnabled(window._mmdHostFeatures, "spaceScroll")) {
+        return;
+      }
+      var active = document.activeElement;
+      if (active instanceof HTMLElement && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
+        return;
+      }
+      var scrollEl = _mmdScrollTarget();
+      if (!scrollEl) {
+        return;
+      }
+      e.preventDefault();
+      var step;
+      if (action.amount === "page") {
+        step = pageScrollStep(scrollEl.clientHeight);
+      } else if (action.amount === "half") {
+        step = halfPageScrollStep(scrollEl.clientHeight);
+      } else {
+        step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
+      }
+      scrollEl.scrollBy({ top: action.down ? step : -step, behavior: "smooth" });
+    });
+    document.addEventListener("keyup", function(e) {
+      if (!e.metaKey) document.body.classList.remove("cmd-held");
+    });
+    window.addEventListener("blur", function() {
+      document.body.classList.remove("cmd-held");
+    });
+  }
+
   // viewer-src/navigation.ts
   function nextMatchIndex(currentIndex, count) {
     if (count <= 0) {
@@ -15479,12 +15606,14 @@
       node = parent;
     }
   }
+  function isFindBarOpen() {
+    return isBarOpen("find");
+  }
   function _createFindController() {
     var options = { caseSensitive: false, wholeWord: false, useRegex: false };
     var query2 = "";
     var matches = [];
     var currentIndex = -1;
-    var isOpenFlag = false;
     var truncated = false;
     var skipTags = ["MARK", "SVG", "STYLE", "SCRIPT"];
     var bridgeTags = [
@@ -15723,7 +15852,7 @@
       });
     }
     function open() {
-      isOpenFlag = true;
+      claimBar("find");
       document.getElementById("mmd-find-bar").style.display = "flex";
       var input = findInputElement();
       input.value = query2;
@@ -15732,7 +15861,7 @@
       run();
     }
     function close() {
-      isOpenFlag = false;
+      releaseBar("find");
       document.getElementById("mmd-find-bar").style.display = "none";
       clearMarks();
       matches = [];
@@ -15740,14 +15869,12 @@
     }
     function setTruncated(value) {
       truncated = value;
-      if (isOpenFlag) {
+      if (isFindBarOpen()) {
         updateCount();
       }
     }
     return {
-      isOpen: function() {
-        return isOpenFlag;
-      },
+      isOpen: isFindBarOpen,
       open,
       close,
       next,
@@ -15759,6 +15886,11 @@
     };
   }
   var _mmdFind = _createFindController();
+  registerBar("find", {
+    close: function() {
+      _mmdFind.close();
+    }
+  });
   function _mmdInitFind() {
     _mmdFind.applyHostSettings();
   }
@@ -15778,88 +15910,6 @@
   function _mmdFindPrevIfOpen() {
     if (!_mmdFind.isOpen()) return;
     _mmdFind.prev();
-  }
-
-  // viewer-src/keyboard.ts
-  var PAGE_SCROLL_RATIO = 0.9;
-  var DEFAULT_LINE_SCROLL_STEP = 24;
-  function pageScrollStep(clientHeight) {
-    return clientHeight * PAGE_SCROLL_RATIO;
-  }
-  function halfPageScrollStep(clientHeight) {
-    return pageScrollStep(clientHeight) / 2;
-  }
-  function lineScrollStep(lineHeightPx, fallback) {
-    var lh = parseFloat(lineHeightPx);
-    return isNaN(lh) ? fallback : lh;
-  }
-  function resolveScrollKey(key, shiftKey) {
-    if (key === " ") {
-      return { down: !shiftKey, amount: "page" };
-    }
-    var down;
-    if (key === "ArrowDown" || key === "j") {
-      down = true;
-    } else if (key === "ArrowUp" || key === "k") {
-      down = false;
-    } else {
-      return null;
-    }
-    return { down, amount: shiftKey ? "half" : "line" };
-  }
-  function resolveFindCloseKey(key, isFindOpen, isComposing, keyCode) {
-    return key === "Escape" && isFindOpen && !isComposing && keyCode !== 229;
-  }
-  function _mmdInitKeyboard() {
-    document.addEventListener("keydown", function(e) {
-      if (resolveFindCloseKey(e.key, _mmdFind.isOpen(), e.isComposing, e.keyCode)) {
-        e.preventDefault();
-        _mmdFind.close();
-        return;
-      }
-      document.body.classList.toggle("cmd-held", e.metaKey);
-      if (e.metaKey) {
-        if (e.key === "-") {
-          e.preventDefault();
-          _mmdZoomOut();
-        } else if (e.key === "=" || e.key === "+") {
-          e.preventDefault();
-          _mmdZoomIn();
-        }
-        return;
-      }
-      var action = resolveScrollKey(e.key, e.shiftKey);
-      if (!action) {
-        return;
-      }
-      if (e.key === " " && !isHostFeatureEnabled(window._mmdHostFeatures, "spaceScroll")) {
-        return;
-      }
-      var active = document.activeElement;
-      if (active instanceof HTMLElement && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
-        return;
-      }
-      var scrollEl = _mmdScrollTarget();
-      if (!scrollEl) {
-        return;
-      }
-      e.preventDefault();
-      var step;
-      if (action.amount === "page") {
-        step = pageScrollStep(scrollEl.clientHeight);
-      } else if (action.amount === "half") {
-        step = halfPageScrollStep(scrollEl.clientHeight);
-      } else {
-        step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
-      }
-      scrollEl.scrollBy({ top: action.down ? step : -step, behavior: "smooth" });
-    });
-    document.addEventListener("keyup", function(e) {
-      if (!e.metaKey) document.body.classList.remove("cmd-held");
-    });
-    window.addEventListener("blur", function() {
-      document.body.classList.remove("cmd-held");
-    });
   }
 
   // viewer-src/path-refs.ts

@@ -511,6 +511,39 @@ describe('検索ナビゲーション', () => {
     expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
   });
 
+  // バーの排他（bar.ts）が検索側にも効いていることを固定する。TASK-485.1 で
+  // 「同時に開くバーは 1 つ」を単一の所有者で表す形にしたので、その所有者を
+  // 経由しない開閉を書くとここが落ちる。
+  test('検索バーは bar レジストリ経由で開閉状態を持つ', () => {
+    const { main } = openFindOn('x a x b x', 'x');
+
+    expect(main.currentBar()).toBe('find');
+    expect(main.isBarOpen('find')).toBe(true);
+
+    main._mmdCloseFind();
+
+    expect(main.currentBar()).toBe(null);
+  });
+
+  test('別のバーを開くと検索バーは閉じる', () => {
+    const { document, main } = openFindOn('x a x b x', 'x');
+
+    main.claimBar('jump');
+
+    expect(main.currentBar()).toBe('jump');
+    expect(document.getElementById('mmd-find-bar').style.display).toBe('none');
+    expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
+  });
+
+  test('閉じているバーの release は、後から開いた別のバーを消さない', () => {
+    const { main } = openFindOn('x a x b x', 'x');
+    main.claimBar('jump');
+
+    main.releaseBar('find');
+
+    expect(main.currentBar()).toBe('jump');
+  });
+
   // 件数表示の「空文字を出す」2 分岐(クエリ空 / 正規表現エラー)を固定する。
   // TASK-485.1 で件数ラベルの組み立てをジャンプ機能と共有する純粋関数へ切り出すため、
   // その前にこの 2 分岐が呼び出し側に残ることを担保しておく(共有関数側へ吸い出すと

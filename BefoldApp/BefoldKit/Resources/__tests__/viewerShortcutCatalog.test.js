@@ -10,14 +10,14 @@
 const fs = require('fs');
 const path = require('path');
 
-const { resolveScrollKey, resolveFindCloseKey } = require('../../../viewer-src/main.js');
+const { resolveScrollKey, resolveBarCloseKey } = require('../../../viewer-src/main.js');
 
 const CATALOG_PATH = path.join(__dirname, '../../../befold/App/ViewerShortcutCatalog.swift');
 
 // Swift 側 ViewerShortcutCatalogTests.expectedItemCount と同じ値。片方だけ増やすと落ちる。
 const EXPECTED_VIEWER_SHORTCUT_COUNT = 7;
 
-// resolveScrollKey の戻り値。findClose だけは resolveFindCloseKey で判定する。
+// resolveScrollKey の戻り値。findClose だけは resolveBarCloseKey で判定する。
 const SCROLL_EXPECTATIONS = {
   pageDown: { down: true, amount: 'page' },
   pageUp: { down: false, amount: 'page' },
@@ -83,7 +83,7 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.js', () => {
     expect(findItems.length).toBe(1);
 
     const closed = findItems.flatMap((item) =>
-      item.jsKeys.map((key) => `${key} -> ${resolveFindCloseKey(key, true, false, 0)}`),
+      item.jsKeys.map((key) => `${key} -> ${resolveBarCloseKey(key, 'find', false, 0)}`),
     );
     expect(closed).toEqual(findItems.flatMap((item) => item.jsKeys.map((key) => `${key} -> true`)));
   });
@@ -127,8 +127,8 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.js', () => {
 
   test('検索バーを閉じる Esc は IME 変換中には効かない', () => {
     // カタログに載せた findClose の条件を、閉じない側からも押さえる。
-    expect(resolveFindCloseKey('Escape', false, false, 0)).toBe(false);
-    expect(resolveFindCloseKey('Escape', true, true, 0)).toBe(false);
-    expect(resolveFindCloseKey('Escape', true, false, 229)).toBe(false);
+    expect(resolveBarCloseKey('Escape', null, false, 0)).toBe(false);
+    expect(resolveBarCloseKey('Escape', 'find', true, 0)).toBe(false);
+    expect(resolveBarCloseKey('Escape', 'find', false, 229)).toBe(false);
   });
 });

@@ -1,7 +1,8 @@
 // キーボード操作の配線と、キーからスクロール量を決める規則。
 
+import type { OpenBar } from './bar.js';
+import { closeCurrentBar, currentBar } from './bar.js';
 import { isHostFeatureEnabled } from './bridge.js';
-import { _mmdFind } from './find.js';
 import { _mmdScrollTarget } from './scroll.js';
 import { _mmdZoomIn, _mmdZoomOut } from './zoom.js';
 
@@ -56,7 +57,7 @@ function resolveScrollKey(key: string, shiftKey: boolean): ScrollAction | null {
   return { down: down, amount: shiftKey ? 'half' : 'line' };
 }
 
-// Escape が「検索バーを閉じる」にあたるかの判定。
+// Escape が「開いているバー（検索 / 文書内ジャンプ）を閉じる」にあたるかの判定。
 // IME 変換中の Escape(候補キャンセル)では閉じない。Enter 側の変換確定判定
 // (検索コントローラの keydown ハンドラ)と同じ理由: Safari/WKWebView は
 // compositionend → keydown の順で発火するため isComposing は既に false に
@@ -64,20 +65,20 @@ function resolveScrollKey(key: string, shiftKey: boolean): ScrollAction | null {
 //
 // ハンドラ内の分岐ではなく純粋関数にしてあるのは、resolveScrollKey と同じく
 // Help > キーボードショートカット の一覧と突き合わせるため(TASK-503)。
-function resolveFindCloseKey(
+function resolveBarCloseKey(
   key: string,
-  isFindOpen: boolean,
+  openBar: OpenBar,
   isComposing: boolean,
   keyCode: number,
 ): boolean {
-  return key === 'Escape' && isFindOpen && !isComposing && keyCode !== 229;
+  return key === 'Escape' && openBar !== null && !isComposing && keyCode !== 229;
 }
 
 function _mmdInitKeyboard(): void {
   document.addEventListener('keydown', function (e) {
-    if (resolveFindCloseKey(e.key, _mmdFind.isOpen(), e.isComposing, e.keyCode)) {
+    if (resolveBarCloseKey(e.key, currentBar(), e.isComposing, e.keyCode)) {
       e.preventDefault();
-      _mmdFind.close();
+      closeCurrentBar();
       return;
     }
     document.body.classList.toggle('cmd-held', e.metaKey);
@@ -150,6 +151,6 @@ export {
   halfPageScrollStep,
   lineScrollStep,
   resolveScrollKey,
-  resolveFindCloseKey,
+  resolveBarCloseKey,
   _mmdInitKeyboard,
 };
