@@ -23,11 +23,10 @@
     // esbuild が 1 ファイルずつ変換するため、型のみの import を残さない形に強制する。
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
-    // 未移行の .js を解決対象には含めるが、型エラー源にはしない。
-    // checkJs を true にすると移行の途中で CI が赤のままになり、段階移行が成立しない。
-    // 「.ts だけが型検査されている」という状態は viewer-src/README.md に明記してある。
-    "allowJs": true,
-    "checkJs": false
+    // viewer-src の .js は TASK-499 で全廃した。allowJs を外してあるのは、
+    // 「.js を足すと解決対象には入るが型検査は受けない」という穴を復活させないため。
+    // 新しいモジュールを .js で足すと tsc が解決できずその場で落ちる。
+    "allowJs": false
   },
   "include": ["viewer-src/**/*"]
 }

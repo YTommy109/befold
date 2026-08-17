@@ -3,13 +3,63 @@
 
 import { _MSG_FIND_OPTIONS_CHANGED, _mmdPostMessage } from './bridge.js';
 
+// 検索の 3 トグル。window._mmdInitialFindOptions（Swift が注入する側、すべて省略可）と
+// 違い、コントローラ内部では 3 つとも常に確定している。
+interface FindOptions {
+  caseSensitive: boolean;
+  wholeWord: boolean;
+  useRegex: boolean;
+}
+
+// _createFindController が返す公開メソッド。他モジュール（truncation.ts /
+// keyboard.js / render.js / init.js）はこの形だけを見る。
+interface FindController {
+  isOpen(): boolean;
+  open(): void;
+  close(): void;
+  next(): void;
+  prev(): void;
+  refresh(resetToFirst?: boolean): void;
+  applyHostSettings(): void;
+  initControls(): void;
+  setTruncated(value: boolean): void;
+}
+
+// 連結文字列上のオフセットの逆引き結果（locate の戻り値）。
+// Array.prototype.toReversed は Safari 17（WKWebView）に実装済みだが、tsconfig の
+// lib が ES2022 のため型定義に無い（ES2023 で追加）。実行時の振る舞いを変えたくないので
+// slice().reverse() へは書き換えず、型だけをここで補う。
+// lib を ES2023 へ上げれば不要になる（tsconfig.json は他エージェントと共用のため触っていない）。
+declare global {
+  interface Array<T> {
+    toReversed(): T[];
+  }
+}
+
+interface TextLocation {
+  node: Text;
+  localOffset: number;
+}
+
+// viewer.html に静的に置かれている <input>。getElementById は HTMLElement までしか
+// 返さないため、instanceof で <input> であることを確かめてから返す。要素が消えた
+// 場合は呼び出し側が value を触った時点ではなくここで TypeError になる（どちらも
+// 復帰できない構成の壊れで、握り潰さない点は変えていない）。
+function findInputElement(): HTMLInputElement {
+  var el = document.getElementById('mmd-find-input');
+  if (!(el instanceof HTMLInputElement)) {
+    throw new TypeError('#mmd-find-input is missing');
+  }
+  return el;
+}
+
 // クエリと3トグル(caseSensitive / wholeWord / useRegex)から RegExp を組み立てる。
 // クエリが空、または正規表現として不正な場合は null を返す(呼び出し側はエラー表示に切り替える)。
-function buildFindRegExp(query, options) {
+function buildFindRegExp(query: string, options: FindOptions): RegExp | null {
   if (!query) {
     return null;
   }
-  var source = options.useRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var source = options.useRegex ? query : query.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
   if (options.wholeWord) {
     source = '\\b(?:' + source + ')\\b';
   }
@@ -24,14 +74,14 @@ function buildFindRegExp(query, options) {
 // 検索ヒット間の移動先インデックス。件数 0 のときはどれも -1(選択なし)を返す。
 // 末尾の次は先頭、先頭の前は末尾へ循環する。
 
-function nextMatchIndex(currentIndex, count) {
+function nextMatchIndex(currentIndex: number, count: number): number {
   if (count <= 0) {
     return -1;
   }
   return (currentIndex + 1) % count;
 }
 
-function prevMatchIndex(currentIndex, count) {
+function prevMatchIndex(currentIndex: number, count: number): number {
   if (count <= 0) {
     return -1;
   }
@@ -40,17 +90,80 @@ function prevMatchIndex(currentIndex, count) {
 
 // 再検索(_mmdFindRefresh)で維持する現在位置。再検索でヒット数が減っても
 // 範囲外を指さないようクランプする。負値(未選択)は先頭に寄せる。
-function keptMatchIndex(previousIndex, count) {
+function keptMatchIndex(previousIndex: number, count: number): number {
   if (count <= 0) {
     return -1;
   }
   return Math.min(Math.max(previousIndex, 0), count - 1);
 }
 
-function _createFindController() {
-  var options = { caseSensitive: false, wholeWord: false, useRegex: false };
+// 前回検索でハイライトした <mark> を復元する(次の検索前に必ず呼ぶ)。
+// span 境界をまたぐマッチは <mark> の中に元の <span> 構造を保持したまま挿入して
+// いるため、単純に textContent で潰すとシンタックスハイライトの構造が壊れる。
+// mark を子ノードで置き換える(unwrap)ことで元の構造を保ったまま平文表示に戻す。
+// normalize() は親ごとに1回だけ呼ぶ(同じ親に複数の <mark> がある場合の重複呼び出しを避ける)。
+function clearMarks() {
+  var marks = document.querySelectorAll('#diagram-wrap mark.mmd-find-match');
+  var parents = new Set<Node>();
+  marks.forEach(function (mark) {
+    var parent = mark.parentNode;
+    if (!parent) return;
+    while (mark.firstChild) {
+      parent.insertBefore(mark.firstChild, mark);
+    }
+    mark.remove();
+    parents.add(parent);
+  });
+  parents.forEach(function (parent) {
+    parent.normalize();
+  });
+}
+// 連結文字列上のオフセットを (テキストノード, ノード内オフセット) に逆引きする。
+// textNodes[i] は連結文字列上で [starts[i], starts[i] + textNodes[i].length) を占める。
+//
+// ノードの継ぎ目ちょうどのオフセット(前ノードの終端 === 次ノードの先頭)は
+// DOM 上は同じ位置を指すが、Range の「祖先を完全に含むか」の判定はどちらの
+// ノードを境界に使うかで変わる。開始側は次ノードの先頭(offset 0)、終了側は
+// 前ノードの終端を使わないと、実際にはマッチしていない隣接 <span> まで
+// 「部分的に含む」扱いになり、意図せず分割・複製されてしまう
+// (isStart=true: 継ぎ目では後方のノードを優先。isStart=false: 前方のノードを優先)。
+// starts は textNodes と同じ長さで同時に構築される（matchScope 参照）ため、
+// 走査中の添字と末尾要素は必ず存在する。noUncheckedIndexedAccess 下で
+// undefined が付くのを非 null 表明で落としている（実行時の判定は変えていない）。
+function locate(
+  textNodes: Text[],
+  starts: number[],
+  offset: number,
+  isStart: boolean,
+): TextLocation {
+  for (var i = 0; i < textNodes.length; i++) {
+    var start = starts[i]!;
+    var length = textNodes[i]!.length;
+    var fits = isStart ? offset < start + length : offset <= start + length;
+    if (fits) {
+      return { node: textNodes[i]!, localOffset: offset - start };
+    }
+  }
+  var last = textNodes.length - 1;
+  return { node: textNodes[last]!, localOffset: textNodes[last]!.length };
+}
+
+// node から祖先方向へ、内容が空になった要素を取り除く(root には触れない)。
+// extractContents() は境界の Text ノードを削除せず長さ0のまま残すため、
+// hasChildNodes() ではなく textContent で空判定する。
+function pruneEmptyAncestors(node: Node | null, root: Node): void {
+  while (node && node !== root && node instanceof Element && node.textContent === '') {
+    var parent: Node | null = node.parentNode;
+    if (!parent) break;
+    node.remove();
+    node = parent;
+  }
+}
+
+function _createFindController(): FindController {
+  var options: FindOptions = { caseSensitive: false, wholeWord: false, useRegex: false };
   var query = '';
-  var matches = [];
+  var matches: HTMLElement[] = [];
   var currentIndex = -1;
   var isOpenFlag = false;
   // 段階読み込み中(まだ全チャンクを読み終えていない)かどうか。setTruncated が更新する。
@@ -66,28 +179,6 @@ function _createFindController() {
   // <style> を含む)の tagName は大文字化されず小文字のまま返る(例: 'svg'、'style')。
   // このリストは大文字で保持しつつ、比較側で toUpperCase() して正規化する。
   var skipTags = ['MARK', 'SVG', 'STYLE', 'SCRIPT'];
-
-  // 前回検索でハイライトした <mark> を復元する(次の検索前に必ず呼ぶ)。
-  // span 境界をまたぐマッチは <mark> の中に元の <span> 構造を保持したまま挿入して
-  // いるため、単純に textContent で潰すとシンタックスハイライトの構造が壊れる。
-  // mark を子ノードで置き換える(unwrap)ことで元の構造を保ったまま平文表示に戻す。
-  // normalize() は親ごとに1回だけ呼ぶ(同じ親に複数の <mark> がある場合の重複呼び出しを避ける)。
-  function clearMarks() {
-    var marks = document.querySelectorAll('#diagram-wrap mark.mmd-find-match');
-    var parents = new Set();
-    marks.forEach(function (mark) {
-      var parent = mark.parentNode;
-      if (!parent) return;
-      while (mark.firstChild) {
-        parent.insertBefore(mark.firstChild, mark);
-      }
-      parent.removeChild(mark);
-      parents.add(parent);
-    });
-    parents.forEach(function (parent) {
-      parent.normalize();
-    });
-  }
 
   // マッチをまたいでよい(連結対象の)インライン要素。シンタックスハイライトの
   // <span> やパス参照・通常リンクの <a>、Markdown の強調表現などはトークンを
@@ -119,8 +210,8 @@ function _createFindController() {
     'LABEL',
   ];
 
-  function isBridgeable(node) {
-    return node.nodeType === 1 && bridgeTags.indexOf(node.tagName.toUpperCase()) !== -1;
+  function isBridgeable(node: Node): boolean {
+    return node instanceof Element && bridgeTags.includes(node.tagName.toUpperCase());
   }
 
   // #diagram-wrap 配下(skipTags 除く)を再帰し、bridgeTags で連結できる範囲だけを
@@ -130,22 +221,22 @@ function _createFindController() {
   // ブロックの <tr>/<td> のような構造上の境界はまたがないようにする(またぐと
   // Range.extractContents() がテーブル構造を破壊してレイアウトが崩れる)。
   // スコープはすべて document 順で返す。
-  function collectScopes(root) {
-    var scopes = [];
-    var current = [];
-    function flush() {
+  function collectScopes(root: Node): Text[][] {
+    var scopes: Text[][] = [];
+    var current: Text[] = [];
+    function flush(): void {
       if (current.length > 0) {
         scopes.push(current);
         current = [];
       }
     }
-    function recurse(node) {
+    function recurse(node: Node): void {
       var children = node.childNodes;
       for (var i = 0; i < children.length; i++) {
-        var child = children[i];
-        if (child.nodeType === 3) {
+        var child = children[i]!;
+        if (child instanceof Text) {
           current.push(child);
-        } else if (child.nodeType === 1 && skipTags.indexOf(child.tagName.toUpperCase()) === -1) {
+        } else if (child instanceof Element && !skipTags.includes(child.tagName.toUpperCase())) {
           if (isBridgeable(child)) {
             recurse(child);
           } else {
@@ -161,42 +252,22 @@ function _createFindController() {
     return scopes;
   }
 
-  // 連結文字列上のオフセットを (テキストノード, ノード内オフセット) に逆引きする。
-  // textNodes[i] は連結文字列上で [starts[i], starts[i] + textNodes[i].length) を占める。
-  //
-  // ノードの継ぎ目ちょうどのオフセット(前ノードの終端 === 次ノードの先頭)は
-  // DOM 上は同じ位置を指すが、Range の「祖先を完全に含むか」の判定はどちらの
-  // ノードを境界に使うかで変わる。開始側は次ノードの先頭(offset 0)、終了側は
-  // 前ノードの終端を使わないと、実際にはマッチしていない隣接 <span> まで
-  // 「部分的に含む」扱いになり、意図せず分割・複製されてしまう
-  // (isStart=true: 継ぎ目では後方のノードを優先。isStart=false: 前方のノードを優先)。
-  function locate(textNodes, starts, offset, isStart) {
-    for (var i = 0; i < textNodes.length; i++) {
-      var start = starts[i];
-      var length = textNodes[i].length;
-      var fits = isStart ? offset < start + length : offset <= start + length;
-      if (fits) {
-        return { node: textNodes[i], localOffset: offset - start };
-      }
-    }
-    var last = textNodes.length - 1;
-    return { node: textNodes[last], localOffset: textNodes[last].length };
-  }
-
   // 1スコープ(bridgeTags でつながった範囲)のテキストを連結してマッチさせ、マッチ
   // 位置を (textNode, localOffset) に逆引きして Range を組み、<mark> で置き換える。
   // ゼロ幅マッチ(例: 正規表現 "a*" の空文字一致)は無限ループを避けるため読み飛ばす。
-  function matchScope(root, textNodeList, regex, found) {
-    var starts = [];
+  function matchScope(root: Node, textNodeList: Text[], regex: RegExp, found: HTMLElement[]): void {
+    var starts: number[] = [];
     var text = '';
     textNodeList.forEach(function (node) {
       starts.push(text.length);
-      text += node.textContent;
+      // Text ノードの textContent は仕様上必ず文字列（null になるのは
+      // Document / DocumentType などの場合のみ）。
+      text += node.textContent!;
     });
 
     regex.lastIndex = 0;
-    var ranges = [];
-    var match;
+    var ranges: { start: number; end: number }[] = [];
+    var match: RegExpExecArray | null;
     while ((match = regex.exec(text)) !== null) {
       if (match[0].length === 0) {
         regex.lastIndex++;
@@ -207,7 +278,7 @@ function _createFindController() {
     }
     if (ranges.length === 0) return;
 
-    var scopeFound = [];
+    var scopeFound: HTMLElement[] = [];
     // Range 構築中に DOM を書き換えるとテキストノードがずれるため、末尾側から処理する。
     ranges.toReversed().forEach(function (range) {
       var start = locate(textNodeList, starts, range.start, true);
@@ -217,15 +288,15 @@ function _createFindController() {
       // 含まれる」扱いにならない)を空のまま DOM に残す。参照はここで取っておき、
       // 抽出後に空になっていれば取り除く(そうしないと再検索のたびに空 <span> が
       // 増殖し、シンタックスハイライトの構造が壊れていく)。
-      var startAncestor = start.node.parentNode;
-      var endAncestor = end.node.parentNode;
+      var startAncestor: Node | null = start.node.parentNode;
+      var endAncestor: Node | null = end.node.parentNode;
       var domRange = document.createRange();
       domRange.setStart(start.node, start.localOffset);
       domRange.setEnd(end.node, end.localOffset);
 
       var mark = document.createElement('mark');
       mark.className = 'mmd-find-match';
-      mark.appendChild(domRange.extractContents());
+      mark.append(domRange.extractContents());
       domRange.insertNode(mark);
       scopeFound.unshift(mark);
 
@@ -237,45 +308,33 @@ function _createFindController() {
 
   // #diagram-wrap 配下をスコープ(bridgeTags でつながった範囲)に分割し、スコープ
   // ごとにマッチさせる。document 順のまま found に積む。
-  function walk(root, regex, found) {
+  function walk(root: Node, regex: RegExp, found: HTMLElement[]): void {
     collectScopes(root).forEach(function (textNodeList) {
       matchScope(root, textNodeList, regex, found);
     });
-  }
-
-  // node から祖先方向へ、内容が空になった要素を取り除く(root には触れない)。
-  // extractContents() は境界の Text ノードを削除せず長さ0のまま残すため、
-  // hasChildNodes() ではなく textContent で空判定する。
-  function pruneEmptyAncestors(node, root) {
-    while (node && node !== root && node.nodeType === 1 && node.textContent === '') {
-      var parent = node.parentNode;
-      if (!parent) break;
-      parent.removeChild(node);
-      node = parent;
-    }
   }
 
   // マッチなしを専用文言で表示すると文字幅の違いでバーが伸縮するため、
   // 常に「現在位置/件数」形式(マッチなし時は 0/0)のみを表示する。
   // 段階読み込み中(truncated)は表示済み DOM だけが検索対象であることを示すため
   // 「表示範囲内」ラベルを付与する。
-  function updateCount() {
-    var countEl = document.getElementById('mmd-find-count');
-    var input = document.getElementById('mmd-find-input');
+  function updateCount(): void {
+    var countEl = document.getElementById('mmd-find-count')!;
+    var input = findInputElement();
     if (query.length === 0 || input.classList.contains('mmd-find-error')) {
       countEl.textContent = '';
     } else {
       var current = matches.length === 0 ? 0 : currentIndex + 1;
       var text = current + '/' + matches.length;
       if (truncated) {
-        var strings = window._mmdFindStrings || {};
+        var strings: ViewerFindStrings = window._mmdFindStrings || {};
         text += ' (' + (strings.withinDisplayedRange || 'Displayed range') + ')';
       }
       countEl.textContent = text;
     }
   }
 
-  function highlightCurrent() {
+  function highlightCurrent(): void {
     matches.forEach(function (mark) {
       mark.classList.remove('mmd-find-match-current');
     });
@@ -286,7 +345,7 @@ function _createFindController() {
   }
 
   // 現在位置を移し、ハイライトと件数表示を揃える(next/prev/refresh 共通)。
-  function moveTo(index) {
+  function moveTo(index: number): void {
     currentIndex = index;
     highlightCurrent();
     updateCount();
@@ -295,8 +354,8 @@ function _createFindController() {
   // 入力・トグル変更のたびに呼ばれる: 現在のハイライトをクリアして再検索する。
   // suppressAutoHighlight を true にすると、1件目への自動ハイライト・スクロールを行わない
   // (呼び出し元が位置確定後に自分でハイライトする場合に使う。refresh 参照)。
-  function run(suppressAutoHighlight) {
-    var input = document.getElementById('mmd-find-input');
+  function run(suppressAutoHighlight?: boolean): void {
+    var input = findInputElement();
     query = input.value;
     clearMarks();
     matches = [];
@@ -306,7 +365,7 @@ function _createFindController() {
     input.classList.toggle('mmd-find-error', query.length > 0 && regex === null);
 
     if (regex) {
-      walk(document.getElementById('diagram-wrap'), regex, matches);
+      walk(document.getElementById('diagram-wrap')!, regex, matches);
     }
 
     if (matches.length > 0) {
@@ -325,7 +384,7 @@ function _createFindController() {
   // 省略時は可能な限り現在位置を維持する(ライブリロード追従)。
   // run には suppressAutoHighlight=true を渡し、1件目への自動スクロールを抑止した上で、
   // 位置確定後にここで1回だけ highlightCurrent() を呼ぶ(二重スクロール防止)。
-  function refresh(resetToFirst) {
+  function refresh(resetToFirst?: boolean): void {
     var previousIndex = resetToFirst ? 0 : currentIndex;
     run(true);
     if (matches.length > 0) {
@@ -333,20 +392,20 @@ function _createFindController() {
     }
   }
 
-  function next() {
+  function next(): void {
     if (matches.length === 0) return;
     moveTo(nextMatchIndex(currentIndex, matches.length));
   }
 
-  function prev() {
+  function prev(): void {
     if (matches.length === 0) return;
     moveTo(prevMatchIndex(currentIndex, matches.length));
   }
 
   // トグルボタン共通のハンドラ: 状態を反転し、見た目を更新し、Swift へ永続化を依頼して再検索する。
-  function toggleOption(optionName, buttonId) {
+  function toggleOption(optionName: keyof FindOptions, buttonId: string): void {
     options[optionName] = !options[optionName];
-    document.getElementById(buttonId).classList.toggle('active', options[optionName]);
+    document.getElementById(buttonId)!.classList.toggle('active', options[optionName]);
     _mmdPostMessage(_MSG_FIND_OPTIONS_CHANGED, {
       caseSensitive: options.caseSensitive,
       wholeWord: options.wholeWord,
@@ -357,45 +416,45 @@ function _createFindController() {
 
   // ロード時に保存済みトグル状態(window._mmdInitialFindOptions、Swift から注入)と
   // ローカライズ済み文字列(window._mmdFindStrings、Swift から注入)を反映する。
-  function applyHostSettings() {
-    var opts = window._mmdInitialFindOptions || {};
+  function applyHostSettings(): void {
+    var opts: ViewerFindOptions = window._mmdInitialFindOptions || {};
     options.caseSensitive = !!opts.caseSensitive;
     options.wholeWord = !!opts.wholeWord;
     options.useRegex = !!opts.useRegex;
-    document.getElementById('mmd-find-case').classList.toggle('active', options.caseSensitive);
-    document.getElementById('mmd-find-word').classList.toggle('active', options.wholeWord);
-    document.getElementById('mmd-find-regex').classList.toggle('active', options.useRegex);
+    document.getElementById('mmd-find-case')!.classList.toggle('active', options.caseSensitive);
+    document.getElementById('mmd-find-word')!.classList.toggle('active', options.wholeWord);
+    document.getElementById('mmd-find-regex')!.classList.toggle('active', options.useRegex);
 
-    var strings = window._mmdFindStrings || {};
-    var input = document.getElementById('mmd-find-input');
+    var strings: ViewerFindStrings = window._mmdFindStrings || {};
+    var input = findInputElement();
     if (strings.placeholder) {
       input.placeholder = strings.placeholder;
     }
     if (strings.previous) {
-      document.getElementById('mmd-find-prev').title = strings.previous;
+      document.getElementById('mmd-find-prev')!.title = strings.previous;
     }
     if (strings.next) {
-      document.getElementById('mmd-find-next').title = strings.next;
+      document.getElementById('mmd-find-next')!.title = strings.next;
     }
     if (strings.matchCase) {
-      document.getElementById('mmd-find-case').title = strings.matchCase;
+      document.getElementById('mmd-find-case')!.title = strings.matchCase;
     }
     if (strings.matchWholeWord) {
-      document.getElementById('mmd-find-word').title = strings.matchWholeWord;
+      document.getElementById('mmd-find-word')!.title = strings.matchWholeWord;
     }
     if (strings.useRegularExpression) {
-      document.getElementById('mmd-find-regex').title = strings.useRegularExpression;
+      document.getElementById('mmd-find-regex')!.title = strings.useRegularExpression;
     }
     if (strings.close) {
-      document.getElementById('mmd-find-close').title = strings.close;
+      document.getElementById('mmd-find-close')!.title = strings.close;
     }
   }
 
-  function initControls() {
-    document.getElementById('mmd-find-input').addEventListener('input', function () {
+  function initControls(): void {
+    document.getElementById('mmd-find-input')!.addEventListener('input', function () {
       run();
     });
-    document.getElementById('mmd-find-input').addEventListener('keydown', function (e) {
+    document.getElementById('mmd-find-input')!.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
         // Safari/WKWebView は compositionend → keydown の順で発火するため、
         // 変換確定の Enter では isComposing が既に false になっている。
@@ -413,24 +472,24 @@ function _createFindController() {
       // Escape はここでは処理しない: document の keydown ハンドラがバブリングで捕捉し、
       // isOpen() 時に preventDefault + close() を行う(同じ挙動になる)。
     });
-    document.getElementById('mmd-find-next').addEventListener('click', next);
-    document.getElementById('mmd-find-prev').addEventListener('click', prev);
-    document.getElementById('mmd-find-close').addEventListener('click', close);
-    document.getElementById('mmd-find-case').addEventListener('click', function () {
+    document.getElementById('mmd-find-next')!.addEventListener('click', next);
+    document.getElementById('mmd-find-prev')!.addEventListener('click', prev);
+    document.getElementById('mmd-find-close')!.addEventListener('click', close);
+    document.getElementById('mmd-find-case')!.addEventListener('click', function () {
       toggleOption('caseSensitive', 'mmd-find-case');
     });
-    document.getElementById('mmd-find-word').addEventListener('click', function () {
+    document.getElementById('mmd-find-word')!.addEventListener('click', function () {
       toggleOption('wholeWord', 'mmd-find-word');
     });
-    document.getElementById('mmd-find-regex').addEventListener('click', function () {
+    document.getElementById('mmd-find-regex')!.addEventListener('click', function () {
       toggleOption('useRegex', 'mmd-find-regex');
     });
   }
 
-  function open() {
+  function open(): void {
     isOpenFlag = true;
-    document.getElementById('mmd-find-bar').style.display = 'flex';
-    var input = document.getElementById('mmd-find-input');
+    document.getElementById('mmd-find-bar')!.style.display = 'flex';
+    var input = findInputElement();
     input.value = query;
     input.focus();
     input.select();
@@ -439,9 +498,9 @@ function _createFindController() {
     run();
   }
 
-  function close() {
+  function close(): void {
     isOpenFlag = false;
-    document.getElementById('mmd-find-bar').style.display = 'none';
+    document.getElementById('mmd-find-bar')!.style.display = 'none';
     clearMarks();
     matches = [];
     currentIndex = -1;
@@ -449,7 +508,7 @@ function _createFindController() {
 
   // 段階読み込み状態の変化を件数表示(「表示範囲内」ラベル)へ反映する。
   // バナー自体の表示切替は _mmdSetTruncated が担う。
-  function setTruncated(value) {
+  function setTruncated(value: boolean): void {
     truncated = value;
     // 検索バーが開いていれば「表示範囲内」ラベルの表示/非表示を即座に反映する。
     // (通常は appendChunk 後の _mmdFindRefreshAfterRender が再検索するが、
@@ -460,7 +519,7 @@ function _createFindController() {
   }
 
   return {
-    isOpen: function () {
+    isOpen: function (): boolean {
       return isOpenFlag;
     },
     open: open,
@@ -478,31 +537,31 @@ var _mmdFind = _createFindController();
 
 // 以下は Swift(evaluateJavaScript)から名前で呼ばれる入口。ViewerBridge の
 // 各 script 定数と一対一で対応するため、コントローラへの委譲だけを行う。
-function _mmdInitFind() {
+function _mmdInitFind(): void {
   _mmdFind.applyHostSettings();
 }
 
-function _mmdOpenFind() {
+function _mmdOpenFind(): void {
   _mmdFind.open();
 }
 
-function _mmdCloseFind() {
+function _mmdCloseFind(): void {
   _mmdFind.close();
 }
 
-function _mmdFindRefresh(resetToFirst) {
+function _mmdFindRefresh(resetToFirst?: boolean): void {
   _mmdFind.refresh(resetToFirst);
 }
 
 // ⌘G / ⌘Shift+G から呼ばれる。検索バーが閉じている間は何もしない
 // (フォーカス位置に関わらずグローバルショートカットとして配線されるため、
 // 呼び出し側では開閉判定をせずここで一元的にガードする)。
-function _mmdFindNextIfOpen() {
+function _mmdFindNextIfOpen(): void {
   if (!_mmdFind.isOpen()) return;
   _mmdFind.next();
 }
 
-function _mmdFindPrevIfOpen() {
+function _mmdFindPrevIfOpen(): void {
   if (!_mmdFind.isOpen()) return;
   _mmdFind.prev();
 }

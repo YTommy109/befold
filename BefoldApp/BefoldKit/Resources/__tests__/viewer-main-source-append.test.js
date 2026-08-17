@@ -1,3 +1,8 @@
+// describe 直下のヘルパーは、それを使うテストの真横に置いてあることに意味がある
+// (どのテストのための組み立てかが読んで分かる)。モジュール先頭へ移すとテストと
+// 離れて読みにくくなる一方、テスト本体は 1 回しか走らないので「毎回作り直す」
+// コストの指摘は当たらない。このファイルではルールごと切る。
+// oxlint-disable unicorn/consistent-function-scoping
 // ソース表示中の描画と追記が、レンダリング表示側と同じ規則で動くことのテスト。
 //
 // render() と appendChunk() が表示形をそれぞれ別に判定していた頃、同じ文書で
@@ -119,11 +124,11 @@ describe('ソース表示のパス参照', () => {
     const paths = (doc) =>
       Array.from(
         new Set(
-          Array.from(doc.querySelectorAll('#diagram-wrap .befold-path-ref')).map((el) =>
-            el.getAttribute('data-path'),
+          Array.from(doc.querySelectorAll('#diagram-wrap .befold-path-ref')).map(
+            (el) => el.dataset.path,
           ),
         ),
-      ).sort();
+      ).toSorted();
     expect(paths(md.document)).toEqual(['./notes.md']);
     expect(paths(code.document)).toEqual(['./notes.md']);
   });
@@ -143,7 +148,7 @@ describe('ソース表示のパス参照', () => {
 
     const refs = Array.from(document.querySelectorAll('#diagram-wrap .befold-path-ref'));
     expect(refs.length).toBeGreaterThan(0);
-    expect(refs.map((el) => el.getAttribute('data-path'))).toEqual(refs.map(() => './notes.md'));
+    expect(refs.map((el) => el.dataset.path)).toEqual(refs.map(() => './notes.md'));
     expect(refs.map((el) => el.textContent).join('')).toBe('./notes.md');
     // 行のテキストそのものは変わらない（注釈は包むだけ）。
     expect(line.textContent).toBe('see ./notes.md for details');
@@ -158,8 +163,8 @@ describe('ソース表示のパス参照', () => {
     main.appendChunk('see ./second.md too\n', 'md');
 
     // 追記された行も注釈され、先に描かれた行の注釈も残っている。
-    const refs = Array.from(document.querySelectorAll('#diagram-wrap .befold-path-ref')).map((el) =>
-      el.getAttribute('data-path'),
+    const refs = Array.from(document.querySelectorAll('#diagram-wrap .befold-path-ref')).map(
+      (el) => el.dataset.path,
     );
     expect(refs).toContain('./first.md');
     expect(refs).toContain('./second.md');

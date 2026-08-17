@@ -15,37 +15,37 @@ viewer 用 JS のモジュールソース（ESM）。`npm run build:viewer` が 
 
 | ファイル | 責務 |
 |---|---|
-| `index.js` | バンドルのエントリ。`exposeGlobals()` で公開関数をグローバルへ載せ、`_mmdInit()` を呼ぶ |
-| `main.js` | 公開面の barrel。エントリもテストハーネスもここだけを見る |
+| `index.ts` | バンドルのエントリ。`exposeGlobals()` で公開関数をグローバルへ載せ、`_mmdInit()` を呼ぶ |
+| `main.ts` | 公開面の barrel。エントリもテストハーネスもここだけを見る |
 | `expose.ts` | barrel の export を反復して `globalThis` へ公開する `exposeGlobals()` |
-| `init.js` | 読み込み時の初期化（リスナ登録・注入値の反映）を 1 箇所に集約する |
+| `init.ts` | 読み込み時の初期化（リスナ登録・注入値の反映）を 1 箇所に集約する |
 | `bridge.ts` | Swift ホストとの境界。`postMessage` の送信口とホスト機能フラグ |
-| `render.js` | 描画の入口とチャンク追記のディスパッチ。「いま何の形を描いたか」の記録を持つ |
-| `renderers.js` | 表示種別ごとの `#diagram-wrap` 組み立て |
-| `document-state.js` | 直近に描画した内容とチャンク境界を保持する |
-| `view-options.js` | 表示モード・行番号・差分の設定を保持する |
-| `doc-path.js` | いま DOM に出ている文書のパスを追跡する |
-| `scroll.js` | スクロール対象の決定・位置の復元・位置変化の通知 |
-| `keyboard.js` | キーボード操作の配線と、キーからスクロール量を決める規則 |
-| `zoom.js` | 全体ズームとダイアグラム個別ズームの倍率保持と DOM への適用 |
-| `find.js` | 検索バーの状態・ハイライト・件数表示 |
-| `path-refs.js` | 本文中のパス参照の注釈付けと Swift への解決要求 |
-| `reference-clicks.js` | リンク/パス参照のクリック・コンテキストメニューを Swift へ伝える |
+| `render.ts` | 描画の入口とチャンク追記のディスパッチ。「いま何の形を描いたか」の記録を持つ |
+| `renderers.ts` | 表示種別ごとの `#diagram-wrap` 組み立て |
+| `document-state.ts` | 直近に描画した内容とチャンク境界を保持する |
+| `view-options.ts` | 表示モード・行番号・差分の設定を保持する |
+| `doc-path.ts` | いま DOM に出ている文書のパスを追跡する |
+| `scroll.ts` | スクロール対象の決定・位置の復元・位置変化の通知 |
+| `keyboard.ts` | キーボード操作の配線と、キーからスクロール量を決める規則 |
+| `zoom.ts` | 全体ズームとダイアグラム個別ズームの倍率保持と DOM への適用 |
+| `find.ts` | 検索バーの状態・ハイライト・件数表示 |
+| `path-refs.ts` | 本文中のパス参照の注釈付けと Swift への解決要求 |
+| `reference-clicks.ts` | リンク/パス参照のクリック・コンテキストメニューを Swift へ伝える |
 | `truncation.ts` | 段階読み込みバナーと「続きを読み込む」 |
-| `markdown.js` | markdown-it インスタンスの構成 |
-| `vendor.js` | npm 依存のベンダー（markdown-it / highlight.js / DOMPurify）の取り込み口 |
-| `mermaid.js` | mermaid の遅延ロード・設定・実行 |
-| `color-scheme.js` | ダークモードの現在値と変更通知 |
+| `markdown.ts` | markdown-it インスタンスの構成 |
+| `vendor.ts` | npm 依存のベンダー（markdown-it / highlight.js / DOMPurify）の取り込み口 |
+| `mermaid.ts` | mermaid の遅延ロード・設定・実行 |
+| `color-scheme.ts` | ダークモードの現在値と変更通知 |
 | `fonts.ts` | Swift が注入したフォント設定を CSS 変数へ反映する |
-| `code-html.js` | ソースコードのハイライトと行単位 HTML の組み立て |
-| `diff-html.js` | unified diff の解析とインライン/左右分割の HTML 組み立て |
-| `csv-html.js` | CSV/TSV の解析とテーブル/ソース表示の HTML 組み立て |
-| `encoding.js` | HTML エスケープと data URI / base64 の変換 |
+| `code-html.ts` | ソースコードのハイライトと行単位 HTML の組み立て |
+| `diff-html.ts` | unified diff の解析とインライン/左右分割の HTML 組み立て |
+| `csv-html.ts` | CSV/TSV の解析とテーブル/ソース表示の HTML 組み立て |
+| `encoding.ts` | HTML エスケープと data URI / base64 の変換 |
 | `viewer-globals.d.ts` | Swift が `window` へ注入する値の型宣言（値の一致は `ViewerBridgeContractTests` が担保） |
 
 依存は `import` で表現し、**循環させない**（`npm run check:viewer-cycles`）。
 循環するとモジュール評価順が壊れ、別モジュールのトップレベル値を `undefined` の
-まま掴む。実際に `scroll.js` は評価時に `doc-path.js` の `_mmdDocPath` を読む。
+まま掴む。実際に `scroll.ts` は評価時に `doc-path.ts` の `_mmdDocPath` を読む。
 
 Swift 側は `evaluateJavaScript("_mmdZoomIn()")` のような裸の呼び出しで到達するため、
 バンドル（IIFE）の中身は `exposeGlobals()` でグローバルへ載せ直す。`export` した
@@ -53,41 +53,42 @@ Swift 側は `evaluateJavaScript("_mmdZoomIn()")` のような裸の呼び出し
 
 `viewer.html` が body 末尾で読む script は **viewer-bundle.js 1 本だけ**。
 markdown-it / highlight.js / DOMPurify は npm 依存としてこのバンドルに含まれる
-（TASK-432.5）。取り込み口は `vendor.js` の 1 箇所で、他のモジュールは
+（TASK-432.5）。取り込み口は `vendor.ts` の 1 箇所で、他のモジュールは
 そこから import する（`window.hljs` のようなグローバル参照はしない）。
 これらは常に構成済みなので「ベンダー未ロード」の縮退経路は存在しない。
 
 mermaid（3.2MB）だけはバンドルへ入れない。CSV・ログ・コード等の mermaid 不使用
 プレビューで無駄なパース/評価コストになるため、描画が必要になった時点で
-`mermaid.js` が `<script src="mermaid.min.js">` を挿して遅延ロードする。
+`mermaid.ts` が `<script src="mermaid.min.js">` を挿して遅延ロードする。
 その `mermaid.min.js` と 3 つのベンダー CSS は npm パッケージから
 `npm run build:viewer-vendor`（`scripts/copy-viewer-vendor.mjs`）でコピーした
 生成物で、バンドル同様コミットする。CSP は `script-src 'self'` のままで変わらない。
 
-## TypeScript への段階移行
+## TypeScript
 
-<!-- derived-from ../../backlog/tasks/task-432.4 - viewer-の-JS-を-TypeScript-へ段階移行する.md -->
+<!-- derived-from ../../backlog/tasks/task-499 - viewer-src-の残り-22-本の-JS-を-TypeScript-へ移行しきる.md -->
 
-`.js` と `.ts` が混在する。`tsconfig.json` は `allowJs: true` / `checkJs: false`
-なので、**型検査されるのは `.ts` だけ**で、`.js` は解決対象に含まれるだけで
-検査されない。「TypeScript を入れたのだから viewer-src 全体が型検査されている」と
-読まないこと。
+**viewer-src のモジュールはすべて `.ts`**（TASK-432.4 で始めた段階移行を TASK-499 で
+完了した）。`tsconfig.json` は `allowJs: false` で、`.js` を足すと import が解決
+できずその場で落ちる。「解決対象には入るが型検査は受けない」という穴を残さないため。
 
 - 型検査は `npm run typecheck:viewer`（`tsc --noEmit`）が単独で担当する。
   esbuild も babel も型注釈を落とすだけで検査しない。
 - `tsconfig.json` の `include` はファイルの列挙ではなくディレクトリ全体。
-  移行のたびに追記する列挙を作ると、追記漏れたモジュールが「型が付いた見た目のまま
-  一度も検査されない」状態で静かに残る。
-- ESLint も `viewer-src/**/*.{js,ts}` を対象にする。`.ts` では `no-undef` を使わず、
-  未定義参照の担保は `tsc` 側にある（型宣言を未定義と誤検知するため）。
+  列挙にすると、追記漏れたモジュールが「型が付いた見た目のまま一度も
+  検査されない」状態で静かに残る。
+- Oxlint は `.ts` で `no-undef` を使わない。未定義参照の担保は `tsc` 側にある
+  （型宣言を未定義と誤検知するため）。viewer-src 向けの緩和は TASK-499 で
+  撤去済みで、いま残るのは `no-underscore-dangle`（`_mmd` 接頭辞が Swift との契約）と
+  `prefer-query-selector`（`getElementById` は意図した選択）の 2 つだけ。
 - Jest は `moduleFileExtensions` を `ts` → `js` の順にしてある。esbuild の
   既定の解決順と同じにすることで、同名の `foo.js` と `foo.ts` が並んだ場合でも
   テストと本番が同じファイルを見る。
 
-移行の単位はモジュール 1 つ。`import` 指定子は `./bridge.js` のまま書き換えない
-（esbuild も tsc も `.js` 指定を `.ts` へ解決する）。**ただしエントリだけは例外で、
-拡張子解決が効かない。** `index.js` を `.ts` にするときは、`package.json` の
-`build:viewer` と `scripts/check-viewer-cycles.mjs` のエントリパスを併せて変える。
+`import` 指定子の拡張子は `./bridge.js` のまま書く（esbuild も tsc も `.js` 指定を
+`.ts` へ解決する）。**ただしエントリだけは拡張子解決が効かない。** `index.ts` の
+パスは `package.json` の `build:viewer` と `scripts/check-viewer-cycles.mjs` が
+直接持っているので、エントリを動かすときは両方を併せて変える。
 
 ### バンドルが strict mode になる
 
@@ -132,7 +133,7 @@ npx jest                     # Jest テスト（BefoldKit/Resources/__tests__/�
 `npm run build:viewer` の結果をコミットする。
 
 テストは成果物ではなくこのディレクトリのソースを対象にする。DOM を要さない純粋関数は
-`main.js` を直接 require し、DOM 側は `__tests__/support/viewerMainHarness.js` が
+`main.ts` を直接 require し、DOM 側は `__tests__/support/viewerMainHarness.js` が
 esbuild でテスト用エントリを IIFE にまとめて jsdom の `window.eval` で評価する。
 
 ## Node バージョン

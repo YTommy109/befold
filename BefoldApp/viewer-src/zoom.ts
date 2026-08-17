@@ -12,27 +12,36 @@ var BASE_SCALE = 0.75;
 // ダイアグラム個別ズームの上限。全体ズーム(ZOOM_MAX)より広く取り、細部の確認に使う。
 var DIAGRAM_ZOOM_MAX = 3.0;
 
-function clampZoom(z, max) {
+// CSS zoom は非標準プロパティで、型定義上は文字列しか受け取らない。CSSOM は
+// 代入値を必ず文字列化するため、String() を挟んでも実行時の値は同じ。
+function setZoomStyle(el: HTMLElement, value: number): void {
+  el.style.zoom = String(value);
+}
+
+function clampZoom(z: number, max?: number): number {
   if (max === undefined) {
     max = ZOOM_MAX;
   }
   return Math.max(ZOOM_MIN, Math.min(max, z));
 }
 
-function stepZoom(current, delta, max) {
+function stepZoom(current: number, delta: number, max?: number): number {
   return clampZoom(Math.round((current + delta) * 100) / 100, max);
 }
 
-function wheelZoom(current, deltaY, max) {
+function wheelZoom(current: number, deltaY: number, max?: number): number {
   return clampZoom(Math.round((current - deltaY * 0.01) * 1000) / 1000, max);
 }
 
-function zoomLabel(zoom) {
+function zoomLabel(zoom: number): string {
   return Math.round(zoom * 100) + '%';
 }
 
-function parseStoredZoom(raw) {
-  var z = parseFloat(raw);
+function parseStoredZoom(raw: string | number | null | undefined): number {
+  // Number() に替えると '' が 0 になり、未保存相当の値を倍率 0 として
+  // clampZoom へ渡してしまう。NaN 判定で既定値へ落とす現在の縮退を保つ。
+  // oxlint-disable-next-line unicorn/prefer-number-coercion
+  var z = parseFloat(String(raw));
   return isNaN(z) ? ZOOM_DEFAULT : z;
 }
 
@@ -40,7 +49,12 @@ function parseStoredZoom(raw) {
 // naturalHeight は 100% 時のレイアウト px。上限は .viewer の上下 padding(32px×2)を
 // 差し引いたビューポート高で、レイアウト px は祖先の CSS zoom の影響を受けないため
 // 実ピクセルの viewportHeight を全体ズームぶん割り戻して比較する。
-function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZoom) {
+function diagramScrollHeight(
+  naturalHeight: number,
+  diagramZoom: number,
+  viewportHeight: number,
+  globalZoom: number,
+): number {
   var viewportCap = (viewportHeight - 64) / globalZoom;
   return Math.min(naturalHeight * diagramZoom * BASE_SCALE, viewportCap);
 }
@@ -51,7 +65,12 @@ function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZ
 // CSS zoom(全体ズーム)が相殺されてしまい、Cmd+/Cmd-/Cmd0 が効かなくなる
 // (diagramScrollHeight と同様、レイアウト px は祖先の CSS zoom の影響を
 // 受けないため、px 実数値であれば zoom がそのまま乗算されて効く)。
-function imageFitSize(naturalWidth, naturalHeight, availWidth, availHeight) {
+function imageFitSize(
+  naturalWidth: number,
+  naturalHeight: number,
+  availWidth: number,
+  availHeight: number,
+): { width: number; height: number } {
   if (naturalWidth <= 0 || naturalHeight <= 0 || availWidth <= 0 || availHeight <= 0) {
     return { width: naturalWidth, height: naturalHeight };
   }
@@ -71,36 +90,37 @@ function _createZoomStore() {
   // をまたいで維持する（永続化はしない。ウィンドウを閉じるとリセット）。
   // markdown 編集でブロックの順番が変わるとズームが別のダイアグラムに付くが、
   // 影響がセッション内に限られるため許容する（設計書参照）。
-  var diagramZooms = new Map();
+  var diagramZooms = new Map<number, number>();
 
-  function diagramValue(index) {
-    return diagramZooms.has(index) ? diagramZooms.get(index) : ZOOM_DEFAULT;
+  function diagramValue(index: number): number {
+    // has() の直後なので get() は必ず値を返す（! は実行時の振る舞いを変えない）。
+    return diagramZooms.has(index) ? diagramZooms.get(index)! : ZOOM_DEFAULT;
   }
 
   return {
-    value: function () {
+    value: function (): number {
       return zoom;
     },
     // Swift が注入した保存値を採用する。範囲外の保存値はクランプした値を採用しつつ、
     // 直近通知値には注入値そのままを記録する: 次の takePostable() が補正後の値を
     // 通知対象として返し、Swift 側の保存値が正される。
-    adoptStored: function (raw) {
+    adoptStored: function (raw: string | number | null | undefined): void {
       var parsed = parseStoredZoom(raw);
       zoom = clampZoom(parsed);
       lastPosted = parsed;
     },
-    step: function (delta) {
+    step: function (delta: number): void {
       zoom = stepZoom(zoom, delta);
     },
-    wheel: function (deltaY) {
+    wheel: function (deltaY: number): void {
       zoom = wheelZoom(zoom, deltaY);
     },
-    reset: function () {
+    reset: function (): void {
       zoom = ZOOM_DEFAULT;
     },
     // 直近通知値と変わっていれば通知すべき倍率を返し、同時に直近通知値を更新する。
     // 変わっていなければ null を返す（通知は不要）。
-    takePostable: function () {
+    takePostable: function (): number | null {
       if (zoom === lastPosted) {
         return null;
       }
@@ -108,13 +128,13 @@ function _createZoomStore() {
       return zoom;
     },
     diagramValue: diagramValue,
-    diagramStep: function (index, delta) {
+    diagramStep: function (index: number, delta: number): void {
       diagramZooms.set(index, stepZoom(diagramValue(index), delta, DIAGRAM_ZOOM_MAX));
     },
-    diagramWheel: function (index, deltaY) {
+    diagramWheel: function (index: number, deltaY: number): void {
       diagramZooms.set(index, wheelZoom(diagramValue(index), deltaY, DIAGRAM_ZOOM_MAX));
     },
-    diagramReset: function (index) {
+    diagramReset: function (index: number): void {
       diagramZooms.set(index, ZOOM_DEFAULT);
     },
   };
@@ -122,25 +142,25 @@ function _createZoomStore() {
 
 var _mmdZoom = _createZoomStore();
 
-function _mmdInitZoom() {
+function _mmdInitZoom(): void {
   _mmdZoom.adoptStored(window._mmdInitialZoom);
   _mmdApplyZoom();
 }
 
-function _mmdApplyZoom() {
+function _mmdApplyZoom(): void {
   var zoom = _mmdZoom.value();
-  var wrap = document.getElementById('diagram-wrap');
+  var wrap = document.getElementById('diagram-wrap')!;
   if (wrap.classList.contains('pdf-body')) {
     // iframe 内の PDF プラグイン描画には CSS zoom が効かないため、
     // iframe(=wrap)の寸法自体を倍率で変える。PDF は幅フィットで
     // 描画されるので、幅が広がるほど拡大表示になる。
-    wrap.style.zoom = 1;
+    setZoomStyle(wrap, 1);
     wrap.style.width = zoom * 100 + '%';
     wrap.style.height = zoom * 100 + '%';
   } else {
     wrap.style.width = '';
     wrap.style.height = '';
-    wrap.style.zoom = zoom;
+    setZoomStyle(wrap, zoom);
   }
   // 枠高さの上限は全体ズームに依存する（レイアウト px への割り戻し）ため再計算する。
   _mmdUpdateAllDiagramScrollHeights();
@@ -154,37 +174,38 @@ function _mmdApplyZoom() {
   }
 }
 
-function _mmdZoomIn() {
+function _mmdZoomIn(): void {
   _mmdZoom.step(ZOOM_STEP);
   _mmdApplyZoom();
 }
 
-function _mmdZoomOut() {
+function _mmdZoomOut(): void {
   _mmdZoom.step(-ZOOM_STEP);
   _mmdApplyZoom();
 }
 
-function _mmdZoomReset() {
+function _mmdZoomReset(): void {
   _mmdZoom.reset();
   _mmdApplyZoom();
 }
 
-function _mmdWheelZoom(deltaY) {
+function _mmdWheelZoom(deltaY: number): void {
   _mmdZoom.wheel(deltaY);
   _mmdApplyZoom();
 }
 
 // Ctrl+ホイール（トラックパッドのピンチ含む）はポインタ位置で振り分ける:
 // ダイアグラム上ならそのダイアグラムの個別ズーム、それ以外は全体ズーム。
-function _mmdInitWheelZoom() {
+function _mmdInitWheelZoom(): void {
   document.addEventListener(
     'wheel',
-    function (e) {
+    function (e: WheelEvent) {
       if (!e.ctrlKey) {
         return;
       }
       e.preventDefault();
-      var wrap = e.target instanceof Element ? e.target.closest('.diagram-zoom-wrap') : null;
+      var wrap =
+        e.target instanceof Element ? e.target.closest<HTMLElement>('.diagram-zoom-wrap') : null;
       if (wrap) {
         _mmdDiagramWheelZoom(wrap, e.deltaY);
       } else {
@@ -197,10 +218,10 @@ function _mmdInitWheelZoom() {
 
 // ウィンドウリサイズで枠高さの上限(ビューポート高)や画像のフィットサイズが
 // 変わるため追従させる。
-function _mmdInitResize() {
+function _mmdInitResize(): void {
   window.addEventListener('resize', function () {
     _mmdUpdateAllDiagramScrollHeights();
-    var wrap = document.getElementById('diagram-wrap');
+    var wrap = document.getElementById('diagram-wrap')!;
     var img = wrap.classList.contains('image-body') ? wrap.querySelector('img') : null;
     if (img && img.complete && img.naturalWidth) {
       _mmdFitImage(img, wrap);
@@ -212,7 +233,7 @@ function _mmdInitResize() {
 // wrap 自身に全体ズーム(CSS zoom)がかかっているため、wrap.clientWidth/Height は
 // ローカル座標系で実ビューポート/zoom を返す(diagramScrollHeight と同じ理由)。
 // フィット計算は実ビューポート基準で行う必要があるため zoom を掛けて実寸に戻す。
-function _mmdFitImage(img, wrap) {
+function _mmdFitImage(img: HTMLImageElement, wrap: HTMLElement): void {
   var zoom = _mmdZoom.value();
   var fit = imageFitSize(
     img.naturalWidth,
@@ -228,52 +249,52 @@ function _mmdFitImage(img, wrap) {
 // 倍率そのものは _mmdZoom ストアが持つ（インデックス → 倍率）。ここにあるのは
 // その値を DOM へ適用する側だけ。
 
-function _mmdDiagramZoomValue(index) {
+function _mmdDiagramZoomValue(index: number): number {
   return _mmdZoom.diagramValue(index);
 }
 
-function _mmdUpdateAllDiagramScrollHeights() {
-  document.querySelectorAll('.diagram-zoom-wrap').forEach(function (wrap) {
+function _mmdUpdateAllDiagramScrollHeights(): void {
+  document.querySelectorAll<HTMLElement>('.diagram-zoom-wrap').forEach(function (wrap) {
     _mmdUpdateDiagramScrollHeight(wrap);
   });
 }
 
 // 枠(.diagram-zoom-scroll)の高さをズーム倍率とウィンドウ高に追従させる。
 // 拡大時は枠がウィンドウ高まで伸び、収まらない分は枠内の縦スクロールで見る。
-function _mmdUpdateDiagramScrollHeight(wrap) {
+function _mmdUpdateDiagramScrollHeight(wrap: HTMLElement): void {
   var zoom = _mmdDiagramZoomValue(Number(wrap.dataset.diagramIndex));
   var naturalHeight = Number(wrap.dataset.naturalHeight);
-  wrap.querySelector('.diagram-zoom-scroll').style.height =
+  wrap.querySelector<HTMLElement>('.diagram-zoom-scroll')!.style.height =
     diagramScrollHeight(naturalHeight, zoom, window.innerHeight, _mmdZoom.value()) + 'px';
 }
 
-function _mmdApplyDiagramZoom(wrap) {
+function _mmdApplyDiagramZoom(wrap: HTMLElement): void {
   var index = Number(wrap.dataset.diagramIndex);
   var zoom = _mmdDiagramZoomValue(index);
-  wrap.querySelector('.diagram-zoom-inner').style.zoom = zoom * BASE_SCALE;
+  setZoomStyle(wrap.querySelector<HTMLElement>('.diagram-zoom-inner')!, zoom * BASE_SCALE);
   _mmdUpdateDiagramScrollHeight(wrap);
-  wrap.querySelector('.diagram-zoom-label').textContent = zoomLabel(zoom);
-  wrap.querySelector('.diagram-zoom-in').disabled = zoom >= DIAGRAM_ZOOM_MAX;
-  wrap.querySelector('.diagram-zoom-out').disabled = zoom <= ZOOM_MIN;
+  wrap.querySelector('.diagram-zoom-label')!.textContent = zoomLabel(zoom);
+  wrap.querySelector<HTMLButtonElement>('.diagram-zoom-in')!.disabled = zoom >= DIAGRAM_ZOOM_MAX;
+  wrap.querySelector<HTMLButtonElement>('.diagram-zoom-out')!.disabled = zoom <= ZOOM_MIN;
 }
 
-function _mmdDiagramZoomStep(wrap, delta) {
+function _mmdDiagramZoomStep(wrap: HTMLElement, delta: number): void {
   _mmdZoom.diagramStep(Number(wrap.dataset.diagramIndex), delta);
   _mmdApplyDiagramZoom(wrap);
 }
 
-function _mmdDiagramZoomReset(wrap) {
+function _mmdDiagramZoomReset(wrap: HTMLElement): void {
   _mmdZoom.diagramReset(Number(wrap.dataset.diagramIndex));
   _mmdApplyDiagramZoom(wrap);
 }
 
-function _mmdDiagramWheelZoom(wrap, deltaY) {
+function _mmdDiagramWheelZoom(wrap: HTMLElement, deltaY: number): void {
   _mmdZoom.diagramWheel(Number(wrap.dataset.diagramIndex), deltaY);
   _mmdApplyDiagramZoom(wrap);
 }
 
 // CSP により動的生成要素へ onclick 属性は使わず addEventListener で配線する。
-function _mmdBuildDiagramControls(wrap) {
+function _mmdBuildDiagramControls(wrap: HTMLElement): HTMLElement {
   var controls = document.createElement('div');
   controls.className = 'diagram-zoom-controls';
   var zoomOut = document.createElement('button');
@@ -296,31 +317,31 @@ function _mmdBuildDiagramControls(wrap) {
   zoomIn.addEventListener('click', function () {
     _mmdDiagramZoomStep(wrap, ZOOM_STEP);
   });
-  controls.appendChild(zoomOut);
-  controls.appendChild(label);
-  controls.appendChild(zoomIn);
+  controls.append(zoomOut);
+  controls.append(label);
+  controls.append(zoomIn);
   return controls;
 }
 
 // 各 .mermaid 要素をズーム用ラッパーで包む。SVG サイズ確定後
 // （mermaid.run() 完了後）に呼ぶこと。
-function _mmdWrapDiagrams(diagramWrap) {
-  diagramWrap.querySelectorAll('.mermaid').forEach(function (el, i) {
+function _mmdWrapDiagrams(diagramWrap: HTMLElement): void {
+  diagramWrap.querySelectorAll<HTMLElement>('.mermaid').forEach(function (el, i) {
     var wrap = document.createElement('div');
     wrap.className = 'diagram-zoom-wrap';
-    wrap.dataset.diagramIndex = i;
+    wrap.dataset.diagramIndex = String(i);
     var scroll = document.createElement('div');
     scroll.className = 'diagram-zoom-scroll';
     var inner = document.createElement('div');
     inner.className = 'diagram-zoom-inner';
-    el.parentNode.insertBefore(wrap, el);
-    inner.appendChild(el);
-    scroll.appendChild(inner);
-    wrap.appendChild(scroll);
-    wrap.appendChild(_mmdBuildDiagramControls(wrap));
+    el.parentNode!.insertBefore(wrap, el);
+    inner.append(el);
+    scroll.append(inner);
+    wrap.append(scroll);
+    wrap.append(_mmdBuildDiagramControls(wrap));
     // 100% 時の自然高を記録し、枠高さの計算(_mmdUpdateDiagramScrollHeight)に使う。
     // この時点では inner にまだ zoom が適用されていないため素の実測値になる。
-    wrap.dataset.naturalHeight = inner.offsetHeight;
+    wrap.dataset.naturalHeight = String(inner.offsetHeight);
     _mmdApplyDiagramZoom(wrap);
   });
 }

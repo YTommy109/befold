@@ -4,9 +4,9 @@
 // 「代入前に mermaid を描画する経路はない」という暗黙の前提に乗っていた。
 // 遅延生成にすることでその前提自体を無くし、参照側は初期化順を気にしなくてよくなる。
 
-var darkQuery = null;
+var darkQuery: MediaQueryList | null = null;
 
-function query() {
+function query(): MediaQueryList {
   if (darkQuery === null) {
     darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
   }
@@ -14,12 +14,12 @@ function query() {
 }
 
 // 現在ダークモードかどうか。
-function prefersDark() {
+function prefersDark(): boolean {
   return query().matches;
 }
 
 // カラースキームの変更を購読する。登録は初期化時(init.js)に 1 回だけ行う。
-function onColorSchemeChange(handler) {
+function onColorSchemeChange(handler: (event: MediaQueryListEvent) => void): void {
   query().addEventListener('change', handler);
 }
 

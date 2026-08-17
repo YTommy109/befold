@@ -44,7 +44,7 @@ import { _mmdApplyZoom } from './zoom.js';
 //   その他       種別名そのまま(mmd/svg/html/image/pdf。いずれも追記の対象外)
 //
 // 画像・PDF とコード種別はソース表示を持たないため、モードで形が変わらない。
-function renderShape(type, mode) {
+function renderShape(type: string, mode: 'rendered' | 'source'): string {
   if (mode === 'source' && type !== 'code' && type !== 'image' && type !== 'pdf') {
     return type === 'csv' ? 'csv-source' : 'code';
   }
@@ -67,6 +67,9 @@ function renderShape(type, mode) {
 // 推し直すと、render 側と別々に判定が育って食い違う(TASK-414)。DOM の形
 // (table.diff-table や pre code.csv-source)を探す判定も使わない。同じ形は
 // markdown-it が html:true で通したユーザーコンテンツにも現れる(TASK-339)。
+// 戻り値を RenderShape の union にしないのは、未知の種別名が届いたときに
+// そのまま返って render() の else 節(Markdown 描画)へ落ちる経路が実在し、
+// union で閉じるとその経路が型の上から消えるため。
 var _mmdRenderedAs = '';
 
 // appendChunk でのハイライトに与える前方文脈の行数。ブロックコメントや
@@ -77,14 +80,14 @@ var CODE_CHUNK_CONTEXT_LINES = 200;
 // render() / appendChunk() の末尾で検索状態を再描画後の内容に合わせて更新する。
 // 持ち越しフラグは検索バーの開閉に関わらずここで必ず消費する(閉じている間に
 // 溜めておくと、次にバーを開いたときに無関係な先頭リセットが起きるため)。
-function _mmdFindRefreshAfterRender() {
+function _mmdFindRefreshAfterRender(): void {
   var modeJustSwitched = _mmdModeSwitch.consume();
   if (_mmdFind.isOpen()) {
     _mmdFind.refresh(modeJustSwitched);
   }
 }
 
-async function render(content, type, lang) {
+async function render(content: string, type: string, lang: string | undefined): Promise<void> {
   _mmdScroll.beginRender();
   // DOM を書き換える前に、内部再描画(カラースキーム変更時など)向けの
   // フォールバック復元位置として現在位置を退避する(_mmdRestoreScrollPosition 参照)。
@@ -103,10 +106,12 @@ async function render(content, type, lang) {
   _mmdRenderedAs = shape;
   // 以降で #diagram-wrap を作り直すため、旧 DOM を指す未応答の解決バッチを無効化する。
   _mmdInvalidatePendingRefs();
-  var errorPanel = document.getElementById('mmd-error');
+  // #mmd-error と #diagram-wrap は viewer.html に静的に置かれており、
+  // バンドルを読む時点で必ず存在する(非 null 表明の理由は truncation.ts と同じ)。
+  var errorPanel = document.getElementById('mmd-error')!;
   errorPanel.style.display = 'none';
   errorPanel.textContent = '';
-  var diagramWrap = document.getElementById('diagram-wrap');
+  var diagramWrap = document.getElementById('diagram-wrap')!;
   diagramWrap.style.display = 'block';
 
   // 分岐前に一括で外し、各分岐は自分のクラスを add するだけにする。
@@ -144,12 +149,15 @@ async function render(content, type, lang) {
 }
 
 // 直近の内容をそのまま描き直す(カラースキーム変更などの内部再描画)。
-// まだ何も描いていなければ何もしない。
-function _mmdRerenderCurrent() {
-  if (!_mmdDocument.hasContent()) {
+// まだ何も描いていなければ何もしない(content() が null かどうかで判定する。
+// hasContent() 経由だと、同じ判定でも型の上では content が null のまま残る)。
+function _mmdRerenderCurrent(): void {
+  var content = _mmdDocument.content();
+  if (content === null) {
     return;
   }
-  render(_mmdDocument.content(), _mmdDocument.type(), _mmdDocument.lang());
+  // 完了を待つ呼び出し元が居ない内部再描画。握り潰しではなく「待たない」ことを void で明示する。
+  void render(content, _mmdDocument.type(), _mmdDocument.lang());
 }
 
 // 追加読み込みされたチャンクを既存 DOM に追記する(Swift の ViewerBridge から呼ばれる)。
@@ -161,7 +169,7 @@ function _mmdRerenderCurrent() {
 // **追記先の分岐には使わない**。同じ type でも表示モードや差分の有無で DOM の形は
 // 変わるため、type から推し直すと render 側の判定と食い違う(TASK-414)。
 // 分岐は _mmdRenderedAs(render が実際に描いた形)だけを見ること。
-function appendChunk(text, type, lang) {
+function appendChunk(text: string, type: string, lang: string | undefined): void {
   // 空チャンク(チャンク読込エラー時のセンチネル)は追記する内容がない。
   // buildLineNumberRows('') は初回描画(空ファイル1行目)用に空行1つを返す契約のため、
   // ここで弾かないと既存テーブルの末尾に幻の空行が増えてしまう。
@@ -175,9 +183,10 @@ function appendChunk(text, type, lang) {
   // 直前チャンクが改行で終わっている(=行境界で分割された)場合のみ、
   // ブロックコメント等の継続を hljs に再構築させるための前方文脈を取り出す。
   // 強制分割(行途中)の継続は既存の行結合ロジックが別途処理する。
+  var previousContent = _mmdDocument.content();
   var highlightContext =
-    _mmdChunkTail.endedWithNewline() && _mmdDocument.content()
-      ? lastLines(_mmdDocument.content(), CODE_CHUNK_CONTEXT_LINES)
+    _mmdChunkTail.endedWithNewline() && previousContent
+      ? lastLines(previousContent, CODE_CHUNK_CONTEXT_LINES)
       : '';
   _mmdDocument.append(text);
   // 追記戦略は「直前の render() が何を描いたか」だけで決める。type や表示モードから
@@ -200,21 +209,27 @@ function appendChunk(text, type, lang) {
     _annotatePathRefs();
     // 追記分に ```mermaid フェンスがあれば描画する。render() と違い appendChunk は
     // 同期関数のため await せず、描画済みの図は対象外にする(全図の再描画を避ける)。
-    _mmdRunMermaid(diagramWrap, true);
+    void _mmdRunMermaid(diagramWrap, true);
   } else if (_mmdRenderedAs === 'csv-table') {
     var csvRows = parseCsv(text, lang || ',');
     var tbody = diagramWrap.querySelector('tbody');
     if (!tbody) {
       return;
     }
+    // tbody は直前の querySelector で得たものなので、親は必ずその <table>。
+    // instanceof で確かめるのは型を絞るためで、成立しない構成は起きない。
     var table = tbody.parentElement;
+    if (!(table instanceof HTMLTableElement)) {
+      return;
+    }
     var headRow = table.tHead && table.tHead.rows[0];
     var minCols = headRow ? headRow.cells.length : 0;
     // 後続チャンクに幅広行があればヘッダを拡張する。
     var maxNewCols = 0;
     for (var r = 0; r < csvRows.length; r++) {
-      if (csvRows[r].length > maxNewCols) {
-        maxNewCols = csvRows[r].length;
+      var csvRow = csvRows[r]!;
+      if (csvRow.length > maxNewCols) {
+        maxNewCols = csvRow.length;
       }
     }
     if (maxNewCols > minCols && headRow) {
@@ -226,7 +241,7 @@ function appendChunk(text, type, lang) {
     var firstNew = tbody.rows.length;
     tbody.insertAdjacentHTML('beforeend', csvRowsHtml(csvRows, minCols));
     for (var r2 = firstNew; r2 < tbody.rows.length; r2++) {
-      _walkTextNodes(tbody.rows[r2], false);
+      _walkTextNodes(tbody.rows[r2]!, false);
     }
   } else {
     // 行番号付きコード表への追記。ソース表示のテキスト種別・コード種別('code')と、
@@ -240,7 +255,7 @@ function appendChunk(text, type, lang) {
     var inner = isCsvSource
       ? csvSourceInnerHtml(text, lang || ',')
       : codeChunkInnerHtml(hljs, text, lang, highlightContext);
-    var codeTable = codeEl.querySelector('table.code-table');
+    var codeTable = codeEl.querySelector<HTMLTableElement>('table.code-table');
     if (codeTable) {
       // 強制分割(前チャンクが改行で終わらなかった)の場合、継続行は新しい行では
       // なく前チャンク最終行の続きなので、生成した最初の行分を <tr> ごと追加
@@ -252,7 +267,10 @@ function appendChunk(text, type, lang) {
         pendingRows.innerHTML = rowsHtml;
         var continuationRow = pendingRows.rows[0];
         if (continuationRow) {
-          var lastRow = codeTable.rows[codeTable.rows.length - 1];
+          // HTMLCollectionOf に Array.prototype.at は無い（実測: .at(-1) へ
+          // 書き換えると「改行で終わらなかったチャンクの続きは前の行に結合される」が落ちる）。
+          // oxlint-disable-next-line unicorn/prefer-at
+          var lastRow = codeTable.rows[codeTable.rows.length - 1]!;
           var lastContentCell = lastRow.querySelector('.line-content');
           var continuationContentCell = continuationRow.querySelector('.line-content');
           if (lastContentCell && continuationContentCell) {
@@ -266,7 +284,7 @@ function appendChunk(text, type, lang) {
       var firstNewRow = codeTable.rows.length;
       codeTable.insertAdjacentHTML('beforeend', rowsHtml);
       for (var i = firstNewRow; i < codeTable.rows.length; i++) {
-        _walkTextNodes(codeTable.rows[i], false);
+        _walkTextNodes(codeTable.rows[i]!, false);
       }
     } else {
       codeEl.insertAdjacentHTML('beforeend', inner);

@@ -32,7 +32,7 @@ function parseCatalog(source) {
   // 折り返すため、1 行前提の正規表現だと整形が入った瞬間に取りこぼす
   // (実測: 7 件のうち 1 件が折り返されて 6 件になった)。
   const pattern =
-    /Item\(\s*jsKeys:\s*\[([^\]]*)\],\s*shift:\s*(true|false),\s*expects:\s*\.(\w+),\s*titleKey:\s*"([^"]+)"\s*,?\s*\)/g;
+    /Item\(\s*jsKeys:\s*\[([^\]]*)\],\s*shift:\s*(true|false),\s*expects:\s*\.(\w+),\s*titleKey:\s*"([^"]+)"\s*,?\s*\)/gu;
   const items = [];
   let match;
   while ((match = pattern.exec(source)) !== null) {
