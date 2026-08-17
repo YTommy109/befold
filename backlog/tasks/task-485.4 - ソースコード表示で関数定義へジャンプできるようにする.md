@@ -4,11 +4,11 @@ title: ソースコード表示で関数定義へジャンプできるように�
 status: To Do
 assignee: []
 created_date: '2026-08-14 13:18'
-updated_date: '2026-08-15 06:39'
+updated_date: '2026-08-17 15:12'
 labels: []
 milestone: m-6
 dependencies:
-  - TASK-485.1
+  - TASK-485.7
 parent_task_id: TASK-485
 priority: medium
 type: feature
