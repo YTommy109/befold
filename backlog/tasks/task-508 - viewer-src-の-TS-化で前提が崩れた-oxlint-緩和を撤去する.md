@@ -4,10 +4,11 @@ title: viewer-src の TS 化で前提が崩れた oxlint 緩和を撤去する
 status: Done
 assignee: []
 created_date: '2026-08-17 02:14'
-updated_date: '2026-08-17 02:25'
+updated_date: '2026-08-17 14:52'
 labels: []
 dependencies: []
 priority: medium
+type: chore
 ordinal: 738000
 ---
 

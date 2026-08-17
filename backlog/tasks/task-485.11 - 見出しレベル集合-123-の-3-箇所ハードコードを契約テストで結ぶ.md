@@ -4,7 +4,9 @@ title: '見出しレベル集合 {1,2,3} の 3 箇所ハードコードを契約
 status: To Do
 assignee: []
 created_date: '2026-08-17 14:04'
+updated_date: '2026-08-17 14:52'
 labels: []
+milestone: m-6
 dependencies: []
 parent_task_id: TASK-485
 priority: medium

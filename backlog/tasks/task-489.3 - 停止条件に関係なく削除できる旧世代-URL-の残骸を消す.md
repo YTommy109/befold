@@ -4,12 +4,13 @@ title: 停止条件に関係なく削除できる旧世代 URL の残骸を消�
 status: To Do
 assignee: []
 created_date: '2026-08-16 02:01'
-updated_date: '2026-08-16 02:20'
+updated_date: '2026-08-17 14:52'
 labels: []
 milestone: m-8
 dependencies: []
 parent_task_id: TASK-489
 priority: medium
+type: chore
 ordinal: 723000
 ---
 

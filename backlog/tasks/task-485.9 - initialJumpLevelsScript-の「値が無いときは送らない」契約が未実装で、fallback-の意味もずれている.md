@@ -4,7 +4,9 @@ title: initialJumpLevelsScript の「値が無いときは送らない」契約�
 status: To Do
 assignee: []
 created_date: '2026-08-17 14:03'
+updated_date: '2026-08-17 14:52'
 labels: []
+milestone: m-6
 dependencies: []
 parent_task_id: TASK-485
 priority: low

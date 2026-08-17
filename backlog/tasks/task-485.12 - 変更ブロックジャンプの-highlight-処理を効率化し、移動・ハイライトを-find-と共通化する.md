@@ -4,7 +4,9 @@ title: 変更ブロックジャンプの highlight 処理を効率化し、移�
 status: To Do
 assignee: []
 created_date: '2026-08-17 14:04'
+updated_date: '2026-08-17 14:52'
 labels: []
+milestone: m-6
 dependencies: []
 parent_task_id: TASK-485
 priority: medium

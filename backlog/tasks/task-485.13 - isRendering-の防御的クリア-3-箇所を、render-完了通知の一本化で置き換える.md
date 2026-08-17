@@ -4,7 +4,9 @@ title: isRendering の防御的クリア 3 箇所を、render 完了通知の一
 status: To Do
 assignee: []
 created_date: '2026-08-17 14:05'
+updated_date: '2026-08-17 14:52'
 labels: []
+milestone: m-6
 dependencies: []
 parent_task_id: TASK-485
 priority: medium

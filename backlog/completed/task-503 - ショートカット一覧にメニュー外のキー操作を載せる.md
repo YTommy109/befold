@@ -4,11 +4,12 @@ title: ショートカット一覧にメニュー外のキー操作を載せる
 status: Done
 assignee: []
 created_date: '2026-08-16 11:41'
-updated_date: '2026-08-16 13:08'
+updated_date: '2026-08-17 14:52'
 labels:
   - chore
 dependencies: []
 priority: medium
+type: chore
 ordinal: 111500
 ---
 
