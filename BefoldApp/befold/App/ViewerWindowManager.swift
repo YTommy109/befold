@@ -48,6 +48,7 @@ final class ViewerWindowManager {
     /// `git diff` が窓の数だけ起動する(TASK-325)。
     let diffLoader: GitDiffLoader
     let findOptionsPreference: FindOptionsPreference
+    let headingJumpLevelDefaults: HeadingJumpLevelDefaults
     let codeFontPreference: CodeFontPreference
     let perFileState: PerFileStateStore
     let bookmarkStore: BookmarkStore
@@ -84,6 +85,10 @@ final class ViewerWindowManager {
     /// 別の索引を掴んだ recorder が生まれる書き方ができない。
     let recentRepositories: RecentRepositoryRecorder
 
+    /// 開閉に伴うセッション・履歴・ブックマークの追随。コントローラの delegate になる。
+    /// マネージャが所有し、向こうは unowned でこちらを見る。
+    private(set) lazy var sessionSync = ViewerWindowSessionSync(manager: self)
+
     /// - Parameter displayDefaults: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
     /// - Parameter diffDisplayPreference: 差分レイアウトは全ウィンドウで同じ答えになる必要があるため、
@@ -106,6 +111,7 @@ final class ViewerWindowManager {
         diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader = GitDiffLoader(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
+        headingJumpLevelDefaults: HeadingJumpLevelDefaults = HeadingJumpLevelDefaults(),
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore,
@@ -129,6 +135,7 @@ final class ViewerWindowManager {
         self.diffDisplayPreference = diffDisplayPreference
         self.diffLoader = diffLoader
         self.findOptionsPreference = findOptionsPreference
+        self.headingJumpLevelDefaults = headingJumpLevelDefaults
         self.codeFontPreference = codeFontPreference
         self.perFileState = perFileState
         self.bookmarkStore = bookmarkStore

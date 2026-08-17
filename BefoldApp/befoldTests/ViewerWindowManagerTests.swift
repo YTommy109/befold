@@ -83,7 +83,7 @@ struct ViewerWindowManagerTests {
         fixture.manager.openViewer(for: old)
 
         let controller = try #require(fixture.manager.controllers[old.normalizedPathKey]?.first)
-        fixture.manager.viewerWindow(controller, didRenameFrom: old, to: renamed)
+        fixture.manager.sessionSync.viewerWindow(controller, didRenameFrom: old, to: renamed)
 
         #expect(fixture.recentDocumentsStore.recentURLs().map(\.path) == [renamed.normalizedPathKey])
     }
@@ -106,7 +106,7 @@ struct ViewerWindowManagerTests {
 
         fixture.manager.openViewer(for: file1)
         let controller = try #require(fixture.manager.controllers[file1.normalizedPathKey]?.first)
-        fixture.manager.viewerWindow(controller, didSwitchFileFrom: file1, to: file2)
+        fixture.manager.sessionSync.viewerWindow(controller, didSwitchFileFrom: file1, to: file2)
 
         #expect(fixture.manager.controllers[file1.normalizedPathKey] == nil)
         #expect(fixture.manager.controllers[file2.normalizedPathKey] != nil)

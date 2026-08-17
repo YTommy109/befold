@@ -53,7 +53,7 @@ extension ViewerWindowManager {
             for: url, options: options, forceSidebarVisible: forceSidebarVisible
         )
         register(controller, forKey: key)
-        controller.delegate = self
+        controller.delegate = sessionSync
         NSApp.activate()
         controller.showWindow(nil)
         // window が nil(生成直後で取得できない等)ならタブ結合をあきらめ独立ウィンドウのまま
@@ -134,6 +134,7 @@ extension ViewerWindowManager {
             diffDisplayPreference: diffDisplayPreference,
             diffLoader: diffLoader,
             findOptionsPreference: findOptionsPreference,
+            headingJumpLevelDefaults: headingJumpLevelDefaults,
             codeFontPreference: codeFontPreference,
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
