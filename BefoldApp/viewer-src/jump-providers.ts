@@ -74,6 +74,10 @@ var headingJumpProvider: JumpProvider = {
 // 「同じ差分なのに件数が違う」経路ができる。代わりに diff-html.ts が描画時に
 // 割り当てた data-diff-block を読む。番号はどちらのレイアウトでも同じ
 // hunk.lines から振られるので、数と順序が一致することは構造で保証される。
+//
+// **目印に印は付けない（highlight は空）。** 変更ブロックは .diff-add / .diff-del の
+// 地色で既に見えており、そのうえに罫線を重ねても情報は増えない（行数の多いブロックでは
+// 画面が枠だらけになるだけ）。どこに居るかはスクロール位置とバーの n/N が伝える。
 function collectChangeBlocks(root: HTMLElement): JumpTarget[] {
   var rows = root.querySelectorAll<HTMLElement>('[data-diff-block]');
   var targets: JumpTarget[] = [];
@@ -81,35 +85,12 @@ function collectChangeBlocks(root: HTMLElement): JumpTarget[] {
   rows.forEach(function (row) {
     var block = row.dataset['diffBlock'];
     if (block === undefined) return;
-    // 同じブロックの 2 行目以降は目印を増やさない。印はブロックの先頭行だけに付ける
-    // （変更行の全セルを囲むと、行数の多いブロックで画面が枠だらけになる）。
+    // 同じブロックの 2 行目以降は目印を増やさない（ブロック単位で 1 件）。
     if (block === currentBlock) return;
     currentBlock = block;
-    targets.push({ anchor: row, highlight: blockMarkerCells(row) });
+    targets.push({ anchor: row, highlight: [] });
   });
   return targets;
-}
-
-// ブロックの先頭行のうち、印を付けるセル。行（tr）ではなくセルに当てるのは、
-// border-collapse の表では tr への outline が上下辺しか描かれないため
-// （TASK-485.1 の実測）。
-//
-// 選ぶのはガター（行番号）のセル。本文セルまで囲むと行の幅いっぱいの枠になり、
-// 差分の地色と競合して読みにくい。行番号を出していない表ではガターが記号セル
-// （+/-）だけになるので、そちらへ落とす。分割表示では左右それぞれのガターが
-// 対象になる（対で 1 つの目印であることが両側に出る）。
-function blockMarkerCells(row: HTMLElement): HTMLElement[] {
-  var numbers = collectElements(row, 'td.line-number');
-  return numbers.length > 0 ? numbers : collectElements(row, 'td.diff-marker');
-}
-
-// セレクタに一致する子孫を配列で返す（NodeList のままだと concat / slice が使えない）。
-function collectElements(root: HTMLElement, selector: string): HTMLElement[] {
-  var found: HTMLElement[] = [];
-  root.querySelectorAll<HTMLElement>(selector).forEach(function (element) {
-    found.push(element);
-  });
-  return found;
 }
 
 var changeBlockJumpProvider: JumpProvider = {

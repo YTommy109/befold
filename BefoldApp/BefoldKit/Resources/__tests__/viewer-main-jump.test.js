@@ -440,15 +440,6 @@ describe('変更ブロックのジャンプ', () => {
     '</table>',
   ].join('');
 
-  // 行番号を出していない差分表示。ガターが記号セルだけになる。
-  const INLINE_DIFF_DOM_WITHOUT_NUMBERS = [
-    '<table class="code-table diff-table">',
-    '<tr class="diff-line diff-context"><td class="diff-marker"> </td><td class="line-content">a</td></tr>',
-    '<tr class="diff-line diff-del" data-diff-block="0"><td class="diff-marker">-</td><td class="line-content">b</td></tr>',
-    '<tr class="diff-line diff-add" data-diff-block="0"><td class="diff-marker">+</td><td class="line-content">B</td></tr>',
-    '</table>',
-  ].join('');
-
   const SPLIT_DIFF_DOM = [
     '<table class="code-table diff-table diff-split">',
     '<tr class="diff-line"><td class="diff-side diff-side-left diff-context">a</td>' +
@@ -494,43 +485,34 @@ describe('変更ブロックのジャンプ', () => {
     main._mmdJumpNextIfOpen();
 
     expect(count(document)).toBe('2/2');
-    // 現在位置はセルに付くので、その親行で「どのブロックか」を見る。
-    expect(current(document).closest('[data-diff-block]').dataset.diffBlock).toBe('1');
   });
 
-  // AC#6。border-collapse の表では tr への outline が上下辺しか出ないため、
-  // ハイライトは行ではなくセルへ当てる。印はブロックの先頭行の行番号セルだけに付ける
-  // （変更行の全セルを囲むと、行数の多いブロックで画面が枠だらけになる）。
-  test('印はブロック先頭行の行番号セルだけに付く', () => {
-    const { document } = openChangeBlockJumpOn(INLINE_DIFF_DOM);
+  // 差分表示では目印に印を付けない。変更ブロックは .diff-add / .diff-del の地色で
+  // 既に見えており、罫線を重ねても情報が増えないため（行数の多いブロックでは
+  // 画面が枠だらけになる）。どこに居るかはスクロール位置とバーの n/N が伝える。
+  test.each([
+    ['インライン', INLINE_DIFF_DOM],
+    ['左右分割', SPLIT_DIFF_DOM],
+  ])('%s: ハイライトのクラスを付けない', (_name, dom) => {
+    const { document } = openChangeBlockJumpOn(dom);
 
-    const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
-
-    expect(highlighted.every((element) => element.tagName === 'TD')).toBe(true);
-    expect(highlighted.every((element) => element.classList.contains('line-number'))).toBe(true);
-    // 先頭行の旧側・新側の 2 セルだけ。2 行目（同じブロック）には付かない。
-    expect(highlighted.length).toBe(2);
-    expect(highlighted[0].closest('tr').classList.contains('diff-del')).toBe(true);
+    expect(document.querySelectorAll('.mmd-jump-current').length).toBe(0);
+    expect(document.querySelectorAll('.mmd-jump-target').length).toBe(0);
   });
 
-  test('左右分割でも印は先頭行の行番号セルだけに付く', () => {
-    const { document } = openChangeBlockJumpOn(SPLIT_DIFF_DOM);
+  // 印が無いぶん、移動先はスクロール対象で確かめる。
+  test('移動するとブロックの先頭行までスクロールする', () => {
+    const loaded = loadViewerMain({});
+    loaded.document.getElementById('diagram-wrap').innerHTML = INLINE_DIFF_DOM;
+    const scrolled = [];
+    loaded.window.Element.prototype.scrollIntoView = function () {
+      scrolled.push(this);
+    };
 
-    const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
+    loaded.main._mmdOpenJump('changeBlock');
+    loaded.main._mmdJumpNextIfOpen();
 
-    // 左右それぞれのガター 1 つずつ。
-    expect(highlighted.length).toBe(2);
-    expect(highlighted.every((element) => element.classList.contains('line-number'))).toBe(true);
-  });
-
-  // 行番号を出していない表にはガターが記号セルしか無いので、そちらへ落とす。
-  test('行番号を出していない差分では記号セルに付く', () => {
-    const { document } = openChangeBlockJumpOn(INLINE_DIFF_DOM_WITHOUT_NUMBERS);
-
-    const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
-
-    expect(highlighted.length).toBe(1);
-    expect(highlighted[0].classList.contains('diff-marker')).toBe(true);
+    expect(scrolled.map((element) => element.dataset.diffBlock)).toEqual(['0', '1']);
   });
 
   // 差分表示は setDiff で渡った全文から表を組み、appendChunk は追記をスキップするため、
@@ -571,7 +553,6 @@ describe('変更ブロックのジャンプ', () => {
     await main.render('dummy', 'plaintext');
 
     expect(count(document)).toBe('2/2');
-    expect(current(document).closest('[data-diff-block]').dataset.diffBlock).toBe('1');
   });
 
   test('見出しレベルのトグルは見出しジャンプのときだけ出す', () => {

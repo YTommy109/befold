@@ -15795,20 +15795,9 @@
       if (block2 === void 0) return;
       if (block2 === currentBlock) return;
       currentBlock = block2;
-      targets.push({ anchor: row, highlight: blockMarkerCells(row) });
+      targets.push({ anchor: row, highlight: [] });
     });
     return targets;
-  }
-  function blockMarkerCells(row) {
-    var numbers = collectElements(row, "td.line-number");
-    return numbers.length > 0 ? numbers : collectElements(row, "td.diff-marker");
-  }
-  function collectElements(root, selector) {
-    var found = [];
-    root.querySelectorAll(selector).forEach(function(element) {
-      found.push(element);
-    });
-    return found;
   }
   var changeBlockJumpProvider = {
     id: "changeBlock",
