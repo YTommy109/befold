@@ -3,6 +3,7 @@
 import type { OpenBar } from './bar.js';
 import { closeCurrentBar, currentBar } from './bar.js';
 import { isHostFeatureEnabled } from './bridge.js';
+import { _mmdJumpNextIfOpen, _mmdJumpPrevIfOpen } from './jump.js';
 import { _mmdScrollTarget } from './scroll.js';
 import { _mmdZoomIn, _mmdZoomOut } from './zoom.js';
 
@@ -74,11 +75,51 @@ function resolveBarCloseKey(
   return key === 'Escape' && openBar !== null && !isComposing && keyCode !== 229;
 }
 
+// Enter / Shift+Enter が「文書内ジャンプの次へ / 前へ」にあたるかの判定。
+// 戻り値は移動方向（該当しなければ null）。
+//
+// 検索バーと違いジャンプバーは入力欄を持たないためキーボードフォーカスが乗らず、
+// バー要素の keydown では Enter を受け取れない（実機で 1/5 のまま動かないことを確認）。
+// そのため document で拾う。検索バーが開いている間は openBar が 'find' なので
+// ここは動かず、検索バー自身の入力欄が Enter を処理する（バーは同時に開かない）。
+//
+// IME 変換確定の Enter では動かさない。Safari/WKWebView は compositionend → keydown の
+// 順で発火するため isComposing が既に false になりうるので、keyCode 229 も併せて見る
+// （resolveBarCloseKey と同じ理由）。
+function resolveJumpNavigationKey(
+  key: string,
+  openBar: OpenBar,
+  shiftKey: boolean,
+  isComposing: boolean,
+  keyCode: number,
+): 'next' | 'prev' | null {
+  if (key !== 'Enter' || openBar !== 'jump' || isComposing || keyCode === 229) {
+    return null;
+  }
+  return shiftKey ? 'prev' : 'next';
+}
+
 function _mmdInitKeyboard(): void {
   document.addEventListener('keydown', function (e) {
     if (resolveBarCloseKey(e.key, currentBar(), e.isComposing, e.keyCode)) {
       e.preventDefault();
       closeCurrentBar();
+      return;
+    }
+    var jumpDirection = resolveJumpNavigationKey(
+      e.key,
+      currentBar(),
+      e.shiftKey,
+      e.isComposing,
+      e.keyCode,
+    );
+    if (jumpDirection) {
+      e.preventDefault();
+      if (jumpDirection === 'next') {
+        _mmdJumpNextIfOpen();
+      } else {
+        _mmdJumpPrevIfOpen();
+      }
       return;
     }
     document.body.classList.toggle('cmd-held', e.metaKey);
@@ -152,5 +193,6 @@ export {
   lineScrollStep,
   resolveScrollKey,
   resolveBarCloseKey,
+  resolveJumpNavigationKey,
   _mmdInitKeyboard,
 };

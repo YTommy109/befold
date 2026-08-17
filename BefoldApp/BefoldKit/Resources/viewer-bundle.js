@@ -14272,6 +14272,7 @@
     renderShape: () => renderShape,
     renderSideBySideDiffHtml: () => renderSideBySideDiffHtml,
     resolveBarCloseKey: () => resolveBarCloseKey,
+    resolveJumpNavigationKey: () => resolveJumpNavigationKey,
     resolveScrollKey: () => resolveScrollKey,
     sanitizeLang: () => sanitizeLang,
     sanitizeRenderedHtml: () => sanitizeRenderedHtml,
@@ -15630,15 +15631,6 @@
         _mmdJump.close();
       });
     }
-    bar.addEventListener("keydown", function(e) {
-      if (e.key !== "Enter") return;
-      e.preventDefault();
-      if (e.shiftKey) {
-        _mmdJump.prev();
-      } else {
-        _mmdJump.next();
-      }
-    });
   }
   function _mmdOpenJump(kind) {
     _mmdJump.open(kind);
@@ -15700,11 +15692,33 @@
   function resolveBarCloseKey(key, openBar2, isComposing, keyCode) {
     return key === "Escape" && openBar2 !== null && !isComposing && keyCode !== 229;
   }
+  function resolveJumpNavigationKey(key, openBar2, shiftKey, isComposing, keyCode) {
+    if (key !== "Enter" || openBar2 !== "jump" || isComposing || keyCode === 229) {
+      return null;
+    }
+    return shiftKey ? "prev" : "next";
+  }
   function _mmdInitKeyboard() {
     document.addEventListener("keydown", function(e) {
       if (resolveBarCloseKey(e.key, currentBar(), e.isComposing, e.keyCode)) {
         e.preventDefault();
         closeCurrentBar();
+        return;
+      }
+      var jumpDirection = resolveJumpNavigationKey(
+        e.key,
+        currentBar(),
+        e.shiftKey,
+        e.isComposing,
+        e.keyCode
+      );
+      if (jumpDirection) {
+        e.preventDefault();
+        if (jumpDirection === "next") {
+          _mmdJumpNextIfOpen();
+        } else {
+          _mmdJumpPrevIfOpen();
+        }
         return;
       }
       document.body.classList.toggle("cmd-held", e.metaKey);

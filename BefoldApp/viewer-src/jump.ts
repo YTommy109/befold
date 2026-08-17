@@ -238,16 +238,9 @@ function _mmdInitJump(): void {
     });
   }
 
-  // 検索バーと同じく Enter / Shift+Enter で前後へ動かす。
-  bar.addEventListener('keydown', function (e) {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    if (e.shiftKey) {
-      _mmdJump.prev();
-    } else {
-      _mmdJump.next();
-    }
-  });
+  // Enter / Shift+Enter による前後移動はここでは配線しない。ジャンプバーは
+  // 入力欄を持たずキーボードフォーカスが乗らないため、バー要素の keydown には
+  // 届かない（実機で確認）。document 側の resolveJumpNavigationKey が担う。
 }
 
 // 以下は Swift(evaluateJavaScript)から名前で呼ばれる入口。

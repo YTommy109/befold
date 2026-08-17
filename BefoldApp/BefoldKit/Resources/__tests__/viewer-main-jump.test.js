@@ -25,6 +25,14 @@ function registerAnyElementProvider(main) {
   });
 }
 
+// ジャンプバーは入力欄を持たずキーボードフォーカスが乗らないため、
+// バー要素の keydown では Enter を受け取れない（実機で確認）。document で拾う。
+function pressEnter(loaded, shiftKey) {
+  loaded.document.dispatchEvent(
+    new loaded.window.KeyboardEvent('keydown', { key: 'Enter', shiftKey, bubbles: true }),
+  );
+}
+
 const count = (document) => document.getElementById('mmd-jump-count').textContent;
 const current = (document) => document.querySelector('.mmd-jump-current');
 
@@ -74,6 +82,47 @@ describe('文書内ジャンプ', () => {
     main._mmdJumpPrevIfOpen();
 
     expect(count(document)).toBe('0/0');
+  });
+
+  test('Enter で次の目印へ、Shift+Enter で前の目印へ動く', () => {
+    const loaded = openJumpOn(HEADINGS);
+    const { document } = loaded;
+
+    pressEnter(loaded, false);
+    expect(count(document)).toBe('2/3');
+
+    pressEnter(loaded, true);
+    expect(count(document)).toBe('1/3');
+  });
+
+  test('ジャンプバーが閉じている間は Enter で動かない', () => {
+    const loaded = openJumpOn(HEADINGS);
+    loaded.main._mmdCloseJump();
+
+    pressEnter(loaded, false);
+
+    expect(current(loaded.document)).toBe(null);
+  });
+
+  test('IME 変換確定の Enter では動かない', () => {
+    const loaded = openJumpOn(HEADINGS);
+
+    loaded.document.dispatchEvent(
+      new loaded.window.KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true }),
+    );
+
+    expect(count(loaded.document)).toBe('1/3');
+  });
+
+  test('Escape でジャンプバーが閉じる', () => {
+    const loaded = openJumpOn(HEADINGS);
+
+    loaded.document.dispatchEvent(
+      new loaded.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    );
+
+    expect(loaded.document.getElementById('mmd-jump-bar').style.display).toBe('none');
+    expect(current(loaded.document)).toBe(null);
   });
 
   test('閉じるとハイライトが消える', () => {
