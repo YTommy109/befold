@@ -72,6 +72,14 @@ final class DirectHTMLModeController {
         renderer.appliedPageZoom = nil
         // 直接ロードする HTML 内の <script> 実行を無効化する（設計スコープ外）。
         webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        // 直接ロード中は外部の HTML 文書が canvas ごと所有する。復帰時に reloadViewerHTML が
+        // 透過へ戻す（allowsContentJavaScript と同じく、ミラーの外で enter/exit と対に倒す状態）。
+        ViewerWebViewFactory.setDocumentOwnsCanvas(
+            ViewerWebViewFactory.documentOwnsCanvas(
+                fileType: request.fileType, isSourceMode: request.isSourceMode
+            ),
+            on: webView
+        )
         load(webView: webView, filePath: filePath, request: request)
         return true
     }

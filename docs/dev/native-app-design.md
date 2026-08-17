@@ -178,7 +178,7 @@ BefoldApp/
 | `PathRelativizer` | パスコピー時に絶対パスを基準ディレクトリからの相対パスに変換 |
 | `BaseDirectoryDescriptor` / `BaseDirectoryIndicator` | 相対パスコピーと Quick Open の基準フォルダ（`gitRoot ?? workspaceRoot`）と、その表示。種別は git ルート / 通常フォルダ / **git リポジトリだが befold では扱えない**（libgit2 が開けない partial clone・reftable 等）の 3 つで、3 つ目はツールチップで git 機能が無効であることだけを伝える（失敗理由の種別は出さない） |
 | `DirectoryLister` | サイドバー用のディレクトリ内ファイル/フォルダ一覧化 |
-| `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ） |
+| `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ）。外部の HTML 文書だけは例外で、文書が canvas ごと所有するためこの色は使われない |
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
 | `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` / `GitFolderStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す（ファイル行は変更種別の文字、フォルダー行は集約を示す `•`） |
@@ -209,6 +209,16 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   ` ```mermaid ` フェンスは markdown-it のカスタムレンダラーで `<pre class="mermaid">` に出力し mermaid.js が SVG 描画する
 - **その他ファイル種別**: SVG / HTML / CSV・TSV / 画像 / PDF / 各種ソースコードは
   `FileType` の判定に従い、ソースコードは highlight.js でシンタックスハイライトする
+- **キャンバス（地）の所有者**: 既定では地の色は `ViewerTheme.canvas`（ウィンドウ背景）が
+  唯一の定義で、`WKWebView` は透過・CSS も地を塗らない。これによりネイティブ部分と
+  WebView 部分が構成上必ず同色になる。**外部の HTML 文書（`.html` / `.htm` のレンダリング
+  表示）だけがこの例外**で、ブラウザと同じく文書が canvas ごと所有する
+  （`ViewerWebViewFactory.setDocumentOwnsCanvas`）。透過のままだと、明るい背景を前提に
+  文字色だけを指定した HTML がダークキャンバス上に載って読めなくなるため。
+  適用先は直接ロード経路（`DirectHTMLModeController` の enter / exit）と、
+  viewer.html 内の iframe 経路（QuickLook 等、`OneShotRenderer`）の両方。
+  iframe の子文書も子自身の `color-scheme` 宣言に従って WebKit が塗り分けるため、
+  CSS 側の手当ては持たない。ソース表示中の HTML は befold がコードとして描くので該当しない
 - **ズーム**: 0.5〜2.0（ボタン・キーは 25% 刻み、ホイールは連続）、基準スケール 0.75、
   `Cmd +/-`・`Ctrl + ホイール`・% 表示クリックでリセット。`ZoomStore` によりファイル単位で永続化
 - **キーボードスクロール**: `Space` / `Shift+Space` で 1 ページ、`↑↓` / `j` `k` で 1 行、

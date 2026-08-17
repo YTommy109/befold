@@ -84,8 +84,7 @@ public enum ViewerWebViewFactory {
         }
 
         let webView = WKWebView(frame: .zero, configuration: config)
-        // WKWebView の背景を透明にする（公開 API がないため KVC を使用）
-        webView.setValue(false, forKey: "drawsBackground")
+        setDocumentOwnsCanvas(false, on: webView)
         // トラックパッドのピンチジェスチャーでズームできるようにする。
         // viewer.html 経由のコンテンツは既存の ctrl+wheel ハンドラ(viewer.html)で
         // 対応済みだが、.html ファイル直接ロード時はこの経路を通らないため必要。
@@ -95,6 +94,35 @@ public enum ViewerWebViewFactory {
         // 二本指スワイプでファイル履歴を扱えるようにする。
         webView.allowsBackForwardNavigationGestures = false
         return webView
+    }
+
+    /// 表示するコンテンツが「外部の HTML 文書」かどうか。canvas(地)の所有者判定はここが唯一。
+    ///
+    /// ソース表示中の HTML は befold がコードとして描画するので該当しない。直接ロード経路
+    /// (DirectHTMLModeController)と viewer.html 内の iframe 経路(QuickLook 等)の両方が
+    /// この判定を共有する。
+    static func documentOwnsCanvas(fileType: FileType, isSourceMode: Bool) -> Bool {
+        fileType == .html && !isSourceMode
+    }
+
+    /// canvas を文書に所有させるかどうかを WebView へ適用する。
+    ///
+    /// 既定は透過(false)。キャンバス色は `ViewerTheme.canvas` が唯一の定義で、CSS は地を
+    /// 塗らない(style.css 冒頭の設計コメント)。**外部の HTML 文書だけがこの原則の例外**で、
+    /// ブラウザと同じく文書が canvas ごと所有する。透過のままだと、明るい背景を前提に
+    /// 文字色だけを指定した HTML が befold のダークキャンバス上に載って読めなくなる
+    /// (TASK-511)。
+    ///
+    /// 実測(ダークアピアランス / `WKWebView.takeSnapshot` のピクセル):
+    /// - false … a=0.00(WebView は塗らない)。透過は iframe の子文書へも伝播し、子の
+    ///   `color-scheme` 宣言は届かなくなる(親側で `background: white` を当てると今度は
+    ///   `color-scheme: dark` を宣言した子が壊れる)
+    /// - true … `color-scheme` 宣言なしの文書は #FFFFFF、`dark` / `light dark` 宣言時は
+    ///   #282828 を WebKit が塗る。iframe の srcdoc 子文書も**子自身の宣言**に従うため、
+    ///   iframe 経路に CSS の手当ては要らない
+    static func setDocumentOwnsCanvas(_ owned: Bool, on webView: WKWebView) {
+        // drawsBackground に公開 API がないため KVC を使う。
+        webView.setValue(owned, forKey: "drawsBackground")
     }
 
     /// makeWebView で登録した postMessage ハンドラを解除する。

@@ -121,6 +121,16 @@ public final class OneShotRenderer {
         let render = Self.render(from: outcome, url: url, fileType: resolvedFileType)
 
         let webView = renderer.makeWebView(initialZoom: initialZoom, findOptionsPreference: nil)
+        // QuickLook では allowDirectHTML=false のため HTML も viewer.html 内の iframe で
+        // 描くが、外部の HTML 文書であることは変わらないので canvas は文書に所有させる
+        // (透過のままだと子文書の color-scheme 宣言が届かない。setDocumentOwnsCanvas 参照)。
+        // renderOnce は常に isSourceMode: false で描画する。
+        ViewerWebViewFactory.setDocumentOwnsCanvas(
+            ViewerWebViewFactory.documentOwnsCanvas(
+                fileType: resolvedFileType, isSourceMode: false
+            ),
+            on: webView
+        )
         if render.rejectReason == nil {
             await renderOnce(webView: webView, render: render)
         }
