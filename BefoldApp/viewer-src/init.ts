@@ -5,6 +5,8 @@
 import { onColorSchemeChange } from './color-scheme.js';
 import { _mmdFind, _mmdInitFind } from './find.js';
 import { _mmdInitCodeFont, _mmdInitFontSize } from './fonts.js';
+import { headingJumpProvider } from './jump-providers.js';
+import { _mmdJump, _mmdInitJump } from './jump.js';
 import { _mmdInitKeyboard } from './keyboard.js';
 import { _mmdReinitializeMermaidIfLoaded } from './mermaid.js';
 import { _mmdInitReferenceClicks } from './reference-clicks.js';
@@ -36,6 +38,10 @@ function _mmdInit(): void {
   _mmdInitFontSize();
   _mmdInitCodeFont();
   _mmdInitFind();
+  // 目印のプロバイダはここで登録する。対象を足すときはこの 1 箇所に並べる
+  // （ジャンプのコントローラ側は列挙の中身を知らない）。
+  _mmdJump.register(headingJumpProvider);
+  _mmdInitJump();
 }
 
 export { _mmdInit };

@@ -14129,6 +14129,7 @@
     CSV_COL_COUNT: () => CSV_COL_COUNT,
     DEFAULT_LINE_SCROLL_STEP: () => DEFAULT_LINE_SCROLL_STEP,
     DIAGRAM_ZOOM_MAX: () => DIAGRAM_ZOOM_MAX,
+    HEADING_SELECTOR: () => HEADING_SELECTOR,
     MACOS_DEFAULT_BODY: () => MACOS_DEFAULT_BODY,
     PAGE_SCROLL_RATIO: () => PAGE_SCROLL_RATIO,
     WEB_BASELINE: () => WEB_BASELINE,
@@ -14150,6 +14151,7 @@
     _mmdBuildDiagramControls: () => _mmdBuildDiagramControls,
     _mmdChunkTail: () => _mmdChunkTail,
     _mmdCloseFind: () => _mmdCloseFind,
+    _mmdCloseJump: () => _mmdCloseJump,
     _mmdDiagramZoomReset: () => _mmdDiagramZoomReset,
     _mmdDiagramZoomStep: () => _mmdDiagramZoomStep,
     _mmdDiagramZoomValue: () => _mmdDiagramZoomValue,
@@ -14164,6 +14166,7 @@
     _mmdInitCodeFont: () => _mmdInitCodeFont,
     _mmdInitFind: () => _mmdInitFind,
     _mmdInitFontSize: () => _mmdInitFontSize,
+    _mmdInitJump: () => _mmdInitJump,
     _mmdInitKeyboard: () => _mmdInitKeyboard,
     _mmdInitLoadMore: () => _mmdInitLoadMore,
     _mmdInitReferenceClicks: () => _mmdInitReferenceClicks,
@@ -14172,11 +14175,15 @@
     _mmdInitWheelZoom: () => _mmdInitWheelZoom,
     _mmdInitZoom: () => _mmdInitZoom,
     _mmdInvalidatePendingRefs: () => _mmdInvalidatePendingRefs,
+    _mmdJump: () => _mmdJump,
+    _mmdJumpNextIfOpen: () => _mmdJumpNextIfOpen,
+    _mmdJumpPrevIfOpen: () => _mmdJumpPrevIfOpen,
     _mmdLoadMore: () => _mmdLoadMore,
     _mmdMermaidConfig: () => _mmdMermaidConfig,
     _mmdMermaidParseError: () => _mmdMermaidParseError,
     _mmdModeSwitch: () => _mmdModeSwitch,
     _mmdOpenFind: () => _mmdOpenFind,
+    _mmdOpenJump: () => _mmdOpenJump,
     _mmdPdfBlob: () => _mmdPdfBlob,
     _mmdPostMessage: () => _mmdPostMessage,
     _mmdPostScrollPosition: () => _mmdPostScrollPosition,
@@ -14218,6 +14225,7 @@
     clampZoom: () => clampZoom,
     closeCurrentBar: () => closeCurrentBar,
     codeChunkInnerHtml: () => codeChunkInnerHtml,
+    collectHeadings: () => collectHeadings,
     csvRowsHtml: () => csvRowsHtml,
     csvSourceInnerHtml: () => csvSourceInnerHtml,
     currentBar: () => currentBar,
@@ -14226,6 +14234,7 @@
     escapeHtml: () => escapeHtml,
     formatNavigationCount: () => formatNavigationCount,
     halfPageScrollStep: () => halfPageScrollStep,
+    headingJumpProvider: () => headingJumpProvider,
     highlightCode: () => highlightCode,
     highlightedDiffLines: () => highlightedDiffLines,
     imageDataURI: () => imageDataURI,
@@ -15437,6 +15446,230 @@
     );
   }
 
+  // viewer-src/navigation.ts
+  function nextMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return (currentIndex + 1) % count;
+  }
+  function prevMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return (currentIndex - 1 + count) % count;
+  }
+  function keptMatchIndex(previousIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return Math.min(Math.max(previousIndex, 0), count - 1);
+  }
+  function formatNavigationCount(currentIndex, count, truncated, truncatedLabel) {
+    var current = count === 0 ? 0 : currentIndex + 1;
+    var text3 = current + "/" + count;
+    if (truncated) {
+      text3 += " (" + truncatedLabel + ")";
+    }
+    return text3;
+  }
+
+  // viewer-src/jump.ts
+  var CURRENT_CLASS = "mmd-jump-current";
+  function clearHighlight(targets) {
+    targets.forEach(function(target) {
+      target.highlight.forEach(function(element) {
+        element.classList.remove(CURRENT_CLASS);
+      });
+    });
+  }
+  function isJumpBarOpen() {
+    return isBarOpen("jump");
+  }
+  function _createJumpController() {
+    var providers = {};
+    var activeKind = "";
+    var targets = [];
+    var currentIndex = -1;
+    var truncated = false;
+    function register(provider) {
+      providers[provider.id] = provider;
+    }
+    function updateCount() {
+      var countEl = document.getElementById("mmd-jump-count");
+      if (!countEl) return;
+      var strings = window._mmdJumpStrings || {};
+      countEl.textContent = formatNavigationCount(
+        currentIndex,
+        targets.length,
+        truncated,
+        strings.withinDisplayedRange || "Displayed range"
+      );
+    }
+    function highlightCurrent(scroll) {
+      clearHighlight(targets);
+      var current = targets[currentIndex];
+      if (!current) return;
+      current.highlight.forEach(function(element) {
+        element.classList.add(CURRENT_CLASS);
+      });
+      if (scroll) {
+        current.anchor.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }
+    function moveTo(index, scroll) {
+      currentIndex = index;
+      highlightCurrent(scroll);
+      updateCount();
+    }
+    function collectTargets() {
+      var provider = providers[activeKind];
+      var root = document.getElementById("diagram-wrap");
+      if (!provider || !root) {
+        return [];
+      }
+      return provider.collect(root);
+    }
+    function run(scroll) {
+      clearHighlight(targets);
+      targets = collectTargets();
+      currentIndex = targets.length > 0 ? 0 : -1;
+      highlightCurrent(scroll);
+      updateCount();
+    }
+    function open(kind) {
+      activeKind = kind;
+      claimBar("jump");
+      var bar = document.getElementById("mmd-jump-bar");
+      if (bar) {
+        bar.style.display = "flex";
+      }
+      run(true);
+    }
+    function close() {
+      releaseBar("jump");
+      var bar = document.getElementById("mmd-jump-bar");
+      if (bar) {
+        bar.style.display = "none";
+      }
+      clearHighlight(targets);
+      targets = [];
+      currentIndex = -1;
+    }
+    function next() {
+      if (targets.length === 0) return;
+      moveTo(nextMatchIndex(currentIndex, targets.length), true);
+    }
+    function prev() {
+      if (targets.length === 0) return;
+      moveTo(prevMatchIndex(currentIndex, targets.length), true);
+    }
+    function refresh(resetToFirst) {
+      var previousIndex = resetToFirst ? 0 : currentIndex;
+      clearHighlight(targets);
+      targets = collectTargets();
+      currentIndex = -1;
+      if (targets.length > 0) {
+        moveTo(keptMatchIndex(previousIndex, targets.length), false);
+      } else {
+        updateCount();
+      }
+    }
+    function invalidate() {
+      targets = [];
+      if (isJumpBarOpen()) {
+        updateCount();
+      }
+    }
+    function setTruncated(value) {
+      truncated = value;
+      if (isJumpBarOpen()) {
+        updateCount();
+      }
+    }
+    return {
+      isOpen: isJumpBarOpen,
+      open,
+      close,
+      next,
+      prev,
+      refresh,
+      invalidate,
+      setTruncated,
+      register
+    };
+  }
+  var _mmdJump = _createJumpController();
+  registerBar("jump", {
+    close: function() {
+      _mmdJump.close();
+    }
+  });
+  function _mmdInitJump() {
+    var strings = window._mmdJumpStrings || {};
+    var bar = document.getElementById("mmd-jump-bar");
+    if (!bar) return;
+    var prevButton = document.getElementById("mmd-jump-prev");
+    var nextButton = document.getElementById("mmd-jump-next");
+    var closeButton = document.getElementById("mmd-jump-close");
+    if (prevButton) {
+      if (strings.previous) prevButton.title = strings.previous;
+      prevButton.addEventListener("click", function() {
+        _mmdJump.prev();
+      });
+    }
+    if (nextButton) {
+      if (strings.next) nextButton.title = strings.next;
+      nextButton.addEventListener("click", function() {
+        _mmdJump.next();
+      });
+    }
+    if (closeButton) {
+      if (strings.close) closeButton.title = strings.close;
+      closeButton.addEventListener("click", function() {
+        _mmdJump.close();
+      });
+    }
+    bar.addEventListener("keydown", function(e) {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (e.shiftKey) {
+        _mmdJump.prev();
+      } else {
+        _mmdJump.next();
+      }
+    });
+  }
+  function _mmdOpenJump(kind) {
+    _mmdJump.open(kind);
+  }
+  function _mmdCloseJump() {
+    _mmdJump.close();
+  }
+  function _mmdJumpNextIfOpen() {
+    if (!_mmdJump.isOpen()) return;
+    _mmdJump.next();
+  }
+  function _mmdJumpPrevIfOpen() {
+    if (!_mmdJump.isOpen()) return;
+    _mmdJump.prev();
+  }
+
+  // viewer-src/jump-providers.ts
+  var HEADING_SELECTOR = "h2, h3";
+  function collectHeadings(root) {
+    var elements = root.querySelectorAll(HEADING_SELECTOR);
+    var targets = [];
+    elements.forEach(function(element) {
+      targets.push({ anchor: element, highlight: [element] });
+    });
+    return targets;
+  }
+  var headingJumpProvider = {
+    id: "heading",
+    collect: collectHeadings
+  };
+
   // viewer-src/keyboard.ts
   var PAGE_SCROLL_RATIO = 0.9;
   var DEFAULT_LINE_SCROLL_STEP = 24;
@@ -15517,34 +15750,6 @@
     window.addEventListener("blur", function() {
       document.body.classList.remove("cmd-held");
     });
-  }
-
-  // viewer-src/navigation.ts
-  function nextMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return (currentIndex + 1) % count;
-  }
-  function prevMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return (currentIndex - 1 + count) % count;
-  }
-  function keptMatchIndex(previousIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return Math.min(Math.max(previousIndex, 0), count - 1);
-  }
-  function formatNavigationCount(currentIndex, count, truncated, truncatedLabel) {
-    var current = count === 0 ? 0 : currentIndex + 1;
-    var text3 = current + "/" + count;
-    if (truncated) {
-      text3 += " (" + truncatedLabel + ")";
-    }
-    return text3;
   }
 
   // viewer-src/find.ts
@@ -23523,9 +23728,13 @@
     if (_mmdFind.isOpen()) {
       _mmdFind.refresh(modeJustSwitched);
     }
+    if (_mmdJump.isOpen()) {
+      _mmdJump.refresh(modeJustSwitched);
+    }
   }
   async function render(content, type, lang) {
     _mmdScroll.beginRender();
+    _mmdJump.invalidate();
     var scrollTargetBeforeRender = _mmdScrollTarget();
     var fallbackScrollTop = scrollTargetBeforeRender ? scrollTargetBeforeRender.scrollTop : 0;
     _mmdDocument.record(content, type, lang);
@@ -23664,6 +23873,7 @@
   // viewer-src/truncation.ts
   function _mmdSetTruncated(isTruncated, lineCount, failed) {
     _mmdFind.setTruncated(isTruncated);
+    _mmdJump.setTruncated(isTruncated);
     var banner = document.getElementById("mmd-truncated-banner");
     if (!isTruncated) {
       banner.style.display = "none";
@@ -23725,6 +23935,8 @@
     _mmdInitFontSize();
     _mmdInitCodeFont();
     _mmdInitFind();
+    _mmdJump.register(headingJumpProvider);
+    _mmdInitJump();
   }
 
   // viewer-src/index.ts

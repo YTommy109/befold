@@ -38,6 +38,14 @@ interface ViewerFindStrings {
   withinDisplayedRange?: string;
 }
 
+/// ViewerBridge.jumpStringsScript(bundle:) が注入する文書内ジャンプバーの文言。
+interface ViewerJumpStrings {
+  previous?: string;
+  next?: string;
+  close?: string;
+  withinDisplayedRange?: string;
+}
+
 /// ViewerBridge.FindOptions（検索の 3 トグル）。
 interface ViewerFindOptions {
   caseSensitive?: boolean;
@@ -71,4 +79,6 @@ interface Window {
   _mmdInitialFindOptions?: ViewerFindOptions;
   // ViewerBridge.findStringsScript(bundle:)
   _mmdFindStrings?: ViewerFindStrings;
+  // ViewerBridge.jumpStringsScript(bundle:)
+  _mmdJumpStrings?: ViewerJumpStrings;
 }

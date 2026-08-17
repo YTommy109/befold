@@ -5,6 +5,7 @@ import { buildLineNumberRows, codeChunkInnerHtml, lastLines } from './code-html.
 import { csvRowsHtml, csvSourceInnerHtml, parseCsv } from './csv-html.js';
 import { _mmdChunkTail, _mmdDocument } from './document-state.js';
 import { _mmdFind } from './find.js';
+import { _mmdJump } from './jump.js';
 import { markdownRenderer } from './markdown.js';
 import { _mmdRunMermaid } from './mermaid.js';
 import {
@@ -77,18 +78,29 @@ var _mmdRenderedAs = '';
 // ようにするための固定サイズの先読み(詳細は codeChunkInnerHtml 参照)。
 var CODE_CHUNK_CONTEXT_LINES = 200;
 
-// render() / appendChunk() の末尾で検索状態を再描画後の内容に合わせて更新する。
-// 持ち越しフラグは検索バーの開閉に関わらずここで必ず消費する(閉じている間に
+// render() / appendChunk() の末尾で、検索と文書内ジャンプの状態を再描画後の
+// 内容に合わせて更新する。
+// 持ち越しフラグはバーの開閉に関わらずここで必ず消費する(閉じている間に
 // 溜めておくと、次にバーを開いたときに無関係な先頭リセットが起きるため)。
+// consume() は破壊的読み出しなので、呼ぶのはこの 1 箇所だけにして、
+// 得た値を検索とジャンプの両方へ渡す(2 回呼ぶと後の 1 回が必ず false を受け取り、
+// 片方だけモード切替を観測しない)。
 function _mmdFindRefreshAfterRender(): void {
   var modeJustSwitched = _mmdModeSwitch.consume();
   if (_mmdFind.isOpen()) {
     _mmdFind.refresh(modeJustSwitched);
   }
+  if (_mmdJump.isOpen()) {
+    _mmdJump.refresh(modeJustSwitched);
+  }
 }
 
 async function render(content: string, type: string, lang: string | undefined): Promise<void> {
   _mmdScroll.beginRender();
+  // 描画の着地まで（mermaid の描画を await する間）DOM は既に差し替わっている。
+  // 目印の列は列そのものが状態なので、ここで捨てておかないと前の文書の
+  // n/N と現在位置ハイライトがその間ずっと表示され続ける。
+  _mmdJump.invalidate();
   // DOM を書き換える前に、内部再描画(カラースキーム変更時など)向けの
   // フォールバック復元位置として現在位置を退避する(_mmdRestoreScrollPosition 参照)。
   var scrollTargetBeforeRender = _mmdScrollTarget();

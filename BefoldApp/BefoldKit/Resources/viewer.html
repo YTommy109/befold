@@ -53,6 +53,20 @@
     <button id="mmd-find-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
   </div>
 
+  <!-- 文書内ジャンプバー。検索バーと同時には開かない（bar.ts が排他を持つ）ため、
+       見た目・配置のクラスはそのまま共有する。title は _mmdInitJump() が
+       window._mmdJumpStrings(ローカライズ済み)で上書きする。 -->
+  <div id="mmd-jump-bar" class="mmd-find-bar">
+    <span id="mmd-jump-count" class="mmd-find-count"></span>
+    <button id="mmd-jump-prev" class="mmd-find-nav mmd-find-nav-prev" title="前へ (Shift+Enter)">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 6.5L5 2.5L9 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button id="mmd-jump-next" class="mmd-find-nav mmd-find-nav-next" title="次へ (Enter)">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 3.5L5 7.5L9 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button id="mmd-jump-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
+  </div>
+
   <!-- viewer-bundle.js は viewer-src/ を esbuild でまとめた成果物。markdown-it /
        highlight.js / DOMPurify も npm 依存としてこのバンドルに含まれるため、
        読み込むスクリプトはこれ 1 本だけ。mermaid だけは 3.2MB を実際に図を

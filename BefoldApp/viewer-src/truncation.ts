@@ -2,6 +2,7 @@
 
 import { _MSG_LOAD_MORE_LINES, _mmdPostMessage, isHostFeatureEnabled } from './bridge.js';
 import { _mmdFind } from './find.js';
+import { _mmdJump } from './jump.js';
 
 // 段階読み込み中(ファイルの一部だけを表示している間)のバナー表示を切り替える。
 // failed が true の場合、チャンク読込エラーで打ち切られたことを示す。正常な
@@ -17,6 +18,7 @@ function _mmdSetTruncated(
   failed: boolean,
 ): void {
   _mmdFind.setTruncated(isTruncated);
+  _mmdJump.setTruncated(isTruncated);
   var banner = document.getElementById('mmd-truncated-banner')!;
   if (!isTruncated) {
     banner.style.display = 'none';

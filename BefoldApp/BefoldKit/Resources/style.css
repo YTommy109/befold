@@ -641,6 +641,18 @@ mark.mmd-find-match-current {
   color: #fff;
 }
 
+/* ── 文書内ジャンプの現在位置 ──
+   検索と違い、目印は見出し・表の行など任意のブロック要素になりうる。
+   背景色は使わない: 差分表示の .diff-add / .diff-del が同じ詳細度(0,1,0)で
+   tr に background-color を持っており、後勝ちで差分の色分けを潰すため。
+   outline はレイアウトを動かさず（border と違い場所を取らない）、
+   行にも段落にも同じ見え方で当てられる。 */
+.mmd-jump-current {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* ── CSV テーブル表示 ──
    CSV 表示時は #diagram-wrap に markdown-body(github-markdown-css の土台)と
    csv-body(CSV 専用の上書き)を両方付与する。CSV 専用スタイルをここに

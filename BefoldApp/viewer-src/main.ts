@@ -19,6 +19,8 @@ export * from './diff-html.js';
 export * from './csv-html.js';
 export * from './zoom.js';
 export * from './scroll.js';
+export * from './jump.js';
+export * from './jump-providers.js';
 export * from './keyboard.js';
 export * from './find.js';
 export * from './path-refs.js';
