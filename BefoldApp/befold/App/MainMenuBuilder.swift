@@ -146,7 +146,28 @@ enum MainMenuBuilder {
             keyEquivalent: "g",
             modifiers: [.command, .shift]
         )
+        addDocumentJumpItems(to: menu)
         return item
+    }
+
+    /// Edit > 文書内ジャンプ（TASK-485）。目印の種類ごとに 1 項目を出す。
+    ///
+    /// キー等価はまだ付けない。空いている ⌃⌘ 系は View メニューが使い切っており
+    /// （⌃⌘F/G/H/T）、素の ⌘G / ⇧⌘G は検索送りが持っている。加えて紹介サイトの
+    /// ショートカット表を作る `site/src/lib/shortcuts.ts` は開発中機能のゲートを
+    /// 認識しないため、キー等価を付けると stable のユーザーへ存在しない機能を
+    /// 告知することになる。割り当ては stable 昇格と同時に決める。
+    ///
+    /// 前後移動はバー内の Enter / Shift+Enter（検索バーと同じ形）。
+    private static func addDocumentJumpItems(to menu: NSMenu) {
+        menu.addItem(.separator())
+        for kind in DocumentJumpKind.allCases {
+            let item = menu.addLocalizedItem(
+                kind.menuLabelKey,
+                action: #selector(ViewerWindowController.documentJump(_:))
+            )
+            item.tag = kind.menuItemTag
+        }
     }
 
     /// ズーム・表示モード切替・サイドバー・履歴ナビゲーションをまとめた View メニュー。

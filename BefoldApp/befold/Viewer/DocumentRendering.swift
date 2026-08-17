@@ -34,6 +34,13 @@ protocol DocumentRendering: AnyObject {
     func findNext()
     func findPrevious()
 
+    /// 文書内ジャンプを開く / 閉じる / 次へ / 前へ。
+    /// kind は目印の種類（見出し・変更ブロック・関数定義）。
+    func openJump(kind: String)
+    func closeJump()
+    func jumpNext()
+    func jumpPrevious()
+
     /// 表示内容を指定ウィンドウ上のシートとして印刷する。
     func printDocument(over window: NSWindow?)
 

@@ -151,6 +151,7 @@ public enum ViewerWebViewFactory {
                 )
             ),
             ViewerBridge.findStringsScript(),
+            ViewerBridge.jumpStringsScript(),
             ViewerBridge.bannerStringsScript(),
             ViewerBridge.hostFeaturesScript(
                 loadMore: options.features.allowsInteractiveBridging,

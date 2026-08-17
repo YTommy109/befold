@@ -14,6 +14,10 @@ struct ViewerCapabilities: Equatable {
     let canPrint: Bool
     /// 検索(⌘F / ⌘G)。HTML 直接ロード中は viewer.html の JS が無いため不可。
     let canFind: Bool
+    /// 文書内ジャンプ(目印の前後移動)。検索と同じく viewer.html の JS を要するため
+    /// HTML 直接ロード中は不可。開発中機能なので、ゲートが閉じている間も不可
+    /// (`FeatureGate.isDocumentJumpEnabled` を `ViewerCapabilitiesFactory` が渡す)。
+    let canJump: Bool
     /// ズーム(拡大・縮小・等倍)。
     let canZoom: Bool
     /// View メニューのソース表示トグル。種別がソース表示を持つときのみ。
@@ -46,6 +50,9 @@ struct ViewerCapabilities: Equatable {
     ///     ADR(libgit2 移行)の Fallback にある「git が使えないとき差分表示モードを
     ///     選択不可にする」はここから来る。
     ///   - isDirectHTMLMode: HTML を直接ロードして表示しているか。
+    ///   - isDocumentJumpEnabled: 文書内ジャンプを露出してよいか(開発中機能のゲート)。
+    ///     既定値は持たせない。渡し忘れが静かに「常に有効」へ倒れると、stable へ
+    ///     開発中の機能が載る形になるため。
     init(
         isPresentingDocument: Bool,
         isRejected: Bool,
@@ -56,11 +63,16 @@ struct ViewerCapabilities: Equatable {
         supportsSourceMode: Bool,
         supportsDiffDisplay: Bool,
         gitDiffAvailability: GitDiffAvailability,
-        isDirectHTMLMode: Bool
+        isDirectHTMLMode: Bool,
+        isDocumentJumpEnabled: Bool
     ) {
         let onDocument = isPresentingDocument && !isRejected
         canPrint = onDocument
         canFind = onDocument && !isDirectHTMLMode
+        // 目印が 0 個かどうかでは判定しない。段階読み込み中・描画前・取得失敗の
+        // いずれでも同じ 0 個になり、事実ではなくデータの空きで縮退することになる。
+        // 目印が無いことは viewer 側の 0/0 表示が伝える。
+        canJump = onDocument && !isDirectHTMLMode && isDocumentJumpEnabled
         canZoom = onDocument
         canToggleSourceMode = onDocument && supportsSourceMode
         canSelectPreviewMode = onDocument && isRenderable
@@ -101,6 +113,7 @@ struct ViewerCapabilities: Equatable {
         supportsSourceMode: false,
         supportsDiffDisplay: false,
         gitDiffAvailability: .undetermined,
-        isDirectHTMLMode: false
+        isDirectHTMLMode: false,
+        isDocumentJumpEnabled: false
     )
 }

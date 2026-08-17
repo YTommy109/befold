@@ -885,6 +885,24 @@
         }
       }
     },
+    "menu.edit.jumpToHeading" : {
+      "comment" : "Edit メニュー。文書内の見出し（h2 / h3）を前後移動するバーを開く。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jump to Heading…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "見出しへジャンプ…"
+          }
+        }
+      }
+    },
     "menu.edit.paste": {
       "extractionState": "manual",
       "localizations": {

@@ -62,6 +62,9 @@ enum ViewerMenuValidator {
         if let action = menuItem.action, findActions.contains(action) {
             return capabilities.canFind
         }
+        if menuItem.action == #selector(ViewerWindowController.documentJump(_:)) {
+            return capabilities.canJump
+        }
         if menuItem.action == #selector(ViewerWindowController.printDocument(_:)) {
             return capabilities.canPrint
         }

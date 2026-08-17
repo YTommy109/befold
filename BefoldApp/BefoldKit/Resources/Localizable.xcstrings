@@ -209,6 +209,78 @@
         }
       }
     },
+    "viewer.jump.close" : {
+      "comment" : "文書内ジャンプバーを閉じるボタンの説明。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close (Esc)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閉じる (Esc)"
+          }
+        }
+      }
+    },
+    "viewer.jump.next" : {
+      "comment" : "「Enter」は viewer-src/jump.ts の mmd-jump-bar keydown ハンドラと一致させること。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next (Enter)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次へ (Enter)"
+          }
+        }
+      }
+    },
+    "viewer.jump.previous" : {
+      "comment" : "「Shift+Enter」は viewer-src/jump.ts の mmd-jump-bar keydown ハンドラと一致させること。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous (Shift+Enter)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前へ (Shift+Enter)"
+          }
+        }
+      }
+    },
+    "viewer.jump.withinDisplayedRange" : {
+      "comment" : "段階読み込み中のファイルで文書内ジャンプを使った際、表示済み範囲の目印だけを数えていることを示すラベル。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Displayed range"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示範囲内"
+          }
+        }
+      }
+    },
     "viewer.unsupported.binary": {
       "comment": "NUL バイトを含むためバイナリと判定して表示を拒否した場合のメッセージ。原因(NUL の混入)を追跡できるよう、汎用の viewer.unsupported.format とは区別して具体的に述べる。",
       "extractionState": "manual",

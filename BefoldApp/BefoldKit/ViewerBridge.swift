@@ -33,6 +33,10 @@ public enum ViewerBridge {
         case openFind = "_mmdOpenFind"
         case findNextIfOpen = "_mmdFindNextIfOpen"
         case findPrevIfOpen = "_mmdFindPrevIfOpen"
+        /// 文書内ジャンプバーを閉じる。
+        case closeJump = "_mmdCloseJump"
+        case jumpNextIfOpen = "_mmdJumpNextIfOpen"
+        case jumpPrevIfOpen = "_mmdJumpPrevIfOpen"
         /// 注入済みの等幅フォント設定を読んで CSS 変数へ反映する(applyCodeFontScript が使う)。
         case initCodeFont = "_mmdInitCodeFont"
 
@@ -272,6 +276,26 @@ public enum ViewerBridge {
     /// 前のマッチへ移動するスクリプト。検索バーが閉じている間は JS 側で無視される。
     public static let findPrevScript = PlainFunction.findPrevIfOpen.callScript
 
+    /// 文書内ジャンプバーを開くスクリプト。目印の種類(kind)を引数に取るため
+    /// `PlainFunction`(引数なしの `name()` 形式)には載せられない。
+    /// JS 側の定義は `ViewerBridgeTests` が存在を検証する。
+    /// kind は JSON エンコードを経由させる(他の注入経路と同じエスケープの単一経路)。
+    public static func openJumpScript(kind: String) -> String {
+        guard let literal = jsonLiteral(kind) else {
+            return "_mmdOpenJump(null)"
+        }
+        return "_mmdOpenJump(\(literal))"
+    }
+
+    /// 文書内ジャンプバーを閉じるスクリプト。
+    public static let closeJumpScript = PlainFunction.closeJump.callScript
+
+    /// 次の目印へ移動するスクリプト。ジャンプバーが閉じている間は JS 側で無視される。
+    public static let jumpNextScript = PlainFunction.jumpNextIfOpen.callScript
+
+    /// 前の目印へ移動するスクリプト。ジャンプバーが閉じている間は JS 側で無視される。
+    public static let jumpPrevScript = PlainFunction.jumpPrevIfOpen.callScript
+
     /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったときに
     /// postMessage されるメッセージハンドラ名。
     public static let findOptionsChangedMessageName = ViewerBridgeMessage.findOptionsChanged.rawValue
@@ -311,5 +335,17 @@ public enum ViewerBridge {
             "withinDisplayedRange": String(localized: "viewer.find.withinDisplayedRange", bundle: bundle),
         ]
         return assignGlobalScript("window._mmdFindStrings", strings)
+    }
+
+    /// ロード時に文書内ジャンプバーのローカライズ済み文字列を注入するスクリプト。
+    /// viewer.html 側は _mmdInitJump() が window._mmdJumpStrings を読んで各要素に適用する。
+    public static func jumpStringsScript(bundle: Bundle = .befoldKitResources) -> String {
+        let strings: [String: String] = [
+            "previous": String(localized: "viewer.jump.previous", bundle: bundle),
+            "next": String(localized: "viewer.jump.next", bundle: bundle),
+            "close": String(localized: "viewer.jump.close", bundle: bundle),
+            "withinDisplayedRange": String(localized: "viewer.jump.withinDisplayedRange", bundle: bundle),
+        ]
+        return assignGlobalScript("window._mmdJumpStrings", strings)
     }
 }

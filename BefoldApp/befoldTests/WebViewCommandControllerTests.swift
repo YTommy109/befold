@@ -18,6 +18,10 @@ private final class FakeDocumentRenderer: DocumentRendering {
         case openFind
         case findNext
         case findPrevious
+        case openJump(kind: String)
+        case closeJump
+        case jumpNext
+        case jumpPrevious
         case print
         case currentScrollPosition
         case noteRename(old: URL, new: URL)
@@ -53,6 +57,22 @@ private final class FakeDocumentRenderer: DocumentRendering {
 
     func findPrevious() {
         commands.append(.findPrevious)
+    }
+
+    func openJump(kind: String) {
+        commands.append(.openJump(kind: kind))
+    }
+
+    func closeJump() {
+        commands.append(.closeJump)
+    }
+
+    func jumpNext() {
+        commands.append(.jumpNext)
+    }
+
+    func jumpPrevious() {
+        commands.append(.jumpPrevious)
     }
 
     func printDocument(over _: NSWindow?) {
@@ -219,6 +239,30 @@ struct WebViewCommandControllerTests {
         #expect(scrollSaves.saves.first?.position == 42)
         #expect(scrollSaves.saves.first?.url == url)
         #expect(scrollSaves.saves.first?.mode == .source)
+    }
+
+    @Test("文書内ジャンプは canJump が false のとき 4 経路とも JS へ届かない")
+    func documentJumpIsBlockedWithoutCapability() {
+        let renderer = FakeDocumentRenderer()
+        let controller = makeController(renderer: renderer, capabilities: { .none })
+
+        controller.openJump(kind: "heading")
+        controller.closeJump()
+        controller.jumpNext()
+        controller.jumpPrevious()
+
+        #expect(renderer.commands.isEmpty)
+    }
+
+    @Test("文書内ジャンプは canJump が true なら種類つきで JS へ届く")
+    func documentJumpReachesRendererWithCapability() {
+        let renderer = FakeDocumentRenderer()
+        let controller = makeController(renderer: renderer)
+
+        controller.openJump(kind: "heading")
+        controller.jumpNext()
+
+        #expect(renderer.commands == [.openJump(kind: "heading"), .jumpNext])
     }
 
     @Test("rename の追随は状態の反映なので能力で止めない")

@@ -15,7 +15,8 @@ struct ViewerCapabilitiesTests {
         supportsSourceMode: Bool = true,
         supportsDiffDisplay: Bool = true,
         gitDiffAvailability: GitDiffAvailability = .changed,
-        isDirectHTMLMode: Bool = false
+        isDirectHTMLMode: Bool = false,
+        isDocumentJumpEnabled: Bool = true
     ) -> ViewerCapabilities {
         ViewerCapabilities(
             isPresentingDocument: isPresentingDocument,
@@ -27,7 +28,8 @@ struct ViewerCapabilitiesTests {
             supportsSourceMode: supportsSourceMode,
             supportsDiffDisplay: supportsDiffDisplay,
             gitDiffAvailability: gitDiffAvailability,
-            isDirectHTMLMode: isDirectHTMLMode
+            isDirectHTMLMode: isDirectHTMLMode,
+            isDocumentJumpEnabled: isDocumentJumpEnabled
         )
     }
 
@@ -136,12 +138,26 @@ struct ViewerCapabilitiesTests {
         #expect(makeCapabilities(gitDiffAvailability: .changed).canSelect(.diff))
     }
 
+    @Test("文書内ジャンプはゲートが閉じている間は不可")
+    func deniesJumpWhileGateIsClosed() {
+        #expect(makeCapabilities(isDocumentJumpEnabled: true).canJump)
+        #expect(!makeCapabilities(isDocumentJumpEnabled: false).canJump)
+    }
+
+    @Test("文書内ジャンプは検索と同じく HTML 直接ロード中と非提示中は不可")
+    func deniesJumpWithoutVisibleDocument() {
+        #expect(!makeCapabilities(isPresentingDocument: false).canJump)
+        #expect(!makeCapabilities(isRejected: true).canJump)
+        #expect(!makeCapabilities(isDirectHTMLMode: true).canJump)
+    }
+
     @Test("何も提示していない既定値はすべて不可")
     func noneDeniesEverything() {
         #expect(ViewerCapabilities.none == ViewerCapabilities(
             isPresentingDocument: false, isRejected: false, isRenderable: false,
             isBinaryContent: false, showsCodeContent: false, supportsSourceMode: false,
-            supportsDiffDisplay: false, gitDiffAvailability: .undetermined, isDirectHTMLMode: false
+            supportsDiffDisplay: false, gitDiffAvailability: .undetermined, isDirectHTMLMode: false,
+            isDocumentJumpEnabled: false
         ))
         #expect(!ViewerCapabilities.none.canPrint)
     }
@@ -158,6 +174,7 @@ extension ViewerCapabilities {
         supportsSourceMode: true,
         supportsDiffDisplay: true,
         gitDiffAvailability: .changed,
-        isDirectHTMLMode: false
+        isDirectHTMLMode: false,
+        isDocumentJumpEnabled: true
     )
 }
