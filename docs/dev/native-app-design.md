@@ -211,6 +211,10 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   `FileType` の判定に従い、ソースコードは highlight.js でシンタックスハイライトする
 - **ズーム**: 0.5〜2.0（ボタン・キーは 25% 刻み、ホイールは連続）、基準スケール 0.75、
   `Cmd +/-`・`Ctrl + ホイール`・% 表示クリックでリセット。`ZoomStore` によりファイル単位で永続化
+- **キーボードスクロール**: `Space` / `Shift+Space` で 1 ページ、`↑↓` / `j` `k` で 1 行、
+  `Shift+↑↓` で半ページ（`viewer-src/keyboard.ts`）。`scrollBy` は `behavior: 'smooth'` で、
+  1 回のキー操作で位置が飛ばないようにする。CSS の `scroll-behavior` は使わない
+  （指定すると `scrollTop` への代入まで animate され、位置復元が着地しなくなる）
 - **検索**: 大文字小文字区別・単語一致・正規表現の3トグル、次/前移動
 - **表示モード切替**: ツールバーの 3 択セグメント（レンダリング / ソース / 差分）と `⌘1`〜`⌘3`。
   `DisplayModeStore` でファイル単位に永続化する。差分レイアウト（上下/左右）は `⌘\\` とツールバーのトグルで切り替え、
