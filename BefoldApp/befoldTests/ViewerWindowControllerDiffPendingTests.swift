@@ -117,8 +117,10 @@ struct ViewerWindowControllerDiffPendingTests {
     private func preparePresentedMarkdown(_ controller: ViewerWindowController) async {
         controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
         controller.fileListModel.selection = file
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 60)) {
-            controller.store.contentState.fileType == .markdown
-        }
+        // 壁時計予算のポーリング(waitUntilOnMainActor)ではなく loadTask を await する。
+        // 予算はスイート全体の混雑時間まで測ってしまい、TSan ジョブでは操作の成否と
+        // 無関係に切れる(TASK-437 で予算を 10 → 60 → 120 と伸ばしても落ちた)。
+        await controller.store.loadTask?.value
+        #expect(controller.store.contentState.fileType == .markdown)
     }
 }
