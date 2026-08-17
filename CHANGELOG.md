@@ -4,6 +4,14 @@ stable リリースのユーザー影響のある変更を記録する。
 dev リリースの全変更履歴は [GitHub Releases](https://github.com/YTommy109/befold/releases) を参照。
 v1.5.0 より前の履歴は GitHub Releases の各タグページを参照。
 
+## v1.14.0
+
+### 新機能
+- サイドバーの右クリックメニューから、リモート（GitHub / GitLab / Bitbucket）のファイルリンクを生成してコピーできるようにしました。
+
+### 修正
+- ビューアのキーボードスクロールが滑らかになりました。
+
 ## v1.13.3
 
 ### 新機能
