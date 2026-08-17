@@ -1,11 +1,11 @@
 ---
 id: TASK-507
 title: サイドバーのコンテキストメニューからファイルの GitHub リンクを生成してコピーする
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-17 02:10'
-updated_date: '2026-08-17 03:58'
+updated_date: '2026-08-17 04:09'
 labels: []
 dependencies: []
 priority: medium
@@ -37,7 +37,7 @@ ordinal: 738000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 サイドバーのコンテキストメニューにリモートのリンクをコピーする項目があり、相対パスをコピーの近くに置かれている
+- [x] #1 サイドバーのコンテキストメニューにリモートのリンクをコピーする項目があり、相対パスをコピーの近くに置かれている
 GitHub の origin を持つリポジトリ内のファイルで実行すると https://github.com/{owner}/{repo}/blob/{branch}/{相対パス} 形式の URL がクリップボードへ入る
 SSH 形式（git@github.com:owner/repo.git）と HTTPS 形式（.git の有無を含む）のどちらの origin でも同じ URL が組み立てられることをユニットテストで確認している
 パスに空白や日本語を含むファイルでも GitHub が解決できる形にエスケープされている
@@ -49,16 +49,16 @@ origin が無い / 対応外のホスト / git 管理外 / detached HEAD のい�
 メニュー項目の文言が origin のホストに追随する（GitHub / GitLab / Bitbucket ではその名前が入り、解決できないときはホスト名を含まない中立の文言になる）
 GitLab（/-/blob/）と Bitbucket（/src/）のホストごとの URL 形式がユニットテストで固定されている
 
-- [ ] #2 GitHub の origin を持つリポジトリ内のファイルで実行すると https://github.com/{owner}/{repo}/blob/{branch}/{相対パス} 形式の URL がクリップボードへ入る
-- [ ] #3 SSH 形式（git@github.com:owner/repo.git）と HTTPS 形式（.git の有無を含む）のどちらの origin でも同じ URL が組み立てられることをユニットテストで確認している
-- [ ] #4 パスに空白や日本語を含むファイルでもホスト側が解決できる形にエスケープされている
-- [ ] #5 origin が無い / 対応外のホスト / git 管理外 / detached HEAD のいずれでも、項目が disabled で表示されクラッシュしない
-- [ ] #6 未 push のブランチでもブランチ名のまま URL が生成される（判定を足していない）ことをテストで固定している
-- [ ] #7 クリップボードへの書き込みが Pasteboard.writeString(_:) を経由しており、NSPasteboard を直接触っていない
-- [ ] #8 リポジトリを開く処理が GitLibrary.withRepository(at:_:) を経由している
-- [ ] #9 追加したメニュー項目の文言が Localizable.xcstrings に en / ja の両方で登録されており /l10n-check が通る
-- [ ] #10 メニュー項目の文言が origin のホストに追随する（GitHub / GitLab / Bitbucket ではその名前が入り、解決できないときはホスト名を含まない中立の文言になる）
-- [ ] #11 GitLab（/-/blob/）と Bitbucket（/src/）のホストごとの URL 形式がユニットテストで固定されている
+- [x] #2 GitHub の origin を持つリポジトリ内のファイルで実行すると https://github.com/{owner}/{repo}/blob/{branch}/{相対パス} 形式の URL がクリップボードへ入る
+- [x] #3 SSH 形式（git@github.com:owner/repo.git）と HTTPS 形式（.git の有無を含む）のどちらの origin でも同じ URL が組み立てられることをユニットテストで確認している
+- [x] #4 パスに空白や日本語を含むファイルでもホスト側が解決できる形にエスケープされている
+- [x] #5 origin が無い / 対応外のホスト / git 管理外 / detached HEAD のいずれでも、項目が disabled で表示されクラッシュしない
+- [x] #6 未 push のブランチでもブランチ名のまま URL が生成される（判定を足していない）ことをテストで固定している
+- [x] #7 クリップボードへの書き込みが Pasteboard.writeString(_:) を経由しており、NSPasteboard を直接触っていない
+- [x] #8 リポジトリを開く処理が GitLibrary.withRepository(at:_:) を経由している
+- [x] #9 追加したメニュー項目の文言が Localizable.xcstrings に en / ja の両方で登録されており /l10n-check が通る
+- [x] #10 メニュー項目の文言が origin のホストに追随する（GitHub / GitLab / Bitbucket ではその名前が入り、解決できないときはホスト名を含まない中立の文言になる）
+- [x] #11 GitLab（/-/blob/）と Bitbucket（/src/）のホストごとの URL 形式がユニットテストで固定されている
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -97,4 +97,16 @@ GitLab（/-/blob/）と Bitbucket（/src/）のホストごとの URL 形式が�
 - markdownlint-cli2 / check-doc-symbols.sh とも 0 件。docs/dev/native-app-design.md のコンポーネント表に GitHubFileLink と gitHubBlobURL を追記した。
 - スコープ判断: 本文のパス参照メニュー（ReferenceMenuPresenter）には同項目を追加していない。決定済み仕様がサイドバーのみを指しているため。要否は別途ユーザー判断とする。
 - 未確認: メニュー項目の実際の見え方（並び・disabled 表示）は GUI のため自動テスト対象外。実機での目視確認をユーザーに依頼中。
+
+スコープ変更（2026-08-17、ユーザー判断）: メニュー文言を origin のホストに追随させ、URL 生成を GitLab / Bitbucket まで広げた。GitHubFileLink を RemoteForge へ一般化（ホスト判定・表示名・URL 形式を 1 型に集約）。GitLab はサブグループで owner/repo が 3 段以上になるため段数を落とさない。自建て（GitHub Enterprise / self-managed GitLab）はホスト名で判別できないため対象外。
+- 文言の組み立ては format と中立文言を引数で受ける形にした。理由は実測: swift test では Localizable.xcstrings の解決が効かずキー名（"sidebar.context.copyForgeLink"）が返り、「Bitbucket が入る」というアサートが空振りで失敗した。内側で localized を引くとテストが差し込みロジックではなくバンドル解決を測ることになる。キーの登録は /l10n-check が担保する。
+- 最終検証: swift test 1603 tests / 254 suites 成功。swiftlint 54 件（新規・変更ファイルに指摘なし＝ベースライン差分ゼロ）。l10n 196 キーで漏れ・state 異常・プレースホルダ不一致なし。markdownlint / check-doc-symbols.sh とも 0 件。
+- GUI 実測（ユーザー確認）: GitHub origin のリポジトリで項目が有効表示になり、クリップボードへ https://github.com/YTommy109/befold/blob/sierra-lightning/CLAUDE.md が入った（pbpaste で確認）。git 管理外のファイルではグレーアウト表示。ホスト追随後の文言も期待どおり。ビルド済み .app 内の Localizable.strings に en/ja 両方の文言が入っていることも実測済み。
+- 未 push のためリンクを開くと 404 になるのは決定済み仕様どおり（git ls-remote で sierra-lightning が未 push であることを確認）。push すればリンクは生きる。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+サイドバーの右クリックメニューに「<ホスト> リンクをコピーする」を追加した。origin（SSH 形式 / HTTPS 形式）と HEAD のブランチ名、リポジトリルート基準の相対パスから GitHub / GitLab / Bitbucket それぞれの URL 形式でリンクを組み立て、メニュー文言もホスト名に追随する。作れない条件（git 管理外・origin なし・対応外ホスト・detached HEAD）はすべて nil へ畳んで項目を disabled で見せる。未 push 判定は足していない。検証: swift test 1603 件成功、swiftlint ベースライン差分ゼロ、l10n 196 キー問題なし、実機で有効表示・クリップボード内容・無効表示・文言を確認。
+<!-- SECTION:FINAL_SUMMARY:END -->
