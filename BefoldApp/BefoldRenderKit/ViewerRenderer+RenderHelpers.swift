@@ -62,6 +62,11 @@ extension ViewerRenderer {
         readiness.run(completion)
         // viewer.html（mermaid.js）は JS 必須のため、直接ロードで無効化した JS を再有効化する。
         webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        // canvas の所有権も同時に戻す。viewer.html を描くのは befold なので透過が既定
+        // （ここへ戻る経路に外部 HTML 文書はない。ソース表示の HTML は code として描く）。
+        ViewerWebViewFactory.setDocumentOwnsCanvas(false, on: webView)
+        // canvas の所有権も同時に戻す。viewer.html を描くのは befold なので透過が既定
+        // （ここへ戻る経路に外部 HTML 文書はない。ソース表示の HTML は code として描く）。
         ViewerWebViewFactory.loadViewerHTML(into: webView)
     }
 }

@@ -6,6 +6,10 @@ import AppKit
 /// (drawsBackground=false)、CSS 側も地の色を塗らない(body 透明。style.css
 /// 冒頭のコメント参照)ことで、ネイティブ部分と WebView 部分が構成上必ず
 /// 同色になる。同じ値を CSS 側に重複定義しないこと。
+///
+/// 例外は外部の HTML 文書(.html / .htm のレンダリング表示)で、そこだけはブラウザと同じく
+/// 文書が canvas ごと所有するためこの色は使われない
+/// (`ViewerWebViewFactory.setDocumentOwnsCanvas`、TASK-511)。
 enum ViewerTheme {
     /// ウィンドウ背景 = コンテンツの地の色。
     /// ライトは白、ダークは WebKit の Canvas 相当の #1E1E1E。

@@ -35,6 +35,33 @@ struct ViewerRendererOneShotIntegrationTests {
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
     }
 
+    /// QuickLook では allowDirectHTML=false のため HTML も viewer.html 内の iframe で描くが、
+    /// 外部の HTML 文書であることは変わらないので canvas は文書に所有させる。透過のままだと
+    /// 子文書の color-scheme 宣言が届かず、明るい背景前提の HTML が読めなくなる(TASK-511)。
+    @Test("loadOneShot はHTML文書のときだけcanvasを文書へ明け渡す")
+    @MainActor
+    func loadOneShotHandsCanvasToHTMLDocumentsOnly() async {
+        func drawsBackground(_ webView: WKWebView) -> Bool {
+            (webView.value(forKey: "drawsBackground") as? Bool) ?? false
+        }
+
+        let htmlURL = URL(fileURLWithPath: "/tmp/task511-oneshot.html")
+        let html = await OneShotRenderer(features: .quickLookRestricted).load(
+            url: htmlURL,
+            fileReader: InMemoryFileReader(files: [htmlURL.path: "<h1>ok</h1>\n"]),
+            chunkedReaderFactory: chunkedReaderFactory
+        )
+        #expect(drawsBackground(html.webView))
+
+        let mdURL = URL(fileURLWithPath: "/tmp/task511-oneshot.md")
+        let markdown = await OneShotRenderer(features: .quickLookRestricted).load(
+            url: mdURL,
+            fileReader: InMemoryFileReader(files: [mdURL.path: "# ok\n"]),
+            chunkedReaderFactory: chunkedReaderFactory
+        )
+        #expect(!drawsBackground(markdown.webView))
+    }
+
     @Test("loadOneShot は非対応ファイルの rejectReason を返す")
     @MainActor
     func loadOneShotReportsRejectForBinary() async {

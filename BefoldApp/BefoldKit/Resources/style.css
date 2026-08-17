@@ -7,6 +7,13 @@
   半透明ティントで重ねる。ここにキャンバス色(#fff / #1e1e1e 等)を
   書かないこと。
 
+  例外は**外部の HTML 文書**(.html / .htm のレンダリング表示)だけ。ブラウザと同じく
+  文書が canvas ごと所有する(WKWebView 側で drawsBackground を戻す。
+  ViewerWebViewFactory.setDocumentOwnsCanvas 参照)。透過のままだと、明るい背景を前提に
+  文字色だけを指定した HTML がダークキャンバス上に載って読めなくなるため(TASK-511)。
+  この例外は CSS 側では表現しない — iframe 経路(QuickLook)でも子文書は自分の
+  color-scheme 宣言に従って WebKit が塗るので、ここに .html-body 用の背景を足さないこと。
+
   ── レイヤー構成(弱い順に reset → vendor → 無レイヤー) ──
   ベンダー CSS はページ全体の所有を前提に地の色を持つため vendor レイヤーに
   取り込み、直後の「ベンダーリセット」でページ背景系だけを無効化する。
