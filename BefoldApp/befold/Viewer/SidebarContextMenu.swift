@@ -25,17 +25,20 @@ struct SidebarContextMenu: View {
             Button(String(localized: "sidebar.context.copyPath", bundle: .l10n)) {
                 Pasteboard.writeString(model.relativePathForCopy(entry.url))
             }
-            copyGitHubLinkButton
+            copyRemoteLinkButton
             Button(String(localized: "sidebar.context.revealInFinder", bundle: .l10n)) {
                 NSWorkspace.shared.activateFileViewerSelecting([entry.url])
             }
         }
     }
 
-    /// 「GitHub リンクをコピー」。リンクを作れない行（git 管理外・origin が無い・
-    /// GitHub 以外のリモート・detached HEAD）でも項目は隠さず無効化して見せる。
-    /// 隠すと機能の存在に気づけないため。無効化の理由は出さない
-    /// （`GitRepository.gitHubBlobURL(forFileAt:)` が nil へ畳んでいる）。
+    /// 「<ホスト> リンクをコピーする」。文言は origin のホストに追随し（GitHub / GitLab /
+    /// Bitbucket）、解決できないときはホスト名を含まない中立の文言にする。ここで既定の
+    /// ホスト名を出すと、別のホストを使っているリポジトリで嘘の名前を見せることになる。
+    ///
+    /// リンクを作れない行（git 管理外・origin が無い・対応外のホスト・detached HEAD）でも
+    /// 項目は隠さず無効化して見せる。隠すと機能の存在に気づけないため。無効化の理由は
+    /// 出さない（`GitRepository.remoteFileLink(forFileAt:)` が nil へ畳んでいる）。
     ///
     /// 解決は body の評価時に 1 回だけ走る。`body` は右クリックでメニューを組み立てる
     /// ときにしか評価されないため（`FileListView` は各行に `.contextMenu` で付けている）、
@@ -44,12 +47,29 @@ struct SidebarContextMenu: View {
     /// リポジトリオープンが行数倍でメインに載る（TASK-322 と同型）ため、ここを
     /// 非同期化するか事前解決へ移す必要が出る。
     @ViewBuilder
-    private var copyGitHubLinkButton: some View {
-        let link = GitRepository().gitHubBlobURL(forFileAt: entry.url)
-        Button(String(localized: "sidebar.context.copyGitHubLink", bundle: .l10n)) {
-            if let link { Pasteboard.writeString(link.absoluteString) }
+    private var copyRemoteLinkButton: some View {
+        let link = GitRepository().remoteFileLink(forFileAt: entry.url)
+        let title = Self.copyRemoteLinkTitle(
+            for: link?.forge,
+            format: String(localized: "sidebar.context.copyForgeLink", bundle: .l10n),
+            neutralTitle: String(localized: "sidebar.context.copyRemoteLink", bundle: .l10n)
+        )
+        Button(title) {
+            if let link { Pasteboard.writeString(link.url.absoluteString) }
         }
         .disabled(link == nil)
+    }
+
+    /// メニュー文言。ホストが分かるときだけ名前を差し込む。
+    ///
+    /// 文言を引数で受けるのは、`swift test` の実行環境では `Localizable.xcstrings` の
+    /// 解決が効かずキー名がそのまま返るため（実測: 「Bitbucket が入る」というアサートが
+    /// `"sidebar.context.copyForgeLink"` と比較されて失敗した）。localized な文字列を
+    /// 内側で引くと、テストが差し込みロジックではなくバンドル解決を測ることになる。
+    /// キーの存在と翻訳の有無は `/l10n-check` が別途担保する。
+    static func copyRemoteLinkTitle(for forge: RemoteForge?, format: String, neutralTitle: String) -> String {
+        guard let forge else { return neutralTitle }
+        return String(format: format, forge.displayName)
     }
 
     /// 「別の場所で開く」系の項目定義(並び・文言キー・開き先)。項目を数える単一情報源を

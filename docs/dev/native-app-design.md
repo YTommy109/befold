@@ -150,8 +150,8 @@ BefoldApp/
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController` |
 | `ReferenceContextMenu` | ビューア本文のリンク/パス参照の ctrl+クリック(右クリック)で出す `NSMenu` の項目定義。並び・文言はサイドバーのコンテキストメニューと揃える |
 | `GitCommandRunner` | git 実行を一元化する薄い `Process` ラッパ（無害化オプション前置・タイムアウト・プロセスグループ打ち切り）。git を呼ぶ全機能の共通土台 |
-| `GitRepository` | ルート解決・追跡ファイル列挙・worktree 一覧・`.git/index` fingerprint の問い合わせ。`GitRepository+GitHubLink` の `gitHubBlobURL(forFileAt:)` が、サイドバーの「GitHub リンクをコピーする」向けに origin・HEAD ブランチ・リポジトリルート基準の相対パスを 1 回のリポジトリオープンで解決する（作れない条件はすべて nil へ畳む） |
-| `GitHubFileLink` | リモート URL（SSH 形式 / HTTPS 形式）から `owner/repo` を正規化し、`https://github.com/{owner}/{repo}/blob/{branch}/{相対パス}` を組み立てる純関数。ブランチ名で指し permalink は作らない |
+| `GitRepository` | ルート解決・追跡ファイル列挙・worktree 一覧・`.git/index` fingerprint の問い合わせ。`GitRepository+RemoteLink` の `remoteFileLink(forFileAt:)` が、サイドバーの「リンクをコピーする」向けに origin・HEAD ブランチ・リポジトリルート基準の相対パスを 1 回のリポジトリオープンで解決する（作れない条件はすべて nil へ畳む） |
+| `RemoteForge` | リモートを Web で見せるホスティング（GitHub / GitLab / Bitbucket）。ホスト名の判定・メニューへ差し込む表示名・ファイルを指す URL の形式（`/blob/` ・ `/-/blob/` ・ `/src/`）をこの 1 型に集める。ブランチ名で指し permalink は作らない。自建て（GitHub Enterprise / self-managed GitLab）はホスト名で判別できないため対象外 |
 | `GitCommandFileIndex` | 追跡ファイル索引のキャッシュ。全ウィンドウ・Quick Open で 1 個を共有し `git ls-files` の重複実行を防ぐ |
 | `WorktreeCatalog` | 本体リポジトリごとの worktree 一覧キャッシュ（「最近使ったリポジトリ」メニューの階層表示用） |
 | `GitStatusReader` / `GitStatusStore` | `git status --porcelain=v2` によるファイル状態の取得と、リポジトリルート単位のキャッシュ（サイドバーの状態バッジの供給元） |

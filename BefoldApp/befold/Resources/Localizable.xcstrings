@@ -2380,19 +2380,36 @@
         }
       }
     },
-    "sidebar.context.copyGitHubLink": {
+    "sidebar.context.copyForgeLink": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Copy GitHub Link"
+            "value": "Copy %@ Link"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "GitHub リンクをコピーする"
+            "value": "%@ リンクをコピーする"
+          }
+        }
+      }
+    },
+    "sidebar.context.copyRemoteLink": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Remote Link"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リモートのリンクをコピーする"
           }
         }
       }

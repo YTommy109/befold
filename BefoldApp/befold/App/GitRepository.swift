@@ -198,7 +198,7 @@ struct GitRepository: GitRepositoryReading {
     }
 
     /// HEAD の短縮ブランチ名。detached・unborn・bare では nil。
-    /// `GitRepository+GitHubLink` から呼ぶため internal（同ファイル内の worktree 列挙と
+    /// `GitRepository+RemoteLink` から呼ぶため internal（同ファイル内の worktree 列挙と
     /// 同じ意味で使うこと。ブランチ名以外の用途に広げない）。
     static func branchName(of repository: OpaquePointer) -> String? {
         guard git_repository_head_detached(repository) == 0 else { return nil }
@@ -211,7 +211,7 @@ struct GitRepository: GitRepositoryReading {
     }
 
     /// 作業ツリーのルート。bare では nil。
-    /// `GitRepository+GitHubLink` から呼ぶため internal。
+    /// `GitRepository+RemoteLink` から呼ぶため internal。
     static func workdirURL(of repository: OpaquePointer) -> URL? {
         guard let path = git_repository_workdir(repository) else { return nil }
         return URL(fileURLWithPath: String(cString: path), isDirectory: true).standardizedFileURL
