@@ -2380,6 +2380,23 @@
         }
       }
     },
+    "sidebar.context.copyGitHubLink": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy GitHub Link"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub リンクをコピーする"
+          }
+        }
+      }
+    },
     "sidebar.context.open": {
       "extractionState": "manual",
       "localizations": {
