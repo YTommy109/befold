@@ -118,6 +118,11 @@ function loadViewerMain(options) {
   if (opts.findStrings !== undefined) {
     window._mmdFindStrings = opts.findStrings;
   }
+  // 見出しジャンプで目印にするレベルの保存値（["h1","h2","h3"] 形式）。
+  // 空配列は「3 つとも OFF」で、未指定（プロパティ自体が無い）とは別の意味。
+  if (opts.initialJumpLevels !== undefined) {
+    window._mmdInitialJumpLevels = opts.initialJumpLevels;
+  }
   if (opts.bannerStrings !== undefined) {
     window._mmdBannerStrings = opts.bannerStrings;
   }

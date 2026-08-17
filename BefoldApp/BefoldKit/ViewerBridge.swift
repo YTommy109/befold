@@ -287,6 +287,17 @@ public enum ViewerBridge {
         return "_mmdOpenJump(\(literal))"
     }
 
+    /// JS 側で見出しレベルのトグルが変わったときに postMessage されるメッセージハンドラ名。
+    public static let jumpLevelsChangedMessageName = ViewerBridgeMessage.jumpLevelsChanged.rawValue
+
+    /// ロード時に保存済みの見出しレベルを注入するスクリプト。
+    /// viewer.html 側は _mmdInitHeadingLevels() が window._mmdInitialJumpLevels を読んで適用する。
+    /// **空配列（3 つとも OFF）と未注入は別の意味**なので、値が無いときはこのスクリプト自体を
+    /// 送らない（QuickLook など）。
+    public static func initialJumpLevelsScript(_ levels: HeadingJumpLevels) -> String {
+        assignGlobalScript("window._mmdInitialJumpLevels", levels.storedValue, fallback: "[]")
+    }
+
     /// 文書内ジャンプバーを閉じるスクリプト。
     public static let closeJumpScript = PlainFunction.closeJump.callScript
 
@@ -345,6 +356,7 @@ public enum ViewerBridge {
             "next": String(localized: "viewer.jump.next", bundle: bundle),
             "close": String(localized: "viewer.jump.close", bundle: bundle),
             "withinDisplayedRange": String(localized: "viewer.jump.withinDisplayedRange", bundle: bundle),
+            "headingLevel": String(localized: "viewer.jump.headingLevel", bundle: bundle),
         ]
         return assignGlobalScript("window._mmdJumpStrings", strings)
     }

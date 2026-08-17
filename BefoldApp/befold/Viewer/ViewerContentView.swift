@@ -10,6 +10,8 @@ struct ViewerContentView: View {
     /// 保存値を読む契機は ViewerWindowController 側の提示開始 3 箇所に限る。
     let store: ViewerStore
     let findOptionsPreference: FindOptionsPreference
+    /// 見出しジャンプの設定(出発点と書き戻し口)。
+    let headingJump: HeadingJumpLevelBinding
     /// ロード時に JS へ注入するソースビュー等幅フォントファミリー名。nil はシステム既定。
     let codeFontFamily: String?
     /// ロード時に JS へ注入するソースビューのコードフォントサイズ(pt)。nil は未カスタマイズ
@@ -89,6 +91,7 @@ struct ViewerContentView: View {
                 scrollPositionToRestore: store.scrollPositionToRestore,
                 rendererDelegate: rendererDelegate,
                 findOptionsPreference: findOptionsPreference,
+                headingJump: headingJump,
                 webViewProxy: webViewProxy,
                 rendererFeatures: .allEnabled
             )

@@ -19,6 +19,7 @@ struct AppStores {
     let displayDefaults = SidebarDisplayDefaults()
     let diffDisplayPreference = DiffDisplayPreference(defaults: .standard)
     let findOptionsPreference = FindOptionsPreference()
+    let headingJumpLevelDefaults = HeadingJumpLevelDefaults()
     let codeFontPreference = CodeFontPreference()
     let perFileState = PerFileStateStore()
     /// 「最近使ったリポジトリ」メニューの階層化に使う worktree 一覧キャッシュ。

@@ -79,6 +79,10 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
     /// QuickLook 拡張等、検索 UI を持たないホストでは nil のまま省略できる。
     public var findOptionsPreference: FindOptionsPreference?
+
+    /// 見出しジャンプのレベル設定を**記録するだけ**の口（TASK-485.2）。
+    /// 読み取り API を持たない型にしてあるため、窓が保存値を読み直す経路は作れない。
+    public weak var headingJumpLevelRecording: (any HeadingJumpLevelRecording)?
     /// 直接 HTML モード・相対画像埋め込みの有効/無効フラグ。
     public var rendererFeatures: RendererFeatures = .allEnabled
     /// applyRender/applyAppend の画像埋め込み(embeddedContent)が使うインスタンス。
@@ -152,15 +156,18 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     ///   - codeFontSizePoints: ロード前に JS へ注入するソースビューのコードフォントサイズ(pt)。
     ///     nil は未カスタマイズ(CSS 側の calc(本文*0.75) フォールバックへ委ね、
     ///     アクセシビリティ文字サイズに追従する)。
+    ///   - headingJumpLevels: 見出しジャンプで目印にするレベルの初期値。
     public func makeWebView(
         initialZoom: Double, findOptionsPreference: FindOptionsPreference?,
-        codeFontFamily: String? = nil, codeFontSizePoints: Double? = nil
+        codeFontFamily: String? = nil, codeFontSizePoints: Double? = nil,
+        headingJumpLevels: HeadingJumpLevels = .default
     ) -> WKWebView {
         self.findOptionsPreference = findOptionsPreference
         initialPageZoom = initialZoom
         let webView = ViewerWebViewFactory.makeWebView(
             options: ViewerWebViewFactory.Options(
                 initialZoom: initialZoom, findOptions: findOptionsPreference,
+                headingJumpLevels: headingJumpLevels,
                 codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints,
                 features: rendererFeatures
             ),

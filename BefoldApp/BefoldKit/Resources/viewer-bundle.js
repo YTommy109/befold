@@ -14129,7 +14129,7 @@
     CSV_COL_COUNT: () => CSV_COL_COUNT,
     DEFAULT_LINE_SCROLL_STEP: () => DEFAULT_LINE_SCROLL_STEP,
     DIAGRAM_ZOOM_MAX: () => DIAGRAM_ZOOM_MAX,
-    HEADING_SELECTOR: () => HEADING_SELECTOR,
+    HEADING_LEVELS: () => HEADING_LEVELS,
     MACOS_DEFAULT_BODY: () => MACOS_DEFAULT_BODY,
     PAGE_SCROLL_RATIO: () => PAGE_SCROLL_RATIO,
     WEB_BASELINE: () => WEB_BASELINE,
@@ -14138,6 +14138,7 @@
     ZOOM_MIN: () => ZOOM_MIN,
     ZOOM_STEP: () => ZOOM_STEP,
     _MSG_FIND_OPTIONS_CHANGED: () => _MSG_FIND_OPTIONS_CHANGED,
+    _MSG_JUMP_LEVELS_CHANGED: () => _MSG_JUMP_LEVELS_CHANGED,
     _MSG_LOAD_MORE_LINES: () => _MSG_LOAD_MORE_LINES,
     _MSG_REFERENCE_ACTIVATED: () => _MSG_REFERENCE_ACTIVATED,
     _MSG_REFERENCE_CONTEXT_MENU: () => _MSG_REFERENCE_CONTEXT_MENU,
@@ -14166,6 +14167,7 @@
     _mmdInitCodeFont: () => _mmdInitCodeFont,
     _mmdInitFind: () => _mmdInitFind,
     _mmdInitFontSize: () => _mmdInitFontSize,
+    _mmdInitHeadingLevels: () => _mmdInitHeadingLevels,
     _mmdInitJump: () => _mmdInitJump,
     _mmdInitKeyboard: () => _mmdInitKeyboard,
     _mmdInitLoadMore: () => _mmdInitLoadMore,
@@ -14217,6 +14219,7 @@
     _sourceLanguage: () => _sourceLanguage,
     _walkTextNodes: () => _walkTextNodes,
     appendChunk: () => appendChunk,
+    applyHeadingLevels: () => applyHeadingLevels,
     base64ToBytes: () => base64ToBytes,
     buildFindRegExp: () => buildFindRegExp,
     buildLineNumberRows: () => buildLineNumberRows,
@@ -14235,6 +14238,8 @@
     formatNavigationCount: () => formatNavigationCount,
     halfPageScrollStep: () => halfPageScrollStep,
     headingJumpProvider: () => headingJumpProvider,
+    headingLevelTokens: () => headingLevelTokens,
+    headingSelector: () => headingSelector,
     highlightCode: () => highlightCode,
     highlightedDiffLines: () => highlightedDiffLines,
     imageDataURI: () => imageDataURI,
@@ -14276,6 +14281,7 @@
     resolveScrollKey: () => resolveScrollKey,
     sanitizeLang: () => sanitizeLang,
     sanitizeRenderedHtml: () => sanitizeRenderedHtml,
+    selectedHeadingLevels: () => selectedHeadingLevels,
     setDiff: () => setDiff,
     setDiffLayout: () => setDiffLayout,
     setLineNumbers: () => setLineNumbers,
@@ -14283,6 +14289,7 @@
     slugifyHeading: () => slugifyHeading,
     stepZoom: () => stepZoom,
     svgDataURI: () => svgDataURI,
+    toggleHeadingLevel: () => toggleHeadingLevel,
     tokenizeCsvRows: () => tokenizeCsvRows,
     unescapeCellValue: () => unescapeCellValue,
     uniqueHeadingSlug: () => uniqueHeadingSlug,
@@ -14335,6 +14342,7 @@
   var _MSG_REFERENCE_ACTIVATED = "referenceActivated";
   var _MSG_REFERENCE_CONTEXT_MENU = "referenceContextMenu";
   var _MSG_FIND_OPTIONS_CHANGED = "findOptionsChanged";
+  var _MSG_JUMP_LEVELS_CHANGED = "jumpLevelsChanged";
   var _MSG_SCROLL_POSITION_CHANGED = "scrollPositionChanged";
   var _MSG_LOAD_MORE_LINES = "loadMoreLines";
   var _MSG_RESOLVE_REFERENCES = "resolveReferences";
@@ -15477,10 +15485,26 @@
 
   // viewer-src/jump.ts
   var CURRENT_CLASS = "mmd-jump-current";
-  function clearHighlight(targets) {
+  var TARGET_CLASS = "mmd-jump-target";
+  function clearCurrent(targets) {
     targets.forEach(function(target) {
       target.highlight.forEach(function(element) {
         element.classList.remove(CURRENT_CLASS);
+      });
+    });
+  }
+  function clearHighlight(targets) {
+    clearCurrent(targets);
+    targets.forEach(function(target) {
+      target.highlight.forEach(function(element) {
+        element.classList.remove(TARGET_CLASS);
+      });
+    });
+  }
+  function markTargets(targets) {
+    targets.forEach(function(target) {
+      target.highlight.forEach(function(element) {
+        element.classList.add(TARGET_CLASS);
       });
     });
   }
@@ -15493,6 +15517,7 @@
     var targets = [];
     var currentIndex = -1;
     var truncated = false;
+    var isRendering = false;
     function register(provider) {
       providers[provider.id] = provider;
     }
@@ -15500,15 +15525,16 @@
       var countEl = document.getElementById("mmd-jump-count");
       if (!countEl) return;
       var strings = window._mmdJumpStrings || {};
+      var showsTruncatedLabel = truncated && !isFilteredEmpty();
       countEl.textContent = formatNavigationCount(
         currentIndex,
         targets.length,
-        truncated,
+        showsTruncatedLabel,
         strings.withinDisplayedRange || "Displayed range"
       );
     }
     function highlightCurrent(scroll) {
-      clearHighlight(targets);
+      clearCurrent(targets);
       var current = targets[currentIndex];
       if (!current) return;
       current.highlight.forEach(function(element) {
@@ -15531,15 +15557,21 @@
       }
       return provider.collect(root);
     }
+    function isFilteredEmpty() {
+      var provider = providers[activeKind];
+      return provider?.isSelectionEmpty?.() === true;
+    }
     function run(scroll) {
       clearHighlight(targets);
       targets = collectTargets();
+      markTargets(targets);
       currentIndex = targets.length > 0 ? 0 : -1;
       highlightCurrent(scroll);
       updateCount();
     }
     function open(kind) {
       activeKind = kind;
+      isRendering = false;
       claimBar("jump");
       var bar = document.getElementById("mmd-jump-bar");
       if (bar) {
@@ -15549,6 +15581,7 @@
     }
     function close() {
       releaseBar("jump");
+      isRendering = false;
       var bar = document.getElementById("mmd-jump-bar");
       if (bar) {
         bar.style.display = "none";
@@ -15566,9 +15599,11 @@
       moveTo(prevMatchIndex(currentIndex, targets.length), true);
     }
     function refresh(resetToFirst) {
+      isRendering = false;
       var previousIndex = resetToFirst ? 0 : currentIndex;
       clearHighlight(targets);
       targets = collectTargets();
+      markTargets(targets);
       currentIndex = -1;
       if (targets.length > 0) {
         moveTo(keptMatchIndex(previousIndex, targets.length), false);
@@ -15576,7 +15611,14 @@
         updateCount();
       }
     }
+    function rebuild() {
+      if (!isJumpBarOpen() || isRendering) {
+        return;
+      }
+      refresh(true);
+    }
     function invalidate() {
+      isRendering = true;
       targets = [];
       if (isJumpBarOpen()) {
         updateCount();
@@ -15595,6 +15637,7 @@
       next,
       prev,
       refresh,
+      rebuild,
       invalidate,
       setTruncated,
       register
@@ -15648,9 +15691,25 @@
   }
 
   // viewer-src/jump-providers.ts
-  var HEADING_SELECTOR = "h2, h3";
+  var HEADING_LEVELS = [1, 2, 3];
+  var selectedLevels = HEADING_LEVELS.slice();
+  function levelButtonId(level) {
+    return "mmd-jump-level-h" + level;
+  }
+  function headingSelector(levels) {
+    if (levels.length === 0) {
+      return null;
+    }
+    return levels.map(function(level) {
+      return "h" + level;
+    }).join(", ");
+  }
   function collectHeadings(root) {
-    var elements = root.querySelectorAll(HEADING_SELECTOR);
+    var selector = headingSelector(selectedLevels);
+    if (!selector) {
+      return [];
+    }
+    var elements = root.querySelectorAll(selector);
     var targets = [];
     elements.forEach(function(element) {
       targets.push({ anchor: element, highlight: [element] });
@@ -15659,8 +15718,66 @@
   }
   var headingJumpProvider = {
     id: "heading",
-    collect: collectHeadings
+    collect: collectHeadings,
+    isSelectionEmpty: function() {
+      return selectedLevels.length === 0;
+    }
   };
+  function selectedHeadingLevels() {
+    return selectedLevels.slice();
+  }
+  function headingLevelTokens() {
+    return selectedLevels.map(function(level) {
+      return "h" + level;
+    });
+  }
+  function applyHeadingLevels(levels) {
+    selectedLevels = HEADING_LEVELS.filter(function(level) {
+      return levels.includes(level);
+    });
+    HEADING_LEVELS.forEach(function(level) {
+      var button = document.getElementById(levelButtonId(level));
+      if (button) {
+        button.classList.toggle("active", selectedLevels.includes(level));
+      }
+    });
+  }
+  function toggleHeadingLevel(level) {
+    var next = selectedLevels.includes(level) ? selectedLevels.filter(function(selected) {
+      return selected !== level;
+    }) : selectedLevels.concat([level]);
+    applyHeadingLevels(next);
+    _mmdPostMessage(_MSG_JUMP_LEVELS_CHANGED, { levels: headingLevelTokens() });
+    _mmdJump.rebuild();
+  }
+  function _mmdInitHeadingLevels() {
+    var initial = window._mmdInitialJumpLevels;
+    applyHeadingLevels(
+      Array.isArray(initial) ? initial.map(function(token) {
+        return headingLevelNumber(token);
+      }).filter(function(level) {
+        return isLevel(level);
+      }) : HEADING_LEVELS
+    );
+    var strings = window._mmdJumpStrings || {};
+    HEADING_LEVELS.forEach(function(level) {
+      var button = document.getElementById(levelButtonId(level));
+      if (!button) return;
+      var title = strings.headingLevel;
+      if (title) {
+        button.title = title.replace("{level}", String(level));
+      }
+      button.addEventListener("click", function() {
+        toggleHeadingLevel(level);
+      });
+    });
+  }
+  function headingLevelNumber(token) {
+    return Number(token.replace("h", ""));
+  }
+  function isLevel(level) {
+    return HEADING_LEVELS.includes(level);
+  }
 
   // viewer-src/keyboard.ts
   var PAGE_SCROLL_RATIO = 0.9;
@@ -23951,6 +24068,7 @@
     _mmdInitFind();
     _mmdJump.register(headingJumpProvider);
     _mmdInitJump();
+    _mmdInitHeadingLevels();
   }
 
   // viewer-src/index.ts

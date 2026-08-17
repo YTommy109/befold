@@ -24,6 +24,10 @@ interface JumpTarget {
 interface JumpProvider {
   id: string;
   collect(root: HTMLElement): JumpTarget[];
+  // 列挙の条件そのものが「何も選ばれていない」状態か。真なら 0 件の原因は
+  // 文書ではなく利用者の選択なので、件数表示の「表示範囲内」ラベルを出さない。
+  // 省略時は常に false（選択の概念を持たない対象）。
+  isSelectionEmpty?(): boolean;
 }
 
 interface JumpController {
@@ -35,6 +39,8 @@ interface JumpController {
   // 描画・チャンク追記のあとに列を作り直す。位置は可能な限り維持する。
   // resetToFirst が真なら先頭へ戻す（表示モード切替時）。
   refresh(resetToFirst?: boolean): void;
+  // 列挙の条件が変わったときに列を作り直す（描画中は着地時の refresh に任せる）。
+  rebuild(): void;
   // 描画の開始時に列を捨てる。着地までの間、前の文書の n/N と
   // ハイライトが残らないようにする。
   invalidate(): void;
@@ -43,12 +49,39 @@ interface JumpController {
 }
 
 var CURRENT_CLASS = 'mmd-jump-current';
+// 目印の候補であることを示すクラス。バーを開いている間だけ付き、
+// 次にどこへ飛べるかをユーザーへ見せる（TASK-485.2）。
+var TARGET_CLASS = 'mmd-jump-target';
 
-// 目印の列から現在位置のハイライトを取り除く。
-function clearHighlight(targets: JumpTarget[]): void {
+// 現在位置の印だけを取り除く（次の位置へ付け替えるときに使う）。
+// 候補の印は列が変わらない限り残す。
+function clearCurrent(targets: JumpTarget[]): void {
   targets.forEach(function (target) {
     target.highlight.forEach(function (element) {
       element.classList.remove(CURRENT_CLASS);
+    });
+  });
+}
+
+// 目印の列から、候補と現在位置の印を両方取り除く。
+//
+// **列を捨てる経路はすべてこの関数を通す。** 列が入れ替わるのは open だけでなく
+// refresh（描画・チャンク追記・レベル変更）でも起きるため、片方の経路だけで
+// 外す形にすると古い候補の下線が残る。
+function clearHighlight(targets: JumpTarget[]): void {
+  clearCurrent(targets);
+  targets.forEach(function (target) {
+    target.highlight.forEach(function (element) {
+      element.classList.remove(TARGET_CLASS);
+    });
+  });
+}
+
+// 目印の候補すべてに印を付ける。
+function markTargets(targets: JumpTarget[]): void {
+  targets.forEach(function (target) {
+    target.highlight.forEach(function (element) {
+      element.classList.add(TARGET_CLASS);
     });
   });
 }
@@ -66,6 +99,8 @@ function _createJumpController(): JumpController {
   // 段階読み込み中（まだ全チャンクを読み終えていない）かどうか。
   // 真のときは表示済み DOM の分しか数えられないことを件数表示で示す。
   var truncated = false;
+  // 描画中（invalidate から着地の refresh までの間）。rebuild の抑止に使う。
+  var isRendering = false;
 
   function register(provider: JumpProvider): void {
     providers[provider.id] = provider;
@@ -75,10 +110,14 @@ function _createJumpController(): JumpController {
     var countEl = document.getElementById('mmd-jump-count');
     if (!countEl) return;
     var strings: ViewerJumpStrings = window._mmdJumpStrings || {};
+    // 「表示範囲内」は"まだ読んでいない範囲は数えられていない"という意味なので、
+    // 目印の種類そのものが選ばれていないとき（列挙の条件で 0 件）は出さない。
+    // 段階読み込み中でも 0 件の原因は読み込み範囲ではないため、事実と食い違う。
+    var showsTruncatedLabel = truncated && !isFilteredEmpty();
     countEl.textContent = formatNavigationCount(
       currentIndex,
       targets.length,
-      truncated,
+      showsTruncatedLabel,
       strings.withinDisplayedRange || 'Displayed range',
     );
   }
@@ -88,7 +127,7 @@ function _createJumpController(): JumpController {
   // 届くたび読んでいる位置を奪ってしまう（appendChunk 経路には
   // スクロール復元が無い）。
   function highlightCurrent(scroll: boolean): void {
-    clearHighlight(targets);
+    clearCurrent(targets);
     var current = targets[currentIndex];
     if (!current) return;
     current.highlight.forEach(function (element) {
@@ -115,9 +154,16 @@ function _createJumpController(): JumpController {
     return provider.collect(root);
   }
 
+  // いま有効なプロバイダが「何も選ばれていない」状態か。
+  function isFilteredEmpty(): boolean {
+    var provider = providers[activeKind];
+    return provider?.isSelectionEmpty?.() === true;
+  }
+
   function run(scroll: boolean): void {
     clearHighlight(targets);
     targets = collectTargets();
+    markTargets(targets);
     currentIndex = targets.length > 0 ? 0 : -1;
     highlightCurrent(scroll);
     updateCount();
@@ -125,6 +171,11 @@ function _createJumpController(): JumpController {
 
   function open(kind: string): void {
     activeKind = kind;
+    // 描画中フラグを下ろす。着地の refresh はバーが開いているときしか呼ばれないため、
+    // 閉じたまま描画すると invalidate で立てたフラグが残り、以後の rebuild が
+    // 抑止されたままになる（レベルを変えても列が作り直されない）。
+    // open はいまの DOM から列を作るので、この時点で描画は着地している。
+    isRendering = false;
     claimBar('jump');
     var bar = document.getElementById('mmd-jump-bar');
     if (bar) {
@@ -135,6 +186,7 @@ function _createJumpController(): JumpController {
 
   function close(): void {
     releaseBar('jump');
+    isRendering = false;
     var bar = document.getElementById('mmd-jump-bar');
     if (bar) {
       bar.style.display = 'none';
@@ -155,15 +207,33 @@ function _createJumpController(): JumpController {
   }
 
   function refresh(resetToFirst?: boolean): void {
+    // 描画の着地。ここで描画中フラグを下ろす（rebuild が再び働くようになる）。
+    isRendering = false;
     var previousIndex = resetToFirst ? 0 : currentIndex;
     clearHighlight(targets);
     targets = collectTargets();
+    markTargets(targets);
     currentIndex = -1;
     if (targets.length > 0) {
       moveTo(keptMatchIndex(previousIndex, targets.length), false);
     } else {
       updateCount();
     }
+  }
+
+  // 列挙の条件が変わったので列を作り直す（見出しレベルのトグルなど）。
+  // 列の同一性が変わるため現在位置は先頭へ戻す。
+  //
+  // 描画中は何もしない。render() は invalidate から着地の refresh までの間
+  // DOM を差し替えている最中で、その途中の DOM から作った currentIndex を
+  // 着地時の refresh が位置維持の入力に使ってしまう（表示は最終的に正しくなるが
+  // 位置維持の意図だけが静かに壊れる）。着地時の refresh が新しい条件で作り直すので
+  // ここでスキップしても取りこぼさない。判定は DOM の中身ではなく内部状態で行う。
+  function rebuild(): void {
+    if (!isJumpBarOpen() || isRendering) {
+      return;
+    }
+    refresh(true);
   }
 
   function invalidate(): void {
@@ -174,6 +244,7 @@ function _createJumpController(): JumpController {
     // 維持する」ために前の位置を要るため（捨てると再描画のたびに先頭へ戻る）。
     // 列が空の間、件数表示は 0/0 になる（formatNavigationCount は件数 0 のとき
     // 現在位置を 0 として組み立てる）ので、表示上も前の位置は見えない。
+    isRendering = true;
     targets = [];
     if (isJumpBarOpen()) {
       updateCount();
@@ -194,6 +265,7 @@ function _createJumpController(): JumpController {
     next: next,
     prev: prev,
     refresh: refresh,
+    rebuild: rebuild,
     invalidate: invalidate,
     setTruncated: setTruncated,
     register: register,

@@ -209,6 +209,24 @@
         }
       }
     },
+    "viewer.jump.headingLevel" : {
+      "comment" : "文書内ジャンプの見出しレベルトグルの説明。{level} は 1 / 2 / 3 に置換される。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use heading level {level} as a marker"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "見出しレベル {level} を目印にする"
+          }
+        }
+      }
+    },
     "viewer.jump.close" : {
       "comment" : "文書内ジャンプバーを閉じるボタンの説明。",
       "extractionState" : "manual",
