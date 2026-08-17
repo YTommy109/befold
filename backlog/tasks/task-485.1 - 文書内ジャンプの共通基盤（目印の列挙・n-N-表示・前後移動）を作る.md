@@ -4,10 +4,11 @@ title: 文書内ジャンプの共通基盤（目印の列挙・n/N 表示・前
 status: To Do
 assignee: []
 created_date: '2026-08-14 13:17'
-updated_date: '2026-08-15 06:39'
+updated_date: '2026-08-17 08:38'
 labels: []
 milestone: m-6
-dependencies: []
+dependencies:
+  - TASK-510
 parent_task_id: TASK-485
 priority: medium
 type: task
