@@ -30,7 +30,7 @@ argument-hint: patch | minor | major | dev
    までのコミットを確認する:
 
    ```bash
-   git tag --sort=-v:refname | grep -v -- '-' | head -1
+   git tag --sort=-v:refname | grep -v -e '-' | head -1
    git log <直前の stable タグ>..HEAD --pretty=%s
    ```
 
@@ -48,6 +48,13 @@ argument-hint: patch | minor | major | dev
 
 `$ARGUMENTS` が明示的に `patch` / `minor` / `major` / `dev` 指定された場合は
 手順0を行わず、ユーザー指定のレベルをそのまま使う。
+
+ただし `$ARGUMENTS` が `dev` と明示指定された場合に限り、**手順 0-3 の stable
+化判定だけは実行し、条件を満たしていれば結果を一言添えて報告する**（レベルは
+指定どおり `dev` のまま進め、確認は挟まない）。dev を指定し続けると、ユーザー
+影響のある変更が stable へ出ないまま溜まり、条件充足に気づく経路が無くなるため。
+報告例:「dev タグを作成しました。なお v1.13.3 以降にユーザー影響のある `feat:`
+が 1 件あり、stable 化条件（minor）を満たしています。」
 
 ### 1. バージョン bump（またはdev タグ作成）
 
