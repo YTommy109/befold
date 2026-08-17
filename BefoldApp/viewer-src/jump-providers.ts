@@ -75,9 +75,11 @@ var headingJumpProvider: JumpProvider = {
 // 割り当てた data-diff-block を読む。番号はどちらのレイアウトでも同じ
 // hunk.lines から振られるので、数と順序が一致することは構造で保証される。
 //
-// **目印に印は付けない（highlight は空）。** 変更ブロックは .diff-add / .diff-del の
-// 地色で既に見えており、そのうえに罫線を重ねても情報は増えない（行数の多いブロックでは
-// 画面が枠だらけになるだけ）。どこに居るかはスクロール位置とバーの n/N が伝える。
+// アクティブな印は「ブロックの各行の左端セル」へ付ける。CSS 側が左辺だけの
+// インセット影にしてあるので、複数行のブロックでも 1 本の縦帯に見える。
+// 行（tr）に当てないのは、border-collapse の表では tr への outline が上下辺しか
+// 描かれないため（TASK-485.1 の実測）。囲みや全セルの枠にしないのは、変更行が
+// 既に地色で見えているところへ線を足すと画面が賑やかになりすぎるため。
 function collectChangeBlocks(root: HTMLElement): JumpTarget[] {
   var rows = root.querySelectorAll<HTMLElement>('[data-diff-block]');
   var targets: JumpTarget[] = [];
@@ -85,12 +87,26 @@ function collectChangeBlocks(root: HTMLElement): JumpTarget[] {
   rows.forEach(function (row) {
     var block = row.dataset['diffBlock'];
     if (block === undefined) return;
-    // 同じブロックの 2 行目以降は目印を増やさない（ブロック単位で 1 件）。
-    if (block === currentBlock) return;
+    var edge = leadingCell(row);
+    if (block === currentBlock) {
+      // 同じブロックの 2 行目以降。目印は増やさず、帯を伸ばすだけ。
+      var previous = targets.at(-1);
+      if (previous) {
+        previous.highlight = previous.highlight.concat(edge);
+        return;
+      }
+    }
     currentBlock = block;
-    targets.push({ anchor: row, highlight: [] });
+    targets.push({ anchor: row, highlight: edge });
   });
   return targets;
+}
+
+// 行の左端のセル。インラインなら最初の行番号セル（行番号を出していない表では記号セル）、
+// 左右分割なら左側のペイン。帯はここへ引く。
+function leadingCell(row: HTMLElement): HTMLElement[] {
+  var first = row.firstElementChild;
+  return first instanceof HTMLElement ? [first] : [];
 }
 
 var changeBlockJumpProvider: JumpProvider = {

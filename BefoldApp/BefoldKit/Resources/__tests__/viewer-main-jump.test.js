@@ -487,20 +487,42 @@ describe('変更ブロックのジャンプ', () => {
     expect(count(document)).toBe('2/2');
   });
 
-  // 差分表示では目印に印を付けない。変更ブロックは .diff-add / .diff-del の地色で
-  // 既に見えており、罫線を重ねても情報が増えないため（行数の多いブロックでは
-  // 画面が枠だらけになる）。どこに居るかはスクロール位置とバーの n/N が伝える。
-  test.each([
-    ['インライン', INLINE_DIFF_DOM],
-    ['左右分割', SPLIT_DIFF_DOM],
-  ])('%s: ハイライトのクラスを付けない', (_name, dom) => {
-    const { document } = openChangeBlockJumpOn(dom);
+  // アクティブなブロックは各行の左端セルへ印を付ける（CSS が左辺だけの帯にする）。
+  // 行数の多いブロックでも 1 本の帯に見え、地色を潰さない。
+  test('アクティブなブロックの各行の左端セルに印が付く', () => {
+    const { document } = openChangeBlockJumpOn(INLINE_DIFF_DOM);
 
-    expect(document.querySelectorAll('.mmd-jump-current').length).toBe(0);
-    expect(document.querySelectorAll('.mmd-jump-target').length).toBe(0);
+    const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
+
+    // 先頭ブロックは 2 行なので 2 セル。どれも行の最初のセル。
+    expect(highlighted.length).toBe(2);
+    expect(highlighted.every((cell) => cell === cell.parentElement.firstElementChild)).toBe(true);
+    expect(highlighted.map((cell) => cell.closest('[data-diff-block]').dataset.diffBlock)).toEqual([
+      '0',
+      '0',
+    ]);
   });
 
-  // 印が無いぶん、移動先はスクロール対象で確かめる。
+  test('左右分割では左のペインに印が付く', () => {
+    const { document } = openChangeBlockJumpOn(SPLIT_DIFF_DOM);
+
+    const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
+
+    expect(highlighted.length).toBe(1);
+    expect(highlighted[0].classList.contains('diff-side-left')).toBe(true);
+  });
+
+  test('移動すると印が次のブロックへ移る', () => {
+    const { document, main } = openChangeBlockJumpOn(INLINE_DIFF_DOM);
+
+    main._mmdJumpNextIfOpen();
+
+    const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
+    expect(highlighted.length).toBe(1);
+    expect(highlighted[0].closest('[data-diff-block]').dataset.diffBlock).toBe('1');
+  });
+
+  // 印が付いていても、移動先はスクロール対象でも確かめる。
   test('移動するとブロックの先頭行までスクロールする', () => {
     const loaded = loadViewerMain({});
     loaded.document.getElementById('diagram-wrap').innerHTML = INLINE_DIFF_DOM;

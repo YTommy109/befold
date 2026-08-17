@@ -678,9 +678,24 @@ mark.mmd-find-match-current {
   border-radius: 2px;
 }
 
-/* 差分表示（変更ブロック）のジャンプには目印の CSS が要らない。列挙側が
-   highlight を空で返しており、.mmd-jump-current / .mmd-jump-target は付かない
-   （変更ブロックは .diff-add / .diff-del の地色で既に見えているため。TASK-485.3）。 */
+/* ── 差分表示での目印（変更ブロック・TASK-485.3） ──
+   アクティブなブロックは、各行の左端セルへ左辺だけのインセット影を引いて
+   1 本の縦帯に見せる。複数行のブロックでも帯が続くので「どこに居るか」が
+   ブロック単位で分かる。
+   outline ではなくインセット影にしてあるのは、border-collapse の表では
+   セルの outline が隣のセルの文字へかぶるうえ、行ごとに枠が閉じてしまい
+   ブロックが 1 つに見えないため。地色（.diff-add / .diff-del）はそのまま残す。 */
+.diff-table .mmd-jump-current {
+  box-shadow: inset 3px 0 0 var(--accent);
+  outline: none;
+}
+
+/* 候補の下線は差分表示では出さない。変更ブロックは地色で既に全部が見えており、
+   そのうえに文字幅の下線を重ねると「この文字が変わった」を指しているように読める
+   （語単位の差分は出していない）。 */
+.diff-table .mmd-jump-target {
+  text-decoration: none;
+}
 
 /* ── CSV テーブル表示 ──
    CSV 表示時は #diagram-wrap に markdown-body(github-markdown-css の土台)と

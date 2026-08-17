@@ -15793,11 +15793,22 @@
     rows.forEach(function(row) {
       var block2 = row.dataset["diffBlock"];
       if (block2 === void 0) return;
-      if (block2 === currentBlock) return;
+      var edge = leadingCell(row);
+      if (block2 === currentBlock) {
+        var previous = targets.at(-1);
+        if (previous) {
+          previous.highlight = previous.highlight.concat(edge);
+          return;
+        }
+      }
       currentBlock = block2;
-      targets.push({ anchor: row, highlight: [] });
+      targets.push({ anchor: row, highlight: edge });
     });
     return targets;
+  }
+  function leadingCell(row) {
+    var first = row.firstElementChild;
+    return first instanceof HTMLElement ? [first] : [];
   }
   var changeBlockJumpProvider = {
     id: "changeBlock",
