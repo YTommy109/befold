@@ -12,10 +12,10 @@ var BASE_SCALE = 0.75;
 // ダイアグラム個別ズームの上限。全体ズーム(ZOOM_MAX)より広く取り、細部の確認に使う。
 var DIAGRAM_ZOOM_MAX = 3.0;
 
-// CSS zoom は非標準プロパティで、型定義上は文字列しか受け取らない。実装は数値を
-// 与えると倍率として解釈するため、この経路の振る舞いを変えずに型だけ通す。
+// CSS zoom は非標準プロパティで、型定義上は文字列しか受け取らない。CSSOM は
+// 代入値を必ず文字列化するため、String() を挟んでも実行時の値は同じ。
 function setZoomStyle(el: HTMLElement, value: number): void {
-  el.style.zoom = value as unknown as string;
+  el.style.zoom = String(value);
 }
 
 function clampZoom(z: number, max?: number): number {
@@ -41,7 +41,7 @@ function parseStoredZoom(raw: string | number | null | undefined): number {
   // Number() に替えると '' が 0 になり、未保存相当の値を倍率 0 として
   // clampZoom へ渡してしまう。NaN 判定で既定値へ落とす現在の縮退を保つ。
   // oxlint-disable-next-line unicorn/prefer-number-coercion
-  var z = parseFloat(raw as string);
+  var z = parseFloat(String(raw));
   return isNaN(z) ? ZOOM_DEFAULT : z;
 }
 

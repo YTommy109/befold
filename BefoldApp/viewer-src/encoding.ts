@@ -25,7 +25,10 @@ function imageDataURI(base64: string, mimeType: string | undefined): string {
 }
 
 // base64 文字列をバイト列へ復号する(PDF の Blob 生成用)。
-function base64ToBytes(base64: string): Uint8Array {
+// 戻り値を Uint8Array<ArrayBuffer> と明示するのは、既定の Uint8Array が
+// SharedArrayBuffer 上のものも含み Blob へ直接渡せないため。ここで確保するのは
+// 常に自前の ArrayBuffer なので、実行時の値は変わらない。
+function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
   var binary = atob(base64);
   var bytes = new Uint8Array(binary.length);
   for (var i = 0; i < binary.length; i++) {

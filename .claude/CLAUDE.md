@@ -91,22 +91,32 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
   そのルールが必要になったときに「意図して外したのか、たまたま鳴って外したのか」を
   区別できなくする。設定ファイル内の既存の無効化はすべて理由つきになっている
 - **`viewer-src/` は全モジュールが TypeScript（TASK-499）。** TASK-498 で入れていた
-  暫定緩和の override は撤去済みで、`BefoldApp/.oxlintrc.json` に残るのは
+  暫定緩和の override は撤去済みで、`BefoldApp/.oxlintrc.json` に残る**緩和**は
   `no-underscore-dangle`（`_mmd` 接頭辞が Swift との契約）と
   `prefer-query-selector`（`getElementById` は意図した選択）の 2 つだけ。
-  どちらも移行と無関係な恒久的な選択で、TS 化しても消えない
+  どちらも移行と無関係な恒久的な選択で、TS 化しても消えない。
+  `viewer-src/**` にはもう 1 つ override があるが、そちらは緩和ではなく
+  **type-aware ルールの再有効化**（TASK-508。下の `no-unsafe-*` の項を参照）
 - **`site/` と `BefoldApp/` の両方で型情報を使う lint（`oxlint --type-aware`）を回している。**
   目的はどちらも `no-floating-promises` / `no-misused-promises` / `await-thenable` の
   3 つ。site/ は await し忘れた D1 書き込みがリクエスト終了で黙って消えるため（TASK-505）、
   BefoldApp/ は描画の完了を待たない Promise が「たまに古い内容が残る」形で出るため
   （TASK-499）。導入時の実測で viewer-src の 2 箇所が引っかかり、どちらも意図した
   fire-and-forget だったので `void` を置いて明示した
-- **`no-unsafe-*` は両面とも off。** BefoldApp では既定の type-aware ルールセットが
-  4,749 件出るが、うち 4,423 件が `no-unsafe-*` で**すべて
-  `BefoldKit/Resources/__tests__` の .js 由来**（viewer-src は .ts なので 0 件）。
-  テストの TS 化は別の判断なので、それまで off にする。off の一覧は
-  `site/.oxlintrc.json` と `BefoldApp/.oxlintrc.json` で揃えること
-  （片方だけ緩めると、どちらの面が厳しいのか分からなくなる）
+- **`no-unsafe-*` はプロジェクトレベルでは両面とも off。** BefoldApp では既定の
+  type-aware ルールセットが 4,749 件出るが、うち 4,423 件が `no-unsafe-*` で
+  **すべて型情報の無い .js / .mjs 由来**（`BefoldKit/Resources/__tests__` の 9 本と
+  `scripts/*.mjs` の実測 94 件。viewer-src は全モジュール .ts なので 0 件）。
+  テストとビルドスクリプトの TS 化は別の判断なので、それまで off にする
+- **プロジェクトレベルの off の一覧は `site/.oxlintrc.json` と
+  `BefoldApp/.oxlintrc.json` で揃える**（片方だけ緩めると、どちらの面が厳しいのか
+  分からなくなる）。一方で、**型情報が揃っているディレクトリでの再有効化は
+  override 側で行い、両面で揃えない**。実際 `BefoldApp/viewer-src/**` では
+  `no-unsafe-*` ほか 12 ルールを error に戻してあるが（TASK-508）、site/ は外部
+  JSON（GitHub API・Access の JWKS）を any から絞る箇所で `no-unsafe-*` が
+  100 件超残るため同じことができない。**override へルールを足すときは、その
+  ディレクトリでの実測件数を必ずコメントに書く**。件数のあるルールを持ち込むと、
+  override が「直すべき指摘の置き場」に変わってしまう
 - 整形のセミコロンは面ごとに違う（`site/` は無し、`BefoldApp/` は有り）。
   どちらも既存の慣習をそのまま固定したもので、揃えようとしない
 - oxfmt の対象は **JS/TS だけ**。Markdown は markdownlint-cli2 が持っている

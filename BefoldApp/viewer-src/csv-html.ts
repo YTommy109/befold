@@ -104,7 +104,7 @@ function tokenizeCsvRows(content: string, delimiter: string): CsvCell[][] {
 var CSV_ESCAPES: Record<string, string> = { n: '\n', t: '\t', r: '\r', '\\': '\\' };
 
 function unescapeCellValue(value: string): string {
-  if (value.indexOf('\\') === -1) {
+  if (!value.includes('\\')) {
     return value;
   }
   var out = '';

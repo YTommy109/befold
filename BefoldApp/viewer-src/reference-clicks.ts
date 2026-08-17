@@ -11,9 +11,12 @@ import {
 // 解決待ち(pending)・解決失敗(dead)のパス参照は操作不可(通常テキスト扱い)として
 // 除外する。対象外・href 無しなら null を返す。
 function _mmdReferenceTargetHref(e: MouseEvent): string | null | undefined {
-  // e.target は EventTarget 型だが、この 2 つのリスナは要素の上でしか発火しない。
-  var anchor = (e.target as Element).closest('a');
-  var pathRef = (e.target as Element).closest<HTMLElement>('.befold-path-ref');
+  // この 2 つのリスナは要素の上でしか発火しないが、EventTarget からは絞り込め
+  // ないため instanceof で確かめる。要素でなければ対象外と同じ null を返す。
+  var origin = e.target;
+  if (!(origin instanceof Element)) return null;
+  var anchor = origin.closest('a');
+  var pathRef = origin.closest<HTMLElement>('.befold-path-ref');
   var target = anchor || pathRef;
   if (!target) return null;
 

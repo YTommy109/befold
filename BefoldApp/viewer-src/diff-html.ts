@@ -50,13 +50,13 @@ var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u;
 // 行の種別は 'context' / 'add' / 'del' の 3 つで、旧側・新側の行番号を各行に付ける
 // (描画側で 2 本のガターに出すため。片側にしか無い行はもう一方が null)。
 // `\ No newline at end of file` は直前の行に対する注記であり、行としては数えない。
-function parseUnifiedDiff(text: unknown): DiffFile[] {
+function parseUnifiedDiff(text: string | null | undefined): DiffFile[] {
   var files: DiffFile[] = [];
   var file: DiffFile | null = null;
   var hunk: DiffHunk | null = null;
   var oldNumber = 0;
   var newNumber = 0;
-  var lines = String(text ?? '').split('\n');
+  var lines = (text ?? '').split('\n');
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i]!;
     if (line.indexOf('diff --git ') === 0) {
@@ -255,7 +255,7 @@ function diffHunkSeparatorRow(colspan: number): string {
 // 差分が 1 つも無ければ空文字列を返し、呼び出し側は通常のソース表示へ戻す。
 function renderInlineDiffHtml(
   hljs: CodeHighlighter,
-  diffText: unknown,
+  diffText: string | null | undefined,
   lang: string | undefined,
   showLineNumbers: boolean | undefined,
 ): string {
@@ -356,7 +356,7 @@ function diffSideCells(
 // 同じハイライト結果を使い、行の並べ方だけが違う。
 function renderSideBySideDiffHtml(
   hljs: CodeHighlighter,
-  diffText: unknown,
+  diffText: string | null | undefined,
   lang: string | undefined,
   showLineNumbers: boolean | undefined,
 ): string {
@@ -419,7 +419,7 @@ function renderSideBySideDiffHtml(
 // レイアウトごとに分岐を持たないよう、選択をここへ閉じる。
 function renderDiffHtml(
   hljs: CodeHighlighter,
-  diffText: unknown,
+  diffText: string | null | undefined,
   lang: string | undefined,
   showLineNumbers: boolean | undefined,
   layout: string | undefined,

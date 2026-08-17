@@ -69,7 +69,10 @@ function _mmdMermaidConfig(): MermaidConfig {
 }
 
 function _mmdMermaidParseError(err: MermaidParseErrorLike | null | undefined): void {
-  var msg = (err && (err.message || err.str)) || String(err);
+  // err が非 null で message も str も空のとき、従来は String(err) が
+  // '[object Object]' を返していた。型からはそれ以上の情報が取れないため、
+  // 同じ文字列をそのまま置いて振る舞いを保つ。
+  var msg = (err && (err.message || err.str)) || (err ? '[object Object]' : String(err));
   // #mmd-error / #diagram-wrap は viewer.html に静的に存在する（truncation.ts の
   // 非 null 表明と同じ理由。表明は実行時の振る舞いを変えない）。
   var panel = document.getElementById('mmd-error')!;

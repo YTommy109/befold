@@ -100,11 +100,12 @@ function _mmdInitKeyboard(): void {
     }
     // 検索入力欄など編集可能要素にフォーカスがある間は、Space/矢印/vim jk を
     // 文字入力・カーソル移動としてそのまま素通りさせる(ビューアのスクロールに奪わない)。
-    // isContentEditable は HTMLElement にしかないため、判定のために絞り込む。
-    // 実行時は元どおり null チェック → tagName/isContentEditable の順で見る。
-    var active = document.activeElement as HTMLElement | null;
+    // isContentEditable は HTMLElement にしかないため、instanceof で絞り込む。
+    // activeElement が null／HTMLElement 以外のときに素通りする点は元と同じ
+    // （SVG 要素などは tagName も isContentEditable も一致しなかった）。
+    var active = document.activeElement;
     if (
-      active &&
+      active instanceof HTMLElement &&
       (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)
     ) {
       return;

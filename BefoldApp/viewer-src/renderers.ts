@@ -52,7 +52,7 @@ var BODY_CLASSES: ViewerBodyClass[] = [
 // 表示種別クラスを一括で付け替える。keep に挙げたものだけが残る。
 function _mmdSetBodyClasses(el: HTMLElement, ...keep: ViewerBodyClass[]): void {
   BODY_CLASSES.forEach(function (name) {
-    el.classList.toggle(name, keep.indexOf(name) >= 0);
+    el.classList.toggle(name, keep.includes(name));
   });
 }
 
@@ -61,12 +61,8 @@ function _mmdSetBodyClasses(el: HTMLElement, ...keep: ViewerBodyClass[]): void {
 function _createPdfBlobHolder() {
   var url: string | null = null;
   return {
-    issue: function (bytes: Uint8Array): string {
-      // base64ToBytes() は常に自前で確保した ArrayBuffer 上の Uint8Array を返すが、
-      // 戻り値の型 Uint8Array(= ArrayBufferLike)は SharedArrayBuffer 上のものも
-      // 含むため BlobPart に直接は代入できない。実行時に SharedArrayBuffer が
-      // 渡ることはないので BlobPart として扱う。
-      url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/pdf' }));
+    issue: function (bytes: Uint8Array<ArrayBuffer>): string {
+      url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
       return url;
     },
     release: function (): void {

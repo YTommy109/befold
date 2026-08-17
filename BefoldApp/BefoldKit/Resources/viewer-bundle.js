@@ -14490,7 +14490,7 @@
   var MACOS_DEFAULT_BODY = 13;
   var WEB_BASELINE = 16;
   function markdownFontSize(raw) {
-    var s = parseFloat(raw);
+    var s = parseFloat(String(raw));
     if (isNaN(s) || s <= 0) {
       return WEB_BASELINE;
     }
@@ -14674,7 +14674,7 @@
     var hunk = null;
     var oldNumber = 0;
     var newNumber = 0;
-    var lines = String(text3 ?? "").split("\n");
+    var lines = (text3 ?? "").split("\n");
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
       if (line.indexOf("diff --git ") === 0) {
@@ -14972,7 +14972,7 @@
   }
   var CSV_ESCAPES = { n: "\n", t: "	", r: "\r", "\\": "\\" };
   function unescapeCellValue(value) {
-    if (value.indexOf("\\") === -1) {
+    if (!value.includes("\\")) {
       return value;
     }
     var out = "";
@@ -15073,7 +15073,7 @@
   var BASE_SCALE = 0.75;
   var DIAGRAM_ZOOM_MAX = 3;
   function setZoomStyle(el, value) {
-    el.style.zoom = value;
+    el.style.zoom = String(value);
   }
   function clampZoom(z, max) {
     if (max === void 0) {
@@ -15091,7 +15091,7 @@
     return Math.round(zoom * 100) + "%";
   }
   function parseStoredZoom(raw) {
-    var z = parseFloat(raw);
+    var z = parseFloat(String(raw));
     return isNaN(z) ? ZOOM_DEFAULT : z;
   }
   function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZoom) {
@@ -15393,7 +15393,11 @@
 
   // viewer-src/find.ts
   function findInputElement() {
-    return document.getElementById("mmd-find-input");
+    var el = document.getElementById("mmd-find-input");
+    if (!(el instanceof HTMLInputElement)) {
+      throw new TypeError("#mmd-find-input is missing");
+    }
+    return el;
   }
   function buildFindRegExp(query2, options) {
     if (!query2) {
@@ -15457,7 +15461,7 @@
     return { node: textNodes[last], localOffset: textNodes[last].length };
   }
   function pruneEmptyAncestors(node, root) {
-    while (node && node !== root && node.nodeType === 1 && node.textContent === "") {
+    while (node && node !== root && node instanceof Element && node.textContent === "") {
       var parent = node.parentNode;
       if (!parent) break;
       node.remove();
@@ -15497,7 +15501,7 @@
       "LABEL"
     ];
     function isBridgeable(node) {
-      return node.nodeType === 1 && bridgeTags.indexOf(node.tagName.toUpperCase()) !== -1;
+      return node instanceof Element && bridgeTags.includes(node.tagName.toUpperCase());
     }
     function collectScopes(root) {
       var scopes = [];
@@ -15512,9 +15516,9 @@
         var children = node.childNodes;
         for (var i = 0; i < children.length; i++) {
           var child = children[i];
-          if (child.nodeType === 3) {
+          if (child instanceof Text) {
             current.push(child);
-          } else if (child.nodeType === 1 && skipTags.indexOf(child.tagName.toUpperCase()) === -1) {
+          } else if (child instanceof Element && !skipTags.includes(child.tagName.toUpperCase())) {
             if (isBridgeable(child)) {
               recurse(child);
             } else {
@@ -15821,7 +15825,7 @@
         return;
       }
       var active = document.activeElement;
-      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
+      if (active instanceof HTMLElement && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
         return;
       }
       var scrollEl = _mmdScrollTarget();
@@ -15856,7 +15860,7 @@
       return false;
     }
     var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/u);
-    if (m && m[1].indexOf(".") === -1) {
+    if (m && !m[1].includes(".")) {
       return false;
     }
     return true;
@@ -15874,13 +15878,13 @@
     return tag === "a" || tag === "svg" || el.classList.contains("mermaid") || el.classList.contains("befold-path-ref");
   }
   function _walkTextNodes(node, allowed) {
-    if (node.nodeType === 3) {
+    if (node instanceof Text) {
       if (allowed) {
         _annotateTextNodes([node]);
       }
       return;
     }
-    if (node.nodeType !== 1) {
+    if (!(node instanceof Element)) {
       return;
     }
     var el = node;
@@ -15892,14 +15896,14 @@
       _walkChildren(el, false);
       return;
     }
-    if (allowed || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1) {
+    if (allowed || _PATH_ANNOTATE_TAGS.includes(tag)) {
       _annotateUnit(el);
       return;
     }
     _walkChildren(el, allowed);
   }
   function _walkChildren(node, allowed) {
-    var children = Array.prototype.slice.call(node.childNodes);
+    var children = Array.from(node.childNodes);
     for (var i = 0; i < children.length; i++) {
       _walkTextNodes(children[i], allowed);
     }
@@ -15910,14 +15914,14 @@
     _annotateTextNodes(nodes);
   }
   function _collectUnitTextNodes(node, out) {
-    var children = Array.prototype.slice.call(node.childNodes);
+    var children = Array.from(node.childNodes);
     for (var i = 0; i < children.length; i++) {
       var child = children[i];
-      if (child.nodeType === 3) {
+      if (child instanceof Text) {
         out.push(child);
         continue;
       }
-      if (child.nodeType !== 1) {
+      if (!(child instanceof Element)) {
         continue;
       }
       var el = child;
@@ -15925,7 +15929,7 @@
         continue;
       }
       var tag = el.tagName.toLowerCase();
-      if (tag === "pre" || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1) {
+      if (tag === "pre" || _PATH_ANNOTATE_TAGS.includes(tag)) {
         _walkTextNodes(el, false);
         continue;
       }
@@ -16026,11 +16030,11 @@
     if (targets.length === 0) {
       return;
     }
-    var uniq = /* @__PURE__ */ Object.create(null);
+    var uniq = /* @__PURE__ */ new Map();
     targets.forEach(function(t) {
-      uniq[t.raw] = true;
+      uniq.set(t.raw, true);
     });
-    if (!_mmdPostMessage(_MSG_RESOLVE_REFERENCES, { paths: Object.keys(uniq) })) {
+    if (!_mmdPostMessage(_MSG_RESOLVE_REFERENCES, { paths: Array.from(uniq.keys()) })) {
       return;
     }
     targets.forEach(function(t) {
@@ -16064,8 +16068,10 @@
 
   // viewer-src/reference-clicks.ts
   function _mmdReferenceTargetHref(e) {
-    var anchor = e.target.closest("a");
-    var pathRef = e.target.closest(".befold-path-ref");
+    var origin = e.target;
+    if (!(origin instanceof Element)) return null;
+    var anchor = origin.closest("a");
+    var pathRef = origin.closest(".befold-path-ref");
     var target = anchor || pathRef;
     if (!target) return null;
     if (target.classList.contains("befold-link-pending") || target.classList.contains("befold-link-dead")) {
@@ -23244,7 +23250,7 @@
     };
   }
   function _mmdMermaidParseError(err) {
-    var msg = err && (err.message || err.str) || String(err);
+    var msg = err && (err.message || err.str) || (err ? "[object Object]" : String(err));
     var panel = document.getElementById("mmd-error");
     panel.textContent = msg;
     panel.style.display = "block";
@@ -23305,7 +23311,7 @@
   ];
   function _mmdSetBodyClasses(el, ...keep) {
     BODY_CLASSES.forEach(function(name) {
-      el.classList.toggle(name, keep.indexOf(name) >= 0);
+      el.classList.toggle(name, keep.includes(name));
     });
   }
   function _createPdfBlobHolder() {
@@ -23529,6 +23535,9 @@
         return;
       }
       var table2 = tbody.parentElement;
+      if (!(table2 instanceof HTMLTableElement)) {
+        return;
+      }
       var headRow = table2.tHead && table2.tHead.rows[0];
       var minCols = headRow ? headRow.cells.length : 0;
       var maxNewCols = 0;

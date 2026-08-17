@@ -42,10 +42,15 @@ interface TextLocation {
 }
 
 // viewer.html に静的に置かれている <input>。getElementById は HTMLElement までしか
-// 返さないため value / placeholder を触るにはキャストが要る。要素が消えた場合は
-// キャストの有無にかかわらず同じ行で TypeError になる（検知は緩んでいない）。
+// 返さないため、instanceof で <input> であることを確かめてから返す。要素が消えた
+// 場合は呼び出し側が value を触った時点ではなくここで TypeError になる（どちらも
+// 復帰できない構成の壊れで、握り潰さない点は変えていない）。
 function findInputElement(): HTMLInputElement {
-  return document.getElementById('mmd-find-input') as HTMLInputElement;
+  var el = document.getElementById('mmd-find-input');
+  if (!(el instanceof HTMLInputElement)) {
+    throw new TypeError('#mmd-find-input is missing');
+  }
+  return el;
 }
 
 // クエリと3トグル(caseSensitive / wholeWord / useRegex)から RegExp を組み立てる。
@@ -147,11 +152,10 @@ function locate(
 // extractContents() は境界の Text ノードを削除せず長さ0のまま残すため、
 // hasChildNodes() ではなく textContent で空判定する。
 function pruneEmptyAncestors(node: Node | null, root: Node): void {
-  while (node && node !== root && node.nodeType === 1 && node.textContent === '') {
+  while (node && node !== root && node instanceof Element && node.textContent === '') {
     var parent: Node | null = node.parentNode;
     if (!parent) break;
-    // nodeType === 1 を確認済みなので Element として remove() できる。
-    (node as Element).remove();
+    node.remove();
     node = parent;
   }
 }
@@ -207,9 +211,7 @@ function _createFindController(): FindController {
   ];
 
   function isBridgeable(node: Node): boolean {
-    return (
-      node.nodeType === 1 && bridgeTags.indexOf((node as Element).tagName.toUpperCase()) !== -1
-    );
+    return node instanceof Element && bridgeTags.includes(node.tagName.toUpperCase());
   }
 
   // #diagram-wrap 配下(skipTags 除く)を再帰し、bridgeTags で連結できる範囲だけを
@@ -232,12 +234,9 @@ function _createFindController(): FindController {
       var children = node.childNodes;
       for (var i = 0; i < children.length; i++) {
         var child = children[i]!;
-        if (child.nodeType === 3) {
-          current.push(child as Text);
-        } else if (
-          child.nodeType === 1 &&
-          skipTags.indexOf((child as Element).tagName.toUpperCase()) === -1
-        ) {
+        if (child instanceof Text) {
+          current.push(child);
+        } else if (child instanceof Element && !skipTags.includes(child.tagName.toUpperCase())) {
           if (isBridgeable(child)) {
             recurse(child);
           } else {

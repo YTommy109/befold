@@ -17,10 +17,15 @@
   // `void` を置いて明示した。意図が読めない await 漏れとの区別が付くようになる。
   //
   // 既定の type-aware ルールセットは BefoldApp に 4,749 件出る。うち 4,423 件は
-  // `no-unsafe-*` で、**すべて BefoldKit/Resources/__tests__ の .js 由来**
-  // （viewer-src はすべて .ts になったので 0 件）。テストの TS 化は別の判断なので、
-  // ここでは site/ と同じ理由で off にしてある。off の一覧は site/.oxlintrc.json と
-  // 揃えること（片方だけ緩めると、どちらの面が厳しいのか分からなくなる）。
+  // `no-unsafe-*` で、**すべて型情報の無い .js / .mjs 由来**
+  // （BefoldKit/Resources/__tests__ の 9 本と scripts/*.mjs の実測 94 件。
+  // viewer-src はすべて .ts なので 0 件）。テストとビルドスクリプトの TS 化は
+  // 別の判断なので、ここでは site/ と同じ理由で off にしてある。
+  //
+  // **プロジェクトレベルの off の一覧は site/.oxlintrc.json と揃えること**
+  // （片方だけ緩めると、どちらの面が厳しいのか分からなくなる）。型情報が
+  // 揃っているディレクトリでの再有効化は override 側で行い、そこには
+  // 「実測何件だったか」を必ず書く（下の viewer-src/** がその形）。
   "rules": {
     // Worker と違いこちらは WKWebView 上の描画コードだが、await し忘れた
     // Promise が黙って捨てられる点は同じ。描画の完了前に次の DOM 操作が
@@ -38,8 +43,9 @@
     // DOM 要素・トークン配列を受け取る関数ばかりで、readonly 化しても
     // 守られる不変条件が無い。
     "typescript/prefer-readonly-parameter-types": "off",
-    // 型情報の無い .js（__tests__ 配下）を触った瞬間に鳴る。テストの TS 化は
-    // 別タスクの判断なので、それまでは off にする。実測 4,423 件。
+    // 型情報の無い .js / .mjs（__tests__ と scripts 配下）を触った瞬間に鳴る。
+    // それらの TS 化は別タスクの判断なので、それまでは off にする。実測 4,423 件。
+    // viewer-src では下の override で error に戻している。
     "typescript/no-unsafe-call": "off",
     "typescript/no-unsafe-member-access": "off",
     "typescript/no-unsafe-assignment": "off",
@@ -110,6 +116,39 @@
         // getElementById は id 参照であることが読んで分かり、querySelector より速い。
         // 意図した選択なので置き換えない。実測 115 件。
         "unicorn/prefer-query-selector": "off"
+      }
+    },
+    {
+      // viewer-src は全モジュールが .ts で tsconfig.json の型検査を受けている
+      // （TASK-499）。プロジェクトレベルで off にしている type-aware ルールのうち、
+      // 「型情報の無い .js があるから」を理由にしていたものは、この配下では
+      // 前提が成立しない。実測（TASK-508、oxlint 1.78.0、
+      // `npx oxlint --type-aware -D typescript/<rule> viewer-src`）で下記は
+      // すべて 0 件だったので、いま守れている状態を回帰ゲートとして固定する。
+      //
+      // ここに追加するときは **viewer-src で 0 件であることを実測してから**。
+      // 件数のあるルールを持ち込むと、この override が「直すべき指摘の置き場」に
+      // 変わってしまう。
+      "files": ["viewer-src/**"],
+      "rules": {
+        "typescript/no-unsafe-call": "error",
+        "typescript/no-unsafe-member-access": "error",
+        "typescript/no-unsafe-assignment": "error",
+        "typescript/no-unsafe-argument": "error",
+        "typescript/no-unsafe-return": "error",
+        "typescript/no-misused-spread": "error",
+        "typescript/no-confusing-void-expression": "error",
+        "typescript/return-await": "error",
+        "typescript/require-array-sort-compare": "error",
+
+        // 以下は TASK-508 で指摘を解消したうえで有効化した（解消前の実測は
+        // prefer-includes 7 / no-base-to-string 2 / no-unsafe-type-assertion 20）。
+        // no-unsafe-type-assertion は DOM の取得結果を `as HTMLFooElement` で
+        // 絞る書き方を止めるもので、要素が想定と違ったときに実行時まで
+        // 分からない箇所を潰す効果がある。
+        "typescript/prefer-includes": "error",
+        "typescript/no-base-to-string": "error",
+        "typescript/no-unsafe-type-assertion": "error"
       }
     },
     {

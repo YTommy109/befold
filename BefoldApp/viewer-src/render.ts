@@ -217,7 +217,11 @@ function appendChunk(text: string, type: string, lang: string | undefined): void
       return;
     }
     // tbody は直前の querySelector で得たものなので、親は必ずその <table>。
-    var table = tbody.parentElement as HTMLTableElement;
+    // instanceof で確かめるのは型を絞るためで、成立しない構成は起きない。
+    var table = tbody.parentElement;
+    if (!(table instanceof HTMLTableElement)) {
+      return;
+    }
     var headRow = table.tHead && table.tHead.rows[0];
     var minCols = headRow ? headRow.cells.length : 0;
     // 後続チャンクに幅広行があればヘッダを拡張する。

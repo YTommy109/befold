@@ -26,7 +26,7 @@ function isLocalPathHref(href: string | null | undefined): boolean {
   }
   var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/u);
   // http:, mailto:, tel: 等のスキーム付き URL はローカルパスではない。
-  if (m && m[1]!.indexOf('.') === -1) {
+  if (m && !m[1]!.includes('.')) {
     return false;
   }
   return true;
@@ -69,18 +69,16 @@ function _isSkippedElement(el: Element): boolean {
 // <td class="line-content"> なので、単位は 1 行になる。<code> 全体を 1 単位に
 // すると行の境界に区切り文字が無く、前行末と次行頭がつながって誤検出になる。
 function _walkTextNodes(node: Node, allowed: boolean): void {
-  if (node.nodeType === 3) {
-    // TEXT_NODE
+  if (node instanceof Text) {
     if (allowed) {
-      _annotateTextNodes([node as Text]);
+      _annotateTextNodes([node]);
     }
     return;
   }
-  if (node.nodeType !== 1) {
+  if (!(node instanceof Element)) {
     return;
   }
-  // nodeType === 1 は要素だが、Node 型からは絞り込めないためここで表明する。
-  var el = node as Element;
+  var el = node;
   if (_isSkippedElement(el)) {
     return;
   }
@@ -93,7 +91,7 @@ function _walkTextNodes(node: Node, allowed: boolean): void {
     _walkChildren(el, false);
     return;
   }
-  if (allowed || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1) {
+  if (allowed || _PATH_ANNOTATE_TAGS.includes(tag)) {
     _annotateUnit(el);
     return;
   }
@@ -102,7 +100,7 @@ function _walkTextNodes(node: Node, allowed: boolean): void {
 
 // スナップショットを取り順方向に走査(replaceChild で兄弟が変わるため)。
 function _walkChildren(node: Node, allowed: boolean): void {
-  var children = Array.prototype.slice.call(node.childNodes) as Node[];
+  var children: Node[] = Array.from(node.childNodes);
   for (var i = 0; i < children.length; i++) {
     _walkTextNodes(children[i]!, allowed);
   }
@@ -119,22 +117,22 @@ function _annotateUnit(el: Element): void {
 // 単位に属するテキストノードを集める。入れ子の対象タグ(表の <td>、段落内の
 // インライン <code> 等)と <pre> はそれぞれ別の単位として扱い、ここでは集めない。
 function _collectUnitTextNodes(node: Node, out: Text[]): void {
-  var children = Array.prototype.slice.call(node.childNodes) as Node[];
+  var children: Node[] = Array.from(node.childNodes);
   for (var i = 0; i < children.length; i++) {
     var child = children[i]!;
-    if (child.nodeType === 3) {
-      out.push(child as Text);
+    if (child instanceof Text) {
+      out.push(child);
       continue;
     }
-    if (child.nodeType !== 1) {
+    if (!(child instanceof Element)) {
       continue;
     }
-    var el = child as Element;
+    var el = child;
     if (_isSkippedElement(el)) {
       continue;
     }
     var tag = el.tagName.toLowerCase();
-    if (tag === 'pre' || _PATH_ANNOTATE_TAGS.indexOf(tag) !== -1) {
+    if (tag === 'pre' || _PATH_ANNOTATE_TAGS.includes(tag)) {
       _walkTextNodes(el, false);
       continue;
     }
@@ -259,15 +257,15 @@ function _mmdResolveReferences(): void {
   if (targets.length === 0) {
     return;
   }
-  // プロトタイプを持たない辞書にする。素の {} だと __proto__ への代入が
-  // プロトタイプ変更として吸われ、そのパスが解決要求から静かに落ちる。
-  var uniq = Object.create(null) as Record<string, true>;
+  // Map で重複を潰す。素の {} だと __proto__ への代入がプロトタイプ変更として
+  // 吸われ、そのパスが解決要求から静かに落ちる(Map はキーをそのまま保持する)。
+  var uniq = new Map<string, true>();
   targets.forEach(function (t) {
-    uniq[t.raw] = true;
+    uniq.set(t.raw, true);
   });
   // 送れなかった(ハンドラ未登録の)場合は応答が来ないため、中立化もキュー登録も
   // 行わない。中立化したまま応答待ちで固まるのを防ぐ。
-  if (!_mmdPostMessage(_MSG_RESOLVE_REFERENCES, { paths: Object.keys(uniq) })) {
+  if (!_mmdPostMessage(_MSG_RESOLVE_REFERENCES, { paths: Array.from(uniq.keys()) })) {
     return;
   }
   targets.forEach(function (t) {
