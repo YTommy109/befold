@@ -2380,6 +2380,40 @@
         }
       }
     },
+    "sidebar.context.copyForgeLink": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy %@ Link"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ リンクをコピーする"
+          }
+        }
+      }
+    },
+    "sidebar.context.copyRemoteLink": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Remote Link"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リモートのリンクをコピーする"
+          }
+        }
+      }
+    },
     "sidebar.context.open": {
       "extractionState": "manual",
       "localizations": {
