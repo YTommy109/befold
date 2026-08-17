@@ -15793,25 +15793,22 @@
     rows.forEach(function(row) {
       var block2 = row.dataset["diffBlock"];
       if (block2 === void 0) return;
-      var cells = [];
-      var children = row.children;
-      for (var i = 0; i < children.length; i++) {
-        var cell = children[i];
-        if (cell instanceof HTMLElement) {
-          cells.push(cell);
-        }
-      }
-      if (block2 === currentBlock) {
-        var previous = targets.at(-1);
-        if (previous) {
-          previous.highlight = previous.highlight.concat(cells);
-          return;
-        }
-      }
+      if (block2 === currentBlock) return;
       currentBlock = block2;
-      targets.push({ anchor: row, highlight: cells });
+      targets.push({ anchor: row, highlight: blockMarkerCells(row) });
     });
     return targets;
+  }
+  function blockMarkerCells(row) {
+    var numbers = collectElements(row, "td.line-number");
+    return numbers.length > 0 ? numbers : collectElements(row, "td.diff-marker");
+  }
+  function collectElements(root, selector) {
+    var found = [];
+    root.querySelectorAll(selector).forEach(function(element) {
+      found.push(element);
+    });
+    return found;
   }
   var changeBlockJumpProvider = {
     id: "changeBlock",

@@ -81,29 +81,35 @@ function collectChangeBlocks(root: HTMLElement): JumpTarget[] {
   rows.forEach(function (row) {
     var block = row.dataset['diffBlock'];
     if (block === undefined) return;
-    // ハイライトは行（tr）ではなく直下のセルへ当てる。border-collapse の表では
-    // tr への outline が上下辺しか描かれないため（TASK-485.1 の実測）。
-    // 分割表示では直下のセルが左右の td.diff-side なので、変更が無い側にも
-    // 枠が付くが、これは「この対が 1 つの目印」であることを示す。
-    var cells: HTMLElement[] = [];
-    var children = row.children;
-    for (var i = 0; i < children.length; i++) {
-      var cell = children[i];
-      if (cell instanceof HTMLElement) {
-        cells.push(cell);
-      }
-    }
-    if (block === currentBlock) {
-      var previous = targets.at(-1);
-      if (previous) {
-        previous.highlight = previous.highlight.concat(cells);
-        return;
-      }
-    }
+    // 同じブロックの 2 行目以降は目印を増やさない。印はブロックの先頭行だけに付ける
+    // （変更行の全セルを囲むと、行数の多いブロックで画面が枠だらけになる）。
+    if (block === currentBlock) return;
     currentBlock = block;
-    targets.push({ anchor: row, highlight: cells });
+    targets.push({ anchor: row, highlight: blockMarkerCells(row) });
   });
   return targets;
+}
+
+// ブロックの先頭行のうち、印を付けるセル。行（tr）ではなくセルに当てるのは、
+// border-collapse の表では tr への outline が上下辺しか描かれないため
+// （TASK-485.1 の実測）。
+//
+// 選ぶのはガター（行番号）のセル。本文セルまで囲むと行の幅いっぱいの枠になり、
+// 差分の地色と競合して読みにくい。行番号を出していない表ではガターが記号セル
+// （+/-）だけになるので、そちらへ落とす。分割表示では左右それぞれのガターが
+// 対象になる（対で 1 つの目印であることが両側に出る）。
+function blockMarkerCells(row: HTMLElement): HTMLElement[] {
+  var numbers = collectElements(row, 'td.line-number');
+  return numbers.length > 0 ? numbers : collectElements(row, 'td.diff-marker');
+}
+
+// セレクタに一致する子孫を配列で返す（NodeList のままだと concat / slice が使えない）。
+function collectElements(root: HTMLElement, selector: string): HTMLElement[] {
+  var found: HTMLElement[] = [];
+  root.querySelectorAll<HTMLElement>(selector).forEach(function (element) {
+    found.push(element);
+  });
+  return found;
 }
 
 var changeBlockJumpProvider: JumpProvider = {

@@ -36,6 +36,14 @@ function pressEnter(loaded, shiftKey) {
   );
 }
 
+// 差分表示の行番号ガター（旧側・新側）のセル。変更ブロックの目印はここへ付く。
+const numberCells = (oldNumber, newNumber) =>
+  '<td class="line-number diff-old">' +
+  oldNumber +
+  '</td><td class="line-number diff-new">' +
+  newNumber +
+  '</td>';
+
 const count = (document) => document.getElementById('mmd-jump-count').textContent;
 const current = (document) => document.querySelector('.mmd-jump-current');
 
@@ -414,11 +422,30 @@ describe('変更ブロックのジャンプ', () => {
   // 実描画で担保しているので、ここは列挙・ハイライト・件数だけを見る。
   const INLINE_DIFF_DOM = [
     '<table class="code-table diff-table">',
-    '<tr class="diff-line diff-context"><td class="diff-marker"> </td><td>a</td></tr>',
-    '<tr class="diff-line diff-del" data-diff-block="0"><td class="diff-marker">-</td><td>b</td></tr>',
-    '<tr class="diff-line diff-add" data-diff-block="0"><td class="diff-marker">+</td><td>B</td></tr>',
-    '<tr class="diff-line diff-context"><td class="diff-marker"> </td><td>c</td></tr>',
-    '<tr class="diff-line diff-add" data-diff-block="1"><td class="diff-marker">+</td><td>d</td></tr>',
+    '<tr class="diff-line diff-context">' +
+      numberCells(1, 1) +
+      '<td class="diff-marker"> </td><td class="line-content">a</td></tr>',
+    '<tr class="diff-line diff-del" data-diff-block="0">' +
+      numberCells(2, '') +
+      '<td class="diff-marker">-</td><td class="line-content">b</td></tr>',
+    '<tr class="diff-line diff-add" data-diff-block="0">' +
+      numberCells('', 2) +
+      '<td class="diff-marker">+</td><td class="line-content">B</td></tr>',
+    '<tr class="diff-line diff-context">' +
+      numberCells(3, 3) +
+      '<td class="diff-marker"> </td><td class="line-content">c</td></tr>',
+    '<tr class="diff-line diff-add" data-diff-block="1">' +
+      numberCells('', 4) +
+      '<td class="diff-marker">+</td><td class="line-content">d</td></tr>',
+    '</table>',
+  ].join('');
+
+  // 行番号を出していない差分表示。ガターが記号セルだけになる。
+  const INLINE_DIFF_DOM_WITHOUT_NUMBERS = [
+    '<table class="code-table diff-table">',
+    '<tr class="diff-line diff-context"><td class="diff-marker"> </td><td class="line-content">a</td></tr>',
+    '<tr class="diff-line diff-del" data-diff-block="0"><td class="diff-marker">-</td><td class="line-content">b</td></tr>',
+    '<tr class="diff-line diff-add" data-diff-block="0"><td class="diff-marker">+</td><td class="line-content">B</td></tr>',
     '</table>',
   ].join('');
 
@@ -427,13 +454,21 @@ describe('変更ブロックのジャンプ', () => {
     '<tr class="diff-line"><td class="diff-side diff-side-left diff-context">a</td>' +
       '<td class="diff-side diff-side-right diff-context">a</td></tr>',
     '<tr class="diff-line" data-diff-block="0">' +
-      '<td class="diff-side diff-side-left diff-del">b</td>' +
-      '<td class="diff-side diff-side-right diff-add">B</td></tr>',
+      '<td class="diff-side diff-side-left diff-del"><table class="diff-side-table"><tr>' +
+      '<td class="line-number diff-old">2</td><td class="diff-marker">-</td>' +
+      '<td class="line-content">b</td></tr></table></td>' +
+      '<td class="diff-side diff-side-right diff-add"><table class="diff-side-table"><tr>' +
+      '<td class="line-number diff-new">2</td><td class="diff-marker">+</td>' +
+      '<td class="line-content">B</td></tr></table></td></tr>',
     '<tr class="diff-line"><td class="diff-side diff-side-left diff-context">c</td>' +
       '<td class="diff-side diff-side-right diff-context">c</td></tr>',
     '<tr class="diff-line" data-diff-block="1">' +
-      '<td class="diff-side diff-side-left diff-empty"></td>' +
-      '<td class="diff-side diff-side-right diff-add">d</td></tr>',
+      '<td class="diff-side diff-side-left diff-empty"><table class="diff-side-table"><tr>' +
+      '<td class="line-number diff-old"></td><td class="diff-marker diff-empty"></td>' +
+      '<td class="line-content diff-empty"></td></tr></table></td>' +
+      '<td class="diff-side diff-side-right diff-add"><table class="diff-side-table"><tr>' +
+      '<td class="line-number diff-new">4</td><td class="diff-marker">+</td>' +
+      '<td class="line-content">d</td></tr></table></td></tr>',
     '</table>',
   ].join('');
 
@@ -460,20 +495,42 @@ describe('変更ブロックのジャンプ', () => {
 
     expect(count(document)).toBe('2/2');
     // 現在位置はセルに付くので、その親行で「どのブロックか」を見る。
-    expect(current(document).parentElement.dataset.diffBlock).toBe('1');
+    expect(current(document).closest('[data-diff-block]').dataset.diffBlock).toBe('1');
   });
 
   // AC#6。border-collapse の表では tr への outline が上下辺しか出ないため、
-  // ハイライトは行ではなくセルへ当てる。
-  test('ハイライトは行ではなくセルに付く', () => {
+  // ハイライトは行ではなくセルへ当てる。印はブロックの先頭行の行番号セルだけに付ける
+  // （変更行の全セルを囲むと、行数の多いブロックで画面が枠だらけになる）。
+  test('印はブロック先頭行の行番号セルだけに付く', () => {
     const { document } = openChangeBlockJumpOn(INLINE_DIFF_DOM);
 
     const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
 
-    expect(highlighted.length).toBeGreaterThan(0);
     expect(highlighted.every((element) => element.tagName === 'TD')).toBe(true);
-    // 1 ブロックが 2 行にまたがる場合、その両方のセルが現在位置になる。
-    expect(highlighted.length).toBe(4);
+    expect(highlighted.every((element) => element.classList.contains('line-number'))).toBe(true);
+    // 先頭行の旧側・新側の 2 セルだけ。2 行目（同じブロック）には付かない。
+    expect(highlighted.length).toBe(2);
+    expect(highlighted[0].closest('tr').classList.contains('diff-del')).toBe(true);
+  });
+
+  test('左右分割でも印は先頭行の行番号セルだけに付く', () => {
+    const { document } = openChangeBlockJumpOn(SPLIT_DIFF_DOM);
+
+    const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
+
+    // 左右それぞれのガター 1 つずつ。
+    expect(highlighted.length).toBe(2);
+    expect(highlighted.every((element) => element.classList.contains('line-number'))).toBe(true);
+  });
+
+  // 行番号を出していない表にはガターが記号セルしか無いので、そちらへ落とす。
+  test('行番号を出していない差分では記号セルに付く', () => {
+    const { document } = openChangeBlockJumpOn(INLINE_DIFF_DOM_WITHOUT_NUMBERS);
+
+    const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
+
+    expect(highlighted.length).toBe(1);
+    expect(highlighted[0].classList.contains('diff-marker')).toBe(true);
   });
 
   // 差分表示は setDiff で渡った全文から表を組み、appendChunk は追記をスキップするため、
@@ -514,7 +571,7 @@ describe('変更ブロックのジャンプ', () => {
     await main.render('dummy', 'plaintext');
 
     expect(count(document)).toBe('2/2');
-    expect(current(document).closest('tr').dataset.diffBlock).toBe('1');
+    expect(current(document).closest('[data-diff-block]').dataset.diffBlock).toBe('1');
   });
 
   test('見出しレベルのトグルは見出しジャンプのときだけ出す', () => {
