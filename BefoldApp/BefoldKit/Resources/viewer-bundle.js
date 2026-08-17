@@ -14221,6 +14221,7 @@
     diagramScrollHeight: () => diagramScrollHeight,
     diffMarkerGlyph: () => diffMarkerGlyph,
     escapeHtml: () => escapeHtml,
+    formatNavigationCount: () => formatNavigationCount,
     halfPageScrollStep: () => halfPageScrollStep,
     highlightCode: () => highlightCode,
     highlightedDiffLines: () => highlightedDiffLines,
@@ -15391,6 +15392,34 @@
     );
   }
 
+  // viewer-src/navigation.ts
+  function nextMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return (currentIndex + 1) % count;
+  }
+  function prevMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return (currentIndex - 1 + count) % count;
+  }
+  function keptMatchIndex(previousIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return Math.min(Math.max(previousIndex, 0), count - 1);
+  }
+  function formatNavigationCount(currentIndex, count, truncated, truncatedLabel) {
+    var current = count === 0 ? 0 : currentIndex + 1;
+    var text3 = current + "/" + count;
+    if (truncated) {
+      text3 += " (" + truncatedLabel + ")";
+    }
+    return text3;
+  }
+
   // viewer-src/find.ts
   function findInputElement() {
     var el = document.getElementById("mmd-find-input");
@@ -15413,24 +15442,6 @@
     } catch (e) {
       return null;
     }
-  }
-  function nextMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return (currentIndex + 1) % count;
-  }
-  function prevMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return (currentIndex - 1 + count) % count;
-  }
-  function keptMatchIndex(previousIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return Math.min(Math.max(previousIndex, 0), count - 1);
   }
   function clearMarks() {
     var marks = document.querySelectorAll("#diagram-wrap mark.mmd-find-match");
@@ -15582,13 +15593,13 @@
       if (query2.length === 0 || input.classList.contains("mmd-find-error")) {
         countEl.textContent = "";
       } else {
-        var current = matches.length === 0 ? 0 : currentIndex + 1;
-        var text3 = current + "/" + matches.length;
-        if (truncated) {
-          var strings = window._mmdFindStrings || {};
-          text3 += " (" + (strings.withinDisplayedRange || "Displayed range") + ")";
-        }
-        countEl.textContent = text3;
+        var strings = window._mmdFindStrings || {};
+        countEl.textContent = formatNavigationCount(
+          currentIndex,
+          matches.length,
+          truncated,
+          strings.withinDisplayedRange || "Displayed range"
+        );
       }
     }
     function highlightCurrent() {

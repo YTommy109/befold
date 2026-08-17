@@ -2,6 +2,12 @@
 // すべてをコントローラのクロージャに閉じ、外部からは公開メソッド経由でのみ触れる。
 
 import { _MSG_FIND_OPTIONS_CHANGED, _mmdPostMessage } from './bridge.js';
+import {
+  formatNavigationCount,
+  keptMatchIndex,
+  nextMatchIndex,
+  prevMatchIndex,
+} from './navigation.js';
 
 // 検索の 3 トグル。window._mmdInitialFindOptions（Swift が注入する側、すべて省略可）と
 // 違い、コントローラ内部では 3 つとも常に確定している。
@@ -69,32 +75,6 @@ function buildFindRegExp(query: string, options: FindOptions): RegExp | null {
   } catch (e) {
     return null;
   }
-}
-
-// 検索ヒット間の移動先インデックス。件数 0 のときはどれも -1(選択なし)を返す。
-// 末尾の次は先頭、先頭の前は末尾へ循環する。
-
-function nextMatchIndex(currentIndex: number, count: number): number {
-  if (count <= 0) {
-    return -1;
-  }
-  return (currentIndex + 1) % count;
-}
-
-function prevMatchIndex(currentIndex: number, count: number): number {
-  if (count <= 0) {
-    return -1;
-  }
-  return (currentIndex - 1 + count) % count;
-}
-
-// 再検索(_mmdFindRefresh)で維持する現在位置。再検索でヒット数が減っても
-// 範囲外を指さないようクランプする。負値(未選択)は先頭に寄せる。
-function keptMatchIndex(previousIndex: number, count: number): number {
-  if (count <= 0) {
-    return -1;
-  }
-  return Math.min(Math.max(previousIndex, 0), count - 1);
 }
 
 // 前回検索でハイライトした <mark> を復元する(次の検索前に必ず呼ぶ)。
@@ -324,13 +304,13 @@ function _createFindController(): FindController {
     if (query.length === 0 || input.classList.contains('mmd-find-error')) {
       countEl.textContent = '';
     } else {
-      var current = matches.length === 0 ? 0 : currentIndex + 1;
-      var text = current + '/' + matches.length;
-      if (truncated) {
-        var strings: ViewerFindStrings = window._mmdFindStrings || {};
-        text += ' (' + (strings.withinDisplayedRange || 'Displayed range') + ')';
-      }
-      countEl.textContent = text;
+      var strings: ViewerFindStrings = window._mmdFindStrings || {};
+      countEl.textContent = formatNavigationCount(
+        currentIndex,
+        matches.length,
+        truncated,
+        strings.withinDisplayedRange || 'Displayed range',
+      );
     }
   }
 
@@ -568,9 +548,6 @@ function _mmdFindPrevIfOpen(): void {
 
 export {
   buildFindRegExp,
-  nextMatchIndex,
-  prevMatchIndex,
-  keptMatchIndex,
   _mmdFind,
   _mmdInitFind,
   _mmdOpenFind,

@@ -24,6 +24,7 @@ export * from './path-refs.js';
 export * from './reference-clicks.js';
 export * from './markdown.js';
 export * from './mermaid.js';
+export * from './navigation.js';
 export * from './renderers.js';
 export * from './render.js';
 export * from './truncation.js';
