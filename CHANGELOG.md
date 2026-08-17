@@ -4,6 +4,11 @@ stable リリースのユーザー影響のある変更を記録する。
 dev リリースの全変更履歴は [GitHub Releases](https://github.com/YTommy109/befold/releases) を参照。
 v1.5.0 より前の履歴は GitHub Releases の各タグページを参照。
 
+## v1.14.1
+
+### 修正
+- ダークモード時に、背景色を指定していない HTML 文書の文字が読めなくなる問題を修正しました。外部の HTML は文書自身の配色に従って表示されます。
+
 ## v1.14.0
 
 ### 新機能
