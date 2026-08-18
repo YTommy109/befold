@@ -188,4 +188,20 @@ extension ViewerCapabilities {
         isDirectHTMLMode: false,
         isDocumentJumpEnabled: true
     )
+
+    /// `allEnabledForTesting` に差分表示中であることだけを足した状態。
+    /// 変更ブロックへのジャンプのように「差分表示中だけ意味を持つ」能力を表す。
+    static let allEnabledShowingDiffForTesting = ViewerCapabilities(
+        isPresentingDocument: true,
+        isRejected: false,
+        isRenderable: true,
+        isBinaryContent: false,
+        showsCodeContent: true,
+        showsDiff: true,
+        supportsSourceMode: true,
+        supportsDiffDisplay: true,
+        gitDiffAvailability: .changed,
+        isDirectHTMLMode: false,
+        isDocumentJumpEnabled: true
+    )
 }

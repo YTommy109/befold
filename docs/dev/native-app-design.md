@@ -244,7 +244,12 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   変更ブロックは全数そろっているため「表示範囲内」ラベルは出さない
   （差分の表は `setDiff` で渡った全文から組み、`appendChunk` は追記をスキップする）。
   種類ごとの可否は `ViewerCapabilities.canJump(to:)` が持ち、変更ブロックは差分表示を
-  選んでいる間だけ使える。検索バーと同じ形の
+  選んでいる間だけ使える。**コマンド経路（`DocumentRendering.openJump(kind:)` と
+  `WebViewCommandController.openJump(kind:)`）は種類を生の String ではなく
+  `DocumentJumpKind` で運び、`canJump(to:)` で閉じる**。粗い `canJump` だけで通すと
+  種類別の規則をメニュー検証だけが守る形になり、メニュー以外の入口（キーバインド・
+  ツールバー）が同じ穴を継承するため（TASK-485.7）。文字列へ落とすのは JS 境界の
+  `WebViewDocumentRenderer` 1 箇所だけ。検索バーと同じ形の
   「現在位置 / 総数」表示を持ち、`Enter` / `Shift+Enter` で前後へ動く。
   ジャンプバーは入力欄を持たずキーボードフォーカスが乗らないため、この `Enter` は
   バー要素ではなく `document` で拾う。奪う範囲は**素の `Enter` / `Shift+Enter` に限る**

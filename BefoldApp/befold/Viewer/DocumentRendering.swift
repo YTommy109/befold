@@ -35,8 +35,11 @@ protocol DocumentRendering: AnyObject {
     func findPrevious()
 
     /// 文書内ジャンプを開く / 閉じる / 次へ / 前へ。
-    /// kind は目印の種類（見出し・変更ブロック・関数定義）。
-    func openJump(kind: String)
+    /// kind は目印の種類。生の String ではなく `DocumentJumpKind` で受けるのは、
+    /// 種類ごとの可否検査(`ViewerCapabilities.canJump(to:)`)をコマンド経路が
+    /// 迂回できないようにするため(TASK-485.7)。文字列へ落とすのは JS 境界の
+    /// `WebViewDocumentRenderer` 1 箇所だけ。
+    func openJump(kind: DocumentJumpKind)
     func closeJump()
     func jumpNext()
     func jumpPrevious()

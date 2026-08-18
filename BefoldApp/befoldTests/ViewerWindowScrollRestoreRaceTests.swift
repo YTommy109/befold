@@ -34,7 +34,7 @@ struct ViewerWindowScrollRestoreRaceTests {
         }
 
         func openFind() {}
-        func openJump(kind _: String) {}
+        func openJump(kind _: DocumentJumpKind) {}
         func closeJump() {}
         func jumpNext() {}
         func jumpPrevious() {}

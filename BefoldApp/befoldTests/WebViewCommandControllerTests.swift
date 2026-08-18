@@ -18,7 +18,7 @@ private final class FakeDocumentRenderer: DocumentRendering {
         case openFind
         case findNext
         case findPrevious
-        case openJump(kind: String)
+        case openJump(kind: DocumentJumpKind)
         case closeJump
         case jumpNext
         case jumpPrevious
@@ -59,7 +59,7 @@ private final class FakeDocumentRenderer: DocumentRendering {
         commands.append(.findPrevious)
     }
 
-    func openJump(kind: String) {
+    func openJump(kind: DocumentJumpKind) {
         commands.append(.openJump(kind: kind))
     }
 
@@ -246,7 +246,7 @@ struct WebViewCommandControllerTests {
         let renderer = FakeDocumentRenderer()
         let controller = makeController(renderer: renderer, capabilities: { .none })
 
-        controller.openJump(kind: "heading")
+        controller.openJump(kind: .heading)
         controller.closeJump()
         controller.jumpNext()
         controller.jumpPrevious()
@@ -259,10 +259,32 @@ struct WebViewCommandControllerTests {
         let renderer = FakeDocumentRenderer()
         let controller = makeController(renderer: renderer)
 
-        controller.openJump(kind: "heading")
+        controller.openJump(kind: .heading)
         controller.jumpNext()
 
-        #expect(renderer.commands == [.openJump(kind: "heading"), .jumpNext])
+        #expect(renderer.commands == [.openJump(kind: .heading), .jumpNext])
+    }
+
+    @Test("変更ブロックへのジャンプは差分表示でないとき JS へ届かない")
+    func changeBlockJumpIsBlockedWithoutDiff() {
+        let renderer = FakeDocumentRenderer()
+        // 粗い canJump は true（allEnabledForTesting は showsDiff 既定 false）。
+        // 種類別の検査が無ければ、この呼び出しは素通りして 0/0 のバーが開く。
+        let controller = makeController(renderer: renderer)
+
+        controller.openJump(kind: .changeBlock)
+
+        #expect(renderer.commands.isEmpty)
+    }
+
+    @Test("変更ブロックへのジャンプは差分表示中なら JS へ届く")
+    func changeBlockJumpReachesRendererWhileShowingDiff() {
+        let renderer = FakeDocumentRenderer()
+        let controller = makeController(renderer: renderer, capabilities: { .allEnabledShowingDiffForTesting })
+
+        controller.openJump(kind: .changeBlock)
+
+        #expect(renderer.commands == [.openJump(kind: .changeBlock)])
     }
 
     @Test("rename の追随は状態の反映なので能力で止めない")

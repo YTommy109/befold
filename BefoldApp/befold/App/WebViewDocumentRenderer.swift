@@ -65,8 +65,8 @@ final class WebViewDocumentRenderer: DocumentRendering {
         evaluate(ViewerBridge.findPrevScript)
     }
 
-    func openJump(kind: String) {
-        evaluate(ViewerBridge.openJumpScript(kind: kind))
+    func openJump(kind: DocumentJumpKind) {
+        evaluate(ViewerBridge.openJumpScript(kind: kind.rawValue))
     }
 
     func closeJump() {

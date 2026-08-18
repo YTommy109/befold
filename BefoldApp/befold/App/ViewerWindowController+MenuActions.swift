@@ -59,7 +59,7 @@ extension ViewerWindowController {
     /// （`selectDisplayMode(_:)`）と同じタグ方式。
     @objc func documentJump(_ sender: Any?) {
         guard let tag = (sender as? NSMenuItem)?.tag, let kind = DocumentJumpKind(menuItemTag: tag) else { return }
-        webViewCommands.openJump(kind: kind.rawValue)
+        webViewCommands.openJump(kind: kind)
     }
 
     /// View > Toggle Line Numbers / ツールバーの行番号ボタン。行番号表示の有無を切り替える。
