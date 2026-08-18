@@ -33,10 +33,6 @@ public enum ViewerBridge {
         case openFind = "_mmdOpenFind"
         case findNextIfOpen = "_mmdFindNextIfOpen"
         case findPrevIfOpen = "_mmdFindPrevIfOpen"
-        /// 文書内ジャンプバーを閉じる。
-        case closeJump = "_mmdCloseJump"
-        case jumpNextIfOpen = "_mmdJumpNextIfOpen"
-        case jumpPrevIfOpen = "_mmdJumpPrevIfOpen"
         /// 注入済みの等幅フォント設定を読んで CSS 変数へ反映する(applyCodeFontScript が使う)。
         case initCodeFont = "_mmdInitCodeFont"
 
@@ -297,15 +293,6 @@ public enum ViewerBridge {
     public static func initialJumpLevelsScript(_ levels: HeadingJumpLevels) -> String {
         assignGlobalScript("window._mmdInitialJumpLevels", levels.storedValue, fallback: "[]")
     }
-
-    /// 文書内ジャンプバーを閉じるスクリプト。
-    public static let closeJumpScript = PlainFunction.closeJump.callScript
-
-    /// 次の目印へ移動するスクリプト。ジャンプバーが閉じている間は JS 側で無視される。
-    public static let jumpNextScript = PlainFunction.jumpNextIfOpen.callScript
-
-    /// 前の目印へ移動するスクリプト。ジャンプバーが閉じている間は JS 側で無視される。
-    public static let jumpPrevScript = PlainFunction.jumpPrevIfOpen.callScript
 
     /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったときに
     /// postMessage されるメッセージハンドラ名。

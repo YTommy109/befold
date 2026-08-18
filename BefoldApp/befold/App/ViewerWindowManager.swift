@@ -111,7 +111,7 @@ final class ViewerWindowManager {
         diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader = GitDiffLoader(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
-        headingJumpLevelDefaults: HeadingJumpLevelDefaults = HeadingJumpLevelDefaults(),
+        headingJumpLevelDefaults: HeadingJumpLevelDefaults,
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore,

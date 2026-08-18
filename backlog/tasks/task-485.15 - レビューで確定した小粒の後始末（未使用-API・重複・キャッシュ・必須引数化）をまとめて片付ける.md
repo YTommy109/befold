@@ -1,10 +1,10 @@
 ---
 id: TASK-485.15
 title: レビューで確定した小粒の後始末（未使用 API・重複・キャッシュ・必須引数化）をまとめて片付ける
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 14:06'
-updated_date: '2026-08-17 14:52'
+updated_date: '2026-08-18 02:41'
 labels: []
 milestone: m-6
 dependencies: []
@@ -48,6 +48,29 @@ ordinal: 752000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 6 項目それぞれについて、実施したか、見送りの理由を Notes に記録したかのどちらかになっている
-- [ ] #2 実施した項目は既存テストが通り、必須引数化（項目 1）は破ると落ちるテストか構造で担保されている
+- [x] #1 6 項目それぞれについて、実施したか、見送りの理由を Notes に記録したかのどちらかになっている
+- [x] #2 実施した項目は既存テストが通り、必須引数化（項目 1）は破ると落ちるテストか構造で担保されている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+6 項目すべて実施した（見送りなし）。
+
+1. **必須引数化**: `ViewerWindowManager.init` / `ViewerWindowController.init` の `headingJumpLevelDefaults` からデフォルト引数を外した。破れたら落ちる構造になっていることは実測で確認——外した直後の `swift build --build-tests` が 5 テスト（+ MockedViewerWindowManager）で `missing argument for parameter 'headingJumpLevelDefaults'` を出し、隔離 defaults を渡す形へ直した。プロダクションの生成は `AppStores` の 1 箇所のみ（doc コメントに明記）。
+2. **キャッシュ**: `FeatureGate.inProgressFeaturesEnabled` / `isDocumentJumpEnabled` を `static var` → `static let` に。`AppVersion.current` の再計算が validateMenuItem 経路で項目数ぶん走らなくなる。
+3. **死んだ配管の撤去**: `closeJump` / `jumpNext` / `jumpPrevious` を `DocumentRendering` → `WebViewDocumentRenderer` → `WebViewCommandController` と `ViewerBridge`（PlainFunction 3 ケース + Script 3 本）から撤去。JS 側は next/prev が keyboard.ts から呼ばれるので残し、Swift からしか呼ばれていなかった `_mmdCloseJump` だけ jump.ts から撤去（jest テストは `main._mmdJump.close()` へ）。
+4. **IME ガードの共通化**: `viewer-src/ime.ts` に `isComposingKeyEvent` を新設し、keyboard.ts の 2 箇所と find.ts の 1 箇所を寄せた。`keyCode === 229` のリテラルは viewer-src から消滅。
+5. **未使用 API の削除**: `HeadingJumpLevels.none` と `contains(_:)` を削除。テストは `HeadingJumpLevels(levels: [])` / `levels.levels.contains` へ書き換えた。
+6. **#if の重複解消**: `FeatureGate` の `#if DEBUG` は `isDebugBuild` の定義 1 箇所だけになり、判定の呼び出しは 1 本。
+
+副次: 必須引数の追加で `ViewerWindowControllerFixture.init` が swiftlint の `function_body_length`（50 行）を超えたため、InMemory な ViewerStore 生成を `makeInMemoryStore` へ抽出した。
+
+検証: `swift test` 1632 tests / 260 suites すべて成功。`npm test` 517 tests 成功、`typecheck:viewer` / `check:viewer-cycles` / `lint`（type-aware）/ `format:check` すべて成功。swiftlint は origin/main とのベースライン比較で新規違反ゼロ（解消もゼロ）。swiftformat は `--lint` で 0/16 files require formatting。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+レビュー確定の小粒 6 件（必須引数化・FeatureGate のキャッシュと #if 重複解消・死んだジャンプ配管の撤去・IME ガードの共通述語化・未使用 API 削除）をすべて実施。swift test 1632 件と npm test 517 件が成功し、swiftlint はベースライン差分ゼロ。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -244,7 +244,7 @@ final class ViewerWindowController: NSWindowController {
         diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader? = nil,
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
-        headingJumpLevelDefaults: HeadingJumpLevelDefaults = HeadingJumpLevelDefaults(),
+        headingJumpLevelDefaults: HeadingJumpLevelDefaults,
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore,

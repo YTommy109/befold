@@ -11,16 +11,8 @@ public struct HeadingJumpLevels: Equatable, Sendable {
     /// 保存値が無いときの既定。h1 / h2 / h3 すべてを目印にする。
     public static let `default` = HeadingJumpLevels(levels: [1, 2, 3])
 
-    /// どのレベルも目印にしない状態。ユーザーが 3 つとも OFF にしたときの値で、
-    /// 「未設定」とは別物（未設定は `default` へ倒れる）。
-    public static let none = HeadingJumpLevels(levels: [])
-
     public init(levels: [Int]) {
         self.levels = Array(Set(levels.filter { (1 ... 3).contains($0) })).sorted()
-    }
-
-    public func contains(_ level: Int) -> Bool {
-        levels.contains(level)
     }
 
     /// UserDefaults / JS へ渡す表現（`["h1", "h2", "h3"]`）。

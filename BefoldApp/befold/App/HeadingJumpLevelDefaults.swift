@@ -11,6 +11,11 @@ import Foundation
 /// 保存はキー 1 本。Bool 3 本にすると `UserDefaults.bool(forKey:)` が未設定時 false を返すため、
 /// 「初回（未設定）」と「ユーザーが 3 つとも OFF にした」を区別できず、後者が次の窓で
 /// 既定へ戻ってしまう（TASK-485.2 の設計判断）。
+///
+/// **アプリ全体で 1 インスタンス。**生成するのは `AppStores` だけで、
+/// `ViewerWindowManager` / `ViewerWindowController` はこれを必須引数で受け取る
+/// （デフォルト引数を置くと、呼び出し側が黙って窓ごとのストアを作れてしまう。
+/// TASK-485.15）。
 @MainActor
 final class HeadingJumpLevelDefaults: HeadingJumpLevelRecording {
     private let defaults: UserDefaults

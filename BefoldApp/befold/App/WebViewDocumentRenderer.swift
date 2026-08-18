@@ -69,18 +69,6 @@ final class WebViewDocumentRenderer: DocumentRendering {
         evaluate(ViewerBridge.openJumpScript(kind: kind.rawValue))
     }
 
-    func closeJump() {
-        evaluate(ViewerBridge.closeJumpScript)
-    }
-
-    func jumpNext() {
-        evaluate(ViewerBridge.jumpNextScript)
-    }
-
-    func jumpPrevious() {
-        evaluate(ViewerBridge.jumpPrevScript)
-    }
-
     func printDocument(over window: NSWindow?) {
         guard let window, let webView = webViewProxy.webView else { return }
         let printInfo = NSPrintInfo()

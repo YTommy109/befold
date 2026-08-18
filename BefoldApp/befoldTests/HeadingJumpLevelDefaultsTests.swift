@@ -24,11 +24,11 @@ struct HeadingJumpLevelDefaultsTests {
     @Test("3 つとも OFF にした状態は、次に読み直しても既定へ戻らない")
     func keepsEmptySelectionAcrossInstances() {
         let defaults = makeIsolatedDefaults(prefix: "HeadingJumpLevelDefaultsTests.empty")
-        HeadingJumpLevelDefaults(defaults: defaults).record(.none)
+        HeadingJumpLevelDefaults(defaults: defaults).record(HeadingJumpLevels(levels: []))
 
         let reopened = HeadingJumpLevelDefaults(defaults: defaults)
 
-        #expect(reopened.levels == .none)
+        #expect(reopened.levels == HeadingJumpLevels(levels: []))
         #expect(reopened.levels.levels.isEmpty)
     }
 
@@ -40,8 +40,8 @@ struct HeadingJumpLevelDefaultsTests {
         let reopened = HeadingJumpLevelDefaults(defaults: defaults)
 
         #expect(reopened.levels.levels == [2])
-        #expect(reopened.levels.contains(2))
-        #expect(!reopened.levels.contains(1))
+        #expect(reopened.levels.levels.contains(2))
+        #expect(!reopened.levels.levels.contains(1))
     }
 
     @Test("記録は後勝ちで、最後に操作した状態が残る")
@@ -68,13 +68,13 @@ struct HeadingJumpLevelsTests {
     @Test("保存表現は h1 / h2 / h3 の形")
     func storedValueUsesHeadingTokens() {
         #expect(HeadingJumpLevels(levels: [1, 3]).storedValue == ["h1", "h3"])
-        #expect(HeadingJumpLevels.none.storedValue.isEmpty)
+        #expect(HeadingJumpLevels(levels: []).storedValue.isEmpty)
     }
 
     @Test("未設定(nil)は既定へ倒れ、空配列は 3 つとも OFF として尊重される")
     func distinguishesUnsetFromEmpty() {
         #expect(HeadingJumpLevels.stored(nil) == .default)
-        #expect(HeadingJumpLevels.stored([]) == .none)
+        #expect(HeadingJumpLevels.stored([]) == HeadingJumpLevels(levels: []))
     }
 
     @Test("壊れた保存値は落として読む")

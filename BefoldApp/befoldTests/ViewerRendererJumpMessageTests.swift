@@ -48,7 +48,7 @@ struct ViewerRendererJumpMessageTests {
 
         dispatch(renderer, name: ViewerBridge.jumpLevelsChangedMessageName, body: ["levels": [String]()])
 
-        #expect(recorder.recorded == [.none])
+        #expect(recorder.recorded == [HeadingJumpLevels(levels: [])])
     }
 
     /// JS が送る表現と Swift が読む表現が同じであることを、両端を突き合わせて確かめる。

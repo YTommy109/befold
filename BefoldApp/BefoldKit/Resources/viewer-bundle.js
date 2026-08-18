@@ -14152,7 +14152,6 @@
     _mmdBuildDiagramControls: () => _mmdBuildDiagramControls,
     _mmdChunkTail: () => _mmdChunkTail,
     _mmdCloseFind: () => _mmdCloseFind,
-    _mmdCloseJump: () => _mmdCloseJump,
     _mmdDiagramZoomReset: () => _mmdDiagramZoomReset,
     _mmdDiagramZoomStep: () => _mmdDiagramZoomStep,
     _mmdDiagramZoomValue: () => _mmdDiagramZoomValue,
@@ -15741,9 +15740,6 @@
   function _mmdOpenJump(kind) {
     _mmdJump.open(kind);
   }
-  function _mmdCloseJump() {
-    _mmdJump.close();
-  }
   function _mmdJumpNextIfOpen() {
     if (!_mmdJump.isOpen()) return;
     _mmdJump.next();
@@ -15874,6 +15870,12 @@
     return HEADING_LEVELS.includes(level);
   }
 
+  // viewer-src/ime.ts
+  var IME_KEY_CODE = 229;
+  function isComposingKeyEvent(event) {
+    return event.isComposing || event.keyCode === IME_KEY_CODE;
+  }
+
   // viewer-src/keyboard.ts
   var PAGE_SCROLL_RATIO = 0.9;
   var DEFAULT_LINE_SCROLL_STEP = 24;
@@ -15902,10 +15904,10 @@
     return { down, amount: shiftKey ? "half" : "line" };
   }
   function resolveBarCloseKey(key, openBar2, isComposing, keyCode) {
-    return key === "Escape" && openBar2 !== null && !isComposing && keyCode !== 229;
+    return key === "Escape" && openBar2 !== null && !isComposingKeyEvent({ isComposing, keyCode });
   }
   function resolveJumpNavigationKey(event, openBar2) {
-    if (event.key !== "Enter" || openBar2 !== "jump" || event.isComposing || event.keyCode === 229) {
+    if (event.key !== "Enter" || openBar2 !== "jump" || isComposingKeyEvent(event)) {
       return null;
     }
     if (event.metaKey || event.ctrlKey || event.altKey) {
@@ -16269,7 +16271,7 @@
       });
       document.getElementById("mmd-find-input").addEventListener("keydown", function(e) {
         if (e.key === "Enter") {
-          if (e.isComposing || e.keyCode === 229) {
+          if (isComposingKeyEvent(e)) {
             return;
           }
           e.preventDefault();

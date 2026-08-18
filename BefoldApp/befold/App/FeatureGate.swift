@@ -16,20 +16,25 @@ import BefoldCLI
 /// 安定稼働を確認するまで stable には載せない。露出点はメニュー項目とコマンドの可否判定で、
 /// Swift 側で塞ぐため viewer 側（`window._mmdHostFeatures`）へは伸ばしていない。
 enum FeatureGate {
+    // DEBUG ビルドか。`#if` はこの 1 箇所だけに閉じ、判定の呼び出しは 1 本に保つ。
+    #if DEBUG
+        private static let isDebugBuild = true
+    #else
+        private static let isDebugBuild = false
+    #endif
+
     /// 実行中ビルドで開発中機能を露出してよいか。
-    static var inProgressFeaturesEnabled: Bool {
-        #if DEBUG
-            inProgressFeaturesEnabled(version: AppVersion.current, isDebugBuild: true)
-        #else
-            inProgressFeaturesEnabled(version: AppVersion.current, isDebugBuild: false)
-        #endif
-    }
+    ///
+    /// プロセス生存中に値は変わらないので `static let` で 1 回だけ求める。
+    /// `AppVersion.current` は実行パスの syscall と `Bundle(path:).infoDictionary` を
+    /// 伴うため、`validateMenuItem` から項目数ぶん呼ばれる経路で毎回計算させない。
+    static let inProgressFeaturesEnabled = inProgressFeaturesEnabled(
+        version: AppVersion.current, isDebugBuild: isDebugBuild
+    )
 
     /// 文書内ジャンプ（TASK-485）を露出してよいか。
     /// 呼び出し側はこの名前付きプロパティだけを参照する（露出点は型の doc コメントを参照）。
-    static var isDocumentJumpEnabled: Bool {
-        inProgressFeaturesEnabled
-    }
+    static let isDocumentJumpEnabled = inProgressFeaturesEnabled
 
     /// テスト可能な純粋判定。
     static func inProgressFeaturesEnabled(version: String, isDebugBuild: Bool) -> Bool {

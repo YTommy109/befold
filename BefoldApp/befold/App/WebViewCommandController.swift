@@ -118,21 +118,6 @@ final class WebViewCommandController {
         renderer.openJump(kind: kind)
     }
 
-    func closeJump() {
-        guard capabilities().canJump else { return }
-        renderer.closeJump()
-    }
-
-    func jumpNext() {
-        guard capabilities().canJump else { return }
-        renderer.jumpNext()
-    }
-
-    func jumpPrevious() {
-        guard capabilities().canJump else { return }
-        renderer.jumpPrevious()
-    }
-
     // MARK: - Scroll position
 
     /// 現在のスクロール位置を問い合わせ、指定した URL・モードのキーへ保存する。

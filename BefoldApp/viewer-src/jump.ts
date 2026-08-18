@@ -344,14 +344,12 @@ function _mmdInitJump(): void {
   // 届かない（実機で確認）。document 側の resolveJumpNavigationKey が担う。
 }
 
-// 以下は Swift(evaluateJavaScript)から名前で呼ばれる入口。
-// next/prev は検索側（_mmdFindNextIfOpen）と同じくバーが閉じている間は何もしない。
+// _mmdOpenJump は Swift(evaluateJavaScript)から名前で呼ばれる入口。
+// next/prev は Swift からは呼ばれず、document の keydown ハンドラ（keyboard.ts）が使う。
+// 検索側（_mmdFindNextIfOpen）と同じくバーが閉じている間は何もしない。
+// 閉じる操作は Esc をバーレジストリ（closeCurrentBar）が拾うため、専用の入口を持たない。
 function _mmdOpenJump(kind: string): void {
   _mmdJump.open(kind);
-}
-
-function _mmdCloseJump(): void {
-  _mmdJump.close();
 }
 
 function _mmdJumpNextIfOpen(): void {
@@ -365,11 +363,4 @@ function _mmdJumpPrevIfOpen(): void {
 }
 
 export type { JumpProvider, JumpTarget };
-export {
-  _mmdJump,
-  _mmdInitJump,
-  _mmdOpenJump,
-  _mmdCloseJump,
-  _mmdJumpNextIfOpen,
-  _mmdJumpPrevIfOpen,
-};
+export { _mmdJump, _mmdInitJump, _mmdOpenJump, _mmdJumpNextIfOpen, _mmdJumpPrevIfOpen };

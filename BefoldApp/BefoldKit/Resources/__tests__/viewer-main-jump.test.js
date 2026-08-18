@@ -72,7 +72,7 @@ describe('文書内ジャンプ', () => {
 
     expect(document.querySelectorAll('.mmd-jump-target').length).toBe(4);
 
-    main._mmdCloseJump();
+    main._mmdJump.close();
 
     expect(document.querySelectorAll('.mmd-jump-target').length).toBe(0);
   });
@@ -130,7 +130,7 @@ describe('文書内ジャンプ', () => {
 
   test('ジャンプバーが閉じている間は Enter で動かない', () => {
     const loaded = openJumpOn(HEADINGS);
-    loaded.main._mmdCloseJump();
+    loaded.main._mmdJump.close();
 
     pressEnter(loaded, false);
 
@@ -211,7 +211,7 @@ describe('文書内ジャンプ', () => {
   test('閉じるとハイライトが消える', () => {
     const { document, main } = openJumpOn(HEADINGS);
 
-    main._mmdCloseJump();
+    main._mmdJump.close();
 
     expect(current(document)).toBe(null);
     expect(document.getElementById('mmd-jump-bar').style.display).toBe('none');
@@ -219,7 +219,7 @@ describe('文書内ジャンプ', () => {
 
   test('バーが閉じている間は次へ・前へが効かない', () => {
     const { document, main } = openJumpOn(HEADINGS);
-    main._mmdCloseJump();
+    main._mmdJump.close();
 
     main._mmdJumpNextIfOpen();
 

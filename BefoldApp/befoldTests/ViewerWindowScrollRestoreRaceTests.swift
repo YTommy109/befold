@@ -35,9 +35,6 @@ struct ViewerWindowScrollRestoreRaceTests {
 
         func openFind() {}
         func openJump(kind _: DocumentJumpKind) {}
-        func closeJump() {}
-        func jumpNext() {}
-        func jumpPrevious() {}
         func findNext() {}
         func findPrevious() {}
         func printDocument(over _: NSWindow?) {}

@@ -3,6 +3,7 @@
 import type { OpenBar } from './bar.js';
 import { closeCurrentBar, currentBar } from './bar.js';
 import { isHostFeatureEnabled } from './bridge.js';
+import { isComposingKeyEvent } from './ime.js';
 import { _mmdJumpNextIfOpen, _mmdJumpPrevIfOpen } from './jump.js';
 import { _mmdScrollTarget } from './scroll.js';
 import { _mmdZoomIn, _mmdZoomOut } from './zoom.js';
@@ -59,10 +60,8 @@ function resolveScrollKey(key: string, shiftKey: boolean): ScrollAction | null {
 }
 
 // Escape が「開いているバー（検索 / 文書内ジャンプ）を閉じる」にあたるかの判定。
-// IME 変換中の Escape(候補キャンセル)では閉じない。Enter 側の変換確定判定
-// (検索コントローラの keydown ハンドラ)と同じ理由: Safari/WKWebView は
-// compositionend → keydown の順で発火するため isComposing は既に false に
-// なりうるが、keyCode は 229 のまま残るためこれも合わせて判定する。
+// IME 変換中の Escape(候補キャンセル)では閉じない。判定は他の 2 箇所（ジャンプの
+// Enter・検索コントローラの Enter）と同じ isComposingKeyEvent に寄せてある。
 //
 // ハンドラ内の分岐ではなく純粋関数にしてあるのは、resolveScrollKey と同じく
 // Help > キーボードショートカット の一覧と突き合わせるため(TASK-503)。
@@ -72,7 +71,7 @@ function resolveBarCloseKey(
   isComposing: boolean,
   keyCode: number,
 ): boolean {
-  return key === 'Escape' && openBar !== null && !isComposing && keyCode !== 229;
+  return key === 'Escape' && openBar !== null && !isComposingKeyEvent({ isComposing, keyCode });
 }
 
 // Enter / Shift+Enter が「文書内ジャンプの次へ / 前へ」にあたるかの判定。
@@ -83,9 +82,7 @@ function resolveBarCloseKey(
 // そのため document で拾う。検索バーが開いている間は openBar が 'find' なので
 // ここは動かず、検索バー自身の入力欄が Enter を処理する（バーは同時に開かない）。
 //
-// IME 変換確定の Enter では動かさない。Safari/WKWebView は compositionend → keydown の
-// 順で発火するため isComposing が既に false になりうるので、keyCode 229 も併せて見る
-// （resolveBarCloseKey と同じ理由）。
+// IME 変換確定の Enter では動かさない（resolveBarCloseKey と同じ isComposingKeyEvent）。
 //
 // 素の Enter / Shift+Enter だけを見る。Cmd/Ctrl/Alt+Enter は別の受け手を持つ
 // チョードなので、ジャンプバーが開いている間もそのまま通す（TASK-485.6）。
@@ -107,7 +104,7 @@ function resolveJumpNavigationKey(
   event: JumpNavigationKeyEvent,
   openBar: OpenBar,
 ): 'next' | 'prev' | null {
-  if (event.key !== 'Enter' || openBar !== 'jump' || event.isComposing || event.keyCode === 229) {
+  if (event.key !== 'Enter' || openBar !== 'jump' || isComposingKeyEvent(event)) {
     return null;
   }
   if (event.metaKey || event.ctrlKey || event.altKey) {

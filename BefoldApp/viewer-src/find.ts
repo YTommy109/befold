@@ -3,6 +3,7 @@
 
 import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
 import { _MSG_FIND_OPTIONS_CHANGED, _mmdPostMessage } from './bridge.js';
+import { isComposingKeyEvent } from './ime.js';
 import {
   formatNavigationCount,
   keptMatchIndex,
@@ -441,10 +442,8 @@ function _createFindController(): FindController {
     });
     document.getElementById('mmd-find-input')!.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
-        // Safari/WKWebView は compositionend → keydown の順で発火するため、
-        // 変換確定の Enter では isComposing が既に false になっている。
-        // ただし keyCode は 229 のまま残るため、これも合わせて判定する。
-        if (e.isComposing || e.keyCode === 229) {
+        // 変換確定の Enter では検索を進めない（判定は ime.ts に集約）。
+        if (isComposingKeyEvent(e)) {
           return;
         }
         e.preventDefault();
