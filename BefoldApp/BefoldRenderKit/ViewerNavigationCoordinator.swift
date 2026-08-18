@@ -21,7 +21,7 @@ final class ViewerNavigationCoordinator: NSObject, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         renderer.directHTML.applyPendingZoom(to: webView)
-        renderer.applyInitialPageZoomIfReady(assumingReady: true)
+        renderer.pageZoom.applyIfReady(assumingReady: true)
         renderer.readiness.markReady()
     }
 

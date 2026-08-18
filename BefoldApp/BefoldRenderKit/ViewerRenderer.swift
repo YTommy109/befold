@@ -93,20 +93,16 @@ public final class ViewerRenderer {
     /// 引くため、本番は既定の .shared のまま使うこと。テストでは低速な FileReading を
     /// 注入したフェイクに差し替え、Task.detached の完了タイミングを制御する。
     var imageEmbedder: MarkdownImageEmbedder = .shared
-    /// 呼び出し側から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
-    ///
-    /// 生成時のユーザースクリプト(atDocumentStart)に焼き込むだけでは、ウィンドウの生成が
-    /// 表示対象の確定より先に走ったときに既定倍率のまま取り残される。値の変化と
-    /// viewer.html の準備完了の双方で適用し直し、「状態の投影」として扱う(ADR 0002 / TASK-270)。
-    public var initialPageZoom: Double = 1.0 {
-        didSet {
-            guard initialPageZoom != oldValue else { return }
-            applyInitialPageZoomIfReady()
-        }
+    /// 初期倍率の投影(望む倍率と適用済みの記録)。詳細は PageZoomProjector.swift を参照。
+    private(set) lazy var pageZoom = PageZoomProjector(renderer: self)
+
+    /// 呼び出し側から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用にも使う。
+    /// 実体は `pageZoom.desired`(ホスト向けの公開名だけをここに残す転送プロパティ)。
+    public var initialPageZoom: Double {
+        get { pageZoom.desired }
+        set { pageZoom.desired = newValue }
     }
 
-    /// viewer.js へ適用済みの倍率。同じ値を何度も評価しないための記録。
-    var appliedPageZoom: Double?
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
     public var scrollPositionToRestore: Double = 0
     /// 直接 HTML モードの状態機械(判定・ロード・復帰・リンクポリシー)。
@@ -185,17 +181,6 @@ public final class ViewerRenderer {
     /// makeWebView で登録した postMessage ハンドラを解除する。
     public func dismantle(_ webView: WKWebView) {
         ViewerWebViewFactory.dismantle(webView, features: rendererFeatures)
-    }
-
-    /// 現在の initialPageZoom を viewer.js へ適用する。viewer.html の準備前・
-    /// HTML 直接ロード中(viewer.js が無い)・同じ値を適用済みのときは何もしない。
-    /// - Parameter assumingReady: didFinish の中からは ready 確定前に呼ぶため true を渡す。
-    func applyInitialPageZoomIfReady(assumingReady: Bool = false) {
-        guard assumingReady || readiness.isReady else { return }
-        guard !directHTML.isActive, let webView else { return }
-        guard appliedPageZoom != initialPageZoom else { return }
-        appliedPageZoom = initialPageZoom
-        webView.evaluateJavaScript(ViewerBridge.applyZoomScript(initialPageZoom))
     }
 
     /// viewer.html の準備ができていれば即実行し、まだなら準備完了まで保留する。

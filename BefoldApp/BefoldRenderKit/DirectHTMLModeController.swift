@@ -54,7 +54,7 @@ final class DirectHTMLModeController {
         // 初回ロード・ファイル切替では保存済みの per-file 倍率を使い、
         // ライブリロード（同一ファイルの content 変更）では現在の倍率を維持する。
         let isFirstLoadOrSwitch = !isActive || pathChanged
-        pendingPageZoom = isFirstLoadOrSwitch ? renderer.initialPageZoom : webView.pageZoom
+        pendingPageZoom = isFirstLoadOrSwitch ? renderer.pageZoom.desired : webView.pageZoom
         // 直接ロードでは viewer.js が居らず行番号・切り詰め・差分は適用されないため、
         // それらは現在のミラー値のまま持ち越す(復帰時に exit が空のミラーを確定させて
         // 一括破棄する)。フィールドを並べず現在値から組み立てて丸ごと確定させるのは、
@@ -69,7 +69,7 @@ final class DirectHTMLModeController {
         isActive = true
         renderer.readiness.markNotReady()
         // 直接ロードへ入ると viewer.js が居なくなる。復帰時に再適用させる。
-        renderer.appliedPageZoom = nil
+        renderer.pageZoom.invalidateApplied()
         // 直接ロードする HTML 内の <script> 実行を無効化する（設計スコープ外）。
         webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = false
         // 直接ロード中は外部の HTML 文書が canvas ごと所有する。復帰時に reloadViewerHTML が
@@ -115,7 +115,7 @@ final class DirectHTMLModeController {
     func exit(webView: WKWebView, completion: @escaping () -> Void) {
         isActive = false
         // viewer.html を読み直すと JS 側の倍率も初期化されるため、適用済みの記録も捨てる。
-        renderer.appliedPageZoom = nil
+        renderer.pageZoom.invalidateApplied()
         lastPath = nil
         renderer.recordRendered(RenderedStateMirror())
         renderer.pendingAppend = nil

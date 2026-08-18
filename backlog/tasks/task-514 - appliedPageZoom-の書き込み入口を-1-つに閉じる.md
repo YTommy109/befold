@@ -1,9 +1,10 @@
 ---
 id: TASK-514
 title: appliedPageZoom の書き込み入口を 1 つに閉じる
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 02:54'
+updated_date: '2026-08-18 03:01'
 labels: []
 milestone: m-6
 dependencies: []
@@ -36,7 +37,19 @@ ordinal: 754000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 appliedPageZoom（相当の値）への書き込みが新しい型の中に閉じ、DirectHTMLModeController は無効化メソッドの呼び出しに変わる
-- [ ] #2 befoldTests/ViewerRendererZoomIntegrationTests.swift:66 の直接代入が消える
-- [ ] #3 swift build / swift test が通り、swiftlint のベースライン差分がゼロ
+- [x] #1 appliedPageZoom（相当の値）への書き込みが新しい型の中に閉じ、DirectHTMLModeController は無効化メソッドの呼び出しに変わる
+- [x] #2 befoldTests/ViewerRendererZoomIntegrationTests.swift:66 の直接代入が消える
+- [x] #3 swift build / swift test が通り、swiftlint のベースライン差分がゼロ
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+PageZoomProjector（BefoldRenderKit/PageZoomProjector.swift）へ desired / applied / applyIfReady を切り出した。applied は private(set) + invalidateApplied() のみで無効化する（rendered ミラーの recordRendered と同じ構造）。ViewerRenderer.initialPageZoom は pageZoom.desired への転送プロパティとして公開名のまま残し、ホスト（ViewerWebView / QuickLook）側の変更はゼロ。DirectHTMLModeController の 2 箇所は renderer.pageZoom.invalidateApplied() へ、initialPageZoom 読みは pageZoom.desired へ、ViewerNavigationCoordinator は pageZoom.applyIfReady(assumingReady: true) へ変更。検証: swift build 成功 / swift test 1632 tests・260 suites すべて成功 / swiftlint は origin/main を git archive で別ディレクトリへ展開して比較し 54 件対 54 件で差分ゼロ / swiftformat は 0 files formatted。docs/dev/native-app-design.md は appliedPageZoom に言及がなく（rg で 0 件）、公開 API も変わらないため更新不要。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+appliedPageZoom を PageZoomProjector へ切り出し、書き込み入口を invalidateApplied() の 1 つに閉じた。DirectHTMLModeController とテストからの直接代入は消滅。swift build / swift test（1632 tests 全通過）/ swiftlint ベースライン差分ゼロで検証済み。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -56,9 +56,9 @@ extension ViewerRenderer {
         // 応答を新しいページへ適用しないよう世代を進める(TASK-421)。
         referenceQueue.invalidate()
         // atDocumentStart の initialZoomScript はウィンドウ生成時の倍率で焼き付いているが、
-        // 呼び出し元の exit が appliedPageZoom を捨てているため、ロード完了時の
-        // applyInitialPageZoomIfReady が現在ファイルの保存倍率を当て直す。ここで重ねて
-        // 当てない(同じ倍率を 2 度流すだけで、appliedPageZoom の記録も経由しない)。
+        // 呼び出し元の exit が適用済みの記録を捨てているため、ロード完了時の
+        // pageZoom.applyIfReady が現在ファイルの保存倍率を当て直す。ここで重ねて
+        // 当てない(同じ倍率を 2 度流すだけで、適用済みの記録も経由しない)。
         readiness.run(completion)
         // viewer.html（mermaid.js）は JS 必須のため、直接ロードで無効化した JS を再有効化する。
         webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
