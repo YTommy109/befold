@@ -41,9 +41,10 @@ Agents emit Mermaid diagrams and Markdown specs constantly. `befold docs/design.
 rendered, and every rewrite by the agent repaints the window automatically. No copy-pasting
 into mermaid.live.
 
-**Write specs with a live preview next to your editor.**
-Keep befold on one side, your editor on the other. Saving updates the preview in 0.2s.
-Works with any editor, because it isn't a plugin.
+**Get a preview pane in a terminal-only workflow.**
+If you work in Claude Code, Codex, vim, or plain shell, there is no preview pane to open.
+befold is that pane: run `befold spec.md` once, park the window next to your terminal, and it
+repaints on every save. It only reads the file, so it never fights your tools over it.
 
 **Read through an unfamiliar repository.**
 `⌘P` fuzzy-opens any file in the tree, `⌘+click` follows a link or file reference, and
