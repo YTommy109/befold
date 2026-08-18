@@ -90,9 +90,11 @@ function collectChangeBlocks(root: HTMLElement): JumpTarget[] {
     var edge = leadingCell(row);
     if (block === currentBlock) {
       // 同じブロックの 2 行目以降。目印は増やさず、帯を伸ばすだけ。
+      // concat で配列を作り直さず push で伸ばす（作り直すとブロック行数 k に対して
+      // O(k^2) になる。全面書き換えの差分は 1 ブロックが数千〜数万行になりうる）。
       var previous = targets.at(-1);
       if (previous) {
-        previous.highlight = previous.highlight.concat(edge);
+        previous.highlight.push(...edge);
         return;
       }
     }

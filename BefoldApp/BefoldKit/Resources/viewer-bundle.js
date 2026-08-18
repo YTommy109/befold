@@ -14259,6 +14259,7 @@
     markdownFontSize: () => markdownFontSize,
     markdownRenderer: () => markdownRenderer,
     mermaidTheme: () => mermaidTheme,
+    moveCurrentHighlight: () => moveCurrentHighlight,
     nextMatchIndex: () => nextMatchIndex,
     onColorSchemeChange: () => onColorSchemeChange,
     ownsEnterKey: () => ownsEnterKey,
@@ -15531,25 +15532,21 @@
     }
     return text3;
   }
+  function moveCurrentHighlight(previous, next, className, anchor) {
+    previous.forEach(function(element) {
+      element.classList.remove(className);
+    });
+    next.forEach(function(element) {
+      element.classList.add(className);
+    });
+    if (anchor) {
+      anchor.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }
 
   // viewer-src/jump.ts
   var CURRENT_CLASS = "mmd-jump-current";
   var TARGET_CLASS = "mmd-jump-target";
-  function clearCurrent(targets) {
-    targets.forEach(function(target) {
-      target.highlight.forEach(function(element) {
-        element.classList.remove(CURRENT_CLASS);
-      });
-    });
-  }
-  function clearHighlight(targets) {
-    clearCurrent(targets);
-    targets.forEach(function(target) {
-      target.highlight.forEach(function(element) {
-        element.classList.remove(TARGET_CLASS);
-      });
-    });
-  }
   function markTargets(targets) {
     targets.forEach(function(target) {
       target.highlight.forEach(function(element) {
@@ -15565,6 +15562,7 @@
     var activeKind = "";
     var targets = [];
     var currentIndex = -1;
+    var currentHighlight = [];
     var truncated = false;
     var isRendering = false;
     function register(provider) {
@@ -15583,15 +15581,26 @@
       );
     }
     function highlightCurrent(scroll) {
-      clearCurrent(targets);
       var current = targets[currentIndex];
-      if (!current) return;
-      current.highlight.forEach(function(element) {
-        element.classList.add(CURRENT_CLASS);
+      moveCurrentHighlight(
+        currentHighlight,
+        current ? current.highlight : [],
+        CURRENT_CLASS,
+        scroll ? current?.anchor : void 0
+      );
+      currentHighlight = current ? current.highlight : [];
+    }
+    function clearCurrent() {
+      moveCurrentHighlight(currentHighlight, [], CURRENT_CLASS);
+      currentHighlight = [];
+    }
+    function clearHighlight() {
+      clearCurrent();
+      targets.forEach(function(target) {
+        target.highlight.forEach(function(element) {
+          element.classList.remove(TARGET_CLASS);
+        });
       });
-      if (scroll) {
-        current.anchor.scrollIntoView({ block: "center", behavior: "smooth" });
-      }
     }
     function moveTo(index, scroll) {
       currentIndex = index;
@@ -15623,7 +15632,7 @@
       });
     }
     function run(scroll) {
-      clearHighlight(targets);
+      clearHighlight();
       targets = collectTargets();
       markTargets(targets);
       currentIndex = targets.length > 0 ? 0 : -1;
@@ -15646,7 +15655,7 @@
       if (bar) {
         bar.style.display = "none";
       }
-      clearHighlight(targets);
+      clearHighlight();
       targets = [];
       currentIndex = -1;
     }
@@ -15664,7 +15673,7 @@
         return;
       }
       var previousIndex = resetToFirst ? 0 : currentIndex;
-      clearHighlight(targets);
+      clearHighlight();
       targets = collectTargets();
       markTargets(targets);
       currentIndex = -1;
@@ -15683,6 +15692,7 @@
     function invalidate() {
       isRendering = true;
       targets = [];
+      currentHighlight = [];
       if (isJumpBarOpen()) {
         updateCount();
       }
@@ -15795,7 +15805,7 @@
       if (block2 === currentBlock) {
         var previous = targets.at(-1);
         if (previous) {
-          previous.highlight = previous.highlight.concat(edge);
+          previous.highlight.push(...edge);
           return;
         }
       }
@@ -16059,6 +16069,7 @@
     var query2 = "";
     var matches = [];
     var currentIndex = -1;
+    var currentHighlight;
     var truncated = false;
     var skipTags = ["MARK", "SVG", "STYLE", "SCRIPT"];
     var bridgeTags = [
@@ -16177,13 +16188,14 @@
       }
     }
     function highlightCurrent() {
-      matches.forEach(function(mark) {
-        mark.classList.remove("mmd-find-match-current");
-      });
       var current = matches[currentIndex];
-      if (!current) return;
-      current.classList.add("mmd-find-match-current");
-      current.scrollIntoView({ block: "center", behavior: "smooth" });
+      moveCurrentHighlight(
+        currentHighlight ? [currentHighlight] : [],
+        current ? [current] : [],
+        "mmd-find-match-current",
+        current
+      );
+      currentHighlight = current;
     }
     function moveTo(index) {
       currentIndex = index;
@@ -16196,6 +16208,7 @@
       clearMarks();
       matches = [];
       currentIndex = -1;
+      currentHighlight = void 0;
       var regex = buildFindRegExp(query2, options);
       input.classList.toggle("mmd-find-error", query2.length > 0 && regex === null);
       if (regex) {
@@ -16311,6 +16324,7 @@
       clearMarks();
       matches = [];
       currentIndex = -1;
+      currentHighlight = void 0;
     }
     function setTruncated(value) {
       truncated = value;

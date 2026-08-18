@@ -6,6 +6,7 @@ import { _MSG_FIND_OPTIONS_CHANGED, _mmdPostMessage } from './bridge.js';
 import { isComposingKeyEvent } from './ime.js';
 import {
   formatNavigationCount,
+  moveCurrentHighlight,
   keptMatchIndex,
   nextMatchIndex,
   prevMatchIndex,
@@ -152,6 +153,10 @@ function _createFindController(): FindController {
   var query = '';
   var matches: HTMLElement[] = [];
   var currentIndex = -1;
+  // いま現在位置の印が付いている <mark>。付け替えのたびに全マッチを走査しないよう
+  // 直前の要素だけを覚えておく。clearMarks で DOM ごと消えるため、
+  // 列を作り直す経路（run / close）では併せて undefined に戻す。
+  var currentHighlight: HTMLElement | undefined;
   // 段階読み込み中(まだ全チャンクを読み終えていない)かどうか。setTruncated が更新する。
   var truncated = false;
 
@@ -321,13 +326,16 @@ function _createFindController(): FindController {
   }
 
   function highlightCurrent(): void {
-    matches.forEach(function (mark) {
-      mark.classList.remove('mmd-find-match-current');
-    });
     var current = matches[currentIndex];
-    if (!current) return;
-    current.classList.add('mmd-find-match-current');
-    current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // 印の付け替えとスクロールは navigation.ts に集約する（ジャンプバーと同じ挙動）。
+    // 直前の要素だけを渡すので、マッチが何万件あっても走査は起きない。
+    moveCurrentHighlight(
+      currentHighlight ? [currentHighlight] : [],
+      current ? [current] : [],
+      'mmd-find-match-current',
+      current,
+    );
+    currentHighlight = current;
   }
 
   // 現在位置を移し、ハイライトと件数表示を揃える(next/prev/refresh 共通)。
@@ -346,6 +354,7 @@ function _createFindController(): FindController {
     clearMarks();
     matches = [];
     currentIndex = -1;
+    currentHighlight = undefined;
 
     var regex = buildFindRegExp(query, options);
     input.classList.toggle('mmd-find-error', query.length > 0 && regex === null);
@@ -488,6 +497,7 @@ function _createFindController(): FindController {
     clearMarks();
     matches = [];
     currentIndex = -1;
+    currentHighlight = undefined;
   }
 
   // 段階読み込み状態の変化を件数表示(「表示範囲内」ラベル)へ反映する。

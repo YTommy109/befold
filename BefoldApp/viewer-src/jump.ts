@@ -7,6 +7,7 @@
 import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
 import {
   formatNavigationCount,
+  moveCurrentHighlight,
   keptMatchIndex,
   nextMatchIndex,
   prevMatchIndex,
@@ -63,30 +64,6 @@ var CURRENT_CLASS = 'mmd-jump-current';
 // 次にどこへ飛べるかをユーザーへ見せる（TASK-485.2）。
 var TARGET_CLASS = 'mmd-jump-target';
 
-// 現在位置の印だけを取り除く（次の位置へ付け替えるときに使う）。
-// 候補の印は列が変わらない限り残す。
-function clearCurrent(targets: JumpTarget[]): void {
-  targets.forEach(function (target) {
-    target.highlight.forEach(function (element) {
-      element.classList.remove(CURRENT_CLASS);
-    });
-  });
-}
-
-// 目印の列から、候補と現在位置の印を両方取り除く。
-//
-// **列を捨てる経路はすべてこの関数を通す。** 列が入れ替わるのは open だけでなく
-// refresh（描画・チャンク追記・レベル変更）でも起きるため、片方の経路だけで
-// 外す形にすると古い候補の下線が残る。
-function clearHighlight(targets: JumpTarget[]): void {
-  clearCurrent(targets);
-  targets.forEach(function (target) {
-    target.highlight.forEach(function (element) {
-      element.classList.remove(TARGET_CLASS);
-    });
-  });
-}
-
 // 目印の候補すべてに印を付ける。
 function markTargets(targets: JumpTarget[]): void {
   targets.forEach(function (target) {
@@ -106,6 +83,9 @@ function _createJumpController(): JumpController {
   var activeKind = '';
   var targets: JumpTarget[] = [];
   var currentIndex = -1;
+  // いま現在位置の印が付いている要素。付け替えのたびに列全体を走査しないよう、
+  // 直前に印を付けた要素だけを覚えておく（差分の変更行は数万件になりうる）。
+  var currentHighlight: HTMLElement[] = [];
   // 段階読み込み中（まだ全チャンクを読み終えていない）かどうか。
   // 真のときは表示済み DOM の分しか数えられないことを件数表示で示す。
   var truncated = false;
@@ -138,15 +118,35 @@ function _createJumpController(): JumpController {
   // 届くたび読んでいる位置を奪ってしまう（appendChunk 経路には
   // スクロール復元が無い）。
   function highlightCurrent(scroll: boolean): void {
-    clearCurrent(targets);
     var current = targets[currentIndex];
-    if (!current) return;
-    current.highlight.forEach(function (element) {
-      element.classList.add(CURRENT_CLASS);
+    moveCurrentHighlight(
+      currentHighlight,
+      current ? current.highlight : [],
+      CURRENT_CLASS,
+      scroll ? current?.anchor : undefined,
+    );
+    currentHighlight = current ? current.highlight : [];
+  }
+
+  // 現在位置の印だけを取り除く（列を捨てるとき・現在位置が無くなるとき）。
+  // 候補の印は列が変わらない限り残す。
+  function clearCurrent(): void {
+    moveCurrentHighlight(currentHighlight, [], CURRENT_CLASS);
+    currentHighlight = [];
+  }
+
+  // 目印の列から、候補と現在位置の印を両方取り除く。
+  //
+  // **列を捨てる経路はすべてこの関数を通す。** 列が入れ替わるのは open だけでなく
+  // refresh（描画・チャンク追記・レベル変更）でも起きるため、片方の経路だけで
+  // 外す形にすると古い候補の下線が残る。
+  function clearHighlight(): void {
+    clearCurrent();
+    targets.forEach(function (target) {
+      target.highlight.forEach(function (element) {
+        element.classList.remove(TARGET_CLASS);
+      });
     });
-    if (scroll) {
-      current.anchor.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }
   }
 
   function moveTo(index: number, scroll: boolean): void {
@@ -190,7 +190,7 @@ function _createJumpController(): JumpController {
   }
 
   function run(scroll: boolean): void {
-    clearHighlight(targets);
+    clearHighlight();
     targets = collectTargets();
     markTargets(targets);
     currentIndex = targets.length > 0 ? 0 : -1;
@@ -215,7 +215,7 @@ function _createJumpController(): JumpController {
     if (bar) {
       bar.style.display = 'none';
     }
-    clearHighlight(targets);
+    clearHighlight();
     targets = [];
     currentIndex = -1;
   }
@@ -240,7 +240,7 @@ function _createJumpController(): JumpController {
       return;
     }
     var previousIndex = resetToFirst ? 0 : currentIndex;
-    clearHighlight(targets);
+    clearHighlight();
     targets = collectTargets();
     markTargets(targets);
     currentIndex = -1;
@@ -276,6 +276,8 @@ function _createJumpController(): JumpController {
     // 現在位置を 0 として組み立てる）ので、表示上も前の位置は見えない。
     isRendering = true;
     targets = [];
+    // 覚えていた現在位置の要素も捨てる（古い DOM を指したままにしない）。
+    currentHighlight = [];
     if (isJumpBarOpen()) {
       updateCount();
     }

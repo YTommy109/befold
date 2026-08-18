@@ -53,4 +53,36 @@ function formatNavigationCount(
   return text;
 }
 
-export { nextMatchIndex, prevMatchIndex, keptMatchIndex, formatNavigationCount };
+// 現在位置の印を付け替え、必要ならその位置までスクロールする。
+// 検索バーとジャンプバーで同じ見え方（中央寄せ・smooth）にするための
+// UX 上の決定なので、実装をここ 1 箇所に置く（TASK-485.12）。
+//
+// previous/next を配列で受けるのは、差分の左右分割のように 1 つの目印が
+// 複数の要素で表されることがあるため（検索は常に 1 要素）。
+// **previous は「直前に印が付いていた要素」だけを渡す。** 列の全要素を
+// 走査して外す形にすると、変更行が数万ある差分で移動のたびに全走査になる。
+// anchor を渡したときだけスクロールする（列の再構築では読んでいる位置を奪わない）。
+function moveCurrentHighlight(
+  previous: HTMLElement[],
+  next: HTMLElement[],
+  className: string,
+  anchor?: HTMLElement,
+): void {
+  previous.forEach(function (element) {
+    element.classList.remove(className);
+  });
+  next.forEach(function (element) {
+    element.classList.add(className);
+  });
+  if (anchor) {
+    anchor.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+}
+
+export {
+  moveCurrentHighlight,
+  nextMatchIndex,
+  prevMatchIndex,
+  keptMatchIndex,
+  formatNavigationCount,
+};

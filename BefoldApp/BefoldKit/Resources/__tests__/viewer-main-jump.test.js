@@ -618,6 +618,39 @@ describe('変更ブロックのジャンプ', () => {
     expect(highlighted[0].closest('[data-diff-block]').dataset.diffBlock).toBe('1');
   });
 
+  // 現在位置の印の外し方が「列の全要素を走査する」形へ戻ると落ちる（TASK-485.12）。
+  // 全面書き換えの差分は 1 ブロックが数千行になりうるので、移動のたびに全変更行を
+  // 走査すると Enter 連打が O(全変更行) になる。
+  test('移動時に外す印は直前のブロックの分だけ', () => {
+    const rows = [];
+    // 20 行のブロック 2 つ。全走査なら 40 回、直前のブロックだけなら 20 回外す。
+    for (let block = 0; block < 2; block += 1) {
+      for (let line = 0; line < 20; line += 1) {
+        rows.push(
+          '<tr class="diff-line diff-add" data-diff-block="' +
+            block +
+            '">' +
+            numberCells('', line + 1) +
+            '<td class="diff-marker">+</td><td class="line-content">x</td></tr>',
+        );
+      }
+    }
+    const loaded = openChangeBlockJumpOn(
+      '<table class="code-table diff-table">' + rows.join('') + '</table>',
+    );
+    const originalRemove = loaded.window.DOMTokenList.prototype.remove;
+    let removals = 0;
+    loaded.window.DOMTokenList.prototype.remove = function (...names) {
+      if (names.includes('mmd-jump-current')) removals += 1;
+      return originalRemove.apply(this, names);
+    };
+
+    loaded.main._mmdJumpNextIfOpen();
+
+    loaded.window.DOMTokenList.prototype.remove = originalRemove;
+    expect(removals).toBe(20);
+  });
+
   // 印が付いていても、移動先はスクロール対象でも確かめる。
   test('移動するとブロックの先頭行までスクロールする', () => {
     const loaded = loadViewerMain({});

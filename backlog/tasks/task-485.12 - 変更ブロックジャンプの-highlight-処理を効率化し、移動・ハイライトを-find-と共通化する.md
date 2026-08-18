@@ -1,10 +1,10 @@
 ---
 id: TASK-485.12
 title: 変更ブロックジャンプの highlight 処理を効率化し、移動・ハイライトを find と共通化する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 14:04'
-updated_date: '2026-08-17 14:52'
+updated_date: '2026-08-18 04:24'
 labels: []
 milestone: m-6
 dependencies: []
@@ -38,8 +38,26 @@ ordinal: 746000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ブロック列挙が O(k)（行ごとの配列コピーが無い）
-- [ ] #2 clearCurrent が現在 target の要素だけを操作する
-- [ ] #3 スクロール・現在位置ハイライトの実装が navigation.ts の 1 箇所にあり、find と jump の挙動が変わらない
-- [ ] #4 既存の jest テストが通る（挙動不変の確認）
+- [x] #1 ブロック列挙が O(k)（行ごとの配列コピーが無い）
+- [x] #2 clearCurrent が現在 target の要素だけを操作する
+- [x] #3 スクロール・現在位置ハイライトの実装が navigation.ts の 1 箇所にあり、find と jump の挙動が変わらない
+- [x] #4 既存の jest テストが通る（挙動不変の確認）
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+実装: (1) collectChangeBlocks は concat をやめ highlight.push(...edge) で伸ばす（ブロック行数 k に対し O(k)）。(2) jump.ts は現在位置の印が付いている要素を currentHighlight として覚え、clearCurrent はその要素だけを操作する（列の全走査を廃止）。invalidate では currentHighlight も捨てる。find.ts も同形にした（従来は全マッチを走査していた）。(3) 印の付け替えとスクロール（block:center / smooth）を navigation.ts の moveCurrentHighlight に集約し、find.highlightCurrent と jump.highlightCurrent の双方がそこを通る。
+
+担保: viewer-main-jump.test.js に「移動時に外す印は直前のブロックの分だけ」を追加（20 行 x 2 ブロックで next 時の remove('mmd-jump-current') 呼び出しが 20 回）。全走査へ戻すと 40 回で落ちることを、実際に jump.ts を全走査版へ書き換えて再ビルドし確認済み（Expected 20 / Received 40）。
+
+検証: npx tsc --noEmit（No errors found）、npm run lint（--type-aware、指摘なし）、npm run format:check（All matched files use the correct format）、npm test（10 suites / 520 tests all passed）。性能の主張は静的算出のままで、レイテンシ実測は行っていない。
+
+docs/dev/native-app-design.md は更新不要と判断した（挙動不変の内部実装の変更で、現在仕様として記述している内容に変化がないため）。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+変更ブロック列挙の O(k^2) を解消し、現在位置ハイライトの解除を直前要素のみに限定し、スクロール・現在位置ハイライトを navigation.ts の moveCurrentHighlight へ一本化した（find/jump 共通）。tsc / lint / format:check / jest 520 件で検証し、追加した回帰テストが旧実装で落ちることも確認した。
+<!-- SECTION:FINAL_SUMMARY:END -->
