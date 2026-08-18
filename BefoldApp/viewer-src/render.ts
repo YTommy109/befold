@@ -61,18 +61,6 @@ function renderShape(type: string, mode: 'rendered' | 'source'): string {
   return type;
 }
 
-// 直前の render() が実際に描いた形(renderShape の戻り値、または差分なら 'diff')。
-// 書き手は render() だけで、モジュールの外へは公開しない。
-//
-// appendChunk はこの値だけを見て追記戦略を決める。表示モードや type から
-// 推し直すと、render 側と別々に判定が育って食い違う(TASK-414)。DOM の形
-// (table.diff-table や pre code.csv-source)を探す判定も使わない。同じ形は
-// markdown-it が html:true で通したユーザーコンテンツにも現れる(TASK-339)。
-// 戻り値を RenderShape の union にしないのは、未知の種別名が届いたときに
-// そのまま返って render() の else 節(Markdown 描画)へ落ちる経路が実在し、
-// union で閉じるとその経路が型の上から消えるため。
-var _mmdRenderedAs = '';
-
 // appendChunk でのハイライトに与える前方文脈の行数。ブロックコメントや
 // 複数行文字列がチャンク境界をまたいでも hljs が字句状態を再構築できる
 // ようにするための固定サイズの先読み(詳細は codeChunkInnerHtml 参照)。
@@ -116,7 +104,7 @@ async function render(content: string, type: string, lang: string | undefined): 
   // すると、途中で返る経路だけ前回の値が残って追記戦略が食い違う)。
   // 差分を組み上げた場合だけ _renderSource が 'diff' を返し、下で上書きする。
   var shape = renderShape(type, _mmdViewOptions.mode());
-  _mmdRenderedAs = shape;
+  _mmdDocument.recordShape(shape);
   // 以降で #diagram-wrap を作り直すため、旧 DOM を指す未応答の解決バッチを無効化する。
   _mmdInvalidatePendingRefs();
   // #mmd-error と #diagram-wrap は viewer.html に静的に置かれており、
@@ -135,7 +123,7 @@ async function render(content: string, type: string, lang: string | undefined): 
 
   // 描画形ディスパッチ。中身の組み立ては各ビルダーに委ね、ここでは選ぶだけにする。
   if (shape === 'code' || shape === 'csv-source') {
-    _mmdRenderedAs = _renderSource(diagramWrap, content, type, lang, shape);
+    _mmdDocument.recordShape(_renderSource(diagramWrap, content, type, lang, shape));
   } else if (shape === 'mmd') {
     _renderMmd(diagramWrap, content);
   } else if (shape === 'svg') {
@@ -181,7 +169,7 @@ function _mmdRerenderCurrent(): void {
 // `type` は render() と同じ呼び出し形(ViewerBridge.contentCallScript)で届くだけで、
 // **追記先の分岐には使わない**。同じ type でも表示モードや差分の有無で DOM の形は
 // 変わるため、type から推し直すと render 側の判定と食い違う(TASK-414)。
-// 分岐は _mmdRenderedAs(render が実際に描いた形)だけを見ること。
+// 分岐は _mmdDocument.shape()(render が実際に描いた形)だけを見ること。
 function appendChunk(text: string, type: string, lang: string | undefined): void {
   // 空チャンク(チャンク読込エラー時のセンチネル)は追記する内容がない。
   // buildLineNumberRows('') は初回描画(空ファイル1行目)用に空行1つを返す契約のため、
@@ -210,10 +198,10 @@ function appendChunk(text: string, type: string, lang: string | undefined): void
   // (1 本ガター)を混ぜると桁がずれ、行番号の基準も狂う。蓄積は上の
   // _mmdDocument.append で済んでいるため、差分を解除した時点の全体再描画で
   // 追記分もそろって出る。
-  if (_mmdRenderedAs === 'diff') {
+  if (_mmdDocument.shape() === 'diff') {
     return;
   }
-  if (_mmdRenderedAs === 'markdown') {
+  if (_mmdDocument.shape() === 'markdown') {
     // Markdown はチャンク境界がブロック境界(コードフェンス外の空行)に揃えられて
     // いるため(StringChunkReader の markdownBlocks)、チャンク単体を描画して
     // 末尾へ足せる。全文を再描画すると巨大ファイルで DOM を作り直すことになり、
@@ -223,7 +211,7 @@ function appendChunk(text: string, type: string, lang: string | undefined): void
     // 追記分に ```mermaid フェンスがあれば描画する。render() と違い appendChunk は
     // 同期関数のため await せず、描画済みの図は対象外にする(全図の再描画を避ける)。
     void _mmdRunMermaid(diagramWrap, true);
-  } else if (_mmdRenderedAs === 'csv-table') {
+  } else if (_mmdDocument.shape() === 'csv-table') {
     var csvRows = parseCsv(text, lang || ',');
     var tbody = diagramWrap.querySelector('tbody');
     if (!tbody) {
@@ -260,7 +248,7 @@ function appendChunk(text: string, type: string, lang: string | undefined): void
     // 行番号付きコード表への追記。ソース表示のテキスト種別・コード種別('code')と、
     // CSV/TSV のソース表示('csv-source')がここへ来る。前者と後者は 1 行の
     // 組み立て方だけが違う(CSV は列ごとのレインボー着色)。
-    var isCsvSource = _mmdRenderedAs === 'csv-source';
+    var isCsvSource = _mmdDocument.shape() === 'csv-source';
     var codeEl = diagramWrap.querySelector('pre code');
     if (!codeEl) {
       return;

@@ -55,6 +55,14 @@ const numberCells = (oldNumber, newNumber) =>
   newNumber +
   '</td>';
 
+// 列挙は必ず「その harness が読み込んだモジュール」から呼ぶ。require で別途
+// 読み直すと _mmdDocument が別インスタンスになり、描いた形の記録が空のまま
+// レンダリング表示として扱われる（TASK-485.17 のテストを書いたとき実際に踏んだ）。
+const headingTexts = (loaded) =>
+  loaded.main
+    .collectHeadings(loaded.document.getElementById('diagram-wrap'))
+    .map((target) => target.anchor.textContent.trim());
+
 const count = (document) => document.getElementById('mmd-jump-count').textContent;
 const current = (document) => document.querySelector('.mmd-jump-current');
 
@@ -721,5 +729,127 @@ describe('変更ブロックのジャンプ', () => {
     main._mmdOpenJump('heading');
 
     expect(document.getElementById('mmd-jump-levels').style.display).toBe('flex');
+  });
+});
+
+// Markdown ソース表示の見出しジャンプ（TASK-485.17）。
+//
+// 中心はレンダリング表示との一致で、これが「フェンス内の # を拾わない」
+// 「レベルトグルが両モードで共有される」を同時に担保する。列挙が
+// _mmdDocument.shape()（render が実際に描いた形）だけを見ることも、
+// 差分表示・CSV ソース・Markdown 以外のソースが 0 件になることで確かめる。
+describe('Markdown ソース表示の見出しジャンプ', () => {
+  // 実描画を通す。DOM を手で組むと「shape をどう記録したか」を確かめられない。
+  async function renderMarkdown(mode, content, options) {
+    const loaded = loadViewerMain(options ?? {});
+    loaded.main.setViewMode(mode);
+    await loaded.main.render(content, 'md');
+    return loaded;
+  }
+
+  // ATX 見出しだけで書いた文書。setext（=== / --- による下線）は対象外なので
+  // 使わない（ソース側は行頭 # だけを見るため、混ぜると両モードが一致しない）。
+  const DOC = [
+    '# 題',
+    '',
+    'ほんぶん',
+    '',
+    '## あ',
+    '',
+    '```sh',
+    '# これはシェルのコメントで見出しではない',
+    '## これも',
+    '```',
+    '',
+    '### い',
+    '',
+    '#### よん（h4 は対象外）',
+    '',
+    '#hashtag は見出しではない',
+    '',
+    '## う',
+    '',
+  ].join('\n');
+
+  test('レンダリング表示とソース表示で見出しの件数と順序が一致する', async () => {
+    const rendered = await renderMarkdown('rendered', DOC);
+    const source = await renderMarkdown('source', DOC);
+
+    const sourceTexts = headingTexts(source).map((text) => text.replace(/^#+ /u, ''));
+
+    expect(headingTexts(rendered)).toEqual(['題', 'あ', 'い', 'う']);
+    expect(sourceTexts).toEqual(['題', 'あ', 'い', 'う']);
+  });
+
+  test('ソース表示で見出し行へ前後移動でき、目印は行の本文セルに付く', async () => {
+    const { document, main } = await renderMarkdown('source', DOC);
+
+    main._mmdOpenJump('heading');
+
+    expect(count(document)).toBe('1/4');
+    expect(current(document).classList.contains('line-content')).toBe(true);
+    main._mmdJumpNextIfOpen();
+    expect(count(document)).toBe('2/4');
+  });
+
+  test('レベルトグルはソース表示でも効く（レンダリング表示と同じ状態を使う）', async () => {
+    const { document, main } = await renderMarkdown('source', DOC, {
+      initialJumpLevels: ['h2'],
+    });
+
+    main._mmdOpenJump('heading');
+
+    // h2 だけ ON なので「あ」「う」の 2 件。
+    expect(count(document)).toBe('1/2');
+
+    levelButton(document, 3).click();
+    expect(count(document)).toBe('1/3');
+  });
+
+  test('段階読み込み中は「表示範囲内」ラベルを出す（差分と違い追記が実際に起きる）', async () => {
+    const { document, main } = await renderMarkdown('source', DOC);
+    main._mmdOpenJump('heading');
+
+    main._mmdSetTruncated(true, 100, false);
+
+    expect(count(document)).toBe('1/4 (Displayed range)');
+  });
+
+  test('追記された行の見出しも数に入る', async () => {
+    const { document, main } = await renderMarkdown('source', '# 題\n');
+    main._mmdOpenJump('heading');
+    expect(count(document)).toBe('1/1');
+
+    main.appendChunk('## あと\n', 'md');
+
+    expect(count(document)).toBe('1/2');
+  });
+
+  test('Markdown 以外のソース表示では見出しを拾わない', async () => {
+    const loaded = loadViewerMain({});
+    loaded.main.setViewMode('source');
+    await loaded.main.render('# これは Swift のコメント\nfunc f() {}\n', 'code', 'swift');
+
+    expect(headingTexts(loaded)).toEqual([]);
+  });
+
+  test('差分表示では見出しを拾わない（table.code-table を名乗るが shape が diff）', async () => {
+    const loaded = loadViewerMain({});
+    loaded.main.setViewMode('source');
+    loaded.main.setDiff(
+      [
+        'diff --git a/x.md b/x.md',
+        '--- a/x.md',
+        '+++ b/x.md',
+        '@@ -1,2 +1,2 @@',
+        '-# 題',
+        '+# 新しい題',
+        ' ',
+        '',
+      ].join('\n'),
+    );
+    await loaded.main.render(DOC, 'md');
+
+    expect(headingTexts(loaded)).toEqual([]);
   });
 });

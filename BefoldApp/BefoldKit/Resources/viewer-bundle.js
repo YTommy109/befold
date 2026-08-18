@@ -14500,11 +14500,21 @@
     var content = null;
     var type = "mmd";
     var lang;
+    var shape = "";
     return {
       record: function(newContent, newType, newLang) {
         content = newContent;
         type = newType;
         lang = newLang;
+      },
+      // 描いた形を記録する。書き手は render() だけ(分岐へ入る前の仮置きと、
+      // 差分を組み上げた場合の上書きの 2 回)。ここを他所から書くと、上の
+      // 「推し直さない」という約束が崩れる。
+      recordShape: function(newShape) {
+        shape = newShape;
+      },
+      shape: function() {
+        return shape;
       },
       // 追記チャンクを直近内容の末尾に足す。まだ何も描画していない間は何もしない。
       append: function(text3) {
@@ -15774,7 +15784,40 @@
       return "h" + level;
     }).join(", ");
   }
-  function collectHeadings(root) {
+  var ATX_HEADING = /^ {0,3}(#{1,6})(?: |$)/u;
+  var CODE_FENCE = /^ {0,3}(`{3,}|~{3,})/u;
+  function sourceLineText(row) {
+    return row.querySelector(".line-content")?.textContent ?? "";
+  }
+  function collectSourceHeadings(root) {
+    var rows = root.querySelectorAll("tr");
+    var targets = [];
+    var fence2 = null;
+    rows.forEach(function(row) {
+      var text3 = sourceLineText(row);
+      var fenceMatch = CODE_FENCE.exec(text3);
+      if (fence2 !== null) {
+        if (fenceMatch && fenceMatch[1][0] === fence2[0] && fenceMatch[1].length >= fence2.length) {
+          fence2 = null;
+        }
+        return;
+      }
+      if (fenceMatch) {
+        fence2 = fenceMatch[1];
+        return;
+      }
+      var match2 = ATX_HEADING.exec(text3);
+      if (!match2 || !selectedLevels.includes(match2[1].length)) {
+        return;
+      }
+      var cell = row.querySelector(".line-content");
+      if (cell) {
+        targets.push({ anchor: cell, highlight: [cell] });
+      }
+    });
+    return targets;
+  }
+  function collectRenderedHeadings(root) {
     var selector = headingSelector(selectedLevels);
     if (!selector) {
       return [];
@@ -15785,6 +15828,15 @@
       targets.push({ anchor: element, highlight: [element] });
     });
     return targets;
+  }
+  function collectHeadings(root) {
+    if (selectedLevels.length === 0) {
+      return [];
+    }
+    if (_mmdDocument.shape() === "code" && _mmdDocument.type() === "md") {
+      return collectSourceHeadings(root);
+    }
+    return collectRenderedHeadings(root);
   }
   var headingJumpProvider = {
     id: "heading",
@@ -23985,7 +24037,6 @@
     }
     return type;
   }
-  var _mmdRenderedAs = "";
   var CODE_CHUNK_CONTEXT_LINES = 200;
   function _mmdFindRefreshAfterRender() {
     var modeJustSwitched = _mmdModeSwitch.consume();
@@ -24002,7 +24053,7 @@
     _mmdDocument.record(content, type, lang);
     _mmdChunkTail.record(content);
     var shape = renderShape(type, _mmdViewOptions.mode());
-    _mmdRenderedAs = shape;
+    _mmdDocument.recordShape(shape);
     _mmdInvalidatePendingRefs();
     var errorPanel = document.getElementById("mmd-error");
     errorPanel.style.display = "none";
@@ -24012,7 +24063,7 @@
     _mmdSetBodyClasses(diagramWrap);
     _mmdPdfBlob.release();
     if (shape === "code" || shape === "csv-source") {
-      _mmdRenderedAs = _renderSource(diagramWrap, content, type, lang, shape);
+      _mmdDocument.recordShape(_renderSource(diagramWrap, content, type, lang, shape));
     } else if (shape === "mmd") {
       _renderMmd(diagramWrap, content);
     } else if (shape === "svg") {
@@ -24053,14 +24104,14 @@
     var previousContent = _mmdDocument.content();
     var highlightContext = _mmdChunkTail.endedWithNewline() && previousContent ? lastLines(previousContent, CODE_CHUNK_CONTEXT_LINES) : "";
     _mmdDocument.append(text3);
-    if (_mmdRenderedAs === "diff") {
+    if (_mmdDocument.shape() === "diff") {
       return;
     }
-    if (_mmdRenderedAs === "markdown") {
+    if (_mmdDocument.shape() === "markdown") {
       diagramWrap.insertAdjacentHTML("beforeend", markdownRenderer().render(text3));
       _annotatePathRefs();
       void _mmdRunMermaid(diagramWrap, true);
-    } else if (_mmdRenderedAs === "csv-table") {
+    } else if (_mmdDocument.shape() === "csv-table") {
       var csvRows = parseCsv(text3, lang || ",");
       var tbody = diagramWrap.querySelector("tbody");
       if (!tbody) {
@@ -24091,7 +24142,7 @@
         _walkTextNodes(tbody.rows[r2], false);
       }
     } else {
-      var isCsvSource = _mmdRenderedAs === "csv-source";
+      var isCsvSource = _mmdDocument.shape() === "csv-source";
       var codeEl = diagramWrap.querySelector("pre code");
       if (!codeEl) {
         return;
