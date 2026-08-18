@@ -63,6 +63,8 @@ const headingTexts = (loaded) =>
     .collectHeadings(loaded.document.getElementById('diagram-wrap'))
     .map((target) => target.anchor.textContent.trim());
 
+const isBarVisible = (document) => document.getElementById('mmd-jump-bar').style.display === 'flex';
+
 const count = (document) => document.getElementById('mmd-jump-count').textContent;
 const current = (document) => document.querySelector('.mmd-jump-current');
 
@@ -851,5 +853,55 @@ describe('Markdown ソース表示の見出しジャンプ', () => {
     await loaded.main.render(DOC, 'md');
 
     expect(headingTexts(loaded)).toEqual([]);
+  });
+});
+
+// 使える種類が変わったらバーを閉じる（TASK-485.18）。
+// 「使えるか」は Swift の ViewerCapabilities.canJump(to:) だけが決め、ここは
+// 結果を受け取って閉じるかどうかだけを判断する。
+describe('ジャンプ可否の同期', () => {
+  test('開いている種類が使えなくなったらバーを閉じる', () => {
+    const { document, main } = openJumpOn(HEADINGS);
+    expect(isBarVisible(document)).toBe(true);
+
+    main._mmdApplyJumpAvailability(['changeBlock']);
+
+    expect(isBarVisible(document)).toBe(false);
+  });
+
+  test('開いている種類が引き続き使えるならバーは開いたまま', () => {
+    const { document, main } = openJumpOn(HEADINGS);
+
+    main._mmdApplyJumpAvailability(['heading', 'changeBlock']);
+
+    expect(isBarVisible(document)).toBe(true);
+    expect(count(document)).toBe('1/4');
+  });
+
+  test('どれも使えなくなったらバーを閉じる', () => {
+    const { document, main } = openJumpOn(HEADINGS);
+
+    main._mmdApplyJumpAvailability([]);
+
+    expect(isBarVisible(document)).toBe(false);
+  });
+
+  test('閉じているときに届いても何も起きない（検索バーを巻き込まない）', () => {
+    const { document, main } = loadViewerMain({});
+    document.getElementById('diagram-wrap').innerHTML = HEADINGS;
+    main._mmdOpenFind();
+
+    main._mmdApplyJumpAvailability([]);
+
+    expect(main._mmdFind.isOpen()).toBe(true);
+  });
+
+  test('閉じたあとはハイライトも候補の印も残らない', () => {
+    const { document, main } = openJumpOn(HEADINGS);
+
+    main._mmdApplyJumpAvailability([]);
+
+    expect(document.querySelector('.mmd-jump-current')).toBeNull();
+    expect(document.querySelectorAll('.mmd-jump-target')).toHaveLength(0);
   });
 });

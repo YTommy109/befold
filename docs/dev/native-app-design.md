@@ -261,7 +261,17 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   変更ブロックは全数そろっているため「表示範囲内」ラベルは出さない
   （差分の表は `setDiff` で渡った全文から組み、`appendChunk` は追記をスキップする）。
   種類ごとの可否は `ViewerCapabilities.canJump(to:)` が持ち、変更ブロックは差分表示を
-  選んでいる間だけ使える。**コマンド経路（`DocumentRendering.openJump(kind:)` と
+  選んでいる間だけ使える。**開いている間に使えなくなったらバーは自動的に閉じる**
+  （別のファイルへ切り替えた・差分表示から離れた等。TASK-485.18）。
+  Swift は「閉じろ」ではなく**いま使える種類の集合**を送り
+  （`DocumentRendering.applyJumpAvailability(_:)` → `_mmdApplyJumpAvailability`）、
+  viewer 側は開いている種類がそこに無ければ閉じる。集合は
+  `DocumentJumpKind.allCases` を `canJump(to:)` で絞って作るため、
+  **開く条件と開き続けられる条件が同じ述語**になり、種類を足したときの
+  載せ忘れも起きない（列挙を手書きに変えると `WebViewCommandControllerTests` が落ちる）。
+  送信の契機は `ViewerWindowController.refreshToolbarState()` — 表示モード変更・
+  ファイル切替・フォルダー一覧⇄文書の切替がすべて通る唯一の再同期点。
+  検索バーは同じ扱いにしない。`canFind` は表示モードに依存しないため失効しない。**コマンド経路（`DocumentRendering.openJump(kind:)` と
   `WebViewCommandController.openJump(kind:)`）は種類を生の String ではなく
   `DocumentJumpKind` で運び、`canJump(to:)` で閉じる**。粗い `canJump` だけで通すと
   種類別の規則をメニュー検証だけが守る形になり、メニュー以外の入口（キーバインド・

@@ -14147,6 +14147,7 @@
     _MSG_ZOOM_CHANGED: () => _MSG_ZOOM_CHANGED,
     _annotatePathRefs: () => _annotatePathRefs,
     _mmdApplyDiagramZoom: () => _mmdApplyDiagramZoom,
+    _mmdApplyJumpAvailability: () => _mmdApplyJumpAvailability,
     _mmdApplyResolvedReferences: () => _mmdApplyResolvedReferences,
     _mmdApplyZoom: () => _mmdApplyZoom,
     _mmdBuildDiagramControls: () => _mmdBuildDiagramControls,
@@ -15707,6 +15708,12 @@
         updateCount();
       }
     }
+    function closeUnlessAvailable(kinds) {
+      if (!isJumpBarOpen() || kinds.includes(activeKind)) {
+        return;
+      }
+      close();
+    }
     function setTruncated(value) {
       truncated = value;
       if (isJumpBarOpen()) {
@@ -15722,6 +15729,7 @@
       refresh,
       rebuild,
       invalidate,
+      closeUnlessAvailable,
       setTruncated,
       register
     };
@@ -15760,6 +15768,12 @@
   }
   function _mmdOpenJump(kind) {
     _mmdJump.open(kind);
+  }
+  function _mmdApplyJumpAvailability(kinds) {
+    var available = Array.isArray(kinds) ? kinds.filter(function(kind) {
+      return typeof kind === "string";
+    }) : [];
+    _mmdJump.closeUnlessAvailable(available);
   }
   function _mmdJumpNextIfOpen() {
     if (!_mmdJump.isOpen()) return;
