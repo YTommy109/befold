@@ -4,7 +4,7 @@ title: ジャンプバーがジャンプ非対応のファイル・表示モー�
 status: To Do
 assignee: []
 created_date: '2026-08-18 15:14'
-updated_date: '2026-08-18 15:15'
+updated_date: '2026-08-18 15:36'
 labels: []
 milestone: m-6
 dependencies:
@@ -58,3 +58,18 @@ TASK-485.7（`openJump(kind:)` が kind 別 capability を検査しない）と�
 - [ ] #4 失効判定と openJump の事前検査が同じ条件を参照していることが構造で分かる（判定の重複が無い）
 - [ ] #5 上記をテストで担保している
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. ViewerBridge へ「いま使えるジャンプ種別の集合」を JS へ渡す script を足す（jumpAvailabilityScript(kinds:)）。JS 側の入口は _mmdApplyJumpAvailability(kinds) で、activeKind が含まれなければ _mmdJump.close() する。バーが閉じていれば no-op で、close は冪等（releaseBar は openBar === kind のときだけ効く）。
+2. DocumentRendering へ applyJumpAvailability(_ kinds:) を足し、WebViewDocumentRenderer が evaluateJavaScript する。生 String へ落とすのは openJump と同じくこの 1 箇所だけ。
+3. WebViewCommandController に同期メソッドを置く。集合は DocumentJumpKind.allCases.filter { capabilities().canJump(to: $0) } で作る。**openJump の guard と同じ canJump(to:) を通す**（AC #4）。allCases 経由なので、新しい kind を足したとき失効判定に自動で載る。
+   ViewerScriptDispatcher（BefoldRenderKit）には置かない。QuickLook と共有する層で、ViewerCapabilities を知らないため。
+4. 送信契機は ViewerWindowController.refreshToolbarState()（ViewerWindowController+SidebarHost.swift:38-40 の薄いラッパー）。表示モード変更・ファイル切替・フォルダー一覧⇄文書 の 3 系統がすべてここを通る唯一の再同期点。サイドバー操作でも送るが冪等。名前が Toolbar なのに WebView へも送る形になるため、doc コメントで「capability 由来の UI 同期点」と明示する（リネームは UI を作り替える TASK-485.19 でまとめて行うほうが安い）。
+5. ミラーによる送信抑止は入れない。契機はユーザー操作起点（モード切替・ファイル切替・サイドバー開閉）で高頻度経路ではなく、evaluateJavaScript 1 回の重複より状態を 1 つ増やす害のほうが大きい。
+6. テスト。Swift: WebViewCommandControllerTests の FakeDocumentRenderer へ applyJumpAvailability の Command を足し、(a) 差分表示中は changeBlock を含む、(b) 差分でなければ含まない、(c) capabilities が .none なら空、(d) 集合が allCases から作られている（新しい kind が自動で載る）ことを固定する。JS: viewer-main-jump.test.js で (e) 開いている kind が集合から外れたら閉じる、(f) 含まれていれば開いたまま、(g) 閉じているときに呼んでも何も起きない。修正を戻して落ちることを確認する。
+7. find バーは対象外。canFind = onDocument && !isDirectHTMLMode（ViewerCapabilities.swift:76）で表示モードに依存せず失効しないため（該当しないことを Notes に記録する）。
+8. swift build / swift test / swiftlint ベースライン差分ゼロ / npm test / npm run check:viewer-bundle。
+9. docs/dev/native-app-design.md の文書内ジャンプ節へ、失効時にバーを閉じる経路と、その判定が canJump(to:) 単一であることを追記する。
+<!-- SECTION:PLAN:END -->
