@@ -155,7 +155,8 @@ public final class ViewerRenderer {
     ///   - codeFontSizePoints: ロード前に JS へ注入するソースビューのコードフォントサイズ(pt)。
     ///     nil は未カスタマイズ(CSS 側の calc(本文*0.75) フォールバックへ委ね、
     ///     アクセシビリティ文字サイズに追従する)。
-    ///   - headingJumpLevels: 見出しジャンプで目印にするレベルの初期値。
+    ///   - headingJumpLevels: 見出しジャンプで目印にするレベルの初期値。保存値を持たない
+    ///     呼び出し側(QuickLook 等)は既定の `.default` のままでよい(JS 側の既定と同じ意味)。
     public func makeWebView(
         initialZoom: Double, findOptionsPreference: FindOptionsPreference?,
         codeFontFamily: String? = nil, codeFontSizePoints: Double? = nil,

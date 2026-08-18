@@ -474,6 +474,14 @@ describe('見出しレベルのトグル', () => {
 
     expect(loaded.main.selectedHeadingLevels()).toEqual([1, 2, 3]);
   });
+
+  // Swift 側はエンコードに失敗したとき null を注入する（ViewerBridge.defaultingFallback）。
+  // 空配列だと「3 つとも OFF」の意味になり、目印が 0 件へ縮退してしまう。
+  test('null が注入されたら既定の 3 つとも ON（全 OFF へ縮退しない）', () => {
+    const loaded = loadViewerMain({ initialJumpLevels: null });
+
+    expect(loaded.main.selectedHeadingLevels()).toEqual([1, 2, 3]);
+  });
 });
 
 describe('見出しの列挙（collectHeadings）', () => {
