@@ -80,10 +80,54 @@ final class SequenceDiffReader: GitDiffReading, @unchecked Sendable {
     }
 }
 
-/// 差分を表示している状態(文書を提示していて選択も現在ファイル)を作る。
+/// 文書を提示している状態(選択も現在ファイル)を作り、**発行済みの非同期仕事が
+/// 残らないところまで**進める。表示モードは呼び出し側の指定のまま変えない。
+///
+/// 待ち合わせをここに置くのは、差分系テストが個別に await を足す形にしないため
+/// (TASK-512)。コントローラ構築時に `SidebarNavigator` が必ず基準ディレクトリの
+/// 解決タスクを飛ばすため、それを待たずに測ると、着地時の
+/// `gitContextDidChange()` → `refreshDiff()` が確定済みの `.unavailable` を
+/// `.pending` へ戻し、負荷の高いマシン(CI)でだけ後続の期待が落ちる。
 @MainActor
-func presentDocument(in controller: ViewerWindowController, file: URL) {
+func preparePresentedDocument(in controller: ViewerWindowController, file: URL) async {
     controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
     controller.fileListModel.selection = file
-    controller.store.displayMode = .diff
+    await settleDiffTestController(controller)
+}
+
+/// 発行済みのコンテンツロード・サイドバー更新・差分取得を待ち切る。
+///
+/// 順序に意味がある。サイドバーの解決が着地すると `gitContextDidChange()` 経由で
+/// 差分の取り直しが**新たに**飛ぶため、`awaitSettled()` の後に差分取得を待つ。
+/// 壁時計予算(waitUntilOnMainActor)は使わない。予算はスイート全体の混雑時間まで
+/// 測ってしまい、TSan ジョブでは操作の成否と無関係に切れる(TASK-437)。
+@MainActor
+func settleDiffTestController(_ controller: ViewerWindowController) async {
+    await controller.store.loadTask?.value
+    await controller.sidebar.awaitSettled()
+    await controller.diffRefreshTask?.value
+}
+
+/// 差分を表示している状態(文書を提示していて選択も現在ファイル)を作る。
+@MainActor
+func presentDocument(in controller: ViewerWindowController, file: URL) async {
+    await presentDocument(in: [controller], file: file)
+}
+
+/// 複数ウィンドウに同じ文書の差分表示を作る。
+///
+/// **提示は全ウィンドウぶんを同じターンで行う**。`GitDiffLoader` の畳み込みは
+/// 「同じ契機(1 ターン)から出た要求」だけを合流させる契約なので、1 窓ずつ提示して
+/// 待ち切ると兄弟要求が別ターンへ散り、合流の検証が成立しなくなる。
+@MainActor
+func presentDocument(in controllers: [ViewerWindowController], file: URL) async {
+    for controller in controllers {
+        controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
+        controller.fileListModel.selection = file
+        // 差分表示への切替そのものが取得を起こすため、待ち合わせはモードを変えた後に行う。
+        controller.store.displayMode = .diff
+    }
+    for controller in controllers {
+        await settleDiffTestController(controller)
+    }
 }

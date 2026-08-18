@@ -22,12 +22,12 @@ struct ViewerWindowManagerDiffTests {
     /// 差分表示を離れたら、以前の取得結果が残っていても差分は出さない。
     /// 表示モードはファイル単位なので、反転はコントローラ自身が行う。
     @Test("差分表示から離れると本文が捨てられる")
-    func clearsDiffTextWhenLeavingDiffMode() throws {
+    func clearsDiffTextWhenLeavingDiffMode() async throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "DiffTests.clear")
         defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file)
         let controller = try #require(fixture.manager.allControllers.first)
-        presentDocument(in: controller, file: file)
+        await presentDocument(in: controller, file: file)
         controller.store.diffContent = .diff("@@ -1 +1 @@\n-a\n+b\n")
 
         controller.setDisplayMode(.source)
@@ -137,11 +137,10 @@ struct ViewerWindowManagerDiffTests {
         let controllers = fixture.manager.allControllers
         #expect(controllers.count == 2)
         try #require(controllers.first { $0.fileURL == other }).switchFile(to: shared)
-        for controller in controllers {
-            presentDocument(in: controller, file: shared)
-        }
+        await presentDocument(in: controllers, file: shared)
         #expect(controllers.allSatisfy { $0.fileURL == shared })
-        // ウィンドウ生成・切替そのものも差分を取りに行くため、本文が入るまで待つ。
+        // ウィンドウ生成・切替そのものも差分を取りに行くため、本文が入るまで待つ
+        // (飛行中の取得は presentDocument が共有ヘルパーで落としている / TASK-512)。
         await waitForDeliveryOnMainActor {
             controllers.allSatisfy { $0.store.diffContent.text != nil }
         }
@@ -183,7 +182,7 @@ struct ViewerWindowManagerDiffTests {
         let controllers = fixture.manager.allControllers
         #expect(controllers.count == 2)
         for controller in controllers {
-            presentDocument(in: controller, file: controller.fileURL)
+            await presentDocument(in: controller, file: controller.fileURL)
         }
         let survivor = try #require(controllers.first { $0.fileURL == second })
 

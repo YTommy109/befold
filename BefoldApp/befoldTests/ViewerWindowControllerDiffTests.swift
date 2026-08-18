@@ -156,7 +156,7 @@ struct ViewerWindowControllerDiffTests {
             gitFileIndex: SlowRootGitFileIndex(delay: 0)
         ).controller
         defer { controller.close() }
-        presentDocument(in: controller, file: file)
+        await presentDocument(in: controller, file: file)
         controller.store.diffContent = .diff("@@ -1 +1 @@\n-a\n+b\n")
 
         // SidebarNavigator が git 状態を反映したときに呼ぶ経路(protocol 必須メソッド)。
@@ -173,12 +173,12 @@ struct ViewerWindowControllerDiffTests {
     /// 表示側で捨てるだけでは `.git` の書き込みごとに subprocess が走る。
     /// 併せて、差分表示を離れたときに取得済みの本文が捨てられることも測る(開始時の無効化)。
     @Test("差分表示モードでなければ取得しない")
-    func skipsFetchWhenNotInDiffMode() {
+    func skipsFetchWhenNotInDiffMode() async {
         let preference = makePreference()
         let reader = RecordingDiffReader()
         let controller = makeController(preference: preference, diffReader: reader)
         defer { controller.close() }
-        presentDocument(in: controller, file: file)
+        await presentDocument(in: controller, file: file)
         controller.store.diffContent = .diff("@@ -1 +1 @@\n-a\n+b\n")
 
         controller.setDisplayMode(.source)
@@ -200,13 +200,10 @@ struct ViewerWindowControllerDiffTests {
         let reader = RecordingDiffReader()
         let controller = makeController(preference: preference, file: csv, diffReader: reader)
         defer { controller.close() }
-        presentDocument(in: controller, file: csv)
         // 種別は読み込み完了時に確定する。ここを待たないと既定の .mmd のまま測ってしまい、
-        // canToggleDiff が false でも「CSV だから」ではなくなる。
-        // 壁時計予算のポーリング(waitUntilOnMainActor)ではなく loadTask を await する。
-        // 予算はスイート全体の混雑時間まで測ってしまい、TSan ジョブでは操作の成否と
-        // 無関係に切れる(TASK-437 で予算を 10 → 60 → 120 と伸ばしても落ちた)。
-        await controller.store.loadTask?.value
+        // canToggleDiff が false でも「CSV だから」ではなくなる(待ち合わせは
+        // presentDocument が共有ヘルパー経由でまとめて行う)。
+        await presentDocument(in: controller, file: csv)
         #expect(controller.store.contentState.fileType == .csv(delimiter: ","))
         #expect(controller.store.showsCodeContent)
         #expect(!controller.capabilities.canSelectDiffMode)
@@ -236,12 +233,9 @@ struct ViewerWindowControllerDiffTests {
             gitFileIndex: SlowRootGitFileIndex(delay: 0)
         ).controller
         defer { controller.close() }
-        presentDocument(in: controller, file: file)
-        // 前提: 切替前の .swift のロードが確定し、差分を出せる状態になっている。
-        // 壁時計予算のポーリング(waitUntilOnMainActor)ではなく loadTask を await する。
-        // 予算はスイート全体の混雑時間まで測ってしまい、TSan ジョブでは操作の成否と
-        // 無関係に切れる(TASK-437 で予算を 10 → 60 → 120 と伸ばしても落ちた)。
-        await controller.store.loadTask?.value
+        // 前提: 切替前の .swift のロードが確定し、差分を出せる状態になっている
+        // (待ち合わせは presentDocument が共有ヘルパー経由でまとめて行う)。
+        await presentDocument(in: controller, file: file)
         #expect(controller.store.contentState.filePath == file)
         #expect(controller.capabilities.canSelectDiffMode)
 
@@ -284,12 +278,7 @@ struct ViewerWindowControllerDiffTests {
         defer { controller.close() }
         // presentDocument は差分表示にしてしまうため、提示状態だけを作る
         // (レンダリング表示のまま切り替えることがこのテストの前提)。
-        controller.fileListModel.entries = [FileListEntry(url: markdown, kind: .file)]
-        controller.fileListModel.selection = markdown
-        // 壁時計予算のポーリング(waitUntilOnMainActor)ではなく loadTask を await する。
-        // 予算はスイート全体の混雑時間まで測ってしまい、TSan ジョブでは操作の成否と
-        // 無関係に切れる(TASK-437 で予算を 10 → 60 → 120 と伸ばしても落ちた)。
-        await controller.store.loadTask?.value
+        await preparePresentedDocument(in: controller, file: markdown)
         #expect(controller.store.contentState.fileType == .markdown)
         // 前提: レンダリング表示中は差分モードを選んでいない = ここでは取得も起きない。
         #expect(!controller.isDiffShown)
