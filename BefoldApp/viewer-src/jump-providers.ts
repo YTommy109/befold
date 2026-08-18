@@ -8,6 +8,7 @@
 // 通す穴になり、列挙とそれ以外を分けた意味が薄れる。
 
 import { _MSG_JUMP_LEVELS_CHANGED, _mmdPostMessage } from './bridge.js';
+import { _mmdDocument } from './document-state.js';
 import { _mmdJump } from './jump.js';
 import type { JumpProvider, JumpTarget } from './jump.js';
 
@@ -39,7 +40,61 @@ function headingSelector(levels: number[]): string | null {
     .join(', ');
 }
 
-function collectHeadings(root: HTMLElement): JumpTarget[] {
+// ATX 見出しの行。CommonMark に合わせて先頭空白は 3 つまで、# の直後には
+// 空白（または行末）が要る。`#hashtag` や 4 つ以上の字下げ（＝コードブロック）を
+// 見出しにしないための条件で、レンダリング表示の markdown-it と同じ判断になる。
+var ATX_HEADING = /^ {0,3}(#{1,6})(?: |$)/u;
+
+// フェンスの開始・終了。``` と ~~~ のどちらも、行頭空白 3 つまでを許す。
+var CODE_FENCE = /^ {0,3}(`{3,}|~{3,})/u;
+
+// ソース表示の 1 行のテキスト。行番号セルは別の <td> なので、行全体の
+// textContent を使うと行番号が本文の先頭に混ざる（`1# title` のように読める）。
+function sourceLineText(row: HTMLTableRowElement): string {
+  return row.querySelector('.line-content')?.textContent ?? '';
+}
+
+// Markdown ソース表示の見出し行を、選んだレベルだけ文書順に拾う。
+//
+// フェンスの内外を上から順に持ち回るのは、コードブロックの中の `# コメント` を
+// 見出しと誤検出しないため。行単位のパターン一致だけで決めると、シェルや
+// Python のコメントがそのまま見出しになる（同型の実例: unified diff の
+// ファイルヘッダ判定が削除行を巻き込んだ TASK-316）。
+//
+// 目印にするのは <tr> ではなく <td class="line-content">。border-collapse の表では
+// tr への outline が上下辺しか描かれない（下の changeBlockJumpProvider と同じ実測）。
+function collectSourceHeadings(root: HTMLElement): JumpTarget[] {
+  var rows = root.querySelectorAll<HTMLTableRowElement>('tr');
+  var targets: JumpTarget[] = [];
+  var fence: string | null = null;
+  rows.forEach(function (row) {
+    var text = sourceLineText(row);
+    var fenceMatch = CODE_FENCE.exec(text);
+    if (fence !== null) {
+      // 閉じるフェンスは開いたものと同じ文字で、同じ長さ以上でなければならない。
+      if (fenceMatch && fenceMatch[1]![0] === fence[0] && fenceMatch[1]!.length >= fence.length) {
+        fence = null;
+      }
+      return;
+    }
+    if (fenceMatch) {
+      fence = fenceMatch[1]!;
+      return;
+    }
+    var match = ATX_HEADING.exec(text);
+    if (!match || !selectedLevels.includes(match[1]!.length)) {
+      return;
+    }
+    var cell = row.querySelector<HTMLElement>('.line-content');
+    if (cell) {
+      targets.push({ anchor: cell, highlight: [cell] });
+    }
+  });
+  return targets;
+}
+
+// レンダリング表示の見出し要素を拾う。
+function collectRenderedHeadings(root: HTMLElement): JumpTarget[] {
   var selector = headingSelector(selectedLevels);
   if (!selector) {
     return [];
@@ -52,12 +107,30 @@ function collectHeadings(root: HTMLElement): JumpTarget[] {
   return targets;
 }
 
-// 見出しの列。Markdown レンダリング表示の h1 / h2 / h3 のうち、
-// ユーザーが選んだレベルを文書順に拾う。
+// 見出しの列。ユーザーが選んだレベルを文書順に拾う。対象は 2 つあり、
+// **Markdown レンダリング表示の h1 / h2 / h3** と
+// **Markdown ソース表示の行頭 # / ## / ###**（TASK-485.17）。
 //
-// 見出しには markdown.ts の assignHeadingIds が既に id を振っているが、
-// ここでは id に依存せず要素そのものを目印にする（id は URL 断片用で、
+// どちらを拾うかは `_mmdDocument.shape()`（render が実際に描いた形）だけで決める。
+// 表示モードや type から推し直さず、DOM の形でも判定しない（document-state.ts の
+// shape のコメント参照）。特に `table.code-table` を探す形は採れない
+// ——差分テーブルも同じクラスを名乗るため（TASK-318 と同型）。shape が 'code' の
+// ときだけソース行走査へ入るので、差分（'diff'）と CSV ソース（'csv-source'）は
+// この分岐に入らない。
+//
+// レンダリング表示の見出しには markdown.ts の assignHeadingIds が既に id を
+// 振っているが、ここでは id に依存せず要素そのものを目印にする（id は URL 断片用で、
 // 目印の同一性とは別の関心）。
+function collectHeadings(root: HTMLElement): JumpTarget[] {
+  if (selectedLevels.length === 0) {
+    return [];
+  }
+  if (_mmdDocument.shape() === 'code' && _mmdDocument.type() === 'md') {
+    return collectSourceHeadings(root);
+  }
+  return collectRenderedHeadings(root);
+}
+
 var headingJumpProvider: JumpProvider = {
   id: 'heading',
   collect: collectHeadings,

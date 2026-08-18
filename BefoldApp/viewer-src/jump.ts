@@ -55,6 +55,10 @@ interface JumpController {
   // 描画の開始時に列を捨てる。着地までの間、前の文書の n/N と
   // ハイライトが残らないようにする。
   invalidate(): void;
+  // いま使える目印の種類が変わったことを受け取る。開いている種類が使えなく
+  // なっていたらバーを閉じる。判定そのものは Swift 側の
+  // `ViewerCapabilities.canJump(to:)` が持ち、ここは結果を受け取るだけ。
+  closeUnlessAvailable(kinds: string[]): void;
   setTruncated(value: boolean): void;
   register(provider: JumpProvider): void;
 }
@@ -283,6 +287,19 @@ function _createJumpController(): JumpController {
     }
   }
 
+  // 開いている種類がもう使えないならバーを閉じる（TASK-485.18）。
+  //
+  // 閉じているときは何もしない（close は冪等だが、releaseBar が他バーの状態を
+  // 巻き込まないよう入口で弾く）。「使えるか」を JS 側で判定し直さないのは、
+  // 同じ規則が Swift と JS の 2 箇所で育つのを避けるため。開くときの guard
+  // （WebViewCommandController.openJump）と同じ canJump(to:) の結果がここへ届く。
+  function closeUnlessAvailable(kinds: string[]): void {
+    if (!isJumpBarOpen() || kinds.includes(activeKind)) {
+      return;
+    }
+    close();
+  }
+
   function setTruncated(value: boolean): void {
     truncated = value;
     if (isJumpBarOpen()) {
@@ -299,6 +316,7 @@ function _createJumpController(): JumpController {
     refresh: refresh,
     rebuild: rebuild,
     invalidate: invalidate,
+    closeUnlessAvailable: closeUnlessAvailable,
     setTruncated: setTruncated,
     register: register,
   };
@@ -355,6 +373,19 @@ function _mmdOpenJump(kind: string): void {
   _mmdJump.open(kind);
 }
 
+// Swift(evaluateJavaScript)から名前で呼ばれる入口。いま使えるジャンプの種類が
+// 変わるたびに送られ、開いている種類が外れていればバーを閉じる。
+function _mmdApplyJumpAvailability(kinds: unknown): void {
+  // 配列以外（未注入・壊れた注入）は「どれも使えない」として扱う。バーを閉じる
+  // 方向へ倒れるので、使えない種類のバーが残るより安全。
+  var available = Array.isArray(kinds)
+    ? kinds.filter(function (kind): kind is string {
+        return typeof kind === 'string';
+      })
+    : [];
+  _mmdJump.closeUnlessAvailable(available);
+}
+
 function _mmdJumpNextIfOpen(): void {
   if (!_mmdJump.isOpen()) return;
   _mmdJump.next();
@@ -366,4 +397,11 @@ function _mmdJumpPrevIfOpen(): void {
 }
 
 export type { JumpProvider, JumpTarget };
-export { _mmdJump, _mmdInitJump, _mmdOpenJump, _mmdJumpNextIfOpen, _mmdJumpPrevIfOpen };
+export {
+  _mmdJump,
+  _mmdInitJump,
+  _mmdOpenJump,
+  _mmdApplyJumpAvailability,
+  _mmdJumpNextIfOpen,
+  _mmdJumpPrevIfOpen,
+};

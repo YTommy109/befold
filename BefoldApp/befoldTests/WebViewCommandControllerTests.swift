@@ -19,6 +19,7 @@ private final class FakeDocumentRenderer: DocumentRendering {
         case findNext
         case findPrevious
         case openJump(kind: DocumentJumpKind)
+        case applyJumpAvailability(kinds: Set<DocumentJumpKind>)
         case print
         case currentScrollPosition
         case noteRename(old: URL, new: URL)
@@ -58,6 +59,10 @@ private final class FakeDocumentRenderer: DocumentRendering {
 
     func openJump(kind: DocumentJumpKind) {
         commands.append(.openJump(kind: kind))
+    }
+
+    func applyJumpAvailability(_ kinds: Set<DocumentJumpKind>) {
+        commands.append(.applyJumpAvailability(kinds: kinds))
     }
 
     func printDocument(over _: NSWindow?) {
@@ -266,6 +271,56 @@ struct WebViewCommandControllerTests {
         controller.openJump(kind: .changeBlock)
 
         #expect(renderer.commands == [.openJump(kind: .changeBlock)])
+    }
+
+    // 失効の同期(TASK-485.18)。開くときの guard と同じ canJump(to:) を通すことで、
+    // 「開けるが開き続けられない」「開けないのに閉じない」という食い違いを作らない。
+
+    @Test("使える種類の同期は差分表示中なら変更ブロックを含む")
+    func jumpAvailabilityIncludesChangeBlockWhileShowingDiff() {
+        let renderer = FakeDocumentRenderer()
+        let controller = makeController(renderer: renderer, capabilities: { .allEnabledShowingDiffForTesting })
+
+        controller.syncJumpAvailability()
+
+        #expect(renderer.commands == [.applyJumpAvailability(kinds: [.heading, .changeBlock])])
+    }
+
+    @Test("使える種類の同期は差分表示でなければ変更ブロックを含まない")
+    func jumpAvailabilityExcludesChangeBlockWithoutDiff() {
+        let renderer = FakeDocumentRenderer()
+        let controller = makeController(renderer: renderer)
+
+        controller.syncJumpAvailability()
+
+        #expect(renderer.commands == [.applyJumpAvailability(kinds: [.heading])])
+    }
+
+    @Test("何もできない状態では使える種類が空になり、開いているバーは閉じる指示になる")
+    func jumpAvailabilityIsEmptyWithoutCapability() {
+        let renderer = FakeDocumentRenderer()
+        let controller = makeController(renderer: renderer, capabilities: { .none })
+
+        controller.syncJumpAvailability()
+
+        #expect(renderer.commands == [.applyJumpAvailability(kinds: [])])
+    }
+
+    /// 集合が `allCases` から作られていることを固定する。種類を足したとき、
+    /// 失効の同期にだけ載り忘れる形（新しい種類のバーだけ閉じない）を防ぐ。
+    /// 列挙を書き足す実装に変わると、この比較が落ちる。
+    @Test("使える種類の同期は DocumentJumpKind の全種類を検査する")
+    func jumpAvailabilityConsidersEveryKind() {
+        let renderer = FakeDocumentRenderer()
+        let controller = makeController(renderer: renderer, capabilities: { .allEnabledShowingDiffForTesting })
+
+        controller.syncJumpAvailability()
+
+        let synced = renderer.commands.compactMap { command -> Set<DocumentJumpKind>? in
+            guard case let .applyJumpAvailability(kinds) = command else { return nil }
+            return kinds
+        }
+        #expect(synced == [Set(DocumentJumpKind.allCases)])
     }
 
     @Test("rename の追随は状態の反映なので能力で止めない")

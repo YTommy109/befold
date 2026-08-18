@@ -230,8 +230,23 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
 - **検索**: 大文字小文字区別・単語一致・正規表現の3トグル、次/前移動
 - **文書内ジャンプ**: 文書順に並んだ目印を前後移動する
   （Edit > 見出しへジャンプ… / 変更箇所へジャンプ…）。目印は 2 種類ある。
-  **見出し**は Markdown レンダリング表示が対象で、**h1 / h2 / h3 のどれを目印にするかを
+  **見出し**は Markdown が対象で、**h1 / h2 / h3 のどれを目印にするかを
   バーのトグルで選べる**（既定は 3 つとも ON。3 つとも OFF も正当な状態）。
+  レンダリング表示では `h1` / `h2` / `h3` 要素を、**ソース表示では行頭の
+  `#` / `##` / `###`（ATX 見出し）を拾う**（TASK-485.17）。トグルの状態は
+  両表示で共有し、**同じ文書なら件数と順序が一致する**ことをテストで固定する
+  （フェンス内の `#` を見出しにしないこと、レベル選択が両方に効くことが
+  この 1 本で同時に落ちる）。setext 見出し（`===` / `---` の下線）はソース側の
+  対象外で、この不変条件は ATX 見出しで書かれた文書について成り立つ。
+  どちらを拾うかは **`_mmdDocument.shape()`（render が実際に描いた形）だけ**で決め、
+  表示モードや type から推し直さず、DOM の形でも判定しない。特に
+  `table.code-table` を探す形は採れない——差分テーブルも同じクラスを名乗るため
+  （TASK-318 と同型）。`shape` が `'code'` のときだけソース行走査へ入るので、
+  差分表示・CSV ソース表示・Markdown 以外のソース表示は列挙に入らず 0 件になる。
+  **種別では capability を閉じない**（`canJump` に fileType を持ち込むと
+  ソースの関数定義ジャンプ = TASK-485.4 が来た時点で条件が反転する）。
+  目印が 0 個であることは 0/0 表示が伝える、という
+  `canJumpToChangeBlock` と同じ立場を取る。
   **変更ブロック**は差分表示が対象で、連続する削除行とその直後の追加行のまとまりを
   1 件として数える。数え方はハンク単位ではない（`GitDiffReader` が 100 万行の文脈を
   指定するためファイル全体が 1 ハンクになりうる）。番号は描画時に
@@ -246,7 +261,17 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   変更ブロックは全数そろっているため「表示範囲内」ラベルは出さない
   （差分の表は `setDiff` で渡った全文から組み、`appendChunk` は追記をスキップする）。
   種類ごとの可否は `ViewerCapabilities.canJump(to:)` が持ち、変更ブロックは差分表示を
-  選んでいる間だけ使える。**コマンド経路（`DocumentRendering.openJump(kind:)` と
+  選んでいる間だけ使える。**開いている間に使えなくなったらバーは自動的に閉じる**
+  （別のファイルへ切り替えた・差分表示から離れた等。TASK-485.18）。
+  Swift は「閉じろ」ではなく**いま使える種類の集合**を送り
+  （`DocumentRendering.applyJumpAvailability(_:)` → `_mmdApplyJumpAvailability`）、
+  viewer 側は開いている種類がそこに無ければ閉じる。集合は
+  `DocumentJumpKind.allCases` を `canJump(to:)` で絞って作るため、
+  **開く条件と開き続けられる条件が同じ述語**になり、種類を足したときの
+  載せ忘れも起きない（列挙を手書きに変えると `WebViewCommandControllerTests` が落ちる）。
+  送信の契機は `ViewerWindowController.refreshToolbarState()` — 表示モード変更・
+  ファイル切替・フォルダー一覧⇄文書の切替がすべて通る唯一の再同期点。
+  検索バーは同じ扱いにしない。`canFind` は表示モードに依存しないため失効しない。**コマンド経路（`DocumentRendering.openJump(kind:)` と
   `WebViewCommandController.openJump(kind:)`）は種類を生の String ではなく
   `DocumentJumpKind` で運び、`canJump(to:)` で閉じる**。粗い `canJump` だけで通すと
   種類別の規則をメニュー検証だけが守る形になり、メニュー以外の入口（キーバインド・

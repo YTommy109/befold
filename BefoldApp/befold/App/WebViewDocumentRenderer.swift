@@ -69,6 +69,14 @@ final class WebViewDocumentRenderer: DocumentRendering {
         evaluate(ViewerBridge.openJumpScript(kind: kind.rawValue))
     }
 
+    /// 文字列へ落とすのは openJump と同じくこの JS 境界だけ。順序を安定させるため
+    /// `allCases` の並びで送る(集合のままだと呼び出しごとに順序が変わり、
+    /// 送信スクリプトの比較やログが読みにくくなる)。
+    func applyJumpAvailability(_ kinds: Set<DocumentJumpKind>) {
+        let ordered = DocumentJumpKind.allCases.filter { kinds.contains($0) }.map(\.rawValue)
+        evaluate(ViewerBridge.jumpAvailabilityScript(kinds: ordered))
+    }
+
     func printDocument(over window: NSWindow?) {
         guard let window, let webView = webViewProxy.webView else { return }
         let printInfo = NSPrintInfo()

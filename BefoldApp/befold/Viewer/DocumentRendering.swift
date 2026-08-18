@@ -46,6 +46,14 @@ protocol DocumentRendering: AnyObject {
     /// 呼ぶ必要が出たら、そのときに再導入する。
     func openJump(kind: DocumentJumpKind)
 
+    /// いま使える目印の種類を viewer へ知らせる。開いているジャンプバーの種類が
+    /// この集合から外れていれば、viewer 側がバーを閉じる(TASK-485.18)。
+    ///
+    /// 「閉じろ」ではなく「使える集合」を送るのは、判定を Swift 側の
+    /// `ViewerCapabilities.canJump(to:)` 1 箇所に保つため。閉じる条件を JS 側で
+    /// 組み直すと、開くときの guard と同じ規則が 2 つの言語で別々に育つ。
+    func applyJumpAvailability(_ kinds: Set<DocumentJumpKind>)
+
     /// 表示内容を指定ウィンドウ上のシートとして印刷する。
     func printDocument(over window: NSWindow?)
 

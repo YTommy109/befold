@@ -32,11 +32,18 @@ extension ViewerWindowController: SidebarNavigatorHost {
         refreshToolbarState()
     }
 
-    /// 現在の表示状態をツールバーの全アイテムへ再同期する。
+    /// 現在の表示状態を、能力(`ViewerCapabilities`)から導かれる UI すべてへ再同期する。
     /// ウィンドウ内部の状態変更に加え、CLI からの表示オプション上書き
     /// (ViewerWindowManager.applyDisplayOverrides)のような外部要因からも呼ばれる。
+    ///
+    /// **ツールバーだけでなく viewer 内のジャンプバーもここで同期する。** 表示モード変更・
+    /// ファイル切替・フォルダー一覧⇄文書の切替は、いずれも最終的にこの 1 点を通る唯一の
+    /// 再同期点であり、能力が変わったことを知れる場所がほかに無い(TASK-485.18)。
+    /// 名前がツールバーだけを指しているのは経緯によるもので、バーを作り替える
+    /// TASK-485.19 で改名する。
     func refreshToolbarState() {
         toolbarController.refreshToolbarState()
+        webViewCommands.syncJumpAvailability()
     }
 
     /// 現在の codeFontPreference の値を WebView へ注入し直して即時反映する。

@@ -285,6 +285,17 @@ public enum ViewerBridge {
         return "_mmdOpenJump(\(literal))"
     }
 
+    /// いま使える目印の種類を JS へ知らせるスクリプト(TASK-485.18)。
+    /// JS 側は開いているジャンプバーの種類がこの一覧から外れていれば閉じる。
+    /// 開くときの guard(`WebViewCommandController.openJump`)と同じ
+    /// `ViewerCapabilities.canJump(to:)` の結果が渡るため、可否の規則は Swift 側の
+    /// 1 箇所だけが持つ(JS 側で判定し直さない)。
+    /// エンコードに失敗したときは空配列を入れる。ここでの空は「どの種類も使えない」で、
+    /// バーを閉じる方向へ倒れる — 使えない種類のバーが残るより安全な縮退。
+    public static func jumpAvailabilityScript(kinds: [String]) -> String {
+        "_mmdApplyJumpAvailability(\(jsonLiteral(kinds) ?? "[]"))"
+    }
+
     /// JS 側で見出しレベルのトグルが変わったときに postMessage されるメッセージハンドラ名。
     public static let jumpLevelsChangedMessageName = ViewerBridgeMessage.jumpLevelsChanged.rawValue
 

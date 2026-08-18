@@ -118,6 +118,20 @@ final class WebViewCommandController {
         renderer.openJump(kind: kind)
     }
 
+    /// いま使える種類を viewer へ送り直す。開いているバーの種類が使えなくなって
+    /// いれば viewer 側が閉じる(TASK-485.18)。
+    ///
+    /// 集合は `allCases` を `canJump(to:)` で絞って作る。openJump の guard と
+    /// **同じ述語**を通すので、開く条件と開き続けられる条件が食い違わない。
+    /// 種類を足したときも列挙を書き足す必要が無い(書き足し漏れは
+    /// 「新しい種類だけ失効しない」という形で表に出るため、構造で塞ぐ)。
+    func syncJumpAvailability() {
+        let capabilities = capabilities()
+        renderer.applyJumpAvailability(
+            Set(DocumentJumpKind.allCases.filter { capabilities.canJump(to: $0) })
+        )
+    }
+
     // MARK: - Scroll position
 
     /// 現在のスクロール位置を問い合わせ、指定した URL・モードのキーへ保存する。
