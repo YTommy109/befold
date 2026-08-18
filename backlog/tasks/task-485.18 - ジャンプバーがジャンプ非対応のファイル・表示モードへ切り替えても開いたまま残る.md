@@ -1,10 +1,11 @@
 ---
 id: TASK-485.18
 title: ジャンプバーがジャンプ非対応のファイル・表示モードへ切り替えても開いたまま残る
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-08-18 15:14'
-updated_date: '2026-08-18 15:36'
+updated_date: '2026-08-18 15:56'
 labels: []
 milestone: m-6
 dependencies:
@@ -52,11 +53,11 @@ TASK-485.7（`openJump(kind:)` が kind 別 capability を検査しない）と�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 見出しジャンプを開いた状態でジャンプ非対応のファイルへ切り替えると、バーが自動的に閉じる
-- [ ] #2 変更ブロックジャンプを開いた状態で差分表示から離れると、バーが自動的に閉じる
-- [ ] #3 対象が引き続き有効なファイル・モードへの切り替えでは、バーが開いたままであることを壊していない
-- [ ] #4 失効判定と openJump の事前検査が同じ条件を参照していることが構造で分かる（判定の重複が無い）
-- [ ] #5 上記をテストで担保している
+- [x] #1 見出しジャンプを開いた状態でジャンプ非対応のファイルへ切り替えると、バーが自動的に閉じる
+- [x] #2 変更ブロックジャンプを開いた状態で差分表示から離れると、バーが自動的に閉じる
+- [x] #3 対象が引き続き有効なファイル・モードへの切り替えでは、バーが開いたままであることを壊していない
+- [x] #4 失効判定と openJump の事前検査が同じ条件を参照していることが構造で分かる（判定の重複が無い）
+- [x] #5 上記をテストで担保している
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -73,3 +74,38 @@ TASK-485.7（`openJump(kind:)` が kind 別 capability を検査しない）と�
 8. swift build / swift test / swiftlint ベースライン差分ゼロ / npm test / npm run check:viewer-bundle。
 9. docs/dev/native-app-design.md の文書内ジャンプ節へ、失効時にバーを閉じる経路と、その判定が canJump(to:) 単一であることを追記する。
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+実装: Swift → JS の一方向 1 経路。ViewerBridge.jumpAvailabilityScript(kinds:) → _mmdApplyJumpAvailability(kinds) → JumpController.closeUnlessAvailable(kinds)。開いている種類が集合に無ければ閉じる。
+
+単純化の検討: 「閉じろ」を送る案（Swift が失効を判断して close を叩く）と、JS 側だけで完結させる案（_mmdViewOptions.diff() などから可否を組み直す）を先に検討した。前者は Swift が「いまバーが開いているか」を知らないため無条件送信になり、後者は「変更ブロックは差分表示中だけ」という同じ規則が Swift と JS の 2 箇所で別々に育つ。使える集合を送る形にすると、可否の規則は canJump(to:) 1 箇所のままで、JS は集合と自分の状態を比べるだけになる。
+
+ミラーによる送信抑止は入れなかった: 契機がユーザー操作起点（モード切替・ファイル切替・サイドバー開閉）で、キーストロークや監視コールバックのような高頻度経路ではない。evaluateJavaScript 1 回の重複より状態を 1 つ増やす害のほうが大きいと判断した。
+
+AC #4 の担保（判定の重複が無いこと）: 集合を DocumentJumpKind.allCases.filter { canJump(to: $0) } で作り、それを固定するテストを置いた。列挙を手書き（[.heading] など）に変えると 2 件落ちる。実測で確認済み。
+
+find バーは対象外（該当しないことの記録）: canFind = onDocument && !isDirectHTMLMode（ViewerCapabilities.swift:76）で表示モードに依存しないため失効しない。find バーもファイル切替では閉じないが、これは破綻ではない。
+
+契約テスト: _mmdApplyJumpAvailability は引数を取るため ViewerBridge.PlainFunction の allCases 網に載らない。_mmdOpenJump と同じく ViewerBridgeContractTests へ明示的に定義存在の検査を追加した。
+
+検証（実測）:
+- swift build: Build complete
+- swift test: 1645 tests / 263 suites すべて成功
+- npm test: 10 スイート / 537 件すべて成功
+- 修正を戻して確認（JS）: closeUnlessAvailable の close() を外すと 3 件落ちる。残る 2 件は「閉じないこと」を見るテストなので通るのが正しい
+- 修正を戻して確認（Swift）: allCases を [.heading] の手書き列挙に変えると 2 件落ちる
+- swiftlint ベースライン差分: main / HEAD ともに 54 件、真の新規ゼロ・解消ゼロ
+- swiftformat: 0/16 files formatted（変更なし）
+- npm run lint (--type-aware) / typecheck:viewer / check-viewer-cycles: いずれもクリーン
+- markdownlint-cli2: 0 issues / scripts/check-doc-symbols.sh: 指摘なし
+
+docs/dev/native-app-design.md の文書内ジャンプ節へ、失効時に閉じること・集合を送る理由・送信契機・検索バーを同じ扱いにしない理由を追記した。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ジャンプ非対応のファイルや表示モードへ切り替えたとき、開いたままだったジャンプバーを自動的に閉じるようにした。Swift は「閉じろ」ではなく、いま使える種類の集合（DocumentJumpKind.allCases を canJump(to:) で絞ったもの）を送り、viewer 側は開いている種類がそこに無ければ閉じる。開くときの guard と同じ述語を通るため、開く条件と開き続けられる条件が食い違わず、種類を足したときの載せ忘れも構造で塞がれている（列挙を手書きに変えるとテストが落ちることを実測で確認）。swift test 1645 件・npm test 537 件成功、swiftlint ベースライン差分ゼロ。
+<!-- SECTION:FINAL_SUMMARY:END -->
