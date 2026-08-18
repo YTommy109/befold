@@ -61,7 +61,7 @@ public extension ViewerRendererDelegate {
 /// find/loadMore/リンク遷移などアプリ専用機能はフック注入・オプショナルにしてあり、
 /// QuickLook 拡張(.appex)のような静的1回描画ホストではそれらを省いて利用できる。
 @MainActor
-public final class ViewerRenderer: NSObject, WKNavigationDelegate {
+public final class ViewerRenderer {
     public var webView: WKWebView?
     public var webViewProxy: WebViewProxy?
     /// JS 側で起きた出来事の通知先。アプリ本体では ViewerWindowController が実装する。
@@ -76,6 +76,9 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     private(set) lazy var messageRouter = BridgeMessageRouter(renderer: self)
     /// パス参照解決の FIFO 直列化とページ世代の管理。
     private(set) lazy var referenceQueue = ReferenceResolutionQueue(renderer: self)
+    /// WKWebView のナビゲーション事象の受け口。makeWebView が navigationDelegate へ設定する
+    /// 実ハンドラで、ViewerRenderer 側に転送メソッドは置かない(受け口をここ 1 つに限る)。
+    private(set) lazy var navigationCoordinator = ViewerNavigationCoordinator(renderer: self)
     /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
     /// QuickLook 拡張等、検索 UI を持たないホストでは nil のまま省略できる。
     public var findOptionsPreference: FindOptionsPreference?
@@ -145,7 +148,7 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
 
     var pendingAppend: PendingAppend?
 
-    override public init() {}
+    public init() {}
 
     /// WKWebView を構成し、viewer.html をロードして返す。
     /// - Parameters:
@@ -173,7 +176,7 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
             ),
             messageHandler: messageRouter
         )
-        webView.navigationDelegate = self
+        webView.navigationDelegate = navigationCoordinator
         self.webView = webView
         ViewerWebViewFactory.loadViewerHTML(into: webView)
         return webView
@@ -182,36 +185,6 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     /// makeWebView で登録した postMessage ハンドラを解除する。
     public func dismantle(_ webView: WKWebView) {
         ViewerWebViewFactory.dismantle(webView, features: rendererFeatures)
-    }
-
-    // MARK: - WKNavigationDelegate
-
-    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        directHTML.applyPendingZoom(to: webView)
-        applyInitialPageZoomIfReady(assumingReady: true)
-        readiness.markReady()
-    }
-
-    public func webView(
-        _ webView: WKWebView,
-        didFailProvisionalNavigation navigation: WKNavigation!,
-        withError error: Error
-    ) {
-        handleNavigationFailure(webView: webView)
-    }
-
-    public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        handleNavigationFailure(webView: webView)
-    }
-
-    /// 初回の HTML ロード（loadFileURL）は常に許可する。viewer.html モードではそれ以外の
-    /// ナビゲーションを全てキャンセルする(JS 側がリンクを処理する)。直接 HTML モードでは
-    /// リンククリック(.linkActivated)のみ directHTMLLinkPolicy で分類して処理する。
-    public func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationAction: WKNavigationAction
-    ) async -> WKNavigationActionPolicy {
-        directHTML.decidePolicy(webView: webView, navigationAction: navigationAction)
     }
 
     /// 現在の initialPageZoom を viewer.js へ適用する。viewer.html の準備前・
@@ -228,16 +201,5 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     /// viewer.html の準備ができていれば即実行し、まだなら準備完了まで保留する。
     func runWhenReady(_ work: @escaping () -> Void) {
         readiness.run(work)
-    }
-
-    private func handleNavigationFailure(webView: WKWebView) {
-        directHTML.discardPendingZoom()
-        if directHTML.isActive {
-            // 削除起因の失敗は呼び出し側がウィンドウを閉じる等の対応をするため、
-            // ここでは viewer.html へ戻すだけでよい
-            directHTML.exit(webView: webView) {}
-        } else {
-            readiness.flushPending()
-        }
     }
 }
