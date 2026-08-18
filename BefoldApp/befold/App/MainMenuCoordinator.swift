@@ -63,9 +63,12 @@ final class MainMenuCoordinator {
                 aiIntegration: #selector(AppDelegate.showAIIntegration(_:)),
                 ossAcknowledgements: #selector(AppDelegate.showOSSLicenses(_:))
             ),
-            recentMenuDelegate: recentDocumentsMenuController,
-            bookmarksMenuDelegate: bookmarksMenuController,
-            recentRepositoriesMenuDelegate: recentRepositoriesMenuController
+            dynamicMenuDelegates: MainMenuDynamicMenuDelegates(
+                recent: recentDocumentsMenuController,
+                bookmarks: bookmarksMenuController,
+                recentRepositories: recentRepositoriesMenuController
+            ),
+            isDocumentJumpEnabled: FeatureGate.isDocumentJumpEnabled
         )
         // AppKit は mainMenu に設定した後、Close All や Start Dictation などの項目を
         // 勝手に差し込む。Help のショートカット一覧には自前で定義したものだけを載せたいので、

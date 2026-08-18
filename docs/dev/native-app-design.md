@@ -268,7 +268,10 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   プロバイダが `optionsElementId` で宣言し、コントローラは選ばれている種類のものだけを
   表示する（コントローラは中身を知らない）。検索バーとは同時に開かない（`viewer-src/bar.ts` が排他を持つ）。
   **開発中機能で、`FeatureGate.isDocumentJumpEnabled` が閉じている stable ビルドでは
-  メニュー項目もコマンドも無効**（可否は `ViewerCapabilities.canJump` へ畳んである）。
+  メニュー項目自体を構築しない**（`MainMenuBuilder.build` がゲートを必須引数で受け取り、
+  閉じていれば区切り線ごと省く）。コマンドの可否は `ViewerCapabilities.canJump` へ
+  畳んであるが、`canJump` はゲート閉で常に false になるため、項目を構築すると
+  永久にグレーアウトした項目が stable のユーザーへ露出してしまう（TASK-485.8）。
   安定稼働を確認するまでキー等価は割り当てない
 - **表示モード切替**: ツールバーの 3 択セグメント（レンダリング / ソース / 差分）と `⌘1`〜`⌘3`。
   `DisplayModeStore` でファイル単位に永続化する。差分レイアウト（上下/左右）は `⌘\\` とツールバーのトグルで切り替え、

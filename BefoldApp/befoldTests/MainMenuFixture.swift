@@ -20,17 +20,21 @@ final class MainMenuFixture {
     /// 呼び出し側で「その delegate が実際に設定されたか」を識別したいケースがあるため、
     /// 生成時に差し替えられるようにしている。
     let recentRepositoriesMenuDelegate: NSMenuDelegate
+    /// 文書内ジャンプ（開発中機能）のゲート。既定は dev ビルド相当の開いた状態。
+    let isDocumentJumpEnabled: Bool
 
     private var cachedMenu: NSMenu?
 
     init(
         recentMenuDelegate: NSMenuDelegate = StubMenuDelegate(),
         bookmarksMenuDelegate: NSMenuDelegate = StubMenuDelegate(),
-        recentRepositoriesMenuDelegate: NSMenuDelegate = StubMenuDelegate()
+        recentRepositoriesMenuDelegate: NSMenuDelegate = StubMenuDelegate(),
+        isDocumentJumpEnabled: Bool = true
     ) {
         self.recentMenuDelegate = recentMenuDelegate
         self.bookmarksMenuDelegate = bookmarksMenuDelegate
         self.recentRepositoriesMenuDelegate = recentRepositoriesMenuDelegate
+        self.isDocumentJumpEnabled = isDocumentJumpEnabled
     }
 
     func menu() -> NSMenu {
@@ -48,9 +52,12 @@ final class MainMenuFixture {
                 aiIntegration: #selector(AppDelegate.showAIIntegration(_:)),
                 ossAcknowledgements: #selector(AppDelegate.showOSSLicenses(_:))
             ),
-            recentMenuDelegate: recentMenuDelegate,
-            bookmarksMenuDelegate: bookmarksMenuDelegate,
-            recentRepositoriesMenuDelegate: recentRepositoriesMenuDelegate
+            dynamicMenuDelegates: MainMenuDynamicMenuDelegates(
+                recent: recentMenuDelegate,
+                bookmarks: bookmarksMenuDelegate,
+                recentRepositories: recentRepositoriesMenuDelegate
+            ),
+            isDocumentJumpEnabled: isDocumentJumpEnabled
         )
         cachedMenu = menu
         return menu
