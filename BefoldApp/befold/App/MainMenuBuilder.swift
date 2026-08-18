@@ -10,24 +10,34 @@ struct MainMenuHelpActions {
     let ossAcknowledgements: Selector
 }
 
+/// 動的サブメニュー(最近使った項目・ブックマーク・最近のリポジトリ)の delegate。
+/// パラメータ数を抑えるために 1 つにまとめる(`MainMenuHelpActions` と同じ方針)。
+struct MainMenuDynamicMenuDelegates {
+    let recent: NSMenuDelegate
+    let bookmarks: NSMenuDelegate
+    let recentRepositories: NSMenuDelegate
+}
+
 @MainActor
 enum MainMenuBuilder {
+    /// - Parameter isDocumentJumpEnabled: 文書内ジャンプ項目を構築するか
+    ///   （`FeatureGate.isDocumentJumpEnabled`）。デフォルト引数は付けない——
+    ///   付けると呼び出し側がゲートを渡し忘れても通ってしまう。
     static func build(
         openAction: Selector,
         helpActions: MainMenuHelpActions,
-        recentMenuDelegate: NSMenuDelegate,
-        bookmarksMenuDelegate: NSMenuDelegate,
-        recentRepositoriesMenuDelegate: NSMenuDelegate
+        dynamicMenuDelegates: MainMenuDynamicMenuDelegates,
+        isDocumentJumpEnabled: Bool
     ) -> NSMenu {
         let mainMenu = NSMenu()
         mainMenu.addItem(makeAppMenuItem())
         mainMenu.addItem(makeFileMenuItem(
             openAction: openAction,
-            recentMenuDelegate: recentMenuDelegate,
-            bookmarksMenuDelegate: bookmarksMenuDelegate,
-            recentRepositoriesMenuDelegate: recentRepositoriesMenuDelegate
+            recentMenuDelegate: dynamicMenuDelegates.recent,
+            bookmarksMenuDelegate: dynamicMenuDelegates.bookmarks,
+            recentRepositoriesMenuDelegate: dynamicMenuDelegates.recentRepositories
         ))
-        mainMenu.addItem(makeEditMenuItem())
+        mainMenu.addItem(makeEditMenuItem(isDocumentJumpEnabled: isDocumentJumpEnabled))
         mainMenu.addItem(makeViewMenuItem())
         mainMenu.addItem(makeWindowMenuItem())
         mainMenu.addItem(makeHelpMenuItem(helpActions))
@@ -112,7 +122,7 @@ enum MainMenuBuilder {
     /// undo/redo・cut/copy/paste/delete/selectAll は NSResponder の標準セレクタに
     /// そのまま委譲し、Find 系だけ WKWebView 内蔵の検索バーを操作する
     /// ViewerWindowController のアクションへつなぐ(標準の Find パネルは使わない)。
-    private static func makeEditMenuItem() -> NSMenuItem {
+    private static func makeEditMenuItem(isDocumentJumpEnabled: Bool) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.edit.title", bundle: .l10n))
         item.submenu = menu
@@ -146,7 +156,33 @@ enum MainMenuBuilder {
             keyEquivalent: "g",
             modifiers: [.command, .shift]
         )
+        if isDocumentJumpEnabled { addDocumentJumpItems(to: menu) }
         return item
+    }
+
+    /// Edit > 文書内ジャンプ（TASK-485）。目印の種類ごとに 1 項目を出す。
+    ///
+    /// キー等価はまだ付けない。空いている ⌃⌘ 系は View メニューが使い切っており
+    /// （⌃⌘F/G/H/T）、素の ⌘G / ⇧⌘G は検索送りが持っている。加えて紹介サイトの
+    /// ショートカット表を作る `site/src/lib/shortcuts.ts` は開発中機能のゲートを
+    /// 認識しないため、キー等価を付けると stable のユーザーへ存在しない機能を
+    /// 告知することになる。割り当ては stable 昇格と同時に決める。
+    ///
+    /// 前後移動はバー内の Enter / Shift+Enter（検索バーと同じ形）。
+    ///
+    /// ゲート閉（stable ビルド）では呼び出し側が構築ごとスキップする。`canJump` が常に
+    /// false になるため、構築してしまうと永久にグレーアウトした項目が stable のユーザーへ
+    /// 露出する（TASK-485.8）。無効化ではなく非構築なのは、上のコメントどおり
+    /// 「開発中機能の存在自体を stable へ漏らさない」という判断による。
+    private static func addDocumentJumpItems(to menu: NSMenu) {
+        menu.addItem(.separator())
+        for kind in DocumentJumpKind.allCases {
+            let item = menu.addLocalizedItem(
+                kind.menuLabelKey,
+                action: #selector(ViewerWindowController.documentJump(_:))
+            )
+            item.tag = kind.menuItemTag
+        }
     }
 
     /// ズーム・表示モード切替・サイドバー・履歴ナビゲーションをまとめた View メニュー。

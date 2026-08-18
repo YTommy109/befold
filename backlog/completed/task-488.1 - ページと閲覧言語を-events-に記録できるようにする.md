@@ -5,12 +5,13 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-16 01:44'
-updated_date: '2026-08-16 03:51'
+updated_date: '2026-08-17 14:52'
 labels: []
 milestone: m-7
 dependencies: []
 parent_task_id: TASK-488
 priority: medium
+type: task
 ordinal: 718000
 ---
 

@@ -56,6 +56,9 @@ struct ViewerWebView: NSViewRepresentable {
     let rendererDelegate: WeakRendererDelegate
     /// 検索バーの3トグル(大文字小文字区別・単語マッチ・正規表現)の永続化ストア。
     let findOptionsPreference: FindOptionsPreference
+    /// 見出しジャンプの設定(この窓の出発点と書き戻し口)。読み取り API を持たない
+    /// 記録口なので、窓が保存値を読み直す経路は構造的に作れない(ADR 0002「窓の状態」)。
+    let headingJump: HeadingJumpLevelBinding
     /// AppKit 側（メニューアクション）へ WKWebView を公開するプロキシ。
     let webViewProxy: WebViewProxy
     /// 直接 HTML モード・相対画像埋め込みの有効/無効を切り替えるフラグ。
@@ -72,9 +75,11 @@ struct ViewerWebView: NSViewRepresentable {
         renderer.rendererFeatures = rendererFeatures
         renderer.diffState = diffState
 
+        renderer.headingJumpLevelRecording = headingJump.recording
         let webView = renderer.makeWebView(
             initialZoom: initialZoom, findOptionsPreference: findOptionsPreference,
-            codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints
+            codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints,
+            headingJumpLevels: headingJump.initialLevels
         )
         renderer.webViewProxy = webViewProxy
         webViewProxy.webView = webView
@@ -87,6 +92,7 @@ struct ViewerWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         let renderer = context.coordinator
         renderer.findOptionsPreference = findOptionsPreference
+        renderer.headingJumpLevelRecording = headingJump.recording
         renderer.initialPageZoom = initialZoom
         renderer.scrollPositionToRestore = scrollPositionToRestore
         renderer.rendererFeatures = rendererFeatures

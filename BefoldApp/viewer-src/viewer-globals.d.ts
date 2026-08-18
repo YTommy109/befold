@@ -38,6 +38,16 @@ interface ViewerFindStrings {
   withinDisplayedRange?: string;
 }
 
+/// ViewerBridge.jumpStringsScript(bundle:) が注入する文書内ジャンプバーの文言。
+interface ViewerJumpStrings {
+  previous?: string;
+  next?: string;
+  close?: string;
+  withinDisplayedRange?: string;
+  /// 見出しレベルのトグルの説明。`{level}` を 1 / 2 / 3 で置換して使う。
+  headingLevel?: string;
+}
+
 /// ViewerBridge.FindOptions（検索の 3 トグル）。
 interface ViewerFindOptions {
   caseSensitive?: boolean;
@@ -71,4 +81,9 @@ interface Window {
   _mmdInitialFindOptions?: ViewerFindOptions;
   // ViewerBridge.findStringsScript(bundle:)
   _mmdFindStrings?: ViewerFindStrings;
+  // ViewerBridge.jumpStringsScript(bundle:)
+  _mmdJumpStrings?: ViewerJumpStrings;
+  // ViewerBridge.initialJumpLevelsScript(_:) が注入する保存済みの見出しレベル
+  // （["h1","h2","h3"] 形式。空配列は「3 つとも OFF」で、未注入とは別）
+  _mmdInitialJumpLevels?: string[];
 }

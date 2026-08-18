@@ -108,6 +108,16 @@ final class WebViewCommandController {
         renderer.findPrevious()
     }
 
+    // MARK: - Document jump
+
+    /// 種類ごとの可否で閉じる。粗い `canJump` だけで通すと、メニュー検証だけが
+    /// 種類別の規則(変更ブロックは差分表示が必要)を守る形になり、メニュー以外の
+    /// 入口(キーバインド・ツールバー)が同じ穴を継承する(TASK-485.7)。
+    func openJump(kind: DocumentJumpKind) {
+        guard capabilities().canJump(to: kind) else { return }
+        renderer.openJump(kind: kind)
+    }
+
     // MARK: - Scroll position
 
     /// 現在のスクロール位置を問い合わせ、指定した URL・モードのキーへ保存する。

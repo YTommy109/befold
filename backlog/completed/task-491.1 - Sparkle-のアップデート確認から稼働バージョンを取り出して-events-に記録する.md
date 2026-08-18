@@ -5,12 +5,13 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-16 02:35'
-updated_date: '2026-08-16 06:52'
+updated_date: '2026-08-17 14:52'
 labels: []
 milestone: m-7
 dependencies: []
 parent_task_id: TASK-491
 priority: medium
+type: task
 ordinal: 728000
 ---
 

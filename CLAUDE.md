@@ -20,7 +20,10 @@
   3. 着手可能な backlog タスクのうち、着手順（登録順・依存関係）が早いもの
   この基準で決められない場合のみユーザーに確認する。
 - **Notes に否定的な結論が記録されたタスク**: 「実施非推奨」「前提が誤り」等が実測付きで記録されているタスクの着手を指示された場合、記載どおりに実装せず、着手前に方針（縮小版で実施 / 記載どおり実施 / 見送り）をユーザーに確認する。Notes の記録は前回の調査結果であり、起票時の Description より新しい判断であることが多い。方針が決まったら、実態に合わなくなった Acceptance Criteria も `backlog task edit --acceptance-criteria` で書き換える。
-- **タスク作成時のボード表示順**: backlog board の表示順は ordinal 順（priority 順ではない）。タスク作成後、既存タスクの ordinal を確認し、priority に応じた位置になるよう `backlog task edit --ordinal` で調整する。特に HIGH タスクが MEDIUM/LOW より上に来るようにする。
+- **着手順は ordinal で表現しない（表示順を制御できない）**: `backlog task edit --ordinal` を調整しても、コンソールの表示順は変わらない。実測（backlog CLI 1.50.1、2026-08-18）: `backlog task list --plain` は priority の降順→ID 順で並び、ordinal を見ていない（TASK-485.7 を ordinal 714800、TASK-485.6 を 740000 にしても 485.6 が先に出た）。`backlog board` は親タスクごとにサブタスクをぶら下げて表示し、その並びは ordinal 順でも ID 順でもない（規則は特定できていない）。**「HIGH が上に来るよう ordinal を調整する」という運用は成立しないので行わない。**
+  - **重要度は priority で表す。** `task list` は priority で並ぶので、これは表示に効く唯一の手段。
+  - **着手順の制約は依存で表す。** 「A を先に片付けないと B が二度手間になる」形の順序は `backlog task edit B --dep A` で構造にする。依存なら表示順に左右されず、次のセッションが順序を復元できる（実績: TASK-485.4 --dep TASK-485.7。kind 別 capability の穴を残したまま 3 つ目のジャンプ対象を足すと、新しい kind が同じ穴を継承するため）。
+  - ordinal 自体は残っているが、この運用では使わない。
 - **タスク ID の採番**: `backlog/config.yml` で `check_active_branches: true` / `remote_operations: true` が有効なため、`backlog task create` は他ブランチ上のタスクも含めて次の ID を採番する。ローカルのファイル一覧より大きい ID が振られるのは正常な動作であり、衝突回避のための ID 手動指定やファイルリネームは不要。
 - **タスクファイルは git 管理対象**: `backlog/tasks/*.md` はリポジトリに含まれる。起票・更新・完了処理を行ったら、その場でコミットする。`backlog` CLI はファイルを書くだけで git 操作はしないため、未コミットのまま取り残されやすい（`/pr` の直前に `git status` で確認する）。どの PR に載せるかは次で判断する。
   - **実装を伴う起票・更新・完了処理**: その実装と同じ PR に含める（タスクの状態変化と実装が 1 つの単位でレビューされる）

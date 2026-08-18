@@ -20,6 +20,7 @@ struct ViewerWindowManagerIntegrationTests {
             recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
             displayDefaults: SidebarDisplayDefaults(defaults: defaults),
             diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
+            headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             makeContentView: placeholderViewerContent

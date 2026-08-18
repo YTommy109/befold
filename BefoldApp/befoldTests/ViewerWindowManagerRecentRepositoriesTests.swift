@@ -99,6 +99,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
             diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
+            headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             fileReader: fileReader,
@@ -206,7 +207,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         try #require(controllerA.window).addTabbedWindow(try #require(controllerB.window), ordered: .above)
         // ヘッドレスのテストプロセスではウィンドウがキーにならず didBecomeKey 通知が飛ばないため、
         // タブ結合後にユーザーがそのタブを操作した状況をデリゲート呼び出しで再現する。
-        fixture.manager.viewerWindowDidBecomeKey(controllerB)
+        fixture.manager.sessionSync.viewerWindowDidBecomeKey(controllerB)
 
         controllerA.close()
         controllerB.close()

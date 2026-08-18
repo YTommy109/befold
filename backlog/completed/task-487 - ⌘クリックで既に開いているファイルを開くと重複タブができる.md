@@ -5,9 +5,10 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-15 11:37'
-updated_date: '2026-08-15 12:31'
+updated_date: '2026-08-17 14:52'
 labels:
   - bug
+milestone: m-2
 dependencies:
   - TASK-482
 priority: high

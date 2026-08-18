@@ -641,6 +641,62 @@ mark.mmd-find-match-current {
   color: #fff;
 }
 
+/* ── 文書内ジャンプの見出しレベルトグル ──
+   検索バーの .mmd-find-toggles は入力欄の中へ絶対配置するための規則
+   (position:absolute + right:2px)で、入力欄を持たないジャンプバーでは
+   バー自身を基準に解決されて件数表示や閉じるボタンに重なる。
+   ボタンの皮(.mmd-find-toggle / .active と .mmd-find-bar button)だけを共有し、
+   並べ方はここで独立に持つ。 */
+.mmd-jump-levels {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ── 文書内ジャンプの目印候補 ──
+   バーを開いている間だけ付き、次にどこへ飛べるかを見せる。
+   文字幅の下線(text-decoration)にしてあるのは、h1 / h2 が
+   github-markdown-css の border-bottom(薄いグレー・要素幅)を元から持つため。
+   要素幅の下線(box-shadow 等)にすると「既存の線が色付いた」ようにしか見えず、
+   候補かどうかを判別できない(3 案をスナップショットで比較して決定)。 */
+.mmd-jump-target {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* ── 文書内ジャンプの現在位置 ──
+   検索と違い、目印は見出し・表の行など任意のブロック要素になりうる。
+   背景色は使わない: 差分表示の .diff-add / .diff-del が同じ詳細度(0,1,0)で
+   tr に background-color を持っており、後勝ちで差分の色分けを潰すため。
+   outline はレイアウトを動かさず（border と違い場所を取らない）、
+   行にも段落にも同じ見え方で当てられる。 */
+.mmd-jump-current {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ── 差分表示での目印（変更ブロック・TASK-485.3） ──
+   アクティブなブロックは、各行の左端セルへ左辺だけのインセット影を引いて
+   1 本の縦帯に見せる。複数行のブロックでも帯が続くので「どこに居るか」が
+   ブロック単位で分かる。
+   outline ではなくインセット影にしてあるのは、border-collapse の表では
+   セルの outline が隣のセルの文字へかぶるうえ、行ごとに枠が閉じてしまい
+   ブロックが 1 つに見えないため。地色（.diff-add / .diff-del）はそのまま残す。 */
+.diff-table .mmd-jump-current {
+  box-shadow: inset 3px 0 0 var(--accent);
+  outline: none;
+}
+
+/* 候補の下線は差分表示では出さない。変更ブロックは地色で既に全部が見えており、
+   そのうえに文字幅の下線を重ねると「この文字が変わった」を指しているように読める
+   （語単位の差分は出していない）。 */
+.diff-table .mmd-jump-target {
+  text-decoration: none;
+}
+
 /* ── CSV テーブル表示 ──
    CSV 表示時は #diagram-wrap に markdown-body(github-markdown-css の土台)と
    csv-body(CSV 専用の上書き)を両方付与する。CSV 専用スタイルをここに

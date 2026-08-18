@@ -64,20 +64,11 @@ struct ViewerWindowControllerFixture {
         self.perFileState = perFileState
         self.bookmarkStore = bookmarkStore
 
-        let store: ViewerStore?
-        if realFileSystem {
-            store = nil
-        } else {
-            var dict: [String: String] = [:]
-            for url in [file] + extraFiles {
-                dict[url.path] = contents
-            }
-            store = ViewerStore(
-                watcherFactory: { _, _, _, _ in MockFileWatcher() },
-                fileReader: InMemoryFileReader(files: dict),
-                defaults: defaults
+        let store = realFileSystem
+            ? nil
+            : Self.makeInMemoryStore(
+                files: [file] + extraFiles, contents: contents, defaults: defaults
             )
-        }
 
         controller = ViewerWindowController(
             fileURL: file,
@@ -85,6 +76,7 @@ struct ViewerWindowControllerFixture {
             displayDefaults: displayDefaults ?? SidebarDisplayDefaults(defaults: defaults),
             diffDisplayPreference: diffDisplayPreference ?? DiffDisplayPreference(defaults: defaults),
             diffLoader: diffLoader,
+            headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             gitFileIndex: gitFileIndex,
@@ -98,6 +90,22 @@ struct ViewerWindowControllerFixture {
             documentRenderer: documentRenderer,
             openFileElsewhere: openFileElsewhere,
             externalOpener: externalOpener
+        )
+    }
+
+    /// 実 FS を踏まないテスト用の ViewerStore。realFileSystem: true のときは
+    /// 既定生成（実 FileWatcher + DefaultFileReader）に任せるため作らない。
+    private static func makeInMemoryStore(
+        files: [URL], contents: String, defaults: UserDefaults
+    ) -> ViewerStore {
+        var dict: [String: String] = [:]
+        for url in files {
+            dict[url.path] = contents
+        }
+        return ViewerStore(
+            watcherFactory: { _, _, _, _ in MockFileWatcher() },
+            fileReader: InMemoryFileReader(files: dict),
+            defaults: defaults
         )
     }
 

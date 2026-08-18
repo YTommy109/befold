@@ -4,11 +4,12 @@ title: 配布 URL を befold.degino.com に一本化する
 status: To Do
 assignee: []
 created_date: '2026-08-16 01:59'
-updated_date: '2026-08-16 02:08'
+updated_date: '2026-08-17 14:52'
 labels: []
 milestone: m-8
 dependencies: []
 priority: medium
+type: task
 ordinal: 720000
 ---
 

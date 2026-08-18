@@ -1,7 +1,16 @@
 // 検索バー。クエリ・トグル・ヒット一覧・現在位置・開閉・段階読み込み中の
 // すべてをコントローラのクロージャに閉じ、外部からは公開メソッド経由でのみ触れる。
 
+import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
 import { _MSG_FIND_OPTIONS_CHANGED, _mmdPostMessage } from './bridge.js';
+import { isComposingKeyEvent } from './ime.js';
+import {
+  formatNavigationCount,
+  moveCurrentHighlight,
+  keptMatchIndex,
+  nextMatchIndex,
+  prevMatchIndex,
+} from './navigation.js';
 
 // 検索の 3 トグル。window._mmdInitialFindOptions（Swift が注入する側、すべて省略可）と
 // 違い、コントローラ内部では 3 つとも常に確定している。
@@ -71,32 +80,6 @@ function buildFindRegExp(query: string, options: FindOptions): RegExp | null {
   }
 }
 
-// 検索ヒット間の移動先インデックス。件数 0 のときはどれも -1(選択なし)を返す。
-// 末尾の次は先頭、先頭の前は末尾へ循環する。
-
-function nextMatchIndex(currentIndex: number, count: number): number {
-  if (count <= 0) {
-    return -1;
-  }
-  return (currentIndex + 1) % count;
-}
-
-function prevMatchIndex(currentIndex: number, count: number): number {
-  if (count <= 0) {
-    return -1;
-  }
-  return (currentIndex - 1 + count) % count;
-}
-
-// 再検索(_mmdFindRefresh)で維持する現在位置。再検索でヒット数が減っても
-// 範囲外を指さないようクランプする。負値(未選択)は先頭に寄せる。
-function keptMatchIndex(previousIndex: number, count: number): number {
-  if (count <= 0) {
-    return -1;
-  }
-  return Math.min(Math.max(previousIndex, 0), count - 1);
-}
-
 // 前回検索でハイライトした <mark> を復元する(次の検索前に必ず呼ぶ)。
 // span 境界をまたぐマッチは <mark> の中に元の <span> 構造を保持したまま挿入して
 // いるため、単純に textContent で潰すとシンタックスハイライトの構造が壊れる。
@@ -160,12 +143,20 @@ function pruneEmptyAncestors(node: Node | null, root: Node): void {
   }
 }
 
+// 開閉状態は bar.ts が一元管理する（検索バーとジャンプバーは同時に開かない）。
+function isFindBarOpen(): boolean {
+  return isBarOpen('find');
+}
+
 function _createFindController(): FindController {
   var options: FindOptions = { caseSensitive: false, wholeWord: false, useRegex: false };
   var query = '';
   var matches: HTMLElement[] = [];
   var currentIndex = -1;
-  var isOpenFlag = false;
+  // いま現在位置の印が付いている <mark>。付け替えのたびに全マッチを走査しないよう
+  // 直前の要素だけを覚えておく。clearMarks で DOM ごと消えるため、
+  // 列を作り直す経路（run / close）では併せて undefined に戻す。
+  var currentHighlight: HTMLElement | undefined;
   // 段階読み込み中(まだ全チャンクを読み終えていない)かどうか。setTruncated が更新する。
   var truncated = false;
 
@@ -324,24 +315,27 @@ function _createFindController(): FindController {
     if (query.length === 0 || input.classList.contains('mmd-find-error')) {
       countEl.textContent = '';
     } else {
-      var current = matches.length === 0 ? 0 : currentIndex + 1;
-      var text = current + '/' + matches.length;
-      if (truncated) {
-        var strings: ViewerFindStrings = window._mmdFindStrings || {};
-        text += ' (' + (strings.withinDisplayedRange || 'Displayed range') + ')';
-      }
-      countEl.textContent = text;
+      var strings: ViewerFindStrings = window._mmdFindStrings || {};
+      countEl.textContent = formatNavigationCount(
+        currentIndex,
+        matches.length,
+        truncated,
+        strings.withinDisplayedRange || 'Displayed range',
+      );
     }
   }
 
   function highlightCurrent(): void {
-    matches.forEach(function (mark) {
-      mark.classList.remove('mmd-find-match-current');
-    });
     var current = matches[currentIndex];
-    if (!current) return;
-    current.classList.add('mmd-find-match-current');
-    current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // 印の付け替えとスクロールは navigation.ts に集約する（ジャンプバーと同じ挙動）。
+    // 直前の要素だけを渡すので、マッチが何万件あっても走査は起きない。
+    moveCurrentHighlight(
+      currentHighlight ? [currentHighlight] : [],
+      current ? [current] : [],
+      'mmd-find-match-current',
+      current,
+    );
+    currentHighlight = current;
   }
 
   // 現在位置を移し、ハイライトと件数表示を揃える(next/prev/refresh 共通)。
@@ -360,6 +354,7 @@ function _createFindController(): FindController {
     clearMarks();
     matches = [];
     currentIndex = -1;
+    currentHighlight = undefined;
 
     var regex = buildFindRegExp(query, options);
     input.classList.toggle('mmd-find-error', query.length > 0 && regex === null);
@@ -456,10 +451,8 @@ function _createFindController(): FindController {
     });
     document.getElementById('mmd-find-input')!.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
-        // Safari/WKWebView は compositionend → keydown の順で発火するため、
-        // 変換確定の Enter では isComposing が既に false になっている。
-        // ただし keyCode は 229 のまま残るため、これも合わせて判定する。
-        if (e.isComposing || e.keyCode === 229) {
+        // 変換確定の Enter では検索を進めない（判定は ime.ts に集約）。
+        if (isComposingKeyEvent(e)) {
           return;
         }
         e.preventDefault();
@@ -487,7 +480,7 @@ function _createFindController(): FindController {
   }
 
   function open(): void {
-    isOpenFlag = true;
+    claimBar('find');
     document.getElementById('mmd-find-bar')!.style.display = 'flex';
     var input = findInputElement();
     input.value = query;
@@ -499,11 +492,12 @@ function _createFindController(): FindController {
   }
 
   function close(): void {
-    isOpenFlag = false;
+    releaseBar('find');
     document.getElementById('mmd-find-bar')!.style.display = 'none';
     clearMarks();
     matches = [];
     currentIndex = -1;
+    currentHighlight = undefined;
   }
 
   // 段階読み込み状態の変化を件数表示(「表示範囲内」ラベル)へ反映する。
@@ -513,15 +507,13 @@ function _createFindController(): FindController {
     // 検索バーが開いていれば「表示範囲内」ラベルの表示/非表示を即座に反映する。
     // (通常は appendChunk 後の _mmdFindRefreshAfterRender が再検索するが、
     // それより先に評価されるため、ここでも件数表示だけ更新しておく)
-    if (isOpenFlag) {
+    if (isFindBarOpen()) {
       updateCount();
     }
   }
 
   return {
-    isOpen: function (): boolean {
-      return isOpenFlag;
-    },
+    isOpen: isFindBarOpen,
     open: open,
     close: close,
     next: next,
@@ -534,6 +526,13 @@ function _createFindController(): FindController {
 }
 
 var _mmdFind = _createFindController();
+
+// Escape や、別のバーを開いたときの自動クローズはレジストリ経由で届く。
+registerBar('find', {
+  close: function (): void {
+    _mmdFind.close();
+  },
+});
 
 // 以下は Swift(evaluateJavaScript)から名前で呼ばれる入口。ViewerBridge の
 // 各 script 定数と一対一で対応するため、コントローラへの委譲だけを行う。
@@ -568,9 +567,6 @@ function _mmdFindPrevIfOpen(): void {
 
 export {
   buildFindRegExp,
-  nextMatchIndex,
-  prevMatchIndex,
-  keptMatchIndex,
   _mmdFind,
   _mmdInitFind,
   _mmdOpenFind,

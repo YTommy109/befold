@@ -4,7 +4,7 @@ import SwiftUI
 /// メニューを経由しない操作(ビューア内スクロール・サイドバー・Quick Open)も並べる。
 /// 一覧をここに持たないのは、実装との乖離を構造的に起こさないため(TASK-240 / TASK-503)。
 struct KeyboardShortcutsView: View {
-    private let groups = HelpShortcutSections.all
+    private let groups = HelpShortcutSections.all(isDocumentJumpEnabled: FeatureGate.isDocumentJumpEnabled)
 
     var body: some View {
         ScrollView {

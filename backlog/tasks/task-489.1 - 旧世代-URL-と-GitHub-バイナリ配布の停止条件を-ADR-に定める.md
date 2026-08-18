@@ -4,12 +4,13 @@ title: 旧世代 URL と GitHub バイナリ配布の停止条件を ADR に定�
 status: To Do
 assignee: []
 created_date: '2026-08-16 02:00'
-updated_date: '2026-08-16 02:23'
+updated_date: '2026-08-17 14:52'
 labels: []
 milestone: m-8
 dependencies: []
 parent_task_id: TASK-489
 priority: medium
+type: task
 ordinal: 721000
 ---
 

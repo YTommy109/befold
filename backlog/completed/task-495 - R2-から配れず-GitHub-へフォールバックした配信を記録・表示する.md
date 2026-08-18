@@ -4,11 +4,12 @@ title: R2 から配れず GitHub へフォールバックした配信を記録�
 status: Done
 assignee: []
 created_date: '2026-08-16 02:40'
-updated_date: '2026-08-16 10:07'
+updated_date: '2026-08-17 14:52'
 labels: []
 milestone: m-8
 dependencies: []
 priority: medium
+type: feature
 ordinal: 724500
 ---
 

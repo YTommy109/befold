@@ -53,7 +53,7 @@ public enum ViewerBridge {
 
     /// ロード時にファイル毎の初期倍率を注入するスクリプト。
     public static func initialZoomScript(_ zoom: Double) -> String {
-        assignGlobalScript("window._mmdInitialZoom", zoom, fallback: scalarFallback)
+        assignGlobalScript("window._mmdInitialZoom", zoom, fallback: defaultingFallback)
     }
 
     /// 表示中ファイルの切り替え時などに、保存済み倍率を注入し直して即時反映する
@@ -65,7 +65,7 @@ public enum ViewerBridge {
     /// ロード時にシステム本文フォントサイズ(pt)を注入するスクリプト。
     /// viewer.html 側は _mmdInitFontSize() が読んで CSS 変数へ反映する。
     public static func systemFontSizeScript(_ size: Double) -> String {
-        assignGlobalScript("window._mmdSystemFontSize", size, fallback: scalarFallback)
+        assignGlobalScript("window._mmdSystemFontSize", size, fallback: defaultingFallback)
     }
 
     /// ロード時に等幅フォントファミリー名を注入するスクリプト。JSONEncoder で
@@ -79,7 +79,7 @@ public enum ViewerBridge {
     /// null を注入し、viewer.html 側で CSS 変数 --mmd-code-font-size を未設定のままにする
     /// (calc(本文*0.75) フォールバックへ委ね、アクセシビリティ文字サイズに追従する)。
     public static func codeFontSizeScript(_ points: Double?) -> String {
-        assignGlobalScript("window._mmdCodeFontSize", points, fallback: scalarFallback)
+        assignGlobalScript("window._mmdCodeFontSize", points, fallback: defaultingFallback)
     }
 
     /// 表示中ファイルの切り替え時などに、等幅フォント設定を注入し直して即時反映する
@@ -132,10 +132,12 @@ public enum ViewerBridge {
         return String(data: jsonData, encoding: .utf8)
     }
 
-    /// エンコード失敗時にスカラー値の注入が使うフォールバック。JS 側はいずれの
-    /// グローバルも「未注入なら既定値」と解釈するため、null を入れれば既定へ落ちる
+    /// エンコード失敗時のフォールバック（既定値へ落とす）。JS 側はいずれのグローバルも
+    /// 「未注入・null なら既定値」と解釈するため、null を入れれば既定へ落ちる
     /// (Double は NaN/Infinity で JSONEncoder が失敗しうるため実際に到達する)。
-    private static let scalarFallback = "null"
+    /// 配列の注入でも空配列ではなくこれを使う。空配列は「ユーザーが全部 OFF にした」
+    /// という別の意味を持つため、エンコード失敗をその状態へ縮退させてはならない。
+    private static let defaultingFallback = "null"
 
     /// `global = <JSON>;` 形式のグローバル代入スクリプトを組み立てる。
     /// JS へ値を注入する経路はすべてこれを通し、JSON エンコードによる
@@ -272,6 +274,32 @@ public enum ViewerBridge {
     /// 前のマッチへ移動するスクリプト。検索バーが閉じている間は JS 側で無視される。
     public static let findPrevScript = PlainFunction.findPrevIfOpen.callScript
 
+    /// 文書内ジャンプバーを開くスクリプト。目印の種類(kind)を引数に取るため
+    /// `PlainFunction`(引数なしの `name()` 形式)には載せられない。
+    /// JS 側の定義は `ViewerBridgeTests` が存在を検証する。
+    /// kind は JSON エンコードを経由させる(他の注入経路と同じエスケープの単一経路)。
+    public static func openJumpScript(kind: String) -> String {
+        guard let literal = jsonLiteral(kind) else {
+            return "_mmdOpenJump(null)"
+        }
+        return "_mmdOpenJump(\(literal))"
+    }
+
+    /// JS 側で見出しレベルのトグルが変わったときに postMessage されるメッセージハンドラ名。
+    public static let jumpLevelsChangedMessageName = ViewerBridgeMessage.jumpLevelsChanged.rawValue
+
+    /// ロード時に保存済みの見出しレベルを注入するスクリプト。
+    /// viewer.html 側は _mmdInitHeadingLevels() が window._mmdInitialJumpLevels を読んで適用する。
+    /// **空配列（3 つとも OFF）と非配列は別の意味**で、JS は配列ならそのままユーザー状態として
+    /// 尊重し、非配列（未注入・null）のときだけ既定の 3 レベルへ落ちる。
+    /// このスクリプトは常に注入する。呼び出し側が値を持たない場合（QuickLook など）は
+    /// `HeadingJumpLevels.default` を渡す（JS 側の既定と同じ意味になる）。
+    /// エンコードに失敗したときは `null` を入れて既定へ落とす（`[]` だと
+    /// 「ユーザーが 3 つとも OFF にした」の意味になり、目印が 0 件へ縮退する）。
+    public static func initialJumpLevelsScript(_ levels: HeadingJumpLevels) -> String {
+        assignGlobalScript("window._mmdInitialJumpLevels", levels.storedValue, fallback: defaultingFallback)
+    }
+
     /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったときに
     /// postMessage されるメッセージハンドラ名。
     public static let findOptionsChangedMessageName = ViewerBridgeMessage.findOptionsChanged.rawValue
@@ -311,5 +339,18 @@ public enum ViewerBridge {
             "withinDisplayedRange": String(localized: "viewer.find.withinDisplayedRange", bundle: bundle),
         ]
         return assignGlobalScript("window._mmdFindStrings", strings)
+    }
+
+    /// ロード時に文書内ジャンプバーのローカライズ済み文字列を注入するスクリプト。
+    /// viewer.html 側は _mmdInitJump() が window._mmdJumpStrings を読んで各要素に適用する。
+    public static func jumpStringsScript(bundle: Bundle = .befoldKitResources) -> String {
+        let strings: [String: String] = [
+            "previous": String(localized: "viewer.jump.previous", bundle: bundle),
+            "next": String(localized: "viewer.jump.next", bundle: bundle),
+            "close": String(localized: "viewer.jump.close", bundle: bundle),
+            "withinDisplayedRange": String(localized: "viewer.jump.withinDisplayedRange", bundle: bundle),
+            "headingLevel": String(localized: "viewer.jump.headingLevel", bundle: bundle),
+        ]
+        return assignGlobalScript("window._mmdJumpStrings", strings)
     }
 }

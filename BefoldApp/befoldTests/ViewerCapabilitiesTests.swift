@@ -15,7 +15,8 @@ struct ViewerCapabilitiesTests {
         supportsSourceMode: Bool = true,
         supportsDiffDisplay: Bool = true,
         gitDiffAvailability: GitDiffAvailability = .changed,
-        isDirectHTMLMode: Bool = false
+        isDirectHTMLMode: Bool = false,
+        isDocumentJumpEnabled: Bool = true
     ) -> ViewerCapabilities {
         ViewerCapabilities(
             isPresentingDocument: isPresentingDocument,
@@ -27,7 +28,8 @@ struct ViewerCapabilitiesTests {
             supportsSourceMode: supportsSourceMode,
             supportsDiffDisplay: supportsDiffDisplay,
             gitDiffAvailability: gitDiffAvailability,
-            isDirectHTMLMode: isDirectHTMLMode
+            isDirectHTMLMode: isDirectHTMLMode,
+            isDocumentJumpEnabled: isDocumentJumpEnabled
         )
     }
 
@@ -136,12 +138,37 @@ struct ViewerCapabilitiesTests {
         #expect(makeCapabilities(gitDiffAvailability: .changed).canSelect(.diff))
     }
 
+    @Test("文書内ジャンプはゲートが閉じている間は不可")
+    func deniesJumpWhileGateIsClosed() {
+        #expect(makeCapabilities(isDocumentJumpEnabled: true).canJump)
+        #expect(!makeCapabilities(isDocumentJumpEnabled: false).canJump)
+    }
+
+    @Test("文書内ジャンプは検索と同じく HTML 直接ロード中と非提示中は不可")
+    func deniesJumpWithoutVisibleDocument() {
+        #expect(!makeCapabilities(isPresentingDocument: false).canJump)
+        #expect(!makeCapabilities(isRejected: true).canJump)
+        #expect(!makeCapabilities(isDirectHTMLMode: true).canJump)
+    }
+
+    @Test("変更ブロックへのジャンプは差分表示を選んでいる間だけ可能")
+    func allowsChangeBlockJumpOnlyWhileShowingDiff() {
+        #expect(makeCapabilities(showsDiff: true, isDocumentJumpEnabled: true)
+            .canJump(to: .changeBlock))
+        #expect(!makeCapabilities(showsDiff: false, isDocumentJumpEnabled: true)
+            .canJump(to: .changeBlock))
+        // 見出しは差分表示かどうかに依らない(条件が種類ごとに分かれていることの確認)。
+        #expect(makeCapabilities(showsDiff: false, isDocumentJumpEnabled: true)
+            .canJump(to: .heading))
+    }
+
     @Test("何も提示していない既定値はすべて不可")
     func noneDeniesEverything() {
         #expect(ViewerCapabilities.none == ViewerCapabilities(
             isPresentingDocument: false, isRejected: false, isRenderable: false,
             isBinaryContent: false, showsCodeContent: false, supportsSourceMode: false,
-            supportsDiffDisplay: false, gitDiffAvailability: .undetermined, isDirectHTMLMode: false
+            supportsDiffDisplay: false, gitDiffAvailability: .undetermined, isDirectHTMLMode: false,
+            isDocumentJumpEnabled: false
         ))
         #expect(!ViewerCapabilities.none.canPrint)
     }
@@ -158,6 +185,23 @@ extension ViewerCapabilities {
         supportsSourceMode: true,
         supportsDiffDisplay: true,
         gitDiffAvailability: .changed,
-        isDirectHTMLMode: false
+        isDirectHTMLMode: false,
+        isDocumentJumpEnabled: true
+    )
+
+    /// `allEnabledForTesting` に差分表示中であることだけを足した状態。
+    /// 変更ブロックへのジャンプのように「差分表示中だけ意味を持つ」能力を表す。
+    static let allEnabledShowingDiffForTesting = ViewerCapabilities(
+        isPresentingDocument: true,
+        isRejected: false,
+        isRenderable: true,
+        isBinaryContent: false,
+        showsCodeContent: true,
+        showsDiff: true,
+        supportsSourceMode: true,
+        supportsDiffDisplay: true,
+        gitDiffAvailability: .changed,
+        isDirectHTMLMode: false,
+        isDocumentJumpEnabled: true
     )
 }

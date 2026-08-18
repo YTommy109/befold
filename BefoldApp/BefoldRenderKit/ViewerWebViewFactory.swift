@@ -13,6 +13,8 @@ public enum ViewerWebViewFactory {
         let initialZoom: Double
         /// 検索バー 3 トグルの永続化ストア。QuickLook 等では nil。
         let findOptions: FindOptionsPreference?
+        /// 見出しジャンプで目印にするレベルの初期値（次に開く窓の出発点）。
+        let headingJumpLevels: HeadingJumpLevels
         /// ソースビュー等幅フォントファミリー名。nil はシステム既定。
         let codeFontFamily: String?
         /// ソースビューのコードフォントサイズ(pt)。nil は未カスタマイズで、
@@ -150,7 +152,9 @@ public enum ViewerWebViewFactory {
                     useRegex: options.findOptions?.useRegex ?? false
                 )
             ),
+            ViewerBridge.initialJumpLevelsScript(options.headingJumpLevels),
             ViewerBridge.findStringsScript(),
+            ViewerBridge.jumpStringsScript(),
             ViewerBridge.bannerStringsScript(),
             ViewerBridge.hostFeaturesScript(
                 loadMore: options.features.allowsInteractiveBridging,

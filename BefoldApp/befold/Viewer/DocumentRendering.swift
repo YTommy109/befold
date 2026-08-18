@@ -34,6 +34,18 @@ protocol DocumentRendering: AnyObject {
     func findNext()
     func findPrevious()
 
+    /// 文書内ジャンプを開く。
+    /// kind は目印の種類。生の String ではなく `DocumentJumpKind` で受けるのは、
+    /// 種類ごとの可否検査(`ViewerCapabilities.canJump(to:)`)をコマンド経路が
+    /// 迂回できないようにするため(TASK-485.7)。文字列へ落とすのは JS 境界の
+    /// `WebViewDocumentRenderer` 1 箇所だけ。
+    ///
+    /// 閉じる / 次へ / 前へ は Swift 側の入口を持たない。Esc・Enter・Shift+Enter は
+    /// viewer の keydown ハンドラが処理しており、Swift から呼ぶ経路が無いため
+    /// 配管だけが残っていた(TASK-485.15 で撤去)。メニューやキーバインドから
+    /// 呼ぶ必要が出たら、そのときに再導入する。
+    func openJump(kind: DocumentJumpKind)
+
     /// 表示内容を指定ウィンドウ上のシートとして印刷する。
     func printDocument(over window: NSWindow?)
 

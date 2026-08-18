@@ -4,7 +4,7 @@ title: 条件を満たした旧世代の配布経路を実際に停止する
 status: To Do
 assignee: []
 created_date: '2026-08-16 02:01'
-updated_date: '2026-08-16 02:41'
+updated_date: '2026-08-17 14:52'
 labels: []
 milestone: m-8
 dependencies:
@@ -13,6 +13,7 @@ dependencies:
   - TASK-495
 parent_task_id: TASK-489
 priority: low
+type: chore
 ordinal: 724000
 ---
 

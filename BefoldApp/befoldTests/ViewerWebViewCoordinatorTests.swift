@@ -126,7 +126,8 @@ struct ViewerWebViewCoordinatorTests {
         #expect(names.contains(ViewerBridge.zoomChangedMessageName))
         #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
         #expect(names.contains(ViewerBridge.scrollPositionChangedMessageName))
-        #expect(names.count == 7)
+        #expect(names.contains(ViewerBridge.jumpLevelsChangedMessageName))
+        #expect(names.count == 8)
     }
 
     @Test("allowsInteractiveBridging: false では referenceActivated/loadMoreLines を登録しない(多層防御)")
@@ -141,7 +142,9 @@ struct ViewerWebViewCoordinatorTests {
         #expect(names.contains(ViewerBridge.zoomChangedMessageName))
         #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
         #expect(names.contains(ViewerBridge.scrollPositionChangedMessageName))
-        #expect(names.count == 3)
+        // 見出しジャンプのレベル通知も静的 1 回読込で安全（受け手の記録口は nil で無害化される）。
+        #expect(names.contains(ViewerBridge.jumpLevelsChangedMessageName))
+        #expect(names.count == 4)
     }
 
     // MARK: - renderableContent(ローカル画像埋め込み)

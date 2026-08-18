@@ -5,9 +5,10 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-16 13:46'
-updated_date: '2026-08-16 14:54'
+updated_date: '2026-08-17 14:52'
 labels: []
 dependencies: []
+type: feature
 ordinal: 737000
 ---
 

@@ -61,7 +61,7 @@ public extension ViewerRendererDelegate {
 /// find/loadMore/リンク遷移などアプリ専用機能はフック注入・オプショナルにしてあり、
 /// QuickLook 拡張(.appex)のような静的1回描画ホストではそれらを省いて利用できる。
 @MainActor
-public final class ViewerRenderer: NSObject, WKNavigationDelegate {
+public final class ViewerRenderer {
     public var webView: WKWebView?
     public var webViewProxy: WebViewProxy?
     /// JS 側で起きた出来事の通知先。アプリ本体では ViewerWindowController が実装する。
@@ -76,9 +76,16 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     private(set) lazy var messageRouter = BridgeMessageRouter(renderer: self)
     /// パス参照解決の FIFO 直列化とページ世代の管理。
     private(set) lazy var referenceQueue = ReferenceResolutionQueue(renderer: self)
+    /// WKWebView のナビゲーション事象の受け口。makeWebView が navigationDelegate へ設定する
+    /// 実ハンドラで、ViewerRenderer 側に転送メソッドは置かない(受け口をここ 1 つに限る)。
+    private(set) lazy var navigationCoordinator = ViewerNavigationCoordinator(renderer: self)
     /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
     /// QuickLook 拡張等、検索 UI を持たないホストでは nil のまま省略できる。
     public var findOptionsPreference: FindOptionsPreference?
+
+    /// 見出しジャンプのレベル設定を**記録するだけ**の口（TASK-485.2）。
+    /// 読み取り API を持たない型にしてあるため、窓が保存値を読み直す経路は作れない。
+    public weak var headingJumpLevelRecording: (any HeadingJumpLevelRecording)?
     /// 直接 HTML モード・相対画像埋め込みの有効/無効フラグ。
     public var rendererFeatures: RendererFeatures = .allEnabled
     /// applyRender/applyAppend の画像埋め込み(embeddedContent)が使うインスタンス。
@@ -86,20 +93,16 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     /// 引くため、本番は既定の .shared のまま使うこと。テストでは低速な FileReading を
     /// 注入したフェイクに差し替え、Task.detached の完了タイミングを制御する。
     var imageEmbedder: MarkdownImageEmbedder = .shared
-    /// 呼び出し側から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用に使う。
-    ///
-    /// 生成時のユーザースクリプト(atDocumentStart)に焼き込むだけでは、ウィンドウの生成が
-    /// 表示対象の確定より先に走ったときに既定倍率のまま取り残される。値の変化と
-    /// viewer.html の準備完了の双方で適用し直し、「状態の投影」として扱う(ADR 0002 / TASK-270)。
-    public var initialPageZoom: Double = 1.0 {
-        didSet {
-            guard initialPageZoom != oldValue else { return }
-            applyInitialPageZoomIfReady()
-        }
+    /// 初期倍率の投影(望む倍率と適用済みの記録)。詳細は PageZoomProjector.swift を参照。
+    private(set) lazy var pageZoom = PageZoomProjector(renderer: self)
+
+    /// 呼び出し側から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用にも使う。
+    /// 実体は `pageZoom.desired`(ホスト向けの公開名だけをここに残す転送プロパティ)。
+    public var initialPageZoom: Double {
+        get { pageZoom.desired }
+        set { pageZoom.desired = newValue }
     }
 
-    /// viewer.js へ適用済みの倍率。同じ値を何度も評価しないための記録。
-    var appliedPageZoom: Double?
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
     public var scrollPositionToRestore: Double = 0
     /// 直接 HTML モードの状態機械(判定・ロード・復帰・リンクポリシー)。
@@ -141,7 +144,7 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
 
     var pendingAppend: PendingAppend?
 
-    override public init() {}
+    public init() {}
 
     /// WKWebView を構成し、viewer.html をロードして返す。
     /// - Parameters:
@@ -152,21 +155,25 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
     ///   - codeFontSizePoints: ロード前に JS へ注入するソースビューのコードフォントサイズ(pt)。
     ///     nil は未カスタマイズ(CSS 側の calc(本文*0.75) フォールバックへ委ね、
     ///     アクセシビリティ文字サイズに追従する)。
+    ///   - headingJumpLevels: 見出しジャンプで目印にするレベルの初期値。保存値を持たない
+    ///     呼び出し側(QuickLook 等)は既定の `.default` のままでよい(JS 側の既定と同じ意味)。
     public func makeWebView(
         initialZoom: Double, findOptionsPreference: FindOptionsPreference?,
-        codeFontFamily: String? = nil, codeFontSizePoints: Double? = nil
+        codeFontFamily: String? = nil, codeFontSizePoints: Double? = nil,
+        headingJumpLevels: HeadingJumpLevels = .default
     ) -> WKWebView {
         self.findOptionsPreference = findOptionsPreference
         initialPageZoom = initialZoom
         let webView = ViewerWebViewFactory.makeWebView(
             options: ViewerWebViewFactory.Options(
                 initialZoom: initialZoom, findOptions: findOptionsPreference,
+                headingJumpLevels: headingJumpLevels,
                 codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints,
                 features: rendererFeatures
             ),
             messageHandler: messageRouter
         )
-        webView.navigationDelegate = self
+        webView.navigationDelegate = navigationCoordinator
         self.webView = webView
         ViewerWebViewFactory.loadViewerHTML(into: webView)
         return webView
@@ -177,60 +184,8 @@ public final class ViewerRenderer: NSObject, WKNavigationDelegate {
         ViewerWebViewFactory.dismantle(webView, features: rendererFeatures)
     }
 
-    // MARK: - WKNavigationDelegate
-
-    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        directHTML.applyPendingZoom(to: webView)
-        applyInitialPageZoomIfReady(assumingReady: true)
-        readiness.markReady()
-    }
-
-    public func webView(
-        _ webView: WKWebView,
-        didFailProvisionalNavigation navigation: WKNavigation!,
-        withError error: Error
-    ) {
-        handleNavigationFailure(webView: webView)
-    }
-
-    public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        handleNavigationFailure(webView: webView)
-    }
-
-    /// 初回の HTML ロード（loadFileURL）は常に許可する。viewer.html モードではそれ以外の
-    /// ナビゲーションを全てキャンセルする(JS 側がリンクを処理する)。直接 HTML モードでは
-    /// リンククリック(.linkActivated)のみ directHTMLLinkPolicy で分類して処理する。
-    public func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationAction: WKNavigationAction
-    ) async -> WKNavigationActionPolicy {
-        directHTML.decidePolicy(webView: webView, navigationAction: navigationAction)
-    }
-
-    /// 現在の initialPageZoom を viewer.js へ適用する。viewer.html の準備前・
-    /// HTML 直接ロード中(viewer.js が無い)・同じ値を適用済みのときは何もしない。
-    /// - Parameter assumingReady: didFinish の中からは ready 確定前に呼ぶため true を渡す。
-    func applyInitialPageZoomIfReady(assumingReady: Bool = false) {
-        guard assumingReady || readiness.isReady else { return }
-        guard !directHTML.isActive, let webView else { return }
-        guard appliedPageZoom != initialPageZoom else { return }
-        appliedPageZoom = initialPageZoom
-        webView.evaluateJavaScript(ViewerBridge.applyZoomScript(initialPageZoom))
-    }
-
     /// viewer.html の準備ができていれば即実行し、まだなら準備完了まで保留する。
     func runWhenReady(_ work: @escaping () -> Void) {
         readiness.run(work)
-    }
-
-    private func handleNavigationFailure(webView: WKWebView) {
-        directHTML.discardPendingZoom()
-        if directHTML.isActive {
-            // 削除起因の失敗は呼び出し側がウィンドウを閉じる等の対応をするため、
-            // ここでは viewer.html へ戻すだけでよい
-            directHTML.exit(webView: webView) {}
-        } else {
-            readiness.flushPending()
-        }
     }
 }

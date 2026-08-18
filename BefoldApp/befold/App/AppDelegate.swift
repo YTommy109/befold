@@ -79,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             displayDefaults: stores.displayDefaults,
             diffDisplayPreference: stores.diffDisplayPreference,
             findOptionsPreference: stores.findOptionsPreference,
+            headingJumpLevelDefaults: stores.headingJumpLevelDefaults,
             codeFontPreference: stores.codeFontPreference,
             perFileState: stores.perFileState,
             bookmarkStore: stores.bookmarkStore,

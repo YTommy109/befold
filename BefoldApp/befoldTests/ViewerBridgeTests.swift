@@ -309,3 +309,19 @@ struct ViewerBridgeTests {
         }
     }
 }
+
+/// 見出しジャンプのレベル注入。空配列（全 OFF）と非配列（既定へ落ちる）の区別が
+/// 契約なので、ViewerBridgeTests から分けて置く（type_body_length 回避も兼ねる）。
+struct ViewerBridgeJumpLevelsTests {
+    @Test("initialJumpLevelsScript は保存値をそのまま注入する（空配列も尊重される）")
+    func initialJumpLevelsScriptInjectsStoredValue() {
+        #expect(
+            ViewerBridge.initialJumpLevelsScript(HeadingJumpLevels(levels: [1, 3]))
+                == "window._mmdInitialJumpLevels = [\"h1\",\"h3\"];"
+        )
+        #expect(
+            ViewerBridge.initialJumpLevelsScript(HeadingJumpLevels(levels: []))
+                == "window._mmdInitialJumpLevels = [];"
+        )
+    }
+}

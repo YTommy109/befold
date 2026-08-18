@@ -13,6 +13,7 @@ final class BridgeMessageRouter: NSObject, WKScriptMessageHandler {
     private typealias ScrollKey = ViewerBridgeMessage.PayloadKey.ScrollPositionChanged
     private typealias ZoomKey = ViewerBridgeMessage.PayloadKey.ZoomChanged
     private typealias FindKey = ViewerBridgeMessage.PayloadKey.FindOptionsChanged
+    private typealias JumpLevelsKey = ViewerBridgeMessage.PayloadKey.JumpLevelsChanged
     private typealias ContextMenuKey = ViewerBridgeMessage.PayloadKey.ReferenceContextMenu
 
     private unowned let renderer: ViewerRenderer
@@ -36,6 +37,7 @@ final class BridgeMessageRouter: NSObject, WKScriptMessageHandler {
         case .referenceContextMenu: handleReferenceContextMenu(body: message.body)
         case .scrollPositionChanged: handleScrollPositionChanged(body: message.body)
         case .findOptionsChanged: handleFindOptionsChanged(body: message.body)
+        case .jumpLevelsChanged: handleJumpLevelsChanged(body: message.body)
         case .loadMoreLines: renderer.handleLoadMoreLines()
         case .resolveReferences: renderer.referenceQueue.handle(body: message.body)
         }
@@ -92,5 +94,15 @@ final class BridgeMessageRouter: NSObject, WKScriptMessageHandler {
         renderer.findOptionsPreference?.caseSensitive = caseSensitive
         renderer.findOptionsPreference?.wholeWord = wholeWord
         renderer.findOptionsPreference?.useRegex = useRegex
+    }
+
+    /// 見出しレベルのトグル変更を「次に開く窓の出発点」として記録する。
+    /// レンダラが持つのは書き戻し専用のプロトコルだけで、保存値を読み直す経路は無い
+    /// (ADR 0002「窓の状態」)。空配列も正当な値なので、空だからと弾かない。
+    private func handleJumpLevelsChanged(body: Any) {
+        guard let payload = body as? [String: Any],
+              let tokens = payload[JumpLevelsKey.levels.rawValue] as? [String]
+        else { return }
+        renderer.headingJumpLevelRecording?.record(HeadingJumpLevels.stored(tokens))
     }
 }

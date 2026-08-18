@@ -24,7 +24,8 @@ befold は macOS 向けの Mermaid ダイアグラム・ビューアアプリで
 befold.app (Swift 6 / AppKit + SwiftUI, macOS 14+)
   ├── AppDelegate                # ライフサイクルと @objc アクションの受け口（配線のみ）
   │     ├── AppStores                # アプリ全体で共有するストア・表示設定の束
-  │     ├── ViewerWindowManager      # ウィンドウ生成・管理とセッション記録の更新
+  │     ├── ViewerWindowManager      # ウィンドウ生成・管理（正規化パス → コントローラ辞書）
+  │     │     ├── ViewerWindowSessionSync    # 開閉・rename・キー化に伴うセッション/履歴/ブックマークの追随
   │     │     ├── GlobalDisplayBroadcaster   # アプリの好み（ブックマーク・フォント）を全ウィンドウへ配る
   │     │     └── RecentRepositoryRecorder   # 「最近使ったリポジトリ」の記録とタブ構成の更新
   │     ├── SessionRestorer          # 前回セッションのウィンドウ/タブ構成の保存・復元
@@ -117,7 +118,8 @@ BefoldApp/
 | `QuickOpenCoordinator` | Quick Open パネルの保持、候補源（`AppQuickOpenEnvironment`）の組み立て、決定先を開く |
 | `AppCLIRequestReceiver` | 別プロセスの CLI 起動から転送された要求の受信。ACK 返送と `requestID` 単位の重複排除。**生成と同時に購読するため `AppDelegate.init` で eager に作る** |
 | `CLIShimCoordinator` | `/usr/local/bin/befold` の陳腐化チェックと設置、結果案内 |
-| `ViewerWindowManager` | ビューアウィンドウ（正規化パス → コントローラ）の生成・破棄、close/rename/key イベントに伴うセッション更新 |
+| `ViewerWindowManager` | ビューアウィンドウ（正規化パス → コントローラ）の生成・破棄と辞書の保持。開閉に伴う記録の追随は持たず、`ViewerWindowSessionSync` へ委ねる |
+| `ViewerWindowSessionSync` | close / rename / ファイル切替 / key イベントを受けての辞書のキー付け替えと、セッション・最近使った項目・ブックマークの追随。`ViewerWindowControllerDelegate` 準拠（辞書の書き換えはマネージャの `register` / `detach` を通す。窓を作らない関心なのでマネージャから分離した） |
 | `GlobalDisplayBroadcaster` | アプリ全体で 1 つの表示設定（ブックマーク・コードフォント）を開いている全ウィンドウへ配る。窓ごとのライブ値と窓の状態（ADR 0002）は扱わず、`SidebarDisplayDefaults` も `ZoomStore` も型として持たない |
 | `RecentRepositoryRecorder` | 「最近使ったリポジトリ」への記録。git ルート/ラベルの解決は detached タスクで行い、反映のみ MainActor へ戻す |
 | `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Space からはぐれた窓の救出）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場 |
@@ -126,7 +128,7 @@ BefoldApp/
 | `AppUpdaterController` | Sparkle アップデータの保持・起動と、チャンネル別 appcast フィード URL の供給（`SPUUpdaterDelegate` 準拠。詳細は「自動アップデート」節） |
 | `DocumentController` | `NSDocumentController` のサブクラス。Recent Documents からのオープンを `AppDelegate` に委譲 |
 | `MainMenuBuilder` | メインメニューをコードで構築 |
-| `MenuShortcutCatalog` / `HelpShortcutSections` | Help > キーボードショートカット に並べる一覧の組み立て。メニュー由来は `NSMenu` から抽出し、メニューを経由しない操作は `ViewerShortcutCatalog` / `SidebarShortcutCatalog` / `QuickOpenShortcutCatalog` から引く。キー表記の組み立ては `ShortcutKey` に集約し、一覧と実装のずれは各カタログの突合テストで落とす |
+| `MenuShortcutCatalog` / `HelpShortcutSections` | Help > キーボードショートカット に並べる一覧の組み立て。メニュー由来は `NSMenu` から抽出し、メニューを経由しない操作は `ViewerShortcutCatalog` / `SidebarShortcutCatalog` / `QuickOpenShortcutCatalog` から引く。キー表記の組み立ては `ShortcutKey` に集約し、一覧と実装のずれは各カタログの突合テストで落とす。ビューア内の一覧は文書内ジャンプのゲート（`FeatureGate.isDocumentJumpEnabled`）を必須引数で受け取り、ゲート開でのみ Enter / ⇧Return のジャンプ移動を載せ、Esc の説明を「検索バーを閉じる」から「検索バー・ジャンプバーを閉じる」へ入れ替える |
 | `RecentDocumentsStore` / `RecentDocumentsMenuController` | 最近使ったファイルを UserDefaults に自前で永続化しメニュー描画（ad-hoc 署名では OS 標準の Recent Documents が更新のたびにリセットされるため） |
 | `SessionStore` | 終了時のウィンドウ/タブグループ構成（`SessionLayout`）の型 |
 | `ScrollPositionStore` | ファイルごとのスクロール位置を永続化（レンダリング/ソース表示を別々に保存） |
@@ -226,6 +228,59 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   1 回のキー操作で位置が飛ばないようにする。CSS の `scroll-behavior` は使わない
   （指定すると `scrollTop` への代入まで animate され、位置復元が着地しなくなる）
 - **検索**: 大文字小文字区別・単語一致・正規表現の3トグル、次/前移動
+- **文書内ジャンプ**: 文書順に並んだ目印を前後移動する
+  （Edit > 見出しへジャンプ… / 変更箇所へジャンプ…）。目印は 2 種類ある。
+  **見出し**は Markdown レンダリング表示が対象で、**h1 / h2 / h3 のどれを目印にするかを
+  バーのトグルで選べる**（既定は 3 つとも ON。3 つとも OFF も正当な状態）。
+  **変更ブロック**は差分表示が対象で、連続する削除行とその直後の追加行のまとまりを
+  1 件として数える。数え方はハンク単位ではない（`GitDiffReader` が 100 万行の文脈を
+  指定するためファイル全体が 1 ハンクになりうる）。番号は描画時に
+  `viewer-src/diff-html.ts` の `assignChangeBlockIndexes` が `hunk.lines` へ振り、
+  `data-diff-block` 属性として出す。インラインと左右分割は同じ行データから番号を
+  受け取るため、**レイアウトを切り替えても件数・順序・現在位置が変わらない**
+  （列挙側は DOM のクラスではなくこの属性だけを見る）。
+  アクティブな変更ブロックは**左端の縦帯**で示す（各行の左端セルへ左辺だけの
+  インセット影を引くので、複数行のブロックでも 1 本の帯に見える）。行を囲む枠や
+  全セルの枠にしないのは、変更行が `.diff-add` / `.diff-del` の地色で既に見えている
+  ところへ線を足すと画面が賑やかになりすぎるため。候補の下線も差分表示では出さない。差分表示中は本文が段階読み込み中でも
+  変更ブロックは全数そろっているため「表示範囲内」ラベルは出さない
+  （差分の表は `setDiff` で渡った全文から組み、`appendChunk` は追記をスキップする）。
+  種類ごとの可否は `ViewerCapabilities.canJump(to:)` が持ち、変更ブロックは差分表示を
+  選んでいる間だけ使える。**コマンド経路（`DocumentRendering.openJump(kind:)` と
+  `WebViewCommandController.openJump(kind:)`）は種類を生の String ではなく
+  `DocumentJumpKind` で運び、`canJump(to:)` で閉じる**。粗い `canJump` だけで通すと
+  種類別の規則をメニュー検証だけが守る形になり、メニュー以外の入口（キーバインド・
+  ツールバー）が同じ穴を継承するため（TASK-485.7）。文字列へ落とすのは JS 境界の
+  `WebViewDocumentRenderer` 1 箇所だけ。検索バーと同じ形の
+  「現在位置 / 総数」表示を持ち、`Enter` / `Shift+Enter` で前後へ動く。
+  ジャンプバーは入力欄を持たずキーボードフォーカスが乗らないため、この `Enter` は
+  バー要素ではなく `document` で拾う。奪う範囲は**素の `Enter` / `Shift+Enter` に限る**
+  （`Cmd` / `Ctrl` / `Alt` 付きのチョードは通し、リンク・ボタン・入力欄など
+  `Enter` の既定動作を自分で持つ要素にフォーカスがある間もそちらを優先する。
+  判定は `viewer-src/keyboard.ts` の `ownsEnterKey`）。
+  **バーを開いている間は目印の候補が下線で示され**、次にどこへ飛ぶか分かる
+  （文字幅の下線。h1 / h2 が github-markdown-css の border-bottom を持つため、
+  要素幅の下線だと候補か判別できない）。
+  トグルの状態は**ライブ値が窓ごと・保存値は次に開く窓の出発点**で、最後に操作した状態が
+  再起動後も復元される（`HeadingJumpLevelDefaults`。`SidebarDisplayDefaults` と同じ形で
+  ADR 0002「窓の状態」に沿う。窓へ渡すのは読み取り API を持たない記録用プロトコルだけ）。
+  目印の列挙は `viewer-src/jump-providers.ts` のプロバイダが担い、位置・表示・
+  ハイライト・再構築は `viewer-src/jump.ts` のコントローラが持つ（対象を増やすときは
+  プロバイダを足す）。バー内のオプション（見出しレベルのトグルなど）は
+  プロバイダが `optionsElementId` で宣言し、コントローラは選ばれている種類のものだけを
+  表示する（コントローラは中身を知らない）。
+  **選べる見出しレベル（h1 / h2 / h3）の単一の情報源は Swift の
+  `HeadingJumpLevels.selectableLevels` と JS の `HEADING_LEVELS` の 2 つだけ**で、
+  トグルのボタンは後者から生成する（viewer.html には空の入れ物しか置かない）。
+  2 つのずれは `ViewerJumpLevelContractTests` が落とす（TASK-485.11。以前は
+  Swift のフィルタ域・JS の定数・HTML のボタンの 3 箇所に独立して書かれており、
+  JS 側だけ増やすとユーザーの選択が保存時に黙って捨てられた）。検索バーとは同時に開かない（`viewer-src/bar.ts` が排他を持つ）。
+  **開発中機能で、`FeatureGate.isDocumentJumpEnabled` が閉じている stable ビルドでは
+  メニュー項目自体を構築しない**（`MainMenuBuilder.build` がゲートを必須引数で受け取り、
+  閉じていれば区切り線ごと省く）。コマンドの可否は `ViewerCapabilities.canJump` へ
+  畳んであるが、`canJump` はゲート閉で常に false になるため、項目を構築すると
+  永久にグレーアウトした項目が stable のユーザーへ露出してしまう（TASK-485.8）。
+  安定稼働を確認するまでキー等価は割り当てない
 - **表示モード切替**: ツールバーの 3 択セグメント（レンダリング / ソース / 差分）と `⌘1`〜`⌘3`。
   `DisplayModeStore` でファイル単位に永続化する。差分レイアウト（上下/左右）は `⌘\\` とツールバーのトグルで切り替え、
   好みの設定としてアプリ全体で共有する（`DiffDisplayPreference`）。ソース相当の内容を出している間は

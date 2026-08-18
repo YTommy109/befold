@@ -5,12 +5,13 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-16 02:39'
-updated_date: '2026-08-16 08:54'
+updated_date: '2026-08-17 14:52'
 labels: []
 milestone: m-7
 dependencies:
   - TASK-500
 priority: medium
+type: feature
 ordinal: 731000
 ---
 

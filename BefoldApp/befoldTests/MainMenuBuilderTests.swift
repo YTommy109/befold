@@ -259,4 +259,34 @@ struct MainMenuBuilderTests {
         )
         #expect(installItem.title == fixture.localizedTitle("menu.app.installCLI"))
     }
+
+    /// stable ビルド（ゲート閉）では `canJump` が常に false になるため、項目を構築すると
+    /// 永久にグレーアウトした項目が露出する（TASK-485.8）。区切り線ごと出ないことを見る。
+    @Test("ゲート閉のときは Edit メニューに文書内ジャンプ項目が構築されない")
+    func editMenuOmitsDocumentJumpItemsWhenGateIsClosed() throws {
+        let closedFixture = MainMenuFixture(isDocumentJumpEnabled: false)
+        let edit = try #require(closedFixture.submenu(titledKey: "menu.edit.title"))
+
+        #expect(!edit.items.contains { $0.action == #selector(ViewerWindowController.documentJump(_:)) })
+        for kind in DocumentJumpKind.allCases {
+            #expect(!edit.items.contains { $0.title == closedFixture.localizedTitle(kind.menuLabelKey) })
+        }
+        // 末尾に区切り線だけが取り残されていないこと。
+        #expect(edit.items.last?.isSeparatorItem == false)
+    }
+
+    @Test("ゲート開のときは Edit メニューに種類ぶんの文書内ジャンプ項目が並ぶ")
+    func editMenuHasDocumentJumpItemsWhenGateIsOpen() throws {
+        let edit = try #require(fixture.submenu(titledKey: "menu.edit.title"))
+
+        let jumpItems = edit.items.filter { $0.action == #selector(ViewerWindowController.documentJump(_:)) }
+        #expect(jumpItems.count == DocumentJumpKind.allCases.count)
+        #expect(jumpItems.map(\.tag) == DocumentJumpKind.allCases.map(\.menuItemTag))
+        for kind in DocumentJumpKind.allCases {
+            #expect(jumpItems.contains { $0.title == fixture.localizedTitle(kind.menuLabelKey) })
+        }
+        // 直前の Find 系とは区切り線で分かれる。
+        let firstIndex = try #require(edit.items.firstIndex(of: jumpItems[0]))
+        #expect(edit.items[firstIndex - 1].isSeparatorItem)
+    }
 }

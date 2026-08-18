@@ -108,6 +108,7 @@ struct ViewerWindowControllerIntegrationTests {
         let controller = ViewerWindowController(
             fileURL: file,
             diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
+            headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults)
         )

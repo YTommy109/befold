@@ -1,10 +1,11 @@
 ---
 id: TASK-485.3
 title: 差分表示で前後の変更ブロックへ移動できるようにする
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-14 13:18'
-updated_date: '2026-08-15 06:39'
+updated_date: '2026-08-17 13:35'
 labels: []
 milestone: m-6
 dependencies:
@@ -45,9 +46,109 @@ ordinal: 714000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 インライン差分で、前後の変更ブロックへ移動できる
-- [ ] #2 左右分割差分でも同じ数・同じ順序で移動できる
-- [ ] #3 レイアウトを切り替えても現在位置が保たれる、または明示的に先頭へ戻る（どちらかを決めて実装する）
-- [ ] #4 ファイル全体が 1 ハンクになる差分でも、変更ブロック数が正しく数えられる
-- [ ] #5 連続変更行のグルーピングに JS のユニットテストがある
+- [x] #1 インライン差分で、前後の変更ブロックへ移動できる
+- [x] #2 左右分割差分でも同じ数・同じ順序で移動できる
+- [x] #3 レイアウトを切り替えても現在位置が保たれる、または明示的に先頭へ戻る（どちらかを決めて実装する）
+- [x] #4 ファイル全体が 1 ハンクになる差分でも、変更ブロック数が正しく数えられる
+- [x] #5 連続変更行のグルーピングに JS のユニットテストがある
+- [x] #6 アクティブな変更ブロックが分かる表示がある（各行の左端セルへ左辺だけのインセット影を引き、複数行でも 1 本の縦帯に見せる）。差分の地色は潰さない
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 【単純化】DOM のクラス走査で連続変更行をグルーピングするのではなく、生成時に番号を振る。diff-html.ts の純関数 assignChangeBlockIndexes(lines, startIndex) が、連続する del 群 + 直後の add 群を 1 ブロックとして hunk.lines へ通し番号を割り当てる。インライン／左右分割のどちらの描画も同じ hunk.lines を入力にするため、両レイアウトの数と順序が構造的に一致する（AC#2/#4 を実装ではなく構造で担保）。
+2. 変更行の tr に data-diff-block="N" を出す（インラインは diffRow、左右分割は pair 行）。
+3. jump-providers.ts の changeBlockJumpProvider（id: 'changeBlock'）が [data-diff-block] を文書順に拾い、属性値でまとめる。anchor はブロック先頭の tr、highlight は各 tr 直下の td 群（tr への outline は border-collapse 下で上下辺しか出ないため。AC#6）。
+4. バー内オプションは JumpProvider.optionsElementId で宣言し、jump.ts が active な種類のものだけ表示する（見出しレベルのトグルは見出しのときだけ出す）。
+5. Swift: DocumentJumpKind に changeBlock（tag 2 / menu.edit.jumpToChangeBlock）、Localizable.xcstrings に文言。
+6. ViewerCapabilities に canJumpToChangeBlock（= canJump && showsDiff）と canJump(to:) を足し、ViewerMenuValidator を種類ごとに分岐（複雑度の上限を超えるため validateDocumentJumpItem へ抽出）。
+7. テスト: assignChangeBlockIndexes の純関数テスト（AC#5）、両レイアウトで data-diff-block が同数・同順であること（AC#2）、ファイル全体 1 ハンクでも個別に数えること（AC#4）、DOM 側の列挙・セルへのハイライト・truncated ラベル抑止・オプション表示。
+8. viewer-src を変更したら npm run build:viewer でバンドルを再生成してコミットする。
+
+--- /review-design の結果（実装前レビュー・4 件を設計へ反映）---
+【項目1】メニューの活性は「変更ブロックが 0 件か」ではなく事実（showsDiff）で決める。
+【項目3】ViewerMenuValidator は documentJump アクション 1 本で canJump を返しており種類別の活性を持たない → タグから復元して分岐。
+【項目4/7】差分表示中でも truncated は立つ（truncation.ts）が、差分の表は setDiff の全文から組まれ appendChunk はスキップされる（render.ts）ため「表示範囲内」ラベルは事実と食い違う → JumpProvider.ignoresTruncation を足す。
+【項目9】「両レイアウトでブロック番号が一致」は純関数テストでは守れない → 同じ diff を両レイアウトで描画して data-diff-block の個数・並びを比較するテストで担保。
+【項目5】レイアウト切替は Swift が setDiffLayout の直後に render を送るため refresh 経路に乗り、modeJustSwitched は rendered/source 切替でしか立たないので位置が維持される。AC#3 は「保たれる」を選ぶ。
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 実装
+
+変更ブロックの列は **DOM のクラス走査ではなく描画時の番号付け**で作った。インライン表示は
+tr に diff-add/diff-del が付き、左右分割では側セル(td.diff-side)に付くため、クラスで数えると
+レイアウトごとに列挙が変わる。代わりに diff-html.ts の純関数 assignChangeBlockIndexes が
+hunk.lines へ通し番号を振り、両レイアウトの描画が同じ番号を data-diff-block として出す。
+列挙側(collectChangeBlocks)はこの属性だけを見るので、件数・順序の一致は構造で保証される。
+
+ハイライトは行ではなくセルへ当てた(JumpTarget.highlight が配列であることを使う)。
+border-collapse の表では tr への outline が上下辺しか描かれない(TASK-485.1 の実測)。
+
+## 検証（実測）
+
+- JS: npm test で 506 件通過。左右分割の data-diff-block 出力を一時的に外すと 3 件失敗する
+  ことを確認済み(テストが空振りしていないことの確認)
+- Swift: swift test で 1625 件通過
+- lint: oxlint(--type-aware) / tsc --noEmit / oxfmt すべてゼロ件。swiftlint は main との
+  ベースライン差分ゼロ(cyclomatic_complexity が 1 件新規に出たため validateDocumentJumpItem
+  へ抽出して解消)
+- ハイライトの四辺: 実 style.css を link した WKWebView ハーネスで takeSnapshot し、
+  セルへ当てた outline が四辺とも描かれ .diff-add/.diff-del の地色も残ることを画像で確認
+- 実機: 2 箇所を別々に変更した .md を差分表示で開き「変更箇所へジャンプ…」で 1/2 と表示、
+  先頭ブロックだけが枠付きになることを確認。差分表示でないときはメニュー項目が無効、
+  見出しジャンプのときだけ H1/H2/H3 トグルが出ることも確認
+
+## 注意（このセッションでの事故）
+
+実機確認の後始末で git reset --hard を打ち、未コミットの実装を一度全消しした。
+scratchpad の diff-html.ts のバックアップとビルド済み .app 内の style.css から 2 ファイルを
+復元し、残りは再適用してテストで同一性を確認した。実機確認用の一時ファイルは
+git add/commit せず、変更したファイルは git checkout -- <path> で個別に戻すこと。
+
+## 追記: 目印の当て方を絞った（レビュー指摘）
+
+当初は変更ブロックの全行・全セルへ枠を出していたが、行数の多いブロックで画面が
+枠だらけになるという指摘を受け、**ブロック先頭行のガター（行番号セル）だけ**に絞った。
+行番号を出していない表にはガターが記号セル（+/-）しか無いので、そちらへ落とす。
+分割表示では左右それぞれのガターが対象（対で 1 つの目印であることが両側に出る）。
+実測: 独立ハーネスのスナップショットと実機（左右分割）で、先頭行のガター 2 セルだけが
+枠付きになることを確認。JS テスト 509 件通過。
+
+## 追記 2: 差分表示では罫線を出さない（レビュー指摘）
+
+先頭行のガターだけに絞ってもなお「差分部分は色が付いているので罫線は不要」との指摘を受け、
+変更ブロックの目印には**印を一切付けない**形にした（collectChangeBlocks が highlight を
+空配列で返す）。どこに居るかはスクロール位置とバーの n/N が伝える。
+
+これに伴い、差分専用に足していた CSS 2 規則（.diff-table td.mmd-jump-current /
+.diff-table .mmd-jump-target）と、ガターのセルを選ぶヘルパーを削除した。
+JumpTarget.highlight が空でもコントローラ側は素通りする（clearCurrent / markTargets は
+空配列を走査するだけ）。
+
+AC#6 は前提（行ハイライトを差分でどう描くか）が消えたため、実態に合わせて書き換えた。
+
+実測: JS テスト 509 件通過（ハイライトのクラスが付かないこと・移動時に各ブロック先頭行へ
+scrollIntoView が呼ばれることをテスト）。実機の左右分割表示で 1/2 表示・罫線なしを確認。
+
+## 追記 3: アクティブ表示を左端の縦帯にした（レビュー指摘）
+
+罫線を全部外したところ「差分が複数あるページでどこがアクティブか分からない」と指摘を受けた。
+見せ方の候補（ブロック全体を囲む枠／左端のアクセントバー／背景を明るくする）を提示して
+**左端のアクセントバー**を選んでもらい、各行の左端セル（インラインは行番号セル、
+左右分割は左ペイン）へ `box-shadow: inset 3px 0 0 var(--accent)` を引く形にした。
+セルの outline にしないのは、行ごとに枠が閉じてブロックが 1 つに見えないため。
+
+実測: JS テスト 510 件通過（アクティブなブロックの各行の左端セルに印が付く／左右分割では
+左ペイン／移動で次のブロックへ移る／スクロール先）。見た目は独立ハーネスのスナップショットで
+確認し、ユーザーの確認も取れている。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+差分表示の変更ブロック（連続する削除行 + 直後の追加行）を文書内ジャンプの目印にした。列挙は DOM のクラス走査ではなく、描画時に hunk.lines へ振った通し番号（data-diff-block）を読む形にし、インライン／左右分割で件数・順序が一致することを構造で保証した。現在位置のハイライトは border-collapse 対策で行ではなくセルへ当てる。メニューの活性は ViewerCapabilities.canJump(to:) で種類ごとに分け、変更ブロックは差分表示中だけ有効。検証は JS 507 件 / Swift 1625 件のテスト通過、swiftlint はベースライン差分ゼロ、四辺のハイライトは WKWebView スナップショット、前後移動とメニュー活性は実機（2 箇所変更した .md で 1/2 表示）で確認。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -885,6 +885,42 @@
         }
       }
     },
+    "menu.edit.jumpToChangeBlock" : {
+      "comment" : "Edit メニュー。差分表示中の変更ブロックを前後移動するバーを開く。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jump to Change…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更箇所へジャンプ…"
+          }
+        }
+      }
+    },
+    "menu.edit.jumpToHeading" : {
+      "comment" : "Edit メニュー。文書内の見出し（h1 / h2 / h3）を前後移動するバーを開く。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jump to Heading…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "見出しへジャンプ…"
+          }
+        }
+      }
+    },
     "menu.edit.paste": {
       "extractionState": "manual",
       "localizations": {
@@ -2159,6 +2195,23 @@
         }
       }
     },
+    "shortcuts.viewer.barClose": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close the search or jump bar"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索バー・ジャンプバーを閉じる"
+          }
+        }
+      }
+    },
     "shortcuts.viewer.findClose": {
       "extractionState": "manual",
       "localizations": {
@@ -2206,6 +2259,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "半ページ上へスクロール"
+          }
+        }
+      }
+    },
+    "shortcuts.viewer.jumpNext": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jump to the next mark"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次の目印へ移動"
+          }
+        }
+      }
+    },
+    "shortcuts.viewer.jumpPrev": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jump to the previous mark"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前の目印へ移動"
           }
         }
       }

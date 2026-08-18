@@ -67,6 +67,8 @@ final class ViewerWindowController: NSWindowController {
 
     /// 検索の 3 トグル。使うのは分割ビューの組み立て(`ViewerWindowAssembler`)だけ。
     let findOptionsPreference: FindOptionsPreference
+    /// 見出しジャンプの設定。窓の生成時に読んだ出発点と、変更の書き戻し口。
+    let headingJump: HeadingJumpLevelBinding
     /// コードフォント設定。使うのは分割ビューの組み立てと、設定変更時の再注入(`+SidebarHost`)。
     let codeFontPreference: CodeFontPreference
     /// ブックマークの永続化。使うのはブックマークのトグルと状態参照(`+MenuActions`)だけ。
@@ -242,6 +244,7 @@ final class ViewerWindowController: NSWindowController {
         diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader? = nil,
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
+        headingJumpLevelDefaults: HeadingJumpLevelDefaults,
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore,
@@ -269,6 +272,8 @@ final class ViewerWindowController: NSWindowController {
         self.diffDisplayPreference = diffDisplayPreference
         self.diffLoader = diffLoader
         self.findOptionsPreference = findOptionsPreference
+        // 保存値を読むのは窓の生成時のこの 1 回だけ。以後は記録口しか触らない。
+        headingJump = headingJumpLevelDefaults.binding
         self.codeFontPreference = codeFontPreference
         self.bookmarkStore = bookmarkStore
         self.gitFileIndex = gitFileIndex

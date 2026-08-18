@@ -4,11 +4,12 @@ title: アクセス統計でページ別・閲覧言語別の内訳を人間と�
 status: Done
 assignee: []
 created_date: '2026-08-16 01:43'
-updated_date: '2026-08-16 05:14'
+updated_date: '2026-08-17 14:52'
 labels: []
 milestone: m-7
 dependencies: []
 priority: medium
+type: feature
 ordinal: 717000
 ---
 

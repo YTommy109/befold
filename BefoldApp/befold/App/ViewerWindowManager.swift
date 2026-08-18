@@ -3,15 +3,19 @@ import BefoldCLI
 import BefoldKit
 import SwiftUI
 
-/// ビューアウィンドウの生成・管理(正規化パス → コントローラ辞書)と、
-/// ウィンドウイベント(クローズ・rename・キー化)に伴うセッション記録の更新を担う。
+/// ビューアウィンドウの生成・管理(正規化パス → コントローラ辞書)を担う。
 ///
 /// このファイルは共有依存を受け取る composition root と、コントローラ辞書そのものの
 /// 出し入れ(`register` / `detach`)だけを持つ。個々の責務は責務名を冠した extension
 /// (`ViewerWindowManager+*.swift`)へ分かれている。
 ///
 /// - `+OpenViewer`: ウィンドウを開く経路(新規生成・既存の前面化)
-/// - `+SessionSync`: 辞書のキー付け替えとセッション記録、`ViewerWindowControllerDelegate` 準拠
+/// - `+SessionSync`: 開いているウィンドウの引き当て(`window(forPath:)`)
+///
+/// ウィンドウイベント(クローズ・rename・ファイル切替・キー化)に伴うセッション・履歴・
+/// ブックマークの追随は、この型が保持する `ViewerWindowSessionSync` が持つ
+/// (`ViewerWindowControllerDelegate` 準拠もそちら)。辞書の実体はここに残り、
+/// 向こうは `register` / `detach` を呼ぶ。
 ///
 /// 協力者として `GlobalDisplayBroadcaster`(全ウィンドウへの一括反映)と
 /// `RecentRepositoryRecorder`(「最近使ったリポジトリ」の記録)を持ち、
@@ -48,6 +52,7 @@ final class ViewerWindowManager {
     /// `git diff` が窓の数だけ起動する(TASK-325)。
     let diffLoader: GitDiffLoader
     let findOptionsPreference: FindOptionsPreference
+    let headingJumpLevelDefaults: HeadingJumpLevelDefaults
     let codeFontPreference: CodeFontPreference
     let perFileState: PerFileStateStore
     let bookmarkStore: BookmarkStore
@@ -84,6 +89,10 @@ final class ViewerWindowManager {
     /// 別の索引を掴んだ recorder が生まれる書き方ができない。
     let recentRepositories: RecentRepositoryRecorder
 
+    /// 開閉に伴うセッション・履歴・ブックマークの追随。コントローラの delegate になる。
+    /// マネージャが所有し、向こうは unowned でこちらを見る。
+    private(set) lazy var sessionSync = ViewerWindowSessionSync(manager: self)
+
     /// - Parameter displayDefaults: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
     ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
     /// - Parameter diffDisplayPreference: 差分レイアウトは全ウィンドウで同じ答えになる必要があるため、
@@ -106,6 +115,7 @@ final class ViewerWindowManager {
         diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader = GitDiffLoader(),
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
+        headingJumpLevelDefaults: HeadingJumpLevelDefaults,
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore,
@@ -129,6 +139,7 @@ final class ViewerWindowManager {
         self.diffDisplayPreference = diffDisplayPreference
         self.diffLoader = diffLoader
         self.findOptionsPreference = findOptionsPreference
+        self.headingJumpLevelDefaults = headingJumpLevelDefaults
         self.codeFontPreference = codeFontPreference
         self.perFileState = perFileState
         self.bookmarkStore = bookmarkStore

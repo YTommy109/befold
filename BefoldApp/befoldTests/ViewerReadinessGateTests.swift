@@ -63,7 +63,7 @@ struct ViewerReadinessGateTests {
         renderer.runWhenReady { didRender = true }
 
         // 直接ロードが失敗する(ファイル削除・policy cancel 由来の中断など)。
-        renderer.webView(webView, didFail: nil, withError: URLError(.cancelled))
+        renderer.navigationCoordinator.webView(webView, didFail: nil, withError: URLError(.cancelled))
         #expect(didRender == false)
 
         // 読み直した viewer.html のロードが完了した。

@@ -5,11 +5,12 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-16 10:52'
-updated_date: '2026-08-16 11:19'
+updated_date: '2026-08-17 14:52'
 labels:
   - chore
 dependencies: []
 priority: high
+type: chore
 ordinal: 100000
 ---
 

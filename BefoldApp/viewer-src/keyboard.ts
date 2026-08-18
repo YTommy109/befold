@@ -1,7 +1,10 @@
 // キーボード操作の配線と、キーからスクロール量を決める規則。
 
+import type { OpenBar } from './bar.js';
+import { closeCurrentBar, currentBar } from './bar.js';
 import { isHostFeatureEnabled } from './bridge.js';
-import { _mmdFind } from './find.js';
+import { isComposingKeyEvent } from './ime.js';
+import { _mmdJumpNextIfOpen, _mmdJumpPrevIfOpen } from './jump.js';
 import { _mmdScrollTarget } from './scroll.js';
 import { _mmdZoomIn, _mmdZoomOut } from './zoom.js';
 
@@ -56,28 +59,103 @@ function resolveScrollKey(key: string, shiftKey: boolean): ScrollAction | null {
   return { down: down, amount: shiftKey ? 'half' : 'line' };
 }
 
-// Escape が「検索バーを閉じる」にあたるかの判定。
-// IME 変換中の Escape(候補キャンセル)では閉じない。Enter 側の変換確定判定
-// (検索コントローラの keydown ハンドラ)と同じ理由: Safari/WKWebView は
-// compositionend → keydown の順で発火するため isComposing は既に false に
-// なりうるが、keyCode は 229 のまま残るためこれも合わせて判定する。
+// Escape が「開いているバー（検索 / 文書内ジャンプ）を閉じる」にあたるかの判定。
+// IME 変換中の Escape(候補キャンセル)では閉じない。判定は他の 2 箇所（ジャンプの
+// Enter・検索コントローラの Enter）と同じ isComposingKeyEvent に寄せてある。
 //
 // ハンドラ内の分岐ではなく純粋関数にしてあるのは、resolveScrollKey と同じく
 // Help > キーボードショートカット の一覧と突き合わせるため(TASK-503)。
-function resolveFindCloseKey(
+function resolveBarCloseKey(
   key: string,
-  isFindOpen: boolean,
+  openBar: OpenBar,
   isComposing: boolean,
   keyCode: number,
 ): boolean {
-  return key === 'Escape' && isFindOpen && !isComposing && keyCode !== 229;
+  return key === 'Escape' && openBar !== null && !isComposingKeyEvent({ isComposing, keyCode });
+}
+
+// Enter / Shift+Enter が「文書内ジャンプの次へ / 前へ」にあたるかの判定。
+// 戻り値は移動方向（該当しなければ null）。
+//
+// 検索バーと違いジャンプバーは入力欄を持たないためキーボードフォーカスが乗らず、
+// バー要素の keydown では Enter を受け取れない（実機で 1/5 のまま動かないことを確認）。
+// そのため document で拾う。検索バーが開いている間は openBar が 'find' なので
+// ここは動かず、検索バー自身の入力欄が Enter を処理する（バーは同時に開かない）。
+//
+// IME 変換確定の Enter では動かさない（resolveBarCloseKey と同じ isComposingKeyEvent）。
+//
+// 素の Enter / Shift+Enter だけを見る。Cmd/Ctrl/Alt+Enter は別の受け手を持つ
+// チョードなので、ジャンプバーが開いている間もそのまま通す（TASK-485.6）。
+//
+// 引数はすべて keydown イベント由来なので 1 つのオブジェクトへ畳んである。
+// スカラを並べる形のままだと修飾キーを足すだけで 7 引数になり、呼び出し側で
+// 順番を取り違えても型で気づけない。
+interface JumpNavigationKeyEvent {
+  key: string;
+  shiftKey: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  isComposing: boolean;
+  keyCode: number;
+}
+
+function resolveJumpNavigationKey(
+  event: JumpNavigationKeyEvent,
+  openBar: OpenBar,
+): 'next' | 'prev' | null {
+  if (event.key !== 'Enter' || openBar !== 'jump' || isComposingKeyEvent(event)) {
+    return null;
+  }
+  if (event.metaKey || event.ctrlKey || event.altKey) {
+    return null;
+  }
+  return event.shiftKey ? 'prev' : 'next';
+}
+
+// Enter を既定動作として自分で処理する要素か（フォーカスが乗っているものを渡す）。
+// リンク・ボタン・入力欄の上での Enter は、ジャンプの前後移動より要素側の既定動作を
+// 優先する。markdown-it の出力するリンクは Tab でフォーカスできるため、これが無いと
+// document で拾うジャンプがリンクを開く Enter まで奪う（TASK-485.6）。
+//
+// mermaid が出力する SVG のリンクは SVGAElement で HTMLElement ではないため、
+// スクロール側の編集可能判定と違って instanceof HTMLElement では絞らない
+// （isContentEditable は HTMLElement にしか無いのでそこだけ instanceof で見る）。
+// SVG 要素の tagName は小文字で来るので大文字化してから比べる。
+var ENTER_OWNING_TAGS = ['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT'];
+
+function ownsEnterKey(active: Element | null): boolean {
+  if (active === null) {
+    return false;
+  }
+  if (active instanceof HTMLElement && active.isContentEditable) {
+    return true;
+  }
+  var tagName = active.tagName.toUpperCase();
+  // href の無い <a> は Enter で何も起きないため、ジャンプを譲る理由が無い。
+  if (tagName === 'A') {
+    return active.hasAttribute('href');
+  }
+  return ENTER_OWNING_TAGS.includes(tagName);
 }
 
 function _mmdInitKeyboard(): void {
   document.addEventListener('keydown', function (e) {
-    if (resolveFindCloseKey(e.key, _mmdFind.isOpen(), e.isComposing, e.keyCode)) {
+    if (resolveBarCloseKey(e.key, currentBar(), e.isComposing, e.keyCode)) {
       e.preventDefault();
-      _mmdFind.close();
+      closeCurrentBar();
+      return;
+    }
+    var jumpDirection = resolveJumpNavigationKey(e, currentBar());
+    // フォーカス判定をここに置くのは、下のスクロール側の素通し判定と同じ理由
+    // （DOM を読む部分はハンドラに集め、キーの規則だけを純粋関数に残す）。
+    if (jumpDirection && !ownsEnterKey(document.activeElement)) {
+      e.preventDefault();
+      if (jumpDirection === 'next') {
+        _mmdJumpNextIfOpen();
+      } else {
+        _mmdJumpPrevIfOpen();
+      }
       return;
     }
     document.body.classList.toggle('cmd-held', e.metaKey);
@@ -150,6 +228,8 @@ export {
   halfPageScrollStep,
   lineScrollStep,
   resolveScrollKey,
-  resolveFindCloseKey,
+  resolveBarCloseKey,
+  resolveJumpNavigationKey,
+  ownsEnterKey,
   _mmdInitKeyboard,
 };

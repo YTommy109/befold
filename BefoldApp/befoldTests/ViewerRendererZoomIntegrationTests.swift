@@ -42,7 +42,7 @@ struct ViewerRendererZoomIntegrationTests {
         await waitUntilReady(renderer)
         #expect(renderer.readiness.isReady)
         // 準備完了までに値が変わっていた場合でも、適用済みとして記録されている。
-        #expect(renderer.appliedPageZoom == 1.5)
+        #expect(renderer.pageZoom.applied == 1.5)
     }
 
     @Test("準備完了後に倍率が変わったら、その時点で適用し直す")
@@ -50,10 +50,10 @@ struct ViewerRendererZoomIntegrationTests {
         let renderer = ViewerRenderer()
         _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
         await waitUntilReady(renderer)
-        #expect(renderer.appliedPageZoom == 1.0)
+        #expect(renderer.pageZoom.applied == 1.0)
 
         renderer.initialPageZoom = 0.75
-        #expect(renderer.appliedPageZoom == 0.75)
+        #expect(renderer.pageZoom.applied == 0.75)
     }
 
     @Test("同じ倍率を流し込んでも再適用はしない")
@@ -61,11 +61,11 @@ struct ViewerRendererZoomIntegrationTests {
         let renderer = ViewerRenderer()
         _ = renderer.makeWebView(initialZoom: 1.25, findOptionsPreference: nil)
         await waitUntilReady(renderer)
-        #expect(renderer.appliedPageZoom == 1.25)
+        #expect(renderer.pageZoom.applied == 1.25)
 
-        renderer.appliedPageZoom = nil
+        renderer.pageZoom.invalidateApplied()
         renderer.initialPageZoom = 1.25
         // 値が変わっていないので didSet も走らず、記録は nil のまま。
-        #expect(renderer.appliedPageZoom == nil)
+        #expect(renderer.pageZoom.applied == nil)
     }
 }

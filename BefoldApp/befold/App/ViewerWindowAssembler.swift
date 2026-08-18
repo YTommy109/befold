@@ -95,6 +95,7 @@ enum ViewerWindowAssembler {
         let content: AnyView = contentOverride?() ?? AnyView(ViewerContentView(
             store: controller.store,
             findOptionsPreference: controller.findOptionsPreference,
+            headingJump: controller.headingJump,
             codeFontFamily: controller.codeFontPreference.fontFamily,
             codeFontSizePoints: controller.codeFontPreference.fontSizePoints,
             fileListModel: controller.fileListModel,

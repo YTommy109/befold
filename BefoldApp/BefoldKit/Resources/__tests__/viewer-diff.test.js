@@ -1,4 +1,5 @@
 const {
+  assignChangeBlockIndexes,
   parseUnifiedDiff,
   renderInlineDiffHtml,
   pairDiffLines,
@@ -476,5 +477,82 @@ describe('renderDiffHtml', () => {
 
   test('未知のレイアウトはインラインとして扱う', () => {
     expect(renderDiffHtml(null, SIMPLE_DIFF, 'swift', false, 'bogus')).not.toContain('diff-split');
+  });
+});
+
+describe('assignChangeBlockIndexes', () => {
+  test('連続する変更行を 1 ブロックにまとめる', () => {
+    const lines = linesOfTypes(['context', 'add', 'add', 'context', 'del', 'context']);
+
+    expect(assignChangeBlockIndexes(lines, 0)).toEqual([null, 0, 0, null, 1, null]);
+  });
+
+  test('削除の連なりと直後の追加の連なりは 1 ブロック（左右分割の畳み方と揃える）', () => {
+    const lines = linesOfTypes(['del', 'del', 'add', 'context', 'add', 'del']);
+
+    // 末尾は add のあとに del が来るので、そこで新しいブロックが始まる。
+    expect(assignChangeBlockIndexes(lines, 0)).toEqual([0, 0, 0, null, 1, 2]);
+  });
+
+  test('開始番号から続けて振る（ハンクをまたいで通し番号にするため）', () => {
+    const lines = linesOfTypes(['add', 'context', 'del']);
+
+    expect(assignChangeBlockIndexes(lines, 5)).toEqual([5, null, 6]);
+  });
+
+  test('文脈行だけのハンクはブロックを作らない', () => {
+    expect(assignChangeBlockIndexes(linesOfTypes(['context', 'context']), 3)).toEqual([null, null]);
+  });
+});
+
+// 属性値を出現順に並べ、同じブロックの連続を 1 つに畳んで「ブロックの並び」にする。
+// ジャンプの列挙（collectChangeBlocks）が読むのと同じ順序。
+const blockSequence = (html) =>
+  Array.from(html.matchAll(/data-diff-block="(\d+)"/gu))
+    .map((m) => m[1])
+    .filter((value, index, all) => index === 0 || all[index - 1] !== value);
+
+describe('変更ブロックの通し番号（data-diff-block）', () => {
+  test.each([
+    ['インライン', renderInlineDiffHtml],
+    ['左右分割', renderSideBySideDiffHtml],
+  ])('%s: 変更行にだけ付く', (_name, render) => {
+    expect(blockSequence(render(null, SIMPLE_DIFF, 'swift', false))).toEqual(['0']);
+  });
+
+  // AC#2 の担保。この期待が破れたら「レイアウトによって件数が変わる」状態に戻っている。
+  test('インラインと左右分割で同数・同順になる', () => {
+    const inline = renderInlineDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', true);
+    const split = renderSideBySideDiffHtml(null, TWO_HUNK_DIFF, 'plaintext', true);
+
+    expect(blockSequence(inline)).toEqual(['0', '1']);
+    expect(blockSequence(split)).toEqual(blockSequence(inline));
+  });
+
+  // AC#4 の担保。GitDiffReader は -U1000000 でファイル全体を 1 ハンクにする。
+  test('ファイル全体が 1 ハンクでも変更ブロックを個別に数える', () => {
+    const wholeFileDiff = [
+      'diff --git a/a.txt b/a.txt',
+      '--- a/a.txt',
+      '+++ b/a.txt',
+      '@@ -1,6 +1,6 @@',
+      ' one',
+      '-two',
+      '+TWO',
+      ' three',
+      ' four',
+      '-five',
+      '+FIVE',
+      ' six',
+      '',
+    ].join('\n');
+
+    expect(blockSequence(renderInlineDiffHtml(null, wholeFileDiff, 'plaintext', false))).toEqual([
+      '0',
+      '1',
+    ]);
+    expect(
+      blockSequence(renderSideBySideDiffHtml(null, wholeFileDiff, 'plaintext', false)),
+    ).toEqual(['0', '1']);
   });
 });

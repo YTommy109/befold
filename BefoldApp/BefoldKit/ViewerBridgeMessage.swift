@@ -25,6 +25,11 @@ public enum ViewerBridgeMessage: String, CaseIterable, Sendable {
     /// payload: { caseSensitive: Bool, wholeWord: Bool, useRegex: Bool }
     case findOptionsChanged
 
+    /// JS 側で文書内ジャンプの見出しレベルのトグルが変わったとき。
+    /// payload: { levels: [String] }（`["h1","h2","h3"]` 形式。
+    /// 空配列は「3 つとも OFF」で、これも保存すべき正当な値）
+    case jumpLevelsChanged
+
     /// リンクやパス参照がクリックされたとき。
     /// 修飾キーの解釈は Swift 側(OpenDisposition)が行うため、JS は押下状態のみ送る。
     /// payload: { href: String, metaKey: Bool, shiftKey: Bool }
@@ -45,7 +50,7 @@ public enum ViewerBridgeMessage: String, CaseIterable, Sendable {
     /// そもそも登録しない(多層防御: XSS が postMessage を直接呼んでも Swift へ届かない)。
     public var requiresInteractiveBridging: Bool {
         switch self {
-        case .scrollPositionChanged, .zoomChanged, .findOptionsChanged:
+        case .scrollPositionChanged, .zoomChanged, .findOptionsChanged, .jumpLevelsChanged:
             false
         case .referenceActivated, .referenceContextMenu, .loadMoreLines, .resolveReferences:
             true
@@ -60,6 +65,7 @@ public enum ViewerBridgeMessage: String, CaseIterable, Sendable {
         case .zoomChanged: Set(PayloadKey.ZoomChanged.allCases.map(\.rawValue))
         case .scrollPositionChanged: Set(PayloadKey.ScrollPositionChanged.allCases.map(\.rawValue))
         case .findOptionsChanged: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue))
+        case .jumpLevelsChanged: Set(PayloadKey.JumpLevelsChanged.allCases.map(\.rawValue))
         case .referenceActivated: Set(PayloadKey.ReferenceActivated.allCases.map(\.rawValue))
         case .referenceContextMenu: Set(PayloadKey.ReferenceContextMenu.allCases.map(\.rawValue))
         case .loadMoreLines: []
@@ -103,6 +109,11 @@ public enum ViewerBridgeMessage: String, CaseIterable, Sendable {
             case caseSensitive
             case wholeWord
             case useRegex
+        }
+
+        /// jumpLevelsChanged のキー。
+        public enum JumpLevelsChanged: String, CaseIterable, Sendable {
+            case levels
         }
 
         /// resolveReferences のキー。

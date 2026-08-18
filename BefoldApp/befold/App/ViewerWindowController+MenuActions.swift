@@ -53,6 +53,15 @@ extension ViewerWindowController {
         webViewCommands.findPrevious()
     }
 
+    /// Edit > 文書内ジャンプ。目印の種類は sender のタグが運ぶ（TASK-485）。
+    /// 種類ごとにアクションを分けず 1 本に畳んであるのは、`ViewerWindowController`
+    /// 型グループが行数上限（恒久例外 900 行）に近いため。表示モード選択
+    /// （`selectDisplayMode(_:)`）と同じタグ方式。
+    @objc func documentJump(_ sender: Any?) {
+        guard let tag = (sender as? NSMenuItem)?.tag, let kind = DocumentJumpKind(menuItemTag: tag) else { return }
+        webViewCommands.openJump(kind: kind)
+    }
+
     /// View > Toggle Line Numbers / ツールバーの行番号ボタン。行番号表示の有無を切り替える。
     @objc func toggleLineNumbers(_ sender: Any?) {
         guard capabilities.canToggleLineNumbers else { return }

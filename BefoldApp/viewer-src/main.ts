@@ -6,6 +6,7 @@
 // そのままグローバルへ載せていたため、露出する名前の量は実質変わらない。
 // 明示リストにすると、この barrel とモジュール側の export で二重管理になる。
 
+export * from './bar.js';
 export * from './bridge.js';
 export * from './encoding.js';
 export * from './doc-path.js';
@@ -18,12 +19,15 @@ export * from './diff-html.js';
 export * from './csv-html.js';
 export * from './zoom.js';
 export * from './scroll.js';
+export * from './jump.js';
+export * from './jump-providers.js';
 export * from './keyboard.js';
 export * from './find.js';
 export * from './path-refs.js';
 export * from './reference-clicks.js';
 export * from './markdown.js';
 export * from './mermaid.js';
+export * from './navigation.js';
 export * from './renderers.js';
 export * from './render.js';
 export * from './truncation.js';

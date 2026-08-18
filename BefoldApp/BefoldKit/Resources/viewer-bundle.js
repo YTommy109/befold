@@ -14129,6 +14129,7 @@
     CSV_COL_COUNT: () => CSV_COL_COUNT,
     DEFAULT_LINE_SCROLL_STEP: () => DEFAULT_LINE_SCROLL_STEP,
     DIAGRAM_ZOOM_MAX: () => DIAGRAM_ZOOM_MAX,
+    HEADING_LEVELS: () => HEADING_LEVELS,
     MACOS_DEFAULT_BODY: () => MACOS_DEFAULT_BODY,
     PAGE_SCROLL_RATIO: () => PAGE_SCROLL_RATIO,
     WEB_BASELINE: () => WEB_BASELINE,
@@ -14137,6 +14138,7 @@
     ZOOM_MIN: () => ZOOM_MIN,
     ZOOM_STEP: () => ZOOM_STEP,
     _MSG_FIND_OPTIONS_CHANGED: () => _MSG_FIND_OPTIONS_CHANGED,
+    _MSG_JUMP_LEVELS_CHANGED: () => _MSG_JUMP_LEVELS_CHANGED,
     _MSG_LOAD_MORE_LINES: () => _MSG_LOAD_MORE_LINES,
     _MSG_REFERENCE_ACTIVATED: () => _MSG_REFERENCE_ACTIVATED,
     _MSG_REFERENCE_CONTEXT_MENU: () => _MSG_REFERENCE_CONTEXT_MENU,
@@ -14164,6 +14166,8 @@
     _mmdInitCodeFont: () => _mmdInitCodeFont,
     _mmdInitFind: () => _mmdInitFind,
     _mmdInitFontSize: () => _mmdInitFontSize,
+    _mmdInitHeadingLevels: () => _mmdInitHeadingLevels,
+    _mmdInitJump: () => _mmdInitJump,
     _mmdInitKeyboard: () => _mmdInitKeyboard,
     _mmdInitLoadMore: () => _mmdInitLoadMore,
     _mmdInitReferenceClicks: () => _mmdInitReferenceClicks,
@@ -14172,11 +14176,15 @@
     _mmdInitWheelZoom: () => _mmdInitWheelZoom,
     _mmdInitZoom: () => _mmdInitZoom,
     _mmdInvalidatePendingRefs: () => _mmdInvalidatePendingRefs,
+    _mmdJump: () => _mmdJump,
+    _mmdJumpNextIfOpen: () => _mmdJumpNextIfOpen,
+    _mmdJumpPrevIfOpen: () => _mmdJumpPrevIfOpen,
     _mmdLoadMore: () => _mmdLoadMore,
     _mmdMermaidConfig: () => _mmdMermaidConfig,
     _mmdMermaidParseError: () => _mmdMermaidParseError,
     _mmdModeSwitch: () => _mmdModeSwitch,
     _mmdOpenFind: () => _mmdOpenFind,
+    _mmdOpenJump: () => _mmdOpenJump,
     _mmdPdfBlob: () => _mmdPdfBlob,
     _mmdPostMessage: () => _mmdPostMessage,
     _mmdPostScrollPosition: () => _mmdPostScrollPosition,
@@ -14210,23 +14218,36 @@
     _sourceLanguage: () => _sourceLanguage,
     _walkTextNodes: () => _walkTextNodes,
     appendChunk: () => appendChunk,
+    applyHeadingLevels: () => applyHeadingLevels,
+    assignChangeBlockIndexes: () => assignChangeBlockIndexes,
     base64ToBytes: () => base64ToBytes,
     buildFindRegExp: () => buildFindRegExp,
     buildLineNumberRows: () => buildLineNumberRows,
     buildTableHtml: () => buildTableHtml,
+    changeBlockJumpProvider: () => changeBlockJumpProvider,
+    claimBar: () => claimBar,
     clampZoom: () => clampZoom,
+    closeCurrentBar: () => closeCurrentBar,
     codeChunkInnerHtml: () => codeChunkInnerHtml,
+    collectChangeBlocks: () => collectChangeBlocks,
+    collectHeadings: () => collectHeadings,
     csvRowsHtml: () => csvRowsHtml,
     csvSourceInnerHtml: () => csvSourceInnerHtml,
+    currentBar: () => currentBar,
     diagramScrollHeight: () => diagramScrollHeight,
     diffMarkerGlyph: () => diffMarkerGlyph,
     escapeHtml: () => escapeHtml,
+    formatNavigationCount: () => formatNavigationCount,
     halfPageScrollStep: () => halfPageScrollStep,
+    headingJumpProvider: () => headingJumpProvider,
+    headingLevelTokens: () => headingLevelTokens,
+    headingSelector: () => headingSelector,
     highlightCode: () => highlightCode,
     highlightedDiffLines: () => highlightedDiffLines,
     imageDataURI: () => imageDataURI,
     imageFitSize: () => imageFitSize,
     indentColumns: () => indentColumns,
+    isBarOpen: () => isBarOpen,
     isHostFeatureEnabled: () => isHostFeatureEnabled,
     isLocalPathHref: () => isLocalPathHref,
     isSafeLinkURL: () => isSafeLinkURL,
@@ -14238,8 +14259,10 @@
     markdownFontSize: () => markdownFontSize,
     markdownRenderer: () => markdownRenderer,
     mermaidTheme: () => mermaidTheme,
+    moveCurrentHighlight: () => moveCurrentHighlight,
     nextMatchIndex: () => nextMatchIndex,
     onColorSchemeChange: () => onColorSchemeChange,
+    ownsEnterKey: () => ownsEnterKey,
     pageScrollStep: () => pageScrollStep,
     pairDiffLines: () => pairDiffLines,
     parseCsv: () => parseCsv,
@@ -14248,6 +14271,8 @@
     prefersDark: () => prefersDark,
     prevMatchIndex: () => prevMatchIndex,
     reflowSpanBalancedLines: () => reflowSpanBalancedLines,
+    registerBar: () => registerBar,
+    releaseBar: () => releaseBar,
     render: () => render,
     renderCodeHtml: () => renderCodeHtml,
     renderCsvSourceHtml: () => renderCsvSourceHtml,
@@ -14255,10 +14280,12 @@
     renderInlineDiffHtml: () => renderInlineDiffHtml,
     renderShape: () => renderShape,
     renderSideBySideDiffHtml: () => renderSideBySideDiffHtml,
-    resolveFindCloseKey: () => resolveFindCloseKey,
+    resolveBarCloseKey: () => resolveBarCloseKey,
+    resolveJumpNavigationKey: () => resolveJumpNavigationKey,
     resolveScrollKey: () => resolveScrollKey,
     sanitizeLang: () => sanitizeLang,
     sanitizeRenderedHtml: () => sanitizeRenderedHtml,
+    selectedHeadingLevels: () => selectedHeadingLevels,
     setDiff: () => setDiff,
     setDiffLayout: () => setDiffLayout,
     setLineNumbers: () => setLineNumbers,
@@ -14266,6 +14293,7 @@
     slugifyHeading: () => slugifyHeading,
     stepZoom: () => stepZoom,
     svgDataURI: () => svgDataURI,
+    toggleHeadingLevel: () => toggleHeadingLevel,
     tokenizeCsvRows: () => tokenizeCsvRows,
     unescapeCellValue: () => unescapeCellValue,
     uniqueHeadingSlug: () => uniqueHeadingSlug,
@@ -14274,11 +14302,51 @@
     zoomLabel: () => zoomLabel
   });
 
+  // viewer-src/bar.ts
+  var handlers = {};
+  var openBar = null;
+  function registerBar(kind, barHandlers) {
+    handlers[kind] = barHandlers;
+  }
+  function currentBar() {
+    return openBar;
+  }
+  function isBarOpen(kind) {
+    return openBar === kind;
+  }
+  function claimBar(kind) {
+    if (openBar === kind) {
+      return;
+    }
+    if (openBar !== null) {
+      var previous = handlers[openBar];
+      if (previous) {
+        previous.close();
+      }
+    }
+    openBar = kind;
+  }
+  function releaseBar(kind) {
+    if (openBar === kind) {
+      openBar = null;
+    }
+  }
+  function closeCurrentBar() {
+    if (openBar === null) {
+      return;
+    }
+    var current = handlers[openBar];
+    if (current) {
+      current.close();
+    }
+  }
+
   // viewer-src/bridge.ts
   var _MSG_ZOOM_CHANGED = "zoomChanged";
   var _MSG_REFERENCE_ACTIVATED = "referenceActivated";
   var _MSG_REFERENCE_CONTEXT_MENU = "referenceContextMenu";
   var _MSG_FIND_OPTIONS_CHANGED = "findOptionsChanged";
+  var _MSG_JUMP_LEVELS_CHANGED = "jumpLevelsChanged";
   var _MSG_SCROLL_POSITION_CHANGED = "scrollPositionChanged";
   var _MSG_LOAD_MORE_LINES = "loadMoreLines";
   var _MSG_RESOLVE_REFERENCES = "resolveReferences";
@@ -14785,6 +14853,45 @@
     }
     return result;
   }
+  function assignChangeBlockIndexes(lines, startIndex) {
+    var result = [];
+    var next = startIndex;
+    var i = 0;
+    while (i < lines.length) {
+      if (lines[i].type === "context") {
+        result.push(null);
+        i += 1;
+        continue;
+      }
+      var block2 = next;
+      next += 1;
+      while (i < lines.length && lines[i].type === "del") {
+        result.push(block2);
+        i += 1;
+      }
+      while (i < lines.length && lines[i].type === "add") {
+        result.push(block2);
+        i += 1;
+      }
+    }
+    return result;
+  }
+  function nextChangeBlockIndex(blocks, startIndex) {
+    var next = startIndex;
+    for (var i = 0; i < blocks.length; i++) {
+      var block2 = blocks[i];
+      if (block2 !== null && block2 !== void 0 && block2 + 1 > next) {
+        next = block2 + 1;
+      }
+    }
+    return next;
+  }
+  function changeBlockAttribute(blockIndex) {
+    if (blockIndex === null || blockIndex === void 0) {
+      return "";
+    }
+    return ' data-diff-block="' + blockIndex + '"';
+  }
   function diffMarkerGlyph(type) {
     if (type === "add") {
       return "+";
@@ -14794,12 +14901,12 @@
     }
     return " ";
   }
-  function diffRow(line, lineHtml, showLineNumbers) {
+  function diffRow(line, lineHtml, showLineNumbers, blockIndex) {
     var numbers = "";
     if (showLineNumbers === true) {
       numbers = '<td class="line-number diff-old">' + (line.oldNumber === null ? "" : line.oldNumber) + '</td><td class="line-number diff-new">' + (line.newNumber === null ? "" : line.newNumber) + "</td>";
     }
-    return '<tr class="diff-line diff-' + line.type + '">' + numbers + '<td class="diff-marker" aria-hidden="true">' + diffMarkerGlyph(line.type) + "</td>" + lineContentCell(lineHtml) + "</tr>";
+    return '<tr class="diff-line diff-' + line.type + '"' + changeBlockAttribute(blockIndex) + ">" + numbers + '<td class="diff-marker" aria-hidden="true">' + diffMarkerGlyph(line.type) + "</td>" + lineContentCell(lineHtml) + "</tr>";
   }
   function diffHunkSeparatorRow(colspan) {
     return '<tr class="diff-hunk" aria-hidden="true"><td class="diff-hunk-separator" colspan="' + colspan + '"></td></tr>';
@@ -14807,16 +14914,19 @@
   function renderInlineDiffHtml(hljs, diffText, lang, showLineNumbers) {
     var files = parseUnifiedDiff(diffText);
     var rows = "";
+    var nextBlock = 0;
     for (var f = 0; f < files.length; f++) {
       var hunks = files[f].hunks;
       for (var h = 0; h < hunks.length; h++) {
         var hunk = hunks[h];
         var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+        var blocks = assignChangeBlockIndexes(hunk.lines, nextBlock);
+        nextBlock = nextChangeBlockIndex(blocks, nextBlock);
         if (rows !== "") {
           rows += diffHunkSeparatorRow(showLineNumbers === true ? 4 : 2);
         }
         for (var i = 0; i < hunk.lines.length; i++) {
-          rows += diffRow(hunk.lines[i], lineHtmls[i], showLineNumbers);
+          rows += diffRow(hunk.lines[i], lineHtmls[i], showLineNumbers, blocks[i] ?? null);
         }
       }
     }
@@ -14867,11 +14977,14 @@
     var files = parseUnifiedDiff(diffText);
     var span = 2;
     var rows = "";
+    var nextBlock = 0;
     for (var f = 0; f < files.length; f++) {
       var hunks = files[f].hunks;
       for (var h = 0; h < hunks.length; h++) {
         var hunk = hunks[h];
         var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+        var blocks = assignChangeBlockIndexes(hunk.lines, nextBlock);
+        nextBlock = nextChangeBlockIndex(blocks, nextBlock);
         if (rows !== "") {
           rows += diffHunkSeparatorRow(span);
         }
@@ -14881,7 +14994,8 @@
           var right = pairs[p].right;
           var leftClass = left === null ? "diff-empty" : "diff-" + hunk.lines[left].type;
           var rightClass = right === null ? "diff-empty" : "diff-" + hunk.lines[right].type;
-          rows += '<tr class="diff-line"><td class="diff-side diff-side-left ' + leftClass + '"><table class="diff-side-table"><tr>' + diffSideCells(
+          var pairBlock = (left === null ? blocks[right] : blocks[left]) ?? null;
+          rows += '<tr class="diff-line"' + changeBlockAttribute(pairBlock) + '><td class="diff-side diff-side-left ' + leftClass + '"><table class="diff-side-table"><tr>' + diffSideCells(
             left === null ? null : hunk.lines[left],
             left === null ? "" : lineHtmls[left],
             showLineNumbers,
@@ -15391,6 +15505,513 @@
     );
   }
 
+  // viewer-src/navigation.ts
+  function nextMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return (currentIndex + 1) % count;
+  }
+  function prevMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return (currentIndex - 1 + count) % count;
+  }
+  function keptMatchIndex(previousIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return Math.min(Math.max(previousIndex, 0), count - 1);
+  }
+  function formatNavigationCount(currentIndex, count, truncated, truncatedLabel) {
+    var current = count === 0 ? 0 : currentIndex + 1;
+    var text3 = current + "/" + count;
+    if (truncated) {
+      text3 += " (" + truncatedLabel + ")";
+    }
+    return text3;
+  }
+  function moveCurrentHighlight(previous, next, className, anchor) {
+    previous.forEach(function(element) {
+      element.classList.remove(className);
+    });
+    next.forEach(function(element) {
+      element.classList.add(className);
+    });
+    if (anchor) {
+      anchor.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }
+
+  // viewer-src/jump.ts
+  var CURRENT_CLASS = "mmd-jump-current";
+  var TARGET_CLASS = "mmd-jump-target";
+  function markTargets(targets) {
+    targets.forEach(function(target) {
+      target.highlight.forEach(function(element) {
+        element.classList.add(TARGET_CLASS);
+      });
+    });
+  }
+  function isJumpBarOpen() {
+    return isBarOpen("jump");
+  }
+  function _createJumpController() {
+    var providers = {};
+    var activeKind = "";
+    var targets = [];
+    var currentIndex = -1;
+    var currentHighlight = [];
+    var truncated = false;
+    var isRendering = false;
+    function register(provider) {
+      providers[provider.id] = provider;
+    }
+    function updateCount() {
+      var countEl = document.getElementById("mmd-jump-count");
+      if (!countEl) return;
+      var strings = window._mmdJumpStrings || {};
+      var showsTruncatedLabel = truncated && !isFilteredEmpty() && !ignoresTruncation();
+      countEl.textContent = formatNavigationCount(
+        currentIndex,
+        targets.length,
+        showsTruncatedLabel,
+        strings.withinDisplayedRange || "Displayed range"
+      );
+    }
+    function highlightCurrent(scroll) {
+      var current = targets[currentIndex];
+      moveCurrentHighlight(
+        currentHighlight,
+        current ? current.highlight : [],
+        CURRENT_CLASS,
+        scroll ? current?.anchor : void 0
+      );
+      currentHighlight = current ? current.highlight : [];
+    }
+    function clearCurrent() {
+      moveCurrentHighlight(currentHighlight, [], CURRENT_CLASS);
+      currentHighlight = [];
+    }
+    function clearHighlight() {
+      clearCurrent();
+      targets.forEach(function(target) {
+        target.highlight.forEach(function(element) {
+          element.classList.remove(TARGET_CLASS);
+        });
+      });
+    }
+    function moveTo(index, scroll) {
+      currentIndex = index;
+      highlightCurrent(scroll);
+      updateCount();
+    }
+    function collectTargets() {
+      var provider = providers[activeKind];
+      var root = document.getElementById("diagram-wrap");
+      if (!provider || !root) {
+        return [];
+      }
+      return provider.collect(root);
+    }
+    function isFilteredEmpty() {
+      var provider = providers[activeKind];
+      return provider?.isSelectionEmpty?.() === true;
+    }
+    function ignoresTruncation() {
+      return providers[activeKind]?.ignoresTruncation === true;
+    }
+    function updateOptionsVisibility() {
+      Object.keys(providers).forEach(function(id) {
+        var elementId = providers[id]?.optionsElementId;
+        if (!elementId) return;
+        var element = document.getElementById(elementId);
+        if (!element) return;
+        element.style.display = id === activeKind ? "flex" : "none";
+      });
+    }
+    function run(scroll) {
+      clearHighlight();
+      targets = collectTargets();
+      markTargets(targets);
+      currentIndex = targets.length > 0 ? 0 : -1;
+      highlightCurrent(scroll);
+      updateCount();
+    }
+    function open(kind) {
+      activeKind = kind;
+      claimBar("jump");
+      var bar = document.getElementById("mmd-jump-bar");
+      if (bar) {
+        bar.style.display = "flex";
+      }
+      updateOptionsVisibility();
+      run(true);
+    }
+    function close() {
+      releaseBar("jump");
+      var bar = document.getElementById("mmd-jump-bar");
+      if (bar) {
+        bar.style.display = "none";
+      }
+      clearHighlight();
+      targets = [];
+      currentIndex = -1;
+    }
+    function next() {
+      if (targets.length === 0) return;
+      moveTo(nextMatchIndex(currentIndex, targets.length), true);
+    }
+    function prev() {
+      if (targets.length === 0) return;
+      moveTo(prevMatchIndex(currentIndex, targets.length), true);
+    }
+    function refresh(resetToFirst) {
+      isRendering = false;
+      if (!isJumpBarOpen()) {
+        return;
+      }
+      var previousIndex = resetToFirst ? 0 : currentIndex;
+      clearHighlight();
+      targets = collectTargets();
+      markTargets(targets);
+      currentIndex = -1;
+      if (targets.length > 0) {
+        moveTo(keptMatchIndex(previousIndex, targets.length), false);
+      } else {
+        updateCount();
+      }
+    }
+    function rebuild() {
+      if (!isJumpBarOpen() || isRendering) {
+        return;
+      }
+      refresh(true);
+    }
+    function invalidate() {
+      isRendering = true;
+      targets = [];
+      currentHighlight = [];
+      if (isJumpBarOpen()) {
+        updateCount();
+      }
+    }
+    function setTruncated(value) {
+      truncated = value;
+      if (isJumpBarOpen()) {
+        updateCount();
+      }
+    }
+    return {
+      isOpen: isJumpBarOpen,
+      open,
+      close,
+      next,
+      prev,
+      refresh,
+      rebuild,
+      invalidate,
+      setTruncated,
+      register
+    };
+  }
+  var _mmdJump = _createJumpController();
+  registerBar("jump", {
+    close: function() {
+      _mmdJump.close();
+    }
+  });
+  function _mmdInitJump() {
+    var strings = window._mmdJumpStrings || {};
+    var bar = document.getElementById("mmd-jump-bar");
+    if (!bar) return;
+    var prevButton = document.getElementById("mmd-jump-prev");
+    var nextButton = document.getElementById("mmd-jump-next");
+    var closeButton = document.getElementById("mmd-jump-close");
+    if (prevButton) {
+      if (strings.previous) prevButton.title = strings.previous;
+      prevButton.addEventListener("click", function() {
+        _mmdJump.prev();
+      });
+    }
+    if (nextButton) {
+      if (strings.next) nextButton.title = strings.next;
+      nextButton.addEventListener("click", function() {
+        _mmdJump.next();
+      });
+    }
+    if (closeButton) {
+      if (strings.close) closeButton.title = strings.close;
+      closeButton.addEventListener("click", function() {
+        _mmdJump.close();
+      });
+    }
+  }
+  function _mmdOpenJump(kind) {
+    _mmdJump.open(kind);
+  }
+  function _mmdJumpNextIfOpen() {
+    if (!_mmdJump.isOpen()) return;
+    _mmdJump.next();
+  }
+  function _mmdJumpPrevIfOpen() {
+    if (!_mmdJump.isOpen()) return;
+    _mmdJump.prev();
+  }
+
+  // viewer-src/jump-providers.ts
+  var HEADING_LEVELS = [1, 2, 3];
+  var selectedLevels = HEADING_LEVELS.slice();
+  function levelButtonId(level) {
+    return "mmd-jump-level-h" + level;
+  }
+  function headingSelector(levels) {
+    if (levels.length === 0) {
+      return null;
+    }
+    return levels.map(function(level) {
+      return "h" + level;
+    }).join(", ");
+  }
+  function collectHeadings(root) {
+    var selector = headingSelector(selectedLevels);
+    if (!selector) {
+      return [];
+    }
+    var elements = root.querySelectorAll(selector);
+    var targets = [];
+    elements.forEach(function(element) {
+      targets.push({ anchor: element, highlight: [element] });
+    });
+    return targets;
+  }
+  var headingJumpProvider = {
+    id: "heading",
+    collect: collectHeadings,
+    isSelectionEmpty: function() {
+      return selectedLevels.length === 0;
+    },
+    optionsElementId: "mmd-jump-levels"
+  };
+  function collectChangeBlocks(root) {
+    var rows = root.querySelectorAll("[data-diff-block]");
+    var targets = [];
+    var currentBlock;
+    rows.forEach(function(row) {
+      var block2 = row.dataset["diffBlock"];
+      if (block2 === void 0) return;
+      var edge = leadingCell(row);
+      if (block2 === currentBlock) {
+        var previous = targets.at(-1);
+        if (previous) {
+          previous.highlight.push(...edge);
+          return;
+        }
+      }
+      currentBlock = block2;
+      targets.push({ anchor: row, highlight: edge });
+    });
+    return targets;
+  }
+  function leadingCell(row) {
+    var first = row.firstElementChild;
+    return first instanceof HTMLElement ? [first] : [];
+  }
+  var changeBlockJumpProvider = {
+    id: "changeBlock",
+    collect: collectChangeBlocks,
+    // 差分表示中は appendChunk が追記をスキップし、差分の表は setDiff で渡った
+    // 全文から組まれる。本文が段階読み込み中でも変更ブロックは全数そろっている。
+    ignoresTruncation: true
+  };
+  function selectedHeadingLevels() {
+    return selectedLevels.slice();
+  }
+  function headingLevelTokens() {
+    return selectedLevels.map(function(level) {
+      return "h" + level;
+    });
+  }
+  function applyHeadingLevels(levels) {
+    selectedLevels = HEADING_LEVELS.filter(function(level) {
+      return levels.includes(level);
+    });
+    HEADING_LEVELS.forEach(function(level) {
+      var button = document.getElementById(levelButtonId(level));
+      if (button) {
+        button.classList.toggle("active", selectedLevels.includes(level));
+      }
+    });
+  }
+  function toggleHeadingLevel(level) {
+    var next = selectedLevels.includes(level) ? selectedLevels.filter(function(selected) {
+      return selected !== level;
+    }) : selectedLevels.concat([level]);
+    applyHeadingLevels(next);
+    _mmdPostMessage(_MSG_JUMP_LEVELS_CHANGED, { levels: headingLevelTokens() });
+    _mmdJump.rebuild();
+  }
+  function _mmdInitHeadingLevels() {
+    buildLevelButtons();
+    var initial = window._mmdInitialJumpLevels;
+    applyHeadingLevels(
+      Array.isArray(initial) ? initial.map(function(token) {
+        return headingLevelNumber(token);
+      }).filter(function(level) {
+        return isLevel(level);
+      }) : HEADING_LEVELS
+    );
+  }
+  function buildLevelButtons() {
+    var element = document.getElementById("mmd-jump-levels");
+    if (!element) return;
+    var container = element;
+    container.textContent = "";
+    var strings = window._mmdJumpStrings || {};
+    HEADING_LEVELS.forEach(function(level) {
+      var button = document.createElement("button");
+      button.id = levelButtonId(level);
+      button.className = "mmd-find-toggle";
+      button.textContent = "H" + level;
+      var title = strings.headingLevel;
+      if (title) {
+        button.title = title.replace("{level}", String(level));
+      }
+      button.addEventListener("click", function() {
+        toggleHeadingLevel(level);
+      });
+      container.append(button);
+    });
+  }
+  function headingLevelNumber(token) {
+    return Number(token.replace("h", ""));
+  }
+  function isLevel(level) {
+    return HEADING_LEVELS.includes(level);
+  }
+
+  // viewer-src/ime.ts
+  var IME_KEY_CODE = 229;
+  function isComposingKeyEvent(event) {
+    return event.isComposing || event.keyCode === IME_KEY_CODE;
+  }
+
+  // viewer-src/keyboard.ts
+  var PAGE_SCROLL_RATIO = 0.9;
+  var DEFAULT_LINE_SCROLL_STEP = 24;
+  function pageScrollStep(clientHeight) {
+    return clientHeight * PAGE_SCROLL_RATIO;
+  }
+  function halfPageScrollStep(clientHeight) {
+    return pageScrollStep(clientHeight) / 2;
+  }
+  function lineScrollStep(lineHeightPx, fallback) {
+    var lh = parseFloat(lineHeightPx);
+    return isNaN(lh) ? fallback : lh;
+  }
+  function resolveScrollKey(key, shiftKey) {
+    if (key === " ") {
+      return { down: !shiftKey, amount: "page" };
+    }
+    var down;
+    if (key === "ArrowDown" || key === "j") {
+      down = true;
+    } else if (key === "ArrowUp" || key === "k") {
+      down = false;
+    } else {
+      return null;
+    }
+    return { down, amount: shiftKey ? "half" : "line" };
+  }
+  function resolveBarCloseKey(key, openBar2, isComposing, keyCode) {
+    return key === "Escape" && openBar2 !== null && !isComposingKeyEvent({ isComposing, keyCode });
+  }
+  function resolveJumpNavigationKey(event, openBar2) {
+    if (event.key !== "Enter" || openBar2 !== "jump" || isComposingKeyEvent(event)) {
+      return null;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey) {
+      return null;
+    }
+    return event.shiftKey ? "prev" : "next";
+  }
+  var ENTER_OWNING_TAGS = ["BUTTON", "INPUT", "TEXTAREA", "SELECT"];
+  function ownsEnterKey(active) {
+    if (active === null) {
+      return false;
+    }
+    if (active instanceof HTMLElement && active.isContentEditable) {
+      return true;
+    }
+    var tagName = active.tagName.toUpperCase();
+    if (tagName === "A") {
+      return active.hasAttribute("href");
+    }
+    return ENTER_OWNING_TAGS.includes(tagName);
+  }
+  function _mmdInitKeyboard() {
+    document.addEventListener("keydown", function(e) {
+      if (resolveBarCloseKey(e.key, currentBar(), e.isComposing, e.keyCode)) {
+        e.preventDefault();
+        closeCurrentBar();
+        return;
+      }
+      var jumpDirection = resolveJumpNavigationKey(e, currentBar());
+      if (jumpDirection && !ownsEnterKey(document.activeElement)) {
+        e.preventDefault();
+        if (jumpDirection === "next") {
+          _mmdJumpNextIfOpen();
+        } else {
+          _mmdJumpPrevIfOpen();
+        }
+        return;
+      }
+      document.body.classList.toggle("cmd-held", e.metaKey);
+      if (e.metaKey) {
+        if (e.key === "-") {
+          e.preventDefault();
+          _mmdZoomOut();
+        } else if (e.key === "=" || e.key === "+") {
+          e.preventDefault();
+          _mmdZoomIn();
+        }
+        return;
+      }
+      var action = resolveScrollKey(e.key, e.shiftKey);
+      if (!action) {
+        return;
+      }
+      if (e.key === " " && !isHostFeatureEnabled(window._mmdHostFeatures, "spaceScroll")) {
+        return;
+      }
+      var active = document.activeElement;
+      if (active instanceof HTMLElement && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
+        return;
+      }
+      var scrollEl = _mmdScrollTarget();
+      if (!scrollEl) {
+        return;
+      }
+      e.preventDefault();
+      var step;
+      if (action.amount === "page") {
+        step = pageScrollStep(scrollEl.clientHeight);
+      } else if (action.amount === "half") {
+        step = halfPageScrollStep(scrollEl.clientHeight);
+      } else {
+        step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
+      }
+      scrollEl.scrollBy({ top: action.down ? step : -step, behavior: "smooth" });
+    });
+    document.addEventListener("keyup", function(e) {
+      if (!e.metaKey) document.body.classList.remove("cmd-held");
+    });
+    window.addEventListener("blur", function() {
+      document.body.classList.remove("cmd-held");
+    });
+  }
+
   // viewer-src/find.ts
   function findInputElement() {
     var el = document.getElementById("mmd-find-input");
@@ -15413,24 +16034,6 @@
     } catch (e) {
       return null;
     }
-  }
-  function nextMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return (currentIndex + 1) % count;
-  }
-  function prevMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return (currentIndex - 1 + count) % count;
-  }
-  function keptMatchIndex(previousIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return Math.min(Math.max(previousIndex, 0), count - 1);
   }
   function clearMarks() {
     var marks = document.querySelectorAll("#diagram-wrap mark.mmd-find-match");
@@ -15468,12 +16071,15 @@
       node = parent;
     }
   }
+  function isFindBarOpen() {
+    return isBarOpen("find");
+  }
   function _createFindController() {
     var options = { caseSensitive: false, wholeWord: false, useRegex: false };
     var query2 = "";
     var matches = [];
     var currentIndex = -1;
-    var isOpenFlag = false;
+    var currentHighlight;
     var truncated = false;
     var skipTags = ["MARK", "SVG", "STYLE", "SCRIPT"];
     var bridgeTags = [
@@ -15582,23 +16188,24 @@
       if (query2.length === 0 || input.classList.contains("mmd-find-error")) {
         countEl.textContent = "";
       } else {
-        var current = matches.length === 0 ? 0 : currentIndex + 1;
-        var text3 = current + "/" + matches.length;
-        if (truncated) {
-          var strings = window._mmdFindStrings || {};
-          text3 += " (" + (strings.withinDisplayedRange || "Displayed range") + ")";
-        }
-        countEl.textContent = text3;
+        var strings = window._mmdFindStrings || {};
+        countEl.textContent = formatNavigationCount(
+          currentIndex,
+          matches.length,
+          truncated,
+          strings.withinDisplayedRange || "Displayed range"
+        );
       }
     }
     function highlightCurrent() {
-      matches.forEach(function(mark) {
-        mark.classList.remove("mmd-find-match-current");
-      });
       var current = matches[currentIndex];
-      if (!current) return;
-      current.classList.add("mmd-find-match-current");
-      current.scrollIntoView({ block: "center", behavior: "smooth" });
+      moveCurrentHighlight(
+        currentHighlight ? [currentHighlight] : [],
+        current ? [current] : [],
+        "mmd-find-match-current",
+        current
+      );
+      currentHighlight = current;
     }
     function moveTo(index) {
       currentIndex = index;
@@ -15611,6 +16218,7 @@
       clearMarks();
       matches = [];
       currentIndex = -1;
+      currentHighlight = void 0;
       var regex = buildFindRegExp(query2, options);
       input.classList.toggle("mmd-find-error", query2.length > 0 && regex === null);
       if (regex) {
@@ -15687,7 +16295,7 @@
       });
       document.getElementById("mmd-find-input").addEventListener("keydown", function(e) {
         if (e.key === "Enter") {
-          if (e.isComposing || e.keyCode === 229) {
+          if (isComposingKeyEvent(e)) {
             return;
           }
           e.preventDefault();
@@ -15712,7 +16320,7 @@
       });
     }
     function open() {
-      isOpenFlag = true;
+      claimBar("find");
       document.getElementById("mmd-find-bar").style.display = "flex";
       var input = findInputElement();
       input.value = query2;
@@ -15721,22 +16329,21 @@
       run();
     }
     function close() {
-      isOpenFlag = false;
+      releaseBar("find");
       document.getElementById("mmd-find-bar").style.display = "none";
       clearMarks();
       matches = [];
       currentIndex = -1;
+      currentHighlight = void 0;
     }
     function setTruncated(value) {
       truncated = value;
-      if (isOpenFlag) {
+      if (isFindBarOpen()) {
         updateCount();
       }
     }
     return {
-      isOpen: function() {
-        return isOpenFlag;
-      },
+      isOpen: isFindBarOpen,
       open,
       close,
       next,
@@ -15748,6 +16355,11 @@
     };
   }
   var _mmdFind = _createFindController();
+  registerBar("find", {
+    close: function() {
+      _mmdFind.close();
+    }
+  });
   function _mmdInitFind() {
     _mmdFind.applyHostSettings();
   }
@@ -15767,88 +16379,6 @@
   function _mmdFindPrevIfOpen() {
     if (!_mmdFind.isOpen()) return;
     _mmdFind.prev();
-  }
-
-  // viewer-src/keyboard.ts
-  var PAGE_SCROLL_RATIO = 0.9;
-  var DEFAULT_LINE_SCROLL_STEP = 24;
-  function pageScrollStep(clientHeight) {
-    return clientHeight * PAGE_SCROLL_RATIO;
-  }
-  function halfPageScrollStep(clientHeight) {
-    return pageScrollStep(clientHeight) / 2;
-  }
-  function lineScrollStep(lineHeightPx, fallback) {
-    var lh = parseFloat(lineHeightPx);
-    return isNaN(lh) ? fallback : lh;
-  }
-  function resolveScrollKey(key, shiftKey) {
-    if (key === " ") {
-      return { down: !shiftKey, amount: "page" };
-    }
-    var down;
-    if (key === "ArrowDown" || key === "j") {
-      down = true;
-    } else if (key === "ArrowUp" || key === "k") {
-      down = false;
-    } else {
-      return null;
-    }
-    return { down, amount: shiftKey ? "half" : "line" };
-  }
-  function resolveFindCloseKey(key, isFindOpen, isComposing, keyCode) {
-    return key === "Escape" && isFindOpen && !isComposing && keyCode !== 229;
-  }
-  function _mmdInitKeyboard() {
-    document.addEventListener("keydown", function(e) {
-      if (resolveFindCloseKey(e.key, _mmdFind.isOpen(), e.isComposing, e.keyCode)) {
-        e.preventDefault();
-        _mmdFind.close();
-        return;
-      }
-      document.body.classList.toggle("cmd-held", e.metaKey);
-      if (e.metaKey) {
-        if (e.key === "-") {
-          e.preventDefault();
-          _mmdZoomOut();
-        } else if (e.key === "=" || e.key === "+") {
-          e.preventDefault();
-          _mmdZoomIn();
-        }
-        return;
-      }
-      var action = resolveScrollKey(e.key, e.shiftKey);
-      if (!action) {
-        return;
-      }
-      if (e.key === " " && !isHostFeatureEnabled(window._mmdHostFeatures, "spaceScroll")) {
-        return;
-      }
-      var active = document.activeElement;
-      if (active instanceof HTMLElement && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
-        return;
-      }
-      var scrollEl = _mmdScrollTarget();
-      if (!scrollEl) {
-        return;
-      }
-      e.preventDefault();
-      var step;
-      if (action.amount === "page") {
-        step = pageScrollStep(scrollEl.clientHeight);
-      } else if (action.amount === "half") {
-        step = halfPageScrollStep(scrollEl.clientHeight);
-      } else {
-        step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
-      }
-      scrollEl.scrollBy({ top: action.down ? step : -step, behavior: "smooth" });
-    });
-    document.addEventListener("keyup", function(e) {
-      if (!e.metaKey) document.body.classList.remove("cmd-held");
-    });
-    window.addEventListener("blur", function() {
-      document.body.classList.remove("cmd-held");
-    });
   }
 
   // viewer-src/path-refs.ts
@@ -23462,9 +23992,11 @@
     if (_mmdFind.isOpen()) {
       _mmdFind.refresh(modeJustSwitched);
     }
+    _mmdJump.refresh(modeJustSwitched);
   }
   async function render(content, type, lang) {
     _mmdScroll.beginRender();
+    _mmdJump.invalidate();
     var scrollTargetBeforeRender = _mmdScrollTarget();
     var fallbackScrollTop = scrollTargetBeforeRender ? scrollTargetBeforeRender.scrollTop : 0;
     _mmdDocument.record(content, type, lang);
@@ -23603,6 +24135,7 @@
   // viewer-src/truncation.ts
   function _mmdSetTruncated(isTruncated, lineCount, failed) {
     _mmdFind.setTruncated(isTruncated);
+    _mmdJump.setTruncated(isTruncated);
     var banner = document.getElementById("mmd-truncated-banner");
     if (!isTruncated) {
       banner.style.display = "none";
@@ -23664,6 +24197,10 @@
     _mmdInitFontSize();
     _mmdInitCodeFont();
     _mmdInitFind();
+    _mmdJump.register(headingJumpProvider);
+    _mmdJump.register(changeBlockJumpProvider);
+    _mmdInitJump();
+    _mmdInitHeadingLevels();
   }
 
   // viewer-src/index.ts

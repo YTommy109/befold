@@ -14,7 +14,8 @@ struct ViewerMenuValidatorTests {
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: true,
             supportsSourceMode: true, supportsDiffDisplay: true,
-            gitDiffAvailability: .changed, isDirectHTMLMode: false
+            gitDiffAvailability: .changed, isDirectHTMLMode: false,
+            isDocumentJumpEnabled: true
         )
         var isSourceMode = false
         var showLineNumbers = false
@@ -45,7 +46,8 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, supportsSourceMode: true,
-            supportsDiffDisplay: true, gitDiffAvailability: .changed, isDirectHTMLMode: true
+            supportsDiffDisplay: true, gitDiffAvailability: .changed, isDirectHTMLMode: true,
+            isDocumentJumpEnabled: true
         )
 
         let findItems = [
@@ -62,6 +64,29 @@ struct ViewerMenuValidatorTests {
         ))
         #expect(ViewerMenuValidator.validate(makeItem(#selector(ViewerWindowController.zoomIn(_:))), source: source))
         #expect(ViewerMenuValidator.validate(makeItem(#selector(ViewerWindowController.resetZoom(_:))), source: source))
+    }
+
+    @Test("文書内ジャンプは項目のタグが指す種類ごとに判定する")
+    func mapsDocumentJumpItemsToTheirKind() {
+        let source = StubSource()
+        // 差分表示ではない状態(既定は showsDiff: true なので作り直す)。
+        source.capabilities = ViewerCapabilities(
+            isPresentingDocument: true, isRejected: false, isRenderable: true,
+            isBinaryContent: false, showsCodeContent: true, showsDiff: false,
+            supportsSourceMode: true, supportsDiffDisplay: true,
+            gitDiffAvailability: .changed, isDirectHTMLMode: false,
+            isDocumentJumpEnabled: true
+        )
+        let jump = #selector(ViewerWindowController.documentJump(_:))
+
+        let heading = makeItem(jump, tag: DocumentJumpKind.heading.menuItemTag)
+        let changeBlock = makeItem(jump, tag: DocumentJumpKind.changeBlock.menuItemTag)
+
+        #expect(ViewerMenuValidator.validate(heading, source: source))
+        #expect(!ViewerMenuValidator.validate(changeBlock, source: source))
+
+        source.capabilities = StubSource().capabilities // showsDiff: true
+        #expect(ViewerMenuValidator.validate(changeBlock, source: source))
     }
 
     @Test("フォルダー一覧の表示中は文書向けのコマンドをすべて無効にする")
@@ -130,7 +155,8 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: true, showsCodeContent: false, supportsSourceMode: false,
-            supportsDiffDisplay: false, gitDiffAvailability: .changed, isDirectHTMLMode: false
+            supportsDiffDisplay: false, gitDiffAvailability: .changed, isDirectHTMLMode: false,
+            isDocumentJumpEnabled: true
         )
 
         let selector = #selector(ViewerWindowController.selectDisplayMode(_:))
