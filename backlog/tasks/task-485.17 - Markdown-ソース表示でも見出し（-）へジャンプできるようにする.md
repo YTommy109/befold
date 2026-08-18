@@ -1,11 +1,11 @@
 ---
 id: TASK-485.17
 title: Markdown ソース表示でも見出し行へジャンプできるようにする
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-18 15:14'
-updated_date: '2026-08-18 15:36'
+updated_date: '2026-08-18 15:43'
 labels: []
 milestone: m-6
 dependencies: []
@@ -52,11 +52,11 @@ Markdown の ATX 見出し行に限られ、検出規則が 1 つ（行頭 `#{1,
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Markdown をソース表示にした状態で見出しジャンプを開くと、行頭の # / ## / ### が目印として数えられ前後移動できる
-- [ ] #2 同じ文書のレンダリング表示とソース表示で、見出しの件数と順序が一致することをテストが固定している（フェンス内の # を拾わないこと、レベルトグルが両モードで共有されることを含む）
-- [ ] #3 レベル選択トグルがソース表示でも効く
-- [ ] #4 読み込み済み範囲だけを数えていることが「表示範囲内」ラベルでユーザーに伝わる
-- [ ] #5 Markdown 以外のソース表示および差分表示では見出しの列挙へ入らず 0 件になる（capability では閉じない。その判断理由を Implementation Notes に残す）
+- [x] #1 Markdown をソース表示にした状態で見出しジャンプを開くと、行頭の # / ## / ### が目印として数えられ前後移動できる
+- [x] #2 同じ文書のレンダリング表示とソース表示で、見出しの件数と順序が一致することをテストが固定している（フェンス内の # を拾わないこと、レベルトグルが両モードで共有されることを含む）
+- [x] #3 レベル選択トグルがソース表示でも効く
+- [x] #4 読み込み済み範囲だけを数えていることが「表示範囲内」ラベルでユーザーに伝わる
+- [x] #5 Markdown 以外のソース表示および差分表示では見出しの列挙へ入らず 0 件になる（capability では閉じない。その判断理由を Implementation Notes に残す）
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -72,3 +72,34 @@ Markdown の ATX 見出し行に限られ、検出規則が 1 つ（行頭 `#{1,
 8. npm test / npm run typecheck:viewer / npm run lint / npm run check:viewer-bundle（viewer-bundle.js の再生成コミットが必須）。
 9. docs/dev/native-app-design.md の文書内ジャンプ節を更新する（見出しは「Markdown レンダリング表示が対象」と書いてあるため）。
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+実装: 見出しの列挙を 2 経路に分けた（collectRenderedHeadings / collectSourceHeadings）。どちらを使うかは _mmdDocument.shape() === "code" かつ type() === "md" だけで決める。
+
+単純化の検討: 新しい状態・述語は増やしていない。既に render() が 1 箇所で確定させていた「実際に描いた形」(_mmdRenderedAs) を読むだけで判定できる形だったため、これを render.ts のモジュール変数から document-state.ts の owner へ移し、appendChunk と見出し列挙が同じ 1 つの記録を読む構造にした。Swift 側の変更はゼロ。
+
+判定方式の理由: _mmdViewOptions.mode() と type から renderShape() を再計算する案と、#diagram-wrap のクラス／table.code-table を見る案は採らなかった。render.ts に「表示モードや type から推し直すな (TASK-414) / DOM の形で判定するな (TASK-339)」という既存方針が明記されており、さらに差分テーブルも table.code-table を名乗る (diff-html.ts:353/491) ため、セレクタ判定は TASK-318 と同型の穴になる。
+
+capability を種別で閉じなかった理由 (AC #5): canJump に fileType を持ち込むと、TASK-485.4 (ソースの関数定義ジャンプ) が来た時点で「Markdown だけ true」を剥がすことになり、条件が 1 タスクで反転する。また「目印 0 個であることは 0/0 表示が伝える」は canJumpToChangeBlock の doc コメント (ViewerCapabilities.swift:22-24) で既に採用済みの立場で、heading にも同じ立場を適用するほうが一貫する。起票時の AC #4 は capability で閉じる前提だったため書き換えた。
+
+既知の制限: setext 見出し (=== / --- の下線) はソース側で拾わない。ATX 見出しだけを対象にしており、両モード一致の不変条件も ATX で書かれた文書について成り立つ。行単位の走査で setext を正しく扱うにはパラグラフ境界の判定が要り、行スキャナが実パーサへ近づいていくため、いまは対象外とした（native-app-design.md にも明記）。
+
+検証（実測）:
+- npm test: 10 スイート / 532 件すべて成功（実装前ベースライン 525 件 + 新規 7 件）
+- 修正を戻して確認: collectHeadings のソース分岐を無効化すると新規 7 件のうち 5 件が落ち、shape ゲートに依存しない 2 件（Markdown 以外のソース / 差分表示で 0 件）だけが通る。テストが空振りしていないことを確認済み
+- npm run typecheck:viewer: エラーなし
+- npm run lint (--type-aware): エラーなし
+- node scripts/check-viewer-cycles.mjs: 循環 import なし（31 モジュール）
+- npm run build:viewer: viewer-bundle.js 再生成済み（コミットに含む）
+- markdownlint-cli2: 0 issues
+
+docs/dev/native-app-design.md の文書内ジャンプ節を更新し、両モードの対象・判定の単一情報源・setext の制限・capability を種別で閉じない理由を記載した。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Markdown をソース表示している間も、行頭の # / ## / ### へジャンプできるようにした。列挙は _mmdDocument.shape()（render が実際に描いた形）だけを見て分岐し、差分表示・CSV ソース・Markdown 以外のソースには入らない。レベルトグルは両表示で同じ状態を共有する。中心となるテストは「同じ文書のレンダリング表示とソース表示で見出しの件数と順序が一致する」という不変条件で、フェンス内の # を拾わないこととトグルの共有がこの 1 本で同時に落ちる。npm test 532 件成功、修正を戻すと該当 5 件が落ちることを確認済み。
+<!-- SECTION:FINAL_SUMMARY:END -->
