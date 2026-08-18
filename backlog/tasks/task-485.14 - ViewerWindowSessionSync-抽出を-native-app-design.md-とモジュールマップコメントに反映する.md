@@ -1,10 +1,10 @@
 ---
 id: TASK-485.14
 title: ViewerWindowSessionSync 抽出を native-app-design.md とモジュールマップコメントに反映する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 14:05'
-updated_date: '2026-08-17 14:52'
+updated_date: '2026-08-18 04:12'
 labels: []
 milestone: m-6
 dependencies: []
@@ -29,6 +29,12 @@ TASK-485.2 で行った ViewerWindowSessionSync の抽出が、現在仕様の�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 native-app-design.md（モジュールツリー・該当節）が ViewerWindowSessionSync の現在の配置と責務を記述している
-- [ ] #2 ViewerWindowManager.swift のモジュールマップコメントが実装と一致している
+- [x] #1 native-app-design.md（モジュールツリー・該当節）が ViewerWindowSessionSync の現在の配置と責務を記述している
+- [x] #2 ViewerWindowManager.swift のモジュールマップコメントが実装と一致している
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+native-app-design.md のモジュールツリー（ViewerWindowManager 配下に ViewerWindowSessionSync を追加）とコンポーネント一覧（ViewerWindowManager の責務記述を修正し、ViewerWindowSessionSync の行を新設）を実装に追随させた。ViewerWindowManager.swift のモジュールマップコメントを修正: +SessionSync extension は実際には window(forPath:) のみを持つため記述を差し替え、delegate 準拠と記録の追随は保持する ViewerWindowSessionSync 側にあると明記した。swift build / markdownlint-cli2 いずれも通過。
+<!-- SECTION:NOTES:END -->

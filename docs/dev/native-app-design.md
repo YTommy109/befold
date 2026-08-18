@@ -24,7 +24,8 @@ befold は macOS 向けの Mermaid ダイアグラム・ビューアアプリで
 befold.app (Swift 6 / AppKit + SwiftUI, macOS 14+)
   ├── AppDelegate                # ライフサイクルと @objc アクションの受け口（配線のみ）
   │     ├── AppStores                # アプリ全体で共有するストア・表示設定の束
-  │     ├── ViewerWindowManager      # ウィンドウ生成・管理とセッション記録の更新
+  │     ├── ViewerWindowManager      # ウィンドウ生成・管理（正規化パス → コントローラ辞書）
+  │     │     ├── ViewerWindowSessionSync    # 開閉・rename・キー化に伴うセッション/履歴/ブックマークの追随
   │     │     ├── GlobalDisplayBroadcaster   # アプリの好み（ブックマーク・フォント）を全ウィンドウへ配る
   │     │     └── RecentRepositoryRecorder   # 「最近使ったリポジトリ」の記録とタブ構成の更新
   │     ├── SessionRestorer          # 前回セッションのウィンドウ/タブ構成の保存・復元
@@ -117,7 +118,8 @@ BefoldApp/
 | `QuickOpenCoordinator` | Quick Open パネルの保持、候補源（`AppQuickOpenEnvironment`）の組み立て、決定先を開く |
 | `AppCLIRequestReceiver` | 別プロセスの CLI 起動から転送された要求の受信。ACK 返送と `requestID` 単位の重複排除。**生成と同時に購読するため `AppDelegate.init` で eager に作る** |
 | `CLIShimCoordinator` | `/usr/local/bin/befold` の陳腐化チェックと設置、結果案内 |
-| `ViewerWindowManager` | ビューアウィンドウ（正規化パス → コントローラ）の生成・破棄、close/rename/key イベントに伴うセッション更新 |
+| `ViewerWindowManager` | ビューアウィンドウ（正規化パス → コントローラ）の生成・破棄と辞書の保持。開閉に伴う記録の追随は持たず、`ViewerWindowSessionSync` へ委ねる |
+| `ViewerWindowSessionSync` | close / rename / ファイル切替 / key イベントを受けての辞書のキー付け替えと、セッション・最近使った項目・ブックマークの追随。`ViewerWindowControllerDelegate` 準拠（辞書の書き換えはマネージャの `register` / `detach` を通す。窓を作らない関心なのでマネージャから分離した） |
 | `GlobalDisplayBroadcaster` | アプリ全体で 1 つの表示設定（ブックマーク・コードフォント）を開いている全ウィンドウへ配る。窓ごとのライブ値と窓の状態（ADR 0002）は扱わず、`SidebarDisplayDefaults` も `ZoomStore` も型として持たない |
 | `RecentRepositoryRecorder` | 「最近使ったリポジトリ」への記録。git ルート/ラベルの解決は detached タスクで行い、反映のみ MainActor へ戻す |
 | `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Space からはぐれた窓の救出）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場 |
