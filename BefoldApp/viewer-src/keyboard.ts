@@ -86,17 +86,60 @@ function resolveBarCloseKey(
 // IME 変換確定の Enter では動かさない。Safari/WKWebView は compositionend → keydown の
 // 順で発火するため isComposing が既に false になりうるので、keyCode 229 も併せて見る
 // （resolveBarCloseKey と同じ理由）。
+//
+// 素の Enter / Shift+Enter だけを見る。Cmd/Ctrl/Alt+Enter は別の受け手を持つ
+// チョードなので、ジャンプバーが開いている間もそのまま通す（TASK-485.6）。
+//
+// 引数はすべて keydown イベント由来なので 1 つのオブジェクトへ畳んである。
+// スカラを並べる形のままだと修飾キーを足すだけで 7 引数になり、呼び出し側で
+// 順番を取り違えても型で気づけない。
+interface JumpNavigationKeyEvent {
+  key: string;
+  shiftKey: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  isComposing: boolean;
+  keyCode: number;
+}
+
 function resolveJumpNavigationKey(
-  key: string,
+  event: JumpNavigationKeyEvent,
   openBar: OpenBar,
-  shiftKey: boolean,
-  isComposing: boolean,
-  keyCode: number,
 ): 'next' | 'prev' | null {
-  if (key !== 'Enter' || openBar !== 'jump' || isComposing || keyCode === 229) {
+  if (event.key !== 'Enter' || openBar !== 'jump' || event.isComposing || event.keyCode === 229) {
     return null;
   }
-  return shiftKey ? 'prev' : 'next';
+  if (event.metaKey || event.ctrlKey || event.altKey) {
+    return null;
+  }
+  return event.shiftKey ? 'prev' : 'next';
+}
+
+// Enter を既定動作として自分で処理する要素か（フォーカスが乗っているものを渡す）。
+// リンク・ボタン・入力欄の上での Enter は、ジャンプの前後移動より要素側の既定動作を
+// 優先する。markdown-it の出力するリンクは Tab でフォーカスできるため、これが無いと
+// document で拾うジャンプがリンクを開く Enter まで奪う（TASK-485.6）。
+//
+// mermaid が出力する SVG のリンクは SVGAElement で HTMLElement ではないため、
+// スクロール側の編集可能判定と違って instanceof HTMLElement では絞らない
+// （isContentEditable は HTMLElement にしか無いのでそこだけ instanceof で見る）。
+// SVG 要素の tagName は小文字で来るので大文字化してから比べる。
+var ENTER_OWNING_TAGS = ['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT'];
+
+function ownsEnterKey(active: Element | null): boolean {
+  if (active === null) {
+    return false;
+  }
+  if (active instanceof HTMLElement && active.isContentEditable) {
+    return true;
+  }
+  var tagName = active.tagName.toUpperCase();
+  // href の無い <a> は Enter で何も起きないため、ジャンプを譲る理由が無い。
+  if (tagName === 'A') {
+    return active.hasAttribute('href');
+  }
+  return ENTER_OWNING_TAGS.includes(tagName);
 }
 
 function _mmdInitKeyboard(): void {
@@ -106,14 +149,10 @@ function _mmdInitKeyboard(): void {
       closeCurrentBar();
       return;
     }
-    var jumpDirection = resolveJumpNavigationKey(
-      e.key,
-      currentBar(),
-      e.shiftKey,
-      e.isComposing,
-      e.keyCode,
-    );
-    if (jumpDirection) {
+    var jumpDirection = resolveJumpNavigationKey(e, currentBar());
+    // フォーカス判定をここに置くのは、下のスクロール側の素通し判定と同じ理由
+    // （DOM を読む部分はハンドラに集め、キーの規則だけを純粋関数に残す）。
+    if (jumpDirection && !ownsEnterKey(document.activeElement)) {
       e.preventDefault();
       if (jumpDirection === 'next') {
         _mmdJumpNextIfOpen();
@@ -194,5 +233,6 @@ export {
   resolveScrollKey,
   resolveBarCloseKey,
   resolveJumpNavigationKey,
+  ownsEnterKey,
   _mmdInitKeyboard,
 };

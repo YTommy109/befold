@@ -246,6 +246,11 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   種類ごとの可否は `ViewerCapabilities.canJump(to:)` が持ち、変更ブロックは差分表示を
   選んでいる間だけ使える。検索バーと同じ形の
   「現在位置 / 総数」表示を持ち、`Enter` / `Shift+Enter` で前後へ動く。
+  ジャンプバーは入力欄を持たずキーボードフォーカスが乗らないため、この `Enter` は
+  バー要素ではなく `document` で拾う。奪う範囲は**素の `Enter` / `Shift+Enter` に限る**
+  （`Cmd` / `Ctrl` / `Alt` 付きのチョードは通し、リンク・ボタン・入力欄など
+  `Enter` の既定動作を自分で持つ要素にフォーカスがある間もそちらを優先する。
+  判定は `viewer-src/keyboard.ts` の `ownsEnterKey`）。
   **バーを開いている間は目印の候補が下線で示され**、次にどこへ飛ぶか分かる
   （文字幅の下線。h1 / h2 が github-markdown-css の border-bottom を持つため、
   要素幅の下線だと候補か判別できない）。

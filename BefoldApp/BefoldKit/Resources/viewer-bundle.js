@@ -14262,6 +14262,7 @@
     mermaidTheme: () => mermaidTheme,
     nextMatchIndex: () => nextMatchIndex,
     onColorSchemeChange: () => onColorSchemeChange,
+    ownsEnterKey: () => ownsEnterKey,
     pageScrollStep: () => pageScrollStep,
     pairDiffLines: () => pairDiffLines,
     parseCsv: () => parseCsv,
@@ -15903,11 +15904,28 @@
   function resolveBarCloseKey(key, openBar2, isComposing, keyCode) {
     return key === "Escape" && openBar2 !== null && !isComposing && keyCode !== 229;
   }
-  function resolveJumpNavigationKey(key, openBar2, shiftKey, isComposing, keyCode) {
-    if (key !== "Enter" || openBar2 !== "jump" || isComposing || keyCode === 229) {
+  function resolveJumpNavigationKey(event, openBar2) {
+    if (event.key !== "Enter" || openBar2 !== "jump" || event.isComposing || event.keyCode === 229) {
       return null;
     }
-    return shiftKey ? "prev" : "next";
+    if (event.metaKey || event.ctrlKey || event.altKey) {
+      return null;
+    }
+    return event.shiftKey ? "prev" : "next";
+  }
+  var ENTER_OWNING_TAGS = ["BUTTON", "INPUT", "TEXTAREA", "SELECT"];
+  function ownsEnterKey(active) {
+    if (active === null) {
+      return false;
+    }
+    if (active instanceof HTMLElement && active.isContentEditable) {
+      return true;
+    }
+    var tagName = active.tagName.toUpperCase();
+    if (tagName === "A") {
+      return active.hasAttribute("href");
+    }
+    return ENTER_OWNING_TAGS.includes(tagName);
   }
   function _mmdInitKeyboard() {
     document.addEventListener("keydown", function(e) {
@@ -15916,14 +15934,8 @@
         closeCurrentBar();
         return;
       }
-      var jumpDirection = resolveJumpNavigationKey(
-        e.key,
-        currentBar(),
-        e.shiftKey,
-        e.isComposing,
-        e.keyCode
-      );
-      if (jumpDirection) {
+      var jumpDirection = resolveJumpNavigationKey(e, currentBar());
+      if (jumpDirection && !ownsEnterKey(document.activeElement)) {
         e.preventDefault();
         if (jumpDirection === "next") {
           _mmdJumpNextIfOpen();

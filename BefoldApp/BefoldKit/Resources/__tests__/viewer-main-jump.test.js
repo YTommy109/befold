@@ -36,6 +36,17 @@ function pressEnter(loaded, shiftKey) {
   );
 }
 
+// 修飾キー付きの Enter。dispatchEvent の戻り値で「既定動作を奪っていないか」を見る
+// （preventDefault されていれば false になる）。
+function pressEnterWith(loaded, modifiers) {
+  return loaded.document.dispatchEvent(
+    new loaded.window.KeyboardEvent(
+      'keydown',
+      Object.assign({ key: 'Enter', bubbles: true, cancelable: true }, modifiers),
+    ),
+  );
+}
+
 // 差分表示の行番号ガター（旧側・新側）のセル。変更ブロックの目印はここへ付く。
 const numberCells = (oldNumber, newNumber) =>
   '<td class="line-number diff-old">' +
@@ -124,6 +135,56 @@ describe('文書内ジャンプ', () => {
     pressEnter(loaded, false);
 
     expect(current(loaded.document)).toBe(null);
+  });
+
+  // TASK-485.6: ジャンプバーは document で Enter を拾うため、放っておくと
+  // 修飾キー付きのチョードやリンク上の Enter まで消費してしまう。
+  test.each([
+    ['Cmd+Enter', { metaKey: true }],
+    ['Ctrl+Enter', { ctrlKey: true }],
+    ['Alt+Enter', { altKey: true }],
+  ])('%s ではジャンプせず既定動作のまま通る', (_name, modifiers) => {
+    const loaded = openJumpOn(HEADINGS);
+
+    const notPrevented = pressEnterWith(loaded, modifiers);
+
+    expect(count(loaded.document)).toBe('1/4');
+    expect(notPrevented).toBe(true);
+  });
+
+  test('フォーカス中のリンク上の Enter はジャンプに奪われない', () => {
+    const loaded = openJumpOn(HEADINGS + '<p><a href="https://example.com">リンク</a></p>');
+    loaded.document.querySelector('a[href]').focus();
+
+    const notPrevented = pressEnterWith(loaded, {});
+
+    expect(count(loaded.document)).toBe('1/4');
+    expect(notPrevented).toBe(true);
+  });
+
+  // contenteditable は対象に含めていない。jsdom は isContentEditable を実装しておらず
+  // （contenteditable="true" を付けても false のまま）、ここで書いても分岐を固定できない。
+  // 実装側は残してある（スクロール側の素通し判定と同じ理由で編集中は奪わない）。
+  test.each([
+    ['ボタン', '<button id="focus-me">押す</button>'],
+    ['入力欄', '<input id="focus-me">'],
+  ])('フォーカス中の%s上の Enter はジャンプに奪われない', (_name, markup) => {
+    const loaded = openJumpOn(HEADINGS + markup);
+    loaded.document.getElementById('focus-me').focus();
+
+    const notPrevented = pressEnterWith(loaded, {});
+
+    expect(count(loaded.document)).toBe('1/4');
+    expect(notPrevented).toBe(true);
+  });
+
+  test('href の無い <a> にフォーカスがあるときは Enter でジャンプする', () => {
+    const loaded = openJumpOn(HEADINGS + '<p><a id="no-href" tabindex="0">印</a></p>');
+    loaded.document.getElementById('no-href').focus();
+
+    pressEnter(loaded, false);
+
+    expect(count(loaded.document)).toBe('2/4');
   });
 
   test('IME 変換確定の Enter では動かない', () => {
