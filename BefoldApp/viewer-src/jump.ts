@@ -110,6 +110,7 @@ function _createJumpController(): JumpController {
   // 真のときは表示済み DOM の分しか数えられないことを件数表示で示す。
   var truncated = false;
   // 描画中（invalidate から着地の refresh までの間）。rebuild の抑止に使う。
+  // 立てるのは invalidate、下ろすのは refresh の各 1 箇所だけ。
   var isRendering = false;
 
   function register(provider: JumpProvider): void {
@@ -199,11 +200,6 @@ function _createJumpController(): JumpController {
 
   function open(kind: string): void {
     activeKind = kind;
-    // 描画中フラグを下ろす。着地の refresh はバーが開いているときしか呼ばれないため、
-    // 閉じたまま描画すると invalidate で立てたフラグが残り、以後の rebuild が
-    // 抑止されたままになる（レベルを変えても列が作り直されない）。
-    // open はいまの DOM から列を作るので、この時点で描画は着地している。
-    isRendering = false;
     claimBar('jump');
     var bar = document.getElementById('mmd-jump-bar');
     if (bar) {
@@ -215,7 +211,6 @@ function _createJumpController(): JumpController {
 
   function close(): void {
     releaseBar('jump');
-    isRendering = false;
     var bar = document.getElementById('mmd-jump-bar');
     if (bar) {
       bar.style.display = 'none';
@@ -236,8 +231,14 @@ function _createJumpController(): JumpController {
   }
 
   function refresh(resetToFirst?: boolean): void {
-    // 描画の着地。ここで描画中フラグを下ろす（rebuild が再び働くようになる）。
+    // 描画の着地。バーの開閉に関わらず必ずここへ来るため（render.ts の
+    // _mmdFindRefreshAfterRender は無条件に呼ぶ）、描画中フラグを下ろすのは
+    // ここ 1 箇所でよい。立てるのは invalidate の 1 箇所。
     isRendering = false;
+    // 閉じている間は列を作らない。作ると候補の印（下線）が付いてしまう。
+    if (!isJumpBarOpen()) {
+      return;
+    }
     var previousIndex = resetToFirst ? 0 : currentIndex;
     clearHighlight(targets);
     targets = collectTargets();

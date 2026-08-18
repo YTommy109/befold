@@ -376,6 +376,41 @@ describe('見出しレベルのトグル', () => {
     expect(loaded.document.querySelector('h1').classList.contains('mmd-jump-target')).toBe(false);
   });
 
+  // 描画中（invalidate から着地の refresh までの間）にバーを開き、レベルを
+  // トグルしても列は作り直さない。作り直すと差し替え途中の DOM から作った
+  // currentIndex を着地の refresh が位置維持の入力に使ってしまう。
+  // 着地の refresh が新しい条件で作り直すので、抑止しても取りこぼさない。
+  test('描画中にバーを開いてレベルをトグルしても列は作り直されない', async () => {
+    const loaded = loadViewerMain({});
+    const pending = loaded.main.render('# a\n\n## b\n\n### c\n', 'markdown');
+    loaded.main._mmdOpenJump('heading');
+    expect(count(loaded.document)).toBe('1/3');
+
+    loaded.main.toggleHeadingLevel(1);
+
+    // 抑止されていれば列は開いたときのまま（h1 を含む 3 件）。
+    expect(count(loaded.document)).toBe('1/3');
+
+    await pending;
+
+    // 着地の refresh が新しい条件で作り直す。
+    expect(count(loaded.document)).toBe('1/2');
+    expect(loaded.document.querySelector('h1').classList.contains('mmd-jump-target')).toBe(false);
+  });
+
+  // 描画中フラグを下ろすのは refresh の 1 箇所だけなので、バーを閉じたままの
+  // 描画でも着地で必ず下りる。ただし閉じている間に列を作ると候補の下線が
+  // 付いてしまうため、refresh はフラグを下ろしたら何もせずに戻る。
+  test('バーを閉じたまま描画しても候補の印は付かない', async () => {
+    const loaded = loadViewerMain({});
+    loaded.main._mmdOpenJump('heading');
+    loaded.main._mmdJump.close();
+
+    await loaded.main.render('# a\n\n## b\n', 'markdown');
+
+    expect(loaded.document.querySelectorAll('.mmd-jump-target').length).toBe(0);
+  });
+
   test('トグルを戻すと目印が復活する', () => {
     const { document, main } = openJumpOn(HEADINGS);
     main.toggleHeadingLevel(2);

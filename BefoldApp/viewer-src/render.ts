@@ -90,9 +90,10 @@ function _mmdFindRefreshAfterRender(): void {
   if (_mmdFind.isOpen()) {
     _mmdFind.refresh(modeJustSwitched);
   }
-  if (_mmdJump.isOpen()) {
-    _mmdJump.refresh(modeJustSwitched);
-  }
+  // ジャンプ側は開閉を見ずに必ず呼ぶ。refresh が描画中フラグを下ろす唯一の場所で、
+  // 閉じたまま描画したときに呼ばないとフラグが残り、以後 rebuild が抑止され続ける。
+  // 閉じている間は refresh が列を作らずに戻る。
+  _mmdJump.refresh(modeJustSwitched);
 }
 
 async function render(content: string, type: string, lang: string | undefined): Promise<void> {

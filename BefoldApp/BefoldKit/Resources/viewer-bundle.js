@@ -15632,7 +15632,6 @@
     }
     function open(kind) {
       activeKind = kind;
-      isRendering = false;
       claimBar("jump");
       var bar = document.getElementById("mmd-jump-bar");
       if (bar) {
@@ -15643,7 +15642,6 @@
     }
     function close() {
       releaseBar("jump");
-      isRendering = false;
       var bar = document.getElementById("mmd-jump-bar");
       if (bar) {
         bar.style.display = "none";
@@ -15662,6 +15660,9 @@
     }
     function refresh(resetToFirst) {
       isRendering = false;
+      if (!isJumpBarOpen()) {
+        return;
+      }
       var previousIndex = resetToFirst ? 0 : currentIndex;
       clearHighlight(targets);
       targets = collectTargets();
@@ -23967,9 +23968,7 @@
     if (_mmdFind.isOpen()) {
       _mmdFind.refresh(modeJustSwitched);
     }
-    if (_mmdJump.isOpen()) {
-      _mmdJump.refresh(modeJustSwitched);
-    }
+    _mmdJump.refresh(modeJustSwitched);
   }
   async function render(content, type, lang) {
     _mmdScroll.beginRender();
