@@ -4,12 +4,12 @@ title: 文書内ジャンプのフィーチャーゲートを外して stable �
 status: To Do
 assignee: []
 created_date: '2026-08-18 05:42'
+updated_date: '2026-08-18 15:26'
 labels:
   - feature-gate
 milestone: m-6
 dependencies:
-  - TASK-485.4
-  - TASK-485.5
+  - TASK-485.19
 parent_task_id: TASK-485
 type: chore
 ordinal: 755000
