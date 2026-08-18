@@ -268,7 +268,13 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   ハイライト・再構築は `viewer-src/jump.ts` のコントローラが持つ（対象を増やすときは
   プロバイダを足す）。バー内のオプション（見出しレベルのトグルなど）は
   プロバイダが `optionsElementId` で宣言し、コントローラは選ばれている種類のものだけを
-  表示する（コントローラは中身を知らない）。検索バーとは同時に開かない（`viewer-src/bar.ts` が排他を持つ）。
+  表示する（コントローラは中身を知らない）。
+  **選べる見出しレベル（h1 / h2 / h3）の単一の情報源は Swift の
+  `HeadingJumpLevels.selectableLevels` と JS の `HEADING_LEVELS` の 2 つだけ**で、
+  トグルのボタンは後者から生成する（viewer.html には空の入れ物しか置かない）。
+  2 つのずれは `ViewerJumpLevelContractTests` が落とす（TASK-485.11。以前は
+  Swift のフィルタ域・JS の定数・HTML のボタンの 3 箇所に独立して書かれており、
+  JS 側だけ増やすとユーザーの選択が保存時に黙って捨てられた）。検索バーとは同時に開かない（`viewer-src/bar.ts` が排他を持つ）。
   **開発中機能で、`FeatureGate.isDocumentJumpEnabled` が閉じている stable ビルドでは
   メニュー項目自体を構築しない**（`MainMenuBuilder.build` がゲートを必須引数で受け取り、
   閉じていれば区切り線ごと省く）。コマンドの可否は `ViewerCapabilities.canJump` へ

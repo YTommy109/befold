@@ -57,11 +57,10 @@
        見た目・配置のクラスはそのまま共有する。title は _mmdInitJump() が
        window._mmdJumpStrings(ローカライズ済み)で上書きする。 -->
   <div id="mmd-jump-bar" class="mmd-find-bar">
-    <div id="mmd-jump-levels" class="mmd-jump-levels">
-      <button id="mmd-jump-level-h1" class="mmd-find-toggle" title="見出しレベル 1 を目印にする">H1</button>
-      <button id="mmd-jump-level-h2" class="mmd-find-toggle" title="見出しレベル 2 を目印にする">H2</button>
-      <button id="mmd-jump-level-h3" class="mmd-find-toggle" title="見出しレベル 3 を目印にする">H3</button>
-    </div>
+    <!-- レベルのトグルは jump-providers.ts の HEADING_LEVELS から生成する。
+         ここへ静的に並べると、選べるレベルの集合が HTML と JS の 2 箇所に
+         独立して存在し、片方だけ増やしても何も落ちない（TASK-485.11）。 -->
+    <div id="mmd-jump-levels" class="mmd-jump-levels"></div>
     <span id="mmd-jump-count" class="mmd-find-count"></span>
     <button id="mmd-jump-prev" class="mmd-find-nav mmd-find-nav-prev" title="前へ (Shift+Enter)">
       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 6.5L5 2.5L9 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>

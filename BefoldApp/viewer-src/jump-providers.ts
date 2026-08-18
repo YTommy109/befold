@@ -162,10 +162,12 @@ function toggleHeadingLevel(level: number): void {
   _mmdJump.rebuild();
 }
 
-// 保存済みのレベル（Swift が注入）を反映し、トグルを配線する。
-// バー要素の有無に関わらずレベル状態は先に確定させる（要素が無い環境で
-// 既定へ静かに縮退しないよう、DOM の取得より前に適用する）。
+// トグルを生成し、保存済みのレベル（Swift が注入）を反映する。
+// バー要素が無い環境でもレベル状態は確定させる（buildLevelButtons が何もせず
+// 戻るだけで、applyHeadingLevels は必ず走る。既定へ静かに縮退させない）。
 function _mmdInitHeadingLevels(): void {
+  buildLevelButtons();
+
   var initial = window._mmdInitialJumpLevels;
   applyHeadingLevels(
     Array.isArray(initial)
@@ -178,11 +180,25 @@ function _mmdInitHeadingLevels(): void {
           })
       : HEADING_LEVELS,
   );
+}
+
+// レベルのトグルを HEADING_LEVELS から生成する。viewer.html へ静的に並べない
+// のは、選べるレベルの集合が HTML と JS に独立して存在する状態を作らないため
+// （片方だけ増やしても何も落ちない形になる。TASK-485.11）。
+// Swift の HeadingJumpLevels.selectableLevels とのずれは
+// ViewerBridgeContractTests が落とす。
+function buildLevelButtons(): void {
+  var element = document.getElementById('mmd-jump-levels');
+  if (!element) return;
+  var container = element;
+  container.textContent = '';
 
   var strings: ViewerJumpStrings = window._mmdJumpStrings || {};
   HEADING_LEVELS.forEach(function (level) {
-    var button = document.getElementById(levelButtonId(level));
-    if (!button) return;
+    var button = document.createElement('button');
+    button.id = levelButtonId(level);
+    button.className = 'mmd-find-toggle';
+    button.textContent = 'H' + level;
     var title = strings.headingLevel;
     if (title) {
       button.title = title.replace('{level}', String(level));
@@ -190,6 +206,7 @@ function _mmdInitHeadingLevels(): void {
     button.addEventListener('click', function () {
       toggleHeadingLevel(level);
     });
+    container.append(button);
   });
 }
 

@@ -15853,6 +15853,7 @@
     _mmdJump.rebuild();
   }
   function _mmdInitHeadingLevels() {
+    buildLevelButtons();
     var initial = window._mmdInitialJumpLevels;
     applyHeadingLevels(
       Array.isArray(initial) ? initial.map(function(token) {
@@ -15861,10 +15862,18 @@
         return isLevel(level);
       }) : HEADING_LEVELS
     );
+  }
+  function buildLevelButtons() {
+    var element = document.getElementById("mmd-jump-levels");
+    if (!element) return;
+    var container = element;
+    container.textContent = "";
     var strings = window._mmdJumpStrings || {};
     HEADING_LEVELS.forEach(function(level) {
-      var button = document.getElementById(levelButtonId(level));
-      if (!button) return;
+      var button = document.createElement("button");
+      button.id = levelButtonId(level);
+      button.className = "mmd-find-toggle";
+      button.textContent = "H" + level;
       var title = strings.headingLevel;
       if (title) {
         button.title = title.replace("{level}", String(level));
@@ -15872,6 +15881,7 @@
       button.addEventListener("click", function() {
         toggleHeadingLevel(level);
       });
+      container.append(button);
     });
   }
   function headingLevelNumber(token) {

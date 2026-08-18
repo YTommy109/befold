@@ -5,14 +5,24 @@ import Foundation
 /// 値の意味は「h1 / h2 / h3 のうちどれを目印にするか」で、**空も正当な値**
 /// （ユーザーが 3 つとも OFF にした状態）。文書に見出しが無いことと区別する。
 public struct HeadingJumpLevels: Equatable, Sendable {
-    /// 目印にするレベル。1 / 2 / 3 のみを持ち、常に昇順で重複しない。
+    /// ユーザーが選べるレベルの全体。ここが**この集合の単一の情報源**で、
+    /// 既定値もフィルタ域もこれを見る（かつて `[1, 2, 3]` と `(1 ... 3)` が
+    /// 別々に書かれており、片方だけ広げると黙って落ちる形だった）。
+    ///
+    /// JS 側の `HEADING_LEVELS`（viewer-src/jump-providers.ts）と一致していなければ
+    /// ならず、ずれは `ViewerBridgeContractTests` が落として知らせる。
+    /// ジャンプバーのトグルはこの JS 定数から生成されるので、HTML 側に
+    /// 同じ集合は残っていない。
+    public static let selectableLevels = [1, 2, 3]
+
+    /// 目印にするレベル。`selectableLevels` の要素のみを持ち、常に昇順で重複しない。
     public let levels: [Int]
 
-    /// 保存値が無いときの既定。h1 / h2 / h3 すべてを目印にする。
-    public static let `default` = HeadingJumpLevels(levels: [1, 2, 3])
+    /// 保存値が無いときの既定。選べるレベルすべてを目印にする。
+    public static let `default` = HeadingJumpLevels(levels: selectableLevels)
 
     public init(levels: [Int]) {
-        self.levels = Array(Set(levels.filter { (1 ... 3).contains($0) })).sorted()
+        self.levels = Array(Set(levels.filter { Self.selectableLevels.contains($0) })).sorted()
     }
 
     /// UserDefaults / JS へ渡す表現（`["h1", "h2", "h3"]`）。

@@ -300,7 +300,7 @@ struct ViewerBridgeContractTests {
     }
 
     /// 正規表現のマッチを、キャプチャグループの文字列配列(index 0 は全体)として返す。
-    private static func matches(of pattern: String, in text: String) throws -> [[String]] {
+    static func matches(of pattern: String, in text: String) throws -> [[String]] {
         let regex = try NSRegularExpression(pattern: pattern)
         let range = NSRange(text.startIndex..., in: text)
         return regex.matches(in: text, range: range).map { match in
@@ -350,12 +350,12 @@ struct ViewerBridgeContractTests {
     ///
     /// esbuild は文字列リテラルを二重引用符へ正規化し、`href: href` を短縮記法へ
     /// 畳むため、ここで照合するトークンはその形に合わせてある。
-    private static func viewerBundleSource() throws -> String {
+    static func viewerBundleSource() throws -> String {
         try String(contentsOf: resourceURL("viewer-bundle.js"), encoding: .utf8)
     }
 
     /// BefoldKit のリソースバンドルから、ビルド成果物に実際に含まれるリソース URL を返す。
-    private static func resourceURL(_ name: String) throws -> URL {
+    static func resourceURL(_ name: String) throws -> URL {
         let url = URL(fileURLWithPath: name)
         guard let resourceURL = Bundle.befoldKitResources.url(
             forResource: url.deletingPathExtension().lastPathComponent,
@@ -366,7 +366,9 @@ struct ViewerBridgeContractTests {
         return resourceURL
     }
 
-    private enum ContractError: Error {
+    /// 外から呼んでよいのは matches / viewerBundleSource / resourceURL / ContractError の
+    /// 4 つだけ（ViewerJumpLevelContractTests が使う）。他は private のまま。
+    enum ContractError: Error {
         case missingResource(String)
         case unknownMessageConstant(String)
     }
