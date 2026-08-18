@@ -16,6 +16,27 @@ private final class ImmediateRootGitFileIndex: GitFileIndexing, @unchecked Senda
     }
 }
 
+/// ルート解決を遅らせる索引。コントローラ構築時に飛ぶ基準ディレクトリ解決が
+/// 「準備を終えてもまだ着地していない」状況を決定的に作るために使う(TASK-512)。
+/// `repositoryRoot(forDirectoryAt:)` はプロトコル拡張だけの実装(静的ディスパッチ)なので、
+/// プロトコル要件であるこちらを遅くする。
+private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
+    private let delay: TimeInterval
+
+    init(delay: TimeInterval) {
+        self.delay = delay
+    }
+
+    func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
+        nil
+    }
+
+    func repositoryRoot(forFileAt url: URL) -> URL? {
+        Thread.sleep(forTimeInterval: delay)
+        return url.deletingLastPathComponent()
+    }
+}
+
 /// 差分取得の未確定(.pending)まわりの store 遷移(TASK-407)。
 /// 取得経路そのものの回帰は ViewerWindowControllerDiffTests が受け持つ
 /// (file_length / type_body_length の上限に達したため suite を分けている)。
@@ -100,6 +121,41 @@ struct ViewerWindowControllerDiffPendingTests {
         #expect(controller.store.diffContent == .unavailable)
     }
 
+    /// TASK-512: サイドバーの基準ディレクトリ解決が遅れて着地しても、確定済みの
+    /// 差分状態が未確定へ戻らない。準備ヘルパーが解決を待ち切っていないと、着地時の
+    /// `gitContextDidChange()` → `refreshDiff()` が `.unavailable` を `.pending` へ
+    /// 戻し、CI(負荷の高いマシン)でだけ落ちる。
+    /// 修正(preparePresentedDocument の awaitSettled)を戻すと、最後の期待が
+    /// `.pending` で落ちることを実測で確認している。
+    @Test("サイドバーの基準ディレクトリ解決が遅れて着地しても確定状態が壊れない")
+    func keepsResolvedDiffWhenBaseDirectoryResolutionLandsLate() async {
+        let controller = ViewerWindowControllerFixture(
+            file: file, contents: "# note",
+            defaults: makeIsolatedDefaults(prefix: "DiffPendingTests.lateResolve"),
+            diffDisplayPreference: DiffDisplayPreference(
+                defaults: makeIsolatedDefaults(prefix: "DiffPendingTests.lateResolve.pref")
+            ),
+            diffLoader: GitDiffLoader(reader: StubDiffReader(result: .noChanges)),
+            gitFileIndex: SlowRootGitFileIndex(delay: 0.5)
+        ).controller
+        defer { controller.close() }
+        await preparePresentedMarkdown(controller)
+
+        // 準備を抜けた時点で解決は着地済み。ここが nil なら解決はまだ飛行中で、
+        // 後から着地した `gitContextDidChange()` が確定済みの状態を `.pending` へ戻す
+        // (CI で落ちた形そのもの)。共有ヘルパーの awaitSettled を外すとここで落ちる。
+        #expect(controller.fileListModel.baseDirectory != nil)
+
+        controller.setDisplayMode(.diff)
+        await controller.diffRefreshTask?.value
+        #expect(controller.store.diffContent == .unavailable)
+
+        // 解決が残っていればここで着地する。待ち切れていれば即座に戻り、状態は動かない。
+        await controller.sidebar.awaitSettled()
+
+        #expect(controller.store.diffContent == .unavailable)
+    }
+
     /// 取得へ到達できる差分表示用のコントローラ。
     private func makeDiffModeController(prefix: String, result: GitFileDiff) -> ViewerWindowController {
         ViewerWindowControllerFixture(
@@ -114,13 +170,9 @@ struct ViewerWindowControllerDiffPendingTests {
     }
 
     /// レンダリング表示のまま提示状態を作る(presentDocument は差分表示にしてしまう)。
+    /// 待ち合わせは差分系で共有する preparePresentedDocument が行う(TASK-512)。
     private func preparePresentedMarkdown(_ controller: ViewerWindowController) async {
-        controller.fileListModel.entries = [FileListEntry(url: file, kind: .file)]
-        controller.fileListModel.selection = file
-        // 壁時計予算のポーリング(waitUntilOnMainActor)ではなく loadTask を await する。
-        // 予算はスイート全体の混雑時間まで測ってしまい、TSan ジョブでは操作の成否と
-        // 無関係に切れる(TASK-437 で予算を 10 → 60 → 120 と伸ばしても落ちた)。
-        await controller.store.loadTask?.value
+        await preparePresentedDocument(in: controller, file: file)
         #expect(controller.store.contentState.fileType == .markdown)
     }
 }
