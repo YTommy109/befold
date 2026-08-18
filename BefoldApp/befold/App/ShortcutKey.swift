@@ -88,6 +88,8 @@ struct ShortcutKey: Hashable {
         case "ArrowLeft": "←"
         case "ArrowRight": "→"
         case "Escape": "Esc"
+        // 既定の uppercased() だと "ENTER" になる。メニュー由来の表記(Return)へ揃える。
+        case "Enter": "Return"
         default: key.uppercased()
         }
     }

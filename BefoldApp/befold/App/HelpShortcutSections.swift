@@ -14,16 +14,20 @@ enum HelpShortcutSections {
     /// キーをそのまま返すので、表示結果ではなくカタログ側で確かめる)
     static var localizationKeys: [String] {
         [ViewerShortcutCatalog.sectionTitleKey]
-            + ViewerShortcutCatalog.items.map(\.titleKey)
+            // ゲートの ON/OFF で載る行が入れ替わるため、両方の系統のキーを検証対象にする。
+            + ViewerShortcutCatalog.scrollItems.map(\.titleKey)
+            + ViewerShortcutCatalog.findOnlyItems.map(\.titleKey)
+            + ViewerShortcutCatalog.documentJumpItems.map(\.titleKey)
             + [SidebarShortcutCatalog.sectionTitleKey]
             + SidebarShortcutCatalog.items.map(\.titleKey)
             + [QuickOpenShortcutCatalog.sectionTitleKey]
             + QuickOpenShortcutCatalog.items.map(\.titleKey)
     }
 
-    static var all: [ShortcutSection] {
+    /// 文書内ジャンプ(TASK-485)のゲートは呼び出し側が渡す(既定値は付けない)。
+    static func all(isDocumentJumpEnabled: Bool) -> [ShortcutSection] {
         MenuShortcutCatalog.snapshot + [
-            ViewerShortcutCatalog.section,
+            ViewerShortcutCatalog.section(isDocumentJumpEnabled: isDocumentJumpEnabled),
             SidebarShortcutCatalog.section,
             QuickOpenShortcutCatalog.section,
         ]
