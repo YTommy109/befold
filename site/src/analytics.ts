@@ -84,6 +84,21 @@ export const OPERATIONAL_KINDS: ReadonlySet<MetricKey> = new Set<MetricKey>([
 ])
 
 /**
+ * 同じ `kind='download'` を `source` で分けた内訳。**`METRIC_FILTERS` から導く。**
+ *
+ * 画面はこの集合を「合計と内訳」として扱う。手で列挙すると、ダウンロード経路を
+ * 足したときに合計へ入らない系列が黙って生まれる（合計が内訳の和にならない）。
+ */
+export const DOWNLOAD_METRICS: ReadonlySet<MetricKey> = new Set(
+  metricKeys().filter((metric) => METRIC_FILTERS[metric].kind === 'download'),
+)
+
+/** ダウンロード系の合計。内訳が互いに素なので、単純な和で総ダウンロード数になる。 */
+export function downloadTotal(counts: KindCounts): number {
+  return [...DOWNLOAD_METRICS].reduce((sum, metric) => sum + counts[metric], 0)
+}
+
+/**
  * 指標 1 つを SQL の条件式にする。**指標の述語はここだけで組み立てる。**
  *
  * `METRIC_EXPR`（内訳）・`metricCondition`（WHERE）・`KIND_COUNT_COLUMNS`（件数）の
@@ -372,13 +387,22 @@ export type DeliverySummary = {
   fallbacks: FallbackSplit[]
 }
 
-/** 指標として並べる順序と表示名。ページ表示・集計の双方でこの順を使う。 */
+/**
+ * 指標として並べる順序と表示名。ページ表示・集計の双方でこの順を使う。
+ *
+ * ダウンロード系の 3 つは連続して並べ、ラベルの接頭辞を「ダウンロード」で
+ * 揃える。これらは `kind='download'` を `source` で分けた互いに素な内訳で、
+ * どれかがどれかを含むことはない。かつて先頭が単に「ダウンロード」で、内訳の
+ * 1 つ（旧バージョン）がそれを上回る並びになると、部分集合が本体を超えたように
+ * 読めた（「本日 ダウンロード 1 / 旧バージョンのダウンロード 6」の報告）。
+ * カードは `DOWNLOAD_METRICS` の合計を併記して、3 つが内訳であることを示す。
+ */
 export const KIND_LABELS: { kind: MetricKey; label: string }[] = [
   { kind: 'visit', label: 'ページアクセス' },
-  { kind: 'download', label: 'ダウンロード' },
   { kind: 'update_check', label: 'アップデート確認' },
-  { kind: 'update_download', label: '自動アップデート適用' },
-  { kind: 'archive_download', label: '旧バージョンのダウンロード' },
+  { kind: 'download', label: 'ダウンロード（LP）' },
+  { kind: 'update_download', label: 'ダウンロード（自動更新）' },
+  { kind: 'archive_download', label: 'ダウンロード（旧バージョン）' },
 ]
 
 /** 日別推移・時間帯分布が対象にする窓（当日を含む直近 N 日）。 */
@@ -1256,9 +1280,7 @@ async function kindBreakdowns(db: D1Database): Promise<Omit<KindBreakdown, 'tota
  * NULL になる。「表が空なら出さない」という形にすると、データがまだ無いだけの
  * 指標まで消えて、0 件であることが読めなくなる（0 件は 0 件として見せる）。
  */
-export const VERSION_BREAKDOWN_METRICS: ReadonlySet<MetricKey> = new Set(
-  metricKeys().filter((metric) => METRIC_FILTERS[metric].kind === 'download'),
-)
+export const VERSION_BREAKDOWN_METRICS: ReadonlySet<MetricKey> = DOWNLOAD_METRICS
 
 /** ダッシュボード初期表示用の集計一式。 */
 /**
