@@ -1292,3 +1292,50 @@ describe('404 ページ', () => {
     expect(response.headers.get('Cache-Control')).toBe('no-store')
   })
 })
+
+describe('HEAD 要求の計測', () => {
+  /** 本文を取らない HEAD。Hono は GET のハンドラへ流すため、記録側で分ける必要がある。 */
+  async function head(path: string): Promise<Response> {
+    const request = new Request(`${DEFAULT_ORIGIN}${path}`, {
+      method: 'HEAD',
+      headers: { 'User-Agent': UA, 'CF-Connecting-IP': IP, 'CF-IPCountry': 'JP' },
+      redirect: 'manual',
+    })
+    const ctx = createExecutionContext()
+    const response = await app.fetch(request, env, ctx)
+    await waitOnExecutionContext(ctx)
+    return response
+  }
+
+  async function eventCount(): Promise<number> {
+    const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM events').first<{ n: number }>()
+    return row?.n ?? 0
+  }
+
+  // 3 経路すべてを並べる。1 つだけ直すと、次にダウンロード経路を足したときに
+  // 同じ穴が復活する（記録側の絞り込み点で弾いていることをここで固定する）。
+  it.each([
+    ['/download', 'lp'],
+    ['/dl/v1.12.0/befold-v1.12.0.dmg', 'sparkle'],
+    ['/releases/v1.12.0/befold-v1.12.0.dmg', 'archive'],
+  ])('%s への HEAD は download を記録しない', async (path) => {
+    await env.DIST.put('releases/v1.12.0/befold-v1.12.0.dmg', 'OLD-DMG')
+    await env.DIST.put('dl/v1.12.0/befold-v1.12.0.dmg', 'DMG')
+
+    await head(path)
+
+    expect(await latestEvent('download')).toBeNull()
+  })
+
+  it('LP への HEAD はページアクセスに数えない', async () => {
+    await head('/')
+
+    expect(await eventCount()).toBe(0)
+  })
+
+  it('GET なら同じ経路で記録される（HEAD の除外が記録全体を止めていない）', async () => {
+    await call('/download')
+
+    expect(await latestEvent('download')).not.toBeNull()
+  })
+})
