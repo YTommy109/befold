@@ -69,6 +69,55 @@ struct FileListViewTests {
         #expect(path == "sub/a.swift")
     }
 
+    // MARK: - List の selection binding 経由の選択(issue #570)
+
+    /// `List` の selection binding が書き戻した選択でも表示が追従することを固定する。
+    /// このテストは `commitSelection` から `openIfFile` を外すと落ちる——つまり
+    /// 「選択は動くが表示が追従しない」を再び作れないようにするための担保。
+    @Test("List の binding 経由でファイル行が選ばれたら onSelect が呼ばれる(issue #570)")
+    func commitSelectionOpensFileSelectedThroughListBinding() {
+        let fixture = StandardEntries()
+        let selected = LockedBox<URL?>(nil)
+        let view = makeView(entries: fixture.all, selection: fixture.file0.id) { url in
+            selected.set(url)
+        }
+
+        view.commitSelection(fixture.file2.id)
+
+        #expect(view.model.selection == fixture.file2.id)
+        #expect(selected.get() == fixture.file2.url)
+    }
+
+    /// フォルダー行では開かない。「選択 = 表示中ファイル」が成り立たない正当な状態
+    /// (issue #161)を壊さないため。
+    @Test("List の binding 経由でフォルダー行が選ばれても onSelect は呼ばれない")
+    func commitSelectionDoesNotOpenFolderSelectedThroughListBinding() {
+        let fixture = StandardEntries()
+        let selected = LockedBox<URL?>(nil)
+        let view = makeView(entries: fixture.all, selection: fixture.file0.id) { url in
+            selected.set(url)
+        }
+
+        view.commitSelection(fixture.folder.id)
+
+        #expect(view.model.selection == fixture.folder.id)
+        #expect(selected.get() == nil)
+    }
+
+    /// `List` は選択が変わっていなくても書き戻すことがあるため、同値では何もしない。
+    @Test("同じ値の書き戻しでは onSelect を呼ばない")
+    func commitSelectionIgnoresWriteBackOfSameSelection() {
+        let fixture = StandardEntries()
+        let selected = LockedBox<URL?>(nil)
+        let view = makeView(entries: fixture.all, selection: fixture.file1.id) { url in
+            selected.set(url)
+        }
+
+        view.commitSelection(fixture.file1.id)
+
+        #expect(selected.get() == nil)
+    }
+
     /// selectNext / selectPrevious / downArrow ルーティングの各テストで共通して使う
     /// 標準フィクスチャ(`[file0, folder, file1, file2]`)。
     private struct StandardEntries {
