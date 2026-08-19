@@ -36,6 +36,49 @@ struct ViewerTabGroupingTests {
         #expect(window.tabGroup == nil)
     }
 
+    /// ちらつき(TASK-529)の機序をそのまま測る。表示の瞬間にまだタブ結合されていなければ、
+    /// AppKit が独立ウィンドウをタブへ畳む中間状態が 1 フレーム見える。
+    @Test("タブとして開くウィンドウは表示の時点で既にタブグループに入っている")
+    func presentJoinsTabGroupBeforeShowing() {
+        let base = Self.makeWindow()
+        let window = Self.makeWindow()
+        defer {
+            window.close()
+            base.close()
+        }
+        base.orderFront(nil)
+
+        var tabGroupAtShow: NSWindowTabGroup?
+        var shown = false
+        ViewerTabGrouping.present(window, asTabOf: base, select: true) {
+            shown = true
+            tabGroupAtShow = window.tabGroup
+        }
+
+        #expect(shown)
+        #expect(tabGroupAtShow != nil)
+        #expect(tabGroupAtShow === base.tabGroup)
+    }
+
+    /// window が無くても「タブにならなくとも開く」縮退が残っていること。
+    @Test("window が nil でも表示だけは行われる")
+    func presentWithoutWindowStillShows() {
+        var shown = false
+        ViewerTabGrouping.present(nil, asTabOf: nil, select: true) { shown = true }
+
+        #expect(shown)
+    }
+
+    /// 既定の isReleasedWhenClosed は true で、ARC 下の close() が過剰解放になる。
+    private static func makeWindow() -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+            styleMask: [.titled, .closable], backing: .buffered, defer: true
+        )
+        window.isReleasedWhenClosed = false
+        return window
+    }
+
     @Test("ビューアパスを持つタブが1枚も無ければタブグループを作らない")
     func makeTabGroupReturnsNilWhenNoViewerTabs() {
         let group = ViewerTabGrouping.makeTabGroup(

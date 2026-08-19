@@ -23,6 +23,20 @@ enum ViewerTabGrouping {
         }
     }
 
+    /// window を表示する。baseWindow があれば **タブ結合してから** `show` を呼ぶ。
+    /// この順序をここへ閉じ込めるのは、先に独立ウィンドウとして表示してからタブグループへ
+    /// 吸収すると、AppKit の再親付けで「独立ウィンドウが出る → 畳まれてタブになる」中間状態が
+    /// 1 フレーム見えるため(TASK-529)。表示を呼び出し側の `show` に預けることで、
+    /// 順序を守っているかどうかをテストから観測できる。
+    /// window が nil のときは結合をあきらめ `show` だけを呼ぶ
+    /// (attachAsTab と同じ「開けないよりタブにならない」への縮退)。
+    static func present(_ window: NSWindow?, asTabOf baseWindow: NSWindow?, select: Bool, show: () -> Void) {
+        if let window {
+            attachAsTab(window, to: baseWindow, select: select)
+        }
+        show()
+    }
+
     /// window をそのタブグループの選択タブにする。タブ化されていなければ何もしない。
     /// 前面化(makeKeyAndOrderFront)に任せず明示的に選択するのは、タブ結合直後や
     /// ヘッドレス環境ではタブ選択が追随しないことがあるため。
