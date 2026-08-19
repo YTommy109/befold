@@ -4,7 +4,7 @@ title: サイドバーから新規タブで開くとき、内容が同一でも�
 status: To Do
 assignee: []
 created_date: '2026-08-19 14:49'
-updated_date: '2026-08-19 15:53'
+updated_date: '2026-08-19 16:02'
 labels: []
 dependencies: []
 priority: medium
@@ -216,4 +216,33 @@ AC#1 / AC#2 の実機目視のみ。`/run` で起動し、サイドバーの別�
 `openViewer(disposition: .newTab, relativeTo:)` を実 NSWindow で通し、新しいタブが生成直後に
 既に一覧を持っていること（従来は 0 行）を固定した。配線を切ると落ちることも実測済み。
 残っているのは「人の目にちらつきとして見えなくなったか」の確認だけ。
+
+## 2026-08-20 追記: 実アプリ上で BEFORE/AFTER を再現・記録した（AC#2 / AC#3）
+
+補助アクセスが無くクリックはできないが、**アプリ自身に一時プローブを仕込んで
+Cmd+クリックと同じ入口（`ViewerWindowManager.openViewer(disposition: .newTab,
+relativeTo:)`）を叩き**、新しいタブの状態を 16ms ごとに 45 フレーム記録した。
+プローブは計測後に撤去済み（`git diff` が空であることを確認）。
+
+条件: Debug .app（`xcodebuild -configuration Debug`）／800 ファイルのフォルダ
+（列挙を遅くして空の段階を可視化するため）／起点の窓の一覧が届いてから新規タブを開く。
+
+| | 新規タブの生成直後 | 45 フレーム中、一覧が空のフレーム |
+|---|---|---|
+| BEFORE（引き継ぎを外したビルド） | `rows=0, hasLoadedEntries=false` | **2 フレーム（約 32ms）** |
+| AFTER（引き継ぎ入り） | `rows=800, hasLoadedEntries=true` | **0 フレーム** |
+
+同じ手順を 8 ファイルの軽いフォルダでも実施し、BEFORE 1 フレーム / AFTER 0 フレーム。
+**「空 → 埋まる」の段階が実アプリから消えたことを、実機の実行で確認した。**
+
+### 画素での比較はできなかった
+
+`NSView.cacheDisplay` による自己撮影は SwiftUI のレイヤーを捉えず、45 フレームすべて
+真っ白になった（BEFORE/AFTER とも同じ）。外部からの `screencapture` は 1 回 300ms 超で、
+32ms の事象には間に合わない。ウィンドウ座標の取得もクリックも補助アクセスが要る。
+
+したがって **AC#2 のうち「人の目で見て確認する」部分だけが未実施**。空の段階が
+状態としてもフレーム単位でも消えていることは上表のとおり実機で確認済みなので、
+残っているのは最終的な体感確認だけ。`/run` して同じフォルダのファイルを
+Cmd+クリックすれば足りる。
 <!-- SECTION:NOTES:END -->
