@@ -41,7 +41,7 @@ struct FileListView: View {
     }
 
     private func entryList(showing entries: [FileListEntry]) -> some View {
-        List(entries, selection: $model.selection) { entry in
+        List(entries, selection: tableSelection) { entry in
             // 行インセットをゼロにして同等のパディングを行コンテンツ側へ移し、
             // contentShape が行の全幅を覆うようにする。インセット部分をダブル
             // クリックしたとき選択だけされて移動しない取りこぼしを防ぐ。
@@ -149,6 +149,38 @@ struct FileListView: View {
         DispatchQueue.main.async {
             model.tableFocuser.focus()
         }
+    }
+
+    /// `List` へ渡す選択。**素の `$model.selection` を渡してはならない。**
+    ///
+    /// SwiftUI の `List` は裏の NSOutlineView の選択変更(`outlineViewSelectionDidChange`)を
+    /// この binding へ書き戻す。素のバインドだと、その書き戻しが「選択だけ動かして開かない」
+    /// 経路になり、クリックのジェスチャ(`singleTapGesture`)が発火しなかった回に
+    /// 「ハイライトは新しいファイル・本文とヘッダーは前のファイル」で固定される(issue #570)。
+    /// setter を `commitSelection` へ通し、**テーブル発の選択変更を必ず開く経路と対にする。**
+    ///
+    /// こちらからテーブルへ書いた分(プログラム的な `model.selection` への代入)は getter を
+    /// 通るだけなので、ここには入らない。`.onChange(of: model.selection)` で代用できないのは
+    /// この非対称が失われるためで、`SidebarPostSwitchSync.confirmSelection` のような
+    /// 「切替後に選択を確定させる冪等処理」からも open が返って経路が循環する。
+    private var tableSelection: Binding<FileListEntry.ID?> {
+        Binding(get: { model.selection }, set: { commitSelection($0) })
+    }
+
+    /// テーブル発の選択変更を確定する。選択を書き、対象がファイルなら開く。
+    ///
+    /// 値が変わらない書き戻しでは何もしない。`List` は選択が変わらなくても書き戻すこと
+    /// があり、そのたびに開くと切替のたびに二重で走る。テストから呼べるよう internal。
+    ///
+    /// 行の引き当てに `model.listSnapshot` を読まないこと。あれは絞り込みの評価点で、
+    /// 「1 打鍵につき絞り込みは 1 回」(TASK-418)が破れる。索引を引く
+    /// `entry(forPathKey:)` は O(1) で、観測依存の登録点としても公式の入口。
+    func commitSelection(_ newSelection: FileListEntry.ID?) {
+        guard newSelection?.normalizedPathKey != model.selection?.normalizedPathKey else { return }
+        model.selection = newSelection
+        guard let key = newSelection?.normalizedPathKey, let entry = model.entry(forPathKey: key)
+        else { return }
+        openIfFile(entry)
     }
 
     /// 選択が確定したエントリがファイルなら表示を更新する。
