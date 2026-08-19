@@ -9,7 +9,10 @@
 	<!-- WKWebView はローカルコンテンツのみでも WebKit の Networking プロセスを起動する。
 	     サンドボックス下でこれが無いと Networking プロセスが起動できず、
 	     連鎖して WebContent も上がらないため、あらゆるロードが完了せず空白になる。
-	     外部通信は viewer.html 側の CSP と rendererFeatures = .quickLookRestricted で塞ぐ。 -->
+	     外部通信は viewer 側の replaceRemoteImages()(リモート画像を挿入前に代替表示へ
+	     置き換える)と RemoteLoadBlocker の WKContentRuleList で塞ぐ。
+	     **meta CSP の img-src はこの用途に使えない**: file:// で読み込んだ文書では
+	     WebKit がリモート画像の取得を検査せず、素通りする(TASK-526 の実測)。 -->
 	<key>com.apple.security.network.client</key>
 	<true/>
 </dict>

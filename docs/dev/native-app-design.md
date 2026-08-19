@@ -105,7 +105,8 @@ BefoldApp/
 │                                    # esbuild でビルドした成果物。コミット済み）/
 │                                    # mermaid / markdown-it / highlight.js / DOMPurify 等
 ├── BefoldRenderKit/            # 描画エンジン（本体 / QuickLook で共有）
-│   └── ViewerRenderer.swift + ViewerRenderer+*.swift    # WKWebView ドライバ
+│   ├── ViewerRenderer.swift + ViewerRenderer+*.swift    # WKWebView ドライバ
+│   └── RemoteLoadBlocker.swift # WKContentRuleList でリモート読み込みを遮断
 ├── befold/                     # 本体アプリ（com.degino.befold）
 │   ├── App/                    # ライフサイクル・ウィンドウ管理・メニュー・各種永続化ストア
 │   ├── Viewer/                 # ビューア本体（ViewerWebView・サイドバー・検索・ナビゲーション）
@@ -360,6 +361,41 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   移動先を新しいルートにする（元へ引き戻さない）。この遷移方針は
   `SidebarLayoutTransition` が持ち、ライブ値の更新自体は上の入口を通る。
   展開状態とスナップショットはウィンドウ単位・メモリのみで永続化しない
+
+---
+
+## リモート読み込みの遮断
+
+ビューアは信頼できない文書を開くため、**文書を開いただけで外部ホストへリクエストが
+出ない**ことを保つ。出てしまうと、IP・User-Agent・どの文書をいつ開いたかが相手に渡る。
+
+**meta CSP の `img-src` はこの用途に使えない。** viewer.html は
+`img-src 'self' data:` を宣言しているが、`file://` で読み込んだ文書では WebKit が
+リモート画像の取得を検査しない（実測: リモートバッジが `naturalWidth = 78` で
+デコードでき、`securitypolicyviolation` は 1 件も発火しない）。同じ宣言の
+`script-src` / `frame-src` は効いているため、CSP 自体は読まれている。宣言は
+多層防御として残すが、遮断を担うのは次の 2 層。
+
+| 層 | 実体 | 守る範囲 |
+|---|---|---|
+| 一次（JS） | `viewer-src/markdown.ts` の `replaceRemoteImages()` | markdown / inline HTML。DOMParser で作った**切り離された文書**の上で `img[src^=http]` を代替表示へ置き換えるため、そもそもリクエストが出ない |
+| 二次（ネイティブ） | `RemoteLoadBlocker`（`BefoldRenderKit/`） | JS を通らない直接 HTML モードと、サニタイザをすり抜けた参照。`WKContentRuleList` で `^https?://` / `^wss?://` を block する |
+
+- 二次の適用点は `ViewerWebViewFactory.loadViewerHTML` の 1 箇所。ここが本体アプリ・
+  QuickLook 拡張・直接 HTML モードすべての唯一の入口なので、「ブロッカ未適用のまま
+  文書が描かれる」余地が構造的に無い（ルールリストの用意は非同期のため、適用の完了を
+  待ってから読み込む）
+- ルールリストを用意できなくても viewer.html のロードは必ず行う（fail-open）。
+  ここで握りつぶすとビューアが空のままになり、「外部画像が出る」より重い故障になる。
+  markdown 経路は一次防御が独立に守る
+- `url-filter` の正規表現は選択（`|`）を受け付けない（実測: `^(file|data)://` は
+  "Disjunctions are not supported yet" でコンパイルに失敗する）。このため
+  「許可を列挙して残りを block」はできず、止めたいスキームを列挙する形になっている。
+  `file:` / `data:` / `blob:` はどのルールにも一致しないのでそのまま通る
+  （PDF 表示の blob URL と埋め込み画像の data URI がこれに当たる）
+- 回帰は `scripts/webview-smoke.swift` の `checkExfilBlocked` が `naturalWidth` で測る
+  （「画像バイトが取得されたか」を直接測る唯一の指標）。実在するホストを使う点が要件で、
+  到達できない URL では遮断が外れていても `naturalWidth = 0` になり常に緑になる
 
 ---
 

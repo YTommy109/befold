@@ -265,6 +265,16 @@ public enum ViewerBridge {
         return assignGlobalScript("window._mmdBannerStrings", strings)
     }
 
+    /// ロード時に画像まわりのローカライズ済み文字列を JS 側へ注入するスクリプト。
+    /// viewer 側は replaceRemoteImages() が window._mmdImageStrings を読んで
+    /// ブロックしたリモート画像の代替表示に使う(TASK-526)。
+    public static func imageStringsScript(bundle: Bundle = .befoldKitResources) -> String {
+        let strings: [String: String] = [
+            "blockedRemote": String(localized: "image.blockedRemote", bundle: bundle),
+        ]
+        return assignGlobalScript("window._mmdImageStrings", strings)
+    }
+
     /// 検索バーを開く(未オープンなら表示してフォーカス)スクリプト。
     public static let openFindScript = PlainFunction.openFind.callScript
 
