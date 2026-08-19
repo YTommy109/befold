@@ -289,4 +289,21 @@ struct MainMenuBuilderTests {
         let firstIndex = try #require(edit.items.firstIndex(of: jumpItems[0]))
         #expect(edit.items[firstIndex - 1].isSeparatorItem)
     }
+
+    /// `MainMenuFixture` が `NSMenu` を保持すると、その解放は
+    /// スイート値を破棄するスレッド(実測では非メイン)で起きる。AppKit の
+    /// `NSMenu.dealloc` はメニュー名のプロセスグローバルな登録テーブルを触るため、
+    /// 並行に走ると `NSPointerArray` が壊れてテストプロセスごと abort する
+    /// (TASK-525)。「フィクスチャはメニュー木を握らない」を破ったら落ちるようにする。
+    @Test("フィクスチャはメニュー木を保持しない(解放をメインスレッドに閉じるため)")
+    func fixtureDoesNotRetainTheMenuTree() {
+        weak var builtMenu: NSMenu?
+        autoreleasepool {
+            let menu = fixture.menu()
+            builtMenu = menu
+            #expect(!menu.items.isEmpty)
+        }
+
+        #expect(builtMenu == nil)
+    }
 }
