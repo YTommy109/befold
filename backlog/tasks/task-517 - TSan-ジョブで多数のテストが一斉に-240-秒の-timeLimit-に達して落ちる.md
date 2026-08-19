@@ -1,10 +1,10 @@
 ---
 id: TASK-517
 title: TSan ジョブで多数のテストが一斉に 240 秒の timeLimit に達して落ちる
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-18 11:25'
-updated_date: '2026-08-19 01:18'
+updated_date: '2026-08-19 01:32'
 labels: []
 dependencies: []
 priority: high
@@ -50,10 +50,10 @@ thread-sanitizer ジョブで、無関係な 28 件のテストが**そろって
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 一斉タイムアウトの原因が「.timeLimit が run 全体の壁時計を測ること」であると実測で特定されている
-- [ ] #2 .timeLimit の決め方がポーリング予算（BEFOLD_TEST_TIMEOUT_SECONDS）から切り離されている
-- [ ] #3 予算から導く実装へ戻すと落ちるテストがある
-- [ ] #4 CI（build-and-test / thread-sanitizer）が緑になる
+- [x] #1 一斉タイムアウトの原因が「.timeLimit が run 全体の壁時計を測ること」であると実測で特定されている
+- [x] #2 .timeLimit の決め方がポーリング予算（BEFOLD_TEST_TIMEOUT_SECONDS）から切り離されている
+- [x] #3 予算から導く実装へ戻すと落ちるテストがある
+- [x] #4 CI（build-and-test / thread-sanitizer）が緑になる
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -97,4 +97,21 @@ thread-sanitizer ジョブで、無関係な 28 件のテストが**そろって
 
 本件は TASK-516 と独立。TASK-516（同期ブロックが協調スレッドを塞ぐ）は本件の原因では
 なかったため、dependencies の前提は成立していない。TASK-516 自体は別途扱う。
+
+## 完了確認（マージ後の main / run 32204876972）
+
+全ジョブ緑。**thread-sanitizer も含む。**
+
+- build-and-test: `✔ Test run with 1649 tests in 264 suites passed after 73.767 seconds.`
+- thread-sanitizer: `✔ Test run with 1649 tests in 264 suites passed after 142.689 seconds.`
+
+打ち切り 600 秒に対し TSan の run 全体は 142.7 秒で、4 倍以上の余裕がある。旧実装
+（打ち切り 240 秒）では直前の run が 265 秒で落ちていた位置。
+
+`docs/dev/native-app-design.md` は更新していない。本件はテスト基盤（打ち切りの決め方）
+だけの変更で、アプリの仕様・構成に現れないため。根拠は `Waiting.swift` の doc コメントと
+`.swiftlint.yml` の `hardcoded_time_limit` ルールのコメントに置いた。
+
+タイトルは起票時のまま「TSan ジョブで…」だが、実測では TSan 限定ではなかった
+（TSan 無しの build-and-test でも同じ形で落ちた）。
 <!-- SECTION:NOTES:END -->
