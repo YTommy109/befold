@@ -55,11 +55,12 @@ extension ViewerWindowManager {
         register(controller, forKey: key)
         controller.delegate = sessionSync
         NSApp.activate()
-        controller.showWindow(nil)
-        // window が nil(生成直後で取得できない等)ならタブ結合をあきらめ独立ウィンドウのまま
-        // 表示する(attachAsTab と同じ「開けないよりタブにならない」への縮退)。
-        if disposition == .newTab, let window = controller.window {
-            ViewerTabGrouping.attachAsTab(window, to: sourceWindow, select: true)
+        // タブ結合と表示の順序は ViewerTabGrouping.present が持つ(先に表示すると
+        // タブへ畳まれる中間状態が 1 フレーム見える: TASK-529)。
+        ViewerTabGrouping.present(
+            controller.window, asTabOf: disposition == .newTab ? sourceWindow : nil, select: true
+        ) {
+            controller.showWindow(nil)
         }
         sessionStore.noteOpened(url)
         recentDocumentsStore.noteOpened(url)

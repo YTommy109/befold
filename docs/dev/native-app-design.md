@@ -142,7 +142,7 @@ BefoldApp/
 | `ViewerWindowSessionSync` | close / rename / ファイル切替 / key イベントを受けての辞書のキー付け替えと、セッション・最近使った項目・ブックマークの追随。`ViewerWindowControllerDelegate` 準拠（辞書の書き換えはマネージャの `register` / `detach` を通す。窓を作らない関心なのでマネージャから分離した） |
 | `GlobalDisplayBroadcaster` | アプリ全体で 1 つの表示設定（ブックマーク・コードフォント）を開いている全ウィンドウへ配る。窓ごとのライブ値と窓の状態（ADR 0002）は扱わず、`SidebarDisplayDefaults` も `ZoomStore` も型として持たない |
 | `RecentRepositoryRecorder` | 「最近使ったリポジトリ」への記録。git ルート/ラベルの解決は detached タスクで行い、反映のみ MainActor へ戻す |
-| `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Space からはぐれた窓の救出）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場 |
+| `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Window メニューを選択中タブだけに揃える・Space からはぐれた窓の救出）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場 |
 | `ViewerDisplayOptionsApplier` | 既に開いているウィンドウへの CLI 表示オプション適用規則 |
 | `SessionRestorer` | 前回セッションのウィンドウ/タブ構成のスナップショット保存と復元 |
 | `AppUpdaterController` | Sparkle アップデータの保持・起動と、チャンネル別 appcast フィード URL の供給（`SPUUpdaterDelegate` 準拠。詳細は「自動アップデート」節） |

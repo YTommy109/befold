@@ -23,11 +23,55 @@ enum ViewerTabGrouping {
         }
     }
 
+    /// window を表示する。baseWindow があれば **タブ結合してから** `show` を呼ぶ。
+    /// この順序をここへ閉じ込めるのは、先に独立ウィンドウとして表示してからタブグループへ
+    /// 吸収すると、AppKit の再親付けで「独立ウィンドウが出る → 畳まれてタブになる」中間状態が
+    /// 1 フレーム見えるため(TASK-529)。表示を呼び出し側の `show` に預けることで、
+    /// 順序を守っているかどうかをテストから観測できる。
+    /// window が nil のときは結合をあきらめ `show` だけを呼ぶ
+    /// (attachAsTab と同じ「開けないよりタブにならない」への縮退)。
+    static func present(_ window: NSWindow?, asTabOf baseWindow: NSWindow?, select: Bool, show: () -> Void) {
+        if let window {
+            attachAsTab(window, to: baseWindow, select: select)
+        }
+        show()
+    }
+
     /// window をそのタブグループの選択タブにする。タブ化されていなければ何もしない。
     /// 前面化(makeKeyAndOrderFront)に任せず明示的に選択するのは、タブ結合直後や
     /// ヘッドレス環境ではタブ選択が追随しないことがあるため。
     static func selectTab(_ window: NSWindow) {
         window.tabGroup?.selectedWindow = window
+    }
+
+    /// window を Window メニューから隠すべきか。タブグループの選択タブ以外を隠す判定で、
+    /// `selectedTabOfGroup` が nil(タブ化されていない)なら隠さない。
+    /// NSWindow に依存しない純粋関数にしてあるのは、判定だけをテストから固定するため。
+    static func isExcludedFromWindowsMenu<Window: AnyObject>(
+        _ window: Window, selectedTabOfGroup: Window?
+    ) -> Bool {
+        guard let selectedTabOfGroup else { return false }
+        return selectedTabOfGroup !== window
+    }
+
+    /// Window メニューの一覧を「各ウィンドウの選択中タブだけ」に揃える。
+    ///
+    /// `NSApp.windowsMenu` へ載る一覧は AppKit が NSWindow 単位で自動生成するため、
+    /// タブは 1 枚ずつ別項目として並ぶ。このメニューの用途はウィンドウの切り替えなので、
+    /// 背面タブまで並ぶと目的の窓を選びにくい(TASK-531)。表示中でないタブを
+    /// `isExcludedFromWindowsMenu` で外し、選択タブだけを残す。
+    ///
+    /// 対象はビューアウィンドウに限る(呼び出し側が渡す)。パネル類まで一括で
+    /// false に戻すと、本来メニューへ載らないウィンドウを載せてしまうため。
+    static func syncWindowsMenuMembership(among windows: [NSWindow]) {
+        for window in windows {
+            let excluded = isExcludedFromWindowsMenu(
+                window, selectedTabOfGroup: window.tabGroup?.selectedWindow
+            )
+            if window.isExcludedFromWindowsMenu != excluded {
+                window.isExcludedFromWindowsMenu = excluded
+            }
+        }
     }
 
     /// window が属するタブグループのウィンドウ群。タブ化されていなければ自身のみ。

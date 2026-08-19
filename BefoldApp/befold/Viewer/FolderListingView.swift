@@ -168,7 +168,10 @@ struct FolderListingView: View {
                     filterText: filter.filterText,
                     directoryName: directory.lastPathComponent,
                     // 読めなかったフォルダーを「空のフォルダー」と言い切らない(TASK-410)。
-                    didFailEnumeration: loadedListing?.didFailEnumeration ?? false
+                    didFailEnumeration: loadedListing?.didFailEnumeration ?? false,
+                    // ここは `entries` が届いた分岐の中。未到着(nil)はこの上の
+                    // `if let entries` で既に弾いている。
+                    hasLoadedEntries: true
                 ))
                 .allowsHitTesting(false)
             }

@@ -36,6 +36,91 @@ struct ViewerTabGroupingTests {
         #expect(window.tabGroup == nil)
     }
 
+    /// ちらつき(TASK-529)の機序をそのまま測る。表示の瞬間にまだタブ結合されていなければ、
+    /// AppKit が独立ウィンドウをタブへ畳む中間状態が 1 フレーム見える。
+    @Test("タブとして開くウィンドウは表示の時点で既にタブグループに入っている")
+    func presentJoinsTabGroupBeforeShowing() {
+        let base = Self.makeWindow()
+        let window = Self.makeWindow()
+        defer {
+            window.close()
+            base.close()
+        }
+        base.orderFront(nil)
+
+        var tabGroupAtShow: NSWindowTabGroup?
+        var shown = false
+        ViewerTabGrouping.present(window, asTabOf: base, select: true) {
+            shown = true
+            tabGroupAtShow = window.tabGroup
+        }
+
+        #expect(shown)
+        #expect(tabGroupAtShow != nil)
+        #expect(tabGroupAtShow === base.tabGroup)
+    }
+
+    /// window が無くても「タブにならなくとも開く」縮退が残っていること。
+    @Test("window が nil でも表示だけは行われる")
+    func presentWithoutWindowStillShows() {
+        var shown = false
+        ViewerTabGrouping.present(nil, asTabOf: nil, select: true) { shown = true }
+
+        #expect(shown)
+    }
+
+    /// Window メニューに載せるのは各グループの選択タブだけ、という判定(TASK-531)。
+    /// タブ化されていないウィンドウ(selectedTabOfGroup == nil)は隠さない。
+    @Test("選択タブ以外だけが Window メニューから外れると判定される")
+    func isExcludedFromWindowsMenuHidesOnlyBackgroundTabs() {
+        let selected = NSObject()
+        let background = NSObject()
+
+        #expect(!ViewerTabGrouping.isExcludedFromWindowsMenu(selected, selectedTabOfGroup: selected))
+        #expect(ViewerTabGrouping.isExcludedFromWindowsMenu(background, selectedTabOfGroup: selected))
+        #expect(!ViewerTabGrouping.isExcludedFromWindowsMenu(background, selectedTabOfGroup: nil))
+    }
+
+    /// 実ウィンドウのタブグループに対して、選択タブだけが Window メニューへ残ること。
+    /// 選択を切り替えたら追随して入れ替わることまで見る(片方向だけ直すと、
+    /// 一度外れたタブが選択されてもメニューへ戻らない)。
+    @Test("タブグループでは選択中のタブだけが Window メニューに残る")
+    func syncWindowsMenuMembershipKeepsOnlySelectedTab() {
+        let base = Self.makeWindow()
+        let tab = Self.makeWindow()
+        let standalone = Self.makeWindow()
+        defer {
+            tab.close()
+            base.close()
+            standalone.close()
+        }
+        base.orderFront(nil)
+        ViewerTabGrouping.attachAsTab(tab, to: base, select: true)
+        #expect(base.tabGroup != nil)
+
+        ViewerTabGrouping.syncWindowsMenuMembership(among: [base, tab, standalone])
+
+        #expect(base.isExcludedFromWindowsMenu)
+        #expect(!tab.isExcludedFromWindowsMenu)
+        #expect(!standalone.isExcludedFromWindowsMenu)
+
+        ViewerTabGrouping.selectTab(base)
+        ViewerTabGrouping.syncWindowsMenuMembership(among: [base, tab, standalone])
+
+        #expect(!base.isExcludedFromWindowsMenu)
+        #expect(tab.isExcludedFromWindowsMenu)
+    }
+
+    /// 既定の isReleasedWhenClosed は true で、ARC 下の close() が過剰解放になる。
+    private static func makeWindow() -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+            styleMask: [.titled, .closable], backing: .buffered, defer: true
+        )
+        window.isReleasedWhenClosed = false
+        return window
+    }
+
     @Test("ビューアパスを持つタブが1枚も無ければタブグループを作らない")
     func makeTabGroupReturnsNilWhenNoViewerTabs() {
         let group = ViewerTabGrouping.makeTabGroup(

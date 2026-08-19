@@ -66,6 +66,9 @@ final class ViewerWindowSessionSync: ViewerWindowControllerDelegate {
         // タブグループが壊れていない状態を観測できる唯一の契機。ここで記録しておかないと、
         // タブを複数開いたウィンドウの構成は close 時には既に失われている。
         manager.recentRepositories.recordTabGroup(of: controller)
+        // タブ選択の変更は必ずそのタブがキーになる契機を伴うため、Window メニューの
+        // 一覧の揃え直しもここへ相乗りさせる(タブ選択専用の通知は AppKit に無い)。
+        manager.syncWindowsMenuMembership()
     }
 
     func viewerWindow(

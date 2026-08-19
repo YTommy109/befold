@@ -159,6 +159,12 @@ final class ViewerWindowManager {
         recentRepositories.recordAllTabGroups(of: allControllers)
     }
 
+    /// Window メニューの一覧を各ウィンドウの選択中タブだけに揃える。
+    /// 対象の組み立て(`allControllers` の走査)を呼び出し元へ漏らさないため、ここで委譲する。
+    func syncWindowsMenuMembership() {
+        ViewerTabGrouping.syncWindowsMenuMembership(among: allControllers.compactMap(\.window))
+    }
+
     /// controller を key のコントローラ群へ登録する。
     /// 辞書 `controllers` の書き換えはこのファイルの register / detach だけに閉じている
     /// (`private(set)` のまま extension から直接触らせないための入口)。
