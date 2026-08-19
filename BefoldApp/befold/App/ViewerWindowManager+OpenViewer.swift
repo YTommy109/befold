@@ -49,8 +49,12 @@ extension ViewerWindowManager {
             return existing
         }
 
+        // 起点の窓が同じフォルダを列挙済みなら、その結果を新しい窓の出発点にする
+        // (TASK-532)。disposition では絞らない——新規タブでも新規ウィンドウでも、
+        // 同じ一覧を出すなら空から作り直す理由が無い。
         let controller = makeController(
-            for: url, options: options, forceSidebarVisible: forceSidebarVisible
+            for: url, options: options, forceSidebarVisible: forceSidebarVisible,
+            initialListing: listingSeed(from: sourceWindow)
         )
         register(controller, forKey: key)
         controller.delegate = sessionSync
@@ -108,8 +112,24 @@ extension ViewerWindowManager {
     /// 新規ウィンドウのコントローラを、初期表示状態(サイドバー開閉・ウィンドウ枠)を
     /// 解決したうえで生成する。共有依存の渡し先はここ 1 箇所で、渡し忘れれば
     /// コンパイルが落ちる(既定値を持たない引数として受けている)。
+    /// 起点ウィンドウのサイドバーが列挙済みの一覧(引き継ぎの材料)。
+    /// ビューアウィンドウでない・まだ一覧が届いていないなら nil。
+    private func listingSeed(from sourceWindow: NSWindow?) -> SidebarListingSeed? {
+        guard let controller = sourceWindow?.windowController as? ViewerWindowController,
+              controller.fileListModel.hasLoadedEntries
+        else { return nil }
+        let model = controller.fileListModel
+        return SidebarListingSeed(
+            directory: model.entriesDirectory,
+            listing: controller.sidebar.lastListing,
+            sortOrder: model.sortOrder,
+            showHiddenFiles: model.showHiddenFiles
+        )
+    }
+
     private func makeController(
-        for url: URL, options: CLIOpenOptions, forceSidebarVisible: Bool
+        for url: URL, options: CLIOpenOptions, forceSidebarVisible: Bool,
+        initialListing: SidebarListingSeed?
     ) -> ViewerWindowController {
         let lastActivePathKey = sessionStore.savedActivePath()
         // 開閉の解決順: CLI の明示指定(--sidebar/--no-sidebar) > フォルダーオープンによる強制表示 > 記憶の引き継ぎ。
@@ -145,6 +165,7 @@ extension ViewerWindowManager {
             initialFrameDescriptor: initialFrameDescriptor,
             initialSortOrder: options.sortOrder != nil ? options.viewerSortOrder : nil,
             initialShowHiddenFiles: options.showHiddenFiles,
+            initialListing: initialListing,
             showLineNumbersOverride: options.showLineNumbers,
             sourceModeOverride: options.sourceMode,
             store: makeStore?(url),

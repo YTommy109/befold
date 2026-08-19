@@ -34,7 +34,9 @@ final class SidebarTreePresenter {
     /// 直近に `applyRows` へ渡した列挙結果。行を組み直すたびに組み立て済みの配列から
     /// 材料を復元しないために持つ。**書いてよいのは `applyRows` だけ**(他所から書くと、
     /// 世代ガードを通っていない古い列挙で `rebuildRows` が走る)。
-    private var lastListing = DirectoryListing.empty
+    /// **書いてよいのは `applyRows` だけ**なので `private(set)`。読み取りは、この窓の
+    /// 列挙結果を新しい窓の出発点として渡す `SidebarListingSeed` の組み立てが使う。
+    private(set) var lastListing = DirectoryListing.empty
 
     /// 展開中フォルダの pathKey。テストが展開状態を検証するための読み取り専用の窓。
     var expandedKeys: Set<String> {
