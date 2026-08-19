@@ -1,5 +1,6 @@
 import AppKit
 import BefoldCLI
+import BefoldKit
 
 /// `/usr/local/bin/befold`(CLI シム)の状態チェックと設置、およびその結果案内。
 /// 状態を持たないため名前空間として置く。
@@ -40,9 +41,9 @@ enum CLIShimCoordinator {
         let installPath = CLIInstaller.defaultInstallPath
         let bundlePath = Bundle.main.bundlePath
         Task {
-            let result = await Task.detached {
+            let result = await withBlockingWork(qos: .userInitiated) {
                 CLIInstaller.install(bundlePath: bundlePath, installPath: installPath)
-            }.value
+            }
             presentInstallResult(result)
         }
     }

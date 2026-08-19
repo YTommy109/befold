@@ -20,12 +20,12 @@ final class ViewerScriptDispatcher {
     ) async -> String {
         let embedImages = renderer.rendererFeatures.embedImages
         let embedder = renderer.imageEmbedder
-        return await Task.detached(priority: .userInitiated) {
+        return await withBlockingWork(qos: .userInitiated) {
             RenderableContent.make(
                 content, fileType: fileType, filePath: filePath,
                 isSourceMode: isSourceMode, embedImages: embedImages, imageEmbedder: embedder
             )
-        }.value
+        }
     }
 
     /// pendingAppend を消費して次チャンクを増分追記する(全文 render しない)。

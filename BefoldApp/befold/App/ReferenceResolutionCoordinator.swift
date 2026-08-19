@@ -77,9 +77,9 @@ final class ReferenceResolutionCoordinator {
         guard let baseURL = baseURL() else { return }
         let resolver = resolver
         pendingOpenReferenceTask = Task {
-            let reference = await Task.detached(priority: .userInitiated) {
+            let reference = await withBlockingWork(qos: .userInitiated) {
                 resolver.resolve(href: href, baseURL: baseURL)
-            }.value
+            }
             switch reference {
             case let .external(url):
                 actions.openExternal(url)
@@ -102,9 +102,9 @@ final class ReferenceResolutionCoordinator {
         guard let baseURL = baseURL() else { return }
         let resolver = resolver
         Task {
-            let reference = await Task.detached(priority: .userInitiated) {
+            let reference = await withBlockingWork(qos: .userInitiated) {
                 resolver.resolve(href: href, baseURL: baseURL)
-            }.value
+            }
             switch reference {
             case let .external(url):
                 actions.presentContextMenu(url, true)
@@ -129,12 +129,12 @@ final class ReferenceResolutionCoordinator {
     func resolveReferences(_ paths: [String]) async -> [String: String] {
         guard let baseURL = baseURL() else { return [:] }
         let resolver = resolver
-        return await Task.detached(priority: .userInitiated) {
+        return await withBlockingWork(qos: .userInitiated) {
             // バッチ一括で解決し、git 追跡ファイルの索引構築を 1 度に抑える。
             // 解決できたものだけを残す(未解決は JS 側へ渡さない)。
             resolver.resolveAll(hrefs: paths, baseURL: baseURL).compactMapValues { reference in
                 if case let .resolved(url) = reference { url.path } else { nil }
             }
-        }.value
+        }
     }
 }

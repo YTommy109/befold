@@ -8,7 +8,7 @@ import Foundation
 ///
 ///   - **存在確認(stat)はメニュー表示では行わない。** アンマウント済み/応答しない
 ///     ネットワークマウントでは stat が待たされるため、`RecentRepositoriesStore.pruneMissingAsync`
-///     と同じく MainActor 外(`Task.detached`)へ逃がし、ユーザーがこの経路を選んだときだけ走らせる。
+///     と同じく MainActor 外(`withBlockingWork`)へ逃がし、ユーザーがこの経路を選んだときだけ走らせる。
 ///     `BookmarksMenuController` に `FileReading` を渡していないのは、メニュー構築時に
 ///     stat する実装を書けなくするため(規約でなく構造で縛る)。
 ///   - **ユーザーの承認なしには消さない。** 消すのは確認ダイアログで提示した URL だけで、
@@ -45,9 +45,9 @@ final class MissingBookmarksPruner {
 
         let urls = bookmarkStore.bookmarkedURLs()
         let fileReader = fileReader
-        let missing = await Task.detached(priority: .utility) {
+        let missing = await withBlockingWork {
             Self.missingURLs(among: urls, fileReader: fileReader)
-        }.value
+        }
 
         guard !missing.isEmpty else {
             reportNoneMissing()

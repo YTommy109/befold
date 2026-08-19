@@ -55,7 +55,7 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
 
         guard let currentFileURL else {
             // 開いているファイルが無ければ探す起点も無い。履歴とブックマークだけを出す。
-            return await Task.detached(priority: .userInitiated) {
+            return await withBlockingWork(qos: .userInitiated) {
                 let home = FileManager.default.homeDirectoryForCurrentUser
                 return QuickOpenCandidates.collect(
                     root: home,
@@ -66,9 +66,9 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
                     bookmarkedURLs: bookmarkedURLs,
                     includingHiddenFiles: includingHiddenFiles
                 )
-            }.value
+            }
         }
-        return await Task.detached(priority: .userInitiated) {
+        return await withBlockingWork(qos: .userInitiated) {
             // ルート解決は索引に一本化する。ここで別の GitRepository を new して rev-parse を
             // 重ねず、collect が引く追跡ファイル索引と同じ 1 回の解決結果を共有する。
             let root = gitIndex.repositoryRoot(forFileAt: currentFileURL)
@@ -82,7 +82,7 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
                 bookmarkedURLs: bookmarkedURLs,
                 includingHiddenFiles: includingHiddenFiles
             )
-        }.value
+        }
     }
 
     func directoryEntries(in directory: URL) async -> [URL]? {
@@ -92,25 +92,25 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
         // 決めるため、ここでは隠しファイルも含めた全件を名前昇順で返す。
         // キーストロークごとに走るため、列挙自体は MainActor の外で行う。
         // 列挙失敗(nil)はそのまま通す。ここで空へ畳むと「一致なし」と区別できなくなる。
-        await Task.detached(priority: .userInitiated) {
+        await withBlockingWork(qos: .userInitiated) {
             DirectoryLister.allEntriesSorted(in: directory)
-        }.value
+        }
     }
 
     /// Enter/Tab はキー入力のたびに走るため、stat を MainActor の外へ逃がす。
     func isDirectory(_ url: URL) async -> Bool {
         let fileReader = fileReader
-        return await Task.detached(priority: .userInitiated) {
+        return await withBlockingWork(qos: .userInitiated) {
             fileReader.isDirectory(at: url)
-        }.value
+        }
     }
 
     /// Enter で確定したときのみ走る(ディレクトリ列挙を伴いうる)ため、
     /// stat の繰り返しを MainActor の外へ逃がす。
     func resolveFileToOpen(at url: URL) async -> URL? {
         let fileReader = fileReader
-        return await Task.detached(priority: .userInitiated) {
+        return await withBlockingWork(qos: .userInitiated) {
             SupportedFileResolver.resolveFileToOpen(at: url, fileReader: fileReader)
-        }.value
+        }
     }
 }

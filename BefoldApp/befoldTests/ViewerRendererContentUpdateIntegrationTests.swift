@@ -69,7 +69,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
         #expect(renderer.rendered.contentRevision == nil)
 
         await Self.waitForWebViewLoad { renderer.readiness.isReady }
-        // applyRender の画像埋め込み(Task.detached)は isReady 復帰後に別 Task で完了するため、
+        // applyRender の画像埋め込み(withBlockingWork)は isReady 復帰後に別 Task で完了するため、
         // ミラー反映を待つ。
         await Self.waitForWebViewLoad { renderer.rendered.contentRevision != nil }
 
@@ -316,7 +316,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
     }
 }
 
-/// readData を意図的に足止めし、embedLocalImages(Task.detached 内)の完了タイミングを
+/// readData を意図的に足止めし、embedLocalImages(withBlockingWork 内)の完了タイミングを
 /// テストから制御するためのフェイク。他のメソッドは base にそのまま委譲する。
 private struct SlowFileReader: FileReading {
     let base: InMemoryFileReader

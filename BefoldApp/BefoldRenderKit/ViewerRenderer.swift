@@ -91,7 +91,7 @@ public final class ViewerRenderer {
     /// applyRender/applyAppend の画像埋め込み(embeddedContent)が使うインスタンス。
     /// render 経路とロード時ウォームアップ(ViewerLoadPipeline)が同じキャッシュを
     /// 引くため、本番は既定の .shared のまま使うこと。テストでは低速な FileReading を
-    /// 注入したフェイクに差し替え、Task.detached の完了タイミングを制御する。
+    /// 注入したフェイクに差し替え、withBlockingWork の完了タイミングを制御する。
     var imageEmbedder: MarkdownImageEmbedder = .shared
     /// 初期倍率の投影(望む倍率と適用済みの記録)。詳細は PageZoomProjector.swift を参照。
     private(set) lazy var pageZoom = PageZoomProjector(renderer: self)

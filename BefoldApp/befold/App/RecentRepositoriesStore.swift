@@ -107,14 +107,14 @@ final class RecentRepositoriesStore {
     /// 除外対象が無い場合も書き込みをスキップする(呼び出しごとの無駄な永続化を避ける)。
     ///
     /// エントリ数ぶんの isDirectory(stat)はアンマウント済み/応答しないネットワークマウントでは
-    /// 待たされうるため、MainActor 外(Task.detached)で行う。呼び出しは起動時1回で足り、
+    /// 待たされうるため、MainActor 外(withBlockingWork)で行う。呼び出しは起動時1回で足り、
     /// メニュー表示(menuNeedsUpdate)からは呼ばない(保存済みリストをそのまま出す)。
     func pruneMissingAsync() async {
         guard case let .decoded(entries) = loadEntries() else { return }
         let fileReader = fileReader
-        let filtered = await Task.detached(priority: .utility) {
+        let filtered = await withBlockingWork {
             entries.filter { fileReader.isDirectory(at: URL(fileURLWithPath: $0.rootPath)) }
-        }.value
+        }
         guard filtered.count != entries.count else { return }
         save(filtered)
     }
