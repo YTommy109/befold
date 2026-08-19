@@ -44,6 +44,36 @@ enum ViewerTabGrouping {
         window.tabGroup?.selectedWindow = window
     }
 
+    /// window を Window メニューから隠すべきか。タブグループの選択タブ以外を隠す判定で、
+    /// `selectedTabOfGroup` が nil(タブ化されていない)なら隠さない。
+    /// NSWindow に依存しない純粋関数にしてあるのは、判定だけをテストから固定するため。
+    static func isExcludedFromWindowsMenu<Window: AnyObject>(
+        _ window: Window, selectedTabOfGroup: Window?
+    ) -> Bool {
+        guard let selectedTabOfGroup else { return false }
+        return selectedTabOfGroup !== window
+    }
+
+    /// Window メニューの一覧を「各ウィンドウの選択中タブだけ」に揃える。
+    ///
+    /// `NSApp.windowsMenu` へ載る一覧は AppKit が NSWindow 単位で自動生成するため、
+    /// タブは 1 枚ずつ別項目として並ぶ。このメニューの用途はウィンドウの切り替えなので、
+    /// 背面タブまで並ぶと目的の窓を選びにくい(TASK-531)。表示中でないタブを
+    /// `isExcludedFromWindowsMenu` で外し、選択タブだけを残す。
+    ///
+    /// 対象はビューアウィンドウに限る(呼び出し側が渡す)。パネル類まで一括で
+    /// false に戻すと、本来メニューへ載らないウィンドウを載せてしまうため。
+    static func syncWindowsMenuMembership(among windows: [NSWindow]) {
+        for window in windows {
+            let excluded = isExcludedFromWindowsMenu(
+                window, selectedTabOfGroup: window.tabGroup?.selectedWindow
+            )
+            if window.isExcludedFromWindowsMenu != excluded {
+                window.isExcludedFromWindowsMenu = excluded
+            }
+        }
+    }
+
     /// window が属するタブグループのウィンドウ群。タブ化されていなければ自身のみ。
     /// タブ構成のスナップショットを取る側(セッション保存・最近使ったリポジトリ)が
     /// 同じ解釈を共有するための単一の入口。

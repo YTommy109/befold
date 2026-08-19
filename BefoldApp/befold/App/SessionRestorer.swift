@@ -226,5 +226,8 @@ final class SessionRestorer {
             if path == group.selectedPath { selectedWindow = window }
         }
         selectedWindow?.tabGroup?.selectedWindow = selectedWindow
+        // 復元は選択タブをプログラムから決めるため、キー化を待たずに一覧を揃える
+        // (背面のグループはキーにならないので didBecomeKey 経由では届かない)。
+        windowManager.syncWindowsMenuMembership()
     }
 }
