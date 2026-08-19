@@ -151,23 +151,73 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
             if (r as? Int) != 1 {
                 self.fail("data: URI 画像が markdown 内で描画されなかった")
             }
+            self.checkEmbeddedDataImageInInlineHTMLRenders()
+        }
+    }
+
+    // 3.6. inline HTML の <img> に入れた data: URI 画像が描画されるか(TASK-524)
+    //      markdown 記法の data URI は markdown-it の validateLink が通すが、生 HTML は
+    //      そこを通らず DOMPurify と CSP だけで決まる。MarkdownImageEmbedder が
+    //      <img src> を差し替えても、この経路が塞がっていれば画像は出ない。
+    //      幅指定・中央寄せ(GitHub 向け README が使う形)を付けた状態で確認する。
+    func checkEmbeddedDataImageInInlineHTMLRenders() {
+        let png1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+            + "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        let doc = "<p align=\"center\"><img src=\"data:image/png;base64,\(png1x1)\" "
+            + "alt=\"dot\" width=\"380\"></p>"
+        asyncJS(
+            "await render(\(jsString(doc)), 'md'); "
+                + "var img = document.querySelector('#diagram-wrap img'); "
+                + "if (!img) return 'noimg'; "
+                + "await img.decode(); return img.naturalWidth;",
+            "data-image-inline-html"
+        ) { r in
+            print("inline html data image naturalWidth: \(String(describing: r))")
+            if (r as? Int) != 1 {
+                self.fail("data: URI 画像が inline HTML の <img> で描画されなかった")
+            }
             self.checkExfilBlocked()
         }
     }
 
-    // 4. 外部画像による流出が CSP(img-src) でブロックされるか
+    // 4. 外部画像による流出がブロックされるか(TASK-526)
+    //
+    //    判定は naturalWidth で行う。ここは「画像バイトが取得されたか」を直接測る唯一の
+    //    指標で、守りたい対象と一致する。以前は <img onload=/onerror=> の発火を見ていたが、
+    //    インラインイベントハンドラは script-src 'self'('unsafe-inline' 無し)で実行自体が
+    //    ブロックされるため、**画像が読み込まれても結果は PENDING のまま**だった。
+    //    LOADED のときだけ落とす判定だったので、実際に取得できていても通っていた。
+    //
+    //    実在するホストを使う。到達できない URL では、遮断が効いていなくても
+    //    naturalWidth = 0 になり、テストが常に緑になってしまう(測るものと守るものの不一致)。
     func checkExfilBlocked() {
-        let payload = "<img src=\"https://example.com/exfil.png\" "
-            + "onload=\"window.__exfil='LOADED'\" onerror=\"window.__exfil='BLOCKED'\">"
-        let doc = "before\n\n\(payload)\n\nafter"
+        let remoteURL = "https://img.shields.io/badge/license-MIT-blue"
+        let doc = "before\n\n<img src=\"\(remoteURL)\" alt=\"badge\">\n\nafter"
         asyncJS(
-            "window.__exfil='PENDING'; await render(\(jsString(doc)), 'md'); "
-                + "await new Promise(r => setTimeout(r, 800)); return window.__exfil;",
+            "await render(\(jsString(doc)), 'md'); "
+                + "await new Promise(r => setTimeout(r, 2500)); "
+                + "var img = document.querySelector('#diagram-wrap img'); "
+                + "return { hasImg: !!img, "
+                + "naturalWidth: img ? img.naturalWidth : -1, "
+                + "hasPlaceholder: "
+                + "!!document.querySelector('#diagram-wrap .mmd-blocked-image') };",
             "exfil"
         ) { r in
             print("exfil img result: \(String(describing: r))")
-            if (r as? String) == "LOADED" {
-                self.fail("外部画像がロードされた（img-src が効いていない）")
+            guard let result = r as? [String: Any] else {
+                self.fail("外部画像の検証結果を取得できなかった")
+            }
+            let naturalWidth = (result["naturalWidth"] as? Int) ?? -1
+            if naturalWidth > 0 {
+                self.fail("外部画像が実際に取得された(naturalWidth=\(naturalWidth))")
+            }
+            // 一次防御(viewer 側の replaceRemoteImages)が働いていれば <img> は残らず、
+            // 代替表示へ置き換わっている。二次防御(RemoteLoadBlocker)だけが効いた場合は
+            // <img> が naturalWidth 0 で残る。どちらでも取得は起きていないが、
+            // 一次防御が外れたことに気づけるようここで区別する。
+            let hasPlaceholder = (result["hasPlaceholder"] as? Bool) ?? false
+            if !hasPlaceholder {
+                self.fail("リモート画像が代替表示へ置き換わっていない")
             }
             self.checkDataFrameBlocked()
         }

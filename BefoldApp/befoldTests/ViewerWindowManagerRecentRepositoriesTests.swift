@@ -11,7 +11,16 @@ import Testing
 ///
 /// 記録は detached タスクで解決してから MainActor へ戻るため、openViewer 直後には
 /// まだ反映されていない。各テストは反映(repositoryRoot / entries)を待ってから検証する。
-@Suite
+///
+/// 反映待ちには**壁時計予算を持たない**待機（`waitForDeliveryOnMainActor` /
+/// `waitForMainActorDelivery`）を使う。記録は `RecentRepositoryRecorder.recordIfNeeded` が
+/// MainActor 上で起こす `Task` から始まるため、待っているのは「解決にかかる時間」ではなく
+/// **メインアクターの順番待ち**である。全体実行では多数の `@MainActor` スイートが
+/// メインアクターを直列に占有するので、予算付きの待機は操作の成否と無関係に切れる
+/// (TASK-527 の実測: 4 回中 2 回、8 件すべてが `waitUntil が 10.0 seconds 以内に
+/// 条件を満たさなかった` で落ちた。単体実行では 1.4 秒で通る)。
+/// 戻らない回帰の打ち切りはスイートの `.timeLimit` が担う。
+@Suite(testTimeLimit())
 @MainActor
 struct ViewerWindowManagerRecentRepositoriesTests {
     /// 常に固定の root を返すフェイク。実 git を起動しない。
@@ -126,7 +135,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         let controller = try #require(
             fixture.manager.controllers[file.normalizedPathKey]?.first, sourceLocation: sourceLocation
         )
-        await waitUntilOnMainActor(sourceLocation: sourceLocation) { controller.repositoryRoot != nil }
+        await waitForDeliveryOnMainActor { controller.repositoryRoot != nil }
         return controller
     }
 
@@ -174,7 +183,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
 
         // root が nil と分かった時点で記録経路は打ち切られる。解決が済んだことを
         // 待ってから判定することで、「まだ走っていないだけ」の空を成功と誤認しない。
-        await waitUntil { index.rootLookupCount.get() > 0 }
+        await waitForMainActorDelivery { index.rootLookupCount.get() > 0 }
         #expect(fixture.store.entries().isEmpty)
         #expect(fixture.manager.controllers[file.normalizedPathKey]?.first?.repositoryRoot == nil)
         fixture.manager.allControllers.forEach { $0.close() }
@@ -269,10 +278,14 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         let fileB = URL(fileURLWithPath: "/repoB/b.md")
         let rootA = URL(fileURLWithPath: "/repoA")
         let rootB = URL(fileURLWithPath: "/repoB")
+        // gate を通過した解決が着地し切ったことを見るための、堰き止めない対照。
+        let fileC = URL(fileURLWithPath: "/repoB/c.md")
         let index = GatedGitFileIndex(
             roots: ["/repoA": rootA, "/repoB": rootB], gatedPath: fileA.normalizedPathKey
         )
-        let fixture = makeFixture(files: [fileA, fileB], root: nil, defaults: defaults, gitFileIndex: index)
+        let fixture = makeFixture(
+            files: [fileA, fileB, fileC], root: nil, defaults: defaults, gitFileIndex: index
+        )
 
         fixture.manager.openViewer(for: fileA)
         let controller = try #require(fixture.manager.controllers[fileA.normalizedPathKey]?.first)
@@ -281,12 +294,15 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         try #require(controller.fileURL.normalizedPathKey == fileB.normalizedPathKey)
         index.openGate()
 
-        await waitUntil { index.didResumeGatedLookup.get() }
-        // 着地(MainActor への戻り)が済んでから判定する。
-        try? await Task.sleep(for: .milliseconds(100))
+        await waitForMainActorDelivery { index.didResumeGatedLookup.get() }
+        // 着地(MainActor への戻り)が済んでから判定する。固定 sleep では全体実行の
+        // 混雑時に「まだ着地していないだけ」の空を成功と誤認するため、gate 通過後に
+        // 別ウィンドウの記録を最後まで通し、それが着地したことをバリアにする。
+        let controllerC = try await openAndAwaitRecording(fixture, file: fileC)
 
+        #expect(controllerC.repositoryRoot == rootB)
         #expect(controller.repositoryRoot == nil)
-        #expect(fixture.store.entries().isEmpty)
+        #expect(fixture.store.entries().map(\.rootPath) == [rootB.normalizedPathKey])
         fixture.manager.allControllers.forEach { $0.close() }
     }
 }

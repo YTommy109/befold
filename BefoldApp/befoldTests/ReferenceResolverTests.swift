@@ -48,6 +48,12 @@ struct ReferenceResolverTests {
         (href: "./file%23name.md#usage", expectedPath: "/Users/test/docs/file#name.md"),
         // スラッシュなし・行番号付きのファイル名をローカルパスとして解決する
         (href: "notes.md:12", expectedPath: "/Users/test/docs/notes.md"),
+        // file URL はローカルパスとして解決する(inline HTML の img src で使われる)
+        (href: "file:///tmp/photo.png", expectedPath: "/tmp/photo.png"),
+        // file URL 内のパーセントエンコードもデコードして解決する
+        (href: "file:///tmp/%E5%9B%B3.png", expectedPath: "/tmp/図.png"),
+        // 大文字スキームの file URL も同様に扱う
+        (href: "FILE:///tmp/photo.png", expectedPath: "/tmp/photo.png"),
     ])
     func resolvesLocalFilePath(href: String, expectedPath: String) {
         let result = ReferenceResolver.resolve(href: href, baseURL: base)

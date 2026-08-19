@@ -14281,6 +14281,7 @@
     renderInlineDiffHtml: () => renderInlineDiffHtml,
     renderShape: () => renderShape,
     renderSideBySideDiffHtml: () => renderSideBySideDiffHtml,
+    replaceRemoteImages: () => replaceRemoteImages,
     resolveBarCloseKey: () => resolveBarCloseKey,
     resolveJumpNavigationKey: () => resolveJumpNavigationKey,
     resolveScrollKey: () => resolveScrollKey,
@@ -17058,7 +17059,7 @@
     const HTMLTemplateElement = window2.HTMLTemplateElement, Node = window2.Node, Element2 = window2.Element, NodeFilter = window2.NodeFilter, _window$NamedNodeMap = window2.NamedNodeMap;
     _window$NamedNodeMap === void 0 ? window2.NamedNodeMap || window2.MozNamedAttrMap : _window$NamedNodeMap;
     window2.HTMLFormElement;
-    const DOMParser = window2.DOMParser, trustedTypes = window2.trustedTypes;
+    const DOMParser2 = window2.DOMParser, trustedTypes = window2.trustedTypes;
     const ElementPrototype = Element2.prototype;
     const cloneNode = lookupGetter(ElementPrototype, "cloneNode");
     const remove = lookupGetter(ElementPrototype, "remove");
@@ -17625,7 +17626,7 @@
       const dirtyPayload = trustedTypesPolicy ? _createTrustedHTML(dirty) : dirty;
       if (NAMESPACE === HTML_NAMESPACE) {
         try {
-          doc = new DOMParser().parseFromString(dirtyPayload, PARSER_MEDIA_TYPE);
+          doc = new DOMParser2().parseFromString(dirtyPayload, PARSER_MEDIA_TYPE);
         } catch (_) {
         }
       }
@@ -23737,7 +23738,32 @@
     return !/^(vbscript|javascript|file|data):/u.test(str);
   }
   function sanitizeRenderedHtml(purify2, html2) {
-    return purify2.sanitize(html2);
+    return replaceRemoteImages(purify2.sanitize(html2));
+  }
+  function replaceRemoteImages(html2) {
+    if (!/<img[^>]+src\s*=\s*["']?\s*https?:/iu.test(html2)) {
+      return html2;
+    }
+    var doc = new DOMParser().parseFromString(html2, "text/html");
+    var images = doc.querySelectorAll("img");
+    for (var i = 0; i < images.length; i += 1) {
+      var img = images[i];
+      if (!/^\s*https?:/iu.test(img.getAttribute("src") || "")) {
+        continue;
+      }
+      img.replaceWith(blockedImageElement(doc, img));
+    }
+    return doc.body.innerHTML;
+  }
+  function blockedImageElement(doc, img) {
+    var strings = window._mmdImageStrings || {};
+    var label = strings.blockedRemote || "External image blocked";
+    var alt = img.getAttribute("alt") || "";
+    var span = doc.createElement("span");
+    span.className = "mmd-blocked-image";
+    span.textContent = alt ? label + ": " + alt : label;
+    span.setAttribute("title", img.getAttribute("src") || "");
+    return span;
   }
   function headingTextOf(inlineToken) {
     if (!inlineToken) {

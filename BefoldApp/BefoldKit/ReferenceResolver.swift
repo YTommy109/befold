@@ -52,6 +52,11 @@ public enum ReferenceResolver {
             switch scheme.lowercased() {
             case "http", "https":
                 return .external(url)
+            case "file":
+                // file URL はローカルパスと同じものを別表記で書いたもの。絶対パスと
+                // 揃えて扱う(inline HTML の <img src="file:///..."> がここを通る)。
+                // url.path はパーセントデコード済みなので、以降のデコード処理は要らない。
+                return url.path.isEmpty ? .unsupported : .local(url.path)
             default:
                 // URL(string: "notes.md:12") は scheme="notes.md" と解釈される。
                 // ドットを含む scheme はファイル名の誤認とみなしローカルパスへ回す。

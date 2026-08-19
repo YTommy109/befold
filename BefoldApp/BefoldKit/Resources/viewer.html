@@ -6,7 +6,13 @@
     信頼できない .md / .mmd を開くビューアのため、CSP で外部通信・リモート読み込みを遮断する。
     connect-src 'none' と img-src を自分自身+data: に限定することで、
     レンダリング経路（markdown-it の html:true 等）に XSS が混入しても
-    fetch / beacon / 外部画像による情報流出を防ぐ。
+    fetch / beacon による情報流出を防ぐ。
+
+    **img-src はこの経路では効かない(TASK-526)。** file:// で読み込んだ文書では
+    WebKit がリモート画像の取得を検査しない(実測: リモートバッジが naturalWidth 78 で
+    デコードでき、securitypolicyviolation は 1 件も発火しない)。宣言は多層防御として
+    残すが、画像の遮断を担うのは viewer 側の replaceRemoteImages()(挿入前に代替表示へ
+    置き換える)と、ネイティブ側の RemoteLoadBlocker(WKContentRuleList)の 2 層。
     アプリの JS は全て外部ファイル(viewer.js / viewer-main.js 等、同梱の同一オリジン)
     から読み込み、インライン <script> は使わない(onclick 等のインラインイベント
     ハンドラも使わず addEventListener で配線する)ため、script-src に 'unsafe-inline' を

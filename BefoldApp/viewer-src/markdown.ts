@@ -37,7 +37,52 @@ function isSafeLinkURL(url: string): boolean {
 // 自前の正規表現(on* 属性除去等)は個別のバイパス手法ごとにパッチを重ねる対症療法になるため、
 // 実績のある DOMPurify にサニタイズそのものを委譲する。
 function sanitizeRenderedHtml(purify: HtmlSanitizer, html: string): string {
-  return purify.sanitize(html);
+  return replaceRemoteImages(purify.sanitize(html));
+}
+
+// リモート画像(http/https)を代替表示へ置き換える。TASK-526。
+//
+// viewer.html の meta CSP は img-src 'self' data: を宣言しているが、file:// で読み込んだ
+// 文書では WebKit がこの取得を検査しない(実測: shields.io のバッジが naturalWidth 78 で
+// デコードでき、securitypolicyviolation は 1 件も発火しない)。放置すると文書を開くだけで
+// 外部ホストへ IP・User-Agent・閲覧時刻が渡る。
+//
+// 置換は DOMParser が作る**切り離された文書**の上で行う。この文書は閲覧コンテキストを
+// 持たないため、img の src を読んだだけでは取得が始まらない。innerHTML へ入れてから
+// 直すのでは、挿入した時点で既にリクエストが出てしまう。
+//
+// ネイティブ側(RemoteLoadBlocker)の WKContentRuleList が二層目として同じ取得を
+// 遮断する。こちらは JS を通らない直接 HTML モードとサニタイザの漏れを塞ぐ。
+function replaceRemoteImages(html: string): string {
+  // 早期 return。リモート URL を含まない大多数の文書で DOM の往復コストを払わない
+  // (判定は当たりを付けるだけで、当たった場合の正確さは下の DOM 走査が担保する)。
+  if (!/<img[^>]+src\s*=\s*["']?\s*https?:/iu.test(html)) {
+    return html;
+  }
+  var doc = new DOMParser().parseFromString(html, 'text/html');
+  var images = doc.querySelectorAll('img');
+  for (var i = 0; i < images.length; i += 1) {
+    var img = images[i]!;
+    if (!/^\s*https?:/iu.test(img.getAttribute('src') || '')) {
+      continue;
+    }
+    img.replaceWith(blockedImageElement(doc, img));
+  }
+  return doc.body.innerHTML;
+}
+
+// ブロックしたリモート画像の代替要素。文言は ViewerBridge.imageStringsScript(bundle:) が
+// 注入する(未注入時は英語のフォールバック)。alt と元 URL は textContent / title に
+// 入れるため、マークアップとしては解釈されない。
+function blockedImageElement(doc: Document, img: Element): Element {
+  var strings: ViewerImageStrings = window._mmdImageStrings || {};
+  var label = strings.blockedRemote || 'External image blocked';
+  var alt = img.getAttribute('alt') || '';
+  var span = doc.createElement('span');
+  span.className = 'mmd-blocked-image';
+  span.textContent = alt ? label + ': ' + alt : label;
+  span.setAttribute('title', img.getAttribute('src') || '');
+  return span;
 }
 
 // 見出しの表示テキストを取り出す。inline トークンの children から text / code_inline の
@@ -167,4 +212,11 @@ function buildMarkdownRenderer(): MarkdownItInstance {
   return instance;
 }
 
-export { isSafeLinkURL, sanitizeRenderedHtml, markdownRenderer, slugifyHeading, uniqueHeadingSlug };
+export {
+  isSafeLinkURL,
+  replaceRemoteImages,
+  sanitizeRenderedHtml,
+  markdownRenderer,
+  slugifyHeading,
+  uniqueHeadingSlug,
+};

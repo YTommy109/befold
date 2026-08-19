@@ -57,10 +57,18 @@ public enum ViewerWebViewFactory {
     /// リソース名(`"viewer"` / `"html"`)の出現箇所をここに一本化する。
     /// 既定 bundle は BefoldRenderKit 自身のリソースバンドルではなく、viewer.html
     /// 本体を同梱する BefoldKit のリソースバンドル(`Bundle.main` 非依存)を指す。
-    public nonisolated static func loadViewerHTML(into webView: WKWebView, bundle: Bundle = .befoldKitResources) {
+    ///
+    /// ロードの前に `RemoteLoadBlocker` を適用する。ここが app / QuickLook / 直接 HTML
+    /// モードすべての唯一の入口なので、遮断の適用点をここに一本化すると「ブロッカ未適用の
+    /// まま文書が描かれる」余地が構造的に無くなる(ルールリストの用意は非同期のため、
+    /// 適用の完了を待ってから読み込む)。用意に失敗しても読み込みは必ず行う。
+    @MainActor
+    public static func loadViewerHTML(into webView: WKWebView, bundle: Bundle = .befoldKitResources) {
         guard let htmlURL = bundle.url(forResource: "viewer", withExtension: "html") else { return }
         let resourceDir = htmlURL.deletingLastPathComponent()
-        webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
+        RemoteLoadBlocker.apply(to: webView) {
+            webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
+        }
     }
 
     /// 構成済みの WKWebView を返す。ナビゲーション delegate の設定と viewer.html の
@@ -156,6 +164,7 @@ public enum ViewerWebViewFactory {
             ViewerBridge.findStringsScript(),
             ViewerBridge.jumpStringsScript(),
             ViewerBridge.bannerStringsScript(),
+            ViewerBridge.imageStringsScript(),
             ViewerBridge.hostFeaturesScript(
                 loadMore: options.features.allowsInteractiveBridging,
                 spaceScroll: options.features.allowsSpaceScroll,

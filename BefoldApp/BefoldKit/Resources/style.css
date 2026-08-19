@@ -804,3 +804,17 @@ pre .befold-link-dead {
     text-decoration: none;
     cursor: default;
 }
+
+/* ブロックしたリモート画像の代替表示(TASK-526)。
+   viewer 側の replaceRemoteImages() が <img> をこの span へ置き換える。
+   「画像があるはずの場所」だと分かるよう枠付きの inline-block にし、
+   何も出ないまま黙って消えるのを避ける。 */
+.mmd-blocked-image {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px dashed var(--fg);
+  border-radius: 4px;
+  font-size: 0.85em;
+  opacity: 0.6;
+  vertical-align: middle;
+}

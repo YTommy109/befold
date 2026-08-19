@@ -329,6 +329,22 @@ describe('sanitizeRenderedHtml', () => {
     expect(sanitizeRenderedHtml(purify, html)).toBe(html);
   });
 
+  // MarkdownImageEmbedder(Swift 側)は inline HTML の <img src> をローカルパスから
+  // data URI へ差し替える(TASK-524)。![]() 記法の data URI は markdown-it の
+  // validateLink が data:image/ を明示許可して通すが、生 HTML はそこを通らず
+  // DOMPurify の判断だけで決まる。ここが落ちると Swift 側が正しく差し替えても
+  // 画像は表示されないため、両方の関門を別々にピン留めする。
+  test('keeps data: URI images in raw HTML (inline <img> embedding depends on this)', () => {
+    const html = '<img src="data:image/png;base64,iVBORw0KGgo=" alt="a" width="380">';
+    expect(sanitizeRenderedHtml(purify, html)).toBe(html);
+  });
+
+  test('keeps data: URI SVG images and the surrounding centering markup', () => {
+    const html =
+      '<p align="center"><img src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" width="900"></p>';
+    expect(sanitizeRenderedHtml(purify, html)).toBe(html);
+  });
+
   test('end-to-end: markdown-it html:true output with the slash-separator bypass payload is neutralized', () => {
     // viewer.html の markdownit 初期化と同じ配線(html:true が生 HTML を通す)
     const md = markdownit({ html: true, linkify: true, typographer: true });

@@ -19,6 +19,11 @@ interface ViewerHostFeatures {
   referenceActivation?: boolean;
 }
 
+/// ViewerBridge.imageStringsScript(bundle:) が注入する画像まわりの文言。
+interface ViewerImageStrings {
+  blockedRemote?: string;
+}
+
 /// ViewerBridge.bannerStringsScript(bundle:) が注入する段階読み込みバナーの文言。
 interface ViewerBannerStrings {
   showing?: string;
@@ -77,6 +82,8 @@ interface Window {
   _mmdHostFeatures?: ViewerHostFeatures;
   // ViewerBridge.bannerStringsScript(bundle:)
   _mmdBannerStrings?: ViewerBannerStrings;
+  // ViewerBridge.imageStringsScript(bundle:)
+  _mmdImageStrings?: ViewerImageStrings;
   // ViewerBridge.initialFindOptionsScript(_:)
   _mmdInitialFindOptions?: ViewerFindOptions;
   // ViewerBridge.findStringsScript(bundle:)
