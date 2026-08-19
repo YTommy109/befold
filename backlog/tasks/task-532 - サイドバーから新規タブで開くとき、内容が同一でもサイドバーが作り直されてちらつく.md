@@ -1,9 +1,10 @@
 ---
 id: TASK-532
 title: サイドバーから新規タブで開くとき、内容が同一でもサイドバーが作り直されてちらつく
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-08-19 14:49'
+updated_date: '2026-08-19 15:29'
 labels: []
 dependencies: []
 priority: medium
@@ -55,3 +56,49 @@ Cmd+クリック 1 回につき、同一ディレクトリのまま全件再列�
 - [ ] #6 「同じ内容なら作り直さない」ことを固定する回帰テストを追加し、修正を戻すと落ちることを実測で確かめる
 - [ ] #7 着手前に /review-design を 1 回回し、結果を Implementation Plan に反映する（既存の状態・経路を増やさない方針の妥当性を確認するため）
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## /review-design の結果（AC#7）と、実測による前提の訂正
+
+起票時の原因分析 3 のうち「SwiftUI の List が行を作り直す」は **誤り**だった。
+実測（使い捨ての probe テストを書いて withObservationTracking で計測、計測後に削除）:
+
+| 操作 | 観測の発火回数 |
+|---|---|
+| `entries` へ同値（同一インスタンス）を再代入 | 0 |
+| `entries` へ等値な別インスタンスを再代入 | 0 |
+| `sortOrder` / `filterText` へ同値を代入 | 0 |
+| `gitStatus` / `baseDirectory` へ同値を代入 | 0 |
+| `listSnapshot`（サイドバーの行を作る導出）を読む観測 | 0 |
+| `previewTarget` を読む観測 | **1** |
+
+Swift の Observation は Equatable な値の同値代入では観測を汚さない。したがって
+「同じ結果でも代入すればサイドバーの行が作り直される」は起きない。
+実際に汚れるのは `FileListModel.entryIndex`（Equatable ではない）の作り直しを経由する
+側だけで、それを読むのは `previewTarget` = ViewerContentView とツールバー同期。
+
+**帰結: 原因 3 は、報告されたサイドバーのちらつきを説明しない。**
+残る候補は原因 1（新規タブが空の一覧で作られ「空 → 列挙 → 描画」の 2 段階を必ず通る /
+ViewerWindowAssembler.swift:35-44 + ViewerWindowController.swift:323）。
+
+## 採った方針
+
+原因 3 の除去（列挙結果が前回と完全に同一なら反映しない）だけを入れた。判定は
+`SidebarTreePresenter.applyRows` に置く——`lastListing` の更新と同じ同期区間に収める
+必要があるため（モデル側へ置くと材料だけが進む窓ができる / SidebarTreePresenter.swift:63-64
+の不変条件）。
+
+レビューで挙がった兄弟箇所（`gitStatus` / `baseDirectory` の同値再代入）へのガードは
+**入れない**。上の実測どおり Swift 側が既に抑止しており、書いても冗長だから。
+その前提が変わったら気づけるよう、回帰テストとしてだけ固定した。
+
+## 残っていること
+
+- AC#1 / AC#2 の実機目視は未実施。このセッション（バックグラウンドジョブ）は
+  TCC が下りず System Events がタイムアウトするため GUI 操作ができない。
+- 原因 1 の除去（新規タブが同じディレクトリなら元タブの一覧を引き継ぐ）は未着手。
+  ツリー展開の材料は元タブの SidebarTreePresenter が持つため、行だけ引き継ぐと
+  直後の refreshFileList で展開が畳まれて別のちらつきになる。着手には方針判断が要る。
+<!-- SECTION:PLAN:END -->
