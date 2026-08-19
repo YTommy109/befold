@@ -69,8 +69,17 @@ const INSERT_SQL =
  *
  * 計測は best-effort。`ctx.waitUntil` でレスポンスと切り離し、
  * 検証エラーや D1 障害が起きても呼び出し側のレスポンスには影響させない。
+ *
+ * **HEAD は記録しない。** Hono は HEAD を GET のハンドラへ流すため（実測: 全 3
+ * 経路で `download` が 1 件記録された）、本文を 1 バイトも受け取らない要求が
+ * ダウンロードやページアクセスとして数えられていた。除外を経路側に置くと、
+ * ダウンロード経路を足すたびに同じ穴が空くので、記録の絞り込み点であるここで
+ * 弾く。kind を問わず落とすのは、閲覧も配信も「本文を受け取ったこと」を
+ * 数えているためで、HEAD にはそれが無い。
  */
 export function recordEvent(c: Context<AppEnv>, attributes: EventAttributes): void {
+  if (c.req.method === 'HEAD') return
+
   c.executionCtx.waitUntil(insertEvent(c, attributes))
 }
 

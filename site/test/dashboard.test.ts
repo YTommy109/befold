@@ -1,12 +1,26 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
+import type { KindCounts } from '../src/analytics'
 import {
   DASHBOARD_PAGES,
+  DOWNLOAD_METRICS,
+  downloadTotal,
   EVENTS_PAGE_LIMIT,
   KIND_LABELS,
   summarizeOverview,
 } from '../src/analytics'
+
+/** 全指標 0 の件数。合計の算出だけを見たいテストが土台にする。 */
+const EMPTY_COUNTS: KindCounts = {
+  visit: 0,
+  download: 0,
+  update_download: 0,
+  archive_download: 0,
+  update_check: 0,
+  github_fallback: 0,
+  legacy_redirect: 0,
+}
 
 /** 面ごとの URL。`DASHBOARD_PAGES` の path と対になる。 */
 const PAGE = {
@@ -567,18 +581,19 @@ describe('集計の表示', () => {
 
     const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
+    // 並びは KIND_LABELS の順（ページアクセス → アップデート確認 → ダウンロード系）。
     const visitOS = body.indexOf('ページアクセス: OS 別')
-    const downloadOS = body.indexOf('ダウンロード: OS 別')
     const updateOS = body.indexOf('アップデート確認: OS 別')
+    const downloadOS = body.indexOf('ダウンロード（LP）: OS 別')
     expect(visitOS).toBeGreaterThan(-1)
-    expect(downloadOS).toBeGreaterThan(visitOS)
-    expect(updateOS).toBeGreaterThan(downloadOS)
+    expect(updateOS).toBeGreaterThan(visitOS)
+    expect(downloadOS).toBeGreaterThan(updateOS)
     // 各指標の表には、その指標のイベントの OS だけが現れる
-    expect(body.slice(visitOS, downloadOS)).toContain('macOS 14.5')
-    expect(body.slice(visitOS, downloadOS)).not.toContain('macOS 15.0')
-    expect(body.slice(downloadOS, updateOS)).toContain('macOS 15.0')
-    expect(body.slice(downloadOS, updateOS)).not.toContain('macOS 13.6')
-    expect(body.slice(updateOS)).toContain('macOS 13.6')
+    expect(body.slice(visitOS, updateOS)).toContain('macOS 14.5')
+    expect(body.slice(visitOS, updateOS)).not.toContain('macOS 15.0')
+    expect(body.slice(updateOS, downloadOS)).toContain('macOS 13.6')
+    expect(body.slice(updateOS, downloadOS)).not.toContain('macOS 15.0')
+    expect(body.slice(downloadOS)).toContain('macOS 15.0')
   })
 
   it('接続元組織別が 3 指標それぞれに分かれて集計される', async () => {
@@ -589,15 +604,15 @@ describe('集計の表示', () => {
     const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     const visitOrg = body.indexOf('ページアクセス: 接続元組織別')
-    const downloadOrg = body.indexOf('ダウンロード: 接続元組織別')
     const updateOrg = body.indexOf('アップデート確認: 接続元組織別')
+    const downloadOrg = body.indexOf('ダウンロード（LP）: 接続元組織別')
     expect(visitOrg).toBeGreaterThan(-1)
-    expect(downloadOrg).toBeGreaterThan(visitOrg)
-    expect(updateOrg).toBeGreaterThan(downloadOrg)
-    expect(body.slice(visitOrg, downloadOrg)).toContain('IIJ Internet')
-    expect(body.slice(visitOrg, downloadOrg)).not.toContain('NTT Communications')
-    expect(body.slice(downloadOrg, updateOrg)).toContain('NTT Communications')
-    expect(body.slice(updateOrg)).toContain('KDDI CORPORATION')
+    expect(updateOrg).toBeGreaterThan(visitOrg)
+    expect(downloadOrg).toBeGreaterThan(updateOrg)
+    expect(body.slice(visitOrg, updateOrg)).toContain('IIJ Internet')
+    expect(body.slice(visitOrg, updateOrg)).not.toContain('NTT Communications')
+    expect(body.slice(updateOrg, downloadOrg)).toContain('KDDI CORPORATION')
+    expect(body.slice(downloadOrg)).toContain('NTT Communications')
   })
 
   it('イベントが無くてもエラーにならない', async () => {
@@ -660,9 +675,9 @@ describe('稼働中のアプリバージョンの表示', () => {
 
     const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
-    expect(countTable(body, '旧バージョンのダウンロード: バージョン別')).toContain('v1.12.0')
-    expect(countTable(body, '旧バージョンのダウンロード: バージョン別')).not.toContain('v1.13.2')
-    expect(countTable(body, 'ダウンロード: バージョン別')).toContain('v1.13.2')
+    expect(countTable(body, 'ダウンロード（旧バージョン）: バージョン別')).toContain('v1.12.0')
+    expect(countTable(body, 'ダウンロード（旧バージョン）: バージョン別')).not.toContain('v1.13.2')
+    expect(countTable(body, 'ダウンロード（LP）: バージョン別')).toContain('v1.13.2')
   })
 
   it('ダウンロード対象タグ別の集計と取り違えない説明がある', async () => {
@@ -670,7 +685,7 @@ describe('稼働中のアプリバージョンの表示', () => {
 
     const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
-    expect(body).toContain('ダウンロード: バージョン別')
+    expect(body).toContain('ダウンロード（LP）: バージョン別')
     expect(body).toContain('どのタグを取りに来たか')
     expect(body).toContain('今どのバージョンが動いているか')
   })
@@ -1149,5 +1164,65 @@ describe('アップデートの取り込みの表示', () => {
 
     expect(block).toContain('v1.13.0')
     expect(block).toContain('0日目: 1')
+  })
+})
+
+describe('ダウンロード系指標の見せ方', () => {
+  /** カード 1 枚のラベル。id から引く（並び順ではなく対応で見る）。 */
+  function labelOf(html: string, id: string): string | null {
+    const marker = `id="${id}">`
+    const start = html.indexOf(marker)
+    if (start === -1) return null
+    const rest = html.slice(start)
+    const match = /<span class="label">([^<]+)<\/span>/u.exec(rest)
+    return match?.[1] ?? null
+  }
+
+  it.each([
+    ['累計（全期間）', 'count'],
+    ['本日（JST 0 時から）', 'today'],
+  ])('%s のカードに 3 内訳と合計が並ぶ', async (heading, prefix) => {
+    // 報告された状態そのもの: LP 1 件に対し、旧バージョンが 6 件。
+    await seed('download', { source: 'lp' })
+    for (let i = 0; i < 6; i += 1) await seed('download', { source: 'archive' })
+
+    const block = section(await (await call(PAGE.overview, AUTH_HEADERS)).text(), heading)
+
+    expect(labelOf(block, `${prefix}-download`)).toBe('ダウンロード（LP）')
+    expect(labelOf(block, `${prefix}-update_download`)).toBe('ダウンロード（自動更新）')
+    expect(labelOf(block, `${prefix}-archive_download`)).toBe('ダウンロード（旧バージョン）')
+
+    // 合計が内訳の和として出るので、内訳が本体を上回って見える形にならない。
+    expect(block).toContain(`<span class="value" id="${prefix}-download-total">7</span>`)
+    expect(labelOf(block, `${prefix}-download-total`)).toBe('ダウンロード合計')
+  })
+
+  it('合計カードは 3 内訳の直前に置かれ、内訳が連続して並ぶ', async () => {
+    const block = section(await (await call(PAGE.overview, AUTH_HEADERS)).text(), '累計（全期間）')
+
+    const order = [...block.matchAll(/id="count-([a-z_-]+)"/gu)].map((match) => match[1])
+    const first = order.indexOf('download-total')
+
+    expect(first).toBeGreaterThanOrEqual(0)
+    // 合計の直後に内訳 3 つが連続する。間に別の指標が割り込むと、どこまでが
+    // 合計の内訳なのかが読めなくなる。
+    expect(order.slice(first + 1, first + 4)).toEqual([
+      'download',
+      'update_download',
+      'archive_download',
+    ])
+  })
+
+  it('合計は内訳の和で、ダウンロード系を足しても和から漏れない', () => {
+    // DOWNLOAD_METRICS から導いているので、KIND_LABELS の download 系すべてが
+    // 合計に入る。列挙を手書きに戻すとここが落ちる。
+    const downloads = KIND_LABELS.filter((entry) => DOWNLOAD_METRICS.has(entry.kind))
+
+    expect(downloads.map((entry) => entry.kind)).toEqual([
+      'download',
+      'update_download',
+      'archive_download',
+    ])
+    expect(downloadTotal({ ...EMPTY_COUNTS, download: 1, archive_download: 6 })).toBe(7)
   })
 })

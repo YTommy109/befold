@@ -8,6 +8,7 @@ import type {
   DeliverySummary,
   FallbackSplit,
   EventPage,
+  KindCounts,
   OverviewSummary,
   RecentEvent,
   Split,
@@ -16,6 +17,8 @@ import type {
 } from '../analytics'
 import {
   DASHBOARD_PAGES,
+  DOWNLOAD_METRICS,
+  downloadTotal,
   EVENTS_PAGE_LIMIT,
   KIND_LABELS,
   RUNNING_VERSION_LABELS,
@@ -382,6 +385,31 @@ const SeriesChart: FC<{ title: string; labels: string[]; series: Series[] }> = (
   )
 }
 
+/**
+ * 指標カードの並び。ダウンロード系は合計を先頭に置いた 1 かたまりにする。
+ *
+ * 累計と本日で同じ関数を通す。片方だけ合計を足すと、同じ画面の上下で
+ * 「ダウンロード」の意味が変わってしまう。合計は `downloadTotal` が
+ * `DOWNLOAD_METRICS` から導くので、内訳を足しても和から漏れない。
+ */
+function metricCards(counts: KindCounts, idPrefix: string) {
+  const first = KIND_LABELS.findIndex((entry) => DOWNLOAD_METRICS.has(entry.kind))
+  const cards: { value: number; label: string; id?: string }[] = []
+
+  for (const [index, entry] of KIND_LABELS.entries()) {
+    if (index === first) {
+      cards.push({
+        value: downloadTotal(counts),
+        label: 'ダウンロード合計',
+        id: `${idPrefix}-download-total`,
+      })
+    }
+    cards.push({ value: counts[entry.kind], label: entry.label, id: `${idPrefix}-${entry.kind}` })
+  }
+
+  return cards
+}
+
 const Cards: FC<{ cards: { value: number; label: string; id?: string }[] }> = ({ cards }) => (
   <div class="totals">
     {cards.map((card) => (
@@ -420,11 +448,7 @@ export const OverviewSections: FC<{ summary: OverviewSummary }> = ({ summary }) 
         <h2>累計（全期間）</h2>
         <Cards
           cards={[
-            ...KIND_LABELS.map((entry) => ({
-              value: summary.cumulative.counts[entry.kind],
-              label: entry.label,
-              id: `count-${entry.kind}`,
-            })),
+            ...metricCards(summary.cumulative.counts, 'count'),
             {
               value: summary.cumulative.visitorDays,
               label: '延べアクセス元（アクセス元 × 日）',
@@ -437,11 +461,7 @@ export const OverviewSections: FC<{ summary: OverviewSummary }> = ({ summary }) 
         <h2>本日（JST 0 時から）</h2>
         <Cards
           cards={[
-            ...KIND_LABELS.map((entry) => ({
-              value: summary.today.counts[entry.kind],
-              label: entry.label,
-              id: `today-${entry.kind}`,
-            })),
+            ...metricCards(summary.today.counts, 'today'),
             { value: summary.today.uniqueVisitors, label: 'ユニークアクセス元（全種別）' },
           ]}
         />
@@ -657,7 +677,7 @@ export const UsersSections: FC<{ summary: UsersSummary }> = ({ summary }) => {
           {TOP_N} 件まで。
         </p>
         <p class="note">
-          流入面の「ダウンロード: バージョン別」とは別物。あちらは
+          流入面の「ダウンロード（LP）: バージョン別」とは別物。あちらは
           <strong>どのタグを取りに来たか</strong>（更新先）で、こちらは
           <strong>今どのバージョンが動いているか</strong>（更新元）。 稼働バージョンの記録は{' '}
           {APP_VERSION_COLUMN_START} に始めたもので、それより前の
