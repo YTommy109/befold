@@ -4,7 +4,7 @@ title: サイドバーから新規タブで開くとき、内容が同一でも�
 status: To Do
 assignee: []
 created_date: '2026-08-19 14:49'
-updated_date: '2026-08-19 15:34'
+updated_date: '2026-08-19 15:48'
 labels: []
 dependencies: []
 priority: medium
@@ -142,4 +142,49 @@ GUI 自動操作ができない（`osascript -e 'tell application "System Events
      展開が畳まれて別のちらつきになる。展開状態の引き継ぎまで含めた設計が要る。
    - (b) 内容は出ているが再描画される → 上記のどれでもない別の原因。再調査から。
    - (c) もうちらつかない → 原因 3 の除去で消えていたことになる。AC#1/#2 を埋めて完了へ。
+
+## 2026-08-20 追記: (a)/(b) をモデル層で実測し、原因 1 も除去した
+
+GUI 目視はできないが、(a)/(b) の判別は客観的に測れたので測った。
+`ViewerWindowControllerFixture` で実ディレクトリ（4 ファイル）に対し窓を 2 枚作った実測:
+
+```
+first  : hasLoadedEntries=true  rows=4
+second@init   : hasLoadedEntries=false rows=0   ← 空を経由している
+second@settled: hasLoadedEntries=true  rows=4
+same-directory-rows-equal = true                 ← 作り直す必要が無かった
+```
+
+**(a) で確定。** 新規タブは必ず「空 → 列挙 → 描画」の 2 段階を通り、しかも埋まった
+結果は元タブと完全に同一だった。
+
+### 入れた修正（e2738b37）
+
+起点の窓が同じフォルダを列挙済みなら、その結果を出発点として引き継ぐ
+(`SidebarListingSeed`)。
+
+- **運ぶのは行ではなく材料**(`DirectoryListing`)。行は窓ごとの展開状態を当てて作るので、
+  元タブの展開を写すと新しい窓と食い違う。材料を渡して新しい窓自身に畳ませれば、
+  その窓が自分で列挙したときと同じ行になる。**懸念していた「展開が畳まれて別の
+  ちらつきになる」は、この形にしたことで起きない**（`lastListing` はルートの材料だけで、
+  展開の材料は各窓の `SidebarTreePresenter` が別に持つため）。
+- 引き継ぎは `attach` と同じ区間で当てる。最初の `refreshFileList` より前になることが
+  構造で決まり、「後から当てて新しい結果を古い写しで潰す」順序ミスが起きない。
+- 引き継がない条件（`SidebarListingSeed.canApply`）: 別フォルダ / 列挙の入力
+  （並び順・不可視ファイル）が食い違う / 列挙に失敗した結果 / 引き継ぎ先が既に一覧を持つ
+- disposition では絞らない。新規タブでも新規ウィンドウでも、同じ一覧を出すなら
+  空から作り直す理由が無い。
+
+### 検証
+
+- `swift test` 1684 件通過
+- swiftlint 新規違反 0（main 54 → head 54、ルール×ファイルで差分なし）
+- 型グループ超過なし（受け皿として `SidebarNavigatorHost` を自分のファイルへ分離）
+- 引き継ぎを外すと `SidebarListingSeedTests` / `SidebarIdenticalListingTests` の
+  **6 件が落ちる**ことを実測（配線を切るだけでも `openViewer が…引き継ぐ` が落ちる）
+
+### 残り
+
+AC#1 / AC#2 の実機目視のみ。`/run` で起動し、サイドバーの別ファイルを Cmd+クリックして
+ちらつきが消えていることを確認する。消えていなければ、(b) の別原因が残っていることになる。
 <!-- SECTION:NOTES:END -->
