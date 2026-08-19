@@ -194,7 +194,7 @@ BefoldApp/
 | `DocumentRendering` | 表示中の文書へできること（倍率・検索・印刷・スクロール位置）を表す port。実装は `WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter） |
 | `FileListModel` / `FileListView` | サイドバーのファイル一覧・選択状態を管理する `@Observable` モデルと SwiftUI ビュー |
 | `HistoryButtonView` | 戻る/進むツールバーボタン（クリックで移動、長押し/右クリックで履歴メニュー） |
-| `MarkdownImageEmbedder` | Markdown 中のローカル画像を base64 data URI に埋め込む前処理（CSP 対応） |
+| `MarkdownImageEmbedder` | Markdown 記法 `![]()` と inline HTML の `<img src>` が指すローカル画像を base64 data URI に埋め込む前処理（CSP 対応） |
 | `ReferenceResolver` | クリックされた href/パス参照を外部 URL・ローカルファイル・非対応に分類 |
 | `PathRelativizer` | パスコピー時に絶対パスを基準ディレクトリからの相対パスに変換 |
 | `BaseDirectoryDescriptor` / `BaseDirectoryIndicator` | 相対パスコピーと Quick Open の基準フォルダ（`gitRoot ?? workspaceRoot`）と、その表示。種別は git ルート / 通常フォルダ / **git リポジトリだが befold では扱えない**（libgit2 が開けない partial clone・reftable 等）の 3 つで、3 つ目はツールチップで git 機能が無効であることだけを伝える（失敗理由の種別は出さない） |

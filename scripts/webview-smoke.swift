@@ -151,6 +151,31 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
             if (r as? Int) != 1 {
                 self.fail("data: URI 画像が markdown 内で描画されなかった")
             }
+            self.checkEmbeddedDataImageInInlineHTMLRenders()
+        }
+    }
+
+    // 3.6. inline HTML の <img> に入れた data: URI 画像が描画されるか(TASK-524)
+    //      markdown 記法の data URI は markdown-it の validateLink が通すが、生 HTML は
+    //      そこを通らず DOMPurify と CSP だけで決まる。MarkdownImageEmbedder が
+    //      <img src> を差し替えても、この経路が塞がっていれば画像は出ない。
+    //      幅指定・中央寄せ(GitHub 向け README が使う形)を付けた状態で確認する。
+    func checkEmbeddedDataImageInInlineHTMLRenders() {
+        let png1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+            + "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        let doc = "<p align=\"center\"><img src=\"data:image/png;base64,\(png1x1)\" "
+            + "alt=\"dot\" width=\"380\"></p>"
+        asyncJS(
+            "await render(\(jsString(doc)), 'md'); "
+                + "var img = document.querySelector('#diagram-wrap img'); "
+                + "if (!img) return 'noimg'; "
+                + "await img.decode(); return img.naturalWidth;",
+            "data-image-inline-html"
+        ) { r in
+            print("inline html data image naturalWidth: \(String(describing: r))")
+            if (r as? Int) != 1 {
+                self.fail("data: URI 画像が inline HTML の <img> で描画されなかった")
+            }
             self.checkExfilBlocked()
         }
     }

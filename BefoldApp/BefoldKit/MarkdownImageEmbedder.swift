@@ -1,9 +1,14 @@
 import Foundation
 
-/// markdown 本文中の ![alt](path) が指すローカル画像を base64 data URI に差し替える
-/// レンダリング前プリプロセス。viewer.html の CSP は img-src 'self' data: のため、
-/// ローカルパスのままでは画像を読めない(data URI は許可済みなので CSP 変更が不要)。
+/// markdown 本文中の ![alt](path) と inline HTML の <img src="path"> が指すローカル画像を
+/// base64 data URI に差し替えるレンダリング前プリプロセス。viewer.html の CSP は
+/// img-src 'self' data: のため、ローカルパスのままでは画像を読めない
+/// (data URI は許可済みなので CSP 変更が不要)。
 /// リモート URL・読込失敗・非対応拡張子は原文のまま残す。
+///
+/// inline HTML も対象にするのは、GitHub 向けの README が中央寄せ・幅指定・表内配置のために
+/// <img> を使わざるを得ず(markdown 記法では表現できない)、そのままでは画像が 1 枚も
+/// 出ないため(TASK-524)。差し替えるのは src 属性の値だけで、他の属性は原文のまま残す。
 public struct MarkdownImageEmbedder: Sendable {
     /// 埋め込み対象の拡張子 → MIME タイプ。画像ファイル単体表示の対応表に加えて SVG も
     /// 対象にする(<img> 経由の SVG は画像モードで扱われスクリプトが実行されないため安全)。
@@ -12,6 +17,12 @@ public struct MarkdownImageEmbedder: Sendable {
 
     /// 1 画像あたりのサイズ上限。バイナリ表示と同じ上限を単一情報源から参照する。
     public static let defaultMaxImageSizeBytes = ContentLoader.maxFileSizeBytes
+
+    /// <img> タグの走査前に行う安価な絞り込み。正規表現より先にこれで弾く。
+    /// 大文字の <IMG も HTML として有効なため大文字小文字を無視して探す。
+    private static func containsImageTag(_ text: String) -> Bool {
+        text.range(of: "<img", options: .caseInsensitive) != nil
+    }
 
     // Regex は Sendable でないため、strict concurrency 下では static 格納プロパティに
     // できず、各関数内のローカル定数として生成する。
@@ -43,8 +54,10 @@ public struct MarkdownImageEmbedder: Sendable {
         baseURL: URL,
         maxImageSizeBytes: Int = defaultMaxImageSizeBytes
     ) -> String {
-        // 画像記法が無ければ行分割・正規表現走査ごと省く。
-        guard markdown.contains("![") else { return markdown }
+        // 画像記法も <img> も無ければ行分割・正規表現走査ごと省く。
+        guard markdown.contains("![") || Self.containsImageTag(markdown) else {
+            return markdown
+        }
         // フェンスコードブロックの開始/終了行(先頭 0〜3 スペース + ``` または ~~~)。
         let fencePattern = #/^ {0,3}(`{3,}|~{3,})/#
         var openFenceMarker: Character?
@@ -64,33 +77,76 @@ public struct MarkdownImageEmbedder: Sendable {
         return lines.joined(separator: "\n")
     }
 
-    /// 1 行内の画像記法を差し替える。インラインコードスパン内は対象外。
+    /// 1 行内の画像参照(markdown 記法と inline HTML の <img>)を差し替える。
+    /// インラインコードスパン内は対象外。
+    ///
+    /// 記法ごとに組み立て直さず「パス部分の範囲 → data URI」の置換列に落として 1 度で
+    /// 組み立てる。こうすると alt・title・その他の属性は原文のまま残り、記法が増えても
+    /// コードスパン除外と再構築のロジックを共有できる。
     private func embedImages(
         inLine line: String, baseURL: URL, maxImageSizeBytes: Int
     ) -> String {
-        // ![alt](path) / ![alt](path "title")。パスは空白・閉じ括弧を含まない前提
-        // (空白を含むパスはパーセントエンコードで表現する)。
-        let imagePattern = #/!\[([^\]]*)\]\(\s*([^)\s]+)(\s+"[^"]*"|\s+'[^']*')?\s*\)/#
         // インラインコードスパン(`...` / ``...``)。
         let inlineCodePattern = #/(`+).*?\1/#
-
         let codeSpans = line.ranges(of: inlineCodePattern)
+
+        var replacements = pathRanges(inMarkdownNotationOf: line, excluding: codeSpans)
+        replacements += pathRanges(inImageTagsOf: line, excluding: codeSpans)
+        // 記法ごとに別々に集めるため、位置順に並べ直してから前から組み立てる。
+        replacements.sort { $0.lowerBound < $1.lowerBound }
+
         var output = ""
         var cursor = line.startIndex
-        for match in line.matches(of: imagePattern) {
-            guard !codeSpans.contains(where: { $0.overlaps(match.range) }),
+        for pathRange in replacements {
+            // 万一 2 つの記法の範囲が重なったら、先に採った側を優先して後続を捨てる。
+            guard pathRange.lowerBound >= cursor,
                   let dataURI = dataURI(
-                      forPath: String(match.2), baseURL: baseURL,
+                      forPath: String(line[pathRange]), baseURL: baseURL,
                       maxImageSizeBytes: maxImageSizeBytes
                   )
             else { continue }
-            let title = match.3.map(String.init) ?? ""
-            output += line[cursor ..< match.range.lowerBound]
-            output += "![\(match.1)](\(dataURI)\(title))"
-            cursor = match.range.upperBound
+            output += line[cursor ..< pathRange.lowerBound]
+            output += dataURI
+            cursor = pathRange.upperBound
         }
         output += line[cursor...]
         return output
+    }
+
+    /// markdown 記法 ![alt](path) / ![alt](path "title") のパス部分の範囲を返す。
+    private func pathRanges(
+        inMarkdownNotationOf line: String, excluding codeSpans: [Range<String.Index>]
+    ) -> [Range<String.Index>] {
+        // パスは空白・閉じ括弧を含まない前提(空白を含むパスはパーセントエンコードで表現する)。
+        let imagePattern = #/!\[[^\]]*\]\(\s*([^)\s]+)(?:\s+"[^"]*"|\s+'[^']*')?\s*\)/#
+        guard line.contains("![") else { return [] }
+        return line.matches(of: imagePattern)
+            .filter { match in !codeSpans.contains { $0.overlaps(match.range) } }
+            .map { $0.1.startIndex ..< $0.1.endIndex }
+    }
+
+    /// inline HTML の <img ...> の src 属性値の範囲を返す。
+    ///
+    /// タグ本体と src 属性値を 2 段階で取るのは、属性の順序(width が src より前など)と
+    /// クォート種別(ダブル / シングル / 裸)の組み合わせを 1 本の正規表現に押し込むと
+    /// 網羅漏れが起きるため。タグ本体のパターンはクォート内を読み飛ばすので、
+    /// alt="a > b" のように属性値へ > が現れてもタグ末尾を誤認しない。
+    private func pathRanges(
+        inImageTagsOf line: String, excluding codeSpans: [Range<String.Index>]
+    ) -> [Range<String.Index>] {
+        // チャンク追記のたびに全行を走るため、<img> を含まない行では正規表現を走らせない。
+        guard Self.containsImageTag(line) else { return [] }
+        let imgTagPattern = #/(?i)<img\b(?:[^>"']|"[^"]*"|'[^']*')*>/#
+        let srcPattern = #/(?i)\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/#
+
+        return line.matches(of: imgTagPattern).compactMap { tagMatch in
+            guard !codeSpans.contains(where: { $0.overlaps(tagMatch.range) }),
+                  let src = line[tagMatch.range].firstMatch(of: srcPattern),
+                  let value = src.1 ?? src.2 ?? src.3,
+                  !value.isEmpty
+            else { return nil }
+            return value.startIndex ..< value.endIndex
+        }
     }
 
     /// ローカル画像パスを data URI に変換する。対象外・失敗時は nil。
