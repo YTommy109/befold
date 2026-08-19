@@ -48,7 +48,7 @@ enum GitStatusRefreshPolicy: Sendable {
 
 /// リポジトリルート単位で `GitStatusSnapshot` をキャッシュし、全ウィンドウで共有する。
 ///
-/// 先例は `WorktreeCatalog`(@MainActor キャッシュ + `Task.detached` で git 実行 +
+/// 先例は `WorktreeCatalog`(@MainActor キャッシュ + `withBlockingWork` で git 実行 +
 /// 結果だけをメインアクターへ反映)。`GitCommandFileIndex` の `NSLock` 直列化は踏襲しない。
 /// メインアクター上でロックを握って subprocess を待つ形になり噛み合わないため。
 /// 同一ルートへの要求が重なった場合は実行中のタスクへ相乗りして git の重複起動を畳む。
@@ -87,9 +87,8 @@ final class GitStatusStore {
         forDirectoryAt directory: URL, policy: GitStatusRefreshPolicy = .always
     ) async -> GitStatusResult {
         let resolveRepositoryRoot = resolveRepositoryRoot
-        guard let root = await Task.detached(priority: .utility, operation: {
-            resolveRepositoryRoot(directory)
-        }).value else { return .empty }
+        guard let root = await withBlockingWork({ resolveRepositoryRoot(directory) })
+        else { return .empty }
         // index が動いていないなら git を起こす理由がない。`.git` 配下への index 以外の
         // 書き込み(参照更新・一時ファイル)で status を連打しないための門番。
         if let reusable = await cachedResultIfIndexUnchanged(at: root, policy: policy) {
@@ -113,9 +112,7 @@ final class GitStatusStore {
             return nil
         }
         let reader = reader
-        let current = await Task.detached(priority: .utility) {
-            reader.indexFingerprint(forRepositoryAt: root)
-        }.value
+        let current = await withBlockingWork { reader.indexFingerprint(forRepositoryAt: root) }
         guard current == cached.indexFingerprint else { return nil }
         return GitStatusResult(snapshot: cached, repositoryRoot: root)
     }
@@ -126,7 +123,7 @@ final class GitStatusStore {
         if let running = inFlight[key] { return await running.value }
         let reader = reader
         let task = Task<GitStatusSnapshot?, Never> {
-            await Task.detached(priority: .utility) { reader.status(forRepositoryAt: root) }.value
+            await withBlockingWork { reader.status(forRepositoryAt: root) }
         }
         inFlight[key] = task
         let snapshot = await task.value

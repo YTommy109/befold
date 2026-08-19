@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// 表示中ファイルの差分取得をメインアクターの外へ逃がし、重複要求を畳む。
@@ -94,10 +95,10 @@ final class GitDiffLoader {
             // これから読むツリーを共有させてよい相手ではない。読み始める前に閉じる。
             self?.closeBatch(key: key, generation: generation)
             if let previous { _ = await previous.value }
-            let result = await Task.detached(priority: .utility) {
-                guard let root = resolveRoot() else { return nil as GitFileDiff? }
+            let result = await withBlockingWork { () -> GitFileDiff? in
+                guard let root = resolveRoot() else { return nil }
                 return reader.diff(forFileAt: url, in: root)
-            }.value
+            }
             self?.forgetBatch(key: key, generation: generation)
             return result
         }

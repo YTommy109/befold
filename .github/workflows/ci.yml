@@ -8,6 +8,7 @@ on:
       - '.github/workflows/ci.yml'
       - 'scripts/check-type-group-size.sh'
       - 'scripts/type-group-exceptions.txt'
+      - 'scripts/check-no-detached-blocking.sh'
       # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
       # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
       - '.oxlintrc.json'
@@ -19,6 +20,7 @@ on:
       - '.github/workflows/ci.yml'
       - 'scripts/check-type-group-size.sh'
       - 'scripts/type-group-exceptions.txt'
+      - 'scripts/check-no-detached-blocking.sh'
       # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
       # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
       - '.oxlintrc.json'
@@ -73,7 +75,7 @@ jobs:
             echo 'app=true' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt)$)'; then
+          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh)$)'; then
             echo 'app=true' >> "$GITHUB_OUTPUT"
           else
             echo 'app=false' >> "$GITHUB_OUTPUT"
@@ -96,6 +98,12 @@ jobs:
       # 判定そのものが壊れた状態でグリーンになるのを防ぐ。
       - name: 判定の self-test を通す
         run: scripts/check-type-group-size.sh --self-test
+
+      # pre-commit を --no-verify で飛ばしても Task.detached が入らないようにする。
+      - name: Task.detached の混入を検査する
+        run: |
+          scripts/check-no-detached-blocking.sh --self-test
+          scripts/check-no-detached-blocking.sh
 
       # 終了コード 2 は「不要になった恒久例外が残っている」。判定が緩むのはその 1 グループ
       # だけで、返済した側を赤くするのは筋が悪いのでここでは落とさず警告に留める。
@@ -147,6 +155,17 @@ jobs:
 
       - name: テストを実行する
         run: swift test
+
+      # 協調スレッドプールの幅を 1 に絞って回す。同期的に塞ぐ処理を
+      # `Task.detached`(= 協調スレッド)へ置くと、幅ぶんの同時ブロックで
+      # プロセス全体の前進が止まり、全スイート pass でも «unknown» issue で
+      # run が落ちる(TASK-424 / TASK-427 / TASK-516 で 3 度再発)。
+      # 幅 1 なら 1 本でも塞いだ時点で決定的に落ちるため、TSan の稀なフレークを
+      # 待たずにここで捕まえる。実測: 手元で 40 秒(通常実行は 36 秒)。
+      - name: 協調スレッドプール幅 1 でテストを実行する
+        run: swift test
+        env:
+          LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
 
   js-test:
     # viewer.js は純粋ロジックのため安価な Ubuntu ランナーで回す

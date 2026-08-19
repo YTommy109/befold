@@ -37,6 +37,8 @@ install_hook post-checkout scripts/worktree-init.sh
 # completed を走査しないため、最大番号のタスクをアーカイブすると同じ ID が再発行される）。
 # check-analytics-query-guard.sh は解析用 D1 の読み取り専用ガードが実効であることを
 # 見る（判定を緩めると拒否すべき SQL を通した時点で落ちる）。
+# check-no-detached-blocking.sh は Swift の `Task.detached` を弾く（協調スレッドプールを
+# 塞ぐと、全スイート pass でも «unknown» issue で run が落ちる。TASK-516）。
 # oxc-lint.sh は JS/TS の Oxlint と Oxfmt を見る（CI と同じチェック。lint も整形も
 # その場で機械的に直せるので、警告ではなく落とす側にしてある）。
 # warn-type-group-growth.sh は型グループ（Foo.swift + Foo+*.swift の合算）の肥大化を見る。
@@ -44,4 +46,5 @@ install_hook post-checkout scripts/worktree-init.sh
 # --no-verify を常用する圧力になり、フック全体が形骸化するため。ブロックは CI で行う。
 install_hook pre-commit scripts/block-main-commits.sh scripts/swiftformat-lint.sh \
   scripts/oxc-lint.sh scripts/check-doc-symbols.sh scripts/check-task-id-uniqueness.sh \
-  scripts/check-analytics-query-guard.sh scripts/warn-type-group-growth.sh
+  scripts/check-analytics-query-guard.sh scripts/check-no-detached-blocking.sh \
+  scripts/warn-type-group-growth.sh

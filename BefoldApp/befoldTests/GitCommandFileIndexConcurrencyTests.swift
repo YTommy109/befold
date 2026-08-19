@@ -105,13 +105,19 @@ struct GitCommandFileIndexConcurrencyTests {
         defer { repo.releaseBlockedEnumeration.open() }
 
         // 遅いリポジトリの列挙を進行中のまま止める。
-        Task.detached { _ = sut.trackedFileIndex(forFileAt: slowRoot.appendingPathComponent("x.md")) }
+        Task {
+            _ = await withBlockingWork {
+                sut.trackedFileIndex(forFileAt: slowRoot.appendingPathComponent("x.md"))
+            }
+        }
         await waitUntil { repo.didEnterBlockedEnumeration }
 
         // 別リポジトリの解決を試みる。ロックがリポジトリ横断だと、ここが解放まで返らない。
         let otherResolved = LockedBox(false)
-        Task.detached {
-            _ = sut.trackedFileIndex(forFileAt: url("/other-repo").appendingPathComponent("y.md"))
+        Task {
+            _ = await withBlockingWork {
+                sut.trackedFileIndex(forFileAt: url("/other-repo").appendingPathComponent("y.md"))
+            }
             otherResolved.set(true)
         }
 
@@ -129,8 +135,10 @@ struct GitCommandFileIndexConcurrencyTests {
 
         let finished = LockedBox(0)
         for _ in 0 ..< 4 {
-            Task.detached {
-                _ = sut.trackedFileIndex(forFileAt: root.appendingPathComponent("x.md"))
+            Task {
+                _ = await withBlockingWork {
+                    sut.trackedFileIndex(forFileAt: root.appendingPathComponent("x.md"))
+                }
                 finished.update { $0 += 1 }
             }
         }

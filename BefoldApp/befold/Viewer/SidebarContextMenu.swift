@@ -94,8 +94,10 @@ struct SidebarContextMenu: View {
             let folder = entry.url
             Button(label) {
                 Task {
-                    let detached = Task.detached { DirectoryLister.firstSupportedFile(in: folder) }
-                    if let first = await detached.value {
+                    let resolved = await withBlockingWork {
+                        DirectoryLister.firstSupportedFile(in: folder)
+                    }
+                    if let first = resolved {
                         delegate?.fileListDidRequestOpenElsewhere(first, disposition: disposition)
                     }
                 }

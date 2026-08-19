@@ -33,13 +33,13 @@ final class WorktreeCatalog {
     func refresh(mainRoots: [URL]) async {
         guard !mainRoots.isEmpty else { return }
         let resolver = resolver
-        let resolved = await Task.detached(priority: .utility) {
+        let resolved = await withBlockingWork {
             var result: [String: [GitWorktree]] = [:]
             for root in mainRoots {
                 result[root.normalizedPathKey] = resolver(root)
             }
             return result
-        }.value
+        }
         for (key, worktrees) in resolved {
             cache[key] = worktrees
         }

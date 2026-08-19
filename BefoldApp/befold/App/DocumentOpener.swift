@@ -90,9 +90,9 @@ final class DocumentOpener {
         for url: URL, options: CLIOpenOptions,
         disposition: OpenDisposition = .currentTab, relativeTo sourceWindow: NSWindow? = nil
     ) async {
-        let resolved = await Task.detached {
+        let resolved = await withBlockingWork {
             (isDirectory: DirectoryLister.isDirectory(url), target: DirectoryLister.resolveFileToOpen(at: url))
-        }.value
+        }
         let isDirectory = resolved.isDirectory
         guard let target = resolved.target else {
             presentNoFileAlert()

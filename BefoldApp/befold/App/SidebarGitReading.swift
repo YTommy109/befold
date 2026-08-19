@@ -54,7 +54,7 @@ struct SidebarGitReader: SidebarGitReading {
     /// メインスレッドを止めないため)。
     func repositoryRootLookup(forDirectoryAt url: URL) async -> GitRootLookup {
         let fileIndex = fileIndex
-        return await Task.detached { fileIndex.repositoryRootLookup(forDirectoryAt: url) }.value
+        return await withBlockingWork { fileIndex.repositoryRootLookup(forDirectoryAt: url) }
     }
 
     func statuses(forDirectoryAt url: URL, policy: GitStatusRefreshPolicy) async -> GitStatusResult {

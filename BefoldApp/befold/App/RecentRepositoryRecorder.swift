@@ -49,14 +49,17 @@ final class RecentRepositoryRecorder {
     func recordIfNeeded(for url: URL, controller: ViewerWindowController) {
         let gitFileIndex = gitFileIndex
         let resolveIdentity = resolveIdentity
-        Task.detached { [weak self, weak controller] in
-            guard let root = gitFileIndex.repositoryRoot(forFileAt: url) else { return }
-            let identity = resolveIdentity(root)
-            await self?.apply(root: root, identity: identity, to: controller, resolvedFor: url)
+        Task { [weak self, weak controller] in
+            let resolved = await withBlockingWork { () -> (URL, RepositoryIdentity)? in
+                guard let root = gitFileIndex.repositoryRoot(forFileAt: url) else { return nil }
+                return (root, resolveIdentity(root))
+            }
+            guard let resolved else { return }
+            self?.apply(root: resolved.0, identity: resolved.1, to: controller, resolvedFor: url)
         }
     }
 
-    /// detached タスクで解決した git ルート/identity を MainActor 上で反映する。
+    /// MainActor の外で解決した git ルート/identity を MainActor 上で反映する。
     /// ウィンドウが既に閉じられていれば(controller == nil)何もしない。
     /// 解決を開始した対象(resolvedFor)とウィンドウの現在の表示対象が一致しない場合も
     /// 何もしない(解決中に別リポジトリのファイルへ切り替わった結果を、切替前の

@@ -53,6 +53,25 @@ BefoldQuickLook.appex (QuickLook 拡張)
 同一プロセス内の伝搬で反映する（詳細は
 [ビューア描画データフロー](./viewer-rendering-dataflow.md#監視--store--webview--js-の一気通貫)）。
 
+### MainActor の外へ逃がす処理は `withBlockingWork` を通す
+
+git サブプロセスの起動・`stat`・ディレクトリ列挙・ファイル読み込みのように
+**同期的に長く塞ぐ**処理は、MainActor の外で実行する。その逃がし先は
+`BefoldKit/BlockingWork.swift` の `withBlockingWork` に一本化してあり、
+呼び出しごとに専用スレッドを立てて実行する。
+
+`Task.detached` は使わない。Swift 並行の協調スレッドプールの上で走るため、
+プール幅（= コア数）ぶんが同時に塞がるとプロセス全体の前進が止まる。症状は
+「全スイート pass なのに `«unknown»` issue で run が exit 1」という、
+失敗テスト名の出ない形で現れる（TASK-424 / TASK-427 / TASK-516 で 3 度再発した）。
+
+破れないよう次の 2 つで担保する。
+
+- `scripts/check-no-detached-blocking.sh`（pre-commit と CI）が
+  Swift コード中の `Task.detached` を機械的に弾く
+- CI の build-and-test が `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`（プール幅 1）でも
+  全件を回す。1 本でも協調スレッドを塞げば決定的に落ちる
+
 ---
 
 ## モジュール構成

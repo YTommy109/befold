@@ -64,7 +64,7 @@ struct ViewerRendererContentUpdateTests {
             "# same content", contentRevision: 3, fileType: .markdown, filePath: fileB,
             hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false, truncation: Self.truncation
         )
-        // applyRender の画像埋め込み(Task.detached)は別 Task で完了するため、ミラー反映を待つ。
+        // applyRender の画像埋め込み(withBlockingWork)は別 Task で完了するため、ミラー反映を待つ。
         await waitUntilYielding { renderer.rendered.filePath == fileB }
 
         #expect(renderer.rendered.filePath == fileB)
