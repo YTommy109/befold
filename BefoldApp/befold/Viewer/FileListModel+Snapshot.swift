@@ -21,7 +21,7 @@ extension FileListModel {
     /// 1 件ごとに WildcardMatcher を走らせるため、1 打鍵で何度も呼ぶと効く。
     var listSnapshot: FileListSnapshot {
         #if DEBUG
-            noteSnapshotEvaluated()
+            snapshotEvaluations.note()
         #endif
         // 絞り込みだけを適用した一覧(祖先の足し戻し・開閉三角の確定を含まない)。
         // プレビューのフォルダー一覧へはこちらを渡す。祖先を足し戻した配列を渡すと、

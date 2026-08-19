@@ -1,26 +1,6 @@
 import BefoldKit
 import Foundation
 
-/// SidebarNavigator がファイル切替・現在ファイル参照を委譲する先。
-/// ViewerWindowController が実装する。循環参照を避けるため SidebarNavigator からは weak 参照する。
-@MainActor
-protocol SidebarNavigatorHost: AnyObject {
-    /// 現在表示中のファイル URL。performFileSwitch により変化するため都度参照する。
-    var currentFileURL: URL { get }
-    /// サイドバー選択・履歴から要求されたファイル切替の実処理。
-    /// 別ウィンドウで開いている・存在しないなど切替できなかった理由は結果で返る。
-    @discardableResult
-    func performFileSwitch(to url: URL) -> FileSwitchOutcome
-    /// 戻る/進む履歴の状態が変化した。AppKit 側 UI(ツールバー)の更新契機。
-    func historyStateDidChange()
-    /// git 状態(サイドバーのバッジ)が反映された。表示中ファイルの差分など、
-    /// バッジと同じ契機で取り直すべきものの更新点。
-    ///
-    /// 「バッジと差分の更新契機を 1 つにする」判断を、コンパイル時に守らせるための必須メソッド。
-    /// 呼び分けを増やすと、契機がまた片方だけに増える(TASK-330)。
-    func gitContextDidChange()
-}
-
 /// サイドバー(ファイル一覧・選択同期・フォルダ移動)と戻る/進む履歴を管理する。
 /// ファイル切替そのものは host(ViewerWindowController)へ委譲し、本クラスは
 /// 一覧の再取得・選択同期・履歴の記録/適用に責務を絞る。
@@ -212,13 +192,19 @@ final class SidebarNavigator {
 
     /// host を接続する。ViewerWindowController が super.init 後に呼ぶ。
     /// git 状態・履歴の通知先も同じ host なので、ここで一緒に結線する。
-    func attach(to host: SidebarNavigatorHost) {
+    /// - Parameter adopting: 起点の窓が列挙済みの一覧。引き継げる組み合わせなら出発点に
+    ///   する(判定は `SidebarListingSeed.canApply(to:)` / TASK-532)。nil もここで受ける
+    ///   ——呼び出し側へ分岐を置くと窓の生成手順が 2 本に割れる。**取り付けと同じ区間で
+    ///   当てる**ので、最初の `refreshFileList` より前になることが構造で決まる。
+    func attach(to host: SidebarNavigatorHost, adopting seed: SidebarListingSeed? = nil) {
         self.host = host
         listing.attach(to: host)
         gitStatus.attach(to: host)
         baseDirectory.attach(to: host)
         historyController.attach(to: host, navigator: self)
         layoutTransition.attach(to: self)
+        guard let seed, seed.canApply(to: fileListModel) else { return }
+        applyRows(seed.listing, for: seed.directory)
     }
 
     // MARK: - Navigation History
@@ -274,6 +260,12 @@ final class SidebarNavigator {
     @discardableResult
     func applyRows(_ listing: DirectoryListing, for directory: URL) -> [FileListEntry] {
         tree.applyRows(listing, for: directory)
+    }
+
+    /// 直近に反映した列挙結果(行に畳む前の材料)。新しい窓の出発点として渡すために読む
+    /// (`SidebarListingSeed` / TASK-532)。組み立ては `ViewerWindowManager` の側。
+    var lastListing: DirectoryListing {
+        tree.lastListing
     }
 
     /// 進行中の取得をすべて破棄する。ウィンドウを閉じるときに呼ぶ。

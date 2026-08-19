@@ -257,6 +257,10 @@ final class ViewerWindowController: NSWindowController {
         // CLI の `--hidden-files`/`--no-hidden-files` による初期値の指定。
         // nil なら保存された既定値から始める。この起動限りの上書きで既定値は書き換えない。
         initialShowHiddenFiles: Bool? = nil,
+        // 起点となった窓が列挙済みの一覧。同じフォルダなら出発点として引き継ぎ、
+        // 「空 → 列挙 → 描画」の 2 段階を通らせない(TASK-532)。引き継げるかの判定は
+        // SidebarListingSeed.canApply(to:) が持つ。nil なら従来どおり空から始める。
+        initialListing: SidebarListingSeed? = nil,
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         store: ViewerStore? = nil,
@@ -318,8 +322,10 @@ final class ViewerWindowController: NSWindowController {
         window.delegate = self
         swipeMonitor = ViewerWindowAssembler.makeSwipeMonitor(for: self, on: window)
         ViewerWindowAssembler.wirePresentationTargetChange(for: self)
-        sidebar.attach(to: self)
-        // 空で作ったサイドバー一覧をここで埋める(列挙はメインアクター外で走る)。
+        // 起点の窓が同じフォルダを列挙済みなら、その結果を出発点にする(TASK-532)。
+        sidebar.attach(to: self, adopting: initialListing)
+        // サイドバー一覧をここで埋める(列挙はメインアクター外で走る)。引き継ぎが
+        // 効いていれば同じ結果が返り、applyRows のガードが反映ごと畳む。
         sidebar.refreshFileList()
         ViewerWindowAssembler.wireStoreCallbacks(for: self)
         store.openFile(fileURL)
