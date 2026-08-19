@@ -93,3 +93,43 @@ struct WaitingTests {
         #expect(finished.get())
     }
 }
+
+/// 打ち切り（`.timeLimit`）の決め方そのもののテスト。
+///
+/// `.timeLimit` はテスト開始からの壁時計を測るため、full suite では実質「run 全体の
+/// 長さ」になる。これをポーリング予算から導くと、コードが正しくてもテストが増えて
+/// run が伸びるだけで慢性的に赤になる（TASK-517 の実測: CI の run 全体 136 秒に対し
+/// 打ち切り 120 秒で 34 件が一斉に落ちた）。
+///
+/// ここで測るのは「打ち切りが待機予算と切り離されていること」。予算から導く実装へ
+/// 戻すと、下の 2 つが落ちる。
+@Suite
+struct TestTimeLimitTests {
+    @Test("打ち切りはポーリング予算に影響されない")
+    func timeLimitIgnoresPollingBudget() {
+        let budgets = ["15", "60", "120"]
+        let minutes = budgets.map { budget in
+            testTimeLimitMinutes(environment: ["BEFOLD_TEST_TIMEOUT_SECONDS": budget])
+        }
+        #expect(minutes == [10, 10, 10])
+    }
+
+    @Test("打ち切りは run 全体の壁時計スケール（予算の 2 倍では届かない長さ）を既定にする")
+    func timeLimitIsWallClockScale() {
+        // 旧実装の値（予算 120 秒 → 4 分）では TSan の run 全体 265 秒に届かなかった。
+        #expect(testTimeLimitMinutes(environment: [:]) > 4)
+    }
+
+    @Test("BEFOLD_TEST_TIME_LIMIT_MINUTES で上書きできる")
+    func timeLimitHonorsOverride() {
+        #expect(testTimeLimitMinutes(environment: ["BEFOLD_TEST_TIME_LIMIT_MINUTES": "30"]) == 30)
+    }
+
+    @Test(
+        "上書きが不正なら既定に戻る",
+        arguments: ["0", "-1", "abc", ""]
+    )
+    func timeLimitFallsBackOnInvalidOverride(raw: String) {
+        #expect(testTimeLimitMinutes(environment: ["BEFOLD_TEST_TIME_LIMIT_MINUTES": raw]) == 10)
+    }
+}

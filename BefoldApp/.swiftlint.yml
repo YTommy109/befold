@@ -36,9 +36,10 @@ nesting:
   type_level: 2
 
 custom_rules:
-  # `.timeLimit` を直書きすると、CI 側で BEFOLD_TEST_TIMEOUT_SECONDS を延長しても
-  # 打ち切りが追随せず「予算を使い切る前に打ち切られる」矛盾が起きる。
-  # thread-sanitizer ジョブ（予算 120 秒・打ち切り 60 秒）で 8 回連続の赤になった。
+  # `.timeLimit` を直書きすると、run 全体の長さに合わない値が各所へ散る。
+  # `.timeLimit` が測るのはテストの作業時間ではなく「テスト開始からの壁時計」で、
+  # full suite では実質 run 全体の長さになるため、直書きの値は run が伸びた時点で
+  # 一斉に赤になる（TASK-517: run 全体 136 秒に対し打ち切り 120 秒で 34 件が落ちた）。
   # 打ち切りは BefoldTestSupport の testTimeLimit() から導くこと。
   hardcoded_time_limit:
     name: "ハードコードされた .timeLimit"
