@@ -16,13 +16,15 @@ struct SidebarEmptyStateTests {
     private func context(
         gitChangeFilter: SidebarGitStatus? = nil,
         filterText: String = "",
-        didFailEnumeration: Bool = false
+        didFailEnumeration: Bool = false,
+        hasLoadedEntries: Bool = true
     ) -> SidebarEmptyContext {
         SidebarEmptyContext(
             activeGitChangeFilter: gitChangeFilter,
             filterText: filterText,
             directoryName: "docs",
-            didFailEnumeration: didFailEnumeration
+            didFailEnumeration: didFailEnumeration,
+            hasLoadedEntries: hasLoadedEntries
         )
     }
 
@@ -76,6 +78,49 @@ struct SidebarEmptyStateTests {
         )
 
         #expect(SidebarEmptyState.reason(for: filtered) == .enumerationFailed)
+    }
+
+    /// TASK-530 の本体。ウィンドウは一覧を空で作って非同期に埋めるため、届く前に
+    /// 空状態を出すと「対応ファイルがありません」が一瞬見えてから一覧に置き換わる。
+    @Test("一覧がまだ届いていなければ、空状態の理由を出さない")
+    func staysSilentUntilEntriesArrive() {
+        #expect(SidebarEmptyState.reason(for: context(hasLoadedEntries: false)) == nil)
+    }
+
+    /// 「変更のみ表示」ON では git status サブプロセスの完了まで一覧が届かない
+    /// (SidebarListingCoordinator.performListing)。絞り込みが効いているからといって
+    /// 未到着の間に絞り込みの文言を出すと、誤った空表示がそのぶん長く見える。
+    @Test("一覧が届いていなければ、絞り込みが効いていても何も言わない")
+    func staysSilentUntilEntriesArriveEvenWithFilters() {
+        let pending = context(
+            gitChangeFilter: status, filterText: "*.md", hasLoadedEntries: false
+        )
+
+        #expect(SidebarEmptyState.reason(for: pending) == nil)
+    }
+
+    /// 届いた結果が本当に 0 件だったときは、従来どおり「対応ファイルなし」を出す。
+    /// 未到着のガードが常時 true になっていたら落ちる。
+    @Test("一覧が届いて 0 件なら、従来どおり「対応ファイルなし」を出す")
+    func reportsEmptyOnceEntriesArrive() {
+        #expect(SidebarEmptyState.reason(for: context(hasLoadedEntries: true)) == .noSupportedFiles)
+    }
+
+    /// 判定材料の配線。`SidebarEmptyContext(model:)` が `hasLoadedEntries` を運ばないと、
+    /// 純粋関数側をいくら直しても画面は変わらない。
+    @MainActor
+    @Test("SidebarEmptyContext(model:) は一覧の到着状況を運ぶ")
+    func carriesLoadedStateFromModel() {
+        let model = FileListModel(
+            currentDirectory: URL(fileURLWithPath: "/docs"), entries: [], selection: nil
+        )
+        #expect(SidebarEmptyContext(model: model).hasLoadedEntries == false)
+        #expect(SidebarEmptyState.reason(for: SidebarEmptyContext(model: model)) == nil)
+
+        model.setEntries([], for: URL(fileURLWithPath: "/docs"), didFailEnumeration: false)
+
+        #expect(SidebarEmptyContext(model: model).hasLoadedEntries)
+        #expect(SidebarEmptyState.reason(for: SidebarEmptyContext(model: model)) == .noSupportedFiles)
     }
 
     private static let allReasons: [SidebarEmptyReason] = [

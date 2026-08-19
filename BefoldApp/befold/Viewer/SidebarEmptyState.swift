@@ -89,7 +89,14 @@ struct SidebarEmptyState: View {
     /// 空になったのではないため、絞り込みの文言(「解除すれば見えます」)を出すと
     /// 解除しても何も起きない案内になる(TASK-410)。順序は
     /// `SidebarDisclosure.state` が失敗を最優先で確定するのと同じ規則。
-    static func reason(for context: SidebarEmptyContext) -> SidebarEmptyReason {
+    /// **一覧がまだ届いていない間は `nil`(＝何も言わない)。** ウィンドウは一覧を空で作って
+    /// 非同期に埋めるため(ViewerWindowAssembler)、届く前に `entries.isEmpty` だけで
+    /// 判定すると「対応ファイルがありません」が一瞬出てから一覧に置き換わる。
+    /// 「変更のみ表示」が ON のときは git status の完了まで待つぶん、この誤った空表示が
+    /// 目に見えて長くなる(TASK-530)。プレビュー側(FolderListingView)は未到着を nil で
+    /// 表す形で既に同じ区別を実装しており、サイドバーだけがこの非対称を持っていた。
+    static func reason(for context: SidebarEmptyContext) -> SidebarEmptyReason? {
+        guard context.hasLoadedEntries else { return nil }
         guard !context.didFailEnumeration else { return .enumerationFailed }
         return switch (context.activeGitChangeFilter != nil, context.filterText.isEmpty) {
         case (true, false): .gitChangeAndNameFilter
@@ -101,12 +108,13 @@ struct SidebarEmptyState: View {
 
     /// 文言の割り当ては `SidebarEmptyReason` が持つ。ここで分岐を書き足さない。
     var body: some View {
-        let reason = Self.reason(for: context)
-        ContentUnavailableView(
-            String(localized: reason.titleKey, bundle: .l10n),
-            systemImage: reason.systemImage,
-            description: Text(descriptionText(for: reason))
-        )
+        if let reason = Self.reason(for: context) {
+            ContentUnavailableView(
+                String(localized: reason.titleKey, bundle: .l10n),
+                systemImage: reason.systemImage,
+                description: Text(descriptionText(for: reason))
+            )
+        }
     }
 
     /// 説明文。絞り込みで空になったときは解除の案内、そうでなければフォルダー名を添える。
@@ -132,6 +140,9 @@ struct SidebarEmptyContext: Equatable {
     let directoryName: String
     /// 一覧の列挙自体に失敗したか。空だったのか読めなかったのかを分ける(TASK-410)。
     let didFailEnumeration: Bool
+    /// 一覧が一度でも届いたか。false は「空だった」ではなく「まだ答えが出ていない」。
+    /// 空状態の文言はここが true のときだけ出す(TASK-530)。
+    let hasLoadedEntries: Bool
 }
 
 @MainActor
@@ -148,7 +159,8 @@ extension SidebarEmptyContext {
             activeGitChangeFilter: model.listFilter.gitChangeFilter(for: model.entriesDirectory),
             filterText: model.filterText,
             directoryName: model.currentDirectory.lastPathComponent,
-            didFailEnumeration: model.didFailListing
+            didFailEnumeration: model.didFailListing,
+            hasLoadedEntries: model.hasLoadedEntries
         )
     }
 }

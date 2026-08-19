@@ -1,9 +1,10 @@
 ---
 id: TASK-530
 title: サイドバーが読み込み中に「対応ファイルがありません」を一瞬表示する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-19 13:31'
+updated_date: '2026-08-19 14:02'
 labels: []
 dependencies: []
 priority: medium
@@ -28,9 +29,25 @@ ordinal: 772000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 一覧の非同期列挙が着地するまでの間、サイドバーに空状態メッセージが表示されない
-- [ ] #2 列挙が着地して本当に 0 件だった場合は従来どおり sidebar.empty が表示される
-- [ ] #3 列挙失敗（didFailListing）・名前フィルタ・変更のみ表示の各空状態文言が退行していない（SidebarEmptyState.reason(for:) の 5 分岐）
+- [x] #1 一覧の非同期列挙が着地するまでの間、サイドバーに空状態メッセージが表示されない
+- [x] #2 列挙が着地して本当に 0 件だった場合は従来どおり sidebar.empty が表示される
+- [x] #3 列挙失敗（didFailListing）・名前フィルタ・変更のみ表示の各空状態文言が退行していない（SidebarEmptyState.reason(for:) の 5 分岐）
 - [ ] #4 「変更のみ表示」ON で git status 待ちの間も空状態メッセージが出ないことを確認する
-- [ ] #5 SidebarEmptyState.reason(for:) と FileListView の表示条件に対するユニットテストを追加し、修正を戻すと落ちることを確かめる
+- [x] #5 SidebarEmptyState.reason(for:) と FileListView の表示条件に対するユニットテストを追加し、修正を戻すと落ちることを確かめる
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+SidebarEmptyState.reason(for:) を Optional に変え、hasLoadedEntries が false の間は nil（＝何も言わない）を返すようにした。SidebarEmptyContext に hasLoadedEntries を追加（デフォルト引数なし）し、FileListView 経路は SidebarEmptyContext(model:) が model.hasLoadedEntries を運ぶ。FolderListingView は到着済み分岐の中なので true 固定。新しい状態は足していない。
+
+検証: swift test 1671 件 all pass。ガード行を 'guard true' に潰すと新規 3 テストが落ちることを実測（reason が .noSupportedFiles / .gitChangeAndNameFilter を返す）。swiftlint は変更 3 ファイルで指摘ゼロ。
+
+AC #4（変更のみ表示 ON での目視）は未チェック: 背景ジョブでは GUI 確認が回せないため。ガードは git 待ちかどうかに依らず「一覧未到着なら出さない」で効くので、ユニットテスト『一覧が届いていなければ、絞り込みが効いていても何も言わない』が同じ条件を押さえている。目視は次に対話セッションでアプリを起動したときに行う。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+サイドバーの空状態を「一覧が届いてから」だけ出すようにした。SidebarEmptyState.reason(for:) を Optional 化し、SidebarEmptyContext.hasLoadedEntries が false の間は nil を返す。swift test 1671 件 pass、ガードを潰すと新規テスト 3 件が落ちることを実測。
+<!-- SECTION:FINAL_SUMMARY:END -->
