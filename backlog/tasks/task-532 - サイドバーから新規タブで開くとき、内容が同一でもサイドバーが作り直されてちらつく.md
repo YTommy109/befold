@@ -1,10 +1,10 @@
 ---
 id: TASK-532
 title: サイドバーから新規タブで開くとき、内容が同一でもサイドバーが作り直されてちらつく
-status: In Progress
+status: To Do
 assignee: []
 created_date: '2026-08-19 14:49'
-updated_date: '2026-08-19 15:29'
+updated_date: '2026-08-19 15:34'
 labels: []
 dependencies: []
 priority: medium
@@ -102,3 +102,44 @@ ViewerWindowAssembler.swift:35-44 + ViewerWindowController.swift:323）。
   ツリー展開の材料は元タブの SidebarTreePresenter が持つため、行だけ引き継ぐと
   直後の refreshFileList で展開が畳まれて別のちらつきになる。着手には方針判断が要る。
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 2026-08-20: 原因 3 の除去まで完了。実機確認待ちで中断
+
+**着手再開の条件: 対話セッション（GUI 操作ができる環境）で下の再現手順を 1 回実行すること。**
+バックグラウンドジョブでは TCC が下りず、System Events が -1712 でタイムアウトするため
+GUI 自動操作ができない（`osascript -e 'tell application "System Events" to get name of first process'`
+で実測）。
+
+### 完了したこと
+
+- 56b212bf: 同一ディレクトリの再列挙で `FileListModel.entryIndex` を作り直さない
+  （判定は `SidebarTreePresenter.applyRows`）
+- 41dda9a6: 原因分析の訂正を Implementation Plan へ記録
+- 回帰テスト `SidebarIdenticalListingTests`（7 件）。うち 3 件は修正を戻すと落ちることを実測で確認
+  （残り 4 件は AC#4 の手すりと前提の固定で、ガードの有無に関わらず通る＝担保ではない）
+- swift test 1678 件通過。swiftlint 新規違反 0（main 54 → head 54、ルール×ファイルで差分なし）
+
+### AC の状況
+
+- AC#3（計測）: 済。列挙回数は 3 回のまま変わらない（この修正では減らない）。減ったのは
+  一覧の反映＝索引の作り直しと提示対象の無効化で 3 → 1。`SidebarIdenticalListingTests` の
+  最後のテストが数字を固定している。
+- AC#4 / AC#5 / AC#6 / AC#7: 済
+- AC#1 / AC#2: **未。実機目視が要る。**
+
+### 再開時の手順
+
+1. befold を起動し（`/run`）、任意のファイルを開く
+2. サイドバーの別ファイルを Cmd+クリックして新規タブで開く
+3. 新しいタブのサイドバーが
+   - (a) 一瞬空になってから埋まる → 原因 1。`ViewerWindowAssembler.makeSidebarNavigator`
+     が `entries: []` で作り、`ViewerWindowController.swift:323` が非同期に埋める 2 段階が残っている。
+     除去には「新規タブが同じディレクトリなら元タブの一覧を引き継ぐ」が要るが、ツリー展開の
+     材料は元タブの `SidebarTreePresenter` が持つため、行だけ引き継ぐと直後の refreshFileList で
+     展開が畳まれて別のちらつきになる。展開状態の引き継ぎまで含めた設計が要る。
+   - (b) 内容は出ているが再描画される → 上記のどれでもない別の原因。再調査から。
+   - (c) もうちらつかない → 原因 3 の除去で消えていたことになる。AC#1/#2 を埋めて完了へ。
+<!-- SECTION:NOTES:END -->
