@@ -16,19 +16,40 @@ public func testTimeout(fallback seconds: Double) -> Duration {
     .seconds(testTimeoutSeconds(fallback: seconds))
 }
 
-/// ポーリング予算より必ず長い `.timeLimit` を返す。
+/// テストの打ち切り（`.timeLimit`）の既定分数。`BEFOLD_TEST_TIME_LIMIT_MINUTES` が
+/// 設定されていればそれを使い、なければ `fallback` 分を使う。
 ///
-/// 両者を独立に書くとドリフトする。実際に thread-sanitizer ジョブでは
-/// `BEFOLD_TEST_TIMEOUT_SECONDS: 120` へ延長した一方でスイート側は
-/// `.timeLimit(.minutes(1))` のままだったため、**延長した予算を使い切る前に
-/// テストが 60 秒で打ち切られる**という矛盾が起き、慢性的な赤の原因になっていた。
-/// 同じ環境変数から導くことで、CI 側で予算を変えても打ち切りが自動的に追随する。
+/// **ポーリング予算（`BEFOLD_TEST_TIMEOUT_SECONDS`）からは導かない。** かつては
+/// 予算の 2 倍を打ち切りに使っていたが、これは打ち切りの根拠を取り違えている。
+/// swift-testing の `.timeLimit` が測るのは「そのテストの作業時間」ではなく
+/// **テスト開始からの壁時計**であり、全テストがほぼ同時に開始されて `@MainActor` で
+/// 直列化される full suite では、実質「run 全体の長さ」を測ることになる。
 ///
-/// `.timeLimit` の粒度は分単位（切り上げ）のため、予算の 2 倍を分に換算して用いる。
-public func testTimeLimit(pollingBudgetFallback seconds: Double = 15) -> TimeLimitTrait {
-    let budget = testTimeoutSeconds(fallback: seconds)
-    let minutes = max(1, Int((budget * 2 / 60).rounded(.up)))
-    return .timeLimit(.minutes(minutes))
+/// 実測（TASK-517 / commit 05ec6b84・全 1645 件）:
+/// - ローカル: run 全体 36.0 秒で緑。個々のテストが報告する最大所要時間も 35.97 秒で
+///   run 全体と一致した（何もしないテストも run 全体の長さを報告する）
+/// - CI build-and-test: run 全体 136 秒に対し打ち切り 120 秒（予算 60 の 2 倍）→ 34 件が赤
+/// - CI thread-sanitizer: run 全体 265 秒に対し打ち切り 240 秒（予算 120 の 2 倍）→ 約 50 件が赤
+///   （50ms sleep して cancel するだけの `WaitingTests` すら 260.9 秒で打ち切られた）
+///
+/// つまり予算から導く限り、コードが正しくても **テストが増えて run が伸びるだけで
+/// 慢性的に赤になる**。打ち切りが担うのは「本当に戻らない回帰」の検知だけなので、
+/// run 全体の壁時計スケールの定数を使い、予算とは切り離す。
+public func testTimeLimitMinutes(
+    fallback minutes: Int = 10,
+    environment: [String: String] = ProcessInfo.processInfo.environment
+) -> Int {
+    guard let raw = environment["BEFOLD_TEST_TIME_LIMIT_MINUTES"], let override = Int(raw),
+          override > 0
+    else {
+        return minutes
+    }
+    return override
+}
+
+/// 戻らない回帰を打ち切るための `.timeLimit`。根拠は `testTimeLimitMinutes` を参照。
+public func testTimeLimit() -> TimeLimitTrait {
+    .timeLimit(.minutes(testTimeLimitMinutes()))
 }
 
 /// すべてのポーリングヘルパーが共有する内側ループ。条件が成立するか、`deadline` を

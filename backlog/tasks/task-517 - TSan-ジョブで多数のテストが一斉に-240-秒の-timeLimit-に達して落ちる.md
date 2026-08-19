@@ -1,12 +1,12 @@
 ---
 id: TASK-517
 title: TSan ジョブで多数のテストが一斉に 240 秒の timeLimit に達して落ちる
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-08-18 11:25'
+updated_date: '2026-08-19 01:18'
 labels: []
-dependencies:
-  - TASK-516
+dependencies: []
 priority: high
 type: bug
 ordinal: 757000
@@ -50,7 +50,51 @@ thread-sanitizer ジョブで、無関係な 28 件のテストが**そろって
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 TASK-516 の修正後に TSan 全件実行を反復し、一斉タイムアウトが再発しないことを実測する
-- [ ] #2 再発する場合は、停止時点で何が前進を止めているか（協調スレッド枯渇 / メインアクター輻輳 / 特定の待機）を実測で特定している
-- [ ] #3 原因が並列度そのものなら、TSan ジョブの並列度または timeLimit の決め方をどう変えるかを判断し、理由を Notes に残している
+- [ ] #1 一斉タイムアウトの原因が「.timeLimit が run 全体の壁時計を測ること」であると実測で特定されている
+- [ ] #2 .timeLimit の決め方がポーリング予算（BEFOLD_TEST_TIMEOUT_SECONDS）から切り離されている
+- [ ] #3 予算から導く実装へ戻すと落ちるテストがある
+- [ ] #4 CI（build-and-test / thread-sanitizer）が緑になる
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 原因（実測で確定）
+
+起票時の見立て（協調スレッド枯渇 / TASK-516 が原因）は**否定された**。真因は
+`.timeLimit` の決め方そのもの。
+
+`.timeLimit` が測るのは「そのテストの作業時間」ではなく**テスト開始からの壁時計**で、
+全テストがほぼ同時に開始され `@MainActor` で直列化される full suite では、実質
+「run 全体の長さ」を測る。それをポーリング予算の 2 倍から導いていたため、
+**コードが正しくてもテストが増えて run が伸びるだけで慢性的に赤になる**構造だった。
+
+| | run 全体 | 打ち切り | 結果 |
+|---|---|---|---|
+| ローカル（05ec6b84・1645 件） | 36.0 秒 | 120 秒 | 緑 |
+| CI build-and-test | 136 秒 | 120 秒（予算 60 の 2 倍） | 赤 34 件 |
+| CI thread-sanitizer | 265 秒 | 240 秒（予算 120 の 2 倍） | 赤 約 50 件 |
+
+決定的な証拠:
+
+- TSan 限定ではない。run 32160440586 では TSan 無しの build-and-test でも同じ形で落ちた
+- 純粋な enum のテスト（`material の expanded / loading / failed は互いに素`）が
+  `passed after 218.168 seconds` と報告
+- 50ms sleep して cancel するだけの `WaitingTests.swift:54` が 260.9 秒で打ち切られた
+- ローカル全件実行では、個々のテストが報告する最大所要時間 35.97 秒が run 全体 36.0 秒と一致
+
+## 対処
+
+`testTimeLimit()` を予算から導くのをやめ、run 全体の壁時計スケールの定数にした
+（既定 10 分 / `BEFOLD_TEST_TIME_LIMIT_MINUTES` で上書き可）。予算
+`BEFOLD_TEST_TIMEOUT_SECONDS` は待機ヘルパー専用に戻した。並列度は変えていない。
+本来のハング検知はこの 10 分とジョブ側の `timeout-minutes`（30 / 60）で二重に担保される。
+
+破れたら落ちるもの: `TestTimeLimitTests`（befoldTests/WaitingTests.swift）。予算から
+導く実装へ戻すと 4 テストとも落ちることを、実際に戻して実測で確認した。
+
+## TASK-516 との関係
+
+本件は TASK-516 と独立。TASK-516（同期ブロックが協調スレッドを塞ぐ）は本件の原因では
+なかったため、dependencies の前提は成立していない。TASK-516 自体は別途扱う。
+<!-- SECTION:NOTES:END -->
