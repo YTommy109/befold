@@ -4,7 +4,7 @@ title: サイドバーから新規タブで開くとき、内容が同一でも�
 status: To Do
 assignee: []
 created_date: '2026-08-19 14:49'
-updated_date: '2026-08-19 15:48'
+updated_date: '2026-08-19 15:53'
 labels: []
 dependencies: []
 priority: medium
@@ -187,4 +187,33 @@ same-directory-rows-equal = true                 ← 作り直す必要が無か
 
 AC#1 / AC#2 の実機目視のみ。`/run` で起動し、サイドバーの別ファイルを Cmd+クリックして
 ちらつきが消えていることを確認する。消えていなければ、(b) の別原因が残っていることになる。
+
+## 2026-08-20 追記: 実機での目視確認は権限が足りず実施できない（AC#1 / AC#2）
+
+実機で試せるところまで試した実測。
+
+| 手段 | 結果 |
+|---|---|
+| Debug .app のビルドと起動 | **可**。`xcodebuild -scheme befold -configuration Debug` → `open -a`。修正入りで正常に起動し、サイドバーに 8 ファイルが並び、選択ファイルが描画されることを画面キャプチャで確認した |
+| `screencapture` | **可**（画面収録の許可あり） |
+| System Events の基本 Apple Event（プロセス名の取得） | **可** |
+| System Events の UI スクリプティング（ウィンドウ座標・クリック） | **不可**。`-1719 osascript には補助アクセスは許可されません` |
+| CLI / `open` から新規タブ経路を起こす | **不可**。`.newTab` を渡す経路は `openViewer(disposition:relativeTo:)` だけで、CLI・`application(_:open:)` はどちらも `.currentTab` かつ sourceWindow なし |
+
+**つまり Cmd+クリックそのものを再現する手段が無い。** 引き継ぎ（seed）は起点ウィンドウが
+必要なので、CLI からは経路に入らない。
+
+### 再開条件（どちらか）
+
+- ターミナル（Claude Code を動かしているアプリ）に「システム設定 > プライバシーとセキュリティ >
+  アクセシビリティ」を許可する。許可されれば System Events でサイドバー行の Cmd+クリックを
+  実行でき、このセッション形態でも AC#2 まで完了できる
+- 人が手で 1 回試す。`/run` して、サイドバーの別ファイルを Cmd+クリックし、ちらつきの有無を見る
+
+### 代替として取ってある根拠
+
+実機目視の代わりに、同じ経路をモデル層・ウィンドウ層で測ってある（`SidebarListingSeedTests`）。
+`openViewer(disposition: .newTab, relativeTo:)` を実 NSWindow で通し、新しいタブが生成直後に
+既に一覧を持っていること（従来は 0 行）を固定した。配線を切ると落ちることも実測済み。
+残っているのは「人の目にちらつきとして見えなくなったか」の確認だけ。
 <!-- SECTION:NOTES:END -->
