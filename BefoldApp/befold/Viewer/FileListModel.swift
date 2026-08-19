@@ -42,6 +42,10 @@ final class FileListModel {
     /// `currentDirectory` からの導出に頼ると、「currentDirectory を書き換える全箇所が
     /// 事前に listingGeneration を進めている」という呼び出し元側の不変条件に依存してしまう
     /// (TASK-298)。ここでは列挙した側の値を直接受け取ることで不変条件をローカルに閉じる。
+    ///
+    /// **ここは渡されたものを無条件に書く。** 「前回と同じ結果なら書かない」判定は
+    /// 唯一の呼び出し元である `SidebarTreePresenter.applyRows` が持つ(TASK-532)。
+    /// 材料(`lastListing`)の更新と同じ同期区間で判定する必要があるため。
     /// - Parameter didFailEnumeration: 列挙に失敗したか。行の有無とは別に運ぶ(TASK-410)。
     ///   畳んだ行と一緒に渡させることで、`entries` だけ更新して失敗の事実が前回のまま
     ///   残る経路を作らない。材料側の値は `DirectoryListing.didFailEnumeration`。
@@ -236,9 +240,16 @@ final class FileListModel {
         case .ignored: return false
         case .deferred: return true
         case let .apply(applied):
-            gitStatus = applied
+            setGitStatus(applied)
             return true
         }
+    }
+
+    /// git 状態を観測対象へ書く唯一の実装。**変わったときだけ書く**(TASK-532)。
+    /// キー化のたびの取り直しは同じ結果を返すのが普通で、素通しで代入するとバッジが
+    /// 変わっていなくてもサイドバーの再評価が走る。`SidebarGitStatus` は Equatable。
+    private func setGitStatus(_ newStatus: SidebarGitStatus?) {
+        gitStatus = newStatus
     }
 
     /// `sequence` 以前に発行されたすべての取得結果を無効化する。ウィンドウを閉じるときに呼ぶ
@@ -278,21 +289,10 @@ final class FileListModel {
     }
 
     #if DEBUG
-        /// `listSnapshot` を評価した回数。1 回のキー操作で絞り込みが何度走るかを
-        /// テストから測るためだけに置く(TASK-418 AC#3)。観測対象にすると読み出しが
-        /// 再描画を呼ぶため `@ObservationIgnored`。
-        @ObservationIgnored private(set) var snapshotEvaluationCount = 0
-
-        /// 評価回数を 0 へ戻す。測りたい操作の直前にテストから呼ぶ。
-        func resetSnapshotEvaluationCount() {
-            snapshotEvaluationCount = 0
-        }
-
-        /// 1 回評価したことを記録する。`listSnapshot` は別ファイルの extension に
-        /// あり、`private(set)` の setter へ届かないためここを経由する。
-        func noteSnapshotEvaluated() {
-            snapshotEvaluationCount += 1
-        }
+        /// `listSnapshot` の評価回数(テスト計測用の足場)。計数そのものは
+        /// `SnapshotEvaluationCounter` が持つ。観測対象にすると読み出しが再描画を
+        /// 呼ぶため `@ObservationIgnored`。
+        @ObservationIgnored let snapshotEvaluations = SnapshotEvaluationCounter()
     #endif
 
     /// `directory` のフォルダー一覧(FolderListingView)へ渡す供給元。

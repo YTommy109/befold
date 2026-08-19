@@ -62,6 +62,21 @@ final class SidebarTreePresenter {
     ///
     /// `lastListing` と `entriesDirectory` は**この同じ同期区間で**書く。片方だけが
     /// 進む窓があると、`rebuildRows` が別ディレクトリの材料で行を組む。
+    ///
+    /// **前回と完全に同じ結果なら `setEntries` を呼ばない**(TASK-532)。同じディレクトリを
+    /// 取り直す契機はウィンドウ生成直後とキー化のたびにあり、素通しすると
+    /// `FileListModel.entryIndex` を毎回作り直す。
+    ///
+    /// 止めたいのは**索引の作り直しと、それが引き起こす提示対象の無効化**であって、
+    /// 「観測対象への同値の代入」ではない。Swift の Observation は Equatable な値の
+    /// 同値代入では観測を汚さない(実測: `entries` / `sortOrder` / `filterText` /
+    /// `gitStatus` / `baseDirectory` はいずれも発火 0)。一方 `entryIndex` は
+    /// Equatable ではないので作り直すたびに必ず汚れ、`previewTarget` を読む側
+    /// (ViewerContentView・ツールバー同期)がウィンドウをキーにするたびに再評価される。
+    ///
+    /// 判定をここに置くのは、`lastListing` の更新と同じ同期区間に収めるため(モデル側へ
+    /// 置くと材料だけが進む窓ができる)。`lastListing` は行に出ない差でも更新してよいので、
+    /// 上の不変条件は保たれる。
     @discardableResult
     func applyRows(_ listing: DirectoryListing, for directory: URL) -> [FileListEntry] {
         lastListing = listing
@@ -73,6 +88,17 @@ final class SidebarTreePresenter {
         )
         // 列挙に失敗したかは行と一緒に渡す。行の有無からは判定できない——失敗しても
         // 親移動行と「いま開いている文書」の行は出るため(TASK-410)。
+        //
+        // 比較するのは `setEntries` が書く値の全量(3 つ + 一覧の到着を表す
+        // `hasLoadedEntries`)。`setEntries` に値を足すときは、ここの比較にも足すこと。
+        // 挙げ漏れると「変わったのに描き直されない」へ反転する。git バッジ・絞り込み・
+        // フィルターは `entries` に含まれないが、いずれも `listSnapshot` 側の導出で
+        // 適用される別の観測値なので、ここで止めても追随する。
+        let isUnchanged = fileListModel.hasLoadedEntries
+            && fileListModel.entriesDirectory == directory
+            && fileListModel.didFailListing == listing.didFailEnumeration
+            && fileListModel.entries == rows
+        guard !isUnchanged else { return rows }
         fileListModel.setEntries(
             rows, for: directory, didFailEnumeration: listing.didFailEnumeration
         )

@@ -94,11 +94,11 @@ struct FileListViewFilteredKeyboardTests {
     @Test("1 回のキー操作で絞り込みの評価は 1 回だけ")
     func keyPressEvaluatesSnapshotOnce() {
         let (view, _) = makeFilteredView()
-        view.model.resetSnapshotEvaluationCount()
+        view.model.snapshotEvaluations.reset()
 
         _ = view.handleKey(.downArrow)
 
-        #expect(view.model.snapshotEvaluationCount == 1)
+        #expect(view.model.snapshotEvaluations.count == 1)
     }
 
     /// ← (ツリー内で親行へ移る)も同じ不変条件に従うこと(TASK-443)。
@@ -127,12 +127,12 @@ struct FileListViewFilteredKeyboardTests {
             onToggleChangedFilesOnly: {},
             onToggleSidebarTreeLayout: {}
         )
-        model.resetSnapshotEvaluationCount()
+        model.snapshotEvaluations.reset()
 
         #expect(view.handleKey(.leftArrow) == .handled)
 
         #expect(model.selection == parent.id)
-        #expect(model.snapshotEvaluationCount == 1)
+        #expect(model.snapshotEvaluations.count == 1)
     }
 
     @Test("絞り込み結果が空なら隠れた選択からの移動は何も起こさない")
