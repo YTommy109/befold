@@ -473,6 +473,20 @@ describe('検索ナビゲーション', () => {
     expect(currentMark(document)).toBe(document.querySelectorAll('mark.mmd-find-match')[0]);
   });
 
+  // TASK-485.19 で jump.ts 側に見つかった回帰（外枠リネームへの追随漏れで
+  // ボタンの click() が一度も配線されなくなっていた）と同型の穴を、
+  // find.ts 側でも塞いでおく。next()/prev() の直接呼び出しではなく
+  // 実際のボタン要素への click() を検証する。
+  test('次へ/前へボタンをクリックすると反応する', () => {
+    const { document } = openFindOn('x a x b x', 'x');
+
+    document.getElementById('mmd-find-next').click();
+    expect(count(document)).toBe('2/3');
+
+    document.getElementById('mmd-find-prev').click();
+    expect(count(document)).toBe('1/3');
+  });
+
   test('next は末尾から先頭へ循環する', () => {
     const { document, main } = openFindOn('x a x b x', 'x');
 

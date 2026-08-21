@@ -15013,7 +15013,7 @@
   });
   function _mmdInitJump() {
     var strings = window._mmdJumpStrings || {};
-    var bar = document.getElementById("mmd-jump-bar");
+    var bar = document.getElementById("mmd-jump-panel");
     if (!bar) return;
     var prevButton = document.getElementById("mmd-jump-prev");
     var nextButton = document.getElementById("mmd-jump-next");

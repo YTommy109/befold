@@ -572,6 +572,11 @@ body {
 .mmd-bar-modes {
   display: flex;
   align-items: center;
+  /* #mmd-bar は align-items:stretch のため、この行の幅は選ばれているパネルの幅に
+     合わせて伸縮する(検索パネルが最も広い)。左寄せのままだと右端固定(right:12px)の
+     コンテナが伸びるたびにこの行の見た目の位置が動いて見える(実機で確認)。
+     右寄せにして、コンテナの右端(常に一定)を基準にする。 */
+  justify-content: flex-end;
   gap: 2px;
 }
 

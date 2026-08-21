@@ -347,7 +347,7 @@ registerBar('jump', {
 // バーの閉じるボタンと前後ボタンを配線する（_mmdInit から 1 回だけ呼ぶ）。
 function _mmdInitJump(): void {
   var strings: ViewerJumpStrings = window._mmdJumpStrings || {};
-  var bar = document.getElementById('mmd-jump-bar');
+  var bar = document.getElementById('mmd-jump-panel');
   if (!bar) return;
 
   var prevButton = document.getElementById('mmd-jump-prev');

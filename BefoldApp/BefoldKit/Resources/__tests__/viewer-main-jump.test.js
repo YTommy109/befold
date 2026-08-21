@@ -138,6 +138,29 @@ describe('文書内ジャンプ', () => {
     expect(count(document)).toBe('1/4');
   });
 
+  // 実機で見つけた回帰(TASK-485.19): _mmdInitJump() が外枠のリネーム
+  // (#mmd-jump-bar → #mmd-jump-panel、TASK-485.19.2)に追随し忘れたコード
+  // (`document.getElementById('mmd-jump-bar')` が null を返し、wireBarControls
+  // が一度も呼ばれない)により、前へ/次へ/閉じるボタンのクリックが完全に
+  // 無反応になっていた。Enter/Shift+Enter は document 側の別経路
+  // (keyboard.ts)で動くため気づけず、既存テストも _mmdJumpNextIfOpen() 等の
+  // 直接呼び出しか Enter キーだけを確認しており、実際のボタン要素への
+  // click() を一度も検証していなかった。ここでボタンの click() を直接
+  // シミュレートして固定する。
+  test('前へ/次へ/閉じるボタンをクリックすると反応する', () => {
+    const loaded = openJumpOn(HEADINGS);
+    const { document } = loaded;
+
+    document.getElementById('mmd-jump-next').click();
+    expect(count(document)).toBe('2/4');
+
+    document.getElementById('mmd-jump-prev').click();
+    expect(count(document)).toBe('1/4');
+
+    document.getElementById('mmd-jump-close').click();
+    expect(loaded.main._mmdJump.isOpen()).toBe(false);
+  });
+
   test('ジャンプバーが閉じている間は Enter で動かない', () => {
     const loaded = openJumpOn(HEADINGS);
     loaded.main._mmdJump.close();
