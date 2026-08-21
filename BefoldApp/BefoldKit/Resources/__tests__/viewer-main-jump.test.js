@@ -601,6 +601,22 @@ describe('変更ブロックのジャンプ', () => {
     expect(count(document)).toBe('2/2');
   });
 
+  // TASK-485.19.4: resolveJumpNavigationKey は openBar（'jump'かどうか）だけを見て
+  // activeKind（heading/changeBlock）を区別しないため、実際の Enter キー入力
+  // （document の keydown 経由）でも見出しと同じ経路で動くはず。既存の
+  // Enter キー確認テストは見出しモードだけだったので、変更箇所モードでも
+  // 同じ経路を通ることをここで固定する。
+  test('Enter で次の変更箇所へ、Shift+Enter で前の変更箇所へ動く（見出しと同じキー経路）', () => {
+    const loaded = openChangeBlockJumpOn(INLINE_DIFF_DOM);
+    const { document } = loaded;
+
+    pressEnter(loaded, false);
+    expect(count(document)).toBe('2/2');
+
+    pressEnter(loaded, true);
+    expect(count(document)).toBe('1/2');
+  });
+
   // アクティブなブロックは各行の左端セルへ印を付ける（CSS が左辺だけの帯にする）。
   // 行数の多いブロックでも 1 本の帯に見え、地色を潰さない。
   test('アクティブなブロックの各行の左端セルに印が付く', () => {
