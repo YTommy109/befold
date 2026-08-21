@@ -521,7 +521,7 @@
           }
         );
       };
-      var MODES = /* @__PURE__ */ Object.freeze({
+      var MODES2 = /* @__PURE__ */ Object.freeze({
         __proto__: null,
         APOS_STRING_MODE,
         BACKSLASH_ESCAPE,
@@ -1556,12 +1556,12 @@
           optional,
           anyNumberOfTimes
         };
-        for (const key in MODES) {
-          if (typeof MODES[key] === "object") {
-            deepFreeze(MODES[key]);
+        for (const key in MODES2) {
+          if (typeof MODES2[key] === "object") {
+            deepFreeze(MODES2[key]);
           }
         }
-        Object.assign(hljs, MODES);
+        Object.assign(hljs, MODES2);
         return hljs;
       };
       var highlight = HLJS({});
@@ -3457,7 +3457,7 @@
   // node_modules/highlight.js/lib/languages/css.js
   var require_css = __commonJS({
     "node_modules/highlight.js/lib/languages/css.js"(exports, module) {
-      var MODES = (hljs) => {
+      var MODES2 = (hljs) => {
         return {
           IMPORTANT: {
             scope: "meta",
@@ -4265,7 +4265,7 @@
       ].sort().reverse();
       function css(hljs) {
         const regex = hljs.regex;
-        const modes = MODES(hljs);
+        const modes = MODES2(hljs);
         const VENDOR_PREFIX = { begin: /-(webkit|moz|ms|o)-(?=[a-z])/ };
         const AT_MODIFIERS = "and or not only";
         const AT_PROPERTY_RE = /@-?\w[\w]*(-\w+)*/;
@@ -6737,7 +6737,7 @@
   // node_modules/highlight.js/lib/languages/less.js
   var require_less = __commonJS({
     "node_modules/highlight.js/lib/languages/less.js"(exports, module) {
-      var MODES = (hljs) => {
+      var MODES2 = (hljs) => {
         return {
           IMPORTANT: {
             scope: "meta",
@@ -7545,7 +7545,7 @@
       ].sort().reverse();
       var PSEUDO_SELECTORS = PSEUDO_CLASSES.concat(PSEUDO_ELEMENTS).sort().reverse();
       function less(hljs) {
-        const modes = MODES(hljs);
+        const modes = MODES2(hljs);
         const PSEUDO_SELECTORS$1 = PSEUDO_SELECTORS;
         const AT_MODIFIERS = "and or not only";
         const IDENT_RE = "[\\w-]+";
@@ -10297,7 +10297,7 @@
   // node_modules/highlight.js/lib/languages/scss.js
   var require_scss = __commonJS({
     "node_modules/highlight.js/lib/languages/scss.js"(exports, module) {
-      var MODES = (hljs) => {
+      var MODES2 = (hljs) => {
         return {
           IMPORTANT: {
             scope: "meta",
@@ -11104,7 +11104,7 @@
         "zoom"
       ].sort().reverse();
       function scss(hljs) {
-        const modes = MODES(hljs);
+        const modes = MODES2(hljs);
         const PSEUDO_ELEMENTS$1 = PSEUDO_ELEMENTS;
         const PSEUDO_CLASSES$1 = PSEUDO_CLASSES;
         const AT_IDENTIFIER = "@[a-z-]+";
@@ -12888,7 +12888,7 @@
           illegal: "\\n",
           relevance: 0
         };
-        const MODES = [
+        const MODES2 = [
           KEY,
           {
             className: "meta",
@@ -12969,7 +12969,7 @@
           SINGLE_QUOTE_STRING,
           STRING
         ];
-        const VALUE_MODES = [...MODES];
+        const VALUE_MODES = [...MODES2];
         VALUE_MODES.pop();
         VALUE_MODES.push(CONTAINER_STRING);
         VALUE_CONTAINER.contains = VALUE_MODES;
@@ -12977,7 +12977,7 @@
           name: "YAML",
           case_insensitive: true,
           aliases: ["yml"],
-          contains: MODES
+          contains: MODES2
         };
       }
       module.exports = yaml;
@@ -15025,9 +15025,15 @@
       prevId: "mmd-jump-prev",
       nextId: "mmd-jump-next",
       closeId: "mmd-jump-close",
-      onPrev: _mmdJump.prev,
-      onNext: _mmdJump.next,
-      onClose: _mmdJump.close
+      onPrev: function() {
+        _mmdJump.prev();
+      },
+      onNext: function() {
+        _mmdJump.next();
+      },
+      onClose: function() {
+        _mmdJump.close();
+      }
     });
   }
   function _mmdOpenJump(kind) {
@@ -15061,6 +15067,7 @@
   }
 
   // viewer-src/bar-mode.ts
+  var MODES = ["search", "heading", "changeBlock"];
   var MODE_BUTTON_IDS = {
     search: "mmd-bar-mode-search",
     heading: "mmd-bar-mode-heading",
@@ -15082,7 +15089,7 @@
   }
   function updateSwitchAppearance() {
     var mode = currentMode();
-    Object.keys(MODE_BUTTON_IDS).forEach(function(key) {
+    MODES.forEach(function(key) {
       var button = document.getElementById(MODE_BUTTON_IDS[key]);
       if (!button) return;
       button.classList.toggle("active", key === mode);
@@ -15100,7 +15107,7 @@
     setOnBarChange(updateSwitchAppearance);
     setOnAvailabilityChange(updateSwitchAppearance);
     updateSwitchAppearance();
-    Object.keys(MODE_BUTTON_IDS).forEach(function(key) {
+    MODES.forEach(function(key) {
       var button = document.getElementById(MODE_BUTTON_IDS[key]);
       if (!button) return;
       button.addEventListener("click", function() {

@@ -12,6 +12,8 @@ import { _mmdJump, _mmdOpenJump, jumpAvailableKinds, setOnAvailabilityChange } f
 
 type BarMode = 'search' | 'heading' | 'changeBlock';
 
+var MODES: readonly BarMode[] = ['search', 'heading', 'changeBlock'];
+
 var MODE_BUTTON_IDS: Record<BarMode, string> = {
   search: 'mmd-bar-mode-search',
   heading: 'mmd-bar-mode-heading',
@@ -43,7 +45,7 @@ function isModeAvailable(mode: BarMode): boolean {
 // setOnAvailabilityChange から呼ばれる。外枠の表示自体は bar.ts が持つ）。
 function updateSwitchAppearance(): void {
   var mode = currentMode();
-  (Object.keys(MODE_BUTTON_IDS) as BarMode[]).forEach(function (key) {
+  MODES.forEach(function (key) {
     var button = document.getElementById(MODE_BUTTON_IDS[key]);
     if (!button) return;
     button.classList.toggle('active', key === mode);
@@ -65,7 +67,7 @@ function _mmdInitBarModeSwitch(): void {
   // Swift からの最初の可用性同期が届く前でも、検索は常時使えるためスイッチの
   // 初期状態(見出し/変更箇所を隠す)を合わせておく。
   updateSwitchAppearance();
-  (Object.keys(MODE_BUTTON_IDS) as BarMode[]).forEach(function (key) {
+  MODES.forEach(function (key) {
     var button = document.getElementById(MODE_BUTTON_IDS[key]);
     if (!button) return;
     button.addEventListener('click', function () {

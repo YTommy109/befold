@@ -9,7 +9,10 @@ const outerVisible = (document) => document.getElementById('mmd-bar').style.disp
 const activeModes = (document) =>
   ['search', 'heading', 'changeBlock']
     .filter((mode) => document.getElementById('mmd-bar-mode-' + mode).classList.contains('active'))
-    .sort();
+    .toSorted();
+
+const segmentVisible = (document, mode) =>
+  document.getElementById('mmd-bar-mode-' + mode).style.display !== 'none';
 
 const clickMode = (document, mode) => {
   document.getElementById('mmd-bar-mode-' + mode).click();
@@ -83,9 +86,6 @@ describe('バーのモード切替スイッチ', () => {
   // TASK-485.19.3: 非対応モードのセグメントは、Swift 側 canJump(to:) 由来の
   // availableKinds（TASK-485.18 の可用性伝搬を流用）に基づき自動的に隠す。
   describe('モードの可用性に応じたセグメントの表示', () => {
-    const segmentVisible = (document, mode) =>
-      document.getElementById('mmd-bar-mode-' + mode).style.display !== 'none';
-
     test('Swift からまだ同期が届く前は見出し/変更箇所を隠し、検索だけ出す', () => {
       const { document } = loadViewerMain({});
 

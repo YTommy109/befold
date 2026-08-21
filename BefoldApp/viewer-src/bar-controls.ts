@@ -11,9 +11,12 @@ interface BarControlsConfig {
   prevId: string;
   nextId: string;
   closeId: string;
-  onPrev(): void;
-  onNext(): void;
-  onClose(): void;
+  // `this: void` を明示するのは、メソッド構文だと `config.onPrev` を渡す時点で
+  // unbound-method（this が外れる）として検出されるため。これらは常に
+  // addEventListener へそのまま渡され this を使わない。
+  onPrev: (this: void) => void;
+  onNext: (this: void) => void;
+  onClose: (this: void) => void;
 }
 
 function wireBarControls(config: BarControlsConfig): void {

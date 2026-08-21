@@ -4,8 +4,8 @@
 //
 // 位置の算術と件数ラベルは navigation.ts、バーの排他は bar.ts と共有する。
 
-import { claimBar, isBarOpen, registerBar, releaseBar, updateOuterVisibility } from './bar.js';
 import { wireBarControls } from './bar-controls.js';
+import { claimBar, isBarOpen, registerBar, releaseBar, updateOuterVisibility } from './bar.js';
 import {
   formatNavigationCount,
   moveCurrentHighlight,
@@ -362,9 +362,15 @@ function _mmdInitJump(): void {
     prevId: 'mmd-jump-prev',
     nextId: 'mmd-jump-next',
     closeId: 'mmd-jump-close',
-    onPrev: _mmdJump.prev,
-    onNext: _mmdJump.next,
-    onClose: _mmdJump.close,
+    onPrev: function () {
+      _mmdJump.prev();
+    },
+    onNext: function () {
+      _mmdJump.next();
+    },
+    onClose: function () {
+      _mmdJump.close();
+    },
   });
 
   // Enter / Shift+Enter による前後移動はここでは配線しない。ジャンプバーは

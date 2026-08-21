@@ -1,8 +1,8 @@
 // 検索バー。クエリ・トグル・ヒット一覧・現在位置・開閉・段階読み込み中の
 // すべてをコントローラのクロージャに閉じ、外部からは公開メソッド経由でのみ触れる。
 
-import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
 import { wireBarControls } from './bar-controls.js';
+import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
 import { _MSG_FIND_OPTIONS_CHANGED, _mmdPostMessage } from './bridge.js';
 import { isComposingKeyEvent } from './ime.js';
 import {

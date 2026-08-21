@@ -63,7 +63,8 @@ const headingTexts = (loaded) =>
     .collectHeadings(loaded.document.getElementById('diagram-wrap'))
     .map((target) => target.anchor.textContent.trim());
 
-const isBarVisible = (document) => document.getElementById('mmd-jump-panel').style.display === 'flex';
+const isBarVisible = (document) =>
+  document.getElementById('mmd-jump-panel').style.display === 'flex';
 
 const count = (document) => document.getElementById('mmd-jump-count').textContent;
 const current = (document) => document.querySelector('.mmd-jump-current');
