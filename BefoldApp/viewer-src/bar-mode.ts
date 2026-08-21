@@ -8,7 +8,7 @@
 
 import { currentBar, setOnBarChange } from './bar.js';
 import { _mmdOpenFind } from './find.js';
-import { _mmdJump, _mmdOpenJump } from './jump.js';
+import { _mmdJump, _mmdOpenJump, jumpAvailableKinds, setOnAvailabilityChange } from './jump.js';
 
 type BarMode = 'search' | 'heading' | 'changeBlock';
 
@@ -31,15 +31,23 @@ function currentMode(): BarMode | null {
   return null;
 }
 
-// バーの開閉・モードが変わるたびに呼ばれ、スイッチの選択表示を揃える
-// （bar.ts の setOnBarChange から呼ばれる。外枠の表示自体は bar.ts が持つ）。
+// 検索は canFind が常時 true という前提（/review-design の結論）で、
+// 可否判定は持たない。見出し/変更箇所は Swift 側 ViewerCapabilities.canJump(to:)
+// 由来の availableKinds（TASK-485.18 の可用性伝搬を流用）で決まる。
+function isModeAvailable(mode: BarMode): boolean {
+  return mode === 'search' || jumpAvailableKinds().includes(mode);
+}
+
+// バーの開閉・モード・可用性が変わるたびに呼ばれ、スイッチの選択表示と
+// 非対応セグメントの非表示を揃える（bar.ts の setOnBarChange、jump.ts の
+// setOnAvailabilityChange から呼ばれる。外枠の表示自体は bar.ts が持つ）。
 function updateSwitchAppearance(): void {
   var mode = currentMode();
   (Object.keys(MODE_BUTTON_IDS) as BarMode[]).forEach(function (key) {
     var button = document.getElementById(MODE_BUTTON_IDS[key]);
-    if (button) {
-      button.classList.toggle('active', key === mode);
-    }
+    if (!button) return;
+    button.classList.toggle('active', key === mode);
+    button.style.display = isModeAvailable(key) ? '' : 'none';
   });
 }
 
@@ -53,6 +61,10 @@ function openMode(mode: BarMode): void {
 
 function _mmdInitBarModeSwitch(): void {
   setOnBarChange(updateSwitchAppearance);
+  setOnAvailabilityChange(updateSwitchAppearance);
+  // Swift からの最初の可用性同期が届く前でも、検索は常時使えるためスイッチの
+  // 初期状態(見出し/変更箇所を隠す)を合わせておく。
+  updateSwitchAppearance();
   (Object.keys(MODE_BUTTON_IDS) as BarMode[]).forEach(function (key) {
     var button = document.getElementById(MODE_BUTTON_IDS[key]);
     if (!button) return;

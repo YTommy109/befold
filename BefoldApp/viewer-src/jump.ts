@@ -380,6 +380,23 @@ function _mmdOpenJump(kind: string): void {
   _mmdJump.open(kind);
 }
 
+// 直近に届いた利用可能な種類。モード切替スイッチ（bar-mode.ts）が
+// セグメントの表示/非表示を決めるために読む（TASK-485.19.3）。
+// Swift からまだ一度も同期が届いていない間は「どれも使えない」として扱う
+// （_mmdApplyJumpAvailability と同じ、閉じる方向へ倒す既定）。
+var lastAvailableKinds: string[] = [];
+var onAvailabilityChange: (() => void) | undefined;
+
+// bar-mode.ts が「表示を更新したい」ことをここへ登録する（bar.ts の
+// setOnBarChange と同じ理由: bar-mode.ts と互いに import すると循環する）。
+function setOnAvailabilityChange(callback: () => void): void {
+  onAvailabilityChange = callback;
+}
+
+function jumpAvailableKinds(): string[] {
+  return lastAvailableKinds;
+}
+
 // Swift(evaluateJavaScript)から名前で呼ばれる入口。いま使えるジャンプの種類が
 // 変わるたびに送られ、開いている種類が外れていればバーを閉じる。
 function _mmdApplyJumpAvailability(kinds: unknown): void {
@@ -390,7 +407,14 @@ function _mmdApplyJumpAvailability(kinds: unknown): void {
         return typeof kind === 'string';
       })
     : [];
+  lastAvailableKinds = available;
+  // 閉じる判定を先に済ませてから通知する。モード切替スイッチが読む
+  // currentMode() は「いま開いているか」を見るため、閉じたあとに通知しないと
+  // 閉じたはずのモードが選択状態のまま表示される。
   _mmdJump.closeUnlessAvailable(available);
+  if (onAvailabilityChange) {
+    onAvailabilityChange();
+  }
 }
 
 function _mmdJumpNextIfOpen(): void {
@@ -411,4 +435,6 @@ export {
   _mmdApplyJumpAvailability,
   _mmdJumpNextIfOpen,
   _mmdJumpPrevIfOpen,
+  jumpAvailableKinds,
+  setOnAvailabilityChange,
 };

@@ -14253,6 +14253,7 @@
     isHostFeatureEnabled: () => isHostFeatureEnabled,
     isLocalPathHref: () => isLocalPathHref,
     isSafeLinkURL: () => isSafeLinkURL,
+    jumpAvailableKinds: () => jumpAvailableKinds,
     keptMatchIndex: () => keptMatchIndex,
     lastLines: () => lastLines,
     leadingIndentInfo: () => leadingIndentInfo,
@@ -14292,6 +14293,7 @@
     setDiff: () => setDiff,
     setDiffLayout: () => setDiffLayout,
     setLineNumbers: () => setLineNumbers,
+    setOnAvailabilityChange: () => setOnAvailabilityChange,
     setOnBarChange: () => setOnBarChange,
     setViewMode: () => setViewMode,
     slugifyHeading: () => slugifyHeading,
@@ -15031,11 +15033,23 @@
   function _mmdOpenJump(kind) {
     _mmdJump.open(kind);
   }
+  var lastAvailableKinds = [];
+  var onAvailabilityChange;
+  function setOnAvailabilityChange(callback) {
+    onAvailabilityChange = callback;
+  }
+  function jumpAvailableKinds() {
+    return lastAvailableKinds;
+  }
   function _mmdApplyJumpAvailability(kinds) {
     var available = Array.isArray(kinds) ? kinds.filter(function(kind) {
       return typeof kind === "string";
     }) : [];
+    lastAvailableKinds = available;
     _mmdJump.closeUnlessAvailable(available);
+    if (onAvailabilityChange) {
+      onAvailabilityChange();
+    }
   }
   function _mmdJumpNextIfOpen() {
     if (!_mmdJump.isOpen()) return;
@@ -15063,13 +15077,16 @@
     }
     return null;
   }
+  function isModeAvailable(mode) {
+    return mode === "search" || jumpAvailableKinds().includes(mode);
+  }
   function updateSwitchAppearance() {
     var mode = currentMode();
     Object.keys(MODE_BUTTON_IDS).forEach(function(key) {
       var button = document.getElementById(MODE_BUTTON_IDS[key]);
-      if (button) {
-        button.classList.toggle("active", key === mode);
-      }
+      if (!button) return;
+      button.classList.toggle("active", key === mode);
+      button.style.display = isModeAvailable(key) ? "" : "none";
     });
   }
   function openMode(mode) {
@@ -15081,6 +15098,8 @@
   }
   function _mmdInitBarModeSwitch() {
     setOnBarChange(updateSwitchAppearance);
+    setOnAvailabilityChange(updateSwitchAppearance);
+    updateSwitchAppearance();
     Object.keys(MODE_BUTTON_IDS).forEach(function(key) {
       var button = document.getElementById(MODE_BUTTON_IDS[key]);
       if (!button) return;
