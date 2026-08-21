@@ -1,10 +1,11 @@
 ---
 id: TASK-485.19
 title: 検索バーとジャンプバーを 1 つのバーへ統合し、モード切替スイッチを付ける
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-08-18 15:26'
-updated_date: '2026-08-18 15:26'
+updated_date: '2026-08-21 09:13'
 labels: []
 milestone: m-6
 dependencies:
@@ -84,3 +85,56 @@ ordinal: 766000
 - [ ] #5 モード切替をまたぐ状態保持の規則が決まり、テストで担保されている
 - [ ] #6 件数表示・前へ/次へ・閉じる・Enter/Shift+Enter・Esc がモード間で 1 つの実装を共有している
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## /review-design の結論（前提と裏付け）
+
+- canFind（ViewerCapabilities.swift:16,76）・canJump(to:)（ViewerCapabilities.swift:103-108）は
+  既に個別の事実ベース判定として存在する（コード参照）。統合後もこれを唯一の真実源として使う。
+- FeatureGate.isDocumentJumpEnabled は canJump を丸ごと false にする（ViewerCapabilities.swift:80）。
+  TASK-485.18 の可用性伝搬（_mmdApplyJumpAvailability 系）を流用すれば、stable ビルドで
+  見出し/変更箇所モードを隠すために新しい gate 信号を JS 側に追加する必要はない
+  （未確認: 呼び出しタイミングがバー未オープン時にも届くかは実装時に rg で確認する）。
+- Enter/Shift+Enter の受け口は find=入力欄 keydown、jump=document keydown という構造的非対称
+  （find.ts:452-467, keyboard.ts:103-114）。統合で必ず手を入れる。
+- isRendering フラグは jump 側だけが持つ（jump.ts:96-98）。find は無条件 refresh。
+  非アクティブモードは再描画時に計算をスキップし、モード切替時にのみ列挙する方針にする。
+- ViewerWindowController 型グループは実測896行（閾値1000）、MainMenuBuilder は377行
+  （scripts/check-type-group-size.sh）。Swift側の追加は小さく抑える。
+
+## ユーザー承認済みの製品判断
+
+1. モード切替をまたぐ状態保持: 保持する（検索クエリ・Aa/ab|/.* トグル・見出しレベル選択は
+   モード切替では消えない。バーを完全に閉じたときにリセットする）
+2. Edit メニューの見出し/変更箇所ジャンプ2項目: 現行のまま残し、実体を
+   「統合バーを該当モードへ明示的に切り替えて開く」に差し替える（explicit kind は
+   常にそのモードを強制。⌘F 等の非明示オープンだけが showsDiff に応じた既定モードを使う）
+
+## 実装ステップ（短いループで進める。各ステップでテストを通してから次へ）
+
+1. JS: find.ts / jump.ts に重複配線されている件数表示・前後移動・close ボタンの
+   クリック配線を共通モジュールへ1箇所化（振る舞い変更なし、リファクタのみ）
+2. JS+HTML: viewer.html を単一の #mmd-bar コンテナ + モード切替スイッチ（検索/見出し/変更箇所）
+   へ再構成。検索専用の入力欄・トグルは検索モード時のみ、レベルトグルは見出しモード時のみ表示。
+   style.css の絶対配置前提（.mmd-find-toggles）を、入力欄を持たないモードと衝突しない形に見直す
+3. JS: Enter/Shift+Enter の受け口を統一（検索モードは入力欄 keydown、見出し/変更箇所は
+   document keydown のまま存置するか、フォーカス設計を変えて入力欄方式に寄せるかを実装時に確定。
+   ime.ts のIME判定はモードごとに正しい経路だけへ結線する）
+4. JS: モードの可用性（canFind は常時true、canJump(to:) 由来の availableKinds）に基づき、
+   非対応セグメントを非表示にする。TASK-485.18 の closeUnlessAvailable をモード切替スイッチにも
+   適用（現在のモードが不可になったら別の利用可能モードへフォールバックするか閉じるかを決める）
+5. Swift: WebViewCommandController に openBar(kind: DocumentJumpKind?) 的な単一入口を作る。
+   kind が nil（⌘F 相当の非明示オープン）のときだけ showsDiff を見て既定を search/changeBlock に
+   分岐。kind 明示時（Editメニュー）は常にそのモードを強制。documentJump(_:) と openFind() を
+   この入口へ収斂させる
+6. Swift+JS: 状態保持（モード切替をまたぐクエリ・トグル）をユニットテストで固定
+7. AC を1つずつ確認し、Definition of Done / 完了処理は task-finalization guide に従う
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+/review-design の結果、実コード（find.ts/jump.ts、計984行、span境界マッチング・isRenderingフラグ等の繊細な不変条件あり）を確認したところ1タスクでのレビュー・検証には大きすぎると判断し、TASK-485.19.1〜.5 へ分割した。分割方針・各サブタスクの担当範囲は各サブタスクのDescriptionに記載。本タスク自身は全サブタスク完了後にfinalizeする。
+<!-- SECTION:NOTES:END -->
