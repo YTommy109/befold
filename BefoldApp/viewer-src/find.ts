@@ -1,6 +1,7 @@
 // 検索バー。クエリ・トグル・ヒット一覧・現在位置・開閉・段階読み込み中の
 // すべてをコントローラのクロージャに閉じ、外部からは公開メソッド経由でのみ触れる。
 
+import { wireBarControls } from './bar-controls.js';
 import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
 import { _MSG_FIND_OPTIONS_CHANGED, _mmdPostMessage } from './bridge.js';
 import { isComposingKeyEvent } from './ime.js';
@@ -465,9 +466,14 @@ function _createFindController(): FindController {
       // Escape はここでは処理しない: document の keydown ハンドラがバブリングで捕捉し、
       // isOpen() 時に preventDefault + close() を行う(同じ挙動になる)。
     });
-    document.getElementById('mmd-find-next')!.addEventListener('click', next);
-    document.getElementById('mmd-find-prev')!.addEventListener('click', prev);
-    document.getElementById('mmd-find-close')!.addEventListener('click', close);
+    wireBarControls({
+      prevId: 'mmd-find-prev',
+      nextId: 'mmd-find-next',
+      closeId: 'mmd-find-close',
+      onPrev: prev,
+      onNext: next,
+      onClose: close,
+    });
     document.getElementById('mmd-find-case')!.addEventListener('click', function () {
       toggleOption('caseSensitive', 'mmd-find-case');
     });
@@ -481,7 +487,7 @@ function _createFindController(): FindController {
 
   function open(): void {
     claimBar('find');
-    document.getElementById('mmd-find-bar')!.style.display = 'flex';
+    document.getElementById('mmd-find-panel')!.style.display = 'flex';
     var input = findInputElement();
     input.value = query;
     input.focus();
@@ -493,7 +499,7 @@ function _createFindController(): FindController {
 
   function close(): void {
     releaseBar('find');
-    document.getElementById('mmd-find-bar')!.style.display = 'none';
+    document.getElementById('mmd-find-panel')!.style.display = 'none';
     clearMarks();
     matches = [];
     currentIndex = -1;

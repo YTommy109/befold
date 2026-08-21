@@ -62,7 +62,7 @@ extension ViewerWindowController {
         applyDisplayMode(perFileState.displayMode.restoredDisplayMode(for: newURL))
         applyURLToWindow(newURL)
         // fileExists を確認済みなので store.openFile が予約した非同期読み込みは必ず完了に達し、
-        // その時点で onContentReloaded → refreshToolbarState() が発火する
+        // その時点で onContentReloaded → refreshUIState() が発火する
         // (読み込み完了までは切替前の表示状態が残る)。ここでの明示呼び出しは不要。
         store.openFile(newURL)
         // 提示開始(ファイル切替)。applyDisplayMode の後に呼ぶこと。復元するスクロール位置は
@@ -90,7 +90,7 @@ extension ViewerWindowController {
         // (例: .md → .png)そのモードが成立しなくなる場合は降格する。
         // store.handleRename が予約した非同期読み込みの完了後に onContentReloaded が
         // 発火してツールバーが追従するため、ここでの明示的な
-        // refreshToolbarState() 呼び出しは不要
+        // refreshUIState() 呼び出しは不要
         // (resetSourceMode() が走る場合は applySourceMode 内で再同期される)。
         // 降格の規則は DisplayModeStore.supportedDisplayMode に 1 つだけ置く。ここで
         // 「supportsSourceMode でなければレンダリングへ戻す」と書き下すと、コード種別の

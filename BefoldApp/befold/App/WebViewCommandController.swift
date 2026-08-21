@@ -93,6 +93,30 @@ final class WebViewCommandController {
 
     // MARK: - Find
 
+    /// 統合バー(TASK-485.19)の単一入口。Edit > 検索…(⌘F、kind なし)と
+    /// Edit > 見出しへジャンプ / 変更箇所へジャンプ(kind あり)がここへ収斂する。
+    ///
+    /// kind を明示したときは常にそのモードを強制する(検索とジャンプは同じ理由で
+    /// 使い分けるものではなく、ユーザーが選んだ種類をそのまま尊重する)。
+    /// kind が nil のとき(⌘F 相当の非明示オープン)だけ、
+    /// `ViewerCapabilities.defaultBarKind` に既定モードの選択を委ねる。
+    /// ここで `showsDiff` 等の個別フラグを直接見ないのは、「変更ブロックへ
+    /// ジャンプできるか」の条件(ジャンプの能力・フィーチャーゲート込み)を
+    /// `ViewerCapabilities` の外で再実装すると、条件の一部だけを見落として
+    /// (例: フィーチャーゲートが閉じているのに差分表示中というだけで
+    /// 変更箇所ジャンプへ倒し、ジャンプ側の guard で無言の no-op になり
+    /// ⌘F が何も開かなくなる)取りこぼす経路ができるため(ADR 0002 段 2
+    /// 「条件は 1 箇所」)。
+    func openBar(kind: DocumentJumpKind?) {
+        guard let resolvedKind = kind ?? capabilities().defaultBarKind else {
+            openFind()
+            return
+        }
+        openJump(kind: resolvedKind)
+    }
+
+    /// 本番コードからは `openBar(kind:)` を経由すること。ここへの直接呼び出しは
+    /// テスト専用(`openBar` の既定モード選択を迂回してしまうため)。
     func openFind() {
         guard capabilities().canFind else { return }
         renderer.openFind()
@@ -113,6 +137,8 @@ final class WebViewCommandController {
     /// 種類ごとの可否で閉じる。粗い `canJump` だけで通すと、メニュー検証だけが
     /// 種類別の規則(変更ブロックは差分表示が必要)を守る形になり、メニュー以外の
     /// 入口(キーバインド・ツールバー)が同じ穴を継承する(TASK-485.7)。
+    ///
+    /// 本番コードからは `openBar(kind:)` を経由すること(理由は `openFind()` と同じ)。
     func openJump(kind: DocumentJumpKind) {
         guard capabilities().canJump(to: kind) else { return }
         renderer.openJump(kind: kind)

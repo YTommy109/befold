@@ -36,11 +36,13 @@ extension ViewerWindowController {
         webViewCommands.printDocument(over: window)
     }
 
-    /// Edit > 検索…。プレビュー右上の検索バーを開く。
+    /// Edit > 検索…。プレビュー右上の統合バーを開く(kind なし = 非明示オープン)。
+    /// 差分表示中は既定モードが変更ブロックジャンプへ振り分けられる
+    /// (`WebViewCommandController.openBar(kind:)`)。
     /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないため無効化する
     /// (validateMenuItem 側で判定)。
     @objc func find(_ sender: Any?) {
-        webViewCommands.openFind()
+        webViewCommands.openBar(kind: nil)
     }
 
     /// Edit > 次を検索。検索バーが開いている間のみ JS 側で処理される。
@@ -59,14 +61,14 @@ extension ViewerWindowController {
     /// （`selectDisplayMode(_:)`）と同じタグ方式。
     @objc func documentJump(_ sender: Any?) {
         guard let tag = (sender as? NSMenuItem)?.tag, let kind = DocumentJumpKind(menuItemTag: tag) else { return }
-        webViewCommands.openJump(kind: kind)
+        webViewCommands.openBar(kind: kind)
     }
 
     /// View > Toggle Line Numbers / ツールバーの行番号ボタン。行番号表示の有無を切り替える。
     @objc func toggleLineNumbers(_ sender: Any?) {
         guard capabilities.canToggleLineNumbers else { return }
         store.showLineNumbers.toggle()
-        refreshToolbarState()
+        refreshUIState()
     }
 
     /// View メニュー > ソース表示トグル(⌘U)。レンダリング表示とソース表示を往復する。
@@ -96,7 +98,7 @@ extension ViewerWindowController {
     @objc func toggleBookmark(_ sender: Any?) {
         guard capabilities.canBookmark else { return }
         bookmarkStore.toggle(fileURL)
-        refreshToolbarState()
+        refreshUIState()
     }
 
     /// 現在ファイルがブックマーク済みかどうか。ツールバー・View メニューの表示に使う。

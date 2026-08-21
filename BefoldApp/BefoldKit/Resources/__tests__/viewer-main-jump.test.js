@@ -63,7 +63,8 @@ const headingTexts = (loaded) =>
     .collectHeadings(loaded.document.getElementById('diagram-wrap'))
     .map((target) => target.anchor.textContent.trim());
 
-const isBarVisible = (document) => document.getElementById('mmd-jump-bar').style.display === 'flex';
+const isBarVisible = (document) =>
+  document.getElementById('mmd-jump-panel').style.display === 'flex';
 
 const count = (document) => document.getElementById('mmd-jump-count').textContent;
 const current = (document) => document.querySelector('.mmd-jump-current');
@@ -136,6 +137,29 @@ describe('文書内ジャンプ', () => {
 
     pressEnter(loaded, true);
     expect(count(document)).toBe('1/4');
+  });
+
+  // 実機で見つけた回帰(TASK-485.19): _mmdInitJump() が外枠のリネーム
+  // (#mmd-jump-bar → #mmd-jump-panel、TASK-485.19.2)に追随し忘れたコード
+  // (`document.getElementById('mmd-jump-bar')` が null を返し、wireBarControls
+  // が一度も呼ばれない)により、前へ/次へ/閉じるボタンのクリックが完全に
+  // 無反応になっていた。Enter/Shift+Enter は document 側の別経路
+  // (keyboard.ts)で動くため気づけず、既存テストも _mmdJumpNextIfOpen() 等の
+  // 直接呼び出しか Enter キーだけを確認しており、実際のボタン要素への
+  // click() を一度も検証していなかった。ここでボタンの click() を直接
+  // シミュレートして固定する。
+  test('前へ/次へ/閉じるボタンをクリックすると反応する', () => {
+    const loaded = openJumpOn(HEADINGS);
+    const { document } = loaded;
+
+    document.getElementById('mmd-jump-next').click();
+    expect(count(document)).toBe('2/4');
+
+    document.getElementById('mmd-jump-prev').click();
+    expect(count(document)).toBe('1/4');
+
+    document.getElementById('mmd-jump-close').click();
+    expect(loaded.main._mmdJump.isOpen()).toBe(false);
   });
 
   test('ジャンプバーが閉じている間は Enter で動かない', () => {
@@ -214,7 +238,7 @@ describe('文書内ジャンプ', () => {
       new loaded.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
     );
 
-    expect(loaded.document.getElementById('mmd-jump-bar').style.display).toBe('none');
+    expect(loaded.document.getElementById('mmd-jump-panel').style.display).toBe('none');
     expect(current(loaded.document)).toBe(null);
   });
 
@@ -224,7 +248,7 @@ describe('文書内ジャンプ', () => {
     main._mmdJump.close();
 
     expect(current(document)).toBe(null);
-    expect(document.getElementById('mmd-jump-bar').style.display).toBe('none');
+    expect(document.getElementById('mmd-jump-panel').style.display).toBe('none');
   });
 
   test('バーが閉じている間は次へ・前へが効かない', () => {
@@ -599,6 +623,22 @@ describe('変更ブロックのジャンプ', () => {
     main._mmdJumpNextIfOpen();
 
     expect(count(document)).toBe('2/2');
+  });
+
+  // TASK-485.19.4: resolveJumpNavigationKey は openBar（'jump'かどうか）だけを見て
+  // activeKind（heading/changeBlock）を区別しないため、実際の Enter キー入力
+  // （document の keydown 経由）でも見出しと同じ経路で動くはず。既存の
+  // Enter キー確認テストは見出しモードだけだったので、変更箇所モードでも
+  // 同じ経路を通ることをここで固定する。
+  test('Enter で次の変更箇所へ、Shift+Enter で前の変更箇所へ動く（見出しと同じキー経路）', () => {
+    const loaded = openChangeBlockJumpOn(INLINE_DIFF_DOM);
+    const { document } = loaded;
+
+    pressEnter(loaded, false);
+    expect(count(document)).toBe('2/2');
+
+    pressEnter(loaded, true);
+    expect(count(document)).toBe('1/2');
   });
 
   // アクティブなブロックは各行の左端セルへ印を付ける（CSS が左辺だけの帯にする）。

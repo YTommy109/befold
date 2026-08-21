@@ -521,7 +521,7 @@
           }
         );
       };
-      var MODES = /* @__PURE__ */ Object.freeze({
+      var MODES2 = /* @__PURE__ */ Object.freeze({
         __proto__: null,
         APOS_STRING_MODE,
         BACKSLASH_ESCAPE,
@@ -1556,12 +1556,12 @@
           optional,
           anyNumberOfTimes
         };
-        for (const key in MODES) {
-          if (typeof MODES[key] === "object") {
-            deepFreeze(MODES[key]);
+        for (const key in MODES2) {
+          if (typeof MODES2[key] === "object") {
+            deepFreeze(MODES2[key]);
           }
         }
-        Object.assign(hljs, MODES);
+        Object.assign(hljs, MODES2);
         return hljs;
       };
       var highlight = HLJS({});
@@ -3457,7 +3457,7 @@
   // node_modules/highlight.js/lib/languages/css.js
   var require_css = __commonJS({
     "node_modules/highlight.js/lib/languages/css.js"(exports, module) {
-      var MODES = (hljs) => {
+      var MODES2 = (hljs) => {
         return {
           IMPORTANT: {
             scope: "meta",
@@ -4265,7 +4265,7 @@
       ].sort().reverse();
       function css(hljs) {
         const regex = hljs.regex;
-        const modes = MODES(hljs);
+        const modes = MODES2(hljs);
         const VENDOR_PREFIX = { begin: /-(webkit|moz|ms|o)-(?=[a-z])/ };
         const AT_MODIFIERS = "and or not only";
         const AT_PROPERTY_RE = /@-?\w[\w]*(-\w+)*/;
@@ -6737,7 +6737,7 @@
   // node_modules/highlight.js/lib/languages/less.js
   var require_less = __commonJS({
     "node_modules/highlight.js/lib/languages/less.js"(exports, module) {
-      var MODES = (hljs) => {
+      var MODES2 = (hljs) => {
         return {
           IMPORTANT: {
             scope: "meta",
@@ -7545,7 +7545,7 @@
       ].sort().reverse();
       var PSEUDO_SELECTORS = PSEUDO_CLASSES.concat(PSEUDO_ELEMENTS).sort().reverse();
       function less(hljs) {
-        const modes = MODES(hljs);
+        const modes = MODES2(hljs);
         const PSEUDO_SELECTORS$1 = PSEUDO_SELECTORS;
         const AT_MODIFIERS = "and or not only";
         const IDENT_RE = "[\\w-]+";
@@ -10297,7 +10297,7 @@
   // node_modules/highlight.js/lib/languages/scss.js
   var require_scss = __commonJS({
     "node_modules/highlight.js/lib/languages/scss.js"(exports, module) {
-      var MODES = (hljs) => {
+      var MODES2 = (hljs) => {
         return {
           IMPORTANT: {
             scope: "meta",
@@ -11104,7 +11104,7 @@
         "zoom"
       ].sort().reverse();
       function scss(hljs) {
-        const modes = MODES(hljs);
+        const modes = MODES2(hljs);
         const PSEUDO_ELEMENTS$1 = PSEUDO_ELEMENTS;
         const PSEUDO_CLASSES$1 = PSEUDO_CLASSES;
         const AT_IDENTIFIER = "@[a-z-]+";
@@ -12888,7 +12888,7 @@
           illegal: "\\n",
           relevance: 0
         };
-        const MODES = [
+        const MODES2 = [
           KEY,
           {
             className: "meta",
@@ -12969,7 +12969,7 @@
           SINGLE_QUOTE_STRING,
           STRING
         ];
-        const VALUE_MODES = [...MODES];
+        const VALUE_MODES = [...MODES2];
         VALUE_MODES.pop();
         VALUE_MODES.push(CONTAINER_STRING);
         VALUE_CONTAINER.contains = VALUE_MODES;
@@ -12977,7 +12977,7 @@
           name: "YAML",
           case_insensitive: true,
           aliases: ["yml"],
-          contains: MODES
+          contains: MODES2
         };
       }
       module.exports = yaml;
@@ -14164,6 +14164,7 @@
     _mmdFindRefresh: () => _mmdFindRefresh,
     _mmdFitImage: () => _mmdFitImage,
     _mmdInit: () => _mmdInit,
+    _mmdInitBarModeSwitch: () => _mmdInitBarModeSwitch,
     _mmdInitCodeFont: () => _mmdInitCodeFont,
     _mmdInitFind: () => _mmdInitFind,
     _mmdInitFontSize: () => _mmdInitFontSize,
@@ -14252,6 +14253,7 @@
     isHostFeatureEnabled: () => isHostFeatureEnabled,
     isLocalPathHref: () => isLocalPathHref,
     isSafeLinkURL: () => isSafeLinkURL,
+    jumpAvailableKinds: () => jumpAvailableKinds,
     keptMatchIndex: () => keptMatchIndex,
     lastLines: () => lastLines,
     leadingIndentInfo: () => leadingIndentInfo,
@@ -14291,6 +14293,8 @@
     setDiff: () => setDiff,
     setDiffLayout: () => setDiffLayout,
     setLineNumbers: () => setLineNumbers,
+    setOnAvailabilityChange: () => setOnAvailabilityChange,
+    setOnBarChange: () => setOnBarChange,
     setViewMode: () => setViewMode,
     slugifyHeading: () => slugifyHeading,
     stepZoom: () => stepZoom,
@@ -14299,6 +14303,7 @@
     tokenizeCsvRows: () => tokenizeCsvRows,
     unescapeCellValue: () => unescapeCellValue,
     uniqueHeadingSlug: () => uniqueHeadingSlug,
+    updateOuterVisibility: () => updateOuterVisibility,
     wheelZoom: () => wheelZoom,
     wrapWithLineNumbers: () => wrapWithLineNumbers,
     zoomLabel: () => zoomLabel
@@ -14307,6 +14312,19 @@
   // viewer-src/bar.ts
   var handlers = {};
   var openBar = null;
+  var onBarChange;
+  function setOnBarChange(callback) {
+    onBarChange = callback;
+  }
+  function updateOuterVisibility() {
+    var outer = document.getElementById("mmd-bar");
+    if (outer) {
+      outer.style.display = openBar === null ? "none" : "flex";
+    }
+    if (onBarChange) {
+      onBarChange();
+    }
+  }
   function registerBar(kind, barHandlers) {
     handlers[kind] = barHandlers;
   }
@@ -14327,10 +14345,12 @@
       }
     }
     openBar = kind;
+    updateOuterVisibility();
   }
   function releaseBar(kind) {
     if (openBar === kind) {
       openBar = null;
+      updateOuterVisibility();
     }
   }
   function closeCurrentBar() {
@@ -14340,6 +14360,22 @@
     var current = handlers[openBar];
     if (current) {
       current.close();
+    }
+  }
+
+  // viewer-src/bar-controls.ts
+  function wireBarControls(config2) {
+    var prevButton = document.getElementById(config2.prevId);
+    var nextButton = document.getElementById(config2.nextId);
+    var closeButton = document.getElementById(config2.closeId);
+    if (prevButton) {
+      prevButton.addEventListener("click", config2.onPrev);
+    }
+    if (nextButton) {
+      nextButton.addEventListener("click", config2.onNext);
+    }
+    if (closeButton) {
+      closeButton.addEventListener("click", config2.onClose);
     }
   }
 
@@ -14364,6 +14400,720 @@
       return true;
     }
     return hostFeatures[key] !== false;
+  }
+
+  // viewer-src/ime.ts
+  var IME_KEY_CODE = 229;
+  function isComposingKeyEvent(event) {
+    return event.isComposing || event.keyCode === IME_KEY_CODE;
+  }
+
+  // viewer-src/navigation.ts
+  function nextMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return (currentIndex + 1) % count;
+  }
+  function prevMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return (currentIndex - 1 + count) % count;
+  }
+  function keptMatchIndex(previousIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return Math.min(Math.max(previousIndex, 0), count - 1);
+  }
+  function formatNavigationCount(currentIndex, count, truncated, truncatedLabel) {
+    var current = count === 0 ? 0 : currentIndex + 1;
+    var text3 = current + "/" + count;
+    if (truncated) {
+      text3 += " (" + truncatedLabel + ")";
+    }
+    return text3;
+  }
+  function moveCurrentHighlight(previous, next, className, anchor) {
+    previous.forEach(function(element) {
+      element.classList.remove(className);
+    });
+    next.forEach(function(element) {
+      element.classList.add(className);
+    });
+    if (anchor) {
+      anchor.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }
+
+  // viewer-src/find.ts
+  function findInputElement() {
+    var el = document.getElementById("mmd-find-input");
+    if (!(el instanceof HTMLInputElement)) {
+      throw new TypeError("#mmd-find-input is missing");
+    }
+    return el;
+  }
+  function buildFindRegExp(query2, options) {
+    if (!query2) {
+      return null;
+    }
+    var source = options.useRegex ? query2 : query2.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    if (options.wholeWord) {
+      source = "\\b(?:" + source + ")\\b";
+    }
+    var flags = "g" + (options.caseSensitive ? "" : "i");
+    try {
+      return new RegExp(source, flags);
+    } catch (e) {
+      return null;
+    }
+  }
+  function clearMarks() {
+    var marks = document.querySelectorAll("#diagram-wrap mark.mmd-find-match");
+    var parents = /* @__PURE__ */ new Set();
+    marks.forEach(function(mark) {
+      var parent = mark.parentNode;
+      if (!parent) return;
+      while (mark.firstChild) {
+        parent.insertBefore(mark.firstChild, mark);
+      }
+      mark.remove();
+      parents.add(parent);
+    });
+    parents.forEach(function(parent) {
+      parent.normalize();
+    });
+  }
+  function locate(textNodes, starts, offset, isStart) {
+    for (var i = 0; i < textNodes.length; i++) {
+      var start = starts[i];
+      var length = textNodes[i].length;
+      var fits = isStart ? offset < start + length : offset <= start + length;
+      if (fits) {
+        return { node: textNodes[i], localOffset: offset - start };
+      }
+    }
+    var last = textNodes.length - 1;
+    return { node: textNodes[last], localOffset: textNodes[last].length };
+  }
+  function pruneEmptyAncestors(node, root) {
+    while (node && node !== root && node instanceof Element && node.textContent === "") {
+      var parent = node.parentNode;
+      if (!parent) break;
+      node.remove();
+      node = parent;
+    }
+  }
+  function isFindBarOpen() {
+    return isBarOpen("find");
+  }
+  function _createFindController() {
+    var options = { caseSensitive: false, wholeWord: false, useRegex: false };
+    var query2 = "";
+    var matches = [];
+    var currentIndex = -1;
+    var currentHighlight;
+    var truncated = false;
+    var skipTags = ["MARK", "SVG", "STYLE", "SCRIPT"];
+    var bridgeTags = [
+      "SPAN",
+      "A",
+      "CODE",
+      "EM",
+      "STRONG",
+      "B",
+      "I",
+      "U",
+      "S",
+      "DEL",
+      "INS",
+      "SMALL",
+      "SUB",
+      "SUP",
+      "ABBR",
+      "KBD",
+      "SAMP",
+      "VAR",
+      "Q",
+      "CITE",
+      "TIME",
+      "LABEL"
+    ];
+    function isBridgeable(node) {
+      return node instanceof Element && bridgeTags.includes(node.tagName.toUpperCase());
+    }
+    function collectScopes(root) {
+      var scopes = [];
+      var current = [];
+      function flush() {
+        if (current.length > 0) {
+          scopes.push(current);
+          current = [];
+        }
+      }
+      function recurse(node) {
+        var children = node.childNodes;
+        for (var i = 0; i < children.length; i++) {
+          var child = children[i];
+          if (child instanceof Text) {
+            current.push(child);
+          } else if (child instanceof Element && !skipTags.includes(child.tagName.toUpperCase())) {
+            if (isBridgeable(child)) {
+              recurse(child);
+            } else {
+              flush();
+              recurse(child);
+              flush();
+            }
+          }
+        }
+      }
+      recurse(root);
+      flush();
+      return scopes;
+    }
+    function matchScope(root, textNodeList, regex, found) {
+      var starts = [];
+      var text3 = "";
+      textNodeList.forEach(function(node) {
+        starts.push(text3.length);
+        text3 += node.textContent;
+      });
+      regex.lastIndex = 0;
+      var ranges = [];
+      var match2;
+      while ((match2 = regex.exec(text3)) !== null) {
+        if (match2[0].length === 0) {
+          regex.lastIndex++;
+          if (regex.lastIndex > text3.length) break;
+          continue;
+        }
+        ranges.push({ start: match2.index, end: match2.index + match2[0].length });
+      }
+      if (ranges.length === 0) return;
+      var scopeFound = [];
+      ranges.toReversed().forEach(function(range) {
+        var start = locate(textNodeList, starts, range.start, true);
+        var end = locate(textNodeList, starts, range.end, false);
+        var startAncestor = start.node.parentNode;
+        var endAncestor = end.node.parentNode;
+        var domRange = document.createRange();
+        domRange.setStart(start.node, start.localOffset);
+        domRange.setEnd(end.node, end.localOffset);
+        var mark = document.createElement("mark");
+        mark.className = "mmd-find-match";
+        mark.append(domRange.extractContents());
+        domRange.insertNode(mark);
+        scopeFound.unshift(mark);
+        pruneEmptyAncestors(startAncestor, root);
+        pruneEmptyAncestors(endAncestor, root);
+      });
+      found.push.apply(found, scopeFound);
+    }
+    function walk(root, regex, found) {
+      collectScopes(root).forEach(function(textNodeList) {
+        matchScope(root, textNodeList, regex, found);
+      });
+    }
+    function updateCount() {
+      var countEl = document.getElementById("mmd-find-count");
+      var input = findInputElement();
+      if (query2.length === 0 || input.classList.contains("mmd-find-error")) {
+        countEl.textContent = "";
+      } else {
+        var strings = window._mmdFindStrings || {};
+        countEl.textContent = formatNavigationCount(
+          currentIndex,
+          matches.length,
+          truncated,
+          strings.withinDisplayedRange || "Displayed range"
+        );
+      }
+    }
+    function highlightCurrent() {
+      var current = matches[currentIndex];
+      moveCurrentHighlight(
+        currentHighlight ? [currentHighlight] : [],
+        current ? [current] : [],
+        "mmd-find-match-current",
+        current
+      );
+      currentHighlight = current;
+    }
+    function moveTo(index) {
+      currentIndex = index;
+      highlightCurrent();
+      updateCount();
+    }
+    function run(suppressAutoHighlight) {
+      var input = findInputElement();
+      query2 = input.value;
+      clearMarks();
+      matches = [];
+      currentIndex = -1;
+      currentHighlight = void 0;
+      var regex = buildFindRegExp(query2, options);
+      input.classList.toggle("mmd-find-error", query2.length > 0 && regex === null);
+      if (regex) {
+        walk(document.getElementById("diagram-wrap"), regex, matches);
+      }
+      if (matches.length > 0) {
+        currentIndex = 0;
+        if (!suppressAutoHighlight) {
+          highlightCurrent();
+        }
+      }
+      updateCount();
+    }
+    function refresh(resetToFirst) {
+      var previousIndex = resetToFirst ? 0 : currentIndex;
+      run(true);
+      if (matches.length > 0) {
+        moveTo(keptMatchIndex(previousIndex, matches.length));
+      }
+    }
+    function next() {
+      if (matches.length === 0) return;
+      moveTo(nextMatchIndex(currentIndex, matches.length));
+    }
+    function prev() {
+      if (matches.length === 0) return;
+      moveTo(prevMatchIndex(currentIndex, matches.length));
+    }
+    function toggleOption(optionName, buttonId) {
+      options[optionName] = !options[optionName];
+      document.getElementById(buttonId).classList.toggle("active", options[optionName]);
+      _mmdPostMessage(_MSG_FIND_OPTIONS_CHANGED, {
+        caseSensitive: options.caseSensitive,
+        wholeWord: options.wholeWord,
+        useRegex: options.useRegex
+      });
+      run();
+    }
+    function applyHostSettings() {
+      var opts = window._mmdInitialFindOptions || {};
+      options.caseSensitive = !!opts.caseSensitive;
+      options.wholeWord = !!opts.wholeWord;
+      options.useRegex = !!opts.useRegex;
+      document.getElementById("mmd-find-case").classList.toggle("active", options.caseSensitive);
+      document.getElementById("mmd-find-word").classList.toggle("active", options.wholeWord);
+      document.getElementById("mmd-find-regex").classList.toggle("active", options.useRegex);
+      var strings = window._mmdFindStrings || {};
+      var input = findInputElement();
+      if (strings.placeholder) {
+        input.placeholder = strings.placeholder;
+      }
+      if (strings.previous) {
+        document.getElementById("mmd-find-prev").title = strings.previous;
+      }
+      if (strings.next) {
+        document.getElementById("mmd-find-next").title = strings.next;
+      }
+      if (strings.matchCase) {
+        document.getElementById("mmd-find-case").title = strings.matchCase;
+      }
+      if (strings.matchWholeWord) {
+        document.getElementById("mmd-find-word").title = strings.matchWholeWord;
+      }
+      if (strings.useRegularExpression) {
+        document.getElementById("mmd-find-regex").title = strings.useRegularExpression;
+      }
+      if (strings.close) {
+        document.getElementById("mmd-find-close").title = strings.close;
+      }
+    }
+    function initControls() {
+      document.getElementById("mmd-find-input").addEventListener("input", function() {
+        run();
+      });
+      document.getElementById("mmd-find-input").addEventListener("keydown", function(e) {
+        if (e.key === "Enter") {
+          if (isComposingKeyEvent(e)) {
+            return;
+          }
+          e.preventDefault();
+          if (e.shiftKey) {
+            prev();
+          } else {
+            next();
+          }
+        }
+      });
+      wireBarControls({
+        prevId: "mmd-find-prev",
+        nextId: "mmd-find-next",
+        closeId: "mmd-find-close",
+        onPrev: prev,
+        onNext: next,
+        onClose: close
+      });
+      document.getElementById("mmd-find-case").addEventListener("click", function() {
+        toggleOption("caseSensitive", "mmd-find-case");
+      });
+      document.getElementById("mmd-find-word").addEventListener("click", function() {
+        toggleOption("wholeWord", "mmd-find-word");
+      });
+      document.getElementById("mmd-find-regex").addEventListener("click", function() {
+        toggleOption("useRegex", "mmd-find-regex");
+      });
+    }
+    function open() {
+      claimBar("find");
+      document.getElementById("mmd-find-panel").style.display = "flex";
+      var input = findInputElement();
+      input.value = query2;
+      input.focus();
+      input.select();
+      run();
+    }
+    function close() {
+      releaseBar("find");
+      document.getElementById("mmd-find-panel").style.display = "none";
+      clearMarks();
+      matches = [];
+      currentIndex = -1;
+      currentHighlight = void 0;
+    }
+    function setTruncated(value) {
+      truncated = value;
+      if (isFindBarOpen()) {
+        updateCount();
+      }
+    }
+    return {
+      isOpen: isFindBarOpen,
+      open,
+      close,
+      next,
+      prev,
+      refresh,
+      applyHostSettings,
+      initControls,
+      setTruncated
+    };
+  }
+  var _mmdFind = _createFindController();
+  registerBar("find", {
+    close: function() {
+      _mmdFind.close();
+    }
+  });
+  function _mmdInitFind() {
+    _mmdFind.applyHostSettings();
+  }
+  function _mmdOpenFind() {
+    _mmdFind.open();
+  }
+  function _mmdCloseFind() {
+    _mmdFind.close();
+  }
+  function _mmdFindRefresh(resetToFirst) {
+    _mmdFind.refresh(resetToFirst);
+  }
+  function _mmdFindNextIfOpen() {
+    if (!_mmdFind.isOpen()) return;
+    _mmdFind.next();
+  }
+  function _mmdFindPrevIfOpen() {
+    if (!_mmdFind.isOpen()) return;
+    _mmdFind.prev();
+  }
+
+  // viewer-src/jump.ts
+  var CURRENT_CLASS = "mmd-jump-current";
+  var TARGET_CLASS = "mmd-jump-target";
+  function markTargets(targets) {
+    targets.forEach(function(target) {
+      target.highlight.forEach(function(element) {
+        element.classList.add(TARGET_CLASS);
+      });
+    });
+  }
+  function isJumpBarOpen() {
+    return isBarOpen("jump");
+  }
+  function _createJumpController() {
+    var providers = {};
+    var activeKind = "";
+    var targets = [];
+    var currentIndex = -1;
+    var currentHighlight = [];
+    var truncated = false;
+    var isRendering = false;
+    function register(provider) {
+      providers[provider.id] = provider;
+    }
+    function updateCount() {
+      var countEl = document.getElementById("mmd-jump-count");
+      if (!countEl) return;
+      var strings = window._mmdJumpStrings || {};
+      var showsTruncatedLabel = truncated && !isFilteredEmpty() && !ignoresTruncation();
+      countEl.textContent = formatNavigationCount(
+        currentIndex,
+        targets.length,
+        showsTruncatedLabel,
+        strings.withinDisplayedRange || "Displayed range"
+      );
+    }
+    function highlightCurrent(scroll) {
+      var current = targets[currentIndex];
+      moveCurrentHighlight(
+        currentHighlight,
+        current ? current.highlight : [],
+        CURRENT_CLASS,
+        scroll ? current?.anchor : void 0
+      );
+      currentHighlight = current ? current.highlight : [];
+    }
+    function clearCurrent() {
+      moveCurrentHighlight(currentHighlight, [], CURRENT_CLASS);
+      currentHighlight = [];
+    }
+    function clearHighlight() {
+      clearCurrent();
+      targets.forEach(function(target) {
+        target.highlight.forEach(function(element) {
+          element.classList.remove(TARGET_CLASS);
+        });
+      });
+    }
+    function moveTo(index, scroll) {
+      currentIndex = index;
+      highlightCurrent(scroll);
+      updateCount();
+    }
+    function collectTargets() {
+      var provider = providers[activeKind];
+      var root = document.getElementById("diagram-wrap");
+      if (!provider || !root) {
+        return [];
+      }
+      return provider.collect(root);
+    }
+    function isFilteredEmpty() {
+      var provider = providers[activeKind];
+      return provider?.isSelectionEmpty?.() === true;
+    }
+    function ignoresTruncation() {
+      return providers[activeKind]?.ignoresTruncation === true;
+    }
+    function updateOptionsVisibility() {
+      Object.keys(providers).forEach(function(id) {
+        var elementId = providers[id]?.optionsElementId;
+        if (!elementId) return;
+        var element = document.getElementById(elementId);
+        if (!element) return;
+        element.style.display = id === activeKind ? "flex" : "none";
+      });
+    }
+    function run(scroll) {
+      clearHighlight();
+      targets = collectTargets();
+      markTargets(targets);
+      currentIndex = targets.length > 0 ? 0 : -1;
+      highlightCurrent(scroll);
+      updateCount();
+    }
+    function open(kind) {
+      activeKind = kind;
+      claimBar("jump");
+      var bar = document.getElementById("mmd-jump-panel");
+      if (bar) {
+        bar.style.display = "flex";
+      }
+      updateOptionsVisibility();
+      run(true);
+      updateOuterVisibility();
+    }
+    function close() {
+      releaseBar("jump");
+      var bar = document.getElementById("mmd-jump-panel");
+      if (bar) {
+        bar.style.display = "none";
+      }
+      clearHighlight();
+      targets = [];
+      currentIndex = -1;
+    }
+    function next() {
+      if (targets.length === 0) return;
+      moveTo(nextMatchIndex(currentIndex, targets.length), true);
+    }
+    function prev() {
+      if (targets.length === 0) return;
+      moveTo(prevMatchIndex(currentIndex, targets.length), true);
+    }
+    function refresh(resetToFirst) {
+      isRendering = false;
+      if (!isJumpBarOpen()) {
+        return;
+      }
+      var previousIndex = resetToFirst ? 0 : currentIndex;
+      clearHighlight();
+      targets = collectTargets();
+      markTargets(targets);
+      currentIndex = -1;
+      if (targets.length > 0) {
+        moveTo(keptMatchIndex(previousIndex, targets.length), false);
+      } else {
+        updateCount();
+      }
+    }
+    function rebuild() {
+      if (!isJumpBarOpen() || isRendering) {
+        return;
+      }
+      refresh(true);
+    }
+    function invalidate() {
+      isRendering = true;
+      targets = [];
+      currentHighlight = [];
+      if (isJumpBarOpen()) {
+        updateCount();
+      }
+    }
+    function closeUnlessAvailable(kinds) {
+      if (!isJumpBarOpen() || kinds.includes(activeKind)) {
+        return;
+      }
+      close();
+    }
+    function setTruncated(value) {
+      truncated = value;
+      if (isJumpBarOpen()) {
+        updateCount();
+      }
+    }
+    function activeMode() {
+      return isJumpBarOpen() ? activeKind : "";
+    }
+    return {
+      isOpen: isJumpBarOpen,
+      activeMode,
+      open,
+      close,
+      next,
+      prev,
+      refresh,
+      rebuild,
+      invalidate,
+      closeUnlessAvailable,
+      setTruncated,
+      register
+    };
+  }
+  var _mmdJump = _createJumpController();
+  registerBar("jump", {
+    close: function() {
+      _mmdJump.close();
+    }
+  });
+  function _mmdInitJump() {
+    var strings = window._mmdJumpStrings || {};
+    var bar = document.getElementById("mmd-jump-panel");
+    if (!bar) return;
+    var prevButton = document.getElementById("mmd-jump-prev");
+    var nextButton = document.getElementById("mmd-jump-next");
+    var closeButton = document.getElementById("mmd-jump-close");
+    if (prevButton && strings.previous) prevButton.title = strings.previous;
+    if (nextButton && strings.next) nextButton.title = strings.next;
+    if (closeButton && strings.close) closeButton.title = strings.close;
+    wireBarControls({
+      prevId: "mmd-jump-prev",
+      nextId: "mmd-jump-next",
+      closeId: "mmd-jump-close",
+      onPrev: function() {
+        _mmdJump.prev();
+      },
+      onNext: function() {
+        _mmdJump.next();
+      },
+      onClose: function() {
+        _mmdJump.close();
+      }
+    });
+  }
+  function _mmdOpenJump(kind) {
+    _mmdJump.open(kind);
+  }
+  var lastAvailableKinds = [];
+  var onAvailabilityChange;
+  function setOnAvailabilityChange(callback) {
+    onAvailabilityChange = callback;
+  }
+  function jumpAvailableKinds() {
+    return lastAvailableKinds;
+  }
+  function _mmdApplyJumpAvailability(kinds) {
+    var available = Array.isArray(kinds) ? kinds.filter(function(kind) {
+      return typeof kind === "string";
+    }) : [];
+    lastAvailableKinds = available;
+    _mmdJump.closeUnlessAvailable(available);
+    if (onAvailabilityChange) {
+      onAvailabilityChange();
+    }
+  }
+  function _mmdJumpNextIfOpen() {
+    if (!_mmdJump.isOpen()) return;
+    _mmdJump.next();
+  }
+  function _mmdJumpPrevIfOpen() {
+    if (!_mmdJump.isOpen()) return;
+    _mmdJump.prev();
+  }
+
+  // viewer-src/bar-mode.ts
+  var MODES = ["search", "heading", "changeBlock"];
+  var MODE_BUTTON_IDS = {
+    search: "mmd-bar-mode-search",
+    heading: "mmd-bar-mode-heading",
+    changeBlock: "mmd-bar-mode-changeBlock"
+  };
+  function currentMode() {
+    var bar = currentBar();
+    if (bar === "find") {
+      return "search";
+    }
+    if (bar === "jump") {
+      var kind = _mmdJump.activeMode();
+      return kind === "heading" || kind === "changeBlock" ? kind : null;
+    }
+    return null;
+  }
+  function isModeAvailable(mode) {
+    return mode === "search" || jumpAvailableKinds().includes(mode);
+  }
+  function updateSwitchAppearance() {
+    var mode = currentMode();
+    MODES.forEach(function(key) {
+      var button = document.getElementById(MODE_BUTTON_IDS[key]);
+      if (!button) return;
+      button.classList.toggle("active", key === mode);
+      button.style.display = isModeAvailable(key) ? "" : "none";
+    });
+  }
+  function openMode(mode) {
+    if (mode === "search") {
+      _mmdOpenFind();
+    } else {
+      _mmdOpenJump(mode);
+    }
+  }
+  function _mmdInitBarModeSwitch() {
+    setOnBarChange(updateSwitchAppearance);
+    setOnAvailabilityChange(updateSwitchAppearance);
+    updateSwitchAppearance();
+    MODES.forEach(function(key) {
+      var button = document.getElementById(MODE_BUTTON_IDS[key]);
+      if (!button) return;
+      button.addEventListener("click", function() {
+        openMode(key);
+      });
+    });
   }
 
   // viewer-src/encoding.ts
@@ -15517,274 +16267,6 @@
     );
   }
 
-  // viewer-src/navigation.ts
-  function nextMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return (currentIndex + 1) % count;
-  }
-  function prevMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return (currentIndex - 1 + count) % count;
-  }
-  function keptMatchIndex(previousIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return Math.min(Math.max(previousIndex, 0), count - 1);
-  }
-  function formatNavigationCount(currentIndex, count, truncated, truncatedLabel) {
-    var current = count === 0 ? 0 : currentIndex + 1;
-    var text3 = current + "/" + count;
-    if (truncated) {
-      text3 += " (" + truncatedLabel + ")";
-    }
-    return text3;
-  }
-  function moveCurrentHighlight(previous, next, className, anchor) {
-    previous.forEach(function(element) {
-      element.classList.remove(className);
-    });
-    next.forEach(function(element) {
-      element.classList.add(className);
-    });
-    if (anchor) {
-      anchor.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
-  }
-
-  // viewer-src/jump.ts
-  var CURRENT_CLASS = "mmd-jump-current";
-  var TARGET_CLASS = "mmd-jump-target";
-  function markTargets(targets) {
-    targets.forEach(function(target) {
-      target.highlight.forEach(function(element) {
-        element.classList.add(TARGET_CLASS);
-      });
-    });
-  }
-  function isJumpBarOpen() {
-    return isBarOpen("jump");
-  }
-  function _createJumpController() {
-    var providers = {};
-    var activeKind = "";
-    var targets = [];
-    var currentIndex = -1;
-    var currentHighlight = [];
-    var truncated = false;
-    var isRendering = false;
-    function register(provider) {
-      providers[provider.id] = provider;
-    }
-    function updateCount() {
-      var countEl = document.getElementById("mmd-jump-count");
-      if (!countEl) return;
-      var strings = window._mmdJumpStrings || {};
-      var showsTruncatedLabel = truncated && !isFilteredEmpty() && !ignoresTruncation();
-      countEl.textContent = formatNavigationCount(
-        currentIndex,
-        targets.length,
-        showsTruncatedLabel,
-        strings.withinDisplayedRange || "Displayed range"
-      );
-    }
-    function highlightCurrent(scroll) {
-      var current = targets[currentIndex];
-      moveCurrentHighlight(
-        currentHighlight,
-        current ? current.highlight : [],
-        CURRENT_CLASS,
-        scroll ? current?.anchor : void 0
-      );
-      currentHighlight = current ? current.highlight : [];
-    }
-    function clearCurrent() {
-      moveCurrentHighlight(currentHighlight, [], CURRENT_CLASS);
-      currentHighlight = [];
-    }
-    function clearHighlight() {
-      clearCurrent();
-      targets.forEach(function(target) {
-        target.highlight.forEach(function(element) {
-          element.classList.remove(TARGET_CLASS);
-        });
-      });
-    }
-    function moveTo(index, scroll) {
-      currentIndex = index;
-      highlightCurrent(scroll);
-      updateCount();
-    }
-    function collectTargets() {
-      var provider = providers[activeKind];
-      var root = document.getElementById("diagram-wrap");
-      if (!provider || !root) {
-        return [];
-      }
-      return provider.collect(root);
-    }
-    function isFilteredEmpty() {
-      var provider = providers[activeKind];
-      return provider?.isSelectionEmpty?.() === true;
-    }
-    function ignoresTruncation() {
-      return providers[activeKind]?.ignoresTruncation === true;
-    }
-    function updateOptionsVisibility() {
-      Object.keys(providers).forEach(function(id) {
-        var elementId = providers[id]?.optionsElementId;
-        if (!elementId) return;
-        var element = document.getElementById(elementId);
-        if (!element) return;
-        element.style.display = id === activeKind ? "flex" : "none";
-      });
-    }
-    function run(scroll) {
-      clearHighlight();
-      targets = collectTargets();
-      markTargets(targets);
-      currentIndex = targets.length > 0 ? 0 : -1;
-      highlightCurrent(scroll);
-      updateCount();
-    }
-    function open(kind) {
-      activeKind = kind;
-      claimBar("jump");
-      var bar = document.getElementById("mmd-jump-bar");
-      if (bar) {
-        bar.style.display = "flex";
-      }
-      updateOptionsVisibility();
-      run(true);
-    }
-    function close() {
-      releaseBar("jump");
-      var bar = document.getElementById("mmd-jump-bar");
-      if (bar) {
-        bar.style.display = "none";
-      }
-      clearHighlight();
-      targets = [];
-      currentIndex = -1;
-    }
-    function next() {
-      if (targets.length === 0) return;
-      moveTo(nextMatchIndex(currentIndex, targets.length), true);
-    }
-    function prev() {
-      if (targets.length === 0) return;
-      moveTo(prevMatchIndex(currentIndex, targets.length), true);
-    }
-    function refresh(resetToFirst) {
-      isRendering = false;
-      if (!isJumpBarOpen()) {
-        return;
-      }
-      var previousIndex = resetToFirst ? 0 : currentIndex;
-      clearHighlight();
-      targets = collectTargets();
-      markTargets(targets);
-      currentIndex = -1;
-      if (targets.length > 0) {
-        moveTo(keptMatchIndex(previousIndex, targets.length), false);
-      } else {
-        updateCount();
-      }
-    }
-    function rebuild() {
-      if (!isJumpBarOpen() || isRendering) {
-        return;
-      }
-      refresh(true);
-    }
-    function invalidate() {
-      isRendering = true;
-      targets = [];
-      currentHighlight = [];
-      if (isJumpBarOpen()) {
-        updateCount();
-      }
-    }
-    function closeUnlessAvailable(kinds) {
-      if (!isJumpBarOpen() || kinds.includes(activeKind)) {
-        return;
-      }
-      close();
-    }
-    function setTruncated(value) {
-      truncated = value;
-      if (isJumpBarOpen()) {
-        updateCount();
-      }
-    }
-    return {
-      isOpen: isJumpBarOpen,
-      open,
-      close,
-      next,
-      prev,
-      refresh,
-      rebuild,
-      invalidate,
-      closeUnlessAvailable,
-      setTruncated,
-      register
-    };
-  }
-  var _mmdJump = _createJumpController();
-  registerBar("jump", {
-    close: function() {
-      _mmdJump.close();
-    }
-  });
-  function _mmdInitJump() {
-    var strings = window._mmdJumpStrings || {};
-    var bar = document.getElementById("mmd-jump-bar");
-    if (!bar) return;
-    var prevButton = document.getElementById("mmd-jump-prev");
-    var nextButton = document.getElementById("mmd-jump-next");
-    var closeButton = document.getElementById("mmd-jump-close");
-    if (prevButton) {
-      if (strings.previous) prevButton.title = strings.previous;
-      prevButton.addEventListener("click", function() {
-        _mmdJump.prev();
-      });
-    }
-    if (nextButton) {
-      if (strings.next) nextButton.title = strings.next;
-      nextButton.addEventListener("click", function() {
-        _mmdJump.next();
-      });
-    }
-    if (closeButton) {
-      if (strings.close) closeButton.title = strings.close;
-      closeButton.addEventListener("click", function() {
-        _mmdJump.close();
-      });
-    }
-  }
-  function _mmdOpenJump(kind) {
-    _mmdJump.open(kind);
-  }
-  function _mmdApplyJumpAvailability(kinds) {
-    var available = Array.isArray(kinds) ? kinds.filter(function(kind) {
-      return typeof kind === "string";
-    }) : [];
-    _mmdJump.closeUnlessAvailable(available);
-  }
-  function _mmdJumpNextIfOpen() {
-    if (!_mmdJump.isOpen()) return;
-    _mmdJump.next();
-  }
-  function _mmdJumpPrevIfOpen() {
-    if (!_mmdJump.isOpen()) return;
-    _mmdJump.prev();
-  }
-
   // viewer-src/jump-providers.ts
   var HEADING_LEVELS = [1, 2, 3];
   var selectedLevels = HEADING_LEVELS.slice();
@@ -15958,12 +16440,6 @@
     return HEADING_LEVELS.includes(level);
   }
 
-  // viewer-src/ime.ts
-  var IME_KEY_CODE = 229;
-  function isComposingKeyEvent(event) {
-    return event.isComposing || event.keyCode === IME_KEY_CODE;
-  }
-
   // viewer-src/keyboard.ts
   var PAGE_SCROLL_RATIO = 0.9;
   var DEFAULT_LINE_SCROLL_STEP = 24;
@@ -16077,375 +16553,6 @@
     window.addEventListener("blur", function() {
       document.body.classList.remove("cmd-held");
     });
-  }
-
-  // viewer-src/find.ts
-  function findInputElement() {
-    var el = document.getElementById("mmd-find-input");
-    if (!(el instanceof HTMLInputElement)) {
-      throw new TypeError("#mmd-find-input is missing");
-    }
-    return el;
-  }
-  function buildFindRegExp(query2, options) {
-    if (!query2) {
-      return null;
-    }
-    var source = options.useRegex ? query2 : query2.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-    if (options.wholeWord) {
-      source = "\\b(?:" + source + ")\\b";
-    }
-    var flags = "g" + (options.caseSensitive ? "" : "i");
-    try {
-      return new RegExp(source, flags);
-    } catch (e) {
-      return null;
-    }
-  }
-  function clearMarks() {
-    var marks = document.querySelectorAll("#diagram-wrap mark.mmd-find-match");
-    var parents = /* @__PURE__ */ new Set();
-    marks.forEach(function(mark) {
-      var parent = mark.parentNode;
-      if (!parent) return;
-      while (mark.firstChild) {
-        parent.insertBefore(mark.firstChild, mark);
-      }
-      mark.remove();
-      parents.add(parent);
-    });
-    parents.forEach(function(parent) {
-      parent.normalize();
-    });
-  }
-  function locate(textNodes, starts, offset, isStart) {
-    for (var i = 0; i < textNodes.length; i++) {
-      var start = starts[i];
-      var length = textNodes[i].length;
-      var fits = isStart ? offset < start + length : offset <= start + length;
-      if (fits) {
-        return { node: textNodes[i], localOffset: offset - start };
-      }
-    }
-    var last = textNodes.length - 1;
-    return { node: textNodes[last], localOffset: textNodes[last].length };
-  }
-  function pruneEmptyAncestors(node, root) {
-    while (node && node !== root && node instanceof Element && node.textContent === "") {
-      var parent = node.parentNode;
-      if (!parent) break;
-      node.remove();
-      node = parent;
-    }
-  }
-  function isFindBarOpen() {
-    return isBarOpen("find");
-  }
-  function _createFindController() {
-    var options = { caseSensitive: false, wholeWord: false, useRegex: false };
-    var query2 = "";
-    var matches = [];
-    var currentIndex = -1;
-    var currentHighlight;
-    var truncated = false;
-    var skipTags = ["MARK", "SVG", "STYLE", "SCRIPT"];
-    var bridgeTags = [
-      "SPAN",
-      "A",
-      "CODE",
-      "EM",
-      "STRONG",
-      "B",
-      "I",
-      "U",
-      "S",
-      "DEL",
-      "INS",
-      "SMALL",
-      "SUB",
-      "SUP",
-      "ABBR",
-      "KBD",
-      "SAMP",
-      "VAR",
-      "Q",
-      "CITE",
-      "TIME",
-      "LABEL"
-    ];
-    function isBridgeable(node) {
-      return node instanceof Element && bridgeTags.includes(node.tagName.toUpperCase());
-    }
-    function collectScopes(root) {
-      var scopes = [];
-      var current = [];
-      function flush() {
-        if (current.length > 0) {
-          scopes.push(current);
-          current = [];
-        }
-      }
-      function recurse(node) {
-        var children = node.childNodes;
-        for (var i = 0; i < children.length; i++) {
-          var child = children[i];
-          if (child instanceof Text) {
-            current.push(child);
-          } else if (child instanceof Element && !skipTags.includes(child.tagName.toUpperCase())) {
-            if (isBridgeable(child)) {
-              recurse(child);
-            } else {
-              flush();
-              recurse(child);
-              flush();
-            }
-          }
-        }
-      }
-      recurse(root);
-      flush();
-      return scopes;
-    }
-    function matchScope(root, textNodeList, regex, found) {
-      var starts = [];
-      var text3 = "";
-      textNodeList.forEach(function(node) {
-        starts.push(text3.length);
-        text3 += node.textContent;
-      });
-      regex.lastIndex = 0;
-      var ranges = [];
-      var match2;
-      while ((match2 = regex.exec(text3)) !== null) {
-        if (match2[0].length === 0) {
-          regex.lastIndex++;
-          if (regex.lastIndex > text3.length) break;
-          continue;
-        }
-        ranges.push({ start: match2.index, end: match2.index + match2[0].length });
-      }
-      if (ranges.length === 0) return;
-      var scopeFound = [];
-      ranges.toReversed().forEach(function(range) {
-        var start = locate(textNodeList, starts, range.start, true);
-        var end = locate(textNodeList, starts, range.end, false);
-        var startAncestor = start.node.parentNode;
-        var endAncestor = end.node.parentNode;
-        var domRange = document.createRange();
-        domRange.setStart(start.node, start.localOffset);
-        domRange.setEnd(end.node, end.localOffset);
-        var mark = document.createElement("mark");
-        mark.className = "mmd-find-match";
-        mark.append(domRange.extractContents());
-        domRange.insertNode(mark);
-        scopeFound.unshift(mark);
-        pruneEmptyAncestors(startAncestor, root);
-        pruneEmptyAncestors(endAncestor, root);
-      });
-      found.push.apply(found, scopeFound);
-    }
-    function walk(root, regex, found) {
-      collectScopes(root).forEach(function(textNodeList) {
-        matchScope(root, textNodeList, regex, found);
-      });
-    }
-    function updateCount() {
-      var countEl = document.getElementById("mmd-find-count");
-      var input = findInputElement();
-      if (query2.length === 0 || input.classList.contains("mmd-find-error")) {
-        countEl.textContent = "";
-      } else {
-        var strings = window._mmdFindStrings || {};
-        countEl.textContent = formatNavigationCount(
-          currentIndex,
-          matches.length,
-          truncated,
-          strings.withinDisplayedRange || "Displayed range"
-        );
-      }
-    }
-    function highlightCurrent() {
-      var current = matches[currentIndex];
-      moveCurrentHighlight(
-        currentHighlight ? [currentHighlight] : [],
-        current ? [current] : [],
-        "mmd-find-match-current",
-        current
-      );
-      currentHighlight = current;
-    }
-    function moveTo(index) {
-      currentIndex = index;
-      highlightCurrent();
-      updateCount();
-    }
-    function run(suppressAutoHighlight) {
-      var input = findInputElement();
-      query2 = input.value;
-      clearMarks();
-      matches = [];
-      currentIndex = -1;
-      currentHighlight = void 0;
-      var regex = buildFindRegExp(query2, options);
-      input.classList.toggle("mmd-find-error", query2.length > 0 && regex === null);
-      if (regex) {
-        walk(document.getElementById("diagram-wrap"), regex, matches);
-      }
-      if (matches.length > 0) {
-        currentIndex = 0;
-        if (!suppressAutoHighlight) {
-          highlightCurrent();
-        }
-      }
-      updateCount();
-    }
-    function refresh(resetToFirst) {
-      var previousIndex = resetToFirst ? 0 : currentIndex;
-      run(true);
-      if (matches.length > 0) {
-        moveTo(keptMatchIndex(previousIndex, matches.length));
-      }
-    }
-    function next() {
-      if (matches.length === 0) return;
-      moveTo(nextMatchIndex(currentIndex, matches.length));
-    }
-    function prev() {
-      if (matches.length === 0) return;
-      moveTo(prevMatchIndex(currentIndex, matches.length));
-    }
-    function toggleOption(optionName, buttonId) {
-      options[optionName] = !options[optionName];
-      document.getElementById(buttonId).classList.toggle("active", options[optionName]);
-      _mmdPostMessage(_MSG_FIND_OPTIONS_CHANGED, {
-        caseSensitive: options.caseSensitive,
-        wholeWord: options.wholeWord,
-        useRegex: options.useRegex
-      });
-      run();
-    }
-    function applyHostSettings() {
-      var opts = window._mmdInitialFindOptions || {};
-      options.caseSensitive = !!opts.caseSensitive;
-      options.wholeWord = !!opts.wholeWord;
-      options.useRegex = !!opts.useRegex;
-      document.getElementById("mmd-find-case").classList.toggle("active", options.caseSensitive);
-      document.getElementById("mmd-find-word").classList.toggle("active", options.wholeWord);
-      document.getElementById("mmd-find-regex").classList.toggle("active", options.useRegex);
-      var strings = window._mmdFindStrings || {};
-      var input = findInputElement();
-      if (strings.placeholder) {
-        input.placeholder = strings.placeholder;
-      }
-      if (strings.previous) {
-        document.getElementById("mmd-find-prev").title = strings.previous;
-      }
-      if (strings.next) {
-        document.getElementById("mmd-find-next").title = strings.next;
-      }
-      if (strings.matchCase) {
-        document.getElementById("mmd-find-case").title = strings.matchCase;
-      }
-      if (strings.matchWholeWord) {
-        document.getElementById("mmd-find-word").title = strings.matchWholeWord;
-      }
-      if (strings.useRegularExpression) {
-        document.getElementById("mmd-find-regex").title = strings.useRegularExpression;
-      }
-      if (strings.close) {
-        document.getElementById("mmd-find-close").title = strings.close;
-      }
-    }
-    function initControls() {
-      document.getElementById("mmd-find-input").addEventListener("input", function() {
-        run();
-      });
-      document.getElementById("mmd-find-input").addEventListener("keydown", function(e) {
-        if (e.key === "Enter") {
-          if (isComposingKeyEvent(e)) {
-            return;
-          }
-          e.preventDefault();
-          if (e.shiftKey) {
-            prev();
-          } else {
-            next();
-          }
-        }
-      });
-      document.getElementById("mmd-find-next").addEventListener("click", next);
-      document.getElementById("mmd-find-prev").addEventListener("click", prev);
-      document.getElementById("mmd-find-close").addEventListener("click", close);
-      document.getElementById("mmd-find-case").addEventListener("click", function() {
-        toggleOption("caseSensitive", "mmd-find-case");
-      });
-      document.getElementById("mmd-find-word").addEventListener("click", function() {
-        toggleOption("wholeWord", "mmd-find-word");
-      });
-      document.getElementById("mmd-find-regex").addEventListener("click", function() {
-        toggleOption("useRegex", "mmd-find-regex");
-      });
-    }
-    function open() {
-      claimBar("find");
-      document.getElementById("mmd-find-bar").style.display = "flex";
-      var input = findInputElement();
-      input.value = query2;
-      input.focus();
-      input.select();
-      run();
-    }
-    function close() {
-      releaseBar("find");
-      document.getElementById("mmd-find-bar").style.display = "none";
-      clearMarks();
-      matches = [];
-      currentIndex = -1;
-      currentHighlight = void 0;
-    }
-    function setTruncated(value) {
-      truncated = value;
-      if (isFindBarOpen()) {
-        updateCount();
-      }
-    }
-    return {
-      isOpen: isFindBarOpen,
-      open,
-      close,
-      next,
-      prev,
-      refresh,
-      applyHostSettings,
-      initControls,
-      setTruncated
-    };
-  }
-  var _mmdFind = _createFindController();
-  registerBar("find", {
-    close: function() {
-      _mmdFind.close();
-    }
-  });
-  function _mmdInitFind() {
-    _mmdFind.applyHostSettings();
-  }
-  function _mmdOpenFind() {
-    _mmdFind.open();
-  }
-  function _mmdCloseFind() {
-    _mmdFind.close();
-  }
-  function _mmdFindRefresh(resetToFirst) {
-    _mmdFind.refresh(resetToFirst);
-  }
-  function _mmdFindNextIfOpen() {
-    if (!_mmdFind.isOpen()) return;
-    _mmdFind.next();
-  }
-  function _mmdFindPrevIfOpen() {
-    if (!_mmdFind.isOpen()) return;
-    _mmdFind.prev();
   }
 
   // viewer-src/path-refs.ts
@@ -24292,6 +24399,7 @@
     _mmdJump.register(changeBlockJumpProvider);
     _mmdInitJump();
     _mmdInitHeadingLevels();
+    _mmdInitBarModeSwitch();
   }
 
   // viewer-src/index.ts

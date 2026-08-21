@@ -49,6 +49,6 @@ enum ViewerDisplayOptionsApplier {
         }
         // store の直接書き換え(行番号の上書き)はツールバーへ通知されないため、
         // 他経路の間接発火に頼らずここで明示的に再同期する。
-        controller.refreshToolbarState()
+        controller.refreshUIState()
     }
 }

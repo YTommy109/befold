@@ -7,6 +7,7 @@
 // 明示リストにすると、この barrel とモジュール側の export で二重管理になる。
 
 export * from './bar.js';
+export * from './bar-mode.js';
 export * from './bridge.js';
 export * from './encoding.js';
 export * from './doc-path.js';

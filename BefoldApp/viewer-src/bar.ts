@@ -17,6 +17,30 @@ interface BarHandlers {
 
 var handlers: Partial<Record<BarKind, BarHandlers>> = {};
 var openBar: OpenBar = null;
+// find/jump 共通の外枠（#mmd-bar、TASK-485.19）の表示・非表示は、
+// 「いま何か開いているか」を唯一知っているここで一元管理する。
+// モード切替スイッチの選択状態（検索/見出し/変更箇所のどれが選ばれているか）は
+// find/jump どちらが開いているかだけでは決まらない（jump は見出し/変更箇所の
+// 2 種を持つ）ため、その表示更新は bar-mode.ts に委ねる。ここでは
+// 「バーの状態が変わった」ことを通知するだけの薄いフックを持つ。
+var onBarChange: (() => void) | undefined;
+
+// bar-mode.ts が「表示を更新したい」ことをここへ登録する。find.ts / jump.ts と
+// bar-mode.ts が互いを import すると循環するため、bar.ts 経由の間接呼び出しにする
+// （registerBar と同じ理由）。
+function setOnBarChange(callback: () => void): void {
+  onBarChange = callback;
+}
+
+function updateOuterVisibility(): void {
+  var outer = document.getElementById('mmd-bar');
+  if (outer) {
+    outer.style.display = openBar === null ? 'none' : 'flex';
+  }
+  if (onBarChange) {
+    onBarChange();
+  }
+}
 
 // 各バーのコントローラが生成時に自分を登録する。
 function registerBar(kind: BarKind, barHandlers: BarHandlers): void {
@@ -45,6 +69,7 @@ function claimBar(kind: BarKind): void {
     }
   }
   openBar = kind;
+  updateOuterVisibility();
 }
 
 // kind が開いていれば閉じた状態にする。既に別のバーが開いている場合は何もしない
@@ -52,6 +77,7 @@ function claimBar(kind: BarKind): void {
 function releaseBar(kind: BarKind): void {
   if (openBar === kind) {
     openBar = null;
+    updateOuterVisibility();
   }
 }
 
@@ -67,4 +93,13 @@ function closeCurrentBar(): void {
 }
 
 export type { BarKind, OpenBar };
-export { registerBar, currentBar, isBarOpen, claimBar, releaseBar, closeCurrentBar };
+export {
+  registerBar,
+  currentBar,
+  isBarOpen,
+  claimBar,
+  releaseBar,
+  closeCurrentBar,
+  setOnBarChange,
+  updateOuterVisibility,
+};

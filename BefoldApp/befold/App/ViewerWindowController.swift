@@ -106,7 +106,7 @@ final class ViewerWindowController: NSWindowController {
         store: store, perFileState: perFileState, webViewCommands: webViewCommands,
         currentURL: { [weak self] in self?.fileURL },
         canSelect: { [weak self] mode in self?.canSelect(mode) ?? false },
-        refreshToolbar: { [weak self] in self?.refreshToolbarState() },
+        refreshToolbar: { [weak self] in self?.refreshUIState() },
         refreshDiff: { [weak self] in self?.refreshDiff() }
     )
 

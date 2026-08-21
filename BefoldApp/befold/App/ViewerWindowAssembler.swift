@@ -181,7 +181,7 @@ enum ViewerWindowAssembler {
     static func wirePresentationTargetChange(for controller: ViewerWindowController) {
         controller.fileListModel.onPresentationTargetChange = { [weak controller] in
             guard let controller else { return }
-            controller.refreshToolbarState()
+            controller.refreshUIState()
             controller.applyURLToWindow(controller.fileURL)
             if controller.isPreviewingFolder { controller.fileListModel.tableFocuser.focus() }
         }
@@ -196,7 +196,7 @@ enum ViewerWindowAssembler {
             controller?.handleRename(from: oldURL, to: newURL)
         }
         controller.store.onContentReloaded = { [weak controller] in
-            controller?.refreshToolbarState()
+            controller?.refreshUIState()
             // 表示中ファイルの保存に git バッジを追従させる。作業ツリーの編集は
             // `.git/index` を動かさないため index 監視では拾えず、ここが唯一の契機になる。
             // 再読込は FileWatcher のデバウンス後に 1 回来るので、連打にはならない。

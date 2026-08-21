@@ -4,7 +4,8 @@
 //
 // 位置の算術と件数ラベルは navigation.ts、バーの排他は bar.ts と共有する。
 
-import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
+import { wireBarControls } from './bar-controls.js';
+import { claimBar, isBarOpen, registerBar, releaseBar, updateOuterVisibility } from './bar.js';
 import {
   formatNavigationCount,
   moveCurrentHighlight,
@@ -43,6 +44,9 @@ interface JumpProvider {
 
 interface JumpController {
   isOpen(): boolean;
+  // いま開いている種類（'heading' / 'changeBlock'）。閉じていれば ''。
+  // モード切替スイッチ（bar-mode.ts）が選択状態を表示するために読む。
+  activeMode(): string;
   open(kind: string): void;
   close(): void;
   next(): void;
@@ -205,17 +209,21 @@ function _createJumpController(): JumpController {
   function open(kind: string): void {
     activeKind = kind;
     claimBar('jump');
-    var bar = document.getElementById('mmd-jump-bar');
+    var bar = document.getElementById('mmd-jump-panel');
     if (bar) {
       bar.style.display = 'flex';
     }
     updateOptionsVisibility();
     run(true);
+    // claimBar は「find/jump 間の切り替え」しか検知しない。jump 内で種類だけが
+    // 変わる場合（見出し→変更箇所）は claimBar が早期リターンするため、
+    // モード切替スイッチの選択表示を更新するにはここで明示的に伝える必要がある。
+    updateOuterVisibility();
   }
 
   function close(): void {
     releaseBar('jump');
-    var bar = document.getElementById('mmd-jump-bar');
+    var bar = document.getElementById('mmd-jump-panel');
     if (bar) {
       bar.style.display = 'none';
     }
@@ -307,8 +315,13 @@ function _createJumpController(): JumpController {
     }
   }
 
+  function activeMode(): string {
+    return isJumpBarOpen() ? activeKind : '';
+  }
+
   return {
     isOpen: isJumpBarOpen,
+    activeMode: activeMode,
     open: open,
     close: close,
     next: next,
@@ -334,31 +347,31 @@ registerBar('jump', {
 // バーの閉じるボタンと前後ボタンを配線する（_mmdInit から 1 回だけ呼ぶ）。
 function _mmdInitJump(): void {
   var strings: ViewerJumpStrings = window._mmdJumpStrings || {};
-  var bar = document.getElementById('mmd-jump-bar');
+  var bar = document.getElementById('mmd-jump-panel');
   if (!bar) return;
 
   var prevButton = document.getElementById('mmd-jump-prev');
   var nextButton = document.getElementById('mmd-jump-next');
   var closeButton = document.getElementById('mmd-jump-close');
 
-  if (prevButton) {
-    if (strings.previous) prevButton.title = strings.previous;
-    prevButton.addEventListener('click', function () {
+  if (prevButton && strings.previous) prevButton.title = strings.previous;
+  if (nextButton && strings.next) nextButton.title = strings.next;
+  if (closeButton && strings.close) closeButton.title = strings.close;
+
+  wireBarControls({
+    prevId: 'mmd-jump-prev',
+    nextId: 'mmd-jump-next',
+    closeId: 'mmd-jump-close',
+    onPrev: function () {
       _mmdJump.prev();
-    });
-  }
-  if (nextButton) {
-    if (strings.next) nextButton.title = strings.next;
-    nextButton.addEventListener('click', function () {
+    },
+    onNext: function () {
       _mmdJump.next();
-    });
-  }
-  if (closeButton) {
-    if (strings.close) closeButton.title = strings.close;
-    closeButton.addEventListener('click', function () {
+    },
+    onClose: function () {
       _mmdJump.close();
-    });
-  }
+    },
+  });
 
   // Enter / Shift+Enter による前後移動はここでは配線しない。ジャンプバーは
   // 入力欄を持たずキーボードフォーカスが乗らないため、バー要素の keydown には
@@ -373,6 +386,23 @@ function _mmdOpenJump(kind: string): void {
   _mmdJump.open(kind);
 }
 
+// 直近に届いた利用可能な種類。モード切替スイッチ（bar-mode.ts）が
+// セグメントの表示/非表示を決めるために読む（TASK-485.19.3）。
+// Swift からまだ一度も同期が届いていない間は「どれも使えない」として扱う
+// （_mmdApplyJumpAvailability と同じ、閉じる方向へ倒す既定）。
+var lastAvailableKinds: string[] = [];
+var onAvailabilityChange: (() => void) | undefined;
+
+// bar-mode.ts が「表示を更新したい」ことをここへ登録する（bar.ts の
+// setOnBarChange と同じ理由: bar-mode.ts と互いに import すると循環する）。
+function setOnAvailabilityChange(callback: () => void): void {
+  onAvailabilityChange = callback;
+}
+
+function jumpAvailableKinds(): string[] {
+  return lastAvailableKinds;
+}
+
 // Swift(evaluateJavaScript)から名前で呼ばれる入口。いま使えるジャンプの種類が
 // 変わるたびに送られ、開いている種類が外れていればバーを閉じる。
 function _mmdApplyJumpAvailability(kinds: unknown): void {
@@ -383,7 +413,14 @@ function _mmdApplyJumpAvailability(kinds: unknown): void {
         return typeof kind === 'string';
       })
     : [];
+  lastAvailableKinds = available;
+  // 閉じる判定を先に済ませてから通知する。モード切替スイッチが読む
+  // currentMode() は「いま開いているか」を見るため、閉じたあとに通知しないと
+  // 閉じたはずのモードが選択状態のまま表示される。
   _mmdJump.closeUnlessAvailable(available);
+  if (onAvailabilityChange) {
+    onAvailabilityChange();
+  }
 }
 
 function _mmdJumpNextIfOpen(): void {
@@ -404,4 +441,6 @@ export {
   _mmdApplyJumpAvailability,
   _mmdJumpNextIfOpen,
   _mmdJumpPrevIfOpen,
+  jumpAvailableKinds,
+  setOnAvailabilityChange,
 };
