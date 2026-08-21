@@ -290,12 +290,12 @@ describe('検索バーの配線', () => {
 
     main._mmdOpenFind();
     expect(main._mmdFind.isOpen()).toBe(true);
-    expect(document.getElementById('mmd-find-bar').style.display).toBe('flex');
+    expect(document.getElementById('mmd-find-panel').style.display).toBe('flex');
 
     document.getElementById('mmd-find-close').click();
 
     expect(main._mmdFind.isOpen()).toBe(false);
-    expect(document.getElementById('mmd-find-bar').style.display).toBe('none');
+    expect(document.getElementById('mmd-find-panel').style.display).toBe('none');
   });
 });
 
@@ -531,7 +531,7 @@ describe('検索ナビゲーション', () => {
     main.claimBar('jump');
 
     expect(main.currentBar()).toBe('jump');
-    expect(document.getElementById('mmd-find-bar').style.display).toBe('none');
+    expect(document.getElementById('mmd-find-panel').style.display).toBe('none');
     expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
   });
 

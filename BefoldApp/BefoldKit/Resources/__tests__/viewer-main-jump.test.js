@@ -63,7 +63,7 @@ const headingTexts = (loaded) =>
     .collectHeadings(loaded.document.getElementById('diagram-wrap'))
     .map((target) => target.anchor.textContent.trim());
 
-const isBarVisible = (document) => document.getElementById('mmd-jump-bar').style.display === 'flex';
+const isBarVisible = (document) => document.getElementById('mmd-jump-panel').style.display === 'flex';
 
 const count = (document) => document.getElementById('mmd-jump-count').textContent;
 const current = (document) => document.querySelector('.mmd-jump-current');
@@ -214,7 +214,7 @@ describe('文書内ジャンプ', () => {
       new loaded.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
     );
 
-    expect(loaded.document.getElementById('mmd-jump-bar').style.display).toBe('none');
+    expect(loaded.document.getElementById('mmd-jump-panel').style.display).toBe('none');
     expect(current(loaded.document)).toBe(null);
   });
 
@@ -224,7 +224,7 @@ describe('文書内ジャンプ', () => {
     main._mmdJump.close();
 
     expect(current(document)).toBe(null);
-    expect(document.getElementById('mmd-jump-bar').style.display).toBe('none');
+    expect(document.getElementById('mmd-jump-panel').style.display).toBe('none');
   });
 
   test('バーが閉じている間は次へ・前へが効かない', () => {

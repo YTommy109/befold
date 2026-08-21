@@ -487,7 +487,7 @@ function _createFindController(): FindController {
 
   function open(): void {
     claimBar('find');
-    document.getElementById('mmd-find-bar')!.style.display = 'flex';
+    document.getElementById('mmd-find-panel')!.style.display = 'flex';
     var input = findInputElement();
     input.value = query;
     input.focus();
@@ -499,7 +499,7 @@ function _createFindController(): FindController {
 
   function close(): void {
     releaseBar('find');
-    document.getElementById('mmd-find-bar')!.style.display = 'none';
+    document.getElementById('mmd-find-panel')!.style.display = 'none';
     clearMarks();
     matches = [];
     currentIndex = -1;

@@ -4,7 +4,7 @@
 //
 // 位置の算術と件数ラベルは navigation.ts、バーの排他は bar.ts と共有する。
 
-import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
+import { claimBar, isBarOpen, registerBar, releaseBar, updateOuterVisibility } from './bar.js';
 import { wireBarControls } from './bar-controls.js';
 import {
   formatNavigationCount,
@@ -44,6 +44,9 @@ interface JumpProvider {
 
 interface JumpController {
   isOpen(): boolean;
+  // いま開いている種類（'heading' / 'changeBlock'）。閉じていれば ''。
+  // モード切替スイッチ（bar-mode.ts）が選択状態を表示するために読む。
+  activeMode(): string;
   open(kind: string): void;
   close(): void;
   next(): void;
@@ -206,17 +209,21 @@ function _createJumpController(): JumpController {
   function open(kind: string): void {
     activeKind = kind;
     claimBar('jump');
-    var bar = document.getElementById('mmd-jump-bar');
+    var bar = document.getElementById('mmd-jump-panel');
     if (bar) {
       bar.style.display = 'flex';
     }
     updateOptionsVisibility();
     run(true);
+    // claimBar は「find/jump 間の切り替え」しか検知しない。jump 内で種類だけが
+    // 変わる場合（見出し→変更箇所）は claimBar が早期リターンするため、
+    // モード切替スイッチの選択表示を更新するにはここで明示的に伝える必要がある。
+    updateOuterVisibility();
   }
 
   function close(): void {
     releaseBar('jump');
-    var bar = document.getElementById('mmd-jump-bar');
+    var bar = document.getElementById('mmd-jump-panel');
     if (bar) {
       bar.style.display = 'none';
     }
@@ -308,8 +315,13 @@ function _createJumpController(): JumpController {
     }
   }
 
+  function activeMode(): string {
+    return isJumpBarOpen() ? activeKind : '';
+  }
+
   return {
     isOpen: isJumpBarOpen,
+    activeMode: activeMode,
     open: open,
     close: close,
     next: next,

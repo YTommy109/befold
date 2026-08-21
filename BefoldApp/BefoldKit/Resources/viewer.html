@@ -38,43 +38,51 @@
     <div id="diagram-wrap"></div>
   </div>
 
-  <!-- placeholder/title は _mmdInitFind() が window._mmdFindStrings(ローカライズ済み)で
-       上書きする。未定義時のフォールバックとして日本語を静的に残す。 -->
-  <div id="mmd-find-bar" class="mmd-find-bar">
-    <div class="mmd-find-input-wrap">
-      <input id="mmd-find-input" type="text" class="mmd-find-input" placeholder="検索">
-      <div class="mmd-find-toggles">
-        <button id="mmd-find-case" class="mmd-find-toggle" title="大文字・小文字を区別">Aa</button>
-        <button id="mmd-find-word" class="mmd-find-toggle" title="単語単位で検索">ab|</button>
-        <button id="mmd-find-regex" class="mmd-find-toggle" title="正規表現">.*</button>
-      </div>
+  <!-- 検索バーと文書内ジャンプバーを統合した1つのバー（TASK-485.19）。
+       外枠（位置・背景・開閉）は bar.ts が一元管理する。中身は検索/見出し/変更箇所
+       の3モードで、実装（find.ts / jump.ts）は既存のまま自分のパネルだけを開閉する
+       ため、パネル単位のID（mmd-find-* / mmd-jump-*）は変えていない。
+       placeholder/title は _mmdInitFind() / _mmdInitJump() が
+       window._mmdFindStrings / window._mmdJumpStrings(ローカライズ済み)で上書きする。
+       未定義時のフォールバックとして日本語を静的に残す。 -->
+  <div id="mmd-bar" class="mmd-find-bar">
+    <div id="mmd-bar-modes" class="mmd-bar-modes">
+      <button id="mmd-bar-mode-search" class="mmd-find-toggle mmd-bar-mode" title="検索">検索</button>
+      <button id="mmd-bar-mode-heading" class="mmd-find-toggle mmd-bar-mode" title="見出し">見出し</button>
+      <button id="mmd-bar-mode-changeBlock" class="mmd-find-toggle mmd-bar-mode" title="変更箇所">変更箇所</button>
     </div>
-    <span id="mmd-find-count" class="mmd-find-count"></span>
-    <button id="mmd-find-prev" class="mmd-find-nav mmd-find-nav-prev" title="前へ (Shift+Enter)">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 6.5L5 2.5L9 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <button id="mmd-find-next" class="mmd-find-nav mmd-find-nav-next" title="次へ (Enter)">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 3.5L5 7.5L9 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <button id="mmd-find-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
-  </div>
-
-  <!-- 文書内ジャンプバー。検索バーと同時には開かない（bar.ts が排他を持つ）ため、
-       見た目・配置のクラスはそのまま共有する。title は _mmdInitJump() が
-       window._mmdJumpStrings(ローカライズ済み)で上書きする。 -->
-  <div id="mmd-jump-bar" class="mmd-find-bar">
-    <!-- レベルのトグルは jump-providers.ts の HEADING_LEVELS から生成する。
-         ここへ静的に並べると、選べるレベルの集合が HTML と JS の 2 箇所に
-         独立して存在し、片方だけ増やしても何も落ちない（TASK-485.11）。 -->
-    <div id="mmd-jump-levels" class="mmd-jump-levels"></div>
-    <span id="mmd-jump-count" class="mmd-find-count"></span>
-    <button id="mmd-jump-prev" class="mmd-find-nav mmd-find-nav-prev" title="前へ (Shift+Enter)">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 6.5L5 2.5L9 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <button id="mmd-jump-next" class="mmd-find-nav mmd-find-nav-next" title="次へ (Enter)">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 3.5L5 7.5L9 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <button id="mmd-jump-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
+    <div id="mmd-find-panel" class="mmd-bar-panel">
+      <div class="mmd-find-input-wrap">
+        <input id="mmd-find-input" type="text" class="mmd-find-input" placeholder="検索">
+        <div class="mmd-find-toggles">
+          <button id="mmd-find-case" class="mmd-find-toggle" title="大文字・小文字を区別">Aa</button>
+          <button id="mmd-find-word" class="mmd-find-toggle" title="単語単位で検索">ab|</button>
+          <button id="mmd-find-regex" class="mmd-find-toggle" title="正規表現">.*</button>
+        </div>
+      </div>
+      <span id="mmd-find-count" class="mmd-find-count"></span>
+      <button id="mmd-find-prev" class="mmd-find-nav mmd-find-nav-prev" title="前へ (Shift+Enter)">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 6.5L5 2.5L9 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="mmd-find-next" class="mmd-find-nav mmd-find-nav-next" title="次へ (Enter)">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 3.5L5 7.5L9 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="mmd-find-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
+    </div>
+    <div id="mmd-jump-panel" class="mmd-bar-panel">
+      <!-- レベルのトグルは jump-providers.ts の HEADING_LEVELS から生成する。
+           ここへ静的に並べると、選べるレベルの集合が HTML と JS の 2 箇所に
+           独立して存在し、片方だけ増やしても何も落ちない（TASK-485.11）。 -->
+      <div id="mmd-jump-levels" class="mmd-jump-levels"></div>
+      <span id="mmd-jump-count" class="mmd-find-count"></span>
+      <button id="mmd-jump-prev" class="mmd-find-nav mmd-find-nav-prev" title="前へ (Shift+Enter)">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 6.5L5 2.5L9 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="mmd-jump-next" class="mmd-find-nav mmd-find-nav-next" title="次へ (Enter)">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 3.5L5 7.5L9 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="mmd-jump-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
+    </div>
   </div>
 
   <!-- viewer-bundle.js は viewer-src/ を esbuild でまとめた成果物。markdown-it /

@@ -2,6 +2,7 @@
 // 呼び出し順は分割前のトップレベル実行順そのまま。viewer.html は body 末尾で
 // バンドルを読むため、この時点で DOM は構築済み。
 
+import { _mmdInitBarModeSwitch } from './bar-mode.js';
 import { onColorSchemeChange } from './color-scheme.js';
 import { _mmdFind, _mmdInitFind } from './find.js';
 import { _mmdInitCodeFont, _mmdInitFontSize } from './fonts.js';
@@ -48,6 +49,7 @@ function _mmdInit(): void {
   _mmdJump.register(changeBlockJumpProvider);
   _mmdInitJump();
   _mmdInitHeadingLevels();
+  _mmdInitBarModeSwitch();
 }
 
 export { _mmdInit };

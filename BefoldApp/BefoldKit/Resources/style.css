@@ -544,14 +544,20 @@ body {
   color: var(--accent);
 }
 
-/* ── 検索バー(Cmd+F) ── */
+/* ── 検索/文書内ジャンプの統合バー(Cmd+F、TASK-485.19) ──
+   #mmd-bar が外枠(位置・背景・開閉、bar.ts が一元管理)。中身は
+   モード切替スイッチ(.mmd-bar-modes)を上段、選ばれたモードのパネル
+   (.mmd-bar-panel、find/jump それぞれが自分の開閉だけを持つ)を下段に積む。
+   横一列にすると検索入力欄+トグル+スイッチ+件数+前後+閉じるが並んで幅が
+   広がりすぎるため、2段組みにしている。 */
 .mmd-find-bar {
   position: fixed;
   top: 12px;
   right: 12px;
   z-index: 100;
   display: none;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 4px;
   background: var(--panel-bg);
   backdrop-filter: blur(8px);
@@ -561,6 +567,25 @@ body {
   padding: 6px 8px;
   box-shadow: 0 1px 4px var(--panel-shadow);
   font-size: 13px;
+}
+
+.mmd-bar-modes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* .mmd-find-bar button (0,1,1) より詳細度を上げないと width:22px に負ける */
+.mmd-bar-modes .mmd-bar-mode {
+  width: auto;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.mmd-bar-panel {
+  display: none;
+  align-items: center;
+  gap: 4px;
 }
 
 .mmd-find-input-wrap {
