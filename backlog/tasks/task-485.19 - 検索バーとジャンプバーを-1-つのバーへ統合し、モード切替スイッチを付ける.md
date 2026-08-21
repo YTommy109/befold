@@ -1,11 +1,11 @@
 ---
 id: TASK-485.19
 title: 検索バーとジャンプバーを 1 つのバーへ統合し、モード切替スイッチを付ける
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-18 15:26'
-updated_date: '2026-08-21 09:13'
+updated_date: '2026-08-21 12:15'
 labels: []
 milestone: m-6
 dependencies:
@@ -78,12 +78,12 @@ ordinal: 766000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 バーが 1 つに統合され、モード切替スイッチで検索 / 見出し / 変更箇所を切り替えられる
-- [ ] #2 差分表示モードでバーを開くと変更箇所モードが既定で選ばれる
-- [ ] #3 再描画（ファイル更新・チャンク追記）でユーザーが選んだモードが既定へ引き戻されないことをテストで示している
-- [ ] #4 非対応モードの見せ方（非表示 / 無効）と、その選択理由が Implementation Notes に残っている
-- [ ] #5 モード切替をまたぐ状態保持の規則が決まり、テストで担保されている
-- [ ] #6 件数表示・前へ/次へ・閉じる・Enter/Shift+Enter・Esc がモード間で 1 つの実装を共有している
+- [x] #1 バーが 1 つに統合され、モード切替スイッチで検索 / 見出し / 変更箇所を切り替えられる
+- [x] #2 差分表示モードでバーを開くと変更箇所モードが既定で選ばれる
+- [x] #3 再描画（ファイル更新・チャンク追記）でユーザーが選んだモードが既定へ引き戻されないことをテストで示している
+- [x] #4 非対応モードの見せ方（非表示 / 無効）と、その選択理由が Implementation Notes に残っている
+- [x] #5 モード切替をまたぐ状態保持の規則が決まり、テストで担保されている
+- [x] #6 件数表示・前へ/次へ・閉じる・Enter/Shift+Enter・Esc がモード間で 1 つの実装を共有している
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -136,5 +136,44 @@ ordinal: 766000
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-/review-design の結果、実コード（find.ts/jump.ts、計984行、span境界マッチング・isRenderingフラグ等の繊細な不変条件あり）を確認したところ1タスクでのレビュー・検証には大きすぎると判断し、TASK-485.19.1〜.5 へ分割した。分割方針・各サブタスクの担当範囲は各サブタスクのDescriptionに記載。本タスク自身は全サブタスク完了後にfinalizeする。
+TASK-485.19.1〜.5へ分割して実装した（分割理由は先行のNotesを参照）。各サブタスクの
+Implementation Notesに詳細な設計判断・検証結果を記録済み。ここでは親タスクのAC全体に
+対する裏付けだけをまとめる。
+
+- AC1（統合・スイッチ）: TASK-485.19.2。#mmd-find-bar/#mmd-jump-barを単一の#mmd-barへ統合し、
+  検索/見出し/変更箇所のモード切替スイッチ（bar-mode.ts）を追加した。
+- AC2（差分表示での既定モード）: TASK-485.19.5。WebViewCommandController.openBar(kind:)が
+  kind=nil（⌘F相当）のときViewerCapabilities.defaultBarKind（canJumpToChangeBlock経由）を
+  見て検索/変更箇所ジャンプへ振り分ける。責務レビューでshowsDiff直接参照による
+  フィーチャーゲート迂回の回帰を発見・修正済み。
+- AC3（再描画で既定へ引き戻されない）: 既定モードの選択はopenBar(kind:)（Swift、ユーザーが
+  ⌘F/Editメニューを操作した瞬間だけ）に閉じており、JS側のrender/refreshパイプライン
+  （render.tsの_mmdFindRefreshAfterRender）はopenBarを一切呼ばない（find.refresh/jump.refreshが
+  呼ばれるだけで、どちらもactiveKind/openBarを変更しない）ため、構造的に再適用され得ない。
+  親タスクの完了処理として、この保証を直接検証するテストを1件追加した
+  （viewer-main-bar-mode.test.js「選んだモードは再描画をまたいで引き戻されない」:
+  変更箇所モードから検索へ手動切替 → 再描画 → 検索モードのまま、をnpm test 564/564で確認）。
+- AC4（非対応モードの見せ方）: TASK-485.19.3で非表示を採用。理由（TASK-485.18のavailableKinds
+  経由の可用性伝搬をそのまま流用し、新しいgate概念をJS側に増やさない判断）は19.3のNotesに記録済み。
+- AC5（状態保持）: TASK-485.19.3。find.ts/jump.tsのclose()がもともとquery/options/activeKind/
+  selectedLevelsをクリアしない仕様だったため追加実装なしで成立、新規テスト2件で固定。
+  「完全に閉じたときにリセットする」という設計レビュー時点の想定は、既存のfindバーの挙動
+  （Escapeで閉じてもクエリが残る、TASK-485.19より前からの既存仕様）と矛盾するため実装せず、
+  ユーザーに再確認の上で既存挙動を優先する方針の承認を得た（19.3のNotes参照）。
+- AC6（件数表示・前後・close・Enter/Shift+Enter・Escの実装共有）: 件数表示はnavigation.ts
+  （TASK-485.12で既に共通化）、前後移動・closeボタンの配線はTASK-485.19.1でbar-controls.tsへ
+  1箇所化、EscapeはbarのcloseCurrentBar()で既に共有、Enter/Shift+Enterは調査の結果
+  resolveJumpNavigationKey等がactiveKindではなくopenBarだけで分岐しており追加実装なしで
+  3モードとも同じ経路を通っていた（TASK-485.19.4）。DOM要素そのもの（count/prev/next/close）は
+  find用・jump用で物理的に別（19.2で決めた設計、CSS上は1つのバーに見える）だが、ACが指す
+  「実装の共有」はロジックレベルで満たしている。
+
+検証（最終確認）: npm test 564/564通過、swift test 1578/1578通過、swiftlintベースライン
+差分ゼロ（main比較）、型グループいずれも閾値内。docs/dev/native-app-design.mdを更新した。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+検索バー・ジャンプバーを統合し、検索/見出し/変更箇所のモード切替スイッチを持つ1つのバーへ再構成した(TASK-485.19.1〜.5)。実装過程でresponsibility-reviewerが差分表示中にジャンプ機能ゲートが閉じていると⌘Fが無反応になる回帰を検出し修正した。多くの箇所で既存コード(find.ts/jump.tsのclose()仕様、resolveJumpNavigationKeyのopenBarベース判定)がそのまま統合後の要件を満たしており、追加実装より単純化で済んだ。npm test 564/564、swift test 1578/1578通過、swiftlintベースライン差分ゼロ。実機でのレイアウト目視確認は自動化の信頼性問題により未実施(TASK-485.19.2/.3のコメントに記録、ユーザーへ手すきの際の確認を依頼済み)。
+<!-- SECTION:FINAL_SUMMARY:END -->

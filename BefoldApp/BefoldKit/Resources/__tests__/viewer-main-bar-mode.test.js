@@ -184,4 +184,28 @@ describe('バーのモード切替スイッチ', () => {
       expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
     });
   });
+
+  // TASK-485.19 AC3: 差分表示時の既定モード選択（Swift 側 openBar(kind:) が
+  // ⌘F 相当の非明示オープンでだけ行う）は、バーを開く瞬間にしか効かない。
+  // jump.ts の refresh/invalidate は再描画のたびに呼ばれるが、これらは
+  // どちらも activeKind や openBar の状態を変更しない（列を作り直すだけ）ため、
+  // ユーザーが手動で切り替えたモードが再描画で黙って引き戻されることはない。
+  describe('選んだモードは再描画をまたいで引き戻されない', () => {
+    test('変更箇所モードから検索へ切り替えたあと再描画しても、検索モードのまま', async () => {
+      const { main, document } = loadViewerMain({});
+      main._mmdApplyJumpAvailability(['heading', 'changeBlock']);
+      await main.render('# a\n\n## b\n', 'markdown');
+      main._mmdOpenJump('changeBlock');
+      expect(activeModes(document)).toEqual(['changeBlock']);
+
+      clickMode(document, 'search');
+      expect(activeModes(document)).toEqual(['search']);
+
+      await main.render('# a\n\n## b\n\n### c\n', 'markdown');
+
+      expect(activeModes(document)).toEqual(['search']);
+      expect(main._mmdFind.isOpen()).toBe(true);
+      expect(main._mmdJump.isOpen()).toBe(false);
+    });
+  });
 });
