@@ -4,9 +4,12 @@ title: 自動リロードの動きを見せる短尺 GIF/動画を用意しサ�
 status: To Do
 assignee: []
 created_date: '2026-08-18 14:52'
+updated_date: '2026-08-21 07:53'
 labels: []
+milestone: m-10
 dependencies: []
 priority: high
+type: task
 ordinal: 758000
 ---
 

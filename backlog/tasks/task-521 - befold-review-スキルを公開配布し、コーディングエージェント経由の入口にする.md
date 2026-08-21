@@ -4,9 +4,12 @@ title: befold-review スキルを公開配布し、コーディングエージ�
 status: To Do
 assignee: []
 created_date: '2026-08-18 14:58'
+updated_date: '2026-08-21 07:53'
 labels: []
+milestone: m-10
 dependencies: []
 priority: high
+type: task
 ordinal: 761000
 ---
 
