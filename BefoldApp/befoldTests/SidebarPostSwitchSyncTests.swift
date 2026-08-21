@@ -28,19 +28,24 @@ struct SidebarPostSwitchSyncTests {
         let sibling: URL
         let outside: URL
         let outsideFile: URL
+        let inner: URL
+        let deepChild: URL
     }
 
     private func makeFixture(_ name: String) -> Fixture {
         let base = Self.home.appendingPathComponent("SidebarPostSwitchSyncTests-\(name)")
         let sub = base.appendingPathComponent("sub", isDirectory: true)
         let outside = base.appendingPathComponent("outside", isDirectory: true)
+        let inner = sub.appendingPathComponent("inner", isDirectory: true)
         return Fixture(
             base: base,
             sub: sub,
             child: sub.appendingPathComponent("child.mmd"),
             sibling: base.appendingPathComponent("a.mmd"),
             outside: outside,
-            outsideFile: outside.appendingPathComponent("target.mmd")
+            outsideFile: outside.appendingPathComponent("target.mmd"),
+            inner: inner,
+            deepChild: inner.appendingPathComponent("deep.mmd")
         )
     }
 
@@ -57,7 +62,11 @@ struct SidebarPostSwitchSyncTests {
                 FileListEntry(url: fixture.sub, kind: .folder),
                 FileListEntry(url: fixture.sibling, kind: .file),
             ],
-            fixture.sub.normalizedPathKey: [FileListEntry(url: fixture.child, kind: .file)],
+            fixture.sub.normalizedPathKey: [
+                FileListEntry(url: fixture.inner, kind: .folder),
+                FileListEntry(url: fixture.child, kind: .file),
+            ],
+            fixture.inner.normalizedPathKey: [FileListEntry(url: fixture.deepChild, kind: .file)],
             fixture.outside.normalizedPathKey: [FileListEntry(url: fixture.outsideFile, kind: .file)],
         ]
         let listing = { (url: URL) -> DirectoryListing in
@@ -90,6 +99,34 @@ struct SidebarPostSwitchSyncTests {
             await Task.yield()
         }
         #expect(navigator.expandedFolderKeys.contains(fixture.sub.normalizedPathKey))
+    }
+
+    /// `sub` の中の `inner` も展開した状態にする(2 階層ぶん)。
+    private func expandSubAndInner(_ navigator: SidebarNavigator, _ fixture: Fixture) async {
+        await expandSub(navigator, fixture)
+        navigator.expandFolder(fixture.inner.normalizedPathKey, at: fixture.inner)
+        for _ in 0 ..< 10 {
+            await Task.yield()
+        }
+        #expect(navigator.expandedFolderKeys.contains(fixture.inner.normalizedPathKey))
+    }
+
+    @Test("ファイル切替: 2 階層展開済みの子ファイルを開いてもフォルダー移動は起きない")
+    func fileSwitchStaysWhenTwoLevelsDeepChildIsAlreadyExpanded() async {
+        let fixture = makeFixture("switch-two-levels")
+        let (navigator, host) = makeNavigator(
+            fixture, currentDirectory: fixture.base,
+            selection: fixture.sibling, currentFile: fixture.sibling
+        )
+        defer { withExtendedLifetime(host) {} }
+        await expandSubAndInner(navigator, fixture)
+
+        host.performFileSwitch(to: fixture.deepChild)
+        navigator.syncAfterSwitch(to: fixture.deepChild)
+
+        #expect(navigator.fileListModel.currentDirectory.normalizedPathKey == fixture.base.normalizedPathKey)
+        #expect(navigator.expandedFolderKeys.contains(fixture.sub.normalizedPathKey))
+        #expect(navigator.expandedFolderKeys.contains(fixture.inner.normalizedPathKey))
     }
 
     @Test("ファイル切替: 選択は一覧の着地を待たずに同期区間で確定する")
