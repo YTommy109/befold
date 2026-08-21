@@ -66,7 +66,7 @@ final class GlobalDisplayBroadcaster {
     /// 呼び分けの基準は refreshAllSidebars と同じ。
     func refreshAllToolbars() {
         for controller in controllers() {
-            controller.refreshToolbarState()
+            controller.refreshUIState()
         }
     }
 }

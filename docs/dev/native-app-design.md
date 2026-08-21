@@ -247,6 +247,18 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   `Shift+↑↓` で半ページ（`viewer-src/keyboard.ts`）。`scrollBy` は `behavior: 'smooth'` で、
   1 回のキー操作で位置が飛ばないようにする。CSS の `scroll-behavior` は使わない
   （指定すると `scrollTop` への代入まで animate され、位置復元が着地しなくなる）
+- **検索・文書内ジャンプの統合バー**（TASK-485.19）: 検索・見出しジャンプ・変更箇所
+  ジャンプは、画面右上の1つのバー（`#mmd-bar`）として見える。上段のモード切替
+  スイッチ（`viewer-src/bar-mode.ts`）が検索/見出し/変更箇所を切り替え、下段に
+  選ばれたモード固有の入力領域（検索は入力欄+3トグル、見出しはレベルトグル、
+  変更箇所は無し）を出す。**実装（`find.ts` / `jump.ts`）は従来どおり別モジュールで、
+  排他は引き続き `viewer-src/bar.ts` が持つ**。バー全体の開閉は
+  `bar.ts` が一元管理し、モード切替スイッチの選択表示・非対応モードの非表示
+  （`ViewerCapabilities.canJump(to:)` 由来）は `bar-mode.ts` が薄い調整役として持つ。
+  Swift 側は `WebViewCommandController.openBar(kind:)` が単一入口で、
+  `kind` を明示すれば常にそのモードを強制し（Edit メニューの各項目）、
+  `kind` が `nil`（⌘F の非明示オープン）のときだけ `ViewerCapabilities.showsDiff`
+  を見て検索 / 変更箇所ジャンプへ既定を振り分ける。
 - **検索**: 大文字小文字区別・単語一致・正規表現の3トグル、次/前移動
 - **文書内ジャンプ**: 文書順に並んだ目印を前後移動する
   （Edit > 見出しへジャンプ… / 変更箇所へジャンプ…）。目印は 2 種類ある。
@@ -289,7 +301,7 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   `DocumentJumpKind.allCases` を `canJump(to:)` で絞って作るため、
   **開く条件と開き続けられる条件が同じ述語**になり、種類を足したときの
   載せ忘れも起きない（列挙を手書きに変えると `WebViewCommandControllerTests` が落ちる）。
-  送信の契機は `ViewerWindowController.refreshToolbarState()` — 表示モード変更・
+  送信の契機は `ViewerWindowController.refreshUIState()` — 表示モード変更・
   ファイル切替・フォルダー一覧⇄文書の切替がすべて通る唯一の再同期点。
   検索バーは同じ扱いにしない。`canFind` は表示モードに依存しないため失効しない。**コマンド経路（`DocumentRendering.openJump(kind:)` と
   `WebViewCommandController.openJump(kind:)`）は種類を生の String ではなく

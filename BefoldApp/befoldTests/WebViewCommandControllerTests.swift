@@ -9,8 +9,13 @@ import Testing
 /// (能力による可否・結果の保存先)を検証する(ADR 0002 段 4)。
 /// port を切る前は WebView 不在で全コマンドが無言の no-op になり、
 /// 命令が届いたかどうかをテストで区別できなかった。
+///
+/// `private` ではなく型内部可視性(既定の internal)にしてあるのは、
+/// `WebViewCommandController+OpenBarTests.swift` からも使うため
+/// (file_length 対策の分割。Swift の `private` はファイルスコープなので
+/// 分割先から見えなくなる)。
 @MainActor
-private final class FakeDocumentRenderer: DocumentRendering {
+final class FakeDocumentRenderer: DocumentRendering {
     enum Command: Equatable {
         case applyZoom(Double)
         case applyCodeFont(family: String?, points: Double?)
@@ -88,12 +93,14 @@ struct WebViewCommandControllerTests {
     private let url = URL(fileURLWithPath: "/tmp/a.md")
 
     /// 窓のライブ倍率の代役。onZoomChanged で流れてきた値を順に記録する。
-    private final class ZoomChangeRecorder {
+    /// `makeController` のデフォルト引数の型として使われるため、`private` には
+    /// できない(型内部可視性のメソッドは private 型を引数に取れない)。
+    final class ZoomChangeRecorder {
         var values: [Double] = []
     }
 
     /// 保存完了通知(位置・キー)を順に記録する。窓のライブ復元値の代役。
-    private final class ScrollSaveRecorder {
+    final class ScrollSaveRecorder {
         struct Save: Equatable {
             let position: Double
             let url: URL
@@ -103,7 +110,9 @@ struct WebViewCommandControllerTests {
         var saves: [Save] = []
     }
 
-    private func makeController(
+    /// `private` ではなく内部可視性にしてあるのは、`WebViewCommandController+
+    /// OpenBarTests.swift`(file_length 対策の分割先)からも呼ぶため。
+    func makeController(
         renderer: FakeDocumentRenderer,
         perFileState: PerFileStateStore? = nil,
         zoomChanges: ZoomChangeRecorder = ZoomChangeRecorder(),
@@ -272,6 +281,9 @@ struct WebViewCommandControllerTests {
 
         #expect(renderer.commands == [.openJump(kind: .changeBlock)])
     }
+
+    // 統合バーの単一入口(TASK-485.19.5)のテストは
+    // WebViewCommandController+OpenBarTests.swift へ分割した(file_length 対策)。
 
     // 失効の同期(TASK-485.18)。開くときの guard と同じ canJump(to:) を通すことで、
     // 「開けるが開き続けられない」「開けないのに閉じない」という食い違いを作らない。
