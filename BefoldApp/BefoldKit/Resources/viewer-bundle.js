@@ -15517,6 +15517,22 @@
     );
   }
 
+  // viewer-src/bar-controls.ts
+  function wireBarControls(config2) {
+    var prevButton = document.getElementById(config2.prevId);
+    var nextButton = document.getElementById(config2.nextId);
+    var closeButton = document.getElementById(config2.closeId);
+    if (prevButton) {
+      prevButton.addEventListener("click", config2.onPrev);
+    }
+    if (nextButton) {
+      nextButton.addEventListener("click", config2.onNext);
+    }
+    if (closeButton) {
+      closeButton.addEventListener("click", config2.onClose);
+    }
+  }
+
   // viewer-src/navigation.ts
   function nextMatchIndex(currentIndex, count) {
     if (count <= 0) {
@@ -15748,24 +15764,17 @@
     var prevButton = document.getElementById("mmd-jump-prev");
     var nextButton = document.getElementById("mmd-jump-next");
     var closeButton = document.getElementById("mmd-jump-close");
-    if (prevButton) {
-      if (strings.previous) prevButton.title = strings.previous;
-      prevButton.addEventListener("click", function() {
-        _mmdJump.prev();
-      });
-    }
-    if (nextButton) {
-      if (strings.next) nextButton.title = strings.next;
-      nextButton.addEventListener("click", function() {
-        _mmdJump.next();
-      });
-    }
-    if (closeButton) {
-      if (strings.close) closeButton.title = strings.close;
-      closeButton.addEventListener("click", function() {
-        _mmdJump.close();
-      });
-    }
+    if (prevButton && strings.previous) prevButton.title = strings.previous;
+    if (nextButton && strings.next) nextButton.title = strings.next;
+    if (closeButton && strings.close) closeButton.title = strings.close;
+    wireBarControls({
+      prevId: "mmd-jump-prev",
+      nextId: "mmd-jump-next",
+      closeId: "mmd-jump-close",
+      onPrev: _mmdJump.prev,
+      onNext: _mmdJump.next,
+      onClose: _mmdJump.close
+    });
   }
   function _mmdOpenJump(kind) {
     _mmdJump.open(kind);
@@ -16373,9 +16382,14 @@
           }
         }
       });
-      document.getElementById("mmd-find-next").addEventListener("click", next);
-      document.getElementById("mmd-find-prev").addEventListener("click", prev);
-      document.getElementById("mmd-find-close").addEventListener("click", close);
+      wireBarControls({
+        prevId: "mmd-find-prev",
+        nextId: "mmd-find-next",
+        closeId: "mmd-find-close",
+        onPrev: prev,
+        onNext: next,
+        onClose: close
+      });
       document.getElementById("mmd-find-case").addEventListener("click", function() {
         toggleOption("caseSensitive", "mmd-find-case");
       });

@@ -5,6 +5,7 @@
 // 位置の算術と件数ラベルは navigation.ts、バーの排他は bar.ts と共有する。
 
 import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
+import { wireBarControls } from './bar-controls.js';
 import {
   formatNavigationCount,
   moveCurrentHighlight,
@@ -341,24 +342,18 @@ function _mmdInitJump(): void {
   var nextButton = document.getElementById('mmd-jump-next');
   var closeButton = document.getElementById('mmd-jump-close');
 
-  if (prevButton) {
-    if (strings.previous) prevButton.title = strings.previous;
-    prevButton.addEventListener('click', function () {
-      _mmdJump.prev();
-    });
-  }
-  if (nextButton) {
-    if (strings.next) nextButton.title = strings.next;
-    nextButton.addEventListener('click', function () {
-      _mmdJump.next();
-    });
-  }
-  if (closeButton) {
-    if (strings.close) closeButton.title = strings.close;
-    closeButton.addEventListener('click', function () {
-      _mmdJump.close();
-    });
-  }
+  if (prevButton && strings.previous) prevButton.title = strings.previous;
+  if (nextButton && strings.next) nextButton.title = strings.next;
+  if (closeButton && strings.close) closeButton.title = strings.close;
+
+  wireBarControls({
+    prevId: 'mmd-jump-prev',
+    nextId: 'mmd-jump-next',
+    closeId: 'mmd-jump-close',
+    onPrev: _mmdJump.prev,
+    onNext: _mmdJump.next,
+    onClose: _mmdJump.close,
+  });
 
   // Enter / Shift+Enter による前後移動はここでは配線しない。ジャンプバーは
   // 入力欄を持たずキーボードフォーカスが乗らないため、バー要素の keydown には

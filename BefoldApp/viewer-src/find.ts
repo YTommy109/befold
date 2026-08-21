@@ -2,6 +2,7 @@
 // すべてをコントローラのクロージャに閉じ、外部からは公開メソッド経由でのみ触れる。
 
 import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
+import { wireBarControls } from './bar-controls.js';
 import { _MSG_FIND_OPTIONS_CHANGED, _mmdPostMessage } from './bridge.js';
 import { isComposingKeyEvent } from './ime.js';
 import {
@@ -465,9 +466,14 @@ function _createFindController(): FindController {
       // Escape はここでは処理しない: document の keydown ハンドラがバブリングで捕捉し、
       // isOpen() 時に preventDefault + close() を行う(同じ挙動になる)。
     });
-    document.getElementById('mmd-find-next')!.addEventListener('click', next);
-    document.getElementById('mmd-find-prev')!.addEventListener('click', prev);
-    document.getElementById('mmd-find-close')!.addEventListener('click', close);
+    wireBarControls({
+      prevId: 'mmd-find-prev',
+      nextId: 'mmd-find-next',
+      closeId: 'mmd-find-close',
+      onPrev: prev,
+      onNext: next,
+      onClose: close,
+    });
     document.getElementById('mmd-find-case')!.addEventListener('click', function () {
       toggleOption('caseSensitive', 'mmd-find-case');
     });
