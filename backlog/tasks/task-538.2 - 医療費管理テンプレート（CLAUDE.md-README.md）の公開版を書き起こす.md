@@ -4,8 +4,9 @@ title: 医療費管理テンプレート（CLAUDE.md / README.md）の公開版�
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:05'
-updated_date: '2026-08-22 13:17'
+updated_date: '2026-08-22 13:19'
 labels: []
+milestone: m-10
 dependencies: []
 parent_task_id: TASK-538
 priority: high

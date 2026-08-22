@@ -4,8 +4,9 @@ title: 架空データで運用を一巡させ、記事用のスクリーンシ�
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:06'
-updated_date: '2026-08-22 13:17'
+updated_date: '2026-08-22 13:19'
 labels: []
+milestone: m-10
 dependencies:
   - TASK-538.2
 parent_task_id: TASK-538

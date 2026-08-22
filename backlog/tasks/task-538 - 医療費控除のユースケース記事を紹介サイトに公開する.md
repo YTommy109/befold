@@ -4,8 +4,9 @@ title: 医療費控除のユースケース記事を紹介サイトに公開す�
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:04'
-updated_date: '2026-08-22 13:17'
+updated_date: '2026-08-22 13:19'
 labels: []
+milestone: m-10
 dependencies: []
 priority: medium
 ordinal: 782000

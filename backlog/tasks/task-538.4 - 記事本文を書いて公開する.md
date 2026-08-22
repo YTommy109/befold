@@ -4,8 +4,9 @@ title: 記事本文を書いて公開する
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:06'
-updated_date: '2026-08-22 13:11'
+updated_date: '2026-08-22 13:19'
 labels: []
+milestone: m-10
 dependencies:
   - TASK-538.1
   - TASK-538.2

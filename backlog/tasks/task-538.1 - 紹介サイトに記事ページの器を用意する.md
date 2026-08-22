@@ -4,8 +4,9 @@ title: 紹介サイトに記事ページの器を用意する
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:05'
-updated_date: '2026-08-22 13:11'
+updated_date: '2026-08-22 13:19'
 labels: []
+milestone: m-10
 dependencies: []
 parent_task_id: TASK-538
 priority: medium
