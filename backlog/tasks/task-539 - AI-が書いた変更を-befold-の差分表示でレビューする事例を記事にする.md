@@ -4,9 +4,11 @@ title: AI が書いた変更を befold の差分表示でレビューする事�
 status: To Do
 assignee: []
 created_date: '2026-08-22 14:46'
+updated_date: '2026-08-22 14:51'
 labels: []
 milestone: m-10
-dependencies: []
+dependencies:
+  - TASK-540
 priority: medium
 ordinal: 789000
 ---
@@ -65,3 +67,11 @@ TASK-538 の Description に『差分表示は使えない題材』と明記し�
 - [ ] #3 スクリーンショットに実在の未公開情報（他プロジェクトのパス・未公開の設計）が写り込んでいない
 - [ ] #4 TASK-538 の記事と見せ場が重複せず、差分表示が主役になっている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-540（CLI で --diff / --changed-files-only を指定できるようにする）が入ると、この記事の手順が『開いてから 2 操作』ではなく『1 コマンドでレビューの姿勢が整う』になる。記事の説得力が変わるので、先に入れてから書く（dep で表現）。
+
+TASK-541（記事のドラフト管理）は、この記事自体の執筆にも効く。
+<!-- SECTION:NOTES:END -->
