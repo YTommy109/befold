@@ -4,6 +4,7 @@ title: 記事本文を書いて公開する
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:06'
+updated_date: '2026-08-22 13:11'
 labels: []
 dependencies:
   - TASK-538.1
@@ -45,4 +46,5 @@ TASK-538.1 の器に、TASK-538.2 のテンプレートと TASK-538.3 の素材�
 - [ ] #3 テンプレート（CLAUDE.md / README.md）を読者が持ち帰れる導線がある
 - [ ] #4 税務判断についての注意書きと国税庁への出典リンクがある
 - [ ] #5 記事末尾に befold のダウンロード導線がある
+- [ ] #6 公開後、befold analytics のダッシュボードで記事のアクセス数が実際に計上されていることを確認する
 <!-- AC:END -->

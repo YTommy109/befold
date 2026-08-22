@@ -4,6 +4,7 @@ title: 紹介サイトに記事ページの器を用意する
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:05'
+updated_date: '2026-08-22 13:11'
 labels: []
 dependencies: []
 parent_task_id: TASK-538
@@ -37,4 +38,18 @@ site に記事（ユースケース・開発計画・リリース記事）を載
 - [ ] #2 記事を 1 本足す手順が、既存ページと同じ型の漏れ検知（Record<Page, ...> と同等）で守られる
 - [ ] #3 多言語の扱いを決め、決めた内容が Notes に残る
 - [ ] #4 着手前に /review-design を回し、結果を Implementation Plan に反映してある
+- [ ] #5 befold analytics のダッシュボードで、ユースケース記事のアクセス数をページ別に確認できる
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## analytics の AC を足した理由（2026-08-22）
+
+記事ページを SITE_PAGES に載せれば visit イベント自体は記録されるが、**ダッシュボードの『ページアクセス』指標には出ない**。
+
+- `site/src/analytics.ts:60` — `visit: { kind: 'visit', source: null, page: '/' }`。既定の visit 指標は LP（`/`）だけを数える。同 :59 のコメントに『意味と過去データの連続性を保つために page で絞る。ページ別の内訳は別系列』とある
+- したがって記事のアクセス数は**ページ別の内訳系列**の側で見えるようにする必要がある。器を作る時点でここまで通すこと（記事を公開してから『数が見えない』と気づく形にしない）
+
+この制約は Zola を却下した理由（静的配信だと Worker を通らず計上できない）と対になっている。計測に載せることが器の要件そのもの。
+<!-- SECTION:NOTES:END -->
