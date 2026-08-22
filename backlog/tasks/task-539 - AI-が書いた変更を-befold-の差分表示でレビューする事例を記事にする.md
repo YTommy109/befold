@@ -4,11 +4,10 @@ title: AI が書いた変更を befold の差分表示でレビューする事�
 status: To Do
 assignee: []
 created_date: '2026-08-22 14:46'
-updated_date: '2026-08-22 14:51'
+updated_date: '2026-08-22 14:58'
 labels: []
 milestone: m-10
-dependencies:
-  - TASK-540
+dependencies: []
 priority: medium
 ordinal: 789000
 ---
@@ -74,4 +73,15 @@ TASK-538 の Description に『差分表示は使えない題材』と明記し�
 TASK-540（CLI で --diff / --changed-files-only を指定できるようにする）が入ると、この記事の手順が『開いてから 2 操作』ではなく『1 コマンドでレビューの姿勢が整う』になる。記事の説得力が変わるので、先に入れてから書く（dep で表現）。
 
 TASK-541（記事のドラフト管理）は、この記事自体の執筆にも効く。
+
+## スクリーンショットの撮り方（2026-08-22 ユーザー判断）
+
+CLI オプション（旧 TASK-540）は取りやめ。差分表示が状態依存であることと噛み合わないため。**AppleScript もしくは人手で撮る。**
+
+TASK-538.3 で実際に使った手順が流用できる。要点は 2 つ。
+
+- `osascript` の `front window` は**意図した befold ウィンドウを指すとは限らない**。実際にこのセッションで、別ドキュメントのウィンドウを移動させる事故を起こした
+- CGWindowID を取って `screencapture -x -o -l <id>` で撮るとウィンドウ枠ぴったりで安定する。ID は pyobjc の `Quartz.CGWindowListCopyWindowInfo` で `kCGWindowOwnerName == 'befold'` を絞れば取れる
+
+差分モードへの切り替えだけはキー操作（`cmd+3` 相当）が要り、これは前面のウィンドウに当たる。**撮影対象のウィンドウを前面にしてから**行うこと。
 <!-- SECTION:NOTES:END -->

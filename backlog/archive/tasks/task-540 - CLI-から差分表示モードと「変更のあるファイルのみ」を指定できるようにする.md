@@ -4,7 +4,7 @@ title: CLI から差分表示モードと「変更のあるファイルのみ」
 status: To Do
 assignee: []
 created_date: '2026-08-22 14:50'
-updated_date: '2026-08-22 14:51'
+updated_date: '2026-08-22 14:57'
 labels: []
 milestone: m-10
 dependencies:
@@ -61,3 +61,15 @@ ordinal: 790000
 - [ ] #6 README.md と README.ja.md のオプション表に追記してある
 - [ ] #7 着手前に /review-design を回し、結果を Implementation Plan に反映してある
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 取りやめ（2026-08-22 ユーザー判断）
+
+**差分表示は状態依存**（git 管理下か / そのファイルに HEAD と比べられる変更があるか）であり、起動時のフラグで指定するものと噛み合わない。CLI で `--diff` を受けても、`GitDiffAvailability` が `.unavailable` / `.unchanged` なら通らず、しかも可用性は非同期に届くため CLI の応答時点では確定していない。『指定したのに効かない』が常態になる設計だった。
+
+記事用のスクリーンショットは AppleScript もしくは人手で撮る方針に変更したため、この機能を入れる動機自体が無くなった。
+
+TASK-539 からの依存は外した。この判断を覆すなら、まず『状態に依存する指定を CLI がどう扱うか』を決めるところから起票し直すこと。
+<!-- SECTION:NOTES:END -->
