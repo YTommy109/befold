@@ -128,11 +128,19 @@ LLM 側の処理:
 
 ```sh
 # 1. ページの画像を元の解像度のまま取り出す（poppler-utils）
+#    ページごとに /tmp/i-000.jpg, /tmp/i-001.jpg … と並ぶ
 pdfimages -j スキャンした書類.pdf /tmp/i
+```
 
+```python
 # 2. 見る用に縮小・コントラスト調整（Python + Pillow）
-#    ImageOps.autocontrast(im, cutoff=0.5) で薄い紙面が読めるようになる
-#    横 1150px 程度で十分。元のままでは大きすぎて扱えない
+from PIL import Image, ImageOps
+
+im = Image.open("/tmp/i-000.jpg")
+im = ImageOps.autocontrast(im, cutoff=0.5)   # 薄い紙面が読めるようになる
+w, h = im.size
+im = im.resize((1150, round(h * 1150 / w)))  # 元のままでは大きすぎて扱えない
+im.save("/tmp/view-000.png")
 ```
 
 `pdftoppm` でも書き出せるが、高解像度のスキャンでは非常に遅い。
@@ -142,9 +150,14 @@ pdfimages -j スキャンした書類.pdf /tmp/i
 領収書と対応する明細書は 1 つのファイルにまとめる。
 
 ```python
+import pypdf
+
+r = pypdf.PdfReader("Inbox/スキャン 2026-02-03 20.41.pdf")
 w = pypdf.PdfWriter()
-for p in [2, 3]:            # 領収証 + 明細書
+for p in [2, 3]:            # 領収証 + 明細書（1 始まりのページ番号）
     w.add_page(r.pages[p - 1])
+with open("receipts/2026/北原沙織/2026-02-03_かえで調剤薬局_沙織_3200.pdf", "wb") as f:
+    w.write(f)
 ```
 
 #### 作業環境と Mac は別のコンピュータ
