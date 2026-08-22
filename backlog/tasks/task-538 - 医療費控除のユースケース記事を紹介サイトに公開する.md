@@ -4,6 +4,7 @@ title: 医療費控除のユースケース記事を紹介サイトに公開す�
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:04'
+updated_date: '2026-08-22 13:14'
 labels: []
 dependencies: []
 priority: medium
@@ -47,3 +48,9 @@ ordinal: 782000
 - [ ] #2 掲載物に実在の氏名・医療機関名・住所・電話番号・メールアドレスが含まれない
 - [ ] #3 読者が手元で再現できる形（テンプレートとして持ち帰れる）になっている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+参照用の実データ（site/temp）の後始末は TASK-538.5 で追跡する。記事が完成しても、そちらが Done になるまで作業は終わっていない。
+<!-- SECTION:NOTES:END -->
