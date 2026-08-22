@@ -4,7 +4,7 @@ title: git 管理外のフォルダーでは「変更のあるファイルのみ
 status: To Do
 assignee: []
 created_date: '2026-08-22 12:39'
-updated_date: '2026-08-22 12:42'
+updated_date: '2026-08-22 14:46'
 labels: []
 dependencies: []
 priority: medium
@@ -58,4 +58,6 @@ git 管理下でないディレクトリを開いていても、View メニュ�
 
 ### 実装方針への含意
 新しい述語を足すのではなく、既に `FileListModel.baseDirectory`（`FileListModel.swift:202`、`BaseDirectoryDescriptor.Kind`）が持っている事実を `SidebarDisplayMenuState` とヘッダーのモデルの双方へ通すのが最小。`GitDiffAvailability` と同じ入力源になるので、差分側と判定がずれない。
+
+TASK-539（AI が書いた変更を差分表示でレビューする事例記事）がこの機能を主役に据える。**記事を出す前にこの不具合が直っている方がよい**——記事を読んで試した人が git 管理外のフォルダを開くと、押せるのに何も起きないトグルに最初に出会うことになる。
 <!-- SECTION:NOTES:END -->
