@@ -4,10 +4,11 @@ title: 医療費管理テンプレート（CLAUDE.md / README.md）の公開版�
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:05'
+updated_date: '2026-08-22 13:17'
 labels: []
 dependencies: []
 parent_task_id: TASK-538
-priority: medium
+priority: high
 ordinal: 784000
 ---
 
@@ -49,3 +50,17 @@ ordinal: 784000
 - [ ] #4 Dropbox 比較の節と summary-YYYY の例外節が落ちている
 - [ ] #5 領収書の保存義務の節が、出典（国税庁のページ）付きで残っている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## このタスクが最初に着手すべきもの（2026-08-22 ユーザー指示）
+
+TASK-538 の中で**最優先**。理由は記事の都合ではなく、参照用に置いた実データ（site/temp）を早く消すため。
+
+- このタスクが**site/temp を参照する最後の作業**になる。完了したら TASK-538.5 で site/temp を削除し、そこで初めてコミットする
+- したがって **site/temp から必要なものはこの 1 回で汲み尽くすこと。** 後から『あの節の書きぶりをもう一度見たい』となっても、その時点でファイルは無い（元は iCloud Drive 側に残るが、worktree 外なので同じ制約がかかる）
+- 動作確認（TASK-538.3）は後回しでよい。手順が実際と食い違ったら、そのときに公開版の CLAUDE.md / README.md を直す。**未検証の手順が一時的に文書に載ることを許容する**——公開は TASK-538.4 なので、外に出る前に直せる
+
+汲み尽くすべきものの目安: フォルダ構成とその理由、TSV の列仕様と category が明細書の 4 区分に対応する設計意図、氏名の 3 通りの書き分けとその理由、読み取り手順（pdfimages / Pillow の autocontrast / pypdf）、領収書の保存義務と出典、投入する側に渡す 3 行。
+<!-- SECTION:NOTES:END -->

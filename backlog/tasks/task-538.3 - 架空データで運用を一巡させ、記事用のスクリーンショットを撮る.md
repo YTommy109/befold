@@ -4,8 +4,10 @@ title: 架空データで運用を一巡させ、記事用のスクリーンシ�
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:06'
+updated_date: '2026-08-22 13:17'
 labels: []
-dependencies: []
+dependencies:
+  - TASK-538.2
 parent_task_id: TASK-538
 priority: medium
 ordinal: 785000
@@ -44,3 +46,15 @@ ordinal: 785000
 - [ ] #3 スクリーンショットに実在の氏名・医療機関名・金額・パスが写り込んでいない
 - [ ] #4 サンプルデータ一式が、記事から持ち帰れる形（または再現手順）で残っている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## site/temp はこの時点で存在しない（2026-08-22）
+
+実行順を変更したため、このタスクに着手する頃には参照用の実データ（site/temp）は削除済み（TASK-538.5）。**元の運用文書は参照できない前提で進める。**
+
+このタスクは『TASK-538.2 が書いた公開版の手順が実際に通るか』を確かめるもので、通らなければ**直すのは公開版の CLAUDE.md / README.md の側**。元文書との突き合わせではない。
+
+未検証の手順が一時的に文書へ載ることは許容している（公開は TASK-538.4 なので、外に出る前に直せる）。
+<!-- SECTION:NOTES:END -->

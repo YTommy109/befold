@@ -4,7 +4,7 @@ title: 医療費控除のユースケース記事を紹介サイトに公開す�
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:04'
-updated_date: '2026-08-22 13:14'
+updated_date: '2026-08-22 13:17'
 labels: []
 dependencies: []
 priority: medium
@@ -53,4 +53,16 @@ ordinal: 782000
 
 <!-- SECTION:NOTES:BEGIN -->
 参照用の実データ（site/temp）の後始末は TASK-538.5 で追跡する。記事が完成しても、そちらが Done になるまで作業は終わっていない。
+
+## 実行順（2026-08-22 ユーザー指示で変更）
+
+**site/temp をコミットしたくない**ため、公開版の文書を書き起こす TASK-538.2 を最優先にし、その完了で site/temp を消せるようにした。動作確認は後回しで、食い違いが出たら文書側を直す。
+
+1. **TASK-538.2** 公開版 CLAUDE.md / README.md を書き起こす（site/temp を参照する最後の作業）
+2. **TASK-538.5** site/temp を削除する → ここで初めてコミットする
+3. **TASK-538.1** 記事の器を用意する（538.2 とは独立。並行してよい）
+4. **TASK-538.3** 架空データで一巡し、食い違いがあれば公開版の文書を直す
+5. **TASK-538.4** 記事本文を書いて公開する
+
+TASK-538.1 だけは site/temp と無関係なので、いつ着手してもよい。
 <!-- SECTION:NOTES:END -->
