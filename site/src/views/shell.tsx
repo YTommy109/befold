@@ -23,14 +23,23 @@ export const PageShell: FC<
     ogType: 'website' | 'article'
     imageAlt?: string
     jsonLd: string
+    /**
+     * 検索結果に出さない。ドラフト記事だけが指定する。
+     *
+     * ドラフトは `SITE_PAGES` に載らないので sitemap には現れないが、URL を渡した
+     * 相手のブラウザ経由でクロールされる余地は残る。認証はかけない方針なので、
+     * ここで明示的に断る。
+     */
+    noindex?: boolean
   }>
-> = ({ origin, entry, title, description, ogType, imageAlt, jsonLd, children }) => (
+> = ({ origin, entry, title, description, ogType, imageAlt, jsonLd, noindex, children }) => (
   <html lang={entry.lang}>
     <head>
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>{title}</title>
       <meta name="description" content={description} />
+      {noindex === true ? <meta name="robots" content="noindex, nofollow" /> : null}
       <link rel="canonical" href={`${origin}${entry.path}`} />
       {/* 自己参照を含む全バリアントを列挙する。検索エンジンは「各版が自分自身を
           含む全版を相互に指す」ことを対応関係の成立条件にしているため、自分への

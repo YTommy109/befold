@@ -5,6 +5,15 @@ import type { HtmlEscapedString } from 'hono/utils/html'
 import { recordEvent } from '../events'
 import type { AppEnv } from '../index'
 import {
+  DRAFT_PAGE,
+  articleLangs,
+  articlePath,
+  draftArticles,
+  draftPath,
+  publishedArticles,
+  type Article,
+} from '../lib/articles'
+import {
   APPCAST_KEY,
   archiveDMGKey,
   isDMGFileName,
@@ -21,8 +30,8 @@ import {
   stableReleases,
   type Channel,
 } from '../lib/github'
-import { SITE_PAGES, variantsOf, type SitePage } from '../lib/pages'
-import type { Page } from '../schema'
+import { FIXED_PAGES, SITE_PAGES, variantsOf, type FixedPage, type SitePage } from '../lib/pages'
+import { ArticlePage, articleBody } from '../views/article'
 import { Features } from '../views/features'
 import { Landing } from '../views/landing'
 import { notFoundResponse } from '../views/not-found'
@@ -43,7 +52,7 @@ export const publicRoutes = new Hono<AppEnv>()
  * ヘッダを外すだけでは足りない——Cache-Control も Expires も無い 200 応答は
  * ブラウザのヒューリスティックキャッシュに載り得る。
  */
-for (const entry of SITE_PAGES) {
+for (const entry of FIXED_PAGES) {
   publicRoutes.get(entry.path, async (c) => {
     // display_lang は配信するビューの言語そのもの。パスの形からは導出しない。
     recordEvent(c, { kind: 'visit', page: entry.page, displayLang: entry.lang })
@@ -56,6 +65,42 @@ for (const entry of SITE_PAGES) {
 }
 
 /**
+ * 記事のルート。固定ページと分けているのは、**本文が記事ごとに違う**ため
+ * （`PAGE_VIEWS` のような 1 ページ 1 ビューの対応表に収まらない）。
+ *
+ * 公開記事とドラフトで違うのは URL と、計測に使う page 値だけ。描画は同じ
+ * `ArticlePage` を通す——枠を分けると「ドラフトのときだけ表示が崩れている」に
+ * 気づけない。
+ *
+ * ドラフトの page 値は記事ごとに分けず `DRAFT_PAGE` の 1 つへ畳む。公開前の
+ * アクセスは記事ごとの粒度に価値がなく、内訳のカーディナリティだけが増える。
+ */
+function registerArticle(article: Article, isDraft: boolean): void {
+  const body = articleBody(article)
+  if (body === null) return
+
+  for (const lang of articleLangs(article)) {
+    const path = isDraft ? draftPath(article, lang) : articlePath(article, lang)
+    const entry: SitePage = { path, lang, page: article.page }
+
+    publicRoutes.get(path, (c) => {
+      recordEvent(c, {
+        kind: 'visit',
+        page: isDraft ? DRAFT_PAGE : article.page,
+        displayLang: lang,
+      })
+      c.header('Cache-Control', 'no-store')
+
+      const origin = new URL(c.req.url).origin
+      return c.html(<ArticlePage origin={origin} entry={entry} article={article} body={body} />)
+    })
+  }
+}
+
+for (const article of publishedArticles()) registerArticle(article, false)
+for (const article of draftArticles()) registerArticle(article, true)
+
+/**
  * 論理ページ 1 つを描くもの。**`Record<Page, ...>` にするのが要点。**
  *
  * かつては `entry.page === '/' ? <Landing/> : <Features/>` の三項で、2 ページ
@@ -63,7 +108,10 @@ for (const entry of SITE_PAGES) {
  * Features として描かれる」形で静かに壊れるため、ページを足したら型が漏れを
  * 指す形に変えた。
  */
-const PAGE_VIEWS: Record<Page, (origin: string, entry: SitePage) => Promise<HtmlEscapedString>> = {
+const PAGE_VIEWS: Record<
+  FixedPage,
+  (origin: string, entry: SitePage) => Promise<HtmlEscapedString>
+> = {
   '/': (origin, entry) => Promise.resolve(<Landing origin={origin} entry={entry} />),
   '/features': (origin, entry) => Promise.resolve(<Features origin={origin} entry={entry} />),
   '/releases': async (origin, entry) => {

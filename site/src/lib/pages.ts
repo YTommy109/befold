@@ -15,6 +15,7 @@
  */
 
 import type { Page } from '../schema'
+import { articleLangs, articlePath, publishedArticles } from './articles'
 
 /** ページの表示言語。URL がこの状態の唯一の持ち主。 */
 export type PageLang = 'ja' | 'en'
@@ -34,7 +35,11 @@ export type SitePage = {
  * 日本語側の URL を変えていないのは、既存の被リンク・sitemap・旧ホストからの
  * 301 をそのまま生かすため。
  */
-export const SITE_PAGES: readonly SitePage[] = [
+/**
+ * 記事以外の、手で定義するページ。ルート登録（`routes/public.tsx`）はこちらだけを
+ * 回す——記事は本文が 1 本ずつ違うため、`PAGE_VIEWS` の対応表に収まらない。
+ */
+export const FIXED_PAGES = [
   { path: '/', lang: 'ja', page: '/' },
   { path: '/en', lang: 'en', page: '/' },
   { path: '/features', lang: 'ja', page: '/features' },
@@ -43,6 +48,36 @@ export const SITE_PAGES: readonly SitePage[] = [
   { path: '/en/releases', lang: 'en', page: '/releases' },
   { path: '/usecases', lang: 'ja', page: '/usecases' },
   { path: '/en/usecases', lang: 'en', page: '/usecases' },
+] as const satisfies readonly SitePage[]
+
+/**
+ * 固定ページの論理ページ値。`as const` を保つのは、`PAGE_VIEWS` を
+ * `Record<FixedPage, ...>` にして**ビューの付け忘れを型で落とす**ため
+ * （`Record<Page, ...>` にすると、ビューを持たない記事ページや `/drafts` まで
+ * 要求されてしまう）。
+ */
+export type FixedPage = (typeof FIXED_PAGES)[number]['page']
+
+/**
+ * 固定ページと、**公開済みの記事**（`ARTICLES` から導出）。
+ *
+ * 記事を手でここへ書き写さない。ドラフトから公開へ切り替えるとき、`draft` の
+ * 削除とこの表の編集という 2 箇所の変更になり、片方だけ直った状態——ドラフトの
+ * URL のまま一覧に出る、公開 URL なのに一覧に出ない——を作れてしまうため。
+ *
+ * **ドラフトはここに載らない。** その結果、sitemap・旧ホストの 301・hreflang・
+ * 言語切替 nav の 4 経路から構造的に外れる（除外条件を経路ごとに書き足さない）。
+ * ドラフトのルート登録は `routes/public.tsx` が `draftArticles()` から別に行う。
+ */
+export const SITE_PAGES: readonly SitePage[] = [
+  ...FIXED_PAGES,
+  ...publishedArticles().flatMap((article) =>
+    articleLangs(article).map((lang) => ({
+      path: articlePath(article, lang),
+      lang,
+      page: article.page,
+    })),
+  ),
 ]
 
 /** `og:locale` に使うロケール。hreflang の言語コードとは書式が違う。 */

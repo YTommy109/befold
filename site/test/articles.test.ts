@@ -10,7 +10,14 @@ import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import app from '../src/index'
-import { ARTICLES, articlesNewestFirst } from '../src/lib/articles'
+import {
+  ARTICLES,
+  articlePath,
+  articlesNewestFirst,
+  draftArticles,
+  draftPath,
+  publishedArticles,
+} from '../src/lib/articles'
 import { SITE_PAGES, variantsOf } from '../src/lib/pages'
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15'
@@ -60,13 +67,25 @@ describe('記事の登録', () => {
    * 記事は `ARTICLES` と `SITE_PAGES` の両方に載って初めて配信される。
    * 片方だけだと、一覧にリンクが出るのに 404 になる（あるいはその逆）。
    */
-  it('すべての記事の page が SITE_PAGES に両言語で載っている', () => {
-    for (const article of ARTICLES) {
+  it('すべての公開記事の page が SITE_PAGES に両言語で載っている', () => {
+    for (const article of publishedArticles()) {
       const langs = variantsOf(article.page)
         .map((variant) => variant.lang)
         .toSorted()
       expect(langs, `article ${article.page}`).toEqual(['en', 'ja'])
     }
+  })
+
+  /** 日本語だけのドラフトは許すが、その状態のまま公開はできない。 */
+  it('公開記事は英語版を持つ', () => {
+    for (const article of publishedArticles()) {
+      expect(article.hasEnglish, `article ${article.page}`).not.toBe(false)
+    }
+  })
+
+  it('slug が記事どうしで重複していない', () => {
+    const slugs = ARTICLES.map((article) => article.slug)
+    expect(new Set(slugs).size).toBe(slugs.length)
   })
 
   it('公開日は YYYY-MM-DD で、一覧は新しい順に並ぶ', () => {
@@ -94,7 +113,7 @@ describe('/usecases', () => {
     const html = await (await call('/usecases')).text()
     // 条件分岐で expect を囲まない。記事が増えても意味が変わらないよう、
     // 「0 件のときだけ出る」という関係そのものを 1 つの式で固定する。
-    expect(html.includes('記事はまだありません')).toBe(ARTICLES.length === 0)
+    expect(html.includes('記事はまだありません')).toBe(publishedArticles().length === 0)
   })
 
   it('計測を Worker で受けられるよう Cache-Control: no-store を付ける', async () => {
@@ -130,5 +149,73 @@ describe('記事ページの計測', () => {
     ).first<{ page: string | null; display_lang: string | null }>()
     expect(row?.page).toBe('/usecases')
     expect(row?.display_lang).toBe('en')
+  })
+})
+
+describe('ドラフト記事', () => {
+  beforeEach(async () => {
+    await env.DB.prepare('DELETE FROM events').run()
+  })
+
+  /**
+   * ドラフトが公開経路へ漏れないことは、**除外条件ではなく構造**で担保している
+   * ——`SITE_PAGES` に載せないので、そこから導出される sitemap・旧ホストの 301・
+   * hreflang・言語切替 nav の 4 経路すべてから自動的に外れる。ここではその
+   * 結果を落とす（経路ごとに条件を書き写す形に戻したら、このテストが気づく）。
+   */
+  it('ドラフトの page が SITE_PAGES に載らない', () => {
+    for (const article of draftArticles()) {
+      expect(variantsOf(article.page), `draft ${article.page}`).toEqual([])
+    }
+  })
+
+  it('ドラフトのパスが sitemap.xml に出ない', async () => {
+    const body = await (await call('/sitemap.xml')).text()
+    for (const article of draftArticles()) {
+      expect(body, `draft ${article.slug}`).not.toContain(draftPath(article, 'ja'))
+      // 公開後のパスも、まだ公開していないので出てはいけない。
+      expect(body, `article ${article.slug}`).not.toContain(articlePath(article, 'ja'))
+    }
+  })
+
+  it('ドラフトが記事一覧に出ない', async () => {
+    const html = await (await call('/usecases')).text()
+    for (const article of draftArticles()) {
+      expect(html, `draft ${article.slug}`).not.toContain(draftPath(article, 'ja'))
+      expect(html, `article ${article.slug}`).not.toContain(articlePath(article, 'ja'))
+    }
+  })
+
+  it('ドラフトは専用パスで配信され、公開後のパスはまだ 404', async () => {
+    for (const article of draftArticles()) {
+      const draft = await call(draftPath(article, 'ja'))
+      expect(draft.status, `draft ${article.slug}`).toBe(200)
+
+      const published = await call(articlePath(article, 'ja'))
+      expect(published.status, `article ${article.slug}`).toBe(404)
+    }
+  })
+
+  it('ドラフトには noindex と、書きかけである旨の断りが入る', async () => {
+    for (const article of draftArticles()) {
+      const html = await (await call(draftPath(article, 'ja'))).text()
+      expect(html, `draft ${article.slug}`).toContain('name="robots" content="noindex, nofollow"')
+      expect(html, `draft ${article.slug}`).toContain('書きかけの下書き')
+    }
+  })
+
+  /**
+   * ドラフトのアクセスは記事ごとに分けず `/drafts` へ畳む。公開後の記事の
+   * page 値（`/usecases/...`）に混ざらないことが、統計のノイズを避ける要点。
+   */
+  it('ドラフトのアクセスが page=/drafts として記録される', async () => {
+    const [article] = draftArticles()
+    if (article === undefined) return
+
+    await call(draftPath(article, 'ja'))
+    const row = await env.DB.prepare(
+      "SELECT page FROM events WHERE kind = 'visit' ORDER BY id DESC LIMIT 1",
+    ).first<{ page: string | null }>()
+    expect(row?.page).toBe('/drafts')
   })
 })

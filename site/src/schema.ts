@@ -47,7 +47,17 @@ export type DownloadSource = z.infer<typeof downloadSourceSchema>
  * あるため、URL から導出するとカーディナリティが発散し、内訳が読めなくなる。
  * ここに列挙したページを、呼び出し側が明示して渡す。
  */
-export const pageSchema = z.enum(['/', '/features', '/releases', '/usecases'])
+export const pageSchema = z.enum([
+  '/',
+  '/features',
+  '/releases',
+  '/usecases',
+  // 記事 1 本につき 1 つ。ドラフトのうちから確定させ、公開時に足し忘れないようにする
+  // （`Article.page` の型がこれなので、足す前はエントリ自体が書けない）。
+  '/usecases/medical-expenses',
+  // 全ドラフト共通の 1 つ。記事ごとに分けない（events.ts の doc を参照）。
+  '/drafts',
+])
 
 export type Page = z.infer<typeof pageSchema>
 
