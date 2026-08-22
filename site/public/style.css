@@ -550,6 +550,39 @@ footer a:hover {
   line-height: 1.8;
 }
 
+/* 記事一覧。表ではなく縦積みのカードにする——記事は列が揃わない（要約の長さが
+   まちまち）ため、表にすると行の高さが不揃いになって読みにくい。 */
+.article-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.article-list li {
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.article-list li:last-child {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.article-list h3 {
+  font-size: 1.25rem;
+  margin: 0 0 0.35rem;
+}
+
+.article-list p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.article-list .article-date {
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+}
+
 /* 拡張子の並びは横に長くなるため、ページ本体ではなく表だけを横スクロールさせる。 */
 .table-scroll {
   overflow-x: auto;

@@ -27,6 +27,7 @@ import { Features } from '../views/features'
 import { Landing } from '../views/landing'
 import { notFoundResponse } from '../views/not-found'
 import { Releases, type ReleaseListing } from '../views/releases'
+import { Usecases } from '../views/usecases'
 
 export const publicRoutes = new Hono<AppEnv>()
 
@@ -71,6 +72,7 @@ const PAGE_VIEWS: Record<Page, (origin: string, entry: SitePage) => Promise<Html
     const releases: ReleaseListing = await stableReleases()
     return <Releases origin={origin} entry={entry} releases={releases} />
   },
+  '/usecases': (origin, entry) => Promise.resolve(<Usecases origin={origin} entry={entry} />),
 }
 
 /**

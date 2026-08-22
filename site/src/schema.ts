@@ -47,7 +47,7 @@ export type DownloadSource = z.infer<typeof downloadSourceSchema>
  * あるため、URL から導出するとカーディナリティが発散し、内訳が読めなくなる。
  * ここに列挙したページを、呼び出し側が明示して渡す。
  */
-export const pageSchema = z.enum(['/', '/features', '/releases'])
+export const pageSchema = z.enum(['/', '/features', '/releases', '/usecases'])
 
 export type Page = z.infer<typeof pageSchema>
 

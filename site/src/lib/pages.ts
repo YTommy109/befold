@@ -41,6 +41,8 @@ export const SITE_PAGES: readonly SitePage[] = [
   { path: '/en/features', lang: 'en', page: '/features' },
   { path: '/releases', lang: 'ja', page: '/releases' },
   { path: '/en/releases', lang: 'en', page: '/releases' },
+  { path: '/usecases', lang: 'ja', page: '/usecases' },
+  { path: '/en/usecases', lang: 'en', page: '/usecases' },
 ]
 
 /** `og:locale` に使うロケール。hreflang の言語コードとは書式が違う。 */
