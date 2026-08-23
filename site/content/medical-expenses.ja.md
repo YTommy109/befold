@@ -33,7 +33,7 @@
 
 #### 2. 集計表から領収書をすぐ確かめる
 
-receipt 列にはファイル名が入っています。サイドバーからその PDF を開いて、金額と日付を原本と突き合わせます。直されればウィンドウはその場で更新されるので、開き直す必要はありません。
+receipt 列にはファイル名が入っています。サイドバーからその PDF を開いて、金額と日付を原本と突き合わせることができます。
 
 <figure class="article-shots"><img src="/images/usecase-medical-receipt.png" alt="スキャンした領収書の PDF が befold でプレビューされている" loading="lazy" width="1512" height="949"/></figure>
 

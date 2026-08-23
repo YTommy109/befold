@@ -33,7 +33,7 @@ Every file in the 医療費 folder can be checked in befold. The TSV ledger, the
 
 #### 2. Jump from a row to its receipt
 
-The receipt column carries the filename. Open that PDF from the sidebar and compare the amount and date against the original. When a file is corrected the window updates in place — no reopening.
+The receipt column carries the filename. You can open that PDF from the sidebar and compare the amount and date against the original.
 
 <figure class="article-shots"><img src="/images/usecase-medical-receipt.png" alt="A scanned receipt PDF previewed in befold" loading="lazy" width="1512" height="949"/></figure>
 
