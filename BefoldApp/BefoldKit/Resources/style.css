@@ -52,6 +52,10 @@
   --fg-muted: #555;
   --accent: #007aff;
 
+  /* 検索の候補ヒットと文書内ジャンプの候補で共有する地色。
+     どちらも「ここが該当する」を同じ読み方で見せる（TASK-485.22）。 */
+  --hit-bg: rgba(255, 213, 0, 0.55);
+
   --panel-bg: rgba(255, 255, 255, 0.92);
   --panel-border: rgba(0, 0, 0, 0.12);
   --panel-shadow: rgba(0, 0, 0, 0.1);
@@ -662,7 +666,7 @@ body {
 }
 
 mark.mmd-find-match {
-  background: rgba(255, 213, 0, 0.55);
+  background: var(--hit-bg);
   color: inherit;
 }
 
@@ -683,29 +687,25 @@ mark.mmd-find-match-current {
   gap: 2px;
 }
 
-/* ── 文書内ジャンプの目印候補 ──
-   バーを開いている間だけ付き、次にどこへ飛べるかを見せる。
-   文字幅の下線(text-decoration)にしてあるのは、h1 / h2 が
-   github-markdown-css の border-bottom(薄いグレー・要素幅)を元から持つため。
-   要素幅の下線(box-shadow 等)にすると「既存の線が色付いた」ようにしか見えず、
-   候補かどうかを判別できない(3 案をスナップショットで比較して決定)。 */
+/* ── 文書内ジャンプの目印（候補と現在位置・TASK-485.22） ──
+   行番号ガター(td.line-number)を持たない表示——Markdown レンダリング表示の
+   見出しなど——では、検索の <mark> とまったく同じ装飾にする。候補は薄い地色
+   (--hit-bg)、現在位置はアクセントの地色。同じ「前後移動する UI」なので、
+   目印の読み方も検索と共有するのが分かりやすいという判断（ユーザー確認済み）。
+
+   以前は候補に文字幅の下線、現在位置に outline の枠線を使っていたが、
+   見出しの周りに枠が出るのは画面がうるさく、検索とも読み方が違っていた。
+
+   背景色を使うため、地色を持つ差分表示だけは下で打ち消す。
+   .diff-add / .diff-del は tr に background-color を持ち、同じ詳細度(0,1,0)の
+   ここが後勝ちすると差分の色分けを潰してしまう。 */
 .mmd-jump-target {
-  text-decoration: underline;
-  text-decoration-color: var(--accent);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+  background: var(--hit-bg);
 }
 
-/* ── 文書内ジャンプの現在位置 ──
-   検索と違い、目印は見出し・表の行など任意のブロック要素になりうる。
-   背景色は使わない: 差分表示の .diff-add / .diff-del が同じ詳細度(0,1,0)で
-   tr に background-color を持っており、後勝ちで差分の色分けを潰すため。
-   outline はレイアウトを動かさず（border と違い場所を取らない）、
-   行にも段落にも同じ見え方で当てられる。 */
 .mmd-jump-current {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 2px;
+  background: var(--accent);
+  color: #fff;
 }
 
 /* ── 差分表示での目印（変更ブロック・TASK-485.3） ──
@@ -718,13 +718,15 @@ mark.mmd-find-match-current {
 .diff-table .mmd-jump-current {
   box-shadow: inset 3px 0 0 var(--accent);
   outline: none;
+  /* 上の .mmd-jump-current の地色を打ち消し、行の地色(.diff-add / .diff-del)を残す。 */
+  background: transparent;
+  color: inherit;
 }
 
-/* 候補の下線は差分表示では出さない。変更ブロックは地色で既に全部が見えており、
-   そのうえに文字幅の下線を重ねると「この文字が変わった」を指しているように読める
-   （語単位の差分は出していない）。 */
+/* 候補の印は差分表示では出さない。変更ブロックは地色で既に全部が見えており、
+   そのうえに別の地色を重ねると差分の色分けが読めなくなる。 */
 .diff-table .mmd-jump-target {
-  text-decoration: none;
+  background: transparent;
 }
 
 /* ── CSV テーブル表示 ──
