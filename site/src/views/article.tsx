@@ -59,7 +59,7 @@ export const ArticlePage: FC<{
       <main>
         <nav class="breadcrumb">
           <a href={pathFor('/usecases', lang)}>
-            <T lang={lang} ja="← 記事一覧へ戻る" en="← Back to the article list" />
+            <T lang={lang} ja="← 事例一覧へ戻る" en="← Back to the use case list" />
           </a>
         </nav>
 

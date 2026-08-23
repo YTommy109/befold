@@ -1,4 +1,4 @@
-/** 記事の一覧。ユースケース紹介や開発の記録をここから辿る。 */
+/** 事例の一覧。ユースケース紹介や開発の記録をここから辿る。表記はナビの項目名（事例 / Use cases）に揃える。 */
 
 import type { FC } from 'hono/jsx'
 
@@ -8,17 +8,17 @@ import { T, t, type Localized } from './i18n'
 import { PageShell } from './shell'
 
 const PAGE_TITLE: Localized = {
-  ja: '使い方の記事 — befold',
-  en: 'Articles — befold',
+  ja: '使い方の事例 — befold',
+  en: 'Use cases — befold',
 }
 
 const PAGE_DESCRIPTION: Localized = {
-  ja: 'befold を実際の作業にどう組み込んでいるかを書いた記事の一覧です。',
-  en: 'Articles about how befold fits into real work.',
+  ja: 'befold を実際の作業にどう組み込んでいるかを書いた事例の一覧です。',
+  en: 'Use cases showing how befold fits into real work.',
 }
 
 /**
- * 記事一覧ページ。
+ * 事例一覧ページ。
  *
  * 並びは `articlesNewestFirst()` だけが決める（`ARTICLES` の記述順に意味を
  * 持たせない）。意匠は過去バージョン一覧（releases）と同じ枠を使う。
@@ -46,17 +46,17 @@ export const Usecases: FC<{ origin: string; entry: SitePage }> = ({ origin, entr
         <section class="page-intro">
           {lang === 'ja' ? (
             <>
-              <h2>使い方の記事</h2>
+              <h2>使い方の事例</h2>
               <p>
-                befold を実際の作業にどう組み込んでいるかを書いた記事です。
+                befold を実際の作業にどう組み込んでいるかを書いた事例です。
                 手元で再現できる形にしてあるので、同じ使い方を試せます。
               </p>
             </>
           ) : (
             <>
-              <h2>Articles</h2>
+              <h2>Use cases</h2>
               <p>
-                How befold fits into real work. Each article is written so you can reproduce the
+                How befold fits into real work. Each use case is written so you can reproduce the
                 same setup yourself.
               </p>
             </>
@@ -90,8 +90,8 @@ const ArticlesEmpty: FC<{ lang: PageLang }> = ({ lang }) => (
   <p class="listing-note">
     <T
       lang={lang}
-      ja="記事はまだありません。準備ができ次第ここに並びます。"
-      en="No articles yet. They will appear here once published."
+      ja="事例はまだありません。準備ができ次第ここに並びます。"
+      en="No use cases yet. They will appear here once published."
     />
   </p>
 )
