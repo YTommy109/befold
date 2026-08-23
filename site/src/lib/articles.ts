@@ -61,8 +61,8 @@ export const ARTICLES: readonly Article[] = [
     page: '/usecases/medical-expenses',
     slug: 'medical-expenses',
     title: {
-      ja: '領収書を撮るだけで、医療費控除の準備が整う',
-      en: 'Photograph the receipt, and the tax deduction paperwork takes care of itself',
+      ja: 'AI 活用で、医療費控除を簡単に!',
+      en: 'Medical expense deductions, made easy with AI',
     },
     summary: {
       ja: 'プログラムを 1 行も書かずに、Claude と befold だけで家族全員分の医療費を集計している仕組みの記録。',

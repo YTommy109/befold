@@ -1,8 +1,10 @@
-Photograph the receipt, drop it in a folder, and by the end of the year the numbers are ready to copy onto a medical expense deduction form. Not one line of code was written for this — it runs on Claude, befold, and a single folder in cloud storage.
+How do you add up a whole family’s medical bills for a tax deduction? Until now I typed them into a spreadsheet by hand. Not any more.
+
+Scan the receipt with your phone and drop it in a folder — that is the whole job. Then you ask Claude to take them in, and it files them and builds the ledger for you. The [CLAUDE.md](/templates/medical-expenses/CLAUDE.md) and [README.md](/templates/medical-expenses/README.md) I actually run are right here.
 
 ### What the family has to do fits in three lines
 
-This is the entire instruction handed to the rest of the family.
+First, create a “医療費” folder with an “Inbox” inside it on iCloud Drive and **share the Inbox with your family**. Skip that and the drop-off folder never appears on their devices. That is the whole setup; from there you ask the family for this.
 
 > When you get a receipt from a clinic or pharmacy, open the “医療費 Inbox” folder in the iPhone Files app and choose “Scan Documents” from the … menu. Take the photo and save. Don’t worry about the filename or the date, and don’t sort anything afterwards.
 
