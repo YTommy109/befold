@@ -71,6 +71,20 @@ export const ARTICLES: readonly Article[] = [
     publishedAt: '2026-08-23',
     draft: true,
   },
+  {
+    page: '/usecases/ai-code-review',
+    slug: 'ai-code-review',
+    title: {
+      ja: 'AI が書いた変更を読む',
+      en: 'Reading what the agent wrote',
+    },
+    summary: {
+      ja: '型検査も lint もテストも通る変更に、人が読んで初めて出る指摘がある。差分表示と「変更のあるファイルのみ」でその往復を回す手順。',
+      en: 'Type checks pass and the tests are green, and a human still finds things to fix. How to run that loop with a diff view and a changed-files filter.',
+    },
+    publishedAt: '2026-08-23',
+    draft: true,
+  },
 ]
 
 /** 公開済みの記事だけ。一覧と `SITE_PAGES` の導出はこれを使う。 */

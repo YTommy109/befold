@@ -1,10 +1,11 @@
 ---
 id: TASK-539
 title: AI が書いた変更を befold の差分表示でレビューする事例を記事にする
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-08-22 14:46'
-updated_date: '2026-08-22 14:58'
+updated_date: '2026-08-23 00:14'
 labels: []
 milestone: m-10
 dependencies: []
@@ -61,11 +62,21 @@ TASK-538 の Description に『差分表示は使えない題材』と明記し�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 差分表示と「変更のあるファイルのみ」を実際に通し、記事に書く手順が実測に基づいている
+- [x] #1 差分表示と「変更のあるファイルのみ」を実際に通し、記事に書く手順が実測に基づいている
 - [ ] #2 記事が /usecases の一覧に日英で並ぶ
-- [ ] #3 スクリーンショットに実在の未公開情報（他プロジェクトのパス・未公開の設計）が写り込んでいない
-- [ ] #4 TASK-538 の記事と見せ場が重複せず、差分表示が主役になっている
+- [x] #3 スクリーンショットに実在の未公開情報（他プロジェクトのパス・未公開の設計）が写り込んでいない
+- [x] #4 TASK-538 の記事と見せ場が重複せず、差分表示が主役になっている
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 差分表示と「変更のあるファイルのみ」を実際に通してスクリーンショットを撮る（完了）
+2. pageSchema に /usecases/ai-code-review を足し、ARTICLES に draft: true で登録する
+3. 記事本文を views/article-ai-code-review.tsx に書く。素材はこのセッションの実際の往復
+4. typecheck / lint / format / test を通す
+5. 公開は TASK-537 の修正後（ドラフトのまま置く）
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
@@ -84,4 +95,59 @@ TASK-538.3 で実際に使った手順が流用できる。要点は 2 つ。
 - CGWindowID を取って `screencapture -x -o -l <id>` で撮るとウィンドウ枠ぴったりで安定する。ID は pyobjc の `Quartz.CGWindowListCopyWindowInfo` で `kCGWindowOwnerName == 'befold'` を絞れば取れる
 
 差分モードへの切り替えだけはキー操作（`cmd+3` 相当）が要り、これは前面のウィンドウに当たる。**撮影対象のウィンドウを前面にしてから**行うこと。
+
+## 撮影の実測（2026-08-23）
+
+ブランチ `basin-zephyr`（origin/main から 7 コミット・23 ファイル・+1,728 -35）を対象に撮影した。
+
+撮れたもの:
+
+- `usecase-review-diff.png` … README.md の差分表示。TASK-538.6 で docs/ の定義を広げた変更が赤/緑で出ている
+- `usecase-review-all-files.png` … `site/src/views/` の全 11 ファイル（変更のあるものに A / M バッジ）
+- `usecase-review-changed-only.png` … 同じフォルダを 4 ファイルに絞った状態 + shell.tsx の差分
+
+### cmd+3 のキー送信では切り替わらなかった
+
+開いた直後は差分の可用性が未確定でメニュー項目が無効なため、キーストロークが無視される。**メニュー項目を直接クリックする**（`click menu item "Show Changes"`）方法に変えたら確実に動いた。
+
+これは TASK-540（CLI で --diff を指定する）を取りやめた判断の裏付けにもなっている——差分は状態依存で、起動時点の指定と噛み合わない。
+
+### アプリの UI が英語
+
+メニュー項目は "Show Changes" / "Show Changed Files Only" だった。日本語の記事に載せるとメニューだけ英語になる。**公開前に日本語 UI で撮り直すか、そのまま使うかを決める。**
+
+### 後始末
+
+`ShowChangedFilesOnly` は SidebarDisplayDefaults に永続化されるため OFF に戻した（`defaults read` で 0 を確認）。表示モードはファイルごとに保存されるので README.md と shell.tsx は次回も差分表示で開く。
+
+## 記事をドラフトとして書いた（2026-08-23）
+
+`/drafts/ai-code-review`（英語版は `/en/drafts/ai-code-review`）で配信中。TASK-541 で入れたドラフト機能の最初の実利用。
+
+### 記事の骨子
+
+1. **読まないと出てこない指摘がある** — 型検査も lint もテストも通る変更に、人が読むと出る指摘がある。このセッションで実際に出た 6 点のうち 2 つを引用した（『この節はそもそも要らない』『没にした別案の名残では』）。どちらも内容の正誤ではなく『そもそもここに要るのか』を問うもので、機械には出せない
+2. **変更のあったファイルだけに絞る** — 11 ファイル → 4 ファイルの実物
+3. **差分のまま読む** — 比較の起点がデフォルトブランチとの分岐点であることに触れた
+4. **直させて、そのまま見続ける** — 自動リロードで往復が同じ画面で回る
+5. **知っておくとよいこと** — git 管理下でだけ使えること、変更が無いと選べないこと、befold は読む専用であること
+
+TASK-538（医療費）と見せ場が重複していない（AC #4）。あちらは TSV の表・PDF・Markdown で、差分表示には触れない題材。
+
+### AC #3 の確認
+
+スクリーンショットに写っているのは befold 自身のソースと、架空データの医療費テンプレート。リポジトリは PUBLIC（`gh repo view` で確認）なので、未公開の情報は含まれない。
+
+### 公開前に残っていること（AC #2 が未達な理由）
+
+- **TASK-537** … git 管理外で『変更のあるファイルのみ』が押せてしまう不具合。この記事の主役の機能なので、読んで試した人が最初に出会う挙動になる
+- **スクリーンショットのメニューが英語表記** … 日本語の記事に載せるとメニューだけ英語。日本語 UI で撮り直すか、そのまま使うかを決める
+- 公開時は `draft: true` の 1 行を消すだけで、URL・sitemap・一覧・noindex がすべて切り替わる（TASK-541 で実測済み）
+
+### 検証（実測）
+
+- typecheck / oxlint --type-aware / format:check … いずれも指摘なし
+- `npm test` … 386 件 passed
+- markdownlint-cli2 … 0 issues
+- 日英とも 200 で配信され、公開パス `/usecases/ai-code-review` は 404、sitemap と記事一覧には出ないことを確認
 <!-- SECTION:NOTES:END -->

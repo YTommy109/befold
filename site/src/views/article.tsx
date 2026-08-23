@@ -11,6 +11,7 @@ import type { FC } from 'hono/jsx'
 
 import type { Article, ArticleLang } from '../lib/articles'
 import { pathFor, type SitePage } from '../lib/pages'
+import { AICodeReviewBody } from './article-ai-code-review'
 import { MedicalExpensesBody } from './article-medical-expenses'
 import { T, t } from './i18n'
 import { PageShell } from './shell'
@@ -18,6 +19,7 @@ import { PageShell } from './shell'
 /** 記事本文。`Page` ごとに 1 つ。記事を足したらここにも足す（テストが漏れを落とす）。 */
 const ARTICLE_BODIES: Partial<Record<Article['page'], FC<{ lang: ArticleLang }>>> = {
   '/usecases/medical-expenses': MedicalExpensesBody,
+  '/usecases/ai-code-review': AICodeReviewBody,
 }
 
 /** その記事の本文。未登録なら null（`articles.test.ts` が全記事について落とす）。 */
