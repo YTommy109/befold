@@ -27,6 +27,36 @@ struct FileListSnapshot {
         matchedIDs = Set(filtered.map(\.id))
     }
 
+    /// `entries` に絞り込みを 1 回だけ適用してスナップショットを作る。
+    /// **この一覧の唯一の作り方**で、`FileListModel.visibleEntries` も
+    /// `firstSelectableEntryURL` もここから導く。呼び出し側が別々に
+    /// `FileListFilter.apply` を呼ぶ形へ戻すと、同じ入力から違う答えが出る余地と、
+    /// 1 打鍵で絞り込みが何度も走る問題(TASK-418)が戻る。
+    ///
+    /// **`FileListModel` ではなくここに置く**(TASK-443 の `parent(of:)` と同じ理由)。
+    /// 組み立てと読み出しが同じ型に揃っていれば、絞り込みの答えを作る経路が 1 本に閉じる。
+    ///
+    /// - Parameter directory: `entries` を列挙したディレクトリ。絞り込みの基準に使う。
+    static func make(
+        entries: [FileListEntry],
+        in directory: URL,
+        filter: FileListFilter
+    ) -> FileListSnapshot {
+        // 絞り込みだけを適用した一覧(祖先の足し戻し・開閉三角の確定を含まない)。
+        // プレビューのフォルダー一覧へはこちらを渡す。祖先を足し戻した配列を渡すと、
+        // 「条件に一致しないフォルダ」がプレビューにも現れる一方、同じフォルダを
+        // 自前列挙する経路では消えるため、1 ウィンドウ内に絞り込みの答えが 2 つ並ぶ
+        // (サイドバーとプレビューで答えを 1 つにする TASK-288 の巻き戻し)。
+        let filtered = filter.apply(to: entries, in: directory)
+        // 順序が意味を持つ。祖先を足し戻してから開閉三角を確定させること。
+        // 逆にすると、「名前は一致するが子が全部消えたフォルダ」の判定が、あとから
+        // 足し戻した祖先を子として数えてしまう余地が残る。
+        let visible = SidebarDisclosureResolver.resolving(
+            SidebarTreeFilter.keepingAncestors(of: filtered, in: entries)
+        )
+        return FileListSnapshot(visible: visible, filtered: filtered)
+    }
+
     /// 選択の移動先になりうる行。見えている行はすべて一覧の項目なので、いまは
     /// `visible` そのもの(かつては先頭の `..` 行だけを除いていた = TASK-475)。
     private var selectableEntries: [FileListEntry] {

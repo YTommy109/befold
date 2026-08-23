@@ -105,12 +105,36 @@ struct SidebarDisplayMenuState: Equatable {
     let checksChangedFilesOnly: Bool
     /// 「サイドバーをツリー表示」にチェックを付けるか。
     let checksTreeLayout: Bool
+    /// 「変更ファイルのみ表示」を選べるか。git 管理下でだけ意味を持つ(TASK-537)。
+    ///
+    /// `isEnabled` と分けているのは、無効になる理由が違うため。あちらは「届け先の窓が
+    /// 無い」で 3 項目すべてに効き、こちらは「絞り込む git 状態が無い」でこの項目だけに効く。
+    let canFilterChangedFiles: Bool
 
-    /// - Parameter settings: アクティブウィンドウの現在値。窓が無ければ nil。
-    init(activeWindow settings: SidebarDisplaySettings?) {
+    /// - Parameters:
+    ///   - settings: アクティブウィンドウの現在値。窓が無ければ nil。
+    ///   - canFilterChangedFiles: そのウィンドウで「変更のあるファイルのみ」を出してよいか
+    ///     (`FileListModel.canFilterChangedFiles`)。窓が無ければ `isEnabled` が false に
+    ///     なるので値は問わない。**既定値を持たせない**——渡し忘れが静かに
+    ///     「常に出す / 常に出さない」へ倒れる形を作らないため。
+    init(activeWindow settings: SidebarDisplaySettings?, canFilterChangedFiles: Bool) {
         isEnabled = settings != nil
         hidesHiddenFiles = settings?.showHiddenFiles ?? false
         checksChangedFilesOnly = settings?.showChangedFilesOnly ?? false
         checksTreeLayout = settings?.layoutMode == .tree
+        self.canFilterChangedFiles = canFilterChangedFiles
+    }
+
+    /// その項目を選べるか。**項目ごとの条件はここだけが持つ。**
+    ///
+    /// `validateMenuItem` の中で項目別に分岐を書くと、GUI を起動しないと検証できない場所へ
+    /// 判定が漏れ出す。ここへ集めておけば「git 管理外では変更ファイルのみだけが無効」
+    /// という判断そのものをユニットテストで固定できる(TASK-537)。
+    func isEnabled(for change: SidebarDisplayChange) -> Bool {
+        switch change {
+        // 絞り込む git 状態が無いフォルダーでは押しても何も起きない。
+        case .toggleChangedFilesOnly: isEnabled && canFilterChangedFiles
+        case .toggleHiddenFiles, .toggleLayoutMode, .setSortOrder: isEnabled
+        }
     }
 }

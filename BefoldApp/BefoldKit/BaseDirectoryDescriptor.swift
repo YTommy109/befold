@@ -22,6 +22,23 @@ public struct BaseDirectoryDescriptor: Equatable, Sendable {
     /// 基準ディレクトリそのもの。ツールチップのフルパス表示に使う。
     public let url: URL
 
+    /// git 由来の機能(差分表示・「変更のあるファイルのみ」)を出してよいか。
+    ///
+    /// **この判定を各 UI が個別に書かない。** 差分表示は `GitDiffAvailability` 経由で、
+    /// サイドバーの絞り込みは `FileListModel.canFilterChangedFiles` 経由で、どちらも
+    /// ここへ集まる。個別に書くと片方だけが git 管理外で操作できてしまう(TASK-537)。
+    ///
+    /// **nil(未解決)は「使えない」ではなく「まだ分からない」。** 基準ディレクトリの解決は
+    /// 非同期なので、未解決を false にすると初期表示で有効→無効の入れ替わりが起きる。
+    /// `GitDiffAvailability` と同じく**確定した否定でだけ落とす**ことで、入れ替わりは
+    /// 「有効 → 無効」の 1 方向・1 回に限られる。
+    public static func allowsGitFeatures(_ descriptor: BaseDirectoryDescriptor?) -> Bool {
+        switch descriptor?.kind {
+        case .gitRoot, nil: true
+        case .plainFolder, .unusableRepository: false
+        }
+    }
+
     /// 表示用のフォルダ名。ボリューム直下(`/`)のように末尾要素を持たないパスでは
     /// 空文字になってラベルが消えるため、そのときはパス表記そのものを名前として使う。
     public var name: String {

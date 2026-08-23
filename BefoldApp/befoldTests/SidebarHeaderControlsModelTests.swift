@@ -12,6 +12,7 @@ struct SidebarHeaderControlsModelTests {
         sortOrder: SortOrder = .foldersFirst,
         showHiddenFiles: Bool = false,
         showChangedFilesOnly: Bool = false,
+        canFilterChangedFiles: Bool = true,
         isFilterActive: Bool = false,
         isFilterTextEmpty: Bool = true
     ) -> SidebarHeaderControlsModel {
@@ -20,9 +21,20 @@ struct SidebarHeaderControlsModelTests {
             sortOrder: sortOrder,
             showHiddenFiles: showHiddenFiles,
             showChangedFilesOnly: showChangedFilesOnly,
+            canFilterChangedFiles: canFilterChangedFiles,
             isFilterActive: isFilterActive,
             isFilterTextEmpty: isFilterTextEmpty
         )
+    }
+
+    /// git 管理外では絞り込む対象が無いので、押せないボタンを残さず消す(TASK-537)。
+    /// 残る 2 つの並びが変わらないことも同時に固定する。
+    @Test("git 管理外では変更のみ表示のボタンが出ない")
+    func hidesChangedFilesOnlyOutsideGit() {
+        let outsideGit = makeModel(canFilterChangedFiles: false)
+
+        #expect(outsideGit.trailing.map(\.kind) == [.filter, .overflow])
+        #expect(outsideGit.leading.map(\.kind) == [.layoutMode])
     }
 
     /// 左右分割そのものを固定する。doc コメントだけでは次のボタン追加で崩れるため、

@@ -166,7 +166,7 @@ BefoldApp/
 | `ViewerDiffPresenter` | git 差分の非同期取得・世代管理・レイアウト設定。取得を登録した契機で `ViewerDiffContent.pending` を立て、着地で確定させる（確定差分を表示中の取り直しでは降格しない） |
 | `ViewerDiffContent` | 差分取得の結果状態（`unavailable` / `pending` / `diff(String)`）。「未着」と「確定して差分なし」を型で区別する。未確定の間はレンダラ（`ContentUpdatePlanner`）がモード切替だけの再描画を見送って前の表示を残し、切替直後にプレーンなソース表示が一瞬見える中間状態を作らない（TASK-407） |
 | `ViewerCapabilitiesFactory` | 提示状態から `ViewerCapabilities` を導出する純関数（ADR 0002 段 2）。どの入力を信じるかをここ 1 箇所に置く |
-| `GitDiffAvailability` | 差分表示モードを選ばせてよいかを決める git 側の事実（可用性・そのファイルに差分として出せる変更があるか）。基準ディレクトリの種別と `SidebarGitStatus` から導く純粋な写像で、**確定した否定の事実（git 管理外／扱えないリポジトリ／変更なし・未追跡）でだけ選択不可にする**。未解決の間は選べるままにして初期表示での入れ替わりを 1 方向に限る |
+| `GitDiffAvailability` | 差分表示モードを選ばせてよいかを決める git 側の事実（可用性・そのファイルに差分として出せる変更があるか）。基準ディレクトリの種別と `SidebarGitStatus` から導く純粋な写像で、**確定した否定の事実（git 管理外／扱えないリポジトリ／変更なし・未追跡）でだけ選択不可にする**。未解決の間は選べるままにして初期表示での入れ替わりを 1 方向に限る。フォルダーが git 由来の機能を出してよいかの判定そのものは `BaseDirectoryDescriptor.allowsGitFeatures(_:)` にあり、サイドバーの「変更のあるファイルのみ」と共有する（TASK-537） |
 | `ReferenceMenuPresenter` | 参照の右クリックメニューの項目定義・表示・実行（`@objc` アクションを含めて 1 型に閉じる） |
 | `ViewerWindowChrome` | `NSWindow` そのものの生成・外観・タイトル追従・初期フレーム決定。窓を 1 枚しか知らず、文書の状態にも他の窓にも触れない（重なり判定は述語で受け取る） |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController` |
@@ -366,6 +366,11 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   真実の源は各窓の `FileListModel`。変更の唯一の入口は
   `SidebarListingCoordinator.applyDisplayChange(_:)` で、メニュー（⌃⌘H / ⌘⌃G / ⌃⌘T）・
   サイドバーヘッダーのボタン・CLI はすべてそこへ合流する。
+  「変更ファイルのみ」だけは git 管理下でしか意味を持たないため、
+  `FileListModel.canFilterChangedFiles`（実体は `BaseDirectoryDescriptor.allowsGitFeatures(_:)`）
+  で出し分ける。メニューは項目ごとの有効判定を `SidebarDisplayMenuState.isEnabled(for:)` が持ち
+  （`validateMenuItem` に条件を書かない）、サイドバーヘッダーは押せないボタンを残さず
+  項目自体を出さない。差分表示と同じ判定を見るので、両者の条件がずれない（TASK-537）。
   ツリー⇄リストの切り替えは開閉状態とカレントフォルダーを引き継ぐ:
   ツリー→リストで展開集合を温存したまま root を `SidebarExpansion` のスナップショットに
   記録し、選択ファイルの親フォルダーへカレントを移す。リスト→ツリーはカレントが

@@ -4,7 +4,7 @@ title: 記事本文を書いて公開する
 status: To Do
 assignee: []
 created_date: '2026-08-22 13:06'
-updated_date: '2026-08-22 13:19'
+updated_date: '2026-08-22 14:51'
 labels: []
 milestone: m-10
 dependencies:
@@ -49,3 +49,9 @@ TASK-538.1 の器に、TASK-538.2 のテンプレートと TASK-538.3 の素材�
 - [ ] #5 記事末尾に befold のダウンロード導線がある
 - [ ] #6 公開後、befold analytics のダッシュボードで記事のアクセス数が実際に計上されていることを確認する
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-541（記事のドラフト管理）が入れば、本文を書きかけでコミットしてレビューを受けられる。着手時に 541 の状態を確認すること。
+<!-- SECTION:NOTES:END -->

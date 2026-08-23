@@ -550,6 +550,83 @@ footer a:hover {
   line-height: 1.8;
 }
 
+/* 記事本文。読み物なので幅を絞る（表や機能一覧の 900px より狭い）。 */
+.article-body {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  line-height: 1.9;
+}
+
+.article-body h3 {
+  font-size: 1.25rem;
+  margin: 2rem 0 0.75rem;
+}
+
+.article-body .article-date {
+  color: var(--color-text-secondary);
+  font-size: 0.9375rem;
+  margin: 0 0 1.5rem;
+}
+
+/* 記事内のスクリーンショット。縦に積み、幅いっぱいまで伸ばす。 */
+.article-shots {
+  margin: 1.5rem 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.article-shots img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+/* 書きかけである旨の断り。読み進める前に目に入る位置へ置く。 */
+.draft-notice {
+  max-width: 760px;
+  margin: 1rem auto 0;
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+}
+
+/* 記事一覧。表ではなく縦積みのカードにする——記事は列が揃わない（要約の長さが
+   まちまち）ため、表にすると行の高さが不揃いになって読みにくい。 */
+.article-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.article-list li {
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.article-list li:last-child {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.article-list h3 {
+  font-size: 1.25rem;
+  margin: 0 0 0.35rem;
+}
+
+.article-list p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.article-list .article-date {
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+}
+
 /* 拡張子の並びは横に長くなるため、ページ本体ではなく表だけを横スクロールさせる。 */
 .table-scroll {
   overflow-x: auto;

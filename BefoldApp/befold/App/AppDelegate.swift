@@ -250,6 +250,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// サイドバー表示 4 値はいずれも窓ごとのライブ値なので、届けるのは操作対象の窓 1 つだけ
     /// (ADR 0002「窓の状態」)。窓が無いときは何もしない——`validateMenuItem` が同じ判定で
     /// 項目を無効化しているため、通常この経路は選べない。
+    /// メニュー項目のセレクタ ↔ サイドバー表示の変更の対応表。**有効判定と実行が同じ表を見る。**
+    /// 別々に列挙すると、項目を足したときに片方だけが対応して静かにずれる。
+    private static func sidebarChange(for action: Selector) -> SidebarDisplayChange? {
+        switch action {
+        case #selector(toggleHiddenFiles(_:)): .toggleHiddenFiles
+        case #selector(toggleChangedFilesOnly(_:)): .toggleChangedFilesOnly
+        case #selector(toggleSidebarTreeLayout(_:)): .toggleLayoutMode
+        default: nil
+        }
+    }
+
     private func applySidebarDisplayChange(_ change: SidebarDisplayChange) {
         ActiveViewerProvider.fromMainWindow()?.sidebar.applyDisplayChange(change)
     }
@@ -273,26 +284,28 @@ extension AppDelegate: NSMenuItemValidation {
     /// (窓ごとのライブ値なので、保存された既定値を映すと前面の窓と食い違う / TASK-480.3)。
     /// 窓が 1 枚も無ければ操作対象が決まらないため項目ごと無効化する。
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        let sidebarActions: Set<Selector> = [
-            #selector(toggleHiddenFiles(_:)), #selector(toggleChangedFilesOnly(_:)),
-            #selector(toggleSidebarTreeLayout(_:)),
-        ]
-        guard let action = menuItem.action, sidebarActions.contains(action) else { return true }
+        guard let action = menuItem.action, let change = Self.sidebarChange(for: action) else {
+            return true
+        }
+        let model = ActiveViewerProvider.fromMainWindow()?.fileListModel
         let state = SidebarDisplayMenuState(
-            activeWindow: ActiveViewerProvider.fromMainWindow()?.fileListModel.displaySettings
+            activeWindow: model?.displaySettings,
+            canFilterChangedFiles: model?.canFilterChangedFiles ?? false
         )
-        if action == #selector(toggleHiddenFiles(_:)) {
+        switch change {
+        case .toggleHiddenFiles:
             menuItem.title = state.hidesHiddenFiles
                 ? String(localized: "menu.view.hideHiddenFiles", bundle: .l10n)
                 : String(localized: "menu.view.showHiddenFiles", bundle: .l10n)
-        }
-        if action == #selector(toggleChangedFilesOnly(_:)) {
+        case .toggleChangedFilesOnly:
             menuItem.state = state.checksChangedFilesOnly ? .on : .off
-        }
-        if action == #selector(toggleSidebarTreeLayout(_:)) {
+        case .toggleLayoutMode:
             menuItem.state = state.checksTreeLayout ? .on : .off
+        case .setSortOrder:
+            break
         }
-        return state.isEnabled
+        // 有効判定は状態側が持つ。ここで項目ごとの条件を書かない(TASK-537)。
+        return state.isEnabled(for: change)
     }
 }
 

@@ -84,3 +84,34 @@ struct BaseDirectoryDescriptorTests {
         }
     }
 }
+
+/// git 由来の機能を出してよいかの判定(TASK-537)。差分表示(`GitDiffAvailability`)と
+/// サイドバーの「変更のあるファイルのみ」が**同じ判定を見る**ことがこの型の役目なので、
+/// 種別ごとの答えをここで固定する。
+@Suite
+struct BaseDirectoryDescriptorGitFeatureTests {
+    private func descriptor(_ kind: BaseDirectoryDescriptor.Kind) -> BaseDirectoryDescriptor {
+        let root = URL(fileURLWithPath: "/tmp/example")
+        switch kind {
+        case .gitRoot: return BaseDirectoryDescriptor(rootLookup: .root(root), workspaceRoot: root)
+        case .plainFolder:
+            return BaseDirectoryDescriptor(rootLookup: .notARepository, workspaceRoot: root)
+        case .unusableRepository:
+            return BaseDirectoryDescriptor(rootLookup: .undetermined, workspaceRoot: root)
+        }
+    }
+
+    @Test("git ルートでだけ git 由来の機能を出す")
+    func allowsOnlyInsideGitRoot() {
+        #expect(BaseDirectoryDescriptor.allowsGitFeatures(descriptor(.gitRoot)))
+        #expect(!BaseDirectoryDescriptor.allowsGitFeatures(descriptor(.plainFolder)))
+        #expect(!BaseDirectoryDescriptor.allowsGitFeatures(descriptor(.unusableRepository)))
+    }
+
+    /// 未解決を false にすると初期表示で有効→無効の入れ替わりが起きる。確定した否定で
+    /// だけ落とす(`GitDiffAvailability` の縮退規則と同じ)。
+    @Test("基準ディレクトリが未解決なら落とさない")
+    func doesNotDegradeWhileUndetermined() {
+        #expect(BaseDirectoryDescriptor.allowsGitFeatures(nil))
+    }
+}

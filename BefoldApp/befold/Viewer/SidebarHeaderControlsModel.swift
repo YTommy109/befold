@@ -54,11 +54,15 @@ struct SidebarHeaderControlsModel: Equatable {
     /// ⋯ を開いたときの項目。
     let overflowItems: [SidebarOverflowItem]
 
+    /// - Parameter canFilterChangedFiles: git 管理下で「変更のあるファイルのみ」を出して
+    ///   よいか(`FileListModel.canFilterChangedFiles`)。**既定値を持たせない。**
+    ///   渡し忘れが「git 管理外でもボタンが出る」へ静かに倒れる形を作らないため。
     init(
         layoutMode: SidebarLayoutMode,
         sortOrder: SortOrder,
         showHiddenFiles: Bool,
         showChangedFilesOnly: Bool,
+        canFilterChangedFiles: Bool,
         isFilterActive: Bool,
         isFilterTextEmpty: Bool
     ) {
@@ -66,6 +70,7 @@ struct SidebarHeaderControlsModel: Equatable {
         trailing = Self.trailingControls(
             showHiddenFiles: showHiddenFiles,
             showChangedFilesOnly: showChangedFilesOnly,
+            canFilterChangedFiles: canFilterChangedFiles,
             isFilterActive: isFilterActive,
             isFilterTextEmpty: isFilterTextEmpty
         )
@@ -85,22 +90,27 @@ struct SidebarHeaderControlsModel: Equatable {
         ]
     }
 
+    /// git 管理外では「変更のあるファイルのみ」を**出さない**(無効のまま置かない)。
+    /// メニューは項目位置が固定なのでグレーアウトが自然だが、ヘッダーは並びが詰まるので、
+    /// 押せないボタンを残すより消えたほうが素直(TASK-537)。
     private static func trailingControls(
         showHiddenFiles: Bool,
         showChangedFilesOnly: Bool,
+        canFilterChangedFiles: Bool,
         isFilterActive: Bool,
         isFilterTextEmpty: Bool
     ) -> [SidebarHeaderControl] {
-        var controls: [SidebarHeaderControl] = [
-            SidebarHeaderControl(
+        var controls: [SidebarHeaderControl] = []
+        if canFilterChangedFiles {
+            controls.append(SidebarHeaderControl(
                 kind: .changedFilesOnly,
                 systemImage: "arrow.triangle.branch",
                 helpKey: showChangedFilesOnly
                     ? "sidebar.changedFilesOnly.hide"
                     : "sidebar.changedFilesOnly.show",
                 isAccented: showChangedFilesOnly
-            ),
-        ]
+            ))
+        }
         controls.append(SidebarHeaderControl(
             kind: .filter,
             systemImage: isFilterTextEmpty
