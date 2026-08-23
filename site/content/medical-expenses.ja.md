@@ -10,9 +10,9 @@
 
 <figure class="article-shots portrait"><img src="/images/usecase-medical-scan-ja.png" alt="iPhone の「ファイル」アプリでフォルダを開き、右上のメニューを出したところ。「書類をスキャン」が並んでいる" loading="lazy" width="571" height="1242"/></figure>
 
-### 月末に 1 回、こう頼む
+### そして Claude に、こう頼む
 
-> Inbox の新しいスキャンを読んで、集計表に追記して、receipts/ にリネームして移して。
+> 新しいファイルがあったら、取り込んで!
 
 起きることはこれだけです。
 

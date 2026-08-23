@@ -10,9 +10,9 @@ Create a “医療費” folder with an “Inbox” inside it on iCloud Drive an
 
 <figure class="article-shots portrait"><img src="/images/usecase-medical-scan-en.png" alt="A folder open in the iPhone Files app with the top-right menu showing, including “Scan Documents”" loading="lazy" width="571" height="1242"/></figure>
 
-### Once a month, you ask for this
+### Then you ask Claude for this
 
-> Read the new scans in the inbox, append them to the ledger, then rename and move them into receipts/.
+> If there are new files, take them in!
 
 That is all it takes.
 
