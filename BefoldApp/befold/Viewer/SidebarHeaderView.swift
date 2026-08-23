@@ -73,6 +73,7 @@ struct SidebarHeaderView: View {
             sortOrder: model.sortOrder,
             showHiddenFiles: model.showHiddenFiles,
             showChangedFilesOnly: model.showChangedFilesOnly,
+            canFilterChangedFiles: model.canFilterChangedFiles,
             isFilterActive: model.isFilterActive,
             isFilterTextEmpty: model.filterText.isEmpty
         )

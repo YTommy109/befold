@@ -200,6 +200,15 @@ final class FileListModel {
     /// SidebarNavigator が一覧更新と同じ契機でメイン外から解決して書き込む。
     /// 解決前(初回表示直後)は nil でインジケータを出さない。
     var baseDirectory: BaseDirectoryDescriptor?
+    /// 「変更のあるファイルのみ」を出してよいか。**メニューもヘッダーもこの値だけを見る。**
+    ///
+    /// 絞り込む git 状態が無いフォルダーでは、押せても何も起きない(TASK-537)。判定の実体は
+    /// `BaseDirectoryDescriptor.allowsGitFeatures(_:)` にあり、差分表示側
+    /// (`GitDiffAvailability`)も同じものを見るので、両者の条件がずれない。
+    var canFilterChangedFiles: Bool {
+        BaseDirectoryDescriptor.allowsGitFeatures(baseDirectory)
+    }
+
     /// 「相対パスをコピー」で書き込む文字列。**規則の実装はここ 1 箇所だけ**にする
     /// (サイドバーと本文のパス参照メニューが同じ項目を持つため。TASK-422)。
     func relativePathForCopy(_ url: URL) -> String {

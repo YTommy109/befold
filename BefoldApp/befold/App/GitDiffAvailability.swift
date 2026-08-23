@@ -47,14 +47,12 @@ enum GitDiffAvailability: Equatable {
         gitStatus: SidebarGitStatus?,
         fileURL: URL
     ) -> GitDiffAvailability {
-        switch baseDirectory?.kind {
-        case .plainFolder, .unusableRepository:
-            return .unavailable
-        case nil:
-            return .undetermined
-        case .gitRoot:
-            break
-        }
+        // git を出してよいかの判定は `BaseDirectoryDescriptor` に集約してある
+        // (サイドバーの「変更のあるファイルのみ」も同じ判定を見る / TASK-537)。
+        // ここで種別を直接 switch すると、片方だけ条件が変わったときに気づけない。
+        guard BaseDirectoryDescriptor.allowsGitFeatures(baseDirectory) else { return .unavailable }
+        // 上を通る nil は「基準ディレクトリが未解決」。git 管理下だと決まってはいない。
+        guard baseDirectory != nil else { return .undetermined }
         // 状態が届いていない・この行を答えられない範囲なら「分からない」。
         // 変更が無いと言い切れるのは、範囲内で引いて何も無かったときだけ。
         guard let gitStatus, gitStatus.covers(fileURL.deletingLastPathComponent()) else {
