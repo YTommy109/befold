@@ -3,7 +3,7 @@ import type { FC } from 'hono/jsx'
 import { FILE_TYPE_GROUPS, SIZE_LIMITS_MB, type RenderMode } from '../lib/file-types'
 import { pathFor, type PageLang, type SitePage } from '../lib/pages'
 import { T, t, type Localized } from './i18n'
-import { DOWNLOAD_PATH, FEATURES, MORE_FEATURES, REPO_URL, REQUIRED_OS } from './shared'
+import { DOWNLOAD_PATH, FEATURES, MORE_FEATURES, REQUIRED_OS } from './shared'
 import { PageShell } from './shell'
 
 const PAGE_TITLE: Localized = {
@@ -314,9 +314,6 @@ export const Features: FC<{ origin: string; entry: SitePage }> = ({ origin, entr
           <a href={DOWNLOAD_PATH} class="btn-primary">
             <T lang={lang} ja="Mac 版をダウンロード" en="Download for Mac" />
           </a>
-          <p class="hero-note">
-            <a href={REPO_URL}>GitHub</a>
-          </p>
         </section>
       </main>
     </PageShell>
