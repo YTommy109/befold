@@ -21,7 +21,7 @@ That is all it takes.
 3. Rename the scan to “date_provider_patient_amount.pdf” and move it into the year and person folder under receipts/
 4. Report anything it could not read, or whose patient is ambiguous — never fill it in by guessing
 
-The steps and the TSV spec live in a README.md and CLAUDE.md inside the folder, so none of it has to be re-explained each month.
+The steps and the TSV spec live in a README.md and CLAUDE.md inside the folder, so none of it has to be re-explained each time.
 
 ### Only a person notices a misreading
 
@@ -49,7 +49,7 @@ The README.md and CLAUDE.md are written for the LLM, but the one who forgets how
 
 Copy it and use it. Every name, clinic, address and phone number is a placeholder, and the screenshots in this article use the same fictional data.
 
-- [README.md](/templates/medical-expenses/README.md) — Folder layout, the monthly workflow, and the TSV spec
+- [README.md](/templates/medical-expenses/README.md) — Folder layout, the workflow, and the TSV spec
 - [CLAUDE.md](/templates/medical-expenses/CLAUDE.md) — The entry point for the LLM: read the README, never guess a value
 
 ### Worth knowing
