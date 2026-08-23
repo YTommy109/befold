@@ -83,7 +83,6 @@ export const ARTICLES: readonly Article[] = [
       en: 'Type checks pass and the tests are green, and a human still finds things to fix. How to run that loop with a diff view and a changed-files filter.',
     },
     publishedAt: '2026-08-23',
-    draft: true,
   },
 ]
 

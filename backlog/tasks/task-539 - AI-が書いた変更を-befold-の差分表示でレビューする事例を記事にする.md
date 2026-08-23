@@ -1,11 +1,11 @@
 ---
 id: TASK-539
 title: AI が書いた変更を befold の差分表示でレビューする事例を記事にする
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-22 14:46'
-updated_date: '2026-08-23 00:14'
+updated_date: '2026-08-23 07:14'
 labels: []
 milestone: m-10
 dependencies: []
@@ -63,7 +63,7 @@ TASK-538 の Description に『差分表示は使えない題材』と明記し�
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 差分表示と「変更のあるファイルのみ」を実際に通し、記事に書く手順が実測に基づいている
-- [ ] #2 記事が /usecases の一覧に日英で並ぶ
+- [x] #2 記事が /usecases の一覧に日英で並ぶ
 - [x] #3 スクリーンショットに実在の未公開情報（他プロジェクトのパス・未公開の設計）が写り込んでいない
 - [x] #4 TASK-538 の記事と見せ場が重複せず、差分表示が主役になっている
 <!-- AC:END -->
@@ -150,4 +150,23 @@ TASK-538（医療費）と見せ場が重複していない（AC #4）。あち�
 - `npm test` … 386 件 passed
 - markdownlint-cli2 … 0 issues
 - 日英とも 200 で配信され、公開パス `/usecases/ai-code-review` は 404、sitemap と記事一覧には出ないことを確認
+
+## 公開した（2026-08-23）
+
+スクリーンショットのメニュー英語表記はユーザー判断で**そのまま公開**（撮り直さない）。TASK-537 は Done で、修正はこのブランチ（a7802aaf）に入っている。
+
+`ARTICLES` の ai-code-review から `draft: true` の 1 行を消しただけ。実測（wrangler dev, port 8799）:
+
+- /usecases/ai-code-review, /en/usecases/ai-code-review … 200
+- /drafts/ai-code-review … 404（ドラフト経路は消えた）
+- sitemap.xml … ai-code-review が 2 件（日英）
+- /usecases と /en/usecases の一覧に出る
+- head の noindex 無し、hreflang は日英とも公開 URL を指す
+- typecheck / oxlint --type-aware / format:check … 指摘なし、`npm test` 386 件 passed
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+記事 /usecases/ai-code-review を ARTICLES から draft: true を外して公開した。スクリーンショットのメニューは英語表記のままとするユーザー判断、公開の前提だった TASK-537 は Done。wrangler dev 上で公開 URL 200・ドラフト URL 404・sitemap と記事一覧への掲載・noindex の消滅・hreflang を実測し、typecheck / lint / format:check / npm test（386 件）が通ることを確認した。
+<!-- SECTION:FINAL_SUMMARY:END -->

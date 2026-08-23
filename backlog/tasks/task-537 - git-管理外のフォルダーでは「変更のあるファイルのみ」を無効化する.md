@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-22 12:39'
-updated_date: '2026-08-23 05:39'
+updated_date: '2026-08-23 07:04'
 labels: []
 dependencies: []
 priority: medium
@@ -124,6 +124,35 @@ AC を直接固定しているケース: 「git 管理外では変更ファイ�
 ### 同一実行で落ちた既存の失敗（本タスクとは別系統）
 
 `ViewerRendererZoomIntegrationTests`(3) / `ViewerRendererOneShotIntegrationTests`(1) / `ViewerRendererContentUpdateIntegrationTests`(3) が失敗。症状は `readiness.isReady` が false のまま・`diagram-wrap` が null・600 秒のタイムリミット超過で、いずれも viewer.html が準備完了へ到達しない形。本タスクの diff は `BefoldRenderKit` を 1 行も触っていない（変更は BaseDirectoryDescriptor / AppDelegate / SidebarDisplaySettings / FileListModel / SidebarHeader*）。CLAUDE.md の「WebView/GUI 層は自動テスト対象外」に該当する層。**未確認: main のベースラインで同じ 7 件が落ちることは測っていない。**
+
+## 追検証（2026-08-23）
+
+**WKWebView Integration の失敗はブランチの回帰ではなかった。** 3 スイート
+（`ViewerRendererZoomIntegrationTests` / `ViewerRendererOneShotIntegrationTests` /
+`ViewerRendererContentUpdateIntegrationTests`）を単独で回すと 13 件すべて 0.602 秒で
+合格する。全 1687 件と同一プロセスで並走させたときだけ 7 件が失敗する形で、
+600 秒のタイムリミット超過も単独では 0.5 秒で終わることと整合する。WKWebView の
+並走時の競合であり、main のベースラインを取るまでもなく切り分けられた。
+
+**AC #1 / #2 は実機で手動確認済み。** git 管理外フォルダーを開くと View メニューの
+項目がグレーアウトし、サイドバーヘッダーのボタンが消えることを目視で確認した。
+
+## 閾値超過への対処（同一 PR 内）
+
+`canFilterChangedFiles` の追加で `FileListModel` の型グループが 408 行になり、
+`scripts/check-type-group-size.sh --check`（CI の ci.yml:114）が落ちた。追加は 9 行だが、
+このグループは元から 399 行で閾値まで残り 1 行だった。
+
+当初は git 状態の配管を別型へ切り出す方針を検討したが、**`FileListGitStatusGate.swift:11-16`
+に「この型は状態そのものを保持しない。保留・発行順序まで観測対象の struct にまとめると
+TASK-278 と同型の回帰になる」という判断が既にあり**、配管は切り出し済みだった。さらに出すと
+観測対象から `gitStatus` を外すか委譲を一段増やすだけになるので取りやめた。
+
+代わりに `FileListModel+Snapshot.swift` の組み立てを `FileListSnapshot.make` へ移した
+（グループ 394 行）。このファイルは「swiftlint の file_length を超えないため」に
+分けられていたが、型グループ判定は `Foo.swift` と `Foo+*.swift` を合算するので
+その分割は目的を果たしていなかった。読み出し（`parent(of:)` は TASK-443 で
+`FileListSnapshot` へ置くと決めてある）と同じ型に揃う形になる。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
