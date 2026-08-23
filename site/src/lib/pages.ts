@@ -80,6 +80,19 @@ export const SITE_PAGES: readonly SitePage[] = [
   ),
 ]
 
+/**
+ * ヘッダーのナビゲーションに並べる、指定言語のページ。
+ *
+ * `FIXED_PAGES` をそのまま順に使う。記事は `SITE_PAGES` 側にしか無いので
+ * 構造的に外れ（一覧ページ `/usecases` が入口になる）、`/download` はそもそも
+ * この表に載せてはならないものなので、ナビ用の除外リストを別に持たなくてよい。
+ * 新しい固定ページを足したら自動でナビに出る——出したくないページができた
+ * 時点で、除外条件ではなく「ナビに出す」印を `FIXED_PAGES` 側へ足すこと。
+ */
+export function navPagesFor(lang: PageLang): readonly (typeof FIXED_PAGES)[number][] {
+  return FIXED_PAGES.filter((entry) => entry.lang === lang)
+}
+
 /** `og:locale` に使うロケール。hreflang の言語コードとは書式が違う。 */
 export const OG_LOCALE: Record<PageLang, string> = {
   ja: 'ja_JP',

@@ -1,6 +1,6 @@
 import type { FC } from 'hono/jsx'
 
-import { variantsOf, type PageLang, type SitePage } from '../lib/pages'
+import { navPagesFor, variantsOf, type FixedPage, type PageLang, type SitePage } from '../lib/pages'
 import { t, type Localized } from './i18n'
 
 /**
@@ -196,7 +196,7 @@ export const MORE_FEATURES: Feature[] = [
 ]
 
 /**
- * GitHub リボン + タイトル + 言語切替。全ページ共通。
+ * GitHub リボン + タイトル + ページナビ + 言語切替。全ページ共通。
  *
  * 言語切替は `<a>` で、宛先は同じ論理ページの各バリアント（`variantsOf`）。
  * 以前は `<button onclick>` で DOM の `hidden` を付け替えていたが、その形だと
@@ -218,6 +218,7 @@ export const SiteHeader: FC<{ title: string; entry: SitePage }> = ({ title, entr
 
     <header>
       <h1>{title}</h1>
+      <SiteNav entry={entry} />
       <nav class="lang-switcher" aria-label={t(entry.lang, { ja: '言語', en: 'Language' })}>
         {variantsOf(entry.page).map((variant) => (
           <a
@@ -234,6 +235,39 @@ export const SiteHeader: FC<{ title: string; entry: SitePage }> = ({ title, entr
     </header>
   </>
 )
+
+/**
+ * ヘッダーのページナビ。項目は `navPagesFor` が返す固定ページで、パスは
+ * `SITE_PAGES` から引く（`pathFor` と同じ表）。ここにパスを書き写さない。
+ *
+ * ラベルは `Record<FixedPage, Localized>` なので、固定ページを足したときに
+ * ラベルの付け忘れが型で落ちる。
+ *
+ * 現在地は言語切替と同じく `aria-current="page"` で示す。記事ページはナビに
+ * 項目を持たないため、どれも current にならない——記事から一覧へ戻る動線は
+ * パンくず（`article.tsx`）が持っている。
+ */
+const SiteNav: FC<{ entry: SitePage }> = ({ entry }) => (
+  <nav class="site-nav" aria-label={t(entry.lang, { ja: 'サイト内', en: 'Site' })}>
+    {navPagesFor(entry.lang).map((item) => (
+      <a
+        class="site-nav-link"
+        href={item.path}
+        {...(item.page === entry.page ? { 'aria-current': 'page' } : {})}
+      >
+        {t(entry.lang, NAV_LABEL[item.page])}
+      </a>
+    ))}
+  </nav>
+)
+
+/** ナビ項目の表記。固定ページを足したらここもコンパイルエラーになる。 */
+const NAV_LABEL: Record<FixedPage, Localized> = {
+  '/': { ja: 'ホーム', en: 'Home' },
+  '/features': { ja: '機能', en: 'Features' },
+  '/releases': { ja: 'リリース', en: 'Releases' },
+  '/usecases': { ja: '記事', en: 'Articles' },
+}
 
 /** 言語切替ボタンの表記。日本語は国旗、英語は EN。 */
 const LANG_LABEL: Record<PageLang, string> = { ja: '\u{1F1EF}\u{1F1F5}', en: 'EN' }
