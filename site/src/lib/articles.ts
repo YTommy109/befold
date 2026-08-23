@@ -65,8 +65,8 @@ export const ARTICLES: readonly Article[] = [
       en: 'Medical expense deductions, made easy with AI',
     },
     summary: {
-      ja: 'プログラムを 1 行も書かずに、Claude と befold だけで家族全員分の医療費を集計している仕組みの記録。',
-      en: 'How a family tracks a year of medical expenses with Claude and befold, without writing any code.',
+      ja: '領収書をスマートフォンでスキャンしてフォルダーに入れるだけ。あとは Claude が整理して、一覧表まで作ってくれます。',
+      en: 'Scan the receipt with your phone and drop it in a folder. Claude files it and builds the ledger for you.',
     },
     publishedAt: '2026-08-23',
   },
@@ -82,6 +82,10 @@ export const ARTICLES: readonly Article[] = [
       en: 'Type checks pass and the tests are green, and a human still finds things to fix. How to run that loop with a diff view and a changed-files filter.',
     },
     publishedAt: '2026-08-23',
+    // 誤って公開した状態が続いていたため、ドラフトへ戻した（2026-08-23）。
+    // 公開時に `/usecases/ai-code-review` が本番で配信されていたので、
+    // 再公開するならこのフラグを消すだけでよい（URL は当時と同じに戻る）。
+    draft: true,
   },
 ]
 

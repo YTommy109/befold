@@ -27,7 +27,7 @@ The steps and the TSV spec live in a README.md and CLAUDE.md inside the folder, 
 
 Every file in the 医療費 folder can be checked in befold. The TSV ledger, the receipt PDFs, the Markdown that describes the workflow — all of them open in the same window.
 
-#### 1. Read the TSV without a spreadsheet
+#### 1. The ledger
 
 <figure class="article-shots"><img src="/images/usecase-medical-tsv.png" alt="The TSV ledger rendered as a table in befold, with date, person, provider, amount and receipt columns" loading="lazy" width="1512" height="949"/></figure>
 

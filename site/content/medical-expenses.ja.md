@@ -27,7 +27,7 @@
 
 医療費フォルダのファイルは、すべて befold で確認できます。集計表の TSV も、領収書の PDF も、運用を書いた Markdown も、同じウィンドウでサクサク開けます。
 
-#### 1. 表計算ソフトで開かずに TSV を読む
+#### 1. 集計表を読む
 
 <figure class="article-shots"><img src="/images/usecase-medical-tsv.png" alt="集計表の TSV が befold で表として表示されている。date・person・provider・amount・receipt の列が並ぶ" loading="lazy" width="1512" height="949"/></figure>
 
