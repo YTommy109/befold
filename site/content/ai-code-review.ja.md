@@ -13,17 +13,17 @@
 
 エージェントは 1 回の作業で十数ファイルを触ります。フォルダを開くと、変更していないファイルのほうが多い状態から始まります。
 
-<figure class="article-shots"><img src="/images/usecase-review-all-files.png" alt="サイドバーにフォルダ内の全 11 ファイルが並び、変更されたものにバッジが付いている" loading="lazy" width="1512" height="949"/></figure>
+<figure class="article-shots"><img src="../public/images/usecase-review-all-files.png" alt="サイドバーにフォルダ内の全 11 ファイルが並び、変更されたものにバッジが付いている" loading="lazy" width="1512" height="949"/></figure>
 
 サイドバーを「変更のあるファイルのみ」に切り替えると、読むべきものだけが残ります。下は同じフォルダで、11 ファイルが 4 ファイルになったところです。バッジの A は追加、M は変更を表します。
 
-<figure class="article-shots"><img src="/images/usecase-review-changed-only.png" alt="同じフォルダが変更のある 4 ファイルだけに絞り込まれ、本文側に差分が出ている" loading="lazy" width="1512" height="949"/></figure>
+<figure class="article-shots"><img src="../public/images/usecase-review-changed-only.png" alt="同じフォルダが変更のある 4 ファイルだけに絞り込まれ、本文側に差分が出ている" loading="lazy" width="1512" height="949"/></figure>
 
 ### 2. 差分のまま読む
 
 ファイル全体を読み直す必要はありません。差分表示に切り替えると、削除された行と追加された行が並びます。比較の起点はデフォルトブランチとの分岐点なので、コミット済みの変更も含めて「このブランチが変えたもの」全体が対象になります。
 
-<figure class="article-shots"><img src="/images/usecase-review-diff.png" alt="Markdown ファイルの差分表示。削除された行が赤、追加された行が緑で並んでいる" loading="lazy" width="1512" height="949"/></figure>
+<figure class="article-shots"><img src="../public/images/usecase-review-diff.png" alt="Markdown ファイルの差分表示。削除された行が赤、追加された行が緑で並んでいる" loading="lazy" width="1512" height="949"/></figure>
 
 ### 3. 直させて、そのまま見続ける
 

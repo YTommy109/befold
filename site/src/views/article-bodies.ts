@@ -23,7 +23,8 @@
  * ## 記事を 1 本足すには
  *
  * 1. `site/content/<slug>.ja.md` と `<slug>.en.md` を書く。見出しは `###` から
- *    始める（`##` にあたる記事タイトルは枠側の `ArticlePage` が描くため）
+ *    始める（`##` にあたる記事タイトルは枠側の `ArticlePage` が描くため）。
+ *    画像とサイト内ファイルへのリンクは `../public/...` と書く（`toSitePaths()` を参照）
  * 2. この下の import と `SOURCES` に 1 エントリ足す（列挙は手書き。wrangler の
  *    text モジュールは `import.meta.glob` のような一括取り込みを持たない）
  * 3. `src/lib/articles.ts` の `ARTICLES` と `src/schema.ts` の `pageSchema`、
@@ -74,6 +75,28 @@ const TOKENS: Record<string, (lang: ArticleLang) => string> = {
         : `Requires ${REQUIRED_OS.en}. Free to use.`
     return `<p><a href="${DOWNLOAD_PATH}" class="btn-primary">${label}</a></p>\n<p class="listing-note">${note}</p>`
   },
+}
+
+/**
+ * `.md` 上のパスを、配信時のパスへ書き換える。
+ *
+ * `.md` には**リポジトリ上に実在する相対パス**（`../public/images/foo.png`）を書く。
+ * 配信時の絶対パス（`/images/foo.png`）を直接書くと、`site/content/` の `.md` を
+ * befold やエディタで開いたときに画像もリンクも解決できず、**原稿として読み返せない**
+ * ——外部化した意味が半分無くなる（TASK-546 の動機そのもの）。
+ *
+ * 書き換えは接頭辞 `../public/` を `/` に畳むだけ。`site/public/` は Worker が
+ * `[assets]` として配信するディレクトリなので、この 1 対 1 の対応が成り立つ。
+ *
+ * 書き換え後に `../` が残っていたら throw する。配信時に解決できないパスなので、
+ * 「リンク切れの記事が公開される」形で通さない。
+ */
+function toSitePaths(source: string, where: string): string {
+  const rewritten = source.replaceAll('../public/', '/')
+  if (rewritten.includes('../')) {
+    throw new Error(`${where}: 配信できない相対パス（../）が残っている`)
+  }
+  return rewritten
 }
 
 /**
@@ -130,7 +153,8 @@ function renderAll(): Partial<Record<Article['page'], Sources>> {
     for (const lang of articleLangs(article)) {
       const source = sources[lang]
       if (source === undefined) continue
-      rendered[lang] = md.render(expandTokens(source, lang, `${article.page} (${lang})`))
+      const where = `${article.page} (${lang})`
+      rendered[lang] = md.render(toSitePaths(expandTokens(source, lang, where), where))
     }
     html[article.page] = rendered
   }

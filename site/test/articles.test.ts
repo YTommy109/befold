@@ -273,6 +273,27 @@ describe('記事本文（Markdown 外部化）', () => {
    * するが、それは `.md` 側の書き方の話。ここが見るのは**配信された HTML**に
    * 中括弧の残骸が出ていないという結果のほう。
    */
+  /**
+   * `.md` には `../public/images/foo.png` のような**実在する相対パス**を書く
+   * （befold やエディタで開いたときに画像とリンクが解決できるように）。配信時は
+   * `toSitePaths()` が `/images/foo.png` へ畳む。ここが壊れると、記事は 200 を
+   * 返したまま画像だけが出ない形になるので、両側から落とす。
+   */
+  it('画像とサイト内リンクが配信パスへ書き換えられる', () => {
+    for (const article of publishedArticles()) {
+      for (const lang of articleLangs(article)) {
+        const html = articleHtml(article, lang) ?? ''
+        expect(html, `article ${article.page} (${lang})`).not.toContain('../')
+      }
+    }
+
+    const medical = publishedArticles().find((a) => a.slug === 'medical-expenses')
+    expect(medical, 'medical-expenses が公開記事に無い').toBeDefined()
+    const html = medical === undefined ? '' : (articleHtml(medical, 'ja') ?? '')
+    expect(html).toContain('src="/images/usecase-medical-tsv.png"')
+    expect(html).toContain('href="/templates/medical-expenses/README.md"')
+  })
+
   it('配信される本文にトークンの残骸が出ない', () => {
     for (const article of publishedArticles()) {
       for (const lang of articleLangs(article)) {

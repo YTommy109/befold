@@ -1,6 +1,6 @@
 医療費控除に必要な家族全員の医療費の集計をどうやってますか? 私は今まで表計算ソフトに手入力してました。が、これからは違います。
 
-領収書をもらったらスマートフォンでスキャンして、フォルダーに入れるだけです。あとは Claude に取り込みを頼むと、フォルダーに整理して、一覧表を作ってくれます。私が動かしている [CLAUDE.md](/templates/medical-expenses/CLAUDE.md)、[README.md](/templates/medical-expenses/README.md) はこちらです。
+領収書をもらったらスマートフォンでスキャンして、フォルダーに入れるだけです。あとは Claude に取り込みを頼むと、フォルダーに整理して、一覧表を作ってくれます。私が動かしている [CLAUDE.md](../public/templates/medical-expenses/CLAUDE.md)、[README.md](../public/templates/medical-expenses/README.md) はこちらです。
 
 ### 家族への説明も簡単
 
@@ -8,13 +8,13 @@
 
 > 病院や薬局の領収書をもらったら、iPhone の「ファイル」アプリで「Inbox」を開いて、右上の … から「書類をスキャン」。撮って保存するだけ。ファイル名はなんでもいい。
 
-<figure class="article-shots portrait"><img src="/images/usecase-medical-scan-ja.png" alt="iPhone の「ファイル」アプリでフォルダを開き、右上のメニューを出したところ。「書類をスキャン」が並んでいる" loading="lazy" width="571" height="1242"/></figure>
+<figure class="article-shots portrait"><img src="../public/images/usecase-medical-scan-ja.png" alt="iPhone の「ファイル」アプリでフォルダを開き、右上のメニューを出したところ。「書類をスキャン」が並んでいる" loading="lazy" width="571" height="1242"/></figure>
 
 ### そして Claude に、こう頼む
 
 > 新しいファイルがあったら、取り込んで!
 
-起きることはこれだけです。
+Claude が、次の作業をやってくれます。
 
 1. Inbox の未処理ファイルから、日付・医療機関・金額・対象者・区分を読み取る
 2. 年 × 人ごとの集計表（TSV）へ日付順に追記する
@@ -29,26 +29,26 @@
 
 #### 1. 集計表を読む
 
-<figure class="article-shots"><img src="/images/usecase-medical-tsv.png" alt="集計表の TSV が befold で表として表示されている。date・person・provider・amount・receipt の列が並ぶ" loading="lazy" width="1512" height="949"/></figure>
+<figure class="article-shots"><img src="../public/images/usecase-medical-tsv.png" alt="集計表の TSV が befold で表として表示されている。date・person・provider・amount・receipt の列が並ぶ" loading="lazy" width="1512" height="949"/></figure>
 
-#### 2. 集計表から領収書をすぐ確かめる
+#### 2. 領収書を確かめる
 
-receipt 列にはファイル名が入っています。サイドバーからその PDF を開いて、金額と日付を原本と突き合わせることができます。
+領収書はわかりやすい名前をつけて receipts/ に置かれていますから、集計表と突き合わせることができます。
 
-<figure class="article-shots"><img src="/images/usecase-medical-receipt.png" alt="スキャンした領収書の PDF が befold でプレビューされている" loading="lazy" width="1512" height="949"/></figure>
+<figure class="article-shots"><img src="../public/images/usecase-medical-receipt.png" alt="スキャンした領収書の PDF が befold でプレビューされている" loading="lazy" width="1512" height="949"/></figure>
 
-#### 3. LLM 向けの規約を、人が読む
+#### 3. LLM 向けの規約を読む
 
-README.md と CLAUDE.md は LLM に読ませるものですが、仕組みを忘れるのは人のほうです。半年ぶりに「交通費はどう書くんだったか」を確かめるとき、整形された Markdown で読めると速い。
+README.md と CLAUDE.md は LLM に読ませるものですが、仕組みを忘れるのは人の方です。半年ぶりに「交通費はどう書くんだったか」を確かめるとき、ツールを切り替えることなく befold のままで読めます。
 
-<figure class="article-shots"><img src="/images/usecase-medical-readme.png" alt="運用手順を書いた README.md が befold で表示され、サイドバーにフォルダ構成が並んでいる" loading="lazy" width="1512" height="949"/></figure>
+<figure class="article-shots"><img src="../public/images/usecase-medical-readme.png" alt="運用手順を書いた README.md が befold で表示され、サイドバーにフォルダ構成が並んでいる" loading="lazy" width="1512" height="949"/></figure>
 
 ### テンプレート
 
 そのままコピーして使えます。氏名・医療機関名・住所・電話番号はすべて記入例で、実在しません。この記事のスクリーンショットも同じ架空データです。
 
-- [README.md](/templates/medical-expenses/README.md) — フォルダ構成・運用手順・TSV の仕様
-- [CLAUDE.md](/templates/medical-expenses/CLAUDE.md) — LLM 向けの入口。README を読ませ、推測で埋めさせない
+- [README.md](../public/templates/medical-expenses/README.md) — フォルダ構成・運用手順・TSV の仕様
+- [CLAUDE.md](../public/templates/medical-expenses/CLAUDE.md) — LLM 向けの入口。README を読ませ、推測で埋めさせない
 
 ### 知っておくとよいこと
 

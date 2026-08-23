@@ -1,6 +1,6 @@
 How do you add up a whole family’s medical bills for a tax deduction? Until now I typed them into a spreadsheet by hand. Not any more.
 
-Scan the receipt with your phone and drop it in a folder — that is the whole job. Then you ask Claude to take them in, and it files them and builds the ledger for you. The [CLAUDE.md](/templates/medical-expenses/CLAUDE.md) and [README.md](/templates/medical-expenses/README.md) I actually run are right here.
+Scan the receipt with your phone and drop it in a folder — that is the whole job. Then you ask Claude to take them in, and it files them and builds the ledger for you. The [CLAUDE.md](../public/templates/medical-expenses/CLAUDE.md) and [README.md](../public/templates/medical-expenses/README.md) I actually run are right here.
 
 ### The family side is simple too
 
@@ -8,13 +8,13 @@ Create a “医療費” folder with an “Inbox” inside it on iCloud Drive an
 
 > When you get a receipt from a clinic or pharmacy, open the “Inbox” folder in the iPhone Files app and choose “Scan Documents” from the … menu. Take the photo and save. The filename can be anything.
 
-<figure class="article-shots portrait"><img src="/images/usecase-medical-scan-en.png" alt="A folder open in the iPhone Files app with the top-right menu showing, including “Scan Documents”" loading="lazy" width="571" height="1242"/></figure>
+<figure class="article-shots portrait"><img src="../public/images/usecase-medical-scan-en.png" alt="A folder open in the iPhone Files app with the top-right menu showing, including “Scan Documents”" loading="lazy" width="571" height="1242"/></figure>
 
 ### Then you ask Claude for this
 
 > If there are new files, take them in!
 
-That is all it takes.
+Claude does the following.
 
 1. Read the date, provider, amount, patient and category out of each unprocessed file in the inbox
 2. Append it to the per-year, per-person TSV ledger, in date order
@@ -29,26 +29,26 @@ Every file in the 医療費 folder can be checked in befold. The TSV ledger, the
 
 #### 1. The ledger
 
-<figure class="article-shots"><img src="/images/usecase-medical-tsv.png" alt="The TSV ledger rendered as a table in befold, with date, person, provider, amount and receipt columns" loading="lazy" width="1512" height="949"/></figure>
+<figure class="article-shots"><img src="../public/images/usecase-medical-tsv.png" alt="The TSV ledger rendered as a table in befold, with date, person, provider, amount and receipt columns" loading="lazy" width="1512" height="949"/></figure>
 
-#### 2. Jump from a row to its receipt
+#### 2. The receipts
 
-The receipt column carries the filename. You can open that PDF from the sidebar and compare the amount and date against the original.
+The receipts are filed under receipts/ under readable names, so you can check them against the ledger.
 
-<figure class="article-shots"><img src="/images/usecase-medical-receipt.png" alt="A scanned receipt PDF previewed in befold" loading="lazy" width="1512" height="949"/></figure>
+<figure class="article-shots"><img src="../public/images/usecase-medical-receipt.png" alt="A scanned receipt PDF previewed in befold" loading="lazy" width="1512" height="949"/></figure>
 
-#### 3. Read the rules written for the LLM
+#### 3. The rules
 
-The README.md and CLAUDE.md are written for the LLM, but the one who forgets how it works is you. Six months later, when you need to recall how travel costs are recorded, reading it as rendered Markdown is quicker.
+The README.md and CLAUDE.md are written for the LLM, but the one who forgets how it works is you. Six months later, when you need to recall how travel costs are recorded, you read it in befold without switching tools.
 
-<figure class="article-shots"><img src="/images/usecase-medical-readme.png" alt="The README describing the workflow shown in befold, with the folder tree in the sidebar" loading="lazy" width="1512" height="949"/></figure>
+<figure class="article-shots"><img src="../public/images/usecase-medical-readme.png" alt="The README describing the workflow shown in befold, with the folder tree in the sidebar" loading="lazy" width="1512" height="949"/></figure>
 
 ### The template
 
 Copy it and use it. Every name, clinic, address and phone number is a placeholder, and the screenshots in this article use the same fictional data.
 
-- [README.md](/templates/medical-expenses/README.md) — Folder layout, the workflow, and the TSV spec
-- [CLAUDE.md](/templates/medical-expenses/CLAUDE.md) — The entry point for the LLM: read the README, never guess a value
+- [README.md](../public/templates/medical-expenses/README.md) — Folder layout, the workflow, and the TSV spec
+- [CLAUDE.md](../public/templates/medical-expenses/CLAUDE.md) — The entry point for the LLM: read the README, never guess a value
 
 ### Worth knowing
 
