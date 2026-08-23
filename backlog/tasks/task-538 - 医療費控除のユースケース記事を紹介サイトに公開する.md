@@ -1,10 +1,10 @@
 ---
 id: TASK-538
 title: 医療費控除のユースケース記事を紹介サイトに公開する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 13:04'
-updated_date: '2026-08-23 12:23'
+updated_date: '2026-08-23 12:33'
 labels: []
 milestone: m-10
 dependencies: []

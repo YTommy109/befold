@@ -1,11 +1,11 @@
 ---
 id: TASK-538.4
 title: 記事本文を書いて公開する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-22 13:06'
-updated_date: '2026-08-23 12:08'
+updated_date: '2026-08-23 12:33'
 labels: []
 milestone: m-10
 dependencies:
@@ -48,7 +48,7 @@ TASK-538.1 の器に、TASK-538.2 のテンプレートと TASK-538.3 の素材�
 - [x] #3 テンプレート（CLAUDE.md / README.md）を読者が持ち帰れる導線がある
 - [x] #4 税務判断についての注意書きと国税庁への出典リンクがある
 - [x] #5 記事末尾に befold のダウンロード導線がある
-- [ ] #6 公開後、befold analytics のダッシュボードで記事のアクセス数が実際に計上されていることを確認する
+- [x] #6 公開後、befold analytics のダッシュボードで記事のアクセス数が実際に計上されていることを確認する
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -95,4 +95,19 @@ TASK-541（記事のドラフト管理）が入れば、本文を書きかけで
 
 1. Account / D1 / Read だけを持つ API トークンを作り直し、`security add-generic-password -a "$USER" -s befold-d1-readonly -w` で入れ直す（手順は site/README.md「本番の解析データを読む」）
 2. あるいは作者が `/dashboard` を直接開き、`/usecases/medical-expenses` の計上を目視で確認する
+
+## AC #6 達成（2026-08-23）
+
+読み取り専用トークンを作り直して Keychain の `befold-d1-readonly` に入れ直した。`GET /user/tokens/verify` は active（id 37258d0d…、expires_on 2026-08-31T23:59:59Z）。
+
+本番 D1 を `scripts/analytics-query.sh` 経由で実測し、記事のアクセスが計上されていることを確認した。
+
+```sql
+SELECT page, COUNT(*) AS n, MIN(timestamp) AS first_ts, MAX(timestamp) AS last_ts
+FROM events WHERE kind = 'visit' AND page LIKE '%medical-expenses%' GROUP BY page
+```
+
+結果: `/usecases/medical-expenses` が n=3、first_ts 1787486545720（2026-08-23 21:02:25 JST）、last_ts 1787487766952（2026-08-23 21:22:46 JST）。いずれもデプロイ後の時刻で、公開後の計上であることが確認できる。
+
+なお `events` に `created_at` 列は無く、時刻は `timestamp`（ミリ秒 epoch）。
 <!-- SECTION:NOTES:END -->
