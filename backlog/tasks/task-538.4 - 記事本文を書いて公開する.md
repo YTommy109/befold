@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-22 13:06'
-updated_date: '2026-08-23 07:40'
+updated_date: '2026-08-23 12:08'
 labels: []
 milestone: m-10
 dependencies:
@@ -81,4 +81,18 @@ TASK-541（記事のドラフト管理）が入れば、本文を書きかけで
 ### AC #6 は未達（デプロイ待ち）
 
 公開後の analytics 計上確認は、この変更が本番へデプロイされてからでないと実施できない。マージ後に befold analytics のダッシュボードで `/usecases/medical-expenses` のアクセスが計上されていることを確認する。**このタスクはそれまで完了にしない。**
+
+## AC #6 の状況（2026-08-23 再確認）
+
+デプロイは完了している。`https://befold.degino.com/usecases/medical-expenses` は 200 を返し、本文も配信されている（origin/main の 7a79bf32 = PR #586 まで反映済み）。計測の配線も生きており、`site/src/routes/public.tsx:91-95` の `registerArticle` が公開記事に対して `recordEvent(c, { kind: "visit", page: article.page })` を出す（`article.page` は `src/lib/articles.ts:61` の `/usecases/medical-expenses`）。
+
+**残るのは D1 の実データ確認だけで、これが読み取り用トークンの失効で止まっている。**
+
+- `scripts/analytics-query.sh` が Authentication error [code: 10000] で失敗する
+- Keychain の `befold-d1-readonly` にトークン自体は入っているが、`GET /user/tokens/verify` が `{"success":false,"code":1000,"message":"Invalid API Token"}` を返す。値が無効（失効・削除・打ち間違いのいずれか）
+
+**着手できる条件**: 次のどちらかが済めば AC #6 を確認できる。
+
+1. Account / D1 / Read だけを持つ API トークンを作り直し、`security add-generic-password -a "$USER" -s befold-d1-readonly -w` で入れ直す（手順は site/README.md「本番の解析データを読む」）
+2. あるいは作者が `/dashboard` を直接開き、`/usecases/medical-expenses` の計上を目視で確認する
 <!-- SECTION:NOTES:END -->
