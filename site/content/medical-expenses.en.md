@@ -23,9 +23,9 @@ That is all it takes.
 
 The steps and the TSV spec live in a README.md and CLAUDE.md inside the folder, so none of it has to be re-explained each time.
 
-### Only a person notices a misreading
+### Checking is easiest in befold
 
-It tells you what it could not read. It cannot tell you what it read wrong — a digit in the amount, a similar date, the wrong family member. That part needs a person, and befold keeps it to one window.
+Three kinds of file to look through — the TSV ledger, the receipt PDFs, and the Markdown that describes the workflow. befold opens all of them straight away, so you compare them without switching apps.
 
 #### 1. Read the TSV without a spreadsheet
 
