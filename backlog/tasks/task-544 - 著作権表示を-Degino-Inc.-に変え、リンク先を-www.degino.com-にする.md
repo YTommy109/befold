@@ -4,8 +4,10 @@ title: 著作権表示を Degino Inc. に変え、リンク先を www.degino.com
 status: To Do
 assignee: []
 created_date: '2026-08-23 07:57'
+updated_date: '2026-08-23 08:33'
 labels: []
 dependencies: []
+type: chore
 ordinal: 793000
 ---
 

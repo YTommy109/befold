@@ -4,8 +4,11 @@ title: features ページのダウンロードボタン下にある GitHub リ�
 status: To Do
 assignee: []
 created_date: '2026-08-23 07:57'
+updated_date: '2026-08-23 08:33'
 labels: []
+milestone: m-1
 dependencies: []
+type: chore
 ordinal: 792000
 ---
 

@@ -4,8 +4,11 @@ title: 紹介サイトに全ページ共通のナビゲーションバーを置�
 status: To Do
 assignee: []
 created_date: '2026-08-23 07:56'
+updated_date: '2026-08-23 08:33'
 labels: []
+milestone: m-10
 dependencies: []
+type: feature
 ordinal: 791000
 ---
 

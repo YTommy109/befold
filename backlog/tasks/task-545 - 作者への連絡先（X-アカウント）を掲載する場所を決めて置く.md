@@ -4,8 +4,11 @@ title: 作者への連絡先（X アカウント）を掲載する場所を決�
 status: To Do
 assignee: []
 created_date: '2026-08-23 07:58'
+updated_date: '2026-08-23 08:33'
 labels: []
+milestone: m-10
 dependencies: []
+type: feature
 ordinal: 794000
 ---
 
