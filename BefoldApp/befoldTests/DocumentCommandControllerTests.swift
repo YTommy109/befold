@@ -131,7 +131,8 @@ struct DocumentCommandControllerTests {
     }
 
     /// `private` ではなく内部可視性にしてあるのは、`DocumentCommandController+
-    /// OpenBarTests.swift`(file_length 対策の分割先)からも呼ぶため。
+    /// OpenBarTests.swift` と `DocumentCommandController+JumpTests.swift`
+    /// (どちらも file_length 対策の分割先)からも呼ぶため。
     func makeController(
         renderer: FakeDocumentRenderer,
         perFileState: PerFileStateStore? = nil,
@@ -280,100 +281,9 @@ struct DocumentCommandControllerTests {
         #expect(scrollSaves.saves.first?.mode == .source)
     }
 
-    @Test("文書内ジャンプは canJump が false のとき JS へ届かない")
-    func documentJumpIsBlockedWithoutCapability() {
-        let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .none })
-
-        controller.openJump(kind: .heading)
-
-        #expect(renderer.commands.isEmpty)
-    }
-
-    @Test("文書内ジャンプは canJump が true なら種類つきで JS へ届く")
-    func documentJumpReachesRendererWithCapability() {
-        let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer)
-
-        controller.openJump(kind: .heading)
-
-        #expect(renderer.commands == [.openJump(kind: .heading)])
-    }
-
-    @Test("変更ブロックへのジャンプは差分表示でないとき JS へ届かない")
-    func changeBlockJumpIsBlockedWithoutDiff() {
-        let renderer = FakeDocumentRenderer()
-        // 粗い canJump は true（allEnabledForTesting は showsDiff 既定 false）。
-        // 種類別の検査が無ければ、この呼び出しは素通りして 0/0 のバーが開く。
-        let controller = makeController(renderer: renderer)
-
-        controller.openJump(kind: .changeBlock)
-
-        #expect(renderer.commands.isEmpty)
-    }
-
-    @Test("変更ブロックへのジャンプは差分表示中なら JS へ届く")
-    func changeBlockJumpReachesRendererWhileShowingDiff() {
-        let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .allEnabledShowingDiffForTesting })
-
-        controller.openJump(kind: .changeBlock)
-
-        #expect(renderer.commands == [.openJump(kind: .changeBlock)])
-    }
-
-    // 統合バーの単一入口(TASK-485.19.5)のテストは
-    // DocumentCommandController+OpenBarTests.swift へ分割した(file_length 対策)。
-
-    // 失効の同期(TASK-485.18)。開くときの guard と同じ canJump(to:) を通すことで、
-    // 「開けるが開き続けられない」「開けないのに閉じない」という食い違いを作らない。
-
-    @Test("使える種類の同期は差分表示中なら変更ブロックを含む")
-    func jumpAvailabilityIncludesChangeBlockWhileShowingDiff() {
-        let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .allEnabledShowingDiffForTesting })
-
-        controller.syncJumpAvailability()
-
-        #expect(renderer.commands == [.applyJumpAvailability(kinds: [.heading, .changeBlock])])
-    }
-
-    @Test("使える種類の同期は差分表示でなければ変更ブロックを含まない")
-    func jumpAvailabilityExcludesChangeBlockWithoutDiff() {
-        let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer)
-
-        controller.syncJumpAvailability()
-
-        #expect(renderer.commands == [.applyJumpAvailability(kinds: [.heading])])
-    }
-
-    @Test("何もできない状態では使える種類が空になり、開いているバーは閉じる指示になる")
-    func jumpAvailabilityIsEmptyWithoutCapability() {
-        let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .none })
-
-        controller.syncJumpAvailability()
-
-        #expect(renderer.commands == [.applyJumpAvailability(kinds: [])])
-    }
-
-    /// 集合が `allCases` から作られていることを固定する。種類を足したとき、
-    /// 失効の同期にだけ載り忘れる形（新しい種類のバーだけ閉じない）を防ぐ。
-    /// 列挙を書き足す実装に変わると、この比較が落ちる。
-    @Test("使える種類の同期は DocumentJumpKind の全種類を検査する")
-    func jumpAvailabilityConsidersEveryKind() {
-        let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .allEnabledShowingDiffForTesting })
-
-        controller.syncJumpAvailability()
-
-        let synced = renderer.commands.compactMap { command -> Set<DocumentJumpKind>? in
-            guard case let .applyJumpAvailability(kinds) = command else { return nil }
-            return kinds
-        }
-        #expect(synced == [Set(DocumentJumpKind.allCases)])
-    }
+    // 分割した先(いずれも file_length 対策):
+    // - 統合バーの単一入口(TASK-485.19.5) → DocumentCommandController+OpenBarTests.swift
+    // - 文書内ジャンプの可否と失効の同期 → DocumentCommandController+JumpTests.swift
 
     @Test("rename の追随は状態の反映なので能力で止めない")
     func noteRenameIsForwardedRegardlessOfCapability() {

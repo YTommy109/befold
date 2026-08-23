@@ -10,6 +10,10 @@ enum DocumentJumpKind: String, CaseIterable {
     /// 差分表示中の変更ブロック(連続する追加・削除行のまとまり)。
     case changeBlock
 
+    /// ソースコード表示中の関数・型の定義行(TASK-485.4)。
+    /// 対応言語は `FunctionJumpLanguages.supported` に限る。
+    case functionDefinition
+
     /// Edit メニューの項目が「どの種類のジャンプか」を運ぶためのタグ。
     /// `NSMenuItem.tag` の既定値は 0 で「未設定」と区別できないため 1 から振る。
     /// 表示モード選択（`ViewerDisplayMode.menuItemTag`）とは別のアクションに
@@ -18,6 +22,7 @@ enum DocumentJumpKind: String, CaseIterable {
         switch self {
         case .heading: 1
         case .changeBlock: 2
+        case .functionDefinition: 3
         }
     }
 
@@ -26,6 +31,7 @@ enum DocumentJumpKind: String, CaseIterable {
         switch self {
         case .heading: "menu.edit.jumpToHeading"
         case .changeBlock: "menu.edit.jumpToChangeBlock"
+        case .functionDefinition: "menu.edit.jumpToFunctionDefinition"
         }
     }
 

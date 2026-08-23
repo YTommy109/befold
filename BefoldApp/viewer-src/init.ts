@@ -9,6 +9,7 @@ import { _mmdInitCodeFont, _mmdInitFontSize } from './fonts.js';
 import {
   _mmdInitHeadingLevels,
   changeBlockJumpProvider,
+  functionDefinitionJumpProvider,
   headingJumpProvider,
 } from './jump-providers.js';
 import { _mmdJump, _mmdInitJump } from './jump.js';
@@ -47,6 +48,7 @@ function _mmdInit(): void {
   // （ジャンプのコントローラ側は列挙の中身を知らない）。
   _mmdJump.register(headingJumpProvider);
   _mmdJump.register(changeBlockJumpProvider);
+  _mmdJump.register(functionDefinitionJumpProvider);
   _mmdInitJump();
   _mmdInitHeadingLevels();
   _mmdInitBarModeSwitch();

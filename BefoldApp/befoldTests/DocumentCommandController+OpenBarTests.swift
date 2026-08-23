@@ -53,6 +53,7 @@ extension DocumentCommandControllerTests {
             supportsFind: true,
             gitDiffAvailability: .changed,
             isDirectHTMLMode: false,
+            codeLanguage: nil,
             isDocumentJumpEnabled: false
         )
         let controller = makeController(renderer: renderer, capabilities: { capabilities })
