@@ -242,7 +242,7 @@ export const SiteFooter: FC = () => (
   <footer>
     <p>
       <a href={REPO_URL}>GitHub</a> · MIT License · © 2026{' '}
-      <a href="https://github.com/YTommy109">Tommy109</a>
+      <a href="https://www.degino.com">Degino Inc.</a>
     </p>
   </footer>
 )

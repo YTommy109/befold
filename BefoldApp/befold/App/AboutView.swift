@@ -41,7 +41,7 @@ struct AboutView: View {
                         .foregroundStyle(.secondary)
                     HStack(spacing: 4) {
                         Text("Copyright © 2026")
-                        Link("Tommy109", destination: AppLinks.author)
+                        Link("Degino Inc.", destination: AppLinks.company)
                     }
                     .font(.footnote)
                 }

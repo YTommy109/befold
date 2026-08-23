@@ -104,7 +104,7 @@ function structuredData(origin: string, entry: SitePage): string {
     softwareHelp: REPO_URL,
     image: `${origin}/images/ogp.png`,
     license: 'https://opensource.org/licenses/MIT',
-    author: { '@type': 'Person', name: 'Tommy109', url: 'https://github.com/YTommy109' },
+    author: { '@type': 'Organization', name: 'Degino Inc.', url: 'https://www.degino.com' },
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
   })
 }
