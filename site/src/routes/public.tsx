@@ -31,7 +31,8 @@ import {
   type Channel,
 } from '../lib/github'
 import { FIXED_PAGES, SITE_PAGES, variantsOf, type FixedPage, type SitePage } from '../lib/pages'
-import { ArticlePage, articleBody } from '../views/article'
+import { ArticlePage } from '../views/article'
+import { articleHtml, hasArticleBody } from '../views/article-bodies'
 import { Features } from '../views/features'
 import { Landing } from '../views/landing'
 import { notFoundResponse } from '../views/not-found'
@@ -76,10 +77,14 @@ for (const entry of FIXED_PAGES) {
  * アクセスは記事ごとの粒度に価値がなく、内訳のカーディナリティだけが増える。
  */
 function registerArticle(article: Article, isDraft: boolean): void {
-  const body = articleBody(article)
-  if (body === null) return
+  if (!hasArticleBody(article)) return
 
   for (const lang of articleLangs(article)) {
+    // 公開する言語の本文が揃っていることは `article-bodies.ts` が読み込み時に
+    // 検査済みなので、ここで null になることはない（型のためだけの分岐）。
+    const bodyHtml = articleHtml(article, lang)
+    if (bodyHtml === null) continue
+
     const path = isDraft ? draftPath(article, lang) : articlePath(article, lang)
     const entry: SitePage = { path, lang, page: article.page }
 
@@ -92,7 +97,9 @@ function registerArticle(article: Article, isDraft: boolean): void {
       c.header('Cache-Control', 'no-store')
 
       const origin = new URL(c.req.url).origin
-      return c.html(<ArticlePage origin={origin} entry={entry} article={article} body={body} />)
+      return c.html(
+        <ArticlePage origin={origin} entry={entry} article={article} bodyHtml={bodyHtml} />,
+      )
     })
   }
 }

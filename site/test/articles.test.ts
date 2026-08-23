@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import app from '../src/index'
 import {
   ARTICLES,
+  articleLangs,
   articlePath,
   articlesNewestFirst,
   draftArticles,
@@ -19,6 +20,8 @@ import {
   publishedArticles,
 } from '../src/lib/articles'
 import { SITE_PAGES, variantsOf } from '../src/lib/pages'
+import { articleHtml } from '../src/views/article-bodies'
+import { DOWNLOAD_PATH, REQUIRED_OS } from '../src/views/shared'
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15'
 const ORIGIN = 'https://befold.example'
@@ -217,5 +220,115 @@ describe('ドラフト記事', () => {
       "SELECT page FROM events WHERE kind = 'visit' ORDER BY id DESC LIMIT 1",
     ).first<{ page: string | null }>()
     expect(row?.page).toBe('/drafts')
+  })
+})
+
+/**
+ * 本文を `site/content/*.md` へ外部化した後（TASK-546）に守るべき性質。
+ *
+ * 移行前は `<T lang={lang} ja="…" en="…" />` が**構造的に**両言語を強制し、
+ * 本文の描画はコンポーネントの呼び出しだった。ファイルを分けたことでその 2 つの
+ * 担保が失われるので、ここで落とす。
+ */
+describe('記事本文（Markdown 外部化）', () => {
+  /**
+   * 公開する言語の本文が揃っていること。
+   *
+   * `en` を書き忘れると英語ページだけ 404 になり、`SITE_PAGES` には載ったままなので
+   * **sitemap に 404 の URL が出る**という静かな壊れ方をする。`article-bodies.ts` は
+   * モジュール読み込み時にも同じ検査をして throw するが、そちらは「Worker が
+   * 起動しない」形なので、原因が読めるようにここでも落とす。
+   */
+  it('公開記事は articleLangs が返すすべての言語の本文を持つ', () => {
+    for (const article of publishedArticles()) {
+      for (const lang of articleLangs(article)) {
+        const html = articleHtml(article, lang)
+        expect(html, `article ${article.page} (${lang})`).not.toBeNull()
+        expect(html?.length, `article ${article.page} (${lang})`).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  /**
+   * **Markdown のパースがリクエストごとに走らない**（AC #2）。
+   *
+   * 「モジュールスコープで 1 回だけ」そのものはテストで直接示せないので、
+   * 「呼ぶたびに変換していない」ことを参照の同一性で落とす。毎回 render すれば
+   * 内容が同じでも別の文字列インスタンスになるため `toBe` が失敗する。
+   * 起動時 eager であることはコードの形（`article-bodies.ts` のトップレベルの
+   * `const HTML`）が示す。
+   */
+  it('本文 HTML は呼ぶたびに作り直されない', () => {
+    for (const article of publishedArticles()) {
+      for (const lang of articleLangs(article)) {
+        expect(articleHtml(article, lang)).toBe(articleHtml(article, lang))
+      }
+    }
+  })
+
+  /**
+   * 置換トークンが本文にそのまま出ていないこと。
+   *
+   * `article-bodies.ts` は未知のトークンと未展開の `{{` を読み込み時に throw
+   * するが、それは `.md` 側の書き方の話。ここが見るのは**配信された HTML**に
+   * 中括弧の残骸が出ていないという結果のほう。
+   */
+  it('配信される本文にトークンの残骸が出ない', () => {
+    for (const article of publishedArticles()) {
+      for (const lang of articleLangs(article)) {
+        expect(articleHtml(article, lang), `article ${article.page} (${lang})`).not.toContain('{{')
+      }
+    }
+  })
+})
+
+/**
+ * 素の Markdown で書けない部品が、移行前と同じ HTML で出ること（AC #4）。
+ *
+ * 対象は 3 つ——(1) 言語ごとに別のスクリーンショット、(2) `DOWNLOAD_PATH` と
+ * `REQUIRED_OS` を参照するダウンロード導線（`{{cta}}`）、(3) `listing-note` の注記。
+ * どれも `<T>` や TS の定数参照でしか書けなかったもので、外部化で失われやすい。
+ */
+describe('医療費控除の記事に残す部品', () => {
+  const ARTICLE = '/usecases/medical-expenses'
+
+  it('スクリーンショットが言語ごとに出し分けられる', async () => {
+    const ja = await (await call(ARTICLE)).text()
+    expect(ja).toContain('/images/usecase-medical-scan-ja.png')
+    expect(ja).not.toContain('/images/usecase-medical-scan-en.png')
+
+    const en = await (await call(`/en${ARTICLE}`)).text()
+    expect(en).toContain('/images/usecase-medical-scan-en.png')
+    expect(en).not.toContain('/images/usecase-medical-scan-ja.png')
+  })
+
+  /** 縦長のスクリーンショットは `portrait` で幅を絞る（style.css の該当規則）。 */
+  it('縦長のスクリーンショットに portrait が付く', async () => {
+    const html = await (await call(ARTICLE)).text()
+    expect(html).toContain('<figure class="article-shots portrait">')
+  })
+
+  /**
+   * ダウンロード導線は `{{cta}}` の展開結果。**URL と対応 OS を本文へベタ書き
+   * させない**ためのトークンなので、`DOWNLOAD_PATH` / `REQUIRED_OS` の値が
+   * そのまま出ることを見る（本文に固定文字列で書かれていたら、定数を変えた
+   * ときにここが落ちる）。
+   */
+  it('ダウンロードボタンと OS 注記が定数から組み立てられる', async () => {
+    const ja = await (await call(ARTICLE)).text()
+    expect(ja).toContain(`<a href="${DOWNLOAD_PATH}" class="btn-primary">Mac 版をダウンロード</a>`)
+    expect(ja).toContain(
+      `<p class="listing-note">${REQUIRED_OS.ja}が必要です。無料で使えます。</p>`,
+    )
+
+    const en = await (await call(`/en${ARTICLE}`)).text()
+    expect(en).toContain(`<a href="${DOWNLOAD_PATH}" class="btn-primary">Download for Mac</a>`)
+    expect(en).toContain(`<p class="listing-note">Requires ${REQUIRED_OS.en}. Free to use.</p>`)
+  })
+
+  it('税務の断りが listing-note として出る', async () => {
+    const ja = await (await call(ARTICLE)).text()
+    expect(ja).toContain('<p class="listing-note">※ この記事は税務のアドバイスではありません。')
+    expect(ja).toContain('<ul class="listing-note">')
   })
 })

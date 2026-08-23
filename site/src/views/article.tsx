@@ -1,31 +1,25 @@
 /**
- * 記事 1 本を描く枠と、本文の対応表。
+ * 記事 1 本を描く枠。
  *
- * **本文（コンポーネント）を `lib/articles.ts` に持たせない。** あちらは
- * `lib/pages.ts` が読む（`SITE_PAGES` を導出するため）ので、本文を置くと
+ * **本文をこの枠に持たせない。** 本文の唯一の正は `site/content/*.md` で、
+ * HTML への変換は `views/article-bodies.ts` が受け持つ。ここが受け取るのは
+ * 変換済みの HTML 文字列だけ——型が `string` なので、本文コンポーネントを
+ * 置き直すことは型エラーになる（TASK-546 で決めた「TSX 側に本文を持たない」を
+ * doc コメントではなく型で守らせる）。
+ *
+ * 本文（や本文の対応表）を `lib/articles.ts` に置かないのは従来どおり。あちらは
+ * `lib/pages.ts` が読む（`SITE_PAGES` を導出するため）ので、置くと
  * pages → articles → views/shell → pages の循環になる。メタデータは lib、
  * 描画は views、という分け方は `SITE_PAGES` と `PAGE_VIEWS` の関係と同じ。
  */
 
+import { raw } from 'hono/html'
 import type { FC } from 'hono/jsx'
 
 import type { Article, ArticleLang } from '../lib/articles'
 import { pathFor, type SitePage } from '../lib/pages'
-import { AICodeReviewBody } from './article-ai-code-review'
-import { MedicalExpensesBody } from './article-medical-expenses'
 import { T, t } from './i18n'
 import { PageShell } from './shell'
-
-/** 記事本文。`Page` ごとに 1 つ。記事を足したらここにも足す（テストが漏れを落とす）。 */
-const ARTICLE_BODIES: Partial<Record<Article['page'], FC<{ lang: ArticleLang }>>> = {
-  '/usecases/medical-expenses': MedicalExpensesBody,
-  '/usecases/ai-code-review': AICodeReviewBody,
-}
-
-/** その記事の本文。未登録なら null（`articles.test.ts` が全記事について落とす）。 */
-export function articleBody(article: Article): FC<{ lang: ArticleLang }> | null {
-  return ARTICLE_BODIES[article.page] ?? null
-}
 
 /**
  * 記事ページ。公開・ドラフトのどちらも同じ枠で描く。
@@ -37,8 +31,9 @@ export const ArticlePage: FC<{
   origin: string
   entry: SitePage
   article: Article
-  body: FC<{ lang: ArticleLang }>
-}> = ({ origin, entry, article, body: Body }) => {
+  /** 変換済みの本文 HTML（`views/article-bodies.ts` の `articleHtml()` が作る）。 */
+  bodyHtml: string
+}> = ({ origin, entry, article, bodyHtml }) => {
   const lang = entry.lang
   const isDraft = article.draft === true
 
@@ -75,7 +70,7 @@ export const ArticlePage: FC<{
           <p class="article-date">
             <time datetime={article.publishedAt}>{article.publishedAt}</time>
           </p>
-          <Body lang={lang} />
+          {raw(bodyHtml)}
         </article>
       </main>
     </PageShell>
