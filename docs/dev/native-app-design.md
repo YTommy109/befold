@@ -248,10 +248,12 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   1 回のキー操作で位置が飛ばないようにする。CSS の `scroll-behavior` は使わない
   （指定すると `scrollTop` への代入まで animate され、位置復元が着地しなくなる）
 - **検索・文書内ジャンプの統合バー**（TASK-485.19）: 検索・見出しジャンプ・変更箇所
-  ジャンプは、画面右上の1つのバー（`#mmd-bar`）として見える。上段のモード切替
-  スイッチ（`viewer-src/bar-mode.ts`）が検索/見出し/変更箇所を切り替え、下段に
-  選ばれたモード固有の入力領域（検索は入力欄+3トグル、見出しはレベルトグル、
-  変更箇所は無し）を出す。**実装（`find.ts` / `jump.ts`）は従来どおり別モジュールで、
+  ジャンプ・定義ジャンプは、画面右上の1つのバー（`#mmd-bar`）として見える。上段の
+  モード切替スイッチ（`viewer-src/bar-mode.ts`）が検索/見出し/変更箇所/定義を切り替え、
+  下段に選ばれたモード固有の入力領域（検索は入力欄+3トグル、見出しはレベルトグル、
+  変更箇所と定義は無し）を出す。**モードの列挙は `bar-mode.ts` の `MODES` だけが持つ**
+  （Swift 側は `DocumentJumpKind.allCases` で自動追随するので、JS 側だけが
+  取り残される形を作らない）。**実装（`find.ts` / `jump.ts`）は従来どおり別モジュールで、
   排他は引き続き `viewer-src/bar.ts` が持つ**。バー全体の開閉は
   `bar.ts` が一元管理し、モード切替スイッチの選択表示・非対応モードの非表示
   （`ViewerCapabilities.canJump(to:)` 由来）は `bar-mode.ts` が薄い調整役として持つ。
@@ -261,7 +263,8 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   を見て検索 / 変更箇所ジャンプへ既定を振り分ける。
 - **検索**: 大文字小文字区別・単語一致・正規表現の3トグル、次/前移動
 - **文書内ジャンプ**: 文書順に並んだ目印を前後移動する
-  （Edit > 見出しへジャンプ… / 変更箇所へジャンプ…）。目印は 2 種類ある。
+  （Edit > 見出しへジャンプ… / 変更箇所へジャンプ… / 定義へジャンプ…）。
+  目印は 3 種類ある。
   **見出し**は Markdown が対象で、**h1 / h2 / h3 のどれを目印にするかを
   バーのトグルで選べる**（既定は 3 つとも ON。3 つとも OFF も正当な状態）。
   レンダリング表示では `h1` / `h2` / `h3` 要素を、**ソース表示では行頭の
@@ -275,10 +278,9 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   `table.code-table` を探す形は採れない——差分テーブルも同じクラスを名乗るため
   （TASK-318 と同型）。`shape` が `'code'` のときだけソース行走査へ入るので、
   差分表示・CSV ソース表示・Markdown 以外のソース表示は列挙に入らず 0 件になる。
-  **種別では capability を閉じない**（`canJump` に fileType を持ち込むと
-  ソースの関数定義ジャンプ = TASK-485.4 が来た時点で条件が反転する）。
-  目印が 0 個であることは 0/0 表示が伝える、という
-  `canJumpToChangeBlock` と同じ立場を取る。
+  **種別では粗い `canJump` を閉じない**。種別・言語に依存する条件は種類ごとの
+  述語（`canJumpToFunctionDefinition`）へ置く。目印が 0 個であることは 0/0 表示が
+  伝える、という `canJumpToChangeBlock` と同じ立場を取る。
   **変更ブロック**は差分表示が対象で、連続する削除行とその直後の追加行のまとまりを
   1 件として数える。数え方はハンク単位ではない（`GitDiffReader` が 100 万行の文脈を
   指定するためファイル全体が 1 ハンクになりうる）。番号は描画時に
@@ -292,8 +294,24 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   ところへ線を足すと画面が賑やかになりすぎるため。候補の印も差分表示では出さない。差分表示中は本文が段階読み込み中でも
   変更ブロックは全数そろっているため「表示範囲内」ラベルは出さない
   （差分の表は `setDiff` で渡った全文から組み、`appendChunk` は追記をスキップする）。
+  **定義**（TASK-485.4 / ADR 0009）はソースコード表示が対象で、関数・型の定義行を拾う。
+  対応言語は swift / python / javascript / typescript の 4 つで、**非対応言語では
+  メニュー項目が押す前からグレーアウトする**。判定は 2 つの役に分けてあり、
+  「この行は定義か」は言語別の行テキスト正規表現（`viewer-src/jump-providers.ts` の
+  `DEFINITION_PATTERNS`、行あたり 1 本へ結合）、「その行は本当にコードか」は
+  highlight.js のスパン（`.hljs-comment` / `.hljs-string`）が決める。
+  コメント・文字列の除外を自前で持ち回らないのは、`reflowSpanBalancedLines` が
+  行ごとに span を開き直すため**複数行コメント・複数行文字列の途中の行も自分の
+  `td.line-content` 内に `hljs-comment` / `hljs-string` を持つ**から。逆に
+  `span.hljs-title.function_` を「定義である」ことの判定には使わない
+  （JS/TS では呼び出し側にも同じクラスが付く）。ソース表示は `appendChunk` で
+  実際に追記が起きるため、**「表示範囲内」ラベルは出す**（変更ブロックとは逆）。
+  対応言語の集合は Swift の `FunctionJumpLanguages.supported` と JS の
+  `FUNCTION_JUMP_LANGUAGES` の 2 箇所にあり、ずれは
+  `ViewerFunctionJumpLanguageContractTests` が落とす。
   種類ごとの可否は `ViewerCapabilities.canJump(to:)` が持ち、変更ブロックは差分表示を
-  選んでいる間だけ使える。**開いている間に使えなくなったらバーは自動的に閉じる**
+  選んでいる間だけ、定義は逆に差分表示でないソース表示中だけ使える
+  （**この 2 つは同時にはそろわない**）。**開いている間に使えなくなったらバーは自動的に閉じる**
   （別のファイルへ切り替えた・差分表示から離れた等。TASK-485.18）。
   Swift は「閉じろ」ではなく**いま使える種類の集合**を送り
   （`DocumentRendering.applyJumpAvailability(_:)` → `_mmdApplyJumpAvailability`）、

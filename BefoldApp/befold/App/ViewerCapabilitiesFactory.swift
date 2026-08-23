@@ -36,6 +36,9 @@ enum ViewerCapabilitiesFactory {
             supportsDiffDisplay: FileType(url: fileURL).supportsDiffDisplay,
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
+            // supportsDiffDisplay と同じく URL 由来の FileType から取る(切替中の
+            // contentState は旧値を持ちうる。この型の :20-24 のコメントを参照)。
+            codeLanguage: FileType(url: fileURL).codeLanguage,
             // 開発中機能のゲートを読むのはここだけ。能力の導出へ畳むことで、
             // メニューの有効判定とコマンドの実行ガードの両方が自動で塞がる
             // (露出点を数え上げて回る形にしない / TASK-485.1)。

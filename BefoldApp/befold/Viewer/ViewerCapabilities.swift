@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// 「いまこの操作が可能か」を提示状態から導出した値(ADR 0002 段 2)。
@@ -18,6 +19,11 @@ struct ViewerCapabilities: Equatable {
     /// HTML 直接ロード中は不可。開発中機能なので、ゲートが閉じている間も不可
     /// (`FeatureGate.isDocumentJumpEnabled` を `ViewerCapabilitiesFactory` が渡す)。
     let canJump: Bool
+    /// 文書内ジャンプのうち「関数・型の定義」を選べるか(TASK-485.4)。
+    /// ソース相当の内容を出していて、かつ対応言語のときだけ意味を持つ。
+    /// 差分表示中は変更ブロックの担当なので外す(差分の表は shape が 'diff' で、
+    /// viewer 側の列挙もソース行走査へ入らない)。
+    let canJumpToFunctionDefinition: Bool
     /// 文書内ジャンプのうち「変更ブロック」を選べるか。差分表示を選んでいる間だけ
     /// 意味を持つ(差分でない表示には変更ブロックが 1 つも無い)。
     /// 目印が何個あるかでは判定しない。判定するのは「いま差分表示か」という事実だけで、
@@ -55,6 +61,9 @@ struct ViewerCapabilities: Equatable {
     ///     ADR(libgit2 移行)の Fallback にある「git が使えないとき差分表示モードを
     ///     選択不可にする」はここから来る。
     ///   - isDirectHTMLMode: HTML を直接ロードして表示しているか。
+    ///   - codeLanguage: ソース表示の highlight.js 言語名(コード種別でなければ nil)。
+    ///     定義ジャンプの対応言語判定に使う。既定値は持たせない——渡し忘れが
+    ///     静かに「全言語で無効」へ倒れると、対応言語でもメニューがグレーのままになる。
     ///   - isDocumentJumpEnabled: 文書内ジャンプを露出してよいか(開発中機能のゲート)。
     ///     既定値は持たせない。渡し忘れが静かに「常に有効」へ倒れると、stable へ
     ///     開発中の機能が載る形になるため。
@@ -69,6 +78,7 @@ struct ViewerCapabilities: Equatable {
         supportsDiffDisplay: Bool,
         gitDiffAvailability: GitDiffAvailability,
         isDirectHTMLMode: Bool,
+        codeLanguage: String?,
         isDocumentJumpEnabled: Bool
     ) {
         let onDocument = isPresentingDocument && !isRejected
@@ -96,6 +106,10 @@ struct ViewerCapabilities: Equatable {
             && gitDiffAvailability.allowsDiffSelection
         canToggleDiffLayout = canSelectDiffMode && showsDiff
         canJumpToChangeBlock = canJump && showsDiff
+        // showsCodeContent は差分表示中も true(ViewerStore の isSourceMode 経由)なので、
+        // !showsDiff を落とすと差分表示中にメニューが有効のまま 0 件になる。
+        canJumpToFunctionDefinition = canJump && showsCodeContent && !showsDiff
+            && FunctionJumpLanguages.supports(codeLanguage)
     }
 
     /// その種類のジャンプをいま使えるか。`canSelect(_:)` と同じく対応表であり、
@@ -104,6 +118,7 @@ struct ViewerCapabilities: Equatable {
         switch kind {
         case .heading: canJump
         case .changeBlock: canJumpToChangeBlock
+        case .functionDefinition: canJumpToFunctionDefinition
         }
     }
 
@@ -141,6 +156,7 @@ struct ViewerCapabilities: Equatable {
         supportsDiffDisplay: false,
         gitDiffAvailability: .undetermined,
         isDirectHTMLMode: false,
+        codeLanguage: nil,
         isDocumentJumpEnabled: false
     )
 }

@@ -14,7 +14,7 @@ struct ViewerMenuValidatorTests {
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: true,
             supportsSourceMode: true, supportsDiffDisplay: true,
-            gitDiffAvailability: .changed, isDirectHTMLMode: false,
+            gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: "swift",
             isDocumentJumpEnabled: true
         )
         var isSourceMode = false
@@ -46,7 +46,7 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, supportsSourceMode: true,
-            supportsDiffDisplay: true, gitDiffAvailability: .changed, isDirectHTMLMode: true,
+            supportsDiffDisplay: true, gitDiffAvailability: .changed, isDirectHTMLMode: true, codeLanguage: "swift",
             isDocumentJumpEnabled: true
         )
 
@@ -74,7 +74,7 @@ struct ViewerMenuValidatorTests {
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: false,
             supportsSourceMode: true, supportsDiffDisplay: true,
-            gitDiffAvailability: .changed, isDirectHTMLMode: false,
+            gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: "swift",
             isDocumentJumpEnabled: true
         )
         let jump = #selector(ViewerWindowController.documentJump(_:))
@@ -87,6 +87,31 @@ struct ViewerMenuValidatorTests {
 
         source.capabilities = StubSource().capabilities // showsDiff: true
         #expect(ViewerMenuValidator.validate(changeBlock, source: source))
+    }
+
+    /// 非対応言語では「定義へジャンプ」が**押す前に**グレーアウトしていること
+    /// （TASK-485.4 の受け入れ基準 #2）。押しても何も起きない形にはしない。
+    @Test("非対応言語では定義へジャンプのメニュー項目が無効になる")
+    func disablesFunctionDefinitionJumpForUnsupportedLanguage() {
+        func source(language: String?) -> StubSource {
+            let stub = StubSource()
+            stub.capabilities = ViewerCapabilities(
+                isPresentingDocument: true, isRejected: false, isRenderable: true,
+                isBinaryContent: false, showsCodeContent: true, showsDiff: false,
+                supportsSourceMode: true, supportsDiffDisplay: true,
+                gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: language,
+                isDocumentJumpEnabled: true
+            )
+            return stub
+        }
+        let item = makeItem(
+            #selector(ViewerWindowController.documentJump(_:)),
+            tag: DocumentJumpKind.functionDefinition.menuItemTag
+        )
+
+        #expect(ViewerMenuValidator.validate(item, source: source(language: "swift")))
+        #expect(!ViewerMenuValidator.validate(item, source: source(language: "ruby")))
+        #expect(!ViewerMenuValidator.validate(item, source: source(language: nil)))
     }
 
     @Test("フォルダー一覧の表示中は文書向けのコマンドをすべて無効にする")
@@ -155,7 +180,7 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: true, showsCodeContent: false, supportsSourceMode: false,
-            supportsDiffDisplay: false, gitDiffAvailability: .changed, isDirectHTMLMode: false,
+            supportsDiffDisplay: false, gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: "swift",
             isDocumentJumpEnabled: true
         )
 

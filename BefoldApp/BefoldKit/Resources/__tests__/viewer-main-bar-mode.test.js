@@ -1,4 +1,4 @@
-// バー右上のモード切替スイッチ（検索/見出し/変更箇所、TASK-485.19.2）。
+// バー右上のモード切替スイッチ（検索/見出し/変更箇所/定義、TASK-485.19.2）。
 // 実際の検索・列挙ロジックは find.ts / jump.ts が持つため、ここでは
 // 「クリックで正しいモードが開くか」「選択状態の見た目が実際の開閉と揃うか」
 // だけを検証する。
@@ -6,10 +6,14 @@ const { loadViewerMain } = require('./support/viewerMainHarness');
 
 const outerVisible = (document) => document.getElementById('mmd-bar').style.display === 'flex';
 
+// bar-mode.ts の MODES と同じ並び。片方だけ増えると、新しいモードが
+// 選択状態になっても activeModes に現れず、テストが黙って素通りする。
+const ALL_MODES = ['search', 'heading', 'changeBlock', 'functionDefinition'];
+
 const activeModes = (document) =>
-  ['search', 'heading', 'changeBlock']
-    .filter((mode) => document.getElementById('mmd-bar-mode-' + mode).classList.contains('active'))
-    .toSorted();
+  ALL_MODES.filter((mode) =>
+    document.getElementById('mmd-bar-mode-' + mode).classList.contains('active'),
+  ).toSorted();
 
 const segmentVisible = (document, mode) =>
   document.getElementById('mmd-bar-mode-' + mode).style.display !== 'none';
@@ -92,6 +96,7 @@ describe('バーのモード切替スイッチ', () => {
       expect(segmentVisible(document, 'search')).toBe(true);
       expect(segmentVisible(document, 'heading')).toBe(false);
       expect(segmentVisible(document, 'changeBlock')).toBe(false);
+      expect(segmentVisible(document, 'functionDefinition')).toBe(false);
     });
 
     test('_mmdApplyJumpAvailability で使える種類だけが表示される', () => {
@@ -106,6 +111,13 @@ describe('バーのモード切替スイッチ', () => {
 
       expect(segmentVisible(document, 'heading')).toBe(true);
       expect(segmentVisible(document, 'changeBlock')).toBe(true);
+      // 定義は渡していないので隠れたまま（対応言語のソース表示でだけ届く）。
+      expect(segmentVisible(document, 'functionDefinition')).toBe(false);
+
+      main._mmdApplyJumpAvailability(['functionDefinition']);
+
+      expect(segmentVisible(document, 'functionDefinition')).toBe(true);
+      expect(segmentVisible(document, 'heading')).toBe(false);
     });
 
     test('開いているモードが使えなくなるとバーごと閉じ、外枠・選択状態・セグメントが揃って消える', () => {

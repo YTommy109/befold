@@ -298,6 +298,8 @@ struct WebViewCommandControllerTests {
         #expect(renderer.commands == [.applyJumpAvailability(kinds: [.heading, .changeBlock])])
     }
 
+    /// 差分表示でないときは変更ブロックが落ち、代わりに定義が載る
+    /// （定義は差分表示中は不可なので、この 2 つは同時にはそろわない）。
     @Test("使える種類の同期は差分表示でなければ変更ブロックを含まない")
     func jumpAvailabilityExcludesChangeBlockWithoutDiff() {
         let renderer = FakeDocumentRenderer()
@@ -305,7 +307,7 @@ struct WebViewCommandControllerTests {
 
         controller.syncJumpAvailability()
 
-        #expect(renderer.commands == [.applyJumpAvailability(kinds: [.heading])])
+        #expect(renderer.commands == [.applyJumpAvailability(kinds: [.heading, .functionDefinition])])
     }
 
     @Test("何もできない状態では使える種類が空になり、開いているバーは閉じる指示になる")
@@ -321,18 +323,31 @@ struct WebViewCommandControllerTests {
     /// 集合が `allCases` から作られていることを固定する。種類を足したとき、
     /// 失効の同期にだけ載り忘れる形（新しい種類のバーだけ閉じない）を防ぐ。
     /// 列挙を書き足す実装に変わると、この比較が落ちる。
+    ///
+    /// **1 つの状態では全種類はそろわない。** 変更ブロックは差分表示中だけ、
+    /// 定義は逆に差分表示でないときだけ使えるためで、条件は `ViewerCapabilities` が
+    /// 持つ（TASK-485.4）。そこで差分表示中と非差分表示の和が `allCases` に
+    /// 一致することをもって「全種類が検査対象になっている」ことを表す。
+    /// 新しい種類がどちらの状態でも載らなければ、和に現れず落ちる。
     @Test("使える種類の同期は DocumentJumpKind の全種類を検査する")
     func jumpAvailabilityConsidersEveryKind() {
+        let showingDiff = syncedKinds(for: .allEnabledShowingDiffForTesting)
+        let notShowingDiff = syncedKinds(for: .allEnabledForTesting)
+
+        #expect(showingDiff.union(notShowingDiff) == Set(DocumentJumpKind.allCases))
+    }
+
+    /// その能力の状態で viewer へ同期される種類の集合。
+    private func syncedKinds(for capabilities: ViewerCapabilities) -> Set<DocumentJumpKind> {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .allEnabledShowingDiffForTesting })
+        let controller = makeController(renderer: renderer, capabilities: { capabilities })
 
         controller.syncJumpAvailability()
 
-        let synced = renderer.commands.compactMap { command -> Set<DocumentJumpKind>? in
-            guard case let .applyJumpAvailability(kinds) = command else { return nil }
-            return kinds
+        return renderer.commands.reduce(into: Set<DocumentJumpKind>()) { result, command in
+            guard case let .applyJumpAvailability(kinds) = command else { return }
+            result.formUnion(kinds)
         }
-        #expect(synced == [Set(DocumentJumpKind.allCases)])
     }
 
     @Test("rename の追随は状態の反映なので能力で止めない")

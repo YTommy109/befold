@@ -10,15 +10,31 @@ import { currentBar, setOnBarChange } from './bar.js';
 import { _mmdOpenFind } from './find.js';
 import { _mmdJump, _mmdOpenJump, jumpAvailableKinds, setOnAvailabilityChange } from './jump.js';
 
-type BarMode = 'search' | 'heading' | 'changeBlock';
+type BarMode = 'search' | 'heading' | 'changeBlock' | 'functionDefinition';
 
-var MODES: readonly BarMode[] = ['search', 'heading', 'changeBlock'];
+// 検索以外のモード名は Swift の DocumentJumpKind.rawValue と一対一。
+// **モードの列挙はこの配列だけが持つ。** 種類を足すときに触る場所を 1 つに
+// 保つためで、かつて currentMode() が `kind === 'heading' || kind === 'changeBlock'`
+// と独立に列挙しており、Swift 側が allCases で自動追随するのに対して
+// ここだけ取り残される形だった（TASK-485.4 の設計レビュー）。
+var MODES: readonly BarMode[] = ['search', 'heading', 'changeBlock', 'functionDefinition'];
 
 var MODE_BUTTON_IDS: Record<BarMode, string> = {
   search: 'mmd-bar-mode-search',
   heading: 'mmd-bar-mode-heading',
   changeBlock: 'mmd-bar-mode-changeBlock',
+  functionDefinition: 'mmd-bar-mode-functionDefinition',
 };
+
+// ジャンプの種類名（DocumentJumpKind.rawValue）をモードへ引き当てる。
+// 該当が無ければ null（バーが閉じている、または未知の種類）。
+function jumpMode(kind: string): BarMode | null {
+  return (
+    MODES.find(function (mode) {
+      return mode !== 'search' && mode === kind;
+    }) ?? null
+  );
+}
 
 // いま選ばれているモード。バーが閉じていれば null。
 function currentMode(): BarMode | null {
@@ -27,8 +43,7 @@ function currentMode(): BarMode | null {
     return 'search';
   }
   if (bar === 'jump') {
-    var kind = _mmdJump.activeMode();
-    return kind === 'heading' || kind === 'changeBlock' ? kind : null;
+    return jumpMode(_mmdJump.activeMode());
   }
   return null;
 }

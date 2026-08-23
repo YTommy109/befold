@@ -903,6 +903,24 @@
         }
       }
     },
+    "menu.edit.jumpToFunctionDefinition" : {
+      "comment" : "Edit メニュー。ソースコード表示中の関数・型の定義行を前後移動するバーを開く。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jump to Definition…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定義へジャンプ…"
+          }
+        }
+      }
+    },
     "menu.edit.jumpToHeading" : {
       "comment" : "Edit メニュー。文書内の見出し（h1 / h2 / h3）を前後移動するバーを開く。",
       "extractionState" : "manual",

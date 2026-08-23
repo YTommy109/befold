@@ -14129,6 +14129,7 @@
     CSV_COL_COUNT: () => CSV_COL_COUNT,
     DEFAULT_LINE_SCROLL_STEP: () => DEFAULT_LINE_SCROLL_STEP,
     DIAGRAM_ZOOM_MAX: () => DIAGRAM_ZOOM_MAX,
+    FUNCTION_JUMP_LANGUAGES: () => FUNCTION_JUMP_LANGUAGES,
     HEADING_LEVELS: () => HEADING_LEVELS,
     MACOS_DEFAULT_BODY: () => MACOS_DEFAULT_BODY,
     PAGE_SCROLL_RATIO: () => PAGE_SCROLL_RATIO,
@@ -14232,6 +14233,7 @@
     closeCurrentBar: () => closeCurrentBar,
     codeChunkInnerHtml: () => codeChunkInnerHtml,
     collectChangeBlocks: () => collectChangeBlocks,
+    collectFunctionDefinitions: () => collectFunctionDefinitions,
     collectHeadings: () => collectHeadings,
     csvRowsHtml: () => csvRowsHtml,
     csvSourceInnerHtml: () => csvSourceInnerHtml,
@@ -14240,6 +14242,7 @@
     diffMarkerGlyph: () => diffMarkerGlyph,
     escapeHtml: () => escapeHtml,
     formatNavigationCount: () => formatNavigationCount,
+    functionDefinitionJumpProvider: () => functionDefinitionJumpProvider,
     halfPageScrollStep: () => halfPageScrollStep,
     headingJumpProvider: () => headingJumpProvider,
     headingLevelTokens: () => headingLevelTokens,
@@ -15067,20 +15070,25 @@
   }
 
   // viewer-src/bar-mode.ts
-  var MODES = ["search", "heading", "changeBlock"];
+  var MODES = ["search", "heading", "changeBlock", "functionDefinition"];
   var MODE_BUTTON_IDS = {
     search: "mmd-bar-mode-search",
     heading: "mmd-bar-mode-heading",
-    changeBlock: "mmd-bar-mode-changeBlock"
+    changeBlock: "mmd-bar-mode-changeBlock",
+    functionDefinition: "mmd-bar-mode-functionDefinition"
   };
+  function jumpMode(kind) {
+    return MODES.find(function(mode) {
+      return mode !== "search" && mode === kind;
+    }) ?? null;
+  }
   function currentMode() {
     var bar = currentBar();
     if (bar === "find") {
       return "search";
     }
     if (bar === "jump") {
-      var kind = _mmdJump.activeMode();
-      return kind === "heading" || kind === "changeBlock" ? kind : null;
+      return jumpMode(_mmdJump.activeMode());
     }
     return null;
   }
@@ -16373,6 +16381,65 @@
     // 差分表示中は appendChunk が追記をスキップし、差分の表は setDiff で渡った
     // 全文から組まれる。本文が段階読み込み中でも変更ブロックは全数そろっている。
     ignoresTruncation: true
+  };
+  var FUNCTION_JUMP_LANGUAGES = ["swift", "python", "javascript", "typescript"];
+  var JS_DEFINITION = /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\b|class\s+[A-Za-z_$]|interface\s+[A-Za-z_$]|enum\s+[A-Za-z_$]|namespace\s+[A-Za-z_$]|type\s+[A-Za-z_$][\w$]*\s*[=<]|(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=]*)?=>|[A-Za-z_$][\w$]*\s*=>))/u;
+  var DEFINITION_PATTERNS = {
+    // `class func` のように修飾子として現れる語も定義キーワードなので、
+    // 修飾子の繰り返しは省略可能にしてある（`class Foo` は修飾子 0 個で一致する）。
+    swift: /^\s*(?:(?:public|private|fileprivate|internal|open|package|static|class|final|override|mutating|nonmutating|convenience|required|dynamic|lazy|weak|unowned|indirect|nonisolated|isolated)\s+)*(?:func|class|struct|enum|protocol|extension|actor|init|deinit|subscript)\b/u,
+    // デコレータは別の行にあるので def / class そのものに錨を下ろす。
+    python: /^\s*(?:async\s+)?(?:def|class)\s+/u,
+    javascript: JS_DEFINITION,
+    typescript: JS_DEFINITION
+  };
+  function definitionPattern() {
+    if (_mmdDocument.shape() !== "code") {
+      return null;
+    }
+    var lang = _mmdDocument.lang();
+    if (lang === void 0 || !FUNCTION_JUMP_LANGUAGES.includes(lang)) {
+      return null;
+    }
+    return DEFINITION_PATTERNS[lang] ?? null;
+  }
+  function codeTextOf(cell) {
+    var text3 = "";
+    cell.childNodes.forEach(function(node) {
+      if (node instanceof HTMLElement && node.matches(".hljs-comment, .hljs-string")) {
+        return;
+      }
+      text3 += node.textContent ?? "";
+    });
+    return text3;
+  }
+  function collectFunctionDefinitions(root) {
+    var pattern = definitionPattern();
+    if (!pattern) {
+      return [];
+    }
+    var targets = [];
+    root.querySelectorAll("tr").forEach(function(row) {
+      if (!pattern.test(sourceLineText(row))) {
+        return;
+      }
+      var cell = row.querySelector(".line-content");
+      if (!cell) {
+        return;
+      }
+      if (cell.querySelector(".hljs-comment, .hljs-string") && !pattern.test(codeTextOf(cell))) {
+        return;
+      }
+      targets.push({ anchor: cell, highlight: [cell] });
+    });
+    return targets;
+  }
+  var functionDefinitionJumpProvider = {
+    id: "functionDefinition",
+    collect: collectFunctionDefinitions
+    // ignoresTruncation は付けない。差分表示と違いソース表示は appendChunk で
+    // 実際に追記が起きるため、未読み込み範囲の定義は DOM に存在しない。
+    // 「表示範囲内」ラベルはその事実をユーザーへ伝えるもので、消してはいけない。
   };
   function selectedHeadingLevels() {
     return selectedLevels.slice();
@@ -24397,6 +24464,7 @@
     _mmdInitFind();
     _mmdJump.register(headingJumpProvider);
     _mmdJump.register(changeBlockJumpProvider);
+    _mmdJump.register(functionDefinitionJumpProvider);
     _mmdInitJump();
     _mmdInitHeadingLevels();
     _mmdInitBarModeSwitch();
