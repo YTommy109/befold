@@ -598,6 +598,16 @@ footer a:hover {
   border-radius: 8px;
 }
 
+/* スマートフォンの縦長スクリーンショット。横長と同じ幅いっぱいだと、記事の
+   横幅（760px）に対して縦が 1600px を超えて 1 画面を占領する。幅を絞って中央に置く。 */
+.article-shots.portrait {
+  justify-items: center;
+}
+
+.article-shots.portrait img {
+  max-width: 300px;
+}
+
 /* 書きかけである旨の断り。読み進める前に目に入る位置へ置く。 */
 .draft-notice {
   max-width: 760px;

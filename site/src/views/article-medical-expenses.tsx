@@ -50,6 +50,23 @@ const Shot: FC<{ lang: ArticleLang; shot: (typeof SHOTS)[keyof typeof SHOTS] }> 
   </figure>
 )
 
+/**
+ * iPhone の「ファイル」アプリのスクリーンショット。**言語ごとに別の画像**。
+ *
+ * 他のスクリーンショットは befold の画面で、UI の言語が写り込まないか、写っても
+ * 意味が伝わる。こちらはメニュー項目そのものが本題（「書類をスキャン」を押す）
+ * なので、日本語の記事に英語 UI を出すと手順として読めない。
+ *
+ * 縦長なので `portrait` を付けて幅を絞る（横長と同じ扱いだと画面いっぱいになる）。
+ */
+const SCAN_SHOT = {
+  src: { ja: '/images/usecase-medical-scan-ja.png', en: '/images/usecase-medical-scan-en.png' },
+  alt: {
+    ja: 'iPhone の「ファイル」アプリでフォルダを開き、右上のメニューを出したところ。「書類をスキャン」が並んでいる',
+    en: 'A folder open in the iPhone Files app with the top-right menu showing, including “Scan Documents”',
+  },
+} as const
+
 export const MedicalExpensesBody: FC<{ lang: ArticleLang }> = ({ lang }) => (
   <>
     <p>
@@ -81,6 +98,15 @@ export const MedicalExpensesBody: FC<{ lang: ArticleLang }> = ({ lang }) => (
         en="When you get a receipt from a clinic or pharmacy, open the “医療費 Inbox” folder in the iPhone Files app and choose “Scan Documents” from the … menu. Take the photo and save. Don’t worry about the filename or the date, and don’t sort anything afterwards."
       />
     </blockquote>
+    <figure class="article-shots portrait">
+      <img
+        src={SCAN_SHOT.src[lang]}
+        alt={SCAN_SHOT.alt[lang]}
+        loading="lazy"
+        width="571"
+        height="1242"
+      />
+    </figure>
     <p>
       <T
         lang={lang}
