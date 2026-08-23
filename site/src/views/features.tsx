@@ -1,7 +1,7 @@
 import type { FC } from 'hono/jsx'
 
 import { FILE_TYPE_GROUPS, SIZE_LIMITS_MB, type RenderMode } from '../lib/file-types'
-import { pathFor, type PageLang, type SitePage } from '../lib/pages'
+import { type PageLang, type SitePage } from '../lib/pages'
 import { T, t, type Localized } from './i18n'
 import { DOWNLOAD_PATH, FEATURES, MORE_FEATURES, REQUIRED_OS } from './shared'
 import { PageShell } from './shell'
@@ -180,12 +180,6 @@ export const Features: FC<{ origin: string; entry: SitePage }> = ({ origin, entr
       jsonLd={faqStructuredData(lang)}
     >
       <main>
-        <nav class="breadcrumb">
-          <a href={pathFor('/', lang)}>
-            <T lang={lang} ja="← トップページへ戻る" en="← Back to the home page" />
-          </a>
-        </nav>
-
         <section class="page-intro">
           {lang === 'ja' ? (
             <>

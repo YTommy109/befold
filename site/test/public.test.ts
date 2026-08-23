@@ -690,6 +690,49 @@ describe('ブラウザ言語設定の記録', () => {
   })
 })
 
+/**
+ * ヘッダーの共通ナビ（TASK-542）。全ページ・両言語で同じ動線が出ることを、
+ * 実際のレスポンス HTML で確かめる。
+ */
+describe('ヘッダーのナビゲーションバー', () => {
+  const NAV_PAGES = ['/', '/features', '/releases', '/usecases'] as const
+
+  for (const lang of ['ja', 'en'] as const) {
+    const pages = SITE_PAGES.filter((entry) => entry.lang === lang)
+
+    for (const entry of pages) {
+      it(`${entry.path} のヘッダーに ${lang} の全ナビ項目が出る`, async () => {
+        const body = await (await call(entry.path)).text()
+        const nav = body.slice(body.indexOf('<nav class="site-nav"'))
+
+        for (const page of NAV_PAGES) {
+          expect(nav).toContain(`href="${pathFor(page, lang)}"`)
+        }
+      })
+    }
+  }
+
+  it('固定ページでは現在地が aria-current で分かる', async () => {
+    const body = await (await call('/features')).text()
+
+    expect(body).toContain(`<a class="site-nav-link" href="/features" aria-current="page">`)
+  })
+
+  it('英語ページのナビは /en 配下を指す', async () => {
+    const body = await (await call('/en')).text()
+    const nav = body.slice(body.indexOf('<nav class="site-nav"'), body.indexOf('</nav>'))
+
+    expect(nav).toContain('href="/en/usecases"')
+    expect(nav).not.toContain('href="/usecases"')
+  })
+
+  it('トップページから記事一覧へ 1 クリックで到達できる', async () => {
+    const body = await (await call('/')).text()
+
+    expect(body).toContain('href="/usecases"')
+  })
+})
+
 describe('LP から詳細ページへの導線', () => {
   it('LP に /features への内部リンクがある', async () => {
     const body = await (await call('/')).text()

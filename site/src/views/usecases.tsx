@@ -3,7 +3,7 @@
 import type { FC } from 'hono/jsx'
 
 import { articlePath, articlesNewestFirst, type Article } from '../lib/articles'
-import { pathFor, type PageLang, type SitePage } from '../lib/pages'
+import { type PageLang, type SitePage } from '../lib/pages'
 import { T, t, type Localized } from './i18n'
 import { PageShell } from './shell'
 
@@ -43,12 +43,6 @@ export const Usecases: FC<{ origin: string; entry: SitePage }> = ({ origin, entr
       })}
     >
       <main>
-        <nav class="breadcrumb">
-          <a href={pathFor('/', lang)}>
-            <T lang={lang} ja="← トップページへ戻る" en="← Back to the home page" />
-          </a>
-        </nav>
-
         <section class="page-intro">
           {lang === 'ja' ? (
             <>

@@ -4,7 +4,7 @@ import type { FC } from 'hono/jsx'
 
 import { RELEASES_INDEX_URL, type StableRelease } from '../lib/github'
 import { jstDayKey } from '../lib/jst'
-import { pathFor, type PageLang, type SitePage } from '../lib/pages'
+import { type PageLang, type SitePage } from '../lib/pages'
 import { T, t, type Localized } from './i18n'
 import { REQUIRED_OS } from './shared'
 import { PageShell } from './shell'
@@ -64,12 +64,6 @@ export const Releases: FC<{ origin: string; entry: SitePage; releases: ReleaseLi
       })}
     >
       <main>
-        <nav class="breadcrumb">
-          <a href={pathFor('/', lang)}>
-            <T lang={lang} ja="← トップページへ戻る" en="← Back to the home page" />
-          </a>
-        </nav>
-
         <section class="page-intro">
           {lang === 'ja' ? (
             <>
