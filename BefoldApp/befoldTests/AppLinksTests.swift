@@ -37,6 +37,11 @@ struct AppLinksTests {
         #expect(AppLinks.issues.path == "/YTommy109/befold/issues")
     }
 
+    @Test("company は開発元のコーポレートサイトを指す")
+    func companyPointsToCorporateSite() {
+        #expect(AppLinks.company.host == "www.degino.com")
+    }
+
     /// GitHub 側の遷移では ref の内訳を読めないため、印を付けない(TASK-479)。
     @Test("issues は ref パラメータを持たない")
     func issuesCarriesNoReferrerMarker() {

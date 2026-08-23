@@ -37,8 +37,11 @@ public enum AppLinks {
     /// 読めない。読めない印を付けると「付いているから数えられている」と誤解される。
     public static let issues = URL(string: "https://github.com/YTommy109/befold/issues")!
 
-    /// 作者(tommy109)の GitHub プロフィール。About パネルのクレジット表記から遷移する。
-    public static let author = URL(string: "https://github.com/YTommy109")!
+    /// 開発元(Degino Inc.)のコーポレートサイト。About パネルのクレジット表記から遷移する。
+    ///
+    /// `siteOrigin`(befold の配布サイト)とは別のホストなので、そちらから組まない。
+    /// ホスト名リテラルをアプリ側へ散らさない規約に従い、ここに置く。
+    public static let company = URL(string: "https://www.degino.com")!
 }
 
 /// QuickLook 拡張のプレビュー右下に重ねるバッジの表示文字列。
