@@ -4,9 +4,9 @@ Scan the receipt with your phone and drop it in a folder — that is the whole j
 
 ### What the family has to do fits in three lines
 
-First, create a “医療費” folder with an “Inbox” inside it on iCloud Drive and **share the Inbox with your family**. Skip that and the drop-off folder never appears on their devices. That is the whole setup; from there you ask the family for this.
+First, create a “医療費” folder with an “Inbox” inside it on iCloud Drive and **share the Inbox with your family**. That is the whole setup; from there you ask the family for this.
 
-> When you get a receipt from a clinic or pharmacy, open the “医療費 Inbox” folder in the iPhone Files app and choose “Scan Documents” from the … menu. Take the photo and save. Don’t worry about the filename or the date, and don’t sort anything afterwards.
+> When you get a receipt from a clinic or pharmacy, open the “Inbox” folder in the iPhone Files app and choose “Scan Documents” from the … menu. Take the photo and save. The filename can be anything.
 
 <figure class="article-shots portrait"><img src="/images/usecase-medical-scan-en.png" alt="A folder open in the iPhone Files app with the top-right menu showing, including “Scan Documents”" loading="lazy" width="571" height="1242"/></figure>
 
