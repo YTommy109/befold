@@ -1,10 +1,10 @@
 ---
 id: TASK-538
 title: 医療費控除のユースケース記事を紹介サイトに公開する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 13:04'
-updated_date: '2026-08-22 13:19'
+updated_date: '2026-08-23 12:33'
 labels: []
 milestone: m-10
 dependencies: []
@@ -45,9 +45,9 @@ ordinal: 782000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 記事が公開され、紹介サイトから到達できる
-- [ ] #2 掲載物に実在の氏名・医療機関名・住所・電話番号・メールアドレスが含まれない
-- [ ] #3 読者が手元で再現できる形（テンプレートとして持ち帰れる）になっている
+- [x] #1 記事が公開され、紹介サイトから到達できる
+- [x] #2 掲載物に実在の氏名・医療機関名・住所・電話番号・メールアドレスが含まれない
+- [x] #3 読者が手元で再現できる形（テンプレートとして持ち帰れる）になっている
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -66,4 +66,14 @@ ordinal: 782000
 5. **TASK-538.4** 記事本文を書いて公開する
 
 TASK-538.1 だけは site/temp と無関係なので、いつ着手してもよい。
+
+## 親タスクの受入条件を本番で確認した（2026-08-23）
+
+`https://befold.degino.com` 上で実測し、AC #1〜#3 をチェック済みにした。
+
+- AC #1: `/usecases` と `/usecases/medical-expenses` が 200。記事一覧に `href="/usecases/medical-expenses"` のリンクが出る
+- AC #2: 掲載内容は TASK-538.3 の架空データ（北原家）由来。実在の氏名・医療機関名・住所・電話番号・メールアドレスは含まない（TASK-538.4 の Notes を参照）
+- AC #3: `/templates/medical-expenses/README.md` と `/templates/medical-expenses/CLAUDE.md` がどちらも 200 で配信され、テンプレートとして持ち帰れる
+
+**残っているのは TASK-538.4 の AC #6（公開後の analytics 計上確認）だけ。** 読み取り専用トークンの失効で止まっている（詳細と再開条件は TASK-538.4 の Notes）。
 <!-- SECTION:NOTES:END -->
