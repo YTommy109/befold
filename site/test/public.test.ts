@@ -695,7 +695,8 @@ describe('ブラウザ言語設定の記録', () => {
  * 実際のレスポンス HTML で確かめる。
  */
 describe('ヘッダーのナビゲーションバー', () => {
-  const NAV_PAGES = ['/', '/features', '/releases', '/usecases'] as const
+  // `/releases` は意図してナビに出さない（`FIXED_PAGES` の `nav: false`）。
+  const NAV_PAGES = ['/', '/features', '/usecases'] as const
 
   for (const lang of ['ja', 'en'] as const) {
     const pages = SITE_PAGES.filter((entry) => entry.lang === lang)
@@ -712,6 +713,13 @@ describe('ヘッダーのナビゲーションバー', () => {
     }
   }
 
+  it('過去のバージョンはナビに出さない', async () => {
+    const body = await (await call('/')).text()
+    const nav = body.slice(body.indexOf('<nav class="site-nav"'), body.indexOf('</nav>'))
+
+    expect(nav).not.toContain('href="/releases"')
+  })
+
   it('固定ページでは現在地が aria-current で分かる', async () => {
     const body = await (await call('/features')).text()
 
@@ -726,7 +734,7 @@ describe('ヘッダーのナビゲーションバー', () => {
     expect(nav).not.toContain('href="/usecases"')
   })
 
-  it('トップページから記事一覧へ 1 クリックで到達できる', async () => {
+  it('トップページから事例一覧へ 1 クリックで到達できる', async () => {
     const body = await (await call('/')).text()
 
     expect(body).toContain('href="/usecases"')
@@ -738,6 +746,15 @@ describe('LP から詳細ページへの導線', () => {
     const body = await (await call('/')).text()
 
     expect(body).toContain('href="/features"')
+  })
+
+  // ナビから外した分、過去バージョンへの動線は LP のインストール章だけが持つ。
+  it('LP のインストール章から過去バージョンへ辿れる', async () => {
+    const body = await (await call('/')).text()
+    const install = body.slice(body.indexOf('<section class="install">'))
+
+    expect(install).toContain('href="/releases"')
+    expect(install).toContain('過去バージョンが必要な方はこちら')
   })
 })
 

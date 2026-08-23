@@ -266,7 +266,7 @@ const NAV_LABEL: Record<FixedPage, Localized> = {
   '/': { ja: 'ホーム', en: 'Home' },
   '/features': { ja: '機能', en: 'Features' },
   '/releases': { ja: 'リリース', en: 'Releases' },
-  '/usecases': { ja: '記事', en: 'Articles' },
+  '/usecases': { ja: '事例', en: 'Use cases' },
 }
 
 /** 言語切替ボタンの表記。日本語は国旗、英語は EN。 */

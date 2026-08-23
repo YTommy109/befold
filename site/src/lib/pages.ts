@@ -40,15 +40,24 @@ export type SitePage = {
  * 回す——記事は本文が 1 本ずつ違うため、`PAGE_VIEWS` の対応表に収まらない。
  */
 export const FIXED_PAGES = [
-  { path: '/', lang: 'ja', page: '/' },
-  { path: '/en', lang: 'en', page: '/' },
-  { path: '/features', lang: 'ja', page: '/features' },
-  { path: '/en/features', lang: 'en', page: '/features' },
-  { path: '/releases', lang: 'ja', page: '/releases' },
-  { path: '/en/releases', lang: 'en', page: '/releases' },
-  { path: '/usecases', lang: 'ja', page: '/usecases' },
-  { path: '/en/usecases', lang: 'en', page: '/usecases' },
-] as const satisfies readonly SitePage[]
+  { path: '/', lang: 'ja', page: '/', nav: true },
+  { path: '/en', lang: 'en', page: '/', nav: true },
+  { path: '/features', lang: 'ja', page: '/features', nav: true },
+  { path: '/en/features', lang: 'en', page: '/features', nav: true },
+  // ナビには出さない。過去バージョンは「最新版で困った人の逃げ道」であって
+  // 常設の入口にすると勧めている形になるため、LP のインストール章から補足として
+  // 辿らせる（`landing.tsx`）。ページ自体は残るので sitemap・hreflang には出る。
+  { path: '/releases', lang: 'ja', page: '/releases', nav: false },
+  { path: '/en/releases', lang: 'en', page: '/releases', nav: false },
+  { path: '/usecases', lang: 'ja', page: '/usecases', nav: true },
+  { path: '/en/usecases', lang: 'en', page: '/usecases', nav: true },
+] as const satisfies readonly FixedPageEntry[]
+
+/**
+ * 固定ページの定義。`nav` は**ヘッダーのナビに出すか**の印で、必須にしてあるのは
+ * ページを足したときに「出す／出さない」の判断を型で強制するため。
+ */
+type FixedPageEntry = SitePage & { nav: boolean }
 
 /**
  * 固定ページの論理ページ値。`as const` を保つのは、`PAGE_VIEWS` を
@@ -83,14 +92,14 @@ export const SITE_PAGES: readonly SitePage[] = [
 /**
  * ヘッダーのナビゲーションに並べる、指定言語のページ。
  *
- * `FIXED_PAGES` をそのまま順に使う。記事は `SITE_PAGES` 側にしか無いので
- * 構造的に外れ（一覧ページ `/usecases` が入口になる）、`/download` はそもそも
- * この表に載せてはならないものなので、ナビ用の除外リストを別に持たなくてよい。
- * 新しい固定ページを足したら自動でナビに出る——出したくないページができた
- * 時点で、除外条件ではなく「ナビに出す」印を `FIXED_PAGES` 側へ足すこと。
+ * `FIXED_PAGES` のうち `nav: true` のものを定義順に使う。記事は `SITE_PAGES`
+ * 側にしか無いので構造的に外れ（一覧ページ `/usecases` が入口になる）、
+ * `/download` はそもそもこの表に載せてはならないものなので、ナビ用の除外リストを
+ * 別に持たなくてよい。ナビに出さない固定ページは `nav: false` で示す——印は必須
+ * フィールドなので、ページを足して判断を忘れると型で落ちる。
  */
 export function navPagesFor(lang: PageLang): readonly (typeof FIXED_PAGES)[number][] {
-  return FIXED_PAGES.filter((entry) => entry.lang === lang)
+  return FIXED_PAGES.filter((entry) => entry.lang === lang && entry.nav)
 }
 
 /** `og:locale` に使うロケール。hreflang の言語コードとは書式が違う。 */

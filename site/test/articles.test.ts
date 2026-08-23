@@ -103,11 +103,11 @@ describe('記事の登録', () => {
 describe('/usecases', () => {
   it('日本語版と英語版がそれぞれの言語で本文を返す', async () => {
     const ja = await (await call('/usecases')).text()
-    expect(ja).toContain('使い方の記事')
+    expect(ja).toContain('使い方の事例')
     expect(ja).toContain('<html lang="ja">')
 
     const en = await (await call('/en/usecases')).text()
-    expect(en).toContain('Articles')
+    expect(en).toContain('Use cases')
     expect(en).toContain('<html lang="en">')
   })
 
@@ -116,7 +116,7 @@ describe('/usecases', () => {
     const html = await (await call('/usecases')).text()
     // 条件分岐で expect を囲まない。記事が増えても意味が変わらないよう、
     // 「0 件のときだけ出る」という関係そのものを 1 つの式で固定する。
-    expect(html.includes('記事はまだありません')).toBe(publishedArticles().length === 0)
+    expect(html.includes('事例はまだありません')).toBe(publishedArticles().length === 0)
   })
 
   it('計測を Worker で受けられるよう Cache-Control: no-store を付ける', async () => {

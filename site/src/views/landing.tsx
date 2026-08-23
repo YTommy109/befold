@@ -283,15 +283,6 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
               </li>
             ))}
           </ul>
-          <p class="section-more">
-            <a href={pathFor('/features', lang)}>
-              <T
-                lang={lang}
-                ja="全機能・対応ファイルタイプの一覧を見る →"
-                en="See all features and supported file types →"
-              />
-            </a>
-          </p>
         </section>
 
         <section class="requirements">
@@ -325,11 +316,16 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
               </li>
             </ol>
           )}
-          {/* 最新版で不具合に当たった人の逃げ道。インストール手順の直後に置くのは、
-              「入れたが動かない」と気づく場所がここだから。 */}
-          <p class="section-more">
+          {/* 過去バージョンへの唯一の動線。ヘッダーのナビには出さない（`FIXED_PAGES`
+              の `nav: false`）——勧めたいのは最新版で、ここは最新版で困った人の
+              逃げ道として補足の大きさで置く。 */}
+          <p class="install-note">
             <a href={pathFor('/releases', lang)}>
-              <T lang={lang} ja="過去のバージョンを見る →" en="Browse previous versions →" />
+              <T
+                lang={lang}
+                ja="※ 過去バージョンが必要な方はこちら"
+                en="* Need an older version?"
+              />
             </a>
           </p>
         </section>

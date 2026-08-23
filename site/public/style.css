@@ -403,6 +403,23 @@ main a {
   line-height: 1.9;
 }
 
+/* 過去バージョンへの補足リンク。本文より小さく・控えめな色にして、
+   インストール手順の一部に見えないようにする。 */
+.install-note {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.install-note a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.install-note a:hover {
+  color: var(--color-accent);
+}
+
 .note {
   background: var(--color-surface);
   border-left: 4px solid var(--color-accent);
@@ -542,21 +559,6 @@ footer a:hover {
 .page-intro p {
   color: var(--color-text-secondary);
   line-height: 1.8;
-}
-
-.section-more {
-  margin-top: 1.5rem;
-  text-align: center;
-}
-
-.section-more a {
-  color: var(--color-accent);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.section-more a:hover {
-  text-decoration: underline;
 }
 
 .feature-defs {
