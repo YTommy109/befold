@@ -32,6 +32,17 @@ ACCESS_AUD = "f6b3a6dbf5f23fb3a9f9ea131d86bbfcadb9585c95c01ec069de8a4e875f38f7"
 pattern = "befold.degino.com"
 custom_domain = true
 
+# 記事本文（`site/content/*.md`）を text モジュールとして import するための規則。
+# 本文は `src/views/article-bodies.ts` がモジュール読み込み時に 1 回だけ HTML へ
+# 変換する（リクエスト経路にパースを置かない）。
+#
+# glob を `content/` に絞ってあるのは意図。`**/*.md` に広げると README.md や
+# `public/templates/*.md` まで対象になり、「どの .md が Worker に入るのか」が
+# import を全部追わないと分からなくなる。
+[[rules]]
+type = "Text"
+globs = ["**/content/*.md"]
+
 # LP の CSS / JS / スクリーンショットは静的アセットとして配信する。
 # 必ず Worker を先に通し（計測ルートを取りこぼさないため）、Worker が
 # ルートを持たないパスだけを ASSETS バインディングへ委譲する。

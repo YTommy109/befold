@@ -1,0 +1,16 @@
+// 記事本文（TASK-546）用。リポジトリルートの .markdownlint-cli2.jsonc に重ねる。
+{
+  "config": {
+    // MD033/no-inline-html: 記事本文では生の HTML を意図して使う。素の Markdown
+    // では書けない部品——スクリーンショットの figure（`article-shots` /
+    // `.portrait` のクラスが style.css の対象）と、注記の `listing-note`——が
+    // あるため。本文は自分たちが書くもので外部入力ではないので、
+    // `views/article-bodies.ts` は markdown-it を `html: true` で通している。
+    //
+    // 無効化ではなく allowed_elements で列挙する。ここに無い要素を使いたく
+    // なったら、まず「クラスを付けずに素の Markdown で書けないか」を考える。
+    "MD033": {
+      "allowed_elements": ["figure", "img", "p", "ul", "li", "a"]
+    }
+  }
+}

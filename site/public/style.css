@@ -563,6 +563,20 @@ footer a:hover {
   margin: 2rem 0 0.75rem;
 }
 
+/* h3 の下の小見出し。h3（1.25rem）との差で階層が伝わるだけの大きさにする。 */
+.article-body h4 {
+  font-size: 1.0625rem;
+  margin: 1.75rem 0 0.5rem;
+}
+
+/* 記事内の引用。実際に人へ渡している文面をそのまま載せる箇所で使う。 */
+.article-body blockquote {
+  margin: 1.25rem 0;
+  padding: 0.25rem 0 0.25rem 1rem;
+  border-left: 3px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
 .article-body .article-date {
   color: var(--color-text-secondary);
   font-size: 0.9375rem;
@@ -582,6 +596,16 @@ footer a:hover {
   height: auto;
   border: 1px solid var(--color-border);
   border-radius: 8px;
+}
+
+/* スマートフォンの縦長スクリーンショット。横長と同じ幅いっぱいだと、記事の
+   横幅（760px）に対して縦が 1600px を超えて 1 画面を占領する。幅を絞って中央に置く。 */
+.article-shots.portrait {
+  justify-items: center;
+}
+
+.article-shots.portrait img {
+  max-width: 300px;
 }
 
 /* 書きかけである旨の断り。読み進める前に目に入る位置へ置く。 */
