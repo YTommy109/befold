@@ -1,10 +1,11 @@
 ---
 id: TASK-538.4
 title: 記事本文を書いて公開する
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-08-22 13:06'
-updated_date: '2026-08-22 14:51'
+updated_date: '2026-08-23 07:33'
 labels: []
 milestone: m-10
 dependencies:

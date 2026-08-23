@@ -69,7 +69,6 @@ export const ARTICLES: readonly Article[] = [
       en: 'How a family tracks a year of medical expenses with Claude and befold, without writing any code.',
     },
     publishedAt: '2026-08-23',
-    draft: true,
   },
   {
     page: '/usecases/ai-code-review',
