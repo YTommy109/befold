@@ -29,8 +29,6 @@
 
 #### 1. 表計算ソフトで開かずに TSV を読む
 
-集計表はタブ区切りのテキストで、befold で開くと表として並びます。表計算ソフトで開いて保存し直すと、先頭ゼロが落ちたり日付の形式が変わったりします。次に読むのは LLM なので、黙って壊れます。見るのはビューア、直すのは依頼。
-
 <figure class="article-shots"><img src="/images/usecase-medical-tsv.png" alt="集計表の TSV が befold で表として表示されている。date・person・provider・amount・receipt の列が並ぶ" loading="lazy" width="1512" height="949"/></figure>
 
 #### 2. 集計表から領収書をすぐ確かめる

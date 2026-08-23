@@ -29,8 +29,6 @@ Every file in the 医療費 folder can be checked in befold. The TSV ledger, the
 
 #### 1. Read the TSV without a spreadsheet
 
-The ledger is tab-separated text, and befold lays it out as a table. Open it in a spreadsheet and save it back and a leading zero can vanish or a date format can change. The next reader is an LLM, so it breaks silently. Read it in a viewer, ask for edits.
-
 <figure class="article-shots"><img src="/images/usecase-medical-tsv.png" alt="The TSV ledger rendered as a table in befold, with date, person, provider, amount and receipt columns" loading="lazy" width="1512" height="949"/></figure>
 
 #### 2. Jump from a row to its receipt
