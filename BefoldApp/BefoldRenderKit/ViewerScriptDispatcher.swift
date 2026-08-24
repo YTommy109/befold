@@ -1,4 +1,5 @@
 import BefoldKit
+import os
 import WebKit
 
 /// 描画のために viewer.js へスクリプトを発行する経路。
@@ -11,6 +12,30 @@ final class ViewerScriptDispatcher {
 
     init(renderer: ViewerRenderer) {
         self.renderer = renderer
+    }
+
+    /// JS 評価の失敗を残す口（TASK-548）。
+    ///
+    /// これまで描画スクリプトは `completionHandler: nil` で投げっぱなしにしており、
+    /// JS 側で例外が出ても Swift 側は成功と区別できなかった（本文が空白のまま返らない
+    /// 不具合が「開くのが遅い」としか見えなかったのはこのため）。ここを通せば
+    /// `log stream --predicate 'subsystem == "com.degino.befold"'` で拾える。
+    ///
+    /// なお JS が**返らない**（無限ループ・破滅的バックトラック）場合は completionHandler
+    /// 自体が呼ばれないので、ここでは検出できない。その形は
+    /// scripts/webview-smoke.swift の所要時間アサートが受け持つ。
+    private static let log = Logger(subsystem: "com.degino.befold", category: "viewer-script")
+
+    /// evaluateJavaScript の共通口。失敗したスクリプトの用途（label）とエラーを残す。
+    /// この型からの評価は必ずここを通すこと（nil の completionHandler を直接渡さない）。
+    private func evaluate(_ script: String, on webView: WKWebView, label: String) {
+        webView.evaluateJavaScript(script) { _, error in
+            guard let error else { return }
+            Self.log
+                .error(
+                    "viewer script failed (\(label, privacy: .public)): \(error.localizedDescription, privacy: .public)"
+                )
+        }
     }
 
     /// content の埋め込み加工(markdown ローカル画像の data URI 差し替え)を MainActor 外へ逃がす。
@@ -47,11 +72,11 @@ final class ViewerScriptDispatcher {
         // 送信と recordRendered は同じ同期区間に閉じ込める(applyRender と同じ理由)。
         // ガードより前で送ると、追い越された呼び出しが「JS へは送ったのにミラーは旧値の
         // まま」を残し、次の truncation が旧値と一致したとき再送が飛ぶ(TASK-336・417)。
-        webView.evaluateJavaScript(request.truncation.script, completionHandler: nil)
+        evaluate(request.truncation.script, on: webView, label: "truncation(append)")
         if !renderable.isEmpty,
            let script = ViewerBridge.appendChunkScript(chunk: renderable, fileType: request.fileType)
         {
-            webView.evaluateJavaScript(script, completionHandler: nil)
+            evaluate(script, on: webView, label: "appendChunk")
         }
         var state = renderer.rendered
         state.contentRevision = request.contentRevision
@@ -94,14 +119,16 @@ final class ViewerScriptDispatcher {
         // スクロール通知の保存キー(payload の path)として位置と同じターンで読んで返す。
         // 切替以外の再描画でも毎回送る(viewer.html 再ロードで JS 状態が飛んでも
         // 次の render で自己修復させるため)。
-        webView.evaluateJavaScript(ViewerBridge.renderDocPathScript(request.filePath), completionHandler: nil)
+        evaluate(
+            ViewerBridge.renderDocPathScript(request.filePath), on: webView, label: "renderDocPath"
+        )
         if restoreFromPersistedPosition {
-            webView.evaluateJavaScript(
+            evaluate(
                 ViewerBridge.restoreScrollPositionScript(renderer.scrollPositionToRestore),
-                completionHandler: nil
+                on: webView, label: "restoreScrollPosition"
             )
         }
-        webView.evaluateJavaScript(script, completionHandler: nil)
+        evaluate(script, on: webView, label: "render")
         renderer.recordRendered(
             RenderedStateMirror(
                 contentRevision: request.contentRevision, fileType: request.fileType,
@@ -118,23 +145,25 @@ final class ViewerScriptDispatcher {
     ) {
         let rendered = renderer.rendered
         if request.showLineNumbers != rendered.showLineNumbers {
-            webView.evaluateJavaScript(
-                ViewerBridge.lineNumbersScript(request.showLineNumbers), completionHandler: nil
+            evaluate(
+                ViewerBridge.lineNumbersScript(request.showLineNumbers), on: webView,
+                label: "lineNumbers"
             )
         }
         if request.isSourceMode != rendered.isSourceMode {
-            webView.evaluateJavaScript(
-                ViewerBridge.viewModeScript(.init(isSourceMode: request.isSourceMode)), completionHandler: nil
+            evaluate(
+                ViewerBridge.viewModeScript(.init(isSourceMode: request.isSourceMode)),
+                on: webView, label: "viewMode"
             )
         }
         // 差分は本文とレイアウトを 1 つの値として比較し、変わったときだけ両方送る。
         // 直後の render で JS 側が読み出すため、ここでは送るだけ(再描画はしない)。
         if diffState != rendered.diffState {
-            webView.evaluateJavaScript(ViewerDiffBridge.textScript(diffState.text), completionHandler: nil)
-            webView.evaluateJavaScript(ViewerDiffBridge.layoutScript(diffState.layout), completionHandler: nil)
+            evaluate(ViewerDiffBridge.textScript(diffState.text), on: webView, label: "diffText")
+            evaluate(ViewerDiffBridge.layoutScript(diffState.layout), on: webView, label: "diffLayout")
         }
         if request.truncation != rendered.truncation {
-            webView.evaluateJavaScript(request.truncation.script, completionHandler: nil)
+            evaluate(request.truncation.script, on: webView, label: "truncation")
         }
     }
 }

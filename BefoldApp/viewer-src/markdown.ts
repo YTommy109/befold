@@ -54,11 +54,20 @@ function sanitizeRenderedHtml(purify: HtmlSanitizer, html: string): string {
 // ネイティブ側(RemoteLoadBlocker)の WKContentRuleList が二層目として同じ取得を
 // 遮断する。こちらは JS を通らない直接 HTML モードとサニタイザの漏れを塞ぐ。
 function replaceRemoteImages(html: string): string {
-  // 早期 return。リモート URL を含まない大多数の文書で DOM の往復コストを払わない
-  // (判定は当たりを付けるだけで、当たった場合の正確さは下の DOM 走査が担保する)。
-  if (!/<img[^>]+src\s*=\s*["']?\s*https?:/iu.test(html)) {
-    return html;
-  }
+  // 当たりを付けるための正規表現による早期 return は置かない(TASK-548)。
+  // かつては /<img[^>]+src\s*=\s*["']?\s*https?:/iu で DOM の往復を省いていたが、
+  // この形は「非 ASCII を 1 文字でも含む長い文書」で JSC が事実上停止する。
+  // 実測(WKWebView、<img> 1 つの中の文字数を変えて test を 1 回):
+  // 非 ASCII を 1 文字でも含むと 24,000 字 379ms / 48,000 字 1,512ms /
+  // 96,000 字 5,991ms / 192,000 字 23,666ms(文字数の二乗)。同じ 192,000 字でも
+  // 全 ASCII なら 1ms。site/content/medical-expenses.ja.md(画像 4 枚を data URI 化して
+  // 772KB)は 60 秒を超えても返らず、本文が空白のまま固まる。
+  // 引き金は u フラグで、外すと同じ入力が 1ms で終わる(JSC が 16bit 文字列 + u では
+  // Yarr JIT に載せられず、[^>]+ のバックトラックを解釈実行するため)。
+  //
+  // 省ける DOM の往復は、その 772KB の文書でも実測 8ms しかない。バックトラックの
+  // 効かない別の判定式へ置き換えるのではなく判定そのものを外し、常に DOM 走査に
+  // 委ねる(正規表現で HTML の当たりを付けない形にすれば、同型の停止は再発しない)。
   var doc = new DOMParser().parseFromString(html, 'text/html');
   var images = doc.querySelectorAll('img');
   for (var i = 0; i < images.length; i += 1) {

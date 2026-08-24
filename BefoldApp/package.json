@@ -26,6 +26,9 @@
       "json",
       "node"
     ],
+    "setupFiles": [
+      "<rootDir>/BefoldKit/Resources/__tests__/support/browserGlobals.js"
+    ],
     "moduleNameMapper": {
       "^(\\.{1,2}/.*)\\.js$": "$1"
     }

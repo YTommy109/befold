@@ -9,11 +9,8 @@
 const { JSDOM } = require('jsdom');
 const createDOMPurify = require('dompurify');
 
-// replaceRemoteImages は DOMParser と window を使う(ブラウザ実行が本番)。
-// このリポジトリのテストは node 環境なので、JSDOM のものをグローバルへ載せる。
-const dom = new JSDOM('');
-global.window = dom.window;
-global.DOMParser = dom.window.DOMParser;
+// replaceRemoteImages が使う DOMParser / window は support/browserGlobals.js が
+// setupFiles で全 suite に用意する(TASK-548)。ここでは載せ直さない。
 
 const { replaceRemoteImages, sanitizeRenderedHtml } = require('../../../viewer-src/main.js');
 
@@ -50,6 +47,29 @@ describe('replaceRemoteImages', () => {
   test('leaves relative and file: images untouched', () => {
     const html = '<img src="./local.png"><img src="file:///tmp/x.png">';
     expect(replaceRemoteImages(html)).toBe(html);
+  });
+
+  // TASK-548: 当たり付けの正規表現をやめて常に DOM 走査へ委ねた後も、
+  // 「長い data URI + 非 ASCII」の文書が素通しされること(JSC ではこの形が
+  // 停止の引き金だった。所要時間そのものは scripts/webview-smoke.swift が測る)。
+  test('leaves a long data: URI image with a non-ASCII alt untouched', () => {
+    const html =
+      '<figure class="article-shots"><img src="data:image/png;base64,' +
+      'A'.repeat(200000) +
+      '" alt="スキャンした領収書の PDF が befold でプレビューされている" ' +
+      'loading="lazy" width="1512" height="949"></figure>';
+    expect(replaceRemoteImages(html)).toBe(html);
+  });
+
+  test('still replaces a remote image that sits next to a long data: URI image', () => {
+    const html =
+      '<img src="data:image/png;base64,' +
+      'A'.repeat(200000) +
+      '" alt="図"><img src="https://example.com/x.png" alt="badge">';
+    const out = replaceRemoteImages(html);
+    expect(out).toContain('mmd-blocked-image');
+    expect(out).toContain('data:image/png;base64,');
+    expect(out).not.toContain('src="https://example.com/x.png"');
   });
 
   test('leaves markup without images untouched', () => {
