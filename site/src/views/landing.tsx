@@ -2,7 +2,14 @@ import type { FC } from 'hono/jsx'
 
 import { pathFor, type SitePage } from '../lib/pages'
 import { T, t, type Localized } from './i18n'
-import { DOWNLOAD_PATH, FEATURES, MORE_FEATURES, REPO_URL, REQUIRED_OS } from './shared'
+import {
+  DOWNLOAD_PATH,
+  downloadHref,
+  FEATURES,
+  MORE_FEATURES,
+  REPO_URL,
+  REQUIRED_OS,
+} from './shared'
 import { PageShell } from './shell'
 
 /** kind: 'feature' はファイル形式ではなく機能の紹介なので、キャプションにラベルを添える。 */
@@ -149,7 +156,7 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
               </p>
             </>
           )}
-          <a href={DOWNLOAD_PATH} class="btn-primary">
+          <a href={downloadHref('/')} class="btn-primary">
             <T lang={lang} ja="Mac 版をダウンロード" en="Download for Mac" />
           </a>
           {/* ダウンロード前に対象 OS が伝わるよう、ボタン直下にも動作要件を置く。 */}
@@ -299,7 +306,7 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
           {lang === 'ja' ? (
             <ol>
               <li>
-                <a href={DOWNLOAD_PATH}>最新版をダウンロード</a>
+                <a href={downloadHref('/')}>最新版をダウンロード</a>
               </li>
               <li>
                 DMG を開き、<code>befold.app</code> を <code>/Applications</code> にコピーして起動
@@ -308,7 +315,7 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
           ) : (
             <ol>
               <li>
-                <a href={DOWNLOAD_PATH}>Download the latest version</a>
+                <a href={downloadHref('/')}>Download the latest version</a>
               </li>
               <li>
                 Open the DMG and copy <code>befold.app</code> to <code>/Applications</code> to

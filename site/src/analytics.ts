@@ -376,6 +376,8 @@ export type UsersSummary = {
 export type TrafficSummary = {
   byCountry: Count[]
   byReferrer: Count[]
+  /** ダウンロード（LP）だけに絞った参照元。`?ref=` が運ぶ「ダウンロードが始まった面」。 */
+  byDownloadReferrer: Count[]
   traffic: TrafficSplit
   visits: VisitBreakdowns
   perKind: KindBreakdown[]
@@ -603,31 +605,14 @@ export async function hourlyDistribution(
 /** 内訳を取れるカラム。SQL へ差し込むため、外部入力を受けない固定の集合に限る。 */
 type BreakdownColumn = 'version' | 'country' | 'os' | 'referrer' | 'as_org'
 
-/**
- * 指標を WHERE 句へ落とす（指標を指定しなければ空）。
- *
- * `(? IS NULL OR kind = ?)` の形で無条件を表さないこと。この形は kind が定数に
- * ならず idx_events_kind が効かなくなるため、条件そのものを組み立てて外す。
- * 埋め込む値は `METRIC_FILTERS` の定数だけで、外部入力は入らない。
- */
-function metricCondition(metric: MetricKey | null): string {
-  if (metric === null) return ''
-
-  return ` AND ${metricExpression(METRIC_FILTERS[metric])}`
-}
-
 /** 指定カラムの内訳（上位 N 件、NULL は除外）。 */
-async function breakdown(
-  db: D1Database,
-  column: BreakdownColumn,
-  metric: MetricKey | null = null,
-): Promise<Count[]> {
+async function breakdown(db: D1Database, column: BreakdownColumn): Promise<Count[]> {
   const { results } = await db
     .prepare(
       `SELECT ${column} AS label, COUNT(*) AS count
        FROM events
        WHERE ${column} IS NOT NULL
-         AND ${HUMAN_ONLY}${metricCondition(metric)}
+         AND ${HUMAN_ONLY}
        GROUP BY label
        ORDER BY count DESC, label
        LIMIT ${TOP_N}`,
@@ -635,6 +620,61 @@ async function breakdown(
     .all<Count>()
 
   return results
+}
+
+/** `referrerBreakdowns` が 1 本のクエリで返す 2 つの母集団。 */
+type ReferrerScope = 'all' | 'download'
+
+/**
+ * 参照元の内訳を 2 つの母集団ぶん、**1 クエリ**で取る。
+ *
+ * - `all`: 全イベント。「どこから来訪したか」を見る従来の軸（挙動は変えない）
+ * - `download`: 新規獲得のダウンロード（`METRIC_FILTERS.download`）だけ。
+ *   `?ref=` が「ダウンロードが始まった面」を運ぶようになったため（TASK-549）、
+ *   全体とは別の問いに答える
+ *
+ * 2 本のクエリに分けないのは、流入面のクエリ本数が上限ちょうど（`MAX_QUERIES_PER_PAGE`）
+ * だから。`docs/dev/development.md` が「指標を足すときは既存クエリへ列を足すか
+ * UNION ALL で束ねる」と定めており、区分を行に持たせて `ROW_NUMBER` の窓で上位 N を
+ * 切る形は `trafficSplit` と同じ。
+ *
+ * `download` 側だけ `COALESCE(referrer, UNRECORDED_LABEL)` にする。ref を持たない
+ * ダウンロード（外部からの直リンク・ブックマーク）が `IS NOT NULL` で行ごと消えると、
+ * 「LP 経由しか無い」と読み違えるため——消さずに未記録として並べる。
+ */
+async function referrerBreakdowns(db: D1Database): Promise<Record<ReferrerScope, Count[]>> {
+  const downloadFilter = metricExpression(METRIC_FILTERS.download)
+  const { results } = await db
+    .prepare(
+      `WITH scoped AS (
+         SELECT '${'all' satisfies ReferrerScope}' AS scope, referrer AS label
+         FROM events
+         WHERE referrer IS NOT NULL AND ${HUMAN_ONLY}
+         UNION ALL
+         SELECT '${'download' satisfies ReferrerScope}' AS scope,
+                COALESCE(referrer, '${UNRECORDED_LABEL}') AS label
+         FROM events
+         WHERE ${HUMAN_ONLY} AND ${downloadFilter}
+       ),
+       counted AS (
+         SELECT scope, label, COUNT(*) AS count FROM scoped GROUP BY scope, label
+       ),
+       ranked AS (
+         SELECT scope, label, count,
+                ROW_NUMBER() OVER (PARTITION BY scope ORDER BY count DESC, label) AS rank
+         FROM counted
+       )
+       SELECT scope, label, count FROM ranked WHERE rank <= ${TOP_N}
+       ORDER BY scope, count DESC, label`,
+    )
+    .all<Count & { scope: ReferrerScope }>()
+
+  return {
+    all: results.filter((row) => row.scope === 'all').map(({ label, count }) => ({ label, count })),
+    download: results
+      .filter((row) => row.scope === 'download')
+      .map(({ label, count }) => ({ label, count })),
+  }
 }
 
 /**
@@ -1321,26 +1361,28 @@ export async function summarizeUsers(db: D1Database, now: number): Promise<Users
 /**
  * 流入面の集計（8 クエリ）。
  *
+ * 参照元は「全体」と「ダウンロード（LP）だけ」の 2 つの母集団を出すが、
+ * `referrerBreakdowns` が 1 本にまとめているのでクエリ本数は増えない。
+ *
  * `perKind` の総数は全期間の累計から取るため、この面も cumulativeTotals を引く。
  * ua_summary の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を実測する
  * ために持つ。TASK-360 で見送った llms.txt の要否判断に使う。データセンター
  * 区分の内訳は接続元組織で、除外した量が画面から消えないようにするもの（ADR 0008）。
  */
 export async function summarizeTraffic(db: D1Database): Promise<TrafficSummary> {
-  const [cumulative, byCountry, byReferrer, traffic, breakdowns, breakdownAxes] = await Promise.all(
-    [
-      cumulativeTotals(db),
-      breakdown(db, 'country'),
-      breakdown(db, 'referrer'),
-      trafficSplit(db),
-      kindBreakdowns(db),
-      eventBreakdowns(db),
-    ],
-  )
+  const [cumulative, byCountry, referrers, traffic, breakdowns, breakdownAxes] = await Promise.all([
+    cumulativeTotals(db),
+    breakdown(db, 'country'),
+    referrerBreakdowns(db),
+    trafficSplit(db),
+    kindBreakdowns(db),
+    eventBreakdowns(db),
+  ])
 
   return {
     byCountry,
-    byReferrer,
+    byReferrer: referrers.all,
+    byDownloadReferrer: referrers.download,
     traffic,
     visits: breakdownAxes.visits,
     // 要素数は指標の数（KIND_LABELS）に固定で、ここでの spread が効いてくる規模に

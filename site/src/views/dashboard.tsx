@@ -708,6 +708,10 @@ export const TrafficSections: FC<{ summary: TrafficSummary }> = ({ summary }) =>
         <div class="grid">
           <CountTable title="国別" rows={summary.byCountry} />
           <CountTable title="参照元別" rows={summary.byReferrer} />
+          {/* 上の「参照元別」は全イベントで「どこから来訪したか」を見る軸。こちらは
+              ダウンロード（LP）だけに絞り、`?ref=` が運ぶ「どの面のボタンから
+              押されたか」を見る（TASK-549）。同じ列を使うが答える問いが違う。 */}
+          <CountTable title="ダウンロード（LP）: 参照元別" rows={summary.byDownloadReferrer} />
           {summary.perKind.map((entry) => [
             <CountTable title={`${entry.label}: OS 別`} rows={entry.byOS} />,
             <CountTable title={`${entry.label}: 接続元組織別`} rows={entry.byAsOrg} />,

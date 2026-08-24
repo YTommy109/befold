@@ -1402,3 +1402,69 @@ describe('アップデートの取り込み', () => {
     expect(adoption).toHaveLength(0)
   })
 })
+
+/**
+ * ダウンロード（LP）に絞った参照元の内訳（TASK-549）。
+ *
+ * 既存の「参照元別」は全イベントで「どこから来訪したか」を見る軸。こちらは
+ * `?ref=` が運ぶ「どの面のボタンから押されたか」を見るもので、母集団が違う。
+ * 同じ 1 本のクエリから 2 つの母集団を返すため、**片方の絞り込みが他方へ
+ * 漏れていないこと**を両方向で確かめる。
+ */
+describe('ダウンロード（LP）の参照元内訳', () => {
+  /** referrer / source を指定して 1 件入れる（既存の insert は両方を持たない）。 */
+  async function insertEvent(options: {
+    kind: EventKind
+    referrer?: string | null
+    source?: string | null
+  }): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, visitor_token, referrer, source) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind(NOW, options.kind, 'visitor-a', options.referrer ?? null, options.source ?? null)
+      .run()
+  }
+
+  it('kind=download かつ source=lp の行だけを数える', async () => {
+    await insertEvent({ kind: 'download', referrer: 'lp', source: 'lp' })
+    await insertEvent({ kind: 'download', referrer: 'lp', source: 'lp' })
+    await insertEvent({ kind: 'download', referrer: 'usecases-medical-expenses', source: 'lp' })
+    // 母集団の外。混ざったら「LP からの新規獲得」という意味が壊れる。
+    await insertEvent({ kind: 'download', referrer: 'lp', source: 'sparkle' })
+    await insertEvent({ kind: 'download', referrer: 'lp', source: 'archive' })
+    await insertEvent({ kind: 'visit', referrer: 'lp' })
+
+    const summary = await summarizeTraffic(env.DB)
+
+    expect(summary.byDownloadReferrer).toEqual([
+      { label: 'lp', count: 2 },
+      { label: 'usecases-medical-expenses', count: 1 },
+    ])
+  })
+
+  it('ref を持たないダウンロードは未記録として並ぶ（行ごと消えない）', async () => {
+    await insertEvent({ kind: 'download', referrer: null, source: 'lp' })
+    await insertEvent({ kind: 'download', referrer: null, source: 'lp' })
+    await insertEvent({ kind: 'download', referrer: 'readme', source: 'lp' })
+
+    const summary = await summarizeTraffic(env.DB)
+
+    expect(summary.byDownloadReferrer).toEqual([
+      { label: UNRECORDED_LABEL, count: 2 },
+      { label: 'readme', count: 1 },
+    ])
+  })
+
+  it('全体の「参照元別」は従来どおり全イベントを数え、未記録を含めない', async () => {
+    await insertEvent({ kind: 'visit', referrer: 'gh-pages' })
+    await insertEvent({ kind: 'download', referrer: 'lp', source: 'lp' })
+    await insertEvent({ kind: 'download', referrer: null, source: 'lp' })
+
+    const summary = await summarizeTraffic(env.DB)
+
+    expect(summary.byReferrer).toEqual([
+      { label: 'gh-pages', count: 1 },
+      { label: 'lp', count: 1 },
+    ])
+  })
+})

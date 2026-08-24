@@ -41,7 +41,7 @@ import aiCodeReviewJa from '../../content/ai-code-review.ja.md'
 import medicalExpensesEn from '../../content/medical-expenses.en.md'
 import medicalExpensesJa from '../../content/medical-expenses.ja.md'
 import { ARTICLES, articleLangs, type Article, type ArticleLang } from '../lib/articles'
-import { DOWNLOAD_PATH, REQUIRED_OS } from './shared'
+import { downloadHref, REQUIRED_OS } from './shared'
 
 /** 言語ごとの本文ソース。片方だけの状態は `assertComplete()` が落とす。 */
 type Sources = Partial<Record<ArticleLang, string>>
@@ -62,18 +62,21 @@ const SOURCES: Partial<Record<Article['page'], Sources>> = {
  * 素の Markdown で書けない部品を `{{名前}}` で埋め込む。
  *
  * **トークンは増やさない方針**。生 HTML は `.md` に直接書けるので、ここに要るのは
- * 「TS 側の定数を参照しないと書けないもの」だけ——いまは `DOWNLOAD_PATH` と
+ * 「TS 側の定数を参照しないと書けないもの」だけ——いまは `downloadHref()` と
  * `REQUIRED_OS` を読むダウンロード導線 1 つ。URL や対応 OS を本文へベタ書きすると、
  * 変わったときに記事だけ古いまま残る。
+ *
+ * 描画関数が `page` も受け取るのは、`?ref=` に「どの記事から押されたか」を
+ * 載せるため（TASK-549）。記事ごとに違う値なので `lang` だけでは書けない。
  */
-const TOKENS: Record<string, (lang: ArticleLang) => string> = {
-  cta: (lang) => {
+const TOKENS: Record<string, (lang: ArticleLang, page: Article['page']) => string> = {
+  cta: (lang, page) => {
     const label = lang === 'ja' ? 'Mac 版をダウンロード' : 'Download for Mac'
     const note =
       lang === 'ja'
         ? `${REQUIRED_OS.ja}が必要です。無料で使えます。`
         : `Requires ${REQUIRED_OS.en}. Free to use.`
-    return `<p><a href="${DOWNLOAD_PATH}" class="btn-primary">${label}</a></p>\n<p class="listing-note">${note}</p>`
+    return `<p><a href="${downloadHref(page)}" class="btn-primary">${label}</a></p>\n<p class="listing-note">${note}</p>`
   },
 }
 
@@ -106,11 +109,16 @@ function toSitePaths(source: string, where: string): string {
  * 閉じ忘れ）は展開後に `{{` が残ることで捕まえる。置換漏れを「本文に `{{cta}}` と
  * 表示される」形で通すと、公開してから気づくことになる。
  */
-function expandTokens(source: string, lang: ArticleLang, where: string): string {
+function expandTokens(
+  source: string,
+  lang: ArticleLang,
+  page: Article['page'],
+  where: string,
+): string {
   const expanded = source.replaceAll(/\{\{([a-z-]+)\}\}/gu, (whole, name: string) => {
     const render = TOKENS[name]
     if (render === undefined) throw new Error(`${where}: 未知のトークン ${whole}`)
-    return render(lang)
+    return render(lang, page)
   })
   if (expanded.includes('{{')) throw new Error(`${where}: 展開されなかった {{ が残っている`)
   return expanded
@@ -154,7 +162,9 @@ function renderAll(): Partial<Record<Article['page'], Sources>> {
       const source = sources[lang]
       if (source === undefined) continue
       const where = `${article.page} (${lang})`
-      rendered[lang] = md.render(toSitePaths(expandTokens(source, lang, where), where))
+      rendered[lang] = md.render(
+        toSitePaths(expandTokens(source, lang, article.page, where), where),
+      )
     }
     html[article.page] = rendered
   }
