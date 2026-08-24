@@ -43,6 +43,16 @@ The README.md and CLAUDE.md are written for the LLM, but the one who forgets how
 
 <figure class="article-shots"><img src="../public/images/usecase-medical-readme.png" alt="The README describing the workflow shown in befold, with the folder tree in the sidebar" loading="lazy" width="1512" height="949"/></figure>
 
+### What came out of using it
+
+**The medical history piles up.** Since setting this up, I scan and keep whatever the clinic or the pharmacy hands me. I started it for the tax deduction, but what I ended up with is my family's medical history in one place — something I can now ask Claude about. That has turned out to be the more useful half.
+
+**It works out the travel costs too.** Bus and train fares to a clinic also qualify for the deduction. I asked Claude to write up that statement, and it looked up the fares itself and produced it.
+
+### What's next
+
+Today it takes files in, files them, and builds the ledger. As the filing season gets closer I plan to add the step that totals it up for the return itself.
+
 ### The template
 
 Copy it and use it. Every name, clinic, address and phone number is a placeholder, and the screenshots in this article use the same fictional data.
