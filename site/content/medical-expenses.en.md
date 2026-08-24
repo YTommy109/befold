@@ -12,7 +12,7 @@ Create a “医療費” folder with an “Inbox” inside it on iCloud Drive an
 
 ### Then you ask Claude for this
 
-> If there are new files, take them in!
+> Check the Inbox!
 
 Claude does the following.
 
