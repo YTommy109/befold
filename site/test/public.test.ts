@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../src/index'
 import { pathFor, SITE_PAGES } from '../src/lib/pages'
 import { pageSchema } from '../src/schema'
+import { downloadHref } from '../src/views/shared'
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15'
 const IP = '203.0.113.5'
@@ -119,7 +120,7 @@ describe('GET /', () => {
     expect(response.status).toBe(200)
     const body = await response.text()
     expect(body).toContain('befold')
-    expect(body).toContain('href="/download"')
+    expect(body).toContain(`href="${downloadHref('/')}"`)
 
     const event = await latestEvent()
     expect(event?.kind).toBe('visit')
@@ -901,17 +902,67 @@ describe('新旧ホスト間の遷移の計測', () => {
  * 固定すると staging の LP のボタンが本番を指し、staging で download 経路と
  * source:'lp' の計測を確かめられなくなる。
  */
+/**
+ * ダウンロードが始まった面を `?ref=` で記録する（TASK-549）。
+ *
+ * download イベントの referrer は、サイト内リンク経由だと Referer が自ホストに
+ * なるため `?ref=` が無ければ null になり、集計の `WHERE referrer IS NOT NULL` で
+ * 行ごと消える。「素の /download でリンクを書く」形へ戻ると計測が静かに失われる
+ * ので、リンク側と記録側の両方をここで固定する。
+ */
+describe('ダウンロード導線の ?ref=', () => {
+  it.each([
+    ['/', '/'],
+    ['/features', '/features'],
+    ['/usecases/medical-expenses', '/usecases/medical-expenses'],
+  ] as const)('%s のダウンロードリンクに ?ref= が付く', async (path, page) => {
+    const body = await (await call(path)).text()
+
+    expect(body).toContain(`href="${downloadHref(page)}"`)
+  })
+
+  /**
+   * `downloadHref()` を迂回して素の `/download` を書いた形の検出。href の直後が
+   * `"` で終わるものだけを見る（`?ref=` 付きは `?` が続くので一致しない）。
+   */
+  it.each(['/', '/features', '/usecases/medical-expenses', '/en', '/en/features'])(
+    '%s に素の href="/download" が残っていない',
+    async (path) => {
+      const body = await (await call(path)).text()
+
+      expect(body).not.toContain('href="/download"')
+    },
+  )
+
+  it('?ref= の値がそのまま download イベントの referrer になる', async () => {
+    await call(downloadHref('/usecases/medical-expenses'))
+
+    const event = await latestEvent('download')
+    expect(event?.source).toBe('lp')
+    expect(event?.referrer).toBe('usecases-medical-expenses')
+  })
+
+  /** ref を付けずに直接叩いた場合は従来どおり（自ホスト Referer は null）。 */
+  it('?ref= が無ければ referrer は記録されない', async () => {
+    await call('/download')
+
+    const event = await latestEvent('download')
+    expect(event?.source).toBe('lp')
+    expect(event?.referrer).toBeNull()
+  })
+})
+
 describe('ダウンロード導線のホスト非依存性', () => {
   // 旧ホストの LP と /features は 301 で新ドメインへ送るため（決定 2）、HTML を
   // 描くのは新ドメインと staging。どちらで描いてもホスト名は現れない。
   it.each(['https://befold.degino.com', 'https://staging.befold.degino.com'])(
     '%s で開いても同一ホスト内の /download を指す',
     async (origin) => {
-      for (const path of ['/', '/features']) {
-        const body = await (await call(path, {}, undefined, origin)).text()
+      for (const page of ['/', '/features'] as const) {
+        const body = await (await call(page, {}, undefined, origin)).text()
 
-        expect(body).toContain('href="/download"')
-        expect(body).not.toMatch(/href="https?:\/\/[^"]*\/download"/u)
+        expect(body).toContain(`href="${downloadHref(page)}"`)
+        expect(body).not.toMatch(/href="https?:\/\/[^"]*\/download/u)
       }
     },
   )

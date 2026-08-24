@@ -21,7 +21,7 @@ import {
 } from '../src/lib/articles'
 import { SITE_PAGES, variantsOf } from '../src/lib/pages'
 import { articleHtml } from '../src/views/article-bodies'
-import { DOWNLOAD_PATH, REQUIRED_OS } from '../src/views/shared'
+import { downloadHref, REQUIRED_OS } from '../src/views/shared'
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15'
 const ORIGIN = 'https://befold.example'
@@ -331,19 +331,25 @@ describe('医療費控除の記事に残す部品', () => {
 
   /**
    * ダウンロード導線は `{{cta}}` の展開結果。**URL と対応 OS を本文へベタ書き
-   * させない**ためのトークンなので、`DOWNLOAD_PATH` / `REQUIRED_OS` の値が
+   * させない**ためのトークンなので、`downloadHref()` / `REQUIRED_OS` の値が
    * そのまま出ることを見る（本文に固定文字列で書かれていたら、定数を変えた
    * ときにここが落ちる）。
+   *
+   * href には記事の `?ref=` が載る（TASK-549）。ここが素の `/download` に戻ると
+   * 「どの記事から押されたか」が記録に残らないので、完全一致で固定する。
    */
   it('ダウンロードボタンと OS 注記が定数から組み立てられる', async () => {
+    const href = downloadHref('/usecases/medical-expenses')
+    expect(href).toContain('?ref=usecases-medical-expenses')
+
     const ja = await (await call(ARTICLE)).text()
-    expect(ja).toContain(`<a href="${DOWNLOAD_PATH}" class="btn-primary">Mac 版をダウンロード</a>`)
+    expect(ja).toContain(`<a href="${href}" class="btn-primary">Mac 版をダウンロード</a>`)
     expect(ja).toContain(
       `<p class="listing-note">${REQUIRED_OS.ja}が必要です。無料で使えます。</p>`,
     )
 
     const en = await (await call(`/en${ARTICLE}`)).text()
-    expect(en).toContain(`<a href="${DOWNLOAD_PATH}" class="btn-primary">Download for Mac</a>`)
+    expect(en).toContain(`<a href="${href}" class="btn-primary">Download for Mac</a>`)
     expect(en).toContain(`<p class="listing-note">Requires ${REQUIRED_OS.en}. Free to use.</p>`)
   })
 

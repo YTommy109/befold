@@ -1,6 +1,7 @@
 import type { FC } from 'hono/jsx'
 
 import { navPagesFor, variantsOf, type FixedPage, type PageLang, type SitePage } from '../lib/pages'
+import type { Page } from '../schema'
 import { t, type Localized } from './i18n'
 
 /**
@@ -23,8 +24,44 @@ export const REPO_URL = 'https://github.com/YTommy109/befold'
  *
  * 絶対 URL が要る箇所（JSON-LD の downloadUrl）は、canonical・og:url・sitemap と
  * 同じくリクエスト origin から組む。
+ *
+ * **人がクリックするリンクにこの定数を直接使わない。`downloadHref()` を通すこと。**
+ * 素の `/download` は `?ref=` を持たないため、どの面から押されたのかが記録に残らない
+ * （TASK-549）。この定数をそのまま使ってよいのは、クリックされない機械向けメタデータ
+ * （JSON-LD の `downloadUrl`）だけ。迂回した書き方は `test/public.test.ts` の
+ * 「素の href="/download" が残っていない」検査が落とす。
  */
 export const DOWNLOAD_PATH = '/download'
+
+/**
+ * ダウンロードが始まった面を表す `?ref=` の値。
+ *
+ * 論理ページ（`Page`）から**機械的に導く**。対応表を持たないので、記事やページを
+ * 足したときに ref だけ書き忘れる形が作れない。
+ *
+ * 値の形は既にある `?ref=` の運用に合わせた短い識別子（`docs/index.html` の
+ * `gh-pages`、README の `readme`）。パス形式（`/usecases/...`）にしないのは、
+ * referrer 列に外部オリジンの絶対 URL が入るため、先頭スラッシュ付きの値だと
+ * 目視で区別しづらくなるから。
+ *
+ * LP だけ `lp` と読み替える。`'/'` から素直に導くと空文字列になるうえ、
+ * `source: 'lp'` という既存の呼び名と揃うため。
+ */
+export function downloadRef(from: Page): string {
+  return from === '/' ? 'lp' : from.slice(1).replaceAll('/', '-')
+}
+
+/**
+ * ダウンロード導線の href。**どの面から押されたかを引数で必ず受け取る。**
+ *
+ * デフォルト引数を置かないのは、リンクを足すときに ref の指定を省けなくするため。
+ * 既定値があると渡し忘れがコンパイルエラーにならず、その面だけ計測から
+ * 静かに落ちる（`?ref=` が無い download は referrer が null になり、
+ * 集計の `WHERE referrer IS NOT NULL` で行ごと消える）。
+ */
+export function downloadHref(from: Page): string {
+  return `${DOWNLOAD_PATH}?ref=${encodeURIComponent(downloadRef(from))}`
+}
 
 /** 動作要件。LP・詳細ページ・JSON-LD で同じ表記を使う。 */
 export const REQUIRED_OS: Localized = {
