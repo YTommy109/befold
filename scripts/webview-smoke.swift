@@ -176,6 +176,38 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
             if (r as? Int) != 1 {
                 self.fail("data: URI 画像が inline HTML の <img> で描画されなかった")
             }
+            self.checkLargeNonASCIIDocumentRenders()
+        }
+    }
+
+    // 3.7. 非 ASCII を含む長い <img> タグを持つ文書が現実的な時間で描画されるか(TASK-548)
+    //      viewer 側が HTML 全体に正規表現を当てる形へ戻ると、JSC は 16bit 文字列の
+    //      バックトラックを解釈実行し、この入力で数十秒〜数分返らなくなる(本文が
+    //      空白のまま固まる)。JS 例外は出ないので、検出できるのは所要時間だけ。
+    //      実測: 修正後は 10ms 未満、修正前は 6 秒前後(alt 96,000 文字)。3 秒を境にする。
+    func checkLargeNonASCIIDocumentRenders() {
+        let png1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+            + "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        // 長さは <img> タグ 1 つの中に置く(退行時の停止は 1 タグ内の後戻りで起きる)。
+        // 非 ASCII を 1 文字混ぜることが引き金で、全 ASCII の同じ長さでは再現しない。
+        let longAlt = "図" + String(repeating: "a", count: 96000)
+        let doc = "<img src=\"data:image/png;base64,\(png1x1)\" alt=\"\(longAlt)\">"
+        let started = Date()
+        asyncJS(
+            "await render(\(jsString(doc)), 'md'); "
+                + "var img = document.querySelector('#diagram-wrap img'); "
+                + "if (!img) return 'noimg'; "
+                + "await img.decode(); return img.naturalWidth;",
+            "large-non-ascii"
+        ) { r in
+            let elapsed = Date().timeIntervalSince(started)
+            print("large non-ASCII doc naturalWidth: \(String(describing: r)) in \(Int(elapsed * 1000))ms")
+            if (r as? Int) != 1 {
+                self.fail("非 ASCII を含む長い <img> の文書が描画されなかった")
+            }
+            if elapsed > 3 {
+                self.fail("非 ASCII を含む長い <img> の描画に \(Int(elapsed))s かかった(退行)")
+            }
             self.checkExfilBlocked()
         }
     }

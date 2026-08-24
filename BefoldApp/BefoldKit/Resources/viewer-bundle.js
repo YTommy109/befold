@@ -23848,9 +23848,6 @@
     return replaceRemoteImages(purify2.sanitize(html2));
   }
   function replaceRemoteImages(html2) {
-    if (!/<img[^>]+src\s*=\s*["']?\s*https?:/iu.test(html2)) {
-      return html2;
-    }
     var doc = new DOMParser().parseFromString(html2, "text/html");
     var images = doc.querySelectorAll("img");
     for (var i = 0; i < images.length; i += 1) {

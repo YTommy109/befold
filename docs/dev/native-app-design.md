@@ -402,6 +402,15 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   QuickLook 拡張・直接 HTML モードすべての唯一の入口なので、「ブロッカ未適用のまま
   文書が描かれる」余地が構造的に無い（ルールリストの用意は非同期のため、適用の完了を
   待ってから読み込む）
+- 一次の `replaceRemoteImages()` は**当たり付けの正規表現を置かず、常に DOMParser を
+  通す**。かつては `/<img[^>]+src\s*=\s*["']?\s*https?:/iu` で DOM の往復を省いていたが、
+  この形は「非 ASCII を 1 文字でも含む長い文書」で JSC が破滅的にバックトラックし、
+  本文が空白のまま返らなくなる（TASK-548。実測: `<img>` 1 つの中の文字数に対して
+  24,000 字 379ms / 48,000 字 1,512ms / 96,000 字 5,991ms / 192,000 字 23,666ms の二乗。
+  同じ 192,000 字でも全 ASCII なら 1ms）。省ける DOM の往復は 772KB の文書でも 8ms しか
+  ないので、判定式を差し替えるのではなく判定そのものを外してある。
+  退行は `scripts/webview-smoke.swift` の `checkLargeNonASCIIDocumentRenders` が
+  所要時間で検出する（JS 例外は出ないため、検出できるのは時間だけ）
 - ルールリストを用意できなくても viewer.html のロードは必ず行う（fail-open）。
   ここで握りつぶすとビューアが空のままになり、「外部画像が出る」より重い故障になる。
   markdown 経路は一次防御が独立に守る
