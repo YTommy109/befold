@@ -160,6 +160,45 @@ for (const page of DASHBOARD_PAGES) {
   dashboardRoutes.get(page.path, async (c) => await RENDERERS[page.key](c, page))
 }
 
+/** SSE の 1 ポーリング周期が読み書きした結果。 */
+interface StreamCycle {
+  /** この周期で新たに読んだイベント行（ロボットの巡回は除かれている）。 */
+  events: Awaited<ReturnType<typeof eventsAfter>>
+  /** 新着があった周期だけ再集計した概要面の HTML。無ければ null。 */
+  summaryHtml: string | null
+  /** 次の周期の再開位置。 */
+  nextLastId: number
+}
+
+/**
+ * SSE の 1 ポーリング周期で発行する D1 クエリをすべてここに閉じる。
+ *
+ * 概要面は「開いたとき 1 回」ではなく、ブラウザが開いている間
+ * `POLL_INTERVAL_MS` ごとにこの関数の分だけ D1 を引く。**そのコストを
+ * 退行検知に載せられるよう、ルート本体から切り出して単体で呼べる形にしてある**
+ * （`test/query-count.test.ts` が周期あたりの本数を数える）。
+ */
+export async function runStreamCycle(db: D1Database, lastId: number): Promise<StreamCycle> {
+  // カーソルは生の最大 id で進める。eventsAfter はロボットの巡回を除いて
+  // 返すため、返った行だけで再開位置を決めると、ボットしか来なかった周期で
+  // 位置が進まず、集計（ロボットの数を含む）も再描画されない。
+  const latestId = await maxEventId(db)
+  const events = await eventsAfter(db, lastId)
+  const arrived = latestId > lastId
+  // 上限まで返った周期は未読の行が残っているので、最後に読んだ位置で止める。
+  // それ以外は、maxEventId を取った後に入った行も読んで流しているため、
+  // 大きいほうまで進めないと同じ行を次の周期でもう一度送ってしまう。
+  const lastEventId = events.at(-1)?.id ?? 0
+  const nextLastId = events.length === STREAM_LIMIT ? lastEventId : Math.max(latestId, lastEventId)
+  // 集計は summarize() の再実行結果をそのまま流す。D1 クエリを伴うため
+  // 新着があったポーリング周期でのみ行う。
+  const summaryHtml = arrived
+    ? renderOverviewSections(await summarizeOverview(db, Date.now()))
+    : null
+
+  return { events, summaryHtml, nextLastId }
+}
+
 dashboardRoutes.get('/stream', (c) => {
   // 再接続時は Last-Event-ID、初回はクエリの after から再開位置を決める。
   const resumeFrom = c.req.header('Last-Event-ID') ?? c.req.query('after') ?? '0'
@@ -182,28 +221,17 @@ dashboardRoutes.get('/stream', (c) => {
         // このループでは no-await-in-loop を止める。
         /* oxlint-disable eslint/no-await-in-loop */
         while (Date.now() < deadline) {
-          // カーソルは生の最大 id で進める。eventsAfter はロボットの巡回を除いて
-          // 返すため、返った行だけで再開位置を決めると、ボットしか来なかった周期で
-          // 位置が進まず、集計（ロボットの数を含む）も再描画されない。
-          const latestId = await maxEventId(db)
-          const events = await eventsAfter(db, lastId)
-          for (const event of events) {
+          const cycle = await runStreamCycle(db, lastId)
+          for (const event of cycle.events) {
             controller.enqueue(
               encoder.encode(`id: ${event.id}\nevent: event\ndata: ${JSON.stringify(event)}\n\n`),
             )
           }
-          const arrived = latestId > lastId
-          // 上限まで返った周期は未読の行が残っているので、最後に読んだ位置で止める。
-          // それ以外は、maxEventId を取った後に入った行も読んで流しているため、
-          // 大きいほうまで進めないと同じ行を次の周期でもう一度送ってしまう。
-          const lastEventId = events.at(-1)?.id ?? 0
-          lastId = events.length === STREAM_LIMIT ? lastEventId : Math.max(latestId, lastEventId)
-          // 集計は summarize() の再実行結果をそのまま流す。D1 クエリを伴うため
-          // 新着があったポーリング周期でのみ行う。data 行は改行を含められないので
-          // HTML は JSON 文字列にして送る。
-          if (arrived) {
-            const html = renderOverviewSections(await summarizeOverview(db, Date.now()))
-            controller.enqueue(encoder.encode(`event: summary\ndata: ${JSON.stringify(html)}\n\n`))
+          lastId = cycle.nextLastId
+          // data 行は改行を含められないので HTML は JSON 文字列にして送る。
+          if (cycle.summaryHtml !== null) {
+            const data = JSON.stringify(cycle.summaryHtml)
+            controller.enqueue(encoder.encode(`event: summary\ndata: ${data}\n\n`))
           }
           // 接続維持用のコメント（プロキシのアイドルタイムアウト対策）。
           controller.enqueue(encoder.encode(': keep-alive\n\n'))
