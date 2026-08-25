@@ -10,13 +10,13 @@
 ## Context
 
 紹介サイトのアクセス解析は Cloudflare Worker がリクエストごとに D1 へ INSERT する
-サーバ側方式で、JS ビーコンを使わない（`site/src/events.ts:27-75`）。このため
+サーバ側方式で、JS ビーコンを使わない（`insertEvent`、`site/src/events.ts`）。このため
 JavaScript を実行しないクローラの訪問も**既に記録されている**。`robots.txt` も
-`Allow: /`（`site/src/routes/public.tsx:106-111`）なので、LP はクローラの巡回対象である。
+`Allow: /`（`site/src/routes/public.tsx` の `/robots.txt` ルート）なので、LP はクローラの巡回対象である。
 
 しかし記録内容からはボットの**種類**が分からない。完全な User-Agent は保存せず、
-`summarizeUA`（`site/src/lib/visitor.ts:43-51`）が Sparkle / 主要ブラウザ / curl 以外を
-すべて `'other'` へ丸めるためである。`site/src/analytics.ts:280-282` のコメントは
+`summarizeUA`（`site/src/lib/visitor.ts`）が Sparkle / 主要ブラウザ / curl 以外を
+すべて `'other'` へ丸めるためである。`summarizeTraffic`（`site/src/analytics.ts`）の doc コメントは
 「`ua_summary` の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を実測するために持つ」と
 明記しており、意図はあるが実装が追いついていない。
 
@@ -27,7 +27,7 @@ JavaScript を実行しないクローラの訪問も**既に記録されてい�
 | `request.cf.botManagement.verifiedBot` 等 | 高い（Cloudflare が逆引き検証済み） | Bot Management の契約プランに依存 |
 | User-Agent 文字列のトークン判定 | 詐称に弱い | 前提なし。UA は既に Worker が受け取っている |
 
-現構成は `workers_dev = true`（`site/wrangler.toml:9`）の独自ドメイン無し運用で、
+現構成は `workers_dev = true`（`site/wrangler.toml`）の独自ドメイン無し運用で、
 Cloudflare Access すら使えずダッシュボードを Worker 側 Basic 認証で保護している
 （`site/src/routes/dashboard.tsx`）。この構成で `botManagement` フィールドが
 取得できるかは**未実測**である。
@@ -44,10 +44,10 @@ Cloudflare Access すら使えずダッシュボードを Worker 側 Basic 認�
    独自ドメインにも依存しない。`botManagement` を前提に設計すると、取得できなかった
    場合に設計ごとやり直しになる。
 2. **目的に対して精度が足りている。** この計測の目的は「AI クローラの到来量を実測して
-   llms.txt の要否を判断する」こと（`site/src/analytics.ts:280-282`、TASK-360 で見送った
+   llms.txt の要否を判断する」こと（`summarizeTraffic`、`site/src/analytics.ts`、TASK-360 で見送った
    判断の再検討材料）であり、詐称を排除した厳密なアクセス制御ではない。UA を詐称してまで
    LP を巡回する主体は、この判断材料としては無視してよい。
-3. **裏取り材料が既にある。** `as_org`（`request.cf.asOrganization`、`site/src/events.ts:53`）に
+3. **裏取り材料が既にある。** `as_org`（`request.cf.asOrganization`、`insertEvent`、`site/src/events.ts`）に
    接続元の組織名が入っているため、UA と ASN の食い違いは事後に検算できる。
 
 新しい列・テーブル・計測経路は追加しない。既存の `ua_summary` 列の値域を広げるだけで
@@ -60,7 +60,7 @@ Cloudflare Access すら使えずダッシュボードを Worker 側 Basic 認�
 - UA を詐称する巡回は人間の訪問として計上され続ける。`as_org` で事後に検算できるが、
   自動的には分離されない。
 - 分類の網羅性は継続的なメンテナンスに依存する。新しい AI クローラが登場するたびに
-  トークンの追加が必要で、追加するまでは「ボットと分かる値」（`bot-other` 等）に
+  トークンの追加が必要で、追加するまでは「ボットと分かる値」（`BOT_OTHER` = `bot:other`）に
   集約される。ここが増え続けるなら分類漏れのシグナルとして読む。
 - この決定を再検討するトリップワイヤ（**1 と 3 は 2026-08-16 に検査済み。結果は
   ADR 0008 を見ること**——1 は「独自ドメインへの移行」を条件に含めていたのが誤りで、
@@ -69,6 +69,6 @@ Cloudflare Access すら使えずダッシュボードを Worker 側 Basic 認�
   足す形で対処した）:
   1. 独自ドメインへ移行する、または Bot Management が使える構成になり、
      `cf.botManagement` が実際に取得できると実測できたとき
-  2. `bot-other` の比率が高止まりし、UA トークンの追加では追いつかなくなったとき
+  2. `bot:other` の比率が高止まりし、UA トークンの追加では追いつかなくなったとき
   3. 計測結果を「llms.txt の要否判断」以外の用途（アクセス制御・課金・レート制限など、
      詐称耐性が要る用途）に使う要件が生まれたとき

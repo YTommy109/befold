@@ -9,7 +9,10 @@
 
 ## Context
 
-### 現状（実測）
+### 現状（実測 / 2026-08-14 時点）
+
+以下の Context は決定を下した時点の調査結果であり、決定の実装（TASK-476）で
+変わった箇所がある。現在の実装は下の Decision と `site/src/lib/hosts.ts` を見ること。
 
 配布サイトは Cloudflare Worker 1 本で、本番 `befold` と staging `befold-staging` の
 どちらも `workers_dev = true` のみで公開している（`site/wrangler.toml:9,51`）。
@@ -28,7 +31,7 @@ DNS 管理を Cloudflare へ集約したため、この前提を見直せる状�
 ### 移行を難しくしている制約
 
 **出荷済みアプリの更新経路は後から変更できない。** Sparkle のフィード URL は
-アプリバイナリに焼き込まれている（`BefoldApp/befold/Updates/UpdateChannel.swift:21,23`）。
+アプリバイナリに焼き込まれている（`BefoldApp/befold/Updates/UpdateChannel.swift`）。
 
 | チャンネル | フィード URL |
 |---|---|
@@ -37,7 +40,7 @@ DNS 管理を Cloudflare へ集約したため、この前提を見直せる状�
 
 さらに、**過去に配信済みの appcast に埋まっている enclosure URL も変更できない**。
 リリースワークフローが `https://befold.tommy109.workers.dev/dl/<tag>/` を prefix として
-appcast を生成しているため（`.github/workflows/release.yml:274`）、既に配布された
+appcast を生成しているため（`.github/workflows/release.yml`）、既に配布された
 appcast.xml の各エントリは旧ホストの `/dl/` を指している。
 
 したがって `/appcast.xml`・`/appcast-develop.xml`・`/dl/*` の 3 経路は、
@@ -46,28 +49,29 @@ appcast.xml の各エントリは旧ホストの `/dl/` を指している。
 ### 移行の難しさを下げている事実
 
 - `/dl/` と `/appcast*.xml` は R2 を正として読み、無ければ GitHub Releases へ落ちる
-  （`site/src/routes/public.tsx:160-189`、`site/src/lib/dist.ts:27-30`、
-  `site/src/lib/github.ts:10-13`）。**どちらの経路もホスト名に依存しない**ため、
+  （`site/src/routes/public.tsx`、`site/src/lib/dist.ts`、
+  `site/src/lib/github.ts`）。**どちらの経路もホスト名に依存しない**ため、
   同一 Worker が応答する限り旧ホストでも新ドメインでも同じ内容を返せる。
 - サイト側の絶対 URL は原則リクエスト origin 由来で、ホスト名のハードコードは
-  **`DOWNLOAD_URL` 1 箇所だけ**（`site/src/views/shared.tsx:13`）。canonical・og:url・
+  **ダウンロード先の定数 1 箇所だけ**（`site/src/views/shared.tsx`。当時の名前は
+  `DOWNLOAD_URL`。決定 6 のとおり相対パス化して現在は `DOWNLOAD_PATH`）。canonical・og:url・
   og:image・JSON-LD・sitemap・robots.txt はすべて `new URL(c.req.url).origin` から組む
-  （`site/src/routes/public.tsx:20,33,106-128`、`site/src/views/landing.tsx:51,56,76,81,82`、
-  `site/src/views/features.tsx:153,160,165,166`）。
+  （`site/src/routes/public.tsx`、`site/src/views/landing.tsx`、
+  `site/src/views/features.tsx`）。
 - Cookie・CORS・CSP にホスト名は現れない。クライアント状態は `localStorage` のみ
-  （`site/src/views/shared.tsx:29,33`）。ホスト追加でセッションが壊れる箇所は無い。
+  （`site/src/views/shared.tsx` の `CLEANUP_SCRIPT`）。ホスト追加でセッションが壊れる箇所は無い。
 
 ### 移行で壊れる箇所
 
 - **自己参照の除外が単一ホスト前提。** `resolveReferrer` は
   `if (host === selfHost) return null` の完全一致 1 行で判定し
-  （`site/src/lib/referrer.ts:44`）、`selfHost` には呼び出し元がリクエストホストを
-  そのまま渡す（`site/src/events.ts:46-50`）。このままホストが 2 つになると、
+  （`site/src/lib/referrer.ts`）、`selfHost` には呼び出し元がリクエストホストを
+  そのまま渡す（`site/src/events.ts`）。このままホストが 2 つになると、
   旧ホスト → 新ドメインの遷移が「外部参照元」として D1 に記録される。
-- **appcast のキャッシュキーがリクエスト URL 全体。** `site/src/routes/public.tsx:148` は
+- **appcast のキャッシュキーがリクエスト URL 全体。** `site/src/routes/public.tsx` は
   `new URL(c.req.url).toString()` をキーにするため、ホストごとに独立したキャッシュになる。
   内容は同一なので不整合は起きないが、キャッシュ効率は 2 分割される。
-- **ダッシュボード保護の前提コメントが古い。** `site/src/routes/dashboard.tsx:16` と
+- **ダッシュボード保護の前提コメントが古い。** `site/src/routes/dashboard.tsx` と
   `site/wrangler.toml:7` は「workers.dev には Access を設定できない」と書いているが、
   現在の Cloudflare ドキュメント（Workers の workers.dev ページ「Manage access to
   `workers.dev`」節）は workers.dev URL へ Access を有効化する手順を明記している。
@@ -117,7 +121,7 @@ Custom Domain を追加した後も削除しない。`routes` を書いた時点
 （allow-list）ことで、列挙漏れは「リダイレクトされない」= 安全側に倒れる。
 
 `/download` はリダイレクトしない。LP 由来のダウンロード計測（`source:'lp'`、
-`site/src/routes/public.tsx:42-55`）が 301 を挟むことで別ホストの計測へ散るのを避ける。
+`site/src/routes/public.tsx`）が 301 を挟むことで別ホストの計測へ散るのを避ける。
 
 **この列挙は TASK-496 以降、`site/src/lib/pages.ts` の `SITE_PAGES` から導出する。**
 LP を言語ごとの URL（`/en`・`/en/features`）に分けたことで同じ列挙を必要とする
@@ -128,7 +132,7 @@ LP を言語ごとの URL（`/en`・`/en/features`）に分けたことで同じ
 
 ### 3. アプリ側の appcast URL とリリースの enclosure prefix は新ドメインへ切り替える
 
-`UpdateChannel.feedURLString` と `.github/workflows/release.yml:274` の
+`UpdateChannel.feedURLString` と `.github/workflows/release.yml` の
 `download_url_prefix` を `https://befold.degino.com/` 基準へ変更する。
 
 切り替えの効果は**切り替え後のバージョンを入れたユーザーにのみ**及ぶ。既存ユーザーの
@@ -156,7 +160,7 @@ Access という**本番でだけ効く経路**を staging が持たないと、
 - **旧ホストの `/dashboard` は 404 を返す。** workers.dev にも Access はかけられるが、
   保護面を 2 つ持つと片方だけ設定が抜ける形で破れる。ダッシュボードは新ドメイン専用とし、
   保護面を 1 つに畳む。
-- Basic 認証（`site/src/routes/dashboard.tsx:13-29`）は Access の動作を実測で確認するまで
+- Basic 認証（`site/src/routes/dashboard.tsx`）は Access の動作を実測で確認するまで
   残し、確認後に削除する。`DASHBOARD_PASSWORD` シークレットも同時に削除する。
 
 ### 6. 自己参照の除外を「単一ホスト」から「自己ホスト集合」へ変える
@@ -164,16 +168,17 @@ Access という**本番でだけ効く経路**を staging が持たないと、
 `resolveReferrer` の第 3 引数を単一の `selfHost` 文字列から**自己ホストの集合**へ変える。
 集合には本番の新旧 2 ホストと staging の新旧 2 ホストを入れる。
 
-リクエストホストを渡す現在の形（`site/src/events.ts:49`）だけでは残さない。残すと
+リクエストホストを渡す現在の形（`site/src/events.ts`）だけでは残さない。残すと
 「いま来ているホスト以外の自ホスト」を除外できず、新旧ホスト間の遷移が
 外部参照元として記録される。集合は `site/src/lib` の定数として 1 箇所に置く。
 ホスト名リテラルがコード中に散ると、次にホストが増えたときに片側だけ直る。
 
-**`DOWNLOAD_URL`（`site/src/views/shared.tsx:13`）は相対パス `/download` にする。**
+**ダウンロード先の定数（`site/src/views/shared.tsx`）は相対パス `/download` にする。**
+（実装では `DOWNLOAD_URL` を `DOWNLOAD_PATH` に改名した。）
 当初この節は「正規オリジンの定数から組む」と書いていたが、これは誤りだったので
-訂正する。使用箇所は 5 つで、4 つは `<a href>`（`site/src/views/landing.tsx:113,273,285`、
-`site/src/views/features.tsx:351`）、1 つは JSON-LD の `downloadUrl`
-（`site/src/views/landing.tsx:54`）。`<a href="/download">` はブラウザが表示中の文書の
+訂正する。使用箇所は 5 つで、4 つは `<a href>`（`site/src/views/landing.tsx`、
+`site/src/views/features.tsx`）、1 つは JSON-LD の `downloadUrl`
+（`site/src/views/landing.tsx`）。`<a href="/download">` はブラウザが表示中の文書の
 オリジンに対して解決するため、相対パスにするだけで「開いたホストの `/download`」に
 なる。正規オリジンの定数から組むと、staging の LP のダウンロードボタンが本番を指し、
 staging で download 経路と `source:'lp'` の計測を確かめられなくなる。これは
@@ -199,9 +204,9 @@ canonical・og:url・sitemap と同じくリクエスト origin から組む。
 
 - **旧ホストは無期限に生き続ける。** Worker のルーティングは常に 2 ホストを想定した
   ものになり、テストもホスト非依存であることを前提に書く必要がある。
-- appcast のキャッシュがホストごとに分かれる（`site/src/routes/public.tsx:148`）。
+- appcast のキャッシュがホストごとに分かれる（`site/src/routes/public.tsx`）。
   内容は同一なのでユーザーへの影響は無いが、オリジンへの到達回数は増える。
-- 計測データに移行前後の断層が残る。参照元の集計（`site/src/analytics.ts:424` の
+- 計測データに移行前後の断層が残る。参照元の集計（`site/src/analytics.ts` の
   `breakdown(db,'referrer')`）は、自己ホスト集合を入れる前に記録された旧ホスト →
   新ドメインの遷移を外部参照元として含みうる。移行と同じデプロイで 6 を入れ、
   断層が生じない順序にする。
@@ -210,9 +215,9 @@ canonical・og:url・sitemap と同じくリクエスト origin から組む。
   `/download` をリダイレクト対象から外した意図と同じ向きで、`source:'lp'` の
   計測は従来どおり記録される。
 - ホスト名を固定値で期待しているテストの更新が必要になる
-  （`site/test/public.test.ts:85,458`、`site/test/referrer.test.ts:4`、
-  `BefoldApp/befoldTests/AppLinksTests.swift:12,24`、
-  `BefoldApp/befoldTests/UpdateChannelTests.swift:30,36`）。
+  （`site/test/public.test.ts`、`site/test/referrer.test.ts`、
+  `BefoldApp/befoldTests/AppLinksTests.swift`、
+  `BefoldApp/befoldTests/UpdateChannelTests.swift`）。
 
 ### 破れたら落ちるもの
 

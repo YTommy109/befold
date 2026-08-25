@@ -1,0 +1,26 @@
+# scripts/check-doc-citations.sh の除外リスト。
+# 「文書パス|引用」の 1 行 1 組で書く。リポジトリ全体で素通しにはしない（別の文書で
+# 同じ名前が陳腐化したときに検知できなくなるため）。
+# 除外してよいのは次の 3 つだけ。実在するはずの引用がずれているなら文書を直すこと。
+#   1. ADR の Context が「当時あったが今は無いファイル」を名指ししている
+#   2. 例示のための架空名（`Foo.swift` / `./foo.js`）
+#   3. リポジトリ外のオブジェクトキー・URL パス（R2 のキーなど）
+
+# 1. ADR 0005 は esbuild 導入前の構成を Context に残している。
+#    viewer.js / viewer-main.js は本 ADR の決定によって viewer-src/ へ解体された。
+docs/adr/0005-bundle-viewer-js-with-esbuild.md|viewer.js
+docs/adr/0005-bundle-viewer-js-with-esbuild.md|viewer-main.js
+docs/adr/0005-bundle-viewer-js-with-esbuild.md|support/viewerMainHarness.js
+
+# 2. 例示のための架空名。
+docs/dev/rules/product-code.md|Foo.swift
+docs/dev/rules/testing.md|./foo.js
+
+# 3. R2 のオブジェクトキー（リポジトリ内のファイルではない）。
+docs/dev/development.md|releases/latest.json
+docs/dev/development.md|latest.json
+
+# 1. TASK-414 以前の分割（viewer.js = 純粋 / viewer-main.js = DOM）を、
+#    そう分けない理由として名指ししている。どちらも現存しない。
+docs/dev/rules/product-code.md|viewer.js
+docs/dev/rules/product-code.md|viewer-main.js

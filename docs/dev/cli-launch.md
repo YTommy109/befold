@@ -22,7 +22,7 @@ CLI は 2 つのターゲットに分かれる。
 
 ## 起動 → 前面化までの全経路
 
-エントリポイントは `BefoldCLICommand`（`befold-cli/BefoldCLICommand.swift`、
+エントリポイントは `BefoldCLICommand`（`BefoldCLI/BefoldCLICommand.swift`、
 `@main struct ... AsyncParsableCommand`、`commandName: "befold"`）。フラグは
 `--check` / `--bookmark`、表示オプションは `@OptionGroup var openOptions:
 OpenCLIOptions`、位置引数は `@Argument var paths: [String]`。
@@ -50,7 +50,7 @@ OpenCLIOptions`、位置引数は `@Argument var paths: [String]`。
 （`ViewerWindowManager.applyDisplayOverrides`、TASK-82）。この経路だけが
 表示モードの保存値を恒久的に書き換えていたため、TASK-413 で撤去した。
 
-`CLIAppLauncher.run(...)`（`befold-cli/CLIAppLauncher.swift`）の判断ロジック:
+`CLIAppLauncher.run(...)`（`BefoldCLI/CLIAppLauncher.swift`）の判断ロジック:
 
 1. paths を `standardizedFileURL.path` に正規化する
 2. `CLIRequestForwarder.runningInstance()` で既存インスタンスを探す
@@ -83,7 +83,7 @@ flowchart TD
   J --> K["AppDelegate.handleCLIOpenRequest<br/>→ openPaths → NSApp.activate()"]
 ```
 
-引数変換の境界は `OpenCLIOptions`（`befold-cli/OpenCLIOptions.swift`）。
+引数変換の境界は `OpenCLIOptions`（`BefoldCLI/OpenCLIOptions.swift`）。
 ArgumentParser 依存の Flag を、`cliOpenOptions` プロパティで ArgumentParser 非依存
 の `CLIOpenOptions`（BefoldCLI）へ変換する。3 値意味論（nil = 保存済み設定を維持）。
 
@@ -113,7 +113,7 @@ enum CLIRequest: Equatable, Codable, Sendable {
   `DistributedNotificationCenter.default().postNotificationName(..., deliverImmediately: true)`。
   宛先指定なしのブロードキャスト（単一 GUI インスタンスだけが受ける）
 
-送信の駆動 `CLIRequestForwarder`（`befold-cli/CLIRequestForwarder.swift`）:
+送信の駆動 `CLIRequestForwarder`（`BefoldCLI/CLIRequestForwarder.swift`）:
 
 - `runningInstance()`: `NSRunningApplication.runningApplications(withBundleIdentifier:
   AppBundle.identifier)` から自プロセス以外を返す。`Bundle.main` ではなく
@@ -125,7 +125,7 @@ enum CLIRequest: Equatable, Codable, Sendable {
 
 ## ACK 待ち（AckWaiting）
 
-`AckWaiting` プロトコル / `DistributedAckWaiter`（`befold-cli/AckWaiting.swift`）。
+`AckWaiting` プロトコル / `DistributedAckWaiter`（`BefoldCLI/AckWaiting.swift`）。
 
 - 役割: 転送要求が**実際に届いた確証**を得る。宛先プロセスの生存はオブザーバ
   未登録の可能性があり証拠にならないため、ACK 未観測なら失敗を返す（無言失敗の回避）
@@ -146,7 +146,7 @@ symlink 判定・`FileType`・サイズ・拒否理由を `CLICommandResult` で
 
 **`--bookmark`**: 経路が 2 段。
 
-- `CLIBookmarkRouter`（`befold-cli/CLIBookmarkRouter.swift`）: 起動中インスタンスが
+- `CLIBookmarkRouter`（`BefoldCLI/CLIBookmarkRouter.swift`）: 起動中インスタンスが
   あれば `CLIRequestForwarder.forwardBookmark` で GUI に転送する（GUI を唯一の
   writer にして UserDefaults 配列の read-modify-write 競合を回避）。なければ
   `addLocally` で CLI が直書きする。転送失敗時はローカル書き込みへフォールバック

@@ -62,13 +62,13 @@ viewer 用 JS のソースは `BefoldApp/viewer-src/` にあり、責務で 2 �
 esbuild が `BefoldApp/BefoldKit/Resources/viewer-bundle.js` へ 1 本にバンドルする
 （詳細は [`../../BefoldApp/viewer-src/README.md`](../../BefoldApp/viewer-src/README.md)）。
 
-- `BefoldApp/viewer-src/` の各モジュール: 関心ごとに 1 つ（`render.js` /
-  `renderers.js` / `zoom.js` / `find.js` など）。純粋な計算と DOM 操作は
+- `BefoldApp/viewer-src/` の各モジュール: 関心ごとに 1 つ（`render.ts` /
+  `renderers.ts` / `zoom.ts` / `find.ts` など）。純粋な計算と DOM 操作は
   同じ関心の中に同居する。
-- `BefoldApp/viewer-src/index.js`: バンドルのエントリ。`expose.js` の
+- `BefoldApp/viewer-src/index.ts`: バンドルのエントリ。`expose.ts` の
   `exposeGlobals()` で Swift から呼ぶ関数を `globalThis` に載せ、初期化を行う。
 
-`async function render(content, type, lang)`（`render.js`）が描画の起点。
+`async function render(content, type, lang)`（`render.ts`）が描画の起点。
 `#diagram-wrap` からクラスを一括除去 → 前回 PDF blob を解放 → type で分岐する。
 
 | type | ビルダー | viewer.js ヘルパー |
@@ -121,8 +121,8 @@ Swift 側は追記時に表示モードを渡さない。`canConsumePendingAppen
 `viewer.html` は CSP を厳格化（`script-src 'self'`、インライン script 不使用）し、
 読み込む script は `viewer-bundle.js` 1 本だけ。markdown-it / highlight.js /
 DOMPurify は npm 依存としてこのバンドルに含まれる（取り込み口は
-`viewer-src/vendor.js`）。mermaid.min.js のみバンドルへ入れず、描画が必要に
-なった時点で `viewer-src/mermaid.js` が `<script>` を挿して遅延ロードする。
+`viewer-src/vendor.ts`）。mermaid.min.js のみバンドルへ入れず、描画が必要に
+なった時点で `viewer-src/mermaid.ts` が `<script>` を挿して遅延ロードする。
 
 ## 監視 → Store → WebView → JS の一気通貫
 

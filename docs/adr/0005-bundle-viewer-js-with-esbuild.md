@@ -27,13 +27,12 @@ unsafe-inline を削除する」で `viewer.html` のインライン `<script>` 
 ときのインデントがそのまま残ったもの。
 
 ファイル間の依存は共有グローバルスコープ経由で解決している。`viewer-main.js` は `viewer.js` が
-宣言した識別子を裸の名前で参照する（`viewer-main.js:27` の `ZOOM_DEFAULT`、`:47` の
-`parseStoredZoom`、`:577` の `mermaidTheme`、`:653` の `highlightCode`、`:661` の
-`sanitizeRenderedHtml`、`:1694` の `renderShape` ほか）。この解決を成立させているのは
-`viewer.html:56-60` のスクリプト記述順だけであり、依存関係は言語機能で表現されていない。
+宣言した識別子を裸の名前で参照する（`viewer-main.js` の `ZOOM_DEFAULT` / `parseStoredZoom` /
+`mermaidTheme` / `highlightCode` / `sanitizeRenderedHtml` / `renderShape` ほか）。
+この解決を成立させているのは `viewer.html` のスクリプト記述順だけであり、依存関係は言語機能で表現されていない。
 
 両ファイルの末尾には jest 用の CommonJS エクスポート境界だけが置かれている
-（`viewer.js:874`、`viewer-main.js:1823`）。ブラウザには `module` が無いため即時初期化へ落ちる。
+（`viewer.js` / `viewer-main.js` の末尾の `module.exports`）。ブラウザには `module` が無いため即時初期化へ落ちる。
 
 ### 分割軸が責務ではない
 
@@ -52,18 +51,18 @@ unsafe-inline を削除する」で `viewer.html` のインライン `<script>` 
 
 ### 制約 1: `file://` ではネイティブ ES モジュールが使えない
 
-`BefoldRenderKit/ViewerRenderer.swift:253-257` は viewer.html を
+`BefoldRenderKit/ViewerWebViewFactory.swift` の `ViewerWebViewFactory.makeWebView` は viewer.html を
 `webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)` で読み込む。WebKit は
 `file://` の各 URL を不透明オリジンとして扱うため、`<script type="module">` は CORS で
 遮断される。回避には `allowFileAccessFromFileURLs` 相当の非公開プリファレンス緩和が要る。
 
-これは `viewer.html:17` の CSP と、それを検証しているテストに正面から反する。
+これは `viewer.html` の `Content-Security-Policy` meta と、それを検証しているテストに正面から反する。
 
 ```html
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; frame-src blob:; connect-src 'none'; base-uri 'none'">
 ```
 
-`befoldTests/ViewerBridgeContractTests.swift:179-191` は、CSP の `script-src` に
+`befoldTests/ViewerBridgeContractTests.swift` の `cspScriptSrcHasNoUnsafeInline` は、CSP の `script-src` に
 `'unsafe-inline'` が無いことと、HTML にインライン `<script>` が無いことをテストしている。
 
 つまり「モジュール境界が欲しいがネイティブ ESM は使えない」という制約が、単一の巨大な
@@ -71,7 +70,7 @@ unsafe-inline を削除する」で `viewer.html` のインライン `<script>` 
 
 ### 制約 2: ビルド成果物を生成するフックが無い
 
-- `BefoldApp/Package.swift:29-40` はリソースを `.copy` で 12 個**個別に列挙**している。
+- `BefoldApp/Package.swift` の `BefoldKit` ターゲットの `resources:` はリソースを**個別に列挙**している。
   SPM のビルド時点でファイルが存在している必要がある。
 - `BefoldApp/project.yml` に `preBuildScripts` / `postCompileScripts` / `postBuildScripts` は無い。
   生成済み `project.pbxproj` の `PBXShellScriptBuildPhase` は 0 件。
@@ -81,9 +80,8 @@ unsafe-inline を削除する」で `viewer.html` のインライン `<script>` 
 
 ### 制約 3: macOS の CI ジョブに Node が無い
 
-`.github/workflows/ci.yml:72-105` の `build-and-test`（macos-26）と `:133-166` の
-`thread-sanitizer` に `setup-node` は無い。Node があるのは `:107-131` の js-test
-（ubuntu-latest、Node 24、`npm ci`、`npx jest`）だけ。
+`.github/workflows/ci.yml` の `build-and-test`（macos-26）と `thread-sanitizer`（macos-26）に
+`setup-node` は無い。Node があるのは js-test ジョブ（ubuntu-latest、`npm ci`、`npx jest`）だけ。
 
 ### 既存の前例
 
@@ -117,13 +115,14 @@ viewer の JS を **esbuild で単一の IIFE バンドルへまとめ、その�
 
 ### mermaid はバンドルに含めない
 
-`viewer-main.js:605-608` に設計意図が記録されている。
+`viewer-main.js` の mermaid 遅延ロード（現在は `viewer-src/mermaid.ts` の
+`_mmdEnsureMermaidLoaded`）に設計意図が記録されている。
 
 > mermaid.min.js（3.2MB）は CSV・ログ・コード・SVG・HTML ソース等の mermaid 不使用
 > プレビューでは無駄なパース/評価コストになるため、mermaid を実際に描画する瞬間まで
 > ロードを遅延する。
 
-`viewer-main.js:614` の `script.src = 'mermaid.min.js'` による DOM 挿入ロードは維持する。
+`script.src = 'mermaid.min.js'` による DOM 挿入ロードは維持する。
 
 ### TypeScript は段階移行にする
 
@@ -164,7 +163,7 @@ TASK-420（viewer-main.js を責務ごとに分割）は、その受け入れ条
   Swift ↔ JS の契約を検証しており、`viewer.html` / `viewer.js` / `viewer-main.js` への
   リテラル参照が 11 箇所ある。バンドル後は成果物を見るよう向け直す。実際に配布される物を
   検証する形になるため、方向としては改善である。
-- **`Package.swift` のリソース列挙の更新。** 12 個の `.copy` を個別に列挙しているため、
+- **`Package.swift` のリソース列挙の更新。** `BefoldKit` のリソースを個別に列挙しているため、
   成果物の追加・旧ファイルの削除に追随が要る（`project.yml` 側は
   `BefoldKit/Resources` をディレクトリごと resources ビルドフェーズに入れているため追随不要）。
 
