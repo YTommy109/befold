@@ -33,6 +33,8 @@ install_hook post-checkout scripts/worktree-init.sh
 # ジョブと同じ SwiftFormat チェックをコミット時点で検知する。
 # check-doc-symbols.sh は規約文書が名指しするシンボルの実在を見る（CI は BefoldApp/** の
 # 変更でしか走らないため、文書とコードの両方に触れうるコミット時点で検知する）。
+# check-doc-citations.sh は docs/adr・docs/dev の引用形式を見る（行番号引用の禁止と
+# 引用パスの実在。TASK-550）。
 # check-task-id-uniqueness.sh は backlog の ID 重複を見る（CLI の採番が archive /
 # completed を走査しないため、最大番号のタスクをアーカイブすると同じ ID が再発行される）。
 # check-analytics-query-guard.sh は解析用 D1 の読み取り専用ガードが実効であることを
@@ -45,6 +47,7 @@ install_hook post-checkout scripts/worktree-init.sh
 # これだけは終了コードで落とさない（警告のみ）。作業の途中段階でコミットが止まると
 # --no-verify を常用する圧力になり、フック全体が形骸化するため。ブロックは CI で行う。
 install_hook pre-commit scripts/block-main-commits.sh scripts/swiftformat-lint.sh \
-  scripts/oxc-lint.sh scripts/check-doc-symbols.sh scripts/check-task-id-uniqueness.sh \
+  scripts/oxc-lint.sh scripts/check-doc-symbols.sh scripts/check-doc-citations.sh \
+  scripts/check-task-id-uniqueness.sh \
   scripts/check-analytics-query-guard.sh scripts/check-no-detached-blocking.sh \
   scripts/warn-type-group-growth.sh

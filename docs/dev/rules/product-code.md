@@ -308,16 +308,16 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 - 依存は `import` で表現し、**循環させない**。`npm run check:viewer-cycles` が
   esbuild の metafile から検査する。循環するとモジュール評価順が壊れ、別モジュールの
   トップレベル値を `undefined` のまま掴む
-- モジュールは ESM（`import` / `export`）で書く。公開面は `viewer-src/main.js`
-  （barrel）に集約し、本番エントリ（`index.js`）もテストハーネスもそこだけを見る。
+- モジュールは ESM（`import` / `export`）で書く。公開面は `viewer-src/main.ts`
+  （barrel）に集約し、本番エントリ（`index.ts`）もテストハーネスもそこだけを見る。
   Swift から呼ぶ関数は `viewer-src/expose.ts` の `exposeGlobals()` 経由で
   `globalThis` に公開する
-- **`.js` と `.ts` が混在する**（TypeScript への段階移行の途中）。型検査されるのは
-  `.ts` だけで、`.js` は `checkJs: false` により解決対象に含まれるだけで検査されない。
-  型検査は `npm run typecheck:viewer` が単独で担当し、esbuild も babel も
-  型注釈を落とすだけで検査しない。移行の単位・エントリの扱い・strict mode に
-  なる理由は [`BefoldApp/viewer-src/README.md`](../../../BefoldApp/viewer-src/README.md)
-  の「TypeScript への段階移行」節が単一の情報源
+- **全モジュールが TypeScript**（TASK-499 で移行完了）。`tsconfig.json` は
+  `allowJs: false` なので、`.js` を足すと import が解決しなくなる。型検査は
+  `npm run typecheck:viewer` が単独で担当し、esbuild も babel も型注釈を落とすだけで
+  検査しない。エントリの扱い・strict mode になる理由は
+  [`BefoldApp/viewer-src/README.md`](../../../BefoldApp/viewer-src/README.md)
+  の「TypeScript」節が単一の情報源
 - **Swift ↔ JS のブリッジ契約は、型を手書きせず値から導出する**。メッセージ名は
   `bridge.ts` のフラットな `var _MSG_* = '...' as const` のまま保ち、型は `typeof` で
   導く。値の一致は `ViewerBridgeContractTests` が成果物 `viewer-bundle.js` の

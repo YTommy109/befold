@@ -11,43 +11,47 @@
 befold の git 連携（サイドバーのステータスバッジ、差分表示、Quick Open の追跡ファイル索引、
 worktree 一覧）は、すべて外部 git バイナリの実行で実装されている。
 `GitCommandRunner.run` が `/usr/bin/git` を `Process` で起動し、その出力を Swift 側で
-パースする形である（`BefoldApp/befold/App/GitCommandRunner.swift:127`）。
+パースする形である（`BefoldApp/befold/App/` にあった `GitCommandRunner`。本 ADR の
+移行完了に伴い TASK-435.5 で撤去済み）。
 
 ### この方式は比較検討を経ていない
 
 libgit2 / SwiftGit2 / ObjectiveGit といった語は、本リポジトリの docs・backlog・git 履歴の
 いずれにも 1 件も存在しない。導入コミット `358063c`（2026-07-25）にも方式選択の理由の
-記述はなく、事前の計画文書 `docs/superpowers/plans/2026-07-24-clickable-path-resolution.md:430`
+記述はなく、事前の計画文書 `docs/superpowers/plans/2026-07-24-clickable-path-resolution.md`
 の時点で既に Process 前提として書かれている。つまり**ライブラリ方式との比較そのものが
 行われていない**。本 ADR はその欠落を埋め、あわせて移行方針を記録する。
 
 ### 現状の呼び出し全量（すべて読み取り専用）
 
-| 用途 | 引数 | 実装 |
-|---|---|---|
-| リポジトリルート解決 | `rev-parse --show-toplevel` | `GitRepository.swift:82` |
-| 追跡ファイル一覧 | `ls-files -z` | `GitRepository.swift:97` |
-| worktree 判定 | `rev-parse --git-common-dir --git-dir` | `GitRepository.swift:125` |
-| worktree 列挙 | `worktree list --porcelain` | `GitRepository.swift:144` |
-| 作業ツリー状態 | `--no-optional-locks status --porcelain=v2 -z` | `GitStatusReader.swift:88` |
-| submodule パス | `config -z --file .gitmodules --get-regexp` | `GitStatusReader.swift:160` |
-| ブランチ差分ファイル | `diff --name-status -z <base> HEAD` | `GitStatusReader.swift:189` |
-| 比較起点 | `merge-base HEAD <default>` | `GitComparisonBase.swift:37` |
-| 既定ブランチ探索 | `rev-parse --verify --quiet main` / `master` | `GitComparisonBase.swift:53` |
-| origin の既定ブランチ | `symbolic-ref --short refs/remotes/origin/HEAD` | `GitComparisonBase.swift:62` |
-| 差分本体 | `diff --no-color --no-ext-diff -U1000000 <base> -- <path>` | `GitDiffReader.swift:55` |
-| 管理外/コミット無しの切り分け | `rev-parse --git-dir` | `GitDiffReader.swift:73` |
-| 未追跡判定 | `ls-files --error-unmatch -z -- <path>` | `GitDiffReader.swift:91` |
+用途を担う関数はファイル・名前ともに移行後もそのまま残っており、中身だけが
+libgit2 呼び出しへ置き換わった。
+
+| 用途 | 引数 | ファイル | 関数 |
+|---|---|---|---|
+| リポジトリルート解決 | `rev-parse --show-toplevel` | `GitRepository.swift` | `root(forFileAt:)` |
+| 追跡ファイル一覧 | `ls-files -z` | `GitRepository.swift` | `trackedFiles(at:)` |
+| worktree 判定 | `rev-parse --git-common-dir --git-dir` | `GitRepository.swift` | `repositoryIdentity(forRoot:)` |
+| worktree 列挙 | `worktree list --porcelain` | `GitRepository.swift` | `worktrees(forRoot:)` |
+| 作業ツリー状態 | `--no-optional-locks status --porcelain=v2 -z` | `GitStatusReader.swift` | `status(forRepositoryAt:)` |
+| submodule パス | `config -z --file .gitmodules --get-regexp` | `GitStatusReader.swift` | `registeredSubmodulePaths(in:)` |
+| ブランチ差分ファイル | `diff --name-status -z <base> HEAD` | `GitStatusReader.swift` | `branchChanges(...)` |
+| 比較起点 | `merge-base HEAD <default>` | `GitComparisonBase.swift` | `comparisonBase(forRepositoryAt:)` |
+| 既定ブランチ探索 | `rev-parse --verify --quiet main` / `master` | `GitComparisonBase.swift` | `defaultBranch(in:)` |
+| origin の既定ブランチ | `symbolic-ref --short refs/remotes/origin/HEAD` | `GitComparisonBase.swift` | `originHeadBranch(in:)` |
+| 差分本体 | `diff --no-color --no-ext-diff -U1000000 <base> -- <path>` | `GitDiffReader.swift` | `diff(forFileAt:in:)` |
+| 管理外/コミット無しの切り分け | `rev-parse --git-dir` | `GitDiffReader.swift` | `tree(in:revision:)` |
+| 未追跡判定 | `ls-files --error-unmatch -z -- <path>` | `GitDiffReader.swift` | `isTracked(_:in:)` |
 
 commit / add / checkout / fetch は一つも使っていない
-（`GitCommandRunner.swift:87` に「befold は読み取り専用ビューア」と明記）。
+（`GitCommandRunner` の doc コメントに「befold は読み取り専用ビューア」と明記）。
 
 ### 現方式のコスト
 
 `GitCommandRunner`（300 行）の大半は、外部プロセス方式ゆえに必要になった手当てである。
 
-- `core.fsmonitor=` / `core.hooksPath=/dev/null` による任意コマンド実行の遮断（`:77-95`）
-- 環境変数の非継承と `PATH` 固定（`:110-120`、TASK-148）
+- `core.fsmonitor=` / `core.hooksPath=/dev/null` による任意コマンド実行の遮断
+- 環境変数の非継承と `PATH` 固定（TASK-148）
 - タイムアウト時のプロセスグループごとの kill と fd 回収（TASK-155）
 - `DispatchSemaphore` によるブロック待ち（TASK-226 が未解決のまま残っている）
 
@@ -141,25 +145,32 @@ brew + `.systemLibrary` は dylib パスと
 - ユーザー環境の git バージョンへの依存が切れる。
   起動時に `GIT_OPT_SET_SEARCH_PATH` で config の検索パスを無効化する。
 
-  > **2026-08-11 追記（実装時の変更）**: 無効化するのは **system と xdg の 2 つだけ**で、
-  > global（`~/.gitconfig`）は意図して有効のままにする。無効化すると
-  > `core.excludesFile` によるグローバルな ignore 設定が効かなくなり、ユーザーが
-  > 除外したつもりのファイルがサイドバーに untracked として現れる（実測で libgit2 が
-  > `.gitignore` / `.git/info/exclude` / `core.excludesFile` の 3 経路すべてを見ることを
-  > 確認済み）。撤去した外部 git プロセス方式も `HOME` を意図的に引き継いで
-  > `~/.gitconfig` を有効にしており、その挙動を保つ。
+  > **2026-08-11 追記（実装時の変更）**: 無効化するのは **system（`/etc/gitconfig`）
+  > だけ**で、global（`~/.gitconfig`）も xdg（`~/.config/git/`）も意図して有効のままに
+  > する。無効化すると `core.excludesFile` によるグローバルな ignore 設定が効かなくなり、
+  > ユーザーが除外したつもりのファイルがサイドバーに untracked として現れる（実測で
+  > libgit2 が `.gitignore` / `.git/info/exclude` / `core.excludesFile` の 3 経路すべてを
+  > 見ることを確認済み）。撤去した外部 git プロセス方式も `HOME` を意図的に引き継いで
+  > ユーザーの設定を有効にしており、その挙動を保つ。
+  >
+  > xdg は TASK-435.1 では system と一緒に無効化していたが、`~/.config/git/ignore`
+  > （`core.excludesFile` 未設定時の既定フォールバック）まで巻き添えにするため
+  > **TASK-467 で撤回した**。
   >
   > また、**無効化の目的は「決定性の確保」であって「任意コマンド実行の遮断」ではない**。
   > 外部プロセス方式では `core.fsmonitor` / `core.hooksPath` が任意コマンドの起動経路に
   > なるため遮断が必須だったが、libgit2 はフックも textconv も外部 diff driver も
   > 実行しないため、その動機は消える。
-  > この判断は `GitLibraryTests.keepsGlobalConfigSearchPathEnabled` が守る。
+  > この判断は `GitLibraryTests.disablesOnlySystemConfigSearchPath` と
+  > `GitLibraryTests.keepsUserConfigSearchPathsEnabled` が守る。
 - MAS 配布の最大の障害が外れる（残る障害はサンドボックスと CLI。TASK-397 を参照）。
 
 ### 失うもの・引き受けるコスト
 
 - **`git status --porcelain=v2` 相当のヘッダは 5 つの別 API から自前構築が必要**になり、
-  `GitStatusReader.parsePorcelainV2` は書き直しになる。
+  porcelain 出力のパーサは書き直しになる（実装後は `GitStatusReader.swift` の
+  `status(forRepositoryAt:)` と `collectWorkingTree(...)` が libgit2 の status API から
+  直接組み立てる形になり、テキストのパースそのものが無くなった）。
 - **submodule status は status API に出ない**（現状の `.gitmodules` 読みは
   `git_submodule_foreach` でむしろ素直になるが、境界検出のロジックは要再設計）。
 - **`diff.algorithm` / textconv / 外部 diff driver は config ごと無視**される。
@@ -174,10 +185,15 @@ brew + `.systemLibrary` は dylib パスと
 
 ### 影響を受けない箇所
 
-差分の生テキストは Swift 側で構造化せず、`viewer.js:491` の `parseUnifiedDiff` が
-JS 側でパースしている。libgit2 の `git_diff_to_buf` は unified diff テキストを出力できる
-ため、**JS 側は無改修で済む見込み**（`-U1000000` 相当が `git_diff_options.context_lines`
-で表現できることの確認が前提）。
+差分の生テキストは Swift 側で構造化せず、`BefoldApp/viewer-src/diff-html.ts` の
+`parseUnifiedDiff` が JS 側でパースしている。libgit2 の `git_diff_to_buf` は unified diff
+テキストを出力できるため、**JS 側は無改修で済む見込み**（`-U1000000` 相当が
+`git_diff_options.context_lines` で表現できることの確認が前提）。
+
+> **2026-08-11 追記（実装後）**: 見込みどおり JS 側は無改修。`GitDiffReader.swift` の
+> `diff(in:relativePath:base:)` が `git_diff_options.context_lines` に全文分の値を入れ、
+> `result(of:in:relativePath:)` が `git_diff_to_buf(GIT_DIFF_FORMAT_PATCH)` で
+> unified diff テキストを得ている。
 
 ## Fallback
 

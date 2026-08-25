@@ -5,8 +5,9 @@
 ## 概要
 
 CI の `thread-sanitizer` ジョブで `FileWatcherIntegrationTests` が断続的に失敗する。
-最頻の失敗は `detectsChangeAfterRecreation()`（`FileWatcherIntegrationTests.swift:91`、
-`Confirmation was confirmed 0 times`）。
+最頻の失敗は `FileWatcherIntegrationTests` の `detectsChangeAfterRecreation`
+（当時は `Confirmation` で検証しており、`Confirmation was confirmed 0 times` で落ちていた。
+現在はコールバック回数の比較で検証している。下記「追加対策」を参照）。
 
 - 対象 run: <https://github.com/YTommy109/befold/actions/runs/28839962261/job/85531748833>
 - ThreadSanitizer の警告（データレース検出）は **一件も出ていない**。純粋にテストのタイミング起因。
@@ -35,7 +36,8 @@ CI の `thread-sanitizer` ジョブで `FileWatcherIntegrationTests` が断続�
 
 ### 失敗モード 1: 監視再開レースによる恒久的な取りこぼし（detectsChangeAfterRecreation）
 
-このテストの流れと時間予算:
+失敗していた当時のテストの流れと時間予算（現在は下記「対策案」1 のとおり
+リトライ型に書き換わっており、この形ではない）:
 
 ```text
 0.3s 待ち → 削除 → 0.5s 待ち → 再作成 → 0.5s 待ち → armed=true → 書き込み(1回) → 3s 待ち
@@ -43,7 +45,9 @@ CI の `thread-sanitizer` ジョブで `FileWatcherIntegrationTests` が断続�
 
 `FileWatcher` はファイル削除でファイル監視ソースを解放し、
 親ディレクトリ監視（`.write` イベント）で再作成を検知して
-`startFileMonitor()` で監視を再開する設計（`FileWatcher.swift:188-194`）。
+`startFileMonitor()` で監視を再開する設計
+（`BefoldApp/befold/FileWatching/FileWatcher.swift` の `startDirectoryMonitor`。
+`.write` ハンドラが `fileSource == nil` のときだけ `startFileMonitor` を呼ぶ）。
 
 問題は、**再作成 → 監視再開の完了** が固定 0.5 秒以内に終わる保証がないこと。
 TSan スローダウン + 8 テスト並列の負荷でディレクトリイベント配送や
@@ -99,8 +103,9 @@ TSan スローダウン + 8 テスト並列の負荷でディレクトリイベ�
    TASK-243 の検証スコープでは `ViewerStoreIntegrationTests` 側の解除検証を行っていないため、
    予防的に直列のまま維持している。
 3. （補助）`waitUntil` のタイムアウトを TSan ジョブ向けに延長する（実装済み）。
-   環境変数 `BEFOLD_TEST_TIMEOUT_SECONDS` で上書き可能にし、CI の
-   thread-sanitizer ジョブで 30 秒に設定した。
+   環境変数 `BEFOLD_TEST_TIMEOUT_SECONDS` で上書き可能にした。
+   現在の `.github/workflows/ci.yml` はワークフローレベルで 60 秒、
+   thread-sanitizer ジョブで 120 秒を設定している（導入時は 30 秒だった）。
 
 ## 追加対策（2026-07-11）
 
@@ -118,7 +123,8 @@ TSan スローダウン + 8 テスト並列の負荷でディレクトリイベ�
    伝搬チェーンの所要時間と TSan 下のマージンを改善する。
 
 3. **実 FS 統合テストの「発火するまで書き込みリトライ」パターン統一**。
-   `waitUntilWithRetry` を `TestSupport.swift` の共通ヘルパーへ昇格し、MainActor 版
+   `waitUntilWithRetry` を共通ヘルパーへ昇格し（現在は
+   `BefoldApp/BefoldTestSupport/Waiting.swift`）、MainActor 版
    `waitUntilWithRetryOnMainActor` を追加した。書き込み系（冪等な操作）のテストは
    リトライ型に変更してイベント取りこぼしに強くした。delete / rename / move 系は
    アクションが冪等でないためリトライ化せず、代わりに 4 の arm 確認プローブを併用する。
@@ -135,7 +141,7 @@ TSan スローダウン + 8 テスト並列の負荷でディレクトリイベ�
    `deletingWatchedFileFiresOnFileGone` が waitUntil タイムアウトで失敗し、
    書き込みリトライ系が全て通ったことと整合する。
    対策として、sleep を復活させるのではなく条件ベースの arm 確認プローブ
-   `confirmWatcherArmed`（`TestSupport.swift`）を導入した。対象ファイルへ
+   `confirmWatcherArmed`（`BefoldApp/befoldTests/TestSupport.swift`）を導入した。対象ファイルへ
    `atomically: false` の書き込みを繰り返して最初のコールバック到達を待ち、file source の
    kevent 登録完了を観測する（`atomically: true` は rename 経由で監視を張り直し登録レースを
    再発させるため使わない）。その後、プローブ書き込みのデバウンス残コールバックが検証を
@@ -150,13 +156,15 @@ TSan スローダウン + 8 テスト並列の負荷でディレクトリイベ�
    だったが、TASK-243 で 0.35s（`testDebounceDelay + 0.3`）へ変更した。根拠も
    「debounce 遅延の定数倍」ではなく、kevent 配送 → 監視キュー → デバウンサー →
    `@MainActor` ホップまでを含む経路全体に対する余裕(MainActor 混雑時の遅延を吸収する分)
-   に変わっている。「6 倍」を典拠に戻さないこと(詳細は `TestSupport.swift` の
+   に変わっている。「6 倍」を典拠に戻さないこと(詳細は
+   `BefoldApp/befoldTests/TestSupport.swift` の
    `confirmWatcherArmed` doc comment を参照)。
 
 5. **TSan 実行時のタイムアウト延長**。
    `waitUntil` / `waitUntilOnMainActor` の既定タイムアウトを
-   `BEFOLD_TEST_TIMEOUT_SECONDS` で上書き可能にし、`.github/workflows/ci.yml` の
-   thread-sanitizer ジョブに `BEFOLD_TEST_TIMEOUT_SECONDS: 30` を設定した。
+   `BEFOLD_TEST_TIMEOUT_SECONDS` で上書き可能にし（`BefoldApp/BefoldTestSupport/Waiting.swift`
+   の `testTimeoutSeconds`）、`.github/workflows/ci.yml` の thread-sanitizer ジョブで
+   上書きするようにした（導入時 30 秒、現在は 120 秒）。
 
 6. **`ViewerStoreIntegrationTests` の直列化**。
    実 FS + 実 FileWatcher を使うため `@Suite(.serialized)` を付与し、
@@ -164,9 +172,8 @@ TSan スローダウン + 8 テスト並列の負荷でディレクトリイベ�
 
 ## 参考
 
-- 失敗ログ抜粋（初回調査時）: `Test detectsChangeAfterRecreation() recorded an issue at
-  FileWatcherIntegrationTests.swift:91:28: Confirmation was confirmed 0 times,
-  but expected to be confirmed 1 time`
+- 失敗ログ抜粋（初回調査時）: `Test detectsChangeAfterRecreation() recorded an issue`
+  ／ `Confirmation was confirmed 0 times, but expected to be confirmed 1 time`
 - arm 登録レースの再現: PR #171 build-and-test（macos-26）run 29135997742 で
   `detectsFileDeletion` / `deletingWatchedFileFiresOnFileGone` が失敗
 - 関連コード: `BefoldApp/befold/FileWatching/FileWatcher.swift`
