@@ -1,10 +1,10 @@
 ---
 id: TASK-551
 title: ダッシュボードの主指標を LP 限定から人のサイト訪問全体へ移し、概要面を組み替える
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-25 01:51'
-updated_date: '2026-08-25 01:56'
+updated_date: '2026-08-25 02:10'
 labels: []
 dependencies: []
 priority: high
@@ -47,12 +47,12 @@ ordinal: 799000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 概要面の主指標が、ボットとデータセンター経由を除いた全ページの visit を数えている（/usecases/* や記事へのアクセスが反映される）
-- [ ] #2 LP 限定の訪問数が失われず、流入面の「ページ別の訪問」から読み取れる
-- [ ] #3 概要面に残るダウンロード指標は合計のみで、内訳（自動更新・旧版・更新確認）とアップデート確認は流入面「内訳（全期間の累計）」から読める
-- [ ] #4 概要面から移動した指標の移動先が Implementation Notes に列挙されている（黙って消えたものが無い）
-- [ ] #5 上の「着手前に決めること」4 点の結論が Implementation Notes に残っている
-- [ ] #6 site の vitest が通り、主指標が page で絞られていないことと、query-count.test.ts の上限を超えないことをテストが固定している
+- [x] #1 概要面の主指標が、ボットとデータセンター経由を除いた全ページの visit を数えている（/usecases/* や記事へのアクセスが反映される）
+- [x] #2 LP 限定の訪問数が失われず、流入面の「ページ別の訪問」から読み取れる
+- [x] #3 概要面に残るダウンロード指標は合計のみで、内訳（自動更新・旧版・更新確認）とアップデート確認は流入面「内訳（全期間の累計）」から読める
+- [x] #4 概要面から移動した指標の移動先が Implementation Notes に列挙されている（黙って消えたものが無い）
+- [x] #5 上の「着手前に決めること」4 点の結論が Implementation Notes に残っている
+- [x] #6 site の vitest が通り、主指標が page で絞られていないことと、query-count.test.ts の上限を超えないことをテストが固定している
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -153,3 +153,48 @@ ordinal: 799000
 - **項目 8（非同期の世代管理）**: 同上。部分的に置き換わる表示状態が無く、開始時の無効化・着地時の一致確認を要する箇所が生まれない
 - **項目 10（型グループの行数）**: Swift 専用の指標（`scripts/check-type-group-size.sh`）で、今回は site/ の TypeScript のみ。なお `.oxlintrc.json` は `eslint/max-lines` を off にしており、TS 側に行数の機械的上限は無い。`dashboard.tsx` は 1,011 行で、今回は表示指標を減らす変更なので純増は注記ぶんに留まる
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 決めたこと（「着手前に決めること」4 点への結論）
+
+1. **`MetricKey` の語彙**: 新キーを足さず、既存 `visit` の述語を `{ kind:'visit', source:null, page:null }` へ広げた。visit 系を 2 キーに割ると `METRIC_EXPR` の CASE 先頭一致で LP の行が片方へ吸われ、`metricBreakdowns` 側が常に 0 になるため（計画の「決めたこと 1」）。
+2. **過去データの段差**: 画面で説明しない。`PAGE_COLUMN_START` 定数は追加していない。述語から page 条件が消えるだけなので旧行（page が NULL）は今までどおり数えられ、値は減らない。担保として「page 列の導入前に記録された visit（page が NULL）も数える」テストを残した。
+3. **クエリ本数**: 増やしていない。概要面は既存 4 本（`cumulativeTotals` / `todayTotals` / `dailySeries` / `recentEvents`）のまま。移設先の流入面 `perKind` は既に `cumulative.counts` から `total` を持っており、描画するだけで済んだ（新規クエリ 0 本）。`query-count.test.ts` は緑のまま。
+4. **概要面から外す指標の行き先**: 下表のとおり。すべて流入面「内訳（全期間の累計）」の指標別カードへ移した。「概要面から外した指標は流入面の内訳で読める（黙って消えていない）」テストで移設先が空でないことを固定している。
+
+| 概要面から外したもの | 行き先 |
+| --- | --- |
+| アップデート確認（`update_check`）のカード | 流入面「内訳（全期間の累計）」の指標別カード（`id="traffic-update_check"`） |
+| ダウンロード（LP / 自動更新 / 旧バージョン）の各カード | 同上（`traffic-download` / `traffic-update_download` / `traffic-archive_download`）。概要面には合計カードのみ残した |
+| 推移グラフの `update_check` / `update_download` / `archive_download` 系列 | 同上（全期間の累計として）。日次の内訳は利用者面の時間帯分布が直近 14 日を KIND_LABELS の 5 系列で持ち続ける |
+
+## 計画から変えた点
+
+- 概要推移グラフの 2 本目を「ダウンロード（LP）」ではなく **「ダウンロード合計」** にした。概要カードが合計のみになったため、グラフだけ LP 単独だとカードとグラフで「ダウンロード」の意味が変わる。AC #3（概要に残るダウンロード指標は合計のみ）とも揃う。
+- 計画にあった `ALL_METRICS`（他の呼び出し元が渡す全指標集合）は作っていない。`metricCards` の呼び出し元は概要面の 2 箇所しかなく、未使用の export になるため。`metrics` は必須引数のままで、デフォルト引数は置いていない。
+
+## 実装
+
+- `site/src/analytics.ts`: `METRIC_FILTERS.visit` の `page: '/'` → `null`（コメント差し替え）、`KIND_LABELS` の visit ラベルを「ページアクセス」→ **「ページビュー」**（`UNIQUE_SOURCE_LABELS` の「サイト訪問」と語を分けるため）、`OVERVIEW_METRICS`（`visit` のみ）を新設。`UNIQUE_SOURCE_FILTERS` の doc コメントから「ページアクセスは LP のみ」の記述を削除。
+- `site/src/views/dashboard.tsx`: `metricCards` の第 3 引数 `metrics: ReadonlySet<MetricKey>` を**必須**で追加（ダウンロード合計だけは面に依らず出す）。`OverviewSections` のカードと推移グラフを 2 系列へ。概要面に注記を追加（ボット・データセンター除外、LP 単独と内訳の読み場所）。`TrafficSections` の「内訳（全期間の累計）」へ `perKind[].total` のカード行を追加。「ページ別の訪問」の注記から偽になった一文（「ページアクセスの指標は LP（/）だけを数えているため〜」）を削除し、実際に残る差（自動アクセスを含む点）へ書き換え。利用者面の注記も同様に修正。
+
+## 系列数の上限（申し送り）
+
+`SeriesChart` の色は `--series-1`〜`--series-5` の 5 本で、**宣言順に固定割当・5 系列が上限**。6 本目は無音で色を失う。`dashboard.test.ts` の「系列ごとに別チャートを並べず〜」に `expect(series).toBeLessThanOrEqual(5)` を入れ、面ごとの系列数がこの上限を超えたら落ちるようにした。
+
+## 検証
+
+- `npx vitest run`: 13 files / **425 passed**（変更前は 13 failed）
+- `npm run typecheck`: エラーなし
+- `npm run lint`（oxlint --type-aware）: 指摘なし
+- `npm run format:check`: 整形ずれなし
+- `site/test/query-count.test.ts`: 緑（概要面は 4 本のまま、`MAX_QUERIES_PER_PAGE = 8` を超えない）
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+概要面の主指標を LP 限定の visit からサイト全体のページビューへ移し、ダウンロードは合計 1 枚だけ残して内訳・アップデート確認を流入面「内訳（全期間の累計）」へ移設した。METRIC_FILTERS.visit の page 条件を外し（新 MetricKey は足さない）、OVERVIEW_METRICS と metricCards の必須引数で面ごとの表示指標を絞る。移設は既存 perKind[].total の描画で済み、クエリは 0 本増。vitest 425 passed / typecheck・lint・format:check クリーンで検証。
+<!-- SECTION:FINAL_SUMMARY:END -->

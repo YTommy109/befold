@@ -54,10 +54,11 @@ export type MetricKey = EventKind | 'update_download' | 'archive_download'
 type MetricFilter = { kind: EventKind; source: DownloadSource | null; page: Page | null }
 
 const METRIC_FILTERS: Record<MetricKey, MetricFilter> = {
-  // 「ページアクセス」は LP への訪問だけを数える。TASK-488.1 で /features も
-  // visit として記録し始めたが、この系列は LP からの新規獲得を測るものなので
-  // 意味と過去データの連続性を保つために page で絞る。ページ別の内訳は別系列。
-  visit: { kind: 'visit', source: null, page: '/' },
+  // 「ページビュー」はサイト全体への訪問を数える（LP・features・releases・
+  // usecases・記事）。LP 単独の数は指標として持たず、流入面「ページ別の訪問」の
+  // 「/」行で読む（TASK-551）。visit 系のキーを 2 つに割ると `METRIC_EXPR` の
+  // CASE 先頭一致で LP の行が片方へ吸われ、`metricBreakdowns` 側が常に 0 になる。
+  visit: { kind: 'visit', source: null, page: null },
   download: { kind: 'download', source: 'lp', page: null },
   update_download: { kind: 'download', source: 'sparkle', page: null },
   // 旧バージョン一覧（/releases）からのダウンロード。新規獲得（lp）と混ぜると
@@ -92,6 +93,19 @@ export const OPERATIONAL_KINDS: ReadonlySet<MetricKey> = new Set<MetricKey>([
 export const DOWNLOAD_METRICS: ReadonlySet<MetricKey> = new Set(
   metricKeys().filter((metric) => METRIC_FILTERS[metric].kind === 'download'),
 )
+
+/**
+ * 概要面のカード・推移グラフに出す指標。**概要面の描画だけがこれで絞る。**
+ *
+ * `KIND_LABELS` からダウンロード内訳を外す形にはしない。`KIND_LABELS` は概要
+ * カード・概要推移グラフ・利用者面の時間帯分布・流入面 `perKind` の 4 箇所が
+ * 消費しており、そこを削ると概要面以外の 3 箇所からも黙って消えるため
+ * （TASK-551）。ダウンロードは合計 1 枚だけを概要に残し、内訳は流入面
+ * 「内訳（全期間の累計）」で読む。
+ *
+ * `KIND_LABELS` の部分集合であることは `analytics.test.ts` が検査する。
+ */
+export const OVERVIEW_METRICS: ReadonlySet<MetricKey> = new Set<MetricKey>(['visit'])
 
 /** ダウンロード系の合計。内訳が互いに素なので、単純な和で総ダウンロード数になる。 */
 export function downloadTotal(counts: KindCounts): number {
@@ -170,9 +184,9 @@ export type UniqueSourceKey = 'visit' | `update_check_${Channel}` | 'update_chec
  * ユニーク数が画面のどこにも出ないまま落ちる。埋め込む値はこの定数だけで、
  * 外部入力は入らない。
  *
- * `visit` は page で絞らない。「ページアクセス」の指標が LP のみを数えるのとは
- * 意図が違い、こちらはサイトに来た人の規模を測るもの（当日集計の
- * `uniqueVisitors` も同じ扱い）。
+ * `visit` は page で絞らない。「ページビュー」の指標と範囲は同じ（サイト全体）だが、
+ * こちらが数えるのは延べ回数ではなくアクセス元の異なり数で、サイトに来た人の規模を
+ * 測るもの（当日集計の `uniqueVisitors` も同じ扱い）。
  */
 const UNIQUE_SOURCE_FILTERS: Record<UniqueSourceKey, string> = {
   visit: `kind = 'visit'`,
@@ -400,7 +414,7 @@ export type DeliverySummary = {
  * カードは `DOWNLOAD_METRICS` の合計を併記して、3 つが内訳であることを示す。
  */
 export const KIND_LABELS: { kind: MetricKey; label: string }[] = [
-  { kind: 'visit', label: 'ページアクセス' },
+  { kind: 'visit', label: 'ページビュー' },
   { kind: 'update_check', label: 'アップデート確認' },
   { kind: 'download', label: 'ダウンロード（LP）' },
   { kind: 'update_download', label: 'ダウンロード（自動更新）' },

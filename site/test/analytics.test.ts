@@ -18,6 +18,7 @@ import {
   trafficSplit,
   eventBreakdowns,
   OPERATIONAL_KINDS,
+  OVERVIEW_METRICS,
   UNRECORDED_LABEL,
   KIND_LABELS,
   UNIQUE_SOURCE_LABELS,
@@ -687,40 +688,47 @@ describe('ページの分離', () => {
       .run()
   }
 
-  it('「ページアクセス」の全系列が LP だけを数える', async () => {
+  it('「ページビュー」の全系列がサイト全体の訪問を数える', async () => {
     // 指標の述語は METRIC_FILTERS 1 箇所から組み立てる決まりで、累計・当日・
-    // 日次・時間帯・内訳がそれを共有する。どれか 1 つが述語を書き写す形へ
-    // 戻ると /features がここで混ざるので、全系列をまとめて固定する。
+    // 日次・時間帯・内訳がそれを共有する。どれか 1 つが述語を書き写す形（LP 限定）
+    // へ戻ると下層ページがここから消えるので、全系列をまとめて固定する。
     await insertVisit('/')
     await insertVisit('/features')
     await insertVisit('/features')
 
     const summary = await summarizeAll(env.DB, NOW)
 
-    expect(summary.cumulative.counts.visit).toBe(1)
-    expect(summary.today.counts.visit).toBe(1)
-    expect(summary.daily.at(-1)?.counts.visit).toBe(1)
-    expect(summary.hourly.reduce((total, hour) => total + hour.counts.visit, 0)).toBe(1)
-    expect(summary.perKind.find((entry) => entry.kind === 'visit')?.total).toBe(1)
+    expect(summary.cumulative.counts.visit).toBe(3)
+    expect(summary.today.counts.visit).toBe(3)
+    expect(summary.daily.at(-1)?.counts.visit).toBe(3)
+    expect(summary.hourly.reduce((total, hour) => total + hour.counts.visit, 0)).toBe(3)
+    expect(summary.perKind.find((entry) => entry.kind === 'visit')?.total).toBe(3)
   })
 
-  it('page 列の導入前に記録された visit は LP として数える', async () => {
-    // 当時 visit を計上していたのは LP だけ（src/routes/public.tsx）。
-    // 遡って埋め直す材料は無いので COALESCE(page, '/') でその事実を表す。
+  it('記事や活用例ページへの訪問がページビューに反映される', async () => {
+    // TASK-551 の発端。イベント面には出るのに概要面が動かない、という形の退行。
+    await insertVisit('/usecases/medical-expenses')
+
+    expect((await cumulativeTotals(env.DB)).counts.visit).toBe(1)
+  })
+
+  it('page 列の導入前に記録された visit（page が NULL）も数える', async () => {
+    // 当時 visit を計上していたのは LP だけ（src/routes/public.tsx）。述語から
+    // page 条件が消えても旧行が落ちないことを固定する。
     await insertVisit(null)
 
     expect((await cumulativeTotals(env.DB)).counts.visit).toBe(1)
   })
 
   it('日次ユニーク訪問者はページで絞らない（サイト全体の訪問者数）', async () => {
-    // 指標ごとの件数と違い、COUNT(DISTINCT visitor_token) は「何人来たか」を
-    // 測るもの。LP だけに絞ると /features へ直接来た訪問者が数から消える。
+    // 指標ごとの件数（延べ）と COUNT(DISTINCT visitor_token)（異なり数）は
+    // 単位が違う。範囲は同じ「サイト全体」で、母数が食い違わないことを固定する。
     await insertVisit('/')
     await insertVisit('/features')
 
     const totals = await todayTotals(env.DB, NOW)
 
-    expect(totals.counts.visit).toBe(1)
+    expect(totals.counts.visit).toBe(2)
     expect(totals.uniqueVisitors).toBe(2)
   })
 })
@@ -1082,6 +1090,16 @@ describe('kind の行き先', () => {
     expect(shown.has('update_download')).toBe(true)
   })
 
+  it('概要面に出す指標は KIND_LABELS の部分集合', () => {
+    // 概要面にだけ現れて他の面のどこにも無い指標を作らないための構造ガード。
+    // OVERVIEW_METRICS から漏れた指標は流入面「内訳（全期間の累計）」で読む。
+    const shown = new Set(KIND_LABELS.map((entry) => entry.kind))
+
+    for (const metric of OVERVIEW_METRICS) {
+      expect(shown.has(metric)).toBe(true)
+    }
+  })
+
   it('download の source はすべてどれか 1 つの指標に数えられる', async () => {
     // source を足したのに指標系列を足さないと、その経路のダウンロードは
     // どのカード・グラフにも出ないまま記録だけされる。型では捕まらない
@@ -1169,14 +1187,14 @@ describe('日別のユニークアクセス元', () => {
     expect(point?.uniqueSources.update_check_develop).toBe(0)
   })
 
-  it('サイト訪問はページで絞らない（ページアクセスの指標とは母数が違う）', async () => {
+  it('サイト訪問はページで絞らない（ページビューの指標と同じ範囲）', async () => {
     await insertSource(TODAY, 'visit', 'source-a', { page: '/' })
     await insertSource(TODAY, 'visit', 'source-b', { page: '/features' })
 
     const point = (await dailySeries(env.DB, NOW)).at(-1)
 
     expect(point?.uniqueSources.visit).toBe(2)
-    expect(point?.counts.visit).toBe(1)
+    expect(point?.counts.visit).toBe(2)
   })
 
   it('同じアクセス元が同じ日に何度来ても 1 と数える', async () => {
