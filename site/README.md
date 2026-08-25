@@ -515,8 +515,18 @@ LP と詳細ページは言語ごとに URL を分ける（日本語 = `/` `/fea
   （`trafficSplit` と同じ形）。`ua_summary LIKE 'bot:%'` のリテラルと
   `datacenterOrgMatch()` の呼び出しがそれぞれ 1 箇所であることは
   `test/analytics.test.ts` の構造ガードが検査する。
-- **ページ別は `page='/'` の「ページアクセス」指標とは別物**で、合計は一致しない。
-  日本語 LP と英語 LP はどちらも `page='/'` で、言語は別の軸として出す。
+- **ページ別の「/」行は LP への訪問と列の導入前の訪問の和**（`page` が NULL の
+  visit を `/` へ丸めるため）。日本語 LP と英語 LP はどちらも `page='/'` で、
+  言語は別の軸として出す。
+- **SSE は毎周期 `id:` を出して再開位置をクライアントへ伝える**（`event: cursor`。
+  接続維持の役も兼ねる）。`id:` を `event: event` の行だけに付けると、
+  `eventsAfter` が `HUMAN_ONLY` でロボットを除くぶん、ロボットしか来ない間は
+  クライアントの `Last-Event-ID` が進まない。すると 10 分（`MAX_STREAM_MS`）で
+  切れて再接続するたびにサーバが「ページを開いた時刻からの差分」を見ることになり、
+  いちばん重い経路（`summarizeOverview` 4 本 + 概要面の全再描画。実測でアイドル
+  周期の約 10 倍）を接続のたびに走らせる（TASK-555）。**送る順序は
+  events → summary → cursor**。cursor を先に出すと、summary が届かないまま
+  切れた周期を再接続側が処理済みと見なす。
 - **最新イベント表の SELECT 句は `RECENT_COLUMNS` で共有する。** `recentEvents`
   （初期表示）と `eventsAfter`（SSE）は同じ `RecentEvent` を返す契約だが、
   `.all<RecentEvent>()` のジェネリクスは実際の列を検査しない。片方から列を落としても

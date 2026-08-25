@@ -714,6 +714,27 @@ describe('稼働中のアプリバージョンの表示', () => {
 })
 
 describe('SSE ストリーム', () => {
+  /**
+   * ポーリング 1 周期ぶんを読む。周期の終端は末尾の `event: cursor` で判る。
+   *
+   * 終端の目印を周期末のブロックに置いているので、events / summary を出す順序を
+   * 入れ替えても「1 周期ぶん読めた」の意味が変わらない。
+   */
+  async function readCycle(path: string): Promise<string> {
+    const response = await call(path, AUTH_HEADERS)
+    expect(response.status).toBe(200)
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let received = ''
+    while (!received.includes('event: cursor')) {
+      const { value, done } = await reader.read()
+      if (done) break
+      received += decoder.decode(value, { stream: true })
+    }
+    await reader.cancel()
+    return received
+  }
+
   it('after より新しいイベントを push する', async () => {
     const oldId = await seed('visit')
     await seed('download', { version: 'v1.10.0' })
@@ -726,8 +747,8 @@ describe('SSE ストリーム', () => {
     const reader = response.body!.getReader()
     const decoder = new TextDecoder()
     let received = ''
-    // 初回ポーリング分（接続コメント＋差分）が届くまで読む。
-    while (!received.includes('keep-alive')) {
+    // 初回ポーリング分（接続コメント＋差分＋周期末の cursor）が届くまで読む。
+    while (!received.includes('event: cursor')) {
       const { value, done } = await reader.read()
       if (done) break
       received += decoder.decode(value, { stream: true })
@@ -750,7 +771,7 @@ describe('SSE ストリーム', () => {
     const reader = response.body!.getReader()
     const decoder = new TextDecoder()
     let received = ''
-    while (!received.includes('keep-alive')) {
+    while (!received.includes('event: cursor')) {
       const { value, done } = await reader.read()
       if (done) break
       received += decoder.decode(value, { stream: true })
@@ -778,7 +799,7 @@ describe('SSE ストリーム', () => {
     const reader = response.body!.getReader()
     const decoder = new TextDecoder()
     let received = ''
-    while (!received.includes('keep-alive')) {
+    while (!received.includes('event: cursor')) {
       const { value, done } = await reader.read()
       if (done) break
       received += decoder.decode(value, { stream: true })
@@ -795,6 +816,29 @@ describe('SSE ストリーム', () => {
     expect(html).toContain('<span class="value" id="count-visit">1</span>')
   })
 
+  it('ロボットしか来なかった周期でも再開位置をクライアントへ伝える', async () => {
+    // ここが今回の本題（TASK-555）。`event: event` はロボットの行を流さないので、
+    // 行ごとの `id:` だけに頼ると **クライアントの Last-Event-ID が一度も進まない**。
+    // すると 10 分で切れて再接続するたび、サーバは「ページを開いた時刻からの差分」を
+    // 見て `arrived` を真と判定し、いちばん重い経路（summarizeOverview 4 本 +
+    // 概要面の全再描画）を接続の 1 周期目で毎回走らせることになる。
+    const oldId = await seed('visit')
+    const botId = await seed('visit', { uaSummary: 'bot:GPTBot' })
+
+    const received = await readCycle(`/dashboard/stream?after=${oldId}`)
+
+    expect(received).not.toContain('event: event')
+    expect(received).toContain(`id: ${botId}\nevent: cursor`)
+  })
+
+  it('新着が無い周期でも毎周期 cursor を出す（再開位置が古いまま固まらない）', async () => {
+    const lastId = await seed('visit')
+
+    const received = await readCycle(`/dashboard/stream?after=${lastId}`)
+
+    expect(received).toContain(`id: ${lastId}\nevent: cursor`)
+  })
+
   it('新着イベントが無いポーリング周期では summary を配信しない', async () => {
     const lastId = await seed('visit')
 
@@ -802,7 +846,7 @@ describe('SSE ストリーム', () => {
     const reader = response.body!.getReader()
     const decoder = new TextDecoder()
     let received = ''
-    while (!received.includes('keep-alive')) {
+    while (!received.includes('event: cursor')) {
       const { value, done } = await reader.read()
       if (done) break
       received += decoder.decode(value, { stream: true })

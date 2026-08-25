@@ -39,13 +39,15 @@ const MAX_QUERIES_PER_PAGE = 8
 const MAX_QUERIES_TOTAL = 20
 
 /**
- * SSE の 1 ポーリング周期（`POLL_INTERVAL_MS` = 2500ms）で発行される本数の上限。
+ * SSE の 1 ポーリング周期（`POLL_INTERVAL_MS` = 30 秒）で発行される本数の上限。
  *
  * **概要面のクエリは「面を開いたとき 1 回」ではない。** ダッシュボードを開いている
- * 間ずっと 2.5 秒ごとに `runStreamCycle` が走るため、他の面の 1 本とは重みが違う。
+ * 間ずっと `POLL_INTERVAL_MS` ごとに `runStreamCycle` が走るため、他の面の 1 本とは
+ * 重みが違う。
  * 面ごとの上限に相乗りさせると軸が混ざる（片方は 1 回、片方は毎秒 0.4 回）ので、
  * 別の上限として立てている。新着が無い周期でも `maxEventId` と `eventsAfter` の
- * 2 本は必ず引くため、タブを 1 つ開いたままにするだけで 48 本/分が流れる。
+ * 2 本は必ず引くため、タブを 1 つ開いたままにするだけで 4 本/分が流れる
+ * （間隔を 2.5 秒から広げる前は 48 本/分だった = TASK-556）。
  * ここへクエリを足すことの重さを、面へ 1 本足すのと同じに見せないための上限。
  */
 const MAX_QUERIES_PER_STREAM_CYCLE = 6
@@ -166,7 +168,7 @@ describe('ダッシュボードのクエリ本数', () => {
       const cycle = await runStreamCycle(db, 0)
 
       expect(cycle.summaryHtml).not.toBeNull()
-      // 概要面を開き直すのと同じコストが、2.5 秒ごとに乗る。
+      // 概要面を開き直すのと同じコストが、周期ごとに乗る。
       expect(count()).toBe(2 + EXPECTED_QUERIES.overview)
       expect(count()).toBeLessThanOrEqual(MAX_QUERIES_PER_STREAM_CYCLE)
     })

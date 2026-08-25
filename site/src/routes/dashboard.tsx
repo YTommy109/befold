@@ -27,8 +27,16 @@ import {
   renderOverviewSections,
 } from '../views/dashboard'
 
-/** SSE のポーリング間隔と、1 接続あたりの最大保持時間。 */
-const POLL_INTERVAL_MS = 2500
+/**
+ * SSE のポーリング間隔と、1 接続あたりの最大保持時間。
+ *
+ * 間隔は画面の更新の遅さと引き換えに、アイドル時の D1 アクセスを決める
+ * （新着が無い周期でも `maxEventId` / `eventsAfter` の 2 本は必ず引く）。
+ * 2.5 秒だと 48 本/分だったものを、実アクセス数に対して細かすぎるとして
+ * 30 秒 = 4 本/分へ広げた（TASK-556）。周期末に出す `event: cursor` が
+ * 接続維持も兼ねているため、**この間隔はそのまま keep-alive の間隔でもある**。
+ */
+const POLL_INTERVAL_MS = 30 * 1000
 const MAX_STREAM_MS = 10 * 60 * 1000
 
 /** Access が認証済みリクエストに付ける JWT のヘッダ名。 */
@@ -233,8 +241,25 @@ dashboardRoutes.get('/stream', (c) => {
             const data = JSON.stringify(cycle.summaryHtml)
             controller.enqueue(encoder.encode(`event: summary\ndata: ${data}\n\n`))
           }
-          // 接続維持用のコメント（プロキシのアイドルタイムアウト対策）。
-          controller.enqueue(encoder.encode(': keep-alive\n\n'))
+          // 周期の終わりに再開位置を伝える。**この 1 ブロックが 2 つの役目を持つ。**
+          //
+          // 1 つは接続維持（プロキシのアイドルタイムアウト対策）で、以前は
+          // `: keep-alive` のコメントがその役だった。もう 1 つが再開位置の更新で、
+          // これが無いと `id:` を出すのは `event: event` の行だけになる。
+          // `eventsAfter` は `HUMAN_ONLY` でロボットを除くため、ロボットしか
+          // 来ない間はクライアントの `Last-Event-ID` が一度も進まず、10 分で切れて
+          // 再接続するたびにサーバは「ページを開いた時刻からの差分」を見ることになり、
+          // いちばん重い経路（`summarizeOverview` 4 本 + 概要面の全再描画。実測で
+          // アイドル周期の約 10 倍）を接続のたびに走らせていた（TASK-555）。
+          //
+          // **events → summary → cursor の順を守る。** cursor を先に出すと、
+          // cursor だけが届いて summary が届かないまま切れた場合に、再接続側が
+          // その周期を処理済みと見なして概要の更新を 1 回落とす。
+          //
+          // `data:` を付けるのは、data の無いブロックでも `Last-Event-ID` が
+          // 進むかどうかが実装依存だから。値は id と同じで、クライアントは
+          // この event 型にリスナを付けない（EventSource は未知の型を無視する）。
+          controller.enqueue(encoder.encode(`id: ${lastId}\nevent: cursor\ndata: ${lastId}\n\n`))
           await new Promise((resolve) => {
             setTimeout(resolve, POLL_INTERVAL_MS)
           })
