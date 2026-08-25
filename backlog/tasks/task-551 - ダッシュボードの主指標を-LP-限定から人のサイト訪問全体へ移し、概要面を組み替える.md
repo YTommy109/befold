@@ -4,6 +4,7 @@ title: ダッシュボードの主指標を LP 限定から人のサイト訪問
 status: To Do
 assignee: []
 created_date: '2026-08-25 01:51'
+updated_date: '2026-08-25 01:56'
 labels: []
 dependencies: []
 priority: high
@@ -54,3 +55,102 @@ ordinal: 799000
 - [ ] #6 上の「着手前に決めること」4 点の結論が Implementation Notes に残っている
 - [ ] #7 site の vitest が通り、主指標が page で絞られていないことと、query-count.test.ts の上限を超えないことをテストが固定している
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+実装着手前に `/review-design` を 1 回実施した。チェックリスト 10 項目のうち 7 項目が該当し、うち 3 件は当初案のままでは破れるため設計を変更した（下の「レビューで変えた点」）。
+
+## 決めたこと（タスクの「着手前に決めること」への回答）
+
+### 1. 新しい `MetricKey` を足さず、既存 `visit` の述語を広げる
+
+`METRIC_FILTERS.visit` を `{ kind: 'visit', source: null, page: null }` にする。`metricExpression` は `page === null` のとき `COALESCE(page,'/')` 句ごと落とすので、述語は `kind = 'visit'` になる。
+
+**`visit`（全ページ）と `visit_lp`（LP 限定）の 2 キーに割る案は採らない。** `METRIC_EXPR` は `CASE WHEN ... THEN` の連鎖で**先頭一致が勝つ**ため、visit 系のキーを 2 つ持つと LP への訪問行は先に書いたほうへ吸われ、もう一方は `metricBreakdowns`（流入面の OS 別・接続元組織別・バージョン別）で**常に 0** になる。一方 `KIND_COUNT_COLUMNS` は指標ごとに独立した `SUM()` なので両方が数える。**同じ `METRIC_FILTERS` から派生する 2 つの消費先が食い違う**形になり、画面上は「カードは 2、内訳表は 0」という無音の矛盾として出る。
+
+### 2. 過去データの段差は `PAGE_COLUMN_START` で説明する
+
+`page` 列の導入は 2026-08-16（`50dd6674`、`LANGUAGE_URL_START` / `HOST_COLUMN_START` と同じコミット）。それ以前の visit は LP でしか記録しておらず、`page` は NULL。
+
+述語から page 条件が消えるので、**旧行は今までどおり数えられ、値は変わらない**（減らない）。段差は「2026-08-16 以降だけ下層ページのぶん増える」形で出る。これは計測範囲が広がった事実であって不具合ではない。
+
+`site/src/views/dashboard.tsx` には `BOT_CLASSIFICATION_START` / `LANGUAGE_URL_START` / `HOST_COLUMN_START` / `AS_ORG_COLUMN_START` / `APP_VERSION_COLUMN_START` の 5 定数と注記の慣習が既にある。**`page` だけが定数を持たず散文で書かれていた**（流入面「ページ別の訪問」の注記）ので、`PAGE_COLUMN_START = '2026-08-16'` を足して既存の 5 つと揃え、概要面と流入面の両方の注記から参照する。
+
+### 3. クエリ本数は増やさない（概要面は SSE で 2.5 秒ごとに再実行される）
+
+`site/src/routes/dashboard.tsx` の `/dashboard/stream` は、新着イベントがあった周期で `renderOverviewSections(await summarizeOverview(db, Date.now()))` を丸ごと呼び直す。`POLL_INTERVAL_MS = 2500`、`MAX_STREAM_MS = 10 分`。つまり**概要面のクエリ本数は「開いたとき 1 回」ではなく「ブラウザを開いている間 2.5 秒ごと」のコスト**である。
+
+`site/test/query-count.test.ts` は `summarizeOverview` を 1 回呼んで `prepare` を数えるだけなので、この周期コストを測っていない（項目 7 の該当。別タスクへ切り出す）。
+
+したがって概要面へクエリを足さない。今回の変更は**既存 4 本（`cumulativeTotals` / `todayTotals` / `dailySeries` / `recentEvents`）のまま**で、表示する指標を減らす方向なので周期コストはむしろ下がる。
+
+### 4. 概要面から外す指標の行き先
+
+**「消す」ではなく「流入面で表示する」。** `summarizeTraffic` は既に `cumulativeTotals` を引いて `perKind[].total` に概要カードと**同一の数字**を持っているが、`TrafficSections` は `byOS` / `byAsOrg` / `byVersion` の `CountTable` しか描いておらず `entry.total` を画面に出していない。ここを描くだけで移設が済む（**新しいクエリは 0 本**）。
+
+| 概要面から外すもの | 行き先 |
+| --- | --- |
+| アップデート確認（`update_check`）のカード | 流入面「内訳（全期間の累計）」の `perKind` に総数を描画 |
+| ダウンロード（LP / 自動更新 / 旧バージョン）の各カード | 同上 |
+| 推移グラフの `update_download` / `archive_download` 系列 | 同上（日次の内訳が要るなら別タスク。現状 利用者面の時間帯分布が直近 14 日を同じ 5 系列で持つ） |
+
+## 実装
+
+### 1. `site/src/analytics.ts`
+
+- `METRIC_FILTERS.visit` の `page: '/'` → `page: null`。コメントを「LP 限定にしていた理由」から「サイト全体を数える。LP 限定は流入面のページ別で読む」に書き換える
+- `KIND_LABELS` の `visit` のラベルを `'ページアクセス'` → **`'ページビュー'`** にする。`'サイト訪問'` にはしない（`UNIQUE_SOURCE_LABELS` の `visit` が既に `'サイト訪問'` で、そちらは**アクセス元の異なり数**。同名にすると利用者面と概要面で同じ語が別の単位を指す）
+- **`KIND_LABELS` からは何も外さない。** `KIND_LABELS` は概要カード・概要推移グラフ・利用者面の時間帯分布・流入面 `perKind` の 4 箇所が消費しており、ここを削ると概要面以外の 3 箇所からも黙って消える
+- 代わりに `OVERVIEW_METRICS: ReadonlySet<MetricKey>`（`visit` と `download` のみ）を新設し、概要面の描画だけがこれで絞る。**定義は `analytics.ts` に置き、`DOWNLOAD_METRICS` と同様に `METRIC_FILTERS` から導けるものは導く**
+
+### 2. `site/src/views/dashboard.tsx`
+
+- `metricCards(counts, idPrefix)` に**第 3 引数として対象集合を必須で渡す**形にする（デフォルト引数を置かない = 項目 9 の担保）。概要面は `OVERVIEW_METRICS`、他の呼び出し元は `KIND_LABELS` 全体を渡す
+- `OverviewSections`:
+  - 「累計」カード = ページビュー / ダウンロード合計 / 延べアクセス元（3 枚）
+  - 「本日」カード = ページビュー / ダウンロード合計 / ユニークアクセス元（3 枚）
+  - 「日毎の推移」の系列 = `OVERVIEW_METRICS` の 2 本（ページビュー・ダウンロード（LP））
+  - 注記を足す: ボットとデータセンター経由を除いていること、`PAGE_COLUMN_START` 以前は LP しか記録していないこと、LP 単独の数は流入面「ページ別の訪問」で読めること
+- `TrafficSections` の「内訳（全期間の累計）」に `perKind[].total` を出す。「ページ別の訪問」の注記から「ページアクセスの指標は LP（/）だけを数えているため、ここの合計とは一致しない」という**もう成立しない文**を落とし、`PAGE_COLUMN_START` を使った記述に差し替える
+- `PAGE_COLUMN_START = '2026-08-16'` を既存 5 定数の並びへ追加
+
+### 3. 系列数の上限（項目 4）
+
+`SeriesChart` の色は `--series-1` 〜 `--series-5` の 5 本で、**宣言順に固定割当・5 系列が上限**。現在の概要推移グラフはちょうど 5 系列で上限に張り付いている。今回 2 系列へ減らすので上限から離れる。**この上限は設計上の制約として Notes に残す**（次に系列を足す人が 6 本目で無音に色を失わないように）。
+
+## テスト（退行の担保）
+
+- 既存テスト「「ページアクセス」の全系列が LP だけを数える」（`site/test/analytics.test.ts`）を**削除せず裏返す**: `/` と `/features` を入れて累計・当日・日次・時間帯・`perKind` の全系列が 3 を返すこと。この test は「述語を書き写す形への退行」を検知するためのもので、その役割は今回の変更後も要る
+- 既存テスト「page 列の導入前に記録された visit は LP として数える」は、述語から page 条件が消えるので**「page が NULL の visit も数える」**へ書き換える（旧行が落ちないことの担保はそのまま要る）
+- 新規: `/usecases/medical-expenses` への visit が概要面の `visit` に反映されること
+- 新規: 概要面のカードと推移グラフに `update_download` / `archive_download` / `update_check` が**出ないこと**、かつ流入面の `perKind` に**出ること**（移設先が空でないことの担保 = 「黙って消えた」を検出する）
+- 新規: `KIND_LABELS` と `OVERVIEW_METRICS` の関係 — `OVERVIEW_METRICS` が `KIND_LABELS` の部分集合であること（概要にだけ現れて他の面に無い指標を作らない）
+- `site/test/query-count.test.ts` が緑のまま（概要面は 4 本のまま）であること
+- `site/test/analytics.test.ts` の「自動アクセス除外の条件が 1 箇所に集約されている」が緑のまま
+- 既存の `counts.visit` を固定している assertion 群（`analytics.test.ts` に約 20 箇所）は、LP のみを入れているケースは値が変わらない。`/features` を混ぜているケースだけ期待値が変わるので、1 件ずつ意図を確認して直す（機械的な一括置換をしない）
+
+## レビューで変えた点
+
+### (1) 新キー追加案 → 既存キーの述語変更（項目 1・3）
+当初は `visit`（全ページ）と LP 限定を別 `MetricKey` にする案も検討したが、上の「決めたこと 1」のとおり `METRIC_EXPR` の `CASE` 先頭一致で `metricBreakdowns` 側が無音で 0 になる。LP 限定は**指標として持たず**、流入面「ページ別の訪問」の `/` 行（既存）で読む。
+
+### (2) `KIND_LABELS` から外す案 → 面ごとの表示集合を新設（項目 2・3・9）
+「概要面からダウンロード内訳を外す」を `KIND_LABELS` の削除で実現すると、利用者面の時間帯分布と流入面 `perKind` からも同時に消える（`KIND_LABELS` の消費先は 4 箇所）。さらに `analytics.test.ts` の `describe('kind の行き先')` が「全 `EventKind` が `KIND_LABELS` か `OPERATIONAL_KINDS` のどちらかに入る」ことを検査しているため、外すと `OPERATIONAL_KINDS`（＝運用観測）へ移すことになり、意味が変わる。
+
+代わりに `OVERVIEW_METRICS` を新設し、`metricCards` の引数を**必須**にした。デフォルト引数を残すと、次に指標を足した人が渡し忘れてもコンパイルが通り、概要面へ静かに復活する（TASK-319 と同型）。
+
+### (3) 「概要面にクエリを足してもよい」→ 足さない（項目 6・7）
+`MAX_QUERIES_PER_PAGE = 8` に対し概要面は 4 本で枠が空いているが、SSE が 2.5 秒周期で `summarizeOverview` を丸ごと呼び直すため、概要面の 1 本は他の面の 1 本と重みが違う。移設先の流入面 `perKind` が既に同じ数字を持っていたため、クエリ 0 本増で済む形に寄せた。
+
+## 別タスクへ切り出すもの
+
+- **`query-count.test.ts` が SSE の周期コストを測っていない**（項目 7）。概要面のクエリ本数は 2.5 秒ごとに効くのに、テストは 1 回の呼び出ししか見ない。加えて同ファイルのコメントの内訳が実装とずれている（コメント「users 3 / traffic 7 / 合計 17」に対し実測は users 4 / traffic 6 / 合計 16）。今回の変更で悪化はしないので、別タスクで扱う
+- **`eventBreakdowns` 系が visit 判定の第 2 の場所である件**（項目 1）。`byPage` は SQL で kind を絞らず、TS 側の `visitRows` と `foldSplits(row => row.page ?? '/')` で判定・丸めをしている。意図はコメントで明示されており今回の変更でも壊れないが、`METRIC_FILTERS` から独立した判定が 1 つ残っている事実は変わらない
+
+## チェックリストで該当しなかった項目
+
+- **項目 5（ライフサイクル・順序）**: SSE は `#summary` の `innerHTML` をサーバ生成 HTML で丸ごと差し替えるだけで、クライアント側に集計状態を持たない（`STREAM_SCRIPT` にリスナは `open` / `error` / `summary` の 3 つのみ、`event: event` のリスナは無い）。初期化順序も再計算回数も変わらない
+- **項目 8（非同期の世代管理）**: 同上。部分的に置き換わる表示状態が無く、開始時の無効化・着地時の一致確認を要する箇所が生まれない
+- **項目 10（型グループの行数）**: Swift 専用の指標（`scripts/check-type-group-size.sh`）で、今回は site/ の TypeScript のみ。なお `.oxlintrc.json` は `eslint/max-lines` を off にしており、TS 側に行数の機械的上限は無い。`dashboard.tsx` は 1,011 行で、今回は表示指標を減らす変更なので純増は注記ぶんに留まる
+<!-- SECTION:PLAN:END -->
