@@ -27,8 +27,16 @@ import {
   renderOverviewSections,
 } from '../views/dashboard'
 
-/** SSE のポーリング間隔と、1 接続あたりの最大保持時間。 */
-const POLL_INTERVAL_MS = 2500
+/**
+ * SSE のポーリング間隔と、1 接続あたりの最大保持時間。
+ *
+ * 間隔は画面の更新の遅さと引き換えに、アイドル時の D1 アクセスを決める
+ * （新着が無い周期でも `maxEventId` / `eventsAfter` の 2 本は必ず引く）。
+ * 2.5 秒だと 48 本/分だったものを、実アクセス数に対して細かすぎるとして
+ * 30 秒 = 4 本/分へ広げた（TASK-556）。周期末に出す `event: cursor` が
+ * 接続維持も兼ねているため、**この間隔はそのまま keep-alive の間隔でもある**。
+ */
+const POLL_INTERVAL_MS = 30 * 1000
 const MAX_STREAM_MS = 10 * 60 * 1000
 
 /** Access が認証済みリクエストに付ける JWT のヘッダ名。 */
