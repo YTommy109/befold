@@ -18,12 +18,15 @@ import {
   trafficSplit,
   eventBreakdowns,
   OPERATIONAL_KINDS,
+  OVERVIEW_METRICS,
   UNRECORDED_LABEL,
   KIND_LABELS,
   UNIQUE_SOURCE_LABELS,
   VERSION_BREAKDOWN_METRICS,
   RUNNING_VERSION_LABELS,
   TOP_N,
+  METRIC_EXPR,
+  metricOf,
 } from '../src/analytics'
 
 /**
@@ -687,41 +690,110 @@ describe('ページの分離', () => {
       .run()
   }
 
-  it('「ページアクセス」の全系列が LP だけを数える', async () => {
+  it('「ページビュー」の全系列がサイト全体の訪問を数える', async () => {
     // 指標の述語は METRIC_FILTERS 1 箇所から組み立てる決まりで、累計・当日・
-    // 日次・時間帯・内訳がそれを共有する。どれか 1 つが述語を書き写す形へ
-    // 戻ると /features がここで混ざるので、全系列をまとめて固定する。
+    // 日次・時間帯・内訳がそれを共有する。どれか 1 つが述語を書き写す形（LP 限定）
+    // へ戻ると下層ページがここから消えるので、全系列をまとめて固定する。
     await insertVisit('/')
     await insertVisit('/features')
     await insertVisit('/features')
 
     const summary = await summarizeAll(env.DB, NOW)
 
-    expect(summary.cumulative.counts.visit).toBe(1)
-    expect(summary.today.counts.visit).toBe(1)
-    expect(summary.daily.at(-1)?.counts.visit).toBe(1)
-    expect(summary.hourly.reduce((total, hour) => total + hour.counts.visit, 0)).toBe(1)
-    expect(summary.perKind.find((entry) => entry.kind === 'visit')?.total).toBe(1)
+    expect(summary.cumulative.counts.visit).toBe(3)
+    expect(summary.today.counts.visit).toBe(3)
+    expect(summary.daily.at(-1)?.counts.visit).toBe(3)
+    expect(summary.hourly.reduce((total, hour) => total + hour.counts.visit, 0)).toBe(3)
+    expect(summary.perKind.find((entry) => entry.kind === 'visit')?.total).toBe(3)
   })
 
-  it('page 列の導入前に記録された visit は LP として数える', async () => {
-    // 当時 visit を計上していたのは LP だけ（src/routes/public.tsx）。
-    // 遡って埋め直す材料は無いので COALESCE(page, '/') でその事実を表す。
+  it('記事や活用例ページへの訪問がページビューに反映される', async () => {
+    // TASK-551 の発端。イベント面には出るのに概要面が動かない、という形の退行。
+    await insertVisit('/usecases/medical-expenses')
+
+    expect((await cumulativeTotals(env.DB)).counts.visit).toBe(1)
+  })
+
+  it('page 列の導入前に記録された visit（page が NULL）も数える', async () => {
+    // 当時 visit を計上していたのは LP だけ（src/routes/public.tsx）。述語から
+    // page 条件が消えても旧行が落ちないことを固定する。
     await insertVisit(null)
 
     expect((await cumulativeTotals(env.DB)).counts.visit).toBe(1)
   })
 
   it('日次ユニーク訪問者はページで絞らない（サイト全体の訪問者数）', async () => {
-    // 指標ごとの件数と違い、COUNT(DISTINCT visitor_token) は「何人来たか」を
-    // 測るもの。LP だけに絞ると /features へ直接来た訪問者が数から消える。
+    // 指標ごとの件数（延べ）と COUNT(DISTINCT visitor_token)（異なり数）は
+    // 単位が違う。範囲は同じ「サイト全体」で、母数が食い違わないことを固定する。
     await insertVisit('/')
     await insertVisit('/features')
 
     const totals = await todayTotals(env.DB, NOW)
 
-    expect(totals.counts.visit).toBe(1)
+    expect(totals.counts.visit).toBe(2)
     expect(totals.uniqueVisitors).toBe(2)
+  })
+})
+
+describe('指標の述語の定義元', () => {
+  /**
+   * `analytics.ts` からコメントを落としたソース。構造ガードが doc コメント中の
+   * 例示（`kind = 'visit'` のような説明）を数えないようにするため。
+   */
+  function analyticsCode(): string {
+    return env.TEST_ANALYTICS_SOURCE.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(
+      /^\s*\/\/.*$/gmu,
+      '',
+    )
+  }
+
+  it('SQL 側の判定と TS 側の判定が同じ行に同じ指標を返す', async () => {
+    // `eventBreakdowns` は全 kind をまとめて引いてから TS 側で畳むため、指標の
+    // 判定を TS 側でも行う。SQL（METRIC_EXPR）と TS（metricOf）が別々に育つと、
+    // 述語を足したときに片方だけ直る。列の組み合わせを総当たりで固定する。
+    const kinds = ['visit', 'download', 'update_check', 'github_fallback', 'legacy_redirect']
+    const sources = [null, 'lp', 'sparkle', 'archive']
+    const pages = [null, '/', '/features']
+
+    for (const kind of kinds) {
+      for (const source of sources) {
+        for (const page of pages) {
+          await env.DB.prepare(
+            'INSERT INTO events (timestamp, kind, source, page) VALUES (?, ?, ?, ?)',
+          )
+            .bind(NOW, kind, source, page)
+            .run()
+        }
+      }
+    }
+
+    const { results } = await env.DB.prepare(
+      `SELECT kind, source, page, ${METRIC_EXPR} AS metric FROM events`,
+    ).all<{ kind: string; source: string | null; page: string | null; metric: string | null }>()
+
+    expect(results).toHaveLength(kinds.length * sources.length * pages.length)
+    for (const row of results) {
+      expect({ ...row, metric: metricOf(row) }).toEqual(row)
+    }
+  })
+
+  it('指標の述語を METRIC_FILTERS の外に書く箇所が無い', () => {
+    const code = analyticsCode()
+
+    // TS 側で kind をリテラルと比べる箇所は無い（行の判定は metricOf 経由）。
+    // `METRIC_FILTERS` を読む行は定義元からの導出なので数えない。
+    const handWritten = code
+      .split('\n')
+      .filter((line) => /kind\s*[!=]==\s*'/u.test(line) && !line.includes('METRIC_FILTERS'))
+    expect(handWritten).toEqual([])
+
+    // SQL へ kind の条件を書くのは metricExpression（`kind = '${kind}'`）と、
+    // 下の意図的な例外だけ。
+    // 除外してよいもの: UNIQUE_SOURCE_FILTERS の 3 行。あちらは指標（延べ件数）
+    // ではなく母集団（異なり数）の述語で、範囲がたまたま一致しているだけの別物。
+    // `METRIC_FILTERS.visit` に page 条件が戻っても母集団はサイト全体のままで
+    // なければならないので、導出させない（analytics.ts の doc を参照）。
+    expect(code.match(/kind = '/gu)).toHaveLength(4)
   })
 })
 
@@ -1082,6 +1154,16 @@ describe('kind の行き先', () => {
     expect(shown.has('update_download')).toBe(true)
   })
 
+  it('概要面に出す指標は KIND_LABELS の部分集合', () => {
+    // 概要面にだけ現れて他の面のどこにも無い指標を作らないための構造ガード。
+    // OVERVIEW_METRICS から漏れた指標は流入面「内訳（全期間の累計）」で読む。
+    const shown = new Set(KIND_LABELS.map((entry) => entry.kind))
+
+    for (const metric of OVERVIEW_METRICS) {
+      expect(shown.has(metric)).toBe(true)
+    }
+  })
+
   it('download の source はすべてどれか 1 つの指標に数えられる', async () => {
     // source を足したのに指標系列を足さないと、その経路のダウンロードは
     // どのカード・グラフにも出ないまま記録だけされる。型では捕まらない
@@ -1169,14 +1251,14 @@ describe('日別のユニークアクセス元', () => {
     expect(point?.uniqueSources.update_check_develop).toBe(0)
   })
 
-  it('サイト訪問はページで絞らない（ページアクセスの指標とは母数が違う）', async () => {
+  it('サイト訪問はページで絞らない（ページビューの指標と同じ範囲）', async () => {
     await insertSource(TODAY, 'visit', 'source-a', { page: '/' })
     await insertSource(TODAY, 'visit', 'source-b', { page: '/features' })
 
     const point = (await dailySeries(env.DB, NOW)).at(-1)
 
     expect(point?.uniqueSources.visit).toBe(2)
-    expect(point?.counts.visit).toBe(1)
+    expect(point?.counts.visit).toBe(2)
   })
 
   it('同じアクセス元が同じ日に何度来ても 1 と数える', async () => {

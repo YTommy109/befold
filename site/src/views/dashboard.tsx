@@ -9,6 +9,7 @@ import type {
   FallbackSplit,
   EventPage,
   KindCounts,
+  MetricKey,
   OverviewSummary,
   RecentEvent,
   Split,
@@ -21,6 +22,7 @@ import {
   downloadTotal,
   EVENTS_PAGE_LIMIT,
   KIND_LABELS,
+  OVERVIEW_METRICS,
   RUNNING_VERSION_LABELS,
   TOP_N,
   UNIQUE_SOURCE_LABELS,
@@ -388,11 +390,16 @@ const SeriesChart: FC<{ title: string; labels: string[]; series: Series[] }> = (
 /**
  * 指標カードの並び。ダウンロード系は合計を先頭に置いた 1 かたまりにする。
  *
+ * `metrics` は**必須引数**。面ごとに出す指標が違う（概要面は人のアクセス中心で
+ * `OVERVIEW_METRICS` のみ）ため絞れる必要があるが、デフォルト引数を置くと次に
+ * 指標を足した人が渡し忘れても通り、概要面へ静かに復活する（TASK-551）。
+ * ダウンロード合計だけは面に依らず出す。概要面に残すダウンロード指標は合計のみ。
+ *
  * 累計と本日で同じ関数を通す。片方だけ合計を足すと、同じ画面の上下で
  * 「ダウンロード」の意味が変わってしまう。合計は `downloadTotal` が
  * `DOWNLOAD_METRICS` から導くので、内訳を足しても和から漏れない。
  */
-function metricCards(counts: KindCounts, idPrefix: string) {
+function metricCards(counts: KindCounts, idPrefix: string, metrics: ReadonlySet<MetricKey>) {
   const first = KIND_LABELS.findIndex((entry) => DOWNLOAD_METRICS.has(entry.kind))
   const cards: { value: number; label: string; id?: string }[] = []
 
@@ -404,6 +411,7 @@ function metricCards(counts: KindCounts, idPrefix: string) {
         id: `${idPrefix}-download-total`,
       })
     }
+    if (!metrics.has(entry.kind)) continue
     cards.push({ value: counts[entry.kind], label: entry.label, id: `${idPrefix}-${entry.kind}` })
   }
 
@@ -448,7 +456,7 @@ export const OverviewSections: FC<{ summary: OverviewSummary }> = ({ summary }) 
         <h2>累計（全期間）</h2>
         <Cards
           cards={[
-            ...metricCards(summary.cumulative.counts, 'count'),
+            ...metricCards(summary.cumulative.counts, 'count', OVERVIEW_METRICS),
             {
               value: summary.cumulative.visitorDays,
               label: '延べアクセス元（アクセス元 × 日）',
@@ -461,7 +469,7 @@ export const OverviewSections: FC<{ summary: OverviewSummary }> = ({ summary }) 
         <h2>本日（JST 0 時から）</h2>
         <Cards
           cards={[
-            ...metricCards(summary.today.counts, 'today'),
+            ...metricCards(summary.today.counts, 'today', OVERVIEW_METRICS),
             { value: summary.today.uniqueVisitors, label: 'ユニークアクセス元（全種別）' },
           ]}
         />
@@ -469,14 +477,27 @@ export const OverviewSections: FC<{ summary: OverviewSummary }> = ({ summary }) 
 
       <section class="block">
         <h2>日毎の推移（{windowLabel}）</h2>
+        <p class="note">
+          ページビューはサイト全体（LP・機能紹介・リリース・活用例・記事）への訪問で、
+          ボットとデータセンター経由を除いた数。LP（/）単独の数は流入面の
+          <a href="/dashboard/traffic">「ページ別の訪問」</a>で読む。 ダウンロードの内訳（自動更新 /
+          旧バージョン）とアップデート確認も、同じ面の 「内訳（全期間の累計）」に出る。
+        </p>
         <SeriesChart
           title={`日毎の推移（${windowLabel}）`}
           labels={summary.daily.map((point) => point.day.slice(5))}
-          series={KIND_LABELS.map((entry) => ({
-            label: entry.label,
-            unit: '件',
-            values: summary.daily.map((point) => point.counts[entry.kind]),
-          }))}
+          series={[
+            ...KIND_LABELS.filter((entry) => OVERVIEW_METRICS.has(entry.kind)).map((entry) => ({
+              label: entry.label,
+              unit: '件',
+              values: summary.daily.map((point) => point.counts[entry.kind]),
+            })),
+            {
+              label: 'ダウンロード合計',
+              unit: '件',
+              values: summary.daily.map((point) => downloadTotal(point.counts)),
+            },
+          ]}
         />
       </section>
 
@@ -632,8 +653,9 @@ export const UsersSections: FC<{ summary: UsersSummary }> = ({ summary }) => {
           サイト訪問（visit）とアプリ（アップデート確認）は母集団が違うので合算しない。
           アプリ側はアプリを起動して appcast を取りに来た端末で、stable と develop を
           分けている（develop には開発機が含まれるため、混ぜると利用者の規模を
-          過大に見積もる）。サイト訪問はページを問わず数えるので、LP だけを数える
-          「ページアクセス」の指標とは母数が違う。ロボットの除外は他の集計と同じ条件だが、 curl
+          過大に見積もる）。ここの「サイト訪問」は概要面の「ページビュー」と同じ範囲
+          （全ページ）だが、数えているのは延べ回数ではなくアクセス元の異なり数。
+          ロボットの除外は他の集計と同じ条件だが、 curl
           のような自動アクセスはボット判定に当たらずここに残る。
         </p>
         <SeriesChart
@@ -705,6 +727,16 @@ export const TrafficSections: FC<{ summary: TrafficSummary }> = ({ summary }) =>
     <>
       <section class="block">
         <h2>内訳（全期間の累計）</h2>
+        {/* 概要面はページビューとダウンロード合計だけを出すので、指標ごとの総数
+            （アップデート確認・ダウンロードの内訳）はここでしか読めない。数字は
+            概要カードと同じ cumulativeTotals から来ており、クエリは増えない。 */}
+        <Cards
+          cards={summary.perKind.map((entry) => ({
+            value: entry.total,
+            label: entry.label,
+            id: `traffic-${entry.kind}`,
+          }))}
+        />
         <div class="grid">
           <CountTable title="国別" rows={summary.byCountry} />
           <CountTable title="参照元別" rows={summary.byReferrer} />
@@ -728,8 +760,9 @@ export const TrafficSections: FC<{ summary: TrafficSummary }> = ({ summary }) =>
       <section class="block">
         <h2>ページ別の訪問（全期間の累計）</h2>
         <p class="note">
-          ページアクセスの指標は LP（/）だけを数えているため、ここの合計とは一致しない。 この表は
-          visit のみが対象で、ダウンロードやアップデート確認は元々ページを持たない。
+          この表は visit のみが対象で、ダウンロードやアップデート確認は元々ページを持たない。
+          自動アクセスを含む点が概要面の「ページビュー」と違う（あちらはボットと
+          データセンター経由を除く）ので、人間側の合計とも一致するとは限らない。
           ページ列を導入する前に記録された訪問はページが記録されていないが、当時計上して いたのは LP
           だけなので「/」に数えている。
         </p>

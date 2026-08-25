@@ -8,6 +8,7 @@ import {
   downloadTotal,
   EVENTS_PAGE_LIMIT,
   KIND_LABELS,
+  OVERVIEW_METRICS,
   summarizeOverview,
 } from '../src/analytics'
 
@@ -333,8 +334,11 @@ describe('集計の表示', () => {
     const traffic = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     expect(overview).toContain('<span class="value" id="count-visit">2</span>')
-    expect(overview).toContain('<span class="value" id="count-download">2</span>')
-    expect(overview).toContain('<span class="value" id="count-update_check">1</span>')
+    // 概要面に残るダウンロード指標は合計のみ。内訳とアップデート確認は流入面へ移した。
+    expect(overview).toContain('<span class="value" id="count-download-total">2</span>')
+    expect(overview).not.toContain('id="count-update_check"')
+    expect(traffic).toContain('<span class="value" id="traffic-download">2</span>')
+    expect(traffic).toContain('<span class="value" id="traffic-update_check">1</span>')
     // 延べ訪問者は visitor_token の異なり数（hash-a / hash-b）
     expect(overview).toContain('<span class="value">2</span>')
     expect(traffic).toContain('v1.10.0')
@@ -559,7 +563,7 @@ describe('集計の表示', () => {
     expect(body.slice(table)).toContain('Driftnet Ltd')
     // 人間側の「接続元組織別」からは外れる（HUMAN_ONLY が効いている）。
     const humanOrg = body.slice(
-      body.indexOf('ページアクセス: 接続元組織別'),
+      body.indexOf('ページビュー: 接続元組織別'),
       body.indexOf('<h2>人間の訪問と自動アクセス'),
     )
     expect(humanOrg).toContain('IIJ Internet')
@@ -581,8 +585,8 @@ describe('集計の表示', () => {
 
     const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
-    // 並びは KIND_LABELS の順（ページアクセス → アップデート確認 → ダウンロード系）。
-    const visitOS = body.indexOf('ページアクセス: OS 別')
+    // 並びは KIND_LABELS の順（ページビュー → アップデート確認 → ダウンロード系）。
+    const visitOS = body.indexOf('ページビュー: OS 別')
     const updateOS = body.indexOf('アップデート確認: OS 別')
     const downloadOS = body.indexOf('ダウンロード（LP）: OS 別')
     expect(visitOS).toBeGreaterThan(-1)
@@ -603,7 +607,7 @@ describe('集計の表示', () => {
 
     const body = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
-    const visitOrg = body.indexOf('ページアクセス: 接続元組織別')
+    const visitOrg = body.indexOf('ページビュー: 接続元組織別')
     const updateOrg = body.indexOf('アップデート確認: 接続元組織別')
     const downloadOrg = body.indexOf('ダウンロード（LP）: 接続元組織別')
     expect(visitOrg).toBeGreaterThan(-1)
@@ -759,7 +763,7 @@ describe('SSE ストリーム', () => {
     // サーバー側で描画済みの集計表がそのまま届く（クライアントは差し替えるだけ）。
     expect(html).toContain('<h2>日毎の推移（直近 14 日）</h2>')
     expect(html).toContain('v1.10.0')
-    expect(html).toContain('<span class="value" id="count-download">1</span>')
+    expect(html).toContain('<span class="value" id="count-download-total">1</span>')
     // data 行は 1 行に収まっている
     expect(html).not.toContain('\n')
   })
@@ -849,12 +853,16 @@ describe('グラフ描画', () => {
 
     expect(daily.match(/<svg class="chart"/gu)).toHaveLength(1)
     expect(hourly.match(/<svg class="chart"/gu)).toHaveLength(1)
-    // 系列の本数は KIND_LABELS の件数そのもの。指標を足したら本数も増えるのが
-    // 正しいので、literal で固定しない（固定すると指標追加のたびにここが落ち、
-    // 「1 枚にまとめてあるか」という本題と関係のない修正が要る）。ユニークは
-    // 母集団が違うので別節へ分けてある。
-    const series = KIND_LABELS.length
-    for (const chart of [daily, hourly]) {
+    // 系列の本数は面ごとに違う。概要面は人のアクセス中心（OVERVIEW_METRICS +
+    // ダウンロード合計の 1 本）、時間帯分布は KIND_LABELS の全指標。どちらも
+    // literal で固定しない（固定すると指標追加のたびにここが落ち、「1 枚に
+    // まとめてあるか」という本題と関係のない修正が要る）。ユニークは母集団が
+    // 違うので別節へ分けてある。色は --series-1..5 の 5 スロットが上限。
+    for (const [chart, series] of [
+      [daily, OVERVIEW_METRICS.size + 1],
+      [hourly, KIND_LABELS.length],
+    ] as const) {
+      expect(series).toBeLessThanOrEqual(5)
       expect(chart).toContain(`chart-bar-${series}`)
       expect(chart).not.toContain(`chart-bar-${series + 1}`)
     }
@@ -868,8 +876,9 @@ describe('グラフ描画', () => {
     const hourly = section(await (await call(PAGE.users, AUTH_HEADERS)).text(), '時間帯分布')
 
     expect(daily).toContain('<ul class="legend">')
-    expect(daily).toContain('<span class="swatch swatch-4"')
+    expect(daily).toContain('<span class="swatch swatch-2"')
     expect(hourly).toContain('<ul class="legend">')
+    expect(hourly).toContain('<span class="swatch swatch-4"')
     // 色以外の手掛かり（凡例の並び順 = グループ内のバーの並び順）を残す。
     expect(daily).toContain('<span class="order">1.</span>')
     expect(daily).not.toContain('<table>')
@@ -1181,32 +1190,45 @@ describe('ダウンロード系指標の見せ方', () => {
   it.each([
     ['累計（全期間）', 'count'],
     ['本日（JST 0 時から）', 'today'],
-  ])('%s のカードに 3 内訳と合計が並ぶ', async (heading, prefix) => {
-    // 報告された状態そのもの: LP 1 件に対し、旧バージョンが 6 件。
+  ])('%s のカードに出るダウンロード指標は合計のみ', async (heading, prefix) => {
+    // 報告された状態そのもの: LP 1 件に対し、旧バージョンが 6 件。概要面は
+    // 合計だけを出すので、内訳が本体を上回って見える形にならない（TASK-551）。
     await seed('download', { source: 'lp' })
     for (let i = 0; i < 6; i += 1) await seed('download', { source: 'archive' })
 
     const block = section(await (await call(PAGE.overview, AUTH_HEADERS)).text(), heading)
 
-    expect(labelOf(block, `${prefix}-download`)).toBe('ダウンロード（LP）')
-    expect(labelOf(block, `${prefix}-update_download`)).toBe('ダウンロード（自動更新）')
-    expect(labelOf(block, `${prefix}-archive_download`)).toBe('ダウンロード（旧バージョン）')
-
-    // 合計が内訳の和として出るので、内訳が本体を上回って見える形にならない。
     expect(block).toContain(`<span class="value" id="${prefix}-download-total">7</span>`)
     expect(labelOf(block, `${prefix}-download-total`)).toBe('ダウンロード合計')
+    for (const metric of ['download', 'update_download', 'archive_download']) {
+      expect(labelOf(block, `${prefix}-${metric}`)).toBe(null)
+    }
   })
 
-  it('合計カードは 3 内訳の直前に置かれ、内訳が連続して並ぶ', async () => {
-    const block = section(await (await call(PAGE.overview, AUTH_HEADERS)).text(), '累計（全期間）')
+  it('概要面から外した指標は流入面の内訳で読める（黙って消えていない）', async () => {
+    // 「移動先が空」を検出するための担保。移す先を用意せずカードだけ消すと、
+    // ここが落ちる。
+    await seed('download', { source: 'archive' })
+    await seed('update_check')
 
-    const order = [...block.matchAll(/id="count-([a-z_-]+)"/gu)].map((match) => match[1])
-    const first = order.indexOf('download-total')
+    const traffic = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
+
+    expect(traffic).toContain('<span class="value" id="traffic-archive_download">1</span>')
+    expect(labelOf(traffic, 'traffic-archive_download')).toBe('ダウンロード（旧バージョン）')
+    expect(traffic).toContain('<span class="value" id="traffic-update_check">1</span>')
+    expect(labelOf(traffic, 'traffic-update_check')).toBe('アップデート確認')
+  })
+
+  it('流入面の内訳カードは合計の直前に内訳 3 つが連続して並ぶ', async () => {
+    const traffic = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
+
+    const order = [...traffic.matchAll(/id="traffic-([a-z_-]+)"/gu)].map((match) => match[1])
+    const first = order.indexOf('download')
 
     expect(first).toBeGreaterThanOrEqual(0)
-    // 合計の直後に内訳 3 つが連続する。間に別の指標が割り込むと、どこまでが
-    // 合計の内訳なのかが読めなくなる。
-    expect(order.slice(first + 1, first + 4)).toEqual([
+    // 内訳 3 つが連続する。間に別の指標が割り込むと、どこまでが
+    // ダウンロードの内訳なのかが読めなくなる。
+    expect(order.slice(first, first + 3)).toEqual([
       'download',
       'update_download',
       'archive_download',

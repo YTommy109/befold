@@ -54,10 +54,11 @@ export type MetricKey = EventKind | 'update_download' | 'archive_download'
 type MetricFilter = { kind: EventKind; source: DownloadSource | null; page: Page | null }
 
 const METRIC_FILTERS: Record<MetricKey, MetricFilter> = {
-  // 「ページアクセス」は LP への訪問だけを数える。TASK-488.1 で /features も
-  // visit として記録し始めたが、この系列は LP からの新規獲得を測るものなので
-  // 意味と過去データの連続性を保つために page で絞る。ページ別の内訳は別系列。
-  visit: { kind: 'visit', source: null, page: '/' },
+  // 「ページビュー」はサイト全体への訪問を数える（LP・features・releases・
+  // usecases・記事）。LP 単独の数は指標として持たず、流入面「ページ別の訪問」の
+  // 「/」行で読む（TASK-551）。visit 系のキーを 2 つに割ると `METRIC_EXPR` の
+  // CASE 先頭一致で LP の行が片方へ吸われ、`metricBreakdowns` 側が常に 0 になる。
+  visit: { kind: 'visit', source: null, page: null },
   download: { kind: 'download', source: 'lp', page: null },
   update_download: { kind: 'download', source: 'sparkle', page: null },
   // 旧バージョン一覧（/releases）からのダウンロード。新規獲得（lp）と混ぜると
@@ -93,6 +94,19 @@ export const DOWNLOAD_METRICS: ReadonlySet<MetricKey> = new Set(
   metricKeys().filter((metric) => METRIC_FILTERS[metric].kind === 'download'),
 )
 
+/**
+ * 概要面のカード・推移グラフに出す指標。**概要面の描画だけがこれで絞る。**
+ *
+ * `KIND_LABELS` からダウンロード内訳を外す形にはしない。`KIND_LABELS` は概要
+ * カード・概要推移グラフ・利用者面の時間帯分布・流入面 `perKind` の 4 箇所が
+ * 消費しており、そこを削ると概要面以外の 3 箇所からも黙って消えるため
+ * （TASK-551）。ダウンロードは合計 1 枚だけを概要に残し、内訳は流入面
+ * 「内訳（全期間の累計）」で読む。
+ *
+ * `KIND_LABELS` の部分集合であることは `analytics.test.ts` が検査する。
+ */
+export const OVERVIEW_METRICS: ReadonlySet<MetricKey> = new Set<MetricKey>(['visit'])
+
 /** ダウンロード系の合計。内訳が互いに素なので、単純な和で総ダウンロード数になる。 */
 export function downloadTotal(counts: KindCounts): number {
   return [...DOWNLOAD_METRICS].reduce((sum, metric) => sum + counts[metric], 0)
@@ -119,13 +133,50 @@ function metricExpression({ kind, source, page }: MetricFilter): string {
 }
 
 /**
+ * `metricExpression` が SQL 側でやる判定を、行を手元に持っている側で行う版。
+ *
+ * 全 kind をまとめて引いてから TS 側で軸ごとに畳む集計（`eventBreakdowns`）が
+ * 「その行はどの指標か」を必要とする。そこで `row.kind === 'visit'` と書くと、
+ * 指標の述語の定義元が `METRIC_FILTERS` の外にもう 1 つできる。三条件
+ * （kind / source / page）の対応は上の式と 1 対 1 で、両者が同じ行に同じ答えを
+ * 返すことは `analytics.test.ts` が全 `MetricKey` × 列の組み合わせで検査する。
+ *
+ * NULL の丸め（`COALESCE`）も SQL 側と揃える。`source` が NULL の行は列の導入前の
+ * LP 経由、`page` が NULL の行は列の導入前の visit（当時は LP のみ）。
+ */
+function matchesMetric(row: MetricRow, { kind, source, page }: MetricFilter): boolean {
+  if (row.kind !== kind) return false
+  if (source !== null && (row.source ?? 'lp') !== source) return false
+  if (page !== null && (row.page ?? '/') !== page) return false
+  return true
+}
+
+/**
+ * 指標の判定にかけられる行。列が無い行（その kind では常に NULL）は省いてよい。
+ *
+ * 省いた列を条件に持つ指標へ当てると「その列が NULL の行」と同じ扱いになるため、
+ * 呼び出し側は自分が渡す行に必要な列が載っていることを型で示すことになる。
+ */
+type MetricRow = { kind: string; source?: string | null; page?: string | null }
+
+/**
+ * 行がどの指標に当たるかを返す（どれにも当たらなければ null）。`METRIC_EXPR` の TS 版。
+ *
+ * 先頭一致で決めるのも SQL の `CASE` と同じ。互いに素でない述語を足したときに
+ * 両者の答えがずれないよう、評価順まで揃える。
+ */
+export function metricOf(row: MetricRow): MetricKey | null {
+  return metricKeys().find((metric) => matchesMetric(row, METRIC_FILTERS[metric])) ?? null
+}
+
+/**
  * 指標を SQL 側で判定する式（どの指標にも当たらない行は NULL）。
  *
  * 内訳を指標ごとに 1 本ずつ引くと指標の数だけ全表スキャンが増えるため、指標を行に
  * 持たせて 1 本にまとめるための式。埋め込む値は `METRIC_FILTERS` の定数だけで、
  * 外部入力は入らない。判定の定義元を二重に持たないよう、条件はここで組み立てる。
  */
-const METRIC_EXPR = `CASE ${Object.entries(METRIC_FILTERS)
+export const METRIC_EXPR = `CASE ${Object.entries(METRIC_FILTERS)
   .map(([metric, filter]) => `WHEN ${metricExpression(filter)} THEN '${metric}'`)
   .join(' ')} END`
 
@@ -170,9 +221,9 @@ export type UniqueSourceKey = 'visit' | `update_check_${Channel}` | 'update_chec
  * ユニーク数が画面のどこにも出ないまま落ちる。埋め込む値はこの定数だけで、
  * 外部入力は入らない。
  *
- * `visit` は page で絞らない。「ページアクセス」の指標が LP のみを数えるのとは
- * 意図が違い、こちらはサイトに来た人の規模を測るもの（当日集計の
- * `uniqueVisitors` も同じ扱い）。
+ * `visit` は page で絞らない。「ページビュー」の指標と範囲は同じ（サイト全体）だが、
+ * こちらが数えるのは延べ回数ではなくアクセス元の異なり数で、サイトに来た人の規模を
+ * 測るもの（当日集計の `uniqueVisitors` も同じ扱い）。
  */
 const UNIQUE_SOURCE_FILTERS: Record<UniqueSourceKey, string> = {
   visit: `kind = 'visit'`,
@@ -400,7 +451,7 @@ export type DeliverySummary = {
  * カードは `DOWNLOAD_METRICS` の合計を併記して、3 つが内訳であることを示す。
  */
 export const KIND_LABELS: { kind: MetricKey; label: string }[] = [
-  { kind: 'visit', label: 'ページアクセス' },
+  { kind: 'visit', label: 'ページビュー' },
   { kind: 'update_check', label: 'アップデート確認' },
   { kind: 'download', label: 'ダウンロード（LP）' },
   { kind: 'update_download', label: 'ダウンロード（自動更新）' },
@@ -808,8 +859,16 @@ export type FallbackSplit = Split & { lastSeenAt: number }
  * 導入前に記録された visit（当時は LP だけなので '/' と読んでよい）」と
  * 「ページの概念が無い download / update_check / 運用イベント」の 2 種類があり、
  * 後者に '/' を与えると嘘になる（`schema/schema.sql` の page 列コメント）。
- * このクエリは kind を絞らないため、丸めは `kind = 'visit'` の行だけを対象に
- * TS 側（`visitRows`）で行う。
+ * このクエリは kind を絞らないため、丸めは visit の行だけを対象に TS 側
+ * （`visitRows`）で行う。**その「visit かどうか」は `metricOf` で決める**——
+ * ここで `row.kind === 'visit'` と書くと、指標の述語が `METRIC_FILTERS` の外へ
+ * もう 1 つ増える（TASK-553）。
+ *
+ * 一方 `page ?? '/'` の丸めは指標の述語ではなく**軸ラベルの丸め**で、
+ * `METRIC_FILTERS` からは導かない。`METRIC_FILTERS.visit` はサイト全体の訪問を
+ * 数えるので page 条件を持たない（TASK-551）が、ページ別の表では列の導入前の行を
+ * どこかの行に置く必要がある。結果として「/」の行は「LP への訪問」と
+ * 「列の導入前の訪問」の和になる。
  *
  * ボット判定は `BOT_MATCH` をそのまま使う。ここで新しい判定を書かない——
  * 判定の定義元が増えると、`BOT_TOKENS` を足したときに片方だけ直る。
@@ -825,7 +884,7 @@ export async function eventBreakdowns(db: D1Database): Promise<EventBreakdowns> 
     )
     .all<BreakdownRow>()
 
-  const visitRows = results.filter((row) => row.kind === 'visit')
+  const visitRows = results.filter((row) => metricOf(row) === 'visit')
 
   return {
     visits: {

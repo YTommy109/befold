@@ -401,10 +401,18 @@ visit / download / update_check の全イベントで記録する。追加のサ
   `download` / `update_check`。このため `COALESCE(page, '/')` は
   `kind = 'visit'` と同じ条件節の中でしか使えない。`src/analytics.ts` の
   `metricExpression` が両者を必ず一緒に組み立てる形になっている。
-- **「ページアクセス」指標は `page = '/'` のまま**。LP からの新規獲得を測る系列
-  なので、`/features` を足して薄めない。ページ別の内訳は別系列として出す。
+- **「ページビュー」指標はサイト全体の訪問を数える**（LP・features・releases・
+  usecases・記事）。LP 単独の数は指標として持たず、流入面「ページ別の訪問」の
+  「/」行で読む（TASK-551）。その行は「LP への訪問」と「列の導入前の訪問」の和。
   述語は `METRIC_FILTERS` 1 箇所から組み立て、累計・当日・日次・時間帯・内訳が
   それを共有する（同期漏れは `test/analytics.test.ts` の「ページの分離」が検知する）。
+- **行を手元に持っている側の判定も `METRIC_FILTERS` から導く。** 全 kind を 1 本で
+  引いてから TS 側で畳む `eventBreakdowns` は「その行は visit か」を TS で決めるが、
+  そこで `row.kind === 'visit'` と書かず `metricOf` を通す（TASK-553）。SQL 側
+  （`METRIC_EXPR`）と TS 側（`metricOf`）が同じ行に同じ指標を返すことと、述語を
+  `METRIC_FILTERS` の外に書く箇所が増えないことは `test/analytics.test.ts` の
+  「指標の述語の定義元」が検査する。母集団（異なり数）の述語 `UNIQUE_SOURCE_FILTERS`
+  はそこから導かない意図的な例外で、同じテストが件数で固定している。
 - **日次ユニーク訪問者（`COUNT(DISTINCT visitor_token)`）はページで絞らない。**
   「何人来たか」を測るものなので、LP に絞ると `/features` へ直接来た訪問者が
   数から消える。国別・参照元別・UA 内訳の母集団も同様に `/features` を含む。
