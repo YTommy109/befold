@@ -227,6 +227,37 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
           )}
         </section>
 
+        <section class="philosophy">
+          {lang === 'ja' ? (
+            <>
+              <p class="philosophy-audience">人に見せられない物を読む人へ</p>
+              <p class="philosophy-lead">開いた文書は、どこにも行きません。</p>
+              <p class="philosophy-body">
+                描画はすべて手元で行います。文書の中身もファイル名もパスも送信しません。
+                <br />
+                文書の側からも外へ出させません。埋め込まれたリモート画像・トラッキング用の画像・
+                外部スクリプトは、ネットワーク層で遮断されるため読み込まれません。
+                <br />
+                アプリが出す通信は、アップデートの確認だけです。
+              </p>
+            </>
+          ) : (
+            <>
+              <p class="philosophy-audience">For people reading things they can&apos;t share</p>
+              <p class="philosophy-lead">What you open stays on your Mac.</p>
+              <p class="philosophy-body">
+                Everything is rendered locally. No document contents, file names or paths are ever
+                sent anywhere.
+                <br />
+                The reverse is blocked too: remote images, tracking pixels and external scripts
+                embedded in a file are stopped at the network layer and never fetched.
+                <br />
+                The only request befold makes is the update check.
+              </p>
+            </>
+          )}
+        </section>
+
         <section class="screenshot">
           <div class="carousel">
             <div class="carousel-track">
