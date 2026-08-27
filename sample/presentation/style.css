@@ -1,0 +1,280 @@
+/*
+ * LT スライドの共通スタイル。1 ページ 1 ファイルの HTML から相対参照する。
+ *
+ * befold は charset 宣言のある HTML を loadFileURL で直接読むため、同じフォルダの
+ * style.css と images/ が参照できる（宣言が無いと loadData へ倒れて兄弟リソースが
+ * 読めなくなるので、各ページの先頭に <meta charset="utf-8"> を必ず置くこと）。
+ * リモート読み込みは RemoteLoadBlocker が遮断するので、Web フォントは使わない。
+ */
+
+:root {
+  --bg: #05070b;
+  --fg: #e9eef8;
+  --muted: #8ba0bd;
+  --line: rgba(120, 165, 255, 0.14);
+  --accent: #4c8dff;
+  --accent-2: #3ddbb0;
+  --hot: #ff7a59;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 方眼紙のようなグリッド。エンジニアらしさは装飾ではなく下地で出す。 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 48px 48px, 48px 48px;
+  mask-image: radial-gradient(ellipse 90% 75% at 50% 45%, #000 35%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 75% at 50% 45%, #000 35%, transparent 100%);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* 奥行きを出すグロー。色は 2 つだけに絞る。 */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(50% 40% at 18% 12%, rgba(76, 141, 255, 0.20), transparent 70%),
+    radial-gradient(45% 40% at 85% 88%, rgba(61, 219, 176, 0.14), transparent 70%);
+  pointer-events: none;
+}
+
+.slide {
+  position: relative;
+  z-index: 1;
+  height: 100vh;
+  padding: 8vmin 7vmin 9vmin;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4vmin;
+  text-align: center;
+}
+
+/* 左上の識別子と右下のノンブル。スライド番号は資料の中で唯一の可変部分。 */
+.tag {
+  position: fixed;
+  top: 3.4vmin;
+  left: 4vmin;
+  z-index: 2;
+  font-family: var(--mono);
+  font-size: clamp(10px, 1.6vmin, 15px);
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.tag b { color: var(--fg); font-weight: 600; }
+.tag i { color: var(--accent-2); font-style: normal; }
+
+.pager {
+  position: fixed;
+  right: 4vmin;
+  bottom: 3.4vmin;
+  z-index: 2;
+  font-family: var(--mono);
+  font-size: clamp(10px, 1.6vmin, 15px);
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.pager b { color: var(--fg); font-weight: 600; }
+
+.progress {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  z-index: 2;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 14px rgba(76, 141, 255, 0.75);
+}
+
+/* 見出し。1 枚に 1 つだけ置く。 */
+h1 {
+  margin: 0;
+  font-size: clamp(26px, 6.6vmin, 92px);
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+h1.huge { font-size: clamp(34px, 10.5vmin, 150px); line-height: 1.15; }
+
+h1.answer {
+  font-size: clamp(30px, 8vmin, 110px);
+  background: linear-gradient(92deg, var(--accent-2), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.accent { color: var(--accent); }
+.mint { color: var(--accent-2); }
+.hot { color: var(--hot); }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: clamp(11px, 1.9vmin, 17px);
+  letter-spacing: 0.24em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.note {
+  margin: 0;
+  font-size: clamp(13px, 2.2vmin, 22px);
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+/* 点滅するカーソル。動きはこれ 1 つに留める。 */
+.caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 0.12em;
+  vertical-align: -0.16em;
+  background: var(--accent-2);
+  animation: blink 1.15s steps(1, end) infinite;
+}
+
+@keyframes blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+
+figure { margin: 0; width: 100%; display: flex; justify-content: center; }
+
+img.shot {
+  max-width: min(92vw, 1180px);
+  max-height: 58vh;
+  width: auto;
+  height: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(76, 141, 255, 0.10);
+}
+
+img.icon {
+  width: clamp(160px, 30vmin, 340px);
+  height: auto;
+  /* icns から書き出した PNG は角が四角いまま。macOS の角丸に寄せる。 */
+  border-radius: 22.4%;
+  filter: drop-shadow(0 24px 60px rgba(76, 141, 255, 0.35));
+}
+
+/* 表紙の登壇情報。右下・右寄せで、ノンブルの上に積む。 */
+.credit {
+  position: fixed;
+  right: 4vmin;
+  bottom: 8.4vmin;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3em;
+  text-align: right;
+  font-family: var(--mono);
+  /* プロジェクターで読めることを優先する。見出しより一回り小さいところまで。 */
+  font-size: clamp(16px, 3.2vmin, 34px);
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.credit b {
+  font-weight: 700;
+  font-size: 1.35em;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+}
+
+/* 表紙は登壇情報のぶんだけ画像を小さくする。 */
+img.shot-intro { max-height: 40vh; }
+
+/* ターミナル風のコードカード（CLI のページ用）。 */
+.term {
+  width: min(88vw, 900px);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(9, 13, 20, 0.92);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  text-align: left;
+}
+
+.term header {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.85em 1.1em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-family: var(--mono);
+  font-size: clamp(10px, 1.6vmin, 14px);
+  color: var(--muted);
+}
+
+.term header i {
+  width: 0.85em;
+  height: 0.85em;
+  border-radius: 50%;
+  background: #3a4353;
+  font-style: normal;
+}
+
+.term header i:first-child { background: #ff5f57; }
+.term header i:nth-child(2) { background: #febc2e; }
+.term header i:nth-child(3) { background: #28c840; }
+
+.term pre {
+  margin: 0;
+  padding: 1.4em 1.4em 1.6em;
+  font-family: var(--mono);
+  font-size: clamp(12px, 2.3vmin, 24px);
+  line-height: 1.85;
+  color: var(--fg);
+}
+
+.term .p { color: var(--accent-2); }
+.term .c { color: #6b7d97; }
+
+/* 最終ページの URL。読み上げずに済むよう、これだけを大きく置く。 */
+.url {
+  font-family: var(--mono);
+  font-size: clamp(24px, 7.5vmin, 104px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  background: linear-gradient(92deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 角の括弧。ターミナルの選択範囲のような枠を四隅だけで示す。 */
+.slide::before,
+.slide::after {
+  content: "";
+  position: fixed;
+  width: 3.4vmin;
+  height: 3.4vmin;
+  border: 2px solid rgba(76, 141, 255, 0.45);
+  pointer-events: none;
+}
+
+.slide::before { top: 2.6vmin; left: 2.6vmin; border-right: 0; border-bottom: 0; }
+.slide::after { right: 2.6vmin; bottom: 2.6vmin; border-left: 0; border-top: 0; }
