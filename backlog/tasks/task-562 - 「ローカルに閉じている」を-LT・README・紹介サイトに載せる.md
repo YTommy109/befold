@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-27 15:10'
-updated_date: '2026-08-27 15:10'
+updated_date: '2026-08-27 15:15'
 labels: []
 dependencies: []
 priority: medium
@@ -75,6 +75,12 @@ Why befold の直後に "Stays on your machine" の節を追加。4 点（送ら
 ## 併せて直したもの
 
 `sample/presentation/README.md` の送り方の記述（「ツールバーの ← → で次のファイルへ」）が誤りだったので直した。**この訂正は一度 PR #603 で出したがクローズしたため main に入っておらず、ここで入れ直している。**
+
+## 追記（2026-08-28）: 日本語 README への反映漏れ
+
+`README.md` にだけ節を足し、対になっている `README.ja.md` を落としていた（ユーザーの指摘で発覚）。同じ位置・同じ 4 点・同じ但し書き（本体はサンドボックスではない）で「ローカルに閉じている」を追加し、両者の `##` 見出しが 1 対 1・同順で並ぶことを確認した。
+
+**この 2 ファイルは対で更新する**という関係がリポジトリのどこにも書かれておらず、機械的な検査も無い。同じ落とし方が次も起きうる。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
