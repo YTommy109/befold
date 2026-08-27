@@ -4,7 +4,7 @@ title: 負の数の表示と桁区切りを Preferences で切り替えられる
 status: Done
 assignee: []
 created_date: '2026-08-27 04:20'
-updated_date: '2026-08-27 05:26'
+updated_date: '2026-08-27 06:51'
 labels: []
 dependencies:
   - TASK-557.1
@@ -135,6 +135,21 @@ swiftlint とは別に `scripts/check-type-group-size.sh` が走り、次を報�
 - 併せて `ViewerBridgeContractTests` が type_body_length を超えたため、CSV の契約テストも `ViewerBridgeCsvNumberFormatTests` へ寄せた（スクリプト生成と受理リストの一致を 1 か所で見る形になった）。
 
 再検証: swift test 1712 件全通し / swiftlint ベースライン差分ゼロ（main 54・HEAD 54）/ 型グループ検査 exit 0 / jest 630 件全通し。
+
+## 追記: 負の数の設定をラジオボタンにした（ユーザー指摘）
+
+ポップアップ（既定の Picker）だと選択中の 1 つしか見えず、▲ と赤字がどう出るかを比べられない。`.pickerStyle(.radioGroup)` にして 4 つの表示例を同時に見せる形へ変えた。
+
+- 選択肢のラベルは「名前 + その設定での見え方の例」。赤字を選ぶ 2 つは**見本そのものを赤で描く**ので、選ばなくても結果が分かる。
+- 見本は表示中の CSV とは無関係の**固定の見本文字列**（`-1,234` / `▲1,234`）。実際の整形は viewer 側が行うので、Swift 側で同じ規則を実装し直してはいない。
+- ローカライズのキーからは例を外した（例は別に描くので二重になる）。en は Normal / Triangle / Red / Triangle and red、ja は 通常 / ▲ 表記 / 赤字 / ▲ + 赤字。
+
+## 見た目の検証方法（実測で 1 度失敗している）
+
+- **ImageRenderer では描けない。** `Form` + `.formStyle(.grouped)` は AppKit 実装で、`ImageRenderer(content:).nsImage` は**真っ白な画像**を返した（実際に撮って目視で確認）。
+- 実ウィンドウへ載せて `NSView.cacheDisplay(in:to:)` で撮る形に変えたら描けた。画面キャプチャではないので TCC の許可が要らず、非対話セッションでも回せる。ヘッドレスではウィンドウが 0 高のまま（bounds が `(0,0,1,0)`）で撮れなかったため、`fittingSize` を測って明示的に与えている。
+- 撮った PNG を目視し、ラジオボタン 4 つが同時に見えること・赤字の見本が実際に赤で出ることを確認した。
+- その上で機械的にも測れるようにした（`SettingsViewSnapshotTests`）。ビットマップから直接ピクセルを見て、赤いピクセルが存在すること・描画結果が真っ白でないことをアサートする。`foregroundColor(.red)` を `.primary` へ変えると赤の検査が落ちることを実測済み。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
