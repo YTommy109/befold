@@ -144,12 +144,14 @@ function parseCsv(content: string, delimiter: string): string[][] {
   return rows;
 }
 
-// 1 セル分の <td>…</td>。列の書式(csv-columns.js の判定)に応じて
+// 本文 1 セル分の <td>…</td>。列の書式(csv-columns.js の判定)に応じて
 // class="csv-num"(右寄せ + tabular-nums)と整数部の桁区切りを付ける。
 // 判定が 'text' の列、および判定の無い列(後続チャンクで増えた列)は素通しする。
-function csvCellHtml(tag: string, value: string, format: CsvColumnFormat | undefined): string {
+//
+// **ヘッダー(<th>)には使わない。** 見出しの寄せはブラウザ既定の中央のままにする。
+function csvCellHtml(value: string, format: CsvColumnFormat | undefined): string {
   if (format === undefined || format === 'text') {
-    return '<' + tag + '>' + escapeHtml(value) + '</' + tag + '>';
+    return '<td>' + escapeHtml(value) + '</td>';
   }
   // 桁区切りと負の数の表記は grouped 列(第 2 段を通った量の列)のセルにのみ効かせる。
   // コードとみなされた列(numeric 止まり)は右寄せまでで、値の見た目は変えない。
@@ -167,7 +169,7 @@ function csvCellHtml(tag: string, value: string, format: CsvColumnFormat | undef
       }
     }
   }
-  return '<' + tag + ' class="' + className + '">' + escapeHtml(shown) + '</' + tag + '>';
+  return '<td class="' + className + '">' + escapeHtml(shown) + '</td>';
 }
 
 // grouped 列の 1 セル分の見せ方を決める。桁区切りの有無と負の数の表記は
@@ -200,7 +202,7 @@ function csvRowsHtml(rows: string[][], minCols: number, formats: CsvColumnFormat
     var cols = Math.max(minCols, rows[r]!.length);
     html += '<tr>';
     for (var c = 0; c < cols; c++) {
-      html += csvCellHtml('td', c < rows[r]!.length ? rows[r]![c]! : '', formats[c]);
+      html += csvCellHtml(c < rows[r]!.length ? rows[r]![c]! : '', formats[c]);
     }
     html += '</tr>';
   }
@@ -212,8 +214,8 @@ function csvRowsHtml(rows: string[][], minCols: number, formats: CsvColumnFormat
 //
 // formats は列ごとの書式判定。呼び出し元(renderers.js の _renderCsv)は
 // buildCsvTable を通してこれを受け取り、同じ判定をチャンク追記へ持ち越す。
-// ヘッダーにも同じクラスを付けるのは、右寄せの数字の上に左寄せの見出しが
-// 乗る形を避けるため。
+// **ヘッダーは formats を見ない。** 見出しの寄せは数値列でも従来どおり
+// ブラウザ既定の中央のままにする(寄せるのは本文のセルだけ)。
 function buildTableHtml(rows: string[][], formats: CsvColumnFormat[]): string {
   if (rows.length === 0) {
     return '';
@@ -226,9 +228,7 @@ function buildTableHtml(rows: string[][], formats: CsvColumnFormat[]): string {
   }
   var html = '<table><thead><tr>';
   for (var c = 0; c < maxCols; c++) {
-    // ヘッダーの文字列そのものは整形しないので、桁区切りの対象にはしない。
-    var headerFormat = formats[c] === undefined || formats[c] === 'text' ? formats[c] : 'numeric';
-    html += csvCellHtml('th', c < rows[0]!.length ? rows[0]![c]! : '', headerFormat);
+    html += '<th>' + escapeHtml(c < rows[0]!.length ? rows[0]![c]! : '') + '</th>';
   }
   html += '</tr></thead><tbody>';
   html += csvRowsHtml(rows.slice(1), maxCols, formats);
