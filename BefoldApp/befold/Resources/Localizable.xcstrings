@@ -1981,13 +1981,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Normal (-1,234)"
+            "value": "Normal"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "通常 (-1,234)"
+            "value": "通常"
           }
         }
       }
@@ -1998,13 +1998,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Red (-1,234)"
+            "value": "Red"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "赤字 (-1,234)"
+            "value": "赤字"
           }
         }
       }
@@ -2015,13 +2015,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Triangle (▲1,234)"
+            "value": "Triangle"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "▲ 表記 (▲1,234)"
+            "value": "▲ 表記"
           }
         }
       }
@@ -2032,13 +2032,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Triangle and red (▲1,234)"
+            "value": "Triangle and red"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "▲ + 赤字 (▲1,234)"
+            "value": "▲ + 赤字"
           }
         }
       }

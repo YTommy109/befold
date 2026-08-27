@@ -90,14 +90,17 @@ struct SettingsView: View {
                     onNumberChange()
                 }
 
+                // ラジオボタンにして 4 つの表示例を同時に見せる。ポップアップだと
+                // 選択中のものしか見えず、「▲ と赤字がどう出るか」を比べられない。
                 Picker(
                     String(localized: "settings.number.negative", bundle: .l10n),
                     selection: $csvNegativeStyle
                 ) {
                     ForEach(CsvNegativeStyle.allCases, id: \.self) { style in
-                        Text(Self.negativeStyleLabel(style)).tag(style)
+                        Self.negativeStyleLabel(style).tag(style)
                     }
                 }
+                .pickerStyle(.radioGroup)
                 .onChange(of: csvNegativeStyle) { _, newValue in
                     numberPreference.negativeStyle = newValue
                     onNumberChange()
@@ -115,14 +118,32 @@ struct SettingsView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// 負の数の表記の選択肢ラベル。CsvNegativeStyle は BefoldKit(ローカライズを
-    /// 持たない層)にあるため、表示名はこちら側で対応づける。
-    private static func negativeStyleLabel(_ style: CsvNegativeStyle) -> String {
-        switch style {
+    /// 負の数の表記の選択肢ラベル。名前のあとに**その設定での見え方の例**を並べる。
+    /// 赤字を選ぶ 2 つは例そのものを赤で描くので、選ばなくても結果が分かる。
+    ///
+    /// CsvNegativeStyle は BefoldKit(ローカライズを持たない層)にあるため、
+    /// 表示名はこちら側で対応づける。
+    private static func negativeStyleLabel(_ style: CsvNegativeStyle) -> Text {
+        let name = switch style {
         case .plain: String(localized: "settings.number.negative.plain", bundle: .l10n)
         case .triangle: String(localized: "settings.number.negative.triangle", bundle: .l10n)
         case .red: String(localized: "settings.number.negative.red", bundle: .l10n)
         case .triangleRed: String(localized: "settings.number.negative.triangleRed", bundle: .l10n)
+        }
+        var sample = Text(Self.negativeStyleSample(style)).monospacedDigit()
+        if style == .red || style == .triangleRed {
+            sample = sample.foregroundColor(.red)
+        }
+        return Text(name) + Text("  ") + sample
+    }
+
+    /// 選択肢に添える見え方の例。**表示中の CSV とは無関係の固定の見本**で、
+    /// 実際の整形は viewer 側(viewer-src/csv-html.ts)が行う。ここは同じ規則を
+    /// 実装し直すのではなく、決め打ちの文字列を並べているだけ。
+    private static func negativeStyleSample(_ style: CsvNegativeStyle) -> String {
+        switch style {
+        case .plain, .red: "-1,234"
+        case .triangle, .triangleRed: "▲1,234"
         }
     }
 
