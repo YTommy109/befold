@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-27 15:10'
-updated_date: '2026-08-27 15:18'
+updated_date: '2026-08-27 15:35'
 labels: []
 dependencies: []
 priority: medium
@@ -95,6 +95,22 @@ Why befold の直後に "Stays on your machine" の節を追加。4 点（送ら
 | FAQ（同上） | ✅ | ✅ |
 
 `T` コンポーネントは URL で決まる `lang` に応じて片方だけを描く作りなので、日英いずれかが欠けると該当ページに何も出ない。6 箇所すべて true を確認した。
+
+## 追記（2026-08-28）: 見出しの言い回しを変えた
+
+「ローカルに閉じている」「Stays on Your Machine」は分かりにくい、**「セキュア」「安全」のように一目で分かる語を入れたい**というユーザーの指摘（2026-08-28）。次のとおり変更した。
+
+| 場所 | 変更前 | 変更後 |
+|---|---|---|
+| 機能一覧（ja） | ローカルに閉じている | 安全に読める（ローカル完結） |
+| 機能一覧（en） | Stays on Your Machine | Safe to Open (Local Only) |
+| README.md の節 | Stays on your machine | Safe to open — everything stays local |
+| README.ja.md の節 | ローカルに閉じている | 安全に読める — ローカル完結 |
+| LP の読み手 | 人に見せられない物を読む人へ | 安全に読みたい人へ |
+
+**「セキュアです」と単独では書かない。** 見出しで「安全」と言い、その直後の箇条書き（送らない / 遮断する / 実行しない / 書き換えない）で範囲を限定する構成にしている。本体がサンドボックスでないことも README に残したままで、限定は外していない。
+
+日英とも実際に描画して確認済み（LP・機能一覧の 4 URL）。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
