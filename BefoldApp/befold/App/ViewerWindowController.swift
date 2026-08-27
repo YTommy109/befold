@@ -71,8 +71,7 @@ final class ViewerWindowController: NSWindowController {
     let headingJump: HeadingJumpLevelBinding
     /// コードフォント設定。使うのは分割ビューの組み立てと、設定変更時の再注入(`+SidebarHost`)。
     let codeFontPreference: CodeFontPreference
-    /// CSV/TSV の数値表示設定。ViewerWindowManager と同じ 1 個を受け取る
-    /// (既定値を付けない理由は ViewerWindowManager 側の doc コメント参照)。
+    /// CSV/TSV の数値表示設定。ViewerWindowManager と同じ 1 個を受け取る。
     let csvNumberFormatPreference: CsvNumberFormatPreference
     /// ブックマークの永続化。使うのはブックマークのトグルと状態参照(`+MenuActions`)だけ。
     let bookmarkStore: BookmarkStore
@@ -241,16 +240,21 @@ final class ViewerWindowController: NSWindowController {
     ///   ラウンドトリップを挟むため、完了タイミングを制御したいテストがここを使う。
     /// - Parameter openFileElsewhere: 同上。別タブ/別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
     /// - Parameter externalOpener: 同上。外部 URL(http/https)を開く処理。デフォルトは NSWorkspace 経由。
+    /// 共有物を受け取る引数に既定値を付けない理由と、既定値を残してある引数の区別は
+    /// `ViewerWindowManager.init` の doc コメントを参照(同じ規則が両方に掛かる)。
+    /// この型では `gitStatusStore` の既定値だけが例外で、それは共有インスタンスの
+    /// 受け渡しではなく「git 状態を持たない縮退状態」を表す(`gitFileIndex` の既定が
+    /// `DisabledGitFileIndex` なのと同じ)。
     init(
         fileURL: URL, defaults: UserDefaults = .standard,
-        displayDefaults: SidebarDisplayDefaults = SidebarDisplayDefaults(),
+        displayDefaults: SidebarDisplayDefaults,
         diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader? = nil,
-        findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
+        findOptionsPreference: FindOptionsPreference,
         headingJumpLevelDefaults: HeadingJumpLevelDefaults,
-        codeFontPreference: CodeFontPreference = CodeFontPreference(),
+        codeFontPreference: CodeFontPreference,
         csvNumberFormatPreference: CsvNumberFormatPreference,
-        perFileState: PerFileStateStore = PerFileStateStore(),
+        perFileState: PerFileStateStore,
         bookmarkStore: BookmarkStore,
         gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
         gitStatusStore: GitStatusStore = GitStatusStore(),

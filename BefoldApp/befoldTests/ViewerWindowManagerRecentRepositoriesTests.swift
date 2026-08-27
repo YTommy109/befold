@@ -107,8 +107,11 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         let manager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
+            displayDefaults: SidebarDisplayDefaults(defaults: defaults),
             diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
+            findOptionsPreference: FindOptionsPreference(defaults: defaults),
             headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
+            codeFontPreference: CodeFontPreference(defaults: defaults),
             csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
