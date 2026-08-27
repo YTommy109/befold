@@ -4,7 +4,7 @@ title: 数値列を判定して右寄せと桁区切りを適用する
 status: Done
 assignee: []
 created_date: '2026-08-27 04:19'
-updated_date: '2026-08-27 04:38'
+updated_date: '2026-08-27 06:43'
 labels: []
 dependencies: []
 parent_task_id: TASK-557
@@ -104,6 +104,10 @@ ordinal: 806000
 - `npm run lint`（oxlint --type-aware）/ `npm run format` / `npm run typecheck:viewer` / `npm run check:viewer-cycles`: いずれもゼロ件
 - `npm run build:viewer` で viewer-bundle.js を再生成済み
 - `xcodegen generate`: .xcodeproj に差分なし（Swift 側の追加ファイル無し）
+
+## 追記: ヘッダーは寄せない（レビュー指摘）
+
+当初は「右寄せの数字の上に左寄せの見出しが乗る形を避ける」として `<th>` にも `csv-num` を付けていたが、ユーザー指摘により**ヘッダーは従来どおりブラウザ既定の中央**へ戻した。寄せるのは本文のセル(`<td>`)だけ。`csvCellHtml` から tag 引数を落として td 専用にし、`buildTableHtml` の `<th>` は formats を見ない。style.css のセレクタからも `th.csv-num` を外し、復活したら落ちるアサートをテストに置いた。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

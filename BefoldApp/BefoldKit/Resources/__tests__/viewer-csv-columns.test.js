@@ -180,8 +180,11 @@ describe('テーブル HTML への反映', () => {
       ',',
     );
     expect(formats).toEqual(['text', 'grouped', 'numeric']);
+    // ヘッダーは数値列でも素の <th> のまま（寄せはブラウザ既定の中央）。
     expect(html).toContain('<th>name</th>');
-    expect(html).toContain('<th class="csv-num">amount</th>');
+    expect(html).toContain('<th>amount</th>');
+    expect(html).toContain('<th>zip</th>');
+    expect(html).not.toContain('<th class=');
     expect(html).toContain('<td class="csv-num">1,200</td>');
     expect(html).toContain('<td class="csv-num">340,000</td>');
     // 郵便番号は右寄せまで。桁区切りも先頭ゼロの欠落も起きない。
@@ -223,6 +226,8 @@ describe('テーブル HTML への反映', () => {
     const css = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
     expect(css).toContain('#diagram-wrap.csv-body table td.csv-num');
     expect(css).toContain('font-variant-numeric: tabular-nums;');
+    // <th> は寄せない。セレクタに th.csv-num が復活したらここで落とす。
+    expect(css).not.toContain('th.csv-num');
   });
 });
 

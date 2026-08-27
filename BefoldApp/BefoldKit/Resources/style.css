@@ -853,8 +853,8 @@ pre .befold-link-dead {
 }
 
 /* CSV テーブルの数値列。列判定(viewer-src/csv-columns.ts)が numeric/grouped と
-   見た列の <th>/<td> に付く。tabular-nums は等幅数字にして桁を縦に揃える。 */
-#diagram-wrap.csv-body table th.csv-num,
+   見た列の <td> に付く。tabular-nums は等幅数字にして桁を縦に揃える。
+   ヘッダー(<th>)には付けない——見出しの寄せは従来どおりブラウザ既定の中央。 */
 #diagram-wrap.csv-body table td.csv-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
