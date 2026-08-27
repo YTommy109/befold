@@ -54,6 +54,12 @@ set demoRepo to do shell script quoted form of (scriptsDir & "/make-git-demo-rep
 -- トグルでは確定しない。撮影前に左右分割へ固定する。
 do shell script "defaults write " & befoldBundleID & " SourceDiffLayout -string side-by-side"
 
+-- CSV の負の数の表記もアプリ全体の設定(CsvNegativeStyle)。既定の plain(-1,234)だと
+-- 「負の数の見せ方を選べる」ことが画像から読み取れないため、撮影時だけ ▲+赤字へ固定する。
+-- 桁区切り(CsvNumberGrouping)は既定で有効だが、撮影が既定値に依存しないよう明示する。
+do shell script "defaults write " & befoldBundleID & " CsvNegativeStyle -string triangleRed"
+do shell script "defaults write " & befoldBundleID & " CsvNumberGrouping -bool true"
+
 -- {ファイルのパス, 出力ファイル名, サイドバーを表示するか, Quick Open に打ち込む文字列, 表示モード}
 -- パスは "/" 始まりなら絶対パス、そうでなければ sample/ 配下として解決する。
 -- 4 番目が "" の場合は Quick Open を開かない。
@@ -63,7 +69,7 @@ set targets to {¬
     {"flowchart.mmd", "screenshot-1.png", true, "", ""}, ¬
     {"diagram.svg", "screenshot-2.png", false, "", ""}, ¬
     {"sample.md", "screenshot-3.png", false, "", ""}, ¬
-    {"sample.csv", "screenshot-4.png", false, "", ""}, ¬
+    {"numeric-columns.csv", "screenshot-4.png", false, "", ""}, ¬
     {"example.swift", "screenshot-5.png", false, "", ""}, ¬
     {"sample.md", "screenshot-6.png", false, "samp", ""}, ¬
     {demoRepo & "/Sources/LRUCache.swift", "screenshot-7.png", false, "", "3"}, ¬
