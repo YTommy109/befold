@@ -168,11 +168,11 @@ export const FEATURES: Feature[] = [
 export const MORE_FEATURES: Feature[] = [
   {
     ja: [
-      'ローカルに閉じている',
+      '安全に読める（ローカル完結）',
       '文書の中身が外へ出ることはない。アプリが出す通信はアップデート確認だけで、開いた文書に埋め込まれたリモート画像やスクリプトもネットワーク層で遮断する',
     ],
     en: [
-      'Stays on Your Machine',
+      'Safe to Open (Local Only)',
       'Nothing about the document leaves your Mac. The only request befold makes is the update check, and remote images or scripts embedded in a file are blocked at the network layer',
     ],
   },

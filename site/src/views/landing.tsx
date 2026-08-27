@@ -230,7 +230,7 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
         <section class="philosophy">
           {lang === 'ja' ? (
             <>
-              <p class="philosophy-audience">人に見せられない物を読む人へ</p>
+              <p class="philosophy-audience">安全に読みたい人へ</p>
               <p class="philosophy-lead">開いた文書は、どこにも行きません。</p>
               <p class="philosophy-body">
                 描画はすべて手元で行います。文書の中身もファイル名もパスも送信しません。
@@ -243,7 +243,7 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
             </>
           ) : (
             <>
-              <p class="philosophy-audience">For people reading things they can&apos;t share</p>
+              <p class="philosophy-audience">For people who need it to stay private</p>
               <p class="philosophy-lead">What you open stays on your Mac.</p>
               <p class="philosophy-body">
                 Everything is rendered locally. No document contents, file names or paths are ever
