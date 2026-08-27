@@ -11,7 +11,7 @@ final class RecentDocumentsStore {
 
     private let recentPaths: PathListDefaults
 
-    init(defaults: UserDefaults = .standard, maximumCount: Int = 10) {
+    init(defaults: UserDefaults = .standard, maximumCount: Int = 25) {
         recentPaths = PathListDefaults(defaults: defaults, key: Self.defaultsKey, limit: maximumCount)
     }
 
