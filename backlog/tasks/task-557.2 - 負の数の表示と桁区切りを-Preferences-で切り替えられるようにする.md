@@ -4,7 +4,7 @@ title: 負の数の表示と桁区切りを Preferences で切り替えられる
 status: Done
 assignee: []
 created_date: '2026-08-27 04:20'
-updated_date: '2026-08-27 07:06'
+updated_date: '2026-08-27 07:21'
 labels: []
 dependencies:
   - TASK-557.1
@@ -174,6 +174,14 @@ swiftlint とは別に `scripts/check-type-group-size.sh` が走り、次を報�
 「数値表示」だけでは何の数値か分からないため、対象を明示して `データビュー（CSV・TSV）の数値表示` / `Numbers in Data View (CSV/TSV)` へ変えた。
 
 表記は既存に揃えた。ja は全角括弧（実測: xcstrings の ja 値で全角 4 件 / 半角 1 件）で、種別の並べ方も `featureOverview.formats.detail` の ja「CSV・TSV」/ en「CSV/TSV」に合わせている。
+
+## 追記: 見本を桁区切りスイッチに連動させた（ユーザー指摘）
+
+見本が常にカンマ付き（`-1,234`）だったため、桁区切りを切っている状態では**選んだ結果と違うものを見せていた**。`negativeStyleSample(_:grouping:)` にして、オフなら `-1234` / `▲1234` を出す。見本の列幅も桁区切りの有無で変わるので、表示する側で測り直す。
+
+検証は文字列を直接読む形にした（`SettingsViewSampleTests`）。描画したピクセルからでは「カンマが入っているか」を測れないため、この 1 点だけ `negativeStyleSample` を private から internal へ上げ、その理由を doc コメントに書いた。8 通り（4 スタイル × オン/オフ）と「▲ 表記にマイナス記号が残らない」を見る。
+
+オフの状態の描画も撮って目視した（`BEFOLD_SNAPSHOT_GROUPING=0`）。カンマが消え、右端の整列は保たれている。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

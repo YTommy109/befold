@@ -13,40 +13,20 @@ import Testing
 /// ビットマップを取り、そこから直接ピクセルを見る。
 ///
 /// `BEFOLD_SNAPSHOT_PATH` を渡すと PNG も書き出す（目視確認用）。
+/// `BEFOLD_SNAPSHOT_GROUPING=0` を足すと桁区切りを切った状態で撮る。
 @MainActor
 @Suite
 struct SettingsViewSnapshotTests {
     @Test("設定ビューがオフスクリーンで描画できる")
     func rendersOffscreen() throws {
-        let defaults = makeIsolatedDefaults(prefix: "SettingsViewSnapshotTests")
-        let view = SettingsView(
-            preference: CodeFontPreference(defaults: defaults),
-            onChange: {},
-            numberPreference: CsvNumberFormatPreference(defaults: defaults),
-            onNumberChange: {}
-        )
-        // ImageRenderer では描けない(Form/.formStyle(.grouped) は AppKit 実装で、
-        // 実測すると真っ白な画像になる)。実ウィンドウへ載せて NSView の
-        // キャッシュ描画で撮る。画面キャプチャではないので TCC の許可も要らない。
-        let controller = HostedPanelWindowController(
-            rootView: view, title: "Settings", resizable: false
-        )
-        controller.showAndActivate()
-        defer { controller.window?.close() }
-        let window = try #require(controller.window)
-        // ヘッドレス実行ではウィンドウがまだ 0 高のことがある(実測: bounds が
-        // (0,0,1,0) になり撮れなかった)。中身の固有サイズを測って明示的に与える。
-        let contentView = try #require(window.contentView)
-        window.setContentSize(contentView.fittingSize)
-        contentView.layoutSubtreeIfNeeded()
-        window.displayIfNeeded()
-        #expect(contentView.bounds.width > 0)
+        // 桁区切りを切った状態も撮れるようにしておく(見本がその設定に連動する)。
+        let grouping = ProcessInfo.processInfo.environment["BEFOLD_SNAPSHOT_GROUPING"] != "0"
+        let rep = try Self.renderSettingsView(grouping: grouping)
+        #expect(rep.pixelsWide > 0)
 
         guard let outputPath = ProcessInfo.processInfo.environment["BEFOLD_SNAPSHOT_PATH"] else {
             return
         }
-        let rep = try #require(contentView.bitmapImageRepForCachingDisplay(in: contentView.bounds))
-        contentView.cacheDisplay(in: contentView.bounds, to: rep)
         let png = try #require(rep.representation(using: .png, properties: [:]))
         try png.write(to: URL(fileURLWithPath: outputPath))
     }
@@ -139,13 +119,15 @@ struct SettingsViewSnapshotTests {
         return rightmost
     }
 
-    private static func renderSettingsView() throws -> NSBitmapImageRep {
+    private static func renderSettingsView(grouping: Bool = true) throws -> NSBitmapImageRep {
         let defaults = makeIsolatedDefaults(prefix: "SettingsViewSnapshotTests")
+        let numberPreference = CsvNumberFormatPreference(defaults: defaults)
+        numberPreference.grouping = grouping
         let controller = HostedPanelWindowController(
             rootView: SettingsView(
                 preference: CodeFontPreference(defaults: defaults),
                 onChange: {},
-                numberPreference: CsvNumberFormatPreference(defaults: defaults),
+                numberPreference: numberPreference,
                 onNumberChange: {}
             ),
             title: "Settings",

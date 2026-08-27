@@ -98,7 +98,8 @@ struct SettingsView: View {
                     selection: $csvNegativeStyle
                 ) {
                     ForEach(CsvNegativeStyle.allCases, id: \.self) { style in
-                        Self.negativeStyleLabel(style, columns: negativeLabelColumns).tag(style)
+                        Self.negativeStyleLabel(style, grouping: csvGrouping, columns: negativeLabelColumns)
+                            .tag(style)
                     }
                 }
                 .pickerStyle(.radioGroup)
@@ -124,10 +125,12 @@ struct SettingsView: View {
     /// 名前を固定幅の枠に入れるのは、見本の開始位置を 4 行で揃えて見比べられる
     /// ようにするため(名前の長さがまちまちだと見本がばらばらの位置から始まる)。
     ///
+    /// 見本は**上の桁区切りスイッチにも連動する**。桁区切りを切っているのに
+    /// 見本だけカンマ付きだと、選んだ結果と違うものを見せることになる。
     private static func negativeStyleLabel(
-        _ style: CsvNegativeStyle, columns: LabelColumns
+        _ style: CsvNegativeStyle, grouping: Bool, columns: LabelColumns
     ) -> some View {
-        var sample = Text(Self.negativeStyleSample(style)).monospacedDigit()
+        var sample = Text(Self.negativeStyleSample(style, grouping: grouping)).monospacedDigit()
         if style == .red || style == .triangleRed {
             sample = sample.foregroundColor(.red)
         }
@@ -165,21 +168,31 @@ struct SettingsView: View {
         func widest(_ texts: [String]) -> CGFloat {
             texts.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
         }
+        // 見本の幅は桁区切りの有無で変わるので、いま表示する側で測る。
+        let samples = CsvNegativeStyle.allCases.map {
+            Self.negativeStyleSample($0, grouping: csvGrouping)
+        }
         // 実際に描かれるフォントが計測に使ったものと厳密に一致する保証はないので、
         // 端が詰まらないよう少し足す。
         return LabelColumns(
             name: widest(CsvNegativeStyle.allCases.map(Self.negativeStyleName)) + 12,
-            sample: widest(CsvNegativeStyle.allCases.map(Self.negativeStyleSample)) + 4
+            sample: widest(samples) + 4
         )
     }
 
     /// 選択肢に添える見え方の例。**表示中の CSV とは無関係の固定の見本**で、
     /// 実際の整形は viewer 側(viewer-src/csv-html.ts)が行う。ここは同じ規則を
     /// 実装し直すのではなく、決め打ちの文字列を並べているだけ。
-    private static func negativeStyleSample(_ style: CsvNegativeStyle) -> String {
-        switch style {
-        case .plain, .red: "-1,234"
-        case .triangle, .triangleRed: "▲1,234"
+    ///
+    /// 桁区切りのスイッチに連動させるのは、切っているのに見本だけカンマ付きだと
+    /// 選んだ結果と違うものを見せることになるため。`private` にしていないのは
+    /// SettingsViewSampleTests がこの 8 通りを直接読んで検証するため
+    /// (描画のピクセルからでは「カンマが入っているか」を測れない)。
+    static func negativeStyleSample(_ style: CsvNegativeStyle, grouping: Bool) -> String {
+        let digits = grouping ? "1,234" : "1234"
+        return switch style {
+        case .plain, .red: "-" + digits
+        case .triangle, .triangleRed: "\u{25B2}" + digits
         }
     }
 
