@@ -53,6 +53,20 @@ struct RecentDocumentsStoreTests {
         #expect(store.recentURLs().map(\.lastPathComponent) == ["c.mmd", "b.md"])
     }
 
+    /// 既定の上限はメニューに並ぶ件数そのものなので、変更したらここが落ちる。
+    @Test("既定の上限は 25 件")
+    func defaultMaximumCountIs25() {
+        let store = RecentDocumentsStore(defaults: defaults)
+
+        for index in 0 ..< 26 {
+            store.noteOpened(url("file\(index).md"))
+        }
+
+        #expect(store.recentURLs().count == 25)
+        #expect(store.recentURLs().first?.lastPathComponent == "file25.md")
+        #expect(store.recentURLs().last?.lastPathComponent == "file1.md")
+    }
+
     @Test("rename すると旧パスが新パスに置き換わる")
     func noteRenamedReplacesOldPathWithNew() {
         let store = makeStore()
