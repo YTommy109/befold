@@ -14128,6 +14128,7 @@
     CODE_TAB_SIZE: () => CODE_TAB_SIZE,
     CSV_COL_COUNT: () => CSV_COL_COUNT,
     CSV_FIXED_WIDTH_MIN_SAMPLES: () => CSV_FIXED_WIDTH_MIN_SAMPLES,
+    CSV_NEGATIVE_STYLES: () => CSV_NEGATIVE_STYLES,
     CSV_SAMPLE_ROWS: () => CSV_SAMPLE_ROWS,
     DEFAULT_LINE_SCROLL_STEP: () => DEFAULT_LINE_SCROLL_STEP,
     DIAGRAM_ZOOM_MAX: () => DIAGRAM_ZOOM_MAX,
@@ -14156,6 +14157,7 @@
     _mmdChunkTail: () => _mmdChunkTail,
     _mmdCloseFind: () => _mmdCloseFind,
     _mmdCsvColumns: () => _mmdCsvColumns,
+    _mmdCsvNumberFormat: () => _mmdCsvNumberFormat,
     _mmdDiagramZoomReset: () => _mmdDiagramZoomReset,
     _mmdDiagramZoomStep: () => _mmdDiagramZoomStep,
     _mmdDiagramZoomValue: () => _mmdDiagramZoomValue,
@@ -14169,6 +14171,7 @@
     _mmdInit: () => _mmdInit,
     _mmdInitBarModeSwitch: () => _mmdInitBarModeSwitch,
     _mmdInitCodeFont: () => _mmdInitCodeFont,
+    _mmdInitCsvNumberFormat: () => _mmdInitCsvNumberFormat,
     _mmdInitFind: () => _mmdInitFind,
     _mmdInitFontSize: () => _mmdInitFontSize,
     _mmdInitHeadingLevels: () => _mmdInitHeadingLevels,
@@ -14249,6 +14252,7 @@
     diagramScrollHeight: () => diagramScrollHeight,
     diffMarkerGlyph: () => diffMarkerGlyph,
     escapeHtml: () => escapeHtml,
+    formatCsvNumber: () => formatCsvNumber,
     formatNavigationCount: () => formatNavigationCount,
     groupCsvNumber: () => groupCsvNumber,
     halfPageScrollStep: () => halfPageScrollStep,
@@ -15960,6 +15964,33 @@
     return sign + grouped + rest;
   }
 
+  // viewer-src/csv-number-format.ts
+  var CSV_NEGATIVE_STYLES = ["plain", "triangle", "red", "triangleRed"];
+  function _createCsvNumberFormat() {
+    var grouping = true;
+    var negativeStyle = "plain";
+    return {
+      grouping: function() {
+        return grouping;
+      },
+      negativeStyle: function() {
+        return negativeStyle;
+      },
+      // 注入値を読み直す。未注入・未知の値は既定へ倒す(型の上で undefined を
+      // 消さないのは viewer-globals.d.ts の方針どおり)。
+      adopt: function(rawGrouping, rawStyle) {
+        grouping = rawGrouping === void 0 ? true : rawGrouping !== false;
+        negativeStyle = "plain";
+        for (var i = 0; i < CSV_NEGATIVE_STYLES.length; i++) {
+          if (CSV_NEGATIVE_STYLES[i] === rawStyle) {
+            negativeStyle = CSV_NEGATIVE_STYLES[i];
+          }
+        }
+      }
+    };
+  }
+  var _mmdCsvNumberFormat = _createCsvNumberFormat();
+
   // viewer-src/csv-html.ts
   function tokenizeCsvRows(content, delimiter2) {
     if (!content) {
@@ -16064,17 +16095,30 @@
     if (format2 === void 0 || format2 === "text") {
       return "<" + tag + ">" + escapeHtml(value) + "</" + tag + ">";
     }
+    var className = "csv-num";
     var shown = value;
     if (format2 === "grouped") {
       var trimmed = value.trim();
       if (trimmed !== "") {
-        var grouped = groupCsvNumber(trimmed);
-        if (grouped !== trimmed) {
-          shown = value.replace(trimmed, grouped);
+        var formatted = formatCsvNumber(trimmed);
+        if (formatted.text !== trimmed) {
+          shown = value.replace(trimmed, formatted.text);
+        }
+        if (formatted.negative) {
+          className += " csv-negative";
         }
       }
     }
-    return "<" + tag + ' class="csv-num">' + escapeHtml(shown) + "</" + tag + ">";
+    return "<" + tag + ' class="' + className + '">' + escapeHtml(shown) + "</" + tag + ">";
+  }
+  function formatCsvNumber(trimmed) {
+    var style = _mmdCsvNumberFormat.negativeStyle();
+    var isNegative = trimmed.startsWith("-");
+    var text3 = _mmdCsvNumberFormat.grouping() ? groupCsvNumber(trimmed) : trimmed;
+    if (isNegative && (style === "triangle" || style === "triangleRed")) {
+      text3 = "\u25B2" + text3.slice(1);
+    }
+    return { text: text3, negative: isNegative && (style === "red" || style === "triangleRed") };
   }
   function csvRowsHtml(rows, minCols, formats) {
     var html2 = "";
@@ -24442,6 +24486,10 @@
     }
     void render(content, _mmdDocument.type(), _mmdDocument.lang());
   }
+  function _mmdInitCsvNumberFormat() {
+    _mmdCsvNumberFormat.adopt(window._mmdCsvGrouping, window._mmdCsvNegativeStyle);
+    _mmdRerenderCurrent();
+  }
   function appendChunk(text3, type, lang) {
     if (!text3) {
       return;
@@ -24596,6 +24644,7 @@
     _mmdInitZoom();
     _mmdInitFontSize();
     _mmdInitCodeFont();
+    _mmdInitCsvNumberFormat();
     _mmdInitFind();
     _mmdJump.register(headingJumpProvider);
     _mmdJump.register(changeBlockJumpProvider);

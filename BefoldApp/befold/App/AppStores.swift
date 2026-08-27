@@ -21,6 +21,7 @@ struct AppStores {
     let findOptionsPreference = FindOptionsPreference()
     let headingJumpLevelDefaults = HeadingJumpLevelDefaults()
     let codeFontPreference = CodeFontPreference()
+    let csvNumberFormatPreference = CsvNumberFormatPreference()
     let perFileState = PerFileStateStore()
     /// 「最近使ったリポジトリ」メニューの階層化に使う worktree 一覧キャッシュ。
     /// git 呼び出しは起動時と新規リポジトリ記録時の非同期解決だけで、メニュー構築では読むだけ。

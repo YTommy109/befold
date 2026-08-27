@@ -54,6 +54,10 @@ final class ViewerWindowManager {
     let findOptionsPreference: FindOptionsPreference
     let headingJumpLevelDefaults: HeadingJumpLevelDefaults
     let codeFontPreference: CodeFontPreference
+    /// CSV/TSV の数値表示設定。アプリ全体で 1 つ(AppStores が唯一のインスタンスを持つ)。
+    /// **init の引数に既定値を付けていない**のは、渡し忘れがコンパイルエラーにならず
+    /// 静かに別インスタンスになるのを防ぐため(TASK-319)。
+    let csvNumberFormatPreference: CsvNumberFormatPreference
     let perFileState: PerFileStateStore
     let bookmarkStore: BookmarkStore
     /// openViewer のファイル存在ガードが使う I/O 抽象。静的な DefaultFileReader を直接叩かず
@@ -83,6 +87,8 @@ final class ViewerWindowManager {
     /// この型が持つものをそのまま渡すため、別インスタンスが生まれる書き方ができない。
     private(set) lazy var display = GlobalDisplayBroadcaster(
         bookmarkStore: bookmarkStore,
+        codeFontPreference: codeFontPreference,
+        csvNumberFormatPreference: csvNumberFormatPreference,
         controllers: { [weak self] in self?.allControllers ?? [] }
     )
     /// 「最近使ったリポジトリ」の記録役。共有索引 `gitFileIndex` をここで渡すため、
@@ -117,6 +123,7 @@ final class ViewerWindowManager {
         findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
         headingJumpLevelDefaults: HeadingJumpLevelDefaults,
         codeFontPreference: CodeFontPreference = CodeFontPreference(),
+        csvNumberFormatPreference: CsvNumberFormatPreference,
         perFileState: PerFileStateStore = PerFileStateStore(),
         bookmarkStore: BookmarkStore,
         fileReader: any FileReading = DefaultFileReader(),
@@ -141,6 +148,7 @@ final class ViewerWindowManager {
         self.findOptionsPreference = findOptionsPreference
         self.headingJumpLevelDefaults = headingJumpLevelDefaults
         self.codeFontPreference = codeFontPreference
+        self.csvNumberFormatPreference = csvNumberFormatPreference
         self.perFileState = perFileState
         self.bookmarkStore = bookmarkStore
         self.fileReader = fileReader

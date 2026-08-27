@@ -4,6 +4,7 @@
 import { wrapWithLineNumbers } from './code-html.js';
 import type { CsvColumnFormat } from './csv-columns.js';
 import { analyzeCsvColumns, groupCsvNumber } from './csv-columns.js';
+import { _mmdCsvNumberFormat } from './csv-number-format.js';
 import { escapeHtml } from './encoding.js';
 
 /// tokenizeCsvRows() が返す 1 セル。value はデコード済みの値、raw はソース上の
@@ -150,19 +151,40 @@ function csvCellHtml(tag: string, value: string, format: CsvColumnFormat | undef
   if (format === undefined || format === 'text') {
     return '<' + tag + '>' + escapeHtml(value) + '</' + tag + '>';
   }
-  // 桁区切りは grouped 列のセルにのみ入れる。空セル・前後の空白は原文のまま残し、
-  // トリムした結果が数値として読めるときだけ整形する。
+  // 桁区切りと負の数の表記は grouped 列(第 2 段を通った量の列)のセルにのみ効かせる。
+  // コードとみなされた列(numeric 止まり)は右寄せまでで、値の見た目は変えない。
+  var className = 'csv-num';
   var shown = value;
   if (format === 'grouped') {
     var trimmed = value.trim();
     if (trimmed !== '') {
-      var grouped = groupCsvNumber(trimmed);
-      if (grouped !== trimmed) {
-        shown = value.replace(trimmed, grouped);
+      var formatted = formatCsvNumber(trimmed);
+      if (formatted.text !== trimmed) {
+        shown = value.replace(trimmed, formatted.text);
+      }
+      if (formatted.negative) {
+        className += ' csv-negative';
       }
     }
   }
-  return '<' + tag + ' class="csv-num">' + escapeHtml(shown) + '</' + tag + '>';
+  return '<' + tag + ' class="' + className + '">' + escapeHtml(shown) + '</' + tag + '>';
+}
+
+// grouped 列の 1 セル分の見せ方を決める。桁区切りの有無と負の数の表記は
+// アプリ全体の設定(csv-number-format.js)に従う。値そのものは書き換えず、
+// 小数部は原文のまま残す。
+//
+// negative は「赤字クラスを付けるか」で、▲ 表記とは独立に返す。会計慣習の
+// ▲ と赤字は組み合わせて選べる設定になっているため。
+function formatCsvNumber(trimmed: string): { text: string; negative: boolean } {
+  var style = _mmdCsvNumberFormat.negativeStyle();
+  var isNegative = trimmed.startsWith('-');
+  var text = _mmdCsvNumberFormat.grouping() ? groupCsvNumber(trimmed) : trimmed;
+  if (isNegative && (style === 'triangle' || style === 'triangleRed')) {
+    // 会計表記では符号そのものを ▲ へ置き換える(▲ と - を併記しない)。
+    text = '\u25B2' + text.slice(1);
+  }
+  return { text: text, negative: isNegative && (style === 'red' || style === 'triangleRed') };
 }
 
 // CSV 行の配列から <tr><td>…</td></tr> 列(文字列連結)を組み立てる。
@@ -273,6 +295,7 @@ function renderCsvSourceHtml(
 
 export {
   CSV_COL_COUNT,
+  formatCsvNumber,
   unescapeCellValue,
   tokenizeCsvRows,
   parseCsv,

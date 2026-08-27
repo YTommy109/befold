@@ -125,6 +125,7 @@ struct MockedViewerWindowManager {
             diffDisplayPreference: diffDisplayPreference,
             diffLoader: diffLoader,
             headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
+            csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             fileReader: fileReader,

@@ -78,6 +78,7 @@ struct ViewerWindowControllerFixture {
             diffDisplayPreference: diffDisplayPreference ?? DiffDisplayPreference(defaults: defaults),
             diffLoader: diffLoader,
             headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
+            csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             gitFileIndex: gitFileIndex,

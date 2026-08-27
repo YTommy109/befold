@@ -109,6 +109,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
             recentDocumentsStore: recentDocumentsStore,
             diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
             headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
+            csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             fileReader: fileReader,

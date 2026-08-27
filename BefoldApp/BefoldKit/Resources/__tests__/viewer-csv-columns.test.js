@@ -291,3 +291,111 @@ describe('チャンク追記が初回チャンクの判定を再利用する', (
     expect(parseCsv('a,1200\n', ',')).toEqual([['a', '1200']]);
   });
 });
+
+// ── 数値の見せ方の設定（TASK-557.2）──
+// アプリ全体の設定を Swift が window へ注入し、_mmdInitCsvNumberFormat() が
+// それを読んで現在の文書を描き直す。ここでは JS 側だけを測る。
+// 設定を注入してから描く。Swift 側は「注入 → 入口を呼ぶ」の順で送ってくる。
+async function renderWithSetting(main, window, grouping, negativeStyle, csv) {
+  window._mmdCsvGrouping = grouping;
+  window._mmdCsvNegativeStyle = negativeStyle;
+  main._mmdInitCsvNumberFormat();
+  await main.render(csv, 'csv', ',');
+}
+
+describe('数値表示の設定', () => {
+  const AMOUNTS = 'name,amount\na,1200\nb,-3400\n';
+
+  test('既定（未注入）では桁区切りが入り、負の数は通常表記', async () => {
+    const { document, main } = loadViewerMain({});
+    await main.render(AMOUNTS, 'csv', ',');
+    expect(tableCells(document).map((c) => c.text)).toEqual(['a', '1,200', 'b', '-3,400']);
+    expect(document.querySelector('#diagram-wrap td.csv-negative')).toBeNull();
+  });
+
+  test('桁区切りをオフにすると区切りが入らない（右寄せは残る）', async () => {
+    const { document, main, window } = loadViewerMain({});
+    await renderWithSetting(main, window, false, 'plain', AMOUNTS);
+    expect(tableCells(document)).toEqual([
+      { text: 'a', numeric: false },
+      { text: '1200', numeric: true },
+      { text: 'b', numeric: false },
+      { text: '-3400', numeric: true },
+    ]);
+  });
+
+  test('▲ 表記は符号を置き換える（▲ と - を併記しない）', async () => {
+    const { document, main, window } = loadViewerMain({});
+    await renderWithSetting(main, window, true, 'triangle', AMOUNTS);
+    expect(tableCells(document).map((c) => c.text)).toEqual(['a', '1,200', 'b', '▲3,400']);
+    expect(document.querySelector('#diagram-wrap td.csv-negative')).toBeNull();
+  });
+
+  test('赤字は負の数のセルにだけクラスを付け、符号はそのまま', async () => {
+    const { document, main, window } = loadViewerMain({});
+    await renderWithSetting(main, window, true, 'red', AMOUNTS);
+    expect(tableCells(document).map((c) => c.text)).toEqual(['a', '1,200', 'b', '-3,400']);
+    const negatives = document.querySelectorAll('#diagram-wrap td.csv-negative');
+    expect(negatives.length).toBe(1);
+    expect(negatives[0].textContent).toBe('-3,400');
+  });
+
+  test('▲+赤字は両方が効く', async () => {
+    const { document, main, window } = loadViewerMain({});
+    await renderWithSetting(main, window, true, 'triangleRed', AMOUNTS);
+    const negatives = document.querySelectorAll('#diagram-wrap td.csv-negative');
+    expect(negatives.length).toBe(1);
+    expect(negatives[0].textContent).toBe('▲3,400');
+  });
+
+  // AC #5: 第 1 段のみの列（コードとみなされた列）は右寄せまで。
+  test('コードとみなされた列には ▲・赤字・桁区切りのいずれも効かない', async () => {
+    const { document, main, window } = loadViewerMain({});
+    // zip はヘッダー否定語 + 先頭ゼロ。値に負数を混ぜても表記は変わらない。
+    await renderWithSetting(main, window, true, 'triangleRed', 'name,zip\na,0012345\nb,-9876543\n');
+    expect(tableCells(document)).toEqual([
+      { text: 'a', numeric: false },
+      { text: '0012345', numeric: true },
+      { text: 'b', numeric: false },
+      { text: '-9876543', numeric: true },
+    ]);
+    expect(document.querySelector('#diagram-wrap td.csv-negative')).toBeNull();
+  });
+
+  test('設定変更は再読み込みなしで既に描いてある表へ効く', async () => {
+    const { document, main, window } = loadViewerMain({});
+    await main.render(AMOUNTS, 'csv', ',');
+    expect(tableCells(document).map((c) => c.text)).toEqual(['a', '1,200', 'b', '-3,400']);
+
+    // render を送り直さず、設定の入口を呼ぶだけで表示が変わる。
+    window._mmdCsvGrouping = false;
+    window._mmdCsvNegativeStyle = 'triangle';
+    main._mmdInitCsvNumberFormat();
+
+    expect(tableCells(document).map((c) => c.text)).toEqual(['a', '1200', 'b', '▲3400']);
+  });
+
+  test('未知の値と未注入は既定（通常表記）へ倒す', async () => {
+    const { document, main, window } = loadViewerMain({});
+    await renderWithSetting(main, window, true, 'bogus', AMOUNTS);
+    expect(tableCells(document).map((c) => c.text)).toEqual(['a', '1,200', 'b', '-3,400']);
+
+    window._mmdCsvNegativeStyle = undefined;
+    main._mmdInitCsvNumberFormat();
+    expect(document.querySelector('#diagram-wrap td.csv-negative')).toBeNull();
+  });
+
+  test('何も描いていない状態で設定を反映しても落ちない', () => {
+    const { main, window } = loadViewerMain({});
+    window._mmdCsvGrouping = false;
+    expect(() => main._mmdInitCsvNumberFormat()).not.toThrow();
+  });
+
+  test('style.css が赤字の色をライト・ダークの両方で定義している', () => {
+    const css = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+    const dark = css.slice(css.indexOf('@media (prefers-color-scheme: dark)'));
+    expect(css).toContain('--csv-negative-fg:');
+    expect(dark).toContain('--csv-negative-fg:');
+    expect(css).toContain('#diagram-wrap.csv-body table td.csv-negative');
+  });
+});

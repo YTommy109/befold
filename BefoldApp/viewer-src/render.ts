@@ -3,6 +3,7 @@
 
 import { buildLineNumberRows, codeChunkInnerHtml, lastLines } from './code-html.js';
 import { csvRowsHtml, csvSourceInnerHtml, parseCsv } from './csv-html.js';
+import { _mmdCsvNumberFormat } from './csv-number-format.js';
 import { _mmdChunkTail, _mmdCsvColumns, _mmdDocument } from './document-state.js';
 import { _mmdFind } from './find.js';
 import { _mmdJump } from './jump.js';
@@ -167,6 +168,19 @@ function _mmdRerenderCurrent(): void {
   void render(content, _mmdDocument.type(), _mmdDocument.lang());
 }
 
+// Swift(evaluateJavaScript)から名前で呼ばれる入口。注入済みの数値表示設定を読んで
+// 反映し、**現在の文書を描き直す**。桁区切りと負の数の表記はセルの HTML 文字列
+// そのものを変えるため、CSS 変数を書くだけで済む _mmdInitCodeFont と違って
+// 再描画なしには反映できない。まだ何も描いていなければ描き直しは何もしない
+// (_mmdRerenderCurrent が content null で返る)。
+//
+// この入口が csv-number-format.ts ではなく render.ts に居るのは、あちらから
+// render.js を import すると循環になるため(モジュール側のコメント参照)。
+function _mmdInitCsvNumberFormat(): void {
+  _mmdCsvNumberFormat.adopt(window._mmdCsvGrouping, window._mmdCsvNegativeStyle);
+  _mmdRerenderCurrent();
+}
+
 // 追加読み込みされたチャンクを既存 DOM に追記する(Swift の ViewerBridge から呼ばれる)。
 // HTML 組み立ては純粋関数(csvRowsHtml / buildLineNumberRows / codeChunkInnerHtml)に
 // 委ね、ここでは DOM 挿入のみ行う。パス注釈は追記した行だけを _walkTextNodes で
@@ -305,4 +319,4 @@ function appendChunk(text: string, type: string, lang: string | undefined): void
   _mmdFindRefreshAfterRender();
 }
 
-export { renderShape, render, appendChunk, _mmdRerenderCurrent };
+export { renderShape, render, appendChunk, _mmdRerenderCurrent, _mmdInitCsvNumberFormat };

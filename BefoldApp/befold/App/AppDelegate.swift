@@ -81,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             findOptionsPreference: stores.findOptionsPreference,
             headingJumpLevelDefaults: stores.headingJumpLevelDefaults,
             codeFontPreference: stores.codeFontPreference,
+            csvNumberFormatPreference: stores.csvNumberFormatPreference,
             perFileState: stores.perFileState,
             bookmarkStore: stores.bookmarkStore,
             recentRepositoriesStore: stores.recentRepositoriesStore,

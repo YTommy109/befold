@@ -78,6 +78,12 @@ interface Window {
   _mmdMonoFontFamily?: string;
   // ViewerBridge.codeFontSizeScript(_:) — 未カスタマイズは null が注入される
   _mmdCodeFontSize?: number | null;
+  // ViewerBridge.csvNumberGroupingScript(_:) — 未注入のホスト(QuickLook 拡張)では
+  // undefined になり、JS 側の既定(オン)で描く
+  _mmdCsvGrouping?: boolean;
+  // ViewerBridge.csvNegativeStyleScript(_:) — 値は BefoldKit の CsvNegativeStyle の
+  // rawValue。未注入・未知の値は JS 側で 'plain' へ倒す
+  _mmdCsvNegativeStyle?: string;
   // ViewerBridge.hostFeaturesScript(loadMore:spaceScroll:referenceActivation:)
   _mmdHostFeatures?: ViewerHostFeatures;
   // ViewerBridge.bannerStringsScript(bundle:)

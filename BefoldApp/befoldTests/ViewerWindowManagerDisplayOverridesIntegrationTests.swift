@@ -22,6 +22,7 @@ struct ViewerWindowManagerDisplayOverridesIntegrationTests {
             displayDefaults: SidebarDisplayDefaults(defaults: defaults),
             diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
             headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
+            csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             makeContentView: placeholderViewerContent

@@ -42,6 +42,14 @@ final class WebViewDocumentRenderer: DocumentRendering {
         evaluate(ViewerBridge.applyCodeFontScript(family: family, points: points))
     }
 
+    func applyCsvNumberFormat(grouping: Bool, negativeStyle: CsvNegativeStyle) {
+        evaluate(
+            ViewerCsvBridge.applyCsvNumberFormatScript(
+                grouping: grouping, negativeStyle: negativeStyle
+            )
+        )
+    }
+
     func changeZoom(_ change: ZoomChange) -> Double? {
         guard let webView = webViewProxy.webView else { return nil }
         guard isDirectHTMLMode else {

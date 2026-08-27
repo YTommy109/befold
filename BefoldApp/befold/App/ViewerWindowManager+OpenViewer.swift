@@ -157,6 +157,7 @@ extension ViewerWindowManager {
             findOptionsPreference: findOptionsPreference,
             headingJumpLevelDefaults: headingJumpLevelDefaults,
             codeFontPreference: codeFontPreference,
+            csvNumberFormatPreference: csvNumberFormatPreference,
             perFileState: perFileState,
             bookmarkStore: bookmarkStore,
             gitFileIndex: gitFileIndex,

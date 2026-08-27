@@ -29,6 +29,8 @@ struct ViewerWindowScrollRestoreRaceTests {
 
         func applyZoom(_: Double) {}
         func applyCodeFont(family _: String?, points _: Double?) {}
+
+        func applyCsvNumberFormat(grouping _: Bool, negativeStyle _: CsvNegativeStyle) {}
         func changeZoom(_: ZoomChange) -> Double? {
             nil
         }
