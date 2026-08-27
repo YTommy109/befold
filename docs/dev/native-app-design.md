@@ -231,6 +231,15 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   ` ```mermaid ` フェンスは markdown-it のカスタムレンダラーで `<pre class="mermaid">` に出力し mermaid.js が SVG 描画する
 - **その他ファイル種別**: SVG / HTML / CSV・TSV / 画像 / PDF / 各種ソースコードは
   `FileType` の判定に従い、ソースコードは highlight.js でシンタックスハイライトする
+- **CSV/TSV の数値列**: テーブル表示では列単位に書式を判定する（`viewer-src/csv-columns.ts` の
+  `classifyCsvColumn`）。二段構えで、第 1 段「非空セルがすべて数値」を満たす列は右寄せ +
+  `tabular-nums`、第 2 段の拒否条件（1,000 以上の値が無い / 先頭ゼロ / 全セル同じ桁数で 4 桁以上 /
+  4 桁整数が全部 1900〜2100 / 1 始まりの連番 / ヘッダー名が否定語）をすべてくぐった列だけ
+  整数部に桁区切りを入れる。**判定は「外さない」を優先**し、肯定側のヘッダー名マッチ
+  （`price` / `金額` 等）は使わない。値そのものは書き換えず、小数部は原文のまま残す。
+  判定はヘッダー + 先頭 200 データ行で確定させ、チャンク追記（`render.ts` の `appendChunk`）は
+  `document-state.ts` の `_mmdCsvColumns` 経由で同じ判定を再利用する。
+  無加工の原文はソース表示（`csv-source`）で見られる
 - **キャンバス（地）の所有者**: 既定では地の色は `ViewerTheme.canvas`（ウィンドウ背景）が
   唯一の定義で、`WKWebView` は透過・CSS も地を塗らない。これによりネイティブ部分と
   WebView 部分が構成上必ず同色になる。**外部の HTML 文書（`.html` / `.htm` のレンダリング

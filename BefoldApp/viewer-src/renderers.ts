@@ -4,7 +4,8 @@
 // スクロール復元といった型共通の後処理は render() 側が担う。
 
 import { renderCodeHtml } from './code-html.js';
-import { buildTableHtml, parseCsv, renderCsvSourceHtml } from './csv-html.js';
+import type { CsvColumnFormat } from './csv-columns.js';
+import { buildCsvTable, renderCsvSourceHtml } from './csv-html.js';
 import { renderDiffHtml } from './diff-html.js';
 import { base64ToBytes, escapeHtml, imageDataURI, svgDataURI } from './encoding.js';
 import { markdownRenderer } from './markdown.js';
@@ -133,12 +134,21 @@ function _renderHtml(diagramWrap: HTMLElement, content: string): void {
   diagramWrap.append(iframe);
 }
 
-function _renderCsv(diagramWrap: HTMLElement, content: string, lang: string | undefined): void {
+// 列ごとの書式判定を返す。呼び出し元(render())がそれを記録し、チャンク追記が
+// 同じ書式を使う。document-state をここから書かないのは、記録の書き手を
+// render() だけに保つため(_renderSource が shape を返すのと同型)。
+function _renderCsv(
+  diagramWrap: HTMLElement,
+  content: string,
+  lang: string | undefined,
+): CsvColumnFormat[] {
   // github-markdown-css のテーブル装飾(markdown-body)を土台にしつつ、
   // CSV 専用の上書き(style.css の csv-body)をそこにだけ効かせる。
   // 通常の Markdown テーブルは markdown-body のみを付与するため影響しない。
   diagramWrap.classList.add('markdown-body', 'csv-body');
-  diagramWrap.innerHTML = buildTableHtml(parseCsv(content, lang || ','));
+  var table = buildCsvTable(content, lang || ',');
+  diagramWrap.innerHTML = table.html;
+  return table.formats;
 }
 
 function _renderImage(diagramWrap: HTMLElement, content: string, lang: string | undefined): void {

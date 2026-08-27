@@ -2,6 +2,8 @@
 // (csvSourceInnerHtml 経由)が 1 本のトークナイザーを共有する。
 
 import { wrapWithLineNumbers } from './code-html.js';
+import type { CsvColumnFormat } from './csv-columns.js';
+import { analyzeCsvColumns, groupCsvNumber } from './csv-columns.js';
 import { escapeHtml } from './encoding.js';
 
 /// tokenizeCsvRows() が返す 1 セル。value はデコード済みの値、raw はソース上の
@@ -141,16 +143,42 @@ function parseCsv(content: string, delimiter: string): string[][] {
   return rows;
 }
 
+// 1 セル分の <td>…</td>。列の書式(csv-columns.js の判定)に応じて
+// class="csv-num"(右寄せ + tabular-nums)と整数部の桁区切りを付ける。
+// 判定が 'text' の列、および判定の無い列(後続チャンクで増えた列)は素通しする。
+function csvCellHtml(tag: string, value: string, format: CsvColumnFormat | undefined): string {
+  if (format === undefined || format === 'text') {
+    return '<' + tag + '>' + escapeHtml(value) + '</' + tag + '>';
+  }
+  // 桁区切りは grouped 列のセルにのみ入れる。空セル・前後の空白は原文のまま残し、
+  // トリムした結果が数値として読めるときだけ整形する。
+  var shown = value;
+  if (format === 'grouped') {
+    var trimmed = value.trim();
+    if (trimmed !== '') {
+      var grouped = groupCsvNumber(trimmed);
+      if (grouped !== trimmed) {
+        shown = value.replace(trimmed, grouped);
+      }
+    }
+  }
+  return '<' + tag + ' class="csv-num">' + escapeHtml(shown) + '</' + tag + '>';
+}
+
 // CSV 行の配列から <tr><td>…</td></tr> 列(文字列連結)を組み立てる。
 // 各行は max(minCols, 行の列数) まで空セルでパディングし、セルは escapeHtml する。
 // buildTableHtml の <tbody> とチャンク追記(render.js の appendChunk)が共有する。
-function csvRowsHtml(rows: string[][], minCols: number): string {
+//
+// formats は列ごとの書式判定。**省略可能にしていない**のは、渡し忘れが
+// コンパイルエラーにならず「静かに全列 text 扱い」になり、初回描画と
+// チャンク追記で見た目が食い違うため(TASK-319 と同型の穴)。
+function csvRowsHtml(rows: string[][], minCols: number, formats: CsvColumnFormat[]): string {
   var html = '';
   for (var r = 0; r < rows.length; r++) {
     var cols = Math.max(minCols, rows[r]!.length);
     html += '<tr>';
     for (var c = 0; c < cols; c++) {
-      html += '<td>' + escapeHtml(c < rows[r]!.length ? rows[r]![c]! : '') + '</td>';
+      html += csvCellHtml('td', c < rows[r]!.length ? rows[r]![c]! : '', formats[c]);
     }
     html += '</tr>';
   }
@@ -159,7 +187,12 @@ function csvRowsHtml(rows: string[][], minCols: number): string {
 
 // CSV 行の配列から HTML テーブル文字列を組み立てる。1行目を <thead>、残りを <tbody> にする。
 // 列数が揃っていない行は空セルでパディングする。
-function buildTableHtml(rows: string[][]): string {
+//
+// formats は列ごとの書式判定。呼び出し元(renderers.js の _renderCsv)は
+// buildCsvTable を通してこれを受け取り、同じ判定をチャンク追記へ持ち越す。
+// ヘッダーにも同じクラスを付けるのは、右寄せの数字の上に左寄せの見出しが
+// 乗る形を避けるため。
+function buildTableHtml(rows: string[][], formats: CsvColumnFormat[]): string {
   if (rows.length === 0) {
     return '';
   }
@@ -171,12 +204,27 @@ function buildTableHtml(rows: string[][]): string {
   }
   var html = '<table><thead><tr>';
   for (var c = 0; c < maxCols; c++) {
-    html += '<th>' + escapeHtml(c < rows[0]!.length ? rows[0]![c]! : '') + '</th>';
+    // ヘッダーの文字列そのものは整形しないので、桁区切りの対象にはしない。
+    var headerFormat = formats[c] === undefined || formats[c] === 'text' ? formats[c] : 'numeric';
+    html += csvCellHtml('th', c < rows[0]!.length ? rows[0]![c]! : '', headerFormat);
   }
   html += '</tr></thead><tbody>';
-  html += csvRowsHtml(rows.slice(1), maxCols);
+  html += csvRowsHtml(rows.slice(1), maxCols, formats);
   html += '</tbody></table>';
   return html;
+}
+
+// CSV/TSV 本文からテーブル HTML と列判定をまとめて作る。列判定は
+// チャンク追記(render.js の appendChunk)が同じ書式を使うために返す。
+// 判定と組み立てを 1 つの入口に閉じることで、片方だけ別の rows から
+// 作られる経路を作らない。
+function buildCsvTable(
+  content: string,
+  delimiter: string,
+): { html: string; formats: CsvColumnFormat[] } {
+  var rows = parseCsv(content, delimiter);
+  var formats = analyzeCsvColumns(rows);
+  return { html: buildTableHtml(rows, formats), formats: formats };
 }
 
 var CSV_COL_COUNT = 8;
@@ -228,8 +276,10 @@ export {
   unescapeCellValue,
   tokenizeCsvRows,
   parseCsv,
+  csvCellHtml,
   csvRowsHtml,
   buildTableHtml,
+  buildCsvTable,
   csvSourceInnerHtml,
   renderCsvSourceHtml,
 };

@@ -14127,6 +14127,8 @@
     BODY_CLASSES: () => BODY_CLASSES,
     CODE_TAB_SIZE: () => CODE_TAB_SIZE,
     CSV_COL_COUNT: () => CSV_COL_COUNT,
+    CSV_FIXED_WIDTH_MIN_SAMPLES: () => CSV_FIXED_WIDTH_MIN_SAMPLES,
+    CSV_SAMPLE_ROWS: () => CSV_SAMPLE_ROWS,
     DEFAULT_LINE_SCROLL_STEP: () => DEFAULT_LINE_SCROLL_STEP,
     DIAGRAM_ZOOM_MAX: () => DIAGRAM_ZOOM_MAX,
     HEADING_LEVELS: () => HEADING_LEVELS,
@@ -14153,6 +14155,7 @@
     _mmdBuildDiagramControls: () => _mmdBuildDiagramControls,
     _mmdChunkTail: () => _mmdChunkTail,
     _mmdCloseFind: () => _mmdCloseFind,
+    _mmdCsvColumns: () => _mmdCsvColumns,
     _mmdDiagramZoomReset: () => _mmdDiagramZoomReset,
     _mmdDiagramZoomStep: () => _mmdDiagramZoomStep,
     _mmdDiagramZoomValue: () => _mmdDiagramZoomValue,
@@ -14219,20 +14222,27 @@
     _renderSvg: () => _renderSvg,
     _sourceLanguage: () => _sourceLanguage,
     _walkTextNodes: () => _walkTextNodes,
+    analyzeCsvColumnDecisions: () => analyzeCsvColumnDecisions,
+    analyzeCsvColumns: () => analyzeCsvColumns,
     appendChunk: () => appendChunk,
     applyHeadingLevels: () => applyHeadingLevels,
     assignChangeBlockIndexes: () => assignChangeBlockIndexes,
     base64ToBytes: () => base64ToBytes,
+    buildCsvTable: () => buildCsvTable,
     buildFindRegExp: () => buildFindRegExp,
     buildLineNumberRows: () => buildLineNumberRows,
     buildTableHtml: () => buildTableHtml,
     changeBlockJumpProvider: () => changeBlockJumpProvider,
     claimBar: () => claimBar,
     clampZoom: () => clampZoom,
+    classifyCsvColumn: () => classifyCsvColumn,
     closeCurrentBar: () => closeCurrentBar,
     codeChunkInnerHtml: () => codeChunkInnerHtml,
     collectChangeBlocks: () => collectChangeBlocks,
     collectHeadings: () => collectHeadings,
+    csvCellHtml: () => csvCellHtml,
+    csvHeaderLooksLikeCode: () => csvHeaderLooksLikeCode,
+    csvHeaderTokens: () => csvHeaderTokens,
     csvRowsHtml: () => csvRowsHtml,
     csvSourceInnerHtml: () => csvSourceInnerHtml,
     currentBar: () => currentBar,
@@ -14240,6 +14250,7 @@
     diffMarkerGlyph: () => diffMarkerGlyph,
     escapeHtml: () => escapeHtml,
     formatNavigationCount: () => formatNavigationCount,
+    groupCsvNumber: () => groupCsvNumber,
     halfPageScrollStep: () => halfPageScrollStep,
     headingJumpProvider: () => headingJumpProvider,
     headingLevelTokens: () => headingLevelTokens,
@@ -15300,6 +15311,20 @@
       }
     };
   })();
+  var _mmdCsvColumns = /* @__PURE__ */ (function() {
+    var formats = [];
+    return {
+      record: function(newFormats) {
+        formats = newFormats;
+      },
+      reset: function() {
+        formats = [];
+      },
+      formats: function() {
+        return formats;
+      }
+    };
+  })();
 
   // viewer-src/color-scheme.ts
   var darkQuery = null;
@@ -15780,6 +15805,161 @@
     return layout === "side-by-side" ? renderSideBySideDiffHtml(hljs, diffText, lang, showLineNumbers) : renderInlineDiffHtml(hljs, diffText, lang, showLineNumbers);
   }
 
+  // viewer-src/csv-columns.ts
+  var CSV_SAMPLE_ROWS = 200;
+  var CSV_FIXED_WIDTH_MIN_SAMPLES = 5;
+  var CSV_GROUPING_MIN_VALUE = 1e3;
+  var CSV_YEAR_MIN = 1900;
+  var CSV_YEAR_MAX = 2100;
+  var CSV_NUMERIC_RE = /^[+-]?\d+(?:\.\d+)?$/u;
+  var CSV_LEADING_ZERO_RE = /^[+-]?0\d/u;
+  var CSV_HEADER_WORDS_ASCII = ["id", "code", "no", "zip", "tel", "phone", "year"];
+  var CSV_HEADER_WORDS_CJK = ["\u756A\u53F7", "\u30B3\u30FC\u30C9", "\u90F5\u4FBF", "\u96FB\u8A71", "\u5E74"];
+  function csvHeaderTokens(header) {
+    var spaced = header.replaceAll(/([a-z0-9])([A-Z])/gu, "$1 $2");
+    return spaced.toLowerCase().split(/[^a-z0-9]+/u).filter(function(t) {
+      return t.length > 0;
+    });
+  }
+  function csvHeaderLooksLikeCode(header) {
+    var tokens = csvHeaderTokens(header);
+    for (var i = 0; i < CSV_HEADER_WORDS_ASCII.length; i++) {
+      if (tokens.includes(CSV_HEADER_WORDS_ASCII[i])) {
+        return true;
+      }
+    }
+    for (var j = 0; j < CSV_HEADER_WORDS_CJK.length; j++) {
+      if (header.includes(CSV_HEADER_WORDS_CJK[j])) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function csvIntegerDigits(sample) {
+    var body = sample.replace(/^[+-]/u, "");
+    var dot = body.indexOf(".");
+    return dot === -1 ? body.length : dot;
+  }
+  function csvLooksLikeRowNumbers(samples) {
+    var seen = /* @__PURE__ */ new Set();
+    for (var i = 0; i < samples.length; i++) {
+      var s = samples[i];
+      if (s.includes(".") || s.startsWith("-")) {
+        return false;
+      }
+      var n = Number(s);
+      if (!Number.isInteger(n) || n < 1 || n > samples.length || seen.has(n)) {
+        return false;
+      }
+      seen.add(n);
+    }
+    return seen.size === samples.length && samples.length > 0;
+  }
+  function classifyCsvColumn(header, samples) {
+    if (samples.length === 0) {
+      return { format: "text", reason: "empty" };
+    }
+    for (var i = 0; i < samples.length; i++) {
+      if (!CSV_NUMERIC_RE.test(samples[i])) {
+        return { format: "text", reason: "not-numeric" };
+      }
+    }
+    var numericOnly = { format: "numeric", reason: "no-large-value" };
+    var hasLarge = false;
+    var allSameWidth = true;
+    var firstWidth = csvIntegerDigits(samples[0]);
+    var allYears = true;
+    for (var j = 0; j < samples.length; j++) {
+      var s = samples[j];
+      if (CSV_LEADING_ZERO_RE.test(s)) {
+        return { format: "numeric", reason: "leading-zero" };
+      }
+      var width = csvIntegerDigits(s);
+      if (width !== firstWidth) {
+        allSameWidth = false;
+      }
+      if (Math.abs(Number(s)) >= CSV_GROUPING_MIN_VALUE) {
+        hasLarge = true;
+      }
+      if (allYears) {
+        var n = Number(s);
+        var isYear = !s.includes(".") && width === 4 && n >= CSV_YEAR_MIN && n <= CSV_YEAR_MAX;
+        if (!isYear) {
+          allYears = false;
+        }
+      }
+    }
+    if (!hasLarge) {
+      return numericOnly;
+    }
+    if (allYears) {
+      return { format: "numeric", reason: "year-range" };
+    }
+    if (csvLooksLikeRowNumbers(samples)) {
+      return { format: "numeric", reason: "row-number" };
+    }
+    if (allSameWidth && firstWidth >= 4 && samples.length >= CSV_FIXED_WIDTH_MIN_SAMPLES) {
+      return { format: "numeric", reason: "fixed-width" };
+    }
+    if (csvHeaderLooksLikeCode(header)) {
+      return { format: "numeric", reason: "header-word" };
+    }
+    return { format: "grouped", reason: "grouped" };
+  }
+  function analyzeCsvColumnDecisions(rows) {
+    var maxCols = 0;
+    for (var r = 0; r < rows.length; r++) {
+      if (rows[r].length > maxCols) {
+        maxCols = rows[r].length;
+      }
+    }
+    var lastRow = Math.min(rows.length, CSV_SAMPLE_ROWS + 1);
+    var decisions = [];
+    for (var c = 0; c < maxCols; c++) {
+      var samples = [];
+      for (var d = 1; d < lastRow; d++) {
+        var cell = rows[d][c];
+        if (cell === void 0) {
+          continue;
+        }
+        var trimmed = cell.trim();
+        if (trimmed !== "") {
+          samples.push(trimmed);
+        }
+      }
+      var header = rows.length > 0 ? rows[0][c] ?? "" : "";
+      decisions.push(classifyCsvColumn(header, samples));
+    }
+    return decisions;
+  }
+  function analyzeCsvColumns(rows) {
+    return analyzeCsvColumnDecisions(rows).map(function(d) {
+      return d.format;
+    });
+  }
+  function groupCsvNumber(value) {
+    if (!CSV_NUMERIC_RE.test(value)) {
+      return value;
+    }
+    var sign = "";
+    var body = value;
+    if (body.startsWith("+") || body.startsWith("-")) {
+      sign = body.slice(0, 1);
+      body = body.slice(1);
+    }
+    var dot = body.indexOf(".");
+    var intPart = dot === -1 ? body : body.slice(0, dot);
+    var rest = dot === -1 ? "" : body.slice(dot);
+    var grouped = "";
+    for (var i = 0; i < intPart.length; i++) {
+      if (i > 0 && (intPart.length - i) % 3 === 0) {
+        grouped += ",";
+      }
+      grouped += intPart[i];
+    }
+    return sign + grouped + rest;
+  }
+
   // viewer-src/csv-html.ts
   function tokenizeCsvRows(content, delimiter2) {
     if (!content) {
@@ -15880,19 +16060,35 @@
     }
     return rows;
   }
-  function csvRowsHtml(rows, minCols) {
+  function csvCellHtml(tag, value, format2) {
+    if (format2 === void 0 || format2 === "text") {
+      return "<" + tag + ">" + escapeHtml(value) + "</" + tag + ">";
+    }
+    var shown = value;
+    if (format2 === "grouped") {
+      var trimmed = value.trim();
+      if (trimmed !== "") {
+        var grouped = groupCsvNumber(trimmed);
+        if (grouped !== trimmed) {
+          shown = value.replace(trimmed, grouped);
+        }
+      }
+    }
+    return "<" + tag + ' class="csv-num">' + escapeHtml(shown) + "</" + tag + ">";
+  }
+  function csvRowsHtml(rows, minCols, formats) {
     var html2 = "";
     for (var r = 0; r < rows.length; r++) {
       var cols = Math.max(minCols, rows[r].length);
       html2 += "<tr>";
       for (var c = 0; c < cols; c++) {
-        html2 += "<td>" + escapeHtml(c < rows[r].length ? rows[r][c] : "") + "</td>";
+        html2 += csvCellHtml("td", c < rows[r].length ? rows[r][c] : "", formats[c]);
       }
       html2 += "</tr>";
     }
     return html2;
   }
-  function buildTableHtml(rows) {
+  function buildTableHtml(rows, formats) {
     if (rows.length === 0) {
       return "";
     }
@@ -15904,12 +16100,18 @@
     }
     var html2 = "<table><thead><tr>";
     for (var c = 0; c < maxCols; c++) {
-      html2 += "<th>" + escapeHtml(c < rows[0].length ? rows[0][c] : "") + "</th>";
+      var headerFormat = formats[c] === void 0 || formats[c] === "text" ? formats[c] : "numeric";
+      html2 += csvCellHtml("th", c < rows[0].length ? rows[0][c] : "", headerFormat);
     }
     html2 += "</tr></thead><tbody>";
-    html2 += csvRowsHtml(rows.slice(1), maxCols);
+    html2 += csvRowsHtml(rows.slice(1), maxCols, formats);
     html2 += "</tbody></table>";
     return html2;
+  }
+  function buildCsvTable(content, delimiter2) {
+    var rows = parseCsv(content, delimiter2);
+    var formats = analyzeCsvColumns(rows);
+    return { html: buildTableHtml(rows, formats), formats };
   }
   var CSV_COL_COUNT = 8;
   function csvSourceInnerHtml(content, delimiter2) {
@@ -24104,7 +24306,9 @@
   }
   function _renderCsv(diagramWrap, content, lang) {
     diagramWrap.classList.add("markdown-body", "csv-body");
-    diagramWrap.innerHTML = buildTableHtml(parseCsv(content, lang || ","));
+    var table2 = buildCsvTable(content, lang || ",");
+    diagramWrap.innerHTML = table2.html;
+    return table2.formats;
   }
   function _renderImage(diagramWrap, content, lang) {
     diagramWrap.classList.add("image-body");
@@ -24198,6 +24402,7 @@
     _mmdChunkTail.record(content);
     var shape = renderShape(type, _mmdViewOptions.mode());
     _mmdDocument.recordShape(shape);
+    _mmdCsvColumns.reset();
     _mmdInvalidatePendingRefs();
     var errorPanel = document.getElementById("mmd-error");
     errorPanel.style.display = "none";
@@ -24215,7 +24420,7 @@
     } else if (shape === "html") {
       _renderHtml(diagramWrap, content);
     } else if (shape === "csv-table") {
-      _renderCsv(diagramWrap, content, lang);
+      _mmdCsvColumns.record(_renderCsv(diagramWrap, content, lang));
     } else if (shape === "image") {
       _renderImage(diagramWrap, content, lang);
     } else if (shape === "pdf") {
@@ -24281,7 +24486,7 @@
         minCols = maxNewCols;
       }
       var firstNew = tbody.rows.length;
-      tbody.insertAdjacentHTML("beforeend", csvRowsHtml(csvRows, minCols));
+      tbody.insertAdjacentHTML("beforeend", csvRowsHtml(csvRows, minCols, _mmdCsvColumns.formats()));
       for (var r2 = firstNew; r2 < tbody.rows.length; r2++) {
         _walkTextNodes(tbody.rows[r2], false);
       }

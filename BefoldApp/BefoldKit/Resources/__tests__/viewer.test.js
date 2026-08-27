@@ -858,23 +858,26 @@ describe('parseCsv', () => {
 
 describe('csv escape sequences reach both table render paths', () => {
   test('buildTableHtml (initial render) emits a real newline in the cell', () => {
-    const html = buildTableHtml(parseCsv('h\na\\nb', ','));
+    const html = buildTableHtml(parseCsv('h\na\\nb', ','), ['text']);
     expect(html).toContain('<td>a\nb</td>');
   });
 
   test('csvRowsHtml (chunked append) emits the same cell markup', () => {
-    const html = csvRowsHtml(parseCsv('a\\nb', ','), 1);
+    const html = csvRowsHtml(parseCsv('a\\nb', ','), 1, ['text']);
     expect(html).toBe('<tr><td>a\nb</td></tr>');
   });
 });
 
 describe('buildTableHtml', () => {
   test('builds table with thead and tbody', () => {
-    const html = buildTableHtml([
-      ['Name', 'Age'],
-      ['Alice', '30'],
-      ['Bob', '25'],
-    ]);
+    const html = buildTableHtml(
+      [
+        ['Name', 'Age'],
+        ['Alice', '30'],
+        ['Bob', '25'],
+      ],
+      ['text', 'text'],
+    );
     expect(html).toContain('<table>');
     expect(html).toContain('<thead>');
     expect(html).toContain('<th>Name</th>');
@@ -886,24 +889,24 @@ describe('buildTableHtml', () => {
   });
 
   test('header-only table has empty tbody', () => {
-    const html = buildTableHtml([['A', 'B']]);
+    const html = buildTableHtml([['A', 'B']], ['text', 'text']);
     expect(html).toContain('<thead>');
     expect(html).toContain('<tbody></tbody>');
   });
 
   test('empty rows returns empty string', () => {
-    expect(buildTableHtml([])).toBe('');
+    expect(buildTableHtml([], [])).toBe('');
   });
 
   test('escapes HTML in cell values', () => {
-    const html = buildTableHtml([['<script>'], ['&"']]);
+    const html = buildTableHtml([['<script>'], ['&"']], ['text']);
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&amp;&quot;');
   });
 
   test('pads short rows with empty cells', () => {
-    const html = buildTableHtml([['A', 'B', 'C'], ['1']]);
+    const html = buildTableHtml([['A', 'B', 'C'], ['1']], ['text', 'text', 'text']);
     // 1行目は th×3、2行目は td が 3 つ(うち 2 つは空)
     expect(html).toContain('<td>1</td>');
     expect(html.match(/<td><\/td>/gu).length).toBe(2);
@@ -1301,24 +1304,24 @@ describe('lineContentCell(ガイド用 CSS 変数の付与)', () => {
 
 describe('csvRowsHtml', () => {
   test('builds tr/td rows and pads short rows up to minCols', () => {
-    const html = csvRowsHtml([['a', 'b'], ['c']], 3);
+    const html = csvRowsHtml([['a', 'b'], ['c']], 3, []);
     expect(html).toBe(
       '<tr><td>a</td><td>b</td><td></td></tr><tr><td>c</td><td></td><td></td></tr>',
     );
   });
 
   test('a row longer than minCols keeps all its cells', () => {
-    const html = csvRowsHtml([['a', 'b', 'c']], 2);
+    const html = csvRowsHtml([['a', 'b', 'c']], 2, []);
     expect(html).toBe('<tr><td>a</td><td>b</td><td>c</td></tr>');
   });
 
   test('escapes HTML special characters in cells', () => {
-    const html = csvRowsHtml([['<b>', 'a&b', '"q"']], 0);
+    const html = csvRowsHtml([['<b>', 'a&b', '"q"']], 0, []);
     expect(html).toBe('<tr><td>&lt;b&gt;</td><td>a&amp;b</td><td>&quot;q&quot;</td></tr>');
   });
 
   test('empty rows array produces empty string', () => {
-    expect(csvRowsHtml([], 3)).toBe('');
+    expect(csvRowsHtml([], 3, [])).toBe('');
   });
 });
 

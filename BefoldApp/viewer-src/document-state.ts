@@ -1,4 +1,6 @@
-// 直近に描画した内容・描いた形・チャンク境界を保持する。
+// 直近に描画した内容・描いた形・チャンク境界・CSV の列書式を保持する。
+
+import type { CsvColumnFormat } from './csv-columns.js';
 
 // 直近に描画した内容(カラースキーム変更時の再描画と、追記チャンクへ渡す前方文脈の
 // 取得元)と、実際に描いた形。書き手は render() の record() / recordShape() と
@@ -77,4 +79,27 @@ var _mmdChunkTail = (function () {
   };
 })();
 
-export { _mmdDocument, _mmdChunkTail };
+// CSV/TSV テーブル表示の列ごとの書式判定(csv-columns.js)。初回描画で確定させ、
+// チャンク追記(appendChunk)が同じ書式を使うために持ち越す。列全体を見てからでは
+// 追記に間に合わないため、先頭チャンクの判定をそのまま再利用する。
+//
+// 書き手は render() だけ。分岐へ入る前に reset() し、CSV を描いたときだけ
+// record() で入れ直す。これは recordShape と同じ約束で、どの経路を通っても
+// 記録が確定するようにするため(CSV → 非 CSV → 追記や、別の CSV への切り替えで
+// 前の文書の判定が残らない)。DOM(<th> のクラス等)から読み直す形は使わない。
+var _mmdCsvColumns = (function () {
+  var formats: CsvColumnFormat[] = [];
+  return {
+    record: function (newFormats: CsvColumnFormat[]): void {
+      formats = newFormats;
+    },
+    reset: function (): void {
+      formats = [];
+    },
+    formats: function (): CsvColumnFormat[] {
+      return formats;
+    },
+  };
+})();
+
+export { _mmdDocument, _mmdChunkTail, _mmdCsvColumns };

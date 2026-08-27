@@ -17,6 +17,7 @@ export * from './color-scheme.js';
 export * from './fonts.js';
 export * from './code-html.js';
 export * from './diff-html.js';
+export * from './csv-columns.js';
 export * from './csv-html.js';
 export * from './zoom.js';
 export * from './scroll.js';
