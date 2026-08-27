@@ -1,3 +1,4 @@
+import AppKit
 import BefoldKit
 import SwiftUI
 
@@ -97,7 +98,7 @@ struct SettingsView: View {
                     selection: $csvNegativeStyle
                 ) {
                     ForEach(CsvNegativeStyle.allCases, id: \.self) { style in
-                        Self.negativeStyleLabel(style).tag(style)
+                        Self.negativeStyleLabel(style, columns: negativeLabelColumns).tag(style)
                     }
                 }
                 .pickerStyle(.radioGroup)
@@ -120,21 +121,56 @@ struct SettingsView: View {
 
     /// 負の数の表記の選択肢ラベル。名前のあとに**その設定での見え方の例**を並べる。
     /// 赤字を選ぶ 2 つは例そのものを赤で描くので、選ばなくても結果が分かる。
+    /// 名前を固定幅の枠に入れるのは、見本の開始位置を 4 行で揃えて見比べられる
+    /// ようにするため(名前の長さがまちまちだと見本がばらばらの位置から始まる)。
     ///
-    /// CsvNegativeStyle は BefoldKit(ローカライズを持たない層)にあるため、
-    /// 表示名はこちら側で対応づける。
-    private static func negativeStyleLabel(_ style: CsvNegativeStyle) -> Text {
-        let name = switch style {
+    private static func negativeStyleLabel(
+        _ style: CsvNegativeStyle, columns: LabelColumns
+    ) -> some View {
+        var sample = Text(Self.negativeStyleSample(style)).monospacedDigit()
+        if style == .red || style == .triangleRed {
+            sample = sample.foregroundColor(.red)
+        }
+        return HStack(spacing: 0) {
+            Text(Self.negativeStyleName(style))
+                .frame(width: columns.name, alignment: .leading)
+            // 見本は**右揃え**。符号の幅が違う(- と ▲)ので、左揃えだと同じ
+            // 1,234 が行ごとに別の位置から始まって見比べにくい。
+            sample.frame(width: columns.sample, alignment: .trailing)
+        }
+    }
+
+    /// 選択肢ラベルの 2 列の幅。
+    struct LabelColumns {
+        let name: CGFloat
+        let sample: CGFloat
+    }
+
+    /// 選択肢の表示名。CsvNegativeStyle は BefoldKit(ローカライズを持たない層)に
+    /// あるため、表示名はこちら側で対応づける。
+    private static func negativeStyleName(_ style: CsvNegativeStyle) -> String {
+        switch style {
         case .plain: String(localized: "settings.number.negative.plain", bundle: .l10n)
         case .triangle: String(localized: "settings.number.negative.triangle", bundle: .l10n)
         case .red: String(localized: "settings.number.negative.red", bundle: .l10n)
         case .triangleRed: String(localized: "settings.number.negative.triangleRed", bundle: .l10n)
         }
-        var sample = Text(Self.negativeStyleSample(style)).monospacedDigit()
-        if style == .red || style == .triangleRed {
-            sample = sample.foregroundColor(.red)
+    }
+
+    /// 選択肢ラベルの 2 列の幅。**4 行で縦に揃える**ために、それぞれ 4 つのうち
+    /// いちばん広いものに合わせる。名前の長さはロケールで変わる(ja「▲ + 赤字」/
+    /// en「Triangle and red」)ので、定数ではなく実測した幅を使う。
+    private var negativeLabelColumns: LabelColumns {
+        let font = NSFont.preferredFont(forTextStyle: .body)
+        func widest(_ texts: [String]) -> CGFloat {
+            texts.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
         }
-        return Text(name) + Text("  ") + sample
+        // 実際に描かれるフォントが計測に使ったものと厳密に一致する保証はないので、
+        // 端が詰まらないよう少し足す。
+        return LabelColumns(
+            name: widest(CsvNegativeStyle.allCases.map(Self.negativeStyleName)) + 12,
+            sample: widest(CsvNegativeStyle.allCases.map(Self.negativeStyleSample)) + 4
+        )
     }
 
     /// 選択肢に添える見え方の例。**表示中の CSV とは無関係の固定の見本**で、
