@@ -4,7 +4,7 @@ title: 負の数の表示と桁区切りを Preferences で切り替えられる
 status: Done
 assignee: []
 created_date: '2026-08-27 04:20'
-updated_date: '2026-08-27 07:03'
+updated_date: '2026-08-27 07:06'
 labels: []
 dependencies:
   - TASK-557.1
@@ -168,6 +168,12 @@ swiftlint とは別に `scripts/check-type-group-size.sh` が走り、次を報�
 - tsv: 科目 text / **前期・当期・増減 grouped** / 構成比 numeric(no-large-value)
 
 調整額（csv）と増減（tsv）に負の数を入れてあるので、▲ 表記と赤字の設定もこの 2 ファイルで確かめられる。
+
+## 追記: Section のタイトル（ユーザー指摘）
+
+「数値表示」だけでは何の数値か分からないため、対象を明示して `データビュー（CSV・TSV）の数値表示` / `Numbers in Data View (CSV/TSV)` へ変えた。
+
+表記は既存に揃えた。ja は全角括弧（実測: xcstrings の ja 値で全角 4 件 / 半角 1 件）で、種別の並べ方も `featureOverview.formats.detail` の ja「CSV・TSV」/ en「CSV/TSV」に合わせている。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

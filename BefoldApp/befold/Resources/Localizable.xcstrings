@@ -2049,13 +2049,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Numbers"
+            "value": "Numbers in Data View (CSV/TSV)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "数値表示"
+            "value": "データビュー（CSV・TSV）の数値表示"
           }
         }
       }
