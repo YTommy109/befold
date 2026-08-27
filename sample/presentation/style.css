@@ -108,6 +108,35 @@ body::after {
   box-shadow: 0 0 14px rgba(76, 141, 255, 0.75);
 }
 
+/*
+ * 進捗バーの幅はページごとのクラスで持つ。**インライン style 属性を使わない。**
+ * 各ページが `style-src 'self'` の CSP を宣言していて、属性で書くと
+ * `'unsafe-inline'` を足すことになるため（このデッキは直接 HTML モードで開かれ、
+ * viewer.html の CSP も DOMPurify も掛からない。締めるのは自分の仕事）。
+ */
+.progress.p01 { width: 4.5455%; }
+.progress.p02 { width: 9.0909%; }
+.progress.p03 { width: 13.6364%; }
+.progress.p04 { width: 18.1818%; }
+.progress.p05 { width: 22.7273%; }
+.progress.p06 { width: 27.2727%; }
+.progress.p07 { width: 31.8182%; }
+.progress.p08 { width: 36.3636%; }
+.progress.p09 { width: 40.9091%; }
+.progress.p10 { width: 45.4545%; }
+.progress.p11 { width: 50.0000%; }
+.progress.p12 { width: 54.5455%; }
+.progress.p13 { width: 59.0909%; }
+.progress.p14 { width: 63.6364%; }
+.progress.p15 { width: 68.1818%; }
+.progress.p16 { width: 72.7273%; }
+.progress.p17 { width: 77.2727%; }
+.progress.p18 { width: 81.8182%; }
+.progress.p19 { width: 86.3636%; }
+.progress.p20 { width: 90.9091%; }
+.progress.p21 { width: 95.4545%; }
+.progress.p22 { width: 100.0000%; }
+
 /* 見出し。1 枚に 1 つだけ置く。 */
 h1 {
   margin: 0;

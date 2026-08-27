@@ -20,6 +20,24 @@ befold sample/presentation --sidebar   # フォルダごと開く
   リソースが読めなくなり、**文字だけのページになる**。
 - **外部から何も読み込まない。** リモート読み込みは `RemoteLoadBlocker` が遮断する
   ので、Web フォント・CDN は使わない（本文は system-ui、等幅は SF Mono / Menlo）。
+- **各ページが自前の CSP を宣言する。**
+
+  ```html
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none';
+        img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'">
+  ```
+
+  直接 HTML モードは viewer.html を経由しないため、**同梱 viewer.html の CSP も
+  DOMPurify も掛からない**。締めるのはこの資料自身の仕事になる。実測（2026-08-28、
+  befold 1.15.0）: CSP の有無だけを変えて `<iframe src="02-editing.html">` を置いた
+  ページを描くと、**CSP 無しでは中身が描画され、CSP 有りでは空**になる。つまり宣言は
+  実際に効いている。
+- **インライン `style` 属性を使わない。** 進捗バーの幅はページごとのクラス
+  （`.progress.p01` 〜 `.p22`）で持つ。属性で書くと `style-src` に
+  `'unsafe-inline'` を足すことになるため。
+- なお **直接 HTML モードでは JS がそもそも無効**（`DirectHTMLModeController.enter`
+  が `allowsContentJavaScript = false` にする）。上の CSP は多層防御の 1 枚で、
+  この資料は JS を 1 行も使わない。
 - 見た目は `style.css` の 1 枚に集約する。ページ側は本文と、`.tag` / `.pager` /
   `.progress` の 3 つの位置情報（何ページ目か）だけを持つ。
 - 文字サイズは `vmin` と `clamp()` で決めてあるので、ウィンドウの大きさに追随する。

@@ -1,11 +1,11 @@
 ---
 id: TASK-561
 title: LT スライドのセキュリティ面と素材を手当てする
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-27 14:55'
-updated_date: '2026-08-27 14:55'
+updated_date: '2026-08-27 15:03'
 labels: []
 dependencies: []
 priority: medium
@@ -44,9 +44,9 @@ TASK-560 のデッキを作ったあと、「secure がアピールポイント�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 images/befold-image.jpg が権利の所在の明確な写真になっている
-- [ ] #2 各ページが自前の CSP を宣言している（または宣言しない判断が Notes に残っている）
-- [ ] #3 QuickLook のスクリーンショットに他人の画面が写り込んでいない（または現状で可とした判断が Notes に残っている）
+- [x] #1 images/befold-image.jpg が権利の所在の明確な写真になっている
+- [x] #2 各ページが自前の CSP を宣言している（または宣言しない判断が Notes に残っている）
+- [x] #3 QuickLook のスクリーンショットに他人の画面が写り込んでいない（または現状で可とした判断が Notes に残っている）
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -57,4 +57,37 @@ TASK-560 のデッキを作ったあと、「secure がアピールポイント�
 作者提供の写真（1280x960、札幌・北 3 条広場）を befold で開いて撮り直し、`images/befold-image.jpg` を置き換えた（272KB）。README の出どころの表も更新。撮影後の画像を Read して目視確認済み。
 
 残る 2 件（CSP・QuickLook 撮り直し）は未着手。
+
+## 2. CSP（完了）
+
+全 22 ページの `<meta charset>` 直後に次を置いた。
+
+```html
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'">
+```
+
+`'unsafe-inline'` を足さずに済ませるため、唯一のインライン `style` 属性だった進捗バーの幅を `.progress.p01` 〜 `.p22` のクラスへ移した（`rg -o 'style="[^"]*"'` の結果が 0 件になったことを確認）。
+
+### 実測（2026-08-28 / befold 1.15.0 / 直接 HTML モード）
+
+**当初の検証は空振りだった。** インライン `<script>` を仕込んだ使い捨てページで「CSP ありならスクリプトが動かない」ことを見ようとしたが、**CSP を外した対照でもスクリプトは動かなかった**。原因は `DirectHTMLModeController.enter` が `webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = false` を設定していること（コードで確認）。つまり直接 HTML モードでは JS がそもそも無効で、この実験では CSP の効き目を判定できない。
+
+JS を使わない判定へ切り替え、`<iframe src="02-editing.html">` を置いたページを CSP の有無だけ変えて描いた:
+
+| 条件 | 結果 |
+|---|---|
+| CSP 無し | iframe に 02 ページが描画される |
+| CSP 有り | iframe は空（`default-src 'none'` により frame が読めない） |
+
+**CSP は実際に効いている**と確定。加えて実ページ（01 / 12）を CSP 付きで描き、`style.css` と `images/*` が問題なく読めることも目視確認した（`img-src 'self'` / `style-src 'self'` が file:// のローカル資源を弾かない）。
+
+## 3. QuickLook の撮り直し（不要と判断）
+
+ユーザー判断（2026-08-28）: 背後に写っているのはこの OSS 開発中の Warp の画面であり、問題ない。QuickLook の半透明らしさが出ていて良い、とのこと。撮り直さない。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+LT スライドの素材とセキュリティ面を手当てした。写真を権利の明確なもの（作者撮影）へ差し替え、全 22 ページに自前の CSP を宣言し、インライン style 属性を廃してクラス化した。CSP が実際に効いていることは iframe を使った対照実験で確定（当初の script を使った検証は、直接 HTML モードで JS が元から無効なため空振りだった）。QuickLook の撮り直しはユーザー判断で不要。
+<!-- SECTION:FINAL_SUMMARY:END -->
