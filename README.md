@@ -34,7 +34,7 @@ a browser tab you have to refresh by hand, or a web service you paste private fi
 befold is a standalone macOS app that just opens the file. It renders in-process, watches the
 file, and repaints the moment you save — no editor, no server, no upload.
 
-## Stays on your machine
+## Safe to open — everything stays local
 
 Everything befold shows is rendered locally, and nothing about the document leaves the machine.
 
