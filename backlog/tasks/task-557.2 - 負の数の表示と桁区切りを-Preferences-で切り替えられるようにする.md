@@ -4,7 +4,7 @@ title: 負の数の表示と桁区切りを Preferences で切り替えられる
 status: Done
 assignee: []
 created_date: '2026-08-27 04:20'
-updated_date: '2026-08-27 05:26'
+updated_date: '2026-08-27 07:21'
 labels: []
 dependencies:
   - TASK-557.1
@@ -135,6 +135,53 @@ swiftlint とは別に `scripts/check-type-group-size.sh` が走り、次を報�
 - 併せて `ViewerBridgeContractTests` が type_body_length を超えたため、CSV の契約テストも `ViewerBridgeCsvNumberFormatTests` へ寄せた（スクリプト生成と受理リストの一致を 1 か所で見る形になった）。
 
 再検証: swift test 1712 件全通し / swiftlint ベースライン差分ゼロ（main 54・HEAD 54）/ 型グループ検査 exit 0 / jest 630 件全通し。
+
+## 追記: 負の数の設定をラジオボタンにした（ユーザー指摘）
+
+ポップアップ（既定の Picker）だと選択中の 1 つしか見えず、▲ と赤字がどう出るかを比べられない。`.pickerStyle(.radioGroup)` にして 4 つの表示例を同時に見せる形へ変えた。
+
+- 選択肢のラベルは「名前 + その設定での見え方の例」。赤字を選ぶ 2 つは**見本そのものを赤で描く**ので、選ばなくても結果が分かる。
+- 見本は表示中の CSV とは無関係の**固定の見本文字列**（`-1,234` / `▲1,234`）。実際の整形は viewer 側が行うので、Swift 側で同じ規則を実装し直してはいない。
+- ローカライズのキーからは例を外した（例は別に描くので二重になる）。en は Normal / Triangle / Red / Triangle and red、ja は 通常 / ▲ 表記 / 赤字 / ▲ + 赤字。
+
+## 見た目の検証方法（実測で 1 度失敗している）
+
+- **ImageRenderer では描けない。** `Form` + `.formStyle(.grouped)` は AppKit 実装で、`ImageRenderer(content:).nsImage` は**真っ白な画像**を返した（実際に撮って目視で確認）。
+- 実ウィンドウへ載せて `NSView.cacheDisplay(in:to:)` で撮る形に変えたら描けた。画面キャプチャではないので TCC の許可が要らず、非対話セッションでも回せる。ヘッドレスではウィンドウが 0 高のまま（bounds が `(0,0,1,0)`）で撮れなかったため、`fittingSize` を測って明示的に与えている。
+- 撮った PNG を目視し、ラジオボタン 4 つが同時に見えること・赤字の見本が実際に赤で出ることを確認した。
+- その上で機械的にも測れるようにした（`SettingsViewSnapshotTests`）。ビットマップから直接ピクセルを見て、赤いピクセルが存在すること・描画結果が真っ白でないことをアサートする。`foregroundColor(.red)` を `.primary` へ変えると赤の検査が落ちることを実測済み。
+
+## 追記: 見本の整列（ユーザー指摘）
+
+ラジオボタンにした直後は、名前の長さがまちまち（通常 / ▲ 表記 / 赤字 / ▲ + 赤字）なため**見本がばらばらの位置から始まり、見比べられなかった**。2 列に分けて揃えた。
+
+- 名前は左揃えの固定幅列。幅は 4 つの名前の実測値の最大に合わせる（ロケールで長さが変わる: ja「▲ + 赤字」/ en「Triangle and red」ので定数にしない）
+- 見本は**右揃え**の固定幅列。左揃えだと符号の幅の差（`-` と `▲`）で同じ `1,234` が行ごとにずれる。右揃えにすると数字が縦に揃い、テーブル本文の見え方とも一致する
+
+整列が黙って壊れないよう、ビットマップから 4 行それぞれの右端を数えて揃っていることを見るテストを足した。許容は 1px（実測: 揃っている状態で `[334, 334, 333, 333]`。黒い文字と赤い文字でアンチエイリアスの端が 1 つずれる）。右揃えの `.frame` を外すと spread が 5 になって落ちることを実測済み。
+
+## 確認用サンプル
+
+`sample/numeric-columns.csv` と `sample/numeric-columns.tsv` を追加した。列判定の実測結果は次のとおりで、拒否条件が実データの形で一通り出る。
+
+- csv: 伝票番号 numeric(no-large-value) / 取引日 text(not-numeric) / 得意先コード numeric(fixed-width) / 郵便番号 numeric(leading-zero) / 数量 numeric(no-large-value) / **単価・金額・調整額 grouped** / 前年比 numeric(no-large-value) / 年度 numeric(year-range)
+- tsv: 科目 text / **前期・当期・増減 grouped** / 構成比 numeric(no-large-value)
+
+調整額（csv）と増減（tsv）に負の数を入れてあるので、▲ 表記と赤字の設定もこの 2 ファイルで確かめられる。
+
+## 追記: Section のタイトル（ユーザー指摘）
+
+「数値表示」だけでは何の数値か分からないため、対象を明示して `データビュー（CSV・TSV）の数値表示` / `Numbers in Data View (CSV/TSV)` へ変えた。
+
+表記は既存に揃えた。ja は全角括弧（実測: xcstrings の ja 値で全角 4 件 / 半角 1 件）で、種別の並べ方も `featureOverview.formats.detail` の ja「CSV・TSV」/ en「CSV/TSV」に合わせている。
+
+## 追記: 見本を桁区切りスイッチに連動させた（ユーザー指摘）
+
+見本が常にカンマ付き（`-1,234`）だったため、桁区切りを切っている状態では**選んだ結果と違うものを見せていた**。`negativeStyleSample(_:grouping:)` にして、オフなら `-1234` / `▲1234` を出す。見本の列幅も桁区切りの有無で変わるので、表示する側で測り直す。
+
+検証は文字列を直接読む形にした（`SettingsViewSampleTests`）。描画したピクセルからでは「カンマが入っているか」を測れないため、この 1 点だけ `negativeStyleSample` を private から internal へ上げ、その理由を doc コメントに書いた。8 通り（4 スタイル × オン/オフ）と「▲ 表記にマイナス記号が残らない」を見る。
+
+オフの状態の描画も撮って目視した（`BEFOLD_SNAPSHOT_GROUPING=0`）。カンマが消え、右端の整列は保たれている。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

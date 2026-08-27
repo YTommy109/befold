@@ -16091,9 +16091,9 @@
     }
     return rows;
   }
-  function csvCellHtml(tag, value, format2) {
+  function csvCellHtml(value, format2) {
     if (format2 === void 0 || format2 === "text") {
-      return "<" + tag + ">" + escapeHtml(value) + "</" + tag + ">";
+      return "<td>" + escapeHtml(value) + "</td>";
     }
     var className = "csv-num";
     var shown = value;
@@ -16109,7 +16109,7 @@
         }
       }
     }
-    return "<" + tag + ' class="' + className + '">' + escapeHtml(shown) + "</" + tag + ">";
+    return '<td class="' + className + '">' + escapeHtml(shown) + "</td>";
   }
   function formatCsvNumber(trimmed) {
     var style = _mmdCsvNumberFormat.negativeStyle();
@@ -16126,7 +16126,7 @@
       var cols = Math.max(minCols, rows[r].length);
       html2 += "<tr>";
       for (var c = 0; c < cols; c++) {
-        html2 += csvCellHtml("td", c < rows[r].length ? rows[r][c] : "", formats[c]);
+        html2 += csvCellHtml(c < rows[r].length ? rows[r][c] : "", formats[c]);
       }
       html2 += "</tr>";
     }
@@ -16144,8 +16144,7 @@
     }
     var html2 = "<table><thead><tr>";
     for (var c = 0; c < maxCols; c++) {
-      var headerFormat = formats[c] === void 0 || formats[c] === "text" ? formats[c] : "numeric";
-      html2 += csvCellHtml("th", c < rows[0].length ? rows[0][c] : "", headerFormat);
+      html2 += "<th>" + escapeHtml(c < rows[0].length ? rows[0][c] : "") + "</th>";
     }
     html2 += "</tr></thead><tbody>";
     html2 += csvRowsHtml(rows.slice(1), maxCols, formats);
