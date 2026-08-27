@@ -31,7 +31,7 @@ befold sample/presentation --sidebar   # フォルダごと開く
 | `ogp.png` `markdown.png` `code.png` `diff.png` `csv.png` | `site/public/images/` の配布サイト用スクリーンショット |
 | `pdf.png` | 同上（医療費控除の記事で使っている PDF 表示の画面） |
 | `appicon.png` | `befold.app` の `AppIcon.icns` を `sips` で書き出したもの |
-| `befold-image.jpg` | befold で写真（macOS の標準壁紙）を開いた画面 |
+| `befold-image.jpg` | befold で写真を開いた画面。写真は作者が撮影したもの（札幌・北 3 条広場）で、権利の所在をはっきりさせるため素材サイトや OS 同梱の壁紙は使わない |
 | `befold-quicklook.png` | Finder で `sample/flowchart.mmd` を選び Space を押した QuickLook |
 
 配布サイト側のスクリーンショットを撮り直したら（`scripts/capture-screenshots.applescript`）、
