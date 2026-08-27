@@ -70,6 +70,75 @@ struct SettingsViewSnapshotTests {
         #expect(Self.inkPixelCount(in: rep) > 0)
     }
 
+    /// 4 つの選択肢の見本は右揃えの固定幅列に入れてあるので、**行ごとの右端が
+    /// 揃う**。左揃えだと符号の幅の差(- と ▲)で同じ 1,234 が行ごとに別の位置から
+    /// 始まり、見比べられない(ユーザー指摘で直した箇所)。
+    ///
+    /// 判定はビットマップから行を切り出して右端を数える。ラジオの 4 行は
+    /// この画面の**最後**に並ぶので、地でない行のかたまりの末尾 4 つを見る。
+    /// Section の並びを変えるとここが落ちるが、そのときは測る対象を選び直すべき
+    /// なので、黙って通るより落ちるほうがよい。
+    @Test("負の数の選択肢の見本が右端で揃っている")
+    func negativeSamplesAreRightAligned() throws {
+        let rep = try Self.renderSettingsView()
+        let rows = Self.inkRowBands(in: rep).suffix(4)
+        #expect(rows.count == 4)
+
+        let rightEdges = rows.compactMap { Self.rightmostInkColumn(in: rep, rows: $0) }
+        #expect(rightEdges.count == 4)
+        let spread = (rightEdges.max() ?? 0) - (rightEdges.min() ?? 0)
+        // 1px の許容は、黒い文字と赤い文字でアンチエイリアスの端が 1 つずれるため
+        // (実測: 揃っている状態で [334, 334, 333, 333])。左揃えに戻すと符号の幅の
+        // 差だけずれるので、この許容では通らない。
+        #expect(spread <= 1, "見本の右端がばらついている: \(rightEdges)")
+    }
+
+    /// 地でない行が連続するかたまり(= テキストの行)の範囲を返す。
+    private static func inkRowBands(in rep: NSBitmapImageRep) -> [Range<Int>] {
+        var bands: [Range<Int>] = []
+        var start: Int?
+        for row in 0 ..< rep.pixelsHigh {
+            let hasInk = rowHasInk(in: rep, row: row)
+            if hasInk, start == nil {
+                start = row
+            } else if !hasInk, let began = start {
+                bands.append(began ..< row)
+                start = nil
+            }
+        }
+        if let began = start {
+            bands.append(began ..< rep.pixelsHigh)
+        }
+        return bands
+    }
+
+    private static func rowHasInk(in rep: NSBitmapImageRep, row: Int) -> Bool {
+        rightmostInkColumn(in: rep, rows: row ..< (row + 1)) != nil
+    }
+
+    /// 指定した行範囲で、地でないいちばん右のピクセルの x。無ければ nil。
+    /// 地の判定は inkPixelCount と同じ閾値だが、Section の淡い背景まで拾うと
+    /// 右端が常に枠の端になってしまうので、**文字として濃い**ピクセルだけを見る。
+    private static func rightmostInkColumn(in rep: NSBitmapImageRep, rows: Range<Int>) -> Int? {
+        var rightmost: Int?
+        for row in rows {
+            for column in stride(from: rep.pixelsWide - 1, through: 0, by: -1) {
+                guard let color = rep.colorAt(x: column, y: row) else { continue }
+                let converted = color.usingColorSpace(.sRGB) ?? color
+                let brightness = (Double(converted.redComponent)
+                    + Double(converted.greenComponent)
+                    + Double(converted.blueComponent)) / 3
+                if brightness < 0.6 {
+                    if column > (rightmost ?? -1) {
+                        rightmost = column
+                    }
+                    break
+                }
+            }
+        }
+        return rightmost
+    }
+
     private static func renderSettingsView() throws -> NSBitmapImageRep {
         let defaults = makeIsolatedDefaults(prefix: "SettingsViewSnapshotTests")
         let controller = HostedPanelWindowController(
