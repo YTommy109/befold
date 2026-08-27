@@ -95,6 +95,16 @@ export const FAQ: FaqItem[] = [
     },
   },
   {
+    question: {
+      ja: '開いたファイルの内容が外部へ送られることはありますか？',
+      en: 'Does befold send the files I open anywhere?',
+    },
+    answer: {
+      ja: 'ありません。描画はすべて手元で行い、文書の中身・ファイル名・パスを送信する経路はありません。アプリが出す通信はアップデート確認だけです。逆方向も塞いでいて、開いた文書に埋め込まれたリモート画像・トラッキング用の画像・外部スクリプトはネットワーク層で遮断されるため読み込まれません。開いた HTML 内のスクリプトも実行しません。',
+      en: 'No. Everything is rendered locally, and there is no path that sends document contents, file names or paths anywhere; the only request befold makes is the update check. The reverse direction is blocked too: remote images, tracking pixels and external scripts embedded in a file are stopped at the network layer, and scripts inside an opened HTML file do not run.',
+    },
+  },
+  {
     question: { ja: 'ファイルを編集できますか？', en: 'Can I edit files in befold?' },
     answer: {
       ja: 'いいえ。befold は閲覧専用のビューアです。編集は普段のエディタで行い、befold は変更を監視して即座に表示へ反映します。',

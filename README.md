@@ -34,6 +34,23 @@ a browser tab you have to refresh by hand, or a web service you paste private fi
 befold is a standalone macOS app that just opens the file. It renders in-process, watches the
 file, and repaints the moment you save — no editor, no server, no upload.
 
+## Stays on your machine
+
+Everything befold shows is rendered locally, and nothing about the document leaves the machine.
+
+- **Documents are never sent anywhere.** The only request befold makes is the update check
+  (`appcast.xml`); it carries no file contents, names or paths.
+- **Documents cannot phone home either.** A `WKContentRuleList` blocks every `http(s)://` and
+  `ws(s)://` request from the rendered page, so remote images, tracking pixels, web fonts and
+  scripts embedded in a file are never fetched.
+- **Scripts in an opened HTML file do not run.** Direct HTML rendering turns JavaScript off, and
+  rendered Markdown goes through DOMPurify under a `script-src 'self'` policy.
+- **Files are never modified.** befold has no write path to the files it opens; git integration
+  reads the repository and never runs hooks or filters.
+
+Releases are Developer ID signed, notarized and stapled, and updates are verified with an Ed25519
+signature. Note that befold itself is not sandboxed — the QuickLook extension is.
+
 ## Use cases
 
 **Check what your AI coding agent just produced.**

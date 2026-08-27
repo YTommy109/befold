@@ -114,28 +114,30 @@ body::after {
  * `'unsafe-inline'` を足すことになるため（このデッキは直接 HTML モードで開かれ、
  * viewer.html の CSP も DOMPurify も掛からない。締めるのは自分の仕事）。
  */
-.progress.p01 { width: 4.5455%; }
-.progress.p02 { width: 9.0909%; }
-.progress.p03 { width: 13.6364%; }
-.progress.p04 { width: 18.1818%; }
-.progress.p05 { width: 22.7273%; }
-.progress.p06 { width: 27.2727%; }
-.progress.p07 { width: 31.8182%; }
-.progress.p08 { width: 36.3636%; }
-.progress.p09 { width: 40.9091%; }
-.progress.p10 { width: 45.4545%; }
-.progress.p11 { width: 50.0000%; }
-.progress.p12 { width: 54.5455%; }
-.progress.p13 { width: 59.0909%; }
-.progress.p14 { width: 63.6364%; }
-.progress.p15 { width: 68.1818%; }
-.progress.p16 { width: 72.7273%; }
-.progress.p17 { width: 77.2727%; }
-.progress.p18 { width: 81.8182%; }
-.progress.p19 { width: 86.3636%; }
-.progress.p20 { width: 90.9091%; }
-.progress.p21 { width: 95.4545%; }
-.progress.p22 { width: 100.0000%; }
+.progress.p01 { width: 4.1667%; }
+.progress.p02 { width: 8.3333%; }
+.progress.p03 { width: 12.5000%; }
+.progress.p04 { width: 16.6667%; }
+.progress.p05 { width: 20.8333%; }
+.progress.p06 { width: 25.0000%; }
+.progress.p07 { width: 29.1667%; }
+.progress.p08 { width: 33.3333%; }
+.progress.p09 { width: 37.5000%; }
+.progress.p10 { width: 41.6667%; }
+.progress.p11 { width: 45.8333%; }
+.progress.p12 { width: 50.0000%; }
+.progress.p13 { width: 54.1667%; }
+.progress.p14 { width: 58.3333%; }
+.progress.p15 { width: 62.5000%; }
+.progress.p16 { width: 66.6667%; }
+.progress.p17 { width: 70.8333%; }
+.progress.p18 { width: 75.0000%; }
+.progress.p19 { width: 79.1667%; }
+.progress.p20 { width: 83.3333%; }
+.progress.p21 { width: 87.5000%; }
+.progress.p22 { width: 91.6667%; }
+.progress.p23 { width: 95.8333%; }
+.progress.p24 { width: 100.0000%; }
 
 /* 見出し。1 枚に 1 つだけ置く。 */
 h1 {
@@ -235,6 +237,32 @@ img.icon {
 
 /* 表紙は登壇情報のぶんだけ画像を小さくする。 */
 img.shot-intro { max-height: 40vh; }
+
+/* 箇条書き（セキュリティのページ）。プロジェクターで読める大きさを優先する。 */
+.points {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1em;
+  text-align: left;
+  max-width: min(88vw, 1000px);
+  font-size: clamp(15px, 3vmin, 32px);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.points li { position: relative; padding-left: 1.5em; }
+
+.points li::before {
+  content: "▸";
+  position: absolute;
+  left: 0;
+  color: var(--accent-2);
+}
+
+.points b { color: var(--fg); font-weight: 700; }
 
 /* ターミナル風のコードカード（CLI のページ用）。 */
 .term {
