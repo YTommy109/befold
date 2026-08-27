@@ -67,6 +67,8 @@
      半透明ティントに合わせる) */
   --csv-th-bg: rgba(0, 0, 0, 0.06);
   --csv-th-fg: var(--fg);
+  /* 負の数の赤字表示。差分の削除色と同じ赤系で、本文色と識別できる明度にする。 */
+  --csv-negative-fg: #cf222e;
 
   /* コードのインデントガイド(縦線)。シンタックス色と衝突しないよう低コントラストにする。 */
   --indent-guide: rgba(0, 0, 0, 0.13);
@@ -97,6 +99,7 @@
     --error-border: #f56565;
     --error-fg: #feb2b2;
 
+    --csv-negative-fg: #ff7b72;
     --csv-th-bg: rgba(255, 255, 255, 0.08);
     --csv-th-fg: var(--fg);
 
@@ -847,4 +850,19 @@ pre .befold-link-dead {
   font-size: 0.85em;
   opacity: 0.6;
   vertical-align: middle;
+}
+
+/* CSV テーブルの数値列。列判定(viewer-src/csv-columns.ts)が numeric/grouped と
+   見た列の <th>/<td> に付く。tabular-nums は等幅数字にして桁を縦に揃える。 */
+#diagram-wrap.csv-body table th.csv-num,
+#diagram-wrap.csv-body table td.csv-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 負の数の赤字表示（設定「負の数の表示」が赤字 / ▲+赤字 のときだけ付く）。
+   会計慣習の赤字なので、ライト・ダークとも「赤に見えるが本文と識別できる」
+   明度に寄せて別々に定義する。 */
+#diagram-wrap.csv-body table td.csv-negative {
+  color: var(--csv-negative-fg);
 }

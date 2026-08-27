@@ -19,6 +19,7 @@ final class FakeDocumentRenderer: DocumentRendering {
     enum Command: Equatable {
         case applyZoom(Double)
         case applyCodeFont(family: String?, points: Double?)
+        case applyCsvNumberFormat(grouping: Bool, negativeStyle: CsvNegativeStyle)
         case changeZoom(ZoomChange)
         case openFind
         case findNext
@@ -43,6 +44,10 @@ final class FakeDocumentRenderer: DocumentRendering {
 
     func applyCodeFont(family: String?, points: Double?) {
         commands.append(.applyCodeFont(family: family, points: points))
+    }
+
+    func applyCsvNumberFormat(grouping: Bool, negativeStyle: CsvNegativeStyle) {
+        commands.append(.applyCsvNumberFormat(grouping: grouping, negativeStyle: negativeStyle))
     }
 
     func changeZoom(_ change: ZoomChange) -> Double? {
@@ -175,6 +180,20 @@ struct WebViewCommandControllerTests {
         controller.applyCodeFont(family: "Menlo", points: 12)
 
         #expect(renderer.commands == [.applyCodeFont(family: "Menlo", points: 12)])
+    }
+
+    /// 数値表示の反映もフォントと同じく能力(ViewerCapabilities)では止めない。
+    /// 止めると、フォルダーを見ている間に設定を変えた窓だけ古い表示のまま残る。
+    @Test("数値表示の設定は能力に関わらず WebView へ届く")
+    func appliesCsvNumberFormatRegardlessOfCapabilities() {
+        let renderer = FakeDocumentRenderer()
+        let controller = makeController(renderer: renderer, capabilities: { .none })
+
+        controller.applyCsvNumberFormat(grouping: false, negativeStyle: .triangleRed)
+
+        #expect(
+            renderer.commands == [.applyCsvNumberFormat(grouping: false, negativeStyle: .triangleRed)]
+        )
     }
 
     @Test("直接 HTML モードで返った倍率だけを、窓のライブ値と保存値の両方へ反映する")

@@ -23,9 +23,13 @@ extension AppDelegate {
             )
         case .settings:
             HostedPanelWindowController(
-                rootView: CodeFontSettingsView(
+                rootView: SettingsView(
                     preference: stores.codeFontPreference,
-                    onChange: { [weak windowManager] in windowManager?.display.applyCodeFontToAllWindows() }
+                    onChange: { [weak windowManager] in windowManager?.display.applyCodeFontToAllWindows() },
+                    numberPreference: stores.csvNumberFormatPreference,
+                    onNumberChange: { [weak windowManager] in
+                        windowManager?.display.applyCsvNumberFormatToAllWindows()
+                    }
                 ),
                 title: String(localized: "settings.windowTitle", bundle: .l10n),
                 resizable: false

@@ -20,6 +20,11 @@ public enum ViewerWebViewFactory {
         /// ソースビューのコードフォントサイズ(pt)。nil は未カスタマイズで、
         /// CSS 側の calc(本文*0.75) フォールバックへ委ねてアクセシビリティ文字サイズに追従する。
         let codeFontSizePoints: Double?
+        /// CSV/TSV の数値列に桁区切りを入れるか。設定を持たないホスト(QuickLook 等)は
+        /// 既定の true でよい(JS 側の既定と同じ意味)。
+        let csvGrouping: Bool
+        /// CSV/TSV の負の数の表記。設定を持たないホストは既定の .plain でよい。
+        let csvNegativeStyle: CsvNegativeStyle
         /// 直接 HTML モード・相対画像埋め込み・対話的ブリッジの有効/無効。
         let features: RendererFeatures
     }
@@ -153,6 +158,8 @@ public enum ViewerWebViewFactory {
             ViewerBridge.systemFontSizeScript(NSFont.preferredFont(forTextStyle: .body).pointSize),
             ViewerBridge.monoFontFamilyScript(options.codeFontFamily),
             ViewerBridge.codeFontSizeScript(options.codeFontSizePoints),
+            ViewerCsvBridge.csvNumberGroupingScript(options.csvGrouping),
+            ViewerCsvBridge.csvNegativeStyleScript(options.csvNegativeStyle),
             ViewerBridge.initialFindOptionsScript(
                 ViewerBridge.FindOptions(
                     caseSensitive: options.findOptions?.caseSensitive ?? false,

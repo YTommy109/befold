@@ -71,6 +71,8 @@ final class ViewerWindowController: NSWindowController {
     let headingJump: HeadingJumpLevelBinding
     /// コードフォント設定。使うのは分割ビューの組み立てと、設定変更時の再注入(`+SidebarHost`)。
     let codeFontPreference: CodeFontPreference
+    /// CSV/TSV の数値表示設定。ViewerWindowManager と同じ 1 個を受け取る。
+    let csvNumberFormatPreference: CsvNumberFormatPreference
     /// ブックマークの永続化。使うのはブックマークのトグルと状態参照(`+MenuActions`)だけ。
     let bookmarkStore: BookmarkStore
     /// ウィンドウ生成時のサイドバー初期開閉状態。解決(記憶の引き継ぎ・CLI からの強制表示など)は
@@ -238,15 +240,21 @@ final class ViewerWindowController: NSWindowController {
     ///   ラウンドトリップを挟むため、完了タイミングを制御したいテストがここを使う。
     /// - Parameter openFileElsewhere: 同上。別タブ/別ウィンドウでのオープン先。デフォルトは AppDelegate 経由。
     /// - Parameter externalOpener: 同上。外部 URL(http/https)を開く処理。デフォルトは NSWorkspace 経由。
+    /// 共有物を受け取る引数に既定値を付けない理由と、既定値を残してある引数の区別は
+    /// `ViewerWindowManager.init` の doc コメントを参照(同じ規則が両方に掛かる)。
+    /// この型では `gitStatusStore` の既定値だけが例外で、それは共有インスタンスの
+    /// 受け渡しではなく「git 状態を持たない縮退状態」を表す(`gitFileIndex` の既定が
+    /// `DisabledGitFileIndex` なのと同じ)。
     init(
         fileURL: URL, defaults: UserDefaults = .standard,
-        displayDefaults: SidebarDisplayDefaults = SidebarDisplayDefaults(),
+        displayDefaults: SidebarDisplayDefaults,
         diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader? = nil,
-        findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
+        findOptionsPreference: FindOptionsPreference,
         headingJumpLevelDefaults: HeadingJumpLevelDefaults,
-        codeFontPreference: CodeFontPreference = CodeFontPreference(),
-        perFileState: PerFileStateStore = PerFileStateStore(),
+        codeFontPreference: CodeFontPreference,
+        csvNumberFormatPreference: CsvNumberFormatPreference,
+        perFileState: PerFileStateStore,
         bookmarkStore: BookmarkStore,
         gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
         gitStatusStore: GitStatusStore = GitStatusStore(),
@@ -279,6 +287,7 @@ final class ViewerWindowController: NSWindowController {
         // 保存値を読むのは窓の生成時のこの 1 回だけ。以後は記録口しか触らない。
         headingJump = headingJumpLevelDefaults.binding
         self.codeFontPreference = codeFontPreference
+        self.csvNumberFormatPreference = csvNumberFormatPreference
         self.bookmarkStore = bookmarkStore
         self.gitFileIndex = gitFileIndex
         self.initialSidebarCollapsed = initialSidebarCollapsed
@@ -322,13 +331,9 @@ final class ViewerWindowController: NSWindowController {
         window.delegate = self
         swipeMonitor = ViewerWindowAssembler.makeSwipeMonitor(for: self, on: window)
         ViewerWindowAssembler.wirePresentationTargetChange(for: self)
-        // 起点の窓が同じフォルダを列挙済みなら、その結果を出発点にする(TASK-532)。
-        sidebar.attach(to: self, adopting: initialListing)
-        // サイドバー一覧をここで埋める(列挙はメインアクター外で走る)。引き継ぎが
-        // 効いていれば同じ結果が返り、applyRows のガードが反映ごと畳む。
-        sidebar.refreshFileList()
-        ViewerWindowAssembler.wireStoreCallbacks(for: self)
-        store.openFile(fileURL)
+        ViewerWindowAssembler.openInitialDocument(
+            for: self, at: fileURL, adopting: initialListing
+        )
         // クリック時解決(pathResolver)の git 追跡ファイル索引を先読みしておく。
         referenceCoordinator.warm(forFileAt: fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。

@@ -54,6 +54,8 @@ final class ViewerWindowManager {
     let findOptionsPreference: FindOptionsPreference
     let headingJumpLevelDefaults: HeadingJumpLevelDefaults
     let codeFontPreference: CodeFontPreference
+    /// CSV/TSV の数値表示設定。アプリ全体で 1 つ(AppStores が唯一のインスタンスを持つ)。
+    let csvNumberFormatPreference: CsvNumberFormatPreference
     let perFileState: PerFileStateStore
     let bookmarkStore: BookmarkStore
     /// openViewer のファイル存在ガードが使う I/O 抽象。静的な DefaultFileReader を直接叩かず
@@ -83,6 +85,8 @@ final class ViewerWindowManager {
     /// この型が持つものをそのまま渡すため、別インスタンスが生まれる書き方ができない。
     private(set) lazy var display = GlobalDisplayBroadcaster(
         bookmarkStore: bookmarkStore,
+        codeFontPreference: codeFontPreference,
+        csvNumberFormatPreference: csvNumberFormatPreference,
         controllers: { [weak self] in self?.allControllers ?? [] }
     )
     /// 「最近使ったリポジトリ」の記録役。共有索引 `gitFileIndex` をここで渡すため、
@@ -109,15 +113,26 @@ final class ViewerWindowManager {
     ///   (実 WKWebView)を差し替える。既定の nil は本番経路(実 WKWebView を生成する)。
     /// - Parameter gitFileIndex: 生成する全ウィンドウで共有する git 追跡ファイルの索引。
     ///   既定は実 `git` を実行する実装。テストは実 subprocess を避けるため差し替えられる。
+    /// アプリ全体で 1 つの共有物(`AppStores` が持つストア・表示設定)を受け取る引数には
+    /// **既定値を付けない**。付けると渡し忘れがコンパイルエラーにならず、静かに別
+    /// インスタンスになって「アプリ全体で 1 つ」が破れる(実例: `DiffDisplayPreference` が
+    /// 窓ごとに生成され 2 窓でトグルが同期しなかった = TASK-319)。
+    ///
+    /// 既定値を残してある引数は、いずれも**共有インスタンスの受け渡しではなく実装の
+    /// 選択**である(`fileReader` / `gitFileIndex` は本番実装 ⇄ テスト用の差し替え、
+    /// `diffLoader` はこの型が唯一の持ち主で、既定値は「その 1 つを作る」意味)。
+    /// この区別が守られていることは `SharedDependencyDefaultsTests` が
+    /// init の宣言を読んで検証する(TASK-558)。
     init(
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
-        displayDefaults: SidebarDisplayDefaults = SidebarDisplayDefaults(),
+        displayDefaults: SidebarDisplayDefaults,
         diffDisplayPreference: DiffDisplayPreference,
         diffLoader: GitDiffLoader = GitDiffLoader(),
-        findOptionsPreference: FindOptionsPreference = FindOptionsPreference(),
+        findOptionsPreference: FindOptionsPreference,
         headingJumpLevelDefaults: HeadingJumpLevelDefaults,
-        codeFontPreference: CodeFontPreference = CodeFontPreference(),
-        perFileState: PerFileStateStore = PerFileStateStore(),
+        codeFontPreference: CodeFontPreference,
+        csvNumberFormatPreference: CsvNumberFormatPreference,
+        perFileState: PerFileStateStore,
         bookmarkStore: BookmarkStore,
         fileReader: any FileReading = DefaultFileReader(),
         presentFileNotFound: @escaping (URL, (() -> Void)?) -> Void = { url, onRemoveBookmark in
@@ -126,7 +141,7 @@ final class ViewerWindowManager {
         makeStore: ((URL) -> ViewerStore)? = nil,
         makeContentView: (() -> AnyView)? = nil,
         gitFileIndex: any GitFileIndexing = GitCommandFileIndex(),
-        recentRepositoriesStore: RecentRepositoriesStore = RecentRepositoriesStore(),
+        recentRepositoriesStore: RecentRepositoriesStore,
         repositoryIdentityResolver: @escaping @Sendable (URL) -> RepositoryIdentity = {
             GitRepository().repositoryIdentity(forRoot: $0)
         },
@@ -141,6 +156,7 @@ final class ViewerWindowManager {
         self.findOptionsPreference = findOptionsPreference
         self.headingJumpLevelDefaults = headingJumpLevelDefaults
         self.codeFontPreference = codeFontPreference
+        self.csvNumberFormatPreference = csvNumberFormatPreference
         self.perFileState = perFileState
         self.bookmarkStore = bookmarkStore
         self.fileReader = fileReader

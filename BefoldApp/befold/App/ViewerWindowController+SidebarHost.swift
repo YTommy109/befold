@@ -44,12 +44,4 @@ extension ViewerWindowController: SidebarNavigatorHost {
         toolbarController.refreshToolbarState()
         webViewCommands.syncJumpAvailability()
     }
-
-    /// 現在の codeFontPreference の値を WebView へ注入し直して即時反映する。
-    /// フォント設定変更時に ViewerWindowManager.applyCodeFontToAllWindows から呼ばれる。
-    func applyCodeFontFromPreference() {
-        webViewCommands.applyCodeFont(
-            family: codeFontPreference.fontFamily, points: codeFontPreference.fontSizePoints
-        )
-    }
 }

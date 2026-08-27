@@ -140,7 +140,7 @@ BefoldApp/
 | `CLIShimCoordinator` | `/usr/local/bin/befold` の陳腐化チェックと設置、結果案内 |
 | `ViewerWindowManager` | ビューアウィンドウ（正規化パス → コントローラ）の生成・破棄と辞書の保持。開閉に伴う記録の追随は持たず、`ViewerWindowSessionSync` へ委ねる |
 | `ViewerWindowSessionSync` | close / rename / ファイル切替 / key イベントを受けての辞書のキー付け替えと、セッション・最近使った項目・ブックマークの追随。`ViewerWindowControllerDelegate` 準拠（辞書の書き換えはマネージャの `register` / `detach` を通す。窓を作らない関心なのでマネージャから分離した） |
-| `GlobalDisplayBroadcaster` | アプリ全体で 1 つの表示設定（ブックマーク・コードフォント）を開いている全ウィンドウへ配る。窓ごとのライブ値と窓の状態（ADR 0002）は扱わず、`SidebarDisplayDefaults` も `ZoomStore` も型として持たない |
+| `GlobalDisplayBroadcaster` | アプリ全体で 1 つの表示設定（ブックマーク・コードフォント・CSV の数値表示）を開いている全ウィンドウへ配る。窓ごとのライブ値と窓の状態（ADR 0002）は扱わず、`SidebarDisplayDefaults` も `ZoomStore` も型として持たない |
 | `RecentRepositoryRecorder` | 「最近使ったリポジトリ」への記録。git ルート/ラベルの解決は detached タスクで行い、反映のみ MainActor へ戻す |
 | `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Window メニューを選択中タブだけに揃える・Space からはぐれた窓の救出）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場 |
 | `ViewerDisplayOptionsApplier` | 既に開いているウィンドウへの CLI 表示オプション適用規則 |
@@ -231,6 +231,24 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   ` ```mermaid ` フェンスは markdown-it のカスタムレンダラーで `<pre class="mermaid">` に出力し mermaid.js が SVG 描画する
 - **その他ファイル種別**: SVG / HTML / CSV・TSV / 画像 / PDF / 各種ソースコードは
   `FileType` の判定に従い、ソースコードは highlight.js でシンタックスハイライトする
+- **CSV/TSV の数値列**: テーブル表示では列単位に書式を判定する（`viewer-src/csv-columns.ts` の
+  `classifyCsvColumn`）。二段構えで、第 1 段「非空セルがすべて数値」を満たす列は右寄せ +
+  `tabular-nums`、第 2 段の拒否条件（1,000 以上の値が無い / 先頭ゼロ / 全セル同じ桁数で 4 桁以上 /
+  4 桁整数が全部 1900〜2100 / 1 始まりの連番 / ヘッダー名が否定語）をすべてくぐった列だけ
+  整数部に桁区切りを入れる。**判定は「外さない」を優先**し、肯定側のヘッダー名マッチ
+  （`price` / `金額` 等）は使わない。値そのものは書き換えず、小数部は原文のまま残す。
+  判定はヘッダー + 先頭 200 データ行で確定させ、チャンク追記（`render.ts` の `appendChunk`）は
+  `document-state.ts` の `_mmdCsvColumns` 経由で同じ判定を再利用する。
+  無加工の原文はソース表示（`csv-source`）で見られる
+- **CSV/TSV の数値表示の設定**: 桁区切りの有無と負の数の表記（通常 / ▲ / 赤字 / ▲+赤字）を
+  設定ウィンドウから選べる（`CsvNumberFormatPreference`。app-global、UserDefaults キーは
+  `CsvNumberGrouping` / `CsvNegativeStyle`）。右寄せは設定にせず常時。**どの列が金額かは
+  推測せず**、設定そのものが意図を運ぶと考えて、上の第 2 段を通った列すべてに適用する
+  （コードとみなされた列には桁区切りも ▲ も赤字も掛からない）。
+  変更は `GlobalDisplayBroadcaster.applyCsvNumberFormatToAllWindows` で開いている全窓へ
+  即時反映される。コードフォントと違い CSS 変数では表せない（セルの HTML 文字列そのものが
+  変わる）ため、viewer 側の `_mmdInitCsvNumberFormat` が現在の文書を描き直す。
+  QuickLook 拡張には設定が届かないので、既定（桁区切りオン・通常表記）で描く
 - **キャンバス（地）の所有者**: 既定では地の色は `ViewerTheme.canvas`（ウィンドウ背景）が
   唯一の定義で、`WKWebView` は透過・CSS も地を塗らない。これによりネイティブ部分と
   WebView 部分が構成上必ず同色になる。**外部の HTML 文書（`.html` / `.htm` のレンダリング

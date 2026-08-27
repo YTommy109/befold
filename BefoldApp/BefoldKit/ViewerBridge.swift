@@ -35,6 +35,11 @@ public enum ViewerBridge {
         case findPrevIfOpen = "_mmdFindPrevIfOpen"
         /// 注入済みの等幅フォント設定を読んで CSS 変数へ反映する(applyCodeFontScript が使う)。
         case initCodeFont = "_mmdInitCodeFont"
+        /// 注入済みの数値表示設定を読んで**現在の文書を描き直す**
+        /// (applyCsvNumberFormatScript が使う)。CSS 変数を書くだけで済む
+        /// initCodeFont と違い、桁区切りと ▲ 表記はセルの HTML 文字列そのものを
+        /// 変えるため、再描画なしには反映できない。
+        case initCsvNumberFormat = "_mmdInitCsvNumberFormat"
 
         /// `_mmdZoomIn()` 形式の呼び出しスクリプト。
         public var callScript: String {
@@ -137,13 +142,20 @@ public enum ViewerBridge {
     /// (Double は NaN/Infinity で JSONEncoder が失敗しうるため実際に到達する)。
     /// 配列の注入でも空配列ではなくこれを使う。空配列は「ユーザーが全部 OFF にした」
     /// という別の意味を持つため、エンコード失敗をその状態へ縮退させてはならない。
-    private static let defaultingFallback = "null"
+    ///
+    /// `private` にしていないのは、同じ BefoldKit 内の兄弟型(ViewerCsvBridge)からも
+    /// 使うため。Swift の private はファイルスコープなので、別ファイルからは見えない。
+    /// **BefoldKit の外からは使わないこと**(公開面は各 *Script 関数)。
+    static let defaultingFallback = "null"
 
     /// `global = <JSON>;` 形式のグローバル代入スクリプトを組み立てる。
     /// JS へ値を注入する経路はすべてこれを通し、JSON エンコードによる
     /// エスケープを必ず経由させる(インジェクション対策の単一経路)。
     /// エンコードに失敗した場合は `fallback`(既定は空オブジェクト `{}`)を入れる。
-    private static func assignGlobalScript(
+    ///
+    /// `private` にしていない理由は defaultingFallback と同じ(兄弟型 ViewerCsvBridge
+    /// から使うため)。**BefoldKit の外からは使わないこと**。
+    static func assignGlobalScript(
         _ global: String, _ value: some Encodable, fallback: String = "{}"
     ) -> String {
         "\(global) = \(jsonLiteral(value) ?? fallback);"

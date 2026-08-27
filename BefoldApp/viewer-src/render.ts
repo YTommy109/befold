@@ -3,7 +3,8 @@
 
 import { buildLineNumberRows, codeChunkInnerHtml, lastLines } from './code-html.js';
 import { csvRowsHtml, csvSourceInnerHtml, parseCsv } from './csv-html.js';
-import { _mmdChunkTail, _mmdDocument } from './document-state.js';
+import { _mmdCsvNumberFormat } from './csv-number-format.js';
+import { _mmdChunkTail, _mmdCsvColumns, _mmdDocument } from './document-state.js';
 import { _mmdFind } from './find.js';
 import { _mmdJump } from './jump.js';
 import { markdownRenderer } from './markdown.js';
@@ -105,6 +106,12 @@ async function render(content: string, type: string, lang: string | undefined): 
   // 差分を組み上げた場合だけ _renderSource が 'diff' を返し、下で上書きする。
   var shape = renderShape(type, _mmdViewOptions.mode());
   _mmdDocument.recordShape(shape);
+  // CSV の列書式も同じ位置で捨てる。いまのディスパッチでは csv-table は必ず
+  // _renderCsv を通って下で入れ直すため、この reset が無くても表示は変わらない
+  // (実測: reset を外しても列判定のテストは全通しする)。それでも置くのは、
+  // 「分岐へ入る前に確定させる」という recordShape と同じ約束を、途中で返る経路が
+  // 増えたときにも保つため。判定を DOM から読み直す形にはしない。
+  _mmdCsvColumns.reset();
   // 以降で #diagram-wrap を作り直すため、旧 DOM を指す未応答の解決バッチを無効化する。
   _mmdInvalidatePendingRefs();
   // #mmd-error と #diagram-wrap は viewer.html に静的に置かれており、
@@ -131,7 +138,7 @@ async function render(content: string, type: string, lang: string | undefined): 
   } else if (shape === 'html') {
     _renderHtml(diagramWrap, content);
   } else if (shape === 'csv-table') {
-    _renderCsv(diagramWrap, content, lang);
+    _mmdCsvColumns.record(_renderCsv(diagramWrap, content, lang));
   } else if (shape === 'image') {
     _renderImage(diagramWrap, content, lang);
   } else if (shape === 'pdf') {
@@ -159,6 +166,19 @@ function _mmdRerenderCurrent(): void {
   }
   // 完了を待つ呼び出し元が居ない内部再描画。握り潰しではなく「待たない」ことを void で明示する。
   void render(content, _mmdDocument.type(), _mmdDocument.lang());
+}
+
+// Swift(evaluateJavaScript)から名前で呼ばれる入口。注入済みの数値表示設定を読んで
+// 反映し、**現在の文書を描き直す**。桁区切りと負の数の表記はセルの HTML 文字列
+// そのものを変えるため、CSS 変数を書くだけで済む _mmdInitCodeFont と違って
+// 再描画なしには反映できない。まだ何も描いていなければ描き直しは何もしない
+// (_mmdRerenderCurrent が content null で返る)。
+//
+// この入口が csv-number-format.ts ではなく render.ts に居るのは、あちらから
+// render.js を import すると循環になるため(モジュール側のコメント参照)。
+function _mmdInitCsvNumberFormat(): void {
+  _mmdCsvNumberFormat.adopt(window._mmdCsvGrouping, window._mmdCsvNegativeStyle);
+  _mmdRerenderCurrent();
 }
 
 // 追加読み込みされたチャンクを既存 DOM に追記する(Swift の ViewerBridge から呼ばれる)。
@@ -240,7 +260,7 @@ function appendChunk(text: string, type: string, lang: string | undefined): void
       minCols = maxNewCols;
     }
     var firstNew = tbody.rows.length;
-    tbody.insertAdjacentHTML('beforeend', csvRowsHtml(csvRows, minCols));
+    tbody.insertAdjacentHTML('beforeend', csvRowsHtml(csvRows, minCols, _mmdCsvColumns.formats()));
     for (var r2 = firstNew; r2 < tbody.rows.length; r2++) {
       _walkTextNodes(tbody.rows[r2]!, false);
     }
@@ -299,4 +319,4 @@ function appendChunk(text: string, type: string, lang: string | undefined): void
   _mmdFindRefreshAfterRender();
 }
 
-export { renderShape, render, appendChunk, _mmdRerenderCurrent };
+export { renderShape, render, appendChunk, _mmdRerenderCurrent, _mmdInitCsvNumberFormat };

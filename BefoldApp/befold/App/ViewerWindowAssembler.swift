@@ -25,6 +25,22 @@ enum ViewerWindowAssembler {
 
     /// サイドバー（一覧・選択同期・フォルダ移動）のナビゲータを作る。
     /// コントローラの `super.init` より前に呼ぶため、self を要らない形にしてある。
+    /// 窓の最初の文書を開くまでの一連の配線。順序に意味があるのでここへ寄せる。
+    ///
+    /// 1. 起点の窓が同じフォルダを列挙済みなら、その結果を出発点にする(TASK-532)
+    /// 2. サイドバー一覧を埋める(列挙はメインアクター外で走る)。引き継ぎが効いて
+    ///    いれば同じ結果が返り、applyRows のガードが反映ごと畳む
+    /// 3. ストアのコールバックを配線してから開く(開いた直後の通知を取り落とさない)
+    static func openInitialDocument(
+        for controller: ViewerWindowController, at fileURL: URL,
+        adopting initialListing: SidebarListingSeed?
+    ) {
+        controller.sidebar.attach(to: controller, adopting: initialListing)
+        controller.sidebar.refreshFileList()
+        wireStoreCallbacks(for: controller)
+        controller.store.openFile(fileURL)
+    }
+
     static func makeSidebarNavigator(
         fileURL: URL,
         displayDefaults: SidebarDisplayDefaults,
@@ -98,6 +114,8 @@ enum ViewerWindowAssembler {
             headingJump: controller.headingJump,
             codeFontFamily: controller.codeFontPreference.fontFamily,
             codeFontSizePoints: controller.codeFontPreference.fontSizePoints,
+            csvGrouping: controller.csvNumberFormatPreference.grouping,
+            csvNegativeStyle: controller.csvNumberFormatPreference.negativeStyle,
             fileListModel: controller.fileListModel,
             rendererDelegate: WeakRendererDelegate(controller),
             onSelectFile: onSelectFile,

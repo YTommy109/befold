@@ -15,7 +15,7 @@ import { _mmdJump, _mmdInitJump } from './jump.js';
 import { _mmdInitKeyboard } from './keyboard.js';
 import { _mmdReinitializeMermaidIfLoaded } from './mermaid.js';
 import { _mmdInitReferenceClicks } from './reference-clicks.js';
-import { _mmdRerenderCurrent } from './render.js';
+import { _mmdInitCsvNumberFormat, _mmdRerenderCurrent } from './render.js';
 import { _mmdInitScrollNotify } from './scroll.js';
 import { _mmdInitLoadMore } from './truncation.js';
 import { _mmdInitResize, _mmdInitWheelZoom, _mmdInitZoom } from './zoom.js';
@@ -42,6 +42,8 @@ function _mmdInit(): void {
   _mmdInitZoom();
   _mmdInitFontSize();
   _mmdInitCodeFont();
+  // 起動時点では何も描いていないので、内部の再描画は空振りして値の取り込みだけ残る。
+  _mmdInitCsvNumberFormat();
   _mmdInitFind();
   // 目印のプロバイダはここで登録する。対象を足すときはこの 1 箇所に並べる
   // （ジャンプのコントローラ側は列挙の中身を知らない）。

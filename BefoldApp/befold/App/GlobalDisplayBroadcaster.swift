@@ -20,6 +20,8 @@ import BefoldKit
 @MainActor
 final class GlobalDisplayBroadcaster {
     private let bookmarkStore: BookmarkStore
+    private let codeFontPreference: CodeFontPreference
+    private let csvNumberFormatPreference: CsvNumberFormatPreference
     /// 反映対象のスナップショット。呼ばれた時点で開いている全ウィンドウを返す。
     private let controllers: () -> [ViewerWindowController]
 
@@ -27,9 +29,13 @@ final class GlobalDisplayBroadcaster {
     ///   ならないと、静かに別インスタンスになって「アプリ全体で 1 つ」が破れる(TASK-319)。
     init(
         bookmarkStore: BookmarkStore,
+        codeFontPreference: CodeFontPreference,
+        csvNumberFormatPreference: CsvNumberFormatPreference,
         controllers: @escaping () -> [ViewerWindowController]
     ) {
         self.bookmarkStore = bookmarkStore
+        self.codeFontPreference = codeFontPreference
+        self.csvNumberFormatPreference = csvNumberFormatPreference
         self.controllers = controllers
     }
 
@@ -47,9 +53,24 @@ final class GlobalDisplayBroadcaster {
 
     /// codeFontPreference の現在値を、開いている全ウィンドウの WebView へ即座に反映する。
     /// フォント設定変更(環境設定 UI 等)から呼ばれる。
+    /// 設定を読むのはこの型。窓コントローラ側に「設定を読んで流すだけ」の
+    /// 中継メソッドを置くと、アプリの好みの読み手が窓ごとに増えてしまう。
     func applyCodeFontToAllWindows() {
         for controller in controllers() {
-            controller.applyCodeFontFromPreference()
+            controller.webViewCommands.applyCodeFont(
+                family: codeFontPreference.fontFamily, points: codeFontPreference.fontSizePoints
+            )
+        }
+    }
+
+    /// csvNumberFormatPreference の現在値を、開いている全ウィンドウの WebView へ
+    /// 即座に反映する。数値表示の設定変更(環境設定 UI)から呼ばれる。
+    func applyCsvNumberFormatToAllWindows() {
+        for controller in controllers() {
+            controller.webViewCommands.applyCsvNumberFormat(
+                grouping: csvNumberFormatPreference.grouping,
+                negativeStyle: csvNumberFormatPreference.negativeStyle
+            )
         }
     }
 

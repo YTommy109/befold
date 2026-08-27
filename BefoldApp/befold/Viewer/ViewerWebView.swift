@@ -49,6 +49,8 @@ struct ViewerWebView: NSViewRepresentable {
     /// ロード時に JS へ注入するソースビューのコードフォントサイズ(pt)。nil は未カスタマイズ
     /// (CSS 側の calc(本文*0.75) フォールバックへ委ね、アクセシビリティ文字サイズに追従する)。
     let codeFontSizePoints: Double?
+    let csvGrouping: Bool
+    let csvNegativeStyle: CsvNegativeStyle
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
     let scrollPositionToRestore: Double
     /// JS 側の出来事(倍率・スクロール位置・リンク・パス解決・続きを読み込む)の通知先。
@@ -79,6 +81,7 @@ struct ViewerWebView: NSViewRepresentable {
         let webView = renderer.makeWebView(
             initialZoom: initialZoom, findOptionsPreference: findOptionsPreference,
             codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints,
+            csvGrouping: csvGrouping, csvNegativeStyle: csvNegativeStyle,
             headingJumpLevels: headingJump.initialLevels
         )
         renderer.webViewProxy = webViewProxy

@@ -63,6 +63,11 @@ final class WebViewCommandController {
         renderer.applyCodeFont(family: family, points: points)
     }
 
+    /// 設定の反映なので applyCodeFont と同じく能力(ViewerCapabilities)では止めない。
+    func applyCsvNumberFormat(grouping: Bool, negativeStyle: CsvNegativeStyle) {
+        renderer.applyCsvNumberFormat(grouping: grouping, negativeStyle: negativeStyle)
+    }
+
     /// 倍率を 1 段変える。直接 HTML モードは viewer.js を経由しないため、適用後の倍率が返り、
     /// 窓のライブ値の更新と保存をここで行う(通常モードは JS からの通知が同じ 2 つを行う)。
     private func changeZoom(_ change: ZoomChange) {

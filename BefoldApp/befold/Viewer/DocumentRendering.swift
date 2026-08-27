@@ -1,4 +1,5 @@
 import AppKit
+import BefoldKit
 
 /// 倍率の 1 段変更。値の刻みと上下限は呼び出し側(ZoomStore)が持つ。
 enum ZoomChange {
@@ -24,6 +25,9 @@ protocol DocumentRendering: AnyObject {
 
     /// ソースビューの等幅フォント設定を反映する。
     func applyCodeFont(family: String?, points: Double?)
+    /// CSV/TSV の数値表示設定を注入し直して即時反映する。コードフォントと違い、
+    /// viewer 側は現在の文書を描き直す(セルの HTML 文字列そのものが変わるため)。
+    func applyCsvNumberFormat(grouping: Bool, negativeStyle: CsvNegativeStyle)
 
     /// 倍率を 1 段変える。直接 HTML モードでは適用後の倍率を返す(保存は呼び出し側の責務)。
     /// viewer.js が倍率を持つ通常モードでは nil を返す(保存も JS からの通知経由)。

@@ -1941,6 +1941,125 @@
         }
       }
     },
+    "settings.number.grouping": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Group digits in numeric columns"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数値列に桁区切りを入れる"
+          }
+        }
+      }
+    },
+    "settings.number.negative": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Negative numbers"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "負の数の表示"
+          }
+        }
+      }
+    },
+    "settings.number.negative.plain": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normal (-1,234)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通常 (-1,234)"
+          }
+        }
+      }
+    },
+    "settings.number.negative.red": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Red (-1,234)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "赤字 (-1,234)"
+          }
+        }
+      }
+    },
+    "settings.number.negative.triangle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Triangle (▲1,234)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "▲ 表記 (▲1,234)"
+          }
+        }
+      }
+    },
+    "settings.number.negative.triangleRed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Triangle and red (▲1,234)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "▲ + 赤字 (▲1,234)"
+          }
+        }
+      }
+    },
+    "settings.number.section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numbers"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数値表示"
+          }
+        }
+      }
+    },
     "settings.windowTitle": {
       "localizations": {
         "en": {
