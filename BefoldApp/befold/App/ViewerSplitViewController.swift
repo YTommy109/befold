@@ -22,15 +22,21 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
     private let initialCollapsed: Bool
     private let onCollapsedChange: (Bool) -> Void
     private let onSidebarDidReveal: () -> Void
+    private let onSidebarDidHide: () -> Void
 
+    /// `onSidebarDidHide` に既定値を持たせない。これは `onSidebarDidReveal` の対で、
+    /// 渡し忘れると「開いた要求が保留のまま、閉じた後に成立する」形が静かに戻る
+    /// (TASK-563)。渡し忘れをコンパイルエラーにする。
     init(
         sidebar: Sidebar, content: Content, initialCollapsed: Bool = true,
         onCollapsedChange: @escaping (Bool) -> Void = { _ in },
-        onSidebarDidReveal: @escaping () -> Void = {}
+        onSidebarDidReveal: @escaping () -> Void = {},
+        onSidebarDidHide: @escaping () -> Void
     ) {
         self.initialCollapsed = initialCollapsed
         self.onCollapsedChange = onCollapsedChange
         self.onSidebarDidReveal = onSidebarDidReveal
+        self.onSidebarDidHide = onSidebarDidHide
         sidebarItem = NSSplitViewItem(sidebarWithViewController: NSHostingController(rootView: sidebar))
         super.init(nibName: nil, bundle: nil)
 
@@ -77,6 +83,11 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
             DispatchQueue.main.async { [weak self] in
                 self?.onSidebarDidReveal()
             }
+        }
+        // 畳んだら、まだ成立していないフォーカス要求を捨てさせる。遅れて行が描かれた
+        // ときに、閉じたはずのサイドバーがフォーカスを奪わないようにする(TASK-563)。
+        if !wasCollapsed, sidebarItem.isCollapsed {
+            onSidebarDidHide()
         }
     }
 

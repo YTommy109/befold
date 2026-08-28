@@ -133,6 +133,9 @@ enum ViewerWindowAssembler {
             },
             onSidebarDidReveal: { [weak controller] in
                 controller?.fileListModel.tableFocuser.focus()
+            },
+            onSidebarDidHide: { [weak controller] in
+                controller?.fileListModel.tableFocuser.cancelPendingFocus()
             }
         )
         controller.sidebarCollapsible = splitViewController
