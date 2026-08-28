@@ -172,7 +172,8 @@ h1.answer {
 
 .note {
   margin: 0;
-  font-size: clamp(13px, 2.2vmin, 22px);
+  /* 補足行もプロジェクターで読める大きさにする（18 / 21 / 24 ページで使う）。 */
+  font-size: clamp(14px, 2.6vmin, 26px);
   color: var(--muted);
   font-family: var(--mono);
 }
