@@ -114,30 +114,31 @@ body::after {
  * `'unsafe-inline'` を足すことになるため（このデッキは直接 HTML モードで開かれ、
  * viewer.html の CSP も DOMPurify も掛からない。締めるのは自分の仕事）。
  */
-.progress.p01 { width: 4.1667%; }
-.progress.p02 { width: 8.3333%; }
-.progress.p03 { width: 12.5000%; }
-.progress.p04 { width: 16.6667%; }
-.progress.p05 { width: 20.8333%; }
-.progress.p06 { width: 25.0000%; }
-.progress.p07 { width: 29.1667%; }
-.progress.p08 { width: 33.3333%; }
-.progress.p09 { width: 37.5000%; }
-.progress.p10 { width: 41.6667%; }
-.progress.p11 { width: 45.8333%; }
-.progress.p12 { width: 50.0000%; }
-.progress.p13 { width: 54.1667%; }
-.progress.p14 { width: 58.3333%; }
-.progress.p15 { width: 62.5000%; }
-.progress.p16 { width: 66.6667%; }
-.progress.p17 { width: 70.8333%; }
-.progress.p18 { width: 75.0000%; }
-.progress.p19 { width: 79.1667%; }
-.progress.p20 { width: 83.3333%; }
-.progress.p21 { width: 87.5000%; }
-.progress.p22 { width: 91.6667%; }
-.progress.p23 { width: 95.8333%; }
-.progress.p24 { width: 100.0000%; }
+.progress.p01 { width: 4.0000%; }
+.progress.p02 { width: 8.0000%; }
+.progress.p03 { width: 12.0000%; }
+.progress.p04 { width: 16.0000%; }
+.progress.p05 { width: 20.0000%; }
+.progress.p06 { width: 24.0000%; }
+.progress.p07 { width: 28.0000%; }
+.progress.p08 { width: 32.0000%; }
+.progress.p09 { width: 36.0000%; }
+.progress.p10 { width: 40.0000%; }
+.progress.p11 { width: 44.0000%; }
+.progress.p12 { width: 48.0000%; }
+.progress.p13 { width: 52.0000%; }
+.progress.p14 { width: 56.0000%; }
+.progress.p15 { width: 60.0000%; }
+.progress.p16 { width: 64.0000%; }
+.progress.p17 { width: 68.0000%; }
+.progress.p18 { width: 72.0000%; }
+.progress.p19 { width: 76.0000%; }
+.progress.p20 { width: 80.0000%; }
+.progress.p21 { width: 84.0000%; }
+.progress.p22 { width: 88.0000%; }
+.progress.p23 { width: 92.0000%; }
+.progress.p24 { width: 96.0000%; }
+.progress.p25 { width: 100.0000%; }
 
 /* 見出し。1 枚に 1 つだけ置く。 */
 h1 {
