@@ -43,13 +43,52 @@ struct FileListModelFocusTests {
         #expect(window.requestedFirstResponder === tableView)
     }
 
-    @Test("tableView が未解決でリトライも尽きたときは何もしない(クラッシュしない)")
+    @Test("tableView が未解決でも落ちない")
     func focusWithoutTableIsNoOp() {
         let model = makeModel()
 
-        // 参照が無く再試行回数も 0 の場合、非同期のリトライをスケジュールせず即座に戻る。
-        model.tableFocuser.focus(retriesRemaining: 0)
+        model.tableFocuser.focus()
 
         #expect(model.tableFocuser.tableView == nil)
+    }
+
+    /// 畳んだ状態から初めてサイドバーを開く周期では、一覧の読み込みと List の初回
+    /// レイアウトがフォーカス要求に間に合わず、`tableView`(行の背景から設定される)が
+    /// まだ nil のことがある。要求を保持していないと、その回だけフォーカスが移らない
+    /// (TASK-563 の実測: 復元起動の直後に ⌘S を押すと 3 回に 1 回再現した)。
+    @Test("tableView が後から現れてもフォーカスを移す")
+    func focusAppliesWhenTableArrivesLater() {
+        let window = SpyWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 200, height: 200),
+            styleMask: [.titled], backing: .buffered, defer: false
+        )
+        let tableView = NSTableView()
+        window.contentView?.addSubview(tableView)
+        let model = makeModel()
+
+        // 参照が現れる前に要求だけが来る順序。
+        model.tableFocuser.focus()
+        model.tableFocuser.tableView = tableView
+
+        #expect(window.requestedFirstResponder === tableView)
+    }
+
+    /// 保持した要求は、サイドバーを畳んだ時点で捨てる。捨てないと、遅れて行が描かれた
+    /// ときに「閉じたはずのサイドバー」がフォーカスを奪う(開始時の無効化)。
+    @Test("畳んだ後に tableView が現れてもフォーカスを奪わない")
+    func cancelledFocusDoesNotApplyLater() {
+        let window = SpyWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 200, height: 200),
+            styleMask: [.titled], backing: .buffered, defer: false
+        )
+        let tableView = NSTableView()
+        window.contentView?.addSubview(tableView)
+        let model = makeModel()
+
+        model.tableFocuser.focus()
+        model.tableFocuser.cancelPendingFocus()
+        model.tableFocuser.tableView = tableView
+
+        #expect(window.requestedFirstResponder == nil)
     }
 }

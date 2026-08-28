@@ -14,23 +14,38 @@ final class SidebarTableFocuser {
     /// サイドバー行から見つかった `NSTableView` への弱参照。
     /// `SidebarTableViewLocator` が行描画時に設定する。クリック時に first responder へ
     /// 昇格させるためだけの UI 専用値(#144)。
-    weak var tableView: NSTableView?
+    ///
+    /// **行が 1 つも描かれるまで nil のまま**なので、保留中のフォーカス要求はここで成立させる。
+    weak var tableView: NSTableView? {
+        didSet { applyPendingFocus() }
+    }
 
     /// サイドバーの `NSTableView` を first responder にする。選択ハイライトを青にし(#144)、
     /// サイドバーを開いた直後からフォルダー名がアクティブ(黒)表示になり矢印キーで
     /// 操作できるようにする(task-118)。
     ///
-    /// 参照がまだ解決していない場合は、次のランループで数回だけ再試行する。サイドバーを
-    /// 畳んだ状態から初めて開いた直後は、List の行(と `NSTableView` 参照)の生成が
-    /// フォーカス要求に間に合わないことがあるため。
-    func focus(retriesRemaining: Int = 5) {
-        guard let tableView, let window = tableView.window else {
-            guard retriesRemaining > 0 else { return }
-            DispatchQueue.main.async { [weak self] in
-                self?.focus(retriesRemaining: retriesRemaining - 1)
-            }
-            return
-        }
+    /// **参照がまだ無ければ要求を保持し、`tableView` が現れた時点で成立させる**
+    /// (`pendingScroll` と同じ形)。かつては次のランループで 5 回だけ再試行して諦めて
+    /// いたが、畳んだ状態から初めて開く周期では一覧の読み込みと List の初回レイアウトが
+    /// 間に合わず、その回だけフォーカスが移らないことがあった(TASK-563。復元起動の直後に
+    /// ⌘S を押すと 3 回に 1 回再現した)。回数で待つのをやめ、事実(参照が現れたか)で決める。
+    func focus() {
+        focusPending = true
+        applyPendingFocus()
+    }
+
+    /// 保持しているフォーカス要求を捨てる。**サイドバーを畳んだら必ず呼ぶ。**
+    /// 捨てないと、遅れて行が描かれたときに閉じたはずのサイドバーがフォーカスを奪う。
+    func cancelPendingFocus() {
+        focusPending = false
+    }
+
+    /// 未成立のフォーカス要求。参照が現れるまで保持する。
+    private var focusPending = false
+
+    private func applyPendingFocus() {
+        guard focusPending, let tableView, let window = tableView.window else { return }
+        focusPending = false
         window.makeFirstResponder(tableView)
     }
 
