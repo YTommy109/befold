@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-27 15:10'
-updated_date: '2026-08-28 01:36'
+updated_date: '2026-08-28 01:41'
 labels: []
 dependencies: []
 priority: medium
@@ -123,6 +123,17 @@ Why befold の直後に "Stays on your machine" の節を追加。4 点（送ら
 **実物を見せる形へ作り直した。** ターミナル風カード（`.term`）に `design.md` の中身として `![](https://tracker.example.com/p.png?doc=secret-spec)` を出し、URL を `.hot` で目立たせる。補足行は「見た目は画像 1 つ。開いた瞬間、読んだことが相手に伝わります」。これで 22 の「ネットワーク層で遮断」が何を遮断するのかが画で繋がる。
 
 あわせて `.note` を `clamp(13px, 2.2vmin, 22px)` → `clamp(14px, 2.6vmin, 26px)` へ拡大（18 / 21 / 24 の補足行がプロジェクターで読めるように）。befold で描画して目視確認済み。
+
+## 追記（2026-08-28）: 22 ページの 3 つ目の項目を差し替えた
+
+「開いたファイルを書き換えない（git も読むだけ）」は聴衆の不安への答えになっていない、という指摘。理由は 2 つ。
+
+1. **当たり前になっている。** page 5 で「エディット機能を削ぎ落としたビュワー」と宣言済みなので、書き換えないのは製品の前提であって発見が無い
+2. **軸がずれている。** 21 で見せた脅威は「文書が外部と通信する」。1 つ目（送らない）と 2 つ目（遮断する）はその直接の答えだが、3 つ目は改竄という別の軸で列から浮く
+
+**「開いた HTML のスクリプトは実行しない」へ差し替えた**（`DirectHTMLModeController.enter` が `allowsContentJavaScript = false`、Markdown は DOMPurify + `script-src 'self'`）。3 項目とも「文書に埋め込まれた能動的なもの」への答えで揃い、21 の `![](https://tracker...)` から一本で通る。
+
+git が読み取りのみである点は README と紹介サイトには残っているので、スライドからは落として口頭で触れる想定。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
