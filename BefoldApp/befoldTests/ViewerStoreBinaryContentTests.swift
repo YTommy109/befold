@@ -90,4 +90,61 @@ struct ViewerStoreBinaryContentTests {
 
         store.close()
     }
+
+    /// PDF/画像は NormalizedTextCache を作らないため、同一内容スキップの hash は
+    /// LoadedContent が運ぶ。これが nil に戻ると、内容が 1 バイトも変わらない
+    /// ウォッチャイベント(mtime/xattr の更新、同ディレクトリの変化)のたびに
+    /// contentRevision が増えてフル再描画が走り、iframe が作り直されて画面がちらつく
+    /// (Issue #608)。
+    @Test(arguments: [
+        (filename: "same.png", data: Data([0x89, 0x50, 0x4E, 0x47]), type: FileType.image(mimeType: "image/png")),
+        (filename: "same.pdf", data: Data("%PDF-1.4".utf8), type: FileType.pdf),
+    ])
+    func binaryReloadWithIdenticalContentDoesNotBumpRevision(
+        filename: String, data: Data, type _: FileType
+    ) async {
+        let file = URL(fileURLWithPath: "/files/\(filename)")
+        let reader = InMemoryFileReader()
+        reader.setDataFile(data, at: file)
+        reader.setBinary(true, at: file)
+
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
+        await openAndLoad(store, file)
+        let revisionAfterOpen = store.contentState.contentRevision
+
+        // 内容は書き換えずにウォッチャだけ発火させる。
+        onChangeBox.get()?()
+        await awaitLoad(store)
+
+        #expect(store.contentState.contentRevision == revisionAfterOpen)
+
+        store.close()
+    }
+
+    /// 拒否された読み込みに hash を与えると、content がどちらも空なので hash が一致し、
+    /// 拒否理由の変化が同一内容スキップに握り潰される。LoadedContent.contentHash を
+    /// 「読み込みに成功したときだけ non-nil」に保つ約束が破れたら、このテストが落ちる。
+    @Test
+    func rejectReasonTransitionIsNotSkipped() async {
+        let file = URL(fileURLWithPath: "/files/transition.png")
+        let reader = InMemoryFileReader()
+        reader.setDataFile(Data([0x89]), at: file)
+        reader.setBinary(true, at: file)
+        reader.setSize(ContentLoader.maxFileSizeBytes + 1, at: file)
+
+        let onChangeBox = LockedBox<(@MainActor @Sendable () -> Void)?>(nil)
+        let store = makeStore(reader: reader, onChangeBox: onChangeBox)
+        await openAndLoad(store, file)
+        #expect(store.contentState.rejectReason == .fileTooLarge)
+
+        reader.setSize(1, at: file)
+        reader.setReadError(true, at: file)
+        onChangeBox.get()?()
+        await awaitLoad(store)
+
+        #expect(store.contentState.rejectReason == .unsupportedFormat)
+
+        store.close()
+    }
 }

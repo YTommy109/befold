@@ -52,7 +52,13 @@ public enum ViewerLoadPipeline {
         guard fileReader.fileExists(at: resolved) else { return .missing }
 
         if fileType.isBinaryContent {
-            return .full(contentLoader.load(from: resolved, fileType: fileType), cache: nil)
+            // 同一内容スキップ用の hash は LoadedContent が運ぶ(バイナリは
+            // NormalizedTextCache を作らないので cache: nil のまま)。oneShotLoad の扱いは
+            // テキスト側(NormalizedTextCache)と同じ規則。
+            let loaded = contentLoader.load(
+                from: resolved, fileType: fileType, computeHash: !oneShotLoad
+            )
+            return .full(loaded, cache: nil)
         }
 
         // 拒否理由を binaryContent として区別するのは、ここに来るのが必ず
