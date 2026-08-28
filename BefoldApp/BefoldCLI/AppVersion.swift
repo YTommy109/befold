@@ -6,7 +6,7 @@ import Foundation
 /// CFBundleShortVersionString / CFBundleVersion を読む。バンドル外(SPM 単体ビルド等)では
 /// `fallback` を使う。
 public enum AppVersion {
-    public static let fallback = "1.15.1"
+    public static let fallback = "1.15.2"
 
     /// バージョン文字列が SemVer のプレリリース（ハイフン接尾辞）かどうか。
     /// dev リリースは `release.yml` がタグ名 `v1.4.10-dev.N` から MARKETING_VERSION を
