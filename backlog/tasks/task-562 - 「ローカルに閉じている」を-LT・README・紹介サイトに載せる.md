@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-27 15:10'
-updated_date: '2026-08-28 01:41'
+updated_date: '2026-08-28 02:04'
 labels: []
 dependencies: []
 priority: medium
@@ -134,6 +134,12 @@ Why befold の直後に "Stays on your machine" の節を追加。4 点（送ら
 **「開いた HTML のスクリプトは実行しない」へ差し替えた**（`DirectHTMLModeController.enter` が `allowsContentJavaScript = false`、Markdown は DOMPurify + `script-src 'self'`）。3 項目とも「文書に埋め込まれた能動的なもの」への答えで揃い、21 の `![](https://tracker...)` から一本で通る。
 
 git が読み取りのみである点は README と紹介サイトには残っているので、スライドからは落として口頭で触れる想定。
+
+## 追記（2026-08-28）: 使い方のページを追加（23）
+
+ユーザー提供の内容で 1 枚追加。「開発の他に、こんな使い方をするようになりました。」＋ 2 項目（家族の医療費の管理 / Degino 社の経理事務一般）＋「高度なシステムを使わず、Markdown と TSV と HTML でとても快適」。
+
+置き場所はセキュリティの 2 枚（21・22）の後ろ、CTA（24）の手前。開発者向けの列 → 安全に読める → 開発以外へ広がる → 誘導、という流れになる。全体を 24 → 25 ページへ振り直した（ノンブル・`.progress.pNN`・style.css の幅ルール）。画像は入れていない（CSV/TSV の画面は 16 ページで既出のため）。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
