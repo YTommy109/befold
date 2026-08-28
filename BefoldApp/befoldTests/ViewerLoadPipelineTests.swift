@@ -82,6 +82,54 @@ struct ViewerLoadPipelineTests {
         #expect(cache.dataHash != nil)
     }
 
+    @Test("oneShotLoad: true ではバイナリ(full)経路で contentHash が nil になる")
+    func oneShotLoadSkipsHashForBinaryOutcome() async {
+        let url = URL(fileURLWithPath: "/tmp/oneshot.png")
+        let fileReader = InMemoryFileReader()
+        fileReader.setDataFile(Data([0x89, 0x50, 0x4E, 0x47]), at: url)
+        let contentLoader = ContentLoader(fileReader: fileReader)
+
+        let outcome = await ViewerLoadPipeline.load(
+            resolved: url,
+            fileType: .image(mimeType: "image/png"),
+            fileReader: fileReader,
+            contentLoader: contentLoader,
+            chunkedReaderFactory: chunkedReaderFactory,
+            oneShotLoad: true
+        )
+
+        guard case let .full(loaded, _) = outcome else {
+            Issue.record("full outcome を期待したが \(outcome) だった")
+            return
+        }
+        #expect(loaded.contentHash == nil)
+    }
+
+    /// バイナリ(画像・PDF)は NormalizedTextCache を作らないため cache は nil のまま。
+    /// 同一内容スキップに使う hash は LoadedContent 側が運ぶ。
+    @Test("oneShotLoad: false(既定)ではバイナリ(full)経路で contentHash が計算される")
+    func defaultLoadComputesHashForBinaryOutcome() async {
+        let url = URL(fileURLWithPath: "/tmp/default-load.png")
+        let fileReader = InMemoryFileReader()
+        fileReader.setDataFile(Data([0x89, 0x50, 0x4E, 0x47]), at: url)
+        let contentLoader = ContentLoader(fileReader: fileReader)
+
+        let outcome = await ViewerLoadPipeline.load(
+            resolved: url,
+            fileType: .image(mimeType: "image/png"),
+            fileReader: fileReader,
+            contentLoader: contentLoader,
+            chunkedReaderFactory: chunkedReaderFactory
+        )
+
+        guard case let .full(loaded, cache) = outcome else {
+            Issue.record("full outcome を期待したが \(outcome) だった")
+            return
+        }
+        #expect(cache == nil)
+        #expect(loaded.contentHash != nil)
+    }
+
     @Test("embedLocalImages: true でロードすると画像埋め込みキャッシュが温まり、その後の埋め込み呼び出しは画像を再読込しない")
     func loadWarmsMarkdownImageEmbedCache() async {
         let dir = URL(fileURLWithPath: "/tmp/pipeline-warm")

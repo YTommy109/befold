@@ -100,7 +100,9 @@ extension ViewerStore {
         case let .full(loaded, cache):
             state = ViewerContentState.DisplayState(
                 fileType: fileType,
-                contentHash: cache?.dataHash,
+                // テキストは NormalizedTextCache、バイナリは LoadedContent が hash を運ぶ。
+                // どちらも「読み込みに成功したときだけ non-nil」という同じ規則に従う。
+                contentHash: cache?.dataHash ?? loaded.contentHash,
                 chunkSession: nil,
                 rejectReason: loaded.rejectReason,
                 isTruncated: false,
