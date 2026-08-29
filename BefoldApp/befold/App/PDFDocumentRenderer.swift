@@ -40,19 +40,18 @@ final class PDFDocumentRenderer: DocumentRendering {
 
     // MARK: - Zoom
 
-    /// 倍率 1.0 = ページ幅がビューに収まる状態。`PDFView` の `scaleFactor` は
-    /// 絶対倍率なので、収まる倍率(`scaleFactorForSizeToFit`)を基準に掛け直す。
-    /// こうしないと、同じ 1.0 が WebView 側では等倍・PDF 側ではページの一部という
-    /// 別の意味になる。
+    /// 倍率 1.0 = ページ全体がビューに収まる状態。`PDFView` の `scaleFactor` は
+    /// 絶対倍率なので、収まる倍率を基準に掛け直す。こうしないと、同じ 1.0 が
+    /// WebView 側では等倍・PDF 側ではページの一部という別の意味になる。
+    /// 換算そのものは `PDFSurfaceLayout` が持つ(面の生成側と同じ規則を通す)。
     func applyZoom(_ zoom: Double) {
         guard let pdfView = pdfViewProxy.pdfView else { return }
-        pdfView.autoScales = false
-        pdfView.scaleFactor = fitScale(of: pdfView) * zoom
+        PDFSurfaceLayout.apply(zoom: zoom, to: pdfView)
     }
 
     func changeZoom(_ change: ZoomChange) -> Double? {
         guard let pdfView = pdfViewProxy.pdfView else { return nil }
-        let newZoom = stepped(change, current: currentZoom(of: pdfView))
+        let newZoom = stepped(change, current: PDFSurfaceLayout.currentZoom(of: pdfView))
         applyZoom(newZoom)
         return newZoom
     }
@@ -88,10 +87,12 @@ final class PDFDocumentRenderer: DocumentRendering {
     /// スクロール位置を 0…1 の割合で返す(JS 側の `currentScrollPosition` と同じ意味)。
     /// 取得できないときは完了を呼ばない(`DocumentSurfaceOperating` の契約)。
     func currentScrollPosition(_ completion: @escaping (Double) -> Void) {
-        guard let scrollView = pdfViewProxy.pdfView?.documentScrollView else { return }
-        let scrollable = scrollView.documentView.map { $0.bounds.height - scrollView.contentSize.height } ?? 0
-        guard scrollable > 0 else { return completion(0) }
-        completion(min(max(scrollView.contentView.bounds.origin.y / scrollable, 0), 1))
+        guard let pdfView = pdfViewProxy.pdfView,
+              let scrollView = pdfView.documentView?.enclosingScrollView
+        else { return }
+        let room = PDFSurfaceLayout.verticalScrollRoom(of: pdfView)
+        guard room > 0 else { return completion(0) }
+        completion(min(max(scrollView.contentView.bounds.origin.y / room, 0), 1))
     }
 
     // MARK: - 追随(全面へ配られる)
@@ -109,29 +110,11 @@ final class PDFDocumentRenderer: DocumentRendering {
 
     // MARK: - Private
 
-    private func fitScale(of pdfView: PDFView) -> Double {
-        let fit = pdfView.scaleFactorForSizeToFit
-        // ページがまだ無い間は 0 が返る。0 で割らず等倍として扱う。
-        return fit > 0 ? fit : 1
-    }
-
-    private func currentZoom(of pdfView: PDFView) -> Double {
-        pdfView.scaleFactor / fitScale(of: pdfView)
-    }
-
     private func stepped(_ change: ZoomChange, current: Double) -> Double {
         switch change {
         case .zoomIn: min(maxZoom, current + zoomStep)
         case .zoomOut: max(minZoom, current - zoomStep)
         case .reset: defaultZoom
         }
-    }
-}
-
-private extension PDFView {
-    /// `PDFView` が内部に持つスクロールビュー。公開 API が無いため、
-    /// 文書ビューの祖先から辿る(見つからなければ位置は取得しない)。
-    var documentScrollView: NSScrollView? {
-        documentView?.enclosingScrollView
     }
 }

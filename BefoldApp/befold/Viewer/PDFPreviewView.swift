@@ -13,14 +13,16 @@ struct PDFPreviewView: NSViewRepresentable {
     let contentRevision: Int
     /// この文書が画面に出ているか。見えていない間の再パースを止める(ADR 0002 段 5)。
     let isVisible: Bool
-    /// ファイル単位の初期倍率。1.0 = ページ幅がビューに収まる状態。
+    /// ファイル単位の初期倍率。1.0 = ページ全体がビューに収まる状態。
     let initialZoom: Double
     /// AppKit 側(メニューアクション)へ `PDFView` を公開するプロキシ。
     let pdfViewProxy: PDFViewProxy
 
     func makeNSView(context: Context) -> PDFView {
-        let pdfView = PDFView()
-        pdfView.autoScales = true
+        // ホイールをページ送りへ振り替える面(TASK-564.2)。レイアウト規則は
+        // PDFSurfaceLayout が単一の情報源。
+        let pdfView = PagingPDFView()
+        PDFSurfaceLayout.configure(pdfView)
         pdfView.backgroundColor = .windowBackgroundColor
         pdfViewProxy.pdfView = pdfView
         return pdfView
@@ -40,9 +42,8 @@ struct PDFPreviewView: NSViewRepresentable {
         }
         pdfView.document = PDFDocument(data: data)
         // 文書の差し替えで倍率は既定へ戻るため、ファイル単位の値をここで入れ直す。
-        pdfView.autoScales = false
-        let fit = pdfView.scaleFactorForSizeToFit
-        pdfView.scaleFactor = (fit > 0 ? fit : 1) * initialZoom
+        // 換算は PDFSurfaceLayout が持つ(操作側と同じ規則を通す)。
+        PDFSurfaceLayout.apply(zoom: initialZoom, to: pdfView)
     }
 
     func makeCoordinator() -> Coordinator {
