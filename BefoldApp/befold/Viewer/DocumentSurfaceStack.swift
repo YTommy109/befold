@@ -114,7 +114,6 @@ struct DocumentSurfaceStack: View {
                     loadFailed: store.contentState.loadFailed,
                     isVisible: isVisible,
                     initialZoom: store.zoom,
-                    ownsDocument: !showsPDF,
                     codeFontFamily: codeFontFamily,
                     codeFontSizePoints: codeFontSizePoints,
                     csvGrouping: csvGrouping,

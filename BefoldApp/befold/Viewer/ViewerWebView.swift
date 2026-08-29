@@ -44,12 +44,6 @@ struct ViewerWebView: NSViewRepresentable {
     let isVisible: Bool
     /// ロード時に JS へ注入するファイル毎の初期倍率。
     let initialZoom: Double
-    /// **いま提示中の文書を描いているのがこの面か。** 面が 2 枚あるので、
-    /// 宛先でない面へファイル単位の値（倍率・復元位置）を流し込まない。
-    /// 流し込むと、PDF へ切り替える瞬間に PDF の倍率が**まだ見えている
-    /// Markdown へ**当たり、切り替わる直前にちらつく（TASK-567 の実測）。
-    /// 判定は `DocumentSurfaceStack` が持つ 1 つの述語から配る。
-    let ownsDocument: Bool
     /// ロード時に JS へ注入するソースビュー等幅フォントファミリー名。nil はシステム既定。
     let codeFontFamily: String?
     /// ロード時に JS へ注入するソースビューのコードフォントサイズ(pt)。nil は未カスタマイズ
@@ -102,10 +96,8 @@ struct ViewerWebView: NSViewRepresentable {
         let renderer = context.coordinator
         renderer.findOptionsPreference = findOptionsPreference
         renderer.headingJumpLevelRecording = headingJump.recording
-        if ownsDocument {
-            renderer.initialPageZoom = initialZoom
-            renderer.scrollPositionToRestore = scrollPositionToRestore
-        }
+        renderer.initialPageZoom = initialZoom
+        renderer.scrollPositionToRestore = scrollPositionToRestore
         renderer.rendererFeatures = rendererFeatures
         renderer.diffState = diffState
         // 設定の反映(倍率・フォント・検索オプション)は隠れていても通す。止めると
