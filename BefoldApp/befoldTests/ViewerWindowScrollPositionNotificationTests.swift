@@ -5,11 +5,11 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// スクロール位置の保存キーは「その位置が属する文書」から決める(TASK-400)。
+/// スクロール位置の記録キーは「その位置が属する文書」から決める(TASK-400)。
 ///
 /// JS 側の通知は 200ms デバウンスされるため、ファイル切替の直後に切替前の文書の通知が
 /// 届きうる。受け取り側が現在表示中の fileURL をキーにすると、切替前の位置が切替先の
-/// キーへ保存され、切替先の文書が他文書の位置で開く。
+/// キーへ記録され、切替先の文書が他文書の位置で開く。
 @Suite(testTimeLimit())
 @MainActor
 struct ViewerWindowScrollPositionNotificationTests {
@@ -23,7 +23,7 @@ struct ViewerWindowScrollPositionNotificationTests {
         )
     }
 
-    @Test("切替後に届いた切替前ファイルの通知は、切替先のキーへ保存されない")
+    @Test("切替後に届いた切替前ファイルの通知は、切替先のキーへ記録されない")
     func lateNotificationDoesNotWriteToDestinationKey() {
         let fixture = makeFixture()
         let controller = fixture.controller
@@ -34,11 +34,12 @@ struct ViewerWindowScrollPositionNotificationTests {
         // 切替前ファイル(origin)の DOM から遅れて届いた通知。
         controller.renderer(ViewerRenderer(), didChangeScrollPosition: 480, for: origin, mode: mode)
 
-        #expect(fixture.perFileState.scrollPosition.scrollPosition(for: destination, mode: mode) == 0)
-        #expect(fixture.perFileState.scrollPosition.scrollPosition(for: origin, mode: mode) == 480)
+        let memory = controller.documentPresenter.presentationMemory
+        #expect(memory.scrollPosition(for: destination, mode: mode) == 0)
+        #expect(memory.scrollPosition(for: origin, mode: mode) == 480)
     }
 
-    @Test("出所の文書が定まらない(url が nil)通知は保存しない")
+    @Test("出所の文書が定まらない(url が nil)通知は記録しない")
     func notificationWithoutURLIsIgnored() {
         let fixture = makeFixture()
         let controller = fixture.controller
@@ -46,6 +47,6 @@ struct ViewerWindowScrollPositionNotificationTests {
 
         controller.renderer(ViewerRenderer(), didChangeScrollPosition: 120, for: nil, mode: mode)
 
-        #expect(fixture.perFileState.scrollPosition.scrollPosition(for: origin, mode: mode) == 0)
+        #expect(controller.documentPresenter.presentationMemory.scrollPosition(for: origin, mode: mode) == 0)
     }
 }

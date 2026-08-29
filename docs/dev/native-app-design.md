@@ -151,9 +151,9 @@ BefoldApp/
 | `MenuShortcutCatalog` / `HelpShortcutSections` | Help > キーボードショートカット に並べる一覧の組み立て。メニュー由来は `NSMenu` から抽出し、メニューを経由しない操作は `ViewerShortcutCatalog` / `SidebarShortcutCatalog` / `QuickOpenShortcutCatalog` から引く。キー表記の組み立ては `ShortcutKey` に集約し、一覧と実装のずれは各カタログの突合テストで落とす。ビューア内の一覧は文書内ジャンプのゲート（`FeatureGate.isDocumentJumpEnabled`）を必須引数で受け取り、ゲート開でのみ Enter / ⇧Return のジャンプ移動を載せ、Esc の説明を「検索バーを閉じる」から「検索バー・ジャンプバーを閉じる」へ入れ替える |
 | `RecentDocumentsStore` / `RecentDocumentsMenuController` | 最近使ったファイルを UserDefaults に自前で永続化しメニュー描画（ad-hoc 署名では OS 標準の Recent Documents が更新のたびにリセットされるため） |
 | `SessionStore` | 終了時のウィンドウ/タブグループ構成（`SessionLayout`）の型 |
-| `ScrollPositionStore` | ファイルごとのスクロール位置を永続化（レンダリング/ソース表示を別々に保存） |
 | `ZoomStore` | ファイルごとのズーム倍率を永続化（0.5〜2.0、25% 刻み） |
-| `DisplayModeStore` | ファイルごとの表示モード（レンダリング/ソース/差分）を永続化。旧キー `ViewerSourceModes` の Bool 辞書から 1 度だけ移行する |
+| `WindowPresentationMemory` | ファイルごとのスクロール位置（レンダリング/ソース別）と表示モード（レンダリング/ソース/差分）を、**その窓の生存期間だけ**記憶する。`UserDefaults` を型の依存として持たず、永続化できない。生成するのは `ViewerDocumentPresenter` の 1 箇所だけで、窓ごとに 1 個（TASK-565） |
+| `PathKeyedTable` | メモリ上の「正規化パス → 値」表。`PathKeyedDictionary`（永続）とキーの規約と rename 追従を揃えつつ、`UserDefaults` を持たない |
 | `SidebarDisplayDefaults` | サイドバー表示 4 値（表示形式・不可視ファイル・変更ファイルのみ・並び順）の**新規ウィンドウの初期値**をアプリ全体で永続化。ライブ値は窓ごと（ADR 0002「窓の状態」）で、窓は初期値の `SidebarDisplaySettings`（値型）と書き戻し用の `SidebarDisplayDefaultsRecording`（読み取りを持たない）だけを受け取る |
 | `FindOptionsPreference` | 検索の3トグル（大文字小文字区別・単語一致・正規表現）をアプリ全体で永続化 |
 | `NavigationHistory` | タブごとの戻る/進む履歴スタック（非永続） |
@@ -162,7 +162,7 @@ BefoldApp/
 | `CLIInstaller` | `/usr/local/bin/befold` に CLI 実行ファイルへの symlink を設置（詳細は [CLI 起動経路](./cli-launch.md#cliinstaller-が設置する-shim)） |
 | `ViewerWindowController` | 1 ウィンドウ分のビューア制御（依存の保持と生成手順、および外から来る契機の受け口）。実処理は独立した協働オブジェクトへ出してある（下記）。手元に残る拡張は `+FileNavigation` 提示対象の移動 / `+MenuActions` メニュー・ツールバー由来の `@objc` アクションと validate / `+References` 参照のオープン / `+Capabilities` 能力導出の入力集め / `+SidebarHost`・`+Renderer`・`+WindowDelegate` 各プロトコル準拠 |
 | `ViewerWindowAssembler` | ウィンドウ生成時の部品の組み立てと配線（分割ビュー・サイドバーナビゲータ・WebView コマンド・ストア購読・スワイプ監視）。工程の中身だけを持ち、順序制約は `ViewerWindowController.init` に残す |
-| `ViewerDocumentPresenter` | 文書の状態（表示モード・倍率・スクロール位置）の遷移と提示開始の 3 契機（ADR 0002 段 1）。cmd+U の戻り先の記憶もここに閉じる |
+| `ViewerDocumentPresenter` | 文書の状態（表示モード・倍率・スクロール位置）の遷移と提示開始の 3 契機（ADR 0002 段 1）。cmd+U の戻り先の記憶と、窓の生存期間だけの記憶（`WindowPresentationMemory`）の所有もここに閉じる |
 | `ViewerDiffPresenter` | git 差分の非同期取得・世代管理・レイアウト設定。取得を登録した契機で `ViewerDiffContent.pending` を立て、着地で確定させる（確定差分を表示中の取り直しでは降格しない） |
 | `ViewerDiffContent` | 差分取得の結果状態（`unavailable` / `pending` / `diff(String)`）。「未着」と「確定して差分なし」を型で区別する。未確定の間はレンダラ（`ContentUpdatePlanner`）がモード切替だけの再描画を見送って前の表示を残し、切替直後にプレーンなソース表示が一瞬見える中間状態を作らない（TASK-407） |
 | `ViewerCapabilitiesFactory` | 提示状態から `ViewerCapabilities` を導出する純関数（ADR 0002 段 2）。どの入力を信じるかをここ 1 箇所に置く |
@@ -357,7 +357,8 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   永久にグレーアウトした項目が stable のユーザーへ露出してしまう（TASK-485.8）。
   安定稼働を確認するまでキー等価は割り当てない
 - **表示モード切替**: ツールバーの 3 択セグメント（レンダリング / ソース / 差分）と `⌘1`〜`⌘3`。
-  `DisplayModeStore` でファイル単位に永続化する。差分レイアウト（上下/左右）は `⌘\\` とツールバーのトグルで切り替え、
+  ファイル単位に記憶するが、**永続化はしない**——`WindowPresentationMemory` が持ち、
+  窓を閉じれば消える（アプリを再起動すると常にレンダリング表示から始まる。TASK-565）。差分レイアウト（上下/左右）は `⌘\\` とツールバーのトグルで切り替え、
   好みの設定としてアプリ全体で共有する（`DiffDisplayPreference`）。ソース相当の内容を出している間は
   行番号トグルを提供
 - **戻る/進むナビゲーション**: タブごとの履歴（`NavigationHistory`）、ツールバーボタン・履歴メニュー・

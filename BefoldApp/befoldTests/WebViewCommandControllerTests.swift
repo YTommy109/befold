@@ -220,25 +220,26 @@ struct WebViewCommandControllerTests {
         #expect(zoomChanges.values == [1.25])
     }
 
-    @Test("スクロール位置は、取得できた場合だけ指定キーへ保存する")
-    func savesScrollPositionOnlyWhenAvailable() {
+    /// 位置を記憶するのは窓側(`ViewerDocumentPresenter`)なので、ここは「取得できたときだけ
+    /// キーごと通知する」ところまでを見る。
+    @Test("スクロール位置は、取得できた場合だけ指定キーごと通知する")
+    func reportsScrollPositionOnlyWhenAvailable() {
         let renderer = FakeDocumentRenderer()
-        let defaults = makeIsolatedDefaults(prefix: "WebViewCommandControllerTests")
-        let perFileState = PerFileStateStore(defaults: defaults)
-        let controller = makeController(renderer: renderer, perFileState: perFileState)
+        let scrollSaves = ScrollSaveRecorder()
+        let controller = makeController(renderer: renderer, scrollSaves: scrollSaves)
 
         renderer.scrollPosition = nil
         controller.saveCurrentScrollPosition(for: url, mode: .rendered)
-        #expect(perFileState.scrollPosition.scrollPosition(for: url, mode: .rendered) == 0)
+        #expect(scrollSaves.saves.isEmpty)
 
         renderer.scrollPosition = 42
         controller.saveCurrentScrollPosition(for: url, mode: .rendered)
-        #expect(perFileState.scrollPosition.scrollPosition(for: url, mode: .rendered) == 42)
+        #expect(scrollSaves.saves == [ScrollSaveRecorder.Save(position: 42, url: url, mode: .rendered)])
     }
 
-    /// 保存完了は「保存したキーと値」ごと窓へ伝える。窓はこれでライブな復元値を
-    /// 追いつかせるため、値を渡さず通知だけにすると窓が保存値を読み直す形になり、
-    /// 他窓の操作が後から効く経路になってしまう(ADR 0002 / TASK-394)。
+    /// 取得完了は「そのキーと値」ごと窓へ伝える。窓はこれで記憶とライブな復元値を
+    /// 追いつかせるため、値を渡さず通知だけにすると窓が読み直す形になってしまう
+    /// (ADR 0002 / TASK-394)。
     @Test("保存が完了したら、保存したキーと値を窓へ伝える")
     func reportsSavedScrollPositionWithItsKey() {
         let renderer = FakeDocumentRenderer()

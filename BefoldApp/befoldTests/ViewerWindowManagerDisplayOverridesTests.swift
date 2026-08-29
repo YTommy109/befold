@@ -81,18 +81,19 @@ struct ViewerWindowManagerDisplayOverridesTests {
         #expect(controller.fileListModel.sortOrder == originalSortOrder)
     }
 
-    /// ADR 0002 の永続化規則「保存値へ書くのは明示的なユーザーのモード選択だけ」。
-    /// CLI の上書きはこの起動限りで、新規ウィンドウ・既存ウィンドウのどちらでも保存値を触らない。
-    @Test("CLI の表示モード上書きは既存ウィンドウでも保存値を書き換えない")
-    func openViewerOnOpenWindowDoesNotPersistDisplayMode() {
+    /// ADR 0002 の規則「記憶へ書くのは明示的なユーザーのモード選択だけ」。
+    /// CLI の上書きはこの起動限りで、新規ウィンドウ・既存ウィンドウのどちらでも記憶を触らない。
+    @Test("CLI の表示モード上書きは既存ウィンドウでも記憶を書き換えない")
+    func openViewerOnOpenWindowDoesNotRecordDisplayMode() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "OptionsNoPersist")
         defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file)
-        #expect(fixture.perFileState.displayMode.displayMode(for: file) == .rendered)
+        let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
+        #expect(controller.documentPresenter.presentationMemory.displayMode(for: file) == .rendered)
 
         fixture.manager.openViewer(for: file, options: CLIOpenOptions(sourceMode: true))
 
-        #expect(fixture.perFileState.displayMode.displayMode(for: file) == .rendered)
+        #expect(controller.documentPresenter.presentationMemory.displayMode(for: file) == .rendered)
     }
 
     /// フォルダーを開いた結果が既に開いているファイルへ解決される場合も、サイドバーの
@@ -109,7 +110,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
     }
 
-    /// 降格規則は DisplayModeStore.supportedDisplayMode の 1 箇所（ADR 0002）。
+    /// 降格規則は ViewerDisplayMode.supported(for:) の 1 箇所（ADR 0002）。
     /// ソース表示を持たない種別へ --source を渡しても、その規則を通って .rendered に落ちる。
     @Test("ソース表示を持たない種別への --source は新規・既存のどちらの経路でも降格する")
     func sourceModeOverrideIsDemotedForUnsupportedType() throws {

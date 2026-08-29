@@ -4,10 +4,10 @@ import SwiftUI
 
 struct ViewerContentView: View {
     /// 倍率・スクロール復元位置を含む、この窓のライブな表示状態。
-    /// ファイル単位の保存ストア(`ZoomStore` / `ScrollPositionStore`)は**ここへ渡さない**。
-    /// 渡すと body の再評価のたびに保存値を読み直すことになり、他窓が書いた値を
+    /// ファイル単位の保存ストア(`ZoomStore`)や窓の記憶(`WindowPresentationMemory`)は
+    /// **ここへ渡さない**。渡すと body の再評価のたびに読み直すことになり、他窓が書いた値を
     /// 生きている窓が拾ってしまう(ADR 0002「文書の状態の規則」1)。
-    /// 保存値を読む契機は ViewerWindowController 側の提示開始 3 箇所に限る。
+    /// 読む契機は ViewerWindowController 側の提示開始 3 箇所に限る。
     let store: ViewerStore
     let findOptionsPreference: FindOptionsPreference
     /// 見出しジャンプの設定(出発点と書き戻し口)。

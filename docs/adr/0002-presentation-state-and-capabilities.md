@@ -33,7 +33,8 @@
 | ソース表示モード | 3 | `ViewerStore.isSourceMode`（実行時） / `SourceModeStore`（永続） / ツールバーの `selectedSegment` |
 
 > 補記（TASK-356）: 表示モードは `ViewerStore.displayMode`（`ViewerDisplayMode` の 1 値）と
-> `DisplayModeStore`（永続）に集約し、ツールバーの選択位置はそこから導出する形へ整理した。
+> 保存値の 1 ストア（当時は `DisplayModeStore`、現在は `WindowPresentationMemory`）に
+> 集約し、ツールバーの選択位置はそこから導出する形へ整理した。
 > 差分の ON/OFF を別の Bool で持たないため、「レンダリング表示なのに差分だけ ON」という
 > 不整合は状態として作れない。
 | 直接 HTML モード | 2 | `ViewerRenderer.isDirectHTMLMode` / `WebViewProxy.isDirectHTMLMode` |
@@ -114,7 +115,8 @@ ADR 0001 の決定（AppKit がライフサイクルを所有する）は維持�
 
 ### 用語
 
-- **保存値** = `ViewerStore.displayMode`（`DisplayModeStore` が永続化する値）
+- **保存値** = `ViewerStore.displayMode`（`WindowPresentationMemory` が窓の生存期間だけ
+  記憶する値。TASK-565 で永続化をやめた）
 - **実表示** = `ViewerStore.effectiveDisplayMode`。`保存値 == .rendered && showsCodeContent`
   のときだけ `.source` を返す導出値で、保存値を書き換えない。
   `.code` ファイルは「保存値 `.rendered` / 実表示 `.source`」という状態を常に取る。
@@ -157,7 +159,7 @@ ADR 0001 の決定（AppKit がライフサイクルを所有する）は維持�
 | ファイル切替 | 切替先の保存値を降格規則に通した値 | しない | |
 | リネーム | **いま表示中のモード**を降格規則に通した値 | しない | 保存値ではない（TASK-369） |
 
-**降格規則**（`DisplayModeStore.supportedDisplayMode(_:for:)` の 1 箇所に置く）:
+**降格規則**（`ViewerDisplayMode.supported(for:)` の 1 箇所に置く）:
 `.rendered` はそのまま、`.source` は `supportsSourceMode` でなければ `.rendered`、
 `.diff` は差分対応かつゲート ON でなければ `.source`（`.code` 以外）または `.rendered`。
 **降格しても保存値は書き換えない。** 対応する種別のファイルへ戻れば元のモードが復帰する。
@@ -209,11 +211,11 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
 
 適用の細部:
 
-- 保存値（`DisplayModeStore`）を読むのは、窓がその文書を提示し始めるときだけ
+- 保存値（`WindowPresentationMemory`）を読むのは、窓がその文書を提示し始めるときだけ
   （オープン・ファイル切替・モード切替）。生きている窓が保存値を読み直さないことで、
   他窓の選択が後から効くことを構造的に防ぐ。
-- スクロール位置も同じ扱い。`(パス, モード)` 粒度で永続化するが、それは
-  「次にその文書を開くときの既定値」であって、開いている窓へ後から効く値ではない。
+- スクロール位置も同じ扱い。`(パス, モード)` 粒度で記憶するが、それは
+  「次にその文書を提示し始めるときの既定値」であって、開いている窓へ後から効く値ではない。
   この粒度のまま、読み直しの契機を絞ることで 2 窓の競合が消える。
 
 ## 状態の所在（アプリの好み / 文書の状態 / 窓の状態）
@@ -255,7 +257,7 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
 
 | 分類 | 判定 | 持ち方 | 例 |
 |---|---|---|---|
-| **文書の状態** | その文書をどう読んでいるかの現在値。窓ごとに違ってよい | **窓が生きている間はその窓のライブ値**が有効。ファイル単位の保存値は「次にその文書を開くときの既定値」で、提示の開始時にだけ読む。窓間の同期はしない | 表示モード（`DisplayModeStore`）、ズーム倍率（`ZoomStore`）、スクロール位置（`ScrollPositionStore`）、行番号表示（`ViewerStore.showLineNumbers` + アプリ全体の既定値）、cmd+U の戻り先、戻る/進む履歴 |
+| **文書の状態** | その文書をどう読んでいるかの現在値。窓ごとに違ってよい | **窓が生きている間はその窓のライブ値**が有効。ファイル単位の保存値は「次にその文書を提示し始めるときの既定値」で、提示の開始時にだけ読む。窓間の同期はしない。**保存値の寿命は状態ごとに違う**——内容に依存しない意図（倍率）は `UserDefaults` へ永続化し、内容・ウィンドウ幅・倍率に依存して意味を失う値（スクロール位置・表示モード）は窓の生存期間だけ記憶する（TASK-565） | ズーム倍率（`ZoomStore`／永続）、表示モードとスクロール位置（`WindowPresentationMemory`／窓の生存期間だけ）、行番号表示（`ViewerStore.showLineNumbers` + アプリ全体の既定値）、cmd+U の戻り先、戻る/進む履歴 |
 | **窓の状態** | その窓で何をどう眺めているかの現在値。文書には紐づかないが、窓ごとに違ってよい | **窓が生きている間はその窓のライブ値**が有効。アプリ全体の保存値は「次に開く窓の初期値」で、窓の生成時にだけ読む。窓間の同期はしない | サイドバーの表示形式（`layoutMode`）・不可視ファイル表示（`showHiddenFiles`）・変更ファイルのみ表示（`showChangedFilesOnly`）・並び順（`sortOrder`）（`SidebarDisplayPreference`） |
 | **アプリの好み** | どのファイルをどの窓で見ているかに依らない設定。窓ごとに違うと「なぜこの窓だけ違うのか」を説明できない | アプリ全体で 1 インスタンスを生成して全ウィンドウへ注入し、変更は即座に全窓へ反映する | 差分レイアウト（`DiffDisplayPreference`）、検索オプション（`FindOptionsPreference`）、コードフォント（`CodeFontPreference`） |
 
@@ -280,6 +282,10 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
 無い。識別子の新設に見合う場面が「同一ファイルの複数窓 × アプリ再起動」に限られるため、
 導入しない。**これを導入したくなったときが、この決定を見直すときである**（後述の
 トリップワイヤ 3）。
+
+**この妥協が残っているのは倍率だけになった**（TASK-565）。スクロール位置と表示モードは
+永続化をやめたため、再起動後はどの窓も初期状態（先頭・レンダリング表示）から始まり、
+「複数窓が同じ値へ収束する」という現象自体が起きない。
 
 ### 窓の状態の規則
 
@@ -323,10 +329,12 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
 - 変更は全窓へ即座に反映する（`refreshAllToolbars` / `refreshAllSidebars` /
   `applyCodeFontToAllWindows`）。ここは「同期」ではなく、1 つの値を全員が見ている状態。
 
-### 実装状況（2026-08-10 時点）
+### 実装状況（2026-08-29 時点）
 
 `ViewerStore.showLineNumbers`・ズーム倍率・スクロール位置・表示モードのいずれも
-この節の形になっている（TASK-388 で完了）。保存値を読む入口は
+この節の形になっている（TASK-388 で完了）。このうちスクロール位置と表示モードは
+TASK-565 で永続化をやめ、窓が所有する `WindowPresentationMemory`（`UserDefaults` を
+型の依存として持たない）へ移した。読み書きの契機と粒度は変えていない。保存値を読む入口は
 `ViewerWindowController.beginPresentingDocument`（オープン・ファイル切替）と
 `setDisplayMode`（モード切替）に閉じ、表示モードの窓間同期（`mirrorDisplayMode` と
 デリゲート通知）は撤去済み。`ViewerWindowStateIndependenceTests` が、同期を戻すと
@@ -377,7 +385,7 @@ TASK-441 で独立型へ出した）。分割前は同一ファイル内の `pri
 | # | 判定 | 根拠 |
 |---|---|---|
 | 1 | 前提未成立（段 1・3 が未完のため、まだ問える段階にない） | 段 1: `PreviewTarget` に `.undetermined` が入り起動直後の誤無効化は解消したが、対象の格納は `ViewerStore.currentURL` / `filePath` と `FileListModel.selection` の 2 系統が残り、`window.representedURL` は手動同期。段 3: 初期値（倍率・フォント・検索オプション）が `makeNSView` → atDocumentStart のユーザースクリプトに残っている |
-| 2 | 未発火 | 表示モードの遷移は `setDisplayMode` / `mirrorDisplayMode` / `applyDisplayMode` / `supportedDisplayMode` / `effectiveDisplayMode` の 5 つに閉じ、降格規則は `DisplayModeStore`（約 100 行）の 1 箇所。上記「表示モードの遷移仕様」の表で全入口を書き下せている |
+| 2 | 未発火 | 表示モードの遷移は `setDisplayMode` / `mirrorDisplayMode` / `applyDisplayMode` / `supportedDisplayMode` / `effectiveDisplayMode` の 5 つに閉じ、降格規則は `ViewerDisplayMode.supported(for:)` の 1 箇所。上記「表示モードの遷移仕様」の表で全入口を書き下せている |
 | 3 | **発火済み** | `ViewerWindowController.setDisplayMode` 完了時のデリゲート通知 → `ViewerWindowManager.mirrorDisplayMode` → パスキー引き、という窓間同期の経路が実装された |
 
 段 2・4・5 は実装済み（`ViewerCapabilities` / `DocumentRendering` port と WKWebView adapter /

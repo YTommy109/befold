@@ -109,47 +109,48 @@ struct ViewerWindowStateIndependenceTests {
         #expect(controller.store.zoom == 1.25)
     }
 
-    /// AC#1 / AC#4: スクロール位置も同じ。保存値は「次に開くときの既定値」であって、
-    /// 開いている窓の復元位置を後から書き換えるものではない。検知できる範囲と、
-    /// `ViewerContentView` 側の回帰を担保する場所は倍率のテストと同じ。
-    @Test("保存スクロール位置が他窓に書き換えられても、開いている窓の復元位置は動かない")
-    func keepsLiveScrollPositionWhenStoredPositionChanges() throws {
+    /// AC#1 / AC#4: スクロール位置は永続化せず、窓ごとの記憶で持つ(TASK-565)。
+    /// 片方の窓でスクロールしても、同じファイルを開いているもう片方の復元位置は動かない。
+    @Test("同じファイルの 2 窓は、互いのスクロール位置を持たない")
+    func keepsScrollPositionPerWindow() throws {
         let fixture = MockedViewerWindowManager(
-            files: [shared], prefix: "DocumentStateIndependence.scroll", contents: "let a = 1"
+            files: [shared, other], prefix: "DocumentStateIndependence.scroll", contents: "let a = 1"
         )
         defer { fixture.closeAll() }
-        // 倍率と同じ理由で、提示開始時に読む値を 0 以外にしておく。
-        fixture.perFileState.scrollPosition.setScrollPosition(0.3, for: shared, mode: .rendered)
-        fixture.manager.openViewer(for: shared)
-        let controller = try #require(fixture.manager.allControllers.first)
-        let mode = ViewerBridge.ViewMode(isSourceMode: controller.store.isSourceMode)
-        #expect(controller.store.scrollPositionToRestore == 0.3)
+        let (origin, peer) = try openTwoWindowsOnSharedFile(fixture, mode: .rendered)
+        let mode = ViewerBridge.ViewMode(isSourceMode: origin.store.isSourceMode)
 
-        fixture.perFileState.scrollPosition.setScrollPosition(0.6, for: shared, mode: mode)
+        origin.documentPresenter.recordScrollPosition(0.6, for: shared, mode: mode)
 
-        #expect(controller.store.scrollPositionToRestore == 0.3)
+        #expect(origin.documentPresenter.presentationMemory.scrollPosition(for: shared, mode: mode) == 0.6)
+        #expect(peer.documentPresenter.presentationMemory.scrollPosition(for: shared, mode: mode) == 0)
+        #expect(peer.store.scrollPositionToRestore == 0)
     }
 
-    /// AC#2: 窓を閉じて開き直すと、最後に設定した値(保存値)から始まる。ライブ値が窓の寿命で
+    /// AC#2: 窓を閉じて開き直すと、倍率は保存値から始まる。ライブ値が窓の寿命で
     /// 消えることと、提示開始で保存値を読むことの両方が要る。片方でも欠けると落ちる。
+    ///
+    /// スクロール位置と表示モードは**永続化しない**ので、開き直すと初期状態へ戻る
+    /// (TASK-565)。ここが「保存値から始まる」に戻ったら、永続化が復活している。
     ///
     /// 1 窓目のライブ倍率・位置を保存値と**別の値**へ動かしてから閉じる。倍率の永続化は
     /// レンダラからの通知経路(`viewerDidChangeZoom`)でしか起きないため、ここでの直接代入は
     /// 保存値を書き換えない。したがって再オープン後に 2.0 / 0.9 が出たら、それは閉じた窓の
     /// ライブ値が(コントローラや store の使い回し等で)漏れているということになる。
-    @Test("閉じてから開き直すと、保存された倍率とスクロール位置から始まる")
-    func restoresStoredStateWhenReopening() throws {
+    @Test("閉じてから開き直すと、倍率は保存値から・位置と表示モードは初期状態から始まる")
+    func restoresStoredZoomButNotVolatileStateWhenReopening() throws {
         let fixture = MockedViewerWindowManager(
             files: [shared], prefix: "DocumentStateIndependence.reopen", contents: "let a = 1"
         )
         defer { fixture.closeAll() }
         fixture.perFileState.zoom.setZoom(1.5, for: shared)
-        fixture.perFileState.scrollPosition.setScrollPosition(0.4, for: shared, mode: .rendered)
 
         fixture.manager.openViewer(for: shared)
         let first = try #require(fixture.manager.allControllers.first)
         #expect(first.store.zoom == 1.5)
-        #expect(first.store.scrollPositionToRestore == 0.4)
+        #expect(first.store.scrollPositionToRestore == 0)
+        first.documentPresenter.recordScrollPosition(0.4, for: shared, mode: .rendered)
+        first.setDisplayMode(.source)
 
         first.store.zoom = 2.0
         first.store.scrollPositionToRestore = 0.9
@@ -160,7 +161,8 @@ struct ViewerWindowStateIndependenceTests {
         let reopened = try #require(fixture.manager.allControllers.first)
         #expect(reopened !== first)
         #expect(reopened.store.zoom == 1.5)
-        #expect(reopened.store.scrollPositionToRestore == 0.4)
+        #expect(reopened.store.scrollPositionToRestore == 0)
+        #expect(reopened.documentPresenter.presentationMemory.displayMode(for: shared) == .rendered)
     }
 
     /// cmd+U の戻り先の記憶は窓ごとのライブな状態で、同期しない(ADR 0002「状態の所在」)。

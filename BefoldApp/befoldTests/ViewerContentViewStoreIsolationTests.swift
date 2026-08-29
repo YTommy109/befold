@@ -6,7 +6,7 @@ import Testing
 ///
 /// 描画へ渡る値は `initialZoom: store.zoom` / `scrollPositionToRestore:
 /// store.scrollPositionToRestore` の 2 つで、いずれも窓のライブ値。ここへ
-/// `ZoomStore` / `ScrollPositionStore` を渡すと、body の再評価のたびに保存値を
+/// `ZoomStore` / `WindowPresentationMemory` を渡すと、body の再評価のたびに保存値・記憶を
 /// 読み直すことになり、他窓が書いた値を生きている窓が拾う。
 ///
 /// この回帰は `ViewerWindowStateIndependenceTests` では検知できない。あちらが見る
@@ -22,7 +22,9 @@ struct ViewerContentViewStoreIsolationTests {
 
     /// 参照を禁じる識別子。`perFileState` は 2 つのストアの入れ物なので、
     /// 束ねて渡す抜け道もここで塞ぐ。
-    private static let forbiddenSymbols = ["ZoomStore", "ScrollPositionStore", "PerFileStateStore", "perFileState"]
+    private static let forbiddenSymbols = [
+        "ZoomStore", "WindowPresentationMemory", "PerFileStateStore", "perFileState",
+    ]
 
     /// doc コメント・行コメントを除いたコード行。禁止語は doc コメントで
     /// 「渡さない」理由として言及されているため、コメントは対象外にする。

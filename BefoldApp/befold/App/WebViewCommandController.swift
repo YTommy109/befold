@@ -4,8 +4,7 @@ import BefoldKit
 /// ViewerWindowController のメニュー/ツールバーから届く文書操作コマンド
 /// (ズーム・印刷・検索・スクロール位置保存)の方針を担う。
 ///
-/// ここが持つのは「その操作が許されるか(capabilities)」と「結果をどこへ保存するか
-/// (perFileState)」だけで、どう実現するかは `DocumentRendering` の実装(adapter)に委ねる。
+/// ここが持つのは「その操作が許されるか(capabilities)」と「結果をどこへ届けるか」だけで、どう実現するかは `DocumentRendering` の実装(adapter)に委ねる。
 /// WKWebView と JS 文字列はこの層に現れない(ADR 0002 段 4)。
 @MainActor
 final class WebViewCommandController {
@@ -21,7 +20,8 @@ final class WebViewCommandController {
     /// (直接 HTML モードは viewer.js が居らず、JS からの通知が来ないため
     /// ここだけが更新の契機になる = ADR 0002「文書の状態の規則」)。
     private let onZoomChanged: (Double) -> Void
-    /// スクロール位置の保存が完了したことを、保存したキーと値ごと窓へ伝える。
+    /// スクロール位置の取得が完了したことを、キーと値ごと窓へ伝える。位置を記憶するのは
+    /// 窓側（`ViewerDocumentPresenter`）で、ここは取得と受け渡ししかしない。
     /// 位置の取得は JS のラウンドトリップを挟むため、切替の退場側で発行した保存は
     /// 切替先の提示開始(保存値の同期読み取り)より後に完了しうる。窓はこの通知で
     /// 「いま提示中の文書のものなら」ライブな復元値を追いつかせる(TASK-394)。
@@ -165,8 +165,8 @@ final class WebViewCommandController {
 
     // MARK: - Scroll position
 
-    /// 現在のスクロール位置を問い合わせ、指定した URL・モードのキーへ保存する。
-    /// 現在の表示状態に依存せず呼び出し側が指定したキーへ書くだけで、いつ呼ぶべきか
+    /// 現在のスクロール位置を問い合わせ、指定した URL・モードのキーごと窓へ通知する。
+    /// 現在の表示状態に依存せず呼び出し側が指定したキーを載せるだけで、いつ呼ぶべきか
     /// (切替前でなければならない)の判断は呼び出し側が負う
     /// (ViewerWindowController.saveScrollPositionBeforeTransition 参照)。
     ///
@@ -174,10 +174,7 @@ final class WebViewCommandController {
     /// didChangeScrollPosition)も「その位置が属する文書」から決める。どちらも現在表示中の
     /// fileURL を参照しない(現在値を参照すると切替直後に別文書のキーへ書く = TASK-400)。
     func saveCurrentScrollPosition(for url: URL, mode: ViewerBridge.ViewMode) {
-        renderer.currentScrollPosition { [perFileState, onScrollPositionSaved] position in
-            perFileState.scrollPosition.setScrollPosition(position, for: url, mode: mode)
-            // 保存したキーと値をそのまま渡す。窓が保存値を読み直す形にすると、
-            // 他窓の操作が後から効く経路を作ってしまう(ADR 0002「文書の状態の規則」1)。
+        renderer.currentScrollPosition { [onScrollPositionSaved] position in
             onScrollPositionSaved(position, url, mode)
         }
     }

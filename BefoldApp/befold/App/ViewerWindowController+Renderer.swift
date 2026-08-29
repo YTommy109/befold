@@ -33,7 +33,7 @@ extension ViewerWindowController: ViewerRendererDelegate {
         _: ViewerRenderer, didChangeScrollPosition position: Double, for url: URL?, mode: ViewerBridge.ViewMode
     ) {
         guard let url else { return }
-        perFileState.scrollPosition.setScrollPosition(position, for: url, mode: mode)
+        documentPresenter.recordScrollPosition(position, for: url, mode: mode)
     }
 
     func renderer(_: ViewerRenderer, didActivateReference href: String, disposition: OpenDisposition) {
