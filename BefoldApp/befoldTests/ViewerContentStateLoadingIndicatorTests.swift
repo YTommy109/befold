@@ -16,15 +16,21 @@ struct ViewerContentStateLoadingIndicatorTests {
         let state = ViewerContentState()
         state.beginLoading()
 
-        #expect(state.showsLoadingIndicator(isShowingPDFSurface: false))
+        #expect(state.showsLoadingIndicator)
     }
 
+    /// `data` で描く種別（PDF）は `content` が空でも面が前の文書を出している。
     @Test("PDF の面が前の文書を出している間は出さない")
     func staysHiddenWhileThePDFSurfaceIsStillShowing() {
         let state = ViewerContentState()
+        _ = state.applyDisplayState(ViewerContentState.DisplayState(
+            fileType: .pdf, contentHash: 1, chunkSession: nil, rejectReason: nil,
+            isTruncated: false, content: "", data: Data([0x25, 0x50]),
+            tracksLineCount: false, hasDeclaredHTMLCharset: nil
+        ))
         state.beginLoading()
 
-        #expect(!state.showsLoadingIndicator(isShowingPDFSurface: true))
+        #expect(!state.showsLoadingIndicator)
     }
 
     @Test("すでに内容が出ていれば出さない")
@@ -33,7 +39,7 @@ struct ViewerContentStateLoadingIndicatorTests {
         state.appendChunk("# hello", isAtEnd: true)
         state.beginLoading()
 
-        #expect(!state.showsLoadingIndicator(isShowingPDFSurface: false))
+        #expect(!state.showsLoadingIndicator)
     }
 
     @Test("読み込みが終われば出さない")
@@ -42,6 +48,6 @@ struct ViewerContentStateLoadingIndicatorTests {
         state.beginLoading()
         state.finishLoading(url: URL(fileURLWithPath: "/files/a.md"))
 
-        #expect(!state.showsLoadingIndicator(isShowingPDFSurface: false))
+        #expect(!state.showsLoadingIndicator)
     }
 }

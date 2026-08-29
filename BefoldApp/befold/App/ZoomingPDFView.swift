@@ -56,10 +56,11 @@ final class ZoomingPDFView: PDFView {
     /// (1.0 = ページ全体が収まる)を保つ。`autoScales` の代わりで、あちらと違い
     /// 幅基準にならない(`PDFSurfaceLayout.fitScale` が定義を持つ)。
     private func keepZoomAfterLayout() {
-        let wanted = PDFSurfaceLayout.fitScale(of: self) * zoom
+        let wanted = PDFSurfaceLayout.expectedScaleFactor(of: self, zoom: zoom)
         // 同じ値を入れ直すと再レイアウトが積まれて往復するので、変化したときだけ。
+        // 掛け算そのものは持たない(換算式は `PDFSurfaceLayout` の 1 箇所)。
         guard abs(scaleFactor - wanted) > 0.0001 else { return }
-        scaleFactor = wanted
+        PDFSurfaceLayout.apply(zoom: zoom, to: self)
     }
 
     /// **ピンチはジェスチャ認識器でも受ける。**
@@ -81,18 +82,27 @@ final class ZoomingPDFView: PDFView {
     /// （実測できない入口は静かに壊れる。実際、ログを外す作業で `applyZoom` の
     /// 呼び出しごと消えてもテストは全件通った / TASK-568）。
     @objc func handleMagnification(_ recognizer: NSMagnificationGestureRecognizer) {
-        // 認識器の magnification は累積値。前回からの増分だけを倍率へ掛ける。
-        let increment = recognizer.magnification - lastRecognizedMagnification
-        lastRecognizedMagnification = recognizer.magnification
-        if recognizer.state == .ended || recognizer.state == .cancelled {
-            lastRecognizedMagnification = 0
-        }
+        let increment = magnificationTracker.increment(for: recognizer)
         guard increment != 0 else { return }
         applyZoom(scaledBy: 1 + increment)
     }
 
-    /// 直前に認識器から受け取った累積値（増分を出すために覚える）。
-    private var lastRecognizedMagnification: Double = 0
+    /// 認識器の累積値から増分を出す帳簿。
+    private var magnificationTracker = MagnificationTracker()
+    /// 認識器が返す `magnification` は**ジェスチャ開始からの累積値**なので、
+    /// 前回からの増分へ直してから倍率へ掛ける。ジェスチャが終わったら 0 へ戻す。
+    /// `NSGestureRecognizer` を作らずに単体で確かめられるよう独立させてある。
+    private struct MagnificationTracker {
+        private var last: Double = 0
+
+        mutating func increment(for recognizer: NSMagnificationGestureRecognizer) -> Double {
+            let increment = recognizer.magnification - last
+            last = recognizer.magnification
+            if recognizer.state == .ended || recognizer.state == .cancelled { last = 0 }
+            return increment
+        }
+    }
+
     /// 1 回だけ行う配線（認識器・通知の購読）。
     private var hasFinishedOneTimeSetup = false
 
@@ -116,9 +126,10 @@ final class ZoomingPDFView: PDFView {
 
     /// トラックパッドのピンチ。
     ///
-    /// **これが呼ばれるには、内側のスクロールビューの `allowsMagnification` を
-    /// 切っておく必要がある**(`PDFSurfaceLayout.configure`)。既定のままだと
-    /// `PDFScrollView` がジェスチャを消費してここへ届かない(TASK-568 の実測)。
+    /// **こちらは補助の経路。** 主経路は上の認識器で、`magnify` が呼ばれるには
+    /// 内側のスクロールビューの `allowsMagnification` が切れている必要がある
+    /// (切るのは上の `layout`)。既定のままだと `PDFScrollView` がジェスチャを
+    /// 消費してここへ届かない(TASK-568 の実測)。
     override func magnify(with event: NSEvent) {
         applyZoom(scaledBy: 1 + event.magnification)
     }
@@ -142,35 +153,11 @@ final class ZoomingPDFView: PDFView {
             super.keyDown(with: event)
             return
         }
+        // 送る量と向きの規則は `PDFSurfaceLayout` が持つ。ここは向きを決めるだけ。
         let backwards = event.modifierFlags.contains(.shift)
-        // 下へ送るほど y は**減る**（`PDFSurfaceLayout.scrollOffset` の実測）。
-        scrollSmoothly(by: visibleHeight * (backwards ? 1 : -1) * Self.pageOverlap)
-    }
-
-    /// 1 回のスペースで送る割合。少し重ねて送ると読んでいた行が画面に残る。
-    private static let pageOverlap: Double = 0.9
-
-    /// いま見えている高さ(文書座標)。
-    private var visibleHeight: Double {
-        guard let scrollView = PDFSurfaceLayout.scrollView(in: self) else { return bounds.height }
-        return scrollView.contentView.bounds.height
-    }
-
-    /// 指定量だけアニメーションでスクロールする。
-    private func scrollSmoothly(by amount: Double) {
-        guard let scrollView = PDFSurfaceLayout.scrollView(in: self) else { return }
-        let clipView = scrollView.contentView
-        var origin = clipView.bounds.origin
-        let maxY = max(PDFSurfaceLayout.verticalScrollRoom(of: self), 0)
-        origin.y = min(max(origin.y + amount, 0), maxY)
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.25
-            context.allowsImplicitAnimation = true
-            clipView.animator().setBoundsOrigin(origin)
-        } completionHandler: { [weak self] in
-            guard let self else { return }
-            scrollView.reflectScrolledClipView(clipView)
-        }
+        let amount = PDFSurfaceLayout.visibleHeight(of: self)
+            * PDFSurfaceLayout.keyboardScrollOverlap
+        PDFSurfaceLayout.scrollSmoothly(by: backwards ? amount : -amount, in: self)
     }
 
     /// いまの倍率へ係数を掛けて適用し、窓へ伝える。上下限は `ZoomStore` と共有する。

@@ -27,8 +27,8 @@ struct PDFPreviewView: NSViewRepresentable {
     let onZoomChanged: (Double) -> Void
 
     func makeNSView(context: Context) -> ZoomingPDFView {
-        // ホイールをページ送りへ振り替える面(TASK-564.2)。レイアウト規則は
-        // PDFSurfaceLayout が単一の情報源。
+        // ピンチと Ctrl+ホイールを倍率操作として受ける面。スクロールは `PDFView` に
+        // 任せる(TASK-567)。レイアウト規則は PDFSurfaceLayout が単一の情報源。
         let pdfView = ZoomingPDFView()
         PDFSurfaceLayout.configure(pdfView)
         pdfView.backgroundColor = .windowBackgroundColor

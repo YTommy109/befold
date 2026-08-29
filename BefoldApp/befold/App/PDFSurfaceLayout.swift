@@ -1,14 +1,14 @@
 import AppKit
 import PDFKit
 
-/// PDF の面のレイアウト規則。**「倍率 1.0 = ページの幅が画面に収まる状態」は
+/// PDF の面のレイアウト規則。**「倍率 1.0 = ページ全体が画面に収まる状態」は
 /// ここだけが知っている。**
 ///
-/// `.singlePage` だった頃は「ページ全体が収まる状態」だった。連続スクロールでは
-/// `scaleFactorForSizeToFit` が**幅基準**になるため、1.0 の意味もそちらへ移る
-/// (実測: 面 400x500 / Letter で ページ高 517.65pt = 792 × 400/612)。
-/// 縦に読み進める表示で高さも収めると、結局 1 ページずつ止まる表示に戻ってしまう
-/// ので、幅フィットを既定とする(TASK-567)。
+/// `PDFView` 任せにはできない。連続スクロールでの `scaleFactorForSizeToFit` は
+/// **幅基準**で、ページの下端が画面外に出る(実測: 面 400x500 / Letter で
+/// ページ高 517.65pt = 792 × 400/612)。`scaleFactorForSizeToFit` を override しても
+/// `autoScales` はその値を読まない(実測: 回転後に幅基準へ戻る)。そのため
+/// `autoScales` を使わず、`fitScale` が縦にも収まる側を返す(TASK-567)。
 ///
 /// 換算を面の生成側(`PDFPreviewView`)と操作側(`PDFDocumentRenderer`)へ写すと、
 /// 片方だけを直したときに「開いた直後の倍率」と「⌘0 の倍率」が静かにずれる。
@@ -156,6 +156,35 @@ enum PDFSurfaceLayout {
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
+    /// いま見えている高さ(文書座標)。
+    static func visibleHeight(of pdfView: PDFView) -> Double {
+        guard let scrollView = scrollView(in: pdfView) else { return pdfView.bounds.height }
+        return scrollView.contentView.bounds.height
+    }
+
+    /// 指定量だけアニメーションでスクロールする。**向きの規則はここが持つ**
+    /// (下へ送るほど y は減る / `scrollOffset(forFraction:room:)` の doc)。
+    /// キーボード操作の入口(`ZoomingPDFView.keyDown`)は方向を決めて委譲するだけにする。
+    static func scrollSmoothly(by amount: Double, in pdfView: PDFView) {
+        guard let scrollView = scrollView(in: pdfView) else { return }
+        let clipView = scrollView.contentView
+        var origin = clipView.bounds.origin
+        let maxY = max(verticalScrollRoom(of: pdfView), 0)
+        origin.y = min(max(origin.y + amount, 0), maxY)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = scrollAnimationDuration
+            context.allowsImplicitAnimation = true
+            clipView.animator().setBoundsOrigin(origin)
+        } completionHandler: {
+            scrollView.reflectScrolledClipView(clipView)
+        }
+    }
+
+    /// キーボードで 1 回に送る割合。少し重ねて送ると読んでいた行が画面に残る。
+    static let keyboardScrollOverlap: Double = 0.9
+    /// キーボードスクロールのアニメーション時間。
+    private static let scrollAnimationDuration: Double = 0.25
+
     /// 表示を 90 度単位で回す。**文書全体を回す**(現在ページだけではない)。
     ///
     /// 横向きにスキャンされた PDF は文書ごと横倒しになっているのが普通で、
@@ -163,21 +192,16 @@ enum PDFSurfaceLayout {
     /// 混在する PDF では一部が正しくならないが、そちらは例外的な形なので、
     /// 「1 回の操作で読める状態になる」ほうを採る(TASK-564.5)。
     ///
-    /// 倍率はここで触らない。`autoScales` が有効な間は、縦横比が変わった時点で
-    /// `PDFView` がフィットし直す(TASK-564.2 の AC #2)。
-    static func rotate(byDegrees degrees: Int, in pdfView: PDFView) {
+    /// 回転前の倍率(1.0 = フィット)を保つ。縦横比が変わるとフィットの絶対倍率も
+    /// 変わるので、回した後に入れ直す(下の `DispatchQueue.main.async`)。
+    static func rotate(byDegrees degrees: Int, in pdfView: ZoomingPDFView) {
         guard let document = pdfView.document else { return }
         let zoom = currentZoom(of: pdfView)
         for index in 0 ..< document.pageCount {
             guard let page = document.page(at: index) else { continue }
             page.rotation = normalized(page.rotation + degrees)
         }
-        // **`autoScales` は回転では効き直さない。** 実測(400x500 の面 / Letter 1 ページ):
-        // 回転すると `scaleFactorForSizeToFit` は 0.617 → 0.495 へ更新されるのに
-        // `scaleFactor` は 0.617 のまま残り、ページ(488pt 幅)が面(400pt)からはみ出す。
-        // 自動追従が働くのは面のリサイズのときだけで、ページの寸法が変わったときではない。
-        //
-        // 再レイアウトそのものは PDFKit がメインキューへ積む(`PDFPage.rotation` の
+        // 再レイアウトは PDFKit がメインキューへ積む(`PDFPage.rotation` の
         // 変更が didRotatePage の通知を出す)ので、倍率の入れ直しも同じキューへ**後から**
         // 積む。ここで同期に入れ直すと、まだ古い `scaleFactorForSizeToFit` を読む。
         DispatchQueue.main.async {
@@ -196,7 +220,7 @@ enum PDFSurfaceLayout {
     }
 
     /// 記憶していた回転角へ合わせる(差分だけ回す)。
-    static func apply(rotation: Int, to pdfView: PDFView) {
+    static func apply(rotation: Int, to pdfView: ZoomingPDFView) {
         let delta = normalized(rotation) - self.rotation(of: pdfView)
         guard delta != 0 else { return }
         rotate(byDegrees: delta, in: pdfView)
@@ -209,10 +233,20 @@ enum PDFSurfaceLayout {
         return wrapped < 0 ? wrapped + 360 : wrapped
     }
 
+    /// その倍率のときに `PDFView` へ入るべき絶対倍率。**換算式はここだけ。**
+    /// 適用側(`apply`)と、レイアウトでの入れ直し(`ZoomingPDFView.layout`)が
+    /// 別々に掛け算を書くと、片方だけ直したときに静かにずれる。
+    static func expectedScaleFactor(of pdfView: PDFView, zoom: Double) -> Double {
+        fitScale(of: pdfView) * zoom
+    }
+
     /// 倍率を適用する。**倍率は面が覚える**ので、以後のリサイズでも同じ倍率
     /// （1.0 ならフィット）が保たれる。`ZoomingPDFView.layout` がそれを行う。
-    static func apply(zoom: Double, to pdfView: PDFView) {
-        (pdfView as? ZoomingPDFView)?.zoom = zoom
-        pdfView.scaleFactor = fitScale(of: pdfView) * zoom
+    ///
+    /// 引数は `ZoomingPDFView` に絞る。素の `PDFView` を受けて `as?` で書き分けると、
+    /// 分岐が外れたときに「倍率が保存されない」形で無音に壊れる。
+    static func apply(zoom: Double, to pdfView: ZoomingPDFView) {
+        pdfView.zoom = zoom
+        pdfView.scaleFactor = expectedScaleFactor(of: pdfView, zoom: zoom)
     }
 }

@@ -7,7 +7,10 @@ import PDFKit
 /// (View 階層が所有者で、こちらは覗くだけ)。
 @MainActor
 final class PDFViewProxy {
-    weak var pdfView: PDFView?
+    /// **型は `ZoomingPDFView` に絞る。** 倍率を覚えるのは面（`zoom`）なので、
+    /// 素の `PDFView` を受けられる形にすると `as?` が外れたときに
+    /// 「倍率が保存されない」形で無音に壊れる(TASK-567 のレビュー指摘)。
+    weak var pdfView: ZoomingPDFView?
 
     init() {}
 }
