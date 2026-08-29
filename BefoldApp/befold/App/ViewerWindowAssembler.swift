@@ -77,18 +77,16 @@ enum ViewerWindowAssembler {
     // MARK: - コントローラを要る部品
 
     /// WebView 操作系メニューアクション（ズーム・印刷・検索・スクロール位置保存）の実処理を作る。
-    /// - Parameter fallbackURL: コントローラが解放済みのときに使う URL（生成時のファイル）。
     static func makeWebViewCommands(
         for controller: ViewerWindowController,
-        documentRenderer: (any DocumentRendering)?,
-        fallbackURL: URL
+        documentRenderer: (any DocumentRendering)?
     ) -> WebViewCommandController {
         WebViewCommandController(
             // WKWebView と JS の詳細は adapter に閉じる（ADR 0002 段 4）。
             renderer: documentRenderer ?? WebViewDocumentRenderer(webViewProxy: controller.webViewProxy),
             perFileState: controller.perFileState,
-            // 現在 URL は rename/switch で書き換わるため、旧値を捕捉せずコントローラ経由で参照する。
-            currentURL: { [weak controller] in controller?.fileURL ?? fallbackURL },
+            // 現在 URL は rename/switch で書き換わる。窓と同じ共有参照を渡し、旧値を捕捉しない。
+            currentDocument: controller.currentDocument,
             onZoomChanged: { [weak controller] zoom in controller?.store.zoom = zoom },
             onScrollPositionSaved: { [weak controller] position, url, mode in
                 controller?.applySavedScrollPositionToLiveValue(position, for: url, mode: mode)

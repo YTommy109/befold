@@ -23,8 +23,8 @@ final class ViewerDocumentPresenter {
     private let perFileState: PerFileStateStore
     /// スクロール位置の確定保存の実行先（JS ラウンドトリップを挟む）。
     private let webViewCommands: WebViewCommandController
-    /// 提示中のファイル。切替・リネームで変化するため都度参照する。
-    private let currentURL: () -> URL?
+    /// 提示中のファイル。切替・リネームで変化するため都度参照する（窓と同じ共有参照）。
+    private let currentDocument: CurrentDocumentRef
     /// そのモードをいま選べるか（ADR 0002 段 2 の導出はウィンドウ側に置いたまま引く）。
     private let canSelect: (ViewerDisplayMode) -> Bool
     /// ツールバーの再同期。
@@ -43,7 +43,7 @@ final class ViewerDocumentPresenter {
         store: ViewerStore,
         perFileState: PerFileStateStore,
         webViewCommands: WebViewCommandController,
-        currentURL: @escaping () -> URL?,
+        currentDocument: CurrentDocumentRef,
         canSelect: @escaping (ViewerDisplayMode) -> Bool,
         refreshToolbar: @escaping () -> Void,
         refreshDiff: @escaping () -> Void
@@ -51,7 +51,7 @@ final class ViewerDocumentPresenter {
         self.store = store
         self.perFileState = perFileState
         self.webViewCommands = webViewCommands
-        self.currentURL = currentURL
+        self.currentDocument = currentDocument
         self.canSelect = canSelect
         self.refreshToolbar = refreshToolbar
         self.refreshDiff = refreshDiff
@@ -65,9 +65,8 @@ final class ViewerDocumentPresenter {
     /// 負う入口はここだけで、呼び出し点はファイル切替（performFileSwitch）と
     /// モード切替（setDisplayMode）の 2 つ。
     func saveScrollPositionBeforeTransition() {
-        guard let url = currentURL() else { return }
         webViewCommands.saveCurrentScrollPosition(
-            for: url, mode: ViewerBridge.ViewMode(isSourceMode: store.isSourceMode)
+            for: currentDocument.url, mode: ViewerBridge.ViewMode(isSourceMode: store.isSourceMode)
         )
     }
 
@@ -96,7 +95,7 @@ final class ViewerDocumentPresenter {
     func applySavedScrollPositionToLiveValue(
         _ position: Double, for url: URL, mode: ViewerBridge.ViewMode
     ) {
-        guard let current = currentURL(), url.normalizedPathKey == current.normalizedPathKey else { return }
+        guard url.normalizedPathKey == currentDocument.url.normalizedPathKey else { return }
         guard mode == ViewerBridge.ViewMode(isSourceMode: store.isSourceMode) else { return }
         store.scrollPositionToRestore = position
     }
@@ -114,7 +113,8 @@ final class ViewerDocumentPresenter {
     func setDisplayMode(_ newValue: ViewerDisplayMode) {
         // validate を通らない経路（ツールバーのセグメント・オーバーフローメニュー）も
         // ここへ来るため、能力の確認は実行側にも置く（ADR 0002）。
-        guard let url = currentURL(), canSelect(newValue) else { return }
+        let url = currentDocument.url
+        guard canSelect(newValue) else { return }
         // 比較対象は保存値（displayMode）ではなく、いま実際に出しているモード
         // （effectiveDisplayMode）。プレビューを持たない種別（.code）は保存値が .rendered の
         // ままソースを出しているため、保存値と比べると「選択済みの source セグメント」への
@@ -167,7 +167,7 @@ final class ViewerDocumentPresenter {
     /// その種別で成立しないモードは降格規則へ通す。降格を挟まないと、ソース表示を持たない
     /// 画像・PDF に `--source` を渡したときだけ規則の外側に出る。
     func applyCLIDisplayMode(isSourceMode: Bool) {
-        guard let url = currentURL() else { return }
+        let url = currentDocument.url
         let requested: ViewerDisplayMode = isSourceMode ? .source : .rendered
         applyDisplayMode(perFileState.displayMode.supportedDisplayMode(requested, for: url))
     }
@@ -182,21 +182,20 @@ final class ViewerDocumentPresenter {
     /// 記憶（sourceToggleReturn）と消費がこのメソッドに閉じるため、
     /// 他の入口（⌘1〜⌘3・ツールバー）は関与しない。
     func toggleSourceView() {
-        guard let url = currentURL() else { return }
         guard store.isSourceMode else {
             setDisplayMode(sourceToggleTarget)
             return
         }
         // 離れる直前のソース系モードを覚えてからレンダリングへ移る。
-        sourceToggleReturn = (url.normalizedPathKey, store.effectiveDisplayMode)
+        sourceToggleReturn = (currentDocument.url.normalizedPathKey, store.effectiveDisplayMode)
         setDisplayMode(.rendered)
     }
 
     /// cmd+U でレンダリング表示から戻る先。直前に cmd+U で離れた同じファイルなら
     /// そのモード（差分表示なら差分）、それ以外・選べなくなっている場合は `.source`。
     var sourceToggleTarget: ViewerDisplayMode {
-        guard let url = currentURL(), let last = sourceToggleReturn,
-              last.pathKey == url.normalizedPathKey, canSelect(last.mode)
+        guard let last = sourceToggleReturn,
+              last.pathKey == currentDocument.url.normalizedPathKey, canSelect(last.mode)
         else { return .source }
         return last.mode
     }

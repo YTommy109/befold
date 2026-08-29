@@ -11,8 +11,8 @@ import BefoldKit
 final class WebViewCommandController {
     private let renderer: any DocumentRendering
     private let perFileState: PerFileStateStore
-    /// 現在表示中ファイルの URL。rename/switch で書き換わるため値を捕捉せず都度取得する。
-    private let currentURL: () -> URL
+    /// 提示中の文書 URL への共有参照。rename/switch で書き換わるため値を捕捉せず都度参照する。
+    private let currentDocument: CurrentDocumentRef
     /// いま何ができるか。判断は ViewerWindowController.capabilities が唯一の導出元で、
     /// ここでは受け取った値を使うだけ(ADR 0002)。
     private let capabilities: () -> ViewerCapabilities
@@ -31,14 +31,14 @@ final class WebViewCommandController {
     init(
         renderer: any DocumentRendering,
         perFileState: PerFileStateStore,
-        currentURL: @escaping () -> URL,
+        currentDocument: CurrentDocumentRef,
         onZoomChanged: @escaping (Double) -> Void,
         onScrollPositionSaved: @escaping (Double, URL, ViewerBridge.ViewMode) -> Void,
         capabilities: @escaping () -> ViewerCapabilities = { .none }
     ) {
         self.renderer = renderer
         self.perFileState = perFileState
-        self.currentURL = currentURL
+        self.currentDocument = currentDocument
         self.onZoomChanged = onZoomChanged
         self.onScrollPositionSaved = onScrollPositionSaved
         self.capabilities = capabilities
@@ -74,7 +74,7 @@ final class WebViewCommandController {
         guard capabilities().canZoom else { return }
         guard let newZoom = renderer.changeZoom(change) else { return }
         onZoomChanged(newZoom)
-        perFileState.zoom.setZoom(newZoom, for: currentURL())
+        perFileState.zoom.setZoom(newZoom, for: currentDocument.url)
     }
 
     func zoomIn() {

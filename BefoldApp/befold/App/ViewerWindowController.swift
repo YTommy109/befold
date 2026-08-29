@@ -106,7 +106,7 @@ final class ViewerWindowController: NSWindowController {
     /// webViewCommands の生成後にしか作れないため lazy(参照はどれも init の後段以降)。
     lazy var documentPresenter = ViewerDocumentPresenter(
         store: store, perFileState: perFileState, webViewCommands: webViewCommands,
-        currentURL: { [weak self] in self?.fileURL },
+        currentDocument: currentDocument,
         canSelect: { [weak self] mode in self?.canSelect(mode) ?? false },
         refreshToolbar: { [weak self] in self?.refreshUIState() },
         refreshDiff: { [weak self] in self?.refreshDiff() }
@@ -158,13 +158,12 @@ final class ViewerWindowController: NSWindowController {
         store.isSourceMode
     }
 
-    /// ウィンドウ起動時の初期ファイル URL。可変な現在 URL の唯一の保持先は store.currentURL であり、
-    /// これは store がまだ URL を持たない init 直後の一瞬(実際には store.openFile 済みのため到達しない)を
-    /// 型的に埋めるためのブートストラップ定数。rename / switch では更新しない。
-    private let initialFileURL: URL
+    /// 提示中の文書 URL への共有参照。窓の子(`ViewerDocumentPresenter` /
+    /// `WebViewCommandController`)へ同じ 1 個を渡し、旧 URL の捕捉を構造で防ぐ。
+    let currentDocument: CurrentDocumentRef
     /// 現在表示中ファイルの URL。保持先は store 一箇所(store.currentURL)。ここでは複製せず委譲する。
     var fileURL: URL {
-        store.currentURL ?? initialFileURL
+        currentDocument.url
     }
 
     /// サイドバー(一覧・選択同期・フォルダ移動)と戻る/進む履歴を担うナビゲータ。
@@ -279,7 +278,6 @@ final class ViewerWindowController: NSWindowController {
         },
         externalOpener: @escaping (URL) -> Void = { url in NSWorkspace.shared.open(url) }
     ) {
-        initialFileURL = fileURL
         self.perFileState = perFileState
         self.diffDisplayPreference = diffDisplayPreference
         self.diffLoader = diffLoader
@@ -298,6 +296,7 @@ final class ViewerWindowController: NSWindowController {
         // store の生成元にかかわらずここで一律に適用する(sourceModeOverride と同じ方針)。
         if let showLineNumbersOverride { store.lineNumbersSetting.applyOverride(showLineNumbersOverride) }
         self.store = store
+        currentDocument = CurrentDocumentRef(store: store, initialURL: fileURL)
         sidebar = ViewerWindowAssembler.makeSidebarNavigator(
             fileURL: fileURL, displayDefaults: displayDefaults,
             overrides: SidebarDisplayOverrides(
@@ -314,7 +313,7 @@ final class ViewerWindowController: NSWindowController {
         // 順序制約は ViewerToolbarController.init の中に閉じている。
         toolbarController = ViewerToolbarController(window: window, host: self)
         webViewCommands = ViewerWindowAssembler.makeWebViewCommands(
-            for: self, documentRenderer: documentRenderer, fallbackURL: fileURL
+            for: self, documentRenderer: documentRenderer
         )
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
         // リサイズされるため、フレームの確定はその後に行う。

@@ -128,7 +128,7 @@ struct WebViewCommandControllerTests {
         return WebViewCommandController(
             renderer: renderer,
             perFileState: perFileState ?? PerFileStateStore(defaults: defaults),
-            currentURL: { url },
+            currentDocument: CurrentDocumentRef(store: ViewerStore(defaults: defaults), initialURL: url),
             onZoomChanged: { zoomChanges.values.append($0) },
             onScrollPositionSaved: {
                 scrollSaves.saves.append(ScrollSaveRecorder.Save(position: $0, url: $1, mode: $2))
