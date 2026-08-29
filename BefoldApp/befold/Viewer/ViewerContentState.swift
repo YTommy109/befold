@@ -153,3 +153,49 @@ final class ViewerContentState {
         return true
     }
 }
+
+/// 読み込み結果から表示状態の組を作る写し。struct 本体に置くと
+/// メンバワイズ init が消えるため extension に置く。
+extension ViewerContentState.DisplayState {
+    /// 読み込み結果(`ViewerLoadPipeline.Outcome`)を表示状態の組へ写す。
+    ///
+    /// **種別ごとの差はこの写しだけに閉じる。** 実際の書き換えは
+    /// `applyDisplayState` に一本化してあるので、読み込み経路が増えても
+    /// 書き換え側は変わらない。写しを `ViewerStore` 側に置かないのは、
+    /// `Outcome` に case が増えるたびに網羅的 switch の受け手として
+    /// `ViewerStore` グループが太るため(TASK-564.6。PDF の Data 経路が
+    /// TASK-564.1 でここへ足される)。
+    ///
+    /// - Returns: 提示すべき表示状態が無いとき(`.missing`)は nil。
+    ///   ファイル消失の扱いは表示状態ではなく窓の判断なので、呼び出し側が負う。
+    init?(outcome: ViewerLoadPipeline.Outcome, fileType: FileType) {
+        switch outcome {
+        case .missing:
+            return nil
+        case let .chunked(session, cache, firstChunk, isAtEnd):
+            self.init(
+                fileType: fileType,
+                contentHash: cache.dataHash,
+                chunkSession: session,
+                rejectReason: nil,
+                isTruncated: !isAtEnd,
+                content: firstChunk,
+                tracksLineCount: true,
+                hasDeclaredHTMLCharset: nil
+            )
+        case let .full(loaded, cache):
+            self.init(
+                fileType: fileType,
+                // テキストは NormalizedTextCache、バイナリは LoadedContent が hash を運ぶ。
+                // どちらも「読み込みに成功したときだけ non-nil」という同じ規則に従う。
+                contentHash: cache?.dataHash ?? loaded.contentHash,
+                chunkSession: nil,
+                rejectReason: loaded.rejectReason,
+                isTruncated: false,
+                content: loaded.content,
+                tracksLineCount: false,
+                hasDeclaredHTMLCharset: loaded.hasDeclaredHTMLCharset
+            )
+        }
+    }
+}

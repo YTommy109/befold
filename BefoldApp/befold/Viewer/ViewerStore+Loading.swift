@@ -75,41 +75,17 @@ extension ViewerStore {
 
     /// 読み込み結果を表示状態(filePath / fileType / content / rejectReason / isTruncated /
     /// 行数カウンタ / chunkSession)へ一括適用する。読み込み結果の種別ごとの差分は
-    /// DisplayState の組み立てだけに閉じ込め、実際の書き換えは applyDisplayState に一本化する。
+    /// DisplayState の組み立て(`ViewerContentState.DisplayState.init(outcome:fileType:)`)に
+    /// 閉じ込め、実際の書き換えは applyDisplayState に一本化する。
     /// filePath / fileType を content と同時にここで確定させることで、旧ファイルの content に
     /// 新ファイルの filePath や fileType が組み合わさった中間状態が描画されないようにする
     /// (task: HTML 表示直後の切替で空白表示になる不具合の再発防止)。
     private func apply(_ outcome: ViewerLoadPipeline.Outcome, url: URL, fileType: FileType) {
         contentState.finishLoading(url: url)
-        let state: ViewerContentState.DisplayState
-        switch outcome {
-        case .missing:
+        // nil はファイルが消えていた場合。表示状態の話ではないのでここで扱う。
+        guard let state = ViewerContentState.DisplayState(outcome: outcome, fileType: fileType) else {
             scheduleFileGone()
             return
-        case let .chunked(session, cache, firstChunk, isAtEnd):
-            state = ViewerContentState.DisplayState(
-                fileType: fileType,
-                contentHash: cache.dataHash,
-                chunkSession: session,
-                rejectReason: nil,
-                isTruncated: !isAtEnd,
-                content: firstChunk,
-                tracksLineCount: true,
-                hasDeclaredHTMLCharset: nil
-            )
-        case let .full(loaded, cache):
-            state = ViewerContentState.DisplayState(
-                fileType: fileType,
-                // テキストは NormalizedTextCache、バイナリは LoadedContent が hash を運ぶ。
-                // どちらも「読み込みに成功したときだけ non-nil」という同じ規則に従う。
-                contentHash: cache?.dataHash ?? loaded.contentHash,
-                chunkSession: nil,
-                rejectReason: loaded.rejectReason,
-                isTruncated: false,
-                content: loaded.content,
-                tracksLineCount: false,
-                hasDeclaredHTMLCharset: loaded.hasDeclaredHTMLCharset
-            )
         }
         guard contentState.applyDisplayState(state) else { return }
         fileGoneWatchdog.cancel()
