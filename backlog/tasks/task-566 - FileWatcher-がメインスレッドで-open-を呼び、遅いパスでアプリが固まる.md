@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-29 12:43'
-updated_date: '2026-08-29 23:55'
+updated_date: '2026-08-29 23:57'
 labels:
   - bug
 dependencies: []
@@ -143,4 +143,14 @@ applicationDidFinishLaunching → SessionRestorer.restoreLastSession
 - **AC #2（開始直後の変更を取りこぼさない）✅（範囲つき）**: 監視開始の前後の `FileFingerprint` 比較で埋める。`FileFingerprintTests` 5 件で、内容変更・削除・同内容での差し替え（inode 変化）を変化として拾い、無変更では等しいことを固定した。**埋まらない区間は上記のとおり 2 つ残る**（ディスパッチ待ちと kevent 登録待ち）。後者は非同期化以前から存在した穴で、このタスクが作ったものではない。
 - **AC #3（遅いパスで固まらないことの確認手順）⬜ 未チェック**: 手順は上に書いたが**実行していない**。iCloud Drive の dataless ファイルやネットワークボリュームを手元に用意できず、`sample` で「固まらないこと」を実測できていない。手順の記載だけで基準を満たしたことにはしない。
 - **AC #4（既存テストが通り、flaky を新設していない）✅**: `swift test` 1803 tests / 292 suites すべて通過。新規テストは 3 件ともファイルシステムの同期操作だけで、待ち合わせ・sleep・タイミング依存を持たない（`FileWatcherStartsOffCallerThreadTests` はソース走査、`FileFingerprintTests` は stat の比較）。
+
+## 実機での部分確認（2026-08-30 / 高速なローカルパス）
+
+worktree のビルド（`BefoldApp/.build/xcode/Build/Products/Debug/befold.app`、`ps` で起動パスを確認）を立ち上げ、`sample <pid> 3` を撮りながら別ファイルを `open -a` で開いた。
+
+結果: メインスレッドのサンプル 2118 件中、`open()` に居るものは **0 件**。FileWatcher / startMonitors のフレームもメインスレッドに現れない。
+
+**これは高速なローカルディスク上での測定であり、AC #3 が求める「遅いパスで固まらないこと」の確認ではない。** 高速なパスでは `open()` が一瞬で終わるため、修正前でもサンプルに写らない可能性がある（＝この測定は修正の有無を区別しない）。証拠として言えるのは「ファイルを開く経路でメインスレッドが syscall に入っていない」ことまで。
+
+遅いパスでの確認（上の 4 手順）は**未実行のまま**。iCloud Drive の dataless ファイルやネットワークボリュームを用意できていない。TCC ダイアログを伴う経路（~/Desktop 等）でも再現しうるが、ユーザーのプライバシー設定を変える操作になるため実行していない。
 <!-- SECTION:NOTES:END -->
