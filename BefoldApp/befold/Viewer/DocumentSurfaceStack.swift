@@ -152,7 +152,7 @@ struct DocumentSurfaceStack: View {
 
             if let reason = store.contentState.rejectReason {
                 UnsupportedFileView(fileURL: store.contentState.filePath, rejectReason: reason)
-            } else if store.contentState.isLoading, store.contentState.content.isEmpty {
+            } else if store.contentState.showsLoadingIndicator(isShowingPDFSurface: showsPDF) {
                 LoadingIndicatorView()
             }
         }

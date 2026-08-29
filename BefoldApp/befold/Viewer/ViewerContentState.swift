@@ -65,6 +65,19 @@ final class ViewerContentState {
         rejectReason != nil
     }
 
+    /// 読み込み中のスピナーを出すか。
+    ///
+    /// **「まだ何も出せていない」ときだけ出す。** `content` が空でも、PDF の面が
+    /// 前の文書を出し続けている区間がある（面の宛先は描画が確定した種別で切り替わる
+    /// ので、次の文書が着地するまで PDF が見えている）。PDF は `content` ではなく
+    /// `data` で描くため、PDF から離れるときだけ「空」の判定が真になり、
+    /// **見えている PDF の上にスピナーが重なって一瞬ちらつく**（TASK-567 の実測）。
+    ///
+    /// - Parameter isShowingPDFSurface: いま PDF の面を見せているか（`showsPDF`）。
+    func showsLoadingIndicator(isShowingPDFSurface: Bool) -> Bool {
+        isLoading && content.isEmpty && !isShowingPDFSurface
+    }
+
     // MARK: - 表示状態の書き換え(状態の単一情報源)
 
     /// 読み込みの開始を反映する(loadContent から)。
