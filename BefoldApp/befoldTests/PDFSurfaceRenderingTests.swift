@@ -15,11 +15,11 @@ import Testing
 @MainActor
 @Suite
 struct PDFSurfaceRenderingTests {
-    private static var retained: [PagingPDFView] = []
+    private static var retained: [ZoomingPDFView] = []
 
     /// 各ページの上端と下端に黒帯を描いた PDF。帯が両方見えていれば
     /// 「ページ全体が画面に収まっている」ことが画素で確かめられる。
-    private func makeView(pageCount: Int = 2, size: NSSize = NSSize(width: 612, height: 792)) -> PagingPDFView {
+    private func makeView(pageCount: Int = 2, size: NSSize = NSSize(width: 612, height: 792)) -> ZoomingPDFView {
         let document = PDFDocument()
         for index in 0 ..< pageCount {
             let data = NSMutableData()
@@ -37,8 +37,13 @@ struct PDFSurfaceRenderingTests {
                 document.insert(page, at: index)
             }
         }
-        let pdfView = PagingPDFView()
+        let pdfView = ZoomingPDFView()
         PDFSurfaceLayout.configure(pdfView)
+        // 地を明示的に黒く塗る。連続スクロールでは文書を外した面が
+        // `underPageBackgroundColor` を描かなくなり、地の色を指定していないと
+        // 「文書が外れている」ことを画素で測れない(実測: 外した直後も明るい画素 100%)。
+        // アプリ側も `PDFPreviewView` が地の色を明示している。
+        pdfView.backgroundColor = .black
         pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
         pdfView.document = document
         pdfView.layoutSubtreeIfNeeded()
@@ -80,32 +85,38 @@ struct PDFSurfaceRenderingTests {
         return pdfView.convert(page.bounds(for: pdfView.displayBox), from: page)
     }
 
-    /// 開いた直後、**ページの上端も下端も画面の中にある**（564.2 AC #1）。
-    @Test("開いた直後はページ全体が面の中に収まって描かれる")
-    func drawsTheWholePageOnOpen() throws {
+    /// 開いた直後、**ページの幅が画面の中に収まり、上端から描かれる**。
+    /// 連続スクロールでは高さは収めない（収めると 1 ページずつ止まる表示に戻る /
+    /// TASK-567）。縦は下へ続いているのが正しい。
+    @Test("開いた直後はページの幅が収まり、上端から描かれる")
+    func drawsThePageWidthOnOpen() throws {
         let pdfView = makeView()
 
         let rect = try #require(pageRect(in: pdfView))
-        #expect(rect.height <= pdfView.bounds.height + 1)
         #expect(rect.width <= pdfView.bounds.width + 1)
-        #expect(rect.minY >= -1)
-        #expect(rect.maxY <= pdfView.bounds.height + 1)
-        // ページ(白地)が描かれている。黒帯の分だけ 100% には満たない。
+        #expect(rect.width > pdfView.bounds.width - 8) // 余白の分を除き幅いっぱいまで使う
+        #expect(rect.height > pdfView.bounds.height) // 縦は続いている
+        // ページ(白地)が面を埋めている。黒帯の分だけ 100% には満たない。
         let drawn = lightPixelRatio(of: pdfView)
-        #expect(drawn > 0.3)
+        #expect(drawn > 0.5)
         #expect(drawn < 1)
     }
 
-    /// 2 ページの端が同時に見えない（564.2 AC #2）。
-    /// 「止め方」ではなく**1 ページしか出していない**ことを見る。
-    @Test("同時に見えているページは常に 1 枚だけ")
-    func showsExactlyOnePageAtATime() {
+    /// ページ境界で分断されず、次のページが続けて見えている（TASK-567）。
+    /// かつては「同時に見えるのは常に 1 枚」を固定していたが、連続スクロールへ
+    /// 改めた時点でその不変条件は捨てた。守るものが逆になる。
+    @Test("スクロールするとページが連続して現れる")
+    func showsPagesContinuously() {
         let pdfView = makeView(pageCount: 3)
 
-        #expect(pdfView.visiblePages.count == 1)
-        pdfView.goToNextPage(nil)
+        // ページ送りの操作を挟まず、スクロールだけで文書の途中まで進める。
+        PDFSurfaceLayout.restore(fraction: 0.5, in: pdfView)
         pdfView.layoutSubtreeIfNeeded()
-        #expect(pdfView.visiblePages.count == 1)
+
+        // 3 ページ分が 1 本に連なっているので、半分まで来ても白いページが見えている
+        // （`.singlePage` なら 1 ページ内に半分という位置は存在しない）。
+        #expect(PDFSurfaceLayout.documentFraction(of: pdfView) > 0.4)
+        #expect(lightPixelRatio(of: pdfView) > 0.3)
     }
 
     /// ページサイズが混在していても、どのページでも全体が収まる（564.2 AC #4）。

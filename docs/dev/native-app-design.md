@@ -205,11 +205,11 @@ BefoldApp/
 | `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ）。外部の HTML 文書だけは例外で、文書が canvas ごと所有するためこの色は使われない |
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |
 | `PDFViewProxy` | 同上の `PDFView` 版。面ごとに 1 つ持つ |
-| `PDFPreviewView` | PDF の描画面。`PagingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして描く |
-| `PagingPDFView` | `PDFView` のサブクラス。ページ全体が収まっていてスクロールの余地が無いときだけホイールをページ送りへ振り替え、ピンチと Ctrl+ホイールを倍率操作として受ける |
+| `PDFPreviewView` | PDF の描画面。`ZoomingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして描く |
+| `ZoomingPDFView` | `PDFView` のサブクラス。ピンチと Ctrl+ホイールを倍率操作として受ける。スクロールは `PDFView` に任せる。ピンチを受けるため、レイアウトのたびに内側のスクロールビューの `allowsMagnification` を切る（切らないと `PDFScrollView` がジェスチャを消費する / TASK-568） |
 | `PDFRotationOverlay` | PDF の右上に重ねる回転コントロール。メニューには置かない（その面を見ているときにしか意味が無い操作なので、対象の隣に置く） |
 | `PDFSurfaceActions` | PDF 面と窓のあいだの受け渡し（倍率の通知・回転の要求）を 1 つにまとめた値。View の注入クロージャを 3 つ以下に保つため |
-| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。`.singlePage` の設定、「倍率 1.0 = ページ全体が収まる状態」の換算、表示位置(文書全体に対する 0…1)の取得と復元、90 度回転を持つ |
+| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。`.singlePageContinuous` の設定、「倍率 1.0 = ページの幅が収まる状態」の換算、表示位置(文書全体に対する 0…1)の取得と復元、90 度回転を持つ |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
 | `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` / `GitFolderStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す（ファイル行は変更種別の文字、フォルダー行は集約を示す `•`） |
 | `SidebarTableViewLocator` | SwiftUI List の内部 NSTableView を取得するブリッジ |
@@ -246,10 +246,12 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   （読み込みは成功しているため、見なければ黙って空白になる）。
   PDF では検索とジャンプができないので、`canFind` / `canJump` は
   `!isBinaryContent` で閉じてある（画像も同様）
-- **PDF の見え方**: 1 ページずつ描き（`.singlePage`）、既定でページ全体が収まる
-  倍率に自動追従する（`autoScales`）。ウィンドウをリサイズしてもフィットし続け、
+- **PDF の見え方**: 全ページを縦に連ねて描き（`.singlePageContinuous`）、
+  スクロールはページ境界で止まらず連続する。既定ではページの幅が収まる倍率に
+  自動追従する（`autoScales`）。ウィンドウをリサイズしてもフィットし続け、
   ユーザーが倍率を変えた時点で追従を外し、⌘0（既定のサイズ）で戻す。
-  ページ全体が見えていてスクロールの余地が無いときは、ホイールがページ送りになる。
+  当初は 1 ページずつ描いてホイールをページ送りへ振り替えていたが、
+  ページが瞬時に切り替わる体感の悪さから連続スクロールへ改めた（TASK-567）。
   表示位置（文書全体に対する 0…1）と 90 度回転（右上に重ねた `PDFRotationOverlay` の
   2 つのボタン。文書全体に効く）は
   ウィンドウの生存期間だけ記憶する（`WindowPresentationMemory`）。倍率だけは
