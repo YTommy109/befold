@@ -119,6 +119,7 @@ enum ViewerWindowAssembler {
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
             webViewProxy: controller.surfaces.web,
+            pdfViewProxy: controller.surfaces.pdf,
             diffDisplayPreference: controller.diffDisplayPreference
         ))
         let splitViewController = ViewerSplitViewController(

@@ -50,6 +50,24 @@ public struct ContentLoader: Sendable {
         }
     }
 
+    /// バイナリファイルの生データ読み込みの結果。`LoadedContent` の base64 化前の姿で、
+    /// PDF のように Data のまま扱える表示経路(`PDFView`)が使う。
+    ///
+    /// `contentHash` の規則は `LoadedContent` と同じ(**読み込みに成功したときだけ non-nil**)。
+    /// 両者の hash はどちらも base64 化前の生データから取るので、経路が違っても
+    /// 同じファイルには同じ値が付く。
+    public struct LoadedData: Sendable, Equatable {
+        public let rejectReason: RejectReason?
+        public let data: Data?
+        public let contentHash: Int?
+
+        public init(rejectReason: RejectReason?, data: Data?, contentHash: Int? = nil) {
+            self.rejectReason = rejectReason
+            self.data = data
+            self.contentHash = contentHash
+        }
+    }
+
     private let fileReader: any FileReading
 
     public init(fileReader: any FileReading = DefaultFileReader()) {
@@ -65,18 +83,36 @@ public struct ContentLoader: Sendable {
     /// **デフォルト引数を付けないこと。** 渡し忘れがコンパイルエラーにならなくなると、
     /// 1 回描画ホストが静かに hash を計算し続ける形の食い違いが起きる。
     public func load(from url: URL, fileType: FileType, computeHash: Bool) -> LoadedContent {
+        // サイズ上限・reject 判定・hash は Data 経路と共有し、ここは base64 へ写すだけにする
+        // (2 経路で上限や理由がずれると、同じファイルが種別によって別の理由で拒否される)。
+        let loaded = loadData(from: url, computeHash: computeHash)
+        guard let data = loaded.data else {
+            return LoadedContent(rejectReason: loaded.rejectReason, content: "")
+        }
+        return LoadedContent(
+            rejectReason: nil, content: data.base64EncodedString(), contentHash: loaded.contentHash
+        )
+    }
+
+    /// 指定 URL のバイナリファイルを**生データのまま**読み込む。
+    ///
+    /// base64 化しないのは、`PDFView` が `Data` を直接受けられるため
+    /// (base64 は約 1.33 倍に膨らむ)。画像は `data:` URI として JS へ渡すので
+    /// base64 経路(`load`)のままにする。
+    ///
+    /// computeHash の意味と「デフォルト引数を付けない」規則は `load` と同じ。
+    public func loadData(from url: URL, computeHash: Bool) -> LoadedData {
         let resolved = url.resolvingSymlinksInPath()
         if let size = fileReader.fileSize(at: resolved), size > Self.maxFileSizeBytes {
-            return LoadedContent(rejectReason: .fileTooLarge, content: "")
+            return LoadedData(rejectReason: .fileTooLarge, data: nil)
         }
-        if let data = try? fileReader.readData(from: resolved) {
-            // hash は base64 化する前の生データから取る(base64 は約 1.33 倍に膨らむため)。
-            return LoadedContent(
-                rejectReason: nil, content: data.base64EncodedString(),
-                contentHash: computeHash ? Self.hash(of: data) : nil
-            )
+        guard let data = try? fileReader.readData(from: resolved) else {
+            return LoadedData(rejectReason: .unsupportedFormat, data: nil)
         }
-        return LoadedContent(rejectReason: .unsupportedFormat, content: "")
+        // hash は base64 化する前の生データから取る(base64 は約 1.33 倍に膨らむため)。
+        return LoadedData(
+            rejectReason: nil, data: data, contentHash: computeHash ? Self.hash(of: data) : nil
+        )
     }
 
     /// 同一内容スキップ用の hash。`NormalizedTextCache` と同じ作り方に揃える

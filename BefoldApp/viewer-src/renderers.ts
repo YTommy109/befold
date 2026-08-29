@@ -7,7 +7,7 @@ import { renderCodeHtml } from './code-html.js';
 import type { CsvColumnFormat } from './csv-columns.js';
 import { buildCsvTable, renderCsvSourceHtml } from './csv-html.js';
 import { renderDiffHtml } from './diff-html.js';
-import { base64ToBytes, escapeHtml, imageDataURI, svgDataURI } from './encoding.js';
+import { escapeHtml, imageDataURI, svgDataURI } from './encoding.js';
 import { markdownRenderer } from './markdown.js';
 import { hljs } from './vendor.js';
 import { _mmdViewOptions } from './view-options.js';
@@ -16,13 +16,7 @@ import { _mmdApplyDiagramZoom, _mmdBuildDiagramControls, _mmdFitImage } from './
 // #diagram-wrap に付く「表示種別」クラスの全集合。表示種別を追加したらここに足す。
 // 付け替えは必ず _mmdSetBodyClasses 経由にする(外す側の一覧が複数箇所に手写しされて
 // いると、追加時の更新漏れで前の型のスタイルが残る)。
-type ViewerBodyClass =
-  | 'markdown-body'
-  | 'code-body'
-  | 'html-body'
-  | 'csv-body'
-  | 'image-body'
-  | 'pdf-body';
+type ViewerBodyClass = 'markdown-body' | 'code-body' | 'html-body' | 'csv-body' | 'image-body';
 
 // render() が選ぶ描画形(表示種別 → 描画関数のディスパッチで使う集合)。
 // render.js の renderShape() が返す値の全体で、'diff' だけは例外的に
@@ -35,7 +29,6 @@ type RenderShape =
   | 'html'
   | 'csv-table'
   | 'image'
-  | 'pdf'
   | 'markdown';
 
 // 行番号付きソース表示を通る描画形。
@@ -47,7 +40,6 @@ var BODY_CLASSES: ViewerBodyClass[] = [
   'html-body',
   'csv-body',
   'image-body',
-  'pdf-body',
 ];
 
 // 表示種別クラスを一括で付け替える。keep に挙げたものだけが残る。
@@ -56,27 +48,6 @@ function _mmdSetBodyClasses(el: HTMLElement, ...keep: ViewerBodyClass[]): void {
     el.classList.toggle(name, keep.includes(name));
   });
 }
-
-// PDF 表示用に生成した blob URL。生成と解放をこの owner に閉じ、再描画のたびに
-// release() してリークを防ぐ(PDF 以外への切替も含む)。
-function _createPdfBlobHolder() {
-  var url: string | null = null;
-  return {
-    issue: function (bytes: Uint8Array<ArrayBuffer>): string {
-      url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-      return url;
-    },
-    release: function (): void {
-      if (!url) {
-        return;
-      }
-      URL.revokeObjectURL(url);
-      url = null;
-    },
-  };
-}
-
-var _mmdPdfBlob = _createPdfBlobHolder();
 
 function _renderMmd(diagramWrap: HTMLElement, content: string): void {
   diagramWrap.innerHTML = '<pre class="mermaid">' + escapeHtml(content) + '</pre>';
@@ -166,17 +137,6 @@ function _renderImage(diagramWrap: HTMLElement, content: string, lang: string | 
   diagramWrap.append(img);
 }
 
-function _renderPdf(diagramWrap: HTMLElement, content: string): void {
-  // data: URI ではなく blob: URL を使う。CSP の frame-src は blob: のみを
-  // 許可しており、blob URL はこのスクリプトが生成した推測不能なものに
-  // 限られるため、Markdown 内に静的に書かれた iframe はロードできない。
-  diagramWrap.classList.add('pdf-body');
-  var iframe = document.createElement('iframe');
-  iframe.src = _mmdPdfBlob.issue(base64ToBytes(content));
-  diagramWrap.innerHTML = '';
-  diagramWrap.append(iframe);
-}
-
 // markdown-it はバンドル同梱(vendor.js)で常に構成済みのため、
 // 「未ロードにつき後続処理を打ち切る」経路は無い。
 function _renderMarkdown(diagramWrap: HTMLElement, content: string): void {
@@ -251,13 +211,11 @@ export type { RenderShape, SourceShape, ViewerBodyClass };
 export {
   BODY_CLASSES,
   _mmdSetBodyClasses,
-  _mmdPdfBlob,
   _renderMmd,
   _renderSvg,
   _renderHtml,
   _renderCsv,
   _renderImage,
-  _renderPdf,
   _renderMarkdown,
   _renderSource,
   _sourceLanguage,

@@ -15,7 +15,6 @@ describe('renderShape', () => {
     ['svg', 'svg'],
     ['html', 'html'],
     ['image', 'image'],
-    ['pdf', 'pdf'],
   ])('rendered モードの %s は %s になる', (type, expected) => {
     expect(renderShape(type, 'rendered')).toBe(expected);
   });
@@ -36,9 +35,10 @@ describe('renderShape', () => {
     expect(renderShape('csv', 'source')).toBe('csv-source');
   });
 
-  // 画像・PDF はソース表示を持たない。モードに関わらず同じ形になる。
-  test.each(['image', 'pdf'])('%s は source モードでも形が変わらない', (type) => {
-    expect(renderShape(type, 'source')).toBe(renderShape(type, 'rendered'));
+  // 画像はソース表示を持たない。モードに関わらず同じ形になる。
+  // PDF はここに現れない(viewer.html を通らず PDFView が描く / ADR 0009)。
+  test('image は source モードでも形が変わらない', () => {
+    expect(renderShape('image', 'source')).toBe(renderShape('image', 'rendered'));
   });
 
   // コードファイルは常にソース表示。モードで形が変わらないことを固定する

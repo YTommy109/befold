@@ -14193,7 +14193,6 @@
     _mmdModeSwitch: () => _mmdModeSwitch,
     _mmdOpenFind: () => _mmdOpenFind,
     _mmdOpenJump: () => _mmdOpenJump,
-    _mmdPdfBlob: () => _mmdPdfBlob,
     _mmdPostMessage: () => _mmdPostMessage,
     _mmdPostScrollPosition: () => _mmdPostScrollPosition,
     _mmdReinitializeMermaidIfLoaded: () => _mmdReinitializeMermaidIfLoaded,
@@ -14220,7 +14219,6 @@
     _renderImage: () => _renderImage,
     _renderMarkdown: () => _renderMarkdown,
     _renderMmd: () => _renderMmd,
-    _renderPdf: () => _renderPdf,
     _renderSource: () => _renderSource,
     _renderSvg: () => _renderSvg,
     _sourceLanguage: () => _sourceLanguage,
@@ -14230,7 +14228,6 @@
     appendChunk: () => appendChunk,
     applyHeadingLevels: () => applyHeadingLevels,
     assignChangeBlockIndexes: () => assignChangeBlockIndexes,
-    base64ToBytes: () => base64ToBytes,
     buildCsvTable: () => buildCsvTable,
     buildFindRegExp: () => buildFindRegExp,
     buildLineNumberRows: () => buildLineNumberRows,
@@ -15140,14 +15137,6 @@
   }
   function imageDataURI(base64, mimeType) {
     return "data:" + (mimeType || "image/png") + ";base64," + base64;
-  }
-  function base64ToBytes(base64) {
-    var binary = atob(base64);
-    var bytes = new Uint8Array(binary.length);
-    for (var i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
   }
 
   // viewer-src/doc-path.ts
@@ -16283,15 +16272,7 @@
   function _mmdApplyZoom() {
     var zoom = _mmdZoom.value();
     var wrap = document.getElementById("diagram-wrap");
-    if (wrap.classList.contains("pdf-body")) {
-      setZoomStyle(wrap, 1);
-      wrap.style.width = zoom * 100 + "%";
-      wrap.style.height = zoom * 100 + "%";
-    } else {
-      wrap.style.width = "";
-      wrap.style.height = "";
-      setZoomStyle(wrap, zoom);
-    }
+    setZoomStyle(wrap, zoom);
     _mmdUpdateAllDiagramScrollHeights();
     var postable = _mmdZoom.takePostable();
     if (postable !== null) {
@@ -24277,31 +24258,13 @@
     "code-body",
     "html-body",
     "csv-body",
-    "image-body",
-    "pdf-body"
+    "image-body"
   ];
   function _mmdSetBodyClasses(el, ...keep) {
     BODY_CLASSES.forEach(function(name) {
       el.classList.toggle(name, keep.includes(name));
     });
   }
-  function _createPdfBlobHolder() {
-    var url = null;
-    return {
-      issue: function(bytes) {
-        url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-        return url;
-      },
-      release: function() {
-        if (!url) {
-          return;
-        }
-        URL.revokeObjectURL(url);
-        url = null;
-      }
-    };
-  }
-  var _mmdPdfBlob = _createPdfBlobHolder();
   function _renderMmd(diagramWrap, content) {
     diagramWrap.innerHTML = '<pre class="mermaid">' + escapeHtml(content) + "</pre>";
   }
@@ -24364,13 +24327,6 @@
     diagramWrap.innerHTML = "";
     diagramWrap.append(img);
   }
-  function _renderPdf(diagramWrap, content) {
-    diagramWrap.classList.add("pdf-body");
-    var iframe = document.createElement("iframe");
-    iframe.src = _mmdPdfBlob.issue(base64ToBytes(content));
-    diagramWrap.innerHTML = "";
-    diagramWrap.append(iframe);
-  }
   function _renderMarkdown(diagramWrap, content) {
     diagramWrap.classList.add("markdown-body");
     diagramWrap.innerHTML = markdownRenderer().render(content);
@@ -24414,7 +24370,7 @@
 
   // viewer-src/render.ts
   function renderShape(type, mode) {
-    if (mode === "source" && type !== "code" && type !== "image" && type !== "pdf") {
+    if (mode === "source" && type !== "code" && type !== "image") {
       return type === "csv" ? "csv-source" : "code";
     }
     if (type === "code") {
@@ -24453,7 +24409,6 @@
     var diagramWrap = document.getElementById("diagram-wrap");
     diagramWrap.style.display = "block";
     _mmdSetBodyClasses(diagramWrap);
-    _mmdPdfBlob.release();
     if (shape === "code" || shape === "csv-source") {
       _mmdDocument.recordShape(_renderSource(diagramWrap, content, type, lang, shape));
     } else if (shape === "mmd") {
@@ -24466,8 +24421,6 @@
       _mmdCsvColumns.record(_renderCsv(diagramWrap, content, lang));
     } else if (shape === "image") {
       _renderImage(diagramWrap, content, lang);
-    } else if (shape === "pdf") {
-      _renderPdf(diagramWrap, content);
     } else {
       _renderMarkdown(diagramWrap, content);
     }

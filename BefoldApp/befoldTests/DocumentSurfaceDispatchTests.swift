@@ -71,26 +71,34 @@ struct DocumentSurfaceDispatchTests {
         }
     }
 
-    /// `DocumentSurfaces` は面が 1 枚のうちは束が 1 要素。
-    /// 「配る」側の宛先が束そのものであることを、まずここで押さえる。
+    /// 「配る」側の宛先が束そのもの(= 面の全部)であること。
     @Test("配る側の宛先は束に入っている面すべてである")
     func syncingTargetsEverySurfaceInTheBundle() {
-        let surface = RecordingSurface()
-        let surfaces = DocumentSurfaces(webRenderer: surface)
+        let web = RecordingSurface()
+        let pdf = RecordingSurface()
+        let surfaces = DocumentSurfaces(webRenderer: web, pdfRenderer: pdf)
 
-        #expect(surfaces.syncingAll.count == 1)
-        #expect(surfaces.syncingAll.first === surface)
+        #expect(surfaces.syncingAll.count == 2)
+        #expect(surfaces.syncingAll.contains { $0 === web })
+        #expect(surfaces.syncingAll.contains { $0 === pdf })
     }
 
-    /// 「1 枚へ振り分ける」側は、束から 1 つだけを返す。
-    /// 面が 1 枚のうちは種別に関係なく同じ面が返る。
+    /// 「1 枚へ振り分ける」側は、種別から面を 1 つだけ選ぶ。
+    /// PDF だけが `PDFView` の面で、それ以外はすべて WebView の面(ADR 0009)。
     @Test("振り分ける側は種別に対して面を 1 つ返す")
     func operatingReturnsASingleSurface() {
-        let surface = RecordingSurface()
-        let surfaces = DocumentSurfaces(webRenderer: surface)
+        let web = RecordingSurface()
+        let pdf = RecordingSurface()
+        let surfaces = DocumentSurfaces(webRenderer: web, pdfRenderer: pdf)
+        let webTypes: [FileType] = [
+            .markdown, .mmd, .svg, .html, .csv(delimiter: ","),
+            .image(mimeType: "image/png"), .code(language: "swift"),
+        ]
 
-        #expect(surfaces.operating(on: .markdown) === surface)
-        #expect(surfaces.operating(on: .pdf) === surface)
+        #expect(surfaces.operating(on: .pdf) === pdf)
+        for fileType in webTypes {
+            #expect(surfaces.operating(on: fileType) === web, "\(fileType) が PDF 面へ振られた")
+        }
     }
 
     /// 設定の反映とリネーム追随が、束の全要素へ配られること。
@@ -98,8 +106,9 @@ struct DocumentSurfaceDispatchTests {
     /// 片方の数が 0 のままになって落ちる。
     @Test("設定の反映とリネームは束の全要素へ届く")
     func syncingReachesEverySurface() {
-        let surface = RecordingSurface()
-        let controller = Self.makeController(surface: surface)
+        let web = RecordingSurface()
+        let pdf = RecordingSurface()
+        let controller = Self.makeController(web: web, pdf: pdf)
         let old = URL(fileURLWithPath: "/mock/a.md")
         let new = URL(fileURLWithPath: "/mock/b.md")
 
@@ -108,10 +117,14 @@ struct DocumentSurfaceDispatchTests {
         controller.syncJumpAvailability()
         controller.noteRename(from: old, to: new)
 
-        #expect(surface.codeFontCalls == 1)
-        #expect(surface.csvFormatCalls == 1)
-        #expect(surface.jumpAvailabilityCalls == 1)
-        #expect(surface.renameCalls.count == 1)
+        // 見ているのは md(= WebView の面)だが、PDF の面にも同じだけ届く。
+        // 種別で振り分けると、PDF を見ている間の設定変更が WebView へ入らない形が戻る。
+        for surface in [web, pdf] {
+            #expect(surface.codeFontCalls == 1)
+            #expect(surface.csvFormatCalls == 1)
+            #expect(surface.jumpAvailabilityCalls == 1)
+            #expect(surface.renameCalls.count == 1)
+        }
     }
 
     /// 追随の 4 つが束を回っていること。**面が 1 枚のうちは回数では差が出ない**ので、
@@ -166,16 +179,49 @@ struct DocumentSurfaceDispatchTests {
     /// ユーザー操作は束へ配らず、`operating(on:)` が返した 1 枚だけへ届くこと。
     @Test("ユーザー操作は振り分けた 1 枚だけへ届く")
     func operationsReachOnlyTheActiveSurface() {
-        let surface = RecordingSurface()
-        let controller = Self.makeController(surface: surface)
+        let web = RecordingSurface()
+        let pdf = RecordingSurface()
+        let controller = Self.makeController(web: web, pdf: pdf)
 
         controller.zoomIn()
         controller.openFind()
         controller.printDocument(over: nil)
 
-        #expect(surface.zoomCalls == 1)
-        #expect(surface.findCalls == 1)
-        #expect(surface.printCalls == 1)
+        // 既定の種別(.mmd)なので宛先は WebView の面だけ。
+        #expect(web.zoomCalls == 1)
+        #expect(web.findCalls == 1)
+        #expect(web.printCalls == 1)
+        #expect(pdf.zoomCalls == 0)
+        #expect(pdf.findCalls == 0)
+        #expect(pdf.printCalls == 0)
+    }
+
+    /// PDF を描いている間、ユーザー操作は PDF の面だけへ届くこと。
+    /// 面が 2 枚になって初めて回数で差が出る検証(TASK-564.1)。
+    @Test("PDF を描いている間の操作は PDF の面だけへ届く")
+    func operationsReachThePDFSurfaceWhileShowingPDF() {
+        let web = RecordingSurface()
+        let pdf = RecordingSurface()
+        let defaults = makeIsolatedDefaults(prefix: "DocumentSurfaceDispatchTests")
+        let store = ViewerStore(defaults: defaults)
+        _ = store.contentState.applyDisplayState(Self.pdfDisplayState())
+        let controller = Self.makeController(web: web, pdf: pdf, store: store, defaults: defaults)
+
+        controller.zoomIn()
+        controller.printDocument(over: nil)
+
+        #expect(pdf.zoomCalls == 1)
+        #expect(pdf.printCalls == 1)
+        #expect(web.zoomCalls == 0)
+        #expect(web.printCalls == 0)
+    }
+
+    private static func pdfDisplayState() -> ViewerContentState.DisplayState {
+        ViewerContentState.DisplayState(
+            fileType: .pdf, contentHash: 1, chunkSession: nil, rejectReason: nil,
+            isTruncated: false, content: "", data: Data("%PDF-".utf8),
+            tracksLineCount: false, hasDeclaredHTMLCharset: nil
+        )
     }
 
     /// 宛先の決定が**描画の確定した種別**を見ていること。
@@ -193,11 +239,16 @@ struct DocumentSurfaceDispatchTests {
         #expect(ref.renderedFileType != FileType.pdf)
     }
 
-    private static func makeController(surface: RecordingSurface) -> WebViewCommandController {
-        let defaults = makeIsolatedDefaults(prefix: "DocumentSurfaceDispatchTests")
-        let store = ViewerStore(defaults: defaults)
+    private static func makeController(
+        web: RecordingSurface,
+        pdf: RecordingSurface,
+        store: ViewerStore? = nil,
+        defaults: UserDefaults? = nil
+    ) -> WebViewCommandController {
+        let defaults = defaults ?? makeIsolatedDefaults(prefix: "DocumentSurfaceDispatchTests")
+        let store = store ?? ViewerStore(defaults: defaults)
         return WebViewCommandController(
-            surfaces: DocumentSurfaces(webRenderer: surface),
+            surfaces: DocumentSurfaces(webRenderer: web, pdfRenderer: pdf),
             perFileState: PerFileStateStore(defaults: defaults),
             currentDocument: CurrentDocumentRef(
                 store: store, initialURL: URL(fileURLWithPath: "/mock/a.md")

@@ -30,6 +30,7 @@ struct ViewerContentView: View {
     let onSelectFile: (URL) -> Void
     let onNavigateToFolder: (URL) -> Void
     let webViewProxy: WebViewProxy
+    let pdfViewProxy: PDFViewProxy
     /// 差分のレイアウト設定。全ウィンドウ共有(差分を出すかどうかは store の表示モードが持つ)。
     let diffDisplayPreference: DiffDisplayPreference
 
@@ -54,6 +55,7 @@ struct ViewerContentView: View {
                 csvNegativeStyle: csvNegativeStyle,
                 rendererDelegate: rendererDelegate,
                 webViewProxy: webViewProxy,
+                pdfViewProxy: pdfViewProxy,
                 diffDisplayPreference: diffDisplayPreference
             )
             .opacity(folderURL == nil ? 1 : 0)

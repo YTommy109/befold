@@ -13,9 +13,10 @@ struct ViewerCapabilities: Equatable {
     /// 印刷。見えている文書に対してのみ許す。
     let canPrint: Bool
     /// 検索(⌘F / ⌘G)。HTML 直接ロード中は viewer.html の JS が無いため不可。
+    /// バイナリ(画像・PDF)も検索対象のテキストを持たないため不可。
     let canFind: Bool
     /// 文書内ジャンプ(目印の前後移動)。検索と同じく viewer.html の JS を要するため
-    /// HTML 直接ロード中は不可。開発中機能なので、ゲートが閉じている間も不可
+    /// HTML 直接ロード中とバイナリ(画像・PDF)では不可。開発中機能なので、ゲートが閉じている間も不可
     /// (`FeatureGate.isDocumentJumpEnabled` を `ViewerCapabilitiesFactory` が渡す)。
     let canJump: Bool
     /// 文書内ジャンプのうち「変更ブロック」を選べるか。差分表示を選んでいる間だけ
@@ -73,11 +74,16 @@ struct ViewerCapabilities: Equatable {
     ) {
         let onDocument = isPresentingDocument && !isRejected
         canPrint = onDocument
-        canFind = onDocument && !isDirectHTMLMode
+        // バイナリ(画像・PDF)を除くのは、どちらも viewer.html の検索対象になる
+        // テキストを持たないため。除かないと「⌘F は押せるが何も起きない」形になる
+        // (PDF adapter の openFind を no-op にして塞ぐのは、ADR 0002 が排した
+        // 「能力が true なのに反応が無い」そのもの)。PDF 内検索を実装するときは、
+        // ここを開けるのと同じ変更で adapter 側の実体も入れること。
+        canFind = onDocument && !isDirectHTMLMode && !isBinaryContent
         // 目印が 0 個かどうかでは判定しない。段階読み込み中・描画前・取得失敗の
         // いずれでも同じ 0 個になり、事実ではなくデータの空きで縮退することになる。
         // 目印が無いことは viewer 側の 0/0 表示が伝える。
-        canJump = onDocument && !isDirectHTMLMode && isDocumentJumpEnabled
+        canJump = onDocument && !isDirectHTMLMode && !isBinaryContent && isDocumentJumpEnabled
         canZoom = onDocument
         canToggleSourceMode = onDocument && supportsSourceMode
         canSelectPreviewMode = onDocument && isRenderable

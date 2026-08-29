@@ -185,11 +185,13 @@ struct ViewerBridgeContractTests {
         // jsValue → renderShape がレンダリング表示で返す描画形。
         let shapeByJSValue = [
             "mmd": "mmd", "svg": "svg", "html": "html", "csv": "csv-table",
-            "image": "image", "pdf": "pdf", "code": "code",
+            "image": "image", "code": "code",
         ]
+        // .pdf は含めない。PDF は viewer.html を通らず PDFView が描くため、
+        // render() に描画形の分岐を持たない(ADR 0009)。
         let fileTypes: [FileType] = [
             .mmd, .markdown, .svg, .html, .csv(delimiter: ","),
-            .image(mimeType: "image/png"), .pdf, .code(language: "swift"),
+            .image(mimeType: "image/png"), .code(language: "swift"),
         ]
         for fileType in fileTypes {
             let value = fileType.jsValue
@@ -200,6 +202,10 @@ struct ViewerBridgeContractTests {
         // ソース表示だけが取る描画形も、描き手がいることを確かめる。
         #expect(source.contains("shape === \"csv-source\""), "render() に shape === 'csv-source' 分岐がない")
         #expect(source.contains("function renderShape("), "viewer-bundle.js に renderShape がない")
+        // PDF の描画形が復活していないこと。JS 側へ戻すと、Swift が PDFView へ
+        // 送る面と viewer が描く面の 2 つが同じファイルを描く状態になる(ADR 0009)。
+        #expect(!source.contains("shape === \"pdf\""), "render() に PDF の分岐が残っている")
+        #expect(!source.contains("pdf-body"), "viewer 側に PDF 用のクラスが残っている")
     }
 
     // MARK: - CSP・ズーム定数

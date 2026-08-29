@@ -67,6 +67,21 @@ struct ViewerCapabilitiesTests {
         #expect(capabilities.canZoom)
     }
 
+    /// 画像・PDF は viewer.html の検索対象になるテキストを持たない。
+    /// ここを許すと「⌘F は押せるが何も起きない」= ADR 0002 が排した形になる
+    /// (PDF 面の openFind を no-op にして塞ぐのは同じ違反 / TASK-564.1)。
+    @Test("バイナリ(画像・PDF)では検索とジャンプを止め、印刷とズームは止めない")
+    func disablesFindAndJumpForBinaryContent() {
+        let capabilities = makeCapabilities(isBinaryContent: true, supportsSourceMode: false)
+
+        #expect(!capabilities.canFind)
+        #expect(!capabilities.canJump)
+        #expect(!capabilities.canJump(to: .heading))
+        #expect(!capabilities.canJump(to: .changeBlock))
+        #expect(capabilities.canPrint)
+        #expect(capabilities.canZoom)
+    }
+
     @Test("表示できないファイルでは文書操作を許さない")
     func deniesCommandsForRejectedFile() {
         let capabilities = makeCapabilities(isRejected: true)

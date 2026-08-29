@@ -19,6 +19,13 @@ import Foundation
 @Observable
 final class ViewerContentState {
     private(set) var content: String = ""
+    /// PDF の生データ。`fileType == .pdf` で読み込みに成功したときだけ non-nil。
+    /// PDF は `content`(文字列)を持たず、この Data を `PDFView` が描く。
+    ///
+    /// `PDFPreviewView` が filePath からディスクを読み直す形にしないのは、そちらだと
+    /// 「読み込み開始時の無効化」も「着地時の一致確認」も無い経路になり、切替中の
+    /// 一瞬に別ファイルを描けてしまうため。表示状態が確定させた content と同じ組で運ぶ。
+    private(set) var data: Data?
     /// content が更新されるたびに増分する世代番号。ViewerWebView.Coordinator が
     /// content 全文比較の代わりにこれで変更検知することで、文字列の重複保持を避ける。
     private(set) var contentRevision = 0
@@ -113,6 +120,8 @@ final class ViewerContentState {
         let rejectReason: RejectReason?
         let isTruncated: Bool
         let content: String
+        /// PDF の生データ。PDF 以外は常に nil。
+        let data: Data?
         /// content から行数カウンタを追従させるかどうか。段階読み込み(.chunked)は
         /// バナー表示に行数を使うため true、全文読込は行数を表示しないため false
         /// (カウンタは 0 にリセットされる)。
@@ -141,6 +150,7 @@ final class ViewerContentState {
         isTruncated = state.isTruncated
         loadFailed = false
         content = state.content
+        data = state.data
         hasDeclaredHTMLCharset = state.hasDeclaredHTMLCharset
         contentRevision += 1
         if state.tracksLineCount {
@@ -180,7 +190,22 @@ extension ViewerContentState.DisplayState {
                 rejectReason: nil,
                 isTruncated: !isAtEnd,
                 content: firstChunk,
+                data: nil,
                 tracksLineCount: true,
+                hasDeclaredHTMLCharset: nil
+            )
+        case let .binary(loaded):
+            // PDF の生データ経路。content は空のままで、描くのは PDFView(`data`)。
+            // 拒否理由の扱いと hash の規則は .full と同じ。
+            self.init(
+                fileType: fileType,
+                contentHash: loaded.contentHash,
+                chunkSession: nil,
+                rejectReason: loaded.rejectReason,
+                isTruncated: false,
+                content: "",
+                data: loaded.data,
+                tracksLineCount: false,
                 hasDeclaredHTMLCharset: nil
             )
         case let .full(loaded, cache):
@@ -193,6 +218,7 @@ extension ViewerContentState.DisplayState {
                 rejectReason: loaded.rejectReason,
                 isTruncated: false,
                 content: loaded.content,
+                data: nil,
                 tracksLineCount: false,
                 hasDeclaredHTMLCharset: loaded.hasDeclaredHTMLCharset
             )

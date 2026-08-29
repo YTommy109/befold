@@ -150,18 +150,7 @@ function _mmdInitZoom(): void {
 function _mmdApplyZoom(): void {
   var zoom = _mmdZoom.value();
   var wrap = document.getElementById('diagram-wrap')!;
-  if (wrap.classList.contains('pdf-body')) {
-    // iframe 内の PDF プラグイン描画には CSS zoom が効かないため、
-    // iframe(=wrap)の寸法自体を倍率で変える。PDF は幅フィットで
-    // 描画されるので、幅が広がるほど拡大表示になる。
-    setZoomStyle(wrap, 1);
-    wrap.style.width = zoom * 100 + '%';
-    wrap.style.height = zoom * 100 + '%';
-  } else {
-    wrap.style.width = '';
-    wrap.style.height = '';
-    setZoomStyle(wrap, zoom);
-  }
+  setZoomStyle(wrap, zoom);
   // 枠高さの上限は全体ズームに依存する（レイアウト px への割り戻し）ため再計算する。
   _mmdUpdateAllDiagramScrollHeights();
   var postable = _mmdZoom.takePostable();

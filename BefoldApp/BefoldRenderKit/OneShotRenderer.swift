@@ -82,6 +82,15 @@ public final class OneShotRenderer {
                     failed: false
                 )
             )
+        case let .binary(loaded):
+            // PDF の生データ経路。1 回描画ホスト(QuickLook)は PDF を扱わない
+            // (`FileType.quickLookSupportedExtensions` が `isBinaryContent` を除く)ため
+            // ここへは来ないが、拒否理由だけは落とさずに運ぶ。
+            OneShotRender(
+                content: "", fileType: fileType, filePath: url,
+                rejectReason: loaded.rejectReason ?? .unsupportedFormat,
+                truncation: TruncationState(isTruncated: false, lineCount: 0, failed: false)
+            )
         case let .full(loaded, _):
             OneShotRender(
                 content: loaded.content, fileType: fileType, filePath: url,

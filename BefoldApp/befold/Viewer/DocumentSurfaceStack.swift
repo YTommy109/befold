@@ -38,6 +38,8 @@ struct DocumentSurfaceStack: View {
     /// JS 側の出来事の通知先（倍率・スクロール位置・リンク・パス解決・続きを読み込む）。
     let rendererDelegate: WeakRendererDelegate
     let webViewProxy: WebViewProxy
+    /// PDF の面への橋渡し。面ごとに 1 つで、束(`DocumentSurfaces`)が持つものを受け取る。
+    let pdfViewProxy: PDFViewProxy
     /// 差分のレイアウト設定。全ウィンドウ共有（差分を出すかどうかは store の表示モードが持つ）。
     let diffDisplayPreference: DiffDisplayPreference
 
@@ -50,6 +52,13 @@ struct DocumentSurfaceStack: View {
         case .pending: return .pending
         case let .diff(text): return ViewerRenderer.DiffState(text: text, layout: diffDisplayPreference.layout)
         }
+    }
+
+    /// いま PDF を描いているか。**この判定はどの面を見せるかにしか使わない。**
+    /// 命令の宛先(ズーム・印刷・スクロール位置)は `DocumentSurfaces.operating(on:)` が
+    /// 同じ `contentState.fileType` から決める(ADR 0009)。
+    private var showsPDF: Bool {
+        store.contentState.fileType == .pdf
     }
 
     var body: some View {
@@ -79,7 +88,20 @@ struct DocumentSurfaceStack: View {
                 webViewProxy: webViewProxy,
                 rendererFeatures: .allEnabled
             )
-            .opacity(store.contentState.isRejected ? 0 : 1)
+            .opacity(store.contentState.isRejected || showsPDF ? 0 : 1)
+            .allowsHitTesting(!showsPDF)
+
+            // PDF の面。WebView と同じく差し替えず、重ね順で出し分ける。
+            // 見せていない間は data に nil を渡し、面が古い文書を抱えたままにしない。
+            PDFPreviewView(
+                data: showsPDF ? store.contentState.data : nil,
+                contentRevision: store.contentState.contentRevision,
+                isVisible: isVisible,
+                initialZoom: store.zoom,
+                pdfViewProxy: pdfViewProxy
+            )
+            .opacity(store.contentState.isRejected || !showsPDF ? 0 : 1)
+            .allowsHitTesting(showsPDF)
 
             if let reason = store.contentState.rejectReason {
                 UnsupportedFileView(fileURL: store.contentState.filePath, rejectReason: reason)

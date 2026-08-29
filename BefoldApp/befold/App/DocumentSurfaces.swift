@@ -11,22 +11,31 @@ import BefoldRenderKit
 /// コマンドがそれぞれ種別を見て面を選ぶ形にはしない(ADR 0002 段 2 の
 /// 「条件は 1 箇所」を、能力だけでなく宛先にも適用する)。
 ///
-/// 面が 2 枚になるのは TASK-564.1(PDF を `PDFView` で描く)。**いまは 1 枚しか無い**が、
-/// 宛先を決める継ぎ目を先に 1 箇所へ作っておくことで、PDF の追加が
-/// `operating(on:)` の中身だけの変更で済む。
+/// 面は 2 枚ある(viewer.html を描く WKWebView と、PDF を描く `PDFView`)。
+/// 種別による出し分けは `operating(on:)` の 1 行だけで、それ以外の場所は
+/// どちらの面を相手にしているかを知らない(ADR 0009)。
 @MainActor
 final class DocumentSurfaces {
     /// SwiftUI 内部で生成される WKWebView / ViewerRenderer への弱参照ホルダー。
     /// 面そのものではなく橋渡しなので、面が増えても proxy は面ごとに 1 つ持つ。
     let web = WebViewProxy()
+    /// PDF の面(`PDFView`)への弱参照ホルダー。
+    let pdf = PDFViewProxy()
 
     private let webRenderer: any DocumentRendering
+    private let pdfRenderer: any DocumentRendering
 
-    /// - Parameter webRenderer: テスト専用シーム。渡さなければ `web` proxy を使う
-    ///   `WebViewDocumentRenderer` を作る。**本番の生成経路はここ 1 箇所**で、
-    ///   窓ごとに 1 個の `DocumentSurfaces` が持つ。
-    init(webRenderer: (any DocumentRendering)? = nil) {
+    /// - Parameters:
+    ///   - webRenderer: テスト専用シーム。渡さなければ `web` proxy を使う
+    ///     `WebViewDocumentRenderer` を作る。**本番の生成経路はここ 1 箇所**で、
+    ///     窓ごとに 1 個の `DocumentSurfaces` が持つ。
+    ///   - pdfRenderer: 同上(`pdf` proxy を使う `PDFDocumentRenderer`)。
+    init(
+        webRenderer: (any DocumentRendering)? = nil,
+        pdfRenderer: (any DocumentRendering)? = nil
+    ) {
         self.webRenderer = webRenderer ?? WebViewDocumentRenderer(webViewProxy: web)
+        self.pdfRenderer = pdfRenderer ?? PDFDocumentRenderer(pdfViewProxy: pdf)
     }
 
     /// HTML を直接ロードして表示しているか。能力の導出(`ViewerCapabilities`)が読む。
@@ -49,15 +58,13 @@ final class DocumentSurfaces {
     ///   起こさない」ための fail-closed なゲートで、早すぎる切替が安全側に倒れる。
     ///   宛先の決定は fail-silent なので、遅れて確定する側に合わせる。
     func operating(on fileType: FileType) -> any DocumentSurfaceOperating {
-        // 面が 1 枚しか無い間は種別を見る必要が無い。PDF の面が入る TASK-564.1 で、
-        // ここが唯一の分岐点になる。
-        _ = fileType
-        return webRenderer
+        // 種別で面を選ぶのはこの 1 行だけ。ここ以外に PDF かどうかの分岐を作らないこと。
+        fileType == .pdf ? pdfRenderer : webRenderer
     }
 
     /// **すべての面**。設定の反映とリネーム追随の宛先。
     /// 見えているかどうかで絞らない(理由は `DocumentSurfaceSyncing` の doc)。
     var syncingAll: [any DocumentSurfaceSyncing] {
-        [webRenderer]
+        [webRenderer, pdfRenderer]
     }
 }

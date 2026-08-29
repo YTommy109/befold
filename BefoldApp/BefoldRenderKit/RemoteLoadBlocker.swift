@@ -25,8 +25,8 @@ enum RemoteLoadBlocker {
     /// 受け付けない(実測: `^(file|data)://` は "Disjunctions are not supported yet" で
     /// コンパイルに失敗する)ため、**許可を列挙して残りを block する形にはできない**。
     /// 逆に、止めたいスキームを列挙する。`file:` / `data:` / `blob:` / `about:` は
-    /// どのルールにも一致しないのでそのまま通る(PDF 表示の blob URL と、
-    /// 埋め込み画像の data URI がこれに当たる)。
+    /// どのルールにも一致しないのでそのまま通る(埋め込み画像の data URI が
+    /// これに当たる)。
     private static let ruleListJSON = """
     [
       {"trigger": {"url-filter": "^https?://"}, "action": {"type": "block"}},

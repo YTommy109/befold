@@ -24,21 +24,4 @@ function imageDataURI(base64: string, mimeType: string | undefined): string {
   return 'data:' + (mimeType || 'image/png') + ';base64,' + base64;
 }
 
-// base64 文字列をバイト列へ復号する(PDF の Blob 生成用)。
-// 戻り値を Uint8Array<ArrayBuffer> と明示するのは、既定の Uint8Array が
-// SharedArrayBuffer 上のものも含み Blob へ直接渡せないため。ここで確保するのは
-// 常に自前の ArrayBuffer なので、実行時の値は変わらない。
-function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
-  var binary = atob(base64);
-  var bytes = new Uint8Array(binary.length);
-  for (var i = 0; i < binary.length; i++) {
-    // atob が返すのは Latin-1 の 1 文字 = 1 バイトの文字列で、ここで欲しいのは
-    // コードポイントではなくバイト値。codePointAt に替えるとサロゲートペアを
-    // 1 つの値へ畳んでバイト列が壊れるため charCodeAt のままにする。
-    // oxlint-disable-next-line unicorn/prefer-code-point
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-export { escapeHtml, svgDataURI, imageDataURI, base64ToBytes };
+export { escapeHtml, svgDataURI, imageDataURI };
