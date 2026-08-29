@@ -72,6 +72,15 @@ struct PDFSurfaceLayoutTests {
         #expect(pdfView.document != nil)
     }
 
+    /// 影を描かないこと。連続スクロールでは全ページ分の影が乗り、描画コストの
+    /// 大半を占める（実測: 231 ページで 36.5ms → 4.3ms / TASK-567）。
+    @Test("ページの影は描かない")
+    func doesNotDrawPageShadows() {
+        let pdfView = makeView()
+
+        #expect(!pdfView.pageShadowsEnabled)
+    }
+
     /// ピンチを自前で受けるため、内側のスクロールビューの拡大縮小は切ってある
     /// (TASK-568)。既定の true のままだと `PDFScrollView` がジェスチャを消費し、
     /// `ZoomingPDFView.magnify` へ届かない。
