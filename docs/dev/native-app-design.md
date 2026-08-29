@@ -193,8 +193,8 @@ BefoldApp/
 | `DocumentSurfaceStack` | 描画面への配線（倍率・スクロール位置・検索設定・参照クリック）と、非対応・読み込み中のオーバーレイ |
 | `PreviewTarget` / `PreviewTargetResolver` | プレビュー領域が提示する対象（文書・フォルダー一覧・未確定）。導出は `FileListModel.previewTarget` の 1 箇所（[ADR 0002](../adr/0002-presentation-state-and-capabilities.md)） |
 | `ViewerCapabilities` | 「いま何ができるか」を提示状態から導出する純粋な型。メニュー・ツールバー・コマンド実行はこれだけを見る |
-| `DocumentRendering` | 表示中の文書へできることを表す port。宛先の違いで 2 群に分かれる——`DocumentSurfaceOperating`（倍率・検索・印刷・スクロール位置。**いま描いている 1 枚**へ振り分ける）と `DocumentSurfaceSyncing`（フォント・CSV 表示設定・ジャンプ可否・リネーム追随。**すべての面**へ配る）。実装は `WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter） |
-| `DocumentSurfaces` | 窓が持つ描画面の束と、命令をどの面へ届けるかの決定。宛先を決めるのはこの型の `operating(on:)` / `syncingAll` だけで、メニュー・ツールバー・コマンドは種別を見ない。判定は**描画が確定した種別**（`ViewerContentState.fileType`）で行い、提示予定の URL では行わない |
+| `DocumentRendering` | 表示中の文書へできることを表す port。宛先の違いで 2 群に分かれる——`DocumentSurfaceOperating`（倍率・検索・印刷・スクロール位置。**いま描いている 1 枚**へ振り分ける）と `DocumentSurfaceSyncing`（フォント・CSV 表示設定・ジャンプ可否・リネーム追随。**すべての面**へ配る）。実装は 2 つ——`WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter）と `PDFDocumentRenderer`（`PDFView` の倍率計算と印刷を閉じ込める adapter / ADR 0009） |
+| `DocumentSurfaces` | 窓が持つ描画面の束（WKWebView と `PDFView` の 2 枚）と、命令をどの面へ届けるかの決定。宛先を決めるのはこの型の `operating(on:)` / `syncingAll` だけで、メニュー・ツールバー・コマンドは種別を見ない。判定は**描画が確定した種別**（`ViewerContentState.fileType`）で行い、提示予定の URL では行わない |
 | `FileListModel` / `FileListView` | サイドバーのファイル一覧・選択状態を管理する `@Observable` モデルと SwiftUI ビュー |
 | `HistoryButtonView` | 戻る/進むツールバーボタン（クリックで移動、長押し/右クリックで履歴メニュー） |
 | `MarkdownImageEmbedder` | Markdown 記法 `![]()` と inline HTML の `<img src>` が指すローカル画像を base64 data URI に埋め込む前処理（CSP 対応） |
@@ -204,6 +204,8 @@ BefoldApp/
 | `DirectoryLister` | サイドバー用のディレクトリ内ファイル/フォルダ一覧化 |
 | `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ）。外部の HTML 文書だけは例外で、文書が canvas ごと所有するためこの色は使われない |
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |
+| `PDFViewProxy` | 同上の `PDFView` 版。面ごとに 1 つ持つ |
+| `PDFPreviewView` | PDF の描画面。`PDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして描く |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
 | `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` / `GitFolderStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す（ファイル行は変更種別の文字、フォルダー行は集約を示す `•`） |
 | `SidebarTableViewLocator` | SwiftUI List の内部 NSTableView を取得するブリッジ |
@@ -231,8 +233,15 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
 - **`.mmd` の扱い**: 全文を `<pre class="mermaid">` に渡し mermaid.js に処理させる
 - **`.md` の扱い**: markdown-it.js で markdown → HTML 変換する。
   ` ```mermaid ` フェンスは markdown-it のカスタムレンダラーで `<pre class="mermaid">` に出力し mermaid.js が SVG 描画する
-- **その他ファイル種別**: SVG / HTML / CSV・TSV / 画像 / PDF / 各種ソースコードは
+- **その他ファイル種別**: SVG / HTML / CSV・TSV / 画像 / 各種ソースコードは
   `FileType` の判定に従い、ソースコードは highlight.js でシンタックスハイライトする
+- **PDF の扱い**: viewer.html を通らない。読み込みは `Data` のまま
+  （`ViewerLoadPipeline.Outcome` の `.binary`。base64 化しないのは `PDFView` が
+  `Data` を直接受けられるため）運び、`PDFPreviewView` が `PDFView` で描く（ADR 0009）。
+  PDF として開けないデータは `RejectReason.damagedDocument` で拒否する
+  （読み込みは成功しているため、見なければ黙って空白になる）。
+  PDF では検索とジャンプができないので、`canFind` / `canJump` は
+  `!isBinaryContent` で閉じてある（画像も同様）
 - **CSV/TSV の数値列**: テーブル表示では列単位に書式を判定する（`viewer-src/csv-columns.ts` の
   `classifyCsvColumn`）。二段構えで、第 1 段「非空セルがすべて数値」を満たす列は右寄せ +
   `tabular-nums`、第 2 段の拒否条件（1,000 以上の値が無い / 先頭ゼロ / 全セル同じ桁数で 4 桁以上 /
@@ -439,7 +448,7 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   "Disjunctions are not supported yet" でコンパイルに失敗する）。このため
   「許可を列挙して残りを block」はできず、止めたいスキームを列挙する形になっている。
   `file:` / `data:` / `blob:` はどのルールにも一致しないのでそのまま通る
-  （PDF 表示の blob URL と埋め込み画像の data URI がこれに当たる）
+  （埋め込み画像の data URI がこれに当たる）
 - 回帰は `scripts/webview-smoke.swift` の `checkExfilBlocked` が `naturalWidth` で測る
   （「画像バイトが取得されたか」を直接測る唯一の指標）。実在するホストを使う点が要件で、
   到達できない URL では遮断が外れていても `naturalWidth = 0` になり常に緑になる

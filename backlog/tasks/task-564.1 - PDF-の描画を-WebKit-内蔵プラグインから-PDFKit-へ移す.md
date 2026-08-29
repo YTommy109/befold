@@ -1,10 +1,11 @@
 ---
 id: TASK-564.1
 title: PDF の描画を WebKit 内蔵プラグインから PDFKit へ移す
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-08-29 00:40'
-updated_date: '2026-08-29 10:17'
+updated_date: '2026-08-29 11:38'
 labels: []
 dependencies:
   - TASK-565
@@ -42,14 +43,14 @@ PDF を `<iframe>` + blob URL（WebKit 内蔵 PDF プラグイン）で描くの
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PDF が `PDFView` で描画され、`<iframe>` + blob URL 経路を通らない
-- [ ] #2 `viewer-src/renderers.ts` の `_renderPdf` / `_createPdfBlobHolder` / `_mmdPdfBlob`、`render.ts` の `shape === "pdf"` 分岐、`style.css` の `pdf-body` 規則、viewer.html の CSP `frame-src blob:` のうち PDF のためだけに存在するものが撤去されている
-- [ ] #3 `viewer-src/zoom.ts` の `_mmdApplyZoom()` にある `pdf-body` 特例が撤去されている
-- [ ] #4 PDF サーフェスかどうかの分岐が 1 箇所に閉じており、メニュー・ツールバー・コマンドがそれぞれ独自に種別を見ていない
-- [ ] #5 描画方式の選択（PDFKit を採り pdf.js を採らなかった理由、代償として描画面が 2 枚になること）が `docs/adr/` の ADR として記録されている
+- [x] #1 PDF が `PDFView` で描画され、`<iframe>` + blob URL 経路を通らない
+- [x] #2 `viewer-src/renderers.ts` の `_renderPdf` / `_createPdfBlobHolder` / `_mmdPdfBlob`、`render.ts` の `shape === "pdf"` 分岐、`style.css` の `pdf-body` 規則、viewer.html の CSP `frame-src blob:` のうち PDF のためだけに存在するものが撤去されている
+- [x] #3 `viewer-src/zoom.ts` の `_mmdApplyZoom()` にある `pdf-body` 特例が撤去されている
+- [x] #4 PDF サーフェスかどうかの分岐が 1 箇所に閉じており、メニュー・ツールバー・コマンドがそれぞれ独自に種別を見ていない
+- [x] #5 描画方式の選択（PDFKit を採り pdf.js を採らなかった理由、代償として描画面が 2 枚になること）が `docs/adr/` の ADR として記録されている
 - [ ] #6 PDF を開く・別種別へ切り替える・PDF へ戻る、を往復してもサーフェスの残留やリークが起きない
-- [ ] #7 `swift test` が通り、swiftlint の main とのベースライン差分がゼロである
-- [ ] #8 PDF で ⌘F が「押せるが何も起きない」状態になっていない（canFind が PDF で true のまま dead にならないこと。ADR 0002 が排した形）
+- [x] #7 `swift test` が通り、swiftlint の main とのベースライン差分がゼロである
+- [x] #8 PDF で ⌘F が「押せるが何も起きない」状態になっていない（canFind が PDF で true のまま dead にならないこと。ADR 0002 が排した形）
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -192,4 +193,50 @@ B7. **canFind が PDF で true のまま dead になる問題を塞ぐ。**
 1. **PDF 内検索の実装**（`PDFView` / `PDFDocument.findString`）。上の `canFind` 是正は「押せるのに効かない」を塞ぐだけで、PDF で検索できるようにはしない。必要になった時点で起票する。
 2. **キーボードスクロール 6 件が PDF で失われる**。Space / Shift+Space / ↓j / ↑k / Shift+↓ / Shift+↑ は `viewer-src/keyboard.ts` の `resolveScrollKey` にしかなく、Swift 側に入口が無い。Help の一覧（`ViewerShortcutCatalog.scrollItems`）は種別非依存で 6 件を掲載し、`ViewerShortcutCatalogTests` と jest 側が件数を相互固定しているため、PDF では説明と実態が食い違う。`PDFView` が標準でどのキーを処理するかは Apple のドキュメントに明記が無く、実機確認が要る。
 3. **破損 PDF（`PDFDocument(data:)` が nil）の表示**。読み込み自体は成功しているため `rejectReason` は nil のままで `UnsupportedFileView` が出ず、黙って空白になる。Implementation Plan の B5 に、読み込み経路で検出して `RejectReason` の新ケースへ落とす方針を書いてある。このタスクに含めるかは着手時に判断する。
+
+## 実装（2026-08-29）
+
+Implementation Plan の C を上から実施した（1 は TASK-564.6 で完了済み）。
+
+### 読み込み（A2 / B4 / B5）
+
+- `ContentLoader.loadData(from:computeHash:)` を新設し、`load` は「その結果を base64 へ写すだけ」の薄い層にした。サイズ上限（50MB）・reject 判定・hash の作り方は両経路が共有する（`PDFSurfaceLoadTests.bothBinaryPathsShareLimitsAndHash` が固定）。
+- `ViewerLoadPipeline.Outcome` に `.binary(ContentLoader.LoadedData)` を足し、`fileType == .pdf` だけがそこへ流れる。画像は `.full`（base64）のまま。
+- 破損 PDF は `RejectReason.damagedDocument`（新ケース）へ落とす。判定は `PDFDataProbe.isReadable` に置き、表示側が `PDFDocument` を作る条件と同じ事実を見る。B5 の「含めるかは着手時に判断」は**含める**を選んだ。含めないと読み込み成功のまま空白になり、バナーも出ない。
+- `ViewerContentState.DisplayState` に `data: Data?` を足した（B4 のとおり `ViewerStore` ではなく `ViewerContentState` 側の写しで受ける）。
+
+### 描画（B3 / B6）
+
+- `PDFViewProxy` / `PDFDocumentRenderer` / `PDFPreviewView` を新設。`DocumentSurfaces` は proxy と adapter を 2 組持ち、`operating(on:)` の 1 行（`fileType == .pdf`）だけが宛先を分ける。`syncingAll` は 2 要素。
+- `PDFPreviewView` は `contentRevision` 駆動で、`isVisible` が false の間は差し替えない（B6）。PDF 以外を表示中は `data: nil` を渡して文書を外す（面が古い文書を抱えたまま印刷されるのを防ぐ）。
+- ズームは `scaleFactorForSizeToFit` を基準に掛け直す。そうしないと同じ 1.0 が面ごとに違う意味になる。印刷は `PDFDocument.printOperation(for:scalingMode:autoRotate:)`（A4 のとおり no-op にしない）。
+
+### 能力（B7 / AC #8）
+
+`canFind` に加えて **`canJump` にも** `!isBinaryContent` を足した。理由は同じ（PDF 面にジャンプの実体が無く、開けても no-op になる）。画像で既に dead だった穴も同時に閉じる。
+
+### JS 側の撤去（AC #2 / #3）
+
+`_renderPdf` / `_createPdfBlobHolder` / `_mmdPdfBlob` / `render.ts` の `shape === 'pdf'` 分岐 / `renderShape` の pdf 特例 / `zoom.ts` の `pdf-body` 特例 / `encoding.ts` の `base64ToBytes` / `style.css` の `pdf-body` 3 規則 / viewer.html の CSP `frame-src blob:` を撤去。`ViewerBridgeContractTests` に「バンドルに `shape === "pdf"` と `pdf-body` が無いこと」の走査を足し、復活したら落ちるようにした。
+
+### 検証
+
+- `swift test` 1748 件すべて成功。
+- swiftlint の main とのベースライン差分ゼロ（`git archive origin/main` を別ディレクトリへ展開して測定。双方 54 件、ルール×ファイルの新規・解消ともに空）。
+- `npm run lint` / `typecheck:viewer` / `format:check` / `check:viewer-cycles` / jest 621 件すべて成功。`viewer-bundle.js` は再ビルド済み。
+- markdownlint / check-doc-symbols / check-doc-citations すべて通過。
+
+### 既存テストの変更
+
+`ViewerStoreBinaryContentTests` の PDF ケースは `"%PDF-1.4"` という文字列を使っていたが、これは `PDFDocument` が開けないため新しい経路では拒否される（= 正しい振る舞い）。1 ページの実 PDF を作る `minimalPDFData()` へ差し替え、base64 経路（画像）と生データ経路（PDF）のテストを分けた。破損 PDF の拒否は `damagedPDFMarksUnsupported` で別途固定。
+
+### 未確認（AC #6）
+
+「PDF → 別種別 → PDF の往復でサーフェスの残留やリークが起きない」は**目視確認できていない**。実装上は面を破棄せず重ね順で出し分け、PDF 以外の間は `data: nil` で文書を外す形にしてあるが、このセッションでは画面のキャプチャが取れなかった（`screencapture` が "could not create image from display" で失敗する環境）。アプリの起動・PDF／破損 PDF／md の切替でクラッシュしないことまでは実機で確認済み。**AC #6 はユーザーの目視で確認が必要**。
+
+## 繰り越し（Implementation Notes の「繰り越した論点」を更新）
+
+1. PDF 内検索の実装 — 未着手のまま。`canFind` は閉じたので「押せるのに効かない」状態ではなくなった。
+2. キーボードスクロール 6 件が PDF で失われる — 未着手。ADR 0009 の Consequences にも記録した。
+3. 破損 PDF の表示 — **このタスクで対応した**（`damagedDocument`）。
 <!-- SECTION:NOTES:END -->
