@@ -40,8 +40,8 @@ struct DocumentSurfaceStack: View {
     let webViewProxy: WebViewProxy
     /// PDF の面への橋渡し。面ごとに 1 つで、束(`DocumentSurfaces`)が持つものを受け取る。
     let pdfViewProxy: PDFViewProxy
-    /// PDF の面の中で完結する倍率操作(ピンチ・Ctrl+ホイール)の通知先。
-    let onPDFZoomChanged: (Double) -> Void
+    /// PDF の面と窓のあいだの受け渡し(倍率の通知・回転の要求)。
+    let pdfActions: PDFSurfaceActions
     /// 差分のレイアウト設定。全ウィンドウ共有（差分を出すかどうかは store の表示モードが持つ）。
     let diffDisplayPreference: DiffDisplayPreference
 
@@ -103,10 +103,16 @@ struct DocumentSurfaceStack: View {
                 scrollPositionToRestore: store.scrollPositionToRestore,
                 rotation: store.pdfRotation,
                 pdfViewProxy: pdfViewProxy,
-                onZoomChanged: onPDFZoomChanged
+                onZoomChanged: pdfActions.onZoomChanged
             )
             .opacity(store.contentState.isRejected || !showsPDF ? 0 : 1)
             .allowsHitTesting(showsPDF)
+
+            // 回転コントロール。PDF の面と**同じ条件**で出す(条件は 1 箇所)。
+            if showsPDF, !store.contentState.isRejected {
+                PDFRotationOverlay(onRotate: pdfActions.onRotate)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            }
 
             if let reason = store.contentState.rejectReason {
                 UnsupportedFileView(fileURL: store.contentState.filePath, rejectReason: reason)

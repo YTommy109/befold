@@ -27,35 +27,15 @@ struct MainMenuShortcutTests {
         let duplicates = Dictionary(grouping: shortcuts, by: { $0 }).filter { $0.value.count > 1 }
         #expect(duplicates.isEmpty, "重複したキー等価: \(duplicates.keys.sorted())")
     }
-
-    /// PDF の回転（⌘R / ⇧⌘R）。向きは項目のタグが運ぶ。
-    @Test("View メニューの回転項目は ⌘R / ⇧⌘R で、向きをタグで運ぶ")
-    func viewMenuHasRotationItems() throws {
-        let view = try #require(MainMenuBuilder.makeViewMenuItem().submenu)
-
-        let items = view.items.filter {
-            $0.action == #selector(ViewerWindowController.rotateDocument(_:))
-        }
-        #expect(items.map(\.tag) == [90, -90])
-        #expect(items.allSatisfy { $0.keyEquivalent == "r" })
-        #expect(items.first?.keyEquivalentModifierMask == [.command])
-        #expect(items.last?.keyEquivalentModifierMask == [.command, .shift])
-    }
 }
 
 /// メニューの**有効判定**が能力どおりに出ること。
-/// `/menu-audit`（実行中のアプリを AX でダンプする）はこの環境では
-/// assistive access が無く走らせられないため、`validateMenuItem` が使うのと
-/// 同じ判定関数（`ViewerMenuValidator`）へ実際のメニュー項目を通して測る。
+/// `/menu-audit`（実行中のアプリを AX でダンプする）はこの環境では assistive access が
+/// 無く走らせられないため、`validateMenuItem` が使うのと同じ判定関数
+/// （`ViewerMenuValidator`）へ実際のメニュー項目を通して測る。
 @Suite
 @MainActor
 struct ViewMenuValidationTests {
-    /// 実際に構築した View メニューから、そのアクションの項目を引く。
-    private func viewMenuItems(action: Selector) throws -> [NSMenuItem] {
-        let view = try #require(MainMenuBuilder.makeViewMenuItem().submenu)
-        return view.items.filter { $0.action == action }
-    }
-
     /// 判定に要る値だけを持つスタブ（`ViewerMenuValidatorTests` のものは private）。
     private final class StubSource: ViewerMenuValidationSource {
         var capabilities: ViewerCapabilities = .none
@@ -69,17 +49,17 @@ struct ViewMenuValidationTests {
     }
 
     /// PDF を見ている状態 / それ以外（markdown 相当）を見ている状態。
-    private func source(rotatable: Bool) -> StubSource {
+    private func source(binary: Bool) -> StubSource {
         let stub = StubSource()
         stub.capabilities = ViewerCapabilities(
             isPresentingDocument: true,
             isRejected: false,
             isRenderable: true,
-            isBinaryContent: rotatable,
+            isBinaryContent: binary,
             showsCodeContent: false,
-            supportsSourceMode: !rotatable,
+            supportsSourceMode: !binary,
             supportsDiffDisplay: false,
-            supportsRotation: rotatable,
+            supportsRotation: binary,
             gitDiffAvailability: .undetermined,
             isDirectHTMLMode: false,
             isDocumentJumpEnabled: false
@@ -87,29 +67,29 @@ struct ViewMenuValidationTests {
         return stub
     }
 
-    @Test("回転の項目は PDF のときだけ有効になる")
-    func rotationItemsFollowTheCapability() throws {
-        let items = try viewMenuItems(action: #selector(ViewerWindowController.rotateDocument(_:)))
-        #expect(items.count == 2)
+    /// 回転はメニューに置かない（PDF の右上に重ねたコントロールが持つ）。
+    /// メニューへ戻すと、種別に依存する項目がメニュー構築側へ増える。
+    @Test("View メニューに回転の項目は無い")
+    func viewMenuHasNoRotationItems() throws {
+        let view = try #require(MainMenuBuilder.makeViewMenuItem().submenu)
 
-        for item in items {
-            #expect(ViewerMenuValidator.validate(item, source: source(rotatable: true)))
-            #expect(!ViewerMenuValidator.validate(item, source: source(rotatable: false)))
-        }
+        let titles = view.items.map(\.title)
+        #expect(!titles.contains { $0.contains("回転") || $0.lowercased().contains("rotate") })
     }
 
-    /// 回転を足したことで、ズーム側の有効判定が巻き添えで変わっていないこと。
+    /// ズームの有効判定が種別で変わらないこと（回転を外した巻き添えが無い）。
     @Test("ズームの項目は種別によらず有効のまま")
     func zoomItemsStayEnabled() throws {
-        for action in [
+        let view = try #require(MainMenuBuilder.makeViewMenuItem().submenu)
+        let zoomActions = [
             #selector(ViewerWindowController.zoomIn(_:)),
             #selector(ViewerWindowController.zoomOut(_:)),
             #selector(ViewerWindowController.resetZoom(_:)),
-        ] {
-            for item in try viewMenuItems(action: action) {
-                #expect(ViewerMenuValidator.validate(item, source: source(rotatable: true)))
-                #expect(ViewerMenuValidator.validate(item, source: source(rotatable: false)))
-            }
+        ]
+
+        for item in view.items where item.action.map({ zoomActions.contains($0) }) == true {
+            #expect(ViewerMenuValidator.validate(item, source: source(binary: true)))
+            #expect(ViewerMenuValidator.validate(item, source: source(binary: false)))
         }
     }
 }

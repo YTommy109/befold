@@ -120,12 +120,18 @@ enum ViewerWindowAssembler {
             onNavigateToFolder: onNavigateToFolder,
             webViewProxy: controller.surfaces.web,
             pdfViewProxy: controller.surfaces.pdf,
-            // 面の中で完結する倍率操作の受け口。届いた倍率の扱い(ライブ値と保存値)は
-            // JS 由来の倍率通知と同じ 1 箇所へ寄せる。
-            onPDFZoomChanged: { [weak controller] zoom in
-                guard let controller else { return }
-                controller.documentPresenter.recordZoomChange(zoom, for: controller.currentDocument.url)
-            },
+            pdfActions: PDFSurfaceActions(
+                // 面の中で完結する倍率操作の受け口。届いた倍率の扱い(ライブ値と保存値)は
+                // JS 由来の倍率通知と同じ 1 箇所へ寄せる。
+                onZoomChanged: { [weak controller] zoom in
+                    guard let controller else { return }
+                    controller.documentPresenter.recordZoomChange(zoom, for: controller.currentDocument.url)
+                },
+                // 回転はコマンド経路を通す(可否の判断は capabilities が持つ)。
+                onRotate: { [weak controller] degrees in
+                    controller?.webViewCommands.rotate(byDegrees: degrees)
+                }
+            ),
             diffDisplayPreference: controller.diffDisplayPreference
         ))
         let splitViewController = ViewerSplitViewController(

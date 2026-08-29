@@ -104,7 +104,7 @@ enum ViewerMenuValidator {
         return capabilities.canJump(to: kind)
     }
 
-    /// 文書に対する操作(印刷・ズーム・回転)の validate。どれも「その能力があるか」を
+    /// 文書に対する操作(印刷・ズーム)の validate。どれも「その能力があるか」を
     /// 引くだけなので 1 つにまとめる。担当外の項目には nil を返す
     /// (`validateDisplayModeItem` と同じ形)。
     private static func validateDocumentCommandItem(
@@ -113,7 +113,6 @@ enum ViewerMenuValidator {
         guard let action = menuItem.action else { return nil }
         if action == #selector(ViewerWindowController.printDocument(_:)) { return capabilities.canPrint }
         if zoomActions.contains(action) { return capabilities.canZoom }
-        if action == #selector(ViewerWindowController.rotateDocument(_:)) { return capabilities.canRotate }
         return nil
     }
 

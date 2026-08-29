@@ -32,12 +32,6 @@ extension ViewerWindowController {
         webViewCommands.resetZoom()
     }
 
-    /// View > 右に回転 / 左に回転。向きは sender のタグが運ぶ(表示モード選択と同じ形)。
-    @objc func rotateDocument(_ sender: Any?) {
-        let degrees = (sender as? NSMenuItem)?.tag ?? 90
-        webViewCommands.rotate(byDegrees: degrees)
-    }
-
     /// File > Print…。WebView の描画内容を印刷する。
     @objc func printDocument(_ sender: Any?) {
         webViewCommands.printDocument(over: window)

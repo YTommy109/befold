@@ -72,3 +72,56 @@ struct UnsupportedFileViewSnapshotTests {
         #expect(!RejectReason.damagedDocument.localizedMessage.isEmpty)
     }
 }
+
+/// PDF の右上に重ねる回転コントロール（TASK-564.5 / メニューから移設）。
+@MainActor
+@Suite
+struct PDFRotationOverlayTests {
+    private func hostingView(onRotate: @escaping (Int) -> Void) -> NSHostingView<PDFRotationOverlay> {
+        let view = NSHostingView(rootView: PDFRotationOverlay(onRotate: onRotate))
+        view.frame = NSRect(x: 0, y: 0, width: 120, height: 60)
+        view.layoutSubtreeIfNeeded()
+        return view
+    }
+
+    @Test("2 つのボタンが描かれる")
+    func drawsTwoButtons() throws {
+        let view = hostingView { _ in }
+        let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: rep)
+
+        var colors: Set<String> = []
+        for column in stride(from: 0, to: rep.pixelsWide, by: 2) {
+            for row in stride(from: 0, to: rep.pixelsHigh, by: 2) {
+                if let color = rep.colorAt(x: column, y: row) { colors.insert(color.description) }
+            }
+        }
+        // 地一色ではない = アイコンが乗っている。
+        #expect(colors.count > 1)
+    }
+
+    /// 読み上げ名と tooltip の文言が 2 つとも引けて、互いに違うこと。
+    /// アイコンだけのボタンなので、名前が無いと VoiceOver で区別できない。
+    /// 訳が日英そろっているかは `LocalizationTests`（全キーを見る）が担保する。
+    @Test("回転ボタンの文言が 2 つとも引ける")
+    func hasLocalizedLabels() {
+        let clockwise = String(localized: "viewer.pdf.rotateClockwise", bundle: .l10n)
+        let counterClockwise = String(localized: "viewer.pdf.rotateCounterClockwise", bundle: .l10n)
+
+        #expect(!clockwise.isEmpty)
+        #expect(!counterClockwise.isEmpty)
+        #expect(clockwise != counterClockwise)
+    }
+
+    /// 押すと向きが窓へ届くこと（時計回りが正、反時計回りが負）。
+    @Test("回転の向きがそのまま渡る")
+    func passesTheDirection() {
+        var received: [Int] = []
+        let overlay = PDFRotationOverlay { received.append($0) }
+
+        overlay.onRotate(90)
+        overlay.onRotate(-90)
+
+        #expect(received == [90, -90])
+    }
+}

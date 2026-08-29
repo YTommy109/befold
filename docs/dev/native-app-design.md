@@ -207,6 +207,8 @@ BefoldApp/
 | `PDFViewProxy` | 同上の `PDFView` 版。面ごとに 1 つ持つ |
 | `PDFPreviewView` | PDF の描画面。`PagingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして描く |
 | `PagingPDFView` | `PDFView` のサブクラス。ページ全体が収まっていてスクロールの余地が無いときだけホイールをページ送りへ振り替え、ピンチと Ctrl+ホイールを倍率操作として受ける |
+| `PDFRotationOverlay` | PDF の右上に重ねる回転コントロール。メニューには置かない（その面を見ているときにしか意味が無い操作なので、対象の隣に置く） |
+| `PDFSurfaceActions` | PDF 面と窓のあいだの受け渡し（倍率の通知・回転の要求）を 1 つにまとめた値。View の注入クロージャを 3 つ以下に保つため |
 | `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。`.singlePage` の設定、「倍率 1.0 = ページ全体が収まる状態」の換算、表示位置(文書全体に対する 0…1)の取得と復元、90 度回転を持つ |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
 | `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` / `GitFolderStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す（ファイル行は変更種別の文字、フォルダー行は集約を示す `•`） |
@@ -248,7 +250,8 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   倍率に自動追従する（`autoScales`）。ウィンドウをリサイズしてもフィットし続け、
   ユーザーが倍率を変えた時点で追従を外し、⌘0（既定のサイズ）で戻す。
   ページ全体が見えていてスクロールの余地が無いときは、ホイールがページ送りになる。
-  表示位置（文書全体に対する 0…1）と 90 度回転（⌘R / ⇧⌘R、文書全体に効く）は
+  表示位置（文書全体に対する 0…1）と 90 度回転（右上に重ねた `PDFRotationOverlay` の
+  2 つのボタン。文書全体に効く）は
   ウィンドウの生存期間だけ記憶する（`WindowPresentationMemory`）。倍率だけは
   内容に依存しないユーザーの意図なので、従来どおり `ZoomStore` で per-file 永続
 - **CSV/TSV の数値列**: テーブル表示では列単位に書式を判定する（`viewer-src/csv-columns.ts` の

@@ -83,16 +83,6 @@ const EXPECTED_MENU_ITEMS: {
   { localizationKey: 'menu.view.actualSize', keyEquivalent: '"0"', modifiers: null },
   { localizationKey: 'menu.view.zoomIn', keyEquivalent: '"+"', modifiers: null },
   { localizationKey: 'menu.view.zoomOut', keyEquivalent: '"-"', modifiers: null },
-  {
-    localizationKey: 'menu.view.rotateClockwise',
-    keyEquivalent: '"r"',
-    modifiers: ['.command'],
-  },
-  {
-    localizationKey: 'menu.view.rotateCounterClockwise',
-    keyEquivalent: '"r"',
-    modifiers: ['.command', '.shift'],
-  },
   { localizationKey: 'menu.view.toggleSource', keyEquivalent: '"u"', modifiers: null },
   { localizationKey: 'menu.view.showLineNumbers', keyEquivalent: '"l"', modifiers: null },
   {

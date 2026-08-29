@@ -1449,42 +1449,6 @@
         }
       }
     },
-    "menu.view.rotateClockwise": {
-      "comment": "View メニュー。PDF の表示を時計回りに 90 度回す。⌘R。",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rotate Right"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "右に回転"
-          }
-        }
-      }
-    },
-    "menu.view.rotateCounterClockwise": {
-      "comment": "View メニュー。PDF の表示を反時計回りに 90 度回す。⇧⌘R。",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rotate Left"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "左に回転"
-          }
-        }
-      }
-    },
     "menu.view.showChangedFilesOnly": {
       "extractionState": "manual",
       "localizations": {
@@ -3401,6 +3365,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "最新バージョンです(v%@)"
+          }
+        }
+      }
+    },
+    "viewer.pdf.rotateClockwise": {
+      "comment": "PDF の右上に重ねた回転ボタン。時計回りに 90 度回す。読み上げ名と tooltip に使う。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate Right"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右に回転"
+          }
+        }
+      }
+    },
+    "viewer.pdf.rotateCounterClockwise": {
+      "comment": "PDF の右上に重ねた回転ボタン。反時計回りに 90 度回す。読み上げ名と tooltip に使う。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate Left"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左に回転"
           }
         }
       }
