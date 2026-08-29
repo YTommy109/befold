@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-29 00:40'
-updated_date: '2026-08-29 12:16'
+updated_date: '2026-08-29 12:25'
 labels: []
 dependencies:
   - TASK-565
@@ -48,7 +48,7 @@ PDF を `<iframe>` + blob URL（WebKit 内蔵 PDF プラグイン）で描くの
 - [x] #3 `viewer-src/zoom.ts` の `_mmdApplyZoom()` にある `pdf-body` 特例が撤去されている
 - [x] #4 PDF サーフェスかどうかの分岐が 1 箇所に閉じており、メニュー・ツールバー・コマンドがそれぞれ独自に種別を見ていない
 - [x] #5 描画方式の選択（PDFKit を採り pdf.js を採らなかった理由、代償として描画面が 2 枚になること）が `docs/adr/` の ADR として記録されている
-- [ ] #6 PDF を開く・別種別へ切り替える・PDF へ戻る、を往復してもサーフェスの残留やリークが起きない
+- [x] #6 PDF を開く・別種別へ切り替える・PDF へ戻る、を往復してもサーフェスの残留やリークが起きない
 - [x] #7 `swift test` が通り、swiftlint の main とのベースライン差分がゼロである
 - [x] #8 PDF で ⌘F が「押せるが何も起きない」状態になっていない（canFind が PDF で true のまま dead にならないこと。ADR 0002 が排した形）
 <!-- AC:END -->
@@ -239,4 +239,20 @@ Implementation Plan の C を上から実施した（1 は TASK-564.6 で完了�
 1. PDF 内検索の実装 — 未着手のまま。`canFind` は閉じたので「押せるのに効かない」状態ではなくなった。
 2. キーボードスクロール 6 件が PDF で失われる — 未着手。ADR 0009 の Consequences にも記録した。
 3. 破損 PDF の表示 — **このタスクで対応した**（`damagedDocument`）。
+
+## AC #6 の検証を追加（2026-08-29 / 目視の代わり）
+
+`screencapture` が使えない環境だったため未検証のまま残していた「PDF → 別種別 →
+PDF の往復でサーフェスの残留やリークが起きない」を、**オフスクリーン描画の実測**で
+固定した（`PDFSurfaceRenderingTests`）。`NSView.cacheDisplay(in:to:)` は画面収録の
+権限も窓も要らずにビューを描かせられる（`SettingsViewSnapshotTests` と同じ手）。
+
+`別種別へ移ると面から文書が外れ、戻すと再び描かれる` が、
+描画→ `document = nil`（`PDFPreviewView` が `data: nil` で通る経路）→ 描画→復帰、
+の各段で画素を測る。ページが出ている間は明るい画素が 30% 超、外した後は 1% 未満、
+戻すと再び 30% 超。これで「隠しているだけで文書を抱えたまま」の状態が入り込んだら落ちる。
+
+測り方の注意（実測）: `backgroundColor` を白に塗ると `cacheDisplay` にページが
+写らなくなる（PDFKit が別の描画経路へ行く）。既定の地（暗い
+`underPageBackgroundColor`）のまま、**明るい画素**でページの有無を測ること。
 <!-- SECTION:NOTES:END -->

@@ -353,13 +353,21 @@ struct PDFSurfaceRotationTests {
         #expect(PDFSurfaceLayout.rotation(of: reopened) == 180)
     }
 
-    /// 回転しても倍率の自動追従は外れない（AC #2: 回転後もフィットが保たれる）。
-    /// 倍率は回転の中で触らず、`autoScales` が縦横比の変化に追従する。
+    /// 回転してもフィットで見ている状態は保たれる（AC #2）。
+    ///
+    /// **`currentZoom == 1` だけを見てはいけない。** 実測では、回転後
+    /// `scaleFactorForSizeToFit` と `scaleFactor` がどちらも古いまま比が 1 に
+    /// なり、ページが面からはみ出していても通ってしまった（この検証だけを
+    /// 持っていたときに見逃した）。**実際に収まっているか**は
+    /// `PDFSurfaceRenderingTests` が面の座標で測る。ここでは
+    /// 「自動追従の状態が外れていないこと」だけを見る。
     @Test("回転してもフィットの自動追従は外れない")
-    func rotationKeepsAutoScaling() {
+    func rotationKeepsAutoScaling() async {
         let pdfView = makeView()
 
         PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+        // 再フィットはメインキューへ積まれる（`PDFSurfaceLayout.rotate` の doc）。
+        try? await Task.sleep(for: .milliseconds(200))
         pdfView.layoutSubtreeIfNeeded()
 
         #expect(pdfView.autoScales)

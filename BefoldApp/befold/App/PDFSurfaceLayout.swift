@@ -88,13 +88,26 @@ enum PDFSurfaceLayout {
     /// `PDFView` がフィットし直す(TASK-564.2 の AC #2)。
     static func rotate(byDegrees degrees: Int, in pdfView: PDFView) {
         guard let document = pdfView.document else { return }
+        let zoom = currentZoom(of: pdfView)
         for index in 0 ..< document.pageCount {
             guard let page = document.page(at: index) else { continue }
             page.rotation = normalized(page.rotation + degrees)
         }
-        // 再レイアウトは PDFKit が自分で行う(`PDFPage.rotation` の変更が
-        // didRotatePage の通知を出し、`PDFDocumentView` がメインキューで畳む)。
-        // ここで `layoutDocumentView()` を重ねて呼ばない。
+        // **`autoScales` は回転では効き直さない。** 実測(400x500 の面 / Letter 1 ページ):
+        // 回転すると `scaleFactorForSizeToFit` は 0.617 → 0.495 へ更新されるのに
+        // `scaleFactor` は 0.617 のまま残り、ページ(488pt 幅)が面(400pt)からはみ出す。
+        // 自動追従が働くのは面のリサイズのときだけで、ページの寸法が変わったときではない。
+        //
+        // 再レイアウトそのものは PDFKit がメインキューへ積む(`PDFPage.rotation` の
+        // 変更が didRotatePage の通知を出す)ので、倍率の入れ直しも同じキューへ**後から**
+        // 積む。ここで同期に入れ直すと、まだ古い `scaleFactorForSizeToFit` を読む。
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                // 回転前の倍率(1.0 = フィット)をそのまま維持する。フィットで見ていた
+                // なら回転後もフィット、拡大していたなら同じ拡大率のまま。
+                apply(zoom: zoom, to: pdfView, forcingRefit: true)
+            }
+        }
     }
 
     /// いまの回転角(0 / 90 / 180 / 270)。文書全体を回すので、先頭ページを代表として読む。
@@ -119,8 +132,11 @@ enum PDFSurfaceLayout {
 
     /// 倍率を適用する。フィット(既定倍率)へ戻すときは `autoScales` を戻し、
     /// 以後のリサイズにも追従させる(⌘0 が「この面での基準状態へ戻す」になる)。
-    static func apply(zoom: Double, to pdfView: PDFView) {
+    static func apply(zoom: Double, to pdfView: PDFView, forcingRefit: Bool = false) {
         guard zoom != ZoomStore.defaultZoom else {
+            // 既に true のまま入れ直しても再フィットしないため、いったん外して戻す
+            // (回転後の入れ直しで必要 / 実測は rotate の doc)。
+            if forcingRefit { pdfView.autoScales = false }
             pdfView.autoScales = true
             return
         }

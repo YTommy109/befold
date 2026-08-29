@@ -42,3 +42,74 @@ struct MainMenuShortcutTests {
         #expect(items.last?.keyEquivalentModifierMask == [.command, .shift])
     }
 }
+
+/// メニューの**有効判定**が能力どおりに出ること。
+/// `/menu-audit`（実行中のアプリを AX でダンプする）はこの環境では
+/// assistive access が無く走らせられないため、`validateMenuItem` が使うのと
+/// 同じ判定関数（`ViewerMenuValidator`）へ実際のメニュー項目を通して測る。
+@Suite
+@MainActor
+struct ViewMenuValidationTests {
+    /// 実際に構築した View メニューから、そのアクションの項目を引く。
+    private func viewMenuItems(action: Selector) throws -> [NSMenuItem] {
+        let view = try #require(MainMenuBuilder.makeViewMenuItem().submenu)
+        return view.items.filter { $0.action == action }
+    }
+
+    /// 判定に要る値だけを持つスタブ（`ViewerMenuValidatorTests` のものは private）。
+    private final class StubSource: ViewerMenuValidationSource {
+        var capabilities: ViewerCapabilities = .none
+        var isSourceMode = false
+        var showLineNumbers = false
+        var isBookmarked = false
+        var canGoBack = false
+        var canGoForward = false
+        var effectiveDisplayMode: ViewerDisplayMode = .rendered
+        var isDiffLayoutSideBySide = false
+    }
+
+    /// PDF を見ている状態 / それ以外（markdown 相当）を見ている状態。
+    private func source(rotatable: Bool) -> StubSource {
+        let stub = StubSource()
+        stub.capabilities = ViewerCapabilities(
+            isPresentingDocument: true,
+            isRejected: false,
+            isRenderable: true,
+            isBinaryContent: rotatable,
+            showsCodeContent: false,
+            supportsSourceMode: !rotatable,
+            supportsDiffDisplay: false,
+            supportsRotation: rotatable,
+            gitDiffAvailability: .undetermined,
+            isDirectHTMLMode: false,
+            isDocumentJumpEnabled: false
+        )
+        return stub
+    }
+
+    @Test("回転の項目は PDF のときだけ有効になる")
+    func rotationItemsFollowTheCapability() throws {
+        let items = try viewMenuItems(action: #selector(ViewerWindowController.rotateDocument(_:)))
+        #expect(items.count == 2)
+
+        for item in items {
+            #expect(ViewerMenuValidator.validate(item, source: source(rotatable: true)))
+            #expect(!ViewerMenuValidator.validate(item, source: source(rotatable: false)))
+        }
+    }
+
+    /// 回転を足したことで、ズーム側の有効判定が巻き添えで変わっていないこと。
+    @Test("ズームの項目は種別によらず有効のまま")
+    func zoomItemsStayEnabled() throws {
+        for action in [
+            #selector(ViewerWindowController.zoomIn(_:)),
+            #selector(ViewerWindowController.zoomOut(_:)),
+            #selector(ViewerWindowController.resetZoom(_:)),
+        ] {
+            for item in try viewMenuItems(action: action) {
+                #expect(ViewerMenuValidator.validate(item, source: source(rotatable: true)))
+                #expect(ViewerMenuValidator.validate(item, source: source(rotatable: false)))
+            }
+        }
+    }
+}
