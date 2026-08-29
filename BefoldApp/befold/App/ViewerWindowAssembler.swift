@@ -108,6 +108,8 @@ enum ViewerWindowAssembler {
         let onNavigateToFolder: (URL) -> Void = { [weak controller] url in controller?.navigateToFolder(url) }
         let content: AnyView = contentOverride?() ?? AnyView(ViewerContentView(
             store: controller.store,
+            // 開く対象の種別。PDF なら WKWebView を作らずに始める(TASK-564.7)。
+            openingFileType: FileType(url: controller.fileURL),
             findOptionsPreference: controller.findOptionsPreference,
             headingJump: controller.headingJump,
             codeFontFamily: controller.codeFontPreference.fontFamily,

@@ -190,7 +190,7 @@ BefoldApp/
 | `ShowLineNumbersSetting` | 行番号表示の設定（UserDefaults への永続化と CLI の起動限り上書き）。`ViewerStore` が窓ごとに 1 つ持つ |
 | `ViewerWebView` | `WKWebView` を包む `NSViewRepresentable`。Mermaid/Markdown 等をレンダリング。HTML ファイルは直接ロードも可 |
 | `ViewerContentView` | プレビュー領域の SwiftUI ビュー。フォルダー一覧とファイルの描画面の出し分けだけを持つ |
-| `DocumentSurfaceStack` | 描画面への配線（倍率・スクロール位置・検索設定・参照クリック）と、非対応・読み込み中のオーバーレイ |
+| `DocumentSurfaceStack` | 描画面への配線（倍率・スクロール位置・検索設定・参照クリック）と、非対応・読み込み中のオーバーレイ。**PDF だけを開いた窓では WKWebView を作らない**（生成の遅延であって破棄ではない。一度作った面は残す / TASK-564.7） |
 | `PreviewTarget` / `PreviewTargetResolver` | プレビュー領域が提示する対象（文書・フォルダー一覧・未確定）。導出は `FileListModel.previewTarget` の 1 箇所（[ADR 0002](../adr/0002-presentation-state-and-capabilities.md)） |
 | `ViewerCapabilities` | 「いま何ができるか」を提示状態から導出する純粋な型。メニュー・ツールバー・コマンド実行はこれだけを見る |
 | `DocumentRendering` | 表示中の文書へできることを表す port。宛先の違いで 2 群に分かれる——`DocumentSurfaceOperating`（倍率・検索・印刷・スクロール位置。**いま描いている 1 枚**へ振り分ける）と `DocumentSurfaceSyncing`（フォント・CSV 表示設定・ジャンプ可否・リネーム追随。**すべての面**へ配る）。実装は 2 つ——`WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter）と `PDFDocumentRenderer`（`PDFView` の倍率計算と印刷を閉じ込める adapter / ADR 0009） |

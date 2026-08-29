@@ -14,6 +14,9 @@ struct ViewerContentView: View {
     /// 生きている窓が拾ってしまう(ADR 0002「文書の状態の規則」1)。
     /// 読む契機は ViewerWindowController 側の提示開始 3 箇所に限る。
     let store: ViewerStore
+    /// この窓が開く対象の種別。描画面を先に用意するかどうかの判断にだけ使う
+    /// (`DocumentSurfaceStack.openingFileType`)。
+    let openingFileType: FileType
     let findOptionsPreference: FindOptionsPreference
     /// 見出しジャンプの設定(出発点と書き戻し口)。
     let headingJump: HeadingJumpLevelBinding
@@ -50,6 +53,7 @@ struct ViewerContentView: View {
         ZStack {
             DocumentSurfaceStack(
                 store: store,
+                openingFileType: openingFileType,
                 isVisible: folderURL == nil,
                 findOptionsPreference: findOptionsPreference,
                 headingJump: headingJump,
