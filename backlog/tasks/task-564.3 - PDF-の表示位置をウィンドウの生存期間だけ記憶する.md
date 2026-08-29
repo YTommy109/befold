@@ -1,11 +1,11 @@
 ---
 id: TASK-564.3
 title: PDF の表示位置をウィンドウの生存期間だけ記憶する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-29 00:41'
-updated_date: '2026-08-29 11:51'
+updated_date: '2026-08-29 12:16'
 labels: []
 dependencies:
   - TASK-564.1

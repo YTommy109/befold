@@ -1,11 +1,11 @@
 ---
 id: TASK-564.4
 title: PDF の拡大縮小を既存のズーム操作に合流させる
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-29 00:42'
-updated_date: '2026-08-29 11:55'
+updated_date: '2026-08-29 12:16'
 labels: []
 dependencies:
   - TASK-564.1

@@ -205,7 +205,9 @@ BefoldApp/
 | `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ）。外部の HTML 文書だけは例外で、文書が canvas ごと所有するためこの色は使われない |
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |
 | `PDFViewProxy` | 同上の `PDFView` 版。面ごとに 1 つ持つ |
-| `PDFPreviewView` | PDF の描画面。`PDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして描く |
+| `PDFPreviewView` | PDF の描画面。`PagingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして描く |
+| `PagingPDFView` | `PDFView` のサブクラス。ページ全体が収まっていてスクロールの余地が無いときだけホイールをページ送りへ振り替え、ピンチと Ctrl+ホイールを倍率操作として受ける |
+| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。`.singlePage` の設定、「倍率 1.0 = ページ全体が収まる状態」の換算、表示位置(文書全体に対する 0…1)の取得と復元、90 度回転を持つ |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
 | `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` / `GitFolderStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す（ファイル行は変更種別の文字、フォルダー行は集約を示す `•`） |
 | `SidebarTableViewLocator` | SwiftUI List の内部 NSTableView を取得するブリッジ |
@@ -242,6 +244,13 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   （読み込みは成功しているため、見なければ黙って空白になる）。
   PDF では検索とジャンプができないので、`canFind` / `canJump` は
   `!isBinaryContent` で閉じてある（画像も同様）
+- **PDF の見え方**: 1 ページずつ描き（`.singlePage`）、既定でページ全体が収まる
+  倍率に自動追従する（`autoScales`）。ウィンドウをリサイズしてもフィットし続け、
+  ユーザーが倍率を変えた時点で追従を外し、⌘0（既定のサイズ）で戻す。
+  ページ全体が見えていてスクロールの余地が無いときは、ホイールがページ送りになる。
+  表示位置（文書全体に対する 0…1）と 90 度回転（⌘R / ⇧⌘R、文書全体に効く）は
+  ウィンドウの生存期間だけ記憶する（`WindowPresentationMemory`）。倍率だけは
+  内容に依存しないユーザーの意図なので、従来どおり `ZoomStore` で per-file 永続
 - **CSV/TSV の数値列**: テーブル表示では列単位に書式を判定する（`viewer-src/csv-columns.ts` の
   `classifyCsvColumn`）。二段構えで、第 1 段「非空セルがすべて数値」を満たす列は右寄せ +
   `tabular-nums`、第 2 段の拒否条件（1,000 以上の値が無い / 先頭ゼロ / 全セル同じ桁数で 4 桁以上 /

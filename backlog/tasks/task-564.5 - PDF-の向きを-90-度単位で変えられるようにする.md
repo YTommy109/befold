@@ -1,11 +1,11 @@
 ---
 id: TASK-564.5
 title: PDF の向きを 90 度単位で変えられるようにする
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-29 00:42'
-updated_date: '2026-08-29 12:14'
+updated_date: '2026-08-29 12:16'
 labels: []
 dependencies:
   - TASK-564.1

@@ -1,11 +1,11 @@
 ---
 id: TASK-564.2
 title: 1 ページが画面にフィットする初期表示とページ単位のスクロールにする
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-29 00:40'
-updated_date: '2026-08-29 11:46'
+updated_date: '2026-08-29 12:16'
 labels: []
 dependencies:
   - TASK-564.1
