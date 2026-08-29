@@ -1,10 +1,10 @@
 ---
 id: TASK-568
 title: PDF でトラックパッドのピンチが効かない
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-29 20:34'
-updated_date: '2026-08-29 20:47'
+updated_date: '2026-08-29 22:32'
 labels: []
 dependencies:
   - TASK-567
@@ -36,10 +36,10 @@ PDF を開いてトラックパッドでピンチイン/アウトしても**見�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PDF でトラックパッドのピンチイン/アウトが効き、拡大縮小が見た目に反映される（実機で確認する）
-- [ ] #2 ピンチによる倍率変更が `onZoomChanged` 経由で窓へ伝わり、その後の ⌘0 や ⌘+ がピンチ後の倍率を基準に動く
-- [ ] #3 内側のスクロールビューの `allowsMagnification` を false にする設定が `PDFSurfaceLayout` に置かれ、オフスクリーンのテストがその値を固定している
-- [ ] #4 ピンチの上下限が `ZoomStore.minZoom` / `maxZoom` に収まる（スクロールビュー既定の 0.1〜100.0 が漏れ出さない）
+- [x] #1 PDF でトラックパッドのピンチイン/アウトが効き、拡大縮小が見た目に反映される（実機で確認する）
+- [x] #2 ピンチによる倍率変更が `onZoomChanged` 経由で窓へ伝わり、その後の ⌘0 や ⌘+ がピンチ後の倍率を基準に動く
+- [x] #3 内側のスクロールビューの `allowsMagnification` を false にする設定が `PDFSurfaceLayout` に置かれ、オフスクリーンのテストがその値を固定している
+- [x] #4 ピンチの上下限が `ZoomStore.minZoom` / `maxZoom` に収まる（スクロールビュー既定の 0.1〜100.0 が漏れ出さない）
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -63,4 +63,41 @@ PDF を開いてトラックパッドでピンチイン/アウトしても**見�
 
 - AC #1 / #2（実機でピンチが効き、その後の ⌘0・⌘+ が基準を引き継ぐこと）は
   ユーザーの目視待ち
+
+## 対応と実測
+
+**症状の訂正**: 起票時は「見た目が一切変わらない」と書いたが、ユーザーの再確認で
+**拡大は反応するがフィットへ戻る / 縮小は無視される**が正しかった。これは当初の読み
+（`PDFScrollView` がピンチを消費し、`autoScales` がフィットへ戻す）と一致する。
+
+**対処は 2 段階になった。**
+
+1. `allowsMagnification = false`（レイアウトのたびに入れ直す。`configure` は文書を
+   入れる前に呼ばれスクロールビューがまだ無いため、そこには置けない）
+2. それでも実機で効かなかったため、**`NSMagnificationGestureRecognizer` を主経路に
+   した**。レスポンダチェーンに依存しないので、`allowsMagnification` の設定タイミング
+   に左右されない。`magnify(with:)` の override は補助として残す
+
+なお TASK-567 で `autoScales` を廃止したため、フィットへ戻す打ち消し自体も消えている。
+
+**途中で自分の作業により壊した。** プローブの NSLog を正規表現でまとめて削除した際、
+`applyZoom` の呼び出しごと消し、ピンチが無反応になった（`magnify` は本体が空、
+`handleMagnification` は増分を捨てるだけ）。それでもテストは全件通っていた——倍率の
+検証が `applyZoom` を直接呼ぶ形で、**入口の配線を通っていなかった**ため。
+認識器のハンドラを internal にし、`NSMagnificationGestureRecognizer` を組み立てて
+そこから倍率が動くことを見るテストを足した（呼び出しを消すと `reported.count` が 0 に
+なって落ちることを確認済み）。`magnify(with:)` は NSEvent を合成できないため
+認識器を主経路として押さえる。
+
+## 検証
+
+- `swift test` 1796 件通過、swiftlint は origin/main と差分ゼロ
+- ユーザーによる実機確認: ピンチイン / アウトが効き、フィットへ戻されない
+- 上下限（`ZoomStore.minZoom` / `maxZoom`）は既存テスト 2 件が固定
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+PDF でトラックパッドのピンチが効かない件を直した。原因は内側の PDFScrollView が allowsMagnification=true でジェスチャを消費し、PDFView のサブクラスへ渡さないこと（オフスクリーンでビュー階層とレスポンダチェーンを実測して特定）。allowsMagnification を切る手当てはレイアウトのタイミングに依存して実機で効かなかったため、NSMagnificationGestureRecognizer を主経路にした。検証は swift test 1796 件通過、ユーザーによる実機確認、および認識器から applyZoom へ繋がっていることのテスト（呼び出しを消すと落ちることを実測）。
+<!-- SECTION:FINAL_SUMMARY:END -->
