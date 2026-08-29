@@ -30,6 +30,10 @@ struct ViewerContentViewStoreIsolationTests {
     private static let surfaceStackPath = viewerDirectory
         .appendingPathComponent("DocumentSurfaceStack.swift")
 
+    /// 面の側。宛先でないときに値を素通ししていないかはこちらを見る。
+    private static let webViewPath = viewerDirectory
+        .appendingPathComponent("ViewerWebView.swift")
+
     private static let isolatedPaths = [contentViewPath, surfaceStackPath]
 
     /// 参照を禁じる識別子。`perFileState` は 2 つのストアの入れ物なので、
@@ -68,6 +72,35 @@ struct ViewerContentViewStoreIsolationTests {
         let source = try String(contentsOf: Self.surfaceStackPath, encoding: .utf8)
         #expect(source.contains("initialZoom: store.zoom"))
         #expect(source.contains("scrollPositionToRestore: store.scrollPositionToRestore"))
+    }
+
+    /// **宛先でない面へファイル単位の値を流し込まない。**
+    ///
+    /// `PageZoomProjector.desired` は代入と同時に viewer.js へ適用する。面が 2 枚
+    /// ある以上、PDF へ切り替える瞬間に PDF の倍率を web の面へ渡すと、**まだ見えて
+    /// いる Markdown の倍率が変わってから** PDF に切り替わり、ちらついて見える
+    /// （TASK-567 の実測）。web の面が宛先かどうかは `showsPDF` の裏返しで、
+    /// 判定はサーフェス側 1 箇所に置く。
+    @Test("宛先でない面へは倍率と復元位置を渡さない")
+    func doesNotPushPerFileValuesToTheHiddenSurface() throws {
+        let stack = try String(contentsOf: Self.surfaceStackPath, encoding: .utf8)
+        #expect(stack.contains("ownsDocument: !showsPDF"))
+
+        let webView = try String(contentsOf: Self.webViewPath, encoding: .utf8)
+        let lines = Self.codeLines(in: webView)
+        let guardIndex = try #require(lines.firstIndex { $0.contains("if ownsDocument {") })
+        let zoomIndex = try #require(lines.firstIndex { $0.contains("renderer.initialPageZoom") })
+        let positionIndex = try #require(
+            lines.firstIndex { $0.contains("renderer.scrollPositionToRestore") }
+        )
+        // 代入が 2 つとも guard の内側にある（外へ出たら素通しへ戻る）。
+        #expect(zoomIndex > guardIndex)
+        #expect(positionIndex > guardIndex)
+        let closing = try #require(lines[guardIndex...].firstIndex { $0.trimmingCharacters(
+            in: .whitespaces
+        ) == "}" })
+        #expect(zoomIndex < closing)
+        #expect(positionIndex < closing)
     }
 
     /// 配線の移設が「`ViewerContentView` に残ったまま二重化した」形になっていないこと。

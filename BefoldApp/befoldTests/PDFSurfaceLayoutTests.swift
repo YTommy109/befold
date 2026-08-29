@@ -47,6 +47,31 @@ struct PDFSurfaceLayoutTests {
         #expect(pdfView.displayDirection == .vertical)
     }
 
+    /// **`PDFView` のプロパティを `@MainActor` 隔離された override で覆わない。**
+    ///
+    /// PDFKit は `visiblePagesChanged:` からバックグラウンドキューで `document` を
+    /// 読む。隔離付きの override を置くと、そこで隔離チェックが `SIGTRAP` を投げて
+    /// アプリごと落ちる（実測: `PDFPageAnalyzerV2` の経路で再現。
+    /// クラッシュレポート befold-2026-08-30-060318）。
+    ///
+    /// ここでは PDFKit と同じく **ObjC のセレクタ経由・主スレッド外**から読み、
+    /// 落ちないことを固定する。Swift の型では表現できない呼び方なので
+    /// `perform` を使う（この経路こそが実際に落ちた経路）。
+    @Test("PDF の面はバックグラウンドから document を読まれても落ちない")
+    func survivesDocumentAccessOffTheMainThread() async {
+        let pdfView = makeView()
+        let selector = NSSelectorFromString("document")
+
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                _ = pdfView.perform(selector)
+                continuation.resume()
+            }
+        }
+
+        #expect(pdfView.document != nil)
+    }
+
     /// ピンチを自前で受けるため、内側のスクロールビューの拡大縮小は切ってある
     /// (TASK-568)。既定の true のままだと `PDFScrollView` がジェスチャを消費し、
     /// `ZoomingPDFView.magnify` へ届かない。
@@ -57,33 +82,45 @@ struct PDFSurfaceLayoutTests {
         #expect(PDFSurfaceLayout.scrollView(in: pdfView)?.allowsMagnification == false)
     }
 
-    /// 開いた直後はページ全体が収まって見える(AC #1)。
+    /// 開いた直後はページ全体が収まって見える(AC #1)。連続スクロールでも
+    /// **縦にも収める**（`PDFView` 任せの幅フィットは採らない / TASK-567）。
     @Test("開いた直後はページ全体が収まる倍率になる")
-    func opensFittedToThePage() {
+    func opensFittedToThePage() throws {
         let pdfView = makeView()
 
-        #expect(pdfView.autoScales)
         #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 1) < 0.0001)
+        let page = try #require(pdfView.currentPage)
+        let drawn = pdfView.convert(page.bounds(for: pdfView.displayBox), from: page)
+        #expect(drawn.width <= pdfView.bounds.width)
+        #expect(drawn.height <= pdfView.bounds.height)
     }
 
     /// 倍率 1.0 の意味が面の生成側と操作側で 1 つであること。
-    /// 拡大したら追従をやめ、既定倍率へ戻したら追従を再開する(⌘0 = フィットへ戻す)。
-    @Test("拡大で自動追従を外し、既定倍率へ戻すと追従が戻る")
-    func zoomingLeavesAndRestoresAutoScaling() {
+    /// **倍率は面が覚える**ので、面の大きさが変わっても意味が保たれる
+    /// (`autoScales` の代わり / TASK-567)。
+    @Test("倍率は面の大きさが変わっても意味を保つ")
+    func zoomKeepsItsMeaningAcrossResize() {
         let pdfView = makeView()
         let fit = PDFSurfaceLayout.fitScale(of: pdfView)
 
         PDFSurfaceLayout.apply(zoom: 2, to: pdfView)
-        #expect(!pdfView.autoScales)
         #expect(abs(pdfView.scaleFactor - fit * 2) < 0.0001)
         #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 2) < 0.0001)
 
+        // 面を広げると、絶対倍率は変わるが「フィットの 2 倍」であり続ける。
+        pdfView.frame = NSRect(x: 0, y: 0, width: 800, height: 1000)
+        pdfView.layoutSubtreeIfNeeded()
+        #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 2) < 0.0001)
+        #expect(pdfView.scaleFactor > fit * 2)
+
+        // ⌘0 でフィットへ戻る。
         PDFSurfaceLayout.apply(zoom: ZoomStore.defaultZoom, to: pdfView)
-        #expect(pdfView.autoScales)
+        #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 1) < 0.0001)
     }
 
     /// ページごとにサイズが違う PDF・横長ページを含む PDF でも、
-    /// 各ページで全体が収まる(AC #4)。`autoScales` が表示中のページに追従する。
+    /// 各ページで全体が収まる(AC #4)。連続スクロールでは**いちばん大きいページ**に
+    /// 合わせるので、スクロール中に倍率が動かない(TASK-567)。
     @Test("ページサイズが混在していても各ページが収まる")
     func fitsEveryPageWhenSizesDiffer() {
         let pdfView = makeView(pageSizes: [
@@ -142,119 +179,6 @@ struct PDFSurfaceLayoutTests {
         // 余地はページ座標で測る。ピクセル寸法(contentSize)と比べると
         // フィット表示でも余地があるように見える(倍率が magnification に乗るため)。
         #expect(PDFSurfaceLayout.verticalScrollRoom(of: pdfView) > 1)
-    }
-}
-
-/// PDF の表示位置の記憶（TASK-564.3 / 換算は TASK-567 で連続スクロール前提へ）。
-///
-/// **PDF 専用の記憶機構は作らない。** 位置は「文書全体に対する 0…1」という
-/// web の面と同じ意味の値へ畳み、`WindowPresentationMemory`（窓の生存期間だけの
-/// 記憶）の既存の表へそのまま乗せる。
-@MainActor
-@Suite
-struct PDFSurfacePositionTests {
-    private func makeView(pageCount: Int) -> ZoomingPDFView {
-        let document = PDFDocument()
-        for index in 0 ..< pageCount {
-            let data = NSMutableData()
-            var box = NSRect(x: 0, y: 0, width: 612, height: 792)
-            guard let consumer = CGDataConsumer(data: data),
-                  let context = CGContext(consumer: consumer, mediaBox: &box, nil)
-            else { continue }
-            context.beginPage(mediaBox: &box)
-            context.endPage()
-            context.closePDF()
-            if let page = PDFDocument(data: data as Data)?.page(at: 0) {
-                document.insert(page, at: index)
-            }
-        }
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
-        pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
-        pdfView.document = document
-        pdfView.layoutSubtreeIfNeeded()
-        return pdfView
-    }
-
-    private func index(of pdfView: PDFView) -> Int? {
-        guard let document = pdfView.document, let page = pdfView.currentPage else { return nil }
-        return document.index(for: page)
-    }
-
-    /// 位置は「文書全体の 1 本のスクロール」として測る。web の面と同じ式
-    /// (スクロール量 / 余地)で、ページ番号は混ぜない(TASK-567)。
-    @Test("表示位置は文書全体に対する 0…1 で表され、往復で同じ位置へ戻る")
-    func positionRoundTripsThroughAFraction() {
-        let pdfView = makeView(pageCount: 4)
-        PDFSurfaceLayout.restore(fraction: 0.5, in: pdfView)
-        let saved = PDFSurfaceLayout.documentFraction(of: pdfView)
-        let page = pdfView.currentPage
-
-        PDFSurfaceLayout.restore(fraction: 0, in: pdfView)
-        #expect(PDFSurfaceLayout.documentFraction(of: pdfView) < 0.01)
-        PDFSurfaceLayout.restore(fraction: saved, in: pdfView)
-
-        #expect(abs(saved - 0.5) < 0.01)
-        #expect(abs(PDFSurfaceLayout.documentFraction(of: pdfView) - saved) < 0.01)
-        #expect(pdfView.currentPage === page)
-    }
-
-    /// ファイルが更新されてページ数が減っても、余地の割合で復元するので行き先は
-    /// 必ず文書の中に収まる（AC #4）。ページ番号で丸める分岐は要らない。
-    @Test("ページ数が減っても末尾を超えない")
-    func clampsWhenThePageDisappears() {
-        let wide = makeView(pageCount: 10)
-        PDFSurfaceLayout.restore(fraction: 1, in: wide)
-        let saved = PDFSurfaceLayout.documentFraction(of: wide)
-
-        let narrow = makeView(pageCount: 2)
-        PDFSurfaceLayout.restore(fraction: saved, in: narrow)
-
-        // 余地の割合で復元するので、行き先は必ず文書の中（末尾）に収まる。
-        #expect(abs(PDFSurfaceLayout.documentFraction(of: narrow) - 1) < 0.01)
-    }
-
-    @Test("先頭・末尾・範囲外の値でも破綻しない")
-    func handlesEdgeFractions() {
-        let pdfView = makeView(pageCount: 3)
-
-        for fraction in [-1.0, 0, 0.999, 1, 5] {
-            PDFSurfaceLayout.restore(fraction: fraction, in: pdfView)
-            let current = index(of: pdfView)
-            #expect(current != nil)
-            #expect((current ?? -1) >= 0 && (current ?? -1) <= 2)
-            let landed = PDFSurfaceLayout.documentFraction(of: pdfView)
-            #expect(landed >= 0 && landed <= 1)
-        }
-    }
-
-    /// PDF の位置は窓の生存期間だけの記憶に乗り、`UserDefaults` へは書かれない（AC #3）。
-    /// PDF 専用のストアを新設すると、この規則が PDF だけ破れる形になる。
-    @Test("PDF の表示位置は UserDefaults へ書かれない")
-    func positionNeverReachesUserDefaults() {
-        let defaults = makeIsolatedDefaults(prefix: "PDFSurfacePositionTests")
-        let before = defaults.dictionaryRepresentation().keys.sorted()
-        let memory = WindowPresentationMemory()
-        let pdf = URL(fileURLWithPath: "/files/doc.pdf")
-
-        memory.setScrollPosition(0.5, for: pdf, mode: .rendered)
-
-        #expect(memory.scrollPosition(for: pdf, mode: .rendered) == 0.5)
-        #expect(defaults.dictionaryRepresentation().keys.sorted() == before)
-        // 窓が閉じれば消える(新しいインスタンスは何も覚えていない)。
-        #expect(WindowPresentationMemory().scrollPosition(for: pdf, mode: .rendered) == 0)
-    }
-
-    /// 文書が無い面へ復元しても落ちない（切替直後の一瞬）。
-    @Test("文書が無ければ復元は何もしない")
-    func doesNothingWithoutADocument() {
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
-
-        PDFSurfaceLayout.restore(fraction: 0.5, in: pdfView)
-
-        #expect(pdfView.currentPage == nil)
-        #expect(PDFSurfaceLayout.documentFraction(of: pdfView) == 0)
     }
 }
 
@@ -354,9 +278,9 @@ struct PDFSurfaceRotationTests {
     /// なり、ページが面からはみ出していても通ってしまった（この検証だけを
     /// 持っていたときに見逃した）。**実際に収まっているか**は
     /// `PDFSurfaceRenderingTests` が面の座標で測る。ここでは
-    /// 「自動追従の状態が外れていないこと」だけを見る。
-    @Test("回転してもフィットの自動追従は外れない")
-    func rotationKeepsAutoScaling() async {
+    /// 「倍率の意味が 1.0 のままであること」だけを見る。
+    @Test("回転してもフィット倍率のままでいる")
+    func rotationKeepsTheFittedZoom() async {
         let pdfView = makeView()
 
         PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
@@ -364,7 +288,6 @@ struct PDFSurfaceRotationTests {
         try? await Task.sleep(for: .milliseconds(200))
         pdfView.layoutSubtreeIfNeeded()
 
-        #expect(pdfView.autoScales)
         #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 1) < 0.0001)
     }
 

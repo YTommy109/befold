@@ -26,7 +26,7 @@ struct PDFPreviewView: NSViewRepresentable {
     /// メニュー経由の倍率変更はここを通らない(コマンド側が返り値で伝える)。
     let onZoomChanged: (Double) -> Void
 
-    func makeNSView(context: Context) -> PDFView {
+    func makeNSView(context: Context) -> ZoomingPDFView {
         // ホイールをページ送りへ振り替える面(TASK-564.2)。レイアウト規則は
         // PDFSurfaceLayout が単一の情報源。
         let pdfView = ZoomingPDFView()
@@ -37,7 +37,7 @@ struct PDFPreviewView: NSViewRepresentable {
         return pdfView
     }
 
-    func updateNSView(_ pdfView: PDFView, context: Context) {
+    func updateNSView(_ pdfView: ZoomingPDFView, context: Context) {
         // 見えていない間は差し替えない。見える状態へ戻った時点で SwiftUI が最新の値で
         // 呼び直すため、抑止した更新は 1 回へ畳まれる(ViewerRenderer の isVisible と同じ)。
         guard isVisible else { return }
@@ -52,11 +52,13 @@ struct PDFPreviewView: NSViewRepresentable {
         pdfView.document = PDFDocument(data: data)
         // 回転は倍率より先に合わせる(縦横比が変わるとフィット倍率も変わるため)。
         PDFSurfaceLayout.apply(rotation: rotation, to: pdfView)
-        // 文書の差し替えで倍率は既定へ戻るため、ファイル単位の値をここで入れ直す。
-        // 換算は PDFSurfaceLayout が持つ(操作側と同じ規則を通す)。
-        PDFSurfaceLayout.apply(zoom: initialZoom, to: pdfView)
-        // 位置の復元は倍率を入れた後に行う(倍率でページ内の余地が変わるため)。
-        PDFSurfaceLayout.restore(fraction: scrollPositionToRestore, in: pdfView)
+        // **倍率と位置はここで描き込まない。** ファイル単位の倍率と復元したい位置を
+        // 面へ預け、レイアウトが落ち着いた 1 回で両方入れる(`ZoomingPDFView.layout`)。
+        // 直接入れると、ページの寸法が確定するまでのあいだに倍率と位置が数回ずつ
+        // 動き、開いた瞬間・戻ってきた瞬間のちらつきになる(TASK-567)。
+        pdfView.zoom = initialZoom
+        pdfView.pendingRestoreFraction = scrollPositionToRestore
+        pdfView.needsLayout = true
     }
 
     func makeCoordinator() -> Coordinator {

@@ -206,10 +206,10 @@ BefoldApp/
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |
 | `PDFViewProxy` | 同上の `PDFView` 版。面ごとに 1 つ持つ |
 | `PDFPreviewView` | PDF の描画面。`ZoomingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして描く |
-| `ZoomingPDFView` | `PDFView` のサブクラス。ピンチと Ctrl+ホイールを倍率操作として受ける。スクロールは `PDFView` に任せる。ピンチを受けるため、レイアウトのたびに内側のスクロールビューの `allowsMagnification` を切る（切らないと `PDFScrollView` がジェスチャを消費する / TASK-568） |
+| `ZoomingPDFView` | `PDFView` のサブクラス。ピンチ（`NSMagnificationGestureRecognizer`）と Ctrl+ホイールを倍率操作として受け、スペース / Shift+スペースを 1 画面ぶんの滑らかなスクロールにする。倍率（1.0 = ページ全体が収まる）を面が覚え、リサイズ・回転のたびに `layout` で入れ直す（`autoScales` は使わない）。**`document` プロパティを override してはならない**——PDFKit がバックグラウンドから読むため、`@MainActor` 隔離の override は `SIGTRAP` で落ちる（TASK-567） |
 | `PDFRotationOverlay` | PDF の右上に重ねる回転コントロール。メニューには置かない（その面を見ているときにしか意味が無い操作なので、対象の隣に置く） |
 | `PDFSurfaceActions` | PDF 面と窓のあいだの受け渡し（倍率の通知・回転の要求）を 1 つにまとめた値。View の注入クロージャを 3 つ以下に保つため |
-| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。`.singlePageContinuous` の設定、「倍率 1.0 = ページの幅が収まる状態」の換算、表示位置(文書全体に対する 0…1)の取得と復元、90 度回転を持つ |
+| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。`.singlePageContinuous` の設定、「倍率 1.0 = ページ全体が収まる状態」の換算、表示位置(文書全体に対する 0…1)の取得と復元、90 度回転を持つ |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
 | `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` / `GitFolderStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す（ファイル行は変更種別の文字、フォルダー行は集約を示す `•`） |
 | `SidebarTableViewLocator` | SwiftUI List の内部 NSTableView を取得するブリッジ |
@@ -252,6 +252,10 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   ユーザーが倍率を変えた時点で追従を外し、⌘0（既定のサイズ）で戻す。
   当初は 1 ページずつ描いてホイールをページ送りへ振り替えていたが、
   ページが瞬時に切り替わる体感の悪さから連続スクロールへ改めた（TASK-567）。
+  フィットは**ページ全体が収まる倍率**で、文書内でいちばん大きいページに合わせる
+  （ページごとに合わせ直すと、スクロール中に倍率が動く）。表示位置は 0 が先頭・
+  1 が末尾で、`PDFView` のスクロール座標（下へ行くほど y が小さい）との向きの
+  変換は `PDFSurfaceLayout.scrollOffset(forFraction:room:)` が持つ。
   表示位置（文書全体に対する 0…1）と 90 度回転（右上に重ねた `PDFRotationOverlay` の
   2 つのボタン。文書全体に効く）は
   ウィンドウの生存期間だけ記憶する（`WindowPresentationMemory`）。倍率だけは

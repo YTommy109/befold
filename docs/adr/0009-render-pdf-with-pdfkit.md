@@ -98,8 +98,11 @@ pdf.js を採らなかった理由は 2 つある。
   スクロールでページが瞬時に切り替わり、滑らかに読めなかった。体感を優先して
   この不変条件を捨て、`.singlePageContinuous` へ改めた（TASK-567）。スナップや
   遷移アニメーションのような代わりの仕掛けは足していない。連続スクロールでは
-  `scaleFactorForSizeToFit` が幅基準になるため、倍率 1.0 の意味も
-  「ページ全体が収まる」から「ページの幅が収まる」へ移っている。
+  `scaleFactorForSizeToFit` が幅基準になるため、`autoScales` に任せると倍率 1.0 が
+  「ページの幅が収まる」に変わってしまう（`scaleFactorForSizeToFit` を override しても
+  自動追従はその値を読まない / 実測）。倍率 1.0 の意味を「ページ全体が収まる」の
+  ままにするため、`autoScales` を使わず `ZoomingPDFView` が倍率を覚えて
+  `layout` で入れ直す。
 - **ピンチは自前で受ける。** `PDFView` の内側の `PDFScrollView` は
   `allowsMagnification` が既定で true で、ピンチを消費して `PDFView` の
   サブクラスへ渡さない。その状態では `autoScales` がフィットへ戻すため、

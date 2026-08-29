@@ -85,20 +85,21 @@ struct PDFSurfaceRenderingTests {
         return pdfView.convert(page.bounds(for: pdfView.displayBox), from: page)
     }
 
-    /// 開いた直後、**ページの幅が画面の中に収まり、上端から描かれる**。
-    /// 連続スクロールでは高さは収めない（収めると 1 ページずつ止まる表示に戻る /
-    /// TASK-567）。縦は下へ続いているのが正しい。
-    @Test("開いた直後はページの幅が収まり、上端から描かれる")
-    func drawsThePageWidthOnOpen() throws {
+    /// 開いた直後、**ページの上端も下端も画面の中にある**（564.2 AC #1）。
+    /// 連続スクロールでも縦フィットを保つ（`PDFView` 任せの幅フィットでは
+    /// 下端が画面外に出る / TASK-567）。
+    @Test("開いた直後はページ全体が面の中に収まって描かれる")
+    func drawsTheWholePageOnOpen() throws {
         let pdfView = makeView()
 
         let rect = try #require(pageRect(in: pdfView))
         #expect(rect.width <= pdfView.bounds.width + 1)
-        #expect(rect.width > pdfView.bounds.width - 8) // 余白の分を除き幅いっぱいまで使う
-        #expect(rect.height > pdfView.bounds.height) // 縦は続いている
-        // ページ(白地)が面を埋めている。黒帯の分だけ 100% には満たない。
+        #expect(rect.height <= pdfView.bounds.height + 1)
+        #expect(rect.minY >= -1)
+        #expect(rect.maxY <= pdfView.bounds.height + 1)
+        // ページ(白地)が描かれている。地と黒帯の分だけ 100% には満たない。
         let drawn = lightPixelRatio(of: pdfView)
-        #expect(drawn > 0.5)
+        #expect(drawn > 0.3)
         #expect(drawn < 1)
     }
 
