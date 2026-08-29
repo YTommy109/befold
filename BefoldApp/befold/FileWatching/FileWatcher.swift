@@ -48,15 +48,57 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         self.onChange = onChange
         self.onRename = onRename
         // fileSource / dirSource はイベントハンドラ（監視キュー上）でも
-        // 解放・再割り当てされるため、初期化時の書き込みも同じ監視キューに
-        // 直列化して競合を防ぐ。init は queue が空の状態で呼ばれるので
-        // queue.sync でデッドロックせず、戻り時点で監視が有効になる。
-        queue.sync { startMonitors() }
+        // 解放・再割り当てされるため、初期化時の書き込みも同じ監視キューへ
+        // 直列化して競合を防ぐ。
+        //
+        // **`queue.sync` を使ってはならない。** `startMonitors` は監視対象と
+        // その親ディレクトリを `open()` で開く。sync にすると、この syscall が
+        // 呼び出し元（多くはメインスレッド）で同期に走り、iCloud Drive や
+        // ネットワークボリュームのように open が遅い場所ではアプリ全体が
+        // その間止まる（TASK-566 の実測では 3 秒のサンプル 2611/2611 が
+        // メインスレッドの `open()` だった）。
+        //
+        // 非同期化で「init から戻ったが、まだ監視していない」区間ができる。
+        // ただし **この区間は元から存在していた**——`DispatchSource.resume()` は
+        // 同期に戻るが kevent のカーネル登録は非同期に完了するため、sync でも
+        // 「戻り時点で監視が有効」は成立していない（`confirmWatcherArmed` の
+        // doc コメントを参照）。広がった分は、監視開始の前後でファイルが
+        // 変わっていた場合だけ通知して埋める（`startMonitorsAndCatchUp`）。
+        queue.async { self.startMonitorsAndCatchUp() }
     }
 
     private func startMonitors() {
         startDirectoryMonitor()
         startFileMonitor()
+    }
+
+    /// 監視開始と、開始までの取りこぼしを埋める通知をまとめて行う。init 専用。
+    ///
+    /// **通知は「実際に変わったとき」だけ出す。** 無条件に出してはならない。
+    /// `ViewerStore.loadContent` は呼ばれるたびに `loadGeneration` を進めるため、
+    /// 開いた直後に通知すると**走行中の初回読み込みの結果が捨てられ、読み直しに
+    /// なる**（世代が古くなった結果は `performLoad` の着地で破棄される）。
+    /// 段階読み込み中のファイルではその分だけ初回表示が遅れる。
+    ///
+    /// 変化の判定は監視開始の前後で撮った `FileFingerprint`（inode・サイズ・
+    /// 更新時刻）の比較で行う。埋まるのは**このブロックが動き始めてから
+    /// 監視が張られるまで**——非同期化で広げた `open()` の所要時間そのもので、
+    /// 遅いパスではここが支配的になる。
+    ///
+    /// 埋まらない区間も残る。(a) init から監視キューがこのブロックを走らせる
+    /// までのディスパッチ待ち、(b) `DispatchSource.resume()` から kevent の
+    /// カーネル登録が完了するまで。(b) は非同期化以前から存在していた
+    /// （`confirmWatcherArmed` の doc コメントを参照）。どちらも `open()` の
+    /// 待ち時間とは桁が違うため、ここでは埋めない。
+    ///
+    /// `stop()` が先着した場合、この通知はデバウンサー経由で予約されているため
+    /// `debouncer.cancel()` が一緒に取り消す。
+    private func startMonitorsAndCatchUp() {
+        let before = FileFingerprint(path: resolvedPath.path)
+        startMonitors()
+        let after = FileFingerprint(path: resolvedPath.path)
+        guard before != after else { return }
+        scheduleNotify()
     }
 
     // MARK: - Monitor Helpers
@@ -240,5 +282,48 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
 
     deinit {
         stop()
+    }
+}
+
+/// ファイルが「別物になったか」を安く見分けるための指紋。inode・サイズ・更新時刻を
+/// 見る。内容の同一性ではなく変化の有無だけを判定するもので、内容が同じかどうかは
+/// 受け手側の hash 比較（`ViewerContentState.applyDisplayState` の `isUnchanged`）が持つ。
+///
+/// 対象が存在しない場合も `nil` ではなく「存在しないという指紋」として扱う
+/// （`exists` が false）。nil にすると「取得できなかった」と「無かった」が同じになり、
+/// 削除を変化として拾えなくなる。
+struct FileFingerprint: Equatable {
+    let exists: Bool
+    let inode: UInt64
+    let size: Int64
+    let modifiedSeconds: Int64
+    let modifiedNanoseconds: Int64
+
+    init(path: String) {
+        var info = stat()
+        guard stat(path, &info) == 0 else {
+            self = FileFingerprint(
+                exists: false, inode: 0, size: 0, modifiedSeconds: 0, modifiedNanoseconds: 0
+            )
+            return
+        }
+        self = FileFingerprint(
+            exists: true,
+            inode: UInt64(info.st_ino),
+            size: Int64(info.st_size),
+            modifiedSeconds: Int64(info.st_mtimespec.tv_sec),
+            modifiedNanoseconds: Int64(info.st_mtimespec.tv_nsec)
+        )
+    }
+
+    private init(
+        exists: Bool, inode: UInt64, size: Int64,
+        modifiedSeconds: Int64, modifiedNanoseconds: Int64
+    ) {
+        self.exists = exists
+        self.inode = inode
+        self.size = size
+        self.modifiedSeconds = modifiedSeconds
+        self.modifiedNanoseconds = modifiedNanoseconds
     }
 }
