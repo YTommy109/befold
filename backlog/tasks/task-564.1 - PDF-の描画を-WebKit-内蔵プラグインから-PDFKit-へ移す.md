@@ -4,8 +4,10 @@ title: PDF の描画を WebKit 内蔵プラグインから PDFKit へ移す
 status: To Do
 assignee: []
 created_date: '2026-08-29 00:40'
+updated_date: '2026-08-29 00:52'
 labels: []
-dependencies: []
+dependencies:
+  - TASK-565
 parent_task_id: TASK-564
 priority: high
 type: task
