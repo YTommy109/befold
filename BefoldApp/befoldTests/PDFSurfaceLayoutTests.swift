@@ -136,6 +136,26 @@ struct PDFSurfaceLayoutTests {
         }
     }
 
+    /// **ピンチの入口が `applyZoom` へ繋がっている。**
+    ///
+    /// 倍率の計算そのものは下の 2 つが見ているが、それらは `applyZoom` を直接
+    /// 呼ぶので、**入口の配線が切れても気づけない**（実測: プローブのログを外す
+    /// 作業で `applyZoom` の呼び出しごと消えたが、全件通ってしまった / TASK-568）。
+    /// ここは認識器のハンドラを通して、配線そのものを見る。
+    @Test("ピンチの認識器が倍率へ繋がっている")
+    func magnificationRecognizerReachesTheZoom() {
+        let pdfView = makeView()
+        var reported: [Double] = []
+        pdfView.onZoomChanged = { reported.append($0) }
+        let recognizer = NSMagnificationGestureRecognizer(target: nil, action: nil)
+        recognizer.magnification = 0.5
+
+        pdfView.handleMagnification(recognizer)
+
+        #expect(reported.count == 1)
+        #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 1.5) < 0.0001)
+    }
+
     /// 面の中で完結する倍率操作(ピンチ・Ctrl+ホイール)が上下限を守り、
     /// 変化を窓へ伝えること(TASK-564.4)。上下限は `ZoomStore` と共有する。
     @Test("ピンチの拡大は上限で止まり、倍率の変化が窓へ伝わる")

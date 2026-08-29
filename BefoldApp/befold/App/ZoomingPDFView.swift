@@ -77,7 +77,10 @@ final class ZoomingPDFView: PDFView {
         addGestureRecognizer(recognizer)
     }
 
-    @objc private func handleMagnification(_ recognizer: NSMagnificationGestureRecognizer) {
+    /// 認識器からのピンチ。**`NSEvent` を作らずに検証できるよう internal**
+    /// （実測できない入口は静かに壊れる。実際、ログを外す作業で `applyZoom` の
+    /// 呼び出しごと消えてもテストは全件通った / TASK-568）。
+    @objc func handleMagnification(_ recognizer: NSMagnificationGestureRecognizer) {
         // 認識器の magnification は累積値。前回からの増分だけを倍率へ掛ける。
         let increment = recognizer.magnification - lastRecognizedMagnification
         lastRecognizedMagnification = recognizer.magnification
@@ -85,6 +88,7 @@ final class ZoomingPDFView: PDFView {
             lastRecognizedMagnification = 0
         }
         guard increment != 0 else { return }
+        applyZoom(scaledBy: 1 + increment)
     }
 
     /// 直前に認識器から受け取った累積値（増分を出すために覚える）。
@@ -115,7 +119,9 @@ final class ZoomingPDFView: PDFView {
     /// **これが呼ばれるには、内側のスクロールビューの `allowsMagnification` を
     /// 切っておく必要がある**(`PDFSurfaceLayout.configure`)。既定のままだと
     /// `PDFScrollView` がジェスチャを消費してここへ届かない(TASK-568 の実測)。
-    override func magnify(with event: NSEvent) {}
+    override func magnify(with event: NSEvent) {
+        applyZoom(scaledBy: 1 + event.magnification)
+    }
 
     override func scrollWheel(with event: NSEvent) {
         // Ctrl+ホイールは拡大縮小(viewer.js の _mmdWheelZoom と同じ約束)。
