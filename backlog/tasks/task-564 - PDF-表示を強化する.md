@@ -1,10 +1,10 @@
 ---
 id: TASK-564
 title: PDF 表示を強化する
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-29 00:39'
-updated_date: '2026-08-29 12:16'
+updated_date: '2026-08-29 12:29'
 labels: []
 dependencies: []
 priority: medium
@@ -76,4 +76,34 @@ osascript が assistive access 不許可）。GUI 層はもともと自動テス
 
 `.tmp/sample.pdf`（3 ページ）と `.tmp/broken.pdf` を置いてある。
 アプリは `BefoldApp/.build/xcode/Build/Products/Debug/befold.app` にビルド済み。
+
+## 目視の代わりにオフスクリーン描画で検証した（2026-08-29）
+
+「画面を見ないと確かめられない」としていた項目のうち、次は
+`NSView.cacheDisplay(in:to:)` によるオフスクリーン描画で**実測に置き換えた**
+（画面キャプチャではないので TCC の許可が要らない。`SettingsViewSnapshotTests` と
+同じ手）。
+
+| 項目 | 置き換えた検証 |
+| --- | --- |
+| 開いた直後に 1 ページ全体が収まる | `PDFSurfaceRenderingTests` がページの矩形を面の座標で測る |
+| 2 ページの端が同時に見えない | `visiblePages.count == 1` |
+| 横長・サイズ混在でも破綻しない | 横長ページで矩形が面に収まることを実測 |
+| PDF↔他種別の往復で残留しない | 明るい画素の割合が 30%超 → 1%未満 → 30%超と往復する（564.1 AC #6） |
+| 回転後もフィットが保たれる | 回転前後の矩形の縦横比と収まりを実測 |
+| 回転メニューが PDF 以外で無効 | 実際のメニュー項目を `ViewerMenuValidator` へ通す |
+| 破損 PDF でバナーが出る | `UnsupportedFileView` を描いて、文言が乗ることと他の理由と別の画になることを確認 |
+
+**この検証で 1 件の不具合が見つかり、直した。** 回転後に `autoScales` が効き直さず、
+ページが面からはみ出していた（詳細と実測値は TASK-564.5 の Implementation Notes）。
+当初の単体テストは倍率の**比**だけを見ていたため見逃していた。
+
+## それでも目視でしか分からない残り
+
+- ホイールでのページ送りの操作感（閾値 20 が適切か、1 回のフリックで 1 ページか）
+- ピンチ／Ctrl+ホイールの感度
+- 拡大時に文字が粗くならないこと（`PDFView` の再ラスタライズ。構造上は満たされる）
+
+いずれも「動くかどうか」ではなく**効き具合**の話で、値としては上のテストで固定済み。
+次にアプリを触ったときに確かめてほしい。
 <!-- SECTION:NOTES:END -->
