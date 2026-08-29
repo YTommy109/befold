@@ -189,10 +189,12 @@ BefoldApp/
 | `ViewerContentState` | 読み込みが確定させた表示状態（content / fileType / filePath / rejectReason / 段階読み込み）の単一情報源。`ViewerStore.contentState` が窓ごとに 1 つ持つ |
 | `ShowLineNumbersSetting` | 行番号表示の設定（UserDefaults への永続化と CLI の起動限り上書き）。`ViewerStore` が窓ごとに 1 つ持つ |
 | `ViewerWebView` | `WKWebView` を包む `NSViewRepresentable`。Mermaid/Markdown 等をレンダリング。HTML ファイルは直接ロードも可 |
-| `ViewerContentView` | ビューア本体の SwiftUI ビュー（ズーム・スクロール位置・検索設定・参照クリックの配線） |
+| `ViewerContentView` | プレビュー領域の SwiftUI ビュー。フォルダー一覧とファイルの描画面の出し分けだけを持つ |
+| `DocumentSurfaceStack` | 描画面への配線（倍率・スクロール位置・検索設定・参照クリック）と、非対応・読み込み中のオーバーレイ |
 | `PreviewTarget` / `PreviewTargetResolver` | プレビュー領域が提示する対象（文書・フォルダー一覧・未確定）。導出は `FileListModel.previewTarget` の 1 箇所（[ADR 0002](../adr/0002-presentation-state-and-capabilities.md)） |
 | `ViewerCapabilities` | 「いま何ができるか」を提示状態から導出する純粋な型。メニュー・ツールバー・コマンド実行はこれだけを見る |
-| `DocumentRendering` | 表示中の文書へできること（倍率・検索・印刷・スクロール位置）を表す port。実装は `WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter） |
+| `DocumentRendering` | 表示中の文書へできることを表す port。宛先の違いで 2 群に分かれる——`DocumentSurfaceOperating`（倍率・検索・印刷・スクロール位置。**いま描いている 1 枚**へ振り分ける）と `DocumentSurfaceSyncing`（フォント・CSV 表示設定・ジャンプ可否・リネーム追随。**すべての面**へ配る）。実装は `WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter） |
+| `DocumentSurfaces` | 窓が持つ描画面の束と、命令をどの面へ届けるかの決定。宛先を決めるのはこの型の `operating(on:)` / `syncingAll` だけで、メニュー・ツールバー・コマンドは種別を見ない。判定は**描画が確定した種別**（`ViewerContentState.fileType`）で行い、提示予定の URL では行わない |
 | `FileListModel` / `FileListView` | サイドバーのファイル一覧・選択状態を管理する `@Observable` モデルと SwiftUI ビュー |
 | `HistoryButtonView` | 戻る/進むツールバーボタン（クリックで移動、長押し/右クリックで履歴メニュー） |
 | `MarkdownImageEmbedder` | Markdown 記法 `![]()` と inline HTML の `<img src>` が指すローカル画像を base64 data URI に埋め込む前処理（CSP 対応） |

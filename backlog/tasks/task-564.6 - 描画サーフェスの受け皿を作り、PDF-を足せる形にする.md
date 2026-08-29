@@ -1,11 +1,11 @@
 ---
 id: TASK-564.6
 title: 描画サーフェスの受け皿を作り、PDF を足せる形にする
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-29 10:16'
-updated_date: '2026-08-29 10:25'
+updated_date: '2026-08-29 11:10'
 labels: []
 dependencies: []
 parent_task_id: TASK-564
@@ -58,11 +58,79 @@ TASK-564.1 の `/review-design` で、PDF 描画の差し替えを既存構造�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `ViewerWindowController` グループの行数が現状（895 行）から増えていない
-- [ ] #2 `ViewerContentView` が `ViewerWebView` への配線を直接持たず、切り出した `DocumentSurfaceStack` が持っている
-- [ ] #3 `DocumentRendering` が「振り分ける操作」と「両サーフェスへ配る追随」に分かれており、どちらに属するかが doc コメントで判別できる
-- [ ] #4 `applyCodeFont` / `applyCsvNumberFormat` / `applyJumpAvailability` / `noteRename` が「配る」側にあることを、振り分け実装に変えたら落ちるテストで固定している
-- [ ] #5 `ViewerStore` グループが 400 行の上限に対して、PDF の Data ケースを受けられるだけの余裕を持っている
-- [ ] #6 この整理だけでは PDF の描画は一切変わっていない（`_renderPdf` の iframe 経路は手つかず）
-- [ ] #7 `swift test` が通り、swiftlint の main とのベースライン差分がゼロである
+- [x] #1 `ViewerWindowController` グループの行数が現状（895 行）から増えていない
+- [x] #2 `ViewerContentView` が `ViewerWebView` への配線を直接持たず、切り出した `DocumentSurfaceStack` が持っている
+- [x] #3 `DocumentRendering` が「振り分ける操作」と「両サーフェスへ配る追随」に分かれており、どちらに属するかが doc コメントで判別できる
+- [x] #4 `applyCodeFont` / `applyCsvNumberFormat` / `applyJumpAvailability` / `noteRename` が「配る」側にあることを、振り分け実装に変えたら落ちるテストで固定している
+- [x] #5 `ViewerStore` グループが 400 行の上限に対して、PDF の Data ケースを受けられるだけの余裕を持っている
+- [x] #6 この整理だけでは PDF の描画は一切変わっていない（`_renderPdf` の iframe 経路は手つかず）
+- [x] #7 `swift test` が通り、swiftlint の main とのベースライン差分がゼロである
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 検証結果（実測）
+
+- `swift test --skip Integration --skip FileWatcherTests`: **1629 件すべて成功**（着手前は 1621 件。増分 8 件は DocumentSurfaceDispatchTests 7 件と ViewerContentViewStoreIsolationTests の追加 1 件）
+- swiftlint の main とのベースライン差分: **ゼロ**（`git archive origin/main` を別ディレクトリへ展開して測定。双方 54 件で一致）
+- 型グループ行数: `ViewerWindowController` 895（着手前と同値、例外枠 900）、`ViewerStore` 394 → **370**、`ViewerContentView` 111 → **77**、新設 `DocumentSurfaceStack` 91 / `DocumentSurfaces` 63 / `DocumentRendering` 106 / `ViewerContentState` 155 → 201
+- JS 側の差分: `git diff origin/main -- BefoldApp/viewer-src BefoldApp/BefoldKit/Resources` が**空**。PDF の iframe 経路は手つかず（AC #6）
+
+## AC #4 は、テストより上位の担保になった
+
+「配るべきものを振り分けてしまう」実装は**コンパイルが通らない**。
+`WebViewCommandController.renderer` の型が `any DocumentSurfaceOperating` で、
+`applyCodeFont` などの追随メソッドを持たないため。実際に `applyCodeFont` を
+`renderer.applyCodeFont(...)` へ書き換えて確認した（実測）:
+
+```
+error: value of type 'any DocumentSurfaceOperating' has no member 'applyCodeFont'
+```
+
+`.claude/CLAUDE.md`「決めたことには、破れたら落ちるものを付ける」の 2 つの選択肢のうち、
+テストではなく**破りようのない構造**のほうが得られた。`DocumentSurfaceDispatchTests` は
+その上で、宛先の書き方（`surfaces.syncingAll` を回っているか）をソース走査で固定する。
+面が 1 枚のうちは呼び出し回数では差が出ない（配っても振り分けても同じ 1 枚に届く）ため、
+回数のテストだけでは担保にならない。
+
+## 途中で直した無関係の不具合
+
+`SettingsViewSnapshotTests` の「負の数の選択肢の見本が右端で揃っている」が HEAD 時点で
+既に失敗していた（本タスクの変更とは無関係。ファイルを退避して切り分け済み）。
+判定が「地はほぼ白、文字は暗い」を前提にしているため、macOS の外観がダークだと
+全行が文字と判定されて行のかたまりが 1 つに潰れる（rows.count が 4 ではなく 1）。
+撮る側の `window.appearance` を `.aqua` に固定して別コミットで修正した。
+
+## TASK-564.1 への申し送り
+
+- PDF の面を足す変更点は `DocumentSurfaces.operating(on:)` の中身と `syncingAll` の要素、
+  および `DocumentSurfaceStack` への 1 枚追加に閉じる。`WebViewCommandController` は
+  種別を見ないので触らない
+- 宛先の判定は `CurrentDocumentRef.renderedFileType`（= `ViewerContentState.fileType`）。
+  `url` 側（`ViewerStore.pendingURL`）を使わないこと。理由は
+  `DocumentSurfaces.operating(on:)` の doc コメントに書いてある
+- `ViewerLoadPipeline.Outcome` に Data ケースを足したときの受け手は
+  `ViewerContentState.DisplayState.init(outcome:fileType:)`（extension 側。struct 本体に
+  書くとメンバワイズ init が消える）
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+TASK-564.1（PDF を PDFKit の PDFView で描く）に着手できる形へ、既存の構造を先に整えた。PDF そのものは足していない（`git diff origin/main -- BefoldApp/viewer-src BefoldApp/BefoldKit/Resources` が空）。
+
+変更は 3 段。
+
+1. **描画面への配線を `DocumentSurfaceStack` へ切り出す。** `ViewerContentView` はフォルダー一覧との出し分けだけを持つ（111 → 77 行）。PDF を足してから切ると、22 引数の配線の隣に 2 枚目のサーフェス配線が並んだ状態が既成事実になるため、先に切った。
+2. **`DocumentRendering` を宛先で 2 群へ分け、束を `DocumentSurfaces` へ寄せる。** `DocumentSurfaceOperating`（いま描いている 1 枚へ振り分ける）と `DocumentSurfaceSyncing`（すべての面へ配る）。設定反映とリネーム追随を後者に置いたのは、振り分けると既存コメントが名指ししている 2 つの事故が戻るため（設定の取り残しが種別の形で再発する / `handleRename` が `applyURLToWindow` を先に呼ぶので対応形式が変わるリネームで旧側の面が追随しない = TASK-401 / TASK-393）。宛先は `ViewerContentState.fileType` で決める（`pendingURL` は内容の着地より先に進むため、URL で決めると切替直後に命令が無言で捨てられる）。`ViewerWindowController` の stored property は `webViewProxy` から `surfaces` 1 本になり、行数は 895 のまま（例外枠 900 を面の枚数で食い潰さない）。
+3. **読み込み結果 → 表示状態の写しを `ViewerContentState` へ移す。** `Outcome` に case が増えるたび `ViewerStore` グループが太る形をやめた（394 → 370 行）。TASK-564.1 の Data ケースの受け手はここに入る。
+
+検証: `swift test` 1629 件すべて成功、swiftlint の main とのベースライン差分ゼロ（origin/main を別ディレクトリへ展開して測定、双方 54 件）。
+
+AC #4 は当初テストで固定する想定だったが、**型でそもそも書けない**形になった。`WebViewCommandController.renderer` は `any DocumentSurfaceOperating` で追随メソッドを持たないため、配るべきものを振り分ける実装はコンパイルが通らない（実際に書き換えて確認: `error: value of type 'any DocumentSurfaceOperating' has no member 'applyCodeFont'`）。`DocumentSurfaceDispatchTests` はその上で宛先の書き方をソース走査で固定する（面が 1 枚のうちは呼び出し回数では差が出ないため）。
+
+`docs/dev/native-app-design.md` のコンポーネント表に `DocumentSurfaceStack` / `DocumentSurfaces` を追加し、`DocumentRendering` の記述を 2 群構成へ更新した。
+
+別件として、HEAD 時点で既に失敗していた `SettingsViewSnapshotTests`（ダークモードで地と文字の判定が反転する）を別コミットで修正した。
+<!-- SECTION:FINAL_SUMMARY:END -->
