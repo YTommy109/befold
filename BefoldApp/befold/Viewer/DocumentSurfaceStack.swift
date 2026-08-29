@@ -98,6 +98,7 @@ struct DocumentSurfaceStack: View {
                 contentRevision: store.contentState.contentRevision,
                 isVisible: isVisible,
                 initialZoom: store.zoom,
+                scrollPositionToRestore: store.scrollPositionToRestore,
                 pdfViewProxy: pdfViewProxy
             )
             .opacity(store.contentState.isRejected || !showsPDF ? 0 : 1)

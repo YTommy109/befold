@@ -15,6 +15,9 @@ struct PDFPreviewView: NSViewRepresentable {
     let isVisible: Bool
     /// ファイル単位の初期倍率。1.0 = ページ全体がビューに収まる状態。
     let initialZoom: Double
+    /// この窓が覚えている表示位置(0…1)。文書を差し替えた直後に復元する。
+    /// web の面と同じ値・同じ記憶(`WindowPresentationMemory`)を使う。
+    let scrollPositionToRestore: Double
     /// AppKit 側(メニューアクション)へ `PDFView` を公開するプロキシ。
     let pdfViewProxy: PDFViewProxy
 
@@ -44,6 +47,8 @@ struct PDFPreviewView: NSViewRepresentable {
         // 文書の差し替えで倍率は既定へ戻るため、ファイル単位の値をここで入れ直す。
         // 換算は PDFSurfaceLayout が持つ(操作側と同じ規則を通す)。
         PDFSurfaceLayout.apply(zoom: initialZoom, to: pdfView)
+        // 位置の復元は倍率を入れた後に行う(倍率でページ内の余地が変わるため)。
+        PDFSurfaceLayout.restore(fraction: scrollPositionToRestore, in: pdfView)
     }
 
     func makeCoordinator() -> Coordinator {

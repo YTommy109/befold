@@ -84,15 +84,12 @@ final class PDFDocumentRenderer: DocumentRendering {
 
     // MARK: - Scroll position
 
-    /// スクロール位置を 0…1 の割合で返す(JS 側の `currentScrollPosition` と同じ意味)。
-    /// 取得できないときは完了を呼ばない(`DocumentSurfaceOperating` の契約)。
+    /// 表示位置を 0…1 の割合で返す(JS 側の `currentScrollPosition` と同じ意味)。
+    /// PDF ではページ番号とページ内の位置を同じ 0…1 へ畳む(`PDFSurfaceLayout`)。
+    /// 面がまだ無いときは完了を呼ばない(`DocumentSurfaceOperating` の契約)。
     func currentScrollPosition(_ completion: @escaping (Double) -> Void) {
-        guard let pdfView = pdfViewProxy.pdfView,
-              let scrollView = pdfView.documentView?.enclosingScrollView
-        else { return }
-        let room = PDFSurfaceLayout.verticalScrollRoom(of: pdfView)
-        guard room > 0 else { return completion(0) }
-        completion(min(max(scrollView.contentView.bounds.origin.y / room, 0), 1))
+        guard let pdfView = pdfViewProxy.pdfView else { return }
+        completion(PDFSurfaceLayout.documentFraction(of: pdfView))
     }
 
     // MARK: - 追随(全面へ配られる)

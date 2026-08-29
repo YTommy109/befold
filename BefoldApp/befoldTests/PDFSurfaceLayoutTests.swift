@@ -1,5 +1,7 @@
 import AppKit
 @testable import befold
+import BefoldKit
+import BefoldTestSupport
 import PDFKit
 import Testing
 
@@ -121,5 +123,111 @@ struct PDFSurfaceLayoutTests {
         // 余地はページ座標で測る。ピクセル寸法(contentSize)と比べると
         // フィット表示でも余地があるように見える(倍率が magnification に乗るため)。
         #expect(PDFSurfaceLayout.verticalScrollRoom(of: pdfView) > 1)
+    }
+}
+
+/// PDF の表示位置の記憶（TASK-564.3）。
+///
+/// **PDF 専用の記憶機構は作らない。** 位置は「文書全体に対する 0…1」という
+/// web の面と同じ意味の値へ畳み、`WindowPresentationMemory`（窓の生存期間だけの
+/// 記憶）の既存の表へそのまま乗せる。
+@MainActor
+@Suite
+struct PDFSurfacePositionTests {
+    private func makeView(pageCount: Int) -> PagingPDFView {
+        let document = PDFDocument()
+        for index in 0 ..< pageCount {
+            let data = NSMutableData()
+            var box = NSRect(x: 0, y: 0, width: 612, height: 792)
+            guard let consumer = CGDataConsumer(data: data),
+                  let context = CGContext(consumer: consumer, mediaBox: &box, nil)
+            else { continue }
+            context.beginPage(mediaBox: &box)
+            context.endPage()
+            context.closePDF()
+            if let page = PDFDocument(data: data as Data)?.page(at: 0) {
+                document.insert(page, at: index)
+            }
+        }
+        let pdfView = PagingPDFView()
+        PDFSurfaceLayout.configure(pdfView)
+        pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
+        pdfView.document = document
+        pdfView.layoutSubtreeIfNeeded()
+        return pdfView
+    }
+
+    private func index(of pdfView: PDFView) -> Int? {
+        guard let document = pdfView.document, let page = pdfView.currentPage else { return nil }
+        return document.index(for: page)
+    }
+
+    @Test("表示位置は文書全体に対する 0…1 で表され、往復で同じページへ戻る")
+    func positionRoundTripsThroughAFraction() {
+        let pdfView = makeView(pageCount: 4)
+        pdfView.goToNextPage(nil)
+        pdfView.goToNextPage(nil)
+        #expect(index(of: pdfView) == 2)
+
+        let saved = PDFSurfaceLayout.documentFraction(of: pdfView)
+        pdfView.goToFirstPage(nil)
+        PDFSurfaceLayout.restore(fraction: saved, in: pdfView)
+
+        #expect(abs(saved - 0.5) < 0.0001)
+        #expect(index(of: pdfView) == 2)
+    }
+
+    /// ファイルが更新されてページ数が減っても、範囲内へ丸めてクラッシュしない（AC #4）。
+    @Test("ページ数が減ったら最後のページへ丸める")
+    func clampsWhenThePageDisappears() {
+        let wide = makeView(pageCount: 10)
+        wide.goToLastPage(nil)
+        let saved = PDFSurfaceLayout.documentFraction(of: wide)
+
+        let narrow = makeView(pageCount: 2)
+        PDFSurfaceLayout.restore(fraction: saved, in: narrow)
+
+        #expect(index(of: narrow) == 1)
+    }
+
+    @Test("先頭・末尾・範囲外の値でも破綻しない")
+    func handlesEdgeFractions() {
+        let pdfView = makeView(pageCount: 3)
+
+        for fraction in [-1.0, 0, 0.999, 1, 5] {
+            PDFSurfaceLayout.restore(fraction: fraction, in: pdfView)
+            let current = index(of: pdfView)
+            #expect(current != nil)
+            #expect((current ?? -1) >= 0 && (current ?? -1) <= 2)
+        }
+    }
+
+    /// PDF の位置は窓の生存期間だけの記憶に乗り、`UserDefaults` へは書かれない（AC #3）。
+    /// PDF 専用のストアを新設すると、この規則が PDF だけ破れる形になる。
+    @Test("PDF の表示位置は UserDefaults へ書かれない")
+    func positionNeverReachesUserDefaults() {
+        let defaults = makeIsolatedDefaults(prefix: "PDFSurfacePositionTests")
+        let before = defaults.dictionaryRepresentation().keys.sorted()
+        let memory = WindowPresentationMemory()
+        let pdf = URL(fileURLWithPath: "/files/doc.pdf")
+
+        memory.setScrollPosition(0.5, for: pdf, mode: .rendered)
+
+        #expect(memory.scrollPosition(for: pdf, mode: .rendered) == 0.5)
+        #expect(defaults.dictionaryRepresentation().keys.sorted() == before)
+        // 窓が閉じれば消える(新しいインスタンスは何も覚えていない)。
+        #expect(WindowPresentationMemory().scrollPosition(for: pdf, mode: .rendered) == 0)
+    }
+
+    /// 文書が無い面へ復元しても落ちない（切替直後の一瞬）。
+    @Test("文書が無ければ復元は何もしない")
+    func doesNothingWithoutADocument() {
+        let pdfView = PagingPDFView()
+        PDFSurfaceLayout.configure(pdfView)
+
+        PDFSurfaceLayout.restore(fraction: 0.5, in: pdfView)
+
+        #expect(pdfView.currentPage == nil)
+        #expect(PDFSurfaceLayout.documentFraction(of: pdfView) == 0)
     }
 }
