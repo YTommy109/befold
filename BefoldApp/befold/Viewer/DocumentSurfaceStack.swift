@@ -1,0 +1,91 @@
+import BefoldKit
+import BefoldRenderKit
+import SwiftUI
+
+/// 表示中ファイルの**描画面**とその上に重なるオーバーレイを組み立てる層。
+///
+/// 描画サーフェスへの配線（どの値をどの面へ渡すか）と、非対応・読み込み中の
+/// オーバーレイをここに閉じる。`ViewerContentView` はフォルダー一覧との
+/// 出し分けだけを持ち、レンダラの入力を 1 つも知らない。
+///
+/// 分けた理由は行数ではない（切り出す前の `ViewerContentView` は 111 行だった）。
+/// **描画面が 2 枚になる**（TASK-564.1 で PDF を `PDFView` で描く）と、
+/// フォルダー一覧との出し分けと同じ場所に 2 枚目のサーフェス配線が並び、
+/// 「どちらを見せるか」の判定が 2 種類（フォルダー vs ファイル / WebView vs PDF）
+/// 同居する。判定の粒度が違うものを 1 つの View に置かないための分割（TASK-564.6）。
+///
+/// **サーフェスは破棄・再生成しない。** 非対応時も読み込み中も面は生かしたまま
+/// 上に重ねる。差し替えにすると行を通過するたびに描画面が作り直され、
+/// 白フラッシュと stale な初期倍率が出る（TASK-266）。
+struct DocumentSurfaceStack: View {
+    /// 倍率・スクロール復元位置を含む、この窓のライブな表示状態。
+    /// ファイル単位の保存ストア（`ZoomStore`）や窓の記憶（`WindowPresentationMemory`）は
+    /// **ここへ渡さない**。渡すと body の再評価のたびに読み直すことになり、他窓が書いた値を
+    /// 生きている窓が拾ってしまう（ADR 0002「文書の状態の規則」1）。
+    let store: ViewerStore
+    /// この文書が画面に出ているか。フォルダー一覧を重ねている間は false になる。
+    /// 見えていない文書の再描画を止めるために各サーフェスへ配る（ADR 0002 段 5）。
+    let isVisible: Bool
+    let findOptionsPreference: FindOptionsPreference
+    /// 見出しジャンプの設定（出発点と書き戻し口）。
+    let headingJump: HeadingJumpLevelBinding
+    /// ロード時に JS へ注入するソースビュー等幅フォントファミリー名。nil はシステム既定。
+    let codeFontFamily: String?
+    /// ロード時に JS へ注入するソースビューのコードフォントサイズ(pt)。nil は未カスタマイズ。
+    let codeFontSizePoints: Double?
+    let csvGrouping: Bool
+    let csvNegativeStyle: CsvNegativeStyle
+    /// JS 側の出来事の通知先（倍率・スクロール位置・リンク・パス解決・続きを読み込む）。
+    let rendererDelegate: WeakRendererDelegate
+    let webViewProxy: WebViewProxy
+    /// 差分のレイアウト設定。全ウィンドウ共有（差分を出すかどうかは store の表示モードが持つ）。
+    let diffDisplayPreference: DiffDisplayPreference
+
+    /// レンダラへ渡す差分の状態。差分表示モードでなければ本文があっても差分を出さない
+    /// (取得側が止まっていても、表示側でも同じ答えになるようにする)。
+    private var diffState: ViewerRenderer.DiffState {
+        guard store.showsDiff else { return .none }
+        switch store.diffContent {
+        case .unavailable: return .none
+        case .pending: return .pending
+        case let .diff(text): return ViewerRenderer.DiffState(text: text, layout: diffDisplayPreference.layout)
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            ViewerWebView(
+                content: store.contentState.content,
+                contentRevision: store.contentState.contentRevision,
+                fileType: store.contentState.fileType,
+                filePath: store.contentState.filePath,
+                hasDeclaredHTMLCharset: store.contentState.hasDeclaredHTMLCharset,
+                isSourceMode: store.isSourceMode,
+                showLineNumbers: store.showLineNumbers,
+                diffState: diffState,
+                isTruncated: store.contentState.isTruncated,
+                lineCount: store.contentState.displayedLineCount,
+                loadFailed: store.contentState.loadFailed,
+                isVisible: isVisible,
+                initialZoom: store.zoom,
+                codeFontFamily: codeFontFamily,
+                codeFontSizePoints: codeFontSizePoints,
+                csvGrouping: csvGrouping,
+                csvNegativeStyle: csvNegativeStyle,
+                scrollPositionToRestore: store.scrollPositionToRestore,
+                rendererDelegate: rendererDelegate,
+                findOptionsPreference: findOptionsPreference,
+                headingJump: headingJump,
+                webViewProxy: webViewProxy,
+                rendererFeatures: .allEnabled
+            )
+            .opacity(store.contentState.isRejected ? 0 : 1)
+
+            if let reason = store.contentState.rejectReason {
+                UnsupportedFileView(fileURL: store.contentState.filePath, rejectReason: reason)
+            } else if store.contentState.isLoading, store.contentState.content.isEmpty {
+                LoadingIndicatorView()
+            }
+        }
+    }
+}

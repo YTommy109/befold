@@ -1,9 +1,11 @@
 ---
 id: TASK-564.6
 title: 描画サーフェスの受け皿を作り、PDF を足せる形にする
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-08-29 10:16'
+updated_date: '2026-08-29 10:25'
 labels: []
 dependencies: []
 parent_task_id: TASK-564
