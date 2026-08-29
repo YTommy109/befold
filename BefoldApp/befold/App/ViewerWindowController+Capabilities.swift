@@ -24,7 +24,7 @@ extension ViewerWindowController {
         ViewerCapabilitiesFactory.make(
             store: store, isPresentingDocument: !isPreviewingFolder,
             fileURL: fileURL, gitDiffAvailability: gitDiffAvailability,
-            isDirectHTMLMode: webViewProxy.isDirectHTMLMode
+            isDirectHTMLMode: surfaces.isDirectHTMLMode
         )
     }
 

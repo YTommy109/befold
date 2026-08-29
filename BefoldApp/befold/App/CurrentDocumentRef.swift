@@ -25,4 +25,16 @@ final class CurrentDocumentRef {
     var url: URL {
         store.currentURL ?? initialURL
     }
+
+    /// **描画が確定した**種別。`url` から `FileType(url:)` で導いた値とは別物で、
+    /// こちらは読み込みが着地して初めて動く。
+    ///
+    /// `url`(= `ViewerStore.pendingURL`)は `openFile` の入口で同期的に進むのに対し、
+    /// 内容と種別は `ViewerContentState.applyDisplayState` が同時に確定させる。
+    /// **いま画面に出ている面**を選ぶ判断はこちらを見ること(`DocumentSurfaces.operating(on:)`)。
+    /// `url` から導くと、切替直後に「画面には旧ファイルが出ているのに命令は新しい面へ飛ぶ」
+    /// 区間ができる。
+    var renderedFileType: FileType {
+        store.contentState.fileType
+    }
 }

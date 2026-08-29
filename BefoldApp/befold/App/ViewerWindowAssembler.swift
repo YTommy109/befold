@@ -78,12 +78,12 @@ enum ViewerWindowAssembler {
 
     /// WebView 操作系メニューアクション（ズーム・印刷・検索・スクロール位置保存）の実処理を作る。
     static func makeWebViewCommands(
-        for controller: ViewerWindowController,
-        documentRenderer: (any DocumentRendering)?
+        for controller: ViewerWindowController
     ) -> WebViewCommandController {
         WebViewCommandController(
-            // WKWebView と JS の詳細は adapter に閉じる（ADR 0002 段 4）。
-            renderer: documentRenderer ?? WebViewDocumentRenderer(webViewProxy: controller.webViewProxy),
+            // WKWebView と JS の詳細は adapter に閉じ（ADR 0002 段 4）、どの面へ届けるかの
+            // 決定は束（DocumentSurfaces）に閉じる（TASK-564.6）。
+            surfaces: controller.surfaces,
             perFileState: controller.perFileState,
             // 現在 URL は rename/switch で書き換わる。窓と同じ共有参照を渡し、旧値を捕捉しない。
             currentDocument: controller.currentDocument,
@@ -118,7 +118,7 @@ enum ViewerWindowAssembler {
             rendererDelegate: WeakRendererDelegate(controller),
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
-            webViewProxy: controller.webViewProxy,
+            webViewProxy: controller.surfaces.web,
             diffDisplayPreference: controller.diffDisplayPreference
         ))
         let splitViewController = ViewerSplitViewController(

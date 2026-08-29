@@ -95,9 +95,9 @@ final class ViewerWindowController: NSWindowController {
     var swipeMonitor: SwipeHistoryMonitor!
     /// ツールバー(モード切替・戻る/進む・行番号)の構築とライブ状態更新を担う。
     private(set) var toolbarController: ViewerToolbarController!
-    /// テスト(@testable)が renderer を差し込んで rename 追随の配線を検証できるよう
-    /// private にしない(本体アプリのコードからは ViewerWebView の配線経由でのみ使う)。
-    let webViewProxy = WebViewProxy()
+    /// この窓の描画面の束(proxy と adapter)。面が増えても窓が持つのはこれ 1 本のまま
+    /// (TASK-564.6)。テスト(@testable)が差し込めるよう private にしない。
+    private(set) var surfaces: DocumentSurfaces
     /// WebView 操作系メニューアクション(ズーム・印刷・検索・スクロール位置保存)の実処理。
     /// 生成は init 1 箇所きり。使うのは `+MenuActions` / `ViewerDocumentPresenter` /
     /// `+FileNavigation` / `+SidebarHost`。
@@ -291,6 +291,8 @@ final class ViewerWindowController: NSWindowController {
         self.initialSidebarCollapsed = initialSidebarCollapsed
         self.openFileElsewhere = openFileElsewhere
         self.externalOpener = externalOpener
+        // 後段の makeWebViewCommands と makeSplitViewController が両方これを読む。
+        surfaces = DocumentSurfaces(webRenderer: documentRenderer)
         let store = store ?? ViewerStore(defaults: defaults)
         // store が呼び出し元から明示注入された場合でも上書きが反映されるよう、
         // store の生成元にかかわらずここで一律に適用する(sourceModeOverride と同じ方針)。
@@ -312,9 +314,7 @@ final class ViewerWindowController: NSWindowController {
         // super.init より前には作れない。ツールバーの生成・デリゲート設定・取り付けの
         // 順序制約は ViewerToolbarController.init の中に閉じている。
         toolbarController = ViewerToolbarController(window: window, host: self)
-        webViewCommands = ViewerWindowAssembler.makeWebViewCommands(
-            for: self, documentRenderer: documentRenderer
-        )
+        webViewCommands = ViewerWindowAssembler.makeWebViewCommands(for: self)
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
         // リサイズされるため、フレームの確定はその後に行う。
         window.contentViewController = ViewerWindowAssembler.makeSplitViewController(

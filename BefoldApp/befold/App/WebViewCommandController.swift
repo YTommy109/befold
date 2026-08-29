@@ -8,7 +8,9 @@ import BefoldKit
 /// WKWebView と JS 文字列はこの層に現れない(ADR 0002 段 4)。
 @MainActor
 final class WebViewCommandController {
-    private let renderer: any DocumentRendering
+    /// この窓の描画面の束。**宛先の決定はこの型が持つ**ので、ここでは種別を見ない
+    /// (ADR 0002 段 2 の「条件は 1 箇所」を宛先にも適用する / TASK-564.6)。
+    private let surfaces: DocumentSurfaces
     private let perFileState: PerFileStateStore
     /// 提示中の文書 URL への共有参照。rename/switch で書き換わるため値を捕捉せず都度参照する。
     private let currentDocument: CurrentDocumentRef
@@ -29,14 +31,14 @@ final class WebViewCommandController {
     private let onScrollPositionSaved: (Double, URL, ViewerBridge.ViewMode) -> Void
 
     init(
-        renderer: any DocumentRendering,
+        surfaces: DocumentSurfaces,
         perFileState: PerFileStateStore,
         currentDocument: CurrentDocumentRef,
         onZoomChanged: @escaping (Double) -> Void,
         onScrollPositionSaved: @escaping (Double, URL, ViewerBridge.ViewMode) -> Void,
         capabilities: @escaping () -> ViewerCapabilities = { .none }
     ) {
-        self.renderer = renderer
+        self.surfaces = surfaces
         self.perFileState = perFileState
         self.currentDocument = currentDocument
         self.onZoomChanged = onZoomChanged
@@ -47,6 +49,12 @@ final class WebViewCommandController {
     // 設定の反映(applyCodeFont)は能力で止めない。止めると、フォルダーを見ている間の
     // 設定変更が常駐 WebView に入らないまま取り残される。
     // 止めるのはユーザー操作(印刷・検索・ズーム)だけ。
+
+    /// ユーザー操作の宛先。**いま描いている面 1 枚**を、描画が確定した種別から引く。
+    /// 提示予定の URL からではないこと(理由は `DocumentSurfaces.operating(on:)` の doc)。
+    private var renderer: any DocumentSurfaceOperating {
+        surfaces.operating(on: currentDocument.renderedFileType)
+    }
 
     /// find/findNext/findPrevious の有効判定に使う。HTML 直接ロード中は viewer.html の
     /// JS が存在しないため検索系メニューを無効化する。
@@ -60,12 +68,16 @@ final class WebViewCommandController {
 
     /// 設定変更時に等幅フォント設定を注入し直して即時反映する。
     func applyCodeFont(family: String?, points: Double?) {
-        renderer.applyCodeFont(family: family, points: points)
+        for surface in surfaces.syncingAll {
+            surface.applyCodeFont(family: family, points: points)
+        }
     }
 
     /// 設定の反映なので applyCodeFont と同じく能力(ViewerCapabilities)では止めない。
     func applyCsvNumberFormat(grouping: Bool, negativeStyle: CsvNegativeStyle) {
-        renderer.applyCsvNumberFormat(grouping: grouping, negativeStyle: negativeStyle)
+        for surface in surfaces.syncingAll {
+            surface.applyCsvNumberFormat(grouping: grouping, negativeStyle: negativeStyle)
+        }
     }
 
     /// 倍率を 1 段変える。直接 HTML モードは viewer.js を経由しないため、適用後の倍率が返り、
@@ -158,9 +170,10 @@ final class WebViewCommandController {
     /// 「新しい種類だけ失効しない」という形で表に出るため、構造で塞ぐ)。
     func syncJumpAvailability() {
         let capabilities = capabilities()
-        renderer.applyJumpAvailability(
-            Set(DocumentJumpKind.allCases.filter { capabilities.canJump(to: $0) })
-        )
+        let kinds = Set(DocumentJumpKind.allCases.filter { capabilities.canJump(to: $0) })
+        for surface in surfaces.syncingAll {
+            surface.applyJumpAvailability(kinds)
+        }
     }
 
     // MARK: - Scroll position
@@ -184,6 +197,8 @@ final class WebViewCommandController {
     /// ファイルの rename / move を描画状態へ追随させる(詳細は DocumentRendering.noteRename)。
     /// ユーザー操作ではなく状態の追随なので、applyCodeFont と同じく能力では止めない。
     func noteRename(from oldURL: URL, to newURL: URL) {
-        renderer.noteRename(from: oldURL, to: newURL)
+        for surface in surfaces.syncingAll {
+            surface.noteRename(from: oldURL, to: newURL)
+        }
     }
 }
