@@ -14,7 +14,7 @@ import Testing
 @Suite
 struct PDFSurfaceLayoutTests {
     /// ページごとにサイズが違い、横長ページを含む文書。AC #4 の形。
-    private func makeView(pageSizes: [NSSize] = [NSSize(width: 612, height: 792)]) -> ZoomingPDFView {
+    private func makeDocument(pageSizes: [NSSize]) -> PDFDocument {
         let document = PDFDocument()
         for (index, size) in pageSizes.enumerated() {
             let data = NSMutableData()
@@ -29,6 +29,11 @@ struct PDFSurfaceLayoutTests {
                 document.insert(page, at: index)
             }
         }
+        return document
+    }
+
+    private func makeView(pageSizes: [NSSize] = [NSSize(width: 612, height: 792)]) -> ZoomingPDFView {
+        let document = makeDocument(pageSizes: pageSizes)
         let pdfView = ZoomingPDFView()
         PDFSurfaceLayout.configure(pdfView)
         pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
@@ -70,6 +75,23 @@ struct PDFSurfaceLayoutTests {
         }
 
         #expect(pdfView.document != nil)
+    }
+
+    /// **倍率は最初の描画より前に決まる。** レイアウトを待つと、切り替え直後の
+    /// 1 フレームがフィット前の倍率で描かれ、縮む過程が見える（TASK-567）。
+    @Test("文書を入れた直後、レイアウトを待たずにフィット倍率が入る")
+    func zoomIsSettledBeforeTheFirstDraw() {
+        let document = makeDocument(pageSizes: [NSSize(width: 612, height: 792)])
+        let pdfView = ZoomingPDFView()
+        PDFSurfaceLayout.configure(pdfView)
+        pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
+
+        pdfView.document = document
+        PDFSurfaceLayout.apply(zoom: ZoomStore.defaultZoom, to: pdfView)
+
+        // layoutSubtreeIfNeeded を挟まずに、もう倍率が入っている。
+        #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 1) < 0.0001)
+        #expect(pdfView.scaleFactor > 0)
     }
 
     /// 影を描かないこと。連続スクロールでは全ページ分の影が乗り、描画コストの

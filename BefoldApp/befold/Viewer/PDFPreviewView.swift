@@ -52,13 +52,16 @@ struct PDFPreviewView: NSViewRepresentable {
         pdfView.document = PDFDocument(data: data)
         // 回転は倍率より先に合わせる(縦横比が変わるとフィット倍率も変わるため)。
         PDFSurfaceLayout.apply(rotation: rotation, to: pdfView)
-        // **倍率と位置はここで描き込まない。** ファイル単位の倍率と復元したい位置を
-        // 面へ預け、レイアウトが落ち着いた 1 回で両方入れる(`ZoomingPDFView.layout`)。
-        // 直接入れると、ページの寸法が確定するまでのあいだに倍率と位置が数回ずつ
-        // 動き、開いた瞬間・戻ってきた瞬間のちらつきになる(TASK-567)。
-        pdfView.zoom = initialZoom
+        // **最初の 1 フレームより前に倍率を確定させる。** レイアウト任せにすると、
+        // 切り替え直後の 1 フレームがフィット前の倍率で描かれ、その後に縮む過程が
+        // 見える(サイドバーで .md → .pdf と送ったときの「レンダリングの経過が見える」/
+        // TASK-567 のユーザー報告)。
+        PDFSurfaceLayout.apply(zoom: initialZoom, to: pdfView)
+        // 位置は余地が決まってからでないと入らないので面へ預け、下の同期レイアウトで
+        // 入れる。余地がまだ 0 なら次のレイアウトへ持ち越される。
         pdfView.pendingRestoreFraction = scrollPositionToRestore
-        pdfView.needsLayout = true
+        // ここでレイアウトまで済ませ、倍率・位置が入った状態で最初の描画を迎える。
+        pdfView.layoutSubtreeIfNeeded()
     }
 
     func makeCoordinator() -> Coordinator {
