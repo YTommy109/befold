@@ -334,6 +334,24 @@
         }
       }
     },
+    "viewer.unsupported.damaged": {
+      "comment": "PDF として読めなかった場合のメッセージ。読み込みには成功しているので、汎用の viewer.unsupported.format ではなく「中身が壊れている」ことを述べる。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This document is damaged and cannot be displayed."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このファイルは壊れているため表示できません"
+          }
+        }
+      }
+    },
     "viewer.unsupported.format": {
       "extractionState": "manual",
       "localizations": {

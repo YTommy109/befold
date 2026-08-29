@@ -27,7 +27,6 @@ const {
   escapeHtml,
   svgDataURI,
   imageDataURI,
-  base64ToBytes,
   renderCodeHtml,
   wrapWithLineNumbers,
   parseCsv,
@@ -1448,23 +1447,6 @@ describe('imageDataURI', () => {
   test('falls back to image/png when the MIME type is missing', () => {
     expect(imageDataURI('AAAA', '')).toBe('data:image/png;base64,AAAA');
     expect(imageDataURI('AAAA')).toBe('data:image/png;base64,AAAA');
-  });
-});
-
-describe('base64ToBytes', () => {
-  test('decodes base64 into the original bytes', () => {
-    // '%PDF' — PDF のマジックナンバー
-    expect(Array.from(base64ToBytes('JVBERg=='))).toEqual([0x25, 0x50, 0x44, 0x46]);
-  });
-
-  test('returns an empty Uint8Array for empty input', () => {
-    const bytes = base64ToBytes('');
-    expect(bytes).toBeInstanceOf(Uint8Array);
-    expect(bytes.length).toBe(0);
-  });
-
-  test('preserves bytes above 0x7f', () => {
-    expect(Array.from(base64ToBytes('/w=='))).toEqual([0xff]);
   });
 });
 

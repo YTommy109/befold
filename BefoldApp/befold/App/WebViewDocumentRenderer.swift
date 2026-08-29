@@ -107,6 +107,15 @@ final class WebViewDocumentRenderer: DocumentRendering {
         }
     }
 
+    /// viewer.html の面は回転を持たない。**能力側で塞いであるのでここへは来ない**
+    /// (`canRotate` が PDF のときだけ true)。押せるのに何も起きない形を作らない
+    /// ための約束であり、no-op で握り潰すためのものではない(TASK-564.5)。
+    func rotate(byDegrees _: Int) {}
+
+    var currentRotation: Int {
+        0
+    }
+
     func noteRename(from oldURL: URL, to newURL: URL) {
         // ミラーの差し替えと JS 側文書パスの差し替えを 1 つの同期区間で行うため、
         // JS 文字列をここで組まず ViewerRenderer に委ねる(片方だけ写すと、リネーム

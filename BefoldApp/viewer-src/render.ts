@@ -16,14 +16,12 @@ import {
   _walkTextNodes,
 } from './path-refs.js';
 import {
-  _mmdPdfBlob,
   _mmdSetBodyClasses,
   _renderCsv,
   _renderHtml,
   _renderImage,
   _renderMarkdown,
   _renderMmd,
-  _renderPdf,
   _renderSource,
   _renderSvg,
 } from './renderers.js';
@@ -43,11 +41,13 @@ import { _mmdApplyZoom } from './zoom.js';
 //   'csv-source' CSV/TSV のソース表示(列ごとのレインボー着色。独自の列構造を持つ)
 //   'csv-table'  CSV/TSV のレンダリング表示(HTML テーブル)
 //   'markdown'   Markdown のレンダリング表示
-//   その他       種別名そのまま(mmd/svg/html/image/pdf。いずれも追記の対象外)
+//   その他       種別名そのまま(mmd/svg/html/image。いずれも追記の対象外)
 //
-// 画像・PDF とコード種別はソース表示を持たないため、モードで形が変わらない。
+// 画像とコード種別はソース表示を持たないため、モードで形が変わらない。
+// PDF は viewer.html を通らない(Swift 側が PDFView で描く / ADR 0009)ため、
+// ここに現れる種別ではない。
 function renderShape(type: string, mode: 'rendered' | 'source'): string {
-  if (mode === 'source' && type !== 'code' && type !== 'image' && type !== 'pdf') {
+  if (mode === 'source' && type !== 'code' && type !== 'image') {
     return type === 'csv' ? 'csv-source' : 'code';
   }
   if (type === 'code') {
@@ -125,9 +125,6 @@ async function render(content: string, type: string, lang: string | undefined): 
   // 分岐前に一括で外し、各分岐は自分のクラスを add するだけにする。
   _mmdSetBodyClasses(diagramWrap);
 
-  // 前回の PDF 表示で生成した blob URL を解放する(PDF 以外への切替も含む)。
-  _mmdPdfBlob.release();
-
   // 描画形ディスパッチ。中身の組み立ては各ビルダーに委ね、ここでは選ぶだけにする。
   if (shape === 'code' || shape === 'csv-source') {
     _mmdDocument.recordShape(_renderSource(diagramWrap, content, type, lang, shape));
@@ -141,8 +138,6 @@ async function render(content: string, type: string, lang: string | undefined): 
     _mmdCsvColumns.record(_renderCsv(diagramWrap, content, lang));
   } else if (shape === 'image') {
     _renderImage(diagramWrap, content, lang);
-  } else if (shape === 'pdf') {
-    _renderPdf(diagramWrap, content);
   } else {
     _renderMarkdown(diagramWrap, content);
   }

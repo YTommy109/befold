@@ -17,33 +17,33 @@ struct ViewerWindowControllerCLIOptionsTests {
     /// 実在しない合成パス。InMemoryFileReader にだけ登録する。
     private let file = URL(fileURLWithPath: "/mock/note.md")
 
-    @Test("CLI の --source/--preview 指定は保存済みのソース表示モードより優先される")
-    func sourceModeOverrideTakesPrecedenceOverSavedValue() {
+    @Test("CLI の --source/--preview 指定は記憶したソース表示モードより優先される")
+    func sourceModeOverrideTakesPrecedenceOverRememberedValue() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
-        let displayModeStore = DisplayModeStore(defaults: defaults)
-        displayModeStore.setDisplayMode(.rendered, for: file)
-
         let controller = ViewerWindowControllerFixture(
-            file: file, contents: "# hi", defaults: defaults,
-            displayModeStore: displayModeStore, sourceModeOverride: true
+            file: file, contents: "# hi", defaults: defaults, sourceModeOverride: true
         ).controller
         defer { controller.close() }
 
         #expect(controller.isSourceMode)
-        // 保存値自体は書き換えない(この起動限りの上書き)。
-        #expect(displayModeStore.displayMode(for: file) == .rendered)
+        // 記憶自体は書き換えない(この起動限りの上書き)。
+        #expect(controller.documentPresenter.presentationMemory.displayMode(for: file) == .rendered)
     }
 
-    @Test("CLI のオプション未指定時は保存済みのソース表示モードがそのまま復元される")
-    func noSourceModeOverridePreservesSavedValue() {
+    @Test("CLI のオプション未指定時は記憶したソース表示モードがそのまま復元される")
+    func noSourceModeOverridePreservesRememberedValue() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
-        let displayModeStore = DisplayModeStore(defaults: defaults)
-        displayModeStore.setDisplayMode(.source, for: file)
-
+        let other = URL(fileURLWithPath: "/mock/other.md")
         let controller = ViewerWindowControllerFixture(
-            file: file, contents: "# hi", defaults: defaults, displayModeStore: displayModeStore
+            file: file, extraFiles: [other], contents: "# hi", defaults: defaults
         ).controller
         defer { controller.close() }
+        controller.setDisplayMode(.source)
+
+        // 同じ窓の中で往復すると、記憶したモードが復元される。
+        controller.switchFile(to: other)
+        #expect(!controller.isSourceMode)
+        controller.switchFile(to: file)
 
         #expect(controller.isSourceMode)
     }
@@ -51,17 +51,13 @@ struct ViewerWindowControllerCLIOptionsTests {
     @Test("CLI の --source 上書き中にリネームされても、新 URL が対応形式ならソース表示が維持される")
     func sourceModeOverrideSurvivesRename() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
-        let displayModeStore = DisplayModeStore(defaults: defaults)
-        displayModeStore.setDisplayMode(.rendered, for: file)
-
         let controller = ViewerWindowControllerFixture(
-            file: file, contents: "# hi", defaults: defaults,
-            displayModeStore: displayModeStore, sourceModeOverride: true
+            file: file, contents: "# hi", defaults: defaults, sourceModeOverride: true
         ).controller
         defer { controller.close() }
         #expect(controller.isSourceMode)
 
-        // 保存値(.rendered)ではなく、いま表示中のモード(.source)が引き継がれる。
+        // 記憶(.rendered)ではなく、いま表示中のモード(.source)が引き継がれる。
         controller.handleRename(from: file, to: URL(fileURLWithPath: "/mock/note.markdown"))
 
         #expect(controller.isSourceMode)

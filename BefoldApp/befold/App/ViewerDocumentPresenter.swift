@@ -19,12 +19,18 @@ import Foundation
 final class ViewerDocumentPresenter {
     /// 表示状態の唯一の真実の源。
     private let store: ViewerStore
-    /// ファイル毎の永続表示状態（倍率・表示モード・スクロール位置）。
+    /// ファイル毎の永続表示状態（倍率・サイドバー開閉・ウィンドウフレーム）。全ウィンドウ共有。
     private let perFileState: PerFileStateStore
+    /// この窓の生存期間だけのファイル単位の記憶（スクロール位置・表示モード）。
+    /// **窓ごとに 1 個をここが所有する。** 外から注入しないのは、共有インスタンスを
+    /// 渡す経路をそもそも作らないため（`WindowPresentationMemory` の doc 参照）。
+    /// 読み書きするのはこの型だけ。`private` にしていないのは、テストが記憶の中身を
+    /// 観測するためだけの妥協（本番コードからここを触らないこと）。
+    let presentationMemory = WindowPresentationMemory()
     /// スクロール位置の確定保存の実行先（JS ラウンドトリップを挟む）。
     private let webViewCommands: WebViewCommandController
-    /// 提示中のファイル。切替・リネームで変化するため都度参照する。
-    private let currentURL: () -> URL?
+    /// 提示中のファイル。切替・リネームで変化するため都度参照する（窓と同じ共有参照）。
+    private let currentDocument: CurrentDocumentRef
     /// そのモードをいま選べるか（ADR 0002 段 2 の導出はウィンドウ側に置いたまま引く）。
     private let canSelect: (ViewerDisplayMode) -> Bool
     /// ツールバーの再同期。
@@ -43,7 +49,7 @@ final class ViewerDocumentPresenter {
         store: ViewerStore,
         perFileState: PerFileStateStore,
         webViewCommands: WebViewCommandController,
-        currentURL: @escaping () -> URL?,
+        currentDocument: CurrentDocumentRef,
         canSelect: @escaping (ViewerDisplayMode) -> Bool,
         refreshToolbar: @escaping () -> Void,
         refreshDiff: @escaping () -> Void
@@ -51,7 +57,7 @@ final class ViewerDocumentPresenter {
         self.store = store
         self.perFileState = perFileState
         self.webViewCommands = webViewCommands
-        self.currentURL = currentURL
+        self.currentDocument = currentDocument
         self.canSelect = canSelect
         self.refreshToolbar = refreshToolbar
         self.refreshDiff = refreshDiff
@@ -65,13 +71,15 @@ final class ViewerDocumentPresenter {
     /// 負う入口はここだけで、呼び出し点はファイル切替（performFileSwitch）と
     /// モード切替（setDisplayMode）の 2 つ。
     func saveScrollPositionBeforeTransition() {
-        guard let url = currentURL() else { return }
         webViewCommands.saveCurrentScrollPosition(
-            for: url, mode: ViewerBridge.ViewMode(isSourceMode: store.isSourceMode)
+            for: currentDocument.url, mode: ViewerBridge.ViewMode(isSourceMode: store.isSourceMode)
         )
+        // 回転は面から同期で読めるので、位置と同じ契機・同じキーで記憶する
+        // (通知を待たない分、押し出される心配が無い)。回転を持たない面は 0 を返す。
+        presentationMemory.setRotation(webViewCommands.currentRotation, for: currentDocument.url)
     }
 
-    /// **窓がその文書を提示し始めるとき**に、ファイル単位の保存値をこの窓のライブ値へ読み込む。
+    /// **窓がその文書を提示し始めるとき**に、ファイル単位の保存値・記憶をこの窓のライブ値へ読み込む。
     /// 呼んでよいのはオープン（init）とファイル切替（performFileSwitch）だけ
     /// （ADR 0002「文書の状態の規則」1）。生きている窓が再ロードのついでにここを通ると、
     /// 他窓が保存した倍率・位置を拾って勝手に動く（TASK-388）。リネームでも呼ばない
@@ -80,47 +88,90 @@ final class ViewerDocumentPresenter {
     func beginPresentingDocument(at url: URL) {
         store.zoom = perFileState.zoom.zoom(for: url)
         store.scrollPositionToRestore = restoredScrollPosition(for: url, isSourceMode: store.isSourceMode)
+        store.pdfRotation = presentationMemory.rotation(for: url)
     }
 
-    /// 退場側で発行したスクロール位置の保存が完了したときに、そのキーがいま提示中の
-    /// 文書・モードと一致していればライブな復元値へ追いつかせる。
+    /// 退場側で発行したスクロール位置の保存が完了したときに、その位置をキーごと記憶し、
+    /// キーがいま提示中の文書・モードと一致していればライブな復元値へも追いつかせる。
+    ///
+    /// **記憶は一致判定の前に行う。** ここへ届くのは退場側（いま提示中とは限らない文書）の
+    /// 位置であり、一致したときだけ記憶する形にすると切替の退場側の位置が落ちる。
     ///
     /// 位置の取得は JS のラウンドトリップを挟むため、A→B→A のような素早い往復では
     /// 「A の保存が完了する前に A の提示開始（保存値の同期読み取り）が走る」順序が起きる。
     /// このとき復元値は A の古い位置のままで、遅れて完了した保存が拾い直されることもない
     /// （提示開始の契機は 3 つしかない = TASK-394）。
     ///
-    /// **保存値ストアから読み直さず、いま保存した値そのものを使うこと。** 読み直す形にすると
-    /// 他窓の操作が後から効く経路になる（ADR 0002「文書の状態の規則」1）。ここで反映するのは
-    /// 自窓が発行した保存の結果に限られるため、その規則には抵触しない。
+    /// **記憶から読み直さず、いま届いた値そのものを使うこと。** ここで反映するのは
+    /// 自窓が発行した保存の結果に限られる。
     func applySavedScrollPositionToLiveValue(
         _ position: Double, for url: URL, mode: ViewerBridge.ViewMode
     ) {
-        guard let current = currentURL(), url.normalizedPathKey == current.normalizedPathKey else { return }
+        recordScrollPosition(position, for: url, mode: mode)
+        guard url.normalizedPathKey == currentDocument.url.normalizedPathKey else { return }
         guard mode == ViewerBridge.ViewMode(isSourceMode: store.isSourceMode) else { return }
         store.scrollPositionToRestore = position
     }
 
-    /// 指定したファイル・モードの保存済みスクロール位置。提示開始の 3 契機からだけ引く。
+    /// 指定したファイル・モードの記憶済みスクロール位置。提示開始の 3 契機からだけ引く。
     private func restoredScrollPosition(for url: URL, isSourceMode: Bool) -> Double {
-        perFileState.scrollPosition.scrollPosition(
+        presentationMemory.scrollPosition(
             for: url, mode: ViewerBridge.ViewMode(isSourceMode: isSourceMode)
         )
     }
 
-    /// 表示モードを変更し、store・永続化・ツールバーの表示更新までを一貫して行う。
+    /// 面の中で完結した倍率変更(JS のズーム / PDF のピンチ・Ctrl+ホイール)を、
+    /// **その倍率が属する文書**のキーで受ける。受け口をここ 1 箇所にするのは、
+    /// 面ごとに「ライブ値をいつ更新するか」の規則が分かれると片方だけ直るため。
+    ///
+    /// ライブ値は「いまこの窓が出している文書」の倍率なので、出所が現在の文書と違う
+    /// 遅延通知(切替直後に届いた切替前の文書の通知)では更新しない。保存だけを
+    /// 出所のキーへ行う(TASK-391 と同じ作法)。
+    func recordZoomChange(_ zoom: Double, for url: URL) {
+        if url.normalizedPathKey == currentDocument.url.normalizedPathKey {
+            store.zoom = zoom
+        }
+        perFileState.zoom.setZoom(zoom, for: url)
+    }
+
+    /// 描画側から上がってきたスクロール位置を、その位置が属する文書・モードのキーへ記録する。
+    /// 通知は遅れて届きうるので、キーは現在の提示対象ではなく通知が載せてきたものを使う
+    /// （`ViewerWindowController+Renderer` の doc / TASK-400）。
+    func recordScrollPosition(_ position: Double, for url: URL, mode: ViewerBridge.ViewMode) {
+        presentationMemory.setScrollPosition(position, for: url, mode: mode)
+    }
+
+    /// ファイルの rename / move に伴い、この窓の記憶を新パスへ引き継ぐ。
+    /// 永続側（倍率・サイドバー・フレーム）の引き継ぎは `PerFileStateStore.migrate` が行う。
+    func migratePresentationMemory(from oldURL: URL, to newURL: URL) {
+        presentationMemory.migrate(from: oldURL, to: newURL)
+    }
+
+    /// いま表示中のモードを、その種別で成立するモードまで降格して返す。
+    /// リネーム追随（`+FileNavigation.handleRename`）が引く。
+    func supportedDisplayMode(_ mode: ViewerDisplayMode, for url: URL) -> ViewerDisplayMode {
+        mode.supported(for: url)
+    }
+
+    /// 記憶済みの表示モードを降格して返す。ファイル切替（`+FileNavigation`）が引く。
+    func restoredDisplayMode(for url: URL) -> ViewerDisplayMode {
+        presentationMemory.restoredDisplayMode(for: url)
+    }
+
+    /// 表示モードを変更し、store・この窓の記憶・ツールバーの表示更新までを一貫して行う。
     /// ツールバーのモード切替セグメントからも View メニューの ⌘1〜⌘3 からも呼ばれる。
     /// 表示モードを変える入口はここだけ。
     func setDisplayMode(_ newValue: ViewerDisplayMode) {
         // validate を通らない経路（ツールバーのセグメント・オーバーフローメニュー）も
         // ここへ来るため、能力の確認は実行側にも置く（ADR 0002）。
-        guard let url = currentURL(), canSelect(newValue) else { return }
-        // 比較対象は保存値（displayMode）ではなく、いま実際に出しているモード
+        let url = currentDocument.url
+        guard canSelect(newValue) else { return }
+        // 比較対象は記憶値（displayMode）ではなく、いま実際に出しているモード
         // （effectiveDisplayMode）。プレビューを持たない種別（.code）は保存値が .rendered の
         // ままソースを出しているため、保存値と比べると「選択済みの source セグメント」への
         // クリック・⌘2 が遷移扱いになる。スクロール位置を
         // rendered キーへ退避したまま空の source キーから復元するので先頭へ飛び、
-        // 意味の無い .source が永続化される（TASK-368）。
+        // 意味の無い .source が記憶される（TASK-368）。
         guard newValue != store.effectiveDisplayMode else { return }
         // ソース系モードへ入った時点で、cmd+U の戻り先の記憶は役目を終える。残しておくと
         // 「diff → cmd+U → cmd+2(source) → cmd+U → cmd+U」で diff へ戻ってしまう。
@@ -130,7 +181,7 @@ final class ViewerDocumentPresenter {
         // 提示開始（モード切替）。切替先モードのキーから復元位置を読む。ここも保存値を読んで
         // よい 3 契機のひとつ（ADR 0002「文書の状態の規則」1）。
         store.scrollPositionToRestore = restoredScrollPosition(for: url, isSourceMode: store.isSourceMode)
-        perFileState.displayMode.setDisplayMode(store.displayMode, for: url)
+        presentationMemory.setDisplayMode(store.displayMode, for: url)
         // 差分を取れるかどうかは表示モードに依存する。レンダリング表示中の refreshDiff は
         // 差分を捨てるため、モードが変わった契機で取り直さないとソース表示へ切り替えても
         // 差分が出ない（TASK-337）。applyDisplayMode ではなくここに置くのは、モードだけが
@@ -167,14 +218,14 @@ final class ViewerDocumentPresenter {
     /// その種別で成立しないモードは降格規則へ通す。降格を挟まないと、ソース表示を持たない
     /// 画像・PDF に `--source` を渡したときだけ規則の外側に出る。
     func applyCLIDisplayMode(isSourceMode: Bool) {
-        guard let url = currentURL() else { return }
+        let url = currentDocument.url
         let requested: ViewerDisplayMode = isSourceMode ? .source : .rendered
-        applyDisplayMode(perFileState.displayMode.supportedDisplayMode(requested, for: url))
+        applyDisplayMode(requested.supported(for: url))
     }
 
-    /// 保存済みのソース表示モードを復元する（永続化は伴わない）。
+    /// 記憶済みのソース表示モードを復元する（記憶は書き換えない）。
     func applyRestoredDisplayMode(for url: URL) {
-        applyDisplayMode(perFileState.displayMode.restoredDisplayMode(for: url))
+        applyDisplayMode(presentationMemory.restoredDisplayMode(for: url))
     }
 
     /// cmd+U のソース表示トグル。レンダリング表示とソース表示を往復する。
@@ -182,21 +233,20 @@ final class ViewerDocumentPresenter {
     /// 記憶（sourceToggleReturn）と消費がこのメソッドに閉じるため、
     /// 他の入口（⌘1〜⌘3・ツールバー）は関与しない。
     func toggleSourceView() {
-        guard let url = currentURL() else { return }
         guard store.isSourceMode else {
             setDisplayMode(sourceToggleTarget)
             return
         }
         // 離れる直前のソース系モードを覚えてからレンダリングへ移る。
-        sourceToggleReturn = (url.normalizedPathKey, store.effectiveDisplayMode)
+        sourceToggleReturn = (currentDocument.url.normalizedPathKey, store.effectiveDisplayMode)
         setDisplayMode(.rendered)
     }
 
     /// cmd+U でレンダリング表示から戻る先。直前に cmd+U で離れた同じファイルなら
     /// そのモード（差分表示なら差分）、それ以外・選べなくなっている場合は `.source`。
     var sourceToggleTarget: ViewerDisplayMode {
-        guard let url = currentURL(), let last = sourceToggleReturn,
-              last.pathKey == url.normalizedPathKey, canSelect(last.mode)
+        guard let last = sourceToggleReturn,
+              last.pathKey == currentDocument.url.normalizedPathKey, canSelect(last.mode)
         else { return .source }
         return last.mode
     }

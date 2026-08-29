@@ -2,13 +2,21 @@ import BefoldKit
 import BefoldRenderKit
 import SwiftUI
 
+/// プレビュー領域。**フォルダー一覧とファイルの描画面の出し分けだけ**を持つ。
+///
+/// 描画面そのものへの配線（レンダラへ渡す値・非対応時のオーバーレイ）は
+/// `DocumentSurfaceStack` にある。判定の粒度が違うもの（フォルダー vs ファイル と、
+/// どの描画面でファイルを描くか）を 1 つの View に同居させないための分割（TASK-564.6）。
 struct ViewerContentView: View {
     /// 倍率・スクロール復元位置を含む、この窓のライブな表示状態。
-    /// ファイル単位の保存ストア(`ZoomStore` / `ScrollPositionStore`)は**ここへ渡さない**。
-    /// 渡すと body の再評価のたびに保存値を読み直すことになり、他窓が書いた値を
+    /// ファイル単位の保存ストア(`ZoomStore`)や窓の記憶(`WindowPresentationMemory`)は
+    /// **ここへ渡さない**。渡すと body の再評価のたびに読み直すことになり、他窓が書いた値を
     /// 生きている窓が拾ってしまう(ADR 0002「文書の状態の規則」1)。
-    /// 保存値を読む契機は ViewerWindowController 側の提示開始 3 箇所に限る。
+    /// 読む契機は ViewerWindowController 側の提示開始 3 箇所に限る。
     let store: ViewerStore
+    /// この窓が開く対象の種別。描画面を先に用意するかどうかの判断にだけ使う
+    /// (`DocumentSurfaceStack.openingFileType`)。
+    let openingFileType: FileType
     let findOptionsPreference: FindOptionsPreference
     /// 見出しジャンプの設定(出発点と書き戻し口)。
     let headingJump: HeadingJumpLevelBinding
@@ -25,19 +33,13 @@ struct ViewerContentView: View {
     let onSelectFile: (URL) -> Void
     let onNavigateToFolder: (URL) -> Void
     let webViewProxy: WebViewProxy
+    let pdfViewProxy: PDFViewProxy
+    /// PDF の面と窓のあいだの受け渡し。クロージャを 1 つずつ増やすと注入が
+    /// 3 つを超えるため、PDF 面まわりの受け渡しは 1 つの値にまとめる
+    /// (`docs/dev/rules/product-code.md` の責務分離節)。
+    let pdfActions: PDFSurfaceActions
     /// 差分のレイアウト設定。全ウィンドウ共有(差分を出すかどうかは store の表示モードが持つ)。
     let diffDisplayPreference: DiffDisplayPreference
-
-    /// レンダラへ渡す差分の状態。差分表示モードでなければ本文があっても差分を出さない
-    /// (取得側が止まっていても、表示側でも同じ答えになるようにする)。
-    private var diffState: ViewerRenderer.DiffState {
-        guard store.showsDiff else { return .none }
-        switch store.diffContent {
-        case .unavailable: return .none
-        case .pending: return .pending
-        case let .diff(text): return ViewerRenderer.DiffState(text: text, layout: diffDisplayPreference.layout)
-        }
-    }
 
     /// プレビューエリアが表示すべき対象。導出は FileListModel に 1 つだけ置く(ADR 0002)。
     private var previewTarget: PreviewTarget {
@@ -45,14 +47,29 @@ struct ViewerContentView: View {
     }
 
     var body: some View {
-        // フォルダー表示でも ViewerWebView を階層に残す。差し替えにすると行を通過する
+        // フォルダー表示でも描画面を階層に残す。差し替えにすると行を通過する
         // たびに WKWebView が破棄・再生成され、フォーカス移動が待たされる(TASK-266)。
         let folderURL = previewTarget.folderURL
         ZStack {
-            filePreview(isVisible: folderURL == nil)
-                .opacity(folderURL == nil ? 1 : 0)
-                .accessibilityHidden(folderURL != nil)
-                .allowsHitTesting(folderURL == nil)
+            DocumentSurfaceStack(
+                store: store,
+                openingFileType: openingFileType,
+                isVisible: folderURL == nil,
+                findOptionsPreference: findOptionsPreference,
+                headingJump: headingJump,
+                codeFontFamily: codeFontFamily,
+                codeFontSizePoints: codeFontSizePoints,
+                csvGrouping: csvGrouping,
+                csvNegativeStyle: csvNegativeStyle,
+                rendererDelegate: rendererDelegate,
+                webViewProxy: webViewProxy,
+                pdfViewProxy: pdfViewProxy,
+                pdfActions: pdfActions,
+                diffDisplayPreference: diffDisplayPreference
+            )
+            .opacity(folderURL == nil ? 1 : 0)
+            .accessibilityHidden(folderURL != nil)
+            .allowsHitTesting(folderURL == nil)
 
             if let folderURL {
                 FolderListingView(
@@ -65,46 +82,6 @@ struct ViewerContentView: View {
                     onSelectFile: onSelectFile,
                     onNavigateToFolder: onNavigateToFolder
                 )
-            }
-        }
-    }
-
-    /// 表示中ファイルのプレビュー。ViewerWebView は常に生かしておき(ビュー同一性を維持)、
-    /// 非対応時は上に UnsupportedFileView を重ねる。テキスト↔バイナリの切替で WKWebView が
-    /// 破棄・再生成されて白フラッシュや stale な initialZoom が起きるのを防ぐ。
-    private func filePreview(isVisible: Bool) -> some View {
-        ZStack {
-            ViewerWebView(
-                content: store.contentState.content,
-                contentRevision: store.contentState.contentRevision,
-                fileType: store.contentState.fileType,
-                filePath: store.contentState.filePath,
-                hasDeclaredHTMLCharset: store.contentState.hasDeclaredHTMLCharset,
-                isSourceMode: store.isSourceMode,
-                showLineNumbers: store.showLineNumbers,
-                diffState: diffState,
-                isTruncated: store.contentState.isTruncated,
-                lineCount: store.contentState.displayedLineCount,
-                loadFailed: store.contentState.loadFailed,
-                isVisible: isVisible,
-                initialZoom: store.zoom,
-                codeFontFamily: codeFontFamily,
-                codeFontSizePoints: codeFontSizePoints,
-                csvGrouping: csvGrouping,
-                csvNegativeStyle: csvNegativeStyle,
-                scrollPositionToRestore: store.scrollPositionToRestore,
-                rendererDelegate: rendererDelegate,
-                findOptionsPreference: findOptionsPreference,
-                headingJump: headingJump,
-                webViewProxy: webViewProxy,
-                rendererFeatures: .allEnabled
-            )
-            .opacity(store.contentState.isRejected ? 0 : 1)
-
-            if let reason = store.contentState.rejectReason {
-                UnsupportedFileView(fileURL: store.contentState.filePath, rejectReason: reason)
-            } else if store.contentState.isLoading, store.contentState.content.isEmpty {
-                LoadingIndicatorView()
             }
         }
     }

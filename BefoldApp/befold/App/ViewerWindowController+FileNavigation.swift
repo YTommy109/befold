@@ -59,7 +59,7 @@ extension ViewerWindowController {
         }
         let oldURL = fileURL
         saveScrollPositionBeforeTransition()
-        applyDisplayMode(perFileState.displayMode.restoredDisplayMode(for: newURL))
+        applyDisplayMode(documentPresenter.restoredDisplayMode(for: newURL))
         applyURLToWindow(newURL)
         // fileExists を確認済みなので store.openFile が予約した非同期読み込みは必ず完了に達し、
         // その時点で onContentReloaded → refreshUIState() が発火する
@@ -78,9 +78,11 @@ extension ViewerWindowController {
         guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
         applyURLToWindow(newURL)
 
-        // 実体は同じファイルなので旧パスの表示状態(倍率・表示モード・スクロール位置)を
-        // 新パスへまとめて引き継ぐ(旧パスはもう存在しない)。
+        // 実体は同じファイルなので旧パスの表示状態を新パスへ引き継ぐ(旧パスはもう存在しない)。
+        // 永続の 3 つ(倍率・サイドバー開閉・ウィンドウフレーム)と、この窓の生存期間だけの
+        // 記憶(スクロール位置・表示モード)は寿命が違うので引き継ぎも 2 本立てになる。
         perFileState.migrate(from: oldURL, to: newURL)
+        documentPresenter.migratePresentationMemory(from: oldURL, to: newURL)
         // 描画状態(描画済みミラー・JS 側の文書パス)も同じ同期区間で新パスへ追随させる。
         // 呼ばないと、リネーム再描画がファイル切替として扱われてスクロール位置が
         // 提示開始時の保存値へ巻き戻り(TASK-401)、再描画確定までのスクロール通知が
@@ -92,13 +94,13 @@ extension ViewerWindowController {
         // 発火してツールバーが追従するため、ここでの明示的な
         // refreshUIState() 呼び出しは不要
         // (resetSourceMode() が走る場合は applySourceMode 内で再同期される)。
-        // 降格の規則は DisplayModeStore.supportedDisplayMode に 1 つだけ置く。ここで
+        // 降格の規則は ViewerDisplayMode.supported(for:) に 1 つだけ置く。ここで
         // 「supportsSourceMode でなければレンダリングへ戻す」と書き下すと、コード種別の
         // 差分表示まで巻き添えで落ちる(同じ判定を 2 箇所に持つと片方だけ直る)。
-        // 引き継ぐのは保存値ではなく「いま表示中のモード」。保存値を読み直すと、
-        // 永続化されていないライブなモード(CLI --source/--preview のこの起動限りの
+        // 引き継ぐのは記憶値ではなく「いま表示中のモード」。記憶を読み直すと、
+        // 記憶されていないライブなモード(CLI --source/--preview のこの起動限りの
         // 上書き)がリネームで破棄される。
-        applyDisplayMode(perFileState.displayMode.supportedDisplayMode(displayMode, for: newURL))
+        applyDisplayMode(documentPresenter.supportedDisplayMode(displayMode, for: newURL))
         moveSidebarToDirectoryIfNeeded(of: newURL)
         delegate?.viewerWindow(self, didRenameFrom: oldURL, to: newURL)
         sidebar.applyRename(from: oldURL, to: newURL)

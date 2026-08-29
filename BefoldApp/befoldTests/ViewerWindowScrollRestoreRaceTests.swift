@@ -43,6 +43,12 @@ struct ViewerWindowScrollRestoreRaceTests {
         func printDocument(over _: NSWindow?) {}
         func noteRename(from _: URL, to _: URL) {}
 
+        var currentRotation: Int {
+            0
+        }
+
+        func rotate(byDegrees _: Int) {}
+
         func currentScrollPosition(_ completion: @escaping (Double) -> Void) {
             capturedPositions.append(scrollPosition)
             pending.append(completion)
@@ -80,7 +86,7 @@ struct ViewerWindowScrollRestoreRaceTests {
         // A を 640 までスクロールした状態で A→B。保存要求は発行されるが完了しない。
         renderer.scrollPosition = 640
         controller.switchFile(to: fileB)
-        // B→A。A の保存はまだ届いていないので、提示開始は古い保存値(0)を読む。
+        // B→A。A の保存はまだ届いていないので、提示開始は古い記憶(0)を読む。
         renderer.scrollPosition = 0
         controller.switchFile(to: fileA)
         #expect(controller.fileURL == fileA)
@@ -89,7 +95,9 @@ struct ViewerWindowScrollRestoreRaceTests {
         // ここで A の保存(640)が完了する。
         renderer.flushPendingSaves()
 
-        #expect(fixture.perFileState.scrollPosition.scrollPosition(for: fileA, mode: .rendered) == 640)
+        #expect(
+            controller.documentPresenter.presentationMemory.scrollPosition(for: fileA, mode: .rendered) == 640
+        )
         #expect(controller.store.scrollPositionToRestore == 640)
     }
 
@@ -109,8 +117,10 @@ struct ViewerWindowScrollRestoreRaceTests {
 
         renderer.flushPendingSaves()
 
-        // A のキーへは保存されるが、提示中の B の復元値は動かない。
-        #expect(fixture.perFileState.scrollPosition.scrollPosition(for: fileA, mode: .rendered) == 640)
+        // A のキーへは記録されるが、提示中の B の復元値は動かない。
+        #expect(
+            controller.documentPresenter.presentationMemory.scrollPosition(for: fileA, mode: .rendered) == 640
+        )
         #expect(controller.store.scrollPositionToRestore == 0)
     }
 }

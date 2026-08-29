@@ -13,9 +13,10 @@ struct ViewerCapabilities: Equatable {
     /// 印刷。見えている文書に対してのみ許す。
     let canPrint: Bool
     /// 検索(⌘F / ⌘G)。HTML 直接ロード中は viewer.html の JS が無いため不可。
+    /// バイナリ(画像・PDF)も検索対象のテキストを持たないため不可。
     let canFind: Bool
     /// 文書内ジャンプ(目印の前後移動)。検索と同じく viewer.html の JS を要するため
-    /// HTML 直接ロード中は不可。開発中機能なので、ゲートが閉じている間も不可
+    /// HTML 直接ロード中とバイナリ(画像・PDF)では不可。開発中機能なので、ゲートが閉じている間も不可
     /// (`FeatureGate.isDocumentJumpEnabled` を `ViewerCapabilitiesFactory` が渡す)。
     let canJump: Bool
     /// 文書内ジャンプのうち「変更ブロック」を選べるか。差分表示を選んでいる間だけ
@@ -40,6 +41,8 @@ struct ViewerCapabilities: Equatable {
     let canSelectDiffMode: Bool
     /// 差分レイアウト(上下/左右)の切替。差分表示を選んでいる間だけ意味を持つ。
     let canToggleDiffLayout: Bool
+    /// 表示の 90 度回転。回転を持つ面(PDF)を描いているときだけ。
+    let canRotate: Bool
 
     /// - Parameters:
     ///   - isPresentingDocument: 文書を提示しているか。フォルダー一覧を出している間は false。
@@ -54,6 +57,8 @@ struct ViewerCapabilities: Equatable {
     ///   - gitDiffAvailability: 差分を出せる git の事実(可用性・変更の有無)。
     ///     ADR(libgit2 移行)の Fallback にある「git が使えないとき差分表示モードを
     ///     選択不可にする」はここから来る。
+    ///   - supportsRotation: 表示を回せる種別か(PDF のみ)。回転は `PDFView` の
+    ///     機能で、viewer.html の面は持たない。
     ///   - isDirectHTMLMode: HTML を直接ロードして表示しているか。
     ///   - isDocumentJumpEnabled: 文書内ジャンプを露出してよいか(開発中機能のゲート)。
     ///     既定値は持たせない。渡し忘れが静かに「常に有効」へ倒れると、stable へ
@@ -67,17 +72,23 @@ struct ViewerCapabilities: Equatable {
         showsDiff: Bool = false,
         supportsSourceMode: Bool,
         supportsDiffDisplay: Bool,
+        supportsRotation: Bool = false,
         gitDiffAvailability: GitDiffAvailability,
         isDirectHTMLMode: Bool,
         isDocumentJumpEnabled: Bool
     ) {
         let onDocument = isPresentingDocument && !isRejected
         canPrint = onDocument
-        canFind = onDocument && !isDirectHTMLMode
+        // バイナリ(画像・PDF)を除くのは、どちらも viewer.html の検索対象になる
+        // テキストを持たないため。除かないと「⌘F は押せるが何も起きない」形になる
+        // (PDF adapter の openFind を no-op にして塞ぐのは、ADR 0002 が排した
+        // 「能力が true なのに反応が無い」そのもの)。PDF 内検索を実装するときは、
+        // ここを開けるのと同じ変更で adapter 側の実体も入れること。
+        canFind = onDocument && !isDirectHTMLMode && !isBinaryContent
         // 目印が 0 個かどうかでは判定しない。段階読み込み中・描画前・取得失敗の
         // いずれでも同じ 0 個になり、事実ではなくデータの空きで縮退することになる。
         // 目印が無いことは viewer 側の 0/0 表示が伝える。
-        canJump = onDocument && !isDirectHTMLMode && isDocumentJumpEnabled
+        canJump = onDocument && !isDirectHTMLMode && !isBinaryContent && isDocumentJumpEnabled
         canZoom = onDocument
         canToggleSourceMode = onDocument && supportsSourceMode
         canSelectPreviewMode = onDocument && isRenderable
@@ -96,6 +107,7 @@ struct ViewerCapabilities: Equatable {
             && gitDiffAvailability.allowsDiffSelection
         canToggleDiffLayout = canSelectDiffMode && showsDiff
         canJumpToChangeBlock = canJump && showsDiff
+        canRotate = onDocument && supportsRotation
     }
 
     /// その種類のジャンプをいま使えるか。`canSelect(_:)` と同じく対応表であり、

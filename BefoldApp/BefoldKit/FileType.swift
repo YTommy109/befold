@@ -145,6 +145,19 @@ public enum FileType: Sendable, Equatable {
         }
     }
 
+    /// 表示状態の `content`(文字列)ではなく `data`(生バイト)で描く種別かどうか。
+    ///
+    /// **`isBinaryContent` とは別の問い。** あちらは「読み込みをバイナリで行うか」で、
+    /// 画像も true になるが、画像は base64 化して `content` へ載せて描く。
+    /// ここが true なのは PDF だけで、`content` が空であることが「まだ何も出せて
+    /// いない」を意味しない種別を表す(`ViewerContentState.showsLoadingIndicator`)。
+    public var rendersFromData: Bool {
+        switch self {
+        case .pdf: true
+        case .image, .mmd, .markdown, .svg, .html, .csv, .code: false
+        }
+    }
+
     /// レンダリング表示が可能な種別かどうか。false ならソース表示のみ。
     public var isRenderable: Bool {
         switch self {

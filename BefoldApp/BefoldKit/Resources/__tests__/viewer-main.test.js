@@ -383,16 +383,6 @@ describe('render の型ディスパッチ', () => {
     expect(bodyClasses(document)).toEqual(['image-body']);
   });
 
-  test('pdf は data: ではなく blob: URL の iframe にする', async () => {
-    const { document, main } = loadViewerMain({});
-
-    await main.render('JVBERg==', 'pdf');
-
-    const iframe = document.querySelector('#diagram-wrap iframe');
-    expect(iframe.getAttribute('src').startsWith('blob:')).toBe(true);
-    expect(bodyClasses(document)).toEqual(['pdf-body']);
-  });
-
   test('code はコード表示用のクラスと内容を設定する', async () => {
     const { document, main } = loadViewerMain({});
 
@@ -1047,59 +1037,6 @@ describe('インデントガイド(end-to-end)', () => {
     expect(indented.getAttribute('style')).toContain('--indent-depth:1');
     // 行番号セルは付かない。
     expect(document.querySelector('#diagram-wrap td.line-number')).toBeNull();
-  });
-});
-
-describe('PDF の blob URL', () => {
-  // 生成/解放を記録する URL スタブ。ハーネス既定のスタブは解放を観測できない。
-  function installBlobUrlRecorder(window) {
-    const issued = [];
-    const revoked = [];
-    window.URL.createObjectURL = function () {
-      const url = 'blob:https://localhost/recorded-' + issued.length;
-      issued.push(url);
-      return url;
-    };
-    window.URL.revokeObjectURL = function (url) {
-      revoked.push(url);
-    };
-    return { issued, revoked };
-  }
-
-  test('他の型へ切り替えると前回の blob URL を解放する', async () => {
-    const { window, main } = loadViewerMain({});
-    const recorder = installBlobUrlRecorder(window);
-    await main.render('JVBERg==', 'pdf');
-
-    await main.render('a\nb\n', 'code', 'txt');
-
-    expect(recorder.revoked).toEqual(recorder.issued);
-  });
-
-  test('PDF を続けて描画しても解放漏れがない', async () => {
-    const { window, main, document } = loadViewerMain({});
-    const recorder = installBlobUrlRecorder(window);
-
-    await main.render('JVBERg==', 'pdf');
-    await main.render('JVBERg==', 'pdf');
-
-    expect(recorder.issued.length).toBe(2);
-    // 直前の 1 本だけが解放され、表示中の URL は生きている
-    expect(recorder.revoked).toEqual([recorder.issued[0]]);
-    expect(document.querySelector('#diagram-wrap iframe').getAttribute('src')).toBe(
-      recorder.issued[1],
-    );
-  });
-
-  test('解放済みの blob URL を二重に解放しない', async () => {
-    const { window, main } = loadViewerMain({});
-    const recorder = installBlobUrlRecorder(window);
-    await main.render('JVBERg==', 'pdf');
-    await main.render('a\nb\n', 'code', 'txt');
-
-    await main.render('a\nb\n', 'code', 'txt');
-
-    expect(recorder.revoked.length).toBe(1);
   });
 });
 

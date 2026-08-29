@@ -34,6 +34,9 @@ enum ViewerCapabilitiesFactory {
             showsDiff: store.showsDiff,
             supportsSourceMode: store.contentState.fileType.supportsSourceMode,
             supportsDiffDisplay: FileType(url: fileURL).supportsDiffDisplay,
+            // 回転は PDF の面(PDFView)の機能。種別の判定はここ 1 箇所で、
+            // メニュー・コマンドは能力しか見ない(ADR 0002 段 2)。
+            supportsRotation: store.contentState.fileType == .pdf,
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
             // 開発中機能のゲートを読むのはここだけ。能力の導出へ畳むことで、

@@ -14,6 +14,7 @@ struct ViewerCapabilitiesTests {
         showsDiff: Bool = false,
         supportsSourceMode: Bool = true,
         supportsDiffDisplay: Bool = true,
+        supportsRotation: Bool = false,
         gitDiffAvailability: GitDiffAvailability = .changed,
         isDirectHTMLMode: Bool = false,
         isDocumentJumpEnabled: Bool = true
@@ -27,6 +28,7 @@ struct ViewerCapabilitiesTests {
             showsDiff: showsDiff,
             supportsSourceMode: supportsSourceMode,
             supportsDiffDisplay: supportsDiffDisplay,
+            supportsRotation: supportsRotation,
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
             isDocumentJumpEnabled: isDocumentJumpEnabled
@@ -65,6 +67,32 @@ struct ViewerCapabilitiesTests {
         #expect(!capabilities.canFind)
         #expect(capabilities.canPrint)
         #expect(capabilities.canZoom)
+    }
+
+    /// 画像・PDF は viewer.html の検索対象になるテキストを持たない。
+    /// ここを許すと「⌘F は押せるが何も起きない」= ADR 0002 が排した形になる
+    /// (PDF 面の openFind を no-op にして塞ぐのは同じ違反 / TASK-564.1)。
+    @Test("バイナリ(画像・PDF)では検索とジャンプを止め、印刷とズームは止めない")
+    func disablesFindAndJumpForBinaryContent() {
+        let capabilities = makeCapabilities(isBinaryContent: true, supportsSourceMode: false)
+
+        #expect(!capabilities.canFind)
+        #expect(!capabilities.canJump)
+        #expect(!capabilities.canJump(to: .heading))
+        #expect(!capabilities.canJump(to: .changeBlock))
+        #expect(capabilities.canPrint)
+        #expect(capabilities.canZoom)
+    }
+
+    /// 回転は PDF の面(PDFView)だけが持つ。種別の判定は
+    /// `ViewerCapabilitiesFactory` の 1 箇所で、メニューは能力しか見ない。
+    @Test("回転は回せる種別のときだけ許される")
+    func allowsRotationOnlyForRotatableTypes() {
+        #expect(!makeCapabilities().canRotate)
+        #expect(makeCapabilities(supportsRotation: true).canRotate)
+        // 文書を見ていない間・拒否されたファイルでは許さない(他の操作と同じ)。
+        #expect(!makeCapabilities(isPresentingDocument: false, supportsRotation: true).canRotate)
+        #expect(!makeCapabilities(isRejected: true, supportsRotation: true).canRotate)
     }
 
     @Test("表示できないファイルでは文書操作を許さない")

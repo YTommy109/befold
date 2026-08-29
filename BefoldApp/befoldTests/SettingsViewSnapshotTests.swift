@@ -136,6 +136,12 @@ struct SettingsViewSnapshotTests {
         controller.showAndActivate()
         defer { controller.window?.close() }
         let window = try #require(controller.window)
+        // 明色の外観に固定する。このファイルの判定はどれも「地はほぼ白、文字は暗い」
+        // を前提にしており(rightmostInkColumn の brightness < 0.6、inkPixelCount の
+        // 0.9 閾値)、ダークモードの実機では地のほうが暗くなって全行が文字と判定され、
+        // 行のかたまりが 1 つに潰れる(実測: rows.count が 4 ではなく 1 になる)。
+        // 測りたいのは配置の揃いであって外観ではないので、撮る側を固定する。
+        window.appearance = NSAppearance(named: .aqua)
         let contentView = try #require(window.contentView)
         window.setContentSize(contentView.fittingSize)
         contentView.layoutSubtreeIfNeeded()

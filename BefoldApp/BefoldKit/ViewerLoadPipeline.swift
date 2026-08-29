@@ -23,6 +23,10 @@ public enum ViewerLoadPipeline {
         case chunked(session: any ChunkedTextReading, cache: NormalizedTextCache, firstChunk: String, isAtEnd: Bool)
         /// 全量読み込みの結果(rejectReason を含みうる)。
         case full(ContentLoader.LoadedContent, cache: NormalizedTextCache?)
+        /// バイナリを**生データのまま**読み込んだ結果(PDF)。base64 化しないのは
+        /// `PDFView` が `Data` を直接受けられるため。画像は `data:` URI として JS へ
+        /// 渡すので `.full`(base64)のままで、この case を通らない。
+        case binary(ContentLoader.LoadedData)
     }
 
     /// ファイルの存在確認・NormalizedTextCache 生成・チャンクセッション生成・全量読み込みを行う。
@@ -50,6 +54,11 @@ public enum ViewerLoadPipeline {
         imageEmbedder: MarkdownImageEmbedder = .shared
     ) async -> Outcome {
         guard fileReader.fileExists(at: resolved) else { return .missing }
+
+        if fileType == .pdf {
+            let loaded = contentLoader.loadData(from: resolved, computeHash: !oneShotLoad)
+            return .binary(validated(loaded))
+        }
 
         if fileType.isBinaryContent {
             // 同一内容スキップ用の hash は LoadedContent が運ぶ(バイナリは
@@ -117,6 +126,16 @@ public enum ViewerLoadPipeline {
                 cache: nil
             )
         }
+    }
+
+    /// PDF として開けないデータを拒否理由へ落とす。
+    ///
+    /// 読み込み自体は成功しているため、ここで見なければ `rejectReason` は nil のまま
+    /// `PDFView` が黙って空白を出す(バナーも出ない)。判定は `PDFDataProbe` に委ね、
+    /// 表示側が `PDFDocument` を作る条件と 1 つの事実を共有する。
+    private static func validated(_ loaded: ContentLoader.LoadedData) -> ContentLoader.LoadedData {
+        guard let data = loaded.data, !PDFDataProbe.isReadable(data) else { return loaded }
+        return ContentLoader.LoadedData(rejectReason: .damagedDocument, data: nil)
     }
 
     /// チャンク読み込みできない形式(mmd/svg/html)のサイズ上限。

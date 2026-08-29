@@ -151,9 +151,9 @@ BefoldApp/
 | `MenuShortcutCatalog` / `HelpShortcutSections` | Help > キーボードショートカット に並べる一覧の組み立て。メニュー由来は `NSMenu` から抽出し、メニューを経由しない操作は `ViewerShortcutCatalog` / `SidebarShortcutCatalog` / `QuickOpenShortcutCatalog` から引く。キー表記の組み立ては `ShortcutKey` に集約し、一覧と実装のずれは各カタログの突合テストで落とす。ビューア内の一覧は文書内ジャンプのゲート（`FeatureGate.isDocumentJumpEnabled`）を必須引数で受け取り、ゲート開でのみ Enter / ⇧Return のジャンプ移動を載せ、Esc の説明を「検索バーを閉じる」から「検索バー・ジャンプバーを閉じる」へ入れ替える |
 | `RecentDocumentsStore` / `RecentDocumentsMenuController` | 最近使ったファイルを UserDefaults に自前で永続化しメニュー描画（ad-hoc 署名では OS 標準の Recent Documents が更新のたびにリセットされるため） |
 | `SessionStore` | 終了時のウィンドウ/タブグループ構成（`SessionLayout`）の型 |
-| `ScrollPositionStore` | ファイルごとのスクロール位置を永続化（レンダリング/ソース表示を別々に保存） |
 | `ZoomStore` | ファイルごとのズーム倍率を永続化（0.5〜2.0、25% 刻み） |
-| `DisplayModeStore` | ファイルごとの表示モード（レンダリング/ソース/差分）を永続化。旧キー `ViewerSourceModes` の Bool 辞書から 1 度だけ移行する |
+| `WindowPresentationMemory` | ファイルごとのスクロール位置（レンダリング/ソース別）と表示モード（レンダリング/ソース/差分）を、**その窓の生存期間だけ**記憶する。`UserDefaults` を型の依存として持たず、永続化できない。生成するのは `ViewerDocumentPresenter` の 1 箇所だけで、窓ごとに 1 個（TASK-565） |
+| `PathKeyedTable` | メモリ上の「正規化パス → 値」表。`PathKeyedDictionary`（永続）とキーの規約と rename 追従を揃えつつ、`UserDefaults` を持たない |
 | `SidebarDisplayDefaults` | サイドバー表示 4 値（表示形式・不可視ファイル・変更ファイルのみ・並び順）の**新規ウィンドウの初期値**をアプリ全体で永続化。ライブ値は窓ごと（ADR 0002「窓の状態」）で、窓は初期値の `SidebarDisplaySettings`（値型）と書き戻し用の `SidebarDisplayDefaultsRecording`（読み取りを持たない）だけを受け取る |
 | `FindOptionsPreference` | 検索の3トグル（大文字小文字区別・単語一致・正規表現）をアプリ全体で永続化 |
 | `NavigationHistory` | タブごとの戻る/進む履歴スタック（非永続） |
@@ -162,7 +162,7 @@ BefoldApp/
 | `CLIInstaller` | `/usr/local/bin/befold` に CLI 実行ファイルへの symlink を設置（詳細は [CLI 起動経路](./cli-launch.md#cliinstaller-が設置する-shim)） |
 | `ViewerWindowController` | 1 ウィンドウ分のビューア制御（依存の保持と生成手順、および外から来る契機の受け口）。実処理は独立した協働オブジェクトへ出してある（下記）。手元に残る拡張は `+FileNavigation` 提示対象の移動 / `+MenuActions` メニュー・ツールバー由来の `@objc` アクションと validate / `+References` 参照のオープン / `+Capabilities` 能力導出の入力集め / `+SidebarHost`・`+Renderer`・`+WindowDelegate` 各プロトコル準拠 |
 | `ViewerWindowAssembler` | ウィンドウ生成時の部品の組み立てと配線（分割ビュー・サイドバーナビゲータ・WebView コマンド・ストア購読・スワイプ監視）。工程の中身だけを持ち、順序制約は `ViewerWindowController.init` に残す |
-| `ViewerDocumentPresenter` | 文書の状態（表示モード・倍率・スクロール位置）の遷移と提示開始の 3 契機（ADR 0002 段 1）。cmd+U の戻り先の記憶もここに閉じる |
+| `ViewerDocumentPresenter` | 文書の状態（表示モード・倍率・スクロール位置）の遷移と提示開始の 3 契機（ADR 0002 段 1）。cmd+U の戻り先の記憶と、窓の生存期間だけの記憶（`WindowPresentationMemory`）の所有もここに閉じる |
 | `ViewerDiffPresenter` | git 差分の非同期取得・世代管理・レイアウト設定。取得を登録した契機で `ViewerDiffContent.pending` を立て、着地で確定させる（確定差分を表示中の取り直しでは降格しない） |
 | `ViewerDiffContent` | 差分取得の結果状態（`unavailable` / `pending` / `diff(String)`）。「未着」と「確定して差分なし」を型で区別する。未確定の間はレンダラ（`ContentUpdatePlanner`）がモード切替だけの再描画を見送って前の表示を残し、切替直後にプレーンなソース表示が一瞬見える中間状態を作らない（TASK-407） |
 | `ViewerCapabilitiesFactory` | 提示状態から `ViewerCapabilities` を導出する純関数（ADR 0002 段 2）。どの入力を信じるかをここ 1 箇所に置く |
@@ -189,10 +189,12 @@ BefoldApp/
 | `ViewerContentState` | 読み込みが確定させた表示状態（content / fileType / filePath / rejectReason / 段階読み込み）の単一情報源。`ViewerStore.contentState` が窓ごとに 1 つ持つ |
 | `ShowLineNumbersSetting` | 行番号表示の設定（UserDefaults への永続化と CLI の起動限り上書き）。`ViewerStore` が窓ごとに 1 つ持つ |
 | `ViewerWebView` | `WKWebView` を包む `NSViewRepresentable`。Mermaid/Markdown 等をレンダリング。HTML ファイルは直接ロードも可 |
-| `ViewerContentView` | ビューア本体の SwiftUI ビュー（ズーム・スクロール位置・検索設定・参照クリックの配線） |
+| `ViewerContentView` | プレビュー領域の SwiftUI ビュー。フォルダー一覧とファイルの描画面の出し分けだけを持つ |
+| `DocumentSurfaceStack` | 描画面への配線（倍率・スクロール位置・検索設定・参照クリック）と、非対応・読み込み中のオーバーレイ（スピナーの条件は `ViewerContentState.showsLoadingIndicator`。`FileType.rendersFromData` が true の種別＝PDF は `content` を使わないため、空判定だけだと見えている PDF の上に重なる）。**PDF だけを開いた窓では WKWebView を作らない**（生成の遅延であって破棄ではない。一度作った面は残す / TASK-564.7） |
 | `PreviewTarget` / `PreviewTargetResolver` | プレビュー領域が提示する対象（文書・フォルダー一覧・未確定）。導出は `FileListModel.previewTarget` の 1 箇所（[ADR 0002](../adr/0002-presentation-state-and-capabilities.md)） |
 | `ViewerCapabilities` | 「いま何ができるか」を提示状態から導出する純粋な型。メニュー・ツールバー・コマンド実行はこれだけを見る |
-| `DocumentRendering` | 表示中の文書へできること（倍率・検索・印刷・スクロール位置）を表す port。実装は `WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter） |
+| `DocumentRendering` | 表示中の文書へできることを表す port。宛先の違いで 2 群に分かれる——`DocumentSurfaceOperating`（倍率・検索・印刷・スクロール位置。**いま描いている 1 枚**へ振り分ける）と `DocumentSurfaceSyncing`（フォント・CSV 表示設定・ジャンプ可否・リネーム追随。**すべての面**へ配る）。実装は 2 つ——`WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter）と `PDFDocumentRenderer`（`PDFView` の倍率計算と印刷を閉じ込める adapter / ADR 0009） |
+| `DocumentSurfaces` | 窓が持つ描画面の束（WKWebView と `PDFView` の 2 枚）と、命令をどの面へ届けるかの決定。宛先を決めるのはこの型の `operating(on:)` / `syncingAll` だけで、メニュー・ツールバー・コマンドは種別を見ない。判定は**描画が確定した種別**（`ViewerContentState.fileType`）で行い、提示予定の URL では行わない |
 | `FileListModel` / `FileListView` | サイドバーのファイル一覧・選択状態を管理する `@Observable` モデルと SwiftUI ビュー |
 | `HistoryButtonView` | 戻る/進むツールバーボタン（クリックで移動、長押し/右クリックで履歴メニュー） |
 | `MarkdownImageEmbedder` | Markdown 記法 `![]()` と inline HTML の `<img src>` が指すローカル画像を base64 data URI に埋め込む前処理（CSP 対応） |
@@ -202,6 +204,12 @@ BefoldApp/
 | `DirectoryLister` | サイドバー用のディレクトリ内ファイル/フォルダ一覧化 |
 | `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ）。外部の HTML 文書だけは例外で、文書が canvas ごと所有するためこの色は使われない |
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |
+| `PDFViewProxy` | 同上の `PDFView` 版。面ごとに 1 つ持つ |
+| `PDFPreviewView` | PDF の描画面。`ZoomingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして描く |
+| `ZoomingPDFView` | `PDFView` のサブクラス。ピンチ（`NSMagnificationGestureRecognizer`）と Ctrl+ホイールを倍率操作として受け、スペース / Shift+スペースの送る向きを決めて `PDFSurfaceLayout` へ委ねる。倍率（1.0 = ページ全体が収まる）を面が覚え、リサイズ・回転のたびに `layout` で入れ直す（`autoScales` は使わない）。**`document` プロパティを override してはならない**——PDFKit がバックグラウンドから読むため、`@MainActor` 隔離の override は `SIGTRAP` で落ちる（TASK-567） |
+| `PDFRotationOverlay` | PDF の右上に重ねる回転コントロール。メニューには置かない（その面を見ているときにしか意味が無い操作なので、対象の隣に置く） |
+| `PDFSurfaceActions` | PDF 面と窓のあいだの受け渡し（倍率の通知・回転の要求）を 1 つにまとめた値。View の注入クロージャを 3 つ以下に保つため |
+| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。`.singlePageContinuous` の設定、「倍率 1.0 = ページ全体が収まる状態」の換算、表示位置(文書全体に対する 0…1)の取得と復元、90 度回転を持つ |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
 | `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` / `GitFolderStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す（ファイル行は変更種別の文字、フォルダー行は集約を示す `•`） |
 | `SidebarTableViewLocator` | SwiftUI List の内部 NSTableView を取得するブリッジ |
@@ -229,8 +237,30 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
 - **`.mmd` の扱い**: 全文を `<pre class="mermaid">` に渡し mermaid.js に処理させる
 - **`.md` の扱い**: markdown-it.js で markdown → HTML 変換する。
   ` ```mermaid ` フェンスは markdown-it のカスタムレンダラーで `<pre class="mermaid">` に出力し mermaid.js が SVG 描画する
-- **その他ファイル種別**: SVG / HTML / CSV・TSV / 画像 / PDF / 各種ソースコードは
+- **その他ファイル種別**: SVG / HTML / CSV・TSV / 画像 / 各種ソースコードは
   `FileType` の判定に従い、ソースコードは highlight.js でシンタックスハイライトする
+- **PDF の扱い**: viewer.html を通らない。読み込みは `Data` のまま
+  （`ViewerLoadPipeline.Outcome` の `.binary`。base64 化しないのは `PDFView` が
+  `Data` を直接受けられるため）運び、`PDFPreviewView` が `PDFView` で描く（ADR 0009）。
+  PDF として開けないデータは `RejectReason.damagedDocument` で拒否する
+  （読み込みは成功しているため、見なければ黙って空白になる）。
+  PDF では検索とジャンプができないので、`canFind` / `canJump` は
+  `!isBinaryContent` で閉じてある（画像も同様）
+- **PDF の見え方**: 全ページを縦に連ねて描き（`.singlePageContinuous`）、
+  スクロールはページ境界で止まらず連続する。既定ではページの幅が収まる倍率に
+  自動追従する（`autoScales`）。ウィンドウをリサイズしてもフィットし続け、
+  ユーザーが倍率を変えた時点で追従を外し、⌘0（既定のサイズ）で戻す。
+  当初は 1 ページずつ描いてホイールをページ送りへ振り替えていたが、
+  ページが瞬時に切り替わる体感の悪さから連続スクロールへ改めた（TASK-567）。
+  ページの影は描かない（連続では全ページ分の影が乗り、描画コストの大半を占める。
+  実測: 231 ページで 36.5ms → 4.3ms）。フィットは**ページ全体が収まる倍率**で、文書内でいちばん大きいページに合わせる
+  （ページごとに合わせ直すと、スクロール中に倍率が動く）。表示位置は 0 が先頭・
+  1 が末尾で、`PDFView` のスクロール座標（下へ行くほど y が小さい）との向きの
+  変換は `PDFSurfaceLayout.scrollOffset(forFraction:room:)` が持つ。
+  表示位置（文書全体に対する 0…1）と 90 度回転（右上に重ねた `PDFRotationOverlay` の
+  2 つのボタン。文書全体に効く）は
+  ウィンドウの生存期間だけ記憶する（`WindowPresentationMemory`）。倍率だけは
+  内容に依存しないユーザーの意図なので、従来どおり `ZoomStore` で per-file 永続
 - **CSV/TSV の数値列**: テーブル表示では列単位に書式を判定する（`viewer-src/csv-columns.ts` の
   `classifyCsvColumn`）。二段構えで、第 1 段「非空セルがすべて数値」を満たす列は右寄せ +
   `tabular-nums`、第 2 段の拒否条件（1,000 以上の値が無い / 先頭ゼロ / 全セル同じ桁数で 4 桁以上 /
@@ -357,7 +387,8 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   永久にグレーアウトした項目が stable のユーザーへ露出してしまう（TASK-485.8）。
   安定稼働を確認するまでキー等価は割り当てない
 - **表示モード切替**: ツールバーの 3 択セグメント（レンダリング / ソース / 差分）と `⌘1`〜`⌘3`。
-  `DisplayModeStore` でファイル単位に永続化する。差分レイアウト（上下/左右）は `⌘\\` とツールバーのトグルで切り替え、
+  ファイル単位に記憶するが、**永続化はしない**——`WindowPresentationMemory` が持ち、
+  窓を閉じれば消える（アプリを再起動すると常にレンダリング表示から始まる。TASK-565）。差分レイアウト（上下/左右）は `⌘\\` とツールバーのトグルで切り替え、
   好みの設定としてアプリ全体で共有する（`DiffDisplayPreference`）。ソース相当の内容を出している間は
   行番号トグルを提供
 - **戻る/進むナビゲーション**: タブごとの履歴（`NavigationHistory`）、ツールバーボタン・履歴メニュー・
@@ -436,7 +467,7 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   "Disjunctions are not supported yet" でコンパイルに失敗する）。このため
   「許可を列挙して残りを block」はできず、止めたいスキームを列挙する形になっている。
   `file:` / `data:` / `blob:` はどのルールにも一致しないのでそのまま通る
-  （PDF 表示の blob URL と埋め込み画像の data URI がこれに当たる）
+  （埋め込み画像の data URI がこれに当たる）
 - 回帰は `scripts/webview-smoke.swift` の `checkExfilBlocked` が `naturalWidth` で測る
   （「画像バイトが取得されたか」を直接測る唯一の指標）。実在するホストを使う点が要件で、
   到達できない URL では遮断が外れていても `naturalWidth = 0` になり常に緑になる

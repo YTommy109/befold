@@ -22,12 +22,11 @@ struct ViewerWindowControllerIntegrationTests {
     private func makeController(
         file: URL,
         zoomStore: ZoomStore? = nil,
-        displayModeStore: DisplayModeStore? = nil,
         defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
     ) -> ViewerWindowController {
         ViewerWindowControllerFixture(
             file: file, realFileSystem: true, defaults: defaults,
-            zoomStore: zoomStore, displayModeStore: displayModeStore
+            zoomStore: zoomStore
         ).controller
     }
 

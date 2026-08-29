@@ -28,6 +28,7 @@ final class FakeDocumentRenderer: DocumentRendering {
         case applyJumpAvailability(kinds: Set<DocumentJumpKind>)
         case print
         case currentScrollPosition
+        case rotate(degrees: Int)
         case noteRename(old: URL, new: URL)
     }
 
@@ -38,8 +39,16 @@ final class FakeDocumentRenderer: DocumentRendering {
     /// currentScrollPosition が返す値。nil なら completion を呼ばない。
     var scrollPosition: Double?
 
+    /// いまの回転角。`rotate` が積み上げる。
+    private(set) var currentRotation = 0
+
     func applyZoom(_ zoom: Double) {
         commands.append(.applyZoom(zoom))
+    }
+
+    func rotate(byDegrees degrees: Int) {
+        commands.append(.rotate(degrees: degrees))
+        currentRotation += degrees
     }
 
     func applyCodeFont(family: String?, points: Double?) {
@@ -126,9 +135,11 @@ struct WebViewCommandControllerTests {
     ) -> WebViewCommandController {
         let defaults = makeIsolatedDefaults(prefix: "WebViewCommandControllerTests")
         return WebViewCommandController(
-            renderer: renderer,
+            // 面の束ごしに差し込む。宛先の決定は DocumentSurfaces が持つので、
+            // ここでフェイクを直接コマンド側へ渡す形は取らない(TASK-564.6)。
+            surfaces: DocumentSurfaces(webRenderer: renderer),
             perFileState: perFileState ?? PerFileStateStore(defaults: defaults),
-            currentURL: { url },
+            currentDocument: CurrentDocumentRef(store: ViewerStore(defaults: defaults), initialURL: url),
             onZoomChanged: { zoomChanges.values.append($0) },
             onScrollPositionSaved: {
                 scrollSaves.saves.append(ScrollSaveRecorder.Save(position: $0, url: $1, mode: $2))
@@ -220,25 +231,26 @@ struct WebViewCommandControllerTests {
         #expect(zoomChanges.values == [1.25])
     }
 
-    @Test("スクロール位置は、取得できた場合だけ指定キーへ保存する")
-    func savesScrollPositionOnlyWhenAvailable() {
+    /// 位置を記憶するのは窓側(`ViewerDocumentPresenter`)なので、ここは「取得できたときだけ
+    /// キーごと通知する」ところまでを見る。
+    @Test("スクロール位置は、取得できた場合だけ指定キーごと通知する")
+    func reportsScrollPositionOnlyWhenAvailable() {
         let renderer = FakeDocumentRenderer()
-        let defaults = makeIsolatedDefaults(prefix: "WebViewCommandControllerTests")
-        let perFileState = PerFileStateStore(defaults: defaults)
-        let controller = makeController(renderer: renderer, perFileState: perFileState)
+        let scrollSaves = ScrollSaveRecorder()
+        let controller = makeController(renderer: renderer, scrollSaves: scrollSaves)
 
         renderer.scrollPosition = nil
         controller.saveCurrentScrollPosition(for: url, mode: .rendered)
-        #expect(perFileState.scrollPosition.scrollPosition(for: url, mode: .rendered) == 0)
+        #expect(scrollSaves.saves.isEmpty)
 
         renderer.scrollPosition = 42
         controller.saveCurrentScrollPosition(for: url, mode: .rendered)
-        #expect(perFileState.scrollPosition.scrollPosition(for: url, mode: .rendered) == 42)
+        #expect(scrollSaves.saves == [ScrollSaveRecorder.Save(position: 42, url: url, mode: .rendered)])
     }
 
-    /// 保存完了は「保存したキーと値」ごと窓へ伝える。窓はこれでライブな復元値を
-    /// 追いつかせるため、値を渡さず通知だけにすると窓が保存値を読み直す形になり、
-    /// 他窓の操作が後から効く経路になってしまう(ADR 0002 / TASK-394)。
+    /// 取得完了は「そのキーと値」ごと窓へ伝える。窓はこれで記憶とライブな復元値を
+    /// 追いつかせるため、値を渡さず通知だけにすると窓が読み直す形になってしまう
+    /// (ADR 0002 / TASK-394)。
     @Test("保存が完了したら、保存したキーと値を窓へ伝える")
     func reportsSavedScrollPositionWithItsKey() {
         let renderer = FakeDocumentRenderer()

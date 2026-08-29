@@ -26,7 +26,8 @@ extension ViewerWindowController {
         webViewCommands.zoomOut()
     }
 
-    /// View > Actual Size。倍率を 100% に戻す。
+    /// View > 既定のサイズ(⌘0)。倍率をその面の基準へ戻す(WebView は 100%、
+    /// PDF はページ全体が収まる倍率。どちらも `ZoomStore.defaultZoom`)。
     @objc func resetZoom(_ sender: Any?) {
         webViewCommands.resetZoom()
     }

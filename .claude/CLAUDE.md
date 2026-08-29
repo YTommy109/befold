@@ -300,8 +300,12 @@ per-file へ移す等）変更では、**キーの読み手を消した時点で
   走らないが stale キーは消える。テストは `makeIsolatedDefaults(prefix:)` の
   分離された `UserDefaults` 上で書く（standard を汚さない）。
 
-参考実装: `DisplayModeStore.migrateLegacySourceModesIfNeeded` が上記の形
-（合流した一度きり移行 + `defer` での stale キー削除 + 3 ケースのテスト）。
+参考実装（移行しない側）: `AppStores.removeRetiredDisplayStateKeys` が
+「移行先が無いので移行せず、旧キーを一括削除する」形
+（`RetiredDisplayStateKeysTests` が旧値あり／旧値なし／一覧の縮みを見る）。
+移行する側の前例は表示モードの一度きり移行にあった（合流した移行 + `defer` での
+stale キー削除 + 3 ケースのテスト）が、TASK-565 で表示モードの永続化ごと廃止したため
+コードには残っていない。読みたい場合は git 履歴の `DisplayModeStore.swift` を参照すること。
 
 根拠（TASK-372 の実測）: 差分表示のユーザー設定を app-global の `SourceDiffEnabled`
 から per-file の表示モードへ移す際、per-file の旧 source Bool だけを移行し、

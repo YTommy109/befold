@@ -19,12 +19,22 @@ final class PageZoomProjector {
     private unowned let renderer: ViewerRenderer
 
     /// 呼び出し側から渡される、ファイル毎の初期倍率。HTML 直接ロード時の pageZoom 適用にも使う。
-    var desired: Double = 1.0 {
-        didSet {
-            guard desired != oldValue else { return }
-            applyIfReady()
-        }
-    }
+    ///
+    /// **代入しただけでは適用しない。** ホストはファイルを切り替えた時点で
+    /// 新しいファイルの倍率を流し込むが、その瞬間に画面へ出ているのはまだ前の
+    /// ファイルである（面の宛先は「描画が確定した種別」で切り替わる /
+    /// `DocumentSurfaces.operating(on:)`）。ここで即座に当てると、**切り替わる前の
+    /// ファイルの倍率が変わってから**新しいファイルが出る、というちらつきになる
+    /// （TASK-567 の実測。PDF への切り替えで顕著だが、種別によらず起きる）。
+    ///
+    /// 適用の契機は「その文書が実際に描かれるとき」——**描き直しを伴う**内容の更新
+    /// (`ViewerRenderer.updateContent` で `UpdatePlan` が `.skip` 以外)・
+    /// viewer.html の準備完了・直接 HTML からの復帰の 3 つ。倍率と内容が同じ
+    /// 同期区間で入るので、中間状態が見えない。
+    ///
+    /// **`.skip` を除くのが要点。** ホストの状態が変わるたびに `updateContent` は
+    /// 呼ばれるが、切り替え直後のそれは前のファイルの内容に対する `.skip` である。
+    var desired: Double = 1.0
 
     /// viewer.js へ適用済みの倍率。同じ値を何度も評価しないための記録。
     private(set) var applied: Double?

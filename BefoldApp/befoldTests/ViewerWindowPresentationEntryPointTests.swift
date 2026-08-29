@@ -67,6 +67,15 @@ struct ViewerWindowPresentationEntryPointTests {
         #expect(try Self.callSites(of: "saveScrollPositionBeforeTransition") == expected)
     }
 
+    /// 窓の生存期間だけの記憶は**窓ごとに 1 個**でなければならない（TASK-565）。
+    /// `AppStores` など全ウィンドウ共有の場所で生成されると、閉じた窓の位置・モードが
+    /// 他の窓へ漏れ、永続化をやめた意味が消える。生成箇所を 1 つに固定して構造で守る。
+    @Test("窓の記憶を生成するのは ViewerDocumentPresenter の 1 箇所だけ")
+    func windowPresentationMemoryHasExactlyOneConstructionSite() throws {
+        let expected = ["ViewerDocumentPresenter.swift": 1]
+        #expect(try Self.callSites(of: "WindowPresentationMemory") == expected)
+    }
+
     private enum EntryPointError: Error {
         case sourceRootUnreadable
     }

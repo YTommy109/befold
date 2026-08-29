@@ -4,7 +4,7 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// per-file 状態ストア(Bookmark / Zoom / Sidebar / ScrollPosition)の
+/// per-file 状態ストア(Bookmark / Zoom / Sidebar)の
 /// シンボリックリンク解決を検証するスイート。
 /// これらは `resolvingSymlinksInPath` で実パスへ正規化するため、
 /// 実 symlink そのものが検証対象であり InMemoryFileReader では代替できない Integration。
@@ -45,17 +45,5 @@ struct PerFileStateStoreSymlinkIntegrationTests {
         store.setCollapsed(false, for: link)
 
         #expect(store.isCollapsed(for: real) == false)
-    }
-
-    @Test("ScrollPositionStore: シンボリックリンク経由でも同一ファイルとして扱う")
-    func scrollPositionResolvesSymlinkToSamePath() throws {
-        let store = ScrollPositionStore(defaults: makeIsolatedDefaults(prefix: "ScrollPositionStoreTests"))
-        let tmp = try TempDir(prefix: "ScrollPositionStoreTests")
-        defer { withExtendedLifetime(tmp) {} }
-        let (real, link) = try tmp.symlinkedFile()
-
-        store.setScrollPosition(120, for: link, mode: .rendered)
-
-        #expect(store.scrollPosition(for: real, mode: .rendered) == 120)
     }
 }

@@ -19,6 +19,13 @@ import Foundation
 @Observable
 final class ViewerContentState {
     private(set) var content: String = ""
+    /// PDF の生データ。`fileType == .pdf` で読み込みに成功したときだけ non-nil。
+    /// PDF は `content`(文字列)を持たず、この Data を `PDFView` が描く。
+    ///
+    /// `PDFPreviewView` が filePath からディスクを読み直す形にしないのは、そちらだと
+    /// 「読み込み開始時の無効化」も「着地時の一致確認」も無い経路になり、切替中の
+    /// 一瞬に別ファイルを描けてしまうため。表示状態が確定させた content と同じ組で運ぶ。
+    private(set) var data: Data?
     /// content が更新されるたびに増分する世代番号。ViewerWebView.Coordinator が
     /// content 全文比較の代わりにこれで変更検知することで、文字列の重複保持を避ける。
     private(set) var contentRevision = 0
@@ -56,6 +63,21 @@ final class ViewerContentState {
     /// 開いたファイルが非対応と判定されているかどうか。
     var isRejected: Bool {
         rejectReason != nil
+    }
+
+    /// 読み込み中のスピナーを出すか。
+    ///
+    /// **「まだ何も出せていない」ときだけ出す。** `content` が空でも、`data` で描く
+    /// 種別（PDF）の面が前の文書を出し続けている区間がある（面の宛先は描画が確定した
+    /// 種別で切り替わるので、次の文書が着地するまで前の PDF が見えている）。
+    /// `content` の空をそのまま「何も無い」と読むと、**見えている PDF の上に
+    /// スピナーが重なって一瞬ちらつく**（TASK-567 の実測）。
+    ///
+    /// **判定は自分の `fileType` で行う。** View から「PDF の面か」を受け取る形にすると、
+    /// 同じ意味の判定が View と状態型の 2 箇所に生まれ、片方だけ変えたときにずれる
+    /// （TASK-567 のレビュー指摘）。
+    var showsLoadingIndicator: Bool {
+        isLoading && content.isEmpty && !fileType.rendersFromData
     }
 
     // MARK: - 表示状態の書き換え(状態の単一情報源)
@@ -113,6 +135,8 @@ final class ViewerContentState {
         let rejectReason: RejectReason?
         let isTruncated: Bool
         let content: String
+        /// PDF の生データ。PDF 以外は常に nil。
+        let data: Data?
         /// content から行数カウンタを追従させるかどうか。段階読み込み(.chunked)は
         /// バナー表示に行数を使うため true、全文読込は行数を表示しないため false
         /// (カウンタは 0 にリセットされる)。
@@ -141,6 +165,7 @@ final class ViewerContentState {
         isTruncated = state.isTruncated
         loadFailed = false
         content = state.content
+        data = state.data
         hasDeclaredHTMLCharset = state.hasDeclaredHTMLCharset
         contentRevision += 1
         if state.tracksLineCount {
@@ -151,5 +176,67 @@ final class ViewerContentState {
             displayedLineCount = 0
         }
         return true
+    }
+}
+
+/// 読み込み結果から表示状態の組を作る写し。struct 本体に置くと
+/// メンバワイズ init が消えるため extension に置く。
+extension ViewerContentState.DisplayState {
+    /// 読み込み結果(`ViewerLoadPipeline.Outcome`)を表示状態の組へ写す。
+    ///
+    /// **種別ごとの差はこの写しだけに閉じる。** 実際の書き換えは
+    /// `applyDisplayState` に一本化してあるので、読み込み経路が増えても
+    /// 書き換え側は変わらない。写しを `ViewerStore` 側に置かないのは、
+    /// `Outcome` に case が増えるたびに網羅的 switch の受け手として
+    /// `ViewerStore` グループが太るため(TASK-564.6。PDF の Data 経路が
+    /// TASK-564.1 でここへ足される)。
+    ///
+    /// - Returns: 提示すべき表示状態が無いとき(`.missing`)は nil。
+    ///   ファイル消失の扱いは表示状態ではなく窓の判断なので、呼び出し側が負う。
+    init?(outcome: ViewerLoadPipeline.Outcome, fileType: FileType) {
+        switch outcome {
+        case .missing:
+            return nil
+        case let .chunked(session, cache, firstChunk, isAtEnd):
+            self.init(
+                fileType: fileType,
+                contentHash: cache.dataHash,
+                chunkSession: session,
+                rejectReason: nil,
+                isTruncated: !isAtEnd,
+                content: firstChunk,
+                data: nil,
+                tracksLineCount: true,
+                hasDeclaredHTMLCharset: nil
+            )
+        case let .binary(loaded):
+            // PDF の生データ経路。content は空のままで、描くのは PDFView(`data`)。
+            // 拒否理由の扱いと hash の規則は .full と同じ。
+            self.init(
+                fileType: fileType,
+                contentHash: loaded.contentHash,
+                chunkSession: nil,
+                rejectReason: loaded.rejectReason,
+                isTruncated: false,
+                content: "",
+                data: loaded.data,
+                tracksLineCount: false,
+                hasDeclaredHTMLCharset: nil
+            )
+        case let .full(loaded, cache):
+            self.init(
+                fileType: fileType,
+                // テキストは NormalizedTextCache、バイナリは LoadedContent が hash を運ぶ。
+                // どちらも「読み込みに成功したときだけ non-nil」という同じ規則に従う。
+                contentHash: cache?.dataHash ?? loaded.contentHash,
+                chunkSession: nil,
+                rejectReason: loaded.rejectReason,
+                isTruncated: false,
+                content: loaded.content,
+                data: nil,
+                tracksLineCount: false,
+                hasDeclaredHTMLCharset: loaded.hasDeclaredHTMLCharset
+            )
+        }
     }
 }

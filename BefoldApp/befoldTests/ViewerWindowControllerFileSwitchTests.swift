@@ -95,7 +95,7 @@ struct ViewerWindowControllerFileSwitchTests {
         // 本番では ViewerWebView.makeNSView が結ぶ renderer を、テストでは直接差し込む。
         let renderer = ViewerRenderer()
         renderer.recordRendered(RenderedStateMirror(filePath: file))
-        controller.webViewProxy.renderer = renderer
+        controller.surfaces.web.renderer = renderer
         let renamed = URL(fileURLWithPath: "/mock/renamed.md")
 
         controller.handleRename(from: file, to: renamed)

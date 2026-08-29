@@ -74,6 +74,9 @@ public enum CLICheckCommand {
         case .chunked:
             // 行指向ファイルの先頭チャンクを読めた = GUI も開ける。
             return nil
+        case let .binary(loaded):
+            // PDF の生データ経路。読めたか(rejectReason が nil か)だけを見る点は .full と同じ。
+            return loaded.rejectReason
         case let .full(content, _):
             return content.rejectReason
         }

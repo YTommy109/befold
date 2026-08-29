@@ -27,5 +27,31 @@ struct AppStores {
     /// git 呼び出しは起動時と新規リポジトリ記録時の非同期解決だけで、メニュー構築では読むだけ。
     let worktreeCatalog = WorktreeCatalog()
 
-    init() {}
+    init() {
+        Self.removeRetiredDisplayStateKeys(from: .standard)
+    }
+
+    /// 永続化をやめた表示状態(スクロール位置・表示モード)が使っていたキーを既存ユーザーの
+    /// defaults から消す。
+    ///
+    /// **移行はしない。** 移行先が無い(永続化そのものをやめた = TASK-565)。読み手が 0 に
+    /// なったキーを残すと、次に同名のキーを再利用したとき誤って読まれる
+    /// (CLAUDE.md「UserDefaults キーの廃止・改名」)。
+    ///
+    /// `ViewerSourceModes` / `SourceDiffEnabled` は、消えた `DisplayModeStore` の
+    /// 一度きり移行が掃除していた旧キー。担い手が消えるのでここへ引き取る。
+    static func removeRetiredDisplayStateKeys(from defaults: UserDefaults) {
+        for key in retiredDisplayStateKeys {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    /// テストが同じ一覧を参照できるよう内部可視性にしてある。
+    static let retiredDisplayStateKeys = [
+        "ViewerScrollPositions.rendered",
+        "ViewerScrollPositions.source",
+        "ViewerDisplayModes",
+        "ViewerSourceModes",
+        "SourceDiffEnabled",
+    ]
 }

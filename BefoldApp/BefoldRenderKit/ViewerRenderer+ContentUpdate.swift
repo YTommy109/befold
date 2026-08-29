@@ -32,7 +32,17 @@ public extension ViewerRenderer {
 
         runWhenReady { [weak self] in
             guard let self, let webView else { return }
-            execute(plan(for: input), input: input, webView: webView)
+            let plan = plan(for: input)
+            execute(plan, input: input, webView: webView)
+            // 倍率は**描き直すときだけ**、内容と同じ同期区間で当てる。
+            //
+            // `updateContent` はホストの状態が変わるたびに呼ばれ、内容に差が無ければ
+            // `.skip` になる。ファイルを切り替えた直後はまさにこれで、画面には前の
+            // ファイルが出たまま「新しいファイルの倍率」だけが流し込まれている。
+            // ここで当てると、切り替わる前のファイルの倍率が変わる
+            // (TASK-567 の実測。`PageZoomProjector.desired` の doc も参照)。
+            guard plan != .skip else { return }
+            pageZoom.applyIfReady()
         }
     }
 }

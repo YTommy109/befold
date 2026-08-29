@@ -14,6 +14,10 @@ import WebKit
 @Suite(testTimeLimit())
 @MainActor
 struct ViewerRendererZoomIntegrationTests {
+    private static let truncation = ViewerRenderer.TruncationState(
+        isTruncated: false, lineCount: 1, failed: false
+    )
+
     /// viewer.js が保持している現在倍率を読み出す。
     private func currentZoom(in webView: WKWebView) async -> Double? {
         await withCheckedContinuation { continuation in
@@ -45,15 +49,67 @@ struct ViewerRendererZoomIntegrationTests {
         #expect(renderer.pageZoom.applied == 1.5)
     }
 
-    @Test("準備完了後に倍率が変わったら、その時点で適用し直す")
-    func appliesZoomChangedAfterReady() async {
+    /// **倍率は代入では当たらず、その文書が描かれるときに当たる。**
+    ///
+    /// ホストはファイルを切り替えた時点で新しいファイルの倍率を流し込むが、その瞬間に
+    /// 画面へ出ているのはまだ前のファイル（面の宛先は描画が確定した種別で切り替わる）。
+    /// 代入で即座に当てると、切り替わる前のファイルの倍率が変わってから新しい
+    /// ファイルが出る、というちらつきになる（TASK-567 の実測）。
+    @Test("倍率は代入では当たらず、次に描かれるときに当たる")
+    func appliesZoomWhenTheDocumentIsRendered() async {
         let renderer = ViewerRenderer()
         _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        renderer.isVisible = true
         await waitUntilReady(renderer)
         #expect(renderer.pageZoom.applied == 1.0)
 
+        // 切り替え先の倍率が流し込まれた直後。まだ前の文書が出ているので当てない。
         renderer.initialPageZoom = 0.75
+        #expect(renderer.pageZoom.applied == 1.0)
+
+        // 新しい内容が描かれると、内容と同じ区間で当たる。
+        renderer.updateContent(
+            "# hello", contentRevision: 1, fileType: .markdown,
+            filePath: URL(fileURLWithPath: "/files/a.md"), hasDeclaredHTMLCharset: nil,
+            isSourceMode: false, showLineNumbers: false,
+            truncation: Self.truncation
+        )
+        for _ in 0 ..< 200 where renderer.pageZoom.applied != 0.75 {
+            try? await Task.sleep(for: .milliseconds(25))
+        }
         #expect(renderer.pageZoom.applied == 0.75)
+    }
+
+    /// **切り替え直後の `updateContent` は前のファイルに対する `.skip` である。**
+    /// そこで当てると、まだ画面に出ている前のファイルの倍率が変わる（TASK-567 の実測。
+    /// PDF へ切り替えるときに「Markdown の倍率が変わってから PDF が出る」形で見えた）。
+    @Test("内容に差が無い更新では倍率を当てない")
+    func doesNotApplyZoomWhenNothingIsRedrawn() async {
+        let renderer = ViewerRenderer()
+        _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        renderer.isVisible = true
+        await waitUntilReady(renderer)
+        let file = URL(fileURLWithPath: "/files/a.md")
+
+        renderer.updateContent(
+            "# hello", contentRevision: 1, fileType: .markdown, filePath: file,
+            hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false,
+            truncation: Self.truncation
+        )
+        for _ in 0 ..< 200 where renderer.rendered.contentRevision != 1 {
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+
+        // 切り替え先の倍率が流し込まれ、同じ内容でもう一度呼ばれた状態を模す。
+        renderer.initialPageZoom = 0.5
+        renderer.updateContent(
+            "# hello", contentRevision: 1, fileType: .markdown, filePath: file,
+            hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false,
+            truncation: Self.truncation
+        )
+        try? await Task.sleep(for: .milliseconds(100))
+
+        #expect(renderer.pageZoom.applied == 1.0)
     }
 
     @Test("同じ倍率を流し込んでも再適用はしない")
@@ -65,7 +121,7 @@ struct ViewerRendererZoomIntegrationTests {
 
         renderer.pageZoom.invalidateApplied()
         renderer.initialPageZoom = 1.25
-        // 値が変わっていないので didSet も走らず、記録は nil のまま。
+        // 代入では当たらないので、記録は捨てたまま。
         #expect(renderer.pageZoom.applied == nil)
     }
 }

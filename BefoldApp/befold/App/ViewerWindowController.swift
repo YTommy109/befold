@@ -95,9 +95,9 @@ final class ViewerWindowController: NSWindowController {
     var swipeMonitor: SwipeHistoryMonitor!
     /// ツールバー(モード切替・戻る/進む・行番号)の構築とライブ状態更新を担う。
     private(set) var toolbarController: ViewerToolbarController!
-    /// テスト(@testable)が renderer を差し込んで rename 追随の配線を検証できるよう
-    /// private にしない(本体アプリのコードからは ViewerWebView の配線経由でのみ使う)。
-    let webViewProxy = WebViewProxy()
+    /// この窓の描画面の束(proxy と adapter)。面が増えても窓が持つのはこれ 1 本のまま
+    /// (TASK-564.6)。テスト(@testable)が差し込めるよう private にしない。
+    private(set) var surfaces: DocumentSurfaces
     /// WebView 操作系メニューアクション(ズーム・印刷・検索・スクロール位置保存)の実処理。
     /// 生成は init 1 箇所きり。使うのは `+MenuActions` / `ViewerDocumentPresenter` /
     /// `+FileNavigation` / `+SidebarHost`。
@@ -106,7 +106,7 @@ final class ViewerWindowController: NSWindowController {
     /// webViewCommands の生成後にしか作れないため lazy(参照はどれも init の後段以降)。
     lazy var documentPresenter = ViewerDocumentPresenter(
         store: store, perFileState: perFileState, webViewCommands: webViewCommands,
-        currentURL: { [weak self] in self?.fileURL },
+        currentDocument: currentDocument,
         canSelect: { [weak self] mode in self?.canSelect(mode) ?? false },
         refreshToolbar: { [weak self] in self?.refreshUIState() },
         refreshDiff: { [weak self] in self?.refreshDiff() }
@@ -158,13 +158,12 @@ final class ViewerWindowController: NSWindowController {
         store.isSourceMode
     }
 
-    /// ウィンドウ起動時の初期ファイル URL。可変な現在 URL の唯一の保持先は store.currentURL であり、
-    /// これは store がまだ URL を持たない init 直後の一瞬(実際には store.openFile 済みのため到達しない)を
-    /// 型的に埋めるためのブートストラップ定数。rename / switch では更新しない。
-    private let initialFileURL: URL
+    /// 提示中の文書 URL への共有参照。窓の子(`ViewerDocumentPresenter` /
+    /// `WebViewCommandController`)へ同じ 1 個を渡し、旧 URL の捕捉を構造で防ぐ。
+    let currentDocument: CurrentDocumentRef
     /// 現在表示中ファイルの URL。保持先は store 一箇所(store.currentURL)。ここでは複製せず委譲する。
     var fileURL: URL {
-        store.currentURL ?? initialFileURL
+        currentDocument.url
     }
 
     /// サイドバー(一覧・選択同期・フォルダ移動)と戻る/進む履歴を担うナビゲータ。
@@ -279,7 +278,6 @@ final class ViewerWindowController: NSWindowController {
         },
         externalOpener: @escaping (URL) -> Void = { url in NSWorkspace.shared.open(url) }
     ) {
-        initialFileURL = fileURL
         self.perFileState = perFileState
         self.diffDisplayPreference = diffDisplayPreference
         self.diffLoader = diffLoader
@@ -293,11 +291,14 @@ final class ViewerWindowController: NSWindowController {
         self.initialSidebarCollapsed = initialSidebarCollapsed
         self.openFileElsewhere = openFileElsewhere
         self.externalOpener = externalOpener
+        // 後段の makeWebViewCommands と makeSplitViewController が両方これを読む。
+        surfaces = DocumentSurfaces(webRenderer: documentRenderer)
         let store = store ?? ViewerStore(defaults: defaults)
         // store が呼び出し元から明示注入された場合でも上書きが反映されるよう、
         // store の生成元にかかわらずここで一律に適用する(sourceModeOverride と同じ方針)。
         if let showLineNumbersOverride { store.lineNumbersSetting.applyOverride(showLineNumbersOverride) }
         self.store = store
+        currentDocument = CurrentDocumentRef(store: store, initialURL: fileURL)
         sidebar = ViewerWindowAssembler.makeSidebarNavigator(
             fileURL: fileURL, displayDefaults: displayDefaults,
             overrides: SidebarDisplayOverrides(
@@ -313,9 +314,7 @@ final class ViewerWindowController: NSWindowController {
         // super.init より前には作れない。ツールバーの生成・デリゲート設定・取り付けの
         // 順序制約は ViewerToolbarController.init の中に閉じている。
         toolbarController = ViewerToolbarController(window: window, host: self)
-        webViewCommands = ViewerWindowAssembler.makeWebViewCommands(
-            for: self, documentRenderer: documentRenderer, fallbackURL: fileURL
-        )
+        webViewCommands = ViewerWindowAssembler.makeWebViewCommands(for: self)
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
         // リサイズされるため、フレームの確定はその後に行う。
         window.contentViewController = ViewerWindowAssembler.makeSplitViewController(

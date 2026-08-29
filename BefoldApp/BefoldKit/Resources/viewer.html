@@ -20,7 +20,7 @@
     インラインハンドラを注入しても、CSP がその実行自体をブロックする(多層防御)。
     mermaid が注入するインライン <style> のため style-src には 'unsafe-inline' を付与する。
   -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; frame-src blob:; connect-src 'none'; base-uri 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>befold</title>
   <!-- ベンダー CSS(github-markdown / github / github-dark)は style.css が

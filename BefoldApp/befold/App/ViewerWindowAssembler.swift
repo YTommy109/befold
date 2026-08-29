@@ -77,18 +77,16 @@ enum ViewerWindowAssembler {
     // MARK: - コントローラを要る部品
 
     /// WebView 操作系メニューアクション（ズーム・印刷・検索・スクロール位置保存）の実処理を作る。
-    /// - Parameter fallbackURL: コントローラが解放済みのときに使う URL（生成時のファイル）。
     static func makeWebViewCommands(
-        for controller: ViewerWindowController,
-        documentRenderer: (any DocumentRendering)?,
-        fallbackURL: URL
+        for controller: ViewerWindowController
     ) -> WebViewCommandController {
         WebViewCommandController(
-            // WKWebView と JS の詳細は adapter に閉じる（ADR 0002 段 4）。
-            renderer: documentRenderer ?? WebViewDocumentRenderer(webViewProxy: controller.webViewProxy),
+            // WKWebView と JS の詳細は adapter に閉じ（ADR 0002 段 4）、どの面へ届けるかの
+            // 決定は束（DocumentSurfaces）に閉じる（TASK-564.6）。
+            surfaces: controller.surfaces,
             perFileState: controller.perFileState,
-            // 現在 URL は rename/switch で書き換わるため、旧値を捕捉せずコントローラ経由で参照する。
-            currentURL: { [weak controller] in controller?.fileURL ?? fallbackURL },
+            // 現在 URL は rename/switch で書き換わる。窓と同じ共有参照を渡し、旧値を捕捉しない。
+            currentDocument: controller.currentDocument,
             onZoomChanged: { [weak controller] zoom in controller?.store.zoom = zoom },
             onScrollPositionSaved: { [weak controller] position, url, mode in
                 controller?.applySavedScrollPositionToLiveValue(position, for: url, mode: mode)
@@ -110,6 +108,8 @@ enum ViewerWindowAssembler {
         let onNavigateToFolder: (URL) -> Void = { [weak controller] url in controller?.navigateToFolder(url) }
         let content: AnyView = contentOverride?() ?? AnyView(ViewerContentView(
             store: controller.store,
+            // 開く対象の種別。PDF なら WKWebView を作らずに始める(TASK-564.7)。
+            openingFileType: FileType(url: controller.fileURL),
             findOptionsPreference: controller.findOptionsPreference,
             headingJump: controller.headingJump,
             codeFontFamily: controller.codeFontPreference.fontFamily,
@@ -120,7 +120,20 @@ enum ViewerWindowAssembler {
             rendererDelegate: WeakRendererDelegate(controller),
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
-            webViewProxy: controller.webViewProxy,
+            webViewProxy: controller.surfaces.web,
+            pdfViewProxy: controller.surfaces.pdf,
+            pdfActions: PDFSurfaceActions(
+                // 面の中で完結する倍率操作の受け口。届いた倍率の扱い(ライブ値と保存値)は
+                // JS 由来の倍率通知と同じ 1 箇所へ寄せる。
+                onZoomChanged: { [weak controller] zoom in
+                    guard let controller else { return }
+                    controller.documentPresenter.recordZoomChange(zoom, for: controller.currentDocument.url)
+                },
+                // 回転はコマンド経路を通す(可否の判断は capabilities が持つ)。
+                onRotate: { [weak controller] degrees in
+                    controller?.webViewCommands.rotate(byDegrees: degrees)
+                }
+            ),
             diffDisplayPreference: controller.diffDisplayPreference
         ))
         let splitViewController = ViewerSplitViewController(
