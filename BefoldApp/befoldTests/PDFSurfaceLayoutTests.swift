@@ -110,6 +110,38 @@ struct PDFSurfaceLayoutTests {
         #expect(!pdfView.hasScrollRoom)
     }
 
+    /// 面の中で完結する倍率操作(ピンチ・Ctrl+ホイール)が上下限を守り、
+    /// 変化を窓へ伝えること(TASK-564.4)。上下限は `ZoomStore` と共有する。
+    @Test("ピンチの拡大は上限で止まり、倍率の変化が窓へ伝わる")
+    func pinchZoomClampsAndReports() {
+        let pdfView = makeView()
+        var reported: [Double] = []
+        pdfView.onZoomChanged = { reported.append($0) }
+
+        // ピンチと Ctrl+ホイールはどちらもこの入口へ収斂する。
+        for _ in 0 ..< 20 {
+            pdfView.applyZoom(scaledBy: 1.5)
+        }
+
+        #expect(reported.last == ZoomStore.maxZoom)
+        #expect(reported.allSatisfy { $0 <= ZoomStore.maxZoom && $0 >= ZoomStore.minZoom })
+        #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - ZoomStore.maxZoom) < 0.0001)
+    }
+
+    @Test("ピンチの縮小は下限で止まる")
+    func pinchZoomClampsAtTheMinimum() {
+        let pdfView = makeView()
+        var reported: [Double] = []
+        pdfView.onZoomChanged = { reported.append($0) }
+
+        for _ in 0 ..< 20 {
+            pdfView.applyZoom(scaledBy: 0.5)
+        }
+
+        #expect(reported.last == ZoomStore.minZoom)
+        #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - ZoomStore.minZoom) < 0.0001)
+    }
+
     /// 拡大するとページ内に余地が生まれ、ホイールは通常のスクロールへ戻る。
     /// ページ内を見終わる前に次ページへ飛ばさないための分かれ目。
     @Test("拡大するとページ内スクロールの余地が生まれる")

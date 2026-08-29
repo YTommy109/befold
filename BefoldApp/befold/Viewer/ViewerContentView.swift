@@ -31,6 +31,8 @@ struct ViewerContentView: View {
     let onNavigateToFolder: (URL) -> Void
     let webViewProxy: WebViewProxy
     let pdfViewProxy: PDFViewProxy
+    /// PDF の面の中で完結する倍率操作(ピンチ・Ctrl+ホイール)の通知先。
+    let onPDFZoomChanged: (Double) -> Void
     /// 差分のレイアウト設定。全ウィンドウ共有(差分を出すかどうかは store の表示モードが持つ)。
     let diffDisplayPreference: DiffDisplayPreference
 
@@ -56,6 +58,7 @@ struct ViewerContentView: View {
                 rendererDelegate: rendererDelegate,
                 webViewProxy: webViewProxy,
                 pdfViewProxy: pdfViewProxy,
+                onPDFZoomChanged: onPDFZoomChanged,
                 diffDisplayPreference: diffDisplayPreference
             )
             .opacity(folderURL == nil ? 1 : 0)

@@ -1296,18 +1296,19 @@
       }
     },
     "menu.view.actualSize": {
+      "comment": "⌘0。面ごとの「基準の倍率」へ戻す。WebView では 100%、PDF ではページ全体が収まる倍率で、どちらも ZoomStore.defaultZoom(1.0) にあたる。面によって意味が変わるため「実際のサイズ」とは呼べない(TASK-564.4)。",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Actual Size"
+            "value": "Default Size"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "実際のサイズ"
+            "value": "既定のサイズ"
           }
         }
       }

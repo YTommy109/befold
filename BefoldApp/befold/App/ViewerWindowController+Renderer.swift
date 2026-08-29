@@ -21,10 +21,7 @@ extension ViewerWindowController: ViewerRendererDelegate {
     /// (切替直後に届いた切替前の文書の通知)では更新しない。保存だけを出所のキーへ行う。
     func renderer(_: ViewerRenderer, didChangeZoom zoom: Double, for url: URL?) {
         guard let url else { return }
-        if url.normalizedPathKey == fileURL.normalizedPathKey {
-            store.zoom = zoom
-        }
-        perFileState.zoom.setZoom(zoom, for: url)
+        documentPresenter.recordZoomChange(zoom, for: url)
     }
 
     /// 保存キーは現在表示中の fileURL ではなく、通知に載った「その位置が属する文書」から

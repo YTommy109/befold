@@ -20,6 +20,9 @@ struct PDFPreviewView: NSViewRepresentable {
     let scrollPositionToRestore: Double
     /// AppKit 側(メニューアクション)へ `PDFView` を公開するプロキシ。
     let pdfViewProxy: PDFViewProxy
+    /// 面の中で完結する倍率操作(ピンチ・Ctrl+ホイール)の通知先。
+    /// メニュー経由の倍率変更はここを通らない(コマンド側が返り値で伝える)。
+    let onZoomChanged: (Double) -> Void
 
     func makeNSView(context: Context) -> PDFView {
         // ホイールをページ送りへ振り替える面(TASK-564.2)。レイアウト規則は
@@ -27,6 +30,7 @@ struct PDFPreviewView: NSViewRepresentable {
         let pdfView = PagingPDFView()
         PDFSurfaceLayout.configure(pdfView)
         pdfView.backgroundColor = .windowBackgroundColor
+        pdfView.onZoomChanged = onZoomChanged
         pdfViewProxy.pdfView = pdfView
         return pdfView
     }

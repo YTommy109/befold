@@ -116,6 +116,20 @@ final class ViewerDocumentPresenter {
         )
     }
 
+    /// 面の中で完結した倍率変更(JS のズーム / PDF のピンチ・Ctrl+ホイール)を、
+    /// **その倍率が属する文書**のキーで受ける。受け口をここ 1 箇所にするのは、
+    /// 面ごとに「ライブ値をいつ更新するか」の規則が分かれると片方だけ直るため。
+    ///
+    /// ライブ値は「いまこの窓が出している文書」の倍率なので、出所が現在の文書と違う
+    /// 遅延通知(切替直後に届いた切替前の文書の通知)では更新しない。保存だけを
+    /// 出所のキーへ行う(TASK-391 と同じ作法)。
+    func recordZoomChange(_ zoom: Double, for url: URL) {
+        if url.normalizedPathKey == currentDocument.url.normalizedPathKey {
+            store.zoom = zoom
+        }
+        perFileState.zoom.setZoom(zoom, for: url)
+    }
+
     /// 描画側から上がってきたスクロール位置を、その位置が属する文書・モードのキーへ記録する。
     /// 通知は遅れて届きうるので、キーは現在の提示対象ではなく通知が載せてきたものを使う
     /// （`ViewerWindowController+Renderer` の doc / TASK-400）。
