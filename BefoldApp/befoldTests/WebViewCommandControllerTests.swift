@@ -28,6 +28,7 @@ final class FakeDocumentRenderer: DocumentRendering {
         case applyJumpAvailability(kinds: Set<DocumentJumpKind>)
         case print
         case currentScrollPosition
+        case rotate(degrees: Int)
         case noteRename(old: URL, new: URL)
     }
 
@@ -38,8 +39,16 @@ final class FakeDocumentRenderer: DocumentRendering {
     /// currentScrollPosition が返す値。nil なら completion を呼ばない。
     var scrollPosition: Double?
 
+    /// いまの回転角。`rotate` が積み上げる。
+    private(set) var currentRotation = 0
+
     func applyZoom(_ zoom: Double) {
         commands.append(.applyZoom(zoom))
+    }
+
+    func rotate(byDegrees degrees: Int) {
+        commands.append(.rotate(degrees: degrees))
+        currentRotation += degrees
     }
 
     func applyCodeFont(family: String?, points: Double?) {

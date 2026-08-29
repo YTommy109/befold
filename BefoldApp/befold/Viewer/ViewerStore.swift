@@ -164,6 +164,9 @@ final class ViewerStore {
     /// `zoom` と同じ規則で、提示開始(オープン・ファイル切替・モード切替)のときだけ
     /// この窓の記憶(`WindowPresentationMemory`)から入れる。
     var scrollPositionToRestore: Double = 0
+    /// PDF の面へ渡す回転角(0 / 90 / 180 / 270)。窓の記憶から読んだライブ値で、
+    /// 永続化はしない(`WindowPresentationMemory`)。PDF 以外では常に 0。
+    var pdfRotation: Int = 0
 
     /// コード表示中(ソースモードまたはコード形式ファイル)かどうか。
     /// トップバーの表示可否と行番号メニューの有効判定が共有する。

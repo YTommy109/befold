@@ -41,6 +41,8 @@ struct ViewerCapabilities: Equatable {
     let canSelectDiffMode: Bool
     /// 差分レイアウト(上下/左右)の切替。差分表示を選んでいる間だけ意味を持つ。
     let canToggleDiffLayout: Bool
+    /// 表示の 90 度回転。回転を持つ面(PDF)を描いているときだけ。
+    let canRotate: Bool
 
     /// - Parameters:
     ///   - isPresentingDocument: 文書を提示しているか。フォルダー一覧を出している間は false。
@@ -55,6 +57,8 @@ struct ViewerCapabilities: Equatable {
     ///   - gitDiffAvailability: 差分を出せる git の事実(可用性・変更の有無)。
     ///     ADR(libgit2 移行)の Fallback にある「git が使えないとき差分表示モードを
     ///     選択不可にする」はここから来る。
+    ///   - supportsRotation: 表示を回せる種別か(PDF のみ)。回転は `PDFView` の
+    ///     機能で、viewer.html の面は持たない。
     ///   - isDirectHTMLMode: HTML を直接ロードして表示しているか。
     ///   - isDocumentJumpEnabled: 文書内ジャンプを露出してよいか(開発中機能のゲート)。
     ///     既定値は持たせない。渡し忘れが静かに「常に有効」へ倒れると、stable へ
@@ -68,6 +72,7 @@ struct ViewerCapabilities: Equatable {
         showsDiff: Bool = false,
         supportsSourceMode: Bool,
         supportsDiffDisplay: Bool,
+        supportsRotation: Bool = false,
         gitDiffAvailability: GitDiffAvailability,
         isDirectHTMLMode: Bool,
         isDocumentJumpEnabled: Bool
@@ -102,6 +107,7 @@ struct ViewerCapabilities: Equatable {
             && gitDiffAvailability.allowsDiffSelection
         canToggleDiffLayout = canSelectDiffMode && showsDiff
         canJumpToChangeBlock = canJump && showsDiff
+        canRotate = onDocument && supportsRotation
     }
 
     /// その種類のジャンプをいま使えるか。`canSelect(_:)` と同じく対応表であり、

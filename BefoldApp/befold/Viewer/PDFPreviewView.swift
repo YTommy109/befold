@@ -18,6 +18,8 @@ struct PDFPreviewView: NSViewRepresentable {
     /// この窓が覚えている表示位置(0…1)。文書を差し替えた直後に復元する。
     /// web の面と同じ値・同じ記憶(`WindowPresentationMemory`)を使う。
     let scrollPositionToRestore: Double
+    /// この窓が覚えている回転角(0 / 90 / 180 / 270)。文書を差し替えた直後に合わせる。
+    let rotation: Int
     /// AppKit 側(メニューアクション)へ `PDFView` を公開するプロキシ。
     let pdfViewProxy: PDFViewProxy
     /// 面の中で完結する倍率操作(ピンチ・Ctrl+ホイール)の通知先。
@@ -48,6 +50,8 @@ struct PDFPreviewView: NSViewRepresentable {
             return
         }
         pdfView.document = PDFDocument(data: data)
+        // 回転は倍率より先に合わせる(縦横比が変わるとフィット倍率も変わるため)。
+        PDFSurfaceLayout.apply(rotation: rotation, to: pdfView)
         // 文書の差し替えで倍率は既定へ戻るため、ファイル単位の値をここで入れ直す。
         // 換算は PDFSurfaceLayout が持つ(操作側と同じ規則を通す)。
         PDFSurfaceLayout.apply(zoom: initialZoom, to: pdfView)

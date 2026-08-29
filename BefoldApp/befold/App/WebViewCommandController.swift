@@ -176,6 +176,20 @@ final class WebViewCommandController {
         }
     }
 
+    // MARK: - Rotation
+
+    /// 表示を 90 度単位で回す。回せる面かどうかは能力が決める(種別を見ない)。
+    /// 度数の符号は時計回りが正。
+    func rotate(byDegrees degrees: Int) {
+        guard capabilities().canRotate else { return }
+        renderer.rotate(byDegrees: degrees)
+    }
+
+    /// いま描いている面の回転角。窓が切替の退場側で読み、その文書の記憶へ入れる。
+    var currentRotation: Int {
+        renderer.currentRotation
+    }
+
     // MARK: - Scroll position
 
     /// 現在のスクロール位置を問い合わせ、指定した URL・モードのキーごと窓へ通知する。

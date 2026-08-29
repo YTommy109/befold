@@ -50,6 +50,15 @@ protocol DocumentSurfaceOperating: AnyObject {
 
     /// 現在のスクロール位置を問い合わせる。取得できなければ呼ばれない。
     func currentScrollPosition(_ completion: @escaping (Double) -> Void)
+
+    /// 表示を 90 度単位で回す(度数は 90 の倍数)。
+    /// 回せるのは PDF の面だけで、可否は `ViewerCapabilities.canRotate` が持つ。
+    func rotate(byDegrees degrees: Int)
+
+    /// いまの回転角(0 / 90 / 180 / 270)。回転を持たない面は常に 0。
+    /// 窓はこれを**切替の退場側で**読み、その文書の記憶へ入れる
+    /// (`ViewerDocumentPresenter.saveScrollPositionBeforeTransition` と同じ契機)。
+    var currentRotation: Int { get }
 }
 
 /// **すべての描画面へ配る**追随(ADR 0002 段 4 の port の後半)。

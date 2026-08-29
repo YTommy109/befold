@@ -77,6 +77,46 @@ enum PDFSurfaceLayout {
         scroll(toInPageFraction: inPage, in: pdfView)
     }
 
+    /// 表示を 90 度単位で回す。**文書全体を回す**(現在ページだけではない)。
+    ///
+    /// 横向きにスキャンされた PDF は文書ごと横倒しになっているのが普通で、
+    /// ページ単位だとページを送るたびに回し直すことになる。ページごとに向きが
+    /// 混在する PDF では一部が正しくならないが、そちらは例外的な形なので、
+    /// 「1 回の操作で読める状態になる」ほうを採る(TASK-564.5)。
+    ///
+    /// 倍率はここで触らない。`autoScales` が有効な間は、縦横比が変わった時点で
+    /// `PDFView` がフィットし直す(TASK-564.2 の AC #2)。
+    static func rotate(byDegrees degrees: Int, in pdfView: PDFView) {
+        guard let document = pdfView.document else { return }
+        for index in 0 ..< document.pageCount {
+            guard let page = document.page(at: index) else { continue }
+            page.rotation = normalized(page.rotation + degrees)
+        }
+        // 再レイアウトは PDFKit が自分で行う(`PDFPage.rotation` の変更が
+        // didRotatePage の通知を出し、`PDFDocumentView` がメインキューで畳む)。
+        // ここで `layoutDocumentView()` を重ねて呼ばない。
+    }
+
+    /// いまの回転角(0 / 90 / 180 / 270)。文書全体を回すので、先頭ページを代表として読む。
+    static func rotation(of pdfView: PDFView) -> Int {
+        guard let page = pdfView.document?.page(at: 0) else { return 0 }
+        return normalized(page.rotation)
+    }
+
+    /// 記憶していた回転角へ合わせる(差分だけ回す)。
+    static func apply(rotation: Int, to pdfView: PDFView) {
+        let delta = normalized(rotation) - self.rotation(of: pdfView)
+        guard delta != 0 else { return }
+        rotate(byDegrees: delta, in: pdfView)
+    }
+
+    /// 0 / 90 / 180 / 270 へ丸める。`PDFPage.rotation` は負の値も受け付けるが、
+    /// 記憶と比較のためにここで正規化しておく。
+    static func normalized(_ degrees: Int) -> Int {
+        let wrapped = degrees % 360
+        return wrapped < 0 ? wrapped + 360 : wrapped
+    }
+
     /// 倍率を適用する。フィット(既定倍率)へ戻すときは `autoScales` を戻し、
     /// 以後のリサイズにも追従させる(⌘0 が「この面での基準状態へ戻す」になる)。
     static func apply(zoom: Double, to pdfView: PDFView) {

@@ -74,6 +74,9 @@ final class ViewerDocumentPresenter {
         webViewCommands.saveCurrentScrollPosition(
             for: currentDocument.url, mode: ViewerBridge.ViewMode(isSourceMode: store.isSourceMode)
         )
+        // 回転は面から同期で読めるので、位置と同じ契機・同じキーで記憶する
+        // (通知を待たない分、押し出される心配が無い)。回転を持たない面は 0 を返す。
+        presentationMemory.setRotation(webViewCommands.currentRotation, for: currentDocument.url)
     }
 
     /// **窓がその文書を提示し始めるとき**に、ファイル単位の保存値・記憶をこの窓のライブ値へ読み込む。
@@ -85,6 +88,7 @@ final class ViewerDocumentPresenter {
     func beginPresentingDocument(at url: URL) {
         store.zoom = perFileState.zoom.zoom(for: url)
         store.scrollPositionToRestore = restoredScrollPosition(for: url, isSourceMode: store.isSourceMode)
+        store.pdfRotation = presentationMemory.rotation(for: url)
     }
 
     /// 退場側で発行したスクロール位置の保存が完了したときに、その位置をキーごと記憶し、

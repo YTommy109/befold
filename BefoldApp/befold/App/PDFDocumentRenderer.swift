@@ -92,6 +92,18 @@ final class PDFDocumentRenderer: DocumentRendering {
         completion(PDFSurfaceLayout.documentFraction(of: pdfView))
     }
 
+    // MARK: - Rotation
+
+    /// 文書全体を 90 度単位で回す(範囲の判断は `PDFSurfaceLayout` の doc)。
+    func rotate(byDegrees degrees: Int) {
+        guard let pdfView = pdfViewProxy.pdfView else { return }
+        PDFSurfaceLayout.rotate(byDegrees: degrees, in: pdfView)
+    }
+
+    var currentRotation: Int {
+        pdfViewProxy.pdfView.map { PDFSurfaceLayout.rotation(of: $0) } ?? 0
+    }
+
     // MARK: - 追随(全面へ配られる)
 
     /// ソース表示のフォントも CSV の数値表示も PDF には無い。**配られること自体は正しい**

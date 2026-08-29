@@ -12,6 +12,7 @@ extension MainMenuBuilder {
         let menu = NSMenu(title: String(localized: "menu.view.title", bundle: .l10n))
         item.submenu = menu
         addZoomItems(to: menu)
+        addRotationItems(to: menu)
         menu.addItem(.separator())
         addDisplayModeItems(to: menu)
         menu.addLocalizedItem(
@@ -50,6 +51,27 @@ extension MainMenuBuilder {
             modifiers: [.control, .command]
         )
         return item
+    }
+
+    /// 表示の 90 度回転(PDF)。向きは項目のタグが運ぶ(@objc の入口を 1 つに保つ)。
+    /// Preview.app の ⌘L / ⌘R のうち ⌘L は行番号表示に使用済みなので、
+    /// ⌘R(右)と ⇧⌘R(左)にする。有効判定は `ViewerCapabilities.canRotate`。
+    static func addRotationItems(to menu: NSMenu) {
+        menu.addItem(.separator())
+        let clockwise = menu.addLocalizedItem(
+            "menu.view.rotateClockwise",
+            action: #selector(ViewerWindowController.rotateDocument(_:)),
+            keyEquivalent: "r",
+            modifiers: [.command]
+        )
+        clockwise.tag = 90
+        let counterClockwise = menu.addLocalizedItem(
+            "menu.view.rotateCounterClockwise",
+            action: #selector(ViewerWindowController.rotateDocument(_:)),
+            keyEquivalent: "r",
+            modifiers: [.command, .shift]
+        )
+        counterClockwise.tag = -90
     }
 
     /// サイドバーのツリー表示の切替項目。

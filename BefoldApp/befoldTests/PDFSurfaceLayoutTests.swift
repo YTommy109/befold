@@ -263,3 +263,130 @@ struct PDFSurfacePositionTests {
         #expect(PDFSurfaceLayout.documentFraction(of: pdfView) == 0)
     }
 }
+
+/// PDF の回転（TASK-564.5）。
+///
+/// **作った面はプロセスの終わりまで手放さない。** `PDFPage.rotation` を変えると
+/// PDFKit は再レイアウトをメインキューへ積む（`didRotatePageNotification:` の
+/// ブロック）。テストが終わって面が解放された後にそれが走ると、解放済みの
+/// `PDFDocumentView` を触って落ちる（実測: EXC_BAD_ACCESS at 0x0 /
+/// `-[PDFDocumentView layoutDocumentView]`。並列実行で数回に 1 回再現した）。
+/// 本番の面は窓と同じ寿命なのでこの順序は起きない。
+@MainActor
+@Suite
+struct PDFSurfaceRotationTests {
+    /// 解放を遅らせるためだけの保持箱（上の doc を参照）。
+    private static var retained: [PagingPDFView] = []
+
+    private func makeView() -> PagingPDFView {
+        let document = PDFDocument()
+        for index in 0 ..< 2 {
+            let data = NSMutableData()
+            var box = NSRect(x: 0, y: 0, width: 612, height: 792)
+            guard let consumer = CGDataConsumer(data: data),
+                  let context = CGContext(consumer: consumer, mediaBox: &box, nil)
+            else { continue }
+            context.beginPage(mediaBox: &box)
+            context.endPage()
+            context.closePDF()
+            if let page = PDFDocument(data: data as Data)?.page(at: 0) {
+                document.insert(page, at: index)
+            }
+        }
+        let pdfView = PagingPDFView()
+        PDFSurfaceLayout.configure(pdfView)
+        pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
+        pdfView.document = document
+        pdfView.layoutSubtreeIfNeeded()
+        Self.retained.append(pdfView)
+        return pdfView
+    }
+
+    /// 回転は**文書全体**へ効く。ページを送るたびに回し直さずに済ませるための判断
+    /// （理由は `PDFSurfaceLayout.rotate(byDegrees:in:)` の doc）。
+    @Test("回転は文書のすべてのページへ効く")
+    func rotationAppliesToEveryPage() throws {
+        let pdfView = makeView()
+
+        PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+
+        let document = try #require(pdfView.document)
+        for index in 0 ..< document.pageCount {
+            #expect(document.page(at: index)?.rotation == 90)
+        }
+    }
+
+    @Test("回転は 0/90/180/270 を巡り、4 回で元へ戻る")
+    func rotationWrapsAroundFourTurns() {
+        let pdfView = makeView()
+
+        var seen: [Int] = []
+        for _ in 0 ..< 4 {
+            PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+            seen.append(PDFSurfaceLayout.rotation(of: pdfView))
+        }
+
+        #expect(seen == [90, 180, 270, 0])
+    }
+
+    /// 左回転（-90）も正規化されて 270 になる。負の値のまま記憶すると、
+    /// 記憶した値との比較が同じ向きでも一致しなくなる。
+    @Test("左回転は 270 として正規化される")
+    func counterClockwiseNormalizes() {
+        let pdfView = makeView()
+
+        PDFSurfaceLayout.rotate(byDegrees: -90, in: pdfView)
+
+        #expect(PDFSurfaceLayout.rotation(of: pdfView) == 270)
+    }
+
+    /// 記憶した向きへ合わせ直す（差分だけ回す）。往復で同じ向きに戻る。
+    @Test("記憶した回転角へ合わせ直せる")
+    func restoresARememberedRotation() {
+        let pdfView = makeView()
+        PDFSurfaceLayout.rotate(byDegrees: 180, in: pdfView)
+        let remembered = PDFSurfaceLayout.rotation(of: pdfView)
+
+        let reopened = makeView()
+        PDFSurfaceLayout.apply(rotation: remembered, to: reopened)
+
+        #expect(PDFSurfaceLayout.rotation(of: reopened) == 180)
+    }
+
+    /// 回転しても倍率の自動追従は外れない（AC #2: 回転後もフィットが保たれる）。
+    /// 倍率は回転の中で触らず、`autoScales` が縦横比の変化に追従する。
+    @Test("回転してもフィットの自動追従は外れない")
+    func rotationKeepsAutoScaling() {
+        let pdfView = makeView()
+
+        PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+        pdfView.layoutSubtreeIfNeeded()
+
+        #expect(pdfView.autoScales)
+        #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 1) < 0.0001)
+    }
+
+    /// 回転の記憶は窓の生存期間だけ（位置・表示モードと同じ寿命）。
+    @Test("回転は窓の記憶に乗り、新しい窓へは持ち越さない")
+    func rotationLivesOnlyInTheWindowMemory() {
+        let memory = WindowPresentationMemory()
+        let pdf = URL(fileURLWithPath: "/files/doc.pdf")
+
+        memory.setRotation(90, for: pdf)
+
+        #expect(memory.rotation(for: pdf) == 90)
+        #expect(WindowPresentationMemory().rotation(for: pdf) == 0)
+    }
+
+    /// 文書が無ければ回転は何もしない（切替直後の一瞬）。
+    @Test("文書が無ければ回転しても落ちない")
+    func rotatingWithoutADocumentIsSafe() {
+        let pdfView = PagingPDFView()
+        PDFSurfaceLayout.configure(pdfView)
+        Self.retained.append(pdfView)
+
+        PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+
+        #expect(PDFSurfaceLayout.rotation(of: pdfView) == 0)
+    }
+}

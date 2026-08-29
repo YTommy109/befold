@@ -43,6 +43,12 @@ struct ViewerWindowScrollRestoreRaceTests {
         func printDocument(over _: NSWindow?) {}
         func noteRename(from _: URL, to _: URL) {}
 
+        var currentRotation: Int {
+            0
+        }
+
+        func rotate(byDegrees _: Int) {}
+
         func currentScrollPosition(_ completion: @escaping (Double) -> Void) {
             capturedPositions.append(scrollPosition)
             pending.append(completion)

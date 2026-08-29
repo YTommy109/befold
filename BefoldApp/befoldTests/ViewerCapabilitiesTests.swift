@@ -14,6 +14,7 @@ struct ViewerCapabilitiesTests {
         showsDiff: Bool = false,
         supportsSourceMode: Bool = true,
         supportsDiffDisplay: Bool = true,
+        supportsRotation: Bool = false,
         gitDiffAvailability: GitDiffAvailability = .changed,
         isDirectHTMLMode: Bool = false,
         isDocumentJumpEnabled: Bool = true
@@ -27,6 +28,7 @@ struct ViewerCapabilitiesTests {
             showsDiff: showsDiff,
             supportsSourceMode: supportsSourceMode,
             supportsDiffDisplay: supportsDiffDisplay,
+            supportsRotation: supportsRotation,
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
             isDocumentJumpEnabled: isDocumentJumpEnabled
@@ -80,6 +82,17 @@ struct ViewerCapabilitiesTests {
         #expect(!capabilities.canJump(to: .changeBlock))
         #expect(capabilities.canPrint)
         #expect(capabilities.canZoom)
+    }
+
+    /// 回転は PDF の面(PDFView)だけが持つ。種別の判定は
+    /// `ViewerCapabilitiesFactory` の 1 箇所で、メニューは能力しか見ない。
+    @Test("回転は回せる種別のときだけ許される")
+    func allowsRotationOnlyForRotatableTypes() {
+        #expect(!makeCapabilities().canRotate)
+        #expect(makeCapabilities(supportsRotation: true).canRotate)
+        // 文書を見ていない間・拒否されたファイルでは許さない(他の操作と同じ)。
+        #expect(!makeCapabilities(isPresentingDocument: false, supportsRotation: true).canRotate)
+        #expect(!makeCapabilities(isRejected: true, supportsRotation: true).canRotate)
     }
 
     @Test("表示できないファイルでは文書操作を許さない")

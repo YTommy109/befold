@@ -101,6 +101,7 @@ struct DocumentSurfaceStack: View {
                 isVisible: isVisible,
                 initialZoom: store.zoom,
                 scrollPositionToRestore: store.scrollPositionToRestore,
+                rotation: store.pdfRotation,
                 pdfViewProxy: pdfViewProxy,
                 onZoomChanged: onPDFZoomChanged
             )

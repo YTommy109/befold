@@ -54,6 +54,15 @@ struct DocumentSurfaceDispatchTests {
 
         func currentScrollPosition(_: @escaping (Double) -> Void) {}
 
+        var rotationDegrees = 0
+        var currentRotation: Int {
+            rotationDegrees
+        }
+
+        func rotate(byDegrees degrees: Int) {
+            rotationDegrees += degrees
+        }
+
         func applyCodeFont(family _: String?, points _: Double?) {
             codeFontCalls += 1
         }

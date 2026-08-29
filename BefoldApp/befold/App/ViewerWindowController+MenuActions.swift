@@ -26,11 +26,16 @@ extension ViewerWindowController {
         webViewCommands.zoomOut()
     }
 
-    /// View > 既定のサイズ(⌘0)。倍率をその面の基準へ戻す。
-    /// WebView では 100%、PDF ではページ全体が収まる倍率で、どちらも
-    /// `ZoomStore.defaultZoom`(1.0)。意味の対応は各 adapter が持つ(TASK-564.4)。
+    /// View > 既定のサイズ(⌘0)。倍率をその面の基準へ戻す(WebView は 100%、
+    /// PDF はページ全体が収まる倍率。どちらも `ZoomStore.defaultZoom`)。
     @objc func resetZoom(_ sender: Any?) {
         webViewCommands.resetZoom()
+    }
+
+    /// View > 右に回転 / 左に回転。向きは sender のタグが運ぶ(表示モード選択と同じ形)。
+    @objc func rotateDocument(_ sender: Any?) {
+        let degrees = (sender as? NSMenuItem)?.tag ?? 90
+        webViewCommands.rotate(byDegrees: degrees)
     }
 
     /// File > Print…。WebView の描画内容を印刷する。

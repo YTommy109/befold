@@ -2,7 +2,7 @@ import BefoldKit
 import Foundation
 
 /// **ウィンドウの生存期間だけ**覚えておく、ファイル単位の表示状態
-/// （スクロール位置・表示モード）。
+/// （スクロール位置・表示モード・PDF の回転）。
 ///
 /// スクロール位置は `scrollTop` の生ピクセル値で、内容・ウィンドウ幅・倍率・フォント
 /// 設定のどれが変わっても意味を失う。表示モードは、ソース表示で見たいファイル
@@ -24,6 +24,7 @@ final class WindowPresentationMemory {
     private var renderedPositions = PathKeyedTable<Double>()
     private var sourcePositions = PathKeyedTable<Double>()
     private var displayModes = PathKeyedTable<ViewerDisplayMode>()
+    private var rotations = PathKeyedTable<Int>()
 
     init() {}
 
@@ -55,17 +56,30 @@ final class WindowPresentationMemory {
         displayModes.setValue(mode, for: url)
     }
 
+    /// 指定ファイルの回転角(0 / 90 / 180 / 270)。記憶が無ければ 0(回していない)。
+    /// 位置・表示モードと同じ寿命にするのは、回転も「その文書をいまどう見ているか」で
+    /// あって、次に開いたときまで持ち越す意図ではないため(TASK-564.5)。
+    func rotation(for url: URL) -> Int {
+        rotations.value(for: url) ?? 0
+    }
+
+    /// 指定ファイルの回転角を記憶する。
+    func setRotation(_ rotation: Int, for url: URL) {
+        rotations.setValue(rotation, for: url)
+    }
+
     /// 記憶済みモードを、その種別で実際に成立するモードまで降格して返す。
     /// 降格しても記憶は書き換えない。
     func restoredDisplayMode(for url: URL) -> ViewerDisplayMode {
         displayMode(for: url).supported(for: url)
     }
 
-    /// ファイルの rename / move に伴い、旧パスの記憶（位置 2 モード分・表示モード）を
+    /// ファイルの rename / move に伴い、旧パスの記憶（位置 2 モード分・表示モード・回転）を
     /// 新パスへ引き継ぐ。永続側の引き継ぎは `PerFileStateStore.migrate` が別に行う。
     func migrate(from oldURL: URL, to newURL: URL) {
         renderedPositions.migrateValue(from: oldURL, to: newURL)
         sourcePositions.migrateValue(from: oldURL, to: newURL)
         displayModes.migrateValue(from: oldURL, to: newURL)
+        rotations.migrateValue(from: oldURL, to: newURL)
     }
 }
