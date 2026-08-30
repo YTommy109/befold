@@ -50,6 +50,7 @@ extension DocumentCommandControllerTests {
             showsDiff: true,
             supportsSourceMode: true,
             supportsDiffDisplay: true,
+            supportsFind: true,
             gitDiffAvailability: .changed,
             isDirectHTMLMode: false,
             isDocumentJumpEnabled: false

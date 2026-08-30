@@ -33,6 +33,7 @@ struct ViewerContentView: View {
     let onSelectFile: (URL) -> Void
     let onNavigateToFolder: (URL) -> Void
     let webViewProxy: WebViewProxy
+    let pdfFind: PDFFindModel
     let pdfViewProxy: PDFViewProxy
     /// PDF の面と窓のあいだの受け渡し。クロージャを 1 つずつ増やすと注入が
     /// 3 つを超えるため、PDF 面まわりの受け渡しは 1 つの値にまとめる
@@ -63,6 +64,7 @@ struct ViewerContentView: View {
                 csvNegativeStyle: csvNegativeStyle,
                 rendererDelegate: rendererDelegate,
                 webViewProxy: webViewProxy,
+                pdfFind: pdfFind,
                 pdfViewProxy: pdfViewProxy,
                 pdfActions: pdfActions,
                 diffDisplayPreference: diffDisplayPreference

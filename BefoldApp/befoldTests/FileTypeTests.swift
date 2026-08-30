@@ -274,3 +274,32 @@ struct FileTypeTests {
         #expect(FileType.quickLookSupportedExtensions == FileType.allExtensions.subtracting(binary))
     }
 }
+
+/// 検索対象のテキストを持つ種別か（TASK-570）。
+///
+/// **`isBinaryContent` とは別の問い。** あちらは「読み込みをバイナリで行うか」で
+/// 画像も PDF も true になるが、PDF は PDFKit がテキストレイヤーを検索できる。
+/// 一緒くたにすると、PDF の検索を開けたときに画像まで「⌘F は押せるが何も起きない」
+/// 形になる（ADR 0002 が排した形）。
+@Suite
+struct FileTypeSupportsFindTests {
+    @Test("画像だけが検索対象のテキストを持たない")
+    func onlyImagesLackSearchableText() {
+        #expect(!FileType.image(mimeType: "image/png").supportsFind)
+        #expect(FileType.pdf.supportsFind)
+        #expect(FileType.markdown.supportsFind)
+        #expect(FileType.mmd.supportsFind)
+        #expect(FileType.svg.supportsFind)
+        #expect(FileType.html.supportsFind)
+        #expect(FileType.csv(delimiter: ",").supportsFind)
+        #expect(FileType.code(language: "swift").supportsFind)
+    }
+
+    /// PDF は「バイナリだが検索できる」唯一の種別。この 2 つが同じ答えを返す形へ
+    /// 戻ると、画像を巻き込む判定に逆戻りする。
+    @Test("PDF では isBinaryContent と supportsFind が食い違う")
+    func pdfIsBinaryYetSearchable() {
+        #expect(FileType.pdf.isBinaryContent)
+        #expect(FileType.pdf.supportsFind)
+    }
+}

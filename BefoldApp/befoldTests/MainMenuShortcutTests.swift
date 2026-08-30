@@ -60,6 +60,8 @@ struct ViewMenuValidationTests {
             supportsSourceMode: !binary,
             supportsDiffDisplay: false,
             supportsRotation: binary,
+            // markdown も PDF も検索できる（PDF は TASK-570 で開いた）。
+            supportsFind: true,
             gitDiffAvailability: .undetermined,
             isDirectHTMLMode: false,
             isDocumentJumpEnabled: false

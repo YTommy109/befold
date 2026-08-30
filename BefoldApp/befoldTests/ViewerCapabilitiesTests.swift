@@ -15,6 +15,7 @@ struct ViewerCapabilitiesTests {
         supportsSourceMode: Bool = true,
         supportsDiffDisplay: Bool = true,
         supportsRotation: Bool = false,
+        supportsFind: Bool = true,
         gitDiffAvailability: GitDiffAvailability = .changed,
         isDirectHTMLMode: Bool = false,
         isDocumentJumpEnabled: Bool = true
@@ -29,6 +30,7 @@ struct ViewerCapabilitiesTests {
             supportsSourceMode: supportsSourceMode,
             supportsDiffDisplay: supportsDiffDisplay,
             supportsRotation: supportsRotation,
+            supportsFind: supportsFind,
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
             isDocumentJumpEnabled: isDocumentJumpEnabled
@@ -69,19 +71,34 @@ struct ViewerCapabilitiesTests {
         #expect(capabilities.canZoom)
     }
 
-    /// 画像・PDF は viewer.html の検索対象になるテキストを持たない。
-    /// ここを許すと「⌘F は押せるが何も起きない」= ADR 0002 が排した形になる
-    /// (PDF 面の openFind を no-op にして塞ぐのは同じ違反 / TASK-564.1)。
-    @Test("バイナリ(画像・PDF)では検索とジャンプを止め、印刷とズームは止めない")
-    func disablesFindAndJumpForBinaryContent() {
+    /// バイナリ(画像・PDF)はソース表示も文書内ジャンプも持たない。
+    /// **検索はここでは決めない**——PDF は検索できるので `supportsFind` が別に持つ
+    /// (下の 2 テスト / TASK-570)。
+    @Test("バイナリ(画像・PDF)ではジャンプを止め、印刷とズームは止めない")
+    func disablesJumpForBinaryContent() {
         let capabilities = makeCapabilities(isBinaryContent: true, supportsSourceMode: false)
 
-        #expect(!capabilities.canFind)
         #expect(!capabilities.canJump)
         #expect(!capabilities.canJump(to: .heading))
         #expect(!capabilities.canJump(to: .changeBlock))
         #expect(capabilities.canPrint)
         #expect(capabilities.canZoom)
+    }
+
+    /// **検索の可否は「読み込み方法」ではなく「検索対象のテキストを持つか」で決める。**
+    /// かつては `!isBinaryContent` で判定しており、PDF を開けようとすると画像まで
+    /// 一緒に開いてしまう形だった(TASK-570)。
+    @Test("検索は検索対象のテキストを持つ種別でだけ許される")
+    func allowsFindOnlyForTypesWithSearchableText() {
+        // PDF: バイナリだが PDFKit がテキストを検索できる
+        #expect(makeCapabilities(isBinaryContent: true, supportsFind: true).canFind)
+        // 画像: テキストを持たないので従来どおり止める
+        #expect(!makeCapabilities(isBinaryContent: true, supportsFind: false).canFind)
+        // 文書を見ていない間・拒否されたファイルでは許さない(他の操作と同じ)
+        #expect(!makeCapabilities(isPresentingDocument: false, supportsFind: true).canFind)
+        #expect(!makeCapabilities(isRejected: true, supportsFind: true).canFind)
+        // HTML 直接ロード中は viewer.js が居ないので、種別によらず止める
+        #expect(!makeCapabilities(supportsFind: true, isDirectHTMLMode: true).canFind)
     }
 
     /// 回転は PDF の面(PDFView)だけが持つ。種別の判定は
@@ -195,7 +212,8 @@ struct ViewerCapabilitiesTests {
         #expect(ViewerCapabilities.none == ViewerCapabilities(
             isPresentingDocument: false, isRejected: false, isRenderable: false,
             isBinaryContent: false, showsCodeContent: false, supportsSourceMode: false,
-            supportsDiffDisplay: false, gitDiffAvailability: .undetermined, isDirectHTMLMode: false,
+            supportsDiffDisplay: false, supportsFind: false,
+            gitDiffAvailability: .undetermined, isDirectHTMLMode: false,
             isDocumentJumpEnabled: false
         ))
         #expect(!ViewerCapabilities.none.canPrint)
@@ -212,6 +230,7 @@ extension ViewerCapabilities {
         showsCodeContent: true,
         supportsSourceMode: true,
         supportsDiffDisplay: true,
+        supportsFind: true,
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,
         isDocumentJumpEnabled: true
@@ -228,6 +247,7 @@ extension ViewerCapabilities {
         showsDiff: true,
         supportsSourceMode: true,
         supportsDiffDisplay: true,
+        supportsFind: true,
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,
         isDocumentJumpEnabled: true

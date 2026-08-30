@@ -207,7 +207,9 @@ BefoldApp/
 | `PDFViewProxy` | 同上の `PDFView` 版。面ごとに 1 つ持つ |
 | `PDFPreviewView` | PDF の描画面。`ZoomingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして `ZoomingPDFView.present(document:rotation:zoom:scrollFraction:)` へ渡すだけの薄い層。差し替えの順序をここには書かない（TASK-574.1） |
 | `ZoomingPDFView` | `PDFView` のサブクラス。**この面への書き込みはすべてここを通る**（TASK-574.1）。文書の差し替え手順を `present(document:rotation:zoom:scrollFraction:)` が同期 1 本で持ち（文書 → 回転 → 倍率 → `layoutSubtreeIfNeeded()` → 位置）、保留状態を作らない。表示設定と一度きりの配線は `init` が済ませるので、未設定の面は存在できない。ピンチ（`NSMagnificationGestureRecognizer`）と Ctrl+ホイールを倍率操作として受ける。倍率（1.0 = ページ全体が収まる）を面が覚え、リサイズのたびに `layout` で入れ直す（`autoScales` は使わない）。回転は `layout` を起こさないので、`rotate(byDegrees:)` が回した直後に同期で入れ直す（メインキューへ後回しにすると、切り替え時に続けて入る `initialZoom` を前のファイルの倍率で上書きする / TASK-572）。**`document` プロパティを override してはならない**——PDFKit がバックグラウンドから読むため、`@MainActor` 隔離の override は `SIGTRAP` で落ちる（TASK-567） |
-| `PDFRotationOverlay` | PDF の右上に重ねる回転コントロール。メニューには置かない（その面を見ているときにしか意味が無い操作なので、対象の隣に置く） |
+| `PDFRotationOverlay` | PDF の右上に重ねる回転コントロール。メニューには置かない（その面を見ているときにしか意味が無い操作なので、対象の隣に置く）。**検索バーを開いている間は出さない**（どちらも右上なので重なる） |
+| `PDFFindOverlay` | PDF の右上に重ねる検索バー（TASK-570）。web 面の `#mmd-bar` と同じ並び（入力欄・トグル・件数・前後移動・閉じる）。**トグルは大文字小文字の区別だけで、web 面よりも数が少ない**——PDFKit の検索は `.caseInsensitive` / `.literal` / `.backwards` しか受けず、単語一致・正規表現に対応する引数が無い（SDK ヘッダ実測）。`PDFPage.selectionForRange:` と `NSRegularExpression` で自前に組めばページ内に限り実現できるが、非同期検索の経路を丸ごと置き換えることになるので採らない |
+| `PDFFindModel` | PDF 面の検索の状態（窓ごとに 1 個。`DocumentSurfaces` が持つ）。PDFKit の `beginFindString` で非同期に検索する——同期の `findString` は初回に文書全体のテキスト抽出を行い、実測で 150 ページの PDF に 152.4ms かかる（約 9 フレームのブロック）。非同期版は 0.0ms で戻り、通知をメインスレッドへ返すので `@MainActor` に閉じたまま扱える。**面へは書き込まない**（ハイライトと移動は `ZoomingPDFView` のメソッド経由。書き込み口を 1 つに保つ / TASK-574.1）。届いた一致は中身が現在の検索語かで受け入れる——`cancelFindString` は即座に止まらず通知は文書ごとに飛ぶので、同じ文書で検索し直すと前の検索の一致が新しい購読へ届く |
 | `PDFSurfaceActions` | PDF 面と窓のあいだの受け渡し（倍率の通知・回転の要求）を 1 つにまとめた値。View の注入クロージャを 3 つ以下に保つため |
 | `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。**換算だけを持ち、面を変更しない**（TASK-574.1）。「倍率 1.0 = ページ全体が収まる状態」の定義、フィット倍率、表示位置（文書全体に対する 0…1）の取得、スクロール余地、回転角の正規化。WebView 面の `ContentUpdatePlanner`（純関数）にあたる層で、書き込みは `ZoomingPDFView` が行う |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
@@ -244,8 +246,11 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   `Data` を直接受けられるため）運び、`PDFPreviewView` が `PDFView` で描く（ADR 0009）。
   PDF として開けないデータは `RejectReason.damagedDocument` で拒否する
   （読み込みは成功しているため、見なければ黙って空白になる）。
-  PDF では検索とジャンプができないので、`canFind` / `canJump` は
-  `!isBinaryContent` で閉じてある（画像も同様）
+  **PDF でも文書内検索ができる**（TASK-570）。実体は PDFKit の `beginFindString` で、
+  可否は `FileType.supportsFind`（画像 false / PDF true）が決める——`!isBinaryContent`
+  で判定すると、PDF を開けた瞬間に検索対象のテキストを持たない画像まで一緒に開く。
+  ジャンプは見出し構造の抽出が別に要るので `canJump` を `!isBinaryContent` で
+  閉じたまま（画像も同様）
 - **PDF の見え方**: 全ページを縦に連ねて描き（`.singlePageContinuous`）、
   スクロールはページ境界で止まらず連続する。**`autoScales` は使わない**——連続
   スクロールでの `PDFView` の自動追従は幅基準で、ページの下端が画面外に出る
@@ -309,7 +314,8 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   `kind` を明示すれば常にそのモードを強制し（Edit メニューの各項目）、
   `kind` が `nil`（⌘F の非明示オープン）のときだけ `ViewerCapabilities.showsDiff`
   を見て検索 / 変更箇所ジャンプへ既定を振り分ける。
-- **検索**: 大文字小文字区別・単語一致・正規表現の3トグル、次/前移動
+- **検索**: 大文字小文字区別・単語一致・正規表現の3トグル、次/前移動。
+  ただし PDF 面（`PDFFindOverlay`）は大文字小文字区別のトグルだけを持つ
 - **文書内ジャンプ**: 文書順に並んだ目印を前後移動する
   （Edit > 見出しへジャンプ… / 変更箇所へジャンプ…）。目印は 2 種類ある。
   **見出し**は Markdown が対象で、**h1 / h2 / h3 のどれを目印にするかを

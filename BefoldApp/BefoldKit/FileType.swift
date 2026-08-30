@@ -158,6 +158,24 @@ public enum FileType: Sendable, Equatable {
         }
     }
 
+    /// 文書内検索の対象になるテキストを持つ種別かどうか。
+    ///
+    /// **`isBinaryContent` とは別の問い。** あちらは「読み込みをバイナリで行うか」で
+    /// 画像も PDF も true になるが、PDF は PDFKit がテキストレイヤーを検索できる
+    /// （`PDFDocument.beginFindString(_:withOptions:)`）。読み込み方法で検索の可否を
+    /// 決めると、PDF を開けたときに画像まで「⌘F は押せるが何も起きない」形になる
+    /// （ADR 0002 が排した形 / TASK-570）。
+    ///
+    /// テキストレイヤーを持たない（スキャン画像のみの）PDF はここでは区別しない。
+    /// それは種別ではなく個々のファイルの性質で、検索結果 0 件として振る舞う
+    /// （実測: `findString` は空配列を返し `document.string` は空文字列）。
+    public var supportsFind: Bool {
+        switch self {
+        case .image: false
+        case .pdf, .mmd, .markdown, .svg, .html, .csv, .code: true
+        }
+    }
+
     /// レンダリング表示が可能な種別かどうか。false ならソース表示のみ。
     public var isRenderable: Bool {
         switch self {

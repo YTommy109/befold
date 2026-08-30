@@ -21,6 +21,10 @@ final class DocumentSurfaces {
     let web = WebViewProxy()
     /// PDF の面(`PDFView`)への弱参照ホルダー。
     let pdf = PDFViewProxy()
+    /// PDF 面の文書内検索の状態(TASK-570)。**面ではなく面に対する状態**なので
+    /// proxy と同じくここが持つ。窓ごとに 1 個で、検索バーの View と
+    /// `PDFDocumentRenderer` の両方がこれを見る。
+    let pdfFind: PDFFindModel
 
     private let webRenderer: any DocumentRendering
     private let pdfRenderer: any DocumentRendering
@@ -30,12 +34,21 @@ final class DocumentSurfaces {
     ///     `WebViewDocumentRenderer` を作る。**本番の生成経路はここ 1 箇所**で、
     ///     窓ごとに 1 個の `DocumentSurfaces` が持つ。
     ///   - pdfRenderer: 同上(`pdf` proxy を使う `PDFDocumentRenderer`)。
+    ///   - findOptions: 検索の 3 トグル(アプリ全体で 1 つ)。PDF 側が読むのは
+    ///     `caseSensitive` だけ——PDFKit の検索は正規表現も単語一致も受けない
+    ///     (`FileType.supportsFind` / TASK-570)。**既定値を持たせない**。渡し忘れが
+    ///     「PDF だけ大文字小文字の設定が効かない」形で無音に壊れる。
     init(
         webRenderer: (any DocumentRendering)? = nil,
-        pdfRenderer: (any DocumentRendering)? = nil
+        pdfRenderer: (any DocumentRendering)? = nil,
+        findOptions: FindOptionsPreference
     ) {
         self.webRenderer = webRenderer ?? WebViewDocumentRenderer(webViewProxy: web)
-        self.pdfRenderer = pdfRenderer ?? PDFDocumentRenderer(pdfViewProxy: pdf)
+        let find = PDFFindModel(
+            pdfViewProxy: pdf, caseSensitive: { [weak findOptions] in findOptions?.caseSensitive ?? false }
+        )
+        pdfFind = find
+        self.pdfRenderer = pdfRenderer ?? PDFDocumentRenderer(pdfViewProxy: pdf, findModel: find)
     }
 
     /// HTML を直接ロードして表示しているか。能力の導出(`ViewerCapabilities`)が読む。

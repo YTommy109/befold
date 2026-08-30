@@ -37,6 +37,8 @@ enum ViewerCapabilitiesFactory {
             // 回転は PDF の面(PDFView)の機能。種別の判定はここ 1 箇所で、
             // メニュー・コマンドは能力しか見ない(ADR 0002 段 2)。
             supportsRotation: store.contentState.fileType == .pdf,
+            // 検索は種別が検索対象のテキストを持つかで決まる(PDF は持つ、画像は持たない)。
+            supportsFind: store.contentState.fileType.supportsFind,
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
             // 開発中機能のゲートを読むのはここだけ。能力の導出へ畳むことで、

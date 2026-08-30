@@ -85,7 +85,10 @@ struct DocumentSurfaceDispatchTests {
     func syncingTargetsEverySurfaceInTheBundle() {
         let web = RecordingSurface()
         let pdf = RecordingSurface()
-        let surfaces = DocumentSurfaces(webRenderer: web, pdfRenderer: pdf)
+        let surfaces = DocumentSurfaces(
+            webRenderer: web, pdfRenderer: pdf,
+            findOptions: FindOptionsPreference(defaults: makeIsolatedDefaults(prefix: "DocumentSurfaceDispatchTests"))
+        )
 
         #expect(surfaces.syncingAll.count == 2)
         #expect(surfaces.syncingAll.contains { $0 === web })
@@ -98,7 +101,10 @@ struct DocumentSurfaceDispatchTests {
     func operatingReturnsASingleSurface() {
         let web = RecordingSurface()
         let pdf = RecordingSurface()
-        let surfaces = DocumentSurfaces(webRenderer: web, pdfRenderer: pdf)
+        let surfaces = DocumentSurfaces(
+            webRenderer: web, pdfRenderer: pdf,
+            findOptions: FindOptionsPreference(defaults: makeIsolatedDefaults(prefix: "DocumentSurfaceDispatchTests"))
+        )
         let webTypes: [FileType] = [
             .markdown, .mmd, .svg, .html, .csv(delimiter: ","),
             .image(mimeType: "image/png"), .code(language: "swift"),
@@ -257,7 +263,12 @@ struct DocumentSurfaceDispatchTests {
         let defaults = defaults ?? makeIsolatedDefaults(prefix: "DocumentSurfaceDispatchTests")
         let store = store ?? ViewerStore(defaults: defaults)
         return DocumentCommandController(
-            surfaces: DocumentSurfaces(webRenderer: web, pdfRenderer: pdf),
+            surfaces: DocumentSurfaces(
+                webRenderer: web, pdfRenderer: pdf,
+                findOptions: FindOptionsPreference(
+                    defaults: makeIsolatedDefaults(prefix: "DocumentSurfaceDispatchTests")
+                )
+            ),
             perFileState: PerFileStateStore(defaults: defaults),
             currentDocument: CurrentDocumentRef(
                 store: store, initialURL: URL(fileURLWithPath: "/mock/a.md")

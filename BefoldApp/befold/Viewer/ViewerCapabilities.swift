@@ -59,6 +59,9 @@ struct ViewerCapabilities: Equatable {
     ///     選択不可にする」はここから来る。
     ///   - supportsRotation: 表示を回せる種別か(PDF のみ)。回転は `PDFView` の
     ///     機能で、viewer.html の面は持たない。
+    ///   - supportsFind: 文書内検索の対象になるテキストを持つ種別か。
+    ///     `isBinaryContent` とは別の問いで、PDF はバイナリだが検索できる
+    ///     (`FileType.supportsFind` の doc / TASK-570)。
     ///   - isDirectHTMLMode: HTML を直接ロードして表示しているか。
     ///   - isDocumentJumpEnabled: 文書内ジャンプを露出してよいか(開発中機能のゲート)。
     ///     既定値は持たせない。渡し忘れが静かに「常に有効」へ倒れると、stable へ
@@ -73,18 +76,19 @@ struct ViewerCapabilities: Equatable {
         supportsSourceMode: Bool,
         supportsDiffDisplay: Bool,
         supportsRotation: Bool = false,
+        supportsFind: Bool,
         gitDiffAvailability: GitDiffAvailability,
         isDirectHTMLMode: Bool,
         isDocumentJumpEnabled: Bool
     ) {
         let onDocument = isPresentingDocument && !isRejected
         canPrint = onDocument
-        // バイナリ(画像・PDF)を除くのは、どちらも viewer.html の検索対象になる
-        // テキストを持たないため。除かないと「⌘F は押せるが何も起きない」形になる
-        // (PDF adapter の openFind を no-op にして塞ぐのは、ADR 0002 が排した
-        // 「能力が true なのに反応が無い」そのもの)。PDF 内検索を実装するときは、
-        // ここを開けるのと同じ変更で adapter 側の実体も入れること。
-        canFind = onDocument && !isDirectHTMLMode && !isBinaryContent
+        // **「読み込み方法」ではなく「検索対象のテキストを持つか」で決める。**
+        // かつては `!isBinaryContent` で判定していたが、それだと PDF を開けた瞬間に
+        // 画像まで一緒に開いてしまう(どちらもバイナリ読み込みだが、テキストを
+        // 持つのは PDF だけ / TASK-570)。直接 HTML モードを除くのは、そちらには
+        // viewer.js が居らず検索の実体が無いため。
+        canFind = onDocument && !isDirectHTMLMode && supportsFind
         // 目印が 0 個かどうかでは判定しない。段階読み込み中・描画前・取得失敗の
         // いずれでも同じ 0 個になり、事実ではなくデータの空きで縮退することになる。
         // 目印が無いことは viewer 側の 0/0 表示が伝える。
@@ -151,6 +155,7 @@ struct ViewerCapabilities: Equatable {
         showsCodeContent: false,
         supportsSourceMode: false,
         supportsDiffDisplay: false,
+        supportsFind: false,
         gitDiffAvailability: .undetermined,
         isDirectHTMLMode: false,
         isDocumentJumpEnabled: false
