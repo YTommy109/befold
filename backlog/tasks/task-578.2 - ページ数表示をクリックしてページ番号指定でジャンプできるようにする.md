@@ -4,7 +4,7 @@ title: ページ数表示をクリックしてページ番号指定でジャン�
 status: Done
 assignee: []
 created_date: '2026-08-30 11:57'
-updated_date: '2026-08-30 14:14'
+updated_date: '2026-08-30 15:09'
 labels: []
 dependencies:
   - TASK-578.1
@@ -149,6 +149,31 @@ SwiftUI の `TextField` へ届かず（`focused` が false のまま）、打っ
 スペースキーで PDF がスクロールしない件を TASK-579 として起票した。**私の変更前からの
 挙動**で（何も操作していない起動直後でも再現）、TASK-577 のキー割り当てが原因ではない。
 合成キー入力側の限界の可能性もあるため、人手での再現確認を先に行うよう Description に書いた。
+
+## 確定後のフォーカスの戻し先を直した（ユーザーの指摘）
+
+「return を押して該当ページに飛んだ後、フォーカスはどこにあるか」という問いを実測した
+ところ、**サイドバーのファイル一覧**（`SwiftUI.SwiftUIOutlineListView`）に戻っていた。
+入力欄を出す前の first responder へ返す実装にしていたためで、その時点の first responder が
+面ではなくサイドバーだった。
+
+**実害があった**: ジャンプ直後に ↓ を 1 回押すとサイドバーの選択が動き、**別のファイルが
+開いた**（飛んだページが捨てられる）。
+
+### 直した形
+
+戻し先を `PageNumberField`（＝入力欄）では決めず、`PDFPageIndicatorModel.focusSurface()`
+が**面へ決め打つ**。1 周待ってから `window.makeFirstResponder(pdfView)` を呼ぶ
+（入力欄が消えるより先に移すと、その後の View の片付けで first responder が外れる）。
+
+### 実機で確認
+
+- `makeFirstResponder` が true を返し、first responder が `ZoomingPDFView` になる
+- "9" + Enter でページ 9 へ飛んだ後、スペースで `10 / 20`（P10）へ送れる
+- サイドバーの選択は `many.pdf` のまま動かない（別ファイルが開かない）
+
+副産物として、TASK-579（スペースでスクロールしない件）の原因が
+「サイドバーが first responder を握っている」ことだと分かったので、そちらへ追記した。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
