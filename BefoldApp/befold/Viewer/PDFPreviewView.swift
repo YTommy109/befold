@@ -62,14 +62,6 @@ struct PDFPreviewView: NSViewRepresentable {
         pdfView.pendingRestoreFraction = scrollPositionToRestore
         // ここでレイアウトまで済ませ、倍率・位置が入った状態で最初の描画を迎える。
         pdfView.layoutSubtreeIfNeeded()
-        // **最初のフレームもこの実行の中で描く。** `layoutSubtreeIfNeeded` までで
-        // 倍率と位置は確定するが、実際の描画は AppKit の次の表示サイクルまで来ない。
-        // 実測(2026-08-30 / 151 ページ・128KB・窓内で .md → .pdf へ切替)では、
-        // レイアウト完了から最初の描画まで 12〜16ms 空いていた。`display()` で
-        // 同じ実行の中へ引き取ると 0.24〜0.27ms になり、切替全体(loadContent から
-        // 最初の描画まで)は 49ms → 34.7ms へ縮む。描画そのものは 5.4〜5.5ms で、
-        // 待っていた時間より短い。
-        pdfView.display()
     }
 
     func makeCoordinator() -> Coordinator {

@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-29 22:23'
-updated_date: '2026-08-30 00:45'
+updated_date: '2026-08-30 00:52'
 labels: []
 dependencies: []
 priority: medium
@@ -45,11 +45,28 @@ TASK-567 で「切り替え直後の 1 フレームがフィット前の倍率�
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. 一時ログ（`SwitchTrace` / `PipelineTrace`）で区間ごとの時刻を取る。推測で手を入れない（タスクの指示どおり）。
-2. 窓内の `.md → .pdf` 切り替えを、キー入力なしで再現する。`FileWatcher` の rename 追従を使い、同じ inode のまま `s*.md` へ PDF のバイト列を書いてから `s*.pdf` へ改名すると `handleRename → openFile` が走る。他窓の巻き添え（親ディレクトリ監視）を避けるため専用サブディレクトリで行う。
-3. 区間を特定する。
-4. 最大の PDF 固有区間へ対処し、前後を実測する。
-5. 計装を全撤去し、`swift test` と swiftlint ベースライン差分ゼロを確認する。
+## 方針（2026-08-30 / ユーザー確認済み）
+
+`display()` は revert 済み。**タイルが届くまで、同期描画した 1 ページ目を placeholder として見せる**方向で進める。
+
+### 前提（実測・裏付けつき）
+
+- **空白の正体**: PDFKit はページの中身をバックグラウンドの `PDFTilePool.workQueue` で非同期に描く。`PDFView.draw` はタイルを待たずに戻るため、届くまで面は背景色のまま。証拠は `ZoomingPDFView` へ `draw(_ page:to:)` の override を足したときのクラッシュスタック（`PDFKit.PDFTilePool.workQueue` から `@objc ZoomingPDFView.draw(_:to:)` が呼ばれて SIGTRAP）。
+- **同期描画は安い**（130 ページ・125KB / 単体プログラムでの実測）: `page.thumbnail(of: 800x900, for: .mediaBox)` が初回 6.51ms、2 回目以降 0.87ms / 0.76ms。`doc.page(at: 0)` は 0.06ms。
+- **測る終点を間違えない**: `PDFView.draw(_ dirtyRect:)` は面が塗られた時刻であって、ページの中身が出た時刻ではない。以後この区間の評価に使わない。
+
+### 未解決の設計論点（着手時に `/review-design` で詰める）
+
+1. **placeholder をいつ外すか。** PDFKit にタイル完了の通知は無い。候補: (a) 一定時間後、(b) 次の表示サイクル、(c) タイルが載ったことを何らかの観測可能な事実で判定する。**(a) の固定待ちは「推છ で手を入れない」というこのタスクの方針に反するので、採るなら根拠を実測で出すこと。**
+2. **どのページを描くか。** 復元するスクロール位置（`scrollPositionToRestore`）によっては 1 ページ目ではない。`PDFSurfaceLayout` が位置とページの対応を持っているので、そこから決める。
+3. **倍率・回転との整合。** placeholder は `initialZoom` と `rotation` を反映した見た目でなければ、外した瞬間にずれて見える。
+4. **置き場所。** `PDFPreviewView` に閉じるか、`ZoomingPDFView` が自前で持つか。ADR 0009 の「宛先の決定は `DocumentSurfaces` だけ」を崩さないこと。
+5. **`PDFView` の override は危険。** PDFKit がバックグラウンドから呼ぶメソッド（`document` プロパティ、`draw(_ page:to:)`）を `@MainActor` 隔離のまま override すると SIGTRAP で落ちる。placeholder の実装でこれらに触らない形にするか、触るなら `nonisolated` で書けることを先に確かめる。
+
+### 検証の作り直し
+
+- **終点はページの中身が出た時刻にする。** 安全に測る方法をまず決める（`draw(_ page:to:)` の override は上記のとおり落ちる）。決まらないうちは、ユーザーによる目視（「空白が見えるか」）を唯一の判定にする。
+- 対処の前後で、同じ測り方の値を並べて記録する。
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -169,6 +186,12 @@ Thread 7  PDFKit.PDFTilePool.workQueue
 ### `display()` の扱い（要再検討）
 
 コミット 47dd9aab で入れた `pdfView.display()` は、**空白のフレームを 12〜16ms 早く塗る**方向に働く可能性がある。効果として測った「切り替え全体 49ms → 34.7ms」は、上のとおり終点の取り方が誤っていた。この症状に対しては無効か、わずかに悪化させている疑いがある。正しい終点（タイルが届いた時刻）で測り直すまで、採否を確定できない。
+
+## 中断時点（2026-08-30）
+
+- コミット 47dd9aab の `pdfView.display()` を revert した（ソース変更のみ。タスクファイルの記述は履歴として残す）。`swift test` 1804 tests / 293 suites 全通過。
+- 作業ツリーに計装は残っていない。
+- 次にやること: 上の Implementation Plan の論点 1（placeholder をいつ外すか）から。ここが決まらないと実装に入れない。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
