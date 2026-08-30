@@ -137,7 +137,10 @@ struct DocumentCommandControllerTests {
         return DocumentCommandController(
             // 面の束ごしに差し込む。宛先の決定は DocumentSurfaces が持つので、
             // ここでフェイクを直接コマンド側へ渡す形は取らない(TASK-564.6)。
-            surfaces: DocumentSurfaces(webRenderer: renderer),
+            surfaces: DocumentSurfaces(
+                webRenderer: renderer,
+                findOptions: FindOptionsPreference(defaults: defaults)
+            ),
             perFileState: perFileState ?? PerFileStateStore(defaults: defaults),
             currentDocument: CurrentDocumentRef(store: ViewerStore(defaults: defaults), initialURL: url),
             onZoomChanged: { zoomChanges.values.append($0) },

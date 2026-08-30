@@ -101,11 +101,16 @@ pdf.js を採らなかった理由は 2 つある。
 
 ## Consequences
 
-- **PDF では検索とジャンプができなくなる。** `<iframe>` の頃も viewer の検索は
-  PDF の中身に届いておらず、`canFind` が true のまま何も起きない状態だった。
-  これは ADR 0002 が排した「押せるのに反応が無い」形なので、`canFind` と
-  `canJump` に `!isBinaryContent` を足して塞いだ（画像でも同じく dead だった
-  穴が同時に閉じる）。`PDFView` を使った PDF 内検索の実装は別タスクとする。
+- **PDF ではジャンプができなくなる。** `<iframe>` の頃も viewer の検索・ジャンプは
+  PDF の中身に届いておらず、`canFind` / `canJump` が true のまま何も起きない状態
+  だった。これは ADR 0002 が排した「押せるのに反応が無い」形なので、両方に
+  `!isBinaryContent` を足して塞いだ（画像でも同じく dead だった穴が同時に閉じる）。
+
+  **このうち検索は TASK-570 で開いた。** PDFKit の `beginFindString` で実体を入れ、
+  可否は `!isBinaryContent` ではなく `FileType.supportsFind`（画像 false / PDF true）
+  で決めるようにした。読み込み方法で判定したままだと、PDF を開けた瞬間に画像まで
+  一緒に開いてしまうため。ジャンプは見出し構造の抽出という別の問題を含むので
+  塞いだままで、`canJump` は `!isBinaryContent` のまま。
 - **キーボードスクロールの 6 件（Space / Shift+Space / j / k / Shift+↓ / Shift+↑）が
   PDF では効かない。** これらは `viewer-src/keyboard.ts` にしか入口が無い。
   Help の一覧（`ViewerShortcutCatalog`）は種別非依存なので、PDF では説明と

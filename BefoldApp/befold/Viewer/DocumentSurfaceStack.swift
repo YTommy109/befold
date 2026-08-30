@@ -43,6 +43,8 @@ struct DocumentSurfaceStack: View {
     let rendererDelegate: WeakRendererDelegate
     let webViewProxy: WebViewProxy
     /// PDF の面への橋渡し。面ごとに 1 つで、束(`DocumentSurfaces`)が持つものを受け取る。
+    /// PDF 面の検索の状態。束(`DocumentSurfaces`)が持つものを受け取る。
+    let pdfFind: PDFFindModel
     let pdfViewProxy: PDFViewProxy
     /// PDF の面と窓のあいだの受け渡し(倍率の通知・回転の要求)。
     let pdfActions: PDFSurfaceActions
@@ -139,15 +141,30 @@ struct DocumentSurfaceStack: View {
                 scrollPositionToRestore: store.scrollPositionToRestore,
                 rotation: store.pdfRotation,
                 pdfViewProxy: pdfViewProxy,
+                pdfFind: pdfFind,
                 onZoomChanged: pdfActions.onZoomChanged
             )
             .opacity(store.contentState.isRejected || !showsPDF ? 0 : 1)
             .allowsHitTesting(showsPDF)
 
-            // 回転コントロール。PDF の面と**同じ条件**で出す(条件は 1 箇所)。
+            // 回転コントロールと検索バー。PDF の面と**同じ条件**で出す(条件は 1 箇所)。
+            // 検索バーを開いている間は回転を出さない——どちらも右上に置くので、
+            // 同時に出すと重なる。回転は検索を閉じれば戻る。
             if showsPDF, !store.contentState.isRejected {
-                PDFRotationOverlay(onRotate: pdfActions.onRotate)
+                if pdfFind.isOpen {
+                    PDFFindOverlay(
+                        model: pdfFind,
+                        caseSensitive: findOptionsPreference.caseSensitive,
+                        onToggleCaseSensitive: {
+                            findOptionsPreference.caseSensitive.toggle()
+                            pdfFind.reapplyOptions()
+                        }
+                    )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                } else {
+                    PDFRotationOverlay(onRotate: pdfActions.onRotate)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
             }
 
             if let reason = store.contentState.rejectReason {

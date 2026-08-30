@@ -3369,6 +3369,132 @@
         }
       }
     },
+    "viewer.pdf.find.close": {
+      "comment": "PDF の検索バーを閉じるボタン。読み上げ名と tooltip に使う。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close Find Bar"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索バーを閉じる"
+          }
+        }
+      }
+    },
+    "viewer.pdf.find.matchCase": {
+      "comment": "PDF の検索バーの大文字小文字を区別するトグル。読み上げ名と tooltip に使う。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Match Case"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大文字と小文字を区別"
+          }
+        }
+      }
+    },
+    "viewer.pdf.find.next": {
+      "comment": "PDF の検索バーの「次へ」ボタン。読み上げ名と tooltip に使う。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next Match"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次の一致"
+          }
+        }
+      }
+    },
+    "viewer.pdf.find.placeholder": {
+      "comment": "PDF の検索バーの入力欄のプレースホルダ。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索"
+          }
+        }
+      }
+    },
+    "viewer.pdf.find.previous": {
+      "comment": "PDF の検索バーの「前へ」ボタン。読み上げ名と tooltip に使う。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous Match"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前の一致"
+          }
+        }
+      }
+    },
+    "viewer.pdf.find.regex": {
+      "comment": "PDF の検索バーの正規表現トグル。PDFKit が対応しないため常に無効で、tooltip で理由を伝える。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regular Expression (unavailable in PDF)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正規表現（PDF では使えません）"
+          }
+        }
+      }
+    },
+    "viewer.pdf.find.wholeWord": {
+      "comment": "PDF の検索バーの単語一致トグル。PDFKit が対応しないため常に無効で、tooltip で理由を伝える。",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whole Word (unavailable in PDF)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "単語単位（PDF では使えません）"
+          }
+        }
+      }
+    },
     "viewer.pdf.rotateClockwise": {
       "comment": "PDF の右上に重ねた回転ボタン。時計回りに 90 度回す。読み上げ名と tooltip に使う。",
       "extractionState": "manual",

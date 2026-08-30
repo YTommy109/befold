@@ -22,6 +22,9 @@ struct PDFPreviewView: NSViewRepresentable {
     let rotation: Int
     /// AppKit 側(メニューアクション)へ `PDFView` を公開するプロキシ。
     let pdfViewProxy: PDFViewProxy
+    /// 検索の状態。**文書を差し替えたら結果を捨てる**ために受け取る(TASK-570)。
+    /// 前の文書の位置を指す `PDFSelection` を抱えたまま次へ送ると、別の文書へ飛ぶ。
+    let pdfFind: PDFFindModel
     /// 面の中で完結する倍率操作(ピンチ・Ctrl+ホイール)の通知先。
     /// メニュー経由の倍率変更はここを通らない(コマンド側が返り値で伝える)。
     let onZoomChanged: (Double) -> Void
@@ -53,6 +56,8 @@ struct PDFPreviewView: NSViewRepresentable {
             zoom: initialZoom,
             scrollFraction: scrollPositionToRestore
         )
+        // 差し替えた後に呼ぶ。前の文書の一致は行き先が無い。
+        pdfFind.documentChanged()
     }
 
     func makeCoordinator() -> Coordinator {

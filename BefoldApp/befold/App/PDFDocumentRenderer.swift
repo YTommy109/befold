@@ -10,6 +10,8 @@ import PDFKit
 @MainActor
 final class PDFDocumentRenderer: DocumentRendering {
     private let pdfViewProxy: PDFViewProxy
+    /// PDF 面の検索の状態。開く・前後移動はここへ委ねる(TASK-570)。
+    private let findModel: PDFFindModel
     /// 倍率の刻みと上下限。PDF には viewer.js が居ないため、直接 HTML モードと同じく
     /// 自前で計算して呼び出し側へ返す(保存はあちらの責務)。
     private let zoomStep: Double
@@ -19,12 +21,14 @@ final class PDFDocumentRenderer: DocumentRendering {
 
     init(
         pdfViewProxy: PDFViewProxy,
+        findModel: PDFFindModel,
         zoomStep: Double = ZoomStore.zoomStep,
         minZoom: Double = ZoomStore.minZoom,
         maxZoom: Double = ZoomStore.maxZoom,
         defaultZoom: Double = ZoomStore.defaultZoom
     ) {
         self.pdfViewProxy = pdfViewProxy
+        self.findModel = findModel
         self.zoomStep = zoomStep
         self.minZoom = minZoom
         self.maxZoom = maxZoom
@@ -33,7 +37,8 @@ final class PDFDocumentRenderer: DocumentRendering {
 
     /// PDF は viewer.html を使わないが、直接 HTML モード(HTML ファイルを WebKit へ
     /// 丸ごと渡している状態)ではない。この値は「viewer.js の検索が使えるか」を
-    /// 表すもので、PDF で検索できないことは能力側(`canFind` の `!isBinaryContent`)が表す。
+    /// 表すもので、「viewer.js の検索が使えるか」と「検索できるか」は別(PDF は
+    /// PDFKit の検索を持つ / TASK-570)。
     var isDirectHTMLMode: Bool {
         false
     }
@@ -58,13 +63,28 @@ final class PDFDocumentRenderer: DocumentRendering {
 
     // MARK: - Find / Jump
 
-    /// PDF 内検索とジャンプは持たない。**能力側で塞いであるのでここへは来ない**
-    /// (`canFind` / `canJump` が `!isBinaryContent`)。押せるのに何も起きない形を
-    /// 作らないための約束であり、no-op で握り潰すためのものではない。
-    /// PDF 内検索を実装するときは、能力の条件と一緒に開けること。
-    func openFind() {}
-    func findNext() {}
-    func findPrevious() {}
+    /// 検索バーを開く。実体は `PDFFindModel`(PDFKit の `beginFindString`)。
+    func openFind() {
+        findModel.open()
+    }
+
+    /// 次 / 前の一致へ。**バーが閉じている間は何もしない**（web 面の
+    /// `_mmdFindNextIfOpen` と同じ約束。⌘G だけを押しても検索は始まらない）。
+    func findNext() {
+        guard findModel.isOpen else { return }
+        findModel.moveToNext()
+    }
+
+    func findPrevious() {
+        guard findModel.isOpen else { return }
+        findModel.moveToPrevious()
+    }
+
+    /// 文書内ジャンプは持たない。**能力側で塞いであるのでここへは来ない**
+    /// (`canJump` が `!isBinaryContent`)。押せるのに何も起きない形を作らない
+    /// ための約束であり、no-op で握り潰すためのものではない。見出し構造の抽出が
+    /// 別の問題として要るので、実装するときは能力の条件と一緒に開けること
+    /// (検索は TASK-570 でそうした)。
     func openJump(kind: DocumentJumpKind) {}
 
     // MARK: - Print

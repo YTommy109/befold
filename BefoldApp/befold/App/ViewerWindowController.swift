@@ -292,7 +292,7 @@ final class ViewerWindowController: NSWindowController {
         self.openFileElsewhere = openFileElsewhere
         self.externalOpener = externalOpener
         // 後段の makeWebViewCommands と makeSplitViewController が両方これを読む。
-        surfaces = DocumentSurfaces(webRenderer: documentRenderer)
+        surfaces = DocumentSurfaces(webRenderer: documentRenderer, findOptions: findOptionsPreference)
         let store = store ?? ViewerStore(defaults: defaults)
         // store が呼び出し元から明示注入された場合でも上書きが反映されるよう、
         // store の生成元にかかわらずここで一律に適用する(sourceModeOverride と同じ方針)。
