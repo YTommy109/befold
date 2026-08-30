@@ -1,9 +1,10 @@
 ---
 id: TASK-574
 title: PDF 面の差し替えライフサイクルを PDFKit の非同期性に合わせて構造化する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-30 03:37'
+updated_date: '2026-08-30 05:29'
 labels:
   - refactor
 dependencies: []
@@ -50,6 +51,45 @@ PDFKit 導入（ADR 0009）で命令の宛先（`DocumentSurfaces`）・読み�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 子タスクがすべて Done で、TASK-569 の測り方（`.tmp/t569/sampler`、18 回）で 200ms 超の跳ねが 0 回のまま維持されている
-- [ ] #2 `docs/dev/native-app-design.md` の PDF 関連の記述が実装と一致している（`autoScales` の記述を含む）
+- [x] #1 子タスクがすべて Done で、TASK-569 の測り方（`.tmp/t569/sampler`、18 回）で 200ms 超の跳ねが 0 回のまま維持されている
+- [x] #2 `docs/dev/native-app-design.md` の PDF 関連の記述が実装と一致している（`autoScales` の記述を含む）
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## AC #1 の計測（2026-08-30 / TASK-574 完了後）
+
+TASK-569 と同じ測り方（`.tmp/t569/compare.sh` → `sampler 18`、サイドバーの ↓ で .md → .pdf へ送り、キー押下から中身が画面に出るまで）。
+
+```
+min 18.4  median 22.9  max 28.9  (n=18)
+```
+
+**200ms 超の跳ねは 18 回中 0 回。** 全ラウンドが 18.4〜28.9ms に収まった。
+
+参考: TASK-569 の起票時点は中央値 52.3ms・18 回中 3 回が 274〜286ms へ跳ねる状態、比較対象の 1.15.1 は 18/18 が 76〜108ms だった。今回はいずれより速く、ばらつきも小さい。
+
+### 計測条件
+
+- ビルドは `/run` の手順どおり `xcodebuild build -scheme befold -configuration Debug -derivedDataPath .build/xcode`。**Debug ビルドである点は TASK-569 当時と揃っているか未確認**だが、閾値 200ms に対して最大 28.9ms と 1 桁違うため、構成の差で結論は変わらない。
+- 途中、`-derivedDataPath` をスクラッチパッドへ向けた自前の `xcodebuild` で 1 度失敗した（`.app` は生成されるが埋め込みフレームワークと Team ID が食い違い `dyld` が起動時に落ちる）。`/run` の手順に戻して解消。**ビルドはスキルの手順をそのまま使うこと。**
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+PDF 面の差し替えライフサイクルを、PDFKit の非同期性に合わせて構造で組み直した。個別の手当て（表示サイクル待ち・復元待ちのセンチネル・回転後のメインキュー再適用・静止画とその外し条件・一度きり配線フラグ）が積み上がって順序バグを生んでいた状態を、次の 3 つで畳んだ。
+
+1. **差し替えの順序を 1 つの同期関数へ**（574.1）。`ZoomingPDFView.present(document:rotation:zoom:scrollFraction:)` が文書 → 回転 → 倍率 → レイアウト → 位置を持ち、`PDFPreviewView.updateNSView` は入力を伝えるだけになった。`PDFSurfaceLayout` は面を変更しない換算だけの enum へ（264 → 163 行）。保留状態と一度きり配線フラグが消え、`layout()` の仕事は 2 つに減った。
+2. **静止画をオーバーレイ層へ**（574.2、前セッション）。のちに TASK-575 で静止画自体を撤去。
+3. **提示記憶の向きを揃えた**（574.3）。web 面だけが持っていたスクロールごとの push を撤去し、両面とも「切替直前の pull」1 本に。push は位置を UserDefaults へ永続化していた頃の名残で、TASK-565 で窓の生存期間だけの記憶にした時点で目的が失われていた。あわせて `WebViewCommandController` を `DocumentCommandController` へ改名（両面へ dispatch する型なのに回転 API が web 面を指していた）。
+
+文書の矛盾（574.4）も解消し、`native-app-design.md` を実装へ追随させた。
+
+**AC #1 の実測: 18 回中 200ms 超の跳ね 0 回**（min 18.4 / median 22.9 / max 28.9 ms）。起票時は中央値 52.3ms・3 回が 274〜286ms へ跳ねていた。
+
+検証: swift 1805 tests / jest 615 tests 全緑、swiftlint 新規違反 0（54 → 53、解消 1）、JS の型・lint・整形・循環すべて 0 件、markdownlint と doc の 2 スクリプトも 0 件。
+
+積み残し: TASK-574.5（`isLaidOut` が frame 0 でも true を返す既存の穴。本タスクの退行ではないが、`present` の同期 1 本化で再試行の余地が無くなったため分離して起票）。
+<!-- SECTION:FINAL_SUMMARY:END -->
