@@ -96,16 +96,6 @@ enum PDFSurfaceLayout {
         return documentView.bounds.height - scrollView.contentView.bounds.height
     }
 
-    /// 面が組み上がっているか（文書が入り、スクロールビューまで用意されたか）。
-    ///
-    /// **「余地があるか」とは別の問い。** 余地 0 には 2 つの意味がある——まだ
-    /// 組み上がっていない（待つべき）と、文書全体が収まっていて動かせない
-    /// （待っても変わらない）。`verticalScrollRoom` はどちらも 0 を返すので
-    /// 区別できず、後者を待ち続けると復元待ちが永久に残る（TASK-573）。
-    static func isLaidOut(_ pdfView: PDFView) -> Bool {
-        pdfView.documentView?.enclosingScrollView?.documentView != nil
-    }
-
     /// 文書全体に対する表示位置(0…1)。
     ///
     /// **web の面と同じ意味の値を返す。** あちらは文書を 1 本のスクロールとして
