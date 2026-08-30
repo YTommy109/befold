@@ -4,9 +4,10 @@ title: PDF 表示でも文書内検索をできるようにする
 status: To Do
 assignee: []
 created_date: '2026-08-29 23:13'
-updated_date: '2026-08-29 23:14'
+updated_date: '2026-08-30 03:39'
 labels: []
-dependencies: []
+dependencies:
+  - TASK-574.3
 priority: medium
 type: feature
 ordinal: 827000
