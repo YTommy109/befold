@@ -4,6 +4,7 @@ title: PDF 面がキーボード操作の first responder になっていない
 status: To Do
 assignee: []
 created_date: '2026-08-30 14:14'
+updated_date: '2026-08-30 15:09'
 labels:
   - pdf
 dependencies: []
@@ -44,3 +45,22 @@ TASK-578.2 ではページ番号入力を AppKit の `NSTextField`（`PageNumber
 - [ ] #2 検索バーの入力欄が開いた直後にキー入力を受け付ける（同じ問題があれば PageNumberField と同じ手当てをする）
 - [ ] #3 人手での再現確認の結果（再現する／しない）を Notes に記録している
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 追加の実測（2026-08-31 / TASK-578.2 の作業中）
+
+**原因はサイドバーのファイル一覧が first responder を握っていること。** ページ番号の
+入力欄を出した瞬間の first responder を記録すると `SwiftUI.SwiftUIOutlineListView`
+だった。この状態でスペースや矢印を押すと PDF ではなくサイドバーが反応する（実測: ↓ を
+1 回押すと選択が動いて別のファイルが開いた）。
+
+つまりこのタスクの本体は「PDF を開いたときの first responder をサイドバーから面へ移す」。
+参考実装として `PDFPageIndicatorModel.focusSurface()` が
+`window.makeFirstResponder(pdfView)` を 1 周待ってから呼ぶ形を持っている（実測で
+`moved=true` / first responder が `ZoomingPDFView` になり、その後スペースで PDF が送られた）。
+
+**未確認のまま残ること**: 人が実際にキーを打った場合にも再現するか。合成キー入力
+（System Events）でしか試していない。
+<!-- SECTION:NOTES:END -->

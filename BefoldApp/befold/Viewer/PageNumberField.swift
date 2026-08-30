@@ -13,8 +13,11 @@ import SwiftUI
 /// 確定（Enter）と取り消し（Esc）も AppKit 側で受ける。`onSubmit` / `onExitCommand` は
 /// first responder が移っていない以上そもそも呼ばれない。
 ///
-/// **閉じたら first responder を面へ返す。** 返さないとフィールドが消えた後に
-/// キーの行き先が無くなり、スペースや矢印でスクロールできなくなる。
+/// **閉じた後にどこへフォーカスを戻すかは、この型では決めない。** 出す前の
+/// first responder へ返す形にしていたが、実測ではそれがサイドバーのファイル一覧
+/// （`SwiftUIOutlineListView`）で、ジャンプ直後に ↓ を押すと選択が動いて**別のファイルが
+/// 開いた**（TASK-578.2）。戻し先は「いま読んでいる面」であるべきなので、
+/// `PDFPageIndicatorModel` が面へ移す。
 struct PageNumberField: NSViewRepresentable {
     @Binding var text: String
     /// Enter。
@@ -47,7 +50,6 @@ struct PageNumberField: NSViewRepresentable {
                   window.firstResponder !== field,
                   window.firstResponder !== field.currentEditor()
             else { return }
-            context.coordinator.previousResponder = window.firstResponder
             window.makeFirstResponder(field)
         }
     }
@@ -59,9 +61,6 @@ struct PageNumberField: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, NSTextFieldDelegate {
         var parent: PageNumberField
-        /// フィールドを出す前の first responder（＝面）。閉じたらここへ返す。
-        weak var previousResponder: NSResponder?
-
         init(parent: PageNumberField) {
             self.parent = parent
         }
@@ -76,23 +75,14 @@ struct PageNumberField: NSViewRepresentable {
         ) -> Bool {
             switch selector {
             case #selector(NSResponder.insertNewline(_:)):
-                restoreResponder(from: control)
                 parent.onSubmit()
                 return true
             case #selector(NSResponder.cancelOperation(_:)):
-                restoreResponder(from: control)
                 parent.onCancel()
                 return true
             default:
                 return false
             }
-        }
-
-        /// 面へ first responder を返す。フィールドが消えるより先に返さないと、
-        /// 窓の first responder が消えた View を指したままになる。
-        private func restoreResponder(from control: NSControl) {
-            guard let window = control.window, let previous = previousResponder else { return }
-            window.makeFirstResponder(previous)
         }
     }
 }
