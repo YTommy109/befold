@@ -1,10 +1,10 @@
 ---
 id: TASK-570
 title: PDF 表示でも文書内検索をできるようにする
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-29 23:13'
-updated_date: '2026-08-30 06:54'
+updated_date: '2026-08-30 07:15'
 labels: []
 dependencies:
   - TASK-574.3
@@ -143,4 +143,39 @@ PDF を開いているあいだ ⌘F が無効で、文書内検索ができな�
 **現在の一致（橙）の描画位置を実機で確定できていない。** スクリーンショットでは橙のブロックが最初の一致ではなく直前の行（"Doc 1 Page 1" の "1"）に見えた。色の割り当て自体は `PDFFindHighlightTests` で正しいことを固定してあり（現在の 1 件だけが他と違う色、次へ送ると移る）、再描画の手当ても入れたが、**その後 GUI 自動化でキー入力が安定して届かず、修正後の見え方を撮り直せていない**。
 
 検証に使った PDF は `.tmp/t569/nav2/*.pdf`（スクリプト生成）で、テキストレイヤーと描画位置がずれている可能性も排除できていない。**実ファイルで 1 回目視してほしい**——⌘F → 適当な語 → ⌘G で、橙が語の上に乗るか。ずれていれば別タスクとして起票する。
+
+## テストの安定化（追記）
+
+PDF のテストをまとめて**直列**実行するとプロセスごと落ちた。クラッシュスタックは
+`_axPostPageChangeNotification:` → `CGPDFPageCopyRootTaggedNode` →
+`os_unfair_lock_recursive_abort`。`go(to:)` でページが変わると PDFKit が
+アクセシビリティのページ変更通知を `performSelector:afterDelay:` で予約し、
+それが**後続テストの runloop 待ちで発火**して再帰ロックに当たる。
+
+対処: 検索の巡回と件数の検証にページ数は要らないので、一致を **1 ページへ収めた**。
+面とモデルは静的配列で保持する（PDFKit がバックグラウンドから `document` を読むため。
+既存の `PDFSurfaceRotationTests` と同じ手）。
+
+**他のテストのモデルを閉じる後始末は入れない。** 一度入れたが、並列実行では同時に
+走っている別のテストの検索を止めてしまい、9 件が「件数が空」で落ちた（実測）。
+
+検証: `swift test`（既定の並列）と `--no-parallel` の**両方で 1821 tests 緑**。
+なお `--no-parallel` は 1 回だけ git 系のテストで異常終了したが、再実行で通り、
+PDF とは無関係な既知の環境要因（TASK-394 の Notes に同種の記録あり）。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+PDF 表示でも ⌘F で文書内検索ができるようにした。実体は PDFKit の `beginFindString`（非同期）で、検索バーは PDF 面の右上に重ねる SwiftUI（`PDFFindOverlay`）。
+
+検索の可否は `!isBinaryContent`（読み込み方法）ではなく `FileType.supportsFind`（検索対象のテキストを持つか）で決める。前者のままだと PDF を開けた瞬間に画像まで一緒に開いてしまう。画像は従来どおり ⌘F が無効。
+
+同期の `findString` を使わないのは実測による——150 ページの実ファイルで初回 152.4ms（約 9 フレームのブロック）。`beginFindString` は 0.0ms で戻り、通知をメインスレッドへ返すので `@MainActor` に閉じたまま扱える。
+
+3 トグルのうち PDF で成立するのは大文字小文字の区別だけ（PDFKit は `.caseInsensitive` / `.literal` / `.backwards` しか受けない）。残る 2 つは隠さず無効で出す——web 面で ON にしたまま PDF を開いたときに「同じ設定なのに結果が違う」形を避けるため。
+
+実機で確認: メニューの Find… / Find Next が PDF で有効、⌘F でバーが開く、全一致が黄色でハイライトされる、件数が 1/2250 → 2/2550 と web 面と同じ n/N 形式で出る、無効トグルが淡く描かれる。
+
+検証: swift test 1821 tests（並列・直列とも）緑、jest 615 tests 緑、swiftlint 新規違反 0、markdownlint と doc の 2 スクリプトも 0 件。
+<!-- SECTION:FINAL_SUMMARY:END -->
