@@ -128,6 +128,58 @@ enum PDFSurfaceLayout {
         return scrollView.contentView.bounds.height
     }
 
+    // MARK: - 現在ページ
+
+    /// 総ページ数。**文書が無ければ 0** で、呼び出し側はそれを「まだ出せない」として扱う
+    /// (`1 / 0` を描かないため)。「文書を引けたか」という事実で判定していて、
+    /// ページ矩形が空かどうかのような**データの形**では判定しない(TASK-578.1)。
+    static func pageCount(of pdfView: PDFView) -> Int {
+        pdfView.document?.pageCount ?? 0
+    }
+
+    /// いま見ているページの索引(0 始まり)。
+    ///
+    /// **定義: 面の中心より上端が上にあるページのうち最後のもの。**
+    /// 「中心を含むページ」にはしない。ページ間には余白があり(TASK-577 の実測で約 14.5pt)、
+    /// 中心がそこへ落ちると**含むページが存在しない**(実測: 500 ページの文書を
+    /// fraction 0.5 で表示し全ページに含有判定を当てて該当 0 件 / TASK-578.1)。
+    /// 順序で決めれば余白でも必ず 1 ページに決まり、境界で往復しない。
+    ///
+    /// **PDFKit の `currentPage` は使わない。** 窓へ載せてもヘッドレスでは 0 のまま更新されず
+    /// (`visiblePages` も空、`.PDFViewPageChanged` も 0 回)、守りたい対象をテストで測れない。
+    /// ページ矩形の換算は窓が無くても正しく動く(どちらも実測 / TASK-578.1)。
+    ///
+    /// **二分探索する。** 更新はスクロール中に毎フレーム走るため、全ページ走査だと
+    /// ページ数に比例して払い続ける(実測 / 500 ページ 1 回あたり: 全走査 0.3467ms、
+    /// 二分探索 0.0048ms = 72 倍差)。ページは上から順に並ぶので、view 座標の上端は
+    /// 索引が増えるほど下がる(単調)。
+    static func currentPageIndex(of pdfView: PDFView) -> Int {
+        guard let document = pdfView.document, document.pageCount > 0 else { return 0 }
+        let centre = pdfView.bounds.midY
+        var low = 0
+        var high = document.pageCount - 1
+        var found = 0
+        while low <= high {
+            let middle = (low + high) / 2
+            guard let top = pageTop(at: middle, in: document, of: pdfView) else { return found }
+            if top >= centre {
+                // このページの上端はまだ中心より上。より下のページを探す。
+                found = middle
+                low = middle + 1
+            } else {
+                high = middle - 1
+            }
+        }
+        return found
+    }
+
+    /// ページ上端の y(面の座標)。ページの向きは `cropBox` が織り込むので、
+    /// 回転しても同じ式で読める。
+    private static func pageTop(at index: Int, in document: PDFDocument, of pdfView: PDFView) -> Double? {
+        guard let page = document.page(at: index) else { return nil }
+        return pdfView.convert(page.bounds(for: .cropBox), from: page).maxY
+    }
+
     // MARK: - キーボードスクロール
 
     /// キーボードで 1 回に送る量の種類。**割り当ては web 面と同じ**

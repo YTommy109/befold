@@ -3459,6 +3459,24 @@
         }
       }
     },
+    "viewer.pdf.pageIndicator" : {
+      "comment" : "PDF の左下に重ねたページ位置表示。画面には \"12 / 248\" とだけ出るので、読み上げ用に意味を付けた文。%1$d が現在ページ、%2$d が総ページ数。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page %1$d of %2$d"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$d ページ中 %1$d ページ目"
+          }
+        }
+      }
+    },
     "viewer.pdf.rotateClockwise": {
       "comment": "PDF の右上に重ねた回転ボタン。時計回りに 90 度回す。読み上げ名と tooltip に使う。",
       "extractionState": "manual",

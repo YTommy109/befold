@@ -25,6 +25,10 @@ final class DocumentSurfaces {
     /// proxy と同じくここが持つ。窓ごとに 1 個で、検索バーの View と
     /// `PDFDocumentRenderer` の両方がこれを見る。
     let pdfFind: PDFFindModel
+    /// PDF 面のページ位置(TASK-578.1)。`pdfFind` と**同じ粒度**(窓ごとに 1 個)で、
+    /// 同じく面へは `pdf` proxy 越しに読みに行くだけ。生成をここ 1 箇所に閉じてあるので、
+    /// 窓ごとに別インスタンスが生まれる形にはならない。
+    let pdfPageIndicator: PDFPageIndicatorModel
 
     private let webRenderer: any DocumentRendering
     private let pdfRenderer: any DocumentRendering
@@ -48,6 +52,7 @@ final class DocumentSurfaces {
             pdfViewProxy: pdf, caseSensitive: { [weak findOptions] in findOptions?.caseSensitive ?? false }
         )
         pdfFind = find
+        pdfPageIndicator = PDFPageIndicatorModel(pdfViewProxy: pdf)
         self.pdfRenderer = pdfRenderer ?? PDFDocumentRenderer(pdfViewProxy: pdf, findModel: find)
     }
 

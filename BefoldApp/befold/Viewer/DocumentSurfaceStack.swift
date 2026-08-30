@@ -46,6 +46,8 @@ struct DocumentSurfaceStack: View {
     /// PDF 面の検索の状態。束(`DocumentSurfaces`)が持つものを受け取る。
     let pdfFind: PDFFindModel
     let pdfViewProxy: PDFViewProxy
+    /// ページ位置の表示（TASK-578.1）。窓ごとに 1 個で、面へは読みに行くだけ。
+    let pdfPageIndicator: PDFPageIndicatorModel
     /// PDF の面と窓のあいだの受け渡し(倍率の通知・回転の要求)。
     let pdfActions: PDFSurfaceActions
     /// 差分のレイアウト設定。全ウィンドウ共有（差分を出すかどうかは store の表示モードが持つ）。
@@ -165,6 +167,10 @@ struct DocumentSurfaceStack: View {
                     PDFRotationOverlay(onRotate: pdfActions.onRotate)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
+                // ページ位置は**常時**出す。右上の 2 つと違って操作ではないので、
+                // 検索中に引っ込める理由が無い。置き場が左下なのでどちらとも重ならない。
+                PDFPageIndicator(model: pdfPageIndicator)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
 
             if let reason = store.contentState.rejectReason {

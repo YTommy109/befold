@@ -32,6 +32,7 @@ struct DocumentSurfaceLazyWebViewTests {
             webViewProxy: WebViewProxy(),
             pdfFind: PDFFindModel(pdfViewProxy: PDFViewProxy(), caseSensitive: { false }),
             pdfViewProxy: PDFViewProxy(),
+            pdfPageIndicator: PDFPageIndicatorModel(pdfViewProxy: PDFViewProxy()),
             pdfActions: PDFSurfaceActions(onZoomChanged: { _ in }, onRotate: { _ in }),
             diffDisplayPreference: DiffDisplayPreference(defaults: defaults)
         )

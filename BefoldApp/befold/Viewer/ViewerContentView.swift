@@ -35,6 +35,7 @@ struct ViewerContentView: View {
     let webViewProxy: WebViewProxy
     let pdfFind: PDFFindModel
     let pdfViewProxy: PDFViewProxy
+    let pdfPageIndicator: PDFPageIndicatorModel
     /// PDF の面と窓のあいだの受け渡し。クロージャを 1 つずつ増やすと注入が
     /// 3 つを超えるため、PDF 面まわりの受け渡しは 1 つの値にまとめる
     /// (`docs/dev/rules/product-code.md` の責務分離節)。
@@ -66,6 +67,7 @@ struct ViewerContentView: View {
                 webViewProxy: webViewProxy,
                 pdfFind: pdfFind,
                 pdfViewProxy: pdfViewProxy,
+                pdfPageIndicator: pdfPageIndicator,
                 pdfActions: pdfActions,
                 diffDisplayPreference: diffDisplayPreference
             )
