@@ -137,4 +137,108 @@ struct PDFPageIndicatorModelTests {
         #expect(model.currentIndex >= 0)
         #expect(model.currentIndex < 7)
     }
+
+    // MARK: - ページ番号を指定してジャンプする（TASK-578.2）
+
+    /// 入力の受け付け方を表で固定する。**判定は入力の形ではなく、パース結果と
+    /// 実際の総ページ数で行う**ので、総ページ数が変われば同じ文字列の可否も変わる。
+    @Test("受け付ける入力と受け付けない入力")
+    func parsesOnlyPageNumbersInRange() {
+        let accepted: [String: Int] = [
+            "1": 0, "7": 6, " 3 ": 2, "03": 2,
+        ]
+        let rejected = ["", " ", "0", "8", "-1", "1.5", "１", "abc", "3a", "9999"]
+
+        for (text, expected) in accepted {
+            #expect(PDFPageIndicatorModel.pageJumpTarget(from: text, pageCount: 7) == expected)
+        }
+        for text in rejected {
+            #expect(PDFPageIndicatorModel.pageJumpTarget(from: text, pageCount: 7) == nil)
+        }
+    }
+
+    /// クリックで編集に入ると、いま見ているページが初期値になる（打ち直しの手間を省く）。
+    @Test("編集を始めると現在ページが初期値になる")
+    func startsEditingWithTheCurrentPage() {
+        let (pdfView, proxy) = makeSurface(pageCount: 7)
+        let model = PDFPageIndicatorModel(pdfViewProxy: proxy)
+        pdfView.restore(fraction: 1.0)
+        pdfView.layoutSubtreeIfNeeded()
+
+        model.beginEditing()
+
+        #expect(model.isEditing)
+        #expect(model.draft == "7")
+    }
+
+    /// **確定すると実際に飛ぶ（AC #2・#5）。** 面の位置が動いた結果として
+    /// 現在ページ表示も一致する。
+    @Test("確定すると当該ページへ飛び、表示も一致する")
+    func commitJumpsToThePage() {
+        let (pdfView, proxy) = makeSurface(pageCount: 10)
+        let model = PDFPageIndicatorModel(pdfViewProxy: proxy)
+        model.beginEditing()
+        model.draft = "8"
+
+        model.commit()
+        pdfView.layoutSubtreeIfNeeded()
+
+        #expect(!model.isEditing)
+        #expect(model.currentIndex == 7)
+        #expect(PDFSurfaceLayout.currentPageIndex(of: pdfView) == 7)
+    }
+
+    /// **範囲外・非数値ではジャンプしない（AC #3）。** 表示は元へ戻るだけで、
+    /// 位置も現在ページ表示も動かない。
+    @Test("受け付けない入力ではジャンプせず表示も壊れない")
+    func rejectedInputDoesNotJump() {
+        let (pdfView, proxy) = makeSurface(pageCount: 10)
+        let model = PDFPageIndicatorModel(pdfViewProxy: proxy)
+        pdfView.restore(fraction: 0.5)
+        pdfView.layoutSubtreeIfNeeded()
+        let before = model.currentIndex
+
+        for text in ["0", "11", "abc", ""] {
+            model.beginEditing()
+            model.draft = text
+            model.commit()
+            pdfView.layoutSubtreeIfNeeded()
+            #expect(!model.isEditing)
+            #expect(model.currentIndex == before)
+        }
+    }
+
+    /// 取り消すと入力を捨てて元の表示へ戻る（AC #4）。位置は動かない。
+    @Test("取り消すと入力を捨てて元へ戻る")
+    func cancelDiscardsTheDraft() {
+        let (pdfView, proxy) = makeSurface(pageCount: 10)
+        let model = PDFPageIndicatorModel(pdfViewProxy: proxy)
+        pdfView.restore(fraction: 0.5)
+        pdfView.layoutSubtreeIfNeeded()
+        let before = model.currentIndex
+        model.beginEditing()
+        model.draft = "9"
+
+        model.cancel()
+        pdfView.layoutSubtreeIfNeeded()
+
+        #expect(!model.isEditing)
+        #expect(model.currentIndex == before)
+    }
+
+    /// **文書が差し替わったら編集を閉じる。** PDF から別の PDF へ切り替えても View は
+    /// 消えないので、編集中の値が残ると古い番号で飛びうる。
+    @Test("文書が差し替わると編集が閉じる")
+    func documentReplacementClosesEditing() {
+        let (pdfView, proxy) = makeSurface(pageCount: 10)
+        let model = PDFPageIndicatorModel(pdfViewProxy: proxy)
+        model.beginEditing()
+        model.draft = "9"
+
+        pdfView.present(
+            document: makeDocument(pageCount: 3), rotation: 0, zoom: 1.0, scrollFraction: 0
+        )
+
+        #expect(!model.isEditing)
+    }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// PDF の左下に重ねる「現在ページ / 総ページ数」（TASK-578.1）。
@@ -15,27 +16,87 @@ import SwiftUI
 /// **総ページ数が 0 のときだけは自分で引っ込む**——「文書が無い」「面がまだ組み上がって
 /// いない」のどちらでも 0 になり、`1 / 0` と描いてしまうため。
 struct PDFPageIndicator: View {
-    let model: PDFPageIndicatorModel
+    @Bindable var model: PDFPageIndicatorModel
+
+    @FocusState private var isInputFocused: Bool
 
     var body: some View {
         if model.pageCount > 0 {
-            Text(verbatim: "\(model.currentIndex + 1) / \(model.pageCount)")
+            content
                 .font(.caption)
                 .monospacedDigit()
-                .foregroundStyle(.secondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator, lineWidth: 0.5))
                 .padding(12)
-                // 数字だけでは何の値か伝わらないので、読み上げには意味を付ける。
-                .accessibilityLabel(
-                    String(
-                        format: String(localized: "viewer.pdf.pageIndicator", bundle: .l10n),
-                        model.currentIndex + 1,
-                        model.pageCount
-                    )
-                )
         }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if model.isEditing { input } else { label }
+    }
+
+    /// 通常の表示。クリックで入力へ変わる（TASK-578.2）。
+    ///
+    /// **`Button` を使う。`onTapGesture` では反応しない。** この面は AppKit がホストする
+    /// `PDFView` の上に重なる SwiftUI で、実機で試したところ合成クリックでも `AXPress`
+    /// でもタップジェスチャが発火しなかった（右上の回転コントロールが `Button` で
+    /// 動いているので、そちらへ合わせる）。
+    ///
+    /// **ボタンの枠は出さない**（`.plain`）。常時出ているものが押せそうな枠を持つと
+    /// 読んでいる最中に主張しすぎるので、押せることはポインタの形と tooltip で伝える。
+    private var label: some View {
+        Button {
+            model.beginEditing()
+        } label: {
+            Text(verbatim: "\(model.currentIndex + 1) / \(model.pageCount)")
+                .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        // 押せることをポインタで伝える。`pointerStyle(_:)` は macOS 15 以降なので
+        // （このアプリの下限は 14）、カーソルを直接差し替える。
+        .onHover { isInside in
+            if isInside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+        // 数字だけでは何の値か伝わらないので、読み上げには意味を付ける。
+        .accessibilityLabel(
+            String(
+                format: String(localized: "viewer.pdf.pageIndicator", bundle: .l10n),
+                model.currentIndex + 1,
+                model.pageCount
+            )
+        )
+        .help(String(localized: "viewer.pdf.pageJump", bundle: .l10n))
+    }
+
+    /// ページ番号の入力。確定（Enter）で飛び、Esc で捨てて戻る。
+    ///
+    /// **総ページ数はそのまま残す。** 入れられる範囲がその場で分かるので、
+    /// 範囲外を打って弾かれる前に気づける。
+    private var input: some View {
+        HStack(spacing: 2) {
+            // **入力欄には地を敷く。** 敷かないと通常表示とほぼ同じ見た目になり、
+            // いま打ち込めるのかが画面から分からない（実機で確認 / TASK-578.2）。
+            TextField("", text: $model.draft)
+                .textFieldStyle(.plain)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 32)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
+                .focused($isInputFocused)
+                .onSubmit { model.commit() }
+                .accessibilityLabel(String(localized: "viewer.pdf.pageJump", bundle: .l10n))
+            Text(verbatim: "/ \(model.pageCount)")
+                .foregroundStyle(.secondary)
+        }
+        .task { isInputFocused = true }
+        // Esc で取り消す。**この面は AppKit がホストする `PDFView` の上に重なる
+        // SwiftUI なので、`@FocusState` だけで窓の first responder が移るかは実機で
+        // 確定できていない**（`PDFFindOverlay` の入力欄と同じ事情 / TASK-570 の Notes）。
+        .onExitCommand { model.cancel() }
     }
 }

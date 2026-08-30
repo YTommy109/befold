@@ -102,4 +102,20 @@ struct PDFPageIndicatorSnapshotTests {
         // 地一色 = 何も乗っていない。
         #expect(distinctColorCount(in: rendered) == 1)
     }
+
+    /// **編集中は見た目が変わる（TASK-578.2 の AC #1）。** クリックで入力へ切り替わる
+    /// ことを、描かれた画が別物になることで見る。View の分岐そのものを塞ぐ意図で、
+    /// 実際のクリックとキー入力はリリース前の目視で確かめる。
+    @Test("編集中は通常表示と別の見た目になる")
+    func editingLooksDifferentFromTheLabel() throws {
+        let model = makeModel(pageCount: 12)
+
+        let label = try render(model, appearance: .aqua)
+        model.beginEditing()
+        let editing = try render(model, appearance: .aqua)
+
+        #expect(model.isEditing)
+        #expect(label.representation(using: .png, properties: [:])
+            != editing.representation(using: .png, properties: [:]))
+    }
 }

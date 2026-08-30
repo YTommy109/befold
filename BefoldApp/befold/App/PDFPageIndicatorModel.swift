@@ -19,6 +19,12 @@ final class PDFPageIndicatorModel {
     /// データの形では決めない。
     private(set) var pageCount = 0
 
+    /// ページ番号を打ち込んでいる最中か（TASK-578.2）。
+    private(set) var isEditing = false
+    /// 入力中の文字列。**View の `@State` ではなくここに置く。** SwiftUI の外から
+    /// 触れないと入力の検証がテストできず、受け付けない入力の扱いを固定できない。
+    var draft = ""
+
     /// 面への橋渡し。**弱参照の口を共有する**（面を所有しない）。
     private let pdfViewProxy: PDFViewProxy
     /// 監視の後始末。**`deinit` から `@MainActor` の stored property は触れない**ので、
@@ -67,7 +73,12 @@ final class PDFPageIndicatorModel {
         )
         observers.tokens.append(
             centre.addObserver(forName: .PDFViewDocumentChanged, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.refresh() }
+                MainActor.assumeIsolated {
+                    // 文書が変わったら編集を閉じる。PDF から別の PDF へ切り替えても
+                    // View は消えないので、編集中の値が残ると古い番号で飛びうる。
+                    self?.cancel()
+                    self?.refresh()
+                }
             }
         )
     }
@@ -81,6 +92,55 @@ final class PDFPageIndicatorModel {
         }
         pageCount = PDFSurfaceLayout.pageCount(of: pdfView)
         currentIndex = pageCount > 0 ? PDFSurfaceLayout.currentPageIndex(of: pdfView) : 0
+    }
+
+    // MARK: - ページ番号を指定してジャンプする（TASK-578.2）
+
+    /// 入力を受け付けてジャンプ先の索引（0 始まり）へ直す。受け付けない入力は nil。
+    ///
+    /// **判定は入力の形ではなく、パース結果と実際の総ページ数で行う。** 「数字だけか」を
+    /// 文字種で見る形にすると、全角や符号の扱いが表示の都合で揺れる。`Int` へ通して
+    /// 範囲に入るかだけを見れば、総ページ数が変われば同じ文字列の可否も正しく変わる。
+    static func pageJumpTarget(from text: String, pageCount: Int) -> Int? {
+        // 範囲は `1 ... pageCount` を作らずに比べる。総ページ数が 0 のとき
+        // （文書が無い／面がまだ組み上がっていない）に範囲の生成そのものが落ちる。
+        guard let number = Int(text.trimmingCharacters(in: .whitespaces)),
+              number >= 1, number <= pageCount
+        else { return nil }
+        return number - 1
+    }
+
+    /// 表示をクリックして編集に入る。**いま見ているページを初期値に置く**ので、
+    /// 近いページへ飛ぶときに打ち直さずに済む。
+    func beginEditing() {
+        // **入口で読み直す。** 溜めた値で可否を決めると、通知がまだ届いていない間
+        // （面を組んだ直後など）に「ページが無い」と誤判定して編集に入れない。
+        refresh()
+        guard pageCount > 0 else { return }
+        draft = String(currentIndex + 1)
+        isEditing = true
+    }
+
+    /// 入力を確定する。受け付けない入力なら**ジャンプせずに閉じるだけ**にする
+    /// （常時表示の場所にエラーを出すのは過剰で、戻せば十分 / TASK-578.2 の AC #3）。
+    ///
+    /// **面へは `ZoomingPDFView` のメソッドを通して書く。** PDFKit の `go(to:)` を
+    /// ここから直接叩くと、面への書き込み口を 1 つに保つ約束（TASK-574.1）が割れる。
+    func commit() {
+        defer { endEditing() }
+        refresh()
+        guard let target = Self.pageJumpTarget(from: draft, pageCount: pageCount) else { return }
+        pdfViewProxy.pdfView?.go(toPageAt: target)
+    }
+
+    /// 入力を捨てて元の表示へ戻す（Esc）。位置は動かさない。
+    func cancel() {
+        endEditing()
+    }
+
+    private func endEditing() {
+        isEditing = false
+        draft = ""
     }
 
     private func isOurClipView(_ source: ObjectIdentifier?) -> Bool {

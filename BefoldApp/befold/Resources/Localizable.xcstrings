@@ -3477,6 +3477,24 @@
         }
       }
     },
+    "viewer.pdf.pageJump" : {
+      "comment" : "PDF の左下のページ位置表示をクリックして開く入力欄。ページ番号を打つとそのページへ飛ぶ。tooltip と読み上げ名に使う。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go to Page"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ページへ移動"
+          }
+        }
+      }
+    },
     "viewer.pdf.rotateClockwise": {
       "comment": "PDF の右上に重ねた回転ボタン。時計回りに 90 度回す。読み上げ名と tooltip に使う。",
       "extractionState": "manual",
