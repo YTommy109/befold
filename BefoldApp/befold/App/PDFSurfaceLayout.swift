@@ -196,6 +196,7 @@ enum PDFSurfaceLayout {
     /// 変わるので、回した後に入れ直す(下の `DispatchQueue.main.async`)。
     static func rotate(byDegrees degrees: Int, in pdfView: ZoomingPDFView) {
         guard let document = pdfView.document else { return }
+        pdfView.placeholder.dismiss()
         let zoom = currentZoom(of: pdfView)
         for index in 0 ..< document.pageCount {
             guard let page = document.page(at: index) else { continue }
@@ -247,6 +248,11 @@ enum PDFSurfaceLayout {
     /// 分岐が外れたときに「倍率が保存されない」形で無音に壊れる。
     static func apply(zoom: Double, to pdfView: ZoomingPDFView) {
         pdfView.zoom = zoom
-        pdfView.scaleFactor = expectedScaleFactor(of: pdfView, zoom: zoom)
+        let wanted = expectedScaleFactor(of: pdfView, zoom: zoom)
+        // 倍率が実際に変わるなら、切り替え直後の静止画は合わなくなるので外す。
+        // **面を動かす経路はこの型の 3 つ（apply(zoom:) / rotate / restore）に収斂している**
+        // ので、外す処理もここに置けば兄弟箇所の取りこぼしが起きない（TASK-569）。
+        if abs(pdfView.scaleFactor - wanted) > 0.0001 { pdfView.placeholder.dismiss() }
+        pdfView.scaleFactor = wanted
     }
 }

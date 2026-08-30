@@ -46,10 +46,12 @@ struct PDFPreviewView: NSViewRepresentable {
         // data が nil の間(PDF 以外を表示中)は文書を外す。残すと、別種別を見ている
         // 最中に PDF 面が古い文書を抱え続け、印刷が前のファイルを刷る。
         guard let data else {
+            pdfView.placeholder.dismiss()
             pdfView.document = nil
             return
         }
         pdfView.document = PDFDocument(data: data)
+
         // 回転は倍率より先に合わせる(縦横比が変わるとフィット倍率も変わるため)。
         PDFSurfaceLayout.apply(rotation: rotation, to: pdfView)
         // **最初の 1 フレームより前に倍率を確定させる。** レイアウト任せにすると、
@@ -62,6 +64,20 @@ struct PDFPreviewView: NSViewRepresentable {
         pdfView.pendingRestoreFraction = scrollPositionToRestore
         // ここでレイアウトまで済ませ、倍率・位置が入った状態で最初の描画を迎える。
         pdfView.layoutSubtreeIfNeeded()
+        installPlaceholder(on: pdfView)
+    }
+
+    /// タイルが載るまでのあいだ見せる静止画を置く（TASK-569）。
+    ///
+    /// **表示位置の復元がまだ残っている間は置かない。** その状態で焼くと、直後に
+    /// 復元でスクロールして絵がずれる。置かなければ従来どおり白紙が見えるだけで、
+    /// 誤った絵は出ない。
+    private func installPlaceholder(on pdfView: ZoomingPDFView) {
+        guard isVisible, pdfView.pendingRestoreFraction == nil else {
+            pdfView.placeholder.dismiss()
+            return
+        }
+        pdfView.placeholder.install(on: pdfView)
     }
 
     func makeCoordinator() -> Coordinator {

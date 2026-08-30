@@ -19,6 +19,9 @@ final class ZoomingPDFView: PDFView {
     /// 位置と倍率が数回ずつ動き、開いた瞬間のちらつきになる(TASK-567)。
     /// `layout` が倍率を入れた直後に 1 回だけ使い、使ったら捨てる。
     var pendingRestoreFraction: Double?
+    /// 文書を差し替えた直後に見せる静止画（TASK-569）。**面ごとに 1 つ。**
+    /// stored property を 1 本にすることで、2 枚同時に載る形をそもそも作らない。
+    let placeholder = PDFSurfacePlaceholder()
 
     /// 倍率の上下限。`ZoomStore` と同じ値を使い、面ごとに範囲が違う状態を作らない。
     private let minZoom = ZoomStore.minZoom
@@ -41,6 +44,8 @@ final class ZoomingPDFView: PDFView {
         PDFSurfaceLayout.scrollView(in: self)?.allowsMagnification = false
         keepZoomAfterLayout()
         applyPendingRestore()
+        // 寸法が変わったときだけ静止画を外す（載せた直後の再レイアウトで外さない）。
+        placeholder.noteLayout(of: self)
     }
 
     /// 倍率が決まった後に、待たせていた表示位置を 1 回だけ入れる。

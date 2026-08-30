@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-29 22:23'
-updated_date: '2026-08-30 00:52'
+updated_date: '2026-08-30 03:19'
 labels: []
 dependencies: []
 priority: medium
@@ -45,28 +45,60 @@ TASK-567 で「切り替え直後の 1 フレームがフィット前の倍率�
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-## 方針（2026-08-30 / ユーザー確認済み）
+## 方針（2026-08-30 / 実測で作り直し）
 
-`display()` は revert 済み。**タイルが届くまで、同期描画した 1 ページ目を placeholder として見せる**方向で進める。
+タイルの到着時刻に依存しない形にする。**切り替え直後、同期で描いた静止画を面の上に
+載せ、タイルが載るまでの白紙を消す。**
 
-### 前提（実測・裏付けつき）
+### 前提（すべて実測で裏づけ済み。詳細は Implementation Notes）
 
-- **空白の正体**: PDFKit はページの中身をバックグラウンドの `PDFTilePool.workQueue` で非同期に描く。`PDFView.draw` はタイルを待たずに戻るため、届くまで面は背景色のまま。証拠は `ZoomingPDFView` へ `draw(_ page:to:)` の override を足したときのクラッシュスタック（`PDFKit.PDFTilePool.workQueue` から `@objc ZoomingPDFView.draw(_:to:)` が呼ばれて SIGTRAP）。
-- **同期描画は安い**（130 ページ・125KB / 単体プログラムでの実測）: `page.thumbnail(of: 800x900, for: .mediaBox)` が初回 6.51ms、2 回目以降 0.87ms / 0.76ms。`doc.page(at: 0)` は 0.06ms。
-- **測る終点を間違えない**: `PDFView.draw(_ dirtyRect:)` は面が塗られた時刻であって、ページの中身が出た時刻ではない。以後この区間の評価に使わない。
+- 遅いのではなく**ばらつく**。現在の中央値 52.3ms は 1.15.1 の 99.1ms より速いが、
+  18 回中 3 回が 274〜286ms へ跳ねる。1.15.1 は 18/18 が 76〜108ms で跳ねない。
+- 跳ねた回も**アプリ側の仕事は +41.5ms で完了**している。差は PDFKit の非同期タイル
+  描画の中だけ。メインスレッドは詰まっていない（4ms 周期のタイマが跳ねの間も走った）。
+- **タイル到着を観測できる信号は無い。** `PDFPageView` の layer とその 4 枚の sublayer は
+  `contents` が最後まで nil のまま（タイルは IOSurface へ直接行く）。`draw(_ page:to:)` の
+  override も使えない（`super` が `@MainActor` で呼べない）。
+- 単純な案は 2 つとも実測で棄却した。(a) 1 ページ目の同期描画で温める→跳ねは残り中央値
+  +9ms 悪化。(b) 倍率適用がタイル要求を無効化しているというレース仮説→遅い回と速い回で
+  `scaleFactor` の変更は 1 回ずつ・順序も同一で、支持されない。
 
-### 未解決の設計論点（着手時に `/review-design` で詰める）
+### 実装前に決めたこと（`/review-design` の結果）
 
-1. **placeholder をいつ外すか。** PDFKit にタイル完了の通知は無い。候補: (a) 一定時間後、(b) 次の表示サイクル、(c) タイルが載ったことを何らかの観測可能な事実で判定する。**(a) の固定待ちは「推測で手を入れない」というこのタスクの方針に反するので、採るなら根拠を実測で出すこと。**
-2. **どのページを描くか。** 復元するスクロール位置（`scrollPositionToRestore`）によっては 1 ページ目ではない。`PDFSurfaceLayout` が位置とページの対応を持っているので、そこから決める。
-3. **倍率・回転との整合。** placeholder は `initialZoom` と `rotation` を反映した見た目でなければ、外した瞬間にずれて見える。
-4. **置き場所。** `PDFPreviewView` に閉じるか、`ZoomingPDFView` が自前で持つか。ADR 0009 の「宛先の決定は `DocumentSurfaces` だけ」を崩さないこと。
-5. **`PDFView` の override は危険。** PDFKit がバックグラウンドから呼ぶメソッド（`document` プロパティ、`draw(_ page:to:)`）を `@MainActor` 隔離のまま override すると SIGTRAP で落ちる。placeholder の実装でこれらに触らない形にするか、触るなら `nonisolated` で書けることを先に確かめる。
+1. **置き場は `PDFSurfacePlaceholder`（新設）。** `ZoomingPDFView` に stored property 1 本で
+   持たせる。行数回避ではなく、**購読と寿命を持つ別の関心**だから分ける
+   （`ZoomingPDFView` は現在 170 行、そのまま足すと +50〜70 行・stored property +2）。
+2. **install は必ず「古いものを外してから」の 1 関数にする。** `updateNSView` は連続の
+   カーソル送りで追い越される。前の placeholder が残ると**前のファイルの絵が新しい
+   ファイルの内容として見える**（チェック項目 8 そのもの）。面ごとに 1 枚しか
+   存在しえない構造にし、連続 install で子ビューが 1 枚であることをテストで固定する。
+3. **外す条件は `PDFSurfaceLayout` の 1 箇所へ収斂させる。** 面を動かす経路は
+   `apply(zoom:to:)`（生成側・メニュー・ピンチ・`keepZoomAfterLayout` が全部通る）・
+   `rotate(byDegrees:in:)`・`restore(fraction:in:)` の 3 つで、いずれも
+   `PDFSurfaceLayout` にある。ここへ落とす処理を置けば列挙漏れが起きない
+   （`rg 'pdfView.scaleFactor|setBoundsOrigin|\.rotation ='` で数えて確認する）。
+   加えてスクロール（`boundsDidChange`）で外す。
+4. **`layout()` では外さない。** install 直後にもう一度 layout が走ることがあり、
+   「次の layout で外す」は早すぎて白紙が戻る。**install 時の bounds と変わったときだけ**外す。
+   install は `layoutSubtreeIfNeeded()` の後（倍率・位置が確定した後）に限る。
+5. **上限は 400ms（保険であって正しさには効かない）。** 実測の最悪値 293ms に対する余裕。
+   静止画は下に描かれる内容と同一なので、外れるのが遅れても見た目は変わらない。
+   上限は「万一ずれたときに固まらない」ためだけに置く。
+6. **`isVisible == false` のときは出さない・載っていれば外す**（ADR 0002 段 5 と揃える）。
+   opacity 0 の面の上に静止画を残さない。
+7. **1 ページも描けない文書（暗号化・破損）は placeholder 無しで従来どおり。**
 
-### 検証の作り直し
+### 何を描くか
 
-- **終点はページの中身が出た時刻にする。** 安全に測る方法をまず決める（`draw(_ page:to:)` の override は上記のとおり落ちる）。決まらないうちは、ユーザーによる目視（「空白が見えるか」）を唯一の判定にする。
-- 対処の前後で、同じ測り方の値を並べて記録する。
+`pdfView.visiblePages` を、`pdfView.convert(page.bounds(for:), from: page)` で得た矩形へ描く。
+**位置・倍率・回転は PDFKit から取る**（`PDFSurfaceLayout` の規則をこちら側へ写さない）。
+コストは実測 0.87〜6.5ms／ページ。
+
+### 検証
+
+- 自動テストで守れるのは install / 除去の分岐まで。**「白紙が見えない」ことは自動テストでは
+  測れない**（GUI 層はテスト対象外）。前後の実測（`.tmp/t569/sampler`）を証拠として残す。
+- 対処の前後で、同じ測り方の値（18 回、中央値・最大・跳ねの回数）を並べて記録する。
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -192,6 +224,108 @@ Thread 7  PDFKit.PDFTilePool.workQueue
 - コミット 47dd9aab の `pdfView.display()` を revert した（ソース変更のみ。タスクファイルの記述は履歴として残す）。`swift test` 1804 tests / 293 suites 全通過。
 - 作業ツリーに計装は残っていない。
 - 次にやること: 上の Implementation Plan の論点 1（placeholder をいつ外すか）から。ここが決まらないと実装に入れない。
+
+## 測り直し（2026-08-30 / 実シナリオ + 画面のピクセル）
+
+### 測り方（前回の測り方の誤りを直したもの）
+
+- **終点はページの中身が画面に出た時刻**。窓の中央 200x200 を高頻度でキャプチャし、
+  暗い画素が現れた時刻を取る。`PDFView.draw(_ dirtyRect:)` は面が塗られた時刻でしかないので
+  終点に使わない。`draw(_ page:to:)` の override は使えない——`nonisolated override` 自体は
+  書けるが、`super.draw(page, to:)` が `@MainActor` なので呼べずビルドが通らない
+  （実測: sending 'page' risks causing data races）。
+- **起点は実シナリオ**。サイドバーで ↓ を送る（`CGEvent` / `osascript`）。
+  前回の FileWatcher の rename 追従による再現は **debounce 0.2s をそのまま測り込む**ため
+  端から端の測定には使えない（`FileWatcher.defaultDebounceDelay = 0.2`）。
+- 前の内容が消えた時刻も同時に取り、**白紙が見えている区間**を分離した。
+- 計装一式は `.tmp/t569/`（`sampler.swift` / `compare.sh` / `presskey.swift`）。
+
+### 結果（150 ページ・約 150KB の PDF を 18 回、どちらも Release）
+
+| | 中央値 | 範囲 | 白紙の区間 |
+| --- | --- | --- | --- |
+| 1.15.1（WebKit プラグイン） | 99.1ms | 76.5〜108.4ms | 52〜93ms |
+| 現在（PDFKit） | 52.3ms | 32.4〜286.1ms | 14〜67ms |
+
+**典型値では現在のほうが速い（52ms 対 99ms）。ただし現在の版は二峰性で、
+18 回中 3 回（17%）が 274〜286ms に跳ねる。** 1.15.1 は 18 回すべて 76〜108ms に収まり、
+跳ねが 1 回も無い。ユーザーが報告した「0.1〜0.2 秒はっきり見える空白」はこの跳ねに当たる。
+**速さではなく、ばらつきが体感を悪くしている。**
+
+なお 1.15.1 にも白紙の区間は 52〜93ms ある（PDF 面へ切り替わってから中身が出るまで）。
+白紙そのものが新しく生まれたわけではない。
+
+### 跳ねはアプリ側ではない（区間ログとの突き合わせ）
+
+アプリ側に絶対時刻（`DispatchTime` の uptime）のログを入れ、サンプラの時刻と突き合わせた。
+キー押下からの経過（+）で示す。
+
+| 区間 | 速い回 | 跳ねた回 |
+| --- | --- | --- |
+| `loadContent` | -24〜-7 | -14 |
+| `performLoad start` | +3.4〜+22.4 | +17.9 |
+| `pipeline done` | +4.0〜+23.0 | +18.5 |
+| `applied` | +4.8〜+24.0 | +19.6 |
+| `updateNSView` 開始〜終了 | +5.6〜+31.7 | +20.7〜+27.9 |
+| `PDFView.draw` | +21.0〜+41.5 | +41.4 |
+| **中身が出る** | **+33.9〜+46.8** | **+286.1** |
+
+**跳ねた回もアプリ側の仕事は +41.5ms で全部終わっている。** 差は PDFKit の
+非同期タイル描画の中だけにある（速い回はタイルが 1 フレームで届き、跳ねた回は約 245ms 遅れる）。
+2 回目の `PDFView.draw` は起きていないので、タイルはレイヤへ直接載っている。
+
+### 試して棄却した単純化（実測つき）
+
+`updateNSView` の中で 1 ページ目を `page.thumbnail(of:for:)` で同期に 1 回描き、
+PDFKit を温める案。**効かない**——18 回中 1 回が 290.7ms に跳ね（跳ねは残る）、
+中央値は 52.3ms → 61.3ms と約 9ms 悪化した。1 行で済む案だったので先に試した。
+
+### 次の一手
+
+タイルの到着時刻に依存しない形にするしかない（Implementation Plan の placeholder）。
+着手前に `/review-design` を回す。
+
+## 対処と、その前後の実測（2026-08-30）
+
+`PDFSurfacePlaceholder` を新設し、文書を差し替えた直後に**可視ページを同期で焼いた静止画**を
+面の上へ載せるようにした。タイルがいつ載るかを知ろうとせず、載っても困らない絵を先に置く形。
+
+外すのは面が動く事実だけ——スクロール（`boundsDidChange`）・倍率（`PDFSurfaceLayout.apply(zoom:)`）・
+回転（同 `rotate(byDegrees:in:)`）・面の寸法変化・次の差し替え。上限 0.4 秒は保険で、
+静止画は下に描かれる内容と同一なので正しさには効かない。
+
+### 実測（150 ページ・約 150KB の PDF、サイドバーの ↓、18 回、すべて Release）
+
+| | 中央値 | 最小 | 最大 | 200ms 超の跳ね |
+| --- | --- | --- | --- | --- |
+| 1.15.1（WebKit プラグイン） | 99.1ms | 76.5ms | 108.4ms | 0/18 |
+| 対処前 | 52.3ms | 32.4ms | 293.1ms | 3/18 |
+| **対処後** | **41.2ms** | **25.3ms** | **50.4ms** | **0/18** |
+
+**跳ねが消え、中央値・最小・最大のすべてで対処前と 1.15.1 の両方を下回った。**
+
+### 実装で踏んだこと（記録）
+
+3 つとも実測で見つけたもので、どれも「入れたのに効かない」形だった。
+
+1. **`PDFView.visiblePages` はこの時点では常に空。** 文書を入れて `layoutSubtreeIfNeeded()` を
+   済ませた直後でも 0 件を返す。`page(for:nearest:)` で面の上の点から引かせる形に替えた。
+2. **`PDFPage.draw(with:to:)` はページ座標の原点を考慮しないとずれる。** `bounds(for:)` の
+   原点が 0 でない文書で中身が矩形の外へ出て、静止画が白紙のままになった。
+   一度 `thumbnail(of:for:)` に逃げたが、ポイント寸法でラスタライズされて
+   2 倍解像度のビットマップでぼやけるうえ、install が 15.6ms かかって
+   **切り替え全体の中央値が 52.3ms → 69.0ms と悪化**した。原点を戻す変換を足して
+   直接描画へ戻し、焼く範囲もページの矩形だけに絞って install は 2.16ms になった。
+3. **PDFKit はレイアウトのたびに自分のサブビューを積み直す。** 載せたときだけ最前面に
+   しても下へ潜り、18 回中 2 回だけ静止画が見えず 222〜238ms の白紙が残った。
+   `noteLayout` で毎回 `addSubview(_:positioned:relativeTo:)` により上げ直して解決。
+
+### 検証
+
+- `swift test`: 1812 tests / 294 suites すべて通過（`PDFSurfacePlaceholderTests` を 8 件追加）。
+- swiftlint: main とのベースライン差分ゼロ（54 件 → 54 件、真の新規なし）。
+- 計装（`SwitchTrace` / 各 mark / `PDFView.draw` の override / `LayerProbe`）は全撤去済み。
+- 計測用の一式は `.tmp/t569/`（`sampler.swift` / `compare.sh` / `nav2/`）。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
