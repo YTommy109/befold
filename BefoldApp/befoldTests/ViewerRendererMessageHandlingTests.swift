@@ -77,57 +77,6 @@ struct ViewerRendererMessageHandlingTests {
         #expect(!called)
     }
 
-    @Test("scrollPositionChanged が onScrollPositionChanged へ位置/モードを渡す")
-    func scrollPositionChangedDispatchesPositionAndMode() {
-        let (renderer, delegate) = makeSUT()
-        var received: (position: Double, mode: ViewerBridge.ViewMode)?
-        delegate.onScrollPositionChanged = { position, _, mode in received = (position, mode) }
-
-        dispatch(
-            renderer, name: ViewerBridge.scrollPositionChangedMessageName,
-            body: ["position": NSNumber(value: 320.5), "mode": "source"]
-        )
-
-        #expect(received?.position == 320.5)
-        #expect(received?.mode == .source)
-    }
-
-    /// 通知に載る文書は「JS が payload の path で申告した、位置を読んだ時点で DOM に
-    /// 出ていた文書」。描画済みミラーは evaluateJavaScript のキュー投入時点で先へ進む
-    /// ため、配達時にミラーから推定すると切替の遷移窓で別文書のキーへ保存される
-    /// (TASK-393)。ここがミラー参照へ戻ると落ちるよう、ミラーには別の文書を入れておく。
-    @Test("scrollPositionChanged は payload の path を通知に載せる(ミラーから推定しない)")
-    func scrollPositionChangedCarriesPayloadPath() {
-        let (renderer, delegate) = makeSUT()
-        renderer.recordRendered(RenderedStateMirror(filePath: URL(fileURLWithPath: "/tmp/queued-next-doc.md")))
-        var receivedURL: URL?
-        delegate.onScrollPositionChanged = { _, url, _ in receivedURL = url }
-
-        dispatch(
-            renderer, name: ViewerBridge.scrollPositionChangedMessageName,
-            body: ["position": NSNumber(value: 12.0), "mode": "rendered", "path": "/tmp/dom-doc.md"]
-        )
-
-        #expect(receivedURL == URL(fileURLWithPath: "/tmp/dom-doc.md"))
-    }
-
-    /// 文書が定まらない間(描画前)の JS は path: null を送る。捨てるかどうかの判断は
-    /// 受け取り側(ViewerWindowController)の責務なので、ここでは nil で配達される。
-    @Test("scrollPositionChanged の path が無ければ url は nil で配達される")
-    func scrollPositionChangedWithoutPathDeliversNilURL() {
-        let (renderer, delegate) = makeSUT()
-        var received: (url: URL?, called: Bool) = (nil, false)
-        delegate.onScrollPositionChanged = { _, url, _ in received = (url, true) }
-
-        dispatch(
-            renderer, name: ViewerBridge.scrollPositionChangedMessageName,
-            body: ["position": NSNumber(value: 12.0), "mode": "rendered", "path": NSNull()]
-        )
-
-        #expect(received.called)
-        #expect(received.url == nil)
-    }
-
     @Test("findOptionsChanged が findOptionsPreference へ3トグルを書き戻す")
     func findOptionsChangedWritesBackPreference() {
         let (renderer, delegate) = makeSUT()
@@ -247,20 +196,6 @@ struct ViewerRendererMessageHandlingTests {
         #expect(called == false)
     }
 
-    @Test("scrollPositionChanged の mode が不正な文字列なら onScrollPositionChanged を呼ばない")
-    func scrollPositionChangedIgnoresInvalidMode() {
-        let (renderer, delegate) = makeSUT()
-        var called = false
-        delegate.onScrollPositionChanged = { _, _, _ in called = true }
-
-        dispatch(
-            renderer, name: ViewerBridge.scrollPositionChangedMessageName,
-            body: ["position": NSNumber(value: 10.0), "mode": "diagonal"]
-        )
-
-        #expect(called == false)
-    }
-
     @Test("findOptionsChanged の値が Bool でなければ preference を書き換えない")
     func findOptionsChangedIgnoresNonBoolValues() {
         let (renderer, delegate) = makeSUT()
@@ -313,13 +248,12 @@ struct ViewerRendererMessageHandlingTests {
 
     // MARK: - allowsInteractiveBridging によるハンドラ登録の多層防御
 
-    @Test("allEnabled では 5 種すべてのハンドラ名が登録される")
+    @Test("allEnabled では 4 種すべてのハンドラ名が登録される")
     func handlerNamesIncludeInteractiveWhenEnabled() {
         let names = ViewerWebViewFactory.messageHandlerNames(for: .allEnabled)
 
         #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
         #expect(names.contains(ViewerBridge.zoomChangedMessageName))
-        #expect(names.contains(ViewerBridge.scrollPositionChangedMessageName))
         #expect(names.contains(ViewerBridge.loadMoreLinesMessageName))
         #expect(names.contains(ViewerBridge.referenceActivatedMessageName))
     }
@@ -329,10 +263,9 @@ struct ViewerRendererMessageHandlingTests {
         let features = RendererFeatures.quickLookRestricted
         let names = ViewerWebViewFactory.messageHandlerNames(for: features)
 
-        // 非インタラクティブでも必要な 3 種は残る
+        // 非インタラクティブでも必要な 2 種は残る
         #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
         #expect(names.contains(ViewerBridge.zoomChangedMessageName))
-        #expect(names.contains(ViewerBridge.scrollPositionChangedMessageName))
         // 攻撃面となる 2 種は登録されない
         #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))

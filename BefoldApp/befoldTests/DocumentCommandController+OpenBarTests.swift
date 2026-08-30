@@ -9,10 +9,10 @@ import Testing
 // openBar(kind:) へ収斂させ、kind の有無で既定モードの振り分けと
 // 明示指定の強制を切り替える。
 //
-// WebViewCommandControllerTests.swift から分割した(file_length 対策)。
+// DocumentCommandControllerTests.swift から分割した(file_length 対策)。
 // 共通のフェイク(FakeDocumentRenderer)・組み立てヘルパー(makeController)は
 // 元のファイルにあるものをそのまま使う。
-extension WebViewCommandControllerTests {
+extension DocumentCommandControllerTests {
     @Test("kind なし(⌘F相当)は、差分表示中でなければ検索を開く")
     func openBarWithoutKindOpensFindWhenNotShowingDiff() {
         let renderer = FakeDocumentRenderer()

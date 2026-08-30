@@ -13,7 +13,7 @@ import Foundation
 @MainActor
 extension ViewerWindowController: ViewerRendererDelegate {
     /// 保存キーは現在表示中の fileURL ではなく、通知に載った「その倍率が属する文書」から
-    /// 決める(スクロール位置と同じ理由 / TASK-391)。nil の通知は捨てる。
+    /// 決める(TASK-391)。nil の通知は捨てる。
     ///
     /// ライブ値と保存値の両方を更新する。保存値は次にこの文書を開くときの既定値で、
     /// いま画面に出ている倍率を決めるのはライブ値のほう(ADR 0002)。ただしライブ値は
@@ -22,15 +22,6 @@ extension ViewerWindowController: ViewerRendererDelegate {
     func renderer(_: ViewerRenderer, didChangeZoom zoom: Double, for url: URL?) {
         guard let url else { return }
         documentPresenter.recordZoomChange(zoom, for: url)
-    }
-
-    /// 保存キーは現在表示中の fileURL ではなく、通知に載った「その位置が属する文書」から
-    /// 決める(理由は ViewerRendererDelegate の doc / TASK-400)。nil の通知は捨てる。
-    func renderer(
-        _: ViewerRenderer, didChangeScrollPosition position: Double, for url: URL?, mode: ViewerBridge.ViewMode
-    ) {
-        guard let url else { return }
-        documentPresenter.recordScrollPosition(position, for: url, mode: mode)
     }
 
     func renderer(_: ViewerRenderer, didActivateReference href: String, disposition: OpenDisposition) {

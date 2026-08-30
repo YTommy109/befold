@@ -7,7 +7,7 @@ import BefoldKit
 ///
 /// **@objc アクションはコントローラ自身に生えている必要がある**(NSResponder チェーンを
 /// 辿って届くため)。別クラスへは移せないので、実処理はそれぞれの担当
-/// (`WebViewCommandController` / `ViewerDocumentPresenter` / `ViewerDiffPresenter`)へ委譲し、
+/// (`DocumentCommandController` / `ViewerDocumentPresenter` / `ViewerDiffPresenter`)へ委譲し、
 /// ここには「どのコマンドがどこへ行くか」だけを置く。
 ///
 /// その場で組み立てるコンテキストメニューのアクションはここではなく、メニューを作る側
@@ -18,42 +18,42 @@ import BefoldKit
 extension ViewerWindowController {
     /// View > Zoom In。HTML 直接ロード時は WKWebView の pageZoom を、それ以外は JS ズーム実装を使う。
     @objc func zoomIn(_ sender: Any?) {
-        webViewCommands.zoomIn()
+        documentCommands.zoomIn()
     }
 
     /// View > Zoom Out。
     @objc func zoomOut(_ sender: Any?) {
-        webViewCommands.zoomOut()
+        documentCommands.zoomOut()
     }
 
     /// View > 既定のサイズ(⌘0)。倍率をその面の基準へ戻す(WebView は 100%、
     /// PDF はページ全体が収まる倍率。どちらも `ZoomStore.defaultZoom`)。
     @objc func resetZoom(_ sender: Any?) {
-        webViewCommands.resetZoom()
+        documentCommands.resetZoom()
     }
 
     /// File > Print…。WebView の描画内容を印刷する。
     @objc func printDocument(_ sender: Any?) {
-        webViewCommands.printDocument(over: window)
+        documentCommands.printDocument(over: window)
     }
 
     /// Edit > 検索…。プレビュー右上の統合バーを開く(kind なし = 非明示オープン)。
     /// 差分表示中は既定モードが変更ブロックジャンプへ振り分けられる
-    /// (`WebViewCommandController.openBar(kind:)`)。
+    /// (`DocumentCommandController.openBar(kind:)`)。
     /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないため無効化する
     /// (validateMenuItem 側で判定)。
     @objc func find(_ sender: Any?) {
-        webViewCommands.openBar(kind: nil)
+        documentCommands.openBar(kind: nil)
     }
 
     /// Edit > 次を検索。検索バーが開いている間のみ JS 側で処理される。
     @objc func findNext(_ sender: Any?) {
-        webViewCommands.findNext()
+        documentCommands.findNext()
     }
 
     /// Edit > 前を検索。検索バーが開いている間のみ JS 側で処理される。
     @objc func findPrevious(_ sender: Any?) {
-        webViewCommands.findPrevious()
+        documentCommands.findPrevious()
     }
 
     /// Edit > 文書内ジャンプ。目印の種類は sender のタグが運ぶ（TASK-485）。
@@ -62,7 +62,7 @@ extension ViewerWindowController {
     /// （`selectDisplayMode(_:)`）と同じタグ方式。
     @objc func documentJump(_ sender: Any?) {
         guard let tag = (sender as? NSMenuItem)?.tag, let kind = DocumentJumpKind(menuItemTag: tag) else { return }
-        webViewCommands.openBar(kind: kind)
+        documentCommands.openBar(kind: kind)
     }
 
     /// View > Toggle Line Numbers / ツールバーの行番号ボタン。行番号表示の有無を切り替える。

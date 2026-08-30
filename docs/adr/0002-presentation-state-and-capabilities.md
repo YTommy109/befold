@@ -40,7 +40,7 @@
 | 直接 HTML モード | 2 | `ViewerRenderer.isDirectHTMLMode` / `WebViewProxy.isDirectHTMLMode` |
 
 実行可否の判断も分散している。`ViewerWindowController.validateMenuItem` と
-`WebViewCommandController` の各メソッドが同じ条件を二重に書いており、さらに
+`DocumentCommandController` の各メソッドが同じ条件を二重に書いており、さらに
 **`validateMenuItem` を通らないコマンド経路が 4 本ある**（ツールバーの view ベース項目、
 オーバーフロー（»）メニュー、サイドバーの `onKeyPress`、ツールバーのフィルタ／ソート／隠しファイル）。
 TASK-266 で追加した `canOperateOnVisibleDocument` は validate 側にしか無いため、この 4 本は素通りする。
@@ -52,7 +52,7 @@ TASK-266 で追加した `canOperateOnVisibleDocument` は validate 側にしか
 
 テストの空白も同じ根に由来する。ウィンドウ系テストは `makeContentView: placeholderViewerContent`
 （`AnyView(Color.clear)`）を注入するため `webViewProxy.webView` は常に nil であり、
-`WebViewCommandController.evaluate` の `guard let webView else { return }` によって、
+`DocumentCommandController.evaluate` の `guard let webView else { return }` によって、
 JS 契約のズレも呼び出し順の変更も「no-op が正常」として通過する。
 
 ### 外部の定石（調査結果）

@@ -87,7 +87,7 @@ extension ViewerWindowController {
         // 呼ばないと、リネーム再描画がファイル切替として扱われてスクロール位置が
         // 提示開始時の保存値へ巻き戻り(TASK-401)、再描画確定までのスクロール通知が
         // migrate 済みの旧パスのキーへ保存される(TASK-393)。
-        webViewCommands.noteRename(from: oldURL, to: newURL)
+        documentCommands.noteRename(from: oldURL, to: newURL)
         // 内容は不変なのでビューモードは維持する。ただし対応形式が変わり
         // (例: .md → .png)そのモードが成立しなくなる場合は降格する。
         // store.handleRename が予約した非同期読み込みの完了後に onContentReloaded が

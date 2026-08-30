@@ -7,7 +7,7 @@ import BefoldKit
 /// ここが持つのは「その操作が許されるか(capabilities)」と「結果をどこへ届けるか」だけで、どう実現するかは `DocumentRendering` の実装(adapter)に委ねる。
 /// WKWebView と JS 文字列はこの層に現れない(ADR 0002 段 4)。
 @MainActor
-final class WebViewCommandController {
+final class DocumentCommandController {
     /// この窓の描画面の束。**宛先の決定はこの型が持つ**ので、ここでは種別を見ない
     /// (ADR 0002 段 2 の「条件は 1 箇所」を宛先にも適用する / TASK-564.6)。
     private let surfaces: DocumentSurfaces
@@ -197,9 +197,10 @@ final class WebViewCommandController {
     /// (切替前でなければならない)の判断は呼び出し側が負う
     /// (ViewerWindowController.saveScrollPositionBeforeTransition 参照)。
     ///
-    /// スクロール位置の保存キーは、この経路も JS からの通知経路(ViewerRendererDelegate の
-    /// didChangeScrollPosition)も「その位置が属する文書」から決める。どちらも現在表示中の
-    /// fileURL を参照しない(現在値を参照すると切替直後に別文書のキーへ書く = TASK-400)。
+    /// 保存キーは「その位置が属する文書」を呼び出し側が指定する。現在表示中の fileURL は
+    /// 参照しない(現在値を参照すると切替直後に別文書のキーへ書く = TASK-400)。
+    /// **記憶へ位置が届く経路はこれ 1 本**(TASK-574.3)。かつては web 面だけが、
+    /// スクロールのたびに JS から送る継続通知も併せ持っていた。
     func saveCurrentScrollPosition(for url: URL, mode: ViewerBridge.ViewMode) {
         renderer.currentScrollPosition { [onScrollPositionSaved] position in
             onScrollPositionSaved(position, url, mode)

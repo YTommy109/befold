@@ -10,7 +10,6 @@ import WebKit
 @MainActor
 final class BridgeMessageRouter: NSObject, WKScriptMessageHandler {
     private typealias ReferenceKey = ViewerBridgeMessage.PayloadKey.ReferenceActivated
-    private typealias ScrollKey = ViewerBridgeMessage.PayloadKey.ScrollPositionChanged
     private typealias ZoomKey = ViewerBridgeMessage.PayloadKey.ZoomChanged
     private typealias FindKey = ViewerBridgeMessage.PayloadKey.FindOptionsChanged
     private typealias JumpLevelsKey = ViewerBridgeMessage.PayloadKey.JumpLevelsChanged
@@ -35,7 +34,6 @@ final class BridgeMessageRouter: NSObject, WKScriptMessageHandler {
         case .zoomChanged: handleZoomChanged(body: message.body)
         case .referenceActivated: handleReferenceActivated(body: message.body)
         case .referenceContextMenu: handleReferenceContextMenu(body: message.body)
-        case .scrollPositionChanged: handleScrollPositionChanged(body: message.body)
         case .findOptionsChanged: handleFindOptionsChanged(body: message.body)
         case .jumpLevelsChanged: handleJumpLevelsChanged(body: message.body)
         case .loadMoreLines: renderer.handleLoadMoreLines()
@@ -70,19 +68,6 @@ final class BridgeMessageRouter: NSObject, WKScriptMessageHandler {
               let href = payload[ContextMenuKey.href.rawValue] as? String
         else { return }
         renderer.delegate?.renderer(renderer, didRequestContextMenuFor: href)
-    }
-
-    private func handleScrollPositionChanged(body: Any) {
-        guard let payload = body as? [String: Any],
-              let position = (payload[ScrollKey.position.rawValue] as? NSNumber)?.doubleValue,
-              let modeString = payload[ScrollKey.mode.rawValue] as? String,
-              let mode = ViewerBridge.ViewMode(rawValue: modeString)
-        else { return }
-        // キーにする文書は、JS が payload の path で申告する「位置を読んだ時点で DOM に
-        // 出ていた文書」。ホスト側の現在 URL(TASK-400)からも、Swift 側の描画済みミラー
-        // (キューや配達の遅延で実 DOM とずれる = TASK-393)からも推定しない。
-        let url = (payload[ScrollKey.path.rawValue] as? String).map { URL(fileURLWithPath: $0) }
-        renderer.delegate?.renderer(renderer, didChangeScrollPosition: position, for: url, mode: mode)
     }
 
     private func handleFindOptionsChanged(body: Any) {

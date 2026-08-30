@@ -5,7 +5,7 @@ import PDFKit
 /// `DocumentRendering` の PDFKit 実装(ADR 0002 段 4 の 2 枚目の adapter)。
 ///
 /// `PDFView` の倍率計算と印刷という「どう実現するか」をここに閉じる。
-/// 呼び出し側(`WebViewCommandController`)は WKWebView 版との違いを知らない
+/// 呼び出し側(`DocumentCommandController`)は WKWebView 版との違いを知らない
 /// (宛先を決めるのは `DocumentSurfaces` だけ / ADR 0009)。
 @MainActor
 final class PDFDocumentRenderer: DocumentRendering {

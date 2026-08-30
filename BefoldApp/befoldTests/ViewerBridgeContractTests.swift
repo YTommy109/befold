@@ -41,7 +41,6 @@ struct ViewerBridgeContractTests {
         #expect(html.contains("_MSG_ZOOM_CHANGED = \"\(ViewerBridge.zoomChangedMessageName)\""))
         #expect(html.contains("_MSG_REFERENCE_ACTIVATED = \"\(ViewerBridge.referenceActivatedMessageName)\""))
         #expect(html.contains("_MSG_FIND_OPTIONS_CHANGED = \"\(ViewerBridge.findOptionsChangedMessageName)\""))
-        #expect(html.contains("_MSG_SCROLL_POSITION_CHANGED = \"\(ViewerBridge.scrollPositionChangedMessageName)\""))
         #expect(html.contains("_MSG_LOAD_MORE_LINES = \"\(ViewerBridge.loadMoreLinesMessageName)\""))
         #expect(html.contains("_MSG_RESOLVE_REFERENCES = \"\(ViewerBridge.resolveReferencesMessageName)\""))
         // 表示時解決: JS が候補を集めて要求する側(_mmdResolveReferences)と、

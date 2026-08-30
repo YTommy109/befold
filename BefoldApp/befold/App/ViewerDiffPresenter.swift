@@ -18,7 +18,7 @@ final class ViewerDiffPresenter {
     /// 差分のレイアウト設定。全ウィンドウ共有（差分を出すかどうかは store の表示モードが持つ）。
     let displayPreference: DiffDisplayPreference
     /// 差分を取る対象。切替・リネームで変化するため都度参照する
-    /// （`WebViewCommandController` と同じく、ウィンドウ側を弱参照で捕捉したクロージャで受ける。
+    /// （`DocumentCommandController` と同じく、ウィンドウ側を弱参照で捕捉したクロージャで受ける。
     /// プロトコルにするとウィンドウコントローラの準拠がもう 1 つ増える）。
     private let currentURL: () -> URL?
     /// いま何ができるか。差分の種別ゲート（ADR 0002 段 2）もここから引く。

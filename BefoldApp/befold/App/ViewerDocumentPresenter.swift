@@ -13,7 +13,7 @@ import Foundation
 /// 1 の呼び出し元は `ViewerWindowPresentationEntryPointTests` がソース走査で個数を
 /// 固定している（契機を増やす変更はテストが落ちる）。
 ///
-/// ウィンドウ側への問い合わせはクロージャで受ける（`WebViewCommandController` と同じ形）。
+/// ウィンドウ側への問い合わせはクロージャで受ける（`DocumentCommandController` と同じ形）。
 /// プロトコルにすると、ウィンドウコントローラが兼ねる準拠がもう 1 つ増える。
 @MainActor
 final class ViewerDocumentPresenter {
@@ -28,7 +28,7 @@ final class ViewerDocumentPresenter {
     /// 観測するためだけの妥協（本番コードからここを触らないこと）。
     let presentationMemory = WindowPresentationMemory()
     /// スクロール位置の確定保存の実行先（JS ラウンドトリップを挟む）。
-    private let webViewCommands: WebViewCommandController
+    private let documentCommands: DocumentCommandController
     /// 提示中のファイル。切替・リネームで変化するため都度参照する（窓と同じ共有参照）。
     private let currentDocument: CurrentDocumentRef
     /// そのモードをいま選べるか（ADR 0002 段 2 の導出はウィンドウ側に置いたまま引く）。
@@ -48,7 +48,7 @@ final class ViewerDocumentPresenter {
     init(
         store: ViewerStore,
         perFileState: PerFileStateStore,
-        webViewCommands: WebViewCommandController,
+        documentCommands: DocumentCommandController,
         currentDocument: CurrentDocumentRef,
         canSelect: @escaping (ViewerDisplayMode) -> Bool,
         refreshToolbar: @escaping () -> Void,
@@ -56,7 +56,7 @@ final class ViewerDocumentPresenter {
     ) {
         self.store = store
         self.perFileState = perFileState
-        self.webViewCommands = webViewCommands
+        self.documentCommands = documentCommands
         self.currentDocument = currentDocument
         self.canSelect = canSelect
         self.refreshToolbar = refreshToolbar
@@ -71,12 +71,12 @@ final class ViewerDocumentPresenter {
     /// 負う入口はここだけで、呼び出し点はファイル切替（performFileSwitch）と
     /// モード切替（setDisplayMode）の 2 つ。
     func saveScrollPositionBeforeTransition() {
-        webViewCommands.saveCurrentScrollPosition(
+        documentCommands.saveCurrentScrollPosition(
             for: currentDocument.url, mode: ViewerBridge.ViewMode(isSourceMode: store.isSourceMode)
         )
         // 回転は面から同期で読めるので、位置と同じ契機・同じキーで記憶する
         // (通知を待たない分、押し出される心配が無い)。回転を持たない面は 0 を返す。
-        presentationMemory.setRotation(webViewCommands.currentRotation, for: currentDocument.url)
+        presentationMemory.setRotation(documentCommands.currentRotation, for: currentDocument.url)
     }
 
     /// **窓がその文書を提示し始めるとき**に、ファイル単位の保存値・記憶をこの窓のライブ値へ読み込む。

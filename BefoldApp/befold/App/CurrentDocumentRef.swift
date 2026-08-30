@@ -5,7 +5,7 @@ import Foundation
 /// 参照するための共有参照。
 ///
 /// URL の唯一の保持先は `ViewerStore.currentURL` のままで、この型は値を複製しない
-/// （導出しかしない）。窓の子（`ViewerDocumentPresenter` / `WebViewCommandController`）が
+/// （導出しかしない）。窓の子（`ViewerDocumentPresenter` / `DocumentCommandController`）が
 /// 同じ 1 個を受け取ることで、「旧 URL を捕捉しない」という制約をクロージャではなく
 /// 構造で満たす。`docs/dev/rules/product-code.md`「クロージャバンドルが 3 つを超えたら
 /// delegate プロトコルを検討する」が名指しした**再束縛のためのクロージャ**がこれで消え、

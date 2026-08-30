@@ -70,7 +70,7 @@ protocol DocumentSurfaceOperating: AnyObject {
 /// 振り分けると 2 つの事故が戻る。どちらも既存コードのコメントが名指ししている。
 ///
 /// - 設定の反映(`applyCodeFont` / `applyCsvNumberFormat` / `applyJumpAvailability`):
-///   `WebViewCommandController` はこれらを能力(`ViewerCapabilities`)でも止めていない。
+///   `DocumentCommandController` はこれらを能力(`ViewerCapabilities`)でも止めていない。
 ///   止めると「フォルダーを見ている間の設定変更が常駐 WebView に入らないまま
 ///   取り残される」ため。種別で振り分けると、同じ取り残しが**種別の形で**戻る
 ///   (PDF を見ている間に変えたフォントが WebView へ入らない)。
@@ -104,7 +104,7 @@ protocol DocumentSurfaceSyncing: AnyObject {
 
 /// 表示中の文書に対してできること(ADR 0002 段 4 の port)。
 ///
-/// 呼び出し側(WebViewCommandController)は「能力を確認して意図を伝える」だけにし、
+/// 呼び出し側(DocumentCommandController)は「能力を確認して意図を伝える」だけにし、
 /// WKWebView・JS 文字列・ブリッジ契約の詳細は adapter(WebViewDocumentRenderer)に閉じる。
 /// これにより、レンダラへ何が命じられたかをテストで検証できる境界ができる。
 /// 境界が無かった頃は、ウィンドウ系テストが WebView 不在で回るため

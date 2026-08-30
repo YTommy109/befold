@@ -79,8 +79,8 @@ enum ViewerWindowAssembler {
     /// WebView 操作系メニューアクション（ズーム・印刷・検索・スクロール位置保存）の実処理を作る。
     static func makeWebViewCommands(
         for controller: ViewerWindowController
-    ) -> WebViewCommandController {
-        WebViewCommandController(
+    ) -> DocumentCommandController {
+        DocumentCommandController(
             // WKWebView と JS の詳細は adapter に閉じ（ADR 0002 段 4）、どの面へ届けるかの
             // 決定は束（DocumentSurfaces）に閉じる（TASK-564.6）。
             surfaces: controller.surfaces,
@@ -131,7 +131,7 @@ enum ViewerWindowAssembler {
                 },
                 // 回転はコマンド経路を通す(可否の判断は capabilities が持つ)。
                 onRotate: { [weak controller] degrees in
-                    controller?.webViewCommands.rotate(byDegrees: degrees)
+                    controller?.documentCommands.rotate(byDegrees: degrees)
                 }
             ),
             diffDisplayPreference: controller.diffDisplayPreference

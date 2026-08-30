@@ -42,6 +42,6 @@ extension ViewerWindowController: SidebarNavigatorHost {
     /// 知れる場所がほかに無い(TASK-485.18)。
     func refreshUIState() {
         toolbarController.refreshToolbarState()
-        webViewCommands.syncJumpAvailability()
+        documentCommands.syncJumpAvailability()
     }
 }

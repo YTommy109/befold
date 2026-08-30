@@ -101,11 +101,11 @@ final class ViewerWindowController: NSWindowController {
     /// WebView 操作系メニューアクション(ズーム・印刷・検索・スクロール位置保存)の実処理。
     /// 生成は init 1 箇所きり。使うのは `+MenuActions` / `ViewerDocumentPresenter` /
     /// `+FileNavigation` / `+SidebarHost`。
-    private(set) var webViewCommands: WebViewCommandController!
+    private(set) var documentCommands: DocumentCommandController!
     /// 表示モード・倍率・スクロール位置の遷移(ADR 0002 段 1)。提示状態の判断はすべて向こう側。
-    /// webViewCommands の生成後にしか作れないため lazy(参照はどれも init の後段以降)。
+    /// documentCommands の生成後にしか作れないため lazy(参照はどれも init の後段以降)。
     lazy var documentPresenter = ViewerDocumentPresenter(
-        store: store, perFileState: perFileState, webViewCommands: webViewCommands,
+        store: store, perFileState: perFileState, documentCommands: documentCommands,
         currentDocument: currentDocument,
         canSelect: { [weak self] mode in self?.canSelect(mode) ?? false },
         refreshToolbar: { [weak self] in self?.refreshUIState() },
@@ -159,7 +159,7 @@ final class ViewerWindowController: NSWindowController {
     }
 
     /// 提示中の文書 URL への共有参照。窓の子(`ViewerDocumentPresenter` /
-    /// `WebViewCommandController`)へ同じ 1 個を渡し、旧 URL の捕捉を構造で防ぐ。
+    /// `DocumentCommandController`)へ同じ 1 個を渡し、旧 URL の捕捉を構造で防ぐ。
     let currentDocument: CurrentDocumentRef
     /// 現在表示中ファイルの URL。保持先は store 一箇所(store.currentURL)。ここでは複製せず委譲する。
     var fileURL: URL {
@@ -314,7 +314,7 @@ final class ViewerWindowController: NSWindowController {
         // super.init より前には作れない。ツールバーの生成・デリゲート設定・取り付けの
         // 順序制約は ViewerToolbarController.init の中に閉じている。
         toolbarController = ViewerToolbarController(window: window, host: self)
-        webViewCommands = ViewerWindowAssembler.makeWebViewCommands(for: self)
+        documentCommands = ViewerWindowAssembler.makeWebViewCommands(for: self)
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
         // リサイズされるため、フレームの確定はその後に行う。
         window.contentViewController = ViewerWindowAssembler.makeSplitViewController(

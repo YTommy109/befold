@@ -125,9 +125,8 @@ struct ViewerWebViewCoordinatorTests {
         #expect(names.contains(ViewerBridge.referenceContextMenuMessageName))
         #expect(names.contains(ViewerBridge.zoomChangedMessageName))
         #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
-        #expect(names.contains(ViewerBridge.scrollPositionChangedMessageName))
         #expect(names.contains(ViewerBridge.jumpLevelsChangedMessageName))
-        #expect(names.count == 8)
+        #expect(names.count == 7)
     }
 
     @Test("allowsInteractiveBridging: false では referenceActivated/loadMoreLines を登録しない(多層防御)")
@@ -138,13 +137,12 @@ struct ViewerWebViewCoordinatorTests {
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
         #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
         #expect(!names.contains(ViewerBridge.resolveReferencesMessageName))
-        // ズーム・検索・スクロール位置通知は静的1回読込でも安全なため登録を維持する。
+        // ズーム・検索の通知は静的1回読込でも安全なため登録を維持する。
         #expect(names.contains(ViewerBridge.zoomChangedMessageName))
         #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
-        #expect(names.contains(ViewerBridge.scrollPositionChangedMessageName))
         // 見出しジャンプのレベル通知も静的 1 回読込で安全（受け手の記録口は nil で無害化される）。
         #expect(names.contains(ViewerBridge.jumpLevelsChangedMessageName))
-        #expect(names.count == 4)
+        #expect(names.count == 3)
     }
 
     // MARK: - renderableContent(ローカル画像埋め込み)

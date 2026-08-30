@@ -13,7 +13,7 @@ import PDFKit
 /// 不要になった(TASK-567)。
 final class ZoomingPDFView: PDFView {
     /// ピンチ・Ctrl+ホイールで倍率が変わったことを窓へ伝える。メニュー経由の
-    /// ⌘+ / ⌘- / ⌘0 は `WebViewCommandController` が返り値で伝えるので、ここは
+    /// ⌘+ / ⌘- / ⌘0 は `DocumentCommandController` が返り値で伝えるので、ここは
     /// **面の中で完結する操作だけ**の通知口(TASK-564.4)。
     var onZoomChanged: ((Double) -> Void)?
     /// この面がいま見せている倍率(1.0 = ページ全体が収まる)。**面が覚える**ことで、

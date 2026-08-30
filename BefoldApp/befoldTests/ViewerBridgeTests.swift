@@ -80,11 +80,6 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.restoreScrollPositionScript(position) == "_mmdSetRestoreScroll(0.0)")
     }
 
-    @Test("scrollPositionChangedMessageName が固定値である")
-    func scrollPositionChangedMessageNameIsFixed() {
-        #expect(ViewerBridge.scrollPositionChangedMessageName == "scrollPositionChanged")
-    }
-
     @Test("renderDocPathScript がパスを JSON エスケープして埋め込み、nil は null を予告する")
     func renderDocPathScriptEmbedsEscapedPath() {
         // 実在しないパス(/mock)は resolvingSymlinksInPath が書き換えないため出力が安定する

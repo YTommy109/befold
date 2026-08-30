@@ -38,23 +38,6 @@ function installColorSchemeStub(window) {
   };
 }
 
-// setTimeout/clearTimeout を記録するスタブに差し替える。スクロール通知のデバウンスは
-// jsdom window のタイマを使うため jest のフェイクタイマーが効かず、また実時間を待つと
-// テストが遅く不安定になる。予約と取り消しを直接観測する。
-function installTimerStub(window) {
-  const scheduled = [];
-  window.setTimeout = function (fn, delay) {
-    scheduled.push({ fn: fn, delay: delay, cancelled: false });
-    return scheduled.length;
-  };
-  window.clearTimeout = function (id) {
-    if (id) {
-      scheduled[id - 1].cancelled = true;
-    }
-  };
-  return scheduled;
-}
-
 describe('エクスポート境界', () => {
   test('読み込むだけでは初期化の副作用が起きない', () => {
     const { document, main } = loadViewerMain({ init: false });
@@ -136,6 +119,63 @@ describe('_mmdInitZoom', () => {
     await main.render('a\nb\n', 'code', 'txt');
 
     main._mmdRenameDocPath('/mock/a.md', '/mock/b.md');
+    main._mmdZoomIn();
+
+    expect(received.at(-1).payload.path).toBe('/mock/b.md');
+  });
+
+  // 以下 4 件は、かつて scrollPositionChanged 側で文書パスの採用規則を見ていたもの。
+  // スクロール位置の継続通知は TASK-574.3 で撤去した（位置は切替直前の pull 1 本に
+  // 揃えた）が、採用規則そのものは倍率の通知が同じ _mmdDocPath を使うので残っている。
+  // 観測点を zoomChanged へ移して規則の担保を保つ。
+  test('予告は render まで採用されない(採用前の通知は現在の文書のパスのまま)', async () => {
+    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const received = captureBridgeMessages(window, ['zoomChanged']);
+    main._mmdSetRenderDocPath('/mock/a.md');
+    await main.render('a\nb\n', 'code', 'txt');
+
+    // 切替先の予告だけがあり render がまだ実行されていない間、DOM は旧文書のまま。
+    // ここで発火した通知が新パスを名乗ると、旧文書の値が切替先のキーへ保存される。
+    main._mmdSetRenderDocPath('/mock/b.md');
+    main._mmdZoomIn();
+
+    expect(received.at(-1).payload.path).toBe('/mock/a.md');
+  });
+
+  test('予告なしの内部再描画では採用済みのパスを保つ', async () => {
+    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const received = captureBridgeMessages(window, ['zoomChanged']);
+    main._mmdSetRenderDocPath('/mock/a.md');
+    await main.render('a\nb\n', 'code', 'txt');
+
+    // カラースキーム変更相当(予告なしの render)でパスが消えてはならない
+    await main.render('a\nb\n', 'code', 'txt');
+    main._mmdZoomIn();
+
+    expect(received.at(-1).payload.path).toBe('/mock/a.md');
+  });
+
+  test('_mmdRenameDocPath は現在のパスが一致しないとき何もしない', async () => {
+    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const received = captureBridgeMessages(window, ['zoomChanged']);
+    main._mmdSetRenderDocPath('/mock/a.md');
+    await main.render('a\nb\n', 'code', 'txt');
+
+    // 別文書へ切替中の rename 等。誤った付け替えより旧キーへの短時間の保存が安全。
+    main._mmdRenameDocPath('/mock/x.md', '/mock/y.md');
+    main._mmdZoomIn();
+
+    expect(received.at(-1).payload.path).toBe('/mock/a.md');
+  });
+
+  test('_mmdRenameDocPath は未採用の予告パスも差し替える', async () => {
+    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const received = captureBridgeMessages(window, ['zoomChanged']);
+
+    // 旧名の render が実行待ちのまま rename された場合、採用後のパスも新名になる
+    main._mmdSetRenderDocPath('/mock/a.md');
+    main._mmdRenameDocPath('/mock/a.md', '/mock/b.md');
+    await main.render('a\nb\n', 'code', 'txt');
     main._mmdZoomIn();
 
     expect(received.at(-1).payload.path).toBe('/mock/b.md');
@@ -1061,148 +1101,6 @@ describe('スクロール位置の復元', () => {
     await main.render('a\nb\n', 'code', 'txt');
 
     expect(main._mmdScrollTarget().scrollTop).toBe(40);
-  });
-});
-
-describe('スクロール通知のデバウンス', () => {
-  function scroll(loaded) {
-    loaded.document.querySelector('.viewer').dispatchEvent(new loaded.window.Event('scroll'));
-  }
-
-  test('連続したスクロールは 1 本の通知にまとめる', () => {
-    const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['scrollPositionChanged']);
-    const scheduled = installTimerStub(loaded.window);
-
-    scroll(loaded);
-    scroll(loaded);
-
-    expect(scheduled.length).toBe(2);
-    expect(scheduled[0].cancelled).toBe(true);
-    expect(scheduled[1].delay).toBe(200);
-    expect(received).toEqual([]);
-
-    scheduled[1].fn();
-
-    expect(received.length).toBe(1);
-    expect(received[0].payload.mode).toBe('rendered');
-  });
-
-  test('Swift 主導の切替では保留中の通知を破棄する', async () => {
-    const loaded = loadViewerMain({});
-    const scheduled = installTimerStub(loaded.window);
-    scroll(loaded);
-
-    loaded.main._mmdSetRestoreScroll(0);
-    await loaded.main.render('a\nb\n', 'code', 'txt');
-
-    expect(scheduled[0].cancelled).toBe(true);
-  });
-
-  test('内部再描画では保留中の通知を残す', async () => {
-    const loaded = loadViewerMain({});
-    const scheduled = installTimerStub(loaded.window);
-    scroll(loaded);
-
-    // 注入位置なし(=ファイル/モードは変わらない)の再描画では確定保存を失わない
-    await loaded.main.render('a\nb\n', 'code', 'txt');
-
-    expect(scheduled[0].cancelled).toBe(false);
-  });
-});
-
-describe('スクロール通知の文書パス', () => {
-  function scroll(loaded) {
-    loaded.document.querySelector('.viewer').dispatchEvent(new loaded.window.Event('scroll'));
-  }
-
-  function lastNotifiedPath(loaded, received, scheduled) {
-    scroll(loaded);
-    scheduled.at(-1).fn();
-    return received.at(-1).payload.path;
-  }
-
-  test('render で採用された予告パスを通知に載せる', async () => {
-    const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['scrollPositionChanged']);
-    const scheduled = installTimerStub(loaded.window);
-    loaded.main._mmdSetRenderDocPath('/mock/a.md');
-    await loaded.main.render('a\nb\n', 'code', 'txt');
-
-    expect(lastNotifiedPath(loaded, received, scheduled)).toBe('/mock/a.md');
-  });
-
-  test('文書が定まらない間(描画前)は null を送る', () => {
-    const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['scrollPositionChanged']);
-    const scheduled = installTimerStub(loaded.window);
-
-    expect(lastNotifiedPath(loaded, received, scheduled)).toBeNull();
-  });
-
-  test('予告は render まで採用されない(採用前の通知は現在の文書のパスのまま)', async () => {
-    const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['scrollPositionChanged']);
-    const scheduled = installTimerStub(loaded.window);
-    loaded.main._mmdSetRenderDocPath('/mock/a.md');
-    await loaded.main.render('a\nb\n', 'code', 'txt');
-
-    // 切替先の予告だけがあり render がまだ実行されていない間、DOM は旧文書のまま。
-    // ここで発火した通知が新パスを名乗ると、旧文書の位置が切替先のキーへ保存される。
-    loaded.main._mmdSetRenderDocPath('/mock/b.md');
-
-    expect(lastNotifiedPath(loaded, received, scheduled)).toBe('/mock/a.md');
-  });
-
-  test('予告なしの内部再描画では採用済みのパスを保つ', async () => {
-    const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['scrollPositionChanged']);
-    const scheduled = installTimerStub(loaded.window);
-    loaded.main._mmdSetRenderDocPath('/mock/a.md');
-    await loaded.main.render('a\nb\n', 'code', 'txt');
-
-    // カラースキーム変更相当(予告なしの render)でパスが消えてはならない
-    await loaded.main.render('a\nb\n', 'code', 'txt');
-
-    expect(lastNotifiedPath(loaded, received, scheduled)).toBe('/mock/a.md');
-  });
-
-  test('_mmdRenameDocPath は render を経ずに現在のパスを差し替える', async () => {
-    const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['scrollPositionChanged']);
-    const scheduled = installTimerStub(loaded.window);
-    loaded.main._mmdSetRenderDocPath('/mock/a.md');
-    await loaded.main.render('a\nb\n', 'code', 'txt');
-
-    loaded.main._mmdRenameDocPath('/mock/a.md', '/mock/b.md');
-
-    expect(lastNotifiedPath(loaded, received, scheduled)).toBe('/mock/b.md');
-  });
-
-  test('_mmdRenameDocPath は現在のパスが一致しないとき何もしない', async () => {
-    const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['scrollPositionChanged']);
-    const scheduled = installTimerStub(loaded.window);
-    loaded.main._mmdSetRenderDocPath('/mock/a.md');
-    await loaded.main.render('a\nb\n', 'code', 'txt');
-
-    // 別文書へ切替中の rename 等。誤った付け替えより旧キーへの短時間の保存が安全。
-    loaded.main._mmdRenameDocPath('/mock/x.md', '/mock/y.md');
-
-    expect(lastNotifiedPath(loaded, received, scheduled)).toBe('/mock/a.md');
-  });
-
-  test('_mmdRenameDocPath は未採用の予告パスも差し替える', async () => {
-    const loaded = loadViewerMain({});
-    const received = captureBridgeMessages(loaded.window, ['scrollPositionChanged']);
-    const scheduled = installTimerStub(loaded.window);
-
-    // 旧名の render が実行待ちのまま rename された場合、採用後のパスも新名になる
-    loaded.main._mmdSetRenderDocPath('/mock/a.md');
-    loaded.main._mmdRenameDocPath('/mock/a.md', '/mock/b.md');
-    await loaded.main.render('a\nb\n', 'code', 'txt');
-
-    expect(lastNotifiedPath(loaded, received, scheduled)).toBe('/mock/b.md');
   });
 });
 

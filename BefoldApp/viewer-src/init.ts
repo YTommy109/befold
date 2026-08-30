@@ -16,7 +16,6 @@ import { _mmdInitKeyboard } from './keyboard.js';
 import { _mmdReinitializeMermaidIfLoaded } from './mermaid.js';
 import { _mmdInitReferenceClicks } from './reference-clicks.js';
 import { _mmdInitCsvNumberFormat, _mmdRerenderCurrent } from './render.js';
-import { _mmdInitScrollNotify } from './scroll.js';
 import { _mmdInitLoadMore } from './truncation.js';
 import { _mmdInitResize, _mmdInitWheelZoom, _mmdInitZoom } from './zoom.js';
 
@@ -37,7 +36,6 @@ function _mmdInit(): void {
   _mmdInitResize();
   _mmdInitColorScheme();
   _mmdFind.initControls();
-  _mmdInitScrollNotify();
   _mmdInitLoadMore();
   _mmdInitZoom();
   _mmdInitFontSize();

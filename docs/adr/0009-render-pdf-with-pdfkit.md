@@ -75,7 +75,7 @@ pdf.js を採らなかった理由は 2 つある。
 
 - **宛先の決定は `DocumentSurfaces` の 2 メソッドだけが持つ。**
   `operating(on:)` が「いま描いている 1 枚」を返し、`syncingAll` が
-  「すべての面」を返す。`WebViewCommandController` は種別を見ない。
+  「すべての面」を返す。`DocumentCommandController` は種別を見ない。
 - **`DocumentRendering`（ADR 0002 段 4 の port）を 2 群に分けた**（TASK-564.6）。
   ユーザー操作（ズーム・印刷・検索・ジャンプ・スクロール位置）は 1 枚へ振り分け、
   追随（フォント・CSV 数値表示・ジャンプ可否・リネーム）は全部へ配る。
