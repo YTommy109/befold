@@ -1,10 +1,11 @@
 ---
 id: TASK-569
 title: PDF へ切り替えたときの一瞬の間を詰める
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-08-29 22:23'
-updated_date: '2026-08-29 22:45'
+updated_date: '2026-08-30 00:33'
 labels: []
 dependencies: []
 priority: medium
@@ -37,9 +38,19 @@ TASK-567 で「切り替え直後の 1 フレームがフィット前の倍率�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 サイドバーで .md から .pdf へ送ったときの、操作から最初の PDF フレームまでの時間が区間ごとに実測され、どこに間があるかが特定されている
-- [ ] #2 特定した区間に対する対処が入り、対処の前後の実測値が記録されている（対処不要と判断した場合はその根拠が実測付きで記録されている）
+- [x] #1 サイドバーで .md から .pdf へ送ったときの、操作から最初の PDF フレームまでの時間が区間ごとに実測され、どこに間があるかが特定されている
+- [x] #2 特定した区間に対する対処が入り、対処の前後の実測値が記録されている（対処不要と判断した場合はその根拠が実測付きで記録されている）
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 一時ログ（`SwitchTrace` / `PipelineTrace`）で区間ごとの時刻を取る。推測で手を入れない（タスクの指示どおり）。
+2. 窓内の `.md → .pdf` 切り替えを、キー入力なしで再現する。`FileWatcher` の rename 追従を使い、同じ inode のまま `s*.md` へ PDF のバイト列を書いてから `s*.pdf` へ改名すると `handleRename → openFile` が走る。他窓の巻き添え（親ディレクトリ監視）を避けるため専用サブディレクトリで行う。
+3. 区間を特定する。
+4. 最大の PDF 固有区間へ対処し、前後を実測する。
+5. 計装を全撤去し、`swift test` と swiftlint ベースライン差分ゼロを確認する。
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
@@ -57,4 +68,78 @@ ADR の Consequences にその旨を明記した。もし描画経路が遅さ�
 **この判断はこのタスクの実測が出てから行うこと。** いまの時点で分かっているのは
 「面の描画自体は速い（影なしで 1 フレーム 4〜7ms、スクロール 5 フレームで 11〜14ms）」
 であり、間はその前後の区間にある。
+
+## 区間の実測（2026-08-30）
+
+### 測り方
+
+`SwitchTrace`（一時。撤去済み）で各区間の絶対時刻をファイルへ追記した。NSLog は出力先が環境で変わって取り逃したため、指定ファイルへ直接書く形にした。
+
+**窓内の切り替えをキー入力なしで再現する方法**: `FileWatcher` の rename 追従を使う。同じ inode のまま `s*.md` へ PDF のバイト列を上書きし（`cat sample.pdf > s.md`）、続けて `mv s.md s.pdf` とすると `handleRename → openFile` が走り、**新しい窓を作らずに** `.md → .pdf` の切り替えが起きる。新規ウィンドウで開く測り方は「窓の初回表示」を含むため別物になる（実際 111ms 対 49ms と倍以上ずれた）。他窓の親ディレクトリ監視に巻き込まれないよう、専用サブディレクトリで行う。
+
+対象: 151 ページ / 128KB の PDF。Debug ビルド。
+
+### 結果（窓内切り替え / 2 回とも再現）
+
+| 区間 | switch a | switch b |
+| --- | --- | --- |
+| `loadContent` 予約 → `performLoad` 開始 | 19.5ms | 17.4ms |
+| `performLoad` → pipeline 復帰 | 7.7ms | 5.3ms |
+| pipeline 復帰 → `state applied` | 0.17ms | 0.14ms |
+| `state applied` → `updateNSView` 開始（SwiftUI） | 2.6ms | 2.8ms |
+| `updateNSView`（`PDFDocument` 生成＋回転＋倍率＋レイアウト） | 6.5ms | 7.0ms |
+| **レイアウト完了 → 最初の描画** | **12.4ms** | **16.0ms** |
+| **合計（`loadContent` → 最初の描画）** | **48.95ms** | **48.67ms** |
+
+pipeline の内側も割った（別の測定）。`ContentLoader.loadData` が 0.15〜0.47ms、`PDFDataProbe` が 0.11〜0.35ms。**タスクに書かれていた「probe 初回 22ms」は PDFKit の遅延初期化で、2 回目以降は誤差**。読み込み・ハッシュ・probe・`PDFDocument` 生成・レイアウトを全部足しても約 7ms しかない。
+
+### どこに間があるか
+
+**PDF の実処理ではない。** 間は次の 2 種類に分かれる。
+
+1. **メインアクターの空き待ち（17〜20ms ＋ 5〜8ms）。** `loadContent` の `Task { await performLoad(...) }` は MainActor を継承するため、切り替えで積まれた他の仕事（サイドバー同期・ツールバー更新・SwiftUI 再評価）が捌けるまで**開始すらしない**。復帰側も同様。**これは PDF 固有ではない**——同条件の `.md` でも `loadContent → performLoad` が 24〜52ms かかっており、同じ待ちを踏んでいる。
+2. **AppKit の表示サイクル待ち（12〜16ms）。** `updateNSView` が倍率・位置を確定してレイアウトまで済ませても、実際の描画は次の表示サイクルまで来ない。**これは PDF 固有の区間**で、対処できる最大のもの。
+
+## 対処と、その前後の実測
+
+`PDFPreviewView.updateNSView` の `layoutSubtreeIfNeeded()` の直後に `pdfView.display()` を足し、最初のフレームを同じ実行の中で描くようにした。
+
+| | 対処前 | 対処後 |
+| --- | --- | --- |
+| レイアウト完了 → 最初の描画 | 12.4ms / 16.0ms | **0.24ms / 0.27ms** |
+| 合計（`loadContent` → 最初の描画） | 48.95ms / 48.67ms | **34.8ms / 34.65ms** |
+
+**−14.2ms（−29%）。各条件 2 回ずつで再現。** 描画そのものは 5.4〜5.5ms で、待っていた 12〜16ms より短い。
+
+`displayIfNeeded()` も試したが採らなかった。2 回のうち 1 回しか描画が起きず（PDFKit がまだ dirty を立てていない瞬間がある）、効く / 効かないが再現しない。`display()` は無条件なので揺れない。`updateNSView` 自体が `contentRevision` の変化でしか走らないため、無条件でも文書 1 つにつき 1 回。
+
+副作用として、通常の表示サイクルによる 2 回目の描画（約 19ms 後）は残る。同じ内容なので見た目の破綻は無く、増える仕事は 1 文書あたり 1 回・約 5ms。
+
+## 残っている最大の区間（このタスクでは対処しない）
+
+上の 1.（メインアクターの空き待ち、合計 22〜28ms）が残る。**PDF 固有ではなく `.md` でも同じ**なので、このタスク（PDF 切替の間）の範囲を超える。対処するなら `loadContent` の `Task` を MainActor 継承から外す形になるが、共通経路の実行順序を変える変更なので `/review-design` を通す必要がある。`Task.detached` はこのリポジトリでは pre-commit で禁止されている（`OK: Task.detached の使用なし`）ため、nonisolated なヘルパー経由になる。別タスクとして起票するのが妥当。
+
+## 自動検証
+
+- `swift test`: 1804 tests / 293 suites すべて通過。
+- swiftlint: main とのベースライン差分ゼロ（54 件 → 54 件）。
+- 計装（`SwitchTrace.swift` / `PipelineTrace` / 各 mark / `ZoomingPDFView.draw` の override）は全撤去済み。撤去後のビルドでアプリを起動し、PDF を開いてクラッシュしないことを確認した。
+
+## 計測中に踏んだこと（記録）
+
+一時計装のバグでアプリを 1 回クラッシュさせた（SIGTRAP / arithmetic overflow）。`SwitchTrace` の基準時刻を `static let` の遅延初期化に任せたため、`DispatchTime.now() - base` の `base` が now より後に初期化され、符号なし減算がアンダーフローした。アプリ本体の問題ではない。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+PDF 切り替えの間を区間ごとに実測し、最大の PDF 固有区間へ対処した。
+
+実測（151 ページ / 128KB、窓内の .md → .pdf 切替、2 回とも再現）では、切り替え全体 49ms のうち PDF の実処理（読み込み・ハッシュ・PDFDataProbe・PDFDocument 生成・レイアウト）は約 7ms しかなく、残りは (1) メインアクターの空き待ち 22〜28ms と (2) AppKit の表示サイクル待ち 12〜16ms だった。(1) は .md でも同じ待ちを踏むので PDF 固有ではない。
+
+(2) に対し PDFPreviewView.updateNSView の layoutSubtreeIfNeeded 直後へ pdfView.display() を足し、最初のフレームを同じ実行の中で描くようにした。レイアウト完了から最初の描画までが 12.4/16.0ms → 0.24/0.27ms、切り替え全体が 48.95/48.67ms → 34.8/34.65ms（−14.2ms / −29%）。displayIfNeeded は 2 回に 1 回しか効かず不採用。
+
+窓内切り替えの再現には FileWatcher の rename 追従を使った（同一 inode のまま .md へ PDF を書き、.pdf へ改名）。新規ウィンドウで開く測り方は窓の初回表示を含み 111ms 対 49ms とずれるため使えない。
+
+残る (1) は共通経路の実行順序の変更になるため別タスクとする。swift test 1804 tests 全通過、swiftlint ベースライン差分ゼロ、計装は全撤去。
+<!-- SECTION:FINAL_SUMMARY:END -->
