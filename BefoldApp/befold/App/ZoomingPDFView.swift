@@ -180,6 +180,43 @@ final class ZoomingPDFView: PDFView {
     /// キーボードスクロールのアニメーション時間。
     private static let scrollAnimationDuration: Double = 0.25
 
+    // MARK: - 検索の表示
+
+    /// 検索の一致を面へ映す（TASK-570）。
+    ///
+    /// `highlightedSelections` は**ユーザー選択とは別の系統**で、クリックしても消えない
+    /// （PDFKit のヘッダが全マッチのハイライト用途として挙げている）。現在の 1 件だけを
+    /// `currentSelection` にも入れて色を変え、web 面の `mark.mmd-find-match` /
+    /// `-current` の 2 段階に対応させる。
+    ///
+    /// - Parameter scroll: 現在の一致まで送るか。検索の進行中に件数だけが増えていく間は
+    ///   false にする。毎回送ると、まだ読んでいる最中に画面が飛び続ける。
+    func showFindMatches(_ selections: [PDFSelection], current: PDFSelection?, scroll: Bool = true) {
+        for selection in selections {
+            selection.color = Self.findMatchColor
+        }
+        current?.color = Self.currentFindMatchColor
+        highlightedSelections = selections.isEmpty ? nil : selections
+        currentSelection = current
+        guard scroll, let current else { return }
+        go(to: current)
+    }
+
+    /// 検索の表示を消す。バーを閉じたときと、文書を差し替えたときに呼ぶ。
+    func clearFindMatches() {
+        highlightedSelections = nil
+        clearSelection()
+    }
+
+    /// 一致の色。web 面の `mark.mmd-find-match`（rgba(255, 213, 0, 0.55)）に合わせる。
+    private static let findMatchColor = NSColor(
+        srgbRed: 1.0, green: 213.0 / 255.0, blue: 0, alpha: 0.55
+    )
+    /// 現在の一致の色。web 面の `mark.mmd-find-match-current`（--accent）に対応する。
+    /// **ユーザー選択と同じ色にしない**（PDFKit のヘッダの推奨。どれが検索結果で
+    /// どれが自分で選んだ範囲かが見分けられなくなる）。
+    private static let currentFindMatchColor = NSColor.controlAccentColor.withAlphaComponent(0.6)
+
     // MARK: - レイアウト
 
     /// **内側のスクロールビューの拡大縮小をここで切る。** 切らないと

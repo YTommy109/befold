@@ -13,7 +13,7 @@ struct ViewerMenuValidatorTests {
         var capabilities: ViewerCapabilities = .init(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: true,
-            supportsSourceMode: true, supportsDiffDisplay: true,
+            supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: false,
             isDocumentJumpEnabled: true
         )
@@ -46,7 +46,8 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, supportsSourceMode: true,
-            supportsDiffDisplay: true, gitDiffAvailability: .changed, isDirectHTMLMode: true,
+            supportsDiffDisplay: true, supportsFind: true,
+            gitDiffAvailability: .changed, isDirectHTMLMode: true,
             isDocumentJumpEnabled: true
         )
 
@@ -73,7 +74,7 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: false,
-            supportsSourceMode: true, supportsDiffDisplay: true,
+            supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: false,
             isDocumentJumpEnabled: true
         )
@@ -155,7 +156,8 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: true, showsCodeContent: false, supportsSourceMode: false,
-            supportsDiffDisplay: false, gitDiffAvailability: .changed, isDirectHTMLMode: false,
+            supportsDiffDisplay: false, supportsFind: true,
+            gitDiffAvailability: .changed, isDirectHTMLMode: false,
             isDocumentJumpEnabled: true
         )
 
