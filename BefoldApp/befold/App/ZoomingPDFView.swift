@@ -205,6 +205,16 @@ final class ZoomingPDFView: PDFView {
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
+    /// 指定したページの先頭へ飛ぶ（TASK-578.2）。**面への書き込みはここを通る**ので、
+    /// ページ位置表示のモデルは PDFKit の `go(to:)` を直接叩かない（TASK-574.1）。
+    ///
+    /// 着地は倍率によらずそのページになる（実測: 10 ページの文書で、縦フィットでも
+    /// 3 倍拡大でも `PDFSurfaceLayout.currentPageIndex` が指定したページと一致した）。
+    func go(toPageAt index: Int) {
+        guard let page = document?.page(at: index) else { return }
+        go(to: page)
+    }
+
     /// 指定量だけアニメーションでスクロールする。**向きの規則は
     /// `PDFSurfaceLayout.scrollOffset(forFraction:room:)` の doc が持つ**(下へ送るほど
     /// y は減る)。キーボード操作の入口(`keyDown`)は方向を決めて委譲するだけにする。

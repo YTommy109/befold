@@ -123,6 +123,7 @@ enum ViewerWindowAssembler {
             webViewProxy: controller.surfaces.web,
             pdfFind: controller.surfaces.pdfFind,
             pdfViewProxy: controller.surfaces.pdf,
+            pdfPageIndicator: controller.surfaces.pdfPageIndicator,
             pdfActions: PDFSurfaceActions(
                 // 面の中で完結する倍率操作の受け口。届いた倍率の扱い(ライブ値と保存値)は
                 // JS 由来の倍率通知と同じ 1 箇所へ寄せる。
