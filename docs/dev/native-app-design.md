@@ -152,7 +152,7 @@ BefoldApp/
 | `RecentDocumentsStore` / `RecentDocumentsMenuController` | 最近使ったファイルを UserDefaults に自前で永続化しメニュー描画（ad-hoc 署名では OS 標準の Recent Documents が更新のたびにリセットされるため） |
 | `SessionStore` | 終了時のウィンドウ/タブグループ構成（`SessionLayout`）の型 |
 | `ZoomStore` | ファイルごとのズーム倍率を永続化（0.5〜2.0、25% 刻み） |
-| `WindowPresentationMemory` | ファイルごとのスクロール位置（レンダリング/ソース別）と表示モード（レンダリング/ソース/差分）を、**その窓の生存期間だけ**記憶する。`UserDefaults` を型の依存として持たず、永続化できない。生成するのは `ViewerDocumentPresenter` の 1 箇所だけで、窓ごとに 1 個（TASK-565） |
+| `WindowPresentationMemory` | ファイルごとのスクロール位置（レンダリング/ソース別）・表示モード（レンダリング/ソース/差分）・回転角を、**その窓の生存期間だけ**記憶する。`UserDefaults` を型の依存として持たず、永続化できない。生成するのは `ViewerDocumentPresenter` の 1 箇所だけで、窓ごとに 1 個（TASK-565）。表は「記憶の種類」で並び、面（web / PDF）では分けない——どの面がどれを使うかは能力（`canRotate` 等）が決める（TASK-574.3）。**記憶へ位置が届く経路は両面とも「切替直前の pull」1 本**。かつて web 面だけが持っていたスクロールごとの継続通知は、位置を永続化していた頃の名残なので撤去した（`PresentationMemoryWriteDirectionTests` が復活を検知する） |
 | `PathKeyedTable` | メモリ上の「正規化パス → 値」表。`PathKeyedDictionary`（永続）とキーの規約と rename 追従を揃えつつ、`UserDefaults` を持たない |
 | `SidebarDisplayDefaults` | サイドバー表示 4 値（表示形式・不可視ファイル・変更ファイルのみ・並び順）の**新規ウィンドウの初期値**をアプリ全体で永続化。ライブ値は窓ごと（ADR 0002「窓の状態」）で、窓は初期値の `SidebarDisplaySettings`（値型）と書き戻し用の `SidebarDisplayDefaultsRecording`（読み取りを持たない）だけを受け取る |
 | `FindOptionsPreference` | 検索の3トグル（大文字小文字区別・単語一致・正規表現）をアプリ全体で永続化 |
@@ -205,11 +205,11 @@ BefoldApp/
 | `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ）。外部の HTML 文書だけは例外で、文書が canvas ごと所有するためこの色は使われない |
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |
 | `PDFViewProxy` | 同上の `PDFView` 版。面ごとに 1 つ持つ |
-| `PDFPreviewView` | PDF の描画面。`ZoomingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして描く |
-| `ZoomingPDFView` | `PDFView` のサブクラス。ピンチ（`NSMagnificationGestureRecognizer`）と Ctrl+ホイールを倍率操作として受け、スペース / Shift+スペースの送る向きを決めて `PDFSurfaceLayout` へ委ねる。倍率（1.0 = ページ全体が収まる）を面が覚え、リサイズ・回転のたびに `layout` で入れ直す（`autoScales` は使わない）。**`document` プロパティを override してはならない**——PDFKit がバックグラウンドから読むため、`@MainActor` 隔離の override は `SIGTRAP` で落ちる（TASK-567） |
+| `PDFPreviewView` | PDF の描画面。`ZoomingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして `ZoomingPDFView.present(document:rotation:zoom:scrollFraction:)` へ渡すだけの薄い層。差し替えの順序をここには書かない（TASK-574.1） |
+| `ZoomingPDFView` | `PDFView` のサブクラス。**この面への書き込みはすべてここを通る**（TASK-574.1）。文書の差し替え手順を `present(document:rotation:zoom:scrollFraction:)` が同期 1 本で持ち（文書 → 回転 → 倍率 → `layoutSubtreeIfNeeded()` → 位置）、保留状態を作らない。表示設定と一度きりの配線は `init` が済ませるので、未設定の面は存在できない。ピンチ（`NSMagnificationGestureRecognizer`）と Ctrl+ホイールを倍率操作として受ける。倍率（1.0 = ページ全体が収まる）を面が覚え、リサイズのたびに `layout` で入れ直す（`autoScales` は使わない）。回転は `layout` を起こさないので、`rotate(byDegrees:)` が回した直後に同期で入れ直す（メインキューへ後回しにすると、切り替え時に続けて入る `initialZoom` を前のファイルの倍率で上書きする / TASK-572）。**`document` プロパティを override してはならない**——PDFKit がバックグラウンドから読むため、`@MainActor` 隔離の override は `SIGTRAP` で落ちる（TASK-567） |
 | `PDFRotationOverlay` | PDF の右上に重ねる回転コントロール。メニューには置かない（その面を見ているときにしか意味が無い操作なので、対象の隣に置く） |
 | `PDFSurfaceActions` | PDF 面と窓のあいだの受け渡し（倍率の通知・回転の要求）を 1 つにまとめた値。View の注入クロージャを 3 つ以下に保つため |
-| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。`.singlePageContinuous` の設定、「倍率 1.0 = ページ全体が収まる状態」の換算、表示位置(文書全体に対する 0…1)の取得と復元、90 度回転を持つ |
+| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。**換算だけを持ち、面を変更しない**（TASK-574.1）。「倍率 1.0 = ページ全体が収まる状態」の定義、フィット倍率、表示位置（文書全体に対する 0…1）の取得、スクロール余地、回転角の正規化。WebView 面の `ContentUpdatePlanner`（純関数）にあたる層で、書き込みは `ZoomingPDFView` が行う |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
 | `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` / `GitFolderStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す（ファイル行は変更種別の文字、フォルダー行は集約を示す `•`） |
 | `SidebarTableViewLocator` | SwiftUI List の内部 NSTableView を取得するブリッジ |
@@ -247,9 +247,11 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   PDF では検索とジャンプができないので、`canFind` / `canJump` は
   `!isBinaryContent` で閉じてある（画像も同様）
 - **PDF の見え方**: 全ページを縦に連ねて描き（`.singlePageContinuous`）、
-  スクロールはページ境界で止まらず連続する。既定ではページの幅が収まる倍率に
-  自動追従する（`autoScales`）。ウィンドウをリサイズしてもフィットし続け、
-  ユーザーが倍率を変えた時点で追従を外し、⌘0（既定のサイズ）で戻す。
+  スクロールはページ境界で止まらず連続する。**`autoScales` は使わない**——連続
+  スクロールでの `PDFView` の自動追従は幅基準で、ページの下端が画面外に出る
+  （実測: 面 400x500 / Letter でページ高 517.65pt）。倍率は面（`ZoomingPDFView`）が
+  「1.0 = フィット」の意味で覚え、ウィンドウのリサイズや回転への追従は
+  `ZoomingPDFView.layout` が毎レイアウトで入れ直す。⌘0 で 1.0（フィット）へ戻す。
   当初は 1 ページずつ描いてホイールをページ送りへ振り替えていたが、
   ページが瞬時に切り替わる体感の悪さから連続スクロールへ改めた（TASK-567）。
   ページの影は描かない（連続では全ページ分の影が乗り、描画コストの大半を占める。
@@ -303,7 +305,7 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   排他は引き続き `viewer-src/bar.ts` が持つ**。バー全体の開閉は
   `bar.ts` が一元管理し、モード切替スイッチの選択表示・非対応モードの非表示
   （`ViewerCapabilities.canJump(to:)` 由来）は `bar-mode.ts` が薄い調整役として持つ。
-  Swift 側は `WebViewCommandController.openBar(kind:)` が単一入口で、
+  Swift 側は `DocumentCommandController.openBar(kind:)` が単一入口で、
   `kind` を明示すれば常にそのモードを強制し（Edit メニューの各項目）、
   `kind` が `nil`（⌘F の非明示オープン）のときだけ `ViewerCapabilities.showsDiff`
   を見て検索 / 変更箇所ジャンプへ既定を振り分ける。
@@ -348,11 +350,11 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   viewer 側は開いている種類がそこに無ければ閉じる。集合は
   `DocumentJumpKind.allCases` を `canJump(to:)` で絞って作るため、
   **開く条件と開き続けられる条件が同じ述語**になり、種類を足したときの
-  載せ忘れも起きない（列挙を手書きに変えると `WebViewCommandControllerTests` が落ちる）。
+  載せ忘れも起きない（列挙を手書きに変えると `DocumentCommandControllerTests` が落ちる）。
   送信の契機は `ViewerWindowController.refreshUIState()` — 表示モード変更・
   ファイル切替・フォルダー一覧⇄文書の切替がすべて通る唯一の再同期点。
   検索バーは同じ扱いにしない。`canFind` は表示モードに依存しないため失効しない。**コマンド経路（`DocumentRendering.openJump(kind:)` と
-  `WebViewCommandController.openJump(kind:)`）は種類を生の String ではなく
+  `DocumentCommandController.openJump(kind:)`）は種類を生の String ではなく
   `DocumentJumpKind` で運び、`canJump(to:)` で閉じる**。粗い `canJump` だけで通すと
   種類別の規則をメニュー検証だけが守る形になり、メニュー以外の入口（キーバインド・
   ツールバー）が同じ穴を継承するため（TASK-485.7）。文字列へ落とすのは JS 境界の

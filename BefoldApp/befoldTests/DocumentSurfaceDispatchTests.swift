@@ -168,7 +168,7 @@ struct DocumentSurfaceDispatchTests {
         let path = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // befoldTests
             .deletingLastPathComponent() // BefoldApp
-            .appendingPathComponent("befold/App/WebViewCommandController.swift")
+            .appendingPathComponent("befold/App/DocumentCommandController.swift")
         return try String(contentsOf: path, encoding: .utf8)
     }
 
@@ -253,10 +253,10 @@ struct DocumentSurfaceDispatchTests {
         pdf: RecordingSurface,
         store: ViewerStore? = nil,
         defaults: UserDefaults? = nil
-    ) -> WebViewCommandController {
+    ) -> DocumentCommandController {
         let defaults = defaults ?? makeIsolatedDefaults(prefix: "DocumentSurfaceDispatchTests")
         let store = store ?? ViewerStore(defaults: defaults)
-        return WebViewCommandController(
+        return DocumentCommandController(
             surfaces: DocumentSurfaces(webRenderer: web, pdfRenderer: pdf),
             perFileState: PerFileStateStore(defaults: defaults),
             currentDocument: CurrentDocumentRef(

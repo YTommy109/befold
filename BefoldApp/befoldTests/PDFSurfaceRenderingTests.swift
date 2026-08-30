@@ -37,8 +37,7 @@ struct PDFSurfaceRenderingTests {
                 document.insert(page, at: index)
             }
         }
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
+        let pdfView = ZoomingPDFView(frame: .zero)
         // 地を明示的に黒く塗る。連続スクロールでは文書を外した面が
         // `underPageBackgroundColor` を描かなくなり、地の色を指定していないと
         // 「文書が外れている」ことを画素で測れない(実測: 外した直後も明るい画素 100%)。
@@ -72,9 +71,10 @@ struct PDFSurfaceRenderingTests {
         return total > 0 ? Double(dark) / Double(total) : 0
     }
 
-    /// PDFKit がメインキューへ積んだ再レイアウトと、こちらが積んだ倍率の入れ直しを
-    /// 走らせる。回転は同期には完了しない(`PDFSurfaceLayout.rotate` の doc)。
-    /// `RunLoop.run(until:)` では走らない(下の `MainQueueDrainTests` の実測)。
+    /// PDFKit がメインキューへ積んだ再レイアウト（`didRotatePage` のブロック）を
+    /// 走らせる。倍率の入れ直しは `PDFSurfaceLayout.rotate` が同期で済ませる（TASK-572）ので
+    /// ここで待つのは PDFKit 側だけ。`RunLoop.run(until:)` では走らない
+    /// (下の `MainQueueDrainTests` の実測)。
     private func settleLayout() async {
         try? await Task.sleep(for: .milliseconds(200))
     }
@@ -111,7 +111,7 @@ struct PDFSurfaceRenderingTests {
         let pdfView = makeView(pageCount: 3)
 
         // ページ送りの操作を挟まず、スクロールだけで文書の途中まで進める。
-        PDFSurfaceLayout.restore(fraction: 0.5, in: pdfView)
+        pdfView.restore(fraction: 0.5)
         pdfView.layoutSubtreeIfNeeded()
 
         // 3 ページ分が 1 本に連なっているので、半分まで来ても白いページが見えている
@@ -137,7 +137,7 @@ struct PDFSurfaceRenderingTests {
         let pdfView = makeView(pageCount: 1)
         let before = try #require(pageRect(in: pdfView))
 
-        PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+        pdfView.rotate(byDegrees: 90)
         await settleLayout()
         pdfView.layoutSubtreeIfNeeded()
 
@@ -175,7 +175,7 @@ struct PDFSurfaceRenderingTests {
     }
 }
 
-/// テストの前提そのものの確認。回転後の再フィットはメインキューへ積まれるので、
+/// テストの前提そのものの確認。回転後の PDFKit の再レイアウトはメインキューへ積まれるので、
 /// **テストがメインキューを明け渡さない限り観測できない**。
 /// 実測: `RunLoop.current.run(until:)` では走らず（Swift Testing の @MainActor テストは
 /// メインキューを自分で回さない）、`await Task.sleep` なら走る。

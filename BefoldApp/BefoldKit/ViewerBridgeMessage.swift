@@ -11,11 +11,6 @@ import Foundation
 /// ここの文字列を変更する場合は viewer.html 側の定義とあわせて変更すること
 /// (整合性は ViewerBridgeContractTests がソースを読んで検証する)。
 public enum ViewerBridgeMessage: String, CaseIterable, Sendable {
-    /// JS 側でスクロール位置が変わったとき。
-    /// payload: { position: Double, mode: String, path: String | null }
-    /// path は位置を読んだ時点で DOM に出ていた文書のパス(renderDocPathScript で予告した値)。
-    case scrollPositionChanged
-
     /// JS 側で全体ズーム倍率が変わったとき。
     /// payload: { zoom: Double, path: String | null }
     /// path は倍率を読んだ時点で DOM に出ていた文書のパス(renderDocPathScript で予告した値)。
@@ -50,7 +45,7 @@ public enum ViewerBridgeMessage: String, CaseIterable, Sendable {
     /// そもそも登録しない(多層防御: XSS が postMessage を直接呼んでも Swift へ届かない)。
     public var requiresInteractiveBridging: Bool {
         switch self {
-        case .scrollPositionChanged, .zoomChanged, .findOptionsChanged, .jumpLevelsChanged:
+        case .zoomChanged, .findOptionsChanged, .jumpLevelsChanged:
             false
         case .referenceActivated, .referenceContextMenu, .loadMoreLines, .resolveReferences:
             true
@@ -63,7 +58,6 @@ public enum ViewerBridgeMessage: String, CaseIterable, Sendable {
     var payloadKeys: Set<String>? {
         switch self {
         case .zoomChanged: Set(PayloadKey.ZoomChanged.allCases.map(\.rawValue))
-        case .scrollPositionChanged: Set(PayloadKey.ScrollPositionChanged.allCases.map(\.rawValue))
         case .findOptionsChanged: Set(PayloadKey.FindOptionsChanged.allCases.map(\.rawValue))
         case .jumpLevelsChanged: Set(PayloadKey.JumpLevelsChanged.allCases.map(\.rawValue))
         case .referenceActivated: Set(PayloadKey.ReferenceActivated.allCases.map(\.rawValue))
@@ -84,23 +78,14 @@ public enum ViewerBridgeMessage: String, CaseIterable, Sendable {
             case shiftKey
         }
 
-        /// scrollPositionChanged のキー。
-        public enum ScrollPositionChanged: String, CaseIterable, Sendable {
-            case position
-            case mode
-            /// その位置が属する文書のパス。JS が位置(scrollTop)を読むのと同じターンで
-            /// 読んで載せるため、evaluateJavaScript のキューや postMessage 配達の遅延と
-            /// 無関係に実 DOM の文書と一致する(Swift 側の描画済みミラーからの推定を
-            /// やめた理由 = TASK-393)。文書が定まらない間(描画前)は null。
-            case path
-        }
-
         /// zoomChanged のキー。
         public enum ZoomChanged: String, CaseIterable, Sendable {
             case zoom
-            /// その倍率が属する文書のパス。ScrollPositionChanged.path と同じ理由で
-            /// JS 側が発火時に申告する(切替直後に配達された通知が切替先のキーを
-            /// 汚すのを防ぐ = TASK-391。scroll 側の同型 1 件目は TASK-400)。
+            /// その倍率が属する文書のパス。JS が倍率を読むのと同じターンで読んで
+            /// 載せるため、evaluateJavaScript のキューや postMessage 配達の遅延と
+            /// 無関係に実 DOM の文書と一致する(Swift 側の描画済みミラーからの推定を
+            /// やめた理由 = TASK-393)。切替直後に配達された通知が切替先のキーを
+            /// 汚すのを防ぐ(TASK-391)。文書が定まらない間(描画前)は null。
             case path
         }
 

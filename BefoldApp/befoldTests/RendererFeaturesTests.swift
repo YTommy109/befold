@@ -39,7 +39,7 @@ struct RendererFeaturesTests {
         #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
         #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
         #expect(!names.contains(ViewerBridge.resolveReferencesMessageName))
-        #expect(names.count == 4)
+        #expect(names.count == 3)
     }
 
     @Test("allowsSpaceScroll は静的プレビューで false、本体アプリで true")

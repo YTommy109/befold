@@ -28,9 +28,9 @@ struct PDFPreviewView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> ZoomingPDFView {
         // ピンチと Ctrl+ホイールを倍率操作として受ける面。スクロールは `PDFView` に
-        // 任せる(TASK-567)。レイアウト規則は PDFSurfaceLayout が単一の情報源。
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
+        // 任せる(TASK-567)。表示設定と配線は面の init が済ませているので、
+        // ここで設定し忘れた面が出回ることはない(TASK-574.1)。
+        let pdfView = ZoomingPDFView(frame: .zero)
         pdfView.backgroundColor = .windowBackgroundColor
         pdfView.onZoomChanged = onZoomChanged
         pdfViewProxy.pdfView = pdfView
@@ -43,25 +43,16 @@ struct PDFPreviewView: NSViewRepresentable {
         guard isVisible else { return }
         guard context.coordinator.appliedRevision != contentRevision else { return }
         context.coordinator.appliedRevision = contentRevision
-        // data が nil の間(PDF 以外を表示中)は文書を外す。残すと、別種別を見ている
+        // 差し替えの順序(文書 → 回転 → 倍率 → レイアウト → 位置)は面が持つ。
+        // ここは「新しい入力が来た」ことを伝えるだけで、順序をこちらに書かない
+        // (TASK-574.1)。data が nil の間は文書を外す——残すと、別種別を見ている
         // 最中に PDF 面が古い文書を抱え続け、印刷が前のファイルを刷る。
-        guard let data else {
-            pdfView.document = nil
-            return
-        }
-        pdfView.document = PDFDocument(data: data)
-        // 回転は倍率より先に合わせる(縦横比が変わるとフィット倍率も変わるため)。
-        PDFSurfaceLayout.apply(rotation: rotation, to: pdfView)
-        // **最初の 1 フレームより前に倍率を確定させる。** レイアウト任せにすると、
-        // 切り替え直後の 1 フレームがフィット前の倍率で描かれ、その後に縮む過程が
-        // 見える(サイドバーで .md → .pdf と送ったときの「レンダリングの経過が見える」/
-        // TASK-567 のユーザー報告)。
-        PDFSurfaceLayout.apply(zoom: initialZoom, to: pdfView)
-        // 位置は余地が決まってからでないと入らないので面へ預け、下の同期レイアウトで
-        // 入れる。余地がまだ 0 なら次のレイアウトへ持ち越される。
-        pdfView.pendingRestoreFraction = scrollPositionToRestore
-        // ここでレイアウトまで済ませ、倍率・位置が入った状態で最初の描画を迎える。
-        pdfView.layoutSubtreeIfNeeded()
+        pdfView.present(
+            document: data.flatMap { PDFDocument(data: $0) },
+            rotation: rotation,
+            zoom: initialZoom,
+            scrollFraction: scrollPositionToRestore
+        )
     }
 
     func makeCoordinator() -> Coordinator {

@@ -14146,7 +14146,6 @@
     _MSG_REFERENCE_ACTIVATED: () => _MSG_REFERENCE_ACTIVATED,
     _MSG_REFERENCE_CONTEXT_MENU: () => _MSG_REFERENCE_CONTEXT_MENU,
     _MSG_RESOLVE_REFERENCES: () => _MSG_RESOLVE_REFERENCES,
-    _MSG_SCROLL_POSITION_CHANGED: () => _MSG_SCROLL_POSITION_CHANGED,
     _MSG_ZOOM_CHANGED: () => _MSG_ZOOM_CHANGED,
     _annotatePathRefs: () => _annotatePathRefs,
     _mmdApplyDiagramZoom: () => _mmdApplyDiagramZoom,
@@ -14180,7 +14179,6 @@
     _mmdInitLoadMore: () => _mmdInitLoadMore,
     _mmdInitReferenceClicks: () => _mmdInitReferenceClicks,
     _mmdInitResize: () => _mmdInitResize,
-    _mmdInitScrollNotify: () => _mmdInitScrollNotify,
     _mmdInitWheelZoom: () => _mmdInitWheelZoom,
     _mmdInitZoom: () => _mmdInitZoom,
     _mmdInvalidatePendingRefs: () => _mmdInvalidatePendingRefs,
@@ -14194,7 +14192,6 @@
     _mmdOpenFind: () => _mmdOpenFind,
     _mmdOpenJump: () => _mmdOpenJump,
     _mmdPostMessage: () => _mmdPostMessage,
-    _mmdPostScrollPosition: () => _mmdPostScrollPosition,
     _mmdReinitializeMermaidIfLoaded: () => _mmdReinitializeMermaidIfLoaded,
     _mmdRenameDocPath: () => _mmdRenameDocPath,
     _mmdRerenderCurrent: () => _mmdRerenderCurrent,
@@ -14397,7 +14394,6 @@
   var _MSG_REFERENCE_CONTEXT_MENU = "referenceContextMenu";
   var _MSG_FIND_OPTIONS_CHANGED = "findOptionsChanged";
   var _MSG_JUMP_LEVELS_CHANGED = "jumpLevelsChanged";
-  var _MSG_SCROLL_POSITION_CHANGED = "scrollPositionChanged";
   var _MSG_LOAD_MORE_LINES = "loadMoreLines";
   var _MSG_RESOLVE_REFERENCES = "resolveReferences";
   function _mmdPostMessage(name, payload) {
@@ -16423,31 +16419,11 @@
     }
     return document.querySelector(".viewer");
   }
-  function _createScrollSync(notify, docPathTracker) {
+  function _createScrollSync() {
     var pendingRestore = null;
-    var debounceTimer = null;
-    function cancelPendingNotify() {
-      if (debounceTimer === null) {
-        return;
-      }
-      clearTimeout(debounceTimer);
-      debounceTimer = null;
-    }
     return {
       setRestore: function(position) {
         pendingRestore = position;
-      },
-      // 復元位置が注入されている(=Swift 主導のファイル/モード切替)ときだけ保留中の
-      // デバウンス通知を破棄する。無条件に破棄すると、Swift を経由しない内部再描画
-      // (カラースキーム変更時など、ファイル/モードは変わらない)で直前のスクロール確定
-      // 保存が失われたまま二度と発火しなくなるため。
-      // 文書パスの採用も同じ時点で行う。破棄と採用が同時なので、旧文書の位置が
-      // 新パスのキーで通知されることはない。
-      beginRender: function() {
-        if (pendingRestore !== null) {
-          cancelPendingNotify();
-        }
-        docPathTracker.adoptPending();
       },
       // 注入された復元位置があればそれを、無ければ fallback を返して消費する。
       // fallback は Swift を経由しない内部再描画で現在位置を保つための値。
@@ -16455,26 +16431,10 @@
         var position = pendingRestore === null ? typeof fallback === "number" ? fallback : 0 : pendingRestore;
         pendingRestore = null;
         return position;
-      },
-      notifyDebounced: function() {
-        cancelPendingNotify();
-        debounceTimer = setTimeout(function() {
-          debounceTimer = null;
-          notify();
-        }, 200);
       }
     };
   }
-  function _mmdPostScrollPosition() {
-    var el = _mmdScrollTarget();
-    if (!el) return;
-    _mmdPostMessage(_MSG_SCROLL_POSITION_CHANGED, {
-      position: el.scrollTop,
-      mode: _mmdViewOptions.mode(),
-      path: _mmdDocPath.current()
-    });
-  }
-  var _mmdScroll = _createScrollSync(_mmdPostScrollPosition, _mmdDocPath);
+  var _mmdScroll = _createScrollSync();
   function _mmdSetRestoreScroll(position) {
     _mmdScroll.setRestore(position);
   }
@@ -16482,15 +16442,6 @@
     var el = _mmdScrollTarget();
     if (!el) return;
     el.scrollTop = _mmdScroll.takeRestorePosition(fallbackScrollTop);
-  }
-  function _mmdInitScrollNotify() {
-    document.addEventListener(
-      "scroll",
-      function() {
-        _mmdScroll.notifyDebounced();
-      },
-      true
-    );
   }
 
   // viewer-src/jump-providers.ts
@@ -24393,7 +24344,7 @@
     _mmdJump.refresh(modeJustSwitched);
   }
   async function render(content, type, lang) {
-    _mmdScroll.beginRender();
+    _mmdDocPath.adoptPending();
     _mmdJump.invalidate();
     var scrollTargetBeforeRender = _mmdScrollTarget();
     var fallbackScrollTop = scrollTargetBeforeRender ? scrollTargetBeforeRender.scrollTop : 0;
@@ -24591,7 +24542,6 @@
     _mmdInitResize();
     _mmdInitColorScheme();
     _mmdFind.initControls();
-    _mmdInitScrollNotify();
     _mmdInitLoadMore();
     _mmdInitZoom();
     _mmdInitFontSize();

@@ -4,6 +4,7 @@
 import { buildLineNumberRows, codeChunkInnerHtml, lastLines } from './code-html.js';
 import { csvRowsHtml, csvSourceInnerHtml, parseCsv } from './csv-html.js';
 import { _mmdCsvNumberFormat } from './csv-number-format.js';
+import { _mmdDocPath } from './doc-path.js';
 import { _mmdChunkTail, _mmdCsvColumns, _mmdDocument } from './document-state.js';
 import { _mmdFind } from './find.js';
 import { _mmdJump } from './jump.js';
@@ -25,7 +26,7 @@ import {
   _renderSource,
   _renderSvg,
 } from './renderers.js';
-import { _mmdRestoreScrollPosition, _mmdScroll, _mmdScrollTarget } from './scroll.js';
+import { _mmdRestoreScrollPosition, _mmdScrollTarget } from './scroll.js';
 import { hljs } from './vendor.js';
 import { _mmdModeSwitch, _mmdViewOptions } from './view-options.js';
 import { _mmdApplyZoom } from './zoom.js';
@@ -86,7 +87,10 @@ function _mmdFindRefreshAfterRender(): void {
 }
 
 async function render(content: string, type: string, lang: string | undefined): Promise<void> {
-  _mmdScroll.beginRender();
+  // 予告されていた文書パスをここで採用する。以後の per-file な通知(倍率)は
+  // このパスをキーにする。render 開始より前に採用すると、まだ旧文書が DOM に
+  // 出ている間の通知が新パスのキーで保存される。
+  _mmdDocPath.adoptPending();
   // 描画の着地まで（mermaid の描画を await する間）DOM は既に差し替わっている。
   // 目印の列は列そのものが状態なので、ここで捨てておかないと前の文書の
   // n/N と現在位置ハイライトがその間ずっと表示され続ける。

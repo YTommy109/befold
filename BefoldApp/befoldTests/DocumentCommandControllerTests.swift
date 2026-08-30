@@ -11,7 +11,7 @@ import Testing
 /// 命令が届いたかどうかをテストで区別できなかった。
 ///
 /// `private` ではなく型内部可視性(既定の internal)にしてあるのは、
-/// `WebViewCommandController+OpenBarTests.swift` からも使うため
+/// `DocumentCommandController+OpenBarTests.swift` からも使うため
 /// (file_length 対策の分割。Swift の `private` はファイルスコープなので
 /// 分割先から見えなくなる)。
 @MainActor
@@ -103,7 +103,7 @@ extension ZoomChange: @retroactive Equatable {}
 
 @Suite
 @MainActor
-struct WebViewCommandControllerTests {
+struct DocumentCommandControllerTests {
     private let url = URL(fileURLWithPath: "/tmp/a.md")
 
     /// 窓のライブ倍率の代役。onZoomChanged で流れてきた値を順に記録する。
@@ -124,7 +124,7 @@ struct WebViewCommandControllerTests {
         var saves: [Save] = []
     }
 
-    /// `private` ではなく内部可視性にしてあるのは、`WebViewCommandController+
+    /// `private` ではなく内部可視性にしてあるのは、`DocumentCommandController+
     /// OpenBarTests.swift`(file_length 対策の分割先)からも呼ぶため。
     func makeController(
         renderer: FakeDocumentRenderer,
@@ -132,9 +132,9 @@ struct WebViewCommandControllerTests {
         zoomChanges: ZoomChangeRecorder = ZoomChangeRecorder(),
         scrollSaves: ScrollSaveRecorder = ScrollSaveRecorder(),
         capabilities: @escaping () -> ViewerCapabilities = { .allEnabledForTesting }
-    ) -> WebViewCommandController {
-        let defaults = makeIsolatedDefaults(prefix: "WebViewCommandControllerTests")
-        return WebViewCommandController(
+    ) -> DocumentCommandController {
+        let defaults = makeIsolatedDefaults(prefix: "DocumentCommandControllerTests")
+        return DocumentCommandController(
             // 面の束ごしに差し込む。宛先の決定は DocumentSurfaces が持つので、
             // ここでフェイクを直接コマンド側へ渡す形は取らない(TASK-564.6)。
             surfaces: DocumentSurfaces(webRenderer: renderer),
@@ -210,7 +210,7 @@ struct WebViewCommandControllerTests {
     @Test("直接 HTML モードで返った倍率だけを、窓のライブ値と保存値の両方へ反映する")
     func persistsZoomReturnedByRenderer() {
         let renderer = FakeDocumentRenderer()
-        let defaults = makeIsolatedDefaults(prefix: "WebViewCommandControllerTests")
+        let defaults = makeIsolatedDefaults(prefix: "DocumentCommandControllerTests")
         let perFileState = PerFileStateStore(defaults: defaults)
         let zoomChanges = ZoomChangeRecorder()
         let controller = makeController(
@@ -314,7 +314,7 @@ struct WebViewCommandControllerTests {
     }
 
     // 統合バーの単一入口(TASK-485.19.5)のテストは
-    // WebViewCommandController+OpenBarTests.swift へ分割した(file_length 対策)。
+    // DocumentCommandController+OpenBarTests.swift へ分割した(file_length 対策)。
 
     // 失効の同期(TASK-485.18)。開くときの guard と同じ canJump(to:) を通すことで、
     // 「開けるが開き続けられない」「開けないのに閉じない」という食い違いを作らない。

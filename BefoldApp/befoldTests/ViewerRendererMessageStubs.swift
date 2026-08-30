@@ -50,7 +50,6 @@ enum ViewerRendererMessageStubs {
     @MainActor
     final class Delegate: ViewerRendererDelegate {
         var onZoomChanged: ((Double, URL?) -> Void)?
-        var onScrollPositionChanged: ((Double, URL?, ViewerBridge.ViewMode) -> Void)?
         var onOpenReference: ((String, OpenDisposition) -> Void)?
         var onResolveReferences: (([String]) async -> [String: String])?
         var onLoadMoreLines: (() async -> LoadMoreLinesResult?)?
@@ -58,13 +57,6 @@ enum ViewerRendererMessageStubs {
 
         func renderer(_: ViewerRenderer, didChangeZoom zoom: Double, for url: URL?) {
             onZoomChanged?(zoom, url)
-        }
-
-        func renderer(
-            _: ViewerRenderer, didChangeScrollPosition position: Double, for url: URL?,
-            mode: ViewerBridge.ViewMode
-        ) {
-            onScrollPositionChanged?(position, url, mode)
         }
 
         func renderer(_: ViewerRenderer, didActivateReference href: String, disposition: OpenDisposition) {

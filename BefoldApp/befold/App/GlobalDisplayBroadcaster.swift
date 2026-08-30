@@ -57,7 +57,7 @@ final class GlobalDisplayBroadcaster {
     /// 中継メソッドを置くと、アプリの好みの読み手が窓ごとに増えてしまう。
     func applyCodeFontToAllWindows() {
         for controller in controllers() {
-            controller.webViewCommands.applyCodeFont(
+            controller.documentCommands.applyCodeFont(
                 family: codeFontPreference.fontFamily, points: codeFontPreference.fontSizePoints
             )
         }
@@ -67,7 +67,7 @@ final class GlobalDisplayBroadcaster {
     /// 即座に反映する。数値表示の設定変更(環境設定 UI)から呼ばれる。
     func applyCsvNumberFormatToAllWindows() {
         for controller in controllers() {
-            controller.webViewCommands.applyCsvNumberFormat(
+            controller.documentCommands.applyCsvNumberFormat(
                 grouping: csvNumberFormatPreference.grouping,
                 negativeStyle: csvNumberFormatPreference.negativeStyle
             )

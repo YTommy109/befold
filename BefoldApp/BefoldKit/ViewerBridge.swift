@@ -7,9 +7,6 @@ import Foundation
 /// 逆方向(JS → Swift の postMessage メッセージ名・ペイロードキー)は
 /// `ViewerBridgeMessage`、git 差分の呼び出しは `ViewerDiffBridge` が持つ。
 public enum ViewerBridge {
-    /// JS 側でスクロール位置が変わったときに postMessage されるメッセージハンドラ名。
-    public static let scrollPositionChangedMessageName = ViewerBridgeMessage.scrollPositionChanged.rawValue
-
     /// JS 側で全体ズーム倍率が変わったときに postMessage されるメッセージハンドラ名。
     public static let zoomChangedMessageName = ViewerBridgeMessage.zoomChanged.rawValue
 
@@ -170,8 +167,9 @@ public enum ViewerBridge {
     }
 
     /// render() 呼び出しの直前に評価し、次の render() が表示する文書のパスを JS 側へ
-    /// 予告するスクリプト。viewer.js は render 開始時に採用し、以後の scrollPositionChanged の
-    /// path として位置と同じターンで読んで返す(キーを配達時に Swift 側で推定しない = TASK-393)。
+    /// 予告するスクリプト。viewer.js は render 開始時に採用し、以後の per-file な通知
+    /// (倍率)の path として値と同じターンで読んで返す
+    /// (キーを配達時に Swift 側で推定しない = TASK-393)。
     /// パス文字列はここで normalizedPathKey に正規化する。renameDocPathScript の比較も
     /// 同じ生成点を通るため、表記ゆれで一致判定が破れない。
     public static func renderDocPathScript(_ url: URL?) -> String {
@@ -309,7 +307,7 @@ public enum ViewerBridge {
 
     /// いま使える目印の種類を JS へ知らせるスクリプト(TASK-485.18)。
     /// JS 側は開いているジャンプバーの種類がこの一覧から外れていれば閉じる。
-    /// 開くときの guard(`WebViewCommandController.openJump`)と同じ
+    /// 開くときの guard(`DocumentCommandController.openJump`)と同じ
     /// `ViewerCapabilities.canJump(to:)` の結果が渡るため、可否の規則は Swift 側の
     /// 1 箇所だけが持つ(JS 側で判定し直さない)。
     /// エンコードに失敗したときは空配列を入れる。ここでの空は「どの種類も使えない」で、

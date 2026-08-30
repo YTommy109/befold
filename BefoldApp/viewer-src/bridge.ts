@@ -19,7 +19,6 @@ var _MSG_REFERENCE_ACTIVATED = 'referenceActivated' as const;
 var _MSG_REFERENCE_CONTEXT_MENU = 'referenceContextMenu' as const;
 var _MSG_FIND_OPTIONS_CHANGED = 'findOptionsChanged' as const;
 var _MSG_JUMP_LEVELS_CHANGED = 'jumpLevelsChanged' as const;
-var _MSG_SCROLL_POSITION_CHANGED = 'scrollPositionChanged' as const;
 var _MSG_LOAD_MORE_LINES = 'loadMoreLines' as const;
 var _MSG_RESOLVE_REFERENCES = 'resolveReferences' as const;
 
@@ -31,7 +30,6 @@ type ViewerMessageName =
   | typeof _MSG_REFERENCE_CONTEXT_MENU
   | typeof _MSG_FIND_OPTIONS_CHANGED
   | typeof _MSG_JUMP_LEVELS_CHANGED
-  | typeof _MSG_SCROLL_POSITION_CHANGED
   | typeof _MSG_LOAD_MORE_LINES
   | typeof _MSG_RESOLVE_REFERENCES;
 
@@ -69,7 +67,6 @@ export {
   _MSG_REFERENCE_CONTEXT_MENU,
   _MSG_FIND_OPTIONS_CHANGED,
   _MSG_JUMP_LEVELS_CHANGED,
-  _MSG_SCROLL_POSITION_CHANGED,
   _MSG_LOAD_MORE_LINES,
   _MSG_RESOLVE_REFERENCES,
   _mmdPostMessage,
