@@ -1,9 +1,10 @@
 ---
 id: TASK-578
 title: PDF のページ位置表示とページ番号指定ジャンプ
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-30 11:57'
+updated_date: '2026-08-30 14:14'
 labels: []
 dependencies: []
 priority: medium
@@ -18,6 +19,12 @@ PDF 表示中に「現在ページ / 総ページ数」を常時わかるよう�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PDF 表示中は現在ページと総ページ数が常時見える
-- [ ] #2 その表示からページ番号を指定して当該ページへジャンプできる
+- [x] #1 PDF 表示中は現在ページと総ページ数が常時見える
+- [x] #2 その表示からページ番号を指定して当該ページへジャンプできる
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+サブタスク 578.1（常時表示）と 578.2（クリックしてページ番号でジャンプ）を完了した。PDF 面の左下に「現在ページ / 総ページ数」が常時出て、クリックすると数字入力へ変わり任意ページへ飛べる。両方とも実機で確認済み。
+<!-- SECTION:FINAL_SUMMARY:END -->

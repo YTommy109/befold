@@ -1,0 +1,46 @@
+---
+id: TASK-579
+title: PDF 面がキーボード操作の first responder になっていない
+status: To Do
+assignee: []
+created_date: '2026-08-30 14:14'
+labels:
+  - pdf
+dependencies: []
+priority: high
+type: bug
+ordinal: 843000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+PDF を開いた直後、面をクリックせずにスペースキーを押してもスクロールしない。
+
+## 実測（2026-08-30 / TASK-578.2 の作業中に判明）
+
+- CLI で 20 ページの PDF を開き、何も操作せずスペースを送っても表示は 1 ページ目のまま。
+- 同じ状態で `NSApp.keyWindow?.firstResponder` を記録すると `ZoomingPDFView` だった
+  （＝面が first responder ではあるが、合成キー入力が届いていない可能性もある）。
+- **これは TASK-577（キーボードスクロールの整備）以前からの挙動**で、TASK-577 の
+  変更が原因ではない。TASK-577 のキー割り当て自体はユニットテストで固定されている。
+
+## 併せて確認したいこと
+
+検索バー（`PDFFindOverlay`）の入力欄も同じ事情でフォーカスを取れていない可能性がある。
+実測では AX 上 `focused = false` のままで、合成キー入力では文字が入らなかった。
+TASK-578.2 ではページ番号入力を AppKit の `NSTextField`（`PageNumberField`）へ置き換え、
+窓へ入った 1 周後に `makeFirstResponder` を呼ぶことで解決した。同じ手当てが検索バーにも
+要るかを確かめる。
+
+**未確認**: 合成キー入力（System Events）が SwiftUI / PDFView へ届かないだけで、人が
+実際にキーを打てば動く可能性がある。まず人手でスペースキーを試し、再現するかを
+確かめてから着手すること。
+<!-- SECTION:DESCRIPTION:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [ ] #1 PDF を開いた直後、面をクリックせずにスペース・矢印・j/k でスクロールできる
+- [ ] #2 検索バーの入力欄が開いた直後にキー入力を受け付ける（同じ問題があれば PageNumberField と同じ手当てをする）
+- [ ] #3 人手での再現確認の結果（再現する／しない）を Notes に記録している
+<!-- AC:END -->

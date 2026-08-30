@@ -1,10 +1,10 @@
 ---
 id: TASK-578.2
 title: ページ数表示をクリックしてページ番号指定でジャンプできるようにする
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-30 11:57'
-updated_date: '2026-08-30 14:02'
+updated_date: '2026-08-30 14:14'
 labels: []
 dependencies:
   - TASK-578.1
@@ -22,10 +22,10 @@ ordinal: 842000
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 ページ数表示をクリックすると数字入力エリアに切り替わる
-- [ ] #2 ページ番号を入力して確定すると当該ページへジャンプする
+- [x] #2 ページ番号を入力して確定すると当該ページへジャンプする
 - [x] #3 範囲外・非数値の入力ではジャンプせず、表示が壊れない
-- [ ] #4 Esc など取り消し操作で入力を破棄して通常表示へ戻る
-- [ ] #5 確定/取り消しの後、現在ページ表示が実際の表示位置と一致する
+- [x] #4 Esc など取り消し操作で入力を破棄して通常表示へ戻る
+- [x] #5 確定/取り消しの後、現在ページ表示が実際の表示位置と一致する
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -113,4 +113,46 @@ SwiftUI の `TextField` へ届かず（`focused` が false のまま）、打っ
 したがって AC #2 / #4 / #5 は**ユーザーによる実機の手動確認が要る**（コード上は
 ユニットテストで固定済み）。もし実機で打った文字が入らない場合、直すべきはこの View
 ではなく responder の移動で、検索バーと共通の手当てになる。
+
+## 未検証だった AC #2 / #4 / #5 を実測で解決した
+
+前の Notes で「合成キー入力が届かないので手動確認が要る」としていたが、**計測したところ
+実際にフォーカスが移っていなかった**ので、コード側の欠陥だった。
+
+実測: `beginEditing()` の後に `NSApp.keyWindow?.firstResponder` を記録すると
+`ZoomingPDFView` のままで、`@FocusState` の値も false のままだった
+（`[FOCUSPROBE] firstResponder=Optional(befold.ZoomingPDFView) focusState=false`）。
+マウスでフィールドをクリックしても移らない。**SwiftUI の `TextField` + `@FocusState` は
+この面（AppKit がホストする PDFView の上に重なる SwiftUI）では機能しない。**
+
+### 直した形
+
+`PageNumberField`（`NSTextField` を `NSViewRepresentable` で包む）を新設した。
+
+- 窓へ入った**1 周後**に `makeFirstResponder` を呼ぶ。`updateNSView` のその場で呼ぶと
+  `field.window` がまだ nil で移らない（実測）。1 周待つと `makeFirstResponder` が true を
+  返し、first responder がフィールドエディタ（`NSTextView`）になる。
+- 確定（Enter）と取り消し（Esc）は `control(_:textView:doCommandBy:)` で受ける。
+  `onSubmit` / `onExitCommand` は first responder が移っていない以上そもそも呼ばれない。
+- 閉じるときは元の first responder へ返す。
+
+### 実機で確認した内容（20 ページの PDF）
+
+- AC #1: 表示をクリック（AXPress）すると入力欄が現れる（`AXTextField` が出る）
+- AC #2 / #5: "8" を打って Enter → ページ P8 が表示され、表示も `8 / 20` になった。
+  計測ログを外した最終ビルドでも "15" → `15 / 20` を再確認
+- AC #3: "99"（範囲外）を打って Enter → `8 / 20` のまま、入力欄は閉じ、表示は壊れない
+- AC #4: "3" を打って Esc → `8 / 20` のまま、入力欄が閉じる
+
+## 別件として起票した
+
+スペースキーで PDF がスクロールしない件を TASK-579 として起票した。**私の変更前からの
+挙動**で（何も操作していない起動直後でも再現）、TASK-577 のキー割り当てが原因ではない。
+合成キー入力側の限界の可能性もあるため、人手での再現確認を先に行うよう Description に書いた。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+PDF 左下のページ位置表示をクリックすると数字入力へ変わり、ページ番号を打って Enter で当該ページへ飛ぶようにした。範囲外・非数値はジャンプせず閉じるだけ、Esc で取り消す。入力欄は AppKit の NSTextField（PageNumberField）で、窓へ入った 1 周後に makeFirstResponder を呼ぶ——SwiftUI の TextField + @FocusState ではこの面で first responder が移らないことを実測で確認したため。AC #1〜#5 をすべて実機で確認済み（8 と 15 へのジャンプ、99 の拒否、Esc の取り消し）。swift test 1848 件通過、swiftlint の main との差分ゼロ。
+<!-- SECTION:FINAL_SUMMARY:END -->

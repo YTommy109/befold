@@ -18,8 +18,6 @@ import SwiftUI
 struct PDFPageIndicator: View {
     @Bindable var model: PDFPageIndicatorModel
 
-    @FocusState private var isInputFocused: Bool
-
     var body: some View {
         if model.pageCount > 0 {
             content
@@ -80,23 +78,14 @@ struct PDFPageIndicator: View {
         HStack(spacing: 2) {
             // **入力欄には地を敷く。** 敷かないと通常表示とほぼ同じ見た目になり、
             // いま打ち込めるのかが画面から分からない（実機で確認 / TASK-578.2）。
-            TextField("", text: $model.draft)
-                .textFieldStyle(.plain)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 32)
+            PageNumberField(text: $model.draft, onSubmit: model.commit, onCancel: model.cancel)
+                .frame(width: 32, height: 14)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
-                .focused($isInputFocused)
-                .onSubmit { model.commit() }
                 .accessibilityLabel(String(localized: "viewer.pdf.pageJump", bundle: .l10n))
             Text(verbatim: "/ \(model.pageCount)")
                 .foregroundStyle(.secondary)
         }
-        .task { isInputFocused = true }
-        // Esc で取り消す。**この面は AppKit がホストする `PDFView` の上に重なる
-        // SwiftUI なので、`@FocusState` だけで窓の first responder が移るかは実機で
-        // 確定できていない**（`PDFFindOverlay` の入力欄と同じ事情 / TASK-570 の Notes）。
-        .onExitCommand { model.cancel() }
     }
 }
