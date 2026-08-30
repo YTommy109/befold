@@ -128,8 +128,69 @@ enum PDFSurfaceLayout {
         return scrollView.contentView.bounds.height
     }
 
-    /// キーボードで 1 回に送る割合。少し重ねて送ると読んでいた行が画面に残る。
-    static let keyboardScrollOverlap: Double = 0.9
+    // MARK: - キーボードスクロール
+
+    /// キーボードで 1 回に送る量の種類。**割り当ては web 面と同じ**
+    /// (`viewer-src/keyboard.ts` の `resolveScrollKey`)。両面で操作を覚え直さずに済むよう
+    /// 揃えてある(TASK-577)。web 面に無いキー(← → / Page Up / Page Down / Home / End /
+    /// vi の g・G)は**こちらにも足さない**。片面だけに増やすとその時点でズレる。
+    struct KeyboardScroll: Equatable {
+        enum Step: Equatable {
+            /// Space。**いま見えている高さちょうど。** オーバーラップは掛けない。
+            case page
+            /// Shift + 矢印 / j / k。
+            case halfPage
+            /// 矢印 / j / k。
+            case line
+        }
+
+        let step: Step
+        let backwards: Bool
+    }
+
+    /// 1 行ぶんの送り(画面上の pt)。web 面の 1 行は `line-height`(既定 24 CSS px)なので、
+    /// **画面上の移動量が同じに見える**値を採る。文書座標へは倍率で割って直す
+    /// (`scrollAmount(for:in:)`)。掛けたままだと拡大するほど 1 回の移動が大きくなる。
+    static let lineScrollStep: Double = 24
+
+    /// 上下矢印。`charactersIgnoringModifiers` が返す私用領域の値で、`KeyboardEvent.key` の
+    /// `ArrowUp` / `ArrowDown` にあたる。左右は受けない(web 面が受けないため)。
+    static let upArrow = String(UnicodeScalar(UInt16(NSUpArrowFunctionKey))!)
+    static let downArrow = String(UnicodeScalar(UInt16(NSDownArrowFunctionKey))!)
+    static let leftArrow = String(UnicodeScalar(UInt16(NSLeftArrowFunctionKey))!)
+    static let rightArrow = String(UnicodeScalar(UInt16(NSRightArrowFunctionKey))!)
+
+    /// キーを送り量へ解決する。**`NSEvent` を作らずに検証できるよう純関数にしてある**
+    /// (`ZoomingPDFView.keyDown` に分岐を積むと、その表がテストから触れなくなる。
+    /// `handleMagnification` / `applyZoom` を internal にしてあるのと同じ理由 / TASK-568)。
+    ///
+    /// 見るモディファイアは **Shift だけ**。web 面も `altKey` / `ctrlKey` を見ないので、
+    /// Option+↓ は素の ↓ と同じに振る舞う。Cmd は呼び出し側が `super` へ渡す
+    /// (メニューのキーエクイバレントを奪わないため)。
+    static func keyboardScroll(forKey key: String, shift: Bool) -> KeyboardScroll? {
+        switch key {
+        case " ":
+            KeyboardScroll(step: .page, backwards: shift)
+        case downArrow, "j":
+            KeyboardScroll(step: shift ? .halfPage : .line, backwards: false)
+        case upArrow, "k":
+            KeyboardScroll(step: shift ? .halfPage : .line, backwards: true)
+        default:
+            nil
+        }
+    }
+
+    /// 送り量(文書座標・符号つき)。**向きの符号を持つのはここだけ。**
+    /// `documentView` は上下反転していないので下へ送るほど y は減る
+    /// (`scrollOffset(forFraction:room:)` の doc と同じ約束)。
+    static func scrollAmount(for scroll: KeyboardScroll, in pdfView: PDFView) -> Double {
+        let magnitude = switch scroll.step {
+        case .page: visibleHeight(of: pdfView)
+        case .halfPage: visibleHeight(of: pdfView) / 2
+        case .line: lineScrollStep / pdfView.scaleFactor
+        }
+        return scroll.backwards ? magnitude : -magnitude
+    }
 
     /// いまの回転角(0 / 90 / 180 / 270)。文書全体を回すので、先頭ページを代表として読む。
     static func rotation(of pdfView: PDFView) -> Int {

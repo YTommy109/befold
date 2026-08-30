@@ -178,8 +178,11 @@ struct PDFSurfaceLayoutTests {
         pdfView.onZoomChanged = { reported.append($0) }
         let recognizer = NSMagnificationGestureRecognizer(target: nil, action: nil)
         recognizer.magnification = 0.5
+        // 面が実際に付けた受け皿を使う。ここで作り直すと配線を見たことにならない。
+        let gesture = pdfView.gestureRecognizers
+            .compactMap { $0.target as? PDFMagnificationGesture }.first
 
-        pdfView.handleMagnification(recognizer)
+        gesture?.handle(recognizer)
 
         #expect(reported.count == 1)
         #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 1.5) < 0.0001)
@@ -228,5 +231,116 @@ struct PDFSurfaceLayoutTests {
         // 余地はページ座標で測る。ピクセル寸法(contentSize)と比べると
         // フィット表示でも余地があるように見える(倍率が magnification に乗るため)。
         #expect(PDFSurfaceLayout.verticalScrollRoom(of: pdfView) > 1)
+    }
+
+    // MARK: - キーボードスクロール（TASK-577）
+
+    /// キーと送り量の対応表。**web 面（`viewer-src/keyboard.ts` の `resolveScrollKey`）と
+    /// 同じ割り当て**であることをここで固定する。両面がズレたらここが落ちる。
+    @Test("キーと送り量の種類の対応は web 面と同じ")
+    func keyboardScrollMatchesTheWebSurface() {
+        let plain: [String: PDFSurfaceLayout.KeyboardScroll] = [
+            " ": .init(step: .page, backwards: false),
+            PDFSurfaceLayout.downArrow: .init(step: .line, backwards: false),
+            "j": .init(step: .line, backwards: false),
+            PDFSurfaceLayout.upArrow: .init(step: .line, backwards: true),
+            "k": .init(step: .line, backwards: true),
+        ]
+        let shifted: [String: PDFSurfaceLayout.KeyboardScroll] = [
+            " ": .init(step: .page, backwards: true),
+            PDFSurfaceLayout.downArrow: .init(step: .halfPage, backwards: false),
+            "j": .init(step: .halfPage, backwards: false),
+            PDFSurfaceLayout.upArrow: .init(step: .halfPage, backwards: true),
+            "k": .init(step: .halfPage, backwards: true),
+        ]
+
+        for (key, expected) in plain {
+            #expect(PDFSurfaceLayout.keyboardScroll(forKey: key, shift: false) == expected)
+        }
+        for (key, expected) in shifted {
+            #expect(PDFSurfaceLayout.keyboardScroll(forKey: key, shift: true) == expected)
+        }
+    }
+
+    /// web 面に無いキーは受けない。足すと両面がズレるため（TASK-577 で明示的に決めた）。
+    @Test("web 面に無いキーは受けない")
+    func keyboardScrollIgnoresKeysTheWebSurfaceLacks() {
+        let ignored = [
+            PDFSurfaceLayout.leftArrow, PDFSurfaceLayout.rightArrow,
+            "g", "G", "h", "l",
+            "\u{F72C}", "\u{F72D}", // Page Up / Page Down
+            "\u{F729}", "\u{F72B}", // Home / End
+        ]
+
+        for key in ignored {
+            #expect(PDFSurfaceLayout.keyboardScroll(forKey: key, shift: false) == nil)
+            #expect(PDFSurfaceLayout.keyboardScroll(forKey: key, shift: true) == nil)
+        }
+    }
+
+    /// **Space はいま見えている高さちょうどを送る。** オーバーラップは掛けない。
+    /// 縦フィットしていればページ 1 枚ぶんが送られ、書類をページ単位で読み進められる
+    /// （TASK-577。かつては 0.9 を掛けていて、押すたびにページの境目がずれていった）。
+    @Test("Space は可視高ちょうどを送る")
+    func pageStepIsTheWholeVisibleHeight() {
+        let pdfView = makeView()
+
+        let amount = PDFSurfaceLayout.scrollAmount(
+            for: .init(step: .page, backwards: false), in: pdfView
+        )
+
+        #expect(abs(amount) == PDFSurfaceLayout.visibleHeight(of: pdfView))
+    }
+
+    /// Shift 付きの矢印 / j / k は半画面。web 面の `halfPageScrollStep` に対応する。
+    @Test("Shift 付きの矢印は可視高の半分を送る")
+    func halfPageStepIsHalfTheVisibleHeight() {
+        let pdfView = makeView()
+
+        let amount = PDFSurfaceLayout.scrollAmount(
+            for: .init(step: .halfPage, backwards: false), in: pdfView
+        )
+
+        #expect(abs(amount) == PDFSurfaceLayout.visibleHeight(of: pdfView) / 2)
+    }
+
+    /// **1 行ぶんは画面上の距離で決める。** 送り量は文書座標なので、倍率で割らないと
+    /// 拡大するほど画面上の移動が大きくなる。web 面の 1 行（line-height ≈ 24 CSS px）と
+    /// 見た目の移動量を揃えるための換算（TASK-577）。
+    @Test("1 行ぶんの送りは倍率によらず画面上 24pt")
+    func lineStepStaysConstantOnScreenAcrossZoom() {
+        let pdfView = makeView()
+        var onScreen: [Double] = []
+
+        for zoom in [1.0, 2.0, 4.0] {
+            pdfView.apply(zoom: zoom)
+            pdfView.layoutSubtreeIfNeeded()
+            let amount = PDFSurfaceLayout.scrollAmount(
+                for: .init(step: .line, backwards: false), in: pdfView
+            )
+            onScreen.append(abs(amount) * pdfView.scaleFactor)
+        }
+
+        for distance in onScreen {
+            #expect(abs(distance - PDFSurfaceLayout.lineScrollStep) < 0.0001)
+        }
+    }
+
+    /// 送り量の符号は**この 1 箇所**が持つ。`documentView` は上下反転していないので
+    /// 下へ送るほど y は減る（`scrollOffset(forFraction:room:)` の doc と同じ約束）。
+    @Test("下へ送ると負、上へ送ると正になる")
+    func directionIsCarriedBySignOfTheAmount() {
+        let pdfView = makeView()
+
+        let downward = PDFSurfaceLayout.scrollAmount(
+            for: .init(step: .page, backwards: false), in: pdfView
+        )
+        let upward = PDFSurfaceLayout.scrollAmount(
+            for: .init(step: .page, backwards: true), in: pdfView
+        )
+
+        #expect(downward < 0)
+        #expect(upward > 0)
+        #expect(downward == -upward)
     }
 }
